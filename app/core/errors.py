@@ -1,0 +1,257 @@
+"""Application error hierarchy and JSON envelope handlers.
+
+Every error response has the shape (spec §25.2 — no stack traces leak):
+
+    {"error": {"code": "...", "message": "...", "request_id": "...", "details": [...]}}
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+from urllib.parse import quote
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import ValidationError as PydanticValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.core.urls import safe_next_path
+
+logger = logging.getLogger("app.errors")
+
+
+class AppError(Exception):
+    status_code: int = 400
+    code: str = "bad_request"
+    default_message: str = "Bad request"
+
+    def __init__(self, message: str | None = None, *, details: Any = None) -> None:
+        self.message = message or self.default_message
+        self.details = details
+        super().__init__(self.message)
+
+
+class UnauthorizedError(AppError):
+    status_code = 401
+    code = "unauthorized"
+    # 한국어 UI에 영어가 새지 않도록 기본 메시지도 한국어로 둔다. 세션이 실제로 만료돼
+    # get_current_auth가 인자 없이 이 에러를 올릴 때(예: /change-password 제출 중 만료)
+    # 사용자에게 그대로 보이던 'Authentication required'를 없앤다.
+    default_message = "로그인이 필요합니다. 다시 로그인해 주세요."
+
+
+class ForbiddenError(AppError):
+    status_code = 403
+    code = "forbidden"
+    # 한국어 UI에 영어가 새지 않도록 기본 메시지도 한국어로 둔다. 권한 부족 응답이
+    # 인자 없이 이 에러를 올릴 때(require_roles 등) 사용자에게 그대로 보이던
+    # 'Not allowed'를 없앤다.
+    default_message = "권한이 없습니다."
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+    default_message = "Resource not found"
+
+
+class ConflictError(AppError):
+    status_code = 409
+    code = "conflict"
+    default_message = "Conflict"
+
+
+class ValidationAppError(AppError):
+    status_code = 422
+    code = "validation_error"
+    default_message = "Invalid input"
+
+
+class RateLimitedError(AppError):
+    status_code = 429
+    code = "rate_limited"
+    default_message = "Too many requests"
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        details: Any = None,
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        # 429 화면(로그인/비밀번호 변경)의 쿨다운 카운트다운이 실제 리미터 설정과
+        # 무관한 하드코딩 상수였다 — 리미터를 재조정하면 화면 안내가 조용히 어긋난다.
+        # 호출부가 RateLimiter.retry_after_seconds()로 계산한 실제 대기 시간을 실어
+        # 보내면, register_error_handlers가 이를 응답 본문(및 Retry-After 헤더)에 싣는다.
+        super().__init__(message, details=details)
+        self.retry_after_seconds = retry_after_seconds
+
+
+_HTTP_STATUS_CODES = {
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    405: "method_not_allowed",
+    413: "payload_too_large",
+    429: "rate_limited",
+}
+
+
+def error_response(
+    request: Request,
+    *,
+    code: str,
+    message: str,
+    status_code: int,
+    details: Any = None,
+    retry_after_seconds: float | None = None,
+) -> JSONResponse:
+    body: dict[str, Any] = {
+        "error": {
+            "code": code,
+            "message": message,
+            "request_id": getattr(request.state, "request_id", None),
+        }
+    }
+    if details is not None:
+        body["error"]["details"] = details
+    if retry_after_seconds is not None:
+        body["error"]["retry_after_seconds"] = max(1, round(retry_after_seconds))
+    response = JSONResponse(status_code=status_code, content=body)
+    if retry_after_seconds is not None:
+        response.headers["Retry-After"] = str(max(1, round(retry_after_seconds)))
+    return response
+
+
+def _is_login_form_fallback(request: Request) -> bool:
+    """True only for the documented no-JS ``<form method=post action=/login
+    novalidate>`` fallback (see app/auth/router.py's ``_is_json_request``
+    docstring) — never for login.js's normal fetch() submission, which must
+    keep receiving a JSON error body it can parse without a full navigation.
+
+    The success path (auth/router.py's login()) was already fixed to answer
+    this exact case with a page redirect instead of a bare JSON body a real
+    browser navigation can't do anything with; every failure path (rate
+    limit, wrong credentials, locked/disabled/archived account, origin
+    mismatch — all raised as AppError subclasses) still fell through to this
+    generic JSON handler and left a no-JS user staring at a raw JSON dump.
+    """
+    if request.url.path != "/login" or request.method != "POST":
+        return False
+    content_type = request.headers.get("content-type", "")
+    return not content_type.startswith("application/json")
+
+
+async def _login_fallback_redirect(request: Request, code: str) -> RedirectResponse:
+    """Build the ``/login?error=<code>`` redirect for a failed no-JS ``<form>``
+    POST /login so login_page() (auth/router.py) can re-render the same
+    #login-error markup server-side.
+
+    Threads the submitted email and the safe "next" destination back so a failed
+    no-JS retry doesn't wipe the form or lose the "return to where you were"
+    redirect that login.html's hidden ``<input name="next">`` carries.
+    Request.form() is cached by Starlette after the route's _extract_credentials
+    dependency already awaited it once, so this re-read does not touch the
+    (already consumed) request stream again. Best-effort: if the body can't be
+    re-read for any reason, fall back to the plain error redirect.
+    """
+    query = f"error={code}"
+    try:
+        form = await request.form()
+        submitted_email = str(form.get("email", "")).strip()
+        submitted_next = safe_next_path(str(form.get("next", "")))
+    except Exception:
+        submitted_email = ""
+        submitted_next = None
+    if submitted_email:
+        query += f"&email={quote(submitted_email)}"
+    if submitted_next:
+        query += f"&next={quote(submitted_next)}"
+    return RedirectResponse(f"/login?{query}", status_code=303)
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def _app_error(request: Request, exc: AppError):
+        if _is_login_form_fallback(request):
+            return await _login_fallback_redirect(request, exc.code)
+        return error_response(
+            request,
+            code=exc.code,
+            message=exc.message,
+            status_code=exc.status_code,
+            details=exc.details,
+            retry_after_seconds=getattr(exc, "retry_after_seconds", None),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        code = _HTTP_STATUS_CODES.get(exc.status_code, "http_error")
+        return error_response(
+            request, code=code, message=str(exc.detail), status_code=exc.status_code
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # Field locations and messages only — never echo submitted values back.
+        details = [
+            {"loc": [str(part) for part in err.get("loc", [])], "msg": err.get("msg", "")}
+            for err in exc.errors()
+        ]
+        return error_response(
+            request,
+            code="validation_error",
+            message="Invalid request data",
+            status_code=422,
+            details=details,
+        )
+
+    @app.exception_handler(PydanticValidationError)
+    async def _model_validation_error(
+        request: Request, exc: PydanticValidationError
+    ) -> JSONResponse:
+        # FastAPI만 RequestValidationError(요청 바디 자체)를 자동으로 422로 바꿔 준다 —
+        # 서비스 코드가 병합된 dict를 직접 SomeModel.model_validate(...)로 재검증하다 실패하는
+        # pydantic.ValidationError는 여기 걸리지 않으면 그냥 Exception으로 떨어져 무조건 500이 된다
+        # (예: PATCH로 필드를 null로 비웠는데 그 모델이 Optional을 허용 안 하는 계약 실수). 값은
+        # 절대 되돌려주지 않는다(위와 동일한 원칙).
+        details = [
+            {"loc": [str(part) for part in err.get("loc", [])], "msg": err.get("msg", "")}
+            for err in exc.errors()
+        ]
+        logger.warning(
+            "model validation error request_id=%s errors=%s",
+            getattr(request.state, "request_id", None),
+            details,
+        )
+        return error_response(
+            request,
+            code="validation_error",
+            message="Invalid request data",
+            status_code=422,
+            details=details,
+        )
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception):
+        logger.exception(
+            "unhandled error request_id=%s", getattr(request.state, "request_id", None)
+        )
+        # A no-JS <form> POST /login that hits a genuinely unexpected 500 used to
+        # get raw JSON here (unlike every AppError failure path, which redirects
+        # via _app_error). A real browser navigation can't consume a bare JSON
+        # body, so the no-JS user saw a JSON dump instead of a rendered Korean
+        # error page. Route it through the same fallback redirect; login_page()
+        # renders _LOGIN_ERROR_MESSAGES["internal_error"].
+        if _is_login_form_fallback(request):
+            return await _login_fallback_redirect(request, "internal_error")
+        return error_response(
+            request,
+            code="internal_error",
+            message="Internal server error",
+            status_code=500,
+        )

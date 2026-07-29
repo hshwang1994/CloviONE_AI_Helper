@@ -1,0 +1,266 @@
+/* Base layout and shared components. No external fonts (spec §24.1). */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-stack);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+}
+
+/* 비밀번호 변경처럼 로그인의 히어로/그라디언트 장식 없이 이 카드 하나만 뜨는 화면은
+   넓은 화면에서 밋밋한 유틸리티 페이지처럼 보인다(§ 로그인 대비 급격한 톤 하락).
+   전체 재구성 없이, 카드 자체에 이미 있는 상단바 브랜드 그라디언트를 얇은 강조선으로만
+   빌려 온다 — 새 색이 아니라 이미 로그인 화면 위에서 검증된 --g-topbar 하나뿐이라
+   테마별로 다시 대비를 맞출 필요가 없다. */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--g-topbar);
+}
+
+/* 로그인 다음에 오는 화면(비밀번호 변경)이라 같은 언어로 보여야 한다. 브랜드의 기본 모서리는
+   10px이고 로그인의 입력창과 버튼도 그렇다. 로그인의 장식(그라디언트 버튼, 히어로, 세리프)은
+   가져오지 않는다 — 그것은 브랜드가 말하는 자리의 것이다. 여기서는 모서리만 맞춘다.
+   업무 화면(채팅 전송 버튼, 관리자 모달)이 공유하는 .field/.btn-primary는 건드리지 않도록
+   auth-card 안으로 한정한다. 업무 화면은 밀도가 우선이라 6px를 유지한다. */
+.auth-card .field input,
+.auth-card .btn-primary { border-radius: var(--radius-md); }
+
+/* 워드마크는 이제 인라인 SVG다(_wordmark.html). 글자가 currentColor를 따르므로 놓인 면의
+   색을 여기서 정한다 — 파일을 골라 끼우던 시절엔 면이 바뀔 때마다 틀렸다. */
+.auth-logo { height: 28px; width: auto; margin-bottom: 20px; display: block; color: var(--color-text); }
+.auth-logo .wordmark-sub { fill: var(--color-muted); }
+
+.auth-card h1 { font-size: 20px; margin: 0 0 6px; }
+
+.auth-subtitle { color: var(--color-muted); font-size: 13px; margin: 0 0 20px; }
+
+/* 이 화면들의 회복·탈출 링크(← 돌아가기, 재발급 요청 mailto)는 login.css가 로드되지 않는
+   곳에서도 보여야 한다. UA 기본 링크색(#00E/보라)은 다크 카드(#141B34) 위 ~1.3:1로 사실상
+   안 보였고 라이트에서도 AA 미달이었다. primary-strong는 라이트(흰 카드)·다크(#141B34 카드)
+   양쪽에서 AA를 넘는다(각각 6+, 5.27). 색만 쓰지 않도록 밑줄을 함께 둔다. */
+.auth-card a {
+  color: var(--color-primary-strong);
+  text-decoration: underline;
+}
+.auth-card a:hover { text-decoration: none; }
+
+.field { margin-bottom: 14px; }
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+/* 브랜드는 입력창 포커스에 primary가 아니라 그 옅은 쪽을 쓴다(--bd-input-focus).
+   로그인의 .input-wrap:focus-within과 같은 의도이며, 값은 토큰 하나만 본다.
+   primary-soft는 흰 배경 대비 3.2 — 글자색으로는 못 쓰지만 초점 표시 기준(3:1)은 넘는다.
+   admin.css의 모달 입력창도 같은 값을 쓴다. */
+.field input:focus {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 1px;
+  border-color: var(--color-primary-soft);
+}
+
+/* change_password.js는 실패한 칸마다 aria-invalid="true"를 건다(스크린리더용) — 시각
+   신호가 없으면 여러 칸이 겹친 폼에서 어느 칸이 오류인지 다시 오류 문구를 읽고 짐작해야
+   한다. 붉은 테두리로 스크린리더가 이미 받는 신호를 눈에도 보이게 맞춘다. */
+.field input[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+/* login.html은 .field가 아니라 .input-wrap(아이콘+입력+토글을 감싸는 테두리 상자)에
+   테두리를 그린다 — 실제 <input>은 login.css에서 border:none이라 input 자체에 색을
+   줘도 안 보인다. 위 규칙은 이 구조를 못 잡아 로그인 실패 시 aria-invalid는 걸리는데도
+   (login.js) 시각 신호가 전혀 없었다(청각 신호만 스크린리더에 감). login.css를 건드리지
+   않고도 여기서 적용되도록 :has()를 쓴다 — change_password.css가 이미 같은 선택자를
+   쓰므로 지원 기준은 새로 늘지 않는다. 특이도(0,2,1)가 .input-wrap:focus-within/:hover
+   (0,2,0)보다 높아 포커스·hover 중에도 오류 테두리가 밀리지 않는다. */
+.input-wrap:has(input[aria-invalid="true"]) {
+  border-color: var(--color-error);
+}
+
+/* 글자는 primary 배경 위에 얹히므로 --color-on-primary를 쓴다. 다크에서 primary가 밝아지면
+   흰 글자는 3.24로 AA에 미달하고, 이 토큰은 그때 잉크로 뒤집혀 5.24를 낸다. */
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 브랜드에는 hover용 색이 따로 있다(primary-strong, 더 짙다). brightness()는 색을 밝히는
+   방향이라 다크 테마에선 이미 밝은 primary를 더 밝혀 흰 글자의 대비를 깎았다. */
+.btn-primary:hover { background: var(--color-primary-strong); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-block { width: 100%; margin-top: 6px; }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 52px;
+}
+.btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* 강제 변경 화면의 '다른 계정으로 로그인'은 login.css의 .input-wrap 안 칩과 달리 홀로 선다.
+   base의 .btn-ghost는 세로 패딩이 0이라 ~21px짜리 눌린 칩처럼 보였다 — auth-card 안에서만
+   실제 세로 크기와 폭을 줘, 위의 btn-block primary와 짝이 맞는 2차 액션으로 읽히게 한다. */
+.auth-card .btn-ghost {
+  width: 100%;
+  padding: 10px 12px;
+  min-height: 40px;
+}
+
+/* 비밀번호 표시 토글은 입력 필드가 아니라 보조 컨트롤이다 — .field label의 굵은 블록
+   스타일을 물려받으면 또 하나의 필드처럼 보인다. 인라인·보통 굵기·옅은 색으로 낮춘다. */
+.field label.field-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+/* 이 토글의 감싸는 줄(.field-toggle-row)은 실제 입력 필드가 아니다 — 위 세 칸과 같은
+   .field 위/아래 여백을 그대로 물려받으면 시각적으로 '네 번째 필드'처럼 읽힌다(로그인
+   화면은 필드마다 인라인 토글이 있어 이 문제가 없다). 위 여백을 좁혀 바로 위 칸에 붙이고
+   아래 여백도 줄여, '이 위 칸들의 표시 여부를 바꾸는 보조 컨트롤'이라는 관계가 보이게 한다. */
+.field-toggle-row {
+  margin-top: -6px;
+  margin-bottom: 10px;
+}
+
+/* 비밀번호 관리자용 username(이메일)은 화면엔 필요 없지만 DOM엔 있어야 저장된 자격 증명을
+   갱신한다. display:none은 일부 관리자가 무시하므로 화면 밖으로 치운다(포커스 불가). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Caps Lock 경고(로그인/비밀번호 변경). #login-error/.form-error와 같은 이유로 자리를
+   미리 잡는다 — hidden 속성을 display:none으로 그냥 두면 타이핑 중 켜짐/꺼짐이 바뀔
+   때마다(거의 매 keydown/keyup) 아래 제출 버튼이 위아래로 튄다. visibility로 숨겨
+   레이아웃엔 항상 자리를 남긴다. */
+.caps-hint { color: var(--color-error); font-size: 12px; margin: 6px 0 0; min-height: 15px; }
+.caps-hint[hidden] { display: block; visibility: hidden; }
+
+.form-error {
+  color: var(--color-error);
+  font-size: 13px;
+  min-height: 18px;
+  margin: 8px 0;
+}
+
+/* 붉은 한 줄은 놓치기 쉽다 — 내용이 있을 때만 배경을 깔아 눈에 띄게 한다(로그인의
+   #login-error와 같은 처리). 비었을 땐 자리만 잡아 레이아웃이 흔들리지 않는다.
+   비밀번호 변경 화면은 여러 줄의 정책 위반 목록을 여기 렌더하므로 특히 필요하다. */
+.form-error:not(:empty) {
+  background: var(--badge-error-bg);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-weight: 500;
+}
+
+/* 되돌릴 수 없는 성공 확인(비밀번호 변경 완료)은 옅은 도움말과 구분되게 성공 색으로 강조한다. */
+.auth-success { color: var(--badge-success-fg); font-weight: 500; }
+
+/* 비밀번호 변경 화면의 정책 규칙 줄(#cp-policy)은 바로 위 인사말과 같은 .auth-subtitle
+   스타일이라 한 문장처럼 읽혔다 — 실제 지켜야 할 규칙임을 옅은 배경 박스로 구분한다.
+   왼쪽 색상 바(border-left accent) 대신 사방 테두리를 써 강조 막대처럼 보이지 않게 한다. */
+.cp-tip {
+  background: var(--badge-info-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+/* 실시간 비밀번호 규칙 체크리스트(#cp-rules)는 지금까지 ✓/· 기호로만 충족 여부를 알렸다
+   (색맹 안전을 위해 기호가 1차 신호다). 여기에 색을 2차 신호로 더해 충족된 줄이 눈에
+   더 잘 띄게 한다 — 기호는 그대로 두고 색만 보조한다. */
+.cp-rule--met { color: var(--badge-success-fg); }
+.cp-rule--pending { color: var(--color-muted); }
+
+/* #cp-rules는 입력하는 동안 0~4줄 사이를 오가며 채워진다(JS: change_password.js
+   renderRules). 자리를 미리 잡아 두지 않으면 매 키 입력마다 아래 확인 비밀번호 칸·
+   Caps Lock 힌트·제출 버튼이 밀려 내려가는 레이아웃 흔들림이 생긴다. 다만 최대 줄 수(4)
+   기준으로 6em을 예약하면 아무것도 입력하지 않은 상태에서 새 비밀번호 칸과 그 아래
+   사이에 설명 없는 6줄짜리 빈 공백이 남는다. 항상 보이는 기본 규칙 2줄(길이·문자 종류)
+   기준으로만 자리를 잡고(2줄 × line-height 1.5 × 13px ≈ 3em), 조건부 규칙 2줄
+   (기존과 다름 / 확인 일치)은 실제로 해당될 때만 늘어나게 둔다. */
+#cp-rules { min-height: 3em; }
+
+.server-status { color: var(--color-muted); font-size: 12px; margin: 14px 0 0; }
+/* login.js는 서버 연결/느린 응답 문제를 감지하면 #server-status에 .is-error를 토글한다
+   (serverStatus.classList.toggle("is-error", ...)). 이 클래스에 시각 규칙이 없으면 오류
+   문구가 평상시와 똑같은 옅은 회색 12px로 나가 눈에 띄지 않는다 — #login-error/.form-error와
+   같은 오류 색·굵기로 실제로 두드러지게 한다. */
+.server-status.is-error { color: var(--color-error); font-weight: 500; }
+
+/* 로그인의 panel-foot/hero-foot와 같은 저작권 한 줄. auth-card를 쓰는 화면이면 어디서든
+   같은 모양이 나오도록 base.css에 둔다(round28 감사 E) — login.css/change_password.css는
+   건드리지 않는다. 로그인은 넓은 화면에서 히어로 패널 옆에 있어 시선이 분산되지만,
+   비밀번호 변경처럼 카드 하나만 뜨는 화면은 이 한 줄이 없으면 브랜드가 뚝 끊긴 것처럼
+   보인다 — auth-card::before의 브랜드 그라디언트 강조선과 짝을 이루는 하단 마감이다. */
+.auth-foot {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-align: center;
+  margin: 20px 0 0;
+}

@@ -1,0 +1,26 @@
+{
+  "generated_by": "00-precheck.sh",
+  "hostname": "ai-n8n-svr",
+  "kernel": "Linux ai-n8n-svr 6.8.0-134-generic #134-Ubuntu SMP PREEMPT_DYNAMIC Fri Jun 26 18:43:11 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "python_version": "Python 3.12.3",
+  "nproc": "4",
+  "mem_available_kb": "6868524",
+  "dns_resolves_to": "10.100.64.71",
+  "dns_expected": "10.100.64.71",
+  "pypi_reachable": true,
+  "apt_ok": false,
+  "existing_clovirone_web_install": false,
+  "clovirone_web_user": "absent",
+  "services": [{"unit":"n8n","active":"active","user":"n8n","exec":"/usr/local/bin/n8n","env_file_path":"/etc/n8n/n8n.env","restart":"on-failure"},{"unit":"claude-work-assistant","active":"active","user":"n8n","exec":"/usr/bin/python3","env_file_path":"/etc/claude-ticket-runner/runner.env","restart":"on-failure"},{"unit":"claude-ticket-runner","active":"active","user":"n8n","exec":"/usr/bin/python3","env_file_path":"/etc/claude-ticket-runner/runner.env","restart":"on-failure"},{"unit":"claude-request-interpreter","active":"active","user":"n8n","exec":"/usr/bin/python3","env_file_path":"/etc/claude-ticket-runner/runner.env","restart":"on-failure"}],
+  "ports": {
+    "80": ""
+    ,"443": ""
+    ,"8080": ""
+    ,"5678": "LISTEN 0      511        127.0.0.1:5678      0.0.0.0:*    users:((\"node\",pid=4300,fd=22))                        "
+    ,"8787": "LISTEN 0      5          127.0.0.1:8787      0.0.0.0:*    users:((\"python3\",pid=17003,fd=3))                     "
+    ,"8788": "LISTEN 0      5          127.0.0.1:8788      0.0.0.0:*    users:((\"python3\",pid=17978,fd=3))                     "
+    ,"8789": "LISTEN 0      5          127.0.0.1:8789      0.0.0.0:*    users:((\"python3\",pid=24435,fd=3))                     "
+  },
+  "stop": 0,
+  "warn": 0
+}

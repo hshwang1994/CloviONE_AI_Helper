@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" aria-label="ClovirONE symbol">
+  <!-- 어두운 그라디언트 상단바 위에 얹는 마크. 컬러 마크(clovirone-mark.svg)는 브랜드
+       인디고 4색이라 같은 계열 배경 위에서 형태가 뭉개진다.
+       불투명도 단계는 디자인 시스템(ui_kit/Dashboard.html)의 상단바 로고와 같은 값이다. -->
+  <rect x="0" y="0" width="9" height="9" rx="1.5" fill="#FFFFFF"></rect>
+  <rect x="11" y="0" width="9" height="9" rx="1.5" fill="#FFFFFF" opacity=".82"></rect>
+  <rect x="0" y="11" width="9" height="9" rx="1.5" fill="#FFFFFF" opacity=".68"></rect>
+  <rect x="11" y="11" width="9" height="9" rx="1.5" fill="#FFFFFF" opacity=".54"></rect>
+</svg>

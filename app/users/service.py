@@ -1,0 +1,375 @@
+"""User service layer — shared by web admin API and the CLI (spec §29)."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.config import Settings
+from app.core.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationAppError,
+)
+from app.core.security import (
+    generate_temp_password,
+    hash_password,
+    validate_password_policy,
+)
+from app.core.models_base import utcnow
+from app.core.sessions import SessionService
+from app.org.models import Department, JobTitle
+from app.org.service import resolve_assignable
+from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
+
+
+class _Unset:
+    """'보내지 않음'과 '비우라고 보냄(None)'을 구분하는 표식. 부서·직책은 None이
+    "부서 없음"이라는 유효한 값이라, None 하나로는 두 뜻을 담을 수 없다."""
+
+
+UNSET = _Unset()
+
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def validate_company_email(
+    email: str, settings: Settings, *, allowed_domains: list[str] | None = None
+) -> None:
+    domains = allowed_domains if allowed_domains else settings.allowed_email_domain_list
+    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    if not domain or domain not in domains:
+        allowed = ", ".join(domains)
+        raise ValidationAppError(f"회사 이메일 도메인({allowed})만 사용할 수 있습니다.")
+
+
+class ArchivedEmailConflictError(ConflictError):
+    """이메일은 유일 제약이라 보관된 계정이 그 주소를 계속 쥐고 있다. 그냥 '이미 등록된
+    이메일입니다'라고만 하면, 목록 어디에도 없는 계정 때문에 막힌 사용자는 이유를 알
+    방법이 없다 — 무엇이 막고 있는지와 다음 행동(복구)을 함께 알린다."""
+
+    code = "archived_email_conflict"
+    default_message = "그 이메일은 보관된 계정이 쓰고 있습니다. 복구하시겠습니까?"
+
+
+def get_user_by_email(db: Session, email: str) -> User | None:
+    return db.execute(
+        select(User).where(User.email == normalize_email(email))
+    ).scalar_one_or_none()
+
+
+def create_user(
+    db: Session,
+    *,
+    email: str,
+    display_name: str,
+    password: str,
+    settings: Settings,
+    role: str = "user",
+    active: bool = True,
+    must_change_password: bool = True,
+    department_id: str | None = None,
+    title_id: str | None = None,
+    created_by: str | None = None,
+    enforce_password_policy: bool = True,
+    effective_settings: dict | None = None,
+) -> User:
+    email = normalize_email(email)
+    if not display_name.strip():
+        raise ValidationAppError("이름을 입력해야 합니다.")
+    if role not in ALL_ROLES:
+        raise ValidationAppError(f"알 수 없는 역할입니다: {role}")
+
+    eff = effective_settings or {}
+    if "allowed_email_domains" in eff:
+        # 설정에 명시된 값을 그대로 존중한다. 빈 목록([])은 '도메인 제한 없음'을 뜻하므로
+        # 회사 이메일 검사를 건너뛴다(Settings 화면 안내·registry 검증기와 일치).
+        configured = [d.strip().lower() for d in (eff.get("allowed_email_domains") or [])]
+        if configured:
+            validate_company_email(email, settings, allowed_domains=configured)
+    else:
+        # effective_settings가 없는 경로(예: 일부 CLI)는 env 기본 도메인으로 검사한다.
+        validate_company_email(email, settings)
+    if enforce_password_policy:
+        policy = eff.get("password_policy") or {}
+        problems = validate_password_policy(
+            password,
+            min_length=policy.get("min_length", 12),
+            min_classes=policy.get("min_classes", 3),
+        )
+        if problems:
+            raise ValidationAppError("비밀번호 정책 위반", details=problems)
+    existing = get_user_by_email(db, email)
+    if existing is not None:
+        if existing.archived_at is not None:
+            raise ArchivedEmailConflictError(
+                details={"archived_user_id": existing.id, "email": existing.email}
+            )
+        raise ConflictError("이미 등록된 이메일입니다.")
+
+    user = User(
+        email=email,
+        display_name=display_name.strip(),
+        role=role,
+        active=active,
+        password_hash=hash_password(password),
+        must_change_password=must_change_password,
+        # 명부에 없는 id나 비활성 항목을 그대로 쓰면 FK 위반이 500으로 터진다.
+        department_ref=resolve_assignable(db, Department, department_id),
+        title_ref=resolve_assignable(db, JobTitle, title_id),
+        created_by=created_by,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+def get_user_or_404(db: Session, user_id: str) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise NotFoundError("사용자를 찾을 수 없습니다.")
+    return user
+
+
+def user_snapshot(user: User) -> dict:
+    """Audit-safe snapshot — the password hash is never included."""
+    return {
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "active": user.active,
+        "must_change_password": user.must_change_password,
+        "department": user.department,
+        "title": user.title,
+        "archived_at": user.archived_at.isoformat() if user.archived_at else None,
+    }
+
+
+def count_active_system_admins(db: Session, *, exclude_user_id: str | None = None) -> int:
+    """보관된 계정은 세지 않는다. 보관은 active 플래그를 건드리지 않으므로(복구 시
+    원래 상태로 돌아와야 한다), 여기서 빼지 않으면 '보관돼서 로그인도 못 하는
+    system_admin'이 마지막 관리자 자리를 채우고 있는 것으로 세어져, 진짜 마지막
+    관리자를 비활성화·강등하는 문이 열린다."""
+    stmt = (
+        select(func.count())
+        .select_from(User)
+        .where(
+            User.role == ROLE_SYSTEM_ADMIN,
+            User.active.is_(True),
+            User.archived_at.is_(None),
+        )
+    )
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+    return db.execute(stmt).scalar_one()
+
+
+def ensure_not_last_system_admin(db: Session, user: User) -> None:
+    """Block disabling/archiving/demoting the only active system_admin (spec §32.8)."""
+    if user.role != ROLE_SYSTEM_ADMIN or not user.active:
+        return
+    if count_active_system_admins(db, exclude_user_id=user.id) == 0:
+        raise ConflictError(
+            "마지막 system_admin 계정은 비활성화·보관하거나 역할을 변경할 수 없습니다."
+        )
+
+
+def ensure_can_manage_target(actor_role: str, target: User) -> None:
+    """Authority boundary for account-lifecycle mutations (reset-password,
+    enable/disable, unlock, revoke-sessions, profile edits): a non-system_admin
+    may not act on a system_admin account. Prevents a plain admin from taking
+    over a higher-privileged account (e.g. resetting its password and logging
+    in). Enforced in the service layer so the HTTP routers, the CLI, and any
+    approval executor are all covered."""
+    if target.role == ROLE_SYSTEM_ADMIN and actor_role != ROLE_SYSTEM_ADMIN:
+        raise ForbiddenError("system_admin 계정은 system_admin만 관리할 수 있습니다.")
+
+
+def update_user(
+    db: Session,
+    user: User,
+    *,
+    session_service: SessionService,
+    actor_role: str,
+    display_name: str | None = None,
+    department_id: str | None | _Unset = UNSET,
+    title_id: str | None | _Unset = UNSET,
+    role: str | None = None,
+    must_change_password: bool | None = None,
+) -> User:
+    ensure_can_manage_target(actor_role, user)
+    if display_name is not None:
+        if not display_name.strip():
+            raise ValidationAppError("이름은 비울 수 없습니다.")
+        user.display_name = display_name.strip()
+    # 부서·직책만 None이 뜻을 갖는다: "부서 없음"은 유효한 값이라 '안 보냄'과 구분해야
+    # 한다(다른 필드는 None=안 보냄이면 충분하다). router가 exclude_unset으로 걸러
+    # 보내므로, 여기 도달한 None은 명시적으로 비우라는 요청이다.
+    # 이미 이 사용자에게 배정된 항목이면 그 사이 비활성으로 바뀌었어도 재전송을
+    # 허용한다 — 안 그러면 비활성 직책/부서를 가진 사용자를 편집(이름 변경 등)할 때
+    # 폼이 같은 id를 다시 보내는 것만으로 저장이 막힌다. 새 비활성 항목 지정은 여전히 거부.
+    if department_id is not UNSET:
+        user.department_ref = resolve_assignable(
+            db, Department, department_id, allow_current=user.department_id
+        )
+    if title_id is not UNSET:
+        user.title_ref = resolve_assignable(
+            db, JobTitle, title_id, allow_current=user.title_id
+        )
+    if must_change_password is not None:
+        user.must_change_password = must_change_password
+    if role is not None and role != user.role:
+        if role not in ALL_ROLES:
+            raise ValidationAppError(f"알 수 없는 역할입니다: {role}")
+        ensure_not_last_system_admin(db, user)
+        user.role = role
+        # Privilege change invalidates existing sessions.
+        session_service.revoke_all_for_user(db, user.id)
+    db.flush()
+    return user
+
+
+def set_user_active(
+    db: Session,
+    user: User,
+    active: bool,
+    *,
+    session_service: SessionService,
+    actor_role: str,
+) -> User:
+    ensure_can_manage_target(actor_role, user)
+    if user.active == active:
+        return user
+    if not active:
+        ensure_not_last_system_admin(db, user)
+    user.active = active
+    if not active:
+        # Spec §11.5: 비활성화 시 기존 세션 즉시 폐기.
+        session_service.revoke_all_for_user(db, user.id)
+        _disable_owned_schedules(db, user.id)
+    db.flush()
+    return user
+
+
+def ensure_not_self(actor_id: str | None, user: User) -> None:
+    """자기 자신은 보관할 수 없다. 보관하는 순간 자기 세션이 끊기고, 보관된 계정은
+    목록에서 사라지므로 스스로를 되돌릴 사람이 화면 안에 아무도 없게 된다."""
+    if actor_id is not None and actor_id == user.id:
+        raise ConflictError("자기 자신의 계정은 보관할 수 없습니다. 다른 관리자에게 요청하세요.")
+
+
+def archive_user(
+    db: Session,
+    user: User,
+    *,
+    session_service: SessionService,
+    actor_role: str,
+    actor_id: str | None = None,
+    now: datetime | None = None,
+) -> User:
+    """계정을 보관한다 — 행은 남기고 목록·검색·로그인에서만 뺀다(삭제 아님).
+
+    수명주기 변경이므로 disable과 같은 안전장치를 전부 거친다: 권한 경계
+    (ensure_can_manage_target), 마지막 system_admin 보호, 자기 자신 금지.
+    ``active``는 건드리지 않는다 — 복구했을 때 보관 전 상태로 정확히 돌아와야 한다.
+    """
+    ensure_can_manage_target(actor_role, user)
+    ensure_not_self(actor_id, user)
+    if user.archived_at is not None:
+        return user  # 멱등: 이미 보관됨
+    ensure_not_last_system_admin(db, user)
+    user.archived_at = now or utcnow()
+    # 보관은 '되돌릴 수 있는 퇴사 처리'다 — 로그인만 막고 이미 열린 세션을 살려 두면
+    # 감춘 시늉만 한 것이 된다(§11.5의 비활성화와 같은 이유).
+    session_service.revoke_all_for_user(db, user.id)
+    _disable_owned_schedules(db, user.id)
+    db.flush()
+    return user
+
+
+def unarchive_user(
+    db: Session,
+    user: User,
+    *,
+    actor_role: str,
+) -> User:
+    """보관을 되돌린다. active는 보관 때 건드리지 않았으므로 그대로 돌아온다 —
+    보관 전에 비활성이던 계정은 비활성인 채로 복구된다(없던 권한을 주지 않는다)."""
+    ensure_can_manage_target(actor_role, user)
+    user.archived_at = None
+    db.flush()
+    return user
+
+
+def _disable_owned_schedules(db: Session, user_id: str) -> int:
+    """Spec §11.5: a deactivated user's enabled schedules must not keep firing.
+    Disable them so an admin can reassign/re-enable deliberately."""
+    from app.schedules.models import Schedule
+
+    rows = db.execute(
+        select(Schedule).where(
+            Schedule.owner_user_id == user_id, Schedule.enabled.is_(True)
+        )
+    ).scalars().all()
+    for schedule in rows:
+        schedule.enabled = False
+        schedule.next_run_at = None
+    db.flush()
+    return len(rows)
+
+
+def admin_reset_password(
+    db: Session,
+    user: User,
+    *,
+    session_service: SessionService,
+    actor_role: str,
+    new_password: str | None = None,
+    effective_settings: dict | None = None,
+    now: datetime | None = None,
+) -> str:
+    """Reset to a temp (or given) password. Returns the plaintext exactly once."""
+    ensure_can_manage_target(actor_role, user)
+    if new_password is not None:
+        policy = (effective_settings or {}).get("password_policy") or {}
+        problems = validate_password_policy(
+            new_password,
+            min_length=policy.get("min_length", 12),
+            min_classes=policy.get("min_classes", 3),
+        )
+        if problems:
+            raise ValidationAppError("비밀번호 정책 위반", details=problems)
+        password = new_password
+    else:
+        password = generate_temp_password()
+    user.password_hash = hash_password(password)
+    user.must_change_password = True
+    user.failed_login_count = 0
+    user.locked_until = None
+    session_service.revoke_all_for_user(db, user.id)
+    # spec §13.5의 '비밀번호 만료/변경 요청' 알림 유형 — 재발급으로 must_change_password가
+    # 켜지는 시점(그 대상 본인)에 보낸다. 세션을 이미 전부 폐기했으니 다음 로그인 때
+    # 임시 비밀번호로 들어와서야 이 알림을 보게 된다(그 자체가 안내 역할을 한다).
+    from app.notifications.service import notify_user
+
+    notify_user(
+        db, user.id, type_="password_change_required",
+        title="비밀번호 변경이 필요합니다",
+        body="관리자가 비밀번호를 재발급했습니다. 다음 로그인 시 새 비밀번호로 변경해 주세요.",
+        now=now or utcnow(),
+    )
+    db.flush()
+    return password
+
+
+def unlock_user(db: Session, user: User, *, actor_role: str) -> User:
+    ensure_can_manage_target(actor_role, user)
+    user.locked_until = None
+    user.failed_login_count = 0
+    db.flush()
+    return user

@@ -1,0 +1,33 @@
+[Unit]
+Description=ClovirONE Web Assistant API/UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clovirone-web
+Group=clovirone-web
+WorkingDirectory=/opt/clovirone-web-assistant
+EnvironmentFile=/etc/clovirone-web-assistant/web.env
+ExecStart=/opt/clovirone-web-assistant/venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8080 --workers 1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirone-web-assistant
+
+[Install]
+WantedBy=multi-user.target

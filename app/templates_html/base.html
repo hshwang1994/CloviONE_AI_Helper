@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ClovirONE 업무 도우미{% endblock %}</title>
+  <link rel="icon" href="{{ asset('/static/img/clovirone-mark.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/static/css/base.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block content %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "_comment": "SSRF allowlist for outbound HTTP to integration services (spec §25.3). Exact host:port matches only; http/https only. Production copy lives in /etc/clovirone-web-assistant/.",
+  "hosts": [
+    "127.0.0.1:5678",
+    "127.0.0.1:8787",
+    "127.0.0.1:8788",
+    "127.0.0.1:8789",
+    "localhost:5678",
+    "localhost:8787",
+    "localhost:8788",
+    "localhost:8789",
+    "api.notion.com:443"
+  ]
+}

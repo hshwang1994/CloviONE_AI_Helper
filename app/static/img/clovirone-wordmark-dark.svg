@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 28" width="210" height="28" aria-label="ClovirONE 업무 도우미">
+  <g transform="translate(0,2)">
+    <rect x="0" y="0" width="10" height="10" rx="2" fill="#536CD6"></rect>
+    <rect x="12" y="0" width="10" height="10" rx="2" fill="#758AE1"></rect>
+    <rect x="0" y="12" width="10" height="10" rx="2" fill="#8E75E1"></rect>
+    <rect x="12" y="12" width="10" height="10" rx="2" fill="#435CBE"></rect>
+  </g>
+  <text x="32" y="20" font-family="Pretendard, 'Pretendard Variable', -apple-system, 'Segoe UI', sans-serif" font-weight="800" font-size="18" fill="#141B34" letter-spacing="-0.3">ClovirONE <tspan font-weight="300" font-size="12" fill="#909090">업무 도우미</tspan></text>
+</svg>

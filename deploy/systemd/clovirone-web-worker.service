@@ -1,0 +1,39 @@
+[Unit]
+Description=ClovirONE Web Assistant Background Worker (jobs + scheduler)
+After=network-online.target clovirone-web-assistant.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clovirone-web
+Group=clovirone-web
+WorkingDirectory=/opt/clovirone-web-assistant
+EnvironmentFile=/etc/clovirone-web-assistant/web.env
+ExecStart=/opt/clovirone-web-assistant/venv/bin/python -m app.worker_main
+Restart=on-failure
+RestartSec=3
+# Graceful shutdown: stop claiming new jobs and finish the in-flight one, then
+# exit (spec §26.2). 200s covers the common jobs (n8n chat timeout 180s). A rare
+# long schedule job (timeout up to 3600s) is SIGKILLed at this deadline and then
+# recovered by the stuck-job sweeper on restart (recover_stuck, 3900s cutoff) —
+# a deliberate trade-off to keep restarts/upgrades from stalling up to an hour.
+KillSignal=SIGTERM
+TimeoutStopSec=200
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirone-web-assistant
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+{
+  "_comment": "Feature flags (spec §14.4). Changed via admin settings UI by system_admin.",
+  "maintenance_mode": false,
+  "document_automation_enabled": true,
+  "limited_service_actions_enabled": false,
+  "self_approval_allowed": false,
+  "board_enabled": true,
+  "team_docs_enabled": true,
+  "games_enabled": true,
+  "game_ai_enabled": false
+}

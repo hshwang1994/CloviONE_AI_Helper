@@ -1,0 +1,475 @@
+"""Admin user management API (spec §11.4, §14.2, §23.3)."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from app.auth.models import UserSession
+from app.core.audit import record_audit_from_request
+from app.core.deps import get_db, require_csrf, require_roles
+from app.core.errors import ValidationAppError
+from app.core.pagination import PageParams
+from app.users.models import ALL_ROLES, User
+from app.users.schemas import ResetPasswordRequest, UserCreateRequest, UserUpdateRequest
+from app.users.service import (
+    admin_reset_password,
+    archive_user,
+    create_user,
+    ensure_can_manage_target,
+    get_user_or_404,
+    set_user_active,
+    unarchive_user,
+    unlock_user,
+    update_user,
+    user_snapshot,
+)
+
+router = APIRouter(
+    prefix="/api/admin/users",
+    tags=["admin-users"],
+    dependencies=[Depends(require_roles("admin", "system_admin")), Depends(require_csrf)],
+)
+
+
+def _user_row(user: User, now, *, notion_status: str = "unmapped") -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "active": user.active,
+        "must_change_password": user.must_change_password,
+        # 이름은 표에 보여 주기 위해, id는 수정 폼이 '지금 값'을 고를 수 있게 하기 위해
+        # 함께 내보낸다(둘 중 하나만 있으면 화면 어느 한쪽이 동작하지 않는다).
+        "department": user.department,
+        "title": user.title,
+        "department_id": user.department_id,
+        "title_id": user.title_id,
+        "locked": bool(user.locked_until and user.locked_until > now),
+        "archived_at": user.archived_at.isoformat() if user.archived_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "created_at": user.created_at.isoformat(),
+        "notion_mapping_status": notion_status,
+    }
+
+
+def _notion_status_map(db: Session, user_ids: list[str]) -> dict[str, str]:
+    from app.notion_mapping.models import UserNotionMapping
+
+    if not user_ids:
+        return {}
+    rows = db.execute(
+        select(UserNotionMapping).where(UserNotionMapping.user_id.in_(user_ids))
+    ).scalars().all()
+    return {r.user_id: r.status for r in rows}
+
+
+@router.get("")
+def list_users(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: PageParams = Depends(),
+    q: str | None = Query(default=None, max_length=255),
+    role: str | None = Query(default=None),
+    active: bool | None = Query(default=None),
+    department_id: str | None = Query(default=None, max_length=36),
+    title_id: str | None = Query(default=None, max_length=36),
+    archived: bool = Query(
+        default=False,
+        description="true면 보관된 계정'만' 보여준다. 기본(false)은 보관된 계정을 숨긴다.",
+    ),
+):
+    # 보관된 계정은 기본으로 감춘다 — 검색도 목록의 다른 문일 뿐이라 같은 조건을 탄다.
+    # archived=true는 '보관함'을 여는 것이다: 복구하려면 볼 수 있어야 하므로 그때만
+    # 보관된 계정만 따로 보여 준다.
+    stmt = select(User).where(
+        User.archived_at.is_not(None) if archived else User.archived_at.is_(None)
+    )
+    if q:
+        needle = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(User.email).like(needle),
+                func.lower(User.display_name).like(needle),
+            )
+        )
+    if role is not None:
+        if role not in ALL_ROLES:
+            raise ValidationAppError(f"알 수 없는 역할입니다: {role}")
+        stmt = stmt.where(User.role == role)
+    if active is not None:
+        stmt = stmt.where(User.active.is_(active))
+    # 부서/직책 화면의 '소속 인원 N명' 카운트를 실제 사용자 목록으로 드릴다운할 수 있게
+    # 서버측 필터를 둔다(#/users?department_id=… / ?title_id=… 딥링크, round30 감사 E).
+    if department_id:
+        stmt = stmt.where(User.department_id == department_id)
+    if title_id:
+        stmt = stmt.where(User.title_id == title_id)
+
+    total = db.execute(
+        select(func.count()).select_from(stmt.subquery())
+    ).scalar_one()
+    rows = (
+        db.execute(
+            stmt.order_by(User.created_at.desc()).offset(page.offset).limit(page.page_size)
+        )
+        .scalars()
+        .all()
+    )
+    now = request.app.state.clock.now()
+    statuses = _notion_status_map(db, [u.id for u in rows])
+    return {
+        "items": [
+            _user_row(u, now, notion_status=statuses.get(u.id, "unmapped")) for u in rows
+        ],
+        "total": total,
+        "page": page.page,
+        "page_size": page.page_size,
+    }
+
+
+@router.post("", status_code=201)
+def create_user_endpoint(
+    request: Request,
+    payload: UserCreateRequest,
+    db: Session = Depends(get_db),
+):
+    from app.core.errors import ForbiddenError
+    from app.core.security import generate_temp_password
+
+    # Spec §20: granting admin+ is a gated authority. Creating a privileged
+    # account directly is a role grant, so only system_admin may do it — a
+    # plain admin cannot mint an admin/system_admin without that authority.
+    if payload.role in ("admin", "system_admin") and request.state.user.role != "system_admin":
+        raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
+
+    settings = request.app.state.settings
+    # Blank/whitespace from the admin form means "generate one" — never accept it
+    # as a real password.
+    provided = (payload.password or "").strip() or None
+    generated = provided is None
+    password = provided if provided is not None else generate_temp_password()
+
+    user = create_user(
+        db,
+        email=payload.email,
+        display_name=payload.display_name,
+        password=password,
+        settings=settings,
+        role=payload.role,
+        active=payload.active,
+        must_change_password=payload.must_change_password,
+        department_id=payload.department_id,
+        title_id=payload.title_id,
+        created_by=request.state.user.id,
+        effective_settings=request.app.state.settings_cache.current(),
+    )
+    record_audit_from_request(
+        request,
+        db,
+        action="user.create",
+        object_type="user",
+        object_id=user.id,
+        after=user_snapshot(user),
+    )
+
+    now = request.app.state.clock.now()
+    body = {"user": _user_row(user, now)}
+    if generated:
+        # Shown exactly once (spec §11.1) — never logged or audited.
+        body["temp_password"] = password
+        body["temp_password_notice"] = "임시 비밀번호는 이번 응답에서만 확인할 수 있습니다."
+    return body
+
+
+@router.get("/{user_id}")
+def get_user_detail(
+    request: Request, user_id: str, db: Session = Depends(get_db)
+):
+    from app.core.errors import ForbiddenError
+
+    user = get_user_or_404(db, user_id)
+    now = request.app.state.clock.now()
+    status = _notion_status_map(db, [user.id]).get(user.id, "unmapped")
+    row = _user_row(user, now, notion_status=status)
+    # 세션 '개수'도 세션 목록(/sessions)과 같은 권한 경계 안에서만 보여야 한다 — /sessions는
+    # 이미 막는데 여기 count만 새면 상위 권한 계정 정찰 차단이 반만 지켜진다. 상세 자체는
+    # 볼 수 있게 두되(프런트가 canManage로 처리) count만 뺀다.
+    try:
+        ensure_can_manage_target(request.state.user.role, user)
+    except ForbiddenError:
+        return row
+    active_sessions = db.execute(
+        select(func.count())
+        .select_from(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+    ).scalar_one()
+    return {**row, "active_session_count": active_sessions}
+
+
+@router.patch("/{user_id}")
+def patch_user(
+    request: Request,
+    user_id: str,
+    payload: UserUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    user = get_user_or_404(db, user_id)
+    before = user_snapshot(user)
+    fields = payload.model_dump(exclude_unset=True)
+
+    if not fields:
+        # 프런트(diffFields, Users.jsx)는 실제로 바뀐 필드만 담아 보내므로, 빈 본문은
+        # '아무것도 안 바뀐 저장'이다. 그래도 update_user()를 부르고 user.update 감사
+        # 행을 남기면(before==after) '무엇이 바뀌었나'를 추적하는 감사 로그에 아무 의미
+        # 없는 이벤트가 계속 쌓인다. 조기 반환한다.
+        now = request.app.state.clock.now()
+        return {"user": _user_row(user, now)}
+
+    from app.core.errors import ForbiddenError
+
+    new_role = fields.get("role")
+    role_changing = new_role is not None and new_role != user.role
+    # Changing system_admin membership (grant OR revoke) is system_admin's
+    # authority alone — a plain admin cannot request it, so no such approval is
+    # ever created (closes the two-admins-collude-to-system_admin escalation and
+    # the ungated-demotion gap).
+    if role_changing and (new_role == "system_admin" or user.role == "system_admin"):
+        if request.state.user.role != "system_admin":
+            raise ForbiddenError("system_admin 권한의 부여/회수는 system_admin만 가능합니다.")
+
+    # Spec §20: 일반 admin으로의 승격은 승인 대상(비-sysadmin은 승인 요청 생성).
+    if role_changing and new_role == "admin":
+        from app.approvals.service import approval_view, create_approval, needs_approval
+
+        if needs_approval(request.state.user):
+            # 역할 승격만 승인 대상이다. 같은 요청에 담긴 다른 필드(이름·부서·직책 등)는 승인이
+            # 필요 없으므로 즉시 적용한다 — 승인 payload가 role만 담아, 함께 보낸 필드가 202와 함께
+            # 조용히 유실되고 승인 후에도 영영 반영되지 않던 결함(round16 스윕).
+            non_role_fields = {k: v for k, v in fields.items() if k != "role"}
+            if non_role_fields:
+                update_user(
+                    db, user,
+                    session_service=request.app.state.session_service,
+                    actor_role=request.state.user.role,
+                    **non_role_fields,
+                )
+                record_audit_from_request(
+                    request, db, action="user.update", object_type="user",
+                    object_id=user.id, before=before, after=user_snapshot(user),
+                )
+            approval = create_approval(
+                db,
+                request_type="user.role_change",
+                object_type="user",
+                object_id=user.id,
+                requested_by=request.state.user,
+                # previous_role lets the approver see 현재 역할 → 요청 역할 without
+                # leaving the approvals screen to look the user up — without it a
+                # rubber-stamp approve can't be told apart from a dangerous
+                # escalation (e.g. operator→admin vs admin→admin re-request).
+                # target_name/target_email so the approver sees WHO is being
+                # promoted, not just a bare object_id UUID — requester/approver
+                # already get name+email resolution (resolve_names below), but
+                # the approval TARGET didn't (round22). objectField in
+                # registry.js's approvals.detailFields renders every payload
+                # key as a label/value row, so adding these here surfaces them
+                # without any further lookup.
+                payload={
+                    "role": new_role,
+                    "previous_role": user.role,
+                    "target_name": user.display_name,
+                    "target_email": user.email,
+                },
+                now=request.app.state.clock.now(),
+            )
+            record_audit_from_request(
+                request, db, action="user.role_change_requested", object_type="user",
+                object_id=user.id, after={"approval_id": approval.id, "role": new_role},
+            )
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "approval_pending",
+                    "approval": approval_view(approval),
+                },
+            )
+
+    update_user(
+        db,
+        user,
+        session_service=request.app.state.session_service,
+        actor_role=request.state.user.role,
+        **fields,
+    )
+    record_audit_from_request(
+        request,
+        db,
+        action="user.update",
+        object_type="user",
+        object_id=user.id,
+        before=before,
+        after=user_snapshot(user),
+    )
+    now = request.app.state.clock.now()
+    return {"user": _user_row(user, now)}
+
+
+@router.post("/{user_id}/enable")
+def enable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    before = user_snapshot(user)
+    set_user_active(db, user, True, session_service=request.app.state.session_service,
+                    actor_role=request.state.user.role)
+    record_audit_from_request(
+        request, db, action="user.enable", object_type="user",
+        object_id=user.id, before=before, after=user_snapshot(user),
+    )
+    return {"ok": True}
+
+
+@router.post("/{user_id}/disable")
+def disable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    before = user_snapshot(user)
+    set_user_active(db, user, False, session_service=request.app.state.session_service,
+                    actor_role=request.state.user.role)
+    record_audit_from_request(
+        request, db, action="user.disable", object_type="user",
+        object_id=user.id, before=before, after=user_snapshot(user),
+    )
+    return {"ok": True}
+
+
+@router.post("/{user_id}/archive")
+def archive(request: Request, user_id: str, db: Session = Depends(get_db)):
+    """계정 보관 — 삭제가 아니다. 행은 DB에 남고 목록·검색·로그인에서만 빠진다."""
+    user = get_user_or_404(db, user_id)
+    before = user_snapshot(user)
+    archive_user(
+        db,
+        user,
+        session_service=request.app.state.session_service,
+        actor_role=request.state.user.role,
+        actor_id=request.state.user.id,
+        now=request.app.state.clock.now(),
+    )
+    record_audit_from_request(
+        request, db, action="user.archive", object_type="user",
+        object_id=user.id, before=before, after=user_snapshot(user),
+    )
+    return {"ok": True}
+
+
+@router.post("/{user_id}/unarchive")
+def unarchive(request: Request, user_id: str, db: Session = Depends(get_db)):
+    """보관 복구 — 보관 전의 활성/비활성 상태 그대로 목록에 돌아온다."""
+    user = get_user_or_404(db, user_id)
+    before = user_snapshot(user)
+    unarchive_user(db, user, actor_role=request.state.user.role)
+    record_audit_from_request(
+        request, db, action="user.unarchive", object_type="user",
+        object_id=user.id, before=before, after=user_snapshot(user),
+    )
+    return {"ok": True}
+
+
+@router.post("/{user_id}/reset-password")
+def reset_password(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    payload: ResetPasswordRequest | None = None,
+):
+    user = get_user_or_404(db, user_id)
+    provided = payload.password if payload is not None else None
+    password = admin_reset_password(
+        db,
+        user,
+        session_service=request.app.state.session_service,
+        actor_role=request.state.user.role,
+        new_password=provided,
+        effective_settings=request.app.state.settings_cache.current(),
+        now=request.app.state.clock.now(),
+    )
+    record_audit_from_request(
+        request, db, action="user.reset_password", object_type="user", object_id=user.id,
+    )
+    body: dict = {"ok": True, "must_change_password": True}
+    if provided is None:
+        body["temp_password"] = password
+        body["temp_password_notice"] = "임시 비밀번호는 이번 응답에서만 확인할 수 있습니다."
+    return body
+
+
+@router.post("/{user_id}/unlock")
+def unlock(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    unlock_user(db, user, actor_role=request.state.user.role)
+    record_audit_from_request(
+        request, db, action="user.unlock", object_type="user", object_id=user.id,
+    )
+    return {"ok": True}
+
+
+@router.get("/{user_id}/sessions")
+def list_sessions(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    # 세션 메타데이터도 권한 경계 안에서만 조회한다(상위 권한 계정 정보 정찰 차단).
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
+    rows = (
+        db.execute(
+            select(UserSession)
+            .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+            .order_by(UserSession.last_seen_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": s.id,
+                "created_at": s.created_at.isoformat(),
+                "last_seen_at": s.last_seen_at.isoformat(),
+                "expires_at": s.expires_at.isoformat(),
+                "client_ip": s.client_ip,
+                "user_agent": s.user_agent,
+            }
+            for s in rows
+        ]
+    }
+
+
+@router.post("/{user_id}/revoke-sessions")
+def revoke_sessions(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
+    count = request.app.state.session_service.revoke_all_for_user(db, user.id)
+    record_audit_from_request(
+        request, db, action="user.revoke_sessions", object_type="user",
+        object_id=user.id, after={"revoked_count": count},
+    )
+    return {"ok": True, "revoked_count": count}
+
+
+@router.post("/{user_id}/notion-mapping/verify")
+def verify_notion_mapping(request: Request, user_id: str, db: Session = Depends(get_db)):
+    user = get_user_or_404(db, user_id)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
+    from app.notion_mapping.service import mapping_view, verify_mapping
+
+    row = verify_mapping(
+        db, user,
+        outbound=request.app.state.outbound_client,
+        now=request.app.state.clock.now(),
+    )
+    record_audit_from_request(
+        request, db, action="notion_mapping.verify", object_type="user_notion_mapping",
+        object_id=user_id, after={"status": row.status},
+    )
+    return {"mapping": mapping_view(row, user)}

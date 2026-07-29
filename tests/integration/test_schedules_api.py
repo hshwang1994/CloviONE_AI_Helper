@@ -1,0 +1,320 @@
+"""Schedule API + end-to-end execution through worker and fake n8n."""
+
+import pytest
+
+from app.jobs.handlers.schedule_run import handle_schedule_run
+from app.jobs.worker import Worker, WorkerContext
+from app.schedules.scheduler import SchedulerService
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture()
+def admin_csrf(login_as):
+    # system_admin: schedule enable은 승인 게이트(M9)를 우회해 직접 적용된다.
+    return login_as("system_admin")
+
+
+def _headers(csrf):
+    return {"X-CSRF-Token": csrf}
+
+
+@pytest.fixture()
+def workflow_id(client, admin_csrf):
+    r = client.post(
+        "/api/admin/workflows",
+        json={
+            "name": "보고서 생성",
+            "webhook_url": "http://127.0.0.1:5678/webhook/report",
+            "operation_mode": "read",
+        },
+        headers=_headers(admin_csrf),
+    )
+    return r.json()["workflow"]["id"]
+
+
+def _schedule_payload(workflow_id, **overrides):
+    return {
+        "name": "매시 보고서",
+        "schedule_type": "cron",
+        "cron_expression": "0 * * * *",
+        "timezone": "UTC",
+        "target_type": "workflow",
+        "target_ref": workflow_id,
+        "payload_template": {"scope": "weekly"},
+        **overrides,
+    }
+
+
+def test_create_validates_cron(client, admin_csrf, workflow_id):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, cron_expression="bad cron"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_create_validates_timezone(client, admin_csrf, workflow_id):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, timezone="Mars/Olympus"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_create_validates_target(client, admin_csrf):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload("no-such-workflow"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_create_accepts_null_misfire_and_concurrency_policy(
+    client, admin_csrf, workflow_id
+):
+    # 관리자 콘솔 select가 미선택 상태를 명시적 null로 보낼 수 있다 — 기본값(skip)으로
+    # 처리되어야 하며 422로 거부되면 안 된다 (round16 발견사항, 스케줄 생성 크래시).
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(
+            workflow_id, misfire_policy=None, concurrency_policy=None
+        ),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 201
+    body = r.json()["schedule"]
+    assert body["misfire_policy"] == "skip"
+    assert body["concurrency_policy"] == "skip"
+
+
+def test_create_still_rejects_invalid_misfire_policy(client, admin_csrf, workflow_id):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, misfire_policy="bogus"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_preset_expands_to_cron(client, admin_csrf, workflow_id):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(
+            workflow_id, name="주간 프리셋", cron_expression=None, preset="weekly"
+        ),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 201
+    assert r.json()["schedule"]["cron_expression"] == "0 9 * * 1"
+
+
+def test_created_disabled_enable_computes_next_run(client, admin_csrf, workflow_id):
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    assert created["enabled"] is False
+    assert created["next_run_at"] is None
+
+    r = client.post(
+        f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+    body = r.json()["schedule"]
+    assert body["enabled"] is True
+    assert body["next_run_at"] == "2026-07-14T01:00:00"  # FakeClock 기준 다음 정각
+
+
+def test_once_schedule_requires_future_run_at(client, admin_csrf, workflow_id):
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(
+            workflow_id, name="일회성", schedule_type="once",
+            cron_expression=None, run_at="2020-01-01T00:00:00",
+        ),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_dry_run_previews_without_executing(client, admin_csrf, workflow_id, db):
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    r = client.post(
+        f"/api/admin/schedules/{created['id']}/dry-run", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["payload_preview"] == {"scope": "weekly"}
+    assert len(body["next_fire_times_utc"]) == 3
+
+    from app.schedules.models import ScheduleRun
+
+    assert db.query(ScheduleRun).count() == 0
+
+
+def test_end_to_end_schedule_execution(
+    client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http, db
+):
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+
+    fake_http.on(
+        "http://127.0.0.1:5678/webhook/report", json_body={"report": "생성 완료"}
+    )
+
+    scheduler = SchedulerService(app.state.session_factory, fake_clock)
+    ctx = WorkerContext(
+        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
+    )
+    worker = Worker(
+        app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
+    )
+
+    fake_clock.advance(3600)  # 01:00 도달
+    assert scheduler.tick() == 1
+    assert worker.run_once() is True
+
+    import json as _json
+
+    sent = _json.loads(fake_http.requests[0].content)
+    assert sent == {"scope": "weekly"}
+
+    # 1시간 경과로 관리자 세션이 idle 만료(30분) — 재로그인.
+    from tests.conftest import DEFAULT_TEST_PASSWORD
+
+    relogin = client.post(
+        "/login",
+        json={"email": "system-admin@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+    )
+    admin_csrf = relogin.json()["csrf_token"]
+
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["total"] == 1
+    assert runs["items"][0]["status"] == "succeeded"
+    assert "생성 완료" in runs["items"][0]["response_summary"]
+
+
+def test_run_now_and_retry_failed_run(
+    client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http
+):
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="수동 실행"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    # run-now도 활성화(승인) 게이트를 통과한 정의에만 허용된다.
+    client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+
+    ctx = WorkerContext(
+        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
+    )
+    worker = Worker(
+        app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
+    )
+
+    # Run-now against a failing webhook → run ends failed after retries.
+    fake_http.on("http://127.0.0.1:5678/webhook/report", status=404)
+    r = client.post(
+        f"/api/admin/schedules/{created['id']}/run-now",
+        json={},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200
+    run_id = r.json()["run"]["id"]
+
+    worker.run_once()  # 404 → HTTPStatusError → 재시도 소진까지
+    for _ in range(3):
+        fake_clock.advance(120)
+        worker.run_once()
+
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["items"][0]["status"] == "failed"
+
+    # Operator retries the failed run — now the webhook works.
+    fake_http.on("http://127.0.0.1:5678/webhook/report", json_body={"ok": True})
+    operator_csrf = login = None
+    r = client.post(
+        f"/api/admin/schedules/runs/{run_id}/retry", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+    fake_clock.advance(1)
+    worker.run_once()
+
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["items"][0]["status"] == "succeeded"
+
+
+def test_write_workflow_with_approval_rejected_at_create(client, admin_csrf):
+    # 승인이 필요한 write workflow를 스케줄로 자동 실행하면 매번 반드시 실패한다(스케줄 실행에는
+    # payload.approved를 채울 사람이 없다) — 절대 성공할 수 없는 조합이므로 예전처럼 생성을 허용해
+    # 런타임에 조용히 실패시키지 않고, 정의 시점(create)에 명확히 거부한다.
+    wf = client.post(
+        "/api/admin/workflows",
+        json={
+            "name": "승인 필요 write",
+            "webhook_url": "http://127.0.0.1:5678/webhook/write-op",
+            "operation_mode": "write",
+            "approval_required": True,
+        },
+        headers=_headers(admin_csrf),
+    ).json()["workflow"]
+
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(wf["id"], name="승인 필요 스케줄"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+    assert "승인" in r.json()["error"]["message"]
+
+
+def test_write_workflow_with_approval_rejected_at_edit(client, admin_csrf, workflow_id):
+    # 정상 워크플로로 생성한 스케줄을 이후 승인 필요 write workflow로 수정하려는 시도도 같은 이유로 막는다.
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="정상 스케줄"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+
+    wf = client.post(
+        "/api/admin/workflows",
+        json={
+            "name": "승인 필요 write 2",
+            "webhook_url": "http://127.0.0.1:5678/webhook/write-op-2",
+            "operation_mode": "write",
+            "approval_required": True,
+        },
+        headers=_headers(admin_csrf),
+    ).json()["workflow"]
+
+    r = client.put(
+        f"/api/admin/schedules/{created['id']}",
+        json=_schedule_payload(wf["id"], name="정상 스케줄"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+    assert "승인" in r.json()["error"]["message"]
+
+
+def test_schedule_rbac(client, login_as):
+    login_as("user")
+    assert client.get("/api/admin/schedules").status_code == 403

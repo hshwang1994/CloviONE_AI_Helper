@@ -1,0 +1,7 @@
+{
+  "_comment": "SSRF allowlist for n8n workflow webhook URLs (spec §16, §25.3).",
+  "hosts": [
+    "127.0.0.1:5678",
+    "localhost:5678"
+  ]
+}

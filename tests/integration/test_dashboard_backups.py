@@ -1,0 +1,143 @@
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture()
+def admin_csrf(login_as):
+    return login_as("admin")
+
+
+def _headers(csrf):
+    return {"X-CSRF-Token": csrf}
+
+
+def test_dashboard_aggregates(client, login_as):
+    login_as("operator")
+    r = client.get("/api/admin/dashboard")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["components"]["web"] == "up"
+    assert body["components"]["worker"] == "unknown"  # no heartbeat yet
+    assert "counts" in body and "jobs_24h" in body
+    assert body["disk"]["free_gb"] is not None  # works on Windows (shutil)
+    assert body["cert_days_remaining"] is None  # no cert path in dev
+
+
+def test_dashboard_reflects_heartbeat(client, login_as, db, fake_clock):
+    login_as("operator")
+    from app.health.service import write_heartbeat
+
+    write_heartbeat(db, "worker", fake_clock.now())
+    db.commit()
+    body = client.get("/api/admin/dashboard").json()
+    assert body["components"]["worker"] == "up"
+
+
+def test_dashboard_stale_heartbeat(client, login_as, db, fake_clock):
+    login_as("operator")
+    from app.health.service import write_heartbeat
+
+    write_heartbeat(db, "scheduler", fake_clock.now())
+    db.commit()
+    fake_clock.advance(200)  # > 90s stale threshold
+    body = client.get("/api/admin/dashboard").json()
+    # A stale heartbeat reads as 'down' (spec §14.1), not a separate 'stale' state.
+    assert body["components"]["scheduler"] == "down"
+
+
+def test_dashboard_counts_active_workflows(client, admin_csrf):
+    client.post(
+        "/api/admin/workflows",
+        json={"name": "활성 wf", "webhook_url": "http://127.0.0.1:5678/webhook/a"},
+        headers=_headers(admin_csrf),
+    )
+    body = client.get("/api/admin/dashboard").json()
+    assert body["counts"]["active_workflows"] >= 1
+
+
+def test_backup_create_verify_and_list(client, login_as):
+    csrf = login_as("system_admin")
+    r = client.post("/api/admin/backups", headers=_headers(csrf))
+    assert r.status_code == 201, r.text
+    backup = r.json()["backup"]
+    assert backup["status"] == "verified"  # auto restore-test verified it
+    assert backup["checksum"]
+
+    listing = client.get("/api/admin/backups").json()
+    assert any(b["id"] == backup["id"] for b in listing["items"])
+
+    dashboard = client.get("/api/admin/dashboard").json()
+    assert dashboard["last_backup_at"] is not None
+
+
+def test_verify_downgrades_status_on_failure(db, settings, fake_clock):
+    # 재검증 실패 시 상태를 failed로 낮춰야 한다(손상된 백업이 '정상'으로 남지 않도록).
+    from pathlib import Path
+
+    from app.backups.models import STATUS_FAILED
+    from app.backups.service import run_backup, verify_existing
+
+    row = run_backup(db, settings, created_by="tester", now=fake_clock.now())
+    db.commit()
+    assert row.status in ("succeeded", "verified")
+    Path(row.path).write_text("corrupted-not-a-sqlite-db")  # 파일 손상
+    result = verify_existing(db, row, now=fake_clock.now())
+    assert result["ok"] is False
+    assert row.status == STATUS_FAILED
+
+
+def test_retention_spares_running_and_latest_failed(db, fake_clock):
+    from app.backups.models import STATUS_FAILED, STATUS_RUNNING, Backup
+    from app.backups.service import apply_retention
+
+    running = Backup(backup_type="manual", path="/tmp/clv-running.sqlite3", status=STATUS_RUNNING, created_at=fake_clock.now())
+    failed = Backup(backup_type="manual", path="/tmp/clv-failed.sqlite3", status=STATUS_FAILED, created_at=fake_clock.now())
+    db.add_all([running, failed])
+    db.commit()
+    apply_retention(db, keep=14)
+    db.commit()
+    ids = {b.id for b in db.query(Backup).all()}
+    assert running.id in ids  # 진행 중 백업은 지우지 않는다(파일 쓰는 중일 수 있음)
+    assert failed.id in ids   # 가장 최근 실패 1건은 장애 추적용으로 남긴다
+
+
+def test_backup_requires_system_admin(client, login_as):
+    csrf = login_as("admin")  # admin < system_admin for backup creation
+    r = client.post("/api/admin/backups", headers=_headers(csrf))
+    assert r.status_code == 403
+
+
+def test_restore_instructions_are_script_only(client, login_as):
+    login_as("system_admin")
+    r = client.get("/api/admin/backups/restore-instructions")
+    assert r.status_code == 200
+    assert "rollback-clovirone-web-assistant.sh" in str(r.json()["steps"])
+
+
+def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings, db):
+    # Seed an integration with a secret ref + secret file; bundle must not leak it.
+    (settings.secrets_dir / "diag-secret").write_text("PLAINTEXT-DIAG", encoding="utf-8")
+    csrf = login_as("admin")
+    client.post(
+        "/api/admin/integrations",
+        json={
+            "name": "diag-int", "provider_type": "http_service",
+            "base_url": "http://127.0.0.1:8787", "auth_type": "bearer",
+            "secret_ref": "diag-secret",
+        },
+        headers=_headers(csrf),
+    )
+    r = client.get("/api/admin/diagnostics/bundle")
+    assert r.status_code == 200
+    assert "PLAINTEXT-DIAG" not in r.text
+
+
+def test_auditor_can_read_dashboard(client, login_as):
+    login_as("auditor")
+    assert client.get("/api/admin/dashboard").status_code == 200
+
+
+def test_user_cannot_read_dashboard(client, login_as):
+    login_as("user")
+    assert client.get("/api/admin/dashboard").status_code == 403

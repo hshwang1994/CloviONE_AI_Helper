@@ -1,0 +1,323 @@
+import json
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
+CLIENT_MSG_ID = "m0123456789abcdef0123456789abcdef"
+
+
+@pytest.fixture()
+def user_csrf(login_as):
+    return login_as("user")
+
+
+def _headers(csrf):
+    return {"X-CSRF-Token": csrf}
+
+
+def _new_conversation(client, csrf):
+    r = client.post("/api/conversations", json={}, headers=_headers(csrf))
+    assert r.status_code == 201
+    return r.json()["conversation"]
+
+
+def test_create_and_list_conversations(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    assert conv["title"] == "새 대화"
+    r = client.get("/api/conversations")
+    assert r.status_code == 200
+    assert any(c["id"] == conv["id"] for c in r.json()["items"])
+
+
+def test_rename_and_delete_conversation(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    # rename
+    r = client.patch(f"/api/conversations/{conv['id']}", json={"title": "포스코 프로젝트 문의"},
+                     headers=_headers(user_csrf))
+    assert r.status_code == 200 and r.json()["conversation"]["title"] == "포스코 프로젝트 문의"
+    # archive hides it from the default list
+    client.patch(f"/api/conversations/{conv['id']}", json={"archived": True}, headers=_headers(user_csrf))
+    assert all(c["id"] != conv["id"] for c in client.get("/api/conversations").json()["items"])
+    # delete removes it entirely
+    r = client.delete(f"/api/conversations/{conv['id']}", headers=_headers(user_csrf))
+    assert r.status_code == 200
+    assert client.get(f"/api/conversations/{conv['id']}/messages").status_code == 404
+
+
+def test_conversation_delete_rename_idor_blocked(client, login_as, make_user):
+    owner_csrf = login_as("user", email="owner@goodmit.co.kr")
+    conv = _new_conversation(client, owner_csrf)
+    # A different user must not rename or delete someone else's conversation.
+    make_user("intruder@goodmit.co.kr")
+    other_csrf = login_as("user", email="intruder@goodmit.co.kr")
+    assert client.patch(f"/api/conversations/{conv['id']}", json={"title": "x"},
+                        headers=_headers(other_csrf)).status_code == 403
+    assert client.delete(f"/api/conversations/{conv['id']}",
+                         headers=_headers(other_csrf)).status_code == 403
+
+
+def test_post_message_returns_202_and_enqueues_job(client, user_csrf, db):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "내 할당 티켓 보여줘", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 202
+    body = r.json()
+    assert body["message"]["processing_status"] == "pending"
+    assert body["job_id"]
+
+    from app.jobs.models import Job
+
+    job = db.get(Job, body["job_id"])
+    payload = json.loads(job.payload_json)
+    assert payload["requester"]["email"] == "user@goodmit.co.kr"
+    assert payload["content"] == "내 할당 티켓 보여줘"
+    assert job.idempotency_key == f"chatmsg:{CLIENT_MSG_ID}"
+
+
+def test_duplicate_client_message_id_not_duplicated(client, user_csrf, db):
+    conv = _new_conversation(client, user_csrf)
+    for _ in range(2):
+        r = client.post(
+            f"/api/conversations/{conv['id']}/messages",
+            json={"content": "중복 전송 테스트", "client_message_id": CLIENT_MSG_ID},
+            headers=_headers(user_csrf),
+        )
+        assert r.status_code == 202
+
+    messages = client.get(f"/api/conversations/{conv['id']}/messages").json()["items"]
+    assert len(messages) == 1
+
+    from app.jobs.models import Job
+
+    assert db.query(Job).count() == 1
+
+
+def test_first_message_sets_conversation_title(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "이번 주 마감 티켓 알려줘", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    data = client.get(f"/api/conversations/{conv['id']}/messages").json()
+    assert data["conversation"]["title"] == "이번 주 마감 티켓 알려줘"
+
+
+def test_message_too_long_rejected_with_input_preserved_semantics(client, user_csrf, settings):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={
+            "content": "가" * (settings.max_message_length + 1),
+            "client_message_id": CLIENT_MSG_ID,
+        },
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 422
+    # Nothing persisted → the browser restores the draft.
+    assert client.get(f"/api/conversations/{conv['id']}/messages").json()["items"] == []
+
+
+def test_empty_message_rejected(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "   ", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_bad_client_message_id_rejected(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "hello", "client_message_id": "short"},
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 422
+
+
+def test_messages_after_cursor(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "첫 메시지", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    first = client.get(f"/api/conversations/{conv['id']}/messages").json()["items"][0]
+    r = client.get(
+        f"/api/conversations/{conv['id']}/messages", params={"after": first["id"]}
+    )
+    assert r.json()["items"] == []
+
+
+def test_messages_unknown_after_cursor_returns_empty(client, user_csrf):
+    # Regression: an unknown 'after' id used to return the FULL list (client would
+    # then duplicate every message). It must return empty instead.
+    conv = _new_conversation(client, user_csrf)
+    client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "첫 메시지", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    r = client.get(
+        f"/api/conversations/{conv['id']}/messages", params={"after": "nonexistent-id"}
+    )
+    assert r.json()["items"] == []
+
+
+def test_chat_send_rate_limited_per_user(client, user_csrf, fake_clock):
+    # 사용자당 전송 폭주 차단(버스트 용량 20 초과 시 429). 잡 큐·다운스트림 보호.
+    conv = _new_conversation(client, user_csrf)
+    codes = [
+        client.post(
+            f"/api/conversations/{conv['id']}/messages",
+            json={"content": f"메시지 {i}", "client_message_id": f"mrate{i:027d}"},
+            headers=_headers(user_csrf),
+        ).status_code
+        for i in range(22)
+    ]
+    assert 202 in codes  # 초반 버스트는 통과
+    assert codes[-1] == 429  # 용량 초과분은 거부
+    # 429는 rate_limited 코드로 응답한다.
+    last = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "one more", "client_message_id": "mrateoverflow0000000000000000000"},
+        headers=_headers(user_csrf),
+    )
+    assert last.status_code == 429 and last.json()["error"]["code"] == "rate_limited"
+
+
+def test_chat_page_renders_shell(client, user_csrf):
+    # 홈(채팅)은 React 셸이 서빙한다. UI(새 대화·입력창)는 React가 그리므로 HTML엔 없다 —
+    # 셸(root 컨테이너 + 외부 번들)이 왔는지만 확인한다.
+    r = client.get("/")
+    assert r.status_code == 200
+    assert 'id="root"' in r.text
+    assert "/static/react/assets/" in r.text
+
+
+# --- image attachments (#34 Phase 2) ----------------------------------------
+PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+    "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+
+def test_post_message_with_attachment(client, user_csrf, db):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={
+            "content": "이 스크린샷 보고 티켓 만들어줘",
+            "client_message_id": "matt0123456789abcdef0123456789ab",
+            "attachments": [
+                {"filename": "error.png", "media_type": "image/png", "data": PNG_B64}
+            ],
+        },
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 202
+    msg = r.json()["message"]
+    # Stored message exposes names only — never the bytes.
+    assert msg["structured"]["attachments"] == [
+        {"filename": "error.png", "media_type": "image/png"}
+    ]
+    # The transient job payload DOES carry the data (needed by n8n/runner).
+    from app.jobs.models import Job
+
+    job = db.get(Job, r.json()["job_id"])
+    payload = json.loads(job.payload_json)
+    assert payload["attachments"][0]["data"] == PNG_B64
+
+
+def test_post_image_only_message_gets_marker_content(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={
+            "content": "",
+            "client_message_id": "mimg0123456789abcdef0123456789ab",
+            "attachments": [
+                {"filename": "shot.png", "media_type": "image/png", "data": PNG_B64}
+            ],
+        },
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 202
+    assert r.json()["message"]["content"] == "(이미지 첨부)"
+
+
+def test_post_message_rejects_fake_image(client, user_csrf):
+    import base64 as _b64
+
+    conv = _new_conversation(client, user_csrf)
+    html = _b64.b64encode(b"<html>not an image</html>").decode()
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={
+            "content": "x",
+            "client_message_id": "mbad0123456789abcdef0123456789ab",
+            "attachments": [
+                {"filename": "x.png", "media_type": "image/png", "data": html}
+            ],
+        },
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code in (400, 422)
+
+
+def test_empty_message_without_attachment_still_rejected(client, user_csrf):
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "  ", "client_message_id": "memp0123456789abcdef0123456789ab"},
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code in (400, 422)
+
+
+# --- retry endpoint error handling (app/chat/router.py:retry) -----------------
+def test_retry_rate_limited_returns_429(client, user_csrf):
+    # The retry endpoint shares the per-user chat_ratelimiter (capacity 20) so a
+    # user can't bypass the send-rate limit by hammering '다시 시도'. With the
+    # clock frozen (no token refill), the bucket drains and later calls get 429.
+    codes = [
+        client.post(
+            "/api/messages/no-such-message/retry", headers=_headers(user_csrf)
+        ).status_code
+        for _ in range(25)
+    ]
+    assert 429 in codes  # the burst capacity is exceeded within 25 calls
+    last = client.post(
+        "/api/messages/no-such-message/retry", headers=_headers(user_csrf)
+    )
+    assert last.status_code == 429
+    assert last.json()["error"]["code"] == "rate_limited"
+
+
+def test_retry_non_failed_message_returns_409(client, user_csrf):
+    # A freshly posted message is 'pending', not 'failed' — only failed user
+    # messages can be retried (app/chat/service.py:retry_message).
+    conv = _new_conversation(client, user_csrf)
+    r = client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": "진행 중 메시지", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    assert r.status_code == 202
+    msg_id = r.json()["message"]["id"]
+    retry = client.post(f"/api/messages/{msg_id}/retry", headers=_headers(user_csrf))
+    assert retry.status_code == 409
+
+
+def test_retry_unknown_message_returns_404(client, user_csrf):
+    r = client.post(
+        "/api/messages/does-not-exist/retry", headers=_headers(user_csrf)
+    )
+    assert r.status_code == 404

@@ -1,0 +1,279 @@
+/* ClovirONE React 셸 디자인 시스템 — 색은 브랜드 토큰(tokens.css)만 참조한다.
+   흔한 관리자 템플릿·왼쪽 파란 선 카드를 반복하지 않는다(§7): 정보 계층·여백·상태색으로
+   개성을 만든다. 인라인 스타일/CSS-in-JS 없음(CSP style-src 'self'). */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+button { font-family: inherit; }
+
+/* overflow-x: clip = 자식이 넘쳐도 페이지 전체 가로 스크롤을 만들지 않는 안전망(내부 스크롤 컨테이너는 영향 없음). */
+.c-app { display: flex; flex-direction: column; height: 100%; overflow-x: clip; }
+
+/* 본문 바로가기 — 키보드 사용자가 사이드바 5개 그룹·20여 항목을 지나지 않고 본문으로. 평소엔 숨고 포커스 시 노출. */
+.c-skip-link { position: absolute; left: 8px; top: -60px; z-index: 100; background: var(--color-card); color: var(--color-primary); border: 1px solid var(--color-primary); border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600; text-decoration: none; transition: top 0.15s ease; }
+.c-skip-link:focus-visible { top: 8px; outline: 2px solid var(--color-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .c-skip-link { transition: none; } }
+
+/* 상단바 — 브랜드 그라디언트(로그인과 연결되는 인상), 우측 액션 묶음 넉넉한 간격.
+   min-width:0 + 브랜드 축소 허용으로 좁은 화면에서 상단바가 뷰포트를 넘지 않게 한다. */
+.c-topbar {
+  display: flex; align-items: center; gap: 16px;
+  height: var(--topbar-height, 56px); padding: 0 20px; flex-shrink: 0; min-width: 0;
+  /* tokens.css가 라이트/다크별로 --topbar-fg를 정의해 두고도 아무 데서도 안 쓰여 죽은
+     토큰이었다 — 하드코딩 #fff 대신 실제로 연결한다(값은 두 테마 다 #fff라 시각적 변화 없음,
+     테마별 튜닝이 필요해지면 여기 하나만 고치면 되게). */
+  background: var(--g-topbar, var(--color-ink)); color: var(--topbar-fg, #fff);
+}
+/* 브랜드 = 홈 버튼(클릭 시 홈으로). 로고는 4색 마크(브랜드 자산, 어느 면에서도 동일) + 워드마크. */
+/* 상단바 텍스트 자식들은 하드코딩 #fff 대신 컨테이너의 --topbar-fg 토큰을 가리킨다 —
+   .c-topbar만 토큰화하고 자식은 흰색을 그대로 박아 둬 테마별 튜닝이 반쪽이었다. 버튼은
+   color를 자동 상속하지 않으므로 명시적으로 토큰을 준다(product-quality-audit AREA=D). */
+.c-brand { display: flex; align-items: center; gap: 9px; min-width: 0; border: 0; background: transparent; color: var(--topbar-fg, #fff); cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.c-brand:hover { background: rgba(255,255,255,0.12); }
+.c-brand-mark { flex-shrink: 0; display: block; }
+.c-brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 17px; letter-spacing: -0.2px; }
+/* opacity로 흰 글자를 그라디언트 쪽으로 알파블렌딩하면 tokens.css가 --g-topbar 최악
+   지점(41% #347F9C)에서 맞춰 둔 4.5:1 흰 글자 대비 보장이 깨진다(더 옅어진 색은 그
+   보장 밖이다) — 완전 불투명 흰색을 쓰고, 위계는 크기(13px vs 17px)·굵기만으로 준다
+   (product-quality-audit AREA=D). */
+.c-brand-sub { font-size: 13px; white-space: nowrap; }
+/* 그라디언트 상단바 위 컨트롤의 키보드 포커스 링 — 인디고~보라 위에서 브라우저 기본 outline은
+   거의 안 보인다. 흰 링 + 오프셋으로 어떤 지점에서도 드러나게 한다. */
+.c-brand:focus-visible, .c-seg-item:focus-visible, .c-user-btn:focus-visible,
+.c-hamburger:focus-visible, .c-icon-btn:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px;
+}
+.c-topbar-spacer { flex: 1; }
+.c-seg { display: inline-flex; background: rgba(255,255,255,0.14); border-radius: 8px; padding: 2px; }
+.c-seg-item {
+  border: 0; background: transparent; color: var(--topbar-fg, #fff); cursor: pointer;
+  padding: 6px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+}
+/* 선택된 알약은 테마 불변 토큰 — 다크에서 primary-strong가 밝아져 흰 알약 위 대비가 무너지던 것 수정. */
+.c-seg-item.is-on { background: var(--topbar-pill-bg); color: var(--topbar-pill-fg); }
+.c-icon-btn {
+  position: relative;
+  border: 0; background: rgba(255,255,255,0.14); color: var(--topbar-fg, #fff); cursor: pointer;
+  width: 36px; height: 36px; border-radius: 50%; font-size: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* 시각 원은 36px로 두되 탭 가능한 히트 영역은 44×44로 넓힌다(WCAG 2.5.5/2.5.8 최소 터치 타깃).
+   폰에서 벨은 알림을 여는 유일한 컨트롤이라 히트 영역이 작으면 놓치기 쉽다. */
+.c-icon-btn::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
+/* 모바일 햄버거 — 좁은 화면에서 사이드바(유일한 관리자 탐색)를 오프캔버스 드로어로 연다.
+   기본은 숨김, ≤860px에서만 노출. */
+/* 36px 원 히트박스는 .c-icon-btn(알림 벨)이 이미 ::before로 44×44까지 넓혔다(WCAG 2.5.5/2.5.8) —
+   모바일에서 '유일한 관리자 탐색' 진입로인 햄버거만 그 처리가 빠져 있었다(product-quality-audit
+   AREA=D). position:relative + 같은 ::before 패턴을 준다. */
+.c-hamburger { position: relative; display: none; flex-shrink: 0; border: 0; background: rgba(255,255,255,0.14); color: var(--topbar-fg, #fff); cursor: pointer; width: 36px; height: 36px; border-radius: 8px; align-items: center; justify-content: center; }
+.c-hamburger::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
+.c-hamburger:hover { background: rgba(255,255,255,0.24); }
+.c-sidebar-backdrop { display: none; }
+.c-user { position: relative; }
+.c-user-btn { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: var(--topbar-fg, #fff); cursor: pointer; padding: 4px 6px; border-radius: 8px; }
+.c-user-btn:hover { background: rgba(255,255,255,0.12); }
+.c-usermenu { position: absolute; top: 46px; right: 0; min-width: 184px; background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow-dropdown); z-index: 70; overflow: hidden; padding: 6px; animation: noti-in 0.15s ease; }
+@media (prefers-reduced-motion: reduce) { .c-usermenu { animation: none; } }
+.c-usermenu-item { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--color-text); cursor: pointer; padding: 9px 12px; border-radius: 8px; font-size: 14px; text-decoration: none; }
+.c-usermenu-item:hover { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
+/* 로그아웃을 포함한 유일한 로그아웃 진입로인데 Tab으로 도달해도 포커스 표시가 없었다 —
+   .c-nav-item:focus-visible과 같은 오프셋 규칙(테두리 안쪽)을 준다. */
+.c-usermenu-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.c-usermenu-danger { color: var(--color-error); }
+.c-user-name { font-size: 14px; font-weight: 600; }
+/* 22%짜리 흰 원은 그라디언트를 더 밝게 만들어 그 위 흰 글자(이니셜) 대비를 tokens.css가
+   검증한 값보다 낮춘다 — 어떤 --g-topbar 지점 색이든 어둡게 겹치면 흰 글자 대비는 항상
+   '더 좋아지는' 쪽으로만 움직인다(밝게 겹치면 반대). 흰색 대신 검정 알파를 써 대비가
+   항상 tokens.css의 보장 이상이 되게 한다(product-quality-audit AREA=D). */
+.c-avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.32); display: grid; place-items: center; font-size: 13px; font-weight: var(--fw-semibold, 600); }
+
+.c-body { flex: 1; display: flex; min-height: 0; }
+/* 사용자 알림 전체 보기(App.jsx userNoti) — DataScreen이 PageHeader에 crumbRoot를 넘기지
+   않아 kit.jsx의 기본값 '관리자'가 그대로 나온다. registry.js/DataScreen.jsx는 이 파일
+   소유가 아니라 고칠 수 없으니, 이 라우트 컨테이너 안에서만 빵부스러기를 감춰 일반 사용자가
+   자기 알림에서 '관리자 › 운영'을 보지 않게 한다. */
+.c-body--user-noti .k-breadcrumb { display: none; }
+
+/* 사이드바 — 구조화된 탐색 트리. 그룹(아이콘+제목, 접기/펼치기) > 항목(들여쓰기).
+   §6: 좌측 강조선(Claude식 바) 금지 — 선택은 '행 전체 배경 틴트 + 글자/아이콘 색'으로만 표현한다.
+   링크 기본 밑줄 제거. 데스크톱 폭은 가장 긴 메뉴명('자동화 작업 실행기(러너)', 'Notion 사용자 연결')이
+   어색하게 줄바꿈되지 않도록 넓힌다(§1). 채팅 리스트와 규격을 통일(행 높이 40px·좌우 여백·글꼴). */
+.c-sidebar { width: var(--sidebar-width, 260px); flex-shrink: 0; background: var(--sidebar-bg, var(--color-card)); border-right: 1px solid var(--color-border); overflow-y: auto; }
+.c-nav { padding: var(--space-md, 12px) var(--space-sm, 8px); }
+.c-nav-group { margin-bottom: var(--space-sm, 8px); }
+.c-nav-group-title {
+  display: flex; align-items: center; gap: var(--space-sm, 8px); width: 100%; min-height: 32px; border: 0; background: transparent; cursor: pointer;
+  font-size: 11px; font-weight: var(--fw-semibold, 600); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sidebar-muted, var(--color-muted));
+  padding: var(--space-xs, 4px) var(--space-md, 12px); border-radius: var(--radius-md, 8px);
+}
+.c-nav-group-title:hover { color: var(--sidebar-text, var(--color-text)); background: var(--sidebar-hover, rgba(83,108,214,0.08)); }
+.c-nav-group-title:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.c-nav-group.has-active .c-nav-group-title { color: var(--color-primary-strong); }
+.c-nav-ico { flex-shrink: 0; opacity: 0.9; }
+.c-nav-group-name { flex: 1; text-align: left; }
+.c-nav-chev { flex-shrink: 0; transition: transform 0.15s ease; opacity: 0.6; }
+.c-nav-chev.is-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .c-nav-chev { transition: none; } }
+.c-nav-items { display: flex; flex-direction: column; gap: 1px; margin: var(--space-xs, 4px) 0; }
+/* App.jsx가 접힌 그룹에서도 이 노드를 계속 마운트해 두고 hidden 속성으로만 감춘다(aria-controls가
+   항상 실제 노드를 가리키게 하려고, product-quality-audit AREA=D) — 클래스 선택자가 [hidden]의
+   UA 기본 display:none보다 우선순위가 높아 이 규칙 없이는 hidden이 무시된다. */
+.c-nav-items[hidden] { display: none; }
+/* 항목 행 — 규격 통일: flex로 세로 중앙 정렬, 고정 행 높이 40px, 통일된 좌우 여백/글꼴. */
+.c-nav-item {
+  display: flex; align-items: center; width: 100%; min-height: 40px; text-align: left; border: 0; background: transparent; cursor: pointer;
+  padding: 0 var(--space-md, 12px) 0 34px; border-radius: var(--radius-md, 8px); font-size: 14px; line-height: 1.4;
+  color: var(--sidebar-text, var(--color-text)); text-decoration: none; font-weight: var(--fw-normal, 400);
+}
+/* 긴 메뉴명 안전망 — 넓힌 폭에서도 넘치면 어색한 줄바꿈 대신 한 줄로 자른다(대개 발동 안 함). */
+.c-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-nav-item:hover { background: var(--sidebar-hover, rgba(83,108,214,0.08)); color: var(--sidebar-text, var(--color-text)); }
+.c-nav-item:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+/* 선택 상태 — 행 전체 배경 틴트 + 글자색(아이콘 없음). 강조선 없음. 배경은 행 박스에 정확히 맞춘다. */
+.c-nav-item.is-active { background: var(--sidebar-active-bg, rgba(83,108,214,0.12)); color: var(--sidebar-active-fg, var(--color-primary-strong)); font-weight: var(--fw-semibold, 600); }
+.c-nav-item.is-active:hover { background: var(--sidebar-active-bg, rgba(83,108,214,0.12)); color: var(--sidebar-active-fg, var(--color-primary-strong)); }
+
+/* 세션 만료 시 사이드바를 대신하는 재로그인 안내(App.jsx AdminBody, product-quality-audit AREA=D). */
+.c-nav-expired { padding: var(--space-lg, 16px); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-md, 12px); }
+.c-nav-expired p { margin: 0; font-size: 14px; color: var(--color-muted); }
+
+.c-main { flex: 1; min-width: 0; overflow-y: auto; }
+/* 읽기 좋은 최대 폭 + 넓은 화면 균형(§8.1/§21) — 초광폭/4K에서 좌측 쏠림 없이 가운데 정렬.
+   페이지 헤더·콜아웃·상태카드는 공통 키트(.k-page-head/.k-callout/.k-stat)에서 그린다 —
+   여기 있던 중복 .c-page-head/.c-callout/.c-stat* 죽은 규칙은 제거했다(키트로 일원화). */
+/* 넓은 화면에서 콘텐츠가 작은 중앙에 갇히지 않게 폭을 넓게(2040) 잡되, 초광폭에서 무한정
+   늘어나지 않게 상한을 둔다. 대시보드·표는 이 폭을 채우고(그리드 auto-fill), 폼은 중앙 모달이
+   자체적으로 읽기 폭을 제한한다. */
+.c-content { padding: var(--space-xl, 24px) var(--space-2xl, 32px) var(--space-3xl, 48px); max-width: min(2040px, 100%); margin-inline: auto; }
+/* 채팅 섹션 임베드 — 콘솔 본문(.c-main)을 패딩·폭 캡 없이 꽉 채우고 스크롤은 채팅 자체가 관리.
+   .c-chat-embed 가 flex 자식으로 높이를 받아 .chat-layout(height:100%)이 그 안을 채운다. */
+.c-main--flush { overflow: hidden; display: flex; flex-direction: column; }
+.c-chat-embed { flex: 1; min-height: 0; }
+
+@media (max-width: 860px) {
+  /* 사이드바를 숨기지 않고 오프캔버스 드로어로. 햄버거로 열고, 백드롭/항목 선택 시 닫힌다.
+     예전엔 display:none이라 폰에서 대시보드 외 모든 관리자 화면에 도달할 길이 없었다. */
+  .c-hamburger { display: inline-flex; }
+  .c-sidebar {
+    position: fixed; top: var(--topbar-height, 56px); left: 0; bottom: 0; z-index: 45;
+    width: var(--sidebar-width, 260px); max-width: 82vw; transform: translateX(-100%); transition: transform 0.2s ease;
+    box-shadow: var(--shadow-modal);
+  }
+  .c-sidebar.is-open { transform: none; }
+  .c-sidebar-backdrop { display: block; position: fixed; inset: var(--topbar-height, 56px) 0 0 0; z-index: 40; background: color-mix(in srgb, var(--color-ink) 38%, transparent); }
+  .c-user-name, .c-brand-sub { display: none; }
+  .c-content { padding-left: var(--space-lg, 16px); padding-right: var(--space-lg, 16px); }
+  /* 좁은 화면에서 상단바가 넘치지 않게 간격·좌우 여백을 줄인다(세그먼트·벨·아바타·햄버거가
+     좁은 바에 몰리며 클립되던 문제). 컨트롤은 유지하고 공간 예산만 확보한다. */
+  .c-topbar { gap: 10px; padding: 0 12px; }
+}
+@media (max-width: 860px) and (prefers-reduced-motion: reduce) { .c-sidebar { transition: none; } }
+
+/* ~360px 이하 — 세그먼트(사용자/관리자 2알약) + 햄버거 + 브랜드 + 벨 + 아바타가 한 줄에
+   몰리면 각 요소의 최소 폭 합이 뷰포트를 넘어 오른쪽 클러스터(벨·아바타·로그아웃 진입점)가
+   잘릴 수 있었다(overflow-x:clip이라 스크롤로도 못 닿음). 세그먼트를 없애지 않고(관리자가
+   모바일에서 채팅 화면으로 가는 유일한 통로) 여백만 더 줄여 합계를 좁은 폭에 맞춘다. */
+@media (max-width: 400px) {
+  .c-topbar { gap: 6px; padding: 0 8px; }
+  .c-seg-item { padding: 6px 9px; font-size: 12px; }
+  .c-icon-btn, .c-hamburger { width: 32px; height: 32px; }
+  .c-user-btn { padding: 4px; gap: 0; }
+}
+
+/* 알림 팝오버(NotificationBell.jsx) 보정 — 이 컴포넌트의 나머지 스타일은 screens.css(다른
+   소유자)에 있지만, 아래 세 규칙은 이 파일 소유 범위 안에서 안전하게 고칠 수 있다:
+   각 선택자의 명시도가 screens.css의 상충 규칙보다 높아(:focus-visible/:hover/:last-child로
+   클래스 하나씩 더 붙음) 로드 순서(global.css가 screens.css보다 먼저 로드)와 무관하게 항상
+   이긴다. */
+/* 키보드 포커스 트랩(Tab이 팝오버 안에서만 순환) 안의 두 핵심 컨트롤 — 항목 열기 버튼과
+   '모두 읽음'/'다시 시도'/'전체 알림 보기' 링크 — 에 포커스 링이 전혀 없었다. 체크(읽음)
+   버튼만 표시가 있어 트랩 안에서 Tab을 눌러도 지금 어디 있는지 알 수 없었다. */
+.noti-item-main:focus-visible, .noti-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+/* 안 읽음 행(.is-unread)의 배경 틴트(7%)가 hover 틴트(5%)보다 나중에 선언돼 같은 명시도에서
+   이겨, 가장 눌러야 할 안 읽음 행만 호버해도 아무 변화가 없었다. */
+.noti-item.is-unread:hover { background: color-mix(in srgb, var(--color-primary) 11%, transparent); }
+/* 클릭할 수 없는 행(일반 사용자의 모든 알림, 딥링크 대상이 없는 관리자 알림)까지 클릭 가능한
+   행과 똑같은 호버 강조를 받아, 눌러도 아무 일도 안 나는 행이 '누르면 뭔가 될 것처럼' 보였다
+   (커서는 이미 default라 이 배경 강조만 헛신호). :has()로 실제 클릭 가능한
+   .noti-item-main이 있는 행만 강조하고, 정적 행은 명시도를 더 높여 screens.css의
+   .noti-item:hover/.noti-item.is-unread:hover를 로드 순서와 무관하게 이겨 배경을 지운다. */
+.noti-item:has(> .noti-item-main--static):hover,
+.noti-item.is-unread:has(> .noti-item-main--static):hover {
+  background: transparent;
+}
+/* 마지막 항목의 border-bottom과 팝오버 푸터의 border-top이 겹쳐 목록 끝에 2px 이중선이 생겼다. */
+.noti-item:last-child { border-bottom: 0; }
+/* 오류 상태(.noti-pop-error, NotificationBell.jsx list.isError) — ErrorState는 전체 페이지
+   크기(.k-empty, kit.css: padding 48px 24px·아이콘 36px·제목 16px)로 튜닝돼 있어 340px 폭
+   팝오버 안에서 옆의 성공/빈 상태(.noti-empty, screens.css)보다 눈에 띄게 크게 떴다.
+   같은 규모로 맞춘다(product-quality-audit AREA=D). */
+.noti-pop-error .k-empty { padding: 28px 20px; gap: 6px; }
+.noti-pop-error .k-empty-icon { font-size: 22px; opacity: 0.5; }
+.noti-pop-error .k-empty-title { font-size: 14px; }
+.noti-pop-error .k-empty-help { font-size: 12px; max-width: 260px; }
+/* 표시 건수 힌트(.noti-pop-hint, NotificationBell.jsx) — 안 읽음이 page_size(8건)보다 많을 때. */
+.noti-pop-hint { padding: 6px 16px; font-size: 11px; color: var(--color-muted); border-bottom: 1px solid var(--color-border); }
+/* 클릭 가능한(딥링크가 있는) 행과 정적 행이 커서(cursor:pointer vs default) 말고는 시각적으로
+   구분되지 않았다 — 터치 기기엔 커서 신호 자체가 없다. 이동 가능한 행에만 화살표를 붙인다.
+   선택자 명시도(0,2,0)가 screens.css의 .noti-item-main(0,1,0)보다 높아 로드 순서와 무관하게
+   이겨 오른쪽 여백을 확보한다(위쪽 다른 규칙들과 같은 기법, product-quality-audit AREA=D). */
+.noti-item-main:not(.noti-item-main--static) { padding-right: 28px; }
+.noti-item-main:not(.noti-item-main--static)::after {
+  content: "›"; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 17px; line-height: 1; color: var(--color-muted); pointer-events: none;
+}
+/* 팝오버 위치 — screens.css의 `right:0`은 `.noti` 래퍼(벨) 자신의 오른쪽 끝 기준이다. 벨
+   오른쪽엔 UserMenu 아바타(§상단바)가 더 있어(약 40~54px), 팝오버가 뷰포트 오른쪽 끝보다
+   왼쪽으로 밀리고 그만큼 왼쪽으로도 더 뻗어 나간다 — 320~390px 폭(바로 아래 두 미디어
+   쿼리가 다루는 범위)에서 팝오버 왼쪽이 화면 밖으로 잘렸다(overflow-x:clip이라 스크롤로도
+   못 닿음). position:fixed로 바꿔 상단바(.c-topbar)의 오른쪽 padding에 맞춰 뷰포트
+   기준으로 고정하면, 벨 옆에 뭐가 더 있든 항상 화면 안에 들어온다. 명시도(.noti .noti-pop,
+   0,2,0)가 screens.css의 단일 클래스 규칙(0,1,0)보다 높아 로드 순서와 무관하게 이긴다. */
+.noti .noti-pop { position: fixed; top: calc(var(--topbar-height, 56px) + 6px); right: 20px; left: auto; }
+@media (max-width: 860px) { .noti .noti-pop { right: 12px; } }
+@media (max-width: 400px) { .noti .noti-pop { right: 8px; } }
+/* 안 읽음 표시 강화 — screens.css의 배경 틴트(~7%, hover 11%)만으로는 훑어보기에 약하다
+   (특히 다크 모드에서 color-mix 퍼센트가 더 흐리게 읽힌다). 제목을 굵게 하고 눈에 보이는
+   점 표식을 더한다(스크린리더는 이미 sr-only "안 읽음" 텍스트를 읽는다). 점은
+   position:absolute라 grid(.noti-item-main)의 명시적 grid-template-areas 배치에서
+   빠지므로 기존 레이아웃을 흔들지 않는다. */
+.noti-item.is-unread .noti-item-title { font-weight: var(--fw-semibold, 600); }
+.noti-item-main { position: relative; }
+.noti-unread-dot { position: absolute; left: 4px; top: 15px; width: 6px; height: 6px; border-radius: 50%; background: var(--color-primary); }
+/* 안 읽음 개수를 아직 못 받아온 로딩 구간 표식(NotificationBell.jsx countPending) — 색을
+   .noti-count(빨강)와 다르게 중립으로 둬 "확실히 0건"과 "아직 모름"을 시각적으로 구분한다. */
+.noti-pending { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); border: 1.5px solid var(--color-card); }
+/* unread-count 조회가 실패했지만 캐시된 옛 숫자가 남아 배지에 그대로 뜨는 경우(NotificationBell.jsx
+   countError) — 숫자만으로는 최신인지 알 길이 없었다. aria-label엔 이미 "개수를 불러오지 못함"이
+   붙지만, 마우스로 보는 사용자에게도 같은 신호를 주는 테두리를 더한다(product-quality-audit AREA=D). */
+.noti-count--stale { box-shadow: 0 0 0 1.5px var(--color-warning); }
+/* 장애/실패류 알림(NOTI_FAILURE_TYPES, lib/format.js)의 유형 라벨 강조 — screens.css의 기본
+   .noti-item-type(항상 primary 톤)과 시각 무게가 같아 8건이 섞인 팝오버에서 급한 항목을
+   구분할 수 없었다. 클래스 두 개를 겹쳐 명시도(0,2,0)로 screens.css(0,1,0)를 로드 순서와
+   무관하게 이긴다(이 파일의 다른 규칙과 같은 기법, product-quality-audit AREA=D). */
+.noti-item-type.noti-item-type--failure { color: var(--color-error); }
+/* 정적(딥링크 없는) 알림 행을 '펼치기' 토글 버튼으로 바꿨다(NotificationBell.jsx) — 2줄로
+   잘린 title/body를 마우스 hover(title 속성)로만 볼 수 있었던 문제. 이제 눌러서 전체를
+   펼친다. 커서는 이제 클릭 가능하므로 pointer로(screens.css의 cursor:default를 이김),
+   펼쳐진 상태는 line-clamp를 해제한다(product-quality-audit AREA=D). */
+/* 넘쳐서 실제로 펼칠 수 있는 정적 행만 클릭 커서·오른쪽 캐럿(보이는 펼침 affordance)을
+   갖는다 — 넘치지 않는 정적 행은 <div>라 상호작용 신호가 없어야 한다(product-quality-audit AREA=D).
+   명시도(0,2,0)로 screens.css의 단일 클래스 규칙을 로드 순서와 무관하게 이긴다. */
+.noti-item-main--static.noti-item-main--expandable { cursor: pointer; padding-right: 28px; }
+.noti-expand-caret {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; line-height: 1; color: var(--color-muted); pointer-events: none; transition: transform 0.15s ease;
+}
+.noti-item-main--static.is-expanded .noti-expand-caret { transform: translateY(-50%) rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .noti-expand-caret { transition: none; } }
+.noti-item-main--static.is-expanded .noti-item-title,
+.noti-item-main--static.is-expanded .noti-item-body {
+  -webkit-line-clamp: unset; display: block; overflow: visible;
+}
