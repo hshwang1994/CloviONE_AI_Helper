@@ -23,6 +23,9 @@
     }
   ],
   "blocks_error": null,
+  "body_is_local": false,
+  "body_markdown": "## 배경\n본문 한 줄.\n- [x] 할 일\n---",
+  "body_sync_error": null,
   "configured": true,
   "ok": true,
   "ticket": {

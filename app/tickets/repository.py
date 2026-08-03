@@ -41,6 +41,8 @@ class TicketDTO:
     project_names: tuple[str, ...] = ()
     assignee_ids: tuple[str, ...] = ()  # 원본 소스 user id — 내부 전용
     body_markdown: str | None = None
+    # 본문 정본을 소스(Notion)까지 밀어 넣지 못한 상태면 그 이유. None 이면 어긋난 곳이 없다.
+    body_sync_error: str | None = None
     source: str = "notion"
 
 
@@ -78,6 +80,20 @@ class TicketMeta:
 class ProjectRef:
     id: str
     name: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class BodySaveResult:
+    """본문 저장 결과. `synced=False` 는 '우리 DB에는 저장됐지만 소스에는 못 밀어 넣었다'.
+
+    이 두 상태를 하나로 뭉개면 안 된다 — 사용자가 친 글은 살아 있으니 오류로 던질 수 없고,
+    그렇다고 성공이라고 하면 원본과 어긋난 사실을 숨기는 거짓말이 된다.
+    """
+
+    uid: str | None
+    body_markdown: str
+    synced: bool
+    sync_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +152,30 @@ class TicketRepository(Protocol):
 
     def archive(self, db, *, page_id: str) -> None:
         """소스 쪽 원본을 보관처리(휴지통 보관기간 만료 정리)."""
+        ...
+
+    def save_body(self, db, *, page_id: str, body_markdown: str, now) -> BodySaveResult:
+        """본문을 저장한다. **정본을 먼저 쓰고 그다음 소스에 밀어 넣는다.**
+
+        이 순서가 계약이다: 소스 push 가 실패해도 사용자가 친 텍스트는 남아야 하므로 구현체는
+        push 실패를 예외로 던지지 않고 `synced=False` 로 돌려준다(예외로 던지면 요청
+        트랜잭션이 롤백되어 방금 저장한 본문까지 사라진다).
+        """
+        ...
+
+    def local_uid(self, db, *, page_id: str) -> str | None:
+        """이미 우리 DB에 있는 자체 UUID(없으면 None). **소스를 부르지 않는다.**
+
+        댓글 목록처럼 자주 폴링되는 경로가 쓰므로 여기서 외부 왕복이 생기면 안 된다.
+        """
+        ...
+
+    def ensure_local(self, db, *, page_id: str, now=None) -> str:
+        """이 티켓의 **자체 UUID**를 확보한다(없으면 로컬 행을 만들어서라도).
+
+        댓글이 `ticket_cache.id` 에 FK 로 걸려 있어서 필요하다 — 아직 미러에 없는 티켓에
+        댓글을 달려면 먼저 우리 쪽 행이 있어야 한다.
+        """
         ...
 
 

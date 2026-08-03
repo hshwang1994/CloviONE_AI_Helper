@@ -302,6 +302,7 @@ class FakeNotionTasksDB:
         always_has_more: bool = False,
         fail_status: int | None = None,
         fail_message: str = "fake notion failure",
+        block_write_status: int | None = None,
     ) -> None:
         self.rows = list(rows or [])
         self.base = base.rstrip("/")
@@ -314,12 +315,20 @@ class FakeNotionTasksDB:
         self.always_has_more = always_has_more
         self.fail_status = fail_status
         self.fail_message = fail_message
+        # Fails *only* the body-block writes (DELETE /v1/blocks/{id} and
+        # PATCH /v1/blocks/{id}/children) while every read still works. That is the
+        # exact production shape of "the ticket saved but Notion push failed" —
+        # ``fail_status`` cannot express it because it kills the ownership read too.
+        self.block_write_status = block_write_status
         # Recorded for assertions: every parsed tasks-DB query body, in order.
         self.queries: list[dict] = []
         # …and every write, so a test can assert what the app actually sent.
         self.created: list[dict] = []
         self.patched: list[tuple[str, dict]] = []
+        self.deleted_blocks: list[str] = []
+        self.appended_children: list[tuple[str, list[dict]]] = []
         self._next_seq = 0
+        self._next_block_seq = 0
         self.created_page_prefix = "fake-created-"
         self.created_tid_base = 9000
 
@@ -355,6 +364,16 @@ class FakeNotionTasksDB:
             return self._patch_page(path.rsplit("/", 1)[-1], self._body(request))
         if method == "GET" and path.startswith("/v1/pages/"):
             return self._page(path.rsplit("/", 1)[-1])
+        if path.startswith("/v1/blocks/") and method in ("PATCH", "DELETE"):
+            if self.block_write_status is not None:
+                return (self.block_write_status, {
+                    "object": "error", "status": self.block_write_status,
+                    "code": "fake_block_write_error", "message": self.fail_message,
+                })
+            if method == "PATCH" and path.endswith("/children"):
+                return self._append_children(path.split("/")[3], self._body(request))
+            if method == "DELETE":
+                return self._delete_block(path.rsplit("/", 1)[-1])
         if method == "GET" and path.startswith("/v1/blocks/"):
             return self._children(path.split("/")[3])
         return None  # decline — FakeHTTP falls through to its prefix routes
@@ -468,5 +487,36 @@ class FakeNotionTasksDB:
                       "message": "Could not find page."})
 
     def _children(self, page_id: str) -> dict:
-        return {"object": "list", "results": self.blocks.get(page_id, []),
+        blocks = self.blocks.get(page_id, [])
+        # Replacing a page body means deleting its blocks one by one, which needs an
+        # ``id`` on every block. Notion always sends one; tests usually do not bother,
+        # so fill in a stable id here rather than making every fixture carry it.
+        for index, block in enumerate(blocks):
+            if isinstance(block, dict) and not block.get("id"):
+                block["id"] = f"{page_id}-block-{index}"
+        return {"object": "list", "results": blocks,
                 "has_more": False, "next_cursor": None}
+
+    def _delete_block(self, block_id: str):
+        """DELETE /v1/blocks/{id} — Notion archives the block; it stops being a child."""
+        for blocks in self.blocks.values():
+            for index, block in enumerate(blocks):
+                if isinstance(block, dict) and block.get("id") == block_id:
+                    blocks.pop(index)
+                    self.deleted_blocks.append(block_id)
+                    return {**block, "archived": True}
+        return (404, {"object": "error", "status": 404, "code": "object_not_found",
+                      "message": "Could not find block."})
+
+    def _append_children(self, page_id: str, body: dict):
+        """PATCH /v1/blocks/{id}/children — appends, never replaces (as Notion does)."""
+        children = list(body.get("children") or [])
+        self.appended_children.append((page_id, children))
+        blocks = self.blocks.setdefault(page_id, [])
+        added = []
+        for child in children:
+            self._next_block_seq += 1
+            stored = {**child, "id": f"{page_id}-new-{self._next_block_seq}"}
+            blocks.append(stored)
+            added.append(stored)
+        return {"object": "list", "results": added, "has_more": False, "next_cursor": None}

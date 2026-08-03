@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from app.core.errors import AppError
+from app.core.errors import AppError, ValidationAppError
 from app.reports.notion_source import (
     PROP_DIFFICULTY,
     PROP_DUE,
@@ -144,6 +144,12 @@ def archive_page(outbound, settings, *, page_id: str) -> dict:
 
 # 본문 블록 읽기(1레벨) — 티켓 상세를 우리 화면에서 읽기용으로 보여준다(문서 상세와 같은 구조).
 _MAX_BLOCK_PAGES = 20
+# Notion children append 한 번의 상한(API 제약). markdown_to_blocks 의 MAX_BLOCKS 와 같은 값이다.
+_MAX_CHILDREN = 100
+# 본문 교체에서 지워도 되는 기존 블록 수의 상한. 삭제는 블록당 DELETE 한 번이라 여기가 곧
+# 요청 하나의 외부 왕복 수다. 우리 편집기가 만드는 본문은 최대 100줄이므로, 이보다 큰 원본을
+# 여기서 교체한다는 건 남이 Notion 에서 쓴 문서를 통째로 지운다는 뜻이다.
+_MAX_REPLACE_BLOCKS = 200
 _TEXT_BLOCK_TYPES = {
     "paragraph": "paragraph", "heading_1": "heading_1", "heading_2": "heading_2",
     "heading_3": "heading_3", "bulleted_list_item": "bulleted", "numbered_list_item": "numbered",
@@ -187,6 +193,58 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
         if not cursor:
             break
     return out
+
+
+def page_block_ids(outbound, settings, page_id: str, *, limit: int | None = None) -> list[str]:
+    """페이지 본문(1레벨 children)의 블록 id 목록. 본문 교체 전 삭제 대상을 모으는 데 쓴다.
+
+    `limit` 을 주면 그 개수를 넘어서는 순간 멈춘다(넘었는지 알 수 있게 limit+1 개까지 모은다).
+    """
+    path = f"/v1/blocks/{page_id}/children"
+    ids: list[str] = []
+    cursor: str | None = None
+    for _ in range(_MAX_BLOCK_PAGES):
+        q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        data = _request(outbound, settings, "GET", path + q)
+        for block in data.get("results", []):
+            if isinstance(block, dict) and block.get("id"):
+                ids.append(block["id"])
+        if limit is not None and len(ids) > limit:
+            return ids
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+        if not cursor:
+            break
+    return ids
+
+
+def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -> None:
+    """페이지 본문(1레벨 children)을 통째로 교체한다 — 기존 블록 삭제 후 새 블록 추가.
+
+    Notion 에는 '자식 전체 교체' 원자 연산이 없다. 순서를 **삭제 → 추가**로 잡은 이유는
+    재시도 수렴이다: 중간에 실패해도 같은 본문으로 다시 저장하면 원하는 상태가 된다.
+    반대 순서(추가 → 삭제)로 하면 실패할 때마다 본문이 한 벌씩 늘어나 되돌리기 어려워진다.
+    실패해도 우리 DB의 정본(body_markdown)은 이미 저장된 뒤라 사용자 글은 살아 있다.
+
+    원본이 아주 큰 페이지는 **손대지 않고 거절한다**(_MAX_REPLACE_BLOCKS). 삭제가 블록당 한
+    번의 DELETE 라 수백 개면 요청 하나가 수백 왕복이 되고(동기 핸들러 점유·타임아웃), 무엇보다
+    우리 편집기가 만들 수 있는 본문은 최대 100줄이라 그런 페이지를 여기서 교체한다는 건 남이
+    Notion 에서 쓴 큰 문서를 통째로 지운다는 뜻이다. 거절이 맞다.
+    """
+    existing = page_block_ids(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
+    if len(existing) > _MAX_REPLACE_BLOCKS:
+        raise ValidationAppError(
+            f"원본 본문이 너무 커서(블록 {_MAX_REPLACE_BLOCKS}개 초과) 여기서 교체하지 않았습니다. "
+            f"원본에서 편집해 주세요."
+        )
+    for block_id in existing:
+        _request(outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+    if blocks:
+        _request(
+            outbound, settings, "PATCH", f"/v1/blocks/{page_id}/children",
+            json={"children": blocks[:_MAX_CHILDREN]},
+        )
 
 
 def property_value(prop: dict, value):

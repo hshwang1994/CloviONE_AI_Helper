@@ -14,10 +14,18 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import NotionNotConfiguredError, NotionQueryError
 from app.tickets import service
-from app.tickets.schemas import BulkPageIds, TicketCreate, TicketUpdate
+from app.tickets.schemas import (
+    BulkPageIds,
+    TicketBodyUpdate,
+    TicketCommentCreate,
+    TicketCommentUpdate,
+    TicketCreate,
+    TicketUpdate,
+)
 from app.users.models import User
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
@@ -155,6 +163,13 @@ def create(
         request, db, action="ticket.create", object_type="notion_task",
         object_id=result["ticket"].get("id"), after=result["after"],
     )
+    # 사용 통계(0026) — 저빈도 지점. 티켓 '조회'가 아니라 '생성'에만 건다.
+    record_usage(
+        db, event=EVENT_TICKET_CREATE, user_id=user.id,
+        org_id=getattr(user, "org_id", None),
+        object_type="notion_task", object_id=result["ticket"].get("id"),
+        now=request.app.state.clock.now(),
+    )
     return {"configured": True, "ok": True, "ticket": result["ticket"]}
 
 
@@ -224,6 +239,111 @@ def trash_tickets_bulk(
     for it in result["trashed"]:
         record_audit_from_request(request, db, action="ticket.trash", object_type="notion_task",
                                   object_id=it["id"], before={"title": it.get("title")})
+    return {"ok": True, **result}
+
+
+# ── 댓글 ──────────────────────────────────────────────────────────────────────
+# 리터럴 세그먼트가 두 개라 아래 GET /{page_id} 와 겹치지 않는다(경로 파라미터는 '/' 를 먹지
+# 않는다). 그래도 읽는 순서상 여기에 모아 둔다.
+
+@router.patch("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
+def update_comment(
+    request: Request,
+    comment_id: str,
+    payload: TicketCommentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """댓글 수정 — **작성자 본인만**(운영자 우회 없음). 남의 문장을 고쳐 쓸 수는 없다."""
+    result = service.edit_ticket_comment(
+        db, user, comment_id=comment_id, body=payload.body,
+        now=request.app.state.clock.now(),
+    )
+    record_audit_from_request(
+        request, db, action="ticket.comment.update", object_type="ticket_comment",
+        object_id=comment_id,
+    )
+    return {"ok": True, **result}
+
+
+@router.delete("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
+def delete_comment(
+    request: Request,
+    comment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """댓글 삭제 — 작성자 본인 또는 운영자군. soft-delete 이고, 목록에는 툼스톤으로 남는다."""
+    result = service.delete_ticket_comment(
+        db, user, comment_id=comment_id, now=request.app.state.clock.now()
+    )
+    record_audit_from_request(
+        request, db, action="ticket.comment.delete", object_type="ticket_comment",
+        object_id=comment_id,
+    )
+    return {"ok": True, **result}
+
+
+@router.get("/{page_id}/comments")
+def list_comments(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """티켓 댓글 목록(삭제된 것은 본문 없는 툼스톤). 외부 왕복 없음 — 우리 표만 읽는다."""
+    return {"ok": True, **service.list_ticket_comments(
+        db, request.app.state.outbound_client, request.app.state.settings, user,
+        page_id=page_id, repo=_repo(request),
+    )}
+
+
+@router.post("/{page_id}/comments", dependencies=[Depends(require_csrf)])
+def create_comment(
+    request: Request,
+    page_id: str,
+    payload: TicketCommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """댓글 작성 — 로그인한 누구나(티켓 자체가 팀 전체 조회 대상이다)."""
+    result = service.add_ticket_comment(
+        db, request.app.state.outbound_client, request.app.state.settings, user,
+        page_id=page_id, body=payload.body,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
+    record_audit_from_request(
+        request, db, action="ticket.comment.create", object_type="ticket_comment",
+        object_id=result["comment_id"], after={"ticket_page_id": page_id},
+    )
+    return {"ok": True, **result}
+
+
+# ── 본문 편집 ─────────────────────────────────────────────────────────────────
+
+@router.put("/{page_id}/body", dependencies=[Depends(require_csrf)])
+def save_body(
+    request: Request,
+    page_id: str,
+    payload: TicketBodyUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """티켓 본문 저장. 정본(우리 DB)을 먼저 쓰고 그다음 원본(Notion)에 밀어 넣는다.
+
+    **원본 push 실패는 500 이 아니다.** 사용자가 친 글은 이미 저장돼 있으므로 오류로 던지면
+    (요청 트랜잭션이 롤백돼) 오히려 그 글이 사라진다. 그래서 `ok: true` + `synced: false` +
+    이유를 함께 돌려주고, 화면이 "저장됨 · 원본 동기화 실패 · 재시도"를 그린다.
+    """
+    result = service.save_ticket_body(
+        db, request.app.state.outbound_client, request.app.state.settings, user,
+        page_id=page_id, body_markdown=payload.body_markdown,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
+    record_audit_from_request(
+        request, db, action="ticket.body.update", object_type="notion_task",
+        object_id=page_id, after={"synced": result["synced"]},
+    )
     return {"ok": True, **result}
 
 

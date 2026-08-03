@@ -11,6 +11,10 @@ import re
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
+from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
+from app.tickets.comments import MAX_COMMENT_CHARS
+
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -31,6 +35,65 @@ class BulkPageIds(BaseModel):
         if not out:
             raise ValueError("삭제할 항목을 선택하세요.")
         return out[:100]  # 한 번에 최대 100건
+
+
+class TicketBodyUpdate(BaseModel):
+    """티켓 본문(마크다운 정본) 저장.
+
+    상한을 **거절**로 두고 잘라내지 않는 이유: 우리 DB에는 다 들어가는데 Notion 에는 앞
+    100줄만 올라가면 두 곳이 조용히 달라진다. 사용자에게 어긋난 이유를 말하지 않고 어긋나게
+    두느니, 저장을 거절하고 무엇을 줄여야 하는지 알려주는 편이 낫다.
+    (상한값은 app/core/notion_blocks.py 의 MAX_BLOCKS / MAX_LINE_CHARS 와 같은 값이다.)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    body_markdown: str
+
+    @field_validator("body_markdown")
+    @classmethod
+    def _check_body(cls, v: str) -> str:
+        v = (v or "").replace("\r\n", "\n").replace("\r", "\n")
+        lines = v.split("\n")
+        if len(lines) > BODY_MAX_LINES:
+            raise ValueError(
+                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
+                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
+            )
+        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
+            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
+        return v
+
+
+class TicketCommentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)
+
+
+class TicketCommentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)
+
+
+def _comment_body(v: str) -> str:
+    v = (v or "").strip()
+    if not v:
+        raise ValueError("댓글 내용을 입력하세요.")
+    if len(v) > MAX_COMMENT_CHARS:
+        raise ValueError(f"댓글은 {MAX_COMMENT_CHARS}자 이하여야 합니다.")
+    return v
 
 
 class TicketUpdate(BaseModel):

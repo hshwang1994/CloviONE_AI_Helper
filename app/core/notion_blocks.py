@@ -120,3 +120,53 @@ def blocks_to_markdown(blocks) -> str:
             lines.append(f"{_BLOCK_PREFIX[btype]}{text}" if text else "")
         # 그 밖(image/embed/table…)은 마크다운으로 표현할 수 없어 건너뛴다.
     return "\n".join(lines)
+
+
+# ── 렌더용 축약형 → 마크다운 ──────────────────────────────────────────────────
+# 티켓·문서 상세 API 가 화면에 내려보내는 본문은 Notion 원본 블록이 아니라 축약형
+# [{kind, text, checked?}] 이다(notion_write.fetch_page_blocks). 편집기를 열 때 그 본문을
+# 되읽어야 하는데, 원본 블록을 다시 받아오려고 Notion 을 한 번 더 왕복하는 건 낭비다.
+# 그래서 같은 규칙을 축약형에도 적용한다 — blocks_to_markdown 과 출력이 일치해야 한다.
+#
+# `unsupported`(이미지·표·컬럼…)는 **건너뛴다**. '[image] 원본에서 확인' 을 글자로 남기면
+# 저장할 때 그 문구가 진짜 문단으로 Notion 에 써 넣어진다. 대신 그런 블록이 있었다는 사실은
+# 호출측이 blocks 배열에서 직접 보고 사용자에게 경고한다(저장하면 원본에서 사라지므로).
+_KIND_PREFIX = {
+    "heading_1": "# ",
+    "heading_2": "## ",
+    "heading_3": "### ",
+    "bulleted": "- ",
+    "quote": "> ",
+    # callout/toggle 은 마크다운에 대응이 없다 — 가장 가까운 문단으로 내린다.
+    "callout": "",
+    "toggle": "",
+    "paragraph": "",
+}
+
+
+def rendered_to_markdown(items) -> str:
+    """`[{kind, text, checked?}]`(fetch_page_blocks 출력) → 가벼운 마크다운."""
+    lines: list[str] = []
+    number = 0
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        kind = item.get("kind") or ""
+        text = item.get("text") or ""
+        if kind != "numbered":
+            number = 0  # 목록이 끊기면 번호를 1부터 다시 센다(blocks_to_markdown 과 동일)
+        if kind == "divider":
+            lines.append("---")
+        elif kind == "numbered":
+            number += 1
+            lines.append(f"{number}. {text}")
+        elif kind == "todo":
+            lines.append(f"- [{'x' if item.get('checked') else ' '}] {text}")
+        elif kind == "code":
+            lines.append("```")
+            lines.append(text)
+            lines.append("```")
+        elif kind in _KIND_PREFIX:
+            lines.append(f"{_KIND_PREFIX[kind]}{text}" if text else "")
+        # unsupported 및 알 수 없는 kind 는 건너뛴다.
+    return "\n".join(lines)

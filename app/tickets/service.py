@@ -18,25 +18,20 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.models_base import utcnow
+from app.core.notion_blocks import rendered_to_markdown
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map
+from app.tickets import comments
 from app.tickets.repository import TicketDraft, TicketDTO, snapshot
 from app.trash import repository as trash_repo
 from app.trash import service as trash_service
 from app.trash.models import TRASH_TICKET
-from app.users.models import (
-    ROLE_ADMIN,
-    ROLE_OPERATOR,
-    ROLE_SYSTEM_ADMIN,
-    User,
-)
+from app.core.authz import MODERATOR_ROLES
+from app.users.models import User
 
 # 완료·취소는 '끝난' 티켓 — 미할당 목록의 기본에서 뺀다(진행/계획/이슈/검증만 담당자 필요).
 _TERMINAL = {STATUS_DONE, STATUS_CANCELLED}
 
-# 소유권을 우회해 아무 티켓이나 편집할 수 있는 역할(운영/관리자군). 그 외(user/auditor)는
-# 본인 담당이거나 미할당인 티켓만 편집할 수 있다(IDOR 차단).
-_EDIT_BYPASS_ROLES = {ROLE_OPERATOR, ROLE_ADMIN, ROLE_SYSTEM_ADMIN}
 
 
 def _repo(settings, outbound, repo=None, *, use_cache: bool | None = None):
@@ -212,7 +207,31 @@ def ticket_detail(
     except Exception as exc:  # noqa: BLE001 — 본문만 격리 실패, 속성은 계속 보여준다
         blocks_error = "본문을 불러오지 못했습니다. 원본에서 확인해 주세요."
         _ = exc
-    return {"ticket": ticket, "blocks": blocks, "blocks_error": blocks_error}
+    return {
+        "ticket": ticket,
+        "blocks": blocks,
+        "blocks_error": blocks_error,
+        # 편집기를 여는 데 쓰는 마크다운. 우리 정본이 있으면 그것, 없으면 방금 읽은 소스 본문을
+        # 같은 규칙으로 되읽은 값이다 — 이걸 안 주면 프런트가 마크다운 변환기를 한 벌 더 갖거나
+        # 편집기가 빈 채로 열려 '저장'이 기존 본문 삭제가 된다.
+        "body_markdown": _detail_body_markdown(dto, blocks, blocks_error),
+        # 위 본문이 **우리 정본**인가, 아니면 소스에서 되읽은 근사치인가.
+        # 근사치일 때 편집기에서 저장하면 굵게·링크 같은 인라인 서식과 이미지·표 블록이
+        # 사라지고 글자만 남는다(우리 본문 파이프라인은 평문 마크다운이다). 화면이 그때만
+        # 경고하려면 이 구분이 필요하다 — 항상 경고하면 사용자가 경고를 읽지 않게 된다.
+        "body_is_local": dto.body_markdown is not None,
+        # 정본은 저장됐는데 소스에 못 밀어 넣은 상태면 그 이유. 화면이 배너로 보여준다.
+        "body_sync_error": dto.body_sync_error,
+    }
+
+
+def _detail_body_markdown(dto: TicketDTO, blocks, blocks_error) -> str | None:
+    """편집기 초기값. 본문을 못 읽었으면 None — 모르는 것을 빈 문자열로 내려보내면 안 된다."""
+    if dto.body_markdown is not None:
+        return dto.body_markdown
+    if blocks_error is not None or blocks is None:
+        return None
+    return rendered_to_markdown(blocks)
 
 
 def ticket_meta(outbound, settings, db: Session | None = None, *, repo=None) -> dict:
@@ -303,7 +322,9 @@ def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | Non
 
     소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
     """
-    if user.role in _EDIT_BYPASS_ROLES:
+    # 운영/관리자군(MODERATOR_ROLES)은 소유권을 우회해 아무 티켓이나 편집할 수 있다.
+    # 그 외(user/auditor)는 본인 담당이거나 미할당인 티켓만 편집할 수 있다(IDOR 차단).
+    if user.role in MODERATOR_ROLES:
         return
     assignees = ticket.assignee_ids
     if not assignees:
@@ -394,6 +415,105 @@ def update_ticket(
     }
 
 
+# ── 담당자 재배정(오프보딩) ───────────────────────────────────────────────────
+#
+# 오프보딩은 티켓 담당자를 **되돌릴 수 있게** 옮겨야 한다. 그러려면 옮기기 직전의 담당자
+# 구성을 앱 user_id 로 남겨야 하는데, `update_ticket` 은 감사 스냅샷을 raw 소스 id 로만
+# 돌려주므로 부르는 쪽이 매핑을 한 벌 더 갖게 된다. 여기 두 함수가 그 해석을 대신하고,
+# 소스 왕복도 건당 한 번으로 줄인다(`update_ticket` 을 그대로 쓰면 get_live 가 두 번 돈다).
+
+def resolve_assignee_user_ids(db: Session, assignee_source_ids) -> list[str]:
+    """소스 담당자 id → 앱 user_id 목록(해석되는 것만, 순서 보존·중복 제거).
+
+    해석되지 않는 담당자(앱에 없는 외부 사용자)는 여기서 **사라진다**. 그래도 되는 이유는
+    쓰기 경로(`_build_assignee_people`)가 그런 담당자를 언제나 보존하기 때문이다 — 즉
+    "앱이 아는 담당자 집합"만 재배정의 대상이고, 나머지는 우리가 건드리지 않는다.
+    """
+    id_to_user = _verified_id_to_user(db)
+    out: list[str] = []
+    for nid in assignee_source_ids:
+        uid = id_to_user.get(nid)
+        if uid and uid not in out:
+            out.append(uid)
+    return out
+
+
+def _apply_assignees(
+    db: Session, r, user: User, *, page_id: str, wanted: list[str], now: datetime | None,
+) -> dict:
+    """현재 담당자를 읽고 `wanted` 로 맞춘다. 이미 같으면 소스를 부르지 않는다."""
+    current = r.get_live(db, page_id=page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    before = resolve_assignee_user_ids(db, current.assignee_ids)
+    if before == wanted:
+        return {
+            "changed": False,
+            "before_user_ids": before,
+            "after_user_ids": before,
+            "ticket": ticket_views(db, [current])[0],
+        }
+    people = _build_assignee_people(db, current.assignee_ids, wanted)
+    updated = r.update(
+        db, page_id=page_id,
+        changes={"assignee_notion_ids": people},
+        now=now or utcnow(),
+    )
+    return {
+        "changed": True,
+        "before_user_ids": before,
+        "after_user_ids": resolve_assignee_user_ids(db, updated.assignee_ids),
+        "ticket": ticket_views(db, [updated])[0],
+    }
+
+
+def replace_ticket_assignee(
+    db: Session, outbound, settings, user: User, *, page_id: str,
+    from_user_id: str, to_user_id: str | None, now: datetime | None = None, repo=None,
+) -> dict:
+    """담당자 한 명을 다른 사람으로 바꾼다 — **나머지 담당자는 그대로 둔다**.
+
+    공동 담당 티켓에서 퇴사자만 빼고 후임을 넣는 것이 목적이라, 담당자 목록을 통째로
+    덮어쓰지 않는다(덮어쓰면 같이 일하던 사람이 조용히 빠진다).
+    `to_user_id` 가 None 이면 후임 없이 빼기만 한다(미할당 트리아지로 보낸다).
+    """
+    r = _repo(settings, outbound, repo)
+    current = r.get_live(db, page_id=page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    before = resolve_assignee_user_ids(db, current.assignee_ids)
+    wanted = [uid for uid in before if uid != from_user_id]
+    if to_user_id and to_user_id not in wanted:
+        wanted.append(to_user_id)
+    if before == wanted:
+        return {
+            "changed": False, "before_user_ids": before, "after_user_ids": before,
+            "ticket": ticket_views(db, [current])[0],
+        }
+    people = _build_assignee_people(db, current.assignee_ids, wanted)
+    updated = r.update(
+        db, page_id=page_id, changes={"assignee_notion_ids": people}, now=now or utcnow()
+    )
+    return {
+        "changed": True,
+        "before_user_ids": before,
+        "after_user_ids": resolve_assignee_user_ids(db, updated.assignee_ids),
+        "ticket": ticket_views(db, [updated])[0],
+    }
+
+
+def set_ticket_assignees(
+    db: Session, outbound, settings, user: User, *, page_id: str,
+    user_ids: list[str], now: datetime | None = None, repo=None,
+) -> dict:
+    """담당자를 주어진 목록 **그대로** 맞춘다(되돌리기용).
+
+    되돌리기는 '옮기기 직전 구성으로 복원'이므로 차집합이 아니라 전체 지정이어야 한다 —
+    그 사이 제3자가 담당자를 더했다면 그 변경도 함께 되돌아간다. 그것이 '되돌리기'의 뜻이고,
+    무엇이 바뀌었는지는 응답의 before/after 로 그대로 드러난다.
+    """
+    r = _repo(settings, outbound, repo)
+    return _apply_assignees(db, r, user, page_id=page_id, wanted=list(user_ids), now=now)
+
+
 def claim_ticket(
     db: Session, outbound, settings, user: User, *, page_id: str,
     now: datetime | None = None, repo=None,
@@ -429,3 +549,80 @@ def create_ticket(
     )
     created = _repo(settings, outbound, repo).create(db, draft=draft, now=now or utcnow())
     return {"ticket": ticket_views(db, [created])[0], "after": snapshot(created)}
+
+
+# ── 본문 편집 ─────────────────────────────────────────────────────────────────
+
+def save_ticket_body(
+    db: Session, outbound, settings, user: User, *, page_id: str, body_markdown: str,
+    now: datetime | None = None, repo=None,
+) -> dict:
+    """티켓 본문을 저장한다. 편집 권한은 속성 편집과 **같은 규칙**(담당자/미할당/운영자군).
+
+    저장 순서(정본 먼저 → 소스 push)는 저장소 구현체가 지킨다. 여기서 중요한 것은 소스 push
+    실패를 **오류로 바꾸지 않는 것**이다 — 오류로 던지면 요청 트랜잭션이 롤백되어 방금 저장한
+    사용자 텍스트까지 사라지고, 순서를 지킨 의미가 사라진다. 대신 `synced=False` 를 그대로
+    응답에 실어 화면이 "저장됨 · 원본 동기화 실패"를 보여주게 한다.
+
+    다만 바로 아래 `get_live` 는 정본을 쓰기 **전에** 소스를 부른다. 소유권은 프런트가 준 값도
+    캐시 값도 아닌 '지금 소스의 담당자'로 판정해야 하기 때문이다(IDOR). 그래서 소스가 아예
+    닿지 않는 순간에는 저장이 시작되지도 못하고 요청이 실패한다 — 아무것도 저장되지 않지만
+    '저장했다'고 하지도 않는다. 이 함수가 지키는 것은 '소스가 살아서 거절한 경우'다.
+    """
+    r = _repo(settings, outbound, repo)
+    current = r.get_live(db, page_id=page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    result = r.save_body(
+        db, page_id=page_id, body_markdown=body_markdown, now=now or utcnow()
+    )
+    return {
+        "body_markdown": result.body_markdown,
+        "synced": result.synced,
+        "body_sync_error": result.sync_error,
+    }
+
+
+# ── 댓글 ──────────────────────────────────────────────────────────────────────
+#
+# URL 은 page_id(딥링크 키)로 받고, 저장은 자체 UUID(ticket_cache.id)로 한다 — 그 해석만
+# 저장소 seam 을 지난다. 응답은 늘 **목록 전체**다: 삭제·수정 뒤에 클라이언트가 자기 목록을
+# 직접 기워 맞추면 툼스톤 규약이 두 곳(서버·클라)에 생겨 언젠가 갈라진다.
+
+def list_ticket_comments(
+    db: Session, outbound, settings, user: User, *, page_id: str, repo=None
+) -> dict:
+    uid = _repo(settings, outbound, repo).local_uid(db, page_id=page_id)
+    return {"comments": comments.list_comments(db, ticket_uid=uid, me=user)}
+
+
+def add_ticket_comment(
+    db: Session, outbound, settings, user: User, *, page_id: str, body: str,
+    now: datetime | None = None, repo=None,
+) -> dict:
+    stamp = now or utcnow()
+    uid = _repo(settings, outbound, repo).ensure_local(db, page_id=page_id, now=stamp)
+    created = comments.create_comment(
+        db, ticket_uid=uid, author=user, body=body, now=stamp
+    )
+    return {
+        "comment_id": created.id,
+        "comments": comments.list_comments(db, ticket_uid=uid, me=user),
+    }
+
+
+def edit_ticket_comment(
+    db: Session, user: User, *, comment_id: str, body: str, now: datetime | None = None
+) -> dict:
+    comment = comments.get_or_404(db, comment_id)
+    comments.ensure_can_edit(comment, user)
+    comments.update_comment(db, comment, body=body, now=now or utcnow())
+    return {"comments": comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)}
+
+
+def delete_ticket_comment(
+    db: Session, user: User, *, comment_id: str, now: datetime | None = None
+) -> dict:
+    comment = comments.get_or_404(db, comment_id)
+    comments.ensure_can_delete(comment, user)
+    comments.soft_delete_comment(db, comment, now=now or utcnow())
+    return {"comments": comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)}

@@ -15,7 +15,9 @@ import Typography from "@mui/material/Typography";
  * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
 
 const BODY_EMOJIS = ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "💡"];
-const BODY_MAX_LINES = 100;
+/* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
+ * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
+export const BODY_MAX_LINES = 100;
 
 export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
   const ref = useRef(null);

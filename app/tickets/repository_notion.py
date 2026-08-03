@@ -20,6 +20,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationAppError
@@ -39,6 +40,7 @@ from app.tickets.models import (
     split_names,
 )
 from app.tickets.repository import (
+    BodySaveResult,
     ProjectRef,
     SyncStatus,
     TicketDraft,
@@ -121,6 +123,7 @@ class NotionTicketRepository:
             project_names=tuple(split_names(row.project_names)),
             assignee_ids=tuple(split_names(row.assignee_notion_ids)),
             body_markdown=row.body_markdown,
+            body_sync_error=row.body_sync_error,
             source=row.source or SOURCE_NOTION,
         )
 
@@ -228,13 +231,20 @@ class NotionTicketRepository:
         사용자가 '원본 열기' 직전에 보는 값이라 가장 신선해야 한다."""
         parsed = notion_write.fetch_ticket(self._outbound, self._settings, page_id)
         dto = self._from_notion(parsed, self._live_project_map(db))
-        # 킬 스위치(use_cache=False)일 때는 캐시를 아예 보지 않는다 — '캐시 도입 전과 같은 경로'가
-        # 이 스위치의 유일한 약속이라, 자체 id 하나를 얻자고 캐시를 읽으면 그 약속이 깨진다.
-        cached = self._cache_row(db, page_id) if self.use_cache else None
+        cached = self._cache_row(db, page_id)
         if cached is None:
             return dto
-        # 자체 id(uid)와 본문 정본은 캐시에만 있다 — 값 자체는 방금 읽은 실시간 것이 이긴다.
-        return replace(dto, uid=cached.id, body_markdown=cached.body_markdown)
+        # 킬 스위치(use_cache=False)는 '티켓 **필드**를 캐시 도입 전처럼 실시간으로 읽는다'는
+        # 약속이다. 그래서 uid 는 그 모드에서 채우지 않는다(캐시가 답한 것처럼 보이면 안 된다).
+        # 반면 본문 정본과 동기화 오류는 Notion 에 아예 없는 **우리 데이터**다. 스위치를 켰다고
+        # '저장은 됐지만 원본과 어긋났다'는 사실이 화면에서 사라지면, 그건 되돌리기가 아니라
+        # 사용자에게 거짓말을 시작하는 것이다 — 그래서 이 둘은 어느 모드에서도 함께 싣는다.
+        return replace(
+            dto,
+            uid=cached.id if self.use_cache else None,
+            body_markdown=cached.body_markdown,
+            body_sync_error=cached.body_sync_error,
+        )
 
     def get_live(self, db: Session, *, page_id: str) -> TicketDTO:
         """소유권 판정·감사 스냅샷용. 캐시를 믿지 않고 '지금'의 값을 소스에서 읽는다."""
@@ -428,6 +438,93 @@ class NotionTicketRepository:
             db.delete(row)
             db.flush()
 
+    # ── 본문(정본 먼저, 소스는 그다음) ───────────────────────────────────────
+
+    def local_uid(self, db: Session, *, page_id: str) -> str | None:
+        """이미 있는 자체 UUID(없으면 None). 소스를 부르지 않는다.
+
+        킬 스위치(`use_cache=False`)여도 여기서는 로컬 표를 본다. 그 스위치의 약속은 '티켓
+        **읽기** 경로를 캐시 도입 전으로 되돌린다'이지 '우리 데이터(댓글)를 끊는다'가 아니다 —
+        스위치를 켰다고 댓글이 사라지면 그건 킬 스위치가 아니라 새로운 사고다.
+        """
+        row = self._cache_row(db, page_id)
+        return row.id if row is not None else None
+
+    def ensure_local(self, db: Session, *, page_id: str, now: datetime | None = None) -> str:
+        """자체 UUID 확보 — 캐시 행이 없으면 소스에서 한 번 읽어 만들어 둔다.
+
+        댓글이 `ticket_cache.id` 에 FK 로 걸려 있어서 필요하다. 캐시가 아직 안 찬 상태
+        (첫 기동·마이그레이션 직후)에서도 댓글을 달 수 있어야 한다.
+        """
+        row = self._cache_row(db, page_id)
+        if row is not None:
+            return row.id
+        dto = self._from_notion(notion_write.fetch_ticket(self._outbound, self._settings, page_id))
+        # 아직 미러에 없는 티켓에 두 사람이 동시에 첫 댓글을 달면 둘 다 '행 없음'을 보고 둘 다
+        # INSERT 를 시도한다 — notion_page_id 가 unique 라 진 쪽은 IntegrityError 로 500 이 된다.
+        # SAVEPOINT 안에서 시도해 실패해도 바깥 트랜잭션(이미 검증까지 끝난 요청)을 버리지 않고,
+        # 먼저 넣은 쪽이 만든 행을 그대로 쓴다.
+        try:
+            with db.begin_nested():
+                saved = self._write_through(db, dto, now=now)
+        except IntegrityError:
+            row = self._cache_row(db, page_id)
+            if row is None:
+                raise
+            return row.id
+        if not saved.uid:  # 방어적: write-through 가 page_id 없이는 행을 만들지 않는다
+            raise ValidationAppError("티켓을 우리 저장소에 기록하지 못했습니다.")
+        return saved.uid
+
+    def save_body(
+        self, db: Session, *, page_id: str, body_markdown: str, now: datetime | None = None
+    ) -> BodySaveResult:
+        """본문 저장. **정본을 먼저 쓰고, 그다음 Notion 블록을 push 한다.**
+
+        순서가 이 함수의 전부다. 반대로 하면 Notion 이 죽은 날 사용자가 방금 친 글이 통째로
+        사라진다. 이 순서라면 Notion push 가 실패해도 우리 DB 에는 이미 들어가 있다.
+
+        그래서 push 실패를 **예외로 던지지 않는다**: 요청 트랜잭션이 롤백되면 방금 저장한
+        본문까지 되돌아가 순서를 지킨 의미가 없어진다. 대신 어긋난 사실을 행에 적어 두고
+        (`body_sync_error`) `synced=False` 로 알린다 — 화면이 배너와 재시도를 그린다.
+
+        **보장 범위를 과장하지 않는다.** 여기서 지키는 것은 push 단계의 실패뿐이다. 그 앞의
+        소유권 확인(service.save_ticket_body 의 get_live)과, 미러에 없던 티켓의 첫 저장에서
+        ensure_local 이 하는 조회는 정본을 쓰기 **전에** Notion 을 부르므로, 그 시점에 Notion 이
+        닿지 않으면 요청 자체가 실패하고 아무것도 저장되지 않는다. 그때도 '저장했다'고 거짓말은
+        하지 않는다(오류가 그대로 화면에 뜨고 편집 중이던 글은 브라우저에 남는다).
+        """
+        stamp = now or utcnow()
+        uid = self.ensure_local(db, page_id=page_id, now=stamp)
+        row = self._cache_row(db, page_id)
+        if row is None:  # ensure_local 직후이므로 실제로는 오지 않는다
+            raise ValidationAppError("티켓을 우리 저장소에서 찾지 못했습니다.")
+
+        # 1) 정본. 여기까지가 "사용자 글은 반드시 살아남는다"의 범위다.
+        row.body_markdown = body_markdown
+        row.updated_at = stamp
+        db.flush()
+
+        # 2) 소스 반영. 어떤 실패도 밖으로 내보내지 않는다.
+        try:
+            notion_write.replace_page_body(
+                self._outbound, self._settings,
+                page_id=page_id, blocks=markdown_to_blocks(body_markdown),
+            )
+        except Exception as exc:  # noqa: BLE001 — 위 1)을 롤백시키지 않는 것이 이 except 의 목적
+            message = getattr(exc, "message", None) or f"Notion 반영 실패: {type(exc).__name__}"
+            row.body_sync_error = message
+            row.body_synced_at = None
+            db.flush()
+            return BodySaveResult(
+                uid=uid, body_markdown=body_markdown, synced=False, sync_error=message
+            )
+
+        row.body_sync_error = None
+        row.body_synced_at = stamp
+        db.flush()
+        return BodySaveResult(uid=uid, body_markdown=body_markdown, synced=True)
+
     # ── write-through ────────────────────────────────────────────────────────
 
     def _cache_row(self, db: Session | None, page_id: str | None) -> TicketCache | None:
@@ -490,4 +587,9 @@ class NotionTicketRepository:
         row.synced_at = stamp
         row.updated_at = stamp
         db.flush()
-        return replace(dto, uid=row.id, body_markdown=row.body_markdown)
+        return replace(
+            dto,
+            uid=row.id,
+            body_markdown=row.body_markdown,
+            body_sync_error=row.body_sync_error,
+        )
