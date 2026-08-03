@@ -123,7 +123,11 @@ def _provision(email: str, initial_password: str, log) -> None:
     """
     if _user_exists(email):
         log(f"[auth] 기존 계정 발견 → 비밀번호 재설정: {email}")
-        proc = _run_cli(["passwd", "--email", email, "--password-stdin"], initial_password + "\n")
+        # `passwd` 에는 `add` 와 달리 --password-stdin 플래그가 없다. --temp 를 주지 않으면
+        # **항상** stdin 에서 읽는다(app/cli/user_cli.py::cmd_passwd). 없는 플래그를 붙이면
+        # argparse 가 rc=2 로 죽고 하네스는 "세션을 만들지 못했습니다"로만 끝난다 —
+        # 저장된 세션이 만료되는 순간 전 라우트 캡처가 통째로 막혔다.
+        proc = _run_cli(["passwd", "--email", email], initial_password + "\n")
     else:
         log(f"[auth] 계정 생성(user_cli add): {email} role={DEFAULT_ROLE}")
         proc = _run_cli(
