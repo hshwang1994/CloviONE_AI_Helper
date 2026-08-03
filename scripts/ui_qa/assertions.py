@@ -265,6 +265,10 @@ PROBE_JS = r"""
   // 겹침 자체보다 **누를 수 없게 되는 것**이 문제이므로, 겹친 지점에서
   // elementFromPoint 가 그 컨트롤을 돌려주는지까지 본다. 살짝 스치기만 하고 여전히
   // 누를 수 있으면 통과다.
+  //
+  // 스크롤 맨 위에서만 재면 부족하다. 화면 하단에 붙는 컨트롤은 **끝까지 내렸을 때**
+  // 비로소 FAB 과 만난다. 그래서 현재 위치와 맨 아래 두 지점에서 재고 합친다.
+  // 프로브는 스크린샷보다 먼저 돌기 때문에(capture.py), 잰 뒤 스크롤을 정확히 되돌린다.
   out.fabOverlap = [];
   const floaters = Array.from(document.querySelectorAll('body *')).filter((el) => {
     const cs = getComputedStyle(el);
@@ -274,31 +278,61 @@ PROBE_JS = r"""
     // 전면 오버레이(모달 배경 등)는 대상이 아니다 — 덮는 게 목적인 요소다.
     return r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.height < innerHeight * 0.5;
   });
-  const controls = document.querySelectorAll('button, a[href], input, select, textarea, [role="button"]');
-  for (const el of controls) {
-    if (out.fabOverlap.length >= MAX) break;
-    const r = el.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4) continue;
-    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
-    for (const f of floaters) {
-      if (f === el || f.contains(el) || el.contains(f)) continue;
-      const fr = f.getBoundingClientRect();
-      const ox = Math.min(r.right, fr.right) - Math.max(r.left, fr.left);
-      const oy = Math.min(r.bottom, fr.bottom) - Math.max(r.top, fr.top);
-      if (ox <= 0 || oy <= 0) continue;
-      // 겹친 영역의 한가운데를 눌러 본다. 그 컨트롤이 안 나오면 실제로 가려진 것이다.
-      const px = Math.max(r.left, fr.left) + ox / 2;
-      const py = Math.max(r.top, fr.top) + oy / 2;
-      const hit = document.elementFromPoint(px, py);
-      if (hit && (hit === el || el.contains(hit))) continue;  // 여전히 눌린다
-      const covered = Math.round((ox * oy) / (r.width * r.height) * 100);
-      out.fabOverlap.push({
-        control: cssPath(el), text: snippet(el), floater: cssPath(f),
-        coveredPct: covered, at: [Math.round(px), Math.round(py)],
-      });
-      break;
+  const seenCovered = new Set();
+  function scanCovered(where) {
+    const controls = document.querySelectorAll('button, a[href], input, select, textarea, [role="button"]');
+    for (const el of controls) {
+      if (out.fabOverlap.length >= MAX) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+      for (const f of floaters) {
+        if (f === el || f.contains(el) || el.contains(f)) continue;
+        const fr = f.getBoundingClientRect();
+        const ox = Math.min(r.right, fr.right) - Math.max(r.left, fr.left);
+        const oy = Math.min(r.bottom, fr.bottom) - Math.max(r.top, fr.top);
+        if (ox <= 0 || oy <= 0) continue;
+        // 겹친 영역의 한가운데를 눌러 본다. 그 컨트롤이 안 나오면 실제로 가려진 것이다.
+        const px = Math.max(r.left, fr.left) + ox / 2;
+        const py = Math.max(r.top, fr.top) + oy / 2;
+        const hit = document.elementFromPoint(px, py);
+        if (hit && (hit === el || el.contains(hit))) continue;  // 여전히 눌린다
+        const key = cssPath(el) + '|' + snippet(el);
+        if (seenCovered.has(key)) continue;
+        seenCovered.add(key);
+        out.fabOverlap.push({
+          control: cssPath(el), text: snippet(el), floater: cssPath(f), where: where,
+          coveredPct: Math.round((ox * oy) / (r.width * r.height) * 100),
+          at: [Math.round(px), Math.round(py)],
+        });
+        break;
+      }
     }
   }
+  scanCovered('현재 위치');
+  // 맨 아래로 내려 한 번 더.
+  //
+  // 문서가 스크롤한다고 가정하면 안 된다. 이 앱의 셸은 자신을 뷰포트에 고정하고
+  // **#main-content 가 스크롤**한다(capture.py 의 _SCROLL_METRICS_JS 도 같은 이유로
+  // 컨테이너를 따로 찾는다). window.scrollTo 만 부르면 아무 일도 일어나지 않아,
+  // 검사가 통과했다고 착각하게 된다 — 실제로 그렇게 헛돌았다.
+  let scroller = null, maxOver = 0;
+  for (const el of [de, document.body, ...document.querySelectorAll('#main-content, main, .c-content')]) {
+    if (!el) continue;
+    const over = el.scrollHeight - el.clientHeight;
+    if (over > maxOver) { maxOver = over; scroller = el; }
+  }
+  if (scroller && maxOver > 1 && out.fabOverlap.length < MAX) {
+    const isDoc = (scroller === de || scroller === document.body);
+    const y0 = isDoc ? window.scrollY : scroller.scrollTop;
+    if (isDoc) window.scrollTo(0, de.scrollHeight); else scroller.scrollTop = scroller.scrollHeight;
+    void de.getBoundingClientRect();  // 레이아웃 강제 반영
+    scanCovered('맨 아래');
+    if (isDoc) window.scrollTo(0, y0); else scroller.scrollTop = y0;  // 스크린샷이 뒤에 찍힌다
+    void de.getBoundingClientRect();
+  }
+  out.fabScroller = scroller ? cssPath(scroller) : null;
+  out.fabScrollOver = Math.round(maxOver);
   out.fabOverlapCount = out.fabOverlap.length;
 
   // --- app-level state worth recording (not a failure by itself) -----------
@@ -450,8 +484,8 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     overlap_count = probe.get("fabOverlapCount", len(overlap))
     results["fab_overlap"] = (
         _verdict("fail", overlap_count, [
-            f"{o['control']} «{o['text']}» 를 {o['floater']} 가 {o['coveredPct']}% 덮음"
-            f" (({o['at'][0]},{o['at'][1]}) 에서 클릭이 가로채짐)"
+            f"[{o.get('where', '?')}] {o['control']} «{o['text']}» 를 {o['floater']} 가"
+            f" {o['coveredPct']}% 덮음 (({o['at'][0]},{o['at'][1]}) 에서 클릭이 가로채짐)"
             for o in overlap
         ])
         if overlap_count else _verdict("pass")
