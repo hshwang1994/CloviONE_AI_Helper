@@ -36,10 +36,25 @@ FIRST_PARTY = ("app", "tests", "scripts", "alembic")
 
 
 def tracked_files() -> set[str]:
+    """**HEAD** 에 있는 파일 목록.
+
+    `git ls-files`(인덱스)를 쓰면 안 된다. staged 지만 아직 커밋되지 않은 파일도
+    '추적됨'으로 세기 때문에, 정작 배포되는 HEAD 에 그 파일이 없어도 검사가 통과한다.
+    실제로 그렇게 두 번 새 나갔다. 배포되는 것은 HEAD 이므로 HEAD 를 본다.
+    """
     out = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
     ).stdout
     return {p.replace("\\", "/") for p in out.split("\0") if p}
+
+
+def head_text(rel: str) -> str:
+    """HEAD 시점의 파일 내용. 워킹트리 내용을 읽으면 아직 커밋 안 된 import 까지 보게 된다."""
+    r = subprocess.run(
+        ["git", "show", f"HEAD:{rel}"], cwd=ROOT, capture_output=True, check=False
+    )
+    return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else ""
 
 
 def module_candidates(module: str) -> list[str]:
@@ -78,9 +93,8 @@ def main() -> int:
 
     missing: list[tuple[str, str, str]] = []  # (importer, module, 원인)
     for rel in py_files:
-        path = ROOT / rel
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+            tree = ast.parse(head_text(rel), filename=rel)
         except (OSError, SyntaxError) as exc:
             print(f"[FAIL] {rel}: 파싱 실패 — {exc}", file=sys.stderr)
             return 1
