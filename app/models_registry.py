@@ -22,6 +22,7 @@ from app.notifications import models as notifications_models  # noqa: F401
 from app.notion_mapping import models as notion_mapping_models  # noqa: F401
 from app.observability import models as observability_models  # noqa: F401
 from app.org import models as org_models  # noqa: F401
+from app.search import models as search_models  # noqa: F401
 from app.settings import models as settings_models  # noqa: F401
 from app.team_docs import models as team_docs_models  # noqa: F401
 from app.tickets import models as tickets_models  # noqa: F401

@@ -13,6 +13,7 @@ import { Sprint } from "../screens/Sprint.jsx";
 import { Games } from "../screens/Games.jsx";
 import { ChatRooms } from "../screens/ChatRooms.jsx";
 import { ChatRoom } from "../screens/ChatRoom.jsx";
+import { Search } from "../screens/Search.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 import { REGISTRY } from "../screens/registry.js";
 import { Card, Skeleton } from "../ui/kit.jsx";
@@ -41,6 +42,10 @@ function UserRoutes() {
       {/* 홈은 '오늘' 커맨드 센터(Home.jsx) — GET /api/home/today 한 번으로 티켓·알림·채팅·
           스프린트·최근 변경을 한 화면에 모은다. 예전 MyWork(티켓만 보던 홈)를 대체한다. */}
       <Route path="/me" element={<Home />} />
+      {/* 통합 검색 결과(계획서 Phase 5). 두 콘솔 **양쪽에** 같은 경로로 등록한다 —
+          관리자가 /dashboard 에서 Ctrl+K 로 검색했는데 세그먼트가 사용자 쪽으로 튀면
+          사이드바가 통째로 바뀐다. 그래서 navConfig 의 USER_SEG_PATHS 에는 넣지 않는다. */}
+      <Route path="/search" element={<Search />} />
       <Route path="/my-tickets" element={<MyTickets />} />
       <Route path="/unassigned" element={<Unassigned />} />
       <Route path="/new-ticket" element={<NewTicket />} />

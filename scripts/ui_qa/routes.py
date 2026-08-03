@@ -115,6 +115,14 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_team-docs-trash", "/team-docs/trash", "문서 휴지통"),
     _u("user_team-doc-detail", "/team-docs", "문서 상세",
        hash_template="/team-docs/{id}", discover=("/api/team-docs",)),
+    # 통합 검색(0030). 두 콘솔 양쪽에 같은 경로로 등록돼 있지만 같은 컴포넌트라 한 번만 찍는다.
+    # **빈 상태와 결과 상태를 둘 다** 찍는다 — 검색 화면의 회귀는 "결과가 그려지는가"보다
+    # "아직 안 쳤다 / 쳤는데 없다"의 얼굴에서 더 자주 난다.
+    _u("user_search", "/search", "통합 검색"),
+    _u("user_search-results", "/search?q=회의", "통합 검색 — 결과"),
+    # '검색 결과 없음'(art="search")은 '데이터 없음'과 **다른 얼굴이어야 한다**는 것이
+    # 계획서의 명시 요구다. 그 구분은 캡처로만 확인된다.
+    _u("user_search-empty", "/search?q=존재하지않는검색어zz", "통합 검색 — 결과 없음"),
     _u("user_games", "/games", "놀이"),
     _u("user_game-room", "/games", "놀이방",
        hash_template="/games/{id}", discover=("/api/games/rooms",)),

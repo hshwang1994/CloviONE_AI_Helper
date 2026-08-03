@@ -25,6 +25,9 @@ SYNC_ERROR = "error"
 # 컴포넌트 이름. 새 미러가 생기면 여기에 이름을 먼저 적는다.
 COMPONENT_TICKETS = "tickets"
 COMPONENT_DOCUMENTS = "documents"
+# 통합 검색 인덱스(0030). 미러가 아니라 **미러들에서 파생된 인덱스**지만, 운영자가 보는
+# 화면에서는 "무엇이 언제 마지막으로 갱신됐는가"가 같은 질문이라 같은 표를 쓴다.
+COMPONENT_SEARCH = "search"
 
 
 class UsageEvent(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):

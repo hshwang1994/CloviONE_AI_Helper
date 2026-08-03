@@ -45,6 +45,7 @@ from app.org.router import departments_router, job_titles_router
 from app.profiles.router import router as profiles_router
 from app.prompts.router import policies_router, prompts_router
 from app.reports.router import router as reports_router
+from app.search.router import router as search_router
 from app.tickets.router import router as tickets_router
 from app.runners.router import router as runners_router
 from app.schedules.router import router as schedules_router
@@ -165,6 +166,7 @@ def create_app(
     app.include_router(documents_router)
     app.include_router(notion_mapping_router)
     app.include_router(reports_router)
+    app.include_router(search_router)
     app.include_router(tickets_router)
     app.include_router(trash_router)
     app.include_router(sprint_router)

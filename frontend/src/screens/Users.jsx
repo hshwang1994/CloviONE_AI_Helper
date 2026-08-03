@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -160,7 +160,10 @@ function TempPasswordModal({ data, onClose }) {
  * 2026-08 MUI 재설계: 손으로 쓴 입력(.c-search/.c-filter)·페이저·상세 라벨줄을 MUI로 옮겼다.
  * 값은 px가 아니라 rem/테마 값이라 4K에서 글자·여백이 같이 커진다(styles/root.css 레버). */
 export function Users() {
-  const [q, setQ] = useState("");
+  // 통합 검색(Ctrl+K)에서 사람을 고르면 `#/users?q=<이름>` 으로 온다. 초기값을 주소에서
+  // 받지 않으면 결과를 눌렀는데 필터 없는 전체 목록이 뜬다 — 아무 일도 안 한 것처럼 보인다.
+  const [searchParams] = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);

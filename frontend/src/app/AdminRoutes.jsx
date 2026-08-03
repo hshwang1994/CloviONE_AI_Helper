@@ -8,6 +8,7 @@ import { Settings } from "../screens/Settings.jsx";
 import { Diagnostics, Maintenance } from "../screens/Ops.jsx";
 import { DevReport } from "../screens/DevReport.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
+import { Search } from "../screens/Search.jsx";
 import { REGISTRY } from "../screens/registry.js";
 import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
@@ -46,6 +47,10 @@ function AdminRoutes() {
   return (
     <Routes>
       <Route path="/dashboard" element={<Dashboard />} />
+      {/* 통합 검색 결과(계획서 Phase 5) — 사용자 콘솔과 **같은 경로**로 양쪽에 둔다.
+          관리자가 Ctrl+K 로 검색했는데 세그먼트가 사용자 쪽으로 튀면 사이드바가 통째로 바뀐다.
+          역할 게이트는 걸지 않는다: 결과 자체가 역할·범위로 걸러져 나온다(app/search/service.py). */}
+      <Route path="/search" element={<Search />} />
       <Route path="/users" element={<RequireRole roles={SCREEN_ROLES.users}><Users /></RequireRole>} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />

@@ -295,6 +295,12 @@ PROBE_JS = r"""
         // 겹친 영역의 한가운데를 눌러 본다. 그 컨트롤이 안 나오면 실제로 가려진 것이다.
         const px = Math.max(r.left, fr.left) + ox / 2;
         const py = Math.max(r.top, fr.top) + oy / 2;
+        // 겹치는 자리가 뷰포트 **밖**이면 애초에 아무도 못 누르는 지점이다. 그런데
+        // elementFromPoint 는 화면 밖 좌표에 늘 null 을 돌려주므로, 걸러내지 않으면
+        // "가려졌다"로 잘못 잡힌다. 실제로 스킵링크('본문 바로가기' — 평소 top:8 에
+        // translateY(-200%) 로 화면 위에 숨어 있다)가 긴 목록의 맨 위 줄과 y<0 에서
+        // 겹쳐 오탐이 났다. 눈에 보이지도, 눌리지도 않는 겹침은 결함이 아니다.
+        if (px < 0 || py < 0 || px > innerWidth || py > innerHeight) continue;
         const hit = document.elementFromPoint(px, py);
         if (hit && (hit === el || el.contains(hit))) continue;  // 여전히 눌린다
         const key = cssPath(el) + '|' + snippet(el);

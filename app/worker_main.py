@@ -104,7 +104,11 @@ def mirror_sync_status(db, component: str, state, now) -> None:
             db, component,
             status=state.status,
             now=now,
-            item_count=getattr(state, "ticket_count", None) or getattr(state, "doc_count", 0),
+            item_count=(
+                getattr(state, "ticket_count", None)
+                or getattr(state, "doc_count", None)
+                or getattr(state, "item_count", 0)
+            ),
             truncated=bool(getattr(state, "truncated", False)),
             error=state.error,
         )
@@ -282,6 +286,39 @@ def main() -> int:
                 logger.exception("tickets sync tick failed")
 
     worker.tick_callbacks.append(tickets_sync_tick)
+
+    # 통합 검색 인덱스 재구축 (PLAN Phase 5) — search_index_interval_seconds 간격.
+    #
+    # **인덱싱 훅은 여기 한 곳뿐이다.** 티켓/문서/게시판/사용자를 저장하는 경로마다 인덱스를
+    # 같이 쓰게 하면, 이 앱에서 가장 뜨거운 쓰기(채팅 전송)와 폴링 읽기에 INSERT 가 얹힌다
+    # (PLAN C9: 진짜 병목은 _append_message 다). 검색 결과가 최대 한 틱 늦는 대신 뜨거운
+    # 경로는 한 글자도 안 바뀐다.
+    #
+    # 티켓 미러 뒤에 등록하는 이유: 첫 틱에서 tickets_sync 가 먼저 돌아 미러를 채우므로,
+    # 워커 기동 직후 첫 인덱싱이 빈 티켓 목록을 보지 않는다.
+    from app.core.source_registry import build_repositories
+    from app.observability.models import COMPONENT_SEARCH
+    from app.search.indexer import reindex_all
+
+    _last_search_index: list = [None]
+    SEARCH_INDEX_INTERVAL_SECONDS = float(settings.search_index_interval_seconds)
+    repositories = build_repositories(settings, outbound)
+
+    def search_index_tick(now):
+        if _last_search_index[0] is None or (now - _last_search_index[0]).total_seconds() >= SEARCH_INDEX_INTERVAL_SECONDS:
+            _last_search_index[0] = now
+            try:
+                with session_factory() as db:
+                    result = reindex_all(
+                        db, tickets=repositories.tickets,
+                        documents=repositories.documents, now=now,
+                    )
+                    mirror_sync_status(db, COMPONENT_SEARCH, result, now)
+                    db.commit()
+            except Exception:
+                logger.exception("search index tick failed")
+
+    worker.tick_callbacks.append(search_index_tick)
 
     stop_event = threading.Event()
 

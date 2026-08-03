@@ -1,0 +1,150 @@
+import React from "react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
+
+/* 명령 팔레트(Ctrl+K) — **진짜 검색에 연결돼 있는가**.
+ *
+ * 이 파일이 존재하는 이유: 예전 팔레트는 메뉴만 찾았고, 상단바 '통합 검색' 입력은 팔레트를
+ * 여는 것 외엔 아무 일도 하지 않는 죽은 컨트롤이었다. '되는 척'을 다시 만들지 않기 위해
+ * "서버에 실제로 물어보고, 그 결과로 실제로 이동한다"를 테스트로 못박는다.
+ */
+
+const apiMock = vi.fn();
+vi.mock("../lib/api.js", () => ({
+  api: (...args) => apiMock(...args),
+  setCsrf: () => {},
+}));
+
+import { CommandPalette } from "./CommandPalette.jsx";
+import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+
+const NAV_GROUPS = [
+  { group: "내 업무", items: [{ to: "/my-tickets", label: "내 티켓" }, { to: "/new-ticket", label: "새 티켓" }] },
+  { group: "문서", items: [{ to: "/team-docs", label: "문서" }] },
+];
+
+const SERVER_RESULT = {
+  query: "회의록",
+  mode: "fts",
+  total: 2,
+  truncated: false,
+  groups: [
+    {
+      kind: "ticket", label: "티켓", total: 1,
+      items: [{ kind: "ticket", id: "p1", title: "스프린트 회의록 정리", subtitle: "GIT-901", route: "/tickets/p1", url: null }],
+    },
+    {
+      kind: "board", label: "게시판", total: 1,
+      items: [{ kind: "board", id: "b1", title: "회의록 공지", subtitle: "공지", route: "/board/b1", url: null }],
+    },
+  ],
+};
+
+function renderPalette() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const onClose = vi.fn();
+  const utils = render(
+    <QueryClientProvider client={client}>
+      <ThemeModeProvider>
+        <MemoryRouter initialEntries={["/me"]}>
+          <Routes>
+            <Route path="/me" element={<CommandPalette open onClose={onClose} groups={NAV_GROUPS} />} />
+            <Route path="/tickets/:id" element={<div>티켓 상세 화면</div>} />
+            <Route path="/search" element={<div>검색 결과 화면</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeModeProvider>
+    </QueryClientProvider>,
+  );
+  return { ...utils, onClose };
+}
+
+beforeEach(() => {
+  apiMock.mockReset();
+  apiMock.mockResolvedValue(SERVER_RESULT);
+});
+
+describe("명령 팔레트", () => {
+  it("입력 전에는 서버에 묻지 않고 메뉴만 보여 준다", async () => {
+    renderPalette();
+    expect(screen.getByText("내 티켓")).toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  it("메뉴 검색은 서버 없이 즉시 걸러진다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "새 티켓");
+    expect(screen.getByText("새 티켓")).toBeInTheDocument();
+    expect(screen.queryByText("문서")).not.toBeInTheDocument();
+  });
+
+  it("입력하면 서버 검색 결과를 유형별 그룹으로 함께 보여 준다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+
+    expect(await screen.findByText("스프린트 회의록 정리")).toBeInTheDocument();
+    expect(screen.getByText("회의록 공지")).toBeInTheDocument();
+    // 그룹 제목도 서버가 준 라벨 그대로다.
+    expect(screen.getByText("티켓")).toBeInTheDocument();
+    expect(screen.getByText("게시판")).toBeInTheDocument();
+  });
+
+  it("서버 왕복은 디바운스한다 — 글자마다 요청하지 않는다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+    expect(apiMock.mock.calls.length).toBe(1);
+  });
+
+  it("검색 결과를 누르면 서버가 준 route 로 이동하고 팔레트가 닫힌다", async () => {
+    const { onClose } = renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await userEvent.click(await screen.findByText("스프린트 회의록 정리"));
+
+    expect(await screen.findByText("티켓 상세 화면")).toBeInTheDocument();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("'모두 보기'로 결과 화면에 갈 수 있다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await userEvent.click(await screen.findByText(/검색 결과 모두 보기/));
+    expect(await screen.findByText("검색 결과 화면")).toBeInTheDocument();
+  });
+
+  it("결과가 하나도 없어도 Enter 는 결과 화면으로 보낸다(친 것이 사라지지 않게)", async () => {
+    apiMock.mockResolvedValue({ query: "없는말", mode: "fts", total: 0, truncated: false, groups: [] });
+    renderPalette();
+    const input = screen.getByRole("textbox", { name: "통합 검색" });
+    await userEvent.type(input, "zzz없는말zzz");
+    await waitFor(() => expect(screen.getByText("검색 결과 없음")).toBeInTheDocument());
+
+    await userEvent.type(input, "{Enter}");
+    expect(await screen.findByText("검색 결과 화면")).toBeInTheDocument();
+  });
+
+  it("두 글자 검색어도 서버에 보낸다 — LIKE 폴백을 프런트가 막지 않는다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의");
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+  });
+
+  it("서버 결과가 늦게 와서 목록이 짧아져도 Enter 가 엉뚱한 곳으로 가지 않는다", async () => {
+    renderPalette();
+    const input = screen.getByRole("textbox", { name: "통합 검색" });
+    // 메뉴에 없는 말이라 로컬 결과가 0건 → 서버 결과가 오기 전 목록이 비어 있다.
+    await userEvent.type(input, "회의록");
+    await screen.findByText("스프린트 회의록 정리");
+
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+    // 어디로 가든 라우트가 존재해야 한다 — 커서가 목록 밖이면 아무 일도 안 하거나 깨진다.
+    await waitFor(() =>
+      expect(
+        screen.queryByText("티켓 상세 화면") || screen.queryByText("검색 결과 화면"),
+      ).toBeTruthy(),
+    );
+  });
+});

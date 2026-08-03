@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     notion_docs_token_ref: str = "notion_docs_token"
     notion_docs_sync_interval_seconds: int = 600
 
+    # 통합 검색 인덱스 재구축 주기(PLAN Phase 5). **워커 틱에서만** 돈다 — 채팅 전송·폴링
+    # 같은 뜨거운 경로에는 훅을 걸지 않는다(app/search/indexer.py docstring).
+    # 티켓 미러(180s)보다 조금 느슨하게 잡는다: 검색 결과가 한 틱 늦는 것은 사람이 못 느끼고,
+    # 인덱싱은 네 유형을 전부 다시 읽으므로 미러 동기화보다 비싸다.
+    search_index_interval_seconds: int = 300
+
     # 팀 공간 놀이 > AI 퀴즈 생성(§7-9). 앱은 Claude를 직접 부르지 않고(불변 §10 임의 shell 금지)
     # 러너의 전용 엔드포인트(/v1/assistant/quiz)를 OutboundClient(allowlist=runners)로 호출한다.
     # 러너 토큰은 secrets_dir/<game_runner_token_ref> 파일로만 읽는다(평문 미노출). game_ai_enabled

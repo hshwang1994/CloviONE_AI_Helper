@@ -26,6 +26,7 @@ import { useAuth } from "./auth.jsx";
 import { NotificationBell } from "./NotificationBell.jsx";
 import { UserMenu } from "./UserMenu.jsx";
 import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
+import { Tour } from "./Tour.jsx";
 import { bestNavMatch, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import { MascotButton, MascotSidebarCard } from "../ui/Mascot.jsx";
@@ -180,6 +181,8 @@ export function AppShell({
   const role = auth.data && auth.data.role;
   const userId = auth.data && auth.data.id;
   const name = (auth.data && auth.data.display_name) || "";
+  // 프로필 사진은 /api/me 가 함께 준다 — 상단바 아바타 하나 때문에 별도 요청을 하지 않는다.
+  const avatarUrl = (auth.data && auth.data.avatar_url) || null;
   const isNarrow = useMediaQuery(`(max-width:${NAV_BREAKPOINT_PX}px)`);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   useCommandPaletteHotkey(setPaletteOpen);
@@ -297,10 +300,11 @@ export function AppShell({
 
           {!minimal ? (
             <>
-              {/* 라벨이 '메뉴 검색'인 이유는 v1이 실제로 메뉴만 찾기 때문이다.
-                  티켓·문서·사람을 가로지르는 통합 검색은 백엔드 인덱스가 준비된 뒤 같은 자리에 붙는다. */}
-              <Tooltip title="메뉴 검색 (Ctrl+K)">
-                <IconButton onClick={() => setPaletteOpen(true)} aria-label="메뉴 검색 열기" color="inherit">
+              {/* 예전에는 라벨이 '메뉴 검색'이었다 — 실제로 메뉴만 찾았기 때문이다(되는 척하는
+                  UI를 두지 않는 규칙). 백엔드 인덱스(FTS5, 0030)가 생겨 팔레트가 티켓·문서·
+                  게시판·사용자를 실제로 찾으므로 이름을 원래대로 되돌린다. */}
+              <Tooltip title="통합 검색 (Ctrl+K)">
+                <IconButton onClick={() => setPaletteOpen(true)} aria-label="통합 검색 열기" color="inherit">
                   <SearchRoundedIcon />
                 </IconButton>
               </Tooltip>
@@ -341,7 +345,7 @@ export function AppShell({
           ) : null}
 
           {!minimal ? <NotificationBell isUser={isUser} /> : null}
-          {!minimal ? <UserMenu name={name} userId={userId} /> : null}
+          {!minimal ? <UserMenu name={name} userId={userId} avatarUrl={avatarUrl} /> : null}
         </Toolbar>
       </AppBar>
 
@@ -399,14 +403,24 @@ export function AppShell({
         </Box>
       </Box>
 
-      {/* 우하단 플로팅 마스코트 — AI 도우미로 가는 상시 입구. 실제 대화 패널은 /chat 화면이다. */}
+      {/* 우하단 플로팅 마스코트 — AI 도우미로 가는 상시 입구. 실제 대화 패널은 /chat 화면이다.
+          pointerEvents:none — 이 래퍼는 **자리를 잡을 뿐 눌리는 물건이 아니다.** 안쪽 FAB은
+          borderRadius가 커서 네 모서리가 시각적으로 비어 있는데, 사각형인 이 래퍼는 그 빈
+          모서리에서도 클릭을 가로챈다. 실제로 권한 매트릭스 표 맨 아랫줄의 '상세' 버튼이
+          아무것도 안 그려진 지점(1837,987)에서 눌리지 않았다(QA fab_overlap 검사가 잡았다).
+          받는 쪽은 MascotButton 안의 Fab이 pointerEvents:auto로 되돌린다. */}
       {!minimal ? (
-        <Box sx={{ position: "fixed", right: 24, bottom: 24, zIndex: (t) => t.zIndex.speedDial }}>
+        <Box sx={{ position: "fixed", right: 24, bottom: 24, pointerEvents: "none",
+                   zIndex: (t) => t.zIndex.speedDial }}>
           <MascotButton onClick={() => navigate("/chat")} mode="listening" />
         </Box>
       ) : null}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={groups} />
+
+      {/* 첫 로그인 둘러보기 — 홈(/me)에서만 스스로 열리고, 건너뛰면 서버에 기록돼 다시 안 뜬다.
+          세션 만료(minimal) 상태에서는 띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이다. */}
+      {!minimal ? <Tour /> : null}
     </Box>
   );
 }
