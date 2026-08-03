@@ -8,7 +8,7 @@ ClovirONE Web Assistant는 기존 n8n 기반 AI 업무 도우미를 손상 없�
 
 | 프로세스 | 진입점 | 역할 |
 |---|---|---|
-| Web (uvicorn) | `app.main:create_app` (--factory) | HTTP API + HTML 페이지, 127.0.0.1:8080 |
+| Web (uvicorn) | `app.main:create_app` (--factory) | HTTP API + React SPA 셸 서빙, 127.0.0.1:8080 |
 | Worker | `python -m app.worker_main` | Job 큐 소비 + Scheduler tick + 승인 만료 스윕 + heartbeat |
 | Nginx | `deploy/nginx/clovirone-web-assistant.conf` | 10.100.64.71:443 TLS 종단 → 127.0.0.1:8080 프록시 |
 
@@ -23,6 +23,14 @@ ClovirONE Web Assistant는 기존 n8n 기반 AI 업무 도우미를 손상 없�
 factory는 `app.state`에 공유 자원을 올린다: engine/session_factory, `SessionService`,
 로그인 `RateLimiter`(IP당 약 10회/분), `AllowlistRegistry`, `FileSecretReferenceProvider`,
 `SettingsCache`, `OutboundClient`, Jinja2 templates. OpenAPI/docs 엔드포인트는 비활성.
+
+## 프런트엔드
+
+사용자/관리자 콘솔은 **React 18 + Vite SPA(HashRouter)**다. 소스는 `frontend/`,
+빌드 산출물은 `app/static/react/`(index.html + assets)이며, `admin/router.py`가
+`FileResponse`(no-store)로 SPA 셸을 서빙하고 인증은 이 라우트가 서버측에서 게이팅한다.
+런타임 외부 CDN/폰트/네트워크는 CSP `script-src 'self'`로 금지 — npm은 빌드에만 쓴다.
+`app/static/js`에는 login/change_password/theme 세 개만 남은 소규모 바닐라 JS다.
 
 ## 모듈 배치
 
@@ -49,12 +57,23 @@ app/
 ├── notion_mapping/# 이메일→Notion People 매핑 (§12)
 ├── notifications/ # 인앱 알림
 ├── settings/      # 설정 레지스트리(허용 목록) + 유지보수 모드 gate
+├── org/           # 부서(Department) / 직책(JobTitle)
+├── tickets/       # 티켓(요청) — 리치 본문, Notion write
+├── team_docs/     # 문서 탭 — Notion "문서" DB 미러링/동기화 + 분류(taxonomy)
+├── board/         # 자유게시판 — 글/댓글/반응/첨부(이미지·PDF)
+├── games/         # 팀 공간 놀이 7종(폴링 실시간) + AI 퀴즈 생성(ai.py)
+├── reports/       # 개발자 월간 리포트
 ├── audit/         # 감사 로그 조회
 ├── backups/       # SQLite 백업/검증
 ├── health/        # healthz/readyz + 대시보드/진단 번들
-├── admin/         # /admin HTML 셸
+├── admin/         # 콘솔 셸(React 번들) FileResponse 서빙 + /admin 라우트 게이팅
 └── cli/           # clovirone-user CLI (§29)
+
+frontend/          # React 18 + Vite 소스(src/app, src/screens, src/ui, src/lib)
 ```
+
+신규 모델은 `app/models_registry.py`에 임포트를 추가해 Alembic/메타데이터에 등록하고,
+`main.py`에 `include_router` 한 줄을 더한다.
 
 ## core/ 인프라
 
@@ -73,6 +92,8 @@ app/
 | `middleware.py` | request ID, CSP 등 보안 헤더, access log, 256KB body 제한 |
 | `errors.py` | `{"error":{code,message,request_id,details}}` 표준 에러 envelope |
 | `providers.py` | Provider 추상 인터페이스 (spec §7.3, 아래 확장 지점) |
+| `notion_blocks.py` | `markdown_to_blocks` — 문서/티켓 본문(마크다운)을 Notion 블록으로 변환 |
+| `feature_flags.py` | 기능 플래그(예: `game_ai_enabled`) 로드/평가 |
 
 ## 요청 흐름 (채팅 메시지)
 
@@ -93,12 +114,25 @@ due Schedule마다: misfire 판정(grace 300s) → 동시 실행 정책 → `sch
 `idempotency_key = "{schedule_id}:{scheduled_at}"` (UNIQUE) insert-first로 소유권 확보 →
 `schedule_run` Job enqueue → `next_run_at` 전진. 상세는 `docs/SCHEDULER.md`.
 
-## 데이터 모델 개요 (Alembic 0001–0013)
+## 게임 AI 퀴즈 흐름
+
+실시간 퀴즈의 문제 생성은 러너의 전용 엔드포인트에 위임한다(불변: 임의 shell 실행 금지).
+`app/games/ai.py`의 `generate_quiz`가 `OutboundClient.post(settings.game_runner_url,
+allowlist="runners")`로 러너 `/v1/assistant/quiz`(`http://127.0.0.1:8789`)를 호출한다 —
+redirect 금지, SSRF allowlist 검사, 러너 토큰은 `secrets_dir/<game_runner_token_ref>`
+파일로만 주입(평문 미노출). `game_ai_enabled` 플래그는 기본 OFF(다크런치)이며, 꺼져 있으면
+정적 문제로 폴백한다.
+
+## 데이터 모델 개요 (Alembic 0001–0019)
 
 users, sessions, audit_logs, integrations, config_versions, jobs,
 conversations, messages, runners, workflows, prompts, policies,
 automation_templates, schedules, schedule_runs, approvals, notifications,
 app_settings, document_generations, user_notion_mappings, backups, heartbeats.
+
+이후 확장분: 0014 `users.archived_at`(soft delete), 0015 부서/직책(departments,
+job_titles + users 배정), 0016 자유게시판(board), 0017 문서 탭(team_docs),
+0018 문서 분류(doc_taxonomy), 0019 놀이(games).
 
 공통 패턴: UUID PK 문자열, naive UTC 타임스탬프, JSON 컬럼은 `*_json` TEXT.
 변경 이력은 두 축 — `config_versions`(설정형 객체 스냅샷)와 행 단위 버전

@@ -37,6 +37,14 @@
 | 감사 로그 | admin, system_admin, auditor | — | (조회 전용) |
 | Job 큐 | operator+ | operator+ (retry/cancel) | — |
 | 백업 생성/검증, 복원 안내 | operator+ 읽기 | — | **system_admin 전용** |
+| 부서/직책 관리(org) | admin+ | — | admin+ |
+| 개발자 월간 리포트(reports) | admin, system_admin, auditor | — | (조회 전용) |
+| 자유게시판(board), 놀이(games), 문서 탭(team_docs), 티켓(tickets) | 로그인 사용자 전원 | — | 로그인 사용자 전원 |
+
+board/games/team_docs/tickets는 사내 협업 영역이라 로그인 사용자 전원이 읽고 쓴다.
+쓰기는 모두 CSRF를 요구하고, 남의 객체 수정은 소유권 확인으로 막는다(IDOR 방어).
+games와 team_docs는 기능 플래그(`require_games_enabled` / `require_team_docs_enabled`)로
+추가 게이트된다.
 
 강제 지점은 라우터의 `Depends(require_roles(...))` — 요청마다 서버에서 재평가된다.
 
@@ -64,6 +72,9 @@
 - `SecretValue`는 repr/str/format을 모두 `***`로 마스킹 — 로깅 사고로도 유출 불가
 - 인증 주입은 `OutboundClient` 내부에서만: `bearer` → `Authorization`,
   `api_key_header` → `X-API-Key`
+- 게임 AI 퀴즈 생성이 러너로 나갈 때 쓰는 토큰도 참조 이름 secret이다:
+  `game_runner_token_ref`(기본 `game_runner_token`)로 `secrets_dir` 파일에서만 읽고,
+  `OutboundClient`(allowlist=runners)가 주입한다. DB나 코드에 평문이 없다
 - CLI는 비밀번호를 인자로 받지 않음 — stdin/getpass 전용
 
 ## CSP 및 응답 헤더 (spec §25.6)
@@ -81,6 +92,28 @@ Cache-Control: no-store (정적 자원 제외)
 인라인 JS/CSS는 어디에도 없다(모두 `/static` 파일). 요청 본문은 256KB 제한
 (nginx `client_max_body_size 256k`와 이중 방어). 에러는 표준 envelope로만 —
 스택 트레이스 비노출 (spec §25.2).
+
+## 파일 업로드 (spec §22)
+
+자유게시판 첨부(이미지, PDF)가 유일한 업로드 표면이다. 통제는 `app/core/uploads.py`에 모여 있다.
+
+- **형식은 매직바이트로 판정**한다 — 선언된 Content-Type이나 사용자 확장자를 믿지 않는다
+  (`sniff_media_type`). 허용은 PNG/JPEG/GIF/WebP와 PDF뿐, 그 밖은 422로 거부
+- **저장명은 서버가 만든 UUID + 판정된 확장자**다. 사용자 파일명은 표시(다운로드 시
+  Content-Disposition)로만 새니타이즈해 두고 경로 구성에는 절대 쓰지 않는다(경로 traversal 차단)
+- **크기·개수 상한**: 파일당 최대 10MB(`MAX_UPLOAD_BYTES`), 글당 최대 5개
+  (`MAX_ATTACHMENTS_PER_POST`). 라우터가 `MAX_UPLOAD_BYTES+1`만큼만 읽어 초과를 막고,
+  256KB 본문 제한과 별개다
+- 파일은 **웹 루트 밖**(`data_dir/uploads/board/<post_id>`)에 저장하고, 서빙은 인증된
+  엔드포인트가 담당한다. 응답은 `X-Content-Type-Options: nosniff` + inline이며 서버가
+  판정·저장한 media_type만 실어 보낸다(실행 불가). 저장명은 서빙 시 서버 패턴으로 재검증하고,
+  해석된 경로가 board 업로드 디렉터리 안임을 확인한 뒤에만 반환한다
+- 업로드는 CSRF를 요구한다(`Depends(require_csrf)`)
+
+문서(team_docs)와 티켓 본문은 리치 텍스트다. 길이 상한을 스키마에서 강제하고
+(`app/board/schemas.py`의 `MAX_BODY` 등), Notion으로 내보낼 때는 `core/notion_blocks.py`의
+`markdown_to_blocks`로 블록화한다. 프런트 렌더는 `textContent` 전용이라(불변 §6) 본문에 담긴
+마크업이 실행되지 않는다.
 
 ## 감사 로그와 마스킹 (spec §25.7)
 

@@ -1,7 +1,7 @@
 # ADMIN GUIDE — 관리자 콘솔 안내
 
 `https://clovirone-ai.gooddi.lab/admin` — operator 이상만 진입(일반 user는 채팅으로
-리다이렉트). 화면은 좌측 내비게이션 21개 섹션(접이식 5개 그룹)으로 구성되며, 버튼이 보여도
+리다이렉트). 화면은 좌측 내비게이션 22개 섹션(접이식 5개 그룹)으로 구성되며, 버튼이 보여도
 실제 권한은 서버 RBAC이 결정한다(권한 부족 시 403). 모든 변경 요청은 CSRF 헤더가 자동 첨부된다.
 
 ## 섹션 구성
@@ -11,10 +11,10 @@
 | 그룹 | 섹션 |
 |---|---|
 | 운영 | 대시보드, 알림, 작업 큐, 설정, 감사 로그, 백업, 진단, 유지보수 |
-| 사용자 | 사용자, 부서 관리, 직책 관리, Notion 매핑 |
-| 연동 | 외부 연동, 러너, 워크플로 |
+| 사용자 | 사용자, 부서 관리, 직책 관리, Notion 사용자 연결 |
+| 연동 | 외부 연동, 자동화 작업 실행기(러너), 업무 자동화 흐름(워크플로) |
 | 콘텐츠 | 프롬프트, 정책, 템플릿 |
-| 자동화 | 스케줄, 문서 자동화, 승인 |
+| 자동화 | 실행 일정(스케줄), 문서 자동 생성, 개발자 월간 리포트, 승인 |
 
 ## Dashboard
 
@@ -34,7 +34,7 @@ Runner/Workflow/Schedule 개수, 최근 24시간 Job 통계(성공률·평균 �
 - 마지막 활성 system_admin은 비활성화·강등이 서버에서 차단된다
 - 상세: `docs/USER_LIFECYCLE.md`
 
-## Notion 매핑
+## Notion 사용자 연결
 
 사용자별 매핑 상태(unmapped/verified/conflict), 재검증·해제 버튼.
 conflict는 후보 목록에서 선택해 해결한다. 동작 원리는 `docs/NOTION_MAPPING.md`.
@@ -43,8 +43,8 @@ conflict는 후보 목록에서 선택해 해결한다. 동작 원리는 `docs/N
 
 - **Integrations**: 기존 서비스(n8n, work-assistant, ticket-runner 등) 목록 —
   설치 시 discovery로 시드됨. 헬스체크/활성/비활성, 설정 버전 이력과 롤백
-- **Runners**: 실행기 등록·헬스·테스트·circuit breaker — `docs/RUNNER_MANAGEMENT.md`
-- **Workflows**: n8n webhook 메타데이터, 도달성 테스트 — `docs/WORKFLOW_REGISTRY.md`
+- **Runners**(자동화 작업 실행기(러너)): 실행기 등록·헬스·테스트·circuit breaker — `docs/RUNNER_MANAGEMENT.md`
+- **Workflows**(업무 자동화 흐름(워크플로)): n8n webhook 메타데이터, 도달성 테스트 — `docs/WORKFLOW_REGISTRY.md`
 
 공통 규칙: URL은 SSRF allowlist에 있어야 저장 가능, 모든 변경은
 `config_versions` 스냅샷으로 남고 특정 버전으로 롤백할 수 있다(롤백도 새 버전).
@@ -55,16 +55,22 @@ Prompt·Policy는 draft→test→review→published→archived 수명주기(발�
 자동 archive), Template은 Workflow/Runner를 향한 자동화 정의.
 상세: `docs/PROMPT_POLICY_MANAGEMENT.md`.
 
-## Schedules
+## 실행 일정(스케줄)
 
 cron(daily/weekly/monthly preset 지원) 또는 once 스케줄. 생성은 항상 **비활성** 상태 —
 활성화는 승인 대상이다(system_admin은 즉시). dry-run(payload 미리보기 + 다음 3회 실행
 시각), run-now(즉시 1회), 실행 이력과 실패 run 재시도. 상세: `docs/SCHEDULER.md`.
 
-## 문서 자동화
+## 문서 자동 생성
 
 문서 생성 요청 이력(모드/상태/품질 게이트 결과/발행 링크) 조회와 생성 요청.
 상세: `docs/DOCUMENT_AUTOMATION.md`.
+
+## 개발자 월간 리포트 (admin, system_admin, auditor)
+
+마감일이 해당 월인 티켓을 담당자별로 집계한 조회 전용 리포트(기간은 `YYYY-MM`, 생략 시
+이번 달). 담당자별 생산성이 담긴 민감 집계라 operator는 제외되고 감사 로그와 같은 역할 선에서만
+본다. Notion 토큰이 아직 없으면 오류 대신 "연동 필요" 안내를 그린다.
 
 ## Approvals (결재함)
 
@@ -83,6 +89,8 @@ approve/reject는 admin+, **자기 요청은 승인 불가**. approve 시 저장
 수정 허용 목록에 있는 키만 노출. 각 키에 "재시작 필요/즉시" 배지 —
 재시작 필요 항목은 저장 후 서버에서 systemctl 재시작을 해야 반영된다.
 변경 전 dry-run 검증, 버전 이력에서 롤백 가능. 목록은 `docs/OPERATIONS.md` 참조.
+일부 다크런치 기능은 이 목록이 아니라 별도 기능 플래그로 게이트된다 — 예로 팀 공간 실시간
+퀴즈의 AI 문제 생성은 `game_ai_enabled` 플래그(기본 OFF)로 켜야 동작한다.
 
 ## Audit (admin, system_admin, auditor)
 

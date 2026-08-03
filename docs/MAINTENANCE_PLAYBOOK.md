@@ -7,29 +7,36 @@
 - 로컬 저장소: `C:\Users\hshwa\clovirone-web-assistant` (git).
 - 서버: `cloviradmin@10.100.64.71` — SSH **키 인증**(비번 없음), **sudo는 비밀번호 필요**.
 - 앱 경로: `/opt/clovirone-web-assistant` (root:root). 정적: `.../app/static/`.
-- 검증 3종 세트(무엇을 바꾸든): `pytest` green · `bash scripts/static_checks.sh` = `STATIC_CHECKS_OK` · (JS면) `node --check`.
+- 검증 3종 세트(무엇을 바꾸든): `pytest` green · `bash scripts/static_checks.sh` = `STATIC_CHECKS_OK` · 프런트를 바꿨으면 React는 `cd frontend && npm test`(vitest), 남은 바닐라 JS(login/change_password/theme.js)는 `node --check`.
 
 ---
 
 ## §1. 프런트엔드만 수정 → 프로덕션 핫 업데이트
 
-정적 파일(`app/static/css|js|img`, 템플릿 제외)만 바뀐 경우. **서비스 재시작 불필요**
-(FastAPI StaticFiles는 디스크에서 매 요청 서빙).
-**사용자에게 Ctrl+Shift+R을 부탁할 필요도 없다** — `app/core/assets.py`가 파일의 mtime·크기로
+메인 앱(콘솔/채팅/문서/팀공간)은 **React**다 — 소스는 `frontend/`, 배포 산출물은 Vite 빌드
+결과인 `app/static/react/`(index.html + assets). React를 고쳤으면 **소스를 고친 뒤 빌드해서
+`app/static/react/`를 통째로 교체**해야 반영된다(빌드 없이 `app/static/react/`를 손대지 말 것).
+정적 지문 핫배포는 남은 바닐라 JS(`app/static/js/login.js`·`change_password.js`·`theme.js`)와
+`app/static/css|img`에만 유효하다.
+
+어느 쪽이든 **서비스 재시작은 불필요**하다. React 셸(`index.html`)은 `admin/router.py`가
+`FileResponse`(`Cache-Control: no-store`)로 서빙하고, 나머지 정적은 FastAPI StaticFiles가
+디스크에서 매 요청 서빙한다. **사용자에게 Ctrl+Shift+R을 부탁할 필요도 없다** — React assets는
+Vite가 파일명에 콘텐츠 해시를 박고, 그 밖의 정적은 `app/core/assets.py`가 파일의 mtime·크기로
 지문을 계산해 주소에 붙이므로(`?v=<지문>`), 파일이 바뀌면 주소가 바뀌어 브라우저가 새로 받는다.
 한때 그 지문을 프로세스 수명 동안 캐시해서 이 절차가 무효였던 적이 있다. 지금은 매 요청 stat한다.
 
 1. 로컬 수정 후 검증:
    ```bash
-   node --check app/static/js/admin/app.js      # 바꾼 JS마다
+   cd frontend && npm test && npm run build && cd ..   # React 변경 시 (build 산출물 → app/static/react/)
+   node --check app/static/js/login.js                 # 남은 바닐라 JS를 바꿨으면
    .venv/Scripts/python -m pytest tests/integration/test_admin_console.py -q
    git add -A && git commit -m "feat(ux): ..."
    ```
 2. 체크섬 tar로 스테이지한다. **손으로 파일 목록을 적지 말고 스크립트를 쓴다** —
-   인자 없이 돌리면 `app/static` 전체를 탐색해 하나도 빠뜨리지 않고, 텍스트만 CRLF를
-   정규화하고 img/의 바이너리는 바이트 그대로 복사한다(한때 여기 손으로 적힌 3개 목록이
-   `admin/common.js`·`topbar.css`·`theme.js`를 빠뜨렸고, `sed`를 PNG에 돌려 로고를 깨뜨릴
-   뻔했다):
+   인자 없이 돌리면 `app/static` 전체(빌드된 `react/` 포함)를 탐색해 하나도 빠뜨리지 않고,
+   텍스트만 CRLF를 정규화하고 img/·react/assets의 바이너리는 바이트 그대로 복사한다(한때 여기
+   손으로 적힌 목록이 파일을 빠뜨렸고, `sed`를 PNG에 돌려 로고를 깨뜨릴 뻔했다):
    ```bash
    bash scripts/stage-static-update.sh            # 인자 없음 = app/static 전체
    # 일부만 밀려면 경로를 준다: bash scripts/stage-static-update.sh app/static/css/admin.css …
@@ -69,16 +76,15 @@
 
 ## §3. 관리자 콘솔 섹션 추가/수정
 
-관리자 SPA는 **데이터 주도**: `app/static/js/admin/sections.js`(선언적 설정) + `common.js`(프리미티브) +
-`app.js`(렌더 엔진). 대부분의 UI 변경은 `sections.js`만 고치면 된다.
+관리자 콘솔은 **React SPA**(소스 `frontend/src`)다. UI 변경은 `frontend/src`를 고친 뒤 빌드해
+`app/static/react/`를 교체한다(§1). 대부분의 섹션 구성은 화면 컴포넌트와 그 설정 모듈에 모여 있다.
 
-- **페이지 설명 콜아웃**: 각 섹션의 `desc` 필드(정적 문자열, `<b>`/`<span>`은 렌더 시 태그 제거되고
-  textContent로 표시 — `app.js`의 `sectionHelpNode`). 설명 문구만 바꾸려면 `desc`만 수정.
-- **컬럼/필터/액션**: `sections.js`의 해당 섹션 정의(컬럼·row action·toolbar) 수정.
-- **새 섹션**: `sections.js`에 항목 추가 + 백엔드에 대응 API/RBAC. 커스텀 렌더가 필요하면 `app.js`에
-  `render*` 추가하고 `prependHelp(byId["<key>"])`로 콜아웃 유지.
-- 검증: `node --check app/static/js/admin/*.js` + `pytest tests/integration/test_admin_console.py` →
-  §1로 핫 배포. **CSP 준수**: 인라인 스크립트/`onclick` 금지, `innerHTML`에 서버 데이터 금지.
+- **컬럼/필터/액션**: 해당 섹션의 화면 컴포넌트(`frontend/src/screens`)와 설정 정의를 수정.
+- **새 섹션**: 라우트/네비 항목 추가 + 화면 컴포넌트 작성 + 백엔드에 대응 API/RBAC.
+- **렌더 규칙**: 서버 데이터는 반드시 텍스트로만 표시(React 기본 이스케이프 유지, `dangerouslySetInnerHTML`
+  에 서버 데이터 금지). CSP `script-src 'self'` — 인라인 스크립트/`onclick` 금지.
+- 검증: `cd frontend && npm test`(vitest) + `npm run build` + `pytest tests/integration/test_admin_console.py`
+  → §1로 핫 배포(빌드 산출물 `app/static/react/` 교체).
 
 ---
 

@@ -6,7 +6,8 @@
 
 ## 1. 새 모듈 추가 (router/service/repository/schemas/models)
 
-1. `app/<모듈>/` 생성 — 기존 모듈(예: `app/runners/`)을 본보기로:
+1. `app/<모듈>/` 생성 — 기존 모듈을 본보기로 (관리자용은 `app/runners/`, 사용자 콘솔용은
+   `app/board`, `app/games`, `app/org`, `app/tickets`, `app/team_docs`, `app/reports` 참조):
    - `models.py`: `Base, UUIDPrimaryKeyMixin, TimestampMixin`(`core/models_base`) 상속,
      상태 상수는 모듈 상단에 문자열 상수로
    - `schemas.py`: pydantic 요청/응답 모델 (경계 검증은 여기서)
@@ -91,7 +92,9 @@ SettingSpec("my_key", "int", 30, False, "설명", _positive_int(3600)),
 .venv/Scripts/python -m alembic upgrade head
 ```
 
-관례: 파일명은 `00NN_<내용>.py` 연번, 마지막은 0013. downgrade도 작성한다.
+관례: 파일명은 `00NN_<내용>.py` 연번, 현재 마지막은 0019(`0019_games`). downgrade도 작성한다.
+최근 추가된 마이그레이션: 0014(users.archived_at 소프트 삭제), 0015(부서 Department/직책 JobTitle),
+0016(board 게시판), 0017(team_docs 문서 탭), 0018(문서 taxonomy), 0019(games 놀이).
 테스트는 conftest가 매 세션 `alembic upgrade head`를 실행하므로 마이그레이션 자체가
 전체 테스트에서 검증된다.
 

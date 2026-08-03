@@ -13,7 +13,11 @@ CLI(`python -m app.cli.user_cli`)가 이를 공유한다 — 어느 경로로 �
 - 비밀번호를 지정하지 않으면 정책을 만족하는 **임시 비밀번호가 자동 생성**되어
   응답/터미널에 **한 번만** 표시된다(로그 저장 금지). CLI에서 직접 지정하려면
   `--password-stdin`(stdin 전용 — 인자로는 절대 받지 않음)
+- 부서/직책을 함께 배정할 수 있다: API `department_id`/`title_id`, CLI `--department`/`--title`
+  (CLI는 **등록된 이름**만 받아 명부 항목으로 해석한다 — 명부 관리는 아래 `dept-*`/`title-*` 참조)
 - 생성된 계정은 `must_change_password=True` — 첫 로그인 시 변경 강제
+- 이미 등록된 이메일은 거부되며, 그 주소를 **보관된(아카이브된) 계정**이 쥐고 있으면
+  `archived_email_conflict`로 막힌다 — 목록에 안 보이는 계정이 원인이므로 복구를 안내한다(아래 §5)
 
 ## 2. 첫 로그인 + 강제 비밀번호 변경
 
@@ -41,26 +45,41 @@ CLI(`python -m app.cli.user_cli`)가 이를 공유한다 — 어느 경로로 �
 
 - `POST /api/admin/users/{id}/disable` / `enable`, 또는 `user_cli disable|enable`
 - 비활성화 즉시 **모든 활성 세션 폐기** (spec §11.5) — 로그인 자체가
-  `account_disabled`로 거부된다. 데이터(대화, 감사 이력)는 보존된다. 삭제 API는 없다
+  `account_disabled`로 거부된다. 데이터(대화, 감사 이력)는 보존된다. 계정을 아예
+  명부에서 빼려면 삭제 대신 **보관(아카이브)** 을 쓴다(아래 §5) — 하드 삭제 API는 없다
 - 세션만 정리하고 싶으면 `POST /api/admin/users/{id}/revoke-sessions`
   (CLI: `revoke-sessions`). 활성 세션 목록은 `GET /api/admin/users/{id}/sessions`
   (CLI: `sessions`)
 
-## 5. 비밀번호 재설정
+## 5. 보관 / 복구 (아카이브 = 소프트 삭제, 0014)
+
+하드 삭제 대신 행을 남기고 `users.archived_at`(마이그레이션 0014)을 채워 목록·검색·
+로그인에서만 빼는 소프트 삭제 경로다. 복구하면 정확히 보관 전 상태로 돌아온다.
+
+- `POST /api/admin/users/{id}/archive` / `unarchive`, 또는 `user_cli archive|unarchive`
+- 보관은 수명주기 변경이라 disable과 같은 안전장치를 전부 거친다: 권한 경계
+  (`ensure_can_manage_target`), 마지막 system_admin 보호(§7), 자기 자신 금지. 보관 즉시
+  **모든 세션 폐기** + 소유한 스케줄 비활성화. `active`는 건드리지 않는다(복구 시 그대로 복원)
+- 목록/검색은 보관된 계정을 **기본으로 숨긴다**. `GET /api/admin/users?archived=true`(CLI
+  `list --archived`)로 '보관함'을 열어야 보이고, 거기서만 복구할 수 있다
+- 보관된 이메일은 유일 제약을 계속 쥐고 있어, 같은 주소로 새로 만들려 하면 위 §1의
+  `archived_email_conflict`로 막힌다 — 새로 만들지 말고 복구한다
+
+## 6. 비밀번호 재설정
 
 - `POST /api/admin/users/{id}/reset-password` 또는 `user_cli passwd <email> --temp`
 - 새 임시 비밀번호(또는 관리자가 지정한 정책 준수 비밀번호)로 교체하고:
   `must_change_password=True` 재설정, 실패 카운트·잠금 해제, **전 세션 폐기**
 - 평문은 응답에 정확히 1회 노출 — 감사 로그에는 마스킹되어 저장
 
-## 6. 로그인 실패 잠금 / 해제
+## 7. 로그인 실패 잠금 / 해제
 
 - 연속 실패 5회(`login_max_failures`) → 15분(`login_lock_seconds=900`) 잠금.
   잠금 발생 시 본인 + 관리자에게 알림 생성
 - 해제: 시간 경과 자동 해제, 또는 `POST /api/admin/users/{id}/unlock` / `user_cli unlock`
   (실패 카운트도 함께 초기화)
 
-## 7. 마지막 system_admin 보호 (spec §32.8)
+## 8. 마지막 system_admin 보호 (spec §32.8)
 
 `ensure_not_last_system_admin`이 다음을 서버에서 차단한다:
 
@@ -75,13 +94,16 @@ CLI(`python -m app.cli.user_cli`)가 이를 공유한다 — 어느 경로로 �
 
 | 명령 | 설명 |
 |---|---|
-| `add <email> --name N [--role R] [--password-stdin]` | 생성 (기본: 임시 비밀번호 자동) |
-| `list` / `show <email>` | 목록 / 상세 |
+| `add <email> --name N [--role R] [--department 부서] [--title 직책] [--password-stdin]` | 생성 (기본: 임시 비밀번호 자동, 부서/직책은 등록된 이름) |
+| `list [--archived]` / `show <email>` | 목록(기본 보관 제외, `--archived`로 보관함) / 상세 |
 | `enable` / `disable <email>` | 활성/비활성 (세션 폐기 포함) |
+| `archive` / `unarchive <email>` | 보관(소프트 삭제 — 목록·로그인 제외) / 복구 |
 | `passwd <email> [--temp]` | 비밀번호 재설정 (stdin 또는 임시 발급) |
 | `unlock <email>` | 잠금 해제 |
 | `sessions <email>` / `revoke-sessions <email>` | 세션 조회 / 전체 폐기 |
 | `set-role <email> <role>` | 역할 변경 (비상용) |
+| `dept-add --name N` / `dept-list` | 부서 명부 추가 / 목록(사용자 수 포함) |
+| `title-add --name N` / `title-list` | 직책 명부 추가 / 목록(사용자 수 포함) |
 | `verify-notion <email>` | Notion 매핑 재검증 |
 
 모든 CLI 변경은 `cli.user.*` action으로 감사 기록된다.

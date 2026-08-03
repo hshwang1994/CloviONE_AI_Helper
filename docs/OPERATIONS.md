@@ -90,13 +90,25 @@ Worker는 15초마다 `heartbeats` 테이블에 worker/scheduler를 기록한다
 ## 설정 변경 흐름 (spec §14.4)
 
 관리자 콘솔 Settings 섹션은 허용 목록(`app/settings/registry.py`)에 있는 키만 수정 가능:
-`app_base_url`, `default_timeout_seconds`, `timezone`, `page_size`,
 `conversation_retention_days`, `notification_retention_days`, `ui_branding`,
-`maintenance_mode`, `maintenance_message`, `retry_policy`,
-`schedule_misfire_policy`, `password_policy`, `session_policy`, `allowed_email_domains`.
+`maintenance_mode`, `maintenance_message`, `password_policy`, `session_policy`,
+`allowed_email_domains`, `document_automation_enabled`.
+
+허용 목록에 없는 값(base URL, 기본 timeout, page size, timezone, retry/misfire 정책 등)은
+env 또는 객체별 설정으로만 다루며, 효과 없는 스위치를 콘솔에 노출하지 않도록 의도적으로
+registry에서 뺐다.
 
 절차: dry-run(검증) → 적용(변경 전 스냅샷 자동 저장) → 필요 시
 `POST /api/admin/settings/{key}/rollback` `{"version": N}`. 모든 변경은 감사 기록.
+
+## 기능 플래그 다크런치 (feature-flags.json)
+
+Settings registry에 없는 다크런치용 토글은 `/etc/clovirone-web-assistant/feature-flags.json`에
+둔다(예: AI 퀴즈 생성 `game_ai_enabled`, 팀 공간 `board_enabled`/`team_docs_enabled`/`games_enabled`,
+모두 기본값 있음, game_ai_enabled만 기본 OFF). 값을 켜려면 이 파일을 편집해 해당 키를 `true`로
+바꾼다. 이 파일은 요청마다 다시 읽으므로 저장 즉시 반영되며 재시작이 필요 없다(파일이 없거나
+JSON이 깨지면 기본값으로 fail-closed). 안정화되어 상시 노출이 필요한 값은 registry로 옮겨
+콘솔에서 관리한다(document_automation_enabled가 그렇게 옮겨진 예다).
 
 ## Nginx
 

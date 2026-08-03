@@ -9,13 +9,22 @@
 사내 업무 자동화 웹 플랫폼. 기존 ClovirONE AI 업무 도우미(n8n + Claude Runner + Notion)를
 **손상 없이 확장**한다.
 
-- **사용자 웹 채팅** (`/`) — 로그인한 본인의 이름·이메일을 세션에서 자동 식별해 n8n에 전달(위조 불가)
-- **관리자 콘솔** (`/admin`) — 19개 섹션: 사용자·역할(RBAC 5역할), Notion 매핑, Integration/Runner/
-  Workflow Registry, Prompt/Policy/Template 버전 관리, Scheduler, 승인, 감사 로그, 백업, 유지보수 모드
+- **사용자 콘솔** (`/`) — React SPA. 로그인 신원을 세션에서 자동 식별(위조 불가). 좌측 그룹 네비:
+  - 내 업무(홈 대시보드=티켓 요약+내 게시판 활동), 내 티켓/미할당/새 티켓(설명 리치 본문 에디터)
+  - 도우미(AI 도우미 채팅, n8n/러너 연동)
+  - 문서(Notion "문서" DB 미러링+검색/필터+새 문서 생성, 장애 격리 캐시)
+  - 팀 공간: 놀이(폴링 실시간 게임 7종, 서버 확정, 승자 축포) + 자유게시판(글/댓글/반응/첨부)
+- **관리자 콘솔** (`/admin`) — 사용자/부서/직책/Notion 사용자 연결(RBAC 5역할), Integration/Runner/
+  Workflow Registry, Prompt/Policy/Template 버전 관리, Scheduler, 승인, 감사 로그, 백업, 유지보수 모드,
+  개발자 월간 리포트
+- **AI 퀴즈 생성**(§7-9, 다크런치) — 앱 → 러너 `/v1/assistant/quiz`(Claude CLI)로 퀴즈 문제 생성.
+  `game_ai_enabled` 플래그 기본 OFF
 
-**기술 스택**: Python 3.12 · FastAPI(**sync 핸들러**) · SQLAlchemy 2.0(**sync**) · Alembic ·
-SQLite(**WAL**) · Argon2id · Jinja2 + **Vanilla JS(외부 CDN/폰트/npm 전면 금지)** · Nginx · systemd.
-유일한 바이너리 의존성은 `argon2-cffi`. 전체 의존성은 `requirements.txt`(전부 버전 고정).
+**기술 스택**: Python 3.12, FastAPI(**sync 핸들러**), SQLAlchemy 2.0(**sync**), Alembic,
+SQLite(**WAL**), Argon2id, **React 18 + Vite(HashRouter)** — 소스 `frontend/`, 빌드 산출물
+`app/static/react/`(index.html+assets)를 Jinja 셸로 서빙. **런타임 외부 CDN/폰트/네트워크 금지**
+(CSP `script-src 'self'`), npm은 빌드에만. 로그인/비밀번호변경만 `app/static/js`(login.js 등)에 남은
+소규모 바닐라 JS. Nginx, systemd. 유일한 바이너리 의존성은 `argon2-cffi`(전체는 `requirements.txt` 버전 고정).
 
 **상태**: 프로덕션 배포 완료(서버 `10.100.64.71`, `https://clovirone-ai.gooddi.lab`). 테스트 4묶음 전부 green,
 7관점 검수 루프 6회 수렴(Critical/High 0). 상세 이력은 `docs/BUILD_LOG.md`(세션 인수인계의 출발점).
@@ -56,20 +65,26 @@ SQLite(**WAL**) · Argon2id · Jinja2 + **Vanilla JS(외부 CDN/폰트/npm 전�
 ```
 app/
   main.py                 create_app(settings, clock, outbound_transport) — app factory
-  worker_main.py          단일 worker (job loop + scheduler tick)
+  worker_main.py          단일 worker (job loop + scheduler tick), build_handlers() 잡 등록점
   core/                   config, db(WAL/PRAGMA), http_client(OutboundClient), security(Argon2),
-                          sessions, secrets, errors, middleware …  ← 인프라, 조심해서 수정
-  <feature>/              auth users integrations runners workflows prompts policies templates
-                          schedules approvals notifications documents notion_mapping chat
-                          conversations jobs backups audit settings profiles health
+                          sessions, secrets, errors, middleware(CSP), feature_flags,
+                          notion_blocks(markdown_to_blocks — 문서/티켓 본문→Notion 블록) … ← 인프라, 조심해서 수정
+  <feature>/              auth users org(부서·직책) integrations runners workflows prompts policies
+                          templates schedules approvals notifications documents notion_mapping chat
+                          conversations jobs backups audit settings profiles health reports(월간리포트)
+                          tickets team_docs(문서 탭) board(게시판) games(놀이 7종+AI 퀴즈)
                           → 각 feature = router.py + service.py + repository.py + schemas.py + models.py
-  static/                 css/ js/admin/(sections.js·common.js·app.js) img/ — 외부 의존 0
-  templates_html/         Jinja2 (로그인·채팅·admin 셸)
-alembic/                  마이그레이션 (script_location 상대경로 → 서버에선 cd APP_DIR 필요)
-config/                   allowlist JSON 4종 (개발용 사본)
-scripts/                  install/upgrade/rollback/backup/validate .sh + seed_admin.py + static_checks.sh
+                          (신규 모델은 models_registry.py 임포트 + main.py include_router 한 줄)
+  static/                 react/(Vite 빌드 산출물: index.html+assets, 메인 SPA) css/ img/
+                          js/(login.js·change_password.js·theme.js 만 남은 소규모 바닐라) — 외부 의존 0
+  templates_html/         Jinja2 셸(로그인·사용자 콘솔·admin 셸이 React 번들을 로드)
+frontend/                 React 18 + Vite 소스(src/app, src/screens, src/ui, src/lib). npm은 빌드에만
+alembic/                  마이그레이션 0001~0019 (script_location 상대경로 → 서버에선 cd APP_DIR 필요)
+config/                   allowlist JSON(services/runners/workflows) + feature-flags.json (개발용 사본)
+scripts/                  install/upgrade/rollback/backup/validate .sh + seed_admin.py + static_checks.sh + build-bundle.sh
 deploy/                   systemd/*.service, nginx/*.conf, web.env.example, 00-precheck.sh
-docs/                     20종 문서 (아래 §9 색인)
+dist/                     build-bundle 산출물 + deploy-runner.sh(러너 안전 배포)
+docs/                     기능별 문서 (아래 §9 색인)
 tests/                    unit/integration/security/regression/smoke + fakes/
 ```
 
