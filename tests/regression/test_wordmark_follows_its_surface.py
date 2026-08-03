@@ -59,6 +59,26 @@ def test_wordmark_glyph_color_is_not_hardcoded_in_the_partial():
     body = re.sub(r"\{#.*?#\}", "", svg, flags=re.S)   # 주석의 설명은 색이 아니다
     text_fills = re.findall(r'<text[^>]*fill="([^"]+)"', body)
     assert text_fills == ["currentColor"], f"글자 색이 고정돼 있다: {text_fills}"
-    # 마크의 4색은 브랜드 자산이라 어느 면에서도 같아야 한다 — 이건 의도된 고정이다.
-    rect_fills = re.findall(r'<rect[^>]*fill="(#[0-9A-Fa-f]{6})"', body)
-    assert len(rect_fills) == 4, f"브랜드 마크 4색이 아니다: {rect_fills}"
+    # 마크의 색은 브랜드 자산이라 어느 면에서도 같아야 한다 — 이건 의도된 고정이다.
+    # (2026-08 재설계로 마크가 4색 사각형에서 네잎클로버 그라디언트로 바뀌었다. 모양을
+    #  고정하던 옛 단언 대신, '고정된 브랜드 색이 실제로 들어 있는지'라는 원래 의도를 본다.)
+    stop_colors = re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', body)
+    assert len(stop_colors) >= 4, f"브랜드 마크 색이 비었다: {stop_colors}"
+
+
+def test_login_and_spa_draw_the_same_brand_mark():
+    """로그인 전후로 로고가 달라지면 안 된다.
+
+    로그인은 이 Jinja 파셜을, 로그인 이후 SPA는 frontend/src/ui/BrandLogo.jsx를 쓴다.
+    실제로 한동안 한쪽은 4색 사각형, 다른 쪽은 네잎클로버를 그리고 있었다 — 사용자 입장에서는
+    로그인했더니 다른 서비스로 넘어온 것처럼 보인다. 두 파일이 같은 path를 쓰는지 본다.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    jinja = (root / "app" / "templates_html" / "_wordmark.html").read_text(encoding="utf-8")
+    spa = (root / "frontend" / "src" / "ui" / "BrandLogo.jsx").read_text(encoding="utf-8")
+    # 클로버 잎 하나의 path — 마크의 정체성이다. 네 잎은 이걸 회전해 쓴다.
+    leaf = "M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24"
+    assert leaf in jinja, "로그인 워드마크가 새 클로버 마크를 쓰지 않는다"
+    assert leaf in spa, "SPA 로고가 새 클로버 마크를 쓰지 않는다"

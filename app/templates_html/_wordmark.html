@@ -9,16 +9,39 @@
    같은 함정을 반대 방향으로 두 번 밟은 것이다. 파일을 고르는 한 세 번째가 온다.
 
    인라인으로 넣으면 글자가 currentColor를 따르므로 놓인 면의 색을 CSS가 정한다.
-   마크의 4색은 브랜드 자산이라 그대로 둔다 — 어느 면에서도 같은 색이어야 한다.
+   마크의 색은 브랜드 자산이라 그대로 둔다 — 어느 면에서도 같은 색이어야 한다.
+
+   2026-08 재설계: 마크를 네잎클로버로 바꿨다. 로그인은 이 파일을, 로그인 이후 SPA는
+   frontend/src/ui/BrandLogo.jsx를 쓰는데 둘이 서로 다른 마크를 그리고 있었다 —
+   같은 제품에서 로그인 전후로 로고가 바뀌면 사용자는 다른 서비스로 넘어온 줄 안다.
+   두 파일의 path·그라디언트 색은 같은 값이어야 한다(자산 원본: app/static/brand/logo/).
 
    호출 측이 정할 수 있는 것: class(감싸는 클래스), sub(부제 문구, 비우면 마크+이름만) #}
 <svg class="wordmark {{ class | default('') }}" viewBox="0 0 210 28" width="210" height="28"
      role="img" aria-label="ClovirONE{% if sub %} {{ sub }}{% endif %}">
-  <g transform="translate(0,2)">
-    <rect x="0" y="0" width="10" height="10" rx="2" fill="#536CD6"></rect>
-    <rect x="12" y="0" width="10" height="10" rx="2" fill="#758AE1"></rect>
-    <rect x="0" y="12" width="10" height="10" rx="2" fill="#8E75E1"></rect>
-    <rect x="12" y="12" width="10" height="10" rx="2" fill="#435CBE"></rect>
+  <defs>
+    <linearGradient id="wm-leaf-top" x1="64" y1="10" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8FA2F0"/><stop offset="1" stop-color="#536CD6"/>
+    </linearGradient>
+    <linearGradient id="wm-leaf-right" x1="118" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9B82E8"/><stop offset="1" stop-color="#8E75E1"/>
+    </linearGradient>
+    <linearGradient id="wm-leaf-bottom" x1="64" y1="118" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#435CBE"/><stop offset="1" stop-color="#536CD6"/>
+    </linearGradient>
+    <linearGradient id="wm-leaf-left" x1="10" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7FD6C9"/><stop offset="1" stop-color="#62C7BD"/>
+    </linearGradient>
+  </defs>
+  {# 128 단위 마크를 24px로 축소해 얹는다(24/128 = 0.1875). #}
+  <g transform="translate(0,2) scale(0.1875)">
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-top)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-right)" transform="rotate(90 64 64)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-bottom)" transform="rotate(180 64 64)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-left)" transform="rotate(270 64 64)"/>
+    <circle cx="64" cy="64" r="17" fill="#FFFFFF"/>
+    <path d="M64 51.5L67.2 59.1L74.8 62.3L67.2 65.5L64 73.1L60.8 65.5L53.2 62.3L60.8 59.1L64 51.5Z" fill="#536CD6"/>
+    <circle cx="75.5" cy="49.5" r="3.5" fill="#F7A8C4"/>
   </g>
   <text x="32" y="20" font-family="inherit" font-weight="800" font-size="18"
         fill="currentColor" letter-spacing="-0.3">ClovirONE{% if sub %} <tspan
