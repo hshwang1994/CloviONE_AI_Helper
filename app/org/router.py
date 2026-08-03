@@ -17,7 +17,12 @@ from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.org.models import Department, JobTitle
-from app.org.schemas import OrgItemCreateRequest, OrgItemUpdateRequest
+from app.org.schemas import (
+    DepartmentCreateRequest,
+    DepartmentUpdateRequest,
+    OrgItemCreateRequest,
+    OrgItemUpdateRequest,
+)
 from app.org.service import (
     create_item,
     delete_item,
@@ -27,10 +32,21 @@ from app.org.service import (
     update_item,
     usage_count,
 )
+from app.org.tree import tree_rows
 
 
 
-def _make_org_router(*, model, prefix: str, tag: str, body_key: str, audit_type: str):
+def _make_org_router(
+    *,
+    model,
+    prefix: str,
+    tag: str,
+    body_key: str,
+    audit_type: str,
+    create_schema=OrgItemCreateRequest,
+    update_schema=OrgItemUpdateRequest,
+    with_tree: bool = False,
+):
     router = APIRouter(
         prefix=prefix,
         tags=[tag],
@@ -52,6 +68,17 @@ def _make_org_router(*, model, prefix: str, tag: str, body_key: str, audit_type:
             ]
         }
 
+    if with_tree:
+        # ⚠ 반드시 `/{item_id}` **위에** 있어야 한다. Starlette 는 선언 순서로 매칭하므로
+        # 아래에 두면 이 경로는 영영 `/{item_id}` 에 먹혀 "'tree' 부서를 찾을 수 없습니다"만
+        # 돌려준다(정적 경로가 경로 파라미터에 가려지는 전형적인 함정).
+        @router.get("/tree")
+        def get_org_tree(
+            db: Session = Depends(get_db),
+            active: Optional[bool] = Query(default=None),
+        ):
+            return {"items": tree_rows(db, active=active)}
+
     @router.get("/{item_id}")
     def get_org_item(item_id: str, db: Session = Depends(get_db)):
         # 감사/알림이 job_title·department를 참조할 때 '관련 항목 보기'로 그 행 하나를
@@ -62,10 +89,12 @@ def _make_org_router(*, model, prefix: str, tag: str, body_key: str, audit_type:
     @router.post("", status_code=201)
     def create_org_item(
         request: Request,
-        payload: OrgItemCreateRequest,
+        payload: create_schema,
         db: Session = Depends(get_db),
     ):
-        row = create_item(db, model, name=payload.name)
+        row = create_item(
+            db, model, name=payload.name, parent_id=getattr(payload, "parent_id", None)
+        )
         record_audit_from_request(
             request, db, action=f"{audit_type}.create", object_type=audit_type,
             object_id=row.id, after=item_view(row),
@@ -76,7 +105,7 @@ def _make_org_router(*, model, prefix: str, tag: str, body_key: str, audit_type:
     def update_org_item(
         request: Request,
         item_id: str,
-        payload: OrgItemUpdateRequest,
+        payload: update_schema,
         db: Session = Depends(get_db),
     ):
         row = get_or_404(db, model, item_id)
@@ -109,6 +138,9 @@ departments_router = _make_org_router(
     tag="admin-departments",
     body_key="department",
     audit_type="department",
+    create_schema=DepartmentCreateRequest,
+    update_schema=DepartmentUpdateRequest,
+    with_tree=True,
 )
 
 job_titles_router = _make_org_router(

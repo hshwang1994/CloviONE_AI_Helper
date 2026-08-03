@@ -7,6 +7,7 @@ import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 
 /* 사이드바 구조와 라우트 권한 표.
  *
@@ -30,8 +31,13 @@ export const SCREEN_ROLES = {
   jobs: ["operator", "admin", "system_admin"],
   departments: ["admin", "system_admin"],
   "job-titles": ["admin", "system_admin"],
+  "org-tree": ["admin", "system_admin"],
+  offboarding: ["admin", "system_admin"],
   backup: ["operator", "admin", "system_admin", "auditor"],
   audit: ["admin", "system_admin", "auditor"],
+  // 권한 매트릭스는 규칙 표 그 자체라 사용자 데이터가 없다 — 운영자·감사자도 '내가 무엇을
+  // 할 수 있는가'를 볼 수 있어야 한다(백엔드 CONSOLE_READ_ROLES와 같은 집합).
+  rbac: ["operator", "admin", "system_admin", "auditor"],
 };
 
 /* 화면별 403 안내 — 기본 문구("관리자, 시스템 관리자만")는 실제 허용 역할이 더 넓은 화면에서
@@ -40,6 +46,7 @@ export const SCREEN_ROLE_HELP = {
   jobs: "이 화면은 운영자, 관리자, 시스템 관리자만 사용할 수 있습니다.",
   audit: "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
   backup: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
+  rbac: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
 };
 
 export const NAV = [
@@ -57,8 +64,12 @@ export const NAV = [
   ] },
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"] },
+    { to: "/offboarding", label: "온보딩 · 오프보딩", roles: ["admin", "system_admin"] },
     { to: "/departments", label: "부서 관리", roles: ["admin", "system_admin"] },
+    { to: "/org-tree", label: "조직도", roles: ["admin", "system_admin"] },
     { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"] },
+    // 권한 매트릭스는 규칙 표라 읽기 전용 역할(운영자·감사자)에게도 보인다.
+    { to: "/rbac", label: "권한 매트릭스" },
     { to: "/notion-mapping", label: "Notion 사용자 연결" },
   ] },
   { group: "연동", icon: LinkOutlinedIcon, items: [
@@ -108,6 +119,14 @@ export const USER_NAV = [
     { to: "/games", label: "놀이" },
     { to: "/board", label: "자유게시판" },
   ] },
+  /* 내 정보(계획서 Phase 6 사용자 백로그). '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을
+   * 할까'를 고르는 곳이고 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. 섞으면 매일 쓰는
+   * 네 항목 사이에 가끔 쓰는 세 항목이 끼어 매번 시선이 한 번씩 걸린다. */
+  { group: "내 정보", icon: PersonOutlineRoundedIcon, items: [
+    { to: "/profile", label: "내 프로필" },
+    { to: "/my-stats", label: "내 업무량" },
+    { to: "/activity", label: "내 활동" },
+  ] },
 ];
 
 /* 사용자 세그먼트에 속하는 경로 — 관리자군이 상단 '사용자' 탭을 눌렀을 때 이 경로들에서
@@ -116,6 +135,9 @@ export const USER_NAV = [
 export const USER_SEG_PATHS = [
   "/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets",
   "/chat", "/chat-rooms", "/sprint", "/board", "/team-docs", "/games",
+  // 프로필·업무량·활동은 '나에 대한 것'이라 역할과 무관하게 사용자 콘솔에 산다 —
+  // 관리자가 자기 프로필을 열면 사용자 세그먼트로 넘어가고, 상단 세그먼트 탭이 그걸 보여 준다.
+  "/profile", "/my-stats", "/activity",
 ];
 
 export function inUserSegment(pathname) {

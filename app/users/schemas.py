@@ -63,3 +63,26 @@ class UserUpdateRequest(_StrictRequest):
 
 class ResetPasswordRequest(_StrictRequest):
     password: str | None = Field(default=None, max_length=128)
+
+
+class BulkUserActionRequest(_StrictRequest):
+    """대량 작업 요청. 상한은 서비스(app/users/bulk.py MAX_BULK_USERS)와 같은 값이어야 한다 —
+    스키마가 더 느슨하면 서비스가 던지는 오류로만 걸러져 메시지가 두 벌이 된다."""
+
+    user_ids: list[str] = Field(min_length=1, max_length=200)
+    action: str = Field(max_length=32)
+    # set_department / set_title 의 대상 id. 빈 값이면 '지정 해제'다.
+    value: str | None = Field(default=None, max_length=36)
+
+
+class ImportUsersRequest(_StrictRequest):
+    """CSV 본문을 문자열로 받는다(멀티파트 업로드 아님).
+
+    이유: 이 앱의 프런트는 파일을 읽어 텍스트로 다루고 있고, 멀티파트를 새로 도입하면
+    CSRF·크기 제한·인코딩 판정이 전부 별도 경로가 된다. 텍스트로 받으면 기존 JSON 경로의
+    검증이 그대로 적용된다. 200행 상한(MAX_IMPORT_ROWS)이 크기의 실질 상한이다.
+    """
+
+    csv_text: str = Field(min_length=1, max_length=200_000)
+    # 기본이 미리보기다. 미리보기 없이 100명이 생기는 버튼은 아무도 못 누른다.
+    dry_run: bool = True

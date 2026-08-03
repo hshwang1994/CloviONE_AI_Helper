@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import { useAuth } from "./auth.jsx";
 import { Dashboard } from "../screens/Dashboard.jsx";
 import { Users } from "../screens/Users.jsx";
+import { Offboarding } from "../screens/Offboarding.jsx";
 import { Settings } from "../screens/Settings.jsx";
 import { Diagnostics, Maintenance } from "../screens/Ops.jsx";
 import { DevReport } from "../screens/DevReport.jsx";
@@ -52,6 +53,9 @@ function AdminRoutes() {
           역할 게이트는 걸지 않는다: 결과 자체가 역할·범위로 걸러져 나온다(app/search/service.py). */}
       <Route path="/search" element={<Search />} />
       <Route path="/users" element={<RequireRole roles={SCREEN_ROLES.users}><Users /></RequireRole>} />
+      {/* 온보딩·오프보딩은 목록이 아니라 마법사라 DataScreen 계약으로는 '미리 보여 주고
+          확인받는' 단계를 표현할 수 없다(Offboarding.jsx 헤더 주석). */}
+      <Route path="/offboarding" element={<RequireRole roles={SCREEN_ROLES.offboarding}><Offboarding /></RequireRole>} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />
       <Route path="/maintenance" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><Maintenance /></RequireRole>} />

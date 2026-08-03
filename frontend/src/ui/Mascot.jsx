@@ -170,6 +170,10 @@ export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
         border: 1,
         borderColor: "divider",
         p: 0.25,
+        // 바깥 래퍼(AppShell의 fixed Box)가 pointerEvents:none 이라 실제로 눌리는 것은 이 Fab
+        // 하나다. 브라우저는 border-radius 를 히트 테스트에도 적용하므로, 이렇게 두면 둥근
+        // 모서리 바깥의 빈 공간은 아래 콘텐츠가 그대로 받는다 — 안 보이는 사각형이 클릭을 먹지 않는다.
+        pointerEvents: "auto",
         "&:hover": { bgcolor: "background.paper", transform: "translateY(-2px)" },
       }}
     >

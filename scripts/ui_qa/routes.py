@@ -126,6 +126,11 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_games", "/games", "놀이"),
     _u("user_game-room", "/games", "놀이방",
        hash_template="/games/{id}", discover=("/api/games/rooms",)),
+    # 내 정보(계획서 Phase 6 사용자 백로그) — 프로필 셀프서비스·업무량 통계·활동 피드.
+    # 셋 다 `USER_SEG_PATHS` 에 들어 있어 사용자 셸에서 열린다(navConfig.js).
+    _u("user_profile", "/profile", "내 프로필"),
+    _u("user_my-stats", "/my-stats", "내 업무량 · 완료 통계"),
+    _u("user_activity", "/activity", "내 활동"),
 )
 
 # --- admin console (App.jsx AdminBody) --------------------------------------
@@ -133,6 +138,10 @@ USER_ROUTES: tuple[Route, ...] = (
 ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_dashboard", "/dashboard", "대시보드"),
     _a("admin_users", "/users", "사용자", "admin", ("admin", "system_admin")),
+    # 온보딩·오프보딩(Phase 6)은 마법사라 REGISTRY 가 아니라 전용 화면이다
+    # (미리 보여 주고 확인받는 단계를 DataScreen 계약으로는 표현할 수 없다 — Offboarding.jsx).
+    _a("admin_offboarding", "/offboarding", "온보딩 · 오프보딩", "admin",
+       ("admin", "system_admin")),
     _a("admin_settings", "/settings", "설정"),
     _a("admin_diagnostics", "/diagnostics", "진단", "admin", ("admin", "system_admin")),
     _a("admin_maintenance", "/maintenance", "유지보수", "operator",
@@ -150,7 +159,12 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_documents", "/documents", "문서 자동 생성"),
     _a("admin_approvals", "/approvals", "승인"),
     _a("admin_departments", "/departments", "부서 관리", "admin", ("admin", "system_admin")),
+    # 조직도(Phase 6) — 0024 의 Department.parent_id 를 평탄화해 표 하나로 그린다.
+    _a("admin_org-tree", "/org-tree", "조직도", "admin", ("admin", "system_admin")),
     _a("admin_job-titles", "/job-titles", "직책 관리", "admin", ("admin", "system_admin")),
+    # 권한 매트릭스(Phase 6) — 규칙 표라 읽기 전용 역할도 본다(백엔드 CONSOLE_READ_ROLES).
+    _a("admin_rbac", "/rbac", "권한 매트릭스", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
     _a("admin_notion-mapping", "/notion-mapping", "Notion 사용자 연결"),
     _a("admin_jobs", "/jobs", "작업 큐", "operator", ("operator", "admin", "system_admin")),
     _a("admin_audit", "/audit", "감사 로그", "auditor", ("admin", "system_admin", "auditor")),

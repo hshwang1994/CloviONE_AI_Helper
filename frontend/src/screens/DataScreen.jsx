@@ -11,6 +11,8 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { SavedViews } from "../ui/SavedViews.jsx";
+import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
@@ -32,14 +34,30 @@ function handleApiError(e, toast) {
 }
 
 export function DataScreen({ config }) {
-  const [q, setQ] = useState("");           // 실제 쿼리에 쓰이는(디바운스된) 검색어
-  const [qInput, setQInput] = useState(""); // 입력창에 즉시 반영되는 값(타이핑 중)
-  const [page, setPage] = useState(1);
+  /* 첫 렌더에서 주소의 쿼리(#/audit?action=user.login)를 그대로 읽어 초기 상태로 삼는다.
+   * 마운트 후에 setState 로 넣으면 기본 필터로 한 번 조회한 뒤 다시 조회해 목록이 두 번
+   * 깜빡이고, 그 사이 사용자는 자기가 연 링크와 다른 화면을 본다. 게으른 초기화가 그
+   * 왕복을 없앤다. (저장된 뷰를 부르는 일 = 이 주소로 가는 일 — datascreen-view.js) */
+  const initialView = React.useMemo(
+    () => parseView(hashQuery(window.location.hash), config),
+    // config.key 가 바뀌면(=다른 화면) 다시 읽는다. 같은 화면 안에서는 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.key]
+  );
+  const [q, setQ] = useState(initialView.q);           // 실제 쿼리에 쓰이는(디바운스된) 검색어
+  const [qInput, setQInput] = useState(initialView.q); // 입력창에 즉시 반영되는 값(타이핑 중)
+  const [page, setPage] = useState(initialView.page);
   // 검색 디바운스 — 서버 검색 화면(searchable, 특히 Notion 조회처럼 요청당 최대 30초 걸리는 화면)에서
   // 매 키 입력마다 새 요청을 쏘지 않는다(예전엔 한 글자씩 칠 때마다 retry:false 요청이 겹쳐 나가
   // 응답이 뒤죽박죽 도착했다).
+  //
+  // **검색어가 실제로 바뀐 경우에만** 돈다. 예전엔 마운트 때도 무조건 한 번 돌아 `setPage(1)`을
+  // 했는데, 이제 주소(#/audit?…&page=3)와 저장된 뷰가 페이지 번호를 복원하므로 그 한 번이
+  // 복원한 페이지를 300ms 뒤에 조용히 1로 되돌린다 — 사용자는 링크를 열었는데 다른 화면을 본다.
+  const lastQRef = useRef(initialView.q);
   useEffect(() => {
-    const t = setTimeout(() => { setQ(qInput); setPage(1); }, 300);
+    if (qInput === lastQRef.current) return undefined;
+    const t = setTimeout(() => { lastQRef.current = qInput; setQ(qInput); setPage(1); }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qInput]);
@@ -56,7 +74,8 @@ export function DataScreen({ config }) {
   const [filters, setFilters] = useState(() => {
     const d = {};
     (config.filters || []).forEach((f) => { if (f.value != null && f.value !== "") d[f.key] = f.value; });
-    return d;
+    // 주소에 실린 값이 config 기본값을 이긴다 — 링크를 준 사람의 의도가 화면 기본값보다 우선이다.
+    return { ...d, ...initialView.filters };
   });          // 서버측 필터(감사·사용자 등)
   // 액션 실행 중(중복 클릭·느린 동기 호출 방지) — 어떤 특정 액션이 실행 중인지 key로 구분한다.
   // 예전엔 단순 boolean이라 하나를 누르면 이 화면의 모든 헤더/상세 드로어 버튼이 동시에 '처리
@@ -247,6 +266,13 @@ export function DataScreen({ config }) {
     finally { setBusyKey(null); }
   }
   const items = (query.data && query.data[config.itemsKey || "items"]) || [];
+  // config.columnsFrom(응답) — 열이 **서버 응답에서 결정되는** 화면용(권한 매트릭스: 역할이
+  // 곧 열이다). 화면에 역할 목록을 한 벌 더 적으면 백엔드에서 규칙을 고쳐도 표는 옛 열을
+  // 계속 보여 준다 — 그리고 그때 사람은 화면을 믿는다(app/core/authz.py가 유일한 출처).
+  // 응답이 아직 없을 때는 빈 배열이 아니라 config.columns로 떨어져 로딩 중 크래시를 막는다.
+  const columns = config.columnsFrom
+    ? (query.data ? config.columnsFrom(query.data) : (config.columns || []))
+    : config.columns;
   // sel.id가 이번 드로어 세션에서 한 번이라도 items 안에서 실제로 확인됐는지 — 액션이 res.item으로
   // (예: 프롬프트 '새 버전') 아직 목록에 반영되지 않은 새 행을 곧바로 sel에 넣는 경우, 그 행이
   // 아직 items에 없다고 곧장 드로어를 닫아 버리면 안 되므로 '한 번이라도 봤던 적 있는지'로 구분한다.
@@ -312,6 +338,37 @@ export function DataScreen({ config }) {
     // 컴포넌트를 리마운트하지 않아 config.key만 보면 새 쿼리를 영영 소비하지 못했다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.key, location.search]);
+
+  /* 지금 보고 있는 뷰를 주소에 되쓴다 — 저장된 뷰와 링크 공유의 토대다.
+   *
+   * 이 효과는 **위의 onQuery 효과보다 뒤에 선언되어야 한다.** 그쪽은 딥링크 쿼리(?id=…)를
+   * 소비한 뒤 해시에서 지우는데, 우리가 먼저 쓰면 그 삭제가 우리 쿼리까지 함께 지워
+   * 주소가 매번 빈 상태로 되돌아간다. 뒤에서 다시 쓰면 그 순서 문제가 사라진다.
+   *
+   * pushState 가 아니라 replaceState 다 — 필터를 한 칸 고칠 때마다 히스토리가 쌓이면
+   * '뒤로 가기'가 화면을 벗어나기까지 열 번을 눌러야 한다. */
+  const viewQuery = buildViewQuery({ q, page, filters }, config);
+  useEffect(() => {
+    const next = withHashQuery(window.location.hash, viewQuery);
+    if (next !== window.location.hash) {
+      try { window.history.replaceState(null, "", next); } catch (e) { /* ignore */ }
+    }
+  }, [viewQuery]);
+
+  /* 저장된 뷰를 골랐을 때 — 그 쿼리 문자열로 화면 상태를 통째로 되돌린다.
+   * 주소는 위 효과가 따라온다(여기서 두 번 쓰지 않는다). */
+  function applyView(savedQuery) {
+    const view = parseView(savedQuery, config);
+    const defaults = {};
+    (config.filters || []).forEach((f) => { if (f.value != null && f.value !== "") defaults[f.key] = f.value; });
+    // 저장된 뷰에 없는 필터는 **지운다**(합치지 않는다) — 합치면 지금 걸려 있던 조건이
+    // 남아 "부른 뷰와 다른 결과"가 나오고, 사용자는 뷰가 고장 났다고 생각한다.
+    setFilters({ ...defaults, ...view.filters });
+    // 디바운스가 300ms 뒤에 page 를 1로 되돌리지 않도록 '이미 반영된 검색어'로 표시해 둔다.
+    lastQRef.current = view.q;
+    setQ(view.q); setQInput(view.q); setPage(view.page);
+  }
+
   const total = query.data && query.data.total;
   const pageSize = (query.data && query.data.page_size) || config.pageSize || 20;
   // 서버 검색(searchable)이면 서버가 이미 필터한 페이지이므로 클라이언트 재필터를 하지 않는다.
@@ -526,6 +583,16 @@ export function DataScreen({ config }) {
               <Button size="sm" onClick={() => { setQInput(""); setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
             ) : null}
           </Box>
+          {/* 저장된 뷰 — 지금 걸어 둔 필터에 이름을 붙여 두고 다시 부른다. 실제로 저장되는 것은
+              위에서 주소에 되쓴 쿼리 문자열이라, 뷰를 부르는 일과 링크를 여는 일이 같은 일이 된다. */}
+          <Box sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
+            <SavedViews
+              screenKey={config.key}
+              query={viewQuery}
+              describe={(saved) => describeView(saved, config)}
+              onApply={applyView}
+            />
+          </Box>
         </Card>
       ) : null}
       {query.isLoading ? (
@@ -556,7 +623,7 @@ export function DataScreen({ config }) {
         </>
       ) : (
         <Card className="c-list-card">
-          <DataTable columns={config.columns} rows={filtered} rowKey={(r) => r.id || r[config.columns[0].key]} onRow={setSel} />
+          <DataTable columns={columns} rows={filtered} rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))} onRow={setSel} />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행
            * 수가 우연히 pageSize보다 적어져도 서버엔 다음 페이지가 있는데 '다음'이 조용히 꺼졌다(pager 참고). */}
@@ -565,7 +632,7 @@ export function DataScreen({ config }) {
       )}
       {/* 상세는 넓은(lg) 폭 — 액션 버튼이 많은 화면(러너 등)에서 좁은(md) 폭이면 푸터 버튼이 3줄로
           접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다. */}
-      <Drawer open={!!sel} onClose={() => setSel(null)} title={sel ? detailTitle(sel, config) : ""} size="lg"
+      <Drawer open={!!sel} onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
         footer={(sel && (canEdit || visibleActions.length)) ? <>
           {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
           {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
@@ -578,7 +645,7 @@ export function DataScreen({ config }) {
             display: "grid", columnGap: 4, rowGap: 0,
             gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
           }}>
-            {mergeDetailFields(config).map((c, i) => (
+            {mergeDetailFields(config, columns).map((c, i) => (
               <Box key={c.key || "d" + i} className="c-kv"
                 sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
                       py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
@@ -604,7 +671,7 @@ export function DataScreen({ config }) {
           }} />
       ) : null}
       {editFields ? (
-        <FormDrawer open={!!editing} title={(editing ? detailTitle(editing, config) : "") + " 수정"} fields={withOptionsFrom(editFields, editing)}
+        <FormDrawer open={!!editing} title={(editing ? detailTitle(editing, columns) : "") + " 수정"} fields={withOptionsFrom(editFields, editing)}
           // fromRow — 서버가 돌려주는 행 모양(예: {approval_policy:{required:bool}})을 폼 필드 이름
           // (예: 체크박스 하나)으로 되돌려 편집 폼을 올바른 초기값으로 연다.
           initial={editing ? (config.fromRow ? config.fromRow(editing) : editing) : {}} submitLabel="저장" onClose={() => setEditing(null)}
@@ -807,10 +874,10 @@ function SubListDrawer({ view, onClose, onActed }) {
 // base_url/config_version)에 모두 정의된 경우 드로어에 같은 값이 두 번 보인다. key가 겹치면
 // 먼저 오는(columns) 항목만 남기고 detailFields의 중복 항목은 버린다(레지스트리 작성자가 실수로
 // 같은 필드를 두 번 넣어도 드로어가 조용히 두 배로 늘어나지 않게).
-function mergeDetailFields(config) {
+function mergeDetailFields(config, columns) {
   const seen = new Set();
   const merged = [];
-  [...config.columns, ...(config.detailFields || [])].forEach((c) => {
+  [...(columns || config.columns || []), ...(config.detailFields || [])].forEach((c) => {
     if (c.key != null) {
       if (seen.has(c.key)) return;
       seen.add(c.key);
@@ -820,14 +887,17 @@ function mergeDetailFields(config) {
   return merged;
 }
 
-function detailTitle(row, config) {
-  const first = config.columns[0];
+function detailTitle(row, columns) {
+  const first = (columns || [])[0];
   // 열의 render(예: 날짜 KST 포맷)를 존중한다 — 원시 ISO 타임스탬프가 제목으로 새어 나오지 않게.
   // 단 render가 문자열/숫자가 아닌(배지 등 JSX) 값을 주면 원시 값으로 되돌린다(제목은 문자열이어야 함).
   if (first && first.render) {
     const rendered = first.render(row);
     if (typeof rendered === "string" || typeof rendered === "number") return String(rendered);
   }
+  // columnsFrom 화면은 응답이 오기 전 한 프레임 동안 열이 비어 있을 수 있다 — 그때 first가
+  // undefined면 여기서 크래시가 난다(드로어가 열려 있는 상태에서만 드러나는 결함).
+  if (!first) return String(row.id || "상세");
   return String(row[first.key] != null ? row[first.key] : (row.id || "상세"));
 }
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -13,8 +13,15 @@ from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
+from app.users import bulk
 from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
-from app.users.schemas import ResetPasswordRequest, UserCreateRequest, UserUpdateRequest
+from app.users.schemas import (
+    BulkUserActionRequest,
+    ImportUsersRequest,
+    ResetPasswordRequest,
+    UserCreateRequest,
+    UserUpdateRequest,
+)
 from app.users.service import (
     admin_reset_password,
     archive_user,
@@ -68,22 +75,14 @@ def _notion_status_map(db: Session, user_ids: list[str]) -> dict[str, str]:
     return {r.user_id: r.status for r in rows}
 
 
-@router.get("")
-def list_users(
-    request: Request,
-    db: Session = Depends(get_db),
-    principal: Principal = Depends(get_principal),
-    page: PageParams = Depends(),
-    q: str | None = Query(default=None, max_length=255),
-    role: str | None = Query(default=None),
-    active: bool | None = Query(default=None),
-    department_id: str | None = Query(default=None, max_length=36),
-    title_id: str | None = Query(default=None, max_length=36),
-    archived: bool = Query(
-        default=False,
-        description="true면 보관된 계정'만' 보여준다. 기본(false)은 보관된 계정을 숨긴다.",
-    ),
+def _filtered_users_stmt(
+    scope, *, q, role, active, department_id, title_id, archived,
 ):
+    """목록과 CSV 내보내기가 **같은 문장**을 쓴다.
+
+    두 벌로 적으면 화면에서 필터를 걸고 내보낸 파일에 필터가 안 걸린 전 직원이 담기는 식으로
+    갈라진다 — 그리고 그것은 파일을 열어 보기 전까지 아무도 모른다.
+    """
     # 보관된 계정은 기본으로 감춘다 — 검색도 목록의 다른 문일 뿐이라 같은 조건을 탄다.
     # archived=true는 '보관함'을 여는 것이다: 복구하려면 볼 수 있어야 하므로 그때만
     # 보관된 계정만 따로 보여 준다.
@@ -93,7 +92,7 @@ def list_users(
     # 관리 범위(0024). 전역 관리자면 apply_user_scope 가 그대로 돌려주므로 기존 동작과
     # 바이트 단위로 같다. 조직/부서 관리자면 여기서 좁혀지고, 같은 규칙을 단건 조회
     # (get_scoped_user_or_404)가 다시 쓴다 — 목록과 단건이 갈라지지 않게.
-    stmt = apply_user_scope(stmt, principal.scope)
+    stmt = apply_user_scope(stmt, scope)
     if q:
         needle = f"%{q.strip().lower()}%"
         stmt = stmt.where(
@@ -114,6 +113,29 @@ def list_users(
         stmt = stmt.where(User.department_id == department_id)
     if title_id:
         stmt = stmt.where(User.title_id == title_id)
+    return stmt
+
+
+@router.get("")
+def list_users(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+    page: PageParams = Depends(),
+    q: str | None = Query(default=None, max_length=255),
+    role: str | None = Query(default=None),
+    active: bool | None = Query(default=None),
+    department_id: str | None = Query(default=None, max_length=36),
+    title_id: str | None = Query(default=None, max_length=36),
+    archived: bool = Query(
+        default=False,
+        description="true면 보관된 계정'만' 보여준다. 기본(false)은 보관된 계정을 숨긴다.",
+    ),
+):
+    stmt = _filtered_users_stmt(
+        principal.scope, q=q, role=role, active=active,
+        department_id=department_id, title_id=title_id, archived=archived,
+    )
 
     total = db.execute(
         select(func.count()).select_from(stmt.subquery())
@@ -135,6 +157,109 @@ def list_users(
         "page": page.page,
         "page_size": page.page_size,
     }
+
+
+# ── 대량 작업 · CSV (Phase 6) ─────────────────────────────────────────────────
+#
+# 경로를 **두 세그먼트**로 둔 이유: 아래의 단건 경로는 전부 `/{user_id}` 로 시작하는 한
+# 세그먼트 패턴이다. `/bulk/apply` · `/export/csv` · `/import/csv` 는 두 번째 세그먼트가
+# 리터럴이라 `/{user_id}/enable` 류와 절대 겹치지 않는다 — 선언 순서에 의존하지 않고
+# 구조로 충돌을 없앤다(정적 경로가 경로 파라미터에 가려지는 전형적인 함정 회피).
+
+@router.post("/bulk/apply")
+def bulk_apply_users(
+    request: Request,
+    payload: BulkUserActionRequest,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """선택한 사용자들에게 같은 작업을 적용한다. **부분 실패를 그대로 돌려준다.**"""
+    result = bulk.bulk_apply(
+        db,
+        user_ids=list(payload.user_ids),
+        action=payload.action,
+        value=payload.value,
+        actor=request.state.user,
+        scope=principal.scope,
+        session_service=request.app.state.session_service,
+        now=request.app.state.clock.now(),
+    )
+    # 감사는 **건별**로 남긴다. 한 줄로 뭉치면 "누가 언제 이 사람을 비활성화했나"를
+    # 대상 id 로 조회할 수 없다(감사 화면의 object_id 필터가 그 방식으로 동작한다).
+    for row in result["applied"]:
+        if not row["changed"]:
+            continue
+        record_audit_from_request(
+            request, db, action=f"user.bulk_{payload.action}", object_type="user",
+            object_id=row["id"], before=row["before"], after=row["after"],
+        )
+    return result
+
+
+@router.get("/export/csv")
+def export_users_csv(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+    q: str | None = Query(default=None, max_length=255),
+    role: str | None = Query(default=None),
+    active: bool | None = Query(default=None),
+    department_id: str | None = Query(default=None, max_length=36),
+    title_id: str | None = Query(default=None, max_length=36),
+    archived: bool = Query(default=False),
+):
+    """지금 화면에 걸린 필터 **그대로** 내보낸다(같은 문장을 쓴다 — _filtered_users_stmt).
+
+    범위(0024)가 그대로 적용되므로 부서 관리자는 자기 서브트리만 받는다. 비밀번호 해시는
+    어떤 열에도 없다(app/users/bulk.py EXPORT_COLUMNS).
+    """
+    stmt = _filtered_users_stmt(
+        principal.scope, q=q, role=role, active=active,
+        department_id=department_id, title_id=title_id, archived=archived,
+    )
+    rows = db.execute(stmt.order_by(User.created_at.desc())).scalars().all()
+    now = request.app.state.clock.now()
+    body = bulk.export_csv(list(rows), now=now)
+    record_audit_from_request(
+        request, db, action="user.export_csv", object_type="user",
+        after={"row_count": len(rows), "archived": archived},
+    )
+    # 파일명은 ASCII 로만 둔다 — 한글 파일명은 브라우저마다 인코딩 규칙이 달라 깨진 이름이
+    # 저장된다. 날짜는 서버 시각(UTC)이 아니라 표시 규약(KST)과 맞출 필요가 없는 식별자다.
+    filename = f"users-{now.strftime('%Y%m%d-%H%M%S')}.csv"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import/csv")
+def import_users_csv(
+    request: Request,
+    payload: ImportUsersRequest,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """CSV 로 계정을 만든다. 기본은 **미리보기(dry_run)** — 실제 생성은 명시해야 한다."""
+    rows = bulk.parse_import_csv(payload.csv_text)
+    result = bulk.import_users(
+        db, rows,
+        actor=request.state.user,
+        scope=principal.scope,
+        settings=request.app.state.settings,
+        effective_settings=request.app.state.settings_cache.current(),
+        dry_run=payload.dry_run,
+    )
+    if not payload.dry_run:
+        for row in result["results"]:
+            if row.get("status") == "created" and row.get("user_id"):
+                record_audit_from_request(
+                    request, db, action="user.import_create", object_type="user",
+                    object_id=row["user_id"],
+                    after={"email": row["email"], "role": row["role"]},
+                )
+    return result
 
 
 @router.post("", status_code=201)

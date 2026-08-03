@@ -15,6 +15,8 @@ import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
+import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 
 // 생성/수정 폼의 역할 선택지를 행위자 권한으로 제한한다. 서버는 비-system_admin이 관리자·시스템
 // 관리자 '계정 생성'을 하드 403으로 막고(승인 경로 없음), 역할 '변경'만 관리자 승인 흐름이 있다.
@@ -167,9 +169,15 @@ export function Users() {
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  // 조직도·부서 관리에서 '소속 인원 보기'로 오면 `#/users?department_id=<id>` 다. 백엔드는
+  // 이 필터를 이미 지원했지만 화면이 주소를 읽지 않아, 눌러도 필터 없는 전체 목록이 떴다.
+  const [deptFilter, setDeptFilter] = useState(() => searchParams.get("department_id") || "");
   const [page, setPage] = useState(1);
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다
-  React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, showArchived]);
+  React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, showArchived, deptFilter]);
+  // 대량 작업 선택 집합. 페이지·필터가 바뀌어도 유지된다 — 여러 페이지에 걸쳐 고른 뒤
+  // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
+  const selection = useRowSelection();
   const [sel, setSel] = useState(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -202,16 +210,20 @@ export function Users() {
     : title.isLoading ? "직책 목록을 불러오는 중…"
     : title.isEmpty ? (<>등록된 직책이 없습니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
     : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
+  // 목록·CSV 내보내기가 **같은 필터 문자열**을 쓴다. 두 벌로 만들면 화면에 필터를 걸고
+  // 내보낸 파일에 전 직원이 담기는 식으로 갈라지고, 그건 파일을 열기 전까지 아무도 모른다.
+  function filterParams(withPage) {
+    const p = withPage ? ["page=" + page] : [];
+    if (dq) p.push("q=" + encodeURIComponent(dq));
+    if (roleFilter) p.push("role=" + encodeURIComponent(roleFilter));
+    if (activeFilter) p.push("active=" + activeFilter);
+    if (deptFilter) p.push("department_id=" + encodeURIComponent(deptFilter));
+    if (showArchived) p.push("archived=true");
+    return p.join("&");
+  }
   const query = useQuery({
-    queryKey: ["users", dq, roleFilter, activeFilter, showArchived, page],
-    queryFn: () => {
-      const p = ["page=" + page];
-      if (dq) p.push("q=" + encodeURIComponent(dq));
-      if (roleFilter) p.push("role=" + encodeURIComponent(roleFilter));
-      if (activeFilter) p.push("active=" + activeFilter);
-      if (showArchived) p.push("archived=true");
-      return api("/api/admin/users?" + p.join("&"));
-    },
+    queryKey: ["users", dq, roleFilter, activeFilter, deptFilter, showArchived, page],
+    queryFn: () => api("/api/admin/users?" + filterParams(true)),
     // 이전 결과를 유지해 새 쿼리 로딩 중에도 표를 스켈레톤으로 갈아엎지 않는다(깜빡임/스크롤 유실 방지).
     placeholderData: keepPreviousData,
     retry: false,
@@ -226,6 +238,8 @@ export function Users() {
    * 폭을 지정하지 않은 '설명' 열이 아예 한 줄에 한 자씩 세로로 무너졌다). 넓은 화면에서는 내용에
    * 비례해 자연히 벌어지므로 4K에서도 손해가 없다. */
   const columns = [
+    // 대량 작업의 선택 열. 체크박스 클릭은 행 클릭(상세 열기)으로 번지지 않는다(bulkSelect.jsx).
+    selectionColumn(selection, (query.data && query.data.items || []).map((r) => r.id)),
     { key: "email", label: "이메일" },
     { key: "display_name", label: "이름" },
     {
@@ -263,13 +277,18 @@ export function Users() {
   ];
 
   const items = (query.data && query.data.items) || [];
-  const hasFilter = !!(q || roleFilter || activeFilter || showArchived);
-  // 실제 '내용' 필터(검색·역할·활성)만 — '보관된 계정 보기' 토글은 뷰 전환일 뿐 지울 필터가 아니다.
-  const hasContentFilter = !!(q || roleFilter || activeFilter);
-  function clearFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setShowArchived(false); }
+  const hasFilter = !!(q || roleFilter || activeFilter || deptFilter || showArchived);
+  // 실제 '내용' 필터(검색·역할·활성·부서)만 — '보관된 계정 보기' 토글은 뷰 전환일 뿐 지울 필터가 아니다.
+  const hasContentFilter = !!(q || roleFilter || activeFilter || deptFilter);
+  function clearFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setDeptFilter(""); setShowArchived(false); }
   // 내용 필터만 지운다(보관함 뷰는 유지) — 툴바의 '필터 지우기'가 clearFilters를 쓰면 보관함을
   // 보던 중에도 showArchived까지 조용히 꺼져 뷰가 바뀌었다(뷰 전환과 필터 지우기는 다른 조작이다).
-  function clearContentFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); }
+  function clearContentFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setDeptFilter(""); }
+  // 부서 딥링크로 들어온 상태를 이름으로 알려 준다 — id만 주소에 있으면 왜 목록이 좁아졌는지
+  // 화면 어디에도 설명이 없다(필터 select에는 부서 항목이 없다).
+  const deptFilterName = deptFilter
+    ? ((dept.items || []).find((d) => String(d.id) === String(deptFilter)) || {}).name
+    : null;
   // 페이지에 항목이 없는데 이전 페이지엔 있으면(마지막 행을 보관·비활성 처리한 경우 등)
   // '사용자가 없습니다' 대신 범위 안 페이지로 되돌린다(pager가 사라져 돌아갈 길이 막히는 문제).
   React.useEffect(() => {
@@ -303,7 +322,11 @@ export function Users() {
   return (
     <div className="c-screen">
       <PageHeader area="사용자" title="사용자"
-        actions={<Button variant="primary" onClick={() => setCreating(true)}>+ 사용자 추가</Button>} />
+        actions={<>
+          {/* 내보내기는 지금 화면에 걸린 필터 그대로 나간다(같은 filterParams). */}
+          <CsvTools exportQuery={filterParams(false)} onImported={refresh} />
+          <Button variant="primary" onClick={() => setCreating(true)}>+ 사용자 추가</Button>
+        </>} />
       {/* 한 문단에 4가지 서로 다른 사실(생성, 비활성화 대 보관, 승인, 임시 비밀번호)을 몰아넣으면 이 화면에서
           처음 읽는 문장이 오히려 스캔하기 어려웠다, 다른 화면의 짧은 콜아웃과 달리 유독 밀도가 높았다.
           사실 하나당 한 줄로 나눠 훑어보기 쉽게 한다. */}
@@ -355,6 +378,17 @@ export function Users() {
           ) : null}
         </Box>
       </Card>
+
+      {deptFilter ? (
+        <Box sx={{ mb: 2.5 }}>
+          <Callout tone="info">
+            {"부서 ‘" + (deptFilterName || deptFilter) + "’ 소속만 보고 있습니다. "}
+            <LinkButton onClick={() => setDeptFilter("")}>부서 필터 해제</LinkButton>
+          </Callout>
+        </Box>
+      ) : null}
+      <BulkBar selection={selection} onDone={refresh}
+        deptOptions={dept.options} titleOptions={title.options} />
 
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
@@ -592,6 +626,11 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
     </Box>
   );
   const dangerActions = [];
+  // 퇴사 처리는 이 화면에서 하지 않는다 — 보유 티켓을 먼저 보여 주고 재배정까지 함께 해야
+  // '비활성화만 하고 티켓은 퇴사자에게 남아 있는' 상태가 안 생긴다(그것이 현재 운영 공백이었다).
+  // 본인 계정은 서버가 409로 거절하므로 애초에 안내하지 않는다.
+  if (!isSelf) dangerActions.push(
+    <Button key="offboard" disabled={busy} onClick={() => nav("/offboarding")}>오프보딩(퇴사 처리)</Button>);
   if (d.active && !isSelf) dangerActions.push(
     <Button key="disable" variant="danger" disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/disable", { confirm: "이 사용자를 비활성화할까요? 로그인할 수 없게 됩니다.", danger: true, okMsg: "비활성화했습니다." })}>비활성화</Button>);
   if (!d.archived_at && !isSelf) dangerActions.push(

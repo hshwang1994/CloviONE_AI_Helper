@@ -1867,4 +1867,59 @@ export const REGISTRY = {
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=backup&object_id=" + r.id },
     ],
   },
+  rbac: {
+    key: "rbac", area: "사용자", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
+    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다 — 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다.",
+    emptyTitle: "권한 정의를 불러오지 못했습니다",
+    // 열이 곧 역할이라 서버 응답에서 만든다 — 여기에 역할 배열을 적으면 두 벌이 되고,
+    // 백엔드에서 규칙을 고쳐도 이 표만 옛 열을 계속 보여 준다(tests/security/test_rbac_matrix.py가 고정).
+    columnsFrom: (data) => [
+      col("capability", "할 수 있는 일"),
+      col("area", "영역"),
+      ...((data && data.roles) || []).map((role) => ({
+        key: "role_" + role.value, label: role.label, align: "center",
+        render: (r) => (r.allowed || []).includes(role.value)
+          ? React.createElement(Badge, { value: "허용", kind: "ok" })
+          : React.createElement("span", { "aria-label": "허용 안 됨" }, "—"),
+      })),
+    ],
+    // 검색은 '할 수 있는 일'과 '영역'만 대상으로 — 기본(JSON.stringify)이면 allowed 배열의
+    // 원시 역할 값('system_admin')까지 매칭해 화면에 안 보이는 값으로 결과가 걸린다.
+    searchFields: ["capability", "area", "note"],
+    searchPlaceholder: "권한 이름으로 검색",
+    detailFields: [field("id", "권한 키"), field("note", "설명"),
+      { key: "allowed", label: "허용 역할", render: (r) => (r.allowed || []).join(", ") || "-" }],
+  },
+  "org-tree": {
+    key: "org-tree", area: "사용자", title: "조직도", endpoint: "/api/admin/departments/tree",
+    help: "부서 계층을 한눈에 봅니다. 이름 앞의 들여쓰기가 상하 관계입니다. 상위 부서는 ‘부서 관리’ 화면에서 지정합니다.",
+    emptyTitle: "등록된 부서가 없습니다",
+    emptyHelp: "‘부서 관리’에서 부서를 만들고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
+    emptyRelatedLink: { href: "#/departments", label: "부서 관리로 이동" },
+    searchFields: ["name", "path"],
+    searchPlaceholder: "부서 이름으로 검색",
+    filters: ACTIVE_FILTER,
+    columns: [
+      // 들여쓰기가 곧 트리다 — 표 하나로 조직도를 그리기 위한 유일한 장치라 여기서만 만든다.
+      // 공백 문자가 아니라 좌측 패딩(rem)이라 4K에서 루트 폰트사이즈 레버를 그대로 따라간다.
+      { key: "name", label: "부서", render: (r) => React.createElement(
+        "span",
+        { style: { paddingInlineStart: (r.depth || 0) * 1.25 + "rem" }, title: r.path },
+        (r.depth ? "└ " : "") + r.name + (r.cycle ? " (상위 관계 오류)" : ""),
+      ) },
+      activeCol("사용"),
+      col("user_count", "소속 인원(보관 포함)"),
+      col("subtree_user_count", "하위 포함 인원"),
+      col("child_count", "하위 부서"),
+    ],
+    detailFields: [field("id", "부서 ID"), field("path", "전체 경로"),
+      { key: "parent_name", label: "상위 부서", render: (r) => r.parent_name || "(최상위)" },
+      { key: "cycle", label: "상위 관계 오류", render: (r) => r.cycle
+        ? "이 부서는 상위 관계가 고리를 이루고 있어 최상위로 끌어올려 표시했습니다. ‘부서 관리’에서 상위 부서를 다시 지정하세요."
+        : "-" }],
+    actions: [
+      { label: "소속 인원 보기", roles: WRITE_ROLES, navigate: (r) => "#/users?department_id=" + r.id },
+      { label: "부서 관리에서 열기", roles: WRITE_ROLES, navigate: () => "#/departments" },
+    ],
+  },
 };

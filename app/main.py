@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.assets import AssetVersions
 from fastapi.templating import Jinja2Templates
 
+from app.admin.rbac import router as rbac_matrix_router
 from app.admin.router import router as admin_router
 from app.approvals.router import router as approvals_router
 from app.assistant.router import router as assistant_router
@@ -41,6 +42,7 @@ from app.home.router import router as home_router
 from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.notion_mapping.router import router as notion_mapping_router
+from app.offboarding.router import router as offboarding_router
 from app.org.router import departments_router, job_titles_router
 from app.profiles.router import router as profiles_router
 from app.prompts.router import policies_router, prompts_router
@@ -146,6 +148,8 @@ def create_app(
     app.include_router(profiles_router)
     app.include_router(chat_router)
     app.include_router(users_admin_router)
+    app.include_router(offboarding_router)
+    app.include_router(rbac_matrix_router)
     app.include_router(departments_router)
     app.include_router(job_titles_router)
     app.include_router(audit_router)

@@ -85,11 +85,18 @@ def usage_count(db: Session, model: type, item_id: str) -> int:
     ).scalar_one()
 
 
-def create_item(db: Session, model: type[OrgModel], *, name: str) -> OrgModel:
+def create_item(
+    db: Session, model: type[OrgModel], *, name: str, parent_id: str | None = None
+) -> OrgModel:
     clean = normalize_name(name)
     if find_by_name(db, model, clean) is not None:
         raise ConflictError(f"이미 있는 {label_for(model)}입니다: {clean}")
     row = model(name=clean, active=True)
+    if parent_id and model is Department:
+        # 새 행이라 자기 자손이 있을 수 없다 — 존재 여부만 확인하면 된다.
+        if db.get(Department, parent_id) is None:
+            raise ValidationAppError("알 수 없는 상위 부서입니다.")
+        row.parent_id = parent_id
     db.add(row)
     db.flush()
     return row
@@ -101,6 +108,7 @@ def update_item(
     *,
     name: str | None = _UNSET,
     active: bool | None = _UNSET,
+    parent_id: str | None = _UNSET,
 ) -> OrgModel:
     """이름을 바꾸면 이 항목을 쓰는 모든 사용자에게 그대로 반영된다 — 사용자가 원한
     바로 그 동작이다. 사용자 행은 하나도 건드리지 않는다(이름은 여기에만 있다).
@@ -119,6 +127,14 @@ def update_item(
         row.name = clean
     if active is not _UNSET and active is not None:
         row.active = active
+    if parent_id is not _UNSET:
+        # 부서만 트리다. 직책 라우터는 애초에 이 필드를 받지 않는 스키마를 쓰지만(schemas.py),
+        # CLI 등 다른 호출자가 실수로 넘겨도 조용히 무시되지 않도록 여기서도 못박는다.
+        if not isinstance(row, Department):
+            raise ValidationAppError(f"{label_for(type(row))}에는 상위 항목이 없습니다.")
+        from app.org.tree import validate_parent
+
+        row.parent_id = validate_parent(db, row, parent_id)
     db.flush()
     return row
 
@@ -150,6 +166,10 @@ def item_view(row: OrgModel, *, user_count: int | None = None) -> dict:
         "active": row.active,
         "created_at": row.created_at.isoformat(),
     }
+    # 부서만 트리다 — 직책 응답에 항상 null 인 parent_id 를 붙이면 '직책도 계층이 있나?'
+    # 하는 오해만 남는다. 있는 모델에서만 싣는다(추가 키라 기존 화면은 그대로 동작한다).
+    if isinstance(row, Department):
+        view["parent_id"] = row.parent_id
     if user_count is not None:
         view["user_count"] = user_count
     return view
