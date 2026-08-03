@@ -1,14 +1,26 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import Link from "@mui/material/Link";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, Callout, DataTable, Drawer, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../ui/kit.jsx";
+import { ACCENT_PRESETS, normalizeAccent } from "../ui/theme.js";
+import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 
 /* 설정 — 시스템 동작 값을 관리한다. GET /api/admin/settings는 {settings:{key:{value,type,
  * description,restart_required,is_default}}} 형태. 편집은 모달에서 타입별 입력 → PUT /{key}. object 타입
- * (ui_branding·password_policy·session_policy·allowed_email_domains)은 JSON 텍스트로 편집한다. */
+ * (ui_branding·password_policy·session_policy·allowed_email_domains)은 JSON 텍스트로 편집한다.
+ *
+ * 2026-08 MUI 재설계: 손으로 쓴 입력(.c-search/.k-chip/textarea)을 MUI 폼 컴포넌트로 바꿨다.
+ * 값은 rem/테마 값이라 4K에서 글자와 여백이 함께 커진다. 저장 로직(coerce/dry-run/보안 완화 확인/
+ * 미저장 변경 보호)은 한 줄도 바꾸지 않았다 — 이 화면의 위험은 전부 그쪽에 있다. */
 
 // snake_case 백엔드 키를 한국어 이름으로. 한국어 콘솔에 raw 영문 키를 주 식별자로 노출하지 않는다.
 const SETTING_LABELS = {
@@ -48,6 +60,15 @@ const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "allowed_em
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
 const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };
+
+// 강조색 프리셋의 한국어 이름 — 색만으로 고르게 두면 색각 이상 사용자는 무엇을 골랐는지 알 수 없고,
+// 스크린리더는 아무것도 읽을 게 없다(WCAG 1.4.1). 이름을 모르면 hex를 그대로 읽어 준다.
+const ACCENT_NAMES = {
+  "#536CD6": "기본 파랑",
+  "#4058BD": "진한 파랑",
+  "#6B5BC7": "보라",
+  "#327C98": "청록",
+};
 
 // 초 단위 값을 왜곡 없이 표시한다 — 딱 떨어질 때만 상위 단위로, 아니면 하위 단위로 내려간다.
 // (예전엔 Math.round로 90초를 '2분'처럼 보여 요약이 실제 저장값과 어긋났다.)
@@ -137,6 +158,58 @@ function displayValue(v) {
   return String(v);
 }
 
+/* 화면 강조색 — 다크/라이트 모드와 같은 성격의 '이 브라우저에만' 저장되는 개인 취향이다
+ * (ui/ThemeModeProvider.jsx가 localStorage에 넣는다). 서버 설정으로 만들면 한 사람의 취향이
+ * 전원에게 적용되므로 위의 설정 표(시스템 값)와는 일부러 분리해 둔다.
+ *
+ * 선택 표시를 색만으로 하지 않는다(WCAG 1.4.1) — 이름 굵게 + 체크 글리프 + 테두리 강조를 함께 준다. */
+function AccentPicker() {
+  const { accent, setAccent } = useThemeMode();
+  const current = normalizeAccent(accent);
+  return (
+    <Card sx={{ mb: 2.5 }}>
+      <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>화면 강조색</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2, maxWidth: "70ch" }}>
+        버튼·링크·선택 표시에 쓰는 색입니다. 밝게/어둡게 설정과 마찬가지로 <strong>지금 쓰는 브라우저에만</strong> 저장되는 개인 설정이라,
+        다른 사람이 보는 화면은 바뀌지 않습니다(위 표의 시스템 설정과 다릅니다).
+      </Typography>
+      <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+        {ACCENT_PRESETS.map((hex) => {
+          const value = normalizeAccent(hex);
+          const selected = value === current;
+          const name = ACCENT_NAMES[value] || value;
+          return (
+            <Box
+              key={value}
+              component="button"
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setAccent(value)}
+              sx={{
+                display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, minHeight: 44,
+                cursor: "pointer", font: "inherit", color: "inherit", bgcolor: "transparent",
+                border: 2, borderStyle: "solid", borderColor: selected ? "primary.main" : "divider",
+                borderRadius: "10px",
+                "&:hover": { borderColor: "primary.main" },
+              }}
+            >
+              <Box
+                aria-hidden="true"
+                /* minWidth를 함께 준다 — 폭이 빠지면 원이 테두리만 남은 2px 세로선으로 찌부러진다
+                   (색 견본이 사라지면 이 선택기는 글자만 남아 의미의 절반을 잃는다). */
+                sx={{ width: "1.25rem", minWidth: "1.25rem", height: "1.25rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
+              />
+              <Box component="span" sx={{ fontSize: "0.875rem", fontWeight: selected ? 780 : 550 }}>{name}</Box>
+              {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: 800, color: "primary.main" }}>✓</Box> : null}
+              {selected ? <span className="sr-only">(현재 색)</span> : null}
+            </Box>
+          );
+        })}
+      </Box>
+    </Card>
+  );
+}
+
 // 스키마가 정해진 object 설정을 타입에 맞는 입력으로 편집한다. 값의 참(source of truth)은 여전히
 // SettingEditor의 JSON 문자열(val)이다 — 여기선 그 문자열을 파싱해 보여주고, 바뀌면 다시
 // JSON.stringify해 onChange(=changeVal)로 돌려보낸다. 이렇게 하면 coerce()/dirty/저장 로직을
@@ -150,6 +223,8 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
   // label에 htmlFor가 없으면 스크린리더가 입력의 접근 가능한 이름을 못 읽고, 라벨 클릭도 입력에 포커스하지 않는다.
   const fieldId = (name) => "sf-" + settingKey + "-" + name;
   const ariaInvalid = invalid ? true : undefined;
+  // 짧은 숫자 입력 두 개를 넓은 화면에서 나란히 둔다 — 한 열로 쌓으면 드로어가 세로로만 길어진다.
+  const pairGrid = { display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } };
 
   if (settingKey === "allowed_email_domains") {
     const domains = Array.isArray(obj) ? obj : [];
@@ -177,33 +252,40 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
     const domainErrId = fieldId("domain-add-err");
     const domainDescribedBy = [describedBy, domainErr ? domainErrId : null].filter(Boolean).join(" ") || undefined;
     return (
-      <div className="k-field">
-        <span className="k-field-label">허용 이메일 도메인</span>
-        {/* 채팅 컴포저의 chat-chip 등을 빌리지 않는다, 개념상 무관한 화면이 채팅 리스타일에
-            의도치 않게 함께 흔들리는 걸 막는 별도 이름(k-chip, screens.css)을 쓴다. */}
-        <div className="k-chips">
+      <Box sx={{ mb: 2.5 }}>
+        <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>허용 이메일 도메인</Typography>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
           {domains.length ? domains.map((d) => (
-            <span className="k-chip" key={d}>{d}
-              {canWrite ? <button type="button" className="k-chip-x" aria-label={d + " 제거"} onClick={() => removeDomain(d)}>✕</button> : null}
-            </span>
-          )) : <span className="k-field-help">제한 없음(모든 이메일 도메인 허용)</span>}
-        </div>
+            <Chip
+              key={d}
+              label={d}
+              size="small"
+              variant="outlined"
+              onDelete={canWrite ? () => removeDomain(d) : undefined}
+              // MUI 기본 삭제 아이콘의 접근 가능한 이름은 비어 있다 — 어떤 칩을 지우는지 읽히게 한다.
+              deleteIcon={canWrite ? <Box component="span" aria-label={d + " 제거"} role="button" sx={{ px: 0.5, cursor: "pointer", fontSize: "0.75rem" }}>✕</Box> : undefined}
+            />
+          )) : <Typography variant="body2" color="text.secondary">제한 없음(모든 이메일 도메인 허용)</Typography>}
+        </Box>
         {canWrite ? (
           <>
-            <div className="c-toolbar-row">
-              <input id={domainInputId} className="c-search" type="text" placeholder="예: goodmit.co.kr" value={draft}
-                aria-label="도메인 추가" aria-invalid={domainErr ? true : ariaInvalid} aria-describedby={domainDescribedBy}
+            <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <TextField
+                id={domainInputId} size="small" placeholder="예: goodmit.co.kr" value={draft}
+                error={!!domainErr} sx={{ minWidth: "16rem", flex: "1 1 16rem" }}
+                inputProps={{ "aria-label": "도메인 추가", "aria-invalid": domainErr ? true : ariaInvalid, "aria-describedby": domainDescribedBy }}
                 onChange={(e) => { setDraft(e.target.value); if (domainErr) setDomainErr(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDomain(); } }} />
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDomain(); } }}
+              />
               {/* 빈 입력으로 누르면 addDomain이 조용히 no-op이라(if(!d)return) 아무 피드백 없이
                   아무 일도 안 일어난 것처럼 보였다, 비어 있으면 버튼 자체를 비활성화해 클릭이
                   항상 관찰 가능한 결과를 내게 한다. */}
               <Button size="sm" onClick={addDomain} disabled={!draft.trim()}>추가</Button>
-            </div>
-            {domainErr ? <p className="k-form-err" id={domainErrId} role="alert">{domainErr}</p> : null}
+            </Box>
+            {domainErr ? <Typography color="error" variant="body2" id={domainErrId} role="alert" sx={{ mt: 1 }}>{domainErr}</Typography> : null}
           </>
         ) : null}
-      </div>
+      </Box>
     );
   }
 
@@ -214,24 +296,24 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
     const minLenId = fieldId("min_length");
     const minClassesId = fieldId("min_classes");
     return (
-      <>
-        <div className="k-field">
-          {/* 옆 '문자 종류 수(1~4)' 필드처럼 허용 범위를 라벨에 직접 접어 넣는다, 백엔드(registry.py
-              _password_policy)가 실제로 강제하는 8~128 범위를 저장 왕복 전까지 알 길이 없었다. */}
-          <label className="k-field-label" htmlFor={minLenId}>최소 글자 수(8~128자)</label>
-          <input id={minLenId} className="c-search" type="number" min={8} max={128} disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
-            value={safe.min_length != null ? safe.min_length : ""}
-            onChange={(e) => patch({ min_length: e.target.value === "" ? null : Number(e.target.value) })} />
-        </div>
-        <div className="k-field">
-          <label className="k-field-label" htmlFor={minClassesId}>문자 종류 수(1~4)</label>
-          <input id={minClassesId} className="c-search" type="number" min={1} max={4} disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
-            value={safe.min_classes != null ? safe.min_classes : ""}
-            onChange={(e) => patch({ min_classes: e.target.value === "" ? null : Number(e.target.value) })} />
-        </div>
-      </>
+      <Box sx={pairGrid}>
+        {/* 옆 '문자 종류 수(1~4)' 필드처럼 허용 범위를 라벨에 직접 접어 넣는다, 백엔드(registry.py
+            _password_policy)가 실제로 강제하는 8~128 범위를 저장 왕복 전까지 알 길이 없었다. */}
+        <TextField
+          id={minLenId} label="최소 글자 수(8~128자)" type="number" size="small" fullWidth disabled={!canWrite}
+          error={!!invalid}
+          inputProps={{ min: 8, max: 128, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+          value={safe.min_length != null ? safe.min_length : ""}
+          onChange={(e) => patch({ min_length: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+        <TextField
+          id={minClassesId} label="문자 종류 수(1~4)" type="number" size="small" fullWidth disabled={!canWrite}
+          error={!!invalid}
+          inputProps={{ min: 1, max: 4, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+          value={safe.min_classes != null ? safe.min_classes : ""}
+          onChange={(e) => patch({ min_classes: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+      </Box>
     );
   }
   if (settingKey === "session_policy") {
@@ -244,46 +326,48 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
     const idleId = fieldId("idle_timeout_minutes");
     const absId = fieldId("absolute_timeout_minutes");
     return (
-      <>
-        <div className="k-field">
-          <label className="k-field-label" htmlFor={idleId}>유휴 제한(분, 최소 1분)</label>
-          <input id={idleId} className="c-search" type="number" min={1} disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
+      <Box sx={pairGrid}>
+        <Box>
+          <TextField
+            id={idleId} label="유휴 제한(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid}
+            inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={idleMin}
-            onChange={(e) => patch({ idle_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })} />
+            onChange={(e) => patch({ idle_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+          />
           {/* 분 단위 숫자만으론 시간 규모(예: 480 = 8시간)를 확인하기 어렵다, 표 요약과 같은
               fmtDuration으로 사람이 읽는 값을 바로 옆에 함께 보여준다. */}
-          {safe.idle_timeout_seconds != null ? <p className="k-field-help">= {fmtDuration(safe.idle_timeout_seconds)}</p> : null}
-        </div>
-        <div className="k-field">
-          <label className="k-field-label" htmlFor={absId}>최대 세션 길이(분, 최소 1분)</label>
-          <input id={absId} className="c-search" type="number" min={1} step={1} disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
+          {safe.idle_timeout_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.idle_timeout_seconds)}</Typography> : null}
+        </Box>
+        <Box>
+          <TextField
+            id={absId} label="최대 세션 길이(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid}
+            inputProps={{ min: 1, step: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={absMin}
-            onChange={(e) => patch({ absolute_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })} />
-          {safe.absolute_timeout_seconds != null ? <p className="k-field-help">= {fmtDuration(safe.absolute_timeout_seconds)}</p> : null}
-        </div>
-      </>
+            onChange={(e) => patch({ absolute_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+          />
+          {safe.absolute_timeout_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.absolute_timeout_seconds)}</Typography> : null}
+        </Box>
+      </Box>
     );
   }
   if (settingKey === "ui_branding") {
     const nameId = fieldId("product_name");
     const emailId = fieldId("support_email");
     return (
-      <>
-        <div className="k-field">
-          <label className="k-field-label" htmlFor={nameId}>제품명</label>
-          <input id={nameId} className="c-search" type="text" disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
-            value={safe.product_name || ""} onChange={(e) => patch({ product_name: e.target.value })} />
-        </div>
-        <div className="k-field">
-          <label className="k-field-label" htmlFor={emailId}>지원 이메일</label>
-          <input id={emailId} className="c-search" type="text" disabled={!canWrite}
-            aria-invalid={ariaInvalid} aria-describedby={describedBy}
-            value={safe.support_email || ""} onChange={(e) => patch({ support_email: e.target.value })} />
-        </div>
-      </>
+      <Box sx={pairGrid}>
+        <TextField
+          id={nameId} label="제품명" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+          inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+          value={safe.product_name || ""} onChange={(e) => patch({ product_name: e.target.value })}
+        />
+        <TextField
+          id={emailId} label="지원 이메일" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+          inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+          value={safe.support_email || ""} onChange={(e) => patch({ support_email: e.target.value })}
+        />
+      </Box>
     );
   }
   return null;
@@ -326,9 +410,13 @@ export function Settings() {
   // 음성 제어 사용자가 행마다 다른 aria-label을 듣는다(예전엔 render가 있어 모든 행이 동일하게
   // '상세 보기'로만 들렸다). raw 키는 옆의 별도 열로 유지해 정보 손실 없이 보인다.
   const rows = Object.keys(map).filter((k) => !MAINTENANCE_KEYS.includes(k)).map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
+  /* 열에 width를 주지 않는다(DataTable이 지원하긴 한다). 이 표는 '설명'만 길고 나머지는 짧은데,
+   * 앞 네 열에 고정 폭을 주면 요청 폭 합이 1366px 화면의 가용 폭을 넘겨 브라우저가 폭을 지정하지
+   * 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로 설명 글자가 한 줄에 한 자씩 세로로 흘렀다.
+   * 폭 배분은 브라우저 auto 레이아웃에 맡긴다(내용에 비례해 나눈다). */
   const columns = [
     { key: "label", label: "설정" },
-    { key: "key", label: "키", render: (r) => <span className="k-field-help">{r.key}</span> },
+    { key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> },
     { key: "value", label: "값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
     // '변경됨'은 기본값과 다를 뿐 문제 상태가 아니다 — warn(주황)은 이상으로 오독되므로 info로 표시한다.
     { key: "is_default", label: "상태", render: (r) => <Badge value={r.is_default ? "기본값" : "변경됨"} kind={r.is_default ? "neutral" : "info"} /> },
@@ -336,17 +424,14 @@ export function Settings() {
   ];
 
   return (
-    <div>
+    <div className="c-screen">
       <PageHeader area="운영" title="설정" />
       {/* 다른 관리 화면(DataScreen)의 help 인트로와 같은 패턴, 처음 오는 관리자에게 화면 사용법을 안내한다. */}
       {/* '즉시 적용됩니다'는 사실이 아니었다, 세션 정책은 신규 세션부터, 허용 도메인은 사용자 생성 시, 보존 기간은 다음 정리 작업 때 반영된다. 적용 시점은 항목별 '설명'을 따르도록 문구를 완화한다. */}
-      {/* Dashboard.jsx가 쓰는 .dash-section(32px 여백)을 빌려 쓰던 것을 다른 관리 화면(Users.jsx)과 같은
-          .c-page-callout(16px)으로 맞춘다, 같은 '화면 설명 콜아웃' 패턴인데 화면마다 세로 리듬이 달랐다. */}
       {/* 예전엔 이 안내가 인트로 Callout, '열람만 가능' 안내, '유지보수' 안내로 3개의 서로 떨어진
           시각 블록이었다, 개별로는 다 맞는 말이지만 함께 있으면 세 조각 난 도입부처럼 읽혀 아래
-          진짜 콘텐츠(설정 표)를 더 밀어냈다. Callout의 문단(.k-callout-body p + p, screens.css)으로
-          한 덩어리로 묶는다. */}
-      <div className="c-page-callout">
+          진짜 콘텐츠(설정 표)를 더 밀어냈다. 한 Callout 안의 문단으로 한 덩어리로 묶는다. */}
+      <Box sx={{ mb: 2.5, "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
         <Callout tone="info">
           {/* 버전 기록은 읽기 전용 역할(operator, auditor)도 편집기의 '버전 기록' 버튼으로 열람할 수
               있다(롤백만 canWrite), 예전엔 canWrite일 때만 언급해, 읽기 역할은 이력의 존재조차 몰랐다. */}
@@ -357,14 +442,11 @@ export function Settings() {
               /maintenance는 operator, admin, system_admin, auditor가 조회할 수 있다(App.jsx RequireRole/NAV) -
               쓰기만 canWrite(admin/system_admin)로 서버가 막으므로, 이 안내 링크는 canWrite가 아니라
               MAINTENANCE_READ_ROLES로 게이트해야 조회만 가능한 역할도 실제로 열 수 있는 화면을 클릭할 수 있다. */}
-          {/* screens.css(위쪽 주석)는 관리 화면이 .chat-linkbtn 대신 .c-linkbtn을 쓰도록 명시한다 -
-              채팅 전용 스타일 변경(.chat-msg--user .chat-linkbtn 색 오버라이드 등)이 이 관리 화면에
-              의도치 않게 새지 않도록. Users.jsx는 이미 .c-linkbtn을 쓴다, 여기도 맞춘다. */}
           <p>유지보수 모드, 점검 공지는 {canReachMaintenance
-            ? <button type="button" className="c-linkbtn" onClick={() => nav("/maintenance")}>‘유지보수’ 화면</button>
+            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/maintenance")}>‘유지보수’ 화면</Link>
             : "‘유지보수’ 화면"}에서 관리합니다.</p>
         </Callout>
-      </div>
+      </Box>
       {q.isLoading ? <Card><Skeleton lines={5} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.
@@ -372,7 +454,9 @@ export function Settings() {
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
         : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다, 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
-        : <Card className="c-list-card"><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>}
+        : <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>}
+      {/* 시스템 설정 표 아래에 개인 취향 설정을 둔다 — 위와 성격이 달라(서버 저장 아님) 카드를 나눈다. */}
+      <AccentPicker />
       <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
         onSaved={(res) => {
           qc.invalidateQueries({ queryKey: ["settings"] });
@@ -541,63 +625,88 @@ function SettingEditor({ setting, canWrite, onClose, onSaved }) {
   // 입력과 설명/도움말/오류를 잇는 aria-describedby(존재하는 노드만 포함) — 스크린리더가 값 편집 시 설명·제약을 함께 읽는다.
   const describedBy = [setting.description ? "setting-desc" : null, helpShown ? "setting-help" : null, intBounds ? "setting-range" : null, err ? "setting-err" : null].filter(Boolean).join(" ") || undefined;
 
-  const footer = <>
-    <Button variant="ghost" onClick={requestClose} disabled={save.isPending}>취소</Button>
-    <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
-    {canWrite ? <Button onClick={onCheck} disabled={dryRun.isPending}>{dryRun.isPending ? "검증 중…" : "미리 검증"}</Button> : null}
-    {/* 변경이 없으면 저장을 막는다, 같은 값 재저장은 config_versions, 감사 로그에 no-op을 쌓는다. */}
-    {canWrite ? <Button variant="primary" onClick={onSave} disabled={save.isPending || !dirty}>{save.isPending ? "저장 중…" : "저장"}</Button> : null}
-  </>;
+  const footer = (
+    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
+      <Box className="k-footer-extra">
+        <Button variant="ghost" onClick={requestClose} disabled={save.isPending}>취소</Button>
+        <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
+      </Box>
+      <Box className="k-footer-main">
+        {canWrite ? <Button onClick={onCheck} disabled={dryRun.isPending}>{dryRun.isPending ? "검증 중…" : "미리 검증"}</Button> : null}
+        {/* 변경이 없으면 저장을 막는다, 같은 값 재저장은 config_versions, 감사 로그에 no-op을 쌓는다. */}
+        {canWrite ? <Button variant="primary" onClick={onSave} disabled={save.isPending || !dirty}>{save.isPending ? "저장 중…" : "저장"}</Button> : null}
+      </Box>
+    </Box>
+  );
   return (
     <>
     <Drawer open={!!setting} onClose={requestClose} title={settingLabel(setting.key)} footer={footer}>
-      <p className="k-field-help">{setting.key} ({setting.is_default ? "기본값" : "변경됨"})</p>
-      <p className="pending-note" id="setting-desc">{setting.description}</p>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "변경됨"})</Typography>
+      <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5, maxWidth: "70ch" }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
-      {!canWrite ? <p className="k-field-help">열람 전용입니다, 값은 변경할 수 없습니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</p> : null}
+      {!canWrite ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다, 값은 변경할 수 없습니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
       {/* bool select, document_automation_enabled(SETTING_LABELS에 라벨 추가됨, MAINTENANCE_KEYS로
           걸러지지 않음)가 이 표에 노출되는 실제 bool 설정이라 이 분기는 지금 실사용된다. 입력은
-          FormField와 동일하게 aria-invalid, aria-describedby로 오류/도움말과 프로그래매틱하게 연결한다. */}
+          FormField와 동일하게 aria-invalid, aria-describedby로 오류/도움말과 프로그래매틱하게 연결한다.
+          native select를 쓴다 — 값이 두 개뿐이라 팝업 메뉴보다 가볍고, 키보드/모바일 동작이 OS 기본이다. */}
       {/* save.isPending인 동안엔 !canWrite와 마찬가지로 값 입력을 잠근다, 예전엔 PUT이 도는 사이에도
           계속 타이핑할 수 있어, onSave()가 이미 보낸(제출 시점) 값과 화면에 남은 값이 어긋난 채로
           onSaved()가 그 편집을 조용히 버리고 드로어를 닫을 수 있었다. */}
       {setting.type === "bool" ? (
-        <select className="c-search" value={String(val)} onChange={(e) => changeVal(e.target.value)} aria-label="값"
-          aria-invalid={!!err} aria-describedby={describedBy} disabled={!canWrite || save.isPending}>
+        <TextField
+          select fullWidth size="small" SelectProps={{ native: true }}
+          value={String(val)} onChange={(e) => changeVal(e.target.value)}
+          error={!!err} disabled={!canWrite || save.isPending}
+          inputProps={{ "aria-label": "값", "aria-invalid": !!err, "aria-describedby": describedBy }}
+        >
           <option value="true">켜기</option>
           <option value="false">끄기</option>
-        </select>
+        </TextField>
       ) : isObjectSetting(setting) ? (
         STRUCTURED_OBJECT_KEYS.includes(setting.key) && !advanced ? (
           <StructuredObjectFields settingKey={setting.key} val={val} onChange={changeVal} canWrite={canWrite && !save.isPending}
             describedBy={describedBy} invalid={!!err} />
         ) : (
-          <textarea className="c-search c-json-input" rows={10} value={val} onChange={(e) => changeVal(e.target.value)}
-            aria-label="값(JSON)" aria-invalid={!!err} aria-describedby={describedBy} spellCheck={false} disabled={!canWrite || save.isPending} />
+          <TextField
+            fullWidth multiline minRows={10} size="small"
+            value={val} onChange={(e) => changeVal(e.target.value)}
+            error={!!err} disabled={!canWrite || save.isPending}
+            inputProps={{ "aria-label": "값(JSON)", "aria-invalid": !!err, "aria-describedby": describedBy, spellCheck: false }}
+            /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
+            InputProps={{ sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.8125rem" } }}
+          />
         )
       ) : (
         <>
-          <input className="c-search" value={val} onChange={(e) => changeVal(e.target.value)}
+          <TextField
+            fullWidth size="small" value={val} onChange={(e) => changeVal(e.target.value)}
             type={setting.type === "int" ? "number" : "text"}
-            min={intBounds ? intBounds[0] : undefined} max={intBounds ? intBounds[1] : undefined}
-            aria-label="값" aria-invalid={!!err} aria-describedby={describedBy} disabled={!canWrite || save.isPending} />
-          {intBounds ? <p className="k-field-help" id="setting-range">허용 범위: {intBounds[0]}~{intBounds[1]}</p> : null}
+            error={!!err} disabled={!canWrite || save.isPending}
+            inputProps={{
+              min: intBounds ? intBounds[0] : undefined, max: intBounds ? intBounds[1] : undefined,
+              "aria-label": "값", "aria-invalid": !!err, "aria-describedby": describedBy,
+            }}
+            sx={{ maxWidth: "24rem" }}
+          />
+          {intBounds ? <Typography variant="caption" color="text.secondary" id="setting-range" sx={{ display: "block", mt: 0.5 }}>허용 범위: {intBounds[0]}~{intBounds[1]}</Typography> : null}
         </>
       )}
       {/* 정해진 스키마가 있는 object 설정은 구조화된 입력↔raw JSON을 오갈 수 있다, 대부분은 구조화된
           입력만으로 충분하지만, 스키마 밖 값을 손봐야 하는 드문 경우를 위해 고급 전환을 남겨둔다. */}
       {isObjectSetting(setting) && STRUCTURED_OBJECT_KEYS.includes(setting.key) ? (
-        <Button variant="ghost" size="sm" disabled={advanced && !advancedJsonValid}
-          onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 편집(고급)"}</Button>
+        <Box sx={{ mt: 1.5 }}>
+          <Button variant="ghost" size="sm" disabled={advanced && !advancedJsonValid}
+            onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 편집(고급)"}</Button>
+        </Box>
       ) : null}
-      {advanced && !advancedJsonValid ? <p className="k-form-err" role="alert">JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다, 먼저 JSON을 고치세요.</p> : null}
-      {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <p className="k-field-help" id="setting-help">{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</p> : null}
-      {setting.restart_required ? <p className="pending-note">이 설정은 저장 후 서비스를 수동으로 재시작해야 적용됩니다.</p> : null}
-      {/* 검증 통과는 성공 신호이므로 흐린 힌트(k-field-help) 대신 Callout로 확실히 표시한다.
-          tone="success"(체크 글리프)로 '이 항목 저장 시도 예정' 같은 평범한 안내(info)와 구분한다. */}
-      {checked ? <div role="status"><Callout tone="success">{checked}</Callout></div> : null}
-      {/* 오류는 앱 공통 오류 스타일(k-form-err, 빨강)로, k-empty-help는 색이 없어 일반 텍스트로 보였다. */}
-      {err ? <p className="k-form-err" id="setting-err" role="alert">{err}</p> : null}
+      {advanced && !advancedJsonValid ? <Typography color="error" variant="body2" role="alert" sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다, 먼저 JSON을 고치세요.</Typography> : null}
+      {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <Typography variant="caption" color="text.secondary" id="setting-help" sx={{ display: "block", mt: 1, maxWidth: "70ch" }}>{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</Typography> : null}
+      {setting.restart_required ? <Typography variant="body2" sx={{ mt: 1.5 }}>이 설정은 저장 후 서비스를 수동으로 재시작해야 적용됩니다.</Typography> : null}
+      {/* 검증 통과는 성공 신호이므로 흐린 힌트 대신 Callout로 확실히 표시한다.
+          tone="success"로 '이 항목 저장 시도 예정' 같은 평범한 안내(info)와 구분한다. */}
+      {checked ? <Box role="status" sx={{ mt: 2 }}><Callout tone="success">{checked}</Callout></Box> : null}
+      {/* 오류는 앱 공통 오류 색(error)으로 — 예전 .k-empty-help는 색이 없어 일반 텍스트로 보였다. */}
+      {err ? <Typography color="error" variant="body2" id="setting-err" role="alert" sx={{ mt: 2 }}>{err}</Typography> : null}
     </Drawer>
     {showVersions ? (
       // 롤백 후 부모 편집기를 닫을 때도 requestClose()(같은 미저장 변경 확인)를 거친다, onClose()를
@@ -669,18 +778,24 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
     },
   });
 
-  const footer = <Button variant="ghost" onClick={onClose}>닫기</Button>;
+  const footer = (
+    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
+      <Box className="k-footer-main"><Button variant="ghost" onClick={onClose}>닫기</Button></Box>
+    </Box>
+  );
   return (
     <Drawer open onClose={onClose} title={label + ", 버전 기록"} size="lg" footer={footer}>
-      <p className="k-field-help">각 버전은 그 시점으로 되돌릴 수 있는 값 스냅샷입니다. 롤백은 현재 값을 선택한 버전으로 되돌리며 새 변경으로 다시 기록됩니다.</p>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
+        각 버전은 그 시점으로 되돌릴 수 있는 값 스냅샷입니다. 롤백은 현재 값을 선택한 버전으로 되돌리며 새 변경으로 다시 기록됩니다.
+      </Typography>
       {/* 목록 자체는 페이지네이션 없이 전체를 보여준다(app/core/versioning.py list_versions에 상한 없음) —
           자주 손보는 설정은 기록이 눈에 안 띄게 계속 늘어날 수 있어, 최소한 개수라도 먼저 보여준다
           (DataScreen의 capWarning과 같은 취지 — '이 목록이 얼마나 긴지' 모르는 채로 스크롤하지 않게). */}
-      {!vq.isLoading && !vq.isError && items.length > 0 ? <p className="k-field-help">{items.length}건</p> : null}
+      {!vq.isLoading && !vq.isError && items.length > 0 ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>{items.length}건</Typography> : null}
       {vq.isLoading ? <Skeleton lines={4} />
         : vq.isError ? <ErrorState error={vq.error} onRetry={() => vq.refetch()} />
         : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
-        : <Card className="c-list-card"><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}
+        : <Card><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}
     </Drawer>
   );
 }

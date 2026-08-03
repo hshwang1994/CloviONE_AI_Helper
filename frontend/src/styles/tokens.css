@@ -166,12 +166,16 @@
 
   /* -------- 글자 크기 스케일 — 화면 전반에서 반복되는 12/13/14/15/17/24px를 토큰화.
    * 추가 정의다(기존 font-size는 그대로). base는 본문 기본값(body 15px)과 같다. -------- */
-  --font-size-xs: 12px;
-  --font-size-sm: 13px;
-  --font-size-md: 14px;
-  --font-size-base: 15px;
-  --font-size-lg: 17px;
-  --font-size-xl: 24px;
+  /* px가 아니라 rem이다. styles/root.css가 4K에서 루트 폰트사이즈를 16→18→20px로
+     올려 글자와 여백을 함께 키우는데, px로 박아 두면 이 토큰을 쓰는 곳만 작게 남는다
+     — 실제로 문서 본문(.doc-*)이 3840에서 혼자 작았다. 값은 16으로 나눈 rem이라
+     기본(16px) 화면에서는 픽셀 단위로 동일하다. */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-md: 0.875rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.0625rem;
+  --font-size-xl: 1.5rem;
 
   /* -------- 그림자 — 브랜드는 푸른 기가 도는 그림자를 쓴다 -------- */
   --shadow-card: 0 5px 10px rgba(59, 77, 191, 0.16);

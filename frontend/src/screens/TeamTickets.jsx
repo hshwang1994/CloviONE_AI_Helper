@@ -1,17 +1,24 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Card, ErrorState, PageHeader, Skeleton, Callout } from "../ui/kit.jsx";
-import { ticketColumns, GroupedTickets, TicketEditModal } from "./MyTickets.jsx";
+import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import { EMPTYABLE_SELECT, ticketColumns, GroupedTickets, StatusFilter, TicketEditModal, TicketToolbar, ticketConnState } from "./MyTickets.jsx";
 
 /* 팀 공간 > 팀 티켓 — 팀 전체 티켓을 담당자별로 묶어 본다(미할당 티켓이 프로젝트별로 묶이듯).
  * 제목을 누르면 상세로. 편집은 담당자/운영자만. 상태·담당자로 거를 수 있다. */
 
 const UNASSIGNED = "(미할당)";
 
-// 담당자별로 묶는다. 담당자가 여럿이면 각자 그룹에 들어간다(팀 부담을 한눈에). 없으면 '(미할당)' 맨 뒤.
-function groupByAssignee(rows) {
+/* 담당자별로 묶는다. 담당자가 여럿이면 각자 그룹에 들어간다(팀 부담을 한눈에). 없으면 '(미할당)' 맨 뒤.
+ * export인 이유: 스프린트 회의 화면(Sprint.jsx)의 담당자별 티켓 목록이 같은 규칙을 써야 한다.
+ * 예전엔 그 화면이 카운트 표라 이 함수가 필요 없었는데, 담당자별 목록으로 바꾸면서 같은 로직을
+ * 한 벌 더 쓸 뻔했다 — 정렬(미할당을 맨 뒤로)이나 다중 담당 처리가 두 화면에서 어긋나면
+ * "팀 티켓에선 두 사람 밑에 보이는 티켓이 스프린트에선 한 사람 밑에만 보이는" 식으로 갈라진다. */
+export function groupByAssignee(rows) {
   const map = new Map();
   for (const t of rows) {
     const names = (t.assignee_names || []).length ? t.assignee_names : [UNASSIGNED];
@@ -41,13 +48,17 @@ export function TeamTickets() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" />
-      <p className="k-page-help">팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세 내용이 열립니다. 편집은 담당자와 운영자만 할 수 있습니다.</p>
+      <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" spot="teamspace" />
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
+        팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세 내용이 열립니다. 편집은 담당자와 운영자만 할 수 있습니다.
+      </Typography>
       {q.isLoading ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const data = q.data || {};
-          if (data.configured === false) return <Callout tone="warn">Notion 연동이 아직 설정되지 않았습니다. 관리자에게 문의하세요.</Callout>;
+          // 연동 미설정/실패 안내는 내 티켓 화면과 같은 함수를 쓴다(문구가 화면마다 갈라지지 않게).
+          const conn = ticketConnState(data);
+          if (conn) return conn;
           if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다."}</Callout>;
           const all = Array.isArray(data.tickets) ? data.tickets : [];
           const byStatus = (status === "active" || status === "all") ? all : all.filter((t) => t.status === status);
@@ -58,27 +69,13 @@ export function TeamTickets() {
           const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id) });
           return (
             <Card>
-              <div className="c-toolbar-row">
-                <label className="k-field-inline"><span className="k-field-label">상태</span>
-                  <select className="c-filter" value={status} onChange={(e) => setStatus(e.target.value)}>
-                    <option value="active">진행 중(완료, 취소 제외)</option>
-                    <option value="진행">진행</option>
-                    <option value="검증">검증</option>
-                    <option value="계획">계획</option>
-                    <option value="이슈">이슈</option>
-                    <option value="완료">완료</option>
-                    <option value="취소">취소</option>
-                    <option value="all">전체</option>
-                  </select>
-                </label>
-                <label className="k-field-inline"><span className="k-field-label">담당자</span>
-                  <select className="c-filter" value={who} onChange={(e) => setWho(e.target.value)}>
-                    <option value="">전체</option>
-                    {whoOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                </label>
-                <span className="k-field-help">{rows.length}건</span>
-              </div>
+              <TicketToolbar count={rows.length}>
+                <StatusFilter value={status} onChange={setStatus} />
+                <TextField select size="small" label="담당자" {...EMPTYABLE_SELECT} value={who} onChange={(e) => setWho(e.target.value)} sx={{ minWidth: "11rem" }}>
+                  <MenuItem value="">전체</MenuItem>
+                  {whoOptions.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+                </TextField>
+              </TicketToolbar>
               <GroupedTickets rows={rows} columns={cols} groupBy={groupByAssignee} empty="조건에 맞는 티켓이 없습니다." />
             </Card>
           );

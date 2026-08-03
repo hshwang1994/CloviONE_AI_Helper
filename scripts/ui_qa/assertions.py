@@ -15,7 +15,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   duplicate_ids           the same id used by more than one element
   tiny_text               (width >= 2200 only) rendered text under 12 CSS px
   narrow_main             (width >= 3840 only) content column < 60% of viewport
-  vertical_text_collapse  multi-character text squeezed into < ~2ch of width
+  vertical_text_collapse  글자가 3자 미만/줄로 끊겨 세로로 흐르는 상태(줄 수로 직접 측정)
 """
 
 from __future__ import annotations
@@ -204,16 +204,36 @@ PROBE_JS = r"""
       out.tinyTextCount = (out.tinyTextCount || 0) + 1;
     }
 
-    // Vertical collapse: multi-character text in a box under ~2ch wide that has
-    // been forced to wrap onto several lines (one letter per line).
+    // Vertical collapse: 글자가 몇 자씩 끊겨 세로로 흐르는 상태.
+    //
+    // 처음에는 '폭이 2자 미만인 상자'만 봤는데, 실제 사례를 놓쳤다 — 표의 한 열이 몇 px로
+    // 굶으면서 셀마다 2~3자씩 줄바꿈되고 페이지가 3,896px까지 늘어났는데도 30/30 통과로
+    // 보고했다. 폭 임계값은 증상을 짐작하는 방식이라 이런 걸 놓친다.
+    //
+    // 그래서 증상을 직접 잰다: 텍스트에 Range를 씌워 줄 상자 개수를 세고 '줄당 글자 수'를
+    // 구한다. 그게 사람이 보는 것이고, 폰트나 여백이나 폭이 어디서 사라졌는지 가정할 필요가 없다.
     if (ownText.length >= 2) {
       const ch = chWidth(cs.font || (cs.fontSize + ' ' + cs.fontFamily));
       const lineHeight = parseFloat(cs.lineHeight) || fontSize * 1.2;
-      if (rect.width > 0 && rect.width < ch * 2 && rect.height >= lineHeight * 2) {
+      let charsPerLine = null;
+      let lines = 0;
+      if (ownText.length >= 6) {
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          lines = range.getClientRects().length;
+          if (lines > 1) charsPerLine = ownText.length / lines;
+        } catch (e) { /* 측정 불가면 아래 폭 기준으로만 판단한다 */ }
+      }
+      const narrowBox = rect.width > 0 && rect.width < ch * 2 && rect.height >= lineHeight * 2;
+      const shredded = charsPerLine != null && lines >= 3 && charsPerLine < 3;
+      if (narrowBox || shredded) {
         if (out.verticalCollapse.length < MAX) {
           out.verticalCollapse.push({
             selector: cssPath(el), width: Math.round(rect.width * 10) / 10,
             ch: Math.round(ch * 10) / 10, height: Math.round(rect.height),
+            lines: lines,
+            charsPerLine: charsPerLine == null ? null : Math.round(charsPerLine * 10) / 10,
             text: ownText.slice(0, 40),
           });
         }
@@ -359,7 +379,8 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     collapse = probe.get("verticalCollapse") or []
     collapse_count = probe.get("verticalCollapseCount", len(collapse))
     collapse_samples = [
-        f"{c['selector']} w={c['width']}px (~{c['ch']}px/ch) h={c['height']} «{c['text']}»"
+        f"{c['selector']} w={c['width']}px (~{c['ch']}px/ch) h={c['height']}"
+        f" lines={c.get('lines')} chars/line={c.get('charsPerLine')} «{c['text']}»"
         for c in collapse
     ]
     results["vertical_text_collapse"] = (

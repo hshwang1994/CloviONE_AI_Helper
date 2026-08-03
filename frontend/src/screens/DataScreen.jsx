@@ -478,6 +478,12 @@ export function DataScreen({ config }) {
             {(config.filters || []).map((f) => f.type === "select" ? (
               <TextField
                 key={f.key} select size="small" label={f.label}
+                /* MUI는 value=""를 '아직 고르지 않음'으로 보고 라벨을 필드 안에 띄운 채
+                   선택 항목을 그리지 않는다 — 필터의 기본 상태가 바로 그 빈 값이라
+                   관리자 화면 필터가 전부 '빈 상자'로 보였다. 빈 값도 항목으로 그리고
+                   라벨은 항상 위로 올린다. */
+                SelectProps={{ displayEmpty: true }}
+                InputLabelProps={{ shrink: true }}
                 value={filters[f.key] || ""}
                 onChange={(e) => setFilter(f.key, e.target.value)}
               >

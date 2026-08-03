@@ -1,6 +1,16 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
@@ -49,6 +59,16 @@ export function diffFields(body, initial) {
 
 const ROLE_KO = { user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
+
+/* 화면 안에서 '눌러서 무언가 하는 짧은 글자' — 예전 .c-linkbtn(관리 화면 전용 링크 버튼)을 대신한다.
+ * 링크처럼 보이지만 이동이 아니라 동작이므로 <button>이어야 한다(스크린리더가 역할을 옳게 읽는다). */
+function LinkButton({ onClick, children }) {
+  return (
+    <Link component="button" type="button" underline="hover" onClick={onClick} sx={{ font: "inherit", verticalAlign: "baseline" }}>
+      {children}
+    </Link>
+  );
+}
 
 // 부서·직책 목록을 드롭다운 옵션으로. 첫 항목은 '없음'(선택 안 함).
 // 로드 실패/미등록을 그냥 삼키면 드롭다운이 '없음'만 남아 원인을 알 수 없다 — 상태를 함께 돌려
@@ -102,22 +122,43 @@ function TempPasswordModal({ data, onClose }) {
     }, () => toast("복사 실패", "error"));
     else toast("복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요.", "info");
   }
-  const footer = <div className="k-footer-row"><div className="k-footer-main"><span className="ops-copy-btn-wrap"><Button onClick={copy}>{copied || "복사"}</Button></span><Button variant="primary" onClick={onClose}>확인</Button></div></div>;
+  const footer = (
+    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
+      <Box className="k-footer-main">
+        <Button onClick={copy}>{copied || "복사"}</Button>
+        <Button variant="primary" onClick={onClose}>확인</Button>
+      </Box>
+    </Box>
+  );
   return (
     <Modal open onClose={onClose} title="임시 비밀번호" size="sm" footer={footer}>
-      <p className="k-confirm-msg">{data.notice || "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."}</p>
+      <Typography sx={{ whiteSpace: "pre-line" }}>{data.notice || "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."}</Typography>
       {/* role="textbox"는 스크린리더에 '편집 가능'으로 읽히지만 실제로는 도달 불가였다.
           포커스 가능한 읽기 전용 텍스트로 바꿔(tabIndex) 키보드로 접근, 선택할 수 있게 한다.
           aria-label을 달면 접근 가능한 이름 계산을 그 문자열이 덮어써('임시 비밀번호'만 들리고
           실제 비밀번호 글자는 낭독되지 않는다), 위 안내 문단이 이미 맥락을 주므로 라벨 없이 값
-          텍스트 자체가 접근 가능한 이름이 되게 둔다. */}
-      <div className="c-temp-pw" tabIndex={0}>{data.password}</div>
+          텍스트 자체가 접근 가능한 이름이 되게 둔다.
+          user-select:all — 비밀번호는 기호가 섞여 있어 더블클릭으로는 한 토막만 잡힌다. */}
+      <Box
+        tabIndex={0}
+        sx={{
+          mt: 1.5, p: 1.5, border: 1, borderColor: "divider", borderRadius: 2,
+          bgcolor: "action.hover", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+          fontSize: "1rem", fontWeight: 700, letterSpacing: "0.03em",
+          userSelect: "all", overflowWrap: "anywhere", textAlign: "center",
+        }}
+      >
+        {data.password}
+      </Box>
     </Modal>
   );
 }
 
 /* 사용자 관리(§6.2) — 목록은 핵심 정보만. 행을 누르면 상세 모달에서 전체 정보 + 작업. 추가·수정은
- * 공통 중앙 모달 폼. 임시 비밀번호는 일회성 모달로 노출. '보관된 계정 보기'로 복구도 가능. */
+ * 공통 중앙 모달 폼. 임시 비밀번호는 일회성 모달로 노출. '보관된 계정 보기'로 복구도 가능.
+ *
+ * 2026-08 MUI 재설계: 손으로 쓴 입력(.c-search/.c-filter)·페이저·상세 라벨줄을 MUI로 옮겼다.
+ * 값은 px가 아니라 rem/테마 값이라 4K에서 글자·여백이 같이 커진다(styles/root.css 레버). */
 export function Users() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -150,14 +191,14 @@ export function Users() {
   // 열어(target=_blank) 작성 중이던 사용자 추가/수정 폼(반쯤 채운 값)을 잃지 않고 부서/직책을 먼저
   // 만들고 돌아올 수 있게 한다. FormField(kit.jsx)는 help를 그대로 렌더 자식으로 넣어 문자열 외에
   // React 노드도 받을 수 있다.
-  const deptHelp = dept.isError ? (<>부서 목록을 불러오지 못했습니다. <button type="button" className="c-linkbtn" onClick={() => dept.refetch()}>다시 시도</button></>)
+  const deptHelp = dept.isError ? (<>부서 목록을 불러오지 못했습니다. <LinkButton onClick={() => dept.refetch()}>다시 시도</LinkButton></>)
     : dept.isLoading ? "부서 목록을 불러오는 중…"
-    : dept.isEmpty ? (<>등록된 부서가 없습니다, <a className="c-linkbtn" href="#/departments" target="_blank" rel="noreferrer noopener">‘부서 관리’에서 먼저 추가하세요</a>(새 탭)</>)
-    : dept.isAllInactive ? (<>등록된 부서가 모두 비활성 상태입니다, <a className="c-linkbtn" href="#/departments" target="_blank" rel="noreferrer noopener">‘부서 관리’에서 활성화하세요</a>(새 탭)</>) : undefined;
-  const titleHelp = title.isError ? (<>직책 목록을 불러오지 못했습니다. <button type="button" className="c-linkbtn" onClick={() => title.refetch()}>다시 시도</button></>)
+    : dept.isEmpty ? (<>등록된 부서가 없습니다, <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘부서 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : dept.isAllInactive ? (<>등록된 부서가 모두 비활성 상태입니다, <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘부서 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
+  const titleHelp = title.isError ? (<>직책 목록을 불러오지 못했습니다. <LinkButton onClick={() => title.refetch()}>다시 시도</LinkButton></>)
     : title.isLoading ? "직책 목록을 불러오는 중…"
-    : title.isEmpty ? (<>등록된 직책이 없습니다, <a className="c-linkbtn" href="#/job-titles" target="_blank" rel="noreferrer noopener">‘직책 관리’에서 먼저 추가하세요</a>(새 탭)</>)
-    : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다, <a className="c-linkbtn" href="#/job-titles" target="_blank" rel="noreferrer noopener">‘직책 관리’에서 활성화하세요</a>(새 탭)</>) : undefined;
+    : title.isEmpty ? (<>등록된 직책이 없습니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
   const query = useQuery({
     queryKey: ["users", dq, roleFilter, activeFilter, showArchived, page],
     queryFn: () => {
@@ -177,6 +218,10 @@ export function Users() {
   const pageSize = (query.data && query.data.page_size) || 20;
   const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
 
+  /* 열 폭은 브라우저 auto 레이아웃에 맡긴다 — 8개 열에 고정 폭(rem)을 주면 요청 폭 합이 1366px
+   * 사내 장비의 가용 폭을 넘겨, 이메일·이름·날짜가 단어 중간에서 꺾여 3줄로 접혔다(설정 표에서는
+   * 폭을 지정하지 않은 '설명' 열이 아예 한 줄에 한 자씩 세로로 무너졌다). 넓은 화면에서는 내용에
+   * 비례해 자연히 벌어지므로 4K에서도 손해가 없다. */
   const columns = [
     { key: "email", label: "이메일" },
     { key: "display_name", label: "이름" },
@@ -193,14 +238,18 @@ export function Users() {
       // 잠긴(locked) 계정은 활성 상태와 별개 신호라 '활성' 배지만으론 목록에서 구분되지 않는다 —
       // 잠긴 계정은 겉보기엔 활성 계정과 똑같이 보여, 관리자가 이메일을 미리 알고 검색하지 않는 한
       // 목록에서 잠금을 발견할 방법이 없었다. 같은 셀에 잠금 배지를 함께 보여 준다(별도 열 없이).
-      key: "active", label: "활성",
-      // 잠긴 배지가 붙을 때 앞 배지와 맞닿지 않도록 사이에 공백 텍스트 노드를 둔다(.k-badge는
-      // display:inline-block에 margin이 없어 CSS 없이 붙어 보였다).
       // 보관된 계정은 활성/잠김 배지만으론 일반 계정과 구분되지 않는다 — '보관된 계정 보기'로 섞여
       // 보일 때 각 행이 보관 상태임을 같은 셀에서 배지로 함께 알린다(위 배너와 짝).
-      // 여러 배지를 한 그룹으로 묶는다 — 좁은 화면 카드 뷰(td가 flex space-between)에서 배지가
-      // 라벨과 함께 균등 분산돼 흩어지던 것을 막고(그룹만 오른쪽에 모임), 배지 간격도 gap이 담당한다.
-      render: (r) => <span className="k-badge-group">{r.active ? <Badge value="active" /> : <Badge value="disabled" />}{r.locked ? <Badge value="잠김" kind="danger" /> : null}{r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}</span>,
+      // 여러 배지를 한 그룹으로 묶는다 — 좁은 화면 카드 뷰에서 배지가 라벨과 함께 흩어지지 않게
+      // 하나의 inline-flex 그룹으로 두고, 배지 사이 간격도 gap이 담당한다(예전엔 공백 텍스트 노드였다).
+      key: "active", label: "활성",
+      render: (r) => (
+        <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+          {r.active ? <Badge value="active" /> : <Badge value="disabled" />}
+          {r.locked ? <Badge value="잠김" kind="danger" /> : null}
+          {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
+        </Box>
+      ),
     },
     // 상세 드로어(Row label="부서"/"직책")는 inactiveSuffix로 '(비활성)'을 붙이는데 목록 열은
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
@@ -249,37 +298,59 @@ export function Users() {
   }
 
   return (
-    <div>
+    <div className="c-screen">
       <PageHeader area="사용자" title="사용자"
         actions={<Button variant="primary" onClick={() => setCreating(true)}>+ 사용자 추가</Button>} />
       {/* 한 문단에 4가지 서로 다른 사실(생성, 비활성화 대 보관, 승인, 임시 비밀번호)을 몰아넣으면 이 화면에서
           처음 읽는 문장이 오히려 스캔하기 어려웠다, 다른 화면의 짧은 콜아웃과 달리 유독 밀도가 높았다.
           사실 하나당 한 줄로 나눠 훑어보기 쉽게 한다. */}
-      <div className="c-page-callout">
+      <Box sx={{ mb: 2.5, "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
         <Callout>
           <p>계정을 만들고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제 등을 할 수 있습니다.</p>
           <p><strong>비활성화</strong>는 로그인만 막고(쉽게 되돌림), <strong>보관</strong>은 목록에서 감추되 기록은 남기고 복구할 수 있습니다.</p>
           <p>일반 사용자를 <strong>관리자</strong>로 올리면 승인 요청이 접수되어 승인 후 반영됩니다.</p>
           <p>임시 비밀번호는 생성, 재설정 시 화면에 한 번만 표시됩니다.</p>
         </Callout>
-      </div>
-      <Card className="c-toolbar-card c-toolbar-row">
-        <input className="c-search" type="search" placeholder="이메일 또는 이름 검색"
-          value={q} onChange={(e) => setQ(e.target.value)} aria-label="사용자 검색" />
-        <select className="c-filter" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} aria-label="역할 필터">
-          <option value="">역할: 전체</option>
-          {ROLE_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select className="c-filter" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} aria-label="활성 필터">
-          <option value="">활성: 전체</option>
-          <option value="true">활성</option>
-          <option value="false">비활성</option>
-        </select>
-        <label className="k-check c-toolbar-toggle"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> 보관된 계정 보기</label>
-        {hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 지우기</Button> : null}
-        {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
-            오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 작은 텍스트로 알린다. */}
-        {query.isFetching && !query.isLoading ? <span className="k-field-help" role="status" aria-live="polite">불러오는 중…</span> : null}
+      </Box>
+      {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
+          늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다). */}
+      <Card sx={{ p: 2, mb: 2.5 }}>
+        <Box sx={{
+          display: "grid", gap: 1.5, alignItems: "center",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(auto-fit, minmax(11rem, 1fr))",
+            xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
+          },
+        }}>
+          <TextField
+            type="search" size="small" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="이메일 또는 이름 검색"
+            inputProps={{ "aria-label": "사용자 검색" }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
+            sx={{ gridColumn: { sm: "span 2" } }}
+          />
+          <TextField select size="small" label="역할" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <MenuItem value="">역할: 전체</MenuItem>
+            {ROLE_OPTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
+          <TextField select size="small" label="활성" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+            <MenuItem value="">활성: 전체</MenuItem>
+            <MenuItem value="true">활성</MenuItem>
+            <MenuItem value="false">비활성</MenuItem>
+          </TextField>
+          <FormControlLabel
+            sx={{ m: 0 }}
+            control={<Checkbox size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
+            label={<Typography variant="body2">보관된 계정 보기</Typography>}
+          />
+          {hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 지우기</Button> : null}
+          {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
+              오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 작은 텍스트로 알린다. */}
+          {query.isFetching && !query.isLoading ? (
+            <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">불러오는 중…</Typography>
+          ) : null}
+        </Box>
       </Card>
 
       {query.isLoading ? (
@@ -293,7 +364,7 @@ export function Users() {
           <EmptyState title="보관된 계정이 없습니다" help="보관 처리한 계정이 여기에 표시됩니다."
             action={hasContentFilter ? <Button onClick={clearContentFilters}>필터 지우기</Button> : <Button onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
         ) : hasFilter ? (
-          <EmptyState title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
+          <EmptyState art="search" title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
             action={<Button onClick={clearFilters}>필터 지우기</Button>} />
         ) : (
           <EmptyState title="사용자가 없습니다" help="'사용자 추가'로 새 계정을 만드세요."
@@ -303,17 +374,20 @@ export function Users() {
         <>
         {/* 보관함을 보는 중엔 목록이 채워져 있으면 상단에 지속 배너를 띄운다, 툴바의 작은 체크박스
             하나만으론 스크롤, 맥락 전환 후 보관 계정을 살아 있는 계정으로 오인하기 쉬웠다. */}
-        {showArchived ? <div className="c-page-callout"><Callout tone="info">보관된 계정을 포함해 보고 있습니다, ‘보관됨’ 배지가 붙은 계정은 일반 목록에서 감춰진 상태입니다.</Callout></div> : null}
-        <Card className="c-list-card">
+        {showArchived ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정을 포함해 보고 있습니다, ‘보관됨’ 배지가 붙은 계정은 일반 목록에서 감춰진 상태입니다.</Callout></Box> : null}
+        <Card>
           <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} />
           {total != null ? (
             // DataScreen.jsx의 모든 목록 화면과 같은 landmark, 라이브 영역(다른 19개 관리 섹션과 동일) -
             // 이 화면만 bare div라 스크린리더 사용자에게 페이지 이동 랜드마크도, 페이지 변경 안내도 없었다.
-            <nav className="c-pager" aria-label="페이지 이동">
+            <Box component="nav" aria-label="페이지 이동"
+              sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }}>
               {totalPages > 1 ? <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button> : null}
-              <span className="c-pager-info" aria-live="polite">{totalPages > 1 ? `${page} / ${totalPages}, ` : ""}총 {total}명</span>
+              <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
+                {totalPages > 1 ? `${page} / ${totalPages}, ` : ""}총 {total}명
+              </Typography>
               {totalPages > 1 ? <Button size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>다음</Button> : null}
-            </nav>
+            </Box>
           ) : null}
         </Card>
         </>
@@ -373,13 +447,27 @@ export function Users() {
   );
 }
 
+/* 상세의 라벨/값 한 줄. 넓은 화면에서는 이 줄들이 2~3열로 접힌다(아래 DETAIL_GRID) — 4K에서
+ * 한 열로 길게 늘어놓으면 오른쪽이 통째로 비고 눈은 위아래로만 움직인다(DataScreen 상세와 같은 규칙). */
 function Row({ label, children }) {
-  return <div className="c-kv"><span className="c-kv-k">{label}</span><span className="c-kv-v">{children}</span></div>;
+  return (
+    <Box sx={{
+      display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
+      py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0,
+    }}>
+      <Typography variant="body2" color="text.secondary">{label}</Typography>
+      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
+    </Box>
+  );
 }
+const DETAIL_GRID = {
+  display: "grid", columnGap: 4, rowGap: 0,
+  gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
+};
 
 const SESSION_COLUMNS = [
   { key: "client_ip", label: "IP", render: (s) => s.client_ip || "-" },
-  { key: "user_agent", label: "기기/브라우저", render: (s) => <span title={s.user_agent || ""}>{shortUA(s.user_agent)}</span> },
+  { key: "user_agent", label: "기기/브라우저", render: (s) => <Tooltip title={s.user_agent || ""}><span>{shortUA(s.user_agent)}</span></Tooltip> },
   { key: "last_seen_at", label: "최근 활동", render: (s) => fmtDateTime(s.last_seen_at) },
 ];
 
@@ -495,10 +583,10 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
   // 제한을 두지 않는다. 예전엔 이 버튼들이 canManage 삼항식 안에 있어, system_admin이 아닌 관리자가
   // 다른 system_admin 계정을 보는 중(canManage=false)엔 감사 기록조차 볼 방법이 사라졌다.
   const readonlyNav = (
-    <div className="c-user-readonly-nav">
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
       <Button disabled={busy} onClick={() => nav("/audit?object_type=user&object_id=" + encodeURIComponent(uid))}>감사 로그에서 보기</Button>
       <Button disabled={busy} onClick={() => nav("/audit?user_id=" + encodeURIComponent(uid))}>이 사용자의 활동 보기</Button>
-    </div>
+    </Box>
   );
   const dangerActions = [];
   if (d.active && !isSelf) dangerActions.push(
@@ -506,10 +594,10 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
   if (!d.archived_at && !isSelf) dangerActions.push(
     <Button key="archive" variant="danger" disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/archive", { confirm: "이 사용자를 보관할까요? 목록에서 사라지지만 기록은 남고 복구할 수 있습니다.", danger: true, okMsg: "보관했습니다." })}>보관</Button>);
   // 버튼이 여러 개라 좁은 화면에서 넘치지 않도록 k-footer-extra(줄바꿈)에 무해한 부가 작업을 담고,
-  // 위험 작업은 c-user-danger 묶음, 주 작업(수정)만 k-footer-main에 둔다.
+  // 위험 작업은 별도 group 묶음, 주 작업(수정)만 k-footer-main에 둔다.
   const footer = canManage ? (
-    <div className="k-footer-row">
-      <div className="k-footer-extra">
+    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
+      <Box className="k-footer-extra">
         <Button disabled={actionsDisabled} onClick={() => setResetting(true)}>비밀번호 재설정</Button>
         {/* 계정 잠금 해제는 이 화면에서 가장 시급도가 높은 복구 조작이다, '활성화'와 대칭으로, 저빈도 유틸리티 묶음(더보기) 안에 숨기지 않고 항상 보이게 한다. */}
         {d.locked ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unlock", { confirm: "이 계정의 잠금을 해제할까요?", okMsg: "잠금을 해제했습니다." })}>잠금 해제</Button> : null}
@@ -520,11 +608,11 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
             이전엔 aria-expanded만 있어 무엇이 펼쳐지는지 프로그래매틱하게 연결되지 않았다. */}
         <Button disabled={busy} onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-controls="user-detail-more">{moreOpen ? "간단히" : "더보기"}</Button>
         {moreOpen ? (
-          // display:contents(c-more-group, screens.css), id를 달 실제 엘리먼트가 필요하지만, 감싸는
-          // div가 레이아웃에 끼면 이 버튼들이 부모 k-footer-extra 플렉스 흐름 밖으로 한 덩어리가 된다.
-          // display:contents는 이 div 자체를 레이아웃에서 투명하게 만들어(자식이 부모의 직접 플렉스
-          // 아이템이 됨) id/aria-controls 연결만 추가하고 기존 줄바꿈 배치는 그대로 유지한다.
-          <div id="user-detail-more" className="c-more-group">
+          // display:contents, id를 달 실제 엘리먼트가 필요하지만, 감싸는 div가 레이아웃에 끼면 이
+          // 버튼들이 부모 k-footer-extra 플렉스 흐름 밖으로 한 덩어리가 된다. display:contents는
+          // 이 div 자체를 레이아웃에서 투명하게 만들어(자식이 부모의 직접 플렉스 아이템이 됨)
+          // id/aria-controls 연결만 추가하고 기존 줄바꿈 배치는 그대로 유지한다.
+          <Box id="user-detail-more" sx={{ display: "contents" }}>
             <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/notion-mapping/verify", {
               // "verified" 외 실패도 전부 같은 문구로 뭉뚱그리지 않는다 — "conflict"(여러 계정과 동시에
               // 일치)는 관리자가 매핑을 새로 만드는 게 아니라 충돌을 해결해야 하는 별개 상황이다.
@@ -540,7 +628,7 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
               },
             })}>Notion 연결 확인</Button>
             {!isSelf ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/revoke-sessions", { confirm: "이 사용자의 모든 로그인 세션을 끊을까요?", danger: true, format: (res) => (res && res.revoked_count ? res.revoked_count + "개 세션을 해제했습니다." : "해제할 활성 세션이 없습니다.") })}>세션 해제</Button> : null}
-          </div>
+          </Box>
         ) : null}
         {!d.active
           // kit.jsx ModalFooter 관례상 '기본 작업'은 하나만 primary다, '수정'이 그 자리를 이미
@@ -550,23 +638,26 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
         {d.archived_at
           ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unarchive", { confirm: "이 사용자를 복구할까요?", okMsg: "복구했습니다." })}>복구</Button>
           : null}
-      </div>
-      {dangerActions.length ? <div className="c-user-danger" role="group" aria-label="주의가 필요한 작업">{dangerActions}</div> : null}
+      </Box>
+      {dangerActions.length ? (
+        <Box role="group" aria-label="주의가 필요한 작업"
+          sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", ml: { sm: 1.5 } }}>{dangerActions}</Box>
+      ) : null}
       {/* 본인 계정을 보는 중엔 비활성화, 보관, 세션 해제 버튼이 조용히 사라진다(자기 보호), 이유를
           바로 옆에서 밝히지 않으면 버그로 보이기 쉽다. */}
-      {isSelf ? <span className="k-field-help">본인 계정은 비활성화, 보관, 세션 해제를 할 수 없습니다.</span> : null}
+      {isSelf ? <Typography variant="caption" color="text.secondary">본인 계정은 비활성화, 보관, 세션 해제를 할 수 없습니다.</Typography> : null}
       {readonlyNav}
-      <div className="k-footer-main">
+      <Box className="k-footer-main">
         {/* detailStale일 때 다른 모든 쓰기 버튼과 마찬가지로 잠근다, 수정은 role을 포함한 임의
             필드를 PATCH할 수 있어(권한 상승 가능), 낡은 스냅샷을 근거로 열리면 안 된다. */}
         <Button variant="primary" disabled={actionsDisabled} onClick={() => onEdit(d)}>수정</Button>
-      </div>
-    </div>
+      </Box>
+    </Box>
   ) : (
-    <div className="k-footer-row">
-      <span className="k-field-help">이 계정을 관리할 권한이 없습니다(system_admin 전용).</span>
+    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
+      <Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다(system_admin 전용).</Typography>
       {readonlyNav}
-    </div>
+    </Box>
   );
 
   return (
@@ -576,45 +667,57 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
           않으면 관리자는 버튼이 왜 안 눌리는지 알 길이 없다, sessionsQ.isError와 같은 패턴으로
           여기서도 실패와 재시도 경로를 드러낸다. */}
       {detailStale ? (
-        <Callout tone="warn">
-          <p>최신 상태를 불러오지 못해 작업을 수행할 수 없습니다. <button type="button" className="c-linkbtn" onClick={refetchDetail}>다시 시도</button></p>
-        </Callout>
+        <Box sx={{ mb: 2 }}>
+          <Callout tone="warn">
+            최신 상태를 불러오지 못해 작업을 수행할 수 없습니다. <LinkButton onClick={refetchDetail}>다시 시도</LinkButton>
+          </Callout>
+        </Box>
       ) : null}
-      <Row label="이메일">{d.email}</Row>
-      {/* .c-linkbtn(관리 화면 전용), 채팅 UI의 .chat-linkbtn을 빌리지 않는다(그쪽 스타일이 채팅
-          사정으로 바뀌면 이 화면도 의도치 않게 함께 바뀐다). */}
-      <Row label="ID"><span className="c-id-selectable" tabIndex={0}>{d.id}</span> <button type="button" className="c-linkbtn" onClick={copyId}>{copiedId || "복사"}</button></Row>
-      <Row label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</Row>
-      <Row label="활성"><Badge value={d.active ? "active" : "disabled"} /></Row>
-      <Row label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</Row>
-      <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
-      <Row label="Notion 연결"><Badge value={d.notion_mapping_status} /></Row>
+      <Box sx={DETAIL_GRID}>
+        <Row label="이메일">{d.email}</Row>
+        <Row label="ID">
+          {/* user-select:all — id는 하이픈이 섞인 UUID라 더블클릭만으로는 한 토막만 선택된다. */}
+          <Box component="span" tabIndex={0} sx={{ userSelect: "all", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.8125rem", overflowWrap: "anywhere" }}>{d.id}</Box>
+          {" "}
+          <LinkButton onClick={copyId}>{copiedId || "복사"}</LinkButton>
+        </Row>
+        <Row label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</Row>
+        <Row label="활성"><Badge value={d.active ? "active" : "disabled"} /></Row>
+        <Row label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</Row>
+        <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
+        <Row label="Notion 연결"><Badge value={d.notion_mapping_status} /></Row>
+        {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
+            '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
+        <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
+        <Row label="비밀번호 변경 요구"><Badge value={!!d.must_change_password} /></Row>
+        <Row label="최근 로그인">{fmtDateTime(d.last_login_at)}</Row>
+        <Row label="생성일">{fmtDateTime(d.created_at)}</Row>
+        {d.archived_at ? <Row label="보관 시각">{fmtDateTime(d.archived_at)}</Row> : null}
+        {/* 로딩 중(em-dash)과 권한 없음(em-dash)이 예전엔 같은 표시라 구분이 안 됐다, 각각 다른 문구로 밝힌다. */}
+        <Row label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</Row>
+      </Box>
       {notionNotice ? (
-        <Callout tone="info">
-          <p>{notionNotice === "conflict" ? "일치하는 Notion 계정이 여러 개 발견되었습니다." : "연결된 Notion 계정을 찾지 못했습니다."} <a className="c-linkbtn" href={"#/notion-mapping?user_id=" + encodeURIComponent(id)} target="_blank" rel="noreferrer noopener">‘Notion 사용자 연결’ 화면에서 확인하기</a>(새 탭)</p>
-        </Callout>
+        <Box sx={{ mt: 2 }}>
+          <Callout tone="info">
+            {notionNotice === "conflict" ? "일치하는 Notion 계정이 여러 개 발견되었습니다." : "연결된 Notion 계정을 찾지 못했습니다."}{" "}
+            <Link href={"#/notion-mapping?user_id=" + encodeURIComponent(id)} target="_blank" rel="noreferrer noopener" underline="hover">‘Notion 사용자 연결’ 화면에서 확인하기</Link>(새 탭)
+          </Callout>
+        </Box>
       ) : null}
-      {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
-          '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
-      <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
-      <Row label="비밀번호 변경 요구"><Badge value={!!d.must_change_password} /></Row>
-      <Row label="최근 로그인">{fmtDateTime(d.last_login_at)}</Row>
-      <Row label="생성일">{fmtDateTime(d.created_at)}</Row>
-      {d.archived_at ? <Row label="보관 시각">{fmtDateTime(d.archived_at)}</Row> : null}
-      {/* 로딩 중(em-dash)과 권한 없음(em-dash)이 예전엔 같은 표시라 구분이 안 됐다, 각각 다른 문구로 밝힌다. */}
-      <Row label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</Row>
       {/* 관리 권한이 없으면 세션 조회를 아예 안 하므로(위 sessionsQ) 실패/목록 블록도 감춘다 -
           '관리 권한 없음'과 '세션 로드 실패'가 동시에 뜨는 모순을 없앤다. */}
-      {!canManage ? null : sessionsQ.isLoading ? (
-        <div className="k-field-help">세션 정보를 불러오는 중…</div>
-      ) : sessionsQ.isError ? (
-        <div className="k-field-help">세션 정보를 불러오지 못했습니다. <button type="button" className="c-linkbtn" onClick={() => sessionsQ.refetch()}>다시 시도</button></div>
-      ) : sessions.length ? (
-        <>
-          <div className="k-field-help">로그인 세션 (IP, 기기, 최근 활동)</div>
-          <DataTable columns={SESSION_COLUMNS} rows={sessions} rowKey={(s) => s.id} />
-        </>
-      ) : (sessionsQ.data ? <div className="k-field-help">활성 세션이 없습니다.</div> : null)}
+      <Box sx={{ mt: 3 }}>
+        {!canManage ? null : sessionsQ.isLoading ? (
+          <Typography variant="caption" color="text.secondary">세션 정보를 불러오는 중…</Typography>
+        ) : sessionsQ.isError ? (
+          <Typography variant="caption" color="text.secondary">세션 정보를 불러오지 못했습니다. <LinkButton onClick={() => sessionsQ.refetch()}>다시 시도</LinkButton></Typography>
+        ) : sessions.length ? (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>로그인 세션 (IP, 기기, 최근 활동)</Typography>
+            <DataTable columns={SESSION_COLUMNS} rows={sessions} rowKey={(s) => s.id} />
+          </>
+        ) : (sessionsQ.data ? <Typography variant="caption" color="text.secondary">활성 세션이 없습니다.</Typography> : null)}
+      </Box>
     </Drawer>
     <FormModal open={resetting} title="비밀번호 재설정"
       fields={[{ name: "password", label: "새 비밀번호(선택)", type: "password", help: pwHelp || "비우면 임시 비밀번호가 자동 생성되어 화면에 한 번만 표시됩니다." }]}
