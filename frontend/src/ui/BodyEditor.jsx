@@ -1,9 +1,18 @@
 import React, { useRef } from "react";
-import { Button } from "./kit.jsx";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import MuiButton from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
-/* 공용 본문 편집기 — 문서 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선/이모지)과
- * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와 동일해야
- * 미리보기와 실제 저장 결과가 어긋나지 않는다. 서식 도구는 커서가 있는 '줄 맨 앞'에 표식을 붙인다. */
+/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선/이모지)과
+ * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
+ * 같아야 미리보기와 실제 저장 결과가 어긋나지 않는다. 서식 도구는 커서가 있는 '줄 맨 앞'에 표식을 붙인다.
+ *
+ * 2026-08 재설계: 마크업을 MUI로 옮겼다. 예전에는 `k-input docs-body-text` 같은 legacy 클래스에
+ * 기대고 있었는데, 이 편집기는 MUI 폼 필드들 사이에 끼어 있어 혼자만 옛 모양으로 남아 있었다.
+ * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
 
 const BODY_EMOJIS = ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "💡"];
 const BODY_MAX_LINES = 100;
@@ -39,21 +48,46 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
     apply(val.slice(0, pos) + text + val.slice(pos), pos + text.length);
   };
 
+  const fmtBtn = { minWidth: 0, px: 1.5, minHeight: 32, fontSize: "0.8125rem" };
+
   return (
     <>
-      <div className="docs-body-toolbar" role="group" aria-label="본문 서식">
-        <button type="button" className="docs-fmt-btn" onClick={() => prefixLine("## ")}>제목</button>
-        <button type="button" className="docs-fmt-btn" onClick={() => prefixLine("- ")}>글머리</button>
-        <button type="button" className="docs-fmt-btn" onClick={() => prefixLine("1. ")}>번호</button>
-        <button type="button" className="docs-fmt-btn" onClick={insertDivider}>구분선</button>
-        <span className="docs-fmt-sep" aria-hidden="true" />
+      <Box
+        role="group"
+        aria-label="본문 서식"
+        sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", mb: 1 }}
+      >
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- ")}>글머리</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("1. ")}>번호</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertDivider}>구분선</MuiButton>
+        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
         {BODY_EMOJIS.map((em) => (
-          <button type="button" key={em} className="docs-fmt-emoji" aria-label={"이모지 " + em} onClick={() => insertAtCursor(em + " ")}>{em}</button>
+          <IconButton
+            key={em}
+            size="small"
+            aria-label={"이모지 " + em}
+            onClick={() => insertAtCursor(em + " ")}
+            sx={{ minWidth: 32, minHeight: 32, fontSize: "1rem" }}
+          >
+            {em}
+          </IconButton>
         ))}
-      </div>
-      <textarea id={id} ref={ref} className="k-input docs-body-text" rows={rows} value={value}
-        onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
-      <div className="docs-preview-label">미리보기</div>
+      </Box>
+      <TextField
+        id={id}
+        inputRef={ref}
+        multiline
+        minRows={rows}
+        fullWidth
+        size="small"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: 700 }}>
+        미리보기
+      </Typography>
       <BodyPreview text={value} />
     </>
   );
@@ -88,24 +122,38 @@ export function BodyPreview({ text }) {
     blocks.push({ type: "p", text: ln });
   });
   flush();
+
+  const shell = {
+    border: 1, borderColor: "divider", borderRadius: 2, p: 2,
+    bgcolor: "background.default",
+    /* 미리보기도 본문이라 줄 길이를 제한한다 — 4K에서 한 줄이 3,000px가 되면 읽을 수 없다. */
+    maxWidth: "78ch",
+  };
+
   if (blocks.length === 0) {
-    return <div className="docs-preview docs-preview--empty">본문을 입력하면 실제 모양이 여기에 보입니다.</div>;
+    return (
+      <Box sx={{ ...shell, color: "text.secondary", fontSize: "0.875rem" }}>
+        본문을 입력하면 실제 모양이 여기에 보입니다.
+      </Box>
+    );
   }
   return (
-    <div className="docs-preview">
+    <Box sx={{ ...shell, display: "grid", gap: 0.5 }}>
       {blocks.map((b, i) => {
-        if (b.type === "spacer") return <div key={i} className="docs-preview-spacer" aria-hidden="true" />;
-        if (b.type === "hr") return <hr key={i} className="docs-preview-hr" />;
-        if (b.type === "h1") return <div key={i} className="docs-preview-h1">{b.text}</div>;
-        if (b.type === "h2") return <div key={i} className="docs-preview-h2">{b.text}</div>;
-        if (b.type === "h3") return <div key={i} className="docs-preview-h3">{b.text}</div>;
-        if (b.type === "ul") return <ul key={i} className="docs-preview-ul">{b.items.map((it, j) => <li key={j}>{it}</li>)}</ul>;
-        if (b.type === "ol") return <ol key={i} className="docs-preview-ol">{b.items.map((it, j) => <li key={j}>{it}</li>)}</ol>;
-        return <div key={i} className="docs-preview-p">{b.text}</div>;
+        if (b.type === "spacer") return <Box key={i} sx={{ height: "0.5rem" }} aria-hidden="true" />;
+        if (b.type === "hr") return <Divider key={i} sx={{ my: 1 }} />;
+        if (b.type === "h1") return <Typography key={i} variant="h6" sx={{ mt: 1 }}>{b.text}</Typography>;
+        if (b.type === "h2") return <Typography key={i} sx={{ fontWeight: 780, fontSize: "1rem", mt: 1 }}>{b.text}</Typography>;
+        if (b.type === "h3") return <Typography key={i} sx={{ fontWeight: 700, fontSize: "0.9375rem", mt: 0.5 }}>{b.text}</Typography>;
+        if (b.type === "ul") return <Box component="ul" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
+        if (b.type === "ol") return <Box component="ol" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
+        return <Typography key={i} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{b.text}</Typography>;
       })}
       {truncated ? (
-        <div className="docs-preview-trunc">이후 {raw.length - BODY_MAX_LINES}줄은 저장되지 않습니다(최대 {BODY_MAX_LINES}줄).</div>
+        <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
+          이후 {raw.length - BODY_MAX_LINES}줄은 저장되지 않습니다(최대 {BODY_MAX_LINES}줄).
+        </Typography>
       ) : null}
-    </div>
+    </Box>
   );
 }

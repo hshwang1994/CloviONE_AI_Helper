@@ -1,10 +1,16 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
+import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { Donut } from "../ui/charts/Donut.jsx";
 
 export const SERVICE_LABELS = {
   web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러",
@@ -23,6 +29,77 @@ export function serviceLabel(name) {
     return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   return s;
+}
+
+/* 지표 타일 한 줄의 열 수 — 이 앱의 모든 StatCard 그리드가 이 한 값을 공유한다(Ops.jsx도 가져다 쓴다).
+ * 예전 CSS는 repeat(auto-fill, minmax(210px,1fr))이었다. 210px는 고정값이라 3840px 화면에서
+ * 타일이 18개까지 늘어나 한 줄이 얇은 띠가 됐고, 반대로 4K에서 루트 폰트가 커져 글자만 큰
+ * 타일이 좁은 트랙에 갇혔다. 브레이크포인트로 못 박아 xs→sm→lg→xxl→uhd에서 1→2→4→5→6열로 간다.
+ * (DataScreen.jsx의 요약 카드줄과 같은 값 — 두 화면의 타일 크기가 어긋나 보이지 않게 한다.) */
+export const STAT_GRID = {
+  xs: "1fr",
+  sm: "repeat(2, minmax(0,1fr))",
+  lg: "repeat(4, minmax(0,1fr))",
+  xxl: "repeat(5, minmax(0,1fr))",
+  uhd: "repeat(6, minmax(0,1fr))",
+};
+
+/* 대시보드·진단이 공유하는 섹션 껍데기(제목 + 오른쪽 보조 링크).
+ * 예전엔 .dash-section/.dash-h2/.dash-h2-row 세 클래스를 두 화면이 각자 손으로 붙였고,
+ * 한쪽에만 h2-row를 빠뜨려 같은 성격의 섹션이 화면마다 다른 간격으로 보였다. */
+export function DashSection({ title, action, children }) {
+  return (
+    <Box component="section" sx={{ mb: { xs: 4, xxl: 5 } }}>
+      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
+        <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
+        {action}
+      </Box>
+      {children}
+    </Box>
+  );
+}
+
+/* 서비스/연동 상태 타일(이름 + 배지). 대시보드와 진단이 같은 사실을 같은 모양으로 보여야 한다 —
+ * 예전엔 두 화면이 각자 .dash-svc 마크업을 손으로 복사해 뒀고, 한쪽만 hover 표시를 붙여
+ * '누를 수 있는 카드'인지 아닌지가 화면마다 달라 보였다.
+ * 이름 옆에 중첩 <button>을 두지 않는다 — role="button" 안의 포커스 가능한 자손은 WAI-ARIA 금지이고,
+ * 실제로도 '이름을 누르면 다른 일이 일어난다'는 잘못된 기대를 만든다. 카드 하나만 클릭 대상이다. */
+export function StatusTile({ name, onClick, ariaLabel, children }) {
+  return (
+    <Card onClick={onClick}
+      sx={{
+        p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
+        cursor: onClick ? "pointer" : "default",
+        "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+      }}
+      role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? ariaLabel : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
+      <Typography
+        variant="body2" title={name}
+        sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+      >
+        {name}
+      </Typography>
+      {children}
+    </Card>
+  );
+}
+
+// 서비스/연동 카드 격자 — 타일이 작아 지표 타일(STAT_GRID)보다 촘촘하게 깐다.
+export const SERVICE_GRID = {
+  xs: "1fr", sm: "repeat(2, minmax(0,1fr))", md: "repeat(3, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))",
+};
+
+// 섹션 안의 부연(‘성공률 분모’ 설명 등). 예전 .pending-note를 대신한다 — 클래스 하나로
+// 문단·도움말·주석이 뒤섞여 있어서 한 곳을 고치면 엉뚱한 화면의 여백이 같이 움직였다.
+// id를 받는다 — 이 문단이 곧 입력의 설명(aria-describedby 대상)이 되는 자리가 있다(Ops의 점검 공지).
+export function Note({ children, sx, id }) {
+  return (
+    <Typography id={id} variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6, ...sx }}>
+      {children}
+    </Typography>
+  );
 }
 
 // 대상 화면별로 접근 가능한 역할(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
@@ -70,15 +147,15 @@ export function daysSince(iso) {
   if (Number.isNaN(t)) return null;
   return (Date.now() - t) / 86400000;
 }
-// StatCard는 값을 30px로 크게 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위 구분자
-// 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
+// StatCard는 값을 크게(clamp 1.5~2.25rem) 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위
+// 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
 // export, Ops.jsx 진단 화면이 같은 dashboard 하위 필드(jobs_24h.*, disk.free_gb)를 그대로 보여주면서
 // 이 규칙을 다시 겪었다(§ Ops.jsx의 number-formatting 주석 참고), 같은 값이 화면마다 다른 표기로
 // 보이지 않도록 한 벌만 두고 공유한다.
 export function fmtNum(n) {
   return typeof n === "number" ? n.toLocaleString("ko-KR") : n;
 }
-// 평균 처리 시간이 1분을 넘으면 '187초' 같은 raw seconds 대신 분, 초로 보여준다, 30px 굵은 KPI
+// 평균 처리 시간이 1분을 넘으면 '187초' 같은 raw seconds 대신 분, 초로 보여준다, 크고 굵은 KPI
 // 타일에서 큰 초 단위 값은 한눈에 스캔하기 어렵다(registry.js의 job 지연 표기와 같은 취지).
 export function fmtProcessingTime(sec) {
   if (sec == null) return "-";
@@ -89,6 +166,27 @@ export function fmtProcessingTime(sec) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return s ? m + "분 " + s + "초" : m + "분";
+}
+
+/* 서비스 상태 맵(정상/중단/응답 없음/비활성화) → 도넛 조각.
+ * 연동이 열 개를 넘어가면 카드 열한 장을 눈으로 세는 것보다 '정상 8, 중단 1'이 훨씬 빠르다.
+ * 백엔드가 실제로 기록하는 값은 up/down/unknown뿐이지만(app/integrations/models.py), 그 밖의
+ * 값이 오면 조용히 사라지지 않도록 '기타'로 모은다 — 조각 합계는 항상 카드 수와 같아야 한다. */
+export function serviceMix(services) {
+  const vals = Object.values(services || {});
+  const count = (fn) => vals.filter(fn).length;
+  const up = count((v) => v === "up");
+  const down = count((v) => v === "down");
+  const unknown = count((v) => v === "unknown" || v == null);
+  const disabled = count((v) => v === "disabled");
+  const other = vals.length - up - down - unknown - disabled;
+  return [
+    { label: "정상", value: up, color: "ok" },
+    { label: "중단", value: down, color: "danger" },
+    { label: "응답 없음", value: unknown, color: "warn" },
+    { label: "비활성화", value: disabled, color: "neutral" },
+    { label: "기타", value: other > 0 ? other : 0, color: "info" },
+  ];
 }
 
 export function Dashboard() {
@@ -117,13 +215,17 @@ export function Dashboard() {
   const staleAfterError = q.isError && !!q.data;
 
   return (
-    <div>
-      <PageHeader area="운영" title="대시보드"
+    <Box>
+      <PageHeader area="운영" title="대시보드" spot="assistant"
         actions={<>
           {/* 30초마다 갱신되는 비-조치성 타임스탬프에 aria-live를 달면 스크린리더 사용자에게
               "오후 3:45 기준", "오후 3:46 기준" ...이 탭을 열어 둔 내내 끊임없이 낭독된다 -
               실제로 주의가 필요한 알림(경보 섹션의 aria-live)과 달리 이건 끼어들 가치가 없다. */}
-          {updated ? <span className="dash-updated">{updated} 기준{staleAfterError ? ", 새로고침 실패" : ""}</span> : null}
+          {updated ? (
+            <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
+              {updated} 기준{staleAfterError ? ", 새로고침 실패" : ""}
+            </Typography>
+          ) : null}
           <Button variant="ghost" size="sm" disabled={manualRefreshing} onClick={onManualRefresh}>{manualRefreshing ? "새로고침 중…" : "새로고침"}</Button>
           {/* 수동 새로고침 완료만 조용히 알린다(자동 폴링은 제외, 위 타임스탬프 aria-live 제외와 같은 취지). */}
           <span className="sr-only" role="status" aria-live="polite">{refreshAnnounce}</span>
@@ -134,20 +236,20 @@ export function Dashboard() {
         // 스켈레톤에서 그 구조로 바뀌면 레이아웃이 눈에 띄게 출렁인다. 대략적인 모양(경보 트랙 +
         // 표준 지표 그리드)만이라도 미리 잡아 세로 공간이 크게 튀지 않게 한다.
         q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
-          <div className="dash">
-            <div className="dash-section"><div className="dash-grid dash-grid--alert">
-              <Card><Skeleton lines={2} /></Card><Card><Skeleton lines={2} /></Card>
-            </div></div>
-            <div className="dash-section"><div className="dash-grid">
-              <Card><Skeleton lines={2} /></Card><Card><Skeleton lines={2} /></Card>
-              <Card><Skeleton lines={2} /></Card><Card><Skeleton lines={2} /></Card>
-            </div></div>
-          </div>
+          <Box>
+            {[0, 1].map((row) => (
+              <Box key={row} sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID, mb: 4 }}>
+                {Array.from({ length: row ? 4 : 2 }).map((_, i) => (
+                  <Card key={i}><Skeleton lines={2} /></Card>
+                ))}
+              </Box>
+            ))}
+          </Box>
         )
       ) : (
         <DashboardBody d={q.data} nav={nav} role={role} stale={staleAfterError} />
       )}
-    </div>
+    </Box>
   );
 }
 
@@ -195,7 +297,7 @@ function DashboardBody({ d, nav, role, stale }) {
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다, 아직 끝나지 않은
   // queued/running 작업은 분모에서 제외된다(app/health/service.py finished_24h). 접수만 몰린 순간에는
   // 이 값이 영향받지 않는다.
-  // 아래 KPI 타일은 80~94.9%를 warn(주황)으로, 95%↑를 ok로 칠하는데(319-320행) 이 상단 경보는
+  // 아래 KPI 타일은 80~94.9%를 warn(주황)으로, 95%↑를 ok로 칠하는데 이 상단 경보는
   // 예전엔 <80(danger)만 반영해 '85% 성공률'이 타일에선 '주의'인데 경보 줄엔 아예 안 뜨는 모순이
   // 있었다 — 디스크/메모리 경보와 같은 if/else-if danger·warn 2단 구조로 맞춘다.
   if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
@@ -271,31 +373,29 @@ function DashboardBody({ d, nav, role, stale }) {
     const base = suffixed ? k.slice(0, -"(연동)".length) : k;
     return serviceLabel(base) + (suffixed ? "(연동)" : "");
   }
-  // 상단 경보 그리드가 danger를 앞으로 정렬하듯(line 286), 서비스 카드도 문제(중단)·응답 없음을
+  // 상단 경보 그리드가 danger를 앞으로 정렬하듯, 서비스 카드도 문제(중단)·응답 없음을
   // 먼저 보여준다 — 연동이 많은 배포에서 '중단' 카드가 정상 카드들 아래로 밀려 스크롤해야 찾던 문제.
   // 같은 등급 안에서는 원래 삽입 순서(web/worker/scheduler 먼저)가 안정 정렬로 유지된다.
   const svcRank = (k) => { const v = services[k]; return v === "down" ? 0 : (v === "unknown" || v == null) ? 1 : 2; };
   const serviceKeys = Object.keys(services).sort((a, b) => svcRank(a) - svcRank(b));
 
   return (
-    <div className="dash">
+    <Box>
       {/* 백그라운드 폴링이 실패해 캐시된 값이 남았을 때(staleAfterError), 헤더의 작은 접미 문구만으론
           운영자가 낡은 수치를 계속 최신처럼 읽기 쉽다, 눈에 띄는 경고 배너로 올린다. */}
       {/* 폴링 실패로 값이 낡았다는 사실 자체가 스크린리더에도 알려져야 한다, Callout 자체엔
           role/aria-live가 없어 이 배너가 나타나는 순간이 SR 사용자에게 조용히 지나갔다. */}
-      {stale ? <div className="dash-section" role="status" aria-live="polite"><Callout tone="warn">실시간 갱신이 실패했습니다, 표시된 값이 최신이 아닐 수 있습니다.</Callout></div> : null}
+      {stale ? <Box sx={{ mb: 3 }} role="status" aria-live="polite"><Callout tone="warn">실시간 갱신이 실패했습니다, 표시된 값이 최신이 아닐 수 있습니다.</Callout></Box> : null}
       {/* aria-live 래퍼 자체는 항상 마운트된 채로 두고 안의 자식(경보 묶음 ↔ all-clear)만 바꾼다 -
           예전엔 aria-live가 <section> 안쪽에 있어, 경보가 전부 사라지고 all-clear로 바뀌는 순간
           그 live region 엘리먼트 자체가 통째로 언마운트돼 전환 자체를 SR이 놓칠 수 있었다. */}
-      <div aria-live="polite">
+      <Box aria-live="polite">
         {alerts.length ? (
-          <section className="dash-section">
-            <h2 className="dash-h2">확인이 필요한 항목</h2>
-            {/* 경보는 중요도가 가장 높다, 표준 타일보다 넓은 트랙으로 시선을 먼저 끈다(균일 격자 지양). */}
+          <DashSection title="확인이 필요한 항목">
             {/* 타일은 색, 글리프로 심각도를 구분하지만, 좁은 화면에서 스크롤 없이 처음 1~2개만 보이면
                 danger가 코드 순서상 warn보다 뒤에 있을 때 가장 급한 항목을 놓칠 수 있다 -
                 danger를 항상 앞으로 정렬한다(불변성: sort 전에 배열을 복사). */}
-            <div className="dash-grid dash-grid--alert">
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
               {[...alerts].sort((a, b) => (a.kind === "danger" ? 0 : 1) - (b.kind === "danger" ? 0 : 1)).map((a) => (
                 // 안정 key(출처 태그 a.src), 폴링마다 경보 집합이 바뀔 때 index key는 DOM을 재사용해
                 // aria-live 영역이 바뀌지 않은 내용을 잘못 낭독하거나 onClick이 어긋날 수 있다. label만
@@ -304,43 +404,50 @@ function DashboardBody({ d, nav, role, stale }) {
                 <StatCard key={a.src} value={a.value} label={a.label} kind={a.kind}
                   onClick={a.to ? goto(a.to) : undefined} />
               ))}
-            </div>
-          </section>
+            </Box>
+          </DashSection>
         ) : (
-          <div className="dash-allclear"><Badge value="up" /> 지금 조치가 필요한 문제가 없습니다.</div>
+          <Paper
+            variant="outlined"
+            sx={{
+              display: "flex", alignItems: "center", gap: 1, px: 2, py: 1.5, mb: 4,
+              borderColor: "success.main", bgcolor: (t) => t.palette.action.hover,
+            }}
+          >
+            <Badge value="up" />
+            <Typography variant="body2">지금 조치가 필요한 문제가 없습니다.</Typography>
+          </Paper>
         )}
-      </div>
+      </Box>
 
-      <section className="dash-section">
-        <h2 className="dash-h2">서비스 상태</h2>
-        <div className="dash-grid">
-          {serviceKeys.map((k) => {
-            const onClick = svcNav(k);
-            // 워커/스케줄러가 'unknown'(하트비트 없음)이면 상단 경보와 심각도를 맞춰 warn으로 물들인다.
-            // (기본 배지는 unknown을 무채색으로 그려 카드에선 무해하게 보였다.)
-            const unknownComp = (k in comps && services[k] === "unknown");
-            const badgeKind = unknownComp ? "warn" : undefined;
-            // 같은 상태를 상단 경보는 '응답 없음', 배지는 '알 수 없음'으로 달리 불러 혼란을 줬다, 경보 문구로 통일한다.
-            return (
-              <Card key={k} className="dash-svc" onClick={onClick}
-                role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
-                aria-label={onClick ? svcLabel(k) + " 상세 열기" : undefined}
-                onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
-                {/* 이전엔 이 이름이 role="button" 카드 안에 중첩된 별도 <button>이었다, WAI-ARIA는
-                    button 역할 안에 포커스 가능한 자손을 두지 말라고 명시하고(보조기기가 두 대상을
-                    일관되게 안 읽는다), 실제로도 '이름을 누르면 토스트만 뜨고 카드를 눌러야 이동한다'는
-                    두 갈래 기대가 생겨 혼란스러웠다. 카드 하나만 유일한 인터랙티브 타깃으로 남기고, 이름은 title(hover)+카드의 aria-label(스크린리더)로만 전체 값을 알린다. */}
-                <span className="dash-svc-name" title={svcLabel(k)}>{svcLabel(k)}</span>
-                <Badge value={unknownComp ? "응답 없음" : services[k]} kind={badgeKind} />
-              </Card>
-            );
-          })}
-        </div>
-      </section>
+      <DashSection title="서비스 상태">
+        {/* 넓은 화면에서는 카드 격자 옆에 상태 구성 도넛을 세운다 — 연동이 열 개를 넘는 배포에서
+            카드를 하나씩 세는 대신 '정상 8 / 중단 1'을 한눈에 읽게 한다. 좁은 화면에서는 아래로 접힌다. */}
+        <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+            {serviceKeys.map((k) => {
+              const onClick = svcNav(k);
+              // 워커/스케줄러가 'unknown'(하트비트 없음)이면 상단 경보와 심각도를 맞춰 warn으로 물들인다.
+              // (기본 배지는 unknown을 무채색으로 그려 카드에선 무해하게 보였다.)
+              const unknownComp = (k in comps && services[k] === "unknown");
+              const badgeKind = unknownComp ? "warn" : undefined;
+              // 같은 상태를 상단 경보는 '응답 없음', 배지는 '알 수 없음'으로 달리 불러 혼란을 줬다, 경보 문구로 통일한다.
+              return (
+                <StatusTile key={k} name={svcLabel(k)} onClick={onClick} ariaLabel={svcLabel(k) + " 상세 열기"}>
+                  <Badge value={unknownComp ? "응답 없음" : services[k]} kind={badgeKind} />
+                </StatusTile>
+              );
+            })}
+          </Box>
+          <Card sx={{ p: 2.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>상태 구성</Typography>
+            <Donut segments={serviceMix(services)} unit="개" centerLabel="서비스" emptyLabel="서비스 정보 없음" />
+          </Card>
+        </Box>
+      </DashSection>
 
-      <section className="dash-section">
-        <h2 className="dash-h2">작업 지표 (최근 24시간)</h2>
-        <div className="dash-grid">
+      <DashSection title="작업 지표 (최근 24시간)">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
           {/* 바로 아래 '현재 큐 상태', '인벤토리' 타일은 모두 클릭해 해당 목록으로 드릴다운하는데
               이 24시간 집계 타일만 예외적으로 죽은 채였다, 같은 화면(볼 수 있는 역할에게만)으로
               연결해 시각적으로 동일한 타일 그룹의 상호작용을 통일한다. */}
@@ -356,46 +463,59 @@ function DashboardBody({ d, nav, role, stale }) {
           {/* 단위는 라벨 괄호가 아니라 값에 붙인다, 성공률/디스크/메모리 타일과 같은 표기 규칙
               (위 주석 '성공률 낮음(%) 위 45는 어색했다' 참고). */}
           <StatCard value={fmtProcessingTime(jobs.avg_processing_seconds)} label={"평균 처리" + jobsNote} onClick={goto("/jobs")} />
-        </div>
+        </Box>
         {/* 성공률의 분모는 최근 24시간에 '종료된'(성공, 실패, 취소) 작업만이다, 아직 끝나지 않은
             대기, 실행 중 작업은 분모에서 제외된다. */}
-        <p className="pending-note">성공률은 최근 24시간에 종료(성공, 실패, 취소)된 작업 대비이며, 아직 끝나지 않은 대기, 실행 중 작업은 분모에서 제외됩니다.</p>
-      </section>
+        {/* 이 네 값에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다 — app/health/service.py).
+            없는 추세선을 그리면 한 점을 선으로 잇는 거짓말이 되므로 여기는 숫자로 둔다. */}
+        <Note>성공률은 최근 24시간에 종료(성공, 실패, 취소)된 작업 대비이며, 아직 끝나지 않은 대기, 실행 중 작업은 분모에서 제외됩니다.</Note>
+      </DashSection>
 
-      <section className="dash-section">
+      <DashSection title="현재 큐 상태">
         {/* queued/failed_open은 24시간 창이 아니라 '지금'의 큐 깊이, 미해결 실패다(서버가 시간 필터 없이 계산).
             24시간 지표와 섞으면 며칠 전 실패가 최근 것처럼 읽혀 오해를 부른다, 별도 '현재 큐' 묶음으로 분리한다. */}
-        <h2 className="dash-h2">현재 큐 상태</h2>
-        <div className="dash-grid">
-          {/* 대기·실패 작업 수는 0이어도 항상 노출해 '큐 비었음/실패 없음'을 확인할 수 있게 한다(스펙 §14.1). */}
-          {/* 심각도(빨강/노랑)는 상단 '확인이 필요한 항목' 경보가 이미 담당하므로 여기선 중복 강조하지 않는다. */}
-          {/* 인벤토리 타일처럼 0이어도 항상 /jobs로 드릴다운한다 — 값에 따라 클릭 가능/불가가 갈리면(예전 >0 가드)
-              같은 타일이 상황에 따라 죽어 보여 혼란스러웠다. 빈 목록으로 가도 해당 화면이 EmptyState를 보여 무해하다. */}
-          {/* 위 '확인이 필요한 항목' 경보 타일과 같은 이유 안내(jobsNote)를 붙인다, 안 그러면 이
-              쌍둥이 수치가 이 섹션에서만 아무 설명 없이 클릭 불가 카드로 보인다(예: auditor 역할). */}
-          <StatCard value={fmtNum(jobs.queued != null ? jobs.queued : 0)} label={"대기 작업" + jobsNote} onClick={goto("/jobs")} />
-          <StatCard value={fmtNum(jobs.failed_open != null ? jobs.failed_open : 0)} label={"미해결 실패 작업" + jobsNote} onClick={goto("/jobs")} />
-        </div>
-      </section>
+        <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
+            {/* 대기·실패 작업 수는 0이어도 항상 노출해 '큐 비었음/실패 없음'을 확인할 수 있게 한다(스펙 §14.1). */}
+            {/* 심각도(빨강/노랑)는 상단 '확인이 필요한 항목' 경보가 이미 담당하므로 여기선 중복 강조하지 않는다. */}
+            {/* 인벤토리 타일처럼 0이어도 항상 /jobs로 드릴다운한다 — 값에 따라 클릭 가능/불가가 갈리면(예전 >0 가드)
+                같은 타일이 상황에 따라 죽어 보여 혼란스러웠다. 빈 목록으로 가도 해당 화면이 EmptyState를 보여 무해하다. */}
+            {/* 위 '확인이 필요한 항목' 경보 타일과 같은 이유 안내(jobsNote)를 붙인다, 안 그러면 이
+                쌍둥이 수치가 이 섹션에서만 아무 설명 없이 클릭 불가 카드로 보인다(예: auditor 역할). */}
+            <StatCard value={fmtNum(jobs.queued != null ? jobs.queued : 0)} label={"대기 작업" + jobsNote} onClick={goto("/jobs")} />
+            <StatCard value={fmtNum(jobs.failed_open != null ? jobs.failed_open : 0)} label={"미해결 실패 작업" + jobsNote} onClick={goto("/jobs")} />
+          </Box>
+          {/* 두 수치의 '비율'은 숫자 두 개만 봐서는 안 잡힌다 — 대기 1,200건 옆의 실패 3건과
+              대기 3건 옆의 실패 12건은 대응이 완전히 다른데 타일만 보면 똑같이 보인다. */}
+          <Card sx={{ p: 2.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>미처리 작업 구성</Typography>
+            <BarSeries
+              items={[
+                { label: "대기", value: jobs.queued != null ? jobs.queued : 0, color: jobs.queued ? "warn" : "neutral" },
+                { label: "미해결 실패", value: jobs.failed_open != null ? jobs.failed_open : 0, color: jobs.failed_open ? "danger" : "neutral" },
+              ]}
+              unit="건" formatValue={fmtNum} emptyLabel="큐 정보를 불러오지 못했습니다"
+            />
+          </Card>
+        </Box>
+      </DashSection>
 
-      <section className="dash-section">
+      <DashSection title="인벤토리">
         {/* 인벤토리(이동 가능한 개체 수)와 시스템 리소스(인프라 건강)는 성격이 다르다 -
             한 묶음에 섞으면 스캔이 어려워 별도 섹션으로 나눈다. */}
-        <h2 className="dash-h2">인벤토리</h2>
-        <div className="dash-grid">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
           {/* 자원 수 타일도 큐 타일처럼 해당 레지스트리로 드릴다운한다(볼 수 있는 역할에게만 클릭 가능). */}
           <StatCard value={fmtNum((d.counts || {}).active_workflows)} label="활성 워크플로" onClick={goto("/workflows")} />
           <StatCard value={fmtNum((d.counts || {}).active_schedules)} label="활성 스케줄" onClick={goto("/schedules")} />
           <StatCard value={fmtNum((d.counts || {}).runners)} label="등록된 러너" onClick={goto("/runners")} />
-        </div>
-      </section>
+        </Box>
+      </DashSection>
 
       {/* 디스크, 메모리, 인증서가 모두 null이면(비-Linux 호스트, nginx TLS 종단 등) 섹션 자체를 숨긴다 -
           영구 '-' 죽은 타일/빈 섹션을 남기지 않는다. */}
       {(disk.free_gb != null || disk.used_pct != null || mem.used_pct != null || d.cert_days_remaining != null) ? (
-        <section className="dash-section">
-          <h2 className="dash-h2">시스템 리소스</h2>
-          <div className="dash-grid">
+        <DashSection title="시스템 리소스">
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
             {/* 디스크 정보가 없으면(disk_usage OSError 등 전부 null) 메모리, 인증서 타일과 같은 규칙으로 숨긴다 -
                 영구 '-' 죽은 타일을 남기지 않는다. 디스크도 메모리처럼 %, 경고색을 함께 보여 준다. */}
             {/* 이 값들이 이미 위 경보 타일에서 diagTo로 클릭 가능한 것과 동일한 드릴다운을 여기도 제공한다 -
@@ -423,76 +543,84 @@ function DashboardBody({ d, nav, role, stale }) {
                 kind={d.cert_days_remaining <= 0 ? "danger" : d.cert_days_remaining <= 30 ? "warn" : undefined}
                 onClick={diagTo ? goto(diagTo) : undefined} />
             ) : null}
-          </div>
-        </section>
+          </Box>
+        </DashSection>
       ) : null}
 
-      <section className="dash-section">
-        <h2 className="dash-h2">백업</h2>
-        <Card className="dash-backup">
-          <div>
-            <div className="dash-backup-line">마지막 백업: {d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
-              {d.last_backup_status ? <>, <Badge value={d.last_backup_status} /></> : null}
-              {/* 성공 이력은 있지만 그 이후로 오래 지났으면(계속 실패 중일 수 있음) 여기서도 나이를 알린다 —
-                  위 상단 경보(backup-stale)와 같은 임계값. */}
-              {backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS
-                ? <>, <Badge value={Math.floor(backupAgeDays) + "일 전"} kind={backupAgeDays > BACKUP_STALE_DAYS * 2 ? "danger" : "warn"} /></>
-                : null}</div>
-          </div>
+      <DashSection title="백업">
+        <Card sx={{ p: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+          {/* component="div" — 안에 Badge(Chip은 <div>)가 들어간다. 기본 <p>로 두면 React가
+              validateDOMNesting 오류를 콘솔에 찍고, QA 하네스의 console_errors 검사에 걸린다. */}
+          <Typography component="div" variant="body2" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
+            마지막 백업: {d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
+            {d.last_backup_status ? <Badge value={d.last_backup_status} /> : null}
+            {/* 성공 이력은 있지만 그 이후로 오래 지났으면(계속 실패 중일 수 있음) 여기서도 나이를 알린다 —
+                위 상단 경보(backup-stale)와 같은 임계값. */}
+            {backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS
+              ? <Badge value={Math.floor(backupAgeDays) + "일 전"} kind={backupAgeDays > BACKUP_STALE_DAYS * 2 ? "danger" : "warn"} />
+              : null}
+          </Typography>
           <Button variant={d.last_backup_at ? "default" : "primary"} size="sm"
             disabled={!canGo("/backup", role)} onClick={goto("/backup")}>
             {d.last_backup_at ? "백업 관리" : "백업 관리로 이동"}
           </Button>
         </Card>
-      </section>
+      </DashSection>
 
       {(d.recent_critical_audit || []).length ? (
-        <section className="dash-section">
-          <div className="dash-h2-row"><h2 className="dash-h2">최근 주요 변경</h2>
-            {canGo("/audit", role)
-              ? <button type="button" className="dash-link" onClick={() => nav("/audit")}>전체 보기 →</button>
-              : null}</div>
+        <DashSection title="최근 주요 변경"
+          action={canGo("/audit", role)
+            ? <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>전체 보기 →</Link>
+            : null}>
           <Card>
-            <ul className="dash-audit">
+            <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
               {d.recent_critical_audit.map((a) => (
                 // 안정 key, 30초 폴링마다 새 항목이 앞에 붙으므로 index key는 행을 위치로 재사용해 어긋난다.
-                <li key={a.created_at + "|" + (a.object_id || "") + "|" + a.action}><span className="dash-audit-when">{fmtDateTime(a.created_at)}</span>
-                  <span className="dash-audit-what">{actionKo(a.action)} ({a.actor || "시스템"})</span>
+                <Box component="li" key={a.created_at + "|" + (a.object_id || "") + "|" + a.action}
+                  sx={{
+                    display: "grid", alignItems: "baseline", gap: { xs: 0.25, sm: 1.5 },
+                    gridTemplateColumns: { xs: "1fr", sm: "12rem minmax(0,1fr) auto" },
+                  }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>{fmtDateTime(a.created_at)}</Typography>
+                  <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{actionKo(a.action)} ({a.actor || "시스템"})</Typography>
                   {/* 줄인 ID엔 …을 붙여 '전체 값'처럼 보이지 않게 하고, 대상 ID가 있으면 눌러서 복사할
                       수 있게 한다(title 툴팁은 터치, 스크린리더에서 안 보인다, 탭 가능한 대안). */}
                   {a.object_id ? (
                     <>
-                      <button type="button" className="dash-audit-obj dash-audit-obj--copy" title={a.object_id}
+                      <Link component="button" type="button" variant="body2" underline="hover" color="text.secondary" title={a.object_id}
                         aria-label={objKo(a.object_type) + " 전체 ID 복사: " + a.object_id}
-                        onClick={() => copyObjectId(a.object_id)}>
+                        onClick={() => copyObjectId(a.object_id)}
+                        sx={{ textAlign: "left" }}>
                         {objKo(a.object_type)}, {shortId(a.object_id)}
-                      </button>
+                      </Link>
                       {revealedId === a.object_id ? (
-                        <span className="c-id-selectable dash-audit-obj-full" tabIndex={0}>{a.object_id}</span>
+                        <Typography className="c-id-selectable" variant="caption" color="text.secondary" tabIndex={0}
+                          sx={{ gridColumn: "1 / -1", wordBreak: "break-all", userSelect: "all" }}>
+                          {a.object_id}
+                        </Typography>
                       ) : null}
                     </>
-                  ) : <span className="dash-audit-obj">{objKo(a.object_type)}</span>}</li>
+                  ) : <Typography variant="body2" color="text.secondary">{objKo(a.object_type)}</Typography>}
+                </Box>
               ))}
-            </ul>
+            </Box>
           </Card>
-        </section>
+        </DashSection>
       ) : (
         // 최근 주요 변경이 비어 보이는 두 경우(실제로 없음 / 권한이 없어 서버가 아예 안 내려줌)를
         // 구분해준다, 안 그러면 감사 로그 열람 권한이 없는 역할은 '아무 변경도 없었다'로 오해한다.
         !canGo("/audit", role) ? (
-          <section className="dash-section">
-            <h2 className="dash-h2">최근 주요 변경</h2>
-            <p className="pending-note">감사 로그 열람 권한이 없어 숨겨졌습니다.</p>
-          </section>
+          <DashSection title="최근 주요 변경">
+            <Note sx={{ mt: 0 }}>감사 로그 열람 권한이 없어 숨겨졌습니다.</Note>
+          </DashSection>
         ) : (
           // 권한은 있고 정말로 아무 일도 없었던 경우(조용한 기간), null을 그대로 두면 이 섹션이
           // '고장/누락'인지 '평온함'인지 구분되지 않는다. 위 all-clear 배너와 같은 결로 명시한다.
-          <section className="dash-section">
-            <h2 className="dash-h2">최근 주요 변경</h2>
-            <p className="pending-note">최근 주요 변경 이력이 없습니다.</p>
-          </section>
+          <DashSection title="최근 주요 변경">
+            <Note sx={{ mt: 0 }}>최근 주요 변경 이력이 없습니다.</Note>
+          </DashSection>
         )
       )}
-    </div>
+    </Box>
   );
 }

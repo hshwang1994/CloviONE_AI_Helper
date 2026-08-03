@@ -1,5 +1,9 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
+import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
+import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import { api } from "../lib/api.js";
 import { Card } from "../ui/kit.jsx";
 import { ChatPane } from "./ChatPane.jsx";
@@ -17,11 +21,14 @@ export function TeamChatWidget() {
   const glob = q.data.global;
   if (!glob) return null;
   return (
-    <Card className="tc-widget">
-      <div className="c-card-head">
-        <h3>팀 채팅</h3>
-        <a className="k-link" href="#/chat-rooms">채팅방 전체 보기</a>
-      </div>
+    <Card sx={{ mt: 2, p: { xs: 1.5, sm: 2.5 } }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, minWidth: 0 }}>
+        <ForumRoundedIcon aria-hidden="true" sx={{ fontSize: "1.25rem", color: "primary.main" }} />
+        <Typography component="h3" sx={{ flex: 1, minWidth: 0, fontSize: "1rem", fontWeight: 750 }}>팀 채팅</Typography>
+        <Link href="#/chat-rooms" underline="hover" sx={{ fontSize: "0.8125rem", fontWeight: 700, flexShrink: 0 }}>
+          채팅방 전체 보기
+        </Link>
+      </Box>
       <ChatPane roomId={glob.id} compact interval={3000} />
     </Card>
   );

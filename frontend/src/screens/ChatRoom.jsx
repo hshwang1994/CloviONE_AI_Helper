@@ -1,6 +1,8 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import { api } from "../lib/api.js";
 import { Button, Card, ErrorState, PageHeader, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
 import { ChatPane } from "./ChatPane.jsx";
@@ -30,15 +32,20 @@ export function ChatRoom() {
 
   if (meta.isError) {
     return (
-      <div className="c-screen">
+      <Box className="c-screen">
         <PageHeader crumbRoot="팀 공간" area="채팅방" title="채팅방" actions={<Button onClick={() => nav("/chat-rooms")}>목록</Button>} />
         <ErrorState error={meta.error} onRetry={() => meta.refetch()} />
-      </div>
+      </Box>
     );
   }
   const canLeave = room.kind === "group" && !room.is_global;
+  // 방 종류(전체/1:1/그룹)는 목록 행과 같은 태그 어휘를 쓴다 — 목록에서 보던 표식이 방에 들어오면
+  // 사라지면, 지금 어떤 방에 있는지(나갈 수 있는 방인지)를 제목만으로 되짚어야 한다.
+  const tag = meta.isPending ? null
+    : room.is_global ? "전체" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
   const actions = (
-    <div className="k-row-actions">
+    <>
+      {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: "0.75rem", alignSelf: "center" }} /> : null}
       <Button onClick={() => nav("/chat-rooms")}>목록</Button>
       {canLeave ? (
         <Button variant="danger" disabled={leave.isPending}
@@ -47,15 +54,15 @@ export function ChatRoom() {
             if (ok) leave.mutate();
           }}>나가기</Button>
       ) : null}
-    </div>
+    </>
   );
 
   return (
-    <div className="c-screen">
+    <Box className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="채팅방" title={meta.isPending ? "채팅방" : (room.title || "채팅방")} actions={actions} />
-      <Card>
+      <Card sx={{ p: { xs: 1.5, sm: 2.5 } }}>
         {meta.isPending ? <Skeleton lines={6} /> : <ChatPane roomId={id} interval={1800} />}
       </Card>
-    </div>
+    </Box>
   );
 }

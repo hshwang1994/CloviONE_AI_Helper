@@ -1,11 +1,16 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
   Callout,
+  Card,
   ErrorState,
   PageHeader,
   Skeleton,
@@ -13,11 +18,16 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
+import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
 
 /* 팀 공간 > 문서 상세 (§17). 메타는 캐시에서, 본문 블록은 실시간(Notion). 본문을 못 불러와도
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
- * 문서 안의 프롬프트처럼 보이는 문장도 그저 텍스트다, §11.3/§17.2). */
+ * 문서 안의 프롬프트처럼 보이는 문장도 그저 텍스트다, §11.3/§17.2).
+ *
+ * 2026-08 MUI 재설계: 본문은 산문이라 줄 길이를 PROSE_MAX_WIDTH(78ch)로 묶고, 4K에서 남는 폭은
+ * 줄이 아니라 **두 번째 열**(메타 레일)로 보낸다. DocBody/safeExternal은 티켓 상세도 함께 쓰므로
+ * export 이름과 prop 시그니처를 그대로 유지한다. */
 
 export function safeExternal(url) {
   // 원본/출처 링크는 http(s)만 새 탭으로 연다(javascript: 등 차단).
@@ -29,19 +39,52 @@ export function safeExternal(url) {
 function DocBlock({ block }) {
   const t = block.text || "";
   switch (block.kind) {
-    case "heading_1": return <h2 className="doc-h1">{t}</h2>;
-    case "heading_2": return <h3 className="doc-h2">{t}</h3>;
-    case "heading_3": return <h4 className="doc-h3">{t}</h4>;
-    case "bulleted": return <li className="doc-li">{t}</li>;
-    case "numbered": return <li className="doc-li">{t}</li>;
-    case "todo": return <div className="doc-todo">{block.checked ? "☑" : "☐"} {t}</div>;
-    case "quote": return <blockquote className="doc-quote">{t}</blockquote>;
-    case "callout": return <div className="doc-callout">{t}</div>;
-    case "toggle": return <div className="doc-toggle">{t}</div>;
-    case "code": return <pre className="doc-code">{t}</pre>;
-    case "divider": return <hr className="doc-divider" />;
-    case "unsupported": return <div className="doc-unsupported">{t}</div>;
-    default: return t ? <p className="doc-p">{t}</p> : null;
+    case "heading_1":
+      return <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 1 }}>{t}</Typography>;
+    case "heading_2":
+      return <Typography variant="h6" component="h3" sx={{ mt: 3, mb: 1 }}>{t}</Typography>;
+    case "heading_3":
+      return <Typography component="h4" sx={{ mt: 2.5, mb: 0.5, fontWeight: 720, fontSize: "1rem" }}>{t}</Typography>;
+    case "bulleted":
+    case "numbered":
+      return <Box component="li" sx={{ mb: 0.5 }}>{t}</Box>;
+    case "todo":
+      return (
+        <Typography component="div" sx={{ my: 0.5 }}>
+          <Box component="span" aria-hidden="true" sx={{ mr: 1 }}>{block.checked ? "☑" : "☐"}</Box>{t}
+        </Typography>
+      );
+    case "quote":
+      return (
+        <Box component="blockquote" sx={{
+          my: 2, ml: 0, pl: 2, borderLeft: 3, borderColor: "primary.light",
+          color: "text.secondary", fontStyle: "italic",
+        }}>{t}</Box>
+      );
+    case "callout":
+      return (
+        <Box sx={{
+          my: 2, p: 2, borderRadius: 2, border: 1, borderColor: "divider",
+          bgcolor: "action.hover",
+        }}>{t}</Box>
+      );
+    case "toggle":
+      return <Typography component="div" sx={{ my: 1, fontWeight: 600 }}>{t}</Typography>;
+    case "code":
+      // 긴 한 줄이 페이지 전체 가로 스크롤을 만들지 않게 코드 상자 안에서만 스크롤한다.
+      return (
+        <Box component="pre" sx={{
+          my: 2, p: 2, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: "action.hover",
+          overflowX: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: "0.8125rem", lineHeight: 1.6,
+        }}>{t}</Box>
+      );
+    case "divider":
+      return <Divider sx={{ my: 3 }} />;
+    case "unsupported":
+      return <Typography variant="body2" color="text.secondary" sx={{ my: 1 }}>{t}</Typography>;
+    default:
+      return t ? <Typography component="p" sx={{ my: 1.5, lineHeight: 1.75 }}>{t}</Typography> : null;
   }
 }
 
@@ -63,7 +106,7 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
   const flush = () => {
     if (!run) return;
     const Tag = run.kind === "numbered" ? "ol" : "ul";
-    out.push(<Tag key={"list-" + out.length} className="doc-list">{run.items}</Tag>);
+    out.push(<Box component={Tag} key={"list-" + out.length} sx={{ my: 1.5, pl: 3 }}>{run.items}</Box>);
     run = null;
   };
   blocks.forEach((b, i) => {
@@ -77,7 +120,41 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
     }
   });
   flush();
-  return <div className="doc-body">{out}</div>;
+  // 산문 줄 길이 상한 — 3,000px짜리 한 줄은 눈이 다음 줄 첫 글자를 찾지 못한다.
+  return <Box sx={{ maxWidth: PROSE_MAX_WIDTH, overflowWrap: "anywhere" }}>{out}</Box>;
+}
+
+/* 문서 메타 레일. 넓은 화면에서는 본문 옆 열, 좁은 화면에서는 본문 위로 흐른다. */
+function DocMeta({ doc }) {
+  const rows = [];
+  if (doc.work_field) rows.push(["업무 분야", doc.work_field]);
+  if (doc.tech_tags && doc.tech_tags.length) rows.push(["기술 태그", doc.tech_tags.join(", ")]);
+  if (doc.projects && doc.projects.length) rows.push(["프로젝트", doc.projects.join(", ")]);
+  if ((doc.author_names || []).length) rows.push(["작성자", doc.author_names.join(", ")]);
+  if (doc.owner) rows.push(["소유자", doc.owner]);
+  if (doc.priority) rows.push(["우선순위", doc.priority]);
+  if (doc.doc_date) rows.push(["날짜", doc.doc_date]);
+  if (doc.last_edited) rows.push(["수정", fmtDateTime(doc.last_edited)]);
+  if (doc.has_files) rows.push(["첨부", "원본 문서에 첨부파일이 있습니다(원본에서 확인)."]);
+  if (rows.length === 0) return null;
+  return (
+    <Card sx={{ p: 2.5 }}>
+      <Box component="dl" sx={{
+        m: 0, display: "grid", columnGap: 3, rowGap: 0,
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "1fr", uhd: "repeat(2, minmax(0,1fr))" },
+      }}>
+        {rows.map(([label, value]) => (
+          <Box key={label} sx={{
+            display: "grid", gridTemplateColumns: "6.5rem minmax(0,1fr)", gap: 1,
+            py: 1, borderBottom: 1, borderColor: "divider", minWidth: 0,
+          }}>
+            <Box component="dt" sx={{ color: "text.secondary", fontSize: "0.875rem" }}>{label}</Box>
+            <Box component="dd" sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{value}</Box>
+          </Box>
+        ))}
+      </Box>
+    </Card>
+  );
 }
 
 export function TeamDoc() {
@@ -121,7 +198,7 @@ export function TeamDoc() {
     return (
       <div className="c-screen">
         <PageHeader crumbRoot="" area="문서" title="문서" />
-        <Skeleton lines={8} />
+        <Card><Skeleton lines={8} /></Card>
       </div>
     );
   }
@@ -130,7 +207,7 @@ export function TeamDoc() {
   const original = safeExternal(doc.original_url) || safeExternal(doc.url) || safeExternal(doc.source_url);
 
   const actions = (
-    <div className="doc-actions">
+    <>
       <Button variant="ghost" onClick={() => nav("/team-docs")}>목록</Button>
       <Button onClick={() => fav.mutate(!doc.is_favorite)} disabled={fav.isPending}>
         {doc.is_favorite ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}
@@ -146,34 +223,32 @@ export function TeamDoc() {
             { title: "문서 삭제", confirmLabel: "휴지통으로", danger: true });
           if (ok) trash.mutate();
         }}>삭제</Button>
-    </div>
+    </>
   );
 
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="" area="문서" title="문서" actions={actions} />
 
-      <article className="doc-detail">
-        <div className="doc-head">
-          {doc.status ? <Badge value={doc.status} /> : null}
-          {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
-          <h1 className="doc-title">{doc.title || "제목 없음"}</h1>
-        </div>
+      {/* 1열: 제목 + 본문(78ch 상한). 2열: 메타 레일. lg부터 갈라진다. */}
+      <Box sx={{
+        display: "grid", alignItems: "start",
+        columnGap: { lg: 4, xxl: 6 }, rowGap: 3,
+        gridTemplateColumns: { xs: "1fr", lg: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, 1fr)` },
+      }}>
+        <Card component="article" sx={{ minWidth: 0 }}>
+          <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+            {doc.status ? <Badge value={doc.status} /> : null}
+            {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
+          </Stack>
+          <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
+            {doc.title || "제목 없음"}
+          </Typography>
+          <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error} originalUrl={original} />
+        </Card>
 
-        <dl className="doc-meta">
-          {doc.work_field ? <><dt>업무 분야</dt><dd>{doc.work_field}</dd></> : null}
-          {doc.tech_tags && doc.tech_tags.length ? <><dt>기술 태그</dt><dd>{doc.tech_tags.join(", ")}</dd></> : null}
-          {doc.projects && doc.projects.length ? <><dt>프로젝트</dt><dd>{doc.projects.join(", ")}</dd></> : null}
-          {(doc.author_names || []).length ? <><dt>작성자</dt><dd>{doc.author_names.join(", ")}</dd></> : null}
-          {doc.owner ? <><dt>소유자</dt><dd>{doc.owner}</dd></> : null}
-          {doc.priority ? <><dt>우선순위</dt><dd>{doc.priority}</dd></> : null}
-          {doc.doc_date ? <><dt>날짜</dt><dd>{doc.doc_date}</dd></> : null}
-          {doc.last_edited ? <><dt>수정</dt><dd>{fmtDateTime(doc.last_edited)}</dd></> : null}
-          {doc.has_files ? <><dt>첨부</dt><dd>원본 문서에 첨부파일이 있습니다(원본에서 확인).</dd></> : null}
-        </dl>
-
-        <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error} originalUrl={original} />
-      </article>
+        <DocMeta doc={doc} />
+      </Box>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
   ticketPageStart,
   stripDuplicatedTicketLines,
   newClientMessageId,
-} from "./Chat.jsx";
+} from "./chat-helpers.js";
 
 describe("safeNotion", () => {
   it("allows https www.notion.so", () => {

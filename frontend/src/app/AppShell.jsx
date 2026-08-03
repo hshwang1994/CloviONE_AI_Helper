@@ -343,7 +343,11 @@ export function AppShell({
               ? { flex: 1, minHeight: 0, display: "flex" }
               : {
                   width: "100%", maxWidth: CONTENT_MAX_WIDTH, mx: "auto",
-                  px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 }, pb: 10,
+                  px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 },
+                  /* 우하단 마스코트 버튼이 본문 위에 떠 있다(70px + 여백 24px ≈ 94px).
+                     아래 여백이 그보다 작으면 화면 맨 아래에 붙는 컨트롤을 가린다 —
+                     실제로 놀이방의 '보내기' 버튼을 덮었다. 버튼이 보이는 md 이상에서만 넉넉히. */
+                  pb: { xs: 5, md: 14 },
                 }
           }
         >

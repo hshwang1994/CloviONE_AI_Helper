@@ -1,22 +1,67 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../lib/api.js";
+import Box from "@mui/material/Box";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
+import { keyframes } from "@mui/system";
 import confetti from "canvas-confetti";
-import { Badge, Button, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { api } from "../lib/api.js";
+import { Badge, Button, Card, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { MascotPose } from "../ui/Mascot.jsx";
+import { MISC } from "../lib/assets.js";
 import { GAME_LABELS } from "./Games.jsx";
 
 /* 게임방(§5·§6·§13·§16.2). 폴링(1.2초)으로 방 상태·참여자·이벤트를 실시간처럼 흐르게 한다.
  * 결과(당첨자)는 서버가 확정해 내려준다(§13.1) — 클라이언트는 표현만 한다. 게임방 채팅은
- * 순수 내부 DB(n8n 안 거침, §13.2). 방에 들어오면 한 번 자동 입장(가득/진행 중이면 서버가 관전). */
+ * 순수 내부 DB(n8n 안 거침, §13.2). 방에 들어오면 한 번 자동 입장(가득/진행 중이면 서버가 관전).
+ *
+ * 2026-08 MUI 재설계: screens.css의 .game-* 규칙 169줄을 화면 안 sx로 옮겼다. 이 화면은 업무
+ * 위험이 가장 낮은 화면이라 연출을 조금 더 얹는다 — 승자 확정 순간에 축포 + 축하 일러스트 +
+ * 마스코트(love/success)를 함께 띄운다. 다만 **동작 최소화(prefers-reduced-motion)** 를 켠
+ * 사용자에게는 JS로 쏘는 축포를 아예 발사하지 않는다(CSS 애니메이션은 theme.js의 전역 규칙이 끈다). */
 
 const STATUS_LABELS = { waiting: "대기 중", playing: "진행 중", finished: "결과 확인 중" };
 const STATUS_KIND = { waiting: "info", playing: "warn", finished: "ok" };
 const ROLE_LABELS = { host: "방장", player: "참여", spectator: "관전" };
 
+const pop = keyframes`
+  0% { transform: scale(.5); opacity: 0; }
+  55% { transform: scale(1.14); }
+  75% { transform: scale(.96); }
+  100% { transform: scale(1); opacity: 1; }
+`;
+const rise = keyframes`
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+`;
+const draw = keyframes`to { stroke-dashoffset: 0; }`;
+const pulse = keyframes`
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+`;
+
+/* 사용자가 OS에서 '동작 최소화'를 켰는지. matchMedia가 없는 환경(jsdom 등)에서는 false로 본다 —
+ * 없다고 예외를 던지면 결과 화면 전체가 렌더되지 않는다. */
+export function prefersReducedMotion() {
+  try {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    return !!(mq && mq.matches);
+  } catch (e) {
+    return false;
+  }
+}
+
 // 승자 공개 축포. canvas-confetti는 캔버스를 CSSOM 개별 속성으로 스타일링하고 기본은 워커 미사용이라
-// CSP(style-src 'self', worker 미허용)에 안전하다. 동작 최소화 사용자는 라이브러리 옵션이 알아서 끈다.
+// CSP(style-src 'self', worker 미허용)에 안전하다.
+// 동작 최소화는 두 겹으로 막는다: (1) 여기서 아예 호출하지 않는다 — JS로 켜는 연출은 전역 CSS
+// 규칙이 닿지 않으므로 우리가 직접 판단해야 한다. (2) 그래도 라이브러리 옵션을 남겨 둔다.
 function celebrate() {
+  if (prefersReducedMotion()) return;
   const base = { spread: 74, startVelocity: 45, ticks: 200, origin: { y: 0.55 }, disableForReducedMotion: true };
   confetti({ ...base, particleCount: 90 });
   window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 60, origin: { x: 0, y: 0.62 } }), 140);
@@ -76,10 +121,79 @@ function Countdown({ remaining }) {
   if (remaining == null) return null;
   const urgent = remaining <= 5;
   return (
-    <div className={"game-timer" + (urgent ? " is-urgent" : "")} aria-live="polite">
-      <span className="game-timer-num">{remaining}</span>
-      <span className="game-timer-unit">초</span>
-    </div>
+    <Box
+      aria-live="polite"
+      sx={{
+        display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: 999,
+        bgcolor: (t) => alpha(urgent ? t.palette.error.main : t.palette.primary.main, 0.14),
+        color: urgent ? "error.main" : "primary.main",
+        animation: urgent ? `${pulse} .8s ease-in-out infinite` : "none",
+      }}
+    >
+      <Box component="span" sx={{ fontSize: "1.25rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", minWidth: "1.5rem", textAlign: "center" }}>
+        {remaining}
+      </Box>
+      <Box component="span" sx={{ fontSize: "0.75rem" }}>초</Box>
+    </Box>
+  );
+}
+
+/* 무대 안내문(아직 시작 전 / 관전 중 등). 점선 상자로 '여기가 결과가 나올 자리'임을 보인다. */
+function StageHint({ children }) {
+  return (
+    <Box sx={{
+      py: 4, px: 2, textAlign: "center", color: "text.secondary",
+      border: 1, borderStyle: "dashed", borderColor: "divider", borderRadius: 3,
+    }}>
+      {children}
+    </Box>
+  );
+}
+
+/* 승자 이름표. 결과가 도착하는 순간 톡 튀어나오게(모션 축소는 theme.js 전역 규칙이 끈다). */
+function WinnerName({ children }) {
+  return (
+    <Box component="span" sx={{
+      px: 2, py: 0.75, borderRadius: 999, bgcolor: "primary.main", color: "primary.contrastText",
+      fontSize: "1.0625rem", fontWeight: 750, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
+    }}>
+      {children}
+    </Box>
+  );
+}
+
+/* 결과 무대 — 축하 일러스트 + 마스코트 + 결과 본문.
+ * 자산(misc/celebrate-winner.png)과 마스코트 love 포즈는 처음부터 있었는데 어디에도 연결돼
+ * 있지 않았다. 승자가 확정된 순간에만 띄운다(무승부·팀 나누기처럼 승자가 없는 결과는 mood="calm"). */
+function ResultStage({ mood = "win", label, children }) {
+  const celebrating = mood === "win";
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: { xs: 3, md: 4 },
+        borderColor: celebrating ? "primary.light" : "divider",
+        bgcolor: (t) => alpha(t.palette.primary.main, celebrating ? 0.08 : 0.03),
+        display: "grid", gap: { xs: 2, md: 4 }, alignItems: "center",
+        gridTemplateColumns: { xs: "1fr", md: "auto minmax(0,1fr)" },
+      }}
+    >
+      <Stack direction="row" gap={1} alignItems="center" justifyContent="center">
+        {celebrating ? (
+          <Box
+            component="img" src={MISC.celebrate} alt="" aria-hidden="true" loading="lazy" decoding="async"
+            sx={{ display: { xs: "none", sm: "block" }, width: { sm: 120, xxl: 150, uhd: 180 }, height: "auto" }}
+          />
+        ) : null}
+        <MascotPose mode={celebrating ? "love" : "success"} size={72} decorative />
+      </Stack>
+      <Box sx={{ display: "grid", gap: 1.5, justifyItems: { xs: "center", md: "start" }, minWidth: 0, textAlign: { xs: "center", md: "left" } }}>
+        {label ? (
+          <Typography variant="body2" sx={{ fontWeight: 700, letterSpacing: "0.06em", color: "primary.main" }}>{label}</Typography>
+        ) : null}
+        {children}
+      </Box>
+    </Paper>
   );
 }
 
@@ -113,39 +227,64 @@ function LadderBoard({ result, highlightUserId }) {
     return { points: pts.map((p) => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(" "), end: col };
   }
   const selPath = sel != null ? pathFor(sel) : null;
-  const grid = { display: "grid", gridTemplateColumns: "repeat(" + n + ", 1fr)" };
+  const gridSx = { display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 0.5 };
+  const chipSx = (on, outcome) => ({
+    display: "block", textAlign: "center", px: 0.5, py: 0.75, borderRadius: 1.5,
+    border: 1, borderColor: on ? "primary.main" : "divider",
+    bgcolor: on ? "primary.main" : (outcome ? "action.hover" : "background.paper"),
+    color: on ? "primary.contrastText" : "text.primary",
+    font: "inherit", fontSize: "0.8125rem", fontWeight: 600, minWidth: 0,
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+    cursor: outcome ? "default" : "pointer",
+    "&:hover": outcome ? undefined : { borderColor: "primary.main" },
+  });
 
   return (
-    <div className="game-ladder-board">
-      <div className="game-ladder-tops" style={grid}>
+    <Box sx={{ display: "grid", gap: 1 }}>
+      <Box sx={gridSx}>
         {cols.map((c, i) => (
-          <button type="button" key={c.user_id}
-            className={"game-ladder-chip" + (sel === i ? " is-sel" : "")}
-            onClick={() => setSel(sel === i ? null : i)}>{c.name}</button>
+          <Box component="button" type="button" key={c.user_id}
+            aria-pressed={sel === i}
+            sx={chipSx(sel === i, false)}
+            onClick={() => setSel(sel === i ? null : i)}>{c.name}</Box>
         ))}
-      </div>
-      <svg className="game-ladder-svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="사다리">
+      </Box>
+      <Box
+        component="svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="사다리"
+        sx={(t) => ({
+          width: "100%", height: { xs: "14rem", md: "18rem", xxl: "22rem" }, display: "block",
+          "& .ladder-v": { stroke: t.palette.divider, strokeWidth: 2 },
+          "& .ladder-r": { stroke: t.palette.text.secondary, strokeWidth: 2 },
+          "& .ladder-p": {
+            stroke: t.palette.primary.main, strokeWidth: 3.5, strokeLinecap: "round", strokeLinejoin: "round",
+            strokeDasharray: 100, strokeDashoffset: 100, animation: `${draw} .9s ease forwards`,
+          },
+        })}
+      >
         {cols.map((_, i) => (
-          <line key={"v" + i} x1={colX(i)} y1={topY} x2={colX(i)} y2={botY} className="game-ladder-vline" vectorEffect="non-scaling-stroke" />
+          <line key={"v" + i} x1={colX(i)} y1={topY} x2={colX(i)} y2={botY} className="ladder-v" vectorEffect="non-scaling-stroke" />
         ))}
         {rungs.map((g, i) => (
-          <line key={"r" + i} x1={colX(g.col)} y1={rowY(g.row)} x2={colX(g.col + 1)} y2={rowY(g.row)} className="game-ladder-rung" vectorEffect="non-scaling-stroke" />
+          <line key={"r" + i} x1={colX(g.col)} y1={rowY(g.row)} x2={colX(g.col + 1)} y2={rowY(g.row)} className="ladder-r" vectorEffect="non-scaling-stroke" />
         ))}
         {selPath ? (
-          <polyline key={sel} className="game-ladder-path" points={selPath.points} pathLength="100" vectorEffect="non-scaling-stroke" fill="none" />
+          <polyline key={sel} className="ladder-p" points={selPath.points} pathLength="100" vectorEffect="non-scaling-stroke" fill="none" />
         ) : null}
-      </svg>
-      <div className="game-ladder-bots" style={grid}>
+      </Box>
+      <Box sx={gridSx}>
         {outcomes.map((o, i) => (
-          <span key={i} className={"game-ladder-chip is-outcome" + (selPath && selPath.end === i ? " is-sel" : "")}>{o}</span>
+          <Box component="span" key={i} sx={chipSx(!!(selPath && selPath.end === i), true)}>{o}</Box>
         ))}
-      </div>
+      </Box>
       {sel != null && selPath ? (
-        <div className="game-ladder-trace">{cols[sel].name} <span aria-hidden="true">→</span> <b>{outcomes[selPath.end]}</b></div>
+        <Typography sx={{ textAlign: "center" }}>
+          {cols[sel].name} <Box component="span" aria-hidden="true">→</Box>{" "}
+          <Box component="b" sx={{ color: "primary.main" }}>{outcomes[selPath.end]}</Box>
+        </Typography>
       ) : (
-        <div className="game-stage-hint">이름을 누르면 사다리 경로가 보입니다.</div>
+        <StageHint>이름을 누르면 사다리 경로가 보입니다.</StageHint>
       )}
-    </div>
+    </Box>
   );
 }
 
@@ -158,86 +297,154 @@ function MatchTag({ done, winner, submitted, bye }) {
   return submitted ? <Badge value="제출" kind="ok" /> : <Badge value="대기" kind="warn" />;
 }
 
+/* 가위바위보 선택 버튼(손 이모지 + 라벨). */
+function RpsChoices({ labels, emojis, chosen, disabled, onPick }) {
+  return (
+    <Stack direction="row" gap={1} justifyContent="center" flexWrap="wrap">
+      {labels.map((label, i) => (
+        <Box
+          key={i} component="button" type="button"
+          aria-pressed={chosen === i}
+          disabled={disabled}
+          onClick={() => onPick(i)}
+          sx={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5,
+            px: 2, py: 1, minWidth: "5.25rem", borderRadius: 2, cursor: "pointer",
+            border: 1, borderColor: chosen === i ? "primary.main" : "divider",
+            bgcolor: (t) => (chosen === i ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
+            color: "text.primary", font: "inherit",
+            transition: "transform .12s ease, border-color .12s ease",
+            "&:hover:not(:disabled)": { borderColor: "primary.main", transform: "translateY(-2px)" },
+            "&:disabled": { cursor: "default", opacity: 0.6 },
+          }}
+        >
+          <Box component="span" aria-hidden="true" sx={{ fontSize: "2.125rem", lineHeight: 1 }}>{emojis[i]}</Box>
+          <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>{label}</Box>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
+const bracketListSx = { listStyle: "none", m: 0, p: 0, display: "grid", gap: 1, width: "100%", maxWidth: "30rem" };
+
 /* 가위바위보 토너먼트 진행 화면: 라운드 대진표 + (내 대진이면) 선택 버튼. 상대 선택은 감춘다. */
 function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
   const ym = gstate.your_match;
   return (
-    <div className="game-tourney">
-      <div className="game-quiz-round">라운드 {(gstate.round_idx || 0) + 1}</div>
-      <ul className="game-bracket">
+    <Box sx={{ display: "grid", gap: 1.5, justifyItems: "center", width: "100%" }}>
+      <Typography variant="body2" color="text.secondary">라운드 {(gstate.round_idx || 0) + 1}</Typography>
+      <Box component="ul" sx={bracketListSx}>
         {(gstate.matches || []).map((m, i) => (
-          <li key={i} className={"game-bracket-match" + (m.done ? " is-done" : "")}>
-            <span className={"game-bracket-side" + (m.done && m.winner_name === m.a_name ? " is-win" : "")}>
-              <span className="game-bracket-name">{m.a_name}</span>
+          <Paper component="li" key={i} variant="outlined" sx={{
+            display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "center", gap: 1,
+            px: 1.5, py: 1, bgcolor: m.done ? "action.hover" : "background.paper",
+            animation: `${rise} .35s ease both`,
+          }}>
+            <Stack direction="row" gap={0.75} alignItems="center" minWidth={0}>
+              <Box component="span" sx={{
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                fontWeight: m.done && m.winner_name === m.a_name ? 700 : 400,
+                color: m.done && m.winner_name === m.a_name ? "primary.main" : "inherit",
+              }}>{m.a_name}</Box>
               <MatchTag done={m.done} winner={m.winner_name === m.a_name} submitted={m.a_submitted} />
-            </span>
-            <span className="game-bracket-vs">{m.bye ? "부전승" : "vs"}</span>
-            <span className={"game-bracket-side" + (m.done && m.winner_name === m.b_name ? " is-win" : "")}>
-              <span className="game-bracket-name">{m.b_name || "-"}</span>
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>{m.bye ? "부전승" : "vs"}</Typography>
+            <Stack direction="row" gap={0.75} alignItems="center" minWidth={0} justifyContent="flex-end">
+              <Box component="span" sx={{
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                fontWeight: m.done && m.winner_name === m.b_name ? 700 : 400,
+                color: m.done && m.winner_name === m.b_name ? "primary.main" : "inherit",
+              }}>{m.b_name || "-"}</Box>
               {!m.bye ? <MatchTag done={m.done} winner={m.winner_name === m.b_name} submitted={m.b_submitted} /> : null}
-            </span>
-          </li>
+            </Stack>
+          </Paper>
         ))}
-      </ul>
+      </Box>
       {ym ? (
-        <div className="game-tourney-you">
-          <div className="game-vote-q">내 상대: {ym.opponent}</div>
+        <Box sx={{ display: "grid", gap: 1, justifyItems: "center", width: "100%", pt: 1, borderTop: 1, borderStyle: "dashed", borderColor: "divider" }}>
+          <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem" }}>내 상대: {ym.opponent}</Typography>
           {canPlay ? (
-            <div className="game-rps-choices">
-              {T_RPS_LABELS.map((label, i) => (
-                <button key={i} type="button"
-                  className={"game-rps-choice" + (ym.your_choice === i ? " is-mine" : "")}
-                  disabled={pending} onClick={() => onPick(i)}>
-                  <span className="game-rps-emoji" aria-hidden="true">{T_RPS_EMOJI[i]}</span>
-                  <span className="game-rps-label">{label}</span>
-                </button>
-              ))}
-            </div>
+            <RpsChoices labels={T_RPS_LABELS} emojis={T_RPS_EMOJI} chosen={ym.your_choice} disabled={pending} onPick={onPick} />
           ) : null}
-          {ym.you_submitted
-            ? <div className="game-stage-hint">낸 것 {T_RPS_LABELS[ym.your_choice]} (다시 누르면 변경). 상대가 내면 바로 판정됩니다.</div>
-            : <div className="game-stage-hint">가위, 바위, 보 중 하나를 내세요.</div>}
-        </div>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+            {ym.you_submitted
+              ? `낸 것 ${T_RPS_LABELS[ym.your_choice]} (다시 누르면 변경). 상대가 내면 바로 판정됩니다.`
+              : "가위, 바위, 보 중 하나를 내세요."}
+          </Typography>
+        </Box>
       ) : (
-        <div className="game-stage-hint">이번 라운드 대진에 없습니다. 다음 라운드를 기다려 주세요.</div>
+        <StageHint>이번 라운드 대진에 없습니다. 다음 라운드를 기다려 주세요.</StageHint>
       )}
-    </div>
+    </Box>
   );
 }
 
 /* 토너먼트 최종 결과: 우승자 + 라운드별 대진 히스토리. */
 function RpsTournamentResult({ result }) {
   return (
-    <>
-      <div className="game-result-label">우승</div>
-      {result.champion ? (
-        <div className="game-result-winners">
-          <span className="game-winner">🏆 {result.champion.name}</span>
-        </div>
-      ) : <div className="game-stage-hint">우승자가 없습니다.</div>}
-      <div className="game-bracket-history">
+    <Box sx={{ display: "grid", gap: 2, justifyItems: "center", width: "100%" }}>
+      <ResultStage mood={result.champion ? "win" : "calm"} label="우승">
+        {result.champion
+          ? <WinnerName>🏆 {result.champion.name}</WinnerName>
+          : <Typography color="text.secondary">우승자가 없습니다.</Typography>}
+      </ResultStage>
+      <Box sx={{ display: "grid", gap: 1.5, width: "100%", maxWidth: "30rem" }}>
         {(result.rounds || []).map((rnd, ri) => (
-          <div key={ri} className="game-bracket-round">
-            <div className="game-side-title">라운드 {ri + 1}</div>
-            <ul className="game-bracket">
+          <Box key={ri} sx={{ display: "grid", gap: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>라운드 {ri + 1}</Typography>
+            <Box component="ul" sx={bracketListSx}>
               {rnd.map((m, i) => (
-                <li key={i} className="game-bracket-match is-done">
-                  <span className={"game-bracket-side" + (m.winner_name === m.a_name ? " is-win" : "")}>
-                    <span className="game-bracket-name">{m.a_name}</span>
-                  </span>
-                  <span className="game-bracket-vs">{m.b_name ? "vs" : "부전승"}</span>
-                  <span className={"game-bracket-side" + (m.winner_name === m.b_name ? " is-win" : "")}>
-                    <span className="game-bracket-name">{m.b_name || "-"}</span>
-                  </span>
-                </li>
+                <Paper component="li" key={i} variant="outlined" sx={{
+                  display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "center", gap: 1,
+                  px: 1.5, py: 1, bgcolor: "action.hover",
+                }}>
+                  <Box component="span" sx={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    fontWeight: m.winner_name === m.a_name ? 700 : 400,
+                    color: m.winner_name === m.a_name ? "primary.main" : "inherit",
+                  }}>{m.a_name}</Box>
+                  <Typography variant="caption" color="text.secondary">{m.b_name ? "vs" : "부전승"}</Typography>
+                  <Box component="span" sx={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right",
+                    fontWeight: m.winner_name === m.b_name ? 700 : 400,
+                    color: m.winner_name === m.b_name ? "primary.main" : "inherit",
+                  }}>{m.b_name || "-"}</Box>
+                </Paper>
               ))}
-            </ul>
-          </div>
+            </Box>
+          </Box>
         ))}
-      </div>
-    </>
+      </Box>
+    </Box>
   );
 }
+
+/* 순위표(퀴즈). 번호는 CSS 카운터로 — 마크업에 순번 텍스트를 넣지 않는다. */
+function Scoreboard({ rows }) {
+  return (
+    <Box component="ol" sx={{
+      listStyle: "none", m: 0, p: 0, counterReset: "rank", display: "grid", gap: 0.5,
+      width: "100%", maxWidth: "24rem",
+    }}>
+      {rows.map((s, i) => (
+        <Paper component="li" key={s.key || i} variant="outlined" sx={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5, px: 1.5, py: 0.75,
+          animation: `${rise} .38s ease both`,
+          "&::before": {
+            counterIncrement: "rank", content: "counter(rank)", flexShrink: 0, width: "1.75rem",
+            color: "text.secondary", fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem",
+          },
+        }}>
+          <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</Box>
+          <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "primary.main", fontVariantNumeric: "tabular-nums" }}>{s.value}</Box>
+        </Paper>
+      ))}
+    </Box>
+  );
+}
+
+const stageColumnSx = { display: "grid", gap: 1.5, justifyItems: "center", width: "100%" };
 
 export function GameRoom() {
   const { id } = useParams();
@@ -374,7 +581,7 @@ export function GameRoom() {
   // 서버가 확정하고, 그 결과가 폴링으로 내려온다.
 
   if (state.isError && !notFound) return <div className="c-screen"><ErrorState error={state.error} onRetry={() => state.refetch()} /></div>;
-  if (state.isPending) return <div className="c-screen"><Skeleton lines={6} /></div>;
+  if (state.isPending) return <div className="c-screen"><Card><Skeleton lines={6} /></Card></div>;
 
   const { room, you, members } = state.data;
   const gstate = state.data.state || {};
@@ -433,175 +640,227 @@ export function GameRoom() {
 
   const sendChat = () => { const t = draft.trim(); if (t && !chat.isPending) chat.mutate(t); };
 
+  const voteOptionSx = (mine, correct, preview) => ({
+    width: "100%", display: "flex", alignItems: "center", gap: 1.5, textAlign: "left",
+    px: 2, py: 1.5, borderRadius: 2, cursor: preview ? "default" : "pointer",
+    border: 1, borderColor: correct ? "success.main" : mine ? "primary.main" : "divider",
+    bgcolor: (t) => (correct ? alpha(t.palette.success.main, 0.12)
+      : mine ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
+    color: preview ? "text.secondary" : "text.primary", font: "inherit",
+    "&:hover:not(:disabled)": preview ? undefined : { borderColor: "primary.main" },
+    "&:disabled": { cursor: "default" },
+  });
+
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="놀이" title={room.title}
         actions={<Button onClick={() => leave.mutate()} disabled={leave.isPending}>나가기</Button>} />
 
-      <div className="game-room">
-        <section className="game-main">
-          <div className="game-status-bar">
+      {/* 무대(왼쪽) + 참여자·채팅 레일(오른쪽). 좁은 화면에서는 한 열로 흐른다. */}
+      <Box sx={{
+        display: "grid", gap: 2, alignItems: "start",
+        gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) 22rem", xxl: "minmax(0,1fr) 26rem" },
+      }}>
+        <Box component="section" sx={{ display: "grid", gap: 2, minWidth: 0 }}>
+          <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
             <Badge value={GAME_LABELS[room.game_type] || room.game_type} kind="neutral" />
             <Badge value={STATUS_LABELS[room.status] || room.status} kind={STATUS_KIND[room.status] || "neutral"} />
-            <span className="game-count">참여 {room.player_count}/{room.max_players}</span>
-            {you.role === "spectator" ? <span className="game-count">관전 중</span> : null}
-          </div>
+            <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+              참여 {room.player_count}/{room.max_players}
+            </Typography>
+            {you.role === "spectator" ? <Typography variant="body2" color="text.secondary">관전 중</Typography> : null}
+          </Stack>
 
           {/* 진행 현황: 카운트다운 + 제출/대기(모든 제출형 게임 공통) */}
           {submissionActive || remaining != null ? (
-            <div className="game-progress-bar">
+            <Paper variant="outlined" sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", px: 1.5, py: 1.25 }}>
               <Countdown remaining={remaining} />
               {submissionActive ? (
-                <div className="game-submit-status">
-                  <span className="game-submit-count">제출 {submittedCount}/{activePlayers.length}</span>
+                <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                    제출 {submittedCount}/{activePlayers.length}
+                  </Typography>
                   {waitingNames.length > 0
-                    ? <span className="game-submit-waiting">대기 {waitingNames.join(", ")}</span>
-                    : <span className="game-submit-done">모두 제출했습니다</span>}
-                </div>
+                    ? <Typography variant="body2" color="text.secondary">대기 {waitingNames.join(", ")}</Typography>
+                    : <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>모두 제출했습니다</Typography>}
+                </Stack>
               ) : null}
-            </div>
+            </Paper>
           ) : null}
 
           {/* 무대: 게임 종류·상태별 화면 */}
           {isDraw && room.status === "finished" && drawWinners.length > 0 ? (
-            <div className="game-result">
-              <div className="game-result-label">당첨</div>
-              <div className="game-result-winners">
-                {drawWinners.map((w) => <span key={w.user_id} className="game-winner">{w.name}</span>)}
-              </div>
-            </div>
+            <ResultStage label="당첨">
+              <Stack direction="row" gap={1} flexWrap="wrap" justifyContent={{ xs: "center", md: "flex-start" }}>
+                {drawWinners.map((w) => <WinnerName key={w.user_id}>{w.name}</WinnerName>)}
+              </Stack>
+            </ResultStage>
           ) : isTeam && room.status === "finished" && teams.length > 0 ? (
-            <div className="game-teams">
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fit, minmax(14rem, 1fr))" } }}>
               {teams.map((team, ti) => (
-                <div key={ti} className="game-team">
-                  <div className="game-team-title">{ti + 1}팀 <span className="game-team-size">{team.length}명</span></div>
-                  <ul className="game-team-members">
+                <Paper key={ti} variant="outlined" sx={{ p: 2, animation: `${rise} .38s ease both` }}>
+                  <Typography sx={{ fontWeight: 700, mb: 1 }}>
+                    {ti + 1}팀 <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, fontSize: "0.8125rem" }}>{team.length}명</Box>
+                  </Typography>
+                  <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
                     {team.map((m) => <li key={m.user_id}>{m.name}</li>)}
-                  </ul>
-                </div>
+                  </Box>
+                </Paper>
               ))}
-            </div>
+            </Box>
           ) : isLadder && room.status === "finished" && ladderAssignments.length > 0 ? (
             gstate.result && gstate.result.columns ? (
               <LadderBoard result={gstate.result} highlightUserId={you.user_id} />
             ) : (
-              <ul className="game-ladder">
+              <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
                 {ladderAssignments.map((a) => (
-                  <li key={a.user_id} className="game-ladder-row">
-                    <span className="game-ladder-name">{a.name}</span>
-                    <span className="game-ladder-arrow" aria-hidden="true">→</span>
-                    <span className="game-ladder-outcome">{a.outcome}</span>
-                  </li>
+                  <Paper component="li" key={a.user_id} variant="outlined" sx={{
+                    display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, animation: `${rise} .38s ease both`,
+                  }}>
+                    <Box component="span" sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{a.name}</Box>
+                    <Box component="span" aria-hidden="true" sx={{ color: "text.secondary" }}>→</Box>
+                    <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>{a.outcome}</Box>
+                  </Paper>
                 ))}
-              </ul>
+              </Box>
             )
           ) : (isDraw || isTeam || isLadder) && room.status === "waiting" ? (
-            <div className="game-stage-hint">
+            <StageHint>
               {isTeam ? "참여자가 모이면 방장이 팀을 나눕니다."
                 : isLadder ? "참여자가 모이면 방장이 사다리를 탑니다."
                   : "참여자가 모이면 방장이 추첨을 시작합니다."}
-            </div>
+            </StageHint>
           ) : isVote ? (
-            <div className="game-vote">
-              <div className="game-vote-q">{voteResult?.question || gstate.question || room.title}</div>
+            <Box sx={{ display: "grid", gap: 2 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>
+                {voteResult?.question || gstate.question || room.title}
+              </Typography>
               {room.status === "finished" && voteResult ? (
                 <>
-                  <ul className="game-vote-bars">
+                  <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
                     {(voteResult.options || []).map((opt, i) => {
                       const c = (voteResult.counts || [])[i] || 0;
                       const win = (voteResult.winners || []).includes(opt);
                       return (
-                        <li key={i} className={"game-bar" + (win ? " is-win" : "")}>
-                          <span className="game-bar-label">{opt}</span>
-                          <span className="game-bar-track"><span className="game-bar-fill" style={{ width: (maxCount ? (c / maxCount) * 100 : 0) + "%" }} /></span>
-                          <span className="game-bar-count">{c}표</span>
-                        </li>
+                        <Box component="li" key={i} sx={{
+                          display: "grid", gridTemplateColumns: { xs: "minmax(0,1fr) auto", sm: "10rem minmax(0,1fr) auto" },
+                          alignItems: "center", gap: 1.5,
+                        }}>
+                          <Box component="span" sx={{
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            fontWeight: win ? 700 : 400,
+                          }}>{opt}</Box>
+                          <Box sx={{
+                            display: { xs: "none", sm: "block" }, height: "0.875rem", borderRadius: 999,
+                            bgcolor: "action.hover", overflow: "hidden",
+                          }}>
+                            <Box sx={{
+                              display: "block", height: "100%", borderRadius: 999,
+                              bgcolor: win ? "primary.main" : "primary.light",
+                              width: (maxCount ? (c / maxCount) * 100 : 0) + "%",
+                            }} />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>{c}표</Typography>
+                        </Box>
                       );
                     })}
-                  </ul>
+                  </Box>
                   {(voteResult.winners || []).length > 0 ? (
-                    <div className="game-result-winners">
-                      {voteResult.winners.map((w) => <span key={w} className="game-winner">{w}</span>)}
-                    </div>
-                  ) : <div className="game-stage-hint">투표한 사람이 없습니다.</div>}
+                    <ResultStage label="결과">
+                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent={{ xs: "center", md: "flex-start" }}>
+                        {voteResult.winners.map((w) => <WinnerName key={w}>{w}</WinnerName>)}
+                      </Stack>
+                    </ResultStage>
+                  ) : <StageHint>투표한 사람이 없습니다.</StageHint>}
                 </>
               ) : room.status === "playing" ? (
-                <ul className="game-vote-options">
+                <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
                   {voteOptions.map((opt, i) => (
                     <li key={i}>
-                      <button type="button" className={"game-vote-option" + (myVote === i ? " is-mine" : "")}
+                      <Box component="button" type="button" sx={voteOptionSx(myVote === i, false, false)}
+                        aria-pressed={myVote === i}
                         disabled={!canVote || vote.isPending} onClick={() => canVote && vote.mutate(i)}>
-                        <span className="game-vote-option-label">{opt}</span>
-                        <span className="game-vote-option-count">{liveCounts[i]}</span>
-                      </button>
+                        <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
+                        <Box component="span" sx={{ flexShrink: 0, minWidth: "1.75rem", textAlign: "center", fontWeight: 700, color: "primary.main", fontVariantNumeric: "tabular-nums" }}>
+                          {liveCounts[i]}
+                        </Box>
+                      </Box>
                     </li>
                   ))}
-                </ul>
+                </Box>
               ) : (
-                <ul className="game-vote-options">
+                <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
                   {voteOptions.map((opt, i) => (
-                    <li key={i}><div className="game-vote-option is-preview">{opt}</div></li>
+                    <li key={i}><Box sx={voteOptionSx(false, false, true)}>{opt}</Box></li>
                   ))}
-                </ul>
+                </Box>
               )}
               {room.status === "playing" && !canVote && you.role === "spectator" ? (
-                <div className="game-stage-hint">관전 중 — 투표는 참여자만 할 수 있습니다.</div>
+                <StageHint>관전 중 — 투표는 참여자만 할 수 있습니다.</StageHint>
               ) : null}
-            </div>
+            </Box>
           ) : isNumber ? (
-            <div className="game-number">
+            <Box sx={stageColumnSx}>
               {room.status === "finished" && numResult ? (
                 <>
-                  <div className="game-result-label">가장 낮은 유일 숫자</div>
-                  {numResult.winner ? (
-                    <div className="game-result-winners">
-                      <span className="game-winner">{numResult.winner.name} ({numResult.winner.number})</span>
-                    </div>
-                  ) : <div className="game-stage-hint">유일한 숫자가 없어 승자가 없습니다.</div>}
-                  <ul className="game-picks">
+                  <ResultStage mood={numResult.winner ? "win" : "calm"} label="가장 낮은 유일 숫자">
+                    {numResult.winner
+                      ? <WinnerName>{numResult.winner.name} ({numResult.winner.number})</WinnerName>
+                      : <Typography color="text.secondary">유일한 숫자가 없어 승자가 없습니다.</Typography>}
+                  </ResultStage>
+                  <Stack direction="row" gap={1.5} flexWrap="wrap" justifyContent="center">
                     {(numResult.picks || []).map((p) => {
                       const win = numResult.winner && numResult.winner.user_id === p.user_id;
                       return (
-                        <li key={p.user_id} className={"game-pick" + (win ? " is-win" : "")}>
-                          <span className="game-pick-num">{p.number}</span>
-                          <span className="game-pick-name">{p.name}</span>
-                        </li>
+                        <Paper key={p.user_id} variant="outlined" sx={{
+                          display: "grid", justifyItems: "center", gap: 0.25, px: 1.5, py: 1, minWidth: "5.25rem",
+                          borderColor: win ? "primary.main" : "divider",
+                          bgcolor: (t) => (win ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
+                        }}>
+                          <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{p.number}</Box>
+                          <Box component="span" sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>{p.name}</Box>
+                        </Paper>
                       );
                     })}
-                  </ul>
+                  </Stack>
                 </>
               ) : room.status === "playing" ? (
                 <>
-                  <div className="game-vote-q">{gstate.min || 1} ~ {gstate.max || 10} 중 하나를 몰래 내세요</div>
-                  <div className="game-stage-hint">가장 낮은 ‘유일한’ 숫자를 낸 사람이 이깁니다. 지금 {gstate.submitted_count || 0}명 제출.</div>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>
+                    {gstate.min || 1} ~ {gstate.max || 10} 중 하나를 몰래 내세요
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                    가장 낮은 ‘유일한’ 숫자를 낸 사람이 이깁니다. 지금 {gstate.submitted_count || 0}명 제출.
+                  </Typography>
                   {canPick ? (
-                    <div className="game-num-input">
-                      <input
-                        className="k-input"
+                    <Stack direction="row" gap={1} alignItems="center">
+                      <TextField
+                        size="small"
                         type="number"
-                        min={gstate.min || 1}
-                        max={gstate.max || 10}
                         value={numDraft}
                         placeholder={(gstate.min || 1) + "~" + (gstate.max || 10)}
+                        inputProps={{ min: gstate.min || 1, max: gstate.max || 10, "aria-label": "낼 숫자" }}
                         onChange={(e) => setNumDraft(e.target.value)}
+                        sx={{ width: "8rem", "& input": { textAlign: "center", fontVariantNumeric: "tabular-nums" } }}
                       />
                       <Button variant="primary" disabled={pick.isPending || numDraft === ""}
+                        sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
                         onClick={() => { const v = Number(numDraft); if (Number.isInteger(v)) pick.mutate(v); }}>제출</Button>
-                    </div>
+                    </Stack>
                   ) : null}
                   {canPick && gstate.you_submitted ? (
-                    <div className="game-stage-hint">내가 낸 숫자: {gstate.your_pick} (다시 내면 변경됩니다)</div>
+                    <Typography variant="body2" color="text.secondary">내가 낸 숫자: {gstate.your_pick} (다시 내면 변경됩니다)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
-                    <div className="game-stage-hint">관전 중 — 참여자만 숫자를 낼 수 있습니다.</div>
+                    <StageHint>관전 중 — 참여자만 숫자를 낼 수 있습니다.</StageHint>
                   ) : null}
                 </>
               ) : (
-                <div className="game-stage-hint">참여자가 모이면 방장이 숫자 눈치를 시작합니다.</div>
+                <StageHint>참여자가 모이면 방장이 숫자 눈치를 시작합니다.</StageHint>
               )}
-            </div>
+            </Box>
           ) : isRps ? (
-            <div className="game-number">
+            <Box sx={stageColumnSx}>
               {room.status === "finished" && rpsResult && rpsResult.mode === "tournament" ? (
                 <RpsTournamentResult result={rpsResult} />
               ) : room.status === "playing" && isTournament ? (
@@ -610,113 +869,113 @@ export function GameRoom() {
               ) : room.status === "finished" && rpsResult ? (
                 <>
                   {rpsResult.outcome === "win" ? (
-                    <>
-                      <div className="game-result-label">{rpsResult.win_choice} 승리</div>
-                      <div className="game-result-winners">
-                        {(rpsResult.winners || []).map((w) => <span key={w.user_id} className="game-winner">{w.name}</span>)}
-                      </div>
-                    </>
-                  ) : <div className="game-result-label">무승부</div>}
-                  <ul className="game-hands">
+                    <ResultStage label={`${rpsResult.win_choice} 승리`}>
+                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent={{ xs: "center", md: "flex-start" }}>
+                        {(rpsResult.winners || []).map((w) => <WinnerName key={w.user_id}>{w.name}</WinnerName>)}
+                      </Stack>
+                    </ResultStage>
+                  ) : (
+                    <ResultStage mood="calm" label="무승부">
+                      <Typography color="text.secondary">같은 손만 나왔거나 셋이 다 나왔습니다.</Typography>
+                    </ResultStage>
+                  )}
+                  <Stack direction="row" gap={1.5} flexWrap="wrap" justifyContent="center">
                     {(rpsResult.reveal || []).map((p) => {
                       const win = (rpsResult.winners || []).some((w) => w.user_id === p.user_id);
                       return (
-                        <li key={p.user_id} className={"game-hand" + (win ? " is-win" : "")}>
-                          <span className="game-hand-emoji" aria-hidden="true">{rpsEmoji(p.choice)}</span>
-                          <span className="game-hand-choice">{p.choice}</span>
-                          <span className="game-pick-name">{p.name}</span>
-                        </li>
+                        <Paper key={p.user_id} variant="outlined" sx={{
+                          display: "grid", justifyItems: "center", gap: 0.25, px: 1.5, py: 1, minWidth: "5.25rem",
+                          borderColor: win ? "primary.main" : "divider",
+                          bgcolor: (t) => (win ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
+                        }}>
+                          <Box component="span" aria-hidden="true" sx={{ fontSize: "2.75rem", lineHeight: 1 }}>{rpsEmoji(p.choice)}</Box>
+                          <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 700 }}>{p.choice}</Box>
+                          <Box component="span" sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>{p.name}</Box>
+                        </Paper>
                       );
                     })}
-                  </ul>
+                  </Stack>
                 </>
               ) : room.status === "playing" ? (
                 <>
-                  <div className="game-vote-q">가위, 바위, 보 중 하나를 몰래 내세요</div>
-                  <div className="game-stage-hint">방장이 공개하면 판정합니다. 지금 {gstate.submitted_count || 0}명 제출.</div>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>가위, 바위, 보 중 하나를 몰래 내세요</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                    방장이 공개하면 판정합니다. 지금 {gstate.submitted_count || 0}명 제출.
+                  </Typography>
                   {canRps ? (
-                    <div className="game-rps-choices">
-                      {RPS_LABELS.map((label, i) => (
-                        <button key={i} type="button"
-                          className={"game-rps-choice" + (gstate.your_choice === i ? " is-mine" : "")}
-                          disabled={rps.isPending} onClick={() => rps.mutate(i)}>
-                          <span className="game-rps-emoji" aria-hidden="true">{RPS_EMOJI[i]}</span>
-                          <span className="game-rps-label">{label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <RpsChoices labels={RPS_LABELS} emojis={RPS_EMOJI} chosen={gstate.your_choice}
+                      disabled={rps.isPending} onPick={(i) => rps.mutate(i)} />
                   ) : null}
                   {canRps && gstate.you_submitted ? (
-                    <div className="game-stage-hint">낸 것: {RPS_LABELS[gstate.your_choice]} (다시 누르면 변경)</div>
+                    <Typography variant="body2" color="text.secondary">낸 것: {RPS_LABELS[gstate.your_choice]} (다시 누르면 변경)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
-                    <div className="game-stage-hint">관전 중 — 참여자만 낼 수 있습니다.</div>
+                    <StageHint>관전 중 — 참여자만 낼 수 있습니다.</StageHint>
                   ) : null}
                 </>
               ) : (
-                <div className="game-stage-hint">참여자가 모이면 방장이 가위바위보를 시작합니다.</div>
+                <StageHint>참여자가 모이면 방장이 가위바위보를 시작합니다.</StageHint>
               )}
-            </div>
+            </Box>
           ) : isQuiz ? (
-            <div className="game-quiz">
+            <Box sx={stageColumnSx}>
               {room.status === "finished" && quizResult ? (
                 <>
-                  <div className="game-result-label">최종 순위</div>
-                  {(quizResult.winners || []).length > 0 ? (
-                    <div className="game-result-winners">
-                      {quizResult.winners.map((w) => <span key={w} className="game-winner">{w}</span>)}
-                    </div>
-                  ) : null}
-                  <ol className="game-scoreboard">
-                    {(quizResult.scoreboard || []).map((s) => (
-                      <li key={s.user_id} className="game-score-row">
-                        <span className="game-score-name">{s.name}</span>
-                        <span className="game-score-val">{s.score} / {quizResult.total_rounds}</span>
-                      </li>
-                    ))}
-                  </ol>
+                  <ResultStage mood={(quizResult.winners || []).length ? "win" : "calm"} label="최종 순위">
+                    {(quizResult.winners || []).length > 0 ? (
+                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent={{ xs: "center", md: "flex-start" }}>
+                        {quizResult.winners.map((w) => <WinnerName key={w}>{w}</WinnerName>)}
+                      </Stack>
+                    ) : (
+                      <Typography color="text.secondary">맞힌 사람이 없습니다.</Typography>
+                    )}
+                  </ResultStage>
+                  <Scoreboard rows={(quizResult.scoreboard || []).map((s) => ({
+                    key: s.user_id, name: s.name, value: `${s.score} / ${quizResult.total_rounds}`,
+                  }))} />
                 </>
               ) : quizPlaying ? (
                 <>
-                  <div className="game-quiz-round">문제 {(quizPlaying.round || 0) + 1} / {quizPlaying.total}</div>
-                  <div className="game-vote-q">{quizPlaying.question}</div>
-                  <ul className="game-vote-options">
+                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                    문제 {(quizPlaying.round || 0) + 1} / {quizPlaying.total}
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>{quizPlaying.question}</Typography>
+                  <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1, width: "100%", maxWidth: "30rem" }}>
                     {(quizPlaying.options || []).map((opt, i) => {
                       const mine = quizPlaying.your_answer === i;
                       const isAnswer = quizPlaying.phase === "revealed" && quizPlaying.answer === i;
-                      const cls = "game-vote-option" + (mine ? " is-mine" : "") + (isAnswer ? " is-correct" : "");
                       return (
                         <li key={i}>
-                          <button type="button" className={cls}
+                          <Box component="button" type="button" sx={voteOptionSx(mine, isAnswer, false)}
+                            aria-pressed={mine}
                             disabled={!canQuizAnswer || quizAnswer.isPending}
                             onClick={() => canQuizAnswer && quizAnswer.mutate(i)}>
-                            <span className="game-vote-option-label">{opt}</span>
-                            {isAnswer ? <span className="game-vote-option-count">정답</span> : null}
-                          </button>
+                            <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
+                            {isAnswer ? (
+                              <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "success.main" }}>정답</Box>
+                            ) : null}
+                          </Box>
                         </li>
                       );
                     })}
-                  </ul>
-                  {quizPlaying.phase === "answering" ? (
-                    <div className="game-stage-hint">{quizPlaying.submitted_count || 0}명 응답. 방장이 정답을 공개하면 채점합니다.</div>
-                  ) : (
-                    <div className="game-stage-hint">{quizPlaying.your_answer == null ? "이번 문제에 응답하지 않았습니다." : quizPlaying.your_correct ? "정답입니다! 🎉" : "아쉽지만 오답이에요."}</div>
-                  )}
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                    {quizPlaying.phase === "answering"
+                      ? `${quizPlaying.submitted_count || 0}명 응답. 방장이 정답을 공개하면 채점합니다.`
+                      : quizPlaying.your_answer == null ? "이번 문제에 응답하지 않았습니다."
+                        : quizPlaying.your_correct ? "정답입니다! 🎉" : "아쉽지만 오답이에요."}
+                  </Typography>
                   {liveScores.length > 0 ? (
-                    <ol className="game-scoreboard">
-                      {liveScores.map((s, i) => (
-                        <li key={i} className="game-score-row"><span className="game-score-name">{s.name}</span><span className="game-score-val">{s.score}</span></li>
-                      ))}
-                    </ol>
+                    <Scoreboard rows={liveScores.map((s, i) => ({ key: "s" + i, name: s.name, value: s.score }))} />
                   ) : null}
                 </>
               ) : (
-                <div className="game-stage-hint">참여자가 모이면 방장이 퀴즈를 시작합니다.</div>
+                <StageHint>참여자가 모이면 방장이 퀴즈를 시작합니다.</StageHint>
               )}
-            </div>
+            </Box>
           ) : null}
 
-          <div className="game-controls">
+          <Stack direction="row" gap={1} flexWrap="wrap">
             {canReady ? (
               <Button variant={you.ready ? "default" : "primary"} onClick={() => ready.mutate(!you.ready)} disabled={ready.isPending}>
                 {you.ready ? "준비 해제" : "준비"}
@@ -747,33 +1006,51 @@ export function GameRoom() {
                   if (ok) disband.mutate();
                 }}>방 파하기</Button>
             ) : null}
-          </div>
-        </section>
+          </Stack>
+        </Box>
 
-        <aside className="game-side">
-          <div className="game-panel game-panel-members">
-            <div className="game-side-title">참여자 {members.length}명</div>
-            <ul className="game-member-list">
+        {/* 오른쪽 레일 — 넓은 화면에서는 화면 높이에 고정하고 참여자 목록은 상한 높이로 접어(자체
+            스크롤) 아무리 많아도 채팅을 밀어내지 않게 한다. 채팅이 남는 공간을 꽉 채운다. */}
+        <Box component="aside" sx={{
+          display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0,
+          position: { md: "sticky" }, top: { md: 0 }, height: { md: "calc(100vh - 14rem)" },
+        }}>
+          <Paper variant="outlined" sx={{ p: 1.5, flexShrink: 0 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>참여자 {members.length}명</Typography>
+            <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5, maxHeight: "13rem", overflowY: "auto" }}>
               {members.map((m) => {
                 const sub = [m.title, m.dept].filter(Boolean);
                 const isHostRow = m.user_id === room.host_user_id;
+                const isMe = m.user_id === you.user_id;
                 return (
-                  <li key={m.user_id} className={"game-member" + (m.user_id === you.user_id ? " is-me" : "")}>
-                    <span className={"game-member-avatar" + (isHostRow ? " is-host" : "")} aria-hidden="true">
+                  <Box component="li" key={m.user_id} sx={{
+                    display: "flex", alignItems: "center", gap: 1.25, p: 1, borderRadius: 2,
+                    border: 1, borderColor: isMe ? "primary.light" : "transparent",
+                    bgcolor: (t) => (isMe ? alpha(t.palette.primary.main, 0.1) : "transparent"),
+                  }}>
+                    <Box component="span" aria-hidden="true" sx={{
+                      flexShrink: 0, width: "2.25rem", height: "2.25rem", borderRadius: "50%",
+                      display: "grid", placeItems: "center", fontWeight: 700, fontSize: "0.875rem",
+                      bgcolor: isHostRow ? "primary.main" : "action.hover",
+                      color: isHostRow ? "primary.contrastText" : "text.primary",
+                    }}>
                       {(m.name || "?").slice(0, 1)}
-                    </span>
-                    <span className="game-member-info">
-                      <span className="game-member-name">
-                        {m.name}{m.user_id === you.user_id ? <span className="game-member-you"> (나)</span> : null}
-                      </span>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
+                        {m.name}{isMe ? <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, fontSize: "0.8125rem" }}> (나)</Box> : null}
+                      </Box>
                       {sub.length ? (
-                        <span className="game-member-sub">
-                          {m.title ? <span className="game-member-title">{m.title}</span> : null}
-                          {m.dept ? <span className="game-member-dept">{m.dept}</span> : null}
-                        </span>
+                        <Box component="span" sx={{
+                          display: "flex", gap: 1, fontSize: "0.75rem", color: "text.secondary",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {m.title ? <Box component="span" sx={{ color: "primary.main", fontWeight: 600 }}>{m.title}</Box> : null}
+                          {m.dept ? <Box component="span">{m.dept}</Box> : null}
+                        </Box>
                       ) : null}
-                    </span>
-                    <span className="game-member-tags">
+                    </Box>
+                    <Stack direction="row" gap={0.5} alignItems="center" sx={{ ml: "auto", flexShrink: 0 }}>
                       {isHostRow
                         ? <Badge value="방장" kind="info" />
                         : <Badge value={ROLE_LABELS[m.role] || m.role} kind="neutral" />}
@@ -782,40 +1059,67 @@ export function GameRoom() {
                           ? <Badge value="제출" kind="ok" />
                           : <Badge value="대기" kind="warn" />)
                         : (m.role === "player" && m.ready ? <Badge value="준비" kind="ok" /> : null)}
-                    </span>
-                  </li>
+                    </Stack>
+                  </Box>
                 );
               })}
-            </ul>
-          </div>
+            </Box>
+          </Paper>
 
-          <div className="game-panel game-chat">
-            <div className="game-side-title">채팅</div>
-            <div className="game-chat-log" ref={chatLogRef}>
+          <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>채팅</Typography>
+            <Box ref={chatLogRef} sx={{
+              display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", px: 0.5, py: 1, mb: 1.25,
+              height: { xs: "45vh", md: "auto" }, minHeight: { xs: "16rem", md: 0 },
+              maxHeight: { xs: "45rem", md: "none" }, flex: { md: "1 1 auto" },
+            }}>
               {chatMsgs.length === 0 ? (
-                <div className="game-chat-empty">아직 메시지가 없습니다. 먼저 인사해 보세요.</div>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
+                  아직 메시지가 없습니다. 먼저 인사해 보세요.
+                </Typography>
               ) : chatMsgs.map((e) => {
                 const mine = e.actor_user_id === you.user_id;
                 return (
-                  <div key={e.seq} className={"game-chat-msg" + (mine ? " is-mine" : "")}>
-                    {!mine ? <span className="game-chat-who">{e.payload.name}</span> : null}
-                    <span className="game-chat-row">
-                      <span className="game-chat-bubble">{e.payload.text}</span>
-                      <span className="game-chat-time">{fmtTime(e.created_at)}</span>
-                    </span>
-                  </div>
+                  <Box key={e.seq} sx={{
+                    display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "85%",
+                    alignSelf: mine ? "flex-end" : "flex-start", alignItems: mine ? "flex-end" : "flex-start",
+                  }}>
+                    {!mine ? (
+                      <Box component="span" sx={{ fontSize: "0.75rem", color: "text.secondary", fontWeight: 600, px: 0.5 }}>
+                        {e.payload.name}
+                      </Box>
+                    ) : null}
+                    <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, flexDirection: mine ? "row-reverse" : "row" }}>
+                      <Box component="span" sx={{
+                        px: 1.5, py: 1, borderRadius: 3.5, fontSize: "0.875rem", lineHeight: 1.45,
+                        wordBreak: "break-word",
+                        border: 1, borderColor: mine ? "transparent" : "divider",
+                        bgcolor: mine ? "primary.main" : "action.hover",
+                        color: mine ? "primary.contrastText" : "text.primary",
+                      }}>{e.payload.text}</Box>
+                      <Box component="span" sx={{ flexShrink: 0, fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                        {fmtTime(e.created_at)}
+                      </Box>
+                    </Box>
+                  </Box>
                 );
               })}
-            </div>
-            <div className="game-chat-input">
-              <input className="k-input" maxLength={500} value={draft} placeholder="메시지 입력"
+            </Box>
+            <Stack direction="row" gap={1}>
+              <TextField
+                size="small" fullWidth value={draft} placeholder="메시지 입력"
+                inputProps={{ maxLength: 500, "aria-label": "메시지 입력" }}
                 onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); sendChat(); } }} />
-              <Button variant="primary" onClick={sendChat} disabled={chat.isPending}>보내기</Button>
-            </div>
-          </div>
-        </aside>
-      </div>
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); sendChat(); } }}
+              />
+              {/* 입력창이 fullWidth라 버튼이 눌려 '보내기'가 두 줄('보내'/'기')로 깨졌다 —
+                  좁은 레일에서는 버튼이 먼저 양보하지 않게 못 박는다. */}
+              <Button variant="primary" onClick={sendChat} disabled={chat.isPending}
+                sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>보내기</Button>
+            </Stack>
+          </Paper>
+        </Box>
+      </Box>
     </div>
   );
 }

@@ -132,7 +132,9 @@ describe("페이지네이션", () => {
 
     await user.click(screen.getByRole("button", { name: "다음" }));
     // 새 페이지가 오기 전에도 이전 결과가 남아 있어야 한다(placeholderData).
-    expect(screen.getByText(/동작-/)).toBeInTheDocument();
+    // getAllByText로 센다 — 전환 순간에는 옛 행과 새 행이 잠깐 함께 있을 수 있고,
+    // getByText는 그때 '여러 개 찾음'으로 던져서 테스트가 간헐적으로 실패했다.
+    expect(screen.getAllByText(/동작-/).length).toBeGreaterThan(0);
     await screen.findByText("동작-2");
     expect(apiMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
 
