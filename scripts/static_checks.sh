@@ -122,6 +122,16 @@ step "Mascot frames/layers are reference-only"
 COMPOSITE="$(grep -rnE "['\"\`][^'\"\`]*brand/mascot/(frames|layers)" frontend/src app/templates_html 2>/dev/null || true)"
 if [ -z "$COMPOSITE" ]; then ok "mascot frames/layers not referenced at runtime"; else echo "$COMPOSITE"; fail "runtime reference to mascot frames/layers"; fi
 
+step "Tracked files do not import untracked modules"
+# 실제로 한 번 터진 결함이다. 백엔드 작업의 일부만 커밋되면서 추적되는 파일이
+# 미추적 모듈을 import 하는 상태가 HEAD에 올라갔다 — 워킹트리에서는 전부 통과하고
+# fresh clone 에서만 죽는다. 즉 배포 서버에서 처음 발견된다.
+if TRACKED="$("$PY" scripts/check_tracked_imports.py 2>&1)"; then
+  ok "$(echo "$TRACKED" | tail -1)"
+else
+  echo "$TRACKED"; fail "커밋 누락 — 추적 파일이 미추적 모듈을 import 한다"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then echo "STATIC_CHECKS_OK"; else echo "STATIC_CHECKS_FAILED"; fi
 exit $FAIL
