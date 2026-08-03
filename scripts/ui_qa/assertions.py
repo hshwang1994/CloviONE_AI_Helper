@@ -217,12 +217,21 @@ PROBE_JS = r"""
       const lineHeight = parseFloat(cs.lineHeight) || fontSize * 1.2;
       let charsPerLine = null;
       let lines = 0;
-      if (ownText.length >= 6) {
+      // 요소 전체 텍스트로 센다 — Range는 자식까지 덮으므로 직접 텍스트만 세면 분모가 틀린다.
+      const fullText = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (fullText.length >= 6) {
         try {
           const range = document.createRange();
           range.selectNodeContents(el);
-          lines = range.getClientRects().length;
-          if (lines > 1) charsPerLine = ownText.length / lines;
+          // getClientRects()는 '줄'이 아니라 '텍스트 조각'마다 사각형을 준다. 한 줄에 인라인
+          // 자식이 셋이면 사각형도 셋이라, 그대로 세면 멀쩡한 줄을 3줄로 오해한다(실제로
+          // 폭 1000px짜리 항목이 3줄로 잡혔다). 같은 줄은 상단 좌표가 같으므로 그걸로 묶는다.
+          const tops = new Set();
+          for (const r of range.getClientRects()) {
+            if (r.width > 0.5 && r.height > 0.5) tops.add(Math.round(r.top));
+          }
+          lines = tops.size;
+          if (lines > 1) charsPerLine = fullText.length / lines;
         } catch (e) { /* 측정 불가면 아래 폭 기준으로만 판단한다 */ }
       }
       const narrowBox = rect.width > 0 && rect.width < ch * 2 && rect.height >= lineHeight * 2;
