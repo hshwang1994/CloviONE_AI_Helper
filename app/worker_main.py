@@ -208,6 +208,27 @@ def main() -> int:
 
     worker.tick_callbacks.append(docs_sync_tick)
 
+    # 티켓 캐시 주기 동기화 (PLAN §A) — notion_tickets_sync_interval_seconds 간격.
+    # 문서 동기화와 완전히 같은 모양이다: 첫 tick 즉시 실행 → 워커 기동 직후 티켓 목록이 채워지고,
+    # Notion 장애/미설정이면 sync 상태에만 기록되고 캐시(마지막 정상 동기화)는 유지된다.
+    # sync_tickets 가 내부에서 예외를 가두므로 이 tick 은 워커 루프 밖으로 아무것도 던지지 않는다.
+    from app.tickets.sync import sync_tickets
+
+    _last_tickets_sync: list = [None]
+    TICKETS_SYNC_INTERVAL_SECONDS = float(settings.notion_tickets_sync_interval_seconds)
+
+    def tickets_sync_tick(now):
+        if _last_tickets_sync[0] is None or (now - _last_tickets_sync[0]).total_seconds() >= TICKETS_SYNC_INTERVAL_SECONDS:
+            _last_tickets_sync[0] = now
+            try:
+                with session_factory() as db:
+                    sync_tickets(db, outbound=outbound, settings=settings, now=now)
+                    db.commit()
+            except Exception:
+                logger.exception("tickets sync tick failed")
+
+    worker.tick_callbacks.append(tickets_sync_tick)
+
     stop_event = threading.Event()
 
     def _shutdown(signum, _frame):

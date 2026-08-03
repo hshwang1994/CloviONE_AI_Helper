@@ -264,12 +264,12 @@ export function TeamDocs() {
         </button>
       ),
     },
-    { key: "document_type", label: "문서 종류", render: (d) => (d.document_type ? <Badge value={d.document_type} kind={docTypeKind(d.document_type)} /> : "-") },
-    { key: "work_field", label: "업무 분야", render: (d) => d.work_field || "-" },
-    { key: "tech_tags", label: "기술 태그", render: (d) => (d.tech_tags || []).join(", ") || "-" },
-    { key: "projects", label: "프로젝트", render: (d) => (d.projects || []).join(", ") || "-" },
-    { key: "author", label: "작성자", render: (d) => (d.author_names || []).join(", ") || d.owner || "-" },
-    { key: "last_edited", label: "수정", align: "right", render: (d) => (d.last_edited ? fmtDateTime(d.last_edited) : "-") },
+    { key: "document_type", label: "문서 종류", width: "12%", render: (d) => (d.document_type ? <Badge value={d.document_type} kind={docTypeKind(d.document_type)} /> : "-") },
+    { key: "work_field", label: "업무 분야", width: "13%", render: (d) => d.work_field || "-" },
+    { key: "tech_tags", label: "기술 태그", width: "13%", render: (d) => (d.tech_tags || []).join(", ") || "-" },
+    { key: "projects", label: "프로젝트", width: "10%", render: (d) => (d.projects || []).join(", ") || "-" },
+    { key: "author", label: "작성자", width: "13%", render: (d) => (d.author_names || []).join(", ") || d.owner || "-" },
+    { key: "last_edited", label: "수정", align: "right", width: "15%", render: (d) => (d.last_edited ? fmtDateTime(d.last_edited) : "-") },
   ];
 
   const Selector = ({ label, value, onChange, values }) => (
@@ -343,6 +343,7 @@ export function TeamDocs() {
           <div className="docs-table">
             <DataTable
               columns={[selectionColumn(sel, list.data.items.map((d) => d.id)), ...columns]}
+              fixed ellipsis
               rows={list.data.items}
               rowKey={(d) => d.id}
             />

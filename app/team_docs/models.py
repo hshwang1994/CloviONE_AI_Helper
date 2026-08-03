@@ -12,29 +12,23 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import (  # noqa: F401 — NAMES_SEP/join_names/split_names 재수출
+    NAMES_SEP,
+    Base,
+    UUIDPrimaryKeyMixin,
+    join_names,
+    split_names,
+    utcnow,
+)
 
 SYNC_IDLE = "idle"
 SYNC_RUNNING = "running"
 SYNC_OK = "ok"
 SYNC_ERROR = "error"
 
-# 다중값 relation 이름들을 한 컬럼에 담는 구분자. Unit Separator(0x1f)는 Notion 제목에
-# 사실상 안 나타나므로 (1) 이름에 콤마가 들어가도 안전하고 (2) 필터를 '정확한 토큰'으로
-# 매칭할 수 있다(콤마 substring 매칭의 오탐 '보고'⊂'보고서' 방지). 저장은 양끝에도 구분자를
-# 붙여(sentinel-wrapped) contains 매칭이 토큰 경계를 정확히 잡게 한다.
-NAMES_SEP = "\x1f"
-
-
-def join_names(names) -> str:
-    vals = [n.strip() for n in (names or []) if n and str(n).strip()]
-    if not vals:
-        return ""
-    return NAMES_SEP + NAMES_SEP.join(vals) + NAMES_SEP
-
-
-def split_names(joined: str) -> list[str]:
-    return [p for p in (joined or "").split(NAMES_SEP) if p.strip()]
+# 다중값 relation 이름들을 한 컬럼에 담는 구분자(sentinel-wrapped Unit Separator)와 그 헬퍼는
+# ticket_cache 도 똑같이 써야 해서 정의를 app/core/models_base.py 로 올렸다. 여기서는 그대로
+# 재수출한다 — 기존 import 경로(app.team_docs.models.join_names 등)는 하나도 바뀌지 않는다.
 
 # DocumentSyncState 는 단일 행이다 — 이 고정 id로 upsert 한다.
 SYNC_STATE_ID = "documents"

@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     notion_api_version: str = "2022-06-28"
     notion_tasks_database_id: str = "262c5c5a568481fa9697ee5691cb558d"
     notion_report_token_ref: str = "notion_report_token"
+    # 티켓 로컬 미러 동기화 주기(PLAN §A). 문서(600s)보다 자주 도는 이유는 티켓이 회의 중에도
+    # 바뀌기 때문이다. 생성/편집은 캐시를 즉시 패치하므로 이 주기는 '다른 사람이 노션에서 직접
+    # 고친 것'이 반영되는 지연일 뿐이다.
+    notion_tickets_sync_interval_seconds: int = 180
 
     # 팀 공간 > 문서(§17): Notion "문서" 데이터베이스를 읽어 로컬 캐시로 미러링한다(장애 격리:
     # Notion이 죽어도 마지막 정상 동기화 데이터로 목록을 보여준다). 토큰은 secrets_dir 파일

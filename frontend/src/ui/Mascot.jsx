@@ -216,10 +216,10 @@ export function MascotSidebarCard({ onClick }) {
     >
       <MascotPose mode="listening" size={50} />
       <Box minWidth={0}>
-        <Typography color="common.white" fontSize="0.75rem" fontWeight={800}>
+        <Typography color="common.white" fontSize="0.8125rem" fontWeight={800}>
           클로비에게 물어보기
         </Typography>
-        <Typography color="rgba(237,240,255,.64)" fontSize="0.625rem" lineHeight={1.35}>
+        <Typography color="rgba(237,240,255,.7)" fontSize="0.75rem" lineHeight={1.35}>
           현재 화면을 기준으로 도와드려요
         </Typography>
       </Box>

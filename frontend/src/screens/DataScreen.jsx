@@ -4,6 +4,12 @@ import { useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
+import Box from "@mui/material/Box";
+import InputAdornment from "@mui/material/InputAdornment";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
@@ -385,13 +391,14 @@ export function DataScreen({ config }) {
   // 페이저는 목록 카드와, clientFilter로 현재 페이지가 통째로 걸러진 빈 상태 두 곳에서 함께 쓴다
   // (paginated+clientFilter 화면에서 현재 페이지가 필터로 비어도 다른 페이지로 넘어갈 수 있게).
   const pager = config.paginated ? (
-    <nav className="c-pager" aria-label="페이지 이동">
+    <Box component="nav" aria-label="페이지 이동"
+      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }}>
       <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
-      <span className="c-pager-info" aria-live="polite">
+      <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
         {totalPages != null ? `${page} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${page}페이지`}
-      </span>
+      </Typography>
       <Button size="sm" disabled={totalPages != null ? page >= totalPages : items.length < pageSize} onClick={() => setPage((p) => p + 1)}>다음</Button>
-    </nav>
+    </Box>
   ) : null;
 
   return (
@@ -418,9 +425,9 @@ export function DataScreen({ config }) {
       ) : null}
       {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
       {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (
-        <div className="dash-grid">
+        <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))", xxl: "repeat(5, minmax(0,1fr))", uhd: "repeat(6, minmax(0,1fr))" } }}>
           <StatCard value={query.data[config.unreadCountKey]} label="안 읽음" kind={query.data[config.unreadCountKey] > 0 ? "warn" : undefined} />
-        </div>
+        </Box>
       ) : null}
       {config.summary ? (
         summaryQuery.isLoading ? (
@@ -439,56 +446,81 @@ export function DataScreen({ config }) {
             <Callout tone="warn">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )
         ) : summaryQuery.data ? (
-          <div className="dash-grid">
+          <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))", xxl: "repeat(5, minmax(0,1fr))", uhd: "repeat(6, minmax(0,1fr))" } }}>
             {config.summary.cards(summaryQuery.data, { setFilter }).map((c, i) => <StatCard key={i} value={c.value} label={c.label} kind={c.kind} onClick={c.onClick} />)}
-          </div>
+          </Box>
         ) : null
       ) : null}
       {showToolbar ? (
-      <Card className="c-toolbar-card c-toolbar-row">
-        {showSearch ? (
-        <input className="c-search" type="search" placeholder={config.searchPlaceholder || "검색"} value={qInput}
-          onChange={(e) => setQInput(e.target.value)} aria-label={config.searchPlaceholder || (config.title + " 검색")} />
-        ) : null}
-        {(config.filters || []).map((f) => f.type === "select" ? (
-          <select key={f.key} className="c-filter" value={filters[f.key] || ""} onChange={(e) => setFilter(f.key, e.target.value)} aria-label={f.label}>
-            <option value="">{f.label}: 전체</option>
-            {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        ) : f.type === "date" ? (
-          // 브라우저는 <input type="date">의 placeholder를 무시하므로 눈에 보이는 라벨을 함께 렌더한다
-          // (시작일/종료일을 시각적으로 구분, 인접한 두 날짜 상자 문제 해결).
-          <label key={f.key} className="c-filter-date">
-            <span className="c-filter-date-label">{f.label}</span>
-            <input className="c-filter" type="date"
-              value={filters[f.key] || ""} onChange={(e) => setFilter(f.key, e.target.value)} aria-label={f.label} />
-          </label>
-        ) : f.type === "datetime-local" ? (
-          // date와 동일한 이유로 라벨을 함께 렌더한다, 시:분까지 지정 가능한(감사 로그 등) 필터.
-          <label key={f.key} className="c-filter-date">
-            <span className="c-filter-date-label">{f.label}</span>
-            <input className="c-filter" type="datetime-local"
-              value={filters[f.key] || ""} onChange={(e) => setFilter(f.key, e.target.value)} aria-label={f.label} />
-          </label>
-        ) : f.datalistFrom ? (
-          // f.datalistFrom(items), 이미 불러온(현재 페이지) 목록에서 뽑은 값으로 자동완성 제안을
-          // 준다(예: 정책 이름 정확 일치 필터, 이름을 미리 알아야만 쓸 수 있던 자유 입력을
-          // 입력하면서 실제 값을 보여주는 제안으로 완화한다). datalist는 입력을 강제하지 않는다.
-          <React.Fragment key={f.key}>
-            <input className="c-filter" type="text" list={"dl-" + f.key} placeholder={f.label}
-              value={filters[f.key] || ""} onChange={(e) => setFilter(f.key, e.target.value)} aria-label={f.label} />
-            <datalist id={"dl-" + f.key}>
-              {Array.from(new Set(f.datalistFrom(items).filter((v) => v != null && v !== ""))).map((v) => <option key={v} value={v} />)}
-            </datalist>
-          </React.Fragment>
-        ) : (
-          <input key={f.key} className="c-filter" type="text" placeholder={f.label}
-            value={filters[f.key] || ""} onChange={(e) => setFilter(f.key, e.target.value)} aria-label={f.label} />
-        ))}
-        {/* 검색/필터가 여러 개(예: 감사 로그) 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다, 예전엔
-         * 이 초기화가 EmptyState(결과 0건)에만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다. */}
-        {(q || hasFilter) ? <Button size="sm" onClick={() => { setQInput(""); setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button> : null}
-      </Card>
+        /* 필터 바 — 감사 로그처럼 필터가 6개 넘게 붙는 화면이 있어서 한 줄에 밀어 넣지 않고
+         * 자동 줄바꿈 그리드로 둔다. 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */
+        <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
+          <Box sx={{
+            display: "grid", gap: 1.5, alignItems: "center",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(auto-fit, minmax(11rem, 1fr))",
+              xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
+            },
+          }}>
+            {showSearch ? (
+              <TextField
+                type="search"
+                size="small"
+                value={qInput}
+                onChange={(e) => setQInput(e.target.value)}
+                placeholder={config.searchPlaceholder || "검색"}
+                inputProps={{ "aria-label": config.searchPlaceholder || (config.title + " 검색") }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
+                sx={{ gridColumn: { sm: "span 2" } }}
+              />
+            ) : null}
+            {(config.filters || []).map((f) => f.type === "select" ? (
+              <TextField
+                key={f.key} select size="small" label={f.label}
+                value={filters[f.key] || ""}
+                onChange={(e) => setFilter(f.key, e.target.value)}
+              >
+                <MenuItem value="">{f.label}: 전체</MenuItem>
+                {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+              </TextField>
+            ) : (f.type === "date" || f.type === "datetime-local") ? (
+              // 브라우저는 date/datetime 입력의 placeholder를 무시한다 — 라벨을 항상 띄워 둬야
+              // 나란히 놓인 시작/종료 두 상자를 구분할 수 있다.
+              <TextField
+                key={f.key} type={f.type} size="small" label={f.label}
+                InputLabelProps={{ shrink: true }}
+                value={filters[f.key] || ""}
+                onChange={(e) => setFilter(f.key, e.target.value)}
+              />
+            ) : f.datalistFrom ? (
+              // 이미 불러온 목록에서 뽑은 값으로 자동완성 제안을 준다 — 이름을 미리 알아야만 쓸 수
+              // 있던 자유 입력 필터를 완화한다. 제안일 뿐 입력을 강제하지 않는다.
+              <React.Fragment key={f.key}>
+                <TextField
+                  size="small" label={f.label}
+                  value={filters[f.key] || ""}
+                  onChange={(e) => setFilter(f.key, e.target.value)}
+                  inputProps={{ list: "dl-" + f.key }}
+                />
+                <datalist id={"dl-" + f.key}>
+                  {Array.from(new Set(f.datalistFrom(items).filter((v) => v != null && v !== ""))).map((v) => <option key={v} value={v} />)}
+                </datalist>
+              </React.Fragment>
+            ) : (
+              <TextField
+                key={f.key} size="small" label={f.label}
+                value={filters[f.key] || ""}
+                onChange={(e) => setFilter(f.key, e.target.value)}
+              />
+            ))}
+            {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
+             * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다. */}
+            {(q || hasFilter) ? (
+              <Button size="sm" onClick={() => { setQInput(""); setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
+            ) : null}
+          </Box>
+        </Card>
       ) : null}
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
@@ -532,12 +564,26 @@ export function DataScreen({ config }) {
           {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
           {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
         </> : null}>
-        {sel ? mergeDetailFields(config).map((c, i) => (
-          <div className="c-kv" key={c.key || "d" + i}>
-            <span className="c-kv-k">{c.label}</span>
-            <span className="c-kv-v">{c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}</span>
-          </div>
-        )) : null}
+        {/* 상세는 라벨/값 쌍이 20개 넘는 화면(러너·워크플로)이 있다. 좁은 화면은 한 열, 넓은
+            화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
+            통째로 비고 눈은 위아래로만 움직인다. */}
+        {sel ? (
+          <Box sx={{
+            display: "grid", columnGap: 4, rowGap: 0,
+            gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
+          }}>
+            {mergeDetailFields(config).map((c, i) => (
+              <Box key={c.key || "d" + i} className="c-kv"
+                sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
+                      py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
+                <Typography variant="body2" color="text.secondary">{c.label}</Typography>
+                <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                  {c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        ) : null}
       </Drawer>
 
       {config.create ? (

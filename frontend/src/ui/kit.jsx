@@ -9,6 +9,13 @@ import MuiDialogContent from "@mui/material/DialogContent";
 import MuiDialogTitle from "@mui/material/DialogTitle";
 import MuiSkeleton from "@mui/material/Skeleton";
 import MuiSnackbar from "@mui/material/Snackbar";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -30,9 +37,10 @@ import { ART, SPOT } from "../lib/assets.js";
  * 한 줄도 건드리지 않고 보이는 표면의 대부분이 새 디자인으로 바뀐다. 기존 vitest도 역할/텍스트로
  * 조회하므로 그대로 통과한다.
  *
- * 예외가 하나 있다: DataTable은 legacy 클래스(k-table)를 유지한다. screens.css가 화면별로
- * 열 너비를 .k-table th:nth-child(n)으로 고정하고(문서 표), 좁은 화면 카드 전환도 그 CSS가
- * 담당하기 때문이다. 표는 DataScreen 재설계(A3)에서 CSS까지 같이 옮긴다.
+ * 표(DataTable)도 MUI로 옮겼다. 예전에는 화면별 열 너비를 screens.css가
+ * `.docs-table .k-table th:nth-child(n)`으로 잡았는데, 열 순서가 바뀔 때마다 조용히 어긋났다
+ * (체크박스 열이 생기면서 실제로 한 칸씩 밀려 제목 폭을 먹은 적이 있다). 이제 폭은 열 정의에
+ * `width`로 함께 적는다 — 열을 옮기면 폭도 같이 따라간다.
  *
  * MUI import는 전부 별칭(MuiXxx)이다 — 이 파일이 같은 이름(Badge/Button/Card/Modal…)을
  * 밖으로 내보내기 때문에 충돌한다.
@@ -359,39 +367,112 @@ function rowOpenLabel(columns, row) {
   if (v == null || v === "") return "상세 보기";
   return "상세 보기: " + String(v);
 }
-export function DataTable({ columns, rows, rowKey, onRow, empty }) {
+const TABLE_CARD_BREAKPOINT = "(max-width:760px)";
+
+function cellValue(c, row) {
+  if (c.render) return c.render(row);
+  const v = row[c.key];
+  return v == null || v === "" ? "-" : String(v);
+}
+
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
+  // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const baseCols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
-  const cols = onRow ? [...baseCols, { key: "__open", label: "", align: "right", open: true }] : baseCols;
+  const cols = onRow ? [...baseCols, { key: "__open", label: "", align: "right", open: true, width: "6rem" }] : baseCols;
+  const narrow = useMediaQuery(TABLE_CARD_BREAKPOINT);
+
+  const openButton = (row) => (
+    <MuiButton
+      size="small"
+      variant="outlined"
+      aria-label={rowOpenLabel(baseCols, row)}
+      onClick={(e) => { e.stopPropagation(); onRow(row); }}
+    >
+      상세
+    </MuiButton>
+  );
+
+  if (safeRows.length === 0) {
+    return (
+      <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>
+        {empty || "표시할 항목이 없습니다."}
+      </Typography>
+    );
+  }
+
+  /* 좁은 화면에서는 표를 카드 목록으로 바꾼다. 가로 스크롤되는 표는 손가락으로 훑기 어렵고,
+   * 열 이름이 화면 밖으로 나가면 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다. */
+  if (narrow) {
+    return (
+      <Stack gap={1.5}>
+        {safeRows.map((row, i) => (
+          <Paper
+            key={keyOf(row, i)}
+            variant="outlined"
+            onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+            sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
+          >
+            {cols.map((c) => c.open ? (
+              <Box key={c.key} sx={{ pt: 1 }}>{openButton(row)}</Box>
+            ) : (
+              <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
+                <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{cellValue(c, row)}</Box>
+              </Box>
+            ))}
+          </Paper>
+        ))}
+      </Stack>
+    );
+  }
+
   return (
-    <div className="k-table-wrap">
-      <table className="k-table">
-        <thead>
-          {/* 상세 열기 칸은 label이 빈 문자열이라 스크린리더가 헤더 이름 없이 침묵으로 읽었다. */}
-          <tr>{cols.map((c) => <th key={c.key} scope="col" className={[c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ")}>{c.open ? <span className="sr-only">동작</span> : c.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {safeRows.length === 0 ? (
-            <tr><td className="k-table-empty" colSpan={cols.length}>{empty || "표시할 항목이 없습니다."}</td></tr>
-          ) : safeRows.map((row, i) => (
-            // 셀 안의 링크/버튼 클릭은 행 클릭(상세 열기)으로 번지지 않게 한다.
-            <tr key={keyOf(row, i)} className={onRow ? "is-click" : ""}
-              onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}>
+    <TableContainer>
+      <Table size="small" sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
+        <TableHead>
+          <TableRow>
+            {cols.map((c) => (
+              <TableCell
+                key={c.key}
+                scope="col"
+                align={c.align || "left"}
+                sx={{ width: c.width, whiteSpace: "nowrap" }}
+              >
+                {/* 상세 열기 칸은 라벨이 비어 있어 스크린리더가 이름 없이 침묵으로 읽었다. */}
+                {c.open ? <span className="sr-only">동작</span> : c.label}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {safeRows.map((row, i) => (
+            /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
+               문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작. */
+            <TableRow
+              key={keyOf(row, i)}
+              hover={!!onRow}
+              onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+              sx={{ cursor: onRow ? "pointer" : "default" }}
+            >
               {cols.map((c) => (
-                <td key={c.key} data-label={c.label} className={[c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ")}>
-                  {c.open
-                    ? <button type="button" className="k-row-open" aria-label={rowOpenLabel(baseCols, row)}
-                        onClick={(e) => { e.stopPropagation(); onRow(row); }}>상세</button>
-                    : (c.render ? c.render(row) : (row[c.key] == null || row[c.key] === "" ? "-" : String(row[c.key])))}
-                </td>
+                <TableCell
+                  key={c.key}
+                  align={c.align || "left"}
+                  sx={ellipsis && !c.open
+                    ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
+                    : { overflowWrap: "anywhere" }}
+                >
+                  {c.open ? openButton(row) : cellValue(c, row)}
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 

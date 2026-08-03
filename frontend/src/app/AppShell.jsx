@@ -160,7 +160,7 @@ export function AppShell({
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>ClovirONE</Typography>
-          <Typography sx={{ fontSize: "0.625rem", color: "rgba(237,240,255,.6)" }}>Smart Workspace Assistant</Typography>
+          <Typography sx={{ fontSize: "0.75rem", color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
           <IconButton onClick={onCloseNav} aria-label="메뉴 닫기" sx={{ ml: "auto", color: "inherit" }}>

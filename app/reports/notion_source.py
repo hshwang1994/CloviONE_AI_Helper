@@ -103,10 +103,30 @@ def _parse_row(row: dict) -> dict:
     }
 
 
-def _query_tasks(outbound, settings, *, filter_obj=None, sorts=None) -> list[dict]:
-    """작업 DB를 filter/sorts 로 조회해 파싱된 dict 목록을 돌려준다.
+def _parse_row_with_times(row: dict) -> dict:
+    """_parse_row + Notion 원본 타임스탬프. 미러 동기화 전용이다.
 
-    페이지네이션(최대 _MAX_PAGES)·토큰 미설정/오류 매핑을 한곳에서 처리한다. 토큰이 없으면
+    _parse_row 자체에 넣지 않는 이유: 목록 응답(_enrich)이 파싱 결과를 그대로 펼쳐 내보내므로
+    키를 하나 더하면 프런트 계약(골든)이 움직인다. 캐시에만 필요한 값은 여기서 더한다.
+    """
+    return {
+        **_parse_row(row),
+        "created_time": row.get("created_time"),
+        "last_edited": row.get("last_edited_time"),
+    }
+
+
+def _query_tasks_paged(
+    outbound, settings, *, filter_obj=None, sorts=None, parse=_parse_row
+) -> tuple[list[dict], bool]:
+    """작업 DB를 filter/sorts 로 조회해 (파싱된 dict 목록, truncated) 를 돌려준다.
+
+    truncated=True 는 상한(_MAX_PAGES = 2000건)에 걸려 '더 있는데 못 받아온' 상태다. 이 신호
+    없이 미러 동기화를 돌리면 2000건만 받아 놓고 나머지를 'Notion에서 삭제됨'으로 오인해
+    캐시에서 지워 버린다(= 티켓이 앱 전체에서 사라진다). 문서 쪽
+    notion_docs.query_all_documents 와 같은 규약이며, 호출측은 truncated 면 prune 을 건너뛴다.
+
+    페이지네이션·토큰 미설정/오류 매핑을 한곳에서 처리한다. 토큰이 없으면
     NotionNotConfiguredError, Notion 오류면 NotionQueryError.
     """
     url = f"{settings.notion_api_base.rstrip('/')}/v1/databases/{settings.notion_tasks_database_id}/query"
@@ -152,12 +172,28 @@ def _query_tasks(outbound, settings, *, filter_obj=None, sorts=None) -> list[dic
         data = resp.json()
         for row in data.get("results", []):
             if isinstance(row, dict):
-                rows.append(_parse_row(row))
+                rows.append(parse(row))
         if not data.get("has_more"):
             break
         cursor = data.get("next_cursor")
         if not cursor:
             break
+    else:
+        # for 루프가 break 없이 _MAX_PAGES를 소진 = 마지막 페이지에도 has_more가 남아 있었다.
+        return rows, True
+    return rows, False
+
+
+def _query_tasks(outbound, settings, *, filter_obj=None, sorts=None) -> list[dict]:
+    """_query_tasks_paged 의 행 목록만 쓰는 얇은 래퍼.
+
+    기존 query_* 함수들의 시그니처(리스트 반환)를 그대로 유지하려고 남긴다 — 프런트가 의존하는
+    응답 계약(골든)이 이 경로로 나오므로 모양을 바꾸지 않는다. truncated 가 필요한 곳(미러
+    동기화)만 _query_tasks_paged 를 직접 쓴다.
+    """
+    rows, _truncated = _query_tasks_paged(
+        outbound, settings, filter_obj=filter_obj, sorts=sorts
+    )
     return rows
 
 
@@ -192,6 +228,15 @@ def query_tasks_by_assignee(outbound, settings, *, notion_user_id: str) -> list[
 def query_all_tasks(outbound, settings) -> list[dict]:
     """작업 DB의 모든 티켓(마감 오름차순). 팀 티켓 보기 화면용 — 상태 필터는 호출측 책임."""
     return _query_tasks(outbound, settings, sorts=_DUE_ASC)
+
+
+def query_all_tasks_paged(outbound, settings) -> tuple[list[dict], bool]:
+    """query_all_tasks 와 같은 조회에 truncated 신호를 함께 돌려준다(미러 동기화 전용).
+
+    동기화는 '못 받아온 것'과 '삭제된 것'을 구분해야 한다 — 구분 못 하면 상한을 넘긴 순간
+    캐시를 통째로 비운다. 목록 API는 계속 query_all_tasks 를 쓴다(응답 계약 불변).
+    """
+    return _query_tasks_paged(outbound, settings, sorts=_DUE_ASC, parse=_parse_row_with_times)
 
 
 def query_unassigned_tasks(outbound, settings) -> list[dict]:
