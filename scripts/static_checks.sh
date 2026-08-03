@@ -122,6 +122,17 @@ step "Mascot frames/layers are reference-only"
 COMPOSITE="$(grep -rnE "['\"\`][^'\"\`]*brand/mascot/(frames|layers)" frontend/src app/templates_html 2>/dev/null || true)"
 if [ -z "$COMPOSITE" ]; then ok "mascot frames/layers not referenced at runtime"; else echo "$COMPOSITE"; fail "runtime reference to mascot frames/layers"; fi
 
+step "No undefined CSS variables without a fallback"
+# 실제로 로그인 화면에서 터졌다. 정의되지 않은 var()를 fallback 없이 쓰면 그 선언 하나가
+# 아니라 **선언 전체가 무효**가 된다(invalid at computed-value time). eye-error 키프레임이
+# 이것 때문에 transform 을 통째로 잃어 오류 상태에서 눈이 튀었다. 빌드·린트·테스트 전부
+# 못 잡고, 자주 안 나오는 상태면 배포 후에도 한참 모른다.
+if CSSVARS="$("$PY" scripts/check_css_vars.py 2>&1)"; then
+  ok "$(echo "$CSSVARS" | tail -1)"
+else
+  echo "$CSSVARS"; fail "정의되지 않은 CSS 변수를 fallback 없이 참조한다"
+fi
+
 step "Tracked files do not import untracked modules"
 # 실제로 한 번 터진 결함이다. 백엔드 작업의 일부만 커밋되면서 추적되는 파일이
 # 미추적 모듈을 import 하는 상태가 HEAD에 올라갔다 — 워킹트리에서는 전부 통과하고
