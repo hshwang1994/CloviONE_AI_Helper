@@ -171,9 +171,19 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         # §32.8 스타일 멱등성: the POST carries no idempotency key of its own, so if
         # n8n completes a WRITE (e.g. creates a ticket) but the HTTP response is lost
         # and the job requeues, the retry re-POSTs and n8n performs the write twice.
-        # message_id is stable across every retry of the same message (same payload),
-        # so n8n can dedupe on it. Mirrors document_generate's idempotency_key.
-        "idempotency_key": f"chatmsg:{payload['message_id']}",
+        #
+        # 값의 출처를 message_id 에서 **job 행의 키**로 바꿨다. message_id 로 만들면
+        # 워커 재시도와 '사용자가 실패를 보고 일부러 다시 시도'가 **같은 값**이 되어
+        # n8n 이 둘을 구분할 수 없다. 엄격히 중복 제거하면 사용자의 재시도가 옛 답변을
+        # 되돌려주고, 안 하면 응답 유실 시 티켓이 두 장 생긴다 — 어느 쪽도 맞지 않는다.
+        #
+        # job.idempotency_key 는 그 둘을 이미 구분한다:
+        #   최초 전송      chatmsg:{message_id}
+        #   사용자 재시도  chatmsg:{message_id}:retry:{시각}  (chat/service.py 가 새 job 을 만든다)
+        # 그리고 **한 job 행 안에서는 값이 변하지 않으므로** 워커가 몇 번 재시도해도 같은
+        # 값이 나간다. 즉 n8n 은 "이 문자열로 중복 제거"만 하면 두 경우가 저절로 옳게
+        # 갈린다 — n8n 쪽에 판단 로직이 필요 없다. 자세한 내용은 docs/RUNNER_HANDOFF.md.
+        "idempotency_key": job.idempotency_key or f"chatmsg:{payload['message_id']}",
     }
     attachments = payload.get("attachments")
     if isinstance(attachments, list) and attachments:
