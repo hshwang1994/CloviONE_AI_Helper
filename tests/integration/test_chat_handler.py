@@ -189,7 +189,9 @@ def test_unsupported_response_shape_gets_default_text(
         ],
     }
     assert len(items) == 2, detail
-    assert items[1]["content"] == "요청이 처리되었습니다.", detail
+    # 알아볼 수 있는 답이 없는 응답은 '처리되었습니다'로 뭉개지 않는다 — 워크플로가 중간에
+    # 끊겨도 사용자가 성공한 줄 알던 문제를 고치면서 바뀐 계약이다(2026-08-03).
+    assert "답을 돌려주지 않았습니다" in items[1]["content"], detail
 
 
 def test_attachments_reach_n8n_then_get_stripped(client, chat_worker, fake_http, login_as, make_user, db):
