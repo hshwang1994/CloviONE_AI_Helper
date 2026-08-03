@@ -20,7 +20,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import (
+    Base,
+    OrgScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    utcnow,
+)
 
 # 카테고리는 고정 상수다(테이블 대신) — "카테고리는 페이지 내부 필터"(§18). '전체'는
 # 저장값이 아니라 목록 필터의 전체 보기이므로 여기 없다.
@@ -44,7 +50,7 @@ TARGET_COMMENT = "comment"
 REACTION_TARGETS: frozenset[str] = frozenset({TARGET_POST, TARGET_COMMENT})
 
 
-class Post(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Post(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "board_posts"
 
     author_user_id: Mapped[str] = mapped_column(

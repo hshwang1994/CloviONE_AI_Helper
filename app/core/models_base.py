@@ -57,11 +57,19 @@ class TimestampMixin:
 
 
 class OrgScopedMixin:
-    """조직 스코프 컬럼(§7.1.A). 지금은 **아무도 읽지 않는다** — 문만 열어 두는 컬럼이다.
+    """조직 스코프 컬럼(§7.1.A). 0024 부터 `app/core/scope.py` 가 실제로 읽는다.
 
     nullable 로 두는 이유: 단일 조직 상태에서 NOT NULL 승격은 기존 테이블 전부를 흔드는
-    변경인데 얻는 게 없다. 신규 테이블은 이 믹스인으로 컬럼을 갖고, 기존 테이블은 나중에
-    마이그레이션으로 같은 모양의 컬럼을 붙인 뒤 DEFAULT_ORG_ID 로 백필한다.
+    변경인데 얻는 게 없다. 기존 테이블은 0024 마이그레이션이 같은 모양의 컬럼을 붙이고
+    DEFAULT_ORG_ID 로 백필했다.
+
+    **`default=DEFAULT_ORG_ID` 가 이 믹스인에서 가장 중요한 한 줄이다.** 컬럼은 nullable
+    이지만 값을 비워 두면 두 가지가 조용히 깨진다:
+      * SQLite 는 UNIQUE 에서 NULL 을 서로 다른 값으로 본다 → `(org_id, name)` 복합
+        유니크가 아무것도 막지 않게 된다(부서가 소리 없이 둘로 갈라진다);
+      * SQL 의 `org_id = :org` 는 NULL 행을 고르지 못한다 → 스코프 필터에서 행이 통째로
+        사라진다.
+    마이그레이션이 백필만 하고 신규 행이 NULL 로 들어가면 다음 날부터 구멍이 다시 열린다.
 
     declared_attr 를 쓰는 이유: ForeignKey 객체는 여러 테이블이 공유할 수 없어 클래스마다
     새로 만들어야 한다(믹스인 컬럼 복사 규칙).
@@ -70,6 +78,15 @@ class OrgScopedMixin:
     @declared_attr
     @classmethod
     def org_id(cls) -> Mapped[str | None]:
+        # 지연 import: app.org.constants 는 app 안의 것을 하나도 import 하지 않으므로
+        # 순환은 없지만, 모델 기반 모듈이 feature 패키지를 모듈 최상단에서 끌어오는
+        # 모양은 피한다.
+        from app.org.constants import DEFAULT_ORG_ID
+
         return mapped_column(
-            String(36), ForeignKey("organizations.id"), nullable=True, index=True
+            String(36),
+            ForeignKey("organizations.id"),
+            nullable=True,
+            index=True,
+            default=DEFAULT_ORG_ID,
         )

@@ -7,7 +7,12 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.core.models_base import (
+    Base,
+    OrgScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+)
 from app.org.models import Department, JobTitle
 
 ROLE_USER = "user"
@@ -31,7 +36,18 @@ def roles_at_least(minimum: str) -> frozenset[str]:
     return frozenset(role for role, l in _ROLE_LEVELS.items() if l >= level)
 
 
-class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+# ── 관리 범위 어휘(0024) ──────────────────────────────────────────────────────
+# 역할(role)이 '무엇을 할 수 있는가'라면 범위(admin_scope)는 '누구에게 할 수 있는가'다.
+# 둘은 직교한다: 부서 관리자도 role='admin' 이지만 admin_scope='dept' 다.
+# 값 해석과 필터 조립은 app/core/scope.py 한 곳에만 있다.
+ADMIN_SCOPE_GLOBAL = "global"
+ADMIN_SCOPE_ORG = "org"
+ADMIN_SCOPE_DEPT = "dept"
+
+ALL_ADMIN_SCOPES = frozenset({ADMIN_SCOPE_GLOBAL, ADMIN_SCOPE_ORG, ADMIN_SCOPE_DEPT})
+
+
+class User(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
@@ -45,7 +61,28 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("job_titles.id", ondelete="SET NULL")
     )
-    department_ref: Mapped[Department | None] = relationship("Department", lazy="joined")
+    # ── 관리 범위(0024) ───────────────────────────────────────────────────────
+    # admin_scope 는 **관리자 역할일 때만** 의미가 있다: 이 계정이 관리 화면에서 볼 수 있는
+    # 범위가 전체(global)인지, 한 조직(org)인지, 한 부서 서브트리(dept)인지.
+    # 기본값이 'global' 인 이유는 0024 마이그레이션 docstring 에 적어 두었다 — 좁은 값을
+    # 기본으로 깔면 마이그레이션 하나로 운영 중인 관리자 화면이 조용히 빈 목록이 된다.
+    admin_scope: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=ADMIN_SCOPE_GLOBAL,
+        server_default=ADMIN_SCOPE_GLOBAL,
+    )
+    scope_org_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("organizations.id")
+    )
+    scope_dept_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("departments.id", ondelete="SET NULL")
+    )
+    # users → departments 경로가 두 개(department_id, scope_dept_id)라 어느 쪽으로 조인할지
+    # 명시해야 한다. 안 하면 SQLAlchemy 가 AmbiguousForeignKeysError 로 매핑 자체를 거부한다.
+    department_ref: Mapped[Department | None] = relationship(
+        "Department", lazy="joined", foreign_keys=[department_id]
+    )
     title_ref: Mapped[JobTitle | None] = relationship("JobTitle", lazy="joined")
     role: Mapped[str] = mapped_column(String(32), nullable=False, default=ROLE_USER)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

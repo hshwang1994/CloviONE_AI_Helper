@@ -15,7 +15,13 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import (
+    Base,
+    OrgScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    utcnow,
+)
 
 # 게임 종류(§8). 방/이벤트/폴링 인프라는 전부 공유하고, 종류별 규칙만 service에서 분기한다.
 #   random_draw — 방장이 시작하면 서버가 참여자 중 당첨자를 즉시 확정.
@@ -64,7 +70,7 @@ EV_REACTION = "reaction"
 EV_SYSTEM = "system"
 
 
-class GameRoom(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class GameRoom(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "game_rooms"
 
     title: Mapped[str] = mapped_column(String(120), nullable=False)
