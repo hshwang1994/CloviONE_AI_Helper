@@ -306,10 +306,27 @@ PROBE_JS = r"""
         const key = cssPath(el) + '|' + snippet(el);
         if (seenCovered.has(key)) continue;
         seenCovered.add(key);
+        // **스크롤로 비켜낼 수 있는가**로 피해의 크기가 갈린다.
+        //   못 비킨다 — 화면에 고정된 컨트롤이 영구히 안 눌린다. 사용자는 방법이 없다.
+        //               (놀이방 채팅의 '보내기'가 그랬다: sticky 레일 맨 아래에 붙어 있었다.)
+        //   비킬 수 있다 — 긴 표의 어떤 행이 잠시 FAB 밑에 놓인 것뿐이다. 조금 굴리면
+        //               눌린다. 떠 있는 버튼을 쓰는 이상 어느 행인가는 늘 밑에 놓이므로,
+        //               이걸 실패로 치면 '표가 긴 화면 = 영구 실패'가 되어 게이트가 죽는다.
+        // 그래서 전자만 실패로 세고 후자는 기록만 한다.
+        let pinned = true;
+        for (let node = el; node && node !== document.body; node = node.parentElement) {
+          const pos = getComputedStyle(node).position;
+          if (pos === 'fixed' || pos === 'sticky') { pinned = true; break; }
+          pinned = false;
+        }
+        const scrollable = de.scrollHeight > de.clientHeight + 1
+          || Array.from(document.querySelectorAll('#main-content, main, .c-content'))
+               .some((s) => s.scrollHeight > s.clientHeight + 1);
         out.fabOverlap.push({
           control: cssPath(el), text: snippet(el), floater: cssPath(f), where: where,
           coveredPct: Math.round((ox * oy) / (r.width * r.height) * 100),
           at: [Math.round(px), Math.round(py)],
+          unreachable: pinned || !scrollable,
         });
         break;
       }
@@ -486,15 +503,29 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
 
     # 떠 있는 요소가 컨트롤을 덮어 **누를 수 없게** 만든 경우만 실패다. 살짝 스치기만 하고
     # 여전히 눌리면(elementFromPoint 가 그 컨트롤을 돌려주면) 프로브 단계에서 걸러진다.
+    # 스크롤로 비켜낼 수 없는 겹침만 실패다. 비킬 수 있는 것(긴 표의 한 행이 잠깐 FAB
+    # 밑에 놓이는 경우)은 떠 있는 버튼을 쓰는 이상 늘 하나쯤 생기므로 note 로만 남긴다 —
+    # 그걸 실패로 세면 '표가 긴 화면 = 영구 실패'가 되어 게이트가 곧 무시된다.
     overlap = probe.get("fabOverlap") or []
-    overlap_count = probe.get("fabOverlapCount", len(overlap))
-    results["fab_overlap"] = (
-        _verdict("fail", overlap_count, [
+    blocking = [o for o in overlap if o.get("unreachable")]
+    reachable = [o for o in overlap if not o.get("unreachable")]
+
+    def _fmt(o: dict) -> str:
+        return (
             f"[{o.get('where', '?')}] {o['control']} «{o['text']}» 를 {o['floater']} 가"
             f" {o['coveredPct']}% 덮음 (({o['at'][0]},{o['at'][1]}) 에서 클릭이 가로채짐)"
-            for o in overlap
-        ])
-        if overlap_count else _verdict("pass")
+        )
+
+    note = ""
+    if reachable:
+        note = (
+            f"스크롤하면 비켜나는 겹침 {len(reachable)}건은 실패로 세지 않았다: "
+            + " / ".join(f"«{o['text']}»" for o in reachable[:3])
+        )
+    results["fab_overlap"] = (
+        _verdict("fail", len(blocking), [_fmt(o) for o in blocking],
+                 "스크롤해도 비켜나지 않는다 — 사용자는 이 컨트롤을 누를 방법이 없다")
+        if blocking else _verdict("pass", 0, None, note)
     )
 
     return results
