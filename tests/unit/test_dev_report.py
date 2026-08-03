@@ -86,7 +86,7 @@ def test_aggregates_by_developer_with_names_and_overdue(db, settings, make_user)
     )
 
     assert report["team"] == {
-        "total": 3, "done": 1, "in_progress": 1, "plan": 1, "cancel": 0,
+        "total": 3, "done": 1, "in_progress": 1, "verify": 0, "plan": 1, "cancel": 0,
         "overdue": 1, "est_done_total": 3.0, "est_all_total": 6.0,
     }
     assert report["unassigned"]["total"] == 1
@@ -120,6 +120,26 @@ def test_aggregates_by_developer_with_names_and_overdue(db, settings, make_user)
     flt = kwargs["json"]["filter"]["and"]
     assert flt[0]["date"]["on_or_after"] == "2026-07-01"
     assert flt[1]["date"]["before"] == "2026-08-01"
+
+
+def test_verify_status_split_from_in_progress(db, settings, make_user):
+    """검증 상태는 팀 합계와 담당자 집계 모두에서 진행 중과 별도 버킷으로 센다."""
+    dev = make_user(email="v@goodmit.co.kr", display_name="검증자", role="admin")
+    _map(db, dev, "notion-v")
+    results = [
+        _ticket(tid=10, title="진행건", status="진행", due="2026-07-20", people=["notion-v"], est=2, act=None, diff="2"),
+        _ticket(tid=11, title="검증건", status="검증", due="2026-07-21", people=["notion-v"], est=3, act=None, diff="3"),
+        _ticket(tid=12, title="이슈건", status="이슈", due="2026-07-22", people=["notion-v"], est=1, act=None, diff="1"),
+    ]
+    report = build_dev_monthly_report(
+        db, _FakeOutbound(results=results), settings, period="2026-07", today=date(2026, 7, 10)
+    )
+    # 팀 합계: 진행+이슈=2 는 in_progress, 검증=1 은 verify 로 분리.
+    assert report["team"]["in_progress"] == 2
+    assert report["team"]["verify"] == 1
+    # 담당자 집계도 동일하게 분리된다(진행+이슈=2 는 prog, 검증=1 은 verify).
+    v = {r["name"]: r for r in report["developers"]}["검증자"]
+    assert v["prog"] == 2 and v["verify"] == 1
 
 
 def test_unmapped_assignee_falls_back_to_placeholder(db, settings, make_user):

@@ -101,6 +101,59 @@ def update_ticket_properties(outbound, settings, *, page_id: str, properties: di
     return _parse_row(data)
 
 
+def archive_page(outbound, settings, *, page_id: str) -> dict:
+    """페이지를 보관처리(archive=휴지통으로) 한다 — 휴지통 보관기간이 지난 뒤 영구 삭제 시 호출.
+    Notion 자체 휴지통에 들어가 30일간 복구 가능하므로 실수에도 되돌릴 여지가 있다."""
+    return _request(outbound, settings, "PATCH", f"/v1/pages/{page_id}", json={"archived": True})
+
+
+# 본문 블록 읽기(1레벨) — 티켓 상세를 우리 화면에서 읽기용으로 보여준다(문서 상세와 같은 구조).
+_MAX_BLOCK_PAGES = 20
+_TEXT_BLOCK_TYPES = {
+    "paragraph": "paragraph", "heading_1": "heading_1", "heading_2": "heading_2",
+    "heading_3": "heading_3", "bulleted_list_item": "bulleted", "numbered_list_item": "numbered",
+    "to_do": "todo", "quote": "quote", "callout": "callout", "toggle": "toggle", "code": "code",
+}
+
+
+def _block_text(block: dict, btype: str) -> str:
+    container = block.get(btype)
+    if not isinstance(container, dict):
+        return ""
+    rich = container.get("rich_text") or []
+    return "".join(s.get("plain_text", "") for s in rich if isinstance(s, dict))
+
+
+def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
+    """티켓 페이지 본문을 얕게 읽어 렌더용 [{kind, text, checked?}] 로 돌려준다(문서 상세와 동일 형식).
+    지원 밖 블록은 '[원본에서 확인]' 자리표시. 온전한 열람은 원본 링크로."""
+    path = f"/v1/blocks/{page_id}/children"
+    out: list[dict] = []
+    cursor: str | None = None
+    for _ in range(_MAX_BLOCK_PAGES):
+        q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        data = _request(outbound, settings, "GET", path + q)
+        for block in data.get("results", []):
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type", "")
+            if btype == "divider":
+                out.append({"kind": "divider", "text": ""})
+            elif btype in _TEXT_BLOCK_TYPES:
+                item = {"kind": _TEXT_BLOCK_TYPES[btype], "text": _block_text(block, btype)}
+                if btype == "to_do":
+                    item["checked"] = bool((block.get("to_do") or {}).get("checked"))
+                out.append(item)
+            else:
+                out.append({"kind": "unsupported", "text": f"[{btype}] 원본에서 확인"})
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+        if not cursor:
+            break
+    return out
+
+
 def property_value(prop: dict, value):
     """스키마 속성 타입에 맞는 Notion 쓰기 페이로드를 만든다(러너 property_value 이식).
 

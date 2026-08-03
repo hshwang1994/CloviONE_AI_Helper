@@ -39,8 +39,11 @@ def list_documents(
     sort: str,
     offset: int,
     limit: int,
+    exclude_page_ids: set[str] | None = None,
 ) -> tuple[list[DocumentCache], int]:
     stmt = select(DocumentCache).where(DocumentCache.archived.is_(False))
+    if exclude_page_ids:
+        stmt = stmt.where(DocumentCache.notion_page_id.notin_(exclude_page_ids))
     if search:
         like = f"%{search.strip()}%"
         stmt = stmt.where(

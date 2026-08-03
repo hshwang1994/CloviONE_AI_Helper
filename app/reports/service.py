@@ -133,10 +133,11 @@ def _finalize_dev(name: str, b: dict, *, has_tickets: bool) -> dict:
     }
 
 
-def build_dev_monthly_report(
-    db: Session, outbound, settings, *, period: str, today: date
+def build_period_report(
+    db: Session, outbound, settings, *, start: str, end: str, today: date
 ) -> dict:
-    start, end = month_range(period)
+    """마감일이 [start, end) 인 티켓을 담당자별로 집계한다(월간 리포트·스프린트 회의 공용 코어).
+    반환에 period 는 없다 — 월간 래퍼(build_dev_monthly_report)가 period 를 덧붙인다."""
     tickets = notion_source.query_tasks_for_period(
         outbound, settings, start_date=start, end_date=end
     )
@@ -146,7 +147,7 @@ def build_dev_monthly_report(
     devs: dict[str, dict] = {}
     unassigned = {"done": 0, "prog": 0, "verify": 0, "plan": 0, "cancel": 0, "total": 0}
     # 팀 합계는 티켓 단위(중복 없이)로 센다. 담당자별 합은 다중 담당 티켓을 양쪽에 세므로 팀 합계와 다르다.
-    team = {"total": 0, "done": 0, "in_progress": 0, "plan": 0, "cancel": 0,
+    team = {"total": 0, "done": 0, "in_progress": 0, "verify": 0, "plan": 0, "cancel": 0,
             "overdue": 0, "est_done_total": 0.0, "est_all_total": 0.0}
 
     for t in tickets:
@@ -160,7 +161,9 @@ def build_dev_monthly_report(
             team["est_done_total"] += est
         elif status == STATUS_CANCELLED:
             team["cancel"] += 1
-        elif status in _IN_PROGRESS:
+        elif status == "검증":
+            team["verify"] += 1
+        elif status in _IN_PROGRESS:  # 진행, 이슈 (검증은 위에서 분리)
             team["in_progress"] += 1
         elif status == "계획":
             team["plan"] += 1
@@ -197,12 +200,12 @@ def build_dev_monthly_report(
     rows.sort(key=lambda r: (-r["done"], -r["assigned"], r["name"]))
 
     return {
-        "period": period,
         "range": {"start": start, "end_exclusive": end},
         "team": {
             "total": team["total"],
             "done": team["done"],
             "in_progress": team["in_progress"],
+            "verify": team["verify"],
             "plan": team["plan"],
             "cancel": team["cancel"],
             "overdue": team["overdue"],
@@ -212,3 +215,12 @@ def build_dev_monthly_report(
         "developers": rows,
         "unassigned": unassigned,
     }
+
+
+def build_dev_monthly_report(
+    db: Session, outbound, settings, *, period: str, today: date
+) -> dict:
+    """개발자 월간 리포트 — 'YYYY-MM' 달을 날짜 범위로 바꿔 build_period_report 에 위임하고 period 를 덧붙인다."""
+    start, end = month_range(period)
+    report = build_period_report(db, outbound, settings, start=start, end=end, today=today)
+    return {"period": period, **report}

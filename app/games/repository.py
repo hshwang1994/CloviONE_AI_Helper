@@ -6,6 +6,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.games.models import GameEvent, GameRoom, GameRoomMember, ROLE_SPECTATOR
+from app.users.models import User
+
+
+def users_by_ids(db: Session, ids: list[str]) -> dict[str, User]:
+    """참여자 표시에 쓸 사용자(부서·직책 포함)를 한 번에 읽어 {user_id: User}로 돌려준다."""
+    if not ids:
+        return {}
+    rows = db.execute(select(User).where(User.id.in_(list(ids)))).scalars().all()
+    return {u.id: u for u in rows}
 
 
 def get_room(db: Session, room_id: str) -> GameRoom | None:
@@ -20,6 +29,14 @@ def list_open_rooms(db: Session) -> list[GameRoom]:
             select(GameRoom).where(GameRoom.closed_at.is_(None)).order_by(GameRoom.created_at.desc())
         ).scalars().all()
     )
+
+
+def last_seen_by_room(db: Session) -> dict:
+    """열린 방마다 마지막으로 폴링한 시각(참여자 last_seen 중 최댓값)을 돌려준다. 유휴 방 정리용."""
+    rows = db.execute(
+        select(GameRoomMember.room_id, func.max(GameRoomMember.last_seen)).group_by(GameRoomMember.room_id)
+    ).all()
+    return {room_id: last for room_id, last in rows}
 
 
 def members(db: Session, room_id: str) -> list[GameRoomMember]:

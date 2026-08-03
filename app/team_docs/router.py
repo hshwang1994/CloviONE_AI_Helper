@@ -19,6 +19,7 @@ from app.team_docs import notion_docs, repository, service
 from app.team_docs.models import split_names
 from app.team_docs.schemas import DocumentCreate
 from app.team_docs.sync import get_or_create_state, sync_documents
+from app.tickets.schemas import BulkPageIds  # 티켓·문서 공용 일괄 삭제 스키마
 from app.users.models import User
 
 
@@ -82,6 +83,9 @@ def list_documents(
     favorites: bool = Query(default=False),
     sort: str = Query(default="recent"),
 ):
+    from app.trash import repository as trash_repo
+    from app.trash.models import TRASH_DOCUMENT
+
     favs = repository.favorite_page_ids(db, me.id)
     rows, total = repository.list_documents(
         db,
@@ -95,6 +99,7 @@ def list_documents(
         sort=sort if sort in {"recent", "title"} else "recent",
         offset=page.offset,
         limit=page.page_size,
+        exclude_page_ids=trash_repo.trashed_page_ids(db, TRASH_DOCUMENT),  # 휴지통 문서는 숨김
     )
     state = get_or_create_state(db)
     return {
@@ -183,6 +188,22 @@ def all_projects(
     return {"projects": names}
 
 
+@router.post("/trash-bulk", dependencies=[Depends(require_csrf)])
+def trash_documents_bulk(
+    request: Request,
+    payload: BulkPageIds,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """문서 여러 건을 한 번에 휴지통으로(목록 다중선택). 건별 권한 검사, 부분 성공.
+    (리터럴 경로라 아래 GET /{page_id} 보다 먼저 선언.)"""
+    result = service.trash_documents_bulk(db, user=me, page_ids=payload.page_ids, now=request.app.state.clock.now())
+    for it in result["trashed"]:
+        record_audit_from_request(request, db, action="team_docs.trash", object_type="notion_document",
+                                  object_id=it["id"], before={"title": it.get("title")})
+    return {"ok": True, **result}
+
+
 @router.get("/{page_id}")
 def get_document(
     request: Request,
@@ -214,6 +235,22 @@ def get_document(
         "blocks": blocks,
         "blocks_error": blocks_error,
     }
+
+
+@router.post("/{page_id}/trash", dependencies=[Depends(require_csrf)])
+def trash_document(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """문서를 휴지통으로 보낸다(노션 원본은 보관기간 뒤 보관처리). 작성자/운영자만 + 감사."""
+    result = service.trash_document(db, user=me, page_id=page_id, now=request.app.state.clock.now())
+    record_audit_from_request(
+        request, db, action="team_docs.trash", object_type="notion_document",
+        object_id=page_id, before={"title": result["title"]},
+    )
+    return {"ok": True}
 
 
 @router.post("/{page_id}/favorite", dependencies=[Depends(require_csrf)])

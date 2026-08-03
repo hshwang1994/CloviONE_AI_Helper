@@ -160,7 +160,8 @@ def main() -> int:
             # Refresh the cache so admin edits to retention take effect.
             with session_factory() as db:
                 settings_cache.load(db)
-                run_retention(db, now=now, settings_cache=settings_cache)
+                # outbound/settings 전달 → 휴지통 만료분을 노션에서 보관처리하고 정리한다.
+                run_retention(db, now=now, settings_cache=settings_cache, outbound=outbound, settings=settings)
                 db.commit()
 
     worker.tick_callbacks.append(retention_tick)

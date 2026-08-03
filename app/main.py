@@ -49,6 +49,9 @@ from app.schedules.router import router as schedules_router
 from app.settings.router import router as settings_router
 from app.settings.service import SettingsCache
 from app.team_docs.router import router as team_docs_router
+from app.trash.router import router as trash_router
+from app.sprints.router import router as sprint_router
+from app.team_chat.router import router as team_chat_router
 from app.templates.router import router as templates_router
 from app.users.router import router as users_admin_router
 from app.workflows.router import router as workflows_router
@@ -149,6 +152,9 @@ def create_app(
     app.include_router(notion_mapping_router)
     app.include_router(reports_router)
     app.include_router(tickets_router)
+    app.include_router(trash_router)
+    app.include_router(sprint_router)
+    app.include_router(team_chat_router)
     app.include_router(backups_router)
     app.include_router(admin_router)
     return app

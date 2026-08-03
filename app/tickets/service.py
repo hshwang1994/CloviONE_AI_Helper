@@ -18,6 +18,9 @@ from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports import notion_source
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map
 from app.tickets import notion_write
+from app.trash import repository as trash_repo
+from app.trash import service as trash_service
+from app.trash.models import TRASH_TICKET
 from app.users.models import (
     ROLE_ADMIN,
     ROLE_OPERATOR,
@@ -119,6 +122,14 @@ def _enrich(tickets: list[dict], id_to_name: dict[str, str], id_to_user: dict[st
     return out
 
 
+def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
+    """휴지통에 들어간 티켓(노션 page id 기준)은 목록에서 숨긴다 — 보관기간 동안은 노션엔 남아 있다."""
+    trashed = trash_repo.trashed_page_ids(db, TRASH_TICKET)
+    if not trashed:
+        return rows
+    return [t for t in rows if t.get("id") not in trashed]
+
+
 def list_my_tickets(db: Session, outbound, settings, user: User) -> dict:
     """로그인 사용자가 담당한 티켓 전부(마감 무관). 매핑이 없으면 {mapped: False}."""
     nid = my_notion_id(db, user)
@@ -126,7 +137,8 @@ def list_my_tickets(db: Session, outbound, settings, user: User) -> dict:
         return {"mapped": False, "tickets": []}
     rows = notion_source.query_tasks_by_assignee(outbound, settings, notion_user_id=nid)
     id_to_name, _ = _load_name_map(db)
-    return {"mapped": True, "tickets": _enrich(rows, id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))}
+    tickets = _enrich(rows, id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
+    return {"mapped": True, "tickets": _drop_trashed(db, tickets)}
 
 
 def list_unassigned_tickets(db: Session, outbound, settings, *, active_only: bool = True) -> list[dict]:
@@ -135,7 +147,70 @@ def list_unassigned_tickets(db: Session, outbound, settings, *, active_only: boo
     if active_only:
         rows = [t for t in rows if (t.get("status") or "") not in _TERMINAL]
     # 미할당도 프로젝트별로 묶어 보이게 프로젝트 이름을 붙인다(담당자는 없음).
-    return _enrich(rows, {}, {}, _project_names_map(outbound, settings))
+    return _drop_trashed(db, _enrich(rows, {}, {}, _project_names_map(outbound, settings)))
+
+
+def list_team_tickets(db: Session, outbound, settings, *, active_only: bool = True) -> list[dict]:
+    """팀 전체 티켓(다른 사람 것 포함) — 조회 전용 팀 보드용. 기본은 활성(완료·취소 제외).
+    담당자 이름을 붙여 담당자별로 볼 수 있게 하고, 휴지통에 넣은 티켓은 숨긴다."""
+    rows = notion_source.query_all_tasks(outbound, settings)
+    if active_only:
+        rows = [t for t in rows if (t.get("status") or "") not in _TERMINAL]
+    id_to_name, _ = _load_name_map(db)
+    tickets = _enrich(rows, id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
+    return _drop_trashed(db, tickets)
+
+
+def ticket_detail(db: Session, outbound, settings, user: User, *, page_id: str) -> dict:
+    """티켓 단건 상세(속성 + 본문 블록). 우리 화면에서 읽고, 원본 열기로 노션에 갈 수 있다.
+    본문 블록은 장애 격리 — 실패해도 속성은 보여준다(§17.4)."""
+    row = notion_write.fetch_ticket(outbound, settings, page_id)
+    id_to_name, _ = _load_name_map(db)
+    enriched = _enrich([row], id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
+    ticket = enriched[0] if enriched else row
+    blocks, blocks_error = None, None
+    try:
+        blocks = notion_write.fetch_page_blocks(outbound, settings, page_id)
+    except Exception as exc:  # noqa: BLE001 — 본문만 격리 실패, 속성은 계속 보여준다
+        blocks_error = "본문을 불러오지 못했습니다. 원본에서 확인해 주세요."
+        _ = exc
+    return {"ticket": ticket, "blocks": blocks, "blocks_error": blocks_error}
+
+
+def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, now) -> dict:
+    """티켓을 휴지통으로 보낸다(노션은 손대지 않음). 편집 권한이 있어야 한다(담당자/미할당/운영자군).
+    보관기간이 지나면 백그라운드가 노션 원본을 보관처리한다. 복원 가능."""
+    current = notion_write.fetch_ticket(outbound, settings, page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    item = trash_service.move_to_trash(
+        db, item_type=TRASH_TICKET, notion_page_id=page_id,
+        title=current.get("title") or "(제목 없음)", url=current.get("url"),
+        user=user, now=now,
+    )
+    return {"title": item.title, "url": item.url}
+
+
+def trash_tickets_bulk(db: Session, outbound, settings, user: User, *, page_ids: list[str], now) -> dict:
+    """티켓 여러 건을 휴지통으로 보낸다. 건별로 권한을 검사하고, 실패(권한 없음·이미 휴지통·없음)는
+    건너뛰고 나머지는 계속한다(부분 성공). {trashed:[...], failed:[{id,error}]}."""
+    from app.core.errors import AppError
+
+    nid = my_notion_id(db, user)
+    trashed: list[dict] = []
+    failed: list[dict] = []
+    for pid in page_ids:
+        try:
+            current = notion_write.fetch_ticket(outbound, settings, pid)
+            ensure_can_edit(current, user, nid)
+            trash_service.move_to_trash(
+                db, item_type=TRASH_TICKET, notion_page_id=pid,
+                title=current.get("title") or "(제목 없음)", url=current.get("url"),
+                user=user, now=now,
+            )
+            trashed.append({"id": pid, "title": current.get("title") or "(제목 없음)"})
+        except AppError as exc:
+            failed.append({"id": pid, "error": exc.message})
+    return {"trashed": trashed, "failed": failed}
 
 
 def list_assignees(db: Session) -> list[dict]:

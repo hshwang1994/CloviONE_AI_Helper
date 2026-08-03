@@ -14,6 +14,7 @@ _DEFAULTS = {
     "board_enabled": True,
     "team_docs_enabled": True,
     "games_enabled": True,
+    "team_chat_enabled": True,
     # 게임 AI 생성(§7-9)은 기본 OFF(fail-closed) — 러너/Claude 호출을 켤 때만 명시적으로 연다.
     "game_ai_enabled": False,
 }

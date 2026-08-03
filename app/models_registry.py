@@ -23,6 +23,7 @@ from app.notion_mapping import models as notion_mapping_models  # noqa: F401
 from app.org import models as org_models  # noqa: F401
 from app.settings import models as settings_models  # noqa: F401
 from app.team_docs import models as team_docs_models  # noqa: F401
+from app.team_chat import models as team_chat_models  # noqa: F401
 from app.core import versioning as versioning_models  # noqa: F401
 from app.integrations import models as integrations_models  # noqa: F401
 from app.jobs import models as jobs_models  # noqa: F401
@@ -30,5 +31,6 @@ from app.prompts import models as prompts_models  # noqa: F401
 from app.runners import models as runners_models  # noqa: F401
 from app.schedules import models as schedules_models  # noqa: F401
 from app.templates import models as templates_models  # noqa: F401
+from app.trash import models as trash_models  # noqa: F401
 from app.users import models as users_models  # noqa: F401
 from app.workflows import models as workflows_models  # noqa: F401

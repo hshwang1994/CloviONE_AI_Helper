@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.games.models import GAME_TYPES
 
+# 정수여야 하는 방 설정 키(범위는 service 에서 clamp). 문자열이 와도 int 로 강제하거나 버린다.
+_NUMERIC_CONFIG_KEYS = frozenset({"winners", "teams", "min", "max", "timer_seconds"})
+
 
 class RoomCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -49,11 +52,15 @@ class RoomCreate(BaseModel):
                 continue
             key = str(k)[:40]
             if key == "options" and isinstance(val, list):
+                # 중복 라벨을 지우지 않는다 — 사다리는 같은 도착지(예: '꽝' 2개)가 의미가 있고,
+                # 빠른 투표는 인덱스로 집계하므로 중복이 있어도 정합성에 무해하다. 예전엔 여기서
+                # 조용히 dedup 해 프런트(중복 유지)와 개수가 어긋나 방이 시작 불가가 되거나
+                # 사다리 당첨/꽝 개수가 바뀌었다.
                 opts: list[str] = []
                 for x in val[:10]:
                     if isinstance(x, (str, int, float)):
                         s = str(x).strip()[:40]
-                        if s and s not in opts:
+                        if s:
                             opts.append(s)
                 if opts:
                     out[key] = opts
@@ -61,6 +68,13 @@ class RoomCreate(BaseModel):
                 qs = _clean_questions(val)
                 if qs:
                     out[key] = qs
+            elif key in _NUMERIC_CONFIG_KEYS:
+                # 숫자 설정은 정수로 강제한다 — 조작된 문자열이 service 정수 연산에서 500을 내던 걸 막는다
+                # (범위 clamp 는 service 가 담당). 숫자가 아니면 버려 service 기본값을 쓰게 한다.
+                try:
+                    out[key] = int(val)
+                except (TypeError, ValueError):
+                    continue
             elif isinstance(val, (str, int, float, bool)) and len(str(val)) <= 120:
                 out[key] = val
         return out

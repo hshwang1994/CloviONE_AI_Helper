@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -49,6 +49,19 @@ from app.users.models import User
 
 MAX_ROOM_TITLE = 120
 MAX_CHAT = 500
+
+# 게임별 기본 제한 시간(초). 0=무제한. 방 만들 때 config.timer_seconds 로 덮어쓴다.
+DEFAULT_TIMERS = {GAME_RPS: 15, GAME_QUIZ: 25, GAME_NUMBER: 0, GAME_QUICK_VOTE: 0}
+
+
+def _timer_from_config(config: dict, game_type: str, now: datetime) -> tuple[int, str | None]:
+    """방 설정에서 제한 시간을 읽어 (초, 마감 ISO)를 돌려준다. 0/미설정이면 (0, None)=무제한.
+    마감(deadline)은 서버 시계 기준이라 모든 참여자가 같은 카운트다운을 본다."""
+    default = DEFAULT_TIMERS.get(game_type, 0)
+    timer = max(0, min(int(config.get("timer_seconds", default) or 0), 300))
+    if timer <= 0:
+        return 0, None
+    return timer, (now + timedelta(seconds=timer)).isoformat()
 
 
 def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: dict, now: datetime) -> GameEvent:
@@ -118,6 +131,10 @@ def join_room(db: Session, room: GameRoom, user: User, *, spectate: bool, now: d
             raise ConflictError("방이 가득 찼습니다.")
     elif spectate and not room.allow_spectators:
         raise ConflictError("이 방은 관전을 허용하지 않습니다.")
+    # 진행 중/종료된 방에 그냥 입장하면 위 분기가 모두 거짓이라 role이 관전자로 남는다 —
+    # 관전 불허 방에는 그 경로로도 못 들어가게 막는다(관전 불허 계약을 모든 경로에 적용).
+    if role == ROLE_SPECTATOR and not room.allow_spectators:
+        raise ConflictError("이 방은 관전을 허용하지 않습니다.")
     member = GameRoomMember(
         room_id=room.id, user_id=user.id, display_name=user.display_name,
         role=role, active=True, last_seen=now, joined_at=now,
@@ -135,9 +152,10 @@ def leave_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> Non
     db.delete(member)
     db.flush()
     _append_event(db, room, EV_LEAVE, actor_id=user.id, payload={"name": user.display_name}, now=now)
-    # 방장이 나가면 다른 활성 참여자에게 위임, 없으면 방을 닫는다.
+    # 방장이 나가면 다른 활성 '참여자'에게 위임(관전자 제외), 없으면 방을 닫는다.
     if room.host_user_id == user.id:
-        others = [m for m in repository.members(db, room.id) if m.active and m.user_id != user.id]
+        others = [m for m in repository.members(db, room.id)
+                  if m.active and m.user_id != user.id and m.role != ROLE_SPECTATOR]
         if others:
             new_host = others[0]
             new_host.role = ROLE_HOST
@@ -147,6 +165,51 @@ def leave_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> Non
         else:
             room.closed_at = now
             db.flush()
+
+
+# 아무도 이 시간(초) 동안 폴링하지 않은 열린 방은 버려진 것으로 보고 자동으로 닫는다. 진행 중인
+# 방은 참여자가 1.2초마다 폴링하므로 절대 이 값에 안 걸린다 — 브라우저만 닫고 떠난 방만 정리된다.
+IDLE_ROOM_SECONDS = 180
+
+# 최근 이 시간(초) 안에 폴링한 참여자만 '현재 있는' 사람으로 본다. 탭만 닫고 떠난(나가기 안 누른)
+# 유령이 추첨/팀나누기/사다리 대상이나 결과 승자로 잡히는 걸 막는다. 백그라운드 탭 폴링 스로틀을
+# 견디도록 넉넉히 둔다(active 플래그를 영구히 내리지 않고, 액션 시점에만 걸러 재접속에 안전).
+PRESENCE_SECONDS = 90
+
+
+def _present_players(db: Session, room: GameRoom, now: datetime) -> list[GameRoomMember]:
+    """지금 방에 실제로 있는 참여자(활성 + 최근 폴링 + 비관전)만. 서버 확정 게임의 대상 풀."""
+    cutoff = now - timedelta(seconds=PRESENCE_SECONDS)
+    return [
+        m for m in repository.members(db, room.id)
+        if m.active and m.role != ROLE_SPECTATOR and m.last_seen >= cutoff
+    ]
+
+
+def cleanup_idle_rooms(db: Session, *, now: datetime) -> int:
+    """폴링이 끊긴 지 오래된 열린 방을 닫는다(목록에 유령 방이 남는 걸 막는다). 닫은 방 수 반환."""
+    cutoff = now - timedelta(seconds=IDLE_ROOM_SECONDS)
+    last_seen = repository.last_seen_by_room(db)
+    closed = 0
+    for room in repository.list_open_rooms(db):
+        last = last_seen.get(room.id)
+        if last is None or last < cutoff:
+            room.closed_at = now
+            closed += 1
+    if closed:
+        db.flush()
+    return closed
+
+
+def disband_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> None:
+    """방장이 방을 파한다 — 방을 닫아(closed_at) 목록에서 사라지게 하고, 남은 참여자는
+    다음 폴링에서 방을 못 찾아(404) 목록으로 돌아간다. 히스토리를 남기지 않는다(§16.1)."""
+    _ensure_host(room, user)
+    _append_event(db, room, EV_SYSTEM, actor_id=user.id,
+                  payload={"text": "방장이 방을 파했습니다.", "disbanded": True}, now=now)
+    room.status = ROOM_FINISHED
+    room.closed_at = now
+    db.flush()
 
 
 def set_ready(db: Session, room: GameRoom, user: User, *, ready: bool, now: datetime) -> None:
@@ -174,8 +237,11 @@ def _ensure_host(room: GameRoom, user: User) -> None:
 # ── 게임 로직 (서버 확정) ────────────────────────────────────────────────────
 def start_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     _ensure_host(room, user)
-    if room.status == ROOM_PLAYING:
-        raise ConflictError("이미 진행 중입니다.")
+    # WAITING 에서만 시작할 수 있다. 즉시 종료 게임(추첨/팀나누기/사다리)은 PLAYING을 거치지 않고
+    # 바로 FINISHED가 되므로, 'PLAYING만 막는' 예전 가드로는 끝난 방에 /start를 다시 보내 결과를
+    # 무한 재추첨할 수 있었다(§13.1 공정성 훼손). 다시 하려면 반드시 초기화(reset)를 거친다.
+    if room.status != ROOM_WAITING:
+        raise ConflictError("이미 시작했거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
     if room.game_type == GAME_RANDOM_DRAW:
         return _run_random_draw(db, room, user, now=now)
     if room.game_type == GAME_TEAM_SPLIT:
@@ -194,7 +260,7 @@ def start_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
 
 
 def _run_random_draw(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    players = [m for m in repository.members(db, room.id) if m.active and m.role != ROLE_SPECTATOR]
+    players = _present_players(db, room, now)  # 자리를 뜬 유령은 추첨 대상에서 제외
     if not players:
         raise ConflictError("추첨할 참여자가 없습니다.")
     config = json.loads(room.config_json or "{}")
@@ -211,7 +277,7 @@ def _run_random_draw(db: Session, room: GameRoom, user: User, *, now: datetime) 
 
 
 def _run_team_split(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    players = [m for m in repository.members(db, room.id) if m.active and m.role != ROLE_SPECTATOR]
+    players = _present_players(db, room, now)  # 자리를 뜬 유령은 팀 배정에서 제외
     if len(players) < 2:
         raise ConflictError("팀을 나눌 참여자가 2명 이상이어야 합니다.")
     config = json.loads(room.config_json or "{}")
@@ -230,29 +296,67 @@ def _run_team_split(db: Session, room: GameRoom, user: User, *, now: datetime) -
     return room
 
 
+def _build_ladder(n: int, rng) -> tuple[int, list[dict]]:
+    """참여자 n명짜리 사다리(아미다쿠지)의 가로줄을 만든다. 각 행에서 인접한 두 세로줄 사이에
+    확률적으로 가로줄을 놓되, 한 점에 두 줄이 겹치지 않게 같은 행에서는 건너뛴다(c += 2).
+    반환: (행 수, 가로줄 목록 [{"row","col"}] — 열 col과 col+1 사이의 가로줄)."""
+    rows = max(6, n * 2)
+    rungs: list[dict] = []
+    for r in range(rows):
+        c = 0
+        while c < n - 1:
+            if rng.random() < 0.45:
+                rungs.append({"row": r, "col": c})
+                c += 2
+            else:
+                c += 1
+    return rows, rungs
+
+
+def _walk_ladder(start_col: int, rows: int, rung_set: set[tuple[int, int]]) -> int:
+    """시작 세로줄에서 사다리를 따라 내려가 도착 세로줄을 구한다(각 행에서 걸린 가로줄로 좌우 이동)."""
+    col = start_col
+    for r in range(rows):
+        if (r, col) in rung_set:
+            col += 1
+        elif col > 0 and (r, col - 1) in rung_set:
+            col -= 1
+    return col
+
+
 def _run_ladder(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    players = [m for m in repository.members(db, room.id) if m.active and m.role != ROLE_SPECTATOR]
+    players = _present_players(db, room, now)  # 자리를 뜬 유령은 사다리에서 제외
     if len(players) < 2:
         raise ConflictError("사다리를 탈 참여자가 2명 이상이어야 합니다.")
     config = json.loads(room.config_json or "{}")
     outcomes = [str(o) for o in (config.get("options") or [])]
     if not outcomes:
         raise ConflictError("사다리 결과(도착지)를 1개 이상 넣어 주세요.")
+    n = len(players)
     pool = list(outcomes)
-    while len(pool) < len(players):
+    while len(pool) < n:
         pool.append("꽝")  # 결과가 참여자보다 적으면 꽝으로 채운다(각자 하나씩 배정)
-    pool = pool[: len(players)]
-    secrets.SystemRandom().shuffle(pool)  # 서버가 공정하게 섞어 1:1 배정(§13.1)
-    assignments = [
-        {"user_id": m.user_id, "name": m.display_name, "outcome": pool[i]}
-        for i, m in enumerate(players)
-    ]
-    result = {"assignments": assignments}
+    rng = secrets.SystemRandom()
+    rng.shuffle(pool)  # 먼저 섞고
+    pool = pool[:n]     # 그 다음 자른다 — 도착지가 참여자보다 많아도 뒤쪽이 공정하게 배정된다(truncate-after-shuffle)
+    rows, rungs = _build_ladder(n, rng)  # 서버가 사다리 구조를 확정 → 프런트가 정직하게 그린다
+    rung_set = {(g["row"], g["col"]) for g in rungs}
+    assignments = []
+    for i, m in enumerate(players):
+        end = _walk_ladder(i, rows, rung_set)  # 사다리를 실제로 따라간 결과(구조와 일치)
+        assignments.append({"user_id": m.user_id, "name": m.display_name, "outcome": pool[end], "end_col": end})
+    result = {
+        "columns": [{"user_id": m.user_id, "name": m.display_name} for m in players],
+        "outcomes": pool,
+        "rungs": rungs,
+        "rows": rows,
+        "assignments": assignments,
+    }
     room.status = ROOM_FINISHED
     room.state_json = json.dumps({"result": result}, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_START, actor_id=user.id, payload={}, now=now)
-    _append_event(db, room, EV_RESULT, actor_id=user.id, payload=result, now=now)
+    _append_event(db, room, EV_RESULT, actor_id=user.id, payload={"assignments": assignments}, now=now)
     return room
 
 
@@ -265,8 +369,13 @@ def _open_vote(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
     options = [str(o) for o in (config.get("options") or [])]
     if len(options) < 2:
         raise ConflictError("선택지가 2개 이상이어야 합니다.")
+    timer, deadline = _timer_from_config(config, GAME_QUICK_VOTE, now)
+    state = {"question": question, "options": options, "votes": {}}
+    if deadline:
+        state["timer_seconds"] = timer
+        state["deadline"] = deadline
     room.status = ROOM_PLAYING
-    room.state_json = json.dumps({"question": question, "options": options, "votes": {}}, ensure_ascii=False)
+    room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_START, actor_id=user.id, payload={"question": question, "options": options}, now=now)
     return room
@@ -293,6 +402,40 @@ def submit_vote(db: Session, room: GameRoom, user: User, *, option_index: int, n
                   payload={"name": user.display_name, "option": option_index, "label": options[option_index]}, now=now)
 
 
+# 타임아웃 자동 확정의 행위자(방장 없이 서버가 확정) — _finish_* 는 actor의 .id 만 쓰므로 None 이면 충분.
+_SYSTEM_ACTOR = type("_SystemActor", (), {"id": None})()
+
+
+def maybe_autoresolve(db: Session, room: GameRoom, *, now: datetime) -> None:
+    """진행 중인 타이머 게임의 마감이 지났으면 서버가 방장 없이도 자동 확정한다. 폴링(room_state)
+    진입마다 호출된다 — 방장이 자리를 비워도 카운트다운 0에서 멈추지 않는다(방장 브라우저 비의존)."""
+    if room.status != ROOM_PLAYING:
+        return
+    state = json.loads(room.state_json or "{}")
+    deadline = state.get("deadline")
+    if not deadline:
+        return
+    try:
+        dt = datetime.fromisoformat(str(deadline))
+    except (ValueError, TypeError):
+        return
+    if now < dt:
+        return
+    gt = room.game_type
+    if gt == GAME_QUICK_VOTE:
+        _finish_vote(db, room, _SYSTEM_ACTOR, now=now)
+    elif gt == GAME_NUMBER:
+        _finish_number(db, room, _SYSTEM_ACTOR, now=now)
+    elif gt == GAME_RPS:
+        if state.get("mode") == "tournament":
+            _finish_rps_tournament(db, room, _SYSTEM_ACTOR, state, now=now)
+        else:
+            _finish_rps(db, room, _SYSTEM_ACTOR, now=now)
+    elif gt == GAME_QUIZ:
+        if state.get("phase") == QUIZ_ANSWERING:
+            _reveal_quiz(db, room, None, now=now)  # 답변 마감 → 채점 공개(다음 문제는 방장이 진행)
+
+
 def finish_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     """방장이 진행 중인 게임(투표/숫자 눈치)을 종료 → 서버가 결과 확정."""
     _ensure_host(room, user)
@@ -303,8 +446,22 @@ def finish_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Ga
     if room.game_type == GAME_NUMBER:
         return _finish_number(db, room, user, now=now)
     if room.game_type == GAME_RPS:
+        state = json.loads(room.state_json or "{}")
+        if state.get("mode") == "tournament":
+            return _finish_rps_tournament(db, room, user, state, now=now)
         return _finish_rps(db, room, user, now=now)
     raise ValidationAppError("종료할 게임이 없습니다.")
+
+
+def _finish_rps_tournament(db, room, user, state, *, now) -> GameRoom:
+    """방장/타임아웃이 현재 라운드를 마감 → 미결 대진은 서버가 무작위로 채우고 다음 라운드/챔피언."""
+    _tournament_advance(db, room, state, now=now, force=True)
+    if room.status == ROOM_PLAYING:  # 챔피언이 아직 안 나옴 → 다음 라운드로 넘어감
+        room.state_json = json.dumps(state, ensure_ascii=False)
+        db.flush()
+        _append_event(db, room, EV_SYSTEM, actor_id=user.id,
+                      payload={"tournament": "round_advanced", "round": state.get("round_idx")}, now=now)
+    return room
 
 
 def _finish_vote(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
@@ -335,8 +492,13 @@ def _open_number(db: Session, room: GameRoom, user: User, *, now: datetime) -> G
     hi = int(config.get("max", 10) or 10)
     if hi <= lo:
         hi = lo + 1
+    timer, deadline = _timer_from_config(config, GAME_NUMBER, now)
+    state = {"min": lo, "max": hi, "picks": {}}
+    if deadline:
+        state["timer_seconds"] = timer
+        state["deadline"] = deadline
     room.status = ROOM_PLAYING
-    room.state_json = json.dumps({"min": lo, "max": hi, "picks": {}}, ensure_ascii=False)
+    room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_START, actor_id=user.id, payload={"min": lo, "max": hi}, now=now)
     return room
@@ -364,8 +526,10 @@ def submit_number(db: Session, room: GameRoom, user: User, *, value: int, now: d
 
 def _finish_number(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     state = json.loads(room.state_json or "{}")
-    picks = state.get("picks", {})
-    names = {m.user_id: m.display_name for m in repository.members(db, room.id)}
+    # 지금 방에 있는 참여자만 집계 — 나갔거나 관전자로 재입장한 사람의 옛 숫자로 '유령'이 이기는 걸 막는다.
+    members = _present_players(db, room, now)
+    names = {m.user_id: m.display_name for m in members}
+    picks = {uid: v for uid, v in state.get("picks", {}).items() if uid in names}
     # 숫자별 제출자 목록.
     by_number: dict[int, list[str]] = {}
     for uid, val in picks.items():
@@ -398,10 +562,19 @@ _RPS_BEATS = {0: 2, 2: 1, 1: 0}
 
 
 def _open_rps(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
+    config = json.loads(room.config_json or "{}")
+    mode = "tournament" if str(config.get("mode", "single")) == "tournament" else "single"
+    timer, deadline = _timer_from_config(config, GAME_RPS, now)
+    if mode == "tournament":
+        return _open_rps_tournament(db, room, user, timer=timer, deadline=deadline, now=now)
+    state: dict = {"choices": {}, "mode": "single"}
+    if deadline:
+        state["timer_seconds"] = timer
+        state["deadline"] = deadline  # 카운트다운 마감(서버 기준)
     room.status = ROOM_PLAYING
-    room.state_json = json.dumps({"choices": {}}, ensure_ascii=False)
+    room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
-    _append_event(db, room, EV_START, actor_id=user.id, payload={}, now=now)
+    _append_event(db, room, EV_START, actor_id=user.id, payload={"timer_seconds": timer, "mode": "single"}, now=now)
     return room
 
 
@@ -416,6 +589,9 @@ def submit_rps(db: Session, room: GameRoom, user: User, *, choice: int, now: dat
     if choice not in (0, 1, 2):
         raise ValidationAppError("가위/바위/보 중에서 내세요.")
     state = json.loads(room.state_json or "{}")
+    if state.get("mode") == "tournament":
+        _tournament_submit(db, room, user, state, choice=choice, now=now)
+        return
     choices = dict(state.get("choices", {}))
     choices[user.id] = choice  # 재제출 시 마지막 선택으로 덮어쓴다.
     state["choices"] = choices
@@ -424,10 +600,202 @@ def submit_rps(db: Session, room: GameRoom, user: User, *, choice: int, now: dat
     _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
 
 
+# ── 가위바위보 토너먼트(단판 승자 진출) ──────────────────────────────────────────
+# 참여자를 무작위로 짝지어 각 대진에서 가위바위보 1:1. 두 선택이 다르면 그 자리에서 승부가 나고,
+# 같으면(비김) 그 대진만 다시 낸다. 라운드의 모든 대진이 끝나면 승자들로 다음 라운드를 짠다
+# (홀수면 한 명 부전승). 마지막 한 명이 챔피언. 시간이 끝나면 서버가 안 낸 쪽을 무작위로 채우고,
+# 강제 종료 시 비김은 동전던지기로 가른다(§13.1 서버 확정).
+def _new_match(a: tuple[str, str], b: tuple[str, str] | None) -> dict:
+    if b is None:  # 부전승
+        return {"a": a[0], "b": None, "a_name": a[1], "b_name": None,
+                "a_choice": None, "b_choice": None, "winner": a[0], "done": True, "bye": True, "replayed": 0}
+    return {"a": a[0], "b": b[0], "a_name": a[1], "b_name": b[1],
+            "a_choice": None, "b_choice": None, "winner": None, "done": False, "bye": False, "replayed": 0}
+
+
+def _pair_round(entrants: list[tuple[str, str]]) -> list[dict]:
+    """(uid, name) 목록을 두 명씩 대진으로 묶는다. 홀수면 마지막 한 명은 부전승."""
+    matches: list[dict] = []
+    i = 0
+    while i < len(entrants):
+        if i + 1 < len(entrants):
+            matches.append(_new_match(entrants[i], entrants[i + 1]))
+            i += 2
+        else:
+            matches.append(_new_match(entrants[i], None))
+            i += 1
+    return matches
+
+
+def _open_rps_tournament(db, room, user, *, timer, deadline, now) -> GameRoom:
+    players = [m for m in repository.members(db, room.id) if m.active and m.role != ROLE_SPECTATOR]
+    if len(players) < 2:
+        raise ConflictError("토너먼트는 참여자가 2명 이상이어야 합니다.")
+    entrants = [(m.user_id, m.display_name) for m in players]
+    secrets.SystemRandom().shuffle(entrants)
+    state = {
+        "mode": "tournament", "round_idx": 0, "champion": None,
+        "matches": _pair_round(entrants), "rounds": [], "timer_seconds": timer,
+    }
+    if deadline:
+        state["deadline"] = deadline
+    room.status = ROOM_PLAYING
+    room.state_json = json.dumps(state, ensure_ascii=False)
+    db.flush()
+    _append_event(db, room, EV_START, actor_id=user.id,
+                  payload={"mode": "tournament", "players": len(players)}, now=now)
+    return room
+
+
+def _resolve_match(m: dict) -> None:
+    """두 선택이 모두 있으면 승부를 낸다. 비기면 두 선택을 지워 다시 내게 한다(replay)."""
+    ac, bc = m.get("a_choice"), m.get("b_choice")
+    if ac is None or bc is None:
+        return
+    if ac == bc:  # 비김 → 그 대진만 다시
+        m["a_choice"] = None
+        m["b_choice"] = None
+        m["replayed"] = int(m.get("replayed", 0)) + 1
+        return
+    m["winner"] = m["a"] if _RPS_BEATS[ac] == bc else m["b"]
+    m["done"] = True
+
+
+def _tournament_submit(db, room, user, state, *, choice, now) -> None:
+    for m in state.get("matches", []):
+        if m.get("done"):
+            continue
+        if m["a"] == user.id:
+            m["a_choice"] = choice
+        elif m.get("b") == user.id:
+            m["b_choice"] = choice
+        else:
+            continue
+        _resolve_match(m)
+        _tournament_advance(db, room, state, now=now, force=False)
+        # 챔피언이 나오면 advance가 이미 result를 room.state_json에 썼다 — 덮어쓰지 않는다.
+        if room.status == ROOM_PLAYING:
+            room.state_json = json.dumps(state, ensure_ascii=False)
+        db.flush()
+        _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
+        return
+    raise ForbiddenError("이번 라운드 대진에 없습니다(이미 탈락했거나 관전 중).")
+
+
+def _tournament_advance(db, room, state, *, now, force: bool) -> None:
+    """라운드가 끝났으면 다음 라운드를 짜거나 챔피언을 확정한다. force면 미결 대진을 서버가 마감."""
+    matches = state.get("matches", [])
+    rng = secrets.SystemRandom()
+    if force:
+        for m in matches:
+            if m.get("done"):
+                continue
+            if m.get("a_choice") is None:
+                m["a_choice"] = rng.randint(0, 2)
+            if m.get("b_choice") is None:
+                m["b_choice"] = rng.randint(0, 2)
+            ac, bc = m["a_choice"], m["b_choice"]
+            m["winner"] = rng.choice([m["a"], m["b"]]) if ac == bc else (m["a"] if _RPS_BEATS[ac] == bc else m["b"])
+            m["done"] = True
+    if not matches or not all(m.get("done") for m in matches):
+        return  # 아직 진행 중
+
+    def _wname(m):  # 승자 이름은 대진에 저장된 이름에서 — 참여자가 중간에 나가도 이름이 남는다
+        w = m.get("winner")
+        if w == m.get("a"):
+            return m.get("a_name") or ""
+        if w == m.get("b"):
+            return m.get("b_name") or ""
+        return (m.get("a_name") or "") if m.get("bye") else ""
+
+    # 끝난 라운드를 히스토리에 남긴다(대진표 표시용).
+    state.setdefault("rounds", []).append([
+        {"a_name": m.get("a_name"), "b_name": m.get("b_name"), "winner_name": _wname(m)}
+        for m in matches
+    ])
+    winners = [m["winner"] for m in matches if m.get("winner")]
+    if len(winners) <= 1:
+        champ = winners[0] if winners else None
+        champ_name = ""
+        for m in matches:
+            if champ and m.get("winner") == champ:
+                champ_name = _wname(m)
+                break
+        state["champion"] = {"user_id": champ, "name": champ_name} if champ else None
+        result = {"mode": "tournament", "champion": state["champion"], "rounds": state["rounds"]}
+        room.status = ROOM_FINISHED
+        room.state_json = json.dumps({"result": result}, ensure_ascii=False)
+        db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=None, payload={"champion": state["champion"]}, now=now)
+        return
+    name_by_uid: dict[str, str] = {}
+    for m in matches:
+        if m.get("a"):
+            name_by_uid[m["a"]] = m.get("a_name") or ""
+        if m.get("b"):
+            name_by_uid[m["b"]] = m.get("b_name") or ""
+    entrants = [(uid, name_by_uid.get(uid, "")) for uid in winners]
+    rng.shuffle(entrants)
+    state["round_idx"] = int(state.get("round_idx", 0)) + 1
+    state["matches"] = _pair_round(entrants)
+    timer = int(state.get("timer_seconds", 0) or 0)
+    if timer > 0:
+        state["deadline"] = (now + timedelta(seconds=timer)).isoformat()
+    else:
+        state.pop("deadline", None)
+
+
+def _rps_tournament_public(state: dict, user_id: str) -> dict:
+    """토너먼트 진행 중 안전한 뷰. 상대가 무엇을 냈는지는 감추고(제출 여부만), 대진이 끝나면
+    승자만 공개한다. your_match로 내 대진·내 선택·상대 이름을 준다."""
+    matches = state.get("matches", [])
+    view_matches = []
+    your_match = None
+    for idx, m in enumerate(matches):
+        winner_name = None
+        if m.get("done") and m.get("winner"):
+            winner_name = m.get("a_name") if m.get("winner") == m.get("a") else m.get("b_name")
+        view_matches.append({
+            "a_name": m.get("a_name"), "b_name": m.get("b_name"),
+            "a_submitted": m.get("a_choice") is not None,
+            "b_submitted": m.get("b_choice") is not None,
+            "done": bool(m.get("done")), "bye": bool(m.get("bye")),
+            "winner_name": winner_name, "replayed": int(m.get("replayed", 0)),
+        })
+        if not m.get("done") and user_id in (m.get("a"), m.get("b")):
+            slot = "a" if m.get("a") == user_id else "b"
+            your_match = {
+                "index": idx, "slot": slot,
+                "opponent": m.get("b_name") if slot == "a" else m.get("a_name"),
+                "your_choice": m.get(slot + "_choice"),
+                "you_submitted": m.get(slot + "_choice") is not None,
+            }
+    return {
+        "mode": "tournament",
+        "round_idx": int(state.get("round_idx", 0)),
+        "matches": view_matches,
+        "your_match": your_match,
+        "champion": state.get("champion"),
+        "deadline": state.get("deadline"),
+        "timer_seconds": state.get("timer_seconds"),
+    }
+
+
 def _finish_rps(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     state = json.loads(room.state_json or "{}")
-    choices = {uid: c for uid, c in state.get("choices", {}).items() if isinstance(c, int) and c in (0, 1, 2)}
-    names = {m.user_id: m.display_name for m in repository.members(db, room.id)}
+    # 지금 방에 있는 참여자만 — 나갔거나 관전자로 재입장한 사람의 옛 선택(유령 승자·빈 이름)을 배제.
+    members = _present_players(db, room, now)
+    names = {m.user_id: m.display_name for m in members}
+    raw = {uid: c for uid, c in state.get("choices", {}).items()
+           if isinstance(c, int) and c in (0, 1, 2) and uid in names}
+    # 시간 안에 안 낸 참여자는 서버가 무작위로 채운다 — 대기로 게임이 막히지 않게(§13.1 서버 확정).
+    rng = secrets.SystemRandom()
+    auto_ids: set[str] = set()
+    for m in members:
+        if m.user_id not in raw:
+            raw[m.user_id] = rng.randint(0, 2)
+            auto_ids.add(m.user_id)
+    choices = raw
     present = set(choices.values())
     winners: list[dict] = []
     win_label = None
@@ -439,7 +807,8 @@ def _finish_rps(db: Session, room: GameRoom, user: User, *, now: datetime) -> Ga
         outcome = "win"
         winners = [{"user_id": uid, "name": names.get(uid, "")} for uid, c in choices.items() if c == win_choice]
     reveal = sorted(
-        [{"user_id": uid, "name": names.get(uid, ""), "choice": _RPS_LABELS[c]} for uid, c in choices.items()],
+        [{"user_id": uid, "name": names.get(uid, ""), "choice": _RPS_LABELS[c], "auto": uid in auto_ids}
+         for uid, c in choices.items()],
         key=lambda x: x["name"],
     )
     result = {"outcome": outcome, "winners": winners, "win_choice": win_label, "reveal": reveal}
@@ -462,11 +831,15 @@ def _open_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
     questions = config.get("questions") or []
     if not questions:
         raise ConflictError("문제를 1개 이상 넣어 주세요.")
+    timer, deadline = _timer_from_config(config, GAME_QUIZ, now)
     room.status = ROOM_PLAYING
-    room.state_json = json.dumps(
-        {"questions": questions, "round": 0, "phase": QUIZ_ANSWERING, "answers": {}, "scores": {}},
-        ensure_ascii=False,
-    )
+    # 점수판을 참여자 전원 0점으로 시작한다 — 한 문제도 못 맞힌 사람도 최종 결과에 남게(누락 방지).
+    scores = {m.user_id: 0 for m in _present_players(db, room, now)}
+    state = {"questions": questions, "round": 0, "phase": QUIZ_ANSWERING, "answers": {}, "scores": scores,
+             "timer_seconds": timer}
+    if deadline:
+        state["deadline"] = deadline  # 라운드마다 갱신(각 문제에 제한 시간)
+    room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_START, actor_id=user.id, payload={"rounds": len(questions)}, now=now)
     return room
@@ -500,6 +873,10 @@ def submit_quiz_answer(db: Session, room: GameRoom, user: User, *, option_index:
 
 def reveal_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     _ensure_host(room, user)
+    return _reveal_quiz(db, room, user.id, now=now)
+
+
+def _reveal_quiz(db: Session, room: GameRoom, actor_id, *, now: datetime) -> GameRoom:
     if room.game_type != GAME_QUIZ or room.status != ROOM_PLAYING:
         raise ConflictError("공개할 퀴즈가 없습니다.")
     state = json.loads(room.state_json or "{}")
@@ -517,7 +894,7 @@ def reveal_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Ga
     state["phase"] = QUIZ_REVEALED
     room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
-    _append_event(db, room, EV_SYSTEM, actor_id=user.id, payload={"quiz": "revealed", "round": rnd}, now=now)
+    _append_event(db, room, EV_SYSTEM, actor_id=actor_id, payload={"quiz": "revealed", "round": rnd}, now=now)
     return room
 
 
@@ -549,6 +926,11 @@ def next_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Game
     state["round"] = rnd + 1
     state["phase"] = QUIZ_ANSWERING
     state["answers"] = {}
+    timer = int(state.get("timer_seconds", 0) or 0)
+    if timer > 0:
+        state["deadline"] = (now + timedelta(seconds=timer)).isoformat()  # 새 문제에 새 카운트다운
+    else:
+        state.pop("deadline", None)
     room.state_json = json.dumps(state, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_SYSTEM, actor_id=user.id, payload={"quiz": "next", "round": rnd + 1}, now=now)
@@ -570,8 +952,11 @@ def _quiz_public(state: dict, user_id: str) -> dict:
         "question": q.get("q", ""),
         "options": q.get("options", []),
         "submitted_count": len(answers),
+        "submitted": list(answers.keys()),  # 누가 답했는지(무엇을 골랐는지는 감춤) — 대기자 표시
         "your_answer": answers.get(user_id),
         "scores": _score_view(scores, state),
+        "deadline": state.get("deadline") if phase == QUIZ_ANSWERING else None,
+        "timer_seconds": state.get("timer_seconds"),
     }
     if phase == QUIZ_REVEALED:
         view["answer"] = int(q.get("answer", 0))  # 정답 보기 index
@@ -595,15 +980,24 @@ def public_state(room: GameRoom, user_id: str) -> dict:
             "min": state.get("min"),
             "max": state.get("max"),
             "submitted_count": len(picks),
+            "submitted": list(picks.keys()),  # 누가 냈는지(값은 감춤) — 대기자 표시용
             "you_submitted": user_id in picks,
             "your_pick": picks.get(user_id),
+            "deadline": state.get("deadline"),
+            "timer_seconds": state.get("timer_seconds"),
         }
     if room.game_type == GAME_RPS and room.status == ROOM_PLAYING:
+        if state.get("mode") == "tournament":
+            return _rps_tournament_public(state, user_id)
         choices = state.get("choices", {})
         return {
             "submitted_count": len(choices),
+            "submitted": list(choices.keys()),  # 누가 냈는지(무엇을 냈는지는 감춤)
             "you_submitted": user_id in choices,
             "your_choice": choices.get(user_id),  # 0/1/2 (본인 것만)
+            "deadline": state.get("deadline"),
+            "timer_seconds": state.get("timer_seconds"),
+            "mode": "single",
         }
     if room.game_type == GAME_QUIZ and room.status == ROOM_PLAYING:
         return _quiz_public(state, user_id)

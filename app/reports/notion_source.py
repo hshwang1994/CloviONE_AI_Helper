@@ -189,6 +189,11 @@ def query_tasks_by_assignee(outbound, settings, *, notion_user_id: str) -> list[
     )
 
 
+def query_all_tasks(outbound, settings) -> list[dict]:
+    """작업 DB의 모든 티켓(마감 오름차순). 팀 티켓 보기 화면용 — 상태 필터는 호출측 책임."""
+    return _query_tasks(outbound, settings, sorts=_DUE_ASC)
+
+
 def query_unassigned_tasks(outbound, settings) -> list[dict]:
     """담당자(사람)가 없는 티켓 전부(마감 오름차순). 완료/취소 제외 같은 상태 필터는 호출측 책임."""
     return _query_tasks(

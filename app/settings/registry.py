@@ -102,6 +102,8 @@ REGISTRY: dict[str, SettingSpec] = {
                     "대화 보존 기간(일) — 초과 시 백그라운드 작업이 자동 삭제", _positive_int(3650)),
         SettingSpec("notification_retention_days", "int", 90, False,
                     "알림 보존 기간(일) — 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
+        SettingSpec("trash_retention_days", "int", 7, False,
+                    "휴지통 보관 기간(일) — 초과 시 노션 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirONE 업무 도우미"}, False,
                     "UI 브랜딩(제품명) — 로그인/채팅 화면 제목", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,

@@ -7,14 +7,14 @@ Notion 토큰이 없으면 오류 대신 configured=false 로 돌려줘 화면�
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.reports.notion_source import NotionNotConfiguredError, NotionQueryError
 from app.tickets import service
-from app.tickets.schemas import TicketCreate, TicketUpdate
+from app.tickets.schemas import BulkPageIds, TicketCreate, TicketUpdate
 from app.users.models import User
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
@@ -97,6 +97,25 @@ def projects(
         return {"configured": True, "ok": False, "error": exc.message, "projects": []}
 
 
+@router.get("/team")
+def team_tickets(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    active: bool = Query(default=True),
+):
+    """팀 전체 티켓(다른 사람 것 포함) — 조회 전용. 리터럴 경로라 GET /{page_id} 보다 먼저 선언."""
+    settings = request.app.state.settings
+    outbound = request.app.state.outbound_client
+    try:
+        tickets = service.list_team_tickets(db, outbound, settings, active_only=active)
+    except NotionNotConfiguredError as exc:
+        return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
+    except NotionQueryError as exc:
+        return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
+    return {"configured": True, "ok": True, "tickets": tickets}
+
+
 @router.post("", dependencies=[Depends(require_csrf)])
 def create(
     request: Request,
@@ -156,3 +175,61 @@ def claim_ticket(
         object_id=page_id, before=result["before"], after=result["after"],
     )
     return {"configured": True, "ok": True, "ticket": result["ticket"]}
+
+
+@router.post("/trash-bulk", dependencies=[Depends(require_csrf)])
+def trash_tickets_bulk(
+    request: Request,
+    payload: BulkPageIds,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """티켓 여러 건을 한 번에 휴지통으로(목록 다중선택). 건별 권한 검사, 부분 성공.
+    (리터럴 경로라 아래 GET /{page_id} 보다 먼저 선언 — id 로 잡히지 않게.)"""
+    settings = request.app.state.settings
+    outbound = request.app.state.outbound_client
+    result = service.trash_tickets_bulk(db, outbound, settings, user,
+                                        page_ids=payload.page_ids, now=request.app.state.clock.now())
+    for it in result["trashed"]:
+        record_audit_from_request(request, db, action="ticket.trash", object_type="notion_task",
+                                  object_id=it["id"], before={"title": it.get("title")})
+    return {"ok": True, **result}
+
+
+@router.get("/{page_id}")
+def ticket_detail(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """티켓 단건 상세(속성 + 본문 블록) — 우리 화면에서 읽고 '원본 열기'로 노션에 간다.
+    (리터럴 GET 라우트들이 위에 먼저 선언돼 있어 이 경로 파라미터가 그것들을 가리지 않는다.)"""
+    settings = request.app.state.settings
+    outbound = request.app.state.outbound_client
+    try:
+        result = service.ticket_detail(db, outbound, settings, user, page_id=page_id)
+    except NotionNotConfiguredError as exc:
+        return {"configured": False, "ok": False, "message": exc.message}
+    except NotionQueryError as exc:
+        return {"configured": True, "ok": False, "error": exc.message}
+    return {"configured": True, "ok": True, **result}
+
+
+@router.post("/{page_id}/trash", dependencies=[Depends(require_csrf)])
+def trash_ticket(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """티켓을 휴지통으로 보낸다(노션 원본은 보관기간 뒤 삭제). 편집 권한 필요 + 감사."""
+    settings = request.app.state.settings
+    outbound = request.app.state.outbound_client
+    result = service.trash_ticket(db, outbound, settings, user, page_id=page_id,
+                                  now=request.app.state.clock.now())
+    record_audit_from_request(
+        request, db, action="ticket.trash", object_type="notion_task",
+        object_id=page_id, before={"title": result["title"]},
+    )
+    return {"ok": True}

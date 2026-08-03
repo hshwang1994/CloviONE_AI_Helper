@@ -49,12 +49,19 @@ def _room_summary(db: Session, room) -> dict:
         "member_count": repository.member_count(db, room.id),
         "max_players": room.max_players,
         "allow_spectators": room.allow_spectators,
+        "closed": room.closed_at is not None,
         "created_at": room.created_at.isoformat(),
     }
 
 
-def _member_view(m) -> dict:
-    return {"user_id": m.user_id, "name": m.display_name, "role": m.role, "ready": m.ready, "active": m.active}
+def _member_view(m, user=None) -> dict:
+    # 참여자 카드에 이름과 함께 직책·부서를 보여준다(사람을 알아보게). 명부에 없으면 빈칸.
+    return {
+        "user_id": m.user_id, "name": m.display_name, "role": m.role,
+        "ready": m.ready, "active": m.active,
+        "title": (user.title if user else None) or "",
+        "dept": (user.department if user else None) or "",
+    }
 
 
 def _event_view(e) -> dict:
@@ -75,6 +82,8 @@ def _get_room_or_404(db: Session, room_id: str):
 
 @router.get("/rooms")
 def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    # 목록을 볼 때마다 버려진(폴링 끊긴) 방을 먼저 정리해 유령 방이 남지 않게 한다.
+    service.cleanup_idle_rooms(db, now=request.app.state.clock.now())
     rooms = repository.list_open_rooms(db)
     flags = load_feature_flags(request.app.state.settings.config_dir)
     # 프런트가 AI 퀴즈 생성 버튼 노출 여부를 알도록 플래그를 함께 내려준다(기본 OFF → 버튼 숨김).
@@ -97,12 +106,16 @@ def room_state(
     db: Session = Depends(get_db), me: User = Depends(get_current_user),
 ):
     room = _get_room_or_404(db, room_id)
-    service.touch_presence(db, room, me, now=request.app.state.clock.now())
+    now = request.app.state.clock.now()
+    service.touch_presence(db, room, me, now=now)
+    service.maybe_autoresolve(db, room, now=now)  # 마감 지난 타이머 게임을 서버가 자동 확정(방장 비의존)
     mem = repository.get_member(db, room.id, me.id)
+    active_members = [m for m in repository.members(db, room.id) if m.active]
+    umap = repository.users_by_ids(db, [m.user_id for m in active_members])
     return {
         "room": _room_summary(db, room),
         "state": service.public_state(room, me.id),
-        "members": [_member_view(m) for m in repository.members(db, room.id) if m.active],
+        "members": [_member_view(m, umap.get(m.user_id)) for m in active_members],
         "events": [_event_view(e) for e in repository.events_since(db, room.id, since)],
         "seq": room.event_seq,
         "you": {
@@ -127,6 +140,14 @@ def join(request: Request, room_id: str, db: Session = Depends(get_db), me: User
 def leave(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     room = _get_room_or_404(db, room_id)
     service.leave_room(db, room, me, now=request.app.state.clock.now())
+    return {"ok": True}
+
+
+@router.post("/rooms/{room_id}/disband", dependencies=[Depends(require_csrf)])
+def disband(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    # 방장만 방을 파할 수 있다(service._ensure_host). 파하면 방이 목록·조회에서 사라진다.
+    room = _get_room_or_404(db, room_id)
+    service.disband_room(db, room, me, now=request.app.state.clock.now())
     return {"ok": True}
 
 

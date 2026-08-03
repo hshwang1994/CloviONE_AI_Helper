@@ -14,6 +14,25 @@ from pydantic import BaseModel, ConfigDict, field_validator
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+class BulkPageIds(BaseModel):
+    """일괄 삭제(휴지통 이동) 요청 — Notion page id 목록. 티켓·문서 공용."""
+
+    model_config = ConfigDict(extra="forbid")
+    page_ids: list[str]
+
+    @field_validator("page_ids")
+    @classmethod
+    def _ids(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        for x in v or []:
+            s = str(x).strip()
+            if s and s not in out:
+                out.append(s)
+        if not out:
+            raise ValueError("삭제할 항목을 선택하세요.")
+        return out[:100]  # 한 번에 최대 100건
+
+
 class TicketUpdate(BaseModel):
     # 계약에 없는 키는 거절한다 — 프런트 오타/오용이 조용히 무시되지 않게(fail fast).
     model_config = ConfigDict(extra="forbid")

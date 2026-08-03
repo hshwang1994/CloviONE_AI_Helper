@@ -169,6 +169,178 @@ def test_ladder_assigns_each_player_one_outcome(app, client, login_as, make_user
     assert all(a["outcome"] in {"당첨", "꽝"} for a in assigns)
 
 
+def test_ladder_structure_is_honest(app, client, login_as, make_user):
+    """사다리 결과에 실제 사다리 구조(세로줄·가로줄)가 담기고, 그 구조를 따라 걸으면
+    서버가 확정한 도착지가 그대로 나온다(프런트가 정직하게 그릴 수 있다)."""
+    csrf = login_as("user", email="ladh@goodmit.co.kr")
+    rid = _create(client, csrf, title="사다리", game_type="ladder",
+                  config={"options": ["커피", "차", "주스"]})["id"]
+    for e in ("ls1@goodmit.co.kr", "ls2@goodmit.co.kr"):
+        make_user(e)
+        c, cs = _login_other(app, e)
+        with c:
+            c.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    n = len(res["columns"])
+    assert n == 3 and len(res["outcomes"]) == 3 and res["rows"] >= 6
+    # 가로줄 구조를 따라 각 시작 열을 걸어 도착 열을 구하고, outcomes[end]가 배정과 일치하는지.
+    rung_set = {(g["row"], g["col"]) for g in res["rungs"]}
+    for i, a in enumerate(res["assignments"]):
+        col = i
+        for r in range(res["rows"]):
+            if (r, col) in rung_set:
+                col += 1
+            elif col > 0 and (r, col - 1) in rung_set:
+                col -= 1
+        assert a["end_col"] == col and a["outcome"] == res["outcomes"][col]
+    # 아미다쿠지는 항상 1:1 대응 — 도착 열이 모두 다르다.
+    assert len({a["end_col"] for a in res["assignments"]}) == n
+
+
+def test_rps_autofills_non_submitters_on_finish(app, client, login_as, make_user):
+    """제한 시간 안에 안 낸 참여자는 서버가 무작위로 채워, 대기로 게임이 막히지 않는다."""
+    csrf = login_as("user", email="rpsauto@goodmit.co.kr")
+    rid = _create(client, csrf, title="가위바위보", game_type="rps", config={"timer_seconds": 10})["id"]
+    make_user("rpa2@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "rpa2@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    # 진행 중 상태에 카운트다운 마감과 제출자 목록이 노출된다.
+    playing = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]
+    assert playing.get("deadline") and playing.get("timer_seconds") == 10
+    assert playing["submitted"] == [] and playing["mode"] == "single"
+    # 방장만 내고 참여자는 안 냄 → 방장이 종료하면 참여자 몫은 자동으로 채워진다.
+    client.post(f"/api/games/rooms/{rid}/rps", json={"option": 1}, headers={"X-CSRF-Token": csrf})
+    c2.close()
+    client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert len(res["reveal"]) == 2  # 미제출자도 자동으로 채워져 공개에 포함
+    autos = [p for p in res["reveal"] if p.get("auto")]
+    assert len(autos) == 1  # 참여자 한 명이 자동 배정됨
+
+
+def test_restart_after_finish_is_rejected(app, client, login_as, make_user):
+    """끝난 방에 /start 를 다시 보내도 재추첨되지 않는다(공정성) — 초기화(reset)를 거쳐야 한다."""
+    csrf = login_as("user", email="restarth@goodmit.co.kr")
+    rid = _create(client, csrf, title="추첨", config={"winners": 1})["id"]
+    make_user("rp9@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "rp9@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2}); c2.close()
+    assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).json()["room"]["status"] == "finished"
+    # 끝난 방 재시작 거부(409). 결과 이벤트도 하나뿐.
+    assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).status_code == 409
+    events = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["events"]
+    assert len([e for e in events if e["kind"] == "result"]) == 1
+    # 초기화하면 다시 시작할 수 있다.
+    client.post(f"/api/games/rooms/{rid}/reset", headers={"X-CSRF-Token": csrf})
+    assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).status_code == 200
+
+
+def test_number_finish_excludes_departed_player(app, client, login_as, make_user):
+    """나간 사람의 숫자는 종료 집계에서 빠진다(유령 승자 방지)."""
+    csrf = login_as("user", email="ghosth@goodmit.co.kr")
+    rid = _create(client, csrf, title="눈치", game_type="number", config={"min": 1, "max": 9})["id"]
+    make_user("ghostp@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "ghostp@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    c2.post(f"/api/games/rooms/{rid}/pick", json={"value": 1}, headers={"X-CSRF-Token": cs2})  # B: 1(최저)
+    client.post(f"/api/games/rooms/{rid}/pick", json={"value": 5}, headers={"X-CSRF-Token": csrf})  # A: 5
+    c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": cs2}); c2.close()  # B 나감
+    client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert len(res["picks"]) == 1 and res["winner"]["number"] == 5  # B(1) 제외 → 승자는 A(5)
+
+
+def test_quiz_scoreboard_includes_zero_scorers(app, client, login_as, make_user):
+    """한 문제도 못 맞힌 참여자도 최종 점수판에 0점으로 남는다."""
+    csrf = login_as("user", email="qz0h@goodmit.co.kr")
+    rid = _create(client, csrf, title="퀴즈", game_type="quiz",
+                  config={"questions": [{"q": "?", "options": ["a", "b"], "answer": 0}]})["id"]
+    make_user("qz0p@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "qz0p@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    client.post(f"/api/games/rooms/{rid}/quiz-answer", json={"option": 0}, headers={"X-CSRF-Token": csrf})  # A 정답
+    c2.post(f"/api/games/rooms/{rid}/quiz-answer", json={"option": 1}, headers={"X-CSRF-Token": cs2})  # B 오답
+    c2.close()
+    client.post(f"/api/games/rooms/{rid}/reveal", headers={"X-CSRF-Token": csrf})
+    client.post(f"/api/games/rooms/{rid}/next", headers={"X-CSRF-Token": csrf})
+    board = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]["scoreboard"]
+    assert len(board) == 2 and sorted(b["score"] for b in board) == [0, 1]  # 0점자도 포함
+
+
+def test_no_spectate_room_rejects_join_while_playing(app, client, login_as, make_user):
+    """관전 불허 방이 진행 중이면 새 입장자를 관전자로도 받지 않는다(관전 불허 계약)."""
+    csrf = login_as("user", email="nspech@goodmit.co.kr")
+    rid = _create(client, csrf, title="가위바위보", game_type="rps", allow_spectators=False)["id"]
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})  # playing
+    make_user("nspecp@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "nspecp@goodmit.co.kr")
+    with c2:
+        assert c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2}).status_code == 409
+
+
+def test_ladder_keeps_duplicate_outcome_labels(app, client, login_as, make_user):
+    """사다리 도착지에 같은 라벨(꽝 2개)을 넣으면 그대로 유지된다(스키마가 dedup 하지 않음)."""
+    csrf = login_as("user", email="ladduph@goodmit.co.kr")
+    rid = _create(client, csrf, title="사다리", game_type="ladder",
+                  config={"options": ["당첨", "꽝", "꽝"]})["id"]
+    for e in ("ld1@goodmit.co.kr", "ld2@goodmit.co.kr"):
+        make_user(e)
+        c, cs = _login_other(app, e)
+        with c:
+            c.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert res["outcomes"].count("꽝") == 2  # 중복 꽝이 살아 있다
+
+
+def test_config_numeric_string_does_not_crash(client, login_as):
+    """조작된 문자열 숫자 설정이 와도 500 없이 처리된다(정수 강제, 아니면 기본값)."""
+    csrf = login_as("user", email="cfgnum@goodmit.co.kr")
+    r = client.post("/api/games/rooms", json={"title": "x", "game_type": "random_draw", "config": {"winners": "abc"}},
+                    headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200
+    rid = r.json()["room"]["id"]
+    assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).status_code == 200
+
+
+def test_cleanup_closes_idle_rooms(db, make_user):
+    """폴링이 끊긴 지 오래된 열린 방은 자동으로 닫힌다(유령 방 방지). 방금 만든 방은 그대로."""
+    from datetime import datetime, timedelta
+
+    from app.games import repository, service
+
+    host = make_user(email="idle@goodmit.co.kr", display_name="유휴호스트")
+    t0 = datetime(2026, 7, 29, 2, 0, 0)
+    room = service.create_room(db, host=host, title="유휴방", game_type="random_draw",
+                               max_players=8, allow_spectators=True, config={}, now=t0)
+    db.flush()
+    assert service.cleanup_idle_rooms(db, now=t0 + timedelta(seconds=30)) == 0
+    assert repository.get_room(db, room.id) is not None
+    assert service.cleanup_idle_rooms(db, now=t0 + timedelta(seconds=200)) == 1
+    assert repository.get_room(db, room.id) is None
+
+
+def test_host_disband_removes_room(app, client, login_as, make_user):
+    """방장이 방을 파하면 방이 목록·조회에서 사라지고, 다른 참여자는 404를 받는다. 방장만 가능."""
+    csrf = login_as("user", email="disbh@goodmit.co.kr")
+    rid = _create(client, csrf, title="파할방")["id"]
+    make_user("disbp@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "disbp@goodmit.co.kr")
+    with c2:
+        c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+        # 참여자는 방을 파할 수 없다.
+        assert c2.post(f"/api/games/rooms/{rid}/disband", headers={"X-CSRF-Token": cs2}).status_code == 403
+        # 방장이 파한다.
+        assert client.post(f"/api/games/rooms/{rid}/disband", headers={"X-CSRF-Token": csrf}).status_code == 200
+        # 목록에서 사라지고, 조회는 404.
+        assert not any(r["id"] == rid for r in client.get("/api/games/rooms").json()["items"])
+        assert c2.get(f"/api/games/rooms/{rid}/state?since=0").status_code == 404
+
+
 def test_quiz_rounds_scoring_and_hidden_answers(app, client, login_as, make_user):
     csrf = login_as("user", email="qzhost@goodmit.co.kr")
     questions = [
@@ -257,6 +429,66 @@ def test_rps_all_same_is_draw(app, client, login_as, make_user):
     client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
     res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
     assert res["outcome"] == "draw" and res["winners"] == []
+
+
+def test_timer_autoresolves_server_side_on_poll(app, client, login_as, fake_clock):
+    """마감이 지나면 방장이 아무것도 안 해도 폴링 진입에서 서버가 자동 확정한다(방장 브라우저 비의존)."""
+    csrf = login_as("user", email="autoresh@goodmit.co.kr")
+    rid = _create(client, csrf, title="가위바위보", game_type="rps", config={"timer_seconds": 10})["id"]
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    assert client.get(f"/api/games/rooms/{rid}/state?since=0").json()["room"]["status"] == "playing"
+    fake_clock.advance(11)  # 마감(10초) 넘김
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()  # 폴링 → 서버 자동 확정
+    assert st["room"]["status"] == "finished" and st["state"]["result"] is not None
+
+
+def test_rps_tournament_two_players_crowns_champion(app, client, login_as, make_user):
+    """토너먼트 2인: 두 선택이 다르면 그 자리에서 승부가 나고 곧바로 챔피언이 확정된다."""
+    csrf = login_as("user", email="tour2h@goodmit.co.kr")
+    rid = _create(client, csrf, title="토너먼트", game_type="rps",
+                  config={"mode": "tournament", "timer_seconds": 0})["id"]
+    make_user("tour2p@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "tour2p@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]
+    assert st["mode"] == "tournament" and len(st["matches"]) == 1 and st["champion"] is None
+    # 방장=가위(0), 참여자=바위(1) → 바위 승 → 참여자 챔피언, 게임 종료.
+    client.post(f"/api/games/rooms/{rid}/rps", json={"option": 0}, headers={"X-CSRF-Token": csrf})
+    c2.post(f"/api/games/rooms/{rid}/rps", json={"option": 1}, headers={"X-CSRF-Token": cs2})
+    c2.close()
+    fin = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert fin["room"]["status"] == "finished"
+    res = fin["state"]["result"]
+    assert res["mode"] == "tournament" and res["champion"] and res["champion"]["name"]
+    assert len(res["rounds"]) == 1
+
+
+def test_rps_tournament_four_players_multi_round(app, client, login_as, make_user):
+    """토너먼트 4인: 방장이 라운드를 강제 마감하면 미결 대진은 서버가 채우고 다음 라운드로,
+    마지막에 챔피언 한 명이 남는다(라운드 히스토리 2개)."""
+    csrf = login_as("user", email="tour4h@goodmit.co.kr")
+    rid = _create(client, csrf, title="토너먼트4", game_type="rps",
+                  config={"mode": "tournament", "timer_seconds": 0})["id"]
+    for e in ("t4a@goodmit.co.kr", "t4b@goodmit.co.kr", "t4c@goodmit.co.kr"):
+        make_user(e)
+        c, cs = _login_other(app, e)
+        with c:
+            c.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]
+    assert st["round_idx"] == 0 and len(st["matches"]) == 2  # 4명 → 2대진
+    # 1라운드 강제 마감 → 2라운드(승자 2명 → 1대진), 아직 진행 중.
+    client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
+    st2 = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert st2["room"]["status"] == "playing"
+    assert st2["state"]["round_idx"] == 1 and len(st2["state"]["matches"]) == 1
+    # 2라운드 강제 마감 → 챔피언.
+    client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
+    fin = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert fin["room"]["status"] == "finished"
+    res = fin["state"]["result"]
+    assert res["champion"] and len(res["rounds"]) == 2
 
 
 def test_number_game_hides_picks_then_lowest_unique_wins(app, client, login_as, make_user):

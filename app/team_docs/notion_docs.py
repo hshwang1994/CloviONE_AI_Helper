@@ -383,6 +383,12 @@ def create_document(outbound, settings, *, properties: dict, children: list) -> 
     return resp.json()
 
 
+def archive_page(outbound, settings, *, page_id: str) -> dict:
+    """문서 페이지를 보관처리(archive=휴지통으로) 한다 — 휴지통 보관기간 초과 시 영구 삭제에서 호출.
+    Notion 자체 휴지통에서 30일 복구 가능."""
+    return _request(outbound, settings, "PATCH", f"/v1/pages/{page_id}", json={"archived": True})
+
+
 def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
     """페이지 본문 블록을 얕게(1레벨) 읽어 렌더용 구조 [{kind, text, checked?}]로 돌려준다.
 

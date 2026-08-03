@@ -11,6 +11,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import repository
 from app.team_docs.models import (
     DocumentCache,
@@ -23,10 +24,54 @@ from app.users.models import ROLE_OPERATOR, User, roles_at_least
 
 # 수동 동기화는 운영자군만(무분별한 Notion 호출·비용 방지). 주기 동기화는 워커가 전원에게 제공.
 SYNC_ROLES = roles_at_least(ROLE_OPERATOR)
+# 문서 삭제(휴지통) — 운영자군은 무엇이든, 그 외는 본인이 작성/소유한 문서만.
+_DOC_DELETE_ROLES = roles_at_least(ROLE_OPERATOR)
 
 
 def can_trigger_sync(user: User) -> bool:
     return user.role in SYNC_ROLES
+
+
+def ensure_can_delete_doc(doc: DocumentCache, user: User) -> None:
+    """문서 삭제 권한 — 운영자군이거나 작성자/소유자 본인(이름 일치)."""
+    if user.role in _DOC_DELETE_ROLES:
+        return
+    name = (user.display_name or "").strip()
+    authors = {a.strip() for a in split_names(doc.author_names or "")}
+    if name and (name in authors or name == (doc.owner or "").strip()):
+        return
+    raise ForbiddenError("이 문서를 삭제할 권한이 없습니다(작성자 또는 운영자만 가능).")
+
+
+def trash_document(db: Session, *, user: User, page_id: str, now: datetime) -> dict:
+    """문서를 휴지통으로 보낸다(노션 원본은 보관기간 뒤 삭제). 작성자/운영자만."""
+    from app.trash import service as trash_service
+    from app.trash.models import TRASH_DOCUMENT
+
+    doc = repository.get_by_page_id(db, page_id)
+    if doc is None:
+        raise NotFoundError("문서를 찾을 수 없습니다.")
+    ensure_can_delete_doc(doc, user)
+    item = trash_service.move_to_trash(
+        db, item_type=TRASH_DOCUMENT, notion_page_id=page_id,
+        title=doc.title or "(제목 없음)", url=doc.url, user=user, now=now,
+    )
+    return {"title": item.title, "url": item.url}
+
+
+def trash_documents_bulk(db: Session, *, user: User, page_ids: list[str], now: datetime) -> dict:
+    """문서 여러 건을 휴지통으로. 건별 권한 검사, 실패는 건너뛰고 계속(부분 성공)."""
+    from app.core.errors import AppError
+
+    trashed: list[dict] = []
+    failed: list[dict] = []
+    for pid in page_ids:
+        try:
+            result = trash_document(db, user=user, page_id=pid, now=now)
+            trashed.append({"id": pid, "title": result["title"]})
+        except AppError as exc:
+            failed.append({"id": pid, "error": exc.message})
+    return {"trashed": trashed, "failed": failed}
 
 
 def filter_options(db: Session) -> dict:

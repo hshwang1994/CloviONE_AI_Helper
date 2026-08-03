@@ -135,16 +135,25 @@ def strip_stale_job_attachments(db: Session, *, now: datetime, max_age_hours: in
     return touched
 
 
-def run_retention(db: Session, *, now: datetime, settings_cache) -> dict:
+def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, settings=None) -> dict:
     values = settings_cache.current()
     conv_days = int(values.get("conversation_retention_days", 365))
     notif_days = int(values.get("notification_retention_days", 90))
     job_days = int(values.get("job_retention_days", 60))
     run_days = int(values.get("schedule_run_retention_days", 60))
-    return {
+    result = {
         "conversations": purge_old_conversations(db, now=now, retention_days=conv_days),
         "notifications": purge_old_notifications(db, now=now, retention_days=notif_days),
         "job_attachments": strip_stale_job_attachments(db, now=now),
         "jobs": purge_old_jobs(db, now=now, retention_days=job_days),
         "schedule_runs": purge_old_schedule_runs(db, now=now, retention_days=run_days),
     }
+    # 휴지통 만료 정리는 노션 호출(archive)이 필요해 outbound/settings 가 주어질 때만 돈다.
+    if outbound is not None and settings is not None:
+        from app.trash import service as trash_service
+
+        trash_days = int(values.get("trash_retention_days", 7))
+        result["trash"] = trash_service.purge_expired(
+            db, now=now, retention_days=trash_days, outbound=outbound, settings=settings
+        )
+    return result
