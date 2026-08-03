@@ -13,11 +13,14 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.backups.models import Backup
+from app.backups.models import Backup, RestoreRehearsal
 from app.backups.service import (
     apply_retention,
+    backup_schedule_config,
     backup_view,
+    last_successful_backup,
     reap_stuck_running,
+    rehearsal_view,
     run_backup,
     verify_existing,
 )
@@ -60,6 +63,60 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
         after={"status": row.status, "path": row.path},
     )
     return {"backup": backup_view(row)}
+
+
+# 정적 경로는 `/{backup_id}/...` **앞에** 둔다 — 아래 verify 라우트가 먼저 등록돼 있으면
+# `/rehearsals` 가 backup_id 로 해석될 여지가 생긴다(경로 모양이 달라 지금은 충돌하지
+# 않지만, 규칙을 지켜 두면 나중에 세그먼트 하나를 더할 때 사고가 안 난다).
+@router.get("/rehearsals", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def list_rehearsals(db: Session = Depends(get_db)):
+    """복구 리허설 기록 — "마지막으로 복원을 시험한 게 언제인가"에 답한다.
+
+    앱은 리허설을 스스로 돌리지 않는다(app/backups/models.py::RestoreRehearsal 참조).
+    그래서 기록이 비어 있으면 **한 번도 안 했다**는 뜻이고, 화면은 그 사실과 함께
+    실행 방법을 그대로 보여 준다 — 하지 않은 일을 한 것처럼 꾸미지 않는다.
+    """
+    rows = (
+        db.execute(
+            select(RestoreRehearsal)
+            .order_by(RestoreRehearsal.started_at.desc())
+            .limit(20)
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "items": [rehearsal_view(r) for r in rows],
+        "command": ".venv/Scripts/python.exe scripts/restore_rehearsal.py --record",
+        "note": (
+            "복구 리허설은 앱을 한 번 더 띄워 실제 읽기 경로까지 확인하므로 워커가 아니라 "
+            "스크립트로 돌립니다. --record 를 붙이면 결과가 이 목록에 남습니다."
+        ),
+    }
+
+
+@router.get("/schedule", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
+    """자동 백업 일정 + 최근 성공 백업 + 최근 리허설을 한 화면에.
+
+    셋을 따로 보면 "백업은 돌고 있는데 복원은 한 번도 안 해 봤다"를 알아채지 못한다.
+    """
+    config = backup_schedule_config(getattr(request.app.state, "settings_cache", None))
+    last = last_successful_backup(db)
+    rehearsal = (
+        db.execute(
+            select(RestoreRehearsal).order_by(RestoreRehearsal.started_at.desc()).limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    return {
+        "schedule": config,
+        # 설정 화면이 정본이다 — 여기서 고치는 API 를 따로 만들면 값이 두 곳에서 바뀐다.
+        "edit_hint": "일정은 관리 콘솔 '설정' 화면의 backup_schedule 에서 바꿉니다.",
+        "last_backup": backup_view(last) if last is not None else None,
+        "last_rehearsal": rehearsal_view(rehearsal) if rehearsal is not None else None,
+    }
 
 
 @router.post("/{backup_id}/verify", dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])

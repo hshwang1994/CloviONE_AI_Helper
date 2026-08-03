@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.observability.service import EVENT_DOCUMENT_GENERATE, record_usage
+from app.quotas import service as ai_quotas
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.pagination import PageParams
@@ -84,6 +85,13 @@ def list_generations(
 
 @router.post("/generate", status_code=202, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def generate(request: Request, payload: GenerateRequest, db: Session = Depends(get_db)):
+    # AI 쿼터(0033) — **요청을 큐에 넣기 전에** 본다. 넣은 뒤에 막으면 이미 러너 슬롯과
+    # 토큰을 쓴 뒤라 상한의 뜻이 없다. 상한 행이 없으면 아무 제한도 없다(fail-open,
+    # app/quotas/service.py::enforce 주석). 여기는 사람이 폼을 한 번 누르는 저빈도 지점이라
+    # 0026 의 '뜨거운 경로 금지' 규칙에 걸리지 않는다.
+    ai_quotas.enforce(
+        db, user_id=request.state.user.id, now=request.app.state.clock.now()
+    )
     # document_automation_enabled는 이제 관리 콘솔 Settings 화면에서 켜고 끌 수 있는
     # settings_cache 값이다(예전엔 서버 파일로만 존재해 화면에 노출되지 않았다).
     doc_automation_enabled = bool(
@@ -109,6 +117,15 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
         db, event=EVENT_DOCUMENT_GENERATE, user_id=request.state.user.id,
         org_id=getattr(request.state.user, "org_id", None),
         object_type="document_generation", object_id=gen.id,
+        now=request.app.state.clock.now(),
+    )
+    # AI 쿼터가 세는 이벤트는 따로다 — 'document.generate'는 기능별 통계이고, 'ai.call'은
+    # 비용 축이다. 한 이름으로 합치면 나중에 AI 를 쓰지 않는 생성 경로가 생겼을 때
+    # 쿼터가 잘못 깎인다.
+    ai_quotas.record_call(
+        db, user_id=request.state.user.id,
+        org_id=getattr(request.state.user, "org_id", None),
+        kind=ai_quotas.KIND_DOCUMENT_GENERATE,
         now=request.app.state.clock.now(),
     )
     return {"generation": generation_view(gen)}

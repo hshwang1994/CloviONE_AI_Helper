@@ -218,9 +218,23 @@ export function DataScreen({ config }) {
     }
     // 큐 작업(job_id 반환)을 낸 액션은 종료까지 폴링해 완료 시점에 다시 갱신·안내한다.
     if (a.pollJob) { const jid = a.pollJob.getId ? a.pollJob.getId(res) : (res && res.job_id); if (jid) pollJobUntilDone(jid, a.pollJob); }
+    // 내가 '누구인지'가 바뀌는 액션(대리 보기 시작)은 한 화면만 다시 받아서는 안 된다 —
+    // 역할·메뉴·상단 배너가 전부 달라지므로 부분 갱신은 관리자 사이드바에 사용자 데이터가
+    // 섞인 화면을 만든다. 토스트가 보일 만큼만 두고 통째로 다시 읽는다.
+    if (a.reloadAfter) window.setTimeout(() => window.location.reload(), 900);
   }
   async function runAction(a, row, key) {
     if (a.navigate) { setSel(null); window.location.hash = a.navigate(row); return; }  // 다른 화면으로 이동(HashRouter)
+    // 파일 내려받기 — `api()`(fetch)로는 브라우저 저장 대화상자가 뜨지 않는다. 브라우저가
+    // 직접 그 주소로 가야 Content-Disposition 이 먹는다. **지금 화면의 서버 필터를 그대로
+    // 넘긴다**(buildUrl 이 만든 질의 문자열) — 화면에서 좁혀 놓고 눌렀는데 전체가 내려오면
+    // 받은 파일은 화면에서 본 것과 다른 데이터이고, 그 차이는 열어 보기 전까지 아무도 모른다.
+    if (a.download) {
+      const listUrl = buildUrl();
+      const qs = listUrl.includes("?") ? listUrl.slice(listUrl.indexOf("?") + 1) : "";
+      window.location.href = a.download(qs, row);
+      return;
+    }
     if (a.subList) { setSubView({ a, row }); return; }        // 하위 리소스 드로어
     // 입력 폼 액션 — a.initial(row)이 있으면 행 데이터로 폼을 프리필한다(예: 실패한 문서 재시도).
     if (a.fields) { setActionForm({ a, row, initial: a.initial ? a.initial(row) : null }); return; }

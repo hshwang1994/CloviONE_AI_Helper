@@ -27,7 +27,7 @@ from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, ValidationAppError
-from app.prompts.models import STATUS_DRAFT, Policy, Prompt
+from app.prompts.models import STATUS_DRAFT, STATUS_PUBLISHED, Policy, Prompt
 from app.prompts.service import (
     diff_versions,
     get_or_404,
@@ -267,6 +267,81 @@ def _build_router(kind: str, model, view, create_schema):
             object_id=copy.id, after={"name": copy.name, "version": copy.version},
         )
         return {"item": _view_single(db, copy)}
+
+    @router.get("/usage/stats", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+    def usage_stats(db: Session = Depends(get_db)):
+        """이름별 사용 통계 (0033, PLAN Phase 6).
+
+        **무엇을 세는가**: 버전 수·발행 버전·마지막 발행 시각은 이 표 자체에서 나오고,
+        "실제로 쓰이는가"는 **그것을 가리키는 것**에서 나온다 — 템플릿·스케줄이 이 이름의
+        어느 버전을 참조하는지, 그리고 그 버전으로 실제 문서 생성이 몇 번 돌았는지.
+
+        추측하지 않는다: 참조가 0이면 0으로 보여 준다. "쓰이지 않는 프롬프트"를 알아보는
+        것이 이 화면의 목적이므로, 애매하게 감추면 목적이 사라진다.
+        """
+        from sqlalchemy import or_ as _or
+
+        from app.documents.models import DocumentGeneration
+        from app.schedules.models import Schedule
+        from app.templates.models import AutomationTemplate as Template
+
+        rows = db.execute(select(model).order_by(model.name, model.version)).scalars().all()
+        by_name: dict[str, list] = {}
+        for row in rows:
+            by_name.setdefault(row.name, []).append(row)
+
+        id_field = "prompt_id" if kind == "prompts" else "policy_id"
+        template_refs = db.execute(
+            select(getattr(Template, id_field), Template.name).where(
+                getattr(Template, id_field).is_not(None)
+            )
+        ).all()
+        schedule_refs = (
+            db.execute(
+                select(Schedule.prompt_id, Schedule.name).where(Schedule.prompt_id.is_not(None))
+            ).all()
+            if kind == "prompts"
+            else []
+        )
+
+        items = []
+        for name, versions in by_name.items():
+            ids = {v.id for v in versions}
+            published = [v for v in versions if v.status == STATUS_PUBLISHED]
+            templates_using = sorted({n for vid, n in template_refs if vid in ids})
+            schedules_using = sorted({n for vid, n in schedule_refs if vid in ids})
+            # UUID 를 LIKE 로 찾는다 — config_json 안에 들어 있어 컬럼으로는 못 건다.
+            # id 가 UUID 라 오탐이 사실상 불가능하고, 버전 수만큼만 절이 붙는다.
+            capped = sorted(ids)[:50]
+            doc_runs = 0
+            if capped:
+                doc_runs = int(
+                    db.execute(
+                        select(func.count())
+                        .select_from(DocumentGeneration)
+                        .where(_or(*[DocumentGeneration.config_json.like(f"%{i}%") for i in capped]))
+                    ).scalar_one()
+                )
+            items.append({
+                "name": name,
+                "versions": len(versions),
+                "published_version": published[-1].version if published else None,
+                "latest_version": versions[-1].version,
+                "latest_status": versions[-1].status,
+                "last_published_at": (
+                    published[-1].published_at.isoformat()
+                    if published and published[-1].published_at
+                    else None
+                ),
+                "template_refs": len(templates_using),
+                "template_names": templates_using,
+                "schedule_refs": len(schedules_using),
+                "schedule_names": schedules_using,
+                "document_runs": doc_runs,
+                "unused": not templates_using and not schedules_using and doc_runs == 0,
+            })
+        items.sort(key=lambda i: (i["unused"], i["name"]))
+        return {"items": items, "kind": kind}
 
     @router.get("/diff/view", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def diff(

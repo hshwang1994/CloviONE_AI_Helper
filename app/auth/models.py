@@ -27,3 +27,13 @@ class UserSession(UUIDPrimaryKeyMixin, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
     client_ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(255))
+    # ── 읽기 전용 임퍼소네이션(0033) ──────────────────────────────────────────
+    # 관리자가 남의 화면을 '보는 중'이면 여기 두 칸이 채워진다. 대상의 세션을 새로 만들지
+    # 않는 이유는 app/impersonation/service.py 모듈 docstring 참조 — 행위자는 끝까지
+    # 관리자여야 감사가 성립한다. 둘 다 NULL 이면 평소 세션이다.
+    impersonated_user_id: Mapped[str | None] = mapped_column(String(36))
+    impersonation_id: Mapped[str | None] = mapped_column(String(36))
+
+    @property
+    def impersonating(self) -> bool:
+        return self.impersonated_user_id is not None

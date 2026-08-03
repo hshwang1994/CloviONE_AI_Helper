@@ -1283,6 +1283,7 @@ export const REGISTRY = {
     // integration.change_config, user.role_change, document.publish. 예전 문구는 3종만 언급해
     // 스케줄 활성화·문서 발행 승인이 왜 여기 뜨는지 안내가 없었다.
     emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동/러너 설정 변경, 역할 변경, 문서 발행처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
+    emptyRelatedLink: { href: "#/approval-delegations", label: "부재 시 대리 승인자 설정" },
     // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(runners.onQuery와 동일한
     // 패턴 — 백엔드 GET /api/admin/approvals/{id}가 이미 존재하는데 지금까지 아무 화면도 호출하지 않았다).
     // 문서 화면의 '승인 대기 목록으로'가 ?status=pending을 붙여 넘어온다 — 감사 화면의 open:'filter'
@@ -1306,6 +1307,17 @@ export const REGISTRY = {
       // resolve_names가 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
       { key: "requester_name", label: "요청자", render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
       badgeCol("status", "상태"), dateCol("requested_at", "요청 시각"),
+      // 기한(SLA, 0033)은 만료와 **다른 축**이다: 만료는 요청이 죽는 시각, 기한은 사람이 답해야
+      // 하는 시각이다. 둘을 한 열로 합치면 "아직 살아 있지만 이미 늦었다"를 표현할 수 없다.
+      // 판정은 서버(approval_view)가 한 `overdue` 를 그대로 쓴다 — 화면이 시각을 다시 비교하면
+      // 브라우저 시계가 틀린 PC 에서 목록과 상세가 서로 다른 답을 낸다.
+      { key: "due_at", label: "기한", render: (r) => {
+        if (APPROVAL_DONE.includes(r.status) || !r.due_at) return "-";
+        const text = fmtDateTime(r.due_at);
+        return r.overdue
+          ? React.createElement(Badge, { value: "기한 초과 · " + text, kind: "danger" })
+          : text;
+      } },
       { key: "expires_at", label: "만료", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTime(r.expires_at) }],
     // 승인 전에 '무엇을 적용하는지'를 반드시 보여준다(내용 없이 승인 금지). request_payload가 핵심.
     // 요청자는 위 columns에서 이름/이메일로 이미 보여주므로 여기선 원시 ID만(대조용). 결정자는
@@ -1314,6 +1326,11 @@ export const REGISTRY = {
     // request_payload를 원시 JSON 한 덩어리(예: document.publish의 {"generation_id":...})가 아니라 최상위
     // 키/값 행으로 펼쳐 승인 전에 '무엇을 적용하는지' 읽기 쉽게 보여준다(내용 없이 승인 금지). 중첩은 JSON.
     detailFields: [field("object_id", "대상 ID"), field("requested_by", "요청자 ID"),
+      // 위임으로 결재된 건은 '누구를 대신했는가'가 남는다(0033) — 이 줄이 없으면 운영자가
+      // 어떻게 승인할 수 있었는지 화면 어디에도 설명이 없다.
+      { key: "decided_on_behalf_of", label: "대리 결재", render: (r) => r.decided_on_behalf_of
+        ? (r.decided_on_behalf_of_name || r.decided_on_behalf_of) + "님의 위임으로 결재"
+        : "-" },
       // user.role_change 요청은 role/previous_role을 raw 값(예: 'admin')으로 담아 온다 — Users.jsx의
       // ROLE_KO가 화면 곳곳에서 이미 한국어 라벨로 보여주는 값인데, 여기만 generic objectField가
       // 그대로 노출했다. role/previous_role만 ROLE_KO로 치환하고 나머지 키는 그대로(generic) 보여준다.
@@ -1657,7 +1674,19 @@ export const REGISTRY = {
   },
   audit: {
     key: "audit", area: "운영", title: "감사 로그", endpoint: "/api/admin/audit",
-    help: "누가 무엇을 언제 바꿨는지 기록을 봅니다.",
+    help: "누가 무엇을 언제 바꿨는지 기록을 봅니다. 자주 쓰는 필터 조합은 ‘저장된 뷰’로 이름을 붙여 두면 다시 부를 수 있고, ‘CSV 내보내기’는 지금 화면에 걸린 필터를 그대로 적용해 내려받습니다.",
+    // 내보내기·이상 징후 (0033, PLAN Phase 6). 내보내기는 브라우저가 직접 그 주소로 가야
+    // Content-Disposition 이 먹으므로 download 액션이다(DataScreen.runAction 주석 참조) —
+    // 지금 화면의 서버 필터가 그대로 붙어, 화면에서 본 것과 파일 내용이 어긋나지 않는다.
+    headerActions: [
+      // page/page_size 는 빼고 보낸다 — 내보내기는 '지금 보고 있는 한 페이지'가 아니라
+      // '이 필터에 걸리는 전부'다(서버가 무시하긴 하지만 주소에 남으면 뜻이 헷갈린다).
+      { label: "CSV 내보내기", download: (qs) => {
+        const kept = qs.split("&").filter((kv) => kv && !/^page(_size)?=/.test(kv)).join("&");
+        return "/api/admin/audit/export.csv" + (kept ? "?" + kept : "");
+      } },
+      { label: "이상 징후 보기", navigate: () => "#/audit-anomalies" },
+    ],
     emptyTitle: "감사 기록이 없습니다", emptyHelp: "사용자, 설정, 연동 등에 변경이 생기면 누가 무엇을 언제 바꿨는지 여기에 기록됩니다.",
     // 다른 화면(예: 사용자 상세의 '감사 로그에서 보기')에서 넘어온 ?object_type=&object_id= 쿼리를
     // 필터로 소비한다(DataScreen의 open:'filter' 인텐트). 백엔드가 object_id를 이미 지원한다
@@ -1920,6 +1949,378 @@ export const REGISTRY = {
     actions: [
       { label: "소속 인원 보기", roles: WRITE_ROLES, navigate: (r) => "#/users?department_id=" + r.id },
       { label: "부서 관리에서 열기", roles: WRITE_ROLES, navigate: () => "#/departments" },
+    ],
+  },
+  /* ── 관리자 백로그 잔여 (PLAN Phase 6, 마이그레이션 0033) ───────────────────
+   *
+   * 아래 여덟 화면은 전부 DataScreen 계약에 맞췄다. 새 화면 컴포넌트를 만들지 않은 이유:
+   * 목록 + 필터 + 상세 드로어 + 액션이라는 모양이 이미 이 계약 그대로이고, 손으로 쓰면
+   * 401 처리·페이지네이션·"검색 결과 없음"과 "데이터 없음" 구분을 화면마다 다시 유도해야
+   * 한다(그리고 매번 조금씩 다르게 된다). 달력(스케줄러)만 표로 표현할 수 없어 별도 화면이다.
+   */
+  impersonation: {
+    key: "impersonation", area: "사용자", title: "임퍼소네이션(대리 보기)",
+    endpoint: "/api/admin/impersonation/sessions",
+    help: "다른 사용자의 화면을 그 사람 눈으로 읽기만 합니다. 임퍼소네이션 중에는 모든 쓰기가 서버에서 차단되고, 누가 누구를 언제 봤는지가 이 목록과 감사 로그에 남습니다. 시작하면 화면 위에 띠가 뜹니다.",
+    emptyTitle: "임퍼소네이션 기록이 없습니다",
+    emptyHelp: "‘대리 보기 시작’으로 사용자를 지정하면 그 사람의 화면을 읽기 전용으로 볼 수 있습니다.",
+    emptySituation: "지원 문의를 받았는데 그 사용자에게 무엇이 보이는지 확인할 방법이 없었습니다.",
+    emptyPrerequisite: "대상 사용자의 ID가 필요합니다(‘사용자’ 화면에서 확인).",
+    emptySteps: [
+      "‘대리 보기 시작’에 대상 사용자 ID와 사유를 적습니다.",
+      "화면 위 띠가 뜨면 그 사용자의 눈으로 보고 있는 상태입니다.",
+      "확인이 끝나면 띠의 ‘대리 보기 종료’를 누릅니다(최대 30분 뒤 자동 종료).",
+    ],
+    emptyExpected: "시작·종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
+    paginated: true,
+    filters: [{ key: "active", type: "select", label: "진행 중", options: opt([["true", "진행 중"], ["false", "종료됨"]]) }],
+    columns: [
+      { key: "actor_name", label: "관리자", render: (r) => r.actor_name || r.actor_user_id },
+      { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },
+      dateCol("started_at", "시작"), dateCol("ended_at", "종료"),
+      { key: "active", label: "상태", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },
+      { key: "blocked_write_count", label: "차단된 쓰기", align: "right" },
+    ],
+    detailFields: [
+      field("id", "기록 ID"), field("reason", "사유"), field("client_ip", "접속 IP"),
+      field("target_email", "대상 이메일"), field("actor_email", "관리자 이메일"),
+      { key: "ended_reason", label: "종료 사유", render: (r) => ({ manual: "관리자가 종료", logout: "로그아웃", target_unavailable: "대상 계정 사용 불가", expired: "시간 초과 자동 종료" })[r.ended_reason] || r.ended_reason || "-" },
+      { key: "read_count", label: "조회 횟수" },
+      { key: "_blocked_note", label: "차단 안내", render: (r) => r.blocked_write_count ? "이 세션에서 쓰기 시도가 " + r.blocked_write_count + "회 차단됐습니다. 임퍼소네이션 중에는 어떤 변경도 되지 않습니다." : "-" },
+    ],
+    headerActions: [
+      { label: "대리 보기 시작", variant: "primary", primary: true, roles: WRITE_ROLES,
+        path: () => "/api/admin/impersonation/start",
+        fields: [
+          { name: "user_id", label: "대상 사용자 ID", type: "text", required: true, help: "‘사용자’ 화면에서 대상 계정의 ID를 복사해 붙여 넣으세요. 자신과 같거나 더 높은 권한의 계정은 지정할 수 없습니다." },
+          { name: "reason", label: "사유", type: "textarea", help: "왜 보는지 적어 두면 감사 기록에 함께 남습니다(예: 문의 #123 재현 확인)." },
+        ],
+        // 시작하면 '내가 누구인지'가 바뀐다 — 화면을 통째로 다시 읽어야 사이드바·상단 배너가
+        // 함께 바뀐다(부분 갱신하면 관리자 메뉴에 사용자 데이터가 섞인 화면이 된다).
+        reloadAfter: true,
+        result: () => ({ ok: true, msg: "대리 보기를 시작했습니다. 화면을 다시 불러옵니다 — 위쪽 띠에서 종료할 수 있습니다." }) },
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: () => "#/audit?action=impersonation.start" },
+    ],
+    actions: [
+      { label: "이 관리자의 기록만", navigate: (r) => "#/impersonation?actor_user_id=" + encodeURIComponent(r.actor_user_id) },
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=user&object_id=" + encodeURIComponent(r.target_user_id) },
+    ],
+    onQuery: (p) => (p.actor_user_id || p.target_user_id || p.active)
+      ? { open: "filter", values: { actor_user_id: p.actor_user_id, target_user_id: p.target_user_id, active: p.active } }
+      : null,
+  },
+  "approval-delegations": {
+    key: "approval-delegations", area: "자동화", title: "승인 위임",
+    endpoint: "/api/admin/approval-delegations",
+    help: "결재자가 자리를 비우는 동안 다른 사람이 대신 승인할 수 있게 합니다. 위임을 받은 사람은 평소 승인 권한이 없어도 위임 기간에만 결재할 수 있고, 그 결재에는 누구를 대신했는지가 함께 기록됩니다. 기간이 지나면 저절로 닫힙니다.",
+    emptyTitle: "등록된 위임이 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 위임 추가’로 부재 기간과 대리 승인자를 지정하세요.", "위임은 관리자가 등록합니다."),
+    emptySituation: "결재자가 휴가를 가면 승인 큐가 그동안 멈춥니다.",
+    emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
+    emptySteps: ["‘+ 위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
+    emptyExpected: "위임 기간에는 대리 승인자가 승인·거절을 할 수 있고, 결재 기록에 대신한 사람이 남습니다.",
+    createLabel: "+ 위임 추가",
+    searchFields: ["delegator_name", "delegate_name", "reason"],
+    searchPlaceholder: "이름으로 검색",
+    filters: [{ key: "state", type: "select", label: "상태", options: opt([["active", "진행 중"], ["scheduled", "예정"], ["ended", "종료"], ["revoked", "거둠"]]) }],
+    columns: [
+      { key: "delegator_name", label: "위임한 사람", render: (r) => r.delegator_name || r.delegator_user_id },
+      { key: "delegate_name", label: "대리 승인자", render: (r) => r.delegate_name || r.delegate_user_id },
+      { key: "state", label: "상태", render: (r) => React.createElement(Badge, {
+        value: ({ active: "진행 중", scheduled: "예정", ended: "종료", revoked: "거둠" })[r.state] || r.state,
+        kind: r.state === "active" ? "ok" : r.state === "scheduled" ? "info" : "neutral",
+      }) },
+      dateCol("starts_at", "시작"), dateCol("ends_at", "종료"),
+      truncateCol("reason", "사유", 40),
+    ],
+    detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
+      field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "등록")],
+    create: { roles: WRITE_ROLES, fields: [
+      { name: "delegator_user_id", label: "위임하는 사람(사용자 ID)", type: "text", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자·시스템 관리자). ‘사용자’ 화면에서 ID를 복사하세요." },
+      { name: "delegate_user_id", label: "대리 승인자(사용자 ID)", type: "text", required: true, help: "이 사람은 위임 기간에만 승인·거절을 할 수 있습니다." },
+      { name: "starts_at", label: "시작", type: "datetime-local", required: true },
+      { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "최대 90일. 기간이 지나면 권한이 저절로 닫힙니다." },
+      { name: "reason", label: "사유", type: "text", help: "예: 7/20~7/25 휴가" },
+    ] },
+    actions: [
+      { label: "위임 거두기", variant: "danger", roles: WRITE_ROLES, when: (r) => r.state === "active" || r.state === "scheduled",
+        path: (r) => "/api/admin/approval-delegations/" + r.id + "/revoke",
+        confirm: "이 위임을 지금 거둘까요? 대리 승인자는 즉시 결재할 수 없게 됩니다." },
+      { label: "승인 큐 보기", navigate: () => "#/approvals" },
+    ],
+  },
+  announcements: {
+    key: "announcements", area: "운영", title: "공지 배너",
+    endpoint: "/api/admin/announcements",
+    help: "모든 화면 위쪽에 띠로 뜨는 공지입니다. 사용자가 닫으면 그 사람에게는 다시 뜨지 않습니다(브라우저가 아니라 계정에 기록되므로 다른 PC에서도 닫힌 상태가 유지됩니다).",
+    emptyTitle: "등록된 공지가 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 공지 추가’로 점검 예고나 안내를 띄우세요.", "공지는 관리자가 등록합니다."),
+    emptySituation: "점검이나 장애를 알릴 곳이 알림 벨밖에 없었습니다(놓치기 쉽습니다).",
+    emptySteps: ["‘+ 공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 끌 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
+    emptyExpected: "활성 공지는 모든 화면 위쪽에 띠로 뜨고, 사용자가 닫으면 그 계정에는 다시 뜨지 않습니다.",
+    createLabel: "+ 공지 추가",
+    paginated: true,
+    searchFields: ["title", "body"],
+    searchPlaceholder: "제목·내용으로 검색",
+    filters: [
+      { key: "active", type: "select", label: "사용", options: opt([["true", "사용"], ["false", "사용 안 함"]]) },
+      { key: "level", type: "select", label: "중요도", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
+    ],
+    columns: [
+      col("title", "제목"),
+      { key: "level", label: "중요도", render: (r) => React.createElement(Badge, {
+        value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
+        kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
+      }) },
+      mapCol("audience", "대상", { all: "모든 사용자", admin: "관리자군에게만" }),
+      activeCol("사용"),
+      dateCol("starts_at", "시작"), dateCol("ends_at", "종료"),
+    ],
+    detailFields: [field("id", "공지 ID"), field("body", "내용"),
+      { key: "dismissible", label: "닫기 허용", render: (r) => r.dismissible ? "닫을 수 있음" : "닫을 수 없음(기간이 끝나야 사라짐)" },
+      field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "등록")],
+    create: { roles: WRITE_ROLES, fields: [
+      { name: "title", label: "제목", type: "text", required: true },
+      { name: "body", label: "내용", type: "textarea" },
+      { name: "level", label: "중요도", type: "select", value: "info", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
+      { name: "audience", label: "대상", type: "select", value: "all", options: opt([["all", "모든 사용자"], ["admin", "관리자군에게만(운영자 이상)"]]) },
+      { name: "starts_at", label: "노출 시작(선택)", type: "datetime-local", help: "비우면 즉시 노출됩니다." },
+      { name: "ends_at", label: "노출 종료(선택)", type: "datetime-local", help: "비우면 ‘사용 안 함’으로 바꿀 때까지 계속 노출됩니다." },
+      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "끄면 닫기 버튼이 없습니다 — 그런 공지는 반드시 종료 시각을 정하세요." },
+      { name: "link_url", label: "링크 주소(선택)", type: "text" },
+      { name: "link_label", label: "링크 문구(선택)", type: "text" },
+      { name: "active", label: "사용", type: "checkbox", value: true, checkLabel: "지금 사용" },
+    ] },
+    editMethod: "PATCH",
+    edit: { roles: WRITE_ROLES, fields: [
+      { name: "title", label: "제목", type: "text", required: true },
+      { name: "body", label: "내용", type: "textarea" },
+      { name: "level", label: "중요도", type: "select", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
+      { name: "audience", label: "대상", type: "select", options: opt([["all", "모든 사용자"], ["admin", "관리자군에게만(운영자 이상)"]]) },
+      { name: "starts_at", label: "노출 시작(선택)", type: "datetime-local" },
+      { name: "ends_at", label: "노출 종료(선택)", type: "datetime-local" },
+      { name: "dismissible", label: "닫기 허용", type: "checkbox", checkLabel: "사용자가 닫을 수 있음" },
+      { name: "link_url", label: "링크 주소(선택)", type: "text" },
+      { name: "link_label", label: "링크 문구(선택)", type: "text" },
+      { name: "active", label: "사용", type: "checkbox", checkLabel: "지금 사용" },
+    ] },
+    actions: [
+      { label: "사용", roles: WRITE_ROLES, when: (r) => !r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: true } },
+      { label: "사용 안 함", roles: WRITE_ROLES, when: (r) => r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false }, confirm: "이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다." },
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 지울까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
+    ],
+  },
+  "ai-quotas": {
+    key: "ai-quotas", area: "자동화", title: "AI 사용 상한",
+    endpoint: "/api/admin/ai-quotas",
+    help: "AI 호출을 사용자·기간별로 제한합니다. 상한이 걸리는 곳은 AI 도우미 문장 생성과 문서 자동 생성 요청 두 곳입니다 — 채팅 전송처럼 자주 일어나는 경로에는 걸지 않습니다(그 경로에 기록을 걸면 읽기가 쓰기로 바뀌어 느려집니다). 사용자별 상한이 전체 상한보다 우선합니다. 상한 행이 하나도 없으면 제한이 없습니다.",
+    emptyTitle: "설정된 상한이 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
+    emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
+    emptySteps: ["‘+ 상한 추가’에서 ‘전체’ 범위로 하루 상한을 정합니다.", "특정 사용자만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’ 열로 소비 상황을 확인합니다."],
+    emptyExpected: "상한에 도달하면 그 사용자의 AI 요청이 거절되고, 언제 풀리는지 안내됩니다.",
+    createLabel: "+ 상한 추가",
+    columns: [
+      mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
+      { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-") },
+      mapCol("period", "기간", { day: "하루", month: "한 달" }),
+      { key: "max_calls", label: "상한", align: "right" },
+      { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls) },
+      dateCol("resets_at", "초기화"),
+    ],
+    detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
+      dateCol("created_at", "등록"), dateCol("updated_at", "수정"),
+      { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다 — 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
+    create: { roles: WRITE_ROLES, fields: [
+      { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
+      { name: "user_id", label: "사용자 ID", type: "text", help: "범위가 ‘사용자’일 때만 필요합니다. ‘사용자’ 화면에서 ID를 복사하세요." },
+      { name: "period", label: "기간", type: "select", value: "day", required: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
+      { name: "max_calls", label: "상한(횟수)", type: "number", required: true, help: "0이면 차단입니다(무제한이 아닙니다). 무제한으로 두려면 이 줄을 지우세요. 기간 경계는 한국 시간 기준입니다." },
+      { name: "note", label: "메모", type: "text" },
+    ] },
+    editMethod: "PATCH",
+    edit: { roles: WRITE_ROLES, fields: [
+      { name: "max_calls", label: "상한(횟수)", type: "number", required: true },
+      { name: "note", label: "메모", type: "text" },
+    ] },
+    actions: [
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위·기간에는 제한이 없어집니다." },
+    ],
+  },
+  "feature-flags": {
+    key: "feature-flags", area: "운영", title: "기능 플래그",
+    endpoint: "/api/admin/feature-flags",
+    help: "모듈을 켜고 끄는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 반영됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다 — 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
+    emptyTitle: "플래그 정의를 불러오지 못했습니다",
+    searchFields: ["name", "description"],
+    searchPlaceholder: "플래그 이름으로 검색",
+    filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 변경)"], ["db", "설정 화면"]]) }],
+    columns: [
+      col("name", "플래그"),
+      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "켜짐" : "꺼짐", kind: r.value ? "ok" : "neutral" }) },
+      mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
+      { key: "has_consumer", label: "실제 효과", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
+      truncateCol("description", "설명", 70),
+    ],
+    detailFields: [
+      field("description", "설명"), field("edit_hint", "변경 안내"),
+      { key: "default", label: "기본값", render: (r) => r.default ? "켜짐" : "꺼짐" },
+      { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다 — 켜거나 꺼도 동작이 달라지지 않습니다." },
+    ],
+    actions: [
+      { label: "켜기", variant: "primary", roles: WRITE_ROLES, when: (r) => r.editable_here && !r.value,
+        method: "PUT", path: (r) => "/api/admin/feature-flags/" + encodeURIComponent(r.name), body: { enabled: true },
+        confirm: (r) => r.name + " 플래그를 켤까요? 재시작 없이 즉시 반영됩니다." },
+      { label: "끄기", variant: "danger", roles: WRITE_ROLES, when: (r) => r.editable_here && r.value,
+        method: "PUT", path: (r) => "/api/admin/feature-flags/" + encodeURIComponent(r.name), body: { enabled: false },
+        confirm: (r) => r.name + " 플래그를 끌까요? 이 기능을 쓰는 화면이 즉시 사라지거나 요청이 거절됩니다." },
+      { label: "설정 화면에서 열기", when: (r) => !r.editable_here, navigate: () => "#/settings" },
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=feature_flag&object_id=" + encodeURIComponent(r.name) },
+    ],
+  },
+  "audit-anomalies": {
+    key: "audit-anomalies", area: "운영", title: "감사 이상 징후",
+    endpoint: "/api/admin/audit/anomalies",
+    help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다 — 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거·임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
+    emptyTitle: "눈여겨볼 징후가 없습니다",
+    emptyHelp: "선택한 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 확인할 수 있습니다.",
+    filters: [{ key: "window_hours", type: "select", label: "기간", value: "24", options: opt([["6", "최근 6시간"], ["24", "최근 24시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
+    columns: [
+      { key: "severity", label: "중요도", render: (r) => React.createElement(Badge, {
+        value: ({ high: "높음", medium: "보통", low: "낮음" })[r.severity] || r.severity,
+        kind: r.severity === "high" ? "danger" : r.severity === "medium" ? "warn" : "info",
+      }) },
+      mapCol("kind", "유형", {
+        failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
+        critical_action: "권한·계정 변경", new_actor_action: "처음 하는 동작",
+      }),
+      { key: "actor_name", label: "행위자", render: (r) => r.actor_name || r.actor_id || "시스템" },
+      col("title", "요약"),
+      { key: "count", label: "건수", align: "right" },
+      dateCol("last_at", "마지막"),
+    ],
+    detailFields: [
+      field("detail", "설명"),
+      { key: "evidence", label: "근거", render: (r) => (r.evidence || []).join(" · ") || "-" },
+      { key: "threshold", label: "임계값", render: (r) => r.threshold == null ? "-" : String(r.threshold) },
+      dateCol("first_at", "처음"), field("actor_email", "행위자 이메일"),
+    ],
+    actions: [
+      { label: "이 사람의 감사 로그", roles: ["admin", "system_admin", "auditor"], when: (r) => !!r.actor_id, navigate: (r) => "#/audit?user_id=" + encodeURIComponent(r.actor_id) },
+      { label: "실패만 보기", roles: ["admin", "system_admin", "auditor"], when: (r) => r.kind === "failure_burst" && !!r.actor_id, navigate: (r) => "#/audit?user_id=" + encodeURIComponent(r.actor_id) + "&result=failure" },
+    ],
+    headerActions: [
+      { label: "감사 로그 전체", roles: ["admin", "system_admin", "auditor"], navigate: () => "#/audit" },
+    ],
+  },
+  "restore-drills": {
+    key: "restore-drills", area: "운영", title: "복구 리허설",
+    endpoint: "/api/admin/backups/rehearsals",
+    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성·행 수·스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다.",
+    emptyTitle: "복구 리허설 기록이 없습니다",
+    emptyHelp: "아직 한 번도 복원을 시험하지 않았습니다. 아래 순서로 실행하면 결과가 이 목록에 남습니다.",
+    emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",
+    emptyPrerequisite: "서버에 접속할 수 있어야 합니다(웹에서 실행하지 않습니다).",
+    emptySteps: [
+      "서버에서 scripts/restore_rehearsal.py --record 를 실행합니다.",
+      "백업 → 검증 → 복원 → 무결성 → 행 수 대조 → 스키마 → 실제 부팅 순으로 7단계가 돕니다.",
+      "끝나면 결과 한 줄이 이 목록에 남습니다(실패하면 실패한 단계도 함께).",
+    ],
+    emptyExpected: "‘마지막으로 복원을 시험한 게 언제인가’에 이 화면 하나로 답할 수 있게 됩니다.",
+    emptyRelatedLink: { href: "#/backup", label: "백업 목록으로 이동" },
+    summary: {
+      endpoint: "/api/admin/backups/schedule",
+      cards: (data) => {
+        const s = (data && data.schedule) || {};
+        const last = data && data.last_backup;
+        const drill = data && data.last_rehearsal;
+        return [
+          { value: s.enabled ? s.cron : "꺼짐", label: s.enabled ? "자동 백업 (" + (s.timezone || "Asia/Seoul") + ")" : "자동 백업", kind: s.enabled ? "ok" : "warn" },
+          { value: last ? fmtDateTime(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
+          { value: drill ? (drill.ok ? "통과" : "실패") : "한 번도 안 함", label: "마지막 리허설", kind: drill ? (drill.ok ? "ok" : "danger") : "warn" },
+          { value: s.keep == null ? "-" : String(s.keep), label: "보관 개수" },
+        ];
+      },
+    },
+    columns: [
+      { key: "ok", label: "결과", render: (r) => React.createElement(Badge, { value: r.ok ? "통과" : "실패", kind: r.ok ? "ok" : "danger" }) },
+      dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
+      { key: "_rows", label: "행 수", align: "right", render: (r) => (r.summary && r.summary.rows != null) ? String(r.summary.rows) : "-" },
+      { key: "_head", label: "스키마", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
+      truncateCol("source_label", "원본", 50),
+    ],
+    detailFields: [
+      field("id", "기록 ID"),
+      { key: "failures", label: "실패한 단계", render: (r) => (r.failures || []).join(" · ") || "없음" },
+      { key: "_summary", label: "요약", render: (r) => JSON.stringify(r.summary || {}) },
+    ],
+    headerActions: [
+      { label: "백업 목록", navigate: () => "#/backup" },
+      { label: "백업 일정 설정", roles: WRITE_ROLES, navigate: () => "#/settings" },
+    ],
+  },
+  "prompt-usage": {
+    key: "prompt-usage", area: "콘텐츠", title: "프롬프트 사용 통계",
+    endpoint: "/api/admin/prompts/usage/stats",
+    help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 템플릿·스케줄이 없고 문서 생성에도 쓰인 적이 없다는 뜻입니다 — 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
+    emptyTitle: "등록된 프롬프트가 없습니다",
+    emptyHelp: "‘프롬프트’ 화면에서 프롬프트를 만들면 여기에 사용 현황이 표시됩니다.",
+    emptyRelatedLink: { href: "#/prompts", label: "프롬프트 화면으로 이동" },
+    searchFields: ["name"],
+    searchPlaceholder: "프롬프트 이름으로 검색",
+    filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
+    columns: [
+      col("name", "이름"),
+      { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
+      { key: "versions", label: "버전 수", align: "right" },
+      { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
+      { key: "template_refs", label: "템플릿", align: "right" },
+      { key: "schedule_refs", label: "스케줄", align: "right" },
+      { key: "document_runs", label: "문서 생성", align: "right" },
+    ],
+    detailFields: [
+      { key: "template_names", label: "참조하는 템플릿", render: (r) => (r.template_names || []).join(", ") || "없음" },
+      { key: "schedule_names", label: "참조하는 스케줄", render: (r) => (r.schedule_names || []).join(", ") || "없음" },
+      { key: "latest_version", label: "최신 버전" },
+      badgeCol("latest_status", "최신 상태"),
+      dateCol("last_published_at", "마지막 발행"),
+    ],
+    actions: [
+      { label: "이 프롬프트 버전 보기", navigate: (r) => "#/prompts?name=" + encodeURIComponent(r.name) },
+    ],
+    headerActions: [
+      { label: "정책 사용 통계", navigate: () => "#/policy-usage" },
+    ],
+  },
+  "policy-usage": {
+    key: "policy-usage", area: "콘텐츠", title: "정책 사용 통계",
+    endpoint: "/api/admin/policies/usage/stats",
+    help: "정책이 실제로 쓰이고 있는지 이름별로 봅니다. 정책은 발행하는 순간 그 이름을 참조하는 모든 템플릿이 다음 문서 생성부터 새 내용을 쓰므로, 어디서 쓰이는지를 먼저 확인하고 발행하세요.",
+    emptyTitle: "등록된 정책이 없습니다",
+    emptyHelp: "‘정책’ 화면에서 정책을 만들면 여기에 사용 현황이 표시됩니다.",
+    emptyRelatedLink: { href: "#/policies", label: "정책 화면으로 이동" },
+    searchFields: ["name"],
+    searchPlaceholder: "정책 이름으로 검색",
+    filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
+    columns: [
+      col("name", "이름"),
+      { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
+      { key: "versions", label: "버전 수", align: "right" },
+      { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
+      { key: "template_refs", label: "템플릿", align: "right" },
+      { key: "document_runs", label: "문서 생성", align: "right" },
+    ],
+    detailFields: [
+      { key: "template_names", label: "참조하는 템플릿", render: (r) => (r.template_names || []).join(", ") || "없음" },
+      { key: "latest_version", label: "최신 버전" },
+      badgeCol("latest_status", "최신 상태"),
+      dateCol("last_published_at", "마지막 발행"),
+    ],
+    actions: [
+      { label: "이 정책 버전 보기", navigate: (r) => "#/policies?name=" + encodeURIComponent(r.name) },
+    ],
+    headerActions: [
+      { label: "프롬프트 사용 통계", navigate: () => "#/prompt-usage" },
     ],
   },
 };

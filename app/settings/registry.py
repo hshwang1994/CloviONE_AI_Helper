@@ -83,6 +83,33 @@ def _ui_branding(value: Any) -> None:
         raise ValidationAppError("product_name은 비어 있지 않은 문자열이어야 합니다.")
 
 
+def _backup_schedule(value: Any) -> None:
+    """백업 스케줄(0033). cron 표현식과 타임존을 **저장 시점에** 검증한다.
+
+    검증을 워커로 미루면 잘못된 표현식이 조용히 저장되고, 그 뒤로 백업이 영영 안 돈다 —
+    그리고 아무 오류도 안 난다(워커가 예외를 삼키므로). 백업이 그런 식으로 멈추는 것은
+    복원이 필요해진 날에야 알게 된다.
+    """
+    if not isinstance(value, dict):
+        raise ValidationAppError("객체여야 합니다.")
+    if not isinstance(value.get("enabled"), bool):
+        raise ValidationAppError("enabled는 true/false여야 합니다.")
+    keep = value.get("keep", 14)
+    if not isinstance(keep, int) or isinstance(keep, bool) or keep < 1 or keep > 365:
+        raise ValidationAppError("keep은 1~365 정수여야 합니다.")
+    from app.schedules import cron as _cron
+
+    tz_name = value.get("timezone", "Asia/Seoul")
+    if not isinstance(tz_name, str):
+        raise ValidationAppError("timezone은 문자열이어야 합니다 (예: Asia/Seoul).")
+    expression = value.get("cron", "")
+    if not isinstance(expression, str) or not expression.strip():
+        raise ValidationAppError("cron 표현식이 필요합니다 (예: 0 3 * * *).")
+    # 아래 두 함수는 잘못된 값이면 ValidationAppError 를 던진다(불리언을 돌려주지 않는다).
+    _cron.validate_timezone(tz_name)
+    _cron.validate_cron(expression)
+
+
 def _retry_policy(value: Any) -> None:
     if not isinstance(value, dict):
         raise ValidationAppError("객체여야 합니다.")
@@ -121,6 +148,14 @@ REGISTRY: dict[str, SettingSpec] = {
         # 예전엔 이 값을 바꾸려면 서버 파일을 직접 편집해야 했다(Settings 화면에 노출 안 됨).
         SettingSpec("document_automation_enabled", "bool", True, False,
                     "문서 자동화 — 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
+        # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다
+        # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
+        # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
+        SettingSpec("backup_schedule", "object",
+                    {"enabled": False, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14},
+                    False,
+                    "자동 백업 일정 — 워커가 이 cron 에 맞춰 DB 스냅숏을 만들고 keep개만 남깁니다",
+                    _backup_schedule),
     ]
 }
 

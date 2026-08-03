@@ -182,6 +182,29 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_job-detail", "/jobs", "작업 상세", "operator",
        ("operator", "admin", "system_admin"),
        hash_template="/jobs?job_id={id}", discover=("/api/admin/jobs",)),
+    # ── 관리자 백로그 잔여(PLAN Phase 6, 마이그레이션 0033) ────────────────────
+    # 여덟 개는 REGISTRY 키라 "/" + key 로 라우팅되고, 실행 달력만 AdminRoutes.jsx 의
+    # 전용 라우트다(표로 표현할 수 없는 유일한 화면 — SchedulerCalendar.jsx).
+    _a("admin_impersonation", "/impersonation", "임퍼소네이션(대리 보기)", "auditor",
+       ("admin", "system_admin", "auditor")),
+    _a("admin_approval-delegations", "/approval-delegations", "승인 위임", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_announcements", "/announcements", "공지 배너", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_ai-quotas", "/ai-quotas", "AI 사용 상한", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_feature-flags", "/feature-flags", "기능 플래그", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_audit-anomalies", "/audit-anomalies", "감사 이상 징후", "auditor",
+       ("admin", "system_admin", "auditor")),
+    _a("admin_restore-drills", "/restore-drills", "복구 리허설", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_scheduler-calendar", "/scheduler-calendar", "실행 달력", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_prompt-usage", "/prompt-usage", "프롬프트 사용 통계", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_policy-usage", "/policy-usage", "정책 사용 통계", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
 )
 
 ALL_ROUTES: tuple[Route, ...] = USER_ROUTES + ADMIN_ROUTES

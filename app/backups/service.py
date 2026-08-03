@@ -186,3 +186,85 @@ def apply_retention(db: Session, *, keep: int = 14) -> int:
         removed += 1
     db.flush()
     return removed
+
+
+# ── 자동 백업 스케줄 + 복구 리허설 (0033, PLAN Phase 6) ───────────────────────
+
+DEFAULT_BACKUP_SCHEDULE = {
+    "enabled": False,
+    "cron": "0 3 * * *",
+    "timezone": "Asia/Seoul",
+    "keep": 14,
+}
+
+
+def backup_schedule_config(settings_cache) -> dict:
+    """설정에서 백업 스케줄을 읽는다. 값이 없거나 모양이 이상하면 기본값."""
+    raw = None
+    if settings_cache is not None:
+        raw = settings_cache.current_value("backup_schedule")
+    config = dict(DEFAULT_BACKUP_SCHEDULE)
+    if isinstance(raw, dict):
+        for key in config:
+            if key in raw:
+                config[key] = raw[key]
+    return config
+
+
+def due_for_scheduled_backup(db, config: dict, *, now) -> bool:
+    """지금 예약 백업을 돌려야 하는가.
+
+    **상태를 따로 저장하지 않는다.** '마지막 실행 시각' 컬럼을 두면 그 값과 실제 백업 목록이
+    어긋날 수 있고(수동 백업, 파일 삭제), 그러면 화면이 말하는 것과 디스크에 있는 것이
+    달라진다. 대신 질문을 뒤집는다: **직전 예정 시각 이후에 성공한 백업이 있는가.**
+    없으면 돌린다. 멱등이고, 워커가 재시작해도 두 번 돌지 않는다.
+    """
+    if not config.get("enabled"):
+        return False
+    from app.schedules import cron
+
+    try:
+        # cronsim 은 '다음'만 준다. 직전 예정 시각은 하루 전부터 전진하며 now 이하 중
+        # 가장 늦은 것을 취한다(간격이 하루보다 긴 cron 은 백업 주기로 쓰지 않는다).
+        cursor = now - timedelta(days=1, seconds=1)
+        previous = None
+        for _ in range(2000):
+            nxt = cron.next_after(config["cron"], config.get("timezone", "Asia/Seoul"), cursor)
+            if nxt > now:
+                break
+            previous = nxt
+            cursor = nxt
+    except Exception:
+        logger.exception("backup_schedule cron 해석 실패 — 예약 백업을 건너뛴다")
+        return False
+    if previous is None:
+        return False
+    last = last_successful_backup(db)
+    return last is None or last.created_at < previous
+
+
+def run_scheduled_backup(db, settings, config: dict, *, now):
+    """예약 백업 1회. 예외를 밖으로 내보내지 않는다(워커 루프를 죽이지 않는다)."""
+    try:
+        row = run_backup(db, settings, created_by=None, now=now)
+        keep = int(config.get("keep", 14) or 14)
+        apply_retention(db, keep=keep)
+        return row
+    except Exception:
+        logger.exception("예약 백업 실패")
+        return None
+
+
+def rehearsal_view(row) -> dict:
+    import json as _json
+
+    return {
+        "id": row.id,
+        "source_label": row.source_label,
+        "started_at": row.started_at.isoformat(),
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+        "ok": row.ok,
+        "failures": _json.loads(row.failures_json) if row.failures_json else [],
+        "summary": _json.loads(row.summary_json) if row.summary_json else {},
+        "created_at": row.created_at.isoformat(),
+    }

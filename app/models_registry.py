@@ -9,6 +9,7 @@ from __future__ import annotations
 from app.core.models_base import Base  # noqa: F401
 
 # Milestone model imports (append as they are created):
+from app.announcements import models as announcements_models  # noqa: F401
 from app.approvals import models as approvals_models  # noqa: F401
 from app.audit import models as audit_models  # noqa: F401
 from app.board import models as board_models  # noqa: F401
@@ -17,6 +18,7 @@ from app.auth import models as auth_models  # noqa: F401
 from app.backups import models as backups_models  # noqa: F401
 from app.conversations import models as conversations_models  # noqa: F401
 from app.health import models as health_models  # noqa: F401
+from app.impersonation import models as impersonation_models  # noqa: F401
 from app.documents import models as documents_models  # noqa: F401
 from app.notifications import models as notifications_models  # noqa: F401
 from app.notion_mapping import models as notion_mapping_models  # noqa: F401
@@ -24,6 +26,7 @@ from app.observability import models as observability_models  # noqa: F401
 from app.offboarding import models as offboarding_models  # noqa: F401
 from app.org import models as org_models  # noqa: F401
 from app.profiles import models as profiles_models  # noqa: F401
+from app.quotas import models as quotas_models  # noqa: F401
 from app.search import models as search_models  # noqa: F401
 from app.settings import models as settings_models  # noqa: F401
 from app.team_docs import models as team_docs_models  # noqa: F401

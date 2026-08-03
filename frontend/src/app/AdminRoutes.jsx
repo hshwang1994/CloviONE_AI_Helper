@@ -10,6 +10,7 @@ import { Diagnostics, Maintenance } from "../screens/Ops.jsx";
 import { DevReport } from "../screens/DevReport.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 import { Search } from "../screens/Search.jsx";
+import { SchedulerCalendar } from "../screens/SchedulerCalendar.jsx";
 import { REGISTRY } from "../screens/registry.js";
 import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
@@ -60,6 +61,17 @@ function AdminRoutes() {
       <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />
       <Route path="/maintenance" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><Maintenance /></RequireRole>} />
       <Route path="/dev-report" element={<RequireRole roles={["admin", "system_admin", "auditor"]} help="이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><DevReport /></RequireRole>} />
+      {/* 스케줄러 캘린더(PLAN Phase 6) — "언제 도는가"는 표로 답이 안 되는 유일한 질문이라
+          DataScreen 계약을 쓰지 않는다(SchedulerCalendar.jsx 헤더 주석). 같은 백로그의 다른
+          화면 여덟 개는 전부 registry.js 설정으로 끝냈다. */}
+      <Route
+        path="/scheduler-calendar"
+        element={
+          <RequireRole roles={SCREEN_ROLES["scheduler-calendar"]} help={SCREEN_ROLE_HELP["scheduler-calendar"]}>
+            <SchedulerCalendar />
+          </RequireRole>
+        }
+      />
       {Object.keys(REGISTRY).map((key) => {
         const cfg = REGISTRY[key];
         const roles = cfg.roles || SCREEN_ROLES[key];

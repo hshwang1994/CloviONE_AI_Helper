@@ -21,6 +21,7 @@ from app.assistant import facts as facts_service
 from app.assistant import narrate as narrate_service
 from app.core.deps import get_current_user, get_db
 from app.core.errors import RateLimitedError
+from app.quotas import service as ai_quotas
 from app.users.models import User
 
 router = APIRouter(prefix="/api/assistant", tags=["assistant"])
@@ -31,7 +32,9 @@ def _ctx(request: Request):
     return (state.outbound_client, state.settings, state.repositories.tickets, state.clock.now())
 
 
-def _with_narrative(request: Request, user: User, body: dict, *, want: bool) -> dict:
+def _with_narrative(
+    request: Request, user: User, body: dict, *, want: bool, db: Session | None = None
+) -> dict:
     """사실 dict 에 문장 블록만 덧붙인다 — 사실 필드는 절대 건드리지 않는다.
 
     이 함수가 실패해도 숫자가 사라지지 않는 이유가 여기 있다: 원본 dict 를 복사해 키 하나를
@@ -50,11 +53,26 @@ def _with_narrative(request: Request, user: User, body: dict, *, want: bool) -> 
             "요약 생성을 너무 자주 요청했습니다. 잠시 후 다시 시도하세요.",
             retry_after_seconds=limiter.retry_after_seconds(key),
         )
+    # AI 쿼터(0033) — 레이트리밋과 다른 것을 막는다. 레이트리밋은 '초당 몇 번'(폭주 방지),
+    # 쿼터는 '하루/한 달에 몇 번'(비용 상한). 둘 다 있어야 "천천히 계속 쓰는" 소비를 잡는다.
+    # 호출이 나가기 **전에** 보고, 나간 뒤에 센다 — 실패한 호출까지 상한을 깎으면 러너가
+    # 죽은 날 사용자가 쿼터까지 잃는다.
+    now = request.app.state.clock.now()
+    if db is not None:
+        ai_quotas.enforce(db, user_id=user.id, now=now)
     narrative = narrate_service.narrate(
         request.app.state.outbound_client, settings,
         kind=body.get("kind", ""), facts=body,
         requester={"user_id": user.id, "display_name": user.display_name},
     )
+    # 성공한 호출만 센다. narrate()는 예외를 던지지 않고 {"enabled","text","error"}를
+    # 돌려주므로, 실제로 문장이 나온 경우(text 가 있고 error 가 없음)만 쿼터를 깎는다 —
+    # 러너가 죽은 날 사용자가 아무것도 못 받고 상한만 잃으면 안 된다.
+    if db is not None and (narrative or {}).get("text") and not (narrative or {}).get("error"):
+        ai_quotas.record_call(
+            db, user_id=user.id, org_id=getattr(user, "org_id", None),
+            kind=ai_quotas.KIND_ASSISTANT_NARRATIVE, now=now,
+        )
     return {**body, "narrative": narrative}
 
 
@@ -68,7 +86,7 @@ def briefing(
     """오늘 브리핑 — 홈 '오늘'과 같은 숫자 + (선택) 한 문단 요약."""
     outbound, settings, repo, now = _ctx(request)
     body = facts_service.briefing_facts(db, outbound, settings, user, repo=repo, now=now)
-    return _with_narrative(request, user, body, want=narrate)
+    return _with_narrative(request, user, body, want=narrate, db=db)
 
 
 @router.get("/standup")
@@ -81,7 +99,7 @@ def standup(
     """스탠드업 초안 — 최근 끝낸 것 / 오늘 할 것 / 막힌 것 + (선택) 읽어 줄 수 있는 초안."""
     outbound, settings, repo, now = _ctx(request)
     body = facts_service.standup_facts(db, outbound, settings, user, repo=repo, now=now)
-    return _with_narrative(request, user, body, want=narrate)
+    return _with_narrative(request, user, body, want=narrate, db=db)
 
 
 @router.get("/weekly-digest")
@@ -94,7 +112,7 @@ def weekly_digest(
     """주간 다이제스트 — 이번 스프린트 창의 팀 합계·내 몫·바뀐 문서/게시글 + (선택) 요약."""
     outbound, settings, repo, now = _ctx(request)
     body = facts_service.weekly_digest_facts(db, outbound, settings, user, repo=repo, now=now)
-    return _with_narrative(request, user, body, want=narrate)
+    return _with_narrative(request, user, body, want=narrate, db=db)
 
 
 @router.get("/triage")

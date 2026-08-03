@@ -108,6 +108,9 @@ export const jobTypeKo = (t) => (t == null || t === "" ? "-" : (JOB_TYPE_KO[t] |
 export const TYPE_KO = {
   account_locked: "계정 잠금", job_failed: "작업 실패", approval_requested: "승인 요청",
   approval_decided: "승인 결정", approval_expired: "승인 만료", schedule_failed: "스케줄 실패",
+  // 기한(SLA)을 넘긴 대기 승인 — 워커가 관리자에게 한 번만 보낸다(0033, app/approvals/delegation.py).
+  // 만료(approval_expired)와 다른 사건이다: 만료는 요청이 죽은 것이고, 이건 아직 살아 있는데 늦은 것이다.
+  approval_overdue: "승인 기한 초과",
   runner_unavailable: "러너 장애", maintenance_announcement: "점검 공지",
   password_change_required: "비밀번호 변경 필요",
   // 그룹 채팅 생성·1:1 대화 시작 시 초대된 본인에게 간다(app/team_chat/service.py의

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field, field_validator
@@ -306,6 +306,133 @@ def create_schedule(request: Request, payload: ScheduleRequest, db: Session = De
         object_id=row.id, after=_view(row),
     )
     return {"schedule": _view(row)}
+
+
+# 스케줄러 캘린더 (0033, PLAN Phase 6).
+# 정적 경로는 `/{schedule_id}` **앞에** 있어야 한다 — 뒤에 두면 FastAPI 가 등록 순서대로
+# 매칭해 "calendar 라는 Schedule 을 찾을 수 없습니다"(404)가 된다.
+@router.get("/calendar", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def calendar(
+    request: Request,
+    db: Session = Depends(get_db),
+    start: str = Query(description="조회 구간 시작(ISO 8601). 예: 2026-08-01T00:00:00+09:00"),
+    end: str = Query(description="조회 구간 끝(ISO 8601, 미포함)"),
+    schedule_id: str | None = Query(default=None, max_length=36),
+) -> dict:
+    """구간 안의 실행 일정 — **지난 실행(사실)과 앞으로의 예정(계산)을 함께** 돌려준다.
+
+    달력이 예정만 보여 주면 "어제 그 일이 돌긴 했나"에 답하지 못하고, 실행 이력만 보여 주면
+    "내일 몇 시에 도는가"에 답하지 못한다. 관리자가 달력을 여는 이유는 대개 둘 중 하나라서
+    한 응답에 담는다. `kind` 로 구분한다: `run`(실제 실행) / `planned`(아직 안 온 예정).
+
+    예정은 `cron.next_after` 를 반복해 전개한다. `Schedule.next_run_at` 은 **다음 한 번**만
+    들고 있어서 그것만 그리면 달력에 점이 스케줄당 하나씩만 찍힌다.
+
+    상한: 스케줄당 최대 `MAX_OCCURRENCES` 개. 매분 도는 cron 을 한 달치 전개하면 4만 개가
+    나와 브라우저가 멈춘다 — 잘렸다는 사실은 `truncated` 로 정직하게 알린다(숨기면 관리자가
+    "이 시간엔 아무 일도 없구나"라고 잘못 읽는다).
+    """
+    MAX_OCCURRENCES = 200
+    MAX_RANGE_DAYS = 92
+
+    start_at = _parse_iso(start, "start")
+    end_at = _parse_iso(end, "end")
+    if start_at is None or end_at is None:
+        raise ValidationAppError("start 와 end 는 ISO 8601 형식이어야 합니다.")
+    if end_at <= start_at:
+        raise ValidationAppError("end 는 start 보다 뒤여야 합니다.")
+    if (end_at - start_at).days > MAX_RANGE_DAYS:
+        raise ValidationAppError(f"조회 구간은 최대 {MAX_RANGE_DAYS}일입니다.")
+
+    now = request.app.state.clock.now()
+    stmt = select(Schedule)
+    if schedule_id:
+        stmt = stmt.where(Schedule.id == schedule_id)
+    schedules = db.execute(stmt.order_by(Schedule.name)).scalars().all()
+    by_id = {s.id: s for s in schedules}
+
+    events: list[dict] = []
+
+    # 1) 실제 실행 이력 — 사실이므로 먼저 담는다.
+    run_stmt = select(ScheduleRun).where(
+        ScheduleRun.scheduled_at >= start_at, ScheduleRun.scheduled_at < end_at
+    )
+    if schedule_id:
+        run_stmt = run_stmt.where(ScheduleRun.schedule_id == schedule_id)
+    for run in db.execute(run_stmt.order_by(ScheduleRun.scheduled_at)).scalars().all():
+        parent = by_id.get(run.schedule_id)
+        events.append({
+            "kind": "run",
+            "schedule_id": run.schedule_id,
+            "schedule_name": parent.name if parent else None,
+            "occurs_at": run.scheduled_at.isoformat(),
+            "status": run.status,
+            "run_id": run.id,
+            "error_message": run.error_message,
+        })
+
+    # 2) 앞으로의 예정 — 이미 실행 행이 있는 시각은 건너뛴다(같은 점이 두 번 찍히지 않게).
+    seen = {(e["schedule_id"], e["occurs_at"]) for e in events}
+    truncated = False
+    for schedule in schedules:
+        if not schedule.enabled:
+            continue
+        if schedule.schedule_type == TYPE_ONCE:
+            if schedule.next_run_at and start_at <= schedule.next_run_at < end_at:
+                key = (schedule.id, schedule.next_run_at.isoformat())
+                if key not in seen:
+                    events.append({
+                        "kind": "planned",
+                        "schedule_id": schedule.id,
+                        "schedule_name": schedule.name,
+                        "occurs_at": schedule.next_run_at.isoformat(),
+                        "status": None,
+                        "run_id": None,
+                        "error_message": None,
+                    })
+            continue
+        if not schedule.cron_expression:
+            continue
+        cursor = max(start_at, now) - timedelta(seconds=1)
+        produced = 0
+        while produced < MAX_OCCURRENCES:
+            try:
+                nxt = cron.next_after(schedule.cron_expression, schedule.timezone, cursor)
+            except Exception:
+                # 표현식 하나가 망가진 스케줄 때문에 달력 전체가 500 이 되면 안 된다.
+                break
+            if nxt is None or nxt >= end_at:
+                break
+            if schedule.end_at is not None and nxt >= schedule.end_at:
+                break
+            cursor = nxt
+            produced += 1
+            key = (schedule.id, nxt.isoformat())
+            if key in seen:
+                continue
+            events.append({
+                "kind": "planned",
+                "schedule_id": schedule.id,
+                "schedule_name": schedule.name,
+                "occurs_at": nxt.isoformat(),
+                "status": None,
+                "run_id": None,
+                "error_message": None,
+            })
+        if produced >= MAX_OCCURRENCES:
+            truncated = True
+
+    events.sort(key=lambda e: (e["occurs_at"], e["schedule_name"] or ""))
+    return {
+        "items": events,
+        "start": start_at.isoformat(),
+        "end": end_at.isoformat(),
+        "truncated": truncated,
+        "schedules": [
+            {"id": s.id, "name": s.name, "enabled": s.enabled, "timezone": s.timezone}
+            for s in schedules
+        ],
+    }
 
 
 @router.get("/{schedule_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])

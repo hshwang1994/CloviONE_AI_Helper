@@ -25,7 +25,14 @@
 사용법:
   .venv/Scripts/python.exe scripts/restore_rehearsal.py                    # var/web.sqlite3
   .venv/Scripts/python.exe scripts/restore_rehearsal.py /path/prod.sqlite3
+  .venv/Scripts/python.exe scripts/restore_rehearsal.py --record           # 결과를 DB에 남긴다
 원본은 절대 건드리지 않는다 — 읽기만 한다.
+
+`--record` 를 붙이면 결과 한 줄이 `restore_rehearsals` 표에 남고, 관리 콘솔의 백업 화면이
+그것을 읽어 "마지막으로 복원을 시험한 게 언제인가"를 보여 준다(0033, PLAN Phase 6).
+기록은 **원본 DB** 에 쓴다(리허설이 만든 임시 복원본이 아니라) — 임시본은 곧 지워지므로
+거기에 쓰면 아무도 못 본다. 기록에 실패해도 리허설 결과 자체(종료 코드)는 바뀌지 않는다:
+증거를 남기지 못한 것이 증거를 뒤집지는 않는다.
 """
 
 from __future__ import annotations
@@ -149,8 +156,43 @@ def boot_app_against(db: Path) -> None:
             ok(f"ORM 테이블 {len(Base.metadata.sorted_tables)}개 전부 조회 성공")
 
 
+def record_result(src: Path, *, started_at, finished_at, ok: bool, failures, summary) -> None:
+    """리허설 결과를 원본 DB의 restore_rehearsals 에 남긴다. 실패해도 조용히 넘어간다."""
+    import json as _json
+
+    try:
+        from sqlalchemy.orm import Session
+
+        from app.backups.models import RestoreRehearsal
+        from app.core.db import make_engine, make_session_factory
+
+        engine = make_engine(f"sqlite:///{src.as_posix()}")
+        factory = make_session_factory(engine)
+        with factory() as db:  # type: Session
+            db.add(
+                RestoreRehearsal(
+                    source_label=str(src),
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    ok=ok,
+                    failures_json=_json.dumps(failures, ensure_ascii=False),
+                    summary_json=_json.dumps(summary, ensure_ascii=False, default=str),
+                    created_at=finished_at,
+                )
+            )
+            db.commit()
+        print(f"  [OK] 결과를 restore_rehearsals 에 기록했다 ({src})")
+    except Exception as exc:  # noqa: BLE001 — 기록 실패가 리허설 결과를 바꾸면 안 된다
+        print(f"  [WARN] 결과 기록 실패(리허설 결과에는 영향 없음): {type(exc).__name__}: {exc}")
+
+
 def main() -> int:
-    src = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "var" / "web.sqlite3"
+    from datetime import datetime, timezone
+
+    args = [a for a in sys.argv[1:] if a != "--record"]
+    record = "--record" in sys.argv[1:]
+    started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    src = Path(args[0]) if args else ROOT / "var" / "web.sqlite3"
     if not src.exists():
         print(f"[FAIL] 원본 DB가 없다: {src}", file=sys.stderr)
         return 1
@@ -232,6 +274,21 @@ def main() -> int:
         bad(f"앱 부팅 중 예외: {type(exc).__name__}: {exc}")
 
     print("")
+    finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    if record:
+        record_result(
+            src,
+            started_at=started_at,
+            finished_at=finished_at,
+            ok=not FAILURES,
+            failures=list(FAILURES),
+            summary={
+                "tables": len(after),
+                "rows": sum(after.values()),
+                "alembic_head": head,
+                "backup_bytes": meta.get("size_bytes"),
+            },
+        )
     if FAILURES:
         print(f"RESTORE_REHEARSAL_FAILED ({len(FAILURES)}건)", file=sys.stderr)
         for f in FAILURES:

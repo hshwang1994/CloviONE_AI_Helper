@@ -23,6 +23,7 @@ from app.approvals.models import (
     APPROVAL_PENDING,
     APPROVAL_REJECTED,
     DEFAULT_EXPIRY_HOURS,
+    DEFAULT_SLA_HOURS,
     Approval,
 )
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
@@ -82,6 +83,18 @@ def approval_view(
         "requested_at": row.requested_at.isoformat(),
         "decided_at": row.decided_at.isoformat() if row.decided_at else None,
         "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+        # ── SLA (0033) ────────────────────────────────────────────────────────
+        # `overdue` 판정도 여기 한 곳에서만 한다(status 와 같은 이유) — 목록과 상세가
+        # 서로 다른 답을 내면 관리자가 어느 쪽을 믿을지 알 수 없다.
+        "due_at": row.due_at.isoformat() if row.due_at else None,
+        "overdue": bool(
+            now is not None
+            and status == APPROVAL_PENDING
+            and row.due_at is not None
+            and row.due_at <= now
+        ),
+        "decided_on_behalf_of": row.decided_on_behalf_of,
+        "decided_on_behalf_of_name": _name(row.decided_on_behalf_of),
     }
 
 
@@ -113,6 +126,7 @@ def create_approval(
     payload: dict,
     now: datetime,
     expiry_hours: int = DEFAULT_EXPIRY_HOURS,
+    sla_hours: int = DEFAULT_SLA_HOURS,
 ) -> Approval:
     if request_type not in APPROVAL_EXECUTORS:
         raise ConflictError(f"승인 실행기가 등록되지 않은 요청 유형입니다: {request_type}")
@@ -141,6 +155,9 @@ def create_approval(
         request_payload_json=json.dumps(payload, ensure_ascii=False),
         requested_at=now,
         expires_at=now + timedelta(hours=expiry_hours),
+        # 기한(SLA)은 만료보다 짧다 — 만료와 같으면 '기한 초과' 표시가 요청이 죽는 순간에야
+        # 뜨고, 그때는 알려 봐야 아무 소용이 없다(app/approvals/models.py 주석).
+        due_at=now + timedelta(hours=sla_hours),
     )
     db.add(row)
     db.flush()
@@ -202,12 +219,16 @@ def decide(
     now: datetime,
     self_approval_allowed: bool,
     app_state,
+    on_behalf_of: str | None = None,
 ) -> Approval:
     _ensure_decidable(row, now)
     if row.requested_by == approver.id and not self_approval_allowed:
         raise ForbiddenError("자기 승인을 허용하지 않습니다.")
 
     row.approver_id = approver.id
+    # 위임으로 결재했다면 누구의 권한을 빌린 것인지 남긴다(0033). 이게 없으면 나중에
+    # "운영자가 왜 승인할 수 있었지?"에 답할 방법이 로그 어디에도 없다.
+    row.decided_on_behalf_of = on_behalf_of
     row.decision_comment = comment
     row.decided_at = now
 

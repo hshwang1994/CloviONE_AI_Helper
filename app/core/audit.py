@@ -80,7 +80,11 @@ def record_audit_from_request(
 ) -> AuditLog:
     from app.core.deps import client_ip_from_request
 
-    actor = getattr(request.state, "user", None)
+    # 임퍼소네이션 중이면 `request.state.user` 는 **대상**이다(화면이 그 사람 눈으로 보이므로).
+    # 감사의 행위자는 언제나 실제로 요청을 낸 사람이어야 하므로 `request.state.actor` 를 먼저
+    # 본다 — 이게 없으면 관리자가 남의 이름으로 로그를 남길 수 있고, 그것이 임퍼소네이션이
+    # 위험한 이유의 전부다(0033, PLAN Phase 6). 평소에는 둘이 같은 값이다.
+    actor = getattr(request.state, "actor", None) or getattr(request.state, "user", None)
     return record_audit(
         db,
         actor_id=actor.id if actor is not None else None,

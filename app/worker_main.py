@@ -205,6 +205,54 @@ def main() -> int:
 
     worker.tick_callbacks.append(approval_expiry_tick)
 
+    # 승인 SLA 스윕 (0033, PLAN Phase 6) — 5분 간격. 만료 스윕과 나눈 이유: 만료는 요청을
+    # 죽이는 상태 변경이라 1분마다 돌아야 정확하고, 기한 초과 알림은 사람에게 보내는 것이라
+    # 그렇게 자주 볼 필요가 없다(그리고 같은 틱에 묶으면 알림 폭주가 만료 처리를 지연시킨다).
+    from app.approvals.delegation import notify_overdue
+
+    _last_sla: list = [None]
+
+    def approval_sla_tick(now):
+        if _last_sla[0] is None or (now - _last_sla[0]).total_seconds() >= 300.0:
+            _last_sla[0] = now
+            try:
+                with session_factory() as db:
+                    notify_overdue(db, now=now)
+                    db.commit()
+            except Exception:
+                logger.exception("approval SLA sweep failed")
+
+    worker.tick_callbacks.append(approval_sla_tick)
+
+    # 예약 백업 (0033, PLAN Phase 6) — 10분 간격으로 '지금 돌 차례인가'만 확인한다.
+    # 판정이 멱등이라(직전 예정 시각 이후 성공한 백업이 있는가) 워커가 재시작해도 두 번
+    # 돌지 않고, 확인 주기가 실행 주기가 아니다.
+    from app.backups.service import (
+        backup_schedule_config,
+        due_for_scheduled_backup,
+        run_scheduled_backup,
+    )
+
+    _last_backup_check: list = [None]
+
+    def backup_schedule_tick(now):
+        if _last_backup_check[0] is not None and (now - _last_backup_check[0]).total_seconds() < 600.0:
+            return
+        _last_backup_check[0] = now
+        try:
+            with session_factory() as db:
+                settings_cache.load(db)
+                config = backup_schedule_config(settings_cache)
+                if due_for_scheduled_backup(db, config, now=now):
+                    row = run_scheduled_backup(db, settings, config, now=now)
+                    if row is not None:
+                        logger.info("예약 백업 완료: %s (%s)", row.id, row.status)
+                db.commit()
+        except Exception:
+            logger.exception("backup schedule tick failed")
+
+    worker.tick_callbacks.append(backup_schedule_tick)
+
     # Retention purge (spec §14.4) — hourly.
     from app.core.retention import run_retention
 

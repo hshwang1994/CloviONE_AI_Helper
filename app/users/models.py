@@ -36,6 +36,19 @@ def roles_at_least(minimum: str) -> frozenset[str]:
     return frozenset(role for role, l in _ROLE_LEVELS.items() if l >= level)
 
 
+def role_rank(role: str) -> int:
+    """계층상 높이(0 = 계층 밖이거나 알 수 없는 값).
+
+    임퍼소네이션(0033)처럼 "나보다 높은 역할은 흉내 낼 수 없다"를 판정하는 곳이 쓴다.
+    순위를 아는 곳을 여기 하나로 두어 호출부가 역할 이름을 다시 나열하지 않게 한다 —
+    `tests/security/test_authz_single_source.py` 가 그 사본을 막는다.
+    auditor 는 읽기 전용 가지라 계층으로 '세기'를 말할 수 없으므로 0 이고, 그래서
+    admin 은 auditor 를 흉내 낼 수 있다(0 < 3). 그건 의도한 결과다: 감사자는 관리자보다
+    **좁은** 화면을 본다.
+    """
+    return _ROLE_LEVELS.get(role, 0)
+
+
 # ── 관리 범위 어휘(0024) ──────────────────────────────────────────────────────
 # 역할(role)이 '무엇을 할 수 있는가'라면 범위(admin_scope)는 '누구에게 할 수 있는가'다.
 # 둘은 직교한다: 부서 관리자도 role='admin' 이지만 admin_scope='dept' 다.

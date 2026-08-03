@@ -15,8 +15,12 @@ from fastapi.staticfiles import StaticFiles
 from app.core.assets import AssetVersions
 from fastapi.templating import Jinja2Templates
 
+from app.admin.feature_flags import router as feature_flags_router
 from app.admin.rbac import router as rbac_matrix_router
 from app.admin.router import router as admin_router
+from app.announcements.router import admin_router as announcements_admin_router
+from app.announcements.router import user_router as announcements_user_router
+from app.approvals.router import delegations_router as approval_delegations_router
 from app.approvals.router import router as approvals_router
 from app.assistant.router import router as assistant_router
 from app.audit.router import router as audit_router
@@ -39,12 +43,15 @@ from app.core.sessions import SessionService
 from app.documents.router import router as documents_router
 from app.health.router import router as health_router
 from app.home.router import router as home_router
+from app.impersonation.router import router as impersonation_router
 from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.notion_mapping.router import router as notion_mapping_router
 from app.offboarding.router import router as offboarding_router
 from app.org.router import departments_router, job_titles_router
+from app.observability.router import router as system_status_router
 from app.profiles.router import router as profiles_router
+from app.quotas.router import router as ai_quotas_router
 from app.prompts.router import policies_router, prompts_router
 from app.reports.router import router as reports_router
 from app.search.router import router as search_router
@@ -150,6 +157,7 @@ def create_app(
     app.include_router(users_admin_router)
     app.include_router(offboarding_router)
     app.include_router(rbac_matrix_router)
+    app.include_router(impersonation_router)
     app.include_router(departments_router)
     app.include_router(job_titles_router)
     app.include_router(audit_router)
@@ -162,6 +170,7 @@ def create_app(
     app.include_router(templates_router)
     app.include_router(schedules_router)
     app.include_router(approvals_router)
+    app.include_router(approval_delegations_router)
     app.include_router(notifications_router)
     app.include_router(board_router)
     app.include_router(games_router)
@@ -180,6 +189,14 @@ def create_app(
     app.include_router(assistant_router)
     app.include_router(team_chat_router)
     app.include_router(backups_router)
+    # 관리자 백로그 잔여(0033, PLAN Phase 6). 공지는 관리자용/사용자용 두 라우터로
+    # 나뉜다 — 같은 데이터지만 권한과 응답 모양이 다르다.
+    app.include_router(announcements_admin_router)
+    app.include_router(announcements_user_router)
+    app.include_router(ai_quotas_router)
+    app.include_router(feature_flags_router)
+    # 사용자 화면 시스템 상태 배너(0026 sync_status + 러너 헬스 소비).
+    app.include_router(system_status_router)
     app.include_router(admin_router)
     return app
 

@@ -31,6 +31,7 @@ import { bestNavMatch, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import { MascotButton, MascotSidebarCard } from "../ui/Mascot.jsx";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { Banners } from "./Banners.jsx";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
 
 /* 앱 셸 — 상단바 + 사이드바 + 본문.
@@ -385,6 +386,10 @@ export function AppShell({
           "@media (min-width:3000px)": { pt: APPBAR_HEIGHT.uhd / 8 },
         }}
       >
+        {/* 배너는 본문 폭 캡 밖에 있어야 한다 — 안쪽에 두면 4K 에서 화면 가운데만 띠가 뜨고
+            양옆이 비어, "전역 공지"가 한 열짜리 카드처럼 보인다. 세션 만료(minimal) 상태에는
+            띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이고, 배너 API 도 401 이다. */}
+        {!minimal ? <Banners /> : null}
         <Box
           sx={
             flush

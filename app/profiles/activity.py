@@ -83,6 +83,12 @@ OBJECT_LABELS: dict[str, str] = {
     "policy": "정책",
     "app_setting": "설정",
     "workflow": "워크플로",
+    # 관리자 백로그 잔여(0033, PLAN Phase 6).
+    "announcement": "공지",
+    "ai_quota": "AI 쿼터",
+    "approval_delegation": "승인 위임",
+    "feature_flag": "기능 플래그",
+    "restore_rehearsal": "복구 리허설",
 }
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도

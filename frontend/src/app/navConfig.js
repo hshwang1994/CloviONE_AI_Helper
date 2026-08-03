@@ -38,6 +38,19 @@ export const SCREEN_ROLES = {
   // 권한 매트릭스는 규칙 표 그 자체라 사용자 데이터가 없다 — 운영자·감사자도 '내가 무엇을
   // 할 수 있는가'를 볼 수 있어야 한다(백엔드 CONSOLE_READ_ROLES와 같은 집합).
   rbac: ["operator", "admin", "system_admin", "auditor"],
+  // ── 관리자 백로그 잔여(0033, PLAN Phase 6) ───────────────────────────────
+  // 백엔드 게이트와 정확히 같은 집합으로 맞춘다 — 넓게 두면 '눌렀더니 403' 막다른 길이 되고,
+  // 좁게 두면 권한이 있는 사람이 화면을 못 찾는다.
+  impersonation: ["admin", "system_admin", "auditor"],   // 기록 조회 = SENSITIVE_READ_ROLES
+  "audit-anomalies": ["admin", "system_admin", "auditor"],
+  announcements: ["operator", "admin", "system_admin", "auditor"],
+  "ai-quotas": ["operator", "admin", "system_admin", "auditor"],
+  "feature-flags": ["operator", "admin", "system_admin", "auditor"],
+  "approval-delegations": ["operator", "admin", "system_admin", "auditor"],
+  "restore-drills": ["operator", "admin", "system_admin", "auditor"],
+  "scheduler-calendar": ["operator", "admin", "system_admin", "auditor"],
+  "prompt-usage": ["operator", "admin", "system_admin", "auditor"],
+  "policy-usage": ["operator", "admin", "system_admin", "auditor"],
 };
 
 /* 화면별 403 안내 — 기본 문구("관리자, 시스템 관리자만")는 실제 허용 역할이 더 넓은 화면에서
@@ -47,6 +60,8 @@ export const SCREEN_ROLE_HELP = {
   audit: "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
   backup: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
   rbac: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
+  impersonation: "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다. 대리 보기 시작은 관리자·시스템 관리자만 할 수 있습니다.",
+  "audit-anomalies": "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
 };
 
 export const NAV = [
@@ -61,6 +76,10 @@ export const NAV = [
     // GET /api/admin/settings(유지보수 모드가 담긴 응답)는 READ_ROLES까지 허용하는데 이 화면만
     // admin/system_admin으로 막혀 있었다 — 쓰기는 Ops.jsx의 canWrite가 따로 가드한다.
     { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"] },
+    { to: "/announcements", label: "공지 배너" },
+    { to: "/feature-flags", label: "기능 플래그" },
+    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"] },
+    { to: "/restore-drills", label: "복구 리허설" },
   ] },
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"] },
@@ -71,6 +90,7 @@ export const NAV = [
     // 권한 매트릭스는 규칙 표라 읽기 전용 역할(운영자·감사자)에게도 보인다.
     { to: "/rbac", label: "권한 매트릭스" },
     { to: "/notion-mapping", label: "Notion 사용자 연결" },
+    { to: "/impersonation", label: "대리 보기", roles: ["admin", "system_admin", "auditor"] },
   ] },
   { group: "연동", icon: LinkOutlinedIcon, items: [
     { to: "/integrations", label: "외부 연동" },
@@ -81,12 +101,16 @@ export const NAV = [
     { to: "/prompts", label: "프롬프트" },
     { to: "/policies", label: "정책" },
     { to: "/templates", label: "템플릿" },
+    { to: "/prompt-usage", label: "프롬프트 사용 통계" },
   ] },
   { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
     { to: "/schedules", label: "실행 일정(스케줄)" },
+    { to: "/scheduler-calendar", label: "실행 달력" },
     { to: "/documents", label: "문서 자동 생성" },
     { to: "/dev-report", label: "개발자 월간 리포트", roles: ["admin", "system_admin", "auditor"] },
     { to: "/approvals", label: "승인" },
+    { to: "/approval-delegations", label: "승인 위임" },
+    { to: "/ai-quotas", label: "AI 사용 상한" },
   ] },
 ];
 
