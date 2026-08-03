@@ -12,8 +12,8 @@
 
 from __future__ import annotations
 
+import ast
 import pathlib
-import re
 
 import pytest
 
@@ -23,7 +23,10 @@ pytestmark = pytest.mark.unit
 
 APP_DIR = pathlib.Path(__file__).resolve().parents[2] / "app"
 
-_LITERAL = re.compile(r'object_type="([a-z_]+)"')
+# **감사 기록 호출만** 본다. `object_type=` 이라는 같은 이름의 인자를 usage_events
+# (`record_usage`)도 받는데, 그쪽 값은 활동 피드에 절대 닿지 않는다 — 문자열 grep 으로
+# 훑었더니 `record_usage(object_type="ai", ...)` 가 걸려 없는 결함을 보고했다.
+AUDIT_CALLS = ("record_audit", "record_audit_from_request")
 
 # grep 으로 안 보이는 값들 — 각각 어디서 오는지 함께 적는다.
 DYNAMIC_OBJECT_TYPES = {
@@ -41,10 +44,28 @@ DYNAMIC_OBJECT_TYPES = {
 }
 
 
+def _callee_name(func: ast.AST) -> str:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return ""
+
+
 def _literal_object_types() -> set[str]:
+    """감사 기록 호출에 **문자열 리터럴로** 넘어가는 object_type 전부."""
     found: set[str] = set()
     for path in APP_DIR.rglob("*.py"):
-        found.update(_LITERAL.findall(path.read_text(encoding="utf-8")))
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if _callee_name(node.func) not in AUDIT_CALLS:
+                continue
+            for kw in node.keywords:
+                if kw.arg == "object_type" and isinstance(kw.value, ast.Constant):
+                    if isinstance(kw.value.value, str):
+                        found.add(kw.value.value)
     return found
 
 
