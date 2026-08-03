@@ -5,7 +5,13 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.team_chat.models import ChatMessage, ChatRoom, ChatRoomMember
+from app.team_chat.models import (
+    ChatMessage,
+    ChatMessageImage,
+    ChatReadCursor,
+    ChatRoom,
+    ChatRoomMember,
+)
 from app.users.models import User
 
 
@@ -80,6 +86,61 @@ def find_by_client_id(db: Session, room_id: str, client_message_id: str) -> Chat
             ChatMessage.room_id == room_id, ChatMessage.client_message_id == client_message_id
         )
     ).scalar_one_or_none()
+
+
+def get_message(db: Session, message_id: str) -> ChatMessage | None:
+    return db.execute(
+        select(ChatMessage).where(
+            ChatMessage.id == message_id, ChatMessage.deleted_at.is_(None)
+        )
+    ).scalar_one_or_none()
+
+
+def get_image(db: Session, message_id: str, image_id: str) -> ChatMessageImage | None:
+    """이미지는 항상 자기 메시지와 짝지어 조회한다 — image_id만으로 찾으면 다른 방의
+    이미지를 자기 방 메시지 id에 붙여 부르는 경로가 열린다."""
+    return db.execute(
+        select(ChatMessageImage).where(
+            ChatMessageImage.id == image_id, ChatMessageImage.message_id == message_id
+        )
+    ).scalar_one_or_none()
+
+
+def images_for_messages(db: Session, message_ids: list[str]) -> dict[str, list[ChatMessageImage]]:
+    """메시지 목록 한 번에 이미지 붙이기(N+1 회피). 이미지 없는 방은 쿼리 자체를 건너뛴다."""
+    if not message_ids:
+        return {}
+    rows = (
+        db.execute(
+            select(ChatMessageImage)
+            .where(ChatMessageImage.message_id.in_(list(message_ids)))
+            .order_by(ChatMessageImage.created_at)
+        )
+        .scalars()
+        .all()
+    )
+    out: dict[str, list[ChatMessageImage]] = {}
+    for row in rows:
+        out.setdefault(row.message_id, []).append(row)
+    return out
+
+
+def get_cursor(db: Session, room_id: str, user_id: str) -> ChatReadCursor | None:
+    return db.execute(
+        select(ChatReadCursor).where(
+            ChatReadCursor.room_id == room_id, ChatReadCursor.user_id == user_id
+        )
+    ).scalar_one_or_none()
+
+
+def cursors_for_user(db: Session, user_id: str) -> dict[str, ChatReadCursor]:
+    """room_id → 커서. 목록 화면이 방마다 한 번씩 묻지 않게 한 번에 읽는다."""
+    rows = (
+        db.execute(select(ChatReadCursor).where(ChatReadCursor.user_id == user_id))
+        .scalars()
+        .all()
+    )
+    return {row.room_id: row for row in rows}
 
 
 def users_by_ids(db: Session, ids: list[str]) -> dict[str, User]:

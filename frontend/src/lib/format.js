@@ -110,6 +110,10 @@ export const TYPE_KO = {
   approval_decided: "승인 결정", approval_expired: "승인 만료", schedule_failed: "스케줄 실패",
   runner_unavailable: "러너 장애", maintenance_announcement: "점검 공지",
   password_change_required: "비밀번호 변경 필요",
+  // 그룹 채팅 생성·1:1 대화 시작 시 초대된 본인에게 간다(app/team_chat/service.py의
+  // _notify_invited). related=("chat_room", room_id) 이고, 벨은 서버가 계산한
+  // related_route(#/chat-rooms/<id>)로 그 방을 바로 연다.
+  chat_invited: "채팅 초대",
 };
 export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || "알림"));
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야

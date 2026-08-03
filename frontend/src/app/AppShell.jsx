@@ -20,6 +20,8 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../lib/api.js";
 import { useAuth } from "./auth.jsx";
 import { NotificationBell } from "./NotificationBell.jsx";
 import { UserMenu } from "./UserMenu.jsx";
@@ -49,7 +51,48 @@ function getStoredCollapsed(userId) {
   } catch (e) { return {}; }
 }
 
+/** nav 항목의 badge 키 → 실제 숫자.
+ *
+ * 폴링을 새로 만들지 않는다. 채팅방 화면이 이미 같은 queryKey로 방 목록을 받고 있고,
+ * 서버가 그 응답에 unread_total을 실어 준다(배지 하나 때문에 엔드포인트를 늘리지 않으려고
+ * 그렇게 만들었다). react-query가 옵저버들의 간격 중 **가장 짧은 것**을 쓰므로,
+ * 채팅방 화면에 있을 때는 5초, 다른 화면에서는 여기 30초로 돈다 — 사이드바 배지 하나
+ * 때문에 앱 전체가 5초 폴링을 하지는 않는다.
+ */
+function useNavBadges() {
+  const q = useQuery({
+    queryKey: ["team-chat-rooms"],
+    queryFn: () => api("/api/team-chat/rooms"),
+    refetchInterval: 30000,
+    // 배지는 없어도 되는 정보다. 실패하면 조용히 0으로 두고 재시도로 소란 피우지 않는다.
+    retry: false,
+    staleTime: 10000,
+  });
+  return { chatUnread: (q.data && q.data.unread_total) || 0 };
+}
+
+/** 배지 숫자. 99를 넘으면 폭이 튀어 항목 이름이 밀리므로 99+로 자른다. */
+function NavBadge({ count }) {
+  if (!count) return null;
+  return (
+    <Box
+      component="span"
+      aria-label={`안 읽음 ${count}건`}
+      sx={{
+        ml: 1, px: 0.75, minWidth: "1.25rem", height: "1.25rem",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        borderRadius: "0.625rem", flexShrink: 0,
+        fontSize: "0.6875rem", fontWeight: 800, lineHeight: 1,
+        bgcolor: "error.main", color: "common.white",
+      }}
+    >
+      {count > 99 ? "99+" : count}
+    </Box>
+  );
+}
+
 function SidebarNav({ groups, activePath, onNavigate, userId }) {
+  const badges = useNavBadges();
   const [collapsed, setCollapsed] = React.useState(() => getStoredCollapsed(userId));
   const toggle = (name) => setCollapsed((c) => {
     const next = { ...c, [name]: !c[name] };
@@ -113,6 +156,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
                         primary={it.label}
                         primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: active ? 750 : 600 }}
                       />
+                      {it.badge ? <NavBadge count={badges[it.badge]} /> : null}
                     </ListItemButton>
                   );
                 })}

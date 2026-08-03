@@ -1,0 +1,124 @@
+import React from "react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import "@testing-library/jest-dom/vitest";
+
+/* 알림 벨의 딥링크 — 서버가 계산한 목적지(related_route)를 따른다.
+ *
+ * 목적지 매핑의 **출처는 서버의 표 하나**다(app/notifications/destinations.py 의
+ * RELATED_DESTINATIONS). 예전엔 이 지식이 벨의 OBJ_ROUTE/OBJ_ID_PARAM 과 registry.js 에
+ * 흩어져 있어, 새 유형이 생길 때마다 프런트에 if 가 한 줄씩 늘고 서로 어긋났다.
+ *
+ * 특히 채팅 초대는 **일반 사용자(role=user)에게 간다**. 벨의 기존 게이트는 '일반 사용자는
+ * 아무 항목도 못 누른다'였다 — 관리자 화면으로만 가는 폴백 표 때문이었지, 딥링크 일반
+ * 금지가 아니었다. 그 게이트가 채팅 초대까지 막으면 알림이 알려주기만 하고 데려다주지 못한다.
+ */
+
+const apiMock = vi.fn();
+vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
+vi.mock("./auth.jsx", () => ({ useAuth: () => ({ data: { role: "user", id: "u1" } }) }));
+
+import { NotificationBell } from "./NotificationBell.jsx";
+import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
+import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+
+const ROOM_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+
+function noti(overrides = {}) {
+  return {
+    id: "n1", type: "chat_invited", title: "홍길동님이 대화에 초대했습니다.",
+    body: null, read_at: null,
+    related_object_type: "chat_room", related_object_id: ROOM_ID,
+    related_route: `/chat-rooms/${ROOM_ID}`,
+    created_at: "2026-08-03T01:00:00",
+    ...overrides,
+  };
+}
+
+function mount(items) {
+  apiMock.mockImplementation((url) => {
+    if (url.startsWith("/api/notifications/unread-count")) return Promise.resolve({ unread: items.length });
+    if (url.startsWith("/api/notifications?")) return Promise.resolve({ items, total: items.length, unread: items.length, page: 1, page_size: 8 });
+    return Promise.resolve({ ok: true });
+  });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ThemeModeProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <MemoryRouter initialEntries={["/me"]}>
+              <Routes>
+                <Route path="/me" element={<NotificationBell isUser />} />
+                <Route path="/chat-rooms/:id" element={<div>채팅방 화면</div>} />
+              </Routes>
+            </MemoryRouter>
+          </ConfirmProvider>
+        </ToastProvider>
+      </ThemeModeProvider>
+    </QueryClientProvider>
+  );
+}
+
+async function openBell(user) {
+  await waitFor(() => expect(apiMock).toHaveBeenCalled());
+  await user.click(screen.getByRole("button", { name: /알림/ }));
+}
+
+beforeEach(() => { apiMock.mockReset(); });
+
+describe("채팅 초대 알림 딥링크", () => {
+  it("일반 사용자도 눌러서 그 채팅방으로 이동한다", async () => {
+    const user = userEvent.setup();
+    mount([noti()]);
+    await openBell(user);
+
+    const row = await screen.findByRole("button", { name: /채팅 초대/ });
+    await user.click(row);
+
+    expect(await screen.findByText("채팅방 화면")).toBeInTheDocument();
+  });
+
+  it("한국어 유형 라벨을 쓴다 — raw enum(chat_invited)이 새지 않는다", async () => {
+    const user = userEvent.setup();
+    mount([noti()]);
+    await openBell(user);
+    expect(await screen.findByText("채팅 초대")).toBeInTheDocument();
+    expect(screen.queryByText("chat_invited")).toBeNull();
+  });
+
+  it("누르면 읽음 처리도 함께 나간다", async () => {
+    const user = userEvent.setup();
+    mount([noti()]);
+    await openBell(user);
+    await user.click(await screen.findByRole("button", { name: /채팅 초대/ }));
+    await waitFor(() =>
+      expect(apiMock.mock.calls.some((c) => c[0] === "/api/notifications/n1/read")).toBe(true)
+    );
+  });
+
+  it("목적지가 없는(related_route=null) 알림은 아무 데도 데려가지 않는다", async () => {
+    const user = userEvent.setup();
+    mount([noti({
+      id: "n2", type: "maintenance_announcement", title: "8월 3일 정기 점검 안내",
+      related_object_type: null, related_object_id: null, related_route: null,
+    })]);
+    await openBell(user);
+    const row = await screen.findByText("8월 3일 정기 점검 안내");
+    await user.click(row);
+    // 화면이 그대로다 — 없는 목적지로 튀지 않는다.
+    expect(screen.queryByText("채팅방 화면")).toBeNull();
+  });
+
+  it("서버가 앱 밖 주소를 줘도 따라가지 않는다 — 상대 경로만 받는다", async () => {
+    const user = userEvent.setup();
+    mount([noti({ related_route: "//evil.example/steal" })]);
+    await openBell(user);
+    await screen.findByText("채팅 초대");
+    // 화면이 이동하지 않는다(팝오버가 그대로 열려 있다).
+    expect(screen.queryByText("채팅방 화면")).toBeNull();
+  });
+});

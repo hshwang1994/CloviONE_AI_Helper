@@ -199,8 +199,15 @@ export function ChatRooms() {
     refetchInterval: 5000,
   });
 
+  // 합계 안읽음(전체 채팅 포함)은 서버가 같은 응답(unread_total)에 실어 준다 — 배지 하나
+  // 때문에 폴링을 하나 더 만들지 않는다. 사이드바 '채팅방' 항목 배지도 이 값을 쓸 자리다.
+  const unreadTotal = (q.data && q.data.unread_total) || 0;
   const actions = (
     <>
+      {unreadTotal > 0 ? (
+        <Chip size="small" color="primary" label={`안 읽음 ${unreadTotal > 99 ? "99+" : unreadTotal}`}
+          sx={{ height: "1.5rem", fontSize: "0.75rem", fontWeight: 700, alignSelf: "center" }} />
+      ) : null}
       <Button onClick={() => setDirectOpen(true)}>1:1 대화</Button>
       <Button variant="primary" onClick={() => setGroupOpen(true)}>새 그룹</Button>
     </>

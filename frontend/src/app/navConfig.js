@@ -101,7 +101,10 @@ export const USER_NAV = [
   ] },
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
     { to: "/team-tickets", label: "팀 티켓" },
-    { to: "/chat-rooms", label: "채팅방" },
+    // badge는 '어떤 수를 붙일지'만 고르는 키다. 실제 값은 AppShell의 useNavBadges가
+    // 정한다 — 여기서 숫자를 알 수는 없고, 그렇다고 셸에 경로를 하드코딩하면
+    // 다음 배지를 붙일 때 또 if가 는다.
+    { to: "/chat-rooms", label: "채팅방", badge: "chatUnread" },
     { to: "/games", label: "놀이" },
     { to: "/board", label: "자유게시판" },
   ] },

@@ -30,6 +30,17 @@ function objRouteHref(objType, objId) {
   const param = OBJ_ID_PARAM[objType];
   return base && param && objId != null && objId !== "" ? base + "?" + param + "=" + encodeURIComponent(objId) : base;
 }
+/* 서버가 계산한 딥링크(related_route). 출처는 app/notifications/destinations.py의
+ * RELATED_DESTINATIONS **한 표**다 — 새 유형(chat_room 등)은 그 표만 늘리면 여기 if 를
+ * 늘리지 않아도 벨이 따라온다. 위 OBJ_ROUTE/OBJ_ID_PARAM 은 서버가 아직 목적지를 계산해
+ * 주지 않는 기존 관리자 유형용 폴백으로 남는다(둘을 한꺼번에 옮기면 회귀 위험만 크다).
+ *
+ * 서버 값이라도 그대로 믿고 이동하지 않는다: 앱 내부의 상대 경로(`/`로 시작, `//` 아님)만
+ * 받는다 — 프로토콜 상대 URL(`//evil.example`)은 외부로 나가는 이동이 된다. */
+function serverRoute(n) {
+  const r = n && n.related_route;
+  return typeof r === "string" && r.startsWith("/") && !r.startsWith("//") ? r : null;
+}
 // 대상 라우트의 접근 역할 — App.jsx의 SCREEN_ROLES와 같은 값을 유지한다(어긋나면 벨에선
 // 클릭 가능한데 이동한 화면은 '권한이 없습니다'로 막다른 링크가 된다). 여기 없는 라우트
 // (/approvals, /schedules)는 라우트 자체에 역할 제한이 없다(일반 사용자는 위 isUser로 이미 제외).
@@ -332,8 +343,8 @@ export function NotificationBell({ isUser }) {
     if (!n.read_at && !pendingIds.has(n.id)) runReadOne(n.id);
     // related_object_id가 있고 대상 화면이 id 딥링크를 지원하면(OBJ_ID_PARAM) 목록 전체가 아니라
     // 그 행 하나를 바로 연다, 전체 알림 화면(registry.js)이 이미 하는 것과 같은 동작
-    // (product-quality-audit AREA=D).
-    const route = objRouteHref(n.related_object_type, n.related_object_id);
+    // (product-quality-audit AREA=D). 서버가 목적지를 계산해 준 유형은 그 값이 먼저다.
+    const route = serverRoute(n) || objRouteHref(n.related_object_type, n.related_object_id);
     if (route) navClosingRef.current = true; // 이동으로 닫히므로 포커스를 벨로 되돌리지 않음.
     setOpen(false);
     if (route) nav(route);
@@ -419,14 +430,19 @@ export function NotificationBell({ isUser }) {
                 // '일반 사용자가 아니다'만으로는 부족하다, 예: auditor는 job_failed/user 알림을
                 // 받을 수 있지만 /jobs, /users 라우트 접근 권한이 없어 누르면 '권한이 없습니다'로
                 // 막힌다. 대상 라우트가 역할 제한을 두면 뷰어 역할이 포함될 때만 누를 수 있게 한다.
+                // 서버가 목적지를 준 유형(채팅 초대 등)은 일반 사용자도 눌러서 갈 수 있어야 한다 —
+                // 아래 isUser 게이트는 '관리자 화면으로만 가는 폴백 표'를 위한 것이지 딥링크 일반
+                // 금지가 아니다. 채팅방은 모든 역할이 접근할 수 있는 사용자 세그먼트 화면이다.
+                const srvRoute = serverRoute(n);
                 const targetRoute = OBJ_ROUTE[n.related_object_type];
                 const routeAllows = !ROUTE_ROLES[targetRoute] || (role && ROUTE_ROLES[targetRoute].includes(role));
-                const navigable = !isUser && !!targetRoute && routeAllows;
+                const navigable = !!srvRoute || (!isUser && !!targetRoute && routeAllows);
                 // related_object_id + OBJ_ID_PARAM이 있으면 그 행 하나를 여는 실제 딥링크다 -
                 // 없으면 여전히 대상 화면의 일반 목록만 연다. 안내 문구(title/aria-label)를
                 // 실제 동작과 맞춘다(product-quality-audit AREA=D, 예전엔 항상 "목록"이라고만
                 // 말해, 이제 행 하나를 정확히 여는 유형에서도 실제보다 못한 약속을 했다).
-                const hasItemLink = !!OBJ_ID_PARAM[n.related_object_type] && n.related_object_id != null && n.related_object_id !== "";
+                const hasItemLink = !!srvRoute
+                  || (!!OBJ_ID_PARAM[n.related_object_type] && n.related_object_id != null && n.related_object_id !== "");
                 const isFailure = NOTI_FAILURE_TYPES.has(n.type);
                 const expanded = expandedIds.has(n.id);
                 // 스크린리더 이름, 이동 가능 버튼과 정적 펼치기 버튼이 같은 본문 설명을 공유한다.

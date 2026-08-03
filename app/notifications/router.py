@@ -7,8 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_csrf
+from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
+from app.notifications.destinations import destination_for
 from app.notifications.models import Notification
 from app.notifications.service import mark_all_read, mark_read, unread_count
 from app.users.models import User
@@ -25,6 +27,9 @@ def _view(row: Notification) -> dict:
         "read_at": row.read_at.isoformat() if row.read_at else None,
         "related_object_type": row.related_object_type,
         "related_object_id": row.related_object_id,
+        # 딥링크 목적지(해시 라우터 경로 또는 null). 매핑은 destinations.RELATED_DESTINATIONS
+        # 한 표에만 있다 — 프런트는 if 체인을 늘리지 않고 이 값을 그대로 쓴다.
+        "related_route": destination_for(row.related_object_type, row.related_object_id),
         "created_at": row.created_at.isoformat(),
     }
 
@@ -73,9 +78,16 @@ def list_notifications(
 
 @router.get("/unread-count")
 def get_unread_count(
-    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    return {"unread": unread_count(db, user.id)}
+    """알림 배지 숫자. **모든 화면에서 60초마다 폴링**되므로 ETag/304 를 건다.
+
+    목록(`GET /api/notifications`)에는 걸지 않는다 — 페이지네이션·읽음/유형 필터가 있어
+    같은 URL 이 파라미터마다 다른 응답을 내고, 실제로 늘 도는 것은 배지 쪽이다.
+    """
+    return etag_json_response(request, {"unread": unread_count(db, user.id)})
 
 
 @router.post("/read-all", dependencies=[Depends(require_csrf)])
