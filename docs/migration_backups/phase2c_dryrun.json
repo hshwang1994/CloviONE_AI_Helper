@@ -1,0 +1,1008 @@
+{
+  "total": 109,
+  "changed": 67,
+  "review": 41,
+  "etc": 15,
+  "type_distribution": {
+    "기타": 15,
+    "작업 계획서": 20,
+    "참고자료": 26,
+    "매뉴얼": 12,
+    "회의록": 26,
+    "설계서": 2,
+    "보고서": 6,
+    "기획서": 2
+  },
+  "field_distribution": {
+    "인프라": 10,
+    "기타": 34,
+    "사내 업무": 2,
+    "운영": 14,
+    "자동화": 14,
+    "개발": 29,
+    "보안": 6
+  },
+  "rows": [
+    {
+      "title": "실무자를 위한 TCP/IP 네트워크 기본 과정 교육 자료 공유",
+      "old_type": "기타 문서",
+      "old_category": "인프라",
+      "new_type": "기타",
+      "new_field": "인프라",
+      "tech_tags": "네트워크",
+      "review": false
+    },
+    {
+      "title": "암센터 EOS 작업",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "인프라",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "branch-comparison-report",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "조민 인수인계 체크리스트",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "사내 업무",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "SK-Hynix 배포시 TODO",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "배포 관리",
+      "new_type": "매뉴얼",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "한강홍수통제소",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "인천공항공사 서버정보",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "이벤트 유형 관리",
+      "old_type": "개발자 레퍼런스 문서",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "새문서",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "NextHub 조직개편",
+      "old_type": "작업 계획서",
+      "old_category": "운영 유지보수",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "국립암센터",
+      "old_type": "Knowledge base",
+      "old_category": "고객 프로젝트",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "2.Docker Ip Change ",
+      "old_type": "교육",
+      "old_category": "docker",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Docker",
+      "review": true
+    },
+    {
+      "title": "사내 Jenkins(*+agent), Gitlab https인증서 연동작업",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Jenkins, GitLab",
+      "review": false
+    },
+    {
+      "title": "3.Docker Iptables 변경",
+      "old_type": "교육",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Docker",
+      "review": false
+    },
+    {
+      "title": "암센터 NCDC 임상연구포탈 4월20일 회의록",
+      "old_type": "회의록",
+      "old_category": "운영 유지보수",
+      "new_type": "회의록",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "한국인터넷진흥원 배포, 사용목적 ",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "고객 프로젝트",
+      "new_type": "매뉴얼",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "SSL 인증서 발급 절차 및 접속 정보",
+      "old_type": "Knowledge base",
+      "old_category": "인프라",
+      "new_type": "참고자료",
+      "new_field": "인프라",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "SK_Hynix POC clovirone 환경 정보",
+      "old_type": "Knowledge base",
+      "old_category": "제품 및 플랫폼, 고객 프로젝트",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "SK_hynix PoC중간보고 오픈준비",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "PoscoDX  P-Cloud 2.0 빌링 고도화",
+      "old_type": "작업 계획서",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "[1월13일] BVP 정기 미팅",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[12/19] 스마일게이트 포탈 교육 및 OS 자동화 회의록",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "자동화",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "ERP ",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "배포 관리",
+      "new_type": "매뉴얼",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "2026년 2월 4일 하이닉스 ClovirOne 협의 내용",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "SCM(Source Code Management) 전략",
+      "old_type": "아키텍처 설계서",
+      "old_category": "지식 레퍼런스",
+      "new_type": "설계서",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "ERP 서버 ",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "새문서",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "CI/CD 고도화 check list",
+      "old_type": "기타 문서",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "자동화",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "MariaDB-Oracle DML 전환 가이드",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "인프라",
+      "tech_tags": "데이터베이스",
+      "review": false
+    },
+    {
+      "title": "하이닉스 5월 19일 기준 엔티티 정의",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[1월6일]BVP 정기 미팅",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "포스코DX P-Cloud 기능 버그 수정",
+      "old_type": "작업 계획서",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "[2월3일] BVP 정기 미팅",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "Jenkins Plugin",
+      "old_type": "개발자 레퍼런스 문서",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Jenkins",
+      "review": false
+    },
+    {
+      "title": "MDIP 운영서버 MariaDB Upgrade 지원",
+      "old_type": "작업 계획서",
+      "old_category": "운영 유지보수",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "데이터베이스",
+      "review": false
+    },
+    {
+      "title": "CLI AI ",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "PoscoDX  P-Cloud 2.0 오픈 준비",
+      "old_type": "작업 계획서",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "새문서",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[12월9일] BVP Cadence meeting",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "POSCODX  GPU 모니터링 및 빌링 기능 점검 및 수정",
+      "old_type": "작업 계획서",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "사내 Sk_hynix 포탈 배포 및 환경정보d",
+      "old_type": "Knowledge base",
+      "old_category": "제품 및 플랫폼, 배포 관리, 지식 레퍼런스, docker",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "Docker",
+      "review": true
+    },
+    {
+      "title": "현대모비스 MDIP_DEV Tkgs version upgrade지원 - 추가지원",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "MicroK8s containerd Registry Setting",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Kubernetes",
+      "review": false
+    },
+    {
+      "title": "Docker로 로컬 Oracle DB 설치하기",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "자동화",
+      "tech_tags": "Docker, 데이터베이스",
+      "review": false
+    },
+    {
+      "title": "ClovirONE - clovirone-base repo ci/cd 전략",
+      "old_type": "아키텍처 설계서",
+      "old_category": "제품 및 플랫폼",
+      "new_type": "설계서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "현대모비스 MDIP_DEV Tkgs version upgrade지원",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "사내 포탈 VM",
+      "old_type": "기타 문서",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "새문서",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "스마일게이트",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "Tanzu Kubernetes 클러스터 버전 업그레이드 및 마이그레이션 지원 가이드",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Kubernetes",
+      "review": false
+    },
+    {
+      "title": "MariaDB-Oracle DDL 전환 가이드",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "인프라",
+      "tech_tags": "데이터베이스",
+      "review": false
+    },
+    {
+      "title": "하이닉스 운영",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "인천공항공사",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "(없음)",
+      "new_type": "매뉴얼",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[12월11일] 포스코DX 포털 미팅",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "고객사별 브렌치 정보",
+      "old_type": "Knowledge base",
+      "old_category": "제품 및 플랫폼",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "ClovirPackageRepo",
+      "old_type": "사용자 매뉴얼, Knowledge base, 기타 문서",
+      "old_category": "배포 관리, 인프라, 운영 유지보수, 제품 및 플랫폼",
+      "new_type": "매뉴얼",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "WEB(Portal) 보안취약점",
+      "old_type": "보안 점검 보고서",
+      "old_category": "보안 컴플라이언스",
+      "new_type": "보고서",
+      "new_field": "보안",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "[9월4일] 포스코 DX 포털 협의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "cytoscape.js ",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[07월 29일 스마일게이트홀딩스]",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[07월 31일 인천공항공사] ",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[10월22일] 포스코DX 요금 기능 회의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "Xscan",
+      "old_type": "테스트 결과서",
+      "old_category": "자동화 엔지니어링",
+      "new_type": "보고서",
+      "new_field": "자동화",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "[10월30일] 포스코DX 요금 회의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "포스코DX 포털 요구사항 미팅",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "1.Docker 교육  ",
+      "old_type": "교육",
+      "old_category": "docker",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "Docker",
+      "review": true
+    },
+    {
+      "title": "[10월17일] 포스코 DX 포털 시연",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "국립암센터 EOS 작업 지원",
+      "old_type": "작업 계획서",
+      "old_category": "운영 유지보수",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "Aria Operation 대쉬보드 공유",
+      "old_type": "Knowledge base",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "인프라",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "KB 국민카드 보안 취약점 조치",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "보안",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "KB 국민카드 빅데이터 포탈 신규 AD 연동 기능 개발",
+      "old_type": "작업 계획서",
+      "old_category": "제품 및 플랫폼",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "하이닉스 2월 5일 협의내용",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "인천공항공사 요구사항(실사용자, 고객)",
+      "old_type": "요구 사항 정의서",
+      "old_category": "고객 프로젝트",
+      "new_type": "기획서",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "SK 하이닉스 ClovirONE 적용 방안 회의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "timedatacetl  Asia/Seoul 설정",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "참고자료",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[09월 03일 인천공항공사]",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "포스코 DX",
+      "old_type": "고객사 별 배포 가이드",
+      "old_category": "고객 프로젝트",
+      "new_type": "매뉴얼",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "펌웨어/ESXi 설치 프로세스 및 포털 연동 점검",
+      "old_type": "회의록",
+      "old_category": "자동화 엔지니어링, 인프라, 제품 및 플랫폼",
+      "new_type": "회의록",
+      "new_field": "자동화",
+      "tech_tags": "VMware",
+      "review": false
+    },
+    {
+      "title": "[9월11일] 포스코DX P-Cloud 포털 협의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "OS 보안취약점",
+      "old_type": "보안 점검 보고서",
+      "old_category": "보안 컴플라이언스",
+      "new_type": "보고서",
+      "new_field": "보안",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "KB 국민카드 포털 가오픈 준비",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "인천공항공사 서버정보 및 요구사항 협의서",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "[9월 18일] 포스코 DX 포털 협의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "[9월26일] 포스코DX 포털 협의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "POSCO DX GPU APP 시연",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "WAS 보안취약점",
+      "old_type": "보안 점검 보고서",
+      "old_category": "보안 컴플라이언스",
+      "new_type": "보고서",
+      "new_field": "보안",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "인천공항공사 1차 요구사항 협의",
+      "old_type": "회의록",
+      "old_category": "(없음)",
+      "new_type": "회의록",
+      "new_field": "기타",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "ovf 배포 시 에러사항",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": true
+    },
+    {
+      "title": "포스코 1차 오픈(GPU VM) 시연 및 회의",
+      "old_type": "회의록",
+      "old_category": "고객 프로젝트",
+      "new_type": "회의록",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "Ubuntu LVM 디스크 용량 확장",
+      "old_type": "Linux",
+      "old_category": "(없음)",
+      "new_type": "기타",
+      "new_field": "인프라",
+      "tech_tags": "Linux",
+      "review": true
+    },
+    {
+      "title": "신입 직원 교육 커리큘럼",
+      "old_type": "기타 문서",
+      "old_category": "행정 관리",
+      "new_type": "기타",
+      "new_field": "사내 업무",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "2.0 request.js 관련 로직",
+      "old_type": "포탈 개발 컨벤션",
+      "old_category": "제품 및 플랫폼",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "Windows Automation Assembler 이미지 생성 가이드",
+      "old_type": "Knowledge base",
+      "old_category": "인프라",
+      "new_type": "참고자료",
+      "new_field": "인프라",
+      "tech_tags": "Windows",
+      "review": false
+    },
+    {
+      "title": "DB 보안취약점",
+      "old_type": "보안 점검 보고서",
+      "old_category": "보안 컴플라이언스",
+      "new_type": "보고서",
+      "new_field": "보안",
+      "tech_tags": "데이터베이스",
+      "review": false
+    },
+    {
+      "title": "현대모비스 MDIP 컨테이너 데이터 변경작업",
+      "old_type": "작업 계획서",
+      "old_category": "데이터 모니터링",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "사내 인프라 정보",
+      "old_type": "포탈 개발 컨벤션",
+      "old_category": "인프라",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "MDIP KVM, Paloalto",
+      "old_type": "작업 계획서",
+      "old_category": "(없음)",
+      "new_type": "작업 계획서",
+      "new_field": "인프라",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "ACI CISCO ",
+      "old_type": "Knowledge base",
+      "old_category": "지식 레퍼런스",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "KB 국민카드 운영 오픈 준비",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "운영",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "인천공항 L4, ACI 관련 API 및 Chrony 설정",
+      "old_type": "Knowledge base",
+      "old_category": "지식 레퍼런스",
+      "new_type": "참고자료",
+      "new_field": "자동화",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "Cloud-init 마스터이미지 생성 (Rocky OS)",
+      "old_type": "Knowledge base",
+      "old_category": "인프라",
+      "new_type": "참고자료",
+      "new_field": "인프라",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "외부시스템 개념 정의서 ",
+      "old_type": "(없음)",
+      "old_category": "(없음)",
+      "new_type": "기획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "WEB(Nginx) 보안취약점",
+      "old_type": "보안 점검 보고서",
+      "old_category": "보안 컴플라이언스",
+      "new_type": "보고서",
+      "new_field": "보안",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "2.0 카탈로그 Yaml 관련 옵션",
+      "old_type": "포탈 개발 컨벤션",
+      "old_category": "제품 및 플랫폼",
+      "new_type": "참고자료",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "KB 국민카드 빅데이터 포탈 신규 ADFS 관련 추가 요건 / 결재 회수 기능 개발",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    },
+    {
+      "title": "하이닉스 커스텀 액션 구조 리팩토링",
+      "old_type": "작업 계획서",
+      "old_category": "고객 프로젝트",
+      "new_type": "작업 계획서",
+      "new_field": "개발",
+      "tech_tags": "",
+      "review": false
+    }
+  ]
+}
