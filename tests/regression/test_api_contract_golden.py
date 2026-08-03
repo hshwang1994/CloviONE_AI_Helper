@@ -40,6 +40,47 @@ Deliberate contract changes recorded here (each landed with its golden edit):
   * ``developers[]`` rows gained ``user_id`` (keying developers by display name
     breaks on duplicate names) and ``/api/sprint/summary`` gained
     ``by_assignee``. ``unassigned`` stayed — the in-meeting triage flow uses it.
+  * ``/api/tickets/{id}`` gained **``body_markdown``** and **``body_sync_error``**
+    (ticket body editing, plan Phase 3 §E). Only the *detail* response changed;
+    the list rows are untouched, because shipping every ticket's body inside a
+    list payload would be pure weight.
+    ``body_markdown`` is what the editor opens with: the canonical copy in
+    ``ticket_cache.body_markdown`` when we have one, otherwise the source body
+    read back through the same markdown rules
+    (``notion_blocks.rendered_to_markdown``). Without it the editor would open
+    empty and "save" would silently mean "delete the body". It is ``null`` when
+    the body could not be read at all — an unknown body must not be spelled as
+    an empty one. In ``tickets_detail__ok`` it is the round-tripped fixture
+    body, and the ``[image]`` block is absent on purpose: an image has no
+    markdown form, and writing the ``[image] 원본에서 확인`` placeholder back
+    would turn the placeholder into real text in Notion.
+    ``body_sync_error`` is non-null only in the state this feature's save order
+    creates — canonical body stored, push to Notion failed. That save answers
+    200 by design (the user's text is safe), so the screen needs this field to
+    avoid pretending the two sides agree.
+    ``body_is_local`` says whether ``body_markdown`` is our canonical copy or a
+    read-back approximation of the source. Our body pipeline is plain markdown,
+    so saving an approximation flattens inline formatting (bold, links) and
+    drops blocks that have no markdown form. The editor warns about that — but
+    only in the approximation case, because once a canonical copy exists the
+    save is lossless and a permanent warning is a warning nobody reads.
+  * ``/api/sprint/summary`` gained **``burndown``** (plan Phase 3 §F). It is a
+    *due-date* burndown, not a historical one, and the shape says so: two series
+    over one day axis — ``planned`` (est_wd still due on or after that day,
+    cancelled excluded) and ``open`` (the same, minus what is already done). No
+    completion timestamp exists anywhere: ``ticket_cache`` mirrors only Notion's
+    created/last-edited times, and last-edited moves when a title is fixed.
+    Reconstructing "remaining work per day" from that would be invention, so the
+    payload carries only what the data supports and the screen labels the two
+    lines with exactly those words.
+    ``developers``/``by_assignee`` were **not** touched: ``developers[].est_all``
+    is already the per-person workload the WD-balance chart draws, and shipping
+    the same numbers under a second name guarantees that one day only one of the
+    two gets fixed.
+  * ``/api/team-chat`` responses are not in these goldens (no Notion round trip),
+    but note for the reader that the same plan step widened them —
+    ``members[]`` gained ``last_read_seq``/``online`` and messages gained
+    ``mentions_me``; those are pinned by ``tests/integration/test_team_chat_*``.
 """
 
 from __future__ import annotations

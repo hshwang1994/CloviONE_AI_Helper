@@ -22,7 +22,20 @@ from __future__ import annotations
 RELATED_DESTINATIONS: dict[str, str] = {
     # 채팅 초대(chat_invited) — 초대된 방으로 바로 들어간다.
     "chat_room": "/chat-rooms/{id}",
+    # @멘션(chat_mentioned) — 불린 그 방으로 들어간다. id 는 room_id 다.
+    #
+    # `chat_room` 과 경로가 같은데 왜 키를 나눴나: 목적지는 **관련 객체의 종류**로 정하는데,
+    # 멘션이 가리키는 것은 '방'이 아니라 '그 방에서 나를 부른 말'이다. 한 칸으로 합치면
+    # 나중에 메시지 앵커(`/chat-rooms/{id}?seq=…`)로 정밀해질 때 초대 알림까지 같이 끌려가고,
+    # 그때 둘을 다시 떼려면 프런트에 유형 분기를 넣어야 한다 — 이 표를 만든 이유가 그걸
+    # 없애는 것이었다. 지금 나누는 비용은 한 줄이고, 나중에 합치는 비용은 프런트 분기다.
+    "chat_mention": "/chat-rooms/{id}",
 }
+
+# 아직 표에 없는 관련 유형(approval / schedule / job / runner / user)은 **일부러** 비워 둔다.
+# 그 화면들은 전부 목록 화면(DataScreen)이라 경로에 id 자리가 없다 — 보내 봐야 목록만 열리고
+# 사용자는 대상을 눈으로 다시 찾아야 한다. 위 docstring 의 첫 번째 규칙이 그것이다.
+# 그 화면들이 단건 라우트를 갖게 되는 날 여기 한 줄씩 추가하면 프런트는 손대지 않는다.
 
 
 def destination_for(related_object_type: str | None, related_object_id: str | None) -> str | None:

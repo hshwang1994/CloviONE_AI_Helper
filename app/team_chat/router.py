@@ -22,8 +22,16 @@ from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError
 from app.core.feature_flags import load_feature_flags
 from app.team_chat import repository, service
-from app.team_chat.models import MSG_IMAGE, ROOM_DIRECT
-from app.team_chat.schemas import DirectCreate, GroupCreate, MessageCreate, ReadInput
+from app.team_chat.models import MSG_IMAGE, ROLE_OWNER, ROOM_DIRECT
+from app.team_chat.schemas import (
+    DirectCreate,
+    GroupCreate,
+    MemberInput,
+    MembersInput,
+    MessageCreate,
+    ReadInput,
+    RenameInput,
+)
 from app.users.models import User
 
 
@@ -132,12 +140,46 @@ def _image_view(img) -> dict:
     }
 
 
-def _msg_view(m, names, images=None) -> dict:
+def _member_view(m, names, cursor, now) -> dict:
+    """참여자 한 줄 — 이름·역할 + **읽음 위치**와 **접속 여부**.
+
+    `last_read_seq` 는 1:1 읽음 표시가 쓰는 값이다(내 메시지의 seq 가 상대의 이 값 이하면
+    '읽음'). 방 멤버만 이 응답을 받으므로 대화 상대끼리만 서로의 읽음 위치를 본다.
+
+    `online` 은 이 방의 `last_seen` 기준이다 — '이 방을 열어 두고 있다'는 뜻이지 '앱에
+    접속해 있다'가 아니다. 방 참여자 목록의 점이라 그 뜻이 맞다.
+    """
+    u = names.get(m.user_id)
+    return {
+        "user_id": m.user_id,
+        "name": u.display_name if u else "",
+        "role": m.role,
+        "last_read_seq": service.read_seq_for(m, cursor),
+        "online": service.is_online(m.last_seen, now),
+    }
+
+
+def _msg_view(m, names, images=None, *, me=None) -> dict:
+    """말풍선 한 개.
+
+    `mentions_me` 를 **서버가** 판정하는 이유: 전체 채팅 방에서 프런트는 자기 표시 이름을
+    모른다(참여자 목록이 없고 디렉터리는 본인을 뺀다). 그리고 멘션 규칙(경계·최장 일치)이
+    양쪽에 따로 구현돼 있으면 '알림은 갔는데 화면엔 표시가 없는' 상태가 생긴다 —
+    알림을 만드는 쪽과 같은 함수로 답한다. `@` 가 없으면 문자열 검사조차 하지 않는다.
+    """
     u = names.get(m.sender_user_id) if m.sender_user_id else None
+    body = m.body or ""
+    mentions_me = bool(
+        me is not None
+        and m.sender_user_id != me.id
+        and "@" in body
+        and service.find_mentioned(body, {me.display_name: me.id})
+    )
     return {
         "seq": m.seq, "kind": m.kind, "sender_user_id": m.sender_user_id,
         "sender_name": u.display_name if u else "",
         "body": m.body, "created_at": m.created_at.isoformat(),
+        "mentions_me": mentions_me,
         "images": [_image_view(i) for i in (images or [])],
     }
 
@@ -157,20 +199,25 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     images = repository.images_for_messages(db, img_ids)
     # 멤버십 행이 없는 방(전체 채팅)의 읽음 위치는 커서에 있다 — 이 값이 0으로 고정돼 있으면
     # 프런트가 방을 열어 둔 내내 같은 seq 로 읽음 POST 를 반복한다(폴링마다 쓰기).
-    cursor = None if member is not None else repository.get_cursor(db, room.id, me.id)
-    last_read = member.last_read_seq if member is not None else (cursor.last_read_seq if cursor else 0)
+    # 방 전체 커서를 한 번에 읽는다(N+1 회피). 멤버가 있는 방은 커서가 대개 비어 있어 공짜다.
+    cursors = repository.cursors_for_room(db, room.id)
+    last_read = service.read_seq_for(member, cursors.get(me.id))
+    is_owner = member is not None and member.role == ROLE_OWNER
+    is_group = not room.is_global and room.kind != ROOM_DIRECT
     return {
         "room": {"id": room.id, "kind": room.kind, "is_global": room.is_global,
                  "title": _room_title(room, mem, names, me.id), "member_count": len(mem)},
-        "members": [{"user_id": m.user_id, "name": (names.get(m.user_id).display_name if names.get(m.user_id) else ""), "role": m.role} for m in mem],
-        "messages": [_msg_view(m, names, images.get(m.id)) for m in msgs],
+        "members": [_member_view(m, names, cursors.get(m.user_id), now) for m in mem],
+        "messages": [_msg_view(m, names, images.get(m.id), me=me) for m in msgs],
         "seq": room.event_seq,
         "you": {"user_id": me.id, "role": member.role if member else None,
                 "last_read_seq": last_read, "is_member": member is not None,
                 # 서버가 최종 판단한다 — 프런트 게이팅은 UX 일 뿐이다(파하기는 다시 검사한다).
-                "can_disband": (member is not None and member.role == "owner"
-                                and not room.is_global and room.kind != ROOM_DIRECT),
-                "can_hide": (not room.is_global and room.kind == ROOM_DIRECT)},
+                "can_disband": is_owner and is_group,
+                "can_hide": (not room.is_global and room.kind == ROOM_DIRECT),
+                # 이름 변경·초대·내보내기·방장 넘기기를 한 플래그로 묶는다 — 네 규칙이
+                # 모두 같은 조건(그룹 방의 방장)이라 프런트가 각각 다시 계산할 이유가 없다.
+                "can_manage": is_owner and is_group},
     }
 
 
@@ -186,6 +233,19 @@ def send_message(request: Request, room_id: str, payload: MessageCreate,
     msg = service.send_message(db, room, me, body=payload.body,
                                client_message_id=payload.client_message_id, now=request.app.state.clock.now())
     return {"ok": True, "seq": msg.seq}
+
+
+@router.post("/rooms/{room_id}/messages/{seq}/delete", dependencies=[Depends(require_csrf)])
+def delete_message(request: Request, room_id: str, seq: int,
+                   db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """내가 보낸 메시지 지우기. 응답의 `seq` 는 **방의 새 event_seq** 다(지운 메시지의 seq 가 아니다).
+
+    POST 인 이유: 이 저장소의 상태변경은 전부 POST + CSRF 다(DELETE 는 쓰지 않는다).
+    """
+    room = _get_room_or_404(db, room_id)
+    service.ensure_access(db, room, me)
+    service.delete_message(db, room, me, seq=seq, now=request.app.state.clock.now())
+    return {"ok": True, "seq": room.event_seq}
 
 
 @router.post("/rooms/{room_id}/read", dependencies=[Depends(require_csrf)])
@@ -220,6 +280,56 @@ def hide(request: Request, room_id: str, db: Session = Depends(get_db), me: User
     """1:1 '나에게만 숨김' — 상대에게는 그대로 보이고, 새 메시지가 오면 내 목록에 다시 뜬다."""
     room = _get_room_or_404(db, room_id)
     service.hide_room(db, room, me, now=request.app.state.clock.now())
+    return {"ok": True}
+
+
+# ── 그룹 관리 (방장 전용 · 그룹 방만) ────────────────────────────────────────
+#
+# 네 동작 모두 service._require_owner 한 곳에서 판단한다. 라우터가 조건을 다시 쓰면
+# 언젠가 한쪽만 고쳐져 '보이는데 누르면 403'이 된다.
+
+@router.post("/rooms/{room_id}/rename", dependencies=[Depends(require_csrf)])
+def rename_room(request: Request, room_id: str, payload: RenameInput,
+                db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    room = _get_room_or_404(db, room_id)
+    before = room.title
+    service.rename_room(db, room, me, title=payload.title, now=request.app.state.clock.now())
+    record_audit_from_request(request, db, action="team_chat.rename", object_type="chat_room",
+                              object_id=room.id, before={"title": before}, after={"title": room.title})
+    return {"ok": True, "room": {"id": room.id, "title": room.title}}
+
+
+@router.post("/rooms/{room_id}/members/add", dependencies=[Depends(require_csrf)])
+def add_members(request: Request, room_id: str, payload: MembersInput,
+                db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    room = _get_room_or_404(db, room_id)
+    added = service.add_members(db, room, me, user_ids=payload.user_ids,
+                                now=request.app.state.clock.now())
+    record_audit_from_request(request, db, action="team_chat.add_members", object_type="chat_room",
+                              object_id=room.id, after={"added": len(added)})
+    return {"ok": True, "added": len(added)}
+
+
+@router.post("/rooms/{room_id}/members/remove", dependencies=[Depends(require_csrf)])
+def remove_member(request: Request, room_id: str, payload: MemberInput,
+                  db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    room = _get_room_or_404(db, room_id)
+    service.remove_member(db, room, me, user_id=payload.user_id,
+                          now=request.app.state.clock.now())
+    record_audit_from_request(request, db, action="team_chat.remove_member", object_type="chat_room",
+                              object_id=room.id, after={"user_id": payload.user_id})
+    return {"ok": True}
+
+
+@router.post("/rooms/{room_id}/owner", dependencies=[Depends(require_csrf)])
+def transfer_owner(request: Request, room_id: str, payload: MemberInput,
+                   db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """방장 넘기기 — 자기 자신을 방장에서 내리는 유일한 정상 경로(주인 없는 방을 만들지 않는다)."""
+    room = _get_room_or_404(db, room_id)
+    service.transfer_owner(db, room, me, user_id=payload.user_id,
+                           now=request.app.state.clock.now())
+    record_audit_from_request(request, db, action="team_chat.transfer_owner", object_type="chat_room",
+                              object_id=room.id, after={"user_id": payload.user_id})
     return {"ok": True}
 
 

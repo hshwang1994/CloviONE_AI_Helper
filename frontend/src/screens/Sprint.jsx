@@ -7,8 +7,12 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Button, Callout, Card, ErrorState, PageHeader, Skeleton, StatCard } from "../ui/kit.jsx";
+import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { LineSeries } from "../ui/charts/LineSeries.jsx";
+import { ChartEmpty } from "../ui/charts/base.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
 import { groupByAssignee } from "./TeamTickets.jsx";
+import { burndownSeries, wdBalanceItems } from "./sprint-charts.js";
 
 /* 도우미 > 주간 스프린트 회의. 한 화면에서 (1) 그 주의 담당자별 티켓, (2) 계획 티켓을 본다.
  * 편집은 회의 중 바로 — 기존 티켓 API 재사용. 데이터는 조회 전용.
@@ -152,6 +156,53 @@ export function Sprint() {
                 <StatCard value={team.in_progress || 0} label="진행 중(건)" />
                 <StatCard value={team.est_done_total || 0} label="완료 업무량(인일)" />
                 <StatCard value={team.overdue || 0} label="지연(건)" kind={team.overdue ? "warn" : undefined} />
+              </Box>
+
+              {/* 번다운 + WD 밸런스. 회의에서 먼저 묻는 두 가지가 "이 주가 계획대로 가고 있나"와
+                  "누구에게 몰려 있나"다 — 목록을 읽기 전에 그 둘을 그림으로 한 번에 본다.
+                  차트 라이브러리는 들이지 않는다(번들 예산). ui/charts 의 SVG 컴포넌트를 쓴다. */}
+              <Box
+                component="section" aria-labelledby="sprint-flow"
+                sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0,1fr))" } }}
+              >
+                <Card>
+                  <Typography component="h2" id="sprint-flow" variant="h6" sx={{ fontSize: "1.0625rem", mb: 0.5 }}>
+                    번다운
+                  </Typography>
+                  {/* 그림이 무엇을 말하고 **무엇을 말하지 않는지**를 그림 옆에 쓴다. 완료 시각이
+                      기록되지 않아 날짜별 실제 이력은 그릴 수 없다 — 그걸 숨기면 사람들은 이
+                      그림을 실제 진행으로 읽는다. */}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "60ch" }}>
+                    두 선 모두 <b>마감일</b>이 축입니다. ‘계획’은 그날 이후로 마감이 남아 있는 업무량,
+                    ‘아직 미완료’는 그중 끝나지 않은 것입니다. 두 선의 간격이 이미 끝낸 일입니다.
+                    완료 시각은 원본에 기록이 없어 날짜별 실제 이력은 그리지 않습니다.
+                  </Typography>
+                  {(() => {
+                    const bd = burndownSeries(d.burndown);
+                    return bd
+                      ? <LineSeries series={bd.series} labels={bd.labels} unit="인일" summary={bd.summary} />
+                      : <ChartEmpty label="이 주에 마감인 업무량이 없습니다" height="9rem" />;
+                  })()}
+                </Card>
+                <Card>
+                  <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem", mb: 0.5 }}>
+                    담당자별 업무량(WD)
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "60ch" }}>
+                    이 주에 마감인 티켓의 예상 업무량 합계입니다(취소 제외). 평균의 1.5배를 넘는 사람만 색으로 표시합니다.
+                  </Typography>
+                  {(() => {
+                    const wd = wdBalanceItems(d.developers);
+                    return wd ? (
+                      <>
+                        <BarSeries items={wd.items} max={wd.max} unit="인일" formatValue={(v) => String(v)} />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                          {wd.summary}
+                        </Typography>
+                      </>
+                    ) : <ChartEmpty label="이 주에 배정된 업무가 없습니다" height="9rem" />;
+                  })()}
+                </Card>
               </Box>
 
               {/* 예전의 '티켓 배분' 섹션 자리. 목록을 통째로 다시 그리지 않고 담당자를 지정할 수 있는

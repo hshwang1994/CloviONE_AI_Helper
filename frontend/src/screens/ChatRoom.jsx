@@ -6,6 +6,7 @@ import Chip from "@mui/material/Chip";
 import { api } from "../lib/api.js";
 import { Button, Card, ErrorState, PageHeader, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
 import { ChatPane } from "./ChatPane.jsx";
+import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
 
 /* 채팅방 페이지 — 헤더(방 이름·나가기·파하기·숨기기) + 폴링 채팅창(ChatPane). 방 메타는
  * 메시지 조회와 같은 쿼리 키를 써 한 번만 불러온다(react-query 중복 제거).
@@ -24,6 +25,7 @@ export function ChatRoom() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  const [manageOpen, setManageOpen] = React.useState(false);
 
   const meta = useQuery({
     queryKey: ["team-chat-msgs", id],
@@ -32,6 +34,7 @@ export function ChatRoom() {
   });
   const room = (meta.data && meta.data.room) || {};
   const you = (meta.data && meta.data.you) || {};
+  const members = (meta.data && meta.data.members) || [];
 
   const backToList = (msg) => {
     toast(msg, "info");
@@ -72,6 +75,9 @@ export function ChatRoom() {
     <>
       {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: "0.75rem", alignSelf: "center" }} /> : null}
       <Button onClick={() => nav("/chat-rooms")}>목록</Button>
+      {/* 관리(이름 변경·초대·내보내기·방장 넘기기)는 서버가 준 한 플래그로만 판단한다.
+          네 동작의 조건이 모두 같으므로 버튼도 하나다 — 여기서 규칙을 다시 쓰면 어긋난다. */}
+      {you.can_manage ? <Button onClick={() => setManageOpen(true)}>관리</Button> : null}
       {you.can_hide ? (
         <Button disabled={busy}
           onClick={async () => {
@@ -102,8 +108,18 @@ export function ChatRoom() {
     <Box className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="채팅방" title={meta.isPending ? "채팅방" : (room.title || "채팅방")} actions={actions} />
       <Card sx={{ p: { xs: 1.5, sm: 2.5 } }}>
-        {meta.isPending ? <Skeleton lines={6} /> : <ChatPane roomId={id} interval={1800} />}
+        {meta.isPending ? <Skeleton lines={6} /> : (
+          <>
+            {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
+            <MemberStrip members={members} />
+            <ChatPane roomId={id} interval={1800} />
+          </>
+        )}
       </Card>
+      <ManageRoomModal
+        open={manageOpen} onClose={() => setManageOpen(false)}
+        roomId={id} title={room.title} members={members} meId={you.user_id}
+      />
     </Box>
   );
 }

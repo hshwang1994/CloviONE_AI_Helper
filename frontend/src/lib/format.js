@@ -114,6 +114,10 @@ export const TYPE_KO = {
   // _notify_invited). related=("chat_room", room_id) 이고, 벨은 서버가 계산한
   // related_route(#/chat-rooms/<id>)로 그 방을 바로 연다.
   chat_invited: "채팅 초대",
+  // 채팅 본문에서 `@내이름`으로 불렸을 때(app/team_chat/service.py의 notify_mentions).
+  // related=("chat_mention", room_id) — 경로 계산은 서버 표(destinations.py)가 한다.
+  // **이 표는 이름표일 뿐 경로가 아니다.** 유형이 늘어도 벨에 분기를 더하지 않는 이유다.
+  chat_mentioned: "멘션",
 };
 export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || "알림"));
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야

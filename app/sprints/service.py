@@ -16,6 +16,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from app.reports import service as reports_service
+from app.sprints.burndown import build_burndown
 from app.tickets import service as tickets_service
 
 STATUS_PLANNED = "계획"
@@ -75,6 +76,11 @@ def build_sprint_summary(
         "developers": report["developers"],
         # 담당자별 티켓 리스트(회의 진행용). developers 와 같은 순서·같은 이름 키.
         "by_assignee": _by_assignee(db, period_tickets, report["developers"]),
+        # 번다운(마감일 축) — 같은 티켓 목록을 한 번 더 읽지 않고 그대로 넘긴다.
+        # 'WD 밸런스'는 새 필드가 아니다: developers[].est_all / est_done 이 이미 담당자별
+        # 업무량이라 화면이 그것으로 막대를 그린다. 같은 숫자를 두 이름으로 내보내면
+        # 언젠가 한쪽만 고쳐진다.
+        "burndown": build_burndown(period_tickets, start=start, end=end),
         # 미할당은 계속 준다 — 미할당 티켓 화면과 겹쳐 보여도, 회의 중 그 자리에서 배정하는
         # 흐름이 이 값을 쓴다(빼면 기능이 사라지고 백엔드가 얻는 것은 없다).
         "unassigned": unassigned,

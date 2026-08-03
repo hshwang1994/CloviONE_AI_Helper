@@ -80,6 +80,18 @@ def last_message(db: Session, room_id: str) -> ChatMessage | None:
     ).scalar_one_or_none()
 
 
+def get_message_by_seq(db: Session, room_id: str, seq: int) -> ChatMessage | None:
+    """방 안의 seq 하나를 집는다(삭제된 것도 포함).
+
+    삭제된 행까지 돌려주는 이유: 삭제 요청이 두 번 오면(느린 네트워크의 재시도) '이미 삭제됨'과
+    '그런 메시지 없음'을 구분해서 답해야 한다. 없는 것으로 답하면 404 가 뜨고 사용자는
+    자기 메시지가 사라졌는지 실패했는지 알 수 없다.
+    """
+    return db.execute(
+        select(ChatMessage).where(ChatMessage.room_id == room_id, ChatMessage.seq == seq)
+    ).scalar_one_or_none()
+
+
 def find_by_client_id(db: Session, room_id: str, client_message_id: str) -> ChatMessage | None:
     return db.execute(
         select(ChatMessage).where(
@@ -141,6 +153,16 @@ def cursors_for_user(db: Session, user_id: str) -> dict[str, ChatReadCursor]:
         .all()
     )
     return {row.room_id: row for row in rows}
+
+
+def cursors_for_room(db: Session, room_id: str) -> dict[str, ChatReadCursor]:
+    """user_id → 커서(방 하나). 멤버 행이 없는 참여자의 읽음 위치를 한 번에 읽는다."""
+    rows = (
+        db.execute(select(ChatReadCursor).where(ChatReadCursor.room_id == room_id))
+        .scalars()
+        .all()
+    )
+    return {row.user_id: row for row in rows}
 
 
 def users_by_ids(db: Session, ids: list[str]) -> dict[str, User]:

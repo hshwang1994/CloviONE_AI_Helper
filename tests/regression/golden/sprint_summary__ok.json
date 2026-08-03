@@ -1,4 +1,49 @@
 {
+  "burndown": {
+    "points": [
+      {
+        "date": "2026-07-13",
+        "open": 0.0,
+        "planned": 1.5
+      },
+      {
+        "date": "2026-07-14",
+        "open": 0.0,
+        "planned": 1.5
+      },
+      {
+        "date": "2026-07-15",
+        "open": 0.0,
+        "planned": 1.5
+      },
+      {
+        "date": "2026-07-16",
+        "open": 0.0,
+        "planned": 0.0
+      },
+      {
+        "date": "2026-07-17",
+        "open": 0.0,
+        "planned": 0.0
+      },
+      {
+        "date": "2026-07-18",
+        "open": 0.0,
+        "planned": 0.0
+      },
+      {
+        "date": "2026-07-19",
+        "open": 0.0,
+        "planned": 0.0
+      },
+      {
+        "date": "2026-07-20",
+        "open": 0.0,
+        "planned": 0.0
+      }
+    ],
+    "total_est_wd": 1.5
+  },
   "by_assignee": [
     {
       "name": "개발자 이",

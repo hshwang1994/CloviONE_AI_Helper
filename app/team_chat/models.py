@@ -55,7 +55,11 @@ class ChatRoomMember(UUIDPrimaryKeyMixin, Base):
     role: Mapped[str] = mapped_column(String(16), nullable=False, default=ROLE_MEMBER)
     last_read_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     joined_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    # NULL = **아직 이 방을 한 번도 열어 보지 않았다**(0029). joined_at 을 넣어 두면
+    # 방금 초대된 사람이 초대된 줄도 모르는 채로 온라인 점이 켜진다 — 없는 사람을 있다고
+    # 말하는 표시가 된다. NULL 이면 service.is_online 은 꺼진 점을 주고,
+    # core.presence.should_touch 는 첫 폴링에서 즉시 한 번 쓴다(그 뒤로는 30초 스로틀).
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime)
 
     __table_args__ = (
         UniqueConstraint("room_id", "user_id", name="uq_chat_member"),
