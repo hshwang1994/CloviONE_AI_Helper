@@ -414,7 +414,12 @@ export function AppShell({
           모서리에서도 클릭을 가로챈다. 실제로 권한 매트릭스 표 맨 아랫줄의 '상세' 버튼이
           아무것도 안 그려진 지점(1837,987)에서 눌리지 않았다(QA fab_overlap 검사가 잡았다).
           받는 쪽은 MascotButton 안의 Fab이 pointerEvents:auto로 되돌린다. */}
-      {!minimal ? (
+      {/* /chat 에서는 띄우지 않는다(flush 가 곧 '지금 /chat'이다). 이 버튼이 하는 일은
+          /chat 으로 가는 것뿐이라, 그 화면에서는 아무 일도 하지 않으면서 입력창 오른쪽의
+          '전송'을 덮는다 — QA fab_overlap 검사가 1920 라이트·다크에서 잡았고, 실제로
+          스크롤로도 비켜낼 수 없다(입력창이 화면 아래에 고정돼 있다).
+          동작하지 않는 컨트롤을 띄워 두지 않는다는 저장소 원칙과도 같은 방향이다. */}
+      {!minimal && !flush ? (
         <Box sx={{ position: "fixed", right: 24, bottom: 24, pointerEvents: "none",
                    zIndex: (t) => t.zIndex.speedDial }}>
           <MascotButton onClick={() => navigate("/chat")} mode="listening" />

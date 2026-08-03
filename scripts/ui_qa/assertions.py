@@ -237,7 +237,13 @@ PROBE_JS = r"""
         } catch (e) { /* 측정 불가면 아래 폭 기준으로만 판단한다 */ }
       }
       const narrowBox = rect.width > 0 && rect.width < ch * 2 && rect.height >= lineHeight * 2;
-      const shredded = charsPerLine != null && lines >= 3 && charsPerLine < 3;
+      // '세로로 흐른다'는 것은 **좁은 상자**에서만 일어난다. 폭이 넉넉하면 줄당 글자 수가
+      // 적게 나올 수 없다 — 그런 값이 나왔다면 레이아웃이 아니라 측정이 튄 것이다.
+      // 실제로 폭 1918px(한 줄에 ~197자 들어감) 요소가 '3줄 2.7자/줄'로 잡혔다. 자식이
+      // 세로로 쌓인 컨테이너였고, 그건 글자가 으스러진 것이 아니라 그냥 여러 줄이다.
+      // 12자도 못 담는 상자만 후보로 둔다(원래 잡으려던 결함은 24px·8px/ch 였다).
+      const couldHoldAWord = ch > 0 && rect.width >= ch * 12;
+      const shredded = !couldHoldAWord && charsPerLine != null && lines >= 3 && charsPerLine < 3;
       if (narrowBox || shredded) {
         if (out.verticalCollapse.length < MAX) {
           out.verticalCollapse.push({
