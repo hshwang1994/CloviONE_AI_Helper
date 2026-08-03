@@ -13,20 +13,25 @@ from datetime import datetime
 from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, OrgScopedMixin, UUIDPrimaryKeyMixin
 
 TRASH_TICKET = "ticket"
 TRASH_DOCUMENT = "document"
 TRASH_TYPES = frozenset({TRASH_TICKET, TRASH_DOCUMENT})
 
 
-class TrashItem(UUIDPrimaryKeyMixin, Base):
+class TrashItem(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "trash_items"
 
     item_type: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(400), nullable=False, default="")
     url: Mapped[str | None] = mapped_column(String(1000))
+    # 가리키는 대상의 **자체 UUID**(ticket_cache.id / document_cache.id). 0025 에서 추가.
+    # 위의 notion_page_id 는 그대로 둔다 — 중복 방지 키(uq_trash_item)와 목록 필터가
+    # 거기 걸려 있어서, 떼면 같은 페이지를 두 번 버릴 수 있고 복원 때 중복 행이 생긴다.
+    # 미러에 아직 그 행이 없으면 NULL 이다(그것이 정상 상태라 FK 를 걸지 않는다).
+    target_uid: Mapped[str | None] = mapped_column(String(36), index=True)
     deleted_by_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     deleted_by_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     deleted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)

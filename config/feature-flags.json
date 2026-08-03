@@ -1,12 +1,12 @@
 {
-  "_comment": "Feature flags (spec §14.4). Changed via admin settings UI by system_admin.",
-  "maintenance_mode": false,
-  "document_automation_enabled": true,
+  "_comment": "Feature flags (spec §14.4). 이 파일이 정본인 것은 '배포 단위 토글'뿐이다. 정의는 app/core/feature_flags.py 의 FLAG_REGISTRY 한 곳에 있다.",
+  "_moved_to_admin_settings": "maintenance_mode 와 document_automation_enabled 는 관리 콘솔 > 설정(app_settings 테이블)이 정본이다. 예전엔 여기에도 같은 키가 있었지만 읽는 코드가 DB만 봐서, 여기서 바꾸면 아무 일도 일어나지 않았다(오류도 없이). 혼동을 없애려고 뺐다.",
   "limited_service_actions_enabled": false,
   "self_approval_allowed": false,
   "board_enabled": true,
   "team_docs_enabled": true,
   "games_enabled": true,
   "game_ai_enabled": false,
-  "team_chat_enabled": true
+  "team_chat_enabled": true,
+  "assistant_narrative_enabled": false
 }

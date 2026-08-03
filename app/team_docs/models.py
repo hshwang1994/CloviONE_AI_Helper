@@ -15,6 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.models_base import (  # noqa: F401 — NAMES_SEP/join_names/split_names 재수출
     NAMES_SEP,
     Base,
+    OrgScopedMixin,
     UUIDPrimaryKeyMixin,
     join_names,
     split_names,
@@ -34,7 +35,7 @@ SYNC_ERROR = "error"
 SYNC_STATE_ID = "documents"
 
 
-class DocumentCache(UUIDPrimaryKeyMixin, Base):
+class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "document_cache"
 
     notion_page_id: Mapped[str] = mapped_column(
@@ -85,10 +86,20 @@ class DocumentSyncState(Base):
 
 
 class DocumentFavorite(UUIDPrimaryKeyMixin, Base):
+    """사용자별 문서 즐겨찾기.
+
+    **notion_page_id 와 document_id 를 둘 다 든다(0025).** 유일 제약과 조회는 계속
+    notion_page_id 로 한다 — 소스가 Notion 인 동안 그게 안정적인 키이고, 미러가 아직
+    그 페이지를 못 봤을 때도 즐겨찾기는 걸려야 하기 때문이다. document_id 는 미러 행이
+    있을 때 채워지는 **보조 참조**로, 소스가 자체 DB 로 바뀔 때 이어질 다리다.
+    """
+
     __tablename__ = "document_favorites"
 
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 미러에 아직 없는 페이지면 NULL. FK 를 걸지 않는 이유는 0025 docstring 참조.
+    document_id: Mapped[str | None] = mapped_column(String(36), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (
@@ -101,6 +112,7 @@ class DocumentRecentView(UUIDPrimaryKeyMixin, Base):
 
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    document_id: Mapped[str | None] = mapped_column(String(36), index=True)
     viewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (
