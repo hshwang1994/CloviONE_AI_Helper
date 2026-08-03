@@ -15,7 +15,7 @@ from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
-from app.team_docs import notion_docs, repository, service
+from app.team_docs import repository, service
 from app.team_docs.models import split_names
 from app.team_docs.schemas import DocumentCreate
 from app.team_docs.sync import get_or_create_state, sync_documents
@@ -34,6 +34,15 @@ router = APIRouter(
     tags=["team-docs"],
     dependencies=[Depends(require_team_docs_enabled)],
 )
+
+
+def _repo(request: Request):
+    """앱 기동 때 배선된 문서 저장소(app.state.repositories.documents).
+
+    소스(Notion) 왕복은 전부 이 구현체 뒤에 있다 — 라우터가 notion_docs 를 직접 부르면
+    소스를 바꿀 때 고칠 곳이 화면 수만큼 늘어난다(경계 정적검사가 이걸 막는다).
+    """
+    return request.app.state.repositories.documents
 
 
 def _doc_view(row, *, is_favorite: bool) -> dict:
@@ -87,7 +96,7 @@ def list_documents(
     from app.trash.models import TRASH_DOCUMENT
 
     favs = repository.favorite_page_ids(db, me.id)
-    rows, total = repository.list_documents(
+    rows, total = _repo(request).list_documents(
         db,
         search=q,
         doc_type_f=doc_type,
@@ -121,26 +130,19 @@ def create_document(
 ):
     """Notion "문서" DB에 새 문서를 생성한다(제목·유형/카테고리/프로젝트·상태·소유자·메모·본문).
     주의: 이 DB가 원본에서 재생성되는 복사본이면 생성분이 덮일 수 있다(운영 데이터소스 구성에 의존)."""
-    outbound = request.app.state.outbound_client
-    settings = request.app.state.settings
     now = request.app.state.clock.now()
 
     from app.tickets.service import my_notion_id
 
-    schema = notion_docs.fetch_documents_schema(outbound, settings)
-    # 프로젝트만 Notion 관계로 기록. 문서 종류·업무 분야·기술 태그는 앱측(신규 택소노미)이다.
+    # 프로젝트만 소스 관계로 기록. 문서 종류·업무 분야·기술 태그는 앱측(신규 택소노미)이다.
     project_names = [payload.project] if payload.project else []
-    project_ids = notion_docs.resolve_names_to_ids(outbound, settings, schema, notion_docs.PROP_PROJECT, project_names)
-    # 작성자 자동 채움: 로그인 사용자의 Notion 매핑이 있으면 Notion 작성자(person)로도 기록하고,
+    # 작성자 자동 채움: 로그인 사용자의 매핑이 있으면 소스 작성자(person)로도 기록하고,
     # 앱 캐시엔 항상 만든 사람 이름을 넣어 목록에 작성자가 바로 뜨게 한다.
-    author_id = my_notion_id(db, me)
-    props = notion_docs.build_create_properties(
-        title=payload.title, status=payload.status, priority=payload.priority,
-        owner=payload.owner, memo=payload.memo,
-        type_ids=[], category_ids=[], project_ids=project_ids, author_id=author_id,
+    page = _repo(request).create(
+        db, title=payload.title, status=payload.status, priority=payload.priority,
+        owner=payload.owner, memo=payload.memo, body=payload.body,
+        project_names=project_names, author_id=my_notion_id(db, me),
     )
-    children = notion_docs.body_children(payload.body)
-    page = notion_docs.create_document(outbound, settings, properties=props, children=children)
 
     row = service.cache_created_document(
         db, page=page, title=payload.title,
@@ -178,9 +180,7 @@ def all_projects(
     """생성 폼용 전체 프로젝트 목록(Notion 기준). Notion 장애 시 캐시 기반 프로젝트로 폴백한다
     (이 엔드포인트만 영향받고 목록/상세는 캐시로 계속 동작 — §17.4 격리)."""
     try:
-        names = notion_docs.list_all_project_names(
-            request.app.state.outbound_client, request.app.state.settings
-        )
+        names = _repo(request).project_names(db)
     except AppError:
         names = service.filter_options(db)["projects"]
     if not names:
@@ -211,7 +211,7 @@ def get_document(
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
-    row = repository.get_by_page_id(db, page_id)
+    row = _repo(request).get(db, page_id=page_id)
     if row is None:
         raise NotFoundError("문서를 찾을 수 없습니다. 동기화가 필요할 수 있습니다.")
     is_fav = repository.find_favorite(db, me.id, page_id) is not None
@@ -219,11 +219,7 @@ def get_document(
     blocks = None
     blocks_error = None
     try:
-        blocks = notion_docs.fetch_page_blocks(
-            request.app.state.outbound_client,
-            request.app.state.settings,
-            page_id,
-        )
+        blocks = _repo(request).body_blocks(db, page_id=page_id)
     except AppError as exc:
         blocks_error = exc.message
     except Exception:
@@ -261,7 +257,7 @@ def toggle_favorite(
     me: User = Depends(get_current_user),
     on: bool = Query(default=True),
 ):
-    if repository.get_by_page_id(db, page_id) is None:
+    if _repo(request).get(db, page_id=page_id) is None:
         raise NotFoundError("문서를 찾을 수 없습니다.")
     is_fav = service.toggle_favorite(
         db, user_id=me.id, page_id=page_id, on=on, now=request.app.state.clock.now()

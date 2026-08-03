@@ -1,8 +1,11 @@
-"""사용자 셀프서비스 티켓 API (내 티켓 / 미할당 / 배정 후보).
+"""사용자 셀프서비스 티켓 API (내 티켓 / 미할당 / 팀 / 생성·편집).
 
 조회 전용(GET)이라 CSRF 불필요(상태 미변경). 역할 게이트 없이 인증만 — 일반 사용자도 '본인 것'은
-봐야 하고, notion_user_id 는 세션 사용자에서만 도출되므로 자동으로 본인 것만 보장된다(IDOR 차단).
-Notion 토큰이 없으면 오류 대신 configured=false 로 돌려줘 화면이 '연동 필요'를 그리게 한다(리포트와 동일).
+봐야 하고, 대상 소스 user id 는 세션 사용자에서만 도출되므로 자동으로 본인 것만 보장된다(IDOR 차단).
+소스 토큰이 없으면 오류 대신 configured=false 로 돌려줘 화면이 '연동 필요'를 그리게 한다(리포트와 동일).
+
+목록이 로컬 미러에서 나온 경우에만 `sync` 블록(신선도)을 함께 싣는다 — 실시간으로 답한 응답에
+미러 상태를 실으면 거짓말이고, 실시간 경로의 기존 응답 계약도 그대로 유지된다.
 """
 
 from __future__ import annotations
@@ -12,12 +15,23 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
-from app.reports.notion_source import NotionNotConfiguredError, NotionQueryError
+from app.core.errors import NotionNotConfiguredError, NotionQueryError
 from app.tickets import service
 from app.tickets.schemas import BulkPageIds, TicketCreate, TicketUpdate
 from app.users.models import User
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
+
+
+def _repo(request: Request):
+    """앱 기동 때 배선된 저장소(app.state.repositories.tickets)."""
+    return request.app.state.repositories.tickets
+
+
+def _with_sync(db: Session, repo, body: dict) -> dict:
+    """미러로 답했으면 신선도 블록을 덧붙인다(실시간이면 키 자체가 없다)."""
+    sync = service.sync_indicator(db, repo=repo)
+    return {**body, "sync": sync} if sync else body
 
 
 @router.get("/mine")
@@ -28,13 +42,14 @@ def my_tickets(
 ):
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
+    repo = _repo(request)
     try:
-        result = service.list_my_tickets(db, outbound, settings, user)
+        result = service.list_my_tickets(db, outbound, settings, user, repo=repo)
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "mapped": True, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "mapped": True, "tickets": []}
-    return {"configured": True, "ok": True, **result}
+    return _with_sync(db, repo, {"configured": True, "ok": True, **result})
 
 
 @router.get("/unassigned")
@@ -45,13 +60,14 @@ def unassigned_tickets(
 ):
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
+    repo = _repo(request)
     try:
-        tickets = service.list_unassigned_tickets(db, outbound, settings)
+        tickets = service.list_unassigned_tickets(db, outbound, settings, repo=repo)
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return {"configured": True, "ok": True, "tickets": tickets}
+    return _with_sync(db, repo, {"configured": True, "ok": True, "tickets": tickets})
 
 
 @router.get("/assignees")
@@ -66,13 +82,15 @@ def assignees(
 @router.get("/meta")
 def meta(
     request: Request,
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """편집 드롭다운용 허용 옵션(진행상태·우선순위·난이도). 작업 DB 스키마에서 읽는다."""
+    """편집 드롭다운용 허용 옵션(진행상태·우선순위·난이도). 로컬 메타 캐시 우선."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     try:
-        return {"configured": True, "ok": True, **service.ticket_meta(outbound, settings)}
+        return {"configured": True, "ok": True,
+                **service.ticket_meta(outbound, settings, db, repo=_repo(request))}
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message,
                 "statuses": [], "priorities": [], "difficulties": []}
@@ -84,13 +102,15 @@ def meta(
 @router.get("/projects")
 def projects(
     request: Request,
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """새 티켓 폼의 프로젝트 드롭다운 후보 [{id, name}]. 작업 DB 스키마에서 자동 발견."""
+    """새 티켓 폼의 프로젝트 드롭다운 후보 [{id, name}]. 로컬 메타 캐시 우선."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     try:
-        return {"configured": True, "ok": True, "projects": service.list_projects(outbound, settings)}
+        return {"configured": True, "ok": True,
+                "projects": service.list_projects(outbound, settings, db, repo=_repo(request))}
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "projects": []}
     except NotionQueryError as exc:
@@ -107,13 +127,14 @@ def team_tickets(
     """팀 전체 티켓(다른 사람 것 포함) — 조회 전용. 리터럴 경로라 GET /{page_id} 보다 먼저 선언."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
+    repo = _repo(request)
     try:
-        tickets = service.list_team_tickets(db, outbound, settings, active_only=active)
+        tickets = service.list_team_tickets(db, outbound, settings, active_only=active, repo=repo)
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return {"configured": True, "ok": True, "tickets": tickets}
+    return _with_sync(db, repo, {"configured": True, "ok": True, "tickets": tickets})
 
 
 @router.post("", dependencies=[Depends(require_csrf)])
@@ -126,7 +147,10 @@ def create(
     """새 티켓을 폼으로 생성한다(채팅 없이). 제목 필수 + 스키마/옵션 검증 + 감사."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
-    result = service.create_ticket(db, outbound, settings, user, payload=payload)
+    result = service.create_ticket(
+        db, outbound, settings, user, payload=payload,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
     record_audit_from_request(
         request, db, action="ticket.create", object_type="notion_task",
         object_id=result["ticket"].get("id"), after=result["after"],
@@ -151,7 +175,10 @@ def update_ticket(
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     changes = payload.model_dump(exclude_unset=True)
-    result = service.update_ticket(db, outbound, settings, user, page_id=page_id, changes=changes)
+    result = service.update_ticket(
+        db, outbound, settings, user, page_id=page_id, changes=changes,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
     record_audit_from_request(
         request, db, action="ticket.update", object_type="notion_task",
         object_id=page_id, before=result["before"], after=result["after"],
@@ -169,7 +196,10 @@ def claim_ticket(
     """미할당(또는 본인 담당) 티켓의 담당자로 '나'를 배정한다."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
-    result = service.claim_ticket(db, outbound, settings, user, page_id=page_id)
+    result = service.claim_ticket(
+        db, outbound, settings, user, page_id=page_id,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
     record_audit_from_request(
         request, db, action="ticket.claim", object_type="notion_task",
         object_id=page_id, before=result["before"], after=result["after"],
@@ -189,7 +219,8 @@ def trash_tickets_bulk(
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     result = service.trash_tickets_bulk(db, outbound, settings, user,
-                                        page_ids=payload.page_ids, now=request.app.state.clock.now())
+                                        page_ids=payload.page_ids,
+                                        now=request.app.state.clock.now(), repo=_repo(request))
     for it in result["trashed"]:
         record_audit_from_request(request, db, action="ticket.trash", object_type="notion_task",
                                   object_id=it["id"], before={"title": it.get("title")})
@@ -208,7 +239,8 @@ def ticket_detail(
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     try:
-        result = service.ticket_detail(db, outbound, settings, user, page_id=page_id)
+        result = service.ticket_detail(db, outbound, settings, user, page_id=page_id,
+                                       repo=_repo(request))
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message}
     except NotionQueryError as exc:
@@ -227,7 +259,7 @@ def trash_ticket(
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     result = service.trash_ticket(db, outbound, settings, user, page_id=page_id,
-                                  now=request.app.state.clock.now())
+                                  now=request.app.state.clock.now(), repo=_repo(request))
     record_audit_from_request(
         request, db, action="ticket.trash", object_type="notion_task",
         object_id=page_id, before={"title": result["title"]},

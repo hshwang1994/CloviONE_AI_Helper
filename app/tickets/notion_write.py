@@ -12,10 +12,45 @@ from __future__ import annotations
 
 from app.core.errors import AppError
 from app.reports.notion_source import (
+    PROP_DIFFICULTY,
+    PROP_DUE,
+    PROP_EST,
+    PROP_PEOPLE,
+    PROP_PRIORITY,
+    PROP_PROJECT,
+    PROP_STATUS,
+    PROP_TITLE,
     NotionNotConfiguredError,
     NotionQueryError,
     _parse_row,
 )
+
+# 도메인 필드 → 작업 DB 속성명 후보(rename 대비 별칭). Notion 속성명이 나타나는 곳은 이 모듈과
+# notion_source 뿐이어야 한다(경계 정적검사) — 서비스 계층은 도메인 이름만 쓴다.
+EDIT_PROP_ALIASES: dict[str, list[str]] = {
+    "title": [PROP_TITLE],
+    "status": [PROP_STATUS, "진행 상태"],
+    "difficulty": [PROP_DIFFICULTY],
+    "priority": [PROP_PRIORITY],
+    "est_wd": [PROP_EST],
+    "due_date": [PROP_DUE],
+    "assignee_notion_ids": [PROP_PEOPLE],
+    "project": [PROP_PROJECT],
+}
+
+
+def schema_prop(schema: dict, names: list[str]) -> tuple[str | None, dict | None]:
+    """별칭 후보 중 스키마에 실제로 있는 속성 (이름, 정의) 을 돌려준다. 없으면 (None, None)."""
+    for n in names:
+        p = schema.get(n)
+        if isinstance(p, dict):
+            return n, p
+    return None, None
+
+
+def schema_prop_for(schema: dict, field: str) -> tuple[str | None, dict | None]:
+    """도메인 필드 이름으로 스키마 속성을 찾는다(EDIT_PROP_ALIASES 경유)."""
+    return schema_prop(schema, EDIT_PROP_ALIASES.get(field) or [])
 
 
 class TicketNotFoundError(AppError):

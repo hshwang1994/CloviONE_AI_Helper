@@ -6,7 +6,6 @@
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
-      "assignees": [],
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -23,6 +22,7 @@
       "status": "계획",
       "tid": 104,
       "title": "미할당 계획 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0004"
     }
   ]

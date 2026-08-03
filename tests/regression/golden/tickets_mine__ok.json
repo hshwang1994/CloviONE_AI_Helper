@@ -11,9 +11,6 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
-      "assignees": [
-        "notion-user-admin"
-      ],
       "difficulty": "3",
       "due": "2026-07-10",
       "est_wd": 2.0,
@@ -30,6 +27,7 @@
       "status": "진행",
       "tid": 101,
       "title": "관리자 진행 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0001"
     },
     {
@@ -41,10 +39,6 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001",
         "00000000-0000-4000-8000-00000000a002"
-      ],
-      "assignees": [
-        "notion-user-admin",
-        "notion-user-dev"
       ],
       "difficulty": "5",
       "due": "2026-07-15",
@@ -62,6 +56,7 @@
       "status": "완료",
       "tid": 102,
       "title": "공동 담당 완료 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0002"
     },
     {
@@ -71,9 +66,6 @@
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
-      ],
-      "assignees": [
-        "notion-user-admin"
       ],
       "difficulty": null,
       "due": null,
@@ -87,6 +79,7 @@
       "status": "이슈",
       "tid": 107,
       "title": "마감 없는 이슈 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0007"
     }
   ]

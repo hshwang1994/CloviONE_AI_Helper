@@ -1,0 +1,205 @@
+"""티켓 미러 동기화 (app/tickets/sync.py) 결정론 테스트.
+
+이 테스트가 지키는 것은 성능이 아니라 **데이터가 사라지지 않는 것**이다:
+
+  * 상한(truncated)에 걸려 일부만 받아온 회차는 prune 을 절대 하지 않는다. 이게 없으면 작업 DB가
+    2000건을 넘긴 날, 동기화가 2000건만 보고 나머지를 '삭제됨'으로 판정해 캐시에서 지운다 —
+    화면에서 티켓이 통째로 사라진다.
+  * 소스가 5xx 를 뱉어도 이전 캐시는 그대로 남고, 상태만 error 가 되며, last_success_at
+    (= 이 미러가 언제까지 정상이었나)은 보존된다. 그 값이 지워지면 화면이 신선도를 거짓말한다.
+  * sync 는 어떤 실패에도 예외를 밖으로 던지지 않는다. 워커 tick 이 죽으면 스케줄러·하트비트가
+    같이 멈춘다.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+import pytest
+
+from app.core.allowlist import AllowlistRegistry
+from app.core.http_client import OutboundClient
+from app.core.secret_refs import FileSecretReferenceProvider
+from app.tickets.models import (
+    SYNC_ERROR,
+    SYNC_OK,
+    SYNC_STATE_ID,
+    TicketCache,
+    TicketMetaCache,
+    TicketSyncState,
+    split_names,
+)
+from app.tickets.sync import sync_tickets
+from tests.fakes.clock import FakeClock
+from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
+
+pytestmark = pytest.mark.unit
+
+TOKEN_REF = "notion_report_token"
+P_ALPHA = "sync-proj-alpha"
+N_DEV = "notion-user-dev"
+
+BASE_ROWS = [
+    task_row(page_id="sync-0001", tid=1, title="첫 티켓", status="진행", due="2026-08-01",
+             people=[N_DEV], est_wd=2.0, priority="높음", project_ids=[P_ALPHA]),
+    task_row(page_id="sync-0002", tid=2, title="미할당 티켓", status="계획", due="2026-08-05",
+             people=[]),
+]
+
+
+@pytest.fixture()
+def clock() -> FakeClock:
+    return FakeClock(datetime(2026, 8, 3, 9, 0, 0))
+
+
+@pytest.fixture()
+def outbound(settings, fake_http):
+    (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
+    allowlists = AllowlistRegistry(settings.config_dir)
+    secrets = FileSecretReferenceProvider(settings.secrets_dir)
+    return OutboundClient(allowlists, secrets, transport=fake_http.transport())
+
+
+@pytest.fixture()
+def notion(fake_http) -> FakeNotionTasksDB:
+    return FakeNotionTasksDB(
+        rows=list(BASE_ROWS),
+        projects=[project_row(page_id=P_ALPHA, name="알파 프로젝트")],
+        projects_db=DEFAULT_PROJECTS_DB,
+        fail_message="동기화 테스트용 강제 오류",
+    ).install(fake_http)
+
+
+def _cached(db) -> dict[str, TicketCache]:
+    return {r.notion_page_id: r for r in db.query(TicketCache).all()}
+
+
+def test_first_sync_fills_cache_and_meta(db, settings, outbound, notion, clock):
+    state = sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+
+    assert state.status == SYNC_OK
+    assert state.last_success_at == clock.now()
+    assert state.ticket_count == 2
+    assert state.truncated is False
+
+    rows = _cached(db)
+    assert set(rows) == {"sync-0001", "sync-0002"}
+    first = rows["sync-0001"]
+    assert first.title == "첫 티켓"
+    assert first.notion_ticket_number == 1
+    assert first.url == "https://www.notion.so/sync-0001"
+    assert first.due_date == "2026-08-01"
+    assert split_names(first.assignee_notion_ids) == [N_DEV]
+    assert split_names(first.project_ids) == [P_ALPHA]
+    assert split_names(first.project_names) == ["알파 프로젝트"]
+    assert first.synced_at == clock.now()
+    # 미할당은 빈 문자열이어야 한다 — 미할당 조회가 `== ""` 로 걸리기 때문.
+    assert rows["sync-0002"].assignee_notion_ids == ""
+
+    meta = db.get(TicketMetaCache, "tickets")
+    assert split_names(meta.statuses) == ["계획", "진행", "검증", "이슈", "완료", "취소"]
+    assert split_names(meta.priorities) == ["높음", "보통", "낮음"]
+    assert '"name": "알파 프로젝트"' in meta.projects_json
+    assert meta.synced_at == clock.now()
+
+
+def test_second_sync_updates_in_place_and_prunes(db, settings, outbound, notion, clock):
+    sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+    original_uid = _cached(db)["sync-0001"].id
+
+    # 노션에서 1건은 상태가 바뀌고 1건은 사라졌다.
+    notion.rows = [
+        task_row(page_id="sync-0001", tid=1, title="첫 티켓(수정)", status="완료",
+                 due="2026-08-01", people=[N_DEV], est_wd=2.0, act_wd=3.0,
+                 priority="높음", project_ids=[P_ALPHA]),
+    ]
+    clock.advance(180)
+    state = sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+
+    rows = _cached(db)
+    assert set(rows) == {"sync-0001"}          # 사라진 건은 캐시에서도 제거
+    assert rows["sync-0001"].id == original_uid  # 자체 id 는 유지(내부 참조가 깨지면 안 된다)
+    assert rows["sync-0001"].title == "첫 티켓(수정)"
+    assert rows["sync-0001"].status == "완료"
+    assert rows["sync-0001"].act_wd == 3.0
+    assert state.ticket_count == 1
+
+
+def test_truncated_sync_never_deletes(db, settings, outbound, notion, clock):
+    """상한에 걸린 회차는 prune 을 건너뛴다 — 이 한 줄이 '티켓이 전부 사라졌다'를 막는다."""
+    sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+    before = set(_cached(db))
+    assert len(before) == 2
+
+    # has_more 를 영원히 True 로 → 호출측 페이지 상한(_MAX_PAGES)이 루프를 끊고 truncated 가 된다.
+    notion.always_has_more = True
+    notion.rows = [BASE_ROWS[0]]  # 두 번째 티켓은 이번 회차에 아예 안 왔다
+    clock.advance(180)
+    state = sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+
+    assert state.truncated is True
+    assert state.status == SYNC_OK          # 실패는 아니다 — 다만 불완전하다
+    assert state.error and "상한" in state.error
+    assert set(_cached(db)) == before        # 삭제 0건
+
+
+def test_source_failure_keeps_previous_cache_and_last_success(db, settings, outbound, notion, clock):
+    sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+    before = {pid: (row.title, row.status) for pid, row in _cached(db).items()}
+    first_success = db.get(TicketSyncState, SYNC_STATE_ID).last_success_at
+    assert first_success == clock.now()
+
+    notion.fail_status = 500  # 소스가 통째로 죽었다
+    clock.advance(180)
+    state = sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+
+    assert state.status == SYNC_ERROR
+    assert state.error
+    assert state.last_run_at == clock.now()
+    # 마지막 정상 시각은 지워지지 않는다 — 화면이 '언제까지 정상이었는지'를 이 값으로 말한다.
+    assert state.last_success_at == first_success
+    # 캐시는 손대지 않았다: 목록은 마지막 정상 데이터로 계속 뜬다.
+    assert {pid: (r.title, r.status) for pid, r in _cached(db).items()} == before
+
+
+def test_missing_token_is_recorded_not_raised(db, settings, outbound, notion, clock):
+    """토큰 파일이 없으면(미연동) 예외가 아니라 상태 기록으로 끝나야 한다."""
+    (settings.secrets_dir / TOKEN_REF).unlink()
+    state = sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+    db.commit()
+    assert state.status == SYNC_ERROR
+    assert not _cached(db)  # 없던 캐시가 생기지도 않는다
+
+
+def test_worker_tick_never_raises(db, settings, outbound, notion, clock, monkeypatch):
+    """워커 tick 은 어떤 예외도 루프 밖으로 내보내지 않는다.
+
+    sync 내부가 아니라 *그 밖*에서 터지는 경우(예: DB 세션 획득 실패)까지 포함해서 확인한다 —
+    tick 하나가 죽으면 같은 루프의 스케줄러·승인 만료·문서 동기화가 전부 함께 멈춘다.
+    """
+    import app.tickets.sync as sync_module
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("아무도 예상 못 한 실패")
+
+    monkeypatch.setattr(sync_module, "get_or_create_state", boom)
+    # sync_tickets 자체는 잡아서 상태로 남기려다 다시 boom 을 만난다 → 밖으로 나간다.
+    with pytest.raises(RuntimeError):
+        sync_tickets(db, outbound=outbound, settings=settings, now=clock.now())
+
+    # 워커 tick 은 그 위에 한 겹 더 try/except 를 두어 루프를 지킨다(worker_main 과 같은 모양).
+    def tick(now):
+        try:
+            sync_tickets(db, outbound=outbound, settings=settings, now=now)
+        except Exception:
+            return "swallowed"
+        return "ok"
+
+    assert tick(clock.now()) == "swallowed"

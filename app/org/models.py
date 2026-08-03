@@ -1,19 +1,41 @@
-"""부서·직책 명부 모델.
+"""조직·부서·직책 명부 모델.
 
-두 모델은 모양이 같다(id, name, active, created_at). 이름 하나만 다른 두 테이블이지만
-합치지 않는다 — 'kind' 컬럼 하나로 묶으면 유일 제약이 (kind, name) 복합이 되어 실수로
-부서와 직책이 같은 이름 공간을 나눠 쓰게 되고, FK도 어느 쪽을 가리키는지 스키마가
+Department/JobTitle 두 모델은 모양이 같다(id, name, active, created_at). 이름 하나만 다른 두
+테이블이지만 합치지 않는다 — 'kind' 컬럼 하나로 묶으면 유일 제약이 (kind, name) 복합이 되어
+실수로 부서와 직책이 같은 이름 공간을 나눠 쓰게 되고, FK도 어느 쪽을 가리키는지 스키마가
 말해 주지 못한다.
+
+Organization 은 제품화 대비(§7.1.A)로 먼저 심는 1급 엔티티다. **지금은 읽는 코드가 없다** —
+DEFAULT_ORG_ID 한 행만 시드해 두고, 신규 테이블이 OrgScopedMixin 으로 org_id 를 갖게 한다.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, UUIDPrimaryKeyMixin, new_uuid, utcnow
+from app.org.constants import ORG_ACTIVE
+
+
+class Organization(Base):
+    """테넌트 한 곳. 단일 조직으로 운영하는 동안에도 행이 하나 있어야 org_id FK 가 의미를 갖는다."""
+
+    __tablename__ = "organizations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    # slug 는 사람이 쓰는 안정적인 키(URL·설정·운영 스크립트에서 UUID 대신 쓴다).
+    slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=ORG_ACTIVE)
+    # 조직별 설정(브랜딩·쿼터 등)을 담을 자리. 지금은 항상 NULL — 스키마 churn 없이 나중에 채운다.
+    settings_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
 
 
 class _OrgNameMixin:

@@ -1,4 +1,81 @@
 {
+  "by_assignee": [
+    {
+      "name": "개발자 이",
+      "tickets": [
+        {
+          "act_wd": 2.0,
+          "assignee_names": [
+            "관리자 김",
+            "개발자 이"
+          ],
+          "assignee_user_ids": [
+            "00000000-0000-4000-8000-00000000a001",
+            "00000000-0000-4000-8000-00000000a002"
+          ],
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "id": "page-0002",
+          "priority": "보통",
+          "project": "알파 프로젝트",
+          "project_ids": [
+            "proj-alpha-0001"
+          ],
+          "project_names": [
+            "알파 프로젝트"
+          ],
+          "start": null,
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "uid": null,
+          "url": "https://www.notion.so/page-0002"
+        }
+      ],
+      "user_id": "00000000-0000-4000-8000-00000000a002"
+    },
+    {
+      "name": "관리자 김",
+      "tickets": [
+        {
+          "act_wd": 2.0,
+          "assignee_names": [
+            "관리자 김",
+            "개발자 이"
+          ],
+          "assignee_user_ids": [
+            "00000000-0000-4000-8000-00000000a001",
+            "00000000-0000-4000-8000-00000000a002"
+          ],
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "id": "page-0002",
+          "priority": "보통",
+          "project": "알파 프로젝트",
+          "project_ids": [
+            "proj-alpha-0001"
+          ],
+          "project_names": [
+            "알파 프로젝트"
+          ],
+          "start": null,
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "uid": null,
+          "url": "https://www.notion.so/page-0002"
+        }
+      ],
+      "user_id": "00000000-0000-4000-8000-00000000a001"
+    },
+    {
+      "name": "미연결 박",
+      "tickets": [],
+      "user_id": "00000000-0000-4000-8000-00000000a003"
+    }
+  ],
   "configured": true,
   "developers": [
     {
@@ -29,6 +106,7 @@
           "url": "https://www.notion.so/page-0002"
         }
       ],
+      "user_id": "00000000-0000-4000-8000-00000000a002",
       "verify": 0
     },
     {
@@ -59,6 +137,7 @@
           "url": "https://www.notion.so/page-0002"
         }
       ],
+      "user_id": "00000000-0000-4000-8000-00000000a001",
       "verify": 0
     },
     {
@@ -76,6 +155,7 @@
       "plan": 0,
       "prog": 0,
       "tickets": [],
+      "user_id": "00000000-0000-4000-8000-00000000a003",
       "verify": 0
     }
   ],
@@ -85,7 +165,6 @@
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
-      "assignees": [],
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -102,6 +181,7 @@
       "status": "계획",
       "tid": 104,
       "title": "미할당 계획 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0004"
     }
   ],
@@ -121,7 +201,6 @@
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
-      "assignees": [],
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -138,6 +217,7 @@
       "status": "계획",
       "tid": 104,
       "title": "미할당 계획 티켓",
+      "uid": null,
       "url": "https://www.notion.so/page-0004"
     }
   ],

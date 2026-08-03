@@ -133,12 +133,17 @@ def purge_expired(db: Session, *, now: datetime, retention_days: int, outbound, 
 
 
 def _archive_notion(item: TrashItem, *, outbound, settings) -> None:
-    """항목 종류에 맞는 노션 토큰으로 페이지를 보관처리한다. 지연 import 로 순환 참조를 피한다."""
+    """항목 종류에 맞는 저장소로 원본 페이지를 보관처리한다.
+
+    저장소 seam 을 지나는 이유: 소스가 바뀌면 '보관처리'의 뜻도 바뀌는데 여기서 Notion 모듈을
+    직접 부르면 그때 고칠 곳이 하나 더 숨는다(경계 정적검사가 이걸 막는다). 지연 import 로
+    순환 참조를 피한다.
+
+    db 를 넘기지 않는 이유: 이 지점은 '외부 원본을 보관처리한다'만 한다. 캐시 행 정리는 바로
+    다음 미러 동기화가 알아서 한다(보관처리된 페이지는 소스 조회 결과에서 빠진다)."""
+    from app.core.source_registry import build_document_repository, build_ticket_repository
+
     if item.item_type == TRASH_TICKET:
-        from app.tickets import notion_write
-
-        notion_write.archive_page(outbound, settings, page_id=item.notion_page_id)
+        build_ticket_repository(settings, outbound).archive(None, page_id=item.notion_page_id)
     elif item.item_type == TRASH_DOCUMENT:
-        from app.team_docs import notion_docs
-
-        notion_docs.archive_page(outbound, settings, page_id=item.notion_page_id)
+        build_document_repository(settings, outbound).archive(None, page_id=item.notion_page_id)

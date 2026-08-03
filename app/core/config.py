@@ -82,6 +82,15 @@ class Settings(BaseSettings):
     game_runner_token_ref: str = "game_runner_token"
     game_runner_timeout_seconds: int = 50
 
+    # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
+    # 값: 'notion' | 'notion_cache' | 'native'. 'native'(자체 DB 정본)는 아직 구현체가 없어
+    # 시작 시 거절된다 — 문만 열어 둔 상태다.
+    #   ticket_source='notion' 은 **운영 킬 스위치**다: 로컬 미러를 아예 보지 않고 캐시 도입
+    #   전과 똑같은 실시간 경로로 돌아간다. 미러가 이상하면 이 값 하나만 바꿔 재시작하면 된다.
+    ticket_source: str = "notion_cache"
+    # 문서는 이미 로컬 미러에서 읽으므로 notion / notion_cache 가 같은 구현체를 가리킨다.
+    document_source: str = "notion"
+
     @property
     def allowed_email_domain_list(self) -> list[str]:
         return [d.strip().lower() for d in self.allowed_email_domains.split(",") if d.strip()]

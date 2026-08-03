@@ -89,6 +89,26 @@ class RateLimitedError(AppError):
         self.retry_after_seconds = retry_after_seconds
 
 
+# ── 외부 소스(Notion) 오류 ────────────────────────────────────────────────────
+# 라우터들이 이 둘을 잡아 configured=false / ok=false 로 번역한다(화면이 오류 페이지 대신
+# '연동 필요'·'조회 실패'를 그린다). 원래 app/reports/notion_source.py 가 정의했는데, 그러면
+# 티켓·스프린트·리포트 라우터가 Notion 구현 모듈을 import 해야 해서 저장소 seam 경계
+# 정적검사에 걸린다. 정의는 여기로 올리고 notion_source 는 그대로 재수출한다 —
+# 클래스 이름과 code 문자열은 응답 계약이라 바꾸지 않는다.
+class NotionNotConfiguredError(AppError):
+    """Notion 연동 토큰이 아직 서버에 없다(사용자가 provisioning 하기 전)."""
+
+    status_code = 503
+    code = "notion_not_configured"
+    default_message = "Notion 연동 토큰이 설정되지 않았습니다."
+
+
+class NotionQueryError(AppError):
+    status_code = 502
+    code = "notion_query_failed"
+    default_message = "Notion 조회에 실패했습니다."
+
+
 _HTTP_STATUS_CODES = {
     401: "unauthorized",
     403: "forbidden",

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
-from app.reports.notion_source import NotionNotConfiguredError, NotionQueryError
+from app.core.errors import NotionNotConfiguredError, NotionQueryError
 from app.sprints import service
 from app.users.models import User
 
@@ -37,7 +37,10 @@ def sprint_summary(
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     try:
-        summary = service.build_sprint_summary(db, outbound, settings, start=start, end=end, today=now.date())
+        summary = service.build_sprint_summary(
+            db, outbound, settings, start=start, end=end, today=now.date(),
+            repo=request.app.state.repositories.tickets,
+        )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "window": {"start": start, "end_exclusive": end}}
     except NotionQueryError as exc:

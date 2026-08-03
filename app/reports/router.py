@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, require_roles
-from app.reports.notion_source import NotionNotConfiguredError, NotionQueryError
+from app.core.errors import NotionNotConfiguredError, NotionQueryError
 from app.reports.service import build_dev_monthly_report
 
 router = APIRouter(prefix="/api/admin/reports", tags=["admin-reports"])
@@ -42,7 +42,8 @@ def dev_monthly(
     outbound = request.app.state.outbound_client
     try:
         report = build_dev_monthly_report(
-            db, outbound, settings, period=period, today=now.date()
+            db, outbound, settings, period=period, today=now.date(),
+            repo=request.app.state.repositories.tickets,
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "period": period}

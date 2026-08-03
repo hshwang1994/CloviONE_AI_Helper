@@ -1,23 +1,26 @@
-"""사용자 셀프서비스 티켓 조회 (내 티켓 / 미할당 / 배정 후보).
+"""사용자 셀프서비스 티켓 조회/편집 (내 티켓 / 미할당 / 팀 / 생성·편집).
 
-Notion '작업' DB 조회 배관은 app/reports/notion_source 를 그대로 재사용한다(OutboundClient 단일
-관문, allowlist=services, secret=notion_report_token_ref). 이 모듈은 '로그인 사용자 기준' 필터와
-이름 해석만 담당한다.
+이 모듈은 **소스를 모른다**. 티켓을 읽고 쓰는 일은 전부 TicketRepository(app/tickets/repository.py)
+뒤에 있고, Notion 속성 이름·스키마·페이지네이션은 구현체(repository_notion.py) 안에만 있다.
+여기 남는 것은 소스와 무관한 규칙뿐이다: 로그인 사용자 기준 필터, 담당자 이름/앱 user_id 해석,
+소유권(IDOR) 검사, 감사 스냅샷, 휴지통.
 
-보안(스펙 §12.3): 대상 notion_user_id 는 **세션 사용자에서만** 도출한다. 브라우저가 notion id 를
-주지 않으므로 사용자는 언제나 자기 것만 볼 수 있다(IDOR 원천 차단).
+보안(스펙 §12.3): 대상 notion_user_id 는 **세션 사용자에서만** 도출한다. 브라우저는 소스 user id 를
+주지도 받지도 않는다 — 응답에는 해석된 user_id/이름만 싣는다.
 """
 
 from __future__ import annotations
+
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, ValidationAppError
+from app.core.models_base import utcnow
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
-from app.reports import notion_source
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map
-from app.tickets import notion_write
+from app.tickets.repository import TicketDraft, TicketDTO, snapshot
 from app.trash import repository as trash_repo
 from app.trash import service as trash_service
 from app.trash.models import TRASH_TICKET
@@ -35,18 +38,18 @@ _TERMINAL = {STATUS_DONE, STATUS_CANCELLED}
 # 본인 담당이거나 미할당인 티켓만 편집할 수 있다(IDOR 차단).
 _EDIT_BYPASS_ROLES = {ROLE_OPERATOR, ROLE_ADMIN, ROLE_SYSTEM_ADMIN}
 
-# 편집 가능한 필드 → 작업 DB 속성명 후보(rename 대비 별칭). notion_source 의 상수와 일치.
-_EDIT_PROP_ALIASES = {
-    "status": [notion_source.PROP_STATUS, "진행 상태"],
-    "difficulty": [notion_source.PROP_DIFFICULTY],
-    "priority": [notion_source.PROP_PRIORITY],
-    "est_wd": [notion_source.PROP_EST],
-    "due_date": [notion_source.PROP_DUE],
-    "assignee_user_ids": [notion_source.PROP_PEOPLE],
-}
 
-# 감사 before/after 스냅샷에 담는 티켓 필드(값만 — secret 아님).
-_SNAPSHOT_KEYS = ("status", "due", "assignees", "est_wd", "difficulty", "priority")
+def _repo(settings, outbound, repo=None, *, use_cache: bool | None = None):
+    """저장소를 얻는다. 라우터는 app.state.repositories.tickets 를 넘기고, 앱 없이 부르는
+    유닛 테스트 경로에서는 설정대로 새로 만든다(선택 로직 자체는 source_registry 한 곳뿐)."""
+    if repo is not None:
+        return repo
+    from app.core.source_registry import build_ticket_repository
+
+    built = build_ticket_repository(settings, outbound)
+    if use_cache is not None:
+        built.use_cache = use_cache
+    return built
 
 
 def my_notion_id(db: Session, user: User) -> str | None:
@@ -85,41 +88,42 @@ def _verified_id_to_user(db: Session) -> dict[str, str]:
     return out
 
 
-def _project_names_map(outbound, settings) -> dict[str, str]:
-    """프로젝트 페이지 id → 이름. 티켓의 '프로젝트' relation 을 사람이 읽는 이름으로 바꾼다(그룹핑용).
+def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, str]) -> dict:
+    """티켓 한 건의 API 응답 dict.
 
-    프로젝트 조회 실패(토큰/네트워크)는 치명적이지 않다 — 이름 없이 티켓만이라도 보이게 빈 맵으로 흘린다.
+    `id` 는 계속 Notion page id 다 — 딥링크·휴지통·감사가 전부 이 값을 키로 쓴다. 자체 UUID 는
+    `uid` 로 따로 싣는다(소스 전환 뒤 내부 참조가 옮겨 갈 자리). raw 소스 user id 는 절대
+    싣지 않는다(§12.3) — 이름/앱 user_id 로 해석한 결과만 나간다.
     """
-    try:
-        rows = list_projects(outbound, settings)  # [{id, name}] — 스키마의 프로젝트 relation 대상 DB 조회
-    except Exception:
-        return {}
-    return {r["id"]: (r.get("name") or "") for r in rows if r.get("id")}
+    names = [id_to_name.get(a) for a in t.assignee_ids]
+    uids = [id_to_user.get(a) for a in t.assignee_ids]
+    pnames = list(t.project_names)
+    return {
+        "id": t.page_id,
+        "uid": t.uid,
+        "url": t.url,
+        "tid": t.number,
+        "title": t.title,
+        "status": t.status,
+        "due": t.due,
+        "start": None,  # 시작일은 쓰지 않는다(공수 아님) — 계약 유지용 자리
+        "est_wd": t.est_wd,
+        "act_wd": t.act_wd,
+        "difficulty": t.difficulty,
+        "priority": t.priority,
+        "project_ids": list(t.project_ids),
+        "assignee_names": [n for n in names if n],
+        "assignee_user_ids": [u for u in uids if u],
+        "project_names": pnames,
+        "project": pnames[0] if pnames else "",
+    }
 
 
-def _enrich(tickets: list[dict], id_to_name: dict[str, str], id_to_user: dict[str, str],
-            proj_map: dict[str, str] | None = None) -> list[dict]:
-    """각 티켓에 담당자 이름/앱 user_id, 그리고 프로젝트 이름(project_names/project)을 붙인다.
-
-    assignee_names 는 표시용(전 사용자 이름 맵), assignee_user_ids 는 verified·active 매핑만.
-    project 는 그룹핑용 대표 프로젝트명(첫 relation), project_names 는 전체(다중 프로젝트 대비).
-    """
-    proj_map = proj_map or {}
-    out = []
-    for t in tickets:
-        assignees = t.get("assignees") or []
-        names = [id_to_name.get(a) for a in assignees]
-        uids = [id_to_user.get(a) for a in assignees]
-        pnames = [proj_map.get(pid) for pid in (t.get("project_ids") or [])]
-        pnames = [n for n in pnames if n]
-        out.append({
-            **t,
-            "assignee_names": [n for n in names if n],
-            "assignee_user_ids": [u for u in uids if u],
-            "project_names": pnames,
-            "project": pnames[0] if pnames else "",
-        })
-    return out
+def ticket_views(db: Session, tickets, *, with_names: bool = True) -> list[dict]:
+    """DTO 목록 → API 응답 dict 목록. 스프린트의 담당자별 리스트도 이걸 써서 모양이 같다."""
+    id_to_name = _load_name_map(db)[0] if with_names else {}
+    id_to_user = _verified_id_to_user(db) if with_names else {}
+    return [ticket_view(t, id_to_name, id_to_user) for t in tickets]
 
 
 def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
@@ -130,94 +134,112 @@ def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
     return [t for t in rows if t.get("id") not in trashed]
 
 
-def list_my_tickets(db: Session, outbound, settings, user: User) -> dict:
+def sync_indicator(db: Session, settings=None, outbound=None, *, repo=None) -> dict | None:
+    """로컬 미러로 답한 경우의 신선도 블록. 실시간으로 답했으면 None.
+
+    실시간 응답에는 이 키 자체를 넣지 않는다 — '미러가 얼마나 낡았나'는 미러로 답할 때만
+    뜻이 있는 값이고, 실시간 경로의 기존 응답 계약(골든)을 건드리지 않기 위해서다.
+    """
+    status = _repo(settings, outbound, repo).sync_state(db)
+    if status is None:
+        return None
+    return {
+        "status": status.status,
+        "last_run_at": status.last_run_at,
+        "last_success_at": status.last_success_at,
+        "ticket_count": status.ticket_count,
+        "truncated": status.truncated,
+        "error": status.error,
+    }
+
+
+# ── 조회 ──────────────────────────────────────────────────────────────────────
+
+def list_my_tickets(db: Session, outbound, settings, user: User, *, repo=None) -> dict:
     """로그인 사용자가 담당한 티켓 전부(마감 무관). 매핑이 없으면 {mapped: False}."""
     nid = my_notion_id(db, user)
     if not nid:
         return {"mapped": False, "tickets": []}
-    rows = notion_source.query_tasks_by_assignee(outbound, settings, notion_user_id=nid)
-    id_to_name, _ = _load_name_map(db)
-    tickets = _enrich(rows, id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
-    return {"mapped": True, "tickets": _drop_trashed(db, tickets)}
+    result = _repo(settings, outbound, repo).list_by_assignee(db, assignee_id=nid)
+    return {"mapped": True, "tickets": _drop_trashed(db, ticket_views(db, result.tickets))}
 
 
-def list_unassigned_tickets(db: Session, outbound, settings, *, active_only: bool = True) -> list[dict]:
-    """담당자가 없는 티켓. 기본은 활성(완료·취소 제외)만 — 아직 사람이 필요한 일."""
-    rows = notion_source.query_unassigned_tasks(outbound, settings)
+def list_unassigned_tickets(
+    db: Session, outbound, settings, *, active_only: bool = True, repo=None
+) -> list[dict]:
+    """담당자가 없는 티켓. 기본은 활성(완료·취소 제외)만 — 아직 사람이 필요한 일.
+    담당자가 없으므로 이름 해석은 건너뛰고 프로젝트 이름만 붙는다(기존 동작과 동일)."""
+    result = _repo(settings, outbound, repo).list_unassigned(db)
+    tickets = result.tickets
     if active_only:
-        rows = [t for t in rows if (t.get("status") or "") not in _TERMINAL]
-    # 미할당도 프로젝트별로 묶어 보이게 프로젝트 이름을 붙인다(담당자는 없음).
-    return _drop_trashed(db, _enrich(rows, {}, {}, _project_names_map(outbound, settings)))
+        tickets = tuple(t for t in tickets if (t.status or "") not in _TERMINAL)
+    return _drop_trashed(db, ticket_views(db, tickets, with_names=False))
 
 
-def list_team_tickets(db: Session, outbound, settings, *, active_only: bool = True) -> list[dict]:
+def list_team_tickets(
+    db: Session, outbound, settings, *, active_only: bool = True, repo=None
+) -> list[dict]:
     """팀 전체 티켓(다른 사람 것 포함) — 조회 전용 팀 보드용. 기본은 활성(완료·취소 제외).
     담당자 이름을 붙여 담당자별로 볼 수 있게 하고, 휴지통에 넣은 티켓은 숨긴다."""
-    rows = notion_source.query_all_tasks(outbound, settings)
+    result = _repo(settings, outbound, repo).list_all(db)
+    tickets = result.tickets
     if active_only:
-        rows = [t for t in rows if (t.get("status") or "") not in _TERMINAL]
-    id_to_name, _ = _load_name_map(db)
-    tickets = _enrich(rows, id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
-    return _drop_trashed(db, tickets)
+        tickets = tuple(t for t in tickets if (t.status or "") not in _TERMINAL)
+    return _drop_trashed(db, ticket_views(db, tickets))
 
 
-def ticket_detail(db: Session, outbound, settings, user: User, *, page_id: str) -> dict:
+def list_period_tickets(
+    db: Session, outbound, settings, *, start: str, end: str, repo=None
+) -> list[TicketDTO]:
+    """마감일이 [start, end) 인 티켓 DTO 목록(리포트·스프린트 집계 코어가 쓴다)."""
+    return list(
+        _repo(settings, outbound, repo).list_for_period(db, start=start, end=end).tickets
+    )
+
+
+def ticket_detail(
+    db: Session, outbound, settings, user: User, *, page_id: str, repo=None
+) -> dict:
     """티켓 단건 상세(속성 + 본문 블록). 우리 화면에서 읽고, 원본 열기로 노션에 갈 수 있다.
+    상세는 늘 실시간이다(온디맨드 1건이라 캐시 이득이 없다).
     본문 블록은 장애 격리 — 실패해도 속성은 보여준다(§17.4)."""
-    row = notion_write.fetch_ticket(outbound, settings, page_id)
-    id_to_name, _ = _load_name_map(db)
-    enriched = _enrich([row], id_to_name, _verified_id_to_user(db), _project_names_map(outbound, settings))
-    ticket = enriched[0] if enriched else row
+    r = _repo(settings, outbound, repo)
+    dto = r.get(db, page_id=page_id)
+    ticket = ticket_views(db, [dto])[0]
     blocks, blocks_error = None, None
     try:
-        blocks = notion_write.fetch_page_blocks(outbound, settings, page_id)
+        blocks = r.body_blocks(db, page_id=page_id)
     except Exception as exc:  # noqa: BLE001 — 본문만 격리 실패, 속성은 계속 보여준다
         blocks_error = "본문을 불러오지 못했습니다. 원본에서 확인해 주세요."
         _ = exc
     return {"ticket": ticket, "blocks": blocks, "blocks_error": blocks_error}
 
 
-def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, now) -> dict:
-    """티켓을 휴지통으로 보낸다(노션은 손대지 않음). 편집 권한이 있어야 한다(담당자/미할당/운영자군).
-    보관기간이 지나면 백그라운드가 노션 원본을 보관처리한다. 복원 가능."""
-    current = notion_write.fetch_ticket(outbound, settings, page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
-    item = trash_service.move_to_trash(
-        db, item_type=TRASH_TICKET, notion_page_id=page_id,
-        title=current.get("title") or "(제목 없음)", url=current.get("url"),
-        user=user, now=now,
-    )
-    return {"title": item.title, "url": item.url}
+def ticket_meta(outbound, settings, db: Session | None = None, *, repo=None) -> dict:
+    """편집 드롭다운용 허용 옵션(진행상태·우선순위·난이도).
+
+    db 를 주면 로컬 메타 캐시를 먼저 본다(폼이 소스 왕복 없이 즉시 뜬다). db 없이 부르면
+    실시간 스키마 조회로 떨어진다 — 앱 없이 부르는 유닛 테스트용 경로다.
+    """
+    meta = _repo(settings, outbound, repo, use_cache=(db is not None)).meta(db)
+    return {
+        "statuses": list(meta.statuses),
+        "priorities": list(meta.priorities),
+        "difficulties": list(meta.difficulties),
+    }
 
 
-def trash_tickets_bulk(db: Session, outbound, settings, user: User, *, page_ids: list[str], now) -> dict:
-    """티켓 여러 건을 휴지통으로 보낸다. 건별로 권한을 검사하고, 실패(권한 없음·이미 휴지통·없음)는
-    건너뛰고 나머지는 계속한다(부분 성공). {trashed:[...], failed:[{id,error}]}."""
-    from app.core.errors import AppError
-
-    nid = my_notion_id(db, user)
-    trashed: list[dict] = []
-    failed: list[dict] = []
-    for pid in page_ids:
-        try:
-            current = notion_write.fetch_ticket(outbound, settings, pid)
-            ensure_can_edit(current, user, nid)
-            trash_service.move_to_trash(
-                db, item_type=TRASH_TICKET, notion_page_id=pid,
-                title=current.get("title") or "(제목 없음)", url=current.get("url"),
-                user=user, now=now,
-            )
-            trashed.append({"id": pid, "title": current.get("title") or "(제목 없음)"})
-        except AppError as exc:
-            failed.append({"id": pid, "error": exc.message})
-    return {"trashed": trashed, "failed": failed}
+def list_projects(outbound, settings, db: Session | None = None, *, repo=None) -> list[dict]:
+    """새 티켓 폼의 프로젝트 드롭다운용 [{id, name}]. db 를 주면 메타 캐시 우선."""
+    r = _repo(settings, outbound, repo, use_cache=(db is not None))
+    return [{"id": p.id, "name": p.name} for p in r.projects(db)]
 
 
 def list_assignees(db: Session) -> list[dict]:
     """담당자로 배정 가능한 사람 목록 — active + verified 매핑 사용자의 {user_id, display_name}.
 
     raw notion_user_id 는 응답에 넣지 않는다(브라우저 미노출, 스펙 §12.3). 편집 API 가 user_id 를
-    받아 서버에서 notion id 로 해석한다.
+    받아 서버에서 소스 id 로 해석한다.
     """
     rows = db.execute(
         select(User.id, User.display_name)
@@ -233,29 +255,57 @@ def list_assignees(db: Session) -> list[dict]:
     return [{"user_id": uid, "display_name": name} for uid, name in rows]
 
 
+# ── 휴지통 ────────────────────────────────────────────────────────────────────
+
+def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, now, repo=None) -> dict:
+    """티켓을 휴지통으로 보낸다(노션은 손대지 않음). 편집 권한이 있어야 한다(담당자/미할당/운영자군).
+    보관기간이 지나면 백그라운드가 노션 원본을 보관처리한다. 복원 가능."""
+    current = _repo(settings, outbound, repo).get_live(db, page_id=page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    item = trash_service.move_to_trash(
+        db, item_type=TRASH_TICKET, notion_page_id=page_id,
+        title=current.title or "(제목 없음)", url=current.url,
+        user=user, now=now,
+    )
+    return {"title": item.title, "url": item.url}
+
+
+def trash_tickets_bulk(
+    db: Session, outbound, settings, user: User, *, page_ids: list[str], now, repo=None
+) -> dict:
+    """티켓 여러 건을 휴지통으로 보낸다. 건별로 권한을 검사하고, 실패(권한 없음·이미 휴지통·없음)는
+    건너뛰고 나머지는 계속한다(부분 성공). {trashed:[...], failed:[{id,error}]}."""
+    from app.core.errors import AppError
+
+    r = _repo(settings, outbound, repo)
+    nid = my_notion_id(db, user)
+    trashed: list[dict] = []
+    failed: list[dict] = []
+    for pid in page_ids:
+        try:
+            current = r.get_live(db, page_id=pid)
+            ensure_can_edit(current, user, nid)
+            trash_service.move_to_trash(
+                db, item_type=TRASH_TICKET, notion_page_id=pid,
+                title=current.title or "(제목 없음)", url=current.url,
+                user=user, now=now,
+            )
+            trashed.append({"id": pid, "title": current.title or "(제목 없음)"})
+        except AppError as exc:
+            failed.append({"id": pid, "error": exc.message})
+    return {"trashed": trashed, "failed": failed}
+
+
 # ── 수동 편집(쓰기) ────────────────────────────────────────────────────────────
 
-def _snapshot(ticket: dict) -> dict:
-    """감사 before/after 용 티켓 값 스냅샷(secret 아님)."""
-    return {k: ticket.get(k) for k in _SNAPSHOT_KEYS}
-
-
-def _schema_prop(schema: dict, names: list[str]) -> tuple[str | None, dict | None]:
-    for n in names:
-        p = schema.get(n)
-        if isinstance(p, dict):
-            return n, p
-    return None, None
-
-
-def ensure_can_edit(ticket: dict, user: User, my_notion_id_value: str | None) -> None:
+def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | None) -> None:
     """소유권 검증(스펙 §25.5·IDOR). 운영/관리자군은 우회, 그 외는 본인 담당 또는 미할당만.
 
-    Notion 에서 방금 읽은 '현재' 티켓의 담당자로 판정한다(프런트가 준 값이 아니라).
+    소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
     """
     if user.role in _EDIT_BYPASS_ROLES:
         return
-    assignees = ticket.get("assignees") or []
+    assignees = ticket.assignee_ids
     if not assignees:
         return  # 미할당 — 담당자가 필요한 일이므로 누구나 손댈 수 있다(배정 포함)
     if my_notion_id_value and my_notion_id_value in assignees:
@@ -264,9 +314,9 @@ def ensure_can_edit(ticket: dict, user: User, my_notion_id_value: str | None) ->
 
 
 def _resolve_assignee_ids(db: Session, user_ids: list[str]) -> list[str]:
-    """앱 user_id 목록 → Notion user_id 목록(verified·active 매핑만). 하나라도 해석 불가면 거절.
+    """앱 user_id 목록 → 소스 user_id 목록(verified·active 매핑만). 하나라도 해석 불가면 거절.
 
-    브라우저는 절대 Notion id 를 주지 않는다 — 항상 서버에서 매핑으로 해석한다(스펙 §12.3).
+    브라우저는 절대 소스 id 를 주지 않는다 — 항상 서버에서 매핑으로 해석한다(스펙 §12.3).
     """
     if not user_ids:
         return []
@@ -295,15 +345,14 @@ def _resolve_assignee_ids(db: Session, user_ids: list[str]) -> list[str]:
     return out
 
 
-def _build_assignee_people(db: Session, current_assignees: list[str], user_ids: list[str]) -> list[str]:
-    """새 담당자(people) notion id 목록을 만든다.
+def _build_assignee_people(db: Session, current_assignees, user_ids: list[str]) -> list[str]:
+    """새 담당자(people) 소스 id 목록을 만든다.
 
     앱에 연결되지 않은(verified 매핑이 없는) 기존 담당자는 **보존**하고, 앱 사용자 담당자만
     user_ids 로 교체한다 — 이렇게 하면 편집 화면(앱 사용자 체크박스)으로 손대지 않은 외부/미연결
     담당자를 조용히 지우지 않는다.
     """
-    id_to_user = _verified_id_to_user(db)  # verified·active notion id 전체
-    mapped_ids = set(id_to_user)
+    mapped_ids = set(_verified_id_to_user(db))
     preserved = [nid for nid in current_assignees if nid not in mapped_ids]
     resolved = _resolve_assignee_ids(db, user_ids)
     merged: list[str] = []
@@ -315,179 +364,68 @@ def _build_assignee_people(db: Session, current_assignees: list[str], user_ids: 
     return merged
 
 
-def update_ticket(db: Session, outbound, settings, user: User, *, page_id: str, changes: dict) -> dict:
-    """티켓 속성을 수동 편집한다(소유권·스키마 검증 후 Notion PATCH). 감사용 before/after 포함.
+def update_ticket(
+    db: Session, outbound, settings, user: User, *, page_id: str, changes: dict,
+    now: datetime | None = None, repo=None,
+) -> dict:
+    """티켓 속성을 수동 편집한다(소유권·스키마 검증 후 소스 반영). 감사용 before/after 포함.
 
-    changes 는 이미 exclude_unset 된 dict(보낸 필드만). 각 값은 스키마 타입/허용옵션으로 검증한다.
+    changes 는 이미 exclude_unset 된 dict(보낸 필드만). 담당자만 여기서 앱 user_id → 소스 id 로
+    해석하고, 값 검증·속성 매핑은 저장소 구현체가 실제 스키마로 한다. 성공하면 저장소가 같은
+    요청 안에서 캐시 행까지 고친다 — 방금 고친 값이 목록에 바로 보인다.
     """
     if not changes:
         raise ValidationAppError("변경할 내용이 없습니다.")
-
-    current = notion_write.fetch_ticket(outbound, settings, page_id)
+    r = _repo(settings, outbound, repo)
+    current = r.get_live(db, page_id=page_id)
     ensure_can_edit(current, user, my_notion_id(db, user))
 
-    schema = notion_write.fetch_schema(outbound, settings)
-    properties: dict = {}
-    for key, value in changes.items():
-        names = _EDIT_PROP_ALIASES.get(key)
-        if not names:
-            continue  # 알 수 없는 키(스키마가 forbid 하므로 실제로는 오지 않음)
-        pname, prop = _schema_prop(schema, names)
-        if not prop:
-            raise ValidationAppError(f"작업 DB에서 '{names[0]}' 속성을 찾지 못했습니다.")
+    repo_changes = dict(changes)
+    if "assignee_user_ids" in repo_changes:
+        repo_changes["assignee_notion_ids"] = _build_assignee_people(
+            db, current.assignee_ids, repo_changes.pop("assignee_user_ids") or []
+        )
 
-        if key == "assignee_user_ids":
-            people = _build_assignee_people(db, current.get("assignees") or [], value or [])
-            mapped = notion_write.property_value(prop, people)
-        elif key == "status":
-            if not value:
-                raise ValidationAppError("진행상태는 비울 수 없습니다.")
-            allowed = notion_write.option_names(prop)
-            if allowed and value not in allowed:
-                raise ValidationAppError(f"진행상태 값이 올바르지 않습니다. 허용: {', '.join(allowed)}")
-            mapped = notion_write.property_value(prop, value)
-        elif key in ("difficulty", "priority"):
-            if value:
-                allowed = notion_write.option_names(prop)
-                if allowed and value not in allowed:
-                    label = "난이도" if key == "difficulty" else "우선순위"
-                    raise ValidationAppError(f"{label} 값이 올바르지 않습니다. 허용: {', '.join(allowed)}")
-            mapped = notion_write.property_value(prop, value)  # 빈 값 → select 지움
-        else:  # est_wd, due_date
-            mapped = notion_write.property_value(prop, value)
-
-        if mapped is None:
-            raise ValidationAppError(f"'{names[0]}' 값을 적용할 수 없습니다.")
-        properties[pname] = mapped
-
-    updated = notion_write.update_ticket_properties(outbound, settings, page_id=page_id, properties=properties)
-    id_to_name, _ = _load_name_map(db)
-    ticket = _enrich([updated], id_to_name, _verified_id_to_user(db))[0]
-    return {"ticket": ticket, "before": _snapshot(current), "after": _snapshot(updated)}
+    updated = r.update(db, page_id=page_id, changes=repo_changes, now=now or utcnow())
+    return {
+        "ticket": ticket_views(db, [updated])[0],
+        "before": snapshot(current),
+        "after": snapshot(updated),
+    }
 
 
-def claim_ticket(db: Session, outbound, settings, user: User, *, page_id: str) -> dict:
+def claim_ticket(
+    db: Session, outbound, settings, user: User, *, page_id: str,
+    now: datetime | None = None, repo=None,
+) -> dict:
     """미할당(또는 본인 담당) 티켓의 담당자에 '나'를 배정한다. 내 계정이 Notion 미연결이면 거절."""
     if not my_notion_id(db, user):
         raise ValidationAppError("내 계정이 Notion 사용자와 연결되어 있지 않아 담당자로 배정할 수 없습니다.")
-    return update_ticket(db, outbound, settings, user, page_id=page_id, changes={"assignee_user_ids": [user.id]})
-
-
-def list_projects(outbound, settings) -> list[dict]:
-    """새 티켓 폼의 프로젝트 드롭다운용 [{id, name}]. 작업 DB 스키마의 '프로젝트' relation 대상 DB를
-    자동 발견해 조회한다(별도 설정 상수 없이 — relation.database_id 사용).
-
-    프로젝트 속성이 relation 이 아니거나 없으면 빈 목록(폼은 프로젝트 선택을 생략한다).
-    """
-    schema = notion_write.fetch_schema(outbound, settings)
-    _, prop = _schema_prop(schema, ["프로젝트"])
-    db_id = notion_write.relation_target_db(prop) if prop else None
-    if not db_id:
-        return []
-    rows = notion_write.query_relation_titles(outbound, settings, db_id)
-    # 이름 있는 것 먼저, 이름 기준 정렬. 이름 없는(제목 빈) 프로젝트는 뒤로.
-    rows = [r for r in rows if r.get("id")]
-    rows.sort(key=lambda r: (r.get("name") or "￿"))
-    return rows
-
-
-def create_ticket(db: Session, outbound, settings, user: User, *, payload) -> dict:
-    """새 티켓을 만든다(제목 필수). 담당자는 user_id→notion id 해석, 프로젝트는 relation.
-
-    상태/우선순위/난이도는 실제 스키마 옵션으로 검증한다. 진행상태 미지정 시 '계획'(없으면 첫 옵션).
-    프로젝트 속성이 스키마에 있으면 project_id 를 필수로 요구한다(고아 티켓 방지).
-    """
-    schema = notion_write.fetch_schema(outbound, settings)
-    properties: dict = {}
-
-    # 제목(필수)
-    tname, tprop = _schema_prop(schema, ["제목"])
-    if not tprop:
-        raise ValidationAppError("작업 DB에서 '제목' 속성을 찾지 못했습니다.")
-    properties[tname] = notion_write.property_value(tprop, payload.title)
-
-    # 진행상태(기본 계획)
-    sname, sprop = _schema_prop(schema, [notion_source.PROP_STATUS, "진행 상태"])
-    if sprop:
-        options = notion_write.option_names(sprop)
-        status_val = payload.status or None
-        if status_val:
-            if options and status_val not in options:
-                raise ValidationAppError(f"진행상태 값이 올바르지 않습니다. 허용: {', '.join(options)}")
-        else:
-            status_val = "계획" if (not options or "계획" in options) else options[0]
-        mapped = notion_write.property_value(sprop, status_val)
-        if mapped is not None:
-            properties[sname] = mapped
-
-    # 선택 옵션(우선순위·난이도)
-    for key, label, aliases in (
-        ("priority", "우선순위", [notion_source.PROP_PRIORITY]),
-        ("difficulty", "난이도", [notion_source.PROP_DIFFICULTY]),
-    ):
-        val = getattr(payload, key, None)
-        if not val:
-            continue
-        pname, prop = _schema_prop(schema, aliases)
-        if not prop:
-            continue
-        options = notion_write.option_names(prop)
-        if options and val not in options:
-            raise ValidationAppError(f"{label} 값이 올바르지 않습니다. 허용: {', '.join(options)}")
-        properties[pname] = notion_write.property_value(prop, val)
-
-    # 예상 WD / 마감일
-    if payload.est_wd is not None:
-        ename, eprop = _schema_prop(schema, [notion_source.PROP_EST])
-        if eprop:
-            properties[ename] = notion_write.property_value(eprop, payload.est_wd)
-    if payload.due_date:
-        dname, dprop = _schema_prop(schema, [notion_source.PROP_DUE])
-        if dprop:
-            properties[dname] = notion_write.property_value(dprop, payload.due_date)
-
-    # 담당자(user_id → notion id)
-    if payload.assignee_user_ids:
-        pname, pprop = _schema_prop(schema, [notion_source.PROP_PEOPLE])
-        if pprop:
-            people = _resolve_assignee_ids(db, payload.assignee_user_ids)
-            properties[pname] = notion_write.property_value(pprop, people)
-
-    # 프로젝트(스키마에 있으면 필수)
-    prj_name, prj_prop = _schema_prop(schema, ["프로젝트"])
-    if prj_prop and notion_write.relation_target_db(prj_prop):
-        if not payload.project_id:
-            raise ValidationAppError("프로젝트를 선택하세요.")
-        properties[prj_name] = notion_write.property_value(prj_prop, [payload.project_id])
-
-    # 설명도 문서 본문처럼 가벼운 마크다운(제목/글머리/번호/구분선)을 Notion 블록으로 변환한다
-    # (프런트 BodyEditor 미리보기와 동일 규칙). 빈 설명이면 children 없음.
-    from app.core.notion_blocks import markdown_to_blocks
-
-    children = markdown_to_blocks(payload.description) if payload.description else None
-    created = notion_write.create_page(
-        outbound, settings,
-        parent_database_id=settings.notion_tasks_database_id,
-        properties=properties, children=children,
+    return update_ticket(
+        db, outbound, settings, user, page_id=page_id,
+        changes={"assignee_user_ids": [user.id]}, now=now, repo=repo,
     )
-    id_to_name, _ = _load_name_map(db)
-    ticket = _enrich([created], id_to_name, _verified_id_to_user(db))[0]
-    return {"ticket": ticket, "after": _snapshot(created)}
 
 
-def ticket_meta(outbound, settings) -> dict:
-    """편집 드롭다운용 허용 옵션(진행상태·우선순위·난이도)을 작업 DB 스키마에서 읽어 돌려준다.
+def create_ticket(
+    db: Session, outbound, settings, user: User, *, payload,
+    now: datetime | None = None, repo=None,
+) -> dict:
+    """새 티켓을 만든다(제목 필수). 담당자는 user_id→소스 id 로 해석하고, 나머지 검증(상태·
+    우선순위·난이도 옵션, 프로젝트 필수)은 저장소 구현체가 실제 스키마로 한다.
 
-    하드코딩 대신 실제 스키마에서 읽어 Notion 옵션 rename 과 항상 일치하게 한다.
+    생성 직후 저장소가 캐시에 그 티켓을 써 넣으므로 다음 목록 조회에서 바로 보인다.
     """
-    schema = notion_write.fetch_schema(outbound, settings)
-
-    def opts(names: list[str]) -> list[str]:
-        _, prop = _schema_prop(schema, names)
-        return notion_write.option_names(prop) if prop else []
-
-    return {
-        "statuses": opts(_EDIT_PROP_ALIASES["status"]),
-        "priorities": opts(_EDIT_PROP_ALIASES["priority"]),
-        "difficulties": opts(_EDIT_PROP_ALIASES["difficulty"]),
-    }
+    draft = TicketDraft(
+        title=payload.title,
+        status=payload.status,
+        priority=payload.priority,
+        difficulty=payload.difficulty,
+        est_wd=payload.est_wd,
+        due_date=payload.due_date,
+        project_id=payload.project_id,
+        description_markdown=payload.description,
+        assignee_ids=tuple(_resolve_assignee_ids(db, payload.assignee_user_ids or [])),
+    )
+    created = _repo(settings, outbound, repo).create(db, draft=draft, now=now or utcnow())
+    return {"ticket": ticket_views(db, [created])[0], "after": snapshot(created)}

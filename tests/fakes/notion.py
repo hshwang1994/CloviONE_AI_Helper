@@ -127,6 +127,37 @@ def project_row(*, page_id: str, name: str, title_prop: str = "이름") -> dict:
     }
 
 
+# ── write-payload readers ─────────────────────────────────────────────────────
+# ``app/tickets/notion_write.property_value`` builds these shapes. The fake reads
+# them back so a created/patched page comes out of a later query looking exactly
+# like one that had always been there — otherwise a write-through test would be
+# asserting against a page the fake invented rather than the one the app sent.
+
+def _w_title(prop) -> str:
+    segs = (prop or {}).get("title") or []
+    return "".join(
+        (s.get("text") or {}).get("content", "") or s.get("plain_text", "")
+        for s in segs if isinstance(s, dict)
+    )
+
+
+def _w_named(prop, kind: str) -> str | None:
+    container = (prop or {}).get(kind)
+    return container.get("name") if isinstance(container, dict) else None
+
+
+def _w_date(prop) -> str | None:
+    date = (prop or {}).get("date")
+    return date.get("start") if isinstance(date, dict) else None
+
+
+def _w_ids(prop, kind: str) -> list[str]:
+    return [
+        v.get("id") for v in ((prop or {}).get(kind) or [])
+        if isinstance(v, dict) and v.get("id")
+    ]
+
+
 # ── filter evaluation ─────────────────────────────────────────────────────────
 
 def _prop(row: dict, name: str) -> dict:
@@ -285,6 +316,12 @@ class FakeNotionTasksDB:
         self.fail_message = fail_message
         # Recorded for assertions: every parsed tasks-DB query body, in order.
         self.queries: list[dict] = []
+        # …and every write, so a test can assert what the app actually sent.
+        self.created: list[dict] = []
+        self.patched: list[tuple[str, dict]] = []
+        self._next_seq = 0
+        self.created_page_prefix = "fake-created-"
+        self.created_tid_base = 9000
 
     # -- registration ---------------------------------------------------------
 
@@ -312,6 +349,10 @@ class FakeNotionTasksDB:
             return self._query_projects(self._body(request))
         if method == "GET" and path == f"/v1/databases/{self.tasks_db}":
             return {"object": "database", "id": self.tasks_db, "properties": self.schema}
+        if method == "POST" and path == "/v1/pages":
+            return self._create_page(self._body(request))
+        if method == "PATCH" and path.startswith("/v1/pages/"):
+            return self._patch_page(path.rsplit("/", 1)[-1], self._body(request))
         if method == "GET" and path.startswith("/v1/pages/"):
             return self._page(path.rsplit("/", 1)[-1])
         if method == "GET" and path.startswith("/v1/blocks/"):
@@ -366,6 +407,58 @@ class FakeNotionTasksDB:
             return int(str(cursor).rsplit("-", 1)[-1])
         except ValueError:
             return 0
+
+    def _row_from_write(self, page_id: str, tid, props: dict) -> dict:
+        """Notion write payload → a query-shaped page row (the fake's whole point)."""
+        return task_row(
+            page_id=page_id,
+            tid=tid,
+            title=_w_title(props.get(PROP_TITLE)),
+            status=_w_named(props.get(PROP_STATUS), "status"),
+            due=_w_date(props.get(PROP_DUE)),
+            people=_w_ids(props.get(PROP_PEOPLE), "people"),
+            est_wd=(props.get(PROP_EST) or {}).get("number"),
+            act_wd=(props.get(PROP_ACT) or {}).get("number"),
+            difficulty=_w_named(props.get(PROP_DIFFICULTY), "select"),
+            priority=_w_named(props.get(PROP_PRIORITY), "select"),
+            project_ids=_w_ids(props.get(PROP_PROJECT), "relation"),
+        )
+
+    def _create_page(self, body: dict) -> dict:
+        """POST /v1/pages — append a real row so the next query returns it."""
+        self.created.append(body)
+        self._next_seq += 1
+        page_id = f"{self.created_page_prefix}{self._next_seq:04d}"
+        row = self._row_from_write(page_id, self.created_tid_base + self._next_seq,
+                                   body.get("properties") or {})
+        self.rows.append(row)
+        return row
+
+    def _patch_page(self, page_id: str, body: dict):
+        """PATCH /v1/pages/{id} — merge the sent properties into the stored row.
+
+        ``{"archived": true}`` removes the row, matching Notion: an archived page
+        stops appearing in database queries.
+        """
+        self.patched.append((page_id, body))
+        for index, row in enumerate(self.rows):
+            if row.get("id") != page_id:
+                continue
+            if body.get("archived"):
+                self.rows.pop(index)
+                return {**row, "archived": True}
+            merged = {**(row.get("properties") or {})}
+            merged.update(body.get("properties") or {})
+            tid = ((row.get("properties") or {}).get(PROP_TICKET_ID) or {}).get(
+                "unique_id", {}
+            ).get("number")
+            # ``merged`` already carries every untouched property, so rebuilding
+            # from it keeps values the caller did not send.
+            updated = self._row_from_write(page_id, tid, merged)
+            self.rows[index] = updated
+            return updated
+        return (404, {"object": "error", "status": 404, "code": "object_not_found",
+                      "message": "Could not find page."})
 
     def _page(self, page_id: str):
         for row in self.rows:

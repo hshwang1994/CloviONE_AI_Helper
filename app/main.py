@@ -112,6 +112,12 @@ def create_app(
         app.state.allowlists, app.state.secret_provider, transport=outbound_transport
     )
 
+    # 티켓·문서 저장소 배선(§7.1.C). 소스 선택은 여기 한 번뿐이고 라우터는 app.state 에서
+    # 꺼내 쓴다 — 설정이 잘못돼 있으면 요청 때가 아니라 지금(기동 시) 분명히 실패한다.
+    from app.core.source_registry import install as install_repositories
+
+    install_repositories(app)
+
     # add_middleware: last added runs outermost — RequestContext must wrap everything.
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestContextMiddleware)

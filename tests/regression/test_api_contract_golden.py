@@ -22,9 +22,24 @@ Determinism rules this module holds itself to:
     and called it a baseline).
 
 Nothing in these payloads is normalised away — every field is frozen exactly as
-served today. In particular ``/api/tickets/*`` still carries a raw ``assignees``
-array of Notion people IDs; that is frozen **as-is on purpose**. Removing it is
-a separate, deliberate contract change, not a cleanup to smuggle in here.
+served today.
+
+Deliberate contract changes recorded here (each landed with its golden edit):
+  * the raw ``assignees`` array (source people IDs) was **dropped** from
+    ``/api/tickets/*``; ``assignee_user_ids`` / ``assignee_names`` carry the
+    resolved values and nothing in ``frontend/`` ever read the raw array
+    (``Chat.jsx`` has a same-named field from the *runner* payload — different
+    shape, different endpoint);
+  * every ticket now carries ``uid``, the internal ``ticket_cache`` UUID. ``id``
+    deliberately stays the Notion page id — deep links, trash and audit all key
+    on it. ``uid`` is ``null`` whenever a ticket was served live rather than
+    from the mirror, which is exactly what these goldens exercise: they seed no
+    ``ticket_cache``, so ``TICKET_SOURCE=notion_cache`` falls back to live and
+    produces the identical payload to ``TICKET_SOURCE=notion`` (the kill switch
+    is pinned by ``tests/regression/test_ticket_source_switch.py``);
+  * ``developers[]`` rows gained ``user_id`` (keying developers by display name
+    breaks on duplicate names) and ``/api/sprint/summary`` gained
+    ``by_assignee``. ``unassigned`` stayed — the in-meeting triage flow uses it.
 """
 
 from __future__ import annotations

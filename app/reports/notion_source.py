@@ -8,7 +8,10 @@ OutboundClient 단일 관문을 지나며(SSRF allowlist=services, redirect 미�
 
 from __future__ import annotations
 
-from app.core.errors import AppError
+from app.core.errors import (  # noqa: F401 — 아래 주석대로 두 오류를 재수출한다
+    NotionNotConfiguredError,
+    NotionQueryError,
+)
 
 # 마감일 필터에 쓰는 Notion 속성 이름과, 우리가 읽는 속성들. Notion 스키마와 정확히 일치해야 한다.
 PROP_DUE = "마감일"
@@ -25,18 +28,10 @@ PROP_PROJECT = "프로젝트"
 _MAX_PAGES = 20  # 100건 x 20 = 2000건 상한. 무한 루프 방지(정상 데이터는 한두 페이지).
 
 
-class NotionNotConfiguredError(AppError):
-    """Notion 연동 토큰이 아직 서버에 없다(사용자가 provisioning 하기 전)."""
-
-    status_code = 503
-    code = "notion_not_configured"
-    default_message = "Notion 연동 토큰이 설정되지 않았습니다."
-
-
-class NotionQueryError(AppError):
-    status_code = 502
-    code = "notion_query_failed"
-    default_message = "Notion 조회에 실패했습니다."
+# NotionNotConfiguredError / NotionQueryError 는 app/core/errors.py 로 옮겼다. 라우터들이
+# 이 둘을 잡아 configured=false / ok=false 로 번역해야 하는데, 그러려고 Notion 구현 모듈을
+# import 하면 저장소 seam 경계(정적검사)가 무너지기 때문이다. 여기서는 이름을 그대로 재수출해
+# 기존 import 경로(app.reports.notion_source.NotionQueryError)가 하나도 안 바뀌게 한다.
 
 
 def _plain_title(prop: dict) -> str:
