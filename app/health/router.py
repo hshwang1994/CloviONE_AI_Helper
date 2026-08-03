@@ -9,6 +9,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.authz import (
+    CONSOLE_READ_ROLES,
+    CONSOLE_WRITE_ROLES,
+    SENSITIVE_READ_ROLES,
+)
 from app.core.deps import get_db, require_roles
 from app.health.service import build_dashboard, build_diagnostic_bundle
 
@@ -16,7 +21,6 @@ logger = logging.getLogger("app.health")
 
 router = APIRouter(tags=["health"])
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
 
 
 @router.get("/healthz")
@@ -37,13 +41,13 @@ def readyz(request: Request):
 
 
 @router.get(
-    "/api/admin/dashboard", dependencies=[Depends(require_roles(*READ_ROLES))]
+    "/api/admin/dashboard", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))]
 )
 def dashboard(request: Request, db: Session = Depends(get_db)):
     # operator는 대시보드는 보지만 감사 로그 열람 권한이 없다 — 민감한 '최근 주요 변경'
     # 슬라이스를 감사 열람 역할(admin/system_admin/auditor)에만 내린다.
     role = getattr(getattr(request.state, "user", None), "role", None)
-    include_critical_audit = role in ("admin", "system_admin", "auditor")
+    include_critical_audit = role in SENSITIVE_READ_ROLES
     return build_dashboard(
         db,
         request.app.state.settings,
@@ -55,7 +59,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @router.get(
     "/api/admin/diagnostics/bundle",
-    dependencies=[Depends(require_roles("admin", "system_admin"))],
+    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))],
 )
 def diagnostics_bundle(request: Request, db: Session = Depends(get_db)):
     return build_diagnostic_bundle(

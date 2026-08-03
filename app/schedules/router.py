@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
@@ -40,9 +41,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-OPS_ROLES = ("operator", "admin", "system_admin")
-WRITE_ROLES = ("admin", "system_admin")
 
 SYSTEM_TARGETS = frozenset({"noop"})
 
@@ -267,13 +265,13 @@ def _validate_and_normalize(db: Session, payload: ScheduleRequest, now: datetime
     }
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_schedules(db: Session = Depends(get_db)):
     rows = db.execute(select(Schedule).order_by(Schedule.name)).scalars().all()
     return {"items": [_view(r) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def create_schedule(request: Request, payload: ScheduleRequest, db: Session = Depends(get_db)):
     now = request.app.state.clock.now()
     normalized = _validate_and_normalize(db, payload, now)
@@ -310,12 +308,12 @@ def create_schedule(request: Request, payload: ScheduleRequest, db: Session = De
     return {"schedule": _view(row)}
 
 
-@router.get("/{schedule_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{schedule_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_schedule(schedule_id: str, db: Session = Depends(get_db)):
     return {"schedule": _view(_get_or_404(db, schedule_id))}
 
 
-@router.put("/{schedule_id}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.put("/{schedule_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def update_schedule(
     request: Request,
     schedule_id: str,
@@ -376,7 +374,7 @@ def update_schedule(
     return {"schedule": _view(row)}
 
 
-@router.post("/{schedule_id}/enable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{schedule_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(get_db)):
     row = _get_or_404(db, schedule_id)
     now = request.app.state.clock.now()
@@ -430,7 +428,7 @@ def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(ge
     return {"schedule": _view(row)}
 
 
-@router.post("/{schedule_id}/disable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{schedule_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def disable_schedule(request: Request, schedule_id: str, db: Session = Depends(get_db)):
     row = _get_or_404(db, schedule_id)
     row.enabled = False
@@ -446,7 +444,7 @@ def disable_schedule(request: Request, schedule_id: str, db: Session = Depends(g
     return {"schedule": _view(row)}
 
 
-@router.post("/{schedule_id}/dry-run", dependencies=[Depends(require_roles(*OPS_ROLES))])
+@router.post("/{schedule_id}/dry-run", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
 def dry_run(request: Request, schedule_id: str, db: Session = Depends(get_db)):
     """Payload preview + next fire times — no execution (spec §18.6)."""
     row = _get_or_404(db, schedule_id)
@@ -478,7 +476,7 @@ async def _optional_json_body(request: Request) -> dict:
     return body if isinstance(body, dict) else {}
 
 
-@router.post("/{schedule_id}/run-now", dependencies=[Depends(require_roles(*OPS_ROLES))])
+@router.post("/{schedule_id}/run-now", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
 def run_now(
     request: Request,
     schedule_id: str,
@@ -534,7 +532,7 @@ def run_now(
     return {"ok": True, "run": _run_view(run) if run else None}
 
 
-@router.get("/{schedule_id}/runs", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{schedule_id}/runs", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def run_history(
     schedule_id: str,
     db: Session = Depends(get_db),
@@ -563,7 +561,7 @@ def run_history(
     }
 
 
-@router.post("/runs/{run_id}/retry", dependencies=[Depends(require_roles(*OPS_ROLES))])
+@router.post("/runs/{run_id}/retry", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
 def retry_run(request: Request, run_id: str, db: Session = Depends(get_db)):
     run = db.get(ScheduleRun, run_id)
     if run is None:

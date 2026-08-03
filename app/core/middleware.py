@@ -91,7 +91,15 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             else:
                 response.headers.setdefault("Cache-Control", STATIC_CACHE_CONTROL)
         else:
-            response.headers["Cache-Control"] = "no-store"
+            # 기본은 no-store: 인증된 응답이 디스크에 남지 않게 한다.
+            #
+            # setdefault 인 이유(PLAN Phase 4 — 스케일 심): 폴링 엔드포인트 세 곳이
+            # ETag/304 를 쓰려면 브라우저가 응답을 **저장했다가 재검증**할 수 있어야 하는데,
+            # `no-store` 는 저장 자체를 금지하므로 브라우저가 If-None-Match 를 영영 보내지
+            # 않는다 — 그러면 ETag 는 붙어만 있고 아무것도 아끼지 못하는 죽은 헤더가 된다.
+            # 그래서 그 세 핸들러만 `private, no-cache`(저장은 하되 쓰기 전 반드시 재검증)를
+            # 직접 설정하고, 여기서는 **덮어쓰지 않는다**. 나머지 전부는 예전 그대로 no-store 다.
+            response.headers.setdefault("Cache-Control", "no-store")
 
         logger.info(
             "%s %s %s %.1fms request_id=%s",

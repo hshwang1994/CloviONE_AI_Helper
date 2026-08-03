@@ -8,17 +8,19 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
 from app.core.audit import record_audit_from_request
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.authz import CONSOLE_WRITE_ROLES
+from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ValidationAppError
 from app.core.pagination import PageParams
-from app.users.models import ALL_ROLES, User
+from app.core.scope import Principal, apply_user_scope, scope_allows_user
+from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
 from app.users.schemas import ResetPasswordRequest, UserCreateRequest, UserUpdateRequest
 from app.users.service import (
     admin_reset_password,
     archive_user,
     create_user,
     ensure_can_manage_target,
-    get_user_or_404,
+    get_scoped_user_or_404,
     set_user_active,
     unarchive_user,
     unlock_user,
@@ -29,7 +31,7 @@ from app.users.service import (
 router = APIRouter(
     prefix="/api/admin/users",
     tags=["admin-users"],
-    dependencies=[Depends(require_roles("admin", "system_admin")), Depends(require_csrf)],
+    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
 )
 
 
@@ -70,6 +72,7 @@ def _notion_status_map(db: Session, user_ids: list[str]) -> dict[str, str]:
 def list_users(
     request: Request,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
     page: PageParams = Depends(),
     q: str | None = Query(default=None, max_length=255),
     role: str | None = Query(default=None),
@@ -87,6 +90,10 @@ def list_users(
     stmt = select(User).where(
         User.archived_at.is_not(None) if archived else User.archived_at.is_(None)
     )
+    # 관리 범위(0024). 전역 관리자면 apply_user_scope 가 그대로 돌려주므로 기존 동작과
+    # 바이트 단위로 같다. 조직/부서 관리자면 여기서 좁혀지고, 같은 규칙을 단건 조회
+    # (get_scoped_user_or_404)가 다시 쓴다 — 목록과 단건이 갈라지지 않게.
+    stmt = apply_user_scope(stmt, principal.scope)
     if q:
         needle = f"%{q.strip().lower()}%"
         stmt = stmt.where(
@@ -135,6 +142,7 @@ def create_user_endpoint(
     request: Request,
     payload: UserCreateRequest,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     from app.core.errors import ForbiddenError
     from app.core.security import generate_temp_password
@@ -142,7 +150,7 @@ def create_user_endpoint(
     # Spec §20: granting admin+ is a gated authority. Creating a privileged
     # account directly is a role grant, so only system_admin may do it — a
     # plain admin cannot mint an admin/system_admin without that authority.
-    if payload.role in ("admin", "system_admin") and request.state.user.role != "system_admin":
+    if payload.role in CONSOLE_WRITE_ROLES and request.state.user.role != ROLE_SYSTEM_ADMIN:
         raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
 
     settings = request.app.state.settings
@@ -166,6 +174,16 @@ def create_user_endpoint(
         created_by=request.state.user.id,
         effective_settings=request.app.state.settings_cache.current(),
     )
+    # 범위가 걸린 관리자는 자기 범위 **밖에 계정을 새로 만들 수도 없다**. 막지 않으면 부서
+    # 관리자가 다른 부서 소속으로 계정을 만들어 두고(자기 목록에는 보이지도 않는다) 그것을
+    # 발판으로 삼는 우회로가 열린다.
+    # 판정을 payload 가 아니라 **실제로 만들어진 행**에 대고 하는 이유: 목록·단건과 정확히
+    # 같은 규칙(scope_allows_user) 하나만 쓰게 되어, org_id 기본값 같은 세부가 나중에 바뀌어도
+    # 세 곳이 갈라지지 않는다. 여기서 예외가 나면 get_db 가 롤백하므로 계정은 남지 않는다.
+    # 목록이 아니라 '생성 시도'라 존재를 숨길 것이 없으므로 404 가 아니라 403 이다.
+    if not scope_allows_user(principal.scope, user):
+        raise ForbiddenError("관리 범위 밖으로는 계정을 만들 수 없습니다.")
+
     record_audit_from_request(
         request,
         db,
@@ -186,11 +204,14 @@ def create_user_endpoint(
 
 @router.get("/{user_id}")
 def get_user_detail(
-    request: Request, user_id: str, db: Session = Depends(get_db)
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     from app.core.errors import ForbiddenError
 
-    user = get_user_or_404(db, user_id)
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     now = request.app.state.clock.now()
     status = _notion_status_map(db, [user.id]).get(user.id, "unmapped")
     row = _user_row(user, now, notion_status=status)
@@ -215,8 +236,9 @@ def patch_user(
     user_id: str,
     payload: UserUpdateRequest,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    user = get_user_or_404(db, user_id)
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     before = user_snapshot(user)
     fields = payload.model_dump(exclude_unset=True)
 
@@ -320,8 +342,13 @@ def patch_user(
 
 
 @router.post("/{user_id}/enable")
-def enable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def enable_user(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     before = user_snapshot(user)
     set_user_active(db, user, True, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -333,8 +360,13 @@ def enable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}/disable")
-def disable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def disable_user(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     before = user_snapshot(user)
     set_user_active(db, user, False, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -346,9 +378,14 @@ def disable_user(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}/archive")
-def archive(request: Request, user_id: str, db: Session = Depends(get_db)):
+def archive(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     """계정 보관 — 삭제가 아니다. 행은 DB에 남고 목록·검색·로그인에서만 빠진다."""
-    user = get_user_or_404(db, user_id)
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     before = user_snapshot(user)
     archive_user(
         db,
@@ -366,9 +403,14 @@ def archive(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}/unarchive")
-def unarchive(request: Request, user_id: str, db: Session = Depends(get_db)):
+def unarchive(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     """보관 복구 — 보관 전의 활성/비활성 상태 그대로 목록에 돌아온다."""
-    user = get_user_or_404(db, user_id)
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     before = user_snapshot(user)
     unarchive_user(db, user, actor_role=request.state.user.role)
     record_audit_from_request(
@@ -383,9 +425,10 @@ def reset_password(
     request: Request,
     user_id: str,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
     payload: ResetPasswordRequest | None = None,
 ):
-    user = get_user_or_404(db, user_id)
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     provided = payload.password if payload is not None else None
     password = admin_reset_password(
         db,
@@ -407,8 +450,13 @@ def reset_password(
 
 
 @router.post("/{user_id}/unlock")
-def unlock(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def unlock(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     unlock_user(db, user, actor_role=request.state.user.role)
     record_audit_from_request(
         request, db, action="user.unlock", object_type="user", object_id=user.id,
@@ -417,8 +465,13 @@ def unlock(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{user_id}/sessions")
-def list_sessions(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def list_sessions(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     # 세션 메타데이터도 권한 경계 안에서만 조회한다(상위 권한 계정 정보 정찰 차단).
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     rows = (
@@ -446,8 +499,13 @@ def list_sessions(request: Request, user_id: str, db: Session = Depends(get_db))
 
 
 @router.post("/{user_id}/revoke-sessions")
-def revoke_sessions(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def revoke_sessions(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     count = request.app.state.session_service.revoke_all_for_user(db, user.id)
     record_audit_from_request(
@@ -458,8 +516,13 @@ def revoke_sessions(request: Request, user_id: str, db: Session = Depends(get_db
 
 
 @router.post("/{user_id}/notion-mapping/verify")
-def verify_notion_mapping(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def verify_notion_mapping(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     from app.notion_mapping.service import mapping_view, verify_mapping
 

@@ -136,6 +136,24 @@ def get_user_or_404(db: Session, user_id: str) -> User:
     return user
 
 
+def get_scoped_user_or_404(db: Session, user_id: str, scope) -> User:
+    """범위를 존중하는 단건 조회 — **범위 밖은 403이 아니라 404** 다.
+
+    403 은 "그 id 는 존재한다"를 알려 주는 유출이다. 남의 부서 사용자 id 를 넣어 보며
+    403/404 를 세면 조직도를 통째로 열거할 수 있다. 목록에서 가린 것이 단건에서 새면
+    가린 의미가 없으므로 존재하지 않는 것과 **똑같은 응답**을 준다.
+
+    관리자 라우터의 모든 `/{user_id}` 경로가 이 함수 하나를 통과해야 한다 — 한 군데라도
+    `get_user_or_404` 를 그대로 쓰면 그 경로만 범위를 무시한다.
+    """
+    from app.core.scope import scope_allows_user
+
+    user = get_user_or_404(db, user_id)
+    if not scope_allows_user(scope, user):
+        raise NotFoundError("사용자를 찾을 수 없습니다.")
+    return user
+
+
 def user_snapshot(user: User) -> dict:
     """Audit-safe snapshot — the password hash is never included."""
     return {

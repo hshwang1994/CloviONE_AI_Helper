@@ -10,15 +10,32 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# 운영자 이상은 누가 버린 항목이든 복원/영구삭제할 수 있다(감사·정리 권한).
+# 역할 이름을 여기 문자열로 다시 적지 않는다 — authz 한 곳이 정본이다.
+from app.core.authz import MODERATOR_ROLES
 from app.core.errors import ConflictError, ForbiddenError
 from app.trash import repository
 from app.trash.models import TRASH_DOCUMENT, TRASH_TICKET, TRASH_TYPES, TrashItem
 from app.users.models import User
 
-# 운영자 이상은 누가 버린 항목이든 복원/영구삭제할 수 있다(감사·정리 권한).
-_MANAGE_ROLES = frozenset({"operator", "admin", "system_admin"})
+
+def _target_uid(db: Session, item_type: str, notion_page_id: str) -> str | None:
+    """Notion page id → 미러 행의 자체 UUID(0025). 미러에 없으면 None.
+
+    티켓은 ticket_cache, 문서는 document_cache 를 본다. None 이 정상 상태다 — 방금 만든
+    티켓을 동기화 전에 버릴 수 있다. 그래서 FK 로 걸지 않고, 휴지통의 실제 동작(중복 방지·
+    목록 필터·복원)은 계속 notion_page_id 가 담당한다.
+    """
+    from app.team_docs.models import DocumentCache
+    from app.tickets.models import TicketCache
+
+    model = TicketCache if item_type == TRASH_TICKET else DocumentCache
+    return db.execute(
+        select(model.id).where(model.notion_page_id == notion_page_id)
+    ).scalar_one_or_none()
 
 
 def move_to_trash(
@@ -32,6 +49,9 @@ def move_to_trash(
         raise ConflictError("이미 휴지통에 있습니다.")
     item = TrashItem(
         item_type=item_type, notion_page_id=notion_page_id,
+        # 자체 id 도 함께 남긴다(0025). 미러에 아직 없으면 NULL — 중복 방지와 목록 필터는
+        # 계속 notion_page_id 가 담당하므로 NULL 이어도 휴지통 동작은 그대로다.
+        target_uid=_target_uid(db, item_type, notion_page_id),
         title=(title or "")[:400], url=(url or None),
         deleted_by_user_id=user.id, deleted_by_name=(user.display_name or "")[:200],
         deleted_at=now,
@@ -43,7 +63,7 @@ def move_to_trash(
 
 def ensure_can_manage(user: User, item: TrashItem) -> None:
     """복원/영구삭제 권한 — 운영자 이상이거나 그 항목을 버린 본인."""
-    if user.role in _MANAGE_ROLES or item.deleted_by_user_id == user.id:
+    if user.role in MODERATOR_ROLES or item.deleted_by_user_id == user.id:
         return
     raise ForbiddenError("이 항목을 복원하거나 지울 권한이 없습니다.")
 

@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditLog
+from app.core.authz import SENSITIVE_READ_ROLES
 from app.core.deps import get_db, require_roles
 from app.core.errors import ValidationAppError
 from app.core.pagination import PageParams
@@ -20,7 +21,7 @@ from app.users.models import User
 router = APIRouter(
     prefix="/api/admin/audit",
     tags=["admin-audit"],
-    dependencies=[Depends(require_roles("admin", "system_admin", "auditor"))],
+    dependencies=[Depends(require_roles(*SENSITIVE_READ_ROLES))],
 )
 
 # 표시·경계 판정은 Asia/Seoul 기준(§불변 9). created_at은 UTC naive로 저장돼 있다.

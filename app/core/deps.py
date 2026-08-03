@@ -110,6 +110,24 @@ def require_roles(*roles: str):
     return dependency
 
 
+def get_principal(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """요청 주체 + 그 주체의 **범위**(app/core/scope.py).
+
+    역할 게이트(`require_roles`)와 짝을 이룬다: 역할은 '무엇을 할 수 있는가', 범위는
+    '누구에게 할 수 있는가'. 부서 트리를 한 번 전개해야 하므로 요청당 한 번만 만들고
+    `request.state.principal` 에 남겨 둔다(감사·로깅이 다시 계산하지 않게).
+    """
+    from app.core.scope import principal_from_user
+
+    principal = principal_from_user(db, user)
+    request.state.principal = principal
+    return principal
+
+
 def require_csrf(request: Request, auth: AuthContext = Depends(get_current_auth)) -> None:
     if request.method in SAFE_METHODS:
         return

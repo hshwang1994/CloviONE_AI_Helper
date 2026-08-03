@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.versioning import list_versions, load_snapshot
 from app.runners.models import Runner
@@ -31,9 +32,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-OPS_ROLES = ("operator", "admin", "system_admin")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 def _guard_secret_binding_create(request: Request, config: RunnerConfig) -> None:
@@ -56,7 +54,7 @@ def _guard_secret_binding_create(request: Request, config: RunnerConfig) -> None
         )
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_runners(
     request: Request,
     db: Session = Depends(get_db),
@@ -75,7 +73,7 @@ def list_runners(
     return {"items": [runner_view(r, secrets) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def create_runner_endpoint(
     request: Request, config: RunnerConfig, db: Session = Depends(get_db)
 ):
@@ -94,13 +92,13 @@ def create_runner_endpoint(
     return {"runner": runner_view(row, request.app.state.secret_provider)}
 
 
-@router.get("/{runner_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{runner_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_runner(request: Request, runner_id: str, db: Session = Depends(get_db)):
     row = get_runner_or_404(db, runner_id)
     return {"runner": runner_view(row, request.app.state.secret_provider)}
 
 
-@router.patch("/{runner_id}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.patch("/{runner_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def update_runner(
     request: Request,
     runner_id: str,
@@ -181,17 +179,17 @@ def _set_enabled(request: Request, db: Session, runner_id: str, enabled: bool):
     return {"ok": True, "enabled": enabled}
 
 
-@router.post("/{runner_id}/enable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{runner_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def enable_runner(request: Request, runner_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, runner_id, True)
 
 
-@router.post("/{runner_id}/disable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{runner_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def disable_runner(request: Request, runner_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, runner_id, False)
 
 
-@router.post("/{runner_id}/health", dependencies=[Depends(require_roles(*OPS_ROLES))])
+@router.post("/{runner_id}/health", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
 def health_check(request: Request, runner_id: str, db: Session = Depends(get_db)):
     row = get_runner_or_404(db, runner_id)
     result = run_runner_health_check(
@@ -202,7 +200,7 @@ def health_check(request: Request, runner_id: str, db: Session = Depends(get_db)
     return {"runner_id": row.id, **result}
 
 
-@router.post("/{runner_id}/test", dependencies=[Depends(require_roles(*OPS_ROLES))])
+@router.post("/{runner_id}/test", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
 def test_request(request: Request, runner_id: str, db: Session = Depends(get_db)):
     row = get_runner_or_404(db, runner_id)
     provider = RunnerHttpProvider(request.app.state.outbound_client)
@@ -236,7 +234,7 @@ def test_request(request: Request, runner_id: str, db: Session = Depends(get_db)
     }
 
 
-@router.post("/{runner_id}/clone", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{runner_id}/clone", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def clone(
     request: Request,
     runner_id: str,
@@ -262,7 +260,7 @@ def clone(
     return {"runner": runner_view(row, request.app.state.secret_provider)}
 
 
-@router.get("/{runner_id}/versions", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{runner_id}/versions", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_versions(runner_id: str, db: Session = Depends(get_db)):
     get_runner_or_404(db, runner_id)
     rows = list_versions(db, OBJECT_TYPE, runner_id)
@@ -283,7 +281,7 @@ class _RollbackBody(BaseModel):
     version: int
 
 
-@router.post("/{runner_id}/rollback", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{runner_id}/rollback", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def rollback(
     request: Request, runner_id: str, payload: _RollbackBody,
     db: Session = Depends(get_db),

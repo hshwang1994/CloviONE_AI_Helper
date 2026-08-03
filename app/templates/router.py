@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.prompts.models import Policy, Prompt
@@ -23,8 +24,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 class TemplateRequest(BaseModel):
@@ -114,7 +113,7 @@ def _validate_references(db: Session, payload: TemplateRequest) -> None:
         raise ValidationAppError("policy_id에 해당하는 Policy가 없습니다.")
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_templates(db: Session = Depends(get_db)):
     rows = db.execute(
         select(AutomationTemplate).order_by(AutomationTemplate.name)
@@ -122,7 +121,7 @@ def list_templates(db: Session = Depends(get_db)):
     return {"items": [_view(r) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def create_template(request: Request, payload: TemplateRequest, db: Session = Depends(get_db)):
     if db.execute(
         select(AutomationTemplate).where(AutomationTemplate.name == payload.name)
@@ -150,12 +149,12 @@ def create_template(request: Request, payload: TemplateRequest, db: Session = De
     return {"template": _view(row)}
 
 
-@router.get("/{template_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{template_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_template(template_id: str, db: Session = Depends(get_db)):
     return {"template": _view(_get_or_404(db, template_id))}
 
 
-@router.put("/{template_id}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.put("/{template_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def update_template(
     request: Request,
     template_id: str,
@@ -203,11 +202,11 @@ def _set_enabled(request: Request, db: Session, template_id: str, enabled: bool)
     return {"ok": True, "enabled": enabled}
 
 
-@router.post("/{template_id}/enable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{template_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def enable_template(request: Request, template_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, template_id, True)
 
 
-@router.post("/{template_id}/disable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{template_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def disable_template(request: Request, template_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, template_id, False)

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_OPS_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
@@ -17,7 +18,7 @@ router = APIRouter(
     prefix="/api/admin/jobs",
     tags=["admin-jobs"],
     dependencies=[
-        Depends(require_roles("operator", "admin", "system_admin")),
+        Depends(require_roles(*CONSOLE_OPS_ROLES)),
         Depends(require_csrf),
     ],
 )

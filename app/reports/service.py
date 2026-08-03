@@ -169,13 +169,22 @@ def _finalize_dev(name: str, b: dict, *, has_tickets: bool) -> dict:
 
 def build_period_report(
     db: Session, outbound, settings, *, start: str, end: str, today: date,
-    tickets=None, repo=None,
+    tickets=None, repo=None, visible_user_ids=None,
 ) -> dict:
     """마감일이 [start, end) 인 티켓을 담당자별로 집계한다(월간 리포트·스프린트 회의 공용 코어).
     반환에 period 는 없다 — 월간 래퍼(build_dev_monthly_report)가 period 를 덧붙인다.
 
     tickets 를 주면 그 목록을 그대로 쓴다 — 스프린트 요약이 같은 범위를 두 번 읽지 않게 하려는
-    것이다(실시간 소스일 때 왕복이 그대로 비용이다)."""
+    것이다(실시간 소스일 때 왕복이 그대로 비용이다).
+
+    ``visible_user_ids`` 는 관리 범위(0024)다. **None 이면 제한 없음** — 전역 관리자의 응답은
+    이 인자가 없던 시절과 바이트 단위로 같다(골든이 그것을 못박는다). 값이 있으면:
+      * 티켓은 **담당자 중 한 명이라도** 그 집합 안이면 남는다. 스칼라 하나로 정하면 두 부서가
+        함께 맡은 티켓이 한쪽에서 통째로 사라진다(PLAN Phase 4 미결 쟁점 종결);
+      * 담당자가 없는 티켓은 어느 부서에도 속하지 않으므로 빠진다 — 미할당 트리아지는 부서
+        화면이 아니라 포탈 전용 버킷에서 다룬다;
+      * 팀 합계도 남은 티켓만으로 다시 센다(부서 화면에 전사 숫자가 섞이면 의미가 없다).
+    """
     if tickets is None:
         from app.tickets.service import list_period_tickets
 
@@ -183,6 +192,17 @@ def build_period_report(
     maps = load_display_maps(db)
     id_to_name, active_names = maps.id_to_name, maps.active_names
     today_iso = today.isoformat()
+
+    if visible_user_ids is not None:
+        from app.core.scope import any_assignee_visible
+
+        tickets = [
+            t
+            for t in tickets
+            if any_assignee_visible(
+                (maps.id_to_user.get(aid) for aid in t.assignee_ids), visible_user_ids
+            )
+        ]
 
     devs: dict[str, dict] = {}
     unassigned = {"done": 0, "prog": 0, "verify": 0, "plan": 0, "cancel": 0, "total": 0}
@@ -225,12 +245,21 @@ def build_period_report(
             continue
 
         for aid in t.assignee_ids:
+            app_user_id = maps.id_to_user.get(aid)
+            # 범위가 걸려 있으면 범위 밖 담당자는 행을 만들지 않는다. 티켓 자체는 위에서
+            # 이미 '담당자 중 한 명이라도 범위 안'으로 걸러졌으므로, 공유 티켓은 남되
+            # 남의 부서 사람 이름은 안 새어 나간다.
+            if visible_user_ids is not None and app_user_id not in visible_user_ids:
+                continue
             name = id_to_name.get(aid, _UNKNOWN_NAME)
-            _bump(devs.setdefault(name, _blank_dev(maps.id_to_user.get(aid))), t, overdue=overdue)
+            _bump(devs.setdefault(name, _blank_dev(app_user_id)), t, overdue=overdue)
 
-    # 활성 사용자 전원을 포함한다(이번 달 티켓이 없으면 0).
+    # 활성 사용자 전원을 포함한다(이번 달 티켓이 없으면 0). 범위가 걸려 있으면 그 안의 사람만.
     for name in active_names:
-        devs.setdefault(name, _blank_dev(maps.name_to_user.get(name)))
+        app_user_id = maps.name_to_user.get(name)
+        if visible_user_ids is not None and app_user_id not in visible_user_ids:
+            continue
+        devs.setdefault(name, _blank_dev(app_user_id))
 
     rows = [
         _finalize_dev(name, b, has_tickets=b["assigned"] > 0)
@@ -258,11 +287,13 @@ def build_period_report(
 
 
 def build_dev_monthly_report(
-    db: Session, outbound, settings, *, period: str, today: date, repo=None
+    db: Session, outbound, settings, *, period: str, today: date, repo=None,
+    visible_user_ids=None,
 ) -> dict:
     """개발자 월간 리포트 — 'YYYY-MM' 달을 날짜 범위로 바꿔 build_period_report 에 위임하고 period 를 덧붙인다."""
     start, end = month_range(period)
     report = build_period_report(
-        db, outbound, settings, start=start, end=end, today=today, repo=repo
+        db, outbound, settings, start=start, end=end, today=today, repo=repo,
+        visible_user_ids=visible_user_ids,
     )
     return {"period": period, **report}

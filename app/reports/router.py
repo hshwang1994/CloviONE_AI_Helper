@@ -11,26 +11,31 @@ import re
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_roles
+from app.core.authz import SENSITIVE_READ_ROLES
+from app.core.deps import get_db, get_principal, require_roles
 from app.core.errors import NotionNotConfiguredError, NotionQueryError
+from app.core.scope import Principal, visible_user_ids
 from app.reports.service import build_dev_monthly_report
 
 router = APIRouter(prefix="/api/admin/reports", tags=["admin-reports"])
 
-READ_ROLES = ("admin", "system_admin", "auditor")
 _PERIOD_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
-@router.get("/dev-monthly", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/dev-monthly", dependencies=[Depends(require_roles(*SENSITIVE_READ_ROLES))])
 def dev_monthly(
     request: Request,
     period: str | None = Query(default=None, max_length=7),
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     """마감일이 지정한 달인 티켓을 담당자별로 집계해 돌려준다.
 
     period 는 'YYYY-MM'. 생략하면 오늘 기준 이번 달. Notion 토큰이 아직 없으면
     오류 대신 configured=false 를 돌려줘, 화면이 '연동 필요' 안내를 그리게 한다.
+
+    관리 범위(0024)가 걸린 두 곳 중 하나다(다른 하나는 `/api/admin/users`). 전역 관리자면
+    `visible_user_ids` 가 None 이라 예전 응답과 바이트 단위로 같다.
     """
     now = request.app.state.clock.now()
     if period is None:
@@ -44,6 +49,7 @@ def dev_monthly(
         report = build_dev_monthly_report(
             db, outbound, settings, period=period, today=now.date(),
             repo=request.app.state.repositories.tickets,
+            visible_user_ids=visible_user_ids(db, principal.scope),
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "period": period}

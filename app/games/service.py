@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.presence import should_touch
 from app.core.errors import ConflictError, ForbiddenError, ValidationAppError
 from app.games import repository
 from app.games.models import (
@@ -1016,9 +1017,21 @@ def reset_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
 
 
 def touch_presence(db: Session, room: GameRoom, user: User, *, now: datetime) -> None:
-    """폴링마다 호출 — 재접속 감지용 last_seen/active 갱신."""
+    """폴링마다 호출 — 재접속 감지용 last_seen/active 갱신.
+
+    방 화면은 1.2초마다 폴링한다. 예전 임계값 2초는 "두 번에 한 번은 쓴다"는 뜻이라 사실상
+    스로틀이 아니었고, 읽기 폴링이 그대로 쓰기 부하가 됐다(SQLite writer 는 하나다).
+    이제 `app/core/presence.py` 의 30초를 쓴다 — 접속자 판정 창(PRESENCE_SECONDS=90)의
+    1/3 이라 실제로 붙어 있는 사람이 깜빡일 여지가 없다.
+
+    **재접속(active=False → True)만은 스로틀에 걸지 않는다.** 그건 '아직 여기 있다'가 아니라
+    '방금 돌아왔다'라서, 30초를 기다리면 돌아온 사람이 목록에 안 뜬다.
+    """
     member = repository.get_member(db, room.id, user.id)
-    if member is not None and (not member.active or (now - member.last_seen).total_seconds() > 2):
-        member.active = True
-        member.last_seen = now
-        db.flush()
+    if member is None:
+        return
+    if member.active and not should_touch(member.last_seen, now):
+        return
+    member.active = True
+    member.last_seen = now
+    db.flush()

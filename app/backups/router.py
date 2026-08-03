@@ -22,6 +22,7 @@ from app.backups.service import (
     verify_existing,
 )
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_READ_ROLES, SYSTEM_ADMIN_ONLY
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import NotFoundError
 
@@ -31,10 +32,9 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_backups(request: Request, db: Session = Depends(get_db)):
     # 목록을 열 때마다 오래 running으로 멈춘 행을 정리한다 — 그래야 프로세스가 죽어
     # 상태 확정 없이 멈춘 백업이 영원히 '실행 중'으로 보이며 아무 조작도 못 하게
@@ -48,7 +48,7 @@ def list_backups(request: Request, db: Session = Depends(get_db)):
     return {"items": [backup_view(r) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles("system_admin"))])
+@router.post("", status_code=201, dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
 def create_backup(request: Request, db: Session = Depends(get_db)):
     now = request.app.state.clock.now()
     row = run_backup(
@@ -62,7 +62,7 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
     return {"backup": backup_view(row)}
 
 
-@router.post("/{backup_id}/verify", dependencies=[Depends(require_roles("system_admin"))])
+@router.post("/{backup_id}/verify", dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
 def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     row = db.get(Backup, backup_id)
     if row is None:
@@ -75,7 +75,7 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     return {"backup": backup_view(row), "verify": result}
 
 
-@router.get("/restore-instructions", dependencies=[Depends(require_roles("system_admin"))])
+@router.get("/restore-instructions", dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
 def restore_instructions():
     """Spec §14.6: 실제 Restore는 스크립트로만. 추가 확인 + Snapshot 필요.
 

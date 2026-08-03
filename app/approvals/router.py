@@ -16,6 +16,7 @@ from app.approvals.service import (
     resolve_names,
 )
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
@@ -26,8 +27,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-DECIDE_ROLES = ("admin", "system_admin")
 
 
 class DecisionRequest(BaseModel):
@@ -54,7 +53,7 @@ def _view(
     return approval_view(row, request.app.state.clock.now(), names=names)
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_approvals(
     request: Request,
     db: Session = Depends(get_db),
@@ -119,7 +118,7 @@ def list_approvals(
     }
 
 
-@router.get("/{approval_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{approval_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_approval(request: Request, approval_id: str, db: Session = Depends(get_db)):
     return {"approval": _view(request, db, get_approval_or_404(db, approval_id))}
 
@@ -146,7 +145,7 @@ def _decide(request: Request, approval_id: str, db: Session, approve: bool, comm
     return {"approval": _view(request, db, row)}
 
 
-@router.post("/{approval_id}/approve", dependencies=[Depends(require_roles(*DECIDE_ROLES))])
+@router.post("/{approval_id}/approve", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def approve(
     request: Request,
     approval_id: str,
@@ -157,7 +156,7 @@ def approve(
     return _decide(request, approval_id, db, True, comment)
 
 
-@router.post("/{approval_id}/reject", dependencies=[Depends(require_roles(*DECIDE_ROLES))])
+@router.post("/{approval_id}/reject", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def reject(
     request: Request,
     approval_id: str,
@@ -170,7 +169,7 @@ def reject(
 
 @router.post(
     "/{approval_id}/cancel",
-    dependencies=[Depends(require_roles("operator", "admin", "system_admin"))],
+    dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))],
 )
 def cancel_approval(request: Request, approval_id: str, db: Session = Depends(get_db)):
     row = get_approval_or_404(db, approval_id)

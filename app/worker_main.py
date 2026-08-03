@@ -18,7 +18,9 @@ from app.core.config import Settings
 from app.core.db import make_engine, make_session_factory
 from app.core.http_client import OutboundClient
 from app.core.secret_refs import FileSecretReferenceProvider
+from app.core.worker_lock import WorkerLock, default_lock_path
 from app.jobs.worker import Worker, WorkerContext
+from app.observability.models import COMPONENT_DOCUMENTS, COMPONENT_TICKETS
 
 logger = logging.getLogger("app.worker")
 
@@ -64,15 +66,50 @@ def run_heartbeat_loop(
     *,
     interval: float = HEARTBEAT_INTERVAL_SECONDS,
     components: tuple[str, ...] = LIVENESS_COMPONENTS,
+    lock=None,
 ) -> None:
     """Beat immediately, then every ``interval`` seconds until ``stop_event``.
 
     Runs on a daemon thread (see main). Beating first means the dashboard shows
     'up' as soon as the worker starts rather than after the first interval.
+
+    워커 싱글턴 리스(``lock``)도 여기서 갱신한다 — 이미 30초마다 도는 스레드가 있는데
+    두 번째 타이머 스레드를 만들 이유가 없다. 갱신에 실패하면(= 리스를 남이 가져갔다)
+    **즉시 멈춘다**: 워커가 둘 도는 것보다 하나도 안 도는 편이 안전하다(잡이 두 번
+    실행되면 워크플로가 두 번 호출되고 스케줄이 두 번 발화한다).
     """
     while not stop_event.is_set():
         beat_liveness(session_factory, clock, components)
+        if lock is not None and not lock.renew():
+            logger.error("워커 리스를 잃었다 — 다른 워커가 인수했다. 중단한다.")
+            stop_event.set()
+            break
         stop_event.wait(interval)
+
+
+def mirror_sync_status(db, component: str, state, now) -> None:
+    """미러 동기화 상태를 `sync_status` 공통 표에도 남긴다(0026).
+
+    왜 표를 하나 더 두는가: `document_sync_state` / `ticket_sync_state` 는 각자 다른 컬럼을
+    가진 **구현 상태**다. 화면이 "동기화 컴포넌트 목록"을 그리려면 컴포넌트마다 다른 표와
+    다른 컬럼 이름을 알아야 하고, 그러면 컴포넌트가 늘 때마다 화면을 고쳐야 한다.
+    워커가 여기서 공통 모양으로 옮겨 적고, 화면은 이 표만 읽는다.
+
+    실패해도 동기화 tick 을 죽이지 않는다 — 상태 표시가 본 작업보다 강하면 안 된다.
+    """
+    from app.observability.service import upsert_sync_status
+
+    try:
+        upsert_sync_status(
+            db, component,
+            status=state.status,
+            now=now,
+            item_count=getattr(state, "ticket_count", None) or getattr(state, "doc_count", 0),
+            truncated=bool(getattr(state, "truncated", False)),
+            error=state.error,
+        )
+    except Exception:
+        logger.exception("sync_status 미러링 실패 (무시하고 계속한다): %s", component)
 
 
 def build_handlers() -> dict:
@@ -97,6 +134,21 @@ def main() -> int:
     )
     settings = Settings()
     clock = SystemClock()
+
+    # 싱글턴 리스(§ 스케일 심). 워커가 둘 돌면 잡이 두 번 실행되고 스케줄이 두 번 발화한다.
+    # systemd 재시작 중첩, 운영자가 진단하려고 손으로 띄운 워커, 배포 스크립트의 중복
+    # start — 셋 다 실제로 있는 경로다. 잡지 못하면 **뜨지 않는다**(조용히 둘째로 돌지 않는다).
+    lock = WorkerLock(default_lock_path(settings.data_dir))
+    if not lock.acquire():
+        holder = (lock.read() or {}).get("owner", "?")
+        logger.error(
+            "다른 워커가 이미 돌고 있다(owner=%s, lock=%s) — 중복 실행을 막기 위해 종료한다. "
+            "정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.",
+            holder, lock.path,
+        )
+        return 1
+    logger.info("워커 리스 획득: %s", lock.owner)
+
     engine = make_engine(settings.database_url)
     session_factory = make_session_factory(engine)
 
@@ -201,7 +253,8 @@ def main() -> int:
             _last_docs_sync[0] = now
             try:
                 with session_factory() as db:
-                    sync_documents(db, outbound=outbound, settings=settings, now=now)
+                    state = sync_documents(db, outbound=outbound, settings=settings, now=now)
+                    mirror_sync_status(db, COMPONENT_DOCUMENTS, state, now)
                     db.commit()
             except Exception:
                 logger.exception("docs sync tick failed")
@@ -222,7 +275,8 @@ def main() -> int:
             _last_tickets_sync[0] = now
             try:
                 with session_factory() as db:
-                    sync_tickets(db, outbound=outbound, settings=settings, now=now)
+                    state = sync_tickets(db, outbound=outbound, settings=settings, now=now)
+                    mirror_sync_status(db, COMPONENT_TICKETS, state, now)
                     db.commit()
             except Exception:
                 logger.exception("tickets sync tick failed")
@@ -245,14 +299,20 @@ def main() -> int:
     heartbeat_thread = threading.Thread(
         target=run_heartbeat_loop,
         args=(session_factory, clock, stop_event),
+        kwargs={"lock": lock},
         name="liveness-heartbeat",
         daemon=True,
     )
     heartbeat_thread.start()
 
-    worker.run_forever(stop_event)
-    heartbeat_thread.join(timeout=5.0)
-    outbound.close()
+    try:
+        worker.run_forever(stop_event)
+        heartbeat_thread.join(timeout=5.0)
+    finally:
+        # 리스는 반드시 놓는다. 안 놓으면 다음 워커가 만료(120초)까지 기다려야 하고,
+        # 배포 때 재시작이 2분 멈춘 것처럼 보인다.
+        lock.release()
+        outbound.close()
     return 0
 
 

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.versioning import list_versions, load_snapshot
 from app.settings.registry import REGISTRY
@@ -26,25 +27,23 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 class SettingChange(BaseModel):
     value: Any
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_settings(request: Request, db: Session = Depends(get_db)):
     return {"settings": effective_settings(db, request.app.state.settings_cache)}
 
 
-@router.post("/{key}/dry-run", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{key}/dry-run", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def dry_run_setting(key: str, payload: SettingChange):
     return dry_run(key, payload.value)
 
 
-@router.put("/{key}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.put("/{key}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def update_setting(
     request: Request, key: str, payload: SettingChange, db: Session = Depends(get_db)
 ):
@@ -75,7 +74,7 @@ def update_setting(
     return result
 
 
-@router.get("/{key}/versions", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{key}/versions", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def setting_versions(key: str, db: Session = Depends(get_db)):
     rows = list_versions(db, OBJECT_TYPE, key)
     # 설정을 되돌리는 화면에서 '누가 바꿨나'는 accountability의 기본 질문인데 지금껏
@@ -107,7 +106,7 @@ class _RollbackBody(BaseModel):
     version: int
 
 
-@router.post("/{key}/rollback", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{key}/rollback", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def rollback(
     request: Request, key: str, payload: _RollbackBody, db: Session = Depends(get_db),
 ):

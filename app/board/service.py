@@ -21,10 +21,10 @@ from app.board.models import (
 )
 from app.board.schemas import CommentUpdate, PostUpdate
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
-from app.users.models import ROLE_OPERATOR, User, roles_at_least
-
 # 운영자군 = operator/admin/system_admin (계층 operator 이상). 게시판 중재 권한.
-MODERATOR_ROLES = roles_at_least(ROLE_OPERATOR)
+# 정의는 app/core/authz.py 한 곳뿐이다 — 화면마다 다른 '운영자'가 생기지 않게.
+from app.core.authz import MODERATOR_ROLES
+from app.users.models import User
 
 
 def can_moderate(user: User) -> bool:

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit, record_audit_from_request
+from app.observability.service import EVENT_LOGIN, record_usage
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -406,6 +407,11 @@ def login(
         object_id=user.id, client_ip=client_ip,
         request_id=getattr(request.state, "request_id", None),
     )
+    # 사용 통계(0026). 로그인은 세션당 한 번뿐인 전형적인 저빈도 지점이다 —
+    # 채팅 전송·폴링 경로에는 절대 걸지 않는다(app/observability/service.py 규칙).
+    # 감사 로그와 목적이 다르다: 감사는 '누가 무엇을 바꿨나', 이건 '얼마나 쓰이나'다.
+    record_usage(db, event=EVENT_LOGIN, user_id=user.id,
+                 org_id=getattr(user, "org_id", None), now=now)
     db.commit()
 
     if _is_json_request(request):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -20,21 +21,22 @@ from app.team_docs.models import (
     join_names,
     split_names,
 )
-from app.users.models import ROLE_OPERATOR, User, roles_at_least
-
 # 수동 동기화는 운영자군만(무분별한 Notion 호출·비용 방지). 주기 동기화는 워커가 전원에게 제공.
-SYNC_ROLES = roles_at_least(ROLE_OPERATOR)
-# 문서 삭제(휴지통) — 운영자군은 무엇이든, 그 외는 본인이 작성/소유한 문서만.
-_DOC_DELETE_ROLES = roles_at_least(ROLE_OPERATOR)
+# 문서 삭제(휴지통)도 같은 선이다 — 운영자군은 무엇이든, 그 외는 본인 문서만.
+# 예전엔 SYNC_ROLES / _DOC_DELETE_ROLES 두 이름이 **같은 집합**을 각자 계산하고 있었다:
+# 한쪽만 고치면 "동기화는 되는데 삭제는 안 되는" 상태가 조용히 생긴다. 이제 이름도
+# 지우고 authz 의 MODERATOR_ROLES 를 그대로 쓴다.
+from app.core.authz import MODERATOR_ROLES
+from app.users.models import User
 
 
 def can_trigger_sync(user: User) -> bool:
-    return user.role in SYNC_ROLES
+    return user.role in MODERATOR_ROLES
 
 
 def ensure_can_delete_doc(doc: DocumentCache, user: User) -> None:
     """문서 삭제 권한 — 운영자군이거나 작성자/소유자 본인(이름 일치)."""
-    if user.role in _DOC_DELETE_ROLES:
+    if user.role in MODERATOR_ROLES:
         return
     name = (user.display_name or "").strip()
     authors = {a.strip() for a in split_names(doc.author_names or "")}
@@ -94,12 +96,29 @@ def filter_options(db: Session) -> dict:
     }
 
 
+def _document_uid(db: Session, page_id: str) -> str | None:
+    """Notion page id → 미러 행의 자체 UUID(0025). 미러에 없으면 None.
+
+    None 이 정상 상태다: 방금 만들어져 아직 동기화되지 않은 문서를 즐겨찾기할 수 있다.
+    그래서 이 값을 필수로 만들거나 FK 로 걸지 않는다 — 조회·유일성은 계속 notion_page_id 가
+    담당하고 이 컬럼은 소스 전환을 위한 다리일 뿐이다.
+    """
+    from app.team_docs.models import DocumentCache
+
+    return db.execute(
+        select(DocumentCache.id).where(DocumentCache.notion_page_id == page_id)
+    ).scalar_one_or_none()
+
+
 def toggle_favorite(db: Session, *, user_id: str, page_id: str, on: bool, now: datetime) -> bool:
     existing = repository.find_favorite(db, user_id, page_id)
     if on:
         if existing is not None:
             return True
-        row = DocumentFavorite(user_id=user_id, notion_page_id=page_id, created_at=now)
+        row = DocumentFavorite(
+            user_id=user_id, notion_page_id=page_id, created_at=now,
+            document_id=_document_uid(db, page_id),
+        )
         try:
             with db.begin_nested():
                 db.add(row)
@@ -119,7 +138,10 @@ def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> No
         existing.viewed_at = now
         db.flush()
         return
-    row = DocumentRecentView(user_id=user_id, notion_page_id=page_id, viewed_at=now)
+    row = DocumentRecentView(
+        user_id=user_id, notion_page_id=page_id, viewed_at=now,
+        document_id=_document_uid(db, page_id),
+    )
     try:
         with db.begin_nested():
             db.add(row)

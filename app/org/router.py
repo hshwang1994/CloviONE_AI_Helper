@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.org.models import Department, JobTitle
 from app.org.schemas import OrgItemCreateRequest, OrgItemUpdateRequest
@@ -27,14 +28,13 @@ from app.org.service import (
     usage_count,
 )
 
-WRITE_ROLES = ("admin", "system_admin")
 
 
 def _make_org_router(*, model, prefix: str, tag: str, body_key: str, audit_type: str):
     router = APIRouter(
         prefix=prefix,
         tags=[tag],
-        dependencies=[Depends(require_roles(*WRITE_ROLES)), Depends(require_csrf)],
+        dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
     )
 
     @router.get("")

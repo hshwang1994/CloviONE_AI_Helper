@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.versioning import list_versions, load_snapshot
 from app.integrations.models import Integration
@@ -32,8 +33,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 def _guard_secret_binding_create(request: Request, config: IntegrationConfig) -> None:
@@ -48,14 +47,14 @@ def _guard_secret_binding_create(request: Request, config: IntegrationConfig) ->
         )
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_integrations(request: Request, db: Session = Depends(get_db)):
     rows = db.execute(select(Integration).order_by(Integration.name)).scalars().all()
     secrets = request.app.state.secret_provider
     return {"items": [integration_view(r, secrets) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def create_integration_endpoint(
     request: Request, config: IntegrationConfig, db: Session = Depends(get_db)
 ):
@@ -79,13 +78,13 @@ def create_integration_endpoint(
     return {"integration": integration_view(row, request.app.state.secret_provider)}
 
 
-@router.get("/{integration_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{integration_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_integration(request: Request, integration_id: str, db: Session = Depends(get_db)):
     row = get_integration_or_404(db, integration_id)
     return {"integration": integration_view(row, request.app.state.secret_provider)}
 
 
-@router.patch("/{integration_id}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.patch("/{integration_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def update_integration(
     request: Request,
     integration_id: str,
@@ -164,19 +163,19 @@ def _set_enabled(request: Request, db: Session, integration_id: str, enabled: bo
     return {"ok": True, "enabled": enabled}
 
 
-@router.post("/{integration_id}/enable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{integration_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def enable_integration(request: Request, integration_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, integration_id, True)
 
 
-@router.post("/{integration_id}/disable", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{integration_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def disable_integration(request: Request, integration_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, integration_id, False)
 
 
 @router.post(
     "/{integration_id}/health",
-    dependencies=[Depends(require_roles("operator", "admin", "system_admin"))],
+    dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))],
 )
 def health_check(request: Request, integration_id: str, db: Session = Depends(get_db)):
     row = get_integration_or_404(db, integration_id)
@@ -191,7 +190,7 @@ def health_check(request: Request, integration_id: str, db: Session = Depends(ge
 
 @router.get(
     "/{integration_id}/versions",
-    dependencies=[Depends(require_roles(*READ_ROLES))],
+    dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))],
 )
 def get_versions(integration_id: str, db: Session = Depends(get_db)):
     get_integration_or_404(db, integration_id)
@@ -215,7 +214,7 @@ class _RollbackBody(BaseModel):
 
 @router.post(
     "/{integration_id}/rollback",
-    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))],
 )
 def rollback(
     request: Request, integration_id: str, payload: _RollbackBody,

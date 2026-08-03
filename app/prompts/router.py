@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, ValidationAppError
 from app.prompts.models import STATUS_DRAFT, Policy, Prompt
@@ -37,8 +38,6 @@ from app.prompts.service import (
     validate_policy_content,
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 class PromptCreateRequest(BaseModel):
@@ -143,7 +142,7 @@ def _build_router(kind: str, model, view, create_schema):
         names = _resolve_creator_names(db, {row.created_by} if row.created_by else set())
         return view(row, names)
 
-    @router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+    @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def list_all(
         db: Session = Depends(get_db),
         name: str | None = Query(default=None, max_length=120),
@@ -180,7 +179,7 @@ def _build_router(kind: str, model, view, create_schema):
             "page_size": page_size,
         }
 
-    @router.post("", status_code=201, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+    @router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
     def create(request: Request, payload: create_schema, db: Session = Depends(get_db)):
         # Existence check only — a name legitimately has many versions, so
         # limit(1) avoids MultipleResultsFound (which would surface as HTTP 500).
@@ -215,11 +214,11 @@ def _build_router(kind: str, model, view, create_schema):
         )
         return {"item": _view_single(db, row)}
 
-    @router.get("/{row_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+    @router.get("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def get_one(row_id: str, db: Session = Depends(get_db)):
         return {"item": _view_single(db, get_or_404(db, model, row_id))}
 
-    @router.patch("/{row_id}", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+    @router.patch("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
     def patch(
         request: Request,
         row_id: str,
@@ -241,7 +240,7 @@ def _build_router(kind: str, model, view, create_schema):
         )
         return {"item": _view_single(db, row)}
 
-    @router.post("/{row_id}/transition", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+    @router.post("/{row_id}/transition", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
     def do_transition(
         request: Request,
         row_id: str,
@@ -259,7 +258,7 @@ def _build_router(kind: str, model, view, create_schema):
         )
         return {"item": _view_single(db, row)}
 
-    @router.post("/{row_id}/new-version", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+    @router.post("/{row_id}/new-version", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
     def new_version(request: Request, row_id: str, db: Session = Depends(get_db)):
         row = get_or_404(db, model, row_id)
         copy = new_version_from(db, row, created_by=request.state.user.id)
@@ -269,7 +268,7 @@ def _build_router(kind: str, model, view, create_schema):
         )
         return {"item": _view_single(db, copy)}
 
-    @router.get("/diff/view", dependencies=[Depends(require_roles(*READ_ROLES))])
+    @router.get("/diff/view", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def diff(
         name: str = Query(max_length=120),
         from_version: int = Query(alias="from", ge=1),
@@ -278,7 +277,7 @@ def _build_router(kind: str, model, view, create_schema):
     ):
         return {"diff": diff_versions(db, model, name, from_version, to_version)}
 
-    @router.post("/rollback", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+    @router.post("/rollback", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
     def rollback(request: Request, payload: RollbackRequest, db: Session = Depends(get_db)):
         row = rollback_to_version(
             db, model, payload.name, payload.version,

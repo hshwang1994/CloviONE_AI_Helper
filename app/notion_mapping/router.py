@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.pagination import PageParams
 from app.jobs import repository as jobs_repo
@@ -31,8 +32,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 class ManualMapRequest(BaseModel):
@@ -44,7 +43,7 @@ class ResolveConflictRequest(BaseModel):
     notion_user_id: str = Field(min_length=8, max_length=64)
 
 
-@router.post("/sync", status_code=202, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/sync", status_code=202, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def sync_all(request: Request, db: Session = Depends(get_db)):
     """전원의 Notion 매핑을 한 번에 맞춘다. 잡을 만들고 바로 돌려준다(202).
 
@@ -85,7 +84,7 @@ def sync_all(request: Request, db: Session = Depends(get_db)):
     return {"job_id": job.id, "status": job.status}
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_mappings(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
@@ -153,7 +152,7 @@ def list_mappings(
     }
 
 
-@router.get("/{user_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{user_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_mapping(user_id: str, db: Session = Depends(get_db)):
     """단일 사용자의 Notion 매핑 조회.
 
@@ -175,7 +174,7 @@ def get_mapping(user_id: str, db: Session = Depends(get_db)):
     return {"mapping": mapping_view_for_user(user, row)}
 
 
-@router.post("/{user_id}/verify", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{user_id}/verify", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def verify(request: Request, user_id: str, db: Session = Depends(get_db)):
     user = get_user_or_404(db, user_id)
     row = verify_mapping(
@@ -190,7 +189,7 @@ def verify(request: Request, user_id: str, db: Session = Depends(get_db)):
     return {"mapping": mapping_view(row, user)}
 
 
-@router.post("/{user_id}/map", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{user_id}/map", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def map_manual(
     request: Request, user_id: str, payload: ManualMapRequest, db: Session = Depends(get_db)
 ):
@@ -208,7 +207,7 @@ def map_manual(
     return {"mapping": mapping_view(row, user)}
 
 
-@router.post("/{user_id}/unmap", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{user_id}/unmap", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db)):
     user = get_user_or_404(db, user_id)
     row = unmap(db, user_id)
@@ -219,7 +218,7 @@ def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db)):
     return {"mapping": mapping_view(row, user)}
 
 
-@router.post("/{user_id}/resolve-conflict", dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/{user_id}/resolve-conflict", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def resolve(
     request: Request, user_id: str, payload: ResolveConflictRequest, db: Session = Depends(get_db)
 ):

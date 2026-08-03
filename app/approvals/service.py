@@ -27,6 +27,7 @@ from app.approvals.models import (
 )
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.notifications.service import notify_admins, notify_user
+from app.core.authz import CONSOLE_WRITE_ROLES
 from app.users.models import ROLE_SYSTEM_ADMIN, User
 
 # request_type → executor(db, approval, app_state). Registered by modules below.
@@ -235,7 +236,7 @@ def decide(
 
 def cancel(db: Session, row: Approval, actor: User, *, now: datetime) -> Approval:
     _ensure_decidable(row, now)
-    if row.requested_by != actor.id and actor.role not in ("admin", "system_admin"):
+    if row.requested_by != actor.id and actor.role not in CONSOLE_WRITE_ROLES:
         raise ForbiddenError("본인의 승인 요청만 취소할 수 있습니다.")
     row.status = APPROVAL_CANCELLED
     row.decided_at = now

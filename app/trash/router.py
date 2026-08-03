@@ -13,7 +13,9 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import MODERATOR_ROLES
 from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError
 from app.trash import repository, service
 from app.trash.schemas import TrashBulkIds
@@ -33,7 +35,7 @@ def _retention_days(request: Request) -> int:
 
 def _item_view(item, *, retention_days: int, me: User) -> dict:
     purge_after = item.deleted_at + timedelta(days=retention_days)
-    can_manage = me.role in service._MANAGE_ROLES or item.deleted_by_user_id == me.id
+    can_manage = me.role in MODERATOR_ROLES or item.deleted_by_user_id == me.id
     return {
         "id": item.id,
         "item_type": item.item_type,
@@ -51,7 +53,11 @@ def _item_view(item, *, retention_days: int, me: User) -> dict:
 def list_trash(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     days = _retention_days(request)
     items = repository.list_items(db)
-    return {"items": [_item_view(i, retention_days=days, me=me) for i in items], "retention_days": days}
+    # 휴지통은 15초마다 폴링되는데 실제로는 며칠에 한 번 바뀐다 — 전형적인 304 대상이다.
+    return etag_json_response(request, {
+        "items": [_item_view(i, retention_days=days, me=me) for i in items],
+        "retention_days": days,
+    })
 
 
 def _get_or_404(db: Session, trash_id: str):

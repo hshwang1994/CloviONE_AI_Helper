@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.observability.service import EVENT_DOCUMENT_GENERATE, record_usage
+from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.pagination import PageParams
 from app.documents.models import DocumentGeneration
@@ -24,8 +26,6 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
-READ_ROLES = ("operator", "admin", "system_admin", "auditor")
-WRITE_ROLES = ("admin", "system_admin")
 
 
 class GenerateRequest(BaseModel):
@@ -41,7 +41,7 @@ class GenerateRequest(BaseModel):
         return {} if v is None else v
 
 
-@router.get("", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_generations(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
@@ -82,7 +82,7 @@ def list_generations(
     }
 
 
-@router.post("/generate", status_code=202, dependencies=[Depends(require_roles(*WRITE_ROLES))])
+@router.post("/generate", status_code=202, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def generate(request: Request, payload: GenerateRequest, db: Session = Depends(get_db)):
     # document_automation_enabled는 이제 관리 콘솔 Settings 화면에서 켜고 끌 수 있는
     # settings_cache 값이다(예전엔 서버 파일로만 존재해 화면에 노출되지 않았다).
@@ -104,13 +104,20 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
         object_type="document_generation", object_id=gen.id,
         after={"mode": gen.mode, "workflow_id": gen.workflow_id},
     )
+    # 사용 통계(0026) — 저빈도 지점(문서 생성은 사람이 폼으로 한 번 누르는 행동이다).
+    record_usage(
+        db, event=EVENT_DOCUMENT_GENERATE, user_id=request.state.user.id,
+        org_id=getattr(request.state.user, "org_id", None),
+        object_type="document_generation", object_id=gen.id,
+        now=request.app.state.clock.now(),
+    )
     return {"generation": generation_view(gen)}
 
 
 @router.post(
     "/{generation_id}/retry",
     status_code=202,
-    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))],
 )
 def retry(request: Request, generation_id: str, db: Session = Depends(get_db)):
     # 실패/품질 실패 행을 같은 레코드로 다시 큐에 넣는다 — 생성 폼 재오픈(같은 기간·대상
@@ -125,6 +132,6 @@ def retry(request: Request, generation_id: str, db: Session = Depends(get_db)):
     return {"generation": generation_view(gen)}
 
 
-@router.get("/{generation_id}", dependencies=[Depends(require_roles(*READ_ROLES))])
+@router.get("/{generation_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_generation(generation_id: str, db: Session = Depends(get_db)):
     return {"generation": generation_view(get_generation_or_404(db, generation_id))}

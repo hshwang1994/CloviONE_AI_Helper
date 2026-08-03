@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError, RateLimitedError
 from app.core.feature_flags import load_feature_flags
 from app.games import ai, repository, service
@@ -87,7 +88,12 @@ def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depen
     rooms = repository.list_open_rooms(db)
     flags = load_feature_flags(request.app.state.settings.config_dir)
     # 프런트가 AI 퀴즈 생성 버튼 노출 여부를 알도록 플래그를 함께 내려준다(기본 OFF → 버튼 숨김).
-    return {"items": [_room_summary(db, r) for r in rooms], "game_ai_enabled": bool(flags.get("game_ai_enabled", False))}
+    # 놀이 목록은 3초마다 폴링된다 — 방이 하나도 안 바뀐 동안은 304 로 끝낸다.
+    # (위의 cleanup_idle_rooms 는 그대로 돈다: 유령 방 정리를 건너뛰면 목록이 썩는다.)
+    return etag_json_response(request, {
+        "items": [_room_summary(db, r) for r in rooms],
+        "game_ai_enabled": bool(flags.get("game_ai_enabled", False)),
+    })
 
 
 @router.post("/rooms", dependencies=[Depends(require_csrf)])
