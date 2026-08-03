@@ -38,7 +38,10 @@ cp "$SRC" "$DB"
 [ -f "$SRC-shm" ] && cp "$SRC-shm" "$DB-shm"
 echo "사본 생성: $DB  (원본 $SRC 는 건드리지 않는다)"
 
-export DATABASE_URL="sqlite:///$(pwd)/$DB"
+# 상대 경로로 준다. Git Bash에서 $(pwd)는 /c/Users/... 형태라 SQLAlchemy가 열지 못한다
+# (Windows에서 'unable to open database file'로 떨어진다). 스크립트는 항상 저장소 루트에서
+# 돌기 때문에 상대 경로가 안전하다.
+export DATABASE_URL="sqlite:///./$DB"
 
 snapshot() {   # $1 = 라벨. 스키마와 테이블별 행 수를 찍는다.
   "$PY" - "$DB" "$1" <<'PYEOF'
