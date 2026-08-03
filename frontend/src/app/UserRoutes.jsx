@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { MyWork, MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
+import { MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
+import { Home } from "../screens/Home.jsx";
 import { Board } from "../screens/Board.jsx";
 import { BoardPost } from "../screens/BoardPost.jsx";
 import { TeamDocs } from "../screens/TeamDocs.jsx";
@@ -37,7 +38,9 @@ function Lazy({ children }) {
 function UserRoutes() {
   return (
     <Routes>
-      <Route path="/me" element={<MyWork />} />
+      {/* 홈은 '오늘' 커맨드 센터(Home.jsx) — GET /api/home/today 한 번으로 티켓·알림·채팅·
+          스프린트·최근 변경을 한 화면에 모은다. 예전 MyWork(티켓만 보던 홈)를 대체한다. */}
+      <Route path="/me" element={<Home />} />
       <Route path="/my-tickets" element={<MyTickets />} />
       <Route path="/unassigned" element={<Unassigned />} />
       <Route path="/new-ticket" element={<NewTicket />} />

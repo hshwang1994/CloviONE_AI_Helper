@@ -367,7 +367,7 @@ function rowOpenLabel(columns, row) {
   if (v == null || v === "") return "상세 보기";
   return "상세 보기: " + String(v);
 }
-const TABLE_CARD_BREAKPOINT = "(max-width:760px)";
+const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
 
 function cellValue(c, row) {
   if (c.render) return c.render(row);
@@ -439,7 +439,12 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                 key={c.key}
                 scope="col"
                 align={c.align || "left"}
-                sx={{ width: c.width, whiteSpace: "nowrap" }}
+                /* minWidth: 이 열이 절대 그 아래로 줄지 않는 폭. 없으면 좁은 컨테이너에서
+                   `overflowWrap: anywhere` 때문에 열의 최소 폭이 '한 글자'가 되어, 제목이
+                   세로로 무너진다(24px 폭에 11줄 — QA의 vertical_text_collapse 검사가 잡는
+                   상태). 폭이 모자라면 TableContainer가 스스로 가로 스크롤하므로 페이지에
+                   가로 스크롤이 생기지는 않는다. */
+                sx={{ width: c.width, minWidth: c.minWidth, whiteSpace: "nowrap" }}
               >
                 {/* 상세 열기 칸은 라벨이 비어 있어 스크린리더가 이름 없이 침묵으로 읽었다. */}
                 {c.open ? <span className="sr-only">동작</span> : c.label}
@@ -463,7 +468,9 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                   align={c.align || "left"}
                   sx={ellipsis && !c.open
                     ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
-                    : { overflowWrap: "anywhere" }}
+                    : { overflowWrap: c.nowrap ? "normal" : "anywhere",
+                       whiteSpace: c.nowrap ? "nowrap" : undefined,
+                       minWidth: c.minWidth }}
                 >
                   {c.open ? openButton(row) : cellValue(c, row)}
                 </TableCell>

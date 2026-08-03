@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.admin.router import router as admin_router
 from app.approvals.router import router as approvals_router
+from app.assistant.router import router as assistant_router
 from app.audit.router import router as audit_router
 from app.backups.router import router as backups_router
 from app.auth.router import router as auth_router
@@ -36,6 +37,7 @@ from app.core.secret_refs import FileSecretReferenceProvider
 from app.core.sessions import SessionService
 from app.documents.router import router as documents_router
 from app.health.router import router as health_router
+from app.home.router import router as home_router
 from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.notion_mapping.router import router as notion_mapping_router
@@ -105,6 +107,12 @@ def create_app(
     app.state.game_ai_ratelimiter = RateLimiter(
         capacity=5, refill_per_second=5 / 60, clock=clock
     )
+    # AI 도우미 요약 문장(브리핑·스탠드업·주간 다이제스트) guard. 화면 진입 길목이라 퀴즈보다
+    # 조금 넉넉하되(버스트 6건, 지속 ~12건/분), 여전히 러너 슬롯을 보호한다. 문장 생성이 꺼져
+    # 있으면 이 리미터는 아예 쓰이지 않는다(호출이 나가지 않으므로 토큰도 소비하지 않는다).
+    app.state.assistant_ratelimiter = RateLimiter(
+        capacity=6, refill_per_second=12 / 60, clock=clock
+    )
 
     app.state.allowlists = AllowlistRegistry(settings.config_dir)
     app.state.secret_provider = FileSecretReferenceProvider(settings.secrets_dir)
@@ -160,6 +168,10 @@ def create_app(
     app.include_router(tickets_router)
     app.include_router(trash_router)
     app.include_router(sprint_router)
+    # 홈 '오늘' 커맨드 센터와 AI 도우미 심화(계획서 Phase 5). 둘 다 조회 전용이고
+    # 티켓은 저장소 seam 을 통해서만 읽는다(미러가 채워져 있으면 Notion 왕복 0회).
+    app.include_router(home_router)
+    app.include_router(assistant_router)
     app.include_router(team_chat_router)
     app.include_router(backups_router)
     app.include_router(admin_router)

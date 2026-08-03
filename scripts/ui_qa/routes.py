@@ -89,12 +89,19 @@ def _a(rid, path, label, min_role="operator", allowed=(), **kw) -> Route:
 
 # --- user console (App.jsx UserBody) ----------------------------------------
 USER_ROUTES: tuple[Route, ...] = (
-    _u("user_me", "/me", "내 업무 홈"),
+    # 홈은 '오늘' 커맨드 센터(screens/Home.jsx)로 바뀌었다 — 해시 경로는 그대로 /me 다.
+    _u("user_me", "/me", "홈 — 오늘"),
     _u("user_my-tickets", "/my-tickets", "내 티켓"),
     _u("user_unassigned", "/unassigned", "미할당 티켓"),
     _u("user_new-ticket", "/new-ticket", "새 티켓"),
+    # ``/api/tickets/mine`` is empty unless the QA account is mapped to a Notion
+    # user, and it never is (the CLI creates a plain account). ``/api/tickets``
+    # is not a route at all — it answers 405. So the detail screen was skipped on
+    # every run. ``/api/tickets/team`` needs no mapping and lists the whole board,
+    # which is exactly what a screenshot needs.
     _u("user_ticket-detail", "/my-tickets", "티켓 상세",
-       hash_template="/tickets/{id}", discover=("/api/tickets/mine", "/api/tickets")),
+       hash_template="/tickets/{id}",
+       discover=("/api/tickets/mine", "/api/tickets/team?active=false")),
     _u("user_team-tickets", "/team-tickets", "팀 티켓"),
     _u("user_sprint", "/sprint", "스프린트 회의"),
     _u("user_chat", "/chat", "AI 도우미"),

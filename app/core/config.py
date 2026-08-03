@@ -82,6 +82,16 @@ class Settings(BaseSettings):
     game_runner_token_ref: str = "game_runner_token"
     game_runner_timeout_seconds: int = 50
 
+    # AI 도우미 심화(계획서 Phase 5) — 오늘 브리핑·스탠드업·주간 다이제스트의 **문장만**
+    # 러너에 맡긴다. 숫자는 app/assistant/facts.py 가 로컬에서 결정적으로 만들고, 이 호출이
+    # 실패해도 숫자는 그대로 나간다(문장만 빠진다). 퀴즈와 같은 러너·같은 관문
+    # (OutboundClient allowlist="runners")을 쓴다 — 새 외부 호출 경로를 만들지 않는다.
+    # assistant_narrative_enabled 플래그가 꺼져 있으면(기본) 호출 자체가 나가지 않는다.
+    # 타임아웃이 퀴즈(50s)보다 짧은 이유: 이건 화면을 여는 길목이라 사람이 기다리고 있다.
+    assistant_runner_url: str = "http://127.0.0.1:8789/v1/assistant/summarize"
+    assistant_runner_token_ref: str = "assistant_runner_token"
+    assistant_runner_timeout_seconds: int = 25
+
     # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
     # 값: 'notion' | 'notion_cache' | 'native'. 'native'(자체 DB 정본)는 아직 구현체가 없어
     # 시작 시 거절된다 — 문만 열어 둔 상태다.

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
@@ -18,13 +19,13 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { alpha } from "@mui/material/styles";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { api } from "../lib/api.js";
-import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, StatCard, PageHeader, Modal, ModalFooter, Button, useToast } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
-import { TeamChatWidget } from "./TeamChatWidget.jsx";
 
 // 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
 function useBulkTrash(path, qc, toast, onDone) {
@@ -66,12 +67,6 @@ function todayISO() {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
-function addDaysISO(iso, days) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 function isActive(t) { return !TERMINAL.has(t.status || ""); }
 function isOverdue(t, today) { return isActive(t) && t.due && t.due < today; }
 
@@ -102,26 +97,51 @@ function TitleCell({ t, onOpen }) {
 // 목록 표 — 티켓/제목/상태/우선순위/난이도/예상WD/마감. 숫자·날짜는 우측 정렬.
 // onEdit/onClaim 을 주면 우측에 액션 열(편집·나에게 배정)이 붙는다. onOpen 을 주면 제목이 상세 링크.
 // width는 rem이다 — 4K에서 루트 폰트사이즈가 커지면 열 폭도 같이 커져야 글자와 비율이 맞는다.
-export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen } = {}) {
+//
+// compact: **핵심 열만** 남긴다(계획서 4K 계약의 "900–1536 표(핵심열)"). 홈처럼 2단 배치의
+// 좁은 열 안에 표가 들어갈 때 쓴다. 전체 열을 그대로 넣으면 1366 화면에서 마감·편집이 잘려
+// 나가 가로로 긁어야 보인다 — 실제 캡처에서 그 상태였다. 난이도·예상 WD 는 '오늘 뭘 할까'를
+// 정하는 데 필요 없고, 편집은 글자 대신 아이콘 버튼으로 줄여 자리를 아낀다.
+export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact } = {}) {
+  // nowrap: 한 덩어리 값(티켓 번호·날짜·숫자)은 절대 줄바꿈하지 않는다. 예전에는 모든 셀이
+  // `overflowWrap: anywhere` 라 열의 최소 폭이 '한 글자'가 됐고, 폭이 모자라면 'GIT-4101'이
+  // 세 줄로 쪼개져 세로로 무너졌다(QA vertical_text_collapse). 폭이 정말 모자라면 표를 줄이는
+  // 대신 TableContainer 가 스스로 가로 스크롤한다 — 읽을 수 없는 표보다 낫다.
   const cols = [
-    { key: "tid", label: "티켓", width: "7rem", render: (t) => ticketId(t) },
-    { key: "title", label: "제목", render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
-    { key: "status", label: "상태", width: "7rem", render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
-    { key: "priority", label: "우선순위", width: "7rem", render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
-    { key: "difficulty", label: "난이도", align: "right", width: "5.5rem", render: (t) => (t.difficulty || "-") },
-    { key: "est_wd", label: "예상 WD", align: "right", width: "6rem", render: (t) => (t.est_wd != null ? t.est_wd : "-") },
-    { key: "due", label: "마감", align: "right", width: "7rem", render: (t) => (t.due || "-") },
+    { key: "tid", label: "티켓", width: compact ? "6rem" : "7rem", nowrap: true, render: (t) => ticketId(t) },
+    // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
+    // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
+    // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
+    { key: "title", label: "제목", minWidth: compact ? "11rem" : "16rem", render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
+    { key: "status", label: "상태", width: compact ? "6rem" : "7rem", nowrap: true, render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
+    { key: "priority", label: "우선순위", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
+  if (!compact) {
+    cols.push(
+      { key: "difficulty", label: "난이도", align: "right", width: "5.5rem", nowrap: true, render: (t) => (t.difficulty || "-") },
+      { key: "est_wd", label: "예상 WD", align: "right", width: "6rem", nowrap: true, render: (t) => (t.est_wd != null ? t.est_wd : "-") },
+    );
+  }
+  cols.push({ key: "due", label: "마감", align: "right", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.due || "-") });
   if (showAssignee) {
     cols.push({ key: "assignee_names", label: "담당자", width: "10rem", render: (t) => ((t.assignee_names || []).join(", ") || "-") });
   }
   if (onEdit || onClaim) {
     cols.push({
-      key: "_actions", label: "", align: "right", width: onClaim ? "13rem" : "6rem",
+      key: "_actions", label: "", align: "right",
+      width: onClaim ? "13rem" : compact ? "3.5rem" : "6rem",
+      nowrap: true,
       render: (t) => (
         <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ flexWrap: "nowrap" }}>
           {onClaim ? <Button size="sm" variant="primary" onClick={() => onClaim(t)}>나에게 배정</Button> : null}
-          {onEdit ? <Button size="sm" onClick={() => onEdit(t)}>편집</Button> : null}
+          {onEdit ? (
+            compact
+              /* 좁은 열에서는 글자 대신 아이콘. aria-label 로 이름은 그대로 남는다. */
+              ? <IconButton size="small" aria-label={"편집: " + (t.title || "제목 없음")} onClick={() => onEdit(t)}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              : <Button size="sm" onClick={() => onEdit(t)}>편집</Button>
+          ) : null}
         </Stack>
       ),
     });
@@ -163,7 +183,7 @@ export const EMPTYABLE_SELECT = { SelectProps: { displayEmpty: true }, InputLabe
 
 // 좁은 화면(≤760px)에서 표를 카드 목록으로 바꾸는 기준 — kit.jsx의 DataTable과 같은 값을 쓴다.
 // 두 표가 같은 폭에서 같이 전환되지 않으면 한 화면 안에서 표와 카드가 섞여 보인다.
-const TABLE_CARD_BREAKPOINT = "(max-width:760px)";
+const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
 
 function groupedCell(c, t) {
   if (c.render) return c.render(t);
@@ -241,7 +261,7 @@ export function GroupedTickets({ rows, columns, empty, groupBy }) {
         <TableHead>
           <TableRow>
             {cols.map((c) => (
-              <TableCell key={c.key} scope="col" align={c.align || "left"} sx={{ width: c.width, whiteSpace: "nowrap" }}>
+              <TableCell key={c.key} scope="col" align={c.align || "left"} sx={{ width: c.width, minWidth: c.minWidth, whiteSpace: "nowrap" }}>
                 {c.label || null}
               </TableCell>
             ))}
@@ -267,7 +287,8 @@ export function GroupedTickets({ rows, columns, empty, groupBy }) {
             {items.map((t, i) => (
               <TableRow key={groupedRowKey(t, i)} hover>
                 {cols.map((c) => (
-                  <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: "anywhere", fontVariantNumeric: "tabular-nums" }}>
+                  <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
+                              minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
                     {groupedCell(c, t)}
                   </TableCell>
                 ))}
@@ -458,146 +479,6 @@ export function ticketConnState(data) {
 
 function useMine() {
   return useQuery({ queryKey: ["tickets", "mine"], queryFn: () => api("/api/tickets/mine"), retry: false });
-}
-
-/* 카드 제목줄(제목 + 오른쪽 링크) — 홈 위젯들이 공유하던 .c-card-head를 대신한다. */
-function CardHead({ title, action }) {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5 }}>
-      <Typography component="h3" variant="h6" sx={{ fontSize: "1.0625rem", minWidth: 0 }}>{title}</Typography>
-      {action}
-    </Box>
-  );
-}
-
-// 요약 카드 줄 — DataScreen(재설계 기준 화면)의 통계 카드 그리드와 같은 열 규칙을 쓴다.
-const STAT_GRID = {
-  display: "grid", gap: 2, mb: 2.5,
-  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))" },
-};
-
-/* 내 업무(홈), 상태별 요약 카드(누르면 아래 목록이 그 상태로 필터됨) + 지연 강조.
- * 카드=필터 선택: 누르면 그 상태가 '선택된 채로 유지'된다. 해제는 목록 위 '필터 해제'로 한다
- * (같은 카드를 다시 눌러도 풀리지 않는다 — 눌러 놓은 필터가 저절로 풀리면 헷갈린다는 피드백 반영). */
-export function MyWork() {
-  const q = useMine();
-  const nav = useNavigate();
-  const [focus, setFocus] = React.useState(null); // null | active | due7 | overdue | done
-  const [editing, setEditing] = React.useState(null);
-  const today = todayISO();
-  const weekEnd = addDaysISO(today, 7);
-  return (
-    <div className="c-screen">
-      <PageHeader title="내 업무" spot="mywork" />
-      {q.isLoading ? <Card><Skeleton /></Card>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        : (() => {
-          const data = q.data || {};
-          const conn = ticketConnState(data);
-          if (conn) return conn;
-          const tickets = Array.isArray(data.tickets) ? data.tickets : [];
-          const active = tickets.filter(isActive);
-          const done = tickets.filter((t) => t.status === "완료");
-          const overdue = tickets.filter((t) => isOverdue(t, today));
-          // 마감 임박: 오늘부터 7일 이내. 라벨을 '이번 주'로 쓰면 실제 로직(오늘+7일 롤링)과 어긋나
-          // 헷갈린다(예: 오늘이 7/28이면 8/3 마감도 잡힌다) — '7일 내 마감'으로 정확히 부른다.
-          const due7 = active.filter((t) => t.due && t.due >= today && t.due <= weekEnd);
-          const byDue = (rows) => [...rows].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
-          const views = {
-            active: { title: "진행 중인 내 티켓", rows: active },
-            due7: { title: "7일 내 마감", rows: due7 },
-            overdue: { title: "지연(기한 초과)", rows: overdue },
-            done: { title: "완료한 티켓", rows: done },
-          };
-          const cur = focus ? views[focus] : null;
-          const select = (k) => setFocus(k);  // 선택 유지(같은 카드를 다시 눌러도 해제되지 않음)
-          const listRows = cur ? byDue(cur.rows) : byDue(active).slice(0, 8);
-          return (
-            <>
-              <Box sx={STAT_GRID}>
-                <StatCard value={active.length} label="진행 중인 내 티켓" active={focus === "active"} onClick={() => select("active")} />
-                <StatCard value={due7.length} label="7일 내 마감" kind={due7.length ? "warn" : undefined} active={focus === "due7"} onClick={() => select("due7")} />
-                <StatCard value={overdue.length} label="지연(기한 초과)" kind={overdue.length ? "danger" : undefined} active={focus === "overdue"} onClick={() => select("overdue")} />
-                <StatCard value={done.length} label="완료" kind="ok" active={focus === "done"} onClick={() => select("done")} />
-              </Box>
-              {overdue.length && focus !== "overdue" ? (
-                <Box sx={{ mb: 2.5 }}>
-                  <Callout tone="danger">
-                    마감이 지난 미완료 티켓이 {overdue.length}건 있습니다.{" "}
-                    <Link component="button" type="button" underline="hover" sx={{ font: "inherit" }} onClick={() => setFocus("overdue")}>여기서 보기</Link>
-                    {" 또는 "}
-                    <Link href="#/my-tickets" underline="hover">내 티켓에서 확인</Link>하세요.
-                  </Callout>
-                </Box>
-              ) : null}
-              <Card>
-                <CardHead
-                  title={cur ? cur.title + " (" + cur.rows.length + "건)" : "다가오는 내 티켓"}
-                  action={cur
-                    ? <Link component="button" type="button" underline="hover" onClick={() => setFocus(null)}>필터 해제</Link>
-                    : <Link href="#/my-tickets" underline="hover">전체 보기</Link>}
-                />
-                <DataTable columns={ticketColumns({ onEdit: setEditing, onOpen: (t) => nav(ticketPath(t)) })}
-                  rows={listRows} rowKey={(t) => t.id}
-                  empty={cur ? "해당하는 티켓이 없습니다." : "진행 중인 티켓이 없습니다."} />
-              </Card>
-            </>
-          );
-        })()}
-      <BoardActivity />
-      <TeamChatWidget />
-      <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
-    </div>
-  );
-}
-
-/* 내 게시판 활동 위젯 — 홈에서 본인이 쓴 최근 글 + 요약(글 수·받은 댓글·조회)을 보여준다.
- * 게시판이 꺼져 있거나(404) 로딩 중이면 조용히 숨긴다(홈의 다른 부분에 영향 없이). */
-function BoardActivity() {
-  const q = useQuery({ queryKey: ["board-mine"], queryFn: () => api("/api/board/mine"), retry: false });
-  if (q.isError || !q.data) return null;
-  const items = q.data.items || [];
-  const s = q.data.summary || { post_count: 0, comment_count_received: 0, view_count_total: 0 };
-  const stat = (num, label) => (
-    <Box sx={{ display: "grid", gap: 0.25 }}>
-      <Typography component="span" sx={{ fontSize: "1.375rem", fontWeight: 800, lineHeight: 1.1 }}>{num}</Typography>
-      <Typography component="span" variant="caption" color="text.secondary">{label}</Typography>
-    </Box>
-  );
-  return (
-    <Card sx={{ mt: 2.5 }}>
-      <CardHead title="내 게시판 활동" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: "repeat(3, minmax(0,1fr))", maxWidth: "32rem", mb: 2 }}>
-        {stat(s.post_count, "내 글")}
-        {stat(s.comment_count_received, "받은 댓글")}
-        {stat(s.view_count_total, "조회")}
-      </Box>
-      {items.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          아직 작성한 글이 없습니다. <Link href="#/board" underline="hover">첫 글 남기기</Link>
-        </Typography>
-      ) : (
-        <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
-          {items.map((p) => (
-            <Box
-              component="li"
-              key={p.id}
-              sx={{
-                display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2,
-                py: 0.75, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 },
-              }}
-            >
-              <Link href={"#/board/" + p.id} underline="hover" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, color: "text.primary" }}>
-                {p.is_pinned ? <Badge value="고정" kind="info" /> : null}
-                <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</Box>
-              </Link>
-              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>댓글 {p.comment_count}, 조회 {p.view_count}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      )}
-    </Card>
-  );
 }
 
 /* 목록 화면 위 툴바(상태 필터 + 건수) — 내 티켓·미할당·팀 티켓이 같은 모양을 쓴다.
