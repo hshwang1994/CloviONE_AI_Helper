@@ -21,6 +21,7 @@ from app.conversations.models import (
     Conversation,
     Message,
 )
+from app.core.allowlist import URLNotAllowedError
 from app.core.http_client import is_timeout_error, is_transport_error
 from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
@@ -36,6 +37,14 @@ logger = logging.getLogger("app.handlers.chat")
 # directly, every control on that screen for this row would be a dead
 # affordance (edits/disables with zero effect on real chat behavior).
 CHAT_WORKFLOW_NAME = "ClovirONE AI 업무 도우미"
+
+
+class ChatWorkflowMisconfiguredError(PermanentJobError):
+    """워크플로 설정이 잘못돼 요청이 의미 있게 전달될 수 없는 상태.
+
+    재시도해도 같은 결과라 영구 실패로 다룬다 — 사용자에게는 관리자가 무엇을 고쳐야 하는지
+    그대로 보여준다(원인을 모른 채 '실패'만 보는 것보다 낫다).
+    """
 
 
 class ChatWorkflowDisabledError(PermanentJobError):
@@ -57,7 +66,18 @@ def _resolve_chat_endpoint(db: Session, settings) -> tuple[str, str]:
             "채팅 워크플로가 비활성화되어 있습니다. 관리자 콘솔의 Workflow 레지스트리에서 "
             f"'{CHAT_WORKFLOW_NAME}'를 활성화해 주세요."
         )
-    return workflow.webhook_url, workflow.http_method
+    # 이 워크플로는 본문(요청자·메시지·대화 id)이 있어야 동작한다. 그런데 관리자 콘솔은
+    # http_method로 GET도 고를 수 있고, GET이면 아래에서 json 본문이 통째로 버려졌다 —
+    # 러너는 빈 요청을 받고, 그럼에도 2xx를 돌려주면 작업은 '성공'으로 끝나고 사용자는
+    # 엉뚱한 답을 받는다. 조용한 실패라 아무도 원인을 못 찾는다. 여기서 크게 실패시킨다.
+    method = (workflow.http_method or "").upper()
+    if method != "POST":
+        raise ChatWorkflowMisconfiguredError(
+            f"채팅 워크플로 '{CHAT_WORKFLOW_NAME}'의 HTTP 메서드가 {method or '(없음)'}입니다. "
+            "이 워크플로는 요청 본문이 필요하므로 POST여야 합니다. 관리자 콘솔 > 업무 자동화 흐름에서 "
+            "메서드를 POST로 바꿔 주세요."
+        )
+    return workflow.webhook_url, method
 
 
 # Keys the assistant/n8n side may use for the display text, in priority order.
@@ -67,12 +87,20 @@ def _resolve_chat_endpoint(db: Session, settings) -> tuple[str, str]:
 _TEXT_KEYS = ("response_text", "reply", "text", "message", "output", "answer", "result")
 
 
-def _extract_text(data: dict) -> str:
+def _extract_text(data: dict) -> tuple[str, bool]:
+    """(표시 텍스트, 실제로 답이 있었는지)를 돌려준다.
+
+    예전에는 답이 하나도 없어도 "요청이 처리되었습니다."를 돌려줬다. 러너가 빈 2xx({})를
+    주는 경우 — 워크플로가 중간에 끊겼거나 조건 분기에서 아무것도 안 만든 경우 — 사용자에게는
+    성공처럼 보이고 작업도 succeeded로 끝나서, 티켓이 실제로 만들어졌는지 아무도 알 수 없었다.
+    이제 '답이 없었다'는 사실을 호출측이 알 수 있게 함께 돌려준다.
+    """
     for key in _TEXT_KEYS:
         value = data.get(key)
         if isinstance(value, str) and value.strip():
-            return value.strip()
-    return "요청이 처리되었습니다."
+            return value.strip(), True
+    return ("요청은 전달됐지만 도우미가 답을 돌려주지 않았습니다. "
+            "잠시 후 다시 시도하거나, 계속되면 관리자에게 알려 주세요."), False
 
 
 def strip_attachment_bytes(job: Job, payload: dict) -> None:
@@ -158,9 +186,17 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
             http_method,
             webhook_url,
             allowlist="workflows",
-            json=request_body if http_method == "POST" else None,
+            json=request_body,   # _resolve_chat_endpoint가 POST를 보장한다
             timeout=float(settings.n8n_timeout_seconds),
         )
+    except URLNotAllowedError as exc:
+        # allowlist 거부는 설정이 바뀌기 전에는 몇 번을 다시 던져도 같은 결과다. 예전에는
+        # 일반 예외로 새어 나가 큐가 3회까지 재시도했다 — 요청이 실제로 나가지는 않으니
+        # 위험하진 않지만, 사용자는 그만큼 오래 기다린 뒤에야 실패를 본다.
+        raise PermanentJobError(
+            f"워크플로 주소가 허용 목록에 없습니다: {exc}. "
+            "관리자 콘솔 > 업무 자동화 흐름에서 주소를 확인하거나, 허용 목록에 추가해 주세요."
+        ) from exc
     except Exception as exc:
         if is_timeout_error(exc):
             raise RuntimeError("n8n 응답 시간 초과") from exc
@@ -185,12 +221,16 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     if isinstance(backend_id, str) and backend_id:
         conversation.backend_conversation_id = backend_id
 
+    text, answered = _extract_text(data)
+    # 답이 없는 2xx는 성공으로 뭉개지 않는다 — structured에 표시해 두면 화면이 다르게 그릴 수
+    # 있고, 나중에 '왜 티켓이 안 생겼나'를 로그에서 구분해 셀 수 있다.
+    stored = data if answered else {**data, "empty_response": True}
     assistant = Message(
         conversation_id=conversation.id,
         message_id=f"a-{message.message_id}-{job.attempt_count}",
         role=ROLE_ASSISTANT_MSG,
-        content=_extract_text(data),
-        structured_payload_json=json.dumps(data, ensure_ascii=False),
+        content=text,
+        structured_payload_json=json.dumps(stored, ensure_ascii=False),
         processing_status=PROC_DONE,
     )
     db.add(assistant)

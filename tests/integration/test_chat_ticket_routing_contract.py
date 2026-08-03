@@ -328,12 +328,13 @@ def test_second_turn_carries_the_backend_conversation_id(
 def test_method_comes_from_the_registry_and_get_drops_the_message(
     app, db, chat_worker, fake_http, ticket_chat
 ):
-    """메서드는 Workflow 레지스트리 행에서 온다. 그리고 **GET 이면 본문이 통째로 사라진다.**
+    """메서드는 Workflow 레지스트리 행에서 온다. **POST가 아니면 즉시 영구 실패한다.**
 
-    현재 동작을 기록만 한다(고치는 것은 이 작업 범위 밖). 관리자 콘솔의 Workflow 화면은
-    http_method 에 GET 을 허용한다(app/workflows/schemas.py). 핸들러는
-    `json=request_body if http_method == "POST" else None` 이라, GET 으로 바꾸는 순간
-    러너는 message/requester 를 아예 못 받는데 사용자 화면에는 아무 오류도 안 뜬다.
+    예전에는 GET으로 바꾸면 `json=request_body if http_method == "POST" else None` 때문에
+    본문이 통째로 버려졌고, 러너가 빈 요청에 2xx만 돌려주면 작업은 '성공'으로 끝났다 —
+    사용자는 엉뚱한 답을 받고 아무도 원인을 못 찾는 조용한 실패였다.
+    이제 호출 전에 막고, 관리자가 무엇을 고쳐야 하는지 문구로 알려준다.
+    (2026-08-03 의도된 계약 변경 — 위 결함을 고치면서 이 테스트도 함께 갱신했다.)
     """
     from app.workflows.models import Workflow
     from app.workflows.service import seed_known_workflows
@@ -349,11 +350,11 @@ def test_method_comes_from_the_registry_and_get_drops_the_message(
     fake_http.on(N8N_URL, json_body=preview_response(ticket_chat["conversation_id"]))
     assert chat_worker.run_once() is True
 
-    request = fake_http.requests[-1]
-    assert request.method == "GET"
-    assert request.content == b""  # 사용자의 메시지가 통째로 유실된다 (미보호 — 기록만 함)
-    # 그런데도 잡은 성공으로 끝나고 사용자에게는 정상 답변이 보인다.
-    assert only_job(db).status == "succeeded"
+    # 호출 자체가 나가지 않는다 — 본문 없이 러너를 깨우는 것보다 안 보내는 편이 낫다.
+    assert not any(r.url.startswith(N8N_URL) for r in fake_http.requests)
+    job = only_job(db)
+    assert job.status == "failed"
+    assert "POST" in (job.last_error or "")   # 관리자가 무엇을 고쳐야 하는지 담긴다
 
 
 def test_offlist_webhook_url_is_blocked_before_any_outbound_call(
@@ -378,14 +379,13 @@ def test_offlist_webhook_url_is_blocked_before_any_outbound_call(
     assert fake_http.requests == [], "allowlist 밖 URL 로는 단 한 번도 나가면 안 된다"
     job = only_job(db)
     assert "허용 목록" in (job.last_error or "")
-    # 참고(미보호, 기록만 함): URLNotAllowedError 는 PermanentJobError 가 아니라서 잡은
-    # 재시도 큐로 돌아간다. 관리자가 URL 을 고치기 전에는 절대 성공할 수 없는데도
-    # max_attempts 만큼 다시 시도한다.
-    assert job.status == "queued"
-    for _ in range(2):
-        fake_clock.advance(60)
-        assert chat_worker.run_once() is True
-    assert only_job(db).status == "failed"
+    # allowlist 거부는 설정이 바뀌기 전에는 몇 번을 다시 던져도 같은 결과다 — 곧바로 영구
+    # 실패로 끝낸다. 예전에는 일반 예외로 새어 나가 max_attempts 만큼 재시도했고, 사용자는
+    # 절대 성공할 수 없는 요청을 그만큼 오래 기다린 뒤에야 실패를 봤다.
+    # (2026-08-03 의도된 계약 변경 — 위 결함을 고치면서 이 테스트도 함께 갱신했다.)
+    assert job.status == "failed"
+    fake_clock.advance(60)
+    assert chat_worker.run_once() is False   # 다시 집어갈 잡이 없다
     assert fake_http.requests == []
 
 
@@ -472,19 +472,23 @@ def test_response_text_wins_over_other_text_keys_and_is_stripped(
 def test_empty_2xx_payload_succeeds_with_a_generic_reply(
     client, db, chat_worker, fake_http, ticket_chat
 ):
-    """빈 2xx 도 **성공**으로 끝난다 — 플랫폼은 티켓이 생겼는지 알 방법이 없다.
+    """빈 2xx 는 성공처럼 보이게 두지 않는다.
 
-    이것이 이 경로의 근본 한계다. 플랫폼은 HTTP 상태코드만 본다. n8n 이 200 을 주면서
-    Notion 쓰기에 실패했거나, 아무것도 안 했거나, 워크플로가 중간에 끊겨도 사용자에게는
-    "요청이 처리되었습니다."가 뜨고 잡은 succeeded 로 닫힌다. 진짜 확인은 사람이
-    Notion 을 봐야 한다(파일 하단 체크리스트).
+    플랫폼은 HTTP 상태코드만 본다 — n8n 이 200 을 주면서 아무것도 안 했거나 워크플로가
+    중간에 끊겨도 그건 성공이 아니다. 예전에는 이 경우에도 "요청이 처리되었습니다."가 떠서
+    사용자가 티켓이 만들어진 줄 알았다. 이제 답이 없었다는 사실을 문구로 알리고
+    structured 에 empty_response 로 표시해 나중에 셀 수 있게 한다.
+    (2026-08-03 의도된 계약 변경 — 위 결함을 고치면서 이 테스트도 함께 갱신했다.)
+
+    한계 자체는 그대로다: 티켓이 실제로 생겼는지는 여전히 사람이 Notion 을 봐야 안다
+    (파일 하단 체크리스트).
     """
     fake_http.on(N8N_URL, json_body={})
     assert chat_worker.run_once() is True
 
     assistant = messages(client, ticket_chat["conversation_id"])[1]
-    assert assistant["content"] == "요청이 처리되었습니다."
-    assert assistant["structured"] == {}
+    assert "답을 돌려주지 않았습니다" in assistant["content"]
+    assert assistant["structured"] == {"empty_response": True}
     assert only_job(db).status == "succeeded"
 
 
