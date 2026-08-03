@@ -22,6 +22,10 @@ PY=".venv/Scripts/python.exe"
 [ -x "$PY" ] || PY=".venv/bin/python"
 [ -x "$PY" ] || PY="python"
 
+# Windows 기본 콘솔 인코딩(cp949)에서는 아래 Python 블록의 한국어 판정 문구가 깨져
+# 읽을 수 없다. 실패했을 때 이유를 못 읽으면 검사가 없는 것과 같다.
+export PYTHONIOENCODING=utf-8
+
 SRC="${1:-var/web.sqlite3}"
 STEPS="${STEPS:-1}"
 WORK="var/rehearsal"
@@ -91,8 +95,18 @@ echo "== 5) 왕복 전후 비교 =="
 "$PY" - <<PYEOF
 import json, sys
 up = json.loads(r'''$AFTER_UP''')
+down = json.loads(r'''$DOWN''')
 re_ = json.loads(r'''$AFTER_RE''')
-problems = []
+
+# 되돌리는 구간에서 **생성된** 테이블은, 되돌리면 지워지는 것이 정상이다. 그 안의 행이
+# 사라졌다고 실패로 치면 이 게이트는 영구히 빨간불이 되고 사람들이 곧 무시하게 된다.
+# 그렇다고 조용히 넘기면 "롤백하면 무엇을 잃는가"를 아무도 모른 채 배포일을 맞는다.
+# 그래서 둘로 가른다:
+#   치명 — 다운그레이드 후에도 남아 있던 테이블이 행을 잃었다(진짜 유실).
+#   경고 — 다운그레이드가 지우는 테이블이라 왕복 후 비었다(롤백의 대가. 보고만 한다).
+dropped_by_rollback = set(up["tables"]) - set(down["tables"])
+
+problems, rollback_cost = [], []
 if up["alembic"] != re_["alembic"]:
     problems.append(f"head 불일치: {up['alembic']} vs {re_['alembic']}")
 only_up = set(up["tables"]) - set(re_["tables"])
@@ -103,13 +117,24 @@ for t in sorted(set(up["tables"]) & set(re_["tables"])):
     a, b = up["tables"][t], re_["tables"][t]
     if a["columns"] != b["columns"]:
         problems.append(f"{t}: 컬럼 정의가 달라졌다\\n    전: {a['columns']}\\n    후: {b['columns']}")
-    if a["rows"] != b["rows"]:
+    if a["rows"] == b["rows"]:
+        continue
+    if t in dropped_by_rollback:
+        rollback_cost.append(f"{t}: {a['rows']}행 → {b['rows']}행")
+    else:
         problems.append(f"{t}: 행 수 {a['rows']} → {b['rows']} (데이터 유실)")
+
+if rollback_cost:
+    print(f"[주의] 이 구간을 롤백하면 아래 테이블이 통째로 사라진다({len(rollback_cost)}개).")
+    print("       스키마상 정상이지만, 되돌리기 전에 백업을 뜨라는 뜻이다:")
+    for c in rollback_cost: print("  -", c)
 if problems:
     print("[FAIL] 왕복이 스키마/데이터를 보존하지 않았다:")
     for p in problems: print("  -", p)
     sys.exit(1)
-print(f"[OK] 왕복 후 스키마·행 수 동일 ({len(re_['tables'])}개 테이블)")
+kept = len(re_["tables"]) - len(dropped_by_rollback)
+print(f"[OK] 왕복 후 스키마 동일, 살아남는 테이블 {kept}개의 행 수 동일 "
+      f"(전체 {len(re_['tables'])}개)")
 PYEOF
 [ $? -eq 0 ] || fail "왕복 검증 실패"
 
