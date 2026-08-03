@@ -43,6 +43,11 @@ IMAGE_MEDIA_TYPES = frozenset(
 # 업로드 네임스페이스 — 저장 루트(uploads/<namespace>/)의 한 조각이 되므로 소문자·밑줄만.
 NS_BOARD = "board"
 NS_TEAM_CHAT = "team_chat"
+# 프로필 사진. owner_id 는 **사용자 id** 이고 서빙은 profiles 라우터가 한다.
+# 게시판 네임스페이스를 재사용하지 않는 이유가 이 모듈 docstring 에 이미 적혀 있다:
+# 서빙 라우트가 곧 접근 통제이고, board 라우트는 '글이 살아 있는가'만 볼 줄 안다.
+# 아바타는 그 질문 자체가 다르다(계정이 살아 있는가 / 요청자가 로그인했는가).
+NS_AVATAR = "avatar"
 _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 # 서버 생성 저장명 패턴(서빙 시 방어적으로 재검증).

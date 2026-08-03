@@ -88,7 +88,12 @@ describe("필터가 서버로 가는 형태", () => {
       filters: [{ key: "actor", label: "수행자", type: "text" }],
     });
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
-    expect(apiMock.mock.calls[0][0]).toBe("/api/admin/audit");
+    // 목록 호출만 본다 — 이 화면은 저장된 뷰 목록(/api/me/views)도 함께 받아오므로
+    // '첫 번째 호출 = 목록'이라고 가정하면 무관한 변경에 깨진다.
+    const listCalls = apiMock.mock.calls
+      .map((c) => c[0])
+      .filter((p) => p.startsWith("/api/admin/audit"));
+    expect(listCalls).toEqual(["/api/admin/audit"]);
   });
 
   it("clientFilter 필터는 서버로 보내지 않고 화면에서 거른다", async () => {

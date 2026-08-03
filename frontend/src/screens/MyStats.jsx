@@ -1,0 +1,279 @@
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import Box from "@mui/material/Box";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { api } from "../lib/api.js";
+import { fmtDateTime } from "../lib/format.js";
+import {
+  Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard,
+} from "../ui/kit.jsx";
+import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { Donut } from "../ui/charts/Donut.jsx";
+import { LineSeries } from "../ui/charts/LineSeries.jsx";
+
+/* 내 업무량 · 완료 통계 (계획서 Phase 6 사용자).
+ *
+ * 숫자는 전부 서버가 만든다(GET /api/me/stats). 화면에서 다시 집계하지 않는 이유는
+ * 두 곳에서 세면 언젠가 서로 다른 말을 하기 때문이다 — 홈의 '지연 3건'과 여기의 '지연 5건'이
+ * 어긋나는 순간 사용자는 둘 다 안 믿는다.
+ *
+ * **'완료'는 마감일 기준이다.** 소스에 완료 시각이 없어서(app/profiles/stats.py 모듈
+ * docstring) '6월 완료'는 '마감이 6월인 티켓 중 완료 상태'라는 뜻이다. 화면에도 그렇게 쓴다 —
+ * 숨기면 6월에 끝낸 7월 마감 일이 왜 안 세지는지 아무도 모른다.
+ *
+ * MUI Grid 를 쓰지 않는다(MUI 7 에서 xs={12} 가 조용히 무시된다). px 폰트 크기도 쓰지 않는다.
+ */
+
+const STAT_GRID = {
+  display: "grid", gap: 2, mb: 2.5,
+  // 모든 트랙이 minmax(0,...) — 그냥 "1fr" 이면 트랙이 내용보다 작아지지 않아 긴 값 하나가
+  // 격자를 밀어내고 페이지에 가로 스크롤이 생긴다(Home.jsx 와 같은 함정).
+  gridTemplateColumns: {
+    xs: "minmax(0, 1fr)",
+    md: "repeat(2, minmax(0,1fr))",
+    lg: "repeat(3, minmax(0,1fr))",
+    xl: "repeat(4, minmax(0,1fr))",
+    xxl: "repeat(5, minmax(0,1fr))",
+    uhd: "repeat(6, minmax(0,1fr))",
+  },
+};
+
+const BODY_GRID = {
+  display: "grid", gap: 2.5, alignItems: "start",
+  gridTemplateColumns: {
+    xs: "minmax(0, 1fr)",
+    lg: "minmax(0, 2fr) minmax(0, 1fr)",
+    xxl: "minmax(0, 3fr) minmax(0, 1fr)",
+  },
+};
+
+const MONTH_OPTIONS = [3, 6, 12];
+
+function pct(rate) {
+  return rate == null ? "-" : Math.round(rate * 100) + "%";
+}
+
+function CardHead({ title, help }) {
+  return (
+    <Box sx={{ mb: 1.5 }}>
+      <Typography component="h3" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
+      {help ? <Typography variant="body2" color="text.secondary">{help}</Typography> : null}
+    </Box>
+  );
+}
+
+/* 티켓 소스가 왜 비었는지 — 0건과 '못 읽었다'는 다른 말이다. */
+function SourceNotice({ source }) {
+  if (!source) return null;
+  if (source.configured === false) {
+    return (
+      <Callout tone="warn">
+        {source.message || "티켓 연동이 아직 설정되지 않았습니다. 관리자에게 문의하세요."}
+      </Callout>
+    );
+  }
+  if (source.ok === false) {
+    return (
+      <Callout tone="warn">
+        {source.error || "티켓을 불러오지 못했습니다. 아래 숫자는 비어 있을 수 있습니다."}
+      </Callout>
+    );
+  }
+  if (source.mapped === false) {
+    return (
+      <Callout tone="warn">
+        내 계정이 Notion 사용자와 연결되어 있지 않아 담당 티켓을 찾을 수 없습니다.
+        관리자에게 계정 연결을 요청하세요.
+      </Callout>
+    );
+  }
+  return null;
+}
+
+export function MyStats() {
+  const [months, setMonths] = React.useState(6);
+  const q = useQuery({
+    queryKey: ["my-stats", months],
+    queryFn: () => api(`/api/me/stats?months=${months}&weeks=4`),
+    retry: false,
+  });
+
+  const data = q.data;
+  const totals = data && data.totals;
+  const load = data && data.workload;
+
+  return (
+    <div className="c-screen">
+      <PageHeader
+        area="내 정보"
+        title="내 업무량 · 완료 통계"
+        crumbRoot=""
+        spot="sprint"
+        actions={
+          <TextField
+            select size="small" label="기간"
+            value={months}
+            onChange={(e) => setMonths(Number(e.target.value))}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: "8rem" }}
+          >
+            {MONTH_OPTIONS.map((m) => <MenuItem key={m} value={m}>{`최근 ${m}개월`}</MenuItem>)}
+          </TextField>
+        }
+      />
+
+      {q.isLoading ? (
+        <Card><Skeleton lines={8} /></Card>
+      ) : q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : (
+        <>
+          <SourceNotice source={data.source} />
+
+          <Box sx={STAT_GRID}>
+            <StatCard value={totals.active} label="남은 일" />
+            <StatCard value={totals.overdue} label="지연" kind={totals.overdue > 0 ? "danger" : undefined} />
+            <StatCard value={totals.due_today} label="오늘 마감" kind={totals.due_today > 0 ? "warn" : undefined} />
+            <StatCard value={totals.blocked} label="막힘(이슈)" kind={totals.blocked > 0 ? "danger" : undefined} />
+            <StatCard value={totals.done} label="완료" kind="ok" />
+            <StatCard value={pct(totals.completion_rate)} label="완료율(취소 제외)" />
+          </Box>
+
+          {totals.all === 0 ? (
+            <Card>
+              <EmptyState
+                art="tickets"
+                title="아직 집계할 티켓이 없습니다"
+                situation="내가 담당인 티켓이 하나도 없어서 그릴 숫자가 없습니다."
+                help="티켓을 맡거나 새로 만들면 여기에 업무량과 완료 추이가 쌓입니다."
+                relatedLink={{ href: "#/my-tickets", label: "내 티켓으로" }}
+              />
+            </Card>
+          ) : (
+            <Box sx={BODY_GRID}>
+              <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
+                <Card>
+                  <CardHead
+                    title="달별 완료 추이"
+                    help="마감일이 그 달인 티켓 기준입니다. 완료율의 분모에서 취소는 뺍니다."
+                  />
+                  {/* 배정이 0건인 달의 완료율은 `null` 이다(0% 가 아니다). 선은 숫자만 그릴 수
+                      있으므로 0으로 눕히되, 아래 표가 같은 달을 '-' 로 보여 준다 — 그림과 표가
+                      함께 있어야 "일이 없었던 달"과 "하나도 못 끝낸 달"이 구분된다. */}
+                  {/* 완료율 한 선만 그린다. 건수(0~10)와 백분율(0~100)은 단위가 달라
+                      같은 눈금에 겹치면 건수 선이 바닥에 눌려 붙어 아무 정보도 주지 않는다.
+                      건수는 바로 아래 표가 정확히 말한다. */}
+                  <LineSeries
+                    series={[{
+                      label: "완료율(%)",
+                      points: data.months.map((m) => (m.completion_rate == null ? 0 : Math.round(m.completion_rate * 100))),
+                    }]}
+                    labels={data.months.map((m) => m.month.slice(2))}
+                    unit="%"
+                    summary={`최근 ${data.months.length}개월 · 배정이 없던 달은 0으로 눕습니다(표에서는 '-')`}
+                    emptyLabel="집계할 달이 없습니다"
+                  />
+                  <Box sx={{ mt: 2, minWidth: 0 }}>
+                    <DataTable
+                      columns={[
+                        { key: "month", label: "달" },
+                        { key: "assigned", label: "배정", align: "right" },
+                        { key: "doneCell", label: "완료", align: "right" },
+                        { key: "cancelled", label: "취소", align: "right" },
+                        { key: "openCell", label: "진행", align: "right" },
+                        { key: "rate", label: "완료율", align: "right" },
+                        { key: "wd", label: "예상/실제 WD", align: "right" },
+                      ]}
+                      rows={data.months.map((m) => ({
+                        ...m,
+                        doneCell: m.done,
+                        openCell: m.open,
+                        rate: pct(m.completion_rate),
+                        wd: `${m.est_wd} / ${m.act_wd}`,
+                      }))}
+                      rowKey={(r) => r.month}
+                      empty="집계할 달이 없습니다"
+                    />
+                  </Box>
+                </Card>
+
+                <Card>
+                  <CardHead
+                    title="앞으로의 부하(주별)"
+                    help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
+                  />
+                  <BarSeries
+                    items={[
+                      ...load.by_week.map((w) => ({
+                        label: w.label, value: w.count, note: `${w.start}~`,
+                      })),
+                      { label: "그 이후", value: load.by_week_extra.later.count, color: "neutral" },
+                      { label: "지난 마감", value: load.by_week_extra.overdue.count, color: "error" },
+                      { label: "마감 없음", value: load.by_week_extra.no_due.count, color: "neutral" },
+                    ]}
+                    unit="건"
+                    emptyLabel="남은 일이 없습니다"
+                  />
+                </Card>
+              </Box>
+
+              <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
+                <Card>
+                  <CardHead title="상태 구성" />
+                  <Donut
+                    segments={load.by_status.map((s) => ({
+                      label: s.name,
+                      value: s.count,
+                      color: s.name === "완료" ? "success" : s.name === "이슈" ? "error" : undefined,
+                    }))}
+                    unit="건"
+                    centerLabel="티켓"
+                    emptyLabel="티켓이 없습니다"
+                  />
+                </Card>
+                <Card>
+                  <CardHead title="남은 일의 우선순위" />
+                  <BarSeries
+                    items={load.by_priority.map((p) => ({ label: p.name, value: p.count }))}
+                    unit="건"
+                    emptyLabel="남은 일이 없습니다"
+                  />
+                </Card>
+                <Card>
+                  <CardHead title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
+                  <Box sx={{ display: "grid", gap: 1 }}>
+                    {[
+                      ["남은 예상 공수", load.est_wd_active],
+                      ["그중 지연분", load.est_wd_overdue],
+                      ["완료한 일의 예상 공수", load.est_wd_done],
+                      ["완료한 일의 실제 공수", load.act_wd_done],
+                    ].map(([label, value]) => (
+                      <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 0.75, borderBottom: 1, borderColor: "divider" }}>
+                        <Typography variant="body2" color="text.secondary">{label}</Typography>
+                        <Typography sx={{ fontWeight: 700 }}>{value} WD</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </Card>
+              </Box>
+            </Box>
+          )}
+
+          {data.sync ? (
+            /* 원시 ISO 문자열을 그대로 두면 '2026-08-03T12:01:32.434817' 이 나온다 —
+               이 앱의 표시 규약은 Asia/Seoul 로 포맷한 시각이다(lib/format.js). */
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5 }}>
+              티켓 미러 상태: {data.sync.status}
+              {data.sync.last_success_at ? ` · 마지막 동기화 ${fmtDateTime(data.sync.last_success_at)}` : ""}
+              {data.sync.truncated ? " · 일부만 동기화됨" : ""}
+            </Typography>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default MyStats;

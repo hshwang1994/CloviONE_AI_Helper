@@ -74,7 +74,10 @@ def test_etag_changes_when_the_notification_count_changes(client, login_as, db):
     login_as("user")
     url = "/api/notifications/unread-count"
     before = client.get(url)
-    assert before.json() == {"unread": 0}
+    # 응답에는 안 읽음 총계(unread) 말고도 배지 숫자·방해금지 상태가 함께 온다
+    # (PLAN Phase 6 사용자 — 방해금지는 배지만 조용하게 하고 알림은 그대로 쌓는다).
+    # 여기서 확인하려는 것은 ETag 의 반응성이므로 총계만 본다.
+    assert before.json()["unread"] == 0
     etag_before = before.headers["ETag"]
 
     with client.app.state.session_factory() as session:
@@ -88,7 +91,7 @@ def test_etag_changes_when_the_notification_count_changes(client, login_as, db):
     after = client.get(url, headers={"If-None-Match": etag_before})
     assert after.status_code == 200, "내용이 바뀌었는데 304 가 나왔다 — 화면이 영영 갱신되지 않는다"
     assert after.headers["ETag"] != etag_before
-    assert after.json() == {"unread": 1}
+    assert after.json()["unread"] == 1
 
 
 def test_etag_changes_when_a_game_room_appears(client, login_as):
@@ -135,7 +138,7 @@ def test_two_users_do_not_share_a_notification_etag(client, login_as, make_user)
         session.commit()
 
     mine = client.get("/api/notifications/unread-count")
-    assert mine.json() == {"unread": 1}
+    assert mine.json()["unread"] == 1
     my_etag = mine.headers["ETag"]
 
     client.post("/login", json={
@@ -143,4 +146,4 @@ def test_two_users_do_not_share_a_notification_etag(client, login_as, make_user)
     })
     theirs = client.get("/api/notifications/unread-count", headers={"If-None-Match": my_etag})
     assert theirs.status_code == 200, "남의 ETag 로 304 를 받았다 — 남의 숫자를 보게 된다"
-    assert theirs.json() == {"unread": 0}
+    assert theirs.json()["unread"] == 0

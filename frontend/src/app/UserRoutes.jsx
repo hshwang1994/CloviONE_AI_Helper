@@ -14,6 +14,9 @@ import { Games } from "../screens/Games.jsx";
 import { ChatRooms } from "../screens/ChatRooms.jsx";
 import { ChatRoom } from "../screens/ChatRoom.jsx";
 import { Search } from "../screens/Search.jsx";
+import { Profile } from "../screens/Profile.jsx";
+import { MyStats } from "../screens/MyStats.jsx";
+import { Activity } from "../screens/Activity.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 import { REGISTRY } from "../screens/registry.js";
 import { Card, Skeleton } from "../ui/kit.jsx";
@@ -64,6 +67,12 @@ function UserRoutes() {
       <Route path="/games" element={<Games />} />
       <Route path="/games/:id" element={<Lazy><GameRoom /></Lazy>} />
       <Route path="/notifications" element={<div className="c-body--user-noti"><DataScreen config={REGISTRY.notifications} /></div>} />
+      {/* 내 정보(계획서 Phase 6 사용자) — 프로필 셀프서비스·업무량 통계·활동 피드.
+          역할과 무관하게 누구나 자기 것만 본다. 서버가 세션 사용자 기준으로만 답하므로
+          라우트 역할 게이트가 필요 없다(가드가 없는 게 아니라 대상이 하나뿐이다). */}
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/my-stats" element={<MyStats />} />
+      <Route path="/activity" element={<Activity />} />
       <Route path="*" element={<Navigate to="/me" replace />} />
     </Routes>
   );

@@ -12,13 +12,18 @@ from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
 from app.notifications.destinations import destination_for
 from app.notifications.models import Notification
-from app.notifications.service import mark_all_read, mark_read, unread_count
+from app.notifications.service import (
+    mark_all_read,
+    mark_read,
+    unread_count,
+    unread_count_excluding,
+)
 from app.users.models import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
-def _view(row: Notification) -> dict:
+def _view(row: Notification, muted: frozenset[str] = frozenset()) -> dict:
     return {
         "id": row.id,
         "type": row.type,
@@ -31,6 +36,39 @@ def _view(row: Notification) -> dict:
         # 한 표에만 있다 — 프런트는 if 체인을 늘리지 않고 이 값을 그대로 쓴다.
         "related_route": destination_for(row.related_object_type, row.related_object_id),
         "created_at": row.created_at.isoformat(),
+        # 사용자가 이 유형을 뮤트했는가. **목록에서 빼지 않고 표시만 한다** — 뮤트가
+        # 삼키는 기능이 되면 사용자는 껐다는 사실조차 잊은 채 일을 놓친다.
+        "muted": row.type in muted,
+    }
+
+
+def _badge_state(request: Request, db: Session, user) -> dict:
+    """배지에 실제로 띄울 숫자 + 왜 조용한지.
+
+    `unread` 는 예전과 똑같은 '안 읽음 총계'다(계약 유지). 새로 붙은 `badge` 가 화면이
+    그리는 숫자이며, 방해금지 중이거나 뮤트된 유형만 남았을 때 0 이 된다.
+    """
+    from app.profiles import service as profile_service
+
+    now = request.app.state.clock.now()
+    pref = profile_service.get_preference(db, user.id)
+    state = profile_service.quiet_state(
+        pref, now=now, timezone_name=request.app.state.settings.timezone
+    )
+    profile_service.clear_expired_dnd(db, pref, state, now=now)
+
+    from app.profiles.prefs import parse_muted
+
+    muted = parse_muted(pref.muted_types if pref else "")
+    total = unread_count(db, user.id)
+    badge = 0 if state.quiet else unread_count_excluding(db, user.id, muted)
+    return {
+        "unread": total,
+        "badge": badge,
+        "quiet": state.quiet,
+        "quiet_reason": state.reason,
+        "quiet_until": state.until.isoformat() if state.until else None,
+        "muted_types": muted,
     }
 
 
@@ -67,8 +105,13 @@ def list_notifications(
         .scalars()
         .all()
     )
+    from app.profiles import service as profile_service
+    from app.profiles.prefs import parse_muted
+
+    pref = profile_service.get_preference(db, user.id)
+    muted = frozenset(parse_muted(pref.muted_types if pref else ""))
     return {
-        "items": [_view(r) for r in rows],
+        "items": [_view(r, muted) for r in rows],
         "total": total,
         "unread": unread_count(db, user.id),
         "page": page.page,
@@ -86,8 +129,11 @@ def get_unread_count(
 
     목록(`GET /api/notifications`)에는 걸지 않는다 — 페이지네이션·읽음/유형 필터가 있어
     같은 URL 이 파라미터마다 다른 응답을 내고, 실제로 늘 도는 것은 배지 쪽이다.
+
+    방해금지가 걸리거나 풀리면 본문이 달라지므로 ETag 도 함께 바뀐다 — 조용해진 순간
+    다음 폴링에서 304 가 아니라 200 이 나가고 배지가 실제로 꺼진다.
     """
-    return etag_json_response(request, {"unread": unread_count(db, user.id)})
+    return etag_json_response(request, _badge_state(request, db, user))
 
 
 @router.post("/read-all", dependencies=[Depends(require_csrf)])

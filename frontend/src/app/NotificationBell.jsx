@@ -99,6 +99,19 @@ export function NotificationBell({ isUser }) {
   const role = auth.data && auth.data.role;
   const isAuthed = !!role;
 
+  /* 낙관 갱신용 — 안 읽음 총계와 **배지 숫자**를 함께 움직인다.
+   *
+   * 서버 응답에는 둘이 따로 있다: `unread` 는 진짜 총계이고 `badge` 는 방해금지·뮤트를
+   * 반영해 화면에 그릴 숫자다(app/notifications/router.py). 한쪽만 낙관 갱신하면 항목을
+   * 읽은 직후 배지만 옛 숫자에 얼어붙는다 — 예전에 unread 한쪽만 고쳐 두고 겪은 것과
+   * 같은 종류의 어긋남이다. */
+  const shiftUnread = (prev, delta) => {
+    if (!prev || typeof prev.unread !== "number") return prev;
+    const next = { ...prev, unread: Math.max(0, prev.unread + delta) };
+    if (typeof prev.badge === "number") next.badge = Math.max(0, prev.badge + delta);
+    return next;
+  };
+
   const unread = useQuery({
     queryKey: ["noti-unread"],
     queryFn: () => api("/api/notifications/unread-count"),
@@ -162,7 +175,7 @@ export function NotificationBell({ isUser }) {
       // 즉시 팝오버가 닫히는 흐름(openItem)에서 벨 배지가 서버 무효화가 끝날 때까지 옛 값에 얼어붙었다.
       const prevUnread = qc.getQueryData(["noti-unread"]);
       if (wasUnread && prevUnread && typeof prevUnread.unread === "number") {
-        qc.setQueryData(["noti-unread"], { ...prevUnread, unread: Math.max(0, prevUnread.unread - 1) });
+        qc.setQueryData(["noti-unread"], shiftUnread(prevUnread, -1));
       }
       // 실패 시 되돌릴 컨텍스트로 "이 mutation이 바꾼 것"만 넘긴다(id/wasUnread) — 전체 캐시
       // 스냅샷을 onMutate 시점으로 통째 복원하지 않는다. 두 개의 읽음 처리가 동시에 날아가고
@@ -183,7 +196,7 @@ export function NotificationBell({ isUser }) {
           };
         });
         const cur = qc.getQueryData(["noti-unread"]);
-        if (cur && typeof cur.unread === "number") qc.setQueryData(["noti-unread"], { ...cur, unread: cur.unread + 1 });
+        if (cur && typeof cur.unread === "number") qc.setQueryData(["noti-unread"], shiftUnread(cur, 1));
       }
       toast(e.message || "읽음 처리하지 못했습니다.", "error");
     },
@@ -223,7 +236,7 @@ export function NotificationBell({ isUser }) {
       // "모두 읽음"을 눌렀는데 안 읽음처럼 보이는 깜빡임이 있었다.
       const prevUnread = qc.getQueryData(["noti-unread"]);
       if (prevUnread && typeof prevUnread.unread === "number") {
-        qc.setQueryData(["noti-unread"], { ...prevUnread, unread: 0 });
+        qc.setQueryData(["noti-unread"], { ...prevUnread, unread: 0, ...(typeof prevUnread.badge === "number" ? { badge: 0 } : null) });
       }
       // 배지 복구는 changedIds.size(로드된 ≤8건)가 아니라 이 실제 전체 미읽음 스냅샷으로
       // 되돌린다 — 안 그러면 실제 미읽음이 8을 넘을 때(예: 15) 실패 후 배지가 8로 과소
@@ -314,6 +327,19 @@ export function NotificationBell({ isUser }) {
   // 최초 로드가 아직 안 끝났으면(느린 네트워크) 배지가 "확실히 0"과 똑같이 보였다 — 로딩 중인지
   // 정말 0인지 구분할 길이 없었다. unread 쿼리가 한 번이라도 응답(성공/실패)하기 전까지만 표시.
   const countPending = !unread.isFetched && !countError && count === 0;
+  /* 방해금지·뮤트 — **알림은 그대로 쌓이고 배지만 조용해진다**(app/profiles/prefs.py).
+   *
+   * 그래서 이 컴포넌트는 두 숫자를 다르게 쓴다:
+   *   count  = 진짜 안 읽음 총계. 팝오버 헤더와 목록은 끝까지 이 숫자를 말한다.
+   *   badge  = 서버가 계산한 '지금 눈길을 끌 숫자'. 조용하면 0 이다.
+   * 조용한데 안 읽음이 있으면 빨간 숫자 대신 **조용한 점**을 띄운다 — 배지를 통째로
+   * 없애면 사용자가 "조용히 해 둔 것"과 "아무것도 안 온 것"을 구분할 수 없다.
+   * badge 를 안 주는 옛 응답(캐시)에서는 count 로 폴백해 예전과 똑같이 동작한다. */
+  const badge = unread.data && typeof unread.data.badge === "number" ? unread.data.badge : count;
+  const quiet = !!(unread.data && unread.data.quiet) || (badge === 0 && count > 0);
+  const quietTitle = count > 0
+    ? `방해금지·알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
+    : "방해금지 중입니다";
 
   async function markAll() {
     // 전체 페이지의 '모두 읽음'과 동작을 맞춘다(되돌릴 수 없는 일괄 처리라 확인을 받는다).
@@ -353,7 +379,7 @@ export function NotificationBell({ isUser }) {
   return (
     <div className="noti" ref={ref}>
       <button ref={bellRef} type="button" className="c-icon-btn noti-bell"
-        aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
+        aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중 — 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
         aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
         onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}>
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
@@ -361,16 +387,19 @@ export function NotificationBell({ isUser }) {
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {count ? (
+        {badge ? (
           // countError가 true인데 count도 0이 아닐 수 있다, unread 쿼리가 실패했지만 이전에
           // 캐시된 숫자가 남아 있는 경우(react-query 기본 동작)다. 그때는 배지가 최신 여부를
           // 알려주는 신호 없이 그냥 숫자만 보였다, aria-label엔 이미 "개수를 불러오지 못함"이
           // 붙지만 마우스로 보는 사용자에겐 아무 표시가 없었다(product-quality-audit AREA=D).
           <span className={"noti-count" + (countError ? " noti-count--stale" : "")}
             title={countError ? "표시된 숫자가 최신이 아닐 수 있습니다" : undefined}>
-            {count > 99 ? "99+" : count}
+            {badge > 99 ? "99+" : badge}
           </span>
         )
+          // 조용한 상태 — 안 읽음은 있는데 배지가 0이다. 아무 표시도 안 하면 "안 온 것"과
+          // 구분이 안 되므로 중립색 점 하나로 "쌓여 있지만 조용히 하고 있다"를 말한다.
+          : quiet ? <span className="noti-quiet" aria-hidden="true" title={quietTitle} />
           // aria-hidden 이유: 설명은 벨 버튼의 aria-label에 이미 있어 스크린리더 사용자는
           // 안내를 받지만, title이 없어 마우스로 보는 사용자는 색 점의 의미를 알 방법이
           // 없었다, title을 더해 마우스/터치 사용자도 같은 설명을 보게 한다.
@@ -379,7 +408,10 @@ export function NotificationBell({ isUser }) {
           // 중립색 점만 보인다, 배지가 아예 없는 것과 달라 "안 온 건지 아직 안 불렀는지"를 구분한다.
           : countPending ? <span className="noti-pending" aria-hidden="true" title="알림 개수를 불러오는 중" /> : null}
       </button>
-      <span className="sr-only" aria-live="polite">{count ? "읽지 않은 알림 " + count + "건" : ""}</span>
+      {/* 방해금지 중에는 이 낭독도 멈춘다 — 스크린리더 사용자에게 라이브 리전은 곧 푸시다.
+          시각 배지만 끄고 여기를 켜 두면 '조용히 해 달라'는 요청을 절반만 지키는 셈이다.
+          숫자는 벨을 눌러 팝오버를 열면 그대로 다 들린다(삼키는 것이 아니다). */}
+      <span className="sr-only" aria-live="polite">{!quiet && count ? "읽지 않은 알림 " + count + "건" : ""}</span>
       {open ? (
         // role="dialog"는 구조(팝오버)를 알리는 용도로만 남긴다, aria-modal="true"는 배경이
         // 실제로 inert해야 정직한데, 이 팝오버는 사이드바, 상단바, 본문이 전부 계속 상호작용

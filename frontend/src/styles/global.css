@@ -257,6 +257,10 @@ button { font-family: inherit; }
 /* 안 읽음 개수를 아직 못 받아온 로딩 구간 표식(NotificationBell.jsx countPending) — 색을
    .noti-count(빨강)와 다르게 중립으로 둬 "확실히 0건"과 "아직 모름"을 시각적으로 구분한다. */
 .noti-pending { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); border: 1.5px solid var(--color-card); }
+/* 방해금지·유형 뮤트로 배지가 조용해진 상태(NotificationBell.jsx quiet). 안 읽음은 쌓여 있는데
+   빨간 숫자만 끈 것이므로, 아무 표시도 없으면 "조용히 해 둔 것"과 "아무것도 안 온 것"이 똑같이
+   보인다 — 속을 비운 중립 고리로 '있지만 조용하다'를 말한다. title 로 실제 건수도 알려 준다. */
+.noti-quiet { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: transparent; border: 2px solid var(--color-muted); }
 /* unread-count 조회가 실패했지만 캐시된 옛 숫자가 남아 배지에 그대로 뜨는 경우(NotificationBell.jsx
    countError) — 숫자만으로는 최신인지 알 길이 없었다. aria-label엔 이미 "개수를 불러오지 못함"이
    붙지만, 마우스로 보는 사용자에게도 같은 신호를 주는 테두리를 더한다(product-quality-audit AREA=D). */

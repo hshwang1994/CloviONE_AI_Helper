@@ -121,3 +121,25 @@ def unread_count(db: Session, user_id: str) -> int:
         .select_from(Notification)
         .where(Notification.user_id == user_id, Notification.read_at.is_(None))
     ).scalar_one()
+
+
+def unread_count_excluding(db: Session, user_id: str, types: list[str]) -> int:
+    """배지에 세는 안 읽음 — 사용자가 뮤트한 유형만 뺀다.
+
+    **알림 자체를 지우거나 안 만드는 것이 아니다.** 뮤트한 유형도 `unread_count` 에는
+    그대로 잡히고 목록에도 그대로 나온다. 여기서 빠지는 것은 '지금 눈길을 끌 것인가'
+    하나뿐이다 — 방해금지와 같은 원칙이다(app/profiles/prefs.py 모듈 docstring).
+    """
+    if not types:
+        return unread_count(db, user_id)
+    from sqlalchemy import func
+
+    return db.execute(
+        select(func.count())
+        .select_from(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.read_at.is_(None),
+            Notification.type.notin_(types),
+        )
+    ).scalar_one()
