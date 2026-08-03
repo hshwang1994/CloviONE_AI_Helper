@@ -1,244 +1,527 @@
-/* 로그인 페이지 — ClovirONE Design System (ui_kit/Login.html) 이식.
-   원본 1920×1080 고정 스테이지 → 반응형 split 레이아웃으로 변환.
-   미사용 요소(SSO/OTP·사용자/관리자 토글·로그인 유지)는 제거(사용자 결정).
-   외부 폰트/CDN 없음 — 시스템 폰트 스택만 사용.
+/* 로그인 화면 — 승인된 디자인 원본의 이식.
+ *
+ * 원본: reference/approved-login-baseline/static-login/styles.css (494줄, 무의존 정적본).
+ * 이 화면은 "가능하면 개선"의 대상이 아니다. 값·타이밍·미디어 쿼리를 그대로 옮긴다.
+ * 특히 다음 둘은 이 제품에서 유일하게 4K를 실제로 겨냥해 만든 부분이라 그대로 살아 있어야 한다:
+ *   - @media (min-width: 2200px) and (min-height: 1200px) 블록 전체
+ *   - clamp() 23개 (이 파일 기준: 본문 6 + 4K 블록 16 + 짧은 데스크톱 1 = 원본과 동수)
+ *
+ * 원본에서 이 파일로 오지 않은 것은 auth.css로 갔다(팔레트/모션 토큰, 리셋, .is-paused,
+ * @keyframes). 페이지에 종속되지 않아 비밀번호 변경 화면과 공유하기 위해서다.
+ * 색·형태·타이밍은 한 값도 바뀌지 않았다 — 어느 파일에 적혀 있는지만 다르다.
+ *
+ * 이 파일 끝에 "저장소 접합부"가 있다. 원본 정적본에는 없던 것들이다:
+ *   #login-error(서버 렌더 + login.js가 채우는 실패 배너), #server-status(/readyz 프로브),
+ *   세션 만료 안내, 인라인 SVG 워드마크의 면 색, aria-invalid ↔ .invalid 시각 신호.
+ *   각각 그 자리에 이유를 적었다.
+ */
 
-   색은 tokens.css 하나만 본다. 예전엔 이 파일이 --lg-* 로 브랜드 색을 따로 들고 있었지만
-   같은 값이 tokens.css로 올라가 제품 전체가 공유하므로 중복 정의를 지웠다.
-   남은 hex는 히어로 장식뿐이다 — 로그인에만 있는 브랜드 표현이라 토큰이 없다.
-   각각 남긴 이유를 그 자리에 적어 둔다. */
-
-html, body { height: 100%; }
-
-/* 히어로와 폼이 화면을 꽉 채우므로 이 배경은 실제로 보이지 않는다.
-   그래도 오버스크롤 등으로 드러날 때 브랜드 최심색이 보이는 게 맞다. */
-.login-split { display: flex; min-height: 100vh; background: var(--color-ink); }
-
-/* ── HERO (좌측) ─────────────────────────────────────────── */
-.login-hero {
-  position: relative; flex: 1 1 58%; min-height: 100vh; overflow: hidden;
-  /* 두 겹의 빛무리는 브랜드 액센트다. 그 아래 딥 인디고 그라디언트는 로그인 히어로에만
-     쓰는 3단 장식이라 토큰이 없다(가장 깊은 끝조차 --color-ink보다 밝다). */
-  background:
-    radial-gradient(1200px 700px at 18% 28%,
-      color-mix(in srgb, var(--color-accent-violet) 55%, transparent), transparent 60%),
-    radial-gradient(900px 600px at 80% 75%,
-      color-mix(in srgb, var(--color-accent-sky) 45%, transparent), transparent 60%),
-    linear-gradient(135deg, #1A2358 0%, #2B3C8A 45%, #4A4FB0 100%);
-  color: var(--color-text-inverse);
-  display: flex; flex-direction: column;
-  padding: 56px 64px 32px;
-  box-sizing: border-box;
+:root {
+  /* 로그인은 인증 전 화면이라 라이트 고정이다(히어로가 그 전제로 설계돼 있다).
+     tests/regression/test_theme_on_all_authed_pages.py가 이 화면에 theme.js가 없어야 한다고
+     못 박는다 — 그래서 색 구성표도 여기서 라이트로 선언한다. auth.css에 두면 비밀번호 변경
+     화면(다크 지원)까지 라이트로 묶여 폼 컨트롤·스크롤바가 어긋난다. */
+  color-scheme: light;
 }
-/* 흰색 알파 겹은 어두운 히어로 위에서만 성립한다. tokens.css의 표면색(--color-card)은
-   다크 테마에서 어두워지므로 여기 쓰면 유리질이 깨진다. 흰색을 직접 쓴다. */
-.login-hero::after {
-  content: ''; position: absolute; inset: 0;
+
+body {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--text);
+  font-family: var(--font);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(142,117,225,.17), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(83,108,214,.18), transparent 35%),
+    #F3F6FF;
+}
+
+.login-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(420px, .75fr);
+  width: min(100%, clamp(1500px, 82vw, 1920px));
+  height: min(calc(100svh - 48px), clamp(840px, 92svh, 1200px));
+  min-height: 680px;
+  max-width: 1920px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(97,117,190,.16);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 28px 80px rgba(43,62,133,.16);
+  animation: shell-enter 520ms var(--ease-out) both;
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 48px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 82% 24%, rgba(142,117,225,.58), transparent 32%),
+    radial-gradient(circle at 18% 78%, rgba(98,199,189,.24), transparent 28%),
+    linear-gradient(145deg, #17204D 0%, #293B8D 48%, #536CD6 100%);
+}
+.hero::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: .13;
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--color-text-inverse) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--color-text-inverse) 5%, transparent) 1px, transparent 1px);
-  background-size: 80px 80px;
-  -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
-  mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+    linear-gradient(rgba(255,255,255,.45) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.45) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(circle at center, #000 15%, transparent 76%);
+  mask-image: radial-gradient(circle at center, #000 15%, transparent 76%);
   pointer-events: none;
 }
-.hero-brand { display: flex; align-items: center; gap: 14px; z-index: 1; }
-.hero-brand img { height: 30px; }
-.hero-brand .ver { font-weight: 300; opacity: 0.7; font-size: 13px; }
+.ambient-orb {
+  position: absolute;
+  z-index: 0;
+  width: 260px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: .28;
+  filter: blur(48px);
+  pointer-events: none;
+}
+.ambient-orb-one { top: 12%; right: 5%; background: var(--purple); }
+.ambient-orb-two { bottom: 2%; left: -8%; width: 320px; background: var(--mint); }
+.hero-logo {
+  position: relative;
+  z-index: 3;
+  width: min(285px, 42%);
+  height: auto;
+  animation: content-enter 480ms 80ms var(--ease-out) both;
+}
+.hero-copy {
+  position: relative;
+  z-index: 3;
+  max-width: 700px;
+  margin-top: clamp(34px, 5.5vh, 58px);
+  animation: content-enter 540ms 140ms var(--ease-out) both;
+}
+.hero-eyebrow { margin: 0 0 16px; color: #E3E7FF; font-size: 13px; font-weight: 800; letter-spacing: .12em; }
+.hero h1 { margin: 0; color: #fff; max-width: 720px; font-size: clamp(38px, 3.7vw, 56px); font-weight: 820; line-height: 1.13; letter-spacing: -.055em; }
+.hero h1 strong { color: #D8D0FF; font-weight: inherit; }
+.hero-description { max-width: 610px; margin: 20px 0 0; color: rgba(255,255,255,.82); font-size: 15.5px; line-height: 1.7; }
+.feature-list { display: grid; gap: 10px; margin: 20px 0 0; padding: 0; list-style: none; }
+.feature-list li { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,.9); font-size: 14px; font-weight: 650; }
+.feature-list span { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: rgba(255,255,255,.13); }
 
-.hero-copy { margin-top: clamp(48px, 14vh, 150px); max-width: 640px; z-index: 1; }
-.motto-serif {
-  font-family: var(--font-serif); font-weight: 500;
-  font-size: clamp(28px, 3.2vw, 44px); line-height: 1.36; letter-spacing: -0.03em;
-  color: color-mix(in srgb, var(--color-text-inverse) 94%, transparent);
-}
-/* 모토 강조의 밝은 그라디언트는 어두운 히어로 위에서만 읽히는 장식이다. 토큰 없음. */
-.motto-serif em {
-  font-style: normal;
-  background: linear-gradient(90deg, #C5D4FF, #E7DBFF);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.hero-sub {
-  margin-top: 24px; font-size: 16px; font-weight: 300; line-height: 1.7;
-  max-width: 520px; color: color-mix(in srgb, var(--color-text-inverse) 78%, transparent);
-}
-
-/* 데코 타일 (업무 도우미 테마) — 화면 대비 존재감 있게 크게 */
-.hero-stack { position: relative; margin-top: auto; height: clamp(320px, 42vh, 460px); perspective: 1400px; z-index: 1; }
-.hero-tile {
-  position: absolute; border-radius: 18px;
-  background: color-mix(in srgb, var(--color-text-inverse) 6%, transparent); border: 1px solid color-mix(in srgb, var(--color-text-inverse) 14%, transparent);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-hero);
-  padding: 24px 28px; transform-style: preserve-3d;
-  min-width: clamp(300px, 24vw, 420px);
-}
-.hero-tile.t1 { left: 2%;  bottom: 52%; transform: rotateY(-12deg) rotateX(6deg); }
-.hero-tile.t2 {
-  left: 42%; bottom: 26%; transform: rotateY(-8deg) rotateX(4deg);
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--color-primary-soft) 50%, transparent),
-    color-mix(in srgb, var(--color-accent-violet) 40%, transparent));
-  border-color: color-mix(in srgb, var(--color-text-inverse) 25%, transparent);
-}
-.hero-tile.t3 { left: 12%; bottom: 2%; transform: rotateY(-14deg) rotateX(8deg); }
-.tile-head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; opacity: 0.9; }
-.tile-head .dot { width: 9px; height: 9px; border-radius: 50%; }
-/* 타일 상태 점 — 어두운 유리 위에 얹는 장식이라 상태색 토큰(--color-success 등)을 쓰면
-   너무 어두워 보이지 않는다. 밝은 쪽 상태색 토큰이 생기면 그때 바꾼다. */
-.dot-green { background: #4ACCA7; }
-.dot-yellow { background: #FADE52; }
-.dot-purple { background: var(--color-accent-purple); }
-.tile-track .w64 { width: 64%; }
-.tile-track .w78 { width: 78%; }
-.tile-track .w88 { width: 88%; }
-.tile-big { margin-top: 12px; font-size: 38px; font-weight: 800; letter-spacing: -0.5px; }
-.tile-big span { font-size: 16px; opacity: 0.75; font-weight: 300; margin-left: 10px; }
-.tile-track { margin-top: 16px; height: 5px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--color-text-inverse) 15%, transparent); overflow: hidden; }
-/* 진행 막대의 밝은 그라디언트도 히어로 전용 장식이다. 토큰 없음. */
-.tile-track i { display: block; height: 100%; background: linear-gradient(90deg, #A6BAFF, #D0B9FF); }
-
-/* 45%는 그라디언트 위 최악 2.72로 저작권 문구가 사실상 안 보였다(11px/300이라 큰 글자
-   예외도 못 든다). 78%는 바로 위 .hero-sub가 이미 쓰는 값이고 최악 4.93으로 통과한다 —
-   히어로 안에서 같은 어휘를 쓰면서 읽히게 된다. aria-hidden은 스크린리더만 건너뛰게 할 뿐,
-   저대비의 대상인 저시력 사용자에게는 그대로 보인다. */
-.hero-foot { margin-top: 24px; color: color-mix(in srgb, var(--color-text-inverse) 78%, transparent); font-size: 11px; font-weight: 300; z-index: 1; }
-
-/* ── FORM PANEL (우측) ───────────────────────────────────── */
-.login-panel {
-  flex: 0 0 42%; max-width: 620px; min-width: 420px; background: var(--color-card);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 48px 40px; box-sizing: border-box; position: relative;
-}
-.login-form-box { width: 100%; max-width: 400px; }
-/* 인라인 SVG라 글자가 currentColor를 따른다. 이 패널은 --color-card 면이다. */
-.panel-logo { height: 26px; width: auto; margin-bottom: 28px; color: var(--color-text); }
-.panel-logo .wordmark-sub { fill: var(--color-muted); }
-/* 흰 배경 위 12px 글자다. --color-primary-soft(3.2:1)로는 AA에 못 미쳐 --color-primary(4.7:1)를 쓴다. */
-.eyebrow {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
-  color: var(--color-primary); margin-bottom: 12px;
-}
-.login-title {
-  font-size: 30px; font-weight: 800; color: var(--color-ink);
-  letter-spacing: -0.8px; line-height: 1.2; margin: 0 0 10px;
-}
-.login-subtitle { font-size: 14px; color: var(--color-muted); font-weight: 300; margin: 0 0 32px; }
-
-.lfield { margin-bottom: 18px; }
-.lfield label {
-  display: block; font-size: 12px; font-weight: 600; color: var(--color-text);
-  margin-bottom: 8px; letter-spacing: -0.1px;
-}
-.input-wrap {
-  position: relative; height: 52px; border-radius: var(--radius-md);
-  border: 1px solid var(--color-border); background: var(--color-bg);
-  transition: border-color 180ms, box-shadow 180ms, background 180ms;
-  display: flex; align-items: center;
-}
-/* hover는 테두리에만 푸른 기를 살짝 넣는다. 포커스(--color-primary-soft)보다 약해야
-   두 상태가 구분된다. 토큰 사이 값이라 섞어서 만든다. */
-.input-wrap:hover { border-color: color-mix(in srgb, var(--color-primary-soft) 40%, var(--color-border)); }
-.input-wrap:focus-within {
-  border-color: var(--color-primary-soft); background: var(--color-card);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary-soft) 12%, transparent);
-}
-.input-wrap .lead {
-  width: 50px; display: flex; align-items: center; justify-content: center;
-  color: var(--color-muted); flex: none;
-}
-.input-wrap:focus-within .lead { color: var(--color-primary); }
-.input-wrap input {
-  flex: 1; border: none; outline: none; background: transparent;
-  font-family: inherit; font-size: 15px; color: var(--color-ink); font-weight: 500;
-  padding: 0 14px 0 0; letter-spacing: -0.1px; min-width: 0;
-}
-/* placeholder는 라벨이 아니라 형식 예시다(라벨은 따로 있다). 입력값처럼 보이면 안 되므로
-   본문색보다 옅게 두고 싶지만, 옅게 만든 값이 안 읽히면 예시를 준 의미가 없다.
-   55%는 2.31(포커스 시 2.41)이라 'name@goodmit.co.kr'이 사실상 안 보였다. 90%는 4.60/4.80으로
-   두 면 모두 통과하면서 본문(--color-text, 12.63)보다는 여전히 옅다 — 구분은 굵기와 이 차이가 낸다. */
-.input-wrap input::placeholder {
-  color: color-mix(in srgb, var(--color-muted) 90%, var(--color-bg));
-  font-weight: 300;
-}
-/* Chrome autofill paints its own background — keep the field looking designed. */
-.input-wrap input:-webkit-autofill,
-.input-wrap input:-webkit-autofill:hover,
-.input-wrap input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 40px var(--color-bg) inset;
-  -webkit-text-fill-color: var(--color-ink);
-  caret-color: var(--color-ink);
-  border-radius: var(--radius-md);
-}
-.input-wrap .btn-ghost {
-  border: none; background: transparent; color: var(--color-muted); cursor: pointer;
-  font-size: 12px; font-weight: 500; padding: 0 14px; height: 100%; flex: none;
-}
-.input-wrap .btn-ghost:hover { color: var(--color-primary); }
-
-/* 로그인 실패는 사용자가 반드시 읽어야 하는데 12px 붉은 글자 한 줄이라 놓치기 쉬웠다.
-   내용이 있을 때만 배경을 깔아 눈에 띄게 한다(빈칸일 땐 자리만 잡아 레이아웃이 안 흔들린다). */
-#login-error {
-  min-height: 18px; font-size: 13px; line-height: 1.4;
-  color: var(--color-error); margin: 2px 0 14px;
-}
-#login-error:not(:empty) {
-  background: var(--badge-error-bg);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-weight: 500;
+.hero-visual {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 250px;
+  isolation: isolate;
+  animation: visual-enter 650ms 190ms var(--ease-out) both;
 }
 
-.login-submit {
-  width: 100%; height: 54px; border-radius: var(--radius-md); border: none; cursor: pointer;
-  /* 밝은 끝(--color-primary-soft)에 흰 글자가 얹히면 4.5:1을 못 넘긴다. 가운데 정지점을
-     40%로 당겨 글자가 놓이는 구간이 --color-primary 이상이 되게 했다. */
-  background: linear-gradient(135deg,
-    var(--color-primary-soft) 0%, var(--color-primary) 40%, var(--color-primary-strong) 100%);
-  /* primary 배경 위에 얹는 글자다. base.css의 .btn-primary와 같은 자리라 같은 토큰을 쓴다.
-     라이트에서는 var(--color-text-inverse)라 보이는 색이 바뀌지 않는다. */
-  color: var(--color-on-primary);
-  font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.2px;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--color-primary) 32%, transparent),
-              inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 20%, transparent);
-  transition: transform 120ms, box-shadow 200ms;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
+.clovi-stage {
+  position: absolute;
+  z-index: 2;
+  right: -1%;
+  bottom: -18%;
+  width: min(64%, 700px);
+  aspect-ratio: 1;
+  --eye-x: 0px;
+  --eye-y: 0px;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  contain: layout paint;
 }
-.login-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary) 40%, transparent),
-              inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 25%, transparent);
+.clovi-canonical-base,
+.clovi-eyes-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
 }
-.login-submit:active { transform: translateY(0); }
-.login-submit:disabled { opacity: 0.65; cursor: default; transform: none; }
+.clovi-canonical-base { z-index: 1; }
+.clovi-eyes-layer {
+  z-index: 2;
+  opacity: 1;
+  transform: translate3d(var(--eye-x), var(--eye-y), 0);
+  transform-origin: 59.2% 23.3%;
+  transition: transform 95ms linear, opacity 150ms ease, filter 150ms ease;
+  will-change: transform;
+}
+.clovi-success-badge {
+  position: absolute;
+  z-index: 3;
+  top: 12%;
+  right: 10%;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  color: #174F3C;
+  border: 2px solid rgba(255,255,255,.82);
+  border-radius: 50%;
+  opacity: 0;
+  background: #8FF4C8;
+  box-shadow: 0 10px 30px rgba(9,37,31,.28);
+  font-size: 24px;
+  font-weight: 900;
+  transform: scale(.72);
+  transition: opacity 180ms ease, transform 260ms var(--ease-out);
+  pointer-events: none;
+}
+.clovi-stage[data-state="welcome"] .clovi-eyes-layer,
+.clovi-stage[data-state="greeting"] .clovi-eyes-layer { animation: eye-welcome 720ms ease both; }
+.clovi-stage[data-state="privacy"] .clovi-eyes-layer { opacity: .7; filter: saturate(.82) brightness(.88); }
+.clovi-stage[data-state="loading"] .clovi-eyes-layer { animation: eye-working 880ms ease-in-out infinite; }
+.clovi-stage[data-state="success"] .clovi-eyes-layer { animation: eye-success 760ms ease both; filter: brightness(1.16) saturate(1.08); }
+.clovi-stage[data-state="success"] .clovi-success-badge { opacity: 1; transform: scale(1); }
+.clovi-stage[data-state="error"] .clovi-eyes-layer { animation: eye-error 340ms ease both; }
 
-.login-hint {
-  margin-top: 18px; font-size: 12px; color: var(--color-muted); text-align: center; line-height: 1.6;
+.activity-pill {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: rgba(255,255,255,.92);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  background: rgba(18,31,85,.5);
+  box-shadow: 0 12px 28px rgba(6,12,42,.16);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
 }
-/* 본문이 --color-muted로 진해졌으니 강조는 한 단계 더 진한 본문색으로 층을 유지한다. */
-.login-hint strong { color: var(--color-text); font-weight: 600; }
+.activity-pill i { width: 7px; aspect-ratio: 1; border-radius: 50%; background: #8FF4E8; box-shadow: 0 0 10px rgba(143,244,232,.76); }
+.activity-pill-docs { right: 38%; bottom: 50%; }
+.activity-pill-flow { right: 3%; bottom: 31%; }
+.activity-pill-team { right: 30%; bottom: 5%; }
 
-/* 서버 상태는 "서버에 연결할 수 없습니다" 같은 실제 정보를 띄운다. 예전 회색은
-   흰 배경에서 2.0:1이라 사실상 안 보였다. */
-.server-status { margin-top: 10px; font-size: 11px; color: var(--color-muted); text-align: center; }
+.clovi-card {
+  position: absolute;
+  z-index: 4;
+  bottom: 8%;
+  left: 4%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px 12px 12px;
+  color: var(--ink);
+  border: 1px solid rgba(255,255,255,.56);
+  border-radius: 16px;
+  background: rgba(255,255,255,.93);
+  box-shadow: 0 18px 44px rgba(9,17,60,.2);
+  backdrop-filter: blur(14px);
+}
+.clovi-card img { width: 46px; height: 46px; border-radius: 12px; object-fit: cover; }
+.clovi-card small, .clovi-card strong { display: block; }
+.clovi-card small { color: var(--muted); font-size: 12px; font-weight: 650; }
+.clovi-card strong { margin-top: 3px; font-size: 14px; transition: opacity var(--motion-fast) ease; }
+.hero-footer { position: relative; z-index: 3; margin: 16px 0 0; color: rgba(255,255,255,.68); font-size: 11px; }
 
-/* 저작권 표기. opacity를 겹치면 대비가 3:1 아래로 떨어져 걷어냈다. */
-.panel-foot {
-  position: absolute; bottom: 28px; left: 0; right: 0; text-align: center;
-  font-size: 10px; color: var(--color-muted); font-weight: 300;
+.form-panel {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 44px 48px;
+  background: radial-gradient(circle at 100% 0%, rgba(117,138,225,.1), transparent 30%), #fff;
+}
+.form-container { width: 100%; max-width: 430px; animation: form-enter 520ms 160ms var(--ease-out) both; }
+.mobile-brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 64px; }
+.panel-logo { width: 230px; max-width: calc(100% - 68px); height: auto; }
+.mobile-clovi { display: none; width: 54px; height: 54px; border-radius: 16px; object-fit: cover; box-shadow: 0 10px 24px rgba(83,108,214,.18); }
+.eyebrow { margin: 0; color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .08em; }
+.form-panel h2 { margin: 8px 0 0; color: var(--ink); font-size: 34px; line-height: 1.2; letter-spacing: -.035em; }
+.subtitle { margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.7; word-break: keep-all; text-wrap: pretty; }
+form { display: grid; gap: 4px; margin-top: 32px; }
+.field { min-width: 0; }
+.field label { display: block; margin-bottom: 8px; color: var(--ink); font-size: 13px; font-weight: 700; }
+.input-wrap { display: flex; min-height: 54px; align-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) ease; }
+.input-wrap:hover { background: #fff; border-color: #B9C5EA; }
+.input-wrap:focus-within { border-color: var(--primary-soft); background: #fff; box-shadow: 0 0 0 4px rgba(117,138,225,.14); transform: translateY(-1px); }
+.input-wrap.invalid { border-color: var(--error); }
+.input-wrap > svg { flex: none; width: 20px; height: 20px; margin-left: 16px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.input-wrap input { min-width: 0; flex: 1; height: 52px; padding: 0 14px; color: var(--ink); border: 0; outline: 0; background: transparent; font-size: 15px; }
+.input-wrap input::placeholder { color: #64708F; opacity: 1; }
+.password-toggle { align-self: stretch; flex: none; padding: 0 15px; color: var(--muted); border: 0; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; }
+.password-toggle:hover { color: var(--primary); }
+.password-toggle:disabled { color: #9AA3BD; cursor: wait; }
+.password-toggle:focus-visible, .login-button:focus-visible, a:focus-visible { outline: 3px solid rgba(83,108,214,.25); outline-offset: 2px; }
+.field-message, .caps-warning { min-height: 20px; margin: 5px 0 2px; color: var(--error); font-size: 12px; line-height: 1.4; }
+.caps-warning[hidden] { display: block; visibility: hidden; }
+.status { margin: 6px 0 14px; padding: 11px 13px; color: var(--primary-dark); border: 1px solid #CBD5F5; border-radius: 12px; background: #F2F5FF; font-size: 13px; line-height: 1.55; }
+.status.error { color: var(--error); border-color: #F2C4BE; background: #FFF3F2; }
+.status.success { color: var(--success); border-color: #BDE1CE; background: #F0FBF5; }
+
+.login-button {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  color: #fff;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #758AE1 0%, #536CD6 42%, #435CBE 100%);
+  box-shadow: 0 12px 28px rgba(83,108,214,.28);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+  transition: transform 140ms ease, box-shadow var(--motion-fast) ease, opacity var(--motion-fast) ease;
+}
+.login-button:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(83,108,214,.36); }
+.login-button:active { transform: translateY(0) scale(.995); }
+.login-button:disabled { opacity: .68; cursor: wait; transform: none; }
+.login-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.button-spinner { width: 20px; aspect-ratio: 1; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin 720ms linear infinite; }
+.button-spinner[hidden] { display: none; }
+.support-note { margin-top: 24px; padding: 16px; color: var(--muted); border: 1px solid #E3E8F7; border-radius: 14px; background: var(--surface-soft); font-size: 13.5px; line-height: 1.65; }
+.support-note a { color: var(--primary-dark); font-weight: 750; text-decoration: none; }
+.support-note a:hover { text-decoration: underline; }
+.panel-footer { margin: 24px 0 0; color: var(--muted); text-align: center; font-size: 11.5px; }
+
+
+@media (max-width: 1100px) {
+  body { padding: 20px; }
+  .login-shell { grid-template-columns: minmax(0, 1fr) minmax(380px, 430px); height: calc(100svh - 40px); min-height: 680px; }
+  .hero { padding: 40px; }
+  .hero h1 { font-size: clamp(38px, 4.2vw, 52px); }
+  .clovi-stage { right: -4%; width: min(64%, 600px); }
+  .clovi-card { left: 0; }
+  .activity-pill-docs { right: 41%; }
+  .form-panel { padding-inline: 36px; }
 }
 
-/* ── 반응형 ──────────────────────────────────────────────── */
-@media (max-width: 1023px) {
-  .login-hero { display: none; }
-  .login-panel { flex: 1 1 auto; max-width: none; min-width: 0; min-height: 100vh; }
-  /* 히어로가 빠지면 폼만 남는다. 예전엔 body.login-body에 배경을 줬는데 그런 클래스를
-     붙이는 곳이 없어(템플릿은 그냥 <body>) 죽은 규칙이었다. 실제 배경 주인에게 건다. */
-  .login-split { background: var(--color-card); }
+@media (max-width: 899px) {
+  body { display: block; padding: 20px; }
+  .login-shell { display: block; min-height: calc(100svh - 40px); height: auto; overflow: visible; }
+  .hero { display: none; }
+  .form-panel { min-height: calc(100svh - 40px); padding: 44px 56px; }
+  .mobile-clovi { display: block; }
 }
-@media (max-height: 760px) {
-  .hero-stack { display: none; }
+
+@media (max-width: 599px) {
+  body { display: block; padding: 0; background: #fff; }
+  .login-shell { min-height: 100svh; border: 0; border-radius: 0; box-shadow: none; animation: none; }
+  .form-panel { min-height: 100svh; padding: max(28px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+  .mobile-brand-row { margin-bottom: 48px; }
+  .panel-logo { width: 205px; }
+  .mobile-clovi { width: 50px; height: 50px; }
+  .form-panel h2 { font-size: 30px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .login-submit, .input-wrap { transition: none; }
+
+@media (max-height: 840px) and (min-width: 900px) {
+  .hero { padding-block: 30px; }
+  .hero-copy { margin-top: 22px; }
+  .hero h1 { font-size: clamp(34px, 4vw, 46px); }
+  .hero-description { margin-top: 12px; font-size: 14px; }
+  .feature-list { margin-top: 14px; gap: 7px; }
+  .feature-list span { width: 28px; height: 28px; }
+  .hero-visual { min-height: 135px; }
+  .clovi-stage { right: -4%; width: min(58%, 430px); bottom: -8%; }
+  .clovi-card, .activity-pill { display: none; }
+  .hero-footer { display: none; }
+  .mobile-brand-row { margin-bottom: 28px; }
+  .form-panel { padding-block: 24px; }
+  form { margin-top: 24px; }
+  .support-note { margin-top: 18px; }
+  .panel-footer { margin-top: 16px; }
 }
+
+@media (min-width: 2200px) and (min-height: 1200px) {
+  body { padding: 48px; }
+  .login-shell {
+    width: min(calc(100vw - 96px), clamp(1920px, 68vw, 3000px));
+    height: min(calc(100svh - 96px), clamp(1200px, 70svh, 1700px));
+    min-height: 900px;
+    max-width: 3000px;
+  }
+  .hero { padding: clamp(64px, 3vw, 96px); }
+  .hero-logo { width: clamp(320px, 9vw, 390px); }
+  .hero-copy { max-width: 920px; margin-top: clamp(64px, 5vh, 88px); }
+  .hero-eyebrow { font-size: clamp(14px, .45vw, 16px); }
+  .hero h1 { max-width: 920px; font-size: clamp(64px, 1.8vw, 76px); }
+  .hero-description { max-width: 760px; font-size: clamp(17px, .52vw, 19px); }
+  .feature-list { gap: 13px; margin-top: 26px; }
+  .feature-list li { font-size: clamp(15px, .44vw, 17px); }
+  .feature-list span { width: 38px; height: 38px; }
+  .hero-visual { min-height: 300px; }
+  .clovi-stage { width: min(64%, clamp(780px, 25vw, 1040px)); max-width: none; }
+  .activity-pill { padding: 11px 16px; font-size: 14px; }
+  .clovi-card { left: 5%; bottom: 8%; padding: 15px 22px 15px 15px; }
+  .clovi-card img { width: 56px; height: 56px; }
+  .clovi-card small { font-size: 13px; }
+  .clovi-card strong { font-size: 16px; }
+  .hero-footer { font-size: 12px; }
+  .form-panel { padding: clamp(64px, 3vw, 96px); }
+  .form-container { max-width: clamp(480px, 14vw, 540px); }
+  .mobile-brand-row { margin-bottom: clamp(72px, 6vh, 96px); }
+  .panel-logo { width: clamp(255px, 7vw, 300px); }
+  .eyebrow { font-size: 14px; }
+  .form-panel h2 { font-size: clamp(38px, 1.1vw, 46px); }
+  .subtitle { font-size: clamp(15.5px, .48vw, 17px); }
+  form { margin-top: 38px; }
+  .field label { font-size: 14px; }
+  .input-wrap { min-height: 60px; }
+  .input-wrap input { height: 58px; font-size: 16px; }
+  .login-button { min-height: 60px; font-size: 17px; }
+  .support-note { font-size: 14px; }
+  .panel-footer { font-size: 12px; }
+}
+
+/* Compact desktop heights: keep the complete login flow visible at 1280x720-class screens. */
+@media (max-height: 760px) and (min-width: 900px) {
+  body { padding: 12px; }
+  .login-shell { height: calc(100svh - 24px); min-height: 0; }
+  .hero { padding: 24px 36px; }
+  .hero-logo { width: min(250px, 38%); }
+  .hero-copy { margin-top: 14px; }
+  .hero-eyebrow { margin-bottom: 10px; font-size: 12px; }
+  .hero h1 { font-size: clamp(32px, 3.5vw, 40px); }
+  .hero-description { margin-top: 9px; font-size: 13.5px; line-height: 1.55; }
+  .feature-list { margin-top: 10px; gap: 5px; }
+  .feature-list li { font-size: 13px; }
+  .feature-list span { width: 26px; height: 26px; border-radius: 7px; }
+  .hero-visual { min-height: 90px; }
+  .clovi-stage { right: -4%; width: min(58%, 420px); bottom: -8%; }
+  .hero-footer { margin-top: 4px; }
+  .form-panel { padding: 14px 36px; }
+  .mobile-brand-row { margin-bottom: 16px; }
+  .panel-logo { width: 205px; }
+  .eyebrow { font-size: 12px; }
+  .form-panel h2 { margin-top: 4px; font-size: 28px; }
+  .subtitle { margin-top: 5px; font-size: 13px; line-height: 1.5; }
+  form { margin-top: 15px; }
+  .field label { margin-bottom: 5px; }
+  .input-wrap { min-height: 48px; }
+  .input-wrap input { height: 46px; }
+  .field-message, .caps-warning { min-height: 15px; margin: 2px 0 0; font-size: 11px; }
+  .login-button { min-height: 48px; }
+  .support-note { margin-top: 10px; padding: 11px 13px; font-size: 12.5px; line-height: 1.5; }
+  .panel-footer { margin-top: 8px; font-size: 10.5px; }
+}
+
+@media (max-width: 599px) and (max-height: 700px) {
+  .form-panel { height: auto; padding-block: 20px; }
+  .mobile-brand-row { margin-bottom: 32px; }
+  form { margin-top: 24px; }
+  .support-note { margin-top: 16px; }
+  .panel-footer { margin-top: 16px; }
+}
+
+@media (min-width: 600px) and (max-width: 899px) {
+  .form-panel { min-height: calc(100svh - 42px); }
+}
+
+
+/* Short tablet landscape: keep the primary action in the first viewport. */
+@media (min-width: 600px) and (max-width: 899px) and (max-height: 500px) {
+  body { padding: 0; background: #fff; }
+  .login-shell { min-height: 100svh; border: 0; border-radius: 0; box-shadow: none; }
+  .form-panel { min-height: 100svh; justify-content: flex-start; padding: 14px 24px; }
+  .form-container { max-width: 760px; }
+  .mobile-brand-row { margin-bottom: 8px; }
+  .panel-logo { width: 190px; }
+  .mobile-clovi { width: 44px; height: 44px; border-radius: 12px; }
+  .eyebrow { font-size: 11px; }
+  .form-panel h2 { margin-top: 2px; font-size: 24px; }
+  .subtitle { margin-top: 3px; font-size: 12.5px; line-height: 1.4; }
+  form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; row-gap: 2px; margin-top: 10px; }
+  .field label { margin-bottom: 4px; }
+  .input-wrap { min-height: 46px; }
+  .input-wrap input { height: 44px; }
+  .field-message, .caps-warning { min-height: 15px; margin: 2px 0 0; font-size: 11px; }
+  .status, .login-button { grid-column: 1 / -1; }
+  .status { margin: 2px 0 6px; padding: 8px 11px; }
+  .login-button { min-height: 46px; margin-top: 0; }
+  .support-note { margin-top: 8px; padding: 8px 11px; font-size: 12px; line-height: 1.4; }
+  .panel-footer { margin-top: 5px; font-size: 10.5px; }
+}
+
+@media (forced-colors: active) {
+  .input-wrap, .support-note, .status { border: 1px solid CanvasText; }
+  .login-button { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; }
+}
+
+/* Mobile with an open software keyboard: keep the submit action visible. */
+@media (max-width: 599px) and (max-height: 520px) {
+  .form-panel {
+    min-height: 100svh;
+    justify-content: flex-start;
+    padding: max(12px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+  .mobile-brand-row { margin-bottom: 10px; }
+  .panel-logo { width: 170px; }
+  .mobile-clovi { width: 40px; height: 40px; border-radius: 12px; }
+  .eyebrow { font-size: 11px; }
+  .form-panel h2 { margin-top: 2px; font-size: 25px; }
+  .subtitle { display: none; }
+  form { gap: 0; margin-top: 12px; }
+  .field label { margin-bottom: 4px; }
+  .input-wrap { min-height: 46px; }
+  .input-wrap input { height: 44px; }
+  .field-message, .caps-warning { min-height: 14px; margin: 2px 0 1px; font-size: 11px; }
+  .login-button { min-height: 48px; margin-top: 0; }
+  .support-note { margin-top: 8px; padding: 8px 11px; font-size: 12px; line-height: 1.4; }
+  .panel-footer { margin-top: 5px; font-size: 10.5px; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   저장소 접합부 — 원본 정적본에 없던 것들.
+   원본은 데모라 서버가 없었다. 이 화면은 실제 /login을 쓴다: no-JS POST 폴백, 서버 렌더
+   오류 배너, 계정 잠금 분기, /readyz 프로브. 그 요소들의 스타일만 여기 있다.
+   위쪽 원본 영역의 값은 하나도 바꾸지 않았다.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* #login-error는 서버 렌더(login_error)와 login.js가 함께 쓰는 하나의 실패 배너다.
+   원본의 #login-status(.status)와 같은 상자이며, 이 화면에서는 실패에만 쓰이므로
+   class="status error"로 고정한다(login.js는 textContent만 쓰고 클래스는 건드리지 않는다).
+   비었을 때 상자가 남으면 실패한 적 없는 화면에 빈 붉은 칸이 뜬다 — 그때만 감춘다.
+   :empty는 자식 노드가 하나도 없을 때만 맞으므로 Jinja가 빈 문자열을 렌더한 상태와 정확히 일치한다. */
+#login-error:empty { display: none; }
+
+/* 세션 만료 안내는 폼 위에 뜨는 페이지 수준 알림이라 폼 안(.status)의 위/아래 여백이 맞지 않는다.
+   상자의 생김새는 원본 .status(정보 톤) 그대로 두고 여백만 이 자리로 맞춘다. */
+.session-notice { margin: 18px 0 0; }
+
+/* login.js가 /readyz 프로브 결과를 여기에 쓴다(정상이면 빈 문자열이라 아무것도 안 보인다).
+   .is-error는 login.js가 토글한다 — 규칙이 없으면 오류가 평상시와 같은 회색으로 나가 묻힌다. */
+.server-status { min-height: 16px; margin: 10px 0 0; color: var(--muted); text-align: center; font-size: 11.5px; }
+.server-status.is-error { color: var(--error); font-weight: 600; }
+/* 정상일 때 login.js는 이 칸을 빈 문자열로 둔다. 원본에 없던 요소이므로 그때는 높이를
+   0으로 접어, 짧은 데스크톱(≤840px)에서 저작권 줄을 셸 밖으로 밀어내지 않게 한다.
+   display:none으로 감추지는 않는다 — aria-live 영역이 접근성 트리에서 빠지면 나중에
+   문구가 들어와도 스크린리더가 읽지 않을 수 있다. 렌더는 유지하고 크기만 없앤다. */
+.server-status:empty { min-height: 0; margin: 0; }
+
+/* login.js는 실패 시 이메일/비밀번호 칸에 aria-invalid를 건다(스크린리더용). 시각 신호가 없으면
+   같은 사실이 눈에는 안 보인다 — 원본의 .invalid와 같은 붉은 테두리로 맞춘다. clovi-login.js도
+   .invalid를 함께 토글하므로 두 신호가 항상 같이 움직인다(base.css의 같은 :has() 규칙은 이
+   화면에서 로드되지 않으므로 여기 다시 둔다). */
+.input-wrap:has(input[aria-invalid="true"]) { border-color: var(--error); }
+
+/* 워드마크는 인라인 SVG다(_wordmark.html) — 글자가 currentColor를 따르므로 놓인 면의 색을
+   여기서 정한다. 원본은 밝은 면/어두운 면용 SVG 파일을 두 벌 두고 골라 끼웠는데, 이 저장소는
+   바로 그 방식으로 두 번 틀렸다(흰 카드에 흰 글자 → 잉크 카드에 어두운 글자).
+   tests/regression/test_wordmark_follows_its_surface.py가 그 구조를 지킨다. */
+.hero-logo { color: #fff; }
+.hero-logo .wordmark-sub { fill: rgba(255,255,255,.72); }
+.panel-logo { color: var(--ink); }
+.panel-logo .wordmark-sub { fill: var(--muted); }
+
+/* JS가 없는 브라우저에는 클로비가 표정을 바꾸지 못한다 — 그때는 말풍선이 틀린 말을 하느니
+   로드 시점 문구 그대로 두는 편이 낫다(카드 자체는 브랜드 장식이라 남긴다).
+   폼은 여전히 동작한다: <form action="/login" method="post">가 네이티브로 제출된다. */
+noscript .status { display: block; }

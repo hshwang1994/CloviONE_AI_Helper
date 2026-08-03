@@ -1,0 +1,67 @@
+/* 인증 화면(로그인 · 비밀번호 변경)이 공유하는 표면 언어.
+ *
+ * 출처는 승인된 로그인 디자인 원본이다:
+ *   reference/approved-login-baseline/static-login/styles.css
+ * 그 파일에서 **페이지에 종속되지 않는 조각만** 여기로 옮겼다 — 팔레트/모션 토큰, 리셋,
+ * 일시정지 규칙, @keyframes. 나머지(레이아웃·히어로·클로비 스테이지·폼 패널·미디어 쿼리)는
+ * login.css에 원본 그대로 남는다. 원본을 재해석하지 않는 것이 이 이식의 전제이므로,
+ * 여기 있는 값은 한 글자도 바꾸지 않았다.
+ *
+ * 왜 나눴나: 비밀번호 변경 화면이 로그인 바로 다음 화면인데 전혀 다른 언어로 보였다.
+ * 두 화면이 같은 파일에서 모션과 형태를 가져가면 한쪽만 바뀌는 일이 줄어든다.
+ *
+ * 색 이름 충돌은 없다. tokens.css는 전부 --color-* / --radius-* / --shadow-* / --font-stack
+ * 계열이고, 원본 디자인은 --primary / --ink / --border / --surface 계열이다. 두 벌이 같은
+ * 문서에 있어도 서로 덮지 않는다(비밀번호 변경 화면이 실제로 둘 다 로드한다).
+ *
+ * 여기에 넣지 않은 것 — 그리고 그 이유:
+ *   color-scheme: light  → login.css로 내렸다. 비밀번호 변경 화면은 theme.js로 다크를
+ *                          지원하는데(tests/regression/test_theme_on_all_authed_pages.py)
+ *                          여기서 라이트로 못 박으면 그 화면의 폼 컨트롤·스크롤바가 어긋난다.
+ *   body { background/display/padding } → login.css로 내렸다. base.css의 html,body 규칙보다
+ *                          늦게 로드되므로 여기 두면 비밀번호 변경 화면의 다크 배경을 덮는다.
+ */
+
+:root {
+  --primary: #536CD6;
+  --primary-dark: #435CBE;
+  --primary-soft: #758AE1;
+  --purple: #8E75E1;
+  --mint: #62C7BD;
+  --pink: #F7A8C4;
+  --ink: #1B2235;
+  --text: #333B55;
+  --muted: #667091;
+  --border: #DDE4F6;
+  --surface: #FFFFFF;
+  --surface-soft: #F7F9FF;
+  --error: #B42318;
+  --success: #147D4C;
+  --motion-fast: 160ms;
+  --motion-medium: 320ms;
+  --motion-slow: 620ms;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+button, input { font: inherit; }
+
+/* 탭이 백그라운드로 가면 클로비의 눈 애니메이션이 계속 돌아 배터리를 먹었다.
+   clovi-login.js가 visibilitychange에서 body에 이 클래스를 토글한다. */
+.is-paused *, .is-paused *::before, .is-paused *::after { animation-play-state: paused !important; }
+
+@keyframes shell-enter { from { opacity: 0; transform: translateY(10px) scale(.995); } to { opacity: 1; transform: none; } }
+@keyframes content-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes form-enter { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@keyframes visual-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes eye-welcome { 0%, 100% { opacity: 1; } 42% { opacity: .22; } 58% { opacity: .22; } }
+@keyframes eye-working { 0%,100% { opacity: .68; filter: brightness(.92); } 50% { opacity: 1; filter: brightness(1.12); } }
+@keyframes eye-success { 0% { transform: translate3d(var(--eye-x), var(--eye-y), 0) scale(1); } 42% { transform: translate3d(var(--eye-x), var(--eye-y), 0) scale(1.08); } 100% { transform: translate3d(var(--eye-x), var(--eye-y), 0) scale(1); } }
+@keyframes eye-error {
+  0%, 100% { transform: translate3d(var(--eye-x), var(--eye-y), 0) scaleY(var(--eye-open)); }
+  35% { transform: translate3d(calc(var(--eye-x) - 2px), var(--eye-y), 0) scaleY(.72); }
+  70% { transform: translate3d(calc(var(--eye-x) + 2px), var(--eye-y), 0) scaleY(.72); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
