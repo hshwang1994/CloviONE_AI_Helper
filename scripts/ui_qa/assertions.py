@@ -16,6 +16,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   tiny_text               (width >= 2200 only) rendered text under 12 CSS px
   narrow_main             (width >= 3840 only) content column < 60% of viewport
   vertical_text_collapse  글자가 3자 미만/줄로 끊겨 세로로 흐르는 상태(줄 수로 직접 측정)
+  fab_overlap             떠 있는 요소(마스코트 FAB 등)가 버튼·입력을 덮어 못 누르게 됨
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ NARROW_MAIN_MIN_RATIO = 0.60
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
     "broken_images", "duplicate_ids", "tiny_text", "narrow_main", "vertical_text_collapse",
+    "fab_overlap",
 )
 
 MAX_SAMPLES = 5
@@ -254,6 +256,51 @@ PROBE_JS = r"""
   out.verticalCollapseCount = out.verticalCollapseCount || 0;
   out.tinyTextChecked = wantTiny;
 
+  // --- 떠 있는 요소가 조작 컨트롤을 덮는가 ---------------------------------
+  // 마스코트 FAB 같은 position:fixed 요소는 문서 흐름 밖에 있어서, 화면마다 하단 여백을
+  // 얼마나 뒀는지와 무관하게 그 위에 얹힌다. 셸에 여백을 줘도 화면이 100vh 계산으로
+  // 자체 높이를 잡으면 그 여백을 벗어난다 — 실제로 놀이방 채팅의 '보내기' 버튼이
+  // FAB 밑에 깔렸다. 눈으로 보기 전에는 아무 검사도 이걸 잡지 못했다.
+  //
+  // 겹침 자체보다 **누를 수 없게 되는 것**이 문제이므로, 겹친 지점에서
+  // elementFromPoint 가 그 컨트롤을 돌려주는지까지 본다. 살짝 스치기만 하고 여전히
+  // 누를 수 있으면 통과다.
+  out.fabOverlap = [];
+  const floaters = Array.from(document.querySelectorAll('body *')).filter((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return false;
+    if (parseFloat(cs.opacity || '1') < 0.1) return false;
+    const r = el.getBoundingClientRect();
+    // 전면 오버레이(모달 배경 등)는 대상이 아니다 — 덮는 게 목적인 요소다.
+    return r.width > 8 && r.height > 8 && r.width < innerWidth * 0.5 && r.height < innerHeight * 0.5;
+  });
+  const controls = document.querySelectorAll('button, a[href], input, select, textarea, [role="button"]');
+  for (const el of controls) {
+    if (out.fabOverlap.length >= MAX) break;
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) continue;
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+    for (const f of floaters) {
+      if (f === el || f.contains(el) || el.contains(f)) continue;
+      const fr = f.getBoundingClientRect();
+      const ox = Math.min(r.right, fr.right) - Math.max(r.left, fr.left);
+      const oy = Math.min(r.bottom, fr.bottom) - Math.max(r.top, fr.top);
+      if (ox <= 0 || oy <= 0) continue;
+      // 겹친 영역의 한가운데를 눌러 본다. 그 컨트롤이 안 나오면 실제로 가려진 것이다.
+      const px = Math.max(r.left, fr.left) + ox / 2;
+      const py = Math.max(r.top, fr.top) + oy / 2;
+      const hit = document.elementFromPoint(px, py);
+      if (hit && (hit === el || el.contains(hit))) continue;  // 여전히 눌린다
+      const covered = Math.round((ox * oy) / (r.width * r.height) * 100);
+      out.fabOverlap.push({
+        control: cssPath(el), text: snippet(el), floater: cssPath(f),
+        coveredPct: covered, at: [Math.round(px), Math.round(py)],
+      });
+      break;
+    }
+  }
+  out.fabOverlapCount = out.fabOverlap.length;
+
   // --- app-level state worth recording (not a failure by itself) -----------
   const denied = document.querySelector('.k-empty-title');
   out.emptyTitle = denied ? snippet(denied) : null;
@@ -395,6 +442,19 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     results["vertical_text_collapse"] = (
         _verdict("fail", collapse_count, collapse_samples)
         if collapse_count else _verdict("pass")
+    )
+
+    # 떠 있는 요소가 컨트롤을 덮어 **누를 수 없게** 만든 경우만 실패다. 살짝 스치기만 하고
+    # 여전히 눌리면(elementFromPoint 가 그 컨트롤을 돌려주면) 프로브 단계에서 걸러진다.
+    overlap = probe.get("fabOverlap") or []
+    overlap_count = probe.get("fabOverlapCount", len(overlap))
+    results["fab_overlap"] = (
+        _verdict("fail", overlap_count, [
+            f"{o['control']} «{o['text']}» 를 {o['floater']} 가 {o['coveredPct']}% 덮음"
+            f" (({o['at'][0]},{o['at'][1]}) 에서 클릭이 가로채짐)"
+            for o in overlap
+        ])
+        if overlap_count else _verdict("pass")
     )
 
     return results

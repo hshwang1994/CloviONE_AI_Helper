@@ -12,6 +12,7 @@ import confetti from "canvas-confetti";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { MascotPose } from "../ui/Mascot.jsx";
+import { FAB_CLEARANCE } from "../ui/theme.js";
 import { MISC } from "../lib/assets.js";
 import { GAME_LABELS } from "./Games.jsx";
 
@@ -1013,7 +1014,10 @@ export function GameRoom() {
             스크롤) 아무리 많아도 채팅을 밀어내지 않게 한다. 채팅이 남는 공간을 꽉 채운다. */}
         <Box component="aside" sx={{
           display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0,
-          position: { md: "sticky" }, top: { md: 0 }, height: { md: "calc(100vh - 14rem)" },
+          position: { md: "sticky" }, top: { md: 0 },
+          // FAB_CLEARANCE 를 함께 빼지 않으면 레일 맨 아래의 '보내기'가 마스코트 FAB 밑에
+          // 깔려 눌리지 않는다(클릭이 FAB에 가로채짐). 실제로 그랬다.
+          height: { md: `calc(100vh - 14rem - ${FAB_CLEARANCE})` },
         }}>
           <Paper variant="outlined" sx={{ p: 1.5, flexShrink: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>참여자 {members.length}명</Typography>
