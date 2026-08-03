@@ -106,8 +106,19 @@ def classify(type_names, category_names, title: str) -> tuple[str, str, list[str
     work_field: str | None = None
     tags: list[str] = []
 
+    # Notion 쪽이 이미 신규 택소노미 이름을 쓰고 있으면 그대로 받는다.
+    #
+    # 2026-08-03에 Notion 원본 104건을 신규 택소노미로 재분류했다. 그런데 이 매핑표는 옛 이름
+    # (Knowledge base, 고객사 별 배포 가이드 …)만 알고 있어서 새 이름이 표에 없다고 전부
+    # '기타'로 떨어졌다 — 원본을 바로잡았는데 화면은 오히려 나빠졌다(참고자료 26→13, 기타 10→24).
+    # 표에 12줄을 더 넣는 대신 '이미 유효한 값이면 통과'로 둔다. 택소노미가 늘어도 여기를
+    # 다시 고칠 일이 없다.
     for t in type_names or []:
-        m = _TYPE_MAP.get((t or "").strip())
+        name = (t or "").strip()
+        if name in DOC_TYPES:
+            doc_type = doc_type or name
+            continue
+        m = _TYPE_MAP.get(name)
         if m:
             dt, wf, tag = m
             doc_type = doc_type or dt
@@ -115,7 +126,11 @@ def classify(type_names, category_names, title: str) -> tuple[str, str, list[str
             if tag and tag not in tags:
                 tags.append(tag)
     for c in category_names or []:
-        m = _CAT_MAP.get((c or "").strip())
+        name = (c or "").strip()
+        if name in WORK_FIELDS:
+            work_field = work_field or name
+            continue
+        m = _CAT_MAP.get(name)
         if m:
             wf, dt, tag = m
             work_field = work_field or wf
