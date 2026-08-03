@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { HashRouter, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth.jsx";
 import { api } from "../lib/api.js";
 import { Chat } from "../screens/Chat.jsx";
@@ -13,8 +13,14 @@ import { Board } from "../screens/Board.jsx";
 import { BoardPost } from "../screens/BoardPost.jsx";
 import { TeamDocs } from "../screens/TeamDocs.jsx";
 import { TeamDoc } from "../screens/TeamDoc.jsx";
+import { Trash } from "../screens/Trash.jsx";
+import { Ticket } from "../screens/Ticket.jsx";
+import { TeamTickets } from "../screens/TeamTickets.jsx";
+import { Sprint } from "../screens/Sprint.jsx";
 import { Games } from "../screens/Games.jsx";
 import { GameRoom } from "../screens/GameRoom.jsx";
+import { ChatRooms } from "../screens/ChatRooms.jsx";
+import { ChatRoom } from "../screens/ChatRoom.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 import { REGISTRY } from "../screens/registry.js";
 import { NotificationBell } from "./NotificationBell.jsx";
@@ -156,11 +162,15 @@ const USER_NAV = [
   ] },
   { group: "도우미", items: [
     { to: "/chat", label: "AI 도우미" },
+    { to: "/sprint", label: "스프린트 회의" },
   ] },
   { group: "문서", items: [
     { to: "/team-docs", label: "문서" },
+    { to: "/team-docs/trash", label: "휴지통" },
   ] },
   { group: "팀 공간", items: [
+    { to: "/team-tickets", label: "팀 티켓" },
+    { to: "/chat-rooms", label: "채팅방" },
     { to: "/games", label: "놀이" },
     { to: "/board", label: "자유게시판" },
   ] },
@@ -169,7 +179,7 @@ const USER_NAV = [
 // 사용자 세그먼트에 속하는 경로 — 관리자군이 상단 '사용자' 탭을 눌렀을 때 이 경로들에서 UserBody
 // (개인 업무 콘솔)를 렌더한다. /notifications 는 관리자 세그먼트 소유라 여기 넣지 않는다(알림은
 // 상단 벨로 접근). role=user 는 세그먼트와 무관하게 항상 UserBody 다.
-const USER_SEG_PATHS = ["/me", "/my-tickets", "/unassigned", "/new-ticket", "/chat", "/board", "/team-docs", "/games"];
+const USER_SEG_PATHS = ["/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets", "/chat", "/chat-rooms", "/sprint", "/board", "/team-docs", "/games"];
 function inUserSegment(pathname) {
   return USER_SEG_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
@@ -210,16 +220,29 @@ function getStoredCollapsed(userId) {
  * Sidebar 안에 인라인으로 흩어져 있어 두 셸이 서로 다른 규격으로 벌어질 위험이 있었다.
  * 선택 상태는 좌측 강조선(§6가 거부한 Claude식 바) 없이 '행 전체 배경 틴트 + 글자/아이콘 색'으로만
  * 표현한다(스타일은 global.css .c-nav-item.is-active). */
-function NavigationItem({ to, label, onNavigate }) {
+// 현재 경로에 '가장 길게 맞는' 항목만 활성으로 본다. NavLink 기본 접두 매칭은 /team-docs 가
+// /team-docs/trash 에서도 활성이라 '문서'와 '휴지통'이 동시에 켜졌다(사용자 신고 버그). 가장 구체적인
+// (긴) 항목 하나만 활성이 되게 한다 — /team-docs/:id 상세는 /team-docs('문서')를, /team-docs/trash 는 '휴지통'만.
+function bestNavMatch(pathname, paths) {
+  let best = null;
+  for (const p of paths) {
+    if (pathname === p || pathname.startsWith(p + "/")) {
+      if (!best || p.length > best.length) best = p;
+    }
+  }
+  return best;
+}
+
+function NavigationItem({ to, label, onNavigate, active }) {
   return (
-    <NavLink to={to} onClick={onNavigate}
-      className={({ isActive }) => "c-nav-item" + (isActive ? " is-active" : "")}>
+    <Link to={to} onClick={onNavigate} aria-current={active ? "page" : undefined}
+      className={"c-nav-item" + (active ? " is-active" : "")}>
       <span className="c-nav-label">{label}</span>
-    </NavLink>
+    </Link>
   );
 }
 
-function NavigationGroup({ group, items, active, collapsed, onToggle, onNavigate }) {
+function NavigationGroup({ group, items, active, activePath, collapsed, onToggle, onNavigate }) {
   // 모바일 햄버거(.c-hamburger)는 aria-controls로 자신이 여는 사이드바(#admin-sidebar)와
   // 이미 연결돼 있다. 이 그룹 토글도 같은 펼침/접힘 패턴(aria-expanded+회전 화살표)을 쓰면서
   // 자신이 여는 항목 목록과는 연결돼 있지 않았다, id를 주고 aria-controls로 묶는다.
@@ -238,7 +261,7 @@ function NavigationGroup({ group, items, active, collapsed, onToggle, onNavigate
           위젯 패턴 위반). 항상 마운트해 두고 hidden 속성으로만 감춘다(product-quality-audit AREA=D). */}
       <div className="c-nav-items" id={itemsId} hidden={collapsed}>
         {items.map((it) => (
-          <NavigationItem key={it.to} to={it.to} label={it.label} onNavigate={onNavigate} />
+          <NavigationItem key={it.to} to={it.to} label={it.label} onNavigate={onNavigate} active={it.to === activePath} />
         ))}
       </div>
     </div>
@@ -254,6 +277,8 @@ function Sidebar({ nav = NAV, ariaLabel = "관리 메뉴", onNavigate }) {
   // 권한 없는 메뉴는 숨긴다(예: 진단·유지보수는 admin/system_admin만).
   const groups = nav.map((g) => ({ ...g, items: g.items.filter((it) => !it.roles || (role && it.roles.includes(role))) }))
     .filter((g) => g.items.length);
+  // 모든 항목 중 현재 경로에 가장 구체적으로 맞는 하나만 활성(접두 중복 하이라이트 방지).
+  const activePath = bestNavMatch(loc.pathname, groups.flatMap((g) => g.items.map((it) => it.to)));
   const toggle = (name) => setCollapsed((c) => {
     const next = { ...c, [name]: !c[name] };
     try { localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
@@ -262,12 +287,12 @@ function Sidebar({ nav = NAV, ariaLabel = "관리 메뉴", onNavigate }) {
   return (
     <nav className="c-nav" aria-label={ariaLabel}>
       {groups.map((g) => {
-        const groupActive = g.items.some((it) => loc.pathname === it.to);
+        const groupActive = g.items.some((it) => it.to === activePath);
         // 현재 위치가 든 그룹은 사용자가 접어 뒀어도 항상 펼쳐 '여기 있음' 항목이 숨지 않게 한다
         // (알림 딥링크, 세그먼트, 직접 해시로 접힌 그룹 안 경로에 도착할 때).
         const isCollapsed = !!collapsed[g.group] && !groupActive;
         return (
-          <NavigationGroup key={g.group} group={g.group} items={g.items} active={groupActive}
+          <NavigationGroup key={g.group} group={g.group} items={g.items} active={groupActive} activePath={activePath}
             collapsed={isCollapsed} onToggle={() => toggle(g.group)} onNavigate={onNavigate} />
         );
       })}
@@ -496,7 +521,6 @@ function Topbar({ isUser, userSeg, showMenu, navOpen, onMenu, minimal }) {
           <rect x="12" y="12" width="10" height="10" rx="2" fill="#435CBE" />
         </svg>
         <span className="c-brand-name">ClovirONE</span>
-        <span className="c-brand-sub">업무 도우미</span>
       </button>
       <div className="c-topbar-spacer" />
       {!isUser && !minimal ? (
@@ -520,7 +544,9 @@ function ConsoleShell({ nav, ariaLabel, navOpen, onCloseNav, children }) {
   const loc = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const asideRef = useRef(null);
-  const flush = loc.pathname.startsWith("/chat");
+  // AI 도우미(/chat)만 자체 2단 레이아웃이라 flush(패딩·폭 캡 제거). /chat-rooms(팀 채팅방)는
+  // 일반 c-content 레이아웃을 쓰므로 접두 매칭(startsWith)이 아니라 정확히 /chat 일 때만 flush.
+  const flush = loc.pathname === "/chat";
   // 모바일 폭(<=860px) 감지 — 닫힌 사이드바는 화면 밖으로 밀려 있을 뿐 DOM에 남아 키보드/SR이 도달한다
   // (채팅 드로어와 동일한 처리). 모바일이고 닫혀 있으면 aside를 inert로 만든다.
   useEffect(() => {
@@ -643,10 +669,17 @@ function UserBody({ navOpen, onCloseNav }) {
         <Route path="/my-tickets" element={<MyTickets />} />
         <Route path="/unassigned" element={<Unassigned />} />
         <Route path="/new-ticket" element={<NewTicket />} />
+        <Route path="/tickets/:id" element={<Ticket />} />
+        <Route path="/team-tickets" element={<TeamTickets />} />
+        <Route path="/sprint" element={<Sprint />} />
         <Route path="/chat" element={<div className="c-chat-embed"><Chat /></div>} />
+        <Route path="/chat-rooms" element={<ChatRooms />} />
+        <Route path="/chat-rooms/:id" element={<ChatRoom />} />
         <Route path="/board" element={<Board />} />
         <Route path="/board/:id" element={<BoardPost />} />
         <Route path="/team-docs" element={<TeamDocs />} />
+        {/* /team-docs/trash 는 /team-docs/:id 보다 먼저 — id 로 잡히지 않게 */}
+        <Route path="/team-docs/trash" element={<Trash />} />
         <Route path="/team-docs/:id" element={<TeamDoc />} />
         <Route path="/games" element={<Games />} />
         <Route path="/games/:id" element={<GameRoom />} />

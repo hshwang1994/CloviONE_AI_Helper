@@ -9,6 +9,7 @@ import {
   ErrorState,
   PageHeader,
   Skeleton,
+  useConfirm,
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
@@ -18,7 +19,7 @@ import { docTypeKind } from "../lib/badges.js";
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
  * 문서 안의 프롬프트처럼 보이는 문장도 그저 텍스트다, §11.3/§17.2). */
 
-function safeExternal(url) {
+export function safeExternal(url) {
   // 원본/출처 링크는 http(s)만 새 탭으로 연다(javascript: 등 차단).
   if (typeof url !== "string") return null;
   if (/^https?:\/\//i.test(url)) return url;
@@ -44,7 +45,7 @@ function DocBlock({ block }) {
   }
 }
 
-function DocBody({ blocks, blocksError, originalUrl }) {
+export function DocBody({ blocks, blocksError, originalUrl }) {
   if (blocksError) {
     return (
       <Callout tone="warn">
@@ -83,11 +84,23 @@ export function TeamDoc() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
 
   const detail = useQuery({
     queryKey: ["team-doc", id],
     queryFn: () => api("/api/team-docs/" + id),
+  });
+
+  const trash = useMutation({
+    mutationFn: () => api("/api/team-docs/" + id + "/trash", { method: "POST" }),
+    onSuccess: () => {
+      toast("문서를 휴지통으로 옮겼습니다.", "success");
+      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      nav("/team-docs");
+    },
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
   const fav = useMutation({
@@ -127,6 +140,12 @@ export function TeamDoc() {
           원본 열기
         </Button>
       ) : null}
+      <Button variant="danger" disabled={trash.isPending}
+        onClick={async () => {
+          const ok = await confirm("이 문서를 휴지통으로 옮깁니다. 보관기간이 지나면 원본이 삭제됩니다. 계속할까요?",
+            { title: "문서 삭제", confirmLabel: "휴지통으로", danger: true });
+          if (ok) trash.mutate();
+        }}>삭제</Button>
     </div>
   );
 

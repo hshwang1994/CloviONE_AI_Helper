@@ -1,10 +1,32 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, StatCard, PageHeader, Modal, ModalFooter, Button, useToast } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "./Chat.jsx";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
+import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { TeamChatWidget } from "./TeamChatWidget.jsx";
+
+// 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
+function useBulkTrash(path, qc, toast, onDone) {
+  return useMutation({
+    mutationFn: (ids) => api(path, { method: "POST", body: { page_ids: ids } }),
+    onSuccess: (res) => {
+      const n = (res.trashed || []).length;
+      const f = (res.failed || []).length;
+      toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
+      // refetchType:"all" — 지금 화면에 없는(비활성) 목록까지 즉시 다시 불러와, 삭제 후 어느 페이지로
+      // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
+      qc.invalidateQueries({ queryKey: ["tickets"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      onDone && onDone();
+    },
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+  });
+}
 
 /* 사용자 셀프서비스 — 내 업무(홈)·내 티켓·미할당 티켓.
  * 데이터는 /api/tickets/*(백엔드가 세션 사용자 기준으로 본인 것만 준다 — 브라우저는 notion id를
@@ -15,10 +37,8 @@ const TERMINAL = new Set(["완료", "취소"]);
 
 function ticketId(t) { return t.tid != null ? "GIT-" + t.tid : "-"; }
 
-// 행/‘상세’ 클릭 → Notion 페이지를 새 탭으로 연다(제목만이 아니라 티켓을 눌러 상세를 본다).
-function openNotion(t) {
-  if (t && t.url) window.open(t.url, "_blank", "noopener,noreferrer");
-}
+// 행/‘상세’ 클릭 → 우리 화면의 티켓 상세로 간다(문서처럼). 원본(노션)은 상세에서 '원본 열기'로.
+function ticketPath(t) { return "/tickets/" + (t && t.id); }
 
 function todayISO() {
   const d = new Date();
@@ -34,19 +54,20 @@ function addDaysISO(iso, days) {
 function isActive(t) { return !TERMINAL.has(t.status || ""); }
 function isOverdue(t, today) { return isActive(t) && t.due && t.due < today; }
 
-function NotionLink({ t }) {
-  const url = t.url;
-  if (!url) return <span>{t.title || "-"}</span>;
-  // 외부 링크는 새 탭. Notion 앱 URL은 신뢰 도메인.
-  return <a className="k-link" href={url} target="_blank" rel="noreferrer noopener">{t.title || "제목 없음"}</a>;
+function TitleCell({ t, onOpen }) {
+  // 제목(이름)을 눌러야 상세로 간다 — 행 전체 클릭은 없앤다(체크박스 오클릭으로 상세 이동하던 불편 제거).
+  if (onOpen) {
+    return <button type="button" className="k-title-link" onClick={() => onOpen(t)}>{t.title || "제목 없음"}</button>;
+  }
+  return <span className="ticket-title-cell">{t.title || "제목 없음"}</span>;
 }
 
 // 목록 표 — 티켓/제목/상태/우선순위/난이도/예상WD/마감. 숫자·날짜는 우측 정렬(tabular-nums).
-// onEdit/onClaim 을 주면 우측에 액션 열(편집·나에게 배정)이 붙는다.
-function ticketColumns({ showAssignee, onEdit, onClaim } = {}) {
+// onEdit/onClaim 을 주면 우측에 액션 열(편집·나에게 배정)이 붙는다. onOpen 을 주면 제목이 상세 링크.
+export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen } = {}) {
   const cols = [
     { key: "tid", label: "티켓", render: (t) => ticketId(t) },
-    { key: "title", label: "제목", render: (t) => <NotionLink t={t} /> },
+    { key: "title", label: "제목", render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
     { key: "status", label: "상태", render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
     { key: "priority", label: "우선순위", render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
     { key: "difficulty", label: "난이도", align: "right", render: (t) => (t.difficulty || "-") },
@@ -96,11 +117,12 @@ function groupByProject(rows) {
   });
 }
 
-// 프로젝트별로 묶되 '하나의 표'로 그린다, 그룹마다 별도 <table>을 쓰면 열 너비가 제각각 자동
-// 계산돼 프로젝트별로 칼럼이 어긋난다. 단일 표 안에서 그룹 헤더 행(colSpan)으로 구분하면 모든
-// 그룹이 같은 열 너비로 정렬된다. 행 클릭 → Notion(링크/버튼 클릭은 제외). onRow와 동일하게 '상세' 열 추가.
-function GroupedTickets({ rows, columns, empty }) {
-  const cols = [...columns, { key: "__open", label: "", align: "right", open: true }];
+// 그룹 기준으로 묶어 '하나의 표'로 그린다(그룹마다 별도 table을 쓰면 열 너비가 어긋남). 기본은
+// 프로젝트별, groupBy 를 주면 담당자별 등 다른 기준으로. 행 전체는 클릭 대상이 아니다 — 제목만 상세로.
+export function GroupedTickets({ rows, columns, empty, groupBy }) {
+  const cols = columns;
+  const grouper = groupBy || groupByProject;
+  const cls = (c) => [c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ");
   if (!rows.length) {
     return (
       <div className="k-table-wrap">
@@ -114,23 +136,21 @@ function GroupedTickets({ rows, columns, empty }) {
     <div className="k-table-wrap">
       <table className="k-table k-table--grouped">
         <thead>
-          <tr>{cols.map((c) => <th key={c.key} scope="col" className={c.align ? "is-" + c.align : ""}>{c.open ? <span className="sr-only">동작</span> : c.label}</th>)}</tr>
+          <tr>{cols.map((c) => <th key={c.key} scope="col" className={cls(c)}>{c.label}</th>)}</tr>
         </thead>
-        {groupByProject(rows).map(([project, items]) => (
-          <tbody key={project}>
+        {grouper(rows).map(([groupName, items]) => (
+          <tbody key={groupName}>
             <tr className="k-group-row">
               <th colSpan={cols.length} scope="colgroup">
-                <span className="k-group-name">{project}</span>
+                <span className="k-group-name">{groupName}</span>
                 <span className="k-group-count">{items.length}건</span>
               </th>
             </tr>
             {items.map((t) => (
-              <tr key={t.id} className="is-click" onClick={(e) => { if (e.target.closest("a,button")) return; openNotion(t); }}>
+              <tr key={t.id}>
                 {cols.map((c) => (
-                  <td key={c.key} data-label={c.label} className={c.align ? "is-" + c.align : ""}>
-                    {c.open
-                      ? <button type="button" className="k-row-open" aria-label={"상세: " + (t.tid != null ? "GIT-" + t.tid : (t.title || "티켓"))} onClick={(e) => { e.stopPropagation(); openNotion(t); }}>상세</button>
-                      : (c.render ? c.render(t) : (t[c.key] == null || t[c.key] === "" ? "-" : String(t[c.key])))}
+                  <td key={c.key} data-label={c.label} className={cls(c)}>
+                    {c.render ? c.render(t) : (t[c.key] == null || t[c.key] === "" ? "-" : String(t[c.key]))}
                   </td>
                 ))}
               </tr>
@@ -262,7 +282,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
 }
 
 // 미할당 티켓을 '나에게 배정'하는 뮤테이션 — 성공 시 목록을 다시 불러온다.
-function useClaim() {
+export function useClaim() {
   const qc = useQueryClient();
   const toast = useToast();
   return useMutation({
@@ -293,10 +313,13 @@ function useMine() {
 }
 
 /* 내 업무(홈), 상태별 요약 카드(누르면 아래 목록이 그 상태로 필터됨) + 지연 강조.
- * 카드=필터 토글: 한 번 누르면 그 상태만, 다시 누르면 해제(기본 '다가오는' 미리보기로). */
+ * 카드=필터 선택: 누르면 그 상태가 '선택된 채로 유지'된다. 해제는 목록 위 '필터 해제'로 한다
+ * (같은 카드를 다시 눌러도 풀리지 않는다 — 눌러 놓은 필터가 저절로 풀리면 헷갈린다는 피드백 반영). */
 export function MyWork() {
   const q = useMine();
+  const nav = useNavigate();
   const [focus, setFocus] = React.useState(null); // null | active | due7 | overdue | done
+  const [editing, setEditing] = React.useState(null);
   const today = todayISO();
   const weekEnd = addDaysISO(today, 7);
   return (
@@ -323,15 +346,15 @@ export function MyWork() {
             done: { title: "완료한 티켓", rows: done },
           };
           const cur = focus ? views[focus] : null;
-          const toggle = (k) => setFocus((f) => (f === k ? null : k));
+          const select = (k) => setFocus(k);  // 선택 유지(같은 카드를 다시 눌러도 해제되지 않음)
           const listRows = cur ? byDue(cur.rows) : byDue(active).slice(0, 8);
           return (
             <>
               <div className="dash-grid">
-                <StatCard value={active.length} label="진행 중인 내 티켓" active={focus === "active"} onClick={() => toggle("active")} />
-                <StatCard value={due7.length} label="7일 내 마감" kind={due7.length ? "warn" : undefined} active={focus === "due7"} onClick={() => toggle("due7")} />
-                <StatCard value={overdue.length} label="지연(기한 초과)" kind={overdue.length ? "danger" : undefined} active={focus === "overdue"} onClick={() => toggle("overdue")} />
-                <StatCard value={done.length} label="완료" kind="ok" active={focus === "done"} onClick={() => toggle("done")} />
+                <StatCard value={active.length} label="진행 중인 내 티켓" active={focus === "active"} onClick={() => select("active")} />
+                <StatCard value={due7.length} label="7일 내 마감" kind={due7.length ? "warn" : undefined} active={focus === "due7"} onClick={() => select("due7")} />
+                <StatCard value={overdue.length} label="지연(기한 초과)" kind={overdue.length ? "danger" : undefined} active={focus === "overdue"} onClick={() => select("overdue")} />
+                <StatCard value={done.length} label="완료" kind="ok" active={focus === "done"} onClick={() => select("done")} />
               </div>
               {overdue.length && focus !== "overdue" ? (
                 <Callout tone="danger">마감이 지난 미완료 티켓이 {overdue.length}건 있습니다. <button type="button" className="k-link k-linkbtn" onClick={() => setFocus("overdue")}>여기서 보기</button> 또는 <a className="k-link" href="#/my-tickets">내 티켓에서 확인</a>하세요.</Callout>
@@ -343,13 +366,16 @@ export function MyWork() {
                     ? <button type="button" className="k-link k-linkbtn" onClick={() => setFocus(null)}>필터 해제</button>
                     : <a className="k-link" href="#/my-tickets">전체 보기</a>}
                 </div>
-                <DataTable columns={ticketColumns()} rows={listRows} rowKey={(t) => t.id} onRow={openNotion}
+                <DataTable columns={ticketColumns({ onEdit: setEditing, onOpen: (t) => nav(ticketPath(t)) })}
+                  rows={listRows} rowKey={(t) => t.id}
                   empty={cur ? "해당하는 티켓이 없습니다." : "진행 중인 티켓이 없습니다."} />
               </Card>
             </>
           );
         })()}
       <BoardActivity />
+      <TeamChatWidget />
+      <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
     </div>
   );
 }
@@ -394,12 +420,24 @@ function BoardActivity() {
 /* 내 티켓, 상태 필터 + 전체 목록 + 편집. */
 export function MyTickets() {
   const q = useMine();
+  const nav = useNavigate();
   const [status, setStatus] = React.useState("active");
   const [editing, setEditing] = React.useState(null);
+  const toast = useToast();
+  const qc = useQueryClient();
+  const sel = useRowSelection();
+  const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
   const today = todayISO();
+  // 상태 필터를 바꾸면 선택을 비운다(숨겨진 항목이 선택된 채 남지 않게).
+  const changeStatus = (v) => { setStatus(v); sel.clear(); };
+  const headerActions = (
+    <BulkActions count={sel.selected.size} onClear={sel.clear}>
+      <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate([...sel.selected])}>선택 삭제</Button>
+    </BulkActions>
+  );
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" />
+      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" actions={headerActions} />
       {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -411,11 +449,13 @@ export function MyTickets() {
             : status === "active" ? all.filter(isActive)
             : status === "overdue" ? all.filter((t) => isOverdue(t, today))
             : all.filter((t) => t.status === status);
+          const cols = [selectionColumn(sel, rows.map((r) => r.id)),
+            ...ticketColumns({ showAssignee: true, onEdit: setEditing, onOpen: (t) => nav(ticketPath(t)) })];
           return (
             <Card>
               <div className="c-toolbar-row">
                 <label className="k-field-inline"><span className="k-field-label">상태</span>
-                  <select className="c-filter" value={status} onChange={(e) => setStatus(e.target.value)}>
+                  <select className="c-filter" value={status} onChange={(e) => changeStatus(e.target.value)}>
                     <option value="active">진행 중(완료, 취소 제외)</option>
                     <option value="overdue">지연</option>
                     <option value="진행">진행</option>
@@ -429,8 +469,7 @@ export function MyTickets() {
                 </label>
                 <span className="k-field-help">{rows.length}건</span>
               </div>
-              <GroupedTickets rows={rows} columns={ticketColumns({ showAssignee: true, onEdit: setEditing })}
-                empty="조건에 맞는 티켓이 없습니다." />
+              <GroupedTickets rows={rows} columns={cols} empty="조건에 맞는 티켓이 없습니다." />
             </Card>
           );
         })()}
@@ -442,11 +481,21 @@ export function MyTickets() {
 /* 미할당 티켓 — 담당자 없는 활성 티켓. '나에게 배정'(claim) 또는 편집으로 담당자를 지정한다. */
 export function Unassigned() {
   const q = useQuery({ queryKey: ["tickets", "unassigned"], queryFn: () => api("/api/tickets/unassigned"), retry: false });
+  const nav = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
   const [editing, setEditing] = React.useState(null);
   const claim = useClaim();
+  const sel = useRowSelection();
+  const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
+  const headerActions = (
+    <BulkActions count={sel.selected.size} onClear={sel.clear}>
+      <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate([...sel.selected])}>선택 삭제</Button>
+    </BulkActions>
+  );
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" />
+      <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" actions={headerActions} />
       {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -454,11 +503,12 @@ export function Unassigned() {
           const conn = connCallout(data);
           if (conn) return conn;
           const rows = Array.isArray(data.tickets) ? data.tickets : [];
+          const cols = [selectionColumn(sel, rows.map((r) => r.id)),
+            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: (t) => nav(ticketPath(t)) })];
           return (
             <Card>
               <p className="k-field-help">담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘편집’에서 하세요.</p>
-              <GroupedTickets rows={rows} columns={ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id) })}
-                empty="담당자 없는 티켓이 없습니다." />
+              <GroupedTickets rows={rows} columns={cols} empty="담당자 없는 티켓이 없습니다." />
             </Card>
           );
         })()}

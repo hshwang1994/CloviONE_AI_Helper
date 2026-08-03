@@ -250,7 +250,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty }) {
         <thead>
           {/* 상세 열기 칸은 label이 빈 문자열이라 스크린리더가 헤더 이름 없이 침묵으로 읽었다
               (표 전체에서 유일하게 매 행의 상세 진입로인 칸인데도). sr-only 텍스트로 이름을 준다. */}
-          <tr>{cols.map((c) => <th key={c.key} scope="col" className={c.align ? "is-" + c.align : ""}>{c.open ? <span className="sr-only">동작</span> : c.label}</th>)}</tr>
+          <tr>{cols.map((c) => <th key={c.key} scope="col" className={[c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ")}>{c.open ? <span className="sr-only">동작</span> : c.label}</th>)}</tr>
         </thead>
         <tbody>
           {/* 빈 목록이면 헤더만 남은 '깨진 표' 대신 안내 한 줄을 그린다(호출부가 가드를 잊어도 안전). */}
@@ -262,7 +262,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty }) {
             <tr key={keyOf(row, i)} className={onRow ? "is-click" : ""}
               onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}>
               {cols.map((c) => (
-                <td key={c.key} data-label={c.label} className={c.align ? "is-" + c.align : ""}>
+                <td key={c.key} data-label={c.label} className={[c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ")}>
                   {c.open
                     ? <button type="button" className="k-row-open" aria-label={rowOpenLabel(baseCols, row)}
                         onClick={(e) => { e.stopPropagation(); onRow(row); }}>상세</button>

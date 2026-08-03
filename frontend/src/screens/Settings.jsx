@@ -15,6 +15,7 @@ const SETTING_LABELS = {
   // 라벨과 설명(registry.py) 용어를 '보존'으로 통일한다 — 라벨은 '보관', 옆 설명은 '보존'이라 서로 다른 개념처럼 보였다.
   conversation_retention_days: "대화 보존 기간(일)",
   notification_retention_days: "알림 보존 기간(일)",
+  trash_retention_days: "휴지통 보관 기간(일)",
   ui_branding: "브랜딩",
   maintenance_mode: "유지보수 모드",
   maintenance_message: "점검 공지",
@@ -46,7 +47,7 @@ const MAINTENANCE_READ_ROLES = ["operator", "admin", "system_admin", "auditor"];
 const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "allowed_email_domains", "ui_branding"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
-const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650] };
+const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };
 
 // 초 단위 값을 왜곡 없이 표시한다 — 딱 떨어질 때만 상위 단위로, 아니면 하위 단위로 내려간다.
 // (예전엔 Math.round로 90초를 '2분'처럼 보여 요약이 실제 저장값과 어긋났다.)
@@ -65,7 +66,7 @@ export function fmtDuration(sec) {
 export function summarizeSetting(key, v) {
   // 나머지 object 설정은 이미 완결된 한국어 요약('최소 12자' 등)을 보여주는데, 정수 타입인 이
   // 두 보존 기간 키만 '값' 칸에 단위 없는 맨숫자('90')로 떨어져 옆 행들과 표기가 어긋났다.
-  if ((key === "conversation_retention_days" || key === "notification_retention_days") && typeof v === "number") return v + "일";
+  if ((key === "conversation_retention_days" || key === "notification_retention_days" || key === "trash_retention_days") && typeof v === "number") return v + "일";
   if (v == null || typeof v !== "object") return null;
   if (key === "password_policy") {
     const parts = [];

@@ -69,6 +69,8 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   const [winners, setWinners] = useState(1);
   const [teams, setTeams] = useState(2);
   const [numMax, setNumMax] = useState(10);
+  const [timer, setTimer] = useState(15);
+  const [rpsMode, setRpsMode] = useState("single");
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
   const [quizQs, setQuizQs] = useState([{ q: "", options: ["", ""], answer: 0 }]);
@@ -79,9 +81,13 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     if (open) {
       setGameType("random_draw"); setTitle(""); setMaxPlayers(8); setWinners(1); setTeams(2); setNumMax(10);
       setQuestion(""); setOptions(["", ""]); setQuizQs([{ q: "", options: ["", ""], answer: 0 }]);
-      setAiTopic(""); setAiCount(5); setSpectators(true);
+      setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(15); setRpsMode("single");
     }
   }, [open]);
+  // 게임을 바꾸면 그 게임에 맞는 제한 시간 기본값으로(가위바위보 15초, 퀴즈 25초, 그 외 무제한).
+  React.useEffect(() => {
+    setTimer(gameType === "rps" ? 15 : gameType === "quiz" ? 25 : 0);
+  }, [gameType]);
 
   // AI 퀴즈 생성: 러너(Claude)가 만든 문제로 quizQs를 채운다. 결과는 아래 QuizEditor에서 검토·수정.
   const genAi = useMutation({
@@ -112,18 +118,20 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     .map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), answer: q.answer }))
     .filter((q) => q.q && q.options.length >= 2 && q.options.every(Boolean) && q.answer >= 0 && q.answer < q.options.length);
   const quizReady = !isQuiz || cleanQuiz.length >= 1;
+  const timed = isVote || isNumber || isRps || isQuiz;
+  const timerVal = Math.max(0, Math.min(Number(timer) || 0, 300));
   const config = isVote
-    ? { question: question.trim(), options: cleanOptions }
+    ? { question: question.trim(), options: cleanOptions, timer_seconds: timerVal }
     : isLadder
       ? { options: cleanOptions }
       : isTeam
         ? { teams: Number(teams) || 2 }
         : isNumber
-          ? { min: 1, max: Number(numMax) || 10 }
+          ? { min: 1, max: Number(numMax) || 10, timer_seconds: timerVal }
           : isRps
-            ? {}
+            ? { timer_seconds: timerVal, mode: rpsMode }
             : isQuiz
-              ? { questions: cleanQuiz }
+              ? { questions: cleanQuiz, timer_seconds: timerVal }
               : { winners: Number(winners) || 1 };
 
   const create = useMutation({
@@ -193,7 +201,16 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
         </div>
       ) : isRps ? (
         <div className="k-field">
-          <p className="k-field-help">참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정해요. (두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)</p>
+          <label className="k-field-label" htmlFor="gr-rpsmode">방식</label>
+          <select id="gr-rpsmode" className="k-input" value={rpsMode} onChange={(e) => setRpsMode(e.target.value)}>
+            <option value="single">한 판 (다 같이 한 번에)</option>
+            <option value="tournament">토너먼트 (짝지어 이긴 사람이 올라감)</option>
+          </select>
+          <p className="k-field-help">
+            {rpsMode === "tournament"
+              ? "참여자를 무작위로 짝지어 1:1로 붙고, 이긴 사람이 다음 라운드로 올라가 마지막 한 명이 챔피언이 됩니다. 비기면 그 대진만 다시 냅니다."
+              : "참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정해요 (두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)."}
+          </p>
         </div>
       ) : isQuiz ? (
         <div className="k-field">
@@ -221,6 +238,13 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
         </div>
       )}
 
+      {timed ? (
+        <div className="k-field">
+          <label className="k-field-label" htmlFor="gr-timer">제한 시간 (초)</label>
+          <input id="gr-timer" className="k-input" type="number" min={0} max={300} value={timer} onChange={(e) => setTimer(e.target.value)} />
+          <p className="k-field-help">{isQuiz ? "문제마다" : "라운드마다"} 남은 시간이 카운트다운으로 보입니다. 시간이 끝나면 자동으로 다음 단계로 넘어갑니다{isRps ? " (안 낸 사람은 무작위로 처리)" : ""}. 0이면 시간 제한이 없습니다.</p>
+        </div>
+      ) : null}
       <div className="k-field">
         <label className="k-field-label" htmlFor="gr-max">최대 참여 인원</label>
         <input id="gr-max" className="k-input" type="number" min={2} max={50} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} />

@@ -18,6 +18,7 @@ import {
 import { fmtDateTime } from "../lib/format.js";
 import { docTypeKind } from "../lib/badges.js";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
+import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 
 const PRIORITIES = ["높음", "보통", "낮음"];
 const STATUSES = ["초안", "활성", "서명됨", "만료됨"];
@@ -178,6 +179,7 @@ export function TeamDocs() {
   const q = useDebounced(qInput, 300);
   const [page, setPage] = useState(() => Number(sp.get("page")) || 1);
   const [composing, setComposing] = useState(false);
+  const sel = useRowSelection();
 
   // 필터/검색/정렬이 바뀌면 1페이지로 되돌린다(다른 필터의 3페이지에 머무르지 않게). 단 첫
   // 렌더(=URL에서 복원)는 건너뛴다 — 복원한 page를 지우지 않기 위함.
@@ -221,6 +223,22 @@ export function TeamDocs() {
     placeholderData: keepPreviousData,
   });
 
+  // 보이는 문서 집합이 바뀌면(검색·필터·페이지) 선택을 비운다 — 숨겨진 문서가 선택된 채 남지 않게.
+  useEffect(() => { sel.clear(); }, [q, docType, workField, project, tech, sort, favorites, page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bulkTrash = useMutation({
+    mutationFn: (ids) => api("/api/team-docs/trash-bulk", { method: "POST", body: { page_ids: ids } }),
+    onSuccess: (res) => {
+      const n = (res.trashed || []).length;
+      const f = (res.failed || []).length;
+      toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
+      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      sel.clear();
+    },
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+  });
+
   const sync = useMutation({
     mutationFn: () => api("/api/team-docs/sync", { method: "POST" }),
     onSuccess: (res) => {
@@ -238,11 +256,12 @@ export function TeamDocs() {
   const columns = [
     {
       key: "title", label: "제목",
+      // 제목(이름)을 눌러야 상세로 간다(행 전체 클릭 없음 — 체크박스 오클릭 방지).
       render: (d) => (
-        <span className="docs-title-cell">
+        <button type="button" className="k-title-link docs-title-cell" onClick={() => nav("/team-docs/" + d.id)}>
           {d.is_favorite ? <span className="docs-star" aria-label="즐겨찾기">★</span> : null}
           <span className="docs-title-text">{d.title || "제목 없음"}</span>
-        </span>
+        </button>
       ),
     },
     { key: "document_type", label: "문서 종류", render: (d) => (d.document_type ? <Badge value={d.document_type} kind={docTypeKind(d.document_type)} /> : "-") },
@@ -265,7 +284,13 @@ export function TeamDocs() {
       <PageHeader
         area={null}
         title="문서"
-        actions={<Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>}
+        actions={<>
+          <BulkActions count={sel.selected.size} onClear={sel.clear}>
+            <Button size="sm" variant="danger" disabled={bulkTrash.isPending}
+              onClick={() => bulkTrash.mutate([...sel.selected])}>선택 삭제</Button>
+          </BulkActions>
+          <Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>
+        </>}
       />
       <p className="k-page-help">Notion 팀 문서를 검색하고 새 문서를 만들 수 있습니다.</p>
 
@@ -317,10 +342,9 @@ export function TeamDocs() {
         <>
           <div className="docs-table">
             <DataTable
-              columns={columns}
+              columns={[selectionColumn(sel, list.data.items.map((d) => d.id)), ...columns]}
               rows={list.data.items}
               rowKey={(d) => d.id}
-              onRow={(d) => nav("/team-docs/" + d.id)}
             />
           </div>
           <Pager

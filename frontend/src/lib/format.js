@@ -13,6 +13,22 @@ export function fmtDateTime(v) {
   return KST.format(d);
 }
 
+// 백엔드 naive-UTC iso 를 Date 로 — tz 표기가 없으면 UTC로 간주해 Z를 붙인다(로컬 오해 방지).
+export function toUTCDate(v) {
+  if (v == null || v === "") return null;
+  const s = String(v);
+  const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// 시:분(HH:MM) — 채팅 말풍선 시각용.
+export function fmtTimeShort(v) {
+  const d = toUTCDate(v);
+  if (!d) return "";
+  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
 // 상대 시간(방금/N분 전/N시간 전/N일 전) — 좁은 알림 팝오버처럼 훑어보는 피드용.
 // 7일이 넘거나 미래 값이면 절대 시각으로 폴백한다. 전체 목록/상세는 절대 시각(fmtDateTime)을 쓴다.
 export function fmtRelative(v) {

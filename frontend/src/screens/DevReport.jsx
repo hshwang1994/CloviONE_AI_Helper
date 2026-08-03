@@ -62,7 +62,7 @@ function WdBars({ devs }) {
         return (
           <div className="devrep-hbar" key={d.name}>
             <span className="devrep-hbar-name">{d.name}</span>
-            <svg viewBox="0 0 100 18" preserveAspectRatio="none" role="img" aria-label={`${d.name} 완료 예상 WD ${d.est_done}인일`}>
+            <svg viewBox="0 0 100 18" preserveAspectRatio="none" role="img" aria-label={`${d.name} 완료 업무량 ${d.est_done}인일`}>
               <rect className="track" x="0" y="3" width="100" height="12" />
               <rect className="fill" x="0" y="3" width={pct} height="12" />
             </svg>
@@ -144,7 +144,8 @@ export function DevReport() {
         <>
           <div className="devrep-kpis">
             <Kpi accent label="완료" val={data.team.done} unit="건" note={"취소를 뺀 기준 완료 " + data.team.est_done_total + "인일"} />
-            <Kpi label="진행 중" val={data.team.in_progress} unit="건" note="진행과 검증을 합한 수" />
+            <Kpi label="진행 중" val={data.team.in_progress} unit="건" note="진행과 이슈 상태" />
+            <Kpi label="검증" val={data.team.verify} unit="건" note="검토, 확인 단계" />
             <Kpi label="계획" val={data.team.plan} unit="건" note="아직 착수 전" />
             <Kpi warn label="지연" val={data.team.overdue} unit="건" note="마감이 지난 미완료" />
             <Kpi label="담당자 없음" val={data.unassigned.total} unit="건" note="담당자가 지정되지 않음" />
@@ -201,7 +202,7 @@ export function DevReport() {
           </section>
 
           <section className="devrep-sec">
-            <h2 className="devrep-sec-title">업무량 분석 (완료 예상 WD)</h2>
+            <h2 className="devrep-sec-title">업무량 분석 (완료 업무량 기준)</h2>
             <WdBars devs={devs} />
             <div className="devrep-tablewrap">
               <table className="devrep-table">
@@ -210,9 +211,11 @@ export function DevReport() {
                     <th className="l" title="티켓 담당자입니다.">개발자</th>
                     <th title="완료한 티켓 수입니다.">완료</th>
                     <th title="진행과 검증을 합한 티켓 수입니다.">진행 중</th>
-                    <th title="완료한 티켓의 예상 공수 합입니다. 단위는 인일(WD)이며, 이번 달에 실제로 끝낸 업무량에 가장 가깝습니다. 예상 WD는 티켓 내용을 보고 추정한 값입니다.">예상 WD(완료)</th>
-                    <th title="맡은 티켓 전체(취소 제외)의 예상 공수 합입니다. 아직 끝내지 못한 일까지 포함하므로 완료 값보다 크거나 같습니다.">예상 WD(담당)</th>
+                    <th title="이번 달 완료한 티켓들의 예상 공수 합(인일). 예상 기준으로 이 사람이 이번 달에 끝낸 업무량입니다.">완료 업무량</th>
+                    <th title="맡은 티켓 전체(취소 제외, 아직 안 끝낸 것 포함)의 예상 공수 합(인일). '완료 업무량'보다 크거나 같고, 둘의 차이가 남은 업무량입니다.">맡은 업무량</th>
                     <th title="완료한 티켓에 실제로 든 공수입니다. 담당자가 입력하는 값이며, 아직 입력 전이라 지금은 추정치로 채워져 있습니다.">실제 WD</th>
+                    <th title="이 사람이 완료한 티켓 1건당 평균 실제 공수입니다. 실제 WD를 완료 건수로 나눈 값이라, 티켓 크기가 다른 사람끼리 부담을 비교할 때 씁니다.">평균 실제WD/건</th>
+                    <th title="완료 티켓의 실제 공수를 예상 공수로 나눈 비율입니다. 100%면 예상과 같고, 100%보다 크면 예상보다 오래 걸렸다는 뜻입니다(견적 정확도).">예상 정확도</th>
                     <th title="맡은 티켓들의 난이도 평균입니다. 1에서 6까지이고 취소는 제외하며, 추정치입니다.">난이도 평균</th>
                   </tr>
                 </thead>
@@ -225,6 +228,8 @@ export function DevReport() {
                       <td className="devrep-done">{d.est_done}</td>
                       <td>{d.est_all}</td>
                       <td>{d.act_done ? d.act_done : <span className="devrep-z">-</span>}</td>
+                      <td>{d.done && d.act_done ? (d.act_done / d.done).toFixed(1) : <span className="devrep-z">-</span>}</td>
+                      <td>{d.est_done && d.act_done ? Math.round((100 * d.act_done) / d.est_done) + "%" : <span className="devrep-z">-</span>}</td>
                       <td>{d.difficulty_avg == null ? <span className="devrep-z">-</span> : d.difficulty_avg}</td>
                     </tr>
                   ))}
