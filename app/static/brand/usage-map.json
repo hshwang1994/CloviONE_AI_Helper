@@ -1,0 +1,28 @@
+{
+  "brand": "ClovirAssist",
+  "mascot": "Clovi",
+  "login": {
+    "canonicalArtwork": "assets/login/clovi-canonical-hero.png",
+    "eyeBase": "assets/login/clovi-canonical-eye-base.png",
+    "eyeLayer": "assets/login/clovi-canonical-eyes-layer.png",
+    "avatar": "assets/login/clovi-canonical-avatar.png",
+    "lock": "assets/login/mascot-lock.json",
+    "behavior": {
+      "pointer": "Only the eye pixels extracted from the approved canonical artwork move. The body, props, background and layout remain fixed.",
+      "welcome": "The approved canonical artwork remains visible. A brief eye blink is used instead of swapping the mascot pose.",
+      "loading": "The original eye layer changes brightness and opacity only.",
+      "success": "The same canonical mascot remains visible. Eye emphasis and a success badge are added without replacing the artwork."
+    }
+  },
+  "referenceOnly": {
+    "characterSheet": "assets/mascot/character-sheet.png",
+    "poses": "assets/mascot/*.png",
+    "frames": "assets/mascot/frames/*.png",
+    "layers": "assets/mascot/layers/*.png"
+  },
+  "notes": [
+    "Reference-only mascot assets must not be imported into the login Hero.",
+    "Changing the canonical artwork or its hash requires explicit design approval and a mascot-lock.json update.",
+    "The login runtime must not use pose swaps, detached limbs, generated wave frames or background parallax."
+  ]
+}

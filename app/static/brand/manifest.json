@@ -1,0 +1,897 @@
+{
+  "package": "clovirassist-assets",
+  "version": "1.0.0",
+  "brand": "ClovirAssist",
+  "mascot": "Clovi",
+  "tagline": "Smart Workspace Assistant",
+  "generated_at": "2026-07-30T23:23:58.802438+00:00",
+  "file_count": 91,
+  "files": [
+    {
+      "path": "README.md",
+      "size_bytes": 955,
+      "dimensions": null,
+      "sha256": "d4ed70f3e442a2f3ce96e7630ac9056c8552056d79406ce70bfc715767660772",
+      "purpose": "README"
+    },
+    {
+      "path": "brand/clovirassist-app-icon.png",
+      "size_bytes": 71322,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "d4c99dbdc1e1135c4ede6ba49c65d0d6284a7b6490e0f21a4227d90f1a280828",
+      "purpose": "ClovirAssist brand asset: clovirassist app icon"
+    },
+    {
+      "path": "brand/clovirassist-app-icon.svg",
+      "size_bytes": 2393,
+      "dimensions": null,
+      "sha256": "c0ec6c2aa1d2629a60e444d46fb78607174c74f8af0040455eb4ac0008f3be52",
+      "purpose": "ClovirAssist brand asset: clovirassist app icon"
+    },
+    {
+      "path": "brand/clovirassist-logo-horizontal-dark.svg",
+      "size_bytes": 2474,
+      "dimensions": null,
+      "sha256": "c6f501dcb7807de9e34e67ca9cc5ddc97948eaf0deaa0400ca5936df82c14726",
+      "purpose": "ClovirAssist brand asset: clovirassist logo horizontal dark"
+    },
+    {
+      "path": "brand/clovirassist-logo-horizontal.png",
+      "size_bytes": 40934,
+      "dimensions": {
+        "width": 1520,
+        "height": 312
+      },
+      "sha256": "f4f308ebae652773e2aeda9bc9f9a864d0332c0b8fc951f46adb41c7d0c16813",
+      "purpose": "ClovirAssist brand asset: clovirassist logo horizontal"
+    },
+    {
+      "path": "brand/clovirassist-logo-horizontal.svg",
+      "size_bytes": 2479,
+      "dimensions": null,
+      "sha256": "760b14952616ada7f891667c6cf8eb1fe9bfc624fc52fc6e9ebdcf4e79a588d1",
+      "purpose": "ClovirAssist brand asset: clovirassist logo horizontal"
+    },
+    {
+      "path": "brand/clovirassist-logo-stacked.png",
+      "size_bytes": 35812,
+      "dimensions": {
+        "width": 840,
+        "height": 840
+      },
+      "sha256": "8f7fe75a21611a7d82b7fe799cb38337b8f7964adf9dd1aad320d90efab37cd8",
+      "purpose": "ClovirAssist brand asset: clovirassist logo stacked"
+    },
+    {
+      "path": "brand/clovirassist-logo-stacked.svg",
+      "size_bytes": 2344,
+      "dimensions": null,
+      "sha256": "76fc999f5e1c238e8e7642375159a07cdffbb8157b58768b45bba3a0ff8934e5",
+      "purpose": "ClovirAssist brand asset: clovirassist logo stacked"
+    },
+    {
+      "path": "brand/clovirassist-mark.png",
+      "size_bytes": 22622,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "8e3e74eccec0ac4faf16225be8c14d61255d191bc471b29011bcbcbbf4e9bac7",
+      "purpose": "ClovirAssist brand asset: clovirassist mark"
+    },
+    {
+      "path": "brand/clovirassist-mark.svg",
+      "size_bytes": 2262,
+      "dimensions": null,
+      "sha256": "35756210fffefc5bf899531a86dcf91fa736ccc5128e9227f2550007de4db553",
+      "purpose": "ClovirAssist brand asset: clovirassist mark"
+    },
+    {
+      "path": "decor/bg-pattern.png",
+      "size_bytes": 454589,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "e47d73dd48935fabc202e22cde49508bc54836b2f8cbc743d8db7e6d1dea3961",
+      "purpose": "Decorative asset: bg pattern"
+    },
+    {
+      "path": "empty-states/empty-board.png",
+      "size_bytes": 277311,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "1861b054773ff5e41eefd3a7adb53a0f50c57b54577ffdcb1bc7fa1c837d327f",
+      "purpose": "Empty or system state illustration: empty board"
+    },
+    {
+      "path": "empty-states/empty-chat.png",
+      "size_bytes": 450474,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "6e02189a437cc09ccc9293a9f3bac56200f4938fbf0f5db25afe979208a07f8b",
+      "purpose": "Empty or system state illustration: empty chat"
+    },
+    {
+      "path": "empty-states/empty-docs.png",
+      "size_bytes": 513759,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "8bad68482759cddc7c60c3da6948596c76e7fb0b51c5cd82422c74167ef73eec",
+      "purpose": "Empty or system state illustration: empty docs"
+    },
+    {
+      "path": "empty-states/empty-notify.png",
+      "size_bytes": 500605,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "658fe9786a4cce9cd8b2639ce899d10ae98dd271315c5032340b29247bbc0e53",
+      "purpose": "Empty or system state illustration: empty notify"
+    },
+    {
+      "path": "empty-states/empty-search.png",
+      "size_bytes": 409926,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "520b5e176784b58b03ffd72ccaf640199255ed8b639d29a72b04cd698c756f86",
+      "purpose": "Empty or system state illustration: empty search"
+    },
+    {
+      "path": "empty-states/empty-tickets.png",
+      "size_bytes": 531664,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "7ab7b339ecb1102f32a9eb0e498b01271888dc1b117be61e783b1e0ee3288e4a",
+      "purpose": "Empty or system state illustration: empty tickets"
+    },
+    {
+      "path": "empty-states/empty-trash.png",
+      "size_bytes": 470896,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "c700403a7b6124c2eacb93603e7100c305163e77101bb0e99184d9f0bfd8d0dd",
+      "purpose": "Empty or system state illustration: empty trash"
+    },
+    {
+      "path": "empty-states/state-404.png",
+      "size_bytes": 461447,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "b6b53972902a7a6913a292e9cd7c815dd95be6abde978dc1f91fa1ecf776d257",
+      "purpose": "Empty or system state illustration: state 404"
+    },
+    {
+      "path": "empty-states/state-500.png",
+      "size_bytes": 530292,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "272f30700287eb8a7b55df9c0b6d09e1f7c048746d27cb24d68dba5afafc9a86",
+      "purpose": "Empty or system state illustration: state 500"
+    },
+    {
+      "path": "empty-states/state-no-permission.png",
+      "size_bytes": 444999,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "df45a768226e1a4905fd274f86387b844b1970e43f5e06ce944b27b71b7d0da3",
+      "purpose": "Empty or system state illustration: state no permission"
+    },
+    {
+      "path": "empty-states/state-offline.png",
+      "size_bytes": 467776,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "fab7bcfc7d5b881c11ecfeb8792a42e92fc39065b4e4385553b1b3c4788ebe16",
+      "purpose": "Empty or system state illustration: state offline"
+    },
+    {
+      "path": "empty-states/state-session-expired.png",
+      "size_bytes": 525891,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "6d9308a6c015cd4dd19ba9c9f687163f6fe4db09b116cb3a9bfaa0b068b92333",
+      "purpose": "Empty or system state illustration: state session expired"
+    },
+    {
+      "path": "empty-states/state-success.png",
+      "size_bytes": 404799,
+      "dimensions": {
+        "width": 800,
+        "height": 800
+      },
+      "sha256": "13ff3301b889c98496715f8b87cf5f0a6605038edba71ac336f569ce3b0d97aa",
+      "purpose": "Empty or system state illustration: state success"
+    },
+    {
+      "path": "favicon/android-chrome-192x192.png",
+      "size_bytes": 16429,
+      "dimensions": {
+        "width": 192,
+        "height": 192
+      },
+      "sha256": "bb2231343532898c272c099a54744fed97f8d5cc78358fae212c96efd571907c",
+      "purpose": "Browser or application icon: android chrome 192x192"
+    },
+    {
+      "path": "favicon/android-chrome-512x512.png",
+      "size_bytes": 49237,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "1bcb211748dfb0645eccd4958200f907db77619b551be8db7409c05b58534f82",
+      "purpose": "Browser or application icon: android chrome 512x512"
+    },
+    {
+      "path": "favicon/app-icon.png",
+      "size_bytes": 65651,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "d168fd9d63978e1a93784bd9f6b876825520a412f0e84bfdf7e6e780f129f5bb",
+      "purpose": "Browser or application icon: app icon"
+    },
+    {
+      "path": "favicon/apple-touch-icon.png",
+      "size_bytes": 15163,
+      "dimensions": {
+        "width": 180,
+        "height": 180
+      },
+      "sha256": "91413a7fe218c5b97babfdfb45a77c20ee5b6cbaf54f39e2f46482d462806c3e",
+      "purpose": "Browser or application icon: apple touch icon"
+    },
+    {
+      "path": "favicon/favicon-16x16.png",
+      "size_bytes": 759,
+      "dimensions": {
+        "width": 16,
+        "height": 16
+      },
+      "sha256": "805e43268e59f3b035385cbff666d8505bf14d990bf7f93b3defd624e2d553ed",
+      "purpose": "Browser or application icon: favicon 16x16"
+    },
+    {
+      "path": "favicon/favicon-32x32.png",
+      "size_bytes": 1948,
+      "dimensions": {
+        "width": 32,
+        "height": 32
+      },
+      "sha256": "b45064a5080b6e73ca2d2c3569b705af86247fd8d5eac233be20c0d6d6adcfc0",
+      "purpose": "Browser or application icon: favicon 32x32"
+    },
+    {
+      "path": "favicon/favicon-48x48.png",
+      "size_bytes": 3319,
+      "dimensions": {
+        "width": 48,
+        "height": 48
+      },
+      "sha256": "a552f7b7cef65d425a0d65f6883f055a9bf81b4d0617368705ce1d27943a08fd",
+      "purpose": "Browser or application icon: favicon 48x48"
+    },
+    {
+      "path": "favicon/favicon-64x64.png",
+      "size_bytes": 4863,
+      "dimensions": {
+        "width": 64,
+        "height": 64
+      },
+      "sha256": "544bc70a6259f81c42a63527d2d6119836ccc7449f049c57819fbc0912310058",
+      "purpose": "Browser or application icon: favicon 64x64"
+    },
+    {
+      "path": "favicon/favicon-source.png",
+      "size_bytes": 49237,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "1bcb211748dfb0645eccd4958200f907db77619b551be8db7409c05b58534f82",
+      "purpose": "Browser or application icon: favicon source"
+    },
+    {
+      "path": "favicon/favicon.ico",
+      "size_bytes": 11121,
+      "dimensions": {
+        "width": 64,
+        "height": 64
+      },
+      "sha256": "352a955e8ad50d1189de4bc9e5147428ccf644e6704701743fbac8a66b7295e9",
+      "purpose": "Browser or application icon: favicon"
+    },
+    {
+      "path": "login/clovi-canonical-avatar.png",
+      "size_bytes": 118009,
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "sha256": "cabe3131b363b42a430cfd8f97cbf495a1bd8dc10c473862a39fa6d27be790cb",
+      "purpose": "Login illustration: clovi canonical avatar"
+    },
+    {
+      "path": "login/clovi-canonical-eye-base.png",
+      "size_bytes": 1740382,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "b98b5498977dd2ce7efd27e8a1e332bcbbd02307489df033f19be10ac12ff10b",
+      "purpose": "Login illustration: clovi canonical eye base"
+    },
+    {
+      "path": "login/clovi-canonical-eyes-layer.png",
+      "size_bytes": 1640440,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "08b98c55822f427f03d72b733894986a8860127e8760e5571b9507a62d6459aa",
+      "purpose": "Login illustration: clovi canonical eyes layer"
+    },
+    {
+      "path": "login/clovi-canonical-hero.png",
+      "size_bytes": 1790228,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "fc30602c0882e885d1f74a3fb390596104969509eeea3c8f71aebb50e391011c",
+      "purpose": "Login illustration: clovi canonical hero"
+    },
+    {
+      "path": "login/mascot-lock.json",
+      "size_bytes": 1522,
+      "dimensions": null,
+      "sha256": "317e547d44a0c228cf4edadd73e657219b357b2e30ae16a4dd1fd75b81376873",
+      "purpose": "Login illustration: mascot lock"
+    },
+    {
+      "path": "mascot/character-sheet.png",
+      "size_bytes": 1977344,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "4eae5a31fc5f20dd467254c59bab92c4d59ce1d4ea9375eec2f5d61ffabca39f",
+      "purpose": "Clovi mascot asset: character sheet"
+    },
+    {
+      "path": "mascot/clovi-avatar.png",
+      "size_bytes": 269544,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "7304cb7cf90d85662e2e18e589c7658a041fb7803636a3724c39cb4b0b58d2a7",
+      "purpose": "Clovi mascot asset: clovi avatar"
+    },
+    {
+      "path": "mascot/clovi-button.png",
+      "size_bytes": 69488,
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "sha256": "ba5e810cde9d5b87eafab2de207519ee5944a3560aebbe1943e786526771cb3a",
+      "purpose": "Clovi mascot asset: clovi button"
+    },
+    {
+      "path": "mascot/clovi-error.png",
+      "size_bytes": 595829,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "d7cada90a9067b0bd7e35eb354298287f52cd90cc96bc010ec36ca659f2c89dc",
+      "purpose": "Clovi mascot asset: clovi error"
+    },
+    {
+      "path": "mascot/clovi-happy.png",
+      "size_bytes": 601211,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "9170d5703c8399775327dc45d912c052138dfdafa6d7cb64bc6c34849438c0a6",
+      "purpose": "Clovi mascot asset: clovi happy"
+    },
+    {
+      "path": "mascot/clovi-idle-blink.png",
+      "size_bytes": 654142,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "4f132ac72c8829317857f4afb476c978d71517db9578d59630c591fe3347d46d",
+      "purpose": "Clovi mascot asset: clovi idle blink"
+    },
+    {
+      "path": "mascot/clovi-idle.png",
+      "size_bytes": 643736,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "0211225a7453ca72f4760478f3487dc31c37a78308470b04c30383b7c655eecd",
+      "purpose": "Clovi mascot asset: clovi idle"
+    },
+    {
+      "path": "mascot/clovi-love.png",
+      "size_bytes": 629167,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "6d02ca3ee92ca2b93eef80669f172753afc79aed7f6e1ef6d9358349fb2f7c36",
+      "purpose": "Clovi mascot asset: clovi love"
+    },
+    {
+      "path": "mascot/clovi-sleep.png",
+      "size_bytes": 571379,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "bee87ed15e6cc4da888e11afb51da1883672e2388d4fd77c80ee93b45f503902",
+      "purpose": "Clovi mascot asset: clovi sleep"
+    },
+    {
+      "path": "mascot/clovi-talking.png",
+      "size_bytes": 637469,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "950fed2677a8a4ef847dcf8bb7099a37f0eded63d2287b887398464bf3fad919",
+      "purpose": "Clovi mascot asset: clovi talking"
+    },
+    {
+      "path": "mascot/clovi-think.png",
+      "size_bytes": 631320,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "80069279dc6abad5b586c0df2f77db64567c1d3e4956da52524eb7d9c2195ad8",
+      "purpose": "Clovi mascot asset: clovi think"
+    },
+    {
+      "path": "mascot/clovi-wave.png",
+      "size_bytes": 669816,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "0c8e88bc70c6317ead8dc44075ff9b6fb0782f0ffcad044306fda9c4c659b96f",
+      "purpose": "Clovi mascot asset: clovi wave"
+    },
+    {
+      "path": "mascot/frames/blink-01.png",
+      "size_bytes": 695426,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "5558aaacffaa374f5677bd4be451e57dafa3e22b517037a89da216d1cfc84503",
+      "purpose": "Clovi mascot asset: blink 01"
+    },
+    {
+      "path": "mascot/frames/blink-02.png",
+      "size_bytes": 641743,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "11193733ee5493c1fcbc7f3bf7d1d27783ea72d25467e6c59b5b2656b3c2f5a1",
+      "purpose": "Clovi mascot asset: blink 02"
+    },
+    {
+      "path": "mascot/frames/blink-03.png",
+      "size_bytes": 628054,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "b63d6d1438debf6971b9242294d557a80d419b619dd6796dc55455d708c783d2",
+      "purpose": "Clovi mascot asset: blink 03"
+    },
+    {
+      "path": "mascot/frames/bounce-01.png",
+      "size_bytes": 768336,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "a979a0f543b3a8a7cfcc2457ed74627a9b6c1a69f450080950e07236b8521490",
+      "purpose": "Clovi mascot asset: bounce 01"
+    },
+    {
+      "path": "mascot/frames/bounce-02.png",
+      "size_bytes": 693573,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "7946c972fa4408b144b8e33b56fd763788845deb9ff9fae2e3b174d5aaa879d2",
+      "purpose": "Clovi mascot asset: bounce 02"
+    },
+    {
+      "path": "mascot/frames/bounce-03.png",
+      "size_bytes": 689494,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "54a39d85035f8a47e8f77838f076cbaefa83d4719bf2bd9182715f38cc101b45",
+      "purpose": "Clovi mascot asset: bounce 03"
+    },
+    {
+      "path": "mascot/frames/bounce-04.png",
+      "size_bytes": 620574,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "d7f5ba48f95c42c82f2520339a344bd2991c2aab0d7e6b3db10aeb287e6ea181",
+      "purpose": "Clovi mascot asset: bounce 04"
+    },
+    {
+      "path": "mascot/frames/celebrate-01.png",
+      "size_bytes": 706364,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "0fc557351b0e49cbe53f402165640a5f85d6ec09da8b490a1f880f1e6a76a26d",
+      "purpose": "Clovi mascot asset: celebrate 01"
+    },
+    {
+      "path": "mascot/frames/celebrate-02.png",
+      "size_bytes": 639408,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "09dad0b3f86a4612cfa36f88d8cb68156d499305102cd199c08afa8ee1efde85",
+      "purpose": "Clovi mascot asset: celebrate 02"
+    },
+    {
+      "path": "mascot/frames/celebrate-03.png",
+      "size_bytes": 663901,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "f44273552e43099a098946008dd244fd7edbabcd23af46ad3bbc8a14ddee307d",
+      "purpose": "Clovi mascot asset: celebrate 03"
+    },
+    {
+      "path": "mascot/frames/celebrate-04.png",
+      "size_bytes": 674847,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "458071bf652e334f4931accf856893dd6dd2c938fca742fb415be156dd17bf23",
+      "purpose": "Clovi mascot asset: celebrate 04"
+    },
+    {
+      "path": "mascot/frames/celebrate-05.png",
+      "size_bytes": 681955,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "a2b409b59d706d8b1d3c517a352ccf13abe66653380d578f16831200144c073f",
+      "purpose": "Clovi mascot asset: celebrate 05"
+    },
+    {
+      "path": "mascot/frames/think-loop-01.png",
+      "size_bytes": 701468,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "ceb5b452c3ff875ba22e7516053c068068635f82519d1241da725cbe9f0c2e8e",
+      "purpose": "Clovi mascot asset: think loop 01"
+    },
+    {
+      "path": "mascot/frames/think-loop-02.png",
+      "size_bytes": 679283,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "e279dfc1c8aaa3717237ac44cb51469fd199c776d059e7aa5b905c1b68068384",
+      "purpose": "Clovi mascot asset: think loop 02"
+    },
+    {
+      "path": "mascot/frames/think-loop-03.png",
+      "size_bytes": 693073,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "118f9fe990d0d01bf4181b82650e3b32f5a192c2d720f06877ac8f183aeaaa8a",
+      "purpose": "Clovi mascot asset: think loop 03"
+    },
+    {
+      "path": "mascot/frames/think-loop-04.png",
+      "size_bytes": 713576,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "09e377185230e2dc6cc569fbe22c92235dbd33705407c5a17cf3dcf837d27d17",
+      "purpose": "Clovi mascot asset: think loop 04"
+    },
+    {
+      "path": "mascot/frames/wave-01.png",
+      "size_bytes": 271376,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "29ae22440c2c8bc99b4f408c8e65b16d4b2ff89da9fb8c589f810b11769e7540",
+      "purpose": "Clovi mascot asset: wave 01"
+    },
+    {
+      "path": "mascot/frames/wave-02.png",
+      "size_bytes": 293436,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "a6c08310bb71aa378ea66dd92ee95a7d1ad26bd51e486a78377baf5b503680ac",
+      "purpose": "Clovi mascot asset: wave 02"
+    },
+    {
+      "path": "mascot/frames/wave-03.png",
+      "size_bytes": 282770,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "3e4fcfd4ffcfea5a993a3662339a0fbc0df1e9973493e262246d504571cbaac7",
+      "purpose": "Clovi mascot asset: wave 03"
+    },
+    {
+      "path": "mascot/frames/wave-04.png",
+      "size_bytes": 307652,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "a9f86357bd43e462125a8c7ac244ace809a91413ce76670feb1957fc94a391d4",
+      "purpose": "Clovi mascot asset: wave 04"
+    },
+    {
+      "path": "mascot/frames/wave-05.png",
+      "size_bytes": 312280,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "ef6f5058bd252b5cf17bc481ca690ca0261ef4e87c3dae34cb5d5a51a7caf8da",
+      "purpose": "Clovi mascot asset: wave 05"
+    },
+    {
+      "path": "mascot/layers/arm-rest.png",
+      "size_bytes": 288873,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "2cb4d037ddf48fa636fa26650c72c6de91a560bc722f5584de035399e58ed37c",
+      "purpose": "Clovi mascot asset: arm rest"
+    },
+    {
+      "path": "mascot/layers/arm-wave.png",
+      "size_bytes": 128250,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "844951308924d603f4f3a256bee19b22b83eb6fabac917d31620096665a434be",
+      "purpose": "Clovi mascot asset: arm wave"
+    },
+    {
+      "path": "mascot/layers/base.png",
+      "size_bytes": 241814,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "0ab621acb60928c79d89730859cbc94db1f4cf8f29e2e9d3ee5c47fe6587ef11",
+      "purpose": "Clovi mascot asset: base"
+    },
+    {
+      "path": "mascot/layers/eyes-closed.png",
+      "size_bytes": 253574,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "33c9b482311db5adc242be736b58e8e48091051735351693275dd18d4b9b0c2a",
+      "purpose": "Clovi mascot asset: eyes closed"
+    },
+    {
+      "path": "mascot/layers/eyes-open.png",
+      "size_bytes": 268103,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "7b92c34491a60ee51e69a72630a6d3ed33aafbc3803622638ed90dcaff59eb74",
+      "purpose": "Clovi mascot asset: eyes open"
+    },
+    {
+      "path": "mascot/layers/mouth-smile.png",
+      "size_bytes": 128205,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "d3ca528f26da73f9e8a4239a8a4538d1e4ccd82c8edb48e5a6e976396b60a87b",
+      "purpose": "Clovi mascot asset: mouth smile"
+    },
+    {
+      "path": "mascot/layers/mouth-talk.png",
+      "size_bytes": 72898,
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
+      "sha256": "703b72d4532750e61d6d7dc97b3a94ae94ed3cf6d464d3602edaddfdbd798984",
+      "purpose": "Clovi mascot asset: mouth talk"
+    },
+    {
+      "path": "misc/celebrate-winner.png",
+      "size_bytes": 284617,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "de7d75ac1c06314daf50d7ff92fdef33b5ae899d389338bb697b73a1b0672fec",
+      "purpose": "Miscellaneous illustration: celebrate winner"
+    },
+    {
+      "path": "misc/loading.png",
+      "size_bytes": 55860,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "36b6d58e9c0d567b5fecd7e5325a8c5060db434d6d2ac788808989fa0c8431d4",
+      "purpose": "Miscellaneous illustration: loading"
+    },
+    {
+      "path": "misc/onboarding-welcome.png",
+      "size_bytes": 284972,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "4183d0eef5351503c493a957c52cc1da0efe51e35fb6cafcf556bda686304a45",
+      "purpose": "Miscellaneous illustration: onboarding welcome"
+    },
+    {
+      "path": "spot/spot-assistant.png",
+      "size_bytes": 335836,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "a1d2f92b038e8ec56d631294f686d343fb7709de7df62dca2d64b7827075e35a",
+      "purpose": "Section spot illustration: spot assistant"
+    },
+    {
+      "path": "spot/spot-board.png",
+      "size_bytes": 315193,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "0dce712f991bfc3d5db5bcdb09f2825d0a674f78fc93729be74543b51ba61b6e",
+      "purpose": "Section spot illustration: spot board"
+    },
+    {
+      "path": "spot/spot-chat.png",
+      "size_bytes": 337259,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "6c5c8dc3aac68eca1f41e2062fbe60de3cad0fba5a7fd87c7b8fb50c6c47d75c",
+      "purpose": "Section spot illustration: spot chat"
+    },
+    {
+      "path": "spot/spot-docs.png",
+      "size_bytes": 249513,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "ad2ec2c7cc0e2a08656523fcd27d76fdaefa053ec941d33603eef9ce93eb707c",
+      "purpose": "Section spot illustration: spot docs"
+    },
+    {
+      "path": "spot/spot-games.png",
+      "size_bytes": 256803,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "b57dfd241ee52f761159d79e2ec20d89b1bcee0d333402cc2af172216cec19cb",
+      "purpose": "Section spot illustration: spot games"
+    },
+    {
+      "path": "spot/spot-mywork.png",
+      "size_bytes": 209849,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "5da8fecb53f3b19a28fd143c6d8333bc0a714fa14598aaefed4127cdde9c6f3f",
+      "purpose": "Section spot illustration: spot mywork"
+    },
+    {
+      "path": "spot/spot-sprint.png",
+      "size_bytes": 338003,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "718e2a628585402c85ebce60ca8f37e372a8008ed114b2e433d12821a2b261b4",
+      "purpose": "Section spot illustration: spot sprint"
+    },
+    {
+      "path": "spot/spot-teamspace.png",
+      "size_bytes": 240105,
+      "dimensions": {
+        "width": 512,
+        "height": 512
+      },
+      "sha256": "9824b7b817e085782704307b64301fa3c4fd81021fcd49b801e98b64a7cfe8dd",
+      "purpose": "Section spot illustration: spot teamspace"
+    },
+    {
+      "path": "usage-map.json",
+      "size_bytes": 1405,
+      "dimensions": null,
+      "sha256": "1c0fcbc4a7e6ae40979864a2c31e8951cd37d6611a9a36eb7ee7ada62766d118",
+      "purpose": "usage map"
+    }
+  ]
+}

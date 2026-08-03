@@ -1,0 +1,27 @@
+/* 4K 스케일 레버 — 이 파일의 미디어쿼리 세 줄이 앱 전체 크기를 결정한다.
+ *
+ * MUI의 타이포는 rem 기반이고, ui/theme.js에서 spacing도 rem으로 바꿔 뒀다. 그래서
+ * 루트 폰트사이즈 하나만 올리면 글자·여백·간격·아이콘이 **같은 비율로** 함께 커진다.
+ * px로 흩어 놓고 화면마다 조정하면 반드시 어딘가 어긋난다(예전 CSS가 그랬다).
+ *
+ * 경계값은 ui/theme.js의 브레이크포인트와 같아야 한다(xxl 2200, uhd 3000).
+ * 실제로 밟히는 조합:
+ *   4K 100% 배율 → 3840 CSS px → uhd
+ *   4K 150% 배율(윈도우 기본) → 2560 CSS px → xxl
+ *   4K 200% 배율 → 1920 CSS px → 기본
+ */
+:root {
+  --clv-root-fs: 16px;
+}
+
+@media (min-width: 2200px) {
+  :root { --clv-root-fs: 18px; }
+}
+
+@media (min-width: 3000px) {
+  :root { --clv-root-fs: 20px; }
+}
+
+html {
+  font-size: var(--clv-root-fs);
+}

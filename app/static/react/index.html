@@ -2,10 +2,26 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#536CD6" />
     <title>ClovirONE 관리자 콘솔</title>
-    <script type="module" crossorigin src="/static/react/assets/index.wDMR1rOE.js"></script>
-    <link rel="stylesheet" crossorigin href="/static/react/assets/style.U6pNdarq.css">
+    <!--
+      파비콘은 /static/brand/** 에 있다(app/static/brand). Vite의 base가 /static/react/ 라
+      상대 경로로 두면 /static/react/... 로 다시 쓰인다. 절대 경로 + data-vite-ignore 없이
+      안전하게 두려고 런타임 주입 대신 절대 URL을 그대로 쓴다. 빌드 산출물에서 경로가
+      바뀌지 않는지 scripts/ui_qa 및 tests/regression/test_favicon_wiring.py가 확인한다.
+    -->
+    <link rel="icon" href="/static/brand/favicon/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/brand/favicon/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/static/brand/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/brand/site.webmanifest" />
+    <script type="module" crossorigin src="/static/react/assets/index.D8BPUQM_.js"></script>
+    <link rel="modulepreload" crossorigin href="/static/react/assets/react.DDYr3xmy.js">
+    <link rel="modulepreload" crossorigin href="/static/react/assets/query.sBYjOcQF.js">
+    <link rel="modulepreload" crossorigin href="/static/react/assets/vendor.D6-wIusU.js">
+    <link rel="modulepreload" crossorigin href="/static/react/assets/mui.B6M4DWav.js">
+    <link rel="stylesheet" crossorigin href="/static/react/assets/style.DeUw9qub.css">
   </head>
   <body>
     <div id="root"></div>

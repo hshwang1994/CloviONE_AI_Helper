@@ -1,0 +1,29 @@
+{
+  "name": "ClovirONE 업무 도우미",
+  "short_name": "ClovirONE",
+  "description": "팀 업무·티켓·문서를 한 곳에서 관리하는 사내 업무 도우미",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#536CD6",
+  "icons": [
+    {
+      "src": "/static/brand/favicon/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/brand/favicon/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/brand/favicon/app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

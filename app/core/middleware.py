@@ -17,10 +17,25 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger("app.access")
 
+# style-src만 'unsafe-inline'을 허용한다.
+#
+# 왜: UI를 MUI(Material UI)로 전면 재설계하면서 MUI의 스타일 엔진 Emotion이 런타임에
+# <style> 태그를 주입하고, Popper(메뉴/셀렉트/툴팁 위치)·Transition·Modal·Backdrop·
+# Drawer·Skeleton이 요소에 style="" 속성을 직접 쓴다. style-src 'self'만으로는 둘 다
+# 차단돼 화면이 스타일 없이 뜨고 메뉴가 (0,0)에 렌더된다.
+#
+# nonce 방식을 쓰지 않는 이유: CSP3에서 소스 목록에 nonce가 있으면 'unsafe-inline'이
+# 무시되는데 이 규칙이 inline style '속성'에도 적용된다. 즉 nonce를 넣으면 <style> 태그는
+# 통과해도 MUI가 쓰는 style="" 속성이 전부 막혀 오히려 더 크게 깨진다.
+# docs/IDEAS_BACKLOG.md 부록 C의 확정 방침("사내 전용이므로 CSP를 완화해도 된다.
+# 복잡한 우회 구조를 만들지 않는다")에 따라 단순 완화를 택했다.
+#
+# 완화하지 않은 것: script-src 'self' — XSS 방어의 핵심은 여기다. 'unsafe-inline'도
+# 'unsafe-eval'도 CDN도 없다. 이 불변은 tests/regression/test_csp_policy.py가 지킨다.
 CSP_POLICY = (
     "default-src 'self'; "
     "script-src 'self'; "
-    "style-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; "
     "connect-src 'self'; "
     "font-src 'self'; "

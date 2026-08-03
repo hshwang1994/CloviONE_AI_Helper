@@ -1,9 +1,44 @@
 import React from "react";
+import MuiAlert from "@mui/material/Alert";
+import MuiButton from "@mui/material/Button";
+import MuiCard from "@mui/material/Card";
+import MuiChip from "@mui/material/Chip";
+import MuiDialog from "@mui/material/Dialog";
+import MuiDialogActions from "@mui/material/DialogActions";
+import MuiDialogContent from "@mui/material/DialogContent";
+import MuiDialogTitle from "@mui/material/DialogTitle";
+import MuiSkeleton from "@mui/material/Skeleton";
+import MuiSnackbar from "@mui/material/Snackbar";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import IconButton from "@mui/material/IconButton";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import { ART, SPOT } from "../lib/assets.js";
 
-/* ClovirONE 공통 UI 키트 — 디자인 토큰 위에서 카드/배지/버튼/상태/빈 화면/스켈레톤을
- * 한 규칙으로 그린다. 색은 토큰만, 인라인 스타일 없음(CSP). 왼쪽 파란 선 모티프를
- * 데이터 카드에 반복하지 않는다(§7). */
+/* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
+ *
+ * 2026-08 재설계: 안쪽 구현을 MUI로 바꾸되 **export 이름과 prop 시그니처는 그대로 둔다**.
+ * 화면 21개가 전부 이 파일에서 컴포넌트를 가져다 쓰기 때문에, 여기만 바꾸면 화면 파일을
+ * 한 줄도 건드리지 않고 보이는 표면의 대부분이 새 디자인으로 바뀐다. 기존 vitest도 역할/텍스트로
+ * 조회하므로 그대로 통과한다.
+ *
+ * 예외가 하나 있다: DataTable은 legacy 클래스(k-table)를 유지한다. screens.css가 화면별로
+ * 열 너비를 .k-table th:nth-child(n)으로 고정하고(문서 표), 좁은 화면 카드 전환도 그 CSS가
+ * 담당하기 때문이다. 표는 DataScreen 재설계(A3)에서 CSS까지 같이 옮긴다.
+ *
+ * MUI import는 전부 별칭(MuiXxx)이다 — 이 파일이 같은 이름(Badge/Button/Card/Modal…)을
+ * 밖으로 내보내기 때문에 충돌한다.
+ */
 
+// ── 상태 어휘 ────────────────────────────────────────────────────────────────
 // 상태 원본값 → 한국어 표시 + 톤(색은 톤으로만). 바닐라 common.js와 같은 어휘.
 const STATUS_TEXT = {
   up: "정상", down: "중단", stale: "응답 없음", degraded: "성능 저하", ok: "정상",
@@ -67,111 +102,186 @@ export function statusText(v) {
   if (STATUS_TEXT[s]) return STATUS_TEXT[s];
   // 매핑에 없는 값(조직마다 다른 Notion 보드 커스텀 상태명 등) — 원시 snake_case/kebab-case를
   // 그대로 새어 나가게 두지 않고 사람이 읽는 형태로 다듬는다("in_review" → "In Review").
-  // 완전한 한국어 번역은 아니어도 코드 냄새가 나는 원시 식별자보다는 낫다.
   if (/^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(s)) {
     return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   return s;
 }
-// 상태값 → 톤(ok/danger/warn/info/neutral). 배지 밖(예: 티켓 카드 상태 띠)에서도 같은 색 언어를 쓰게 공유.
+// 상태값 → 톤(ok/danger/warn/info/neutral). 배지 밖에서도 같은 색 언어를 쓰게 공유.
 export function statusKind(v) {
   const raw = String(v == null ? "" : v);
   return STATUS_KIND[raw] || "neutral";
 }
+
+// 키트의 톤 어휘 → MUI 색 이름. 한 곳에서만 번역한다.
+const TONE_COLOR = { ok: "success", danger: "error", warn: "warning", info: "info", neutral: "default" };
+const TONE_SEVERITY = { danger: "error", warn: "warning", success: "success", info: "info" };
+
 export function Badge({ value, kind }) {
   const raw = String(value == null ? "" : value);
   const k = kind || STATUS_KIND[raw] || "neutral";
-  return <span className={"k-badge k-badge--" + k}>{statusText(value)}</span>;
+  return (
+    <MuiChip
+      className="k-badge"
+      size="small"
+      label={statusText(value)}
+      color={TONE_COLOR[k] || "default"}
+      variant={k === "neutral" ? "outlined" : "filled"}
+      sx={{ height: 22, fontSize: "0.75rem", "& .MuiChip-label": { px: 1.25 } }}
+    />
+  );
 }
 
+/* 버튼 — 기존 variant 어휘(primary/ghost/danger/기본)와 size="sm"을 그대로 받는다. */
+const BUTTON_VARIANT = {
+  primary: { variant: "contained", color: "primary" },
+  danger: { variant: "contained", color: "error" },
+  ghost: { variant: "text", color: "inherit" },
+  default: { variant: "outlined", color: "inherit" },
+};
 export function Button({ variant = "default", size, children, ...rest }) {
-  const cls = ["k-btn", "k-btn--" + variant, size ? "k-btn--" + size : ""].filter(Boolean).join(" ");
-  return <button className={cls} type="button" {...rest}>{children}</button>;
+  const v = BUTTON_VARIANT[variant] || BUTTON_VARIANT.default;
+  return (
+    <MuiButton type="button" size={size === "sm" ? "small" : "medium"} {...v} {...rest}>
+      {children}
+    </MuiButton>
+  );
 }
 
-export function Card({ className, children, ...rest }) {
-  return <div className={"k-card" + (className ? " " + className : "")} {...rest}>{children}</div>;
+export function Card({ className, children, sx, ...rest }) {
+  return (
+    <MuiCard className={className} elevation={0} sx={{ p: 3, ...sx }} {...rest}>
+      {children}
+    </MuiCard>
+  );
 }
 
 export function Callout({ tone = "info", children }) {
-  // 심각도는 색만으로 구분하지 않는다(WCAG 1.4.1). 클로드식 기호(⚠/✓/ⓘ) 대신 짧은 텍스트
-  // 라벨로 톤을 알린다, 위험=오류, 경고=주의, 성공=완료, 정보=안내(틴트 배경, 테두리와 함께).
+  // 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1). MUI 기본 아이콘 대신 짧은 텍스트 라벨을
+  // 쓴다 — 기호는 문화·스크린리더별로 읽히는 방식이 달라 이 앱은 처음부터 글자를 택했다.
   const label = tone === "danger" ? "오류" : tone === "warn" ? "주의" : tone === "success" ? "완료" : "안내";
   return (
-    <div className={"k-callout k-callout--" + tone}>
-      <span className="k-callout-label">{label}</span>
-      <div className="k-callout-body">{children}</div>
-    </div>
+    <MuiAlert
+      className="k-callout"
+      severity={TONE_SEVERITY[tone] || "info"}
+      icon={false}
+      variant="outlined"
+      sx={{ alignItems: "flex-start", "& .MuiAlert-message": { minWidth: 0, width: "100%" } }}
+    >
+      <Box component="span" sx={{ fontWeight: 800, mr: 1.5, whiteSpace: "nowrap" }}>{label}</Box>
+      <Box component="span" className="k-callout-body">{children}</Box>
+    </MuiAlert>
   );
 }
 
 export function StatCard({ value, label, kind, onClick, active }) {
-  const Tag = onClick ? "button" : "div";
-  // 심각도는 색만으로 전하지 않는다(WCAG 1.4.1). 클로드식 경고 기호(✕/▲)는 쓰지 않고, 짧은
-  // 텍스트 태그('주의'/'위험')로 비색상 단서를 준다, 틴트 배경, 테두리, 값 색과 함께 읽힌다.
+  // 심각도는 색만으로 전하지 않는다(WCAG 1.4.1). 짧은 텍스트 태그('주의'/'위험')로 비색상 단서를 준다.
   const sev = kind === "danger" ? "위험" : kind === "warn" ? "주의" : null;
+  const color = TONE_COLOR[kind];
   return (
-    <Tag className={"k-stat" + (kind ? " k-stat--" + kind : "") + (onClick ? " k-stat--click" : "") + (active ? " is-selected" : "")}
-         type={onClick ? "button" : undefined} onClick={onClick} aria-pressed={onClick ? !!active : undefined}>
-      <div className="k-stat-value">{value == null ? "-" : value}</div>
-      <div className="k-stat-label">{label}{sev ? <span className="k-stat-sev">{sev}</span> : null}</div>
-      {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이
-          없다, 실제 상호작용 태그(onClick)일 때만 상시 보이는 화살표를 붙인다
-          (product-quality-audit AREA=D). */}
-      {onClick ? <span className="k-stat-chevron" aria-hidden="true">›</span> : null}
-    </Tag>
+    <Paper
+      className="k-stat"
+      component={onClick ? "button" : "div"}
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? !!active : undefined}
+      variant="outlined"
+      sx={{
+        p: 3, textAlign: "left", width: "100%", minWidth: 0, position: "relative",
+        display: "grid", gap: 0.5, alignContent: "start",
+        font: "inherit", color: "inherit", cursor: onClick ? "pointer" : "default",
+        borderColor: active ? "primary.main" : "divider",
+        borderWidth: active ? 2 : 1,
+        transition: "border-color .15s, transform .15s",
+        "&:hover": onClick ? { borderColor: "primary.main", transform: "translateY(-1px)" } : undefined,
+      }}
+    >
+      <Typography
+        component="div"
+        sx={{ fontSize: "clamp(1.5rem, 1.2rem + .6vw, 2.25rem)", fontWeight: 800, lineHeight: 1.1 }}
+        color={color && color !== "default" ? `${color}.main` : "text.primary"}
+      >
+        {value == null ? "-" : value}
+      </Typography>
+      <Typography component="div" variant="body2" color="text.secondary" sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+        {label}
+        {sev ? (
+          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: 800, color: `${color}.main` }}>{sev}</Box>
+        ) : null}
+      </Typography>
+      {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이 없다. */}
+      {onClick ? (
+        <ChevronRightRoundedIcon
+          aria-hidden="true"
+          sx={{ position: "absolute", top: 12, right: 8, fontSize: 20, color: "text.disabled" }}
+        />
+      ) : null}
+    </Paper>
   );
 }
 
 export function Skeleton({ lines = 3 }) {
-  // 스켈레톤은 장식(aria-hidden)이라 스크린리더엔 침묵이다, 별도 live 노드로 로딩을 낭독한다.
+  // 스켈레톤은 장식(aria-hidden)이라 스크린리더엔 침묵이다 — 별도 live 노드로 로딩을 낭독한다.
   return (
     <>
       <span className="sr-only" aria-live="polite">불러오는 중…</span>
-      <div className="k-skel" aria-hidden="true">
-        {Array.from({ length: lines }).map((_, i) => <div className="k-skel-row" key={i} />)}
-      </div>
+      <Box aria-hidden="true" sx={{ display: "grid", gap: 1.5, py: 1 }}>
+        {Array.from({ length: lines }).map((_, i) => (
+          <MuiSkeleton key={i} variant="rounded" height={18} />
+        ))}
+      </Box>
     </>
   );
 }
 
 /* 빈 화면 — 아이콘+제목만 두지 않고 "지금 무엇을 하면 되는지"를 설명한다(§9).
  * 하위호환: 기존 호출부의 {icon,title,help,action}은 그대로 동작한다.
- * 안내 props(모두 선택):
- *   situation   — 왜 비어 있는지 한 줄 상황 설명(help의 상위 개념. help가 오면 함께 표시)
- *   prerequisite— 이 작업에 필요한 선행 조건("먼저 …이(가) 있어야 합니다")
- *   steps       — 다음에 할 일(문자열 배열 → 번호 목록). CSP: textContent만, innerHTML 없음
- *   expected    — 제대로 하면 무엇이 보이는지(기대 결과)
- *   action      — 주요 동작(버튼/링크 노드)
- *   relatedLink — 관련 화면으로 가는 링크 { href, label }
+ * 추가 prop:
+ *   art — 일러스트 키(lib/assets.js의 ART). 자산 12종이 처음부터 있었는데 어디에도
+ *         연결돼 있지 않았다. 좁은 화면에서는 세로 공간을 아끼려고 숨긴다.
  */
-export function EmptyState({ icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite, steps, expected, action, relatedLink }) {
+export function EmptyState({
+  icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
+  steps, expected, action, relatedLink, art,
+}) {
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
-  // role="status" + aria-live로 빈 상태 전환을 낭독한다, 예전엔 Skeleton(aria-live)이 이
-  // 평범한 <div>로 바뀌면 스크린리더에 아무 안내도 없어 사용자는 목록이 비었는지조차 몰랐다.
-  // 제목은 heading으로 올려 탐색 가능하게 한다(product-quality-audit AREA=D).
+  const artSrc = art && ART[art] ? ART[art] : null;
+  // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
   return (
-    <div className="k-empty" role="status" aria-live="polite">
-      {icon ? <div className="k-empty-icon" aria-hidden="true">{icon}</div> : null}
-      <div className="k-empty-title" role="heading" aria-level={2}>{title}</div>
-      {situation ? <div className="k-empty-help">{situation}</div> : null}
-      {help ? <div className="k-empty-help">{help}</div> : null}
+    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1.5, py: 6, px: 3 }}>
+      {artSrc ? (
+        <Box
+          component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto", opacity: 0.95 }}
+        />
+      ) : icon ? (
+        <Box aria-hidden="true" sx={{ fontSize: 32, color: "text.disabled" }}>{icon}</Box>
+      ) : null}
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>{title}</Typography>
+      {situation ? <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{situation}</Typography> : null}
+      {help ? <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{help}</Typography> : null}
       {prerequisite ? (
-        <div className="k-empty-note"><span className="k-empty-note-label">필요한 것</span>{prerequisite}</div>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>
+          <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>필요한 것</Box>{prerequisite}
+        </Typography>
       ) : null}
       {stepList && stepList.length ? (
-        <ol className="k-empty-steps">
+        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch" }}>
           {stepList.map((s, i) => <li key={i}>{s}</li>)}
-        </ol>
+        </Box>
       ) : null}
       {expected ? (
-        <div className="k-empty-note"><span className="k-empty-note-label">기대 결과</span>{expected}</div>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>
+          <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>기대 결과</Box>{expected}
+        </Typography>
       ) : null}
-      {action ? <div className="k-empty-action">{action}</div> : null}
+      {action ? <Box sx={{ mt: 1 }}>{action}</Box> : null}
       {relatedLink && relatedLink.href ? (
-        <a className="k-empty-link" href={relatedLink.href}>{relatedLink.label || "관련 화면으로"}</a>
+        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: "0.875rem" }}>
+          {relatedLink.label || "관련 화면으로"}
+        </Link>
       ) : null}
-    </div>
+    </Box>
   );
 }
 
@@ -179,54 +289,67 @@ export function ErrorState({ error, onRetry }) {
   const msg = (error && error.message) || "문제가 발생했습니다.";
   const status = error && error.status;
   const code = error && error.body && error.body.error && error.body.error.code;
+  const kind = error && error.kind;
   const isAuth = status === 401;
   const isForbidden = status === 403;
   const isGone = status === 404;
+  const isOffline = kind === "network";
   // password_change_required는 403이지만 '권한 부족'이 아니라 '본인이 비번을 안 바꿔서' 막힌
-  // 것이다, 일반 권한부족 문구("관리자에게 문의하세요")로 뭉개면 정반대로 오해하게 만든다
-  // (Layout이 이 상태를 감지해 곧장 /change-password로 보내지만, 그 전에 잠깐 이 화면이 보일 수 있다).
+  // 것이다 — 일반 권한부족 문구로 뭉개면 정반대로 오해하게 만든다.
   const isPwChange = isForbidden && code === "password_change_required";
-  // 401/403/404는 재시도해도 같은 실패가 반복된다, '다시 시도'는 일시적 오류(네트워크, 5xx)에만 준다.
+  // 401/403/404는 재시도해도 같은 실패가 반복된다 — '다시 시도'는 일시적 오류에만 준다.
   const noRetry = isAuth || isForbidden || isGone;
   const title = isAuth ? "로그인이 필요합니다"
     : isPwChange ? "비밀번호 변경이 필요합니다"
     : isForbidden ? "권한이 없습니다"
     : isGone ? "찾을 수 없습니다"
+    : isOffline ? "서버에 연결하지 못했습니다"
     : "불러오지 못했습니다";
   const help = isPwChange ? msg
     : isForbidden ? "이 항목에 접근할 권한이 없습니다. 관리자에게 문의하세요."
     : isGone ? "요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다."
     : msg;
-  // role="alert"로 오류 전환을 즉시 낭독한다(재조회 실패, 권한 오류 등), Skeleton이 이 화면으로
-  // 바뀔 때 스크린리더가 침묵하던 문제(product-quality-audit AREA=D). 제목은 heading으로.
+  // 상태마다 다른 그림을 준다 — 자산 12종이 있는데 한 곳도 연결돼 있지 않았다.
+  const art = isAuth ? "sessionExpired"
+    : isForbidden ? "noPermission"
+    : isGone ? "notFound"
+    : isOffline ? "offline"
+    : "serverError";
+  const artSrc = ART[art];
+  // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
-    <div className="k-empty" role="alert">
-      <div className="k-empty-title" role="heading" aria-level={2}>{title}</div>
-      <div className="k-empty-help">{help}</div>
-      {isAuth
-        ? <a className="k-btn k-btn--primary" href="/login">로그인 화면으로</a>
-        // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다, 실제 페이지 이동이 필요하다.
-        : isPwChange ? <a className="k-btn k-btn--primary" href="/change-password">비밀번호 변경하기</a>
-        // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다, 이전 화면으로
-        // 돌아갈 수 있는 링크는 준다(401의 로그인 링크와 같은 이유).
-        : (isForbidden || isGone) ? <a className="k-btn k-btn--primary" href="#/">홈으로</a>
-        : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry}>다시 시도</Button> : null)}
-    </div>
+    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1.5, py: 6, px: 3 }}>
+      <Box
+        component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+        sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto" }}
+      />
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>{title}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{help}</Typography>
+      <Box sx={{ mt: 1 }}>
+        {isAuth
+          ? <MuiButton variant="contained" href="/login">로그인 화면으로</MuiButton>
+          // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
+          : isPwChange ? <MuiButton variant="contained" href="/change-password">비밀번호 변경하기</MuiButton>
+          // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
+          : (isForbidden || isGone) ? <MuiButton variant="contained" href="#/">홈으로</MuiButton>
+          : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry}>다시 시도</Button> : null)}
+      </Box>
+    </Box>
   );
 }
 
 /* 반응형 표 — 넓은 화면은 표, 좁은 화면(≤760px)은 카드 목록으로 CSS가 전환한다(§21).
  * columns: [{key,label,render?}], rows: [obj], rowKey: (row)=>id. onRow: 행 클릭(상세).
- * 접근성: 예전엔 <tr role="button">이라 스크린리더가 모든 셀을 한 버튼 이름으로 이어 읽었다.
- * 이제 행은 표 의미(row)를 유지하고, 상세 열기는 마지막 칸의 실제 <button>이 담당한다.
- * 마우스 편의를 위해 행 클릭도 남기되(포커스 대상 아님) 키보드·SR은 버튼으로 조작한다. */
-// 상세 열기 버튼의 낭독 라벨을 행마다 다르게 만든다 — 첫 번째(보통 이름/제목) 열의 원시 값을
-// 쓴다. render()가 있는 열은 JSX를 돌려주므로 텍스트로 쓰기 애매해 건너뛴다.
+ *
+ * 이 컴포넌트만 legacy 마크업/클래스를 유지한다. screens.css가 화면별로 열 너비를
+ * .k-table th:nth-child(n)으로 고정하고(문서 표) 좁은 화면 카드 전환도 그 CSS가 담당하기
+ * 때문이다. 표는 DataScreen 재설계(A3)에서 CSS까지 함께 옮긴다.
+ *
+ * 접근성: 행은 표 의미(row)를 유지하고, 상세 열기는 마지막 칸의 실제 <button>이 담당한다. */
 function rowOpenLabel(columns, row) {
   const primary = columns[0];
   if (!primary) return "상세 보기";
-  // 첫 열이 커스텀 render()를 쓰면(예: 설정 화면의 라벨+키 조합 렌더) 원시 값을 텍스트로
-  // 못 쓴다 — 그동안 모든 행이 똑같은 "상세 보기"만 낭독됐다. 화면 쪽에서 openLabel(row)를
+  // 첫 열이 커스텀 render()를 쓰면 원시 값을 텍스트로 못 쓴다 — 화면 쪽에서 openLabel(row)를
   // 넘기면 render 유무와 무관하게 그 값을 우선 쓴다(product-quality-audit AREA=D).
   if (typeof primary.openLabel === "function") {
     try { const v = primary.openLabel(row); if (v) return v; } catch (e) { /* ignore */ }
@@ -237,9 +360,7 @@ function rowOpenLabel(columns, row) {
   return "상세 보기: " + String(v);
 }
 export function DataTable({ columns, rows, rowKey, onRow, empty }) {
-  // 방어: 비정상 입력(undefined/비배열 rows·columns, 비함수 rowKey)이 와도 렌더 중 throw하지 않고
-  // 빈-목록 안내로 폴백한다 — 공용 표라 한 화면의 실수나 한 번의 API shape 변화가 전역 크래시로
-  // 번지지 않게 한다(위 '호출부가 가드를 잊어도 안전' 계약을 실제로 성립시킨다).
+  // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   const baseCols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
@@ -248,17 +369,14 @@ export function DataTable({ columns, rows, rowKey, onRow, empty }) {
     <div className="k-table-wrap">
       <table className="k-table">
         <thead>
-          {/* 상세 열기 칸은 label이 빈 문자열이라 스크린리더가 헤더 이름 없이 침묵으로 읽었다
-              (표 전체에서 유일하게 매 행의 상세 진입로인 칸인데도). sr-only 텍스트로 이름을 준다. */}
+          {/* 상세 열기 칸은 label이 빈 문자열이라 스크린리더가 헤더 이름 없이 침묵으로 읽었다. */}
           <tr>{cols.map((c) => <th key={c.key} scope="col" className={[c.align ? "is-" + c.align : "", c.className || ""].filter(Boolean).join(" ")}>{c.open ? <span className="sr-only">동작</span> : c.label}</th>)}</tr>
         </thead>
         <tbody>
-          {/* 빈 목록이면 헤더만 남은 '깨진 표' 대신 안내 한 줄을 그린다(호출부가 가드를 잊어도 안전). */}
           {safeRows.length === 0 ? (
             <tr><td className="k-table-empty" colSpan={cols.length}>{empty || "표시할 항목이 없습니다."}</td></tr>
           ) : safeRows.map((row, i) => (
-            // 셀 안의 링크/버튼 클릭은 행 클릭(상세 열기)으로 번지지 않게 한다, 문서 '발행 링크'를
-            // 누르면 새 탭이 열리며 상세 드로어까지 같이 열리던 이중 동작 방지.
+            // 셀 안의 링크/버튼 클릭은 행 클릭(상세 열기)으로 번지지 않게 한다.
             <tr key={keyOf(row, i)} className={onRow ? "is-click" : ""}
               onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}>
               {cols.map((c) => (
@@ -277,155 +395,149 @@ export function DataTable({ columns, rows, rowKey, onRow, empty }) {
   );
 }
 
-/* 공통 모달, 모든 생성, 수정, 확인, 상세가 중앙 모달을 쓴다(우측 드로어 완전 제거).
- * 오버레이, 그림자, 헤더, 닫기, 하단 버튼, 애니메이션 통일. Esc, 바깥 클릭으로 닫힘, 인라인
- * 스타일 없음(CSP). size: sm|md|lg(항목 많을 때 큰 모달). 모바일에서는 전체 화면(CSS @640). */
+/* 공통 모달 — 모든 생성/수정/확인/상세가 중앙 모달을 쓴다.
+ * 예전에는 포커스 트랩·Esc 스택·배경 스크롤 잠금을 직접 구현했다. MUI Dialog가 셋 다
+ * 정확히 처리하므로(중첩 모달 포함) 그 코드는 지웠다 — 직접 구현이 남아 있으면 MUI와
+ * 이중으로 걸려 Esc 한 번에 두 개가 닫히는 예전 버그가 다시 난다.
+ * size: sm|md|lg. 모바일에서는 전체 화면. */
+const SIZE_MAP = { sm: "sm", md: "md", lg: "lg" };
+
 export function ModalHeader({ title, onClose, titleId }) {
   return (
-    <header className="k-modal-head">
-      <h2 id={titleId}>{title}</h2>
-      <button type="button" className="k-modal-x" onClick={onClose} aria-label="닫기">✕</button>
-    </header>
+    <MuiDialogTitle
+      id={titleId}
+      sx={{ display: "flex", alignItems: "center", gap: 2, pr: 1.5, fontSize: "1.0625rem", fontWeight: 780 }}
+    >
+      <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{title}</Box>
+      <IconButton onClick={onClose} aria-label="닫기" size="small"><CloseRoundedIcon fontSize="small" /></IconButton>
+    </MuiDialogTitle>
   );
 }
-export function ModalBody({ children }) { return <div className="k-modal-body">{children}</div>; }
-/* 표준 하단 작업줄, 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치, 크기.
- * (예전엔 왼쪽에 부가 버튼을 위한 `extra` prop이 있었으나 앱 전체에서 어떤 호출부도 실제로
- * 넘긴 적이 없는 죽은 API 표면이었다(product-quality-audit AREA=D), 지워서 키트 표면을
- * 실제 사용 범위와 맞춘다. 필요해지면 git 이력에서 되살릴 수 있다.) */
+export function ModalBody({ children }) {
+  return <MuiDialogContent dividers sx={{ minWidth: 0 }}>{children}</MuiDialogContent>;
+}
+/* 표준 하단 작업줄 — 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
 export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, submitVariant = "primary" }) {
   return (
-    <div className="k-footer-row">
-      <div className="k-footer-main">
-        {onCancel ? <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button> : null}
-        {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy}>{busy ? "처리 중…" : submitLabel}</Button> : null}
-      </div>
-    </div>
-  );
-}
-/* 열린 모달 스택 — 겹쳐 뜬 모달(상세 위 확인창 등)에서 Esc가 맨 위 하나만 닫도록.
- * 예전엔 모달마다 전역 Esc 핸들러를 걸어, 확인창에서 Esc를 누르면 확인창과 그 아래 상세
- * 드로어가 동시에 닫혔다. 이제 스택의 최상단만 키를 처리한다. */
-const _modalStack = [];
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-export function Modal({ open, onClose, title, size = "md", children, footer }) {
-  const dialogRef = React.useRef(null);
-  const tokenRef = React.useRef({});
-  const titleId = React.useId();
-  // onClose를 ref로 잡아 effect가 open 변화에만 반응하게 한다(리렌더마다 포커스가 튀지 않도록).
-  const onCloseRef = React.useRef(onClose);
-  onCloseRef.current = onClose;
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const token = tokenRef.current;
-    _modalStack.push(token);
-    // 배경 스크롤 잠금 — 전에는 오버레이 뒤 본문이 마우스 휠로 계속 스크롤됐다(오버레이가
-    // 불투명하지 않아 진짜 모달처럼 느껴지지 않았다). 중첩 모달(스택)에서는 첫 모달이 열릴
-    // 때만 잠그고, 스택이 완전히 비었을 때만(마지막 모달이 닫힐 때) 원래 값으로 되돌린다.
-    const prevOverflow = document.body.style.overflow;
-    if (_modalStack.length === 1) document.body.style.overflow = "hidden";
-    const prevFocus = document.activeElement;
-    // 열릴 때 포커스를 대화상자 안으로 옮긴다(첫 입력, 없으면 대화상자 자체).
-    // 단 헤더의 닫기(✕)는 건너뛴다 — DOM상 첫 포커스 대상이라 그냥 두면 모든 폼이 닫기 버튼에서 시작된다.
-    const node = dialogRef.current;
-    if (node) {
-      const focusables = Array.prototype.slice.call(node.querySelectorAll(FOCUSABLE));
-      const first = focusables.find((el) => !el.classList.contains("k-modal-x"));
-      (first || node).focus();
-    }
-    const onKey = (e) => {
-      if (_modalStack[_modalStack.length - 1] !== token) return; // 최상단만 처리
-      if (e.key === "Escape") { e.stopPropagation(); onCloseRef.current(); return; }
-      if (e.key === "Tab" && node) {
-        const els = Array.prototype.filter.call(node.querySelectorAll(FOCUSABLE), (el) => el.offsetParent !== null || el === document.activeElement);
-        if (!els.length) { e.preventDefault(); node.focus(); return; }
-        const firstEl = els[0], lastEl = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
-        else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      const i = _modalStack.indexOf(token); if (i >= 0) _modalStack.splice(i, 1);
-      if (_modalStack.length === 0) document.body.style.overflow = prevOverflow;
-      if (prevFocus && typeof prevFocus.focus === "function") { try { prevFocus.focus(); } catch (e) { /* ignore */ } }
-    };
-  }, [open]);
-  if (!open) return null;
-  return (
-    <div className="k-modal-overlay" onMouseDown={onClose}>
-      <div ref={dialogRef} className={"k-modal k-modal--" + size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}>
-        <ModalHeader title={title} onClose={onClose} titleId={titleId} />
-        <ModalBody>{children}</ModalBody>
-        {footer ? <footer className="k-modal-foot">{footer}</footer> : null}
-      </div>
-    </div>
+    <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
+      {onCancel ? <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button> : null}
+      {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy}>{busy ? "처리 중…" : submitLabel}</Button> : null}
+    </MuiDialogActions>
   );
 }
 
-/* 공통 입력 필드, 라벨, 필수(*), 도움말, 오류 스타일을 한곳에서. 라벨은 htmlFor/id로 입력과
- * 연결해 스크린리더가 이름을 읽게 한다(체크박스는 라벨이 입력을 감싸 이미 연결됨). */
+export function Modal({ open, onClose, title, size = "md", children, footer }) {
+  const titleId = React.useId();
+  if (!open) return null;
+  return (
+    <MuiDialog
+      open={!!open}
+      onClose={onClose}
+      maxWidth={SIZE_MAP[size] || "md"}
+      fullWidth
+      aria-labelledby={titleId}
+      /* 모바일에서는 전체 화면 — 좁은 화면에서 폼이 잘려 스크롤조차 안 되던 문제. */
+      sx={{ "& .MuiDialog-paper": { m: { xs: 0, sm: 4 }, width: { xs: "100%", sm: "auto" }, maxHeight: { xs: "100%", sm: "calc(100% - 4rem)" }, height: { xs: "100%", sm: "auto" }, borderRadius: { xs: 0, sm: 2.5 } } }}
+    >
+      <ModalHeader title={title} onClose={onClose} titleId={titleId} />
+      <ModalBody>{children}</ModalBody>
+      {footer}
+    </MuiDialog>
+  );
+}
+
+/* 공통 입력 필드 — 라벨/필수(*)/도움말/오류를 한곳에서. 라벨은 htmlFor/id로 입력과 연결해
+ * 스크린리더가 이름을 읽게 한다(체크박스는 라벨이 입력을 감싸 이미 연결됨). */
 export function FormField({ field: f, value, onChange, invalid }) {
   const id = "ff-" + f.name;
-  // JSON 필드는 사람이 직접 중첩 구조를 손으로 편집한다, 가변폭 UI 폰트로는 중괄호/들여쓰기가
-  // 눈으로 안 맞는다. Settings.jsx의 .c-json-input과 같은 처리를 공용 FormField에도 준다
-  // (product-quality-audit AREA=D).
-  const cls = "k-input" + (f.type === "json" ? " k-input--mono" : "") + (invalid ? " is-invalid" : "");
-  const inv = invalid ? true : undefined;
-  // 선택형에서 현재 값과 맞는 옵션이 없으면 빈 옵션을 앞에 붙인다(필수 여부와 무관하게).
-  // (빈 옵션이 없으면 <select>는 첫 실제 옵션을 화면에 보여 주면서도 상태는 '' — '이미 뭔가
-  //  골라진 것처럼' 보이다가 제출 시 '필수 항목을 선택하세요' 오류가 나거나, 조용히 null로
-  //  바뀌어 화면과 실제 값이 어긋난다. 필수 필드는 이 옵션을 disabled로 둬 다시 고를 수 없게 한다.)
+  const helpId = f.help ? id + "-helper-text" : undefined;
+  const required = !!f.required;
+  const isJson = f.type === "json";
+  const multiline = f.type === "textarea" || isJson;
+
+  if (f.type === "checkbox") {
+    return (
+      <Box className="k-field" sx={{ mb: 2.5 }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              id={id}
+              checked={!!value}
+              onChange={(e) => onChange(e.target.checked)}
+              inputProps={{ "aria-describedby": helpId, "aria-required": required || undefined }}
+            />
+          }
+          label={
+            <>
+              {f.checkLabel || f.label || "사용"}
+              {required ? <Box component="span" sx={{ color: "error.main" }}> *</Box> : null}
+            </>
+          }
+        />
+        {f.help ? <Typography id={helpId} variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{f.help}</Typography> : null}
+      </Box>
+    );
+  }
+
+  // 선택형에서 현재 값과 맞는 옵션이 없으면 빈 옵션을 앞에 붙인다.
+  // (없으면 <select>는 첫 실제 옵션을 보여 주면서 상태는 '' — 화면과 실제 값이 어긋난다.)
   const selNeedEmpty = f.type === "select" &&
     !(f.options || []).some((o) => String(o.value) === (value != null ? String(value) : ""));
   const hasOptions = (f.options || []).length > 0;
-  // 도움말을 aria-describedby로 실제 입력과 연결한다, 예전엔 f.help가 시각적으로만 아래 붙어
-  // 있어, 스크린리더가 입력에 포커스를 줘도 도움말/필수 여부를 함께 읽지 않았다.
-  const helpId = f.help ? id + "-help" : undefined;
-  const required = f.required || undefined;
+
+  // helperText의 id는 MUI가 `${id}-helper-text`로 만들고 입력의 aria-describedby에 직접
+  // 걸어 준다. 여기서 id를 덮어쓰면 그 연결이 끊겨, 도움말이 시각적으로만 남고 스크린리더가
+  // 읽지 않는다(예전 키트가 손으로 걸어 두던 동작이라 조용히 사라질 뻔했다 — kit.test.jsx가 잡음).
+  const common = {
+    id,
+    fullWidth: true,
+    size: "small",
+    error: !!invalid,
+    required,
+    label: f.label,
+    helperText: f.help || undefined,
+    value: value != null ? value : "",
+    onChange: (e) => onChange(e.target.value),
+    sx: { mb: 2.5 },
+  };
+
+  if (f.type === "select") {
+    return (
+      <TextField {...common} select className="k-field">
+        {selNeedEmpty ? (
+          <MenuItem value="" disabled={required}>
+            {hasOptions ? "선택 안 함" : "선택할 항목이 없습니다"}
+          </MenuItem>
+        ) : null}
+        {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+      </TextField>
+    );
+  }
+
   return (
-    <div className="k-field">
-      {f.type === "checkbox" ? null : (
-        <label className="k-field-label" htmlFor={id}>{f.label}{f.required ? <span className="k-req"> *</span> : null}</label>
-      )}
-      {f.type === "textarea" || f.type === "json" ? (
-        <textarea id={id} className={cls} aria-invalid={inv} aria-required={required} aria-describedby={helpId}
-          rows={f.type === "json" ? 10 : 3} value={value || ""} onChange={(e) => onChange(e.target.value)} />
-      ) : f.type === "select" ? (
-        <select id={id} className={cls} aria-invalid={inv} aria-required={required} aria-describedby={helpId}
-          value={value != null ? value : ""} onChange={(e) => onChange(e.target.value)}>
-          {selNeedEmpty ? <option value="" disabled={f.required}>{hasOptions ? "선택 안 함" : "선택할 항목이 없습니다"}</option> : null}
-          {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      ) : f.type === "checkbox" ? (
-        // 라벨(f.label)을 실제 입력과 연결되는 <label> 안에 둔다, 예전엔 위쪽의 비연결 <span>이
-        // f.label을, 이 <label>은 checkLabel(없으면 고정 문구 "사용")만 담아 f.checkLabel이
-        // 빠지면 체크박스의 실제 접근성 이름이 항목 의미와 무관한 "사용"이 되곤 했다.
-        <label className="k-check" htmlFor={id}>
-          <input id={id} type="checkbox" checked={!!value} aria-describedby={helpId} onChange={(e) => onChange(e.target.checked)} />
-          {" "}{f.checkLabel || f.label || "사용"}{f.required ? <span className="k-req"> *</span> : null}
-        </label>
-      ) : f.type === "date" || f.type === "datetime-local" ? (
-        // 날짜/일시 입력, 예전엔 이 분기가 없어 스케줄의 run_at 같은 필드가 일반 텍스트로
-        // 떨어져 관리자가 ISO-8601을 손으로 입력해야 했다(product-quality-audit AREA=D).
-        <input id={id} className={cls} aria-invalid={inv} aria-required={required} aria-describedby={helpId}
-          type={f.type} value={value || ""} onChange={(e) => onChange(e.target.value)} />
-      ) : (
-        <input id={id} className={cls} aria-invalid={inv} aria-required={required} aria-describedby={helpId}
-          type={f.type === "number" ? "number" : (f.type === "password" ? "password" : (f.type === "email" ? "email" : "text"))}
-          {...(f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : {})}
-          value={value != null ? value : ""} onChange={(e) => onChange(e.target.value)} />
-      )}
-      {f.help ? <div className="k-field-help" id={helpId}>{f.help}</div> : null}
-    </div>
+    <TextField
+      {...common}
+      className="k-field"
+      multiline={multiline}
+      minRows={multiline ? (isJson ? 10 : 3) : undefined}
+      type={
+        f.type === "number" ? "number"
+          : f.type === "password" ? "password"
+          : f.type === "email" ? "email"
+          : f.type === "date" || f.type === "datetime-local" ? f.type
+          : "text"
+      }
+      InputLabelProps={f.type === "date" || f.type === "datetime-local" ? { shrink: true } : undefined}
+      inputProps={f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : undefined}
+      /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
+      InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8125rem" } } : undefined}
+    />
   );
 }
 
-/* 설정 주도 폼 — 항상 중앙 모달(우측 드로어 없음). 항목이 많으면(>5) 큰 모달(lg). Modal·
- * ModalFooter·FormField를 재사용해 전 화면 폼이 동일하게 보인다.
- * type: text|number|textarea|select|checkbox|json. JSON은 문자열 입력→파싱(검증). */
+/* 설정 주도 폼 — 항상 중앙 모달. 항목이 많으면(>5) 큰 모달(lg).
+ * 제출 로직은 한 줄도 바꾸지 않았다: 숫자 변환, hadValue→null, JSON 객체 검증, 401 처리,
+ * details 평탄화, 더티 닫기 확인. 이 15개 이상 화면이 공유하는 유일한 저장 표면이다. */
 export function FormModal({ open, title, fields, initial, submitLabel, onSubmit, onClose, size }) {
   const [values, setValues] = React.useState({});
   const [err, setErr] = React.useState("");
@@ -444,11 +556,8 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     initialRef.current = v;
     setValues(v); setErr(""); setErrField(null);
   }, [open]);
-  // 앱 전체의 유일한 생성·수정 표면이라, 긴 폼(러너/워크플로 JSON 등)을 채우던 중 오버레이·Esc
-  // 오조작 한 번에 입력이 통째로 날아가던 문제. 변경이 있으면 닫기 전에 확인을 받는다(제출은 영향 없음).
-  // 더티(변경) 비교 전에 number 필드를 문자열로 정규화한다 — 기본값은 숫자(f.value:60)로
-  // 저장되지만 입력을 거치면 문자열('60')이 된다. 같은 값을 지웠다 다시 입력하면 60 vs '60'이
-  // JSON.stringify에서 달라 '저장 안 됨, 닫을까요?' 헛경고가 떴다(product-quality-audit AREA=D).
+  // 긴 폼을 채우던 중 오버레이·Esc 오조작 한 번에 입력이 통째로 날아가던 문제.
+  // number 필드는 기본값이 숫자(60)지만 입력을 거치면 문자열('60')이 된다 — 정규화 후 비교.
   const normalizeForCompare = React.useCallback((vals) => {
     const out = {};
     (fields || []).forEach((f) => {
@@ -458,9 +567,8 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     return out;
   }, [fields]);
   const requestClose = React.useCallback(async () => {
-    // 제출이 진행 중일 때는 취소/Esc/오버레이 클릭 모두 거부한다 — 예전엔 busy를 확인 생략
-    // 조건으로만 썼다가 그대로 onClose()로 흘러, '처리 중…' 표시 중에도 닫기가 그냥 통과되며
-    // 아무 취소도 실제로 일어나지 않은 채(요청은 계속 진행 중) 모달만 닫히던 문제가 있었다.
+    // 제출 중에는 취소/Esc/오버레이 클릭을 모두 거부한다 — 예전엔 '처리 중…' 표시 중에도
+    // 닫기가 통과되며 아무 취소도 없이 모달만 닫혔다.
     if (busy) return;
     if (JSON.stringify(normalizeForCompare(values)) !== JSON.stringify(normalizeForCompare(initialRef.current))) {
       const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?", { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
@@ -482,8 +590,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     setErr(""); setErrField(null);
     const body = {};
     for (const f of (fields || [])) {
-      // 수정 화면에서 원래 값이 있던 선택형 항목을 비우면, 키를 생략하지 않고 null로 보내 실제로 지운다.
-      // (생략하면 PATCH는 옛 값 유지, PUT은 서버 기본값으로 리셋된다 — 둘 다 사용자가 의도한 '지움'이 아니다.)
+      // 수정 화면에서 원래 값이 있던 항목을 비우면 키를 생략하지 않고 null로 보내 실제로 지운다.
       const hadValue = initial && initial[f.name] != null && String(initial[f.name]).trim() !== "";
       let val = values[f.name];
       if (f.type === "number") {
@@ -491,18 +598,12 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         val = Number(val); if (Number.isNaN(val)) { fail(f.name, f.label + ": 숫자를 입력하세요."); return; }
         body[f.name] = val; continue;
       }
-      // required 체크박스도 다른 타입과 같은 검증을 받는다 — 예전엔 라벨에 '*'만 붙고 실제
-      // 검증이 없어 체크 안 함(false)이 항상 통과됐다(product-quality-audit AREA=D). 지금은
-      // 어떤 registry 필드도 checkbox required를 안 쓰지만(latent), 키트 계약을 맞춘다.
       else if (f.type === "checkbox") { if (f.required && !val) { fail(f.name, (f.checkLabel || f.label) + "을(를) 선택해야 합니다."); return; } body[f.name] = !!val; continue; }
       else if (f.type === "json") {
         if (!val || !String(val).trim()) { if (f.required) { fail(f.name, f.label + "을(를) 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
         let parsed;
         try { parsed = JSON.parse(val); } catch (e) { fail(f.name, f.label + ": JSON 형식이 올바르지 않습니다."); return; }
-        // 일부 필드(예: 정책 content)는 백엔드가 JSON 객체만 허용한다(배열·문자열·숫자는 거부).
-        // 여기서 먼저 걸러내지 않으면 클라이언트는 통과시키고 서버 왕복 후에야 같은 메시지로
-        // 실패한다 — registry가 f.jsonObject를 선언한 필드에 한해 서버와 같은 문구로 먼저 막는다
-        // (product-quality-audit AREA=D).
+        // 일부 필드(예: 정책 content)는 백엔드가 JSON 객체만 허용한다 — 서버와 같은 문구로 먼저 막는다.
         if (f.jsonObject && (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))) {
           fail(f.name, f.label + "은(는) JSON 객체여야 합니다."); return;
         }
@@ -512,9 +613,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       else if (f.type === "select") {
         val = val == null ? "" : String(val);
         if (f.required && !val.trim()) {
-          // 옵션 자체가 없으면(예: 유일한 옵션 후보가 소진된 충돌 해결 선택) '선택하세요'는
-          // 아무것도 고를 게 없는 사용자에게 헛도는 무한 루프다 — 원인이 다른 문구를 준다
-          // (product-quality-audit AREA=D).
+          // 옵션 자체가 없으면 '선택하세요'는 헛도는 무한 루프다 — 원인이 다른 문구를 준다.
           if (!(f.options || []).length) { fail(f.name, f.label + ": 선택할 수 있는 항목이 없습니다, 다시 시도하거나 취소하세요."); return; }
           fail(f.name, f.label + "을(를) 선택하세요."); return;
         }
@@ -525,21 +624,15 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     setBusy(true);
     try { await onSubmit(body); }
     catch (e) {
-      // 세션 만료(401)는 다른 실패와 다르게 다룬다 — DataScreen.jsx의 handleApiError와 같은
-      // 패턴이다. 여기서 재시도해도 항상 401이라 일반 폼 오류 문구만 띄우면 사용자는 자신이
-      // 방금 입력한 내용이 왜 저장되지 않는지 모른 채 이 모달 안에 막힌다(product-quality-audit
-      // AREA=D). FormModal은 ~15개 이상의 생성/수정 화면이 공유하는 유일한 표면이라 DataScreen
-      // 전용 handleApiError를 그대로 재사용할 수 없어(파일 간 결합 없음) 여기 동일 로직을 둔다.
+      // 세션 만료(401)는 여기서 재시도해도 항상 401이라, 일반 폼 오류 문구만 띄우면 사용자는
+      // 자신이 방금 입력한 내용이 왜 저장되지 않는지 모른 채 이 모달 안에 막힌다.
       if (e && e.status === 401) {
         toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error");
         window.setTimeout(() => { window.location.href = "/login"; }, 1200);
         return; // busy=true로 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
       }
-      // 백엔드가 검증 실패의 구체적 사유 목록을 details로 함께 보낼 때가 있다(예: 비밀번호
-      // 정책 위반 — "비밀번호 정책 위반"이라는 포장 메시지만 있고 실제로 어떤 규칙을 어겼는지는
-      // details 배열에만 있었다). 있으면 이어붙여 사용자가 무엇을 고쳐야 하는지 보이게 한다.
-      // details가 문자열이 아니라 {loc,msg} 객체 배열일 수도 있다(예: RequestValidationError) —
-      // 그대로 join하면 "[object Object]"가 새어 나온다(product-quality-audit AREA=D).
+      // 백엔드가 검증 실패 사유를 details로 함께 보낼 때가 있다(예: 비밀번호 정책 위반).
+      // details가 {loc,msg} 객체 배열일 수도 있어 그대로 join하면 "[object Object]"가 샌다.
       const details = e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;
       const detailTexts = (details || []).map((d) => (d && typeof d === "object" ? (d.msg || JSON.stringify(d)) : d));
       const msg = [e.message || "저장하지 못했습니다.", ...detailTexts].filter(Boolean).join(" ");
@@ -552,16 +645,14 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
   const footer = <ModalFooter onCancel={requestClose} onSubmit={submit} submitLabel={submitLabel || "저장"} busy={busy} />;
   return (
     <Modal open={open} onClose={requestClose} title={title} size={sz} footer={footer}>
-      {/* 필드를 <form>으로 감싸 Enter가 자연스럽게 제출되게 한다, 예전엔 <div>뿐이라 어떤
-          입력에서 Enter를 눌러도 아무 일도 없었다(textarea/json은 여러 줄 입력을 위해 계속
-          기본 Enter 동작을 유지한다, product-quality-audit AREA=D). */}
+      {/* 필드를 <form>으로 감싸 Enter가 자연스럽게 제출되게 한다(textarea/json은 여러 줄 입력을
+          위해 기본 Enter 동작 유지). */}
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        {err ? <div className="k-form-err k-form-err--top" role="alert">{err}</div> : null}
+        {err ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
         {(fields || []).map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name} onChange={(val) => set(f.name, val)} />)}
-        {/* 화면에 보이지 않는 제출 버튼, 실제 저장 버튼은 Modal footer(별도 DOM 트리)에 있어
-            이 <form> 안에 없다. type="submit" 버튼이 하나도 없으면 브라우저에 따라 단일
-            텍스트 입력에서 Enter가 폼을 제출하지 않을 수 있어, 표준 submit 이벤트 경로를
-            보장하는 안전판으로 둔다. */}
+        {/* 화면에 보이지 않는 제출 버튼 — 실제 저장 버튼은 Dialog footer(별도 DOM 트리)에 있어
+            이 <form> 안에 없다. type="submit"이 하나도 없으면 브라우저에 따라 단일 텍스트
+            입력에서 Enter가 폼을 제출하지 않는다. */}
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
     </Modal>
@@ -583,10 +674,10 @@ export function ConfirmProvider({ children }) {
   return (
     <ConfirmCtx.Provider value={confirm}>
       {children}
-      <Modal open={!!state} onClose={() => done(false)} title={state ? state.title : ""}
+      <Modal open={!!state} onClose={() => done(false)} title={state ? state.title : ""} size="sm"
         footer={<DialogFooter onCancel={() => done(false)} onSubmit={() => done(true)}
           submitLabel={state ? state.confirmLabel : "확인"} submitVariant={state && state.danger ? "danger" : "primary"} />}>
-        <p className="k-confirm-msg">{state ? state.message : ""}</p>
+        <Typography sx={{ whiteSpace: "pre-line" }}>{state ? state.message : ""}</Typography>
       </Modal>
     </ConfirmCtx.Provider>
   );
@@ -611,40 +702,58 @@ export function ToastProvider({ children }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="k-toasts" aria-live="polite" aria-atomic="false">
-        {toasts.map((t) => (
-          <div key={t.id} className={"k-toast k-toast--" + t.kind} role={t.kind === "error" ? "alert" : undefined}>
-            <span className="k-toast-msg">{t.message}</span>
-            <button type="button" className="k-toast-x" aria-label="닫기" onClick={() => dismiss(t.id)}>✕</button>
-          </div>
-        ))}
-      </div>
+      <MuiSnackbar
+        open={toasts.length > 0}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        sx={{ maxWidth: "min(92vw, 30rem)" }}
+      >
+        <Stack gap={1} sx={{ width: "100%" }} aria-live="polite" aria-atomic="false">
+          {toasts.map((t) => (
+            <MuiAlert
+              key={t.id}
+              severity={TONE_SEVERITY[t.kind] || (t.kind === "error" ? "error" : t.kind === "success" ? "success" : "info")}
+              variant="filled"
+              role={t.kind === "error" ? "alert" : undefined}
+              onClose={() => dismiss(t.id)}
+              sx={{ width: "100%" }}
+            >
+              {t.message}
+            </MuiAlert>
+          ))}
+        </Stack>
+      </MuiSnackbar>
     </ToastCtx.Provider>
   );
 }
 export function useToast() { return React.useContext(ToastCtx); }
 
-/* 페이지 헤더, 빵부스러기→제목 순서와 간격을 한곳에서 정한다.
+/* 페이지 헤더 — 빵부스러기→제목 순서와 간격을 한곳에서 정한다.
  * crumbRoot: 빵부스러기 접두어(기본 '관리자'). 사용자 대면 화면은 다른 뿌리를 넘기거나
- *   area를 비워 빵부스러기 자체를 숨길 수 있다(§ 비관리자에게 '관리자 ›'가 새던 문제).
- * (예전엔 여기 `description` prop과 .k-page-desc 렌더가 있었으나, 앱 전체에서 어떤
- * 호출부도 실제로 넘긴 적이 없는 죽은 API 표면이었다(product-quality-audit AREA=D) -
- * 이 파일 아래쪽의 PageHelp/Toolbar/PageSection 정리와 같은 이유로 지운다. 필요해지면
- * git 이력에서 되살릴 수 있다.) */
-export function PageHeader({ area, title, actions, crumbRoot = "관리자" }) {
+ *   area를 비워 빵부스러기 자체를 숨길 수 있다.
+ * spot: 섹션 일러스트 키(lib/assets.js의 SPOT). 큰 화면에서만 보인다 — 4K에서 남는 폭을
+ *   의미 있는 밀도로 채우는 수단이기도 하다. 자산 8종이 있는데 안 쓰이고 있었다. */
+export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot }) {
+  const spotSrc = spot && SPOT[spot] ? SPOT[spot] : null;
   return (
-    <div className="k-page-head">
-      <div className="k-page-head-text">
-        {area ? <div className="k-breadcrumb">{crumbRoot ? crumbRoot + " › " : ""}{area}</div> : null}
-        <h1 className="k-page-title">{title}</h1>
-      </div>
-      {actions ? <div className="k-page-actions">{actions}</div> : null}
-    </div>
+    <Box
+      className="k-page-head"
+      sx={{ display: "flex", alignItems: "flex-end", gap: 3, flexWrap: "wrap", mb: 3 }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        {area ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 650 }}>
+            {crumbRoot ? crumbRoot + " › " : ""}{area}
+          </Typography>
+        ) : null}
+        <Typography variant="h4" component="h1" sx={{ mt: area ? 0.5 : 0 }}>{title}</Typography>
+      </Box>
+      {spotSrc ? (
+        <Box
+          component="img" src={spotSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          sx={{ display: { xs: "none", lg: "block" }, height: { lg: 96, xxl: 128, uhd: 160 }, width: "auto", order: 2 }}
+        />
+      ) : null}
+      {actions ? <Box className="k-page-actions" sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
+    </Box>
   );
 }
-
-/* PageHelp/Toolbar/PageSection — 예전엔 여기 있었으나 어떤 화면도 실제로 가져다 쓰지 않는
- * 죽은 export였다(DataScreen.jsx는 자체 인라인 툴바/섹션 마크업을 쓴다, product-quality-audit
- * AREA=D 발견사항). 표준화를 노렸다면 소비자(DataScreen.jsx, 이 파일 소유 범위 밖)를 그쪽으로
- * 옮겨 붙이는 게 진짜 수정이지만, 이 파일 단독으로는 미사용 export를 남겨 두는 대신 지운다 —
- * 필요해지면 언제든 git 이력에서 되살릴 수 있다. */

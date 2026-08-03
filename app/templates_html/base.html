@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ClovirONE 업무 도우미{% endblock %}</title>
-  <link rel="icon" href="{{ asset('/static/img/clovirone-mark.svg') }}" type="image/svg+xml">
+  <meta name="theme-color" content="#536CD6">
+  {# 파비콘 세트는 app/static/brand/favicon/에 전 사이즈가 있다. 예전에는 <link rel=icon> 한 줄만
+     걸려 있어서 탭·북마크·모바일 홈화면에서 각각 다른 크기가 필요할 때 브라우저가 알아서
+     줄이거나 기본 아이콘으로 떨어졌다. SPA(frontend/index.html)와 같은 세트를 쓴다. #}
+  <link rel="icon" href="{{ asset('/static/brand/favicon/favicon.ico') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('/static/brand/favicon/favicon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('/static/brand/favicon/favicon-16x16.png') }}">
+  <link rel="apple-touch-icon" href="{{ asset('/static/brand/favicon/apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ asset('/static/brand/site.webmanifest') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/base.css') }}">
   {% block head %}{% endblock %}

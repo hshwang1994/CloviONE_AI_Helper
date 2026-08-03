@@ -1,3 +1,7 @@
 -r requirements.txt
 pytest==8.3.5
 pytest-cov==6.1.1
+# scripts/ui_qa — 시각/기하 QA 하네스 (브라우저 자동화 + 리포트 썸네일 생성).
+# playwright 설치 후 브라우저 바이너리도 받아야 한다: python -m playwright install chromium
+playwright==1.62.0
+Pillow==12.3.0

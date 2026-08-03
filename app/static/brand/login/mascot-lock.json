@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "canonicalFile": "clovi-canonical-hero.png",
+  "canonicalSha256": "fc30602c0882e885d1f74a3fb390596104969509eeea3c8f71aebb50e391011c",
+  "canonicalSize": [
+    1024,
+    1024
+  ],
+  "canonicalVisibleBounds": [
+    44,
+    70,
+    985,
+    935
+  ],
+  "eyeBaseFile": "clovi-canonical-eye-base.png",
+  "eyeBaseSha256": "b98b5498977dd2ce7efd27e8a1e332bcbbd02307489df033f19be10ac12ff10b",
+  "eyeLayerFile": "clovi-canonical-eyes-layer.png",
+  "eyeLayerSha256": "08b98c55822f427f03d72b733894986a8860127e8760e5571b9507a62d6459aa",
+  "avatarFile": "clovi-canonical-avatar.png",
+  "avatarSha256": "cabe3131b363b42a430cfd8f97cbf495a1bd8dc10c473862a39fa6d27be790cb",
+  "eyeMaskBounds": [
+    524,
+    211,
+    689,
+    267
+  ],
+  "centerCompositeRgbMaxDiff": 0,
+  "centerCompositeAlphaMaxDiff": 6,
+  "maximumEyeOffsetCssPx": {
+    "x": 4.0,
+    "y": 2.5
+  },
+  "desktopStageWidthPercent": {
+    "compact": 58,
+    "default": 64,
+    "highResolution": 64
+  },
+  "rules": [
+    "Do not replace, redraw, crop, recolor, or rescale the canonical mascot artwork internally.",
+    "Do not use clovi-idle.png, clovi-wave.png, frame assets, or limb layers in the login hero.",
+    "Only the extracted original eye pixels may move; the canonical image, background, props, and body stay fixed.",
+    "At zero eye offset the base and eye layer must reconstruct the canonical artwork pixel-for-pixel.",
+    "Responsive changes may only alter the outer stage size and position within the approved display envelope."
+  ]
+}
