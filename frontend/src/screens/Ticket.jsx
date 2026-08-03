@@ -5,7 +5,7 @@ import { api } from "../lib/api.js";
 import { Badge, Button, Callout, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { DocBody, safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
-import { priorityKo, priorityKind } from "./Chat.jsx";
+import { priorityKo, priorityKind } from "../lib/priority.js";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 표로,
  * 본문 블록은 문서 상세와 같은 렌더러(DocBody)로 읽기 전용 표시. 편집·삭제(휴지통)도 여기서. */

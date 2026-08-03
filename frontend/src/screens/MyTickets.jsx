@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, StatCard, PageHeader, Modal, ModalFooter, Button, useToast } from "../ui/kit.jsx";
-import { priorityKo, priorityKind } from "./Chat.jsx";
+import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";

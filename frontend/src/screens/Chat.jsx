@@ -9,35 +9,11 @@ import { Badge, Button, Skeleton, ErrorState, useToast, useConfirm, statusKind }
 // kit.jsx는 이 화면이 소유하지 않으므로 전역 STATUS_TEXT/STATUS_KIND를 늘리는 대신, 여기서 값을
 // 한국어로 먼저 번역해 Badge에 이미 번역된 문자열 + 명시적 kind를 넘긴다(Badge는 kind가 오면 그것을
 // 그대로 쓰고, value는 STATUS_TEXT에 없으면 원문 그대로 통과시키므로 이미 번역된 한국어 문자열이 그대로 보인다).
-const PRIORITY_TEXT = {
-  urgent: "긴급", critical: "긴급",
-  high: "높음", medium: "보통", normal: "보통", low: "낮음",
-  "1": "높음", "2": "보통", "3": "낮음",
-  긴급: "긴급", 높음: "높음", 보통: "보통", 낮음: "낮음",
-};
-const PRIORITY_KIND = {
-  urgent: "danger", critical: "danger", 긴급: "danger",
-  high: "warn", 높음: "warn",
-  medium: "info", normal: "info", 보통: "info",
-  low: "neutral", 낮음: "neutral",
-  "1": "danger", "2": "info", "3": "neutral",
-};
-export function priorityKo(p) {
-  const key = String(p).trim().toLowerCase();
-  if (PRIORITY_TEXT[key]) return PRIORITY_TEXT[key];
-  const s = String(p).trim();
-  // 매핑에 없는 값(러너가 보내는 커스텀 등급명 등) — kit.jsx의 statusText()와 같은 방식으로 원시
-  // snake_case/kebab-case를 사람이 읽는 형태로 다듬는다("p1_urgent" → "P1 Urgent") — 원시 식별자를
-  // 그대로 새어 나가게 두지 않는다.
-  if (/^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(s)) {
-    return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  return s;
-}
-export function priorityKind(p) {
-  const key = String(p).trim().toLowerCase();
-  return PRIORITY_KIND[key]; // 매핑 없으면 undefined → Badge가 neutral로 폴백.
-}
+// 우선순위 어휘는 lib/priority.js로 옮겼다 — 티켓 화면 두 곳이 이 두 함수를 쓰려고
+// 이 파일(1,205줄) 전체를 import하는 바람에 채팅을 지연 로딩으로 뺄 수 없었다.
+// 기존 호출부 호환을 위해 여기서도 그대로 내보낸다.
+export { priorityKo, priorityKind } from "../lib/priority.js";
+import { priorityKo, priorityKind } from "../lib/priority.js";
 
 // 마감일 정규화 — 날짜만(YYYY-MM-DD)이면 그대로, ISO 타임스탬프면 KST로 표시(영문/ISO 누출 방지).
 function fmtDue(v) {
