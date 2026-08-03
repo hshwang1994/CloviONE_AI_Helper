@@ -1,0 +1,132 @@
+{
+  "configured": true,
+  "developers": [
+    {
+      "act_done": 2.0,
+      "assigned": 2,
+      "cancel": 0,
+      "completion_rate": 50,
+      "difficulty_avg": 3.0,
+      "done": 1,
+      "est_all": 4.5,
+      "est_done": 1.5,
+      "has_tickets": true,
+      "name": "개발자 이",
+      "overdue": 0,
+      "plan": 0,
+      "prog": 0,
+      "tickets": [
+        {
+          "act_wd": 2.0,
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "overdue": false,
+          "priority": "보통",
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "url": "https://www.notion.so/page-0002"
+        },
+        {
+          "act_wd": null,
+          "difficulty": "1",
+          "due": "2026-07-20",
+          "est_wd": 3.0,
+          "overdue": false,
+          "priority": "낮음",
+          "status": "검증",
+          "tid": 103,
+          "title": "개발자 검증 티켓",
+          "url": "https://www.notion.so/page-0003"
+        }
+      ],
+      "verify": 1
+    },
+    {
+      "act_done": 2.0,
+      "assigned": 2,
+      "cancel": 0,
+      "completion_rate": 50,
+      "difficulty_avg": 4.0,
+      "done": 1,
+      "est_all": 3.5,
+      "est_done": 1.5,
+      "has_tickets": true,
+      "name": "관리자 김",
+      "overdue": 1,
+      "plan": 0,
+      "prog": 1,
+      "tickets": [
+        {
+          "act_wd": null,
+          "difficulty": "3",
+          "due": "2026-07-10",
+          "est_wd": 2.0,
+          "overdue": true,
+          "priority": "높음",
+          "status": "진행",
+          "tid": 101,
+          "title": "관리자 진행 티켓",
+          "url": "https://www.notion.so/page-0001"
+        },
+        {
+          "act_wd": 2.0,
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "overdue": false,
+          "priority": "보통",
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "url": "https://www.notion.so/page-0002"
+        }
+      ],
+      "verify": 0
+    },
+    {
+      "act_done": 0.0,
+      "assigned": 0,
+      "cancel": 0,
+      "completion_rate": null,
+      "difficulty_avg": null,
+      "done": 0,
+      "est_all": 0.0,
+      "est_done": 0.0,
+      "has_tickets": false,
+      "name": "미연결 박",
+      "overdue": 0,
+      "plan": 0,
+      "prog": 0,
+      "tickets": [],
+      "verify": 0
+    }
+  ],
+  "generated_at": "2026-07-14T09:00:00",
+  "ok": true,
+  "period": "2026-07",
+  "range": {
+    "end_exclusive": "2026-08-01",
+    "start": "2026-07-01"
+  },
+  "team": {
+    "cancel": 0,
+    "done": 1,
+    "est_all_total": 7.0,
+    "est_done_total": 1.5,
+    "in_progress": 1,
+    "overdue": 1,
+    "plan": 1,
+    "total": 4,
+    "verify": 1
+  },
+  "unassigned": {
+    "cancel": 0,
+    "done": 0,
+    "plan": 1,
+    "prog": 0,
+    "total": 1,
+    "verify": 0
+  }
+}

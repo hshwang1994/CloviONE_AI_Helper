@@ -1,0 +1,148 @@
+{
+  "configured": true,
+  "developers": [
+    {
+      "act_done": 2.0,
+      "assigned": 1,
+      "cancel": 0,
+      "completion_rate": 100,
+      "difficulty_avg": 5.0,
+      "done": 1,
+      "est_all": 1.5,
+      "est_done": 1.5,
+      "has_tickets": true,
+      "name": "개발자 이",
+      "overdue": 0,
+      "plan": 0,
+      "prog": 0,
+      "tickets": [
+        {
+          "act_wd": 2.0,
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "overdue": false,
+          "priority": "보통",
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "url": "https://www.notion.so/page-0002"
+        }
+      ],
+      "verify": 0
+    },
+    {
+      "act_done": 2.0,
+      "assigned": 1,
+      "cancel": 0,
+      "completion_rate": 100,
+      "difficulty_avg": 5.0,
+      "done": 1,
+      "est_all": 1.5,
+      "est_done": 1.5,
+      "has_tickets": true,
+      "name": "관리자 김",
+      "overdue": 0,
+      "plan": 0,
+      "prog": 0,
+      "tickets": [
+        {
+          "act_wd": 2.0,
+          "difficulty": "5",
+          "due": "2026-07-15",
+          "est_wd": 1.5,
+          "overdue": false,
+          "priority": "보통",
+          "status": "완료",
+          "tid": 102,
+          "title": "공동 담당 완료 티켓",
+          "url": "https://www.notion.so/page-0002"
+        }
+      ],
+      "verify": 0
+    },
+    {
+      "act_done": 0.0,
+      "assigned": 0,
+      "cancel": 0,
+      "completion_rate": null,
+      "difficulty_avg": null,
+      "done": 0,
+      "est_all": 0.0,
+      "est_done": 0.0,
+      "has_tickets": false,
+      "name": "미연결 박",
+      "overdue": 0,
+      "plan": 0,
+      "prog": 0,
+      "tickets": [],
+      "verify": 0
+    }
+  ],
+  "ok": true,
+  "planned": [
+    {
+      "act_wd": null,
+      "assignee_names": [],
+      "assignee_user_ids": [],
+      "assignees": [],
+      "difficulty": null,
+      "due": "2026-07-25",
+      "est_wd": 0.5,
+      "id": "page-0004",
+      "priority": null,
+      "project": "베타 프로젝트",
+      "project_ids": [
+        "proj-beta-0001"
+      ],
+      "project_names": [
+        "베타 프로젝트"
+      ],
+      "start": null,
+      "status": "계획",
+      "tid": 104,
+      "title": "미할당 계획 티켓",
+      "url": "https://www.notion.so/page-0004"
+    }
+  ],
+  "team": {
+    "cancel": 0,
+    "done": 1,
+    "est_all_total": 1.5,
+    "est_done_total": 1.5,
+    "in_progress": 0,
+    "overdue": 0,
+    "plan": 0,
+    "total": 1,
+    "verify": 0
+  },
+  "unassigned": [
+    {
+      "act_wd": null,
+      "assignee_names": [],
+      "assignee_user_ids": [],
+      "assignees": [],
+      "difficulty": null,
+      "due": "2026-07-25",
+      "est_wd": 0.5,
+      "id": "page-0004",
+      "priority": null,
+      "project": "베타 프로젝트",
+      "project_ids": [
+        "proj-beta-0001"
+      ],
+      "project_names": [
+        "베타 프로젝트"
+      ],
+      "start": null,
+      "status": "계획",
+      "tid": 104,
+      "title": "미할당 계획 티켓",
+      "url": "https://www.notion.so/page-0004"
+    }
+  ],
+  "window": {
+    "end_exclusive": "2026-07-20",
+    "start": "2026-07-13"
+  }
+}

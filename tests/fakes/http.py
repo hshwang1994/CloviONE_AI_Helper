@@ -19,10 +19,23 @@ class _Route:
 class FakeHTTP:
     def __init__(self) -> None:
         self.routes: dict[str, _Route] = {}
+        # Body-aware handlers, checked *before* the prefix routes. Empty by
+        # default, so registering nothing here leaves `on()` behaviour exactly
+        # as it was (many tests depend on the prefix-only matching).
+        self.handlers: dict[str, object] = {}
         self.requests: list[httpx.Request] = []
 
     def on(self, url_prefix: str, *, status: int = 200, json_body=None, text=None) -> None:
         self.routes[url_prefix] = _Route(status=status, json_body=json_body, text=text)
+
+    def on_handler(self, url_prefix: str, fn) -> None:
+        """Register a callable that inspects the whole request (method, URL, body).
+
+        ``fn(request)`` may return an ``httpx.Response``, a dict (200 + JSON),
+        a ``(status, json_body)`` tuple, or ``None`` to decline and fall through
+        to the prefix routes registered with :meth:`on`.
+        """
+        self.handlers[url_prefix] = fn
 
     def on_timeout(self, url_prefix: str) -> None:
         self.routes[url_prefix] = _Route(mode="timeout")
@@ -33,9 +46,25 @@ class FakeHTTP:
     def on_invalid_json(self, url_prefix: str) -> None:
         self.routes[url_prefix] = _Route(mode="invalid_json")
 
+    @staticmethod
+    def _coerce(result, request: httpx.Request) -> httpx.Response | None:
+        if result is None:
+            return None
+        if isinstance(result, httpx.Response):
+            return result
+        if isinstance(result, tuple):
+            status, body = result
+            return httpx.Response(status, json=body, request=request)
+        return httpx.Response(200, json=result, request=request)
+
     def _handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         url = str(request.url)
+        for prefix, fn in self.handlers.items():
+            if url.startswith(prefix):
+                response = self._coerce(fn(request), request)
+                if response is not None:
+                    return response
         for prefix, route in self.routes.items():
             if url.startswith(prefix):
                 if route.mode == "timeout":

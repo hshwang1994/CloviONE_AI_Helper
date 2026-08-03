@@ -1,0 +1,14 @@
+{
+  "configured": true,
+  "ok": true,
+  "projects": [
+    {
+      "id": "proj-beta-0001",
+      "name": "베타 프로젝트"
+    },
+    {
+      "id": "proj-alpha-0001",
+      "name": "알파 프로젝트"
+    }
+  ]
+}

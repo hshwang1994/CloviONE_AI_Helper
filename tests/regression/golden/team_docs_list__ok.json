@@ -1,0 +1,68 @@
+{
+  "can_sync": true,
+  "items": [
+    {
+      "author_names": [
+        "개발자 이"
+      ],
+      "doc_date": "2026-07-08",
+      "document_type": "회의록",
+      "has_files": false,
+      "id": "doc-0002",
+      "is_favorite": false,
+      "last_edited": "2026-07-09T00:00:00.000Z",
+      "original_url": null,
+      "owner": "개발자 이",
+      "priority": "보통",
+      "projects": [
+        "베타 프로젝트"
+      ],
+      "source_url": null,
+      "status": "진행",
+      "synced_at": "2026-07-14T08:00:00",
+      "tech_tags": [
+        "Python"
+      ],
+      "title": "주간 회의록",
+      "url": "https://www.notion.so/doc-0002",
+      "work_field": "개발"
+    },
+    {
+      "author_names": [
+        "관리자 김"
+      ],
+      "doc_date": "2026-07-01",
+      "document_type": "보고서",
+      "has_files": true,
+      "id": "doc-0001",
+      "is_favorite": true,
+      "last_edited": "2026-07-05T00:00:00.000Z",
+      "original_url": "https://example.invalid/original/doc-0001",
+      "owner": "관리자 김",
+      "priority": "높음",
+      "projects": [
+        "알파 프로젝트"
+      ],
+      "source_url": "https://example.invalid/source/doc-0001",
+      "status": "완료",
+      "synced_at": "2026-07-14T08:00:00",
+      "tech_tags": [
+        "Docker",
+        "Linux"
+      ],
+      "title": "보안 점검 보고서",
+      "url": "https://www.notion.so/doc-0001",
+      "work_field": "보안"
+    }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "sync": {
+    "doc_count": 2,
+    "error": null,
+    "last_run_at": "2026-07-14T08:00:00",
+    "last_success_at": "2026-07-14T08:00:00",
+    "status": "ok"
+  },
+  "total": 2
+}

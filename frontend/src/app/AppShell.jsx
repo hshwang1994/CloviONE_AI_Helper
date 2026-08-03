@@ -302,7 +302,12 @@ export function AppShell({
       </AppBar>
 
       {showMenu ? (
-        <Box component="aside" id="app-sidebar" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: 0 }}>
+        /* 이 <aside>는 '자리를 차지하는' 역할이다. MUI Drawer(permanent)는 position:fixed라
+           흐름에서 빠지므로, 같은 폭의 자리를 여기서 잡아 주지 않으면 본문이 사이드바 밑으로
+           깔려 왼쪽이 잘린다. 좁은 화면에서는 서랍이 오버레이라 자리를 잡으면 안 된다.
+           (폭을 sx={{ width: { md: DRAWER_WIDTH } }}처럼 반응형 객체를 중첩해 쓰면 조용히
+            무시된다 — 실제로 그렇게 썼다가 본문이 통째로 가려졌다.) */
+        <Box component="aside" id="app-sidebar" sx={{ width: isNarrow ? 0 : DRAWER_WIDTH, flexShrink: 0 }}>
           <Drawer
             variant={isNarrow ? "temporary" : "permanent"}
             open={isNarrow ? navOpen : true}
