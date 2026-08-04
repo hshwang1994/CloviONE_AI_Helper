@@ -2,8 +2,12 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Badge from "@mui/material/Badge";
+import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
+import MuiButton from "@mui/material/Button";
+import Popover from "@mui/material/Popover";
 import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { api } from "../lib/api.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
@@ -275,42 +279,23 @@ export function NotificationBell({ isUser }) {
     onSettled: invalidateNoti,
   });
 
-  useEffect(() => {
-    if (!open) return undefined;
-    // 팝오버 밖 클릭이면 닫되, '모두 읽음' 확인 모달(앱 루트에 렌더돼 ref 밖에 있음)을 누른 것은
-    // 무시한다 — 안 그러면 확인 다이얼로그를 누르는 순간 팝오버가 사라진다.
-    const onDoc = (e) => {
-      if (!ref.current || ref.current.contains(e.target)) return;
-      if (e.target.closest && e.target.closest('.k-modal, .k-modal-overlay, [role="dialog"]')) return;
-      setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") { setOpen(false); return; }
-      if (e.key === "Tab" && popRef.current) {
-        const els = Array.prototype.filter.call(popRef.current.querySelectorAll(FOCUSABLE), (el) => el.offsetParent !== null);
-        if (!els.length) return;
-        const first = els[0], last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    // 열릴 때 포커스를 팝오버 안으로, 닫힐 때 벨로 복귀.
-    const t = window.setTimeout(() => {
-      const node = popRef.current; if (!node) return;
-      const first = node.querySelector(FOCUSABLE);
-      (first || node).focus();
-    }, 0);
-    return () => {
-      window.clearTimeout(t);
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-      // 항목 클릭으로 다른 화면으로 이동해 닫히는 경우엔 벨로 포커스를 되돌리지 않는다(새 화면에 포커스가 가야 함).
-      if (!navClosingRef.current && bellRef.current && typeof bellRef.current.focus === "function") { try { bellRef.current.focus(); } catch (e) { /* ignore */ } }
-      navClosingRef.current = false;
-    };
-  }, [open]);
+  /* 2026-08 MUI 전환: 바깥 클릭 감지·Esc·포커스 트랩·포커스 복귀를 손으로 만들어 두었던
+   * 이펙트를 지웠다. MUI Popover 가 넷을 다 한다(ClickAwayListener + Modal 의 FocusTrap).
+   * 직접 만든 판을 남겨 두면 Popover 의 것과 두 겹으로 겹쳐 서로를 방해한다.
+   *
+   * 넘겨받지 못하는 것이 딱 하나 있어 그것만 남긴다: **'모두 읽음' 확인 모달을 눌렀을 때
+   * 팝오버가 닫히면 안 된다**. 그 모달은 앱 루트에 렌더돼 팝오버 바깥이라, 기본 동작대로면
+   * 확인 버튼을 누르는 순간 팝오버가 사라진다. onClose 에서 그 경우만 걸러 낸다.
+   *
+   * 포커스 복귀도 Popover 가 앵커(벨)로 돌려준다. 다만 항목을 눌러 **다른 화면으로 이동하며**
+   * 닫힐 때는 새 화면에 포커스가 가야 하므로 그때만 복귀를 끈다(navClosingRef). */
+  const closePopover = (_event, reason) => {
+    if (reason === "backdropClick" && _event && _event.target && _event.target.closest
+        && _event.target.closest('.MuiDialog-root, [role="dialog"]')) {
+      return;   // 확인 모달을 누른 것이다 — 팝오버를 닫지 않는다
+    }
+    setOpen(false);
+  };
 
   const items = (list.data && list.data.items) || [];
   const rawCount = unread.data && unread.data.unread;
@@ -381,7 +366,7 @@ export function NotificationBell({ isUser }) {
   }
 
   return (
-    <div className="noti" ref={ref}>
+    <Box className="noti" ref={ref} sx={{ display: "inline-flex" }}>
       {/* 2026-08 MUI 전환: 손으로 만든 .noti-bell 버튼과 네 가지 상태 표시(.noti-count /
           .noti-quiet / .noti-err / .noti-pending)를 IconButton + Badge 하나로 모았다.
           상태가 넷이라는 사실과 각 상태의 의미(아래 주석)는 그대로 남긴다 — 바뀐 것은
@@ -415,27 +400,47 @@ export function NotificationBell({ isUser }) {
           시각 배지만 끄고 여기를 켜 두면 '조용히 해 달라'는 요청을 절반만 지키는 셈이다.
           숫자는 벨을 눌러 팝오버를 열면 그대로 다 들린다(삼키는 것이 아니다). */}
       <span className="sr-only" aria-live="polite">{!quiet && count ? "읽지 않은 알림 " + count + "건" : ""}</span>
-      {open ? (
-        // role="dialog"는 구조(팝오버)를 알리는 용도로만 남긴다, aria-modal="true"는 배경이
-        // 실제로 inert해야 정직한데, 이 팝오버는 사이드바, 상단바, 본문이 전부 계속 상호작용
-        // 가능하고 body 스크롤도 잠그지 않는다(kit.jsx Modal과 달리). aria-modal을 켜 둔 채
-        // 두면 스크린리더가 "배경은 닿을 수 없다"고 잘못 안내한다(product-quality-audit AREA=D).
-        <div className="noti-pop" id="noti-pop" role="dialog" aria-label="알림" ref={popRef} tabIndex={-1}>
-          <div className="noti-pop-head">
-            <span>알림{count && !listError ? ", 안 읽음 " + count : ""}</span>
+      <Popover
+        open={open}
+        anchorEl={bellRef.current}
+        onClose={closePopover}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        /* role="dialog"는 구조(팝오버)를 알리는 용도로만 남긴다. aria-modal 은 켜지 않는다 —
+           배경이 실제로 inert 해야 정직한데 이 팝오버는 사이드바·상단바·본문이 계속 상호작용
+           가능하다. 켜 두면 스크린리더가 "배경은 닿을 수 없다"고 잘못 안내한다. */
+        slotProps={{
+          paper: {
+            id: "noti-pop", role: "dialog", "aria-label": "알림",
+            sx: { mt: 1, width: "min(26rem, calc(100vw - 2rem))", maxHeight: "min(34rem, 80vh)",
+                  display: "flex", flexDirection: "column", overflow: "hidden" },
+          },
+        }}
+      >
+        <>
+          <Box className="noti-pop-head" sx={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
+            px: 2, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0,
+          }}>
+            <Typography component="span" sx={{ fontWeight: 750, fontSize: "0.875rem" }}>
+              알림{count && !listError ? ", 안 읽음 " + count : ""}
+            </Typography>
             {/* 몸통이 오류면 헤더 숫자, '모두 읽음'을 감춰 한 팝오버 안에서 상반된 메시지를 없앤다.
-                개수 조회만 실패한 경우엔(countError) 수동 재시도 진입로를 준다(product-quality-audit AREA=D). */}
+                개수 조회만 실패한 경우엔(countError) 수동 재시도 진입로를 준다. */}
             {listError ? null
-              : countError ? <button type="button" className="noti-link" onClick={() => unread.refetch()}>개수 다시 불러오기</button>
-              : count > 0 ? <button type="button" className="noti-link" onClick={markAll} disabled={readAll.isPending}>모두 읽음</button>
+              : countError ? <MuiButton size="small" onClick={() => unread.refetch()}>개수 다시 불러오기</MuiButton>
+              : count > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>모두 읽음</MuiButton>
               : null}
-          </div>
+          </Box>
           {/* 안 읽음이 page_size(8건)보다 많으면 헤더 숫자와 실제 보이는 행 수가 어긋난다 —
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
           {!list.isPending && !list.isError && items.length > 0 && items.length < count ? (
-            <div className="noti-pop-hint">{items.length}건 표시 중, 전체 보기에서 나머지 확인</div>
+            <Typography className="noti-pop-hint" sx={{
+              px: 2, py: 0.75, fontSize: "0.75rem", color: "text.secondary",
+              bgcolor: "action.hover", flexShrink: 0,
+            }}>{items.length}건 표시 중, 전체 보기에서 나머지 확인</Typography>
           ) : null}
-          <div className="noti-pop-body">
+          <Box className="noti-pop-body" sx={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
             {/* v5에서 isLoading은 isPending && isFetching이다, enabled:open이라 팝오버가 막
                 열려 fetch가 아직 이펙트로 발사되기 전 프레임엔 isPending=true인데 isFetching이
                 아직 false라 isLoading이 false로 잡혀, '로딩 중'도 '빈 목록'도 아닌 순간이 있었다. */}
@@ -524,14 +529,18 @@ export function NotificationBell({ isUser }) {
                 </div>
                 );
               })}
-          </div>
+          </Box>
           {/* 일반 사용자도 최근 8건 너머의 알림에 닿을 수 있게 전체 보기를 항상 제공한다
               (/notifications는 App.jsx에서 사용자도 접근 가능한 뷰로 열어 둔다). */}
-          <div className="noti-pop-foot">
-            <button type="button" className="noti-link" onClick={() => { setOpen(false); nav("/notifications"); }}>전체 알림 보기</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+          <Box className="noti-pop-foot" sx={{
+            px: 1.5, py: 1, borderTop: 1, borderColor: "divider", flexShrink: 0,
+          }}>
+            <MuiButton size="small" fullWidth onClick={() => { setOpen(false); nav("/notifications"); }}>
+              전체 알림 보기
+            </MuiButton>
+          </Box>
+        </>
+      </Popover>
+    </Box>
   );
 }
