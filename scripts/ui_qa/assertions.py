@@ -18,6 +18,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   vertical_text_collapse  글자가 3자 미만/줄로 끊겨 세로로 흐르는 상태(줄 수로 직접 측정)
   fab_overlap             떠 있는 요소(마스코트 FAB 등)가 버튼·입력을 덮어 못 누르게 됨
   image_cropped           사용자가 올린 이미지를 object-fit:cover 로 잘라 보여줌
+  content_clipped         스크롤할 수 없는 상자 안에서 내용이 넘쳐 잘림
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ NARROW_MAIN_MIN_RATIO = 0.60
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
     "broken_images", "duplicate_ids", "tiny_text", "narrow_main", "vertical_text_collapse",
-    "fab_overlap", "image_cropped",
+    "fab_overlap", "image_cropped", "content_clipped",
 )
 
 # 사용자가 올린 이미지를 비율을 무시하고 잘라 보여주는 것을 잡는다.
@@ -180,6 +181,41 @@ PROBE_JS = r"""
     if (img.complete && img.naturalWidth === 0) {
       out.brokenImages.push({ src: src.slice(0, 160), selector: cssPath(img) });
       if (out.brokenImages.length >= MAX) break;
+    }
+  }
+
+  // --- 내용이 잘려 보이는가(overflow:hidden 인데 안이 넘침) -------------------
+  //
+  // 사용자 지시 §7: "화면 일부가 잘리는 문제". 스크롤이 되면 잘린 것이 아니라 접힌 것이므로
+  // **스크롤할 수 없는데 넘치는** 경우만 센다(overflow hidden/clip). 그게 사용자가 볼 방법이
+  // 없는 상태다.
+  //
+  // 넘침을 1px 이 아니라 넉넉히 잡는 이유: 그림자·포커스 링·자간 반올림으로 1~2px 넘치는 것은
+  // 흔하고 아무도 못 알아챈다. 한 줄(약 24px) 넘게 잘릴 때만 결함으로 본다.
+  out.clipped = [];
+  {
+    const MIN_CLIP = 24;
+    const nodes = document.querySelectorAll('div, section, article, main, aside, li, td, p');
+    for (const el of nodes) {
+      if (out.clipped.length >= MAX) break;
+      const cs = getComputedStyle(el);
+      const hideY = cs.overflowY === 'hidden' || cs.overflowY === 'clip';
+      const hideX = cs.overflowX === 'hidden' || cs.overflowX === 'clip';
+      if (!hideY && !hideX) continue;
+      const overY = hideY ? el.scrollHeight - el.clientHeight : 0;
+      const overX = hideX ? el.scrollWidth - el.clientWidth : 0;
+      if (overY < MIN_CLIP && overX < MIN_CLIP) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 24 || r.height < 24) continue;
+      // 말줄임(ellipsis)은 **의도된** 자르기다 — 잘렸다는 사실이 …로 화면에 보이고 title 로
+      // 원문을 준다. 결함이 아니라 설계다.
+      if (cs.textOverflow === 'ellipsis') continue;
+      const text = (el.innerText || '').trim();
+      if (!text) continue;   // 그림·장식만 든 상자는 이 검사의 대상이 아니다
+      out.clipped.push({
+        selector: cssPath(el), overY: Math.round(overY), overX: Math.round(overX),
+        box: Math.round(r.width) + 'x' + Math.round(r.height), text: text.slice(0, 50),
+      });
     }
   }
 
@@ -594,6 +630,20 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     )
 
     # 사용자가 올린 이미지를 잘라 보여주는 자리. 장식(aria-hidden/alt="")은 프로브에서 이미 뺐다.
+    # 스크롤로 볼 수 없는 잘림. 스크롤이 되면 접힌 것이지 잘린 것이 아니다.
+    clipped = probe.get("clipped") or []
+    results["content_clipped"] = (
+        _verdict(
+            "fail", len(clipped),
+            [f"{c['selector']} 상자 {c['box']} 안에서"
+             f"{' 세로 ' + str(c['overY']) + 'px' if c['overY'] else ''}"
+             f"{' 가로 ' + str(c['overX']) + 'px' if c['overX'] else ''} 넘침 «{c['text']}»"
+             for c in clipped],
+            "overflow 가 hidden 이라 스크롤로도 볼 수 없다 — 사용자에게는 그냥 잘린 화면이다",
+        )
+        if clipped else _verdict("pass")
+    )
+
     cropped = probe.get("croppedImages") or []
     results["image_cropped"] = (
         _verdict(
