@@ -132,7 +132,9 @@ def resolve_themes(selectors: Iterable[str] | None) -> list[str]:
     return out
 
 
-def new_context(browser, *, storage_state: str, user_id: str, theme: str, viewport: Viewport):
+def new_context(browser, *, storage_state: str | None, user_id: str, theme: str,
+                viewport: Viewport):
+    """``storage_state=None`` 이면 로그인하지 않은 브라우저다 — 로그인 화면 촬영용."""
     context = browser.new_context(
         storage_state=storage_state,
         viewport={"width": viewport.width, "height": viewport.height},
@@ -197,19 +199,24 @@ def discover_detail_hash(context, base_url: str, route: Route, log=print) -> tup
 # --------------------------------------------------------------------------- #
 # navigation + capture
 # --------------------------------------------------------------------------- #
-def _settle(page, *, settle_ms: int, timeout_ms: int) -> dict:
+def _settle(page, *, settle_ms: int, timeout_ms: int, spa: bool = True) -> dict:
     """Wait for the SPA to stop moving. Every wait is best-effort: a screen that
-    polls forever must not abort the run, it just gets captured as-is."""
+    polls forever must not abort the run, it just gets captured as-is.
+
+    ``spa=False`` 는 서버가 그리는 Jinja 화면(로그인)이다 — #main-content 도
+    스켈레톤도 없으므로 그 둘을 기다리면 매번 타임아웃 절반씩을 헛되이 쓴다.
+    """
     notes = {}
-    try:
-        page.wait_for_selector("#main-content", state="attached", timeout=timeout_ms // 2)
-    except Exception:
-        notes["main_content"] = "#main-content 가 나타나지 않음"
-    try:
-        page.wait_for_function("() => !document.querySelector('.k-skel')",
-                               timeout=timeout_ms // 2)
-    except Exception:
-        notes["skeleton"] = "스켈레톤(.k-skel)이 계속 남아 있음"
+    if spa:
+        try:
+            page.wait_for_selector("#main-content", state="attached", timeout=timeout_ms // 2)
+        except Exception:
+            notes["main_content"] = "#main-content 가 나타나지 않음"
+        try:
+            page.wait_for_function("() => !document.querySelector('.k-skel')",
+                                   timeout=timeout_ms // 2)
+        except Exception:
+            notes["skeleton"] = "스켈레톤(.k-skel)이 계속 남아 있음"
     try:
         page.wait_for_load_state("networkidle", timeout=timeout_ms // 2)
     except Exception:
@@ -297,7 +304,8 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
         page_errors.clear()
         response = page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
         record["http_status"] = response.status if response else None
-        record["settle_notes"] = _settle(page, settle_ms=settle_ms, timeout_ms=timeout_ms)
+        record["settle_notes"] = _settle(page, settle_ms=settle_ms, timeout_ms=timeout_ms,
+                                         spa=not route.is_public)
         record["final_url"] = page.url
         probe = assertions.evaluate(page, expected_theme=theme, viewport_width=viewport.width)
     except Exception as exc:
@@ -341,7 +349,7 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
     record["assertions"] = assertions.classify(
         probe, expected_theme=theme, viewport_width=viewport.width,
         final_url=page.url, console_errors=console_errors, page_errors=page_errors,
-        ignores=ignores,
+        ignores=ignores, public=route.is_public,
     )
     page.remove_listener("console", on_console)
     page.remove_listener("pageerror", on_pageerror)

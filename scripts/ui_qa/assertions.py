@@ -574,13 +574,19 @@ def _filter_messages(messages: list[str], ignores: list[re.Pattern]) -> list[str
 
 def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url: str,
              console_errors: list[str], page_errors: list[str],
-             ignores: list[re.Pattern] | None = None) -> dict:
+             ignores: list[re.Pattern] | None = None, public: bool = False) -> dict:
     """Turn one page's raw measurements into per-class verdicts."""
     ignores = ignores or []
     results: dict[str, dict] = {}
 
     # auth_ok — a bounce to /login means the capture is worthless, say so loudly.
-    if "/login" in final_url:
+    # 로그인 화면 자체를 찍는 경우에는 /login 이 정상이고, 오히려 **거기 머물러야** 한다.
+    if public:
+        results["auth_ok"] = (
+            _verdict("pass") if "/login" in final_url
+            else _verdict("fail", 1, [final_url], "로그인 화면을 찍으려 했는데 다른 곳으로 갔다")
+        )
+    elif "/login" in final_url:
         results["auth_ok"] = _verdict("fail", 1, [final_url], "세션 없음 → 로그인 화면으로 튕김")
     elif "/change-password" in final_url:
         results["auth_ok"] = _verdict("fail", 1, [final_url], "비밀번호 변경 강제 상태")
@@ -588,10 +594,17 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         results["auth_ok"] = _verdict("pass")
 
     actual_theme = probe.get("theme")
-    results["theme_applied"] = (
-        _verdict("pass") if actual_theme == expected_theme
-        else _verdict("fail", 1, [f"data-theme={actual_theme!r} (기대: {expected_theme!r})"])
-    )
+    # 로그인 화면은 승인된 디자인 원본이 **라이트 고정**이다(브랜드 히어로 + 흰 폼 패널).
+    # data-theme 이 정말 없으므로 pass 라고 하면 거짓말이고, fail 이라고 하면 고칠 것이 없는
+    # 결함이 매번 뜬다 — 이유를 남기고 건너뛴다.
+    if public:
+        results["theme_applied"] = _verdict(
+            "skip", 0, [], "로그인 화면은 라이트 고정(승인된 디자인 원본) — 테마를 따르지 않는다")
+    else:
+        results["theme_applied"] = (
+            _verdict("pass") if actual_theme == expected_theme
+            else _verdict("fail", 1, [f"data-theme={actual_theme!r} (기대: {expected_theme!r})"])
+        )
 
     overflow = probe.get("overflow") or {}
     scroll_w = overflow.get("scrollWidth", 0)

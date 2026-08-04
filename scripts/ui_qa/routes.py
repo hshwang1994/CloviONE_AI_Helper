@@ -47,6 +47,8 @@ ROLE_RANK = {"user": 0, "operator": 1, "auditor": 2, "admin": 3, "system_admin":
 
 USER_SHELL = "/"
 ADMIN_SHELL = "/admin"
+# 로그인·비밀번호 변경은 SPA 가 아니라 서버가 그리는 Jinja 화면이다 — 해시가 없다.
+PUBLIC_SHELL = ""
 
 
 @dataclass(frozen=True)
@@ -69,11 +71,25 @@ class Route:
         return bool(self.hash_template)
 
     @property
+    def is_public(self) -> bool:
+        """세션 없이 찍는 화면(로그인). storage_state 를 실으면 홈으로 튕겨 못 찍는다."""
+        return self.console == "public"
+
+    @property
     def shell(self) -> str:
+        if self.console == "public":
+            return PUBLIC_SHELL
         return USER_SHELL if self.console == "user" else ADMIN_SHELL
 
     def url(self, base_url: str, hash_path: str | None = None) -> str:
-        return f"{base_url.rstrip('/')}{self.shell}#{hash_path or self.hash_path}"
+        path = hash_path or self.hash_path
+        if self.console == "public":   # 해시 라우터가 아니라 진짜 경로다
+            return f"{base_url.rstrip('/')}{path}"
+        return f"{base_url.rstrip('/')}{self.shell}#{path}"
+
+
+def _p(rid, path, label, **kw) -> Route:
+    return Route(id=rid, hash_path=path, console="public", label=label, min_role="", **kw)
 
 
 def _u(rid, path, label, **kw) -> Route:
@@ -207,12 +223,19 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("operator", "admin", "system_admin", "auditor")),
 )
 
-ALL_ROUTES: tuple[Route, ...] = USER_ROUTES + ADMIN_ROUTES
+# --- 로그인 전 화면 -----------------------------------------------------------
+# 하네스가 로그인된 세션으로 시작하는 바람에 **로그인 화면을 한 번도 안 찍었다**.
+# 지시서 §1 이 통째로 검사 밖에 있었다는 뜻이라 세션 없는 컨텍스트로 따로 찍는다.
+PUBLIC_ROUTES: tuple[Route, ...] = (
+    _p("public_login", "/login", "로그인"),
+)
+
+ALL_ROUTES: tuple[Route, ...] = PUBLIC_ROUTES + USER_ROUTES + ADMIN_ROUTES
 BY_ID = {r.id: r for r in ALL_ROUTES}
 
 # A small, cheap smoke set: one user-console screen, one DataScreen-driven admin
 # screen, one detail view. Used by ``run.py --routes smoke``.
-SMOKE_IDS = ("user_my-tickets", "admin_audit", "admin_integration-detail")
+SMOKE_IDS = ("public_login", "user_my-tickets", "admin_audit", "admin_integration-detail")
 
 
 def resolve(selectors: Iterable[str] | None) -> list[Route]:
@@ -245,6 +268,8 @@ def resolve(selectors: Iterable[str] | None) -> list[Route]:
             add(USER_ROUTES)
         elif low == "admin":
             add(ADMIN_ROUTES)
+        elif low == "public":
+            add(PUBLIC_ROUTES)
         elif low == "detail":
             add(r for r in ALL_ROUTES if r.is_detail)
         elif token in BY_ID:
@@ -268,6 +293,7 @@ def inventory() -> list[dict]:
             "id": r.id, "hash_path": r.hash_template or r.hash_path, "console": r.console,
             "label": r.label, "min_role": r.min_role,
             "allowed_roles": list(r.allowed_roles), "is_detail": r.is_detail,
+            "is_public": r.is_public,
         }
         for r in ALL_ROUTES
     ]
@@ -277,4 +303,5 @@ if __name__ == "__main__":  # quick sanity dump: python -m scripts.ui_qa.routes
     for r in ALL_ROUTES:
         print(f"{r.id:<26} {r.console:<5} {(r.hash_template or r.hash_path):<22} "
               f"{r.min_role:<12} {r.label}")
-    print(f"총 {len(ALL_ROUTES)}개 (user={len(USER_ROUTES)}, admin={len(ADMIN_ROUTES)})")
+    print(f"총 {len(ALL_ROUTES)}개 (public={len(PUBLIC_ROUTES)}, "
+          f"user={len(USER_ROUTES)}, admin={len(ADMIN_ROUTES)})")

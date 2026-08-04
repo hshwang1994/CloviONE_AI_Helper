@@ -17,6 +17,13 @@
    두 파일의 path·그라디언트 색은 같은 값이어야 한다(자산 원본: app/static/brand/logo/).
 
    호출 측이 정할 수 있는 것: class(감싸는 클래스), sub(부제 문구, 비우면 마크+이름만) #}
+{# 그라디언트 id 는 **한 페이지에 이 파일이 두 번 들어간다**는 전제로 짓는다. 로그인 화면이
+   실제로 그렇다(히어로 + 카드). 고정 id 를 쓰면 두 번째 로고의 fill="url(#{{ wm }}-leaf-top)" 이
+   첫 번째 로고의 그라디언트를 가리킨다 — 지금은 값이 같아 눈에 안 띄지만, 한쪽 색만 바꾸는
+   순간 반대쪽이 조용히 따라 바뀐다. 그래서 감싸는 클래스(hero-logo/panel-logo/auth-logo)를
+   접두어로 쓴다. 이건 이미 쓰임마다 다른 값이라 호출 측이 새로 챙길 것이 없다.
+   QA 하네스의 duplicate_ids 검사가 로그인 화면에서 이걸 4건 잡아냈다. #}
+{% set wm = class | default('wm') %}
 {# 2026-08 제품명이 ClovirONE → ClovirAssist 로 바뀌었다. 공식 로고 자산
    (app/static/brand/logo/clovirassist-logo-horizontal.svg)은 **2줄 락업**이다:
      1줄 — "Clovir"(잉크) + "Assist"(브랜드 파랑), 2줄 — SMART WORKSPACE ASSISTANT.
@@ -34,26 +41,26 @@
 <svg class="wordmark {{ class | default('') }}" viewBox="0 0 760 156" width="760" height="156"
      role="img" aria-label="ClovirAssist{% if sub %} {{ sub }}{% endif %}">
   <defs>
-    <linearGradient id="wm-leaf-top" x1="64" y1="10" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="{{ wm }}-leaf-top" x1="64" y1="10" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop stop-color="#8FA2F0"/><stop offset="1" stop-color="#536CD6"/>
     </linearGradient>
-    <linearGradient id="wm-leaf-right" x1="118" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="{{ wm }}-leaf-right" x1="118" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop stop-color="#9B82E8"/><stop offset="1" stop-color="#8E75E1"/>
     </linearGradient>
-    <linearGradient id="wm-leaf-bottom" x1="64" y1="118" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="{{ wm }}-leaf-bottom" x1="64" y1="118" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop stop-color="#435CBE"/><stop offset="1" stop-color="#536CD6"/>
     </linearGradient>
-    <linearGradient id="wm-leaf-left" x1="10" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="{{ wm }}-leaf-left" x1="10" y1="64" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop stop-color="#7FD6C9"/><stop offset="1" stop-color="#62C7BD"/>
     </linearGradient>
   </defs>
   {# 마크는 128 단위 원본을 공식 자산과 같은 자리(translate(10 14))에 그대로 놓는다.
      공식 자산이 축소하지 않으므로 여기서도 scale 을 걸지 않는다. #}
   <g transform="translate(10,14)">
-    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-top)"/>
-    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-right)" transform="rotate(90 64 64)"/>
-    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-bottom)" transform="rotate(180 64 64)"/>
-    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#wm-leaf-left)" transform="rotate(270 64 64)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#{{ wm }}-leaf-top)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#{{ wm }}-leaf-right)" transform="rotate(90 64 64)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#{{ wm }}-leaf-bottom)" transform="rotate(180 64 64)"/>
+    <path d="M64 64C56 54 38 50 34 33C30 17 42 7 54 11C60 13 63 18 64 24C65 18 68 13 74 11C86 7 98 17 94 33C90 50 72 54 64 64Z" fill="url(#{{ wm }}-leaf-left)" transform="rotate(270 64 64)"/>
     <circle cx="64" cy="64" r="17" fill="#FFFFFF"/>
     <path d="M64 51.5L67.2 59.1L74.8 62.3L67.2 65.5L64 73.1L60.8 65.5L53.2 62.3L60.8 59.1L64 51.5Z" fill="#536CD6"/>
     <circle cx="75.5" cy="49.5" r="3.5" fill="#F7A8C4"/>

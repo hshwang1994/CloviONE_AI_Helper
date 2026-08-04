@@ -185,32 +185,40 @@ def main(argv: list[str] | None = None) -> int:
                 _log(f"[capture] 촬영 대상 {len(capturable)}/{len(selected_routes)} 라우트 "
                      f"→ {total} 페이지")
 
+            # 로그인 화면은 **세션이 있으면 못 찍는다**(홈으로 튕긴다). 그래서 같은
+            # 테마·해상도 안에서 컨텍스트를 둘로 나눈다: 로그인된 것과 아닌 것.
+            signed_in = [r for r in capturable if not r.is_public]
+            signed_out = [r for r in capturable if r.is_public]
+
             index = 0
             for theme in themes:
                 for viewport in viewports:
-                    context = capture.new_context(
-                        browser, storage_state=session.storage_state,
-                        user_id=session.user_id, theme=theme, viewport=viewport)
-                    page = context.new_page()
-                    try:
-                        for route in capturable:
-                            index += 1
-                            hash_path = detail_hashes.get(route.id, route.hash_path)
-                            record = capture.capture_route(
-                                page, base_url=args.base_url, route=route,
-                                hash_path=hash_path, theme=theme, viewport=viewport,
-                                out_root=out_root, full_page=not args.no_full_page,
-                                settle_ms=args.settle_ms, timeout_ms=args.timeout_ms,
-                                ignores=ignores)
-                            pages.append(record)
-                            failures = [n for n, v in (record.get("assertions") or {}).items()
-                                        if v.get("status") == "fail"]
-                            status = ("FAIL " + ",".join(failures)) if failures else "ok"
-                            _log(f"[{index:>4}/{total}] {theme:<5} {viewport.name:<13} "
-                                 f"{route.id:<26} {status}")
-                    finally:
-                        page.close()
-                        context.close()
+                    for group, state in ((signed_out, None), (signed_in, session.storage_state)):
+                        if not group:
+                            continue
+                        context = capture.new_context(
+                            browser, storage_state=state,
+                            user_id=session.user_id, theme=theme, viewport=viewport)
+                        page = context.new_page()
+                        try:
+                            for route in group:
+                                index += 1
+                                hash_path = detail_hashes.get(route.id, route.hash_path)
+                                record = capture.capture_route(
+                                    page, base_url=args.base_url, route=route,
+                                    hash_path=hash_path, theme=theme, viewport=viewport,
+                                    out_root=out_root, full_page=not args.no_full_page,
+                                    settle_ms=args.settle_ms, timeout_ms=args.timeout_ms,
+                                    ignores=ignores)
+                                pages.append(record)
+                                failures = [n for n, v in (record.get("assertions") or {}).items()
+                                            if v.get("status") == "fail"]
+                                status = ("FAIL " + ",".join(failures)) if failures else "ok"
+                                _log(f"[{index:>4}/{total}] {theme:<5} {viewport.name:<13} "
+                                     f"{route.id:<26} {status}")
+                        finally:
+                            page.close()
+                            context.close()
         finally:
             browser.close()
 
