@@ -66,7 +66,7 @@ function UserRoutes() {
       <Route path="/team-docs/:id" element={<TeamDoc />} />
       <Route path="/games" element={<Games />} />
       <Route path="/games/:id" element={<Lazy><GameRoom /></Lazy>} />
-      <Route path="/notifications" element={<div className="c-body--user-noti"><DataScreen config={REGISTRY.notifications} /></div>} />
+      <Route path="/notifications" element={<DataScreen config={REGISTRY.notifications} />} />
       {/* 내 정보(계획서 Phase 6 사용자) — 프로필 셀프서비스·업무량 통계·활동 피드.
           역할과 무관하게 누구나 자기 것만 본다. 서버가 세션 사용자 기준으로만 답하므로
           라우트 역할 게이트가 필요 없다(가드가 없는 게 아니라 대상이 하나뿐이다). */}
