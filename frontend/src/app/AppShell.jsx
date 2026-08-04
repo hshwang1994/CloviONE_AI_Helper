@@ -324,15 +324,48 @@ export function AppShell({
             </Box>
           </Button>
 
-          <Box sx={{ flex: 1 }} />
+          {/* 기준 파일의 상단바 검색(.top-search) — flex:1, max-width 720. 아이콘 버튼 하나만
+              두면 '검색이 있다'는 사실 자체가 안 보인다(§2 "검색 영역도 기준에 맞게").
+              누르면 Ctrl+K 팔레트를 연다 — 입력을 여기서 직접 받지 않는 이유는, 결과 목록이
+              뜰 자리가 상단바에는 없고 팔레트가 이미 그 일(키보드 이동, 그룹, 최근 항목)을
+              하기 때문이다. 되는 척하는 컨트롤이 아니라 **같은 기능의 더 큰 표적**이다.
+              좁은 화면에서는 자리를 차지하지 않게 돋보기 아이콘으로 접힌다. */}
+          {!minimal ? (
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="통합 검색 열기"
+              sx={{
+                display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1.25,
+                flex: 1, maxWidth: "45rem", mx: 2, height: 40, px: 1.75,
+                border: 1, borderColor: "rgba(255,255,255,.26)", borderRadius: "12px",
+                background: "rgba(10,18,42,.22)", color: "rgba(255,255,255,.86)",
+                cursor: "text", textAlign: "left", font: "inherit",
+                "&:hover": { borderColor: "rgba(255,255,255,.45)" },
+                "&:focus-visible": { outline: "2px solid #fff", outlineOffset: 2 },
+              }}
+            >
+              <SearchRoundedIcon fontSize="small" aria-hidden="true" />
+              <Box component="span" sx={{ flex: 1, fontSize: "0.875rem", minWidth: 0 }}>
+                티켓, 문서, 게시판, 사용자 검색
+              </Box>
+              <Box component="kbd" sx={{
+                flexShrink: 0, fontSize: "0.6875rem", fontWeight: 700, letterSpacing: ".02em",
+                border: 1, borderColor: "rgba(255,255,255,.3)", borderRadius: 1,
+                px: 0.75, py: 0.125, fontFamily: "inherit",
+              }}>Ctrl K</Box>
+            </Box>
+          ) : null}
+
+          <Box sx={{ flex: minimal ? 1 : "0 0 auto" }} />
 
           {!minimal ? (
             <>
-              {/* 예전에는 라벨이 '메뉴 검색'이었다 — 실제로 메뉴만 찾았기 때문이다(되는 척하는
-                  UI를 두지 않는 규칙). 백엔드 인덱스(FTS5, 0030)가 생겨 팔레트가 티켓·문서·
-                  게시판·사용자를 실제로 찾으므로 이름을 원래대로 되돌린다. */}
+              {/* 넓은 화면에서는 위 검색 막대가 그 일을 하므로 아이콘은 좁은 화면에만 둔다. */}
               <Tooltip title="통합 검색 (Ctrl+K)">
-                <IconButton onClick={() => setPaletteOpen(true)} aria-label="통합 검색 열기" color="inherit">
+                <IconButton onClick={() => setPaletteOpen(true)} aria-label="통합 검색 열기"
+                  color="inherit" sx={{ display: { xs: "inline-flex", md: "none" } }}>
                   <SearchRoundedIcon />
                 </IconButton>
               </Tooltip>
