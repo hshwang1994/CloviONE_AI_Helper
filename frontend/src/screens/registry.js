@@ -186,6 +186,31 @@ const activeToggle = (base) => [
 ];
 // 사용 여부 필터 공통(부서·직책).
 const ACTIVE_FILTER = [{ key: "active", type: "select", label: "사용", options: opt([["true", "사용 중"], ["false", "미사용"]]) }];
+
+/* 상위 부서 — 조직도를 실제로 만들 수 있게 하는 필드.
+ *
+ * 백엔드는 처음부터 parent_id 를 받았고(0024 가 departments.parent_id 를 만들었다,
+ * app/org/schemas.py 도 받는다) 조직도 화면은 "상위 부서는 '부서 관리' 화면에서 지정합니다"라고
+ * 안내하고 있었다. 그런데 **그 화면에 그 필드가 없었다** — 안내문이 거짓말이었고, 트리는
+ * CLI 나 API 를 직접 두드려야만 만들 수 있었다.
+ *
+ * 후보에서 자기 자신은 뺀다(자기 부모가 될 수 없다). 하위 부서를 부모로 고르는 순환은
+ * 백엔드(app/org/tree.py::validate_parent)가 거절하므로 여기서 다시 계산하지 않는다 —
+ * 같은 규칙을 두 곳에 두면 반드시 어긋난다.
+ */
+const PARENT_DEPT_FIELD = {
+  name: "parent_id",
+  label: "상위 부서",
+  type: "select",
+  value: "",
+  help: "비우면 최상위 부서가 됩니다. 하위 부서를 상위로 고르면 순환이 되어 저장되지 않습니다.",
+  optionsFrom: (row, rows) => opt([
+    ["", "(최상위)"],
+    ...(rows || [])
+      .filter((d) => !row || d.id !== row.id)
+      .map((d) => [d.id, d.name]),
+  ]),
+};
 // 버전 스냅샷 열 — 각 버전 행의 config 스냅샷(r.snapshot)에서 값을 읽어 보여준다(롤백 전 내용 확인).
 const snapCol = (key, label, map) => ({ key: "snap_" + key, label, render: (r) => {
   const v = r.snapshot ? r.snapshot[key] : undefined;
@@ -1408,12 +1433,18 @@ export const REGISTRY = {
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
     detailFields: [field("id", "부서 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요." : "-" }],
-    create: { roles: WRITE_ROLES, fields: [{ name: "name", label: "부서 이름", type: "text", required: true, help: "사용자 폼의 '부서' 목록에 바로 나타납니다." }] },
+    create: { roles: WRITE_ROLES, fields: [
+      { name: "name", label: "부서 이름", type: "text", required: true, help: "사용자 폼의 '부서' 목록에 바로 나타납니다." },
+      PARENT_DEPT_FIELD,
+    ] },
     // 활성 토글은 확인 문구가 붙은 아래 활성/비활성 액션으로만 처리한다(수정 폼의 무경고 체크박스 제거).
     // required:true — 비워서 제출하면 FormModal이 {"name": null}을 보내 백엔드가 '값이 없어졌다'로
     // 해석하고 조용히 무시(no-op)한다(성공 토스트까지 뜬다). 클라이언트에서 먼저 막아 이 거짓
     // 성공 피드백을 없앤다(create 필드는 이미 required였는데 edit만 빠져 있었다).
-    edit: { roles: WRITE_ROLES, fields: [{ name: "name", label: "부서 이름", type: "text", required: true, help: "이름을 바꾸면 이 부서를 쓰는 모든 사용자(소속 인원)에게 즉시 반영됩니다." }] },
+    edit: { roles: WRITE_ROLES, fields: [
+      { name: "name", label: "부서 이름", type: "text", required: true, help: "이름을 바꾸면 이 부서를 쓰는 모든 사용자(소속 인원)에게 즉시 반영됩니다." },
+      PARENT_DEPT_FIELD,
+    ] },
     actions: [
       ...activeToggle("/api/admin/departments"),
       // 사용 중(소속 인원>0)인 부서는 삭제가 항상 409 → 미사용일 때만 노출한다(대신 '비활성화').

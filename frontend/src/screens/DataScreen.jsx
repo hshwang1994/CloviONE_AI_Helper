@@ -110,7 +110,10 @@ export function DataScreen({ config }) {
   // f.optionsFrom(row) — 옵션이 '지금 편집/생성 중인 행'에 따라 달라지는 select 필드(예: notion-mapping의
   // '충돌 해결' 후보 목록). 예전엔 actionForm(행 액션의 입력 폼)에만 이 정규화가 있었고 create/edit
   // FormDrawer에는 없어서, 같은 f.optionsFrom을 쓰는 필드가 create/edit 폼에서는 그냥 빈 select로 떴다.
-  const withOptionsFrom = (fields, row) => (fields || []).map((f) => f.optionsFrom ? { ...f, type: "select", options: f.optionsFrom(row) } : f);
+  // 두 번째 인자(rows)는 지금 화면에 로드된 목록이다. '상위 부서'처럼 후보가 **같은 목록의 다른
+  // 행들**인 필드에 필요하다(자기 자신은 후보에서 빠져야 하므로 row 도 함께 받는다).
+  // items 는 아래(282줄)에서 선언되지만 이 함수는 렌더 시점에 호출되므로 그때는 이미 값이 있다.
+  const withOptionsFrom = (fields, row) => (fields || []).map((f) => f.optionsFrom ? { ...f, type: "select", options: f.optionsFrom(row, items) } : f);
 
   // f.clientFilter:true — 이 필터는 백엔드가 쿼리 파라미터로 지원하지 않는 화면(예: 워크플로 목록은
   // page/검색 파라미터가 아예 없다)에서 이미 받아 온 전체 목록을 화면에서 직접 거른다. 서버로 보내면

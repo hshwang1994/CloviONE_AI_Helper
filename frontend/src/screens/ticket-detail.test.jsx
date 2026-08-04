@@ -162,7 +162,11 @@ describe("본문 편집", () => {
       .toBe("## 배경\n본문 한 줄.");
   });
 
-  it("표현할 수 없는 블록이 있으면 저장 전에 '사라진다'고 경고한다", async () => {
+  /* 2026-08: 저장이 더 이상 이미지·표를 지우지 않는다(notion_write.replace_page_body 가
+     편집기로 표현 가능한 블록만 지운다). 그래서 이 테스트의 원래 단언("사라집니다")은 이제
+     **거짓을 고정하는 검사**가 됐다. 화면이 지키는 성질을 새 동작으로 바꿔 조준한다:
+     그런 블록이 있다는 사실을 알리되, 지워지지 않는다고 말한다. */
+  it("표현할 수 없는 블록이 있으면 '지워지지 않는다'고 알린다", async () => {
     const user = userEvent.setup();
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
@@ -174,7 +178,7 @@ describe("본문 편집", () => {
     wrap();
     await user.click(await screen.findByRole("button", { name: "본문 편집" }));
 
-    expect(screen.getByText(/블록은 원본에서 사라집니다/)).toBeInTheDocument();
+    expect(screen.getByText(/그 블록은 지워지지 않습니다/)).toBeInTheDocument();
   });
 
   it("아직 우리 정본이 없으면 '서식이 평문이 된다'고 먼저 알린다", async () => {
@@ -187,7 +191,7 @@ describe("본문 편집", () => {
     wrap();
     await user.click(await screen.findByRole("button", { name: "본문 편집" }));
 
-    expect(screen.getByText(/굵게·링크 같은 인라인\s*서식은 사라지고/)).toBeInTheDocument();
+    expect(screen.getByText(/굵게, 링크 같은 인라인\s*서식은 사라지고/)).toBeInTheDocument();
   });
 
   it("정본이 생긴 뒤에는 저장이 무손실이라 경고하지 않는다", async () => {
