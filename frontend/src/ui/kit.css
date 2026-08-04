@@ -27,11 +27,8 @@
 .k-callout { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; padding: 12px 16px; font-size: 14px; background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
 /* 톤 라벨(안내/주의/오류/완료) — 클로드식 이모지 대신 짧은 텍스트로 톤을 알린다. 색은 톤을 따른다. */
 .k-callout-label { flex-shrink: 0; white-space: nowrap; color: var(--badge-info-fg); font-weight: var(--fw-semibold); }
-.k-callout--warn .k-callout-label { color: var(--color-warning); }
-.k-callout--danger .k-callout-label { color: var(--color-error); }
 .k-callout-body { line-height: 1.55; }
 .k-callout-body p { margin: 0; }
-.k-callout--success .k-callout-label { color: var(--badge-success-fg); }
 /* 콜아웃 안에 명령어/경로 조각을 담는 <code>는 스타일 규칙이 아예 없어 브라우저 기본
    모노스페이스로만 떨어졌다(예: Ops.jsx의 journalctl 안내) — 앱의 다른 코드/JSON 표면과
    같은 배경 필 처리를 준다(product-quality-audit AREA=D). */
@@ -40,7 +37,6 @@
 /* 상태 카드: 균등 그리드에서 쓰며 값은 톤 색, 클릭형은 필터 연동. */
 .k-stat { position: relative; text-align: left; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 18px 20px; width: 100%; }
 /* 선택된(필터로 켜진) 카드 — 색 링으로 지금 어느 카드가 아래 목록을 필터하고 있는지 알린다. */
-.k-stat.is-selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
 @keyframes k-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { }
 
@@ -57,14 +53,10 @@
 .k-empty-link { font-size: 13px; color: var(--color-primary); text-decoration: none; }
 .k-empty-link:hover { text-decoration: underline; }
 .k-empty-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.k-empty .k-btn { margin-top: 0; }
 .k-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 /* 숫자열 자릿수 정렬 — 표 전역에 tabular-nums(고정폭 숫자). devrep·감사로그와 동일 규범. */
 .k-table th, .k-table td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--color-line); font-variant-numeric: tabular-nums; }
 .k-table th { color: var(--color-muted); font-weight: 600; font-size: 13px; }
-.k-table th.is-right, .k-table td.is-right { text-align: right; }
-.k-table tbody tr.is-click { cursor: pointer; }
-.k-table tbody tr.is-click:hover { background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
 /* 행 상세 열기 버튼 — 행 전체를 role="button"으로 만들지 않고 실제 버튼으로 키보드·SR 접근을 준다. */
 .k-row-open { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 13px; font-weight: 600; padding: 4px 6px; border-radius: 6px; white-space: nowrap; }
 .k-row-open:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
@@ -123,8 +115,6 @@
 .k-input { width: 100%; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--color-card); color: var(--color-text); }
 .k-input:focus-visible { outline: 2px solid var(--color-primary-soft); outline-offset: 0; border-color: var(--color-primary); }
 /* 검증 실패 필드 — 붉은 테두리 + 옅은 배경으로 어디가 문제인지 즉시 보인다. */
-.k-input.is-invalid { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 5%, var(--color-card)); }
-.k-input.is-invalid:focus-visible { outline-color: var(--color-error); }
 /* 읽기 전용 필드(readOnly/조회 전용 역할) — 편집 가능한 필드와 배경·커서·포커스 링이
    픽셀 단위로 동일해, 타이핑해도 아무 반응이 없는 이유를 옆의 안내문을 못 보면 알 길이 없었다.
    흐린 배경 + 기본 커서로 "이 칸은 잠겨 있다"는 신호를 필드 자체에서 준다

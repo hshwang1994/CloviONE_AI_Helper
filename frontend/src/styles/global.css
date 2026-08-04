@@ -27,7 +27,6 @@ button { font-family: inherit; }
    않아 kit.jsx의 기본값 '관리자'가 그대로 나온다. registry.js/DataScreen.jsx는 이 파일
    소유가 아니라 고칠 수 없으니, 이 라우트 컨테이너 안에서만 빵부스러기를 감춰 일반 사용자가
    자기 알림에서 '관리자 › 운영'을 보지 않게 한다. */
-.c-body--user-noti .k-breadcrumb { display: none; }
 @media (prefers-reduced-motion: reduce) { }
 .c-chat-embed { flex: 1; min-height: 0; }
 

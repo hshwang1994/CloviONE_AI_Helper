@@ -25,7 +25,6 @@
 .dash-allclear { display: flex; align-items: center; gap: var(--space-sm, 8px); padding: var(--space-md, 12px) var(--space-lg, 16px); margin-bottom: var(--space-2xl, 32px); border-radius: var(--radius-lg, 12px); background: color-mix(in srgb, var(--badge-success-fg) 8%, transparent); color: var(--color-text); font-size: 0.875rem; }
 .dash-backup { display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg, 16px); }
 /* 배지가 14px 텍스트와 한 줄에 섞일 때 baseline 정렬이라 알약이 아래로 처지던 것 — 세로 중앙으로. */
-.dash-backup-line .k-badge { vertical-align: middle; }
 .dash-audit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm, 8px); }
 .dash-audit li { display: grid; grid-template-columns: 180px 1fr auto; gap: var(--space-sm, 8px); align-items: baseline; font-size: 0.8125rem; }
 
@@ -56,7 +55,6 @@
 .c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: 8px; max-height: 320px; overflow: auto; }
 /* 여러 사실을 한 문단에 몰아넣지 않고 줄마다 나눠 훑기 쉽게 할 때(예: Users.jsx) — kit.css의
    .k-callout-body p{margin:0}은 문단 간 간격이 없어 줄들이 그대로 붙어 보인다. */
-.c-page-callout .k-callout-body p + p { margin-top: 6px; }
 
 /* 관리 화면 전용 인라인 링크 버튼(id 복사·화면 이동 등) — 채팅 UI의 .chat-linkbtn과 겉모습은
    같지만, 채팅 쪽 사정으로 그 클래스가 바뀌어도 관리 화면이 함께 흔들리지 않도록 별도 이름으로 둔다. */
@@ -132,7 +130,6 @@
    연다. 채팅은 기본 단일 열(전체 폭)이 되어, 글로벌 네비 옆에 두 번째 사이드바가 상주하지 않는다.
    position:absolute 라 글로벌 네비를 덮지 않고 채팅 영역 안에서만 슬라이드한다(콘솔 임베드 대응). */
 .chat-side { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; width: 300px; max-width: 85%; border-right: 1px solid var(--color-border); background: var(--color-card); padding: var(--space-md, 14px); display: flex; flex-direction: column; gap: var(--space-md, 12px); min-height: 0; overflow-y: auto; transform: translateX(-100%); transition: transform 0.2s ease; box-shadow: var(--shadow-modal); }
-.chat-layout.side-open .chat-side { transform: none; }
 /* 대화 목록만 스크롤한다(사이드바 전체가 아니라) — '+ 새 대화' 버튼과 보관 토글은 항상 위에
    고정되고, 목록이 사이드바 높이를 넘칠 때만 이 안에서 스크롤된다. */
 .chat-conv-list { display: flex; flex-direction: column; gap: var(--space-xs, 4px); flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
@@ -146,9 +143,7 @@
 .chat-conv-row:hover { background: var(--sidebar-hover, rgba(83,108,214,0.08)); }
 .chat-conv-row:focus-within { background: var(--sidebar-hover, rgba(83,108,214,0.08)); }
 .chat-conv-row.is-active { background: var(--sidebar-active-bg, rgba(83,108,214,0.12)); }
-.chat-conv-row.is-editing { background: var(--sidebar-hover, rgba(83,108,214,0.08)); }
 /* 보관된 대화는 옅게 죽여 활성 대화와 한눈에 구분되게 한다(보관 필터가 켜져 섞여 보일 때). */
-.chat-conv-row.is-archived { opacity: 0.65; }
 @media (prefers-reduced-motion: reduce) { .chat-conv-row { transition: none; } }
 .chat-conv-open { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; cursor: pointer; padding: var(--space-sm, 8px) var(--space-md, 12px); border-radius: 8px; font-size: 0.875rem; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-conv-open:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
@@ -188,9 +183,7 @@
 .chat-msg { display: flex; flex-direction: column; gap: 6px; max-width: min(82%, 1120px); }
 .chat-bubble { padding: var(--space-md, 12px) var(--space-lg, 16px); border-radius: 18px; font-size: 0.9375rem; line-height: 1.55; overflow-wrap: anywhere; }
 /* 사용자(보낸) 말풍선 — 브랜드색 배경에 옅은 브랜드 톤 그림자로 '떠 있는' 느낌을 준다. */
-.chat-msg--user .chat-bubble { background: var(--color-primary); color: var(--color-on-primary); border-bottom-right-radius: 6px; box-shadow: 0 2px 10px color-mix(in srgb, var(--color-primary) 28%, transparent); }
 /* 도우미 말풍선 — 카드 표면 + 얇은 테두리에 은은한 그림자(다크모드 대응 토큰)로 배경에서 살짝 뜬다. */
-.chat-msg--assistant .chat-bubble { background: var(--color-card); border: 1px solid var(--color-border); border-bottom-left-radius: 6px; box-shadow: var(--shadow-subtle); }
 .chat-p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* 어시스턴트 답의 구조화 렌더(리치 텍스트) — 머리글/목록/키-값. 사용자 말풍선(파란 배경)에는
    쓰지 않는다(어두운 잉크 색이 얹혀 안 읽힌다). */
@@ -205,8 +198,7 @@
 .msg-li { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: baseline; }
 .msg-li.dash { grid-template-columns: 1fr; }
 /* 마커 없는(-) 항목은 앞에 옅은 불릿을 그려 목록임을 보인다. */
-.msg-li.dash .msg-li-text::before { content: "· "; color: var(--color-muted); } /* clovi-allow-glyph: 목록 글머리표 */
-.msg-li.dash .msg-li-sub { grid-column: 1; }
+ /* clovi-allow-glyph: 목록 글머리표 */
 .msg-kv { margin: var(--space-sm, 6px) 0 0; display: flex; flex-direction: column; gap: 3px; }
 .msg-kv:first-child { margin-top: 0; }
 /* 결과 카드 — 상태는 배경 틴트+전체 테두리+배지로 표현(좌측 색막대 없음). */
@@ -244,8 +236,6 @@
 .chat-copy { align-self: flex-start; color: var(--color-muted); }
 /* 실패 안내·재시도는 사용자(파란) 버블 안에 그려진다 — 빨강/파랑 링크가 파란 배경에 묻히던 것
    (재시도 링크는 파랑-온-파랑으로 사실상 안 보였다)을 on-primary 색으로 되살린다. 링크는 밑줄로 구분. */
-.chat-msg--user .chat-fail { color: var(--color-on-primary); }
-.chat-msg--user .chat-linkbtn { color: var(--color-on-primary); text-decoration: underline; }
 /* 카드색·상단 테두리는 전폭 배경 띠(.chat-composer-band)로 옮겼다 — 여기선 레이아웃(플렉스·패딩)만 담당한다. */
 .chat-composer { display: flex; gap: var(--space-sm, 10px); align-items: flex-end; padding: var(--space-md, 14px) var(--space-xl, 24px); }
 /* min-height/box-sizing/line-height 고정 — 자동 높이 계산(useLayoutEffect)이 매번 같은 기준으로
@@ -257,7 +247,6 @@
 /* 전송 버튼(ui/kit.jsx의 공용 Button, k-btn)은 첨부 버튼(42px 고정)·입력창과 세 번째 컨트롤인데
    패딩만으로 높이가 정해져 align-items:flex-end 기준으로 위쪽에 여백이 붕 떠 보였다 — 같은 행의
    나머지 둘과 높이를 맞춘다. Button이 className을 그대로 전달하지 않으므로(kit.jsx) 자리(k-btn)로 짚는다. */
-.chat-composer > .k-btn { min-height: 42px; }
 
 /* ============================================================
  * 채팅 모션·미관 (product 기본 + minimal 절제) — 등장 애니메이션 + 통일된 마이크로 인터랙션.
@@ -288,8 +277,6 @@
 .chat-card:hover { box-shadow: var(--shadow-subtle); }
 /* 전송 버튼(공용 k-btn) — 컴포저 자리로만 짚어 다른 화면 버튼엔 무영향. kit .k-btn엔 transition이
    없어(색 hover가 snap) transform만 전이에 둬 기존 거동을 안 건드리고 눌림만 부드럽게 준다. */
-.chat-composer > .k-btn { transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1); }
-.chat-composer > .k-btn:active:not(:disabled) { transform: scale(0.96); }
 /* 첨부 칩 등장 — 파일을 담으면 톡 나타난다(기본 opacity 1이라 both 안전). */
 @keyframes chat-attach-chip-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
 .chat-copy { transition: color 0.15s ease; }
@@ -297,7 +284,7 @@
 
 /* 동작 감소 — 등장/전이/이동을 모두 끄고 즉시 최종(보이는) 상태로. 색 hover 피드백은 모션이 아니라 유지. */
 @media (prefers-reduced-motion: reduce) {
-  .chat-msg{ animation: none; } .chat-choice, .chat-card, .chat-composer > .k-btn, .chat-copy { transition: none; } .chat-choice:hover, .chat-choice:active, .chat-composer > .k-btn:active:not(:disabled){ transform: none; }
+  .chat-msg{ animation: none; } .chat-choice, .chat-card, .chat-copy { transition: none; } .chat-choice:hover, .chat-choice:active { transform: none; }
 }
 
 @media (max-width: 900px) {
@@ -334,10 +321,6 @@
 }
 /* 좌측 색막대(레일)는 쓰지 않는다(디자인 결정) — 완료(accent)는 값 색 + 옅은 테두리 강조,
    지연(warn)은 값 색 + 옅은 틴트 배경 + 테두리로 좌측 바 없이 구분한다. */
-.devrep-kpi.is-accent { border-color: color-mix(in srgb, var(--color-primary) 42%, var(--color-border)); }
-.devrep-kpi.is-warn { background: color-mix(in srgb, var(--color-error) 6%, var(--color-card)); border-color: color-mix(in srgb, var(--color-error) 42%, var(--color-border)); }
-.devrep-kpi.is-accent .devrep-kpi-val { color: var(--color-primary); }
-.devrep-kpi.is-warn .devrep-kpi-val { color: var(--color-error); }
 
 .devrep-sec { margin: 0 0 var(--space-xl, 24px); }
 /* 섹션 안의 요약 카드줄(.dash-grid)은 최상위(.c-screen>.dash-grid)와 달리 하단 여백 규칙이 닿지
@@ -360,16 +343,13 @@
 .devrep-table tr:last-child td { border-bottom: none; }
 .devrep-table td.l { text-align: left; font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
 .devrep-table td.n { text-align: center; font-weight: var(--fw-normal, 400); color: var(--color-text); }
-.devrep-table tr.is-none td.l { color: var(--color-muted); font-weight: var(--fw-normal, 400); }
 .devrep-done { color: var(--color-success); font-weight: var(--fw-semibold, 600); }
 .devrep-z { color: var(--color-muted); }
 
 .devrep-bar { display: inline-block; vertical-align: middle; width: 170px; height: 18px; border-radius: var(--radius-sm, 6px); overflow: hidden; }
 .devrep-table td.bar { text-align: center; }
-.devrep-table--summary .devrep-bar { width: 100%; }
 /* 무지성 중앙정렬 금지 — 개발자 이름·상태구성 헤더(.l)는 좌측(td.l 523/th.l 상속),
    상태 막대(.bar)는 중앙, 나머지 숫자 열은 우측(tabular-nums 자릿수 정렬). */
-.devrep-table--summary td:not(.l):not(.bar), .devrep-table--summary th:not(.l) { text-align: right; }
 .devrep-hbar svg { border-radius: var(--radius-sm, 6px); overflow: hidden; }
 /* 담당자별 상세 티켓은 담당자마다 구분 행을 둔 하나의 표로 그린다 — 표가 여러 개면 열 너비가
    제각각이라 위치가 어긋난다. 한 표로 묶으면 모든 담당자의 열이 자동으로 정렬된다. */
@@ -395,7 +375,6 @@
 .devrep-hbar .fill { fill: var(--color-primary); }
 
 .devrep-chip { display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill, 100px); font-size: 11.5px; font-weight: var(--fw-semibold, 600); line-height: 1.5; }
-.devrep-chip.is-od { background: var(--badge-error-bg); color: var(--badge-error-fg); }
 
 .devrep-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: var(--space-md, 12px) 2px 0; font-size: 12.5px; color: var(--color-muted); }
 .devrep-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
@@ -426,7 +405,6 @@
 .board-reactions { display: flex; gap: var(--space-xs, 6px); flex-wrap: wrap; }
 .board-react { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--color-border); background: var(--color-card); border-radius: var(--radius-pill, 999px); padding: 2px 10px; cursor: pointer; font-size: var(--font-size-sm, 13px); line-height: 1.6; }
 .board-react:hover { border-color: var(--color-primary); }
-.board-react.is-mine { background: var(--color-primary-soft); border-color: var(--color-primary); color: var(--color-primary-strong); }
 
 /* 상세 글 */
 .board-post { background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); padding: var(--space-lg, 20px); box-shadow: var(--shadow-subtle); }
@@ -440,7 +418,6 @@
 .board-comments { margin-top: var(--space-lg, 20px); }
 .board-comment { border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); padding: var(--space-md, 12px); background: var(--color-card); }
 /* 답글은 왼쪽 여백 + 강조선으로 한 단계 들여쓴다(§18 한 단계만). */
-.board-comment.is-reply { margin-left: var(--space-xl, 28px); border-left: 3px solid var(--color-primary-soft); }
 
 /* 입력창(댓글·답글) */
 .board-composer { margin-top: var(--space-sm, 8px); }
@@ -449,8 +426,7 @@
   .board-filters { flex-direction: column; align-items: stretch; }
   .board-tools { flex-direction: column; align-items: stretch; }
   .board-search { min-width: 0; }
-  .board-comment.is-reply { margin-left: var(--space-md, 12px); }
-}
+  }
 
 /* ── 팀 공간 > 문서(§17) ──────────────────────────────────────────────────
  * 색은 토큰 var()만. 본문 블록은 textContent로만 렌더한다(문서 안 텍스트는 데이터일 뿐). */
@@ -539,7 +515,6 @@
 .game-controls { display: flex; gap: var(--space-sm, 8px); flex-wrap: wrap; }
 .game-timer { display: flex; align-items: baseline; gap: 3px; padding: 2px 12px; border-radius: var(--radius-pill, 100px);
   background: var(--badge-info-bg); color: var(--color-primary-strong); }
-.game-timer.is-urgent { background: var(--badge-danger-bg, #fde8e8); color: var(--badge-danger-fg, #b42318); animation: game-timer-pulse 0.8s ease-in-out infinite; }
 @keyframes game-timer-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 @keyframes ladder-draw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { }
@@ -563,7 +538,6 @@
   padding: var(--space-md, 12px); }
 .game-member { display: flex; align-items: center; gap: var(--space-sm, 10px); padding: var(--space-sm, 8px);
   border-radius: var(--radius-md, 10px); border: 1px solid transparent; }
-.game-member.is-me { background: var(--badge-info-bg); border-color: var(--color-primary-soft); }
 
 /* 채팅: 로그 + 입력. 로그는 스크롤(항상 최신이 아래에 보이게 자동 스크롤). 말풍선 UI. */
 .game-chat { display: flex; flex-direction: column; }
@@ -575,35 +549,28 @@
   .game-side { position: sticky; top: 0; height: calc(100vh - 200px); }
   .game-chat { flex: 1 1 auto; min-height: 0; }
 }
-.game-chat-input .k-input { flex: 1; min-width: 0; }
 
 /* 빠른 투표 무대 */
 .game-vote { display: flex; flex-direction: column; gap: var(--space-lg, 16px); }
 .game-bar { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: var(--space-md, 12px); }
-.game-bar.is-win .game-bar-label { font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
-.game-bar.is-win .game-bar-fill { background: var(--color-primary); }
 
 /* 실시간 퀴즈 — AI 문제 생성 폼 */
 .quiz-ai { margin-bottom: var(--space-md, 12px); padding: var(--space-md, 12px); border: 1px solid var(--color-primary-soft); border-radius: var(--radius-md, 10px); background: var(--badge-info-bg); }
-.quiz-ai-row .k-input { flex: 1; min-width: 0; }
 .quiz-ai .k-field-help { margin-top: var(--space-xs, 4px); }
 
 /* 실시간 퀴즈 — 문제 편집기(생성 모달) */
 .quiz-editor { display: flex; flex-direction: column; gap: var(--space-md, 12px); }
 .quiz-q { border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-sm, 8px); background: var(--color-bg); }
 .quiz-opts { display: flex; flex-direction: column; gap: var(--space-xs, 4px); }
-.quiz-opt-row .k-input { flex: 1; min-width: 0; }
 
 /* 퀴즈 진행/결과 무대 */
 .game-quiz { display: flex; flex-direction: column; gap: var(--space-md, 12px); align-items: center; width: 100%; }
-.game-quiz .game-vote-options { width: 100%; max-width: 480px; }
 .game-scoreboard { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: flex; flex-direction: column; gap: var(--space-xs, 4px); width: 100%; max-width: 360px; }
 
 /* 가위바위보 공개 — 손 이모지 크게 */
 .game-hands { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-md, 12px); justify-content: center; }
 .game-hand { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 84px;
   padding: var(--space-sm, 8px) var(--space-md, 12px); border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); background: var(--color-card); }
-.game-hand.is-win { border-color: var(--color-primary); background: var(--badge-info-bg); }
 
 /* 게임 연출 애니메이션 — 결과 등장. 기본으로 켜서 모두에게 보인다(사용자가 OS에서 '동작 최소화'를
  * 직접 켠 경우에만 아래 reduce 블록이 끈다). 인라인 스타일 없이 nth-child로 순차 지연. */
@@ -613,29 +580,25 @@
 @keyframes game-rise { 0% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 @keyframes game-glow { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 55%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary) 0%, transparent); } }
 .game-winner { animation: game-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.game-hand.is-win { animation: game-pop 0.45s 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both, game-glow 1.4s 0.9s ease-in-out 2; }
 .game-pick { animation: game-flip 0.45s ease both; }
 .game-team{ animation: game-rise 0.38s ease both; }
 /* 순차 등장(인라인 스타일 없이) */
-.game-pick:nth-child(2), .game-team:nth-child(2), .game-hand:nth-child(2) .game-hand-emoji { animation-delay: 0.08s; }
-.game-pick:nth-child(3), .game-team:nth-child(3), .game-hand:nth-child(3) .game-hand-emoji { animation-delay: 0.16s; }
-.game-pick:nth-child(4), .game-team:nth-child(4), .game-hand:nth-child(4) .game-hand-emoji { animation-delay: 0.24s; }
-.game-pick:nth-child(5), .game-team:nth-child(5), .game-hand:nth-child(5) .game-hand-emoji { animation-delay: 0.32s; }
+.game-pick:nth-child(2), .game-team:nth-child(2) { animation-delay: 0.08s; }
+.game-pick:nth-child(3), .game-team:nth-child(3) { animation-delay: 0.16s; }
+.game-pick:nth-child(4), .game-team:nth-child(4) { animation-delay: 0.24s; }
+.game-pick:nth-child(5), .game-team:nth-child(5) { animation-delay: 0.32s; }
 .game-pick:nth-child(n+6), .game-team:nth-child(n+6){ animation-delay: 0.4s; }
 
 /* 접근성: 사용자가 OS에서 '동작 최소화'를 직접 켠 경우에만 연출을 끈다. */
 @media (prefers-reduced-motion: reduce) {
-  .game-winner, .game-hand.is-win, .game-pick, .game-team{ animation: none !important; }
+  .game-winner, .game-pick, .game-team { animation: none !important; }
 }
 
 /* 숫자 눈치 */
 .game-number { display: flex; flex-direction: column; gap: var(--space-md, 12px); align-items: center; }
-.game-num-input .k-input { width: 120px; text-align: center; font-variant-numeric: tabular-nums; font-size: var(--font-size-lg, 17px); }
 .game-picks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm, 8px); justify-content: center; }
 .game-pick { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px;
   padding: var(--space-sm, 8px) var(--space-md, 12px); border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); background: var(--color-card); }
-.game-pick.is-win { border-color: var(--color-primary); background: var(--badge-info-bg); }
-.game-pick.is-win .game-pick-num { color: var(--color-primary-strong); }
 
 /* 사다리타기 결과 — 참여자 → 도착지 배정 목록 */
 .game-ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm, 8px); width: 100%; max-width: 420px; }
@@ -647,13 +610,11 @@
 
 /* 게임방 만들기 — 빠른 투표 선택지 입력 */
 .games-options { display: flex; flex-direction: column; gap: var(--space-sm, 8px); }
-.games-option-row .k-input { flex: 1; min-width: 0; }
 
 @media (max-width: 760px) {
   .game-room { grid-template-columns: 1fr; }
   .game-bar { grid-template-columns: 90px 1fr auto; }
 }
-.tc-input .k-input { flex: 1; min-width: 0; }
 .tc-roomrow { display: flex; align-items: center; gap: var(--space-md, 12px); width: 100%; text-align: left;
   padding: var(--space-md, 12px) var(--space-sm, 8px); border: 0; border-bottom: 1px solid var(--color-border);
   background: none; color: inherit; cursor: pointer; }
