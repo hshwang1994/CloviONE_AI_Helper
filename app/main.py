@@ -48,7 +48,11 @@ from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.notion_mapping.router import router as notion_mapping_router
 from app.offboarding.router import router as offboarding_router
-from app.org.router import departments_router, job_titles_router
+from app.org.router import (
+    departments_router,
+    job_titles_router,
+    organizations_router,
+)
 from app.observability.router import router as system_status_router
 from app.profiles.router import router as profiles_router
 from app.quotas.router import router as ai_quotas_router
@@ -158,6 +162,7 @@ def create_app(
     app.include_router(offboarding_router)
     app.include_router(rbac_matrix_router)
     app.include_router(impersonation_router)
+    app.include_router(organizations_router)
     app.include_router(departments_router)
     app.include_router(job_titles_router)
     app.include_router(audit_router)

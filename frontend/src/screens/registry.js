@@ -1414,6 +1414,53 @@ export const REGISTRY = {
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=approval&object_id=" + r.id },
     ],
   },
+  /* 조직 관리 — `organizations` 는 0022 부터 표만 있고 라우터도 화면도 없었다(시드 한 행이
+     전부). 지시서 §3 이 "조직 > 부서 > 사용자" 를 요구하는데 맨 위 층이 화면에 없으면 그
+     관계를 보여 줄 수가 없다. 삭제가 없는 이유: 사용자·부서가 org_id 로 이 행을 가리키고
+     있어서 지우면 그 참조가 통째로 끊긴다 — 대신 '정지'로 새 사용을 막는다. */
+  organizations: {
+    key: "organizations", area: "사용자", title: "조직 관리",
+    endpoint: "/api/admin/organizations",
+    help: "회사(테넌트)를 관리합니다. 부서와 사용자는 모두 조직 하나에 속하며, 그 포함 관계는 ‘조직도’에서 한눈에 볼 수 있습니다.",
+    createLabel: "+ 조직 추가",
+    emptyTitle: "등록된 조직이 없습니다",
+    emptyHelp: "‘+ 조직 추가’로 조직을 만들면 부서와 사용자를 그 아래에 둘 수 있습니다.",
+    searchFields: ["name", "slug"],
+    searchPlaceholder: "조직 이름 또는 식별자로 검색",
+    columns: [
+      col("name", "조직 이름"),
+      col("slug", "식별자"),
+      { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용" : "정지") },
+      col("department_count", "부서"),
+      col("user_count", "사용자"),
+      dateCol("created_at", "생성"),
+    ],
+    detailFields: [
+      field("id", "조직 ID"),
+      field("slug", "식별자"),
+      { key: "_contains", label: "포함 관계", render: (r) =>
+        "부서 " + (r.department_count || 0) + "개, 사용자 " + (r.user_count || 0) + "명" },
+      { key: "_delete_note", label: "삭제 안내", render: () =>
+        "조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이 끊깁니다, 대신 ‘정지’로 새 사용을 막으세요." },
+    ],
+    create: { roles: WRITE_ROLES, fields: [
+      { name: "name", label: "조직 이름", type: "text", required: true, help: "화면에 보이는 이름입니다." },
+      { name: "slug", label: "식별자", type: "text", required: true,
+        help: "영문 소문자, 숫자, 붙임표만 씁니다. 만든 뒤에는 바꿀 수 없습니다." },
+    ] },
+    edit: { roles: WRITE_ROLES, fields: [
+      { name: "name", label: "조직 이름", type: "text", required: true, help: "이 조직에 속한 모든 화면에 즉시 반영됩니다." },
+    ] },
+    actions: [
+      { label: "정지", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "active",
+        method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "suspended" },
+        confirm: "이 조직을 정지할까요? 기존 사용자와 부서는 그대로 남습니다." },
+      { label: "사용", roles: WRITE_ROLES, when: (r) => r.status !== "active",
+        method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "active" } },
+      { label: "조직도에서 보기", roles: WRITE_ROLES, navigate: () => "#/org-tree" },
+      { label: "감사 로그에서 보기", navigate: (r) => "#/audit?object_type=organization&object_id=" + r.id },
+    ],
+  },
   departments: {
     key: "departments", area: "사용자", title: "부서 관리", endpoint: "/api/admin/departments",
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "+ 부서 추가",
@@ -1952,21 +1999,32 @@ export const REGISTRY = {
   },
   "org-tree": {
     key: "org-tree", area: "사용자", title: "조직도", endpoint: "/api/admin/departments/tree",
-    help: "부서 계층을 한눈에 봅니다. 이름 앞의 들여쓰기가 상하 관계입니다. 상위 부서는 ‘부서 관리’ 화면에서 지정합니다.",
+    help: "조직 > 부서 > 사용자 순서로 소속 관계를 봅니다. 맨 윗줄이 조직이고 그 아래 들여쓴 줄이 부서입니다. 부서 줄의 ‘소속 인원’을 누르면 그 자리에서 사람 이름까지 펼쳐 볼 수 있습니다.",
     emptyTitle: "등록된 부서가 없습니다",
     emptyHelp: "‘부서 관리’에서 부서를 만들고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
     emptyRelatedLink: { href: "#/departments", label: "부서 관리로 이동" },
     searchFields: ["name", "path"],
-    searchPlaceholder: "부서 이름으로 검색",
+    searchPlaceholder: "조직 또는 부서 이름으로 검색",
     filters: ACTIVE_FILTER,
     columns: [
       // 들여쓰기가 곧 트리다 — 표 하나로 조직도를 그리기 위한 유일한 장치라 여기서만 만든다.
       // 공백 문자가 아니라 좌측 패딩(rem)이라 4K에서 루트 폰트사이즈 레버를 그대로 따라간다.
-      { key: "name", label: "부서", render: (r) => React.createElement(
+      /* 맨 위 줄은 **조직**이다(지시서 §3 "조직 > 부서 > 사용자"). 조직이 하나뿐이어도
+         그 층이 화면에 없으면 사용자는 이 부서들이 어느 조직 소속인지 알 방법이 없다.
+         조직 행은 굵게, 부서 행은 들여쓰기 + 갈래표시로 갈라 놓는다. */
+      { key: "name", label: "조직과 부서", render: (r) => React.createElement(
         "span",
-        { style: { paddingInlineStart: (r.depth || 0) * 1.25 + "rem" }, title: r.path },
-        (r.depth ? "└ " : "") + r.name + (r.cycle ? " (상위 관계 오류)" : ""),
+        {
+          style: {
+            paddingInlineStart: (r.depth || 0) * 1.25 + "rem",
+            fontWeight: r.kind === "organization" ? 800 : 400,
+          },
+          title: r.path,
+        },
+        (r.kind === "organization" ? "" : "└ ")
+          + r.name + (r.cycle ? " (상위 관계 오류)" : ""),
       ) },
+      { key: "kind", label: "구분", render: (r) => (r.kind === "organization" ? "조직" : "부서") },
       activeCol("사용"),
       col("user_count", "소속 인원(보관 포함)"),
       col("subtree_user_count", "하위 포함 인원"),
@@ -1983,7 +2041,7 @@ export const REGISTRY = {
          예전에는 '소속 인원 보기'가 다른 화면으로 **떠나보내기만** 했다 — 조직도에서는 부서와
          숫자만 보이고 사람 이름은 하나도 안 보였으니, 관계를 한눈에 본다고 할 수 없었다.
          이제 그 자리에서 펼쳐 본다(떠나는 링크도 남긴다 — 걸러 보고 싶을 때가 있다). */
-      { label: "소속 인원", roles: WRITE_ROLES, subList: {
+      { label: "소속 인원", roles: WRITE_ROLES, when: (r) => r.kind !== "organization", subList: {
         title: "소속 인원",
         hint: "이 부서에 직접 속한 사람입니다(하위 부서는 그 부서 줄에서 펼쳐 보세요).",
         endpoint: (r) => "/api/admin/users?department_id=" + r.id + "&page_size=100",
@@ -1997,8 +2055,12 @@ export const REGISTRY = {
         emptyTitle: "이 부서에 직접 속한 사람이 없습니다",
         emptyHelp: "하위 부서에 사람이 있을 수 있습니다. ‘하위 포함 인원’ 숫자를 확인하세요.",
       } },
-      { label: "사용자 화면에서 보기", roles: WRITE_ROLES, navigate: (r) => "#/users?department_id=" + r.id },
-      { label: "부서 관리에서 열기", roles: WRITE_ROLES, navigate: () => "#/departments" },
+      { label: "사용자 화면에서 보기", roles: WRITE_ROLES, when: (r) => r.kind !== "organization",
+        navigate: (r) => "#/users?department_id=" + r.id },
+      { label: "조직 관리에서 열기", roles: WRITE_ROLES, when: (r) => r.kind === "organization",
+        navigate: () => "#/organizations" },
+      { label: "부서 관리에서 열기", roles: WRITE_ROLES, when: (r) => r.kind !== "organization",
+        navigate: () => "#/departments" },
     ],
   },
   /* ── 관리자 백로그 잔여 (PLAN Phase 6, 마이그레이션 0033) ───────────────────

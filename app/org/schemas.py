@@ -39,3 +39,22 @@ class DepartmentUpdateRequest(OrgItemUpdateRequest):
     # 안 보냄(=그대로 둔다)과 null/""(=최상위로 올린다)을 구분해야 하므로 라우터가
     # `model_dump(exclude_unset=True)` 로 걸러 넘긴다(name/active 와 같은 규약).
     parent_id: str | None = Field(default=None, max_length=36)
+
+
+# ── 조직 ──────────────────────────────────────────────────────────────────────
+#
+# 부서·직책과 스키마를 공유하지 않는다. 조직은 `active` 대신 `status`(active/suspended)를
+# 쓰고 `slug` 를 갖는다 — 억지로 한 스키마에 넣으면 조직에 없는 필드를 보낸 요청이
+# 조용히 무시된다(위 parent_id 와 같은 함정).
+
+class OrganizationCreateRequest(_StrictOrgRequest):
+    name: str = Field(max_length=200)
+    # slug 는 사람이 쓰는 안정적인 키다(URL·설정·운영 스크립트에서 UUID 대신 쓴다).
+    slug: str = Field(max_length=80, pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
+
+
+class OrganizationUpdateRequest(_StrictOrgRequest):
+    name: str | None = Field(default=None, max_length=200)
+    # slug 는 바꾸지 못한다. 다른 곳에서 이 값을 키로 참조하고 있을 수 있고, 바꾸면
+    # 그 참조가 조용히 끊긴다 — 이름만 바꾸면 되는 일에 그 위험을 붙이지 않는다.
+    status: str | None = Field(default=None, max_length=16)

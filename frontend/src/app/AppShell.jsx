@@ -252,7 +252,10 @@ export function AppShell({
       ) : (
         <>
           <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} />
-          <Box sx={{ pb: 3 }}>
+          {/* 세로가 짧은 화면(노트북 1366x768 에 관리자 메뉴 전개)에서 이 카드가 눌리지 않게
+              한다. 목록은 이미 자기 안에서 스크롤되므로(SidebarNav overflowY:auto) 카드가
+              자리를 먼저 가져가도 메뉴를 못 보게 되지 않는다. */}
+          <Box sx={{ pb: 3, flexShrink: 0 }}>
             <MascotSidebarCard onClick={() => { onCloseNav(); navigate("/chat"); }} />
           </Box>
         </>

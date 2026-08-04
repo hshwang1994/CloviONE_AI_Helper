@@ -174,6 +174,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_schedules", "/schedules", "실행 일정(스케줄)"),
     _a("admin_documents", "/documents", "문서 자동 생성"),
     _a("admin_approvals", "/approvals", "승인"),
+    _a("admin_organizations", "/organizations", "조직 관리", "admin", ("admin", "system_admin")),
     _a("admin_departments", "/departments", "부서 관리", "admin", ("admin", "system_admin")),
     # 조직도(Phase 6) — 0024 의 Department.parent_id 를 평탄화해 표 하나로 그린다.
     _a("admin_org-tree", "/org-tree", "조직도", "admin", ("admin", "system_admin")),

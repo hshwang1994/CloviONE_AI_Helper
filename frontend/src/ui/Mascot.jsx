@@ -243,7 +243,9 @@ export function MascotSidebarCard({ onClick }) {
       onClick={onClick}
       variant="outlined"
       sx={{
-        width: "calc(100% - 1.5rem)",
+        // mx 로 이미 양옆을 3rem 비우는데 width 를 calc(100% - 1.5rem) 로 또 줄여서 폭이
+        // 1.5rem 어긋나 있었다. 블록 요소는 mx 만으로 남는 폭을 채운다.
+        width: "auto",
         mx: 3,
         mt: 4,
         p: 2,
@@ -264,7 +266,11 @@ export function MascotSidebarCard({ onClick }) {
         <Typography color="common.white" fontSize="0.8125rem" fontWeight={800}>
           클로비에게 물어보기
         </Typography>
-        <Typography color="rgba(237,240,255,.7)" fontSize="0.75rem" lineHeight={1.35}>
+        {/* wordBreak:"keep-all" — 한글 기본값은 아무 데서나 끊어서 "도와드/려요"처럼 단어
+            중간에 줄이 바뀐다. 좁은 사이드바에서는 반드시 두 줄이 되므로 띄어쓰기에서만
+            끊기게 한다(한국어 조판의 기본 설정이다). */}
+        <Typography color="rgba(237,240,255,.7)" fontSize="0.75rem" lineHeight={1.35}
+          sx={{ wordBreak: "keep-all" }}>
           현재 화면을 기준으로 도와드려요
         </Typography>
       </Box>

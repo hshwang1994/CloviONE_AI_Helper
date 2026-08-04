@@ -29,6 +29,7 @@ import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 export const SCREEN_ROLES = {
   users: ["admin", "system_admin"],
   jobs: ["operator", "admin", "system_admin"],
+  organizations: ["admin", "system_admin"],
   departments: ["admin", "system_admin"],
   "job-titles": ["admin", "system_admin"],
   "org-tree": ["admin", "system_admin"],
@@ -84,6 +85,7 @@ export const NAV = [
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
     { to: "/offboarding", label: "온보딩과 오프보딩", roles: ["admin", "system_admin"], icon: "users" },
+    { to: "/organizations", label: "조직 관리", roles: ["admin", "system_admin"], icon: "org" },
     { to: "/departments", label: "부서 관리", roles: ["admin", "system_admin"], icon: "org" },
     { to: "/org-tree", label: "조직도", roles: ["admin", "system_admin"], icon: "org" },
     { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"], icon: "jobtitle" },

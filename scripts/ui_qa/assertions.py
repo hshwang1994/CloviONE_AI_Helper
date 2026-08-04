@@ -195,7 +195,11 @@ PROBE_JS = r"""
   out.clipped = [];
   {
     const MIN_CLIP = 24;
-    const nodes = document.querySelectorAll('div, section, article, main, aside, li, td, p');
+    // button/header/footer/nav 도 본다. 이 앱은 카드형 버튼(Paper component="button")을
+    // 쓰고, 셸의 고정 높이 상자들이 header/footer/nav 에 산다 — div 만 훑으면 그것들이
+    // 검사 밖에 남는다.
+    const nodes = document.querySelectorAll(
+      'div, section, article, main, aside, li, td, p, button, header, footer, nav');
     for (const el of nodes) {
       if (out.clipped.length >= MAX) break;
       const cs = getComputedStyle(el);

@@ -11,15 +11,20 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
-from app.org.models import Department, JobTitle
+from app.org.constants import ORG_ACTIVE, ORG_SUSPENDED
+from app.org.models import Department, JobTitle, Organization
 from app.org.schemas import (
     DepartmentCreateRequest,
     DepartmentUpdateRequest,
+    OrganizationCreateRequest,
+    OrganizationUpdateRequest,
     OrgItemCreateRequest,
     OrgItemUpdateRequest,
 )
@@ -30,9 +35,11 @@ from app.org.service import (
     item_view,
     list_items,
     update_item,
+    normalize_name,
     usage_count,
 )
 from app.org.tree import tree_rows
+from app.users.models import User
 
 
 
@@ -150,3 +157,107 @@ job_titles_router = _make_org_router(
     body_key="job_title",
     audit_type="job_title",
 )
+
+
+# ── 조직 ──────────────────────────────────────────────────────────────────────
+#
+# `organizations` 는 0022 부터 표만 있고 라우터도 화면도 없었다 — 시드 한 행이 전부였다.
+# 사용자 지시 §3 이 "조직 > 부서 > 사용자" 를 한눈에 보여 달라고 했는데, 맨 위 층이
+# 화면에 존재하지 않으면 그 관계를 보여 줄 수가 없다. 그래서 되살린다.
+#
+# 팩토리(_make_org_router)를 쓰지 않는 이유: 조직은 `active` 대신 `status` 를 쓰고 `slug`
+# 를 가지며 **지울 수 없다**. 억지로 끼워 맞추면 팩토리에 조직 전용 분기가 세 개 생긴다.
+
+organizations_router = APIRouter(
+    prefix="/api/admin/organizations",
+    tags=["admin-organizations"],
+    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
+)
+
+
+def _org_view(db: Session, row: Organization) -> dict:
+    """조직 한 곳 + **그 안에 무엇이 들어 있는지**. 숫자가 곧 포함 관계의 요약이다."""
+    dept_count = db.execute(
+        select(func.count()).select_from(Department).where(Department.org_id == row.id)
+    ).scalar_one()
+    user_count = db.execute(
+        select(func.count()).select_from(User).where(User.org_id == row.id)
+    ).scalar_one()
+    return {
+        "id": row.id,
+        "slug": row.slug,
+        "name": row.name,
+        "status": row.status,
+        "department_count": dept_count,
+        "user_count": user_count,
+        "created_at": row.created_at.isoformat(),
+        "updated_at": row.updated_at.isoformat(),
+    }
+
+
+def _get_org_or_404(db: Session, org_id: str) -> Organization:
+    row = db.get(Organization, org_id)
+    if row is None:
+        raise NotFoundError("조직을 찾을 수 없습니다.")
+    return row
+
+
+@organizations_router.get("")
+def list_organizations(db: Session = Depends(get_db)):
+    rows = list(db.execute(select(Organization).order_by(Organization.name)).scalars())
+    return {"items": [_org_view(db, r) for r in rows], "total": len(rows)}
+
+
+@organizations_router.get("/{org_id}")
+def get_organization(org_id: str, db: Session = Depends(get_db)):
+    return {"organization": _org_view(db, _get_org_or_404(db, org_id))}
+
+
+@organizations_router.post("", status_code=201)
+def create_organization(
+    request: Request,
+    payload: OrganizationCreateRequest,
+    db: Session = Depends(get_db),
+):
+    name = normalize_name(payload.name)
+    slug = payload.slug.strip().lower()
+    exists = db.execute(
+        select(Organization).where(Organization.slug == slug)
+    ).scalar_one_or_none()
+    if exists is not None:
+        raise ValidationAppError(f"이미 있는 식별자입니다: {slug}")
+    row = Organization(slug=slug, name=name, status=ORG_ACTIVE)
+    db.add(row)
+    db.flush()
+    record_audit_from_request(
+        request, db, action="organization.create", object_type="organization",
+        object_id=row.id, after={"slug": slug, "name": name},
+    )
+    return {"organization": _org_view(db, row)}
+
+
+@organizations_router.patch("/{org_id}")
+def update_organization(
+    request: Request,
+    org_id: str,
+    payload: OrganizationUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    row = _get_org_or_404(db, org_id)
+    changes = payload.model_dump(exclude_unset=True)
+    before = {"name": row.name, "status": row.status}
+    if "name" in changes:
+        row.name = normalize_name(changes["name"] or "")
+    if "status" in changes:
+        status = (changes["status"] or "").strip()
+        if status not in (ORG_ACTIVE, ORG_SUSPENDED):
+            raise ValidationAppError(
+                f"상태는 {ORG_ACTIVE} 또는 {ORG_SUSPENDED} 여야 합니다."
+            )
+        row.status = status
+    db.flush()
+    record_audit_from_request(
+        request, db, action="organization.update", object_type="organization",
+        object_id=row.id, before=before, after={"name": row.name, "status": row.status},
+    )
+    return {"organization": _org_view(db, row)}

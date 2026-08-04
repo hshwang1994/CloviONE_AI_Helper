@@ -22,7 +22,9 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationAppError
 from app.core.scope import MAX_DEPARTMENT_DEPTH, department_subtree_ids
-from app.org.models import Department
+from app.org.constants import ORG_ACTIVE
+from app.org.models import Department, Organization
+from app.users.models import User
 
 # 경로 표기의 구분자. '›' 는 부서 이름에 쓰일 일이 사실상 없고, 화면에서 계층으로 읽힌다.
 PATH_SEP = " › "
@@ -82,6 +84,7 @@ def build_rows(db: Session, rows: list[Department]) -> list[dict]:
             "path": PATH_SEP.join(here),
             "parent_id": row.parent_id,
             "parent_name": parent.name if parent else None,
+            "org_id": row.org_id,
             "active": row.active,
             "user_count": direct.get(row.id, 0),
             "child_count": len(kids),
@@ -105,17 +108,73 @@ def build_rows(db: Session, rows: list[Department]) -> list[dict]:
     return out
 
 
+def _org_rows(db: Session) -> dict[str, Organization]:
+    return {o.id: o for o in db.execute(select(Organization)).scalars()}
+
+
 def tree_rows(db: Session, *, active: bool | None = None) -> list[dict]:
     """조직도 행 목록. `active` 필터는 **그 부서만** 거른다(하위는 그대로 남는다).
 
     필터로 중간 부서를 빼면 그 아래가 고아가 되므로, 걸러진 뒤에도 `_children_map` 이
     부모 없는 행을 최상위로 올려 보여 준다 — 사라지지 않는다.
+
+    **맨 위에 조직 행을 놓는다**(2026-08-04 사용자 지시 §3: "조직 > 부서 > 사용자(직책)"
+    구조와 포함 관계가 한눈에 보여야 한다). 예전에는 부서부터 시작해서, 화면만 봐서는
+    이 부서들이 **어느 조직 소속인지** 알 수 없었다 — 조직이 하나뿐이어도 그 사실 자체가
+    화면에 없으면 사용자는 알 수 없다. 조직 행은 `kind: "organization"` 으로 표시하고
+    부서 행은 한 칸 더 들여쓴다(depth+1).
     """
     stmt = select(Department)
     if active is not None:
         stmt = stmt.where(Department.active.is_(active))
     rows = list(db.execute(stmt).scalars().all())
-    return build_rows(db, rows)
+    dept_rows = build_rows(db, rows)
+
+    orgs = _org_rows(db)
+    if not orgs:
+        return dept_rows   # 조직 행이 없으면(초기화 전) 예전 모양 그대로 — 빈 화면보다 낫다
+
+    by_org: dict[str, list[dict]] = {}
+    for row in dept_rows:
+        by_org.setdefault(row.get("org_id") or "", []).append(row)
+
+    out: list[dict] = []
+    for org in sorted(orgs.values(), key=lambda o: o.name or ""):
+        kids = by_org.pop(org.id, [])
+        out.append({
+            "id": org.id,
+            "kind": "organization",
+            "name": org.name or org.slug,
+            "depth": 0,
+            "path": org.name or org.slug,
+            "parent_id": None,
+            "parent_name": None,
+            "active": org.status == ORG_ACTIVE,
+            # 부서 행의 규칙을 그대로 따른다: user_count 는 '이 층에 직접', subtree 는 '아래 전부'.
+            # 조직에서 '직접'은 **부서가 지정되지 않은 사람**이다 — 그 수가 0 이 아니면 그 자체가
+            # 관리자가 알아야 할 사실이라(어디에도 안 속한 계정) 숨기지 않는다.
+            "user_count": _org_user_count(db, org.id, no_department=True),
+            "child_count": sum(1 for k in kids if k["depth"] == 0),
+            "subtree_user_count": _org_user_count(db, org.id),
+            "cycle": False,
+            "created_at": org.created_at.isoformat(),
+        })
+        out.extend({**k, "kind": "department", "depth": k["depth"] + 1,
+                    "path": (org.name or org.slug) + PATH_SEP + k["path"]} for k in kids)
+
+    # 조직 행이 없는 부서(데이터가 어긋난 상태)는 감추지 않고 맨 뒤에 그대로 붙인다 —
+    # 조용히 빠지면 "부서가 사라졌다"는 신고만 남고 원인은 안 보인다(사이클 처리와 같은 규칙).
+    for leftover in by_org.values():
+        out.extend({**k, "kind": "department"} for k in leftover)
+    return out
+
+
+def _org_user_count(db: Session, org_id: str, *, no_department: bool = False) -> int:
+    """이 조직에 속한 사람 수. `no_department=True` 면 부서가 지정되지 않은 사람만."""
+    stmt = select(func.count()).select_from(User).where(User.org_id == org_id)
+    if no_department:
+        stmt = stmt.where(User.department_id.is_(None))
+    return db.execute(stmt).scalar_one()
 
 
 def validate_parent(db: Session, row: Department, parent_id: str | None) -> str | None:
