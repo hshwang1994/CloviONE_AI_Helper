@@ -35,25 +35,32 @@ else
   bad "로그인 화면 제품명" "아직 옛 이름이다"
 fi
 
-# 자산 해시 — 로컬 번들과 같은 파일명이 서빙되어야 한다.
-local_assets=$(ls app/static/react/assets/*.js 2>/dev/null | xargs -n1 basename 2>/dev/null | sort)
-shell=$($CURL "$BASE/")
-missing=0
-for a in $local_assets; do
-  grep -q "$a" <<<"$shell" || missing=$((missing + 1))
-done
-if [ -z "$local_assets" ]; then
+# 자산 해시 — **자산 파일을 이름으로 직접 요청한다.**
+#
+# 처음에는 진입 HTML(`GET /`)에서 번들 이름을 찾으려 했는데, `/` 는 로그인하지 않은 요청을
+# 303 으로 /login 에 보낸다. 그래서 늘 로그인 페이지(Jinja, React 자산 없음)를 훑고
+# "옛 번들이 서빙되고 있다"고 잘못 말했다 — 실제로는 새 번들이 올라가 있었다.
+# 파일명이 곧 내용 해시이므로, 그 이름으로 200 이 나오면 그 빌드가 배포된 것이다.
+entry=$(ls app/static/react/assets/index.*.js 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null)
+if [ -z "$entry" ]; then
   bad "정적 자산 해시" "로컬에 빌드 산출물이 없다 — 먼저 npm run build"
-elif [ "$missing" -gt 0 ]; then
-  # 지연 로드 청크는 진입 HTML 에 안 실린다. 진입 번들 하나만 맞으면 통과로 본다.
-  entry=$(ls app/static/react/assets/index.*.js 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null)
-  if [ -n "$entry" ] && grep -q "$entry" <<<"$shell"; then
-    ok "정적 자산 해시" "진입 번들 $entry 서빙 중"
-  else
-    bad "정적 자산 해시" "옛 번들이 서빙되고 있다"
-  fi
 else
-  ok "정적 자산 해시" "전부 새 번들"
+  c=$(code "$BASE/static/react/assets/$entry")
+  if [ "$c" = "200" ]; then
+    served=0
+    missing_assets=""
+    for a in $(ls app/static/react/assets/ 2>/dev/null); do
+      [ "$(code "$BASE/static/react/assets/$a")" = "200" ] && served=$((served + 1))         || missing_assets="$missing_assets $a"
+    done
+    total=$(ls app/static/react/assets/ 2>/dev/null | grep -c "")
+    if [ "$served" = "$total" ]; then
+      ok "정적 자산 해시" "$served/$total 개 전부 새 번들"
+    else
+      bad "정적 자산 해시" "$served/$total 개만 일치, 없음:$missing_assets"
+    fi
+  else
+    bad "정적 자산 해시" "$entry → $c (옛 번들이 서빙되고 있다)"
+  fi
 fi
 
 # 이번에 새로 추가한 라우트 — 404 면 코드가 안 올라간 것이고, 401 이면 올라갔다.
