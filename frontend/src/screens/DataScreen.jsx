@@ -7,11 +7,39 @@ import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
 import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
+
+/* 상세 패널의 원문 블록과 키/값 줄 — 예전에는 <JsonBlock> 과
+ * .c-kv/.c-kv-k/.c-kv-v 를 열다섯 곳에 손으로 흩어 두었다. 규칙이 CSS 파일에만 있어서
+ * 새 상세 필드를 만들 때마다 클래스 이름을 외워 붙여야 했고, 한 곳만 빠뜨려도 조용히
+ * 스타일이 없는 채로 떴다. 컴포넌트 두 개로 모아 그 규칙을 코드에 둔다. */
+function JsonBlock({ children }) {
+  return (
+    <Box component="pre" sx={{
+      m: 0, p: 1.5, borderRadius: 1.5, border: 1, borderColor: "divider",
+      bgcolor: "background.default", overflowX: "auto", whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere", fontSize: "0.8125rem", lineHeight: 1.6,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    }}>{children}</Box>
+  );
+}
+
+function KeyValueRow({ label, children }) {
+  return (
+    <Box sx={{
+      display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" },
+      gap: { xs: 0.25, sm: 1.5 }, py: 0.75, borderBottom: 1, borderColor: "divider", minWidth: 0,
+    }}>
+      <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>{label}</Typography>
+      <Box sx={{ minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{children}</Box>
+    </Box>
+  );
+}
 import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
@@ -727,7 +755,7 @@ export function DataScreen({ config }) {
       {infoView ? (
         <Modal open onClose={() => setInfoView(null)} title={infoView.title} size="md"
           footer={<div className="k-footer-row"><div className="k-footer-main"><Button variant="primary" onClick={() => setInfoView(null)}>확인</Button></div></div>}>
-          <div className="c-detail-json">{infoView.body}</div>
+          <JsonBlock>{infoView.body}</JsonBlock>
         </Modal>
       ) : null}
     </div>
@@ -831,24 +859,33 @@ function SubListDrawer({ view, onClose, onActed }) {
       {/* 부모 DataScreen 툴바와 동일한 필터 유형(select/date/text)을 지원한다, 예전엔 select만
        * 지원해 오늘날 없는 sl.filters의 date/text 사용처가 생겨도 조용히 <select>로 잘못 렌더될
        * 뻔한 계약 불일치가 있었다(공용 목록 필터 규칙과 통일). */}
+      {/* 2026-08 MUI 전환. 예전에는 날것의 <input>/<select> 에 .c-filter 클래스를 붙였는데,
+          날짜 필터가 쓰던 .c-filter-date 와 .c-filter-date-label 은 **정의된 CSS 규칙이 아예
+          없었다** — 라벨과 입력이 스타일 없이 그대로 떴다. 이제 MUI TextField 가 라벨·테두리·
+          포커스 링을 전부 갖고 오므로 그 죽은 클래스도 함께 사라진다. */}
       {(sl.filters || []).length ? (
-        <div className="c-toolbar-row">
+        <Stack direction="row" gap={1.5} flexWrap="wrap" sx={{ mb: 2 }}>
           {(sl.filters).map((f) => f.type === "date" ? (
-            <label key={f.key} className="c-filter-date">
-              <span className="c-filter-date-label">{f.label}</span>
-              <input className="c-filter" type="date"
-                value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)} aria-label={f.label} />
-            </label>
+            <TextField
+              key={f.key} type="date" size="small" label={f.label}
+              InputLabelProps={{ shrink: true }} sx={{ minWidth: "11rem" }}
+              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
+            />
           ) : f.type === "text" ? (
-            <input key={f.key} className="c-filter" type="text" placeholder={f.label}
-              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)} aria-label={f.label} />
+            <TextField
+              key={f.key} size="small" label={f.label} sx={{ minWidth: "12rem" }}
+              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
+            />
           ) : (
-            <select key={f.key} className="c-filter" value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)} aria-label={f.label}>
-              <option value="">{f.label}: 전체</option>
-              {(f.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            <TextField
+              key={f.key} select size="small" label={f.label} sx={{ minWidth: "11rem" }}
+              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
+            >
+              <MenuItem value="">{f.label}: 전체</MenuItem>
+              {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            </TextField>
           ))}
-        </div>
+        </Stack>
       ) : null}
       {/* 부모 목록의 capWarning Callout과 동일한 경고 — 이 하위 목록도 백엔드가 페이지당 최대 500건을
        * 반환한다(app/prompts/router.py). paginated가 아니면(전체를 한 번에 받는 하위 목록) 500건에
@@ -868,19 +905,20 @@ function SubListDrawer({ view, onClose, onActed }) {
         : <>
             <DataTable columns={cols} rows={rows} rowKey={(r) => r.id || r.version || JSON.stringify(r).slice(0, 24)} />
             {sl.paginated ? (
-              <nav className="c-pager" aria-label="페이지 이동">
+              <Stack component="nav" aria-label="페이지 이동" direction="row" gap={1.5}
+                sx={{ alignItems: "center", justifyContent: "center", mt: 2 }}>
                 <Button size="sm" disabled={subPage <= 1} onClick={() => setSubPage((p) => Math.max(1, p - 1))}>이전</Button>
-                <span className="c-pager-info" aria-live="polite">
+                <Typography component="span" aria-live="polite" variant="body2" color="text.secondary">
                   {totalPages != null ? `${subPage} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${subPage}페이지`}
-                </span>
+                </Typography>
                 <Button size="sm" disabled={totalPages != null ? subPage >= totalPages : rows.length < pageSize} onClick={() => setSubPage((p) => p + 1)}>다음</Button>
-              </nav>
+              </Stack>
             ) : null}
           </>}
       {subInfo ? (
         <Modal open onClose={() => setSubInfo(null)} title={subInfo.title} size="md"
           footer={<div className="k-footer-row"><div className="k-footer-main"><Button variant="primary" onClick={() => setSubInfo(null)}>확인</Button></div></div>}>
-          <pre className="c-detail-json">{subInfo.body}</pre>
+          <JsonBlock>{subInfo.body}</JsonBlock>
         </Modal>
       ) : null}
     </Drawer>
@@ -952,7 +990,7 @@ export const jsonField = (key, label) => ({ key, label, render: (r) => {
   // 이미 빈 배열을 '-'로 처리하는 것과 동일한 대우로 맞춘다).
   if (v == null || v === "" || (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0) || (Array.isArray(v) && v.length === 0)) return "-";
   const text = typeof v === "string" ? v : JSON.stringify(v, null, 2);
-  return <pre className="c-detail-json">{text}</pre>;
+  return <JsonBlock>{text}</JsonBlock>;
 } });
 // 상세 전용: 객체(예: 승인 요청 내용 request_payload)를 최상위 키/값 행으로 펼쳐 읽기 쉽게 보여준다.
 // '내용 없이 승인 금지' 원칙을 위해, 원시 JSON 한 덩어리 대신 각 필드를 라벨로 분해한다. 중첩 객체·
@@ -960,18 +998,17 @@ export const jsonField = (key, label) => ({ key, label, render: (r) => {
 export const objectField = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];
   if (v == null || v === "") return "-";
-  if (typeof v !== "object") return <pre className="c-detail-json">{String(v)}</pre>;
+  if (typeof v !== "object") return <JsonBlock>{String(v)}</JsonBlock>;
   const entries = Array.isArray(v) ? v.map((x, i) => [String(i), x]) : Object.entries(v);
   if (!entries.length) return "-";
   return (
     <div>
       {entries.map(([k, val], i) => (
-        <div className="c-kv" key={i}>
-          <span className="c-kv-k">{k}</span>
-          <span className="c-kv-v">{val != null && typeof val === "object"
-            ? <pre className="c-detail-json">{JSON.stringify(val, null, 2)}</pre>
-            : (val == null || val === "" ? "-" : String(val))}</span>
-        </div>
+        <KeyValueRow label={k} key={i}>
+          <Box component="span">{val != null && typeof val === "object"
+            ? <JsonBlock>{JSON.stringify(val, null, 2)}</JsonBlock>
+            : (val == null || val === "" ? "-" : String(val))}</Box>
+        </KeyValueRow>
       ))}
     </div>
   );
@@ -981,19 +1018,19 @@ export const listField = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];
   if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return "-";
   if (Array.isArray(v)) return <ul>{v.map((x, i) => <li key={i}>{typeof x === "string" ? x : JSON.stringify(x)}</li>)}</ul>;
-  return <pre className="c-detail-json">{typeof v === "string" ? v : JSON.stringify(v, null, 2)}</pre>;
+  return <JsonBlock>{typeof v === "string" ? v : JSON.stringify(v, null, 2)}</JsonBlock>;
 } });
 // 상세 전용: 문서 미리보기를 읽을 수 있게(제목·본문·행수·링크). 본문을 JSON 문자열로 뭉개지 않는다.
 // 서버 데이터는 JSX 텍스트로만 렌더(textContent 상당) — innerHTML 미사용(XSS/CSP 안전).
 export const previewField = (key, label) => ({ key, label, render: (r) => {
   const p = r[key];
   if (p == null || p === "") return "-";
-  if (typeof p === "string") return <pre className="c-detail-json">{p}</pre>;
+  if (typeof p === "string") return <JsonBlock>{p}</JsonBlock>;
   const links = Array.isArray(p.notion_links) ? p.notion_links : [];
   return (
     <div>
       {p.title ? <div><strong>{String(p.title)}</strong></div> : null}
-      {p.body != null && p.body !== "" ? <pre className="c-detail-json">{String(p.body)}</pre> : null}
+      {p.body != null && p.body !== "" ? <JsonBlock>{String(p.body)}</JsonBlock> : null}
       {p.source_row_count != null ? <div>원본 행 수: {String(p.source_row_count)}</div> : null}
       {links.length ? <div>{links.map((l, i) => { const s = String(l); return /^https?:\/\//i.test(s)
         ? <a key={i} href={s} target="_blank" rel="noopener noreferrer">{s} </a>
