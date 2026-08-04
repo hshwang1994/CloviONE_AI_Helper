@@ -196,49 +196,91 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
 
 
 def page_block_ids(outbound, settings, page_id: str, *, limit: int | None = None) -> list[str]:
-    """페이지 본문(1레벨 children)의 블록 id 목록. 본문 교체 전 삭제 대상을 모으는 데 쓴다.
+    """페이지 본문(1레벨 children)의 블록 id 목록.
 
     `limit` 을 주면 그 개수를 넘어서는 순간 멈춘다(넘었는지 알 수 있게 limit+1 개까지 모은다).
     """
+    return [bid for bid, _ in page_block_refs(outbound, settings, page_id, limit=limit)]
+
+
+def page_block_refs(
+    outbound, settings, page_id: str, *, limit: int | None = None
+) -> list[tuple[str, str]]:
+    """(블록 id, 블록 타입) 목록.
+
+    타입이 필요한 이유: 본문을 저장할 때 **우리 편집기가 표현할 수 있는 블록만** 지워야 한다.
+    예전에는 id 만 모아 전부 지웠고, 그래서 이미지·표가 저장 한 번에 사라졌다.
+    """
     path = f"/v1/blocks/{page_id}/children"
-    ids: list[str] = []
+    refs: list[tuple[str, str]] = []
     cursor: str | None = None
     for _ in range(_MAX_BLOCK_PAGES):
         q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
         data = _request(outbound, settings, "GET", path + q)
         for block in data.get("results", []):
             if isinstance(block, dict) and block.get("id"):
-                ids.append(block["id"])
-        if limit is not None and len(ids) > limit:
-            return ids
+                refs.append((block["id"], block.get("type") or ""))
+        if limit is not None and len(refs) > limit:
+            return refs
         if not data.get("has_more"):
             break
         cursor = data.get("next_cursor")
         if not cursor:
             break
-    return ids
+    return refs
+
+
+# 우리 편집기가 마크다운으로 **표현할 수 있는** 블록 타입. 저장할 때 지워도 되는 것은 이것뿐이다.
+# 이 집합 밖(image/table/embed/file/video/child_page…)은 편집기에 애초에 실려 오지 않으므로,
+# 지우면 사용자가 만든 적도 없는 내용을 없애는 것이 된다.
+_EDITABLE_BLOCK_TYPES = set(_TEXT_BLOCK_TYPES) | {"divider"}
 
 
 def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -> None:
-    """페이지 본문(1레벨 children)을 통째로 교체한다 — 기존 블록 삭제 후 새 블록 추가.
+    """본문의 **글 부분만** 교체한다. 이미지·표 같은 비텍스트 블록은 건드리지 않는다.
 
-    Notion 에는 '자식 전체 교체' 원자 연산이 없다. 순서를 **삭제 → 추가**로 잡은 이유는
-    재시도 수렴이다: 중간에 실패해도 같은 본문으로 다시 저장하면 원하는 상태가 된다.
-    반대 순서(추가 → 삭제)로 하면 실패할 때마다 본문이 한 벌씩 늘어나 되돌리기 어려워진다.
-    실패해도 우리 DB의 정본(body_markdown)은 이미 저장된 뒤라 사용자 글은 살아 있다.
+    ## 왜 '통째로 교체'를 그만뒀나
 
-    원본이 아주 큰 페이지는 **손대지 않고 거절한다**(_MAX_REPLACE_BLOCKS). 삭제가 블록당 한
-    번의 DELETE 라 수백 개면 요청 하나가 수백 왕복이 되고(동기 핸들러 점유·타임아웃), 무엇보다
-    우리 편집기가 만들 수 있는 본문은 최대 100줄이라 그런 페이지를 여기서 교체한다는 건 남이
-    Notion 에서 쓴 큰 문서를 통째로 지운다는 뜻이다. 거절이 맞다.
+    예전에는 1레벨 children 을 전부 지우고 새로 넣었다. 그 결과 **저장 한 번에 원본의
+    이미지·표가 사라졌다** — 편집기에는 애초에 실려 오지도 않는(마크다운으로 표현할 수 없어
+    `[image] 원본에서 확인` 자리표시로 바뀌는) 내용이라, 사용자는 자기가 무엇을 지웠는지도
+    몰랐다. 화면에 경고를 띄워 두긴 했지만, 경고는 유실을 막지 못한다.
+
+    사용자 지시(2026-08-04)로 이 포털이 **노션을 대신하는 유일한 창구**가 되면 그 유실은
+    곧 사용자 데이터 유실이다. 그래서 지우는 대상을 '우리가 표현할 수 있는 블록'으로 좁혔다.
+
+    ## 왜 지웠다 다시 만들지 않나 (순서를 지키려면 그게 맞아 보이는데)
+
+    Notion 호스팅 파일(`image.type == "file"`)은 **API 로 재생성할 수 없다**. 읽을 때 나오는
+    URL 은 만료되는 서명 URL 이고, 그 URL 로 새 블록을 만들면 곧 죽은 링크가 된다.
+    (외부 URL 이미지만 재생성 가능하다.) AI 도우미가 붙이는 이미지가 정확히 이 '호스팅 파일'
+    쪽이라, 지웠다 다시 만드는 길은 애초에 없다. **안 지우는 것이 유일한 방법이다.**
+
+    ## 그래서 순서는 어떻게 되나
+
+    지우지 않은 비텍스트 블록이 앞에 남고, 새로 쓴 글이 그 뒤에 붙는다. 원본에서 이미지가
+    글 중간에 있었다면 위치가 앞으로 모인다. 위치가 바뀌는 것과 내용이 사라지는 것 중
+    무엇이 나은지는 물어볼 필요가 없다. 화면 안내 문구도 이 동작에 맞춰 고쳤다.
+
+    ## 실패 시
+
+    순서를 **삭제 → 추가**로 두는 이유는 재시도 수렴이다: 중간에 실패해도 같은 본문으로 다시
+    저장하면 원하는 상태가 된다. 반대로 하면 실패할 때마다 본문이 한 벌씩 늘어난다.
+    실패해도 우리 DB 의 정본(body_markdown)은 이미 저장된 뒤라 사용자 글은 살아 있다.
+
+    원본이 아주 큰 페이지는 손대지 않고 거절한다(_MAX_REPLACE_BLOCKS) — 삭제가 블록당 한 번의
+    DELETE 라 수백 개면 요청 하나가 수백 왕복이 된다.
     """
-    existing = page_block_ids(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
-    if len(existing) > _MAX_REPLACE_BLOCKS:
+    refs = page_block_refs(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
+    if len(refs) > _MAX_REPLACE_BLOCKS:
         raise ValidationAppError(
             f"원본 본문이 너무 커서(블록 {_MAX_REPLACE_BLOCKS}개 초과) 여기서 교체하지 않았습니다. "
             f"원본에서 편집해 주세요."
         )
-    for block_id in existing:
+    for block_id, btype in refs:
+        # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 — 그대로 둔다.
+        if btype and btype not in _EDITABLE_BLOCK_TYPES:
+            continue
         _request(outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
     if blocks:
         _request(

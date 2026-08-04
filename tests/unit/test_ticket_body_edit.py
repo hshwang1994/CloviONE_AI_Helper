@@ -148,6 +148,68 @@ def test_existing_blocks_are_deleted_before_new_ones_are_appended(db, settings, 
     assert kinds.index("PATCH") > max(i for i, m in enumerate(kinds) if m == "DELETE")
 
 
+# ── 비텍스트 블록 보존 (2026-08-04 제품화 지시) ───────────────────────────────
+
+def test_saving_the_body_does_not_delete_images_or_tables(db, settings, make_user):
+    """저장 한 번에 원본의 이미지·표가 사라지던 것을 막는다.
+
+    예전에는 1레벨 children 을 **전부** 지우고 새로 넣었다. 이미지는 편집기에 실려 오지도
+    않는데(마크다운으로 표현할 수 없어 자리표시로 바뀐다) 저장하면 사라졌다 — 사용자는 자기가
+    무엇을 지웠는지도 몰랐다.
+
+    사용자 지시로 이 포털이 노션을 대신하는 유일한 창구가 되면 그 유실은 곧 데이터 유실이다.
+    지웠다 다시 만드는 길은 없다: Notion 호스팅 파일은 만료되는 서명 URL 로만 읽히고 API 로
+    재생성할 수 없다. **안 지우는 것이 유일한 방법이다.**
+    """
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(
+        page=_page(people=["notion-me"]),
+        blocks=[
+            {"id": "text-1", "type": "paragraph", "paragraph": {"rich_text": []}},
+            {"id": "img-1", "type": "image", "image": {"type": "file", "file": {"url": "https://x/y.png"}}},
+            {"id": "table-1", "type": "table", "table": {"table_width": 2}},
+            {"id": "text-2", "type": "paragraph", "paragraph": {"rich_text": []}},
+            {"id": "div-1", "type": "divider", "divider": {}},
+        ],
+    )
+
+    service.save_ticket_body(db, ob, settings, me, page_id="page-1", body_markdown=BODY)
+
+    deleted = [p.rsplit("/", 1)[-1] for m, p in ob.trace if m == "DELETE" and "/v1/blocks/" in p]
+    # 우리가 표현할 수 있는 것만 지웠다.
+    assert sorted(deleted) == ["div-1", "text-1", "text-2"], f"지운 목록이 다르다: {deleted}"
+    # 이미지와 표는 **손대지 않았다** — 이 두 줄이 이 테스트의 전부다.
+    assert "img-1" not in deleted
+    assert "table-1" not in deleted
+    surviving = {b.get("id") for b in ob.blocks}
+    assert {"img-1", "table-1"} <= surviving, f"이미지·표가 사라졌다: {surviving}"
+    # 그리고 새 본문은 정상적으로 올라갔다.
+    assert ob.appended and ob.appended[0][0]["type"] == "heading_2"
+
+
+def test_a_body_with_only_images_is_left_alone(db, settings, make_user):
+    """글이 하나도 없고 이미지만 있는 티켓에 빈 본문을 저장해도 이미지가 남는다.
+
+    이 경우가 가장 위험했다 — 지울 글이 없으니 사용자는 '아무 일도 안 일어난다'고 생각하는데
+    예전 코드는 이미지를 지웠다.
+    """
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(
+        page=_page(people=["notion-me"]),
+        blocks=[{"id": "img-only", "type": "image", "image": {"type": "file", "file": {"url": "https://x/y.png"}}}],
+    )
+
+    service.save_ticket_body(db, ob, settings, me, page_id="page-1", body_markdown="")
+
+    # 지울 것이 없으므로 DELETE 자체가 나가지 않고, 이미지는 그대로 남는다.
+    # (빈 본문이라도 빈 문단 하나는 추가되므로 '블록이 이것 하나뿐'이라고 단언하지 않는다 —
+    #  이 테스트가 지키는 것은 '이미지가 살아 있는가'다.)
+    assert not [m for m, p in ob.trace if m == "DELETE" and "/v1/blocks/" in p]
+    assert "img-only" in {b.get("id") for b in ob.blocks}
+
+
 # ── Notion push 실패 ─────────────────────────────────────────────────────────
 
 def test_body_survives_a_failed_notion_push(db, settings, make_user):
