@@ -32,7 +32,7 @@ export const TOUR_STEPS = [
   {
     key: "welcome",
     title: "클로비가 안내합니다",
-    body: "ClovirONE은 티켓·문서·팀 채팅을 한곳에서 보는 사내 업무 도우미입니다. 30초만 둘러보면 어디부터 볼지 알 수 있습니다.",
+    body: "ClovirAssist는 티켓, 문서, 팀 채팅을 한곳에서 보는 사내 업무 도우미입니다. 30초만 둘러보면 어디부터 볼지 알 수 있습니다.",
     art: MISC.onboarding,
   },
   {

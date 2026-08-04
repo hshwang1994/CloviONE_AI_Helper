@@ -14,7 +14,7 @@ from __future__ import annotations
 # 바로 알아볼 수 있게 한다(chat_rooms 의 '0000cha70001' 과 같은 관례).
 DEFAULT_ORG_ID = "00000000-0000-0000-0000-00000000org1"
 DEFAULT_ORG_SLUG = "default"
-DEFAULT_ORG_NAME = "ClovirONE"
+DEFAULT_ORG_NAME = "ClovirAssist"
 
 # 조직 상태. 지금은 active 하나만 쓰지만, 제품화 때 정지/해지를 붙일 자리를 열어 둔다.
 ORG_ACTIVE = "active"

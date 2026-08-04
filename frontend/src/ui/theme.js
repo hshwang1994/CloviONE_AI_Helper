@@ -100,6 +100,24 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
               scrollBehavior: "auto !important",
             },
           },
+          /* 자동완성 노란 배경 제거 (사용자 지적 §1).
+           *
+           * Chrome/Edge 는 자동완성된 입력에 사용자 스타일시트로 못 바꾸는 배경을 칠한다.
+           * background 지정은 통하지 않고, **inset box-shadow 로 덮는 것**만 통한다.
+           * 로그인 화면(app/static/css/login.css)에 같은 처리가 있는데, 그쪽은 Jinja 라
+           * 이 테마가 닿지 않는다 — 두 곳에 각각 둔다.
+           *
+           * 색을 테마에서 읽는 이유: 다크 모드에서 흰색으로 덮으면 입력만 흰 판이 된다.
+           * transition 5000s 는 자동완성 직후 노란색이 한 번 번쩍이는 것을 막는 관용구다. */
+          "input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active, textarea:-webkit-autofill, select:-webkit-autofill":
+            {
+              WebkitBoxShadow: `0 0 0 1000px ${light ? "#F8FAFF" : "#151E37"} inset`,
+              boxShadow: `0 0 0 1000px ${light ? "#F8FAFF" : "#151E37"} inset`,
+              WebkitTextFillColor: light ? "#1B2235" : "#EEF1FB",
+              caretColor: light ? "#1B2235" : "#EEF1FB",
+              transition: "background-color 5000s ease-in-out 0s",
+              borderRadius: "inherit",
+            },
           /* 스크린리더 전용 텍스트 — 기존 kit.css의 .sr-only와 같은 계약을 유지한다.
            * 화면 여러 곳(로딩 안내, 표 '동작' 헤더)이 이 클래스에 의존한다. */
           ".sr-only": {

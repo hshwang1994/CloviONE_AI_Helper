@@ -81,7 +81,7 @@ def create_app(
     clock = clock or SystemClock()
 
     app = FastAPI(
-        title="ClovirONE Web Assistant",
+        title="ClovirAssist Web Assistant",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,

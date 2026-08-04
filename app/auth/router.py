@@ -260,7 +260,7 @@ def login_page(request: Request, db: Session = Depends(get_db)):
     if _load_auth(request, db) is not None:
         return RedirectResponse(next_path or "/", status_code=303)
     branding = request.app.state.settings_cache.current_value("ui_branding") or {}
-    app_name = branding.get("product_name", "ClovirONE 업무 도우미")
+    app_name = branding.get("product_name", "ClovirAssist")
     # 이메일 필드의 placeholder는 이 회사(goodmit.co.kr)를 하드코딩했었다 — 관리자가
     # settings 화면에서 allowed_email_domains를 다른 값으로 바꿔도 placeholder만 낡은
     # 예시를 계속 보여줬다(round28 감사 E). 실제 허용 도메인 목록의 첫 값을 예시로 쓴다.
@@ -486,7 +486,7 @@ def change_password_page(request: Request, auth: AuthContext = Depends(get_page_
             # 로그인(login_page)과 같은 브랜딩 제품명을 넘겨, 로그인 → 비밀번호 변경으로
             # 넘어갈 때 탭 제목·화면 문구의 브랜드가 어긋나지 않게 한다(관리자가
             # ui_branding.product_name을 바꿔도 두 화면이 함께 따라간다).
-            "app_name": branding.get("product_name", "ClovirONE 업무 도우미"),
+            "app_name": branding.get("product_name", "ClovirAssist"),
             "must_change": auth.user.must_change_password,
             "display_name": auth.user.display_name,
             # 비밀번호 관리자가 저장된 자격 증명을 갱신하려면 폼에 username(이메일)이 있어야

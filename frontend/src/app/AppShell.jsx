@@ -207,7 +207,7 @@ export function AppShell({
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5 }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>ClovirONE</Typography>
+          <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>ClovirAssist</Typography>
           <Typography sx={{ fontSize: "0.75rem", color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
@@ -293,7 +293,7 @@ export function AppShell({
               <BrandLogo markOnly width={26} />
             </Box>
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" }, fontWeight: 800, fontSize: "0.9375rem" }}>
-              ClovirONE
+              ClovirAssist
             </Box>
           </Button>
 

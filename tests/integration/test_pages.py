@@ -16,7 +16,7 @@ def test_login_page_renders(client):
     # (흰 카드에 흰 글자 → 고친 뒤 다크 카드에 어두운 글자, 둘 다 대비 1.00).
     # 지금은 글자가 currentColor를 따르므로 면이 바뀌어도 따라간다. 검사할 것은 이름의 존재다.
     assert 'class="wordmark' in r.text, "브랜드 워드마크가 렌더되지 않았다"
-    assert "ClovirONE" in r.text, "브랜드 이름이 화면에 없다"
+    assert "ClovirAssist" in r.text, "브랜드 이름이 화면에 없다"
 
 
 def test_login_page_redirects_when_already_authenticated(client, login_as):

@@ -56,7 +56,9 @@ html, body {
 
 /* 워드마크는 이제 인라인 SVG다(_wordmark.html). 글자가 currentColor를 따르므로 놓인 면의
    색을 여기서 정한다 — 파일을 골라 끼우던 시절엔 면이 바뀔 때마다 틀렸다. */
-.auth-logo { height: 28px; width: auto; margin-bottom: 20px; display: block; color: var(--color-text); }
+/* 2026-08: 워드마크가 1줄에서 공식 2줄 락업(760x156)으로 바뀌었다. height:28px 로 두면
+   태그라인이 3.6px 가 되어 읽히지 않는다 — 폭을 기준으로 잡고 높이는 비율에 맡긴다. */
+.auth-logo { width: 200px; height: auto; margin-bottom: 20px; display: block; color: var(--color-text); --wm-accent: var(--color-primary, currentColor); }
 .auth-logo .wordmark-sub { fill: var(--color-muted); }
 
 .auth-card h1 { font-size: 20px; margin: 0 0 6px; }

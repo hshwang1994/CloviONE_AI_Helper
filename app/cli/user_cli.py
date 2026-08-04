@@ -311,7 +311,7 @@ def cmd_verify_notion(db, session_service, settings, args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="clovirone-user", description="ClovirONE Web Assistant 사용자 관리 CLI"
+        prog="clovirone-user", description="ClovirAssist Web Assistant 사용자 관리 CLI"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

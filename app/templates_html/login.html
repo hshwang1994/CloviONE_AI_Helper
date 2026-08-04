@@ -23,9 +23,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>로그인 — {{ app_name | default('ClovirONE 업무 도우미') }}</title>
+  <title>로그인 | {{ app_name | default('ClovirAssist') }}</title>
   <meta name="theme-color" content="#536CD6">
-  <meta name="description" content="{{ app_name | default('ClovirONE 업무 도우미') }} 로그인">
+  <meta name="description" content="{{ app_name | default('ClovirAssist') }} 로그인">
   {# 파비콘 세트는 base.html과 같은 것을 쓴다 — 한쪽만 고치는 실수를 막으려고
      tests/regression/test_favicon_wiring.py가 두 경로를 함께 본다. #}
   <link rel="icon" href="{{ asset('/static/brand/favicon/favicon.ico') }}" sizes="any">
@@ -43,12 +43,12 @@
 </head>
 <body>
   <main class="login-shell">
-    <section class="hero" aria-label="{{ app_name | default('ClovirONE 업무 도우미') }} 소개">
+    <section class="hero" aria-label="{{ app_name | default('ClovirAssist') }} 소개">
       <div class="ambient-orb ambient-orb-one" aria-hidden="true"></div>
       <div class="ambient-orb ambient-orb-two" aria-hidden="true"></div>
       {# 히어로는 딥 인디고 면이라 워드마크 글자는 흰색을 따른다(login.css의 .hero-logo).
          파일을 골라 끼우지 않는다 — 그 방식으로 이 저장소가 두 번 틀렸다. #}
-      {% with class = 'hero-logo', sub = '업무 도우미' %}{% include "_wordmark.html" %}{% endwith %}
+      {% with class = 'hero-logo', sub = 'SMART WORKSPACE ASSISTANT' %}{% include "_wordmark.html" %}{% endwith %}
 
       <div class="hero-copy">
         <p class="hero-eyebrow"><span aria-hidden="true">✦</span> SMART WORKSPACE ASSISTANT</p>
@@ -83,7 +83,7 @@
 
         <div class="clovi-card" aria-hidden="true">
           <img src="{{ asset('/static/brand/login/clovi-canonical-avatar.png') }}" alt="" />
-          <div><small>Clovi Assistant</small><strong id="clovi-message">오늘 업무를 준비했어요</strong></div>
+          <div><small>클로비</small><strong id="clovi-message">오늘 업무를 준비했어요</strong></div>
         </div>
       </div>
       {# 연도는 서버가 렌더 시점의 Asia/Seoul 연도로 낸다(_display_year) — 원본은 JS로 채웠는데
@@ -95,13 +95,13 @@
       <div class="form-container">
         <header class="mobile-brand-row">
           {# 폼 패널은 흰 면이라 워드마크 글자가 잉크색을 따른다(login.css의 .panel-logo). #}
-          {% with class = 'panel-logo', sub = '업무 도우미' %}{% include "_wordmark.html" %}{% endwith %}
+          {% with class = 'panel-logo', sub = 'SMART WORKSPACE ASSISTANT' %}{% include "_wordmark.html" %}{% endwith %}
           <img class="mobile-clovi" src="{{ asset('/static/brand/login/clovi-canonical-avatar.png') }}" alt="클로비" />
         </header>
 
         <p class="eyebrow">WELCOME BACK</p>
         <h2 id="login-title">업무 공간에 로그인</h2>
-        <p class="subtitle">{{ app_name | default('ClovirONE 업무 도우미') }} 계정으로 로그인해 업무를 시작하세요.</p>
+        <p class="subtitle">회사 계정으로 로그인해 {{ app_name | default('ClovirAssist') }}에서 업무를 시작하세요.</p>
 
         {% if session_expired %}
         {# app/main.py의 PageAuthRequired 핸들러가 세션 쿠키가 있었는데도 인증 실패했을 때만

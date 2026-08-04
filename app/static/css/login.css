@@ -94,8 +94,14 @@ body {
 .hero-logo {
   position: relative;
   z-index: 3;
-  width: min(285px, 42%);
-  height: auto;
+  /* 폭을 42% 로 두면 900~1100px 구간에서 로고가 146px 까지 줄고, 2줄 락업의 태그라인이
+     3.8px 가 되어 글자가 아니라 얼룩으로 보인다(실측). 기준(.auth-logo)처럼 **높이를 고정**한다.
+     폭을 auto 로 두면 안 된다 — SVG 는 그 경우 종횡비가 아니라 **컨테이너 폭을 채워서**
+     로고가 887px 로 늘어났다(1920 실측). 비율(760/156 = 4.872)을 직접 곱해 준다. */
+  --wm-h: clamp(46px, 5.4vw, 58px);
+  height: var(--wm-h);
+  width: calc(var(--wm-h) * 4.872);
+  max-width: 100%;
   animation: content-enter 480ms 80ms var(--ease-out) both;
 }
 .hero-copy {
@@ -125,6 +131,8 @@ body {
 .clovi-stage {
   position: absolute;
   z-index: 2;
+  /* pill 좌표를 이 이미지에 맞춰 되돌렸으므로 클로비 위치도 그에 맞춰 원래 값으로 둔다
+     (기준 파일은 -4% 지만 그건 기준 쪽 pill 좌표와 한 벌이다). */
   right: -1%;
   bottom: -18%;
   width: min(64%, 700px);
@@ -202,6 +210,11 @@ body {
   pointer-events: none;
 }
 .activity-pill i { width: 7px; aspect-ratio: 1; border-radius: 50%; background: #8FF4E8; box-shadow: 0 0 10px rgba(143,244,232,.76); }
+/* 기준 파일의 좌표(.auth-pill-docs{right:8%;top:15%} 등)를 그대로 옮겨 봤다가 되돌렸다.
+   그 값은 기준 쪽 히어로 비율에 맞춰 잡힌 것이라, 우리 아트워크에 적용하면 '문서 연결'이
+   **클로비 얼굴 한가운데**에 올라앉는다(1920 캡처로 확인). 좌표를 베끼는 것보다 의도를
+   지키는 쪽이 맞다 — pill 은 클로비 주변을 떠다니되 얼굴과 노트북을 가리지 않는다.
+   아래 값은 이 이미지에 맞춰 실제로 맞춰 본 위치다. */
 .activity-pill-docs { right: 38%; bottom: 50%; }
 .activity-pill-flow { right: 3%; bottom: 31%; }
 .activity-pill-team { right: 30%; bottom: 5%; }
@@ -228,47 +241,97 @@ body {
 .clovi-card strong { margin-top: 3px; font-size: 14px; transition: opacity var(--motion-fast) ease; }
 .hero-footer { position: relative; z-index: 3; margin: 16px 0 0; color: rgba(255,255,255,.68); font-size: 11px; }
 
+/* 폼 패널 — 값은 기준 파일(preview-standalone.html)의 .auth-panel 계열과 항목별로 맞춘다.
+   사용자 지적: "현재 로그인 화면의 폰트, 굵기와 문구 표현이 기준 파일과 다르다". 실제로
+   달랐던 것은 프레임이 아니라 이 아래의 타이포·간격 값들이었다(프레임은 이미 일치). */
 .form-panel {
   display: flex;
   min-width: 0;
   align-items: center;
   justify-content: center;
-  padding: 44px 48px;
+  /* 기준: 좌측 패딩이 더 넓다(60px) — 히어로 카드와의 이음매에서 폼이 숨 쉴 공간을 만든다. */
+  padding: 40px 36px 40px 60px;
   background: radial-gradient(circle at 100% 0%, rgba(117,138,225,.1), transparent 30%), #fff;
 }
-.form-container { width: 100%; max-width: 430px; animation: form-enter 520ms 160ms var(--ease-out) both; }
-.mobile-brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 64px; }
+/* top:-9px — 기준이 폼 덩어리를 광학 중심으로 살짝 올려 놓았다. 수학적 중앙에 두면
+   아래 지원 안내·푸터 때문에 시각적으로 내려가 보인다. */
+/* width:min(430px,100%) 로 쓰면 안 된다 — 4K 블록과 좁은 화면 블록이 max-width 로 이 값을
+   덮는데, width 가 걸려 있으면 그 오버라이드가 통째로 무시된다(3840 에서 폼이 430px 에
+   묶여 오른쪽 패널이 비어 보였다). width:100% + max-width 조합을 유지한다. */
+.form-container { position: relative; top: -9px; width: 100%; max-width: 430px; animation: form-enter 520ms 160ms var(--ease-out) both; }
+.mobile-brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 56px; }
 .panel-logo { width: 230px; max-width: calc(100% - 68px); height: auto; }
 .mobile-clovi { display: none; width: 54px; height: 54px; border-radius: 16px; object-fit: cover; box-shadow: 0 10px 24px rgba(83,108,214,.18); }
-.eyebrow { margin: 0; color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .08em; }
-.form-panel h2 { margin: 8px 0 0; color: var(--ink); font-size: 34px; line-height: 1.2; letter-spacing: -.035em; }
-.subtitle { margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.7; word-break: keep-all; text-wrap: pretty; }
-form { display: grid; gap: 4px; margin-top: 32px; }
-.field { min-width: 0; }
+.eyebrow { margin: 0 0 8px; color: var(--primary); font-size: 12px; font-weight: 800; letter-spacing: .13em; }
+.form-panel h2 { margin: 0; color: var(--ink); font-size: 32px; line-height: 1.2; letter-spacing: -.04em; }
+.subtitle { margin: 10px 0 28px; color: var(--muted); font-size: 14px; line-height: 1.65; word-break: keep-all; text-wrap: pretty; }
+/* 기준은 필드마다 margin-bottom:17px 로 간격을 준다. form 의 gap 으로 주면 오류 메시지가
+   나타났다 사라질 때 간격이 같이 흔들린다(메시지도 격자 항목이라). */
+form { display: grid; gap: 0; margin-top: 0; }
+.field { min-width: 0; margin-bottom: 17px; }
 .field label { display: block; margin-bottom: 8px; color: var(--ink); font-size: 13px; font-weight: 700; }
-.input-wrap { display: flex; min-height: 54px; align-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease, transform var(--motion-fast) ease; }
+/* 기준은 flex 가 아니라 3열 격자다(아이콘 24 / 입력 / 토글). flex + margin-left 로 두면
+   비밀번호 필드(토글 있음)와 이메일 필드(토글 없음)의 입력 시작 위치가 미세하게 어긋난다. */
+.input-wrap { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 54px; padding: 0 13px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease; }
 .input-wrap:hover { background: #fff; border-color: #B9C5EA; }
-.input-wrap:focus-within { border-color: var(--primary-soft); background: #fff; box-shadow: 0 0 0 4px rgba(117,138,225,.14); transform: translateY(-1px); }
+/* 기준에는 뜨는 동작(translateY)이 없다. 입력창이 포커스마다 1px 움직이면 그 아래 폼 전체가
+   같이 떨린다 — 원본에서 뺀 이유가 있다. */
+.input-wrap:focus-within { border-color: var(--primary-soft); background: #fff; box-shadow: 0 0 0 4px rgba(117,138,225,.14); }
 .input-wrap.invalid { border-color: var(--error); }
-.input-wrap > svg { flex: none; width: 20px; height: 20px; margin-left: 16px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.input-wrap input { min-width: 0; flex: 1; height: 52px; padding: 0 14px; color: var(--ink); border: 0; outline: 0; background: transparent; font-size: 15px; }
+.input-wrap > svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.input-wrap input { min-width: 0; height: 52px; padding: 0; color: var(--ink); border: 0; outline: 0; background: transparent; font-size: 15px; }
 .input-wrap input::placeholder { color: #64708F; opacity: 1; }
-.password-toggle { align-self: stretch; flex: none; padding: 0 15px; color: var(--muted); border: 0; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; }
-.password-toggle:hover { color: var(--primary); }
+.password-toggle { align-self: stretch; padding: 0; color: var(--primary); border: 0; background: transparent; cursor: pointer; font-size: 12px; font-weight: 750; }
+.password-toggle:hover { color: var(--primary-dark); }
 .password-toggle:disabled { color: #9AA3BD; cursor: wait; }
 .password-toggle:focus-visible, .login-button:focus-visible, a:focus-visible { outline: 3px solid rgba(83,108,214,.25); outline-offset: 2px; }
-.field-message, .caps-warning { min-height: 20px; margin: 5px 0 2px; color: var(--error); font-size: 12px; line-height: 1.4; }
-.caps-warning[hidden] { display: block; visibility: hidden; }
-.status { margin: 6px 0 14px; padding: 11px 13px; color: var(--primary-dark); border: 1px solid #CBD5F5; border-radius: 12px; background: #F2F5FF; font-size: 13px; line-height: 1.55; }
-.status.error { color: var(--error); border-color: #F2C4BE; background: #FFF3F2; }
-.status.success { color: var(--success); border-color: #BDE1CE; background: #F0FBF5; }
+.field-message, .caps-warning { min-height: 18px; margin: 5px 0 0; color: var(--error); font-size: 12px; line-height: 1.4; }
+/* Caps Lock 경고는 자리를 미리 비워 두지 않는다.
+   예전에는 visibility:hidden 으로 18px 을 항상 잡아 뒀는데(뜰 때 레이아웃이 안 흔들리게),
+   그 결과 비밀번호 칸과 로그인 버튼 사이에 **늘** 죽은 여백 18px 이 남았다. 오류 메시지가
+   이미 같은 자리를 18px 잡고 있어 두 겹이 된다. Caps Lock 경고는 사용자가 키를 누른
+   그 순간에만 뜨는 것이라, 그때 한 줄 밀리는 편이 매 화면에 빈 띠를 두는 것보다 낫다.
+   (게다가 밀리는 움직임 자체가 시선을 끌어 경고를 알아채게 한다.) */
+.caps-warning { min-height: 0; }
+.caps-warning[hidden] { display: none; }
+/* 기준의 .auth-status 는 테두리가 없다 — 채운 면 하나로 상태를 말한다. 테두리를 더하면
+   그 아래 입력창 테두리와 두 겹으로 겹쳐 보인다. */
+.status { margin: 0 0 14px; padding: 11px 13px; color: #3167C9; border: 0; border-radius: 12px; background: #EDF3FF; font-size: 13px; line-height: 1.55; }
+.status.error { color: var(--error); background: #FFF0F2; }
+.status.success { color: var(--success); background: #F0FBF5; }
+
+/* 자동완성 노란 배경 제거 (사용자 지적 §1).
+ *
+ * Chrome/Edge 는 자동완성된 입력에 사용자 스타일시트로는 못 바꾸는 배경(#FAFFBD 계열)을
+ * 칠한다. background 를 아무리 지정해도 안 먹는다 — 유일하게 통하는 것이 **inset box-shadow**로
+ * 그 위를 덮는 방법이다. 입력 자체는 투명하고 배경은 .input-wrap 이 갖고 있으므로, 덮는 색도
+ * .input-wrap 의 상태별 배경과 같아야 한다(기본 연한 면, hover/focus 흰 면).
+ *
+ * transition 5000s: 자동완성 직후 노란색이 한 번 번쩍이는 것을 막는다. 값을 되돌리는 전이가
+ * 사실상 끝나지 않게 해서 첫 프레임의 색이 유지되게 하는, 널리 쓰이는 관용구다.
+ */
+.input-wrap input:-webkit-autofill,
+.input-wrap input:-webkit-autofill:hover,
+.input-wrap input:-webkit-autofill:focus,
+.input-wrap input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-soft) inset;
+  box-shadow: 0 0 0 1000px var(--surface-soft) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  transition: background-color 5000s ease-in-out 0s;
+}
+.input-wrap:hover input:-webkit-autofill,
+.input-wrap:focus-within input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  box-shadow: 0 0 0 1000px #fff inset;
+}
 
 .login-button {
   display: flex;
-  min-height: 54px;
+  min-height: 52px;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   margin-top: 4px;
   color: #fff;
   border: 0;
@@ -286,10 +349,10 @@ form { display: grid; gap: 4px; margin-top: 32px; }
 .login-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .button-spinner { width: 20px; aspect-ratio: 1; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin 720ms linear infinite; }
 .button-spinner[hidden] { display: none; }
-.support-note { margin-top: 24px; padding: 16px; color: var(--muted); border: 1px solid #E3E8F7; border-radius: 14px; background: var(--surface-soft); font-size: 13.5px; line-height: 1.65; }
-.support-note a { color: var(--primary-dark); font-weight: 750; text-decoration: none; }
+.support-note { margin-top: 22px; padding: 14px; color: var(--muted); border: 1px solid #E5EAF7; border-radius: 12px; background: var(--surface-soft); font-size: 12px; line-height: 1.55; }
+.support-note a { color: var(--primary); font-weight: 700; text-decoration: none; }
 .support-note a:hover { text-decoration: underline; }
-.panel-footer { margin: 24px 0 0; color: var(--muted); text-align: center; font-size: 11.5px; }
+.panel-footer { margin: 24px 0 0; color: #8790AA; text-align: center; font-size: 11px; }
 
 
 @media (max-width: 1100px) {
@@ -348,7 +411,9 @@ form { display: grid; gap: 4px; margin-top: 32px; }
     max-width: 3000px;
   }
   .hero { padding: clamp(64px, 3vw, 96px); }
-  .hero-logo { width: clamp(320px, 9vw, 390px); }
+  /* 폭이 아니라 높이(--wm-h)를 키운다 — 기본 규칙이 폭을 높이×4.872 로 계산하므로,
+     여기서 폭만 덮으면 높이는 58px 에 묶여 로고가 좌우로 letterbox 된다(실측 320x58). */
+  .hero-logo { --wm-h: clamp(66px, 1.85vw, 80px); }
   .hero-copy { max-width: 920px; margin-top: clamp(64px, 5vh, 88px); }
   .hero-eyebrow { font-size: clamp(14px, .45vw, 16px); }
   .hero h1 { max-width: 920px; font-size: clamp(64px, 1.8vw, 76px); }
@@ -385,7 +450,8 @@ form { display: grid; gap: 4px; margin-top: 32px; }
   body { padding: 12px; }
   .login-shell { height: calc(100svh - 24px); min-height: 0; }
   .hero { padding: 24px 36px; }
-  .hero-logo { width: min(250px, 38%); }
+  /* 세로가 짧은 화면 — 로고도 같이 낮춘다(폭이 아니라 높이로). */
+  .hero-logo { --wm-h: 42px; }
   .hero-copy { margin-top: 14px; }
   .hero-eyebrow { margin-bottom: 10px; font-size: 12px; }
   .hero h1 { font-size: clamp(32px, 3.5vw, 40px); }
@@ -516,10 +582,14 @@ form { display: grid; gap: 4px; margin-top: 32px; }
    여기서 정한다. 원본은 밝은 면/어두운 면용 SVG 파일을 두 벌 두고 골라 끼웠는데, 이 저장소는
    바로 그 방식으로 두 번 틀렸다(흰 카드에 흰 글자 → 잉크 카드에 어두운 글자).
    tests/regression/test_wordmark_follows_its_surface.py가 그 구조를 지킨다. */
-.hero-logo { color: #fff; }
+/* --wm-accent: 락업의 'Assist' 글자 색. 공식 자산은 흰 면에서 #536CD6 을 쓰는데, 그 값을
+   딥 인디고 히어로에 그대로 쓰면 배경과 붙어 안 읽힌다(대비 1.6:1). 면마다 다른 값을 준다.
+   변수를 안 주는 면에서는 _wordmark.html 의 fallback 이 currentColor 로 떨어져 최소한 읽힌다. */
+.hero-logo { color: #fff; --wm-accent: #BCC8FF; }
 .hero-logo .wordmark-sub { fill: rgba(255,255,255,.72); }
-.panel-logo { color: var(--ink); }
+.panel-logo { color: var(--ink); --wm-accent: var(--primary); }
 .panel-logo .wordmark-sub { fill: var(--muted); }
+.wordmark-accent { fill: var(--wm-accent, currentColor); }
 
 /* JS가 없는 브라우저에는 클로비가 표정을 바꾸지 못한다 — 그때는 말풍선이 틀린 말을 하느니
    로드 시점 문구 그대로 두는 편이 낫다(카드 자체는 브랜드 장식이라 남긴다).
