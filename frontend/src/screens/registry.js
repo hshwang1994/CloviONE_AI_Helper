@@ -1978,7 +1978,26 @@ export const REGISTRY = {
         ? "이 부서는 상위 관계가 고리를 이루고 있어 최상위로 끌어올려 표시했습니다. ‘부서 관리’에서 상위 부서를 다시 지정하세요."
         : "-" }],
     actions: [
-      { label: "소속 인원 보기", roles: WRITE_ROLES, navigate: (r) => "#/users?department_id=" + r.id },
+      /* 사용자 지시 §3: "조직도, 부서 관리, 사용자 관리 페이지에 들어갔을 때 전체 조직, 부서와
+         사용자의 소속 관계를 한눈에 확인할 수 있는 구조가 먼저 보여야 한다."
+         예전에는 '소속 인원 보기'가 다른 화면으로 **떠나보내기만** 했다 — 조직도에서는 부서와
+         숫자만 보이고 사람 이름은 하나도 안 보였으니, 관계를 한눈에 본다고 할 수 없었다.
+         이제 그 자리에서 펼쳐 본다(떠나는 링크도 남긴다 — 걸러 보고 싶을 때가 있다). */
+      { label: "소속 인원", roles: WRITE_ROLES, subList: {
+        title: "소속 인원",
+        hint: "이 부서에 직접 속한 사람입니다(하위 부서는 그 부서 줄에서 펼쳐 보세요).",
+        endpoint: (r) => "/api/admin/users?department_id=" + r.id + "&page_size=100",
+        columns: [
+          col("display_name", "이름"),
+          col("title", "직책"),
+          col("email", "이메일"),
+          col("role", "역할"),
+          { key: "active", label: "상태", render: (u) => (u.archived_at ? "보관" : u.active ? "사용" : "비활성") },
+        ],
+        emptyTitle: "이 부서에 직접 속한 사람이 없습니다",
+        emptyHelp: "하위 부서에 사람이 있을 수 있습니다. ‘하위 포함 인원’ 숫자를 확인하세요.",
+      } },
+      { label: "사용자 화면에서 보기", roles: WRITE_ROLES, navigate: (r) => "#/users?department_id=" + r.id },
       { label: "부서 관리에서 열기", roles: WRITE_ROLES, navigate: () => "#/departments" },
     ],
   },
