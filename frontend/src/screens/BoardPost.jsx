@@ -249,9 +249,17 @@ function PostMeta({ post }) {
   if (attCount > 0) rows.push(["첨부", attCount + "개"]);
   return (
     <Card sx={{ p: 2.5 }}>
+      {/* 브레이크포인트는 **뷰포트** 폭이지 이 카드의 폭이 아니다 — 그 차이가 결함을 만들었다.
+          lg(1200) 부터 게시글이 2단이 되면서 이 메타 레일은 좁은 옆 칸으로 들어가는데,
+          sm 에서 켠 2열이 그대로 남아 값 칸이 7px 까지 눌렸다(1366 실측, 글자가 한 음절씩
+          세로로 무너짐). 레일이 좁아지는 lg 에서 1열로 되돌리고, 레일이 다시 넓어지는
+          uhd 에서만 2열로 간다. */}
       <Box sx={{
         display: "grid", columnGap: 3, rowGap: 0,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "1fr", uhd: "repeat(2, minmax(0,1fr))" },
+        gridTemplateColumns: {
+          xs: "1fr", sm: "repeat(2, minmax(0,1fr))",
+          lg: "1fr", xxl: "1fr", uhd: "repeat(2, minmax(0,1fr))",
+        },
       }}>
         {rows.map(([label, value]) => (
           <Box key={label} sx={{

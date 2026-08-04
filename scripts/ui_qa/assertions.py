@@ -307,8 +307,24 @@ PROBE_JS = r"""
         // translateY(-200%) 로 화면 위에 숨어 있다)가 긴 목록의 맨 위 줄과 y<0 에서
         // 겹쳐 오탐이 났다. 눈에 보이지도, 눌리지도 않는 겹침은 결함이 아니다.
         if (px < 0 || py < 0 || px > innerWidth || py > innerHeight) continue;
+        const coveredPct = Math.round((ox * oy) / (r.width * r.height) * 100);
         const hit = document.elementFromPoint(px, py);
-        if (hit && (hit === el || el.contains(hit))) continue;  // 여전히 눌린다
+        const stillClickable = !!(hit && (hit === el || el.contains(hit)));
+        /* **제출 버튼이 크게 덮인 경우는 눌리더라도 결함이다.**
+         *
+         * 원래 규칙("겹치기만 하면 통과, 못 누르면 실패")은 옳다 — 긴 표의 어떤 행은 늘
+         * FAB 밑을 지나가므로 겹침을 전부 실패로 세면 게이트가 곧 무시된다.
+         *
+         * 그런데 실측해 보니 새 티켓의 '티켓 만들기'가 1440 이하에서 **45px(약 47%) 덮이는데도**
+         * 가운데가 남아 있어 이 검사를 통과했다. 사용자 눈에는 버튼이 반쯤 잘려 보이고, 덮인
+         * 쪽을 누르면 엉뚱한 것이 눌린다. 이 저장소가 같은 함정을 이미 세 번 밟았고
+         * (놀이방 '보내기', AI 채팅 '전송', 새 티켓 '티켓 만들기') 셋 다 제출 버튼이었다.
+         *
+         * 그래서 **제출 컨트롤에 한해** 면적 기준을 더한다. 한 페이지에 많아야 한둘이라
+         * 소음이 되지 않고, 정확히 세 번 터진 그 자리를 짚는다. */
+        const isSubmit = (el.getAttribute('type') || '').toLowerCase() === 'submit';
+        const heavySubmit = isSubmit && coveredPct >= 25;
+        if (stillClickable && !heavySubmit) continue;  // 여전히 눌리고 크게 가리지도 않는다
         const key = cssPath(el) + '|' + snippet(el);
         if (seenCovered.has(key)) continue;
         seenCovered.add(key);
@@ -330,14 +346,74 @@ PROBE_JS = r"""
                .some((s) => s.scrollHeight > s.clientHeight + 1);
         out.fabOverlap.push({
           control: cssPath(el), text: snippet(el), floater: cssPath(f), where: where,
-          coveredPct: Math.round((ox * oy) / (r.width * r.height) * 100),
+          coveredPct: coveredPct,
           at: [Math.round(px), Math.round(py)],
-          unreachable: pinned || !scrollable,
+          // 못 누르거나(기존 규칙), 제출 버튼이 25% 넘게 덮였거나(새 규칙).
+          unreachable: (!stillClickable && (pinned || !scrollable)) || heavySubmit,
+          heavySubmit: heavySubmit,
         });
         break;
       }
     }
   }
+  /* 제출 버튼이 떠 있는 요소의 **세로 통로**에 놓여 있는가 — 스크롤을 흉내내지 않고 판정한다.
+   *
+   * 스크롤해 가며 재는 방식은 근본적으로 표본추출이라, 70px 짜리 FAB 밑을 지나가는 버튼을
+   * 지점 사이에서 놓친다(25% 간격이면 한 걸음이 수백 px 이다). 실제로 새 티켓의 '티켓 만들기'가
+   * 그렇게 빠져나가 검사가 통과했다.
+   *
+   * 고정 요소는 뷰포트에 붙어 있고 컨트롤은 스크롤을 따라 움직인다. 그러니 **가로 범위가
+   * 겹치고 페이지가 스크롤된다면**, 그 컨트롤은 어느 스크롤 위치에선가 반드시 그 요소 밑을
+   * 지난다 — 지점을 찍어 볼 필요가 없다. 대상은 제출 컨트롤로 좁힌다(§scanCovered 주석 참고). */
+  function scanSubmitBand() {
+    // 실제로 스크롤하는 요소를 찾는다(이 앱은 문서가 아니라 #main-content 가 구르기도 한다).
+    let sc = null, over = 0;
+    for (const el of [de, document.body, ...document.querySelectorAll('#main-content, main, .c-content')]) {
+      if (!el) continue;
+      const o = el.scrollHeight - el.clientHeight;
+      if (o > over) { over = o; sc = el; }
+    }
+    if (!sc || over <= 1) return;
+    const isDoc = (sc === de || sc === document.body);
+    const y = isDoc ? window.scrollY : sc.scrollTop;
+
+    for (const el of document.querySelectorAll('button[type="submit"], input[type="submit"]')) {
+      if (out.fabOverlap.length >= MAX) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      for (const f of floaters) {
+        if (f === el || f.contains(el) || el.contains(f)) continue;
+        const fr = f.getBoundingClientRect();
+        const ox = Math.min(r.right, fr.right) - Math.max(r.left, fr.left);
+        if (ox <= 0) continue;
+        const pct = Math.round((ox / r.width) * 100);
+        if (pct < 25) continue;   // 살짝 스치는 정도는 세지 않는다
+
+        /* **그 컨트롤이 정말 저 띠까지 내려올 수 있는가.**
+         *
+         * 가로가 겹친다고 다 걸리는 게 아니다. 페이지 맨 위에 있는 컨트롤(검색 폼의 '검색'
+         * 버튼)은 스크롤하면 위로 사라질 뿐, 아래쪽 FAB 띠로는 절대 내려오지 않는다.
+         * 첫 판에서 그걸 놓쳐 검색 화면 3개를 오탐으로 잡았다.
+         *
+         * 스크롤을 0..over 로 굴리면 이 컨트롤의 화면 y 는 [top-(over-y), top+y] 를 훑는다.
+         * 그 구간이 띠와 만날 때만 실제로 덮인다. */
+        const reachTop = r.top - (over - y);
+        const reachBottom = r.bottom + y;
+        if (reachBottom < fr.top || reachTop > fr.bottom) continue;
+
+        const key = 'band|' + cssPath(el);
+        if (seenCovered.has(key)) continue;
+        seenCovered.add(key);
+        out.fabOverlap.push({
+          control: cssPath(el), text: snippet(el), floater: cssPath(f), where: '세로 통로',
+          coveredPct: pct, at: [Math.round(fr.left + 1), Math.round(fr.top + 1)],
+          unreachable: true, submitBand: true,
+        });
+        break;
+      }
+    }
+  }
+  scanSubmitBand();
   scanCovered('현재 위치');
   // 맨 아래로 내려 한 번 더.
   //
@@ -354,10 +430,24 @@ PROBE_JS = r"""
   if (scroller && maxOver > 1 && out.fabOverlap.length < MAX) {
     const isDoc = (scroller === de || scroller === document.body);
     const y0 = isDoc ? window.scrollY : scroller.scrollTop;
-    if (isDoc) window.scrollTo(0, de.scrollHeight); else scroller.scrollTop = scroller.scrollHeight;
-    void de.getBoundingClientRect();  // 레이아웃 강제 반영
-    scanCovered('맨 아래');
-    if (isDoc) window.scrollTo(0, y0); else scroller.scrollTop = y0;  // 스크린샷이 뒤에 찍힌다
+    const setY = (y) => { if (isDoc) window.scrollTo(0, y); else scroller.scrollTop = y; };
+    /* **중간 스크롤 위치까지 훑는다.**
+     *
+     * 예전에는 '현재 위치'와 '맨 아래' 두 곳만 쟀다. 그런데 셸이 본문 아래에 여백을 주기
+     * 때문에 맨 아래에서는 FAB 밑이 비어 있고, 정작 덮이는 것은 **스크롤 중간**이다 —
+     * 긴 폼의 제출 버튼이 화면 우하단을 지나가는 그 순간. 새 티켓 화면의 '티켓 만들기'가
+     * 정확히 그랬는데 이 검사는 통과하고 있었다(거짓 통과).
+     *
+     * 25% 간격으로 네 지점을 더 본다. 촘촘히 훑으면 페이지당 시간이 늘고, 이보다 성기면
+     * 화면 한 장 높이(=FAB 이 덮을 수 있는 구간)를 건너뛴다. */
+    const stops = [0.25, 0.5, 0.75, 1.0];
+    for (const f of stops) {
+      if (out.fabOverlap.length >= MAX) break;
+      setY(Math.round(maxOver * f));
+      void de.getBoundingClientRect();  // 레이아웃 강제 반영
+      scanCovered(f >= 1 ? '맨 아래' : ('스크롤 ' + Math.round(f * 100) + '%'));
+    }
+    setY(y0);  // 스크린샷이 뒤에 찍힌다 — 원래 위치로 되돌린다
     void de.getBoundingClientRect();
   }
   out.fabScroller = scroller ? cssPath(scroller) : null;

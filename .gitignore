@@ -25,3 +25,9 @@ frontend/.vite/
 .claude/
 *.bak
 *.bak-*
+
+# ensure_session(browser, base_url, out_dir) 의 세 번째 인자는 **출력 디렉터리**다.
+# 여기에 역할 이름("user")을 넘기면 저장소 루트에 그 이름의 폴더가 생기고, 그 안에
+# credentials.json(이메일 + 비밀번호)이 떨어진다. 실제로 한 번 커밋에 딸려 들어갔다.
+# 이 저장소는 비밀번호를 git 에 남기지 않는다(CLAUDE.md 불변 4) — 안전망으로 무시한다.
+user/
