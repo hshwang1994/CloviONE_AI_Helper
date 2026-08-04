@@ -392,7 +392,8 @@ def test_activity_feed_merges_what_i_did_and_what_happened_to_me(client, db, fak
     assert kinds == {"did", "happened"}
     titles = [it["title"] for it in body["items"]]
     assert "누가 나를 불렀다" in titles
-    assert "알림·방해금지 설정을 바꿨습니다" in titles
+    # §8 로 가운뎃점을 걷어냈다 — 화면 문구가 "알림, 방해금지" 다.
+    assert "알림, 방해금지 설정을 바꿨습니다" in titles
     # 시간 역순.
     assert titles == [it["title"] for it in sorted(body["items"], key=lambda i: i["at"], reverse=True)]
 

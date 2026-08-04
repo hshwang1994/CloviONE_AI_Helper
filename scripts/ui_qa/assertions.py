@@ -355,6 +355,9 @@ PROBE_JS = r"""
   // 비로소 FAB 과 만난다. 그래서 현재 위치와 맨 아래 두 지점에서 재고 합친다.
   // 프로브는 스크린샷보다 먼저 돌기 때문에(capture.py), 잰 뒤 스크롤을 정확히 되돌린다.
   out.fabOverlap = [];
+  // 컨트롤별로 '한 번이라도 눌린 적이 있는가'. 스크롤 지점마다 새로 재고, 전부 훑은 뒤에
+  // 판정을 정한다 — 어느 한 지점에서 덮였다는 사실만으로 '누를 방법이 없다'고 하면 안 된다.
+  const clickableSomewhere = new Set();
   const floaters = Array.from(document.querySelectorAll('body *')).filter((el) => {
     const cs = getComputedStyle(el);
     if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return false;
@@ -403,8 +406,11 @@ PROBE_JS = r"""
          * 소음이 되지 않고, 정확히 세 번 터진 그 자리를 짚는다. */
         const isSubmit = (el.getAttribute('type') || '').toLowerCase() === 'submit';
         const heavySubmit = isSubmit && coveredPct >= 25;
-        if (stillClickable && !heavySubmit) continue;  // 여전히 눌리고 크게 가리지도 않는다
         const key = cssPath(el) + '|' + snippet(el);
+        // **어느 스크롤 위치에서든 한 번이라도 눌렸다면** 사용자는 그 컨트롤에 닿을 수 있다.
+        // 이걸 기록해 두고 마지막에 판정을 되돌린다(아래 clickableSomewhere 참고).
+        if (stillClickable) clickableSomewhere.add(key);
+        if (stillClickable && !heavySubmit) continue;  // 여전히 눌리고 크게 가리지도 않는다
         if (seenCovered.has(key)) continue;
         seenCovered.add(key);
         // **스크롤로 비켜낼 수 있는가**로 피해의 크기가 갈린다.
@@ -414,16 +420,20 @@ PROBE_JS = r"""
         //               눌린다. 떠 있는 버튼을 쓰는 이상 어느 행인가는 늘 밑에 놓이므로,
         //               이걸 실패로 치면 '표가 긴 화면 = 영구 실패'가 되어 게이트가 죽는다.
         // 그래서 전자만 실패로 세고 후자는 기록만 한다.
+        // sticky 조상이 있다고 곧바로 '못 비킨다'로 보지 않는다. sticky 는 **붙기 전까지는
+        // 같이 움직인다** — 놀이방 채팅 레일이 그렇고, 끝까지 내리면 '보내기'가 FAB 밖으로
+        // 나온다. 실제 판정은 아래 스크롤 훑기 결과(clickableSomewhere)로 되돌린다.
         let pinned = true;
         for (let node = el; node && node !== document.body; node = node.parentElement) {
           const pos = getComputedStyle(node).position;
-          if (pos === 'fixed' || pos === 'sticky') { pinned = true; break; }
+          if (pos === 'fixed') { pinned = true; break; }
           pinned = false;
         }
         const scrollable = de.scrollHeight > de.clientHeight + 1
           || Array.from(document.querySelectorAll('#main-content, main, .c-content'))
                .some((s) => s.scrollHeight > s.clientHeight + 1);
         out.fabOverlap.push({
+          key: key,
           control: cssPath(el), text: snippet(el), floater: cssPath(f), where: where,
           coveredPct: coveredPct,
           at: [Math.round(px), Math.round(py)],
@@ -528,6 +538,16 @@ PROBE_JS = r"""
     }
     setY(y0);  // 스크린샷이 뒤에 찍힌다 — 원래 위치로 되돌린다
     void de.getBoundingClientRect();
+  }
+  /* 훑기가 끝났다. **한 번이라도 눌린 적이 있는 컨트롤은 '누를 방법이 없다'가 아니다.**
+   * 이걸 넣기 전에는 sticky 조상이 있다는 이유만으로 실패로 셌고, 놀이방 채팅의 '보내기'가
+   * 그렇게 거짓 실패했다 — 끝까지 내리면 실제로는 눌린다(측정으로 확인).
+   * 다만 두 가지는 되돌리지 않는다:
+   *   - submitBand — 스크롤을 흉내내지 않고 기하로 판정한 것이라 표본추출의 영향을 안 받는다.
+   *   - heavySubmit — 눌리더라도 제출 버튼이 25% 넘게 가려지면 그 자체가 결함이다. */
+  for (const o of out.fabOverlap) {
+    if (o.submitBand || o.heavySubmit) continue;
+    if (clickableSomewhere.has(o.key)) o.unreachable = false;
   }
   out.fabScroller = scroller ? cssPath(scroller) : null;
   out.fabScrollOver = Math.round(maxOver);

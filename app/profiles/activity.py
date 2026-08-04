@@ -60,6 +60,8 @@ OBJECT_LABELS: dict[str, str] = {
     "board_attachment": "첨부",
     "chat_room": "채팅방",
     "ticket_comment": "티켓 댓글",
+    "ticket_attachment": "티켓 첨부",
+    "organization": "조직",
     "user": "계정",
     "user_notion_mapping": "Notion 연결",
     "approval": "승인",
