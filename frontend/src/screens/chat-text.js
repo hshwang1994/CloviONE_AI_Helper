@@ -128,18 +128,46 @@ export function tokenizeMessage(body, names) {
  * 이 둘을 한 목록으로 쓰면 내 이름만 강조가 안 되는, 설명할 수 없는 상태가 된다.
  */
 export function mentionNames({ isGlobal, members, directory, meId }) {
-  const rows = isGlobal ? (directory || []) : (members || []);
-  const names = [];
-  const seen = new Set();
-  const dropped = new Set();
+  const rows = (isGlobal ? (directory || []) : (members || []))
+    .filter((r) => r && String((r.name || r.display_name) || "").trim() && r.user_id !== meId);
+
+  /* 동명이인은 **소속을 붙여 가른다**(2026-08-04 사용자 지시).
+   *
+   * 예전에는 이름이 겹치면 두 사람 다 목록에서 뺐다. 서버도 같은 규칙이었고, 그래서
+   * 동명이인은 아무도 부를 수 없었다 — 그것도 조용히. 부르는 쪽은 알림이 안 갔다는
+   * 사실조차 몰랐다.
+   *
+   * 여기서 만드는 문자열이 곧 본문에 들어가는 형태이므로 **서버의 _mention_candidates 와
+   * 정확히 같은 규칙**이어야 한다(app/team_chat/service.py): 겹칠 때만 `이름(소속)`,
+   * 소속까지 같으면 `이름(이메일아이디)`. 한쪽만 바꾸면 고른 대로 안 가는 멘션이 된다. */
+  const byName = new Map();
   rows.forEach((r) => {
-    const name = String((r && (r.name || r.display_name)) || "").trim();
-    const uid = r && r.user_id;
-    if (!name || uid === meId) return;
-    // 동명이인은 후보에서 뺀다 — 서버도 그렇게 한다(누가 받았는지 모르는 알림을 만들지 않는다).
-    if (seen.has(name)) { dropped.add(name); return; }
-    seen.add(name);
-    names.push(name);
+    const name = String((r.name || r.display_name) || "").trim();
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(r);
   });
-  return names.filter((n) => !dropped.has(n));
+
+  const out = [];
+  byName.forEach((group, name) => {
+    if (group.length === 1) { out.push(name); return; }
+    const byLabel = new Map();
+    group.forEach((r) => {
+      const label = [r.dept, r.title].filter(Boolean).join(" ");
+      if (!byLabel.has(label)) byLabel.set(label, []);
+      byLabel.get(label).push(r);
+    });
+    byLabel.forEach((same, label) => {
+      same.forEach((r) => {
+        // 소속까지 같으면 서버는 이메일 아이디로 가른다. 그런데 방 참여자 응답에는
+        // 이메일이 없다(있어서도 안 된다 — 채팅에서 계정 열거가 가능해진다).
+        // 그 경우에는 **고를 수 있는 이름을 만들지 않는다** — 서버가 알아듣지 못할 이름을
+        // 넣어 주면 "골랐는데 알림이 안 가는" 상태가 되고, 그건 예전보다 나쁘다.
+        // 목록에서 빠지는 것은 예전과 같은 동작이라 더 나빠지지는 않는다.
+        const email = typeof r.email === "string" ? r.email : "";
+        const tag = label && same.length === 1 ? label : email.split("@")[0];
+        if (tag) out.push(`${name}(${tag})`);
+      });
+    });
+  });
+  return out;
 }

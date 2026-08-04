@@ -13,6 +13,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import people
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.presence import PRESENCE_THROTTLE_SECONDS, should_touch
 from app.notifications.service import notify_user
@@ -130,21 +131,46 @@ def _mention_candidates(db: Session, room: ChatRoom, sender: User) -> dict[str, 
     새로 새는 정보가 없다). 멤버가 있는 방은 **멤버로 한정**한다 — 방 밖 사람을 부를 수 있으면
     그 사람은 열 수도 없는 방의 알림을 받는다.
 
-    동명이인은 후보에서 통째로 뺀다. 임의로 한 명을 고르면 '누가 받았는지 아무도 모르는 알림'이
-    되고, 부르려던 사람은 못 받는다.
+    ## 동명이인 (2026-08-04 사용자 지시로 고쳤다)
+
+    예전에는 표시 이름이 겹치면 **두 사람 다 후보에서 뺐다**. 임의로 한 명을 고르면 '누가
+    받았는지 모르는 알림'이 되기 때문인데, 그 결과 동명이인은 **아무도 부를 수 없었다** —
+    그것도 조용히. 부르는 쪽은 `@김하나` 라고 쳤는데 알림이 안 갔다는 사실조차 몰랐다.
+
+    이제는 겹치는 이름만 소속을 붙여 갈라 놓는다: `김하나(플랫폼팀 선임)`, `김하나(인프라팀 선임)`.
+    find_mentioned 가 **가장 긴 이름부터** 맞춰 보므로(mentions.py) 이 형태가 먼저 걸리고,
+    괄호 없는 `@김하나` 는 어느 쪽에도 안 걸린다 — 애매한 채로 아무에게나 보내지 않는다는
+    원래 원칙은 그대로다. 달라진 것은 **정확히 지목할 방법이 생겼다**는 것뿐이다.
+
+    소속까지 같으면 이메일 아이디로 가른다(email 은 유일하므로 여기서 반드시 갈린다).
     """
     if room.is_global:
         users = repository.directory(db, sender.id)
     else:
         member_ids = [m.user_id for m in repository.members(db, room.id) if m.user_id != sender.id]
         users = list(repository.users_by_ids(db, member_ids).values())
-    by_name: dict[str, str | None] = {}
+
+    named: dict[str, list] = {}
     for u in users:
         name = (u.display_name or "").strip()
-        if not name:
+        if name:
+            named.setdefault(name, []).append(u)
+
+    out: dict[str, str] = {}
+    for name, group in named.items():
+        if len(group) == 1:
+            out[name] = group[0].id
             continue
-        by_name[name] = None if name in by_name else u.id  # 두 번째로 나오면 무효화(동명이인)
-    return {name: uid for name, uid in by_name.items() if uid}
+        by_label: dict[str, list] = {}
+        for u in group:
+            by_label.setdefault(people.affiliation(people.identity(u)) or "", []).append(u)
+        for label, same in by_label.items():
+            for u in same:
+                tag = label if (label and len(same) == 1) else (u.email or "").split("@")[0]
+                if not tag:
+                    continue  # 가를 방법이 아예 없으면 부를 수 없는 채로 둔다(예전 동작)
+                out[f"{name}({tag})"] = u.id
+    return out
 
 
 def notify_mentions(db: Session, room: ChatRoom, sender: User, msg: ChatMessage, *, now: datetime) -> list[str]:

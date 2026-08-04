@@ -127,3 +127,46 @@ def test_an_email_in_the_body_is_not_a_mention(app, client, login_as, make_user)
     c2, _ = _login_other(app, "me2@goodmit.co.kr")
     with c2:
         assert _mentions(c2) == []
+
+
+# ── 동명이인 (2026-08-04 사용자 지시) ─────────────────────────────────────────
+
+def test_people_with_the_same_name_can_finally_be_mentioned(app, client, login_as, make_user, db):
+    """같은 표시 이름 두 사람을 소속으로 갈라 정확히 지목한다.
+
+    예전 동작: 이름이 겹치면 **두 사람 다** 후보에서 빠졌다. 임의로 한 명을 고르면 '누가
+    받았는지 모르는 알림'이 되기 때문인데, 그 결과 동명이인은 아무도 부를 수 없었다 —
+    그것도 조용히. 부르는 쪽은 알림이 안 갔다는 사실조차 몰랐다.
+
+    이제 겹치는 이름만 `이름(소속)` 형태로 갈린다. 이름만 쓴 `@김하나` 는 여전히 아무에게도
+    안 간다 — 애매한 채로 아무나 부르지 않는다는 원칙은 그대로다.
+    """
+    from app.org.models import Department
+
+    csrf = login_as("user", email="dup0@goodmit.co.kr")
+    a = make_user(email="dupa@goodmit.co.kr", display_name="김하나")
+    b = make_user(email="dupb@goodmit.co.kr", display_name="김하나")
+    # 소속이 곧 두 사람을 가르는 유일한 표지다 — 그것을 실제로 붙여 놓고 확인한다.
+    d1, d2 = Department(name="플랫폼팀"), Department(name="인프라팀")
+    db.add_all([d1, d2]); db.flush()
+    a.department_id, b.department_id = d1.id, d2.id
+    db.commit()
+    rid = client.post("/api/team-chat/rooms",
+                      json={"title": "동명이인방", "member_user_ids": [a.id, b.id]},
+                      headers={"X-CSRF-Token": csrf}).json()["room"]["id"]
+
+    # 1) 소속을 붙이면 그 사람 **한 명에게만** 간다.
+    _send(client, csrf, rid, "@김하나(플랫폼팀) 이거 봐주세요")
+    ca, _ = _login_other(app, "dupa@goodmit.co.kr")
+    with ca:
+        assert len(_mentions(ca)) == 1, "소속을 붙여 부른 사람이 알림을 못 받았다"
+    cb, _ = _login_other(app, "dupb@goodmit.co.kr")
+    with cb:
+        assert _mentions(cb) == [], "부르지 않은 동명이인에게 알림이 갔다"
+
+    # 2) 이름만 쓰면 여전히 아무에게도 안 간다(애매한 지목을 임의로 해석하지 않는다).
+    _send(client, csrf, rid, "@김하나 이건 누구를 부른 걸까")
+    with _login_other(app, "dupa@goodmit.co.kr")[0] as ca2:
+        assert len(_mentions(ca2)) == 1, "이름만 썼는데 알림이 하나 더 갔다"
+    with _login_other(app, "dupb@goodmit.co.kr")[0] as cb2:
+        assert _mentions(cb2) == []
