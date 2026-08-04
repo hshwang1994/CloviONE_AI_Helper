@@ -10,13 +10,20 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
-from app.core.errors import NotionNotConfiguredError, NotionQueryError
+from app.core.errors import (
+    NotFoundError,
+    NotionNotConfiguredError,
+    NotionQueryError,
+)
+from app.core.uploads import MAX_UPLOAD_BYTES
+from app.tickets import attachments as ticket_attachments
 from app.tickets import service
 from app.tickets.schemas import (
     BulkPageIds,
@@ -343,6 +350,84 @@ def save_body(
     record_audit_from_request(
         request, db, action="ticket.body.update", object_type="notion_task",
         object_id=page_id, after={"synced": result["synced"]},
+    )
+    return {"ok": True, **result}
+
+
+# ── 첨부 (지시서 §4: 티켓에 붙은 이미지를 이 화면에서 바로 본다) ─────────────────
+# 리터럴 경로("/attachments/...")를 경로 파라미터("/{page_id}")보다 먼저 선언한다 —
+# 순서가 뒤바뀌면 page_id="attachments" 로 잡혀 404 조차 아닌 이상한 오류가 난다.
+@router.get("/attachments/{attachment_id}")
+def serve_ticket_attachment(
+    request: Request,
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """첨부 원본. 로그인한 사람이면 볼 수 있다 — 티켓 자체가 팀 전체 조회 대상이라
+    첨부만 좁히면 "옆 팀 사람이 첨부를 못 본다"가 되고, 그건 §4 가 없애려는 상태다.
+
+    없는 첨부·파일 없음은 전부 404 다(403 은 "그런 첨부가 있긴 하다"를 알려 준다)."""
+    att = ticket_attachments.get_attachment(db, attachment_id)
+    if att is None:
+        raise NotFoundError("첨부를 찾을 수 없습니다.")
+    path = ticket_attachments.file_path(request.app.state.settings.data_dir, att)
+    if path is None:
+        raise NotFoundError("첨부 파일을 찾을 수 없습니다.")
+    # nosniff + inline. 서버가 판정·저장한 media_type 만 신뢰한다. 실행 불가.
+    return FileResponse(
+        str(path),
+        media_type=att.media_type,
+        headers={
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.delete("/attachments/{attachment_id}", dependencies=[Depends(require_csrf)])
+def delete_ticket_attachment(
+    request: Request,
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """첨부 제거 — 올린 사람 본인이거나 티켓을 편집할 수 있는 사람."""
+    result = service.delete_ticket_attachment(
+        db, request.app.state.outbound_client, request.app.state.settings, user,
+        attachment_id=attachment_id, repo=_repo(request),
+    )
+    record_audit_from_request(
+        request, db, action="ticket.attachment.delete", object_type="ticket_attachment",
+        object_id=attachment_id,
+    )
+    return {"ok": True, **result}
+
+
+@router.post("/{page_id}/attachments", dependencies=[Depends(require_csrf)])
+def upload_ticket_attachment(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    file: UploadFile = File(...),
+):
+    """티켓에 이미지·PDF 를 붙인다(편집 권한 필요).
+
+    sync 핸들러라 UploadFile 의 내부 파일 객체를 직접 읽는다(await 불필요, 불변 §1).
+    상한보다 1바이트 더 읽는 이유: 정확히 상한인 파일과 넘는 파일을 구분해야 한다.
+    """
+    content = file.file.read(MAX_UPLOAD_BYTES + 1)
+    result = service.add_ticket_attachment(
+        db, request.app.state.outbound_client, request.app.state.settings, user,
+        page_id=page_id, data_dir=request.app.state.settings.data_dir,
+        filename=file.filename or "file", content=content,
+        now=request.app.state.clock.now(), repo=_repo(request),
+    )
+    record_audit_from_request(
+        request, db, action="ticket.attachment.upload", object_type="ticket_attachment",
+        object_id=result["attachment_id"], after={"ticket_page_id": page_id},
     )
     return {"ok": True, **result}
 

@@ -166,3 +166,35 @@ class TicketMetaCache(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
+
+
+class TicketAttachment(UUIDPrimaryKeyMixin, Base):
+    """티켓에 붙인 이미지·PDF 의 메타 (실제 바이트는 data_dir/uploads/ticket/).
+
+    **`ticket_cache.id`(자체 UUID)에 건다 — Notion page id 가 아니다.** 댓글(TicketComment)과
+    같은 이유다: 내부 참조가 외부 시스템 식별자에 묶여 있으면 소스를 바꾸는 순간 첨부가 전부
+    고아가 된다. CASCADE 도 같은 이유 — 캐시 행이 sync._prune 으로 사라질 때 FK 가 남아 있으면
+    그 DELETE 가 실패하고 동기화 전체가 조용히 멈춘다.
+
+    파일 자체는 남는다(CASCADE 는 DB 행만 지운다). 도달할 수 없는 바이트가 디스크에 남는 것은
+    게시판 첨부와 같은 성질의 문제이고, 지우는 쪽이 위험하다 — 티켓이 잠깐 안 보였다가 다시
+    보이는 동기화 사고에서 사용자가 올린 원본이 사라지는 편이 훨씬 나쁘다.
+
+    소프트 삭제를 쓰지 않는다. 댓글과 달리 첨부는 '누가 무엇을 말했는가'의 기록이 아니라
+    파일이라, 툼스톤이 사용자에게 알려 주는 것이 없다(빈 회색 칸 하나).
+    """
+
+    __tablename__ = "ticket_attachments"
+
+    ticket_uid: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ticket_cache.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    uploaded_by_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)   # 원본 표시명
+    stored_name: Mapped[str] = mapped_column(String(255), nullable=False)  # 디스크 저장명
+    media_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)

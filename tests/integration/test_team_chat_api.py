@@ -109,3 +109,21 @@ def test_feature_flag_gates_team_chat(client, login_as):
     # CSRF 없으면 403 먼저; 여기선 조회라 200(플래그 기본 ON). 플래그 OFF 케이스는 games 방식과 동일 구조.
     assert client.get("/api/team-chat/rooms").status_code == 200
     _ = csrf
+
+
+def test_pasted_image_larger_than_256k_actually_uploads(app, client, login_as):
+    """채팅에 붙여넣는 이미지는 10MB 까지라고 해 놓고 **256KB 에서 413** 이 나고 있었다.
+
+    미들웨어의 본문 상한 예외가 자유게시판 한 라우트에만 정규식으로 걸려 있었고, 그 뒤에 들어온
+    이 라우트는 목록에 없었다. 화면 캡처는 400KB 를 쉽게 넘으므로 '이미지 붙여넣기'가 사실상
+    작은 그림에서만 되는 상태였다. 예외를 목록으로 바꾸면서 함께 고쳤고, 여기서 고정한다.
+    """
+    csrf = login_as("user", email="bigimg@goodmit.co.kr")
+    gid = client.get("/api/team-chat/rooms").json()["global"]["id"]
+    big_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * (400 * 1024)
+    r = client.post(
+        f"/api/team-chat/rooms/{gid}/images",
+        files={"file": ("캡처.png", big_png, "image/png")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 200, r.text

@@ -11,6 +11,7 @@ import { safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { TicketBody } from "./TicketBody.jsx";
 import { TicketComments } from "./TicketComments.jsx";
+import { TicketAttachments } from "./TicketAttachments.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
@@ -133,7 +134,7 @@ export function Ticket() {
   const actions = (
     <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
       <Button variant="ghost" onClick={() => nav("/my-tickets")}>목록</Button>
-      <Button onClick={() => setEditing(true)}>편집</Button>
+      {data.can_edit === false ? null : <Button onClick={() => setEditing(true)}>편집</Button>}
       {original ? (
         <Button variant="primary" onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>원본 열기</Button>
       ) : null}
@@ -182,6 +183,14 @@ export function Ticket() {
               onSaved={() => detail.refetch()}
             />
           </Card>
+          {/* 첨부는 본문 **바로 아래**다. 레일에 넣으면 좁은 화면에서 order 때문에 본문보다
+              위로 올라가 "무엇에 대한 파일인지"보다 파일이 먼저 나온다(댓글과 같은 이유). */}
+          <TicketAttachments
+            ticketId={id}
+            attachments={data.attachments}
+            canEdit={data.can_edit !== false}
+            onChanged={() => detail.refetch()}
+          />
           <TicketComments ticketId={id} />
         </Box>
 

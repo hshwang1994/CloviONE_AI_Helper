@@ -48,6 +48,11 @@ NS_TEAM_CHAT = "team_chat"
 # 서빙 라우트가 곧 접근 통제이고, board 라우트는 '글이 살아 있는가'만 볼 줄 안다.
 # 아바타는 그 질문 자체가 다르다(계정이 살아 있는가 / 요청자가 로그인했는가).
 NS_AVATAR = "avatar"
+# 티켓 첨부. owner_id 는 **ticket_cache.id(자체 UUID)** 이고 Notion page id 가 아니다 —
+# 소스를 바꾸는 순간 첨부가 전부 고아가 되기 때문이다(댓글과 같은 이유, tickets/models.py).
+# 게시판을 재사용하지 않는 이유는 위와 같다: 서빙 라우트가 곧 접근 통제인데 board 라우트는
+# '글이 살아 있는가'만 볼 줄 알고, 티켓은 '이 티켓이 아직 있는가'를 묻는다.
+NS_TICKET = "ticket"
 _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 # 서버 생성 저장명 패턴(서빙 시 방어적으로 재검증).

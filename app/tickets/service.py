@@ -17,11 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import people
-from app.core.errors import ForbiddenError, ValidationAppError
+from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
 from app.core.notion_blocks import rendered_to_markdown
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map
+from app.tickets import attachments as ticket_attachments
 from app.tickets import comments
 from app.tickets.repository import TicketDraft, TicketDTO, snapshot
 from app.trash import repository as trash_repo
@@ -202,6 +203,17 @@ def ticket_detail(
     r = _repo(settings, outbound, repo)
     dto = r.get(db, page_id=page_id)
     ticket = ticket_views(db, [dto])[0]
+    # 우리가 가진 첨부. 미러 행이 아직 없으면(=uid 없음) 첨부도 있을 수 없으니 빈 목록이다 —
+    # 여기서 ensure_local 을 부르면 **읽기 한 번이 쓰기가 된다**(캐시 행 생성).
+    uid = r.local_uid(db, page_id=page_id)
+    attachment_list = ticket_attachments.attachment_views(db, ticket_uid=uid) if uid else []
+    # 화면이 '눌러 봐야 거절당하는 버튼'을 안 그리게 한다. 판정 자체는 쓰기 경로가 다시 하므로
+    # (ensure_can_edit) 이 값은 표시용이지 접근 통제가 아니다 — 클라이언트를 신뢰하지 않는다.
+    try:
+        ensure_can_edit(dto, user, my_notion_id(db, user))
+        can_edit = True
+    except ForbiddenError:
+        can_edit = False
     blocks, blocks_error = None, None
     try:
         blocks = r.body_blocks(db, page_id=page_id)
@@ -223,6 +235,9 @@ def ticket_detail(
         "body_is_local": dto.body_markdown is not None,
         # 정본은 저장됐는데 소스에 못 밀어 넣은 상태면 그 이유. 화면이 배너로 보여준다.
         "body_sync_error": dto.body_sync_error,
+        # 포털에서 붙인 파일(§4). 본문 안의 Notion 이미지는 blocks 쪽에 kind="image" 로 온다.
+        "attachments": attachment_list,
+        "can_edit": can_edit,
     }
 
 
@@ -635,3 +650,56 @@ def delete_ticket_comment(
     comments.ensure_can_delete(comment, user)
     comments.soft_delete_comment(db, comment, now=now or utcnow())
     return {"comments": comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)}
+
+
+# ── 첨부 (지시서 §4) ──────────────────────────────────────────────────────────
+
+def add_ticket_attachment(
+    db: Session, outbound, settings, user: User, *, page_id: str, data_dir,
+    filename: str, content: bytes, now: datetime | None = None, repo=None,
+) -> dict:
+    """티켓에 파일을 붙인다. **편집 권한이 필요하다** — 남의 담당 티켓에 파일을 붙이는 것은
+    티켓을 고치는 일이다. 권한 판정은 방금 소스에서 읽은 '현재' 담당자로 한다(ensure_can_edit).
+    """
+    stamp = now or utcnow()
+    r = _repo(settings, outbound, repo)
+    current = r.get_live(db, page_id=page_id)
+    ensure_can_edit(current, user, my_notion_id(db, user))
+    uid = r.ensure_local(db, page_id=page_id, now=stamp)
+    att = ticket_attachments.add_attachment(
+        db, data_dir, ticket_uid=uid, uploader=user,
+        filename=filename, content=content, now=stamp,
+    )
+    return {
+        "attachment_id": att.id,
+        "attachments": ticket_attachments.attachment_views(db, ticket_uid=uid),
+    }
+
+
+def delete_ticket_attachment(
+    db: Session, outbound, settings, user: User, *, attachment_id: str, repo=None
+) -> dict:
+    """첨부를 뗀다. 올린 사람 본인이거나 티켓을 편집할 수 있는 사람.
+
+    없는 첨부는 404 다 — 403 은 "그런 첨부가 있긴 하다"를 알려 준다.
+    """
+    att = ticket_attachments.get_attachment(db, attachment_id)
+    if att is None:
+        raise NotFoundError("첨부를 찾을 수 없습니다.")
+    uid = att.ticket_uid
+    if att.uploaded_by_user_id != user.id:
+        page_id = _page_id_for_uid(db, uid)
+        if page_id is None:
+            raise NotFoundError("첨부를 찾을 수 없습니다.")
+        r = _repo(settings, outbound, repo)
+        ensure_can_edit(r.get_live(db, page_id=page_id), user, my_notion_id(db, user))
+    ticket_attachments.remove_attachment(db, att)
+    return {"attachments": ticket_attachments.attachment_views(db, ticket_uid=uid)}
+
+
+def _page_id_for_uid(db: Session, ticket_uid: str) -> str | None:
+    """자체 UUID → Notion page id. source='native' 티켓은 page id 가 없어 None 이다."""
+    from app.tickets.models import TicketCache
+
+    row = db.get(TicketCache, ticket_uid)
+    return row.notion_page_id if row is not None else None

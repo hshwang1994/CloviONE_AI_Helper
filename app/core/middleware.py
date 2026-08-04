@@ -62,11 +62,22 @@ MAX_BODY_BYTES = 256 * 1024
 # this one route the same way; everything else stays at 256k.
 ATTACHMENT_BODY_BYTES = 8 * 1024 * 1024
 _MESSAGE_POST_RE = re.compile(r"^/api/conversations/[^/]+/messages$")
-# 자유게시판 첨부(이미지/PDF)는 최대 10MB(app/core/uploads.py MAX_UPLOAD_BYTES). multipart
-# 봉투(경계·헤더·파일명) 여유를 두고 12MB로 올린다. 이 라우트만 예외이며 나머지는 256k 유지.
+# 파일 업로드(이미지/PDF)는 최대 10MB(app/core/uploads.py MAX_UPLOAD_BYTES). multipart
+# 봉투(경계·헤더·파일명) 여유를 두고 12MB로 올린다. 아래 목록만 예외이며 나머지는 256k 유지.
 # nginx vhost에도 같은 예외 location이 있어야 프로덕션에서 413이 나지 않는다(방어 이중화).
-BOARD_UPLOAD_BODY_BYTES = 12 * 1024 * 1024
-_BOARD_UPLOAD_RE = re.compile(r"^/api/board/posts/[^/]+/attachments$")
+#
+# **목록으로 만든 이유.** 게시판 하나만 정규식으로 예외를 두고 있었는데, 그 뒤에 들어온
+# 팀 채팅 이미지(`/rooms/{id}/images`)와 프로필 사진은 그 목록에 들어가지 않아 **10MB 를
+# 받는다고 해 놓고 256k 에서 413** 이 났다. 업로드 라우트를 새로 만들 때 여기 한 줄을 빠뜨리면
+# 같은 일이 반복되므로, 한곳에 모아 두고 tests/regression 이 개수를 지킨다.
+UPLOAD_BODY_BYTES = 12 * 1024 * 1024
+BOARD_UPLOAD_BODY_BYTES = UPLOAD_BODY_BYTES   # 기존 이름(테스트·문서에서 참조) 유지
+_UPLOAD_ROUTE_RES = (
+    re.compile(r"^/api/board/posts/[^/]+/attachments$"),
+    re.compile(r"^/api/team-chat/rooms/[^/]+/images$"),
+    re.compile(r"^/api/tickets/[^/]+/attachments$"),
+    re.compile(r"^/api/me/avatar$"),
+)
 
 STATIC_CACHE_CONTROL = "public, max-age=3600"
 
@@ -126,8 +137,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 def _body_limit_for(request: Request) -> int:
     if request.method == "POST" and _MESSAGE_POST_RE.match(request.url.path):
         return ATTACHMENT_BODY_BYTES
-    if request.method == "POST" and _BOARD_UPLOAD_RE.match(request.url.path):
-        return BOARD_UPLOAD_BODY_BYTES
+    if request.method == "POST" and any(
+        rx.match(request.url.path) for rx in _UPLOAD_ROUTE_RES
+    ):
+        return UPLOAD_BODY_BYTES
     return MAX_BODY_BYTES
 
 
