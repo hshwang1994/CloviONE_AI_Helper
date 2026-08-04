@@ -18,7 +18,6 @@ import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
@@ -29,7 +28,7 @@ import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
 import { Tour } from "./Tour.jsx";
 import { bestNavMatch, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
-import { MascotButton, MascotSidebarCard } from "../ui/Mascot.jsx";
+import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
@@ -309,18 +308,11 @@ export function AppShell({
                   <SearchRoundedIcon />
                 </IconButton>
               </Tooltip>
-              {/* 좁은 화면에서는 우하단 마스코트 버튼이 본문을 가려서 숨긴다 —
-                  AI 도우미로 가는 길이 사라지지 않게 상단바에 같은 목적지를 둔다. */}
-              <Tooltip title="AI 도우미">
-                <IconButton
-                  onClick={() => navigate("/chat")}
-                  aria-label="AI 도우미 열기"
-                  color="inherit"
-                  sx={{ display: { xs: "inline-flex", md: "none" } }}
-                >
-                  <SmartToyOutlinedIcon />
-                </IconButton>
-              </Tooltip>
+              {/* 상단바 우측 클로비(기준 파일의 .top-clovi-btn). 사용자가 "오른쪽 상단의 웃는
+                  클로비를 유지"라고 했는데 그 자리에는 실제로 MUI 의 일반 로봇 아이콘이 있었다.
+                  좁은 화면에서만 보이던 것도 항상 보이게 바꾼다 — 우하단 FAB 은 md 미만에서
+                  숨는데, 그 아래 폭에서 AI 도우미로 가는 길이 아이콘 하나뿐이었다. */}
+              <MascotTopButton onClick={() => navigate("/chat")} />
             </>
           ) : null}
 

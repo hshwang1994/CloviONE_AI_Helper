@@ -818,16 +818,35 @@ export function useToast() { return React.useContext(ToastCtx); }
 /* 페이지 헤더 — 빵부스러기→제목 순서와 간격을 한곳에서 정한다.
  * crumbRoot: 빵부스러기 접두어(기본 '관리자'). 사용자 대면 화면은 다른 뿌리를 넘기거나
  *   area를 비워 빵부스러기 자체를 숨길 수 있다.
- * spot: 섹션 일러스트 키(lib/assets.js의 SPOT). 큰 화면에서만 보인다 — 4K에서 남는 폭을
- *   의미 있는 밀도로 채우는 수단이기도 하다. 자산 8종이 있는데 안 쓰이고 있었다. */
+ * spot: 섹션 일러스트 키(lib/assets.js의 SPOT).
+ *
+ * 일러스트는 **격자 항목이 아니라 배경 장식**이다(사용자 지시 §5: "페이지마다 클로비
+ * 이미지를 크게 배치하지 말고, 페이지 오른쪽 상단 배경 영역에 투명도를 적용해 자연스럽게").
+ * 예전에는 flex 항목이라 두 가지가 났다:
+ *   1) 이미지에만 order:2 가 있고 actions 에는 없어서 **액션이 먼저** 왔다. 액션이 줄바꿈되면
+ *      96~160px 그림이 제 줄로 밀려 본문 전체를 아래로 밀었다.
+ *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
+ * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
+ * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
 export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot }) {
   const spotSrc = spot && SPOT[spot] ? SPOT[spot] : null;
   return (
     <Box
       className="k-page-head"
-      sx={{ display: "flex", alignItems: "flex-end", gap: 3, flexWrap: "wrap", mb: 3 }}
+      sx={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 3, flexWrap: "wrap", mb: 3 }}
     >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      {spotSrc ? (
+        <Box
+          component="img" src={spotSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          sx={{
+            display: { xs: "none", lg: "block" },
+            position: "absolute", right: 0, top: "-0.75rem", zIndex: 0,
+            height: { lg: "7rem", xxl: "8.5rem", uhd: "10rem" }, width: "auto",
+            opacity: 0.1, pointerEvents: "none", userSelect: "none",
+          }}
+        />
+      ) : null}
+      <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
         {area ? (
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 650 }}>
             {crumbRoot ? crumbRoot + " › " : ""}{area}
@@ -835,13 +854,7 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
         ) : null}
         <Typography variant="h4" component="h1" sx={{ mt: area ? 0.5 : 0 }}>{title}</Typography>
       </Box>
-      {spotSrc ? (
-        <Box
-          component="img" src={spotSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{ display: { xs: "none", lg: "block" }, height: { lg: 96, xxl: 128, uhd: 160 }, width: "auto", order: 2 }}
-        />
-      ) : null}
-      {actions ? <Box className="k-page-actions" sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
+      {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
     </Box>
   );
 }

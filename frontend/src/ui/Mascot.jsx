@@ -1,8 +1,10 @@
 import React from "react";
 import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
+import ButtonBase from "@mui/material/ButtonBase";
 import Fab from "@mui/material/Fab";
 import Paper from "@mui/material/Paper";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { MASCOT } from "../lib/assets.js";
@@ -165,11 +167,16 @@ export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
       sx={{
         width: 70,
         height: 70,
-        borderRadius: 5.5,
+        /* 22px 둥근 사각형 — 기준 파일의 .ai-fab 과 같은 형태다.
+           예전에는 borderRadius:5.5(=테마 14px × 5.5 = 77px)라 70px 상자에서 **완전한 원**으로
+           잘렸고, 그 안에 64px 정사각 포즈를 넣어 마스코트 모서리가 원 밖으로 나갔다.
+           Chromium 은 버튼 콘텐츠를 안 자르지만 Firefox 는 자른다 — 브라우저마다 다르게 보였다. */
+        borderRadius: "22px",
+        overflow: "hidden",
         bgcolor: "background.paper",
         border: 1,
         borderColor: "divider",
-        p: 0.25,
+        p: 0.5,
         // 바깥 래퍼(AppShell의 fixed Box)가 pointerEvents:none 이라 실제로 눌리는 것은 이 Fab
         // 하나다. 브라우저는 border-radius 를 히트 테스트에도 적용하므로, 이렇게 두면 둥근
         // 모서리 바깥의 빈 공간은 아래 콘텐츠가 그대로 받는다 — 안 보이는 사각형이 클릭을 먹지 않는다.
@@ -177,7 +184,8 @@ export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
         "&:hover": { bgcolor: "background.paper", transform: "translateY(-2px)" },
       }}
     >
-      <MascotPose mode={mode} size={64} decorative />
+      {/* 70px 상자 - 좌우 패딩 8px = 54px 이 안전한 최대치다(둥근 모서리 여유 포함). */}
+      <MascotPose mode={mode} size={54} decorative />
     </Fab>
   );
   return (
@@ -190,6 +198,39 @@ export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
         fab
       )}
     </Box>
+  );
+}
+
+/* 상단바 우측 클로비 버튼 — 기준 파일의 .top-clovi-btn.
+ *
+ * 예전에는 여기에 MUI 의 일반 로봇 아이콘(SmartToyOutlined)이 있었다. 사용자가 "오른쪽 상단에
+ * 표시되는 웃는 클로비"를 유지해 달라고 한 그 자리인데, 실제로는 클로비가 아니라 아무 로봇이었다.
+ * 표정은 평상시(idle) 포즈를 쓴다 — 그 자산이 이미 웃는 얼굴이다(§5).
+ *
+ * 흰 판 위에 얹는 이유: 상단바는 딥 인디고 그라데이션이라 마스코트의 흰 몸체가 배경에 묻힌다.
+ * 기준 파일도 같은 이유로 img 에 rgba(255,255,255,.92) 배경을 깐다. */
+export function MascotTopButton({ onClick, mode = "listening", label = "AI 도우미" }) {
+  return (
+    <Tooltip title={label}>
+      <ButtonBase
+        onClick={onClick}
+        aria-label="클로비 AI 도우미 열기"
+        sx={{
+          display: "inline-flex", alignItems: "center", gap: 0.75,
+          height: 42, pl: 0.5, pr: { xs: 0.5, sm: 1.25 },
+          border: 1, borderColor: "rgba(255,255,255,.18)", borderRadius: "14px",
+          background: "rgba(8,14,42,.22)", color: "common.white",
+          "&:hover": { background: "rgba(255,255,255,.16)" },
+        }}
+      >
+        <Box sx={{ bgcolor: "rgba(255,255,255,.92)", borderRadius: "10px", display: "grid", placeItems: "center", width: 34, height: 34 }}>
+          <MascotPose mode={mode} size={30} decorative />
+        </Box>
+        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.75rem", fontWeight: 750 }}>
+          클로비
+        </Box>
+      </ButtonBase>
+    </Tooltip>
   );
 }
 

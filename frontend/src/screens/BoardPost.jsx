@@ -57,7 +57,15 @@ function AttachmentList({ attachments }) {
                 alt={a.filename}
                 loading="lazy"
                 decoding="async"
-                sx={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 2, border: 1, borderColor: "divider" }}
+                /* objectFit:"cover" + 강제 1:1 이 **정사각형이 아닌 사용자 이미지를 전부
+                   잘라냈다** — 사용자가 "이미지가 잘리고 콘텐츠 영역만 보인다"고 지적한 것이
+                   여기다. 타일 크기는 그대로 두되(격자가 흐트러지지 않게) 이미지는 통째로
+                   보이게 contain 으로 바꾼다. 남는 면은 옅은 판으로 채워 빈칸처럼 안 보이게. */
+                sx={{
+                  width: "100%", aspectRatio: "1 / 1", objectFit: "contain",
+                  borderRadius: 2, border: 1, borderColor: "divider",
+                  bgcolor: "action.hover",
+                }}
               />
             </Link>
           ))}
@@ -283,7 +291,7 @@ export function BoardPost() {
   if (detail.isError) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" />
+        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" spot="board" />
         <ErrorState error={detail.error} onRetry={() => detail.refetch()} />
       </div>
     );
@@ -291,7 +299,7 @@ export function BoardPost() {
   if (detail.isPending) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" />
+        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" spot="board" />
         <Card><Skeleton lines={8} /></Card>
       </div>
     );
@@ -325,7 +333,9 @@ export function BoardPost() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" actions={actions} />
+      {/* 목록(Board.jsx)은 spot="board" 를 주는데 상세 세 상태는 전부 안 줘서, 목록에서
+          글을 열면 일러스트가 사라졌다 — 같은 화면군인데 장식이 들쭉날쭉했다. */}
+      <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" actions={actions} spot="board" />
 
       {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
           본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}

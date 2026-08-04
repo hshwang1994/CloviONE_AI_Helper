@@ -90,14 +90,19 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: 700 }}>
         미리보기
       </Typography>
-      <BodyPreview text={value} />
+      <BodyPreview text={value} wide />
     </>
   );
 }
 
 /* 본문 미리보기 — markdown_to_blocks와 같은 규칙으로 렌더(빈 줄=간격, 100줄 상한, 초과 경고).
  * 사용자 입력이므로 React가 기본 textContent 렌더(불변 §6 XSS 없음). */
-export function BodyPreview({ text }) {
+/* wide=true 는 **편집 중 미리보기**용이다.
+ * 기본값(78ch)은 '읽는 본문'의 줄 길이 상한이라 티켓 상세처럼 완성된 글을 볼 때 맞다.
+ * 그런데 편집기 안에서는 입력 상자가 full width 인데 미리보기만 78ch 라, 두 상자의 폭이
+ * 달라 "정렬이 어긋나 보인다"(1920 캡처에서 960px vs 675px). 편집 화면에서는 무엇을 쳤는지와
+ * 어떻게 보일지를 **나란히 대조**하는 것이 목적이라 폭이 같아야 한다. */
+export function BodyPreview({ text, wide = false }) {
   const raw = (text || "").split("\n");
   const lines = raw.slice(0, BODY_MAX_LINES);
   const truncated = raw.length > BODY_MAX_LINES;
@@ -128,8 +133,9 @@ export function BodyPreview({ text }) {
   const shell = {
     border: 1, borderColor: "divider", borderRadius: 2, p: 2,
     bgcolor: "background.default",
-    /* 미리보기도 본문이라 줄 길이를 제한한다 — 4K에서 한 줄이 3,000px가 되면 읽을 수 없다. */
-    maxWidth: "78ch",
+    /* 읽는 본문은 줄 길이를 제한한다 — 4K에서 한 줄이 3,000px가 되면 읽을 수 없다.
+       편집 중 미리보기(wide)는 위 입력 상자와 폭을 맞춘다(위 주석 참조). */
+    maxWidth: wide ? "100%" : "78ch",
   };
 
   if (blocks.length === 0) {

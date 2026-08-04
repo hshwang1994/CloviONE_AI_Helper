@@ -26,6 +26,7 @@ import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { FAB_CLEARANCE } from "../ui/theme.js";
 
 // 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
 function useBulkTrash(path, qc, toast, onDone) {
@@ -311,14 +312,17 @@ function useTicketMeta(open) {
 
 /* 담당자 선택 목록 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
  * 손으로 복사해 두어 한쪽만 고치면 조용히 어긋났다). 목록이 길어질 수 있어 높이를 제한하고 스크롤한다. */
-function AssigneePicker({ loading, candidates, selected, onToggle, myId }) {
+function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeight = "12rem" }) {
   if (loading) return <Typography variant="body2" color="text.secondary">불러오는 중…</Typography>;
   if (!candidates.length) return <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion에 연결된 사용자 없음).</Typography>;
   return (
     <Paper
       variant="outlined"
       sx={{
-        p: 1, maxHeight: "12rem", overflow: "auto",
+        /* 12rem 은 **모달** 안에서만 맞는 값이다(다이얼로그 자체가 스크롤을 갖는다).
+           전체 페이지인 새 티켓 화면에 같은 값을 쓰면 담당자 목록만 12rem 에서 잘려,
+           팀이 조금만 커도 "화면 일부가 잘려 보인다"가 된다 — 사용자가 §7에서 지적한 것. */
+        p: 1, maxHeight, overflow: maxHeight === "none" ? "visible" : "auto",
         display: "grid",
         // 후보가 많은 팀에서 한 줄에 하나씩만 쌓으면 스크롤이 길어진다 — 넓은 화면에서는 여러 열로.
         gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" },
@@ -708,7 +712,7 @@ export function NewTicket() {
             </Box>
             <Box sx={{ mb: 2.5 }}>
               <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
-              <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} myId={myId} />
+              <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} myId={myId} maxHeight="none" />
             </Box>
             <Box sx={{ mb: 2.5, maxWidth: "60rem" }}>
               <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>설명</Typography>
@@ -720,7 +724,12 @@ export function NewTicket() {
                 placeholder="배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다."
               />
             </Box>
-            <Stack direction="row" gap={1} justifyContent="flex-end">
+            {/* 우하단 마스코트 FAB(고정, 70px, right/bottom 24)이 이 버튼을 덮는다.
+                셸의 pb 여백은 **맨 아래까지 스크롤했을 때만** 도움이 되고, 이 폼은 본문
+                편집기까지 있어 화면보다 훨씬 길다 — 스크롤 중간에서는 '티켓 만들기'가
+                FAB 밑으로 들어가 눌리지 않는다. 같은 함정을 이 저장소가 이미 두 번 밟았다
+                (놀이방 '보내기', AI 채팅 '전송'). FAB 이 뜨는 폭에서만 오른쪽을 비운다. */}
+            <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ pr: { xs: 0, md: FAB_CLEARANCE } }}>
               <Button variant="primary" type="submit" disabled={create.isPending}>{create.isPending ? "생성 중…" : "티켓 만들기"}</Button>
             </Stack>
           </Box>
