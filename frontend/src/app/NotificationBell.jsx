@@ -1,6 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import Badge from "@mui/material/Badge";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { api } from "../lib/api.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
 import { Skeleton, ErrorState, useToast, useConfirm } from "../ui/kit.jsx";
@@ -378,36 +382,35 @@ export function NotificationBell({ isUser }) {
 
   return (
     <div className="noti" ref={ref}>
-      <button ref={bellRef} type="button" className="c-icon-btn noti-bell"
-        aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
-        aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
-        onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}>
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-        {badge ? (
-          // countError가 true인데 count도 0이 아닐 수 있다, unread 쿼리가 실패했지만 이전에
-          // 캐시된 숫자가 남아 있는 경우(react-query 기본 동작)다. 그때는 배지가 최신 여부를
-          // 알려주는 신호 없이 그냥 숫자만 보였다, aria-label엔 이미 "개수를 불러오지 못함"이
-          // 붙지만 마우스로 보는 사용자에겐 아무 표시가 없었다(product-quality-audit AREA=D).
-          <span className={"noti-count" + (countError ? " noti-count--stale" : "")}
-            title={countError ? "표시된 숫자가 최신이 아닐 수 있습니다" : undefined}>
-            {badge > 99 ? "99+" : badge}
-          </span>
-        )
-          // 조용한 상태 — 안 읽음은 있는데 배지가 0이다. 아무 표시도 안 하면 "안 온 것"과
-          // 구분이 안 되므로 중립색 점 하나로 "쌓여 있지만 조용히 하고 있다"를 말한다.
-          : quiet ? <span className="noti-quiet" aria-hidden="true" title={quietTitle} />
-          // aria-hidden 이유: 설명은 벨 버튼의 aria-label에 이미 있어 스크린리더 사용자는
-          // 안내를 받지만, title이 없어 마우스로 보는 사용자는 색 점의 의미를 알 방법이
-          // 없었다, title을 더해 마우스/터치 사용자도 같은 설명을 보게 한다.
-          : countError ? <span className="noti-err" aria-hidden="true" title="알림 개수를 불러오지 못했습니다" />
-          // 로딩 중(아직 한 번도 응답을 못 받음)에는 "확실히 0건"과 시각적으로 구분되는
-          // 중립색 점만 보인다, 배지가 아예 없는 것과 달라 "안 온 건지 아직 안 불렀는지"를 구분한다.
-          : countPending ? <span className="noti-pending" aria-hidden="true" title="알림 개수를 불러오는 중" /> : null}
-      </button>
+      {/* 2026-08 MUI 전환: 손으로 만든 .noti-bell 버튼과 네 가지 상태 표시(.noti-count /
+          .noti-quiet / .noti-err / .noti-pending)를 IconButton + Badge 하나로 모았다.
+          상태가 넷이라는 사실과 각 상태의 의미(아래 주석)는 그대로 남긴다 — 바뀐 것은
+          '어떻게 그리는가'뿐이고, 무엇을 말하는지는 하나도 줄이지 않았다. */}
+      <Tooltip title={badge ? (countError ? "표시된 숫자가 최신이 아닐 수 있습니다" : "알림")
+        : quiet ? quietTitle
+        : countError ? "알림 개수를 불러오지 못했습니다"
+        : countPending ? "알림 개수를 불러오는 중" : "알림"}>
+        <Badge
+          // 숫자 배지 / 조용(중립 점) / 오류(경고 점) / 로딩(정보 점). 넷 다 아무 표시도 없는
+          // 상태와 구분돼야 한다 — "안 온 것"과 "안 불러온 것"은 다른 사실이다.
+          badgeContent={badge ? (badge > 99 ? "99+" : badge) : undefined}
+          variant={badge ? "standard" : "dot"}
+          invisible={!badge && !quiet && !countError && !countPending}
+          color={badge ? (countError ? "warning" : "error")
+            : countError ? "warning" : countPending ? "info" : "default"}
+          overlap="circular"
+        >
+          <IconButton
+            ref={bellRef}
+            color="inherit"
+            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
+            aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
+            onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}
+          >
+            <NotificationsNoneRoundedIcon />
+          </IconButton>
+        </Badge>
+      </Tooltip>
       {/* 방해금지 중에는 이 낭독도 멈춘다 — 스크린리더 사용자에게 라이브 리전은 곧 푸시다.
           시각 배지만 끄고 여기를 켜 두면 '조용히 해 달라'는 요청을 절반만 지키는 셈이다.
           숫자는 벨을 눌러 팝오버를 열면 그대로 다 들린다(삼키는 것이 아니다). */}
