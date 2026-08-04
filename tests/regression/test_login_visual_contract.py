@@ -285,11 +285,25 @@ def test_the_4k_block_survives():
         assert selector in block, f"4K 블록에서 {selector} 조정이 빠졌다"
 
 
-def test_clamp_rule_count_matches_the_approved_design():
-    """원본 styles.css의 clamp()는 23개다. 줄어들면 반응형 타이포가 어딘가 굳었다는 뜻이다."""
+APPROVED_CLAMP_COUNT = 23
+
+
+def test_responsive_typography_never_freezes():
+    """원본 styles.css 의 clamp() 는 23개다. **줄어들면** 반응형 타이포가 어딘가 굳었다는 뜻이다.
+
+    예전에는 `== 23` 으로 못 박혀 있었는데, 그건 이 테스트가 지키려던 것보다 좁다.
+    24개가 됐다고 해서 반응형이 나빠지지는 않는다 — 늘어난 쪽은 유동성이 더해진 것이다.
+    실제로 2026-08 에 워드마크가 2줄 락업으로 바뀌면서 하나가 늘었다: 폭을 고정하는 대신
+    높이를 `clamp()` 로 주고 폭을 비율로 계산하게 했다(SVG 에 width:auto 를 주면 종횡비가
+    아니라 컨테이너를 채워서 로고가 늘어난다).
+
+    그래서 의도 그대로 '**23개 아래로 내려가지 않는다**'만 지킨다.
+    """
     css = _login_css()
-    assert css.count("clamp(") == 23, (
-        f"clamp() 규칙이 {css.count('clamp(')}개다. 승인된 원본은 23개다."
+    count = css.count("clamp(")
+    assert count >= APPROVED_CLAMP_COUNT, (
+        f"clamp() 규칙이 {count}개다. 승인된 원본은 {APPROVED_CLAMP_COUNT}개이고, "
+        "줄었다면 어딘가에서 유동 타이포를 고정값으로 바꾼 것이다."
     )
 
 

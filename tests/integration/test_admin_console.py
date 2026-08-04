@@ -7,8 +7,14 @@ def test_admin_page_renders_for_operator(client, login_as):
     login_as("operator")
     r = client.get("/admin")
     assert r.status_code == 200
-    # /admin은 이제 React 콘솔 셸을 서빙한다(제목 '관리자 콘솔', root 컨테이너, 외부 번들).
-    assert "관리자 콘솔" in r.text
+    # /admin은 React 콘솔 셸을 서빙한다(브랜드 제목, root 컨테이너, 외부 번들).
+    #
+    # 예전에는 정적 <title>이 '관리자 콘솔'인지를 봤다. 그런데 이 HTML 한 벌을 관리자 콘솔과
+    # 사용자 콘솔이 **함께** 쓴다 — 정적 제목이 '관리자 콘솔'이면 사용자 화면 탭에도 그렇게
+    # 뜬다. 2026-08 부터 제목은 SPA가 라우트에 맞춰 정하고("<페이지> | ClovirAssist",
+    # app/documentTitle.js), 정적 제목은 브랜드만 담는다. 그래서 여기서는 '이 셸이 우리
+    # 제품의 것인가'만 본다 — 원래 이 세 줄이 함께 증명하려던 것이 그것이다.
+    assert "ClovirAssist" in r.text
     assert 'id="root"' in r.text
     assert "/static/react/assets/" in r.text
     # CSP compliance: 인라인 스크립트/핸들러 없음(외부 번들만).

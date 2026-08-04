@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 
 /* 채팅방 참여자 — 접속 점(누구나 본다) + 그룹 관리 대화상자(방장만).
  *
@@ -44,9 +45,19 @@ function MemberRow({ member, meId, actions }) {
       }}
     >
       <Dot online={member.online} />
-      <Typography sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", fontWeight: member.user_id === meId ? 700 : 400 }}>
-        {member.name || "알 수 없음"}{member.user_id === meId ? " (나)" : ""}
-      </Typography>
+      {/* 이름 아래에 소속 한 줄. 방을 만들 때 쓰는 디렉터리는 부서를 보여 주는데 정작
+          **만들어진 방의 참여자 목록은 이름만** 보여 줘서, 같은 이름 두 사람을 초대하면
+          누가 누구인지 구분할 수 없었다(사용자 지시 2026-08-04). */}
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: 1.35, fontWeight: member.user_id === meId ? 700 : 400 }}>
+          {member.name || "알 수 없음"}{member.user_id === meId ? " (나)" : ""}
+        </Typography>
+        {affiliation(member) ? (
+          <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {affiliation(member)}
+          </Typography>
+        ) : null}
+      </Box>
       {member.role === "owner" ? (
         <Chip size="small" label="방장" sx={{ flexShrink: 0, height: "1.25rem", fontSize: "0.6875rem" }} />
       ) : null}
@@ -68,6 +79,7 @@ const STRIP_NAMES = 8;
 
 export function MemberStrip({ members }) {
   const rows = members || [];
+  const dupNames = hasDuplicateNames(rows);
   if (!rows.length) return null;
   const online = rows.filter((m) => m.online).length;
   const ordered = [...rows].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
@@ -76,13 +88,15 @@ export function MemberStrip({ members }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5, px: 0.5 }}>
       <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>
-        참여자 {rows.length}명 · 보는 중 {online}명
+        참여자 {rows.length}명, 보는 중 {online}명
       </Typography>
+      {/* 한 줄 요약이라 소속을 늘 붙이면 줄이 넘친다. **이름이 겹칠 때만** 붙인다 —
+          그때가 이름만으로 못 고르는 유일한 경우다. */}
       {shown.map((m) => (
         <Box key={m.user_id} sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
           <Dot online={m.online} />
           <Typography sx={{ fontSize: "0.8125rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {m.name || "알 수 없음"}
+            {dupNames && affiliation(m) ? personLabel(m) : (m.name || "알 수 없음")}
           </Typography>
         </Box>
       ))}
@@ -226,7 +240,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
                     }}>
                     <Box component="input" type="checkbox" checked={!!picked[u.user_id]}
                       onChange={(e) => setPicked((p) => ({ ...p, [u.user_id]: e.target.checked }))} sx={{ m: 0 }} />
-                    <span>{[u.display_name, [u.dept, u.title].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</span>
+                    <span>{personLabel(u)}</span>
                   </Box>
                 ))}
               </Box>

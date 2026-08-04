@@ -66,51 +66,51 @@ export const SCREEN_ROLE_HELP = {
 
 export const NAV = [
   { group: "운영", icon: DashboardOutlinedIcon, items: [
-    { to: "/dashboard", label: "대시보드" },
-    { to: "/notifications", label: "알림" },
-    { to: "/jobs", label: "작업 큐", roles: ["operator", "admin", "system_admin"] },
-    { to: "/settings", label: "설정" },
-    { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"] },
-    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"] },
-    { to: "/diagnostics", label: "진단", roles: ["admin", "system_admin"] },
+    { to: "/dashboard", label: "대시보드", icon: "dashboard" },
+    { to: "/notifications", label: "알림", icon: "bell" },
+    { to: "/jobs", label: "작업 큐", roles: ["operator", "admin", "system_admin"], icon: "ticket" },
+    { to: "/settings", label: "설정", icon: "settings" },
+    { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
+    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], icon: "backup" },
+    { to: "/diagnostics", label: "진단", roles: ["admin", "system_admin"], icon: "diagnostics" },
     // GET /api/admin/settings(유지보수 모드가 담긴 응답)는 READ_ROLES까지 허용하는데 이 화면만
     // admin/system_admin으로 막혀 있었다 — 쓰기는 Ops.jsx의 canWrite가 따로 가드한다.
-    { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"] },
-    { to: "/announcements", label: "공지 배너" },
-    { to: "/feature-flags", label: "기능 플래그" },
-    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"] },
-    { to: "/restore-drills", label: "복구 리허설" },
+    { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"], icon: "maintenance" },
+    { to: "/announcements", label: "공지 배너", icon: "announce" },
+    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
+    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
+    { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
   ] },
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
-    { to: "/users", label: "사용자", roles: ["admin", "system_admin"] },
-    { to: "/offboarding", label: "온보딩 · 오프보딩", roles: ["admin", "system_admin"] },
-    { to: "/departments", label: "부서 관리", roles: ["admin", "system_admin"] },
-    { to: "/org-tree", label: "조직도", roles: ["admin", "system_admin"] },
-    { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"] },
+    { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
+    { to: "/offboarding", label: "온보딩과 오프보딩", roles: ["admin", "system_admin"], icon: "users" },
+    { to: "/departments", label: "부서 관리", roles: ["admin", "system_admin"], icon: "org" },
+    { to: "/org-tree", label: "조직도", roles: ["admin", "system_admin"], icon: "org" },
+    { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"], icon: "jobtitle" },
     // 권한 매트릭스는 규칙 표라 읽기 전용 역할(운영자·감사자)에게도 보인다.
-    { to: "/rbac", label: "권한 매트릭스" },
-    { to: "/notion-mapping", label: "Notion 사용자 연결" },
-    { to: "/impersonation", label: "대리 보기", roles: ["admin", "system_admin", "auditor"] },
+    { to: "/rbac", label: "권한 매트릭스", icon: "policy" },
+    { to: "/notion-mapping", label: "Notion 사용자 연결", icon: "docs" },
+    { to: "/impersonation", label: "대리 보기", roles: ["admin", "system_admin", "auditor"], icon: "impersonate" },
   ] },
   { group: "연동", icon: LinkOutlinedIcon, items: [
-    { to: "/integrations", label: "외부 연동" },
-    { to: "/runners", label: "자동화 작업 실행기(러너)" },
-    { to: "/workflows", label: "업무 자동화 흐름(워크플로)" },
+    { to: "/integrations", label: "외부 연동", icon: "integration" },
+    { to: "/runners", label: "자동화 작업 실행기(러너)", icon: "runner" },
+    { to: "/workflows", label: "업무 자동화 흐름(워크플로)", icon: "workflow" },
   ] },
   { group: "콘텐츠", icon: ArticleOutlinedIcon, items: [
-    { to: "/prompts", label: "프롬프트" },
-    { to: "/policies", label: "정책" },
-    { to: "/templates", label: "템플릿" },
-    { to: "/prompt-usage", label: "프롬프트 사용 통계" },
+    { to: "/prompts", label: "프롬프트", icon: "ai" },
+    { to: "/policies", label: "정책", icon: "policy" },
+    { to: "/templates", label: "템플릿", icon: "template" },
+    { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
   ] },
   { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
-    { to: "/schedules", label: "실행 일정(스케줄)" },
-    { to: "/scheduler-calendar", label: "실행 달력" },
-    { to: "/documents", label: "문서 자동 생성" },
-    { to: "/dev-report", label: "개발자 월간 리포트", roles: ["admin", "system_admin", "auditor"] },
-    { to: "/approvals", label: "승인" },
-    { to: "/approval-delegations", label: "승인 위임" },
-    { to: "/ai-quotas", label: "AI 사용 상한" },
+    { to: "/schedules", label: "실행 일정(스케줄)", icon: "schedule" },
+    { to: "/scheduler-calendar", label: "실행 달력", icon: "sprint" },
+    { to: "/documents", label: "문서 자동 생성", icon: "docs" },
+    { to: "/dev-report", label: "개발자 월간 리포트", roles: ["admin", "system_admin", "auditor"], icon: "report" },
+    { to: "/approvals", label: "승인", icon: "check" },
+    { to: "/approval-delegations", label: "승인 위임", icon: "check" },
+    { to: "/ai-quotas", label: "AI 사용 상한", icon: "quota" },
   ] },
 ];
 
@@ -122,34 +122,39 @@ export const NAV = [
  * 그룹 아이콘도 대화 말풍선에서 일정 아이콘으로 바꿨다. */
 export const USER_NAV = [
   { group: "내 업무", icon: WorkOutlineRoundedIcon, items: [
-    { to: "/me", label: "홈" },
-    { to: "/my-tickets", label: "내 티켓" },
-    { to: "/unassigned", label: "미할당 티켓" },
-    { to: "/new-ticket", label: "새 티켓" },
+    { to: "/me", label: "홈", icon: "home" },
+    { to: "/my-tickets", label: "내 티켓", icon: "ticket" },
+    { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
+    { to: "/new-ticket", label: "새 티켓", icon: "plus" },
   ] },
+  /* 기준 파일의 '도우미' 그룹에는 AI 도우미가 항목으로 있다. 예전에 뺐던 이유는 AI 가 탭
+     하나가 아니라 어디서든 부르는 전역 도우미가 됐기 때문인데, 그러다 보니 사이드바만 보는
+     사용자에게는 AI 로 가는 길이 안 보였다 — 우하단 FAB 과 상단바 버튼은 아이콘이라
+     '무엇인지'가 글자로 읽히지 않는다. 기준대로 되살린다. */
   { group: "도우미", icon: EventNoteOutlinedIcon, items: [
-    { to: "/sprint", label: "스프린트 회의" },
+    { to: "/chat", label: "AI 도우미", icon: "ai" },
+    { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
   ] },
   { group: "문서", icon: DescriptionOutlinedIcon, items: [
-    { to: "/team-docs", label: "문서" },
-    { to: "/team-docs/trash", label: "휴지통" },
+    { to: "/team-docs", label: "문서", icon: "docs" },
+    { to: "/team-docs/trash", label: "휴지통", icon: "trash" },
   ] },
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
-    { to: "/team-tickets", label: "팀 티켓" },
+    { to: "/team-tickets", label: "팀 티켓", icon: "ticket" },
     // badge는 '어떤 수를 붙일지'만 고르는 키다. 실제 값은 AppShell의 useNavBadges가
     // 정한다 — 여기서 숫자를 알 수는 없고, 그렇다고 셸에 경로를 하드코딩하면
     // 다음 배지를 붙일 때 또 if가 는다.
-    { to: "/chat-rooms", label: "채팅방", badge: "chatUnread" },
-    { to: "/games", label: "놀이" },
-    { to: "/board", label: "자유게시판" },
+    { to: "/chat-rooms", label: "채팅방", badge: "chatUnread", icon: "chat" },
+    { to: "/games", label: "놀이", icon: "game" },
+    { to: "/board", label: "자유게시판", icon: "board" },
   ] },
   /* 내 정보(계획서 Phase 6 사용자 백로그). '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을
    * 할까'를 고르는 곳이고 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. 섞으면 매일 쓰는
    * 네 항목 사이에 가끔 쓰는 세 항목이 끼어 매번 시선이 한 번씩 걸린다. */
   { group: "내 정보", icon: PersonOutlineRoundedIcon, items: [
-    { to: "/profile", label: "내 프로필" },
-    { to: "/my-stats", label: "내 업무량" },
-    { to: "/activity", label: "내 활동" },
+    { to: "/profile", label: "내 프로필", icon: "profile" },
+    { to: "/my-stats", label: "내 업무량", icon: "report" },
+    { to: "/activity", label: "내 활동", icon: "activity" },
   ] },
 ];
 

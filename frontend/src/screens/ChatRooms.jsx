@@ -9,6 +9,7 @@ import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useToast } from "../ui/kit.jsx";
 import { fmtRelative } from "../lib/format.js";
+import { personLabel } from "../lib/people.js";
 
 /* 채팅방 목록 — 전체 채팅(고정) + 내가 속한 그룹/1:1. 새 그룹 만들기, 1:1 시작(디렉터리에서 상대
  * 선택). 목록만 폴링(5초)해 안읽음/미리보기를 갱신하고, 실제 대화는 방 페이지(ChatRoom)에서 한다.
@@ -68,12 +69,10 @@ function useDirectory(enabled) {
   });
 }
 
-function personLabel(u) {
-  const meta = [u.dept, u.title].filter(Boolean).join(" ");
-  return meta ? `${u.display_name} (${meta})` : u.display_name;
-}
+// personLabel 은 lib/people.js 로 옮겼다 — 사람을 보여 주는 자리가 채팅 말고도 여럿인데
+// (담당자 선택, 방 멤버 목록, 댓글 작성자) 각자 다른 규칙을 갖고 있었다. 한 곳에서 정한다.
 
-// 모달 안 스크롤 목록(그룹 초대 · 1:1 상대) — 목록이 길어도 모달이 화면 밖으로 자라지 않게 한다.
+// 모달 안 스크롤 목록(그룹 초대, 1:1 상대) — 목록이 길어도 모달이 화면 밖으로 자라지 않게 한다.
 const PICKER_SX = {
   display: "flex", flexDirection: "column", gap: 0.25, maxHeight: "20rem", overflowY: "auto",
   border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,

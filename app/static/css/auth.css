@@ -41,7 +41,11 @@
   --motion-medium: 320ms;
   --motion-slow: 620ms;
   --ease-out: cubic-bezier(.2,.8,.2,1);
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, Arial, sans-serif;
+  /* Pretendard 를 앞에 둔다(2026-08-04 사용자 지시로 웹폰트 허용). 한글 화면에서 자간과
+     획 두께가 시스템 폰트보다 눈에 띄게 고르다 — 표와 촘촘한 목록에서 차이가 크다.
+     뒤의 시스템 스택은 폴백으로 그대로 남긴다: 폰트가 안 받아져도 예전과 같아 보이지
+     더 나빠지지는 않는다. */
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }

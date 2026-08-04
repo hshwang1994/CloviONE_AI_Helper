@@ -27,6 +27,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { FAB_CLEARANCE } from "../ui/theme.js";
+import { affiliation, needsOrg } from "../lib/people.js";
 
 // 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
 function useBulkTrash(path, qc, toast, onDone) {
@@ -313,6 +314,9 @@ function useTicketMeta(open) {
 /* 담당자 선택 목록 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
  * 손으로 복사해 두어 한쪽만 고치면 조용히 어긋났다). 목록이 길어질 수 있어 높이를 제한하고 스크롤한다. */
 function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeight = "12rem" }) {
+  // 조직은 둘 이상 섞여 있을 때만 그린다 — 하나뿐이면 모든 줄에 같은 값이 붙어 구분에
+  // 도움이 안 되면서 줄만 길어진다.
+  const withOrg = needsOrg(candidates);
   if (loading) return <Typography variant="body2" color="text.secondary">불러오는 중…</Typography>;
   if (!candidates.length) return <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion에 연결된 사용자 없음).</Typography>;
   return (
@@ -328,14 +332,30 @@ function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeig
         gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" },
       }}
     >
-      {candidates.map((c) => (
-        <FormControlLabel
-          key={c.user_id}
-          sx={{ m: 0 }}
-          control={<Checkbox size="small" checked={selected.includes(c.user_id)} onChange={() => onToggle(c.user_id)} />}
-          label={<Typography variant="body2">{c.display_name}{myId && c.user_id === myId ? " (나)" : ""}</Typography>}
-        />
-      ))}
+      {candidates.map((c) => {
+        const aff = affiliation(c, { withOrg });
+        return (
+          <FormControlLabel
+            key={c.user_id}
+            sx={{ m: 0 }}
+            control={<Checkbox size="small" checked={selected.includes(c.user_id)} onChange={() => onToggle(c.user_id)} />}
+            label={
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" sx={{ lineHeight: 1.3 }}>
+                  {c.display_name}{myId && c.user_id === myId ? " (나)" : ""}
+                </Typography>
+                {/* 소속은 보조줄로 — 동명이인이 있을 때 이게 유일한 구분 수단이다.
+                    소속 정보가 없는 사용자는 줄을 만들지 않는다(빈 줄이 생기면 목록이 들쭉날쭉). */}
+                {aff ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
+                    {aff}
+                  </Typography>
+                ) : null}
+              </Box>
+            }
+          />
+        );
+      })}
     </Paper>
   );
 }

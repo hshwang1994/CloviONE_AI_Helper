@@ -29,6 +29,8 @@ import { Tour } from "./Tour.jsx";
 import { bestNavMatch, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
+import { useDocumentTitle } from "./documentTitle.js";
+import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
@@ -38,7 +40,8 @@ import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
  * 사이드바 폭과 상단바 높이는 화면이 커지면 같이 커진다. 4K에서 고정 284px 사이드바는
  * 화면의 7%밖에 안 돼 메뉴가 실처럼 가늘어 보인다.
  */
-const DRAWER_WIDTH = { xs: 284, xxl: 320, uhd: 360 };
+/* 기준 파일의 --sidebar-w 는 264px 다(예전 값 284는 초안 단계에서 온 것). */
+const DRAWER_WIDTH = { xs: 264, xxl: 300, uhd: 340 };
 const APPBAR_HEIGHT = { xs: 64, xxl: 72, uhd: 80 };
 
 /* 그룹 접힘 상태는 새로고침에도 유지한다(테마와 같은 이유). 5그룹 20여 항목 트리를 접어
@@ -137,6 +140,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
               <List disablePadding sx={{ pl: 1 }}>
                 {g.items.map((it) => {
                   const active = it.to === activePath;
+                  const ItemIcon = navIcon(it.icon);
                   return (
                     <ListItemButton
                       key={it.to}
@@ -146,13 +150,28 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
                       aria-current={active ? "page" : undefined}
                       selected={active}
                       sx={{
-                        borderRadius: 2, minHeight: 40, py: 0.5, pl: 2.5,
+                        borderRadius: 2, minHeight: 42, py: 0.5, pl: 1.5,
                         color: active ? "common.white" : "rgba(237,240,255,.78)",
-                        "&.Mui-selected": { bgcolor: "rgba(255,255,255,.14)" },
-                        "&.Mui-selected:hover": { bgcolor: "rgba(255,255,255,.2)" },
+                        /* 활성 항목은 기준 파일의 .nav-item.is-active 와 같은 처리 —
+                           단색 배경이 아니라 왼쪽에서 흐르는 그라데이션 + 안쪽 링이다. */
+                        "&.Mui-selected": {
+                          background: "linear-gradient(90deg, rgba(117,138,225,.34), rgba(142,117,225,.14))",
+                          boxShadow: "inset 0 0 0 1px rgba(173,185,255,.2)",
+                        },
+                        "&.Mui-selected:hover": {
+                          background: "linear-gradient(90deg, rgba(117,138,225,.44), rgba(142,117,225,.2))",
+                        },
                         "&:hover": { bgcolor: "rgba(255,255,255,.08)" },
                       }}
                     >
+                      {/* 기준 파일은 메뉴 항목마다 아이콘을 둔다(§2). 예전에는 그룹에만 있어서
+                          펼친 목록이 글자만 늘어선 벽이었다. 아이콘은 장식이 아니라 훑을 때
+                          위치를 기억하게 하는 표지라, 항목 쪽에 있어야 한다. */}
+                      {ItemIcon ? (
+                        <ListItemIcon sx={{ minWidth: 30, color: "inherit", opacity: active ? 1 : 0.82 }}>
+                          <ItemIcon size={18} strokeWidth={1.8} aria-hidden="true" />
+                        </ListItemIcon>
+                      ) : null}
                       <ListItemText
                         primary={it.label}
                         primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: active ? 750 : 600 }}
@@ -178,6 +197,8 @@ export function AppShell({
   const auth = useAuth();
   const loc = useLocation();
   const navigate = useNavigate();
+  // 탭 제목을 화면마다 다르게 — 정적 <title> 하나뿐이라 어느 탭이 무엇인지 구분이 안 됐다.
+  useDocumentTitle(loc.pathname);
   const role = auth.data && auth.data.role;
   const userId = auth.data && auth.data.id;
   const name = (auth.data && auth.data.display_name) || "";
@@ -202,7 +223,9 @@ export function AppShell({
   const homeUser = isUser || userSeg;
 
   const drawerContent = (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "#1B2447", color: "common.white" }}>
+    /* 기준 파일의 .sidebar 는 단색이 아니라 위에서 아래로 어두워지는 그라데이션이다 —
+       상단바(딥 인디고)와 이어지고 아래로 갈수록 가라앉아 목록이 길어도 답답하지 않다. */
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", background: "linear-gradient(180deg, #111936 0%, #0A1026 100%)", color: "common.white" }}>
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5 }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
@@ -263,7 +286,12 @@ export function AppShell({
         elevation={0}
         sx={{
           zIndex: (t) => t.zIndex.drawer + 1,
-          background: `linear-gradient(105deg, ${theme.palette.primary.dark}, #327C98 62%, #765FC7)`,
+          /* 기준 파일의 최종 상단바. 예전 값(105deg, primary.dark → #327C98 → #765FC7)은
+             초안 단계의 것이라 전체적으로 밝고 청록이 강했다. 최종안은 딥 인디고에서
+             브랜드 파랑으로 흐르고, 오른쪽 위 바깥에서 보라 빛무리가 내려앉는다. */
+          background:
+            "radial-gradient(circle at 78% -120%, rgba(142,117,225,.74), transparent 44%)," +
+            " linear-gradient(112deg, #17204D 0%, #293B8D 48%, #536CD6 100%)",
         }}
       >
         <Toolbar sx={{ minHeight: APPBAR_HEIGHT, gap: 1 }}>

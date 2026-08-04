@@ -13,6 +13,9 @@
   <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('/static/brand/favicon/favicon-16x16.png') }}">
   <link rel="apple-touch-icon" href="{{ asset('/static/brand/favicon/apple-touch-icon.png') }}">
   <link rel="manifest" href="{{ asset('/static/brand/site.webmanifest') }}">
+  {# Pretendard 가변 폰트 — 로그인·SPA와 같은 것을 쓴다(글꼴이 화면마다 바뀌면 안 된다). #}
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/base.css') }}">
   {% block head %}{% endblock %}

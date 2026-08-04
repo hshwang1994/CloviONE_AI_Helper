@@ -175,7 +175,7 @@ describe("관리 대화상자", () => {
 describe("참여자 줄", () => {
   it("몇 명이 지금 이 대화를 보고 있는지 글자로도 말한다(색만으로 전하지 않는다)", async () => {
     mount(meta());
-    expect(await screen.findByText("참여자 2명 · 보는 중 1명")).toBeInTheDocument();
+    expect(await screen.findByText("참여자 2명, 보는 중 1명")).toBeInTheDocument();
   });
 
   it("사람이 많으면 이름을 잘라 '외 N명'으로 말한다 — 한 줄이 대화창을 밀어내면 안 된다", async () => {
@@ -184,7 +184,7 @@ describe("참여자 줄", () => {
       last_read_seq: 0, online: i % 4 === 0,
     }));
     mount(meta({ members: many }, { can_manage: false }));
-    expect(await screen.findByText("참여자 12명 · 보는 중 3명")).toBeInTheDocument();
+    expect(await screen.findByText("참여자 12명, 보는 중 3명")).toBeInTheDocument();
     expect(screen.getByText("외 4명")).toBeInTheDocument();
   });
 

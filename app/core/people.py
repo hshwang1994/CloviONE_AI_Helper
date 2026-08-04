@@ -1,0 +1,79 @@
+"""사람 한 명을 화면에서 **구분**하기 위한 최소 신원 — 단일 정의.
+
+## 왜 이 파일이 필요한가
+
+사용자 지시(2026-08-04): *"채팅 및 대화 및 댓글 작성 등을 할 때도 동명이인 등을 고려해
+어떤 조직의 어떤 부서인지 나와야 한다."*
+
+그동안 사람이 나오는 자리마다 각자 다른 조각을 실었다:
+  - `/api/team-chat/directory` — 이름 + 부서 + 직책 (유일하게 구분됨)
+  - 방 멤버 목록, 메시지 발신자, 댓글 작성자, 티켓 담당자 선택, 게임방 — **이름만**
+  - 오프보딩 후임자 선택 — 이름 + 이메일 + 부서
+
+같은 질문("이 사람이 누구냐")에 화면마다 다르게 답하고 있었고, 대부분은 표시 이름 하나로
+답하고 있었다. `users.display_name` 에는 유일성 제약이 **없다**(`app/users/models.py`) —
+동명이인은 스키마상 정상 상태다. 실제로 `app/team_chat/service.py::_mention_candidates` 는
+표시 이름이 겹치면 **두 사람 다 멘션 후보에서 조용히 뺀다**. 이름만으로는 못 고르기 때문이다.
+
+그래서 신원 조각을 만드는 자리를 여기 하나로 모은다. 새 화면이 사람을 보여줄 때
+`identity()` 를 쓰면 부서·직책·조직이 자동으로 따라온다 — 다음 화면에서 또 새어 나가지 않는다.
+
+## 왜 조직까지 넣는가
+
+지금은 조직이 한 행뿐이라 화면에 늘 그리면 잡음이다. 그래서 **응답에는 항상 싣고, 그릴지는
+화면이 정한다**(조직이 둘 이상일 때만). 제품화되면 다른 조직의 동명이인이 실제로 생기는데,
+그때 payload 부터 고치기 시작하면 이 파일이 없던 시절로 돌아간다.
+
+## 비용
+
+`User.department_ref`/`title_ref` 는 이미 `lazy="joined"` 라(`app/users/models.py`) 부서·직책은
+**추가 질의 없이** 읽힌다. 조직 이름만 `org_name_map()` 으로 한 번 읽어 넘긴다 —
+조직 표는 행이 몇 개뿐이라 요청당 한 번이면 충분하다.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.org.models import Organization
+
+
+def org_name_map(db: Session) -> dict[str, str]:
+    """{org_id: 조직명}. 조직 표는 작아서 통째로 읽는다."""
+    rows = db.execute(select(Organization.id, Organization.name)).all()
+    return {oid: name for oid, name in rows}
+
+
+def identity(user, org_names: dict[str, str] | None = None) -> dict:
+    """사람 한 명의 신원 조각.
+
+    `user` 가 None 이면(삭제된 사용자를 참조하는 옛 레코드) 빈 신원을 돌려준다 —
+    호출부마다 None 검사를 다시 쓰지 않게 하려는 것이다.
+    """
+    if user is None:
+        return {"user_id": None, "display_name": "", "dept": "", "title": "", "org": ""}
+    org_id = getattr(user, "org_id", None)
+    return {
+        "user_id": user.id,
+        "display_name": user.display_name or "",
+        # `department`/`title` 은 관계에서 이름을 꺼내는 프로퍼티다(users/models.py).
+        "dept": user.department or "",
+        "title": user.title or "",
+        "org": (org_names or {}).get(org_id, "") if org_id else "",
+    }
+
+
+def affiliation(person: dict, *, with_org: bool = False) -> str:
+    """'개발본부 팀장' 처럼 소속을 한 줄로. 비어 있는 조각은 건너뛴다.
+
+    구분자로 가운뎃점(·)을 쓰지 않는다 — 이 제품에서 그 문자를 화면에 쓰지 않기로 했다.
+    """
+    parts: list[str] = []
+    if with_org and person.get("org"):
+        parts.append(person["org"])
+    if person.get("dept"):
+        parts.append(person["dept"])
+    if person.get("title"):
+        parts.append(person["title"])
+    return " ".join(parts)

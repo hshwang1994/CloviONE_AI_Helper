@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core import uploads
+from app.core import people, uploads
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError
@@ -140,19 +140,28 @@ def _image_view(img) -> dict:
     }
 
 
-def _member_view(m, names, cursor, now) -> dict:
-    """참여자 한 줄 — 이름·역할 + **읽음 위치**와 **접속 여부**.
+def _member_view(m, names, cursor, now, org_names=None) -> dict:
+    """참여자 한 줄 — 이름·소속·역할 + **읽음 위치**와 **접속 여부**.
 
     `last_read_seq` 는 1:1 읽음 표시가 쓰는 값이다(내 메시지의 seq 가 상대의 이 값 이하면
     '읽음'). 방 멤버만 이 응답을 받으므로 대화 상대끼리만 서로의 읽음 위치를 본다.
 
     `online` 은 이 방의 `last_seen` 기준이다 — '이 방을 열어 두고 있다'는 뜻이지 '앱에
     접속해 있다'가 아니다. 방 참여자 목록의 점이라 그 뜻이 맞다.
+
+    `dept`/`title`/`org` 는 2026-08-04 지시로 추가했다. 방을 만들 때 쓰는 디렉터리
+    (`/directory`)는 부서를 주는데 정작 **만들어진 방의 참여자 목록은 이름만** 줬다 —
+    같은 이름 두 사람을 초대한 방에서 누가 누구인지 구분할 방법이 없었다.
     """
     u = names.get(m.user_id)
+    person = people.identity(u, org_names)
     return {
         "user_id": m.user_id,
-        "name": u.display_name if u else "",
+        # `name` 은 기존 계약이라 유지한다(프런트 여러 곳이 이 키를 읽는다).
+        "name": person["display_name"],
+        "dept": person["dept"],
+        "title": person["title"],
+        "org": person["org"],
         "role": m.role,
         "last_read_seq": service.read_seq_for(m, cursor),
         "online": service.is_online(m.last_seen, now),
@@ -204,10 +213,14 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     last_read = service.read_seq_for(member, cursors.get(me.id))
     is_owner = member is not None and member.role == ROLE_OWNER
     is_group = not room.is_global and room.kind != ROOM_DIRECT
+    org_names = people.org_name_map(db)
+    # 발신자 신원 맵 — 말풍선마다 부서를 실으면 같은 사람이 200번 반복된다(폴링 경로다).
+    # 등장하는 사람 한 명당 한 줄만 보내고, 말풍선은 sender_user_id 로 여기서 찾아 쓴다.
     return {
         "room": {"id": room.id, "kind": room.kind, "is_global": room.is_global,
                  "title": _room_title(room, mem, names, me.id), "member_count": len(mem)},
-        "members": [_member_view(m, names, cursors.get(m.user_id), now) for m in mem],
+        "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names) for m in mem],
+        "people": {uid: people.identity(u, org_names) for uid, u in names.items()},
         "messages": [_msg_view(m, names, images.get(m.id), me=me) for m in msgs],
         "seq": room.event_seq,
         "you": {"user_id": me.id, "role": member.role if member else None,

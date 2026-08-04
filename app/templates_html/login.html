@@ -37,6 +37,11 @@
      좁은 화면은 히어로를 숨기므로(login.css) 3MB를 받을 이유가 없다. #}
   <link rel="preload" as="image" href="{{ asset('/static/brand/login/clovi-canonical-eye-base.png') }}" media="(min-width: 900px)" fetchpriority="high">
   <link rel="preload" as="image" href="{{ asset('/static/brand/login/clovi-canonical-eyes-layer.png') }}" media="(min-width: 900px)" fetchpriority="high">
+  {# Pretendard 가변 폰트 — SPA(frontend/index.html)와 같은 것을 쓴다. 로그인 전후로 글꼴이
+     바뀌면 같은 제품이 아닌 것처럼 보인다. auth.css 의 --font 에 폴백이 남아 있어 이 요청이
+     실패해도 화면은 예전과 같이 보인다. #}
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/auth.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/login.css') }}">

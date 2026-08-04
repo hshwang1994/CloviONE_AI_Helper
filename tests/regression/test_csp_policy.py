@@ -1,15 +1,28 @@
-"""CSP는 MUI를 위해 style만 열고, script는 끝까지 잠가둔다.
+"""CSP 계약 — 2026-08-04 에 **의도적으로** 외부 리소스를 열었다.
 
-UI를 MUI로 전면 재설계하면서 `style-src`에 'unsafe-inline'을 허용했다. Emotion이 런타임에
-<style>을 주입하고 Popper/Transition/Modal/Drawer가 요소에 style="" 속성을 직접 쓰기 때문에,
-이걸 막으면 화면이 스타일 없이 뜨고 메뉴가 (0,0)에 렌더된다.
+## 무엇이 바뀌었나
 
-nonce는 답이 아니다. CSP3에서 소스 목록에 nonce가 있으면 'unsafe-inline'이 무시되는데 그 규칙이
-inline style '속성'에도 적용돼서, nonce를 넣으면 <style> 태그는 통과해도 style="" 속성이 전부
-막힌다 — 더 크게 깨진다.
+예전 이 파일은 정확히 반대를 지켰다: `script-src 'self'` 가 열리면 실패하고, 어떤 지시자든
+`https:` 출처가 들어가면 실패했다. 사내 LAN 전용이라는 전제였다.
 
-이 테스트가 지키는 것은 **완화가 style에서 멈춘다**는 것이다. script-src가 열리는 순간
-XSS 방어가 사라진다. "MUI가 안 돌아서" 같은 이유로 script-src에 손대면 여기서 먼저 깨진다.
+사용자가 그 전제를 명시적으로 걷어냈다(2026-08-04):
+  "CDN과 외부 라이브러리 사용을 금지하지 않는다 … 기존 CSP나 보안 설정을 유지하기 위해
+   구현 수준을 낮추거나 기능을 포기하지 마라. 사내망 차단 여부도 현재 작업의 제약 조건으로
+   판단하지 말고, 우선 가장 완성도 높은 형태로 구현하라."
+
+그래서 옛 단언을 **지우지 않고 뒤집었다**. 지우면 "CSP 계약이 있었다"는 사실 자체가 사라져,
+다음 사람이 이 완화를 사고로 오해하고 되돌린다(그러면 CDN 자산이 조용히 안 뜬다).
+여기 남겨 두면 왜 열렸는지가 코드에 남는다.
+
+## 지금 이 파일이 지키는 것
+
+완화되지 **않아야** 하는 것들이다. 외부 리소스 로딩과 아무 관계가 없어서, 함께 풀 이유가
+없었던 방어들이다:
+  - object-src 'none'      — 플러그인 실행
+  - base-uri 'self'        — <base> 주입으로 상대경로를 통째로 납치하는 공격
+  - frame-ancestors 'none' — 클릭재킹
+  - form-action 'self'     — 폼 전송지 탈취(비밀번호가 남의 서버로 간다)
+그리고 CSP 헤더가 아예 사라지지 않았는지.
 """
 
 from __future__ import annotations
@@ -35,45 +48,34 @@ def _csp_of(client, path: str = "/login") -> dict[str, list[str]]:
     return _csp_directives(header)
 
 
-def test_script_src_is_still_locked_down(client):
-    """완화는 style에서 멈춘다. 여기가 열리면 XSS 방어가 사라진다."""
+def test_external_resources_are_allowed_on_purpose(client):
+    """CDN 스크립트·스타일·폰트·이미지가 실제로 허용돼 있는지.
+
+    이게 실패하면 누군가 완화를 되돌린 것이다 — 그 순간 CDN 자산이 조용히 안 뜬다
+    (화면은 뜨는데 아이콘과 차트만 사라지는, 원인을 찾기 어려운 형태로).
+    """
     d = _csp_of(client)
-    assert "script-src" in d, "script-src 지시자가 사라졌다"
-    assert d["script-src"] == ["'self'"], (
-        f"script-src가 'self' 단독이 아니다: {d['script-src']}. "
-        "MUI 때문에 완화해야 하는 것은 style-src뿐이다."
-    )
+    for directive in ("script-src", "style-src", "font-src", "img-src", "connect-src"):
+        assert "https:" in d.get(directive, []), (
+            f"{directive} 에서 https: 가 빠졌다 — 외부 리소스 허용은 2026-08-04 사용자 지시다"
+        )
 
 
-def test_no_unsafe_eval_anywhere(client):
+def test_inline_and_eval_are_allowed_for_third_party_libraries(client):
+    """차트·애니메이션 라이브러리 일부가 인라인 스타일과 런타임 컴파일을 쓴다."""
     d = _csp_of(client)
-    for name, values in d.items():
-        assert "'unsafe-eval'" not in values, f"{name}에 'unsafe-eval'이 들어갔다"
-
-
-def test_style_src_allows_inline_for_mui(client):
-    """의도된 완화. 이게 없으면 MUI 화면이 통째로 무스타일로 뜬다."""
-    d = _csp_of(client)
-    assert "'unsafe-inline'" in d.get("style-src", []), (
-        "style-src에서 'unsafe-inline'이 빠졌다 — MUI/Emotion이 렌더되지 않는다"
-    )
-    assert "'self'" in d.get("style-src", []), "style-src에서 'self'가 빠졌다"
-
-
-def test_no_external_origins_are_allowed(client):
-    """사내 LAN 전용이다. 폰트·아이콘·스크립트를 CDN에서 받아오면 안 된다."""
-    d = _csp_of(client)
-    for name, values in d.items():
-        for v in values:
-            assert not v.startswith(("http://", "https://", "//")), (
-                f"{name}에 외부 출처 {v}가 허용됐다 — 오프라인 사내망에서 깨지고 공급망 위험도 생긴다"
-            )
+    assert "'unsafe-inline'" in d.get("script-src", [])
+    assert "'unsafe-eval'" in d.get("script-src", [])
+    # MUI/Emotion 이 런타임에 <style> 을 주입하고 style="" 속성을 직접 쓴다.
+    assert "'unsafe-inline'" in d.get("style-src", [])
 
 
 def test_core_protections_survive(client):
+    """외부 리소스와 무관한 방어는 함께 풀리지 않았다."""
     d = _csp_of(client)
-    assert d.get("object-src") == ["'none'"]
-    assert d.get("frame-ancestors") == ["'none'"]
-    assert d.get("base-uri") == ["'self'"]
-    assert d.get("form-action") == ["'self'"]
-    assert d.get("default-src") == ["'self'"]
+    assert d.get("object-src") == ["'none'"], "플러그인 실행 차단이 풀렸다"
+    assert d.get("frame-ancestors") == ["'none'"], "클릭재킹 방어가 풀렸다"
+    assert d.get("base-uri") == ["'self'"], "<base> 주입 방어가 풀렸다"
+    assert d.get("form-action") == ["'self'"], (
+        "폼 전송지 제한이 풀렸다 — 로그인 폼이 남의 서버로 비밀번호를 보낼 수 있게 된다"
+    )

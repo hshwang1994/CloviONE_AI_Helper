@@ -16,6 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import people
 from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.models_base import utcnow
 from app.core.notion_blocks import rendered_to_markdown
@@ -255,13 +256,20 @@ def list_projects(outbound, settings, db: Session | None = None, *, repo=None) -
 
 
 def list_assignees(db: Session) -> list[dict]:
-    """담당자로 배정 가능한 사람 목록 — active + verified 매핑 사용자의 {user_id, display_name}.
+    """담당자로 배정 가능한 사람 목록 — active + verified 매핑 사용자.
 
     raw notion_user_id 는 응답에 넣지 않는다(브라우저 미노출, 스펙 §12.3). 편집 API 가 user_id 를
     받아 서버에서 소스 id 로 해석한다.
+
+    **부서·직책·조직을 함께 싣는다**(사용자 지시 2026-08-04). 예전에는 {user_id, display_name}
+    뿐이라 '김하나'가 둘이면 담당자 선택 목록에 같은 줄이 두 번 떴고, 어느 쪽이 내가 찾는
+    사람인지 알 방법이 화면에 없었다. 신원 조각은 app/core/people.py 가 만든다.
+
+    행 대신 User 객체를 부르는 이유: `department`/`title` 은 관계에서 이름을 꺼내는
+    프로퍼티라 컬럼 select 로는 안 나온다. 관계가 lazy="joined" 라 질의 수는 그대로다.
     """
-    rows = db.execute(
-        select(User.id, User.display_name)
+    users = db.execute(
+        select(User)
         .join(UserNotionMapping, UserNotionMapping.user_id == User.id)
         .where(
             User.active.is_(True),
@@ -270,8 +278,9 @@ def list_assignees(db: Session) -> list[dict]:
             UserNotionMapping.notion_user_id.is_not(None),
         )
         .order_by(User.display_name)
-    ).all()
-    return [{"user_id": uid, "display_name": name} for uid, name in rows]
+    ).scalars().all()
+    org_names = people.org_name_map(db)
+    return [people.identity(u, org_names) for u in users]
 
 
 # ── 휴지통 ────────────────────────────────────────────────────────────────────

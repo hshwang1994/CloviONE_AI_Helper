@@ -133,8 +133,10 @@
   --shadow-hero: 0 30px 60px rgba(0, 0, 0, 0.35);
 
 
-  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic",
-    "Apple SD Gothic Neo", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Pretendard 를 앞에 둔다(2026-08-04 웹폰트 허용). 뒤의 시스템 스택은 폴백으로 남긴다 —
+     CDN 이 안 닿아도 화면이 예전과 같아 보이지 더 나빠지지 않는다. */
+  --font-stack: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, "Helvetica Neue", Arial, sans-serif;
   /* 브랜드의 목소리. 로그인 히어로의 모토처럼 브랜드가 말하는 자리에만 쓴다. */
   --font-serif: Georgia, "Nanum Myeongjo", "Batang", "Noto Serif KR", serif;
 }

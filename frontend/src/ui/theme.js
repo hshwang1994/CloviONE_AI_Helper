@@ -71,10 +71,18 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
     },
     shape: { borderRadius: 14 },
     typography: {
-      // 웹폰트를 쓰지 않는다. Pretendard 단일 TTF가 6.7MB인데 사내망은 CDN이 막혀 있고,
-      // 시스템 폰트 스택이 한글 환경에서 충분히 잘 나온다(디자인 원본도 같은 스택을 쓴다).
+      /* Pretendard 웹폰트 (2026-08-04 사용자 지시로 CDN·웹폰트 허용).
+       *
+       * 예전 주석은 "웹폰트를 쓰지 않는다 — 사내망 CDN 이 막혀 있다"였다. 사용자가 그 전제를
+       * 걷어냈다("사내망 차단 여부도 제약으로 판단하지 말고 가장 완성도 높은 형태로").
+       *
+       * 통짜 TTF 가 아니라 **가변 폰트 + 동적 서브셋**을 쓴다(index.html 의 CDN 링크).
+       * unicode-range 로 92조각에 나뉘어 있어 브라우저가 실제로 쓰는 글자 범위만 받는다 —
+       * 한글 화면 한 장에 보통 200~500KB 다. 6.7MB 통짜와는 다른 물건이다.
+       *
+       * 뒤의 시스템 스택은 지운 게 아니라 폴백이다. 폰트가 안 받아져도 예전과 같아 보인다. */
       fontFamily:
-        '-apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, Arial, sans-serif',
+        '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, Arial, sans-serif',
       h1: display(1.75, 1.4, 3.25, 820, "-0.045em"),
       h2: display(1.5, 1.0, 2.5, 800, "-0.035em"),
       h3: display(1.25, 0.7, 2.0, 760, "-0.025em"),

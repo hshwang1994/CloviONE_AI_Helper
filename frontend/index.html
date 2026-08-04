@@ -16,6 +16,19 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/static/brand/favicon/favicon-16x16.png" />
     <link rel="apple-touch-icon" href="/static/brand/favicon/apple-touch-icon.png" />
     <link rel="manifest" href="/static/brand/site.webmanifest" />
+    <!--
+      Pretendard 가변 폰트 (2026-08-04 사용자 지시로 CDN·웹폰트 허용).
+      동적 서브셋이라 unicode-range 로 92조각에 나뉘어 있고, 브라우저가 화면에 실제로 쓰인
+      글자 범위만 받는다. preconnect 를 먼저 두는 이유: 폰트 CSS 를 받고 나서야 woff2 요청이
+      시작되므로, 연결 수립을 미리 해 두지 않으면 첫 화면에서 글꼴이 늦게 바뀐다.
+      theme.js 의 fontFamily 뒤에 시스템 스택이 폴백으로 남아 있어, 이 요청이 실패해도
+      화면은 예전과 같이 보인다.
+    -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
   </head>
   <body>
     <div id="root"></div>
