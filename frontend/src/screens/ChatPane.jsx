@@ -18,6 +18,7 @@ import { useConfirm } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
+import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -49,6 +50,7 @@ const LOG_SX = {
 export function ChatPane({ roomId, compact = false, interval = 2000 }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const lb = useLightbox();
   const logRef = React.useRef(null);
   const inputRef = React.useRef(null);
   const prevCountRef = React.useRef(0);
@@ -264,16 +266,31 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
                   >
                     {/* 이미지 메시지: 말풍선 안에 인라인. body(파일명)는 alt 로만 쓴다 —
                         말풍선에 파일명과 그림을 같이 두면 그림이 캡션 달린 첨부처럼 보인다. */}
+                    {/* 예전에는 클릭조차 되지 않았다 — 말풍선 안에서 18rem 으로 줄어든 그림이
+                        전부였고 원본 크기로 볼 방법이 없었다(사용자 지시 §4). */}
                     {m.kind === "image" && (m.images || []).length > 0
-                      ? (m.images || []).map((img) => (
+                      ? (m.images || []).map((img, ii) => (
                         <Box
-                          key={img.id} component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
-                          loading="lazy"
+                          key={img.id}
+                          component="button"
+                          type="button"
+                          onClick={() => lb.open(
+                            (m.images || []).map((x) => ({ src: x.url, title: x.filename })), ii)}
+                          aria-label={(img.filename || "이미지") + " 크게 보기"}
                           sx={{
-                            display: "block", maxWidth: "100%", maxHeight: "18rem",
-                            width: "auto", height: "auto", borderRadius: 1.5,
+                            p: 0, border: 0, background: "none", cursor: "zoom-in", display: "block",
+                            "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
                           }}
-                        />
+                        >
+                          <Box
+                            component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
+                            loading="lazy"
+                            sx={{
+                              display: "block", maxWidth: "100%", maxHeight: "18rem",
+                              width: "auto", height: "auto", borderRadius: 1.5,
+                            }}
+                          />
+                        </Box>
                       ))
                       : <ChatBubbleText body={m.body} names={names} mine={mine} />}
                   </Paper>
@@ -400,6 +417,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
           ))}
         </Box>
       </Popover>
+      <ImageLightbox {...lb.props} />
     </Box>
   );
 }

@@ -24,6 +24,7 @@ import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { boardCategoryKind } from "../lib/badges.js";
 import { PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
+import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
@@ -42,15 +43,30 @@ const PROSE_SX = {
 };
 
 function AttachmentList({ attachments }) {
+  const lb = useLightbox();
   if (!attachments || attachments.length === 0) return null;
   const images = attachments.filter((a) => a.is_image);
   const files = attachments.filter((a) => !a.is_image);
+  const slides = images.map((a) => ({ src: a.url, title: a.filename }));
   return (
     <Box sx={{ mt: 3, display: "grid", gap: 2 }}>
       {images.length > 0 ? (
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}>
-          {images.map((a) => (
-            <Link key={a.id} href={a.url} target="_blank" rel="noreferrer noopener" sx={{ display: "block", minWidth: 0 }}>
+          {/* 예전에는 새 탭으로 열었다 — 이미지 한 장 보려고 앱을 떠나고, 돌아오면 스크롤
+              위치를 잃는다. 이제 제자리에서 확대해 보고 좌우로 넘긴다(사용자 지시 §4). */}
+          {images.map((a, i) => (
+            <Box
+              key={a.id}
+              component="button"
+              type="button"
+              onClick={() => lb.open(slides, i)}
+              aria-label={a.filename + " 크게 보기"}
+              sx={{
+                p: 0, border: 0, background: "none", cursor: "zoom-in",
+                display: "block", minWidth: 0,
+                "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
+              }}
+            >
               <Box
                 component="img"
                 src={a.url}
@@ -64,11 +80,12 @@ function AttachmentList({ attachments }) {
                 sx={{
                   width: "100%", aspectRatio: "1 / 1", objectFit: "contain",
                   borderRadius: 2, border: 1, borderColor: "divider",
-                  bgcolor: "action.hover",
+                  bgcolor: "action.hover", display: "block",
                 }}
               />
-            </Link>
+            </Box>
           ))}
+          <ImageLightbox {...lb.props} />
         </Box>
       ) : null}
       {files.length > 0 ? (

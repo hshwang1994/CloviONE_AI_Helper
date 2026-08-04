@@ -165,6 +165,35 @@ def _block_text(block: dict, btype: str) -> str:
     return "".join(s.get("plain_text", "") for s in rich if isinstance(s, dict))
 
 
+def _image_view(block: dict) -> dict | None:
+    """이미지 블록 → 화면이 그릴 수 있는 형태. 모르는 모양이면 None.
+
+    ## URL 을 프록시하지 않고 그대로 내려보내는 이유
+
+    Notion 호스팅 파일의 URL 은 **만료되는 서명 URL**(보통 1시간)이라 우리가 저장해 둘 수 없고,
+    프록시하려면 그 S3 호스트를 SSRF 허용목록에 넣어야 한다. 허용목록은 이 제품의 아웃바운드
+    방어선이라 이미지 하나 보자고 넓힐 자리가 아니다.
+
+    반대로 브라우저가 직접 받으면 허용목록을 건드리지 않는다. CSP 의 `img-src` 가 https: 를
+    허용하도록 이미 열려 있고(2026-08-04 사용자 지시), 이 URL 을 보는 사람은 **이미 그 티켓을
+    읽을 수 있는 사람**이라 새로 열리는 권한이 없다. 서명 URL 이라 노출 시간도 스스로 끝난다.
+
+    대가는 하나: 화면을 한 시간 넘게 켜 두면 이미지 링크가 만료된다. 새로고침하면 새 URL 이
+    내려온다. 사라지는 것도 아니고 되돌릴 수 없는 것도 아니라 이 쪽이 낫다고 봤다.
+    """
+    payload = block.get("image")
+    if not isinstance(payload, dict):
+        return None
+    holder = payload.get(payload.get("type") or "")
+    url = holder.get("url") if isinstance(holder, dict) else None
+    if not url:
+        return None
+    caption = "".join(
+        s.get("plain_text", "") for s in (payload.get("caption") or []) if isinstance(s, dict)
+    )
+    return {"kind": "image", "url": url, "text": caption}
+
+
 def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
     """티켓 페이지 본문을 얕게 읽어 렌더용 [{kind, text, checked?}] 로 돌려준다(문서 상세와 동일 형식).
     지원 밖 블록은 '[원본에서 확인]' 자리표시. 온전한 열람은 원본 링크로."""
@@ -185,6 +214,10 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
                 if btype == "to_do":
                     item["checked"] = bool((block.get("to_do") or {}).get("checked"))
                 out.append(item)
+            elif btype == "image":
+                image = _image_view(block)
+                # URL 을 못 읽으면(모르는 모양) 예전처럼 자리표시로 둔다 — 깨진 <img> 보다 낫다.
+                out.append(image if image else {"kind": "unsupported", "text": "[image] 원본에서 확인"})
             else:
                 out.append({"kind": "unsupported", "text": f"[{btype}] 원본에서 확인"})
         if not data.get("has_more"):

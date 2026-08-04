@@ -327,3 +327,55 @@ def test_detail_falls_back_to_the_source_body_when_we_have_no_canonical_copy(
     # 근사치라는 사실을 함께 알린다 — 이걸 그대로 저장하면 서식이 평문으로 납작해진다.
     assert detail["body_is_local"] is False
     assert detail["body_sync_error"] is None
+
+
+# ── 이미지 블록 노출 (사용자 지시 §4) ─────────────────────────────────────────
+
+def test_image_blocks_reach_the_screen_with_a_url(db, settings, make_user):
+    """티켓에 붙은 이미지를 화면에서 **볼 수 있어야** 한다.
+
+    예전에는 이미지 블록이 `{"kind":"unsupported","text":"[image] 원본에서 확인"}` 이라는
+    문자열로 바뀌어 회색 글씨로만 나왔다. AI 도우미로 티켓을 만들 때 붙인 이미지가 정확히
+    이 경로로 사라져, 포털에서는 그림이 있었다는 사실만 알 수 있고 볼 수는 없었다.
+
+    URL 을 프록시하지 않고 그대로 내려보내는 이유는 notion_write._image_view 주석에 있다.
+    """
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(
+        page=_page(people=["notion-me"]),
+        blocks=[
+            {"id": "p1", "type": "paragraph",
+             "paragraph": {"rich_text": [{"plain_text": "설명"}]}},
+            {"id": "i1", "type": "image",
+             "image": {"type": "file", "file": {"url": "https://files.example/x.png"},
+                       "caption": [{"plain_text": "장애 화면"}]}},
+            {"id": "i2", "type": "image",
+             "image": {"type": "external", "external": {"url": "https://ext.example/y.png"}}},
+        ],
+    )
+
+    detail = service.ticket_detail(db, ob, settings, me, page_id="page-1")
+    images = [b for b in detail["blocks"] if b.get("kind") == "image"]
+
+    assert len(images) == 2, f"이미지 블록이 화면까지 오지 않았다: {detail['blocks']}"
+    # 호스팅 파일과 외부 URL 둘 다 다룬다 — 둘은 Notion 응답 모양이 다르다.
+    assert images[0]["url"] == "https://files.example/x.png"
+    assert images[0]["text"] == "장애 화면"      # 캡션은 그림 아래 설명으로 쓴다
+    assert images[1]["url"] == "https://ext.example/y.png"
+    # 자리표시 문자열은 더 이상 나오지 않는다.
+    assert not [b for b in detail["blocks"] if b.get("kind") == "unsupported"]
+
+
+def test_an_image_block_we_cannot_read_stays_a_placeholder(db, settings, make_user):
+    """모르는 모양이면 자리표시로 둔다 — 깨진 <img> 를 그리는 것보다 낫다."""
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(
+        page=_page(people=["notion-me"]),
+        blocks=[{"id": "i1", "type": "image", "image": {"type": "file"}}],   # url 없음
+    )
+
+    detail = service.ticket_detail(db, ob, settings, me, page_id="page-1")
+
+    assert [b["kind"] for b in detail["blocks"]] == ["unsupported"]

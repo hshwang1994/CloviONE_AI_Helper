@@ -20,6 +20,7 @@ import {
 import { fmtDateTime } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
+import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 팀 공간 > 문서 상세 (§17). 메타는 캐시에서, 본문 블록은 실시간(Notion). 본문을 못 불러와도
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
@@ -36,9 +37,21 @@ export function safeExternal(url) {
   return null;
 }
 
-function DocBlock({ block }) {
+function DocBlock({ block, onImage }) {
   const t = block.text || "";
   switch (block.kind) {
+    case "image":
+      /* 사용자 지시 §4 — 티켓·문서에 붙은 이미지를 화면에서 바로 보고, 눌러서 크게 본다.
+         예전에는 이미지 블록이 "[image] 원본에서 확인"이라는 회색 글씨로만 나왔다. */
+      return (
+        <Box sx={{ my: 2 }}>
+          <ClickableImage src={block.url} alt={t || "본문 이미지"} onOpen={() => onImage && onImage(block)}
+            sx={{ border: 1, borderColor: "divider" }} />
+          {t ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{t}</Typography>
+          ) : null}
+        </Box>
+      );
     case "heading_1":
       return <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 1 }}>{t}</Typography>;
     case "heading_2":
@@ -89,6 +102,8 @@ function DocBlock({ block }) {
 }
 
 export function DocBody({ blocks, blocksError, originalUrl }) {
+  // 훅은 조기 return 보다 먼저 부른다(Rules of Hooks) — 아래에 오류·빈 본문 분기가 있다.
+  const lb = useLightbox();
   if (blocksError) {
     return (
       <Callout tone="warn">
@@ -109,6 +124,13 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
     out.push(<Box component={Tag} key={"list-" + out.length} sx={{ my: 1.5, pl: 3 }}>{run.items}</Box>);
     run = null;
   };
+  // 본문 안의 이미지 전부를 한 벌로 모아 두면 확대 보기에서 좌우로 넘길 수 있다 —
+  // 한 장씩 열고 닫는 것보다 여러 장 붙은 티켓에서 훨씬 빠르다.
+  const shots = blocks.filter((b) => b && b.kind === "image" && b.url);
+  const openImage = (block) => {
+    const at = shots.findIndex((s) => s === block);
+    lb.open(shots.map((s) => ({ src: s.url, title: s.text || undefined })), at < 0 ? 0 : at);
+  };
   blocks.forEach((b, i) => {
     if (b.kind === "bulleted" || b.kind === "numbered") {
       if (run && run.kind !== b.kind) flush();
@@ -116,12 +138,17 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
       run.items.push(<DocBlock key={i} block={b} />);
     } else {
       flush();
-      out.push(<DocBlock key={i} block={b} />);
+      out.push(<DocBlock key={i} block={b} onImage={openImage} />);
     }
   });
   flush();
   // 산문 줄 길이 상한 — 3,000px짜리 한 줄은 눈이 다음 줄 첫 글자를 찾지 못한다.
-  return <Box sx={{ maxWidth: PROSE_MAX_WIDTH, overflowWrap: "anywhere" }}>{out}</Box>;
+  return (
+    <Box sx={{ maxWidth: PROSE_MAX_WIDTH, overflowWrap: "anywhere" }}>
+      {out}
+      <ImageLightbox {...lb.props} />
+    </Box>
+  );
 }
 
 /* 문서 메타 레일. 넓은 화면에서는 본문 옆 열, 좁은 화면에서는 본문 위로 흐른다. */
