@@ -235,7 +235,7 @@ def due_for_scheduled_backup(db, config: dict, *, now) -> bool:
             previous = nxt
             cursor = nxt
     except Exception:
-        logger.exception("backup_schedule cron 해석 실패 — 예약 백업을 건너뛴다")
+        logger.exception("backup_schedule cron 해석 실패: 예약 백업을 건너뛴다")
         return False
     if previous is None:
         return False

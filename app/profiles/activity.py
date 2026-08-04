@@ -126,7 +126,7 @@ ACTION_SENTENCES: dict[str, str] = {
     "user.password_change_failed": "비밀번호 변경에 실패했습니다",
     "profile.avatar.update": "프로필 사진을 바꿨습니다",
     "profile.avatar.delete": "프로필 사진을 지웠습니다",
-    "profile.preferences.update": "알림·방해금지 설정을 바꿨습니다",
+    "profile.preferences.update": "알림, 방해금지 설정을 바꿨습니다",
     "profile.sessions.revoke_others": "내 다른 기기의 로그인을 모두 해제했습니다",
     "profile.sessions.revoke": "다른 기기의 로그인을 해제했습니다",
     "team_chat.create_group": "채팅방을 만들었습니다",
@@ -175,7 +175,7 @@ def describe_action(action: str, object_type: str | None) -> str:
         # 알려 주지 않아 원문보다도 정보가 적다. 원문을 함께 남긴다.
         return f"{verb} ({action})"
     if noun:
-        return f"{noun} — {action}"
+        return f"{noun}: {action}"
     return action or "활동"
 
 

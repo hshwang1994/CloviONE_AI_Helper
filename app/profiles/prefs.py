@@ -45,7 +45,7 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "job_failed": ("작업 실패", "자동화 작업이 실패했을 때"),
     "schedule_failed": ("일정 실행 실패", "예약된 실행이 실패했을 때"),
     "runner_unavailable": ("러너 이상", "자동화 실행기가 응답하지 않을 때"),
-    "maintenance_announcement": ("유지보수 공지", "점검 예정·완료 공지"),
+    "maintenance_announcement": ("유지보수 공지", "점검 예정, 완료 공지"),
 }
 
 # 뮤트할 수 없는 유형 — 계정 보안에 관한 알림이다. 끌 수 있게 만들면 침해를 알리는

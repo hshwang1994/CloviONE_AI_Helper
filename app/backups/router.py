@@ -154,7 +154,7 @@ def restore_instructions():
             "(rollback 스크립트로는 복원되지 않습니다)."
         ),
         "rollback_input": (
-            "rollback 스크립트의 <BACKUP_DIR>는 cron·업그레이드 백업이 만든 디렉터리"
+            "rollback 스크립트의 <BACKUP_DIR>는 cron, 업그레이드 백업이 만든 디렉터리"
             "(/var/backups/clovirone-web-assistant/<타임스탬프>/, web.sqlite3 + app.tar.gz "
             "+ SHA256SUMS 포함)여야 합니다. 위 목록의 단일 파일 경로는 넣지 마세요."
         ),

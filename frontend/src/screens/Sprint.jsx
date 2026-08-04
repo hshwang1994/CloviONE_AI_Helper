@@ -228,7 +228,7 @@ export function Sprint() {
                 </Typography>
                 <Card>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-                    이 주에 담당자별로 맡은 티켓입니다. 제목을 누르면 티켓 상세가 열리고, ‘편집’으로 상태·담당자·마감을 바로 바꿀 수 있습니다.
+                    이 주에 담당자별로 맡은 티켓입니다. 제목을 누르면 티켓 상세가 열리고, ‘편집’으로 상태, 담당자, 마감을 바로 바꿀 수 있습니다.
                   </Typography>
                   <GroupedTickets
                     rows={rows}

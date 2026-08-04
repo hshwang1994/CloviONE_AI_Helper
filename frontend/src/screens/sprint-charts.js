@@ -60,7 +60,7 @@ export function wdBalanceItems(developers) {
         value: load,
         // 평균의 1.5배를 넘는 사람만 색으로 짚는다. 전부 칠하면 아무 데도 눈이 안 간다.
         color: avg > 0 && load > avg * 1.5 ? "warn" : "primary",
-        note: `완료 ${Number(d.est_done) || 0}인일 · 담당 ${Number(d.assigned) || 0}건`,
+        note: `완료 ${Number(d.est_done) || 0}인일, 담당 ${Number(d.assigned) || 0}건`,
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -68,5 +68,5 @@ export function wdBalanceItems(developers) {
   const parts = [`${busy.length}명 평균 ${avg}인일`];
   if (peak > 0 && avg > 0) parts.push(`가장 많은 사람 ${peak}인일`);
   if (idle > 0) parts.push(`이번 주 배정이 없는 사람 ${idle}명`);
-  return { items, max: peak, summary: parts.join(" · ") };
+  return { items, max: peak, summary: parts.join(", ") };
 }

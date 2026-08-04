@@ -99,27 +99,27 @@ describe("AI 도우미 패널", () => {
     routeApi();
     renderPanel();
 
-    expect(await screen.findByText(/오늘 마감 2건 · 지연 1건/)).toBeInTheDocument();
+    expect(await screen.findByText(/오늘 마감 2건, 지연 1건/)).toBeInTheDocument();
     expect(apiMock.mock.calls.every(([p]) => !p.includes("narrate"))).toBe(true);
   });
 
   it("문장 생성이 꺼져 있으면 숫자는 그대로 두고 이유만 덧붙인다", async () => {
     routeApi();
     renderPanel();
-    await screen.findByText(/오늘 마감 2건 · 지연 1건/);
+    await screen.findByText(/오늘 마감 2건, 지연 1건/);
 
     await userEvent.click(screen.getByRole("button", { name: "문장 요약 만들기" }));
 
     expect(await screen.findByText("요약 문장 생성이 꺼져 있습니다.")).toBeInTheDocument();
     // 숫자는 한 글자도 사라지지 않는다 — 이것이 계획서 Phase 5 의 요구사항이다.
-    expect(screen.getByText(/오늘 마감 2건 · 지연 1건/)).toBeInTheDocument();
+    expect(screen.getByText(/오늘 마감 2건, 지연 1건/)).toBeInTheDocument();
     expect(apiMock.mock.calls.some(([p]) => p.includes("narrate=true"))).toBe(true);
   });
 
   it("러너가 문장을 주면 요약으로 보여준다", async () => {
     routeApi({ narrative: { enabled: true, text: "오늘 마감 2건, 지연 1건입니다.", error: null } });
     renderPanel();
-    await screen.findByText(/오늘 마감 2건 · 지연 1건/);
+    await screen.findByText(/오늘 마감 2건, 지연 1건/);
 
     await userEvent.click(screen.getByRole("button", { name: "문장 요약 만들기" }));
     expect(await screen.findByText("오늘 마감 2건, 지연 1건입니다.")).toBeInTheDocument();

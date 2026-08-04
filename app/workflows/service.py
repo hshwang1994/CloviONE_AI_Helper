@@ -150,7 +150,7 @@ def seed_known_workflows(db: Session, *, allowlists: AllowlistRegistry) -> list[
     known = [
         {
             "name": "ClovirONE AI 업무 도우미",
-            "purpose": "티켓·프로젝트 조회와 생성, 도움말 — 사용자 채팅의 백엔드 workflow",
+            "purpose": "티켓, 프로젝트 조회와 생성, 도움말: 사용자 채팅의 백엔드 workflow",
             "webhook_url": "http://127.0.0.1:5678/webhook/clovirone-work-assistant",
             "http_method": "POST",
             "operation_mode": "write",
@@ -165,7 +165,7 @@ def seed_known_workflows(db: Session, *, allowlists: AllowlistRegistry) -> list[
             "name": "notion-user-mapping",
             "purpose": (
                 "사용자 이메일로 Notion user id를 찾는다. 사람은 워크스페이스 멤버 목록"
-                "(/v1/users)이 아니라 작업 데이터의 담당자에서 나온다 — 그 API는 이 통합에"
+                "(/v1/users)이 아니라 작업 데이터의 담당자에서 나온다. 그 API는 이 통합에"
                 " 2명만 노출한다(실측). 티켓의 '티켓 담당자'와 프로젝트의 '담당자 정/부'에"
                 " 진짜 Notion user id가 들어 있고, 러너도 같은 우물을 쓴다."
             ),

@@ -59,7 +59,7 @@ FLAG_REGISTRY: dict[str, FlagSpec] = {
     for spec in (
         # ── DB 소유(관리 콘솔 Settings 화면에서 켜고 끈다) ──────────────────────
         FlagSpec("maintenance_mode", False, OWNER_DB,
-                 "유지보수 모드. 정본은 app_settings 테이블 — 파일에 적어도 효과가 없다."),
+                 "유지보수 모드. 정본은 app_settings 테이블: 파일에 적어도 효과가 없다."),
         FlagSpec("document_automation_enabled", True, OWNER_DB,
                  "문서 자동화. 정본은 app_settings 테이블."),
         # ── 파일 소유(배포 단위 토글) ─────────────────────────────────────────
@@ -72,7 +72,7 @@ FLAG_REGISTRY: dict[str, FlagSpec] = {
         FlagSpec("game_ai_enabled", False, OWNER_FILE,
                  "AI 퀴즈 생성(§7-9). 러너/Claude 호출이라 기본 OFF(fail-closed)."),
         FlagSpec("assistant_narrative_enabled", False, OWNER_FILE,
-                 "AI 도우미의 '문장' 생성. 꺼져도 숫자·목록은 전부 나온다."),
+                 "AI 도우미의 '문장' 생성. 꺼져도 숫자, 목록은 전부 나온다."),
         # ── 소비자가 아직 없는 플래그 ─────────────────────────────────────────
         # 정직하게 적어 둔다: 읽는 코드가 하나도 없다. 지우지 않는 이유는 운영 파일에
         # 이미 들어가 있어서이고, 남겨 두는 대신 '효과 없음'을 여기에 못박는다 —

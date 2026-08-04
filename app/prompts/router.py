@@ -188,7 +188,7 @@ def _build_router(kind: str, model, view, create_schema):
         ).first()
         if existing is not None:
             raise ConflictError(
-                f"이미 존재하는 이름입니다: {payload.name} — new-version을 사용하세요."
+                f"이미 존재하는 이름입니다: {payload.name}: new-version을 사용하세요."
             )
         content = payload.content
         if model is Policy:

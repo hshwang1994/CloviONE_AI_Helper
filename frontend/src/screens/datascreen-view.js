@@ -112,5 +112,5 @@ export function describeView(query, config) {
     bits.push(`${f.label || f.key}: ${option ? option.label : value}`);
   });
   if (view.page > 1) bits.push(`${view.page}쪽`);
-  return bits.join(" · ");
+  return bits.join(", ");
 }

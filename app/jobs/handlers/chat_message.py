@@ -144,7 +144,7 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     payload = parse_payload(job)
     requester = payload.get("requester") or {}
     if not requester.get("email"):
-        raise PermanentJobError("requester가 없는 payload — 위조 또는 손상")
+        raise PermanentJobError("requester가 없는 payload: 위조 또는 손상")
 
     message = _load_message(db, payload)
     message.processing_status = PROC_PROCESSING
@@ -295,7 +295,7 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         message.error_code = "assistant_rejected"
         guidance = (
             "요청이 업무 처리 서버에서 거부되었습니다. 같은 내용으로 다시 시도해도 대부분 "
-            "동일하게 실패합니다 — 요청 내용을 확인하거나 관리자에게 문의해 주세요."
+            "동일하게 실패합니다. 요청 내용을 확인하거나 관리자에게 문의해 주세요."
         )
     else:
         message.error_code = "assistant_error"

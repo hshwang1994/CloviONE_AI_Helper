@@ -21,7 +21,7 @@ KNOWN_INTEGRATIONS: list[dict] = [
     {
         "name": "n8n",
         "provider_type": "n8n",
-        "description": "n8n 워크플로 엔진 (기존 서비스 — 무접촉, webhook 호출만)",
+        "description": "n8n 워크플로 엔진 (기존 서비스: 무접촉, webhook 호출만)",
         "base_url": "http://127.0.0.1:5678",
         "health_url": "http://127.0.0.1:5678/healthz",
         "capabilities": {"webhooks": True},
@@ -48,7 +48,7 @@ KNOWN_INTEGRATIONS: list[dict] = [
     {
         "name": "claude-request-interpreter",
         "provider_type": "http_service",
-        "description": "Claude Request Interpreter (기존 서비스 — 존재 여부 사전조사로 확인)",
+        "description": "Claude Request Interpreter (기존 서비스: 존재 여부 사전조사로 확인)",
         "base_url": "http://127.0.0.1:8788",
         "health_url": "http://127.0.0.1:8788/healthz",
         "capabilities": {"interpretation": True},

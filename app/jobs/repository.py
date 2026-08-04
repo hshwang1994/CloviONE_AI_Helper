@@ -177,7 +177,7 @@ def recover_stuck(
         .all()
     )
     for job in stuck:
-        fail(db, job, error="worker timeout — stuck job recovered", now=now)
+        fail(db, job, error="worker timeout: stuck job recovered", now=now)
     db.flush()
     return list(stuck)
 

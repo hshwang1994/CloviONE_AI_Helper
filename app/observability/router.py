@@ -90,7 +90,7 @@ def _notice_for(row: SyncStatus, label: str, now: datetime) -> dict | None:
         "level": level,
         "message": (
             f"지금 {label} 동기화가 {word}. "
-            f"마지막으로 정상 갱신된 지 {minutes}분 지났습니다 — 최근 변경이 아직 안 보일 수 있습니다."
+            f"마지막으로 정상 갱신된 지 {minutes}분 지났습니다. 최근 변경이 아직 안 보일 수 있습니다."
         ),
         "since": row.last_success_at.isoformat() if row.last_success_at else None,
     }
@@ -112,7 +112,7 @@ def _runner_notice(db: Session, now: datetime) -> dict | None:
         return {
             "id": "runner.all_down",
             "level": LEVEL_CRITICAL,
-            "message": "지금 자동화·AI 기능이 응답하지 않습니다. 복구 중이니 잠시 후 다시 시도해 주세요.",
+            "message": "지금 자동화, AI 기능이 응답하지 않습니다. 복구 중이니 잠시 후 다시 시도해 주세요.",
             "since": max((r.last_health_at for r in down if r.last_health_at), default=None).isoformat()
             if any(r.last_health_at for r in down)
             else None,
@@ -120,7 +120,7 @@ def _runner_notice(db: Session, now: datetime) -> dict | None:
     return {
         "id": "runner.some_down",
         "level": LEVEL_WARNING,
-        "message": "일부 자동화·AI 기능이 평소보다 느리거나 실패할 수 있습니다.",
+        "message": "일부 자동화, AI 기능이 평소보다 느리거나 실패할 수 있습니다.",
         "since": None,
     }
 

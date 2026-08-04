@@ -78,7 +78,7 @@ function SearchField({ value, onChange, onSubmit }) {
         fullWidth
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="티켓 · 문서 · 게시판 · 사용자 검색"
+        placeholder="티켓, 문서, 게시판, 사용자 검색"
         inputProps={{ "aria-label": "통합 검색어" }}
         sx={{ fontSize: "1rem" }}
       />
@@ -180,7 +180,7 @@ export function Search() {
         <Card>
           <EmptyState
             title="무엇을 찾을까요?"
-            situation="티켓·문서·게시판·사용자를 한 번에 찾습니다."
+            situation="티켓, 문서, 게시판, 사용자를 한 번에 찾습니다."
             help="한 글자만 쳐도 찾습니다. Ctrl+K 로 어느 화면에서든 이 검색을 열 수 있습니다."
             art="search"
           />
@@ -212,8 +212,8 @@ export function Search() {
               variant="body2" color="text.secondary" role="status" sx={{ mb: 2 }}
             >
               {`총 ${result.total}건`}
-              {result.mode === "like" ? " · 짧은 검색어라 부분 일치로 찾았습니다" : ""}
-              {result.truncated ? " · 일부만 표시합니다" : ""}
+              {result.mode === "like" ? ", 짧은 검색어라 부분 일치로 찾았습니다" : ""}
+              {result.truncated ? ", 일부만 표시합니다" : ""}
             </Typography>
             <Box sx={GROUP_GRID}>
               {groups.map((group) => (

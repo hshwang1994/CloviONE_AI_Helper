@@ -29,9 +29,9 @@ import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
  */
 
 const STEP_HELP = [
-  "1. 대상 고르기 — 퇴사(또는 휴직)할 사람을 검색해 고릅니다.",
-  "2. 미리 보기 — 그 사람이 지금 담당 중인 티켓과 계정 상태를 확인합니다.",
-  "3. 실행 — 옮길 티켓과 후임을 정하고 실행합니다. 결과는 되돌릴 수 있습니다.",
+  "1. 대상 고르기: 퇴사(또는 휴직)할 사람을 검색해 고릅니다.",
+  "2. 미리 보기: 그 사람이 지금 담당 중인 티켓과 계정 상태를 확인합니다.",
+  "3. 실행: 옮길 티켓과 후임을 정하고 실행합니다. 결과는 되돌릴 수 있습니다.",
 ];
 
 const RUN_STATUS_KO = {
@@ -69,11 +69,11 @@ export function Offboarding() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="사용자" title="온보딩 · 오프보딩"
+      <PageHeader area="사용자" title="온보딩, 오프보딩"
         actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null} />
       <Callout>
         <Box component="p" sx={{ m: 0 }}>
-          퇴사·부서 이동 시 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화·보관합니다.
+          퇴사, 부서 이동 시 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화, 보관합니다.
           실행 전에 무엇이 바뀌는지 먼저 보여 주고, 실행한 뒤에도 <strong>되돌릴 수 있습니다</strong>.
         </Box>
         {STEP_HELP.map((line) => (
@@ -216,7 +216,7 @@ function OffboardPlan({ preview, onDone, toast }) {
   return (
     <>
       <Card sx={{ p: 2.5, mb: 2.5 }}>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>{user.display_name} · {user.email}</Typography>
+        <Typography variant="h6" sx={{ mb: 1.5 }}>{user.display_name}, {user.email}</Typography>
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))" } }}>
           {(preview.onboarding || []).map((check) => (
             <Box key={check.key} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
@@ -237,7 +237,7 @@ function OffboardPlan({ preview, onDone, toast }) {
       ) : null}
       {preview.tickets_error ? (
         <Box sx={{ mb: 2.5 }}>
-          <Callout tone="warn">보유 티켓을 불러오지 못했습니다: {preview.tickets_error} — 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
+          <Callout tone="warn">보유 티켓을 불러오지 못했습니다: {preview.tickets_error}: 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
         </Box>
       ) : !preview.notion_mapped ? (
         <Box sx={{ mb: 2.5 }}>
@@ -247,7 +247,7 @@ function OffboardPlan({ preview, onDone, toast }) {
 
       <Card sx={{ mb: 2.5 }}>
         <Box sx={{ p: 2, pb: 0 }}>
-          <Typography variant="subtitle1">보유 티켓 {tickets.length}건 · 선택 {chosen.length}건</Typography>
+          <Typography variant="subtitle1">보유 티켓 {tickets.length}건, 선택 {chosen.length}건</Typography>
         </Box>
         {tickets.length ? (
           <DataTable columns={columns} rows={tickets} rowKey={(t) => t.id} />
@@ -266,10 +266,10 @@ function OffboardPlan({ preview, onDone, toast }) {
             onChange={(e) => setSuccessor(e.target.value)}
             helperText="비워 두면 선택한 티켓이 미할당으로 돌아갑니다(미할당 트리아지에서 다시 배정)."
           >
-            <MenuItem value="">(후임 없음 — 미할당으로)</MenuItem>
+            <MenuItem value="">(후임 없음. 미할당으로)</MenuItem>
             {(preview.successor_candidates || []).map((c) => (
               <MenuItem key={c.user_id} value={c.user_id}>
-                {c.display_name} · {c.email}{c.department ? " · " + c.department : ""}
+                {c.display_name}, {c.email}{c.department ? ", " + c.department : ""}
               </MenuItem>
             ))}
           </TextField>
@@ -408,7 +408,7 @@ function RunHistory() {
           <>
             <Box sx={{ display: "grid", columnGap: 4, gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))" } }}>
               <Row label="대상">{detail.user_name || detail.user_id}</Row>
-              <Row label="후임">{detail.successor_name || "(없음 — 미할당으로 되돌림)"}</Row>
+              <Row label="후임">{detail.successor_name || "(없음. 미할당으로 되돌림)"}</Row>
               <Row label="실행자">{detail.actor_name || detail.actor_user_id}</Row>
               <Row label="상태">{RUN_STATUS_KO[detail.status] || detail.status}</Row>
               <Row label="티켓">{`${detail.ticket_moved}/${detail.ticket_total}건 이동, 실패 ${detail.ticket_failed}건`}</Row>

@@ -37,8 +37,8 @@ export const TOUR_STEPS = [
   },
   {
     key: "home",
-    title: "홈 — 오늘 할 일",
-    body: "오늘 마감·지연·진행 중인 내 티켓과 안 읽은 알림·채팅이 한 화면에 모입니다. 아침에 여기부터 보세요.",
+    title: "홈: 오늘 할 일",
+    body: "오늘 마감, 지연, 진행 중인 내 티켓과 안 읽은 알림, 채팅이 한 화면에 모입니다. 아침에 여기부터 보세요.",
     art: SPOT.mywork,
     to: "/me",
     goLabel: "홈 보기",
@@ -46,7 +46,7 @@ export const TOUR_STEPS = [
   {
     key: "tickets",
     title: "내 티켓",
-    body: "내가 맡은 일의 전체 목록입니다. 상태·마감을 바로 고칠 수 있고, 미할당 티켓에서 새 일을 가져올 수도 있습니다.",
+    body: "내가 맡은 일의 전체 목록입니다. 상태, 마감을 바로 고칠 수 있고, 미할당 티켓에서 새 일을 가져올 수도 있습니다.",
     art: SPOT.sprint,
     to: "/my-tickets",
     goLabel: "내 티켓 보기",

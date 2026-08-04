@@ -113,7 +113,7 @@ export function Ticket() {
           situation="티켓 본문은 Notion 페이지에서 실시간으로 읽어옵니다. 연동 토큰이 없으면 이 티켓을 열 수 없습니다."
           prerequisite="관리자 권한과 Notion 통합 토큰"
           steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 등록되면 이 화면을 새로고침하세요."]}
-          expected="연동이 끝나면 제목·속성·본문이 이 자리에 표시됩니다."
+          expected="연동이 끝나면 제목, 속성, 본문이 이 자리에 표시됩니다."
           action={<Button variant="primary" onClick={() => nav("/my-tickets")}>내 티켓으로</Button>}
         />
       </div>

@@ -116,7 +116,7 @@ def search(
             # 인덱스가 없거나(마이그레이션 직후) 질의가 FTS5 문법에 걸렸다. 조용히 0건을
             # 돌려주면 "검색이 안 된다"가 되고 아무도 이유를 모른다 — LIKE 로 내려가되
             # 로그에는 남긴다.
-            logger.exception("FTS5 조회 실패 — LIKE 폴백으로 내려간다")
+            logger.exception("FTS5 조회 실패: LIKE 폴백으로 내려간다")
             mode = q.MODE_LIKE
             rowids = []
         if mode == q.MODE_FTS:

@@ -156,7 +156,7 @@ def update_tour(
     """
     action = (payload.action or "").strip()
     if action not in {"complete", "skip", "reset"}:
-        raise ValidationAppError("action 은 complete·skip·reset 중 하나여야 합니다.")
+        raise ValidationAppError("action 은 complete, skip, reset 중 하나여야 합니다.")
     now = request.app.state.clock.now()
     pref = service.ensure_preference(db, user.id, now=now)
     if action == "reset":
@@ -396,7 +396,7 @@ def my_activity(
     page: PageParams = Depends(),
     kind: str | None = Query(
         default=None,
-        description="did(내가 한 일) · happened(나에게 일어난 일) · 비우면 전부",
+        description="did(내가 한 일), happened(나에게 일어난 일), 비우면 전부",
     ),
 ):
     if kind not in (None, "", activity_mod.KIND_DID, activity_mod.KIND_HAPPENED):

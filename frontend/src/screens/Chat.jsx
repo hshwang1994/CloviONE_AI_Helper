@@ -164,7 +164,7 @@ function RichText({ text }) {
                   {it.marker ? (
                     <Box component="span" sx={{ color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{it.marker}</Box>
                   ) : null}
-                  <Box component="span" sx={{ overflowWrap: "anywhere", "&::before": it.marker ? undefined : { content: '"· "', color: "text.secondary" } }}>
+                  <Box component="span" sx={{ overflowWrap: "anywhere", "&::before": it.marker ? undefined : { content: '"· "', color: "text.secondary" } }}> {/* clovi-allow-glyph: 목록 글머리표 */}
                     {linkifyText(it.text, "li" + bi + "-" + ii)}
                   </Box>
                   {it.subs.map((s, si) => (
@@ -1026,7 +1026,7 @@ export function Chat() {
                 <MascotPose mode="sleep" size="4.5rem" decorative />
                 <Typography sx={{ fontSize: "0.875rem" }}>아직 표시할 결과가 없습니다.</Typography>
                 <Typography sx={{ fontSize: "0.8125rem", maxWidth: "24rem", lineHeight: 1.6 }}>
-                  티켓·프로젝트를 조회하면 그 결과 카드가 여기에 모입니다. 스레드는 대화만 남습니다.
+                  티켓, 프로젝트를 조회하면 그 결과 카드가 여기에 모입니다. 스레드는 대화만 남습니다.
                 </Typography>
               </Box>
             )}

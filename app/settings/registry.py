@@ -126,35 +126,35 @@ REGISTRY: dict[str, SettingSpec] = {
     s.key: s
     for s in [
         SettingSpec("conversation_retention_days", "int", 90, False,
-                    "대화 보존 기간(일) — 초과 시 백그라운드 작업이 자동 삭제", _positive_int(3650)),
+                    "대화 보존 기간(일). 초과 시 백그라운드 작업이 자동 삭제", _positive_int(3650)),
         SettingSpec("notification_retention_days", "int", 90, False,
-                    "알림 보존 기간(일) — 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
+                    "알림 보존 기간(일). 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
         SettingSpec("trash_retention_days", "int", 7, False,
-                    "휴지통 보관 기간(일) — 초과 시 노션 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
+                    "휴지통 보관 기간(일). 초과 시 노션 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
-                    "UI 브랜딩(제품명) — 로그인/채팅 화면 제목", _ui_branding),
+                    "UI 브랜딩(제품명). 로그인/채팅 화면 제목", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,
                     "유지보수 모드 (일반 사용자 신규 요청 차단)", _bool),
         SettingSpec("maintenance_message", "string", "현재 시스템 점검 중입니다.", False,
                     "유지보수 공지 메시지", _non_empty_str),
         SettingSpec("password_policy", "object", {"min_length": 12, "min_classes": 3}, False,
-                    "비밀번호 정책 — 즉시 적용", _password_policy),
+                    "비밀번호 정책: 즉시 적용", _password_policy),
         SettingSpec("session_policy", "object",
                     {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, False,
-                    "세션 정책 — 신규 세션부터 적용", _session_policy),
+                    "세션 정책: 신규 세션부터 적용", _session_policy),
         SettingSpec("allowed_email_domains", "object", ["goodmit.co.kr"], False,
-                    "허용 이메일 도메인 — 사용자 생성 시 즉시 적용", _email_domains),
+                    "허용 이메일 도메인: 사용자 생성 시 즉시 적용", _email_domains),
         # config_dir/feature-flags.json에 있던 값을 관리 콘솔에서 켜고 끌 수 있게 옮긴다 —
         # 예전엔 이 값을 바꾸려면 서버 파일을 직접 편집해야 했다(Settings 화면에 노출 안 됨).
         SettingSpec("document_automation_enabled", "bool", True, False,
-                    "문서 자동화 — 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
+                    "문서 자동화: 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
         # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다
         # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
         # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
         SettingSpec("backup_schedule", "object",
                     {"enabled": False, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14},
                     False,
-                    "자동 백업 일정 — 워커가 이 cron 에 맞춰 DB 스냅숏을 만들고 keep개만 남깁니다",
+                    "자동 백업 일정: 워커가 이 cron 에 맞춰 DB 스냅숏을 만들고 keep개만 남깁니다",
                     _backup_schedule),
     ]
 }

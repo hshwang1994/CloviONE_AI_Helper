@@ -89,7 +89,7 @@ function Briefing({ data }) {
   return (
     <Stack gap={1}>
       <Typography variant="body2">
-        오늘 마감 {n(t.due_today)}건 · 지연 {n(t.overdue)}건 · 진행 중 {n(t.in_progress)}건 · 막힘 {n(t.blocked)}건
+        오늘 마감 {n(t.due_today)}건, 지연 {n(t.overdue)}건, 진행 중 {n(t.in_progress)}건, 막힘 {n(t.blocked)}건
       </Typography>
       <Typography variant="body2" color="text.secondary">
         {s ? `이번 주 내 몫 ${s.assigned}건 중 ${s.done}건 완료${s.completion_rate == null ? "" : ` (${s.completion_rate}%)`}`
@@ -127,8 +127,8 @@ function WeeklyDigest({ data }) {
           <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>내 몫</Typography>
           {mine ? (
             <Typography variant="body2" color="text.secondary">
-              담당 {mine.assigned}건 · 완료 {mine.done}건 · 남음 {mine.remaining}건
-              {mine.overdue ? ` · 지연 ${mine.overdue}건` : ""}
+              담당 {mine.assigned}건, 완료 {mine.done}건, 남음 {mine.remaining}건
+              {mine.overdue ? `, 지연 ${mine.overdue}건` : ""}
             </Typography>
           ) : <Typography variant="body2" color="text.secondary">계산할 수 없습니다.</Typography>}
         </Box>
@@ -151,7 +151,7 @@ function WeeklyDigest({ data }) {
         <Box>
           <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>바뀐 것</Typography>
           <Typography variant="body2" color="text.secondary">
-            문서 {docs.count || 0}건 · 새 글 {board.count || 0}건
+            문서 {docs.count || 0}건, 새 글 {board.count || 0}건
           </Typography>
           <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, mt: 0.75, p: 0 }}>
             {(docs.items || []).map((d) => (
@@ -187,7 +187,7 @@ function Triage({ data }) {
     <Stack gap={2}>
       <Alert severity="info" icon={false} sx={{ alignItems: "flex-start" }}>
         <Box component="span" sx={{ fontWeight: 800, mr: 1.5 }}>안내</Box>
-        아래는 <b>제안</b>입니다. 이 화면은 아무것도 배정하지 않습니다 — 배정은
+        아래는 <b>제안</b>입니다. 이 화면은 아무것도 배정하지 않습니다. 배정은
         {" "}<Link href="#/unassigned" underline="hover">미할당 티켓</Link> 화면에서 사람이 확인하고 누릅니다.
       </Alert>
       <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "minmax(0,1fr)", lg: "minmax(0,2fr) minmax(0,1fr)" }, alignItems: "start" }}>

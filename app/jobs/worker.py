@@ -149,7 +149,7 @@ class Worker:
         for job_id, job_type in finally_failed:
             handler = self._handlers.get(job_type)
             if handler is not None:
-                self._notify_failure(handler, job_id, "worker timeout — stuck job recovered")
+                self._notify_failure(handler, job_id, "worker timeout: stuck job recovered")
         return len(recovered)
 
     def run_forever(self, stop_event: threading.Event) -> None:

@@ -338,7 +338,7 @@ export function NotificationBell({ isUser }) {
   const badge = unread.data && typeof unread.data.badge === "number" ? unread.data.badge : count;
   const quiet = !!(unread.data && unread.data.quiet) || (badge === 0 && count > 0);
   const quietTitle = count > 0
-    ? `방해금지·알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
+    ? `방해금지, 알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
     : "방해금지 중입니다";
 
   async function markAll() {
@@ -379,7 +379,7 @@ export function NotificationBell({ isUser }) {
   return (
     <div className="noti" ref={ref}>
       <button ref={bellRef} type="button" className="c-icon-btn noti-bell"
-        aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중 — 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
+        aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
         aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
         onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}>
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"

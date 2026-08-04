@@ -480,7 +480,7 @@ export function ticketConnState(data) {
         situation="티켓 데이터는 Notion 작업 DB에서 옵니다. 아직 연동 토큰이 등록되지 않아 목록을 불러올 수 없습니다."
         prerequisite="관리자 권한과 Notion 통합 토큰"
         steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 등록되면 이 화면을 새로고침하세요."]}
-        expected="연동이 끝나면 담당자·상태·마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
+        expected="연동이 끝나면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
       />
     );
   }

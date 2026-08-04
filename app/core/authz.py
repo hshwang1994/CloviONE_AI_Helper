@@ -110,7 +110,7 @@ ROLE_LABELS: dict[str, str] = {
 # 범위(admin_scope)는 역할과 직교한다 — `app/core/scope.py` 가 해석한다. 매트릭스가 역할만
 # 보여 주면 '부서 관리자'가 왜 남의 부서를 못 보는지 화면 어디에도 설명이 없다.
 SCOPE_LABELS: dict[str, tuple[str, str]] = {
-    ADMIN_SCOPE_GLOBAL: ("전체", "조직·부서 제한 없이 모든 대상을 관리한다."),
+    ADMIN_SCOPE_GLOBAL: ("전체", "조직, 부서 제한 없이 모든 대상을 관리한다."),
     ADMIN_SCOPE_ORG: ("조직", "자기 조직(org_id)에 속한 대상만 보이고 관리할 수 있다."),
     ADMIN_SCOPE_DEPT: (
         "부서",
@@ -136,45 +136,45 @@ class Capability:
 
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
-        "console.read", "관리 콘솔 목록·상세 조회", "콘솔", CONSOLE_READ_ROLES,
-        "감사자가 포함된다 — 감사는 '무엇이 설정돼 있었는가'를 볼 수 있어야 한다.",
+        "console.read", "관리 콘솔 목록, 상세 조회", "콘솔", CONSOLE_READ_ROLES,
+        "감사자가 포함된다. 감사는 '무엇이 설정돼 있었는가'를 볼 수 있어야 한다.",
     ),
     Capability(
-        "console.write", "설정 변경(생성·수정·활성/비활성)", "콘솔", CONSOLE_WRITE_ROLES,
+        "console.write", "설정 변경(생성, 수정, 활성/비활성)", "콘솔", CONSOLE_WRITE_ROLES,
         "운영자는 운영은 하되 설정은 못 바꾼다. 감사자는 읽기 전용이라 절대 포함되지 않는다.",
     ),
     Capability(
-        "console.ops", "운영 동작(실행·재시도·헬스체크·드라이런)", "운영", CONSOLE_OPS_ROLES,
+        "console.ops", "운영 동작(실행, 재시도, 헬스체크, 드라이런)", "운영", CONSOLE_OPS_ROLES,
         "설정을 바꾸지는 않지만 부수효과가 있는 것들.",
     ),
     Capability(
-        "sensitive.read", "감사 로그·개발자 월간 리포트 조회", "감사", SENSITIVE_READ_ROLES,
+        "sensitive.read", "감사 로그, 개발자 월간 리포트 조회", "감사", SENSITIVE_READ_ROLES,
         "담당자별 생산성처럼 사람에 대한 평가가 담기므로 운영자를 뺀다.",
     ),
     Capability(
-        "content.moderate", "사용자 콘텐츠 중재(게시판·문서·휴지통·티켓 편집 우회)", "콘텐츠",
+        "content.moderate", "사용자 콘텐츠 중재(게시판, 문서, 휴지통, 티켓 편집 우회)", "콘텐츠",
         tuple(r for r in ROLE_ORDER if r in MODERATOR_ROLES),
         "본인 글이 아니어도 지울 수 있는 권한. 티켓은 담당자가 아니어도 편집할 수 있다.",
     ),
     Capability(
-        "users.manage", "사용자 계정 관리(생성·수정·비활성화·보관)", "사용자",
+        "users.manage", "사용자 계정 관리(생성, 수정, 비활성화, 보관)", "사용자",
         CONSOLE_WRITE_ROLES,
         "system_admin 계정에 대한 조작은 system_admin 만 할 수 있다(권한 경계).",
     ),
     Capability(
-        "users.bulk", "사용자 대량 작업 · CSV 가져오기/내보내기", "사용자", CONSOLE_WRITE_ROLES,
+        "users.bulk", "사용자 대량 작업, CSV 가져오기/내보내기", "사용자", CONSOLE_WRITE_ROLES,
         "대상은 언제나 자기 관리 범위 안으로 제한된다.",
     ),
     Capability(
-        "offboarding.run", "오프보딩 실행(보유 티켓 재배정 + 계정 비활성화·보관)", "사용자",
+        "offboarding.run", "오프보딩 실행(보유 티켓 재배정 + 계정 비활성화, 보관)", "사용자",
         CONSOLE_WRITE_ROLES,
         "실행 전 미리보기가 강제되고, 실행 결과는 되돌릴 수 있다.",
     ),
     Capability(
-        "org.manage", "부서·직책 명부와 조직도 트리 편집", "사용자", CONSOLE_WRITE_ROLES,
+        "org.manage", "부서, 직책 명부와 조직도 트리 편집", "사용자", CONSOLE_WRITE_ROLES,
     ),
     Capability(
-        "system.admin", "백업 생성·검증·복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
+        "system.admin", "백업 생성, 검증, 복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
         "스펙 §14.6 이 system_admin 으로 못박은 것들.",
     ),
 )

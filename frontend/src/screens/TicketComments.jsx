@@ -36,7 +36,7 @@ function Tombstone({ comment }) {
   return (
     <Box sx={{ py: 1.5, borderBottom: 1, borderColor: "divider" }}>
       <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
-        {comment.author_name || "알 수 없음"} · 삭제된 댓글입니다
+        {comment.author_name || "알 수 없음"}, 삭제된 댓글입니다
       </Typography>
     </Box>
   );

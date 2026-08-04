@@ -208,7 +208,7 @@
 .msg-li { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: baseline; }
 .msg-li.dash { grid-template-columns: 1fr; }
 /* 마커 없는(-) 항목은 앞에 옅은 불릿을 그려 목록임을 보인다. */
-.msg-li.dash .msg-li-text::before { content: "· "; color: var(--color-muted); }
+.msg-li.dash .msg-li-text::before { content: "· "; color: var(--color-muted); } /* clovi-allow-glyph: 목록 글머리표 */
 .msg-li.dash .msg-li-sub { grid-column: 1; }
 .msg-kv { margin: var(--space-sm, 6px) 0 0; display: flex; flex-direction: column; gap: 3px; }
 .msg-kv:first-child { margin-top: 0; }

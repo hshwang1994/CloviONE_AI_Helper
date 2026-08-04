@@ -102,7 +102,7 @@ def _items(request: Request) -> list[dict]:
             "edit_hint": (
                 "즉시 반영됩니다(재시작 불필요)."
                 if spec.owner == OWNER_FILE
-                else "이 플래그의 정본은 설정 화면입니다 — 여기서는 바꿀 수 없습니다."
+                else "이 플래그의 정본은 설정 화면입니다. 여기서는 바꿀 수 없습니다."
             ),
         })
     return items

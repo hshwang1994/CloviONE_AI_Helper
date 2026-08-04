@@ -221,7 +221,7 @@ function RecentBoard({ items }) {
           href={"#/board/" + p.id}
           title={p.title}
           badge={p.is_pinned ? <Badge value="고정" kind="info" /> : null}
-          meta={`${p.author_name || "-"} · 댓글 ${p.comment_count}`}
+          meta={`${p.author_name || "-"}, 댓글 ${p.comment_count}`}
         />
       ))}
     </Stack>
@@ -260,8 +260,8 @@ function Freshness({ sync }) {
       color={stale ? "warning.main" : "text.secondary"}
       sx={{ display: "block", mb: 1.5 }}
     >
-      티켓 동기화 {sync.status === "ok" ? "정상" : "확인 필요"} · 마지막 성공 {fmtRelative(sync.last_success_at)}
-      {sync.truncated ? " · 일부만 동기화됨(관리자 확인 필요)" : ""}
+      티켓 동기화 {sync.status === "ok" ? "정상" : "확인 필요"}, 마지막 성공 {fmtRelative(sync.last_success_at)}
+      {sync.truncated ? ", 일부만 동기화됨(관리자 확인 필요)" : ""}
     </Typography>
   );
 }

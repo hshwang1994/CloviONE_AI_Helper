@@ -562,7 +562,7 @@ export function Diagnostics() {
                       <Box sx={{ mb: 2.5 }}>
                         <Sparkline
                           points={errorDist.counts} color="error" height="3.5rem"
-                          summary={"최근 실패 " + errorDist.n + "건의 발생 분포 · "
+                          summary={"최근 실패 " + errorDist.n + "건의 발생 분포, "
                             + fmtDateTime(new Date(errorDist.from).toISOString()) + " ~ "
                             + fmtDateTime(new Date(errorDist.to).toISOString())
                             + " (전체 실패 추세가 아니라 이 목록에 담긴 건들의 분포입니다)"} />

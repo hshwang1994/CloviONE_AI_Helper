@@ -193,7 +193,7 @@ def ensure_not_last_system_admin(db: Session, user: User) -> None:
         return
     if count_active_system_admins(db, exclude_user_id=user.id) == 0:
         raise ConflictError(
-            "마지막 system_admin 계정은 비활성화·보관하거나 역할을 변경할 수 없습니다."
+            "마지막 system_admin 계정은 비활성화, 보관하거나 역할을 변경할 수 없습니다."
         )
 
 

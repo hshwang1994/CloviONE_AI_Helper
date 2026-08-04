@@ -219,7 +219,7 @@ def resolve_by_name_or_error(db: Session, model: type[OrgModel], name: str | Non
     if row is None:
         available = [r.name for r in list_items(db, model, active=True)]
         hint = ", ".join(available) if available else "(등록된 항목 없음)"
-        raise ValidationAppError(f"알 수 없는 {label}입니다: {clean} — 등록된 {label}: {hint}")
+        raise ValidationAppError(f"알 수 없는 {label}입니다: {clean}: 등록된 {label}: {hint}")
     if not row.active:
         raise ValidationAppError(f"비활성 {label}은(는) 새로 지정할 수 없습니다: {clean}")
     return row.id

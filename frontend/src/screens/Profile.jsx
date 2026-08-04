@@ -120,7 +120,7 @@ function AccountCard({ profile, prefs, onChanged }) {
 
   return (
     <Card>
-      <SectionTitle help="사진은 이 조직 안에서만 보입니다. PNG·JPEG·GIF·WebP, 10MB까지.">
+      <SectionTitle help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
         계정
       </SectionTitle>
       <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
@@ -176,7 +176,7 @@ function NotificationCard({ prefs, save, saving }) {
   };
   return (
     <Card>
-      <SectionTitle help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다 — 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
+      <SectionTitle help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
         알림 설정
       </SectionTitle>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
@@ -199,7 +199,7 @@ function NotificationCard({ prefs, save, saving }) {
         ))}
       </Box>
       <Callout>
-        계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다 — 침해를 알리는 유일한 신호이기 때문입니다.
+        계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다. 침해를 알리는 유일한 신호이기 때문입니다.
       </Callout>
     </Card>
   );
@@ -346,7 +346,7 @@ function SessionsCard() {
         {/* 총계를 먼저 말한다 — 아래 목록은 높이가 묶여 있어 일부만 보인다. 숫자를 안 쓰면
             "몇 개인지"를 스크롤해서 세어야 하고, 잘린 마지막 줄이 오류처럼 보인다. */}
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          총 {items.length}개 · 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
+          총 {items.length}개, 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
         </Typography>
         {/* 목록 높이를 묶고 안에서 스크롤한다 — 오래 쓴 계정은 세션이 수십 개까지 쌓여
             카드 하나가 화면 스무 개 길이가 된다(QA 캡처에서 실제로 22개였다). 그러면 옆
@@ -369,7 +369,7 @@ function SessionsCard() {
                   {s.current ? <Badge value="현재" kind="ok" /> : null}
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
-                  {s.client_ip || "IP 미상"} · 최근 활동 {fmtRelative(s.last_seen_at)}
+                  {s.client_ip || "IP 미상"}, 최근 활동 {fmtRelative(s.last_seen_at)}
                 </Typography>
                 {s.user_agent ? (
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>

@@ -186,7 +186,7 @@
   // 입력하는 동안 규칙 충족 여부를 즉시 보여준다 — 색이 아니라 ✓/· 기호로(색맹·CSS 무관).
   function ruleRow(met, label) {
     const el = document.createElement("div");
-    el.textContent = (met ? "✓ " : "· ") + label;
+    el.textContent = (met ? "✓ " : "· ") + label;  // clovi-allow-glyph: 규칙 충족/미충족 표시. ✓ 와 짝을 이루는 글리프다
     // 기호(✓/·)가 1차 신호(색맹·CSS 무관), 색은 2차 보조 신호 — 충족된 규칙이
     // 옅은 회색 목록 속에 묻히지 않고 눈에 띄게 한다.
     el.className = met ? "cp-rule--met" : "cp-rule--pending";
@@ -262,7 +262,7 @@
     errorBox.textContent = "";
     details.forEach(function (d) {
       const el = document.createElement("div");
-      el.textContent = "· " + detailText(d);
+      el.textContent = "· " + detailText(d);  // clovi-allow-glyph: 목록 글머리표
       errorBox.appendChild(el);
     });
   }

@@ -1340,7 +1340,7 @@ export const REGISTRY = {
         if (APPROVAL_DONE.includes(r.status) || !r.due_at) return "-";
         const text = fmtDateTime(r.due_at);
         return r.overdue
-          ? React.createElement(Badge, { value: "기한 초과 · " + text, kind: "danger" })
+          ? React.createElement(Badge, { value: "기한 초과, " + text, kind: "danger" })
           : text;
       } },
       { key: "expires_at", label: "만료", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTime(r.expires_at) }],
@@ -1929,7 +1929,7 @@ export const REGISTRY = {
   },
   rbac: {
     key: "rbac", area: "사용자", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
-    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다 — 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다.",
+    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다. 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다.",
     emptyTitle: "권한 정의를 불러오지 못했습니다",
     // 열이 곧 역할이라 서버 응답에서 만든다 — 여기에 역할 배열을 적으면 두 벌이 되고,
     // 백엔드에서 규칙을 고쳐도 이 표만 옛 열을 계속 보여 준다(tests/security/test_rbac_matrix.py가 고정).
@@ -1940,7 +1940,7 @@ export const REGISTRY = {
         key: "role_" + role.value, label: role.label, align: "center",
         render: (r) => (r.allowed || []).includes(role.value)
           ? React.createElement(Badge, { value: "허용", kind: "ok" })
-          : React.createElement("span", { "aria-label": "허용 안 됨" }, "—"),
+          : React.createElement("span", { "aria-label": "허용 안 됨" }, "—")  // clovi-allow-glyph: 권한 매트릭스의 '허용 안 됨' 표시. 글리프 자체가 내용이다,
       })),
     ],
     // 검색은 '할 수 있는 일'과 '영역'만 대상으로 — 기본(JSON.stringify)이면 allowed 배열의
@@ -2002,7 +2002,7 @@ export const REGISTRY = {
       "화면 위 띠가 뜨면 그 사용자의 눈으로 보고 있는 상태입니다.",
       "확인이 끝나면 띠의 ‘대리 보기 종료’를 누릅니다(최대 30분 뒤 자동 종료).",
     ],
-    emptyExpected: "시작·종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
+    emptyExpected: "시작, 종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
     paginated: true,
     filters: [{ key: "active", type: "select", label: "진행 중", options: opt([["true", "진행 중"], ["false", "종료됨"]]) }],
     columns: [
@@ -2029,7 +2029,7 @@ export const REGISTRY = {
         // 시작하면 '내가 누구인지'가 바뀐다 — 화면을 통째로 다시 읽어야 사이드바·상단 배너가
         // 함께 바뀐다(부분 갱신하면 관리자 메뉴에 사용자 데이터가 섞인 화면이 된다).
         reloadAfter: true,
-        result: () => ({ ok: true, msg: "대리 보기를 시작했습니다. 화면을 다시 불러옵니다 — 위쪽 띠에서 종료할 수 있습니다." }) },
+        result: () => ({ ok: true, msg: "대리 보기를 시작했습니다. 화면을 다시 불러옵니다. 위쪽 띠에서 종료할 수 있습니다." }) },
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: () => "#/audit?action=impersonation.start" },
     ],
     actions: [
@@ -2049,7 +2049,7 @@ export const REGISTRY = {
     emptySituation: "결재자가 휴가를 가면 승인 큐가 그동안 멈춥니다.",
     emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
     emptySteps: ["‘+ 위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
-    emptyExpected: "위임 기간에는 대리 승인자가 승인·거절을 할 수 있고, 결재 기록에 대신한 사람이 남습니다.",
+    emptyExpected: "위임 기간에는 대리 승인자가 승인, 거절을 할 수 있고, 결재 기록에 대신한 사람이 남습니다.",
     createLabel: "+ 위임 추가",
     searchFields: ["delegator_name", "delegate_name", "reason"],
     searchPlaceholder: "이름으로 검색",
@@ -2067,8 +2067,8 @@ export const REGISTRY = {
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
       field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "등록")],
     create: { roles: WRITE_ROLES, fields: [
-      { name: "delegator_user_id", label: "위임하는 사람(사용자 ID)", type: "text", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자·시스템 관리자). ‘사용자’ 화면에서 ID를 복사하세요." },
-      { name: "delegate_user_id", label: "대리 승인자(사용자 ID)", type: "text", required: true, help: "이 사람은 위임 기간에만 승인·거절을 할 수 있습니다." },
+      { name: "delegator_user_id", label: "위임하는 사람(사용자 ID)", type: "text", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자, 시스템 관리자). ‘사용자’ 화면에서 ID를 복사하세요." },
+      { name: "delegate_user_id", label: "대리 승인자(사용자 ID)", type: "text", required: true, help: "이 사람은 위임 기간에만 승인, 거절을 할 수 있습니다." },
       { name: "starts_at", label: "시작", type: "datetime-local", required: true },
       { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "최대 90일. 기간이 지나면 권한이 저절로 닫힙니다." },
       { name: "reason", label: "사유", type: "text", help: "예: 7/20~7/25 휴가" },
@@ -2092,7 +2092,7 @@ export const REGISTRY = {
     createLabel: "+ 공지 추가",
     paginated: true,
     searchFields: ["title", "body"],
-    searchPlaceholder: "제목·내용으로 검색",
+    searchPlaceholder: "제목, 내용으로 검색",
     filters: [
       { key: "active", type: "select", label: "사용", options: opt([["true", "사용"], ["false", "사용 안 함"]]) },
       { key: "level", type: "select", label: "중요도", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
@@ -2117,7 +2117,7 @@ export const REGISTRY = {
       { name: "audience", label: "대상", type: "select", value: "all", options: opt([["all", "모든 사용자"], ["admin", "관리자군에게만(운영자 이상)"]]) },
       { name: "starts_at", label: "노출 시작(선택)", type: "datetime-local", help: "비우면 즉시 노출됩니다." },
       { name: "ends_at", label: "노출 종료(선택)", type: "datetime-local", help: "비우면 ‘사용 안 함’으로 바꿀 때까지 계속 노출됩니다." },
-      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "끄면 닫기 버튼이 없습니다 — 그런 공지는 반드시 종료 시각을 정하세요." },
+      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "끄면 닫기 버튼이 없습니다. 그런 공지는 반드시 종료 시각을 정하세요." },
       { name: "link_url", label: "링크 주소(선택)", type: "text" },
       { name: "link_label", label: "링크 문구(선택)", type: "text" },
       { name: "active", label: "사용", type: "checkbox", value: true, checkLabel: "지금 사용" },
@@ -2144,7 +2144,7 @@ export const REGISTRY = {
   "ai-quotas": {
     key: "ai-quotas", area: "자동화", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
-    help: "AI 호출을 사용자·기간별로 제한합니다. 상한이 걸리는 곳은 AI 도우미 문장 생성과 문서 자동 생성 요청 두 곳입니다 — 채팅 전송처럼 자주 일어나는 경로에는 걸지 않습니다(그 경로에 기록을 걸면 읽기가 쓰기로 바뀌어 느려집니다). 사용자별 상한이 전체 상한보다 우선합니다. 상한 행이 하나도 없으면 제한이 없습니다.",
+    help: "AI 호출을 사용자, 기간별로 제한합니다. 상한이 걸리는 곳은 AI 도우미 문장 생성과 문서 자동 생성 요청 두 곳입니다. 채팅 전송처럼 자주 일어나는 경로에는 걸지 않습니다(그 경로에 기록을 걸면 읽기가 쓰기로 바뀌어 느려집니다). 사용자별 상한이 전체 상한보다 우선합니다. 상한 행이 하나도 없으면 제한이 없습니다.",
     emptyTitle: "설정된 상한이 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
     emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
@@ -2161,7 +2161,7 @@ export const REGISTRY = {
     ],
     detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
       dateCol("created_at", "등록"), dateCol("updated_at", "수정"),
-      { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다 — 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
+      { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
       { name: "user_id", label: "사용자 ID", type: "text", help: "범위가 ‘사용자’일 때만 필요합니다. ‘사용자’ 화면에서 ID를 복사하세요." },
@@ -2175,13 +2175,13 @@ export const REGISTRY = {
       { name: "note", label: "메모", type: "text" },
     ] },
     actions: [
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위·기간에는 제한이 없어집니다." },
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위, 기간에는 제한이 없어집니다." },
     ],
   },
   "feature-flags": {
     key: "feature-flags", area: "운영", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
-    help: "모듈을 켜고 끄는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 반영됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다 — 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
+    help: "모듈을 켜고 끄는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 반영됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
     emptyTitle: "플래그 정의를 불러오지 못했습니다",
     searchFields: ["name", "description"],
     searchPlaceholder: "플래그 이름으로 검색",
@@ -2196,7 +2196,7 @@ export const REGISTRY = {
     detailFields: [
       field("description", "설명"), field("edit_hint", "변경 안내"),
       { key: "default", label: "기본값", render: (r) => r.default ? "켜짐" : "꺼짐" },
-      { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다 — 켜거나 꺼도 동작이 달라지지 않습니다." },
+      { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다. 켜거나 꺼도 동작이 달라지지 않습니다." },
     ],
     actions: [
       { label: "켜기", variant: "primary", roles: WRITE_ROLES, when: (r) => r.editable_here && !r.value,
@@ -2212,7 +2212,7 @@ export const REGISTRY = {
   "audit-anomalies": {
     key: "audit-anomalies", area: "운영", title: "감사 이상 징후",
     endpoint: "/api/admin/audit/anomalies",
-    help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다 — 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거·임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
+    help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
     emptyTitle: "눈여겨볼 징후가 없습니다",
     emptyHelp: "선택한 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 확인할 수 있습니다.",
     filters: [{ key: "window_hours", type: "select", label: "기간", value: "24", options: opt([["6", "최근 6시간"], ["24", "최근 24시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
@@ -2223,7 +2223,7 @@ export const REGISTRY = {
       }) },
       mapCol("kind", "유형", {
         failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
-        critical_action: "권한·계정 변경", new_actor_action: "처음 하는 동작",
+        critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
       }),
       { key: "actor_name", label: "행위자", render: (r) => r.actor_name || r.actor_id || "시스템" },
       col("title", "요약"),
@@ -2232,7 +2232,7 @@ export const REGISTRY = {
     ],
     detailFields: [
       field("detail", "설명"),
-      { key: "evidence", label: "근거", render: (r) => (r.evidence || []).join(" · ") || "-" },
+      { key: "evidence", label: "근거", render: (r) => (r.evidence || []).join(", ") || "-" },
       { key: "threshold", label: "임계값", render: (r) => r.threshold == null ? "-" : String(r.threshold) },
       dateCol("first_at", "처음"), field("actor_email", "행위자 이메일"),
     ],
@@ -2247,7 +2247,7 @@ export const REGISTRY = {
   "restore-drills": {
     key: "restore-drills", area: "운영", title: "복구 리허설",
     endpoint: "/api/admin/backups/rehearsals",
-    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성·행 수·스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다.",
+    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다.",
     emptyTitle: "복구 리허설 기록이 없습니다",
     emptyHelp: "아직 한 번도 복원을 시험하지 않았습니다. 아래 순서로 실행하면 결과가 이 목록에 남습니다.",
     emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",
@@ -2282,7 +2282,7 @@ export const REGISTRY = {
     ],
     detailFields: [
       field("id", "기록 ID"),
-      { key: "failures", label: "실패한 단계", render: (r) => (r.failures || []).join(" · ") || "없음" },
+      { key: "failures", label: "실패한 단계", render: (r) => (r.failures || []).join(", ") || "없음" },
       { key: "_summary", label: "요약", render: (r) => JSON.stringify(r.summary || {}) },
     ],
     headerActions: [
@@ -2293,7 +2293,7 @@ export const REGISTRY = {
   "prompt-usage": {
     key: "prompt-usage", area: "콘텐츠", title: "프롬프트 사용 통계",
     endpoint: "/api/admin/prompts/usage/stats",
-    help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 템플릿·스케줄이 없고 문서 생성에도 쓰인 적이 없다는 뜻입니다 — 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
+    help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 템플릿, 스케줄이 없고 문서 생성에도 쓰인 적이 없다는 뜻입니다. 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
     emptyTitle: "등록된 프롬프트가 없습니다",
     emptyHelp: "‘프롬프트’ 화면에서 프롬프트를 만들면 여기에 사용 현황이 표시됩니다.",
     emptyRelatedLink: { href: "#/prompts", label: "프롬프트 화면으로 이동" },

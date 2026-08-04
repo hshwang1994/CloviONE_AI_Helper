@@ -85,7 +85,7 @@ function ActivityRow({ item, onOpen }) {
         ) : null}
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
           <time dateTime={item.at} title={fmtDateTime(item.at)}>{fmtRelative(item.at)}</time>
-          {" · "}{isDid ? "내가 한 일" : "나에게 일어난 일"}
+          {", "}{isDid ? "내가 한 일" : "나에게 일어난 일"}
         </Typography>
       </Box>
       {item.route ? (

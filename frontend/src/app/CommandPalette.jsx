@@ -160,7 +160,7 @@ export function CommandPalette({ open, onClose, groups }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="검색 (티켓·문서·게시판·메뉴)"
+          placeholder="검색 (티켓, 문서, 게시판, 메뉴)"
           inputProps={{ "aria-label": "통합 검색" }}
           sx={{ fontSize: "1rem" }}
         />
@@ -176,7 +176,7 @@ export function CommandPalette({ open, onClose, groups }) {
         {flat.length === 0 ? (
           <Typography sx={{ p: 4, textAlign: "center" }} color="text.secondary">
             {!q
-              ? "메뉴 이름이나 티켓·문서·게시글 제목을 입력하세요."
+              ? "메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요."
               : busy
                 ? "찾는 중…"
                 : "검색 결과 없음"}

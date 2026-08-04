@@ -91,7 +91,7 @@ function EventDot({ event, onClick }) {
       component="button"
       type="button"
       onClick={() => onClick(event)}
-      title={`${label}${planned ? " · 예정" : ` · ${STATUS_KO[event.status] || event.status || "실행"}`}`}
+      title={`${label}${planned ? ", 예정" : `, ${STATUS_KO[event.status] || event.status || "실행"}`}`}
       sx={{
         display: "block", width: "100%", textAlign: "start",
         border: planned ? "1px dashed" : "1px solid",
@@ -239,7 +239,7 @@ export function SchedulerCalendar() {
         <>
           <Card sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
             <Typography sx={{ fontSize: "0.875rem" }}>
-              이 구간 실행 <strong>{counts.run}</strong>건 · 예정 <strong>{counts.planned}</strong>건
+              이 구간 실행 <strong>{counts.run}</strong>건, 예정 <strong>{counts.planned}</strong>건
             </Typography>
             {counts.failed ? <Badge value={`실패 ${counts.failed}건`} kind="danger" /> : null}
           </Card>
@@ -286,7 +286,7 @@ export function SchedulerCalendar() {
                       }}
                     >
                       {Number(cell.key.slice(8, 10))}
-                      {isToday ? " · 오늘" : ""}
+                      {isToday ? ", 오늘" : ""}
                     </Typography>
                     {events.slice(0, 4).map((event, i) => (
                       <EventDot key={event.run_id || `${event.schedule_id}-${event.occurs_at}-${i}`} event={event} onClick={setSelected} />

@@ -51,7 +51,7 @@ def _read_password_stdin(prompt: str) -> str:
 
 
 def _print_temp_password(email: str, password: str) -> None:
-    print("--- TEMP PASSWORD (한 번만 표시됩니다 — 로그 저장 금지) ---")
+    print("--- TEMP PASSWORD (한 번만 표시됩니다. 로그 저장 금지) ---")
     print(f"email: {email}")
     print(f"temp_password: {password}")
     print("--- 첫 로그인 시 비밀번호 변경이 강제됩니다 ---")
@@ -120,7 +120,7 @@ def cmd_list(db: Session, session_service, settings, args) -> int:
             select(func.count()).select_from(User).where(User.archived_at.is_not(None))
         ).scalar_one()
         if hidden:
-            print(f"(보관된 계정 {hidden}개는 숨겨져 있습니다 — 보려면: list --archived)")
+            print(f"(보관된 계정 {hidden}개는 숨겨져 있습니다. 보려면: list --archived)")
     return 0
 
 
@@ -164,7 +164,7 @@ def cmd_archive(db, session_service, settings, args) -> int:
         object_id=user.id, after=user_snapshot(user),
     )
     db.commit()
-    print(f"보관됨: {user.email} (목록·검색·로그인에서 제외, 세션 전체 폐기)")
+    print(f"보관됨: {user.email} (목록, 검색, 로그인에서 제외, 세션 전체 폐기)")
     print("되돌리려면: unarchive --email " + user.email)
     return 0
 
@@ -178,7 +178,7 @@ def cmd_unarchive(db, session_service, settings, args) -> int:
     )
     db.commit()
     state = "활성" if user.active else "비활성"
-    print(f"복구됨: {user.email} (보관 전 상태 그대로 — {state})")
+    print(f"복구됨: {user.email} (보관 전 상태 그대로: {state})")
     return 0
 
 
@@ -336,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name, func, help_text in [
         ("enable", cmd_enable, "계정 활성화"),
         ("disable", cmd_disable, "계정 비활성화 (세션 폐기)"),
-        ("archive", cmd_archive, "계정 보관 (삭제 아님 — 목록·로그인에서 제외, 되돌릴 수 있음)"),
+        ("archive", cmd_archive, "계정 보관 (삭제 아님: 목록, 로그인에서 제외, 되돌릴 수 있음)"),
         ("unarchive", cmd_unarchive, "보관 복구 (보관 전 상태로 되돌림)"),
         ("unlock", cmd_unlock, "로그인 잠금 해제"),
         ("sessions", cmd_sessions, "활성 세션 조회"),

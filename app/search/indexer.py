@@ -83,7 +83,7 @@ def _joined(parts) -> str:
 
 def _joined_sep(parts) -> str:
     """결과 줄의 부제 한 줄(가운뎃점으로 구분)."""
-    return " · ".join(str(p).strip() for p in parts if str(p or "").strip())
+    return ", ".join(str(p).strip() for p in parts if str(p or "").strip())
 
 
 def _dept_names(db: Session) -> dict[str, str]:

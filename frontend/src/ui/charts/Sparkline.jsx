@@ -36,7 +36,7 @@ export function Sparkline({
   const last = values[values.length - 1];
   const text = summary != null
     ? summary
-    : `최근 ${last} · 최대 ${max} · 최소 ${min} (${values.length}개 구간)`;
+    : `최근 ${last}, 최대 ${max}, 최소 ${min} (${values.length}개 구간)`;
 
   return (
     <Box>

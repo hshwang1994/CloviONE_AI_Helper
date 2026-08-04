@@ -137,7 +137,7 @@ def build_scope(db: Session, user: User) -> Scope:
             dept_ids=department_subtree_ids(db, root),
         )
     logger.error(
-        "알 수 없는 admin_scope=%r (user=%s) — 안전을 위해 아무것도 보이지 않는 범위로 처리한다",
+        "알 수 없는 admin_scope=%r (user=%s). 안전을 위해 아무것도 보이지 않는 범위로 처리한다",
         kind, user.id,
     )
     return Scope(kind=ADMIN_SCOPE_DEPT, org_id=None, dept_ids=frozenset())

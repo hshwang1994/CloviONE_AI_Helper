@@ -155,7 +155,7 @@ def detect(db: Session, *, now: datetime, window_hours: int = DEFAULT_WINDOW_HOU
         if night:
             findings.append(_finding(
                 "off_hours", SEVERITY_MEDIUM, actor_id,
-                "심야에 설정·권한을 바꿨습니다",
+                "심야에 설정, 권한을 바꿨습니다",
                 f"한국 시간 {OFF_HOURS_START}시~{OFF_HOURS_END}시 사이에 {len(night)}건입니다.",
                 count=len(night), threshold=1,
                 evidence=[f"{e.action} @{e.created_at.replace(tzinfo=timezone.utc).astimezone(_KST):%m-%d %H:%M}" for e in night],
@@ -166,8 +166,8 @@ def detect(db: Session, *, now: datetime, window_hours: int = DEFAULT_WINDOW_HOU
         if critical:
             findings.append(_finding(
                 "critical_action", SEVERITY_HIGH, actor_id,
-                "권한·계정에 관한 동작이 있었습니다",
-                "역할 변경·임퍼소네이션·승인 위임·기능 플래그는 한 건이라도 확인 대상입니다.",
+                "권한, 계정에 관한 동작이 있었습니다",
+                "역할 변경, 임퍼소네이션, 승인 위임, 기능 플래그는 한 건이라도 확인 대상입니다.",
                 count=len(critical), threshold=1,
                 evidence=[f"{e.action} → {e.object_type}/{e.object_id or '-'}" for e in critical],
                 first_at=critical[0].created_at, last_at=critical[-1].created_at,
@@ -192,7 +192,7 @@ def detect(db: Session, *, now: datetime, window_hours: int = DEFAULT_WINDOW_HOU
                 findings.append(_finding(
                     "new_actor_action", SEVERITY_LOW, actor_id,
                     "이 계정이 처음 하는 동작입니다",
-                    "최근 30일 동안 이 계정이 한 적 없던 설정·권한 관련 동작입니다.",
+                    "최근 30일 동안 이 계정이 한 적 없던 설정, 권한 관련 동작입니다.",
                     count=len(sensitive_fresh), threshold=1,
                     evidence=sensitive_fresh,
                     first_at=matching[0].created_at if matching else None,

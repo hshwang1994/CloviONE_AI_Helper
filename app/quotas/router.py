@@ -129,7 +129,7 @@ def create_quota(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        raise ConflictError("같은 범위·기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.")
+        raise ConflictError("같은 범위, 기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.")
 
     now = request.app.state.clock.now()
     row = AiQuota(

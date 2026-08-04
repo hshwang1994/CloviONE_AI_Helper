@@ -81,7 +81,7 @@ def run_heartbeat_loop(
     while not stop_event.is_set():
         beat_liveness(session_factory, clock, components)
         if lock is not None and not lock.renew():
-            logger.error("워커 리스를 잃었다 — 다른 워커가 인수했다. 중단한다.")
+            logger.error("워커 리스를 잃었다. 다른 워커가 인수했다. 중단한다.")
             stop_event.set()
             break
         stop_event.wait(interval)
@@ -146,7 +146,7 @@ def main() -> int:
     if not lock.acquire():
         holder = (lock.read() or {}).get("owner", "?")
         logger.error(
-            "다른 워커가 이미 돌고 있다(owner=%s, lock=%s) — 중복 실행을 막기 위해 종료한다. "
+            "다른 워커가 이미 돌고 있다(owner=%s, lock=%s). 중복 실행을 막기 위해 종료한다. "
             "정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.",
             holder, lock.path,
         )
@@ -371,7 +371,7 @@ def main() -> int:
     stop_event = threading.Event()
 
     def _shutdown(signum, _frame):
-        logger.info("signal %s — graceful shutdown", signum)
+        logger.info("signal %s: graceful shutdown", signum)
         stop_event.set()
 
     signal.signal(signal.SIGTERM, _shutdown)

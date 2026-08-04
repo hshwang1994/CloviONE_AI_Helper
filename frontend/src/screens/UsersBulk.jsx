@@ -57,7 +57,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
       if (failed) {
         toast(`${changed}명 적용, ${failed}명 실패: ${res.failed[0].error}`, "error");
       } else {
-        toast(`${res.action_label} — ${changed}명 적용(${ids.length - changed}명은 이미 그 상태)`, "success");
+        toast(`${res.action_label}: ${changed}명 적용(${ids.length - changed}명은 이미 그 상태)`, "success");
       }
       selection.clear();
       onDone();
@@ -185,10 +185,10 @@ function ImportModal({ onClose, onImported }) {
     <Modal open onClose={onClose} title="CSV로 사용자 가져오기" size="lg" footer={footer}>
       <Callout>
         <Box component="p" sx={{ m: 0 }}>
-          <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할·부서·직책은 선택입니다(부서·직책은 <em>이름</em>으로 씁니다).
+          <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할, 부서, 직책은 선택입니다(부서, 직책은 <em>이름</em>으로 씁니다).
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.75 }}>
-          가져오기는 <strong>새 계정만 만듭니다</strong> — 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
+          가져오기는 <strong>새 계정만 만듭니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.75 }}>
           만들어진 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
@@ -204,8 +204,8 @@ function ImportModal({ onClose, onImported }) {
         <Box sx={{ mt: 2 }}>
           <Callout tone={preview.failed ? "warn" : "info"}>
             {preview.dry_run ? "미리 보기: " : "적용 결과: "}
-            총 {preview.total}행 · {preview.dry_run ? "생성 예정" : "생성"} {preview.created}
-            {" · 건너뜀 "}{preview.skipped}{" · 실패 "}{preview.failed}
+            총 {preview.total}행, {preview.dry_run ? "생성 예정" : "생성"} {preview.created}
+            {", 건너뜀 "}{preview.skipped}{", 실패 "}{preview.failed}
           </Callout>
           <Box sx={{ mt: 1.5 }}>
             <DataTable columns={columns} rows={preview.results} rowKey={(r) => r.line} />

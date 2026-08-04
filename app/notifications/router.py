@@ -80,7 +80,7 @@ def list_notifications(
     unread_only: bool = Query(default=False),
     read: str | None = Query(
         default=None,
-        description="읽음 상태 필터: 'read'(읽음만)·'unread'(안 읽음만)·'all'(전체). "
+        description="읽음 상태 필터: 'read'(읽음만), 'unread'(안 읽음만), 'all'(전체). "
         "unread_only=true는 하위 호환으로 'unread'와 같다.",
     ),
     type: str | None = Query(default=None, max_length=48),

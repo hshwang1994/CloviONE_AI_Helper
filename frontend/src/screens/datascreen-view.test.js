@@ -96,7 +96,7 @@ describe("describeView", () => {
 
   it("검색어·필터·페이지를 한 줄로 잇는다", () => {
     expect(describeView("q=x&action=user.login&page=2", CONFIG))
-      .toBe('검색 "x" · 작업: user.login · 2쪽');
+      .toBe('검색 "x", 작업: user.login, 2쪽');
   });
 
   it("조건이 없으면 빈 문자열 — 화면이 '조건 없음(전체)'로 바꿔 쓴다", () => {

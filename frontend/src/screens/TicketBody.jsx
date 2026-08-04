@@ -121,7 +121,7 @@ export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyIs
           </Box>
         ) : null}
         <BodyEditor id={"ticket-body-" + ticketId} value={draft} onChange={setDraft} rows={14}
-          placeholder="본문을 입력하세요. 제목·글머리·번호·구분선을 쓸 수 있습니다." />
+          placeholder="본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다." />
       </Box>
     );
   }
@@ -145,7 +145,7 @@ export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyIs
           <Callout tone="warn">
             <Box sx={{ display: "grid", gap: 1 }}>
               <span>
-                본문은 저장되었지만 원본(Notion)에 반영하지 못했습니다: {bodySyncError} —
+                본문은 저장되었지만 원본(Notion)에 반영하지 못했습니다: {bodySyncError}.
                 아래 내용이 우리 쪽 정본이며, 원본에는 아직 이전 내용이 남아 있습니다.
               </span>
               <Box>

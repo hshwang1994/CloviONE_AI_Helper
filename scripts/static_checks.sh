@@ -143,6 +143,17 @@ else
   echo "$TRACKED"; fail "커밋 누락 — 추적 파일이 미추적 모듈을 import 한다"
 fi
 
+step "User-facing text avoids the banned glyphs"
+# 사용자 지시(§8): 화면 문구에서 가운뎃점(·)과 em 대시(—)를 쓰지 않는다.
+# 한 번 훑고 끝내면 다음 화면에서 다시 새어 나가므로 검사로 고정한다.
+# grep 을 쓰지 않는 이유는 검사기 docstring 에 적어 뒀다 — 저장소의 두 문자 5,985개 중
+# 86%가 한국어 주석·docstring 이라 단순 grep 은 오탐 5,157개를 낸다.
+if UTEXT="$("$PY" scripts/check_user_text.py 2>&1)"; then
+  ok "$(echo "$UTEXT" | tail -1)"
+else
+  echo "$UTEXT"; fail "사용자에게 보이는 문구에 쓰지 않기로 한 문자가 있다"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then echo "STATIC_CHECKS_OK"; else echo "STATIC_CHECKS_FAILED"; fi
 exit $FAIL

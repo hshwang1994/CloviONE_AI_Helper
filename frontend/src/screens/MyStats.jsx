@@ -108,7 +108,7 @@ export function MyStats() {
     <div className="c-screen">
       <PageHeader
         area="내 정보"
-        title="내 업무량 · 완료 통계"
+        title="내 업무량, 완료 통계"
         crumbRoot=""
         spot="sprint"
         actions={
@@ -172,7 +172,7 @@ export function MyStats() {
                     }]}
                     labels={data.months.map((m) => m.month.slice(2))}
                     unit="%"
-                    summary={`최근 ${data.months.length}개월 · 배정이 없던 달은 0으로 눕습니다(표에서는 '-')`}
+                    summary={`최근 ${data.months.length}개월, 배정이 없던 달은 0으로 눕습니다(표에서는 '-')`}
                     emptyLabel="집계할 달이 없습니다"
                   />
                   <Box sx={{ mt: 2, minWidth: 0 }}>
@@ -266,8 +266,8 @@ export function MyStats() {
                이 앱의 표시 규약은 Asia/Seoul 로 포맷한 시각이다(lib/format.js). */
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5 }}>
               티켓 미러 상태: {data.sync.status}
-              {data.sync.last_success_at ? ` · 마지막 동기화 ${fmtDateTime(data.sync.last_success_at)}` : ""}
-              {data.sync.truncated ? " · 일부만 동기화됨" : ""}
+              {data.sync.last_success_at ? `, 마지막 동기화 ${fmtDateTime(data.sync.last_success_at)}` : ""}
+              {data.sync.truncated ? ", 일부만 동기화됨" : ""}
             </Typography>
           ) : null}
         </>

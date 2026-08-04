@@ -170,7 +170,7 @@ function AccentPicker() {
     <Card sx={{ mb: 2.5 }}>
       <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>화면 강조색</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2, maxWidth: "70ch" }}>
-        버튼·링크·선택 표시에 쓰는 색입니다. 밝게/어둡게 설정과 마찬가지로 <strong>지금 쓰는 브라우저에만</strong> 저장되는 개인 설정이라,
+        버튼, 링크, 선택 표시에 쓰는 색입니다. 밝게/어둡게 설정과 마찬가지로 <strong>지금 쓰는 브라우저에만</strong> 저장되는 개인 설정이라,
         다른 사람이 보는 화면은 바뀌지 않습니다(위 표의 시스템 설정과 다릅니다).
       </Typography>
       <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>

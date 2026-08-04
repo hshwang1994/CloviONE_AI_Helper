@@ -797,7 +797,7 @@ export function GameRoom() {
                 </Box>
               )}
               {room.status === "playing" && !canVote && you.role === "spectator" ? (
-                <StageHint>관전 중 — 투표는 참여자만 할 수 있습니다.</StageHint>
+                <StageHint>관전 중: 투표는 참여자만 할 수 있습니다.</StageHint>
               ) : null}
             </Box>
           ) : isNumber ? (
@@ -853,7 +853,7 @@ export function GameRoom() {
                     <Typography variant="body2" color="text.secondary">내가 낸 숫자: {gstate.your_pick} (다시 내면 변경됩니다)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
-                    <StageHint>관전 중 — 참여자만 숫자를 낼 수 있습니다.</StageHint>
+                    <StageHint>관전 중: 참여자만 숫자를 낼 수 있습니다.</StageHint>
                   ) : null}
                 </>
               ) : (
@@ -911,7 +911,7 @@ export function GameRoom() {
                     <Typography variant="body2" color="text.secondary">낸 것: {RPS_LABELS[gstate.your_choice]} (다시 누르면 변경)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
-                    <StageHint>관전 중 — 참여자만 낼 수 있습니다.</StageHint>
+                    <StageHint>관전 중: 참여자만 낼 수 있습니다.</StageHint>
                   ) : null}
                 </>
               ) : (
