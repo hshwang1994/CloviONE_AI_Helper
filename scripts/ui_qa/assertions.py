@@ -17,6 +17,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   narrow_main             (width >= 3840 only) content column < 60% of viewport
   vertical_text_collapse  글자가 3자 미만/줄로 끊겨 세로로 흐르는 상태(줄 수로 직접 측정)
   fab_overlap             떠 있는 요소(마스코트 FAB 등)가 버튼·입력을 덮어 못 누르게 됨
+  image_cropped           사용자가 올린 이미지를 object-fit:cover 로 잘라 보여줌
 """
 
 from __future__ import annotations
@@ -35,8 +36,14 @@ NARROW_MAIN_MIN_RATIO = 0.60
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
     "broken_images", "duplicate_ids", "tiny_text", "narrow_main", "vertical_text_collapse",
-    "fab_overlap",
+    "fab_overlap", "image_cropped",
 )
+
+# 사용자가 올린 이미지를 비율을 무시하고 잘라 보여주는 것을 잡는다.
+# 실제 결함: 자유게시판 첨부 썸네일이 objectFit:"cover" + aspect-ratio:1/1 이라 정사각형이
+# 아닌 이미지를 전부 잘라냈다("이미지가 잘리고 콘텐츠 영역만 보인다" — 사용자 지시 §5).
+# 장식용 일러스트(마스코트·빈화면 그림)는 aria-hidden 이거나 alt="" 라 대상이 아니다.
+IMAGE_CROP_MIN_LOSS = 0.15   # 원본 면적의 15% 넘게 잘리면 결함으로 본다
 
 MAX_SAMPLES = 5
 
@@ -174,6 +181,38 @@ PROBE_JS = r"""
       out.brokenImages.push({ src: src.slice(0, 160), selector: cssPath(img) });
       if (out.brokenImages.length >= MAX) break;
     }
+  }
+
+  // --- 사용자 이미지가 잘려 보이는가 ---------------------------------------
+  //
+  // object-fit:cover 는 상자를 채우려고 **원본을 잘라낸다**. 아바타처럼 얼굴만 보이면 되는
+  // 자리에서는 맞지만, 사용자가 올린 첨부·본문 이미지에 쓰면 내용이 잘려 나간다.
+  // 실제로 자유게시판 첨부가 cover + 1:1 이라 정사각형이 아닌 그림을 전부 잘랐다.
+  //
+  // 장식(aria-hidden 이거나 alt="")은 제외한다 — 마스코트·빈화면 일러스트는 잘려도
+  // 정보가 사라지지 않고, 오히려 꽉 채우는 편이 맞는 경우가 많다.
+  out.croppedImages = [];
+  for (const img of document.images) {
+    if (out.croppedImages.length >= MAX) break;
+    if (!img.naturalWidth || !img.naturalHeight) continue;
+    if (img.getAttribute('aria-hidden') === 'true') continue;
+    if (!(img.getAttribute('alt') || '').trim()) continue;   // 장식
+    const cs = getComputedStyle(img);
+    if (cs.objectFit !== 'cover') continue;
+    const r = img.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) continue;
+    // cover 는 상자를 덮도록 확대한 뒤 넘치는 쪽을 자른다. 남는 비율을 면적으로 계산한다.
+    const scale = Math.max(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const shownW = Math.min(img.naturalWidth * scale, r.width);
+    const shownH = Math.min(img.naturalHeight * scale, r.height);
+    const lost = 1 - (shownW * shownH) / (img.naturalWidth * scale * img.naturalHeight * scale);
+    if (lost < config.imageCropMinLoss) continue;
+    out.croppedImages.push({
+      selector: cssPath(img), alt: (img.getAttribute('alt') || '').slice(0, 40),
+      natural: img.naturalWidth + 'x' + img.naturalHeight,
+      box: Math.round(r.width) + 'x' + Math.round(r.height),
+      lostPct: Math.round(lost * 100),
+    });
   }
 
   // --- text walk: tiny text + vertical collapse ----------------------------
@@ -481,6 +520,7 @@ def evaluate(page, *, expected_theme: str, viewport_width: int) -> dict:
         "maxSamples": MAX_SAMPLES,
         "tinyTextMinViewport": TINY_TEXT_MIN_VIEWPORT,
         "tinyTextMinPx": TINY_TEXT_MIN_PX,
+        "imageCropMinLoss": IMAGE_CROP_MIN_LOSS,
         "expectedTheme": expected_theme,
         "viewportWidth": viewport_width,
     })
@@ -551,6 +591,18 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     results["duplicate_ids"] = (
         _verdict("fail", len(dupes), [f"#{d['id']} x{d['count']}" for d in dupes])
         if dupes else _verdict("pass")
+    )
+
+    # 사용자가 올린 이미지를 잘라 보여주는 자리. 장식(aria-hidden/alt="")은 프로브에서 이미 뺐다.
+    cropped = probe.get("croppedImages") or []
+    results["image_cropped"] = (
+        _verdict(
+            "fail", len(cropped),
+            [f"{c['selector']} «{c['alt']}» 원본 {c['natural']} → 상자 {c['box']}"
+             f" (object-fit:cover 로 {c['lostPct']}% 잘림)" for c in cropped],
+            "사용자가 올린 이미지가 잘려 보인다 — 상자를 채우려고 원본을 자르고 있다",
+        )
+        if cropped else _verdict("pass")
     )
 
     if viewport_width < TINY_TEXT_MIN_VIEWPORT:
