@@ -46,7 +46,16 @@ CLASS_IN_SELECTOR = re.compile(r"\.(-?[_a-zA-Z][_a-zA-Z0-9-]*)")
 
 
 def css_files() -> list[Path]:
-    return sorted(p for p in CSS_DIR.glob("*.css")) if CSS_DIR.exists() else []
+    """SPA 가 실제로 로드하는 손수 쓴 CSS 전부.
+
+    styles/ 만 보면 ui/kit.css 가 빠진다 — main.jsx 는 그 파일도 import 하는데 검사에서만
+    빠져 있어서, 화면을 MUI 로 옮겨 규칙이 죽어도 아무도 알려 주지 않았다.
+    """
+    out = sorted(p for p in CSS_DIR.glob("*.css")) if CSS_DIR.exists() else []
+    kit = ROOT / "frontend" / "src" / "ui" / "kit.css"
+    if kit.exists():
+        out.append(kit)
+    return out
 
 
 def declared_classes(path: Path) -> set[str]:

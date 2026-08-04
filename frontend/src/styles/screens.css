@@ -54,9 +54,6 @@
 .c-kv-k { color: var(--color-muted); }
 .c-kv-v { color: var(--color-text); word-break: break-word; }
 .c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: 8px; max-height: 320px; overflow: auto; }
-/* 목록 페이지네이션(감사·작업 등 무한 증가 로그) */
-.c-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-md, 12px); padding: var(--space-md, 12px) var(--space-sm, 8px) 6px; }
-.c-pager-info { font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
 /* 여러 사실을 한 문단에 몰아넣지 않고 줄마다 나눠 훑기 쉽게 할 때(예: Users.jsx) — kit.css의
    .k-callout-body p{margin:0}은 문단 간 간격이 없어 줄들이 그대로 붙어 보인다. */
 .c-page-callout .k-callout-body p + p { margin-top: 6px; }

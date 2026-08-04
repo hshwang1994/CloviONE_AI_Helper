@@ -20,19 +20,6 @@ body {
 }
 button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) { }
-/* 그라디언트 상단바 위 컨트롤의 키보드 포커스 링 — 인디고~보라 위에서 브라우저 기본 outline은
-   거의 안 보인다. 흰 링 + 오프셋으로 어떤 지점에서도 드러나게 한다. */ .c-icon-btn:focus-visible {
-  outline: 2px solid #fff; outline-offset: 2px;
-}
-.c-icon-btn {
-  position: relative;
-  border: 0; background: rgba(255,255,255,0.14); color: var(--topbar-fg, #fff); cursor: pointer;
-  width: 36px; height: 36px; border-radius: 50%; font-size: 1rem;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-/* 시각 원은 36px로 두되 탭 가능한 히트 영역은 44×44로 넓힌다(WCAG 2.5.5/2.5.8 최소 터치 타깃).
-   폰에서 벨은 알림을 여는 유일한 컨트롤이라 히트 영역이 작으면 놓치기 쉽다. */
-.c-icon-btn::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
 @media (prefers-reduced-motion: reduce) { }
 
 .c-body { flex: 1; display: flex; min-height: 0; }
@@ -53,7 +40,6 @@ button { font-family: inherit; }
    잘릴 수 있었다(overflow-x:clip이라 스크롤로도 못 닿음). 세그먼트를 없애지 않고(관리자가
    모바일에서 채팅 화면으로 가는 유일한 통로) 여백만 더 줄여 합계를 좁은 폭에 맞춘다. */
 @media (max-width: 400px) {
-  .c-icon-btn{ width: 32px; height: 32px; }
 }
 
 /* 알림 팝오버(NotificationBell.jsx) 보정 — 이 컴포넌트의 나머지 스타일은 screens.css(다른
@@ -123,10 +109,6 @@ button { font-family: inherit; }
    빨간 숫자만 끈 것이므로, 아무 표시도 없으면 "조용히 해 둔 것"과 "아무것도 안 온 것"이 똑같이
    보인다 — 속을 비운 중립 고리로 '있지만 조용하다'를 말한다. title 로 실제 건수도 알려 준다. */
 .noti-quiet { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: transparent; border: 2px solid var(--color-muted); }
-/* unread-count 조회가 실패했지만 캐시된 옛 숫자가 남아 배지에 그대로 뜨는 경우(NotificationBell.jsx
-   countError) — 숫자만으로는 최신인지 알 길이 없었다. aria-label엔 이미 "개수를 불러오지 못함"이
-   붙지만, 마우스로 보는 사용자에게도 같은 신호를 주는 테두리를 더한다(product-quality-audit AREA=D). */
-.noti-count--stale { box-shadow: 0 0 0 1.5px var(--color-warning); }
 /* 장애/실패류 알림(NOTI_FAILURE_TYPES, lib/format.js)의 유형 라벨 강조 — screens.css의 기본
    .noti-item-type(항상 primary 톤)과 시각 무게가 같아 8건이 섞인 팝오버에서 급한 항목을
    구분할 수 없었다. 클래스 두 개를 겹쳐 명시도(0,2,0)로 screens.css(0,1,0)를 로드 순서와

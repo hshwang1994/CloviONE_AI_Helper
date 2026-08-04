@@ -9,14 +9,6 @@
 .k-link { color: var(--color-primary); text-decoration: none; }
 .k-link:hover { text-decoration: underline; }
 .k-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-/* 카드 헤더 줄(제목 + 우측 링크) */
-.c-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md, 12px); margin-bottom: var(--space-md, 12px); }
-.c-card-head h3 { margin: 0; font-size: 15px; font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
-/* 프로젝트별 티켓 그룹 — 단일 표 안의 그룹 헤더 행. 모든 그룹이 같은 열 너비로 정렬된다
-   (그룹마다 별도 표를 쓰면 열 너비가 제각각 자동계산돼 어긋났던 문제를 없앤다). */
-.k-table--grouped .k-group-row th { text-align: left; background: color-mix(in srgb, var(--color-primary) 6%, var(--color-card)); color: var(--color-heading, var(--color-text)); font-weight: var(--fw-semibold, 600); font-size: 13px; padding: 9px 14px; border-top: 1px solid var(--color-border); }
-.k-table--grouped .k-group-row:first-child th { border-top: 0; }
-.k-group-count { color: var(--color-muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
 /* 인라인 라벨 + 컨트롤(필터 등) */
 .k-field-inline { display: inline-flex; align-items: center; gap: 8px; }
 .k-field-label { font-size: 13px; color: var(--color-muted); }
@@ -30,48 +22,15 @@
 .k-badge--indigo { background: var(--badge-indigo-bg); color: var(--badge-indigo-fg); }
 .k-badge--neutral { background: var(--badge-neutral-bg); color: var(--badge-neutral-fg); border-color: var(--badge-neutral-border); }
 
-/* 버튼 계층 */
-.k-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--color-border); background: var(--color-card); color: var(--color-text); text-decoration: none; white-space: nowrap; }
-.k-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
-.k-btn--primary { background: var(--color-primary); color: var(--color-on-primary); border-color: transparent; }
-.k-btn--primary:hover { background: var(--color-primary-strong); color: var(--color-on-primary); }
-.k-btn--danger { color: var(--color-error); border-color: var(--color-error); }
-/* 위험 버튼은 hover에서도 붉은 정체성을 유지한다 — 일반 .k-btn:hover가 인디고로 덮어써
-   삭제/거절/비활성화 버튼이 마우스를 올리는 순간 파랗게 바뀌던 것을 막는다(클래스+가상선택자 우선순위). */
-.k-btn--danger:hover { border-color: var(--color-error); color: var(--color-error); background: color-mix(in srgb, var(--color-error) 6%, transparent); }
-.k-btn--ghost { border-color: transparent; background: transparent; }
-.k-btn--sm { padding: 5px 10px; font-size: 13px; }
-/* 키보드 포커스 링 — 마우스가 아닌 키보드 이동 시에만(브라우저 기본 outline은 인디고 위에서 잘 안 보인다). */
-.k-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.k-btn--primary:focus-visible { outline-color: var(--color-primary-strong); }
-/* 비활성 버튼 — color/background를 직접 지정해 브라우저 기본 disabled 흐림 효과가 먹지 않는다.
-   전송/재시도 등 진행 중 잠긴 버튼이 활성 버튼과 똑같아 보여 '지금 눌러도 되는지'를 알 수 없던 문제. */
-.k-btn:disabled { opacity: .5; cursor: default; }
-.k-btn:disabled:hover { border-color: var(--color-border); color: var(--color-text); background: var(--color-card); }
-.k-btn--primary:disabled:hover { background: var(--color-primary); color: var(--color-on-primary); }
-
-/* 카드: 전체 테두리 + 은은한 hover 부양(왼쪽 파란 선 아님). */
-.k-card { background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow-card); }
-/* 클릭 가능한 카드(role="button", 예: 대시보드 서비스 상태 타일)는 .k-stat--click과 같은
-   커서/호버 신호를 준다 — 예전엔 onClick이 있어도 마우스 포인터가 그대로라 클릭 가능함이 안 보였다. */
-.k-card[role="button"] { cursor: pointer; }
-.k-card[role="button"]:hover { border-color: var(--color-primary); }
-.k-card[role="button"]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-
 /* 콜아웃(안내): 왼쪽 강조선(제품주가 거부한 Claude식 바)을 쓰지 않는다. 상태는
    옅은 배경 틴트 + 톤을 띤 '전체' 테두리 + 아이콘 글리프로 표현한다(§6). */
 .k-callout { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; padding: 12px 16px; font-size: 14px; background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
-.k-callout--warn { border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border)); background: color-mix(in srgb, var(--color-warning) 8%, transparent); }
-.k-callout--danger { border-color: color-mix(in srgb, var(--color-error) 40%, var(--color-border)); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
 /* 톤 라벨(안내/주의/오류/완료) — 클로드식 이모지 대신 짧은 텍스트로 톤을 알린다. 색은 톤을 따른다. */
 .k-callout-label { flex-shrink: 0; white-space: nowrap; color: var(--badge-info-fg); font-weight: var(--fw-semibold); }
 .k-callout--warn .k-callout-label { color: var(--color-warning); }
 .k-callout--danger .k-callout-label { color: var(--color-error); }
 .k-callout-body { line-height: 1.55; }
 .k-callout-body p { margin: 0; }
-/* 성공 톤 — 화면이 필요할 때(예: 설정 검증 통과) 화면 소유 CSS로 info 톤을 덮어쓰는 대신
-   키트 자체에서 제공한다(screens.css .c-success-callout 워크어라운드와 같은 색을 쓴다). */
-.k-callout--success { border-color: color-mix(in srgb, var(--badge-success-fg) 40%, var(--color-border)); background: color-mix(in srgb, var(--badge-success-fg) 8%, transparent); }
 .k-callout--success .k-callout-label { color: var(--badge-success-fg); }
 /* 콜아웃 안에 명령어/경로 조각을 담는 <code>는 스타일 규칙이 아예 없어 브라우저 기본
    모노스페이스로만 떨어졌다(예: Ops.jsx의 journalctl 안내) — 앱의 다른 코드/JSON 표면과
@@ -80,40 +39,10 @@
 
 /* 상태 카드: 균등 그리드에서 쓰며 값은 톤 색, 클릭형은 필터 연동. */
 .k-stat { position: relative; text-align: left; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 18px 20px; width: 100%; }
-.k-stat--click { cursor: pointer; }
-.k-stat--click:hover { border-color: var(--color-primary); }
-.k-stat--click:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 /* 선택된(필터로 켜진) 카드 — 색 링으로 지금 어느 카드가 아래 목록을 필터하고 있는지 알린다. */
 .k-stat.is-selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
-/* 링크처럼 보이는 버튼(필터 해제 등) — a와 시각 통일하되 실제로는 button. */
-.k-linkbtn { border: 0; background: none; padding: 0; margin: 0; font: inherit; cursor: pointer; }
-/* 클릭 가능함을 hover(터치에선 절대 안 보임)만으로 신호하지 않는다 — 상시 보이는 화살표를
-   우상단에 둔다(product-quality-audit AREA=D). */
-.k-stat-chevron { position: absolute; top: 14px; right: 16px; color: var(--color-muted); font-size: 16px; line-height: 1; }
-/* 값은 600(semibold)까지만 — 큰 숫자를 800로 밀지 않는다(전부 굵게 금지). */
-.k-stat-value { font-size: 30px; font-weight: var(--fw-semibold); line-height: 1; color: var(--color-heading); }
-/* 라벨과 심각도 태그('주의'/'위험')를 한 줄에서 세로 중앙정렬한다 — inline+vertical-align은
-   태그 배경 박스의 높이가 텍스트와 안 맞아 어긋나 보였다(flex align-items:center로 바로잡음). */
-.k-stat-label { margin-top: var(--space-sm); font-size: 13px; color: var(--color-muted); display: flex; align-items: center; gap: 6px; }
-.k-stat--ok .k-stat-value { color: var(--badge-success-fg); }
-.k-stat--warn .k-stat-value { color: var(--badge-warning-fg); }
-.k-stat--danger .k-stat-value { color: var(--badge-error-fg); }
-/* 심각도를 색 하나에 기대지 않는다(WCAG 1.4.1) — 왼쪽 강조선(제품주가 거부한 바)도, 클로드식
-   경고 기호(✕/▲)도 쓰지 않는다. 옅은 틴트 배경 + 톤을 띤 '전체' 테두리 + 값 색 + 라벨 옆의 작은
-   텍스트 태그('주의'/'위험')로 색맹·저대비에서도 읽게 한다. */
-.k-stat--warn { background: color-mix(in srgb, var(--color-warning) 7%, var(--color-card)); border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); }
-.k-stat--danger { background: color-mix(in srgb, var(--color-error) 7%, var(--color-card)); border-color: color-mix(in srgb, var(--color-error) 45%, var(--color-border)); }
-.k-stat-sev { flex-shrink: 0; font-size: 10.5px; font-weight: var(--fw-semibold); padding: 1px 7px; border-radius: var(--radius-pill); line-height: 1.6; }
-.k-stat--warn .k-stat-sev { color: var(--badge-warning-fg); background: var(--badge-warning-bg); }
-.k-stat--danger .k-stat-sev { color: var(--badge-error-fg); background: var(--badge-error-bg); }
-
-/* 스켈레톤(로딩) — 동작 감소 설정에서는 반짝임을 멈춘다. */
-.k-skel { display: flex; flex-direction: column; gap: 10px; }
-.k-skel-row { height: 16px; border-radius: 6px; background: linear-gradient(90deg, var(--color-line) 25%, var(--color-border) 37%, var(--color-line) 63%); background-size: 400% 100%; animation: k-shimmer 1.3s ease infinite; }
-.k-skel-row:nth-child(2) { width: 80%; }
-.k-skel-row:nth-child(3) { width: 60%; }
 @keyframes k-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-@media (prefers-reduced-motion: reduce) { .k-skel-row { animation: none; } }
+@media (prefers-reduced-motion: reduce) { }
 
 /* 빈 화면 / 오류 상태 — 제목 8 도움말, 도움말 16 버튼(스펙 리듬). */
 .k-empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); text-align: center; padding: var(--space-3xl) var(--space-xl); color: var(--color-muted); }
@@ -122,7 +51,6 @@
 .k-empty-help { font-size: 13px; max-width: 440px; line-height: 1.55; }
 /* 선행 조건·기대 결과 — 라벨 + 본문 한 줄. 왼쪽 강조선 없이 옅은 틴트 카드로 구분. */
 .k-empty-note { max-width: 440px; font-size: 13px; line-height: 1.55; color: var(--color-text); background: color-mix(in srgb, var(--color-primary) 5%, transparent); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); text-align: left; }
-.k-empty-note-label { display: block; font-size: 12px; font-weight: var(--fw-medium); color: var(--color-muted); margin-bottom: var(--space-xs); }
 /* 다음에 할 일 — 번호 목록. 가운데 정렬 화면 안에서 목록은 왼쪽 정렬이 읽기 편하다. */
 .k-empty-steps { margin: 0; padding-left: 1.4em; max-width: 440px; text-align: left; font-size: 13px; line-height: 1.7; color: var(--color-text); }
 .k-empty-action { margin-top: var(--space-sm); }
@@ -130,15 +58,11 @@
 .k-empty-link:hover { text-decoration: underline; }
 .k-empty-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .k-empty .k-btn { margin-top: 0; }
-
-/* 반응형 표 — 넓은 화면 표 / 좁은 화면 카드 목록(가로 스크롤에 의존하지 않음 §21). */
-.k-table-wrap { overflow-x: auto; }
 .k-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 /* 숫자열 자릿수 정렬 — 표 전역에 tabular-nums(고정폭 숫자). devrep·감사로그와 동일 규범. */
 .k-table th, .k-table td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--color-line); font-variant-numeric: tabular-nums; }
 .k-table th { color: var(--color-muted); font-weight: 600; font-size: 13px; }
 .k-table th.is-right, .k-table td.is-right { text-align: right; }
-.k-table-empty { text-align: center; color: var(--color-muted); padding: 28px 12px; }
 .k-table tbody tr.is-click { cursor: pointer; }
 .k-table tbody tr.is-click:hover { background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
 /* 행 상세 열기 버튼 — 행 전체를 role="button"으로 만들지 않고 실제 버튼으로 키보드·SR 접근을 준다. */
@@ -152,31 +76,9 @@
   .k-table td { border: 0; padding: 5px 0; display: flex; justify-content: space-between; gap: 12px; }
   .k-table td::before { content: attr(data-label); color: var(--color-muted); font-size: 12px; font-weight: 600; }
 }
-
-/* 공통 모달 — 모든 생성·수정·확인·상세가 중앙 모달(우측 드로어 제거). 오버레이 38%로
-   과하게 어둡지 않아 본문이 죽지 않는다. size sm/md/lg, 폭 clamp()로 2560~모바일 동적.
-   모바일에서는 전체 화면. */
-/* z-index 75 — 알림 팝오버(.noti-pop)·사용자 메뉴(.c-usermenu, 둘 다 70)보다 위. 예전엔 모달이
-   60이라 팝오버를 연 채로 뜬 확인창(예: 알림 '모두 읽음' 확인)이 팝오버 밑에 깔려 보이지 않았다. */
-.k-modal-overlay { position: fixed; inset: 0; z-index: 75; display: flex; align-items: center; justify-content: center; padding: 24px; background: color-mix(in srgb, var(--color-ink) 38%, transparent); animation: k-fade 0.15s ease; }
 @keyframes k-fade { from { opacity: 0; } to { opacity: 1; } }
-.k-modal { background: var(--color-card); box-shadow: var(--shadow-modal); border-radius: 16px; display: flex; flex-direction: column; width: 100%; max-height: 88vh; animation: k-pop 0.16s ease; }
-.k-modal--sm { max-width: 420px; }
-.k-modal--md { max-width: clamp(420px, 44vw, 600px); }
-.k-modal--lg { max-width: clamp(560px, 60vw, 880px); }
 @keyframes k-pop { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .k-modal-overlay, .k-modal { animation: none; } }
-.k-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--color-border); }
-.k-modal-head h2 { margin: 0; font-size: 17px; }
-.k-modal-x { border: 0; background: transparent; color: var(--color-muted); font-size: 15px; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
-.k-modal-x:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text); }
-/* 앱에서 가장 많이 재사용되는 컨트롤(모든 생성·수정·확인·상세 모달의 닫기 버튼)인데 포커스
-   링이 없었다 — 키보드 사용자가 Tab으로 여기 도달해도 지금 뭐가 선택됐는지 안 보였다. */
-.k-modal-x:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.k-modal-body { flex: 1; overflow-y: auto; padding: 20px; }
-/* 여러 액션(상세 푸터의 수정·재설정·잠금 해제·세션 해제·비활성화·보관 등)이 좁은 모달 폭을
-   넘으면 한 줄에 욱여넣어 라벨이 세로로 깨지던 것을 줄바꿈으로 흘려보낸다. */
-.k-modal-foot { padding: 14px 20px; border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { }
 .k-footer-row { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .k-footer-extra { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
 .k-footer-main { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
@@ -187,36 +89,15 @@
   .k-footer-row { flex-direction: column; align-items: stretch; }
   .k-footer-extra, .k-footer-main { margin-left: 0; width: 100%; }
 }
-/* white-space:pre-line — 호출부가 "\n\n"으로 문단을 나눠 만드는 확인 문구(예: registry.js
-   reservedDisableConfirm의 경고+질문 2단 구성)가 예전엔 한 줄로 뭉개져 시각적 구분이
-   사라졌다(product-quality-audit AREA=D). */
-.k-confirm-msg { margin: 0; line-height: 1.6; font-size: 14px; color: var(--color-text); white-space: pre-line; }
 /* 좁은 폭: 모달을 전체 폭으로 넓히되 '내용 높이'로 둔다. 예전엔 height:100%로 강제 전체 높이라
    짧은 팝업(확인 대화 등)은 본문(flex:1)이 부풀며 버튼이 화면 맨 아래로 밀려 빈 공간에 떠 보였다.
    상단 정렬 + 좌우 여백 + 둥근 모서리로 카드처럼 뜨게 하고, 긴 폼은 max-height 안에서 스크롤한다. */
 @media (max-width: 640px) {
-  .k-modal-overlay { padding: 12px; align-items: flex-start; }
-  .k-modal, .k-modal--sm, .k-modal--md, .k-modal--lg { max-width: 100%; width: 100%; max-height: calc(100vh - 24px); border-radius: 14px; }
 }
-/* 토스트 — 알림/오류 피드백(window.alert 대체) */
-.k-toasts { position: fixed; right: 16px; bottom: 16px; z-index: 90; display: flex; flex-direction: column; gap: 8px; }
-.k-toast { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 11px 16px; border-radius: var(--radius-md); font-size: 14px; color: #fff; box-shadow: var(--shadow-modal); animation: k-pop 0.16s ease; max-width: 360px; }
-@media (prefers-reduced-motion: reduce) { .k-toast { animation: none; } }
-.k-toast-msg { flex: 1; min-width: 0; line-height: 1.45; overflow-wrap: anywhere; }
-.k-toast-x { flex-shrink: 0; border: 0; background: transparent; color: inherit; opacity: 0.75; cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 4px; border-radius: 6px; }
-.k-toast-x:hover { opacity: 1; background: rgba(255,255,255,0.18); }
-/* 토스트는 항상 어둡고 채도 높은 배경이라(잉크/상태색) 흰 링을 쓴다 — 앱 전체 포커스 링
-   토큰(--color-primary)은 이 배경들 위에서 대비가 나오지 않는다. */
-.k-toast-x:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.k-toast--info { background: var(--color-ink); }  /* 잉크 배경은 항상 어두워 흰 글자 유지 */
-/* success/error 배경은 다크에서 밝아진다 → 흰 글자 대신 상태색 위 글자 토큰(다크=잉크)으로 대비 확보. */
-.k-toast--success { background: var(--color-primary-strong); color: var(--color-on-status); }
-.k-toast--error { background: var(--color-error); color: var(--color-on-status); }
+@media (prefers-reduced-motion: reduce) { }
 
 /* 페이지 헤더 — 스펙 리듬: 빵부스러기→제목 8, 제목→설명 4, 설명(헤더)→콘텐츠 16. */
 .k-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-lg); margin-bottom: var(--space-lg); }
-.k-page-head-text { min-width: 0; }
-.k-breadcrumb { font-size: 12px; color: var(--color-muted); margin-bottom: var(--space-sm); }
 /* 제목은 600까지만 — 700을 쓰지 않는다(전부 굵게 금지). */
 .k-page-title { margin: 0; font-size: 23px; font-weight: var(--fw-semibold); letter-spacing: -0.3px; color: var(--color-heading); }
 /* .k-page-desc(설명 문단)는 kit.jsx의 PageHeader description prop과 함께 지웠다 — 어떤
@@ -229,44 +110,17 @@
    .c-app의 overflow-x:clip에 잘려 나간다 — 줄바꿈으로 항상 눈에 보이게 한다. */
 .k-page-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); flex-shrink: 0; }
 @media (max-width: 640px) {
-  .k-page-head { flex-wrap: wrap; }
-  .k-page-head-text, .k-page-actions { flex-basis: 100%; }
+  .k-page-head { flex-wrap: wrap; } .k-page-actions { flex-basis: 100%; }
 }
 
 /* 페이지 수준 안내문 — 헤더 아래 한두 줄 설명. 설명→툴바/콘텐츠 16. */
 .k-page-help { margin: 0 0 var(--space-lg); font-size: 14px; font-weight: var(--fw-normal); color: var(--color-muted); line-height: 1.6; max-width: 70ch; }
 
-/* 툴바 — 필터/검색(왼쪽) + 보조 동작(오른쪽). 좁은 화면에서 줄바꿈. 툴바→콘텐츠 16. */
-.k-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
-.k-toolbar-main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); min-width: 0; }
-.k-toolbar-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-left: auto; }
-
-/* 섹션 — 제목 있는 콘텐츠 블록. 섹션 사이 32, 제목→설명 4, 제목/설명→본문 12. */
-.k-section + .k-section { margin-top: var(--space-2xl); }
-.k-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-md); }
-.k-section-head-text { min-width: 0; }
-.k-section-title { margin: 0; font-size: 17px; font-weight: var(--fw-semibold); color: var(--color-heading); }
-.k-section-desc { margin: var(--space-xs) 0 0; font-size: 13px; font-weight: var(--fw-normal); color: var(--color-muted); line-height: 1.5; max-width: 70ch; }
-.k-section-actions { display: flex; gap: var(--space-sm); flex-shrink: 0; }
-
-/* 내 프로필 모달(App.jsx UserMenu) — 라벨/값 한 줄씩. */
-.k-profile-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--color-line); font-size: 14px; }
-.k-profile-row:last-child { border-bottom: 0; }
-.k-profile-label { color: var(--color-muted); }
-.k-profile-value { color: var(--color-text); font-weight: var(--fw-medium); text-align: right; }
-/* 활성 세션 수가 많을 때의 안내 문구(product-quality-audit AREA=D) — 값 줄 바로 아래, 옅은 톤. */
-.k-profile-help { font-size: 12.5px; color: var(--color-muted); margin: -2px 0 9px; line-height: 1.5; }
-
 /* 폼 필드 */
 .k-field { margin-bottom: 14px; }
 /* 필드 라벨은 500(medium) — 값/제목(600)보다 한 단계 낮춰 위계를 만든다. */
 .k-field-label { display: block; font-size: 13px; font-weight: var(--fw-medium); margin-bottom: 5px; color: var(--color-text); }
-.k-req { color: var(--color-error); }
 .k-input { width: 100%; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--color-card); color: var(--color-text); }
-/* JSON 필드(FormField f.type==="json") 전용 — Settings.jsx의 .c-json-input과 같은 모노스페이스
-   처리를 공용 kit에도 둔다. 사람이 직접 손으로 쓰는 중첩 JSON(예: 정책 content)은 가변폭 UI
-   폰트로는 중괄호/들여쓰기를 눈으로 맞추기 어렵다(product-quality-audit AREA=D). */
-.k-input--mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
 .k-input:focus-visible { outline: 2px solid var(--color-primary-soft); outline-offset: 0; border-color: var(--color-primary); }
 /* 검증 실패 필드 — 붉은 테두리 + 옅은 배경으로 어디가 문제인지 즉시 보인다. */
 .k-input.is-invalid { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 5%, var(--color-card)); }
@@ -285,5 +139,3 @@ textarea.k-input { resize: vertical; }
 .k-row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; flex-wrap: nowrap; }
 .k-field-help { font-size: 12px; color: var(--color-muted); margin-top: 4px; line-height: 1.5; }
 .k-form-err { color: var(--color-error); font-size: 13px; margin-top: 8px; }
-/* 폼 상단 오류 요약 — 큰 폼에서 스크롤 아래 숨지 않게 본문 맨 위에 고정 노출. */
-.k-form-err--top { margin: 0 0 14px; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--color-error); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
