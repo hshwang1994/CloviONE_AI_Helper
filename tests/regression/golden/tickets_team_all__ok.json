@@ -6,6 +6,7 @@
       "act_wd": 1.0,
       "assignee_names": [],
       "assignee_user_ids": [],
+      "category": null,
       "difficulty": "3",
       "due": "2026-06-30",
       "est_wd": 1.0,
@@ -29,6 +30,7 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
+      "category": null,
       "difficulty": "3",
       "due": "2026-07-10",
       "est_wd": 2.0,
@@ -58,6 +60,7 @@
         "00000000-0000-4000-8000-00000000a001",
         "00000000-0000-4000-8000-00000000a002"
       ],
+      "category": null,
       "difficulty": "5",
       "due": "2026-07-15",
       "est_wd": 1.5,
@@ -85,6 +88,7 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a002"
       ],
+      "category": null,
       "difficulty": "1",
       "due": "2026-07-20",
       "est_wd": 3.0,
@@ -108,6 +112,7 @@
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
+      "category": null,
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -131,6 +136,7 @@
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
+      "category": null,
       "difficulty": null,
       "due": "2026-08-05",
       "est_wd": 1.0,
@@ -158,6 +164,7 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
+      "category": null,
       "difficulty": null,
       "due": null,
       "est_wd": null,

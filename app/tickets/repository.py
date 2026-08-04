@@ -33,6 +33,8 @@ class TicketDTO:
     title: str = ""
     status: str | None = None
     due: str | None = None             # 'YYYY-MM-DD'
+    start: str | None = None           # 'YYYY-MM-DD' — 시작일
+    category: str | None = None        # 대분류(자유 텍스트)
     est_wd: float | None = None
     act_wd: float | None = None
     difficulty: str | None = None

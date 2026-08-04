@@ -1,4 +1,5 @@
 {
+  "attachments": [],
   "blocks": [
     {
       "kind": "heading_2",
@@ -26,6 +27,7 @@
   "body_is_local": false,
   "body_markdown": "## 배경\n본문 한 줄.\n- [x] 할 일\n---",
   "body_sync_error": null,
+  "can_edit": true,
   "configured": true,
   "ok": true,
   "ticket": {
@@ -36,6 +38,7 @@
     "assignee_user_ids": [
       "00000000-0000-4000-8000-00000000a001"
     ],
+    "category": null,
     "difficulty": "3",
     "due": "2026-07-10",
     "est_wd": 2.0,

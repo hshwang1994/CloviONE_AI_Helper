@@ -32,6 +32,9 @@ _SCHEMA = {
         "실제 WD": {"type": "number"},
         "티켓 담당자": {"type": "people"},
         "티켓 ID": {"type": "unique_id"},
+        "시작일": {"type": "date"},
+        "대분류": {"type": "rich_text"},
+        "프로젝트": {"type": "relation", "relation": {"database_id": "proj-db"}},
     }
 }
 
@@ -51,6 +54,9 @@ def _page(*, pid="page-1", tid=42, title="샘플", status="진행", due="2026-09
             "난이도": {"select": {"name": diff} if diff else None},
             "우선순위": {"select": {"name": prio} if prio else None},
             "티켓 ID": {"unique_id": {"number": tid}},
+            "시작일": {"date": None},
+            "대분류": {"rich_text": []},
+            "프로젝트": {"relation": []},
         },
     }
 
@@ -260,3 +266,90 @@ def test_meta_reads_schema_options(db, settings):
     assert meta["statuses"] == ["계획", "진행", "검증", "이슈", "완료", "취소"]
     assert meta["priorities"] == ["높음", "보통", "낮음"]
     assert meta["difficulties"] == ["보통", "어려움"]
+
+
+# ── 제품화: 작업 DB 의 편집 가능한 속성을 전부 포털에서 고친다 (2026-08-04 지시) ──────────
+#
+# 예전에는 제목·프로젝트·실제 WD·시작일·대분류가 PATCH 계약에 아예 없었다. 그중 하나만
+# 고치려 해도 노션을 열어야 했고, 그게 "DB 에 접근하지 않아도 업무를 관리한다"를 막고 있었다.
+# 아래 테스트들은 **각 필드가 실제로 Notion PATCH 페이로드까지 도달하는지**를 못박는다 —
+# 스키마에 필드를 더해 놓고 저장소가 흘려버리면 화면에서는 저장된 것처럼 보인다.
+
+def test_title_reaches_notion(db, settings, make_user):
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"title": "고친 제목"})
+    assert ob.last_patch["properties"]["제목"]["title"][0]["text"]["content"] == "고친 제목"
+
+
+def test_title_cannot_be_emptied(db, settings, make_user):
+    """제목을 비우면 목록에서 그 티켓이 '(제목 없음)'이 된다 — 실수지 뜻이 아니다."""
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    with pytest.raises(ValidationAppError):
+        service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"title": "  "})
+    assert ob.last_patch is None
+
+
+def test_actual_wd_reaches_notion(db, settings, make_user):
+    """티켓을 닫을 때 실제 공수를 적는다 — 이게 없어서 완료 처리에 노션이 필요했다."""
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"act_wd": 3.5})
+    assert ob.last_patch["properties"]["실제 WD"] == {"number": 3.5}
+
+
+def test_start_date_reaches_notion_and_clears(db, settings, make_user):
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    service.update_ticket(db, ob, settings, me, page_id="page-1",
+                          changes={"start_date": "2026-09-01"})
+    assert ob.last_patch["properties"]["시작일"] == {"date": {"start": "2026-09-01"}}
+    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"start_date": ""})
+    assert ob.last_patch["properties"]["시작일"] == {"date": None}
+
+
+def test_category_reaches_notion(db, settings, make_user):
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"category": "인프라"})
+    assert ob.last_patch["properties"]["대분류"]["rich_text"][0]["text"]["content"] == "인프라"
+
+
+def test_project_is_set_and_can_be_detached(db, settings, make_user):
+    """빈 프로젝트는 '연결 해제'다 — relation 빈 목록이 그대로 나가야 한다.
+
+    property_value 가 빈 목록을 None 으로 바꿔 버리면 저장소가 '적용 불가'로 400 을 던진다.
+    """
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
+    _map(db, me, "notion-me")
+    ob = _FakeOutbound(page=_page(people=["notion-me"]))
+    service.update_ticket(db, ob, settings, me, page_id="page-1",
+                          changes={"project_id": "proj-abc"})
+    assert ob.last_patch["properties"]["프로젝트"] == {"relation": [{"id": "proj-abc"}]}
+    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"project_id": ""})
+    assert ob.last_patch["properties"]["프로젝트"] == {"relation": []}
+
+
+def test_every_editable_schema_property_has_an_alias(db, settings):
+    """작업 DB 의 **편집 가능한** 속성이 전부 EDIT_PROP_ALIASES 에 있는지 본다.
+
+    새 속성이 노션에 생겼는데 여기 없으면 그 값을 고치려고 노션을 열게 된다 — 그것이 곧
+    제품화가 깨진 상태다. 관계형 넷(상위/하위/선행/후속 작업)은 별도 UI 가 필요해 아직
+    범위 밖이며, 이 목록이 그 사실을 명시적으로 기록한다.
+    """
+    from app.tickets.notion_write import EDIT_PROP_ALIASES
+
+    computed = {"티켓 ID", "생성 일시"}          # 노션이 계산한다 — 쓸 수 없다
+    our_own = {"파일과 미디어"}                   # 첨부는 우리 표로 옮겼다(ticket_attachments)
+    not_used = {"다중 선택", "텍스트"}            # 실제 데이터 1,000건에서 사용률 0%
+    out_of_scope = {"상위 작업", "하위 작업", "티켓 선택(선행 작업)", "티켓 선택(후속 작업)"}
+
+    editable = set(_SCHEMA["properties"]) - computed - our_own - not_used - out_of_scope
+    aliased = {names[0] for names in EDIT_PROP_ALIASES.values()}
+    assert editable <= aliased, f"별칭이 없는 편집 가능 속성: {sorted(editable - aliased)}"

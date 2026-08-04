@@ -115,6 +115,8 @@ class NotionTicketRepository:
             title=row.title or "",
             status=row.status,
             due=row.due_date,
+            start=row.start_date,
+            category=row.category,
             est_wd=row.est_wd,
             act_wd=row.act_wd,
             difficulty=row.difficulty,
@@ -142,6 +144,8 @@ class NotionTicketRepository:
             title=parsed.get("title") or "",
             status=parsed.get("status"),
             due=parsed.get("due"),
+            start=parsed.get("start"),
+            category=parsed.get("category"),
             est_wd=parsed.get("est_wd"),
             act_wd=parsed.get("act_wd"),
             difficulty=parsed.get("difficulty"),
@@ -382,7 +386,11 @@ class NotionTicketRepository:
     def update(
         self, db: Session, *, page_id: str, changes: dict, now: datetime | None = None
     ) -> TicketDTO:
-        """도메인 키(status/priority/difficulty/est_wd/due_date/assignee_ids)만 받는다."""
+        """도메인 키만 받는다 — EDIT_PROP_ALIASES 에 있는 것 전부.
+
+        title / project / act_wd / start / category 가 뒤늦게 들어온 이유는 제품화 지시다:
+        이 다섯을 못 고치면 그것 하나 때문에 노션을 열게 된다(2026-08-04).
+        """
         if not changes:
             raise ValidationAppError("변경할 내용이 없습니다.")
         schema = notion_write.fetch_schema(self._outbound, self._settings)
@@ -395,8 +403,14 @@ class NotionTicketRepository:
             if not prop:
                 raise ValidationAppError(f"작업 DB에서 '{names[0]}' 속성을 찾지 못했습니다.")
 
-            if key == "assignee_notion_ids":
+            if key in ("assignee_notion_ids", "project"):
+                # people / relation — 둘 다 id 목록이다. 빈 목록은 '전부 해제'라는 뜻이라
+                # 그대로 흘려보낸다(None 으로 바꾸면 '적용 불가'가 되어 400 이 난다).
                 mapped = notion_write.property_value(prop, list(value or []))
+            elif key == "title":
+                if not (value or "").strip():
+                    raise ValidationAppError("제목은 비울 수 없습니다.")
+                mapped = notion_write.property_value(prop, value)
             elif key == "status":
                 if not value:
                     raise ValidationAppError("진행상태는 비울 수 없습니다.")
@@ -415,7 +429,7 @@ class NotionTicketRepository:
                             f"{label} 값이 올바르지 않습니다. 허용: {', '.join(allowed)}"
                         )
                 mapped = notion_write.property_value(prop, value)  # 빈 값 → select 지움
-            else:  # est_wd, due_date
+            else:  # est_wd, act_wd, due_date, start, category
                 mapped = notion_write.property_value(prop, value)
 
             if mapped is None:
@@ -576,6 +590,8 @@ class NotionTicketRepository:
         row.est_wd = dto.est_wd
         row.act_wd = dto.act_wd
         row.due_date = dto.due
+        row.start_date = dto.start
+        row.category = dto.category
         row.project_ids = join_names(dto.project_ids)
         # 이름은 DTO 에 없을 수 있다(쓰기 응답은 relation 이름을 해석하지 않는다) — 메타 캐시로 채운다.
         names = list(dto.project_names) or self._cached_project_names(db, dto.project_ids)

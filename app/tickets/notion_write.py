@@ -12,12 +12,15 @@ from __future__ import annotations
 
 from app.core.errors import AppError, ValidationAppError
 from app.reports.notion_source import (
+    PROP_ACT,
+    PROP_CATEGORY,
     PROP_DIFFICULTY,
     PROP_DUE,
     PROP_EST,
     PROP_PEOPLE,
     PROP_PRIORITY,
     PROP_PROJECT,
+    PROP_START,
     PROP_STATUS,
     PROP_TITLE,
     NotionNotConfiguredError,
@@ -33,7 +36,10 @@ EDIT_PROP_ALIASES: dict[str, list[str]] = {
     "difficulty": [PROP_DIFFICULTY],
     "priority": [PROP_PRIORITY],
     "est_wd": [PROP_EST],
+    "act_wd": [PROP_ACT],
     "due_date": [PROP_DUE],
+    "start": [PROP_START],
+    "category": [PROP_CATEGORY],
     "assignee_notion_ids": [PROP_PEOPLE],
     "project": [PROP_PROJECT],
 }

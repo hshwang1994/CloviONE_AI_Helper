@@ -362,20 +362,43 @@ function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeig
 
 /* 티켓 편집 모달 — Notion에 들어가지 않고 도우미로 담당자·예상 WD·난이도·우선순위·진행상태·마감을
  * 수정한다. 바뀐 필드만 PATCH 한다(exclude_unset). 소유권/스키마 검증은 서버가 판단한다. */
+/* 지금 걸려 있는 프로젝트가 목록에 없으면(아카이브됨, 조회 권한 없음) 그 항목을 끼워 넣는다.
+ * 안 그러면 select 가 빈 값으로 떨어지고, 저장하는 순간 **손대지도 않은 프로젝트 연결이 끊긴다**.
+ * 진행상태·우선순위의 withCurrent 와 같은 취지다. */
+function withCurrentProject(projects, currentId) {
+  if (!currentId || projects.some((p) => p.id === currentId)) return projects;
+  return [...projects, { id: currentId, name: "(목록에 없는 프로젝트)" }];
+}
+
+/* 프로젝트 목록 — 새 티켓과 편집 모달이 함께 쓴다. 편집에서 프로젝트를 못 바꾸던 시절에는
+ * 새 티켓 화면 안에만 있었다(2026-08-04 제품화 지시로 편집에도 필요해졌다). */
+function useTicketProjects(enabled) {
+  return useQuery({
+    queryKey: ["tickets", "projects"], queryFn: () => api("/api/tickets/projects"),
+    retry: false, staleTime: 300000, enabled: !!enabled,
+  });
+}
+
 export function TicketEditModal({ ticket, open, onClose }) {
   const qc = useQueryClient();
   const toast = useToast();
   const assigneesQ = useAssigneeOptions(open);
   const metaQ = useTicketMeta(open);
+  const projectsQ = useTicketProjects(open);
   const [form, setForm] = React.useState(null);
   React.useEffect(() => {
     if (!open || !ticket) { setForm(null); return; }
     setForm({
+      title: ticket.title || "",
+      project_id: (ticket.project_ids || [])[0] || "",
       status: ticket.status || "",
       priority: ticket.priority || "",
       difficulty: ticket.difficulty || "",
       est_wd: ticket.est_wd != null ? String(ticket.est_wd) : "",
+      act_wd: ticket.act_wd != null ? String(ticket.act_wd) : "",
       due: ticket.due || "",
+      start: ticket.start || "",
+      category: ticket.category || "",
       assignees: [...(ticket.assignee_user_ids || [])],
     });
   }, [open, ticket]);
@@ -396,19 +419,27 @@ export function TicketEditModal({ ticket, open, onClose }) {
 
   function buildChanges() {
     const c = {};
+    if (form.title.trim() !== (ticket.title || "")) c.title = form.title.trim();
+    if (form.project_id !== ((ticket.project_ids || [])[0] || "")) c.project_id = form.project_id;
     if (form.status !== (ticket.status || "")) c.status = form.status;
     if (form.priority !== (ticket.priority || "")) c.priority = form.priority;
     if (form.difficulty !== (ticket.difficulty || "")) c.difficulty = form.difficulty;
     const initWd = ticket.est_wd != null ? String(ticket.est_wd) : "";
     if (form.est_wd !== initWd) c.est_wd = form.est_wd === "" ? null : Number(form.est_wd);
+    const initAct = ticket.act_wd != null ? String(ticket.act_wd) : "";
+    if (form.act_wd !== initAct) c.act_wd = form.act_wd === "" ? null : Number(form.act_wd);
     if (form.due !== (ticket.due || "")) c.due_date = form.due;
+    if (form.start !== (ticket.start || "")) c.start_date = form.start;
+    if (form.category.trim() !== (ticket.category || "")) c.category = form.category.trim();
     if (!sameSet(form.assignees, ticket.assignee_user_ids || [])) c.assignee_user_ids = form.assignees;
     return c;
   }
 
   function submit() {
+    if (!form.title.trim()) { toast("제목은 비울 수 없습니다.", "error"); return; }
     if (!form.status) { toast("진행상태는 비울 수 없습니다.", "error"); return; }
     if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
+    if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { toast("실제 WD에는 숫자를 입력하세요.", "error"); return; }
     const changes = buildChanges();
     if (Object.keys(changes).length === 0) { toast("변경한 내용이 없습니다.", "info"); return; }
     m.mutate(changes);
@@ -418,9 +449,15 @@ export function TicketEditModal({ ticket, open, onClose }) {
   const statusOpts = withCurrent(meta.statuses, form.status);
   const prioOpts = withCurrent(meta.priorities, form.priority);
   const diffOpts = withCurrent(meta.difficulties, form.difficulty);
+  const projects = (projectsQ.data && projectsQ.data.projects) || [];
   return (
     <Modal open={open} onClose={onClose} title={"티켓 편집" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
+            예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}
+        <TextField id="te-title" fullWidth size="small" label="제목" required sx={{ mb: 2.5 }}
+          value={form.title} onChange={(e) => set("title", e.target.value)}
+          inputProps={{ maxLength: 200 }} />
         <Box sx={{ mb: 2.5 }}>
           <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
           <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} />
@@ -443,8 +480,24 @@ export function TicketEditModal({ ticket, open, onClose }) {
           </TextField>
           <TextField id="te-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
             value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
+          <TextField id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+            value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
+            helperText="다 끝낸 뒤 실제로 들인 공수" />
+          <TextField id="te-start" fullWidth size="small" label="시작일" type="date" InputLabelProps={{ shrink: true }}
+            value={form.start} onChange={(e) => set("start", e.target.value)} />
           <TextField id="te-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
             value={form.due} onChange={(e) => set("due", e.target.value)} />
+          <TextField id="te-proj" select fullWidth size="small" label="프로젝트" {...EMPTYABLE_SELECT}
+            value={form.project_id} onChange={(e) => set("project_id", e.target.value)}
+            disabled={projectsQ.isLoading}>
+            <MenuItem value="">{projectsQ.isLoading ? "불러오는 중…" : "선택 안 함"}</MenuItem>
+            {withCurrentProject(projects, form.project_id).map((p) => (
+              <MenuItem key={p.id} value={p.id}>{p.name || "(제목 없음)"}</MenuItem>
+            ))}
+          </TextField>
+          <TextField id="te-category" fullWidth size="small" label="대분류"
+            value={form.category} onChange={(e) => set("category", e.target.value)}
+            inputProps={{ maxLength: 200 }} />
         </Box>
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
@@ -637,7 +690,7 @@ export function NewTicket() {
   const myId = auth.data && auth.data.id;
   const qc = useQueryClient();
   const toast = useToast();
-  const projectsQ = useQuery({ queryKey: ["tickets", "projects"], queryFn: () => api("/api/tickets/projects"), retry: false, staleTime: 300000 });
+  const projectsQ = useTicketProjects(true);
   const assigneesQ = useQuery({ queryKey: ["tickets", "assignees"], queryFn: () => api("/api/tickets/assignees"), retry: false, staleTime: 60000 });
   const metaQ = useTicketMeta(true);
   const [form, setForm] = React.useState({ title: "", project_id: "", status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });

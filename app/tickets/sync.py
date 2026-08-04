@@ -91,6 +91,8 @@ def _upsert(db: Session, t: dict, proj_map: dict[str, str], now: datetime) -> No
     row.est_wd = t.get("est_wd")
     row.act_wd = t.get("act_wd")
     row.due_date = t.get("due")
+    row.start_date = t.get("start")
+    row.category = t.get("category")
     row.project_ids = join_names(project_ids)
     row.project_names = join_names([proj_map.get(p, "") for p in project_ids])
     row.assignee_notion_ids = join_names(t.get("assignees") or [])

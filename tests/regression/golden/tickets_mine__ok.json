@@ -11,6 +11,7 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
+      "category": null,
       "difficulty": "3",
       "due": "2026-07-10",
       "est_wd": 2.0,
@@ -40,6 +41,7 @@
         "00000000-0000-4000-8000-00000000a001",
         "00000000-0000-4000-8000-00000000a002"
       ],
+      "category": null,
       "difficulty": "5",
       "due": "2026-07-15",
       "est_wd": 1.5,
@@ -67,6 +69,7 @@
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
+      "category": null,
       "difficulty": null,
       "due": null,
       "est_wd": null,

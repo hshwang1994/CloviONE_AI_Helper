@@ -97,15 +97,74 @@ def _comment_body(v: str) -> str:
 
 
 class TicketUpdate(BaseModel):
+    """티켓 속성 수정.
+
+    **작업 DB 의 편집 가능한 속성을 전부 받는다**(2026-08-04 제품화 지시 — "티켓 수정, 본문
+    수정 등 모두 이 포털에서 제공돼야 함"). 예전에는 제목·프로젝트·실제 WD·시작일·대분류가
+    빠져 있어서, 그중 하나만 고치려 해도 노션을 열어야 했다.
+
+    아직 여기 없는 것은 관계형 속성 넷(상위/하위 작업, 선행/후속 작업)뿐이다. 티켓 1,000건을
+    검색해 고르는 별도 UI 가 필요해 이번 범위 밖이고, 실제 사용률도 8%/1%/1%/1% 다.
+    """
+
     # 계약에 없는 키는 거절한다 — 프런트 오타/오용이 조용히 무시되지 않게(fail fast).
     model_config = ConfigDict(extra="forbid")
 
+    title: str | None = None
     assignee_user_ids: list[str] | None = None
+    project_id: str | None = None
     est_wd: float | None = None
+    act_wd: float | None = None
     difficulty: str | None = None
     priority: str | None = None
     status: str | None = None
     due_date: str | None = None
+    start_date: str | None = None
+    category: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def _check_title_u(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        # 제목을 비우면 목록에서 그 티켓이 '(제목 없음)'이 된다 — 실수로 지운 것이지 뜻이 아니다.
+        if not v:
+            raise ValueError("제목은 비울 수 없습니다.")
+        if len(v) > 200:
+            raise ValueError("제목은 200자 이하여야 합니다.")
+        return v
+
+    @field_validator("category")
+    @classmethod
+    def _check_category(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        if len(v) > 200:
+            raise ValueError("대분류는 200자 이하여야 합니다.")
+        return v   # 빈 문자열 = 지움
+
+    @field_validator("start_date")
+    @classmethod
+    def _check_start(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return ""  # 빈 문자열 = 시작일 지움
+        if not _DATE_RE.match(v):
+            raise ValueError("시작일은 YYYY-MM-DD 형식이어야 합니다.")
+        return v
+
+    @field_validator("act_wd")
+    @classmethod
+    def _check_act_wd(cls, v):
+        if v is None:
+            return v
+        if v < 0 or v > 1000:
+            raise ValueError("실제 WD는 0 이상 1000 이하여야 합니다.")
+        return v
 
     @field_validator("est_wd")
     @classmethod

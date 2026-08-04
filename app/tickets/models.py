@@ -73,6 +73,10 @@ class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     act_wd: Mapped[float | None] = mapped_column(Float)
     # ISO 'YYYY-MM-DD' 문자열 그대로 저장한다(원본이 문자열이고 문자열 비교로 정렬·범위가 맞다).
     due_date: Mapped[str | None] = mapped_column(String(40), index=True)
+    # 시작일·대분류는 리포트(공수 집계)에는 안 쓰지만 **포털에서 편집해야** 해서 미러링한다
+    # (2026-08-04 제품화 지시 — 이 값을 고치려고 노션을 여는 상태를 없앤다).
+    start_date: Mapped[str | None] = mapped_column(String(40))
+    category: Mapped[str | None] = mapped_column(String(200))
 
     # 아래 셋은 NAMES_SEP 로 감싼 다중값. project_ids 는 원본 relation id, project_names 는
     # 동기화 때 해석해 둔 표시용 이름(읽을 때 Notion을 다시 안 부르려고 함께 저장한다).

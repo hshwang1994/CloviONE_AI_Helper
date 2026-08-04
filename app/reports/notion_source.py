@@ -24,6 +24,10 @@ PROP_DIFFICULTY = "난이도"
 PROP_PRIORITY = "우선순위"
 PROP_TICKET_ID = "티켓 ID"
 PROP_PROJECT = "프로젝트"
+# 편집 가능한 나머지 두 속성. 리포트는 안 쓰지만 **포털만으로 업무를 끝내려면**
+# 이 둘도 여기서 읽어야 한다(2026-08-04 제품화 지시).
+PROP_START = "시작일"
+PROP_CATEGORY = "대분류"
 
 _MAX_PAGES = 20  # 100건 x 20 = 2000건 상한. 무한 루프 방지(정상 데이터는 한두 페이지).
 
@@ -57,6 +61,17 @@ def _status_name(prop: dict) -> str | None:
     return st.get("name") if isinstance(st, dict) else None
 
 
+def _rich_text(prop: dict) -> str | None:
+    """rich_text 속성의 평문. 비어 있으면 None(빈 문자열과 '없음'을 구분한다)."""
+    parts = prop.get("rich_text")
+    if not isinstance(parts, list):
+        return None
+    text = "".join(
+        seg.get("plain_text", "") for seg in parts if isinstance(seg, dict)
+    ).strip()
+    return text or None
+
+
 def _date_start(prop: dict) -> str | None:
     d = prop.get("date")
     return d.get("start") if isinstance(d, dict) else None
@@ -88,7 +103,9 @@ def _parse_row(row: dict) -> dict:
         "title": _plain_title(p(PROP_TITLE)),
         "status": _status_name(p(PROP_STATUS)),
         "due": _date_start(p(PROP_DUE)),
-        "start": None,  # 시작일은 리포트에 쓰지 않는다(공수 아님) — 필요 시 확장.
+        # 시작일은 리포트(공수 집계)에는 안 쓰지만 화면에서 편집해야 해서 읽는다.
+        "start": _date_start(p(PROP_START)),
+        "category": _rich_text(p(PROP_CATEGORY)),
         "assignees": _people_ids(p(PROP_PEOPLE)),
         "est_wd": _number(p(PROP_EST)),
         "act_wd": _number(p(PROP_ACT)),

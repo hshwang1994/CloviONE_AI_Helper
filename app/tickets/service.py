@@ -103,7 +103,8 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "title": t.title,
         "status": t.status,
         "due": t.due,
-        "start": None,  # 시작일은 쓰지 않는다(공수 아님) — 계약 유지용 자리
+        "start": t.start,
+        "category": t.category,
         "est_wd": t.est_wd,
         "act_wd": t.act_wd,
         "difficulty": t.difficulty,
@@ -430,6 +431,13 @@ def update_ticket(
         repo_changes["assignee_notion_ids"] = _build_assignee_people(
             db, current.assignee_ids, repo_changes.pop("assignee_user_ids") or []
         )
+    # API 이름 → 저장소 도메인 키. 두 이름이 다른 것은 API 쪽이 '무엇을 보내는지'(project_id,
+    # start_date)를, 저장소 쪽이 '어느 속성인지'(project, start)를 말하기 때문이다.
+    if "project_id" in repo_changes:
+        pid = (repo_changes.pop("project_id") or "").strip()
+        repo_changes["project"] = [pid] if pid else []   # 빈 값 = 프로젝트 연결 해제
+    if "start_date" in repo_changes:
+        repo_changes["start"] = repo_changes.pop("start_date")
 
     updated = r.update(db, page_id=page_id, changes=repo_changes, now=now or utcnow())
     return {
