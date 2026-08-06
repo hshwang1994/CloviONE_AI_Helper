@@ -23,6 +23,19 @@
   - frame-ancestors 'none' — 클릭재킹
   - form-action 'self'     — 폼 전송지 탈취(비밀번호가 남의 서버로 간다)
 그리고 CSP 헤더가 아예 사라지지 않았는지.
+
+## connect-src 만 다시 조였다 (2026-08-05)
+
+완화의 목적은 **CDN·웹폰트·외부 라이브러리를 쓰는 것**이었다. 그건 script-src/style-src/
+font-src/img-src/frame-src 로 달성된다. `connect-src` 는 거기에 아무 기여도 하지 않는다 —
+저장소 전체에 외부 `fetch`/`XMLHttpRequest`/`WebSocket` 호출이 **한 줄도 없다**(확인함).
+
+반면 열어 두면 XSS 가 났을 때 `/api/me`·`/api/admin/users`·감사 CSV 를 임의 호스트로 실어
+보낼 수 있다. 얻는 것 없이 유출 경로만 여는 교환이라 되돌렸다. 폰트도 자체 호스팅으로
+바꿨으므로(app/static/fonts/pretendard) 밖으로 나갈 일 자체가 없다.
+
+**사용자 지시를 좁힌 것이 아니다** — 외부 리소스는 그대로 허용돼 있고, 아래 첫 테스트가
+그것을 계속 지킨다. 다만 목적과 무관하게 함께 열렸던 한 지시자를 제자리로 돌렸다.
 """
 
 from __future__ import annotations
@@ -53,12 +66,38 @@ def test_external_resources_are_allowed_on_purpose(client):
 
     이게 실패하면 누군가 완화를 되돌린 것이다 — 그 순간 CDN 자산이 조용히 안 뜬다
     (화면은 뜨는데 아이콘과 차트만 사라지는, 원인을 찾기 어려운 형태로).
+
+    `connect-src` 는 이 목록에 없다 — 위 모듈 주석 참조. 외부 리소스를 *가져오는* 것과
+    데이터를 밖으로 *보내는* 것은 다른 일이고, 지시는 앞의 것이었다.
     """
     d = _csp_of(client)
-    for directive in ("script-src", "style-src", "font-src", "img-src", "connect-src"):
+    for directive in ("script-src", "style-src", "font-src", "img-src", "frame-src"):
         assert "https:" in d.get(directive, []), (
             f"{directive} 에서 https: 가 빠졌다 — 외부 리소스 허용은 2026-08-04 사용자 지시다"
         )
+
+
+def test_connect_src_does_not_allow_exfiltration(client):
+    """XSS 가 나도 데이터를 밖으로 실어 보낼 수 없다 (SEC1).
+
+    앱이 외부로 XHR 을 쏘지 않으므로 'self' 로 잃는 기능이 없다. 누군가 다시 열려고 하면
+    먼저 "정말 외부 API 를 호출하는 코드가 생겼는가"를 확인하게 만드는 자리다.
+    """
+    d = _csp_of(client)
+    assert d.get("connect-src") == ["'self'"], (
+        "connect-src 가 다시 열렸다 — XSS 시 /api/admin/users·감사 CSV 가 임의 호스트로 나간다"
+    )
+
+
+def test_fonts_are_self_hosted(client):
+    """폰트 CSS 가 CDN 이 아니라 우리 static 에서 온다.
+
+    예전 주소는 `pretendard@v1.3.9` — **불변 해시가 아니라 git 태그**였고 SRI 도 없었다.
+    태그는 옮길 수 있으므로 업스트림이 한 번 손상되면 우리가 매기는 CSS 가 조용히 바뀐다.
+    """
+    html = client.get("/login").text
+    assert "cdn.jsdelivr.net" not in html, "로그인 화면이 아직 CDN 폰트를 부른다"
+    assert "/static/fonts/pretendard/" in html, "자체 호스팅 폰트를 부르지 않는다"
 
 
 def test_inline_and_eval_are_allowed_for_third_party_libraries(client):

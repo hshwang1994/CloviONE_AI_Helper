@@ -6,9 +6,10 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { DETAIL_RAIL_MAX_WIDTH, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
+import { invalidateTicketViews } from "./ticket-views.js";
 import { TicketBody } from "./TicketBody.jsx";
 import { TicketComments } from "./TicketComments.jsx";
 import { TicketAttachments } from "./TicketAttachments.jsx";
@@ -33,7 +34,7 @@ const DETAIL_GRID = {
   display: "grid", gap: 3, alignItems: "start",
   gridTemplateColumns: {
     xs: "1fr",
-    xl: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, 1fr)`,
+    xl: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, ${DETAIL_RAIL_MAX_WIDTH})`,
   },
 };
 
@@ -77,7 +78,8 @@ export function Ticket() {
     mutationFn: () => api("/api/tickets/" + id + "/trash", { method: "POST" }),
     onSuccess: () => {
       toast("티켓을 휴지통으로 옮겼습니다.", "success");
-      qc.invalidateQueries({ queryKey: ["tickets"], refetchType: "all" });
+      // 티켓을 그리는 질의 키는 ticket-views.js 한 곳이 안다(홈·스프린트도 이 티켓을 세고 있다).
+      invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       nav("/my-tickets");
     },
@@ -177,6 +179,7 @@ export function Ticket() {
               blocks={data.blocks}
               blocksError={data.blocks_error}
               bodyMarkdown={data.body_markdown}
+              bodyVersion={data.body_version}
               bodyIsLocal={data.body_is_local}
               bodySyncError={data.body_sync_error}
               originalUrl={original}

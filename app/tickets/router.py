@@ -22,20 +22,28 @@ from app.core.errors import (
     NotionNotConfiguredError,
     NotionQueryError,
 )
-from app.core.uploads import MAX_UPLOAD_BYTES
+from app.core.pagination import PageParams
+from app.core.uploads import content_disposition, MAX_UPLOAD_BYTES
 from app.tickets import attachments as ticket_attachments
 from app.tickets import service
+from app.tickets.repository import PageSpec
 from app.tickets.schemas import (
     BulkPageIds,
     TicketBodyUpdate,
     TicketCommentCreate,
     TicketCommentUpdate,
     TicketCreate,
+    TicketListQuery,
     TicketUpdate,
 )
 from app.users.models import User
+from app.settings.gate import block_if_maintenance
 
-router = APIRouter(prefix="/api/tickets", tags=["tickets"])
+router = APIRouter(
+    prefix="/api/tickets",
+    tags=["tickets"],
+    dependencies=[Depends(block_if_maintenance)],
+)
 
 
 def _repo(request: Request):
@@ -49,22 +57,62 @@ def _with_sync(db: Session, repo, body: dict) -> dict:
     return {**body, "sync": sync} if sync else body
 
 
+def _paged(tickets: list[dict], total: int, page: PageParams) -> dict:
+    """목록 응답의 페이지 봉투.
+
+    `items` 는 저장소 관용(`{items,total,page,page_size}`)이고 `tickets` 는 **이미 나가 있는
+    화면과의 호환용 별칭**이다. 같은 목록을 두 이름으로 싣는 이유는 하나뿐이다: 이 변경은
+    백엔드 범위라 화면을 같이 못 고친다. 화면이 `items` 로 옮겨 가면 `tickets` 를 뺀다.
+
+    total 은 **필터를 다 건 뒤, 자르기 전** 건수다 — 화면이 "N건 중 1-20" 을 쓸 수 있어야
+    하고, 그 N 이 필터 앞의 수라면 사용자가 세는 것과 다른 말을 하게 된다.
+    """
+    return {
+        "items": tickets,
+        "tickets": tickets,
+        "total": total,
+        "page": page.page,
+        "page_size": page.page_size,
+    }
+
+
+def _page_spec(page: PageParams) -> PageSpec:
+    return PageSpec(offset=page.offset, limit=page.page_size)
+
+
 @router.get("/mine")
 def my_tickets(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    page: PageParams = Depends(),
+    query: TicketListQuery = Depends(),
 ):
+    """내가 담당한 티켓 한 페이지. 필터는 **서버가** 건다.
+
+    `assignee_user_id` 는 이 경로에서 뜻이 없다 — 이 목록의 담당자는 언제나 세션 사용자다
+    (그래야 IDOR 이 원천적으로 불가능하다). 나머지 조건은 다른 목록과 똑같이 걸린다.
+    """
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     repo = _repo(request)
     try:
-        result = service.list_my_tickets(db, outbound, settings, user, repo=repo)
+        result = service.list_my_tickets(
+            db, outbound, settings, user, repo=repo,
+            filters=service.build_filters(
+                db, query, now=request.app.state.clock.now(),
+                allow_assignee_filter=False,
+            ),
+            page=_page_spec(page),
+        )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "mapped": True, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "mapped": True, "tickets": []}
-    return _with_sync(db, repo, {"configured": True, "ok": True, **result})
+    return _with_sync(db, repo, {
+        "configured": True, "ok": True, "mapped": result["mapped"],
+        **_paged(result["tickets"], result["total"], page),
+    })
 
 
 @router.get("/unassigned")
@@ -72,17 +120,30 @@ def unassigned_tickets(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    page: PageParams = Depends(),
+    query: TicketListQuery = Depends(),
 ):
+    """미할당 트리아지 한 페이지. `assignee_user_id` 는 여기서 뜻이 없다(정의상 담당자가 없다)."""
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     repo = _repo(request)
     try:
-        tickets = service.list_unassigned_tickets(db, outbound, settings, repo=repo)
+        result = service.list_unassigned_page(
+            db, outbound, settings, repo=repo,
+            filters=service.build_filters(
+                db, query, now=request.app.state.clock.now(), active_only=True,
+                allow_assignee_filter=False,
+            ),
+            page=_page_spec(page),
+        )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return _with_sync(db, repo, {"configured": True, "ok": True, "tickets": tickets})
+    return _with_sync(db, repo, {
+        "configured": True, "ok": True,
+        **_paged(result["tickets"], result["total"], page),
+    })
 
 
 @router.get("/assignees")
@@ -91,7 +152,7 @@ def assignees(
     user: User = Depends(get_current_user),
 ):
     """담당자 배정 드롭다운용 후보 목록(active + verified 매핑 사용자)."""
-    return {"assignees": service.list_assignees(db)}
+    return {"assignees": service.list_assignees(db, org_id=getattr(user, "org_id", None))}
 
 
 @router.get("/meta")
@@ -138,18 +199,37 @@ def team_tickets(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     active: bool = Query(default=True),
+    page: PageParams = Depends(),
+    query: TicketListQuery = Depends(),
 ):
-    """팀 전체 티켓(다른 사람 것 포함) — 조회 전용. 리터럴 경로라 GET /{page_id} 보다 먼저 선언."""
+    """팀 티켓 한 페이지(다른 사람 것 포함) — 조회 전용. 리터럴 경로라 GET /{page_id} 보다 먼저 선언.
+
+    **범위는 질의에서 걸린다**: `build_filters(viewer=user)` 가 `any_assignee_visible` 과 같은
+    규칙을 `assignee_any_of` 로 옮겨 담고, `list_team_page` 가 파이썬 그물
+    (`_drop_out_of_scope`)을 한 번 더 건다. 범위를 페이지 뒤에서만 걸면 남의 팀 티켓이
+    자리만 차지하고 빠진, 20건을 달랬는데 3건이 오는 페이지가 나간다.
+    """
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     repo = _repo(request)
     try:
-        tickets = service.list_team_tickets(db, outbound, settings, active_only=active, repo=repo)
+        # `viewer` 를 넘겨 **보는 사람의 팀**으로 좁힌다. 예전에는 포탈 전체가 나갔다.
+        result = service.list_team_page(
+            db, outbound, settings, active_only=active, repo=repo, viewer=user,
+            filters=service.build_filters(
+                db, query, now=request.app.state.clock.now(),
+                active_only=active, viewer=user,
+            ),
+            page=_page_spec(page),
+        )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return _with_sync(db, repo, {"configured": True, "ok": True, "tickets": tickets})
+    return _with_sync(db, repo, {
+        "configured": True, "ok": True,
+        **_paged(result["tickets"], result["total"], page),
+    })
 
 
 @router.post("", dependencies=[Depends(require_csrf)])
@@ -346,6 +426,7 @@ def save_body(
         db, request.app.state.outbound_client, request.app.state.settings, user,
         page_id=page_id, body_markdown=payload.body_markdown,
         now=request.app.state.clock.now(), repo=_repo(request),
+        base_version=payload.base_version,   # 낙관적 잠금 (Z2)
     )
     record_audit_from_request(
         request, db, action="ticket.body.update", object_type="notion_task",
@@ -357,6 +438,27 @@ def save_body(
 # ── 첨부 (지시서 §4: 티켓에 붙은 이미지를 이 화면에서 바로 본다) ─────────────────
 # 리터럴 경로("/attachments/...")를 경로 파라미터("/{page_id}")보다 먼저 선언한다 —
 # 순서가 뒤바뀌면 page_id="attachments" 로 잡혀 404 조차 아닌 이상한 오류가 난다.
+
+def _ensure_attachment_ticket_visible(db: Session, att, user: User) -> None:
+    """첨부가 붙은 **티켓**에 상세와 똑같은 판정을 건다.
+
+    상세(`service.ticket_detail`)와 댓글 목록이 부르는 그 함수를 그대로 부른다. 조건을 여기서
+    다시 쓰면 언젠가 한쪽만 고쳐져 "상세는 404 인데 첨부 원본은 그대로 나간다"가 되는데,
+    이 라우트가 정확히 그 상태였다 — 판정은 한 곳에만 둔다.
+
+    page id 해석은 `service._page_id_for_uid` 를 쓴다(삭제 경로가 이미 쓰는 그 함수다).
+    같은 매핑을 라우터가 한 벌 더 갖고 있으면 source='native' 가 들어오는 날 한쪽만 고쳐진다.
+
+    **page id 가 없는 티켓(source='native')은 통과시킨다.** 판정할 근거가 없는 것이지 범위
+    밖인 것이 아니다 — `ensure_in_scope` 가 캐시 행이 없을 때 통과시키는 것과 같은 이유다.
+    """
+    page_id = service._page_id_for_uid(db, att.ticket_uid)
+    if page_id is None:
+        return
+    service.ensure_not_trashed(db, page_id)   # H2 — 지운 티켓의 첨부는 없는 것으로 본다
+    service.ensure_in_scope(db, page_id, user)   # 범위 밖은 404
+
+
 @router.get("/attachments/{attachment_id}")
 def serve_ticket_attachment(
     request: Request,
@@ -364,13 +466,27 @@ def serve_ticket_attachment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """첨부 원본. 로그인한 사람이면 볼 수 있다 — 티켓 자체가 팀 전체 조회 대상이라
-    첨부만 좁히면 "옆 팀 사람이 첨부를 못 본다"가 되고, 그건 §4 가 없애려는 상태다.
+    """첨부 원본. **상세와 같은 판정을 지난 사람에게만** 바이트를 준다.
 
-    없는 첨부·파일 없음은 전부 404 다(403 은 "그런 첨부가 있긴 하다"를 알려 준다)."""
+    예전 주석은 "로그인한 사람이면 볼 수 있다"였고 근거는 "티켓 자체가 팀 전체 조회 대상"
+    이라는 전제였다. **그 전제는 이제 거짓이다** — RBAC 작업으로 `ticket_detail` 과
+    `list_ticket_comments` 에 `ensure_in_scope` 가 들어가 남의 부서 티켓은 404 가 됐는데,
+    첨부 원본만 열려 있었다. 상세가 404 인 티켓의 이미지·규격서를 id 하나로 받아 갈 수
+    있으면 상세를 막은 의미가 없다(첨부 URL 은 화면에 그대로 노출되는 값이다).
+
+    **언제 통과시키나**: 담당자를 앱 사용자로 해석할 수 없는 티켓은 그대로 열린다. 그런
+    티켓은 미할당 트리아지에 뜨므로, 첨부만 막으면 목록에는 보이는데 못 여는 화면이 된다 —
+    그건 보안이 아니라 고장이다. 그 결합은 `ensure_in_scope` 가 갖고 있고 여기서 다시 쓰지
+    않는다(→ `_ensure_attachment_ticket_visible`).
+
+    없는 첨부·파일 없음·범위 밖·휴지통은 전부 404 다(403 은 "그런 첨부가 있긴 하다"를
+    알려 준다)."""
     att = ticket_attachments.get_attachment(db, attachment_id)
     if att is None:
         raise NotFoundError("첨부를 찾을 수 없습니다.")
+    # 바이트를 만들기 **전에** 판정한다 — 경로만 계산해도 새는 것은 없지만, 순서가 뒤집히면
+    # 다음 사람이 그 사이에 응답을 만들어 넣는다.
+    _ensure_attachment_ticket_visible(db, att, user)
     path = ticket_attachments.file_path(request.app.state.settings.data_dir, att)
     if path is None:
         raise NotFoundError("첨부 파일을 찾을 수 없습니다.")
@@ -379,7 +495,7 @@ def serve_ticket_attachment(
         str(path),
         media_type=att.media_type,
         headers={
-            "Content-Disposition": "inline",
+            "Content-Disposition": content_disposition(att.filename),
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, max-age=300",
         },
@@ -393,7 +509,18 @@ def delete_ticket_attachment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """첨부 제거 — 올린 사람 본인이거나 티켓을 편집할 수 있는 사람."""
+    """첨부 제거 — 올린 사람 본인이거나 티켓을 편집할 수 있는 사람. 범위 밖은 404.
+
+    범위 판정을 서비스에만 맡기면 구멍이 하나 남는다: `delete_ticket_attachment` 는
+    **올린 사람 본인이면 티켓을 아예 보지 않고** 지운다(그 분기에 `ensure_in_scope` 가 없다).
+    미할당일 때 붙인 첨부가 나중에 남의 부서로 배정되면, 읽기는 404 인데 삭제는 되는 상태가
+    된다 — 못 보는 티켓을 고치는 셈이다. 그래서 읽기와 **같은 판정을 같은 자리에서** 먼저
+    건다(→ `_ensure_attachment_ticket_visible`).
+    """
+    att = ticket_attachments.get_attachment(db, attachment_id)
+    if att is None:
+        raise NotFoundError("첨부를 찾을 수 없습니다.")
+    _ensure_attachment_ticket_visible(db, att, user)
     result = service.delete_ticket_attachment(
         db, request.app.state.outbound_client, request.app.state.settings, user,
         attachment_id=attachment_id, repo=_repo(request),

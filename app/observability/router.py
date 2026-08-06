@@ -148,6 +148,21 @@ def system_status(
     runner = _runner_notice(db, now)
     if runner is not None:
         notices.append(runner)
+    # 최초 실행 셋업이 안 끝났다는 사실도 사용자가 "지금 목록이 비어 있는 이유" 로 알아야
+    # 한다(9-3). 셋업이 안 끝났을 때 로그인을 막지 않기로 한 대신, 조용히 빈 목록을 주지
+    # 않는다 — 그 침묵이 이 과제가 없애려는 상태다. 판정은 셋업 체크리스트 한 곳에서만
+    # 오고(app/setup/checklist.py) 여기서는 그 결과를 이 화면의 알림 모양으로 옮긴다.
+    from app.setup.checklist import setup_notice
+
+    setup = setup_notice(
+        db,
+        request.app.state.settings,
+        secrets=request.app.state.secret_provider,
+        cache=request.app.state.settings_cache,
+        for_admin=user.role in CONSOLE_READ_ROLES,
+    )
+    if setup is not None:
+        notices.append(setup)
 
     body: dict = {
         "notices": notices,

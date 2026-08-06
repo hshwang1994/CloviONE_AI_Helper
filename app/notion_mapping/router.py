@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.deps import get_db, get_principal, require_csrf, require_roles
+from app.core.scope import Principal
 from app.core.pagination import PageParams
 from app.jobs import repository as jobs_repo
 from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
@@ -24,7 +25,7 @@ from app.notion_mapping.service import (
     unmap,
     verify_mapping,
 )
-from app.users.service import get_user_or_404
+from app.users.service import get_scoped_user_or_404
 
 router = APIRouter(
     prefix="/api/admin/notion-mapping",
@@ -87,6 +88,7 @@ def sync_all(request: Request, db: Session = Depends(get_db)):
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_mappings(
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
     page: PageParams = Depends(),
     q: str | None = Query(default=None, max_length=255),
     status: str | None = Query(default=None, max_length=16),
@@ -109,9 +111,16 @@ def list_mappings(
     """
     from app.users.models import User
 
+    from app.core.scope import apply_user_scope
+
     stmt = select(User, UserNotionMapping).outerjoin(
         UserNotionMapping, UserNotionMapping.user_id == User.id
     )
+    # **같은 명부를 옆문으로 전부 보게 두지 않는다** (2순위 #2). `/api/admin/users` 는 범위를
+    # 거는데 이 화면은 안 걸었다 — 같은 역할 게이트를 지나면서 같은 사람 목록(이메일 포함)을
+    # 그대로 내줬다. `apply_user_scope` 는 users 화면이 쓰는 바로 그 함수다(규칙을 두 벌로
+    # 만들지 않는다).
+    stmt = apply_user_scope(stmt, principal.scope)
     # 보관된 계정은 목록·검색·로그인에서 뺀다(User.archived_at 규약, Users 화면과 동일).
     # 이 목록은 사용자를 기준으로 나열하므로 보관 계정이 활성 직원과 섞여 보이면 안 된다
     # (동기화 잡도 보관 계정을 건너뛴다). archived=true일 때만 '보관함'을 따로 연다.
@@ -153,7 +162,7 @@ def list_mappings(
 
 
 @router.get("/{user_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def get_mapping(user_id: str, db: Session = Depends(get_db)):
+def get_mapping(user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """단일 사용자의 Notion 매핑 조회.
 
     관리자 콘솔은 이 엔드포인트를 호출한다: notion-mapping 화면의 user_id 딥링크
@@ -167,7 +176,9 @@ def get_mapping(user_id: str, db: Session = Depends(get_db)):
     write)을 냈다. 이제 list_mappings와 같은 방식으로, 행이 없으면 메모리상에서
     'unmapped' 뷰를 만들어 돌려준다(mapping_view_for_user).
     """
-    user = get_user_or_404(db, user_id)
+    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
+    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     row = db.execute(
         select(UserNotionMapping).where(UserNotionMapping.user_id == user_id)
     ).scalar_one_or_none()
@@ -175,8 +186,10 @@ def get_mapping(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}/verify", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def verify(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def verify(request: Request, user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
+    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     row = verify_mapping(
         db, user,
         outbound=request.app.state.outbound_client,
@@ -191,9 +204,12 @@ def verify(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{user_id}/map", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def map_manual(
-    request: Request, user_id: str, payload: ManualMapRequest, db: Session = Depends(get_db)
+    request: Request, user_id: str, payload: ManualMapRequest, db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    user = get_user_or_404(db, user_id)
+    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
+    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     row = manual_map(
         db, user,
         notion_user_id=payload.notion_user_id,
@@ -208,8 +224,10 @@ def map_manual(
 
 
 @router.post("/{user_id}/unmap", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db)):
-    user = get_user_or_404(db, user_id)
+def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
+    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     row = unmap(db, user_id)
     record_audit_from_request(
         request, db, action="notion_mapping.unmap", object_type="user_notion_mapping",
@@ -220,9 +238,12 @@ def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{user_id}/resolve-conflict", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def resolve(
-    request: Request, user_id: str, payload: ResolveConflictRequest, db: Session = Depends(get_db)
+    request: Request, user_id: str, payload: ResolveConflictRequest, db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    user = get_user_or_404(db, user_id)
+    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
+    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
+    user = get_scoped_user_or_404(db, user_id, principal.scope)
     row = resolve_conflict(
         db, user, notion_user_id=payload.notion_user_id, now=request.app.state.clock.now()
     )

@@ -41,10 +41,11 @@ def test_manage_permission(db, make_user):
     op = make_user(email="op@goodmit.co.kr", display_name="운영", role="operator")
     item = service.move_to_trash(db, item_type=TRASH_DOCUMENT, notion_page_id="d-1",
                                  title="문서", url=None, user=owner, now=datetime(2026, 7, 29))
-    service.ensure_can_manage(owner, item)  # 버린 본인 OK
-    service.ensure_can_manage(op, item)     # 운영자 OK
+    # 셋 다 부서가 없다 → 범위는 안 좁혀진다(폴백). 여기서 보는 것은 **권한 축**이다.
+    service.ensure_can_manage(db, owner, item)  # 버린 본인 OK
+    service.ensure_can_manage(db, op, item)     # 운영자 OK
     with pytest.raises(ForbiddenError):
-        service.ensure_can_manage(other, item)  # 남은 불가
+        service.ensure_can_manage(db, other, item)  # 남은 불가
 
 
 def test_purge_expired_skips_recent(db, make_user, monkeypatch):

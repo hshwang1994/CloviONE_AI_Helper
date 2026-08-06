@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # 배포 직후 헬스 게이트. sudo 없이 밖에서 확인할 수 있는 것만 본다.
 #
-#   bash scripts/verify_deploy.sh            # 기본 https://10.100.64.71
-#   BASE=https://clovirone-ai.gooddi.lab bash scripts/verify_deploy.sh
+#   BASE=https://portal.example.internal bash scripts/verify_deploy.sh
+#
+# BASE 에 기본값을 두지 않는 이유: 예전엔 최초 고객사 서버 주소가 기본값이었다. 다른 설치처에서
+# 아무 생각 없이 실행하면 **남의 서버**를 찌르고 초록불을 냈다. 검증이 무엇을 검증했는지가
+# 거짓이 되는 종류의 결함이라, 대상이 없으면 검사하지 않고 멈춘다.
 #
 # 확인하는 것(docs/DEPLOY_VERIFICATION.md 9번 게이트):
 #   * /healthz /readyz 200
@@ -11,7 +14,12 @@
 #   * 새 라우트가 **404 가 아니라 401** 이다(라우터가 실려 있고 인증벽만 막는다)
 #   * CSP 가 새 정책이다(외부 웹폰트·아이콘이 로드되려면 필요하다)
 set -uo pipefail
-BASE="${BASE:-https://10.100.64.71}"
+BASE="${BASE:-}"
+if [ -z "$BASE" ]; then
+  echo "BASE 를 지정해야 합니다(설치처마다 다른 주소라 기본값이 없습니다)."
+  echo "예: BASE=https://portal.example.internal bash $0"
+  exit 2
+fi
 CURL="curl -sk --max-time 15"
 fail=0
 

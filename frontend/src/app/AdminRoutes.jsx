@@ -7,6 +7,10 @@ import { Users } from "../screens/Users.jsx";
 import { Offboarding } from "../screens/Offboarding.jsx";
 import { Settings } from "../screens/Settings.jsx";
 import { Diagnostics, Maintenance } from "../screens/Ops.jsx";
+import { SystemOps } from "../screens/SystemOps.jsx";
+import { NotionConsole } from "../screens/NotionConsole.jsx";
+import { LlmConsole } from "../screens/LlmConsole.jsx";
+import { SetupWizard } from "../screens/SetupWizard.jsx";
 import { DevReport } from "../screens/DevReport.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 import { Search } from "../screens/Search.jsx";
@@ -58,6 +62,19 @@ function AdminRoutes() {
           확인받는' 단계를 표현할 수 없다(Offboarding.jsx 헤더 주석). */}
       <Route path="/offboarding" element={<RequireRole roles={SCREEN_ROLES.offboarding}><Offboarding /></RequireRole>} />
       <Route path="/settings" element={<Settings />} />
+      {/* 최초 실행 셋업(9-3). Settings 와 같이 `RequireRole` 로 감싸지 않는다 — 이 화면은
+          역할 게이트를 스스로 들고 있고(SetupWizard.jsx), 그래야 권한 없는 역할에게 목록
+          요청 자체를 보내지 않는다. 서버 게이트는 app/setup/router.py 가 따로 건다. */}
+      <Route path="/setup" element={<SetupWizard />} />
+      {/* 시스템 설정(§S). `system_admin` 만이다 - `admin` 은 부서 범위로 좁혀질 수 있는
+          역할인데, 여기서 바뀌는 것은 조직이 아니라 **서버 한 대 전체**라 범위라는 개념이
+          없다. 서버 게이트는 app/sysops/router.py 가 같은 근거로 따로 건다. */}
+      <Route path="/system" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><SystemOps /></RequireRole>} />
+      {/* Notion 관리(9-4)와 AI 관리(9-5). 시스템 설정과 같은 근거로 `system_admin` 만이다 -
+          여기서 바뀌는 것은 **설치 한 벌 전체**가 어느 워크스페이스를 보고 어떤 실행 파일을
+          띄우는가라 '부서 범위' 라는 개념이 없다. 서버 게이트는 각 라우터가 따로 건다. */}
+      <Route path="/notion-console" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><NotionConsole /></RequireRole>} />
+      <Route path="/llm-console" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><LlmConsole /></RequireRole>} />
       <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />
       <Route path="/maintenance" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><Maintenance /></RequireRole>} />
       <Route path="/dev-report" element={<RequireRole roles={["admin", "system_admin", "auditor"]} help="이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><DevReport /></RequireRole>} />

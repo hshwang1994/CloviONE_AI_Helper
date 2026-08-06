@@ -59,6 +59,14 @@ class UserUpdateRequest(_StrictRequest):
     title_id: str | None = Field(default=None, max_length=36)
     role: str | None = None
     must_change_password: bool | None = None
+    # ── 관리 범위(F2) ────────────────────────────────────────────────────────
+    # 모델과 `app/core/scope.py`(읽는 쪽)는 0024 부터 있었는데 **넣는 길이 없었다** —
+    # 스키마·라우터·화면 어디에도 없어서 부서 관리자를 만들 방법이 제품에 존재하지 않았다.
+    # 그런데 범위 IDOR 테스트 넷은 `user.admin_scope = scope` 를 손으로 대입해 초록이었다:
+    # 읽기 쪽을 훌륭하게 증명하면서 쓰기 쪽의 부재를 그 한 줄로 가리고 있었다(T3).
+    admin_scope: str | None = Field(default=None, max_length=16)
+    scope_org_id: str | None = Field(default=None, max_length=36)
+    scope_dept_id: str | None = Field(default=None, max_length=36)
 
 
 class ResetPasswordRequest(_StrictRequest):

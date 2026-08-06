@@ -13,8 +13,8 @@ import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
 import AlternateEmailRoundedIcon from "@mui/icons-material/AlternateEmailRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
-import { fmtTimeShort } from "../lib/format.js";
-import { useConfirm } from "../ui/kit.jsx";
+import { fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
+import { useConfirm, useToast } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
@@ -48,6 +48,7 @@ const LOG_SX = {
 };
 
 export function ChatPane({ roomId, compact = false, interval = 2000 }) {
+  const toast = useToast();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const lb = useLightbox();
@@ -81,6 +82,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
       method: "POST", body: { body, client_message_id: nextClientId() },
     }),
     onSuccess: () => { setDraft(""); q.refetch(); },
+    /* 실패를 말한다 (E3). 예전에는 `onError` 가 아예 없어서, 보내기를 눌러도 **아무 일도
+       일어나지 않고** 입력한 글자만 그대로 남았다 — 느린 네트워크와 구분이 안 된다.
+       입력을 지우지 않는 것은 맞다(다시 보낼 수 있어야 한다). 다만 왜 안 갔는지는 말해야 한다. */
+    onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다.", "error"),
   });
   const read = useMutation({
     mutationFn: (seq) => api(`/api/team-chat/rooms/${roomId}/read`, { method: "POST", body: { seq } }),
@@ -110,6 +115,9 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
   const you = data.you || {};
   const room = data.room || {};
   const members = data.members || [];
+  /* 서버가 이 payload 를 **이미** 보내고 있었는데 프런트가 한 번도 안 읽었다(N4).
+     같은 이름 두 사람이 한 방에 있으면 말풍선만으로는 누가 누군지 알 수 없다. */
+  const people = data.people || {};
   const seq = data.seq || 0;
 
   /* `@`로 부를 수 있는 이름 — **서버와 같은 출처를 본다**(app/team_chat/service.py의
@@ -240,8 +248,37 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
                 }}
               >
                 {!mine ? (
-                  <Typography sx={{ fontWeight: 600, color: "text.secondary", fontSize: "0.75rem", px: 0.5 }}>
+                  <Typography
+                    component="div"
+                    sx={{ fontWeight: 600, color: "text.secondary", fontSize: "0.75rem", px: 0.5,
+                          display: "flex", alignItems: "center", gap: 0.625 }}
+                  >
+                    {/* 프로필 사진이 **자기 우상단에만** 보이던 것(X13). 서빙 경로는 이미
+                        전 직원 대상이었고, 빠져 있던 건 남의 주소를 알려 주는 payload 뿐이다.
+                        없으면 자리를 만들지 않는다 — 빈 회색 원이 줄줄이 붙으면 더 어수선하다. */}
+                    {people[m.sender_user_id]?.avatar_url ? (
+                      <Box
+                        component="img"
+                        src={people[m.sender_user_id].avatar_url}
+                        alt=""
+                        sx={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+                      />
+                    ) : null}
                     {m.sender_name || "알 수 없음"}
+                    {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
+                        아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}
+                    {affiliationOf(people[m.sender_user_id]) ? (
+                      <Box component="span" sx={{ fontWeight: 400, ml: 0.5, opacity: 0.75 }}>
+                        {affiliationOf(people[m.sender_user_id])}
+                      </Box>
+                    ) : null}
+                    {/* 보관된 계정이면 그렇다고 말한다(N3) — 안 하면 답이 안 오는 대화를
+                        며칠 기다린다. */}
+                    {people[m.sender_user_id]?.archived ? (
+                      <Box component="span" sx={{ fontWeight: 400, ml: 0.5, opacity: 0.6 }}>
+                        {ARCHIVED_SUFFIX}
+                      </Box>
+                    ) : null}
                   </Typography>
                 ) : null}
                 <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, flexDirection: mine ? "row-reverse" : "row", minWidth: 0 }}>
@@ -331,7 +368,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
       ) : null}
       <Paper
         variant="outlined"
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: 999 }}
+        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: "999px" }}
       >
         <IconButton
           aria-label="이모지 넣기" aria-haspopup="dialog" aria-expanded={!!emojiAnchor}

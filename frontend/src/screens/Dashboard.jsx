@@ -12,6 +12,11 @@ import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callou
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 
+/* 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 에 있다.
+ * 지표마다 (어느 질의에서 오는가 / 어떤 시점 기준인가 / 범위를 지나는가 / 0과 없음을
+ * 구분하는가)를 적어 뒀다. 타일을 하나 더할 때 그 네 칸을 못 채우면 그 숫자는 아직
+ * 화면에 올릴 준비가 안 된 것이다 — 기준을 설명할 수 없는 숫자는 결국 아무도 안 본다. */
+
 export const SERVICE_LABELS = {
   web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러",
   n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
@@ -42,6 +47,17 @@ export const STAT_GRID = {
   lg: "repeat(4, minmax(0,1fr))",
   xxl: "repeat(5, minmax(0,1fr))",
   uhd: "repeat(6, minmax(0,1fr))",
+};
+
+/* 머리 지표 줄만 다른 격자를 쓴다 — **개수가 고정(5개)이기 때문**이다.
+ * `STAT_GRID` 는 개수가 변하는 목록(경보 0~N, 서비스 N개)을 담는 값이라 lg 에서 4열인데,
+ * 거기에 다섯을 넣으면 마지막 하나가 혼자 다음 줄로 떨어진다(실제로 그렇게 나왔다).
+ * 한 줄로 읽히는 것이 이 줄의 존재 이유이므로 lg 부터 다섯 열로 못 박는다.
+ * 좁은 화면에서는 2열로 접히고, 그때는 5개가 세 줄이 되는 게 맞다(가로 스크롤보다 낫다). */
+export const HEADLINE_GRID = {
+  xs: "1fr",
+  sm: "repeat(2, minmax(0,1fr))",
+  lg: "repeat(5, minmax(0,1fr))",
 };
 
 /* 대시보드·진단이 공유하는 섹션 껍데기(제목 + 오른쪽 보조 링크).
@@ -108,6 +124,10 @@ const NAV_ROLES = {
   "/jobs": ["operator", "admin", "system_admin"], "/audit": ["admin", "system_admin", "auditor"], "/diagnostics": ["admin", "system_admin"], // 백업 조회(GET)는 백엔드가 READ_ROLES에 허용하고 App.jsx 라우트/NAV도 동일하게 열려 있다.
   // (백업 실행 등 쓰기 액션만 registry에서 system_admin으로 게이트, 조회 링크는 막다른 길이 아니다.)
   "/backup": ["operator", "admin", "system_admin", "auditor"], "/integrations": ["operator", "admin", "system_admin", "auditor"],
+  // 유지보수 화면은 읽기 전용 역할(operator/auditor)에게도 열려 있다(AdminRoutes.jsx의 RequireRole과 동일).
+  // 여기 적어 두지 않으면 canGo가 무조건 true를 주는데, 그 '통과'가 규칙을 확인한 결과인지
+  // 목록에서 빠뜨린 결과인지 코드만 봐서는 구별되지 않는다.
+  "/maintenance": ["operator", "admin", "system_admin", "auditor"],
 };
 export function canGo(path, role) {
   const allowed = NAV_ROLES[path];
@@ -189,6 +209,250 @@ export function serviceMix(services) {
   ];
 }
 
+/* 머리 지표 다섯 — **맨 위 한 줄에서 끝나는 질문들** (6단계, 기준 목업 구조).
+ *
+ * 예전에는 같은 값들이 여섯 구역에 흩어져 있어, "지금 괜찮은가" 를 알려면 화면을 끝까지
+ * 스크롤하며 여섯 번 찾아야 했다. 운영 화면에서 그건 매일 반복되는 비용이다.
+ *
+ * **없는 지표를 지어내지 않는다.** 기준 목업의 다섯(러너 8/8·워크플로·성공률·지연 작업·
+ * 디스크) 중 '러너 온라인' 에 해당하는 값을 우리는 러너 단위로 갖고 있지 않다 — 대신
+ * 이미 계산하는 **서비스 정상/전체**를 쓴다. 같은 질문("전부 떠 있나")에 답하는 값이고,
+ * 옆의 도넛과 같은 `serviceMix()` 를 쓰므로 **두 곳이 다른 말을 할 수 없다.**
+ *
+ * 아래 구역들을 지우지 않는다. 이 줄은 요약이고 그쪽이 상세다 — 여기서 이상한 값을 보면
+ * 눌러서 그 구역/화면으로 내려간다(모든 타일에 이동 대상이 있다).
+ */
+export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, diagTo, diagNote }) {
+  const mix = serviceMix(services);
+  const byLabel = Object.fromEntries(mix.map((m) => [m.label, m.value]));
+  const total = mix.reduce((a, m) => a + m.value, 0);
+  const down = byLabel["중단"] || 0;
+  const rate = jobs.success_rate_pct;
+  const usedPct = (disk || {}).used_pct;
+
+  return [
+    {
+      key: "services",
+      value: total ? `${byLabel["정상"] || 0} / ${total}` : "-",
+      label: "서비스 정상",
+      kind: down > 0 ? "danger" : total ? "ok" : undefined,
+      to: null,
+    },
+    { key: "workflows", value: fmtNum((counts || {}).active_workflows), label: "활성 워크플로", to: "/workflows" },
+    {
+      key: "rate",
+      value: rate != null ? rate + "%" : "-",
+      label: "24시간 성공률" + jobsNote,
+      kind: rate == null ? undefined : rate >= 95 ? "ok" : rate >= 80 ? "warn" : "danger",
+      to: "/jobs",
+    },
+    {
+      key: "failed",
+      value: fmtNum(jobs.failed_open != null ? jobs.failed_open : 0),
+      label: "미해결 실패 작업" + jobsNote,
+      kind: (jobs.failed_open || 0) > 0 ? "warn" : undefined,
+      to: "/jobs",
+    },
+    {
+      key: "disk",
+      value: usedPct != null ? usedPct + "%" : "-",
+      label: "디스크 사용" + diagNote,
+      kind: usedPct == null ? undefined : usedPct >= 90 ? "danger" : usedPct >= 80 ? "warn" : undefined,
+      to: diagTo,
+    },
+  ];
+}
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 내 업무 구역 (8단계) — 이 화면은 지금까지 **운영 지표만** 있었다.
+ *
+ * 잡 큐·하트비트·디스크는 "서버가 괜찮은가"에 답하지만 "내가 지금 뭘 놓치고 있나"에는
+ * 답하지 않는다. 그 답을 찾으려면 프로젝트·내 티켓·스프린트 화면을 따로 돌아야 했다.
+ *
+ * **새 계산을 만들지 않는다.** 숫자는 전부 서버가 기존 재료로 조립해서 준다
+ * (GET /api/home/work-dashboard → app/home/work.py). 화면이 다시 세면 같은 사실이 두 벌이
+ * 되고, 언젠가 서버와 화면이 다른 말을 한다.
+ *
+ * **질의를 따로 두는 이유**: 운영 지표(/api/admin/dashboard)와 소스가 다르다. 한 질의에
+ * 묶으면 잡 큐가 죽은 날 내 업무도 함께 사라진다(§17.4 장애 격리). 30초 폴링도 안 건다 -
+ * 마감일 기준 값이라 초 단위로 변하지 않는다.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+// 티켓 소스를 못 읽었을 때의 문구. **0 을 그리지 않는다** — '할 일이 없다'는 거짓말이 된다
+// (Home.jsx 의 SprintProgress 가 같은 상황에 같은 결의 문장을 쓴다).
+export const WORK_UNKNOWN = "티켓 소스를 읽지 못해 내 업무를 셀 수 없습니다.";
+
+// 완료 추이의 기준. 소스에 '상태가 완료로 바뀐 시각'이 없다(app/projects/weekly.py 와
+// app/sprints/burndown.py 가 같은 사정을 적어 뒀다). 없는 이력을 추정해 선을 그으면 그건
+// 추이가 아니라 창작이라, 화면이 기준을 그대로 말한다.
+export const TREND_BASIS = "완료는 마감일 기준입니다. 상태가 완료로 바뀐 시각은 소스에 없습니다.";
+
+// 창에 **포함되는** 마지막 날. 계약(end_exclusive)은 배타적 끝이 맞지만, 사람에게
+// "08-03 ~ 08-10"이라고 보이면 08-10이 포함인지 매번 다시 생각해야 하고 반쯤은 틀리게 읽는다
+// (app/projects/weekly.py::Week.last_day 가 서버에서 같은 판단을 기록한다).
+export function lastDayOf(endExclusive) {
+  if (!endExclusive) return null;
+  const d = new Date(endExclusive + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/* 목록 카드 하나(차질 프로젝트 / 지연 마일스톤 공용).
+ * 비었을 때 문구를 받는 이유: '0건'과 '왜 0건인지'는 다른 정보다. */
+function WorkList({ title, bucket, empty, renderItem }) {
+  const items = (bucket && bucket.items) || [];
+  const count = (bucket && bucket.count) || 0;
+  return (
+    <Card sx={{ p: 2.5 }}>
+      <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>{title}</Typography>
+      {items.length ? (
+        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
+          {items.map((item) => (
+            <Box component="li" key={item.key} sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
+              {renderItem(item)}
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Typography variant="body2" color="text.secondary">{empty}</Typography>
+      )}
+      {count > items.length ? (
+        <Note>{items.length}건만 표시했습니다. 전체 {count}건은 프로젝트 화면에 있습니다.</Note>
+      ) : null}
+    </Card>
+  );
+}
+
+export function WorkSection() {
+  const nav = useNavigate();
+  const q = useQuery({
+    queryKey: ["home", "work-dashboard"],
+    queryFn: () => api("/api/home/work-dashboard"),
+    retry: 1,
+    staleTime: 60 * 1000,
+  });
+
+  if (!q.data) {
+    return (
+      <DashSection title="내 업무">
+        {q.isError
+          ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+          : <Card><Skeleton lines={3} /></Card>}
+      </DashSection>
+    );
+  }
+
+  const d = q.data;
+  const mine = d.mine;
+  const projects = d.projects || {};
+  const troubled = projects.troubled || { count: 0, items: [] };
+  const overdueMs = (d.milestones || {}).overdue || { count: 0, items: [] };
+  const win = d.window || {};
+  const lastDay = lastDayOf(win.end_exclusive);
+  const trend = d.completion_trend;
+
+  return (
+    <DashSection title="내 업무"
+      action={<Link component="button" type="button" variant="body2" underline="hover"
+        onClick={() => nav("/me")}>오늘 화면 열기 →</Link>}>
+      {/* '이번 주'가 어느 주인지 화면이 스스로 말한다. 안 적으면 몇 주 뒤에 이 숫자가 어느
+          주의 것이었는지 아무도 답할 수 없고, 기준을 모르는 숫자는 결국 안 믿게 된다. */}
+      {win.start ? (
+        <Note sx={{ mt: 0, mb: 1.5 }}>
+          이번 주 {win.start} 부터 {lastDay} 까지 (Asia/Seoul 기준)
+        </Note>
+      ) : null}
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: HEADLINE_GRID }}>
+        {/* 티켓 소스가 죽으면 이 세 장은 아예 안 그린다. '-'로 그려도 0으로 그려도 사용자는
+            그것을 '없다'로 읽는다 — 아래 안내 문구가 이유를 대신 말한다. */}
+        {mine ? (
+          <>
+            <StatCard value={fmtNum(mine.open)} label="내 미완료" onClick={() => nav("/my-tickets")} />
+            <StatCard value={fmtNum(mine.due_this_week)} label="이번 주 마감"
+              kind={mine.due_this_week ? "warn" : undefined} onClick={() => nav("/my-tickets")} />
+            <StatCard value={fmtNum(mine.overdue)} label="지연 티켓"
+              kind={mine.overdue ? "danger" : undefined} onClick={() => nav("/my-tickets")} />
+          </>
+        ) : null}
+        <StatCard value={fmtNum(troubled.count)} label="차질 프로젝트"
+          kind={troubled.count ? "danger" : undefined} onClick={() => nav("/projects")} />
+        <StatCard value={fmtNum(overdueMs.count)} label="지연 마일스톤"
+          kind={overdueMs.count ? "warn" : undefined} onClick={() => nav("/projects")} />
+      </Box>
+      {!mine ? <Note>{WORK_UNKNOWN}</Note> : null}
+      {/* 차질 0건이 '다 건강하다'인지 '아무것도 안 쟀다'인지는 완전히 다른 사실이다. 서버가
+          센 '못 잼' 건수를 그대로 말한다(0으로 뭉개면 화면에서 둘을 구별할 방법이 없다). */}
+      {projects.unscored ? (
+        <Note>아직 Health 를 계산하지 않은 프로젝트 {fmtNum(projects.unscored)}건은 이 판정에 들어가지 않았습니다.</Note>
+      ) : null}
+      {projects.truncated ? (
+        <Note>프로젝트가 많아 일부만 훑었습니다. 합계가 전체와 다를 수 있습니다.</Note>
+      ) : null}
+
+      <Box sx={{ display: "grid", gap: 2, mt: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0,1fr))" } }}>
+        <WorkList
+          title="차질 프로젝트"
+          bucket={{ count: troubled.count, items: (troubled.items || []).map((p) => ({ ...p, key: p.project_id })) }}
+          empty="지금 차질로 판정된 프로젝트가 없습니다."
+          renderItem={(p) => (
+            <>
+              <Link component="button" type="button" variant="body2" underline="hover"
+                sx={{ textAlign: "left", fontWeight: 700 }}
+                onClick={() => nav("/projects/" + p.project_id)}>
+                {p.name}
+              </Link>
+              <Typography variant="caption" color="text.secondary">
+                {(p.reasons || []).join(", ")}
+                {p.health_score != null ? ", Health " + p.health_score + "점" : ""}
+              </Typography>
+            </>
+          )}
+        />
+        <WorkList
+          title="지연 마일스톤"
+          bucket={{ count: overdueMs.count, items: (overdueMs.items || []).map((m) => ({ ...m, key: m.id })) }}
+          empty="기한을 넘긴 마일스톤이 없습니다."
+          renderItem={(m) => (
+            <>
+              <Link component="button" type="button" variant="body2" underline="hover"
+                sx={{ textAlign: "left", fontWeight: 700 }}
+                onClick={() => nav("/projects/" + m.project_id)}>
+                {m.name}
+              </Link>
+              <Typography variant="caption" color="text.secondary">
+                {m.project_name}, 기한 {m.due_on}
+              </Typography>
+            </>
+          )}
+        />
+      </Box>
+
+      {trend ? (
+        <Box sx={{ mt: 2 }}>
+          <Card sx={{ p: 2.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>최근 완료 추이</Typography>
+            {/* 막대는 aria-hidden 이고 값은 항상 숫자로 함께 나간다(charts/base.jsx 규칙) —
+                그림을 못 보는 사람도 같은 정보를 얻는다. */}
+            <BarSeries
+              items={trend.map((w) => ({
+                label: w.week_of,
+                value: w.done,
+                color: w.done ? "success" : "neutral",
+                note: w.assigned ? "마감 " + w.assigned + "건" : undefined,
+              }))}
+              unit="건" formatValue={fmtNum} emptyLabel="완료 추이를 만들 표본이 없습니다"
+            />
+            <Note>{TREND_BASIS}</Note>
+          </Card>
+        </Box>
+      ) : null}
+    </DashSection>
+  );
+}
+
 export function Dashboard() {
   const nav = useNavigate();
   const auth = useAuth();
@@ -249,6 +513,9 @@ export function Dashboard() {
       ) : (
         <DashboardBody d={q.data} nav={nav} role={role} stale={staleAfterError} />
       )}
+      {/* 운영 지표 **아래**다. 급한 일(경보)이 먼저 눈에 들어와야 한다는 이 화면의 순서
+          규칙을 그대로 따른다. 질의가 따로라 위쪽이 로딩·실패 중이어도 이 구역은 뜬다. */}
+      <WorkSection />
     </Box>
   );
 }
@@ -291,6 +558,14 @@ function DashboardBody({ d, nav, role, stale }) {
   {/* jobs.total/succeeded는 이미 fmtNum()으로 천 단위 구분자를 붙이는데(아래 '작업 지표' 섹션), 바로
       이 경보 타일과 '현재 큐 상태' 타일의 같은 종류 수치(failed_open/queued)만 raw로 새고 있었다 -
       정작 사건이 몰려 자릿수가 커지는 순간(장애 중)에 가장 스캔하기 어려워지는 값이다. */}
+  // 유지보수 모드는 이 앱에서 blast-radius가 가장 큰 운영 상태다 — 켜져 있는 동안 일반
+  // 사용자의 **모든 쓰기가 막힌다**(app/settings/gate.py::block_if_maintenance).
+  // 서버는 이 사실을 매 폴링마다 payload에 실어 보내면서(app/health/service.py의 "maintenance"
+  // 필드, 주석은 "화면이 상단 배너/경보로 띄운다"고 적어 두었다) 화면이 그것을 한 번도 읽지
+  // 않았다 — 그래서 점검 중에도 이 화면은 초록색 "지금 조치가 필요한 문제가 없습니다."를
+  // 띄웠다. 운영자는 그 배너를 보고 사용자 신고("저장이 안 돼요")를 장애로 오해한다.
+  // 맨 앞에 넣는다: 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
+  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "켜짐", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
   if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
   if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
   // 단위(%)는 라벨 괄호가 아니라 값에 붙인다(자원 타일과 동일한 표기), '성공률 낮음(%)' 위 '45'는 어색했다.
@@ -389,6 +664,8 @@ function DashboardBody({ d, nav, role, stale }) {
       {/* aria-live 래퍼 자체는 항상 마운트된 채로 두고 안의 자식(경보 묶음 ↔ all-clear)만 바꾼다 -
           예전엔 aria-live가 <section> 안쪽에 있어, 경보가 전부 사라지고 all-clear로 바뀌는 순간
           그 live region 엘리먼트 자체가 통째로 언마운트돼 전환 자체를 SR이 놓칠 수 있었다. */}
+      {/* 머리 지표 — 경보보다 **아래**다. 급한 일(경보)이 먼저 눈에 들어와야 한다.
+          기준 목업도 빨간 경보 배너 → 지표 다섯 순서다. */}
       <Box aria-live="polite">
         {alerts.length ? (
           <DashSection title="확인이 필요한 항목">
@@ -419,6 +696,16 @@ function DashboardBody({ d, nav, role, stale }) {
           </Paper>
         )}
       </Box>
+
+      <DashSection title="지금 상태">
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: HEADLINE_GRID }}>
+          {headlineStats({ services, counts: d.counts, jobs, disk, jobsNote, diagTo, diagNote }).map((t) => (
+            <StatCard key={t.key} value={t.value} label={t.label} kind={t.kind}
+              onClick={t.to && canGo(t.to, role) ? goto(t.to) : undefined} />
+          ))}
+        </Box>
+        <Note>이 줄은 요약입니다. 값을 누르면 그 화면으로 내려가고, 자세한 항목은 아래 구역에 있습니다.</Note>
+      </DashSection>
 
       <DashSection title="서비스 상태">
         {/* 넓은 화면에서는 카드 격자 옆에 상태 구성 도넛을 세운다 — 연동이 열 개를 넘는 배포에서

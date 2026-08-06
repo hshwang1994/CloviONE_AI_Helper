@@ -91,7 +91,8 @@ def test_list_my_tickets_unmapped(db, settings, make_user):
     u = make_user(email="u@goodmit.co.kr", display_name="미매핑", role="user")
     outbound = _FakeOutbound([])
     out = service.list_my_tickets(db, outbound, settings, u)
-    assert out == {"mapped": False, "tickets": []}
+    # total 은 서버 페이지네이션과 함께 들어왔다 - 매핑이 없으면 0건이 맞다.
+    assert out == {"mapped": False, "tickets": [], "total": 0}
     assert outbound.calls == []  # 매핑 없으면 Notion 호출도 안 함
 
 

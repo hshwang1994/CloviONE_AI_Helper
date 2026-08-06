@@ -19,7 +19,131 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Protocol
+
+# 기한 버킷. 값 자체가 쿼리 파라미터로 나가므로 여기 한 곳에서만 정한다.
+DUE_OVERDUE = "overdue"
+DUE_THIS_WEEK = "this_week"
+DUE_NEXT_WEEK = "next_week"
+DUE_BUCKETS = (DUE_OVERDUE, DUE_THIS_WEEK, DUE_NEXT_WEEK)
+
+
+def due_window(bucket: str | None, today: str | None) -> tuple[str | None, str | None]:
+    """기한 버킷 → 반개구간 ``[start, end)`` ISO 날짜. 조건이 없으면 (None, None).
+
+    주는 **월요일에 시작한다**. 경계를 여기 한 곳에서만 계산하는 이유: 미러 경로는 SQL 로,
+    실시간 폴백 경로는 파이썬으로 같은 질문에 답해야 하는데, 경계 계산이 두 벌이면
+    언젠가 한쪽만 고쳐지고 그 증상은 "월요일에만 목록이 다르다" 라서 아무도 못 찾는다.
+
+    `today` 가 없으면 판정하지 않는다(조건 없음). 여기서 `date.today()` 를 부르면 시계가
+    저장소 안으로 새어 들어와 테스트가 날짜에 따라 흔들린다 - 기준일은 항상 호출부의
+    시계(app.state.clock)에서 온다.
+    """
+    if not bucket or not today:
+        return (None, None)
+    try:
+        anchor = date.fromisoformat(today)
+    except ValueError:
+        return (None, None)
+    monday = anchor - timedelta(days=anchor.weekday())
+    if bucket == DUE_OVERDUE:
+        return (None, today)                       # 마감이 오늘보다 앞선 것 = 지났다
+    if bucket == DUE_THIS_WEEK:
+        return (monday.isoformat(), (monday + timedelta(days=7)).isoformat())
+    if bucket == DUE_NEXT_WEEK:
+        return ((monday + timedelta(days=7)).isoformat(),
+                (monday + timedelta(days=14)).isoformat())
+    return (None, None)
+
+
+@dataclass(frozen=True, slots=True)
+class PageSpec:
+    """한 페이지의 자리. ``limit=None`` 이면 **자르지 않는다**.
+
+    자르지 않는 것이 기본값인 이유: 리포트·스프린트 집계는 목록을 전부 봐야 합계가 맞다.
+    상한은 사람이 보는 화면 경로(라우터)에서만 준다.
+    """
+
+    offset: int = 0
+    limit: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TicketFilters:
+    """목록 질의 조건 한 벌 — **소스를 모르는 도메인 값**이다.
+
+    두 종류가 섞여 있고, 섞여 있는 것이 의도다.
+
+      * 사용자가 화면에서 고른 것(상태·우선순위·난이도·프로젝트·담당자·기한·대분류·검색어)
+      * 앱이 **반드시** 걸어야 하는 것(휴지통 제외, 완료·취소 제외, 범위 안 담당자)
+
+    둘을 다른 통로로 넘기면 페이지네이션이 둘 중 한쪽 뒤에서만 일어나고, 그 순간 total 이
+    사용자가 세는 건수와 달라진다. 한 곳에 모아 **같은 질의 안에서** 걸리게 한다.
+
+    `assignee_any_of` 는 `core/scope.py::any_assignee_visible` 의 질의판이다: 담당자 중
+    한 명이라도 이 집합에 있으면 보인다. `None` 은 제한 없음(전역 범위)이고, **빈 집합은
+    아무것도 안 보인다**(fail-closed) - 그 둘을 같은 값으로 표현하면 범위 계산이 빈 답을
+    낸 순간 조용히 전 포탈이 열린다.
+    """
+
+    status: str | None = None
+    priority: str | None = None
+    difficulty: str | None = None
+    project_id: str | None = None
+    category: str | None = None
+    search: str | None = None                       # 제목 부분일치
+    due_bucket: str | None = None                   # DUE_BUCKETS 중 하나
+    today: str | None = None                        # 기한 버킷 기준일 'YYYY-MM-DD'
+    assignee_id: str | None = None                  # 소스 user id (서비스가 해석해 넣는다)
+    # 아래 셋은 앱이 거는 조건 — 브라우저에서 오지 않는다.
+    exclude_statuses: frozenset[str] = frozenset()
+    exclude_page_ids: frozenset[str] = frozenset()
+    assignee_any_of: frozenset[str] | None = None
+
+    @property
+    def due_range(self) -> tuple[str | None, str | None]:
+        return due_window(self.due_bucket, self.today)
+
+    def matches(self, ticket: "TicketDTO") -> bool:
+        """DTO 한 건이 이 조건을 지나는가 — **실시간 폴백 경로 전용**.
+
+        미러 경로는 같은 조건을 SQL 로 건다(`repository_notion._filter_clauses`). 두 벌인 것이
+        마음에 들지는 않지만, 대안은 킬 스위치(`ticket_source=notion`)와 첫 기동 직후에
+        **필터와 페이지가 조용히 무시되는 것**이다 - 그건 "필터가 걸린 줄 알았는데 안 걸렸다"
+        라서 사용자가 못 알아챈다. 두 경로가 같은 답을 내는지는 테스트가 고정한다
+        (tests/integration/test_ticket_filters.py).
+        """
+        if self.status and ticket.status != self.status:
+            return False
+        if self.priority and ticket.priority != self.priority:
+            return False
+        if self.difficulty and ticket.difficulty != self.difficulty:
+            return False
+        if self.category and ticket.category != self.category:
+            return False
+        if self.project_id and self.project_id not in ticket.project_ids:
+            return False
+        if self.assignee_id and self.assignee_id not in ticket.assignee_ids:
+            return False
+        if self.search and self.search.lower() not in (ticket.title or "").lower():
+            return False
+        start, end = self.due_range
+        if start is not None or end is not None:
+            if not ticket.due:
+                return False
+            if start is not None and ticket.due < start:
+                return False
+            if end is not None and ticket.due >= end:
+                return False
+        if self.exclude_statuses and (ticket.status or "") in self.exclude_statuses:
+            return False
+        if self.exclude_page_ids and ticket.page_id in self.exclude_page_ids:
+            return False
+        if self.assignee_any_of is not None:
+            if not any(a in self.assignee_any_of for a in ticket.assignee_ids):
+                return False
+        return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,11 +186,18 @@ class SyncStatus:
 
 @dataclass(frozen=True, slots=True)
 class TicketList:
-    """목록 + '어디서 답했는지'. from_cache=False 면 sync 는 None 이다."""
+    """목록 + '어디서 답했는지'. from_cache=False 면 sync 는 None 이다.
+
+    `total` 은 **필터를 다 건 뒤, 페이지를 자르기 전**의 건수다. 자르기 전 값이어야 화면이
+    "1,058건 중 1-20" 을 쓸 수 있다. `None` 은 '안 셌다'가 아니라 '자르지 않았다'는 뜻으로
+    쓰지 않는다 - 구현체는 자르든 안 자르든 항상 채운다(안 채우면 부르는 쪽이 `len(tickets)`
+    로 대충 메우게 되고, 그 값은 2페이지에서 조용히 틀린다).
+    """
 
     tickets: tuple[TicketDTO, ...] = ()
     from_cache: bool = False
     sync: SyncStatus | None = None
+    total: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,13 +248,26 @@ class TicketRepository(Protocol):
     """티켓을 읽고 쓰는 유일한 통로. 서비스 계층은 이 인터페이스만 안다."""
 
     # -- 읽기 -----------------------------------------------------------------
-    def list_by_assignee(self, db, *, assignee_id: str) -> TicketList: ...
+    #
+    # `filters` / `page` 는 **선택**이다. 안 주면 오늘까지와 똑같이 전부 돌려준다 -
+    # 리포트·스프린트 집계는 목록을 전부 봐야 합계가 맞기 때문이다. 화면 경로만 상한을 준다.
+    def list_by_assignee(
+        self, db, *, assignee_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList: ...
 
-    def list_unassigned(self, db) -> TicketList: ...
+    def list_unassigned(
+        self, db, *, filters: TicketFilters | None = None, page: PageSpec | None = None
+    ) -> TicketList: ...
 
-    def list_all(self, db) -> TicketList: ...
+    def list_all(
+        self, db, *, filters: TicketFilters | None = None, page: PageSpec | None = None
+    ) -> TicketList: ...
 
-    def list_for_period(self, db, *, start: str, end: str) -> TicketList: ...
+    def list_for_period(
+        self, db, *, start: str, end: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList: ...
 
     def get(self, db, *, page_id: str) -> TicketDTO:
         """단건. 없으면 TicketNotFoundError."""

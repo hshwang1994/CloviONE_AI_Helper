@@ -30,7 +30,22 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # 그때 둘을 다시 떼려면 프런트에 유형 분기를 넣어야 한다 — 이 표를 만든 이유가 그걸
     # 없애는 것이었다. 지금 나누는 비용은 한 줄이고, 나중에 합치는 비용은 프런트 분기다.
     "chat_mention": "/chat-rooms/{id}",
+    # 티켓(ticket_assigned, ticket_comment) — 티켓 상세로 바로 들어간다. id 는 Notion page id
+    # 이고, `/tickets/:id` 가 그 값을 그대로 `GET /api/tickets/{page_id}` 에 쓴다
+    # (frontend/src/screens/Ticket.jsx). 즉 위 첫 번째 규칙("그 화면이 실제로 그 id 를
+    # 소비해야 한다")을 만족한다.
+    #
+    # 배정 알림을 만들면서 넣었지만 **댓글 알림(ticket_comment)도 같이 살아난다** — 그쪽은
+    # related 를 이미 ("ticket", page_id) 로 싣고 있었는데 표에 칸이 없어 목적지가 늘 null
+    # 이었다. 한 표만 고치면 둘 다 따라오는 것이 이 표를 만든 이유다.
+    "ticket": "/tickets/{id}",
 }
+
+# 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라
+# 경로가 `#/documents?id=…` 형태이고, 그 질의 파라미터 지식은 이미 프런트 표
+# (frontend/src/screens/registry.js 의 OBJ_ROUTE/OBJ_ID_PARAM)가 `document_generation` 으로
+# 들고 있다. 같은 지식을 여기 한 벌 더 쓰면 두 표가 어긋나는 날이 온다 — 그 화면이 단건
+# 라우트(`/documents/{id}`)를 갖게 되면 그때 여기 한 줄 추가하고 프런트 쪽을 지운다.
 
 # 아직 표에 없는 관련 유형(approval / schedule / job / runner / user)은 **일부러** 비워 둔다.
 # 그 화면들은 전부 목록 화면(DataScreen)이라 경로에 id 자리가 없다 — 보내 봐야 목록만 열리고

@@ -14,8 +14,9 @@
   <link rel="apple-touch-icon" href="{{ asset('/static/brand/favicon/apple-touch-icon.png') }}">
   <link rel="manifest" href="{{ asset('/static/brand/site.webmanifest') }}">
   {# Pretendard 가변 폰트 — 로그인·SPA와 같은 것을 쓴다(글꼴이 화면마다 바뀌면 안 된다). #}
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <!-- Pretendard 자체 호스팅(2026-08-05). 예전 jsdelivr 주소는 불변 해시가 아니라 git
+       태그였고 SRI 도 없었다. app/static/fonts/pretendard 로 들여왔다. -->
+  <link rel="stylesheet" href="{{ asset('/static/fonts/pretendard/pretendardvariable-dynamic-subset.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/base.css') }}">
   {% block head %}{% endblock %}

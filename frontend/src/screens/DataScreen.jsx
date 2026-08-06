@@ -2,16 +2,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { fmtDateTime } from "../lib/format.js";
+import { fmtDateTime, kstLocalToApi } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
-import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { SearchBox } from "../ui/filters.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
 
 /* 상세 패널의 원문 블록과 키/값 줄 — 예전에는 <JsonBlock> 과
@@ -41,6 +40,20 @@ function KeyValueRow({ label, children }) {
   );
 }
 import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
+
+/* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
+ *
+ * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
+ * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
+ * "이 화면 검색만 느리다" 라서 원인이 안 보인다.
+ *
+ * 이 화면을 바꾸면 **화면 밖의 무엇이 같이 낡는가** (X10).
+ *
+ * 알림이 대표적이다: 목록에서 읽음 처리를 해도 상단 벨과 사이드바 배지는 다른 키로 폴링한다.
+ * 지도를 한 곳에 두면 새 화면을 추가할 때 여기만 보면 된다. */
+const CROSS_SCREEN_KEYS = {
+  notifications: [["noti-unread"]],
+};
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
@@ -73,7 +86,6 @@ export function DataScreen({ config }) {
     [config.key]
   );
   const [q, setQ] = useState(initialView.q);           // 실제 쿼리에 쓰이는(디바운스된) 검색어
-  const [qInput, setQInput] = useState(initialView.q); // 입력창에 즉시 반영되는 값(타이핑 중)
   const [page, setPage] = useState(initialView.page);
   // 검색 디바운스 — 서버 검색 화면(searchable, 특히 Notion 조회처럼 요청당 최대 30초 걸리는 화면)에서
   // 매 키 입력마다 새 요청을 쏘지 않는다(예전엔 한 글자씩 칠 때마다 retry:false 요청이 겹쳐 나가
@@ -82,13 +94,9 @@ export function DataScreen({ config }) {
   // **검색어가 실제로 바뀐 경우에만** 돈다. 예전엔 마운트 때도 무조건 한 번 돌아 `setPage(1)`을
   // 했는데, 이제 주소(#/audit?…&page=3)와 저장된 뷰가 페이지 번호를 복원하므로 그 한 번이
   // 복원한 페이지를 300ms 뒤에 조용히 1로 되돌린다 — 사용자는 링크를 열었는데 다른 화면을 본다.
-  const lastQRef = useRef(initialView.q);
-  useEffect(() => {
-    if (qInput === lastQRef.current) return undefined;
-    const t = setTimeout(() => { lastQRef.current = qInput; setQ(qInput); setPage(1); }, 300);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qInput]);
+  // 검색 확정은 `SearchBox` 가 디바운스해서 부른다. 이 함수는 **참조가 고정**돼야 한다 —
+  // 매 렌더마다 새로 만들면 `React.memo` 가 매번 깨져 이 수정이 무효가 된다.
+  const commitSearch = React.useCallback((next) => { setQ(next); setPage(1); }, []);
   const [sel, setSel] = useState(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -157,7 +165,9 @@ export function DataScreen({ config }) {
       if (!v) return;
       // datetime-local 입력값("YYYY-MM-DDTHH:mm")은 시간대 정보가 없다 — 이 앱의 표시 규약(Asia/Seoul)에
       // 맞춰 KST(+09:00)로 해석해 백엔드 _parse_boundary가 기대하는 오프셋 포함 ISO-8601로 보낸다.
-      const sendVal = f.type === "datetime-local" ? v + ":00+09:00" : v;
+      // 변환은 lib/format.js 한 곳이 정본이다 — 폼(kit FormModal)이 같은 규칙을 써야 필터로 찾은
+      // 시각과 폼에 적은 시각이 같은 뜻이 된다(F14: 폼 경로만 빠져 9시간 밀렸다).
+      const sendVal = f.type === "datetime-local" ? kstLocalToApi(v) : v;
       p.push(f.key + "=" + encodeURIComponent(sendVal));
     });
     if (config.paginated) { p.push("page=" + page); if (config.pageSize) p.push("page_size=" + config.pageSize); }
@@ -191,7 +201,20 @@ export function DataScreen({ config }) {
     refetchInterval: (config.summary && config.summary.poll) ? 4000 : false,
   });
   function setFilter(key, val) { setFilters((s) => ({ ...s, [key]: val })); setPage(1); }
-  const refresh = () => qc.invalidateQueries({ queryKey: [config.key] });
+  /* 화면 밖에서도 같은 값을 보여 주는 곳이 있으면 함께 갱신한다 (X10).
+   *
+   * 알림 화면에서 '모두 읽음' 을 눌러도 **상단 벨은 최대 60초 동안 옛 숫자**를 들고 있었다.
+   * 이 화면은 자기 키(`[config.key]`)만 무효화하고, 벨은 다른 키(`["noti-unread"]`)로
+   * 폴링하기 때문이다 — 코드 주석이 이 결함을 예고해 놓고 그대로 남아 있었다.
+   *
+   * 지도를 **한 곳에** 둔다. 무효화를 부르는 자리마다 손으로 적으면 새 화면에서 빠뜨리고,
+   * 그때 증상은 "숫자가 안 맞는다" 라 원인을 찾기 어렵다. */
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: [config.key] });
+    for (const key of CROSS_SCREEN_KEYS[config.key] || []) {
+      qc.invalidateQueries({ queryKey: key });
+    }
+  };
   function announce(res, okMsg) {
     if (res && (res.status === "approval_pending" || res.approval_pending)) toast("승인 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.", "info");
     else toast(okMsg, "success");
@@ -267,12 +290,20 @@ export function DataScreen({ config }) {
       return;
     }
     if (a.subList) { setSubView({ a, row }); return; }        // 하위 리소스 드로어
-    // 입력 폼 액션 — a.initial(row)이 있으면 행 데이터로 폼을 프리필한다(예: 실패한 문서 재시도).
-    if (a.fields) { setActionForm({ a, row, initial: a.initial ? a.initial(row) : null }); return; }
     // confirm은 고정 문자열 또는 (row)=>문자열 함수 둘 다 지원한다(행 데이터에 따라 경고 문구를 바꿔야
     // 하는 액션용 — 예: 수동 지정된 연결을 자동 검증으로 덮어쓸 때만 추가 경고).
     const confirmMsg = typeof a.confirm === "function" ? a.confirm(row) : a.confirm;
-    if (confirmMsg && !(await confirm(confirmMsg, { danger: a.variant === "danger" }))) return;
+    // 확정 버튼에 **그 액션의 이름**을 쓴다 (E7). 기본값 "확인" 은 무엇이 일어나는지
+    // 말하지 않는다 — 빨간색 말고는 단서가 없어서 유지보수 모드 켜기도, 삭제도, 롤백도
+    // 전부 같은 한 단어였다. 액션은 자기 라벨을 이미 갖고 있으므로 그걸 그대로 쓴다.
+    //
+    // 확인은 **입력 폼(a.fields)보다 먼저** 묻는다. 예전에는 fields 분기가 여기보다 위에서
+    // return 해 버려서, confirm과 fields를 함께 단 액션의 경고가 통째로 죽은 코드가 됐다
+    // (설정 파일에 문구를 적어 두면 화면에 뜬다고 믿게 되는, 조용한 실패다). 폼은 '무엇을
+    // 적을지'를 묻고 확인은 '무슨 일이 일어나는지'를 알린다 — 둘은 대체재가 아니다.
+    if (confirmMsg && !(await confirm(confirmMsg, { danger: a.variant === "danger", confirmLabel: a.label }))) return;
+    // 입력 폼 액션 — a.initial(row)이 있으면 행 데이터로 폼을 프리필한다(예: 실패한 문서 재시도).
+    if (a.fields) { setActionForm({ a, row, initial: a.initial ? a.initial(row) : null }); return; }
     setBusyKey(key);
     try {
       const res = await api(a.path(row), { method: a.method || "POST", body: a.body || {} });
@@ -289,7 +320,6 @@ export function DataScreen({ config }) {
     finally { setBusyKey(null); }
   }
   async function runHeaderAction(a, key) {
-    if (a.fields) { setActionForm({ a, row: null }); return; }
     if (a.info) {
       // 조회형 헤더 작업(예: 복원 안내) — 결과를 안내 모달로 보여준다. busy를 걸어 완료 전 중복 클릭을 막는다
       // (그 아래 쓰기 액션 분기와 동일한 패턴 — 예전엔 이 분기만 setBusy가 빠져 있었다).
@@ -302,7 +332,10 @@ export function DataScreen({ config }) {
     // confirm은 고정 문자열 또는 (ctx)=>문자열 함수 둘 다 지원한다(runAction의 confirmMsg 패턴과
     // 동일) — 헤더 작업도 a.when(ctx)와 같은 headerActionCtx를 받아 동적 확인 문구를 만들 수 있다.
     const confirmMsg = typeof a.confirm === "function" ? a.confirm(headerActionCtx) : a.confirm;
-    if (confirmMsg && !(await confirm(confirmMsg, { danger: a.variant === "danger" }))) return;
+    if (confirmMsg && !(await confirm(confirmMsg, { danger: a.variant === "danger", confirmLabel: a.label }))) return;
+    // 행 액션(runAction)과 같은 순서 — 확인을 폼보다 먼저 묻는다. 한쪽만 고치면 같은 설정을
+    // 헤더로 옮기는 순간 경고가 조용히 사라진다.
+    if (a.fields) { setActionForm({ a, row: null }); return; }
     setBusyKey(key);
     try {
       const res = await api(a.path(), { method: a.method || "POST", body: a.body || {} });
@@ -409,9 +442,9 @@ export function DataScreen({ config }) {
     // 저장된 뷰에 없는 필터는 **지운다**(합치지 않는다) — 합치면 지금 걸려 있던 조건이
     // 남아 "부른 뷰와 다른 결과"가 나오고, 사용자는 뷰가 고장 났다고 생각한다.
     setFilters({ ...defaults, ...view.filters });
-    // 디바운스가 300ms 뒤에 page 를 1로 되돌리지 않도록 '이미 반영된 검색어'로 표시해 둔다.
-    lastQRef.current = view.q;
-    setQ(view.q); setQInput(view.q); setPage(view.page);
+    // `q` 만 바꾼다 — `SearchBox` 가 그 값을 보고 입력을 맞추면서 `onSearch` 는 부르지 않아
+    // 뷰가 복원한 페이지 번호가 1로 되돌아가지 않는다.
+    setQ(view.q); setPage(view.page);
   }
 
   const total = query.data && query.data.total;
@@ -522,8 +555,11 @@ export function DataScreen({ config }) {
       {/* clientFilter는 이미 받아 온 현재 페이지만 거른다, paginated 화면에서 함께 쓰면 다른 페이지의
        * 일치 항목이 안 보여 '골랐는데 결과가 잘못된' 오해를 준다(예: Notion 연결의 '출처' 필터).
        * 그 한계를 분명히 알리고, 아래 빈 상태에서도 페이저를 남겨 다른 페이지를 넘겨 볼 수 있게 한다. */}
+      {/* 어떤 필터가 페이지 안에서만 도는지 **이름으로** 말한다. 예전에는 "(예: 출처, 모드)"를
+       * 손으로 박아 뒀는데, 그 사이 '출처'는 서버 필터로 옮겨 갔다 — 안내가 화면보다 늦게
+       * 늙는다. 목록을 clientFilterDefs에서 만들면 설정이 바뀌는 순간 문구도 함께 바뀐다. */}
       {config.paginated && clientFilterDefs.length ? (
-        <Callout tone="warn">선택한 일부 필터(예: 출처, 모드)는 지금 보고 있는 페이지에만 적용됩니다, 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요.</Callout>
+        <Callout tone="warn">{"‘" + clientFilterDefs.map((f) => f.label).join("’, ‘") + "’ 필터는 지금 보고 있는 페이지에만 적용됩니다, 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요."}</Callout>
       ) : null}
       {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
       {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (
@@ -566,15 +602,11 @@ export function DataScreen({ config }) {
             },
           }}>
             {showSearch ? (
-              <TextField
-                type="search"
-                size="small"
-                value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
+              <SearchBox
+                value={q}
+                onSearch={commitSearch}
                 placeholder={config.searchPlaceholder || "검색"}
-                inputProps={{ "aria-label": config.searchPlaceholder || (config.title + " 검색") }}
-                InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
-                sx={{ gridColumn: { sm: "span 2" } }}
+                ariaLabel={config.searchPlaceholder || (config.title + " 검색")}
               />
             ) : null}
             {(config.filters || []).map((f) => f.type === "select" ? (
@@ -625,7 +657,7 @@ export function DataScreen({ config }) {
             {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
              * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다. */}
             {(q || hasFilter) ? (
-              <Button size="sm" onClick={() => { setQInput(""); setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
+              <Button size="sm" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
             ) : null}
           </Box>
           {/* 저장된 뷰 — 지금 걸어 둔 필터에 이름을 붙여 두고 다시 부른다. 실제로 저장되는 것은
@@ -649,7 +681,7 @@ export function DataScreen({ config }) {
         {(q || hasFilter) ? (
           <EmptyState title="검색 결과가 없습니다"
             help="조건에 맞는 항목이 없습니다. 검색어나 필터를 지워보세요."
-            action={<Button variant="primary" onClick={() => { setQInput(""); setQ(""); setFilters({}); setPage(1); }}>검색, 필터 지우기</Button>} />
+            action={<Button variant="primary" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>검색, 필터 지우기</Button>} />
         ) : (
           <EmptyState title={config.emptyTitle || "표시할 항목이 없습니다"}
             help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
@@ -815,7 +847,7 @@ function SubListDrawer({ view, onClose, onActed }) {
     }
     // confirm은 path/when/body와 동일하게 (하위 행, 부모 행) 두 인자를 받는다 — 부모 행 상태에 따라
     // 다른 경고를 붙여야 하는 롤백(예: 예약 워크플로 경고)을 지원한다.
-    if (ra.confirm && !(await confirm(ra.confirm(subRow, row), { danger: ra.variant === "danger" }))) return;
+    if (ra.confirm && !(await confirm(ra.confirm(subRow, row), { danger: ra.variant === "danger", confirmLabel: ra.label }))) return;
     setSubBusyKey(key);
     try {
       const res = await api(ra.path(subRow, row), { method: ra.method || "POST", body: ra.body ? ra.body(subRow) : {} });

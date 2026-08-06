@@ -56,6 +56,25 @@ class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # nullable 인 이유: source='native' 로 만든 티켓은 Notion 페이지가 없다. unique 는 유지 —
     # 같은 Notion 페이지가 두 행이 되면 목록에 중복이 뜬다(SQLite는 NULL을 서로 다르게 본다).
     notion_page_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # "이번 회차 Notion 응답에서 안 보였다" (0043). **지우지 않고 표시만 한다.**
+    #
+    # 티켓 한 건이 응답에서 깜빡이면(페이지네이션·필터·일시 권한) 예전에는 그 행을 지웠고,
+    # 붙어 있던 댓글·첨부가 CASCADE 로 함께 사라졌다 — 그 셋은 **Notion 에 없어서 재동기화로
+    # 돌아오지 않는다.** 재현: tests/regression/test_comment_survives_resync.py
+    #
+    # 표시만 하면 목록에서는 즉시 빠지지만(사용자에겐 삭제와 같아 보인다) 사용자 데이터는
+    # 살아 있고, 다음 회차에 돌아오면 아무 일도 없었던 것이 된다. 유예를 넘겨도 안 돌아오면
+    # 그때 진짜로 지운다(app/core/retention.py) — 그 시점의 CASCADE 는 의도된 정리다.
+    notion_missing_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    # 상위 작업의 Notion page id (0044). **계층을 앱에서 새로 만들지 않는다** — Notion 작업 DB
+    # 에 상위/하위 self-relation 이 이미 있고, 계층이 두 벌이 되면 둘이 갈라진 뒤 갈라진 쪽을
+    # 아무도 못 고친다.
+    #
+    # 이 값이 없으면 프로젝트 진행률은 부모와 자식을 구별할 수 없어 Notion 과 똑같이 **이중
+    # 계산**한다(부모 1건 + 자식 3건이면 같은 일을 4번 센다). 리프만 세려면 이 한 컬럼이 필요하다.
+    # FK 를 걸지 않는 이유: 부모가 아직 동기화되지 않았거나 다른 필터로 빠져 있을 수 있고,
+    # 그때 FK 가 있으면 자식 upsert 가 통째로 실패해 동기화가 멈춘다.
+    parent_page_id: Mapped[str | None] = mapped_column(String(64), index=True)
     # 담당자의 부서로 유도할 예정인 스코프 컬럼. 지금은 항상 NULL이고 읽는 코드가 없다(문만 연다).
     scope_dept_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("departments.id"), nullable=True, index=True
@@ -114,6 +133,9 @@ class TicketSyncState(Base):
     # 상한에 걸려 일부만 받아온 상태. True 면 prune(삭제 감지)을 건너뛰었다는 뜻이라 운영자가
     # 상한을 올려야 한다는 신호가 된다.
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 마지막 동기화가 **실제로 지운** 건수(드리프트 지표). 바닥에 걸려 삭제를 거부했으면 0 이고
+    # status 가 SYNC_ERROR + error 에 이유가 남는다 — core/sync_prune.py 참조.
+    pruned_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow

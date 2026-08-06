@@ -21,9 +21,17 @@ from app.core.security import (
 )
 from app.core.models_base import utcnow
 from app.core.sessions import SessionService
-from app.org.models import Department, JobTitle
+from app.org.models import Department, JobTitle, Organization
 from app.org.service import resolve_assignable
-from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
+from app.users.models import (
+    ADMIN_SCOPE_DEPT,
+    ADMIN_SCOPE_GLOBAL,
+    ADMIN_SCOPE_ORG,
+    ALL_ADMIN_SCOPES,
+    ALL_ROLES,
+    ROLE_SYSTEM_ADMIN,
+    User,
+)
 
 
 class _Unset:
@@ -41,7 +49,24 @@ def normalize_email(email: str) -> str:
 def validate_company_email(
     email: str, settings: Settings, *, allowed_domains: list[str] | None = None
 ) -> None:
+    """허용 도메인 목록이 **비어 있으면 제한하지 않는다.**
+
+    같은 저장소 안에서 두 경로가 정반대로 굴었다. DB 설정을 넘기는 경로(create_user 의
+    `if configured:` 분기)는 빈 목록을 '제한 없음' 으로 읽었는데, env 기본값만 쓰는 폴백
+    경로(CLI·seed)는 `domain not in []` 라서 **모든 이메일을 거절**하고 도메인 이름이
+    빠진 "회사 이메일 도메인()만" 이라는 뜻 모를 메시지를 냈다.
+
+    설치처 고유값을 기본값에서 비우면서 그 빈 목록이 기본 상태가 됐으므로, 방향을
+    한쪽으로 고정한다. '제한 없음' 을 고른 근거:
+      * 로그인은 도메인을 보지 않는다(app/auth/router.py) — 이 검사는 **계정 생성** 전용이라
+        비워도 기존 사용자가 잠기지 않는다.
+      * 계정 생성은 관리자 전용 경로뿐이다(관리 콘솔·일괄 등록 CSV·CLI·seed). 공개 가입이
+        없으므로 '제한 없음' 이 아무나 들어온다는 뜻이 되지 않는다.
+      * 반대 방향으로 잡으면 설치 직후 **첫 관리자 계정조차 못 만든다**.
+    """
     domains = allowed_domains if allowed_domains else settings.allowed_email_domain_list
+    if not domains:
+        return
     domain = email.rsplit("@", 1)[-1] if "@" in email else ""
     if not domain or domain not in domains:
         allowed = ", ".join(domains)
@@ -165,6 +190,11 @@ def user_snapshot(user: User) -> dict:
         "department": user.department,
         "title": user.title,
         "archived_at": user.archived_at.isoformat() if user.archived_at else None,
+        # 범위는 **권한이다** — 넓히면 볼 수 있는 것이 늘어난다. 역할과 같은 무게로 남긴다.
+        # 여기 없으면 "누가 언제 이 관리자를 전체 범위로 올렸나" 를 답할 수 없다.
+        "admin_scope": user.admin_scope,
+        "scope_org_id": user.scope_org_id,
+        "scope_dept_id": user.scope_dept_id,
     }
 
 
@@ -219,6 +249,9 @@ def update_user(
     title_id: str | None | _Unset = UNSET,
     role: str | None = None,
     must_change_password: bool | None = None,
+    admin_scope: str | None = None,
+    scope_org_id: str | None | _Unset = UNSET,
+    scope_dept_id: str | None | _Unset = UNSET,
 ) -> User:
     ensure_can_manage_target(actor_role, user)
     if display_name is not None:
@@ -248,8 +281,73 @@ def update_user(
         user.role = role
         # Privilege change invalidates existing sessions.
         session_service.revoke_all_for_user(db, user.id)
+    _apply_admin_scope(
+        db, user,
+        admin_scope=admin_scope, scope_org_id=scope_org_id, scope_dept_id=scope_dept_id,
+        session_service=session_service,
+    )
     db.flush()
     return user
+
+
+def _apply_admin_scope(
+    db: Session, user: User, *, admin_scope, scope_org_id, scope_dept_id, session_service
+) -> None:
+    """관리 범위를 바꾼다 (F2).
+
+    ## 경계에서 거른다
+
+    `app/core/scope.py` 는 모르는 범위 값을 만나면 `MATCH_NOTHING` 으로 떨어진다 — 즉
+    **오타 하나가 그 관리자의 화면을 통째로 비운다.** 그리고 그 증상은 "권한이 없습니다" 가
+    아니라 "목록이 비어 있음" 이라 원인을 찾기가 매우 어렵다. 그래서 여기서 막는다:
+
+      * 모르는 값 → 거부
+      * `dept` 인데 대상 부서가 없음 → 거부 (아무것도 못 보는 계정이 만들어진다)
+      * `org` 인데 대상 조직이 없음 → 거부
+      * `global` → 대상 두 개를 **비운다** (남겨 두면 나중에 좁힐 때 옛 값이 되살아난다)
+
+    ## 세션을 끊는 이유
+
+    범위를 좁히는 것은 **권한을 줄이는 일**이다. 역할 변경과 같은 급이므로 같은 처리를 한다 —
+    안 그러면 이미 열려 있는 세션이 좁아진 범위 밖 화면을 계속 보여 준다.
+    """
+    if admin_scope is None and scope_org_id is UNSET and scope_dept_id is UNSET:
+        return
+
+    target_scope = admin_scope or user.admin_scope
+    if target_scope not in ALL_ADMIN_SCOPES:
+        raise ValidationAppError(
+            f"알 수 없는 관리 범위입니다: {target_scope}. "
+            f"가능한 값: {', '.join(sorted(ALL_ADMIN_SCOPES))}"
+        )
+
+    org_id = user.scope_org_id if scope_org_id is UNSET else scope_org_id
+    dept_id = user.scope_dept_id if scope_dept_id is UNSET else scope_dept_id
+
+    if target_scope == ADMIN_SCOPE_GLOBAL:
+        org_id = None
+        dept_id = None
+    elif target_scope == ADMIN_SCOPE_DEPT:
+        if not dept_id:
+            raise ValidationAppError("부서 범위에는 대상 부서를 지정해야 합니다.")
+        if db.get(Department, dept_id) is None:
+            raise ValidationAppError("대상 부서를 찾을 수 없습니다.")
+    elif target_scope == ADMIN_SCOPE_ORG:
+        if not org_id:
+            raise ValidationAppError("조직 범위에는 대상 조직을 지정해야 합니다.")
+        if db.get(Organization, org_id) is None:
+            raise ValidationAppError("대상 조직을 찾을 수 없습니다.")
+
+    changed = (
+        user.admin_scope != target_scope
+        or user.scope_org_id != org_id
+        or user.scope_dept_id != dept_id
+    )
+    user.admin_scope = target_scope
+    user.scope_org_id = org_id
+    user.scope_dept_id = dept_id
+    if changed:
+        session_service.revoke_all_for_user(db, user.id)
 
 
 def set_user_active(

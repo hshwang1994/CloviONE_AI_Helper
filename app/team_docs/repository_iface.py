@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.tickets.repository import BodySaveResult
+
 
 class DocumentRepository(Protocol):
     """문서를 읽고 쓰는 유일한 통로."""
@@ -41,4 +43,13 @@ class DocumentRepository(Protocol):
 
     def archive(self, db, *, page_id: str) -> None:
         """소스 쪽 원본을 보관처리(휴지통 보관기간 만료 정리)."""
+        ...
+
+    def save_body(self, db, *, page_id: str, body_markdown: str, now) -> BodySaveResult:
+        """본문 저장. **정본을 먼저 쓰고 그다음 소스에 push** 한다(순서가 계약이다).
+
+        결과 타입은 티켓 것을 그대로 쓴다. 같은 뜻을 가진 모양을 두 벌 두면 필드 이름이
+        갈라지고, 그러면 응답 계약도 화면 코드도 두 벌이 된다 - 문서 상세와 티켓 상세는
+        이미 같은 본문 렌더러(DocBody)를 공유하고 있다.
+        """
         ...

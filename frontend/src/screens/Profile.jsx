@@ -32,8 +32,16 @@ import {
  * (MUI 7 에서 xs={12} 가 조용히 무시된다) — Box + display:grid 다.
  */
 
+/* 같은 줄 카드는 **높이를 맞춘다** — 사용자 지적 Q5("카드 크기가 제각각").
+ *
+ * 예전에는 `alignItems: "start"` 라 각 카드가 제 내용 높이를 가졌다. 실측: 사진/세션 줄이
+ * 563 vs 358(편차 205px), 알림/방해금지 줄이 690 vs 322(편차 368px) — 아래 모서리가
+ * 들쭉날쭉해서 "정리가 안 된 화면" 으로 읽힌다. 기준 목업은 같은 줄 편차가 0 이다.
+ *
+ * 짧은 카드에 여백이 생기는 것은 감수한다. 카드 안 여백은 흔하고(스탯 카드가 이미 그렇다),
+ * 줄 바닥이 어긋나는 것보다 훨씬 덜 눈에 띈다. */
 const TWO_COL = {
-  display: "grid", gap: 2.5, alignItems: "start",
+  display: "grid", gap: 2.5, alignItems: "stretch",
   gridTemplateColumns: {
     xs: "minmax(0, 1fr)",
     lg: "minmax(0, 1fr) minmax(0, 1fr)",
@@ -214,7 +222,7 @@ function DndCard({ prefs, save, saving }) {
 
   return (
     <Card>
-      <SectionTitle help="방해금지 중에도 알림은 평소대로 쌓입니다. 배지와 알림음만 조용해지고, 끄면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
+      <SectionTitle help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 끄면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
         방해금지
       </SectionTitle>
 

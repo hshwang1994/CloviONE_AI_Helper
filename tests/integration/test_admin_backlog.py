@@ -318,7 +318,10 @@ def test_schedule_calendar_rejects_absurd_ranges(client, login_as):
 # ── 시스템 상태 배너 ─────────────────────────────────────────────────────────
 
 
-def test_system_status_is_quiet_when_healthy(client, login_as):
+# `setup_complete` 를 쓰는 이유: 갓 마이그레이션한 세계는 부서도 Notion 토큰도 러너도 없어
+# '정상'이 아니다. 이제 그 상태에서는 셋업 배너가 뜨므로(9-3), '정상이면 조용하다'를
+# 검사하려면 정상인 세계를 먼저 만들어야 한다(tests/conftest.py::setup_complete).
+def test_system_status_is_quiet_when_healthy(client, login_as, setup_complete):
     login_as("user")
     body = client.get("/api/system/status").json()
     assert body["notices"] == []
@@ -327,7 +330,9 @@ def test_system_status_is_quiet_when_healthy(client, login_as):
     assert "components" not in body
 
 
-def test_system_status_reports_late_ticket_sync(client, login_as, db, fake_clock):
+def test_system_status_reports_late_ticket_sync(
+    client, login_as, db, fake_clock, setup_complete
+):
     from app.observability.models import COMPONENT_TICKETS, SYNC_OK
     from app.observability.service import upsert_sync_status
 
@@ -409,8 +414,11 @@ def test_ai_quota_blocks_document_generation_over_the_limit(
     listed = client.get("/api/admin/ai-quotas").json()
     row = [q for q in listed["items"] if q["user_id"] == admin_id][0]
     assert row["used"] == 1 and row["max_calls"] == 1
+    # **정확히 일치**를 유지한다(부분집합으로 느슨하게 하지 않는다) — 이 검사가 막는 것은
+    # 화면이 "여기에도 상한이 걸린다" 고 **과장**하는 것이고, 부분집합은 그걸 못 잡는다.
+    # `chat_message` 는 X11 로 실제로 상한 안에 들어왔다(전송·재시도 두 경로 + 성공분만 계수).
     assert {e["kind"] for e in listed["enforced_on"]} == {
-        "assistant_narrative", "document_generate"
+        "assistant_narrative", "document_generate", "chat_message"
     }
 
 

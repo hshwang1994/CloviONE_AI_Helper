@@ -1,0 +1,343 @@
+import React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { api } from "../lib/api.js";
+import {
+  Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, useConfirm, useToast,
+} from "../ui/kit.jsx";
+
+/* Notion 관리 (9-4).
+ *
+ * ## 이 화면이 생긴 이유
+ *
+ * 고객사에 설치한 뒤 Notion 토큰을 바꾸려면 서버에 들어가 파일을 고치고 재시작해야 했다.
+ * 셋업 마법사는 "데이터베이스 id 와 토큰을 넣으세요" 라고 말하는데 넣을 화면이 없었다.
+ *
+ * ## 세 가지를 절대 하지 않는다
+ *
+ * 1. **토큰을 다시 보여 주지 않는다.** 설정됨 여부와 연결 테스트 결과만 말한다.
+ * 2. **못 하는 것을 되는 척하지 않는다.** 운영 서버의 웹 프로세스는 시크릿 디렉터리에
+ *    쓸 수 없다(그것이 정상이다). 그때는 입력란 대신 무엇을 해야 하는지 보여 준다.
+ * 3. **화면을 여는 것만으로 Notion 을 부르지 않는다.** Notion 은 초당 3요청 제한이 있어,
+ *    열어 둔 탭이 몇 분마다 요청을 내면 정작 동기화가 밀린다. 실제 호출은 버튼에서만.
+ *
+ * ## 결과 어휘는 서버가 정한다
+ *
+ * 여기서 성공/실패를 다시 판정하지 않는다. 서버가 준 `result` 와 `message` 를 그대로 쓴다 -
+ * 판정이 두 벌이 되면 한쪽만 고쳐지고, 그러면 화면과 진단이 다른 말을 하기 시작한다.
+ */
+
+// 결과 어휘 -> 배지 색. 문구는 서버가 준 것을 쓴다(여기서 다시 쓰지 않는다).
+const RESULT_KIND = {
+  ok: "ok",
+  unset: "muted",
+  token_missing: "warn",
+  token_invalid: "error",
+  database_not_found: "error",
+  no_permission: "error",
+  invalid_id: "error",
+  rate_limited: "warn",
+  unreachable: "error",
+  failed: "error",
+};
+
+const RESULT_LABEL = {
+  ok: "정상",
+  unset: "설정 안 함",
+  token_missing: "토큰 없음",
+  token_invalid: "토큰 무효",
+  database_not_found: "찾지 못함",
+  no_permission: "권한 없음",
+  invalid_id: "id 오류",
+  rate_limited: "요청 제한",
+  unreachable: "연결 실패",
+  failed: "알 수 없음",
+};
+
+export function resultLabel(result) {
+  return RESULT_LABEL[result] || "알 수 없음";
+}
+
+export function resultKind(result) {
+  return RESULT_KIND[result] || "error";
+}
+
+function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
+  const [value, setValue] = React.useState(item.value || "");
+  React.useEffect(() => { setValue(item.value || ""); }, [item.value]);
+  const dirty = (value || "") !== (item.value || "");
+  return (
+    <Box data-testid={"notion-db-" + item.key} sx={{ py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+        <Badge
+          value={item.configured ? (item.source === "settings" ? "화면에서 설정함" : "서버 환경변수") : "설정 안 함"}
+          kind={item.configured ? "ok" : "warn"}
+        />
+        {testResult && (
+          <Badge value={resultLabel(testResult.result)} kind={resultKind(testResult.result)} />
+        )}
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+        {item.used_for}
+      </Typography>
+      {!item.configured && (
+        <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
+          {item.when_unset}
+        </Typography>
+      )}
+      {testResult && testResult.result !== "ok" && testResult.result !== "unset" && (
+        <Typography variant="body2" color="error.main" sx={{ mt: 0.5 }}>
+          {testResult.message}
+        </Typography>
+      )}
+      <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <TextField
+          size="small"
+          label="데이터베이스 id"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          inputProps={{ "aria-label": item.label + " 데이터베이스 id" }}
+          sx={{ minWidth: 320, flex: 1 }}
+          helperText="비우면 서버 환경변수 값을 그대로 씁니다."
+        />
+        <Button variant="primary" disabled={!dirty || busy} onClick={() => onSave(item.key, value.trim())}>
+          저장
+        </Button>
+        {item.creatable && !item.configured && (
+          <Button disabled={busy} onClick={() => onCreate(item)}>
+            새로 만들기
+          </Button>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+function TokenSection({ token, testTokens, onSave, busy }) {
+  const [field, setField] = React.useState("");
+  const [value, setValue] = React.useState("");
+  const byField = {};
+  (testTokens || []).forEach((t) => { byField[t.field] = t; });
+  return (
+    <Card sx={{ mt: 2, p: 2 }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>토큰</Typography>
+      <Typography variant="body2" color="text.secondary">{token.note}</Typography>
+      {token.items.map((item) => (
+        <Box
+          key={item.field}
+          data-testid={"notion-token-" + item.field}
+          sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1.5, flexWrap: "wrap" }}
+        >
+          <Typography sx={{ minWidth: 180 }}>{item.label}</Typography>
+          <Badge value={item.configured ? "설정됨" : "설정 안 함"} kind={item.configured ? "ok" : "warn"} />
+          {byField[item.field] && (
+            <Badge
+              value={resultLabel(byField[item.field].result)}
+              kind={resultKind(byField[item.field].result)}
+            />
+          )}
+          {byField[item.field] && byField[item.field].integration_name && (
+            <Typography variant="body2" color="text.secondary">
+              통합 이름: {byField[item.field].integration_name}
+            </Typography>
+          )}
+          <Box sx={{ flex: 1 }} />
+          {token.writable && (
+            <Button size="small" disabled={busy} onClick={() => { setField(item.field); setValue(""); }}>
+              {item.configured ? "교체" : "입력"}
+            </Button>
+          )}
+        </Box>
+      ))}
+
+      {!token.writable && (
+        <Callout tone="warn">
+          {token.manual_instruction}
+        </Callout>
+      )}
+
+      {token.writable && field && (
+        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <TextField
+            size="small"
+            type="password"
+            label="새 토큰"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            inputProps={{ "aria-label": "새 토큰" }}
+            sx={{ minWidth: 320, flex: 1 }}
+            helperText="저장한 뒤에는 다시 보여 주지 않습니다."
+          />
+          <Button
+            variant="primary"
+            disabled={!value.trim() || busy}
+            onClick={() => { onSave(field, value.trim()); setField(""); setValue(""); }}
+          >
+            저장
+          </Button>
+          <Button disabled={busy} onClick={() => { setField(""); setValue(""); }}>취소</Button>
+        </Box>
+      )}
+    </Card>
+  );
+}
+
+export function NotionConsole() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [test, setTest] = React.useState(null);
+
+  const state = useQuery({
+    queryKey: ["notion-console"],
+    queryFn: () => api("/api/admin/notion"),
+  });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["notion-console"] });
+    // 설정 화면과 진단이 같은 값을 그린다. 한쪽만 새로 읽으면 두 화면이 다른 말을 한다.
+    qc.invalidateQueries({ queryKey: ["settings"] });
+  };
+
+  const saveId = useMutation({
+    mutationFn: ({ key, value }) =>
+      api("/api/admin/settings/" + key, { method: "PUT", body: { value } }),
+    onSuccess: () => {
+      invalidate();
+      toast("저장했습니다. " + (state.data ? state.data.apply_note : ""), "success");
+    },
+    onError: (err) => toast((err && err.message) || "저장하지 못했습니다.", "error"),
+  });
+
+  const saveToken = useMutation({
+    mutationFn: ({ field, value }) =>
+      api("/api/admin/notion/token", { method: "POST", body: { field, value } }),
+    onSuccess: () => {
+      invalidate();
+      setTest(null);
+      toast("토큰을 저장했습니다. 연결 테스트로 확인해 주세요.", "success");
+    },
+    onError: (err) => toast((err && err.message) || "토큰을 저장하지 못했습니다.", "error"),
+  });
+
+  const runTest = useMutation({
+    mutationFn: () => api("/api/admin/notion/test", { method: "POST", body: {} }),
+    onSuccess: (result) => {
+      setTest(result);
+      toast(
+        result.ok ? "연결에 성공했습니다." : "확인하지 못한 항목이 있습니다.",
+        result.ok ? "success" : "error"
+      );
+    },
+    onError: (err) => toast((err && err.message) || "연결 테스트를 하지 못했습니다.", "error"),
+  });
+
+  const createDb = useMutation({
+    mutationFn: (body) => api("/api/admin/notion/databases", { method: "POST", body }),
+    onSuccess: (result) => {
+      invalidate();
+      toast(result.message || "", result.created ? "success" : "error");
+    },
+    onError: (err) => toast((err && err.message) || "만들지 못했습니다.", "error"),
+  });
+
+  if (state.isLoading) return <Skeleton lines={8} />;
+  if (state.error) return <ErrorState error={state.error} onRetry={state.refetch} />;
+
+  const data = state.data || {};
+  const busy = saveId.isPending || saveToken.isPending || runTest.isPending || createDb.isPending;
+  const testByKey = {};
+  ((test && test.databases) || []).forEach((d) => { testByKey[d.key] = d; });
+
+  const onCreate = async (item) => {
+    const parent = window.prompt(
+      "새 데이터베이스를 넣을 노션 페이지의 id 를 입력하세요. 그 페이지를 통합에 공유해 두어야 합니다."
+    );
+    if (!parent) return;
+    const ok = await confirm({
+      title: item.label + " 를 새로 만들까요?",
+      body: "노션에 실제로 데이터베이스가 생깁니다. 되돌리려면 노션에서 직접 지워야 합니다.",
+    });
+    if (!ok) return;
+    createDb.mutate({
+      key: item.key,
+      parent_page_id: parent.trim(),
+      title: item.label,
+      confirm: true,
+    });
+  };
+
+  return (
+    <Box>
+      <PageHeader area="연동" title="Notion 관리" />
+
+      <Callout tone="info">{data.apply_note}</Callout>
+
+      <Card sx={{ mt: 2, p: 2 }}>
+        <Typography variant="h6">데이터베이스</Typography>
+        {(data.databases || []).map((item) => (
+          <DatabaseRow
+            key={item.key}
+            item={item}
+            testResult={testByKey[item.key]}
+            busy={busy}
+            onSave={(key, value) => saveId.mutate({ key, value })}
+            onCreate={onCreate}
+          />
+        ))}
+      </Card>
+
+      <TokenSection
+        token={data.token || { items: [], writable: false }}
+        testTokens={test && test.tokens}
+        busy={busy}
+        onSave={(field, value) => saveToken.mutate({ field, value })}
+      />
+
+      <Card sx={{ mt: 2, p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>연결 테스트</Typography>
+        <Typography variant="body2" color="text.secondary">
+          토큰과 데이터베이스를 실제로 한 번씩 불러 봅니다. 결과는 누른 그 순간의 사실이며,
+          여기서 성공해도 다음 동기화가 반드시 성공한다는 뜻은 아닙니다.
+        </Typography>
+        <Box sx={{ mt: 1.5 }}>
+          <Button variant="primary" disabled={busy} onClick={() => runTest.mutate()}>
+            {runTest.isPending ? "확인하는 중" : "연결 테스트"}
+          </Button>
+        </Box>
+        {test && (
+          <Box data-testid="notion-test-result" sx={{ mt: 2, display: "grid", gap: 0.75 }}>
+            {test.tokens.map((t) => (
+              <Typography key={t.field} variant="body2">
+                {t.label}: {resultLabel(t.result)}. {t.message}
+              </Typography>
+            ))}
+            {test.databases.map((d) => (
+              <Typography key={d.key} variant="body2">
+                {d.label}: {resultLabel(d.result)}. {d.message}
+              </Typography>
+            ))}
+          </Box>
+        )}
+      </Card>
+
+      <Card sx={{ mt: 2, p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>스프린트 진단</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {data.sprint && data.sprint.portal_window}
+        </Typography>
+        <Callout tone={data.sprint && data.sprint.linked ? "info" : "warn"}>
+          {data.sprint && data.sprint.finding}
+        </Callout>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          {data.sprint && data.sprint.next_step}
+        </Typography>
+      </Card>
+    </Box>
+  );
+}
+
+export default NotionConsole;

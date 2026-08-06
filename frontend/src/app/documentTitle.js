@@ -14,7 +14,24 @@
 import React from "react";
 import { NAV, USER_NAV, bestNavMatch } from "./navConfig.js";
 
+/* 기본 제품명. **설정값(`ui_branding.product_name`)이 있으면 그쪽이 이긴다** (N5).
+ * 마이그레이션 0034 가 "제품명은 코드 상수가 아니라 설정값" 이라고 선언해 놓고, 정작
+ * 사용자가 하루 종일 보는 SPA 는 상수였다 — 값을 바꾸면 **로그인 화면만** 바뀌었다.
+ * 서버 값이 아직 안 왔을 때(첫 렌더)를 위한 폴백으로만 남긴다. */
 export const BRAND = "ClovirAssist";
+
+let brandOverride = "";
+
+/* `/api/me` 의 `branding.product_name` 을 셸이 여기 흘려 넣는다. 전역 한 곳에 두는 이유:
+ * 탭 제목은 라우트 변경 시 훅 밖에서도 불리고, 값을 컴포넌트마다 들고 다니면 어딘가 하나는
+ * 반드시 옛 이름을 그린다. */
+export function setBrand(name) {
+  brandOverride = (name || "").trim();
+}
+
+export function brand() {
+  return brandOverride || BRAND;
+}
 
 /* 경로 → 메뉴 라벨. navConfig 의 두 나브를 펼쳐 한 표로 만든다. */
 const ROUTE_LABELS = (() => {
@@ -39,7 +56,8 @@ export function titleForPath(pathname) {
   const paths = [...Object.keys(ROUTE_LABELS), ...Object.keys(EXTRA_LABELS)];
   const best = bestNavMatch(pathname || "/", paths);
   const label = best ? ROUTE_LABELS[best] || EXTRA_LABELS[best] : null;
-  return label ? `${label} | ${BRAND}` : BRAND;
+  const b = brand();
+  return label ? `${label} | ${b}` : b;
 }
 
 /** 경로가 바뀔 때마다 탭 제목을 맞춘다. */

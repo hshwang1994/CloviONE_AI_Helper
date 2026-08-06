@@ -2,7 +2,14 @@
 # Post-install validation (spec §35). Run as root (for full ss -lntp PIDs).
 set -uo pipefail
 export LC_ALL=C.UTF-8
-DNS_NAME=clovirone-ai.gooddi.lab
+# 설치처 고유값. 기본값을 두지 않는다 - 저장소에 한 고객사의 호스트명을 박아 두면 다른 곳에서
+# 이 검증이 **남의 서버**를 찌르고 OK 를 낸다. 무엇을 검증했는지가 거짓이 된다.
+DNS_NAME="${DNS_NAME:-}"
+if [ -z "$DNS_NAME" ]; then
+  echo "DNS_NAME 을 지정해야 합니다(설치처마다 다른 값이라 기본값이 없습니다)."
+  echo "예: DNS_NAME=portal.example.internal bash $0"
+  exit 2
+fi
 FAIL=0
 chk() { if eval "$2"; then echo "[OK ] $1"; else echo "[FAIL] $1"; FAIL=1; fi; }
 

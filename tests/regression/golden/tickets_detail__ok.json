@@ -27,6 +27,7 @@
   "body_is_local": false,
   "body_markdown": "## 배경\n본문 한 줄.\n- [x] 할 일\n---",
   "body_sync_error": null,
+  "body_version": "e26a892bb10c84f7",
   "can_edit": true,
   "configured": true,
   "ok": true,

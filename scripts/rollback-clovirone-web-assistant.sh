@@ -15,13 +15,18 @@ VAR_DIR=/var/lib/clovirone-web-assistant
 stop_services() {
   systemctl stop clovirone-web-worker.service 2>/dev/null || true
   systemctl stop clovirone-web-assistant.service 2>/dev/null || true
+  # 특권 헬퍼(§S)는 웹 다음에 멈춘다 — 웹이 살아 있는 동안 소켓이 먼저 사라지면 관리 화면이
+  # 그 사이 "도우미 없음" 을 보여 준다. 순서를 지키면 그 창이 없다.
+  systemctl stop clovirone-privhelper.service 2>/dev/null || true
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
   echo "=== uninstall (first-install rollback) ==="
   stop_services
   systemctl disable clovirone-web-assistant.service clovirone-web-worker.service 2>/dev/null || true
+  systemctl disable clovirone-privhelper.service 2>/dev/null || true
   rm -f /etc/systemd/system/clovirone-web-assistant.service /etc/systemd/system/clovirone-web-worker.service
+  rm -f /etc/systemd/system/clovirone-privhelper.service
   systemctl daemon-reload
   rm -f /etc/nginx/sites-enabled/clovirone-web-assistant /etc/nginx/sites-available/clovirone-web-assistant
   if nginx -t 2>/dev/null; then systemctl reload nginx 2>/dev/null || true; fi

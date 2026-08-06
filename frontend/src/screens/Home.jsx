@@ -35,6 +35,11 @@ import { TeamChatWidget } from "./TeamChatWidget.jsx";
  *
  * px 폰트 크기를 쓰지 않는다 — 4K 대응이 styles/root.css 의 루트 폰트사이즈 레버 하나로
  * 되어 있어서, px 를 쓰면 그 조각만 4K에서 작게 남는다.
+ *
+ * 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 3절에 있다(어느 질의 /
+ * 어떤 시점 기준 / 범위 / 0과 없음). 특히 '오늘'과 '이번 주'는 서버가 KST 달력일로
+ * 정해서 내려 준다 — 화면에서 new Date() 로 다시 판정하면 브라우저 시간대에 따라
+ * 서버와 다른 날을 '오늘'이라고 부르게 된다.
  */
 
 /* 통계 카드 줄 — 계획서의 4K 반응형 계약 표를 그대로 옮긴 값이다.
@@ -309,7 +314,7 @@ export function Home() {
               focus={focus}
               onFocus={setFocus}
               onEdit={setEditing}
-              onOpen={(t) => nav("/tickets/" + t.id)}
+              onOpen={(t) => nav("/tickets/" + t.id, { state: { from: "/me" } })}
             />
           </div>
         </Fade>

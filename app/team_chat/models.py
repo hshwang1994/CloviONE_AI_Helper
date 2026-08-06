@@ -42,6 +42,10 @@ class ChatRoom(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 1:1 유일성: 정렬된 두 user_id 를 콜론으로 이은 키. 그룹 방은 NULL(SQLite는 NULL 중복 허용).
     dm_key: Mapped[str | None] = mapped_column(String(80), unique=True)
+    # 값이 있으면 **그 부서의 팀 방**이다(0039, 사용자 지적 Q6 "기본 방은 내 팀").
+    # 종류는 그룹 그대로다 — 방 종류를 새로 만들면 메시지·멤버·읽음 경로마다 분기가 하나씩
+    # 는다. 이 열 하나가 "이 그룹 방은 부서에 묶여 있다" 는 사실을 담는다.
+    department_id: Mapped[str | None] = mapped_column(String(36), index=True)
     event_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)

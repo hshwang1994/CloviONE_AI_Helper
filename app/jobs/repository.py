@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import Select, or_ as sa_or, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -77,6 +77,45 @@ def enqueue(
 def get_by_idempotency_key(db: Session, key: str) -> Job | None:
     return db.execute(
         select(Job).where(Job.idempotency_key == key)
+    ).scalar_one_or_none()
+
+
+# ── 범위 판정 (§0-A 2순위) ────────────────────────────────────────────────────
+#
+# 목록·상세·재시도·취소가 **이 조건 하나**만 쓴다. 판정을 두 벌로 적으면 한쪽만 고쳐지고
+# 증상은 "어떤 사람만 안 된다" 가 된다 — 목록에선 안 보이는데 id 로는 열리는(그 반대도)
+# 상태가 정확히 그 모양이다. 단건도 `db.get` 이 아니라 **같은 조건이 붙은 SELECT** 로
+# 찾으므로 두 경로가 갈라질 자리가 애초에 없다.
+
+
+def scope_clause(visible: frozenset[str] | None):
+    """범위 안 잡을 고르는 조건. 전역이면 ``None``(= 조건 없음).
+
+    ``None`` 을 돌려주는 규약은 `core/scope.py::scope_filter` 와 같다 — 조건을 빼먹은
+    코드와 '전역이라 조건이 없는' 코드를 눈으로 구별하기 위해서다.
+
+    **시스템 잡(`user_id` 없음)은 남긴다.** 보존 정리·동기화 같은 자동 작업에는 소유자가
+    없고, 그것까지 가리면 부서 관리자가 자기 범위의 자동 처리 실패를 못 본다(감사 로그와
+    같은 규칙). 범위가 비어 있어도 이 갈래는 살아 있다.
+    """
+    if visible is None:
+        return None
+    return sa_or(Job.user_id.in_(tuple(sorted(visible))), Job.user_id.is_(None))
+
+
+def apply_scope(stmt: Select, visible: frozenset[str] | None) -> Select:
+    clause = scope_clause(visible)
+    return stmt if clause is None else stmt.where(clause)
+
+
+def get_in_scope(db: Session, job_id: str, visible: frozenset[str] | None) -> Job | None:
+    """단건 조회 — 범위 밖이면 **아예 안 나온다**(부르는 쪽이 404 로 만든다).
+
+    `db.get(Job, id)` 로 먼저 꺼내 놓고 나중에 판정하면, 판정을 빠뜨린 새 경로가 조용히
+    열린다. 조건을 조회 자체에 붙여 두면 빠뜨릴 자리가 없다.
+    """
+    return db.execute(
+        apply_scope(select(Job).where(Job.id == job_id), visible)
     ).scalar_one_or_none()
 
 

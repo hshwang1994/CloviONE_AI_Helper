@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session
 
 from app.users.models import (
     ADMIN_SCOPE_DEPT,
+    ROLE_USER,
     ADMIN_SCOPE_GLOBAL,
     ADMIN_SCOPE_ORG,
     User,
@@ -124,6 +125,34 @@ def build_scope(db: Session, user: User) -> Scope:
     확대가 된다 — 그리고 그런 확대는 아무도 신고하지 않는다(화면이 잘 보이니까).
     반대로 좁게 실패하면 화면이 비고, 그건 30분 안에 신고가 들어온다.
     """
+    # ── 일반 사용자: 기본이 **자기 팀**이다 (S4 근본 원인 A) ────────────────────
+    #
+    # 사용자 지시는 "사용자는 기본적으로 본인 팀 정보만" 이었는데 그걸 구현한 코드가 없었다.
+    # 이 함수가 **역할과 무관하게** `admin_scope` 를 읽었고 그 기본값이 `global` 이라
+    # users 전 행이 전역이었다 — 범위를 올바르게 쓰는 여섯 곳조차 일반 사용자에게는
+    # 전부 no-op 이었다.
+    #
+    # `admin_scope` 를 재사용하지 않는 이유: 그건 **관리자가 관리 화면에서 볼 수 있는 범위**
+    # 이고 이건 **일반 사용자가 자기 업무 화면에서 볼 수 있는 범위**다. 두 질문을 한 컬럼에
+    # 담으면 "전체를 관리하는 사람" 과 "전체를 볼 수 있는 일반 사용자" 가 구별되지 않는다.
+    # 그리고 사용자 쪽은 **규칙이지 설정이 아니다** — 사람마다 다르게 줄 이유가 없으므로
+    # 컬럼을 새로 만들지 않는다(`ticket_cache.scope_dept_id` 처럼 아무도 안 읽는 컬럼을
+    # 하나 더 만드는 일을 되풀이하지 않는다).
+    #
+    # **폴백**: 부서가 없으면 좁히지 않는다. 반대로 하면(부서 없음 → 빈 집합) 부서를 아직
+    # 배정하지 않은 신규 입사자가 **아무것도 못 보는 계정**이 되는데, 증상이 "권한 없음" 이
+    # 아니라 "목록이 비어 있음" 이라 원인을 찾기가 어렵다. 사람을 먼저 들여보내고 부서를
+    # 나중에 정하는 것이 실제 순서다.
+    if getattr(user, "role", None) == ROLE_USER:
+        dept = getattr(user, "department_id", None)
+        if not dept:
+            return GLOBAL_SCOPE
+        return Scope(
+            kind=ADMIN_SCOPE_DEPT,
+            org_id=getattr(user, "org_id", None),
+            dept_ids=department_subtree_ids(db, dept),
+        )
+
     kind = getattr(user, "admin_scope", ADMIN_SCOPE_GLOBAL) or ADMIN_SCOPE_GLOBAL
     if kind == ADMIN_SCOPE_GLOBAL:
         return GLOBAL_SCOPE

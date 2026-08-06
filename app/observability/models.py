@@ -25,9 +25,19 @@ SYNC_ERROR = "error"
 # 컴포넌트 이름. 새 미러가 생기면 여기에 이름을 먼저 적는다.
 COMPONENT_TICKETS = "tickets"
 COMPONENT_DOCUMENTS = "documents"
+# 프로젝트 미러(0045). 티켓·문서와 달리 **양방향**이라(포털에서 고치면 노션으로 밀어 넣는다)
+# 이 줄의 'ok' 는 **읽기만** 정상이라는 뜻이다. 쓰기 실패는 프로젝트 행마다 따로 남는다
+# (`projects.notion_sync_error`) — 여기서 함께 세면 한 건의 push 실패가 미러 전체를 error 로
+# 만들고, 반대로 미러가 ok 라는 이유로 아무도 그 한 건을 안 본다.
+COMPONENT_PROJECTS = "projects"
 # 통합 검색 인덱스(0030). 미러가 아니라 **미러들에서 파생된 인덱스**지만, 운영자가 보는
 # 화면에서는 "무엇이 언제 마지막으로 갱신됐는가"가 같은 질문이라 같은 표를 쓴다.
 COMPONENT_SEARCH = "search"
+# 주간 프로젝트 헬스 스냅샷 잡. 미러도 인덱스도 아닌 **주기 잡**이지만 운영자가 묻는
+# 질문은 검색 인덱스와 똑같다: "마지막으로 언제 돌았고, 이번에 무엇을 못 했나".
+# 이 줄이 없으면 잡이 몇 주째 안 돌아도 화면에 아무 표시가 없고, 그러면 비어 있는 추세선이
+# "아무도 안 쟀다" 가 아니라 "별일 없었다" 처럼 보인다.
+COMPONENT_PROJECT_HEALTH = "project_health"
 
 
 class UsageEvent(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):

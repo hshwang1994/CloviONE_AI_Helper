@@ -28,6 +28,7 @@ from app.core.deps import (
     require_csrf,
 )
 from app.core.errors import RateLimitedError
+from app.quotas import service as ai_quotas
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
 
@@ -77,7 +78,7 @@ def get_conversations(
     return {"items": [conversation_view(c) for c in rows]}
 
 
-@router.post("/api/conversations", status_code=201, dependencies=[Depends(require_csrf)])
+@router.post("/api/conversations", status_code=201, dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
 def post_conversation(
     payload: ConversationCreateRequest,
     db: Session = Depends(get_db),
@@ -87,7 +88,7 @@ def post_conversation(
     return {"conversation": conversation_view(conversation)}
 
 
-@router.patch("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf)])
+@router.patch("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
 def patch_conversation(
     conversation_id: str,
     payload: ConversationUpdateRequest,
@@ -102,7 +103,7 @@ def patch_conversation(
     return {"conversation": conversation_view(conversation)}
 
 
-@router.delete("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf)])
+@router.delete("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
 def delete_conversation_endpoint(
     conversation_id: str,
     db: Session = Depends(get_db),
@@ -149,6 +150,11 @@ def post_message(
                 chat_limit_key
             ),
         )
+    # AI 사용 상한(X11). 예전에는 **메인 채팅만 상한 밖**이었다 — 문장 생성·문서 생성에는
+    # 걸면서 정작 비용이 가장 큰 축을 열어 뒀고, 그래서 화면의 "300/100" 같은 숫자가
+    # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
+    # 버스트, 이쪽은 하루·한 달 총량이다.
+    ai_quotas.enforce(db, user_id=user.id, now=request.app.state.clock.now())
     conversation = get_owned_conversation(db, user, conversation_id)
     message, job = post_user_message(
         db,
@@ -191,6 +197,11 @@ def retry(
                 chat_limit_key
             ),
         )
+    # AI 사용 상한(X11) — 재시도도 같은 문을 지난다. 예전에는 **메인 채팅만 상한 밖**이었다 — 문장 생성·문서 생성에는
+    # 걸면서 정작 비용이 가장 큰 축을 열어 뒀고, 그래서 화면의 "300/100" 같은 숫자가
+    # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
+    # 버스트, 이쪽은 하루·한 달 총량이다.
+    ai_quotas.enforce(db, user_id=user.id, now=request.app.state.clock.now())
     message, job = retry_message(
         db,
         user,

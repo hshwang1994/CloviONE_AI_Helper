@@ -88,8 +88,43 @@ def require_decider(db: Session, actor: User, now: datetime) -> str | None:
     """결재 권한 확인. 통과하면 '대신하는 사람 id'(없으면 None)를 돌려준다."""
     allowed, on_behalf_of = resolve_authority(db, actor, now)
     if not allowed:
+        # 위임이 **있었는데 끝난** 경우와 애초에 없던 경우는 다른 사건이다 (X7).
+        # 둘을 같은 문구로 뭉개면, 어제까지 결재하던 사람이 오늘 "권한이 없습니다" 를 보고
+        # 시스템이 고장났다고 신고한다 — 실제로는 위임 기간이 끝난 것뿐이다.
+        expired = _most_recent_expired_delegation(db, actor.id, now)
+        if expired is not None:
+            raise ForbiddenError(
+                f"위임 기간이 {expired.ends_at:%m월 %d일 %H시}에 끝났습니다. "
+                "계속 결재하려면 위임을 다시 받아야 합니다."
+            )
         raise ForbiddenError("승인 권한이 없습니다. 위임을 받으면 대리 결재할 수 있습니다.")
     return on_behalf_of
+
+
+def _most_recent_expired_delegation(
+    db: Session, user_id: str, now: datetime
+) -> ApprovalDelegation | None:
+    """이 사람에게 **끝난** 위임이 있었나 (가장 최근 것).
+
+    회수(`revoked_at`)된 것도 포함한다 — 당사자 입장에서는 '더 이상 못 한다' 로 같고,
+    회수 사실을 숨길 이유가 없다.
+    """
+    return (
+        db.execute(
+            select(ApprovalDelegation)
+            .where(
+                ApprovalDelegation.delegate_user_id == user_id,
+                or_(
+                    ApprovalDelegation.ends_at <= now,
+                    ApprovalDelegation.revoked_at.is_not(None),
+                ),
+            )
+            .order_by(ApprovalDelegation.ends_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
 
 
 def validate_window(starts_at: datetime, ends_at: datetime) -> None:
@@ -129,6 +164,21 @@ def create(
     )
     db.add(row)
     db.flush()
+    # 위임받은 **사실 자체**를 당사자에게 알린다 (X7). 예전에는 아무 통보가 없어서, 결재하라고
+    # 권한을 준 사람이 자기에게 권한이 생긴 줄도 몰랐다. 그 상태로 승인 큐가 밀린다.
+    from app.notifications.service import notify_user
+
+    notify_user(
+        db, delegate.id,
+        type_="approval_delegated",
+        title="승인 권한을 위임받았습니다",
+        body=(
+            f"{delegator.display_name}님을 대신해 "
+            f"{starts_at:%m월 %d일}부터 {ends_at:%m월 %d일}까지 승인할 수 있습니다."
+        ),
+        related=("approval_delegation", row.id),
+        now=now,
+    )
     return row
 
 
@@ -181,7 +231,7 @@ def view(
 
 def notify_overdue(db: Session, *, now: datetime) -> int:
     """기한을 넘긴 대기 승인에 대해 관리자에게 **한 번만** 알린다. 알린 건수를 돌려준다."""
-    from app.notifications.service import notify_admins
+    from app.notifications.service import notify_approvers
 
     rows = (
         db.execute(
@@ -199,7 +249,7 @@ def notify_overdue(db: Session, *, now: datetime) -> int:
     )
     for row in rows:
         row.sla_notified_at = now
-        notify_admins(
+        notify_approvers(
             db,
             type_="approval_overdue",
             title=f"승인 기한 초과: {row.request_type}",

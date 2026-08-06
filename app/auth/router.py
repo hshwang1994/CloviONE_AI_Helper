@@ -60,6 +60,18 @@ class AccountDisabledError(AppError):
     default_message = "비활성화된 계정입니다. 관리자에게 문의하세요."
 
 
+class OrganizationSuspendedError(AppError):
+    """조직이 정지되면 그 소속 사용자는 못 들어온다 (X5).
+
+    **왜 이유를 말해 주는가**: 여기서 '비밀번호가 틀렸습니다' 를 주면 당사자는 몇 번을 더
+    시도하다 계정 잠금까지 간다. 자기 조직 상태는 그 사람이 알아야 하는 사실이다.
+    """
+
+    status_code = 403
+    code = "organization_suspended"
+    default_message = "소속 조직이 정지되어 있습니다. 관리자에게 문의하세요."
+
+
 class AccountArchivedError(AppError):
     """보관된 계정. '비활성'과 구분되는 별개의 상태다 — 관리자가 원인을 찾을 때
     '비활성화된 계정'이라고만 나오면 활성 목록에서 계정을 찾다가 헤맨다(보관된 계정은
@@ -153,6 +165,7 @@ _LOGIN_ERROR_MESSAGES: dict[str, str] = {
     AccountLockedError.code: AccountLockedError.default_message,
     AccountDisabledError.code: AccountDisabledError.default_message,
     AccountArchivedError.code: AccountArchivedError.default_message,
+    OrganizationSuspendedError.code: OrganizationSuspendedError.default_message,
     "rate_limited": "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.",
     "validation_error": "이메일과 비밀번호를 입력하세요.",
     OriginMismatchError.code: OriginMismatchError.default_message,
@@ -304,8 +317,26 @@ def login_page(request: Request, db: Session = Depends(get_db)):
             # 폼에 실어 no-JS 제출·login.js JSON 제출 양쪽이 로그인 성공 후 그리로 돌아가게 한다.
             "next_path": next_path,
             "session_expired": session_expired,
+            # 스스로 비밀번호를 되찾는 길(9-9 P4). **메일을 실제로 보낼 수 있을 때만**
+            # 링크를 낸다 — 눌러 봐야 "설정 없음"만 나오는 링크는 없는 것을 있는 척
+            # 그리는 것이다. 판정은 app/mail/config.py 한 곳이라 관리 화면과 답이 같다.
+            "self_reset_available": _self_reset_available(request),
+            # 재설정을 마친 no-JS 폼이 여기로 돌아온다(app/auth/reset_router.py).
+            # 확인 한 줄이 없으면 사용자는 바뀐 것인지 모른 채 로그인 화면을 다시 만난다.
+            "password_reset_done": request.query_params.get("reset") == "1",
         },
     )
+
+
+def _self_reset_available(request: Request) -> bool:
+    """지연 import 인 이유: 로그인 라우터가 메일 모듈에 의존하는 모양을 최소로 둔다.
+    설정을 못 읽어도 로그인 화면은 떠야 하므로 실패는 '없음'으로 흡수한다."""
+    try:
+        from app.auth.reset_router import mail_is_sendable
+
+        return mail_is_sendable(request)
+    except Exception:  # pragma: no cover - 로그인 화면이 이것 때문에 죽으면 안 된다
+        return False
 
 
 @router.post("/login", dependencies=[Depends(_verify_login_origin)])
@@ -392,6 +423,12 @@ def login(
 
     if not user.active:
         raise AccountDisabledError()
+
+    # 조직 정지 — 계정은 멀쩡한데 테넌트가 멈춘 경우다(X5).
+    from app.org.service import is_blocked_by_org_suspension
+
+    if is_blocked_by_org_suspension(db, user):
+        raise OrganizationSuspendedError()
 
     user.failed_login_count = 0
     user.locked_until = None

@@ -6,9 +6,14 @@ extra='forbid' + 옵션 검증. 문서 종류·업무 분야·기술 태그는 c
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# 본문 상한은 마크다운 → 블록 변환기가 정한다. 여기서 숫자를 다시 적으면 편집기 미리보기와
+# 실제 저장 결과가 갈라진다(티켓 스키마도 같은 곳에서 가져온다).
+from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
+from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
 from app.team_docs.classify import DOC_TYPES, TECH_TAGS, WORK_FIELDS
+from app.team_docs.comments import MAX_COMMENT_CHARS
 
 MAX_TITLE = 200
 MAX_MEMO = 2000
@@ -125,3 +130,70 @@ class DocumentCreate(BaseModel):
         if v and len(v) > MAX_BODY:
             raise ValueError(f"본문은 {MAX_BODY}자 이하여야 합니다.")
         return v or ""
+
+
+def _comment_body(v: str) -> str:
+    """티켓 댓글(`app/tickets/schemas.py`)과 같은 검증. 상한값의 출처는 한 곳
+    (`app/team_docs/comments.py::MAX_COMMENT_CHARS`)이라 여기서 다시 정하지 않는다."""
+    v = (v or "").strip()
+    if not v:
+        raise ValueError("댓글 내용을 입력하세요.")
+    if len(v) > MAX_COMMENT_CHARS:
+        raise ValueError(f"댓글은 {MAX_COMMENT_CHARS}자 이하여야 합니다.")
+    return v
+
+
+class DocumentCommentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)
+
+
+class DocumentCommentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)
+
+
+class DocumentBodyUpdate(BaseModel):
+    """문서 본문(마크다운 정본) 저장 (사용자 지적 #9).
+
+    티켓 본문(`app/tickets/schemas.py::TicketBodyUpdate`)과 **같은 규칙**이다. 상한값도 같은
+    출처(`app/core/notion_blocks.py`)에서 가져온다 - 여기서 숫자를 다시 정하면 한쪽만 고치는
+    날 편집기 미리보기와 실제 저장 결과가 어긋난다.
+
+    상한을 **거절**로 두고 잘라내지 않는 이유: 우리 DB 에는 다 들어가는데 원본에는 앞부분만
+    올라가면 두 곳이 조용히 달라진다. 사용자에게 어긋난 이유를 말하지 않고 어긋나게 두느니,
+    저장을 거절하고 무엇을 줄여야 하는지 알려주는 편이 낫다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    body_markdown: str
+    # 낙관적 잠금. 편집을 시작할 때 받은 본문의 지문을 그대로 돌려보낸다.
+    # **선택 사항**이다 - 안 보내면 예전처럼 그냥 덮어쓴다(기존 클라이언트, CLI 호환).
+    base_version: str | None = Field(default=None, max_length=64)
+
+    @field_validator("body_markdown")
+    @classmethod
+    def _check_body(cls, v: str) -> str:
+        v = (v or "").replace("\r\n", "\n").replace("\r", "\n")
+        lines = v.split("\n")
+        if len(lines) > BODY_MAX_LINES:
+            raise ValueError(
+                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
+                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
+            )
+        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
+            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
+        return v

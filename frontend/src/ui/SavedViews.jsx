@@ -14,7 +14,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
-import { Button, Modal, ModalFooter, useToast } from "./kit.jsx";
+import { Button, Modal, ModalFooter, useConfirm, useToast } from "./kit.jsx";
 
 /* 저장된 뷰 — 자주 쓰는 필터 조합에 이름을 붙여 두고 다시 부른다.
  *
@@ -35,6 +35,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
   const [conflict, setConflict] = React.useState(false);
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
 
   const list = useQuery({
     queryKey: ["saved-views", screenKey],
@@ -67,6 +68,18 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
     },
     onError: (e) => toast(e.message, "error"),
   });
+
+  /* 휴지통은 **고르는 항목 바로 옆**에 있다 — 뷰를 부르려다 손이 미끄러지면 그 뷰가 한 번에
+   * 사라졌고, 서버에 휴지통이 없어 되돌릴 방법도 없었다(E2). 이 저장소의 다른 되돌릴 수 없는
+   * 액션(게시글 삭제, 대화 삭제)과 같은 관용을 그대로 쓴다. 이름을 문구에 넣는 이유: 잘못
+   * 눌렀을 때 **어느 뷰가 사라지는지**가 사용자가 알아챌 수 있는 유일한 단서다. */
+  async function removeView(view) {
+    const ok = await confirm(
+      `‘${view.name}’ 뷰를 지울까요? 되돌릴 수 없습니다.`,
+      { danger: true, title: "저장된 뷰 삭제", confirmLabel: "삭제" },
+    );
+    if (ok) remove.mutate(view.id);
+  }
 
   function copyLink() {
     const url = window.location.href;
@@ -129,7 +142,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
             <IconButton
               size="small"
               aria-label={`${v.name} 삭제`}
-              onClick={(e) => { e.stopPropagation(); remove.mutate(v.id); }}
+              onClick={(e) => { e.stopPropagation(); removeView(v); }}
             >
               <DeleteOutlineRoundedIcon fontSize="small" />
             </IconButton>

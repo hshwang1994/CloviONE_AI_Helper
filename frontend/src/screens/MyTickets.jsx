@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
@@ -21,13 +21,24 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { affiliation, needsOrg } from "../lib/people.js";
+import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
+import { Pager } from "../ui/Pager.jsx";
+import { useQueryState } from "../lib/useQueryState.js";
+import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
+import { invalidateTicketViews } from "./ticket-views.js";
+import { TicketEmptyState, TicketFilterBar, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
+
+/* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
+ * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
+ * 가져다 쓰기 때문이다 — 옮기면서 import 경로만 바꾸는 변경을 화면마다 흩뜨리지 않는다. */
+export { EMPTYABLE_SELECT };
 
 // 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
 function useBulkTrash(path, qc, toast, onDone) {
@@ -39,7 +50,8 @@ function useBulkTrash(path, qc, toast, onDone) {
       toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
       // refetchType:"all" — 지금 화면에 없는(비활성) 목록까지 즉시 다시 불러와, 삭제 후 어느 페이지로
       // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
-      qc.invalidateQueries({ queryKey: ["tickets"], refetchType: "all" });
+      // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다(홈·스프린트가 여기서 빠져 있었다).
+      invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       onDone && onDone();
@@ -57,20 +69,18 @@ function useBulkTrash(path, qc, toast, onDone) {
  * font-size:14px 등)에 묶여 있어 4K에서 글자만 그대로 남고 여백만 커졌다 — 이제 전부 rem/테마
  * 값이라 styles/root.css의 루트 폰트사이즈 레버 하나로 같이 커진다. px 폰트사이즈는 새로 쓰지 않는다. */
 
-const TERMINAL = new Set(["완료", "취소"]);
-
 function ticketId(t) { return t.tid != null ? "GIT-" + t.tid : "-"; }
 
 // 행/‘상세’ 클릭 → 우리 화면의 티켓 상세로 간다(문서처럼). 원본(노션)은 상세에서 '원본 열기'로.
 function ticketPath(t) { return "/tickets/" + (t && t.id); }
 
-function todayISO() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+/* 티켓 상세로 갈 때 **어디서 왔는지**를 함께 넘긴다 (사용자 지적 #14).
+ * 사이드바는 `/tickets/:id` 에 맞는 메뉴 항목이 없어서, 이 값이 없으면 선택 표시가
+ * `ROUTE_OWNER` 의 기본값('내 티켓')으로 떨어진다 — 미할당에서 연 티켓인데 '내 티켓'이
+ * 켜져 있으면 사용자는 자기가 어디에 있는지 알 수 없다. */
+function openTicket(nav, from) {
+  return (t) => nav(ticketPath(t), { state: { from } });
 }
-function isActive(t) { return !TERMINAL.has(t.status || ""); }
-function isOverdue(t, today) { return isActive(t) && t.due && t.due < today; }
 
 function TitleCell({ t, onOpen }) {
   // 제목(이름)을 눌러야 상세로 간다 — 행 전체 클릭은 없앤다(체크박스 오클릭으로 상세 이동하던 불편 제거).
@@ -177,12 +187,6 @@ function groupByProject(rows) {
   });
 }
 
-/* 빈 값('' = 전체/없음)을 고를 수 있는 select에 반드시 함께 넘긴다.
- * MUI Select는 값이 ''이면 '아직 아무것도 안 골랐다'로 보고 라벨을 축소하지 않은 채 입력 자리에
- * 그대로 둔다 — 그러면 고른 값('전체'/'없음')이 화면에서 사라지고 상자가 빈 것처럼 보인다.
- * displayEmpty로 빈 값의 항목 라벨을 그리게 하고, 라벨은 항상 노치로 올린다. */
-export const EMPTYABLE_SELECT = { SelectProps: { displayEmpty: true }, InputLabelProps: { shrink: true } };
-
 // 좁은 화면(≤760px)에서 표를 카드 목록으로 바꾸는 기준 — kit.jsx의 DataTable과 같은 값을 쓴다.
 // 두 표가 같은 폭에서 같이 전환되지 않으면 한 화면 안에서 표와 카드가 섞여 보인다.
 const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
@@ -206,18 +210,25 @@ function groupedRowKey(t, i) {
  * MUI Table로 옮겼지만 그룹 머리행은 <tbody>를 그룹마다 하나씩 두는 기존 구조를 그대로 유지한다 —
  * colgroup 스코프 헤더라 스크린리더가 "이 아래 행들은 이 그룹" 이라고 읽을 수 있고, 열 폭은 하나의
  * <table>이 공유하므로 그룹 간에 어긋나지 않는다. */
-export function GroupedTickets({ rows, columns, empty, groupBy }) {
+export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy }) {
   const cols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
   const narrow = useMediaQuery(TABLE_CARD_BREAKPOINT);
 
+  /* 빈 상태는 맨 글자가 아니라 kit `EmptyState` 로 그린다. 회색 한 줄은 **로딩 중인지,
+   * 필터가 걸린 건지, 정말 없는 건지** 구분해 주지 않는다 — 같은 저장소의 다른 화면들은
+   * 이미 `EmptyState` 를 쓴다(집안 표준). 이 부품은 세 화면(내 티켓·미할당·팀 티켓·스프린트)이
+   * 함께 쓰므로 여기 한 번이 그 전부를 고친다.
+   *
+   * `role="status"` + `.k-empty` 가 따라오는 것도 이득이다 — 스크린리더가 전환을 낭독하고,
+   * 기준 대조 도구가 "데이터가 없어 카드가 0" 인 화면을 **디자인 불일치로 세지 않게** 된다.
+   *
+   * `emptyState` 를 주면 그것을 대신 그린다 — 필터가 걸린 화면은 "정말 없음"과 "필터 때문에
+   * 없음"을 다르게 말해야 하고, 그 판정은 필터를 든 화면이 안다(`TicketEmptyState`). */
   if (!safeRows.length) {
-    return (
-      <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>
-        {empty || "표시할 항목이 없습니다."}
-      </Typography>
-    );
+    if (emptyState) return emptyState;
+    return <EmptyState title={empty || "표시할 항목이 없습니다"} help={emptyHelp} />;
   }
 
   const groups = grouper(safeRows);
@@ -303,15 +314,10 @@ export function GroupedTickets({ rows, columns, empty, groupBy }) {
   );
 }
 
-// 편집 모달용 후보/옵션은 모달이 열릴 때만 불러온다(enabled:open) — 목록 화면 초기 로드를 늘리지 않는다.
-function useAssigneeOptions(open) {
-  return useQuery({ queryKey: ["tickets", "assignees"], queryFn: () => api("/api/tickets/assignees"), enabled: open, retry: false, staleTime: 60000 });
-}
-function useTicketMeta(open) {
-  return useQuery({ queryKey: ["tickets", "meta"], queryFn: () => api("/api/tickets/meta"), enabled: open, retry: false, staleTime: 300000 });
-}
-
-/* 담당자 선택 목록 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
+/* 편집 모달용 후보/옵션은 모달이 열릴 때만 불러온다(enabled:open) — 목록 화면 초기 로드를
+ * 늘리지 않는다. 질의 자체는 `ticket-options.js` 가 갖는다(공용 필터 줄이 같은 목록을 쓴다).
+ *
+ * 담당자 선택 목록 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
  * 손으로 복사해 두어 한쪽만 고치면 조용히 어긋났다). 목록이 길어질 수 있어 높이를 제한하고 스크롤한다. */
 function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeight = "12rem" }) {
   // 조직은 둘 이상 섞여 있을 때만 그린다 — 하나뿐이면 모든 줄에 같은 값이 붙어 구분에
@@ -370,15 +376,6 @@ function withCurrentProject(projects, currentId) {
   return [...projects, { id: currentId, name: "(목록에 없는 프로젝트)" }];
 }
 
-/* 프로젝트 목록 — 새 티켓과 편집 모달이 함께 쓴다. 편집에서 프로젝트를 못 바꾸던 시절에는
- * 새 티켓 화면 안에만 있었다(2026-08-04 제품화 지시로 편집에도 필요해졌다). */
-function useTicketProjects(enabled) {
-  return useQuery({
-    queryKey: ["tickets", "projects"], queryFn: () => api("/api/tickets/projects"),
-    retry: false, staleTime: 300000, enabled: !!enabled,
-  });
-}
-
 export function TicketEditModal({ ticket, open, onClose }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -404,7 +401,10 @@ export function TicketEditModal({ ticket, open, onClose }) {
   }, [open, ticket]);
   const m = useMutation({
     mutationFn: (changes) => api(`/api/tickets/${ticket.id}`, { method: "PATCH", body: changes }),
-    onSuccess: () => { toast("티켓을 저장했습니다.", "success"); qc.invalidateQueries({ queryKey: ["tickets"] }); onClose(); },
+    /* 이 모달은 홈·스프린트·프로젝트 티켓 등 **여러 화면에 얹혀 있다.** 그래서 무효화 대상을
+     * 여기서 정하면 안 된다 — 얹히는 화면이 늘 때마다 빠뜨린다(실제로 홈·스프린트가 빠져 있었다).
+     * 티켓을 그리는 질의 키는 ticket-views.js 가 한 곳에서 안다. */
+    onSuccess: () => { toast("티켓을 저장했습니다.", "success"); invalidateTicketViews(qc); onClose(); },
     onError: (e) => { toast((e && e.message) || "저장하지 못했습니다.", "error"); },
   });
   if (!open || !ticket || !form) return null;
@@ -511,7 +511,7 @@ export function useClaim() {
   const toast = useToast();
   return useMutation({
     mutationFn: (id) => api(`/api/tickets/${id}/claim`, { method: "POST" }),
-    onSuccess: () => { toast("나에게 배정했습니다.", "success"); qc.invalidateQueries({ queryKey: ["tickets"] }); },
+    onSuccess: () => { toast("나에게 배정했습니다.", "success"); invalidateTicketViews(qc); },
     onError: (e) => { toast((e && e.message) || "배정하지 못했습니다.", "error"); }, });
 }
 
@@ -554,87 +554,84 @@ export function ticketConnState(data) {
   return null;
 }
 
-function useMine() {
-  return useQuery({ queryKey: ["tickets", "mine"], queryFn: () => api("/api/tickets/mine"), retry: false });
-}
+/* 내 티켓·미할당이 쓰는 필터 조건.
+ *
+ * 담당자를 빼는 이유는 서버가 그 조건을 **이 두 경로에서 안 받기** 때문이다
+ * (`build_filters(allow_assignee_filter=False)`): 내 티켓의 담당자는 언제나 세션 사용자이고,
+ * 미할당은 정의상 담당자가 없다. 안 먹는 조건을 그려 두면 고른 값이 아무 일도 안 하는데,
+ * 그건 사용자가 알아챌 수 없는 방향의 오류다.
+ *
+ * ⚠️ 예전의 '진행 중(완료, 취소 제외)' 기본 필터는 여기 없다. 서버의 `/mine` 은 그 조건을
+ * 받지 않고(`/team` 만 `active` 를 받는다, `/unassigned` 는 언제나 활성만 준다), 목록을
+ * 서버가 20건씩 자르기 시작했으므로 화면에서 거르면 **그 한 페이지 안에서만** 걸러진다 —
+ * "총 40건인데 3건만 보인다" 가 된다. 지금은 상태를 직접 고르거나 기한 필터의 '지연'을 쓴다.
+ * `/mine` 에 `active` 파라미터가 생기면 여기에 되돌려 넣는다. */
+export const SELF_FILTER_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "due", "category"];
+const SELF_SPEC = ticketFilterSpec(SELF_FILTER_FIELDS);
+/* 필터를 건드리면 페이지는 처음으로. 다른 필터의 3페이지에 남으면 빈 목록이 나오는데
+ * 사용자는 그것을 "조건에 맞는 티켓이 없다"로 읽는다. */
+const PAGE_RESET = { reset: ["page"] };
 
-/* 목록 화면 위 툴바(상태 필터 + 건수) — 내 티켓·미할당·팀 티켓이 같은 모양을 쓴다.
- * DataScreen의 필터 바와 같은 자동 줄바꿈 그리드다 — 화면이 넓어지면 한 줄에 담기고 좁으면 접힌다. */
-export function TicketToolbar({ children, count }) {
-  return (
-    <Box
-      sx={{
-        display: "grid", gap: 1.5, alignItems: "center", mb: 2,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fit, minmax(11rem, max-content))" },
-      }}
-    >
-      {children}
-      {count != null ? (
-        <Typography variant="body2" color="text.secondary" aria-live="polite">{count}건</Typography>
-      ) : null}
-    </Box>
-  );
-}
-
-// 티켓 상태 필터 — 내 티켓·팀 티켓이 같은 어휘를 쓴다(한쪽만 고치면 두 화면의 필터가 어긋난다).
-// withOverdue: '지연'은 상태가 아니라 마감 기준 파생값이라, 그 계산이 있는 화면(내 티켓)에서만 준다.
-export function StatusFilter({ value, onChange, withOverdue }) {
-  return (
-    <TextField select size="small" label="상태" value={value} onChange={(e) => onChange(e.target.value)} sx={{ minWidth: "13rem" }}>
-      <MenuItem value="active">진행 중(완료, 취소 제외)</MenuItem>
-      {withOverdue ? <MenuItem value="overdue">지연</MenuItem> : null}
-      <MenuItem value="진행">진행</MenuItem>
-      <MenuItem value="검증">검증</MenuItem>
-      <MenuItem value="계획">계획</MenuItem>
-      <MenuItem value="이슈">이슈</MenuItem>
-      <MenuItem value="완료">완료</MenuItem>
-      <MenuItem value="취소">취소</MenuItem>
-      <MenuItem value="all">전체</MenuItem>
-    </TextField>
-  );
-}
-
-/* 내 티켓, 상태 필터 + 전체 목록 + 편집. */
+/* 내 티켓. 조건은 서버가 걸고(질의 파라미터), 그 조건은 주소에 남는다. */
 export function MyTickets() {
-  const q = useMine();
+  const confirm = useConfirm();
   const nav = useNavigate();
-  const [status, setStatus] = React.useState("active");
+  const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
+  const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
+  const q = useTicketList("/api/tickets/mine", qs);
   const [editing, setEditing] = React.useState(null);
   const toast = useToast();
   const qc = useQueryClient();
   const sel = useRowSelection();
   const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
-  const today = todayISO();
-  // 상태 필터를 바꾸면 선택을 비운다(숨겨진 항목이 선택된 채 남지 않게).
-  const changeStatus = (v) => { setStatus(v); sel.clear(); };
+  // 보이는 티켓이 바뀌면(필터·페이지) 선택을 비운다 — 숨겨진 항목이 선택된 채 남지 않게.
+  React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clearFilters = () => setFilters(clearTicketFilters(SELF_FILTER_FIELDS));
   const headerActions = (
     <BulkActions count={sel.selected.size} onClear={sel.clear}>
-      <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate([...sel.selected])}>선택 삭제</Button>
+      <Button size="sm" variant="danger" disabled={bulk.isPending}
+              /* 확인을 받는다 (E1). 예전에는 누르는 순간 선택 전부가 휴지통으로 갔다 —
+                 같은 화면군의 `Trash.jsx` 는 확인을 받는데 여기만 규칙이 갈려 있었다.
+                 **몇 건인지 숫자로** 말한다: "선택한 항목" 은 몇 개인지 안 알려 준다. */
+              onClick={async () => {
+                const n = sel.selected.size;
+                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 되돌릴 수 있습니다.`,
+                  { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
+                bulk.mutate([...sel.selected]);
+              }}>선택 삭제</Button>
     </BulkActions>
   );
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" spot="mywork" actions={headerActions} />
-      {q.isLoading ? <Card><Skeleton /></Card>
+      {q.isPending ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const data = q.data || {};
           const conn = ticketConnState(data);
           if (conn) return conn;
-          const all = Array.isArray(data.tickets) ? data.tickets : [];
-          const rows = status === "all" ? all
-            : status === "active" ? all.filter(isActive)
-            : status === "overdue" ? all.filter((t) => isOverdue(t, today))
-            : all.filter((t) => t.status === status);
+          const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ showAssignee: true, onEdit: setEditing, onOpen: (t) => nav(ticketPath(t)) })];
+            ...ticketColumns({ showAssignee: true, onEdit: setEditing, onOpen: openTicket(nav, "/my-tickets") })];
           return (
-            <Card>
-              <TicketToolbar count={rows.length}>
-                <StatusFilter value={status} onChange={changeStatus} withOverdue />
-              </TicketToolbar>
-              <GroupedTickets rows={rows} columns={cols} empty="조건에 맞는 티켓이 없습니다." />
-            </Card>
+            <>
+              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
+              <Card>
+                <GroupedTickets
+                  rows={rows} columns={cols}
+                  emptyState={
+                    <TicketEmptyState
+                      filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
+                      onClear={clearFilters}
+                      title="담당한 티켓이 없습니다"
+                      help="나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
+                    />
+                  }
+                />
+                <Pager page={data.page} pageSize={data.page_size} total={data.total}
+                       onPage={(p) => setFilters({ page: p })} />
+              </Card>
+            </>
           );
         })()}
       <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
@@ -644,38 +641,70 @@ export function MyTickets() {
 
 /* 미할당 티켓 — 담당자 없는 활성 티켓. '나에게 배정'(claim) 또는 편집으로 담당자를 지정한다. */
 export function Unassigned() {
-  const q = useQuery({ queryKey: ["tickets", "unassigned"], queryFn: () => api("/api/tickets/unassigned"), retry: false });
+  /* 예전에는 이 화면만 `useConfirm()` 을 빠뜨려서 `confirm` 이 전역(window.confirm)으로
+     떨어졌다 — 옆 화면은 앱 확인 대화상자를 쓰는데 여기만 브라우저 기본 상자가 떴고,
+     danger·건수 라벨 같은 옵션은 조용히 무시됐다. */
+  const confirm = useConfirm();
   const nav = useNavigate();
+  const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
+  const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
+  const q = useTicketList("/api/tickets/unassigned", qs);
   const toast = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = React.useState(null);
   const claim = useClaim();
   const sel = useRowSelection();
   const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
+  React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clearFilters = () => setFilters(clearTicketFilters(SELF_FILTER_FIELDS));
   const headerActions = (
     <BulkActions count={sel.selected.size} onClear={sel.clear}>
-      <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate([...sel.selected])}>선택 삭제</Button>
+      <Button size="sm" variant="danger" disabled={bulk.isPending}
+              /* 확인을 받는다 (E1). 예전에는 누르는 순간 선택 전부가 휴지통으로 갔다 —
+                 같은 화면군의 `Trash.jsx` 는 확인을 받는데 여기만 규칙이 갈려 있었다.
+                 **몇 건인지 숫자로** 말한다: "선택한 항목" 은 몇 개인지 안 알려 준다. */
+              onClick={async () => {
+                const n = sel.selected.size;
+                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 되돌릴 수 있습니다.`,
+                  { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
+                bulk.mutate([...sel.selected]);
+              }}>선택 삭제</Button>
     </BulkActions>
   );
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" spot="mywork" actions={headerActions} />
-      {q.isLoading ? <Card><Skeleton /></Card>
+      {q.isPending ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const data = q.data || {};
           const conn = ticketConnState(data);
           if (conn) return conn;
-          const rows = Array.isArray(data.tickets) ? data.tickets : [];
+          const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: (t) => nav(ticketPath(t)) })];
+            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: openTicket(nav, "/unassigned") })];
           return (
-            <Card>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-                담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘편집’에서 하세요.
-              </Typography>
-              <GroupedTickets rows={rows} columns={cols} empty="담당자 없는 티켓이 없습니다." />
-            </Card>
+            <>
+              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
+              <Card>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
+                  담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘편집’에서 하세요.
+                </Typography>
+                <GroupedTickets
+                  rows={rows} columns={cols}
+                  emptyState={
+                    <TicketEmptyState
+                      filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
+                      onClear={clearFilters}
+                      title="담당자 없는 티켓이 없습니다"
+                      help="모든 활성 티켓에 담당자가 지정되어 있습니다."
+                    />
+                  }
+                />
+                <Pager page={data.page} pageSize={data.page_size} total={data.total}
+                       onPage={(p) => setFilters({ page: p })} />
+              </Card>
+            </>
           );
         })()}
       <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
@@ -685,13 +714,114 @@ export function Unassigned() {
 
 /* 새 티켓 — 채팅 없이 폼으로 생성(제목·프로젝트 필수). 담당자 기본값은 나(연결된 경우).
  * 복잡한 배경/요구사항이 필요한 티켓은 AI 도우미가 더 낫다 — 여기선 빠른 생성에 집중한다. */
+/* 새 티켓 '작성 도움' 레일 — 기준 목업의 오른쪽 칸.
+ *
+ * 목업은 여기에 **AI가 분석한 결과**("제목과 설명에서 확인할 항목을 정리했습니다")를 그린다.
+ * 우리는 그 분석을 하지 않는다. **없는 것을 있는 척 그리지 않는다** — 클로비 말투로
+ * 고정 문구를 띄우면 사용자는 자기 티켓을 읽고 준 답이라고 믿는다. 그게 이 저장소가
+ * 곳곳에서 잡아낸 '화면이 거짓말하는' 부류다.
+ *
+ * 대신 **실제로 일을 해 주는 것**으로 바꾼다: 누르면 설명 본문에 그 절이 실제로 들어간다.
+ * 좋은 티켓이 무엇인지 알려 주면서 동시에 쓰는 수고를 던다. 이미 있는 절은 다시 넣지 않는다.
+ * 진짜 AI 도움이 필요하면 그 자리에서 AI 도우미로 넘어갈 수 있게 links 를 남긴다. */
+const TICKET_SECTIONS = [
+  { title: "검증 범위 명시", hint: "무엇을 확인하면 '됐다'고 할 수 있는지 적습니다.",
+    heading: "## 검증 범위" },
+  { title: "예외 처리", hint: "정상 경로 말고, 실패하면 어떻게 되어야 하는지 적습니다.",
+    heading: "## 예외 처리" },
+  { title: "완료 기준", hint: "받는 사람이 이 문장만 보고 끝났는지 판단할 수 있어야 합니다.",
+    heading: "## 완료 기준" },
+];
+
+
+function WritingAid({ description, onInsert }) {
+  return (
+    <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
+      <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>작성 도움</Typography>
+      <Typography variant="body2" color="text.secondary">
+        좋은 티켓은 <strong>무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
+      </Typography>
+      <Box sx={{ display: "grid", gap: 0.5 }}>
+        {TICKET_SECTIONS.map((sec) => {
+          const already = description.includes(sec.heading);
+          return (
+            <Box
+              key={sec.title}
+              component="button" type="button"
+              onClick={() => onInsert(sec)}
+              disabled={already}
+              aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
+              sx={{
+                display: "grid", gap: 0.25, textAlign: "left", width: "100%",
+                px: 1.5, py: 1.25, border: 0, borderRadius: "12px", cursor: already ? "default" : "pointer",
+                bgcolor: "transparent", color: "inherit", font: "inherit",
+                opacity: already ? 0.5 : 1,
+                "&:hover": { bgcolor: already ? "transparent" : "action.hover" },
+              }}
+            >
+              <Typography component="span" sx={{ fontWeight: 700, fontSize: "0.9375rem" }}>
+                {sec.title}{already ? " ✓" : ""}
+              </Typography>
+              <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
+            </Box>
+          );
+        })}
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ pt: 1, borderTop: 1, borderColor: "divider" }}>
+        배경이 복잡한 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 초안을 잡아 줍니다.
+      </Typography>
+    </Card>
+  );
+}
+
+
+/* '새 티켓' 폼의 짧은 값 입력(프로젝트·진행상태·…·마감일) 격자.
+ *
+ * 왜 컨테이너 질의(@container)인가 — 예전에는 `{ xs, sm:2열, xxl:3열 }` 이었다. sm(600)·
+ * xxl(2200)은 **뷰포트** 폭인데, 이 격자가 놓인 **열**은 그보다 훨씬 좁다: 사이드바(264)와
+ * 오른쪽 '작성 도움' 레일(22rem)과 카드 여백을 빼고 남은 자리다. 그래서 실측하면
+ * 뷰포트 1200에서 격자 폭이 466px 인데 2열이 되어 **한 칸이 223px** 이었다 — 뷰포트 390의
+ * 1열(308px)보다 좁다. 폭을 넓혔더니 칸이 좁아지는, 뒤집힌 관계였다.
+ *
+ * 두 갈래 중 컨테이너 질의를 골랐다. 다른 갈래(레일 유무로 열 수를 못 박기)는 레일 폭·
+ * 사이드바 폭·카드 여백이 바뀔 때마다 여기 숫자를 같이 고쳐야 하는 **두 번째 진실**이 된다.
+ * 이 저장소가 이미 그 방식으로 어긋난 자리다. 컨테이너 질의는 실제 폭을 직접 보므로
+ * 바깥 레이아웃이 어떻게 바뀌든 따라온다.
+ *
+ * 지원 확인: 컨테이너 질의는 Chrome/Edge 105+, Safari 16+, Firefox 110+(2022~23)이고
+ * QA 하네스의 크로미움은 151 이다. 못 알아듣는 브라우저는 `@container` 블록을 통째로
+ * 무시하므로 **기본값인 1열**로 떨어진다 — 길어질 뿐 잘리지 않는다(안전한 퇴화).
+ *
+ * 임계값은 "한 칸이 최소 몇 rem" 하나에서 계산한다. 간격도 여기 rem 값을 그대로 쓴다
+ * (테마 spacing 2.5 = 1.25rem 과 같은 값). 두 곳에 적으면 임계값 계산이 실제 간격과
+ * 어긋나도 아무도 모른다.
+ *
+ * 실측(크로미움 151, 뷰포트 10폭, 2026-08-06): 1200 → 1열 466px(전 2열 223px),
+ * 1920 → 3열 371px(전 2열 566px), 3840 → 3열 463px. 나머지 일곱 폭은 전과 같다.
+ * 어느 폭에서도 한 칸이 16rem 밑으로 안 내려간다 — 검사는 new-ticket-layout.test.jsx. */
+const NT_FIELD_CONTAINER = "nt-fields";
+/* 한 칸이 이보다 좁아지면 프로젝트 이름·'예상 WD' 같은 값이 잘리기 시작한다. */
+const NT_FIELD_MIN_REM = 16;
+const NT_FIELD_GAP_REM = 1.25;
+const ntFieldsFit = (n) =>
+  `@container ${NT_FIELD_CONTAINER} (min-width: ${n * NT_FIELD_MIN_REM + (n - 1) * NT_FIELD_GAP_REM}rem)`;
+/* 3열에서 멈춘다 — 격자 폭 상한이 폼의 72rem 이라 4열은 한 칸 16rem 을 지키더라도
+ * 짧은 입력 여섯 개가 한 줄에 몰려 라벨을 훑기 어려워진다. */
+const NT_FIELD_GRID = {
+  display: "grid",
+  gap: `${NT_FIELD_GAP_REM}rem`,
+  gridTemplateColumns: "minmax(0, 1fr)",
+  [ntFieldsFit(2)]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
+  [ntFieldsFit(3)]: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
+};
+
 export function NewTicket() {
   const auth = useAuth();
   const myId = auth.data && auth.data.id;
   const qc = useQueryClient();
   const toast = useToast();
   const projectsQ = useTicketProjects(true);
-  const assigneesQ = useQuery({ queryKey: ["tickets", "assignees"], queryFn: () => api("/api/tickets/assignees"), retry: false, staleTime: 60000 });
+  const assigneesQ = useAssigneeOptions(true);
   const metaQ = useTicketMeta(true);
   const [form, setForm] = React.useState({ title: "", project_id: "", status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
   const meApplied = React.useRef(false);
@@ -717,7 +847,7 @@ export function NewTicket() {
 
   const create = useMutation({
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
-    onSuccess: () => { toast("티켓을 생성했습니다.", "success"); qc.invalidateQueries({ queryKey: ["tickets"] }); window.location.hash = "#/my-tickets"; },
+    onSuccess: () => { toast("티켓을 생성했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = "#/my-tickets"; },
     onError: (e) => { toast((e && e.message) || "생성하지 못했습니다.", "error"); },
   });
 
@@ -750,38 +880,53 @@ export function NewTicket() {
       {notConfigured ? (
         <Callout tone="warn">Notion 연동이 아직 설정되지 않아 티켓을 만들 수 없습니다. 관리자에게 문의하세요.</Callout>
       ) : (
+        /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
+           레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */
+        <Box sx={{
+          /* `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이
+             어긋난다 — 사용자가 지적한 Q5("카드 크기가 제각각")가 정확히 그것이고,
+             여기서 한 번 다시 만들었다가 높이 편차 검사에 잡혔다(474px). */
+          display: "grid", gap: 2.5, alignItems: "stretch",
+          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) 22rem" },
+        }}>
         <Card>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
             간단한 티켓을 바로 만듭니다. 배경, 요구사항이 많은 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
           </Typography>
           {/* 본문(설명)은 산문이라 줄이 길어지면 읽기 어렵다 — 폼 자체를 CONTENT 폭 전체로 늘리지 않고
-              읽기 좋은 폭에서 멈춘다. 짧은 값 입력들만 넓은 화면에서 두 열로 접는다. */}
+              읽기 좋은 폭에서 멈춘다. 짧은 값 입력들은 자기가 놓인 칸이 넓어지는 만큼만 접는다
+              (열 수는 뷰포트가 아니라 아래 컨테이너가 정한다 — NT_FIELD_GRID 주석 참고). */}
           <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ maxWidth: "72rem" }}>
             <TextField id="nt-title" fullWidth size="small" required label="제목" sx={{ mb: 2.5 }}
               value={form.title} onChange={(e) => set("title", e.target.value)} inputProps={{ maxLength: 200 }}
               placeholder="예: 서버 등록 IP 중복 방지" />
-            <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" }, mb: 2.5 }}>
-              <TextField id="nt-proj" select fullWidth size="small" label="프로젝트" required={!!projects.length} {...EMPTYABLE_SELECT}
-                value={form.project_id} onChange={(e) => set("project_id", e.target.value)}
-                disabled={projectsQ.isLoading || !projects.length}>
-                <MenuItem value="">{projectsQ.isLoading ? "불러오는 중…" : (projects.length ? "선택 안 함" : "프로젝트 없음")}</MenuItem>
-                {projects.map((p) => <MenuItem key={p.id} value={p.id}>{p.name || "(제목 없음)"}</MenuItem>)}
-              </TextField>
-              <TextField id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
-                {withCurrent(meta.statuses, form.status).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-              </TextField>
-              <TextField id="nt-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
-                <MenuItem value="">없음</MenuItem>
-                {withCurrent(meta.priorities, form.priority).map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
-              </TextField>
-              <TextField id="nt-diff" select fullWidth size="small" label="난이도" {...EMPTYABLE_SELECT} value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}>
-                <MenuItem value="">없음</MenuItem>
-                {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
-              </TextField>
-              <TextField id="nt-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
-                value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
-              <TextField id="nt-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
-                value={form.due} onChange={(e) => set("due", e.target.value)} />
+            {/* 격자를 감싸는 한 겹 — `container-type` 은 **조상**에만 걸 수 있고 자기 자신은 못 묻는다.
+                폼 전체가 아니라 이 격자만 감싼다: 레이아웃 격리(contain)가 담당자 목록·본문
+                편집기까지 덮으면 여기서 확인하지 않은 부작용이 생긴다. */}
+            <Box sx={{ containerType: "inline-size", containerName: NT_FIELD_CONTAINER, mb: 2.5 }}>
+              <Box sx={NT_FIELD_GRID}>
+                <TextField id="nt-proj" select fullWidth size="small" label="프로젝트" required={!!projects.length} {...EMPTYABLE_SELECT}
+                  value={form.project_id} onChange={(e) => set("project_id", e.target.value)}
+                  disabled={projectsQ.isLoading || !projects.length}>
+                  <MenuItem value="">{projectsQ.isLoading ? "불러오는 중…" : (projects.length ? "선택 안 함" : "프로젝트 없음")}</MenuItem>
+                  {projects.map((p) => <MenuItem key={p.id} value={p.id}>{p.name || "(제목 없음)"}</MenuItem>)}
+                </TextField>
+                <TextField id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
+                  {withCurrent(meta.statuses, form.status).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                </TextField>
+                <TextField id="nt-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+                  <MenuItem value="">없음</MenuItem>
+                  {withCurrent(meta.priorities, form.priority).map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
+                </TextField>
+                <TextField id="nt-diff" select fullWidth size="small" label="난이도" {...EMPTYABLE_SELECT} value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}>
+                  <MenuItem value="">없음</MenuItem>
+                  {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                </TextField>
+                <TextField id="nt-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+                  value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
+                <TextField id="nt-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
+                  value={form.due} onChange={(e) => set("due", e.target.value)} />
+              </Box>
             </Box>
             <Box sx={{ mb: 2.5 }}>
               <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
@@ -807,6 +952,19 @@ export function NewTicket() {
             </Stack>
           </Box>
         </Card>
+        <WritingAid
+          description={form.description}
+          onInsert={(sec) => {
+            const block = `${sec.heading}
+- 
+`;
+            const prev = form.description.replace(/\s+$/, "");
+            set("description", prev ? `${prev}
+
+${block}` : block);
+          }}
+        />
+        </Box>
       )}
     </div>
   );

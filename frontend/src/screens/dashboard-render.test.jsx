@@ -118,3 +118,27 @@ describe("대시보드 — 경보와 큐 구성", () => {
     expect(screen.getByText("3개")).toBeInTheDocument();
   });
 });
+
+describe("대시보드 — 유지보수 모드", () => {
+  /* 8단계 전수 점검에서 찾은 결함: 서버는 `maintenance` 를 매 폴링마다 실어 보내는데
+   * (app/health/service.py, 주석은 "화면이 상단 배너/경보로 띄운다"고 적혀 있었다)
+   * 화면이 그 필드를 한 번도 읽지 않았다. 그래서 **전체 사용자 쓰기가 막힌 동안에도**
+   * 이 화면은 초록색 '문제 없음' 배너를 띄웠다 — 운영자는 그 배너를 믿고 사용자 신고를
+   * 다른 장애로 오해한다. 이 화면에서 가장 조용한 거짓말이라 테스트로 못 박는다. */
+  it("점검 중이면 초록색 '문제 없음' 대신 경보로 뜬다", async () => {
+    apiMock.mockResolvedValue({ maintenance: true });
+    renderDashboard();
+
+    expect(await screen.findByText("유지보수 모드")).toBeInTheDocument();
+    expect(screen.getByText("켜짐")).toBeInTheDocument();
+    expect(screen.queryByText("지금 조치가 필요한 문제가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("점검 중이 아니면 경보를 만들지 않는다", async () => {
+    apiMock.mockResolvedValue({ maintenance: false });
+    renderDashboard();
+
+    expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("유지보수 모드")).not.toBeInTheDocument();
+  });
+});

@@ -29,7 +29,7 @@ def _alembic(db_path: Path, *args: str) -> None:
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{db_path.as_posix()}"}
     result = subprocess.run(
         [sys.executable, "-m", "alembic", *args],
-        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True,
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert result.returncode == 0, f"alembic {args} 실패:\n{result.stdout}\n{result.stderr}"
 

@@ -14,7 +14,13 @@ from __future__ import annotations
 # 바로 알아볼 수 있게 한다(chat_rooms 의 '0000cha70001' 과 같은 관례).
 DEFAULT_ORG_ID = "00000000-0000-0000-0000-00000000org1"
 DEFAULT_ORG_SLUG = "default"
-DEFAULT_ORG_NAME = "ClovirAssist"
+# 실제 조직 이름. **제품명이 아니다** — 0034 가 리브랜딩하면서 둘을 같은 것으로 취급해
+# 여기에 제품명("ClovirAssist")이 들어갔고, 화면에 조직 이름이 나오는 자리마다 회사 이름
+# 대신 제품 이름이 찍혔다(사용자 지적 P5). 0038 이 기존 행을 고치고, 여기 상수는 새 환경
+# 시드가 같은 실수를 반복하지 않게 한다 — 상수를 안 고치면 다음 시드에서 되살아난다.
+#
+# 제품명은 `app_settings` 의 `ui_branding.product_name` 이고 별개로 관리된다.
+DEFAULT_ORG_NAME = "굿모닝아이텍"
 
 # 조직 상태. 지금은 active 하나만 쓰지만, 제품화 때 정지/해지를 붙일 자리를 열어 둔다.
 ORG_ACTIVE = "active"

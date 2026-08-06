@@ -111,6 +111,57 @@ describe("화면 위쪽 띠", () => {
     expect(banner).toHaveTextContent("마지막 정상");
   });
 
+  /* 초기 설정 안내(9-3): 관리자에게는 갈 곳을 함께 준다.
+   * "초기 설정 화면에서 확인하세요"라고만 하고 가는 길을 안 주면 그 문장은 안내가 아니라
+   * 수수께끼다. 반대로 아무 URL이나 받으면 배너가 사람을 밖으로 보내는 통로가 된다. */
+  it("서버가 준 앱 안 경로만 링크로 그린다", async () => {
+    mockRoutes({
+      "/api/system/status": {
+        notices: [{
+          id: "setup.incomplete", level: "warning",
+          message: "초기 설정이 아직 끝나지 않았습니다.",
+          since: null, href: "#/setup",
+        }],
+        poll_seconds: 120,
+      },
+    });
+    renderBanners();
+    const link = await screen.findByRole("link", { name: /초기 설정 계속하기/ });
+    expect(link).toHaveAttribute("href", "#/setup");
+  });
+
+  it("앱 밖으로 나가는 주소는 링크로 그리지 않는다", async () => {
+    mockRoutes({
+      "/api/system/status": {
+        notices: [{
+          id: "setup.incomplete", level: "warning",
+          message: "초기 설정이 아직 끝나지 않았습니다.",
+          since: null, href: "https://evil.example.com/",
+        }],
+        poll_seconds: 120,
+      },
+    });
+    renderBanners();
+    await screen.findByRole("status");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("갈 곳이 없는 알림에는 링크를 만들어 내지 않는다", async () => {
+    mockRoutes({
+      "/api/system/status": {
+        notices: [{
+          id: "setup.incomplete", level: "warning",
+          message: "초기 설정이 아직 끝나지 않았습니다. 관리자에게 문의해 주세요.",
+          since: null, href: null,
+        }],
+        poll_seconds: 120,
+      },
+    });
+    renderBanners();
+    await screen.findByRole("status");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("공지를 닫으면 서버에 dismiss 를 보낸다", async () => {
     mockRoutes({
       "/api/announcements": {

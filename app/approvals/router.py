@@ -17,15 +17,17 @@ from app.approvals.models import (
     ApprovalDelegation,
 )
 from app.approvals.service import (
+    apply_scope,
     approval_view,
     cancel,
     decide,
-    get_approval_or_404,
+    get_scoped_approval_or_404,
     resolve_names,
 )
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_current_user, get_db, require_csrf, require_roles
+from app.core.scope import Principal, visible_user_ids
+from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
@@ -71,8 +73,20 @@ def list_approvals(
     status: str | None = Query(default=None, max_length=16),
     request_type: str | None = Query(default=None, max_length=48),
     requested_by: str | None = Query(default=None, max_length=36),
+    principal: Principal = Depends(get_principal),
 ):
-    stmt = select(Approval)
+    # 범위 밖 사람이 올린 승인 요청은 보이지 않는다 (2순위 #4).
+    #
+    # 승인 큐에는 **역할 변경·설정 변경 같은 것이 그대로 적혀 있다** — 요청자·대상·바뀌는
+    # 값이 다 들어 있어서, 다른 부서의 큐를 훑을 수 있으면 그 부서의 인사·설정 변경을
+    # 실시간으로 들여다보는 셈이다.
+    #
+    # (감사 로그와 달리 `requested_by` 는 **NOT NULL** 이라 '시스템 요청' 예외가 없다 —
+    #  넣어 뒀다가 모델을 확인하고 지웠다. 죽은 분기는 다음 사람에게 거짓 정보다.)
+    #
+    # 조건은 `service.apply_scope` 한 곳에만 있다 — 단건 GET·approve·reject·cancel 이 같은
+    # 함수를 지난다. 여기에 손으로 다시 적으면 두 판정이 갈라진다 (§0-A 1순위).
+    stmt = apply_scope(select(Approval), visible_user_ids(db, principal.scope))
     # 승인 큐는 5개 요청 유형이 뒤섞여 쌓인다 — 대량 큐를 유형/요청자로 좁혀 분류할 수
     # 있게 서버측 필터를 둔다(목록이 서버 페이지네이션이라 clientFilter로는 현재 페이지만
     # 걸러져 부정확하다, round30 감사 E).
@@ -129,11 +143,27 @@ def list_approvals(
 
 
 @router.get("/{approval_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def get_approval(request: Request, approval_id: str, db: Session = Depends(get_db)):
-    return {"approval": _view(request, db, get_approval_or_404(db, approval_id))}
+def get_approval(
+    request: Request,
+    approval_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    # 목록에서 가린 것이 상세에서 새면 가린 의미가 없다 — payload 에 '누구를 무슨 역할로'
+    # 가 그대로 적혀 있다. 목록과 **같은** 함수로 판정한다.
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
+    return {"approval": _view(request, db, row)}
 
 
-def _decide(request: Request, approval_id: str, db: Session, approve: bool, comment, actor: User):
+def _decide(
+    request: Request,
+    approval_id: str,
+    db: Session,
+    approve: bool,
+    comment,
+    actor: User,
+    principal: Principal,
+):
     now = request.app.state.clock.now()
     # 권한 판정을 라우트 데코레이터가 아니라 여기서 하는 이유(0033): 위임을 받은 사람은
     # CONSOLE_WRITE_ROLES 가 아닐 수 있다. `require_roles` 로 잠그면 대리 승인자가 결재하는
@@ -142,8 +172,17 @@ def _decide(request: Request, approval_id: str, db: Session, approve: bool, comm
     #
     # **권한 확인이 조회보다 먼저다.** 순서가 바뀌면 권한 없는 사람이 승인 id 를 찍어 보며
     # 404/409 를 세어 큐의 존재를 열거할 수 있다.
+    #
+    # **범위 판정은 조회와 한 몸이라 그 다음이다** — 그리고 그래야 옳다. 범위는 '이 행이
+    # 누구 것인가' 를 묻는 질문이라 행 없이는 답할 수 없고, 답이 404(없는 것과 동일)라서
+    # 순서를 뒤로 미뤄도 새로 새는 정보가 없다. 반대로 범위를 권한보다 앞에 두려고 조회를
+    # 먼저 하면 위의 열거 구멍이 그대로 돌아온다.
+    #
+    # 범위는 **결재자(위임 여부)와 무관하다**: 위임은 '결재할 수 있는가'를 바꾸고, 범위는
+    # '어느 요청이 보이는가'를 바꾼다. 위임받은 운영자는 build_scope 상 대개 전역이므로
+    # 좁혀지지 않는다(tests/security/test_approval_scope.py 가 이걸 못 박아 둔다).
     on_behalf_of = delegation_service.require_decider(db, actor, now)
-    row = get_approval_or_404(db, approval_id)
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
     flags = load_feature_flags(request.app.state.settings.config_dir)
     decide(
         db,
@@ -172,9 +211,10 @@ def approve(
     payload: DecisionRequest | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
 ):
     comment = payload.comment if payload else None
-    return _decide(request, approval_id, db, True, comment, actor)
+    return _decide(request, approval_id, db, True, comment, actor, principal)
 
 
 @router.post("/{approval_id}/reject")
@@ -184,17 +224,25 @@ def reject(
     payload: DecisionRequest | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
 ):
     comment = payload.comment if payload else None
-    return _decide(request, approval_id, db, False, comment, actor)
+    return _decide(request, approval_id, db, False, comment, actor, principal)
 
 
 @router.post(
     "/{approval_id}/cancel",
     dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))],
 )
-def cancel_approval(request: Request, approval_id: str, db: Session = Depends(get_db)):
-    row = get_approval_or_404(db, approval_id)
+def cancel_approval(
+    request: Request,
+    approval_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    # 취소도 결재다 — 남의 팀 인사 결정을 대신 죽일 수 있으면 안 된다. 네 경로(GET·approve·
+    # reject·cancel) 중 하나라도 빠지면 그 경로로 그대로 새 나간다.
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
     cancel(db, row, request.state.user, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="approval.cancel", object_type="approval", object_id=row.id,

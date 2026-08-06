@@ -51,22 +51,47 @@ def _by_assignee(db: Session, period_tickets, developers: list[dict]) -> list[di
     ]
 
 
+def _visible_ids(db: Session, viewer):
+    """이 사람에게 보이는 사용자 집합. 범위가 안 걸리면 `None`(= 제한 없음)."""
+    if viewer is None:
+        return None
+    from app.core.scope import build_scope, visible_user_ids
+
+    scope = build_scope(db, viewer)
+    return visible_user_ids(db, scope) if scope.is_dept else None
+
+
 def build_sprint_summary(
-    db: Session, outbound, settings, *, start: str, end: str, today: date, repo=None
+    db: Session, outbound, settings, *, start: str, end: str, today: date, repo=None,
+    viewer=None,
 ) -> dict:
     """스프린트 회의 한 판에 필요한 것: 담당자별 집계 + 담당자별 티켓 + 배분 대상(미할당) + 계획 티켓."""
-    period_tickets = tickets_service.list_period_tickets(
-        db, outbound, settings, start=start, end=end, repo=repo
+    # `viewer` 를 주면 **그 사람의 팀**으로 좁힌다 (1순위 유출 #3). 예전에는 포탈 전체였다 -
+    # 즉 담당자별 생산성이 전사 공개였다. 같은 성격의 `dev-monthly` 는 민감 역할 게이트 +
+    # 범위를 둘 다 지나는데 이쪽은 role 게이트조차 없었다.
+    period_tickets = tickets_service.drop_out_of_scope_dtos(
+        db,
+        tickets_service.list_period_tickets(
+            db, outbound, settings, start=start, end=end, repo=repo
+        ),
+        viewer,
     )
+    # 담당자 목록도 좁힌다. `build_period_report` 는 **활성 사용자 전원**을 0건으로라도
+    # 넣는데(월간 리포트가 "이 사람은 이번 달 한 건도 없다" 를 보여야 하므로), 스프린트가
+    # 그걸 안 넘겨서 **남의 팀 사람이 이름과 함께 그대로 나왔다.** 티켓만 걸러도 명부는 샌다.
+    # `dev-monthly` 는 이 인자를 이미 쓰고 있었다 — 두 화면이 같은 코어를 다르게 부르고 있었다.
     report = reports_service.build_period_report(
-        db, outbound, settings, start=start, end=end, today=today, tickets=period_tickets
+        db, outbound, settings, start=start, end=end, today=today, tickets=period_tickets,
+        visible_user_ids=_visible_ids(db, viewer),
     )
+    # 배분 대상(미할당)은 **좁히지 않는다** - 포탈 전용 버킷이고, 스프린트 회의에서
+    # "이건 누가 가져갈까" 를 정하는 자리다. 좁히면 그 대화 자체가 불가능해진다.
     unassigned = tickets_service.list_unassigned_tickets(
         db, outbound, settings, active_only=True, repo=repo
     )
     planned = [
         t for t in tickets_service.list_team_tickets(
-            db, outbound, settings, active_only=False, repo=repo
+            db, outbound, settings, active_only=False, repo=repo, viewer=viewer
         )
         if t.get("status") == STATUS_PLANNED
     ]

@@ -65,9 +65,39 @@ def test_create_duplicate_email_conflict(client, admin_csrf):
     assert r.status_code == 409
 
 
+def _set_domains(client, csrf, domains):
+    """허용 도메인을 실제로 설정한다.
+
+    🔴 이 준비가 없으면 이 테스트는 **아무것도 검사하지 않는다.** 고객사 고유값을 소스
+    기본값에서 비운 뒤로(P1) 허용 도메인의 기본값은 **빈 목록 = 제한 없음** 이다. 그래서
+    설정 없이 부르면 어떤 도메인이든 통과하고, 예전 기대(422)는 그냥 틀린 기대가 된다.
+    """
+    r = client.put("/api/admin/settings/allowed_email_domains",
+                   json={"value": domains}, headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+
+
 def test_create_wrong_domain_rejected(client, admin_csrf):
+    """도메인 제한을 **걸어 둔 상태**에서 다른 도메인은 거절된다."""
+    _set_domains(client, admin_csrf, ["goodmit.co.kr"])
     r = _create(client, admin_csrf, email="outsider@evil.example.com")
-    assert r.status_code == 422
+    assert r.status_code == 422, f"제한을 걸었는데 통과했다: {r.status_code} {r.text}"
+
+
+def test_the_allowed_domain_still_works_when_the_restriction_is_on(client, admin_csrf):
+    """오탐 방지 - 좁히느라 허용 도메인까지 막으면 그건 기능 고장이다."""
+    _set_domains(client, admin_csrf, ["goodmit.co.kr"])
+    assert _create(client, admin_csrf, email="inside@goodmit.co.kr").status_code == 201
+
+
+def test_no_configured_domains_means_no_restriction(client, admin_csrf):
+    """🔴 빈 목록의 뜻을 못박는다 (P1).
+
+    반대로 잡으면(빈 목록 = 아무도 불가) 설치 직후 **첫 관리자 계정조차 못 만든다.**
+    설정 화면 안내문과 `create_user` 의 분기가 이미 '제한 없음' 으로 일치한다.
+    """
+    r = _create(client, admin_csrf, email="anyone@example.org")
+    assert r.status_code == 201, f"제한을 안 걸었는데 거절했다: {r.status_code} {r.text}"
 
 
 def test_create_unknown_role_rejected(client, admin_csrf):

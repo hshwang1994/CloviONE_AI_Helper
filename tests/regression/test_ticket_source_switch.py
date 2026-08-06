@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.main import create_app
 from tests.fakes.clock import FakeClock
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB
+from tests.fakes.notion import DEFAULT_PROJECTS_DB, DEFAULT_TASKS_DB, FakeNotionTasksDB
 from tests.regression.test_api_contract_golden import (
     CONTRACT_NOW,
     CONTRACT_PASSWORD,
@@ -70,6 +70,10 @@ def _run(db_path, tmp_path, ticket_source: str) -> dict[str, str]:
         secrets_dir=secrets_dir,
         data_dir=tmp_path,
         ticket_source=ticket_source,
+        # 작업 DB id 는 설치처 고유값이라 소스 기본값이 비어 있다(app/core/tenant_config.py).
+        # 안 채우면 조회가 '설정 안 됨'으로 먼저 막혀, 두 소스가 **둘 다 빈 응답**으로 같아진다
+        # - 킬 스위치가 동작한다는 증거가 아니라 아무것도 시험하지 못한 초록불이다.
+        notion_tasks_database_id=DEFAULT_TASKS_DB,
     )
     from tests.fakes.http import FakeHTTP
 

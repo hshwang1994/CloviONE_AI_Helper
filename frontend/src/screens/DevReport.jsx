@@ -17,6 +17,7 @@ import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
 import { STAT_GRID } from "./Dashboard.jsx";
+import { safeExternal } from "../lib/safeUrl.js";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
 function thisMonth() {
@@ -342,8 +343,8 @@ export function DevReport() {
                       <TableRow key={d.name + ":" + (t.tid || t.title) + ":" + t.status}>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{t.tid ? "GIT-" + t.tid : "-"}</TableCell>
                         <TableCell sx={{ minWidth: "14rem", overflowWrap: "anywhere" }}>
-                          {t.url
-                            ? <Link href={t.url} target="_blank" rel="noreferrer noopener" underline="hover">{t.title}</Link>
+                          {safeExternal(t.url)
+                            ? <Link href={safeExternal(t.url)} target="_blank" rel="noreferrer noopener" underline="hover">{t.title}</Link>
                             : t.title}
                         </TableCell>
                         <TableCell><Badge value={t.status || "-"} /></TableCell>

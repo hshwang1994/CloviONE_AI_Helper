@@ -13,6 +13,7 @@ from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
+from app.mail.models import MAIL_QUEUED
 from app.users import bulk
 from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
 from app.users.schemas import (
@@ -55,6 +56,11 @@ def _user_row(user: User, now, *, notion_status: str = "unmapped") -> dict:
         "department": user.department,
         "title": user.title,
         "department_id": user.department_id,
+        # 관리 범위 — 화면이 지금 값을 보여 줄 수 있어야 한다. 설정만 되고 안 보이면
+        # "이 사람이 지금 어디까지 보나" 를 확인할 방법이 없다(F2).
+        "admin_scope": user.admin_scope,
+        "scope_org_id": user.scope_org_id,
+        "scope_dept_id": user.scope_dept_id,
         "title_id": user.title_id,
         "locked": bool(user.locked_until and user.locked_until > now),
         "archived_at": user.archived_at.isoformat() if user.archived_at else None,
@@ -142,7 +148,7 @@ def list_users(
     ).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(User.created_at.desc()).offset(page.offset).limit(page.page_size)
+            stmt.order_by(User.created_at.desc(), User.id.desc()).offset(page.offset).limit(page.page_size)
         )
         .scalars()
         .all()
@@ -217,7 +223,7 @@ def export_users_csv(
         principal.scope, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
     )
-    rows = db.execute(stmt.order_by(User.created_at.desc())).scalars().all()
+    rows = db.execute(stmt.order_by(User.created_at.desc(), User.id.desc())).scalars().all()
     now = request.app.state.clock.now()
     body = bulk.export_csv(list(rows), now=now)
     record_audit_from_request(
@@ -324,7 +330,43 @@ def create_user_endpoint(
         # Shown exactly once (spec §11.1) — never logged or audited.
         body["temp_password"] = password
         body["temp_password_notice"] = "임시 비밀번호는 이번 응답에서만 확인할 수 있습니다."
+    body["invite_mail"] = _queue_invite_mail(request, db, user, now)
     return body
+
+
+def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
+    """초대 메일을 큐에 넣고 **결과를 응답에 싣는다** (9-9 P4).
+
+    결과를 돌려주는 것이 핵심이다. 조용히 실패하면 관리자는 "초대가 나갔겠지" 라고 믿고
+    아무 안내도 안 한다 - 그러면 새 직원은 아무 메일도 못 받은 채 첫 출근을 한다.
+
+    **메일에 임시 비밀번호를 싣지 않는다.** 1회용 재설정 링크를 보낸다. 비밀번호를 메일에
+    실으면 그 문자열이 잡 payload 나 아웃박스에 앉거나(불변 §4 위반), 메일함에 영구히
+    남아 계정 하나가 그 메일함과 같은 수명을 갖게 된다.
+    """
+    from app.mail.renderers import KIND_INVITE
+    from app.mail.service import queue_mail
+
+    try:
+        row = queue_mail(
+            db,
+            kind=KIND_INVITE,
+            to_email=user.email,
+            subject="[ClovirAssist] 업무 포털 계정이 만들어졌습니다",
+            params={"user_id": user.id},
+            now=now,
+            secret_provider=getattr(request.app.state, "secret_provider", None),
+        )
+    except Exception:  # noqa: BLE001 - 계정 생성이 메일 때문에 실패하면 안 된다
+        import logging
+
+        logging.getLogger("app.users").exception("초대 메일을 큐에 넣지 못했다")
+        return {"queued": False, "reason": "초대 메일을 큐에 넣지 못했습니다."}
+    queued = row.status == MAIL_QUEUED
+    return {
+        "queued": queued,
+        "reason": None if queued else (row.last_error or "메일을 보낼 수 없습니다."),
+    }
 
 
 @router.get("/{user_id}")

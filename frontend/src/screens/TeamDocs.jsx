@@ -1,15 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
-import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import {
   Badge,
@@ -23,6 +21,7 @@ import {
   ModalFooter,
   PageHeader,
   Skeleton,
+  useConfirm,
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
@@ -30,6 +29,9 @@ import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { SearchBox } from "../ui/filters.jsx";
+import { Pager } from "../ui/Pager.jsx";
+import { useQueryState } from "../lib/useQueryState.js";
 
 const PRIORITIES = ["높음", "보통", "낮음"];
 const STATUSES = ["초안", "활성", "서명됨", "만료됨"];
@@ -47,14 +49,21 @@ const SORTS = [
   ["title", "제목순"],
 ];
 
-function useDebounced(value, ms) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
+/* 이 화면이 주소에 두는 상태. 기본값과 같은 값은 주소에 안 쓴다(lib/useQueryState.js).
+ *
+ * 예전에는 같은 값들이 `useState` 일곱 개에 있고 `useEffect` 가 그걸 주소에 베껴 쓰는
+ * 구조였다. 진실이 둘이라 **브라우저 뒤로가기처럼 주소만 바뀌는 이동에서는 화면이 안
+ * 따라왔다** — 사용자가 지적한 그 증상이다. 이제 주소가 유일한 진실이다. */
+const DOC_SPEC = {
+  q: "", doc_type: "", work_field: "", project: "", tech: "",
+  sort: "recent", favorites: false, page: 1,
+};
+/* 필터를 건드리면 페이지는 처음으로. 예전에는 이걸 `firstRun` ref 로 흉내 냈는데,
+ * 그 방식은 "복원한 page 를 지우지 않으려고 첫 렌더를 건너뛰는" 예외가 필요했다. */
+const PAGE_RESET = { reset: ["page"] };
+
+/** 서버가 받는 필터 키. 화면 상태에서 여기 있는 것만 API 로 나간다. */
+const DOC_FILTER_KEYS = ["q", "doc_type", "work_field", "project", "tech"];
 
 function SyncBanner({ sync, canSync, onSync, syncing }) {
   if (!sync) return null;
@@ -208,68 +217,52 @@ function FilterSelect({ label, value, onChange, values }) {
 }
 
 export function TeamDocs() {
+  const confirm = useConfirm();
   const nav = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
-  // 필터/검색/정렬/페이지 상태는 URL 쿼리에 저장한다 — 문서 상세를 보고 뒤로 오면 그대로
-  // 복원되도록(사용자 피드백: 뒤로 오면 필터가 풀림). 초기값은 URL에서 읽는다.
-  const [sp, setSp] = useSearchParams();
-  const [docType, setDocType] = useState(() => sp.get("doc_type") || "");
-  const [workField, setWorkField] = useState(() => sp.get("work_field") || "");
-  const [project, setProject] = useState(() => sp.get("project") || "");
-  const [tech, setTech] = useState(() => sp.get("tech") || "");
-  const [sort, setSort] = useState(() => sp.get("sort") || "recent");
-  const [favorites, setFavorites] = useState(() => sp.get("favorites") === "1");
-  const [qInput, setQInput] = useState(() => sp.get("q") || "");
-  const q = useDebounced(qInput, 300);
-  const [page, setPage] = useState(() => Number(sp.get("page")) || 1);
+  // 필터/검색/정렬/페이지는 URL 쿼리가 든다 — 문서 상세를 보고 뒤로 오면 그대로 복원되도록
+  // (사용자 피드백: 뒤로 오면 필터가 풀림). 티켓 목록 화면들과 같은 훅을 쓴다.
+  const [query, setQuery] = useQueryState(DOC_SPEC, PAGE_RESET);
+  const { q, doc_type: docType, work_field: workField, project, tech, sort, favorites, page } = query;
+  const setPage = (p) => setQuery({ page: p });
+  /* 검색어 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 — 매 렌더마다
+     새로 만들면 `React.memo` 가 깨져 글자마다 이 화면(카드 20장)이 다시 그려진다. */
+  const commitSearch = React.useCallback((next) => setQuery({ q: next }), [setQuery]);
+  /* 보기(카드/표). 기본은 **카드** — 기준 목업이 카드 격자이고, 문서는 훑어보며 고르는
+     화면이다. 고른 보기는 기억한다: 표로 일하는 사람이 화면을 옮길 때마다 다시 바꾸게
+     하면 그건 선택지가 아니라 잔소리다. */
+  const [view, setView] = useState(() => {
+    try { return window.localStorage.getItem("team-docs-view") === "table" ? "table" : "cards"; }
+    catch (e) { return "cards"; }
+  });
+  const changeView = (next) => {
+    setView(next);
+    try { window.localStorage.setItem("team-docs-view", next); } catch (e) { /* ignore */ }
+  };
   const [composing, setComposing] = useState(false);
   const sel = useRowSelection();
 
-  // 필터/검색/정렬이 바뀌면 1페이지로 되돌린다(다른 필터의 3페이지에 머무르지 않게). 단 첫
-  // 렌더(=URL에서 복원)는 건너뛴다 — 복원한 page를 지우지 않기 위함.
-  const firstRun = useRef(true);
-  useEffect(() => {
-    if (firstRun.current) { firstRun.current = false; return; }
-    setPage(1);
-  }, [q, docType, workField, project, tech, sort, favorites]);
-
-  // 현재 필터 상태를 URL에 반영(replace — 키 입력마다 히스토리가 쌓이지 않게). 상세로 이동 전
-  // 마지막 URL이 이 필터를 담고 있어, 뒤로 오면 그대로 복원된다.
-  useEffect(() => {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (docType) p.set("doc_type", docType);
-    if (workField) p.set("work_field", workField);
-    if (project) p.set("project", project);
-    if (tech) p.set("tech", tech);
-    if (favorites) p.set("favorites", "1");
-    if (sort && sort !== "recent") p.set("sort", sort);
-    if (page > 1) p.set("page", String(page));
-    setSp(p, { replace: true });
-  }, [q, docType, workField, project, tech, favorites, sort, page, setSp]);
-
   const filters = useQuery({ queryKey: ["team-docs-filters"], queryFn: () => api("/api/team-docs/filters") });
 
+  /* 화면 상태 → 서버 질의. 주소의 표기와 API 의 표기가 한 군데(favorites)에서 다르다:
+     주소는 `1`, API 는 `true` 다. 옮겨 적는 자리를 하나로 모아 둔다. */
   const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (docType) params.set("doc_type", docType);
-  if (workField) params.set("work_field", workField);
-  if (project) params.set("project", project);
-  if (tech) params.set("tech", tech);
+  for (const key of DOC_FILTER_KEYS) { if (query[key]) params.set(key, query[key]); }
   if (favorites) params.set("favorites", "true");
   params.set("sort", sort);
   params.set("page", String(page));
+  const qs = params.toString();
   const list = useQuery({
-    queryKey: ["team-docs", q, docType, workField, project, tech, sort, favorites, page],
-    queryFn: () => api("/api/team-docs?" + params.toString()),
+    queryKey: ["team-docs", qs],
+    queryFn: () => api("/api/team-docs?" + qs),
     // 필터/페이지가 바뀌어도 이전 결과를 유지해 표가 통째로 스켈레톤으로 깜빡이지 않게 한다
     // (레포 관례: DataScreen/Users/NotificationBell도 동일).
     placeholderData: keepPreviousData,
   });
 
   // 보이는 문서 집합이 바뀌면(검색·필터·페이지) 선택을 비운다 — 숨겨진 문서가 선택된 채 남지 않게.
-  useEffect(() => { sel.clear(); }, [q, docType, workField, project, tech, sort, favorites, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bulkTrash = useMutation({
     mutationFn: (ids) => api("/api/team-docs/trash-bulk", { method: "POST", body: { page_ids: ids } }),
@@ -329,10 +322,10 @@ export function TeamDocs() {
   // 선택 열에도 폭을 준다 — table-layout:fixed에서 폭 없는 열은 남는 공간을 균등 분배받는다.
   // 폭을 안 주면 체크박스 한 칸이 제목과 같은 폭(둘 다 '나머지의 절반')을 먹었다.
   const selCol = { ...selectionColumn(sel, items.map((d) => d.id)), width: "3.5rem" };
-  const hasFilter = !!(q || docType || workField || project || tech || favorites);
-  const clearFilters = () => {
-    setQInput(""); setDocType(""); setWorkField(""); setProject(""); setTech(""); setFavorites(false); setPage(1);
-  };
+  const hasFilter = DOC_FILTER_KEYS.some((key) => !!query[key]) || favorites;
+  // 한 번에 지운다. 예전에는 setter 일곱 개를 줄줄이 불렀는데, 그러면 새 필터를 넣을 때마다
+  // 여기 한 줄을 같이 고쳐야 하고 안 고치면 '지우기'가 그 필터만 남긴다.
+  const clearFilters = () => setQuery({ q: "", doc_type: "", work_field: "", project: "", tech: "", favorites: false });
   const neverSynced = !(list.data && list.data.sync && list.data.sync.last_success_at);
 
   return (
@@ -344,7 +337,15 @@ export function TeamDocs() {
         actions={<>
           <BulkActions count={sel.selected.size} onClear={sel.clear}>
             <Button size="sm" variant="danger" disabled={bulkTrash.isPending}
-              onClick={() => bulkTrash.mutate([...sel.selected])}>선택 삭제</Button>
+              /* 문서는 **Notion 원본이 보관기간 뒤 삭제되는** 작업이다 (E1) — 되돌릴 수 있는 창이
+                 있다는 것과 그 창이 닫히면 사라진다는 것을 둘 다 말한다. */
+              onClick={async () => {
+                const n = sel.selected.size;
+                if (!(await confirm(
+                  `문서 ${n}건을 휴지통으로 보냅니다. 보관기간이 지나면 Notion 원본도 삭제됩니다.`,
+                  { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
+                bulkTrash.mutate([...sel.selected]);
+              }}>선택 삭제</Button>
           </BulkActions>
           <Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>
         </>}
@@ -371,23 +372,19 @@ export function TeamDocs() {
             xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
           },
         }}>
-          <TextField
-            type="search"
-            size="small"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
+          <SearchBox
+            value={q}
+            onSearch={commitSearch}
             placeholder="제목, 메모, 작성자 검색"
-            inputProps={{ "aria-label": "검색" }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
-            sx={{ gridColumn: { sm: "span 2" } }}
+            ariaLabel="검색"
           />
-          <FilterSelect label="문서 종류" value={docType} onChange={setDocType} values={opts.doc_types} />
-          <FilterSelect label="업무 분야" value={workField} onChange={setWorkField} values={opts.work_fields} />
-          <FilterSelect label="프로젝트" value={project} onChange={setProject} values={opts.projects} />
-          <FilterSelect label="기술 태그" value={tech} onChange={setTech} values={opts.tech_tags} />
+          <FilterSelect label="문서 종류" value={docType} onChange={(v) => setQuery({ doc_type: v })} values={opts.doc_types} />
+          <FilterSelect label="업무 분야" value={workField} onChange={(v) => setQuery({ work_field: v })} values={opts.work_fields} />
+          <FilterSelect label="프로젝트" value={project} onChange={(v) => setQuery({ project: v })} values={opts.projects} />
+          <FilterSelect label="기술 태그" value={tech} onChange={(v) => setQuery({ tech: v })} values={opts.tech_tags} />
           <TextField
             select size="small" label="정렬" value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) => setQuery({ sort: e.target.value })}
           >
             {SORTS.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
           </TextField>
@@ -396,10 +393,25 @@ export function TeamDocs() {
             aria-pressed={favorites}
             color={favorites ? "primary" : "default"}
             variant={favorites ? "filled" : "outlined"}
-            onClick={() => setFavorites((v) => !v)}
+            onClick={() => setQuery({ favorites: !favorites })}
             sx={{ justifySelf: "start" }}
           />
           {hasFilter ? <Button size="sm" onClick={clearFilters}>필터 지우기</Button> : null}
+        </Box>
+        {/* 보기 전환. 필터 줄 안이 아니라 그 아래 오른쪽에 둔다 — 필터는 '무엇을 볼지',
+            이건 '어떻게 볼지'다. 섞으면 필터를 하나 더 건 것처럼 읽힌다. */}
+        <Box role="group" aria-label="목록 보기 방식"
+          sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 1.5 }}>
+          {[["cards", "카드"], ["table", "표"]].map(([v, label]) => (
+            <Button
+              key={v} size="sm"
+              variant={view === v ? "primary" : "default"}
+              aria-pressed={view === v}
+              onClick={() => changeView(v)}
+            >
+              {label}
+            </Button>
+          ))}
         </Box>
       </Card>
 
@@ -432,20 +444,44 @@ export function TeamDocs() {
           />
         )
       ) : (
-        <Card className="c-list-card">
-          <DataTable
-            columns={[selCol, ...columns]}
-            fixed ellipsis
-            rows={items}
-            rowKey={(d) => d.id}
-          />
-          <Pager
-            page={list.data.page}
-            pageSize={list.data.page_size}
-            total={list.data.total}
-            onPage={setPage}
-          />
-        </Card>
+        view === "cards" ? (
+          <>
+            {/* 기준 목업과 같은 3열 격자. 좁아지면 2열 → 1열로 접힌다. */}
+            <Box sx={{
+              display: "grid", gap: 2.25,
+              gridTemplateColumns: {
+                xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))",
+                xxl: "repeat(4, minmax(0, 1fr))",
+              },
+            }}>
+              {items.map((d) => (
+                <DocCard
+                  key={d.id} doc={d}
+                  selected={sel.selected.has(d.id)}
+                  onToggle={() => sel.toggle(d.id)}
+                  onOpen={() => nav("/team-docs/" + d.id)}
+                />
+              ))}
+            </Box>
+            <Pager page={list.data.page} pageSize={list.data.page_size}
+              total={list.data.total} onPage={setPage} />
+          </>
+        ) : (
+          <Card className="c-list-card">
+            <DataTable
+              columns={[selCol, ...columns]}
+              fixed ellipsis
+              rows={items}
+              rowKey={(d) => d.id}
+            />
+            <Pager
+              page={list.data.page}
+              pageSize={list.data.page_size}
+              total={list.data.total}
+              onPage={setPage}
+            />
+          </Card>
+        )
       )}
 
       <DocCreateModal
@@ -463,17 +499,64 @@ export function TeamDocs() {
   );
 }
 
-function Pager({ page, pageSize, total, onPage }) {
-  const pages = Math.max(1, Math.ceil((total || 0) / (pageSize || 20)));
-  if (pages <= 1) return null;
+/* 문서 카드 — 기준 목업의 문서 격자와 같은 구조: 분류 칩 → 제목 → 요약 → 작성자·수정일.
+ *
+ * 왜 카드인가: 문서는 **훑어보며 고르는** 화면이다. 표는 열 일곱 개를 같은 무게로 늘어놓아
+ * "무엇에 관한 문서인지" 가 제목 한 칸에만 담긴다. 카드는 분류를 먼저 보여 주고 제목에
+ * 공간을 준다(기준 목업이 그렇게 하고, 사용자가 그 화면을 기준으로 지목했다).
+ *
+ * 표를 없애지는 않는다 — 실제 문서가 **104건**이라 한 번에 훑거나 여러 건을 골라 지우는
+ * 일이 실재한다. 보기 전환을 둔다(카드가 기본). 계획서가 "관리자 대량 목록은 표 유지" 로
+ * 갈랐는데, 문서는 사용자 화면이면서 대량이라 **둘 다 필요한 유일한 화면**이다. */
+function DocCard({ doc, selected, onToggle, onOpen }) {
+  const tags = [...(doc.tech_tags || []), ...(doc.projects || [])].filter(Boolean);
+  const author = (doc.author_names || []).join(", ") || doc.owner || "";
   return (
-    <Box component="nav" aria-label="페이지 이동"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }}>
-      <Button size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>이전</Button>
-      <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
-        {page} / {pages}{total != null ? `, 총 ${total}건` : ""}
+    <Card
+      sx={{
+        display: "grid", gridTemplateRows: "auto auto 1fr auto", gap: 1, p: 2.25,
+        outline: selected ? 2 : 0, outlineColor: "primary.main", outlineOffset: "-2px",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+        {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
+        {doc.work_field ? <Badge value={doc.work_field} kind="neutral" /> : null}
+        <Box sx={{ flex: 1 }} />
+        {/* 여러 건 고르기는 카드에서도 된다 — 보기를 바꿨다고 할 수 있던 일이 사라지면
+            그건 개선이 아니라 기능 축소다. */}
+        <Box
+          component="input" type="checkbox" checked={selected} onChange={onToggle}
+          aria-label={`${doc.title || "제목 없음"} 선택`}
+          sx={{ m: 0, cursor: "pointer", flexShrink: 0 }}
+        />
+      </Box>
+      <Link
+        component="button" type="button" underline="hover" color="inherit" onClick={onOpen}
+        sx={{
+          display: "flex", alignItems: "flex-start", gap: 0.75, font: "inherit",
+          fontWeight: 700, fontSize: "1rem", lineHeight: 1.4, textAlign: "left",
+          "&:hover": { color: "primary.main" },
+        }}
+      >
+        {doc.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main" }}>★</Box> : null}
+        <Box component="span">{doc.title || "제목 없음"}</Box>
+      </Link>
+      <Typography
+        variant="body2" color="text.secondary"
+        sx={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+      >
+        {tags.length ? tags.join(", ") : "분류 정보가 없습니다."}
       </Typography>
-      <Button size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>다음</Button>
-    </Box>
+      <Box sx={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
+        pt: 1, borderTop: 1, borderColor: "divider",
+        fontSize: "0.8125rem", color: "text.secondary",
+      }}>
+        <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {author || "작성자 없음"}
+        </Box>
+        <Box component="span" sx={{ flexShrink: 0 }}>{doc.last_edited ? fmtDateTime(doc.last_edited) : "-"}</Box>
+      </Box>
+    </Card>
   );
 }

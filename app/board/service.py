@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime
 
 from sqlalchemy import update
@@ -14,6 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.board import repository
 from app.board.models import (
+    CATEGORIES_BY_KIND,
+    IDEA_IN_PROGRESS,
+    IDEA_PROPOSED,
+    IDEA_STATUSES,
+    IDEA_TRANSITIONS,
+    KIND_FREE,
+    KIND_IDEA,
+    POST_CATEGORIES,
     Comment,
     Post,
     PostAttachment,
@@ -25,6 +35,8 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 # 정의는 app/core/authz.py 한 곳뿐이다 — 화면마다 다른 '운영자'가 생기지 않게.
 from app.core.authz import MODERATOR_ROLES
 from app.users.models import User
+
+logger = logging.getLogger("app.board")
 
 
 def can_moderate(user: User) -> bool:
@@ -40,10 +52,21 @@ def ensure_can_edit(author_user_id: str, user: User) -> None:
 
 # ── 게시글 ────────────────────────────────────────────────────────────────
 def create_post(
-    db: Session, *, author: User, category: str, title: str, body: str, now: datetime
+    db: Session,
+    *,
+    author: User,
+    category: str,
+    title: str,
+    body: str,
+    now: datetime,
+    kind: str = KIND_FREE,
 ) -> Post:
     post = Post(
         author_user_id=author.id,
+        kind=kind,
+        # 아이디어는 **제안**에서 시작한다. 자유글은 NULL 이다 — '상태 없음'과 '제안'은
+        # 다른 사실이고, 자유글에 값이 있으면 화면이 상태 배지를 그린다.
+        idea_status=IDEA_PROPOSED if kind == KIND_IDEA else None,
         category=category,
         title=title,
         body=body or "",
@@ -57,8 +80,21 @@ def create_post(
     return post
 
 
+def ensure_category_fits_kind(post: Post, category: str) -> None:
+    """수정에서도 종류와 카테고리의 짝을 지킨다.
+
+    생성은 스키마가 짝을 보지만(kind 를 함께 받으므로), 수정은 kind 를 받지 않아 스키마가
+    볼 수 없다. 여기서 안 보면 제안 글에 '맛집'을 붙일 수 있고, 그 글은 제안 게시판의 어느
+    카테고리 칩으로도 안 걸러진다.
+    """
+    allowed = CATEGORIES_BY_KIND.get(post.kind or KIND_FREE, POST_CATEGORIES)
+    if category not in allowed:
+        raise ValidationAppError("이 게시판에서 쓸 수 없는 카테고리입니다.")
+
+
 def update_post(db: Session, post: Post, data: PostUpdate, *, now: datetime) -> Post:
     if data.category is not None:
+        ensure_category_fits_kind(post, data.category)
         post.category = data.category
     if data.title is not None:
         post.title = data.title
@@ -79,6 +115,128 @@ def set_pinned(db: Session, post: Post, *, pinned: bool, now: datetime) -> Post:
     post.updated_at = now
     db.flush()
     return post
+
+
+# ── 제안 상태 (아이디어 게시판, 7단계 #1) ─────────────────────────────────
+def ensure_idea(post: Post) -> None:
+    """상태는 **아이디어에만** 있다. 자유게시글은 상태를 가질 수 없다.
+
+    404 로 답한다: 자유게시글에 대해서는 이 경로가 아예 없는 것이 맞고, 403/409 는
+    "여기 뭔가 있긴 하다"를 알려 준다(이 저장소의 범위 규칙과 같은 이유).
+    """
+    if (post.kind or KIND_FREE) != KIND_IDEA:
+        raise NotFoundError("제안 게시글이 아닙니다.")
+
+
+def ensure_can_change_status(user: User) -> None:
+    """상태 변경은 **운영자군**만. 제안은 누구나 하지만 '진행' 은 회사가 하는 약속이다.
+
+    권한 정의를 새로 만들지 않고 게시판이 이미 쓰는 `can_moderate`(operator 이상)를
+    그대로 쓴다 — '운영자' 가 화면마다 다른 뜻을 갖기 시작하면 되돌리기 어렵다.
+    """
+    if not can_moderate(user):
+        raise ForbiddenError("제안 상태는 운영자만 바꿀 수 있습니다.")
+
+
+def next_statuses(post: Post) -> list[str]:
+    """지금 상태에서 갈 수 있는 곳. 자유게시글은 빈 목록이다.
+
+    화면이 이 목록만 그리면 "고를 수는 있는데 누르면 거절당하는" 선택지가 생기지 않는다.
+    노출 순서는 `IDEA_STATUSES`(일이 흘러가는 순서)를 따른다 — frozenset 을 그대로 내보내면
+    순서가 실행마다 달라져 드롭다운이 매번 다르게 보인다.
+    """
+    if (post.kind or KIND_FREE) != KIND_IDEA:
+        return []
+    allowed = IDEA_TRANSITIONS.get(post.idea_status or IDEA_PROPOSED, frozenset())
+    return [s for s in IDEA_STATUSES if s in allowed]
+
+
+def ensure_transition_allowed(current: str | None, target: str) -> None:
+    current = current or IDEA_PROPOSED
+    if current == target:
+        return
+    if target not in IDEA_TRANSITIONS.get(current, frozenset()):
+        raise ValidationAppError(
+            f"'{current}' 에서 '{target}' 으로는 바로 넘어갈 수 없습니다."
+        )
+
+
+def change_idea_status(
+    db: Session,
+    post: Post,
+    *,
+    actor: User,
+    status: str,
+    now: datetime,
+    outbound=None,
+    settings=None,
+    project_id: str | None = None,
+    repo=None,
+) -> Post:
+    """제안 상태를 바꾼다. '진행' 으로 넘어갈 때 **티켓을 만들어 연결한다.**
+
+    ## 왜 티켓 실패가 상태 변경을 막는가 (이 저장소의 알림 규칙과 반대다)
+
+    `_notify_post_comment` 는 알림이 실패해도 댓글을 남긴다. 알림은 본 작업에 **딸린**
+    통지라, 그 반대로 만들면 알림 표 하나가 협업을 멈추기 때문이다.
+
+    여기서는 반대다. 티켓은 '진행' 이라는 말의 **내용 그 자체**다. 티켓 없이 진행으로
+    적히면 게시판은 "이 일은 시작됐다"고 말하는데 아무도 그 일을 찾을 수 없다. 그리고
+    되돌릴 자리도, 다시 시도할 자리도 없다 — 고치려면 '티켓 없는 진행'을 위한 두 번째
+    버튼을 만들어야 하고, 그 순간 경로가 두 벌이 된다(이 작업이 피하려던 바로 그것).
+    그래서 티켓 생성이 실패하면 예외를 그대로 올려 요청 트랜잭션과 함께 되돌린다.
+    운영자는 오류를 보고 **같은 버튼을 다시 누르면 된다.** 아무 상태도 지어내지 않는다.
+
+    순서도 그 판단을 따른다: **티켓을 먼저 만들고**, 성공했을 때만 상태를 쓴다. 반대로
+    하면 티켓이 실패한 뒤 롤백까지의 사이에 '진행' 이 잠깐 존재하고, 더 나쁘게는 티켓만
+    만들어지고 연결이 사라지는 고아 티켓이 남는다.
+    """
+    ensure_idea(post)
+    ensure_can_change_status(actor)
+    ensure_transition_allowed(post.idea_status, status)
+
+    if status == IDEA_IN_PROGRESS and not post.ticket_page_id:
+        post.ticket_page_id = _create_linked_ticket(
+            db, post, actor=actor, outbound=outbound, settings=settings,
+            project_id=project_id, now=now, repo=repo,
+        )
+    post.idea_status = status
+    post.updated_at = now
+    db.flush()
+    return post
+
+
+def _create_linked_ticket(
+    db: Session, post: Post, *, actor: User, outbound, settings,
+    project_id: str | None, now: datetime, repo=None,
+) -> str | None:
+    """티켓을 만든다 — **`app/tickets` 의 생성 경로를 그대로 지난다.**
+
+    여기서 Notion 을 직접 부르지 않는 이유는 취향이 아니다. 티켓 생성에는 스키마 검증,
+    담당자 id 해석, 프로젝트 필수 판정, 설명 마크다운의 블록 변환, 미러 캐시 기록이 붙어
+    있다(`app/tickets/service.py::create_ticket`). 게시판이 두 번째 생성 경로를 만들면
+    그중 무엇이 빠졌는지 아무도 모르는 티켓이 생기고, 티켓 쪽 규칙이 바뀔 때 이쪽은
+    안 따라간다. 저장소의 Notion import 경계 검사(scripts/static_checks.sh)도 같은 뜻이다.
+
+    지연 import 인 이유: 게시판은 순수 내부 기능이라 모듈 최상위에서 티켓(그리고 그 뒤의
+    Notion 배선)을 끌어오면 게시판만 쓰는 경로까지 그 무게를 지게 된다. 알림에서 쓰는
+    방식과 같다.
+    """
+    from app.tickets.schemas import TicketCreate
+    from app.tickets.service import create_ticket
+
+    payload = TicketCreate(
+        title=post.title,
+        project_id=project_id,
+        # 제안 본문을 그대로 옮긴다 — 티켓만 보는 사람이 원문을 찾아 헤매지 않게.
+        # 티켓 설명은 4000자 상한이라(TicketCreate) 게시글 본문(20000자)을 잘라 넘긴다.
+        description=(post.body or "")[:3900] or None,
+        assignee_user_ids=[],
+    )
+    result = create_ticket(
+        db, outbound, settings, actor, payload=payload, now=now, repo=repo
+    )
+    return (result.get("ticket") or {}).get("id")
 
 
 def increment_view(db: Session, post: Post) -> None:
@@ -118,7 +276,48 @@ def create_comment(
     )
     db.add(comment)
     db.flush()
+    _notify_post_comment(db, post=post, author=author, parent_comment_id=parent_comment_id, now=now)
     return comment
+
+
+def _notify_post_comment(db: Session, *, post: Post, author: User, parent_comment_id, now) -> None:
+    """내 글(또는 내 댓글)에 답이 달리면 알린다 (N2).
+
+    `app/board/` 전체에 `notify` 문자열이 **0건**이었다 — 내 게시글에 댓글이 달려도 알 방법이
+    글을 다시 열어 보는 것뿐이었다. 만들어지는 알림 14종이 전부 관리·운영 이벤트 아니면
+    채팅이고, **사람이 실제로 협업하는 두 축(티켓·게시판)이 통째로 조용했다.**
+
+    ## 누구에게
+
+    글쓴이. 답글이면 **부모 댓글 작성자에게도** — 답글은 그 사람에게 하는 말이다.
+    자기 자신은 뺀다(내가 쓴 것을 나에게 알리면 배지가 늘 켜져 있다).
+
+    ## 실패해도 댓글은 남는다
+
+    알림은 본 작업(댓글)보다 약한 관심사다. 그 반대로 만들면 알림 표 하나가 협업을 멈춘다.
+    """
+    try:
+        targets = {post.author_user_id}
+        if parent_comment_id is not None:
+            parent = repository.get_comment(db, parent_comment_id)
+            if parent is not None:
+                targets.add(parent.author_user_id)
+        targets.discard(author.id)
+        targets.discard(None)
+        if not targets:
+            return
+
+        from app.notifications.service import notify_user
+
+        for uid in targets:
+            notify_user(
+                db, uid, type_="board_comment",
+                title=f"게시글에 새 댓글: {author.display_name}",
+                body=(post.title or "")[:200],
+                related=("board_post", post.id), now=now,
+            )
+    except Exception:  # noqa: BLE001 — 알림이 댓글 저장을 막으면 안 된다
+        logger.exception("게시글 댓글 알림에 실패했다 (post_id=%s)", post.id)
 
 
 def update_comment(

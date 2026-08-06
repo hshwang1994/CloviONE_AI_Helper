@@ -36,8 +36,20 @@ MODE_EMPTY = "empty"
 
 
 def normalize(raw: str | None) -> str:
-    """앞뒤 공백 제거 + 연속 공백 1칸. 검색어 판정과 표시에 같은 값을 쓴다."""
-    return " ".join(str(raw or "").split())[:MAX_QUERY_CHARS]
+    """앞뒤 공백 제거 + 연속 공백 1칸 + **한글 표기 통일(NFC)**. 판정과 표시에 같은 값을 쓴다.
+
+    NFC 를 여기서 하는 이유 (Z4): `한`(1코드포인트)과 `한`(ㅎ+ㅏ+ㄴ)은 화면에서 같아 보이지만
+    바이트가 다르다. macOS 에서 복사한 글이나 파일 이름은 NFD 로 들어오는 일이 흔하다.
+    색인 쪽(`indexer._clip`)도 같은 정규화를 지나므로 **두 쪽 표기가 항상 같아진다** —
+    한쪽만 하면 고친 것이 아니라 어긋나는 방향만 바뀐다.
+
+    ⚠️ 글자 수를 세기 **전에** 정규화해야 한다. NFD 로 온 두 글자는 코드포인트로는 여섯이라,
+    정규화 전에 세면 `MIN_FTS_CHARS` 판정이 뒤집혀 2자 질의가 FTS 로 가고 **조용히 0건**이 된다.
+    """
+    import unicodedata
+
+    text = unicodedata.normalize("NFC", str(raw or ""))
+    return " ".join(text.split())[:MAX_QUERY_CHARS]
 
 
 def mode_for(query: str) -> str:

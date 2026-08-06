@@ -25,7 +25,7 @@ import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
-import { Badge, Button, Skeleton, ErrorState, useToast, useConfirm, statusKind } from "../ui/kit.jsx";
+import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, statusKind, useConfirm, useToast } from "../ui/kit.jsx";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
@@ -736,7 +736,15 @@ export function Chat() {
         {convs.isLoading ? <Skeleton lines={4} />
           : convs.isError ? <ErrorState error={convs.error} onRetry={() => convs.refetch()} />
           : !convItems.length
-            ? <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", px: 1 }}>{showArchived ? "보관된 대화가 없습니다." : "아직 대화가 없습니다, '새 대화'로 시작하세요."}</Typography>
+            /* 빈 상태는 kit `EmptyState` 로. 회색 한 줄은 로딩 중인지·보관 필터 때문인지·
+               정말 없는 건지 구분해 주지 않는다(E계열 지적, `GroupedTickets` 와 같은 수정).
+               `.k-empty` + `role="status"` 가 따라오는 것도 이득이다 — 낭독되고, 기준 대조
+               도구가 "데이터가 없어 카드가 0" 인 화면을 디자인 불일치로 세지 않게 된다. */
+            ? (showArchived
+                ? <EmptyState title="보관된 대화가 없습니다"
+                    help="대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다." />
+                : <EmptyState title="아직 대화가 없습니다"
+                    help="위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다." />)
             : (() => {
                 const q = convFilter.trim().toLowerCase();
                 const filtered = q ? convItems.filter((c) => (c.title || "새 대화").toLowerCase().includes(q)) : convItems;
@@ -745,14 +753,32 @@ export function Chat() {
                     onOpen={() => { if (c.id !== cid) clearDraft(); setCid(c.id); setComposingNew(false); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}
                     onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
                     onArchive={(archived) => archiveConv.mutate({ id: c.id, archived })}
-                    onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true })) deleteConv.mutate(c.id); }} />
+                    onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
                 )) : <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", px: 1 }}>검색 결과가 없습니다.</Typography>;
               })()}
       </Box>
     </>
   );
 
+  /* AI 도우미도 다른 화면과 **같은 언어**로 그린다 (사용자 지적 S3, "지금은 너무 안이쁘다").
+   *
+   * 예전에는 이 화면만 제목도 빵 부스러기도 없이 맨바닥에 두 칸이 놓여 있었다. 앱의 다른
+   * 화면은 전부 `c-screen` + `PageHeader` + 카드 표면 위에 있는데 여기만 아니라서, 들어오는
+   * 순간 "덜 만든 화면" 으로 읽혔다. 방금 통합한 채팅방 껍데기(S1)와도 같은 모양으로 맞춘다.
+   *
+   * 격자 자체(열 수·서랍 전환·xxl 3열)는 건드리지 않는다 — 그 상태 기계는 테스트가 없고,
+   * 지금 고치려는 것은 '어떻게 담기는가' 이지 '어떻게 동작하는가' 가 아니다. */
   return (
+    <Box className="c-screen">
+      <PageHeader crumbRoot="도우미" area="AI 도우미" title="AI 도우미" />
+      <Card
+        sx={{
+          p: 0, overflow: "hidden",
+          height: { xs: "calc(100vh - 12rem)", md: "calc(100vh - 13rem)" },
+          minHeight: "30rem",
+          display: "grid",
+        }}
+      >
     <Box
       sx={{
         position: "relative", width: "100%", height: "100%", minHeight: 0,
@@ -885,7 +911,7 @@ export function Chat() {
                 스크롤 영역에 붙이면 컴포저 높이와 무관하게 항상 그 위에 뜬다. */}
             {!stick ? (
               <Box sx={{ position: "sticky", bottom: 0, alignSelf: "flex-end", mt: "auto", pt: 1, zIndex: 5 }}>
-                <Button variant="primary" size="sm" onClick={() => setStick(true)} sx={{ borderRadius: 999, boxShadow: 6 }}>
+                <Button variant="primary" size="sm" onClick={() => setStick(true)} sx={{ borderRadius: "999px", boxShadow: 6 }}>
                   <ArrowDownwardRoundedIcon aria-hidden="true" sx={{ fontSize: "1rem", mr: 0.5 }} />맨 아래로
                 </Button>
               </Box>
@@ -905,7 +931,7 @@ export function Chat() {
                 <Stack direction="row" flexWrap="wrap" gap={0.75}>
                   {pending.map((a, i) => (
                     <Paper key={i} variant="outlined"
-                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: 999, maxWidth: "18rem" }}>
+                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: "999px", maxWidth: "18rem" }}>
                       {/* 보낼 이미지를 텍스트 칩이 아니라 실제 썸네일로 확인시킨다(로컬 data URL). */}
                       <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                         sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
@@ -1033,6 +1059,8 @@ export function Chat() {
           </Box>
         </Box>
       ) : null}
+    </Box>
+      </Card>
     </Box>
   );
 }

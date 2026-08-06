@@ -11,7 +11,7 @@ services, redirect 금지, secret 주입)만 지나고, 토큰은 secrets_dir �
 
 from __future__ import annotations
 
-from app.core.errors import AppError
+from app.core.errors import AppError, ValidationAppError
 
 # 우리가 읽는 "문서" DB 속성 이름 — Notion 스키마와 정확히 일치해야 한다(§17.2 추측 금지, 실제 확인함).
 PROP_TITLE = "제목"
@@ -67,8 +67,28 @@ def _headers(settings) -> dict[str, str]:
     }
 
 
+def _require_documents_database_id(settings) -> None:
+    """문서 DB id 가 비었으면 **부르기 전에** '설정 안 됨' 으로 끊는다 (P1).
+
+    작업 DB 쪽(`app/reports/notion_source.py::_require_tasks_database_id`)과 같은 이유이고
+    같은 모양이다. 빈 id 로 부르면 URL 이 `/v1/databases//query` 가 되고 Notion 은 400 을
+    준다. 화면은 그걸 "조회 실패" 로 그리고, 운영자는 네트워크나 토큰을 의심하며 시간을 버린다.
+    설정이 비었다는 사실은 부르기 전에 이미 안다.
+
+    (고객사 고유값을 소스 기본값에서 비운 뒤로 이 상태가 **설치 직후의 정상 상태**가 됐다 -
+    그래서 조용히 실패하면 안 된다.)
+    """
+    if not (settings.notion_documents_database_id or "").strip():
+        raise NotionDocsNotConfiguredError(
+            "노션 문서 데이터베이스 id 가 설정되지 않았습니다(NOTION_DOCUMENTS_DATABASE_ID)."
+        )
+
+
 def _request(outbound, settings, method: str, path: str, *, json: dict | None = None) -> dict:
     """docs 토큰으로 Notion REST를 부른다. 토큰 미설정→NotConfigured, 그 외 오류→QueryError."""
+    # DB id 를 쓰는 경로만 여기서 걸린다 - 페이지 단건 조회는 id 가 필요 없다.
+    if "/v1/databases/" in path:
+        _require_documents_database_id(settings)
     url = f"{settings.notion_api_base.rstrip('/')}{path}"
     try:
         resp = outbound.request(
@@ -80,6 +100,8 @@ def _request(outbound, settings, method: str, path: str, *, json: dict | None = 
             timeout=30.0,
             auth_type="bearer",
             secret_ref=settings.notion_docs_token_ref,
+            # S9 — 문서 동기화 한 번이 최대 251요청이라 429 가 실제로 난다.
+            rate_limit_retries=3,
         )
     except FileNotFoundError as exc:
         raise NotionDocsNotConfiguredError() from exc
@@ -128,6 +150,11 @@ def _url(prop: dict) -> str | None:
     return u if isinstance(u, str) and u else None
 
 
+def _person_ids(prop: dict) -> list[str]:
+    """person 속성에서 **소스 id** 만. 이름은 바뀌지만 id 는 안 바뀐다(X2)."""
+    return [p.get("id") for p in (prop.get("people") or []) if isinstance(p, dict) and p.get("id")]
+
+
 def _person_names(prop: dict) -> list[str]:
     # 통합이 People 를 읽을 수 있으면 name 이 온다. 없으면 빈 목록(소유자 텍스트로 폴백).
     return [p.get("name") for p in (prop.get("people") or []) if isinstance(p, dict) and p.get("name")]
@@ -160,6 +187,8 @@ def parse_document(row: dict) -> dict:
         "status": _select_name(p(PROP_STATUS)),
         "priority": _select_name(p(PROP_PRIORITY)),
         "author_names": _person_names(p(PROP_AUTHOR)),
+        # id 도 같이 가져온다 (X2). 응답에 이미 들어 있는데 예전에는 이름만 남기고 버렸다.
+        "author_notion_ids": _person_ids(p(PROP_AUTHOR)),
         "owner": _rich_text(p(PROP_OWNER)),
         "doc_date": _date_start(p(PROP_DATE)),
         "orig_date": _date_start(p(PROP_ORIG_DATE)),
@@ -247,9 +276,22 @@ def _query_titles(outbound, settings, database_id: str) -> dict[str, str]:
     return out
 
 
-def resolve_relation_maps(outbound, settings, schema: dict) -> dict[str, dict[str, str]]:
+def resolve_relation_maps(
+    outbound, settings, schema: dict, *, failures: list[str] | None = None
+) -> dict[str, dict[str, str]]:
     """유형·카테고리·프로젝트 relation 각각의 {page_id: name} 맵을 스키마에서 대상 DB를
-    자동 발견해 만든다. 한 relation 해석이 실패해도 다른 것에 영향 주지 않는다(개별 격리)."""
+    자동 발견해 만든다. 한 relation 해석이 실패해도 다른 것에 영향 주지 않는다(개별 격리).
+
+    `failures` 를 주면 **실패한 relation 이름을 담아 준다** (C4).
+
+    왜 필요한가: 실패를 `{}` 로 삼키면 호출측이 "그 relation 이 원래 비어 있다" 와
+    "조회가 실패했다" 를 구분할 수 없다. 그런데 결과는 전혀 다르다 — 맵이 비면
+    `classify([], [], title)` 로 떨어져 **전 문서의 문서종류·업무분야·기술태그가 한 번에
+    '기타' 로 바뀐다**. 그런데 동기화 상태는 `ok`, error 는 `null` 이었다. 다음 성공
+    동기화가 되돌리지만 그 사이(기본 600초) 필터가 전부 무너지고, 아무도 이유를 모른다.
+
+    반환값 모양은 그대로다 — 기존 호출부와 테스트가 계속 동작한다.
+    """
     maps: dict[str, dict[str, str]] = {}
     for prop_name in _RELATION_PROPS:
         target = _relation_target_db(schema.get(prop_name) or {})
@@ -260,6 +302,8 @@ def resolve_relation_maps(outbound, settings, schema: dict) -> dict[str, dict[st
             maps[prop_name] = _query_titles(outbound, settings, target)
         except AppError:
             maps[prop_name] = {}  # 이 relation만 이름 미해석 — 목록은 계속 만든다
+            if failures is not None:
+                failures.append(prop_name)
     return maps
 
 
@@ -422,3 +466,85 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
         if not cursor:
             break
     return out
+
+
+# ── 본문 쓰기(포털에서 편집) ─────────────────────────────────────────────────
+#
+# 규칙 자체는 `app/tickets/notion_write.py::replace_page_body` 가 먼저 정했고 그 docstring 이
+# 왜 그렇게 하는지를 길게 적어 놓았다. 여기서 그 함수를 **부르지 않고 다시 쓰는 이유는 하나**다:
+# 문서 DB 와 작업 DB 는 서로 다른 Notion 통합(토큰)으로 붙는다. 티켓 토큰으로 문서 페이지의
+# 블록을 지우려 하면 404 가 나고, 그때는 이미 정본을 저장한 뒤라 "저장됐는데 원본과 어긋남"
+# 상태가 늘 켜진다. 토큰이 다르면 관문도 달라야 한다.
+_MAX_REPLACE_BLOCKS = 200
+_MAX_CHILDREN = 100
+# 우리 편집기가 표현할 수 있는 블록 + 구분선. 이 집합 **밖의 블록은 지우지 않는다.**
+_EDITABLE_BLOCK_TYPES = set(_TEXT_BLOCK_TYPES) | {"divider"}
+
+
+def page_block_refs(
+    outbound, settings, page_id: str, *, limit: int | None = None
+) -> list[tuple[str, str]]:
+    """(블록 id, 블록 타입) 목록.
+
+    타입까지 읽는 이유는 아래 `replace_page_body` 가 **지워도 되는 블록만** 지우기 위해서다.
+    id 만 모아 전부 지우면 저장 한 번에 원본의 이미지·표가 사라진다.
+    """
+    path = f"/v1/blocks/{page_id}/children"
+    refs: list[tuple[str, str]] = []
+    cursor: str | None = None
+    for _ in range(_MAX_BLOCK_PAGES):
+        q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        data = _request(outbound, settings, "GET", path + q)
+        for block in data.get("results", []):
+            if isinstance(block, dict) and block.get("id"):
+                refs.append((block["id"], block.get("type") or ""))
+        if limit is not None and len(refs) > limit:
+            return refs
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+        if not cursor:
+            break
+    return refs
+
+
+def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -> None:
+    """문서 본문의 **글 부분만** 교체한다. 이미지·표 같은 비텍스트 블록은 건드리지 않는다.
+
+    ## 왜 통째로 교체하지 않나
+
+    편집기에는 이미지·표가 실려 오지도 않는다(마크다운으로 표현할 수 없어 '원본에서 확인'
+    자리표시로 바뀐다). 그 상태에서 1레벨 children 을 전부 지우면 **사용자가 본 적도 없는
+    내용이 저장 한 번에 사라진다.** 문서는 계약서·설계서가 들어 있는 자리라 티켓보다 잃는
+    것이 크다. 그리고 Notion 호스팅 파일은 API 로 재생성할 수 없어서(만료되는 서명 URL)
+    지웠다 다시 만드는 길도 없다. **안 지우는 것이 유일한 방법이다.**
+
+    남은 비텍스트 블록이 앞에 오고 새로 쓴 글이 뒤에 붙는다. 원본에서 이미지가 글 중간에
+    있었다면 위치가 앞으로 모인다. 위치가 바뀌는 것과 내용이 사라지는 것 중 무엇이 나은지는
+    물어볼 필요가 없다(화면 안내 문구도 이 동작에 맞춰 적었다).
+
+    ## 실패 시
+
+    순서를 삭제 → 추가로 두는 이유는 재시도 수렴이다: 중간에 실패해도 같은 본문으로 다시
+    저장하면 원하는 상태가 된다. 반대로 하면 실패할 때마다 본문이 한 벌씩 늘어난다.
+    실패해도 우리 DB 의 정본은 이미 저장된 뒤라 사용자 글은 살아 있다.
+
+    원본이 아주 큰 페이지는 손대지 않고 거절한다 - 삭제가 블록당 한 번의 DELETE 라
+    수백 개면 요청 하나가 수백 왕복이 된다.
+    """
+    refs = page_block_refs(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
+    if len(refs) > _MAX_REPLACE_BLOCKS:
+        raise ValidationAppError(
+            f"원본 본문이 너무 커서(블록 {_MAX_REPLACE_BLOCKS}개 초과) 여기서 교체하지 "
+            f"않았습니다. 원본에서 편집해 주세요."
+        )
+    for block_id, btype in refs:
+        # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 - 그대로 둔다.
+        if btype and btype not in _EDITABLE_BLOCK_TYPES:
+            continue
+        _request(outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+    if blocks:
+        _request(
+            outbound, settings, "PATCH", f"/v1/blocks/{page_id}/children",
+            json={"children": blocks[:_MAX_CHILDREN]},
+        )

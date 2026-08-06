@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
@@ -108,6 +109,65 @@ describe("DocBody 공용 렌더러(티켓 상세와 공유)", () => {
     expect(container.querySelectorAll("ol")).toHaveLength(1);
     expect(container.querySelectorAll("ul > li")).toHaveLength(2);
     expect(container.querySelectorAll("ol > li")).toHaveLength(2);
+  });
+});
+
+describe("문서 댓글 (사용자 지적 #9)", () => {
+  /* 화면이 실제로 타래를 걸고 있는지 본다. 서버만 만들고 화면에 안 붙이면
+     "댓글 기능이 있다"는 말이 사용자에게는 거짓이다. */
+  const COMMENTS = [
+    { id: "c1", author_user_id: "u1", author_name: "김운영", body: "이 설계 근거가 궁금합니다.",
+      deleted: false, deleted_at: null, created_at: "2026-08-01T01:00:00",
+      updated_at: "2026-08-01T01:00:00", can_edit: true, can_delete: true },
+  ];
+
+  const routed = (comments) => (path) => {
+    if (path.indexOf("/comments") >= 0) return Promise.resolve({ ok: true, comments });
+    return Promise.resolve({ document: DOC, blocks: [] });
+  };
+
+  it("문서 상세에 댓글 타래를 건다", async () => {
+    apiMock.mockImplementation(routed(COMMENTS));
+    wrap(<TeamDoc />);
+
+    expect(await screen.findByText("이 설계 근거가 궁금합니다.")).toBeInTheDocument();
+    // 문서 댓글은 문서 주소로 간다 — 티켓 주소를 복사해 오면 여기서 잡힌다.
+    expect(apiMock).toHaveBeenCalledWith("/api/team-docs/d1/comments");
+  });
+
+  it("삭제된 댓글은 사라지지 않고 툼스톤으로 남는다", async () => {
+    apiMock.mockImplementation(routed([
+      { ...COMMENTS[0], body: "", deleted: true, deleted_at: "2026-08-01T03:00:00",
+        can_edit: false, can_delete: false },
+    ]));
+    wrap(<TeamDoc />);
+
+    expect(await screen.findByText(/삭제된 댓글입니다/)).toBeInTheDocument();
+    expect(screen.queryByText("이 설계 근거가 궁금합니다.")).toBeNull();
+  });
+
+  it("등록하면 서버가 준 목록을 그대로 반영한다(클라가 목록을 기워 맞추지 않는다)", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path, opts) => {
+      if (opts && opts.method === "POST") {
+        expect(path).toBe("/api/team-docs/d1/comments");
+        return Promise.resolve({ ok: true, comment_id: "c9", comments: [
+          ...COMMENTS,
+          { id: "c9", author_user_id: "u2", author_name: "나", body: "새 댓글",
+            deleted: false, deleted_at: null, created_at: "2026-08-01T04:00:00",
+            updated_at: "2026-08-01T04:00:00", can_edit: true, can_delete: true },
+        ] });
+      }
+      return routed(COMMENTS)(path);
+    });
+
+    wrap(<TeamDoc />);
+    await screen.findByText("이 설계 근거가 궁금합니다.");
+    const box = within(screen.getByRole("region", { name: "댓글" }));
+    await user.type(box.getByLabelText("댓글 입력"), "새 댓글");
+    await user.click(box.getByRole("button", { name: "댓글 등록" }));
+
+    expect(await screen.findByText("새 댓글")).toBeInTheDocument();
   });
 });
 

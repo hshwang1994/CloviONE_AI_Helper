@@ -108,14 +108,32 @@ def recent_board_posts(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
     ]
 
 
-def documents_changed_since(db: Session, since_iso: str, *, limit: int = RECENT_LIMIT) -> dict:
-    """주간 다이제스트용 — since_iso('YYYY-MM-DD') 이후 수정된 문서 {count, items}.
+def documents_changed_between(
+    db: Session, since_iso: str, until_iso: str, *, limit: int = RECENT_LIMIT
+) -> dict:
+    """주간 다이제스트용 — 창 안에 **수정된** 문서 {count, items}.
 
-    last_edited 는 'YYYY-MM-DDTHH:MM:SS...' 형식의 원본 문자열이라 날짜 접두사 비교로
-    범위를 잡을 수 있다(파싱 불필요, 인덱스 친화적). 'YYYY-MM-DD' 는 같은 날 00:00 보다
-    사전순으로 작거나 같으므로 그날을 포함한다.
+    ## 이 함수가 M4 였다 (인자를 둘로 늘린 이유)
+
+    예전에는 인자가 하나였고 그 값이 'YYYY-MM-DD' 라는 **KST 달력일**이었다. 그런데
+    `last_edited` 는 Notion 이 준 **UTC** 문자열이다. 축이 다른 두 값을 그대로 비교하면
+    KST 는 UTC+9 라 **월요일 오전 9시 이전에 고친 문서가 통째로 빠진다** — '2026-08-03'
+    보다 '2026-08-02T21:00:00.000Z'(KST 월요일 06:00)가 사전순으로 앞이기 때문이다.
+    위쪽 경계는 아예 없어서 반대로 **다음 주에 고친 문서가 이번 주에 끼었다**.
+
+    화면에는 그럴듯한 숫자가 떠 있어서 아무도 신고하지 않는다. 그래서 경계를 양쪽 다
+    받는다. 경계를 만드는 일은 이 파일이 하지 않고 `home.service.utc_iso_bounds` 한 곳이
+    한다 — 변환이 두 벌이 되면 갈라진 쪽이 다시 조용히 틀린다(바로 아래
+    `board_posts_between` 이 이미 같은 규약이다).
+
+    `since_iso` / `until_iso` 는 그 함수가 준 naive UTC ISO 문자열이다(예
+    '2026-08-02T15:00:00'). 문자열로 자르는 근거는 그 함수의 주석에 적어 뒀다.
     """
-    base = (DocumentCache.archived.is_(False), DocumentCache.last_edited >= since_iso)
+    base = (
+        DocumentCache.archived.is_(False),
+        DocumentCache.last_edited >= since_iso,
+        DocumentCache.last_edited < until_iso,
+    )
     total = db.execute(
         select(func.count()).select_from(DocumentCache).where(*base)
     ).scalar_one()

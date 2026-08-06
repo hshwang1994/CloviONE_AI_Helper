@@ -104,10 +104,44 @@ class Worker:
                 if job.status == "failed":
                     self._notify_failure(handler, job_id, str(exc))
                 return True
-            repository.finish(db, job, now=self._clock.now())
-            db.commit()
+            # 커밋을 `try` 안에 둔다 (S5). 예전에는 밖에 있어서, **핸들러는 성공했는데
+            # 커밋만 실패하면**(SQLite 잠금 등) 잡이 `running` 인 채로 남았다. 그러면
+            # `sweep` 이 타임아웃 뒤 재큐잉하고 핸들러가 **다시 실행된다** — n8n·Notion
+            # 쓰기가 최대 3회 나가는 것이 이 경로였다.
+            #
+            # 어느 쪽으로 옮길지: **1회 실행 + 실패 기록**이다. 이미 벌어진 외부 부작용을
+            # 한 번 더 내는 것보다, 성공을 못 적었다는 사실을 남기는 편이 낫다.
+            try:
+                repository.finish(db, job, now=self._clock.now())
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception("job %s: 처리는 끝났는데 완료 기록에 실패했다", job_id)
+                self._finish_out_of_band(job_id)
+                return True
             logger.info("job %s (%s) succeeded", job_id, job_type)
             return True
+
+    def _finish_out_of_band(self, job_id: str) -> None:
+        """완료 기록만 실패한 잡을 **새 세션에서** 다시 적는다 (S5).
+
+        핸들러는 이미 성공했다 — 되돌릴 수 없는 외부 쓰기가 나갔을 수 있다. 여기서도
+        못 적으면 잡은 `running` 으로 남고 `sweep` 이 재큐잉해 **다시 실행**한다. 그 사실을
+        로그에 분명히 남긴다: 이 줄이 없으면 중복 실행의 원인을 영원히 못 찾는다.
+        """
+        try:
+            with self._session_factory() as db:
+                job = db.get(Job, job_id)
+                if job is None or job.status != "running":
+                    return
+                repository.finish(db, job, now=self._clock.now())
+                db.commit()
+                logger.warning("job %s: 완료 기록을 재시도로 복구했다", job_id)
+        except Exception:
+            logger.exception(
+                "job %s: 완료 기록에 두 번 실패했다. 스윕이 재큐잉하면 중복 실행된다",
+                job_id,
+            )
 
     def _notify_failure(self, handler: JobHandler, job_id: str, error: str) -> None:
         """Invoke the handler's on_failure hook (if any) and notify the job

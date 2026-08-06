@@ -18,22 +18,28 @@ import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
+import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { useAuth } from "./auth.jsx";
 import { NotificationBell } from "./NotificationBell.jsx";
 import { UserMenu } from "./UserMenu.jsx";
 import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
+import { AssistantDrawer } from "./AssistantDrawer.jsx";
+import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
-import { bestNavMatch, NAV_BREAKPOINT_PX } from "./navConfig.js";
+import { activeNavPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
-import { useDocumentTitle } from "./documentTitle.js";
+import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
+import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
+import { applyTheme, storeTheme } from "./theme-store.js";
 
 /* 앱 셸 — 상단바 + 사이드바 + 본문.
  *
@@ -63,8 +69,27 @@ function getStoredCollapsed(userId) {
  * 채팅방 화면에 있을 때는 5초, 다른 화면에서는 여기 30초로 돈다 — 사이드바 배지 하나
  * 때문에 앱 전체가 5초 폴링을 하지는 않는다.
  */
+/* 어느 사이드바 항목이 어떤 알림 유형을 보여 주는가 (사용자 지적 S2).
+ *
+ * 화면을 열면 그 유형이 읽음 처리된다 — "확인하면 자동으로 없애는 형태로" 가 그 뜻이다.
+ * 여기 한 곳에만 두는 이유: 배지를 붙이는 곳과 지우는 곳이 갈리면 **표시는 되는데 안 지워지는**
+ * 항목이 생긴다(그 상태를 사용자가 먼저 알아챈다).
+ *
+ * 채팅은 여기 없다 — 채팅 안읽음은 알림이 아니라 방의 읽음 커서로 세고, 방을 열면 이미 지워진다. */
+const BADGE_TYPES = {
+  notifUnread: null,                          // 알림 화면은 그 자체가 목록이라 '모두 읽음'이 따로 있다
+  jobFailed: ["job_failed"],
+  // 위임받았다는 알림도 여기다 — 그 사람이 가야 할 곳이 승인 화면이다(X7).
+  approvalPending: ["approval_overdue", "approval_requested", "approval_delegated"],
+};
+
+const BADGE_ROUTES = {
+  "/jobs": "jobFailed",
+  "/approvals": "approvalPending",
+};
+
 function useNavBadges() {
-  const q = useQuery({
+  const rooms = useQuery({
     queryKey: ["team-chat-rooms"],
     queryFn: () => api("/api/team-chat/rooms"),
     refetchInterval: 30000,
@@ -72,7 +97,52 @@ function useNavBadges() {
     retry: false,
     staleTime: 10000,
   });
-  return { chatUnread: (q.data && q.data.unread_total) || 0 };
+  // 알림 배지 상태는 **벨이 이미 폴링한다**(NotificationBell 의 `["noti-unread"]`).
+  // 같은 키·같은 엔드포인트를 써서 react-query 가 하나로 합치게 한다 — 폴링을 하나 더
+  // 만들면 사이드바가 있다는 이유만으로 요청이 두 배가 된다(PF1 이 지적한 그 부류다).
+  const notif = useQuery({
+    queryKey: ["noti-unread"],
+    queryFn: () => api("/api/notifications/unread-count"),
+    refetchInterval: 60000,
+    retry: false,
+    staleTime: 20000,
+  });
+  const byType = (notif.data && notif.data.by_type) || {};
+  const sum = (types) => (types || []).reduce((n, t) => n + (byType[t] || 0), 0);
+
+  return {
+    chatUnread: (rooms.data && rooms.data.unread_total) || 0,
+    notifUnread: (notif.data && notif.data.badge) || 0,
+    jobFailed: sum(BADGE_TYPES.jobFailed),
+    approvalPending: sum(BADGE_TYPES.approvalPending),
+  };
+}
+
+/* 화면에 들어오면 그 화면이 보여 주는 알림 유형을 읽음 처리한다 (S2 뒷절반).
+ *
+ * **폴링이 아니라 진입 이벤트**다 — 폴링으로 지우면 열지도 않은 알림이 사라진다.
+ * 실패는 조용히 넘긴다: 배지가 한 번 더 보이는 것이 최악의 결과이고, 여기서 오류 토스트를
+ * 띄우면 "화면을 열었더니 오류가 났다" 로 읽힌다. */
+function useClearBadgeOnEntry(pathname, ready) {
+  const qc = useQueryClient();
+  React.useEffect(() => {
+    // CSRF 토큰은 `/api/me` 응답과 함께 들어온다. 그 전에 POST 하면 403 이고, 배지는
+    // 안 지워진 채로 남는다(실제로 그랬다). 인증이 준비된 뒤에만 부른다.
+    if (!ready) return;
+    const key = BADGE_ROUTES[pathname];
+    const types = key && BADGE_TYPES[key];
+    if (!types || !types.length) return;
+    let cancelled = false;
+    api("/api/notifications/read-types", { method: "POST", body: { types } })
+      .then((res) => {
+        if (cancelled || !res || !res.read) return;
+        qc.invalidateQueries({ queryKey: ["noti-unread"] });
+        qc.invalidateQueries({ queryKey: ["noti-list"] });
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+      })
+      .catch(() => { /* 배지가 한 번 더 보일 뿐이다 */ });
+    return () => { cancelled = true; };
+  }, [pathname, ready, qc]);
 }
 
 /** 배지 숫자. 99를 넘으면 폭이 튀어 항목 이름이 밀리므로 99+로 자른다. */
@@ -189,6 +259,68 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
   );
 }
 
+/* 상단바 다크/라이트 토글 — 사용자 지적 Q3("다크/화이트 버튼이 오른쪽 상단에 있어야 한다").
+ *
+ * 예전에는 이 스위치가 **사용자 메뉴를 열어야** 나왔다. 하루에도 여러 번 쓰는 것이
+ * 두 번 클릭 뒤에 숨어 있었다. 사용자 메뉴 쪽 항목은 그대로 둔다 — 좁은 화면에서는
+ * 상단바 아이콘이 접히므로 두 경로가 다 필요하다.
+ *
+ * 상태는 `<html data-theme>` 이 정본이고 ThemeModeProvider 가 MutationObserver 로 따라온다.
+ * 그래서 여기서는 applyTheme 만 부르면 되고 별도 상태를 들 필요가 없다. */
+/* 사용자/관리자 전환 — 사용자 지적 P2("사용자 관리자 버전의 위치를 왼쪽 트리 상단으로 옮겨라").
+ *
+ * 예전에는 상단바 오른쪽, 알림 벨과 아바타 사이에 있었다. 그런데 이건 **어느 메뉴 트리를
+ * 볼 것인가**를 고르는 스위치라 알림·계정 같은 전역 컨트롤이 아니라 그 트리 위에 있어야
+ * 맥락이 맞는다. 사이드바가 어두운 판이라 배경/글자색만 그쪽에 맞춘다.
+ *
+ * 관리자 권한이 없는 사용자에게는 애초에 렌더되지 않는다(호출측 `!isUser` 조건). */
+function ConsoleSwitch({ userSeg, onNavigate }) {
+  return (
+    <Box
+      role="group"
+      aria-label="화면 전환"
+      sx={{
+        display: "flex", mx: 1.5, mt: 1.5, mb: 0.5, p: 0.5,
+        bgcolor: "rgba(255,255,255,.08)", borderRadius: "999px",
+      }}
+    >
+      {[{ label: "사용자", on: userSeg, to: "/me" }, { label: "관리자", on: !userSeg, to: "/dashboard" }].map((seg) => (
+        <Button
+          key={seg.label}
+          size="small"
+          onClick={() => onNavigate(seg.to)}
+          aria-current={seg.on ? "page" : undefined}
+          sx={{
+            flex: 1, minHeight: 32, borderRadius: "999px", textTransform: "none", fontWeight: 750,
+            color: seg.on ? "primary.dark" : "rgba(237,240,255,.78)",
+            bgcolor: seg.on ? "common.white" : "transparent",
+            "&:hover": { bgcolor: seg.on ? "common.white" : "rgba(255,255,255,.12)" },
+          }}
+        >
+          {seg.label}
+        </Button>
+      ))}
+    </Box>
+  );
+}
+
+function ThemeToggle({ userId }) {
+  const { mode } = useThemeMode();
+  const dark = mode === "dark";
+  const next = dark ? "light" : "dark";
+  return (
+    <Tooltip title={dark ? "라이트 모드로" : "다크 모드로"}>
+      <IconButton
+        onClick={() => { storeTheme(next, userId); applyTheme(next); }}
+        aria-label={dark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+        color="inherit"
+      >
+        {dark ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 export function AppShell({
   nav, ariaLabel, navOpen, onCloseNav, onToggleNav,
   isUser, userSeg, minimal, showMenu, children,
@@ -206,6 +338,11 @@ export function AppShell({
   const avatarUrl = (auth.data && auth.data.avatar_url) || null;
   const isNarrow = useMediaQuery(`(max-width:${NAV_BREAKPOINT_PX}px)`);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  // 클로비 AI 드로어(Q2) — 세 진입점이 모두 이걸 연다. 예전에는 셋 다
+  // `navigate("/chat")` 이라 물어보려고 누르면 보던 화면이 사라졌다.
+  const [assistantOpen, setAssistantOpen] = React.useState(false);
+  // 이 화면이 보여 주는 알림 유형을 진입 시 읽음 처리한다(S2 "확인하면 자동으로 없애는 형태로").
+  useClearBadgeOnEntry(loc.pathname, !!(auth.data && auth.data.id));
   useCommandPaletteHotkey(setPaletteOpen);
 
   // 권한 없는 메뉴는 숨긴다. 팔레트도 같은 목록을 쓴다 — 검색 결과로 403에 빠지면 안 된다.
@@ -215,11 +352,23 @@ export function AppShell({
       .filter((g) => g.items.length),
     [nav, role]
   );
-  const activePath = bestNavMatch(loc.pathname, groups.flatMap((g) => g.items.map((it) => it.to)));
+  /* 상세 화면에는 자기 메뉴 항목이 없다(`/tickets/:id`·`/search`·`/profile`) — 예전에는
+     그런 화면에서 **선택 표시가 통째로 사라졌다**(사용자 지적 #14). 어디서 왔는지가
+     있으면 그 메뉴를, 없으면 `ROUTE_OWNER` 의 기본 소속을 켠다. */
+  const activePath = activeNavPath(
+    loc.pathname,
+    groups.flatMap((g) => g.items.map((it) => it.to)),
+    loc.state && loc.state.from,
+  );
 
-  // AI 도우미(/chat)만 자체 2단 레이아웃이라 폭 캡·패딩을 없앤다.
-  // /chat-rooms(팀 채팅방)는 일반 레이아웃이므로 정확히 /chat 일 때만.
-  const flush = loc.pathname === "/chat";
+  // AI 도우미(/chat)는 우하단 마스코트 버튼만 감춘다 — 그 버튼이 하는 일이 "/chat 으로 가기"
+  // 뿐이라 그 화면에서는 아무 일도 하지 않으면서 입력창을 가린다.
+  //
+  // 예전에는 이 화면만 **폭 캡과 패딩까지 없앴다**("자체 2단 레이아웃이라"). 그 결과 앱에서
+  // 유일하게 제목도 여백도 없이 맨바닥에 붙는 화면이 됐고, 사용자가 "너무 안이쁘다" 고 한
+  // 이유가 그것이었다(S3). 지금은 다른 화면과 같은 `c-screen` + PageHeader + 카드 위에
+  // 있으므로 예외를 둘 이유가 없다.
+  const onAssistant = loc.pathname === "/chat";
   const homeUser = isUser || userSeg;
 
   const drawerContent = (
@@ -229,7 +378,7 @@ export function AppShell({
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5 }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>ClovirAssist</Typography>
+          <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>{brand()}</Typography>
           <Typography sx={{ fontSize: "0.75rem", color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
@@ -251,12 +400,16 @@ export function AppShell({
         </Box>
       ) : (
         <>
+          {/* 트리 위에 둔다 — 이 스위치가 고르는 것이 바로 아래 트리다(P2). */}
+          {!isUser && !minimal ? (
+            <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); navigate(to); }} />
+          ) : null}
           <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} />
           {/* 세로가 짧은 화면(노트북 1366x768 에 관리자 메뉴 전개)에서 이 카드가 눌리지 않게
               한다. 목록은 이미 자기 안에서 스크롤되므로(SidebarNav overflowY:auto) 카드가
               자리를 먼저 가져가도 메뉴를 못 보게 되지 않는다. */}
           <Box sx={{ pb: 3, flexShrink: 0 }}>
-            <MascotSidebarCard onClick={() => { onCloseNav(); navigate("/chat"); }} />
+            <MascotSidebarCard onClick={() => { onCloseNav(); setAssistantOpen(true); }} />
           </Box>
         </>
       )}
@@ -297,7 +450,11 @@ export function AppShell({
             " linear-gradient(112deg, #17204D 0%, #293B8D 48%, #536CD6 100%)",
         }}
       >
-        <Toolbar sx={{ minHeight: APPBAR_HEIGHT, gap: 1 }}>
+        {/* disableGutters — MUI Toolbar 기본 좌우 패딩(24px)이 남으면 로고 칸이
+            사이드바 폭에서 그만큼 밀려 두 층의 경계가 어긋난다. `pl:0` 으로는
+            안 되고(gutters 가 브레이크포인트별로 다시 넣는다) 아예 꺼야 한다.
+            왼쪽 여백은 로고 칸이 자기 안에서 주고, 오른쪽만 여기서 준다. */}
+        <Toolbar disableGutters sx={{ minHeight: APPBAR_HEIGHT, gap: 1, pr: 2.5 }}>
           {showMenu && isNarrow ? (
             <IconButton
               onClick={onToggleNav}
@@ -317,13 +474,43 @@ export function AppShell({
             onClick={() => { if (minimal) { window.location.href = "/login"; } else { navigate(homeUser ? "/me" : "/dashboard"); } }}
             aria-label={minimal ? "로그인 화면으로" : "홈으로"}
             color="inherit"
-            sx={{ gap: 1.5, textTransform: "none", px: 1 }}
+            sx={{
+              /* 로고 칸은 **사이드바 열과 정확히 같은 폭**이다 (사용자 지적).
+                 상단바는 한 줄로 보이지만 실제로는 두 구역이다: 왼쪽은 사이드바 위,
+                 오른쪽은 본문 위. 그 경계가 아래 사이드바 경계와 어긋나면 두 층이
+                 서로 다른 격자를 쓰는 것처럼 보인다.
+                 그래서 검색 막대는 이 칸 **다음**에서 시작한다 — 사이드바 위로 넘어오면 안 된다.
+                 좁은 화면(사이드바가 서랍으로 접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */
+              width: isNarrow ? "auto" : DRAWER_WIDTH,
+              flexShrink: 0,
+              justifyContent: "flex-start",
+              gap: 1.5, textTransform: "none",
+              px: 2.5,
+            }}
           >
-            <Box sx={{ bgcolor: "common.white", borderRadius: 1.5, p: 0.25, display: "grid", placeItems: "center" }}>
-              <BrandLogo markOnly width={26} />
-            </Box>
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" }, fontWeight: 800, fontSize: "0.9375rem" }}>
-              ClovirAssist
+            {/* 공식 로고 전체 — 사용자 지적 P3("좌상단에 ClovirAssist, 하단에
+                Smart Workspace Assistant 가 들어간 아이콘을 사용해라").
+                예전에는 마크 + 평문 "ClovirAssist" 만 있고 **부제가 빠져 있었다**.
+                `BrandLogo` 는 그 부제까지 그리는 공식 워드마크의 인라인 재현이다.
+
+                흰 판 위에 얹는 이유: 워드마크의 강조어("Assist")가 브랜드 인디고(#536CD6)라
+                딥 인디고 상단바 위에서는 배경에 묻힌다. 자산의 색을 바꾸는 대신 자산이
+                전제하는 밝은 면을 준다 — 로고는 원본 그대로 읽히고 대비도 확보된다.
+                좁은 화면에서는 마크만 남긴다(부제까지 넣을 폭이 없다). */}
+            <Box sx={{
+              bgcolor: "common.white", borderRadius: 1.5, px: { xs: 0.25, sm: 1 }, py: 0.25,
+              display: "grid", placeItems: "center", color: "#1B2235",
+            }}>
+              {/* 폭은 사이드바 칸(264px)에서 버튼 패딩(40)과 흰 칩 패딩(16)을 뺀 값에 맞춘다.
+                  워드마크 viewBox 가 528x156 이라 높이는 폭 x 156/528 이고, 상단바 64px 안에
+                  들어가야 한다(로고 하나가 셸 높이를 밀면 안 된다 — 188px 로 뒀다가 상단바가
+                  72px 이 됐다). 사이드바가 넓어지는 xxl/uhd 에서는 로고도 같이 커진다. */}
+              <BrandLogo
+                markOnly={false}
+                width={{ xs: 158, xxl: 190, uhd: 216 }}
+                sx={{ display: { xs: "none", sm: "block" } }}
+              />
+              <BrandLogo markOnly width={26} sx={{ display: { xs: "block", sm: "none" } }} />
             </Box>
           </Button>
 
@@ -361,7 +548,11 @@ export function AppShell({
             </Box>
           ) : null}
 
-          <Box sx={{ flex: minimal ? 1 : "0 0 auto" }} />
+          {/* 오른쪽 컨트롤을 화면 끝으로 민다 — 사용자 지적 Q3.
+              예전에는 이 스페이서가 `minimal` 일 때만 늘어나서, 일반 화면에서는 검색 막대
+              (maxWidth 45rem) 바로 뒤에 컨트롤이 붙고 오른쪽이 통째로 비었다.
+              실측: 1920px 에서 573px, 2560px 에서 1,062px, 3840px 에서 2,188px 가 빈 채였다. */}
+          <Box sx={{ flex: 1 }} />
 
           {!minimal ? (
             <>
@@ -376,30 +567,14 @@ export function AppShell({
                   클로비를 유지"라고 했는데 그 자리에는 실제로 MUI 의 일반 로봇 아이콘이 있었다.
                   좁은 화면에서만 보이던 것도 항상 보이게 바꾼다 — 우하단 FAB 은 md 미만에서
                   숨는데, 그 아래 폭에서 AI 도우미로 가는 길이 아이콘 하나뿐이었다. */}
-              <MascotTopButton onClick={() => navigate("/chat")} />
+              <MascotTopButton onClick={() => setAssistantOpen(true)} />
+              <ThemeToggle userId={userId} />
             </>
           ) : null}
 
-          {!isUser && !minimal ? (
-            <Box role="group" aria-label="화면 전환" sx={{ display: "flex", bgcolor: "rgba(255,255,255,.16)", borderRadius: 999, p: 0.5, mx: 1 }}>
-              {[{ label: "사용자", on: userSeg, to: "/me" }, { label: "관리자", on: !userSeg, to: "/dashboard" }].map((s) => (
-                <Button
-                  key={s.label}
-                  size="small"
-                  onClick={() => navigate(s.to)}
-                  aria-current={s.on ? "page" : undefined}
-                  sx={{
-                    minHeight: 30, px: 2, borderRadius: 999, textTransform: "none", fontWeight: 750,
-                    color: s.on ? "primary.dark" : "common.white",
-                    bgcolor: s.on ? "common.white" : "transparent",
-                    "&:hover": { bgcolor: s.on ? "common.white" : "rgba(255,255,255,.12)" },
-                  }}
-                >
-                  {s.label}
-                </Button>
-              ))}
-            </Box>
-          ) : null}
+          {/* 사용자/관리자 전환은 **사이드바 최상단**으로 옮겼다(P2). 여기 두 벌을 두면
+              같은 스위치가 화면에 두 번 나온다. 좁은 화면에서는 사이드바가 서랍으로 접히지만,
+              그때는 메뉴를 여는 것이 곧 트리를 보는 것이라 스위치도 함께 나온다. */}
 
           {!minimal ? <NotificationBell isUser={isUser} /> : null}
           {!minimal ? <UserMenu name={name} userId={userId} avatarUrl={avatarUrl} /> : null}
@@ -446,20 +621,23 @@ export function AppShell({
             양옆이 비어, "전역 공지"가 한 열짜리 카드처럼 보인다. 세션 만료(minimal) 상태에는
             띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이고, 배너 API 도 401 이다. */}
         {!minimal ? <Banners /> : null}
+        {/* 스코프 바 — 배너 **아래**, 본문 폭 캡 **안**이다. 배너는 전역 공지라 화면 폭
+            전체를 쓰지만 이건 "이 목록이 왜 이만큼인가" 를 설명하는 줄이라 목록과 같은
+            폭이어야 붙어 읽힌다. 전체 범위인 사람에게는 아무것도 그리지 않는다. */}
         <Box
           sx={
-            flush
-              ? { flex: 1, minHeight: 0, display: "flex" }
-              : {
+            {
                   width: "100%", maxWidth: CONTENT_MAX_WIDTH, mx: "auto",
                   px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 },
                   /* 우하단 마스코트 버튼이 본문 위에 떠 있다(70px + 여백 24px ≈ 94px).
                      아래 여백이 그보다 작으면 화면 맨 아래에 붙는 컨트롤을 가린다 —
                      실제로 놀이방의 '보내기' 버튼을 덮었다. 버튼이 보이는 md 이상에서만 넉넉히. */
-                  pb: { xs: 5, md: 14 },
-                }
+                  // AI 도우미는 화면 아래까지 카드가 차므로 마스코트 버튼 자리를 비울 필요가 없다.
+                  pb: onAssistant ? { xs: 3, md: 4 } : { xs: 5, md: 14 },
+            }
           }
         >
+          {!minimal ? <ScopeBar /> : null}
           {auth.isLoading ? <Card><Skeleton /></Card> : children}
         </Box>
       </Box>
@@ -470,19 +648,26 @@ export function AppShell({
           모서리에서도 클릭을 가로챈다. 실제로 권한 매트릭스 표 맨 아랫줄의 '상세' 버튼이
           아무것도 안 그려진 지점(1837,987)에서 눌리지 않았다(QA fab_overlap 검사가 잡았다).
           받는 쪽은 MascotButton 안의 Fab이 pointerEvents:auto로 되돌린다. */}
-      {/* /chat 에서는 띄우지 않는다(flush 가 곧 '지금 /chat'이다). 이 버튼이 하는 일은
+      {/* /chat 에서는 띄우지 않는다(onAssistant 가 곧 '지금 /chat'이다). 이 버튼이 하는 일은
           /chat 으로 가는 것뿐이라, 그 화면에서는 아무 일도 하지 않으면서 입력창 오른쪽의
           '전송'을 덮는다 — QA fab_overlap 검사가 1920 라이트·다크에서 잡았고, 실제로
           스크롤로도 비켜낼 수 없다(입력창이 화면 아래에 고정돼 있다).
           동작하지 않는 컨트롤을 띄워 두지 않는다는 저장소 원칙과도 같은 방향이다. */}
-      {!minimal && !flush ? (
+      {!minimal && !onAssistant ? (
         <Box sx={{ position: "fixed", right: 24, bottom: 24, pointerEvents: "none",
                    zIndex: (t) => t.zIndex.speedDial }}>
-          <MascotButton onClick={() => navigate("/chat")} mode="listening" />
+          <MascotButton onClick={() => setAssistantOpen(true)} mode="listening" />
         </Box>
       ) : null}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={groups} />
+
+      {/* 클로비 AI 드로어(Q2) — 클로비를 누르면 보던 화면 위로 열린다. 예전에는 세 진입점이
+          모두 `/chat` 으로 이동해서, 물어볼 대상이 화면에 있는데 그 화면을 떠나야 했다.
+          세션 만료(minimal) 상태에서는 띄우지 않는다 — 대화 API 도 401 이다. */}
+      {!minimal ? (
+        <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+      ) : null}
 
       {/* 첫 로그인 둘러보기 — 홈(/me)에서만 스스로 열리고, 건너뛰면 서버에 기록돼 다시 안 뜬다.
           세션 만료(minimal) 상태에서는 띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이다. */}

@@ -15,6 +15,7 @@ from app.auth.models import UserSession
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.profiles import prefs
 from app.profiles.models import SavedView, UserPreference
+from app.users.models import User
 
 # 저장된 뷰의 상한. 목록이 길어지면 고르는 일 자체가 필터링이 되어 버린다.
 MAX_SAVED_VIEWS_PER_SCREEN = 20
@@ -198,6 +199,42 @@ def reset_tour(db: Session, pref: UserPreference, *, now: datetime) -> None:
     pref.tour_completed_at = None
     pref.updated_at = now
     db.flush()
+
+
+# ── 아바타 서빙 범위 ──────────────────────────────────────────────────────────
+
+def get_scoped_avatar_owner_or_404(db: Session, actor: User, user_id: str) -> User:
+    """사진을 내줘도 되는 대상 한 명. 범위 밖·보관·없는 계정은 전부 **404**.
+
+    예전에는 이 판정이 없었고, 그 근거는 "이름·부서는 이미 사용자 명부와 게시판에 전사
+    공개라 사진만 좁히면 목록에서 이름 옆 사진이 뚫린 채로 보인다" 였다.
+    **그 전제가 조직 축에서 깨졌다**: `/api/team-chat/directory` 는 `org_id` 로 좁히고
+    (`app/team_chat/repository.py::directory`) 게시판도 조직으로 좁는다. 즉 다른 조직
+    사람은 애초에 목록에 안 나오는데 사진만 `user_id` 하나로 나가고 있었다 — 목록에서
+    가린 것이 id 로 뚫리는, 이 저장소가 여러 번 겪은 모양이다. 얼굴 사진은 이름보다 더
+    개인적이라, id 를 훑어 다른 회사 사람들의 얼굴을 모을 수 있었다.
+
+    **부서로는 좁히지 않는다.** 같은 조직 다른 팀 사람의 사진이 안 보이면 그건 기능
+    축소지 보안이 아니다 — 맞는 축은 조직이고, 디렉터리가 쓰는 축과 같아야 한다
+    (`get_scoped_participants_or_404` 와 같은 판단).
+
+    조회와 판정을 한 함수에 묶는다: 대상을 찾는 코드가 곧 범위를 거는 코드라 새 경로가
+    판정을 빠뜨릴 자리가 없다(`app/jobs/repository.py::scope_clause` 와 같은 관용).
+
+    **403 이 아니라 404** — 403 은 그 id 가 존재한다고 알려 준다(저장소 규칙).
+
+    한쪽 `org_id` 가 비어 있으면 막지 않는다. 조직 축이 붙기 전 데이터를 여기서 막으면
+    기존 사용자들의 사진이 통째로 사라진다(`OrgScopedMixin` 이 nullable 인 이유와 같은
+    판단이고, `get_scoped_participants_or_404` 도 같게 처리한다).
+    """
+    target = db.get(User, user_id)
+    if target is None or target.archived_at is not None:
+        raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
+    my_org = getattr(actor, "org_id", None)
+    their_org = getattr(target, "org_id", None)
+    if my_org and their_org and my_org != their_org:
+        raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
+    return target
 
 
 # ── 세션 ─────────────────────────────────────────────────────────────────────

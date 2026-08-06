@@ -104,6 +104,7 @@ def handle_document_generate(db: Session, job: Job, ctx: WorkerContext) -> None:
     if gen.mode == MODE_PREVIEW_ONLY:
         gen.status = STATUS_PREVIEW_READY
         db.flush()
+        _notify_requester_ready(db, gen, ctx)
         return
 
     if gen.mode == MODE_PREVIEW_THEN_APPROVE:
@@ -152,6 +153,60 @@ def _publish(db, gen, workflow, config, provider, ctx, *, content=None) -> None:
     gen.published_ref = str(published_ref)
     gen.status = STATUS_PUBLISHED
     db.flush()
+    _notify_requester_ready(db, gen, ctx)
+
+
+# 완료를 알릴 상태 → 화면에 쓸 한국어. 여기 없는 상태(quality_failed, failed,
+# awaiting_approval)는 **완료가 아니다** — 실패를 완료로 알리면 알림 자체를 못 믿게 된다.
+_READY_LABEL = {
+    STATUS_PUBLISHED: "발행",
+    STATUS_PREVIEW_READY: "미리보기 준비",
+}
+
+
+def _notify_requester_ready(db: Session, gen: DocumentGeneration, ctx) -> None:
+    """요청한 사람에게 "다 만들어졌다"를 알린다 (N2).
+
+    감사 확인: 요청한 문서가 다 만들어져도 **화면을 다시 열어 봐야** 알았다. 생성은 큐를
+    거치는 비동기 작업이라 사람이 언제 끝나는지 알 방법이 아예 없었다.
+
+    ## "내가 한 일을 나에게 보내지 않는다"에 걸리지 않는가
+
+    걸리지 않는다. 그 규칙이 막는 것은 **방금 내가 눌러서 그 자리에서 결과를 본 일**이다.
+    여기서 사용자가 한 일은 '요청'이고 알리는 것은 몇 분 뒤 워커가 만들어 낸 '결과'다 —
+    사용자가 화면을 떠난 뒤에 일어나므로 알려 주지 않으면 알 방법이 없다. 이미 같은 근거로
+    작업 실패(job_failed)와 예약 실행 실패(schedule_failed)가 요청자에게 간다.
+
+    ## 딥링크
+
+    관련 객체는 `document_generation` 이다. 서버 목적지 표(notifications/destinations.py)에
+    일부러 넣지 않았다 — 이유는 그 파일 아래쪽 주석에 적었다(관리 콘솔 문서 화면의 `?id=`
+    딥링크는 프런트 표가 이미 들고 있다).
+
+    ## 실패해도 문서는 발행된 채로 남는다
+
+    알림은 본 작업보다 약한 관심사다. 여기서 예외가 나가면 워커가 이 잡을 **실패로 보고
+    재시도**하는데, 그러면 이미 발행된 문서를 다시 만들려 든다.
+    """
+    try:
+        if not gen.requested_by:
+            return
+        label = _READY_LABEL.get(gen.status)
+        if label is None:
+            return
+
+        from app.notifications.service import notify_user
+
+        preview = json.loads(gen.preview_json) if gen.preview_json else {}
+        doc_title = preview.get("title") if isinstance(preview, dict) else None
+        notify_user(
+            db, gen.requested_by, type_="document_ready",
+            title=f"요청한 문서가 준비되었습니다 ({label})",
+            body=(doc_title or "문서 생성이 끝났습니다.")[:200],
+            related=("document_generation", gen.id), now=ctx.clock.now(),
+        )
+    except Exception:  # noqa: BLE001 — 알림이 발행 결과를 되돌리면 안 된다
+        logger.exception("문서 생성 완료 알림에 실패했다 (generation_id=%s)", gen.id)
 
 
 def _create_publish_approval(db, gen, ctx) -> None:

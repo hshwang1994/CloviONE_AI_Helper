@@ -45,6 +45,8 @@ def tracked_files() -> set[str]:
     out = subprocess.run(
         ["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"],
         cwd=ROOT, capture_output=True, text=True, check=True,
+        # 한글 파일 이름이 하나라도 있으면 로케일 디코드가 터진다.
+        encoding="utf-8", errors="replace",
     ).stdout
     return {p.replace("\\", "/") for p in out.split("\0") if p}
 

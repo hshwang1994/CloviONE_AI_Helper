@@ -34,7 +34,7 @@ def _alembic(db_path: Path, *args: str) -> subprocess.CompletedProcess:
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{db_path.as_posix()}"}
     result = subprocess.run(
         [sys.executable, "-m", "alembic", *args],
-        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True,
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert result.returncode == 0, f"alembic {args} 실패:\n{result.stdout}\n{result.stderr}"
     return result
@@ -89,8 +89,14 @@ def test_upgrade_migrates_existing_strings_into_rows(seeded_db):
     _alembic(seeded_db, "upgrade", "head")
 
     # 기존 값에서 부서가 만들어졌고, 같은 이름은 하나로 모였다.
+    #
+    # `==` 가 아니라 부분집합으로 본다. 이 테스트가 지키는 것은 **0015 가 데이터를 잃지
+    # 않는가** 인데 `upgrade head` 는 그 뒤의 마이그레이션도 전부 돌린다 — 실제로 0038 이
+    # `ClovirONE팀` 의 상위로 `브로드컴사업본부` 를 만든다(실제 조직 구조). 전체 목록을
+    # 못박아 두면 조직 구조가 바뀔 때마다 0015 와 무관한 이 테스트가 깨진다.
     depts = sorted(n for (n,) in _rows(seeded_db, "SELECT name FROM departments"))
-    assert depts == ["ClovirONE팀", "영업팀"], f"부서가 잘못 만들어졌다: {depts}"
+    assert {"ClovirONE팀", "영업팀"} <= set(depts), f"부서가 잘못 만들어졌다: {depts}"
+    assert len(depts) == len(set(depts)), f"같은 이름이 두 번 만들어졌다: {depts}"
     titles = sorted(n for (n,) in _rows(seeded_db, "SELECT name FROM job_titles"))
     assert titles == ["선임", "팀장"]
 
@@ -121,7 +127,9 @@ def test_migrated_rows_are_readable_through_the_orm(seeded_db):
     try:
         with Session(engine) as session:
             depts = session.query(Department).order_by(Department.name).all()
-            assert [d.name for d in depts] == ["ClovirONE팀", "영업팀"]
+            # 위 테스트와 같은 이유로 부분집합. 아래 루프가 **모든** 행의 timestamp 를
+            # 검사하므로 0038 이 만든 행도 함께 확인된다(오히려 커버리지가 는다).
+            assert {"ClovirONE팀", "영업팀"} <= {d.name for d in depts}
             for row in depts + session.query(JobTitle).all():
                 # 여기서 터지면 이관이 만든 timestamp가 앱이 읽을 수 없는 모양이다.
                 assert row.created_at.year == datetime.now(timezone.utc).year

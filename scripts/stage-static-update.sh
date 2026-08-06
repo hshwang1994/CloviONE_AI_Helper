@@ -21,7 +21,16 @@ export LC_ALL=C.UTF-8
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-SERVER="cloviradmin@10.100.64.71"
+# 설치처 고유값. 기본값을 두지 않는다 - 예전엔 최초 고객사의 계정@IP 가 기본값이라, 다른
+# 설치처에서 이 스크립트가 인쇄한 scp 명령을 그대로 복사하면 **남의 서버**로 파일을 밀어 넣었다.
+# 이 스크립트는 명령을 인쇄만 하고 실행하지 않지만, 사람이 복사해 붙일 문자열이므로 같은 위험이다.
+SERVER="${SERVER:-}"
+BASE_URL="${BASE_URL:-}"
+if [ -z "$SERVER" ] || [ -z "$BASE_URL" ]; then
+  echo "SERVER 와 BASE_URL 을 지정해야 합니다(설치처마다 다른 값이라 기본값이 없습니다)."
+  echo "예: SERVER=admin@10.0.0.10 BASE_URL=https://portal.example.internal bash $0"
+  exit 2
+fi
 APP_DIR="/opt/clovirone-web-assistant"
 REMOTE_STAGE="~/deploy-static-update"
 OUT="${OUT:-dist/static-update}"   # 테스트가 임시 디렉터리로 돌릴 수 있게 열어 둔다
@@ -82,7 +91,7 @@ echo "== verify (no sudo): served hashes must equal local =="
 # text and binary are handled identically and can't drift from what shipped.
 for f in "${FILES[@]}"; do
   rel="${f#app/static/}"
-  echo "  curl -sk https://clovirone-ai.gooddi.lab/static/$rel | sha256sum   # expect $(sha256sum "$OUT/payload/$f" | cut -d' ' -f1)"
+  echo "  curl -sk $BASE_URL/static/$rel | sha256sum   # expect $(sha256sum "$OUT/payload/$f" | cut -d' ' -f1)"
 done
 echo ""
 # No hard-refresh instruction: app/core/assets.py fingerprints each asset URL by

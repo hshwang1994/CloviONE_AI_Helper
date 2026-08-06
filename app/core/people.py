@@ -45,14 +45,19 @@ def org_name_map(db: Session) -> dict[str, str]:
     return {oid: name for oid, name in rows}
 
 
-def identity(user, org_names: dict[str, str] | None = None) -> dict:
+def identity(
+    user, org_names: dict[str, str] | None = None, avatars: dict[str, str] | None = None
+) -> dict:
     """사람 한 명의 신원 조각.
 
     `user` 가 None 이면(삭제된 사용자를 참조하는 옛 레코드) 빈 신원을 돌려준다 —
     호출부마다 None 검사를 다시 쓰지 않게 하려는 것이다.
     """
     if user is None:
-        return {"user_id": None, "display_name": "", "dept": "", "title": "", "org": ""}
+        return {
+            "user_id": None, "display_name": "", "dept": "", "title": "", "org": "",
+            "archived": False, "avatar_url": None,
+        }
     org_id = getattr(user, "org_id", None)
     return {
         "user_id": user.id,
@@ -61,6 +66,14 @@ def identity(user, org_names: dict[str, str] | None = None) -> dict:
         "dept": user.department or "",
         "title": user.title or "",
         "org": (org_names or {}).get(org_id, "") if org_id else "",
+        # **사람이 없어졌다는 사실**을 신원에 싣는다 (N3). 이 값을 안 보내면 퇴사자가 영원히
+        # 참여자·발신자로 살아 있고, 보는 사람은 답이 안 오는 대화를 며칠 기다린다 —
+        # 시스템에서 가장 비싼 침묵이다. `archived_at` 은 관리자 API 에만 실려 있었다.
+        "archived": getattr(user, "archived_at", None) is not None
+        or not getattr(user, "active", True),
+        # 사진은 **있으면 싣고 없으면 None** 이다 (X13). 호출부가 `avatars` 를 안 주면 예전과
+        # 똑같이 동작한다 — 배치 조회가 필요한 값이라 모든 호출부에 강제하지 않는다.
+        "avatar_url": (avatars or {}).get(user.id),
     }
 
 
@@ -77,3 +90,37 @@ def affiliation(person: dict, *, with_org: bool = False) -> str:
     if person.get("title"):
         parts.append(person["title"])
     return " ".join(parts)
+
+
+def avatar_map(db, user_ids) -> dict[str, str]:
+    """{user_id: 아바타 URL} — **한 번의 질의로** (X13).
+
+    서빙 경로(`/api/profile/avatar/{user_id}`)는 **이미 전 직원 대상**이다. 빠져 있던 것은
+    "남의 아바타 주소를 알려 주는 payload" 하나뿐이라, 사진 기능이 있는데 **자기 우상단에만**
+    보였다. 채팅·게시판·댓글 어디에도 남의 아바타 자리가 없었다 — 채팅이 먼저 메웠고,
+    게시글·댓글은 `app/board/router.py::_people_of` 가 같은 것을 쓴다.
+
+    건별 조회를 하지 않는다 — `people` payload 는 메시지 묶음·게시글 상세·목록마다 실려
+    나가므로 N+1 이면 가장 뜨거운 경로가 바로 느려진다(H4 가 지적한 그 모양).
+
+    지문(`?v=`)을 붙이는 이유는 `profiles/router._avatar_url` 과 같다: 없으면 사진을 바꿔도
+    캐시 때문에 5분 동안 옛 사진이 보이고 사용자는 업로드가 실패한 줄 안다.
+    """
+    ids = [i for i in set(user_ids or ()) if i]
+    if not ids:
+        return {}
+    from sqlalchemy import select
+
+    from app.profiles.models import UserPreference
+
+    rows = db.execute(
+        select(UserPreference).where(
+            UserPreference.user_id.in_(ids),
+            UserPreference.avatar_stored_name.is_not(None),
+        )
+    ).scalars().all()
+    out: dict[str, str] = {}
+    for r in rows:
+        stamp = int(r.avatar_updated_at.timestamp()) if r.avatar_updated_at else 0
+        out[r.user_id] = f"/api/profile/avatar/{r.user_id}?v={stamp}"
+    return out

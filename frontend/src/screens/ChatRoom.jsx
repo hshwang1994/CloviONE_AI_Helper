@@ -1,10 +1,11 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Button, Card, ErrorState, PageHeader, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
+import { Button, ErrorState, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
 import { ChatPane } from "./ChatPane.jsx";
 import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
 
@@ -19,8 +20,10 @@ import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
  * 1:1 은 파할 수 없어서 — dm_key 가 unique 라 soft-delete 하면 그 사람과 다시 대화를 시작할
  * 수 없다 — 내 목록에서만 숨긴다. 서버도 1:1 disband 를 409 로 막는다. */
 
-export function ChatRoom() {
-  const { id } = useParams();
+/* 오른쪽 칸에 그려지는 대화 본문. 라우트 파라미터가 아니라 **prop 으로 id 를 받는다** —
+ * 통합 껍데기(ChatRooms)가 왼쪽 목록과 나란히 이걸 그리기 때문이다.
+ * 목록으로 돌아가는 버튼은 없다. 목록이 옆에 계속 떠 있으므로 돌아갈 곳이 없다. */
+export function RoomDetailPanel({ id }) {
   const nav = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
@@ -36,6 +39,7 @@ export function ChatRoom() {
   const you = (meta.data && meta.data.you) || {};
   const members = (meta.data && meta.data.members) || [];
 
+  // 방을 떠나면 그 방은 더 이상 볼 수 없다. 목록은 옆에 그대로 있으므로 선택만 푼다.
   const backToList = (msg) => {
     toast(msg, "info");
     qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
@@ -58,12 +62,7 @@ export function ChatRoom() {
   });
 
   if (meta.isError) {
-    return (
-      <Box className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="채팅방" title="채팅방" actions={<Button onClick={() => nav("/chat-rooms")}>목록</Button>} />
-        <ErrorState error={meta.error} onRetry={() => meta.refetch()} />
-      </Box>
-    );
+    return <Box sx={{ p: 3 }}><ErrorState error={meta.error} onRetry={() => meta.refetch()} /></Box>;
   }
   const canLeave = room.kind === "group" && !room.is_global;
   const busy = leave.isPending || disband.isPending || hide.isPending;
@@ -74,7 +73,6 @@ export function ChatRoom() {
   const actions = (
     <>
       {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: "0.75rem", alignSelf: "center" }} /> : null}
-      <Button onClick={() => nav("/chat-rooms")}>목록</Button>
       {/* 관리(이름 변경·초대·내보내기·방장 넘기기)는 서버가 준 한 플래그로만 판단한다.
           네 동작의 조건이 모두 같으므로 버튼도 하나다 — 여기서 규칙을 다시 쓰면 어긋난다. */}
       {you.can_manage ? <Button onClick={() => setManageOpen(true)}>관리</Button> : null}
@@ -105,9 +103,21 @@ export function ChatRoom() {
   );
 
   return (
-    <Box className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="채팅방" title={meta.isPending ? "채팅방" : (room.title || "채팅방")} actions={actions} />
-      <Card sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+    <Box sx={{ display: "grid", gridTemplateRows: "auto 1fr", minWidth: 0, minHeight: 0 }}>
+      {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **칸 안의 머리**다. 왼쪽 목록과 같은 높이에서
+          시작해야 두 칸이 한 판으로 읽힌다. */}
+      <Box sx={{
+        display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
+        px: 2.5, py: 1.75, borderBottom: 1, borderColor: "divider", minWidth: 0,
+      }}>
+        <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem", minWidth: 0,
+                                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {meta.isPending ? "채팅방" : (room.title || "채팅방")}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box>
+      </Box>
+      <Box sx={{ p: { xs: 1.5, sm: 2.5 }, minHeight: 0, overflowY: "auto" }}>
         {meta.isPending ? <Skeleton lines={6} /> : (
           <>
             {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
@@ -115,7 +125,7 @@ export function ChatRoom() {
             <ChatPane roomId={id} interval={1800} />
           </>
         )}
-      </Card>
+      </Box>
       <ManageRoomModal
         open={manageOpen} onClose={() => setManageOpen(false)}
         roomId={id} title={room.title} members={members} meId={you.user_id}

@@ -19,7 +19,10 @@ import "@testing-library/jest-dom/vitest";
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
-import { ChatRoom } from "./ChatRoom.jsx";
+// S1 로 목록·상세를 한 껍데기에 합치면서 방 본문이 RoomDetailPanel 이 됐다.
+// 라우트 파라미터가 아니라 prop 으로 id 를 받는다 — 여기서 확인하는 동작
+// (파하기·나가기·숨기기·관리 버튼의 노출 조건)은 그대로다.
+import { RoomDetailPanel } from "./ChatRoom.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -47,7 +50,7 @@ function mount(payload) {
           <ConfirmProvider>
             <MemoryRouter initialEntries={["/chat-rooms/r1"]}>
               <Routes>
-                <Route path="/chat-rooms/:id" element={<ChatRoom />} />
+                <Route path="/chat-rooms/:id" element={<RoomDetailPanel id="r1" />} />
                 {/* 동작 후 목록으로 되돌아간다 — 라우트가 없으면 경고만 남고 이동이 검증되지 않는다. */}
                 <Route path="/chat-rooms" element={<div>채팅방 목록</div>} />
               </Routes>
@@ -78,7 +81,7 @@ describe("방 파하기 버튼", () => {
 
   it("can_disband 가 false 면 버튼 자체가 없다(1:1·전체·비방장)", async () => {
     mount(meta({ role: "member", can_disband: false }));
-    await screen.findByRole("button", { name: "목록" });
+    await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByRole("button", { name: "방 파하기" })).toBeNull();
   });
 
@@ -116,7 +119,7 @@ describe("전체 채팅 방", () => {
   it("파하기·나가기·숨기기가 모두 없다 — 서버가 409 로 막는 동작을 화면에 보이지 않는다", async () => {
     mount(meta({ role: null, is_member: false, can_disband: false, can_hide: false },
                { is_global: true, title: "전체 채팅", member_count: 0 }));
-    await screen.findByRole("button", { name: "목록" });
+    await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByRole("button", { name: "방 파하기" })).toBeNull();
     expect(screen.queryByRole("button", { name: "나가기" })).toBeNull();
     expect(screen.queryByRole("button", { name: "숨기기" })).toBeNull();

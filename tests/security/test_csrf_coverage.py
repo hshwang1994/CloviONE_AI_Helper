@@ -25,6 +25,11 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 # 여기에는 걸 수 없다. 대신 각자 다른 방어가 있어야 하고, 그것도 아래에서 확인한다.
 EXEMPT: dict[str, str] = {
     "/login": "세션이 생기기 전이라 CSRF 토큰이 없다 — Origin 검사로 막는다",
+    # 비밀번호를 잃은 사람은 정의상 로그인할 수 없다 — /login 과 같은 이유로 세션도
+    # CSRF 토큰도 없다. 같은 Origin 검사(_verify_login_origin)를 지나고, 그 위에
+    # IP 단위 레이트리밋과 1회용 만료 토큰이 더 있다(app/auth/reset_router.py).
+    "/forgot-password": "세션이 생기기 전이라 CSRF 토큰이 없다 — Origin 검사로 막는다",
+    "/reset-password": "세션이 생기기 전이라 CSRF 토큰이 없다 — Origin 검사로 막는다",
 }
 
 
@@ -90,6 +95,15 @@ def test_login_is_the_only_unauthenticated_write_route(app):
         )
         if not authed:
             open_routes.append(f"{sorted(route.methods - SAFE_METHODS)} {route.path}")
-    assert open_routes == ["['POST'] /login"], (
-        "인증 없이 부를 수 있는 쓰기 라우트 목록이 달라졌다:\n  " + "\n  ".join(open_routes)
-    )
+    # 비밀번호 재설정 두 경로가 늘었다(9-9 P4). **인증 없이 부를 수 있는 것이 설계다** —
+    # 비밀번호를 잃은 사람은 로그인할 수 없으니 로그인 뒤에 두면 기능 자체가 성립하지 않는다.
+    # 대신 셋을 겹쳐 둔다: Origin 검사(위 EXEMPT), IP 단위 레이트리밋, 그리고 실제 권한은
+    # 메일함으로만 오는 1회용 만료 토큰이 증명한다. 이 목록이 또 늘어난다면 그때도
+    # 같은 수준의 근거를 여기 적어야 한다.
+    assert sorted(open_routes) == sorted(
+        [
+            "['POST'] /login",
+            "['POST'] /forgot-password",
+            "['POST'] /reset-password",
+        ]
+    ), ("인증 없이 부를 수 있는 쓰기 라우트 목록이 달라졌다:\n  " + "\n  ".join(open_routes))

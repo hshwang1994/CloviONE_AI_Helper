@@ -12,6 +12,7 @@ import confetti from "canvas-confetti";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { MascotPose } from "../ui/Mascot.jsx";
+import { prefersReducedMotion } from "../ui/motion.js";
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { MISC } from "../lib/assets.js";
 import { GAME_LABELS } from "./Games.jsx";
@@ -46,16 +47,12 @@ const pulse = keyframes`
 `;
 
 /* 사용자가 OS에서 '동작 최소화'를 켰는지. matchMedia가 없는 환경(jsdom 등)에서는 false로 본다 —
- * 없다고 예외를 던지면 결과 화면 전체가 렌더되지 않는다. */
-export function prefersReducedMotion() {
-  try {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    return !!(mq && mq.matches);
-  } catch (e) {
-    return false;
-  }
-}
+ * 없다고 예외를 던지면 결과 화면 전체가 렌더되지 않는다.
+ *
+ * 구현은 ui/motion.js 로 옮겼다. 로그인 인계 연출(app/LoginHandoff.jsx)이 같은 판정을 쓰는데
+ * 그 코드는 초기 로드에 들어간다 — 여기서 가져가면 게임방 화면 전체(34KB)가 지연 청크에서
+ * 초기 번들로 끌려 들어온다. 이 화면과 테스트의 호출부는 그대로 두려고 재수출한다. */
+export { prefersReducedMotion };
 
 // 승자 공개 축포. canvas-confetti는 캔버스를 CSSOM 개별 속성으로 스타일링하고 기본은 워커 미사용이라
 // CSP(style-src 'self', worker 미허용)에 안전하다.
@@ -125,7 +122,7 @@ function Countdown({ remaining }) {
     <Box
       aria-live="polite"
       sx={{
-        display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: 999,
+        display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: "999px",
         bgcolor: (t) => alpha(urgent ? t.palette.error.main : t.palette.primary.main, 0.14),
         color: urgent ? "error.main" : "primary.main",
         animation: urgent ? `${pulse} .8s ease-in-out infinite` : "none",
@@ -155,7 +152,7 @@ function StageHint({ children }) {
 function WinnerName({ children }) {
   return (
     <Box component="span" sx={{
-      px: 2, py: 0.75, borderRadius: 999, bgcolor: "primary.main", color: "primary.contrastText",
+      px: 2, py: 0.75, borderRadius: "999px", bgcolor: "primary.main", color: "primary.contrastText",
       fontSize: "1.0625rem", fontWeight: 750, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
     }}>
       {children}
@@ -529,11 +526,17 @@ export function GameRoom() {
   });
   const leave = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/leave`, { method: "POST" }),
-    onSettled: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
+    /* 성공했을 때만 떠난다 (E4). `onSettled` 는 **실패해도** 실행돼서, 실패한 '방 파하기' 가
+       성공한 것과 똑같이 보였다 — 방은 그대로인데 사용자는 파했다고 믿는다. */
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
+    onError: (e) => toast((e && e.message) || "처리하지 못했습니다.", "error"),
   });
   const disband = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/disband`, { method: "POST" }),
-    onSettled: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
+    /* 성공했을 때만 떠난다 (E4). `onSettled` 는 **실패해도** 실행돼서, 실패한 '방 파하기' 가
+       성공한 것과 똑같이 보였다 — 방은 그대로인데 사용자는 파했다고 믿는다. */
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
+    onError: (e) => toast((e && e.message) || "처리하지 못했습니다.", "error"),
   });
   const chat = useMutation({
     mutationFn: (text) => api(`/api/games/rooms/${id}/chat`, { method: "POST", body: { text } }),
@@ -752,11 +755,11 @@ export function GameRoom() {
                             fontWeight: win ? 700 : 400,
                           }}>{opt}</Box>
                           <Box sx={{
-                            display: { xs: "none", sm: "block" }, height: "0.875rem", borderRadius: 999,
+                            display: { xs: "none", sm: "block" }, height: "0.875rem", borderRadius: "999px",
                             bgcolor: "action.hover", overflow: "hidden",
                           }}>
                             <Box sx={{
-                              display: "block", height: "100%", borderRadius: 999,
+                              display: "block", height: "100%", borderRadius: "999px",
                               bgcolor: win ? "primary.main" : "primary.light",
                               width: (maxCount ? (c / maxCount) * 100 : 0) + "%",
                             }} />

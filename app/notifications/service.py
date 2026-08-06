@@ -64,6 +64,68 @@ def notify_admins(
     return len(admins)
 
 
+def approver_user_ids(db: Session, *, now: datetime) -> list[str]:
+    """**지금 결재할 수 있는 사람 전원** = 관리자 ∪ 활성 위임을 받은 사람 (X7).
+
+    "누가 결재할 수 있는가" 의 정의는 `delegation.resolve_authority` 한 곳에 있다.
+    여기서 그 규칙을 다시 쓰지 않고 **활성 위임 표를 그대로 읽는다** — 두 벌이 되면
+    한쪽만 고쳐지고, 그때 증상은 "어떤 사람만 알림을 못 받는다" 라 찾기가 매우 어렵다.
+
+    **목록을 함수로 뽑아 둔 이유**(9-9 P4): 승인 요청을 메일로도 알리게 되면서 수신자
+    목록이 필요한 곳이 둘이 됐다. 각자 조회를 쓰면 `notify_admins` 만 부르던 예전 결함
+    (피위임자는 admin 이 아니라 영원히 못 받는다)이 메일 쪽에서 그대로 되살아난다.
+
+    반환 순서는 관리자 먼저, 그다음 피위임자다(중복 없음).
+    """
+    from app.approvals.models import ApprovalDelegation
+
+    admin_ids = list(
+        db.execute(
+            select(User.id).where(
+                User.role.in_([ROLE_ADMIN, ROLE_SYSTEM_ADMIN]), User.active.is_(True)
+            )
+        ).scalars().all()
+    )
+    delegate_ids = set(
+        db.execute(
+            select(ApprovalDelegation.delegate_user_id).where(
+                ApprovalDelegation.revoked_at.is_(None),
+                ApprovalDelegation.starts_at <= now,
+                ApprovalDelegation.ends_at > now,
+            )
+        ).scalars().all()
+    )
+    if not delegate_ids:
+        return admin_ids
+    # 이미 관리자인 사람은 두 번 받지 않는다(위임은 역할과 무관하게 걸 수 있다).
+    extra = list(
+        db.execute(
+            select(User.id).where(
+                User.id.in_(delegate_ids - set(admin_ids)), User.active.is_(True)
+            )
+        ).scalars().all()
+    )
+    return admin_ids + extra
+
+
+def notify_approvers(
+    db: Session,
+    *,
+    type_: str,
+    title: str,
+    body: str | None = None,
+    related: tuple[str, str] | None = None,
+    now: datetime,
+) -> int:
+    """결재할 수 있는 사람 전원에게 화면 알림. 대상 정의는 `approver_user_ids` 한 곳이다."""
+    recipients = approver_user_ids(db, now=now)
+    for uid in recipients:
+        notify_user(
+            db, uid, type_=type_, title=title, body=body, related=related, now=now
+        )
+    return len(recipients)
+
+
 def notify_active_users(
     db: Session,
     *,
@@ -107,6 +169,53 @@ def mark_all_read(db: Session, user_id: str, *, now: datetime) -> int:
     result = db.execute(
         update(Notification)
         .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+        .values(read_at=now)
+    )
+    db.flush()
+    return int(result.rowcount or 0)
+
+
+def unread_by_type(db: Session, user_id: str, *, exclude: list[str] | None = None) -> dict[str, int]:
+    """{알림 유형: 안 읽음 수}. 사이드바 항목별 배지가 이 값을 쓴다 (사용자 지적 S2).
+
+    예전에는 합계(`unread`)만 돌려줬다. 그러면 화면은 "안 읽은 것이 12건" 까지만 알 수 있고
+    **어느 메뉴에 생긴 일인지**는 모른다 — 사용자가 요구한 "왼쪽 사이드에 신규 표시" 를
+    할 수가 없었다. 종류별로 세어 돌려주면 화면이 메뉴에 나눠 붙인다.
+
+    `exclude` 는 뮤트한 유형이다. `unread_count_excluding` 과 같은 원칙으로 **빼는 것은
+    '지금 눈길을 끌 것인가' 하나뿐**이고, 알림 자체는 목록에 그대로 남는다.
+    """
+    from sqlalchemy import func
+
+    stmt = (
+        select(Notification.type, func.count())
+        .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+        .group_by(Notification.type)
+    )
+    if exclude:
+        stmt = stmt.where(Notification.type.notin_(exclude))
+    return {t: int(n) for t, n in db.execute(stmt).all()}
+
+
+def mark_types_read(db: Session, user_id: str, types: list[str], *, now: datetime) -> int:
+    """그 유형들의 안 읽은 알림을 읽음 처리한다. 반환값은 처리 건수.
+
+    사용자 지적 S2 의 뒷절반: "확인하면 자동으로 없애는 형태로". 화면을 열었다는 것은
+    그 종류의 알림을 확인했다는 뜻이므로, 그 화면이 진입 시 자기 유형을 읽음 처리한다.
+    **폴링이 아니라 화면 진입 이벤트**다 — 폴링으로 지우면 열지도 않은 알림이 사라진다.
+
+    유형 목록이 비면 아무 일도 하지 않는다(빈 목록을 '전부'로 해석하면 화면 하나를 여는
+    것이 모든 알림을 지우는 사고가 된다).
+    """
+    if not types:
+        return 0
+    result = db.execute(
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.read_at.is_(None),
+            Notification.type.in_(types),
+        )
         .values(read_at=now)
     )
     db.flush()

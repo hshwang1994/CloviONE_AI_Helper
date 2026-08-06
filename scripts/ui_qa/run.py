@@ -81,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-full-page", action="store_true", help="뷰포트만 캡처")
     parser.add_argument("--ignore-console", nargs="*", default=None,
                         help="콘솔 오류에서 제외할 정규식")
+    parser.add_argument(
+        "--modals", action="store_true",
+        help="화면을 눌러 모달을 열어 검사한다. 클릭이 화면 상태를 바꾸므로 스크린샷과 "
+             "기존 검사가 끝난 뒤에만 돈다. 되돌릴 수 없는 동작(삭제·전송·실행 등)은 "
+             "interact.DENY 가 막는다.")
     parser.add_argument("--list", action="store_true", help="라우트 목록만 출력하고 종료")
     return parser
 
@@ -209,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                                     hash_path=hash_path, theme=theme, viewport=viewport,
                                     out_root=out_root, full_page=not args.no_full_page,
                                     settle_ms=args.settle_ms, timeout_ms=args.timeout_ms,
-                                    ignores=ignores)
+                                    ignores=ignores, interact_modals=args.modals)
                                 pages.append(record)
                                 failures = [n for n, v in (record.get("assertions") or {}).items()
                                             if v.get("status") == "fail"]

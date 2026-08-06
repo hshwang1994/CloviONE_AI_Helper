@@ -4,8 +4,10 @@ import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "../ui/kit.jsx";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
+import { safeExternal } from "../lib/safeUrl.js";
 
 /* 화면 위쪽 띠 — 세 종류가 같은 자리를 쓴다 (PLAN Phase 6).
  *
@@ -66,6 +68,7 @@ function useAnnouncements() {
 function ImpersonationBanner() {
   const state = useImpersonation();
   const qc = useQueryClient();
+  const toast = useToast();
   const [busy, setBusy] = React.useState(false);
   const data = state.data;
   if (!data || !data.impersonating) return null;
@@ -80,6 +83,10 @@ function ImpersonationBanner() {
     } catch (e) {
       setBusy(false);
       qc.invalidateQueries({ queryKey: ["impersonation-state"] });
+      /* 조용히 삼키면 **관리자가 남인 채로 계속 활동**하면서 빠져나온 줄 안다 (E5).
+         대리 보기 중에는 그 사람 이름으로 기록이 남으므로, 못 빠져나온 것을 모르는 것이
+         가장 위험하다. */
+      toast((e && e.message) || "대리 보기를 종료하지 못했습니다. 다시 시도해 주세요.", "error");
     }
   };
 
@@ -125,6 +132,17 @@ function SystemStatusBanner() {
               (마지막 정상: {fmtDateTime(notice.since)})
             </Box>
           ) : null}
+          {/* 서버가 갈 곳을 함께 준 알림에만 링크가 붙는다(초기 설정 안내). "화면에서
+              확인하세요"라고만 하고 가는 길을 안 주면 그 문장은 안내가 아니라 수수께끼다.
+              **앱 안의 해시 경로만** 받는다 - 배너가 임의 URL로 사람을 보내는 통로가 되면
+              안 된다(공지의 safeExternal과 같은 이유, 여기서는 더 좁게 본다). */}
+          {typeof notice.href === "string" && notice.href.startsWith("#/") ? (
+            <Box sx={{ mt: 0.5 }}>
+              <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: 700 }}>
+                초기 설정 계속하기
+              </Button>
+            </Box>
+          ) : null}
         </Alert>
       ))}
     </>
@@ -160,9 +178,9 @@ function AnnouncementBanner() {
         >
           <AlertTitle sx={{ fontWeight: 800, mb: item.body ? 0.5 : 0 }}>{item.title}</AlertTitle>
           {item.body ? <Box component="span" sx={{ fontSize: "0.875rem" }}>{item.body}</Box> : null}
-          {item.link_url ? (
+          {safeExternal(item.link_url) ? (
             <Box sx={{ mt: 0.5 }}>
-              <Button size="small" href={item.link_url} sx={{ px: 0, fontWeight: 700 }}>
+              <Button size="small" href={safeExternal(item.link_url)} sx={{ px: 0, fontWeight: 700 }}>
                 {item.link_label || "자세히 보기"}
               </Button>
             </Box>

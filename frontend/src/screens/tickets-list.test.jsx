@@ -12,8 +12,11 @@ import { MemoryRouter, Routes, Route, useParams } from "react-router-dom";
  *    무엇을 하면 되는지까지 보여주는 빈 상태여야 한다. 목록·툴바가 함께 그려지면 안 된다
  *    (예전에 connCallout을 컴포넌트로 만들었다가 항상 truthy가 되어 본문이 통째로 사라진 적이 있다 —
  *    반대 방향 회귀도 여기서 같이 막는다).
- * 2) 정상 목록 — 상태 필터가 실제로 행을 거르고, 프로젝트별 그룹 머리행이 나오며, 제목을 누르면
- *    /tickets/:id 로 간다.
+ * 2) 정상 목록 — 프로젝트별 그룹 머리행이 나오고, 제목을 누르면 /tickets/:id 로 간다.
+ *    **조건은 서버가 건다**: 상태를 고르면 그 값이 질의로 나가고, 화면은 서버가 준 목록만
+ *    그린다(예전에는 전체 목록을 받아 화면에서 걸렀는데, 서버가 20건씩 자르기 시작한 뒤로는
+ *    그 방식이 "총 40건인데 3건만 보인다"가 된다). 필터가 주소에 남는 것은
+ *    ticket-filters.test.jsx 가 본다.
  *
  * 네트워크·타이머 없음: api는 mock. */
 
@@ -28,19 +31,30 @@ vi.mock("../app/auth.jsx", () => ({
 
 import { MyTickets } from "./MyTickets.jsx";
 
-const TICKETS = {
-  tickets: [
-    { id: "t-1", tid: 1, title: "서버 등록 IP 중복 방지", status: "진행", project: "인프라", due: "2026-08-20", assignee_names: ["나"] },
-    { id: "t-2", tid: 2, title: "월간 리포트 오탈자", status: "완료", project: "리포트", due: "2026-07-30", assignee_names: ["나"] },
-  ],
-};
+const ROWS = [
+  { id: "t-1", tid: 1, title: "서버 등록 IP 중복 방지", status: "진행", project: "인프라", due: "2026-08-20", assignee_names: ["나"] },
+  { id: "t-2", tid: 2, title: "월간 리포트 오탈자", status: "완료", project: "리포트", due: "2026-07-30", assignee_names: ["나"] },
+];
+const META = { configured: true, ok: true, statuses: ["진행", "완료"], priorities: [], difficulties: [] };
 
+/* 서버처럼 답한다 — `status` 를 받으면 그 상태만 돌려준다. 화면이 거르는지 서버가 거르는지를
+ * 가르는 자리다: 화면이 몰래 거르고 있으면 이 mock 을 통과해도 다른 검사에서 어긋난다. */
 function mockMine(payload) {
   apiMock.mockImplementation((path) => {
-    if (path === "/api/tickets/mine") return Promise.resolve(payload);
+    const p = String(path);
+    if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
+    if (p.startsWith("/api/tickets/mine")) {
+      if (payload.items === undefined && payload.tickets === undefined) return Promise.resolve(payload);
+      const qs = new URLSearchParams(p.includes("?") ? p.slice(p.indexOf("?") + 1) : "");
+      const want = qs.get("status");
+      const items = (payload.items || payload.tickets || []).filter((t) => !want || t.status === want);
+      return Promise.resolve({ ...payload, items, total: items.length, page: 1, page_size: 20 });
+    }
     return Promise.resolve({});
   });
 }
+
+const TICKETS = { configured: true, ok: true, mapped: true, items: ROWS, total: ROWS.length, page: 1, page_size: 20 };
 
 beforeEach(() => {
   apiMock.mockReset();
@@ -88,20 +102,30 @@ describe("내 티켓 — Notion 미구성 안내", () => {
 });
 
 describe("내 티켓 — 목록", () => {
-  it("기본은 진행 중만 보여주고, 상태를 '전체'로 바꾸면 완료 티켓도 나온다", async () => {
-    const user = userEvent.setup();
+  it("조건이 없으면 서버가 준 목록을 그대로 그린다(프로젝트별 그룹 머리행 포함)", async () => {
     renderMyTickets();
     expect(await screen.findByText("서버 등록 IP 중복 방지")).toBeInTheDocument();
-    expect(screen.queryByText("월간 리포트 오탈자")).toBeNull();
+    expect(screen.getByText("월간 리포트 오탈자")).toBeInTheDocument();
     // 프로젝트별 그룹 머리행.
     expect(screen.getByText("인프라")).toBeInTheDocument();
+    expect(screen.getByText("리포트")).toBeInTheDocument();
+    expect(screen.getByText("총 2건")).toBeInTheDocument();
+  });
+
+  it("상태를 고르면 그 값이 서버 질의로 나가고, 서버가 준 결과만 남는다", async () => {
+    const user = userEvent.setup();
+    renderMyTickets();
+    await screen.findByText("서버 등록 IP 중복 방지");
 
     await user.click(screen.getByRole("combobox", { name: "상태" }));
-    await user.click(await screen.findByRole("option", { name: "전체" }));
+    await user.click(await screen.findByRole("option", { name: "완료" }));
 
-    expect(await screen.findByText("월간 리포트 오탈자")).toBeInTheDocument();
-    expect(screen.getByText("리포트")).toBeInTheDocument();
-    expect(screen.getByText("2건")).toBeInTheDocument();   // 툴바의 건수도 함께 갱신된다
+    expect(await screen.findByText("총 1건")).toBeInTheDocument();
+    expect(screen.getByText("월간 리포트 오탈자")).toBeInTheDocument();
+    expect(screen.queryByText("서버 등록 IP 중복 방지")).toBeNull();
+    // 화면이 몰래 거른 것이 아니라 **서버에 물어본** 결과다.
+    const asked = apiMock.mock.calls.map(([p]) => String(p)).filter((p) => p.startsWith("/api/tickets/mine"));
+    expect(asked.some((p) => p.includes("status=%EC%99%84%EB%A3%8C") || p.includes("status=완료"))).toBe(true);
   });
 
   it("제목을 누르면 그 티켓 상세로 이동한다", async () => {

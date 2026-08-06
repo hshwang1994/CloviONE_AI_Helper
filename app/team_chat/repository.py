@@ -27,6 +27,15 @@ def get_global_room(db: Session) -> ChatRoom | None:
     ).scalar_one_or_none()
 
 
+def get_team_room(db: Session, department_id: str) -> ChatRoom | None:
+    """그 부서의 팀 방(0039). 삭제된 방은 없는 것으로 본다 — 다시 만들어 준다."""
+    return db.execute(
+        select(ChatRoom).where(
+            ChatRoom.department_id == department_id, ChatRoom.deleted_at.is_(None)
+        )
+    ).scalars().first()
+
+
 def get_direct_by_key(db: Session, dm_key: str) -> ChatRoom | None:
     return db.execute(
         select(ChatRoom).where(ChatRoom.dm_key == dm_key, ChatRoom.deleted_at.is_(None))
@@ -172,12 +181,17 @@ def users_by_ids(db: Session, ids: list[str]) -> dict[str, User]:
     return {u.id: u for u in rows}
 
 
-def directory(db: Session, exclude_user_id: str) -> list[User]:
-    """1:1 상대 고르기용 — 활성·비보관 사용자(본인 제외). 이름/부서/직책만 노출(라우터에서)."""
-    return list(
-        db.execute(
-            select(User)
-            .where(User.active.is_(True), User.archived_at.is_(None), User.id != exclude_user_id)
-            .order_by(User.display_name)
-        ).scalars().all()
+def directory(db: Session, exclude_user_id: str, *, org_id: str | None = None) -> list[User]:
+    """1:1 상대 고르기용 — 활성·비보관 사용자(본인 제외). 이름/부서/직책만 노출(라우터에서).
+
+    `org_id` 를 주면 **그 조직 사람만** (1순위 유출 #7). 부서로는 좁히지 않는다 — 다른 팀에
+    DM 을 못 보내게 되면 그건 기능 축소지 보안이 아니다. 맞는 축은 조직이고, 이 목록은
+    이름·부서·직책을 그대로 주므로 **조직도 열거**가 된다.
+    """
+    stmt = (
+        select(User)
+        .where(User.active.is_(True), User.archived_at.is_(None), User.id != exclude_user_id)
     )
+    if org_id:
+        stmt = stmt.where(User.org_id == org_id)
+    return list(db.execute(stmt.order_by(User.display_name)).scalars().all())

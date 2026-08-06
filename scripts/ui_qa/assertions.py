@@ -19,6 +19,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   fab_overlap             떠 있는 요소(마스코트 FAB 등)가 버튼·입력을 덮어 못 누르게 됨
   image_cropped           사용자가 올린 이미지를 object-fit:cover 로 잘라 보여줌
   content_clipped         스크롤할 수 없는 상자 안에서 내용이 넘쳐 잘림
+  rail_wider_than_prose   상세 화면 곁열이 본문보다 넓다
 """
 
 from __future__ import annotations
@@ -37,7 +38,12 @@ NARROW_MAIN_MIN_RATIO = 0.60
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
     "broken_images", "duplicate_ids", "tiny_text", "narrow_main", "vertical_text_collapse",
-    "fab_overlap", "image_cropped", "content_clipped",
+    "fab_overlap", "image_cropped", "content_clipped", "rail_wider_than_prose",
+    # 모달 검사(`interact.py`). `--modals` 로 켜야 값이 채워지고, 안 켜면 전부 skip 이다.
+    # 목록에 넣어 두는 이유는 요약표와 `--fail-on` 이 이 튜플만 알기 때문이다 —
+    # 여기 없으면 검사가 돌아도 리포트에 안 나온다(실제로 그래서 안 보였다).
+    "modal_footer_outside_actions", "modal_full_width_buttons", "modal_offscreen",
+    "modal_no_close", "modal_cannot_close", "modal_radius", "modal_width_spread",
 )
 
 # 사용자가 올린 이미지를 비율을 무시하고 잘라 보여주는 것을 잡는다.
@@ -192,6 +198,41 @@ PROBE_JS = r"""
   //
   // 넘침을 1px 이 아니라 넉넉히 잡는 이유: 그림자·포커스 링·자간 반올림으로 1~2px 넘치는 것은
   // 흔하고 아무도 못 알아챈다. 한 줄(약 24px) 넘게 잘릴 때만 결함으로 본다.
+  /* 상세 화면의 두 열 격자에서 곁열이 본문보다 넓은가 (Q1/W1/K-T6).
+   *
+   * 본문은 산문이라 78ch 에서 멈추는 것이 옳다. 잘못됐던 것은 **남는 폭을 전부 곁열에 준
+   * 것**이다: 1920px 에서 본문 743 / 레일 825, 3840px 에서 929 / 2001(레일이 2.15배).
+   * 사용자가 "티켓 상세 본문이 속성보다 좁다" 고 지적했다.
+   *
+   * 넓은 화면에서만 의미가 있다 — 좁으면 한 열로 접히고, 그때는 비율이라는 것이 없다. */
+  out.railRatio = [];
+  {
+    for (const el of document.querySelectorAll('#main-content div, #main-content section')) {
+      const cs = getComputedStyle(el);
+      if (cs.display !== 'grid') continue;
+      const kids = [...el.children].filter((k) => k.getBoundingClientRect().width > 0);
+      if (kids.length !== 2) continue;
+      const a = Math.round(kids[0].getBoundingClientRect().width);
+      const b = Math.round(kids[1].getBoundingClientRect().width);
+      // 본문 열이라 부를 만한 크기여야 한다. 툴바·라벨 격자를 잡으면 무의미한 값이 나온다.
+      if (a < 300 || b < 200) continue;
+      /* **산문 열이 있는 격자만** 본다.
+       *
+       * 산문 상한(PROSE_MAX_WIDTH = 78ch)은 자식이 아니라 **격자 트랙**에 걸려 있다
+       * (`minmax(0, 78ch) …`). 그래서 자식의 computed maxWidth 를 보면 늘 `none` 이고,
+       * 그걸 조건으로 걸었더니 검사가 아무것도 잡지 못하게 됐다 — 결함을 되돌려도
+       * 통과했다. 트랙 폭을 보고 판단한다.
+       *
+       * 첫 트랙이 78ch 근처(≈ 본문 한 줄 폭)에서 멈춰 있으면 산문 열이다. 채팅방처럼
+       * '목록 + 대화' 인 2열은 첫 열이 320px 로 훨씬 좁아 여기 걸리지 않는다. */
+      const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const proseLo = rootFont * 30;   // ≈ 480px — 이보다 좁으면 목록·사이드 열이다
+      const proseHi = rootFont * 62;   // ≈ 992px — 이보다 넓으면 상한이 안 걸린 것이다
+      if (a < proseLo || a > proseHi) continue;
+      out.railRatio.push({ prose: a, rail: b, ratio: Math.round((b / a) * 100) / 100 });
+    }
+  }
+
   out.clipped = [];
   {
     const MIN_CLIP = 24;
@@ -664,6 +705,18 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     results["duplicate_ids"] = (
         _verdict("fail", len(dupes), [f"#{d['id']} x{d['count']}" for d in dupes])
         if dupes else _verdict("pass")
+    )
+
+    # 상세 화면 곁열이 본문보다 넓으면 실패. 같은 폭이면(1.0) 통과 — 두 열을 반씩 쓰는
+    # 화면도 있을 수 있고, 문제는 "곁열이 본문을 **이기는** 것" 이다.
+    rails = [r for r in (probe.get("railRatio") or []) if r["ratio"] > 1.0]
+    results["rail_wider_than_prose"] = (
+        _verdict(
+            "fail", len(rails),
+            [f"본문 {r['prose']}px / 곁열 {r['rail']}px (곁열이 {r['ratio']}배)" for r in rails],
+            "산문 폭 상한은 옳지만 남는 폭을 곁열이 전부 가져가면 본문이 더 좁아진다",
+        )
+        if rails else _verdict("pass")
     )
 
     # 사용자가 올린 이미지를 잘라 보여주는 자리. 장식(aria-hidden/alt="")은 프로브에서 이미 뺐다.

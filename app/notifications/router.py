@@ -15,9 +15,13 @@ from app.notifications.models import Notification
 from app.notifications.service import (
     mark_all_read,
     mark_read,
+    mark_types_read,
+    unread_by_type,
     unread_count,
     unread_count_excluding,
 )
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.users.models import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -69,7 +73,34 @@ def _badge_state(request: Request, db: Session, user) -> dict:
         "quiet_reason": state.reason,
         "quiet_until": state.until.isoformat() if state.until else None,
         "muted_types": muted,
+        # 종류별 안 읽음 — 사이드바 항목별 배지가 쓴다(S2). 합계만으로는 "어느 메뉴에
+        # 생긴 일인지" 를 알 수 없어 왼쪽에 표시할 수가 없었다.
+        # 방해금지 중에는 배지를 조용히 한다 — 합계(`badge`)와 같은 규칙이다.
+        "by_type": {} if state.quiet else unread_by_type(db, user.id, exclude=muted),
     }
+
+
+class ReadTypesRequest(BaseModel):
+    """읽음 처리할 알림 유형들 (S2).
+
+    `extra="forbid"` — 오타 난 필드가 조용히 무시되면 화면은 "지웠다" 고 믿고 배지는 남는다.
+    상한을 두는 이유: 이 값은 화면이 자기 유형 두세 개를 보내는 자리다. 수백 개가 온다면
+    화면이 아니라 다른 무엇이고, 그때는 거절하는 편이 맞다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    types: list[str] = Field(default_factory=list, max_length=32)
+
+    @field_validator("types")
+    @classmethod
+    def _types(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        for x in v or []:
+            t = str(x).strip()[:48]
+            if t and t not in out:
+                out.append(t)
+        return out
+
 
 
 @router.get("")
@@ -134,6 +165,23 @@ def get_unread_count(
     다음 폴링에서 304 가 아니라 200 이 나가고 배지가 실제로 꺼진다.
     """
     return etag_json_response(request, _badge_state(request, db, user))
+
+
+@router.post("/read-types", dependencies=[Depends(require_csrf)])
+def read_notification_types(
+    request: Request,
+    payload: ReadTypesRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """그 유형의 알림을 읽음 처리한다 — 화면을 열었다는 것이 곧 확인했다는 뜻이다 (S2).
+
+    사용자 지적: "신규 알림을 표시하고, 확인하면 자동으로 없애는 형태로."
+    화면 **진입 이벤트**로만 부른다. 폴링으로 지우면 열지도 않은 알림이 사라진다.
+    """
+    now = request.app.state.clock.now()
+    changed = mark_types_read(db, user.id, payload.types, now=now)
+    return {"read": changed}
 
 
 @router.post("/read-all", dependencies=[Depends(require_csrf)])

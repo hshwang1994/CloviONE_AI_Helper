@@ -40,6 +40,7 @@ def sprint_summary(
         summary = service.build_sprint_summary(
             db, outbound, settings, start=start, end=end, today=now.date(),
             repo=request.app.state.repositories.tickets,
+            viewer=user,   # 1순위 유출 #3 - 보는 사람의 팀으로 좁힌다
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "window": {"start": start, "end_exclusive": end}}

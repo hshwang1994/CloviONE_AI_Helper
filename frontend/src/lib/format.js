@@ -22,6 +22,45 @@ export function toUTCDate(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/* ── `<input type="datetime-local">` ↔ API 경계 (F14) ────────────────────────
+ *
+ * `datetime-local` 은 **시간대가 없는 벽시계 문자열**("2026-08-10T09:00")을 준다. 이 앱에서
+ * 사람이 읽고 쓰는 시각은 언제나 KST 다(§불변 9). 반면 저장소 규약은 **naive UTC** 다 —
+ * 서버는 오프셋 없는 값을 UTC 로 읽는다. 그래서 벽시계를 그대로 보내면 9시간 밀린다:
+ * '09:00 부터'로 지정한 공지가 실제로는 KST 18:00 에 떴다.
+ *
+ * 규약을 깨지 않고 **경계에서 변환**한다(app/home/service.py::window_utc_bounds 와 같은 발상).
+ * 두 함수가 서로의 역이고, 필터 경로(DataScreen.buildUrl)와 폼 경로(kit FormModal)가 같은
+ * 정의를 쓴다 — 한쪽만 고치면 다시 갈라진다.
+ *
+ * 오프셋을 "+09:00" 리터럴로 둔다: 한국은 서머타임이 없어 연중 고정이고, 저장소가 이미
+ * 같은 값을 쓴다(app/audit/router.py 의 KST 경계 해석). */
+const KST_OFFSET = "+09:00";
+const KST_PARTS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul", hour12: false,
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
+/** KST 벽시계("YYYY-MM-DDTHH:mm") → 서버가 순간으로 읽을 수 있는 오프셋 포함 ISO-8601. */
+export function kstLocalToApi(v) {
+  if (v == null || v === "") return v;
+  const s = String(v);
+  // 이미 시간대가 붙어 있으면 손대지 않는다(다른 경로가 만든 값일 수 있다).
+  if (/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) return s;
+  return (/T\d\d:\d\d$/.test(s) ? s + ":00" : s) + KST_OFFSET;
+}
+
+/** 서버의 naive UTC iso → `datetime-local` 이 그대로 쓸 수 있는 KST 벽시계 문자열. */
+export function apiToKstLocal(v) {
+  const d = toUTCDate(v);
+  if (!d) return "";
+  const p = {};
+  for (const part of KST_PARTS.formatToParts(d)) p[part.type] = part.value;
+  // en-CA 는 24시 표기에서 자정을 "24" 로 낼 수 있다 — 입력칸이 거부하는 값이라 되돌린다.
+  const hour = p.hour === "24" ? "00" : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${hour}:${p.minute}`;
+}
+
 // 시:분(HH:MM) — 채팅 말풍선 시각용.
 export function fmtTimeShort(v) {
   const d = toUTCDate(v);
@@ -111,6 +150,9 @@ export const TYPE_KO = {
   // 기한(SLA)을 넘긴 대기 승인 — 워커가 관리자에게 한 번만 보낸다(0033, app/approvals/delegation.py).
   // 만료(approval_expired)와 다른 사건이다: 만료는 요청이 죽은 것이고, 이건 아직 살아 있는데 늦은 것이다.
   approval_overdue: "승인 기한 초과",
+  // 위임받은 사실 자체를 당사자에게 알린다(X7). 예전에는 통보가 없어 자기에게 권한이
+  // 생긴 줄도 몰랐다 — 여기 빠뜨리면 알림 목록에 원시 코드가 그대로 보인다.
+  approval_delegated: "승인 권한 위임",
   runner_unavailable: "러너 장애", maintenance_announcement: "점검 공지",
   password_change_required: "비밀번호 변경 필요",
   // 그룹 채팅 생성·1:1 대화 시작 시 초대된 본인에게 간다(app/team_chat/service.py의
@@ -121,11 +163,28 @@ export const TYPE_KO = {
   // related=("chat_mention", room_id) — 경로 계산은 서버 표(destinations.py)가 한다.
   // **이 표는 이름표일 뿐 경로가 아니다.** 유형이 늘어도 벨에 분기를 더하지 않는 이유다.
   chat_mentioned: "멘션",
+  // ── 알림 5종 신설(X9 + §E-6 N2) ───────────────────────────────────────────
+  // 서버(app/profiles/prefs.py의 NOTIFICATION_TYPES)와 짝이 맞아야 한다. 여기 빠지면
+  // 알림 목록 화면이 영문 키를 그대로 노출한다 — registry.js의 mapCol은 표에 없는 값을
+  // raw 문자열로 폴백하기 때문이다(벨의 typeKo는 "알림"으로 뭉개서 더 알기 어렵다).
+  //
+  // 담당자로 **새로** 지정된 사람에게 간다(app/tickets/service.py의 _notify_assignees_added).
+  // related=("ticket", page_id)이고 경로 계산은 서버 표(destinations.py)가 한다.
+  ticket_assigned: "티켓 배정",
+  // 큐를 거쳐 만들어진 문서가 준비됐을 때 요청자에게(app/jobs/handlers/document_generate.py).
+  document_ready: "문서 생성 완료",
+  // 퇴사자의 티켓·방을 넘겨받은 후임에게 **요약 한 건**(app/offboarding/service.py).
+  offboarding_handover: "업무 인수",
+  // 이번 기간의 AI 호출 상한을 다 쓴 순간 본인에게(app/quotas/service.py).
+  ai_quota_exhausted: "AI 사용 상한 도달",
+  // 예약 백업 실패를 관리자에게(app/backups/service.py). 메일과 별개로 앱 안에도 남긴다.
+  backup_failed: "백업 실패",
 };
 export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || "알림"));
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야
 // 뒤섞인 목록에서 급한 것부터 훑을 수 있다(NotificationBell 팝오버, product-quality-audit AREA=D).
-export const NOTI_FAILURE_TYPES = new Set(["account_locked", "job_failed", "schedule_failed", "runner_unavailable"]);
+// backup_failed 도 여기 든다 — 백업이 멈춘 것은 정보성 공지가 아니라 오늘 손써야 하는 장애다.
+export const NOTI_FAILURE_TYPES = new Set(["account_locked", "job_failed", "schedule_failed", "runner_unavailable", "backup_failed"]);
 export const objKo = (v) => (v == null || v === "" ? "-" : (OBJECT_KO[v] || String(v)));
 // "대상.동작" 및 다중 세그먼트(cli.user.enable, user.role_change_requested)를 한국어로.
 export const actionKo = (v) => {
@@ -144,3 +203,25 @@ export const actionKo = (v) => {
   }
   return cli ? out + " (CLI)" : out;
 };
+
+/* 사람 한 명의 소속을 한 줄로 — 서버 `core/people.affiliation` 과 같은 규칙.
+ *
+ * 사용자 지시: "채팅·대화·**댓글 작성**에서 어느 조직 어느 부서인지 나와야 한다."
+ * 서버는 이미 `people` payload 를 통째로 보내는데 **프런트가 한 번도 안 읽고 있었다**(N4) —
+ * 같은 이름 두 사람이 한 방에서 대화하면 말풍선만으로는 구분할 수 없었다.
+ * 지시의 나머지 절반("댓글 작성")은 게시판이다 — 목록·글 상세·댓글이 `Board.jsx::AuthorLine`
+ * 하나로 같은 규칙을 쓴다. 화면마다 소속을 다르게 조립하면 그때부터 또 어긋난다.
+ *
+ * 구분자로 가운뎃점을 쓰지 않는다(이 제품에서 그 문자를 화면에 쓰지 않기로 했다).
+ */
+export function affiliationOf(person, { withOrg = false } = {}) {
+  if (!person) return "";
+  const parts = [];
+  if (withOrg && person.org) parts.push(person.org);
+  if (person.dept) parts.push(person.dept);
+  if (person.title) parts.push(person.title);
+  return parts.join(" ");
+}
+
+/* 보관된(퇴사한) 계정임을 화면이 말한다 (N3). */
+export const ARCHIVED_SUFFIX = "(보관됨)";

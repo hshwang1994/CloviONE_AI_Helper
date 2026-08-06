@@ -33,6 +33,11 @@ class OrgItemUpdateRequest(_StrictOrgRequest):
 # 그래서 모델별로 스키마를 나누고, 라우터 팩토리가 어느 쪽을 쓸지 인자로 받는다.
 class DepartmentCreateRequest(OrgItemCreateRequest):
     parent_id: str | None = Field(default=None, max_length=36)
+    # 어느 조직의 부서인가. 예전에는 이 필드가 **아예 없어서**, 조직 관리 화면이 만든 조직에
+    # 부서를 넣을 방법이 없었다(사용자 지적 P5 "부서 추가하면 부서랑 조직을 연결하는 것이 없음").
+    # 비우면 요청한 관리자의 조직에 만든다 — 조직이 하나뿐인 지금은 그것이 늘 맞는 답이고,
+    # 조직이 늘어나도 "내 조직" 이 가장 흔한 의도다.
+    org_id: str | None = Field(default=None, max_length=36)
 
 
 class DepartmentUpdateRequest(OrgItemUpdateRequest):

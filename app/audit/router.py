@@ -15,8 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.audit import anomalies
 from app.audit.models import AuditLog
+from app.audit.repository import apply_scope
 from app.core.authz import SENSITIVE_READ_ROLES
-from app.core.deps import get_db, require_roles
+from app.core.deps import get_db, get_principal, require_roles
+from app.core.scope import Principal, visible_user_ids
 from app.core.errors import ValidationAppError
 from app.core.pagination import PageParams
 from app.users.models import User
@@ -68,8 +70,10 @@ def _filtered_stmt(
     object_id: str | None = None,
     user_id: str | None = None,
     result: str | None = None,
+    request_id: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    actor_ids=None,
 ):
     """목록과 내보내기가 **같은 질의**를 쓰게 하는 한 곳(0033).
 
@@ -90,6 +94,19 @@ def _filtered_stmt(
     # 이미 보여주면서도 그 값으로 좁힐 방법이 없었다.
     if result:
         stmt = stmt.where(AuditLog.result == result)
+    # 상관 id 로 찾기 (Z8). 이 값은 상세 패널에 **보이기만 했고 그것으로 찾을 수가 없었다** —
+    # 사용자가 오류 화면의 문의 번호를 불러 줘도 운영자는 그 요청을 짚어낼 방법이 없었다.
+    # 배관(발급·전파·응답 헤더·저장)은 다 깔려 있었는데 조회 입구만 없었다.
+    if request_id:
+        stmt = stmt.where(AuditLog.request_id == request_id)
+    # 범위 밖 사람의 행적은 보이지 않는다 (2순위 #3). 감사 로그는 **누가 무엇을 했나** 라서
+    # 행위자가 곧 축이다 — 부서/조직 관리자가 남의 부서 사람의 활동을 훑을 수 있으면
+    # 목록 화면에서 가려 둔 것이 여기서 통째로 샌다(CSV 내보내기까지 딸려 온다).
+    #
+    # 조건 자체는 `repository.scope_clause` 한 곳에만 적혀 있다 — 이상 징후 화면이 같은
+    # 판정을 **세 번째로 손으로 적다가** 아예 빼먹은 자리라서(그 화면엔 principal 조차
+    # 없었다) 적을 자리를 하나로 줄였다. 시스템 행위(user_id=None)를 남기는 이유도 거기 있다.
+    stmt = apply_scope(stmt, actor_ids)
     if since:
         stmt = stmt.where(AuditLog.created_at >= _parse_boundary(since, "since", upper=False))
     if until:
@@ -106,12 +123,15 @@ def list_audit_logs(
     object_id: str | None = Query(default=None, max_length=64),
     user_id: str | None = Query(default=None, max_length=36),
     result: str | None = Query(default=None, max_length=16),
+    request_id: str | None = Query(default=None, max_length=64),
+    principal: Principal = Depends(get_principal),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
 ):
     stmt = _filtered_stmt(
         action=action, object_type=object_type, object_id=object_id,
-        user_id=user_id, result=result, since=since, until=until,
+        user_id=user_id, result=result, request_id=request_id, since=since, until=until,
+        actor_ids=visible_user_ids(db, principal.scope),
     )
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -174,10 +194,22 @@ def list_audit_logs(
 def audit_anomalies(
     request: Request,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
     window_hours: int = Query(default=anomalies.DEFAULT_WINDOW_HOURS, ge=1, le=anomalies.MAX_WINDOW_HOURS),
 ):
-    """규칙 기반 소견. 각 소견에 근거와 임계값이 함께 나간다(anomalies.py 모듈 docstring)."""
-    result = anomalies.detect(db, now=request.app.state.clock.now(), window_hours=window_hours)
+    """규칙 기반 소견. 각 소견에 근거와 임계값이 함께 나간다(anomalies.py 모듈 docstring).
+
+    목록·CSV 와 **같은 판정**(`repository.scope_clause`)을 건다. 소견은 행위자별 요약이라
+    가장 새기 쉬운 모양이다 — 한 줄에 그 사람이 무엇을 몇 건 했는지가 근거(action 목록)까지
+    붙어 나오고, 아래에서 표시 이름과 **이메일**까지 얹는다. 범위를 안 걸면 목록 화면에서
+    가려 둔 사람의 활동 요약과 연락처가 이 화면 하나로 통째로 새어 나간다.
+    """
+    result = anomalies.detect(
+        db,
+        now=request.app.state.clock.now(),
+        window_hours=window_hours,
+        actor_ids=visible_user_ids(db, principal.scope),
+    )
     actor_ids = {f["actor_id"] for f in result["findings"] if f["actor_id"]}
     names: dict[str, dict[str, str]] = {}
     if actor_ids:
@@ -208,6 +240,10 @@ def export_audit_logs(
     object_id: str | None = Query(default=None, max_length=64),
     user_id: str | None = Query(default=None, max_length=36),
     result: str | None = Query(default=None, max_length=16),
+    # 목록과 **같은 필터 집합**이어야 한다 — 하나라도 빠지면 아래 docstring 이 못박은
+    # 계약("화면에서 좁혀 놓고 내보내면 그건 다른 데이터다")이 그 필터에서만 깨진다.
+    request_id: str | None = Query(default=None, max_length=64),
+    principal: Principal = Depends(get_principal),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
 ):
@@ -221,7 +257,8 @@ def export_audit_logs(
     """
     stmt = _filtered_stmt(
         action=action, object_type=object_type, object_id=object_id,
-        user_id=user_id, result=result, since=since, until=until,
+        user_id=user_id, result=result, request_id=request_id, since=since, until=until,
+        actor_ids=visible_user_ids(db, principal.scope),
     )
     rows = (
         db.execute(

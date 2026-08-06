@@ -1,0 +1,161 @@
+"""프로젝트 데이터 접근 — **범위 판정이 사는 단 하나의 자리**.
+
+## 왜 여기 한 곳인가
+
+이 저장소는 같은 실수를 **네 번** 했다(scripts/check_scope_gates.py 가 그 목록을 들고 있다):
+목록에는 범위를 걸고 **같은 모듈의 단건·쓰기에는 안 걸었다.** 승인은 큐만 좁히고 approve 는
+그대로였고, 잡 큐는 목록만 좁혀 남의 범위에서 Notion 쓰기를 재실행할 수 있었다.
+
+그래서 여기서는 **조건을 두 번 적지 않는다.** 목록·상세·수정·삭제가 전부
+`scope_clause` 하나를 지난다. 단건도 `db.get(Project, id)` 로 꺼내 놓고 나중에 판정하지
+않고, **조건을 조회 자체에 붙인다** — 판정을 빠뜨릴 자리가 애초에 없어야 한다
+(`app/jobs/repository.py::get_in_scope` 와 같은 관용).
+
+## 부서가 없는 프로젝트는 부서 범위에서 안 보인다
+
+`dept_id IS NULL` 인 프로젝트는 `IN (...)` 에 걸리지 않는다. 이건 사고가 아니라
+`app/core/scope.py::apply_user_scope` 가 부서 미배정 사용자에게 하는 것과 **같은 규칙**이다:
+부서 관리자의 화면이지 전사 화면이 아니다. 부서 없는 프로젝트는 전역 관리자가 본다.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session
+
+from app.core.scope import Scope, scope_filter
+from app.projects.models import Project, ProjectMilestone
+from app.projects.progress import Task, task_from_ticket
+from app.tickets.models import TicketCache
+from app.tickets.query import token
+
+
+def scope_clause(scope: Scope):
+    """범위 안 프로젝트를 고르는 조건. 전역이면 ``None``(= 조건 없음).
+
+    ``None`` 규약은 `core/scope.py::scope_filter` 그대로다 — 조건을 빼먹은 코드와 '전역이라
+    조건이 없는' 코드를 눈으로 구별하기 위해서다. 여기서 `true()` 를 돌려주면 두 상태가
+    똑같이 생긴다.
+
+    축은 조직과 **부서** 둘이다. 프로젝트는 게시판(조직만)과 달리 부서가 실제 소유 단위라,
+    부서 관리자가 남의 팀 프로젝트의 목표·일정·건강도를 보면 안 된다.
+    """
+    return scope_filter(scope, org_column=Project.org_id, dept_column=Project.dept_id)
+
+
+def apply_scope(stmt: Select, scope: Scope) -> Select:
+    clause = scope_clause(scope)
+    return stmt if clause is None else stmt.where(clause)
+
+
+def get_in_scope(db: Session, project_id: str, scope: Scope) -> Project | None:
+    """단건 조회 — 범위 밖이면 **아예 안 나온다**(부르는 쪽이 404 로 만든다).
+
+    보관(archive)된 프로젝트도 돌려준다. 보관은 범위가 아니라 상태라, 여기서 함께 가리면
+    '되살리기'가 자기 자신 때문에 404 가 된다.
+    """
+    return db.execute(
+        apply_scope(select(Project).where(Project.id == project_id), scope)
+    ).scalar_one_or_none()
+
+
+def list_in_scope(
+    db: Session,
+    scope: Scope,
+    *,
+    include_archived: bool = False,
+    offset: int = 0,
+    limit: int = 50,
+) -> tuple[list[Project], int]:
+    """목록. 조건은 단건과 **같은 것 하나**다(`scope_clause`).
+
+    정렬은 전순서다: 보관되지 않은 것 먼저, 최근 갱신 순, 그래도 같으면 id. 마지막 id 가
+    없으면 같은 시각에 갱신된 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
+    페이지네이션이 같은 행을 두 번 보여 주거나 빠뜨린다(app/tickets/query.py 의 Z9 와 같다).
+    """
+    stmt = apply_scope(select(Project), scope)
+    if not include_archived:
+        stmt = stmt.where(Project.archived_at.is_(None))
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    rows = db.execute(
+        stmt.order_by(Project.updated_at.desc(), Project.id.asc())
+        .offset(offset)
+        .limit(limit)
+    ).scalars().all()
+    return list(rows), int(total)
+
+
+def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:
+    """이 프로젝트에 걸린 작업 행들. **진행률, WBS 트리, 헬스가 전부 여기를 지난다.**
+
+    질의를 한 곳에 두는 이유는 가시성이다. 아래 두 조건(토큰 매칭, 소프트 프룬)을 화면마다
+    다시 적으면 한 곳만 고쳐지고, 증상은 "트리에는 있는데 진행률에는 없다" 가 된다. 사용자
+    눈에는 숫자가 틀린 것으로 보이고 아무도 원인을 못 찾는다.
+
+    ## 왜 `notion_missing_at IS NULL` 을 거는가
+
+    0043 이 만든 소프트 프룬 상태다. "이번 회차 Notion 응답에서 안 보였다" 로 표시만 된
+    행인데, 목록에서는 이미 빠져 있다. 진행률만 그 행을 계속 세면 **화면에 안 보이는 일이
+    분모에 남아** 진행률이 이유 없이 낮게 나온다. 다음 회차에 돌아오면 표시가 지워지고
+    다시 세어진다 - 그게 0043 의 설계다.
+
+    ## 왜 Notion page id 로 잇는가
+
+    `ticket_cache.project_ids` 는 Notion relation id 목록이고 `parent_page_id` 도 page id 다.
+    `Project.notion_page_id` 가 없는(포털 전용) 프로젝트는 아직 걸린 작업이 있을 수 없으므로
+    **빈 목록**을 돌려준다. 여기서 '전체 티켓'으로 폴백하면 포털 전용 프로젝트가 회사의 모든
+    작업을 자기 분모로 세게 된다.
+
+    다중값 열은 `token()` 으로 감싸 맞춘다 - 안 감싸면 page id 접두사가 겹치는 남의
+    프로젝트 티켓이 섞인다(app/tickets/query.py::filter_clauses 가 같은 함정을 기록한다).
+
+    정렬은 `id` 로 고정한다. 트리는 형제를 다시 정렬하지만(wbs.py::_sort_key) 진행률 근거의
+    표본 수와 순서까지 요청마다 흔들리면 두 화면을 비교할 수 없다.
+    """
+    page_id = project.notion_page_id
+    if not page_id:
+        return []
+    rows = db.execute(
+        select(TicketCache).where(
+            TicketCache.project_ids.contains(token(page_id), autoescape=True),
+            TicketCache.notion_missing_at.is_(None),
+        ).order_by(TicketCache.id.asc())
+    ).scalars().all()
+    return list(rows)
+
+
+def tasks_for_project(db: Session, project: Project) -> list[Task]:
+    """진행률 계산의 입력. 행 고르기는 `ticket_rows_for_project` 하나가 한다.
+
+    질의를 여기 다시 적지 않는 것이 핵심이다. 트리(`wbs.py`)와 헬스도 같은 함수를 부르므로
+    가시성 규칙(토큰 매칭, 0043 소프트 프룬)이 한 곳에만 있다. 두 벌이 되면 한쪽만 고쳐지고
+    같은 화면의 두 숫자가 갈라진다.
+    """
+    return [task_from_ticket(row) for row in ticket_rows_for_project(db, project)]
+
+
+def milestones_for_project(db: Session, project: Project) -> list[ProjectMilestone]:
+    """이 프로젝트의 마일스톤 전부. **주 창으로 여기서 자르지 않는다.**
+
+    목록 화면, 헬스 판정, 주간 리포트가 전부 이 한 질의를 지난다. 세 벌이 되면 정렬이나
+    필터가 한 곳만 고쳐지고, 증상은 "리포트에는 있는데 목록에는 없다" 가 된다.
+
+    주간 리포트는 같은 목록을 세 가지로 나눠 쓰는데 그 셋의 **축이 다르다**: '이 주에 바뀐
+    것' 은 `updated_at`(naive UTC 타임스탬프)로, '이 주가 기한' 과 '기한 넘김' 은
+    `due_on`('YYYY-MM-DD' 달력일)로 자른다. 자르기를 질의로 흩어 놓으면 그중 하나가 축을
+    잘못 골라도 아무도 못 알아채므로, 판정은 순수 함수(`weekly.split_milestones`)에 모은다.
+
+    정렬은 사람이 정한 순서 먼저, 같으면 기한 빠른 순, 기한이 없으면 뒤로, **그래도 같으면
+    id** 다. 마지막 id 가 전순서를 만든다 - 없으면 같은 sort_order 행들의 순서를 DB 가
+    마음대로 정해 화면이 새로고침할 때마다 줄이 바뀐다(app/tickets/query.py 의 Z9 와 같다).
+    """
+    rows = db.execute(
+        select(ProjectMilestone)
+        .where(ProjectMilestone.project_id == project.id)
+        .order_by(
+            ProjectMilestone.sort_order.asc(),
+            ProjectMilestone.due_on.asc().nulls_last(),
+            ProjectMilestone.id.asc(),
+        )
+    ).scalars().all()
+    return list(rows)

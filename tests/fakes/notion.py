@@ -39,7 +39,12 @@ from app.reports.notion_source import (
 )
 
 NOTION_BASE = "https://api.notion.com"
-DEFAULT_TASKS_DB = "262c5c5a568481fa9697ee5691cb558d"
+# 예전엔 여기에 개발 워크스페이스의 진짜 DB id 가 있었고 소스 기본값도 같은 값이라, 두 곳이
+# 우연히 맞아떨어져 굴러갔다. 이제 소스 기본값은 비어 있으므로(설치처 고유값,
+# app/core/tenant_config.py) 픽스처도 한눈에 가짜인 값을 쓴다 - 진짜 id 를 픽스처에 두면
+# 실수로 실제 워크스페이스를 부르는 코드가 테스트에서 초록불을 받는다.
+# tests/conftest.py 의 settings 픽스처가 이 값을 그대로 설정에 넣는다.
+DEFAULT_TASKS_DB = "tasks-db-0001"
 DEFAULT_PROJECTS_DB = "projects-db-0001"
 
 # Schema served by GET /v1/databases/{tasks_db}. Shape matches what
@@ -127,6 +132,112 @@ def project_row(*, page_id: str, name: str, title_prop: str = "이름") -> dict:
     }
 
 
+# ── projects DB (0045) ────────────────────────────────────────────────────────
+# The projects database has its own property names, and two of them are traps:
+# its status property is "진행 상태" (with a space) while the tasks DB uses
+# "진행상태", and its progress values arrive as rollup/formula wrappers rather
+# than plain numbers. A fixture that flattened either of those would let the app
+# read them wrongly and still pass, so both shapes are reproduced literally.
+
+PROJ_PROP_TITLE = "제목"
+PROJ_PROP_STATUS = "진행 상태"
+PROJ_PROP_PERIOD = "기간"
+PROJ_PROP_OWNER = "담당자(정)"
+PROJ_PROP_DEPUTY = "담당자(부)"
+PROJ_PROP_BIZ_TYPE = "사업 구분"
+PROJ_PROP_PRODUCT = "제품/품목"
+PROJ_PROP_TASKS = "작업"
+PROJ_PROP_TICKET_PROGRESS = "티켓 진행률"
+PROJ_PROP_PROJECT_PROGRESS = "프로젝트 진행률"
+
+# Served by GET /v1/databases/{projects_db}. The status options are the real six
+# from the workspace — a push of anything outside this list must be rejected by
+# the app rather than sent to Notion.
+DEFAULT_PROJECTS_SCHEMA: dict[str, Any] = {
+    PROJ_PROP_TITLE: {"type": "title", "title": {}},
+    PROJ_PROP_STATUS: {
+        "type": "status",
+        "status": {"options": [
+            {"name": "백로그"}, {"name": "계획 중"}, {"name": "진행 중"},
+            {"name": "차질"}, {"name": "완료"}, {"name": "취소"},
+        ]},
+    },
+    PROJ_PROP_PERIOD: {"type": "date", "date": {}},
+    PROJ_PROP_OWNER: {"type": "people", "people": {}},
+    PROJ_PROP_DEPUTY: {"type": "people", "people": {}},
+    PROJ_PROP_BIZ_TYPE: {"type": "select", "select": {"options": [{"name": "SI"}]}},
+    PROJ_PROP_PRODUCT: {"type": "select", "select": {"options": [{"name": "클라우드"}]}},
+    PROJ_PROP_TICKET_PROGRESS: {"type": "rollup", "rollup": {}},
+    PROJ_PROP_PROJECT_PROGRESS: {"type": "formula", "formula": {}},
+}
+
+
+def project_page(
+    *,
+    page_id: str,
+    title: str = "",
+    status: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    owner: list[str] | None = None,
+    deputy: list[str] | None = None,
+    biz_type: str | None = None,
+    product: str | None = None,
+    task_ids: list[str] | None = None,
+    # Notion percent values arrive as 0..1 fractions. Passing 0.3 here means the
+    # Notion side is claiming 30%.
+    ticket_progress: float | None = None,
+    project_progress: float | None = None,
+    last_edited: str | None = None,
+) -> dict:
+    """One row of the projects DB, in the shape the REST API actually returns."""
+    return {
+        "object": "page",
+        "id": page_id,
+        "url": f"https://www.notion.so/{page_id}",
+        "last_edited_time": last_edited or "2026-08-06T00:00:00.000Z",
+        "properties": {
+            PROJ_PROP_TITLE: {
+                "type": "title",
+                "title": [{"type": "text", "plain_text": title}] if title else [],
+            },
+            PROJ_PROP_STATUS: {
+                "type": "status", "status": {"name": status} if status else None,
+            },
+            PROJ_PROP_PERIOD: {
+                "type": "date",
+                "date": ({"start": start, "end": end} if start else None),
+            },
+            PROJ_PROP_OWNER: {
+                "type": "people",
+                "people": [{"object": "user", "id": p} for p in (owner or [])],
+            },
+            PROJ_PROP_DEPUTY: {
+                "type": "people",
+                "people": [{"object": "user", "id": p} for p in (deputy or [])],
+            },
+            PROJ_PROP_BIZ_TYPE: {
+                "type": "select", "select": {"name": biz_type} if biz_type else None,
+            },
+            PROJ_PROP_PRODUCT: {
+                "type": "select", "select": {"name": product} if product else None,
+            },
+            PROJ_PROP_TASKS: {
+                "type": "relation",
+                "relation": [{"id": t} for t in (task_ids or [])],
+            },
+            PROJ_PROP_TICKET_PROGRESS: {
+                "type": "rollup",
+                "rollup": {"type": "number", "number": ticket_progress},
+            },
+            PROJ_PROP_PROJECT_PROGRESS: {
+                "type": "formula",
+                "formula": {"type": "number", "number": project_progress},
+            },
+        },
+    }
+
+
 # ── write-payload readers ─────────────────────────────────────────────────────
 # ``app/tickets/notion_write.property_value`` builds these shapes. The fake reads
 # them back so a created/patched page comes out of a later query looking exactly
@@ -156,6 +267,24 @@ def _w_ids(prop, kind: str) -> list[str]:
         v.get("id") for v in ((prop or {}).get(kind) or [])
         if isinstance(v, dict) and v.get("id")
     ]
+
+
+def _as_read_shape(prop):
+    """A written property → the shape a *read* returns.
+
+    Only ``title`` actually differs: writes carry ``text.content`` while reads
+    carry ``plain_text``. Without this, a page that was pushed to comes back from
+    the next query with an empty title, and a test asserting "the pushed name
+    survives the next sync" fails for a reason that exists only in the fake.
+    status / date / people happen to use the same shape in both directions.
+    """
+    if not isinstance(prop, dict) or "title" not in prop:
+        return prop
+    text = _w_title(prop)
+    return {
+        "type": "title",
+        "title": [{"type": "text", "plain_text": text}] if text else [],
+    }
 
 
 # ── filter evaluation ─────────────────────────────────────────────────────────
@@ -520,3 +649,149 @@ class FakeNotionTasksDB:
             blocks.append(stored)
             added.append(stored)
         return {"object": "list", "results": added, "has_more": False, "next_cursor": None}
+
+
+class FakeNotionProjectsDB:
+    """A body-aware stand-in for the *projects* database endpoints.
+
+    Deliberately a separate class rather than more branches inside
+    ``FakeNotionTasksDB``: the two databases have different property names,
+    different schemas, and different failure modes worth simulating. Folding
+    them together would make ``fail_status`` kill both at once, and a test that
+    wants "the tasks DB answers but the projects DB is down" — the shape that
+    decides whether project sync leaves the ticket mirror alone — could not be
+    written at all.
+
+    Both fakes are registered on the same URL prefix, and ``FakeHTTP.handlers``
+    is keyed by prefix, so installing this one would otherwise *replace* the
+    tasks fake. :meth:`install` therefore captures whatever handler is already
+    registered and delegates to it for anything this one declines.
+    """
+
+    def __init__(
+        self,
+        pages: list[dict] | None = None,
+        *,
+        base: str = NOTION_BASE,
+        projects_db: str = DEFAULT_PROJECTS_DB,
+        schema: dict | None = None,
+        page_size: int = 100,
+        always_has_more: bool = False,
+        fail_status: int | None = None,
+        fail_message: str = "fake notion projects failure",
+        patch_status: int | None = None,
+    ) -> None:
+        self.pages = list(pages or [])
+        self.base = base.rstrip("/")
+        self.projects_db = projects_db
+        self.schema = dict(schema) if schema is not None else dict(DEFAULT_PROJECTS_SCHEMA)
+        self.page_size = page_size
+        self.always_has_more = always_has_more
+        self.fail_status = fail_status
+        self.fail_message = fail_message
+        # Fails *only* the page PATCH while every read still works. That is the
+        # production shape of "saved locally, could not push" — ``fail_status``
+        # cannot express it because it kills the schema read the push needs.
+        self.patch_status = patch_status
+        # Recorded for assertions.
+        self.queries: list[dict] = []
+        self.patched: list[tuple[str, dict]] = []
+        self._fallback = None
+
+    # -- registration ---------------------------------------------------------
+
+    def install(self, fake_http) -> "FakeNotionProjectsDB":
+        """Register on a ``FakeHTTP``, chaining to any handler already there."""
+        self._fallback = fake_http.handlers.get(self.base + "/")
+        fake_http.on_handler(self.base + "/", self.handle)
+        return self
+
+    # -- dispatch -------------------------------------------------------------
+
+    def handle(self, request: httpx.Request):
+        path = request.url.path
+        method = request.method.upper()
+        mine = (
+            path == f"/v1/databases/{self.projects_db}"
+            or path == f"/v1/databases/{self.projects_db}/query"
+            or (path.startswith("/v1/pages/") and self._known_page(path.rsplit("/", 1)[-1]))
+        )
+        if not mine:
+            return self._fallback(request) if self._fallback else None
+        if self.fail_status is not None:
+            return (self.fail_status, {
+                "object": "error", "status": self.fail_status,
+                "code": "fake_error", "message": self.fail_message,
+            })
+        if method == "GET" and path == f"/v1/databases/{self.projects_db}":
+            return {"object": "database", "id": self.projects_db,
+                    "properties": self.schema}
+        if method == "POST" and path == f"/v1/databases/{self.projects_db}/query":
+            return self._query(FakeNotionTasksDB._body(request))
+        if method == "PATCH" and path.startswith("/v1/pages/"):
+            return self._patch(path.rsplit("/", 1)[-1],
+                               FakeNotionTasksDB._body(request))
+        if method == "GET" and path.startswith("/v1/pages/"):
+            return self._page(path.rsplit("/", 1)[-1])
+        return self._fallback(request) if self._fallback else None
+
+    def _known_page(self, page_id: str) -> bool:
+        return any(p.get("id") == page_id for p in self.pages)
+
+    # -- endpoints ------------------------------------------------------------
+
+    def _query(self, body: dict):
+        self.queries.append(body)
+        size = min(int(body.get("page_size") or self.page_size), self.page_size)
+        offset = FakeNotionTasksDB._offset(body.get("start_cursor"))
+        page = self.pages[offset:offset + size]
+        if self.always_has_more:
+            # Keep handing out rows forever so the *caller's* page cap is what
+            # stops the loop — an empty page would end it for the wrong reason.
+            if not page and self.pages:
+                page = self.pages[:size]
+            return {"object": "list", "results": page, "has_more": True,
+                    "next_cursor": FakeNotionTasksDB._cursor(offset + size)}
+        has_more = offset + size < len(self.pages)
+        return {
+            "object": "list",
+            "results": page,
+            "has_more": has_more,
+            "next_cursor": (
+                FakeNotionTasksDB._cursor(offset + size) if has_more else None
+            ),
+        }
+
+    def _patch(self, page_id: str, body: dict):
+        """PATCH /v1/pages/{id} — merge the sent properties into the stored page.
+
+        Merging rather than replacing is the point: a push that sends four
+        properties must leave the other eight alone, and a fake that rebuilt the
+        page from the payload would hide a push that wipes them.
+        """
+        self.patched.append((page_id, body))
+        if self.patch_status is not None:
+            return (self.patch_status, {
+                "object": "error", "status": self.patch_status,
+                "code": "fake_patch_error", "message": self.fail_message,
+            })
+        for index, page in enumerate(self.pages):
+            if page.get("id") != page_id:
+                continue
+            merged = {**(page.get("properties") or {})}
+            merged.update({
+                name: _as_read_shape(prop)
+                for name, prop in (body.get("properties") or {}).items()
+            })
+            updated = {**page, "properties": merged}
+            self.pages[index] = updated
+            return updated
+        return (404, {"object": "error", "status": 404, "code": "object_not_found",
+                      "message": "Could not find page."})
+
+    def _page(self, page_id: str):
+        for page in self.pages:
+            if page.get("id") == page_id:
+                return page
+        return (404, {"object": "error", "status": 404, "code": "object_not_found",
+                      "message": "Could not find page."})

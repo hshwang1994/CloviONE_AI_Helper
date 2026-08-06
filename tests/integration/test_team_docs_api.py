@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.core.models_base import utcnow
 from app.team_docs.models import DocumentCache, join_names
-from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT
+from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT, TEST_DOCS_DB
 
 pytestmark = pytest.mark.integration
 
@@ -123,7 +123,8 @@ def test_filters_endpoint_returns_fixed_lists_and_projects(client, login_as, db)
 
 def _notion_write_fakes(fake_http):
     fake_http.on(
-        "https://api.notion.com/v1/databases/55efc3c0b58341a5b8d17f31fc2b152c",
+        # 문서 DB id 는 설치처 고유값이라 소스 기본값이 없다 - 테스트 설정이 쓰는 값을 그대로 쓴다.
+        f"https://api.notion.com/v1/databases/{TEST_DOCS_DB}",
         json_body={"properties": {"프로젝트": {"type": "relation", "relation": {"database_id": "projdb"}}}},
     )
     fake_http.on(

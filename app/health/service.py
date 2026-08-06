@@ -148,6 +148,17 @@ def _cert_days_remaining(settings: Settings) -> int | None:
         return None
 
 
+def cert_days_remaining(settings: Settings) -> int | None:
+    """`_cert_days_remaining` 의 공개 이름.
+
+    셋업 체크리스트(app/setup/probes.py)도 인증서 만료를 말해야 한다. 판정을 거기서 다시
+    쓰면 두 화면이 서로 다른 날짜를 말하게 되므로 같은 함수를 부른다. 밑줄 이름을 모듈
+    밖에서 부르면 "여기까지가 이 모듈의 약속" 이라는 신호가 사라져 공개 이름을 하나 둔다
+    (기존 호출부와 테스트는 밑줄 이름을 그대로 쓴다).
+    """
+    return _cert_days_remaining(settings)
+
+
 def build_dashboard(
     db: Session,
     settings: Settings,
@@ -325,6 +336,9 @@ def build_diagnostic_bundle(
     throwaway instance only if a caller genuinely has none, e.g. ad-hoc scripts).
     """
     from app.core.audit import mask_sensitive
+    from app.core.tenant_config import tenant_config_status
+    from app.mail.config import config_from_cache, mail_status
+    from app.mail.service import queue_counts as mail_queue_counts
     from app.settings.service import SettingsCache, effective_settings
 
     recent_job_errors = (
@@ -337,10 +351,24 @@ def build_diagnostic_bundle(
         .all()
     )
     bundle_cache = cache or SettingsCache()
+    effective = effective_settings(db, bundle_cache)
     return {
         "generated_at": now.isoformat(),
         "dashboard": build_dashboard(db, settings, now, cache=bundle_cache),
-        "settings": mask_sensitive(effective_settings(db, bundle_cache)),
+        "settings": mask_sensitive(effective),
+        # 설치처 고유 설정이 비었는지(app/core/tenant_config.py). 마스킹된 settings 덤프만
+        # 봐서는 "비어 있음"과 "원래 그런 값"이 구별되지 않는다 — 상태를 따로 싣는다.
+        # 다른 고객사 설치에서 아무 설정 없이 동작하지 않는 이유가 화면에 안 뜨던 문제를 막는다.
+        "tenant_config": tenant_config_status(settings, effective),
+        # 메일 발송 상태(9-9 P4). 진단이 이걸 말하지 않으면 "재설정 메일이 안 온다"는
+        # 신고를 받고도 원인이 SMTP 미설정인지 발송 실패인지 구별할 수 없다.
+        # 판정은 app/mail/config.py 한 곳이라 관리 화면(/api/admin/mail/status)과 같은 답이 나온다.
+        # secret_provider 를 넘기지 않는 이유: 이 함수는 app.state 를 받지 않는다.
+        # 비밀번호 secret 파일 존재 여부는 관리 화면 쪽에서 확인한다.
+        "mail": {
+            **mail_status(config_from_cache(bundle_cache)),
+            "counts": mail_queue_counts(db),
+        },
         "recent_job_errors": [
             {"job_type": jt, "error": err, "at": ts.isoformat()}
             for jt, err, ts in recent_job_errors

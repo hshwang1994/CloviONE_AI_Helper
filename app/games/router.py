@@ -18,9 +18,10 @@ from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError, RateLimitedError
 from app.core.feature_flags import load_feature_flags
 from app.games import ai, repository, service
-from app.games.models import ROLE_SPECTATOR
+from app.games.models import EV_CHAT, ROLE_SPECTATOR
 from app.games.schemas import ChatInput, NumberInput, QuizGenerateInput, ReadyInput, RoomCreate, VoteInput
 from app.users.models import User
+from app.settings.gate import block_if_maintenance
 
 
 def require_games_enabled(request: Request) -> None:
@@ -36,7 +37,11 @@ def require_game_ai_enabled(request: Request) -> None:
         raise NotFoundError("AI 퀴즈 생성 기능이 비활성화되어 있습니다.")
 
 
-router = APIRouter(prefix="/api/games", tags=["games"], dependencies=[Depends(require_games_enabled)])
+router = APIRouter(
+    prefix="/api/games",
+    tags=["games"],
+    dependencies=[Depends(require_games_enabled), Depends(block_if_maintenance)],
+)
 
 
 def _room_summary(db: Session, room) -> dict:
@@ -122,7 +127,15 @@ def room_state(
         "room": _room_summary(db, room),
         "state": service.public_state(room, me.id),
         "members": [_member_view(m, umap.get(m.user_id)) for m in active_members],
-        "events": [_event_view(e) for e in repository.events_since(db, room.id, since)],
+        # 대화는 **방 안 사람에게만** (1순위 유출 #10). 로비 미리보기(방·멤버·진행 상태)는
+        # 설계다 — `you.in_room` 과 `join(spectate=…)` 이 그걸 전제로 있다. 하지만 "무슨
+        # 게임이 몇 명으로 돌아가는지" 를 보는 것과 "그 사람들이 무슨 말을 했는지" 를 읽는
+        # 것은 다른 일이다. 방 밖에서는 대화 이벤트만 뺀다.
+        "events": [
+            _event_view(e)
+            for e in repository.events_since(db, room.id, since)
+            if mem is not None or e.kind != EV_CHAT
+        ],
         "seq": room.event_seq,
         "you": {
             "user_id": me.id,

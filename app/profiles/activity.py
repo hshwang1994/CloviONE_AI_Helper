@@ -53,6 +53,7 @@ AUDIT_DESTINATIONS: dict[str, str] = {
 OBJECT_LABELS: dict[str, str] = {
     "notion_task": "티켓",
     "notion_document": "문서",
+    "document_comment": "문서 댓글",
     "document_sync": "문서 동기화",
     "document_generation": "문서 생성",
     "board_post": "게시글",
@@ -62,12 +63,16 @@ OBJECT_LABELS: dict[str, str] = {
     "ticket_comment": "티켓 댓글",
     "ticket_attachment": "티켓 첨부",
     "organization": "조직",
+    "project": "프로젝트",
+    "project_milestone": "마일스톤",
     "user": "계정",
     "user_notion_mapping": "Notion 연결",
     "approval": "승인",
     "backup": "백업",
     "integration": "외부 연동",
     "job": "작업",
+    # 메일 발송(9-9 P4). 관리 콘솔의 시험 발송이 이 이름으로 감사에 남는다.
+    "mail_delivery": "메일 발송",
     "runner": "러너",
     "schedule": "실행 일정",
     "schedule_run": "실행 이력",
@@ -85,12 +90,19 @@ OBJECT_LABELS: dict[str, str] = {
     "policy": "정책",
     "app_setting": "설정",
     "workflow": "워크플로",
+    #   app/sysops/router.py OBJECT_TYPE = "system_setting" (타임존·DNS·인증서 등 서버 설정)
+    "system_setting": "시스템 설정",
     # 관리자 백로그 잔여(0033, PLAN Phase 6).
     "announcement": "공지",
     "ai_quota": "AI 쿼터",
     "approval_delegation": "승인 위임",
     "feature_flag": "기능 플래그",
     "restore_rehearsal": "복구 리허설",
+    # Notion 관리(9-4)와 LLM 관리(9-5). 토큰 교체, 연결 테스트, 데이터베이스 생성이
+    # 이 이름으로 감사에 남는다.
+    "notion_token": "Notion 토큰",
+    "notion_database": "Notion 데이터베이스",
+    "llm_config": "AI 설정",
 }
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도
@@ -117,6 +129,8 @@ VERB_LABELS: dict[str, str] = {
     "verify": "확인",
     "run": "실행",
     "undo": "되돌림",
+    # Notion / AI 연결 테스트(9-4, 9-5). 'notion.connection.test' 처럼 마지막이 동사다.
+    "test": "연결 테스트",
 }
 
 # 위 규칙(명사 + 동사)으로 자연스럽게 읽히지 않는 액션은 통째로 문장을 준다.

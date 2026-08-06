@@ -324,6 +324,13 @@ export function Diagnostics() {
   // 정상 연동 목록과 시스템 카운트를 숨기면 지원팀이 원본 JSON을 뒤져야 했다.
   const integrations = dash.integrations || {};
   const counts = dash.counts || {};
+  // 설치처 고유 설정(app/core/tenant_config.py). 예전엔 노션 DB id 와 이메일 도메인의 기본값이
+  // 개발 워크스페이스를 가리켜서, 다른 고객사에 설치해도 아무 설정 없이 '되는 것처럼' 보였다.
+  // 이제 기본값이 비어 있고, **안 채운 값이 있다는 사실을 여기서 말한다** - 안 그러면 화면은
+  // 그냥 빈 목록을 보여 주고 그건 '데이터가 없음'과 구별되지 않는다.
+  // 서버가 이 필드를 안 주는 낡은 배포에서는 섹션 자체를 그리지 않는다(없는 것을 있는 척하지 않는다).
+  const tenant = bundle && bundle.tenant_config ? bundle.tenant_config : null;
+  const tenantItems = (tenant && tenant.items) || [];
   // 번들은 actor 이름까지 해석한 '최근 주요 변경'(누가 role_change/backup.restore/rollback/approve 했나)을 담는데
   // 화면이 이걸 버려 지원팀이 원본 JSON을 뒤져야 했다, 대시보드와 같은 방식(actionKo/objKo)으로 구조화해 보여준다.
   const recentAudit = dash.recent_critical_audit || [];
@@ -497,6 +504,37 @@ export function Diagnostics() {
                 </Card>
               )}
             </DashSection>
+            {/* 설치처 설정. '외부 연동' 바로 아래에 둔다 - 연동이 비어 보이는 이유가 대개 여기 있다.
+                값을 그리지 않고 **채웠는지 여부만** 그린다: DB id 는 설치처 식별자라 진단 화면에
+                띄울 이유가 없고, 필요한 정보는 "안 채운 것이 있는가" 하나뿐이다. */}
+            {tenantItems.length ? (
+              <DashSection title="설치처 설정">
+                <Card>
+                  {tenant.configured ? (
+                    <Note sx={{ mt: 0 }}>설치처 고유 설정을 모두 채웠습니다.</Note>
+                  ) : (
+                    <Box sx={{ mb: 2 }}>
+                      <Callout tone="warn">
+                        아직 설정하지 않은 항목이 {tenant.unset_count}개 있습니다. 그 기능은 비어 있는 것이 아니라 아직 연결되지 않은 상태입니다.
+                      </Callout>
+                    </Box>
+                  )}
+                  <LogList>
+                    {tenantItems.map((item) => (
+                      <LogRow key={item.key} when={item.state === "set" ? "설정됨" : "설정 안 됨"} what={item.label}>
+                        {/* 안 채운 항목만 "그래서 무슨 일이 벌어지는가"를 붙인다. 다 채운 항목에까지
+                            설명을 달면 경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. */}
+                        {item.state === "set" ? null : (
+                          <Typography variant="body2" color="text.secondary">
+                            {item.when_unset} ({item.env_var})
+                          </Typography>
+                        )}
+                      </LogRow>
+                    ))}
+                  </LogList>
+                </Card>
+              </DashSection>
+            ) : null}
             {/* '현재 리소스'는 '시스템 리소스', '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라, 이전엔
                 오류, 감사 이력(시간을 두고 훑는 섹션들) 사이에 끼어 있어 위쪽 두 섹션과 한눈에 묶여
                 읽히지 않았다, 같은 성격의 섹션끼리 먼저 모아 두고, 이력성 섹션은 그 아래로 둔다. */}
@@ -641,7 +679,10 @@ export function Diagnostics() {
   );
 }
 
-/* 유지보수 — 유지보수 모드(maintenance_mode 설정)를 켜고 끈다. 켜면 사용자 쓰기 작업이 차단된다.
+/* 유지보수 — 유지보수 모드(maintenance_mode 설정)를 켜고 끈다. 켜면 일반 사용자의 내용 쓰기가 차단된다.
+   여기 문구는 서버가 실제로 막는 범위와 일치해야 한다 — 예전에는 게이트가 AI 채팅 2곳에만 걸려
+   있는데도 "티켓 생성, 변경 등"을 예로 들고 있었다(하필 안 막히던 것). 범위는
+   tests/security/test_maintenance_coverage.py 의 GATED_PREFIXES 가 정본이다.
  * 사용자에게 보일 점검 공지(maintenance_message)도 여기서 확인·수정한다. 쓰기는 admin/system_admin.
  *
  * 이 화면은 operator/auditor(읽기 전용 역할)도 들어온다(App.jsx RequireRole). 그 역할에게 쓰기
@@ -725,7 +766,10 @@ export function Maintenance() {
     if (fresh.isError) { toast("현재 상태를 확인하지 못해 변경을 취소했습니다. 다시 시도하세요.", "error"); return; }
     const freshMm = fresh.data && fresh.data.settings && fresh.data.settings.maintenance_mode;
     const freshOn = freshMm ? (freshMm.value === true || freshMm.value === "true") : on;
-    const ok = await confirm(freshOn ? "유지보수 모드를 끌까요?" : "유지보수 모드를 켤까요? 사용자 쓰기가 차단됩니다.", { danger: !freshOn });
+    const ok = await confirm(freshOn ? "유지보수 모드를 끌까요?" : "유지보수 모드를 켤까요? 일반 사용자의 쓰기가 차단됩니다. 운영자 이상은 계속 쓸 수 있습니다.",
+      // 확정 버튼이 무엇을 하는지 말한다 (E7). 예전에는 이것도 "확인" 한 단어였다 —
+      // **전 사용자의 쓰기를 막는 일**인데 빨간색 말고는 단서가 없었다.
+      { danger: !freshOn, confirmLabel: freshOn ? "유지보수 모드 끄기" : "유지보수 모드 켜기" });
     if (!ok) return;
     toggle.mutate(!freshOn);
   }
@@ -769,13 +813,13 @@ export function Maintenance() {
             ) : null}
             {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
                 (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
-            {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 켜져 있습니다, 사용자 쓰기(티켓 생성, 변경 등)가 차단되고 있습니다. 점검이 끝나면 아래에서 꺼 주세요.</Callout></Box> : null}
+            {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 켜져 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 꺼 주세요.</Callout></Box> : null}
             <Card sx={{ p: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, flexWrap: "wrap", mb: 4 }}>
               <Box sx={{ minWidth: 0, flex: "1 1 20rem" }}>
                 <Typography component="div" sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 750, mb: 1 }}>
                   현재 상태 <Badge value={on ? "maintenance" : "up"} />
                 </Typography>
-                <Note sx={{ mt: 0 }}>유지보수 모드를 켜면 사용자 쓰기 작업(티켓 생성, 변경 등)이 일시 차단됩니다. 점검이 끝나면 다시 끄세요.</Note>
+                <Note sx={{ mt: 0 }}>유지보수 모드를 켜면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 끄세요.</Note>
                 {/* 쓰기 권한이 없어 비활성인 이유 — 이 한 줄이 아래 두 버튼(모드 전환·공지 저장 계열)의
                     aria-describedby 대상이다. 버튼을 숨기는 대신 이유를 보여 준다. */}
                 {!canWrite ? (

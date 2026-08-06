@@ -18,9 +18,12 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { DETAIL_RAIL_MAX_WIDTH, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
+import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
+import { EditableBody } from "../ui/EditableBody.jsx";
+import { DocComments } from "./DocComments.jsx";
 
 /* 팀 공간 > 문서 상세 (§17). 메타는 캐시에서, 본문 블록은 실시간(Notion). 본문을 못 불러와도
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
@@ -30,12 +33,10 @@ import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.
  * 줄이 아니라 **두 번째 열**(메타 레일)로 보낸다. DocBody/safeExternal은 티켓 상세도 함께 쓰므로
  * export 이름과 prop 시그니처를 그대로 유지한다. */
 
-export function safeExternal(url) {
-  // 원본/출처 링크는 http(s)만 새 탭으로 연다(javascript: 등 차단).
-  if (typeof url !== "string") return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  return null;
-}
+// 정의는 `lib/safeUrl.js` 로 옮겼다 — 보안 원시함수가 화면 모듈에 있으니 다른 화면에서
+// 아무도 찾아 쓰지 않았고, 실제로 배너·휴지통·개발리포트 세 곳이 무방비였다.
+// 여기서 재수출하는 이유는 `Ticket.jsx` 와 `teamdoc.test.jsx` 가 이 경로로 가져오기 때문이다.
+export { safeExternal };
 
 function DocBlock({ block, onImage }) {
   const t = block.text || "";
@@ -261,7 +262,7 @@ export function TeamDoc() {
       <Box sx={{
         display: "grid", alignItems: "start",
         columnGap: { lg: 4, xxl: 6 }, rowGap: 3,
-        gridTemplateColumns: { xs: "1fr", lg: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, 1fr)` },
+        gridTemplateColumns: { xs: "1fr", lg: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, ${DETAIL_RAIL_MAX_WIDTH})` },
       }}>
         <Card component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
@@ -271,10 +272,33 @@ export function TeamDoc() {
           <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
             {doc.title || "제목 없음"}
           </Typography>
-          <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error} originalUrl={original} />
+          {/* 읽기와 편집을 한 패널이 맡는다(사용자 지적 #9). 티켓 본문과 **같은 컴포넌트**라
+              "저장은 됐지만 원본과 어긋남" 같은 상태를 두 화면이 똑같이 다룬다.
+              소스 본문 렌더러는 여기서 넘긴다 — 폭 상한은 화면이 정할 일이고, 그래야
+              ui/EditableBody 가 화면 모듈을 되짚어 import 하지 않는다(순환 import). */}
+          <EditableBody
+            editorId={"doc-body-" + id}
+            endpoint={"/api/team-docs/" + id + "/body"}
+            invalidateKeys={[["team-docs"], ["team-doc", id]]}
+            blocks={detail.data.blocks}
+            bodyMarkdown={detail.data.body_markdown}
+            bodyVersion={detail.data.body_version}
+            bodyIsLocal={detail.data.body_is_local}
+            bodySyncError={detail.data.body_sync_error}
+            onSaved={() => detail.refetch()}
+            sourceView={(
+              <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error}
+                originalUrl={original} />
+            )}
+          />
         </Card>
 
         <DocMeta doc={doc} />
+
+        {/* 논의는 본문 **바로 아래**, 메타 레일이 아니라 1열이다(티켓 상세와 같은 배치).
+            레일에 넣으면 좁은 화면에서 댓글이 "무엇에 대한 댓글인지"보다 먼저 나온다.
+            2열 격자의 세 번째 자식이라 자동으로 2행 1열에 놓인다. */}
+        <DocComments pageId={id} />
       </Box>
     </div>
   );

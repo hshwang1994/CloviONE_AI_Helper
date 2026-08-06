@@ -22,8 +22,23 @@ const DOC_TYPE_KIND = {
   "기타": "neutral",
 };
 
+/* 제안 상태 색. 일이 흘러가는 방향을 색으로도 읽게 한다: 아직 아무도 안 본 것(회색) →
+ * 보는 중(파랑) → 하는 중(주황) → 끝(초록) → 멈춤(빨강). '보류'만 빨강인 이유는 그것만
+ * 사람이 다시 손대야 풀리는 상태이기 때문이다. */
+const IDEA_STATUS_KIND = {
+  "제안": "neutral",
+  "검토중": "info",
+  "진행": "warn",
+  "완료": "ok",
+  "보류": "danger",
+};
+
 export function boardCategoryKind(category) {
   return BOARD_CATEGORY_KIND[category] || "neutral";
+}
+
+export function ideaStatusKind(status) {
+  return IDEA_STATUS_KIND[status] || "neutral";
 }
 
 export function docTypeKind(docType) {

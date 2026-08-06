@@ -24,6 +24,15 @@ PROP_DIFFICULTY = "난이도"
 PROP_PRIORITY = "우선순위"
 PROP_TICKET_ID = "티켓 ID"
 PROP_PROJECT = "프로젝트"
+# 상위 작업 — Notion 작업 DB 의 **self-relation** 이다(하위 작업의 반대편).
+#
+# 왜 읽는가: 진행률을 앱이 다시 계산할 때 **리프 작업만** 세야 한다. 부모와 자식을 함께 세면
+# 같은 일이 두 번 잡혀 Notion 의 rollup 과 똑같이 틀린다(그게 rollup 을 안 믿는 세 이유 중 하나다).
+# 이 값을 안 읽으면 `app/projects/progress.py` 의 리프 판정이 **아무 효과가 없다** —
+# 표본 안에 부모로 지목된 작업이 하나도 없어서 전부 리프로 보이기 때문이다.
+#
+# WBS 트리도 같은 값에서 나온다. 계층을 새로 만들지 않고 Notion 에 이미 있는 것을 미러한다.
+PROP_PARENT = "상위 작업"
 # 편집 가능한 나머지 두 속성. 리포트는 안 쓰지만 **포털만으로 업무를 끝내려면**
 # 이 둘도 여기서 읽어야 한다(2026-08-04 제품화 지시).
 PROP_START = "시작일"
@@ -112,6 +121,10 @@ def _parse_row(row: dict) -> dict:
         "difficulty": _select_name(p(PROP_DIFFICULTY)),
         "priority": _select_name(p(PROP_PRIORITY)),
         "project_ids": _relation_ids(p(PROP_PROJECT)),
+        # 상위 작업은 최대 하나로 다룬다 — Notion 은 relation 이라 여럿을 담을 수 있지만
+        # 트리에서 부모가 둘이면 계층이 아니다. 여럿이면 첫 번째를 쓰고 나머지는 버린다
+        # (진행률의 리프 판정에는 "부모가 있다" 는 사실만 있으면 충분하다).
+        "parent_page_id": next(iter(_relation_ids(p(PROP_PARENT))), None),
     }
 
 
@@ -128,6 +141,20 @@ def _parse_row_with_times(row: dict) -> dict:
     }
 
 
+def _require_tasks_database_id(settings) -> None:
+    """작업 DB id 가 비었으면 **부르기 전에** '설정 안 됨' 으로 끊는다.
+
+    빈 id 로 그냥 부르면 URL 이 `/v1/databases//query` 가 되고 Notion 은 400 을 준다.
+    화면은 그걸 "조회 실패"로 그리고, 운영자는 네트워크나 토큰을 의심하며 시간을 버린다.
+    설정이 비었다는 사실은 호출하기 전에 이미 알고 있다 — 토큰 미설정과 같은 예외로 올려
+    화면이 '연동 필요' 안내를 그리게 한다(§불변 6: 설정 안 함과 결과 없음은 다른 사실이다).
+    """
+    if not (settings.notion_tasks_database_id or "").strip():
+        raise NotionNotConfiguredError(
+            "노션 작업 데이터베이스 id 가 설정되지 않았습니다(NOTION_TASKS_DATABASE_ID)."
+        )
+
+
 def _query_tasks_paged(
     outbound, settings, *, filter_obj=None, sorts=None, parse=_parse_row
 ) -> tuple[list[dict], bool]:
@@ -141,6 +168,7 @@ def _query_tasks_paged(
     페이지네이션·토큰 미설정/오류 매핑을 한곳에서 처리한다. 토큰이 없으면
     NotionNotConfiguredError, Notion 오류면 NotionQueryError.
     """
+    _require_tasks_database_id(settings)
     url = f"{settings.notion_api_base.rstrip('/')}/v1/databases/{settings.notion_tasks_database_id}/query"
     headers = {
         "Notion-Version": settings.notion_api_version,
@@ -165,6 +193,9 @@ def _query_tasks_paged(
                 timeout=30.0,
                 auth_type="bearer",
                 secret_ref=settings.notion_report_token_ref,
+                # S9 — 429 는 "처리하지 않았다" 라 다시 보내도 안전하다. 안 걸면 동기화가
+                # 통째로 실패하고 사용자는 낡은 목록을 본다.
+                rate_limit_retries=3,
             )
         except FileNotFoundError as exc:
             # secrets_dir 에 토큰 파일이 없음 = 아직 연동 안 됨.

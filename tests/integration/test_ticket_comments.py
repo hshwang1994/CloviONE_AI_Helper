@@ -243,15 +243,44 @@ def test_anonymous_cannot_read_comments(client, notion):
 
 def test_pruning_a_ticket_does_not_wedge_the_mirror(client, api, db, settings, fake_clock):
     """FK 가 걸린 댓글이 남아 있으면 캐시 행 DELETE 가 실패하고, sync 는 예외를 통째로
-    삼키므로 티켓 미러가 조용히 멈춘다. ON DELETE CASCADE 로 그 함정을 막는다."""
+    삼키므로 티켓 미러가 조용히 멈춘다. ON DELETE CASCADE 로 그 함정을 막는다.
+
+    `keep` 에 **다른 티켓을 남긴다** — 예전에는 `keep=set()` 으로 이 상황을 만들었지만
+    이제 그건 `core.sync_prune` 의 바닥이 거부한다(소스가 0건이면 소스를 의심한다).
+    여기서 확인하려는 것은 '정상적으로 한 건이 사라졌을 때 댓글이 DELETE 를 막지 않는가' 다.
+    """
+    from app.tickets.models import TicketCache as _TC
     from app.tickets import sync
 
     csrf = api("a@goodmit.co.kr", name="가")
     _post(client, csrf, f"/api/tickets/{PAGE_ID}/comments", {"body": "댓글"})
     assert db.execute(select(TicketComment)).scalars().all()
 
-    sync._prune(db, keep=set())  # Notion 에서 티켓이 사라진 상황
+    survivor = _TC(notion_page_id="still-there", title="남는 티켓")
+    db.add(survivor)
     db.flush()
 
-    assert db.execute(select(TicketCache)).scalars().all() == []
-    assert db.execute(select(TicketComment)).scalars().all() == []
+    from datetime import datetime, timedelta
+
+    from app.core.retention import MISSING_TICKET_GRACE_DAYS, purge_missing_tickets
+
+    marked_at = datetime(2026, 8, 6, 9, 0)
+    sync._prune(db, keep={"still-there"}, now=marked_at)  # 이 티켓만 Notion 에서 사라진 상황
+    db.flush()
+
+    # 0043: prune 은 **표시만** 한다 — 댓글은 그대로 살아 있다(한 회차 깜빡임이면 돌아온다).
+    marked = db.execute(
+        select(TicketCache).where(TicketCache.notion_page_id == PAGE_ID)
+    ).scalar_one()
+    assert marked.notion_missing_at == marked_at
+    assert db.execute(select(TicketComment)).scalars().all(), "표시 단계에서 댓글이 사라졌다"
+
+    # 유예를 넘기면 그때 진짜로 지운다. **이 테스트의 원래 목적이 여기로 옮겨왔다** —
+    # FK 가 걸린 댓글이 남아 있어도 그 DELETE 가 실패하지 않아야 한다(실패하면 정리가
+    # 조용히 멈춘다). 그걸 CASCADE 가 막아 준다.
+    purge_missing_tickets(db, now=marked_at + timedelta(days=MISSING_TICKET_GRACE_DAYS + 1))
+    db.flush()
+
+    remaining = db.execute(select(TicketCache)).scalars().all()
+    assert [r.notion_page_id for r in remaining] == ["still-there"]
+    assert db.execute(select(TicketComment)).scalars().all() == []  # CASCADE 로 함께 정리

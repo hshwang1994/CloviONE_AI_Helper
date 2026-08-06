@@ -22,12 +22,13 @@ from app.core.deps import (
     get_client_ip,
     get_current_auth,
     get_db,
+    get_principal,
     require_csrf,
     require_roles,
 )
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
-from app.core.scope import build_scope
+from app.core.scope import Principal, build_scope, visible_user_ids
 from app.impersonation import service
 from app.impersonation.models import END_MANUAL, ImpersonationSession
 from app.users.models import User
@@ -152,8 +153,17 @@ def list_sessions(
     actor_user_id: str | None = None,
     target_user_id: str | None = None,
     active: bool | None = None,
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     stmt = select(ImpersonationSession)
+    # 범위 밖 대리 보기 이력은 안 보인다 (2순위 #5).
+    #
+    # 이 표는 "**누가 누구의 계정으로 들어갔나**" 다 — 다른 조직의 이력을 볼 수 있으면
+    # 그 조직에 누가 있고 누가 관리자인지, 어떤 계정이 문제를 겪었는지가 드러난다.
+    # **대상 기준**으로 좁힌다: 보호받아야 하는 쪽은 대리 보기를 당한 사람이다.
+    visible = visible_user_ids(db, principal.scope)
+    if visible is not None:
+        stmt = stmt.where(ImpersonationSession.target_user_id.in_(list(visible)))
     if actor_user_id:
         stmt = stmt.where(ImpersonationSession.actor_user_id == actor_user_id)
     if target_user_id:

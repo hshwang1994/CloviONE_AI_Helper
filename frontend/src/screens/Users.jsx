@@ -62,6 +62,29 @@ export function diffFields(body, initial) {
 const ROLE_KO = { user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
 
+/* 관리 범위 — `app/users/models.py` 의 `ALL_ADMIN_SCOPES` 와 같은 세 값이다.
+ * 라벨은 '무엇을 볼 수 있는가'로 쓴다: `global`/`org`/`dept` 는 개발자 말이다. */
+const SCOPE_KO = { global: "전체 포털", org: "소속 조직", dept: "소속 부서(하위 포함)" };
+const SCOPE_OPTS = Object.keys(SCOPE_KO).map((v) => ({ value: v, label: SCOPE_KO[v] }));
+
+/* 상세 패널에 쓸 한 줄. 범위가 `dept`/`org` 인데 대상이 비어 있으면 **그 사람은 아무것도
+ * 못 본다** — 저장 경계에서 막지만, 예전 데이터나 CLI 로 들어온 값이 있을 수 있으므로
+ * 화면에서도 그 사실을 조용히 넘기지 않는다. */
+export function scopeLabel(row, deptOptions) {
+  const scope = (row && row.admin_scope) || "global";
+  const base = SCOPE_KO[scope] || scope;
+  if (scope === "dept") {
+    const id = row.scope_dept_id;
+    if (!id) return base + " (대상 부서 없음: 아무것도 보이지 않습니다)";
+    const hit = (deptOptions && deptOptions.options || []).find((o) => o.value === id);
+    return base + ": " + (hit ? hit.label : id);
+  }
+  if (scope === "org" && !row.scope_org_id) {
+    return base + " (대상 조직 없음: 아무것도 보이지 않습니다)";
+  }
+  return base;
+}
+
 /* 화면 안에서 '눌러서 무언가 하는 짧은 글자' — 예전 .c-linkbtn(관리 화면 전용 링크 버튼)을 대신한다.
  * 링크처럼 보이지만 이동이 아니라 동작이므로 <button>이어야 한다(스크린리더가 역할을 옳게 읽는다). */
 function LinkButton({ onClick, children }) {
@@ -305,7 +328,20 @@ export function Users() {
       // 관리자 승인 흐름 안내는 system_admin이 아닌 행위자에게만 붙어 있었는데, 역할이 실제로
       // 바뀌면(어떤 역할로든) 이 사용자의 모든 세션이 즉시 강제 로그아웃된다(app/users/service.py
       // update_user, docs/USER_LIFECYCLE.md §3), 이 부작용은 actorRole과 무관하게 항상 적용되므로 별도로 안내한다.
-      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: (actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다.", }, { name: "department_id", label: "부서", type: "select", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", options: title.options, help: titleHelp }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "변경 요구" }, ];
+      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: (actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다.", }, { name: "department_id", label: "부서", type: "select", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", options: title.options, help: titleHelp }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "변경 요구" },
+      /* 관리 범위 (F2) — **부서 관리자를 만들 수 있는 유일한 입구**다.
+       *
+       * 모델(`users.admin_scope`)과 읽는 쪽(`app/core/scope.py`)은 0024 부터 있었는데
+       * 넣는 길이 스키마·라우터·화면 어디에도 없었다. 그래서 모든 관리자가 영원히 `global`
+       * 이었고, 범위 IDOR 테스트 넷은 값을 손으로 대입해서 초록이었다(T3 '가짜 안전감').
+       *
+       * 역할과 같은 무게로 다룬다: 범위를 넓히는 것은 권한을 주는 일이고, 바뀌면 그
+       * 사용자의 세션이 즉시 끊긴다. 그래서 안내 문구도 역할 옆에 나란히 둔다. */
+      { name: "admin_scope", label: "관리 범위", type: "select", options: SCOPE_OPTS,
+        help: "관리자가 관리 화면에서 볼 수 있는 범위입니다. 좁히면 그 범위 밖 사람과 자원이 목록에서 사라집니다. 범위가 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다." },
+      { name: "scope_dept_id", label: "범위 대상 부서", type: "select", options: dept.options,
+        help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다." },
+    ];
 
   function announce(res, okMsg) {
     // 서버(app/users/router.py)는 상태를 top-level status 문자열로만 준다, approval_pending
@@ -726,6 +762,11 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
         <Row label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</Row>
         <Row label="활성"><Badge value={d.active ? "active" : "disabled"} /></Row>
         <Row label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</Row>
+        {/* 지금 이 사람이 **어디까지 보는지**. 관리자에게만 의미가 있으므로 일반 사용자에는
+            안 그린다(전체 범위가 기본값이라 모든 계정에 '전체 포털'이 붙으면 소음이 된다). */}
+        {d.role && d.role !== "user" ? (
+          <Row label="관리 범위">{scopeLabel(d, dept)}</Row>
+        ) : null}
         <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
         <Row label="Notion 연결"><Badge value={d.notion_mapping_status} /></Row>
         {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면

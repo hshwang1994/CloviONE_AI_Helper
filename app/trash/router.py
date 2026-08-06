@@ -20,8 +20,13 @@ from app.core.errors import NotFoundError
 from app.trash import repository, service
 from app.trash.schemas import TrashBulkIds
 from app.users.models import User
+from app.settings.gate import block_if_maintenance
 
-router = APIRouter(prefix="/api/trash", tags=["trash"])
+router = APIRouter(
+    prefix="/api/trash",
+    tags=["trash"],
+    dependencies=[Depends(block_if_maintenance)],
+)
 
 _TYPE_LABELS = {"ticket": "티켓", "document": "문서"}
 
@@ -52,7 +57,10 @@ def _item_view(item, *, retention_days: int, me: User) -> dict:
 @router.get("")
 def list_trash(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     days = _retention_days(request)
-    items = repository.list_items(db)
+    # 범위를 건다 — 예전에는 조건이 하나도 없어 남의 팀이 지운 것까지 보였다.
+    from app.core.scope import build_scope
+
+    items = repository.list_visible(db, build_scope(db, me))
     # 휴지통은 15초마다 폴링되는데 실제로는 며칠에 한 번 바뀐다 — 전형적인 304 대상이다.
     return etag_json_response(request, {
         "items": [_item_view(i, retention_days=days, me=me) for i in items],

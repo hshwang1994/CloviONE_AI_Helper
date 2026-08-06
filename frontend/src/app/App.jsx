@@ -3,11 +3,12 @@ import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from "r
 import { AuthProvider, useAuth } from "./auth.jsx";
 import { Card, Skeleton } from "../ui/kit.jsx";
 import { AppShell, ShellErrorFallback } from "./AppShell.jsx";
+import { LoginHandoff } from "./LoginHandoff.jsx";
 
 /* 두 콘솔은 각각 별도 청크다. 사용자 콘솔만 쓰는 사람은 관리자 화면 20여 개를 받지 않는다. */
 const AdminRoutes = React.lazy(() => import("./AdminRoutes.jsx"));
 const UserRoutes = React.lazy(() => import("./UserRoutes.jsx"));
-import { NAV, USER_NAV, inUserSegment } from "./navConfig.js";
+import { NAV, USER_NAV, inUserSegment, navWithFeatures } from "./navConfig.js";
 import { applyBootTheme } from "./theme-store.js";
 
 /* 라우트 표와 셸 조립. 셸 자체(상단바·사이드바·팔레트·마스코트)는 AppShell.jsx,
@@ -67,25 +68,31 @@ function Layout() {
   const useUserConsole = isUser || userSeg;
 
   return (
-    <AppShell
-      nav={useUserConsole ? USER_NAV : NAV}
-      ariaLabel={useUserConsole ? "사용자 메뉴" : "관리 메뉴"}
-      navOpen={navOpen}
-      onCloseNav={() => setNavOpen(false)}
-      onToggleNav={() => setNavOpen((v) => !v)}
-      isUser={isUser}
-      userSeg={userSeg}
-      minimal={auth.isError}
-      showMenu={showMenu}
-    >
-      {/* 오류 경계를 본문에만 두고 경로별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
-          살아 이동 가능하다. */}
-      <ErrorBoundary key={loc.pathname}>
-        <React.Suspense fallback={<Card><Skeleton lines={6} /></Card>}>
-          {useUserConsole ? <UserRoutes /> : <AdminRoutes />}
-        </React.Suspense>
-      </ErrorBoundary>
-    </AppShell>
+    <>
+      {/* 로그인 화면에서 시작된 연출을 여기서 이어받아 끝낸다. 로그인 직후가 아니면
+          아무것도 그리지 않는다(실패·만료·평상시 새로고침에서는 표식 자체가 없다).
+          인증 조회가 끝나야 첫 화면이 실제로 그려지므로 그 시점을 준비 신호로 준다. */}
+      <LoginHandoff ready={!auth.isLoading} />
+      <AppShell
+        nav={navWithFeatures(useUserConsole ? USER_NAV : NAV, auth.data && auth.data.features)}
+        ariaLabel={useUserConsole ? "사용자 메뉴" : "관리 메뉴"}
+        navOpen={navOpen}
+        onCloseNav={() => setNavOpen(false)}
+        onToggleNav={() => setNavOpen((v) => !v)}
+        isUser={isUser}
+        userSeg={userSeg}
+        minimal={auth.isError}
+        showMenu={showMenu}
+      >
+        {/* 오류 경계를 본문에만 두고 경로별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
+            살아 이동 가능하다. */}
+        <ErrorBoundary key={loc.pathname}>
+          <React.Suspense fallback={<Card><Skeleton lines={6} /></Card>}>
+            {useUserConsole ? <UserRoutes /> : <AdminRoutes />}
+          </React.Suspense>
+        </ErrorBoundary>
+      </AppShell>
+    </>
   );
 }
 

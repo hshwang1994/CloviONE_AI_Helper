@@ -299,3 +299,73 @@ def test_runs_are_listed_with_names(client, admin, people):
     assert row["user_name"] == "퇴사자"
     assert row["successor_name"] == "후임"
     assert row["actor_name"] == "관리자"
+
+
+# ── C3: 장부가 외부 부작용보다 먼저 사라지지 않는다 ─────────────────────────────
+
+def _raise_lock(*a, **kw):
+    raise RuntimeError("계정 보관 중 DB 잠금")
+
+
+def test_the_ledger_survives_a_failure_in_the_account_step(
+    client, admin, people, notion, monkeypatch
+):
+    """계정 단계에서 실패해도 **이미 옮긴 티켓 기록은 남아야 한다** (C3).
+
+    전에는 전부 한 트랜잭션이었다. `get_db` 는 예외가 나면 요청 세션을 통째로 롤백하므로
+    ③④(계정 처리)에서 실패하면 — 권한 검사, SQLite 잠금, 100건 200회 왕복 중 타임아웃 —
+    **Notion 재배정은 남고 로컬 기록은 전부 사라졌다.**
+
+    그러면 관리자는 티켓이 옮겨진 줄 모르고, `undo()` 의 입력(`before_user_ids`)도 함께
+    사라져 **되돌릴 방법이 없다.** 되돌릴 수 있다는 것이 이 모듈의 약속 넷 중 하나인데,
+    실패 한 번이 그 약속을 조용히 취소했다.
+    """
+    from app.offboarding import service as off_service
+
+    monkeypatch.setattr(off_service, "archive_user", _raise_lock)
+
+    response = _run(
+        client, admin, people["leaver"],
+        ticket_page_ids=["page-1", "page-2"],
+        successor_user_id=people["successor"], deactivate=False, archive=True,
+    )
+    assert response.status_code >= 500, f"터뜨린 실행이 성공했다: {response.status_code}"
+
+    # Notion 은 실제로 바뀌었다 — 이것이 되돌릴 수 없는 부작용이다.
+    assert _assignee_ids(notion, "page-1") == [SUCCESSOR_NID]
+
+    # ✅ **새 세션**으로 읽는다. 요청 세션의 롤백을 견뎠는지가 요점이다.
+    with client.app.state.session_factory() as session:
+        runs = session.query(OffboardingRun).all()
+        assert len(runs) == 1, "실행 기록이 통째로 사라졌다 — 무슨 일이 있었는지 알 수 없다"
+        run = runs[0]
+        assert run.status == "running", (
+            f"끝까지 못 간 실행이 '{run.status}' 로 남았다 — 다 했다고 거짓말한다"
+        )
+
+        moves = session.query(OffboardingTicketMove).filter_by(run_id=run.id).all()
+        assert len(moves) == 2, f"이동 기록이 {len(moves)}건만 남았다"
+        assert {m.status for m in moves} == {"moved"}
+        # 되돌리기의 입력이 살아 있어야 한다 — 이게 없으면 복구가 불가능하다.
+        assert all(m.before_user_ids for m in moves), "직전 담당자 기록이 사라졌다"
+
+
+def test_an_interrupted_run_can_still_be_undone(
+    client, admin, people, notion, monkeypatch
+):
+    """장부가 남아 있으므로 **중단된 실행도 되돌릴 수 있다** — 그게 남기는 이유다."""
+    from app.offboarding import service as off_service
+
+    monkeypatch.setattr(off_service, "archive_user", _raise_lock)
+    _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=False, archive=True,
+    )
+    monkeypatch.undo()
+
+    with client.app.state.session_factory() as session:
+        run_id = session.query(OffboardingRun).one().id
+
+    r = client.post(f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin})
+    assert r.status_code == 200, r.text
+    assert _assignee_ids(notion, "page-1") == [LEAVER_NID], "되돌리기가 원상복구하지 못했다"

@@ -8,11 +8,18 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.scope import Principal, visible_user_ids
+from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.jobs.models import ALL_STATUSES, STATUS_FAILED, STATUS_QUEUED, Job
-from app.jobs.repository import cancel_queued, queue_stats, retry_failed
+from app.jobs.repository import (
+    apply_scope,
+    cancel_queued,
+    get_in_scope,
+    queue_stats,
+    retry_failed,
+)
 
 router = APIRouter(
     prefix="/api/admin/jobs",
@@ -86,14 +93,39 @@ def _job_view(job: Job) -> dict:
     }
 
 
+def _scoped_job_or_404(db: Session, job_id: str, principal: Principal) -> Job:
+    """단건·재시도·취소가 **전부 여기를 지난다** (§0-A 2순위).
+
+    목록만 가려서는 아무 의미가 없다 — 세 경로 모두 `id` 를 직접 받는다. 그리고 새는 것이
+    조회로 끝나지 않는다: **재시도는 남의 범위에서 n8n·Notion 쓰기를 다시 실행한다.**
+
+    판정은 목록과 같은 `repository.scope_clause` 하나다. 범위 밖은 **404** — 403 은
+    "그 id 는 존재한다" 를 알려 주고, 상태 충돌(409)도 마찬가지로 존재와 상태를 알려 준다.
+    그래서 상태 검사보다 **먼저** 이 문을 지난다.
+    """
+    job = get_in_scope(db, job_id, visible_user_ids(db, principal.scope))
+    if job is None:
+        raise NotFoundError("Job을 찾을 수 없습니다.")
+    return job
+
+
 @router.get("")
 def list_jobs(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     status: str | None = Query(default=None),
     job_type: str | None = Query(default=None, max_length=64),
+    principal: Principal = Depends(get_principal),
 ):
     stmt = select(Job)
+    # 범위 밖 사람의 작업은 안 보인다 (2순위 #6). 잡에는 **요청자의 입력이 payload 로 들어
+    # 있다**(문서 생성 요청의 제목·기간, 채팅 메시지 등) — 큐를 훑는 것은 그 사람이 무엇을
+    # 요청했는지 읽는 것과 같다.
+    #
+    # 조건은 단건·재시도·취소와 **같은 것 하나**다(`repository.scope_clause` — 시스템 잡을
+    # 남기는 이유도 거기 적혀 있다). 여기 손으로 다시 적으면 두 벌이 되고, 한쪽만 고쳐진
+    # 상태의 증상은 "어떤 사람만 안 된다" 라서 찾기가 어렵다.
+    stmt = apply_scope(stmt, visible_user_ids(db, principal.scope))
     if status is not None:
         if status not in ALL_STATUSES:
             raise ValidationAppError(f"알 수 없는 상태입니다: {status}")
@@ -104,7 +136,7 @@ def list_jobs(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(Job.created_at.desc()).offset(page.offset).limit(page.page_size)
+            stmt.order_by(Job.created_at.desc(), Job.id.desc()).offset(page.offset).limit(page.page_size)
         )
         .scalars()
         .all()
@@ -123,18 +155,23 @@ def stats(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/{job_id}")
-def get_job(job_id: str, db: Session = Depends(get_db)):
-    job = db.get(Job, job_id)
-    if job is None:
-        raise NotFoundError("Job을 찾을 수 없습니다.")
+def get_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    job = _scoped_job_or_404(db, job_id, principal)
     return {"job": _job_view(job)}
 
 
 @router.post("/{job_id}/retry")
-def retry(request: Request, job_id: str, db: Session = Depends(get_db)):
-    job = db.get(Job, job_id)
-    if job is None:
-        raise NotFoundError("Job을 찾을 수 없습니다.")
+def retry(
+    request: Request,
+    job_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_FAILED:
         raise ConflictError("실패 상태의 Job만 재시도할 수 있습니다.")
     retry_failed(db, job, now=request.app.state.clock.now())
@@ -145,10 +182,13 @@ def retry(request: Request, job_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{job_id}/cancel")
-def cancel(request: Request, job_id: str, db: Session = Depends(get_db)):
-    job = db.get(Job, job_id)
-    if job is None:
-        raise NotFoundError("Job을 찾을 수 없습니다.")
+def cancel(
+    request: Request,
+    job_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_QUEUED:
         raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")
     now = request.app.state.clock.now()
@@ -193,7 +233,7 @@ def _terminalize_linked_record(db: Session, job: Job, now) -> None:
             db.flush()
     elif job.job_type == "chat_message":
         from app.conversations.models import PROC_FAILED, Message
-        from sqlalchemy import select as _select
+        from sqlalchemy import or_ as sa_or, select as _select
 
         msg = db.execute(
             _select(Message).where(Message.message_id == payload.get("message_id", ""))

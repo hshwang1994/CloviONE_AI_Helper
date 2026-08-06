@@ -12,6 +12,13 @@ page_id → uid 해석만 저장소 seam(`ensure_local`)을 통해 이뤄진다.
     지우는 것보다 나쁘다(누가 썼는지는 그대로인데 내용만 달라진다).
   * 삭제 — 작성자 본인 또는 운영자군(모더레이션). 게시판(app/board/service.py)과 같은 규약.
 
+**여기 있는 것은 "누가" 이지 "어느 티켓에서" 가 아니다.** 범위(§0-A) 판정은 이 모듈에
+없다 — 그건 부모 티켓의 성질이고, 이 모듈은 티켓을 모른다(Notion page id 도 휴지통도
+여기서는 보이지 않는다). 그래서 `ensure_can_edit`/`ensure_can_delete` 만 지나면 남의 부서
+관리자가 comment_id 하나로 범위 밖 논의를 지울 수 있었다. 범위는 부르는 쪽인
+`app/tickets/service.py::ensure_comment_ticket_visible` 이 **권한 판정보다 먼저** 하고,
+목록·작성·수정·삭제가 전부 그 한 함수를 지난다(→ tests/security/test_ticket_comment_write_scope.py).
+
 삭제는 soft-delete 다. 그리고 **목록은 삭제된 댓글도 툼스톤으로 계속 돌려준다** — 행이 그냥
 사라지면 이미 목록을 받아 둔 클라이언트는 자기 화면이 낡았는지조차 알 수 없다. 툼스톤에는
 본문을 싣지 않는다(삭제의 목적은 내용을 안 보이게 하는 것이다).
@@ -70,12 +77,18 @@ def _can_delete(author_user_id: str, me: User) -> bool:
 
 
 def ensure_can_edit(comment: TicketComment, me: User) -> None:
-    """수정은 작성자 본인만 — 운영자 우회 없음."""
+    """수정은 작성자 본인만 — 운영자 우회 없음.
+
+    **범위 판정이 아니다.** 부모 티켓이 이 사람에게 보이는지는 부르는 쪽이 먼저 본다
+    (모듈 docstring 참조) — 그 순서라야 범위 밖이 403 이 아닌 404 로 나간다.
+    """
     if comment.author_user_id != me.id:
         raise ForbiddenError("본인이 작성한 댓글만 수정할 수 있습니다.")
 
 
 def ensure_can_delete(comment: TicketComment, me: User) -> None:
+    """모더레이션 권한(`MODERATOR_ROLES`)은 **역할**이지 범위가 아니다 — 부모 티켓이 보이는지는
+    부르는 쪽이 먼저 본다(모듈 docstring 참조)."""
     if not _can_delete(comment.author_user_id, me):
         raise ForbiddenError("본인이 작성한 댓글만 삭제할 수 있습니다.")
 

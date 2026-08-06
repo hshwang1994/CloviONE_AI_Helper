@@ -77,6 +77,19 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     is already the per-person workload the WD-balance chart draws, and shipping
     the same numbers under a second name guarantees that one day only one of the
     two gets fixed.
+  * the three ticket **lists** (``/mine``, ``/unassigned``, ``/team``) gained the
+    repository's standard page envelope: ``items`` / ``total`` / ``page`` /
+    ``page_size`` (Z11 — a production mirror of 1,058 tickets used to ship in a
+    single response and the screen filtered it in the browser). The rows did not
+    move: ``items`` is the same array in the same order, and ``total`` is the
+    count **after** the filters and **before** the page is cut, so a screen can
+    say "N total, showing 1-20".
+    ``tickets`` is kept as an alias of ``items`` on purpose — the shipped
+    ``frontend/`` reads that key and this change is backend-scoped. Drop the
+    alias in the same change that moves the screens onto ``items``.
+    ``page_size`` defaults to ``app/core/pagination.py::DEFAULT_PAGE_SIZE``, so
+    these goldens (seven rows at most) are one full page and the arrays stayed
+    byte-identical to the previous contract.
   * ``/api/team-chat`` responses are not in these goldens (no Notion round trip),
     but note for the reader that the same plan step widened them —
     ``members[]`` gained ``last_read_seq``/``online`` and messages gained

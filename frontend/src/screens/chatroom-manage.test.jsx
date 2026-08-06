@@ -19,7 +19,10 @@ import "@testing-library/jest-dom/vitest";
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
-import { ChatRoom } from "./ChatRoom.jsx";
+// S1 로 목록·상세를 한 껍데기에 합치면서 방 본문이 RoomDetailPanel 이 됐다.
+// 라우트 파라미터가 아니라 prop 으로 id 를 받는다 — 여기서 확인하는 동작
+// (파하기·나가기·숨기기·관리 버튼의 노출 조건)은 그대로다.
+import { RoomDetailPanel } from "./ChatRoom.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -55,7 +58,7 @@ function mount(payload) {
       <ThemeModeProvider><ToastProvider><ConfirmProvider>
         <MemoryRouter initialEntries={["/chat-rooms/r1"]}>
           <Routes>
-            <Route path="/chat-rooms/:id" element={<ChatRoom />} />
+            <Route path="/chat-rooms/:id" element={<RoomDetailPanel id="r1" />} />
             <Route path="/chat-rooms" element={<div>채팅방 목록</div>} />
           </Routes>
         </MemoryRouter>
@@ -78,7 +81,7 @@ describe("관리 버튼", () => {
 
   it("일반 참여자·1:1·전체 채팅에는 없다", async () => {
     const { unmount } = mount(meta({}, { role: "member", can_manage: false, can_disband: false }));
-    await screen.findByRole("button", { name: "목록" });
+    await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByRole("button", { name: "관리" })).toBeNull();
     unmount();
 
@@ -86,7 +89,7 @@ describe("관리 버튼", () => {
       { room: { id: "r1", kind: "direct", is_global: false, title: "동료", member_count: 2 } },
       { can_manage: false, can_hide: true, can_disband: false },
     ));
-    await screen.findByRole("button", { name: "목록" });
+    await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByRole("button", { name: "관리" })).toBeNull();
   });
 });
@@ -193,7 +196,7 @@ describe("참여자 줄", () => {
       { room: { id: "r1", kind: "group", is_global: true, title: "전체 채팅", member_count: 0 }, members: [] },
       { role: null, is_member: false, can_manage: false, can_disband: false },
     ));
-    await screen.findByRole("button", { name: "목록" });
+    await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByText(/참여자 \d+명/)).toBeNull();
   });
 });

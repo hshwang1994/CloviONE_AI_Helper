@@ -13,8 +13,13 @@ case "$(head -c 200 "$0" 2>/dev/null)" in
 
 REPORT=/home/cloviradmin/clovirone-web-precheck.md
 INVENTORY=/home/cloviradmin/clovirone-system-inventory.json
-DNS_NAME=clovirone-ai.gooddi.lab
-EXPECT_IP=10.100.64.71
+# 설치처 고유값. 기본값을 두지 않는다(설치 스크립트와 같은 이유: 저장소에 한 고객사의
+# 호스트명·IP 를 박아 두면 다른 곳에서 남의 주소를 점검하고 통과해 버린다).
+# 이 스크립트는 읽기 전용 사전 점검이라 값이 없다고 멈추지는 않지만, **확인하지 않았다는
+# 사실을 반드시 말한다** - 빈 값으로 조용히 통과시키면 "점검 통과"가 "DNS 를 확인했다"로
+# 읽힌다(§불변 6: 0 과 "없음" 과 "못 잼" 은 서로 다른 사실이다).
+DNS_NAME="${DNS_NAME:-}"
+EXPECT_IP="${EXPECT_IP:-}"
 
 STOP=0
 WARN=0
@@ -110,7 +115,10 @@ CLOVIRONE_WEB_USER="$(id clovirone-web 2>/dev/null && echo exists || echo absent
 # ---- STOP condition evaluation (spec §3.2) -------------------------------
 # DNS server-side
 dns_ip="$(printf '%s\n' "$DNS_RESOLVE" | awk '{print $1}' | head -1)"
-if [ -z "$dns_ip" ]; then
+if [ -z "$DNS_NAME" ] || [ -z "$EXPECT_IP" ]; then
+  # 못 잰 것을 통과로 세지 않는다. 어떻게 재는지도 같이 알려 준다.
+  warn "DNS 미점검: DNS_NAME/EXPECT_IP 가 지정되지 않았다 (예: DNS_NAME=portal.example.internal EXPECT_IP=10.0.0.10 bash $0)"
+elif [ -z "$dns_ip" ]; then
   warn "$DNS_NAME does not resolve on the server (may rely on /etc/hosts at deploy)"
 elif [ "$dns_ip" != "$EXPECT_IP" ]; then
   stop "$DNS_NAME resolves to $dns_ip, expected $EXPECT_IP"
@@ -132,7 +140,9 @@ for p in 80 443; do
   fi
 done
 # Existing vhost claiming our server_name
-if printf '%s' "$NGINX_T" | grep -qiE "server_name[[:space:]].*${DNS_NAME}"; then
+# DNS_NAME 이 비면 이 grep 은 server_name 이 있는 **모든** vhost 에 걸린다(빈 문자열은 어디에나
+# 매치한다) - 못 잰 것을 STOP 으로 바꿔 버리므로 값이 있을 때만 본다. 위에서 이미 WARN 했다.
+if [ -n "$DNS_NAME" ] && printf '%s' "$NGINX_T" | grep -qiE "server_name[[:space:]].*${DNS_NAME}"; then
   stop "an existing nginx server_name matches ${DNS_NAME}"
 fi
 # Disk: require >= 2GB free on / and /var
@@ -162,7 +172,8 @@ fi
   echo "  \"nproc\": \"${NPROC:-unknown}\","
   echo "  \"mem_available_kb\": \"${MEM_AVAIL_KB:-unknown}\","
   echo "  \"dns_resolves_to\": \"${dns_ip:-none}\","
-  echo "  \"dns_expected\": \"$EXPECT_IP\","
+  # "not-configured" 와 "none"(= 질의했는데 안 나왔다)을 다른 문자열로 남긴다.
+  echo "  \"dns_expected\": \"${EXPECT_IP:-not-configured}\","
   echo "  \"pypi_reachable\": $PYPI_OK,"
   echo "  \"apt_ok\": $APT_OK,"
   echo "  \"existing_clovirone_web_install\": $EXISTING_INSTALL,"
@@ -207,7 +218,7 @@ fi
   echo "## 네트워크 / DNS"
   echo '```'
   echo "$IP_ADDR"
-  echo "getent $DNS_NAME -> ${dns_ip:-none} (expected $EXPECT_IP)"
+  echo "getent ${DNS_NAME:-(미지정)} -> ${dns_ip:-none} (expected ${EXPECT_IP:-(미지정)})"
   echo '```'
   echo "## 용량"
   echo '```'

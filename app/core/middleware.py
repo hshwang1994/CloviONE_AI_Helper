@@ -29,13 +29,23 @@ logger = logging.getLogger("app.access")
 #   style-src   'unsafe-inline' https:                — Emotion 런타임 주입 + 외부 스타일시트
 #   font-src    data: https:                          — 웹폰트
 #   img-src     data: blob: https:                    — 외부 이미지, 캔버스 blob
-#   connect-src https: wss:                           — 외부 API·WebSocket
+#   connect-src 'self'                                — **되돌렸다**. 아래 설명 참조
 #   frame-src   https:                                — 외부 임베드
 #
+# **connect-src 는 'self' 로 되돌렸다(2026-08-05).** 완화 목적은 CDN·웹폰트·외부 라이브러리를
+# 쓰는 것이었는데, 그건 script-src/style-src/font-src 로 충분하다. connect-src 를 연 것은
+# 그 목적에 아무 기여도 하지 않으면서 — 저장소 전체에 외부 fetch/XHR/WebSocket 호출이
+# **한 줄도 없다**(확인함) — XSS 가 났을 때 `/api/me`·`/api/admin/users`·감사 CSV 를 임의
+# 호스트로 실어 보낼 수 있게 만든다. 얻는 것 없이 유출 경로만 여는 교환이라 닫는다.
+# 폰트도 app/static/fonts 로 들여왔으므로 외부로 나갈 일 자체가 없다.
+#
 # **무엇을 잃었는지 정직하게 적어 둔다**: 예전에는 script-src 'self' 가 XSS 방어의 축이었다.
-# 이제 없다. 그러니 아래 둘은 계속 지킨다 — 공짜로 남는 방어이고 구현 수준을 낮추지도 않는다:
+# 이제 없다. 그러니 아래 셋은 계속 지킨다 — 공짜로 남는 방어이고 구현 수준을 낮추지도 않는다:
 #   1) 서버 데이터를 innerHTML 에 넣지 않는다(React 이스케이프 / textContent 전용).
 #   2) 사용자 입력을 스크립트·스타일 문자열에 이어 붙이지 않는다.
+#   3) href/src 에 들어가는 값은 스킴을 검사한다 — 서버 app/core/safe_url.py 가 경계이고
+#      화면 frontend/src/lib/safeUrl.js 가 이중 방어다. 'unsafe-inline' 아래에서는
+#      `javascript:` URI 가 실행되므로 이게 없으면 링크 하나가 곧 XSS 다(SEC1).
 #
 # 그대로 둔 것(외부 리소스와 무관한 방어라 풀 이유가 없다):
 #   object-src 'none'(플러그인) · base-uri 'self'(<base> 주입으로 상대경로 납치)
@@ -45,7 +55,7 @@ CSP_POLICY = (
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; "
     "style-src 'self' 'unsafe-inline' https:; "
     "img-src 'self' data: blob: https:; "
-    "connect-src 'self' https: wss:; "
+    "connect-src 'self'; "
     "font-src 'self' data: https:; "
     "frame-src 'self' https:; "
     "media-src 'self' data: blob: https:; "

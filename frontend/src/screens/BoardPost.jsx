@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -21,10 +22,17 @@ import {
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { boardCategoryKind } from "../lib/badges.js";
-import { PostFormModal, Reactions } from "./Board.jsx";
+
+/* 본문(78ch)보다 조금 넓은 상한. 본문은 산문이라 78ch 에서 멈추는 게 맞지만,
+   그 아래 댓글 목록까지 78ch 로 묶으면 답글 들여쓰기에서 또 좁아져 한 줄에
+   몇 글자 안 들어간다. 화면 전체로 늘리지도 않는다 — 4K 에서 3,000px 짜리
+   한 줄은 눈이 다음 줄 첫 글자를 못 찾는다. */
+const PROSE_MAX_WIDTH_WIDE = "min(100%, 68rem)";
+import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
+import { AuthorLine, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
+import { useTicketProjects } from "./ticket-options.js";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
@@ -147,7 +155,7 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
 
 /* 댓글 한 건. 목록 시맨틱(<li>)은 부모가 만든다 — 답글은 최상위 댓글 안에 중첩된 <ul>로 들어가야
  * 하는데, 이 컴포넌트가 스스로 <li>를 그리면 최상위 댓글이 <li> 안의 <li>가 되어 무효 마크업이 된다. */
-function CommentItem({ comment, postId, palette, isReply, onChanged }) {
+function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -182,8 +190,12 @@ function CommentItem({ comment, postId, palette, isReply, onChanged }) {
         borderLeftColor: isReply ? "primary.light" : "divider",
       }}
     >
-      <Stack direction="row" gap={1.5} alignItems="baseline" flexWrap="wrap">
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>{comment.author_name}</Typography>
+      <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
+        {/* 댓글에서도 작성자의 소속·사진을 말한다(사용자 지시 #13/#8) — 동명이인이면
+            이름 두 글자로는 "누가 답을 달았는지"에 답할 수 없다. */}
+        <Typography variant="body2" component="div">
+          <AuthorLine name={comment.author_name} person={person} bold />
+        </Typography>
         <Typography variant="caption" color="text.secondary">{fmtDateTime(comment.created_at)}</Typography>
       </Stack>
       {editing ? (
@@ -236,42 +248,85 @@ function CommentItem({ comment, postId, palette, isReply, onChanged }) {
   );
 }
 
-/* 메타 레일 — 작성자·시각·조회수·첨부 수. 좁은 화면에서는 본문 아래로 흐르고, 넓은 화면에서는
- * 본문 옆 열에 붙는다. 라벨/값 쌍은 폭이 넓어지면 2~3열로 접어 세로로 길게 늘어지지 않게 한다. */
-function PostMeta({ post }) {
-  const rows = [
-    ["작성자", post.author_name],
-    ["작성", fmtDateTime(post.created_at)],
-    ["조회", String(post.view_count == null ? 0 : post.view_count)],
-    ["카테고리", post.category],
-  ];
-  const attCount = (post.attachments || []).length;
-  if (attCount > 0) rows.push(["첨부", attCount + "개"]);
+
+/* 제안 상태 줄 (7단계 #1) — **아이디어 글에만** 그린다.
+ *
+ * 다음 상태로 넘기는 것은 운영자만이고(`can_change_status`), 감추는 것은 편의일 뿐 통제는
+ * 서버가 한다. '진행' 은 티켓을 만드는 자리라 프로젝트를 함께 고르게 한다 — 티켓 스키마가
+ * 프로젝트를 요구하므로, 안 고르고 누르면 서버가 거절하고 상태는 그대로 남는다.
+ *
+ * 티켓 생성이 실패하면 상태도 안 바뀐다(app/board/service.py 에 이유를 적어 두었다).
+ * 그래서 여기서는 실패를 토스트로만 알리고 화면 상태를 손대지 않는다 — 다시 누르면 된다.
+ */
+function IdeaStatusBar({ post, onChanged }) {
+  const statuses = post.next_statuses || [];
+  const toast = useToast();
+  /* 앱은 해시 라우터다(app/App.jsx) — `window.open("/tickets/…")` 로 보내면 해시가 빠진
+     주소로 나가 티켓이 아니라 앱 바깥으로 떨어진다. 이동은 라우터에게 시킨다. */
+  const nav = useNavigate();
+  const [target, setTarget] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const goingToProgress = target === "진행";
+  /* 프로젝트 후보는 **진행으로 넘길 때만** 부른다. 상세를 열 때마다 Notion 왕복을 하나
+     더 붙일 이유가 없다(ticket-options.js 의 `enabled` 규약). */
+  const projects = useTicketProjects(goingToProgress);
+  const projectRows = (projects.data && projects.data.projects) || [];
+
+  const move = useMutation({
+    mutationFn: () =>
+      api("/api/board/posts/" + post.id + "/status", {
+        method: "POST",
+        body: { status: target, project_id: goingToProgress ? projectId || null : null },
+      }),
+    onSuccess: () => {
+      setTarget("");
+      setProjectId("");
+      toast("제안 상태를 바꿨습니다.", "success");
+      onChanged && onChanged();
+    },
+    onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다.", "error"),
+  });
+
+  const canMove = !!target && !move.isPending && (!goingToProgress || !!projectId);
   return (
-    <Card sx={{ p: 2.5 }}>
-      {/* 브레이크포인트는 **뷰포트** 폭이지 이 카드의 폭이 아니다 — 그 차이가 결함을 만들었다.
-          lg(1200) 부터 게시글이 2단이 되면서 이 메타 레일은 좁은 옆 칸으로 들어가는데,
-          sm 에서 켠 2열이 그대로 남아 값 칸이 7px 까지 눌렸다(1366 실측, 글자가 한 음절씩
-          세로로 무너짐). 레일이 좁아지는 lg 에서 1열로 되돌리고, 레일이 다시 넓어지는
-          uhd 에서만 2열로 간다. */}
-      <Box sx={{
-        display: "grid", columnGap: 3, rowGap: 0,
-        gridTemplateColumns: {
-          xs: "1fr", sm: "repeat(2, minmax(0,1fr))",
-          lg: "1fr", xxl: "1fr", uhd: "repeat(2, minmax(0,1fr))",
-        },
-      }}>
-        {rows.map(([label, value]) => (
-          <Box key={label} sx={{
-            display: "grid", gridTemplateColumns: "6rem minmax(0,1fr)", gap: 1,
-            py: 1, borderBottom: 1, borderColor: "divider", minWidth: 0,
-          }}>
-            <Typography variant="body2" color="text.secondary">{label}</Typography>
-            <Box sx={{ minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{value}</Box>
-          </Box>
-        ))}
-      </Box>
-    </Card>
+    <Callout tone="info">
+      <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
+        <Typography variant="body2" component="span">진행 상태</Typography>
+        <Badge value={post.idea_status || "제안"} kind={ideaStatusKind(post.idea_status)} />
+        {/* 만들어진 티켓으로 바로 건너간다 - 이 연결이 없으면 '진행' 은 그냥 글자다. */}
+        {post.ticket_page_id ? (
+          <Button variant="ghost" size="sm" onClick={() => nav("/tickets/" + post.ticket_page_id)}>
+            연결된 티켓 보기
+          </Button>
+        ) : null}
+        {post.can_change_status ? (
+          <>
+            <TextField
+              select size="small" value={target} sx={{ minWidth: "10rem" }}
+              onChange={(e) => setTarget(e.target.value)}
+              inputProps={{ "aria-label": "다음 상태" }}
+            >
+              <MenuItem value="">상태 바꾸기</MenuItem>
+              {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            </TextField>
+            {goingToProgress ? (
+              <TextField
+                select size="small" value={projectId} sx={{ minWidth: "12rem" }}
+                onChange={(e) => setProjectId(e.target.value)}
+                inputProps={{ "aria-label": "티켓 프로젝트" }}
+                helperText={projects.isError ? "프로젝트 목록을 불러오지 못했습니다." : "티켓이 들어갈 프로젝트"}
+              >
+                <MenuItem value="">프로젝트 선택</MenuItem>
+                {projectRows.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+              </TextField>
+            ) : null}
+            <Button variant="primary" size="sm" disabled={!canMove} onClick={() => move.mutate()}>
+              적용
+            </Button>
+          </>
+        ) : null}
+      </Stack>
+    </Callout>
   );
 }
 
@@ -331,7 +386,11 @@ export function BoardPost() {
   }
 
   const post = detail.data.post;
+  const isIdea = post.kind === "idea";
   const comments = post.comments || [];
+  /* 글쓴이·댓글 작성자의 신원(부서·직책·사진). 사람 한 명당 한 줄만 오고 댓글은 uid 로
+     찾아 쓴다 — 댓글마다 되풀이하면 상세 응답이 댓글 수만큼 부푼다. 옛 캐시에는 없다. */
+  const people = post.people || {};
   const { tops, repliesByParent } = splitComments(comments);
 
   const askDeletePost = async () => {
@@ -341,7 +400,9 @@ export function BoardPost() {
 
   const actions = (
     <>
-      <Button variant="ghost" onClick={() => nav("/board")}>목록</Button>
+      {/* 상세는 하나지만 **온 곳은 둘**이다. 제안을 열었다가 '목록'을 누르면 자유게시판이
+          뜨는 것은 길을 잃는 것이다 - 종류를 보고 돌려보낸다. */}
+      <Button variant="ghost" onClick={() => nav(isIdea ? "/ideas" : "/board")}>목록</Button>
       {post.can_moderate ? (
         <Button onClick={() => pin.mutate(!post.is_pinned)} disabled={pin.isPending}>
           {post.is_pinned ? "고정 해제" : "공지 고정"}
@@ -364,22 +425,34 @@ export function BoardPost() {
 
       {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
           본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}
-      <Box sx={{
-        display: "grid", alignItems: "start",
-        columnGap: { lg: 4, xxl: 6 }, rowGap: 3,
-        gridTemplateColumns: { xs: "1fr", lg: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, 1fr)` },
-      }}>
+      <Box sx={{ display: "grid", rowGap: 3, maxWidth: PROSE_MAX_WIDTH_WIDE }}>
         <Card component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
             {post.is_pinned ? <Badge value="고정" kind="info" /> : null}
             <Badge value={post.category} kind={boardCategoryKind(post.category)} />
+            {/* 🔴 상태 배지는 **종류로** 가른다(값이 아니라). 값으로 가르면 서버가 실수로
+                실어 보낸 `idea_status` 가 자유게시글에 그대로 그려진다. */}
+            {isIdea && post.idea_status ? (
+              <Badge value={post.idea_status} kind={ideaStatusKind(post.idea_status)} />
+            ) : null}
           </Stack>
           <Typography variant="h4" component="h1" sx={{ mt: 1, overflowWrap: "anywhere" }}>{post.title}</Typography>
-          <Stack direction="row" gap={2} flexWrap="wrap" sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">{post.author_name}</Typography>
+          <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center" sx={{ mt: 1 }}>
+            {/* 글쓴이가 누구인지 — 이름 옆에 소속과 사진(사용자 지시 #13/#8). */}
+            <Typography variant="body2" color="text.secondary" component="div">
+              <AuthorLine name={post.author_name} person={people[post.author_user_id]} />
+            </Typography>
             <Typography variant="body2" color="text.secondary">{fmtDateTime(post.created_at)}</Typography>
             <Typography variant="body2" color="text.secondary">조회 {post.view_count}</Typography>
           </Stack>
+
+          {/* 제안이면 상태 줄이 본문 **위에** 온다 - 이 글을 열어 가장 먼저 알고 싶은 것이
+              "이 제안은 어떻게 됐나"이기 때문이다. 자유게시글에는 아예 없다. */}
+          {isIdea ? (
+            <Box sx={{ mt: 2 }}>
+              <IdeaStatusBar post={post} onChanged={refetch} />
+            </Box>
+          ) : null}
 
           {post.body && String(post.body).trim() ? (
             <Typography component="div" sx={{ ...PROSE_SX, mt: 3 }}>{post.body}</Typography>
@@ -401,10 +474,12 @@ export function BoardPost() {
           </Box>
         </Card>
 
-        <Box sx={{ display: "grid", gap: 3, minWidth: 0 }}>
-          <PostMeta post={post} />
-
-          <Box component="section" sx={{ minWidth: 0 }}>
+        {/* 댓글은 **본문 아래 전체 폭**이다. 예전에는 메타와 함께 오른쪽 곁열에 있었는데,
+            댓글은 글에 대한 대화지 글의 속성이 아니다 — 좁은 칸에 밀어 넣으면 한 줄에 대여섯
+            글자가 들어가고 답글 들여쓰기까지 겹치면 읽을 수가 없다. 기준 목업도 본문 아래
+            전체 폭이고, 여기서는 기준이 맞다.
+            소스 순서(본문 → 메타 → 댓글)는 그대로라 스크린리더가 읽는 차례도 그대로다. */}
+        <Box component="section" sx={{ minWidth: 0 }}>
             <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>댓글 {comments.length}</Typography>
             {tops.length === 0 ? (
               <Callout tone="info">아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.</Callout>
@@ -417,12 +492,12 @@ export function BoardPost() {
               }}>
                 {tops.map((c) => (
                   <Box component="li" key={c.id} sx={{ minWidth: 0, display: "grid", gap: 1.5 }}>
-                    <CommentItem comment={c} postId={post.id} palette={palette} onChanged={refetch} />
+                    <CommentItem comment={c} postId={post.id} palette={palette} person={people[c.author_user_id]} onChanged={refetch} />
                     {(repliesByParent[c.id] || []).length ? (
                       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, pl: { xs: 1.5, sm: 3 }, display: "grid", gap: 1.5 }}>
                         {(repliesByParent[c.id] || []).map((r) => (
                           <Box component="li" key={r.id} sx={{ minWidth: 0 }}>
-                            <CommentItem comment={r} postId={post.id} palette={palette} isReply onChanged={refetch} />
+                            <CommentItem comment={r} postId={post.id} palette={palette} isReply person={people[r.author_user_id]} onChanged={refetch} />
                           </Box>
                         ))}
                       </Box>
@@ -431,15 +506,17 @@ export function BoardPost() {
                 ))}
               </Box>
             )}
-            <CommentComposer postId={post.id} palette={palette} onDone={refetch} />
-          </Box>
+          <CommentComposer postId={post.id} palette={palette} onDone={refetch} />
         </Box>
       </Box>
 
       <PostFormModal
         open={editing}
         onClose={() => setEditing(false)}
-        categories={(meta.data && meta.data.categories) || []}
+        /* 이 글의 종류에 맞는 카테고리는 **상세 응답이** 준다. 화면 진입 시 부르는 메타는
+           종류를 모르고(주소로 바로 들어올 수 있다) 자유게시판 것을 받아 온다 - 그걸 쓰면
+           제안을 고칠 때 '맛집'이 뜨고, 저장하면 서버가 거절한다. */
+        categories={post.categories || (meta.data && meta.data.categories) || []}
         mode="edit"
         post={post}
         onSaved={() => { setEditing(false); refetch(); }}

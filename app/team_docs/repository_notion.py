@@ -7,9 +7,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
+from app.core.models_base import utcnow
+from app.core.notion_blocks import markdown_to_blocks
 from app.team_docs import notion_docs, repository
+from app.tickets.repository import BodySaveResult
 
 
 class NotionDocumentRepository:
@@ -55,3 +60,53 @@ class NotionDocumentRepository:
     def archive(self, db: Session | None, *, page_id: str) -> None:
         """소스 원본을 보관처리한다. 문서 캐시 행은 다음 동기화가 정리한다."""
         notion_docs.archive_page(self._outbound, self._settings, page_id=page_id)
+
+    def save_body(
+        self, db: Session, *, page_id: str, body_markdown: str, now: datetime | None = None
+    ) -> BodySaveResult:
+        """본문 저장. **정본을 먼저 쓰고, 그다음 Notion 블록을 push 한다.**
+
+        순서가 이 함수의 전부다(티켓 쪽 `save_body` 와 같은 판단). 반대로 하면 Notion 이
+        죽은 날 사용자가 방금 친 글이 통째로 사라진다. 이 순서라면 push 가 실패해도 우리
+        DB 에는 이미 들어가 있다.
+
+        그래서 push 실패를 **예외로 던지지 않는다**: 요청 트랜잭션이 롤백되면 방금 저장한
+        본문까지 되돌아가 순서를 지킨 의미가 없어진다. 대신 어긋난 사실을 행에 적어 두고
+        (`body_sync_error`) `synced=False` 로 알린다 - 화면이 배너와 재시도를 그린다.
+
+        **보장 범위를 과장하지 않는다.** 여기서 지키는 것은 push 단계의 실패뿐이다. 문서는
+        캐시 행이 이미 있어야 편집이 열리므로(범위 판정이 그 행을 읽는다) 티켓처럼 '첫
+        저장에서 소스를 먼저 부르는' 경로는 없다.
+        """
+        stamp = now or utcnow()
+        row = repository.get_by_page_id(db, page_id)
+        if row is None:
+            # 부르는 쪽(service.save_document_body)이 범위 판정으로 이미 행을 읽었다.
+            # 여기까지 None 이면 그 사이에 사라진 것이므로 없는 문서로 답한다.
+            from app.core.errors import NotFoundError
+
+            raise NotFoundError("문서를 찾을 수 없습니다.")
+
+        # 1) 정본. 여기까지가 "사용자 글은 반드시 살아남는다"의 범위다.
+        row.body_markdown = body_markdown
+        db.flush()
+
+        # 2) 소스 반영. 어떤 실패도 밖으로 내보내지 않는다.
+        try:
+            notion_docs.replace_page_body(
+                self._outbound, self._settings,
+                page_id=page_id, blocks=markdown_to_blocks(body_markdown),
+            )
+        except Exception as exc:  # noqa: BLE001 — 위 1)을 롤백시키지 않는 것이 이 except 의 목적
+            message = getattr(exc, "message", None) or f"Notion 반영 실패: {type(exc).__name__}"
+            row.body_sync_error = message
+            row.body_synced_at = None
+            db.flush()
+            return BodySaveResult(
+                uid=row.id, body_markdown=body_markdown, synced=False, sync_error=message
+            )
+
+        row.body_sync_error = None
+        row.body_synced_at = stamp
+        db.flush()
+        return BodySaveResult(uid=row.id, body_markdown=body_markdown, synced=True)

@@ -94,6 +94,13 @@ def _load_auth(request: Request, db: Session) -> AuthContext | None:
     # 만들어지는 순간(또는 폐기가 한 번 실패하는 순간) 보관이 무력해진다 — 여기서도 막는다.
     if user is None or not user.active or user.archived_at is not None:
         return None
+    # 조직 정지(X5)도 같은 자리에서 막는다. 정지 시 세션을 폐기하지만, 그 폐기 하나에
+    # 차단 전부를 걸어 두면 세션이 다른 경로로 만들어지는 순간 정지가 무력해진다 —
+    # 바로 위 보관 계정과 똑같은 이유다.
+    from app.org.service import is_blocked_by_org_suspension
+
+    if is_blocked_by_org_suspension(db, user):
+        return None
     if record.impersonated_user_id:
         return _impersonated_auth(request, db, record, user)
     return AuthContext(user=user, session=record)

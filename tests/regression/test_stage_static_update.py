@@ -54,14 +54,35 @@ def _all_static_relpaths() -> set:
     }
 
 
+# 이 스크립트는 `app/static` 전 파일을 훑으며 파일마다 셸 하위 프로세스를 띄운다.
+# **실측: 부하 없는 상태에서 2분 08초**(user 35s / sys 69s — 거의 전부 프로세스 생성 비용이다.
+# Git-Bash 에서 fork 가 특히 비싸다). 예전 상한 120초는 그 아래로 아슬아슬하게 통과하던
+# 값이라, 병렬 작업으로 머신이 조금만 바빠져도 **타임아웃으로 빨갛게 된다** — 실제로 그렇게
+# 세 건이 한 번에 실패했고 로직에는 아무 문제가 없었다.
+#
+# 상한은 "얼마나 걸리는가" 가 아니라 "얼마나 걸리면 뭔가 잘못된 것인가" 로 잡는다.
+# 실측의 2.5배를 준다. 스크립트 자체를 빠르게 만드는 것은 별건이다(파일마다 프로세스를 띄우지
+# 않는 방식으로 바꿀 수 있다).
+STAGE_TIMEOUT_SECONDS = 300
+
+# 스크립트는 대상 서버와 주소를 env 로 받는다. 기본값을 두지 않기로 했기 때문이다 - 예전엔
+# 최초 고객사의 계정@IP 가 기본값이라, 다른 설치처에서 인쇄된 scp 명령을 그대로 복사하면
+# 남의 서버로 파일을 밀어 넣었다(scripts/check_tenant_defaults.py 가 그 재발을 막는다).
+# 테스트는 스테이징 로직만 보므로 값은 아무거나 되지만, **주지 않으면 스크립트가 멈춘다.**
+TENANT_ENV = {
+    "SERVER": "deploy@10.0.0.10",
+    "BASE_URL": "https://portal.example.internal",
+}
+
+
 @requires_bash
 def test_default_run_stages_every_static_file(tmp_path):
     """인자 없이 돌렸을 때, app/static의 모든 파일이 스테이지 목록에 들어가야 한다."""
     out = tmp_path / "stage"
     proc = subprocess.run(
         [BASH, str(SCRIPT)],
-        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix()},
-        capture_output=True, text=True, encoding="utf-8", timeout=120,
+        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
+        capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -83,8 +104,8 @@ def test_staged_payload_contains_every_static_file(tmp_path):
     out = tmp_path / "stage"
     proc = subprocess.run(
         [BASH, str(SCRIPT)],
-        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix()},
-        capture_output=True, text=True, encoding="utf-8", timeout=120,
+        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
+        capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -114,8 +135,8 @@ def test_binary_assets_survive_staging_byte_for_byte(tmp_path):
     out = tmp_path / "stage"
     proc = subprocess.run(
         [BASH, str(SCRIPT)],
-        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix()},
-        capture_output=True, text=True, encoding="utf-8", timeout=120,
+        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
+        capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -143,8 +164,8 @@ def test_no_hard_refresh_instruction(tmp_path):
     out = tmp_path / "stage"
     proc = subprocess.run(
         [BASH, str(SCRIPT)],
-        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix()},
-        capture_output=True, text=True, encoding="utf-8", timeout=120,
+        cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
+        capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
     printed = proc.stdout.lower()

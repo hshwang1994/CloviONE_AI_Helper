@@ -16,13 +16,23 @@ from app.announcements.models import (
     AnnouncementDismissal,
 )
 from app.core.errors import ValidationAppError
+from app.core.safe_url import is_safe_external_url
 
 
-def validate(level: str, audience: str) -> None:
+def validate(level: str, audience: str, link_url: str | None = None) -> None:
+    """공지 입력 검증.
+
+    `link_url` 은 예전에 길이만 봤다. 그 배너는 audience=all 이면 전 사용자에게 뜨고,
+    `javascript:` 페이로드를 넣으면 누른 사람의 세션에서 실행된다 — 관리자 → 시스템 관리자
+    권한 상승 경로다. 화면 쪽 `safeExternal()` 은 이중 방어일 뿐이고 **경계는 여기다**
+    (API 를 직접 부르면 화면 검사는 지나가지도 않는다). app/core/safe_url.py 참조.
+    """
     if level not in ALL_LEVELS:
         raise ValidationAppError(f"level 은 {', '.join(ALL_LEVELS)} 중 하나여야 합니다.")
     if audience not in ALL_AUDIENCES:
         raise ValidationAppError(f"audience 는 {', '.join(ALL_AUDIENCES)} 중 하나여야 합니다.")
+    if link_url is not None and not is_safe_external_url(link_url):
+        raise ValidationAppError("링크는 http:// 또는 https:// 로 시작해야 합니다.")
 
 
 def in_window(row: Announcement, now: datetime) -> bool:

@@ -108,12 +108,26 @@ def build_rows(db: Session, rows: list[Department]) -> list[dict]:
     return out
 
 
-def _org_rows(db: Session) -> dict[str, Organization]:
-    return {o.id: o for o in db.execute(select(Organization)).scalars()}
+def _org_rows(db: Session, scope=None) -> dict[str, Organization]:
+    """트리 맨 위에 놓을 조직 행. 범위가 있으면 **내가 관리하는 조직 하나**뿐이다.
+
+    부서 행과 판정을 나눌 수밖에 없는 이유: `Organization` 에는 `org_id` 가 없다(자기 자신이
+    조직이다). 근거는 같은 값(`scope.org_id`)을 본다.
+    """
+    stmt = select(Organization)
+    if scope is not None and not getattr(scope, "is_global", True):
+        if not getattr(scope, "org_id", None):
+            return {}   # 범위는 있는데 조직을 모른다 → 닫는 쪽으로 실패한다
+        stmt = stmt.where(Organization.id == scope.org_id)
+    return {o.id: o for o in db.execute(stmt).scalars()}
 
 
-def tree_rows(db: Session, *, active: bool | None = None) -> list[dict]:
+def tree_rows(db: Session, *, active: bool | None = None, scope=None) -> list[dict]:
     """조직도 행 목록. `active` 필터는 **그 부서만** 거른다(하위는 그대로 남는다).
+
+    `scope` 는 목록(`app/org/service.py::scope_clause`)과 **같은 판정**이다. 이 경로만
+    범위를 안 받고 있었는데, 트리는 목록보다 더 많이 준다 — 조직 이름·slug·인원수와
+    모든 부서의 계층 path·상위 부서·인원수가 한 번에 나갔다.
 
     필터로 중간 부서를 빼면 그 아래가 고아가 되므로, 걸러진 뒤에도 `_children_map` 이
     부모 없는 행을 최상위로 올려 보여 준다 — 사라지지 않는다.
@@ -124,13 +138,15 @@ def tree_rows(db: Session, *, active: bool | None = None) -> list[dict]:
     화면에 없으면 사용자는 알 수 없다. 조직 행은 `kind: "organization"` 으로 표시하고
     부서 행은 한 칸 더 들여쓴다(depth+1).
     """
+    from app.org.service import apply_scope
+
     stmt = select(Department)
     if active is not None:
         stmt = stmt.where(Department.active.is_(active))
-    rows = list(db.execute(stmt).scalars().all())
+    rows = list(db.execute(apply_scope(stmt, scope, Department)).scalars().all())
     dept_rows = build_rows(db, rows)
 
-    orgs = _org_rows(db)
+    orgs = _org_rows(db, scope)
     if not orgs:
         return dept_rows   # 조직 행이 없으면(초기화 전) 예전 모양 그대로 — 빈 화면보다 낫다
 
@@ -153,9 +169,9 @@ def tree_rows(db: Session, *, active: bool | None = None) -> list[dict]:
             # 부서 행의 규칙을 그대로 따른다: user_count 는 '이 층에 직접', subtree 는 '아래 전부'.
             # 조직에서 '직접'은 **부서가 지정되지 않은 사람**이다 — 그 수가 0 이 아니면 그 자체가
             # 관리자가 알아야 할 사실이라(어디에도 안 속한 계정) 숨기지 않는다.
-            "user_count": _org_user_count(db, org.id, no_department=True),
+            "user_count": _org_user_count(db, org.id, no_department=True, scope=scope),
             "child_count": sum(1 for k in kids if k["depth"] == 0),
-            "subtree_user_count": _org_user_count(db, org.id),
+            "subtree_user_count": _org_user_count(db, org.id, scope=scope),
             "cycle": False,
             "created_at": org.created_at.isoformat(),
         })
@@ -169,22 +185,41 @@ def tree_rows(db: Session, *, active: bool | None = None) -> list[dict]:
     return out
 
 
-def _org_user_count(db: Session, org_id: str, *, no_department: bool = False) -> int:
-    """이 조직에 속한 사람 수. `no_department=True` 면 부서가 지정되지 않은 사람만."""
+def _org_user_count(
+    db: Session, org_id: str, *, no_department: bool = False, scope=None
+) -> int:
+    """이 조직에 속한 사람 수. `no_department=True` 면 부서가 지정되지 않은 사람만.
+
+    사람을 세는 규칙은 사용자 목록과 같아야 한다 — 그래서 `apply_user_scope` 를 그대로
+    쓴다. 안 그러면 부서 관리자가 볼 수 있는 사람은 자기 팀뿐인데 머릿수만 전사 인원으로
+    보이는, **화면끼리 어긋나는** 숫자가 된다.
+    """
+    from app.core.scope import apply_user_scope
+
     stmt = select(func.count()).select_from(User).where(User.org_id == org_id)
     if no_department:
         stmt = stmt.where(User.department_id.is_(None))
+    if scope is not None:
+        stmt = apply_user_scope(stmt, scope)
     return db.execute(stmt).scalar_one()
 
 
-def validate_parent(db: Session, row: Department, parent_id: str | None) -> str | None:
-    """부모 지정 검증. 통과하면 저장해도 되는 값을 돌려준다(빈 문자열은 '최상위'로 읽는다)."""
+def validate_parent(
+    db: Session, row: Department, parent_id: str | None, scope=None
+) -> str | None:
+    """부모 지정 검증. 통과하면 저장해도 되는 값을 돌려준다(빈 문자열은 '최상위'로 읽는다).
+
+    `scope` 를 주면 **범위 밖 부서는 없는 것과 똑같이** 답한다(생성 경로와 같은 판정,
+    같은 문구). 여기만 다른 오류를 내면 남의 부서 id 를 찍어 보며 존재를 셀 수 있다.
+    """
+    from app.org.service import scope_allows_item
+
     if parent_id is None or parent_id == "":
         return None
     if parent_id == row.id:
         raise ValidationAppError("부서를 자기 자신의 하위로 둘 수 없습니다.")
     parent = db.get(Department, parent_id)
-    if parent is None:
+    if parent is None or not scope_allows_item(scope, parent):
         raise ValidationAppError("알 수 없는 상위 부서입니다.")
     # 자기 자손을 부모로 삼으면 트리가 고리가 되고, 그 순간 그 덩어리 전체가 조직도의 루트에서
     # 사라진다(위 build_rows 가 `cycle` 로 드러내지만, 애초에 들어오게 두지 않는다).

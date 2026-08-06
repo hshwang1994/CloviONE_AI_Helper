@@ -1,9 +1,9 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Routes, Route, useParams } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation, useParams } from "react-router-dom";
 
 /* 스프린트 회의 재설계 회귀(docs/NEXT_SESSION_PLAN.md §B).
  *
@@ -180,5 +180,233 @@ describe("assigneeTicketRows", () => {
     expect(assigneeTicketRows(null)).toEqual([]);
     expect(assigneeTicketRows({})).toEqual([]);
     expect(assigneeTicketRows({ developers: [{ name: "A" }] })).toEqual([]);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 5단계 재설계 (과제 #6) — 회의에서 실제로 하는 순서대로 화면을 다시 짠다.
+ *
+ *   머리(요약 + 번다운) → 담당자 카드 격자 → 남은 것(미할당) 배분 → 다음 계획.
+ *
+ * 여기서 지키는 것은 네 가지다:
+ *   1) 화면이 스스로 **'날짜 범위 기준'** 이라고 말한다. Notion 의 스프린트 데이터베이스는
+ *      이 포털 연동에 공유돼 있지 않아 읽지 못한다 — 즉 포털의 '이번 주' 와 팀이 Notion 에서
+ *      만든 스프린트는 **다른 것**이다. 화면이 말하지 않으면 두 사람이 서로 다른 것을 같은
+ *      이름으로 부르며 회의를 한다.
+ *   2) 조건(프로젝트·담당자 등)은 **주소에 남는다** — 회의 링크를 그대로 공유할 수 있어야 한다.
+ *   3) 담당자는 긴 목록이 아니라 **카드 격자**다(1인 1카드). 그리고 같은 줄 카드의 바닥을
+ *      맞춘다 — 사용자가 지적한 Q5("카드 크기가 제각각")를 되살리지 않는다.
+ *   4) 미할당은 담당자별 목록에 섞이지 않고 **자기 패널**에 있다(회의의 "이건 누가 가져갈까").
+ *
+ * 응답 모양은 지금의 백엔드 그대로다: app/sprints/service.py 는 `by_assignee` 를 주고,
+ * 그 안의 티켓은 목록 API 와 **같은 dict**(ticket_views)라 프로젝트·담당자 id 를 싣는다.
+ * 위쪽 PAYLOAD 는 그 필드가 없던 옛 모양(developers 폴백)이라 일부러 그대로 둔다.
+ * ────────────────────────────────────────────────────────────────────────────*/
+
+const T34 = {
+  id: "t-34", tid: 34, title: "배포 스크립트 정리", status: "진행", due: "2026-08-07",
+  est_wd: 2, project_ids: ["p-b"], project: "인프라", assignee_user_ids: ["u-1", "u-2"],
+};
+
+const WEEKLY = {
+  window: { start: "2026-08-03", end_exclusive: "2026-08-10" },
+  team: { done: 2, in_progress: 1, est_done_total: 3.5, overdue: 1 },
+  developers: [
+    { name: "서윤경", user_id: "u-1", has_tickets: true, assigned: 2, done: 1, prog: 1,
+      verify: 0, plan: 1, est_done: 2, est_all: 3, overdue: 1 },
+    { name: "김철수", user_id: "u-2", has_tickets: true, assigned: 1, done: 0, prog: 1,
+      verify: 0, plan: 0, est_done: 0, est_all: 1.5, overdue: 0 },
+    // 이번 주 배정이 없는 사람은 0짜리 카드로 늘어서지 않는다(WD 밸런스 막대와 같은 규칙).
+    { name: "홍길동", user_id: "u-3", has_tickets: false, assigned: 0, done: 0, prog: 0,
+      verify: 0, plan: 0, est_done: 0, est_all: 0, overdue: 0 },
+  ],
+  by_assignee: [
+    { user_id: "u-1", name: "서윤경", tickets: [
+      { id: "t-12", tid: 12, title: "로그인 오류 수정", status: "계획", due: "2026-08-05",
+        est_wd: 1, project_ids: ["p-a"], project: "포털", assignee_user_ids: ["u-1"] },
+      T34,
+    ] },
+    // 34번은 담당자가 둘이라 양쪽 버킷에 들어 있다 — 담당자 조건의 함정이 여기 있다.
+    { user_id: "u-2", name: "김철수", tickets: [T34] },
+  ],
+  unassigned: [{ id: "un-9", tid: 99, title: "담당자 없는 티켓", status: "계획" }],
+  planned: [{ id: "t-12", tid: 12, title: "로그인 오류 수정", status: "계획", assignee_names: ["서윤경"] }],
+  burndown: {
+    total_est_wd: 3,
+    points: [
+      { date: "2026-08-03", planned: 3, open: 3 },
+      { date: "2026-08-06", planned: 2, open: 2 },
+      { date: "2026-08-10", planned: 0, open: 0 },
+    ],
+  },
+};
+
+function AddressProbe() {
+  const loc = useLocation();
+  return <div data-testid="addr">{loc.search}</div>;
+}
+
+const addr = () => screen.getByTestId("addr").textContent;
+
+function renderWeekly() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={["/sprint"]}>
+        <AddressProbe />
+        <Routes>
+          <Route path="/sprint" element={<Sprint />} />
+          <Route path="/tickets/:id" element={<TicketRouteProbe />} />
+          <Route path="/unassigned" element={<div>미할당 티켓 라우트</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+/* jsdom 은 레이아웃을 하지 않아 "몇 열로 그려졌나"를 물어볼 수 없다. 그래서 emotion 이
+ * 실제로 내보낸 CSS 규칙을 읽어 **판정 규칙 자체**를 본다(새 티켓 격자 테스트와 같은 수법 —
+ * frontend/src/screens/new-ticket-layout.test.jsx 에 이 방식이 왜 필요한지 길게 적혀 있다). */
+function rulesFor(el) {
+  const classes = [...el.classList].filter((c) => c.startsWith("css-"));
+  const css = [...document.querySelectorAll("style")].map((s) => s.textContent || "").join("\n");
+  const found = [];
+  const scan = (text, cond) => {
+    let i = 0;
+    while (i < text.length) {
+      const open = text.indexOf("{", i);
+      if (open === -1) break;
+      const head = text.slice(i, open).trim();
+      let depth = 1;
+      let j = open + 1;
+      while (j < text.length && depth > 0) {
+        if (text[j] === "{") depth += 1;
+        else if (text[j] === "}") depth -= 1;
+        j += 1;
+      }
+      if (head.startsWith("@")) scan(text.slice(open + 1, j - 1), cond ? `${cond} && ${head}` : head);
+      else if (head.split(",").some((s) => classes.includes(s.trim().replace(/^\./, "")))) {
+        found.push({ cond, body: text.slice(open + 1, j - 1) });
+      }
+      i = j;
+    }
+  };
+  scan(css, "");
+  return found;
+}
+
+function declaration(rule, prop) {
+  const m = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`).exec(rule.body);
+  return m ? m[1].trim() : null;
+}
+
+function columnCount(track) {
+  const repeat = /^repeat\(\s*(\d+)\s*,/.exec(track || "");
+  if (repeat) return Number(repeat[1]);
+  return String(track || "").replace(/\([^)]*\)/g, "x").split(/\s+/).filter(Boolean).length;
+}
+
+/** 담당자 카드 격자와 그 카드들. 카드는 눌러서 그 사람만 보는 버튼이다. */
+async function personGrid() {
+  const section = await screen.findByRole("region", { name: /담당자 현황/ });
+  const cards = within(section).getAllByRole("button");
+  return { section, cards, grid: cards[0].parentElement };
+}
+
+describe("스프린트 회의 5단계 재설계", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/sprint/summary")) return Promise.resolve(WEEKLY);
+      if (path === "/api/tickets/projects") {
+        return Promise.resolve({ projects: [{ id: "p-a", name: "포털" }, { id: "p-b", name: "인프라" }] });
+      }
+      if (path === "/api/tickets/assignees") {
+        return Promise.resolve({ assignees: [
+          { user_id: "u-1", display_name: "서윤경" }, { user_id: "u-2", display_name: "김철수" },
+        ] });
+      }
+      if (path === "/api/tickets/meta") return Promise.resolve({ statuses: ["계획", "진행"], priorities: [], difficulties: [] });
+      return Promise.resolve({});
+    });
+  });
+
+  it("무엇을 기준으로 모은 화면인지 말한다 — '날짜 범위 기준'", async () => {
+    renderWeekly();
+    expect(await screen.findByText("날짜 범위 기준")).toBeInTheDocument();
+    // 왜 그렇게 말해야 하는지까지 화면에 있다: Notion 스프린트와 같은 것이 아니다.
+    expect(screen.getByText(/Notion 에서 만든 스프린트/)).toBeInTheDocument();
+  });
+
+  it("머리에 요약 카드와 번다운이 함께 있다", async () => {
+    renderWeekly();
+    expect(await screen.findByText("완료(건)")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "번다운" })).toBeInTheDocument();
+    // 서버가 준 points 를 실제로 그렸는지 — 빈 그림으로 때우지 않았는지 본다.
+    expect(screen.getByText(/이 주에 마감인 업무량 3인일 중 3인일이 아직 완료되지 않았습니다/)).toBeInTheDocument();
+  });
+
+  it("담당자는 긴 목록이 아니라 카드 격자다(1인 1카드, 같은 줄 바닥을 맞춘다)", async () => {
+    renderWeekly();
+    const { cards, grid } = await personGrid();
+    // 이번 주 배정이 있는 두 사람만 카드가 된다.
+    expect(cards).toHaveLength(2);
+    expect(within(cards[0]).getByText("서윤경")).toBeInTheDocument();
+
+    const rules = rulesFor(grid);
+    const base = rules.find((r) => r.cond === "");
+    expect(declaration(base, "display")).toBe("grid");
+    // Q5(카드 높이 편차) 재발 방지 — start 로 되돌리면 카드 바닥이 들쭉날쭉해진다.
+    expect(declaration(base, "align-items")).toBe("stretch");
+    // '1열 격자' 로 만들어 놓고 격자라 우기지 못하게 — 넓어지면 실제로 여러 열이 된다.
+    const tracks = rules.map((r) => declaration(r, "grid-template-columns")).filter(Boolean);
+    expect(Math.max(...tracks.map(columnCount))).toBeGreaterThanOrEqual(2);
+  });
+
+  it("카드에 그 사람의 건수, 업무량, 지연이 함께 있다", async () => {
+    renderWeekly();
+    const { cards } = await personGrid();
+    const mine = cards[0];
+    expect(within(mine).getByText("2건")).toBeInTheDocument();
+    expect(within(mine).getByText("3인일")).toBeInTheDocument();
+    expect(within(mine).getByText("1건")).toBeInTheDocument();
+  });
+
+  it("카드를 누르면 그 사람 티켓만 남고, 그 조건이 주소에 남는다", async () => {
+    const user = userEvent.setup();
+    renderWeekly();
+    await personGrid();
+    await user.click(screen.getByRole("button", { name: /김철수/ }));
+
+    await waitFor(() => expect(addr()).toContain("assignee_user_id=u-2"));
+    const list = screen.getByRole("region", { name: /담당자별 티켓/ });
+    expect(within(list).getByText("김철수")).toBeInTheDocument();
+    /* 34번은 담당자가 둘이다. "담당자 중 한 명이라도 맞으면 통과"(서버 규칙)만 쓰면 이 티켓이
+       서윤경 그룹에도 남아, '그 사람만' 을 누른 사용자에게 남의 이름이 하나 더 붙어 나온다. */
+    expect(within(list).queryByText("서윤경")).toBeNull();
+  });
+
+  it("프로젝트 조건도 주소에 남고 목록을 실제로 거른다", async () => {
+    const user = userEvent.setup();
+    renderWeekly();
+    await screen.findByRole("region", { name: /담당자별 티켓/ });
+    await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    await user.click(await screen.findByRole("option", { name: "포털" }));
+
+    await waitFor(() => expect(addr()).toContain("project_id=p-a"));
+    const list = screen.getByRole("region", { name: /담당자별 티켓/ });
+    expect(within(list).getByText("로그인 오류 수정")).toBeInTheDocument();
+    expect(within(list).queryByText("배포 스크립트 정리")).toBeNull();
+  });
+
+  it("미할당은 담당자별 목록에 섞이지 않고 자기 패널에 있다", async () => {
+    renderWeekly();
+    const panel = await screen.findByRole("region", { name: /미할당/ });
+    // 배분 대상이 몇 건인지 패널 제목이 그 자리에서 말한다.
+    expect(within(panel).getByRole("heading")).toHaveTextContent("배분 대상 1건");
+    expect(within(panel).getByRole("button", { name: /미할당 티켓/ })).toBeInTheDocument();
+    // 담당자별 티켓 영역 안에 있으면 그 목록의 일부처럼 읽힌다 — 별도 패널이어야 한다.
+    const list = screen.getByRole("region", { name: /담당자별 티켓/ });
+    expect(list.contains(panel)).toBe(false);
   });
 });

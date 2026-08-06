@@ -17,6 +17,7 @@ from app.core import people
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.presence import PRESENCE_THROTTLE_SECONDS, should_touch
 from app.notifications.service import notify_user
+from app.org.models import Department
 from app.team_chat import repository
 from app.team_chat.mentions import find_mentioned, mention_preview
 from app.team_chat.models import (
@@ -80,6 +81,89 @@ def _append_message(db: Session, room: ChatRoom, *, kind: str, sender_id: str | 
     raise ConflictError("메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
 
+def ensure_team_room(db: Session, user: User, *, now: datetime) -> ChatRoom | None:
+    """이 사용자의 **부서 방**을 보장한다. 없으면 만들고, 멤버가 아니면 넣는다.
+
+    사용자 지적 Q6: "홈 및 채팅방에 default 로 만들어진 방은 기본적으로 내 팀임."
+    지금까지 기본으로 있던 방은 `전체 채팅` 하나뿐이었다 — 회사 전체는 매일 쓰는 단위가
+    아니다. 사람들이 실제로 대화하는 단위는 자기 팀이다.
+
+    **게으르게 만든다.** 마이그레이션이 미리 만들면 그 뒤에 생기는 부서에는 방이 없고,
+    부서가 생길 때마다 마이그레이션을 하나씩 더 써야 한다. 방 목록을 여는 길목에서
+    보장하면 부서를 언제 만들든 한 번은 지나간다.
+
+    부서가 없는 사용자는 `None` 이다 — 없는 팀의 방을 만들어 주지 않는다.
+    """
+    dept_id = getattr(user, "department_id", None)
+    if not dept_id:
+        return None
+
+    room = repository.get_team_room(db, dept_id)
+    if room is None:
+        dept = db.get(Department, dept_id)
+        if dept is None:
+            return None  # 지워진 부서를 가리키는 사용자. 방을 만들 근거가 없다.
+        room = ChatRoom(
+            kind=ROOM_GROUP, title=dept.name[:200], created_by_user_id=None,
+            is_global=False, department_id=dept_id, event_seq=0,
+            created_at=now, updated_at=now,
+        )
+        try:
+            # 두 사람이 동시에 목록을 열면 둘 다 "없다" 를 보고 각자 만들려 한다.
+            # 1:1 방(dm_key)과 같은 관용으로 SAVEPOINT 를 두고, 졌으면 이긴 쪽 방을 쓴다.
+            with db.begin_nested():
+                db.add(room)
+                db.flush()
+        except IntegrityError:
+            room = repository.get_team_room(db, dept_id)
+            if room is None:
+                return None
+    else:
+        # 부서 이름이 바뀌면 방 이름도 따라간다 — 팀 방의 이름은 팀 이름이지 별도 값이 아니다.
+        dept = db.get(Department, dept_id)
+        if dept is not None and room.title != dept.name[:200]:
+            room.title = dept.name[:200]
+            room.updated_at = now
+
+    if repository.get_member(db, room.id, user.id) is None:
+        db.add(ChatRoomMember(room_id=room.id, user_id=user.id, role=ROLE_MEMBER,
+                              last_read_seq=0, joined_at=now, last_seen=None))
+        db.flush()
+    return room
+
+
+def get_scoped_participants_or_404(db: Session, actor: User, user_ids: list[str]) -> dict[str, User]:
+    """`user_ids` 중 **actor 가 자기 방에 들일 수 있는** 사람들. 범위 밖은 404.
+
+    방에 사람을 넣는 문은 셋이다 — 방 만들기(`member_user_ids`)·초대(`members/add`)·1:1 열기.
+    셋 다 목록(`/directory`)이 아니라 **id 를 그대로** 받는다. 그래서 목록만 조직으로 좁혀
+    두면 나머지 문으로 그대로 뚫린다(3순위 IDOR). 실제로 1:1 만 막혀 있었고 **그룹 초대는
+    같은 판정을 안 지났다** — 이 저장소가 여러 번 겪은 "목록만 좁히고 쓰기는 그대로" 다.
+
+    그래서 **조회와 판정을 한 함수에 묶는다**: 사람을 찾는 코드가 곧 범위를 거는 코드라
+    새 경로가 판정을 빠뜨릴 자리가 없다(`app/jobs/repository.py::scope_clause` 와 같은 관용).
+
+    막아야 하는 이유는 목록이 새는 것보다 무겁다 — 사람을 방에 넣는 **순간** 그 방의 메시지와
+    붙여넣기 이미지 전부에 접근권이 생긴다(이미지 서빙이 방 멤버십으로 판정한다).
+
+    **부서로는 좁히지 않는다.** 다른 팀을 못 부르면 그건 기능 축소지 보안이 아니다 —
+    맞는 축은 조직이고, `repository.directory` 가 쓰는 축과 같다.
+
+    **403 이 아니라 404** — 403 은 "그 id 는 존재한다" 를 알려 준다(저장소 규칙:
+    `get_scoped_user_or_404`, 채팅 이미지 서빙, `core/scope.py` 모듈 docstring).
+
+    한쪽 `org_id` 가 비어 있으면 막지 않는다 — 조직 축이 붙기 전 데이터를 여기서 막으면
+    기존 방들이 통째로 멈춘다(`OrgScopedMixin` 이 nullable 인 이유와 같은 판단).
+    """
+    found = repository.users_by_ids(db, user_ids)
+    my_org = getattr(actor, "org_id", None)
+    for target in found.values():
+        their_org = getattr(target, "org_id", None)
+        if my_org and their_org and my_org != their_org:
+            raise NotFoundError("대화 상대를 찾을 수 없습니다.")
+    return found
+
+
 def create_group(db: Session, user: User, *, title: str, member_user_ids: list[str], now: datetime) -> ChatRoom:
     title = (title or "").strip()
     if not title:
@@ -89,8 +173,9 @@ def create_group(db: Session, user: User, *, title: str, member_user_ids: list[s
     db.add(room)
     db.flush()
     # 만든 사람 = 방장, 지정한 사람들 = 멤버(중복·본인 제거).
+    # 초대(`add_members`)와 **같은 함수**로 사람을 찾는다 — 만들 때만 열려 있으면 막은 의미가 없다.
     ids = {user.id, *[m for m in (member_user_ids or []) if m]}
-    valid = set(repository.users_by_ids(db, list(ids)).keys())
+    valid = set(get_scoped_participants_or_404(db, user, list(ids)).keys())
     for uid in ids:
         if uid not in valid:
             continue
@@ -213,7 +298,10 @@ def _room_label(room: ChatRoom) -> str:
 def create_or_get_direct(db: Session, user: User, *, other_user_id: str, now: datetime) -> ChatRoom:
     if not other_user_id or other_user_id == user.id:
         raise ValidationAppError("대화 상대를 선택하세요.")
-    umap = repository.users_by_ids(db, [other_user_id])
+    # **조직 밖 사람과는 방을 열지 않는다** (3순위 IDOR) — 판정은 조회에 붙어 있다
+    # (`get_scoped_participants_or_404` docstring 에 왜가 적혀 있다). 조직 밖은 404,
+    # 아예 없는 사람은 아래 422 — 이 두 갈래는 tests/security/test_org_axis.py 가 고정한다.
+    umap = get_scoped_participants_or_404(db, user, [other_user_id])
     if other_user_id not in umap:
         raise ValidationAppError("대화 상대를 찾을 수 없습니다.")
     key = dm_key(user.id, other_user_id)
@@ -347,6 +435,78 @@ def read_seq_for(member: ChatRoomMember | None, cursor: ChatReadCursor | None) -
     if member is not None:
         return member.last_read_seq
     return cursor.last_read_seq if cursor is not None else 0
+
+
+PRESENCE_ONLINE = "online"
+PRESENCE_DND = "dnd"
+PRESENCE_OFFLINE = "offline"
+
+
+def dnd_user_ids(db: Session, user_ids, *, now: datetime) -> set[str]:
+    """지금 **수동 방해금지**를 켜 둔 사람들 (X3).
+
+    ## 왜 밖에서 보여야 하나
+
+    방해금지는 지금까지 **자기 배지만 조용하게** 했다. 밖에서는 아무 표시가 없어서, 동료는
+    초록 점을 보고 말을 걸고 답이 없으면 이상하게 여긴다. 방해금지를 켠 사람은 방해를 받고,
+    거는 사람은 무시당했다고 느낀다 - 아무도 원하지 않은 결과다. 방해금지는 원래
+    **밖으로 내는 신호**다.
+
+    ## 조용시간(quiet hours)은 왜 안 넣나
+
+    조용시간은 "밤에는 알림 소리를 끄겠다" 는 **개인 일정**이지 "지금 말 걸지 마라" 가 아니다.
+    23시에 채팅방을 열어 두고 읽고 있는 사람을 방해금지로 그리면 **사실이 아닌 것을 그리는
+    것**이다. 그래서 사용자가 직접 누른 수동 방해금지만 밖으로 낸다.
+
+    ## 왜 한 번에 읽나
+
+    참여자 수만큼 질의하면 방 하나 여는 데 N+1 이 된다. 이 화면은 폴링 대상이라 그 비용이
+    매 초 반복된다.
+    """
+    ids = [uid for uid in set(user_ids or []) if uid]
+    if not ids:
+        return set()
+
+    from sqlalchemy import select
+
+    from app.profiles.models import UserPreference
+    from app.profiles.prefs import evaluate_quiet
+
+    rows = db.execute(
+        select(UserPreference).where(UserPreference.user_id.in_(ids))
+    ).scalars().all()
+    out: set[str] = set()
+    for pref in rows:
+        state = evaluate_quiet(
+            dnd_enabled=pref.dnd_enabled,
+            dnd_until=pref.dnd_until,
+            # 조용시간을 끄고 부른다 - 위 docstring 의 이유대로다.
+            # ⚠️ 다만 **실제로 막고 있는 것은 아래 `reason == "manual"` 검사**다. 이 인자를
+            # 되돌려 넣는 사보타주를 걸었는데 테스트가 초록이었고, 그래서 확인했다.
+            # 둘 다 남겨 둔다(한쪽이 무너져도 다른 쪽이 잡는다). 다만 "이 인자가 지킨다" 고
+            # 적어 두면 다음 사람이 아래 검사를 안심하고 지울 수 있어서, 사실대로 적는다.
+            quiet_hours_enabled=False,
+            quiet_start=pref.quiet_start,
+            quiet_end=pref.quiet_end,
+            now=now,
+        )
+        if state.quiet and state.reason == "manual":
+            out.add(pref.user_id)
+    return out
+
+
+def presence_for(last_seen: datetime | None, now: datetime, *, dnd: bool) -> str:
+    """참여자 한 명의 표시 상태.
+
+    🔴 **방해금지라고 오프라인으로 그리지 않는다.** 그건 거짓말이고, 거는 사람이 "자리에
+    없구나" 로 잘못 읽는다. 있는 그대로 "있지만 지금은 곤란함" 을 말한다.
+
+    반대로 **접속해 있지 않으면 방해금지도 표시하지 않는다** - 어제 켜 두고 퇴근한 사람에게
+    방해금지 딱지가 붙어 있으면 그것도 사실이 아니다.
+    """
+    if not is_online(last_seen, now):
+        return PRESENCE_OFFLINE
+    return PRESENCE_DND if dnd else PRESENCE_ONLINE
 
 
 def is_online(last_seen: datetime | None, now: datetime) -> bool:
@@ -496,13 +656,21 @@ def leave_room(db: Session, room: ChatRoom, user: User, *, now: datetime) -> Non
 
 # ── 그룹 관리(방장 전용) ─────────────────────────────────────────────────────
 #
-# 권한 규칙은 한 곳(_require_owner)에서만 판단한다. 이름 변경·초대·내보내기·방장 넘기기가
-# 각자 조건을 다시 쓰면 언젠가 하나만 고쳐지고, 그 순간 '보이는데 누르면 403'이 된다.
+# 권한 규칙은 한 곳(ensure_can_manage_room)에서만 판단한다. 이름 변경·초대·내보내기·방장
+# 넘기기가 각자 조건을 다시 쓰면 언젠가 하나만 고쳐지고, 그 순간 '보이는데 누르면 403'이 된다.
+# 이름을 `ensure_*` 로 두는 것도 규칙이다 — `scripts/check_scope_gates.py` 가 판정을 이 어휘로
+# 찾는다. 예전 이름(밑줄로 시작하는 require 형태)은 사람 눈에만 게이트였고 검사에는
+# '판정 없음'으로 보여 이 네 경로가 통째로 잡혔다 — 그 소음이 진짜 구멍 하나를 덮고 있었다
+# (초대에 조직 판정이 없었다).
 #
 # 관리 대상은 **그룹 방뿐**이다:
 #   * 전체 채팅 — 이름이 제품의 일부이고 멤버십 자체가 없다;
 #   * 1:1 — 멤버가 정의상 둘이고, 이름은 보는 사람마다 상대 이름으로 계산된다.
 # 둘 다 409 로 막는다(403 이 아니다 — 권한 문제가 아니라 그 방에는 없는 개념이다).
+#
+# **대상(target)의 범위 판정은 초대에만 붙는다.** 내보내기·방장 넘기기의 대상은 이미 그
+# 방의 멤버라 새로 열리는 문이 없고, 거기에 조직 판정을 걸면 구멍이 막히기 전에 들어온
+# 사람을 영영 못 빼게 된다(고치려다 가두는 꼴이다).
 
 def _require_group(room: ChatRoom) -> None:
     if room.is_global:
@@ -511,7 +679,15 @@ def _require_group(room: ChatRoom) -> None:
         raise ConflictError("1:1 대화는 관리할 수 없습니다.")
 
 
-def _require_owner(db: Session, room: ChatRoom, user: User) -> ChatRoomMember:
+def ensure_can_manage_room(db: Session, room: ChatRoom, user: User) -> ChatRoomMember:
+    """이 방을 관리할 수 있는가 — 네 경로(이름 변경·초대·내보내기·방장 넘기기)의 유일한 문.
+
+    비멤버·비방장은 **403 이다(404 가 아니다)**. 범위 밖을 404 로 감추는 규칙은 '그런 것이
+    있는지도 모르게' 하려는 것인데, 방은 이미 접근 거부를 403 으로 답하기로 정해져 있다
+    (tests/security/test_team_chat_images.py: "방 자체는 예전처럼 403이다 — 이미지만 404로
+    감추는 것은 의도적이다"). 여기만 404 로 바꾸면 같은 방이 경로마다 다르게 답한다.
+    이 모듈에서 404 로 감추는 축은 **사람**이다 — `get_scoped_participants_or_404`.
+    """
     _require_group(room)
     member = repository.get_member(db, room.id, user.id)
     if member is None:
@@ -522,7 +698,7 @@ def _require_owner(db: Session, room: ChatRoom, user: User) -> ChatRoomMember:
 
 
 def rename_room(db: Session, room: ChatRoom, user: User, *, title: str, now: datetime) -> ChatRoom:
-    _require_owner(db, room, user)
+    ensure_can_manage_room(db, room, user)
     title = (title or "").strip()
     if not title:
         raise ValidationAppError("방 이름을 입력하세요.")
@@ -545,13 +721,19 @@ def add_members(db: Session, room: ChatRoom, user: User, *, user_ids: list[str],
     이미 멤버인 사람을 오류로 만들지 않는 이유: 초대 화면은 목록을 폴링하지 않으므로 두 사람이
     동시에 같은 사람을 부르는 일이 실제로 생긴다. 그때 요청 전체가 실패하면 함께 고른 다른
     사람들까지 못 들어온다.
+
+    **조직 밖 사람은 다르다 — 조용히 건너뛰지 않고 요청 전체를 404 로 세운다.** 건너뛰면
+    화면은 성공이라 말하는데 고른 사람이 안 들어온 상태가 되고(스키마 docstring 이 말하는
+    "사용자 글자를 말없이 먹는" 실패), 무엇보다 그건 정상 화면에서 일어날 수 없는 요청이다
+    — `/directory` 가 이미 조직으로 좁혀져 있어 조직 밖 id 는 손으로 넣어야만 나온다.
     """
-    _require_owner(db, room, user)
+    ensure_can_manage_room(db, room, user)
     wanted = [uid for uid in (user_ids or []) if uid]
     if not wanted:
         raise ValidationAppError("초대할 사람을 선택하세요.")
     existing = {m.user_id for m in repository.members(db, room.id)}
-    valid = repository.users_by_ids(db, wanted)
+    # 방 만들기(`create_group`)·1:1 열기와 **같은 함수**로 사람을 찾는다 — 조직 밖은 404.
+    valid = get_scoped_participants_or_404(db, user, wanted)
     fresh = [uid for uid in dict.fromkeys(wanted) if uid in valid and uid not in existing]
     if len(existing) + len(fresh) > MAX_MEMBERS:
         raise ConflictError(f"한 방에는 최대 {MAX_MEMBERS}명까지 참여할 수 있습니다.")
@@ -578,7 +760,7 @@ def remove_member(db: Session, room: ChatRoom, user: User, *, user_id: str, now:
     `transfer_owner` 로 넘기거나, `leave_room`(자동 승계·마지막이면 파하기) 또는
     `disband_room` 을 쓴다.
     """
-    _require_owner(db, room, user)
+    ensure_can_manage_room(db, room, user)
     if user_id == user.id:
         raise ConflictError("방장은 스스로 내보낼 수 없습니다. 방장을 넘기거나 방을 나가세요.")
     target = repository.get_member(db, room.id, user_id)
@@ -599,7 +781,7 @@ def transfer_owner(db: Session, room: ChatRoom, user: User, *, user_id: str, now
     '자기 자신을 방장에서 내리는' 유일한 정상 경로다. 방장 자리는 **항상 정확히 한 명**이어야
     하므로 내려놓기만 하는 동작은 없다(그건 주인 없는 방을 만든다).
     """
-    me = _require_owner(db, room, user)
+    me = ensure_can_manage_room(db, room, user)
     if user_id == user.id:
         raise ConflictError("이미 방장입니다.")
     target = repository.get_member(db, room.id, user_id)

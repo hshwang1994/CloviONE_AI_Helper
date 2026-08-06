@@ -11,9 +11,11 @@ from app.core.audit import record_audit_from_request
 from app.observability.service import EVENT_DOCUMENT_GENERATE, record_usage
 from app.quotas import service as ai_quotas
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.pagination import PageParams
+from app.core.scope import Principal, visible_user_ids
 from app.documents.models import DocumentGeneration
+from app.documents.repository import apply_scope
 from app.documents.service import (
     generation_view,
     get_generation_or_404,
@@ -47,14 +49,23 @@ def list_generations(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     status: str | None = Query(default=None, max_length=24),
+    principal: Principal = Depends(get_principal),
 ):
     stmt = select(DocumentGeneration)
+    # 범위 밖 사람이 요청한 이력은 안 보인다 (§0-A). 이 목록은 아래에서 요청자 id 를
+    # **이름·이메일로 해석해** 붙이고, 각 행에는 요청 내용(config)이 실린다 — 훑는 것만으로
+    # 남의 팀이 무엇을 어디에 쓰는지 읽는 것과 같다.
+    #
+    # 조건은 상세·재시도와 **같은 것 하나**다(`repository.scope_clause` — 요청자 없는
+    # 시스템 생성을 남기는 이유도 거기 적혀 있다). 여기 손으로 다시 적으면 두 벌이 되고,
+    # 한쪽만 고쳐진 상태의 증상은 "어떤 사람만 안 된다" 라서 찾기가 어렵다.
+    stmt = apply_scope(stmt, visible_user_ids(db, principal.scope))
     if status:
         stmt = stmt.where(DocumentGeneration.status == status)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(DocumentGeneration.created_at.desc())
+            stmt.order_by(DocumentGeneration.created_at.desc(), DocumentGeneration.id.desc())
             .offset(page.offset)
             .limit(page.page_size)
         )
@@ -136,10 +147,19 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
     status_code=202,
     dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))],
 )
-def retry(request: Request, generation_id: str, db: Session = Depends(get_db)):
+def retry(
+    request: Request,
+    generation_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     # 실패/품질 실패 행을 같은 레코드로 다시 큐에 넣는다 — 생성 폼 재오픈(같은 기간·대상
     # 새 생성 → idempotency 중복 409)의 막다른 길을 없앤다(round30 감사 E High).
-    gen = get_generation_or_404(db, generation_id)
+    #
+    # 범위 밖은 404 이고, 그 문은 **상태 검사보다 먼저** 지난다: 409("실패 또는 품질 실패
+    # 상태의 문서만…")로 답하면 그 id 의 존재와 상태까지 알려 주기 때문이다. 여기서 새는
+    # 것은 읽기가 아니라 **쓰기 실행**이다 — 러너를 다시 불러 남의 팀 문서를 다시 만든다.
+    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.scope))
     retry_generation(db, gen, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="document.retry_requested",
@@ -150,5 +170,11 @@ def retry(request: Request, generation_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{generation_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def get_generation(generation_id: str, db: Session = Depends(get_db)):
-    return {"generation": generation_view(get_generation_or_404(db, generation_id))}
+def get_generation(
+    generation_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    # 목록과 같은 판정을 지난다 — 상세에는 요청자와 요청 내용(config)이 통째로 실린다.
+    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.scope))
+    return {"generation": generation_view(gen)}

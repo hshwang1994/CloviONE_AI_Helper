@@ -86,9 +86,23 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       h1: display(1.75, 1.4, 3.25, 820, "-0.045em"),
       h2: display(1.5, 1.0, 2.5, 800, "-0.035em"),
       h3: display(1.25, 0.7, 2.0, 760, "-0.025em"),
-      h4: display(1.125, 0.5, 1.625, 740, "-0.02em"),
+      /* 화면 제목(PageHeader 가 h4 를 쓴다). 기준 목업의 `.page-title` 은
+       * `clamp(24px, 2.1vw, 34px)` 인데 우리는 상한이 26px 이라 **모든 화면에서 8px 작았다**
+       * (기준 대조 34/34 화면 불일치). 상·하한과 vw 계수를 기준에 맞춘다.
+       * `display()` 는 최소값에 vw 를 더하는 모양이라 계수를 0.9 로 잡아야
+       * 1,600px 부근에서 상한에 닿는다 — 기준의 곡선과 거의 겹친다. */
+      h4: display(1.5, 0.9, 2.125, 740, "-0.02em"),
       h5: { fontWeight: 720, letterSpacing: "-0.015em" },
       h6: { fontWeight: 700 },
+      /* 본문 14px. MUI 기본은 body1 = 1rem(16px) 이지만 기준 목업은 `body { font-size:14px }`
+       * 다 — 대조에서 34/34 화면이 어긋났다. 업무용 밀도가 높은 화면이라 기준이 맞다.
+       *
+       * rem 을 그대로 두고 body1 만 내린다. 루트 폰트사이즈(16px)를 건드리면 rem 기반
+       * 간격·아이콘·브레이크포인트가 전부 따라 움직여 레이아웃이 통째로 흔들린다.
+       * body2 는 이미 0.875rem 이라 그대로 두면 body1 과 같아지므로 보조 텍스트를
+       * 한 단 더 내려 위계를 유지한다. */
+      body1: { fontSize: "0.875rem" },
+      body2: { fontSize: "0.8125rem" },
       button: { textTransform: "none", fontWeight: 750 },
     },
     components: {
@@ -166,7 +180,20 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           }),
         },
       },
-      MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+      MuiPaper: {
+        styleOverrides: {
+          root: { backgroundImage: "none" },
+          /* `StatCard` 는 `Paper variant="outlined"` 라 shape.borderRadius(14) 를 받고
+           * 그림자가 없었다. 옆에 놓이는 `Card` 는 18px + 그림자다 — 같은 격자 안에서
+           * 두 종류의 카드가 위아래로 붙어 있는 것이 기준 대조의 "카드 반지름 종류 수"
+           * 와 "그림자 비율 100% → 20~44%" 를 만든 원인이다(K-C1).
+           * 기준 목업은 `.card` 하나뿐이고 전부 radius-lg(18px) + shadow-sm 이다. */
+          outlined: ({ theme }) => ({
+            borderRadius: 18,
+            boxShadow: `0 2px 5px ${alpha(theme.palette.common.black, light ? 0.06 : 0.32)}`,
+          }),
+        },
+      },
       MuiChip: { styleOverrides: { root: { borderRadius: 999, fontWeight: 700 } } },
       MuiDrawer: { styleOverrides: { paper: { backgroundImage: "none" } } },
       MuiTableCell: {
@@ -198,7 +225,35 @@ export const CONTENT_MAX_WIDTH = { xs: "100%", lg: 1440, xl: 1680, xxl: 2280, uh
 
 /* 본문 산문(티켓 본문, 게시글, 문서)의 줄 길이 상한. 폭이 남으면 줄을 늘리지 말고
  * 두 번째 열(메타/활동 레일)로 보낸다 — 3,000px짜리 한 줄은 읽을 수 없다. */
+/* 한국어 줄바꿈 — **띄어쓰기에서만 끊는다** (사용자 지적 #11).
+ *
+ * CSS 기본값(`word-break: normal`)은 한글을 음절 단위로 끊어도 된다고 본다. 그래서
+ * "도와드/려요" 처럼 **단어 중간에서 줄이 바뀐다.** 영문에서는 안 일어나는 일이라
+ * 개발 중에는 눈에 잘 안 띄고, 좁은 칸(사이드바·안내 상자·카드)에서만 드러난다.
+ *
+ * `Mascot.jsx` 가 이 문제를 진단해 놓고 **거기 한 곳에만** 걸어 뒀다 — 정작 모든 페이지의
+ * 도움말을 그리는 `Callout` 에는 없었다. 그래서 토큰으로 올려 한 곳에서 정한다.
+ *
+ * 산문에만 쓴다. 표의 셀은 `overflowWrap: anywhere` 가 맞다(긴 UUID·URL 이 열을 밀어낸다).
+ */
+export const KO_WORD_BREAK = { wordBreak: "keep-all", overflowWrap: "break-word" };
+
 export const PROSE_MAX_WIDTH = "78ch";
+
+/* 상세 화면 곁열(속성·활동 레일)의 최대 폭.
+ *
+ * 예전에는 `minmax(18rem, 1fr)` 이었다. 본문은 78ch 에서 멈추는데 레일은 상한이 없어서,
+ * 넓은 화면에서 남는 폭을 **레일이 전부 가져갔다**: 1920px 에서 본문 743 / 레일 825,
+ * 3840px 에서 929 / 2001(레일이 본문의 2.15배). 사용자가 "티켓 상세 본문이 속성보다 좁다"
+ * 고 지적한 것이 이것이다(Q1).
+ *
+ * 산문 폭 상한 자체는 옳다 — 3,000px 짜리 한 줄은 읽을 수 없다. 잘못된 것은 **남는 폭을
+ * 전부 레일에 준 것**이다. 레일에도 상한을 두면 둘 다 읽을 수 있는 폭이 되고, 그러고도
+ * 남는 폭은 여백이 된다(본문 최대폭 CONTENT_MAX_WIDTH 가 이미 같은 일을 한다).
+ *
+ * 26rem 인 이유: 라벨(7rem) + 값이 한 줄에 들어가고, xxl 이상에서 META_GRID 가 2~3열로
+ * 펼쳐질 때도 각 열이 좁아지지 않는 최소치다. */
+export const DETAIL_RAIL_MAX_WIDTH = "26rem";
 
 /* 마스코트 FAB이 차지하는 오른쪽 아래 영역의 높이.
  *

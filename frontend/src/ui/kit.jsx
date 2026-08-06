@@ -29,6 +29,8 @@ import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { ART, SPOT } from "../lib/assets.js";
+import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
+import { KO_WORD_BREAK } from "./theme.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
  *
@@ -174,7 +176,18 @@ export function Callout({ tone = "info", children }) {
       severity={TONE_SEVERITY[tone] || "info"}
       icon={false}
       variant="outlined"
-      sx={{ alignItems: "flex-start", "& .MuiAlert-message": { minWidth: 0, width: "100%" } }}
+      /* 반지름을 카드와 맞춘다(18px). `MuiAlert` 는 `shape.borderRadius`(14)를 받는데,
+         안내 상자는 화면에서 카드 바로 위에 놓이는 자리라 둘의 모서리가 다르면 한 화면에
+         반지름이 두 종류가 된다 — 기준 대조에서 **24화면**이 이 한 가지 때문에 어긋났다.
+         그림자는 주지 않는다: 안내는 카드가 아니라 카드 앞의 한 줄이고, 띄우면 본문보다
+         앞에 나서 버린다(기준도 테두리만 쓴다). */
+      sx={{
+        alignItems: "flex-start", borderRadius: "18px",
+        // 한국어 줄바꿈(#11) — 이 상자가 **모든 페이지의 도움말**을 그린다. 여기 한 줄이
+        // 앱 전체의 안내 문구를 고친다. `Mascot.jsx` 가 같은 증상("도와드/려요")을 진단해
+        // 놓고 거기 한 곳에만 걸어 뒀던 것을 토큰으로 올렸다.
+        "& .MuiAlert-message": { minWidth: 0, width: "100%", ...KO_WORD_BREAK },
+      }}
     >
       <Box component="span" sx={{ fontWeight: 800, mr: 1.5, whiteSpace: "nowrap" }}>{label}</Box>
       <Box component="span" className="k-callout-body">{children}</Box>
@@ -298,6 +311,7 @@ export function ErrorState({ error, onRetry }) {
   const status = error && error.status;
   const code = error && error.body && error.body.error && error.body.error.code;
   const kind = error && error.kind;
+  const requestId = (error && error.requestId) || null;
   const isAuth = status === 401;
   const isForbidden = status === 403;
   const isGone = status === 404;
@@ -342,6 +356,19 @@ export function ErrorState({ error, onRetry }) {
           : (isForbidden || isGone) ? <MuiButton variant="contained" href="#/">홈으로</MuiButton>
           : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry}>다시 시도</Button> : null)}
       </Box>
+      {/* 문의 번호 (Z8). 서버는 요청마다 id 를 만들어 오류 봉투와 `X-Request-ID` 에 실어
+          보내고 감사 로그도 그 값을 저장하는데, 화면이 한 번도 보여 주지 않아 **사용자가
+          불러 줄 수가 없었다.** 새벽 3시에 "화면이 안 나와요" 를 받으면 경로와 상태 코드밖에
+          단서가 없었다. 로그인·권한 문제처럼 원인이 뻔한 것에는 붙이지 않는다 — 번호를
+          아무 데나 붙이면 아무도 안 읽는다. */}
+      {requestId && !isAuth && !isForbidden && !isGone ? (
+        <Typography
+          variant="body2" color="text.disabled"
+          sx={{ fontSize: "0.75rem", userSelect: "all", mt: 0.5 }}
+        >
+          문의 번호 {requestId}
+        </Typography>
+      ) : null}
     </Box>
   );
 }
@@ -384,15 +411,19 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   const cols = onRow ? [...baseCols, { key: "__open", label: "", align: "right", open: true, width: "6rem" }] : baseCols;
   const narrow = useMediaQuery(TABLE_CARD_BREAKPOINT);
 
+  /* 이 저장소에서 **가장 많이 반복되는 버튼**이다 — 관리자 28화면 × 표의 모든 행.
+     `MuiButton variant="outlined"` 를 그냥 쓰면 MUI 기본 색(primary)이 붙어 **혼자만
+     파랗다**. kit 의 `default` 는 `color: "inherit"`(중립)이고 같은 화면의 다른 버튼은
+     전부 그쪽이다. 한 화면에 수십 개가 깔리므로 이 하나가 화면 전체의 색 인상을 정한다
+     (K-B1). kit `Button` 을 쓰면 어휘가 한 곳에서만 정해진다. */
   const openButton = (row) => (
-    <MuiButton
-      size="small"
-      variant="outlined"
+    <Button
+      size="sm"
       aria-label={rowOpenLabel(baseCols, row)}
       onClick={(e) => { e.stopPropagation(); onRow(row); }}
     >
       상세
-    </MuiButton>
+    </Button>
   );
 
   if (safeRows.length === 0) {
@@ -488,7 +519,19 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
  * 정확히 처리하므로(중첩 모달 포함) 그 코드는 지웠다 — 직접 구현이 남아 있으면 MUI와
  * 이중으로 걸려 Esc 한 번에 두 개가 닫히는 예전 버그가 다시 난다.
  * size: sm|md|lg. 모바일에서는 전체 화면. */
-const SIZE_MAP = { sm: "sm", md: "md", lg: "lg" };
+/* 모달 폭 — **레이아웃 브레이크포인트와 분리한다** (M7).
+ *
+ * 예전에는 `maxWidth={SIZE_MAP[size]}` 로 MUI 브레이크포인트 키를 넘겼다. 그런데 이 테마의
+ * 브레이크포인트는 **화면 격자용**으로 커스텀돼 있다(`md:900, lg:1200`). 그래서 '중간 크기
+ * 모달' 이 900px, '큰 모달' 이 1200px 이 됐다 — 1366px 화면에서 상세 패널 하나가 화면을
+ * 거의 다 덮는다. 서로 상관없는 두 체계를 한 이름으로 묶은 결과다.
+ *
+ * 모달에는 모달의 척도를 준다. 값은 '한 줄에 몇 글자가 들어가는가' 로 정했다:
+ *   sm 30rem — 확인 대화상자. 한 문장과 버튼 둘.
+ *   md 45rem — 폼·상세. 산문 78ch 보다 좁다(모달 안은 라벨+값이라 더 좁아도 읽힌다).
+ *   lg 62rem — 표·CSV 미리보기처럼 열이 여럿인 것.
+ */
+const MODAL_MAX_WIDTH = { sm: "30rem", md: "45rem", lg: "62rem" };
 
 export function ModalHeader({ title, onClose, titleId }) {
   return (
@@ -504,6 +547,16 @@ export function ModalHeader({ title, onClose, titleId }) {
 export function ModalBody({ children }) {
   return <MuiDialogContent dividers sx={{ minWidth: 0 }}>{children}</MuiDialogContent>;
 }
+/* 모달 모서리 반지름 — 사용자 지적 P4("전체적으로 눌렀을 때 라운드가 너무 크다").
+ *
+ * 예전 값은 `borderRadius: 2.5` 였는데, MUI 는 이 숫자에 `shape.borderRadius`(14)를 곱하므로
+ * 실제로는 **35px** 이었다. 기준 목업의 카드는 `--radius-lg: 18px` 이고 모달도 같은 계열이다.
+ * 하네스에 클릭을 붙여 실제로 연 모달 47개가 **예외 없이 35px** 이었다.
+ *
+ * 절댓값으로 적는 이유: 배수로 두면 `shape.borderRadius` 를 나중에 건드리는 순간 다시
+ * 틀어진다. 이 값은 "카드와 같은 반지름" 이라는 뜻이지 "shape 의 2.5배" 가 아니다. */
+const MODAL_RADIUS = "18px";
+
 /* 표준 하단 작업줄 — 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
 export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, submitVariant = "primary" }) {
   return (
@@ -514,22 +567,76 @@ export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancel
   );
 }
 
-export function Modal({ open, onClose, title, size = "md", children, footer }) {
+/* footer 를 항상 `MuiDialogActions` 안에 넣는다 — 단, 이미 넣어 온 것은 그대로 둔다.
+ *
+ * 예전에는 `Modal` 이 `{footer}` 를 그대로 뱉었다. 그러면 버튼이 dialog 의 flex 열 **직계
+ * 자식**이 되어 좌우로 늘어난 색띠가 세로로 쌓인다 — 사용자가 "모달 상태가 이상한데?" 라고
+ * 한 그 모양이고, 하네스에 클릭을 붙이고 나서야 7개 화면에서 실제로 확인됐다(P6/K1/M1).
+ *
+ * 호출부에서 고치지 않고 여기서 판단하는 이유: `footer=` 를 넘기는 곳이 20군데이고 그중
+ * 넷은 이미 `ModalFooter` 를 넘긴다. 호출부마다 규칙을 지키게 하면 **새 모달을 만들 때
+ * 빠뜨린다** — 지금 상태가 정확히 그 결과다. 부품이 스스로 판단하면 빠뜨릴 수가 없다.
+ * 이미 감싸 온 것을 또 감싸면 패딩이 두 배가 되고 flex 가 중첩되므로 그것도 막는다. */
+function ModalActions({ children }) {
+  const wrapped =
+    React.isValidElement(children) &&
+    (children.type === ModalFooter || children.type === MuiDialogActions);
+  if (wrapped) return children;
+  return (
+    <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
+      {children}
+    </MuiDialogActions>
+  );
+}
+
+/* `dirty` 를 주면 **닫기 전에 확인**한다 (E11).
+ *
+ * `FormModal` 은 값 스냅샷으로 더티를 스스로 판정하지만, 이 저수준 `Modal` 은 내용을 모른다.
+ * 그래서 부르는 쪽이 알려 준다. 안 주면 예전과 똑같이 그냥 닫힌다 - 기존 호출부를 깨지 않는다.
+ *
+ * 이게 없어서 실제로 아팠던 자리: 퀴즈 방 만들기(최대 20문항)를 다 쓰고 Esc 나 바깥을 한 번
+ * 누르면 **전부 사라졌다.** 되돌릴 방법도 없다. 확인 문구는 FormModal 과 같은 것을 쓴다 -
+ * 같은 상황에 다른 말이 나오면 사용자는 다른 일이 일어난다고 읽는다. */
+export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false }) {
   const titleId = React.useId();
+  const confirm = useConfirm();
+  const requestClose = React.useCallback(async (...args) => {
+    if (!dirty) return onClose && onClose(...args);
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+                             { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok && onClose) onClose(...args);
+    return undefined;
+  }, [dirty, onClose, confirm]);
   if (!open) return null;
   return (
     <MuiDialog
       open={!!open}
-      onClose={onClose}
-      maxWidth={SIZE_MAP[size] || "md"}
+      onClose={requestClose}
+      /* `maxWidth={false}` + sx 로 직접 준다 — MUI 의 브레이크포인트 척도를 쓰지 않는다. */
+      maxWidth={false}
       fullWidth
       aria-labelledby={titleId}
-      /* 모바일에서는 전체 화면 — 좁은 화면에서 폼이 잘려 스크롤조차 안 되던 문제. */
-      sx={{ "& .MuiDialog-paper": { m: { xs: 0, sm: 4 }, width: { xs: "100%", sm: "auto" }, maxHeight: { xs: "100%", sm: "calc(100% - 4rem)" }, height: { xs: "100%", sm: "auto" }, borderRadius: { xs: 0, sm: 2.5 } } }}
+      /* 모바일에서는 전체 화면 — 좁은 화면에서 폼이 잘려 스크롤조차 안 되던 문제.
+       *
+       * `width` 를 지정하지 않는다(M7). 예전에는 `sm` 이상에서 `width:"auto"` 였는데, 그것이
+       * 바로 위 `fullWidth` 를 **무력화**했다 — 폭이 내용 길이로 정해져 같은 성격의 모달이
+       * 화면마다 다른 크기가 됐다(실측: 한 화면에서 폭 7~8가지, `+ 직책 추가` 286px vs
+       * `+ 공지 추가` 1200px 로 4배 차이). 이제 `maxWidth`(sm/md/lg) 세 등급만 남는다 —
+       * 크기를 고르는 일이 `size` prop 한 곳으로 모인다.
+       *
+       * xs 는 그대로 전체 화면이다(좁은 화면에서 등급 폭을 쓰면 좌우가 잘린다). */
+      sx={{ "& .MuiDialog-paper": {
+        m: { xs: 0, sm: 4 },
+        width: { xs: "100%" },
+        maxWidth: { xs: "100%", sm: MODAL_MAX_WIDTH[size] || MODAL_MAX_WIDTH.md },
+        maxHeight: { xs: "100%", sm: "calc(100% - 4rem)" },
+        height: { xs: "100%", sm: "auto" },
+        borderRadius: { xs: 0, sm: MODAL_RADIUS },
+      } }}
     >
-      <ModalHeader title={title} onClose={onClose} titleId={titleId} />
+      <ModalHeader title={title} onClose={requestClose} titleId={titleId} />
       <ModalBody>{children}</ModalBody>
-      {footer}
+      {footer ? <ModalActions>{footer}</ModalActions> : null}
     </MuiDialog>
   );
 }
@@ -639,6 +746,9 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     const v = {};
     (fields || []).forEach((f) => {
       const iv = initial && initial[f.name] != null ? initial[f.name] : (f.value != null ? f.value : (f.type === "checkbox" ? false : ""));
+      // datetime-local 은 **벽시계**만 담는다 — 서버가 준 naive UTC 를 그대로 넣으면 목록 열
+      // (KST 로 그린다)과 편집 폼이 9시간 다른 값을 말한다(F14). 경계 변환은 lib/format.js.
+      if (f.type === "datetime-local") { v[f.name] = apiToKstLocal(iv); return; }
       v[f.name] = f.type === "json" && iv && typeof iv === "object" ? JSON.stringify(iv, null, 2) : iv;
     });
     initialRef.current = v;
@@ -670,14 +780,33 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     const el = document.getElementById("ff-" + errField);
     if (el) { try { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }, [errField]);
+  /* 조건부 필드 (사용자 지적 #15).
+   *
+   * 예전에는 폼 스키마에 **조건부 장치가 아예 없었다**. 그래서 AI 쿼터 화면은 범위를
+   * '전체' 로 골라도 "범위가 '사용자'일 때만 필요합니다" 라고 적힌 사용자 ID 칸을 계속
+   * 보여 줬다 — 도움말은 조건을 말하는데 화면은 그 조건을 모르는 상태다.
+   *
+   * `showIf(values)` 가 false 면 **그리지도, 검증하지도, 보내지도 않는다.** 셋 중 하나만
+   * 빠지면 더 나쁜 결함이 된다: 안 그리는데 검증하면 "보이지 않는 칸이 필수" 가 되고,
+   * 안 그리는데 보내면 서버가 지워진 값을 받는다.
+   *
+   * ⚠️ 이 훅은 **`if (!open)` 조기 반환보다 위**에 있어야 한다. 아래에 두면 닫힘→열림에서
+   * 훅 개수가 11개→12개로 늘어 리액트가 "Rendered more hooks than during the previous
+   * render." 로 트리를 통째로 버린다 — 관리자 화면의 '+ 추가'·'수정'을 누르는 순간 화면이
+   * 사라졌다. 조건부 반환 위로 올리면 규칙(훅은 항상 같은 순서)이 지켜진다. */
+  const shownFields = React.useMemo(
+    () => (fields || []).filter((f) => (typeof f.showIf === "function" ? f.showIf(values) : true)),
+    [fields, values],
+  );
   if (!open) return null;
   const set = (name, val) => setValues((s) => ({ ...s, [name]: val }));
+
   const fail = (name, message) => { setErrField(name); setErr(message); };
 
   async function submit() {
     setErr(""); setErrField(null);
     const body = {};
-    for (const f of (fields || [])) {
+    for (const f of shownFields) {
       // 수정 화면에서 원래 값이 있던 항목을 비우면 키를 생략하지 않고 null로 보내 실제로 지운다.
       const hadValue = initial && initial[f.name] != null && String(initial[f.name]).trim() !== "";
       let val = values[f.name];
@@ -707,7 +836,14 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         }
         body[f.name] = val === "" ? null : val; continue;
       }  // 빈 선택("없음")은 null로 보내 기존 값을 지운다.
-      else { val = val == null ? "" : String(val); if (f.required && !val.trim()) { fail(f.name, f.label + "을(를) 입력하세요."); return; } if (val !== "") body[f.name] = val; else if (hadValue) body[f.name] = null; }
+      else {
+        val = val == null ? "" : String(val);
+        if (f.required && !val.trim()) { fail(f.name, f.label + "을(를) 입력하세요."); return; }
+        // 사람이 적은 것은 KST 벽시계다 — 오프셋을 붙여 보내야 서버가 같은 순간으로 저장한다(F14).
+        // 붙이지 않으면 서버가 규약대로 naive 를 UTC 로 읽어 9시간 밀린 채 저장된다.
+        if (val !== "") body[f.name] = f.type === "datetime-local" ? kstLocalToApi(val) : val;
+        else if (hadValue) body[f.name] = null;
+      }
     }
     setBusy(true);
     try { await onSubmit(body); }
@@ -729,7 +865,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     setBusy(false);
   }
 
-  const sz = size || ((fields || []).length > 5 ? "lg" : "md");
+  const sz = size || (shownFields.length > 5 ? "lg" : "md");
   const footer = <ModalFooter onCancel={requestClose} onSubmit={submit} submitLabel={submitLabel || "저장"} busy={busy} />;
   return (
     <Modal open={open} onClose={requestClose} title={title} size={sz} footer={footer}>
@@ -737,7 +873,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
           위해 기본 Enter 동작 유지). */}
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {err ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
-        {(fields || []).map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name} onChange={(val) => set(f.name, val)} />)}
+        {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name} onChange={(val) => set(f.name, val)} />)}
         {/* 화면에 보이지 않는 제출 버튼 — 실제 저장 버튼은 Dialog footer(별도 DOM 트리)에 있어
             이 <form> 안에 없다. type="submit"이 하나도 없으면 브라우저에 따라 단일 텍스트
             입력에서 Enter가 폼을 제출하지 않는다. */}
@@ -829,23 +965,17 @@ export function useToast() { return React.useContext(ToastCtx); }
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
 export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot }) {
-  const spotSrc = spot && SPOT[spot] ? SPOT[spot] : null;
+  void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
   return (
     <Box
       className="k-page-head"
       sx={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 3, flexWrap: "wrap", mb: 3 }}
     >
-      {spotSrc ? (
-        <Box
-          component="img" src={spotSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{
-            display: { xs: "none", lg: "block" },
-            position: "absolute", right: 0, top: "-0.75rem", zIndex: 0,
-            height: { lg: "7rem", xxl: "8.5rem", uhd: "10rem" }, width: "auto",
-            opacity: 0.1, pointerEvents: "none", userSelect: "none",
-          }}
-        />
-      ) : null}
+      {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
+          61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.
+          "있다 없다" 가 반복되면 통일감이 없어 보인다. `spot` prop 은 호출부 13곳이 아직
+          넘기고 있어 시그니처만 남긴다(그 값은 이제 무시된다).
+          클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
       <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
         {area ? (
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 650 }}>

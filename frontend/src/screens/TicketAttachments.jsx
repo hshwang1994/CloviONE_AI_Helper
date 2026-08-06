@@ -58,9 +58,9 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
 
   const upload = useMutation({
     /* 여러 장을 한 번에 고를 수 있게 하되 **순차로** 올린다. 동시에 던지면 서버의 개수 상한
-       검사가 서로를 못 보고 통과해 상한을 넘긴다(각자 "지금 9개니까 괜찮다"고 판단한다). */
-    mutationFn: async (fileList) => {
-      const picked = Array.from(fileList || []);
+       검사가 서로를 못 보고 통과해 상한을 넘긴다(각자 "지금 9개니까 괜찮다"고 판단한다).
+       인자는 `FileList` 가 아니라 **이미 배열로 뜬 스냅샷**이다 — 이유는 `pick` 참고. */
+    mutationFn: async (picked) => {
       for (const f of picked) {
         if (f.size > MAX_BYTES) {
           throw new Error(`${f.name} 은(는) 10MB를 넘습니다.`);
@@ -85,14 +85,27 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
     onError: (e) => toast((e && e.message) || "떼지 못했습니다.", "error"),
   });
 
+  /* 파일이 들어오는 문은 여기 하나다 — 버튼으로 고르든 끌어다 놓든 같은 판정을 지난다.
+     둘로 갈라 두면 한쪽에만 상한 검사를 빠뜨리게 된다. */
   const pick = (fileList) => {
-    if (!fileList || fileList.length === 0) return;
-    if (list.length + fileList.length > MAX_ATTACHMENTS) {
+    /* **동기적으로** 배열로 뜬다. `FileList` 는 살아 있는 목록이고, 바로 아래 onChange 가
+       같은 틱에서 `input.value = ""` 로 입력을 비운다 — HTML 표준상 value 에 빈 문자열을
+       넣으면 선택 파일 목록을 **그 자리에서** 비운다(새 목록으로 바뀌는 게 아니다).
+       업로드는 mutationFn 안에서 마이크로태스크 뒤에 도는 비동기라, 참조를 그대로 넘기면
+       그때는 0개다. 그래서 아무것도 안 올라가는데 "파일을 첨부했습니다" 토스트만 떴다 —
+       사용자가 "첨부 추가 버튼이 동작하지 않는다"고 말한 것이 이 증상이다.
+       드래그는 `dataTransfer.files` 를 아무도 비우지 않아 멀쩡했다: 같은 화면에서 버튼만
+       죽고 드래그만 살아 보인 이유가 정확히 이것이다. */
+    const picked = Array.from(fileList || []);
+    if (picked.length === 0) return;
+    if (list.length + picked.length > MAX_ATTACHMENTS) {
       toast(`첨부는 최대 ${MAX_ATTACHMENTS}개까지 올릴 수 있습니다.`, "error");
       return;
     }
-    upload.mutate(fileList);
+    upload.mutate(picked);
   };
+
+  const openPicker = () => { if (inputRef.current) inputRef.current.click(); };
 
   const askRemove = async (att) => {
     const ok = await confirm(`${att.filename} 을(를) 이 티켓에서 뗍니다. 계속할까요?`,
@@ -107,10 +120,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           첨부 {list.length > 0 ? `(${list.length})` : ""}
         </Typography>
         {canEdit ? (
-          <Button
-            onClick={() => inputRef.current && inputRef.current.click()}
-            disabled={upload.isPending || full}
-          >
+          <Button onClick={openPicker} disabled={upload.isPending || full}>
             {upload.isPending ? "올리는 중" : "파일 추가"}
           </Button>
         ) : null}
@@ -128,33 +138,24 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
         />
       ) : null}
 
-      {list.length === 0 ? (
-        canEdit ? (
-          /* 빈 상태를 그대로 두면 "여기에 무엇을 할 수 있는지"가 안 보인다. 끌어다 놓는 판을
-             둬서 버튼을 못 찾은 사람도 파일을 놓을 수 있게 한다. */
-          <Box
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files); }}
-            sx={{
-              display: "grid", placeItems: "center", gap: 0.5, py: 3, px: 2,
-              border: 1, borderStyle: "dashed", borderRadius: 2,
-              borderColor: dragging ? "primary.main" : "divider",
-              bgcolor: dragging ? "action.hover" : "transparent",
-              transition: "border-color .16s, background-color .16s",
-            }}
-          >
-            <Typography variant="body2" color="text.secondary">
-              화면 캡처나 규격서를 여기에 끌어다 놓으세요.
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              PNG, JPEG, GIF, WebP, PDF 를 한 개당 10MB까지 올릴 수 있습니다
-            </Typography>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary">첨부된 파일이 없습니다.</Typography>
-        )
-      ) : (
+      {/* 권한이 없으면 **왜 없는지**를 말한다. 예전에는 버튼과 숨은 입력이 통째로 사라졌는데,
+          이유 없이 없어진 버튼은 권한 안내가 아니라 고장으로 읽힌다("추가 버튼이 동작하지
+          않는다"는 보고의 절반이 이것이었다). 문구는 서버 판정(app/tickets/service.py
+          `ensure_can_edit`)과 같은 선이다 — 한쪽만 고치면 화면이 거짓말을 하게 된다. */}
+      {!canEdit ? (
+        <Callout tone="info">
+          이 티켓의 담당자가 아니라 첨부를 올리거나 뗄 수 없습니다. 담당자이거나 담당자가 아직
+          없는 티켓만 편집할 수 있습니다. 파일을 붙이고 떼는 것도 티켓을 고치는 일입니다.
+        </Callout>
+      ) : null}
+
+      {list.length === 0 && !canEdit ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+          첨부된 파일이 없습니다.
+        </Typography>
+      ) : null}
+
+      {list.length > 0 ? (
         <Box sx={{ display: "grid", gap: 2 }}>
           {images.length > 0 ? (
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: "repeat(auto-fill, minmax(9rem, 1fr))" }}>
@@ -235,13 +236,49 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
             </Box>
           ) : null}
 
-          {canEdit && full ? (
-            <Callout tone="warn">
-              첨부가 {MAX_ATTACHMENTS}개로 꽉 찼습니다. 더 올리려면 하나를 먼저 떼세요.
-            </Callout>
-          ) : null}
         </Box>
-      )}
+      ) : null}
+
+      {/* 끌어다 놓는 판은 **항상** 목록 아래 같은 자리에 있다. 예전에는 첨부가 0건일 때만
+          그렸는데, 한 장 붙는 순간 드래그가 아무 데도 안 걸려 "처음엔 되던 게 갑자기 안
+          된다"가 됐다(사용자가 "두 개 고른 뒤 드래그하면 올라간다"고 말한 것의 뒷면이다).
+          꽉 찼을 때도 치우지 않고 남긴다 — 사라진 판은 이유를 말해 주지 못한다. */}
+      {canEdit ? (
+        <Box
+          data-testid="attachment-dropzone"
+          component="button"
+          type="button"
+          onClick={openPicker}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files); }}
+          sx={{
+            display: "grid", placeItems: "center", gap: 0.5, py: 3, px: 2, width: "100%",
+            mt: list.length > 0 ? 2 : 0, font: "inherit", color: "inherit",
+            border: 1, borderStyle: "dashed", borderRadius: 2,
+            borderColor: dragging ? "primary.main" : "divider",
+            bgcolor: dragging ? "action.hover" : "transparent",
+            cursor: full ? "not-allowed" : "pointer",
+            transition: "border-color .16s, background-color .16s",
+            "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
+          }}
+        >
+          {full ? (
+            <Typography variant="body2" color="text.secondary">
+              첨부가 {MAX_ATTACHMENTS}개로 꽉 찼습니다. 더 올리려면 하나를 먼저 떼세요.
+            </Typography>
+          ) : (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                화면 캡처나 규격서를 여기에 끌어다 놓으세요. 눌러서 고를 수도 있습니다.
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                PNG, JPEG, GIF, WebP, PDF 를 한 개당 10MB까지 올릴 수 있습니다
+              </Typography>
+            </>
+          )}
+        </Box>
+      ) : null}
     </Card>
   );
 }

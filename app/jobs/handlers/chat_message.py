@@ -245,6 +245,22 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     message.error_code = None
     conversation.updated_at = ctx.clock.now()
 
+    # 쿼터는 **성공한 호출만** 센다(assistant 쪽과 같은 규약). 큐에 넣을 때 세면 러너가
+    # 죽은 날 사용자가 답을 못 받고 상한만 잃고, 재시도 세 번이 한 답변에 세 번 세어진다 —
+    # 우리 실패를 사용자에게 청구하는 셈이다.
+    from app.quotas.service import KIND_CHAT_MESSAGE, record_call
+
+    from app.users.models import User
+
+    owner = db.get(User, conversation.user_id)
+    record_call(
+        db, user_id=conversation.user_id,
+        # 조직은 사람에게서 읽는다 — `conversations` 에는 org 컬럼이 없다(0024 가 제외).
+        # 멀티테넌트에서 사용량 집계가 조직 없이 쌓이면 나중에 되살릴 수가 없다.
+        org_id=getattr(owner, "org_id", None),
+        kind=KIND_CHAT_MESSAGE, now=ctx.clock.now(),
+    )
+
     strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
     db.flush()
 

@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from . import assertions
+from . import assertions, interact
 from .routes import Route
 
 # The SPA shell served by app/admin/router.py and app/chat/router.py.
@@ -273,8 +273,14 @@ def expand_for_full_capture(page, viewport: Viewport) -> int | None:
 def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: str,
                   viewport: Viewport, out_root: Path, full_page: bool = True,
                   settle_ms: int = DEFAULT_SETTLE_MS, timeout_ms: int = DEFAULT_NAV_TIMEOUT_MS,
-                  ignores=None) -> dict:
-    """Navigate to one screen and return its full result record."""
+                  ignores=None, interact_modals: bool = False) -> dict:
+    """Navigate to one screen and return its full result record.
+
+    `interact_modals` 를 켜면 스크린샷·검사를 마친 뒤 **화면을 눌러 본다** — 모달을 열어
+    검사한다. 이게 없던 동안 하네스는 클릭을 0회 했고, 그래서 관리자 상세 모달 28개가
+    깨진 채로 992페이지 100% 통과 아래 살아남았다(`interact.py` 주석 참조).
+    화면 상태를 바꾸므로 **반드시 다른 모든 측정이 끝난 뒤**에 한다.
+    """
     console_errors: list[str] = []
     page_errors: list[str] = []
 
@@ -351,6 +357,17 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
         final_url=page.url, console_errors=console_errors, page_errors=page_errors,
         ignores=ignores, public=route.is_public,
     )
+
+    # 모달 검사는 맨 마지막이다 — 클릭이 화면을 바꾸므로 그 앞의 어떤 측정도 오염되면 안 된다.
+    if interact_modals and not route.is_public:
+        try:
+            modals = interact.open_modals(page)
+            record["modals"] = modals
+            if modals:
+                record["assertions"].update(interact.classify_modals(modals))
+        except Exception as exc:  # noqa: BLE001 — 모달 탐색 실패가 캡처 결과를 버리게 하면 안 된다
+            record["modal_error"] = f"{type(exc).__name__}: {exc}"
+
     page.remove_listener("console", on_console)
     page.remove_listener("pageerror", on_pageerror)
     return record

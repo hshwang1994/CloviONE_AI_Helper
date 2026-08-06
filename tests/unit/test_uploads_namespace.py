@@ -96,3 +96,45 @@ def test_an_invalid_namespace_is_a_programming_error_not_a_path(tmp_path):
     for evil in ("../board", "Board", "team chat", "", "a/b"):
         with pytest.raises(ValueError):
             uploads.save_upload(tmp_path, POST_ID, filename="a.png", content=PNG, namespace=evil)
+
+
+# ── 다운로드 파일명 (Z13) ──────────────────────────────────────────────────────
+# 세 첨부 라우트가 `Content-Disposition: inline` 만 보내고 원본 표시명을 한 번도 싣지 않았다.
+# 이름은 DB 에 있고 살균 함수까지 있었는데(주석이 "다운로드 시 Content-Disposition 표시용"
+# 이라 적고 있다) 아무도 안 썼다. 운영 실측(2026-08-05) 첨부 2건은 둘 다 한글 파일명이다 —
+# 저장하면 UUID 이름에 확장자 없는 파일이 떨어졌다.
+
+from app.core.uploads import content_disposition  # noqa: E402
+
+
+def test_korean_filename_survives_as_rfc5987():
+    header = content_disposition("스크린샷 2026-08-05 092127.png")
+
+    # 옛 클라이언트용 ASCII 폴백 — 확장자는 살아 있어야 한다(그래야 열린다).
+    assert 'filename="' in header
+    assert ".png" in header
+    # 요즘 브라우저가 쓰는 진짜 이름.
+    assert "filename*=UTF-8''" in header
+    assert "%EC%8A%A4%ED%81%AC%EB%A6%B0%EC%83%B7" in header  # '스크린샷'
+
+
+def test_header_is_latin1_encodable():
+    """HTTP 헤더는 latin-1 이다. 한글을 그대로 넣으면 응답 자체가 터진다."""
+    header = content_disposition("보고서_2026년_1분기.pdf")
+    header.encode("latin-1")  # 여기서 UnicodeEncodeError 가 나면 실패
+
+
+def test_quotes_and_backslashes_cannot_break_the_header():
+    """헤더 문법을 깨뜨리는 문자가 파일명에 있어도 구조가 유지된다."""
+    header = content_disposition('evil".png')
+    assert header.count('"') == 2  # filename="..." 의 여닫는 따옴표뿐
+
+
+def test_attachment_disposition_is_available_for_downloads():
+    assert content_disposition("a.pdf", inline=False).startswith("attachment;")
+    assert content_disposition("a.pdf").startswith("inline;")
+
+
+def test_empty_name_falls_back():
+    header = content_disposition("")
+    assert 'filename="file"' in header

@@ -33,6 +33,7 @@ from app.team_chat.schemas import (
     RenameInput,
 )
 from app.users.models import User
+from app.settings.gate import block_if_maintenance
 
 
 def require_team_chat_enabled(request: Request) -> None:
@@ -41,7 +42,11 @@ def require_team_chat_enabled(request: Request) -> None:
         raise NotFoundError("팀 채팅 기능이 비활성화되어 있습니다.")
 
 
-router = APIRouter(prefix="/api/team-chat", tags=["team-chat"], dependencies=[Depends(require_team_chat_enabled)])
+router = APIRouter(
+    prefix="/api/team-chat",
+    tags=["team-chat"],
+    dependencies=[Depends(require_team_chat_enabled), Depends(block_if_maintenance)],
+)
 
 
 def _room_title(room, members, names, me_id) -> str:
@@ -72,6 +77,8 @@ def _room_summary(db: Session, room, me_id, names, cursor=None) -> dict:
         "id": room.id,
         "kind": room.kind,
         "is_global": room.is_global,
+        # 팀 방은 그룹 방과 kind 가 같다(0039) — 화면이 "내 팀" 태그를 붙이려면 이 값이 필요하다.
+        "department_id": getattr(room, "department_id", None),
         "title": _room_title(room, mem, names, me_id),
         "member_count": len(mem),
         "last_preview": _last_preview(last),
@@ -84,6 +91,9 @@ def _room_summary(db: Session, room, me_id, names, cursor=None) -> dict:
 
 @router.get("/rooms")
 def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    # 내 팀 방을 보장한다(Q6) — 부서가 있으면 그 부서의 방이 늘 있고 나는 그 멤버다.
+    # 목록을 여는 이 길목에서 하는 이유는 `service.ensure_team_room` 주석 참조.
+    team = service.ensure_team_room(db, me, now=request.app.state.clock.now())
     rooms = repository.rooms_for_user(db, me.id)
     glob = repository.get_global_room(db)
     cursors = repository.cursors_for_user(db, me.id)
@@ -96,9 +106,19 @@ def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depen
         for m in repository.members(db, r.id):
             all_uids.add(m.user_id)
     names = repository.users_by_ids(db, list(all_uids))
-    items = [_room_summary(db, r, me.id, names, cursors.get(r.id)) for r in rooms]
+    # 팀 방은 `items` 에서 뺀다 — 전체 채팅처럼 **따로 실어** 화면이 맨 위에 고정으로
+    # 그린다. 목록 안에 섞이면 마지막 대화 시각 순으로 밀려 내려가고, "기본 방" 이라는
+    # 성격이 사라진다.
+    items = [
+        _room_summary(db, r, me.id, names, cursors.get(r.id))
+        for r in rooms
+        if team is None or r.id != team.id
+    ]
     result = {"items": items}
     unread_total = sum(x["unread"] for x in items)
+    if team is not None:
+        result["team"] = _room_summary(db, team, me.id, names, cursors.get(team.id))
+        unread_total += result["team"]["unread"]
     if glob is not None:
         result["global"] = _room_summary(db, glob, me.id, names, cursors.get(glob.id))
         unread_total += result["global"]["unread"]
@@ -140,7 +160,7 @@ def _image_view(img) -> dict:
     }
 
 
-def _member_view(m, names, cursor, now, org_names=None) -> dict:
+def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset()) -> dict:
     """참여자 한 줄 — 이름·소속·역할 + **읽음 위치**와 **접속 여부**.
 
     `last_read_seq` 는 1:1 읽음 표시가 쓰는 값이다(내 메시지의 seq 가 상대의 이 값 이하면
@@ -164,7 +184,13 @@ def _member_view(m, names, cursor, now, org_names=None) -> dict:
         "org": person["org"],
         "role": m.role,
         "last_read_seq": service.read_seq_for(m, cursor),
+        # `online` 은 기존 계약이라 그대로 둔다(프런트 여러 곳이 읽는다).
         "online": service.is_online(m.last_seen, now),
+        # `presence` 는 세 상태다 (X3). 방해금지를 켠 사람을 **오프라인으로 그리지 않는다** -
+        # 그건 거짓말이고 거는 사람이 "자리에 없구나" 로 잘못 읽는다.
+        "presence": service.presence_for(
+            m.last_seen, now, dnd=m.user_id in dnd_ids
+        ),
     }
 
 
@@ -216,11 +242,19 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     org_names = people.org_name_map(db)
     # 발신자 신원 맵 — 말풍선마다 부서를 실으면 같은 사람이 200번 반복된다(폴링 경로다).
     # 등장하는 사람 한 명당 한 줄만 보내고, 말풍선은 sender_user_id 로 여기서 찾아 쓴다.
+    avatars = people.avatar_map(db, names.keys())
+    # 방해금지도 한 번에 읽는다 - 참여자마다 질의하면 폴링 경로가 N+1 이 된다.
+    dnd_ids = service.dnd_user_ids(db, [m.user_id for m in mem], now=now)
     return {
         "room": {"id": room.id, "kind": room.kind, "is_global": room.is_global,
                  "title": _room_title(room, mem, names, me.id), "member_count": len(mem)},
-        "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names) for m in mem],
-        "people": {uid: people.identity(u, org_names) for uid, u in names.items()},
+        "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names, dnd_ids)
+                    for m in mem],
+        # 사진까지 한 번에 — 건별 조회를 하면 이 경로가 바로 N+1 이 된다(X13).
+        "people": {
+            uid: people.identity(u, org_names, avatars)
+            for uid, u in names.items()
+        },
         "messages": [_msg_view(m, names, images.get(m.id), me=me) for m in msgs],
         "seq": room.event_seq,
         "you": {"user_id": me.id, "role": member.role if member else None,
@@ -298,8 +332,12 @@ def hide(request: Request, room_id: str, db: Session = Depends(get_db), me: User
 
 # ── 그룹 관리 (방장 전용 · 그룹 방만) ────────────────────────────────────────
 #
-# 네 동작 모두 service._require_owner 한 곳에서 판단한다. 라우터가 조건을 다시 쓰면
+# 네 동작 모두 service.ensure_can_manage_room 한 곳에서 판단한다. 라우터가 조건을 다시 쓰면
 # 언젠가 한쪽만 고쳐져 '보이는데 누르면 403'이 된다.
+#
+# 초대 대상(사람)의 범위는 service.get_scoped_participants_or_404 가 판단한다 — 방 만들기·
+# 초대·1:1 열기가 모두 그 함수로 사람을 찾는다. 조직 밖은 **404**(그 계정의 존재를 알려주지
+# 않는다), 비멤버·비방장은 **403**(그건 범위가 아니라 권한 문제다).
 
 @router.post("/rooms/{room_id}/rename", dependencies=[Depends(require_csrf)])
 def rename_room(request: Request, room_id: str, payload: RenameInput,
@@ -414,7 +452,7 @@ def serve_image(
         str(path),
         media_type=image.media_type,
         headers={
-            "Content-Disposition": "inline",
+            "Content-Disposition": uploads.content_disposition(image.filename),
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, max-age=300",
         },
@@ -424,6 +462,6 @@ def serve_image(
 @router.get("/directory")
 def directory(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     """1:1 상대 고르기용 사용자 목록 — 이름·부서·직책만(이메일·역할·비밀은 절대 안 나감)."""
-    users = repository.directory(db, me.id)
+    users = repository.directory(db, me.id, org_id=getattr(me, "org_id", None))
     return {"users": [{"user_id": u.id, "display_name": u.display_name,
                        "dept": u.department or "", "title": u.title or ""} for u in users]}

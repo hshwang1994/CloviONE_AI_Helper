@@ -3,11 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
-import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import {
   Badge,
@@ -22,12 +20,14 @@ import {
   Skeleton,
   useToast,
 } from "../ui/kit.jsx";
-import { fmtDateTime } from "../lib/format.js";
+import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { boardCategoryKind } from "../lib/badges.js";
+import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
+import { useQueryState } from "../lib/useQueryState.js";
+import { SearchBox } from "../ui/filters.jsx";
 
-/* 자유게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
+/* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
  * 페이지 안에서 처리하고, 글쓰기는 이 페이지의 버튼(모달)이다. 행을 누르면 상세로 이동한다.
  * 본문/제목은 React가 기본으로 textContent로 렌더하므로 XSS 없음(불변 §6).
  *
@@ -35,31 +35,77 @@ import { buildPostsQuery, reactionMap } from "./board-helpers.js";
  * 걷히면서 .k-input에는 이미 아무 규칙도 남아 있지 않아 검색창·정렬 select가 브라우저 기본
  * 모양으로 떠 있었다 — 화면마다 손으로 스타일을 다시 붙이지 않고 테마 하나를 따르게 한다.
  * 열 너비는 열 정의에 함께 적는다(fixed + ellipsis): CSS nth-child로 잡으면 열 순서가 바뀔 때
- * 조용히 어긋난다. */
+ * 조용히 어긋난다.
+ *
+ * ## 종류가 둘인데 화면은 하나다 (7단계 #1)
+ *
+ * 기능 개선 제안 게시판은 이 화면을 **종류만 바꿔** 쓴다(`kind="idea"`). 화면을 복사했다면
+ * 빈 상태 두 종류·검색·작성 모달·첨부 업로드·작성자 신원 렌더가 전부 두 벌이 되고, 다음에
+ * 게시판을 고칠 때 한쪽만 고쳐진다 — 서버에서 표를 안 나눈 것과 정확히 같은 이유다.
+ * 다른 것은 셋뿐이고 전부 `kind` 하나로 갈린다: 상태 필터/열, 기본 정렬, 화면 문구.
+ */
 
 const SORTS = [
   ["recent", "최신순"],
   ["views", "조회순"],
+  ["likes", "공감순"],
 ];
 const UPLOAD_ACCEPT = "image/png,image/jpeg,image/gif,image/webp,application/pdf";
 const MAX_FILES = 5;
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 서버 uploads.MAX_UPLOAD_BYTES와 동일(10MB)
 
-function useDebounced(value, ms) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
+/* 작성자 한 줄 — 사진 + 이름 + 소속(+보관됨). 목록·상세·댓글이 **같은 것**을 쓴다.
+ *
+ * 사용자 지시(#13/#8): "게시글과 댓글에는 작성자의 부서·팀·직책을 함께 표시한다",
+ * "프로필 사진이 다른 사용자 화면에서도 보이는 구조인지 확인한다".
+ * 표시 이름에는 유일성 제약이 없어(`app/users/models.py`) 이름만으로는 동명이인을
+ * 구분할 수 없다 — 서버가 `people: {uid: identity(...)}` 로 보내는 것을 여기서 그린다
+ * (채팅 말풍선 `ChatPane.jsx` 와 같은 규칙, 같은 `affiliationOf`).
+ *
+ * 자리를 세 곳에 베껴 두지 않는 이유는 규칙이 세 개라서다 — 없을 때 **안 그리는** 규칙은
+ * 한 곳만 빠뜨려도 그 화면만 빈 괄호·빈 회색 원이 줄줄이 붙는다.
+ */
+export function AuthorLine({ name, person, bold = false }) {
+  const affiliation = affiliationOf(person);
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%" }}>
+      {/* 사진이 없으면 자리를 만들지 않는다 — 빈 회색 원이 줄줄이 붙으면 더 어수선하다. */}
+      {person?.avatar_url ? (
+        <Box
+          component="img"
+          src={person.avatar_url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          sx={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        />
+      ) : null}
+      <Box component="span" sx={{ fontWeight: bold ? 700 : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        {name || "알 수 없음"}
+      </Box>
+      {/* 소속이 없으면 아무것도 그리지 않는다 — 빈 괄호가 붙으면 그게 더 어수선하다. */}
+      {affiliation ? (
+        <Box component="span" sx={{ fontWeight: 400, opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {affiliation}
+        </Box>
+      ) : null}
+      {/* 떠난 사람이면 그렇다고 말한다 — 안 하면 답이 안 오는 글에 답글을 단다(N3). */}
+      {person?.archived ? (
+        <Box component="span" sx={{ fontWeight: 400, opacity: 0.6, flexShrink: 0 }}>{ARCHIVED_SUFFIX}</Box>
+      ) : null}
+    </Box>
+  );
 }
 
 /* 게시글 작성/수정 공용 모달. mode="create"면 새 글, mode="edit"면 기존 글 수정.
- * 첨부 업로드는 생성 직후(또는 기존 글에) 순차로 올린다(FormData). */
-export function PostFormModal({ open, onClose, categories, mode = "create", post, onSaved }) {
+ * 첨부 업로드는 생성 직후(또는 기존 글에) 순차로 올린다(FormData).
+ *
+ * `kind` 는 **생성에만** 실린다. 수정에서 종류를 바꿀 수 있게 하면 상태가 붙은 제안이
+ * 자유글이 되어 배지가 유령처럼 남는다 — 서버 스키마(PostUpdate)도 같은 이유로 안 받는다. */
+export function PostFormModal({ open, onClose, categories, mode = "create", post, onSaved, kind = "free" }) {
   const toast = useToast();
   const qc = useQueryClient();
-  const [category, setCategory] = useState("자유");
+  const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState([]);
@@ -71,7 +117,9 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       setTitle(post.title);
       setBody(post.body || "");
     } else {
-      setCategory((categories && categories[0]) || "자유");
+      // 기본 카테고리는 **서버가 준 첫 값**이다. 화면에 상수를 적어 두면 종류마다 다른
+      // 목록에서 한쪽만 맞고, 그 순간 폼이 이 게시판에 없는 값을 보낸다.
+      setCategory((categories && categories[0]) || "");
       setTitle("");
       setBody("");
     }
@@ -91,7 +139,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       } else {
         const res = await api("/api/board/posts", {
           method: "POST",
-          body: { category, title, body },
+          body: { kind, category, title, body },
         });
         target = res.post;
       }
@@ -242,21 +290,76 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
   );
 }
 
-export function Board() {
+/* 이 화면이 주소에 두는 상태. 기본값과 같은 값은 주소에 안 쓴다(lib/useQueryState.js).
+ *
+ * 예전에는 `useState` 네 개였고, 그래서 상세를 열었다가 돌아오면 필터가 풀렸다 — 티켓·
+ * 문서에서 사용자가 두 번 지적한 그 증상이다. 주소가 유일한 진실이면 뒤로가기·새로고침·
+ * 링크 공유가 한꺼번에 해결된다.
+ *
+ * **모듈 상수여야 한다.** 렌더마다 새 객체를 만들면 훅 안의 메모가 매번 깨진다.
+ * 종류마다 다른 이유는 두 가지뿐이다: 아이디어에는 `status` 가 있고, 기본 정렬이 공감순이다
+ * (제안 게시판에서 먼저 보고 싶은 것은 최신 글이 아니라 **많이 공감한 제안**이다). */
+const FREE_SPEC = { category: "", q: "", sort: "recent" };
+const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "" };
+const SPEC_BY_KIND = { free: FREE_SPEC, idea: IDEA_SPEC };
+
+/* 종류마다 다른 것은 문구뿐이다. 화면 구조는 하나다. */
+const COPY = {
+  free: {
+    area: "자유게시판",
+    title: "자유게시판",
+    lead: "팀원과 자유롭게 이야기를 나누는 공간입니다.",
+    empty: "아직 게시글이 없습니다",
+    emptyHelp: "위 ‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남겨 보세요.",
+    writeLabel: "글쓰기",
+    route: "/board/",
+  },
+  idea: {
+    area: "기능 개선 제안",
+    title: "기능 개선 제안",
+    lead: "ClovirAssist 를 어떻게 고치면 좋을지 제안하고, 공감으로 우선순위를 정합니다.",
+    empty: "아직 제안이 없습니다",
+    emptyHelp: "위 ‘제안하기’로 불편한 점이나 있으면 좋겠는 기능을 남겨 보세요.",
+    writeLabel: "제안하기",
+    route: "/board/",
+  },
+};
+
+function BoardScreen({ kind = "free" }) {
   const nav = useNavigate();
-  const [category, setCategory] = useState("");
-  const [sort, setSort] = useState("recent");
-  const [qInput, setQInput] = useState("");
-  const q = useDebounced(qInput, 300);
+  const isIdea = kind === "idea";
+  const copy = COPY[kind] || COPY.free;
+  const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC);
+  const { category, q, sort } = query;
+  // 자유게시판 스펙에는 `status` 자체가 없다 — 주소에 실려 와도 읽지 않는다.
+  const status = isIdea ? query.status : "";
   const [composing, setComposing] = useState(false);
 
-  const meta = useQuery({ queryKey: ["board-meta"], queryFn: () => api("/api/board/meta") });
+  /* 검색어 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 —
+     매 렌더마다 새로 만들면 React.memo 가 깨져 글자마다 목록이 다시 그려진다. */
+  const commitSearch = React.useCallback((next) => setQuery({ q: next }), [setQuery]);
+
+  /* 메타는 종류마다 다르다(카테고리·상태 목록). 질의 키에 종류를 넣지 않으면 두 게시판이
+     같은 캐시를 나눠 쓰며 서로의 카테고리를 그린다. */
+  const meta = useQuery({
+    queryKey: ["board-meta", kind],
+    // 자유게시판은 `kind` 를 안 싣는다(목록 쿼리와 같은 규칙) — 서버 기본값이 자유라,
+    // 안 싣는 쪽이 예전 요청과 글자 그대로 같다.
+    queryFn: () => api("/api/board/meta" + (isIdea ? "?kind=idea" : "")),
+  });
   const categories = (meta.data && meta.data.categories) || [];
+  /* 상태 칩을 그릴지는 **서버가 준 목록**으로 정한다. 자유게시판에는 빈 배열이 온다 —
+     화면에 `kind === "idea"` 판정을 하나 더 적으면 규칙이 두 군데가 된다. */
+  const statuses = (isIdea && meta.data && meta.data.statuses) || [];
 
   const list = useQuery({
-    queryKey: ["board", category, q, sort],
-    queryFn: () => api("/api/board/posts?" + buildPostsQuery({ category, q, sort })),
+    queryKey: ["board", kind, category, q, sort, status],
+    queryFn: () => api("/api/board/posts?" + buildPostsQuery({ kind, category, q, sort, status })),
   });
+
+  /* 작성자 신원 묶음(부서·직책·사진). 사람 한 명당 한 줄만 오고 행은 uid 로 찾아 쓴다 —
+     행마다 신원을 되풀이하면 목록 응답이 그만큼 부푼다. 옛 응답·캐시에는 없을 수 있다. */
+  const people = (list.data && list.data.people) || {};
 
   /* 폭은 열 정의에 함께 적는다(DataTable fixed + ellipsis) — 제목만 남는 폭을 전부 갖고
    * 나머지는 내용 길이와 무관하게 고정된다. 4K에서도 제목 열만 넓어진다. */
@@ -279,24 +382,52 @@ export function Board() {
       ),
     },
     { key: "category", label: "카테고리", width: "8rem", render: (p) => <Badge value={p.category} kind={boardCategoryKind(p.category)} /> },
-    { key: "author_name", label: "작성자", width: "9rem" },
+    /* 🔴 상태·공감 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
+       "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
+       (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라
+       **종류**로 가른다 — 값으로 가르면 잘못 실려 온 값이 그대로 통과한다. */
+    ...(isIdea
+      ? [
+          {
+            key: "idea_status",
+            label: "상태",
+            width: "7rem",
+            render: (p) =>
+              p.idea_status ? <Badge value={p.idea_status} kind={ideaStatusKind(p.idea_status)} /> : null,
+          },
+          {
+            key: "like_count",
+            label: "공감",
+            align: "right",
+            width: "6rem",
+            render: (p) => "👍 " + (p.like_count || 0),
+          },
+        ]
+      : []),
+    {
+      key: "author_name",
+      label: "작성자",
+      // 이름만 있던 칸이라 9rem 이면 소속이 붙는 순간 첫 두 글자만 남는다.
+      width: "16rem",
+      render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
+    },
     { key: "view_count", label: "조회", align: "right", width: "6rem" },
     { key: "created_at", label: "작성", align: "right", width: "12rem", render: (p) => fmtDateTime(p.created_at) },
   ];
 
-  const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>글쓰기</Button>;
+  const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;
   const items = (list.data && list.data.items) || [];
   // 검색·카테고리가 걸려 있을 때의 '결과 없음'과, 게시판 자체가 비어 있는 '첫 글을 써 보세요'는
   // 사용자가 해야 할 일이 정반대다 — 예전엔 둘 다 "아직 게시글이 없습니다"로 뭉개져 있어서,
   // 검색어를 잘못 친 사람에게 "첫 이야기를 남겨 보세요"라고 안내했다.
-  const hasFilter = !!(q || category);
-  const clearFilters = () => { setQInput(""); setCategory(""); };
+  const hasFilter = !!(q || category || status);
+  const clearFilters = () => setQuery({ q: "", category: "", ...(isIdea ? { status: "" } : {}) });
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="자유게시판" title="자유게시판" actions={writeBtn} spot="board" />
+      <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} spot="board" />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
-        팀원과 자유롭게 이야기를 나누는 공간입니다.
+        {copy.lead}
       </Typography>
 
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
@@ -310,7 +441,7 @@ export function Board() {
               aria-pressed={category === ""}
               color={category === "" ? "primary" : "default"}
               variant={category === "" ? "filled" : "outlined"}
-              onClick={() => setCategory("")}
+              onClick={() => setQuery({ category: "" })}
             />
             {categories.map((c) => (
               <Chip
@@ -319,29 +450,52 @@ export function Board() {
                 aria-pressed={category === c}
                 color={category === c ? "primary" : "default"}
                 variant={category === c ? "filled" : "outlined"}
-                onClick={() => setCategory(c)}
+                onClick={() => setQuery({ category: c })}
               />
             ))}
           </Box>
           <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "minmax(12rem,1fr) 9rem" } }}>
-            <TextField
-              type="search"
-              size="small"
-              value={qInput}
-              onChange={(e) => setQInput(e.target.value)}
+            <SearchBox
+              value={q}
+              onSearch={commitSearch}
               placeholder="제목, 내용, 작성자 검색"
-              inputProps={{ "aria-label": "검색" }}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
+              ariaLabel="검색"
+              sx={undefined}
             />
             <TextField
               select size="small" value={sort}
-              onChange={(e) => setSort(e.target.value)}
+              onChange={(e) => setQuery({ sort: e.target.value })}
               inputProps={{ "aria-label": "정렬" }}
             >
               {SORTS.map(([v, label]) => <MenuItem key={v} value={v}>{label}</MenuItem>)}
             </TextField>
           </Box>
         </Box>
+        {statuses.length > 0 ? (
+          <Box
+            role="group"
+            aria-label="상태"
+            sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0, mt: 1.5 }}
+          >
+            <Chip
+              component="button" type="button" clickable label="전체 상태"
+              aria-pressed={status === ""}
+              color={status === "" ? "primary" : "default"}
+              variant={status === "" ? "filled" : "outlined"}
+              onClick={() => setQuery({ status: "" })}
+            />
+            {statuses.map((s) => (
+              <Chip
+                key={s}
+                component="button" type="button" clickable label={s}
+                aria-pressed={status === s}
+                color={status === s ? "primary" : "default"}
+                variant={status === s ? "filled" : "outlined"}
+                onClick={() => setQuery({ status: s })}
+              />
+            ))}
+          </Box>
+        ) : null}
       </Card>
 
       {list.isError ? (
@@ -359,8 +513,8 @@ export function Board() {
         ) : (
           <EmptyState
             art="board"
-            title="아직 게시글이 없습니다"
-            help="위 ‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남겨 보세요."
+            title={copy.empty}
+            help={copy.emptyHelp}
             action={writeBtn}
           />
         )
@@ -372,7 +526,7 @@ export function Board() {
             rowKey={(p) => p.id}
             fixed
             ellipsis
-            onRow={(p) => nav("/board/" + p.id)}
+            onRow={(p) => nav(copy.route + p.id)}
           />
         </Card>
       )}
@@ -381,9 +535,19 @@ export function Board() {
         open={composing}
         onClose={() => setComposing(false)}
         categories={categories}
+        kind={kind}
         mode="create"
-        onSaved={(post) => { setComposing(false); nav("/board/" + post.id); }}
+        onSaved={(post) => { setComposing(false); nav(copy.route + post.id); }}
       />
     </div>
   );
+}
+
+/* 두 게시판은 **같은 화면**이다. 종류만 다르다 — 라우트가 그 하나를 정한다. */
+export function Board() {
+  return <BoardScreen kind="free" />;
+}
+
+export function IdeaBoard() {
+  return <BoardScreen kind="idea" />;
 }

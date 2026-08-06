@@ -8,6 +8,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { MASCOT } from "../lib/assets.js";
+import { KO_WORD_BREAK } from "./theme.js";
 
 /* 마스코트 '클로비'.
  *
@@ -270,7 +271,7 @@ export function MascotSidebarCard({ onClick }) {
             중간에 줄이 바뀐다. 좁은 사이드바에서는 반드시 두 줄이 되므로 띄어쓰기에서만
             끊기게 한다(한국어 조판의 기본 설정이다). */}
         <Typography color="rgba(237,240,255,.7)" fontSize="0.75rem" lineHeight={1.35}
-          sx={{ wordBreak: "keep-all" }}>
+          sx={KO_WORD_BREAK}>
           현재 화면을 기준으로 도와드려요
         </Typography>
       </Box>

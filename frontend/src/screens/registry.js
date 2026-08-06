@@ -791,10 +791,18 @@ export const REGISTRY = {
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 이 이름을 참조하는 템플릿이 문서 생성 시 이 내용을 사용합니다." },
     ] },
     // 수정은 ContentUpdateRequest(PATCH) 계약: 내용·용도만(이름은 새 버전으로만 바뀜). 초안일 때만 편집 가능(그 외 409).
+    // '비우면 연결 해제'는 **거짓이었다.** kit.jsx FormModal은 값이 있던 텍스트 칸을 비우면 null을
+    // 보내는데(submit의 hadValue 분기), 백엔드 PATCH는 `if payload.runner_id is not None:` 가드라
+    // 그 null을 '안 보냄'과 구별하지 못하고 통째로 무시한다(app/prompts/router.py). 저장은 성공하고
+    // 값은 그대로 남는다 — 화면만 해제됐다고 믿는, 가장 나쁜 종류의 거짓말이다.
+    // 문구를 고치고 동작은 그대로 둔 이유: 서버 가드를 model_fields_set 기준으로 바꾸면 같은 블록의
+    // purpose까지 의미가 함께 바뀌는 백엔드 계약 변경이고, 그 판정은 백엔드 테스트가 지켜야 한다.
+    // 이 작업의 소유 범위는 registry.js와 그 부품이므로 서버는 손대지 않는다(노트에 남긴다).
+    // 화면은 자기가 지키지 못하는 약속을 하지 않는다.
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 이 이름을 참조하는 템플릿이 문서 생성 시 이 내용을 사용합니다." },
       { name: "purpose", label: "용도", type: "textarea" },
-      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인. 비우면 연결 해제." },
+      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인. 비워도 기존 연결은 지워지지 않습니다, 바꾸려면 다른 러너 ID를 넣으세요." },
     ] },
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
@@ -1232,8 +1240,12 @@ export const REGISTRY = {
     // 비동기 생성(pending→미리보기/승인대기 등) 상태 전이를 화면이 자동으로 따라간다.
     // '승인 대기'는 다른 화면(승인)에서만 풀리므로 여기서 무한 폴링하지 않는다 — pending만 추적한다.
     pollWhile: (r) => r.status === "pending",
-    // status는 백엔드가 지원하는 서버 필터. mode는 백엔드 목록이 받지 않으므로 clientFilter로 현재
-    // 페이지에서 거른다(위 paginated+clientFilter 경고 Callout이 그 한계를 함께 안내한다).
+    // status는 백엔드가 지원하는 서버 필터. mode는 백엔드 목록이 받지 않으므로(list_generations는
+    // status만 받는다 — app/documents/router.py) clientFilter로 현재 페이지에서만 거른다.
+    // ⚠ 이 화면은 paginated라, 모드 필터는 구조적으로 '지금 페이지 안'까지가 한계다. 위
+    // paginated+clientFilter 경고 Callout이 그 필터 이름을 지목해 함께 알린다 — 조용히 반만
+    // 거르지는 않는다. 제대로 된 해결은 서버가 mode를 받는 것이고(status 바로 옆 3줄), 그건 이
+    // 작업의 소유 범위(registry.js와 그 부품) 밖이라 손대지 않고 여기에 적어 둔다.
     filters: [{ key: "status", type: "select", label: "상태", options: opt([["pending", "대기"], ["preview_ready", "미리보기 완료"], ["quality_failed", "품질 미달"], ["awaiting_approval", "승인 대기"], ["published", "발행됨"], ["failed", "실패"]]) },
       { key: "mode", type: "select", label: "모드", clientFilter: true, options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]) }],
     headerActions: [
@@ -1383,7 +1395,15 @@ export const REGISTRY = {
       // 자기 요청은 자기 승인·거절이 백엔드에서 금지된다(403) → 본인 요청 행에서는 두 버튼을 숨긴다(취소만 남긴다).
       { label: "승인", variant: "primary", roles: WRITE_ROLES, when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId), path: (r) => "/api/admin/approvals/" + r.id + "/approve",
         fields: [{ name: "comment", label: "승인 메모(선택)", type: "textarea", help: "승인 사유, 조건 등을 남기면 감사 기록에 함께 저장됩니다." }] },
+      // 거절은 되돌릴 수 없다 — 한 번 결정된 요청은 백엔드가 어떤 재결정도 409로 막는다
+      // ("이미 처리된 승인 요청입니다", app/approvals/service.py). 사유 입력 폼은 '무엇을 적을지'만
+      // 묻지 '무슨 일이 일어나는지'는 말하지 않았다 — 같은 저장소의 다른 되돌릴 수 없는 액션(공지
+      // 삭제·상한 삭제)처럼 확인을 먼저 받는다. document.publish 거절은 대상 문서 생성까지 실패로
+      // 확정한다(_fail_pending_document_publish) — 그 파급을 요청 유형별로 밝힌다.
       { label: "거절", variant: "danger", roles: WRITE_ROLES, when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId), path: (r) => "/api/admin/approvals/" + r.id + "/reject",
+        confirm: (r) => "이 요청을 거절하면 되돌릴 수 없습니다, 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다."
+          + (r.request_type === "document.publish" ? " 이 요청은 문서 발행 건이라, 거절하면 대상 문서 생성도 실패로 확정됩니다." : "")
+          + " 계속 거절할까요?",
         fields: [{ name: "comment", label: "거절 사유(선택)", type: "textarea", help: "거절 사유를 남기면 감사 기록에 함께 저장됩니다." }] },
       // operator는 '본인 요청'만 취소 가능(백엔드 RBAC) → 남의 요청엔 항상 403이 되는 취소 버튼을 숨긴다.
       // admin/system_admin은 모든 요청을 취소할 수 있다.
@@ -1427,6 +1447,12 @@ export const REGISTRY = {
     emptyHelp: "‘+ 조직 추가’로 조직을 만들면 부서와 사용자를 그 아래에 둘 수 있습니다.",
     searchFields: ["name", "slug"],
     searchPlaceholder: "조직 이름 또는 식별자로 검색",
+    // 상태 필터가 아예 없어서, 조직이 늘어나면 '정지된 곳만' 훑을 방법이 없었다.
+    // GET /api/admin/organizations는 쿼리 파라미터를 하나도 받지 않고(app/org/router.py
+    // list_organizations) **페이지네이션도 하지 않는다** — 응답이 곧 전체 목록이다. 그래서
+    // clientFilter로 걸러도 숨는 행이 없다(paginated 화면에서 clientFilter를 쓰면 다른 페이지의
+    // 일치 항목이 사라지는데, 여기는 다른 페이지 자체가 없다).
+    filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용"], ["suspended", "정지"]]) }],
     columns: [
       col("name", "조직 이름"),
       col("slug", "식별자"),
@@ -1452,9 +1478,18 @@ export const REGISTRY = {
       { name: "name", label: "조직 이름", type: "text", required: true, help: "이 조직에 속한 모든 화면에 즉시 반영됩니다." },
     ] },
     actions: [
+      // 예전 확인 문구는 "기존 사용자와 부서는 그대로 남습니다"뿐이었다 — 데이터는 그대로 남는 게
+      // 맞지만, 그 문장은 **아무 일도 일어나지 않는 것처럼** 읽힌다. 실제로는 이 버튼 하나가
+      // 그 조직 전원을 즉시 밖으로 내보낸다: app/org/router.py::_revoke_org_sessions가 살아 있는
+      // 세션을 전부 끊고(system_admin 제외), 그 뒤로는 로그인 자체가 막힌다
+      // (is_blocked_by_org_suspension을 auth/router.py와 core/deps.py가 함께 본다).
+      // 몇 명이 끊기는지는 이미 같은 행에 실려 있다(user_count) — 부서/직책 비활성화가 인원수를
+      // 확인 문구에 넣는 것과 같은 이유로, 0명과 200명이 같은 경고를 받지 않게 한다.
       { label: "정지", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "active",
         method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "suspended" },
-        confirm: "이 조직을 정지할까요? 기존 사용자와 부서는 그대로 남습니다." },
+        confirm: (r) => "이 조직을 정지하면 소속 사용자 " + (r.user_count || 0)
+          + "명이 지금 즉시 로그아웃되고, 다시 로그인할 수 없게 됩니다(시스템 관리자는 제외). "
+          + "사용자와 부서 데이터 자체는 지워지지 않으며 ‘사용’으로 되돌릴 수 있습니다. 계속 정지할까요?" },
       { label: "사용", roles: WRITE_ROLES, when: (r) => r.status !== "active",
         method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "active" } },
       { label: "조직도에서 보기", roles: WRITE_ROLES, navigate: () => "#/org-tree" },
@@ -1474,11 +1509,15 @@ export const REGISTRY = {
     // usage_count(소속 인원)는 보관(soft-delete)된 사용자도 센다(app/org/service.py 주석: '보관된
     // 사용자도 센다') — 열 라벨에서 바로 그 사실을 알려, 활성 인원만으로 오해해 삭제 가능 여부를
     // 잘못 판단하지 않게 한다.
-    columns: [col("name", "부서 이름"), activeCol("사용"), col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "생성")],
+    // '조직' 열 — 사용자 지적 P5("부서 추가하면 부서랑 조직을 연결하는 것이 없음").
+    // 서버가 이제 부서 응답에 org_id/org_name 을 싣는다. 연결을 만들어 놓고 화면에 안 보이면
+    // 같은 말을 다시 듣는다. 조직이 하나뿐인 지금도 "이 부서가 어느 조직 것인지" 가 보인다.
+    columns: [col("name", "부서 이름"), col("org_name", "조직"), activeCol("사용"),
+      col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "생성")],
     // id는 감사 로그의 object_id와 대조할 때 쓰이므로 상세에서 노출한다.
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
-    detailFields: [field("id", "부서 ID"),
+    detailFields: [field("id", "부서 ID"), field("org_name", "조직"), field("org_id", "조직 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요." : "-" }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "부서 이름", type: "text", required: true, help: "사용자 폼의 '부서' 목록에 바로 나타납니다." },
@@ -1561,10 +1600,12 @@ export const REGISTRY = {
     filters: [{ key: "status", type: "select", label: "상태", options: opt([["unmapped", "미연결"], ["verified", "확인됨"], ["conflict", "충돌"]]) },
       // 사용자 상세의 딥링크(onQuery, 위 참고)가 채우는 필드 — 직접 입력도 가능하게 남겨 둔다.
       { key: "user_ids", type: "text", label: "사용자 ID" },
-      // 백엔드는 source 쿼리 파라미터를 지원하지 않는다(app/notion_mapping/router.py) —
-      // clientFilter:true로 이미 받아 온(현재 페이지) 목록을 화면에서 직접 거른다(부서/직책의 active
-      // 필터와 동일한 패턴). 수동으로 덮어쓴 연결만 따로 감사하고 싶을 때 지금까지는 방법이 없었다.
-      { key: "source", type: "select", label: "출처", clientFilter: true, options: opt([["workflow", "워크플로 자동"], ["manual", "수동 지정"]]) }],
+      // 출처는 **서버 필터**다. 백엔드가 source 쿼리 파라미터를 받아 SQL에서 거른다
+      // (app/notion_mapping/router.py list_mappings — "출처 필터는 서버측에서 한다"). 이 화면은
+      // paginated라, 예전처럼 clientFilter로 두면 지금 페이지 안의 일치 항목만 남고 다른 페이지의
+      // 수동 매핑은 화면에서 사라진다 — 그리고 사용자는 그걸 '그런 연결이 없다'로 읽는다.
+      // 백엔드는 이미 고쳐졌는데 이 줄만 옛 사실("지원하지 않는다")을 붙들고 있었다.
+      { key: "source", type: "select", label: "출처", options: opt([["workflow", "워크플로 자동"], ["manual", "수동 지정"]]) }],
     columns: [col("user_email", "사용자"), col("user_display_name", "이름"), badgeCol("status", "상태"),
       // 실패로 'unmapped'로 되돌아온 행을 '한 번도 시도 안 함'과 구분한다 — 대량 트리아지 때 각 행을
       // 열지 않아도 사유를 바로 읽을 수 있게 실제 메시지를 보여준다(길면 말줄임, title 속성으로 전체 확인).
@@ -1771,8 +1812,11 @@ export const REGISTRY = {
     // (app/audit/router.py) — 이 화면이 그 필터를 실제로 적용하지 않아 늘 무필터 목록만 보여줬었다.
     // user_id도 받는다 — '이 사용자가 무엇을 했는지'(행위자로 필터)를 보는 딥링크용. object_type/
     // object_id(무엇이 바뀌었는지)와는 독립적인 축이라 함께 와도 각각 그대로 적용한다.
-    onQuery: (p) => (p.object_type || p.object_id || p.user_id)
-      ? { open: "filter", values: { object_type: p.object_type, object_id: p.object_id, user_id: p.user_id } }
+    // result 도 받는다 — 이상 징후의 '실패만 보기'가 `?user_id=…&result=failure` 로 보내는데,
+    // 여기에 없으면 그 조건이 조용히 버려져 **그 사람의 로그 전체**가 열렸다(F7). 반만 걸러진
+    // 화면을 '실패만'이라고 믿는 것은 아무것도 안 거른 것보다 나쁘다.
+    onQuery: (p) => (p.object_type || p.object_id || p.user_id || p.result)
+      ? { open: "filter", values: { object_type: p.object_type, object_id: p.object_id, user_id: p.user_id, result: p.result } }
       : null,
     paginated: true,
     // 백엔드 최대 100(app/core/pagination.py MAX_PAGE_SIZE)까지 지원하는데 기본값 20에 머물러 있었다
@@ -1790,6 +1834,15 @@ export const REGISTRY = {
       // 필터에 뭘 입력해야 할지 알 방법이 없었다 — 현재 페이지의 실제 action 문자열로 자동완성 제안을 준다.
       { key: "action", type: "text", label: "작업(정확히, 예: user.update)", datalistFrom: (items) => items.map((r) => r.action) },
       { key: "user_id", type: "text", label: "행위자 ID" },
+      // 실패만 격리하는 것은 보안 감사에서 가장 자주 필요한 질의다(로그인 실패·비밀번호 변경
+      // 실패). 백엔드는 예전부터 이 조건을 받고 있었고(app/audit/router.py `_filtered_stmt`,
+      // 목록과 CSV 내보내기가 같은 질의를 쓴다) 화면도 '결과' 열을 보여 주면서, 정작 그 값으로
+      // 좁힐 방법만 없었다. 값은 서버 계약 그대로다(AuditLog.result 는 success/failure 뿐).
+      { key: "result", type: "select", label: "결과", options: opt([["success", "성공"], ["failure", "실패"]]) },
+      // 상관 id 로 찾기 (Z8). 이 값은 상세 패널에 **보이기만 했고 그것으로 찾을 수가 없었다**.
+      // 사용자가 오류 화면의 '문의 번호'를 불러 주면 그대로 붙여넣어 그 요청 하나를 짚는다 —
+      // 새벽 3시에 "화면이 안 나와요" 를 받았을 때 경로와 상태 코드 말고 쓸 것이 생긴다.
+      { key: "request_id", type: "text", label: "문의 번호(요청 ID)" },
       // 백엔드 _parse_boundary(app/audit/router.py)는 하루 단위가 아니라 시각(오프셋 포함 ISO-8601)까지
       // 정밀하게 필터할 수 있는데, <input type="date">로는 하루 경계만 만들 수 있어 그 정밀도가
       // 화면에서 닿지 않았다 — datetime-local로 바꿔 시:분까지 지정하고 KST(+09:00)로 변환해 보낸다.
@@ -1912,8 +1965,19 @@ export const REGISTRY = {
     // 복원할 수 없고 rollback 스크립트의 입력도 아니다(system_admin이 '복원 안내'에서 상세를 볼 수
     // 있지만, 그 경고가 role 게이트된 모달 안에만 있어 다른 역할은 볼 방법이 없었다 — 항상 보이는
     // help로 옮겨 어떤 역할이 봐도 오해하지 않게 한다).
-    help: "데이터베이스를 백업합니다. 오래된 백업은 자동 정리됩니다. 이 목록은 웹 콘솔 DB 스냅샷입니다, 웹에서 복원할 수 없으며 서버의 rollback 스크립트 입력도 아닙니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로만 수행합니다.",
+    // 이 목록이 최근 50건까지만 온다는 사실(app/backups/router.py list_backups의 .limit(50))이
+    // 화면 어디에도 없었다 — 51번째 백업부터는 조용히 사라진다. 필터를 붙이기 전에 그 경계부터
+    // 밝힌다(안 그러면 '필터에 안 걸림'과 '애초에 안 옴'을 구별할 수 없다).
+    help: "데이터베이스를 백업합니다. 오래된 백업은 자동 정리됩니다. 이 목록은 웹 콘솔 DB 스냅샷입니다, 웹에서 복원할 수 없으며 서버의 rollback 스크립트 입력도 아닙니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로만 수행합니다. 목록에는 최근 50건까지만 표시됩니다.",
     emptyTitle: "아직 백업이 없습니다",
+    // 상태 필터가 하나도 없어 '실패한 백업만' 같은 질문에 답할 방법이 없었다. 이 엔드포인트는
+    // 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다(위 50건 상한이 전부) — 받아 온 것이
+    // 곧 전부이므로 clientFilter로 걸러도 다른 페이지에 숨는 행이 생기지 않는다.
+    // 검색도 대상 필드를 못박는다. 기본 검색은 JSON.stringify(row) 전체를 훑어 원시 UUID·체크섬·
+    // UTC ISO 시각까지 매칭했다(화면에 보이지 않는 값으로 결과가 걸린다 — 부서/직책 화면과 같은 함정).
+    filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["verified", "확인됨"], ["succeeded", "성공"], ["failed", "실패"], ["running", "진행 중"]]) }],
+    searchFields: ["path"],
+    searchPlaceholder: "백업 파일 이름으로 검색",
     // 백업 프로세스가 도중에 죽으면(OOM-kill·systemd 재시작) 행이 status='running'인 채로 남고,
     // reap_stuck_running()이 다음 GET에서만 정리한다(app/backups/service.py, 60분 임계값) — 이미
     // 열어 둔 탭이 그 GET을 스스로 트리거하지 않으므로, 다른 화면들과 동일하게 진행 중 행이 있으면
@@ -1990,6 +2054,11 @@ export const REGISTRY = {
           : React.createElement("span", { "aria-label": "허용 안 됨" }, "—")  // clovi-allow-glyph: 권한 매트릭스의 '허용 안 됨' 표시. 글리프 자체가 내용이다,
       })),
     ],
+    // 이 화면에는 필터를 두지 않는다(전수조사가 '필터 0개'로 지목했지만 의도한 0개다).
+    // 표는 app/core/authz.py의 CAPABILITIES 열 줄이 전부이고, 페이지네이션도 없다 —
+    // '길어지면 못 찾는다'가 성립하지 않는 크기다. 그리고 '영역' 필터를 만들려면 그 영역
+    // 목록을 여기 한 벌 더 적어야 하는데, 그 순간 이 파일의 대전제(역할, 영역은 authz.py
+    // 한 곳에서만 정한다 — 위 columnsFrom 주석)가 깨진다. 좁혀 볼 필요는 검색이 받는다.
     // 검색은 '할 수 있는 일'과 '영역'만 대상으로 — 기본(JSON.stringify)이면 allowed 배열의
     // 원시 역할 값('system_admin')까지 매칭해 화면에 안 보이는 값으로 결과가 걸린다.
     searchFields: ["capability", "area", "note"],
@@ -2225,13 +2294,24 @@ export const REGISTRY = {
   "ai-quotas": {
     key: "ai-quotas", area: "자동화", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
-    help: "AI 호출을 사용자, 기간별로 제한합니다. 상한이 걸리는 곳은 AI 도우미 문장 생성과 문서 자동 생성 요청 두 곳입니다. 채팅 전송처럼 자주 일어나는 경로에는 걸지 않습니다(그 경로에 기록을 걸면 읽기가 쓰기로 바뀌어 느려집니다). 사용자별 상한이 전체 상한보다 우선합니다. 상한 행이 하나도 없으면 제한이 없습니다.",
+    help: "AI 호출을 사용자, 기간별로 제한합니다. 상한이 걸리는 곳은 아래 표 위의 ‘상한이 걸리는 곳’ 목록에 서버가 직접 알려 줍니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다.",
     emptyTitle: "설정된 상한이 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
     emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
     emptySteps: ["‘+ 상한 추가’에서 ‘전체’ 범위로 하루 상한을 정합니다.", "특정 사용자만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’ 열로 소비 상황을 확인합니다."],
     emptyExpected: "상한에 도달하면 그 사용자의 AI 요청이 거절되고, 언제 풀리는지 안내됩니다.",
     createLabel: "+ 상한 추가",
+    // 필터가 하나도 없어 사용자별 상한이 쌓이면 '한 달 상한만' 같은 질문에 답할 방법이 없었다.
+    // GET /api/admin/ai-quotas는 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다
+    // (app/quotas/router.py list_quotas — 전체를 한 번에 돌려준다). 받아 온 것이 곧 전부이므로
+    // clientFilter가 숨기는 행은 없다. 대상 사람 이름은 clientFilter로 다룰 수 없어(정확 일치
+    // 비교라 이름 일부로는 못 찾는다) 검색창에 맡긴다 — 그 검색도 대상 필드를 못박는다.
+    filters: [
+      { key: "scope_type", type: "select", label: "범위", clientFilter: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
+      { key: "period", type: "select", label: "기간", clientFilter: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
+    ],
+    searchFields: ["user_name", "user_email", "note"],
+    searchPlaceholder: "대상 이름, 이메일, 메모로 검색",
     columns: [
       mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
       { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-") },
@@ -2245,7 +2325,7 @@ export const REGISTRY = {
       { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
-      { name: "user_id", label: "사용자 ID", type: "text", help: "범위가 ‘사용자’일 때만 필요합니다. ‘사용자’ 화면에서 ID를 복사하세요." },
+      { name: "user_id", label: "사용자 ID", type: "text", showIf: (v) => v.scope_type === "user", help: "‘사용자’ 화면에서 ID를 복사해 붙여 넣으세요." },
       { name: "period", label: "기간", type: "select", value: "day", required: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
       { name: "max_calls", label: "상한(횟수)", type: "number", required: true, help: "0이면 차단입니다(무제한이 아닙니다). 무제한으로 두려면 이 줄을 지우세요. 기간 경계는 한국 시간 기준입니다." },
       { name: "note", label: "메모", type: "text" },
@@ -2328,7 +2408,7 @@ export const REGISTRY = {
   "restore-drills": {
     key: "restore-drills", area: "운영", title: "복구 리허설",
     endpoint: "/api/admin/backups/rehearsals",
-    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다.",
+    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다. 목록에는 최근 20건까지만 표시됩니다.",
     emptyTitle: "복구 리허설 기록이 없습니다",
     emptyHelp: "아직 한 번도 복원을 시험하지 않았습니다. 아래 순서로 실행하면 결과가 이 목록에 남습니다.",
     emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",
@@ -2340,6 +2420,17 @@ export const REGISTRY = {
     ],
     emptyExpected: "‘마지막으로 복원을 시험한 게 언제인가’에 이 화면 하나로 답할 수 있게 됩니다.",
     emptyRelatedLink: { href: "#/backup", label: "백업 목록으로 이동" },
+    // 이 화면이 답해야 하는 질문은 '언제 마지막으로 실패했나'인데, 필터가 하나도 없어
+    // 통과한 기록 사이에서 실패를 눈으로 찾아야 했다. GET /api/admin/backups/rehearsals는
+    // 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다(app/backups/router.py
+    // list_rehearsals) — 받아 온 것이 곧 전부라 clientFilter가 숨기는 행이 없다.
+    // 다만 그 응답 자체가 최근 20건까지다(.limit(20)) — 그 경계는 help에 적었다.
+    filters: [{ key: "ok", type: "select", label: "결과", clientFilter: true, options: opt([["true", "통과"], ["false", "실패"]]) }],
+    // 기본 검색은 JSON.stringify(row) 전체를 훑는다 — 이 행에는 summary 객체와 ok 불리언이 들어
+    // 있어서 '실패'를 찾으려고 true를 쳐 넣으면 통과한 기록이 전부 걸린다(화면에 없는 값으로
+    // 결과가 걸리는, 부서/직책 화면에서 이미 한 번 고친 함정). 사람이 읽는 원본 라벨만 본다.
+    searchFields: ["source_label"],
+    searchPlaceholder: "원본 백업 이름으로 검색",
     summary: {
       endpoint: "/api/admin/backups/schedule",
       cards: (data) => {
@@ -2381,6 +2472,11 @@ export const REGISTRY = {
     searchFields: ["name"],
     searchPlaceholder: "프롬프트 이름으로 검색",
     filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
+    // 열을 접지 않는다 — 접을 이유가 실측으로 확인되지 않았다. 이 표는 일곱 열이고(전수조사
+    // 메모의 '아홉'은 세다 틀린 것이다), 900px 아래에서는 DataTable이 표가 아니라 카드 목록으로
+    // 그린다(kit.jsx TABLE_CARD_BREAKPOINT) — 좁은 화면에서 잘리는 게 아니라 라벨과 값이 세로로
+    // 쌓인다. 그 위 폭에서는 TableContainer가 스스로 가로 스크롤하므로 페이지에 가로 스크롤이
+    // 생기지도 않는다. 즉 여기서 열을 숨기면 좁은 화면에서 이미 잘 보이던 값을 없애는 셈이다.
     columns: [
       col("name", "이름"),
       { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },

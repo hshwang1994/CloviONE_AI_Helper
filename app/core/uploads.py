@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 from app.core.errors import ValidationAppError
 
@@ -172,3 +173,31 @@ def attachment_path(
     except (ValueError, OSError):
         return None
     return resolved if resolved.is_file() else None
+
+
+def content_disposition(filename: str, *, inline: bool = True) -> str:
+    """다운로드/표시 시 **원본 파일명**을 실어 보내는 `Content-Disposition` 값.
+
+    예전에는 세 첨부 라우트가 전부 `"inline"` 만 보냈다. 원본 표시명을 DB 에 저장해 두고
+    `sanitize_filename` 으로 살균까지 해 놓고도(그 함수의 주석이 "다운로드 시
+    Content-Disposition 표시용" 이라고 적고 있다) **한 번도 보내지 않았다.** 그래서
+    `스크린샷 2026-08-05 092127.png` 를 저장하면 **UUID 이름에 확장자 없는 파일**이 떨어졌다.
+    (운영 실측 2026-08-05: 첨부 2건이 전부 한글 파일명이다.)
+
+    한글 파일명은 헤더에 그대로 못 넣는다 — HTTP 헤더는 latin-1 이다. RFC 6266/5987 대로
+    두 벌을 보낸다:
+
+      * `filename=` : ASCII 로 떨어뜨린 폴백. RFC 5987 을 모르는 옛 클라이언트용.
+      * `filename*=UTF-8''…` : 퍼센트 인코딩한 진짜 이름. 요즘 브라우저는 이걸 쓴다.
+
+    둘 다 보내면 신·구 클라이언트가 각자 아는 쪽을 고른다.
+    """
+    safe = sanitize_filename(filename)
+    # 헤더 문법을 깨뜨리는 문자(따옴표·역슬래시)를 없애고 비ASCII 는 `_` 로 떨어뜨린다.
+    ascii_fallback = (
+        safe.encode("ascii", "replace").decode("ascii").replace('"', "_").replace("\\", "_")
+    )
+    ascii_fallback = ascii_fallback.replace("?", "_").strip() or "file"
+    quoted = quote(safe, safe="")
+    disposition = "inline" if inline else "attachment"
+    return f"{disposition}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quoted}"

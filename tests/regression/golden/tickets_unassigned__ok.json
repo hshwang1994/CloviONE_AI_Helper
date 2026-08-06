@@ -1,6 +1,34 @@
 {
   "configured": true,
+  "items": [
+    {
+      "act_wd": null,
+      "assignee_names": [],
+      "assignee_user_ids": [],
+      "category": null,
+      "difficulty": null,
+      "due": "2026-07-25",
+      "est_wd": 0.5,
+      "id": "page-0004",
+      "priority": null,
+      "project": "베타 프로젝트",
+      "project_ids": [
+        "proj-beta-0001"
+      ],
+      "project_names": [
+        "베타 프로젝트"
+      ],
+      "start": null,
+      "status": "계획",
+      "tid": 104,
+      "title": "미할당 계획 티켓",
+      "uid": null,
+      "url": "https://www.notion.so/page-0004"
+    }
+  ],
   "ok": true,
+  "page": 1,
+  "page_size": 20,
   "tickets": [
     {
       "act_wd": null,
@@ -26,5 +54,6 @@
       "uid": null,
       "url": "https://www.notion.so/page-0004"
     }
-  ]
+  ],
+  "total": 1
 }

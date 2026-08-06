@@ -34,12 +34,21 @@ from app.core.models_base import (
 
 # 실행 상태. 부분 실패를 'completed' 로 뭉개지 않는다 — 12건 중 3건이 실패한 실행을 성공으로
 # 적어 두면 화면이 그 3건을 다시는 보여 주지 못한다.
+# `running` 은 **끝까지 가지 못한 실행**이다(C3). 실행은 요청 하나 안에서 동기로 끝나므로,
+# 남의 눈에 `running` 으로 보이는 행은 사실상 전부 중단된 실행이다 — 계정 단계에서 예외가
+# 났거나, 프로세스가 죽었거나, DB 잠금에 걸렸거나. 이 상태가 없으면 중단된 실행이
+# `completed` 로 남아 **"다 옮겼다"고 거짓말**한다.
+RUN_RUNNING = "running"
 RUN_COMPLETED = "completed"
 RUN_PARTIAL = "partial"
 RUN_UNDONE = "undone"
 RUN_UNDO_PARTIAL = "undo_partial"
 
 # 티켓 한 건의 이동 상태.
+# `pending` 은 **소스를 부르기 직전에 먼저 적어 둔 표시**다(C3). Notion PATCH 가 나갔는지
+# 안 나갔는지 모르는 유일한 구간을 침묵이 아니라 기록으로 만든다 — 되돌릴 수는 없지만
+# (직전 담당자를 아직 모른다) 관리자가 그 티켓을 확인할 수는 있다.
+MOVE_PENDING = "pending"
 MOVE_MOVED = "moved"
 MOVE_SKIPPED = "skipped"        # 이미 그 상태였다(소스를 부르지 않았다)
 MOVE_FAILED = "failed"
@@ -72,6 +81,10 @@ class OffboardingRun(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     deactivated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     note: Mapped[str | None] = mapped_column(Text)
+
+    # 방장직을 넘긴 그룹 채팅방 수 (X8, 0042). 퇴사자가 방장으로 남으면 **아무도 그 방을
+    # 관리할 수 없다** — 사람을 더 부르거나 방을 파할 사람이 없어진다.
+    rooms_transferred: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     ticket_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ticket_moved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

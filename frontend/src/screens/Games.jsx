@@ -177,8 +177,19 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   });
   const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && !create.isPending;
 
+  // 뭔가 입력했으면 Esc·바깥 클릭에 그냥 닫히지 않게 한다 (E11). 퀴즈는 최대 20문항이라
+  // 한 번의 실수로 사라지는 양이 크다 - 그리고 되돌릴 방법이 없다.
+  // 열 때 초기화하는 값들과 **같은 기준**으로 본다(위 useEffect 참조). 판정이 갈리면
+  // "안 바꿨는데 물어본다"(성가심)거나 "바꿨는데 안 물어본다"(데이터 손실)가 된다.
+  const dirty =
+    title.trim().length > 0 ||
+    question.trim().length > 0 ||
+    options.some((o) => o.trim().length > 0) ||
+    aiTopic.trim().length > 0 ||
+    quizQs.some((q) => q.q.trim().length > 0 || q.options.some((o) => o.trim().length > 0));
+
   return (
-    <Modal open={open} onClose={onClose} title="게임방 만들기" size="md"
+    <Modal open={open} onClose={onClose} title="게임방 만들기" size="md" dirty={dirty}
       footer={<ModalFooter onCancel={onClose} onSubmit={() => canSave && create.mutate()} submitLabel="만들기" busy={create.isPending} />}>
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <TextField

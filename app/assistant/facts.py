@@ -110,7 +110,12 @@ def weekly_digest_facts(
         team = report["team"]
         contributors = _top_contributors(report["developers"])
 
+    # 같은 KST 창을 **두 형식**으로 옮긴다. 게시글 created_at 은 naive UTC datetime 컬럼이고
+    # 문서 last_edited 는 Notion 원문을 담은 String 컬럼이라, 한 창이 두 축으로 나가는 것이
+    # 정상이다. 변환은 둘 다 home.service 한 곳을 지난다 — 여기서 직접 만들면 M4 가 되풀이된다
+    # (KST 달력일을 UTC 문자열과 그대로 비교해 월요일 오전 9시간이 사라지던 결함).
     since_utc, until_utc = home_service.window_utc_bounds(settings, start, end)
+    since_iso, until_iso = home_service.utc_iso_bounds(settings, start, end)
     return {
         "kind": "weekly_digest",
         "today": today,
@@ -119,7 +124,9 @@ def weekly_digest_facts(
         "mine": mine,
         "team": team,
         "top_contributors": contributors,
-        "documents_changed": readers.documents_changed_since(db, start, limit=DIGEST_LIMIT),
+        "documents_changed": readers.documents_changed_between(
+            db, since_iso, until_iso, limit=DIGEST_LIMIT
+        ),
         "board": readers.board_posts_between(
             db, since_utc, until_utc, limit=DIGEST_LIMIT
         ),

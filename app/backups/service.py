@@ -243,15 +243,75 @@ def due_for_scheduled_backup(db, config: dict, *, now) -> bool:
     return last is None or last.created_at < previous
 
 
+def _announce_backup_failure(db, *, reason: str, now) -> None:
+    """백업 실패를 **사람에게** 알린다 (9-9 P4, §E-6).
+
+    이 함수가 생기기 전에는 예약 백업 실패가 `logger.exception` 한 줄로 끝났다.
+    journalctl 을 매일 보는 사람은 없다 - 그래서 백업이 멈춘 사실은 **복원이 필요해진 날**에
+    처음 알게 됐다. 그날 알아서 할 수 있는 일은 없다.
+
+    ## 메일과 화면 알림 둘 다 보낸다
+
+    메일은 이미 나가고 있었지만 앱 안에서는 여전히 조용했다(N2). 둘은 서로를 대신하지
+    못한다: 메일함을 안 보는 날이 있고, 반대로 앱에 안 들어오는 날도 있다. 백업 실패는
+    "며칠 뒤에 알아도 되는" 부류가 아니라 **오늘 알아야** 손쓸 수 있는 부류다.
+
+    두 갈래를 각자 try 로 감싼다. 한쪽이 터졌다고 다른 쪽까지 못 나가면, 알리는 길을
+    둘로 늘린 것이 오히려 하나였을 때보다 약해진다.
+
+    메일/알림 실패가 본 작업을 막지 않는다는 규칙은 여기서도 유효하다. 다만 조용히 삼키지
+    않는다: 못 보낸 사실은 `mail_deliveries` 행으로 남고(status='unconfigured'), 여기서
+    예외가 나도 로그에 남긴 뒤 넘어간다.
+    """
+    try:
+        from app.mail.renderers import KIND_BACKUP_FAILED
+        from app.mail.service import queue_mail_to_admins
+
+        queue_mail_to_admins(
+            db,
+            kind=KIND_BACKUP_FAILED,
+            subject="[ClovirAssist] 예약 백업이 실패했습니다",
+            params={"reason": reason[:500], "at": now.isoformat()},
+            now=now,
+        )
+    except Exception:
+        logger.exception("백업 실패 알림 메일을 큐에 넣지 못했다 (백업 기록은 남는다)")
+
+    try:
+        from app.notifications.service import notify_admins
+
+        # 딥링크를 붙이지 않는다: 실패한 백업은 행이 남지만(`backup`), 그 화면은 목록이라
+        # 관리 콘솔 쪽 표(registry.js)가 이미 `backup` → 백업 화면으로 보낸다.
+        notify_admins(
+            db, type_="backup_failed",
+            title="예약 백업이 실패했습니다",
+            body=reason[:200],
+            related=("backup", None), now=now,
+        )
+    except Exception:
+        logger.exception("백업 실패 화면 알림을 남기지 못했다 (백업 기록은 남는다)")
+
+
 def run_scheduled_backup(db, settings, config: dict, *, now):
-    """예약 백업 1회. 예외를 밖으로 내보내지 않는다(워커 루프를 죽이지 않는다)."""
+    """예약 백업 1회. 예외를 밖으로 내보내지 않는다(워커 루프를 죽이지 않는다).
+
+    **실패를 삼키지 않는다**(§E-6). run_backup 은 예외를 잡아 행 상태만 failed 로 바꾸므로
+    여기서 예외가 안 보이는 것이 정상이다 - 그래서 예외가 아니라 **행 상태**를 본다.
+    """
     try:
         row = run_backup(db, settings, created_by=None, now=now)
         keep = int(config.get("keep", 14) or 14)
         apply_retention(db, keep=keep)
+        if row is not None and row.status == STATUS_FAILED:
+            _announce_backup_failure(
+                db,
+                reason=row.error_message or "원인이 기록되지 않았습니다.",
+                now=now,
+            )
         return row
-    except Exception:
+    except Exception as exc:
         logger.exception("예약 백업 실패")
+        _announce_backup_failure(db, reason=f"{type(exc).__name__}: {exc}", now=now)
         return None
 
 

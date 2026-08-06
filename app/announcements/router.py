@@ -70,7 +70,28 @@ class AnnouncementPatch(BaseModel):
 
 
 def _naive(value: datetime | None) -> datetime | None:
-    """타임존이 붙어 오면 UTC 로 바꿔 naive 로 저장한다(저장소 전역 규약)."""
+    """타임존이 붙어 오면 UTC 로 바꿔 naive 로 저장한다(저장소 전역 규약).
+
+    ## 이미 저장된 행은 손대지 않기로 했다 (F14)
+
+    예전에는 관리 화면의 폼이 오프셋 없는 `datetime-local` 벽시계("2026-08-10T09:00")를
+    그대로 보냈다. 이 함수는 규약대로 그것을 UTC 로 읽었으므로, KST 09:00 을 뜻한 공지가
+    실제로는 KST 18:00 에 떴다. 변환은 **경계(화면)** 에서 하도록 고쳤다
+    (frontend/src/lib/format.js 의 `kstLocalToApi`/`apiToKstLocal`).
+
+    남은 행을 마이그레이션으로 9시간 당기지 **않는다**:
+
+    1. **구분할 수 없다.** 이 엔드포인트는 오프셋이 붙은 값도 늘 올바르게 처리해 왔다
+       (CLI, 스크립트, API 직접 호출). 어떤 행이 망가진 폼을 거쳤는지 저장된 값만 보고는
+       알 수 없다 — 일괄 -9시간은 **올바르게 들어온 행을 새로 망가뜨린다.**
+    2. 우리가 고치려는 피해와 그 새 피해의 크기가 같다(배너가 9시간 어긋나 뜬다). 다만
+       하나는 이미 있는 것이고 하나는 우리가 만드는 것이다.
+    3. 공지는 수명이 짧은 운영 배너이고 건수가 적다(수십 건). 고친 편집 폼이 이제 **참값을
+       KST 로** 보여 주므로, 지금 살아 있는 공지는 관리자가 열어 한 번 저장하면 바로 맞는다.
+
+    같은 판단이 승인 위임(app/approvals/router.py `_naive_utc`)에도 적용된다 — 같은 폼
+    경계를 공유하므로 같은 이유로 기존 행을 건드리지 않는다.
+    """
     if value is None:
         return None
     if value.tzinfo is None:
@@ -124,7 +145,7 @@ def create_announcement(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    service.validate(payload.level, payload.audience)
+    service.validate(payload.level, payload.audience, payload.link_url)
     now = request.app.state.clock.now()
     row = Announcement(
         title=payload.title.strip(),
@@ -160,7 +181,13 @@ def update_announcement(
     row = _get_or_404(db, row_id)
     before = service.view(row)
     data = payload.model_dump(exclude_unset=True)
-    service.validate(data.get("level", row.level), data.get("audience", row.audience))
+    service.validate(
+        data.get("level", row.level),
+        data.get("audience", row.audience),
+        # PATCH 는 부분 갱신이라 link_url 이 안 왔으면 기존 값을 검사한다. `exclude_unset`
+        # 때문에 '안 보냄'과 'null 로 지움'이 구분되므로 sentinel 없이 get 으로 충분하다.
+        data.get("link_url", row.link_url),
+    )
     for key in ("title", "body", "level", "audience", "active", "dismissible", "link_url", "link_label"):
         if key in data:
             setattr(row, key, data[key])

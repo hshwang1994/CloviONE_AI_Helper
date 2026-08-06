@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.sync_prune import PruneResult, prune_missing
 from app.team_docs import notion_docs
 from app.team_docs.classify import classify
 from app.team_docs.models import (
@@ -67,6 +68,7 @@ def _upsert(db: Session, d: dict, rel_maps: dict, now: datetime) -> None:
     row.status = d.get("status")
     row.priority = d.get("priority")
     row.author_names = join_names(d.get("author_names") or [])
+    row.author_notion_ids = join_names(d.get("author_notion_ids") or [])
     row.owner = d.get("owner") or ""
     row.doc_date = d.get("doc_date")
     row.orig_date = d.get("orig_date")
@@ -81,12 +83,15 @@ def _upsert(db: Session, d: dict, rel_maps: dict, now: datetime) -> None:
     row.synced_at = now
 
 
-def _prune(db: Session, keep: set[str]) -> None:
-    """Notion에서 사라진(삭제·공유 해제) 문서는 캐시에서도 지운다."""
+def _prune(db: Session, keep: set[str]) -> PruneResult:
+    """Notion에서 사라진(삭제·공유 해제) 문서는 캐시에서도 지운다.
+
+    삭제 판단은 `core.sync_prune` 의 바닥을 거친다. 문서 쪽이 티켓보다 위험하다 —
+    `classification_manual` 로 표시된 **사용자가 손으로 고친 분류는 Notion 에 대응 필드가 없어서**
+    지워지면 영구 소실이고, 재동기화하면 자동 분류가 덮어써서 아무도 알아채지 못한다.
+    """
     existing = db.execute(select(DocumentCache)).scalars().all()
-    for row in existing:
-        if row.notion_page_id not in keep:
-            db.delete(row)
+    return prune_missing(db, existing, keep, key=lambda r: r.notion_page_id, label="문서")
 
 
 def sync_documents(db: Session, *, outbound, settings, now: datetime) -> DocumentSyncState:
@@ -97,7 +102,11 @@ def sync_documents(db: Session, *, outbound, settings, now: datetime) -> Documen
     state.last_run_at = now
     try:
         schema = notion_docs.fetch_documents_schema(outbound, settings)
-        rel_maps = notion_docs.resolve_relation_maps(outbound, settings, schema)
+        # relation 조회 실패는 **분류를 통째로 뒤집는다** — 상태에 올려야 한다(C4).
+        rel_failures: list[str] = []
+        rel_maps = notion_docs.resolve_relation_maps(
+            outbound, settings, schema, failures=rel_failures
+        )
         docs, truncated = notion_docs.query_all_documents(outbound, settings)
 
         keep: set[str] = set()
@@ -107,16 +116,26 @@ def sync_documents(db: Session, *, outbound, settings, now: datetime) -> Documen
                 keep.add(d["notion_page_id"])
         # 상한(_MAX_PAGES)에 걸려 일부만 받아왔다면 prune하지 않는다 — 안 받아온 문서를
         # 'Notion에서 삭제됨'으로 오인해 캐시에서 지우면 목록이 흔들린다(§17.4 최근 정상 보존).
-        if not truncated:
-            _prune(db, keep)
+        pruned = _prune(db, keep) if not truncated else PruneResult()
 
-        state.status = SYNC_OK
-        state.last_success_at = now
+        notes = []
+        if truncated:
+            notes.append(f"문서가 상한({len(keep)})을 초과해 일부만 동기화했습니다.")
+        if rel_failures:
+            notes.append(
+                "분류 정보를 읽지 못했습니다(" + ", ".join(rel_failures) + "). "
+                "이번 회차 문서의 종류, 업무분야, 기술태그가 '기타' 로 저장됐을 수 있습니다."
+            )
+        if pruned.refused:
+            notes.append(pruned.refused)
+
+        bad = bool(pruned.refused or rel_failures)
+        state.status = SYNC_ERROR if bad else SYNC_OK
+        if not bad:
+            state.last_success_at = now
         state.doc_count = len(keep)
-        state.error = (
-            None if not truncated
-            else f"문서가 상한({len(keep)})을 초과해 일부만 동기화했습니다."
-        )
+        state.pruned_count = pruned.deleted
+        state.error = " / ".join(notes) or None
         db.flush()
     except Exception as exc:  # AppError(Notion 오류)·DB 충돌 등 무엇이든 여기서 가둔다
         db.rollback()

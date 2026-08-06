@@ -35,9 +35,16 @@ class SettingsCache:
     Loaded once at startup and refreshed on every write, so consumers can read
     effective values synchronously without a DB session (``current()``)."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings=None) -> None:
         self._lock = threading.Lock()
         self._values: dict[str, Any] | None = None
+        # 살아 있는 `Settings` 객체(선택). 있으면 load 마다 설치처 설정을 그 위에 얹는다 -
+        # 이유는 app/core/tenant_config.py::apply_overrides 에 적어 뒀다. 없으면(테스트가
+        # 캐시만 쓰는 경우) 아무 일도 안 한다.
+        self._settings = settings
+        # 부팅 시점의 env 값. 화면에서 값을 지웠을 때 여기로 되돌린다 - 이유는
+        # app/core/tenant_config.py::OVERRIDABLE_KEYS 위에 적어 뒀다.
+        self._settings_baseline: dict[str, Any] = {}
 
     def load(self, db: Session) -> dict[str, Any]:
         values = {key: spec.default for key, spec in REGISTRY.items()}
@@ -47,6 +54,11 @@ class SettingsCache:
                 values[row.key] = json.loads(row.value_json)
         with self._lock:
             self._values = values
+        # 락 밖에서 얹는다. 여기서 하는 일은 다른 객체의 속성 대입이라 이 락과 무관하고,
+        # 락 안에서 하면 부팅 경로가 남의 객체를 잡은 채 도는 모양이 된다.
+        from app.core.tenant_config import apply_overrides
+
+        apply_overrides(self._settings, values, self._settings_baseline)
         return values
 
     def get_all(self, db: Session) -> dict[str, Any]:

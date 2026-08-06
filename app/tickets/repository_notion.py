@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationAppError
-from app.core.models_base import NAMES_SEP, utcnow
+from app.core.models_base import utcnow
 from app.core.notion_blocks import markdown_to_blocks
 from app.org.constants import DEFAULT_ORG_ID
 from app.reports import notion_source
@@ -39,12 +39,21 @@ from app.tickets.models import (
     join_names,
     split_names,
 )
+from app.tickets.query import (
+    ORDER,
+    filter_clauses,
+    page_slice,
+    row_order_key,
+    token,
+)
 from app.tickets.repository import (
     BodySaveResult,
+    PageSpec,
     ProjectRef,
     SyncStatus,
     TicketDraft,
     TicketDTO,
+    TicketFilters,
     TicketList,
     TicketMeta,
 )
@@ -55,11 +64,6 @@ _DEFAULT_STATUS = "계획"
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
-
-
-def _token(value: str) -> str:
-    """sentinel-wrapped 토큰 하나 — LIKE contains 로 '정확한 토큰' 매칭을 하기 위한 형태."""
-    return NAMES_SEP + value + NAMES_SEP
 
 
 class NotionTicketRepository:
@@ -165,57 +169,176 @@ class NotionTicketRepository:
         except Exception:  # noqa: BLE001 — 이름 해석 실패로 목록 전체를 죽이지 않는다
             return {}
 
-    def _live_list(self, db: Session, rows: list[dict]) -> TicketList:
+    def _live_list(
+        self, db: Session, rows: list[dict],
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        """실시간(킬 스위치·첫 기동) 경로의 목록. **필터와 페이지를 여기서도 건다.**
+
+        안 걸면 `ticket_source=notion` 으로 되돌린 순간 필터와 페이지가 조용히 무시되고
+        1,000건이 통째로 나간다 - 되돌리기 장치가 사고 장치가 된다.
+
+        **자르기 전에 다시 정렬한다.** 소스가 이미 마감 오름차순으로 주지만(그래서 이 정렬은
+        오늘의 응답 순서를 바꾸지 않는다) 마감이 같은 두 건의 순서까지 정해 주지는 않는다.
+        전순서가 아니면 1→2페이지에서 행이 반복되거나 빠지고(Z9), 그건 미러 경로에서만
+        고쳐 놓으면 킬 스위치를 켠 날 되살아나는 종류의 결함이다. 기준은 미러 쪽
+        (`query.ORDER`)과 같고, 자체 id 가 없는 실시간 DTO 라 마지막 열만 page id 다.
+        """
         proj_map = self._live_project_map(db)
+        tickets = [self._from_notion(r, proj_map) for r in rows]
+        if filters is not None:
+            tickets = [t for t in tickets if filters.matches(t)]
+        tickets = sorted(
+            tickets,
+            key=lambda t: (
+                t.due is None, t.due or "",
+                t.number is None, t.number or 0,
+                t.page_id or "",
+            ),
+        )
+        total = len(tickets)
         return TicketList(
-            tickets=tuple(self._from_notion(r, proj_map) for r in rows),
+            tickets=tuple(page_slice(tickets, page)),
             from_cache=False,
             sync=None,
+            total=total,
         )
 
-    def _cached_list(self, db: Session, stmt, state: TicketSyncState | None) -> TicketList:
-        # 마감 빠른 순, 없으면 뒤로, 같으면 티켓 번호 순(Notion 정렬과 같은 순서 + 결정론적 tie-break).
-        stmt = stmt.order_by(
-            TicketCache.due_date.asc().nulls_last(),
-            TicketCache.notion_ticket_number.asc().nulls_last(),
+    def _cached_list_rows(
+        self, db: Session, rows, state: TicketSyncState | None,
+        page: PageSpec | None = None,
+    ) -> TicketList:
+        """이미 골라 낸 행들로 목록을 만든다 — 정렬 규칙은 `_cached_list` 와 **같아야** 한다.
+        여기서만 다르게 정렬하면 미할당 화면의 순서가 다른 티켓 화면과 어긋난다.
+
+        `_cached_list` 와 **같은 가시성 규칙**도 여기서 다시 건다 — 이 깔때기는 SQL 이 아니라
+        파이썬 리스트를 받으므로 위 `where` 가 적용되지 않는다. 두 깔때기가 다른 답을 주면
+        미할당 화면에만 지워진 티켓이 남는다.
+
+        **여기서는 페이지도 파이썬으로 자른다.** 이 깔때기를 쓰는 화면(미할당 트리아지)의
+        판정이 SQL 로 표현돼 있지 않기 때문이다 - 자세한 이유는 `list_unassigned` 참조.
+        자르기 전 건수(total)를 판정 뒤에 세므로 화면의 "N건 중 1-20" 이 맞는다.
+        """
+        rows = [r for r in rows if r.notion_missing_at is None]
+        ordered = sorted(rows, key=row_order_key)
+        total = len(ordered)
+        return TicketList(
+            tickets=tuple(self._from_cache(r) for r in page_slice(ordered, page)),
+            from_cache=True,
+            sync=self._sync_status(state),
+            total=total,
         )
+
+    def _cached_list(
+        self, db: Session, stmt, state: TicketSyncState | None,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        # Notion 에서 사라져 **표시된** 행은 목록에서 뺀다 (0043). 이 필터를 호출부에 맡기지
+        # 않고 여기 두는 이유: 목록 진입점이 넷(내 티켓·미할당·팀·기간)이고, 한 곳만 빠뜨리면
+        # 그 화면에서만 지워진 티켓이 계속 보인다 — 그리고 그런 누락은 눈에 안 띈다.
+        stmt = stmt.where(TicketCache.notion_missing_at.is_(None))
+        for clause in filter_clauses(filters):
+            stmt = stmt.where(clause)
+        # total 은 **자르기 전** 건수다. 자른 뒤에 세면 2페이지에서 20이 되고, 화면은
+        # "20건 중 21-40" 이라는 말이 안 되는 문장을 쓰게 된다.
+        total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+        stmt = stmt.order_by(*ORDER)
+        if page is not None and page.limit is not None:
+            stmt = stmt.offset(page.offset).limit(page.limit)
         rows = db.execute(stmt).scalars().all()
         return TicketList(
             tickets=tuple(self._from_cache(r) for r in rows),
             from_cache=True,
             sync=self._sync_status(state),
+            total=total,
         )
 
     # ── 읽기 ─────────────────────────────────────────────────────────────────
 
-    def list_by_assignee(self, db: Session, *, assignee_id: str) -> TicketList:
+    def list_by_assignee(
+        self, db: Session, *, assignee_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
         ready, state = self._cache_ready(db)
         if ready:
             stmt = select(TicketCache).where(
-                TicketCache.assignee_notion_ids.contains(_token(assignee_id), autoescape=True)
+                TicketCache.assignee_notion_ids.contains(token(assignee_id), autoescape=True)
             )
-            return self._cached_list(db, stmt, state)
+            return self._cached_list(db, stmt, state, filters, page)
         rows = notion_source.query_tasks_by_assignee(
             self._outbound, self._settings, notion_user_id=assignee_id
         )
-        return self._live_list(db, rows)
+        # 실시간 경로에서는 담당자 조건이 Notion 질의에 이미 들어가 있다. 그래도 filters 를
+        # 그대로 넘긴다 - 나머지 조건(상태·프로젝트·기한 등)은 여기서만 걸린다.
+        return self._live_list(db, rows, filters, page)
 
-    def list_unassigned(self, db: Session) -> TicketList:
+    def list_unassigned(
+        self, db: Session, *, filters: TicketFilters | None = None,
+        page: PageSpec | None = None,
+    ) -> TicketList:
+        """미할당 트리아지 — **앱이 담당자를 알 수 없는 티켓 전부.**
+
+        `assignee_notion_ids == ""` 만 보면 안 된다. Notion 담당자가 있지만 그 사람이 앱
+        사용자로 **매핑되지 않은** 티켓이 여기서 빠지는데, 그런 티켓은 부서 범위에서도
+        빠진다(`core/scope.py::any_assignee_visible` 은 해석된 담당자 집합이 비면 False).
+        즉 **어디에서도 안 보이게 된다** — 전체 관리자만 볼 수 있고 그 사람들은 이 티켓을
+        찾을 이유가 없다. 운영 실측으로 색인 티켓행의 **21.5%(227/1,058)** 가 여기 해당한다.
+
+        `core/scope.py` 모듈 docstring 이 이 쟁점을 이미 종결해 놓았다 —
+        "담당자가 아무도 없는(**또는 앱 사용자로 해석되지 않는**) 티켓은 ... 포탈 전용
+        버킷(미할당 트리아지)에 남고". 그 문장을 여기가 지키지 않고 있었다.
+
+        비용: 매핑표를 한 번 읽는다(활성 사용자 수만큼, 수십~수백 행). 티켓 수와 무관하다.
+
+        ## 이 화면만 페이지를 파이썬에서 자른다 (판단과 이유)
+
+        "앱이 담당자를 해석할 수 없다" 는 **매핑표와의 교집합** 판정이라 `ticket_cache` 한
+        테이블의 WHERE 로 나오지 않는다. 억지로 SQL 로 옮기면 매핑된 사용자 수만큼
+        `NOT LIKE` 를 이어 붙이게 되는데, 그건 두 가지를 동시에 나쁘게 만든다:
+
+          * **틀리는 방향이 나쁘다.** 조건 하나만 어긋나도 티켓이 조용히 사라지고, 이 화면은
+            정확히 "아무도 안 보면 영원히 사라지는 티켓" 을 담는 곳이다.
+          * 판정이 두 벌이 된다(여기 SQL, 부서 화면 파이썬). 두 벌이 되면 언젠가 한쪽만
+            고쳐지고, 그 증상은 "미할당에도 없고 팀에도 없다" 라 아무도 신고하지 않는다.
+
+        그래서 **판정은 그대로 파이썬**으로 두고, 열 조건(상태·프로젝트·기한 등)만 SQL 로
+        먼저 좁힌 뒤 판정 → 정렬 → 자르기 순서로 간다. total 은 판정 뒤에 세므로 화면이
+        말하는 건수와 사용자가 세는 건수가 같다. 비용은 오늘과 같다(미러 전량 로드).
+        """
         ready, state = self._cache_ready(db)
         if ready:
-            stmt = select(TicketCache).where(TicketCache.assignee_notion_ids == "")
-            return self._cached_list(db, stmt, state)
+            from app.reports.service import load_display_maps
+
+            known = set(load_display_maps(db).id_to_user)
+            # 판정은 **파이썬 집합**으로 한다. SQL 로 부분일치를 조립하면 id 하나가 다른 id 의
+            # 접두사일 때 틀리고(`join_names` 구분자까지 함께 따져야 한다), 그 틀림은 티켓이
+            # 조용히 사라지는 방향으로 난다.
+            stmt = select(TicketCache)
+            for clause in filter_clauses(filters):
+                stmt = stmt.where(clause)
+            rows = db.execute(stmt).scalars().all()
+            unowned = [
+                r for r in rows
+                if not (set(split_names(r.assignee_notion_ids)) & known)
+            ]
+            return self._cached_list_rows(db, unowned, state, page)
         rows = notion_source.query_unassigned_tasks(self._outbound, self._settings)
-        return self._live_list(db, rows)
+        return self._live_list(db, rows, filters, page)
 
-    def list_all(self, db: Session) -> TicketList:
+    def list_all(
+        self, db: Session, *, filters: TicketFilters | None = None,
+        page: PageSpec | None = None,
+    ) -> TicketList:
         ready, state = self._cache_ready(db)
         if ready:
-            return self._cached_list(db, select(TicketCache), state)
+            return self._cached_list(db, select(TicketCache), state, filters, page)
         rows = notion_source.query_all_tasks(self._outbound, self._settings)
-        return self._live_list(db, rows)
+        return self._live_list(db, rows, filters, page)
 
-    def list_for_period(self, db: Session, *, start: str, end: str) -> TicketList:
+    def list_for_period(
+        self, db: Session, *, start: str, end: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
         """마감일이 [start, end) 인 티켓. 날짜는 ISO 문자열이라 문자열 비교로 범위가 맞다."""
         ready, state = self._cache_ready(db)
         if ready:
@@ -224,11 +347,11 @@ class NotionTicketRepository:
                 TicketCache.due_date >= start,
                 TicketCache.due_date < end,
             )
-            return self._cached_list(db, stmt, state)
+            return self._cached_list(db, stmt, state, filters, page)
         rows = notion_source.query_tasks_for_period(
             self._outbound, self._settings, start_date=start, end_date=end
         )
-        return self._live_list(db, rows)
+        return self._live_list(db, rows, filters, page)
 
     def get(self, db: Session, *, page_id: str) -> TicketDTO:
         """상세 화면용 단건. 상세는 늘 실시간이다 — 온디맨드 1건이라 캐시 이득이 없고,

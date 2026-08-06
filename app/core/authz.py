@@ -177,6 +177,11 @@ CAPABILITIES: tuple[Capability, ...] = (
         "system.admin", "백업 생성, 검증, 복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
         "스펙 §14.6 이 system_admin 으로 못박은 것들.",
     ),
+    Capability(
+        "setup.read", "최초 실행 셋업 체크리스트 조회", "시스템", SYSTEM_ADMIN_ONLY,
+        "조직, Notion 토큰, 러너, TLS 처럼 설치 한 벌 전체의 상태를 한 화면에 모은다. "
+        "부서 범위로 좁혀질 수 있는 admin 은 제외한다(시스템 설정과 같은 근거).",
+    ),
 )
 
 

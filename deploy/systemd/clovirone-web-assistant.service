@@ -36,7 +36,10 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictRealtime=true
 UMask=0027
-ReadWritePaths=/var/lib/clovirone-web-assistant
+# 앞의 `-` 는 "없으면 그냥 넘어가라" 다. 특권 헬퍼(§S)를 안 깐 설치에서도 웹은 떠야 한다 —
+# `-` 없이 적으면 경로가 없을 때 유닛이 시작에 실패해 서비스가 통째로 안 뜬다.
+# 하드닝은 **그대로 둔다.** 시스템 설정은 헬퍼가 대신 하므로 여기서 풀 이유가 없다.
+ReadWritePaths=/var/lib/clovirone-web-assistant -/run/clovirone-web-assistant
 
 [Install]
 WantedBy=multi-user.target

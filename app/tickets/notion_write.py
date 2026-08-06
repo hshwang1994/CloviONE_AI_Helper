@@ -74,11 +74,18 @@ def _headers(settings) -> dict[str, str]:
     }
 
 
-def _request(outbound, settings, method: str, path: str, *, json: dict | None = None) -> dict:
+def _request(
+    outbound, settings, method: str, path: str, *, json: dict | None = None,
+    not_found: type[AppError] = TicketNotFoundError,
+) -> dict:
     """Notion REST 단건 호출. 토큰 미설정/유효하지 않음/404/기타 오류를 도메인 예외로 매핑한다.
 
     notion_source._query_tasks 와 같은 오류 처리 규약을 따른다(토큰 파일 없음→NotConfigured,
-    401→NotConfigured, 404→TicketNotFound, 그 외 4xx/5xx→NotionQueryError).
+    401→NotConfigured, 404→not_found, 그 외 4xx/5xx→NotionQueryError).
+
+    `not_found` 를 인자로 받는 이유: 이 오류 매핑은 작업 DB 전용이 아니라 **Notion REST 전체**
+    의 규약인데, 404 문구만 도메인마다 다르다. 프로젝트 페이지가 없을 때 "티켓을 찾을 수
+    없습니다" 라고 답하면 사용자는 자기가 안 건드린 것을 의심하며 엉뚱한 화면을 뒤진다.
     """
     url = f"{settings.notion_api_base.rstrip('/')}/{path.lstrip('/')}"
     try:
@@ -91,6 +98,11 @@ def _request(outbound, settings, method: str, path: str, *, json: dict | None = 
             timeout=30.0,
             auth_type="bearer",
             secret_ref=settings.notion_report_token_ref,
+            # S9 — 쓰기 경로에도 건다. 429 는 **처리하지 않았다**는 뜻이라 블록 추가처럼
+            # 두 번 하면 안 되는 요청도 다시 보내는 것이 안전하다(5xx 였다면 안 걸었다).
+            # 안 걸면 본문 저장이 429 하나로 실패하고, 사용자는 방금 쓴 글이 원본에 안 갔다는
+            # 배너를 보게 된다.
+            rate_limit_retries=3,
         )
     except FileNotFoundError as exc:
         raise NotionNotConfiguredError() from exc
@@ -102,7 +114,7 @@ def _request(outbound, settings, method: str, path: str, *, json: dict | None = 
     if resp.status_code == 401:
         raise NotionNotConfiguredError("Notion 토큰이 유효하지 않습니다(401).")
     if resp.status_code == 404:
-        raise TicketNotFoundError()
+        raise not_found()
     if resp.status_code >= 400:
         # Notion 이 주는 message 를 붙여 관리자가 원인을 볼 수 있게 한다(값은 담기지 않는다).
         detail = ""
@@ -117,11 +129,34 @@ def _request(outbound, settings, method: str, path: str, *, json: dict | None = 
     return resp.json()
 
 
-def fetch_schema(outbound, settings) -> dict:
-    """작업 DB 스키마의 properties(속성명→정의) 를 돌려준다. rename/타입 표류 방어에 쓴다."""
+def notion_request(
+    outbound, settings, method: str, path: str, *, json: dict | None = None,
+    not_found: type[AppError] | None = None,
+) -> dict:
+    """다른 Notion DB(프로젝트)를 다루는 모듈이 **이 오류 매핑을 다시 적지 않게** 연 문.
+
+    복사해 가면 규약이 두 벌이 된다: 한쪽만 401 을 '미연동'으로 번역하고 다른 쪽은 502 로
+    올리는 식으로 갈라지고, 그때 증상은 "어떤 동기화만 연동 안내가 안 뜬다" 가 된다. 오류
+    번역은 화면 문구를 정하는 판단이라 한 곳에 있어야 한다.
+
+    이름을 `_request` 로 두고 밖에서 부르지 않는 이유는 반대다 - 밑줄은 "이 파일 안에서만"
+    이라는 약속인데 그걸 다른 모듈이 어기면 약속 자체가 의미를 잃는다.
+    """
+    return _request(
+        outbound, settings, method, path, json=json,
+        not_found=not_found or TicketNotFoundError,
+    )
+
+
+def fetch_schema(outbound, settings, database_id: str | None = None) -> dict:
+    """DB 스키마의 properties(속성명→정의) 를 돌려준다. rename/타입 표류 방어에 쓴다.
+
+    `database_id` 를 안 주면 작업 DB 다(기존 호출부 전부). 프로젝트 DB 처럼 다른 DB 의
+    스키마도 같은 함수로 읽는다 - 스키마 읽기는 DB 마다 다를 것이 없다.
+    """
     data = _request(
         outbound, settings, "GET",
-        f"/v1/databases/{settings.notion_tasks_database_id}",
+        f"/v1/databases/{database_id or settings.notion_tasks_database_id}",
     )
     props = data.get("properties")
     return props if isinstance(props, dict) else {}

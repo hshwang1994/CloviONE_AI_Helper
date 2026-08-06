@@ -77,7 +77,7 @@ function Dots({ index, total }) {
         <Box
           key={i}
           sx={{
-            width: i === index ? "1.25rem" : "0.5rem", height: "0.5rem", borderRadius: 999,
+            width: i === index ? "1.25rem" : "0.5rem", height: "0.5rem", borderRadius: "999px",
             bgcolor: i === index ? "primary.main" : "action.disabled",
             transition: "width .2s",
           }}

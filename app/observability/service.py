@@ -110,9 +110,14 @@ def upsert_sync_status(
     row.updated_at = now
     if status == SYNC_OK:
         row.last_success_at = now
-        row.error = None
-    if status == SYNC_ERROR and error is not None:
+    # 이번 회차가 할 말이 있으면 성공이든 실패든 그대로 나른다. 예전에는 status=='ok' 일 때
+    # error 를 무조건 None 으로 덮어서, **성공했지만 경고가 있는 회차**(상한에 걸려 일부만
+    # 받아온 truncated)가 미러에서 말을 잃었다 — 관리자 화면은 {status:"ok", error:null} 만
+    # 보고 "정상"이라 읽었다. 할 말이 없을 때만(None) 옛 오류를 지운다.
+    if error is not None:
         row.error = error[:2000]
+    elif status == SYNC_OK:
+        row.error = None
     if item_count is not None:
         row.item_count = item_count
     if truncated is not None:

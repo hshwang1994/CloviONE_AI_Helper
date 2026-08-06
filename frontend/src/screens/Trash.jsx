@@ -9,6 +9,8 @@ import { Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Ske
 import { fmtDateTime, toUTCDate } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { safeExternal } from "../lib/safeUrl.js";
+import { invalidateTicketViews } from "./ticket-views.js";
 
 /* 휴지통 — 삭제한 티켓/문서를 보관기간 동안 잡아둔다. 복원하면 원래 목록으로 돌아가고, 보관기간이
  * 지나면 백그라운드가 노션 원본을 보관처리하고 여기서 사라진다. 지금 바로 영구 삭제도 가능(권한 필요).
@@ -44,7 +46,8 @@ export function Trash() {
     const f = (res.failed || []).length;
     toast(f ? `${n}건을 ${verb}했습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 ${verb}했습니다.`, f ? "info" : "success");
     qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
-    qc.invalidateQueries({ queryKey: ["tickets"], refetchType: "all" });
+    // 복원한 티켓은 홈·스프린트에도 다시 나타나야 한다 — 그 키 목록은 ticket-views.js 가 안다.
+    invalidateTicketViews(qc, { refetchType: "all" });
     qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
     sel.clear();
   };
@@ -64,7 +67,7 @@ export function Trash() {
     onSuccess: () => {
       toast("복원했습니다. 원래 목록에서 다시 볼 수 있습니다.", "success");
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["tickets"], refetchType: "all" });
+      invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
     },
     onError: (e) => toast((e && e.message) || "복원하지 못했습니다.", "error"),
@@ -93,8 +96,8 @@ export function Trash() {
     { key: "type_label", label: "종류", width: "7rem", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
     {
       key: "title", label: "제목",
-      render: (r) => (r.url
-        ? <Link href={r.url} target="_blank" rel="noreferrer noopener" underline="hover">{r.title || "제목 없음"}</Link>
+      render: (r) => (safeExternal(r.url)
+        ? <Link href={safeExternal(r.url)} target="_blank" rel="noreferrer noopener" underline="hover">{r.title || "제목 없음"}</Link>
         : <span>{r.title || "제목 없음"}</span>),
     },
     { key: "deleted_by", label: "삭제한 사람", width: "11rem" },

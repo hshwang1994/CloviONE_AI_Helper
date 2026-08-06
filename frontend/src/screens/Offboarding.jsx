@@ -34,15 +34,20 @@ const STEP_HELP = [
   "3. 실행: 옮길 티켓과 후임을 정하고 실행합니다. 결과는 되돌릴 수 있습니다.",
 ];
 
+/* `running` 은 **끝까지 가지 못한 실행**이다(C3). 실행은 요청 하나 안에서 끝나므로 목록에
+   이 값이 보인다면 계정 처리 중에 무언가 터진 것이다 — 티켓은 이미 옮겨졌을 수 있으니
+   "완료" 옆에 조용히 두면 안 된다. 라벨과 색이 둘 다 그 사실을 말해야 한다. */
 const RUN_STATUS_KO = {
-  completed: "완료", partial: "부분 실패", undone: "되돌림", undo_partial: "되돌리기 부분 실패",
+  running: "미완료", completed: "완료", partial: "부분 실패",
+  undone: "되돌림", undo_partial: "되돌리기 부분 실패",
 };
 const MOVE_STATUS_KO = {
-  moved: "옮김", skipped: "변경 없음", failed: "실패",
+  // `pending` = 소스를 부르기 직전에 남긴 표시. 바뀌었는지 알 수 없는 유일한 상태다.
+  pending: "확인 필요", moved: "옮김", skipped: "변경 없음", failed: "실패",
   reverted: "되돌림", revert_failed: "되돌리기 실패",
 };
 const MOVE_STATUS_KIND = {
-  moved: "ok", skipped: "neutral", failed: "danger",
+  pending: "warn", moved: "ok", skipped: "neutral", failed: "danger",
   reverted: "ok", revert_failed: "danger",
 };
 

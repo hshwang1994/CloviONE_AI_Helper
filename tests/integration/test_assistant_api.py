@@ -178,6 +178,32 @@ def test_weekly_digest_reports_mine_team_and_changed_content(asst_client):
     assert body["board"]["count"] == 1
 
 
+def test_weekly_digest_cuts_documents_at_kst_midnight_on_both_sides(asst_client, db):
+    """M4 의 **배선** 확인. 순수 함수가 옳아도 여기서 안 부르면 화면은 여전히 틀린다.
+
+    KST 창 [08-03, 08-10) 은 UTC 로 [08-02 15:00, 08-09 15:00) 이다. 예전 코드는 KST 달력일
+    문자열('2026-08-03')을 Notion 이 준 UTC 문자열과 그대로 비교했고 위쪽 경계는 아예
+    없었다. 그래서 **양쪽 끝**에 표본을 놓는다 - 한쪽만 보면 반쪽만 고치고 통과한다.
+    """
+    db.add_all([
+        # KST 2026-08-03(월) 06:00 = UTC 08-02 21:00. 예전 비교에서는 사라지던 문서다.
+        DocumentCache(notion_page_id="asst-doc-mon", title="월요일 오전 문서",
+                      document_type="회의록", owner="도우미 나",
+                      last_edited="2026-08-02T21:00:00.000Z", synced_at=SYNCED_AT),
+        # KST 2026-08-10(월) 06:00 = UTC 08-09 21:00. 예전에는 위쪽 경계가 없어 끼어들었다.
+        DocumentCache(notion_page_id="asst-doc-next", title="다음 주 문서",
+                      document_type="회의록", owner="도우미 나",
+                      last_edited="2026-08-09T21:00:00.000Z", synced_at=SYNCED_AT),
+    ])
+    db.commit()
+
+    changed = _get(asst_client, "/api/assistant/weekly-digest")["documents_changed"]
+    titles = {d["title"] for d in changed["items"]}
+    assert "월요일 오전 문서" in titles, "KST 월요일 오전 9시간이 다시 사라졌다(M4)"
+    assert "다음 주 문서" not in titles, "다음 주 문서가 이번 주에 꼈다"
+    assert changed["count"] == 2      # 기존 '이번 주 문서' 1건 + 월요일 오전 1건
+
+
 def test_triage_suggests_order_and_candidates_but_assigns_nothing(asst_client, db):
     before = {
         row.notion_page_id: row.assignee_notion_ids

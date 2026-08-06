@@ -40,8 +40,9 @@
   {# Pretendard 가변 폰트 — SPA(frontend/index.html)와 같은 것을 쓴다. 로그인 전후로 글꼴이
      바뀌면 같은 제품이 아닌 것처럼 보인다. auth.css 의 --font 에 폴백이 남아 있어 이 요청이
      실패해도 화면은 예전과 같이 보인다. #}
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <!-- Pretendard 자체 호스팅(2026-08-05). 예전 jsdelivr 주소는 불변 해시가 아니라 git
+       태그였고 SRI 도 없었다. app/static/fonts/pretendard 로 들여왔다. -->
+  <link rel="stylesheet" href="{{ asset('/static/fonts/pretendard/pretendardvariable-dynamic-subset.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/auth.css') }}">
   <link rel="stylesheet" href="{{ asset('/static/css/login.css') }}">
@@ -208,6 +209,19 @@
           {% endif %}
           {% endif %}
         </aside>
+        {# 스스로 되찾는 길(9-9 P4). 위 #login-hint 는 login.js 가 통째로 다시 쓰므로 그 안에
+           넣으면 JS 경로에서 사라진다 — 별도 줄로 둔다.
+           **메일을 실제로 보낼 수 있을 때만 보인다**(self_reset_available). 눌러도 안 되는
+           링크를 그려 두면 사용자를 두 번 헛걸음시킨다. 못 보내는 설치에서는 위 안내가
+           그대로 '관리자에게 재발급 요청'을 가리킨다. #}
+        {% if self_reset_available %}
+        <p class="support-note"><a href="/forgot-password"><strong>비밀번호 재설정 메일 받기</strong></a></p>
+        {% endif %}
+        {# 재설정을 마친 no-JS 폼이 /login?reset=1 로 돌아온다. 확인 한 줄이 없으면
+           사용자는 바뀐 것인지 모른 채 같은 화면을 다시 만난다. #}
+        {% if password_reset_done %}
+        <p class="support-note auth-success" role="status">비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.</p>
+        {% endif %}
         <p id="server-status" class="server-status" aria-live="polite"></p>
         {# 히어로(hero-footer)와 같은 저작권 문구를 쓴다 — 900px 이상에서는 둘 다 동시에
            보이므로 문구가 다르면 같은 사실을 두 번 다르게 적은 것처럼 읽힌다

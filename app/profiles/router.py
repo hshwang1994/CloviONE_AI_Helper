@@ -1,7 +1,10 @@
 """Current-user profile endpoints (spec §13.6, §23.2) + 프로필 셀프서비스(계획서 Phase 6).
 
-이 라우터의 모든 경로는 **세션 사용자 본인**의 것만 읽고 쓴다. 대상 id 를 받는 경로가
-아바타 서빙 하나뿐이고 그것도 조회 전용이라, 스코프 필터가 필요한 표면이 없다.
+이 라우터의 거의 모든 경로는 **세션 사용자 본인**의 것만 읽고 쓴다. 예외는 대상 id 를 받는
+아바타 서빙 하나이고, 그 하나는 **조직 범위**를 지난다
+(`service.get_scoped_avatar_owner_or_404`, 범위 밖은 404). 예전 이 자리에는 "id 를 받는 경로가
+조회 전용 하나뿐이라 스코프 필터가 필요한 표면이 없다" 고 적혀 있었다 — 조회 전용이라는 것은
+범위가 필요 없다는 뜻이 아니다. 유출은 쓰기가 아니라 **읽기**로 일어난다.
 
 `dependencies=[Depends(require_csrf)]` 를 라우터에 건다 — 안전 메서드(GET/HEAD/OPTIONS)는
 require_csrf 가 즉시 통과시키므로 기존 조회 경로는 그대로이고, 앞으로 이 파일에 추가되는
@@ -47,8 +50,37 @@ def _avatar_url(pref, user_id: str) -> str | None:
     return f"/api/profile/avatar/{user_id}?v={stamp}"
 
 
+# 사이드바 메뉴와 1:1 로 대응하는 플래그만 보낸다. 나머지(`self_approval_allowed` 등)는
+# 화면이 쓸 일이 없고, 다 보내면 "이 값으로 무엇을 감출 수 있나" 가 흐려진다.
+_MENU_FLAGS = ("board_enabled", "team_docs_enabled", "games_enabled", "team_chat_enabled")
+
+
+def _menu_features(request) -> dict:
+    from app.core.feature_flags import load_feature_flags
+
+    flags = load_feature_flags(request.app.state.settings.config_dir)
+    return {k: bool(flags.get(k, True)) for k in _MENU_FLAGS}
+
+
+def _branding(request: Request) -> dict:
+    """설정된 제품명(없으면 기본값). 실패해도 셸이 이름 없이 뜨면 안 된다."""
+    from app.settings.registry import get_spec
+
+    # 기본값을 여기 다시 적지 않는다 — `registry.py` 의 스펙이 유일한 출처다.
+    # 상수를 한 벌 더 두면 둘이 어긋나는 날이 오고, 그때 증상은 "화면마다 제품명이 다르다" 다
+    # (`DEFAULT_ORG_NAME` 에서 이미 한 번 겪었다).
+    fallback = (get_spec("ui_branding").default or {}).get("product_name") or ""
+    try:
+        value = request.app.state.settings_cache.current_value("ui_branding") or {}
+        name = (value.get("product_name") or "").strip()
+    except Exception:  # noqa: BLE001 — 브랜딩 하나로 /api/me 를 죽이지 않는다
+        name = ""
+    return {"product_name": name or fallback}
+
+
 @router.get("/api/me")
 def me(
+    request: Request,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_current_auth),
 ):
@@ -63,9 +95,26 @@ def me(
             "department": user.department,
             "title": user.title,
             "must_change_password": user.must_change_password,
+            # 지금 이 사람이 **어디까지 보는가**. 화면이 "지금 보는 범위: ClovirONE팀" 을
+            # 항상 띄우기 위한 값이다(S4/A8). 범위를 화면에 안 적으면 사용자는 "왜 이것만
+            # 보이지" 를 알 수 없고, 그건 결함으로 신고된다.
+            "admin_scope": user.admin_scope,
+            "scope_org_id": user.scope_org_id,
+            "scope_dept_id": user.scope_dept_id,
+            "org_id": getattr(user, "org_id", None),
+            "department_id": user.department_id,
             # 셸(상단바 아바타)이 이 한 필드 때문에 별도 요청을 하지 않게 여기 싣는다.
             "avatar_url": _avatar_url(pref, user.id),
         },
+        # 기능 플래그 — **껐으면 화면에서도 사라져야 한다** (X4).
+        # 예전에는 서버만 껐다. 껐다고 믿은 메뉴가 사이드바에 남고, 눌리고, 404 를 뱉었다.
+        # 올바른 패턴이 `home/readers.py` 에 이미 있었는데 **한 화면에만** 적용돼 있었다.
+        # 화면에서 감추는 것은 편의일 뿐 통제가 아니다 — 라우터가 여전히 각자 막는다.
+        "features": _menu_features(request),
+        # 제품명은 **설정값**이다 (N5). 마이그레이션 0034 가 "제품명은 코드 상수가 아니라
+        # 설정값" 이라고 선언해 놓고, 정작 사용자가 하루 종일 보는 SPA 는 상수였다 —
+        # 값을 바꾸면 **로그인 화면만** 바뀌었다. 셸이 별도 요청 없이 쓰게 여기 싣는다.
+        "branding": _branding(request),
         "csrf_token": auth.session.csrf_token,
     }
 
@@ -259,17 +308,19 @@ def serve_avatar(
     request: Request,
     user_id: str,
     db: Session = Depends(get_db),
-    _me: User = Depends(get_current_user),
+    me: User = Depends(get_current_user),
 ):
-    """로그인한 사람에게 그 계정의 프로필 사진을 준다.
+    """로그인한 사람에게 **같은 조직** 계정의 프로필 사진을 준다.
 
-    범위가 '전 직원'인 이유: 표시 이름·부서는 이미 사용자 명부(`/api/team-chat/directory`)와
-    게시판·채팅에 전사 공개다. 사진만 좁히면 목록에서 이름 옆 사진이 뚫린 채로 보인다.
-    사진이 없거나 계정이 보관됐으면 **404** 다(403 이면 계정 존재가 드러난다).
+    예전에는 전 직원 대상이었다. 근거는 "이름·부서가 이미 사용자 명부와 게시판에 전사
+    공개라 사진만 좁히면 목록에서 이름 옆 사진이 뚫린 채로 보인다" 였는데, 디렉터리와
+    게시판이 조직으로 좁히면서 **그 전제가 깨졌다** — 다른 조직 사람은 목록에 안 나오는데
+    사진만 id 하나로 나갔다. 판정은 `service.get_scoped_avatar_owner_or_404` 한 곳에 있다.
+
+    부서로는 좁히지 않는다(같은 조직 다른 팀은 그대로 보인다). 사진이 없거나 계정이
+    보관됐거나 범위 밖이면 전부 **404** 다(403 이면 계정 존재가 드러난다).
     """
-    target = db.get(User, user_id)
-    if target is None or target.archived_at is not None:
-        raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
+    service.get_scoped_avatar_owner_or_404(db, me, user_id)
     pref = service.get_preference(db, user_id)
     if pref is None or not pref.avatar_stored_name:
         raise NotFoundError("프로필 사진을 찾을 수 없습니다.")

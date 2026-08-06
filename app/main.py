@@ -34,6 +34,7 @@ from app.core.allowlist import AllowlistRegistry
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings
 from app.core.db import make_engine, make_session_factory
+from app.core.logging_setup import configure_logging
 from app.core.errors import register_error_handlers
 from app.core.http_client import OutboundClient
 from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
@@ -46,6 +47,10 @@ from app.home.router import router as home_router
 from app.impersonation.router import router as impersonation_router
 from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
+from app.auth.reset_router import router as password_reset_router
+from app.mail.router import router as mail_router
+from app.llm_console.router import router as llm_console_router
+from app.notion_console.router import router as notion_console_router
 from app.notion_mapping.router import router as notion_mapping_router
 from app.offboarding.router import router as offboarding_router
 from app.org.router import (
@@ -55,6 +60,7 @@ from app.org.router import (
 )
 from app.observability.router import router as system_status_router
 from app.profiles.router import router as profiles_router
+from app.projects.router import router as projects_router
 from app.quotas.router import router as ai_quotas_router
 from app.prompts.router import policies_router, prompts_router
 from app.reports.router import router as reports_router
@@ -64,6 +70,8 @@ from app.runners.router import router as runners_router
 from app.schedules.router import router as schedules_router
 from app.settings.router import router as settings_router
 from app.settings.service import SettingsCache
+from app.setup.router import router as setup_router
+from app.sysops.router import router as sysops_router
 from app.team_docs.router import router as team_docs_router
 from app.trash.router import router as trash_router
 from app.sprints.router import router as sprint_router
@@ -84,6 +92,10 @@ def create_app(
     settings = settings or Settings()
     clock = clock or SystemClock()
 
+    # root 로거에 핸들러를 붙인다. 없으면 `app.*` 의 로그가 전부 버려진다 — 액세스 로그
+    # (= request_id 를 담은 유일한 줄)까지 포함해서. app/core/logging_setup.py 참조.
+    configure_logging()
+
     app = FastAPI(
         title="ClovirAssist Web Assistant",
         docs_url=None,
@@ -99,7 +111,10 @@ def create_app(
 
     # Effective-settings cache: load once at startup so consumers read live
     # values without a DB round-trip (session/password policy, retention, …).
-    app.state.settings_cache = SettingsCache()
+    # `settings` 를 함께 넘긴다: 노션 DB id 와 LLM 설정의 소비자는 전부 `settings.<key>` 를
+    # 읽으므로(app/core/tenant_config.py::apply_overrides) 캐시가 그 위에 얹어 줘야 관리
+    # 콘솔에서 바꾼 값이 실제 조회에 반영된다. 안 넘기면 화면만 바뀌고 동작은 옛 값이다.
+    app.state.settings_cache = SettingsCache(settings)
     try:
         with app.state.session_factory() as _db:
             app.state.settings_cache.load(_db)
@@ -156,6 +171,9 @@ def create_app(
 
     app.include_router(health_router)
     app.include_router(auth_router)
+    # 로그인 라우터 바로 뒤에 둔다 - 세션이 없는 상태에서 부르는 경로라 인접한 것이 맞다.
+    app.include_router(password_reset_router)
+    app.include_router(mail_router)
     app.include_router(profiles_router)
     app.include_router(chat_router)
     app.include_router(users_admin_router)
@@ -186,6 +204,9 @@ def create_app(
     app.include_router(reports_router)
     app.include_router(search_router)
     app.include_router(tickets_router)
+    # 프로젝트(0044). 앱 DB 가 정본이고 진행률은 앱이 다시 계산한다 — Notion 의 rollup 은
+    # 취소한 티켓을 완료로 세기 때문이다(app/projects/progress.py).
+    app.include_router(projects_router)
     app.include_router(trash_router)
     app.include_router(sprint_router)
     # 홈 '오늘' 커맨드 센터와 AI 도우미 심화(계획서 Phase 5). 둘 다 조회 전용이고
@@ -202,6 +223,17 @@ def create_app(
     app.include_router(feature_flags_router)
     # 사용자 화면 시스템 상태 배너(0026 sync_status + 러너 헬스 소비).
     app.include_router(system_status_router)
+    # 운영 콘솔의 시스템 설정(§S). 실제 변경은 root 로 도는 특권 헬퍼가 하고, 웹은 이름표만
+    # 전달한다 — 웹 유닛은 하드닝돼 있어 /etc 를 쓸 수 없다(그 하드닝을 풀지 않는 것이 요점이다).
+    app.include_router(sysops_router)
+    # 최초 실행 셋업 체크리스트(9-3). 읽기 전용이고 판정은 이미 있는 것을 모아서 한다
+    # (app/setup/probes.py) - 여기서 설정을 바꾸지는 않는다.
+    app.include_router(setup_router)
+    # Notion 관리(9-4)와 LLM 관리(9-5). 둘 다 설정 값 자체는 설정 레지스트리를 지나고
+    # (검증·감사·버전 이력·되돌리기가 거기 있다), 이 두 라우터는 레지스트리로 표현할 수 없는
+    # 것만 맡는다: 시크릿 파일, 실제 연결 테스트, 노션 데이터베이스 생성.
+    app.include_router(notion_console_router)
+    app.include_router(llm_console_router)
     app.include_router(admin_router)
     return app
 

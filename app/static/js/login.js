@@ -221,7 +221,32 @@
 
   // 로그인 요청이 응답 없이 멈추면(연결은 수립됐으나 무응답) 버튼이 '로그인 중…'으로 영영
   // 멈춘다. 타임아웃으로 중단해 사용자가 다시 시도할 수 있게 한다.
-  const SUBMIT_TIMEOUT_MS = 15000;
+  // 성공 연출을 기다리는 상한. 이보다 오래 걸리면 연출을 포기하고 이동한다 —
+// 로그인이 애니메이션 때문에 늦어지는 일은 없어야 한다.
+const CELEBRATE_CAP_MS = 1200;
+const SUBMIT_TIMEOUT_MS = 15000;
+
+  /* 첫 화면까지 연출을 잇는 인계 표식.
+   *
+   * 로그인은 서버 렌더 페이지이고 다음 화면은 SPA 라, 성공하면 브라우저가 문서를 통째로
+   * 갈아 끼운다 — 클로비가 웃는 순간 화면이 하얗게 비고, 인증 조회와 라우트 청크를 받는
+   * 동안 아무 말이 없다. 그 빈자리를 SPA 쪽(frontend/src/app/LoginHandoff.jsx)이 이어받게
+   * 이동 직전에 시각 하나를 남긴다.
+   *
+   * 값은 시각 하나뿐이다. 사용자 정보를 여기 담지 않는다 — sessionStorage 는 같은 탭의
+   * 어떤 스크립트도 읽을 수 있고, 신원은 /api/me 가 쿠키로 확인해 주는 것이지 이 표식이
+   * 증명하는 것이 아니다. SPA 는 이 값을 신선도 판단에만 쓴다.
+   *
+   * 키 문자열은 LoginHandoff.jsx 와 한 벌이다. 한쪽만 바꾸면 조용히 끊기므로
+   * frontend/src/screens/login-first-impression.test.jsx 가 두 값이 같은지 확인한다. */
+  const HANDOFF_KEY = "clovirone_login_welcome";
+  function markLoginHandoff() {
+    try {
+      window.sessionStorage.setItem(HANDOFF_KEY, String(Date.now()));
+    } catch (e) {
+      // 시크릿 모드/저장소 차단 — 연출만 없고 로그인은 그대로 끝난다.
+    }
+  }
 
   // 429(rate_limited) 직후 버튼을 즉시 다시 눌러 한도를 재차 건드리지 않도록 짧은 쿨다운.
   let cooldownTimer = null;
@@ -288,7 +313,22 @@
         // must_change_password가 next보다 항상 우선한다(서버가 이미 그렇게 정리해 next를
         // null로 돌려주지만, 방어적으로 여기서도 같은 순서를 지킨다).
         navigating = true;
-        window.location.href = data.must_change_password ? "/change-password" : (data.next || "/");
+        // 성공 연출을 **끝까지 보여 준 뒤** 이동한다(사용자 지적 P1). 예전에는 여기서 바로
+        // 넘어가서, 클로비의 성공 표정과 배지가 뜨자마자 화면이 갈렸다.
+        // clovi-login.js 가 없거나(스크립트 차단) 오래 걸려도 로그인이 막히면 안 되므로
+        // 최대 대기 시간을 두고 경주시킨다 — 연출은 있으면 좋은 것이지 필수가 아니다.
+        const target = data.must_change_password ? "/change-password" : (data.next || "/");
+        const celebrate = window.cloviLogin && window.cloviLogin.celebrate
+          ? window.cloviLogin.celebrate()
+          : Promise.resolve();
+        await Promise.race([
+          celebrate,
+          new Promise(function (resolve) { window.setTimeout(resolve, CELEBRATE_CAP_MS); }),
+        ]);
+        // 비밀번호 강제 변경은 축하할 자리가 아니다 — 그 사람은 아직 업무 공간에 들어온
+        // 게 아니고, 다음 화면도 SPA 가 아니라 별도 페이지라 받아 줄 쪽이 없다.
+        if (!data.must_change_password) markLoginHandoff();
+        window.location.href = target;
         return;
       }
       const code = data && data.error && data.error.code;

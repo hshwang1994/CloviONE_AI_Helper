@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditLog
+from app.audit.repository import apply_scope
 
 _KST = ZoneInfo("Asia/Seoul")
 
@@ -108,15 +109,26 @@ def _finding(
     }
 
 
-def detect(db: Session, *, now: datetime, window_hours: int = DEFAULT_WINDOW_HOURS) -> dict:
-    """창 안의 감사 로그에서 소견 목록을 만든다. 부작용 없음(읽기 전용)."""
+def detect(
+    db: Session,
+    *,
+    now: datetime,
+    actor_ids: frozenset[str] | None,
+    window_hours: int = DEFAULT_WINDOW_HOURS,
+) -> dict:
+    """창 안의 감사 로그에서 소견 목록을 만든다. 부작용 없음(읽기 전용).
+
+    ``actor_ids`` 는 **보는 사람이 볼 수 있는 행위자 집합**이다(전역이면 ``None``).
+    기본값을 두지 않은 것은 일부러다 — 기본값이 있으면 새 호출부가 인자를 잊었을 때
+    조용히 **전량 조회**로 열린다. 이 화면이 정확히 그렇게 새고 있었다.
+    """
     window_hours = max(1, min(int(window_hours), MAX_WINDOW_HOURS))
     since = now - timedelta(hours=window_hours)
     rows = (
         db.execute(
-            select(AuditLog)
-            .where(AuditLog.created_at >= since)
-            .order_by(AuditLog.created_at)
+            apply_scope(
+                select(AuditLog).where(AuditLog.created_at >= since), actor_ids
+            ).order_by(AuditLog.created_at)
         )
         .scalars()
         .all()
@@ -174,12 +186,20 @@ def detect(db: Session, *, now: datetime, window_hours: int = DEFAULT_WINDOW_HOU
             ))
 
     # 5) 처음 하는 동작 유형 — 창 이전 30일을 비교 구간으로 쓴다.
+    #
+    # 비교 구간에도 **같은 범위**를 건다. 소견은 어차피 범위 안 행위자에 대해서만 나오므로
+    # 안 걸어도 새지는 않지만, 이 함수가 읽는 행이 한 종류라도 범위를 벗어나면 다음 규칙을
+    # 추가하는 사람이 그 행을 그대로 소견에 실어 버린다 — '이 함수는 볼 수 있는 것만 읽는다'
+    # 가 규칙이어야 그런 실수가 생길 자리가 없다.
     baseline_since = since - timedelta(days=30)
     baseline = {
         (r[0], r[1])
         for r in db.execute(
-            select(AuditLog.user_id, AuditLog.action).where(
-                AuditLog.created_at >= baseline_since, AuditLog.created_at < since
+            apply_scope(
+                select(AuditLog.user_id, AuditLog.action).where(
+                    AuditLog.created_at >= baseline_since, AuditLog.created_at < since
+                ),
+                actor_ids,
             )
         ).all()
     }

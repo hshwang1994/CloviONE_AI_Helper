@@ -1,0 +1,57 @@
+[Unit]
+# 특권 헬퍼 (§S). 웹 유닛은 NoNewPrivileges=true / ProtectSystem=strict 로 하드닝돼 있어
+# sudo 도 /etc 쓰기도 할 수 없다 — 그것이 의도다. 관리자 콘솔의 시스템 설정(타임존·DNS·
+# 호스트 이름·프록시·인증서·서비스 제어)은 이 프로세스가 대신 수행한다.
+#
+# 왜 웹에 권한을 주지 않았나: 웹에 sudo 를 주려면 하드닝을 풀어야 하고, 그러면 웹을 뚫은
+# 사람이 곧바로 root 가 된다. 하드닝은 그대로 두고 **할 수 있는 일의 목록**을 좁힌 별도
+# 프로세스를 두는 편이 훨씬 좁은 문이다. 목록은 app/sysops/actions.py 에 있다.
+Description=ClovirONE Web Assistant privileged helper (system settings)
+After=network-online.target
+Wants=network-online.target
+# 웹보다 먼저 떠 있어야 관리 화면이 "도우미 없음" 을 보여 주지 않는다.
+Before=clovirone-web-assistant.service
+
+[Service]
+Type=simple
+# root 로 돈다. 이것이 이 유닛의 존재 이유이자 위험이므로, 실행 파일이 하는 일을
+# app/sysops/ 의 표로 좁혀 두었다. 임의 명령 실행 경로는 코드에 없다.
+User=root
+# 그룹은 **웹 계정**이다. 그래야 systemd 가 만드는 RuntimeDirectory 가 root:clovirone-web 이
+# 되고, 0750 에서도 웹이 소켓까지 들어올 수 있다. root uid 라 파일 쓰기 권한에는 영향이 없다.
+Group=clovirone-web
+WorkingDirectory=/opt/clovirone-web-assistant
+ExecStart=/opt/clovirone-web-assistant/venv/bin/python -m app.sysops.helper
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+Environment=CLOVIRONE_PRIVHELPER_SOCKET=/run/clovirone-web-assistant/privhelper.sock
+Environment=CLOVIRONE_PRIVHELPER_BACKUPS=/var/backups/clovirone-web-assistant/sysops
+Environment=CLOVIRONE_PRIVHELPER_AUDIT=/var/log/clovirone-web-assistant/privhelper.jsonl
+Environment=CLOVIRONE_SERVICE_USER=clovirone-web
+
+# 소켓 디렉터리를 systemd 가 만들고 재부팅 때 정리한다. 직접 만들면 /run 이 tmpfs 라
+# 재부팅 후 사라져 헬퍼가 뜨지 못한다.
+RuntimeDirectory=clovirone-web-assistant
+RuntimeDirectoryMode=0750
+LogsDirectory=clovirone-web-assistant
+StateDirectory=clovirone-web-assistant
+
+# root 로 돌지만 필요 없는 것은 여전히 막는다. ProtectSystem=strict 는 쓸 수 없다 —
+# 이 프로세스의 일 자체가 /etc 쓰기다. 대신 쓸 수 있는 곳을 명시적으로 나열한다.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0027
+# 액션 표가 실제로 건드리는 경로만. 새 액션이 다른 곳을 쓰려 하면 여기서 막히고,
+# 그때 이 목록을 늘릴지 사람이 판단하게 된다(조용히 늘어나지 않는다).
+ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirone /var/log/clovirone-web-assistant /var/backups/clovirone-web-assistant /run/clovirone-web-assistant
+
+[Install]
+WantedBy=multi-user.target

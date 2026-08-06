@@ -17,6 +17,7 @@ from app.core.clock import Clock, SystemClock
 from app.core.config import Settings
 from app.core.db import make_engine, make_session_factory
 from app.core.http_client import OutboundClient
+from app.core.logging_setup import configure_logging
 from app.core.secret_refs import FileSecretReferenceProvider
 from app.core.worker_lock import WorkerLock, default_lock_path
 from app.jobs.worker import Worker, WorkerContext
@@ -107,35 +108,164 @@ def mirror_sync_status(db, component: str, state, now) -> None:
             item_count=(
                 getattr(state, "ticket_count", None)
                 or getattr(state, "doc_count", None)
+                or getattr(state, "project_count", None)
                 or getattr(state, "item_count", 0)
             ),
             truncated=bool(getattr(state, "truncated", False)),
             error=state.error,
+            # 드리프트 지표 — 이번 회차가 몇 건을 지웠나. 지금까지는 어디에도 안 남아서
+            # 캐시가 2000 → 0 이 되어도 {status:"ok", item_count:0} 만 보였다.
+            detail={"pruned": int(getattr(state, "pruned_count", 0) or 0)},
         )
     except Exception:
         logger.exception("sync_status 미러링 실패 (무시하고 계속한다): %s", component)
+
+
+# ── 주간 프로젝트 헬스 스냅샷 ─────────────────────────────────────────────────
+#
+# 헬스 규칙(app/projects/health.py)과 저장(service.record_health_snapshot)은 이미 있었는데
+# **부르는 사람이 없었다**: `POST /{project_id}/health/snapshot` 을 손으로 누를 때만 이력이
+# 쌓였고, 그래서 추세선은 사실상 영원히 비어 있었다. 여기가 그 구멍이다.
+#
+# 모양은 `retention_tick` 과 같다: 주기를 설정에서 읽고, 워커에서만 돌고, 실패가 워커 루프
+# 밖으로 새어 나가지 않는다. 다른 점은 하나뿐이다 - **결과를 남긴다.** 이 잡은 조용히
+# 성공해도 조용히 실패해도 화면이 똑같아서(추세선에 점이 하나 덜 찍힐 뿐), 자국을 안 남기면
+# "이게 도는가?" 에 아무도 답할 수 없다.
+
+
+def _record_sweep_status(session_factory, now, sweep, error: str | None = None) -> None:
+    """회차 결과를 `sync_status` 에 남긴다. **실패해도 여기서 끝난다**(잡을 죽이지 않는다).
+
+    새 세션을 여는 이유: 본 작업이 통째로 터진 경우에도 불리기 때문이다. 그때 원래 세션은
+    쓸 수 없는 상태일 수 있고, 그 세션을 다시 쓰려다 두 번째 예외를 내면 **실패 사실 자체가
+    사라진다** - 그게 이 함수가 막으려는 일이다.
+    """
+    from app.observability.models import (
+        COMPONENT_PROJECT_HEALTH,
+        SYNC_ERROR,
+        SYNC_OK,
+    )
+    from app.observability.service import upsert_sync_status
+
+    if sweep is None:
+        # 회차가 통째로 실패했다. 건수는 **덮지 않는다**(None) - 마지막 정상 회차가 몇 건을
+        # 적었는지는 여전히 사실이고, 0으로 덮으면 "이번에 못 쟀다" 가 "0건이었다" 로 바뀐다.
+        fields = dict(
+            status=SYNC_ERROR, item_count=None, truncated=None,
+            error=error, detail={"aborted": True},
+        )
+    else:
+        fields = dict(
+            status=SYNC_ERROR if sweep.failed else SYNC_OK,
+            # '이력에 적은 건수' 다. 건너뛴 것은 여기 안 센다 - 둘을 합치면 "잴 것이 없어서
+            # 안 적었다" 와 "적었다" 가 화면에서 같은 숫자가 된다.
+            item_count=sweep.recorded,
+            truncated=sweep.truncated,
+            error=sweep.error_summary(),
+            detail=sweep.as_dict(),
+        )
+    try:
+        with session_factory() as db:
+            upsert_sync_status(db, COMPONENT_PROJECT_HEALTH, now=now, **fields)
+            db.commit()
+    except Exception:
+        logger.exception("헬스 스냅샷 상태 기록 실패 (더 할 수 있는 일이 없다)")
+
+
+def run_health_snapshot_sweep(session_factory, settings, now):
+    """한 회차: 전 프로젝트의 그 주 헬스를 이력에 남기고 결과를 남긴다.
+
+    예외를 **밖으로 내보내지 않는다** - 이 잡의 실패가 스케줄러 틱이나 다른 스윕을 죽이면
+    안 된다. 다만 삼키지도 않는다: 스택은 로그에, 사실은 `sync_status` 에 남는다.
+    실패했는데 마지막 성공 시각이 안 움직이는 것이 화면에서 "이 잡이 멈췄다" 로 읽힌다.
+
+    돌려주는 값은 결과 객체(실패로 아무것도 못 했으면 None)다. 테스트와 호출부가 이 회차가
+    무엇을 했는지 물어볼 수 있어야 한다.
+    """
+    from app.home.service import local_today
+    from app.projects.service import record_health_snapshots
+
+    today = local_today(settings, now).isoformat()
+    try:
+        with session_factory() as db:
+            sweep = record_health_snapshots(db, today=today, now=now)
+            db.commit()
+    except Exception as exc:
+        logger.exception("주간 헬스 스냅샷 회차가 통째로 실패했다 (today=%s)", today)
+        _record_sweep_status(
+            session_factory, now, None, error=f"{type(exc).__name__}: {exc}",
+        )
+        return None
+
+    _record_sweep_status(session_factory, now, sweep)
+    # 성공 회차도 한 줄 남긴다. 로그가 조용하면 "안 도는 것" 과 "돌았는데 적을 게 없던 것" 이
+    # 구별되지 않는다(이 저장소가 0 과 '없음' 을 다르게 다루는 것과 같은 이유).
+    log = logger.error if sweep.failed else logger.info
+    log(
+        "주간 헬스 스냅샷(%s): 기록 %d건, 건너뜀 %d건, 실패 %d건%s",
+        today, sweep.recorded, sweep.skipped, sweep.failed,
+        f" [{sweep.error_summary()}]" if sweep.failed else "",
+    )
+    return sweep
+
+
+def register_health_snapshot_tick(worker, session_factory, settings, *, interval=None):
+    """스냅샷 스윕을 워커 틱으로 등록한다. `main()` 이 부르는 유일한 배선 지점이다.
+
+    함수로 뽑아 둔 이유: `main()` 은 리스를 잡고 시그널을 걸고 무한 루프를 도는 함수라
+    테스트에서 부를 수 없다. 배선을 그 안에 인라인으로 두면 "주기 실행이 이력을 만든다" 를
+    **증명할 방법이 없어지고**, 그러면 이 과제가 고친 결함(아무도 안 부른다)이 다음 번엔
+    조용히 되돌아온다.
+    """
+    if interval is None:
+        interval = float(settings.project_health_snapshot_interval_seconds)
+    last: list = [None]
+
+    def health_snapshot_tick(now):
+        if last[0] is not None and (now - last[0]).total_seconds() < interval:
+            return
+        # 시각을 **먼저** 찍는다. 나중에 찍으면 회차가 오래 걸릴 때 그 시간만큼 다음 회차가
+        # 당겨지고, 통째로 실패하는 상황에서는 매 틱마다 재시도해 루프를 잡아먹는다.
+        last[0] = now
+        try:
+            run_health_snapshot_sweep(session_factory, settings, now)
+        except Exception:
+            # 여기까지 오면 안 되지만(위 함수가 이미 가둔다), 워커 루프는 어떤 경우에도
+            # 살아 있어야 한다. 한 겹 더 두는 비용이 워커가 죽는 비용보다 훨씬 싸다.
+            logger.exception("헬스 스냅샷 틱 실패 (워커 루프는 계속한다)")
+
+    worker.tick_callbacks.append(health_snapshot_tick)
+    return health_snapshot_tick
 
 
 def build_handlers() -> dict:
     """Job handler registry."""
     from app.jobs.handlers.chat_message import handle_chat_message
     from app.jobs.handlers.document_generate import handle_document_generate
+    from app.jobs.handlers.llm_connection_test import handle_llm_connection_test
+    from app.jobs.handlers.mail_send import handle_mail_send
     from app.jobs.handlers.notion_mapping_sync import handle_notion_mapping_sync
     from app.jobs.handlers.schedule_run import handle_schedule_run
+    from app.llm_console.service import JOB_TYPE_TEST
 
     return {
         "chat_message": handle_chat_message,
         "schedule_run": handle_schedule_run,
         "document_generate": handle_document_generate,
         "notion_mapping_sync": handle_notion_mapping_sync,
+        # 메일은 **여기서만** 나간다(9-9 P4). 새 큐를 만들지 않는 이유: 재시도, 백오프,
+        # 좀비 회수, 실패 알림이 이미 이 큐에 있다.
+        "mail_send": handle_mail_send,
+        # AI 연결 테스트(9-5). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
+        # 이유는 핸들러 파일 맨 위에 적어 뒀다.
+        JOB_TYPE_TEST: handle_llm_connection_test,
     }
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    # 웹(`create_app`)과 같은 설정을 쓴다. 예전에는 여기만 설정이 있어서 **워커 로그는 보이고
+    # 웹 로그는 안 보이는** 비대칭이 있었다 — RUNBOOK 의 journalctl 안내가 반만 맞았던 이유다.
+    configure_logging()
     settings = Settings()
     clock = SystemClock()
 
@@ -162,13 +292,17 @@ def main() -> int:
 
     from app.settings.service import SettingsCache
 
-    settings_cache = SettingsCache()
+    # 웹과 같은 이유로 `settings` 를 넘긴다(app/main.py 의 같은 줄 참조). 워커는 틱마다
+    # 다시 load 하므로 관리 콘솔에서 바꾼 노션 DB id 와 LLM 설정이 한 틱 안에 여기에도 온다.
+    settings_cache = SettingsCache(settings)
     with session_factory() as db:
         settings_cache.load(db)
 
     ctx = WorkerContext(
         settings=settings, clock=clock, outbound_client=outbound,
-        extras={"settings_cache": settings_cache},
+        # secret_provider 는 메일 발송(SMTP 비밀번호)이 쓴다. OutboundClient 가 이미 같은
+        # 제공자를 쥐고 있지만 그 안에 갇혀 있어 잡 핸들러가 꺼내 쓸 수 없었다.
+        extras={"settings_cache": settings_cache, "secret_provider": secrets},
     )
     worker = Worker(session_factory, clock, build_handlers(), ctx)
 
@@ -190,6 +324,28 @@ def main() -> int:
             scheduler.tick(now)
 
     worker.tick_callbacks.append(scheduler_tick)
+
+    # 좀비 실행 스윕 (S8) — 5분 간격. `Worker.sweep` 은 `Job` 만 보므로 `on_failure` 가
+    # 실패해 `running` 으로 남은 `ScheduleRun` 을 치우는 경로가 저장소에 없었다. 그 한 행이
+    # `concurrency=skip` 스케줄의 **모든 미래 실행을 영구히 skip** 시킨다.
+    from app.schedules.scheduler import sweep_zombie_runs
+
+    _last_zombie: list = [None]
+    ZOMBIE_SWEEP_INTERVAL_SECONDS = 300.0
+
+    def zombie_run_tick(now):
+        if (_last_zombie[0] is not None
+                and (now - _last_zombie[0]).total_seconds() < ZOMBIE_SWEEP_INTERVAL_SECONDS):
+            return
+        _last_zombie[0] = now
+        try:
+            with session_factory() as db:
+                if sweep_zombie_runs(db, now=now):
+                    db.commit()
+        except Exception:
+            logger.exception("zombie schedule-run sweep failed")
+
+    worker.tick_callbacks.append(zombie_run_tick)
 
     # 승인 만료 스윕 (spec §20) — 1분 간격.
     from app.approvals.service import expire_pending
@@ -334,6 +490,40 @@ def main() -> int:
                 logger.exception("tickets sync tick failed")
 
     worker.tick_callbacks.append(tickets_sync_tick)
+
+    # 프로젝트 미러 주기 동기화 (0045) — notion_projects_sync_interval_seconds 간격.
+    # 티켓 미러 **뒤에** 등록한다: 프로젝트 진행률은 `ticket_cache` 를 세므로, 첫 틱에서
+    # 티켓이 먼저 채워져야 새로 들어온 프로젝트가 "작업 0건"으로 보이지 않는다.
+    # sync_projects 가 내부에서 예외를 가두므로 이 tick 도 루프 밖으로 아무것도 던지지 않는다.
+    from app.observability.models import COMPONENT_PROJECTS
+    from app.projects.sync import sync_projects
+
+    _last_projects_sync: list = [None]
+    PROJECTS_SYNC_INTERVAL_SECONDS = float(settings.notion_projects_sync_interval_seconds)
+
+    def projects_sync_tick(now):
+        if _last_projects_sync[0] is None or (now - _last_projects_sync[0]).total_seconds() >= PROJECTS_SYNC_INTERVAL_SECONDS:
+            _last_projects_sync[0] = now
+            try:
+                with session_factory() as db:
+                    state = sync_projects(db, outbound=outbound, settings=settings, now=now)
+                    mirror_sync_status(db, COMPONENT_PROJECTS, state, now)
+                    db.commit()
+            except Exception:
+                logger.exception("projects sync tick failed")
+
+    worker.tick_callbacks.append(projects_sync_tick)
+
+    # 주간 프로젝트 헬스 스냅샷 — project_health_snapshot_interval_seconds 간격.
+    #
+    # **프로젝트 미러 뒤에 등록한다.** 헬스 규칙은 `ticket_cache` 와 프로젝트 행을 세므로,
+    # 첫 틱에서 티켓 미러와 프로젝트 미러가 먼저 채워져야 한다. 앞에 두면 워커 기동 직후
+    # 첫 회차가 빈 표본으로 점수를 매기고, 그 점수가 **그 주의 이력으로 남는다** - 이력은
+    # 나중에 덮이더라도 그 주의 첫 판단이 거짓이었다는 사실은 화면에 안 보인다.
+    #
+    # 배선을 함수로 뽑아 둔 이유는 `register_health_snapshot_tick` 의 docstring 에 있다:
+    # 여기 인라인으로 두면 "주기 실행이 이력을 만든다" 를 테스트가 증명할 방법이 없다.
+    register_health_snapshot_tick(worker, session_factory, settings)
 
     # 통합 검색 인덱스 재구축 (PLAN Phase 5) — search_index_interval_seconds 간격.
     #

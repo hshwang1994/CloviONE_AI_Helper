@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Callable
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.approvals.models import (
@@ -27,7 +27,7 @@ from app.approvals.models import (
     Approval,
 )
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
-from app.notifications.service import notify_admins, notify_user
+from app.notifications.service import notify_approvers, notify_user
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.users.models import ROLE_SYSTEM_ADMIN, User
 
@@ -161,7 +161,7 @@ def create_approval(
     )
     db.add(row)
     db.flush()
-    notify_admins(
+    notify_approvers(
         db,
         type_="approval_requested",
         title=f"승인 요청: {request_type}",
@@ -169,11 +169,103 @@ def create_approval(
         related=("approval", row.id),
         now=now,
     )
+    _mail_approvers(db, row, requested_by, now=now)
     return row
 
 
+def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: datetime) -> None:
+    """승인 요청을 메일로도 알린다 (9-9 P4).
+
+    화면 안 알림만으로는 부족하다: 결재자가 포털을 안 열고 있으면 요청은 만료될 때까지
+    아무도 모른다(`expire_pending` 이 조용히 죽인다). 승인 큐가 밀리는 이유 중 하나였다.
+
+    **수신자 목록을 여기서 다시 정하지 않는다.** 바로 위 `notify_approvers` 와 똑같이
+    `approver_user_ids` 를 쓴다 - 관리자만 골랐다가는 "결재하라고 권한을 준 피위임자가
+    영원히 못 받는다" 는 예전 결함(X7)을 메일 쪽에서 그대로 되풀이한다.
+
+    **메일 실패가 승인 생성을 막지 않는다** - 이 저장소의 기존 규칙이다(알림 실패와 같다).
+    다만 조용히 사라지지도 않는다: 못 보낸 사실은 `mail_deliveries` 에 남는다.
+    """
+    try:
+        from app.mail.renderers import KIND_APPROVAL_REQUESTED
+        from app.mail.service import queue_mail_to_users
+        from app.notifications.service import approver_user_ids
+
+        queue_mail_to_users(
+            db,
+            approver_user_ids(db, now=now),
+            kind=KIND_APPROVAL_REQUESTED,
+            subject=f"[ClovirAssist] 승인 요청: {row.request_type}",
+            params={
+                "request_type": row.request_type,
+                "requested_by": requested_by.display_name,
+                "object_type": row.object_type,
+            },
+            now=now,
+        )
+    except Exception:  # noqa: BLE001 - 알림 경로가 본 작업을 죽이면 안 된다
+        import logging
+
+        logging.getLogger("app.approvals").exception(
+            "승인 요청 메일을 큐에 넣지 못했다 (승인 자체는 생성됐다)"
+        )
+
+
 def get_approval_or_404(db: Session, approval_id: str) -> Approval:
+    """범위를 **보지 않는** 조회. 라우터에서 직접 쓰지 말 것 — `get_scoped_approval_or_404`.
+
+    실행기(executor)나 워커처럼 요청 주체가 없는 경로를 위해 남겨 둔다.
+    """
     row = db.get(Approval, approval_id)
+    if row is None:
+        raise NotFoundError("승인 요청을 찾을 수 없습니다.")
+    return row
+
+
+# ── 범위 (§0-A 1순위) ────────────────────────────────────────────────────────
+#
+# 승인 큐를 목록에서만 좁히는 것은 **아무 의미가 없다** — approve/reject/cancel 은 승인 id 를
+# 직접 받는다. 그리고 여기서 새는 것은 읽기 유출이 아니라 **권한 부여 실행**이다: 부서 범위
+# 관리자가 남의 팀에서 올라온 `user.role_change` 요청을 결재해 admin 을 만들어 낼 수 있었다.
+#
+# 그래서 목록과 단건이 **같은 함수**를 지난다. 두 벌로 적으면 한쪽만 고쳐지고, 증상은
+# "어떤 사람만 안 된다" 로 나타나 원인을 찾기가 어렵다.
+#
+# 시스템 소유 예외는 **없다**: 잡(`jobs.user_id`)과 달리 `approvals.requested_by` 는 NOT NULL
+# 이라 소유자 없는 행 자체가 존재하지 않는다(목록 주석의 결론 그대로).
+
+
+def scope_clause(visible: frozenset[str] | None):
+    """요청자가 범위 안인가. 전역(``visible is None``)이면 ``None`` = 조건 없음.
+
+    ``None`` 을 돌려주는 이유는 `app/core/scope.py::scope_filter` 와 같다 — 부르는 쪽이
+    `if clause is None` 을 쓸 수밖에 없어 '범위를 고려했다'가 코드에 남는다.
+    """
+    if visible is None:
+        return None
+    return Approval.requested_by.in_(tuple(sorted(visible)))
+
+
+def apply_scope(stmt: Select, visible: frozenset[str] | None) -> Select:
+    clause = scope_clause(visible)
+    return stmt if clause is None else stmt.where(clause)
+
+
+def get_scoped_approval_or_404(
+    db: Session, approval_id: str, visible: frozenset[str] | None
+) -> Approval:
+    """단건 조회 — 범위 밖은 **없는 것과 똑같이 404** 다.
+
+    403 은 "그 승인은 존재한다"를 알려 준다. 승인 id 를 찍어 보며 403/404 를 세면 다른 팀의
+    승인 큐가 있다는 사실과 그 규모를 열거할 수 있다. 문구까지 `get_approval_or_404` 와
+    동일하게 맞춰 둔다 — 응답으로 두 경우를 구별할 수 없어야 한다.
+
+    조건을 **조회 자체에** 붙인다(`jobs/repository.py::get_in_scope` 와 같은 이유): 먼저
+    꺼내 놓고 나중에 판정하면 판정을 빠뜨린 새 경로가 조용히 열린다.
+    """
+    row = db.execute(
+        apply_scope(select(Approval).where(Approval.id == approval_id), visible)
+    ).scalar_one_or_none()
     if row is None:
         raise NotFoundError("승인 요청을 찾을 수 없습니다.")
     return row

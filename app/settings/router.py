@@ -33,13 +33,29 @@ class SettingChange(BaseModel):
     value: Any
 
 
+def _guard_system_admin_key(request: Request, key: str) -> None:
+    """설치 한 벌 전체를 정하는 키는 시스템 관리자만 바꾼다 (9-4, 9-5).
+
+    목록은 `app/settings/registry.py::SYSTEM_ADMIN_ONLY_KEYS` 에 이유와 함께 있다.
+    여기서 막는 이유: `CONSOLE_WRITE_ROLES` 의 `admin` 은 부서 범위로 좁혀질 수 있는데,
+    노션 데이터베이스 id 와 AI 실행 파일 경로에는 '부서' 라는 개념 자체가 없다.
+    """
+    from app.core.errors import ForbiddenError
+    from app.settings.registry import SYSTEM_ADMIN_ONLY_KEYS
+    from app.users.models import ROLE_SYSTEM_ADMIN
+
+    if key in SYSTEM_ADMIN_ONLY_KEYS and request.state.user.role != ROLE_SYSTEM_ADMIN:
+        raise ForbiddenError("이 설정은 시스템 관리자만 바꿀 수 있습니다.")
+
+
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_settings(request: Request, db: Session = Depends(get_db)):
     return {"settings": effective_settings(db, request.app.state.settings_cache)}
 
 
 @router.post("/{key}/dry-run", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def dry_run_setting(key: str, payload: SettingChange):
+def dry_run_setting(request: Request, key: str, payload: SettingChange):
+    _guard_system_admin_key(request, key)
     return dry_run(key, payload.value)
 
 
@@ -47,6 +63,7 @@ def dry_run_setting(key: str, payload: SettingChange):
 def update_setting(
     request: Request, key: str, payload: SettingChange, db: Session = Depends(get_db)
 ):
+    _guard_system_admin_key(request, key)
     result = apply_setting(
         db,
         request.app.state.settings_cache,
@@ -110,6 +127,7 @@ class _RollbackBody(BaseModel):
 def rollback(
     request: Request, key: str, payload: _RollbackBody, db: Session = Depends(get_db),
 ):
+    _guard_system_admin_key(request, key)
     version = payload.version
     result = rollback_setting(
         db, request.app.state.settings_cache, key=key, version=version,

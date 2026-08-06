@@ -2,17 +2,18 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
 import { Home } from "../screens/Home.jsx";
-import { Board } from "../screens/Board.jsx";
+import { Board, IdeaBoard } from "../screens/Board.jsx";
 import { BoardPost } from "../screens/BoardPost.jsx";
 import { TeamDocs } from "../screens/TeamDocs.jsx";
 import { TeamDoc } from "../screens/TeamDoc.jsx";
 import { Trash } from "../screens/Trash.jsx";
 import { Ticket } from "../screens/Ticket.jsx";
 import { TeamTickets } from "../screens/TeamTickets.jsx";
+import { Projects } from "../screens/Projects.jsx";
+import { Project } from "../screens/Project.jsx";
 import { Sprint } from "../screens/Sprint.jsx";
 import { Games } from "../screens/Games.jsx";
 import { ChatRooms } from "../screens/ChatRooms.jsx";
-import { ChatRoom } from "../screens/ChatRoom.jsx";
 import { Search } from "../screens/Search.jsx";
 import { Profile } from "../screens/Profile.jsx";
 import { MyStats } from "../screens/MyStats.jsx";
@@ -54,11 +55,21 @@ function UserRoutes() {
       <Route path="/new-ticket" element={<NewTicket />} />
       <Route path="/tickets/:id" element={<Ticket />} />
       <Route path="/team-tickets" element={<TeamTickets />} />
+      {/* 프로젝트 목록과 상세. 상세 안의 탭(개요·WBS·마일스톤·티켓·주간 리포트)은 라우트가
+          아니라 주소의 `?tab=` 이다 — 탭마다 라우트를 두면 사이드바 소속 판정과 뒤로가기
+          동작이 탭 수만큼 늘어나는데, 사용자에게는 여전히 '한 화면'이다. */}
+      <Route path="/projects" element={<Projects />} />
+      <Route path="/projects/:id" element={<Project />} />
       <Route path="/sprint" element={<Sprint />} />
       <Route path="/chat" element={<div className="c-chat-embed"><Lazy><Chat /></Lazy></div>} />
+      {/* 두 경로가 **같은 껍데기**를 그린다(S1). 오른쪽 칸만 바뀌므로 방을 옮겨도 목록이
+          그대로 있고, 알림 딥링크(`/chat-rooms/<id>`)와 새로고침·뒤로가기도 그대로 동작한다. */}
       <Route path="/chat-rooms" element={<ChatRooms />} />
-      <Route path="/chat-rooms/:id" element={<ChatRoom />} />
+      <Route path="/chat-rooms/:id" element={<ChatRooms />} />
       <Route path="/board" element={<Board />} />
+      {/* 제안 게시판(7단계 #1)은 **목록만** 따로 있다. 상세는 `/board/:id` 하나뿐이다 —
+          같은 표의 같은 행이고, 화면도 하나여야 첨부·댓글·반응이 두 벌이 되지 않는다. */}
+      <Route path="/ideas" element={<IdeaBoard />} />
       <Route path="/board/:id" element={<BoardPost />} />
       <Route path="/team-docs" element={<TeamDocs />} />
       {/* /team-docs/trash 는 /team-docs/:id 보다 먼저 — id 로 잡히지 않게 */}

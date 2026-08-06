@@ -30,6 +30,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -41,12 +42,14 @@ from app.core.scope import apply_user_scope
 from app.offboarding.models import (
     MOVE_FAILED,
     MOVE_MOVED,
+    MOVE_PENDING,
     MOVE_REVERT_FAILED,
     MOVE_REVERTED,
     MOVE_SKIPPED,
     REVERTIBLE_MOVES,
     RUN_COMPLETED,
     RUN_PARTIAL,
+    RUN_RUNNING,
     RUN_UNDO_PARTIAL,
     RUN_UNDONE,
     OffboardingRun,
@@ -62,6 +65,8 @@ from app.users.service import (
     set_user_active,
     unarchive_user,
 )
+
+logger = logging.getLogger("app.offboarding")
 
 # 한 번에 옮길 수 있는 티켓 수 상한. 건마다 Notion 왕복이 두 번(읽기+쓰기)이라 상한이 없으면
 # 요청 하나가 몇 분씩 걸리고 그 사이 타임아웃이 나면 '절반만 옮겨진' 상태의 원인을 알기 어렵다.
@@ -176,7 +181,7 @@ def _open_run_view(db: Session, user_id: str) -> dict | None:
     row = db.execute(
         select(OffboardingRun)
         .where(OffboardingRun.user_id == user_id, OffboardingRun.undone_at.is_(None))
-        .order_by(OffboardingRun.created_at.desc())
+        .order_by(OffboardingRun.created_at.desc(), OffboardingRun.id.desc())
     ).scalars().first()
     return run_view(row) if row is not None else None
 
@@ -212,8 +217,14 @@ def run_offboarding(
         created_at=stamp,
         updated_at=stamp,
     )
+    run.status = RUN_RUNNING
     db.add(run)
-    db.flush()
+    # **장부를 먼저 커밋한다** (C3). 이 아래는 전부 Notion 을 실제로 바꾸는 일이고,
+    # `get_db` 는 예외가 나면 요청 세션을 통째로 롤백한다 — 한 트랜잭션에 두면
+    # 마지막 단계(계정 처리)에서 실패했을 때 **Notion 재배정은 남고 그 사실을 아는 행은
+    # 전부 사라진다**. 되돌리기의 입력이 사라지므로 복구도 불가능하다.
+    # (같은 논거가 `core/deps.py::_count_blocked_write` 에 이미 적혀 있다.)
+    db.commit()
 
     moves = _move_tickets(
         db, outbound, settings, actor=actor, target=target, successor=successor,
@@ -221,7 +232,14 @@ def run_offboarding(
     )
     run.ticket_moved = sum(1 for m in moves if m.status == MOVE_MOVED)
     run.ticket_failed = sum(1 for m in moves if m.status == MOVE_FAILED)
-    run.status = RUN_PARTIAL if run.ticket_failed else RUN_COMPLETED
+    db.commit()   # 티켓 결과는 계정 처리 성패와 무관하게 남아야 한다
+
+    # 채팅방 방장직 이전 (X8). 티켓만 넘기고 방을 두면 퇴사자가 방장으로 남아
+    # **아무도 그 방을 관리할 수 없다** — 그런데 관리자는 "완료" 를 보고 끝났다고 믿는다.
+    # 계정 처리 **앞**이다: 비활성/보관된 계정을 멤버 후보로 다루지 않으려면 아직 살아
+    # 있는 동안 정리해야 한다(티켓과 같은 순서 논리).
+    run.rooms_transferred = _transfer_room_ownership(db, target=target, successor=successor)
+    db.commit()   # 방 결과도 계정 처리 성패와 무관하게 남아야 한다
 
     # 계정 처리는 티켓 이동 **뒤**다(순서가 계약 — 모듈 docstring).
     # 이미 그 상태이던 계정은 건드리지 않았다고 기록한다 — 되돌리기가 없던 권한을 주지 않게.
@@ -237,8 +255,74 @@ def run_offboarding(
             actor_id=actor.id, now=stamp,
         )
         run.archived = True
+
+    # 넘겨받은 사람에게 통보한다 (N2). 계정 처리 뒤에 두는 이유는 없다 — 여기 있는 것은
+    # 티켓, 방, 계정이 모두 정리된 **최종 결과**를 한 문장으로 적기 위해서다.
+    _notify_handover(db, actor=actor, target=target, successor=successor, run=run, now=stamp)
+
+    # 상태를 **마지막에** 확정한다. 여기까지 못 오면 행은 `running` 으로 남는다 — 그게
+    # 사실이다. 앞에서 `completed` 로 적어 두면 중단된 실행이 "다 끝났다"고 거짓말한다.
+    run.status = RUN_PARTIAL if run.ticket_failed else RUN_COMPLETED
+    run.updated_at = stamp
     db.flush()
     return {"run": run_view(run, moves), "moves": [move_view(m) for m in moves]}
+
+
+def _notify_handover(
+    db: Session, *, actor: User, target: User, successor: User | None,
+    run: OffboardingRun, now: datetime,
+) -> None:
+    """후임에게 "무엇을 넘겨받았는지"를 **한 건**으로 알린다 (N2).
+
+    감사 확인: 티켓과 방을 넘겨받은 사람이 그 사실을 통보받지 못했다. 관리자는 마법사에서
+    "완료"를 보고 끝났다고 믿는데, 정작 그 일을 하게 된 사람만 모르는 상태였다.
+
+    ## 왜 요약 한 건인가
+
+    건별 알림은 `replace_ticket_assignee(notify=False)` 로 껐다. 오프보딩은 티켓을 100건까지
+    한 번에 옮길 수 있어서(MAX_TICKETS_PER_RUN), 건별로 보내면 배지에 100 이 찍힌다.
+    그건 통보가 아니라 사고고, 한 번 겪은 사람은 그다음부터 배지를 안 본다.
+
+    ## 안 보내는 경우
+
+      * 후임이 없다(미할당으로 보냈다) — 받을 사람이 없다.
+      * 후임이 **실행한 관리자 본인**이다 — 자기가 방금 한 일을 자기에게 알리지 않는다.
+      * 실제로 넘어간 것이 하나도 없다(티켓 0건 + 방 0건) — 알릴 사건이 없다.
+
+    ## 딥링크
+
+    관련 객체를 싣지 않는다. 넘어간 티켓이 여럿이라 가리킬 단건이 없고, 오프보딩 실행 기록은
+    관리자 화면이라 후임(대개 일반 사용자)은 열 수 없다. 없는 목적지를 만들어 붙이면
+    "눌러도 아무 일이 없는 알림"이 되므로 본문으로 어디를 볼지 적는다.
+
+    ## 실패해도 오프보딩은 되돌아가지 않는다
+
+    이 시점에는 Notion 이 이미 바뀌었고 그 사실을 적은 행도 커밋됐다. 알림 하나 때문에
+    예외를 위로 던지면 요청이 롤백되면서 **되돌리기의 입력이 사라진다** — 그래서 삼키되,
+    삼킨 사실은 로그에 남긴다.
+    """
+    if successor is None or successor.id == actor.id:
+        return
+    moved = int(run.ticket_moved or 0)
+    rooms = int(run.rooms_transferred or 0)
+    if moved == 0 and rooms == 0:
+        return
+    try:
+        from app.notifications.service import notify_user
+
+        parts = []
+        if moved:
+            parts.append(f"티켓 {moved}건")
+        if rooms:
+            parts.append(f"채팅방 {rooms}개")
+        notify_user(
+            db, successor.id, type_="offboarding_handover",
+            title=f"{target.display_name} 님의 업무를 넘겨받았습니다",
+            body=f"{', '.join(parts)}이(가) 내 담당으로 바뀌었습니다. 내 티켓 화면에서 확인하세요.",
+            now=now,
+        )
+    except Exception:  # noqa: BLE001 — 알림이 오프보딩 기록을 되돌리면 안 된다
+        logger.exception("오프보딩 인수 알림에 실패했다 (run_id=%s)", run.id)
 
 
 def _move_tickets(
@@ -250,13 +334,22 @@ def _move_tickets(
     for page_id in page_ids:
         move = OffboardingTicketMove(
             run_id=run.id, ticket_page_id=page_id, created_at=now, updated_at=now,
+            status=MOVE_PENDING,
         )
+        # 소스를 부르기 **전에** 적고 커밋한다. 이 왕복 도중에 죽으면 Notion 이 바뀌었는지
+        # 알 수 없는데, 행이 없으면 그 티켓은 아무 흔적도 남지 않는다. `pending` 은
+        # "확인이 필요한 건" 이라는 뜻이고, 되돌리기 대상은 아니다(직전 담당자를 아직 모른다).
+        db.add(move)
+        db.commit()
         try:
             result = tickets.replace_ticket_assignee(
                 db, outbound, settings, actor, page_id=page_id,
                 from_user_id=target.id,
                 to_user_id=successor.id if successor else None,
                 now=now, repo=repo,
+                # 건별 배정 알림은 끈다. 100건을 넘기면 후임의 배지에 알림 100건이 꽂히는데
+                # 그건 통보가 아니라 사고다 — 대신 `_notify_handover` 가 요약 한 건을 보낸다.
+                notify=False,
             )
         except AppError as exc:
             move.status = MOVE_FAILED
@@ -272,9 +365,10 @@ def _move_tickets(
             move.before_user_ids = join_names(result["before_user_ids"])
             move.after_user_ids = join_names(result["after_user_ids"])
             move.status = MOVE_MOVED if result["changed"] else MOVE_SKIPPED
-        db.add(move)
+        move.updated_at = now
+        # 한 건이 끝날 때마다 확정한다 — 다음 건에서 무슨 일이 나든 이 결과는 남는다.
+        db.commit()
         moves.append(move)
-    db.flush()
     return moves
 
 
@@ -299,7 +393,9 @@ def undo(
         set_user_active(
             db, target, True, session_service=session_service, actor_role=actor.role,
         )
-    db.flush()
+    # 계정 복구를 먼저 확정한다 — 아래 티켓 되돌리기가 Notion 왕복이고, 거기서 죽으면
+    # 계정만 잠긴 채 남는다(그리고 담당자 해석이 보관 계정을 안 봐서 재시도도 막힌다).
+    db.commit()
 
     moves = _run_moves(db, run.id)
     failed = 0
@@ -310,6 +406,9 @@ def undo(
             tickets.set_ticket_assignees(
                 db, outbound, settings, actor, page_id=move.ticket_page_id,
                 user_ids=split_names(move.before_user_ids), now=stamp, repo=repo,
+                # 되돌리기도 같은 이유로 건별 알림을 끈다. 되돌리기는 '없던 일로 만드는'
+                # 조작이라, 그 결과로 알림이 쏟아지면 사람들은 '또 뭘 배정받았나' 하고 본다.
+                notify=False,
             )
         except AppError as exc:
             move.status = MOVE_REVERT_FAILED
@@ -323,6 +422,8 @@ def undo(
             move.status = MOVE_REVERTED
             move.error = None
             move.reverted_at = stamp
+        move.updated_at = stamp
+        db.commit()   # 실행과 같은 이유 — 되돌린 건은 되돌린 채로 남는다
 
     run.undone_at = stamp
     run.undone_by_user_id = actor.id
@@ -371,7 +472,7 @@ def list_runs(db: Session, scope, *, offset: int, limit: int) -> tuple[list[dict
     stmt = apply_user_scope(stmt, scope)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = db.execute(
-        stmt.order_by(OffboardingRun.created_at.desc()).offset(offset).limit(limit)
+        stmt.order_by(OffboardingRun.created_at.desc(), OffboardingRun.id.desc()).offset(offset).limit(limit)
     ).scalars().all()
     names = _name_map(db, rows)
     return [run_view(r, names=names) for r in rows], total
@@ -408,6 +509,8 @@ def run_view(run: OffboardingRun, moves=None, *, names: dict[str, str] | None = 
         "ticket_total": run.ticket_total,
         "ticket_moved": run.ticket_moved,
         "ticket_failed": run.ticket_failed,
+        # 화면이 "무엇을 했는가" 를 답할 수 있어야 한다 — 안 실으면 이력이 방 이전을 모른다(X8).
+        "rooms_transferred": run.rooms_transferred,
         "undone_at": run.undone_at.isoformat() if run.undone_at else None,
         "undone_by_user_id": run.undone_by_user_id,
         "undo_error": run.undo_error,
@@ -436,3 +539,53 @@ def move_view(move: OffboardingTicketMove) -> dict:
 def resolve_target(db: Session, user_id: str, scope) -> User:
     """대상 사용자 단건 — 범위 밖은 404(존재를 알려 주지 않는다)."""
     return get_scoped_user_or_404(db, user_id, scope)
+
+
+def _transfer_room_ownership(db: Session, *, target: User, successor: User | None) -> int:
+    """퇴사자가 방장인 **그룹** 방의 방장직을 넘긴다. 넘긴 방 수를 돌려준다 (X8).
+
+    **누구에게 넘기는가**: 후임이 그 방 멤버면 후임, 아니면 **가장 오래된 다른 멤버**다.
+    후임을 방에 억지로 넣지 않는다 — 오프보딩은 티켓을 넘기는 일이지 남의 대화방에
+    사람을 밀어 넣는 일이 아니다. 넘길 사람이 아무도 없으면(혼자 있던 방) 그대로 둔다:
+    받을 사람이 없는데 방장을 비우면 그때부터는 **되살릴 방법도 없다.**
+
+    **멤버십은 유지한다.** 지우면 지난 대화의 발신자가 참여자 목록에서 사라져 "이 말을
+    누가 했는지" 를 못 읽는다. 퇴사자를 화면에서 지우는 것이 아니라 **보관됨으로 표시**하는
+    것이 이 저장소의 방향이다(N3).
+
+    1:1(dm)과 전체 방은 건드리지 않는다 — 방장 개념이 뜻을 갖지 않는다.
+    """
+    from app.team_chat.models import ROLE_MEMBER, ROLE_OWNER, ROOM_GROUP, ChatRoom, ChatRoomMember
+
+    owned = db.execute(
+        select(ChatRoomMember)
+        .join(ChatRoom, ChatRoom.id == ChatRoomMember.room_id)
+        .where(
+            ChatRoomMember.user_id == target.id,
+            ChatRoomMember.role == ROLE_OWNER,
+            ChatRoom.kind == ROOM_GROUP,
+            ChatRoom.is_global.is_(False),
+        )
+    ).scalars().all()
+
+    moved = 0
+    for mine in owned:
+        candidates = db.execute(
+            select(ChatRoomMember)
+            .where(
+                ChatRoomMember.room_id == mine.room_id,
+                ChatRoomMember.user_id != target.id,
+            )
+            .order_by(ChatRoomMember.joined_at.asc(), ChatRoomMember.id.asc())
+        ).scalars().all()
+        if not candidates:
+            continue
+        heir = next(
+            (c for c in candidates if successor is not None and c.user_id == successor.id),
+            candidates[0],
+        )
+        heir.role = ROLE_OWNER
+        mine.role = ROLE_MEMBER
+        moved += 1
+    db.flush()
+    return moved

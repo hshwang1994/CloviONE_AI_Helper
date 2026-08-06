@@ -23,32 +23,73 @@ import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
  * 미저장 변경 보호)은 한 줄도 바꾸지 않았다 — 이 화면의 위험은 전부 그쪽에 있다. */
 
 // snake_case 백엔드 키를 한국어 이름으로. 한국어 콘솔에 raw 영문 키를 주 식별자로 노출하지 않는다.
-const SETTING_LABELS = {
+export const SETTING_LABELS = {
   // 라벨과 설명(registry.py) 용어를 '보존'으로 통일한다 — 라벨은 '보관', 옆 설명은 '보존'이라 서로 다른 개념처럼 보였다.
   conversation_retention_days: "대화 보존 기간(일)",
   notification_retention_days: "알림 보존 기간(일)",
   trash_retention_days: "휴지통 보관 기간(일)",
   ui_branding: "브랜딩",
+  // 메일 발송(9-9 P4). 라벨이 없으면 이 표에 `smtp` 라는 영문 키가 그대로 새어 나간다.
+  smtp: "메일(SMTP) 발송",
   maintenance_mode: "유지보수 모드",
   maintenance_message: "점검 공지",
   password_policy: "비밀번호 정책",
   session_policy: "세션 정책",
-  allowed_email_domains: "허용 이메일 도메인",
+  // N7: "로그인 허용" 이라 적혀 있었는데 실제로는 **생성 시에만** 검사한다
+  // (`app/users/service.py`). 도메인을 좁혀도 기존 계정은 그대로 들어온다 —
+  // 운영자가 이 값으로 접근을 끊을 수 있다고 믿으면 그게 보안 사고가 된다.
+  allowed_email_domains: "계정 생성 허용 도메인",
   document_automation_enabled: "문서 자동화",
+  // N6: 이 키가 세 맵에 **전부** 빠져 있어 관리자가 raw 영문 키 + raw JSON 으로 편집했다.
+  // 이 파일이 그 드리프트를 예견해 경고까지 심어 놨는데 `import.meta.env.DEV` 게이트라
+  // 운영에서는 침묵했다 — 예견해 놓고 못 잡은 셈이다.
+  backup_schedule: "자동 백업 일정",
+  // Notion 관리(9-4)와 AI 관리(9-5). 이 표에서는 숨기지만(DEDICATED_SCREEN_KEYS) 라벨은
+  // 있어야 한다 - 감사 로그와 버전 기록이 이 이름으로 나온다.
+  notion_tasks_database_id: "노션 작업 데이터베이스 id",
+  notion_documents_database_id: "노션 문서 데이터베이스 id",
+  notion_sprint_database_id: "노션 스프린트 데이터베이스 id",
+  llm_enabled: "AI 사용 여부",
+  llm_backend: "AI 백엔드",
+  llm_executable: "AI 실행 파일",
+  llm_model: "AI 모델",
+  llm_timeout_seconds: "AI 제한 시간(초)",
+  llm_max_concurrency: "AI 동시 실행 수",
 };
 const settingLabel = (k) => SETTING_LABELS[k] || k;
 // object 설정 편집 시 필요한 키·단위를 알려 준다(비개발자 관리자가 raw JSON을 추측하지 않게).
-const OBJECT_SCHEMA_HELP = {
+export const OBJECT_SCHEMA_HELP = {
   password_policy: 'JSON 예: {"min_length": 12, "min_classes": 3}, min_length(최소 글자 수), min_classes(문자 종류 수, 1~4).',
   session_policy: 'JSON 예: {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, 값은 초 단위입니다(30분=1800, 8시간=28800).',
   // 백엔드(_email_domains)는 빈 목록([])을 '도메인 제한 없음'으로 허용한다(round10 감사 C 반영).
-  allowed_email_domains: 'JSON 예: ["goodmit.co.kr"], 로그인 허용 이메일 도메인 목록. 빈 목록([])이면 도메인 제한 없이 모든 이메일을 허용합니다.',
-  ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@goodmit.co.kr"}, 제품명, 지원 이메일 등 브랜딩 값.',
+  allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 만들 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
+  ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
+  // 비밀번호를 이 JSON 에 넣으면 설정 화면·감사·버전 스냅샷에 평문으로 남는다. 그래서
+  // 서버는 **파일 이름**(password_ref)만 받는다 - 그 사실을 여기서 분명히 말한다.
+  smtp: 'JSON 예: {"enabled": true, "host": "smtp.example.com", "port": 587, "security": "starttls", "from_address": "portal@example.com", "password_ref": "smtp_password"}, 비밀번호는 여기 적지 않습니다. 서버의 secret 파일 이름만 password_ref 에 적습니다.',
+  // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
+  // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
+  backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365).',
 };
 const WRITE_ROLES = ["admin", "system_admin"];
 // maintenance_mode·maintenance_message는 전용 '유지보수' 화면(/maintenance)에서만 관리한다.
 // 같은 안전 스위치를 두 화면에서 서로 다른 방식으로 다루지 않도록 설정 표에서는 숨긴다.
 const MAINTENANCE_KEYS = ["maintenance_mode", "maintenance_message"];
+// Notion 관리(9-4)와 AI 관리(9-5) 키는 전용 화면에서만 다룬다. 유지보수 키와 **같은 이유**로
+// 이 표에서 숨긴다: 같은 값을 두 화면에서 서로 다른 방식으로(여기서는 raw JSON, 저쪽에서는
+// 연결 테스트가 붙은 폼으로) 다루면 두 화면이 서로 다른 것을 가르치게 된다.
+//
+// 게다가 이 키들은 서버가 **시스템 관리자만** 쓰게 막는다
+// (app/settings/registry.py::SYSTEM_ADMIN_ONLY_KEYS). 여기 남겨 두면 부서 관리자에게
+// 편집기가 열리고 저장에서 403 을 받는다 - 막다른 길이다.
+const DEDICATED_SCREEN_KEYS = [
+  "notion_tasks_database_id", "notion_documents_database_id", "notion_sprint_database_id",
+  "llm_enabled", "llm_backend", "llm_executable", "llm_model",
+  "llm_timeout_seconds", "llm_max_concurrency",
+];
+// 두 전용 화면의 실제 접근 역할(AdminRoutes.jsx / navConfig.js / 백엔드 라우터와 같은 집합).
+// 이 목록으로 게이트해야 열 수 없는 사람에게 죽은 링크를 주지 않는다.
+const CONSOLE_SCREEN_ROLES = ["system_admin"];
 // /maintenance 라우트의 실제 접근 역할(App.jsx RequireRole/NAV와 일치) — operator·auditor도 조회는
 // 할 수 있다(쓰기만 canWrite로 서버가 막는다). 아래 안내 링크는 이 화면 자체의 canWrite(설정 편집 권한)가
 // 아니라 이 목록으로 게이트해야, 조회만 가능한 역할도 403 없이 실제로 열 수 있는 화면을 클릭할 수 있다.
@@ -104,6 +145,15 @@ export function summarizeSetting(key, v) {
   if (key === "allowed_email_domains") {
     // 백엔드는 빈 목록([])을 '도메인 제한 없음'으로 허용한다, 빈 값은 그 뜻을 분명히 요약한다.
     if (Array.isArray(v)) return v.length ? "도메인: " + v.join(", ") : "제한 없음(모든 도메인 허용)";
+  }
+  if (key === "backup_schedule") {
+    /* 백업은 **복원이 필요해진 날**에야 안 도는 것을 알게 되는 부류다 — 요약이 켜짐/꺼짐과
+       주기를 한 줄로 말해 주지 않으면 관리자가 raw JSON 을 눈으로 파싱해야 한다. */
+    if (!v.enabled) return "꺼짐";
+    const parts = ["켜짐"];
+    if (v.cron) parts.push(String(v.cron) + " (" + String(v.timezone || "Asia/Seoul") + ")");
+    if (v.keep != null) parts.push(v.keep + "개 보관");
+    return parts.join(", ");
   }
   if (key === "ui_branding") {
     const parts = [];
@@ -239,7 +289,7 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
       // 반응한다'는 보장이 깨졌다.
       if (!d) { setDomainErr(draft ? "공백만으로는 추가할 수 없습니다." : "도메인을 입력하세요."); return; }
       if (!d.includes(".") || d.startsWith(".") || d.endsWith(".")) {
-        setDomainErr("도메인 형식이 아닙니다(예: goodmit.co.kr), 점(.)을 포함해야 합니다.");
+        setDomainErr("도메인 형식이 아닙니다(예: example.com), 점(.)을 포함해야 합니다.");
         return;
       }
       if (domains.includes(d)) { setDomainErr("이미 등록된 도메인입니다."); return; }
@@ -271,7 +321,7 @@ function StructuredObjectFields({ settingKey, val, onChange, canWrite, described
           <>
             <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
               <TextField
-                id={domainInputId} size="small" placeholder="예: goodmit.co.kr" value={draft}
+                id={domainInputId} size="small" placeholder="예: example.com" value={draft}
                 error={!!domainErr} sx={{ minWidth: "16rem", flex: "1 1 16rem" }}
                 inputProps={{ "aria-label": "도메인 추가", "aria-invalid": domainErr ? true : ariaInvalid, "aria-describedby": domainDescribedBy }}
                 onChange={(e) => { setDraft(e.target.value); if (domainErr) setDomainErr(""); }}
@@ -381,13 +431,16 @@ export function Settings() {
   const auth = useAuth();
   const canWrite = (auth.data && WRITE_ROLES.includes(auth.data.role)) || false;
   const canReachMaintenance = (auth.data && MAINTENANCE_READ_ROLES.includes(auth.data.role)) || false;
+  const canReachConsoles = (auth.data && CONSOLE_SCREEN_ROLES.includes(auth.data.role)) || false;
   const q = useQuery({ queryKey: ["settings"], queryFn: () => api("/api/admin/settings"), retry: false });
 
   const map = (q.data && q.data.settings) || {};
   // SETTING_LABELS/OBJECT_SCHEMA_HELP/STRUCTURED_OBJECT_KEYS/INT_BOUNDS는 백엔드 registry.py의
   // REGISTRY와 같은 키를 손으로 따로 유지한다(공유 소스가 없다) — 새 키가 registry.py에 추가되고
   // 여기 라벨이 빠지면, 원시 영문 키가 표에 그대로 새어 나가는데도 조용히(에러 없이) 넘어간다.
-  // 개발 중 눈에 띄도록 최소한의 드리프트 경고를 남긴다.
+  // 개발 중 눈에 띄도록 최소한의 드리프트 경고를 남긴다. **운영에서는 이 경고가 침묵하므로**
+  // 진짜 안전망은 `settings-labels.test.js` 다 — 그쪽이 registry.py 의 키 목록과 대조한다
+  // (N6 이 이 게이트를 뚫고 나간 뒤에 붙였다).
   React.useEffect(() => {
     // 이 드리프트 경고는 개발자용 유지보수 힌트다 — 프로덕션 사용자의 devtools 콘솔로 새지 않도록
     // 개발 빌드에서만 낸다('no console.log in production' 규칙, typescript/coding-style.md).
@@ -409,7 +462,9 @@ export function Settings() {
   // 값을 그대로 보여주면, kit.jsx의 DataTable이 그 값으로 '상세 보기: <라벨>'을 만들어 스크린리더/
   // 음성 제어 사용자가 행마다 다른 aria-label을 듣는다(예전엔 render가 있어 모든 행이 동일하게
   // '상세 보기'로만 들렸다). raw 키는 옆의 별도 열로 유지해 정보 손실 없이 보인다.
-  const rows = Object.keys(map).filter((k) => !MAINTENANCE_KEYS.includes(k)).map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
+  const rows = Object.keys(map)
+    .filter((k) => !MAINTENANCE_KEYS.includes(k) && !DEDICATED_SCREEN_KEYS.includes(k))
+    .map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
   /* 열에 width를 주지 않는다(DataTable이 지원하긴 한다). 이 표는 '설명'만 길고 나머지는 짧은데,
    * 앞 네 열에 고정 폭을 주면 요청 폭 합이 1366px 화면의 가용 폭을 넘겨 브라우저가 폭을 지정하지
    * 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로 설명 글자가 한 줄에 한 자씩 세로로 흘렀다.
@@ -445,6 +500,13 @@ export function Settings() {
           <p>유지보수 모드, 점검 공지는 {canReachMaintenance
             ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/maintenance")}>‘유지보수’ 화면</Link>
             : "‘유지보수’ 화면"}에서 관리합니다.</p>
+          {/* 숨긴 이유만 있고 어디로 갔는지 안내가 없으면 관리자가 '노션 설정이 없어졌다'고
+              오인한다 - 유지보수 안내와 같은 실수를 반복하지 않는다. */}
+          <p>노션 데이터베이스 id 와 토큰은 {canReachConsoles
+            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/notion-console")}>‘Notion 관리’ 화면</Link>
+            : "‘Notion 관리’ 화면"}에서, AI 설정은 {canReachConsoles
+            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/llm-console")}>‘AI 관리’ 화면</Link>
+            : "‘AI 관리’ 화면"}에서 관리합니다. 두 화면에는 연결 테스트가 함께 있습니다.</p>
         </Callout>
       </Box>
       {q.isLoading ? <Card><Skeleton lines={5} /></Card>
@@ -558,7 +620,7 @@ function SettingEditor({ setting, canWrite, onClose, onSaved }) {
         if (!Array.isArray(parsed)) throw new Error("도메인 목록은 배열([...]) 형식이어야 합니다.");
         for (const d of parsed) {
           if (typeof d !== "string" || !d.includes(".") || d.startsWith(".") || d.endsWith("."))
-            throw new Error("도메인 형식이 올바르지 않습니다(예: goodmit.co.kr), 점(.)을 포함하고 앞뒤에 점이 없어야 합니다: " + JSON.stringify(d));
+            throw new Error("도메인 형식이 올바르지 않습니다(예: example.com), 점(.)을 포함하고 앞뒤에 점이 없어야 합니다: " + JSON.stringify(d));
         }
       }
       return parsed;

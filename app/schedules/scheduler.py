@@ -23,6 +23,7 @@ from app.schedules.models import (
     CONCURRENCY_SKIP,
     MISFIRE_RUN_ONCE,
     MISFIRE_SKIP,
+    RUN_FAILED,
     RUN_QUEUED,
     RUN_RUNNING,
     RUN_SKIPPED,
@@ -107,6 +108,76 @@ def create_run_and_enqueue(
         max_attempts=_max_attempts(schedule),
     )
     return run
+
+
+ZOMBIE_GRACE_SECONDS = 900.0
+
+
+def sweep_zombie_runs(db: Session, *, now: datetime, grace_seconds: float = ZOMBIE_GRACE_SECONDS) -> int:
+    """끝난 잡을 뒤에 남긴 `queued`/`running` 실행을 정리한다 (S8).
+
+    ## 무엇이 고장났었나
+
+    `handle_schedule_run` 은 시작하면서 실행을 `running` 으로 적고 커밋한다. 실패하면
+    `on_failure` 가 `failed` 로 바꾼다 — **그런데 `on_failure` 자체가 실패하면**
+    (워커가 `logger.exception("on_failure hook ... crashed")` 로 삼킨다) 실행은 `running`
+    인 채로 영원히 남는다.
+
+    그 한 행이 `_has_active_run()` 에 걸린다. `concurrency_policy == skip` 인 스케줄이면
+    **그 스케줄의 모든 미래 실행이 영구히 skip 된다.** 화면상 스케줄은 멀쩡하고
+    (`enabled`, `next_run_at` 은 계속 전진한다) 이력에는 `skipped` 만 쌓인다.
+    자동으로 풀리는 경로가 **저장소에 없었다** — `Worker.sweep` 은 `Job` 만 본다.
+
+    ## 판정 근거를 임의의 타임아웃으로 두지 않는다
+
+    실행 하나는 잡 하나와 1:1 이고 그 링크가 `idempotency_key` 에 있다
+    (`create_run_and_enqueue` 가 `schedrun:<run key>` 로 넣는다). 그래서 **잡이 이미
+    끝났는지**를 보면 된다 — 아직 `queued`/`running` 인 잡은 건드리지 않으므로 오탐이 없다.
+    타임아웃으로 판정하면 느린 워크플로(최대 3600초)를 죽이게 된다.
+
+    `grace_seconds` 는 잡 행이 아직 안 보이는 짧은 창(삽입 직후)에서 오판하지 않기 위한
+    것이지 판정 기준이 아니다.
+    """
+    from app.jobs.models import STATUS_QUEUED as JOB_QUEUED
+    from app.jobs.models import STATUS_RUNNING as JOB_RUNNING
+    from app.jobs.models import Job
+
+    cutoff = now - timedelta(seconds=max(0.0, grace_seconds))
+    candidates = db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.status.in_([RUN_QUEUED, RUN_RUNNING]),
+            ScheduleRun.created_at < cutoff,
+        )
+    ).scalars().all()
+    if not candidates:
+        return 0
+
+    keys = {f"schedrun:{r.idempotency_key}": r for r in candidates}
+    live = set(
+        db.execute(
+            select(Job.idempotency_key).where(
+                Job.idempotency_key.in_(list(keys)),
+                Job.status.in_([JOB_QUEUED, JOB_RUNNING]),
+            )
+        ).scalars().all()
+    )
+
+    swept = 0
+    for key, run in keys.items():
+        if key in live:
+            continue   # 잡이 아직 살아 있다 — 정상이다
+        run.status = RUN_FAILED
+        run.finished_at = run.finished_at or now
+        # 왜 실패로 남았는지 화면에 적는다. "그냥 실패" 로 두면 운영자가 워크플로를 판다.
+        run.error_message = (
+            "실행을 처리하던 작업이 끝났는데 결과가 기록되지 않아 정리했습니다"
+            "(같은 스케줄의 다음 실행이 막혀 있었습니다)."
+        )
+        swept += 1
+    if swept:
+        db.flush()
+        logger.warning("좀비 실행 %d건을 정리했다", swept)
+    return swept
 
 
 def _max_attempts(schedule: Schedule) -> int:

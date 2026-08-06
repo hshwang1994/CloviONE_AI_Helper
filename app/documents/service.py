@@ -40,6 +40,7 @@ from app.documents.models import (
     DocumentGeneration,
 )
 from app.documents.quality import duplicate_key
+from app.documents.repository import get_in_scope
 from app.jobs import repository as jobs_repo
 from app.workflows.models import Workflow
 
@@ -356,8 +357,22 @@ def generation_view(row: DocumentGeneration) -> dict:
     }
 
 
-def get_generation_or_404(db: Session, generation_id: str) -> DocumentGeneration:
-    row = db.get(DocumentGeneration, generation_id)
+def get_generation_or_404(
+    db: Session, generation_id: str, visible: frozenset[str] | None
+) -> DocumentGeneration:
+    """단건 조회 — 범위 밖은 **없는 것과 똑같이 404** 다 (§0-A).
+
+    `visible` 에 기본값을 두지 않은 것이 이 함수의 요점이다. 기본값(`None` = 전역)을 주면
+    새 호출부가 **아무것도 안 적고** 전 범위를 열게 된다 — 이 함수의 예전 모습(`db.get`
+    하나)이 정확히 그랬다. 인자를 비워 두면 호출 자체가 안 되므로 빠뜨릴 자리가 없다.
+
+    403 이 아니라 404 인 이유는 `app/core/scope.py` 모듈 docstring 참조 — 403 은 "그 id 는
+    존재한다"를 알려 주고, id 를 찍어 403/404 를 세면 남의 팀 생성 이력의 존재와 규모가
+    열거된다. 문구도 '없음' 과 동일하게 둔다: 응답으로 두 경우를 구별할 수 없어야 한다.
+
+    판정은 목록이 쓰는 `repository.scope_clause` 하나이고, 조건은 **조회 자체에** 붙는다.
+    """
+    row = get_in_scope(db, generation_id, visible)
     if row is None:
         raise NotFoundError("문서 생성 요청을 찾을 수 없습니다.")
     return row

@@ -141,6 +141,8 @@ export function CommandPalette({ open, onClose, groups }) {
   // '검색 결과 없음'이 한 번씩 번쩍인다 — 결과가 있는데도 없다고 말하는 순간이 생긴다.
   const pending = isSearchable(q) && normalizeQuery(q) !== normalizeQuery(debounced);
   const busy = !!open && (pending || (searchable && search.isFetching));
+  // 검색이 **실패했는가**. 이게 없으면 서버 오류가 "검색 결과 없음" 으로 둔갑한다 (E9).
+  const failed = searchable && search.isError && !search.isFetching;
 
   return (
     <Dialog
@@ -179,7 +181,12 @@ export function CommandPalette({ open, onClose, groups }) {
               ? "메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요."
               : busy
                 ? "찾는 중…"
-                : "검색 결과 없음"}
+                /* 서버 오류를 "없다" 고 말하지 않는다 (E9). 예전에는 500 이든 네트워크 끊김이든
+                   전부 "검색 결과 없음" 이었다 — 사용자는 찾는 것이 정말 없다고 믿고 포기한다.
+                   그건 화면이 거짓말하는 것이고, 이 저장소가 곳곳에서 잡아낸 그 부류다. */
+                : failed
+                  ? "검색하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                  : "검색 결과 없음"}
           </Typography>
         ) : (
           <List dense disablePadding>

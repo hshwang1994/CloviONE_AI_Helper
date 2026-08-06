@@ -39,6 +39,8 @@ from app.core.models_base import split_names
 from app.org.constants import DEFAULT_ORG_ID
 from app.org.models import Department
 from app.reports.service import load_display_maps
+from app.trash import repository as trash_repo
+from app.trash.models import TRASH_DOCUMENT, TRASH_TICKET
 from app.search.models import (
     KIND_BOARD,
     KIND_DOCUMENT,
@@ -73,7 +75,22 @@ class IndexResult:
 
 
 def _clip(text: str | None, limit: int = BODY_CHARS) -> str:
-    return str(text or "")[:limit]
+    """색인에 들어가는 모든 글은 **여기 하나**를 지난다 — 그래서 정규화도 여기서 한다 (Z4).
+
+    한글은 **같은 글자를 두 가지로 쓸 수 있다.** `한`(NFC, 1코드포인트)과 `한`(NFD, ㅎ+ㅏ+ㄴ
+    3코드포인트)은 화면에서 똑같이 보이지만 **바이트가 다르다.** macOS 에서 만든 파일 이름이나
+    거기서 복사한 글은 NFD 로 들어오는 일이 흔하다.
+
+    trigram 은 코드포인트를 훑으므로, 색인은 NFC 인데 질의가 NFD 면(또는 반대면) **영원히
+    0건**이다. 오타도 아니고 오류도 아니라 사용자는 "검색이 안 된다" 고만 느끼고, 로그에도
+    아무 흔적이 없다.
+
+    자르기 **전에** 정규화한다. NFD 는 같은 글자를 여러 코드포인트로 쓰므로, 먼저 자르면
+    같은 글이 표기에 따라 다른 길이에서 잘리고 마지막 글자가 자모로 쪼개진 채 남을 수 있다.
+    """
+    import unicodedata
+
+    return unicodedata.normalize("NFC", str(text or ""))[:limit]
 
 
 def _joined(parts) -> str:
@@ -98,9 +115,13 @@ def _ticket_rows(db: Session, repo, maps) -> list[dict]:
     범위 판정이 못 하고(§12.3), 인덱스가 원본 식별자를 들고 있게 된다.
     """
     listing = repo.list_all(db)
+    # 휴지통에 넣은 티켓은 색인하지 않는다(H2). 예전에는 보관기간(기본 7일) 내내 검색과
+    # ⌘K 에 계속 나왔다 — "지웠는데 검색에는 있다" 는 지운 적이 없다는 말처럼 읽힌다.
+    # 목록 API 는 이미 `_drop_trashed` 로 거른다. 색인만 빠져 있었다.
+    trashed = trash_repo.trashed_page_ids(db, TRASH_TICKET)
     out: list[dict] = []
     for t in listing.tickets[:MAX_ROWS_PER_KIND]:
-        if not t.page_id:
+        if not t.page_id or t.page_id in trashed:
             continue
         number = f"GIT-{t.number}" if t.number is not None else ""
         out.append({
@@ -132,6 +153,9 @@ def _document_rows(db: Session, repo, maps) -> list[dict]:
         favorite_page_ids=None, favorites_only=False,
         sort="recent", offset=0, limit=MAX_ROWS_PER_KIND,
     )
+    # 티켓과 같은 이유로 휴지통 문서도 뺀다(H2).
+    trashed_docs = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
+    rows = [r for r in rows if getattr(r, "notion_page_id", None) not in trashed_docs]
     out: list[dict] = []
     for d in rows:
         # 이 필드들은 콤마가 아니라 NAMES_SEP(\x1f) 로 이어져 있다. 콤마로 자르면 이름 하나가

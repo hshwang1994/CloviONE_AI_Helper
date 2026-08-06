@@ -9,13 +9,85 @@ from __future__ import annotations
 
 import re
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from fastapi import Query
+from pydantic import BaseModel, ConfigDict, field_validator, Field
 
 from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
 from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
 from app.tickets.comments import MAX_COMMENT_CHARS
+from app.tickets.repository import DUE_BUCKETS
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# 기한 버킷 쿼리값 검증용. 값 자체는 도메인(repository.DUE_BUCKETS)이 정한다 — 여기서 다시
+# 적으면 한쪽만 늘어나고, 그때 증상은 "이 버튼만 422" 라서 원인이 안 보인다.
+_DUE_PATTERN = "^(" + "|".join(DUE_BUCKETS) + ")$"
+
+
+def _clean(value: str | None) -> str | None:
+    """빈 문자열은 '조건 없음'이다. 프런트가 select 를 비우면 `?status=` 로 오기 때문에,
+    그것을 '상태가 빈 문자열인 티켓' 으로 읽으면 목록이 통째로 빈다."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+class TicketListQuery:
+    """티켓 목록 서버 필터 (FastAPI 의존성).
+
+    `app/core/pagination.py::PageParams` 와 **같은 관용**이다: pydantic 모델이 아니라 Query
+    기본값을 가진 평범한 클래스라 `Depends()` 하나로 붙고, 라우터 시그니처가 짧게 남는다.
+
+    담당자는 **앱 user_id 로만** 받는다(§12.3). 브라우저는 소스(Notion) user id 를 주지도
+    받지도 않으므로, 해석은 서비스가 한 번만 한다(`service._notion_id_for_user`).
+
+    `due` 는 정해진 세 값만 받는다 — 모르는 값을 조용히 무시하면 "기한 필터를 눌렀는데
+    전체가 나온다" 가 되고, 그건 사용자가 필터가 안 걸렸다는 사실을 알아챌 수 없는 모양이다.
+    """
+
+    def __init__(
+        self,
+        status: str | None = Query(default=None, max_length=64),
+        priority: str | None = Query(default=None, max_length=64),
+        difficulty: str | None = Query(default=None, max_length=64),
+        project_id: str | None = Query(default=None, max_length=64),
+        assignee_user_id: str | None = Query(default=None, max_length=36),
+        category: str | None = Query(default=None, max_length=200),
+        due: str | None = Query(default=None, pattern=_DUE_PATTERN),
+        q: str | None = Query(default=None, max_length=100),
+    ) -> None:
+        self.status = _clean(status)
+        self.priority = _clean(priority)
+        self.difficulty = _clean(difficulty)
+        self.project_id = _clean(project_id)
+        self.assignee_user_id = _clean(assignee_user_id)
+        self.category = _clean(category)
+        self.due = _clean(due)
+        self.q = _clean(q)
+
+
+def _ensure_real_date(value: str, label: str) -> str:
+    """모양뿐 아니라 **실제로 있는 날짜인지** 본다 (Z12).
+
+    정규식만으로는 `2026-02-31` 이 통과한다. 그리고 `due_date` 는 문자열로 저장돼
+    **사전순으로 비교**되므로(`repository_notion`) 잘못된 값 하나가 모든 기간 필터와 공수
+    집계를 조용히 왜곡한다. 더 나쁜 것은 번다운이 `ValueError` 를 잡아 `[]` 를 돌려주는
+    바람에 **HTTP 200 에 합계는 채워지고 그래프만 빈** 화면이 나온다는 점이다 —
+    숫자와 그래프가 서로 다른 말을 하는데 이유를 안 알려 준다.
+
+    (참고: `est_wd`/`act_wd` 는 0~1000 으로 제대로 막혀 있었다 — **숫자에는 물어본 질문을
+    날짜에는 안 물었다.**)
+    """
+    from datetime import date as _date
+
+    if not _DATE_RE.match(value):
+        raise ValueError(f"{label}은 YYYY-MM-DD 형식이어야 합니다.")
+    try:
+        _date.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"{label}에 없는 날짜입니다: {value}") from None
+    return value
 
 
 class BulkPageIds(BaseModel):
@@ -49,6 +121,10 @@ class TicketBodyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     body_markdown: str
+    # 낙관적 잠금 (Z2). 편집을 시작할 때 받은 본문의 지문을 그대로 돌려보낸다.
+    # **선택 사항**이다 — 안 보내면 예전처럼 그냥 덮어쓴다(기존 클라이언트·CLI 호환).
+    # 보내면 그 사이 누가 먼저 저장한 경우 409 로 막는다.
+    base_version: str | None = Field(default=None, max_length=64)
 
     @field_validator("body_markdown")
     @classmethod
@@ -153,9 +229,7 @@ class TicketUpdate(BaseModel):
         v = v.strip()
         if not v:
             return ""  # 빈 문자열 = 시작일 지움
-        if not _DATE_RE.match(v):
-            raise ValueError("시작일은 YYYY-MM-DD 형식이어야 합니다.")
-        return v
+        return _ensure_real_date(v, "시작일")
 
     @field_validator("act_wd")
     @classmethod
@@ -183,9 +257,7 @@ class TicketUpdate(BaseModel):
         v = v.strip()
         if not v:
             return ""  # 빈 문자열 = 마감일 지움(서비스가 date:null 로 반영)
-        if not _DATE_RE.match(v):
-            raise ValueError("마감일은 YYYY-MM-DD 형식이어야 합니다.")
-        return v
+        return _ensure_real_date(v, "마감일")
 
     @field_validator("assignee_user_ids")
     @classmethod
@@ -249,9 +321,7 @@ class TicketCreate(BaseModel):
         v = v.strip()
         if not v:
             return None
-        if not _DATE_RE.match(v):
-            raise ValueError("마감일은 YYYY-MM-DD 형식이어야 합니다.")
-        return v
+        return _ensure_real_date(v, "마감일")
 
     @field_validator("assignee_user_ids")
     @classmethod

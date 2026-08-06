@@ -35,7 +35,10 @@ def _doc(pid, title, **over):
 
 def _patch(monkeypatch, docs, *, truncated=False):
     monkeypatch.setattr(notion_docs, "fetch_documents_schema", lambda o, s: {})
-    monkeypatch.setattr(notion_docs, "resolve_relation_maps", lambda o, s, sch: RELMAPS)
+    # `failures` 는 C4 로 생긴 선택 인자다(실패한 relation 이름을 담아 준다).
+    # 여기서는 실패가 없는 경우를 흉내 내므로 받기만 하고 아무것도 넣지 않는다.
+    monkeypatch.setattr(notion_docs, "resolve_relation_maps",
+                        lambda o, s, sch, failures=None: RELMAPS)
     monkeypatch.setattr(notion_docs, "query_all_documents", lambda o, s: (docs, truncated))
 
 
@@ -191,3 +194,88 @@ def test_block_rendering_maps_known_types():
     assert notion_docs._TEXT_BLOCK_TYPES["to_do"] == "todo"
     blk = {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "본문"}]}}
     assert notion_docs._block_text(blk, "paragraph") == "본문"
+
+
+# ── prune 바닥 (C1b) ──────────────────────────────────────────────────────────
+# 문서 쪽이 티켓보다 위험하다. `document_cache` 는 미러가 아니라 **일부 필드의 정본**이다:
+# `classification_manual=True`(사용자가 손으로 고친 분류)는 Notion 에 대응 필드가 없어서,
+# prune 이 지우면 영구 소실이고 재동기화하면 자동 분류가 조용히 덮어쓴다. 아무도 못 알아챈다.
+
+
+def test_empty_source_never_prunes_documents(db, settings, monkeypatch):
+    """소스가 0건을 주면 한 건도 지우지 않고 상태를 error 로 남긴다."""
+    _patch(monkeypatch, [_doc("p1", "A"), _doc("p2", "B")])
+    sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    _patch(monkeypatch, [])  # 오류가 아니다 — 200 OK 에 빈 목록
+    state = sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    assert get_by_page_id(db, "p1") is not None
+    assert get_by_page_id(db, "p2") is not None
+    assert state.status == SYNC_ERROR
+    assert state.pruned_count == 0
+    assert "0건" in (state.error or "")
+
+
+def test_empty_source_preserves_manual_classification(db, settings, monkeypatch):
+    """수동 분류가 살아남는가 — Notion 에 없는 값이라 지워지면 되돌릴 방법이 없다."""
+    _patch(monkeypatch, [_doc("p1", "A")])
+    sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    row = get_by_page_id(db, "p1")
+    row.classification_manual = True
+    row.document_type = "손으로 고친 종류"
+    db.commit()
+
+    _patch(monkeypatch, [])
+    sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    survived = get_by_page_id(db, "p1")
+    assert survived is not None
+    assert survived.classification_manual is True
+    assert survived.document_type == "손으로 고친 종류"
+
+
+def test_mass_document_deletion_is_refused(db, settings, monkeypatch):
+    """절반을 넘게 지우려 하면 막는다."""
+    docs = [_doc(f"p{i}", f"문서{i}") for i in range(1, 11)]
+    _patch(monkeypatch, docs)
+    sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    _patch(monkeypatch, docs[:3])  # 10 → 3 (70% 삭제 시도)
+    state = sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    assert db.query(DocumentCache).count() == 10
+    assert state.status == SYNC_ERROR
+    assert "70%" in (state.error or "")
+
+
+def test_relation_failure_is_reported_not_swallowed(db, settings, monkeypatch):
+    """relation 조회가 실패하면 상태가 `ok` 로 남으면 안 된다 (C4).
+
+    맵이 비면 `classify([], [], title)` 로 떨어져 **전 문서의 문서종류·업무분야·기술태그가
+    한 번에 '기타' 로 바뀐다**. 예전에는 그런데도 status=ok, error=null 이었다 —
+    다음 성공 동기화가 되돌리지만 그 사이 필터가 전부 무너지고 아무도 이유를 모른다.
+    """
+    monkeypatch.setattr(notion_docs, "fetch_documents_schema", lambda o, s: {})
+    monkeypatch.setattr(
+        notion_docs, "resolve_relation_maps",
+        # 실제 함수와 같은 모양으로 실패를 보고한다.
+        lambda o, s, sch, failures=None: (failures.append(notion_docs.PROP_TYPE)
+                                          if failures is not None else None) or {},
+    )
+    monkeypatch.setattr(notion_docs, "query_all_documents", lambda o, s: ([_doc("p1", "A")], False))
+
+    state = sync.sync_documents(db, outbound=None, settings=settings, now=utcnow())
+    db.commit()
+
+    assert state.status == SYNC_ERROR, "relation 실패가 'ok' 로 보고됐다"
+    assert "분류" in (state.error or ""), f"무엇이 잘못됐는지 안 적혀 있다: {state.error}"
+    # 문서 자체는 들어와야 한다 — 분류만 못 한 것이지 목록이 사라지면 안 된다.
+    assert get_by_page_id(db, "p1") is not None

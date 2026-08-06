@@ -143,6 +143,40 @@ else
   echo "$TRACKED"; fail "커밋 누락 — 추적 파일이 미추적 모듈을 import 한다"
 fi
 
+step "No leftover sabotage markers"
+# 이 저장소의 완료 판정은 "결함을 재도입해 FAIL 을 본 뒤 복원" 이다(계획서 규칙 ①).
+# 그 과정에서 코드에 임시로 남기는 마커가 **복원되지 않은 채 남으면** 보안 수정이 꺼진
+# 상태로 배포된다 — 실제로 병렬 작업 중 한 번 남았고, 다른 작업자가 우연히 발견했다.
+# 우연에 기대지 않는다.
+MARKERS="$(grep -rn "SABOTAGE" app frontend/src tests scripts   --include='*.py' --include='*.js' --include='*.jsx' --include='*.sh' 2>/dev/null   | grep -v 'scripts/static_checks.sh' || true)"
+if [ -z "$MARKERS" ]; then
+  ok "NO_SABOTAGE_MARKERS"
+else
+  echo "$MARKERS"; fail "RED 확인용 마커가 복원되지 않은 채 남아 있다"
+fi
+
+step "Scoped modules gate their id routes too"
+# 같은 실수를 **네 번** 했다: 목록에는 범위를 걸고 단건·쓰기는 안 걸었다(승인 결재·잡 재시도·
+# 게시판 상세·티켓 첨부). 그중 승인은 범위 밖 **권한 부여를 실행**할 수 있었다.
+# 사람 기억에 맡기면 또 잊는다 — 막지 않기로 한 결정도 EXEMPT 에 이유를 적게 한다.
+if GATES="$("$PY" scripts/check_scope_gates.py 2>&1)"; then
+  ok "$(echo "$GATES" | tail -1)"
+else
+  echo "$GATES"; fail "범위 있는 모듈의 id 경로에 게이트가 없다"
+fi
+
+step "No customer-specific identifiers in source defaults / install scripts"
+# 출시 차단 사유였다. app/core/config.py 의 **기본값**에 개발 워크스페이스의 Notion DB id 두
+# 개와 최초 고객사의 이메일 도메인이, 설치 스크립트에 그 고객사의 호스트명·IP 가 박혀 있었다.
+# 다른 고객사에 설치하면 아무 설정 없이도 조용히 남의 워크스페이스를 가리키고, 왜 안 되는지는
+# 어디에도 안 뜬다 — "연결은 됐는데 안 된다"로 보인다. 한 번 지우고 끝내면 다음 기능에서 다시
+# 들어오므로 검사로 고정한다. 문서·테스트 픽스처 예외는 검사기의 EXEMPT 한 곳에 이유와 함께 있다.
+if TENANT="$("$PY" scripts/check_tenant_defaults.py 2>&1)"; then
+  ok "$(echo "$TENANT" | tail -1)"
+else
+  echo "$TENANT"; fail "소스 기본값·설치 스크립트에 고객사 고유 식별자가 남아 있다"
+fi
+
 step "User-facing text avoids the banned glyphs"
 # 사용자 지시(§8): 화면 문구에서 가운뎃점(·)과 em 대시(—)를 쓰지 않는다.
 # 한 번 훑고 끝내면 다음 화면에서 다시 새어 나가므로 검사로 고정한다.
@@ -152,6 +186,28 @@ if UTEXT="$("$PY" scripts/check_user_text.py 2>&1)"; then
   ok "$(echo "$UTEXT" | tail -1)"
 else
   echo "$UTEXT"; fail "사용자에게 보이는 문구에 쓰지 않기로 한 문자가 있다"
+fi
+
+step "subprocess text mode declares its encoding"
+# 이 결함을 **세 번** 고쳤다(sysops/runner.py, tests/conftest.py, 마이그레이션 회귀 6개).
+# 그중 둘은 같은 라운드에 새로 만들면서 다시 넣은 것이다 - 새 파일을 쓰는 사람은 옆 파일을
+# 복사하고, 옆 파일이 낡았으면 결함도 함께 복사된다. 사람 기억에 맡길 종류가 아니다.
+# 증상: 자식이 UTF-8 한글을 뱉으면 리더 스레드가 죽어 **result.stderr 를 못 읽는다** -
+# 마이그레이션이 실패했을 때 정작 그 이유가 사라진다.
+if SPENC="$("$PY" scripts/check_subprocess_encoding.py 2>&1)"; then
+  ok "$(echo "$SPENC" | tail -1)"
+else
+  echo "$SPENC"; fail "subprocess 텍스트 모드에 encoding 이 없다"
+fi
+
+step "Committed frontend bundle matches the sources"
+# 이 저장소는 빌드 산출물을 git 에 커밋한다(서버에 Node 불필요). 대신 소스만 고치고 번들을
+# 안 만들면 git 으로 설치한 서버가 **조용히 옛 UI 를 돌린다** - 로그에도 화면에도 흔적이 없다.
+# 0-E-11 에서 "최종 빌드 뒤에 연결한다"고 적어 두고 실제로는 안 걸었다. 감사가 그걸 찾았다.
+if BFRESH="$("$PY" scripts/check_bundle_fresh.py 2>&1)"; then
+  ok "$(echo "$BFRESH" | tail -1)"
+else
+  echo "$BFRESH"; fail "프런트 소스가 커밋된 번들보다 새롭다"
 fi
 
 echo ""
