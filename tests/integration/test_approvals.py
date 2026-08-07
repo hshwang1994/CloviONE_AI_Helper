@@ -249,3 +249,80 @@ def test_role_change_to_admin_gated(client, login_as, make_user):
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 200
+
+
+# ── backend-approvals-jobs 감사 #1: 중복 PENDING 승인이 향후 요청을 500으로 막지 않는다ㅡ
+
+def test_create_approval_does_not_crash_on_preexisting_duplicate_pending_rows(
+    client, login_as, workflow_id, db, fake_clock
+):
+    """Regression: 같은 (request_type, object_id)에 payload가 다른 pending 요청이 둘
+    이상 있는 것은 의도된 정상 상태다(재요청 허용, `create_approval`의 주석 참고). 예전
+    코드는 이 정상 상태에서도, 또 더블클릭 경합이 만들어 낸 우연한 중복에서도
+    `scalar_one_or_none()`이 `MultipleResultsFound`를 던져 그 대상에 대한 **모든** 향후
+    승인 요청을 500으로 막았다.
+    """
+    from app.approvals.service import create_approval
+    from app.users.service import get_user_by_email
+
+    csrf = login_as("admin", email="dupe-requester@goodmit.co.kr")
+    schedule = _make_schedule(client, csrf, workflow_id, name="중복 방지 테스트")
+    now = fake_clock.now()
+    requester = get_user_by_email(db, "dupe-requester@goodmit.co.kr")
+
+    payload_a = {"definition": {"cron_expression": "0 * * * *"}}
+    payload_b = {"definition": {"cron_expression": "*/5 * * * *"}}
+
+    a1 = create_approval(
+        db, request_type="schedule.enable", object_type="schedule",
+        object_id=schedule["id"], requested_by=requester, payload=payload_a, now=now,
+    )
+    b1 = create_approval(
+        db, request_type="schedule.enable", object_type="schedule",
+        object_id=schedule["id"], requested_by=requester, payload=payload_b, now=now,
+    )
+    db.commit()
+    # payload가 다르므로 둘 다 살아 있는 pending 행 — 이 자체가 의도된 정상 상태다.
+    assert a1.id != b1.id
+
+    # 이 시점에 이 객체에 대해 pending 행이 2개다. 예전 코드라면 다음 호출이
+    # scalar_one_or_none()에서 MultipleResultsFound로 500이 났다.
+    a2 = create_approval(
+        db, request_type="schedule.enable", object_type="schedule",
+        object_id=schedule["id"], requested_by=requester, payload=payload_a, now=now,
+    )
+    assert a2.id == a1.id  # 같은 payload → 기존 행 재사용, 새로 안 만든다
+
+    c1 = create_approval(
+        db, request_type="schedule.enable", object_type="schedule",
+        object_id=schedule["id"], requested_by=requester,
+        payload={"definition": {"cron_expression": "*/10 * * * *"}}, now=now,
+    )
+    assert c1.id not in {a1.id, b1.id}  # 세 번째 다른 payload → 새 pending 셋째 행
+
+
+def test_deciding_expired_approval_does_not_persist_status_change(
+    client, login_as, workflow_id, db, fake_clock
+):
+    """Regression (감사 #6): `_ensure_decidable`가 만료를 발견해 `ConflictError`를 던지는
+    경로는 `row.status = EXPIRED` 대입을 절대 커밋하지 못한다 — `get_db`가 예외 시 요청
+    트랜잭션 전체를 롤백한다. 저장된 만료 전이는 오직 백그라운드 스윕(`expire_pending`)만
+    한다는 것을 못박아 둔다 — 이 대입이 실제로 저장되는 것처럼 보이는 리그레션(예: 실수로
+    끼워 넣은 flush)이 생기면 이 테스트가 잡는다.
+    """
+    from app.approvals.models import APPROVAL_PENDING, Approval
+
+    csrf = login_as("admin", email="deadwrite@goodmit.co.kr")
+    schedule = _make_schedule(client, csrf, workflow_id, name="죽은 대입 테스트")
+    approval_id = client.post(
+        f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf)
+    ).json()["approval"]["id"]
+
+    fake_clock.advance(73 * 3600)  # 72h 기본 만료 초과, 세션도 함께 만료된다
+    csrf = login_as("admin", email="deadwrite@goodmit.co.kr")
+    r = client.post(f"/api/admin/approvals/{approval_id}/approve", headers=_headers(csrf))
+    assert r.status_code == 409
+
+    row = db.get(Approval, approval_id)
+    db.refresh(row)
+    assert row.status == APPROVAL_PENDING  # 스윕 전에는 저장된 상태가 그대로다

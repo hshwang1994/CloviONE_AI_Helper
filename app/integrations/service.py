@@ -6,6 +6,7 @@ import json
 import time
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.allowlist import AllowlistRegistry
@@ -94,8 +95,16 @@ def create_integration(
         enabled=config.enabled,
         config_version=1,
     )
-    db.add(row)
-    db.flush()
+    try:
+        # 위의 SELECT 사전 검사는 UX용 조기 안내일 뿐이다 — 동시에 같은 이름으로 두 요청이
+        # 그 SELECT를 통과하면 진짜 경계는 DB의 unique 제약이다. SAVEPOINT로 감싸 그 제약
+        # 위반(IntegrityError)을 흡수하고 409로 답한다 — 레포 관례
+        # (jobs/repository.enqueue, board/service._add_reaction 등)와 동일.
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        raise ConflictError(f"이미 등록된 Integration 이름입니다: {config.name}")
     snapshot_config(
         db,
         object_type=OBJECT_TYPE,
@@ -136,7 +145,11 @@ def apply_integration_config(
     row.capabilities_json = json.dumps(config.capabilities, ensure_ascii=False)
     row.enabled = config.enabled
     row.config_version += 1
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.flush()
+    except IntegrityError:
+        raise ConflictError(f"이미 등록된 Integration 이름입니다: {config.name}")
     snapshot_config(
         db,
         object_type=OBJECT_TYPE,
@@ -181,7 +194,10 @@ def run_health_check(
             secret_ref=row.secret_ref,
         )
         latency_ms = (time.perf_counter() - started) * 1000
-        healthy = response.status_code < 400
+        # OutboundClient는 follow_redirects=False로 만들어진다(SSRF 방지) — 3xx가 오면
+        # 그건 실제 대상이 아니라 리다이렉트 응답 자체다. status_code < 400은 3xx를 '정상'으로
+        # 세서, 붙지도 않은 대상을 대시보드(app/health/service.py)에 up으로 보여줬다.
+        healthy = 200 <= response.status_code < 300
         status = HEALTH_UP if healthy else HEALTH_DOWN
         detail = f"HTTP {response.status_code}"
     except Exception as exc:

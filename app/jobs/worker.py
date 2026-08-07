@@ -123,25 +123,49 @@ class Worker:
             return True
 
     def _finish_out_of_band(self, job_id: str) -> None:
-        """완료 기록만 실패한 잡을 **새 세션에서** 다시 적는다 (S5).
+        """완료 기록만 실패한 잡을 **새 세션에서** failed로 확정한다 (S5).
 
-        핸들러는 이미 성공했다 — 되돌릴 수 없는 외부 쓰기가 나갔을 수 있다. 여기서도
-        못 적으면 잡은 `running` 으로 남고 `sweep` 이 재큐잉해 **다시 실행**한다. 그 사실을
-        로그에 분명히 남긴다: 이 줄이 없으면 중복 실행의 원인을 영원히 못 찾는다.
+        예전에는 여기서도 `repository.finish()`로 succeeded 확정을 다시 시도했다. 그런데
+        그 시도가 쓰는 것은 **새 세션**이다 — 핸들러가 원래 세션에서 `db.flush()`만 하고
+        (커밋은 여기 바깥 `run_once`가 한 번에 한다는 전제로) 커밋이 실패해 롤백된
+        메시지/문서/실행 결과 쓰기는 이 새 세션에 없다. 그 상태에서 job 행만 succeeded로
+        적으면, 핸들러가 실제로 만든 산출물(assistant 메시지, 문서 발행 상태, schedule_run
+        결과)은 롤백된 채로 사라졌는데 job은 '성공'이라 아무도 재시도하지 않고 실패 알림도
+        가지 않는다 — 사용자 입장에서는 요청이 조용히 증발한 것과 같다.
+
+        그래서 여기서는 **성공을 재시도하지 않고 실패로 확정**한다(재시도는 하지 않는다 —
+        핸들러의 외부 쓰기가 이미 나갔을 수 있어 한 번 더 실행하면 중복 부작용이 난다,
+        `run_once`의 커밋-내부화 이유와 같다). 핸들러의 `on_failure` 훅을 불러(있으면)
+        막혀 있던 도메인 객체(메시지/생성/실행)를 각자의 실패 상태로 옮기고, `run_once`의
+        `PermanentJobError` 분기와 같은 모양으로 소유자에게도 알린다 — '조용히 틀린 성공'
+        보다 '눈에 보이는, 복구 가능한 실패'가 낫다는 이 저장소의 기존 fail-closed 원칙
+        (예: schedule.enable의 staleness 검사, document.publish의 '미리보기 없음 → 실패'
+        검사)과 같은 판단이다.
         """
+        error = "완료 기록 실패: 처리 결과가 저장되지 않았을 수 있습니다"
         try:
             with self._session_factory() as db:
                 job = db.get(Job, job_id)
                 if job is None or job.status != "running":
                     return
-                repository.finish(db, job, now=self._clock.now())
+                repository.fail(db, job, error=error, now=self._clock.now(), permanent=True)
                 db.commit()
-                logger.warning("job %s: 완료 기록을 재시도로 복구했다", job_id)
+                job_type = job.job_type
+                logger.warning(
+                    "job %s: 완료 기록 실패, 성공 재시도 대신 실패로 확정했다", job_id
+                )
         except Exception:
+            # failed로도 못 적으면 job은 `running`에 그대로 남는다 — 이 실패 경로는 예전과
+            # 같다(둘 다 실패하면 sweep의 타임아웃 복구에 맡긴다). "중복 실행" 문구를 그대로
+            # 남긴다: 그 경우 sweep이 재큐잉해 핸들러가 다시 실행될 수 있다는 경고다.
             logger.exception(
                 "job %s: 완료 기록에 두 번 실패했다. 스윕이 재큐잉하면 중복 실행된다",
                 job_id,
             )
+            return
+        handler = self._handlers.get(job_type)
+        if handler is not None:
+            self._notify_failure(handler, job_id, error)
 
     def _notify_failure(self, handler: JobHandler, job_id: str, error: str) -> None:
         """Invoke the handler's on_failure hook (if any) and notify the job

@@ -153,6 +153,58 @@ def test_preview_then_approve_creates_approval(client, admin_csrf, workflow_id, 
     assert approval.object_id == gen_id
 
 
+def test_preview_then_approve_approval_has_due_at_and_notifies_delegate(
+    client, admin_csrf, workflow_id, doc_worker, fake_http, db, app, fake_clock
+):
+    """Regression (backend-approvals-jobs 감사 #2): `document.publish` 승인은
+    `Approval`을 손으로 만드는 유일한 경로였다 — `due_at`(SLA)이 계속 NULL로 남아
+    이 요청 유형만 절대 '기한 초과'로 표시되지 않았고, `notify_admins`만 불러 활성
+    `ApprovalDelegation`을 받은 비관리자가 결재할 수 있는데도 알림을 받지 못했다(X7과
+    같은 결함).
+    """
+    from datetime import timedelta
+
+    from app.approvals import delegation as delegation_service
+    from app.approvals.models import DEFAULT_SLA_HOURS, Approval
+    from app.notifications.models import Notification
+    from app.users.service import create_user, get_user_by_email
+
+    delegate = create_user(
+        db, email="doc-delegate@goodmit.co.kr", display_name="위임받은 운영자",
+        password="Str0ng-Passw0rd!", settings=app.state.settings,
+        role="operator", must_change_password=False,
+    )
+    db.commit()
+    delegator = get_user_by_email(db, "admin@goodmit.co.kr")  # admin_csrf fixture's user
+    now = fake_clock.now()
+    delegation_service.create(
+        db, delegator=delegator, delegate=delegate,
+        starts_at=now, ends_at=now + timedelta(days=1),
+        reason="휴가 대비", created_by=delegator.id, now=now,
+    )
+    db.commit()
+
+    fake_http.on(
+        DOC_URL,
+        json_body={"title": "승인용 보고서", "body": "본문 내용 충분히 깁니다 " * 3,
+                   "source_row_count": 3},
+    )
+    r = _generate(client, admin_csrf, workflow_id, "preview_then_approve")
+    assert r.status_code == 202
+    doc_worker.run_once()
+
+    approval = db.query(Approval).filter(Approval.request_type == "document.publish").one()
+    assert approval.due_at is not None
+    assert approval.due_at == approval.requested_at + timedelta(hours=DEFAULT_SLA_HOURS)
+
+    delegate_notes = (
+        db.query(Notification)
+        .filter(Notification.user_id == delegate.id, Notification.type == "approval_requested")
+        .all()
+    )
+    assert delegate_notes, "위임받은 비관리자가 document.publish 승인 알림을 받아야 한다 (X7)"
+
+
 def test_document_generation_rbac(client, login_as, workflow_id):
     csrf = login_as("operator")
     r = client.post(

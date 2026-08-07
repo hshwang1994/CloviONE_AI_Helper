@@ -117,6 +117,54 @@ def test_session_policy_object_validation(client, admin_csrf):
     assert r.status_code == 200
 
 
+def test_rollback_to_maintenance_true_notifies_active_users(client, admin_csrf, db):
+    """A rollback that flips maintenance_mode False→True must send the same
+    'maintenance_announcement' notify as a direct PUT does — both are the same
+    kind of blast-radius change to users (spec §13.5), and app/settings/gate.py
+    still blocks regular users' writes either way, so skipping the notify would
+    leave them getting 503s with no warning banner explaining why.
+    """
+    from app.notifications.models import Notification
+
+    key = "maintenance_mode"
+
+    # version 1: False -> True (direct PUT notifies — sanity check baseline).
+    r = client.put(f"/api/admin/settings/{key}", json={"value": True}, headers=_headers(admin_csrf))
+    assert r.status_code == 200
+    count_after_first_on = (
+        db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
+    )
+    assert count_after_first_on >= 1
+
+    # version 2: True -> False (turning off must NOT notify again).
+    r = client.put(f"/api/admin/settings/{key}", json={"value": False}, headers=_headers(admin_csrf))
+    assert r.status_code == 200
+    count_after_off = (
+        db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
+    )
+    assert count_after_off == count_after_first_on
+
+    # Rollback to version 2's snapshot (the value it replaced, i.e. True) —
+    # this reapplies maintenance_mode=True exactly like SettingVersions.jsx
+    # intends, and must notify just like the original direct PUT did.
+    r = client.post(
+        f"/api/admin/settings/{key}/rollback",
+        json={"version": 2},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200
+    assert r.json()["after"] is True
+    assert client.get("/api/admin/settings").json()["settings"][key]["value"] is True
+
+    count_after_rollback = (
+        db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
+    )
+    assert count_after_rollback == count_after_first_on + 1, (
+        "rollback flipping maintenance_mode False->True must notify active users, "
+        "same as a direct PUT does"
+    )
+
+
 def test_operator_cannot_change_settings(client, login_as):
     csrf = login_as("operator")
     r = client.put(

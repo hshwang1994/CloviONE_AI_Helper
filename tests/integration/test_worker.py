@@ -144,41 +144,50 @@ def test_run_forever_graceful_shutdown(worker_env, fake_clock):
 
 # ── S5: 완료 커밋이 실패해도 핸들러를 두 번 실행하지 않는다 ─────────────────────
 
-def test_a_failed_completion_commit_does_not_re_execute_the_handler(
+def test_a_failed_completion_commit_marks_the_job_failed_not_silently_succeeded(
     worker_env, fake_clock, monkeypatch
 ):
-    """핸들러는 성공했는데 **완료 기록만** 실패한 경우 (S5).
+    """핸들러는 성공했는데 **완료 기록만** 실패한 경우 (S5 + backend-approvals-jobs 감사 #3).
 
     예전에는 `repository.finish()` + `db.commit()` 이 `try` **밖**에 있었다. 그래서 커밋만
     실패하면(SQLite 잠금) 잡이 `running` 인 채로 남고, `sweep` 이 타임아웃 뒤 재큐잉해
     **핸들러가 다시 실행됐다** — n8n·Notion 쓰기가 최대 3회 나가는 경로가 이것이다.
-    되돌릴 수 없는 외부 쓰기를 한 번 더 내는 것보다, 성공을 못 적었다는 사실을 남기는 편이 낫다.
 
-    사용자가 겪는 일: 예약 워크플로가 한 번 눌렸는데 n8n 이 세 번 돌아 결재가 3건 생긴다.
+    그 다음 결함(감사 #3): 커밋을 `try` 안으로 옮긴 뒤에도 `_finish_out_of_band`(대역외
+    복구)가 **새 세션에서 succeeded 재확정을 재시도**했다. 그런데 그 새 세션에는 원래
+    세션에서 롤백된 핸들러의 산출물 쓰기(예: assistant 메시지, 문서 발행 상태)가 없다 —
+    job 행만 성공으로 적히고 실제로 만들어졌어야 할 결과는 사라진 채로 남는다. 이제는
+    성공을 재시도하는 대신 **실패로 확정**해 `on_failure` 훅이 돌게 한다 — 도메인 객체가
+    실패 상태로 남아 사용자가 재시도할 수 있고, 아무도 재큐잉해서 핸들러를 또 실행하지도
+    않는다.
     """
     worker, factory, executed = worker_env
     job_id = _enqueue(factory, fake_clock, "ok", {"n": 1})
 
     calls = {"n": 0}
-    real_finish = repository.finish
 
-    def finish_that_fails_once(db, job, *, now):
+    def finish_always_fails(db, job, *, now):
         calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("database is locked")
-        return real_finish(db, job, now=now)
+        raise RuntimeError("database is locked")
 
-    monkeypatch.setattr(repository, "finish", finish_that_fails_once)
+    monkeypatch.setattr(repository, "finish", finish_always_fails)
 
     assert worker.run_once() is True
     assert len(executed) == 1, "핸들러가 첫 회에 실행되지 않았다 — 전제가 깨졌다"
+    assert calls["n"] == 1, "완료 기록 시도(repository.finish)는 주 경로에서 한 번만 나야 한다"
 
-    # 대역외 복구가 완료를 적었어야 한다. `running` 으로 남으면 스윕이 재큐잉한다.
-    assert _job_status(factory, job_id) == "succeeded", (
-        f"완료가 기록되지 않았다({_job_status(factory, job_id)}) — 스윕이 재실행한다"
+    # 대역외 복구는 이제 succeeded 재시도가 아니라 failed 확정이다 — 핸들러의 실제
+    # 산출물 쓰기는 롤백된 채로 job만 succeeded가 되는 '조용히 틀린 성공'을 막는다.
+    assert _job_status(factory, job_id) == "failed", (
+        f"완료 기록 실패가 succeeded로 둔갑했다({_job_status(factory, job_id)}) — "
+        "핸들러의 산출물 쓰기는 사라졌는데 아무도 재시도하지 않는다"
     )
+    with factory() as db:
+        job = db.get(Job, job_id)
+        assert "저장되지 않았을 수 있습니다" in (job.last_error or "")
+        assert job.attempt_count == 1  # permanent=True — 백오프 재큐잉하지 않는다
 
-    # 그리고 스윕·다음 폴링이 이 잡을 다시 집지 않아야 한다.
+    # failed로 이미 확정됐으니, sweep도 다음 폴링도 이 잡을 다시 실행하지 않는다.
     monkeypatch.undo()
     fake_clock.advance(60 * 90)          # running 타임아웃을 훌쩍 넘겨서
     worker.sweep(fake_clock.now())
@@ -189,20 +198,24 @@ def test_a_failed_completion_commit_does_not_re_execute_the_handler(
 def test_a_completion_that_cannot_be_recorded_at_all_is_not_silent(
     worker_env, fake_clock, monkeypatch, caplog
 ):
-    """두 번 다 실패하면 **중복 실행 가능성을 로그로 말한다**.
+    """두 번 다(주 경로 + 대역외 복구) 실패하면 **중복 실행 가능성을 로그로 말한다**.
 
     DB 를 아예 못 쓰는 상황은 여기서 고칠 수 없다. 고칠 수 없는 것을 조용히 두면 나중에
     중복 실행의 원인을 영원히 못 찾는다 — 그 한 줄이 유일한 단서다.
+
+    대역외 복구는 이제 `repository.finish`가 아니라 `repository.fail`을 쓰므로
+    (backend-approvals-jobs 감사 #3), "완전히 못 쓰는 상황"을 재현하려면 둘 다 막아야 한다.
     """
     import logging
 
     worker, factory, executed = worker_env
     _enqueue(factory, fake_clock, "ok", {"n": 2})
 
-    def always_fails(db, job, *, now):
+    def always_fails(*args, **kwargs):
         raise RuntimeError("database is locked")
 
     monkeypatch.setattr(repository, "finish", always_fails)
+    monkeypatch.setattr(repository, "fail", always_fails)
 
     with caplog.at_level(logging.WARNING, logger="app.worker"):
         assert worker.run_once() is True

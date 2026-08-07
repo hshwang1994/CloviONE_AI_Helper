@@ -104,24 +104,45 @@ def _restart_unit(runner: Runner, unit: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _revert_and_restart(runner: Runner, path: str, previous: str | None, unit: str) -> None:
+    """새 설정으로 재시작이 실패했을 때 **그 자리에서** 이전 설정으로 되돌리고 다시 시작한다.
+
+    `execute()`(app/sysops/actions.py) 의 백업 롤백은 실패한 뒤 파일만 복사해 돌려놓을 뿐,
+    그 파일을 쓰는 서비스를 다시 시작하지는 않는다 — 그래서 "rolled_back: true" 라고 답해도
+    실제로는 깨진 새 설정을 문 채 죽어 있는 systemd-resolved/timesyncd 가 남을 수 있다. 여기서
+    실패를 감지한 즉시 파일을 되돌리고 재시작까지 시도해 두면, 나중에 엔진이 같은 내용을 다시
+    덮어써도(무해한 중복) 서비스는 이미 이전 상태로 살아 있다. 이 복구 자체가 실패해도(예:
+    이전 설정도 이미 깨져 있었다) 최선을 다한 것이고, 원래 오류 메시지는 그대로 보고한다.
+    """
+    if previous is None:
+        runner.remove(path)
+    else:
+        runner.write_text(path, previous)
+    _restart_unit(runner, unit)
+
+
 def _perform_ntp(runner: Runner, params: dict) -> ActionOutcome:
     if not params["enabled"]:
         if not runner.exists(TIMESYNCD_DROPIN):
             return ActionOutcome(ok=True, detail="NTP 서버 지정이 원래 없습니다.")
+        previous = runner.read_text(TIMESYNCD_DROPIN)
         runner.remove(TIMESYNCD_DROPIN)
         ok, why = _restart_unit(runner, "systemd-timesyncd")
         if not ok:
+            _revert_and_restart(runner, TIMESYNCD_DROPIN, previous, "systemd-timesyncd")
             return ActionOutcome(ok=False, detail=why)
         return ActionOutcome(ok=True, detail="NTP 서버 지정을 해제했습니다.", changed=True)
 
     servers = params["servers"]
     text = "[Time]\nNTP=" + " ".join(servers) + "\n"
-    if runner.read_text(TIMESYNCD_DROPIN) == text:
+    previous = runner.read_text(TIMESYNCD_DROPIN)
+    if previous == text:
         return ActionOutcome(ok=True, detail="이미 같은 NTP 서버입니다.", data={"servers": servers})
 
     runner.write_text(TIMESYNCD_DROPIN, text)
     ok, why = _restart_unit(runner, "systemd-timesyncd")
     if not ok:
+        _revert_and_restart(runner, TIMESYNCD_DROPIN, previous, "systemd-timesyncd")
         return ActionOutcome(ok=False, detail=why)
     # 읽어서 확인한다. 쓰기가 성공했다는 것과 파일에 그 내용이 있다는 것은 다른 사건이다.
     if runner.read_text(TIMESYNCD_DROPIN) != text:
@@ -221,9 +242,11 @@ def _perform_dns(runner: Runner, params: dict) -> ActionOutcome:
     if not params["enabled"]:
         if not runner.exists(RESOLVED_DROPIN):
             return ActionOutcome(ok=True, detail="DNS 지정이 원래 없습니다.")
+        previous = runner.read_text(RESOLVED_DROPIN)
         runner.remove(RESOLVED_DROPIN)
         ok, why = _restart_unit(runner, "systemd-resolved")
         if not ok:
+            _revert_and_restart(runner, RESOLVED_DROPIN, previous, "systemd-resolved")
             return ActionOutcome(ok=False, detail=why)
         return ActionOutcome(ok=True, detail="DNS 지정을 해제했습니다.", changed=True)
 
@@ -231,12 +254,14 @@ def _perform_dns(runner: Runner, params: dict) -> ActionOutcome:
     text = "[Resolve]\nDNS=" + " ".join(servers) + "\n"
     if params["search"]:
         text += f"Domains={params['search']}\n"
-    if runner.read_text(RESOLVED_DROPIN) == text:
+    previous = runner.read_text(RESOLVED_DROPIN)
+    if previous == text:
         return ActionOutcome(ok=True, detail="이미 같은 DNS 설정입니다.", data={"servers": servers})
 
     runner.write_text(RESOLVED_DROPIN, text)
     ok, why = _restart_unit(runner, "systemd-resolved")
     if not ok:
+        _revert_and_restart(runner, RESOLVED_DROPIN, previous, "systemd-resolved")
         return ActionOutcome(ok=False, detail=why)
     if runner.read_text(RESOLVED_DROPIN) != text:
         return ActionOutcome(ok=False, detail="DNS 설정이 파일에 남지 않았습니다.")

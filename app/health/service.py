@@ -115,7 +115,7 @@ def _memory_usage() -> dict:
     return {"total_kb": total, "available_kb": avail, "used_pct": used_pct}
 
 
-def _cert_days_remaining(settings: Settings) -> int | None:
+def _cert_days_remaining(settings: Settings, now: datetime | None = None) -> int | None:
     """Days until the configured TLS certificate expires, or None.
 
     Parses the certificate with the stdlib ``ssl`` module (no ``openssl``
@@ -123,6 +123,15 @@ def _cert_days_remaining(settings: Settings) -> int | None:
     timezone-aware ``now`` so the comparison is unambiguous. Any missing file
     or parse failure returns None — this feeds a dashboard tile and must never
     raise.
+
+    ``now``: optional injected clock, so this agrees with the rest of
+    ``build_dashboard``/``build_diagnostic_bundle`` (both thread the same
+    ``now`` through every other computation, e.g. ``generated_at``) instead of
+    silently reading real wall-clock time even when the rest of the payload is
+    frozen under a fake clock. Defaults to real time for callers with no clock
+    of their own (e.g. ``app/setup/probes.py``, which has no ``now`` to pass).
+    Per ``app/core/clock.py``, an injected ``now`` is naive UTC — treated as
+    such here if it has no tzinfo.
     """
     cert_path = getattr(settings, "tls_cert_path", None)
     if not cert_path or not Path(cert_path).exists():
@@ -140,7 +149,10 @@ def _cert_days_remaining(settings: Settings) -> int | None:
         expiry = datetime.fromtimestamp(
             ssl.cert_time_to_seconds(not_after), tz=timezone.utc
         )
-        return (expiry - datetime.now(timezone.utc)).days
+        reference = now if now is not None else datetime.now(timezone.utc)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=timezone.utc)
+        return (expiry - reference).days
     except Exception as exc:  # pragma: no cover - defensive: never break the dashboard
         # 인증서 확인이 조용히 죽으면 만료를 놓친다. 원인(메시지만, 인증서 내용은 아님)을
         # journalctl에 남겨 최소한 눈에는 띄게 한다 — 화면(대시보드 타일)은 여전히 None.
@@ -148,7 +160,7 @@ def _cert_days_remaining(settings: Settings) -> int | None:
         return None
 
 
-def cert_days_remaining(settings: Settings) -> int | None:
+def cert_days_remaining(settings: Settings, now: datetime | None = None) -> int | None:
     """`_cert_days_remaining` 의 공개 이름.
 
     셋업 체크리스트(app/setup/probes.py)도 인증서 만료를 말해야 한다. 판정을 거기서 다시
@@ -156,7 +168,7 @@ def cert_days_remaining(settings: Settings) -> int | None:
     밖에서 부르면 "여기까지가 이 모듈의 약속" 이라는 신호가 사라져 공개 이름을 하나 둔다
     (기존 호출부와 테스트는 밑줄 이름을 그대로 쓴다).
     """
-    return _cert_days_remaining(settings)
+    return _cert_days_remaining(settings, now)
 
 
 def build_dashboard(
@@ -315,7 +327,7 @@ def build_dashboard(
         ],
         "disk": _disk_usage(str(settings.data_dir)),
         "memory": _memory_usage(),
-        "cert_days_remaining": _cert_days_remaining(settings),
+        "cert_days_remaining": _cert_days_remaining(settings, now),
         "last_backup_at": last_backup.created_at.isoformat() if last_backup else None,
         "last_backup_status": last_backup.status if last_backup else None,
         # 현재 유지보수 모드 상태(app/settings/gate.py) — 화면이 danger 배너/경보로 띄운다.
@@ -352,10 +364,22 @@ def build_diagnostic_bundle(
     )
     bundle_cache = cache or SettingsCache()
     effective = effective_settings(db, bundle_cache)
+    # mask_sensitive matches on *key names*, so calling it on the whole envelope
+    # would test the setting name itself (e.g. "password_policy") against the
+    # sensitive-key regex and collapse the entire non-secret envelope — value,
+    # type, description, everything — to "***" just because the setting's name
+    # contains "password". Masking each setting's "value" sub-object
+    # individually instead means the key-name match only ever applies to actual
+    # field names *inside* the value (e.g. smtp.password_ref), never to the
+    # setting/category name.
+    masked_settings = {
+        key: {**envelope, "value": mask_sensitive(envelope["value"])}
+        for key, envelope in effective.items()
+    }
     return {
         "generated_at": now.isoformat(),
         "dashboard": build_dashboard(db, settings, now, cache=bundle_cache),
-        "settings": mask_sensitive(effective),
+        "settings": masked_settings,
         # 설치처 고유 설정이 비었는지(app/core/tenant_config.py). 마스킹된 settings 덤프만
         # 봐서는 "비어 있음"과 "원래 그런 값"이 구별되지 않는다 — 상태를 따로 싣는다.
         # 다른 고객사 설치에서 아무 설정 없이 동작하지 않는 이유가 화면에 안 뜨던 문제를 막는다.

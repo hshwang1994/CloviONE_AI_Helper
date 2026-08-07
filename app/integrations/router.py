@@ -94,6 +94,11 @@ def update_integration(
     row = get_integration_or_404(db, integration_id)
     before = integration_snapshot(row)
     merged = {**before, **payload.model_dump(exclude_unset=True)}
+    # IntegrationConfig.capabilities는 dict(None 불허)이지만, workflows/router.py의 tags와
+    # 같은 이유로 폼이 '지움'을 명시적 null로 보낸다 — merged['capabilities']가 None이 되어
+    # 검증이 깨진다(재현: PATCH {"capabilities": null} -> 422). '지움'을 빈 dict로 정규화한다.
+    if merged.get("capabilities") is None:
+        merged["capabilities"] = {}
     config = IntegrationConfig.model_validate(merged)
 
     # Spec §20: base_url / secret_ref 변경은 승인 대상. health_url도 포함 — 헬스체크가
@@ -119,7 +124,10 @@ def update_integration(
             approval = create_approval(
                 db, request_type="integration.change_config", object_type=OBJECT_TYPE,
                 object_id=row.id, requested_by=request.state.user,
-                payload={"config": config.model_dump()},
+                # "before"는 결정 시점에 대상이 요청 당시와 같은지 대조하는 근거다
+                # (approvals/service.py::_execute_integration_config, schedule.enable과
+                # 같은 staleness 가드).
+                payload={"config": config.model_dump(), "before": before},
                 now=request.app.state.clock.now(),
             )
             record_audit_from_request(
@@ -245,7 +253,7 @@ def rollback(
             approval = create_approval(
                 db, request_type="integration.change_config", object_type=OBJECT_TYPE,
                 object_id=row.id, requested_by=request.state.user,
-                payload={"config": target.model_dump()},
+                payload={"config": target.model_dump(), "before": before},
                 now=request.app.state.clock.now(),
             )
             record_audit_from_request(

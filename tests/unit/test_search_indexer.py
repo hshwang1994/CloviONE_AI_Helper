@@ -102,6 +102,26 @@ def test_indexes_all_four_kinds(db, app, seeded):
     assert kinds[KIND_USER] >= 1
 
 
+def test_a_normal_sized_corpus_is_not_marked_truncated(db, app, seeded):
+    """상한(MAX_ROWS_PER_KIND)에 한참 못 미치면 `truncated` 는 False 로 남아야 한다 —
+    잘림 검출 자체가 오탐(off-by-one 등)으로 항상 True 를 뱉지 않는지 확인한다."""
+    result = _run(db, app)
+    assert result.truncated is False
+
+
+def test_a_kind_over_the_per_kind_cap_reports_truncated(db, app, seeded, monkeypatch):
+    """🔴 회귀: 한 유형이라도 `MAX_ROWS_PER_KIND` 에서 잘리면 `IndexResult.truncated` 가
+    True 여야 한다. 예전에는 이 값이 어디서도 True 로 설정되지 않아서, 코퍼스가 상한을
+    넘는 날 수천 건이 검색에서 조용히 빠져도 API 응답·감사 로그·운영 대시보드
+    (`app/search/reindex_router.py`, `app/worker_main.py::mirror_sync_status`) 모두
+    `truncated:false` 라고 답했다."""
+    from app.search import indexer
+
+    monkeypatch.setattr(indexer, "MAX_ROWS_PER_KIND", 0)
+    result = _run(db, app)
+    assert result.truncated is True, "잘렸는데도 truncated 가 False 로 나왔다"
+
+
 def test_ticket_row_carries_route_url_and_resolved_owner(db, app, seeded):
     _run(db, app)
     row = _by_kind(db, KIND_TICKET)[0]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.allowlist import AllowlistRegistry
@@ -100,8 +101,16 @@ def create_workflow(
     _check_name_clash(db, config.name)
     row = Workflow(config_version=1)
     _apply_fields(row, config)
-    db.add(row)
-    db.flush()
+    try:
+        # _check_name_clash 위의 SELECT는 UX용 조기 안내일 뿐이다 — 동시에 같은 이름으로
+        # 두 요청이 그 SELECT를 통과하면 진짜 경계는 DB의 unique 제약이다. SAVEPOINT로
+        # 감싸 그 제약 위반(IntegrityError)을 흡수하고 409로 답한다 — 레포 관례
+        # (jobs/repository.enqueue, board/service._add_reaction 등)와 동일.
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}")
     snapshot_config(
         db, object_type=OBJECT_TYPE, object_id=row.id,
         snapshot=workflow_snapshot(row), created_by=created_by,
@@ -122,7 +131,11 @@ def apply_workflow_config(
         _check_name_clash(db, config.name, exclude_id=row.id)
     _apply_fields(row, config)
     row.config_version += 1
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.flush()
+    except IntegrityError:
+        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}")
     snapshot_config(
         db, object_type=OBJECT_TYPE, object_id=row.id,
         snapshot=workflow_snapshot(row), created_by=updated_by,

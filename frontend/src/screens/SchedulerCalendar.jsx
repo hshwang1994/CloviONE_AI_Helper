@@ -163,6 +163,10 @@ export function SchedulerCalendar() {
     onSuccess: () => {
       toast("실행을 다시 대기열에 넣었습니다.", "success");
       qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
+      // 실행 일정(스케줄) DataScreen(#/schedules, registry/automation.js)이 같은 실행 이력을
+      // 별도 캐시(["schedules", ...])로 보여준다 — crossScreenKeys.js의 반대 방향(schedules ->
+      // scheduler-calendar)과 짝을 맞춘다.
+      qc.invalidateQueries({ queryKey: ["schedules"] });
       setSelected(null);
     },
     onError: (e) => toast(e.message, "error"),
@@ -173,6 +177,7 @@ export function SchedulerCalendar() {
     onSuccess: () => {
       toast("실행을 취소했습니다.", "success");
       qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
+      qc.invalidateQueries({ queryKey: ["schedules"] });
       setSelected(null);
     },
     onError: (e) => toast(e.message, "error"),

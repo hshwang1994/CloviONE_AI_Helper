@@ -88,6 +88,49 @@ def test_rollback_restores_previous_config(client, admin_csrf):
     assert rolled["config_version"] == 3  # rollback = new version, append-only
 
 
+def test_integration_config_approval_rejects_stale_config(client, login_as, admin_csrf):
+    """Regression (backend-approvals-jobs 감사 #7): 승인 대기 중 integration 설정이 직접
+    수정되면, 그 승인을 나중에 그대로 적용하는 것은 승인자가 검토한 적 없는 옛 설정으로
+    현재 설정을 조용히 되돌리는 일이 된다 — `schedule.enable`과 같은 staleness 가드가
+    `integration.change_config`에도 있어야 한다.
+    """
+    created = client.post(
+        "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
+    ).json()["integration"]  # base_url = 127.0.0.1:8787
+
+    requester_csrf = login_as("admin", email="int-requester@goodmit.co.kr")
+    r = client.patch(
+        f"/api/admin/integrations/{created['id']}",
+        json={"base_url": "http://127.0.0.1:8788"},
+        headers=_headers(requester_csrf),
+    )
+    assert r.status_code == 202
+    approval_id = r.json()["approval"]["id"]
+
+    # client는 세션 쿠키를 하나만 들고 있다 — 위 login_as가 요청자로 세션을 바꿔치기했으므로
+    # system_admin으로 다시 로그인해 새 csrf 토큰을 받아야 그 세션으로 계속 조작할 수 있다.
+    admin_csrf = login_as("system_admin")
+
+    # 승인 대기 중 system_admin이 직접 설정을 바꾼다 — 즉시 적용된다.
+    r2 = client.patch(
+        f"/api/admin/integrations/{created['id']}",
+        json={"base_url": "http://127.0.0.1:8789"},
+        headers=_headers(admin_csrf),
+    )
+    assert r2.status_code == 200
+
+    approve = client.post(
+        f"/api/admin/approvals/{approval_id}/approve", headers=_headers(admin_csrf)
+    )
+    assert approve.status_code == 409
+    assert "stale" in approve.json()["error"]["message"]
+
+    detail = client.get(
+        f"/api/admin/integrations/{created['id']}", headers=_headers(admin_csrf)
+    ).json()["integration"]
+    assert detail["base_url"] == "http://127.0.0.1:8789"  # 옛 설정으로 되돌아가지 않는다
+
+
 def test_rollback_to_unknown_version_404(client, admin_csrf):
     created = client.post(
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)

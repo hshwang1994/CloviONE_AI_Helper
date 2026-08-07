@@ -175,6 +175,30 @@ def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings
     assert "PLAINTEXT-DIAG" not in r.text
 
 
+def test_diagnostic_bundle_does_not_mask_non_secret_setting_by_name(client, login_as):
+    """`password_policy` is a non-secret policy object ({min_length, min_classes}),
+    not a credential — its *name* merely contains the substring "password".
+    mask_sensitive matches on key names, so masking the whole settings envelope
+    (instead of just each setting's "value" sub-object) used to collapse this
+    entire non-secret entry to "***", hiding min_length/min_classes from an
+    operator troubleshooting via diagnostics. The real secret case (smtp's
+    password_ref sub-field) must still be masked.
+    """
+    login_as("admin")
+    r = client.get("/api/admin/diagnostics/bundle")
+    assert r.status_code == 200
+    settings = r.json()["settings"]
+
+    pw_policy = settings["password_policy"]
+    assert pw_policy != "***", "non-secret setting collapsed to '***' just because its name contains 'password'"
+    assert pw_policy["value"] == {"min_length": 12, "min_classes": 3}
+    assert pw_policy["type"] == "object"
+
+    # The actual secret sub-field inside smtp must still be masked.
+    smtp_value = settings["smtp"]["value"]
+    assert smtp_value["password_ref"] == "***"
+
+
 def test_auditor_can_read_dashboard(client, login_as):
     login_as("auditor")
     assert client.get("/api/admin/dashboard").status_code == 200

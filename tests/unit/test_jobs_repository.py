@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import pytest
 
+from app.core.errors import ConflictError
 from app.jobs import repository
 from app.jobs.models import Job
 
@@ -131,6 +132,44 @@ def test_manual_retry_resets_attempts(db, now):
     assert job.status == "queued"
     assert job.attempt_count == 0
     assert repository.claim_next(db, now) is not None
+
+
+def test_cancel_queued_happy_path(db, now):
+    job = _enqueue(db, now)
+    db.commit()
+    repository.cancel_queued(db, job, now=now)
+    db.commit()
+    assert job.status == "cancelled"
+    assert job.finished_at == now
+    assert job.started_at is None
+
+
+def test_cancel_queued_rejects_a_job_the_worker_already_claimed(db, now):
+    """Regression (backend-approvals-jobs 감사 #4): TOCTOU race between an operator's
+    cancel request and the worker's `claim_next`.
+
+    `cancel_queued` used to be an unconditional `UPDATE ... WHERE id = :id` — if the
+    worker's atomic `claim_next` (queued→running, self-committing) won the race between
+    the router's Python-level status check and this write actually landing, the old
+    code silently clobbered `running` back to `cancelled` on a job the worker now owns
+    and is actively executing. It must instead behave like `claim_next` itself: a
+    compare-and-swap that only touches rows still `queued`, and refuse (rather than
+    silently no-op-overwrite) when the row has already moved on.
+    """
+    job = _enqueue(db, now)
+    db.commit()
+
+    # Simulate: the worker's claim_next won the race and already flipped this job to
+    # 'running' (and committed) before cancel_queued's own write lands.
+    claimed = repository.claim_next(db, now)
+    assert claimed.id == job.id
+    assert claimed.status == "running"
+
+    with pytest.raises(ConflictError):
+        repository.cancel_queued(db, claimed, now=now)
+
+    db.refresh(claimed)
+    assert claimed.status == "running"  # NOT clobbered back to 'cancelled'
 
 
 def test_queue_stats(db, now):

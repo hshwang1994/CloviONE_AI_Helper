@@ -123,6 +123,43 @@ def test_update_and_rollback(client, admin_csrf):
     assert rolled["config_version"] == 3
 
 
+def test_runner_config_approval_rejects_stale_config(client, login_as, admin_csrf):
+    """Regression (backend-approvals-jobs 감사 #7): 승인 대기 중 runner 설정이 직접
+    수정되면, 그 승인을 나중에 그대로 적용하는 것은 승인자가 검토한 적 없는 옛 설정으로
+    현재 설정을 조용히 되돌리는 일이 된다 — `schedule.enable`과 같은 staleness 가드가
+    `runner.change_config`에도 있어야 한다.
+    """
+    runner = _create(client, admin_csrf).json()["runner"]  # base_url = 127.0.0.1:8787
+
+    r = client.patch(
+        f"/api/admin/runners/{runner['id']}",
+        json={"base_url": "http://127.0.0.1:8788"},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 202
+    approval_id = r.json()["approval"]["id"]
+
+    # 승인 대기 중 다른 사람(system_admin)이 직접 설정을 바꾼다 — 승인은 즉시 적용된다.
+    sys_csrf = login_as("system_admin", email="runner-sys@goodmit.co.kr")
+    r2 = client.patch(
+        f"/api/admin/runners/{runner['id']}",
+        json={"base_url": "http://127.0.0.1:8789"},
+        headers=_headers(sys_csrf),
+    )
+    assert r2.status_code == 200
+
+    approve = client.post(
+        f"/api/admin/approvals/{approval_id}/approve", headers=_headers(sys_csrf)
+    )
+    assert approve.status_code == 409
+    assert "stale" in approve.json()["error"]["message"]
+
+    detail = client.get(
+        f"/api/admin/runners/{runner['id']}", headers=_headers(sys_csrf)
+    ).json()["runner"]
+    assert detail["base_url"] == "http://127.0.0.1:8789"  # 옛 설정으로 되돌아가지 않는다
+
+
 def test_operator_reads_but_cannot_mutate(client, login_as, admin_csrf):
     runner = _create(client, admin_csrf).json()["runner"]
     operator_csrf = login_as("operator")

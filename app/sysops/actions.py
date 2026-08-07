@@ -134,6 +134,13 @@ def execute(
         outcome = action.perform(runner, normalized)
     except BinaryNotAllowedError as exc:
         outcome = ActionOutcome(ok=False, detail=f"실행이 차단됐습니다: {exc}")
+    except Exception as exc:  # noqa: BLE001 - 아래 백업 롤백이 반드시 돌아야 한다
+        # `perform` 은 파일 쓰기·프로세스 호출을 직접 한다(runner.write_text 는 내부에
+        # try/except 가 없다). 여기서 잡지 않으면 원인 모를 OSError 하나가 이 함수를 그대로
+        # 빠져나가 아래 롤백 블록을 건너뛰고, 호출자(helper.handle_request)의 최상위
+        # except 까지 올라가 `rolled_back=False` 로 보고된다 — 백업은 이미 떠 놨는데도 쓰이지
+        # 않는다.
+        outcome = ActionOutcome(ok=False, detail=f"처리 중 오류가 발생했습니다({exc.__class__.__name__}).")
 
     rolled_back = False
     if not outcome.ok and targets:

@@ -147,6 +147,19 @@ def apply_setting(
     # Reload (not just invalidate) so current() reflects the new value without a
     # DB session — an invalidate would drop back to registry defaults.
     cache.load(db)
+    # spec §13.5의 8개 알림 유형 중 'Maintenance 공지'가 여기 하나다 — maintenance_mode가
+    # False→True로 실제 켜지는 전이에만 보낸다(끌 때·이미 켜진 값 재저장까지 매번 보내면
+    # 관리자가 값을 다시 저장할 때마다 전 사용자가 알림을 또 받는다). apply_setting은
+    # update_setting과 rollback_setting(내부적으로 apply_setting을 부른다) 양쪽의 공통
+    # 저장 경로라 여기 둔다 — 라우터 한쪽에만 있으면 rollback으로 maintenance_mode가
+    # 다시 켜질 때 공지가 조용히 안 나간다.
+    if key == "maintenance_mode" and value is True and before is not True:
+        from app.notifications.service import notify_active_users
+
+        notify_active_users(
+            db, type_="maintenance_announcement", title="시스템 점검 안내",
+            body=maintenance_message(db, cache), now=now,
+        )
     return {"key": key, "before": before, "after": value, "restart_required": spec.restart_required}
 
 

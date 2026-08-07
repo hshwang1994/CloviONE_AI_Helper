@@ -245,3 +245,75 @@ describe("설정 필드는 그리드로 폭을 나눠 쓴다", () => {
     expect(grid.children.length).toBe(6);
   });
 });
+
+/* 회귀: 저장 버튼이 바뀐 필드 수만큼 하나의 useMutation을 동시에(forEach + mutate) 호출하던
+ * 예전 코드는 필드 하나가 성공하면 그 onSuccess가 setDraft(null)을 불러 아직 응답을 기다리던
+ * (혹은 나중에 실패하는) 다른 필드의 미저장 값까지 통째로 지웠다. 지금은 필드를 순서대로
+ * 저장하고, 실패한 필드만 초안에 남긴다.
+ */
+describe("저장 — 필드를 순서대로 저장하고, 실패한 필드만 초안에 남긴다", () => {
+  it("여러 필드를 저장할 때 하나가 실패해도 성공한 필드 때문에 실패한 필드의 편집 값이 사라지지 않는다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/admin/llm" && (!opts || !opts.method)) return Promise.resolve(overview());
+      if (path === "/api/admin/settings" && (!opts || !opts.method)) {
+        return Promise.resolve({ settings: { llm_backend: { value: "cli" }, llm_model: { value: "sonnet" } } });
+      }
+      if (path === "/api/admin/settings/llm_backend" && opts && opts.method === "PUT") return Promise.resolve({});
+      if (path === "/api/admin/settings/llm_model" && opts && opts.method === "PUT") {
+        return Promise.reject(new Error("모델을 저장하지 못했습니다."));
+      }
+      return Promise.resolve({});
+    });
+
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
+
+    const modelInput = screen.getByLabelText("모델");
+    await user.clear(modelInput);
+    await user.type(modelInput, "opus");
+
+    await user.click(screen.getByLabelText("백엔드"));
+    await user.click(await screen.findByRole("option", { name: "Anthropic API" }));
+
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    // 실패 1건을 하나로 모은 요약 토스트만 뜬다 — 필드마다 중복으로 뜨던 예전 성공/실패 토스트의 회귀 확인.
+    expect(await screen.findByText("1개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다.")).toBeInTheDocument();
+
+    // 실패한 필드(모델)의 편집 값은 사라지지 않는다 — 성공한 다른 필드(백엔드)의 onSuccess가
+    // 초안 전체를 지워버리던 예전 버그의 핵심 회귀 확인.
+    expect(screen.getByLabelText("모델")).toHaveValue("opus");
+
+    // 두 PUT이 모두 나갔다(성공한 필드도, 실패한 필드도 각각 시도된다).
+    expect(apiMock.mock.calls.some((c) => c[0] === "/api/admin/settings/llm_backend" && c[1] && c[1].method === "PUT")).toBe(true);
+    expect(apiMock.mock.calls.some((c) => c[0] === "/api/admin/settings/llm_model" && c[1] && c[1].method === "PUT")).toBe(true);
+  });
+
+  it("모두 성공하면 성공 토스트가 한 번만 뜨고 초안이 비워진다(저장 버튼이 다시 비활성화된다)", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/admin/llm" && (!opts || !opts.method)) return Promise.resolve(overview());
+      if (path === "/api/admin/settings" && (!opts || !opts.method)) {
+        return Promise.resolve({ settings: { llm_backend: { value: "cli" }, llm_model: { value: "sonnet" } } });
+      }
+      if (opts && opts.method === "PUT") return Promise.resolve({});
+      return Promise.resolve({});
+    });
+
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
+
+    const modelInput = screen.getByLabelText("모델");
+    await user.clear(modelInput);
+    await user.type(modelInput, "opus");
+    await user.click(screen.getByLabelText("백엔드"));
+    await user.click(await screen.findByRole("option", { name: "Anthropic API" }));
+
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    const toasts = await screen.findAllByText(/^저장했습니다\./);
+    expect(toasts).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole("button", { name: "저장" })).toBeDisabled());
+  });
+});

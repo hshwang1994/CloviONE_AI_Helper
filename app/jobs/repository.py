@@ -14,6 +14,7 @@ from sqlalchemy import Select, or_ as sa_or, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import ConflictError
 from app.jobs.models import (
     STATUS_CANCELLED,
     STATUS_FAILED,
@@ -192,10 +193,41 @@ def retry_failed(db: Session, job: Job, *, now: datetime) -> Job:
 
 
 def cancel_queued(db: Session, job: Job, *, now: datetime) -> Job:
-    job.status = STATUS_CANCELLED
-    job.finished_at = now
-    job.started_at = None
-    db.flush()
+    """대기(`queued`) 상태의 Job만 취소한다 — `claim_next`와 같은 CAS(compare-and-swap).
+
+    예전에는 `UPDATE ... WHERE id = :id`(상태 조건 없이, ORM 대입으로)만 했다.
+    호출부(`router.cancel`)가 먼저 파이썬에서 `job.status == 'queued'`를 확인하지만,
+    그 확인과 이 UPDATE가 실제로 커밋되는 시점 사이에는 요청의 남은 처리 시간만큼 창이
+    열려 있다(`get_db`가 요청 끝에 한 번만 커밋한다). 그 창에서 워커의 `claim_next`
+    (자체 커밋하는 원자적 UPDATE)가 같은 Job을 queued→running으로 먼저 가져가면, 조건
+    없는 UPDATE는 그 사실을 모른 채 워커가 실행 중인 running을 도로 cancelled로 덮어써
+    버린다 — 워커는 자기 세션에서 핸들러를 계속 실행해 나중에 succeeded/failed로 다시
+    덮어쓰므로, 실제로 일어난 일과 어긋나는 'job cancelled by operator' 상태가 연결된
+    도메인 레코드(ScheduleRun/DocumentGeneration/Message)에 영구히 남을 수 있었다.
+
+    `claim_next`와 같은 패턴으로 `WHERE status = 'queued'`를 UPDATE 조건에 넣는다. 0행이면
+    (이미 다른 상태로 넘어갔으면) 호출부가 `_terminalize_linked_record`로 더 진행하지 않게
+    `ConflictError`를 던진다.
+    """
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+    result = db.execute(
+        text(
+            """
+            UPDATE jobs
+            SET status = 'cancelled',
+                finished_at = :now,
+                started_at = NULL,
+                updated_at = :now
+            WHERE id = :id AND status = 'queued'
+            """
+        ),
+        {"now": now_str, "id": job.id},
+    )
+    if result.rowcount == 0:
+        raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")
+    # 원시 UPDATE는 ORM identity map을 거치지 않는다 — 호출부가 이어서 job.status 등을
+    # 읽으므로(응답 직렬화, _terminalize_linked_record) 새로 반영해 둔다.
+    db.refresh(job)
     return job
 
 

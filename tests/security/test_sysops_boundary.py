@@ -153,6 +153,73 @@ def test_a_failed_action_removes_files_that_did_not_exist_before():
     )
 
 
+def test_an_exception_raised_mid_perform_still_triggers_rollback():
+    """🔴 회귀: `execute()` 가 `BinaryNotAllowedError` 만 잡던 시절에는, `RealRunner.write_text`
+    (mkdir/write/chmod/rename, 내부 try/except 없음) 가 던지는 `OSError` 같은 예외가 롤백
+    블록을 건너뛰고 그대로 새어 나갔다 — 백업은 떠 놨는데 한 번도 쓰이지 않았다. 이제는
+    액션이 무엇을 던지든 실패한 동작으로 바뀌어 아래 백업 롤백을 반드시 지나야 한다."""
+    runner = FakeRunner({"/etc/hosts": "127.0.0.1 localhost\n"})
+    action = registry.get_action("hostname.set")
+    bad = registry.Action(
+        name="test.boom", summary="검사용", mutating=True,
+        normalize=action.normalize,
+        perform=lambda r, p: (_ for _ in ()).throw(OSError("디스크가 가득 찼습니다")),
+        touches=lambda p: ("/etc/hosts",),
+    )
+    registry._REGISTRY["test.boom"] = bad
+    try:
+        result = _run(runner, "test.boom", {"hostname": "srv1"})
+    finally:
+        registry._REGISTRY.pop("test.boom", None)
+
+    assert result.ok is False, "예외가 났는데 성공으로 보고했다"
+    assert result.rolled_back is True, "예외가 밖으로 새어 롤백 블록을 건너뛰었다"
+    assert runner.files["/etc/hosts"] == "127.0.0.1 localhost\n", "예외 뒤 파일이 원래대로 안 돌아왔다"
+
+
+def test_a_failed_dns_restart_is_recovered_not_just_the_file():
+    """🔴 회귀: 엔진의 백업 롤백은 파일만 복사해 되돌릴 뿐 그 파일을 쓰는 서비스를 다시
+    시작하지는 않는다 — `rolled_back: true` 라고 답해도 systemd-resolved 가 깨진 새 설정을
+    문 채 죽어 있을 수 있었다. 이제는 재시작이 실패하면 그 자리에서 옛 설정으로 되돌리고
+    다시 시작을 시도한다."""
+    from app.sysops.actions_system import RESOLVED_DROPIN
+
+    runner = FakeRunner({RESOLVED_DROPIN: "[Resolve]\nDNS=1.1.1.1\n"})
+    runner.reply(["/usr/bin/systemctl", "restart", "systemd-resolved"], code=1, err="boom")
+
+    result = _run(runner, "dns.set", {"servers": ["10.0.0.1"]})
+
+    assert result.ok is False
+    assert result.rolled_back is True
+    assert runner.files[RESOLVED_DROPIN] == "[Resolve]\nDNS=1.1.1.1\n", "옛 설정으로 안 돌아왔다"
+    restart_calls = [
+        c for c in runner.calls if c == ("/usr/bin/systemctl", "restart", "systemd-resolved")
+    ]
+    assert len(restart_calls) >= 2, (
+        f"실패 뒤 서비스를 되살리려는 재시작 재시도가 없었다: {runner.calls}"
+    )
+
+
+def test_a_failed_ntp_restart_is_recovered_not_just_the_file():
+    """`_perform_dns` 와 같은 문제가 `_perform_ntp` 에도 있었다 — 같은 회귀를 여기서도 막는다."""
+    from app.sysops.actions_system import TIMESYNCD_DROPIN
+
+    runner = FakeRunner({TIMESYNCD_DROPIN: "[Time]\nNTP=1.1.1.1\n"})
+    runner.reply(["/usr/bin/systemctl", "restart", "systemd-timesyncd"], code=1, err="boom")
+
+    result = _run(runner, "ntp.set", {"servers": ["10.0.0.1"]})
+
+    assert result.ok is False
+    assert result.rolled_back is True
+    assert runner.files[TIMESYNCD_DROPIN] == "[Time]\nNTP=1.1.1.1\n", "옛 설정으로 안 돌아왔다"
+    restart_calls = [
+        c for c in runner.calls if c == ("/usr/bin/systemctl", "restart", "systemd-timesyncd")
+    ]
+    assert len(restart_calls) >= 2, (
+        f"실패 뒤 서비스를 되살리려는 재시작 재시도가 없었다: {runner.calls}"
+    )
+
+
 def test_a_restart_that_reports_success_but_leaves_the_unit_dead_is_a_failure():
     """`systemctl restart` 의 0 은 "지시에 성공" 이지 "살아 있다" 가 아니다."""
     runner = FakeRunner()

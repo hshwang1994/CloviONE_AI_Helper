@@ -15,6 +15,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core.http_client import is_timeout_error, is_transport_error
 from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
 from app.jobs.worker import WorkerContext, parse_payload
@@ -65,9 +66,30 @@ def handle_schedule_run(db: Session, job: Job, ctx: WorkerContext) -> None:
                     "승인이 필요한 write workflow는 자동 실행되지 않습니다 (approval_required)."
                 )
         provider = N8nWorkflowProvider(ctx.outbound_client)
-        result = provider.invoke(
-            workflow, request_payload, timeout=float(schedule.timeout_seconds)
+        # §32.8 스타일 멱등성: n8n이 쓰기를 이미 처리했는데 HTTP 응답만 유실되면(타임아웃/
+        # 5xx) `repository.fail`이 이 job을 백오프 후 재큐잉하고 동일한 request_payload가
+        # 다시 POST된다. `chat_message`/`document_generate` 핸들러는 각각 이 위험을 문서화
+        # 하고 안정적인 idempotency_key를 실어 n8n이 중복 쓰기를 걸러낼 수 있게 하는데, 이
+        # 핸들러만 빠져 있었다. `Job.idempotency_key`(스케줄 occurrence 중복 방지)와 달리
+        # `run.idempotency_key`는 이 run의 재시도 전체에서 안정적이므로 그대로 쓴다.
+        invoke_payload = (
+            {**request_payload, "idempotency_key": run.idempotency_key}
+            if isinstance(request_payload, dict)
+            else request_payload
         )
+        try:
+            result = provider.invoke(
+                workflow, invoke_payload, timeout=float(schedule.timeout_seconds)
+            )
+        except Exception as exc:
+            # 타임아웃·연결 실패는 일시적일 수 있으니 큐가 재시도한다(그대로 올린다). 그 외
+            # (잘못된 webhook_url, 허용 목록 불일치, n8n의 비-JSON 응답 등)는 재시도해도
+            # 똑같이 실패하는 확정적 오류다 — notion_mapping_sync.py의 분류와 맞춘다.
+            # 그렇지 않으면 worker.py의 기본 재시도 경로가 이런 결정적 오류를 백오프하며
+            # 반복해서 재시도만 하다가 워커 용량을 낭비한다.
+            if is_timeout_error(exc) or is_transport_error(exc):
+                raise
+            raise PermanentJobError(f"Workflow 호출 실패: {type(exc).__name__}") from exc
     else:
         raise PermanentJobError(f"지원하지 않는 target_type: {schedule.target_type}")
 

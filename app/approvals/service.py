@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.approvals.models import (
@@ -137,13 +138,26 @@ def create_approval(
     # 나머지는 STALE로 남아 혼란을 더한다. payload까지 같을 때만 재사용한다 — 같은
     # 대상에 대해 내용이 다른 새 요청(예: 다른 역할로의 재요청)까지 예전 pending 건을
     # 돌려주면 호출자에게 자신이 방금 요청한 것과 다른 내용을 승인 대상으로 보여주게 된다.
-    existing = db.execute(
-        select(Approval).where(
-            Approval.request_type == request_type,
-            Approval.object_id == object_id,
-            Approval.status == APPROVAL_PENDING,
+    #
+    # **`.scalars().first()`를 쓴다 (`.scalar_one_or_none()`이 아니다).** 이 대상에 대해
+    # payload가 다른 pending 요청이 이미 둘 이상 있는 것은 위 설계상 정상 상태다(재요청
+    # 허용). `scalar_one_or_none()`은 그런 정상 상태에서도, 또 아래 삽입이 경합으로
+    # 중복 pending을 만들어 낸 뒤에도 `MultipleResultsFound`를 던져 이 대상에 대한 모든
+    # 향후 요청을 500으로 막아 버린다 — 가장 최근 것 하나만 보고 판단하면 그런 실패
+    # 모드 자체가 없어진다.
+    existing = (
+        db.execute(
+            select(Approval)
+            .where(
+                Approval.request_type == request_type,
+                Approval.object_id == object_id,
+                Approval.status == APPROVAL_PENDING,
+            )
+            .order_by(Approval.requested_at.desc())
         )
-    ).scalar_one_or_none()
+        .scalars()
+        .first()
+    )
     if existing is not None and json.loads(existing.request_payload_json) == payload:
         return existing
     row = Approval(
@@ -159,8 +173,34 @@ def create_approval(
         # 뜨고, 그때는 알려 봐야 아무 소용이 없다(app/approvals/models.py 주석).
         due_at=now + timedelta(hours=sla_hours),
     )
-    db.add(row)
-    db.flush()
+    # 위 조회~삽입 사이에는 아직 커밋이 없다(`get_db`가 요청 끝에 한 번만 커밋한다) — 그
+    # 동안 똑같은 요청이 다시 들어오면(더블클릭, 폼 재제출) 둘 다 "기존 pending 없음"을
+    # 보고 각자 삽입을 시도할 수 있다. DB의 부분 유일 인덱스(migration 0052,
+    # `ux_approvals_pending_dedup`)가 그 경합의 승자를 하나로 정해 주므로, 진 쪽은
+    # `IntegrityError`를 받고 승자가 만든 행을 그대로 돌려준다 — `jobs/repository.py::enqueue`
+    # 와 같은 패턴이다.
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        winner = (
+            db.execute(
+                select(Approval)
+                .where(
+                    Approval.request_type == request_type,
+                    Approval.object_id == object_id,
+                    Approval.status == APPROVAL_PENDING,
+                    Approval.request_payload_json == row.request_payload_json,
+                )
+                .order_by(Approval.requested_at.desc())
+            )
+            .scalars()
+            .first()
+        )
+        if winner is not None:
+            return winner
+        raise
     notify_approvers(
         db,
         type_="approval_requested",
@@ -275,7 +315,13 @@ def _ensure_decidable(row: Approval, now: datetime) -> None:
     if row.status != APPROVAL_PENDING:
         raise ConflictError(f"이미 처리된 승인 요청입니다 (status={row.status}).")
     if row.expires_at is not None and row.expires_at <= now:
-        row.status = APPROVAL_EXPIRED
+        # 여기서 row.status를 EXPIRED로 대입하지 않는다 — 대입해도 절대 저장되지 않는다.
+        # 이 함수는 `decide()`/`cancel()`을 거쳐 라우터에서 곧장 호출되고, 아래 줄에서 던지는
+        # ConflictError는 `app/core/deps.py::get_db`의 `except Exception: db.rollback(); raise`
+        # 를 그대로 타고 나가 요청 트랜잭션 전체를 롤백한다 — flush조차 되기 전에 대입이
+        # 사라진다. 실제 만료 영속화는 별도 백그라운드 스윕(`expire_pending`)만 한다 — 그
+        # 쪽은 `_fail_pending_document_publish`도 같이 호출해 연결된 문서 발행까지 정리한다.
+        # (표시용 만료 판정은 `approval_view`가 이 컬럼과 무관하게 조회 시점에 한다.)
         raise ConflictError("만료된 승인 요청입니다.")
 
 
@@ -429,10 +475,21 @@ def _execute_schedule_enable(db: Session, approval: Approval, app_state) -> None
 def _execute_runner_config(db: Session, approval: Approval, app_state) -> None:
     from app.core.audit import record_audit
     from app.runners.schemas import RunnerConfig
-    from app.runners.service import apply_runner_config, get_runner_or_404
+    from app.runners.service import apply_runner_config, get_runner_or_404, runner_snapshot
 
     payload = json.loads(approval.request_payload_json)
     runner = get_runner_or_404(db, approval.object_id)
+    # 승인은 요청 시점에 승인자가 본 runner 상태에 대한 것이다. 대기 중 직접 수정이나
+    # 다른 승인이 먼저 적용돼 그 상태가 바뀌었다면, 이 승인을 그대로 적용하는 것은
+    # 승인자가 검토한 적 없는 변경(옛 설정으로의 조용한 되돌림)을 만든다 — STALE로
+    # 거절한다. (스냅샷이 없는 예전 승인도 대조가 불가능하므로 같은 취급 — fail-closed,
+    # `_execute_schedule_enable`과 같은 패턴.)
+    before = payload.get("before")
+    if before is None or runner_snapshot(runner) != before:
+        raise ConflictError(
+            "요청 이후 Runner 설정이 변경되어 이 승인은 적용할 수 없습니다 (stale). "
+            "변경된 설정으로 다시 요청하세요."
+        )
     config = RunnerConfig.model_validate(payload["config"])
     apply_runner_config(
         db, runner, config,
@@ -514,10 +571,25 @@ def _execute_document_publish(db: Session, approval: Approval, app_state) -> Non
 def _execute_integration_config(db: Session, approval: Approval, app_state) -> None:
     from app.core.audit import record_audit
     from app.integrations.schemas import IntegrationConfig
-    from app.integrations.service import apply_integration_config, get_integration_or_404
+    from app.integrations.service import (
+        apply_integration_config,
+        get_integration_or_404,
+        integration_snapshot,
+    )
 
     payload = json.loads(approval.request_payload_json)
     integration = get_integration_or_404(db, approval.object_id)
+    # 승인은 요청 시점에 승인자가 본 integration 상태에 대한 것이다. 대기 중 직접
+    # 수정이나 다른 승인이 먼저 적용돼 그 상태가 바뀌었다면, 이 승인을 그대로 적용하는
+    # 것은 승인자가 검토한 적 없는 변경(옛 설정으로의 조용한 되돌림)을 만든다 — STALE로
+    # 거절한다. (스냅샷이 없는 예전 승인도 대조가 불가능하므로 같은 취급 — fail-closed,
+    # `_execute_schedule_enable`과 같은 패턴.)
+    before = payload.get("before")
+    if before is None or integration_snapshot(integration) != before:
+        raise ConflictError(
+            "요청 이후 Integration 설정이 변경되어 이 승인은 적용할 수 없습니다 (stale). "
+            "변경된 설정으로 다시 요청하세요."
+        )
     config = IntegrationConfig.model_validate(payload["config"])
     apply_integration_config(
         db, integration, config,

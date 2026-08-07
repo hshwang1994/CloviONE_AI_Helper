@@ -76,18 +76,9 @@ def update_setting(
         request, db, action="setting.update", object_type=OBJECT_TYPE,
         object_id=key, before={"value": result["before"]}, after={"value": result["after"]},
     )
-    # spec §13.5의 8개 알림 유형 중 'Maintenance 공지'가 여기 하나다 — maintenance_mode가
-    # False→True로 실제 켜지는 전이에만 보낸다(끌 때·이미 켜진 값 재저장까지 매번 보내면
-    # 관리자가 값을 다시 저장할 때마다 전 사용자가 알림을 또 받는다).
-    if key == "maintenance_mode" and result["after"] is True and result["before"] is not True:
-        from app.notifications.service import notify_active_users
-        from app.settings.service import maintenance_message
-
-        notify_active_users(
-            db, type_="maintenance_announcement", title="시스템 점검 안내",
-            body=maintenance_message(db, request.app.state.settings_cache),
-            now=request.app.state.clock.now(),
-        )
+    # Maintenance-announcement notify (spec §13.5) now lives in
+    # app.settings.service.apply_setting, the shared save path for both this
+    # handler and `rollback` below — see that function for why.
     return result
 
 

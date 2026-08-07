@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError
+from app.core.errors import AppError, ValidationAppError
 from app.core.http_client import OutboundClient, is_timeout_error, is_transport_error
 from app.workflows.models import Workflow
 from app.workflows.service import ALLOWLIST
@@ -33,6 +33,17 @@ class N8nWorkflowProvider:
     ) -> dict:
         if not workflow.enabled:
             raise WorkflowDisabledError()
+        if workflow.http_method != "POST" and payload:
+            # OutboundClient.request()는 POST가 아니면 json=None을 보내 payload를 조용히
+            # 버린다(SSRF 경계와 무관한 순수 로직이라 여기서 막는다) — 모든 실제 호출부
+            # (schedule_run/document_generate/notion_mapping_sync)가 비어 있지 않은 payload를
+            # 만들어 넘긴다고 가정하므로, http_method=GET으로 (오)구성된 workflow는 n8n이
+            # 빈 GET을 받고 데이터 없는 정상 응답처럼 보이는 대신 여기서 바로 실패해야 한다.
+            raise ValidationAppError(
+                f"http_method가 '{workflow.http_method}'인 Workflow는 payload를 보낼 수 "
+                "없습니다 (GET 요청은 본문을 보내지 않습니다). Workflow의 http_method를 "
+                "POST로 바꾸거나 payload 없이 호출하세요."
+            )
         response = self._outbound.request(
             workflow.http_method,
             workflow.webhook_url,

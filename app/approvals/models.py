@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
@@ -25,6 +25,22 @@ DEFAULT_SLA_HOURS = 24
 
 class Approval(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "approvals"
+
+    # 같은 (request_type, object_id) 에 payload 가 다른 pending 요청은 **의도적으로**
+    # 여러 개 있을 수 있다(예: 다른 역할로의 재요청 — create_approval 의 주석 참고).
+    # 그래서 유일성은 (request_type, object_id) 만이 아니라 request_payload_json 까지
+    # 묶어야 한다 — 그래야 '완전히 같은 내용의 pending 요청이 두 번 만들어지는' 동시
+    # 요청(더블클릭, 폼 재제출)만 막고 의도된 재요청은 그대로 허용한다.
+    __table_args__ = (
+        Index(
+            "ux_approvals_pending_dedup",
+            "request_type",
+            "object_id",
+            "request_payload_json",
+            unique=True,
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
 
     request_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     object_type: Mapped[str] = mapped_column(String(64), nullable=False)

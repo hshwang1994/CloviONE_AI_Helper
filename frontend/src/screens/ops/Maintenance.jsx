@@ -60,7 +60,15 @@ export function Maintenance() {
 
   const toggle = useMutation({
     mutationFn: (val) => api("/api/admin/settings/maintenance_mode", { method: "PUT", body: { value: val } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["settings"] }); toast("유지보수 모드를 변경했습니다.", "success"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      // SettingVersions.doRollback·SettingsMain.jsx의 onSaved와 동일한 이유: 이 값 자체가
+      // '변경 기록(켜고 끈 이력)' 드로어(아래 showModeVersions)로 노출되는데, 그 드로어는
+      // 별도 캐시(["settings","maintenance_mode","versions"])를 쓴다. 여기서 함께 무효화하지
+      // 않으면 방금 켜고/끈 기록이 기본 staleTime(30초) 안에 열어도 빠져 있다.
+      qc.invalidateQueries({ queryKey: ["settings", "maintenance_mode", "versions"] });
+      toast("유지보수 모드를 변경했습니다.", "success");
+    },
     onError: (e) => toast(e.message, "error"),
   });
   const saveMsg = useMutation({
@@ -69,7 +77,13 @@ export function Maintenance() {
     // 값 옆에 낡은 '검증 통과' 배너가 계속 남고, 검증 없이 바로 저장해 실패하면 방금 실패와
     // 무관한 옛 검증 결과가 뒤섞여 어느 쪽이 지금 상태인지 알 수 없다.
     onMutate: () => { setMsgChecked(""); setMsgCheckErr(""); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["settings"] }); toast("점검 공지를 저장했습니다.", "success"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      // 위 toggle과 같은 이유 — '버전 기록'(showVersions)도 별도 캐시
+      // (["settings","maintenance_message","versions"])라 여기서 함께 무효화한다.
+      qc.invalidateQueries({ queryKey: ["settings", "maintenance_message", "versions"] });
+      toast("점검 공지를 저장했습니다.", "success");
+    },
     // 실패는 사라지는 토스트만이 아니라 미리 검증 실패와 같은 자리에도 남긴다 —
     // 필드 바로 옆에 지속되는 이유를 남겨 토스트를 놓쳐도 원인을 알 수 있게 한다.
     onError: (e) => { setMsgCheckErr(e.message); toast(e.message, "error"); },

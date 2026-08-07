@@ -13,6 +13,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.core.http_client import is_timeout_error, is_transport_error
 from app.documents.models import (
     MODE_AUTO_PUBLISH,
     MODE_PREVIEW_ONLY,
@@ -33,6 +34,24 @@ from app.workflows.models import Workflow
 from app.workflows.provider_n8n import N8nWorkflowProvider
 
 logger = logging.getLogger("app.handlers.document")
+
+
+def _invoke_classified(provider: N8nWorkflowProvider, workflow, payload: dict, *, timeout: float) -> dict:
+    """provider.invoke()를 감싸 실패를 일시적/확정적으로 분류한다.
+
+    타임아웃·연결 실패는 재시도해도 나을 수 있어 그대로 올려 큐가 재시도하게 둔다. 그 외
+    (잘못된 webhook_url, 허용 목록 불일치, 비활성화된 workflow, n8n의 비-JSON 응답 등)는
+    재시도해도 똑같이 실패하는 확정적 오류라 PermanentJobError로 감싸 큐가 멈추게 한다 —
+    notion_mapping_sync.py의 분류와 동일하게 맞춘다. 이 분류가 없으면(예전 상태) preview와
+    publish 호출 모두 worker.py의 기본 재시도 경로를 타서, 결정적으로 실패하는 설정 오류를
+    백오프하며 반복 재시도만 하다가 워커 용량을 낭비했다.
+    """
+    try:
+        return provider.invoke(workflow, payload, timeout=timeout)
+    except Exception as exc:
+        if is_timeout_error(exc) or is_transport_error(exc):
+            raise
+        raise PermanentJobError(f"Workflow 호출 실패: {type(exc).__name__}") from exc
 
 
 def _requester(gen: DocumentGeneration, db: Session) -> dict:
@@ -78,8 +97,8 @@ def handle_document_generate(db: Session, job: Job, ctx: WorkerContext) -> None:
     preview_payload = build_workflow_payload(
         config, _requester(gen, db), action="preview"
     )
-    preview = provider.invoke(
-        workflow, preview_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
+    preview = _invoke_classified(
+        provider, workflow, preview_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
     )
     if not isinstance(preview, dict):
         raise PermanentJobError("Workflow preview 응답이 객체가 아닙니다.")
@@ -143,8 +162,8 @@ def _publish(db, gen, workflow, config, provider, ctx, *, content=None) -> None:
     # response is lost and the job retries, the same idempotency key lets n8n
     # dedup so a duplicate document is not created. (n8n workflow must honor it.)
     publish_payload["idempotency_key"] = gen.idempotency_key
-    result = provider.invoke(
-        workflow, publish_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
+    result = _invoke_classified(
+        provider, workflow, publish_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
     )
     # Read-back verification (spec §19.5).
     published_ref = result.get("published_ref") if isinstance(result, dict) else None
@@ -210,9 +229,9 @@ def _notify_requester_ready(db: Session, gen: DocumentGeneration, ctx) -> None:
 
 
 def _create_publish_approval(db, gen, ctx) -> None:
-    from app.approvals.models import Approval, APPROVAL_PENDING
+    from app.approvals.models import Approval, APPROVAL_PENDING, DEFAULT_SLA_HOURS
     from app.approvals.service import DEFAULT_EXPIRY_HOURS
-    from app.notifications.service import notify_admins
+    from app.notifications.service import notify_approvers
 
     now = ctx.clock.now()
     # {"generation_id": ...} alone forces a reviewer to leave the approvals
@@ -245,9 +264,21 @@ def _create_publish_approval(db, gen, ctx) -> None:
     from datetime import timedelta
 
     approval.expires_at = now + timedelta(hours=DEFAULT_EXPIRY_HOURS)
+    # SLA (0033): 다른 모든 승인 생성 경로는 `create_approval()`을 거쳐 due_at을 갖는다.
+    # 이 경로만 Approval을 손으로 만들어 due_at이 계속 NULL로 남았고, 그러면
+    # `is_overdue()`/`approval_view`의 overdue/`delegation.notify_overdue()`가 이 요청
+    # 유형에 대해서는 절대 참이 될 수 없었다 — SLA 기능이 document.publish만 조용히
+    # 빠져 있었다.
+    approval.due_at = now + timedelta(hours=DEFAULT_SLA_HOURS)
     db.add(approval)
     db.flush()
-    notify_admins(
+    # X7: `notify_admins`는 관리자(admin/system_admin)에게만 간다. 하지만 이 승인을
+    # 실제로 결재할 수 있는 사람은 관리자만이 아니다 — 활성 `ApprovalDelegation`을 받은
+    # 비관리자도 `delegation.resolve_authority`상 결재할 수 있다. 다른 모든 승인 생성
+    # 경로(`create_approval`)는 `notify_approvers`를 써서 피위임자도 알림을 받는데, 이
+    # 경로만 `notify_admins`를 직접 불러 피위임자가 존재를 알 방법이 없는 채로 남아
+    # 있었다 — 바로 그 X7 결함을 이 경로에서만 되풀이하고 있었다.
+    notify_approvers(
         db, type_="approval_requested",
         title="문서 발행 승인 요청",
         body="생성된 문서 미리보기를 검토하고 발행을 승인하세요.",

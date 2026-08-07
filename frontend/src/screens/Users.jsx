@@ -303,7 +303,19 @@ export function Users() {
     placeholderData: keepPreviousData,
     retry: false,
   });
-  const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
+  // 사용자를 만들거나(부서/직책/조직 배정) 고치거나(단일 수정 또는 UsersBulk.jsx 대량 지정),
+  // 부서·직책·조직 화면(registry/org.js)과 조직도(OrgTree.jsx)가 보여주는 소속/보유 인원
+  // (user_count)이 함께 낡는다 — 그 화면들의 드롭다운(위 useNameOptions)도 이 화면과 같은
+  // ["departments"]/["job-titles"]/["organizations"] 캐시를 읽고, 삭제 버튼 게이팅
+  // (when: (r) => !r.user_count)도 그 인원 수를 본다. 여기 한 곳에서 함께 무효화해 화면을
+  // 나갔다 돌아오지 않아도 최신 인원 수를 보게 한다.
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["users"] });
+    qc.invalidateQueries({ queryKey: ["departments"] });
+    qc.invalidateQueries({ queryKey: ["job-titles"] });
+    qc.invalidateQueries({ queryKey: ["organizations"] });
+    qc.invalidateQueries({ queryKey: ["org-tree"] });
+  };
   const total = query.data && query.data.total;
   const pageSize = (query.data && query.data.page_size) || 20;
   const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;

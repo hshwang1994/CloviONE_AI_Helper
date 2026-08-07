@@ -190,7 +190,12 @@ def test_end_to_end_schedule_execution(
     import json as _json
 
     sent = _json.loads(fake_http.requests[0].content)
-    assert sent == {"scope": "weekly"}
+    # idempotency_key가 함께 실려 나간다 (backend-approvals-jobs 감사 #5): n8n이 이 값으로
+    # 응답 유실 뒤 재시도된 동일 쓰기를 걸러낼 수 있어야 §32.8 스타일 중복 실행을 막는다.
+    from app.schedules.models import ScheduleRun
+
+    run = db.query(ScheduleRun).filter(ScheduleRun.schedule_id == created["id"]).one()
+    assert sent == {"scope": "weekly", "idempotency_key": run.idempotency_key}
 
     # 1시간 경과로 관리자 세션이 idle 만료(30분) — 재로그인.
     from tests.conftest import DEFAULT_TEST_PASSWORD
@@ -227,7 +232,11 @@ def test_run_now_and_retry_failed_run(
         app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
     )
 
-    # Run-now against a failing webhook → run ends failed after retries.
+    # Run-now against a failing webhook → run ends failed. A 404 is a deterministic
+    # config error (bad webhook path), so schedule_run.py now classifies it as
+    # permanent and fails on the very first attempt instead of exhausting backoff
+    # retries first (see tests/regression/test_workflows_integrations_audit_fixes.py
+    # for the dedicated regression test on this classification).
     fake_http.on("http://127.0.0.1:5678/webhook/report", status=404)
     r = client.post(
         f"/api/admin/schedules/{created['id']}/run-now",
@@ -237,7 +246,9 @@ def test_run_now_and_retry_failed_run(
     assert r.status_code == 200
     run_id = r.json()["run"]["id"]
 
-    worker.run_once()  # 404 → HTTPStatusError → 재시도 소진까지
+    worker.run_once()  # 404 → HTTPStatusError → 확정적 오류라 첫 시도만에 실패로 확정된다
+    # 남는 잡이 없으니 이후 run_once() 호출은 그냥 아무 일도 안 한다 — 그래도 걸어 둔다
+    # (재시도 정책이 다시 느슨해지면 이 루프가 그 회귀를 조용히 가려서는 안 된다).
     for _ in range(3):
         fake_clock.advance(120)
         worker.run_once()

@@ -129,13 +129,17 @@ def _dept_names(db: Session) -> dict[str, str]:
     return {row[0]: row[1] or "" for row in rows}
 
 
-def _ticket_rows(db: Session, repo, maps) -> list[dict]:
+def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     """티켓 — 저장소 seam(`list_all`)으로만 읽는다.
 
     담당자는 **원본 Notion id 가 아니라 앱 user_id 로 해석해서** 저장한다. 원본 id 를 넣으면
     범위 판정이 못 하고(§12.3), 인덱스가 원본 식별자를 들고 있게 된다.
+
+    반환하는 `bool` 은 `MAX_ROWS_PER_KIND` 에서 잘렸는지다 — 잘렸는데도 알리지 않으면
+    코퍼스가 상한을 넘는 날 수천 건이 검색에서 조용히 빠지고 아무 데도 신호가 없다.
     """
     listing = repo.list_all(db)
+    truncated = len(listing.tickets) > MAX_ROWS_PER_KIND
     # 휴지통에 넣은 티켓은 색인하지 않는다(H2). 예전에는 보관기간(기본 7일) 내내 검색과
     # ⌘K 에 계속 나왔다 — "지웠는데 검색에는 있다" 는 지운 적이 없다는 말처럼 읽힌다.
     # 목록 API 는 이미 `_drop_trashed` 로 거른다. 색인만 빠져 있었다.
@@ -159,21 +163,23 @@ def _ticket_rows(db: Session, repo, maps) -> list[dict]:
             "url": t.url,
             "sort_key": t.due,
         })
-    return out
+    return out, truncated
 
 
-def _document_rows(db: Session, repo, maps) -> list[dict]:
+def _document_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     """문서 — 저장소 seam(`list_documents`)으로만 읽는다.
 
     소유자 해석은 표시 이름으로 한다(문서에는 앱 계정 참조가 없다). 못 맞추면 소유자가 빈
     행이 되고, 부서 범위에서는 안 보인다 — fail-closed 다.
     """
-    rows, _total = repo.list_documents(
+    rows, total = repo.list_documents(
         db,
         search=None, doc_type_f=None, work_field_f=None, project_f=None, tech_f=None,
         favorite_page_ids=None, favorites_only=False,
         sort="recent", offset=0, limit=MAX_ROWS_PER_KIND,
     )
+    # `total` 은 자르기 **전** 건수다(repository.list_documents 의 docstring 관용과 같음).
+    truncated = total > MAX_ROWS_PER_KIND
     # 티켓과 같은 이유로 휴지통 문서도 뺀다(H2).
     trashed_docs = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
     rows = [r for r in rows if getattr(r, "notion_page_id", None) not in trashed_docs]
@@ -200,18 +206,24 @@ def _document_rows(db: Session, repo, maps) -> list[dict]:
             "url": d.original_url or d.source_url,
             "sort_key": d.last_edited or d.doc_date,
         })
-    return out
+    return out, truncated
 
 
-def _board_rows(db: Session, dept_names: dict[str, str]) -> list[dict]:
-    """게시판 — 자체 DB가 정본이라 모델을 직접 읽는다. 삭제된 글은 인덱싱하지 않는다."""
+def _board_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], bool]:
+    """게시판 — 자체 DB가 정본이라 모델을 직접 읽는다. 삭제된 글은 인덱싱하지 않는다.
+
+    잘렸는지 알려면 상한보다 하나 더(`MAX_ROWS_PER_KIND + 1`) 가져와 그 존재 여부만 보고,
+    실제로 담는 건 상한까지만 자른다 — 전체 건수를 세려고 별도 COUNT 질의를 더 돌리지 않는다.
+    """
     rows = db.execute(
         select(Post, User)
         .outerjoin(User, User.id == Post.author_user_id)
         .where(Post.deleted_at.is_(None))
         .order_by(Post.created_at.desc())
-        .limit(MAX_ROWS_PER_KIND)
+        .limit(MAX_ROWS_PER_KIND + 1)
     ).all()
+    truncated = len(rows) > MAX_ROWS_PER_KIND
+    rows = rows[:MAX_ROWS_PER_KIND]
     out: list[dict] = []
     for post, author in rows:
         out.append({
@@ -230,10 +242,10 @@ def _board_rows(db: Session, dept_names: dict[str, str]) -> list[dict]:
             "url": None,
             "sort_key": post.created_at.isoformat() if post.created_at else None,
         })
-    return out
+    return out, truncated
 
 
-def _user_rows(db: Session, dept_names: dict[str, str]) -> list[dict]:
+def _user_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], bool]:
     """사용자 — 이름·부서·직책만 담는다. **이메일은 인덱싱하지 않는다.**
 
     이미 있는 `/api/team-chat/directory` 가 정확히 이 세 가지만 내보낸다(이메일·역할 제외).
@@ -245,8 +257,10 @@ def _user_rows(db: Session, dept_names: dict[str, str]) -> list[dict]:
         select(User)
         .where(User.active.is_(True), User.archived_at.is_(None))
         .order_by(User.display_name)
-        .limit(MAX_ROWS_PER_KIND)
+        .limit(MAX_ROWS_PER_KIND + 1)
     ).scalars().all()
+    truncated = len(rows) > MAX_ROWS_PER_KIND
+    rows = rows[:MAX_ROWS_PER_KIND]
     out: list[dict] = []
     for u in rows:
         dept = dept_names.get(u.department_id or "", "")
@@ -266,7 +280,7 @@ def _user_rows(db: Session, dept_names: dict[str, str]) -> list[dict]:
             "url": None,
             "sort_key": None,
         })
-    return out
+    return out, truncated
 
 
 _FIELDS = (
@@ -323,6 +337,7 @@ def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResul
     per_kind: list[tuple[str, int]] = []
     errors: list[str] = []
     desired: list[dict] = []
+    truncated = False
     try:
         maps = load_display_maps(db)
         dept_names = _dept_names(db)
@@ -333,7 +348,7 @@ def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResul
             (KIND_USER, lambda: _user_rows(db, dept_names)),
         ):
             try:
-                rows = build()
+                rows, kind_truncated = build()
             except Exception as exc:  # noqa: BLE001 — 한 유형의 실패가 전체를 못 죽이게
                 logger.exception("검색 인덱싱 실패: %s", kind)
                 errors.append(f"{kind}: {type(exc).__name__}")
@@ -350,8 +365,13 @@ def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResul
                         select(SearchDocument).where(SearchDocument.kind == kind)
                     ).scalars().all()
                 ]
+                kind_truncated = False
             per_kind.append((kind, len(rows)))
             desired.extend(rows)
+            # 한 유형이라도 상한에서 잘렸으면 전체 결과를 "잘렸다" 고 알린다 — 이 값이
+            # `app/search/reindex_router.py` 의 API 응답과 `upsert_sync_status` 를 거쳐
+            # 운영 대시보드까지 그대로 간다(app/worker_main.py `mirror_sync_status`).
+            truncated = truncated or kind_truncated
         count = _apply(db, desired, now)
     except Exception as exc:  # noqa: BLE001 — 워커 틱 밖으로 아무것도 던지지 않는다
         logger.exception("검색 인덱스 재구축 실패")
@@ -361,4 +381,5 @@ def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResul
         item_count=count,
         error="; ".join(errors) or None,
         per_kind=tuple(per_kind),
+        truncated=truncated,
     )

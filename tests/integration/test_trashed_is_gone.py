@@ -100,5 +100,7 @@ def test_trashed_ticket_disappears_from_the_search_index(client, signed_in, app)
 
     _trash(app, PAGE_ID)
     with app.state.session_factory() as db:
-        rows = indexer._ticket_rows(db, app.state.repositories.tickets, load_display_maps(db))
+        rows, _truncated = indexer._ticket_rows(
+            db, app.state.repositories.tickets, load_display_maps(db)
+        )
     assert all(r["ref_id"] != PAGE_ID for r in rows), "휴지통 티켓이 색인에 남아 있다"

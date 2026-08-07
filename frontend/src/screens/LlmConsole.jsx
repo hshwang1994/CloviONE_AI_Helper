@@ -99,8 +99,15 @@ export function LlmConsole() {
     queryFn: () => api("/api/admin/llm"),
   });
 
+  // 정본 캐시 키를 그대로 쓴다 — Maintenance.jsx·SettingsMain.jsx 등 같은 엔드포인트
+  // (/api/admin/settings)를 읽는 다른 화면과 캐시를 공유한다. 예전엔 이 화면 전용
+  // ["llm-console","settings"] 키를 따로 썼는데, 지금은 llm_* 키가 일반 설정 표에서
+  // 제외돼(settingsRegistry.js DEDICATED_SCREEN_KEYS) 우연히 문제가 안 드러났을 뿐,
+  // 다른 화면이 ["settings"]만 무효화하면(예: 버전 롤백) 이 화면이 열려 있는 동안은
+  // 그 무효화를 받지 못하는 함정이었다(["settings"]는 ["llm-console","settings"]의
+  // 접두어가 아니다).
   const settings = useQuery({
-    queryKey: ["llm-console", "settings"],
+    queryKey: ["settings"],
     queryFn: () => api("/api/admin/settings"),
   });
 
@@ -116,17 +123,44 @@ export function LlmConsole() {
     },
   });
 
+  // mutationFn만 갖고 onSuccess/onError는 두지 않는다 — 저장은 필드마다 이 mutation을
+  // 여러 번 호출하므로(아래 saveDraft), 훅 하나에 붙인 onSuccess/onError는 필드마다
+  // 그대로 다시 실행돼 중복 토스트를 낸다. 결과 처리는 saveDraft가 순서대로 모아 한 번만 한다.
   const save = useMutation({
     mutationFn: ({ key, value }) =>
       api("/api/admin/settings/" + key, { method: "PUT", body: { value } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["llm-console"] });
-      qc.invalidateQueries({ queryKey: ["settings"] });
-      setDraft(null);
-      toast("저장했습니다. " + ((state.data && state.data.apply_note) || ""), "success");
-    },
-    onError: (err) => toast((err && err.message) || "저장하지 못했습니다.", "error"),
   });
+  // 바뀐 필드 수만큼 이 mutation을 그 자리에서 동시에(forEach + mutate) 쏘던 예전 코드는
+  // 세 가지 문제가 있었다: 1) 필드마다 뜨는 중복 성공 토스트, 2) 먼저 끝난 요청의 onSuccess가
+  // setDraft(null)을 불러 아직 응답을 기다리던 다른 필드의 미저장 값을 통째로 지움(그 필드가
+  // 나중에 실패해도 이미 초안이 비어 복구할 수 없었다), 3) 공유 mutation의 isPending이 요청
+  // 사이를 들락거려 저장 버튼의 비활성 상태를 신뢰할 수 없음. 필드를 하나씩 순서대로 저장하고,
+  // 실패한 필드만 초안에 남겨 사용자가 그 값을 잃지 않게 한다.
+  const [saving, setSaving] = React.useState(false);
+  async function saveDraft() {
+    const keys = Object.keys(draft || {});
+    if (!keys.length) return;
+    setSaving(true);
+    const remaining = { ...draft };
+    let failCount = 0;
+    for (const key of keys) {
+      try {
+        await save.mutateAsync({ key, value: draft[key] });
+        delete remaining[key];
+      } catch {
+        failCount += 1;
+      }
+    }
+    qc.invalidateQueries({ queryKey: ["llm-console"] });
+    qc.invalidateQueries({ queryKey: ["settings"] });
+    setSaving(false);
+    setDraft(Object.keys(remaining).length ? remaining : null);
+    if (failCount) {
+      toast(failCount + "개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다.", "error");
+    } else {
+      toast("저장했습니다. " + ((state.data && state.data.apply_note) || ""), "success");
+    }
+  }
 
   const startTest = useMutation({
     mutationFn: () => api("/api/admin/llm/test", { method: "POST", body: {} }),
@@ -152,7 +186,7 @@ export function LlmConsole() {
     return saved[key] !== undefined && saved[key] !== null ? saved[key] : fallback;
   };
   const setValue = (key, next) => setDraft({ ...(draft || {}), [key]: next });
-  const busy = save.isPending || startTest.isPending;
+  const busy = saving || startTest.isPending;
   const result = testJob.data && testJob.data.result;
 
   return (
@@ -267,11 +301,9 @@ export function LlmConsole() {
           <Button
             variant="primary"
             disabled={busy || !draft}
-            onClick={() => {
-              Object.keys(draft || {}).forEach((key) => save.mutate({ key, value: draft[key] }));
-            }}
+            onClick={saveDraft}
           >
-            저장
+            {saving ? "저장 중…" : "저장"}
           </Button>
           <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
         </Box>

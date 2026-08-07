@@ -132,7 +132,10 @@ def update_runner(
                 object_type="runner",
                 object_id=row.id,
                 requested_by=request.state.user,
-                payload={"config": config.model_dump()},
+                # "before"는 결정 시점에 대상이 요청 당시와 같은지 대조하는 근거다
+                # (approvals/service.py::_execute_runner_config, schedule.enable과 같은
+                # staleness 가드).
+                payload={"config": config.model_dump(), "before": before},
                 now=request.app.state.clock.now(),
             )
             record_audit_from_request(
@@ -310,7 +313,7 @@ def rollback(
             approval = create_approval(
                 db, request_type="runner.change_config", object_type="runner",
                 object_id=row.id, requested_by=request.state.user,
-                payload={"config": target.model_dump()},
+                payload={"config": target.model_dump(), "before": before},
                 now=request.app.state.clock.now(),
             )
             record_audit_from_request(
