@@ -183,6 +183,12 @@ def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset()) -> 
     `dept`/`title`/`org` 는 2026-08-04 지시로 추가했다. 방을 만들 때 쓰는 디렉터리
     (`/directory`)는 부서를 주는데 정작 **만들어진 방의 참여자 목록은 이름만** 줬다 —
     같은 이름 두 사람을 초대한 방에서 누가 누구인지 구분할 방법이 없었다.
+
+    `archived` 도 `person` 에서 그대로 옮긴다 (N3, 교차 화면 감사). 이 함수는 `people.identity()`
+    를 이미 부르면서 `archived` 를 계산해 놓고 응답에는 담지 않았다 — 그래서 같은 응답의
+    `people`(말풍선이 읽는다, `_msg_view` 아래)에는 퇴사자가 "(보관됨)"으로 나오는데, 정확히
+    같은 사람이 참여자 목록(`MemberStrip`/`ManageRoomModal`, `frontend/ChatRoomMembers.jsx`)
+    에는 여전히 살아 있는 사람처럼 보였다. 답이 안 오는 대화를 며칠 기다리게 하는 그 침묵이다.
     """
     u = names.get(m.user_id)
     person = people.identity(u, org_names)
@@ -193,6 +199,7 @@ def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset()) -> 
         "dept": person["dept"],
         "title": person["title"],
         "org": person["org"],
+        "archived": person["archived"],
         "role": m.role,
         "last_read_seq": service.read_seq_for(m, cursor),
         # `online` 은 기존 계약이라 그대로 둔다(프런트 여러 곳이 읽는다).

@@ -7,6 +7,7 @@ import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
+import { ARCHIVED_SUFFIX } from "../lib/format.js";
 
 /* 채팅방 참여자 — 접속 점(누구나 본다) + 그룹 관리 대화상자(방장만).
  *
@@ -56,6 +57,12 @@ function MemberRow({ member, meId, actions }) {
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: 1.35, fontWeight: member.user_id === meId ? 700 : 400 }}>
           {member.name || "알 수 없음"}{member.user_id === meId ? " (나)" : ""}
+          {/* 떠난 사람이면 그렇다고 말한다 — 안 하면 답이 안 오는 대화를 며칠 기다린다(N3).
+              같은 방의 말풍선(ChatPane.jsx)은 이미 이 표시를 한다 — 참여자 목록만 빠져 있으면
+              같은 사람이 화면 위쪽(말풍선)과 이 관리 목록에서 다른 말을 하게 된다. */}
+          {member.archived ? (
+            <Box component="span" sx={{ fontWeight: 400, opacity: 0.6 }}> {ARCHIVED_SUFFIX}</Box>
+          ) : null}
         </Typography>
         {affiliation(member) ? (
           <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

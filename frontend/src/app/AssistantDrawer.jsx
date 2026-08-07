@@ -42,14 +42,18 @@ const SUGGESTIONS = [
 /* 지금 어느 화면인지. 사이드바 라벨과 같은 말을 쓴다 — 드로어가 "현재 문맥: 내 티켓" 이라고
  * 하는데 사이드바에는 "티켓 목록" 이라고 적혀 있으면 같은 곳을 가리키는지 알 수 없다. */
 const ROUTE_TITLES = [
-  [/^\/$|^\/me$/, "오늘의 업무"],
+  // USER_NAV(navConfig.js)의 "/me" 라벨은 "홈"이다 — 여기가 "오늘의 업무"라는 다른 말을
+  // 쓰면 바로 위 주석이 경고하는 그 상태("드로어와 사이드바가 같은 곳을 가리키는지 알 수
+  // 없다")가 된다. assistant-drawer.test.jsx가 이제 사이드바와의 대조를 고정한다.
+  [/^\/$|^\/me$/, "홈"],
   [/^\/my-tickets/, "내 티켓"],
   [/^\/unassigned/, "미할당 티켓"],
   [/^\/team-tickets/, "팀 티켓"],
   [/^\/new-ticket/, "새 티켓"],
   [/^\/tickets\//, "티켓 상세"],
   [/^\/sprint/, "스프린트 회의"],
-  [/^\/team-docs\/trash/, "문서 휴지통"],
+  // USER_NAV의 "/team-docs/trash" 라벨도 "휴지통"이다(위와 같은 이유로 맞춘다).
+  [/^\/team-docs\/trash/, "휴지통"],
   [/^\/team-docs\//, "문서 상세"],
   [/^\/team-docs/, "문서"],
   [/^\/chat-rooms/, "채팅방"],

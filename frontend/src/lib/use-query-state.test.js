@@ -89,6 +89,24 @@ describe("useQueryState — 주소가 화면 상태를 든다", () => {
     expect(result.current.state.page).toBe(1);
     expect(result.current.state.favorites).toBe(false);
   });
+
+  // react-router 의 setSearchParams 갱신 함수는 "이 렌더에서 캡처된" 옛 검색어를 기준으로
+  // 다음 값을 계산한다(react-router-dom useSearchParams 구현: nextInit(new
+  // URLSearchParams(searchParams)), searchParams 는 useCallback 의존성으로 그 렌더에 고정됨).
+  // 그래서 리렌더 없이 setState 를 두 번 연달아 부르면(같은 핸들러 안에서 필터 두 개를
+  // 바꾸는 식) 두 번째 호출이 첫 번째 호출의 patch 를 못 보고 옛 주소 위에 다시 얹는다 —
+  // 먼저 바꾼 값이 조용히 사라진다. 두 patch 는 합쳐져야 한다.
+  it("같은 틱에서 setState 를 두 번 부르면 두 patch 가 모두 반영된다", () => {
+    const { result } = renderProbe();
+    act(() => {
+      result.current.setState({ q: "hello" });
+      result.current.setState({ status: "진행" });
+    });
+    expect(result.current.state).toMatchObject({ q: "hello", status: "진행" });
+    const p = new URLSearchParams(result.current.search);
+    expect(p.get("q")).toBe("hello");
+    expect(p.get("status")).toBe("진행");
+  });
 });
 
 describe("decodeQuery / encodeQuery", () => {

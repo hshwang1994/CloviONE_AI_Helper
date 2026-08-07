@@ -272,8 +272,12 @@ export const PLATFORM_SCREENS = {
       { key: "has_consumer", label: "실제 효과", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),
     ],
+    // description은 이미 목록 열이지만 그 열은 truncateCol(70자 말줄임, hover title로만 전체 확인)이다
+    // — 같은 key로 다시 넣으면 mergeDetailFields가 columns 쪽(자른 버전)만 남기고 이 평문 버전은
+    // 조용히 버려져(상세 드로어의 원래 목적인 '전체 설명 확인'이 실제로는 절대 렌더되지 않는다) —
+    // audit 화면의 object_id_full/backup 화면의 path_full과 동일한 패턴으로 별도 key를 쓴다.
     detailFields: [
-      field("description", "설명"), field("edit_hint", "변경 안내"),
+      { key: "description_full", label: "설명", render: (r) => r.description || "-" }, field("edit_hint", "변경 안내"),
       { key: "default", label: "기본값", render: (r) => r.default ? "켜짐" : "꺼짐" },
       { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다. 켜거나 꺼도 동작이 달라지지 않습니다." },
     ],

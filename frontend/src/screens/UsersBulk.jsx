@@ -35,17 +35,27 @@ const IMPORT_STATUS = {
 
 const SAMPLE_CSV = "이메일,이름,역할,부서,직책\nhong@example.com,홍길동,user,개발팀,팀원\n";
 
+// '값' 드롭다운의 자리표시자 — deptOptions/titleOptions의 첫 항목은 항상 { value: "", label: "없음" }
+// (Users.jsx의 useNameOptions)이라 assign.value를 ""로 초기화하면 드롭다운이 '아무것도 안 고름'이 아니라
+// 이미 '없음'(= 지운다)을 고른 상태로 열린다. 관리자가 값을 건드리지 않고 '적용'을 누르면 선택한 전원의
+// 부서/직책이 조용히 null로 지워진다. ""는 실제 옵션(없음)이라 자리표시자로 못 쓰고, 어떤 실제 옵션과도
+// 겹치지 않는 이 상수를 써서 '아직 아무것도 고르지 않음'과 '없음을 일부러 고름'을 구분한다.
+const UNASSIGNED_VALUE = "__unset__";
+
 /* 선택 바 — 몇 명을 골랐는지와 그들에게 할 수 있는 일. 선택이 없으면 아무것도 그리지 않는다. */
 export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   const [busy, setBusy] = useState(null);
-  const [assign, setAssign] = useState({ action: "", value: "" });
+  const [assign, setAssign] = useState({ action: "", value: UNASSIGNED_VALUE });
   const confirm = useConfirm();
   const toast = useToast();
   const ids = Array.from(selection.selected);
   if (!ids.length) return null;
 
-  async function apply(action, value, confirmMsg) {
-    if (confirmMsg && !(await confirm(confirmMsg + `\n\n대상 ${ids.length}명.`, { danger: true }))) return;
+  // danger — 호출자가 그 작업의 실제 위험도를 넘긴다(BULK_ACTIONS의 danger 속성, 또는 지정 작업은 false).
+  // 예전엔 여기서 무조건 true였다: 활성화·보관 복구·잠금 해제·부서/직책 지정처럼 되돌리기 쉬운 작업까지
+  // 확인 버튼이 '위험' 스타일로 떠서, 정말 위험한 작업(비활성화·보관·세션 해제)과 구분이 안 됐다.
+  async function apply(action, value, confirmMsg, danger) {
+    if (confirmMsg && !(await confirm(confirmMsg + `\n\n대상 ${ids.length}명.`, { danger: !!danger }))) return;
     setBusy(action);
     try {
       const res = await api("/api/admin/users/bulk/apply", {
@@ -68,13 +78,19 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   }
 
   const assignOptions = assign.action === "set_department" ? deptOptions : titleOptions;
+  // '적용'을 누르기 전에 실제로 어떤 값이 걸리는지 확인창에 못박는다 — 일반 문구("부서를 일괄
+  // 변경할까요?")만으로는 관리자가 무슨 값이 들어가는지 모른 채 확인을 누르게 된다.
+  const chosenLabel = (assignOptions || []).find((o) => o.value === assign.value);
+  const assignConfirmMsg = assign.action === "set_department"
+    ? `선택한 계정의 부서를 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`
+    : `선택한 계정의 직책을 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`;
   return (
     <Card sx={{ p: 2, mb: 2.5 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{ids.length}명 선택</Typography>
         {BULK_ACTIONS.map((a) => (
           <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
-            onClick={() => apply(a.value, null, a.confirm)}>
+            onClick={() => apply(a.value, null, a.confirm, a.danger)}>
             {busy === a.value ? "처리 중…" : a.label}
           </Button>
         ))}
@@ -84,7 +100,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
         <TextField select size="small" label="일괄 지정" value={assign.action}
           SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
           sx={{ minWidth: "10rem" }}
-          onChange={(e) => setAssign({ action: e.target.value, value: "" })}>
+          onChange={(e) => setAssign({ action: e.target.value, value: UNASSIGNED_VALUE })}>
           <MenuItem value="">지정 안 함</MenuItem>
           <MenuItem value="set_department">부서</MenuItem>
           <MenuItem value="set_title">직책</MenuItem>
@@ -94,13 +110,15 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
             SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
             sx={{ minWidth: "12rem" }}
             onChange={(e) => setAssign((s) => ({ ...s, value: e.target.value }))}>
+            {/* 자리표시자는 목록에 남겨 두되 다시 고를 수 없게 disabled — 관리자가 실제 옵션(없음 포함)을
+                능동적으로 고르기 전까지는 이 값이 유지되어 '적용'이 비활성 상태를 유지한다. */}
+            <MenuItem value={UNASSIGNED_VALUE} disabled>값을 선택하세요</MenuItem>
             {(assignOptions || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
         ) : null}
         {assign.action ? (
-          <Button size="sm" variant="primary" disabled={!!busy}
-            onClick={() => apply(assign.action, assign.value,
-              assign.action === "set_department" ? "선택한 계정의 부서를 일괄 변경할까요?" : "선택한 계정의 직책을 일괄 변경할까요?")}>
+          <Button size="sm" variant="primary" disabled={!!busy || assign.value === UNASSIGNED_VALUE}
+            onClick={() => apply(assign.action, assign.value, assignConfirmMsg, false)}>
             적용
           </Button>
         ) : null}
@@ -131,11 +149,16 @@ export function CsvTools({ exportQuery, onImported }) {
 function ImportModal({ onClose, onImported }) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(null);
-  const [busy, setBusy] = useState(false);
+  // 불리언 하나가 아니라 '어느 작업이 진행 중인가'를 담는다("preview" | "create" | null) — 위
+  // BulkBar의 busy===a.value 관례와 같다. 불리언 하나를 두 버튼(미리 보기/만들기)이 공유하면,
+  // '만들기'를 눌러도 실행되지 않는 '미리 보기' 버튼이 "확인 중…"으로 바뀌고, 정작 요청이
+  // 나가는 '만들기' 버튼에는 아무 진행 표시도 없어 사용자에게 엉뚱한 동작이 진행 중이라고
+  // 말하는 셈이었다.
+  const [busyAction, setBusyAction] = useState(null);
   const toast = useToast();
 
   async function send(dryRun) {
-    setBusy(true);
+    setBusyAction(dryRun ? "preview" : "create");
     try {
       const res = await api("/api/admin/users/import/csv", {
         method: "POST", body: { csv_text: text, dry_run: dryRun },
@@ -147,7 +170,7 @@ function ImportModal({ onClose, onImported }) {
         onImported();
       }
     } catch (e) { toast(e.message, "error"); }
-    finally { setBusy(false); }
+    finally { setBusyAction(null); }
   }
 
   const columns = [
@@ -168,12 +191,12 @@ function ImportModal({ onClose, onImported }) {
         <Button onClick={onClose}>{applied ? "닫기" : "취소"}</Button>
         {!applied ? (
           <>
-            <Button disabled={busy || !text.trim()} onClick={() => send(true)}>
-              {busy ? "확인 중…" : "미리 보기"}
+            <Button disabled={!!busyAction || !text.trim()} onClick={() => send(true)}>
+              {busyAction === "preview" ? "확인 중…" : "미리 보기"}
             </Button>
-            <Button variant="primary" disabled={busy || !preview || !preview.created}
+            <Button variant="primary" disabled={!!busyAction || !preview || !preview.created}
               onClick={() => send(false)}>
-              {preview ? `${preview.created}명 만들기` : "미리 보기를 먼저 하세요"}
+              {busyAction === "create" ? "만드는 중…" : preview ? `${preview.created}명 만들기` : "미리 보기를 먼저 하세요"}
             </Button>
           </>
         ) : null}

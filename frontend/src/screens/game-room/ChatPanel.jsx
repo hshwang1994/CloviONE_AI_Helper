@@ -19,7 +19,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
   return (
     <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
       <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>채팅</Typography>
-      <Box ref={chatLogRef} sx={{
+      <Box ref={chatLogRef} data-testid="game-chat-log" sx={{
         display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", px: 0.5, py: 1, mb: 1.25,
         height: { xs: "45vh", md: "auto" }, minHeight: { xs: "16rem", md: 0 },
         maxHeight: { xs: "45rem", md: "none" }, flex: { md: "1 1 auto" },

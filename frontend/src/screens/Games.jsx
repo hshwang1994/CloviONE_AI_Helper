@@ -11,7 +11,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 
 /* 팀 공간 > 놀이 (§5). 한 페이지에서 모든 게임방을 보고, 여기서 방을 만든다(별도 페이지 분리
@@ -42,7 +42,14 @@ function QuizEditor({ questions, setQuestions }) {
     const q = questions[i];
     if (q.options.length <= 2) return;
     const options = q.options.filter((_, x) => x !== oi);
-    const answer = q.answer >= options.length ? options.length - 1 : q.answer;
+    // 정답은 보기 배열의 "인덱스"로만 추적된다(보기에 안정적 id가 없다 — 아래 options.map의
+    // key가 배열 인덱스 oi 그 자체). 예전 코드는 `answer >= options.length`일 때만 보정해서,
+    // 정답보다 앞의 보기를 지우면 배열이 한 칸씩 당겨지는데도 정답 인덱스는 그대로 남아
+    // 슬라이드해 들어온 다른 보기를 방장 모르게 "정답"으로 만들었다(방장이 C를 찍고 A를
+    // 지우면 서버는 D를 정답으로 채점). 지운 인덱스가 정답보다 앞이면 정답도 한 칸 당기고,
+    // 정답 그 자체를 지웠다면 새 정답을 추측하지 않고 미지정(-1)으로 되돌려 방장이 다시
+    // 고르게 한다.
+    const answer = oi < q.answer ? q.answer - 1 : oi === q.answer ? -1 : q.answer;
     patch(i, { ...q, options, answer });
   };
   const setAnswer = (i, oi) => patch(i, { ...questions[i], answer: oi });
@@ -86,6 +93,10 @@ function QuizEditor({ questions, setQuestions }) {
               </Stack>
             ))}
             {q.options.length < 6 ? <Box><Button size="sm" onClick={() => addOpt(i)}>보기 추가</Button></Box> : null}
+            {/* 정답으로 찍었던 보기를 지우면(removeOpt) 새 정답을 추측하지 않고 미지정(-1)으로
+             * 되돌린다 — 방장이 못 보고 넘어가지 않도록 라디오가 전부 비어 보이는 것과 별개로
+             * 글로 한 번 더 알린다("몰래 다른 보기가 정답이 되는" 문제의 재발 지점). */}
+            {q.answer < 0 ? <Callout tone="warn">정답으로 표시했던 보기를 지웠습니다. 정답을 다시 선택해 주세요.</Callout> : null}
           </Box>
         </Paper>
       ))}
@@ -96,6 +107,7 @@ function QuizEditor({ questions, setQuestions }) {
 
 function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [gameType, setGameType] = useState("random_draw");
   const [title, setTitle] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(8);
@@ -114,7 +126,12 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     if (open) {
       setGameType("random_draw"); setTitle(""); setMaxPlayers(8); setWinners(1); setTeams(2); setNumMax(10);
       setQuestion(""); setOptions(["", ""]); setQuizQs([{ q: "", options: ["", ""], answer: 0 }]);
-      setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(15); setRpsMode("single");
+      // 제한 시간은 "random_draw"(제한 시간 없음)의 기본값(0)으로 리셋한다 - 아래 [gameType]
+      // effect와 같은 공식을 써야 한다. 여기서 gameType과 다른 값(예: 15)을 박아 두면, gameType이
+      // 이미 "random_draw"라 값이 그대로라 아래 effect가 다시 돌지 않고(React가 동일값 setState는
+      // 재실행을 건너뛴다) timer가 잘못된 값으로 굳어, 아무것도 안 바꾸고 열자마자 닫아도
+      // dirty가 거짓으로 true가 되어 확인 대화상자가 새로 열 때마다 떴다.
+      setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(0); setRpsMode("single");
     }
   }, [open]);
   // 게임을 바꾸면 그 게임에 맞는 제한 시간 기본값으로(가위바위보 15초, 퀴즈 25초, 그 외 무제한).
@@ -181,16 +198,40 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   // 한 번의 실수로 사라지는 양이 크다 - 그리고 되돌릴 방법이 없다.
   // 열 때 초기화하는 값들과 **같은 기준**으로 본다(위 useEffect 참조). 판정이 갈리면
   // "안 바꿨는데 물어본다"(성가심)거나 "바꿨는데 안 물어본다"(데이터 손실)가 된다.
+  // 텍스트 필드(제목/질문/선택지/AI 주제/퀴즈)만 보고 있었다 — 당첨 인원·팀 수·숫자 범위·
+  // 제한 시간·가위바위보 방식·관전 허용처럼 숫자/셀렉트로 바꾼 값은 판정에서 빠져 있어
+  // 그 값만 바꾸고 닫으면 확인 없이 그대로 사라졌다. 열 때 리셋하는 기본값과 비교해 채운다.
+  const defaultTimer = gameType === "rps" ? 15 : gameType === "quiz" ? 25 : 0;
   const dirty =
     title.trim().length > 0 ||
     question.trim().length > 0 ||
     options.some((o) => o.trim().length > 0) ||
     aiTopic.trim().length > 0 ||
-    quizQs.some((q) => q.q.trim().length > 0 || q.options.some((o) => o.trim().length > 0));
+    quizQs.some((q) => q.q.trim().length > 0 || q.options.some((o) => o.trim().length > 0)) ||
+    Number(maxPlayers) !== 8 ||
+    Number(winners) !== 1 ||
+    Number(teams) !== 2 ||
+    Number(numMax) !== 10 ||
+    Number(timer) !== defaultTimer ||
+    Number(aiCount) !== 5 ||
+    rpsMode !== "single" ||
+    !spectators;
+
+  // 하단 '취소' 버튼 전용 닫기 경로. `Modal`의 `dirty` prop은 X 아이콘·Esc·바깥 클릭에서
+  // 오는 내부 onClose만 지킨다 — 이 모달이 footer로 넘기는 `ModalFooter`의 onCancel은 Modal을
+  // 거치지 않고 곧장 CreateRoomModal이 받은 onClose를 불렀다. 그래서 다른 경로는 전부 확인을
+  // 받으면서 '취소' 버튼만 확인 없이 바로 닫혔다. 문구는 Modal 내부·FormModal과 같게 맞춘다
+  // (같은 상황에 다른 말이 나오면 사용자는 다른 일이 일어난다고 읽는다).
+  const requestClose = async () => {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  };
 
   return (
     <Modal open={open} onClose={onClose} title="게임방 만들기" size="md" dirty={dirty}
-      footer={<ModalFooter onCancel={onClose} onSubmit={() => canSave && create.mutate()} submitLabel="만들기" busy={create.isPending} />}>
+      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="만들기" busy={create.isPending} />}>
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <TextField
           id="gr-game" select size="small" fullWidth label="게임"

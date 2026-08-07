@@ -21,12 +21,22 @@ import { NAV, USER_NAV, bestNavMatch } from "./navConfig.js";
 export const BRAND = "ClovirAssist";
 
 let brandOverride = "";
+// setBrand()가 오면 여기 등록된 훅들에게 "다시 그려라"를 알린다. `/api/me`는 비동기라 AppShell은
+// 먼저 기본 경로(보통 /me)로 마운트되고, 브랜드는 그 뒤에 도착한다. 사이드바 로고는 auth.data가
+// 바뀌며 컴포넌트가 다시 렌더될 때 `brand()`를 새로 읽어 저절로 맞는데, 탭 제목은 useEffect가
+// pathname 하나에만 걸려 있어서 — 로그인 뒤 같은 화면에 머무르는 흔한 경우 — 브랜드가 와도 그
+// 사실을 몰라 기본 브랜드에 갇혔다(로고와 탭이 서로 다른 이름을 말하는 상태). 구독자에게 알려
+// 값이 바뀐 다음 렌더에서 tabTitle의 effect가 실제로 다시 실행되게 한다.
+const brandListeners = new Set();
 
 /* `/api/me` 의 `branding.product_name` 을 셸이 여기 흘려 넣는다. 전역 한 곳에 두는 이유:
  * 탭 제목은 라우트 변경 시 훅 밖에서도 불리고, 값을 컴포넌트마다 들고 다니면 어딘가 하나는
  * 반드시 옛 이름을 그린다. */
 export function setBrand(name) {
-  brandOverride = (name || "").trim();
+  const next = (name || "").trim();
+  if (next === brandOverride) return;   // 값이 그대로면 구독자를 깨울 이유가 없다
+  brandOverride = next;
+  brandListeners.forEach((fn) => fn());
 }
 
 export function brand() {
@@ -68,9 +78,21 @@ export function titleForPath(pathname) {
   return label ? `${label} | ${b}` : b;
 }
 
-/** 경로가 바뀔 때마다 탭 제목을 맞춘다. */
+/** 경로가 바뀔 때마다, 그리고 브랜드가 늦게 도착했을 때도 탭 제목을 맞춘다.
+ *
+ * `brandTick` 은 값 자체가 아니라 "브랜드가 바뀌었다"는 신호일 뿐이다 — setBrand() 는 React
+ * 상태가 아닌 모듈 전역 변수를 바꾸므로, 이 훅이 그 변화를 스스로 구독해 다시 렌더되지
+ * 않으면 아래 effect 는 pathname 이 그대로인 한 절대 다시 돌지 않는다. */
 export function useDocumentTitle(pathname) {
+  const [brandTick, setBrandTick] = React.useState(0);
+  React.useEffect(() => {
+    const onBrandChange = () => setBrandTick((n) => n + 1);
+    brandListeners.add(onBrandChange);
+    return () => { brandListeners.delete(onBrandChange); };
+  }, []);
   React.useEffect(() => {
     document.title = titleForPath(pathname);
-  }, [pathname]);
+    // brandTick 은 값을 읽지 않고 재실행 신호로만 쓴다 — 그래서 결과에 안 쓰여도 deps 에 있어야 한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, brandTick]);
 }

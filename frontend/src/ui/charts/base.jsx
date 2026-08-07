@@ -52,6 +52,13 @@ export function resolveChartColor(theme, color) {
   // 유일한 색이 text.disabled라 여기로 보낸다(고정 회색은 다크에서 배경에 묻힌다).
   if (color === "neutral") return theme.palette.text.disabled;
   const slot = theme.palette[TONE_ALIAS[color] || color];
+  // palette 슬롯이 {main,...} 객체가 아니라 문자열 그 자체인 경우가 있다(cyan은
+  // theme.palette.cyan = "#58A9C4"/"#72C0D7"처럼 직접 색 문자열이다 - primary·success처럼
+  // .main을 감싸지 않는다). slot.main만 보면 이 경우 undefined가 되어 마지막 폴백인 원래
+  // color 인자("cyan"이라는 글자 그대로)로 새 버린다. 우연히 CSS 네임드 컬러와 철자가 같아
+  // 화면에는 뭔가 칠해지지만, 라이트/다크에서 값이 다른 테마 cyan 대신 두 모드에서 항상 같은
+  // 고정색이 나가 다크 모드에서 대비가 깨진다.
+  if (typeof slot === "string") return slot;
   return (slot && slot.main) || color;
 }
 

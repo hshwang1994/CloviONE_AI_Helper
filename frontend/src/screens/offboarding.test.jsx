@@ -97,8 +97,7 @@ beforeEach(() => {
   });
 });
 
-function renderScreen() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderScreen(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <ThemeModeProvider>
@@ -136,6 +135,23 @@ describe("오프보딩 화면", () => {
     // 서버가 알아서 전부 옮기지 않는다 — 화면이 보낸 목록만 대상이다.
     expect(lastRunBody.ticket_page_ids).toEqual(["page-1", "page-2"]);
     expect(lastRunBody.deactivate).toBe(true);
+  });
+
+  it("실행하면 다른 화면의 티켓 캐시도 함께 낡은 것으로 표시된다(담당자 재배정 반영)", async () => {
+    // 오프보딩 실행은 티켓의 담당자를 바꾼다(퇴사자 → 후임, 또는 미할당). 그런데 이 화면의
+    // onDone은 offboarding-runs/preview/users만 무효화하고 ticket-views.js의 공용
+    // invalidateTicketViews를 부르지 않는다 — 그래서 실행 전에 팀 티켓·내 티켓·스프린트·홈이
+    // 이미 그 티켓을 캐시해 두고 있었다면, 실행 뒤에도 그 화면들은 옛 담당자를 그대로
+    // 보여준다(새로고침해야만 맞아진다).
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const TEAM_KEY = ["tickets", "/api/tickets/team", ""];
+    qc.setQueryData(TEAM_KEY, { items: [{ id: "page-1", assignee_names: ["퇴사자"] }], total: 1 });
+    const user = userEvent.setup();
+    renderScreen(qc);
+    await pickLeaverAndRun(user);
+
+    await waitFor(() => expect(lastRunBody).not.toBeNull());
+    await waitFor(() => expect(qc.getQueryState(TEAM_KEY).isInvalidated).toBe(true));
   });
 
   it("부분 실패를 성공 토스트로 덮지 않는다", async () => {

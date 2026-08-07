@@ -23,7 +23,7 @@ vi.mock("../lib/api.js", () => ({
   setCsrf: () => {},
 }));
 
-import { Board } from "./Board.jsx";
+import { Board, PostFormModal } from "./Board.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -97,6 +97,43 @@ describe("카테고리 칩은 서버 쿼리에 반영된다", () => {
       const urls = apiMock.mock.calls.map((c) => String(c[0]));
       expect(urls.some((u) => u.includes("category=" + encodeURIComponent("공지")))).toBe(true);
     });
+  });
+});
+
+describe("작성 중인 글은 배경 새로고침에 지워지지 않는다", () => {
+  // PostFormModal의 폼 초기화 useEffect가 `categories` 배열을 의존성에 넣고 있으면, board-meta
+  // 쿼리가 배경에서 다시 불려 값은 같아도 새 배열 참조를 받을 때마다(react-query 재조회, 네트워크
+  // 재연결 등) 이펙트가 다시 돌아 제목·본문을 빈 문자열로 되돌린다 — 모달은 열려 있고 사용자는
+  // 여전히 타이핑 중인데 입력이 조용히 사라진다.
+  function wrap(qc, categories) {
+    return (
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <PostFormModal open categories={categories} onClose={() => {}} mode="create" kind="free" />
+            </ConfirmProvider>
+          </ToastProvider>
+        </ThemeModeProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  it("categories 참조가 새로 와도(값은 같아도) 입력한 제목이 지워지지 않는다", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(wrap(qc, ["공지", "질문"]));
+
+    // 필수 입력 라벨은 MUI가 "제목 *"로 그린다(별표는 aria-hidden 이지만 텍스트 콘텐츠에는 남는다).
+    const title = await screen.findByLabelText(/^제목/);
+    await user.type(title, "임시로 적어 둔 제목");
+    expect(title).toHaveValue("임시로 적어 둔 제목");
+
+    // board-meta 쿼리가 배경에서 다시 응답하면 항상 새 배열(같은 값)이 온다 — fetch/JSON.parse는
+    // 매번 새 객체를 만든다. 여기서는 그 상황을 부모 리렌더 하나로 재현한다.
+    rerender(wrap(qc, ["공지", "질문"]));
+
+    expect(screen.getByLabelText(/^제목/)).toHaveValue("임시로 적어 둔 제목");
   });
 });
 

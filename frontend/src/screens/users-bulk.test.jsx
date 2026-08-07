@@ -45,7 +45,7 @@ beforeEach(() => {
     if (path.startsWith("/api/admin/users?")) {
       return Promise.resolve({ items: USERS, total: 3, page_size: 20 });
     }
-    if (path === "/api/admin/departments") return Promise.resolve({ items: [] });
+    if (path === "/api/admin/departments") return Promise.resolve({ items: [{ id: "d-1", name: "개발팀", active: true }] });
     if (path === "/api/admin/job-titles") return Promise.resolve({ items: [] });
     if (path === "/api/admin/settings") {
       return Promise.resolve({ settings: { password_policy: { value: { min_length: 12, min_classes: 3 } } } });
@@ -129,6 +129,93 @@ describe("사용자 대량 작업", () => {
   });
 });
 
+describe("일괄 부서/직책 지정 — 적용 전 값 확인", () => {
+  /* assignOptions(부서/직책 옵션)의 첫 항목은 항상 { value: "", label: "없음" }(Users.jsx의
+   * useNameOptions)이다. assign.value를 ""로 초기화하면 관리자가 값을 건드리지 않아도 이미
+   * '없음'이 골라진 것으로 취급돼, '적용'을 누르는 순간 선택한 전원의 부서/직책이 조용히
+   * null로 지워진다. 자리표시자(선택 안 됨)와 '없음을 능동적으로 고름'을 구분해야 한다. */
+  it("값을 실제로 고르기 전에는 '적용' 버튼이 눌리지 않는다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+
+    await user.click(screen.getByRole("combobox", { name: "일괄 지정" }));
+    await user.click(await screen.findByRole("option", { name: "부서" }));
+
+    // 값 드롭다운을 아직 건드리지 않았다 — 자리표시자 상태이므로 적용은 비활성이어야 한다.
+    expect(screen.getByRole("button", { name: "적용" })).toBeDisabled();
+  });
+
+  it("'없음'을 능동적으로 고르면(자리표시자와 구분) 적용이 활성화되고 그대로 적용된다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+
+    await user.click(screen.getByRole("combobox", { name: "일괄 지정" }));
+    await user.click(await screen.findByRole("option", { name: "부서" }));
+    await user.click(screen.getByRole("combobox", { name: "값" }));
+    await user.click(await screen.findByRole("option", { name: "없음" }));
+
+    expect(screen.getByRole("button", { name: "적용" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "적용" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "확인" }));
+
+    await waitFor(() => expect(lastBulkBody).not.toBeNull());
+    expect(lastBulkBody.action).toBe("set_department");
+    expect(lastBulkBody.value).toBeNull();
+  });
+
+  // Offboarding.jsx의 run()처럼, 확인창은 어떤 값이 실제로 적용될지 못박아야 한다 — 일반 문구
+  // ("부서를 일괄 변경할까요?")만으론 관리자가 무슨 값이 들어가는지 모른 채 확인을 누른다.
+  it("확인창에 실제로 적용될 값(선택한 부서명)이 그대로 보인다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+
+    await user.click(screen.getByRole("combobox", { name: "일괄 지정" }));
+    await user.click(await screen.findByRole("option", { name: "부서" }));
+    await user.click(screen.getByRole("combobox", { name: "값" }));
+    await user.click(await screen.findByRole("option", { name: "개발팀" }));
+    await user.click(screen.getByRole("button", { name: "적용" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/"개발팀"/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "확인" }));
+    await waitFor(() => expect(lastBulkBody).not.toBeNull());
+    expect(lastBulkBody.action).toBe("set_department");
+    expect(lastBulkBody.value).toBe("d-1");
+  });
+});
+
+describe("일괄 작업 확인창의 위험 스타일은 실제 위험도를 따른다", () => {
+  // apply()가 예전엔 danger:true를 하드코딩해서, '활성화'처럼 되돌리기 쉬운 작업까지 확인
+  // 버튼이 파괴적 작업(비활성화 등)과 똑같이 '위험' 스타일로 떴다. BULK_ACTIONS의 danger
+  // 속성을 그대로 따라가야 한다.
+  it("비파괴적 작업(활성화)의 확인 버튼은 위험 스타일이 아니다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+    await user.click(screen.getByRole("button", { name: "활성화" }));
+
+    const dialog = await screen.findByRole("dialog");
+    const confirmBtn = within(dialog).getByRole("button", { name: "확인" });
+    expect(confirmBtn.className).not.toMatch(/containedError/);
+  });
+
+  it("파괴적 작업(비활성화)의 확인 버튼은 위험 스타일이다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+    await user.click(screen.getByRole("button", { name: "비활성화" }));
+
+    const dialog = await screen.findByRole("dialog");
+    const confirmBtn = within(dialog).getByRole("button", { name: "확인" });
+    expect(confirmBtn.className).toMatch(/containedError/);
+  });
+});
+
 describe("CSV", () => {
   it("내보내기 링크에 지금 걸린 검색어가 붙는다", async () => {
     const user = userEvent.setup();
@@ -159,5 +246,52 @@ describe("CSV", () => {
     await user.click(within(dialog).getByRole("button", { name: "미리 보기" }));
     expect(await within(dialog).findByText(/생성 예정 1/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "1명 만들기" })).toBeEnabled();
+  });
+
+  // 회귀: ImportModal의 '미리 보기'/'만들기' 두 버튼이 busy 불리언 하나를 공유했다.
+  // BulkBar(같은 파일, 위쪽)는 이미 "busy === a.value"로 어떤 작업이 진행 중인지 액션별로
+  // 구분하는데, ImportModal만 이 관례를 따르지 않아 '만들기'를 누르면 정작 실행 중이지 않은
+  // '미리 보기' 버튼이 "확인 중…"으로 바뀌고, 실제로 요청이 나가는 '만들기' 버튼에는 아무
+  // 진행 표시도 없었다 — 사용자에게 엉뚱한 동작이 진행 중이라고 말하는 셈이었다.
+  it("'만들기' 요청 중에는 '만들기' 버튼에 진행 표시가 뜨고, '미리 보기' 버튼이 엉뚱하게 바뀌지 않는다", async () => {
+    const user = userEvent.setup();
+    let resolveCreate;
+    apiMock.mockImplementation((path, opts) => {
+      const method = (opts && opts.method) || "GET";
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: USERS, total: 3, page_size: 20 });
+      if (path === "/api/admin/departments") return Promise.resolve({ items: [{ id: "d-1", name: "개발팀", active: true }] });
+      if (path === "/api/admin/job-titles") return Promise.resolve({ items: [] });
+      if (path === "/api/admin/settings") return Promise.resolve({ settings: { password_policy: { value: { min_length: 12, min_classes: 3 } } } });
+      if (path === "/api/admin/users/import/csv" && method === "POST") {
+        if (opts.body.dry_run) {
+          return Promise.resolve({
+            dry_run: true, total: 1, created: 1, skipped: 0, failed: 0,
+            results: [{ line: 2, email: "new@goodmit.co.kr", display_name: "신입", status: "ready", message: "새로 만들 계정입니다." }],
+          });
+        }
+        // 실제 생성 요청은 테스트가 직접 resolve를 통제한다 — '진행 중'인 순간의 라벨을 봐야 한다.
+        return new Promise((resolve) => { resolveCreate = resolve; });
+      }
+      return Promise.resolve({});
+    });
+
+    renderUsers();
+    await user.click(await screen.findByRole("button", { name: "CSV 가져오기" }));
+    const dialog = await screen.findByRole("dialog");
+    const csv = within(dialog).getByLabelText("CSV 내용");
+    await user.type(csv, "email,display_name{enter}new@goodmit.co.kr,신입");
+    await user.click(within(dialog).getByRole("button", { name: "미리 보기" }));
+    await within(dialog).findByText(/생성 예정 1/);
+
+    await user.click(within(dialog).getByRole("button", { name: "1명 만들기" }));
+
+    expect(within(dialog).queryByText("확인 중…")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "미리 보기" })).toBeInTheDocument();
+
+    resolveCreate({
+      dry_run: false, total: 1, created: 1, skipped: 0, failed: 0,
+      results: [{ line: 2, email: "new@goodmit.co.kr", display_name: "신입", status: "created", message: "생성됨" }],
+    });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "닫기" })).toBeInTheDocument());
   });
 });

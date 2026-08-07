@@ -15,6 +15,7 @@ import {
   EmptyState, ErrorState, Callout, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
+import { invalidateTicketViews } from "./ticket-views.js";
 
 /* 온보딩 · 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
  *
@@ -99,6 +100,11 @@ export function Offboarding() {
             qc.invalidateQueries({ queryKey: ["offboarding-runs"] });
             qc.invalidateQueries({ queryKey: ["offboarding-preview", targetId] });
             qc.invalidateQueries({ queryKey: ["users"] });
+            // 실행은 보유 티켓의 담당자를 후임(또는 미할당)으로 바꾼다 — 내 티켓·팀 티켓·
+            // 스프린트·홈·월간 리포트가 이미 그 티켓을 캐시해 두고 있었다면(오프보딩 전에
+            // 열어 본 탭 등) 이 화면만 새로고침되고 나머지는 옛 담당자를 그대로 보여준다.
+            // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다.
+            invalidateTicketViews(qc, { refetchType: "all" });
           }}
           toast={toast}
         />
@@ -375,6 +381,9 @@ function RunHistory() {
       qc.invalidateQueries({ queryKey: ["offboarding-runs"] });
       qc.invalidateQueries({ queryKey: ["offboarding-run", run.id] });
       qc.invalidateQueries({ queryKey: ["users"] });
+      // 되돌리기도 티켓 담당자를 다시 바꾼다(후임 → 원래 담당자) — 실행과 같은 이유로
+      // 티켓을 그리는 화면 전부를 함께 무효화한다.
+      invalidateTicketViews(qc, { refetchType: "all" });
       if (res.revert_failed) toast(`${res.revert_failed}건을 되돌리지 못했습니다. 상세에서 사유를 확인하세요.`, "error");
       else toast("되돌렸습니다.", "success");
       setSel(null);

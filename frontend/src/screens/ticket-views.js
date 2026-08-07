@@ -22,12 +22,17 @@
  * 여기에 한 줄 더한다.
  *
  * 아래 목록은 전부 티켓 편집으로 값이 실제로 달라지는 질의다(추측으로 넣지 않는다):
- *   tickets    내 티켓·팀 티켓·프로젝트 티켓·미할당 목록 + 후보 목록(ticket-options.js)
- *   ticket     티켓 상세 (Ticket.jsx)
- *   home       오늘(/api/home/today) · 업무 대시보드(/api/home/work-dashboard)
- *   sprint     스프린트 회의(/api/sprint/summary)
- *   my-stats   내 업무량·완료 통계(/api/me/stats — 홈과 같은 티켓 로더를 쓴다)
- *   projects   프로젝트 진행률·WBS·헬스(app/projects/repository.tasks_for_project 가 티켓을 센다)
+ *   tickets     내 티켓·팀 티켓·프로젝트 티켓·미할당 목록 + 후보 목록(ticket-options.js)
+ *   ticket      티켓 상세 (Ticket.jsx)
+ *   home        오늘(/api/home/today) · 업무 대시보드(/api/home/work-dashboard)
+ *   sprint      스프린트 회의(/api/sprint/summary)
+ *   my-stats    내 업무량·완료 통계(/api/me/stats — 홈과 같은 티켓 로더를 쓴다)
+ *   projects    프로젝트 진행률·WBS·헬스(app/projects/repository.tasks_for_project 가 티켓을 센다)
+ *   dev-report  개발자 월간 리포트(DevReport.jsx, /api/admin/reports/dev-monthly)— 담당자별
+ *               완료/진행/검증/계획/지연 건수와 업무량을 마감일이 그 달인 티켓에서 센다.
+ *               편집 모달이 바꾸는 상태·담당자·마감·WD·난이도가 전부 이 집계에 들어간다.
+ *               빠져 있으면 리포트를 이미 열어 본 뒤 다른 화면에서 티켓을 고쳐도 '새로고침'을
+ *               다시 누르기 전까진 옛 집계가 남는다.
  */
 export const TICKET_VIEW_KEYS = [
   ["tickets"],
@@ -36,6 +41,7 @@ export const TICKET_VIEW_KEYS = [
   ["sprint"],
   ["my-stats"],
   ["projects"],
+  ["dev-report"],
 ];
 
 /* 티켓을 고친 뒤 부른다.

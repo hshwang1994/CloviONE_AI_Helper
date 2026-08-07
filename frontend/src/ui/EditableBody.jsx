@@ -56,6 +56,13 @@ export function EditableBody({
   const qc = useQueryClient();
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(bodyMarkdown || "");
+  // 저장에 실어 보낼 지문(base_version)도 draft 처럼 "편집을 시작한 시점" 값으로 얼려 둔다.
+  // bodyVersion 은 부모가 주는 prop이라, 편집 중(예: 같은 티켓의 첨부를 올려 상세가
+  // 재조회되는 동안) 다른 사람이 먼저 저장해 값이 바뀌면 저장 시점의 mutationFn 클로저는
+  // **그 새 값**을 그대로 읽는다 — 하필 충돌을 감지해야 할 바로 그 순간에 "지금 서버 값과
+  // 내가 보낼 값이 같냐"는 서버 검사를 그대로 통과시켜, 이 사용자의 옛 초안이 방금 저장된
+  // 남의 글을 조용히 덮어쓴다(editable-body-stale-base-version.test.jsx 가 이 결함을 고정한다).
+  const [editBaseVersion, setEditBaseVersion] = React.useState(bodyVersion);
 
   // 본문을 읽지 못했으면(blocks 실패) bodyMarkdown 은 null 이다. 그 상태로 편집기를 열면
   // 빈 칸이 뜨고, 저장이 곧 본문 삭제가 된다. 그래서 편집 자체를 막는다.
@@ -64,11 +71,13 @@ export function EditableBody({
   const lossy = hasUnsupportedBlocks(blocks);
 
   const save = useMutation({
-    mutationFn: (body) => api(endpoint, {
+    mutationFn: ({ body, baseVersion }) => api(endpoint, {
       /* 편집을 시작할 때 받은 지문을 함께 보낸다. 그 사이 누가 먼저 저장했으면 서버가
          409 로 막는다 — 예전에는 조건 없이 덮어써서 **앞사람 글이 통째로 사라지고
-         양쪽 다 성공 토스트를 봤다.** */
-      method: "PUT", body: { body_markdown: body, base_version: bodyVersion },
+         양쪽 다 성공 토스트를 봤다.** 호출부가 넘기는 baseVersion 을 그대로 쓴다(위
+         editBaseVersion 주석 참고) — 여기서 다시 prop(bodyVersion)을 읽으면 편집 중
+         갱신된 최신값이 섞여 이 보호 장치가 무력화된다. */
+      method: "PUT", body: { body_markdown: body, base_version: baseVersion },
     }),
     onSuccess: (res) => {
       setEditing(false);
@@ -84,7 +93,7 @@ export function EditableBody({
     onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다.", "error"),
   });
 
-  const startEditing = () => { setDraft(bodyMarkdown || ""); setEditing(true); };
+  const startEditing = () => { setDraft(bodyMarkdown || ""); setEditBaseVersion(bodyVersion); setEditing(true); };
   const cancel = async () => {
     if (draft !== (bodyMarkdown || "")) {
       const ok = await confirm("편집한 내용을 버립니다. 계속할까요?", { title: "편집 취소", confirmLabel: "버리기", danger: true });
@@ -107,7 +116,7 @@ export function EditableBody({
             <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 편집</Typography>
             <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
             <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
-              onClick={() => save.mutate(draft)}>
+              onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
               {save.isPending ? "저장 중…" : "저장"}
             </Button>
           </Stack>
@@ -178,7 +187,7 @@ export function EditableBody({
                 {/* 정본이 없으면 재시도가 곧 '빈 본문 밀어넣기'가 된다. 여기서는 논리상
                     일어날 수 없지만(sync 오류는 정본 저장 뒤에만 생긴다) 막아 둔다. */}
                 <Button size="sm" disabled={save.isPending || bodyMarkdown == null}
-                  onClick={() => save.mutate(bodyMarkdown)}>
+                  onClick={() => save.mutate({ body: bodyMarkdown, baseVersion: bodyVersion })}>
                   {save.isPending ? "동기화 중…" : "원본에 다시 반영"}
                 </Button>
               </Box>

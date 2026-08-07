@@ -140,4 +140,23 @@ describe("티켓 편집 뒤 화면 갱신", () => {
 
     await waitFor(() => expect(qc.getQueryState(SPRINT_KEY).isInvalidated).toBe(true));
   });
+
+  it("지금 안 보고 있는 개발자 월간 리포트 화면의 캐시도 함께 낡은 것으로 표시된다", async () => {
+    // 월간 리포트(DevReport.jsx)는 담당자별 완료/진행/검증/계획 건수, 지연, 완료 업무량을
+    // 마감일이 그 달인 티켓에서 센다 — 편집 모달이 바꾸는 상태·담당자·마감·WD가 전부 그 숫자에
+    // 들어간다. 그런데 ticket-views.js의 TICKET_VIEW_KEYS에는 "dev-report"가 없어서, 사용자가
+    // 리포트를 한 번 열어 본 뒤(캐시가 생긴 뒤) 홈에서 티켓을 고치고 리포트 탭으로 돌아가면
+    // 그 화면은 옛 집계를 그대로 보여준다 — '새로고침' 버튼을 눌러야만 값이 맞아진다.
+    routeApi();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const DEV_REPORT_KEY = ["dev-report", "2026-08"];
+    qc.setQueryData(DEV_REPORT_KEY, { ok: true, configured: true, developers: [] });
+    const user = userEvent.setup();
+    renderHome(qc);
+    await screen.findByText(OLD_TITLE);
+
+    await editTitleTo(user, NEW_TITLE);
+
+    await waitFor(() => expect(qc.getQueryState(DEV_REPORT_KEY).isInvalidated).toBe(true));
+  });
 });

@@ -223,6 +223,22 @@ export function Users() {
   // 조직도·부서 관리에서 '소속 인원 보기'로 오면 `#/users?department_id=<id>` 다. 백엔드는
   // 이 필터를 이미 지원했지만 화면이 주소를 읽지 않아, 눌러도 필터 없는 전체 목록이 떴다.
   const [deptFilter, setDeptFilter] = useState(() => searchParams.get("department_id") || "");
+  // 위 두 useState 초기화 함수는 **최초 마운트에서 딱 한 번만** 주소를 읽는다. 그런데
+  // 이 화면이 이미 열려 있는 채로(다른 사람 상세를 보던 중 등) 통합 검색·조직도에서
+  // 같은 "/users" 라우트로 또 딥링크가 오면(예: q=철수 → q=영희), react-router는 이미
+  // 마운트된 <Users/>를 재마운트하지 않으므로 이 초기화 함수가 다시 실행되지 않는다 —
+  // 주소는 바뀌었는데 화면은 이전 사람 기준 필터를 계속 보여줘, 바로 위 주석이 막으려던
+  // "결과를 눌렀는데 아무 일도 안 한 것처럼 보인다"는 증상을 '최초 진입'이 아닌 경로에서는
+  // 그대로 겪는다. 내비게이션으로 주소 문자열 자체가 바뀔 때만(사용자가 화면 안에서 검색어를
+  // 직접 지우거나 바꾸는 것은 주소를 바꾸지 않는다) 다시 읽어 반영한다.
+  const appliedSearchRef = React.useRef(searchParams.toString());
+  React.useEffect(() => {
+    const key = searchParams.toString();
+    if (key === appliedSearchRef.current) return;
+    appliedSearchRef.current = key;
+    setQ(searchParams.get("q") || "");
+    setDeptFilter(searchParams.get("department_id") || "");
+  }, [searchParams]);
   const [page, setPage] = useState(1);
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다
   React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, showArchived, deptFilter]);
@@ -240,6 +256,10 @@ export function Users() {
   const actorRole = auth.data && auth.data.role;
   const dept = useNameOptions("/api/admin/departments", "departments", editing && editing.department_id, editing && editing.department);
   const title = useNameOptions("/api/admin/job-titles", "job-titles", editing && editing.title_id, editing && editing.title);
+  // 관리 범위가 '조직'일 때 실제로 어느 조직인지 고를 목록. 서버는 사용자 레코드에 조직 이름을
+  // 돌려주지 않으므로(부서·직책과 달리) id를 그대로 폴백 라벨로 쓴다("이름을 못 찾으면 id라도
+  // 보인다"는 scopeLabel과 같은 방침).
+  const org = useNameOptions("/api/admin/organizations", "organizations", editing && editing.scope_org_id, editing && editing.scope_org_id);
   // 비밀번호 입력 도움말이 12자/3종을 하드코딩하고 있었다 — 실제로 강제되는 값은 Settings 화면에서
   // 관리자가 바꿀 수 있는 password_policy(app/users/service.py)다. 정책이 바뀌어도 여기 문구가
   // 계속 옛 기본값을 말하지 않도록, 지금 적용 중인 값을 읽어와 문구에 반영한다.
@@ -261,6 +281,10 @@ export function Users() {
     : title.isLoading ? "직책 목록을 불러오는 중…"
     : title.isEmpty ? (<>등록된 직책이 없습니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
     : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
+  const orgHelp = org.isError ? (<>조직 목록을 불러오지 못했습니다. <LinkButton onClick={() => org.refetch()}>다시 시도</LinkButton></>)
+    : org.isLoading ? "조직 목록을 불러오는 중…"
+    : org.isEmpty ? (<>등록된 조직이 없습니다, <Link href="#/organizations" target="_blank" rel="noreferrer noopener" underline="hover">‘조직 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : undefined;
   // 목록·CSV 내보내기가 **같은 필터 문자열**을 쓴다. 두 벌로 만들면 화면에 필터를 걸고
   // 내보낸 파일에 전 직원이 담기는 식으로 갈라지고, 그건 파일을 열기 전까지 아무도 모른다.
   function filterParams(withPage) {
@@ -379,10 +403,28 @@ export function Users() {
        *
        * 역할과 같은 무게로 다룬다: 범위를 넓히는 것은 권한을 주는 일이고, 바뀌면 그
        * 사용자의 세션이 즉시 끊긴다. 그래서 안내 문구도 역할 옆에 나란히 둔다. */
+      // showIf: app/core/scope.py build_scope는 role===user일 때 admin_scope 컬럼을 아예
+      // 읽지 않는다(부서 기반 자동 범위를 대신 쓴다) — role을 'user'로 두거나 바꾼 채 이
+      // 필드를 저장하면 값은 DB에 남고 세션까지 강제 해제되지만 실제로는 아무 효과도 없는
+      // 죽은 설정이 된다(상세 패널의 '관리 범위' 줄도 role!=='user'일 때만 그려 같은 경계를 쓴다).
       { name: "admin_scope", label: "관리 범위", type: "select", options: SCOPE_OPTS,
+        showIf: (v) => v.role !== "user",
         help: "관리자가 관리 화면에서 볼 수 있는 범위입니다. 좁히면 그 범위 밖 사람과 자원이 목록에서 사라집니다. 범위가 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다. "
           + "전체는 전체 관리자, 조직은 조직관리자, 부서는 부서관리자라고 부릅니다. 이름은 다르지만 시스템 관리자(system_admin, 역할 자체가 다른 계정)와는 별개 개념입니다." },
+      // showIf: app/users/service.py _apply_admin_scope는 admin_scope='org'인데 scope_org_id가
+      // 없으면 저장을 거부한다("조직 범위에는 대상 조직을 지정해야 합니다") — 그런데 이 폼에는
+      // scope_org_id를 고를 필드가 아예 없었다. SCOPE_OPTS는 '소속 조직'을 고를 수 있는 선택지로
+      // 보여주면서 실제로 조직을 지정할 방법을 안 줬으니, '조직관리자'를 만들려는 시도는 매번
+      // 이 검증 오류로 막혔다(F2 코멘트의 "부서 관리자를 만들 수 있는 유일한 입구"는 있었지만
+      // 조직관리자를 만들 입구는 없었던 셈).
+      { name: "scope_org_id", label: "범위 대상 조직", type: "select", options: org.options,
+        showIf: (v) => v.role !== "user" && v.admin_scope === "org",
+        help: (orgHelp ? orgHelp : "'조직'을 고른 경우에만 씁니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다.") },
+      // showIf: 도움말이 "'부서'를 고른 경우에만 씁니다"라고 말하면서도 admin_scope가 global/org일
+      // 때도 계속 보였다 — AI 쿼터 화면(범위가 '사용자'일 때만 필요한 대상 ID 칸)과 같은 모양의
+      // 문제라 같은 장치(showIf)로 맞춘다.
       { name: "scope_dept_id", label: "범위 대상 부서", type: "select", options: dept.options,
+        showIf: (v) => v.role !== "user" && v.admin_scope === "dept",
         help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다." },
     ];
 

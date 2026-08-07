@@ -63,6 +63,30 @@ def test_group_create_membership_and_idor(app, client, login_as, make_user):
                        headers={"X-CSRF-Token": cs3}).status_code == 403
 
 
+def test_archived_member_shows_in_member_list_too(app, client, login_as, make_user, db):
+    """참여자 목록도 말풍선과 같은 사실을 말해야 한다 (N3, 교차 화면 감사).
+
+    `_member_view` 는 `people.identity()` 로 `archived` 를 이미 계산해 놓고 응답에는 담지
+    않았다 — 같은 `/messages` 응답의 `people`(말풍선이 읽는다)에는 퇴사자가 "archived": true
+    로 나오는데, 정확히 같은 사람이 `members[]`(참여자 목록)에는 그 표시가 없었다.
+    """
+    csrf = login_as("user", email="am1@goodmit.co.kr")
+    gone = make_user(email="am2@goodmit.co.kr", display_name="곧떠날사람")
+    rid = client.post("/api/team-chat/rooms", json={"title": "떠날사람방", "member_user_ids": [gone.id]},
+                      headers={"X-CSRF-Token": csrf}).json()["room"]["id"]
+
+    from datetime import datetime, timezone
+    gone.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    gone.active = False
+    db.commit()
+
+    st = client.get(f"/api/team-chat/rooms/{rid}/messages?since=0").json()
+    member = next(m for m in st["members"] if m["user_id"] == gone.id)
+    assert member["archived"] is True, f"참여자 목록이 퇴사 사실을 모른다: {member}"
+    # 같은 응답의 people 묶음(말풍선이 읽는다)과 어긋나지 않는다.
+    assert st["people"][gone.id]["archived"] is True
+
+
 def test_direct_room_is_idempotent(app, client, login_as, make_user):
     csrf = login_as("user", email="dm1@goodmit.co.kr")
     u2 = make_user(email="dm2@goodmit.co.kr", display_name="디엠투")

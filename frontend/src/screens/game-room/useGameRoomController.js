@@ -49,6 +49,26 @@ export function useGameRoomController(id) {
     onSuccess: () => state.refetch(),
     onError: (e) => toast((e && e.message) || "입장하지 못했습니다.", "error"),
   });
+  // HashRouter라 다른 방으로 가는 링크(예: 두 번째 초대 링크)를 이미 열린 게임방 탭에서 열면
+  // 해시만 바뀌어 이 컴포넌트는 마운트 해제 없이 id만 바뀐다 — joinedRef를 id별로 리셋하지
+  // 않으면 첫 방에서 이미 자동 입장을 한 번 시도한 뒤로는(joinedRef.current가 영구히 true라)
+  // 새 방으로 넘어가도 다시는 자동 입장을 시도하지 않아, 참여자가 새 방에 "입장 안 한" 채로
+  // 조용히 남는다(투표·준비 등 참여 동작이 전부 막힌다).
+  // id가 바뀌어도 이 훅 인스턴스(와 그 안의 상태/ref)는 그대로 살아남는다(위 주석 참고) —
+  // joinedRef뿐 아니라 "이 방 한정"인 다른 값도 새 방 것으로 다시 시작해야 한다.
+  // - prevChatCountRef: 방 전환은 항상 "pending"(스켈레톤)을 거치는데, 그 순간 채팅 로그 DOM이
+  //   통째로 마운트 해제돼 chatLogRef.current가 null이 된다 — 아래 자동 스크롤 effect가 el이
+  //   없어 prevChatCountRef 갱신을 건너뛰므로 이전 방 값이 새 방까지 남는다. 남으면 "첫 로드"
+  //   판정(prevChatCountRef.current === 0)이 거짓이 되어, 새로 연 방의 채팅인데도 오래된
+  //   대화를 읽던 중인 것처럼 취급돼 맨 아래로 스크롤하지 않는다.
+  // - draft/numDraft: 이전 방에 쓰다 만 채팅/숫자 초안이 새 방 입력창에 그대로 남아, 방이
+  //   바뀐 줄 모르고 그대로 보내면 엉뚱한 방에 전송된다.
+  useEffect(() => {
+    joinedRef.current = false;
+    prevChatCountRef.current = 0;
+    setDraft("");
+    setNumDraft("");
+  }, [id]);
   // 방에 처음 들어오면 자동 입장. 서버가 대기 중·자리 있으면 참여자로, 아니면 관전자로 배정.
   useEffect(() => {
     if (!joinedRef.current && state.data && !state.data.you.in_room) {
@@ -60,6 +80,7 @@ export function useGameRoomController(id) {
   const ready = useMutation({
     mutationFn: (v) => api(`/api/games/rooms/${id}/ready`, { method: "POST", body: { ready: v } }),
     onSuccess: () => state.refetch(),
+    onError: (e) => toast((e && e.message) || "준비 상태를 바꾸지 못했습니다.", "error"),
   });
   const start = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/start`, { method: "POST" }),
@@ -104,6 +125,7 @@ export function useGameRoomController(id) {
   const reset = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/reset`, { method: "POST" }),
     onSuccess: () => state.refetch(),
+    onError: (e) => toast((e && e.message) || "다시 시작하지 못했습니다.", "error"),
   });
   const leave = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/leave`, { method: "POST" }),
@@ -167,8 +189,18 @@ export function useGameRoomController(id) {
   // 의존하지 않으므로 클라이언트 자동 진행은 두지 않는다. 카운트다운이 0이 되면 다음 폴링(1.2초)에서
   // 서버가 확정하고, 그 결과가 폴링으로 내려온다.
 
+  // 방이 사라진 뒤 공유된 옛 /games/<id> 링크로 처음 들어오면 state.data가 한 번도 성공적으로
+  // 채워지지 않은 채 404만 온다 — notFound라서 위 줄은 "error"로 안 빠지고, isPending도 이미
+  // false(react-query는 실패한 요청을 pending으로 보지 않는다)라 그대로 아래로 떨어져
+  // `const { room } = state.data`가 undefined를 구조분해해 "Cannot destructure property
+  // 'room' of 'state.data' as it is undefined"로 화면이 통째로 크래시했다. 134번째 줄 effect가
+  // notFound를 이미 보고 토스트+이동을 발화하므로(훅 순서 유지를 위해 조기 return보다 위에 선언
+  // 돼 있어 이 렌더에서도 그대로 실행된다), 여기서는 data가 없는 동안 destructure를 하지 않고
+  // pending(스켈레톤)으로 넘겨 그 effect가 처리할 시간을 준다. 중간 폴링 404는 react-query가
+  // 이전 성공 데이터를 그대로 들고 있어 이 분기를 안 타니(state.data가 채워진 채) 기존 정상
+  // 흐름 그대로다.
   if (state.isError && !notFound) return { phase: "error", error: state.error, refetch: () => state.refetch() };
-  if (state.isPending) return { phase: "pending" };
+  if (state.isPending || !state.data) return { phase: "pending" };
 
   const { room, you, members } = state.data;
   const gstate = state.data.state || {};

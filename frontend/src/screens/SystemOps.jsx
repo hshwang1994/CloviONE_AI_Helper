@@ -165,9 +165,14 @@ export function SystemOps() {
       // 성공이든 실패든 상태를 다시 읽는다. 실패해도 그 사이 무언가 바뀌었을 수 있고,
       // 화면이 옛 값을 들고 있으면 사용자가 그것을 현재 상태로 읽는다.
       qc.invalidateQueries({ queryKey: ["system-ops"] });
-      toast[result && result.ok ? "success" : "error"](outcomeText(result));
+      // useToast()는 {success, error} 메서드를 가진 객체가 아니라 (message, kind) 두 인자를
+      // 받는 함수 하나다(kit.jsx ToastCtx.Provider value={push}) — 이 앱의 다른 모든 화면과
+      // 같은 호출 모양을 쓴다. toast[...](...)/toast.error(...)로 부르면 존재하지 않는
+      // 메서드를 호출하는 셈이라 TypeError로 죽어, 이 화면의 모든 쓰기 작업(재시작, 타임존
+      // 변경 등)이 결과를 토스트로 전혀 알리지 못했다.
+      toast(outcomeText(result), result && result.ok ? "success" : "error");
     },
-    onError: (err) => toast.error((err && err.message) || "요청을 보내지 못했습니다."),
+    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다.", "error"),
   });
 
   if (state.isLoading) return <Skeleton lines={6} />;
@@ -181,10 +186,17 @@ export function SystemOps() {
   const submit = async (action, values) => {
     const params = buildParams(action, values);
     if (action === "cert.install") {
-      const ok = await confirm({
-        title: "인증서를 교체할까요?",
-        body: "검사에 실패하면 원래 인증서로 되돌립니다. 성공하면 nginx 를 다시 읽습니다.",
-      });
+      // useConfirm()은 (message, opts) 시그니처다(kit.jsx ConfirmProvider) — opts는
+      // {title, danger, confirmLabel}만 읽고 message는 문자열이어야 <Typography>가 그대로
+      // 그린다. 여기서 예전처럼 {title, body} 객체 하나만 넘기면 opts가 undefined가 되어
+      // title이 항상 기본값 "확인"으로 뭉개지고, message 자리에 들어간 객체를 그대로
+      // <Typography>{state.message}</Typography>에 그리려다 "Objects are not valid as a
+      // React child"로 렌더 자체가 죽는다 — 인증서 교체처럼 되돌릴 수 없는 작업의 확인
+      // 대화상자가 열리지 않는 셈이다.
+      const ok = await confirm(
+        "검사에 실패하면 원래 인증서로 되돌립니다. 성공하면 nginx 를 다시 읽습니다.",
+        { title: "인증서를 교체할까요?" },
+      );
       if (!ok) return;
     }
     await run.mutateAsync({ action, params });
@@ -192,10 +204,11 @@ export function SystemOps() {
   };
 
   const control = async (unit, verb) => {
-    const ok = await confirm({
-      title: (UNIT_LABELS[unit] || unit) + " 를 재시작할까요?",
-      body: "재시작하는 동안 그 기능이 잠시 멈춥니다.",
-    });
+    // 위 submit()의 cert.install과 같은 이유 — 문자열 message + opts 두 인자로 호출한다.
+    const ok = await confirm(
+      "재시작하는 동안 그 기능이 잠시 멈춥니다.",
+      { title: (UNIT_LABELS[unit] || unit) + " 를 재시작할까요?" },
+    );
     if (ok) run.mutate({ action: "service.control", params: { unit, verb } });
   };
 

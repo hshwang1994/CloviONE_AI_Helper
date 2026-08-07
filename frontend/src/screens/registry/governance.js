@@ -217,8 +217,13 @@ export const GOVERNANCE_SCREENS = {
     // result 도 받는다 — 이상 징후의 '실패만 보기'가 `?user_id=…&result=failure` 로 보내는데,
     // 여기에 없으면 그 조건이 조용히 버려져 **그 사람의 로그 전체**가 열렸다(F7). 반만 걸러진
     // 화면을 '실패만'이라고 믿는 것은 아무것도 안 거른 것보다 나쁘다.
-    onQuery: (p) => (p.object_type || p.object_id || p.user_id || p.result)
-      ? { open: "filter", values: { object_type: p.object_type, object_id: p.object_id, user_id: p.user_id, result: p.result } }
+    // action 도 받는다 — 임퍼소네이션 화면의 '감사 로그에서 보기'가 `?action=impersonation.start`로
+    // 보내는데(governance.js impersonation.headerActions), 이 화면의 filters엔 action이 이미 있어
+    // 첫 진입(parseView)은 정상 동작하지만 여기(onQuery)엔 없어서, 감사 화면을 이미 열어 둔 채
+    // (라우트가 그대로라 리마운트되지 않는다) 같은 링크를 다시 타면 그 조건만 조용히 버려져
+    // **감사 로그 전체**가 열렸다(result와 동일한 F7 부류의 결함).
+    onQuery: (p) => (p.object_type || p.object_id || p.user_id || p.result || p.action)
+      ? { open: "filter", values: { object_type: p.object_type, object_id: p.object_id, user_id: p.user_id, result: p.result, action: p.action } }
       : null,
     paginated: true,
     // 백엔드 최대 100(app/core/pagination.py MAX_PAGE_SIZE)까지 지원하는데 기본값 20에 머물러 있었다
@@ -421,7 +426,16 @@ export const GOVERNANCE_SCREENS = {
     ],
     emptyExpected: "시작, 종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
     paginated: true,
-    filters: [{ key: "active", type: "select", label: "진행 중", options: opt([["true", "진행 중"], ["false", "종료됨"]]) }],
+    // actor_user_id/target_user_id는 백엔드가 이미 받는 서버 필터다(app/impersonation/router.py
+    // list_sessions) — 그런데 이 배열에 없으면 DataScreen.buildUrl()이 config.filters에 있는 키만
+    // 서버로 보내므로(serverFilterDefs), 아래 '이 관리자의 기록만' 액션과 onQuery 딥링크가 filters
+    // 상태에 넣는 값이 실제 요청에는 실리지 않는다 — 열린 화면은 전체 기록인데 '이 관리자만
+    // 걸러 준 화면'으로 오인하게 된다(감사 이상 징후의 result 필터 F7과 동일한 부류의 결함).
+    filters: [
+      { key: "active", type: "select", label: "진행 중", options: opt([["true", "진행 중"], ["false", "종료됨"]]) },
+      { key: "actor_user_id", type: "text", label: "관리자 ID" },
+      { key: "target_user_id", type: "text", label: "대상 사용자 ID" },
+    ],
     columns: [
       { key: "actor_name", label: "관리자", render: (r) => r.actor_name || r.actor_user_id },
       { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },

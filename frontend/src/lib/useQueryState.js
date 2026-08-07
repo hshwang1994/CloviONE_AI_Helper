@@ -99,16 +99,30 @@ export function useQueryState(spec, options) {
     () => decodeQuery(new URLSearchParams(search), specRef.current),
     [search],
   );
+  /* react-router 의 setSearchParams 갱신 함수는 그 훅이 이 컴포넌트를 마지막으로 렌더했을
+   * 때 캡처한 옛 검색어를 기준으로 다음 값을 계산한다(react-router-dom useSearchParams:
+   * `nextInit(new URLSearchParams(searchParams))`, `searchParams` 는 useCallback 의존성이라
+   * 그 렌더에 고정된다) — React의 `setState(prev => ...)` 처럼 "가장 최신" 값을 주지 않는다.
+   * 그래서 리렌더 없이 setState 를 두 번 연달아 부르면(같은 핸들러에서 필터 두 개를 바꾸는
+   * 식) 두 번째 호출이 첫 번째 호출의 patch 를 못 보고 옛 주소 위에 다시 얹어 먼저 바꾼
+   * 값을 조용히 지운다. 우리가 마지막으로 쓴 값을 직접 기억해 두고 그걸 기준으로 삼는다 —
+   * 렌더마다 최신 주소로 다시 맞추고(뒤로가기 등 외부 이동을 따라가고), 같은 틱 안의
+   * 연속 호출은 서로의 결과를 이어받는다. */
+  const pendingRef = React.useRef(search);
+  pendingRef.current = search;
   const setState = React.useCallback((patch, opts) => {
-    setSp((prev) => {
+    setSp(() => {
       const s = specRef.current;
+      const base = new URLSearchParams(pendingRef.current);
       const touched = Object.keys(patch || {});
-      const next = { ...decodeQuery(prev, s), ...patch };
+      const next = { ...decodeQuery(base, s), ...patch };
       const resets = resetRef.current;
       if (touched.some((k) => !resets.includes(k))) {
         for (const k of resets) if (!touched.includes(k)) next[k] = s[k];
       }
-      return encodeQuery(next, s, prev);
+      const result = encodeQuery(next, s, base);
+      pendingRef.current = result.toString();
+      return result;
     }, { replace: !(opts && opts.push) });
   }, [setSp]);
   return [state, setState];

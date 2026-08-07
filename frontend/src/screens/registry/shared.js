@@ -137,6 +137,12 @@ export const ADMIN_VIEW_ROLES = ["operator", "admin", "system_admin", "auditor"]
 export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "admin" || role === "system_admin") ? writerMsg : readerMsg;
 // 알림의 관련 대상(related_object_type) → 해당 관리 화면 해시 경로(문서 화면 navigate 방식과 동일).
 // 값은 REGISTRY 키(App.jsx가 "/"+key로 라우팅) 및 별도 화면(users/settings) 경로와 일치해야 한다.
+// organization·feature_flag — governance.js audit 화면의 object_type 필터 드롭다운은 이미 이 둘을
+// 보강해 뒀지만(OBJTYPE_OPTS에 없던 값, F15와 동일 부류), 이 맵엔 없어서 그 두 object_type의 감사
+// 로그 행은 '관련 항목 보기'/'관련 목록 열기' 버튼이 항상 숨겨졌다. org.js('조직 관리')와
+// platform.js('기능 플래그')는 이미 "감사 로그에서 보기"로 ?object_type=organization /
+// ?object_type=feature_flag 딥링크를 감사 화면으로 걸어 두고 있어(org.js organizations.actions,
+// platform.js feature-flags.actions) 한쪽 방향 링크만 있고 되돌아오는 버튼이 없었다.
 export const OBJ_ROUTE = {
   integration: "#/integrations", runner: "#/runners", workflow: "#/workflows",
   prompts: "#/prompts", policies: "#/policies", template: "#/templates",
@@ -144,13 +150,18 @@ export const OBJ_ROUTE = {
   backup: "#/backup", document_generation: "#/documents", document: "#/documents",
   user_notion_mapping: "#/notion-mapping", job: "#/jobs",
   department: "#/departments", job_title: "#/job-titles", user: "#/users",
-  app_setting: "#/settings",
+  app_setting: "#/settings", organization: "#/organizations", feature_flag: "#/feature-flags",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은
 // admin/system_admin만, 작업 큐는 operator/admin/system_admin만 — auditor 제외). '관련 항목 보기'가
 // 그 화면에 못 들어가는 역할에게도 똑같이 노출되면 클릭 즉시 403 막다른 길이 된다 — 여기 없는
 // object_type은 대상 화면이 role 제한이 없어(App.jsx SCREEN_ROLES 미지정) 그대로 둔다.
-export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES };
+// organization — navConfig.js SCREEN_ROLES.organizations는 admin/system_admin만 허용한다(auditor
+// 제외). audit/notifications 화면은 auditor도 들어오므로, 그 게이트 없이는 auditor에게도 '관련
+// 목록 열기'가 보여 눌러도 늘 403인 막다른 링크가 된다(위 department/job_title과 동일한 이유).
+// feature_flag는 여기 없다 — navConfig.js SCREEN_ROLES["feature-flags"]가 operator/admin/
+// system_admin/auditor를 모두 허용해(audit에 들어올 수 있는 역할의 상위집합) 추가 제한이 필요 없다.
+export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES };
 export const canReachObjRoute = (objType, role) => !OBJ_ROUTE_ROLES[objType] || (role != null && OBJ_ROUTE_ROLES[objType].includes(role));
 // 대상 화면 중 일부는 이제 id 기반 딥링크(onQuery: p.<param> → 상세 드로어를 곧바로 연다)를 지원한다
 // (runners: ?id=, jobs: ?job_id=, notion-mapping: ?user_id= — 이 셋은 object_id가 곧 그 파라미터 값).

@@ -47,7 +47,10 @@ function WbsRow({ node }) {
       <Box
         sx={{
           display: "flex", gap: 1.5, alignItems: "baseline", flexWrap: "wrap",
-          py: 1, pl: steps * INDENT_REM, borderBottom: 1, borderColor: "divider", minWidth: 0,
+          /* steps * INDENT_REM 을 숫자로 넘기면 sx 의 pl 이 theme.spacing()을 타면서
+           * (frontend/src/ui/theme.js: spacing = factor => `${0.5 * factor}rem`) 값이 반토막
+           * 난다 — 문자열로 넘겨 그 배율을 건너뛴다. */
+          py: 1, pl: `${steps * INDENT_REM}rem`, borderBottom: 1, borderColor: "divider", minWidth: 0,
         }}
       >
         {node.ticket_number != null ? (

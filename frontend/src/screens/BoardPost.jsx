@@ -29,7 +29,7 @@ import { PROSE_MAX_WIDTH } from "../ui/theme.js";
    한 줄은 눈이 다음 줄 첫 글자를 못 찾는다. */
 const PROSE_MAX_WIDTH_WIDE = "min(100%, 68rem)";
 import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
-import { AuthorLine, PostFormModal, Reactions } from "./Board.jsx";
+import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { useTicketProjects } from "./ticket-options.js";
@@ -229,7 +229,12 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           ) : null}
           {comment.can_edit ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>수정</Button>
+              {/* text state는 마운트 시 한 번만 comment.body로 초기화된다(useState 초깃값).
+                  이 세션 안의 다른 동작(새 댓글 등록 등)이 상세를 재조회해 comment.body가
+                  그 사이 바뀌어도(다른 세션이 먼저 고친 경우 등) text는 리마운트 없이는
+                  따라가지 않는다 — "수정"을 누르는 순간 지금 comment.body로 다시 채워,
+                  옛 내용으로 최신 내용을 덮어쓰는 잃어버린 갱신을 막는다(취소 버튼과 같은 규칙). */}
+              <Button variant="ghost" size="sm" onClick={() => { setText(comment.body); setEditing(true); }}>수정</Button>
               <Button variant="ghost" size="sm" color="error" onClick={askDelete}>삭제</Button>
             </>
           ) : null}
@@ -368,10 +373,17 @@ export function BoardPost() {
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
+  // 로딩·오류 상태에서는 아직 post.kind를 모른다(주소만으로는 자유/제안을 가를 수 없다 —
+  // 상세 라우트가 둘 다 "/board/:id" 하나를 같이 쓴다, 위 boardArea 주석 참고). 이 두 상태에서
+  // area를 "자유게시판"으로 단정하면, 제안 글을 열 때(또는 그 글의 조회가 실패할 때) 로딩
+  // 스켈레톤·오류 화면이 실제로는 다른 게시판인 글을 "자유게시판"이라 잘못 말한다 — 아래
+  // boardArea가 고치는 것과 같은 자기모순을 이 두 상태에서 그대로 재현한다. 모를 때는
+  // PageHeader의 정한 관례대로 area를 비운다(TeamDocs.jsx의 area={null}과 같은 패턴) — 틀린
+  // 답을 단정하는 대신 빵부스러기 줄 자체를 생략한다.
   if (detail.isError) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" spot="board" />
+        <PageHeader crumbRoot="팀 공간" area={null} title="게시글" spot="board" />
         <ErrorState error={detail.error} onRetry={() => detail.refetch()} />
       </div>
     );
@@ -379,7 +391,7 @@ export function BoardPost() {
   if (detail.isPending) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" spot="board" />
+        <PageHeader crumbRoot="팀 공간" area={null} title="게시글" spot="board" />
         <Card><Skeleton lines={8} /></Card>
       </div>
     );
@@ -387,6 +399,10 @@ export function BoardPost() {
 
   const post = detail.data.post;
   const isIdea = post.kind === "idea";
+  // 목록(Board.jsx)과 같은 표를 쓴다 — "목록" 버튼은 이미 종류로 갈리는데(위 actions)
+  // 빵부스러기만 "자유게시판"으로 박혀 있으면, 제안 글을 열었을 때 목록은 "기능 개선
+  // 제안"이라 하고 상세는 "자유게시판"이라 해 같은 화면 안에서 말이 갈렸다.
+  const boardArea = (COPY[isIdea ? "idea" : "free"] || COPY.free).area;
   const comments = post.comments || [];
   /* 글쓴이·댓글 작성자의 신원(부서·직책·사진). 사람 한 명당 한 줄만 오고 댓글은 uid 로
      찾아 쓴다 — 댓글마다 되풀이하면 상세 응답이 댓글 수만큼 부푼다. 옛 캐시에는 없다. */
@@ -421,7 +437,7 @@ export function BoardPost() {
     <div className="c-screen">
       {/* 목록(Board.jsx)은 spot="board" 를 주는데 상세 세 상태는 전부 안 줘서, 목록에서
           글을 열면 일러스트가 사라졌다 — 같은 화면군인데 장식이 들쭉날쭉했다. */}
-      <PageHeader crumbRoot="팀 공간" area="자유게시판" title="게시글" actions={actions} spot="board" />
+      <PageHeader crumbRoot="팀 공간" area={boardArea} title="게시글" actions={actions} spot="board" />
 
       {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
           본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}

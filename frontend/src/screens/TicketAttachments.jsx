@@ -248,17 +248,28 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           data-testid="attachment-dropzone"
           component="button"
           type="button"
-          onClick={openPicker}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          disabled={upload.isPending}
+          onClick={() => { if (!upload.isPending) openPicker(); }}
+          onDragOver={(e) => { e.preventDefault(); if (!upload.isPending) setDragging(true); }}
           onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            /* 첫 배치가 아직 순차 업로드 중(upload.isPending)이면 이 두 번째 배치는 받지
+               않는다. 안 막으면 두 pick 호출이 서로 다른 뮤테이션 실행이 되어, 각자 아직
+               갱신되지 않은 옛 list.length 만 보고 "상한 안 넘는다"고 판단한다 — 위 upload
+               뮤테이션 주석이 "동시에 던지면"이라 부르는 바로 그 경쟁이 pick 호출 두 개
+               사이에서 재현된다. */
+            if (upload.isPending) return;
+            pick(e.dataTransfer.files);
+          }}
           sx={{
             display: "grid", placeItems: "center", gap: 0.5, py: 3, px: 2, width: "100%",
             mt: list.length > 0 ? 2 : 0, font: "inherit", color: "inherit",
             border: 1, borderStyle: "dashed", borderRadius: 2,
             borderColor: dragging ? "primary.main" : "divider",
             bgcolor: dragging ? "action.hover" : "transparent",
-            cursor: full ? "not-allowed" : "pointer",
+            cursor: full || upload.isPending ? "not-allowed" : "pointer",
             transition: "border-color .16s, background-color .16s",
             "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
           }}
@@ -266,6 +277,10 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           {full ? (
             <Typography variant="body2" color="text.secondary">
               첨부가 {MAX_ATTACHMENTS}개로 꽉 찼습니다. 더 올리려면 하나를 먼저 떼세요.
+            </Typography>
+          ) : upload.isPending ? (
+            <Typography variant="body2" color="text.secondary">
+              올리는 중입니다. 끝난 뒤 다시 끌어다 놓으세요.
             </Typography>
           ) : (
             <>

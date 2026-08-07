@@ -252,6 +252,24 @@ describe("빈 목록의 두 가지 뜻", () => {
     expect(screen.getAllByRole("button", { name: "필터 지우기" }).length).toBeGreaterThan(0);
   });
 
+  /* 빈 상태 안의 '필터 지우기'는 필터 줄의 것과 별개 버튼이다(EmptyState의 `action`, onClear=
+   * 화면이 만든 clearFilters). 화면이 `clearTicketFilters` 를 import 하지 않으면 필터 줄의
+   * 버튼(자기 것을 따로 import 하는 TicketFilterBar.jsx 안 버튼)은 멀쩡히 동작해 이 회귀를
+   * 가리고, 오직 **빈 상태 쪽** 버튼을 눌러야만 `ReferenceError: clearTicketFilters is not
+   * defined`가 난다 — 그래서 반드시 두 번째(빈 상태) 버튼을 짚어 누른다. */
+  it("빈 상태의 '필터 지우기'를 눌러도 주소가 비워진다 (clearTicketFilters 참조 누락 회귀)", async () => {
+    const user = userEvent.setup();
+    listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
+    renderScreen(MyTickets, "/my-tickets?status=검증");
+    await screen.findByText("조건에 맞는 티켓이 없습니다");
+
+    const clearButtons = screen.getAllByRole("button", { name: "필터 지우기" });
+    expect(clearButtons.length).toBeGreaterThanOrEqual(2);
+    await user.click(clearButtons[clearButtons.length - 1]);
+
+    await waitFor(() => expect(addr()).toBe("/my-tickets"));
+  });
+
   it("필터가 없으면 '정말 없다'고 말한다 (필터를 지우라고 하지 않는다)", async () => {
     listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
     renderScreen(MyTickets, "/my-tickets");

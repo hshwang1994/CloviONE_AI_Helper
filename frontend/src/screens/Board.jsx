@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
@@ -109,6 +109,13 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState([]);
+  // board-meta 쿼리(기본 카테고리의 출처)가 열려 있는 동안 배경에서 다시 응답하면, 값이 똑같아도
+  // fetch/JSON.parse가 항상 새 배열을 만든다 — categories를 아래 이펙트의 의존성에 두면 그 새
+  // 참조만으로 이펙트가 다시 돌아 사용자가 입력 중이던 제목·본문까지 빈 문자열로 되돌렸다.
+  // ref로 최신값만 읽고 의존성에서는 뺀다: 모달이 열리는 "그 순간"의 카테고리로 기본값을 잡는
+  // 것은 그대로 하되, 열려 있는 동안의 재조회는 더는 폼을 건드리지 않는다.
+  const categoriesRef = useRef(categories);
+  useEffect(() => { categoriesRef.current = categories; });
 
   useEffect(() => {
     if (!open) return;
@@ -119,12 +126,13 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
     } else {
       // 기본 카테고리는 **서버가 준 첫 값**이다. 화면에 상수를 적어 두면 종류마다 다른
       // 목록에서 한쪽만 맞고, 그 순간 폼이 이 게시판에 없는 값을 보낸다.
-      setCategory((categories && categories[0]) || "");
+      setCategory((categoriesRef.current && categoriesRef.current[0]) || "");
       setTitle("");
       setBody("");
     }
     setFiles([]);
-  }, [open, mode, post, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- categories는 의도적으로 뺀다(위 주석).
+  }, [open, mode, post]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -303,8 +311,11 @@ const FREE_SPEC = { category: "", q: "", sort: "recent" };
 const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "" };
 const SPEC_BY_KIND = { free: FREE_SPEC, idea: IDEA_SPEC };
 
-/* 종류마다 다른 것은 문구뿐이다. 화면 구조는 하나다. */
-const COPY = {
+/* 종류마다 다른 것은 문구뿐이다. 화면 구조는 하나다.
+ * BoardPost.jsx(상세)도 같은 표를 쓴다 — area(빵부스러기)가 "자유게시판"으로 박혀 있으면
+ * 제안 글 상세를 열었을 때 목록은 "기능 개선 제안"인데 상세만 "자유게시판"이라 말해
+ * 지금 보고 있는 게 어느 게시판인지 자기모순을 낸다. 한 표만 소유한다. */
+export const COPY = {
   free: {
     area: "자유게시판",
     title: "자유게시판",

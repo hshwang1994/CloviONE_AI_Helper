@@ -14,7 +14,10 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
       <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>참여자 {members.length}명</Typography>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5, maxHeight: "13rem", overflowY: "auto" }}>
         {members.map((m) => {
-          const sub = [m.title, m.dept].filter(Boolean);
+          // 부서를 직책보다 먼저 그린다 — lib/people.js::affiliation / lib/format.js::affiliationOf /
+          // app/core/people.py::affiliation 이 전부 "부서 직책"(예: "개발본부 팀장") 순서를 쓴다.
+          // 이 화면만 손으로 [title, dept] 순서를 만들어 같은 두 값이 게임방에서만 뒤집혀 보였다.
+          const sub = [m.dept, m.title].filter(Boolean);
           const isHostRow = m.user_id === room.host_user_id;
           const isMe = m.user_id === you.user_id;
           return (
@@ -40,8 +43,8 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
                     display: "flex", gap: 1, fontSize: "0.75rem", color: "text.secondary",
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
-                    {m.title ? <Box component="span" sx={{ color: "primary.main", fontWeight: 600 }}>{m.title}</Box> : null}
                     {m.dept ? <Box component="span">{m.dept}</Box> : null}
+                    {m.title ? <Box component="span" sx={{ color: "primary.main", fontWeight: 600 }}>{m.title}</Box> : null}
                   </Box>
                 ) : null}
               </Box>

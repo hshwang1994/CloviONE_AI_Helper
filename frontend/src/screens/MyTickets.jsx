@@ -26,6 +26,7 @@ import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { rowNameOf } from "../ui/rowName.js";
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg } from "../lib/people.js";
@@ -34,7 +35,7 @@ import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
-import { TicketEmptyState, TicketFilterBar, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
+import { TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
  * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
@@ -195,8 +196,12 @@ function groupByProject(rows) {
 // 두 표가 같은 폭에서 같이 전환되지 않으면 한 화면 안에서 표와 카드가 섞여 보인다.
 const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
 
-function groupedCell(c, t) {
-  if (c.render) return c.render(t);
+// ctx: kit.jsx DataTable과 같은 규칙(cellValue) — 선택 체크박스처럼 셀 안에서 '자기 행이
+// 무엇인지' 알아야 하는 렌더러에 rowName을 건넨다. 이게 없으면 ctx가 항상 undefined라
+// selectionColumn의 render가 매 행 "이 항목 선택"으로 떨어진다(DataTable에서 이미 고친
+// 접근성 버그가 GroupedTickets에는 안 옮겨져 있었다 — ui/row-select-name.test.jsx 참고).
+function groupedCell(c, t, ctx) {
+  if (c.render) return c.render(t, ctx);
   const v = t[c.key];
   return v == null || v === "" ? "-" : String(v);
 }
@@ -252,19 +257,23 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
           <Box key={groupName}>
             <Typography component="h3" sx={{ fontSize: "0.9375rem", mb: 1 }}>{groupHeading(groupName, items.length)}</Typography>
             <Stack gap={1.5}>
-              {items.map((t, i) => (
-                <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
-                  {cols.map((c) => c.label ? (
-                    <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                      <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                      <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{groupedCell(c, t)}</Box>
-                    </Box>
-                  ) : (
-                    // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
-                    <Box key={c.key} sx={{ minWidth: 0 }}>{groupedCell(c, t)}</Box>
-                  ))}
-                </Paper>
-              ))}
+              {items.map((t, i) => {
+                // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙.
+                const ctx = { rowName: rowNameOf(cols, t) };
+                return (
+                  <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
+                    {cols.map((c) => c.label ? (
+                      <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
+                        <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                        <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
+                      </Box>
+                    ) : (
+                      // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
+                      <Box key={c.key} sx={{ minWidth: 0 }}>{groupedCell(c, t, ctx)}</Box>
+                    ))}
+                  </Paper>
+                );
+              })}
             </Stack>
           </Box>
         ))}
@@ -301,16 +310,20 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 {groupHeading(groupName, items.length)}
               </TableCell>
             </TableRow>
-            {items.map((t, i) => (
-              <TableRow key={groupedRowKey(t, i)} hover>
-                {cols.map((c) => (
-                  <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
-                              minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
-                    {groupedCell(c, t)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {items.map((t, i) => {
+              // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙(셀마다 다시 구하면 열 수만큼 반복한다).
+              const ctx = { rowName: rowNameOf(cols, t) };
+              return (
+                <TableRow key={groupedRowKey(t, i)} hover>
+                  {cols.map((c) => (
+                    <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
+                                minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
+                      {groupedCell(c, t, ctx)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         ))}
       </Table>

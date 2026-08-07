@@ -167,6 +167,44 @@ describe("드래그해서 놓기", () => {
     expect(await screen.findByText(/최대 10개까지/)).toBeInTheDocument();
     expect(uploadCalls()).toHaveLength(0);
   });
+
+  /* mutationFn 은 한 번의 pick 안에서는 **순차로** 올려 서버의 개수 상한 검사가 서로를
+   * 못 보고 통과하는 것을 막는다(위 upload 뮤테이션 주석). 그런데 그 보호는 "한 번의 pick
+   * 안"에서만 유효하다 — 첫 배치가 아직 서버로 올라가는 도중(`upload.isPending`)에 드롭존을
+   * 다시 눌러 두 번째 배치를 시작할 수 있다면, 두 배치가 **서로 다른 pick 호출**이라 각자
+   * `list.length`(아직 갱신되지 않은 옛 값)만 보고 "지금 넣어도 상한 안 넘는다"고 판단한다.
+   * 결과는 정확히 그 주석이 막으려던 것과 같다 — 개수 상한 검사가 서로를 못 본다. "파일 추가"
+   * 버튼은 `disabled={upload.isPending || full}`로 이미 막아 뒀는데, 같은 문(pick)으로 들어가는
+   * 드롭존에는 그 가드가 빠져 있었다. */
+  it("첫 배치가 아직 올라가는 중이면 드롭존이 두 번째 배치를 겹쳐 보내지 않는다", async () => {
+    // 8개 보유 + 2개씩 두 번 드롭 = 12개, 서버 상한(10개)을 넘긴다. 두 드롭 모두
+    // list.length(8) 기준으로는 "8+2=10, 상한 안 넘음"이라 각자 통과해 버리는 것이 결함이다.
+    const eight = Array.from({ length: 8 }, (_, i) => ({ ...PDF, id: "p" + i, filename: `f${i}.pdf` }));
+    let resolveFirst;
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/tickets/page-1/attachments" && opts && opts.method === "POST") {
+        // 첫 배치의 첫 파일 업로드가 응답을 받지 못한 채 걸려 있는 상태를 흉내낸다
+        // (upload.isPending 이 true 인 동안).
+        return new Promise((resolve) => { resolveFirst = resolve; });
+      }
+      return Promise.resolve({ ok: true });
+    });
+
+    wrap({ attachments: eight, canEdit: true });
+    const zone = screen.getByTestId("attachment-dropzone");
+
+    dropFiles(zone, makeFiles(["one.png", "two.png"]));
+    await waitFor(() => expect(uploadCalls()).toHaveLength(1)); // 첫 배치의 첫 파일만 나가고 걸려 있다
+
+    // 첫 배치가 아직 pending인 동안 같은 드롭존에 두 번째 배치를 놓는다.
+    dropFiles(zone, makeFiles(["three.png", "four.png"]));
+    await new Promise((r) => setTimeout(r, 30));
+
+    // 두 번째 배치는 시작되면 안 된다 — POST 호출 수가 그대로여야 한다.
+    expect(uploadCalls()).toHaveLength(1);
+
+    resolveFirst({ ok: true });
+  });
 });
 
 // ── 권한 ──────────────────────────────────────────────────────────────────────

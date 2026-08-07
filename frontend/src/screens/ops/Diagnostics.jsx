@@ -6,7 +6,7 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../../lib/format.js";
-import { serviceLabel, daysSince, BACKUP_STALE_DAYS, DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID } from "../Dashboard.jsx";
+import { serviceLabel, daysSince, BACKUP_STALE_DAYS, DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID, fmtNum } from "../Dashboard.jsx";
 import { PageHeader, Card, Badge, Button, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { Donut } from "../../ui/charts/Donut.jsx";
 import { errorBuckets, healthVerdict, integrationMix, shortId, copyText, bundleStamp } from "./opsHelpers.js";
