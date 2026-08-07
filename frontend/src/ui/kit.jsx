@@ -1012,12 +1012,18 @@ export function useToast() { return React.useContext(ToastCtx); }
  *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot }) {
+export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot, size = "page" }) {
   void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
+  /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
+   * 이 컴포넌트를 그대로 쓰면 h4/h1 이 감싸는 페이지의 진짜 제목과 같은 무게라 "페이지가
+   * 두 개 겹쳐 있다"처럼 읽힌다(사용자 지적: 조직도 화면에서 조직 관리 패널이 또 하나의
+   * 페이지처럼 보임). 글자만 작게(h6/h2) 줄이는 하위 무게 — breadcrumb(area)는 상위
+   * 페이지가 이미 보여 주므로 호출부는 보통 area=null 을 같이 넘긴다. */
+  const isSection = size === "section";
   return (
     <Box
       className="k-page-head"
-      sx={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 3, flexWrap: "wrap", mb: 3 }}
+      sx={{ position: "relative", display: "flex", alignItems: "flex-end", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: isSection ? 1.5 : 3 }}
     >
       {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
           61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.
@@ -1030,7 +1036,7 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
             {crumbRoot ? crumbRoot + " › " : ""}{area}
           </Typography>
         ) : null}
-        <Typography variant="h4" component="h1" sx={{ mt: area ? 0.5 : 0 }}>{title}</Typography>
+        <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"} sx={{ mt: area ? 0.5 : 0 }}>{title}</Typography>
       </Box>
       {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
     </Box>

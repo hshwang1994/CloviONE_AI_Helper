@@ -76,9 +76,13 @@ export function CommandPalette({ open, onClose, groups }) {
   });
 
   const sections = React.useMemo(() => {
+    // 라벨 앞에 "메뉴 ·"를 붙인다 — 사용자 지적: 빈 검색어로 팔레트를 열면 '운영' 등 사이드바
+    // 그룹 이름이 그대로 목록에 나열돼, 이게 검색 결과인지 메뉴 이동인지 구분이 안 됐다
+    // ("운영 밑에 있는것들이 페이지 이전인건가??"). 아래 서버 검색 그룹(티켓/문서/게시판 등)과
+    // 같은 ListSubheader 모양을 쓰므로, 이름 자체로 종류를 밝힌다.
     const out = navResults.map((g) => ({
       key: "nav:" + g.group,
-      label: g.group,
+      label: "메뉴 › " + g.group,
       items: g.items.map((it) => ({ key: "nav:" + it.to, label: it.label, hint: it.to, to: it.to })),
     }));
     const serverGroups = (search.data && search.data.groups) || [];

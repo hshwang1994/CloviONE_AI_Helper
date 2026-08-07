@@ -74,6 +74,17 @@ describe("명령 팔레트", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // 사용자 지적: 빈 검색어로 팔레트를 열면 사이드바 그룹 이름("운영" 등)이 그대로 나열돼
+  // 이게 검색 결과인지 메뉴 이동인지 구분이 안 됐다. 메뉴 그룹 라벨을 서버 검색 그룹
+  // 라벨(예: "티켓")과 구분되게 "메뉴 › "로 시작하게 한다. 가운뎃점(·)이 아니라 "›"인
+  // 이유: 가운뎃점은 화면 문구 금지 문자(scripts/check_user_text.py) — PageHeader의
+  // breadcrumb("관리자 › 운영")이 이미 쓰는 구분자와 통일한다.
+  it("메뉴 그룹 라벨은 '메뉴 › '로 시작해 서버 검색 결과 그룹과 구분된다", async () => {
+    renderPalette();
+    expect(screen.getByText("메뉴 › 내 업무")).toBeInTheDocument();
+    expect(screen.getByText("메뉴 › 문서")).toBeInTheDocument();
+  });
+
   it("메뉴 검색은 서버 없이 즉시 걸러진다", async () => {
     renderPalette();
     await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "새 티켓");

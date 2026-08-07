@@ -255,7 +255,11 @@ export function ChatRooms() {
   }, [activeId, team && team.id, glob && glob.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const listPanel = (
-    <Box sx={{ display: "grid", gridTemplateRows: "auto 1fr", minHeight: 0, minWidth: 0 }}>
+    // 헤더(제목줄) · 검색줄 · 목록, 자식 셋이 항상 그려지는데 트랙을 "auto 1fr" 둘만 주면
+    // grid가 검색줄을 1fr(남는 세로 공간 전부)에 놓고 목록은 암시 행(auto, 내용 높이만)으로
+    // 밀려나 방 목록이 패널 맨 아래에서부터 쌓이고 그 위는 통째로 빈다(사용자 지적: "채팅방이
+    // 아래부터 만들어짐"). 트랙을 자식 수만큼(auto auto 1fr) 줘 목록이 1fr(남는 공간)을 갖는다.
+    <Box data-testid="chatroom-list-grid" sx={{ display: "grid", gridTemplateRows: "auto auto 1fr", minHeight: 0, minWidth: 0 }}>
       <Box sx={{
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
         px: 2, py: 1.75, borderBottom: 1, borderColor: "divider",
@@ -278,7 +282,7 @@ export function ChatRooms() {
         />
       </Box>
       {/* 목록은 **자기 안에서** 스크롤한다 — 페이지가 통째로 스크롤되면 대화창이 같이 밀린다. */}
-      <Box sx={{ minHeight: 0, overflowY: "auto" }}>
+      <Box data-testid="chatroom-list-rows" sx={{ minHeight: 0, overflowY: "auto" }}>
         {q.isPending ? <Box sx={{ p: 2 }}><Skeleton lines={6} /></Box>
           : q.isError ? <Box sx={{ p: 2 }}><ErrorState error={q.error} onRetry={() => q.refetch()} /></Box>
           : (

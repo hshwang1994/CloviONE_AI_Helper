@@ -106,6 +106,14 @@ export function Settings() {
             : "‘Notion 관리’ 화면"}에서, AI 설정은 {canReachConsoles
             ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/llm-console")}>‘AI 관리’ 화면</Link>
             : "‘AI 관리’ 화면"}에서 관리합니다. 두 화면에는 연결 테스트가 함께 있습니다.</p>
+          {/* 사용자 지적: "설정이랑 시스템 설정은 묶을 수 있는거 아님?" — 이름이 겹쳐 같은
+              화면의 다른 이름처럼 보이지만, 이 표는 애플리케이션 동작 값(REGISTRY, 키-값)이고
+              '시스템 설정'(/system)은 특권 헬퍼가 수행하는 OS 동작(시간대, DNS, 서비스 재시작)이라
+              값이 아니라 실행이다 — 합치면 일반 설정 옆에 되돌릴 수 없는 재시작 버튼이 놓인다.
+              대신 여기서 그 화면으로 가는 이유를 밝혀 "왜 따로냐"는 의문 자체를 없앤다. */}
+          <p>서버 시간대, DNS, 서비스 재시작처럼 운영체제에 직접 손대는 동작은 {canReachConsoles
+            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/system")}>‘시스템 설정’ 화면</Link>
+            : "‘시스템 설정’ 화면"}에서 따로 관리합니다(이 표의 값과 달리 되돌릴 수 없는 실행 동작이라 화면을 분리했습니다).</p>
         </Callout>
       </Box>
       {q.isLoading ? <Card><Skeleton lines={5} /></Card>

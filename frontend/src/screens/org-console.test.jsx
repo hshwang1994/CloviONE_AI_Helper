@@ -106,7 +106,10 @@ const WAIT = { timeout: 8000 };
 vi.setConfig({ testTimeout: 20000 });
 const tree = () => screen.getByTestId("org-console-tree");
 const panel = () => screen.getByTestId("org-console-panel");
-const panelTitle = () => within(panel()).getByRole("heading", { level: 1 }).textContent;
+/* level:2 — 오른쪽 패널은 이제 PageHeader size="section"(h6/h2)을 쓴다. 페이지의 진짜 제목
+ * ("조직도")과 같은 h1 무게를 쓰면 오른쪽이 또 다른 페이지처럼 보인다는 지적이 있었다
+ * (OrgConsole.jsx의 panelConfig 주석 참고). 한 페이지에 h1은 하나만 남는다. */
+const panelTitle = () => within(panel()).getByRole("heading", { level: 2 }).textContent;
 const node = (name) => screen.findByRole("treeitem", { name }, WAIT);
 
 beforeEach(() => {

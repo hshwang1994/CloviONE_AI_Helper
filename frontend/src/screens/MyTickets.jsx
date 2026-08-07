@@ -757,10 +757,14 @@ function WritingAid({ description, onInsert }) {
               aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
               sx={{
                 display: "grid", gap: 0.25, textAlign: "left", width: "100%",
-                px: 1.5, py: 1.25, border: 0, borderRadius: "12px", cursor: already ? "default" : "pointer",
-                bgcolor: "transparent", color: "inherit", font: "inherit",
+                px: 1.5, py: 1.25, border: 1, borderColor: "divider", borderRadius: "12px",
+                cursor: already ? "default" : "pointer",
+                /* 흰 Card 위에 배경 없는 버튼(bgcolor:"transparent")이라 경계가 안 보였다
+                   (사용자 지적: "버튼이 명확하지가 않다. 버튼이 흰배경이라서"). BodyEditor
+                   툴바 버튼과 같은 표면 톤(background.surface2)을 써 카드와 구별한다. */
+                bgcolor: "background.surface2", color: "inherit", font: "inherit",
                 opacity: already ? 0.5 : 1,
-                "&:hover": { bgcolor: already ? "transparent" : "action.hover" },
+                "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
               }}
             >
               <Typography component="span" sx={{ fontWeight: 700, fontSize: "0.9375rem" }}>

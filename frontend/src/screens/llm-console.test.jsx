@@ -230,3 +230,18 @@ describe("화면", () => {
     expect(screen.queryByText(/관리자 계정으로 로그인하면 안 됩니다/)).toBeNull();
   });
 });
+
+// 사용자 지적: "AI관리 페이지... 쓸때없이 페이지만 너비만 차지하고 실제 설정하는거는
+// 한줄로 돼있고" — 필드 여섯 개가 폭 제한 없는 Box에 세로로 하나씩 쌓여, 넓은 화면에서
+// 각 줄 오른쪽이 통째로 비었다. 반응형 그리드(SETTINGS_GRID)로 옮겨 여러 필드가 폭을
+// 나눠 쓰게 한다.
+describe("설정 필드는 그리드로 폭을 나눠 쓴다", () => {
+  it("여섯 필드가 한 grid 컨테이너 안에 있다(세로로 홀로 쌓이지 않는다)", async () => {
+    mockApi({ view: overview() });
+    renderConsole();
+    const grid = await screen.findByTestId("llm-settings-grid");
+    expect(window.getComputedStyle(grid).display).toBe("grid");
+    // 사용 여부/백엔드/실행 파일/모델/제한 시간/동시 실행 수 — 여섯 개.
+    expect(grid.children.length).toBe(6);
+  });
+});

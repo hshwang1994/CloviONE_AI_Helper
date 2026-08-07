@@ -58,14 +58,14 @@ export function OrgConsole({ defaultKind = "organizations" }) {
   const [selected, setSelected] = useState(null);
   const screenKey = selected ? selected.screenKey : defaultKind;
   const config = ORG_SCREENS[screenKey] || ORG_SCREENS.organizations;
-  /* 오른쪽 DataScreen 이 그리는 PageHeader(제목="조직 관리"/"부서 관리")는 손대지 않는다
-   * (DataScreen.jsx 는 이 작업 범위 밖이고, 그 h1은 기존 테스트가 이미 기대하고 있다).
-   * 대신 그 화면에 넘기는 config 에서 area 만 뺀다 — area 는 "관리자 › 사용자" 빵부스러기
-   * 캡션을 한 줄 더 얹는데, 아래 콘솔 전체 제목이 이미 같은 빵부스러기를 보여주고 있어
-   * 그대로 넘기면 같은 캡션이 세로로 두 번 찍힌다. title(h1)은 그대로 남긴다 — "조직 관리"
-   * 라는 라벨 자체는 이 화면(오른쪽 절반)이 실제로 무엇을 관리하는 패널인지 알려 주는
-   * 유일한 단서라 없애면 오른쪽 패널만 봤을 때 무엇을 보고 있는지 알 수 없다. */
-  const panelConfig = { ...config, area: null };
+  /* 오른쪽 DataScreen 이 그리는 제목("조직 관리"/"부서 관리")은 없애지 않는다 — 이 화면
+   * (오른쪽 절반)이 실제로 무엇을 관리하는 패널인지 알려 주는 유일한 단서라 없애면 오른쪽
+   * 패널만 봤을 때 무엇을 보고 있는지 알 수 없다. 대신 두 가지를 낮춘다:
+   * area — "관리자 › 사용자" 빵부스러기가 콘솔 전체 제목과 겹쳐 세로로 두 번 찍히던 것.
+   * compact — PageHeader를 h4/h1(페이지 제목과 같은 무게)이 아니라 h6/h2로 낮춘다. 이전에는
+   * 글자 크기가 페이지 제목과 같아 "오른쪽이 또 다른 페이지처럼" 보였다(사용자 지적:
+   * "조직도가 제일 상단 왼쪽으로 올려져있음" — 실은 오른쪽 패널이 같은 무게로 맞서고 있었다). */
+  const panelConfig = { ...config, area: null, compact: true };
 
   return (
     <div className="c-screen">

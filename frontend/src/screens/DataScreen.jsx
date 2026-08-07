@@ -516,7 +516,7 @@ export function DataScreen({ config }) {
 
   return (
     <div className="c-screen">
-      <PageHeader area={config.area} title={config.title}
+      <PageHeader area={config.area} title={config.title} size={config.compact ? "section" : "page"}
         actions={hasHeaderActions ? headerActions : null} />
       {/* config.help는 고정 문자열 또는 (role)=>문자열 함수, emptyHelp와 동일한 role-aware 패턴.
        * 화면이 역할별로 다른 컨트롤을 노출할 때(예: 러너의 '수정'에서만 가능한 점검 상태 전환) 그

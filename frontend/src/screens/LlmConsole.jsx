@@ -63,9 +63,20 @@ export function testKind(status) {
   return "error";
 }
 
+/* 필드 여섯 개가 세로 한 줄씩(mt:2 만 갖고 폭 제한이 없는 Box) 쌓여 있었다 — 화면 하나에
+ * TextField(minWidth 200~320) 하나씩만 놓이니, 그 오른쪽으로 카드 나머지 폭이 전부 빈다
+ * (사용자 지적: "AI관리 페이지... 쓸때없이 페이지만 너비만 차지하고 실제 설정하는거는
+ * 한줄로 돼있고"). Ticket.jsx의 META_GRID와 같은 반응형 그리드로 옮겨 남는 폭을 여러
+ * 필드가 나눠 쓰게 한다. */
+const SETTINGS_GRID = {
+  display: "grid",
+  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xxl: "repeat(3, minmax(0, 1fr))" },
+  columnGap: 3,
+};
+
 function Field({ label, help, children }) {
   return (
-    <Box sx={{ mt: 2 }}>
+    <Box sx={{ mt: 2, minWidth: 0 }}>
       <Typography sx={{ fontWeight: 700 }}>{label}</Typography>
       {children}
       {help && (
@@ -180,9 +191,10 @@ export function LlmConsole() {
       <Card sx={{ mt: 2, p: 2 }}>
         <Typography variant="h6">설정</Typography>
 
+        <Box data-testid="llm-settings-grid" sx={SETTINGS_GRID}>
         <Field label="사용 여부" help="비워 두면 서버 환경변수(LLM_ENABLED)를 따릅니다.">
           <TextField
-            select size="small" sx={{ minWidth: 280, flex: 1, mt: 0.5 }}
+            select size="small" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_enabled", "")}
             onChange={(e) => setValue("llm_enabled", e.target.value)}
             inputProps={{ "aria-label": "사용 여부" }}
@@ -195,7 +207,7 @@ export function LlmConsole() {
 
         <Field label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
           <TextField
-            select size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
+            select size="small" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_backend", "")}
             onChange={(e) => setValue("llm_backend", e.target.value)}
             inputProps={{ "aria-label": "백엔드" }}
@@ -208,7 +220,7 @@ export function LlmConsole() {
 
         <Field label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
           <TextField
-            size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
+            size="small" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_executable", "")}
             onChange={(e) => setValue("llm_executable", e.target.value)}
             inputProps={{ "aria-label": "실행 파일" }}
@@ -217,7 +229,7 @@ export function LlmConsole() {
 
         <Field label="모델" help="비워 두면 기본 모델을 씁니다.">
           <TextField
-            size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
+            size="small" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_model", "")}
             onChange={(e) => setValue("llm_model", e.target.value)}
             inputProps={{ "aria-label": "모델" }}
@@ -230,7 +242,7 @@ export function LlmConsole() {
                 + (limits.max_timeout_seconds || 600) + "까지 넣을 수 있습니다."}
         >
           <TextField
-            size="small" type="number" sx={{ minWidth: 200, flex: 1, mt: 0.5 }}
+            size="small" type="number" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_timeout_seconds", 0)}
             onChange={(e) => setValue("llm_timeout_seconds", Number(e.target.value))}
             inputProps={{ "aria-label": "제한 시간(초)" }}
@@ -243,12 +255,13 @@ export function LlmConsole() {
                 + "입니다. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 사람과 나눠 쓰므로 작게 잡습니다."}
         >
           <TextField
-            size="small" type="number" sx={{ minWidth: 200, flex: 1, mt: 0.5 }}
+            size="small" type="number" fullWidth sx={{ mt: 0.5 }}
             value={value("llm_max_concurrency", 1)}
             onChange={(e) => setValue("llm_max_concurrency", Number(e.target.value))}
             inputProps={{ "aria-label": "동시 실행 수" }}
           />
         </Field>
+        </Box>
 
         <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
           <Button
