@@ -224,10 +224,11 @@ export function OrgTree({ selectedId, onSelect }) {
 
   return (
     <Card sx={{ position: "sticky", top: 0 }}>
-      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>조직도</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.
-      </Typography>
+      {/* 조직 콘솔(OrgConsole.jsx)이 이미 같은 자리에 같은 문장으로 헤더를 그린다(PageHeader
+       * title="조직도" + Callout). 이 카드는 OrgConsole 안에서만 쓰이므로(단독 사용처 없음,
+       * grep -rn "OrgTree" frontend/src 로 확인) 여기서 제목·안내문을 다시 그리면 화면에
+       * 완전히 같은 문장이 두 번 나온다. 트리가 무엇을 보여주는지는 role="tree" aria-label과
+       * 아래 검색창 placeholder로 이미 드러나므로 별도 라벨 없이도 뜻이 통한다. */}
       <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
         <SearchBox
           value={q}

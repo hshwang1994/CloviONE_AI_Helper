@@ -201,3 +201,32 @@ describe("읽음 처리", () => {
     expect(postCalls("/api/team-chat/rooms/r1/read")).toHaveLength(0);
   });
 });
+
+// ── 5. 메시지 로그 정렬 ─────────────────────────────────────────────────────
+// 운영에서 재현된 증상: 메시지가 몇 개뿐이면 대화가 참여자 표시 바로 아래(로그 상단)에
+// 붙고 입력창까지 큰 빈 공간이 남는다. flex 컬럼 로그 상자에 justify-content 가 없으면
+// (기본값 flex-start) 내용이 위에서부터 쌓이기 때문이다 — 정상적인 채팅 UI라면 마지막
+// 메시지가 입력창 바로 위(로그 하단)에 붙어야 한다. jsdom은 실제 레이아웃(높이 등)을
+// 계산하지 않으므로, 여기서는 "아래에서부터 쌓이게 하는 CSS 속성 자체"
+// (justify-content:flex-end)를 가졌는지만 단정한다.
+describe("메시지 로그 정렬", () => {
+  it("로그 상자는 justify-content:flex-end 로 메시지를 아래에서부터 쌓는다 — 메시지가 적어도 입력창 쪽(로그 하단)에 붙는다", async () => {
+    const { container } = mount(messagesPayload({
+      seq: 1,
+      messages: [{
+        seq: 1, kind: "text", sender_user_id: "u2", sender_name: "상대",
+        body: "안녕하세요", created_at: "2026-08-03T01:02:03", images: [],
+      }],
+    }));
+    await screen.findByText("안녕하세요");
+
+    const logBox = Array.from(container.querySelectorAll("*")).find(
+      (el) => getComputedStyle(el).overflowY === "auto",
+    );
+    expect(logBox, "overflowY:auto 인 로그 상자를 찾지 못했다").toBeTruthy();
+    const cs = getComputedStyle(logBox);
+    expect(cs.display).toBe("flex");
+    expect(cs.flexDirection).toBe("column");
+    expect(cs.justifyContent).toBe("flex-end");
+  });
+});

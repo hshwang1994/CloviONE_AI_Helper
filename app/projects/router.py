@@ -9,7 +9,11 @@ id 로 열리는 상태가 생길 자리가 없다(이 저장소가 네 번 반�
 바꾸는 일이라 개인 작업물 편집과 성격이 다르다. 다만 **역할이 범위를 대신하지는 않는다** -
 운영자여도 범위 밖은 404 다(권한과 범위는 직교한다, `app/core/scope.py`).
 
-화면은 만들지 않는다(다음 단계). Notion 동기화도 여기 없다.
+이 파일은 API 뿐이다 - 화면은 `frontend/src/screens/Projects.jsx`,
+`Project.jsx`, `ProjectWeekly.jsx` 에 있다(둘 다 이미 구현됨). Notion 동기화는
+수정 시 그 자리에서 미는 `sync.push_project`(아래 `update_project`)와, 주기적으로
+당겨오는 `app/projects/sync.py::sync_projects`(워커 tick, `app/worker_main.py`)
+두 경로로 이미 있다 - 여기 없다는 말은 낡은 메모였다.
 """
 
 from __future__ import annotations

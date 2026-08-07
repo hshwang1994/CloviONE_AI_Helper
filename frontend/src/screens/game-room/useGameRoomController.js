@@ -7,6 +7,17 @@ import { useConfirm, useToast } from "../../ui/kit.jsx";
 import { celebrate, deriveCelebrateKey } from "./celebration.js";
 import { useCountdown } from "./timeUtils.js";
 
+/* 채팅 패널에 흘려보낼 이벤트: 대화 그 자체 + 사람이 읽을 수 있는 안내문이 달린 system 이벤트
+ * (예: 방장이 나가 다른 참여자에게 위임될 때 app/games/service.py::leave_room 이 남기는
+ * "○○님이 방장이 되었습니다." 문구). 방을 나가지 않고 이어지는 이 변화는 참여자 목록의
+ * '방장' 배지가 다음 폴링(1.2초)에서 바뀌는 것 말고는 아무 안내가 없었다 — 방이 파해질 때
+ * (disband)는 토스트+이동으로 안내하면서 정작 방이 이어질 때는 안내가 빠져 있었다.
+ * 퀴즈 진행(revealed/next)·토너먼트 라운드 진행 system 이벤트는 payload에 text가 없다 —
+ * 그런 진행 상황은 이미 무대(GameStage)가 상태로 보여주므로 채팅에 다시 끼워 넣지 않는다. */
+function isChatFeedEvent(e) {
+  return e.kind === "chat" || (e.kind === "system" && !!(e.payload && e.payload.text));
+}
+
 /* 게임방 진행 상태 관리 훅 — GameRoom.jsx 구조 분리(2026-08)로 옮겼다. 폴링(1.2초)으로 방
  * 상태·참여자·이벤트를 실시간처럼 흐르게 한다. 결과(당첨자)는 서버가 확정해 내려준다(§13.1) —
  * 클라이언트는 표현만 한다.
@@ -134,7 +145,9 @@ export function useGameRoomController(id) {
 
   // 새 채팅이 오면 최신으로 따라 내려간다 — 단, 위로 올려 옛 대화를 읽는 중이면 끌어내리지 않는다
   // (첫 로드이거나 이미 맨 아래 근처에 있을 때만 스크롤). 상대·나 구분 없이 동작한다.
-  const chatCount = (state.data?.events || []).filter((e) => e.kind === "chat").length;
+  // chatCount는 아래 chatMsgs(채팅+안내문)와 같은 집합을 세야 한다 — 방장 위임 같은 system
+  // 이벤트만 새로 온 폴링에서는 채팅 개수가 그대로라 스크롤이 안 따라 내려가는 어긋남을 막는다.
+  const chatCount = (state.data?.events || []).filter(isChatFeedEvent).length;
   useEffect(() => {
     const el = chatLogRef.current;
     if (!el) return;
@@ -159,7 +172,7 @@ export function useGameRoomController(id) {
 
   const { room, you, members } = state.data;
   const gstate = state.data.state || {};
-  const chatMsgs = (state.data.events || []).filter((e) => e.kind === "chat");
+  const chatMsgs = (state.data.events || []).filter(isChatFeedEvent);
   const isVote = room.game_type === "quick_vote";
   const isTeam = room.game_type === "team_split";
   const isDraw = room.game_type === "random_draw";

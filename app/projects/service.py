@@ -553,8 +553,10 @@ def save_weekly_report(
     행을 쌓지 않는 이유: 한 주에 여러 행이 있으면 "그 주의 리포트" 에 답이 여러 개가 되고,
     화면은 그중 하나를 임의로 고르게 된다. 다시 만드는 것은 정정이지 새 사건이 아니다.
 
-    `source` 는 `rule` 이다. LLM 요약은 다음 단계이고, 그때 같은 행을 `llm` 로 덮을지
-    따로 둘지는 그때 정한다 - 지금 그 자리를 미리 채워 두면 없는 기능이 있는 것처럼 보인다.
+    `source` 는 `rule` 이다. LLM 요약은 `save_llm_weekly_summary`(아래)가 만들며, 그 함수는
+    **같은 (project_id, week_of) 행을 `llm` 로 덮어쓴다** - 따로 두지 않기로 정했다("그 주의
+    리포트"는 규칙이 썼든 AI 가 썼든 하나이므로). 이 함수가 방금 `rule` 로 쓴 행을 워커가
+    나중에 `llm` 로 덮어쓸 수 있다는 뜻이다 - 정상 흐름이다.
     """
     report = project_weekly_report(db, project, week=week, settings=settings)
     row = _saved_report(db, project.id, week.week_of)

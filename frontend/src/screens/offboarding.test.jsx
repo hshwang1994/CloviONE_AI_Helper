@@ -207,4 +207,35 @@ describe("오프보딩 화면", () => {
     expect(within(drawer).queryByText(/2{8}-2{4}-2{4}-2{4}-2{12}/)).not.toBeInTheDocument();
     expect(within(drawer).getAllByText("알 수 없음").length).toBeGreaterThan(0);
   });
+
+  it("실행 이력이 20건을 넘으면 총 건수를 말하고 다음 페이지로 넘어갈 수 있다", async () => {
+    // 25건 중 첫 페이지(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
+    // 보여야 한다 — 감사 이력이 조용히 잘리면 5건은 아무도 다시 못 찾는다.
+    const page1 = Array.from({ length: 20 }, (_, i) => ({
+      ...RUN_ROW, id: `run-p1-${i}`, user_name: `퇴사자${i}`,
+    }));
+    const page2 = Array.from({ length: 5 }, (_, i) => ({
+      ...RUN_ROW, id: `run-p2-${i}`, user_name: `퇴사자2-${i}`,
+    }));
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/offboarding?")) {
+        const url = new URL(path, "http://localhost");
+        const page = Number(url.searchParams.get("page") || "1");
+        const items = page === 2 ? page2 : page1;
+        return Promise.resolve({ items, total: 25, page, page_size: 20 });
+      }
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [LEAVER], total: 1, page_size: 20 });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderScreen();
+
+    await screen.findByText("퇴사자0");
+    expect(screen.getByText(/총 25건/)).toBeInTheDocument();
+    expect(screen.queryByText("퇴사자2-0")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await screen.findByText("퇴사자2-0");
+    expect(screen.queryByText("퇴사자0")).not.toBeInTheDocument();
+  });
 });

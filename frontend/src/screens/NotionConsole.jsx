@@ -112,6 +112,15 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
           </Button>
         )}
       </Box>
+      {!item.creatable && !item.configured && (
+        // 사용자 지적: "새로운 DB 를 만들어주는 기능도있음?? ... 왜 다사라짐?" — 만들기
+        // 버튼이 조용히 없으면 안 만들어 준 건지 고장인지 구별할 수 없다. 이 데이터베이스는
+        // 설계상(app/notion_console/service.py 의 kind="") 자동 생성 대상이 아니라는 것을
+        // 말로 남긴다.
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
+          이 데이터베이스는 화면에서 자동으로 만들 수 없습니다. 기존 Notion 데이터베이스의 id를 위 칸에 직접 입력해 연결하세요.
+        </Typography>
+      )}
     </Box>
   );
 }

@@ -251,6 +251,36 @@ describe("화면", () => {
     expect(within(docs).getByRole("button", { name: "새로 만들기" })).toBeInTheDocument();
   });
 
+  it("설정 안 됐지만 만들 수도 없는 데이터베이스(스프린트류)는 이유를 말한다 - 버튼이 조용히 없는 게 아니다", async () => {
+    // 사용자 지적: "노션관리에서... 새로운 DB 를 만들어주는 기능도있음?? ... 왜 다사라짐?"
+    // 실측: 스프린트 DB 는 creatable:false(포털이 안 읽어 만들어 줘도 아무도 안 쓴다, 의도된
+    // 설계, app/notion_console/service.py:74)라 버튼이 없는 게 맞다 - 하지만 화면은 그 이유를
+    // 한 마디도 안 하고 그냥 버튼을 지워서, 안 만들어 준 건지 고장인지 사용자가 구별할 수 없었다.
+    apiMock.mockResolvedValue(
+      overview({
+        databases: [
+          {
+            key: "notion_sprint_database_id",
+            label: "스프린트 데이터베이스",
+            value: "",
+            source: "env",
+            configured: false,
+            creatable: false,
+            token_ref: "notion_report_token",
+            used_for: "진단에만 씁니다.",
+            when_unset: "포털과 팀이 서로 다른 것을 스프린트라고 부르는지 확인할 수 없습니다.",
+          },
+        ],
+      }),
+    );
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("스프린트 데이터베이스")).toBeInTheDocument());
+
+    const row = screen.getByTestId("notion-db-notion_sprint_database_id");
+    expect(within(row).queryByRole("button", { name: "새로 만들기" })).toBeNull();
+    expect(within(row).getByText(/화면에서 자동으로 만들 수 없습니다/)).toBeInTheDocument();
+  });
+
   it("새로 만들기는 스타일 없는 브라우저 팝업(window.prompt) 대신 테마 다이얼로그로 부모 페이지 id 를 받는다", async () => {
     // 예전에는 window.prompt() 로 부모 페이지 id 를 받고, 바로 다음 줄에서 앱의 confirm() 을
     // 썼다 - 스타일 없는 네이티브 팝업과 테마 다이얼로그가 한 흐름에 섞여 튀어 보였다.

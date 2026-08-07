@@ -117,6 +117,30 @@ describe("FilterBarGrid — 트랙에 상한이 있다", () => {
     expect(Number.parseFloat(max)).toBeLessThanOrEqual(24);
   });
 
+  it("sm 이상에서는 grid 박스 자체가 카드 폭 전체가 아니라 실제 트랙만큼만 차지한다(fit-content)", () => {
+    // 실측(2026-08-07): 트랙 자체는 상한이 걸려 있어도, grid 박스가 여전히 카드 폭 전체를
+    // 차지하는 블록이라 필터 2개 뒤로 큰 빈 공간이 남았다 — "필터 2개인데 너비만 늘어난다"는
+    // 지적이 이것. width:fit-content 로 박스 자체를 좁혀야 실제로 빈 공간이 없어진다.
+    renderGrid();
+    const grid = screen.getByTestId("grid");
+    const rules = rulesFor(grid);
+
+    const sm = rules.find((r) => r.cond === "@media (min-width:600px)");
+    expect(sm, "sm 브레이크포인트 규칙을 못 찾았다").toBeTruthy();
+    // stylis(emotion의 CSS 전처리기)가 fit-content 에 -webkit- 접두사를 붙여 내보낸다.
+    expect(declaration(sm, "width")).toMatch(/^(-webkit-)?fit-content$/);
+  });
+
+  it("xs(좁은 화면)에서는 grid 박스가 여전히 카드 폭 전체를 쓴다 — 세로 쌓기라 fit-content 를 주면 안 된다", () => {
+    renderGrid();
+    const grid = screen.getByTestId("grid");
+    const rules = rulesFor(grid);
+
+    const xs = rules.find((r) => r.cond === "@media (min-width:0px)");
+    expect(xs, "xs 브레이크포인트 규칙을 못 찾았다").toBeTruthy();
+    expect(declaration(xs, "width")).toBe("100%");
+  });
+
   it("xs(좁은 화면)는 여전히 한 칸짜리 세로 쌓기다 — 회귀 없음", () => {
     renderGrid();
     const grid = screen.getByTestId("grid");

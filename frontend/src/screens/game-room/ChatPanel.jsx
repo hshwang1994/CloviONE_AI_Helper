@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -8,7 +9,12 @@ import { fmtTime } from "./timeUtils.js";
 
 /* 오른쪽 레일 아래쪽 — 채팅. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다.
  * 새 채팅이 오면 최신으로 따라 내려가는 자동 스크롤은 useGameRoomController의 effect가 맡고,
- * 여기는 chatLogRef를 받아 그 DOM 노드에 꽂기만 한다. */
+ * 여기는 chatLogRef를 받아 그 DOM 노드에 꽂기만 한다.
+ *
+ * chatMsgs에는 이제 대화(kind="chat")뿐 아니라 안내문이 달린 system 이벤트(방장 위임 등,
+ * useGameRoomController::isChatFeedEvent)도 섞여 들어온다 — 팀 채팅(ChatPane.jsx)이 시스템
+ * 메시지를 Chip으로 가운데 놓는 것과 같은 자리·같은 모양을 쓴다(같은 앱에서 '안내문'이 두 벌
+ * 다르게 생기지 않게). */
 export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat, chatPending }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
@@ -23,6 +29,12 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
             아직 메시지가 없습니다. 먼저 인사해 보세요.
           </Typography>
         ) : chatMsgs.map((e) => {
+          if (e.kind === "system") {
+            return (
+              <Chip key={e.seq} size="small" label={e.payload.text}
+                sx={{ alignSelf: "center", fontSize: "0.75rem", height: "1.5rem", maxWidth: "100%" }} />
+            );
+          }
           const mine = e.actor_user_id === you.user_id;
           return (
             <Box key={e.seq} sx={{

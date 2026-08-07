@@ -18,6 +18,7 @@ import { AppShell } from "./AppShell.jsx";
 import { USER_NAV } from "./navConfig.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import TopBrand from "./TopBrand.jsx";
 
 function wideViewport() {
   window.matchMedia = (query) => ({
@@ -65,5 +66,17 @@ describe("사이드바 상단 로고 정렬", () => {
     expect(headerToolbar, "사이드바 헤더 Toolbar를 찾지 못했다").toBeTruthy();
 
     expect(getComputedStyle(headerToolbar).justifyContent).toBe("center");
+  });
+});
+
+/* 상단바(topbar)의 로고 칸도 사이드바와 같은 폭으로 넓혀 뒀는데(사이드바 경계와 맞추려고),
+ * 그 안에서 로고를 왼쪽에 붙이면(flex-start) 오른쪽에 큰 빈 공간이 남아 사이드바 자체의
+ * 로고(가운데 정렬)와 다르게 보인다. 실측(하드 리프레시한 운영 화면)에서 그대로 재현됐다. */
+describe("상단바 브랜드 버튼도 사이드바와 같은 정렬", () => {
+  it("사이드바 폭만큼 넓힌 상단바 로고 칸도 가운데 정렬이다", () => {
+    render(<TopBrand onClick={() => {}} width={280} />);
+    const btn = screen.getByRole("button", { name: "홈으로" });
+
+    expect(getComputedStyle(btn).justifyContent).toBe("center");
   });
 });

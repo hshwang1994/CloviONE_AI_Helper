@@ -277,7 +277,11 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       <Box
         ref={logRef}
         sx={{
-          display: "flex", flexDirection: "column", gap: 1, overflowY: "auto",
+          // justifyContent:"flex-end" — 메시지가 적어 상자가 다 안 차도 아래(입력창 쪽)에
+          // 붙는다. 기본값(flex-start)이면 내용이 위에 쌓이고 아래가 빈다 — 운영에서 재현된
+          // 증상(대화가 참여자 표시 바로 아래에 붙고 입력창까지 큰 빈 공간이 남음). 내용이
+          // 넘칠 때는 그대로 위쪽이 잘려 스크롤해야 보이고, 아래(최신)는 항상 보인다.
+          display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1, overflowY: "auto",
           mb: 1.25, px: 0.5, py: 1, minWidth: 0,
           ...(compact ? LOG_SX.compact : LOG_SX.full),
         }}

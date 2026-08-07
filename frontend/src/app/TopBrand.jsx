@@ -32,7 +32,12 @@ export default function TopBrand({ onClick, label = "홈으로", width }) {
            좁은 화면(사이드바가 서랍으로 접힘)에서는 그 열이 없으므로 폭을 풀어 준다. */
         width: width || "auto",
         flexShrink: 0,
-        justifyContent: "flex-start",
+        // 사이드바 열과 폭을 맞춘 것 자체가 기준선에 없는 이 저장소만의 결정이라
+        // (사용자 지적: 상단바 로고 칸 = 사이드바 폭), 그 넓은 칸 안에서 로고를
+        // 왼쪽에 붙이면(flex-start) 오른쪽에 큰 빈 공간이 남아 "가운데가 아니라
+        // 왼쪽에 붙어 있다"는 지적이 그대로 재현된다. 사이드바 자체의 로고 헤더
+        // (AppShell.jsx 의 Toolbar)는 이미 가운데 정렬돼 있으니 여기도 맞춘다.
+        justifyContent: "center",
         textTransform: "none",
         // 기준선 `.brand { padding: 5px 7px }`. 흰 판이 없으니 로고가 스스로 여백을 가진다.
         px: "7px",
