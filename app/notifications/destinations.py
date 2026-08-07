@@ -48,6 +48,13 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # 아래 document_ready 의 "document_generation" 과 이름이 비슷하지만 다른 자원이다 —
     # 이건 team_docs(§17, Notion "문서" DB 미러)이고 그건 관리 콘솔의 문서 생성 작업이다.
     "document": "/team-docs/{id}",
+    # 게시판 댓글(board_comment) / 제안 상태 변경(idea_status_changed) — 그 글로 바로
+    # 들어간다. id 는 board_posts.id 이고 `/board/:id`(BoardPost.jsx)가 그 값을 그대로
+    # `GET /api/board/posts/{post_id}` 에 쓴다. `app/board/service.py::_notify_post_comment`
+    # 가 related=("board_post", post.id) 로 이미 이 유형을 보내고 있었는데, 바로 위
+    # ticket/document 항목이 추가될 때 이 자리만 표에서 빠져 related_route 가 늘 null
+    # 이었다 — ticket_comment·document_comment 가 겪었던 것과 같은 결함이다.
+    "board_post": "/board/{id}",
 }
 
 # 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라

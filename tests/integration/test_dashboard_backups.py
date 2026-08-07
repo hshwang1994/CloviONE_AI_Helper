@@ -102,6 +102,48 @@ def test_retention_spares_running_and_latest_failed(db, fake_clock):
     assert failed.id in ids   # 가장 최근 실패 1건은 장애 추적용으로 남긴다
 
 
+def test_manual_backup_respects_configured_retention(client, login_as, db, fake_clock):
+    """수동 '지금 백업' 버튼도 관리자가 설정한 보관 개수(backup_schedule.keep)를 지켜야 한다.
+
+    예약 백업(run_scheduled_backup)은 backup_schedule.keep 을 읽어 apply_retention 에 넘기는데,
+    수동 생성(POST /api/admin/backups → create_backup)은 apply_retention(db) 를 인자 없이
+    불러 하드코딩된 기본값(14)을 쓴다 — 관리자가 keep 을 14 미만으로 좁혀도 수동 백업을
+    누르면 정책이 지켜지지 않고 오래된 백업이 그대로 쌓인다.
+    """
+    from datetime import timedelta
+
+    from app.backups.models import STATUS_VERIFIED, Backup
+
+    csrf = login_as("system_admin")
+    r = client.put(
+        "/api/admin/settings/backup_schedule",
+        json={"value": {"enabled": True, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 2}},
+        headers=_headers(csrf),
+    )
+    assert r.status_code == 200, r.text
+
+    now = fake_clock.now()
+    for i in range(4):
+        db.add(Backup(
+            backup_type="sqlite", path=f"/tmp/clv-old-{i}.sqlite3",
+            status=STATUS_VERIFIED, created_at=now - timedelta(minutes=10 - i),
+        ))
+    db.commit()
+
+    r = client.post("/api/admin/backups", headers=_headers(csrf))
+    assert r.status_code == 201, r.text
+
+    remaining = (
+        db.query(Backup)
+        .filter(Backup.status.in_(["succeeded", "verified"]))
+        .count()
+    )
+    assert remaining == 2, (
+        f"설정한 보관 개수(2)를 지키지 않고 {remaining}건이 남았다 "
+        "(수동 백업이 설정된 keep 을 무시하고 기본값 14 를 쓰는 버그)"
+    )
+
+
 def test_backup_requires_system_admin(client, login_as):
     csrf = login_as("admin")  # admin < system_admin for backup creation
     r = client.post("/api/admin/backups", headers=_headers(csrf))

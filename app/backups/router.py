@@ -60,7 +60,12 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
     row = run_backup(
         db, request.app.state.settings, created_by=request.state.user.id, now=now
     )
-    apply_retention(db)
+    # 예약 백업(run_scheduled_backup)은 backup_schedule.keep 을 읽어 보관 개수를 정하는데,
+    # 여기서 인자 없이 apply_retention(db) 를 부르면 하드코딩된 기본값(14)이 적용돼
+    # 관리자가 설정 화면에서 좁힌 keep 이 수동 '지금 백업'에는 지켜지지 않았다.
+    config = backup_schedule_config(getattr(request.app.state, "settings_cache", None))
+    keep = int(config.get("keep", 14) or 14)
+    apply_retention(db, keep=keep)
     record_audit_from_request(
         request, db, action="backup.create", object_type="backup", object_id=row.id,
         after={"status": row.status, "path": row.path},

@@ -203,7 +203,39 @@ def change_idea_status(
     post.idea_status = status
     post.updated_at = now
     db.flush()
+    _notify_idea_status_change(db, post=post, actor=actor, status=status, now=now)
     return post
+
+
+def _notify_idea_status_change(
+    db: Session, *, post: Post, actor: User, status: str, now: datetime
+) -> None:
+    """제안 상태가 바뀌면 제안자에게 알린다 (`_notify_post_comment` 와 같은 원칙, N2).
+
+    댓글에는 알림이 있는데(N2) 상태 전환에는 없었다 — 제안자는 자기 글이 검토중/진행/완료/
+    보류로 넘어간 것을 `/ideas` 를 스스로 열어야만 알았다. 담당자가 바뀐 자기 티켓은
+    `ticket_assigned` 로 알림이 가는데, 자기가 낸 제안이 실제 일(티켓)이 되는 순간은
+    조용했다는 뜻이기도 하다.
+
+    자기 자신은 뺀다(운영자가 자기 제안을 스스로 진행시켜도 배지가 켜지지 않게) —
+    다른 모든 알림 호출부와 같은 원칙이다.
+
+    실패해도 상태 전환은 남는다 — 알림은 본 작업보다 약한 관심사다(댓글 알림과 같은 규약).
+    """
+    try:
+        if post.author_user_id is None or post.author_user_id == actor.id:
+            return
+
+        from app.notifications.service import notify_user
+
+        notify_user(
+            db, post.author_user_id, type_="idea_status_changed",
+            title=f"제안 상태 변경: {status}",
+            body=(post.title or "")[:200],
+            related=("board_post", post.id), now=now,
+        )
+    except Exception:  # noqa: BLE001 — 알림이 상태 전환을 막으면 안 된다
+        logger.exception("제안 상태 알림에 실패했다 (post_id=%s)", post.id)
 
 
 def _create_linked_ticket(

@@ -11,6 +11,7 @@ import json
 import secrets
 from datetime import datetime, timedelta
 
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -83,6 +84,43 @@ def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: 
         except IntegrityError:
             db.refresh(room)  # 다른 요청이 먼저 붙였다 — 순번 다시 계산
     raise ConflictError("이벤트를 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+
+
+def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
+    """room.state_json을 낙관적 동시성 제어(compare-and-swap)로 갱신한다.
+
+    앱은 동기 핸들러를 스레드풀에서 돌린다(app/core/db.py) — 참여자 여럿이 거의 동시에
+    제출하면 각자 독립된 DB 세션이 같은 옛 state_json을 읽어(WAL 리더는 쓰기 잠금과 무관하게
+    커밋된 스냅샷을 읽는다) 자기 제출 하나만 반영한 새 state를 계산한다. 예전처럼
+    `room.state_json = json.dumps(state); db.flush()`로 무조건 덮어쓰면, 나중에 자기 차례가
+    된(SQLite는 단일 writer라 뒤 트랜잭션은 앞이 커밋할 때까지 대기했다가 쓴다) 쪽이 자기가
+    읽었던(이미 낡은) state를 기준으로 써서 먼저 커밋된 제출을 통째로 지워버렸다 — 무승부
+    판정과 무관하게 "동시 제출 유실" 그 자체가 버그였다.
+    `UPDATE ... WHERE state_json = 내가 읽은 값`으로 "그 사이에 아무도 안 바꿨을 때만" 쓰고
+    (0행이면 충돌 — 다른 요청이 먼저 썼다는 뜻), 그러면 room을 다시 읽어 mutate를 최신 state에
+    다시 적용해 재시도한다(최대 5회, 유실 없이 §13.1 서버 확정 유지).
+
+    mutate(state: dict) -> dict 는 현재 state를 받아 새 state를 돌려주는 순수 함수다. 검증 실패
+    (ValidationAppError 등)는 그대로 위로 올라간다 — 재시도 대상은 '쓰기 충돌'뿐이다."""
+    for _ in range(5):
+        old_json = room.state_json or "{}"
+        new_state = mutate(json.loads(old_json))
+        new_json = json.dumps(new_state, ensure_ascii=False)
+        result = db.execute(
+            update(GameRoom)
+            .where(GameRoom.id == room.id, GameRoom.state_json == old_json)
+            .values(state_json=new_json)
+        )
+        # 성공/실패 모두 refresh — 성공했으면 커밋 전이라도 우리 세션엔 이미 반영된 값이고,
+        # 실패했으면(0행) 다른 요청이 먼저 쓴 최신 값을 가져와야 다음 시도의 mutate가 그
+        # 위에서 다시 계산된다. room.state_json을 직접 대입하지 않는 이유: 그러면 SQLAlchemy가
+        # 이 속성을 '더티'로 표시해, 이후 이 요청 안의 다른 flush가 (이미 위 UPDATE로 반영된)
+        # 같은 값을 조건 없이 다시 쓰려 든다 — refresh로 커밋된 값을 그대로 불러와 깨끗한
+        # 상태로 유지한다.
+        db.refresh(room)
+        if result.rowcount == 1:
+            return new_state
+    raise ConflictError("다른 참여자의 제출과 겹쳤습니다. 다시 시도해 주세요.")
 
 
 # ── 방 생명주기 ─────────────────────────────────────────────────────────────
@@ -390,17 +428,20 @@ def submit_vote(db: Session, room: GameRoom, user: User, *, option_index: int, n
     member = repository.get_member(db, room.id, user.id)
     if member is None or not member.active or member.role == ROLE_SPECTATOR:
         raise ForbiddenError("참여자만 투표할 수 있습니다.")
-    state = json.loads(room.state_json or "{}")
-    options = state.get("options", [])
-    if not (0 <= option_index < len(options)):
-        raise ValidationAppError("잘못된 선택지입니다.")
-    votes = dict(state.get("votes", {}))
-    votes[user.id] = option_index  # 재투표 시 마지막 선택으로 덮어쓴다.
-    state["votes"] = votes
-    room.state_json = json.dumps(state, ensure_ascii=False)
-    db.flush()
+
+    def _apply(state: dict) -> dict:
+        options = state.get("options", [])
+        if not (0 <= option_index < len(options)):
+            raise ValidationAppError("잘못된 선택지입니다.")
+        votes = dict(state.get("votes", {}))
+        votes[user.id] = option_index  # 재투표 시 마지막 선택으로 덮어쓴다.
+        state["votes"] = votes
+        return state
+
+    new_state = _cas_update_state(db, room, _apply)  # 동시 투표가 서로 덮어쓰지 않게(CAS)
     _append_event(db, room, EV_VOTE, actor_id=user.id,
-                  payload={"name": user.display_name, "option": option_index, "label": options[option_index]}, now=now)
+                  payload={"name": user.display_name, "option": option_index,
+                           "label": new_state["options"][option_index]}, now=now)
 
 
 # 타임아웃 자동 확정의 행위자(방장 없이 서버가 확정) — _finish_* 는 actor의 .id 만 쓰므로 None 이면 충분.
@@ -513,15 +554,17 @@ def submit_number(db: Session, room: GameRoom, user: User, *, value: int, now: d
     member = repository.get_member(db, room.id, user.id)
     if member is None or not member.active or member.role == ROLE_SPECTATOR:
         raise ForbiddenError("참여자만 숫자를 낼 수 있습니다.")
-    state = json.loads(room.state_json or "{}")
-    lo, hi = int(state.get("min", 1)), int(state.get("max", 10))
-    if not (lo <= value <= hi):
-        raise ValidationAppError(f"{lo}~{hi} 사이의 숫자를 내세요.")
-    picks = dict(state.get("picks", {}))
-    picks[user.id] = value  # 재제출 시 마지막 값으로 덮어쓴다.
-    state["picks"] = picks
-    room.state_json = json.dumps(state, ensure_ascii=False)
-    db.flush()
+
+    def _apply(state: dict) -> dict:
+        lo, hi = int(state.get("min", 1)), int(state.get("max", 10))
+        if not (lo <= value <= hi):
+            raise ValidationAppError(f"{lo}~{hi} 사이의 숫자를 내세요.")
+        picks = dict(state.get("picks", {}))
+        picks[user.id] = value  # 재제출 시 마지막 값으로 덮어쓴다.
+        state["picks"] = picks
+        return state
+
+    _cas_update_state(db, room, _apply)  # 동시 제출이 서로 덮어쓰지 않게(CAS)
     _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
 
 
@@ -593,11 +636,14 @@ def submit_rps(db: Session, room: GameRoom, user: User, *, choice: int, now: dat
     if state.get("mode") == "tournament":
         _tournament_submit(db, room, user, state, choice=choice, now=now)
         return
-    choices = dict(state.get("choices", {}))
-    choices[user.id] = choice  # 재제출 시 마지막 선택으로 덮어쓴다.
-    state["choices"] = choices
-    room.state_json = json.dumps(state, ensure_ascii=False)
-    db.flush()
+
+    def _apply(state: dict) -> dict:
+        choices = dict(state.get("choices", {}))
+        choices[user.id] = choice  # 재제출 시 마지막 선택으로 덮어쓴다.
+        state["choices"] = choices
+        return state
+
+    _cas_update_state(db, room, _apply)  # 동시 제출이 서로 덮어쓰지 않게(CAS)
     _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
 
 
@@ -690,6 +736,16 @@ def _tournament_advance(db, room, state, *, now, force: bool) -> None:
     if force:
         for m in matches:
             if m.get("done"):
+                continue
+            # 대진 상대가 이미 방을 나갔으면(멤버 row가 사라짐) 무작위 채우기·코인플립을 타지
+            # 않고 남아 있는 쪽이 곧바로 이긴다 — 안 그러면 나간 사람이 무작위로 챔피언까지
+            # 올라갈 수 있었다(§13.1 공정성). 숫자 눈치·가위바위보 단판은 _present_players로
+            # 종료 집계에서 나간 사람을 거르는데, 토너먼트 강제 마감엔 그 대응 필터가 없었다.
+            a_present = repository.get_member(db, room.id, m["a"]) is not None
+            b_present = m.get("b") is not None and repository.get_member(db, room.id, m["b"]) is not None
+            if a_present != b_present:
+                m["winner"] = m["a"] if a_present else m["b"]
+                m["done"] = True
                 continue
             if m.get("a_choice") is None:
                 m["a_choice"] = rng.randint(0, 2)
@@ -851,24 +907,28 @@ def submit_quiz_answer(db: Session, room: GameRoom, user: User, *, option_index:
         raise ValidationAppError("퀴즈 게임이 아닙니다.")
     if room.status != ROOM_PLAYING:
         raise ConflictError("진행 중인 퀴즈가 없습니다.")
-    state = json.loads(room.state_json or "{}")
-    if state.get("phase") != QUIZ_ANSWERING:
-        raise ConflictError("지금은 답을 낼 수 없습니다.")
     member = repository.get_member(db, room.id, user.id)
     if member is None or not member.active or member.role == ROLE_SPECTATOR:
         raise ForbiddenError("참여자만 답할 수 있습니다.")
-    questions = state.get("questions", [])
-    rnd = int(state.get("round", 0))
-    if not (0 <= rnd < len(questions)):
-        raise ConflictError("진행 중인 문제가 없습니다.")
-    n_opts = len(questions[rnd].get("options", []))
-    if not (0 <= option_index < n_opts):
-        raise ValidationAppError("보기 범위를 벗어났습니다.")
-    answers = dict(state.get("answers", {}))
-    answers[user.id] = option_index  # 재응답 시 마지막 답으로 덮어쓴다.
-    state["answers"] = answers
-    room.state_json = json.dumps(state, ensure_ascii=False)
-    db.flush()
+
+    def _apply(state: dict) -> dict:
+        # 검증도 mutate 안에서 한다 — CAS가 충돌로 재시도할 때마다 최신 state(예: 그 사이
+        # 방장이 정답을 공개해 phase가 바뀌었을 수도 있다) 기준으로 다시 확인한다.
+        if state.get("phase") != QUIZ_ANSWERING:
+            raise ConflictError("지금은 답을 낼 수 없습니다.")
+        questions = state.get("questions", [])
+        rnd = int(state.get("round", 0))
+        if not (0 <= rnd < len(questions)):
+            raise ConflictError("진행 중인 문제가 없습니다.")
+        n_opts = len(questions[rnd].get("options", []))
+        if not (0 <= option_index < n_opts):
+            raise ValidationAppError("보기 범위를 벗어났습니다.")
+        answers = dict(state.get("answers", {}))
+        answers[user.id] = option_index  # 재응답 시 마지막 답으로 덮어쓴다.
+        state["answers"] = answers
+        return state
+
+    _cas_update_state(db, room, _apply)  # 동시 응답이 서로 덮어쓰지 않게(CAS)
     _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
 
 
@@ -910,10 +970,15 @@ def next_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Game
     rnd = int(state.get("round", 0))
     if rnd + 1 >= len(questions):
         # 마지막 문제 → 종료. 누적 점수판 확정.
+        # 지금 방에 있는 참여자만 — 나간 사람의 점수를 그대로 남겨두면(repository.members는
+        # 지금 멤버만 주지만 나간 사람은 아예 없다) 빈 이름("")으로 점수판에 남고, 점수가
+        # 가장 높으면 빈 이름이 '우승자'로도 뜬다(숫자 눈치·가위바위보 종료 집계가 이미
+        # _present_players로 막는 유령 승자와 같은 문제).
         scores = state.get("scores", {})
-        names = {m.user_id: m.display_name for m in repository.members(db, room.id)}
+        names = {m.user_id: m.display_name for m in _present_players(db, room, now)}
         board = sorted(
-            ({"user_id": uid, "name": names.get(uid, ""), "score": int(sc)} for uid, sc in scores.items()),
+            ({"user_id": uid, "name": names[uid], "score": int(sc)}
+             for uid, sc in scores.items() if uid in names),
             key=lambda x: (-x["score"], x["name"]),
         )
         top = board[0]["score"] if board else 0

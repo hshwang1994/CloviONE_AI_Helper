@@ -170,6 +170,14 @@ export function useGameRoomController(id) {
   // chatCount는 아래 chatMsgs(채팅+안내문)와 같은 집합을 세야 한다 — 방장 위임 같은 system
   // 이벤트만 새로 온 폴링에서는 채팅 개수가 그대로라 스크롤이 안 따라 내려가는 어긋남을 막는다.
   const chatCount = (state.data?.events || []).filter(isChatFeedEvent).length;
+  // id도 의존성에 넣는다. HashRouter라 방을 바꿔도(위 [id] 이펙트) 이 컴포넌트는 마운트
+  // 해제되지 않고, 바뀐 방이 이미 캐시돼 있으면(예: 전에 열어 본 방으로 되돌아감) "pending"
+  // (스켈레톤)도 안 거쳐 채팅 로그 DOM이 그대로 살아있다 — 그 상태에서 두 방의 채팅 개수가
+  // 우연히 같으면(예: 둘 다 4건) chatCount만 바라보는 이펙트는 "안 바뀌었다"고 보고 다시
+  // 실행되지 않는다. 그러면 위 [id] 이펙트가 prevChatCountRef를 0으로 되돌려도 아무도 그 값을
+  // 읽지 않아 새 방으로 넘어갔는데도 이전 방에서 위로 올려 두었던 스크롤 위치가 그대로
+  // 남는다(gameroom-room-switch-same-chatcount.test.jsx). id를 의존성에 추가하면 방을 바꾼
+  // 렌더마다 이 이펙트가 반드시 다시 돌아 [id] 이펙트가 되돌린 firstLoad 판정을 실제로 적용한다.
   useEffect(() => {
     const el = chatLogRef.current;
     if (!el) return;
@@ -177,7 +185,7 @@ export function useGameRoomController(id) {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
     if (firstLoad || nearBottom) el.scrollTop = el.scrollHeight;
     prevChatCountRef.current = chatCount;
-  }, [chatCount]);
+  }, [chatCount, id]);
 
   // 카운트다운(진행 중 타이머 게임). 훅 순서 유지를 위해 조기 return 위에서 계산한다.
   const liveDeadline = state.data && state.data.room && state.data.room.status === "playing"

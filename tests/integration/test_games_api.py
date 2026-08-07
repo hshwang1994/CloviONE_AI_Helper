@@ -394,6 +394,33 @@ def test_quiz_answer_blocked_after_reveal(app, client, login_as):
     assert client.post(f"/api/games/rooms/{rid}/quiz-answer", json={"option": 0}, headers={"X-CSRF-Token": csrf}).status_code == 409
 
 
+def test_quiz_final_scoreboard_excludes_departed_player(app, client, login_as, make_user):
+    """퀴즈 진행 중(정답 공개 후) 나간 참여자는 최종 점수판에서 빠져야 한다 — 숫자 눈치·가위바위보
+    종료 집계가 이미 _present_players로 나간 사람(유령 승자·빈 이름)을 거르는 것과 같은 원칙
+    (§13.1). next_quiz의 마지막 라운드 확정만 repository.members(전체 이력이 아니라 '지금 방에
+    있는 사람')를 안 써서, 나간 사람이 빈 이름("")으로 점수판에 남고 심지어 '우승자'로도 뜰 수 있었다."""
+    csrf = login_as("user", email="qzleaveh@goodmit.co.kr")
+    rid = _create(client, csrf, title="퀴즈", game_type="quiz",
+                  config={"questions": [{"q": "?", "options": ["a", "b"], "answer": 1}]})["id"]
+    make_user("qzleavep@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "qzleavep@goodmit.co.kr")
+    host_id = client.get("/api/me").json()["user"]["id"]
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    client.post(f"/api/games/rooms/{rid}/quiz-answer", json={"option": 0}, headers={"X-CSRF-Token": csrf})  # 방장 오답
+    c2.post(f"/api/games/rooms/{rid}/quiz-answer", json={"option": 1}, headers={"X-CSRF-Token": cs2})  # 참여자 정답(1점)
+    client.post(f"/api/games/rooms/{rid}/reveal", headers={"X-CSRF-Token": csrf})
+    c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": cs2})  # 마지막 라운드 확정 전에 나간다
+    c2.close()
+
+    r = client.post(f"/api/games/rooms/{rid}/next", headers={"X-CSRF-Token": csrf})  # 문제가 1개뿐 → 곧장 종료
+    assert r.json()["room"]["status"] == "finished"
+    result = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert {b["user_id"] for b in result["scoreboard"]} == {host_id}  # 나간 참여자는 빠진다
+    assert "" not in result["winners"]  # 빈 이름이 '우승자'로 뜨면 안 된다
+
+
 def test_rps_hidden_then_two_types_decide(app, client, login_as, make_user):
     csrf = login_as("user", email="rpshost@goodmit.co.kr")
     rid = _create(client, csrf, title="가위바위보", game_type="rps", config={})["id"]
@@ -491,6 +518,53 @@ def test_rps_tournament_four_players_multi_round(app, client, login_as, make_use
     assert res["champion"] and len(res["rounds"]) == 2
 
 
+def test_rps_tournament_departed_player_cannot_become_champion(app, client, login_as, make_user, monkeypatch):
+    """대진 상대가 방을 나간 뒤 방장이 강제 마감하면, 남아 있는 참여자가 자동으로 이겨야 한다 —
+    이미 나간 사람이 코인플립/무작위 선택으로 챔피언이 되면 안 된다(§13.1 서버 확정 공정성).
+    숫자 눈치·가위바위보 단판은 종료 집계에서 _present_players로 나간 사람을 거르는데
+    (test_number_finish_excludes_departed_player), 토너먼트 강제 마감(_tournament_advance)에는
+    그 필터가 없었다 — 이 테스트로 그 구멍을 고정한다."""
+    from app.games import service as game_service
+
+    csrf = login_as("user", email="tourleaveh@goodmit.co.kr")
+    rid = _create(client, csrf, title="토너먼트", game_type="rps",
+                  config={"mode": "tournament", "timer_seconds": 0})["id"]
+    make_user("tourleavep@goodmit.co.kr", display_name="나간사람")
+    c2, cs2 = _login_other(app, "tourleavep@goodmit.co.kr")
+    p2_id = c2.get("/api/me").json()["user"]["id"]
+    host_id = client.get("/api/me").json()["user"]["id"]
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    match0 = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["matches"][0]
+    p2_is_a = match0["a_name"] == "나간사람"
+
+    # 참여자(p2)가 대진 상대와 붙기 전에 방을 나간다 — 멤버 row가 사라진다(leave_room).
+    c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": cs2})
+    c2.close()
+
+    # 강제 마감이 채우는 두 선택을 결정론적으로 고정해 "나간 사람 슬롯"이 이기는 가위바위보
+    # 결과를 강제한다(고쳐지지 않았다면 나간 사람이 챔피언이 되는 걸 재현하기 위해서다).
+    # 코드 순서상 첫 randint 호출이 a_choice, 둘째가 b_choice다.
+    calls = {"n": 0}
+
+    def fake_randint(self, lo, hi):
+        calls["n"] += 1
+        is_a_call = calls["n"] == 1
+        # 나간 사람 슬롯 = 바위(1), 상대 슬롯 = 가위(0) → 바위가 이긴다.
+        if p2_is_a:
+            return 1 if is_a_call else 0
+        return 0 if is_a_call else 1
+
+    monkeypatch.setattr(game_service.secrets.SystemRandom, "randint", fake_randint)
+
+    fin = client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
+    assert fin.status_code == 200
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert res["champion"]["user_id"] == host_id  # 나간 사람(p2)은 챔피언이 될 수 없다
+    assert res["champion"]["user_id"] != p2_id
+
+
 def test_number_game_hides_picks_then_lowest_unique_wins(app, client, login_as, make_user):
     csrf = login_as("user", email="nhost@goodmit.co.kr")
     rid = _create(client, csrf, title="눈치", game_type="number", config={"min": 1, "max": 9})["id"]
@@ -577,6 +651,43 @@ def test_quick_vote_only_players_vote_and_revote(app, client, login_as, make_use
     client.post(f"/api/games/rooms/{rid}/finish", headers={"X-CSRF-Token": csrf})
     res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
     assert res["counts"] == [0, 1] and res["winners"] == ["B"]
+
+
+def test_concurrent_votes_do_not_clobber_each_other(app, client, login_as, make_user):
+    """두 참여자가 서로의 커밋 전에 같은 state_json을 읽은 채(거의 동시에) 투표를 제출하면,
+    나중에 커밋되는 쪽이 앞서 커밋된 투표를 통째로 지워버리면 안 된다. 앱은 동기 핸들러를
+    스레드풀에서 돌리므로(app/core/db.py) 두 참여자의 요청이 실제로 겹칠 수 있다 — 각자 독립된
+    DB 세션이 같은 옛 state_json을 읽어 자기 제출만 반영한 새 state로 무조건 덮어쓰면(예전
+    코드) 나중에 쓰는 쪽이 이긴다. service._cas_update_state가 WHERE state_json=읽은 값으로
+    쓰고 충돌 시 최신 state에 다시 적용해(최대 5회) 이 유실을 막는다."""
+    from app.games import service as game_service
+    from app.games.models import GameRoom
+    from app.users.models import User
+
+    csrf = login_as("user", email="racehost@goodmit.co.kr")
+    rid = _create(client, csrf, title="투표", game_type="quick_vote",
+                  config={"question": "?", "options": ["A", "B"]})["id"]
+    make_user("racep2@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "racep2@goodmit.co.kr")
+    host_id = client.get("/api/me").json()["user"]["id"]
+    p2_id = c2.get("/api/me").json()["user"]["id"]
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    c2.close()
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+
+    now = app.state.clock.now()
+    factory = app.state.session_factory
+    # 두 세션이 투표 전(votes={}) state를 각자 읽는다 — 실제 동시 요청의 "둘 다 옛 값을 읽었다"
+    # 상황을 그대로 재현한다.
+    sa, sb = factory(), factory()
+    room_a, room_b = sa.get(GameRoom, rid), sb.get(GameRoom, rid)
+    game_service.submit_vote(sa, room_a, sa.get(User, host_id), option_index=0, now=now)
+    sa.commit()
+    game_service.submit_vote(sb, room_b, sb.get(User, p2_id), option_index=1, now=now)
+    sb.commit()
+
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]
+    assert st["votes"] == {host_id: 0, p2_id: 1}  # 둘 다 살아 있어야 한다(유실 없음)
 
 
 def test_quiz_generate_flag_off_and_csrf(client, login_as):
