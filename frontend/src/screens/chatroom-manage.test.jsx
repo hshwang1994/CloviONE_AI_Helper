@@ -102,6 +102,13 @@ async function openManage(user) {
 }
 
 describe("관리 대화상자", () => {
+  it("이름 입력 상한이 서버의 MAX_TITLE(200)과 같다 — 짧게 잘라 두면 서버가 받는 이름을 화면이 못 치게 막는다", async () => {
+    const user = userEvent.setup();
+    mount(meta());
+    await openManage(user);
+    expect(screen.getByDisplayValue("우리방")).toHaveAttribute("maxlength", "200");
+  });
+
   it("이름을 바꾸면 rename 을 호출한다(같은 이름이면 저장이 잠겨 있다)", async () => {
     const user = userEvent.setup();
     mount(meta());

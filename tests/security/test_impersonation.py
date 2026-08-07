@@ -206,6 +206,74 @@ def test_out_of_scope_target_is_404_not_403(client, login_as, make_user, db):
     assert response.status_code == 404, response.text
 
 
+def test_admin_is_rate_limited_after_too_many_distinct_targets(client, login_as, make_user, fake_clock):
+    """남용 방지 (H3-a): 같은 관리자가 짧은 시간 안에 서로 다른 사용자를 너무 많이
+    대리 보기하면 막는다.
+
+    허용치를 넘는 (허용치+1)번째 **새로운** 대상은 429 로 거절되고, 재시도 대기 시간을
+    함께 돌려준다. 창이 지나면 다시 허용된다.
+    """
+    from app.impersonation.service import (
+        IMPERSONATION_RATE_LIMIT_MAX_TARGETS,
+        IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+    csrf = login_as("system_admin")
+    targets = [
+        make_user(email=f"rl-target-{i}@goodmit.co.kr", role="user").id
+        for i in range(IMPERSONATION_RATE_LIMIT_MAX_TARGETS + 1)
+    ]
+
+    for target_id in targets[:-1]:
+        started = _start_impersonation(client, csrf, target_id)
+        assert started.status_code == 200, started.text
+        stopped = client.post("/api/admin/impersonation/stop", headers={"X-CSRF-Token": csrf})
+        assert stopped.status_code == 200, stopped.text
+
+    blocked = _start_impersonation(client, csrf, targets[-1])
+    assert blocked.status_code == 429, blocked.text
+    body = blocked.json()["error"]
+    assert body["code"] == "rate_limited"
+    assert body["retry_after_seconds"] >= 1
+
+    # 창이 지나면 다시 허용된다.
+    fake_clock.advance(IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS + 1)
+    reopened = _start_impersonation(client, csrf, targets[-1])
+    assert reopened.status_code == 200, reopened.text
+
+
+def test_reentering_an_already_seen_target_does_not_count_against_the_limit(
+    client, login_as, make_user
+):
+    """같은 대상을 다시 보는 것은(재확인) 남용이 아니다 — 창 안에서 몇 번을 다시 들어가도
+    막히지 않는다."""
+    from app.impersonation.service import IMPERSONATION_RATE_LIMIT_MAX_TARGETS
+
+    csrf = login_as("system_admin")
+    target_id = make_user(email="repeat-target@goodmit.co.kr", role="user").id
+
+    for _ in range(IMPERSONATION_RATE_LIMIT_MAX_TARGETS + 2):
+        started = _start_impersonation(client, csrf, target_id)
+        assert started.status_code == 200, started.text
+        stopped = client.post("/api/admin/impersonation/stop", headers={"X-CSRF-Token": csrf})
+        assert stopped.status_code == 200, stopped.text
+
+
+def test_switching_target_while_impersonating_is_rejected(impersonating, make_user):
+    """(H3-b) 이미 대리 보기 중이면 다른 사람으로 바로 전환할 수 없다 — 먼저 종료해야 한다.
+
+    `/start` 자체가 쓰기 라우트라 `app/core/deps.py::IMPERSONATION_ALLOWED_WRITES` 의
+    읽기 전용 가드(403 `impersonation_read_only`)에 service 층보다 먼저 걸린다 —
+    `service.start()` 의 `session.impersonated_user_id` 검사(409)는 그 뒤의 방어선이다.
+    이미 있던 동작이라 여기서는 회귀 테스트로만 고정한다.
+    """
+    client, csrf, _target_id = impersonating
+    other = make_user(email="other-target@goodmit.co.kr", role="user")
+    response = _start_impersonation(client, csrf, other.id)
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["code"] == "impersonation_read_only"
+
+
 def test_write_exemptions_are_real_routes_and_stay_minimal(app):
     """예외 목록은 **살아 있는 경로 두 개**뿐이어야 한다.
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -68,5 +68,21 @@ describe("채팅방 검색", () => {
 
     await waitFor(() => expect(screen.queryByText("디자인 회의")).not.toBeInTheDocument());
     expect(screen.getByText("인프라 팀")).toBeInTheDocument();
+  });
+});
+
+describe("새 그룹 방 이름 글자 수 상한", () => {
+  beforeEach(() => { apiMock.mockReset(); });
+
+  // 서버(app/team_chat/schemas.py::GroupCreate, MAX_TITLE=200)가 받아 주는 길이까지 화면이
+  // 미리 막지 않아야 한다 — 예전에는 80으로 잘라 서버가 허용하는 81~200자 이름을 아예 칠 수
+  // 없었다(폼↔API 불일치).
+  it("입력 상한이 서버의 MAX_TITLE(200)과 같다", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByRole("button", { name: "새 그룹" }));
+    const dialog = await screen.findByRole("dialog");
+    const input = within(dialog).getByLabelText(/방 이름/);
+    expect(input).toHaveAttribute("maxlength", "200");
   });
 });

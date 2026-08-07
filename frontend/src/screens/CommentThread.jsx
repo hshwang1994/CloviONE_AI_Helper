@@ -6,7 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
-import { Button, Callout, Card, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 
 /* 댓글 타래 (티켓 · 문서 공용).
@@ -137,7 +137,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
 
       {list.isPending ? <Skeleton lines={3} /> : null}
       {list.isError ? (
-        <Callout tone="danger">{(list.error && list.error.message) || "댓글을 불러오지 못했습니다."}</Callout>
+        <ErrorState error={list.error} onRetry={() => list.refetch()} />
       ) : null}
 
       {!list.isPending && !list.isError && comments.length === 0 ? (

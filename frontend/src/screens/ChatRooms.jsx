@@ -122,8 +122,10 @@ function GroupModal({ open, onClose }) {
         <Typography component="label" htmlFor="tc-gtitle" sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
           방 이름<Box component="span" sx={{ color: "error.main" }}> *</Box>
         </Typography>
+        {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
+            더 짧으면 서버는 받아 줄 이름을 화면이 미리 못 치게 막는 것이 된다. */}
         <Box
-          component="input" id="tc-gtitle" maxLength={80} value={title} placeholder="예: 프로젝트 A 팀"
+          component="input" id="tc-gtitle" maxLength={200} value={title} placeholder="예: 프로젝트 A 팀"
           onChange={(e) => setTitle(e.target.value)}
           sx={{
             width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: "0.875rem",

@@ -372,7 +372,8 @@ function RunHistory() {
 
   const columns = [
     { key: "created_at", label: "실행", render: (r) => fmtDateTime(r.created_at) },
-    { key: "user_name", label: "대상", render: (r) => r.user_name || r.user_id },
+    // 서버가 이름을 못 주면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출).
+    { key: "user_name", label: "대상", render: (r) => r.user_name || "알 수 없음" },
     { key: "successor_name", label: "후임", render: (r) => r.successor_name || "(없음)" },
     { key: "status", label: "상태", render: (r) => (
       <Badge value={RUN_STATUS_KO[r.status] || r.status}
@@ -412,9 +413,10 @@ function RunHistory() {
         {detail ? (
           <>
             <Box sx={{ display: "grid", columnGap: 4, gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))" } }}>
-              <Row label="대상">{detail.user_name || detail.user_id}</Row>
+              {/* 이름이 없으면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출) */}
+              <Row label="대상">{detail.user_name || "알 수 없음"}</Row>
               <Row label="후임">{detail.successor_name || "(없음. 미할당으로 되돌림)"}</Row>
-              <Row label="실행자">{detail.actor_name || detail.actor_user_id}</Row>
+              <Row label="실행자">{detail.actor_name || "알 수 없음"}</Row>
               <Row label="상태">{RUN_STATUS_KO[detail.status] || detail.status}</Row>
               <Row label="티켓">{`${detail.ticket_moved}/${detail.ticket_total}건 이동, 실패 ${detail.ticket_failed}건`}</Row>
               <Row label="계정 변경">{[detail.deactivated ? "비활성화" : null, detail.archived ? "보관" : null].filter(Boolean).join(", ") || "없음"}</Row>

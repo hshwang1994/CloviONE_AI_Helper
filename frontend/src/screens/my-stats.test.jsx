@@ -135,4 +135,14 @@ describe("내 업무량 · 완료 통계", () => {
     await screen.findByText("남은 일");
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/stats?months=6&weeks=4"));
   });
+
+  it("미러 동기화 상태는 raw 영문(idle/running/ok/error, app/tickets/models.py) 대신 한국어로 보여준다", async () => {
+    apiMock.mockResolvedValue(stats({
+      sync: { status: "error", last_run_at: null, last_success_at: "2026-08-03T00:57:00", ticket_count: 8, truncated: false, error: "boom" },
+    }));
+    renderStats();
+    await screen.findByText("남은 일");
+    expect(screen.queryByText(/티켓 미러 상태:\s*error/)).not.toBeInTheDocument();
+    expect(screen.getByText(/티켓 미러 상태:\s*오류/)).toBeInTheDocument();
+  });
 });

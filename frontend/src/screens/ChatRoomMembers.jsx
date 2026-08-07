@@ -195,7 +195,9 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
           방 이름
         </Typography>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-          <Box component="input" id="tc-rename" maxLength={80} value={name}
+          {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
+              더 짧으면 서버는 받아 줄 이름을 화면이 미리 못 치게 막는 것이 된다. */}
+          <Box component="input" id="tc-rename" maxLength={200} value={name}
             onChange={(e) => setName(e.target.value)} sx={{ ...INPUT_SX, flex: 1, minWidth: "12rem" }} />
           <Button variant="primary" disabled={busy || !name.trim() || name.trim() === title}
             onClick={() => rename.mutate()}>저장</Button>

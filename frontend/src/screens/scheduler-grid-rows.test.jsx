@@ -20,32 +20,41 @@ vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: (
 import { SchedulerCalendar } from "./SchedulerCalendar.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { AuthProvider } from "../app/auth.jsx";
 
 const SCHEDULES = [{ id: "s-1", name: "매일 리포트", enabled: true, timezone: "Asia/Seoul" }];
+// SchedulerCalendar가 재시도 버튼의 역할 게이트에 useAuth()를 쓰므로(M9), AuthProvider가
+// 마운트되며 부르는 `/api/me`도 이 목이 함께 감당한다.
+const ME = { user: { id: "u-1", role: "operator" }, csrf_token: "t", features: {}, branding: {} };
 
 function renderCalendar() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <ThemeModeProvider>
-        <ToastProvider>
-          <ConfirmProvider>
-            <MemoryRouter>
-              <SchedulerCalendar />
-            </MemoryRouter>
-          </ConfirmProvider>
-        </ToastProvider>
-      </ThemeModeProvider>
+      <AuthProvider>
+        <ThemeModeProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <MemoryRouter>
+                <SchedulerCalendar />
+              </MemoryRouter>
+            </ConfirmProvider>
+          </ToastProvider>
+        </ThemeModeProvider>
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   apiMock.mockReset();
-  apiMock.mockImplementation(() => Promise.resolve({
-    items: [], start: "2026-08-01T00:00:00", end: "2026-08-31T00:00:00",
-    truncated: false, schedules: SCHEDULES,
-  }));
+  apiMock.mockImplementation((path) => {
+    if (path === "/api/me") return Promise.resolve(ME);
+    return Promise.resolve({
+      items: [], start: "2026-08-01T00:00:00", end: "2026-08-31T00:00:00",
+      truncated: false, schedules: SCHEDULES,
+    });
+  });
 });
 
 describe("실행 달력의 격자 구조", () => {

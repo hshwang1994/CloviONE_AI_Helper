@@ -11,6 +11,8 @@ services, redirect 금지, secret 주입)만 지나고, 토큰은 secrets_dir �
 
 from __future__ import annotations
 
+import concurrent.futures
+
 from app.core.errors import AppError, ValidationAppError
 
 # 우리가 읽는 "문서" DB 속성 이름 — Notion 스키마와 정확히 일치해야 한다(§17.2 추측 금지, 실제 확인함).
@@ -291,19 +293,39 @@ def resolve_relation_maps(
     동기화가 되돌리지만 그 사이(기본 600초) 필터가 전부 무너지고, 아무도 이유를 모른다.
 
     반환값 모양은 그대로다 — 기존 호출부와 테스트가 계속 동작한다.
+
+    ## 세 조회를 동시에 보내는 이유 (PF8)
+
+    유형·카테고리·프로젝트는 서로 다른 DB 를 가리키는, 서로 완전히 독립인 조회다. 예전에는
+    이 셋을 순서대로 기다렸다 — 문서 목록 한 번을 채우는 데 (스키마 1 + 유형 + 카테고리 +
+    프로젝트 + 문서 목록 자체) 최소 5회의 순차 Notion 왕복이 쌓였다. 셋 다 실패해도 서로
+    영향이 없어야 한다는 계약(개별 격리)은 그대로 유지한다 — 병렬로 돌려도 각 future 의
+    성공/실패는 각자 처리한다. 429 재시도는 `_request` 안에서 호출 하나마다 자기 완결적으로
+    도니 세 스레드가 동시에 재시도해도 서로 침범하지 않는다.
     """
+    targets: dict[str, str] = {}
     maps: dict[str, dict[str, str]] = {}
     for prop_name in _RELATION_PROPS:
         target = _relation_target_db(schema.get(prop_name) or {})
-        if not target:
+        if target:
+            targets[prop_name] = target
+        else:
             maps[prop_name] = {}
-            continue
-        try:
-            maps[prop_name] = _query_titles(outbound, settings, target)
-        except AppError:
-            maps[prop_name] = {}  # 이 relation만 이름 미해석 — 목록은 계속 만든다
-            if failures is not None:
-                failures.append(prop_name)
+    if not targets:
+        return maps
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as pool:
+        future_to_prop = {
+            pool.submit(_query_titles, outbound, settings, target): prop_name
+            for prop_name, target in targets.items()
+        }
+        for future in future_to_prop:
+            prop_name = future_to_prop[future]
+            try:
+                maps[prop_name] = future.result()
+            except AppError:
+                maps[prop_name] = {}  # 이 relation만 이름 미해석 — 목록은 계속 만든다
+                if failures is not None:
+                    failures.append(prop_name)
     return maps
 
 
@@ -531,6 +553,14 @@ def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -
 
     원본이 아주 큰 페이지는 손대지 않고 거절한다 - 삭제가 블록당 한 번의 DELETE 라
     수백 개면 요청 하나가 수백 왕복이 된다.
+
+    ## 삭제를 동시에 보내는 이유 (PF8)
+
+    블록끼리는 서로 독립이라(삭제 순서가 결과에 영향 없다) 순서대로 기다릴 이유가 없다 -
+    예전에는 블록 수만큼 Notion 왕복이 직렬로 쌓였다. 429 재시도(`rate_limit_retries`)는
+    `_request` 안에서 호출 하나마다 자기 완결적으로 도니 여러 스레드가 동시에 재시도해도
+    서로 침범하지 않는다. 하나라도 실패하면(어느 스레드든) 그대로 올려 새 본문은 붙이지
+    않는다 - 위 "실패 시" 절의 재시도 수렴이 이 순서(전부 삭제 확인 → 추가)에 의존한다.
     """
     refs = page_block_refs(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
     if len(refs) > _MAX_REPLACE_BLOCKS:
@@ -538,11 +568,16 @@ def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -
             f"원본 본문이 너무 커서(블록 {_MAX_REPLACE_BLOCKS}개 초과) 여기서 교체하지 "
             f"않았습니다. 원본에서 편집해 주세요."
         )
-    for block_id, btype in refs:
-        # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 - 그대로 둔다.
-        if btype and btype not in _EDITABLE_BLOCK_TYPES:
-            continue
-        _request(outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+    # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 - 그대로 둔다.
+    deletable = [bid for bid, btype in refs if not btype or btype in _EDITABLE_BLOCK_TYPES]
+    if deletable:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(deletable))) as pool:
+            futures = [
+                pool.submit(_request, outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+                for block_id in deletable
+            ]
+            for future in futures:
+                future.result()  # 하나라도 실패하면 여기서 그대로 올린다(추가는 하지 않는다).
     if blocks:
         _request(
             outbound, settings, "PATCH", f"/v1/blocks/{page_id}/children",

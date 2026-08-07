@@ -64,6 +64,7 @@ from app.projects.router import router as projects_router
 from app.quotas.router import router as ai_quotas_router
 from app.prompts.router import policies_router, prompts_router
 from app.reports.router import router as reports_router
+from app.search.reindex_router import router as search_reindex_router
 from app.search.router import router as search_router
 from app.tickets.router import router as tickets_router
 from app.runners.router import router as runners_router
@@ -203,6 +204,7 @@ def create_app(
     app.include_router(notion_mapping_router)
     app.include_router(reports_router)
     app.include_router(search_router)
+    app.include_router(search_reindex_router)
     app.include_router(tickets_router)
     # 프로젝트(0044). 앱 DB 가 정본이고 진행률은 앱이 다시 계산한다 — Notion 의 rollup 은
     # 취소한 티켓을 완료로 세기 때문이다(app/projects/progress.py).

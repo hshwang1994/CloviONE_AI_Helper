@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -18,6 +20,8 @@ from app.core.audit import record_audit_from_request
 from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import (
+    ConflictError,
+    ForbiddenError,
     NotFoundError,
     NotionNotConfiguredError,
     NotionQueryError,
@@ -27,6 +31,7 @@ from app.core.uploads import content_disposition, MAX_UPLOAD_BYTES
 from app.tickets import attachments as ticket_attachments
 from app.tickets import service
 from app.tickets.repository import PageSpec
+from app.tickets.sync import sync_tickets
 from app.tickets.schemas import (
     BulkPageIds,
     TicketBodyUpdate,
@@ -44,6 +49,28 @@ router = APIRouter(
     tags=["tickets"],
     dependencies=[Depends(block_if_maintenance)],
 )
+
+# 수동 재동기화(C7)를 **한 번에 하나만** 진행한다. `app/tickets/claim_lock.py` 의
+# `claim_guard` 와 같은 이유(웹이 `--workers 1` 로 고정돼 있어 프로세스 안 잠금으로 충분,
+# 워커를 늘리려면 공유 저장소로 바꿔야 한다)로 여기서도 기다리지 않는 논블로킹 잠금을 쓴다.
+#
+# **못 막는 것**: 워커 프로세스(app/worker_main.py)가 따로 도는 정기 동기화 틱은 이 잠금과
+# 다른 프로세스라 못 막는다. 그 경합은 `sync_tickets` 자신의 예외 격리(전부 가둬서 상태에만
+# error 로 남긴다)가 이미 다루므로 크래시로 번지지 않는다 — 여기서 막는 것은 운영자가 이
+# 버튼을 신경질적으로 여러 번 누르는 경우다.
+_ticket_sync_lock = threading.Lock()
+
+
+def _sync_view(state) -> dict:
+    """`team_docs.router._sync_view` 와 같은 모양(§17 신선도 블록과 응답 계약을 맞춘다)."""
+    return {
+        "status": state.status,
+        "last_run_at": state.last_run_at.isoformat() if state.last_run_at else None,
+        "last_success_at": state.last_success_at.isoformat() if state.last_success_at else None,
+        "ticket_count": state.ticket_count,
+        "truncated": state.truncated,
+        "error": state.error,
+    }
 
 
 def _repo(request: Request):
@@ -327,6 +354,44 @@ def trash_tickets_bulk(
         record_audit_from_request(request, db, action="ticket.trash", object_type="notion_task",
                                   object_id=it["id"], before={"title": it.get("title")})
     return {"ok": True, **result}
+
+
+# ── 강제 재동기화 (C7) ────────────────────────────────────────────────────────
+# team_docs 의 POST /api/team-docs/sync 와 같은 패턴: 운영자 권한 확인(같은 기준,
+# service.can_trigger_sync = MODERATOR_ROLES) → app/tickets/sync.py 의 동기화 함수 호출 →
+# 감사 로그. 지금까지 이 버튼이 없어서 Notion 쪽 데이터가 깨졌다 복구돼도 다음 정기
+# 동기화 주기(워커 틱)까지 기다리는 것 말고는 방법이 없었다.
+
+@router.post("/sync", dependencies=[Depends(require_csrf)])
+def trigger_sync(
+    request: Request,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    if not service.can_trigger_sync(me):
+        raise ForbiddenError("티켓 동기화는 운영자만 실행할 수 있습니다.")
+    if not _ticket_sync_lock.acquire(blocking=False):
+        # 기다리지 않는다 — `claim_guard` 와 같은 이유. Notion 이 느린 날 요청이 쌓여
+        # 요청 스레드가 잠기는 것보다 "지금은 안 된다" 를 바로 알려 주는 편이 낫다.
+        raise ConflictError("이미 티켓 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.")
+    try:
+        state = sync_tickets(
+            db,
+            outbound=request.app.state.outbound_client,
+            settings=request.app.state.settings,
+            now=request.app.state.clock.now(),
+        )
+    finally:
+        _ticket_sync_lock.release()
+    record_audit_from_request(
+        request,
+        db,
+        action="ticket.sync",
+        object_type="ticket_sync",
+        object_id="tickets",
+        after={"status": state.status, "ticket_count": state.ticket_count},
+    )
+    return {"sync": _sync_view(state)}
 
 
 # ── 댓글 ──────────────────────────────────────────────────────────────────────

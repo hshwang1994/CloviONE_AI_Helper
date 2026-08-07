@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import concurrent.futures
+
 from app.core.errors import AppError, ValidationAppError
 from app.reports.notion_source import (
     PROP_ACT,
@@ -344,6 +346,16 @@ def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -
 
     원본이 아주 큰 페이지는 손대지 않고 거절한다(_MAX_REPLACE_BLOCKS) — 삭제가 블록당 한 번의
     DELETE 라 수백 개면 요청 하나가 수백 왕복이 된다.
+
+    ## 삭제를 동시에 보내는 이유 (PF8)
+
+    블록이 여러 개면 예전에는 DELETE 를 하나씩 순서대로 기다렸다 — 본문 저장 한 번이 블록
+    수만큼의 Notion 왕복이 됐다(수십 개짜리 본문이면 화면 하나 저장에 수십 회). 블록끼리는
+    서로 독립이라(삭제 순서가 결과에 영향 없다) 굳이 기다릴 이유가 없다. 429 재시도
+    (`rate_limit_retries`)는 `_request` 안에서 호출 하나마다 자기 완결적으로 도니 여러 스레드가
+    동시에 재시도해도 서로 침범하지 않는다. 실패 하나가 있으면(어느 스레드든) 그대로 올려
+    새 본문은 붙이지 않는다 — 위 "실패 시" 절의 재시도 수렴이 이 순서(전부 삭제 확인 → 추가)
+    에 의존하기 때문이다.
     """
     refs = page_block_refs(outbound, settings, page_id, limit=_MAX_REPLACE_BLOCKS)
     if len(refs) > _MAX_REPLACE_BLOCKS:
@@ -351,11 +363,16 @@ def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -
             f"원본 본문이 너무 커서(블록 {_MAX_REPLACE_BLOCKS}개 초과) 여기서 교체하지 않았습니다. "
             f"원본에서 편집해 주세요."
         )
-    for block_id, btype in refs:
-        # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 — 그대로 둔다.
-        if btype and btype not in _EDITABLE_BLOCK_TYPES:
-            continue
-        _request(outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+    # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 — 그대로 둔다.
+    deletable = [bid for bid, btype in refs if not btype or btype in _EDITABLE_BLOCK_TYPES]
+    if deletable:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(deletable))) as pool:
+            futures = [
+                pool.submit(_request, outbound, settings, "DELETE", f"/v1/blocks/{block_id}")
+                for block_id in deletable
+            ]
+            for future in futures:
+                future.result()  # 하나라도 실패하면 여기서 그대로 올린다(추가는 하지 않는다).
     if blocks:
         _request(
             outbound, settings, "PATCH", f"/v1/blocks/{page_id}/children",

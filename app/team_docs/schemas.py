@@ -129,7 +129,21 @@ class DocumentCreate(BaseModel):
     def _body(cls, v: str) -> str:
         if v and len(v) > MAX_BODY:
             raise ValueError(f"본문은 {MAX_BODY}자 이하여야 합니다.")
-        return v or ""
+        if not v:
+            return ""
+        # 이 본문은 그대로 노션 블록으로 변환된다(notion_docs.body_children → markdown_to_blocks).
+        # 그 변환기는 100줄/줄당 1900자를 넘으면 **조용히 잘라낸다** — 총 글자 수(20000자)만
+        # 봐서는 이 함정을 못 막는다. 본문 수정(DocumentBodyUpdate._check_body)과 같은 규칙으로
+        # 여기서도 자르지 않고 거절한다.
+        lines = v.split("\n")
+        if len(lines) > BODY_MAX_LINES:
+            raise ValueError(
+                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
+                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
+            )
+        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
+            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
+        return v
 
 
 def _comment_body(v: str) -> str:

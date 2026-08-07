@@ -24,6 +24,7 @@ vi.mock("../lib/api.js", () => ({
 import { SchedulerCalendar } from "./SchedulerCalendar.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { AuthProvider } from "../app/auth.jsx";
 
 const SCHEDULES = [{ id: "s-1", name: "매일 리포트", enabled: true, timezone: "Asia/Seoul" }];
 
@@ -38,29 +39,43 @@ function body(extra = {}) {
   };
 }
 
+// `/api/me`는 AuthProvider가 마운트되자마자 부른다 — 재시도 버튼의 역할 게이트(OPS_ROLES)가
+// `useAuth().data.role`을 읽으므로, 이 계정 응답도 API 목(mock) 하나가 함께 감당한다.
+const ME = { user: { id: "u-1", role: "operator" }, csrf_token: "t", features: {}, branding: {} };
+
 function renderCalendar() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <ThemeModeProvider>
-        <ToastProvider>
-          <ConfirmProvider>
-            <MemoryRouter>
-              <SchedulerCalendar />
-            </MemoryRouter>
-          </ConfirmProvider>
-        </ToastProvider>
-      </ThemeModeProvider>
+      <AuthProvider>
+        <ThemeModeProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <MemoryRouter>
+                <SchedulerCalendar />
+              </MemoryRouter>
+            </ConfirmProvider>
+          </ToastProvider>
+        </ThemeModeProvider>
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }
 
 let lastUrl = null;
 
+// `/api/me` 는 항상 이 함수가 가로챈다 — 각 테스트는 달력 조회(그 외 경로)만 신경 쓰면 된다.
+function mockApi(handler) {
+  apiMock.mockImplementation((path, opts) => {
+    if (path === "/api/me") return Promise.resolve(ME);
+    return handler(path, opts);
+  });
+}
+
 beforeEach(() => {
   apiMock.mockReset();
   lastUrl = null;
-  apiMock.mockImplementation((path) => { lastUrl = path; return Promise.resolve(body()); });
+  mockApi((path) => { lastUrl = path; return Promise.resolve(body()); });
 });
 
 describe("실행 달력", () => {
@@ -91,7 +106,7 @@ describe("실행 달력", () => {
     const todayKst = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
     }).format(new Date());
-    apiMock.mockImplementation((path) => {
+    mockApi((path) => {
       lastUrl = path;
       return Promise.resolve(body({
         items: [
@@ -116,7 +131,7 @@ describe("실행 달력", () => {
     const todayKst = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
     }).format(new Date());
-    apiMock.mockImplementation(() => Promise.resolve(body({
+    mockApi(() => Promise.resolve(body({
       items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
         occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "n8n 500" }],
     })));
@@ -129,15 +144,76 @@ describe("실행 달력", () => {
   });
 
   it("서버가 잘렸다고 하면 그 사실을 숨기지 않는다", async () => {
-    apiMock.mockImplementation(() => Promise.resolve(body({ truncated: true })));
+    mockApi(() => Promise.resolve(body({ truncated: true })));
     renderCalendar();
     expect(await screen.findByText(/전부 펼치지 못했습니다/)).toBeInTheDocument();
   });
 
   it("일정이 하나도 없으면 만들라고 안내한다", async () => {
-    apiMock.mockImplementation(() => Promise.resolve(body({ schedules: [] })));
+    mockApi(() => Promise.resolve(body({ schedules: [] })));
     renderCalendar();
     expect(await screen.findByText("등록된 실행 일정이 없습니다")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+});
+
+describe("실행 상세의 재시도 액션 (M9)", () => {
+  const todayKst = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+
+  function bodyWithRun(status, extra = {}) {
+    return body({
+      items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
+        occurs_at: `${todayKst}T00:00:00`, status, run_id: "r-1", error_message: status === "failed" ? "n8n 500" : null }],
+      ...extra,
+    });
+  }
+
+  async function openFailedRunDetail() {
+    mockApi((path) => {
+      lastUrl = path;
+      if (path.startsWith("/api/admin/schedules/runs/")) {
+        return Promise.resolve({ ok: true, run: { id: "r-1", status: "queued" } });
+      }
+      return Promise.resolve(bodyWithRun("failed"));
+    });
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    return screen.findByRole("dialog");
+  }
+
+  it("🔴 실패한 실행에는 재시도 버튼이 있고, 확인 후 재시도 API를 호출한다", async () => {
+    await openFailedRunDetail();
+    const retryBtn = await screen.findByRole("button", { name: "재시도" });
+    await userEvent.click(retryBtn);
+    // 되돌릴 수 없는 부수효과(다시 큐에 넣어 n8n/워크플로를 다시 실행)라 확인창을 거친다 —
+    // DataScreen의 다른 운영 액션(job.retry 등)과 같은 관용. 확인창의 확인 버튼도 같은
+    // 라벨("재시도")을 쓴다(DataScreen.jsx의 confirmLabel: a.label 관용과 동일).
+    const buttons = await screen.findAllByRole("button", { name: "재시도" });
+    await userEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith(
+      "/api/admin/schedules/runs/r-1/retry",
+      expect.objectContaining({ method: "POST" }),
+    ));
+  });
+
+  it("성공한 실행에는 재시도 버튼이 없다", async () => {
+    mockApi(() => Promise.resolve(bodyWithRun("succeeded")));
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: "재시도" })).not.toBeInTheDocument();
+  });
+
+  it("취소 가능한 액션이 없으면 취소 버튼을 그리지 않는다(백엔드에 실행 취소 API가 없음)", async () => {
+    mockApi(() => Promise.resolve(bodyWithRun("queued")));
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: "취소" })).not.toBeInTheDocument();
   });
 });

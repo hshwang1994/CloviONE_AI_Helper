@@ -187,6 +187,23 @@ def test_document_create_requires_type_and_field():
         DocumentCreate(title="제목", document_type=list(DOC_TYPES)[0])  # 업무 분야 누락
 
 
+def test_document_create_body_over_line_cap_is_rejected_not_truncated():
+    """본문은 그대로 노션 블록으로 바뀐다(notion_docs.body_children → markdown_to_blocks).
+    그 변환기는 100줄을 넘으면 조용히 잘라내므로, 총 글자 수(MAX_BODY=20000)만 보고
+    통과시키면 짧은 줄 150개(1300자 남짓, 상한 밑)도 뒤 50줄이 소리 없이 사라진다.
+    여기서 거절해야 한다(DocumentBodyUpdate와 같은 규칙)."""
+    from pydantic import ValidationError
+
+    from app.team_docs.schemas import DocumentCreate
+
+    body = "\n".join(f"line {i}" for i in range(150))
+    with pytest.raises(ValidationError):
+        DocumentCreate(
+            title="제목", document_type=list(DOC_TYPES)[0], work_field=list(WORK_FIELDS)[0],
+            body=body,
+        )
+
+
 def test_block_rendering_maps_known_types():
     # fetch_page_blocks 는 outbound가 필요하므로 여기선 매핑 상수만 확인(구조 안정성).
     assert notion_docs._TEXT_BLOCK_TYPES["heading_1"] == "heading_1"

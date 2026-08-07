@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
@@ -10,9 +10,11 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { api } from "../lib/api.js";
 import { toUTCDate } from "../lib/format.js";
+import { useAuth } from "../app/auth.jsx";
+import { OPS_ROLES } from "./registry/shared.js";
 import {
   PageHeader, Card, Callout, Badge, Button, Skeleton,
-  EmptyState, ErrorState, Modal, DataTable,
+  EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
 } from "../ui/kit.jsx";
 
 /* 스케줄러 캘린더 (PLAN Phase 6, 관리자 백로그).
@@ -120,6 +122,16 @@ export function SchedulerCalendar() {
   }));
   const [scheduleId, setScheduleId] = React.useState("");
   const [selected, setSelected] = React.useState(null);
+  const auth = useAuth();
+  const role = (auth && auth.data && auth.data.role) || null;
+  // 운영 액션(재시도)은 백엔드도 CONSOLE_OPS_ROLES 만 허용한다(app/schedules/router.py
+  // retry_run) — auditor 는 이 화면을 볼 수는 있어도(CONSOLE_READ_ROLES) 눌러도 항상
+  // 403 인 버튼을 보여줄 이유가 없다. 판정을 프런트에서 다시 정의하지 않고 같은 명단
+  // (registry/shared.js OPS_ROLES)을 그대로 쓴다.
+  const canOps = role != null && OPS_ROLES.includes(role);
+  const confirm = useConfirm();
+  const toast = useToast();
+  const qc = useQueryClient();
 
   const rangeStart = kstMonthStart(cursor.year, cursor.month);
   const rangeEnd = kstMonthStart(cursor.year, cursor.month + 1);
@@ -137,6 +149,35 @@ export function SchedulerCalendar() {
     queryFn: () => api(url),
     retry: false,
   });
+
+  /* 실패한 실행의 재시도(M9, 운영 백로그) — app/schedules/router.py
+   * `POST /api/admin/schedules/runs/{run_id}/retry` 를 그대로 호출한다.
+   *
+   * **취소는 여기 없다.** 취소는 app/jobs/router.py 에 있지만 `job_id` 로 찾는데, 이
+   * 달력 이벤트(app/schedules/router.py:calendar)는 `run_id`(ScheduleRun.id)만 주고
+   * `job_id` 로 잇는 경로가 없다(ScheduleRun 테이블에 job_id 컬럼이 없고, Job 목록
+   * API 도 payload 안의 schedule_run_id 로 거꾸로 찾는 필터가 없다) — 있는 척 버튼만
+   * 달면 눌러도 아무 일도 안 하거나 엉뚱한 job을 취소하게 된다. 필요 API:
+   * `POST /api/admin/schedules/runs/{run_id}/cancel`(또는 calendar 응답에 job_id 를
+   * 실어 기존 jobs 취소 API로 잇기) 가 생기면 그때 추가한다. */
+  const retryRun = useMutation({
+    mutationFn: (runId) => api("/api/admin/schedules/runs/" + runId + "/retry", { method: "POST", body: {} }),
+    onSuccess: () => {
+      toast("실행을 다시 대기열에 넣었습니다.", "success");
+      qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
+      setSelected(null);
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  async function retrySelectedRun() {
+    if (!selected) return;
+    const ok = await confirm(
+      "이 실패한 실행을 다시 시도할까요?",
+      { title: "실행 재시도", confirmLabel: "재시도" },
+    );
+    if (ok) retryRun.mutate(selected.run_id);
+  }
 
   const cells = React.useMemo(() => buildGrid(cursor.year, cursor.month), [cursor]);
   /* ARIA grid 는 role 계층이 강제다: grid > row > (columnheader | gridcell). 42칸을 격자에
@@ -346,6 +387,14 @@ export function SchedulerCalendar() {
           />
         ) : null}
         <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
+          {/* 실제 실행(kind="run")이 실패했을 때만 재시도할 수 있다 — 예정(planned)은 아직
+              실행 자체가 없어 재시도할 대상이 없고, 성공/대기/실행 중은 백엔드가 409 로
+              거절한다(RUN_FAILED 만 허용, app/schedules/router.py retry_run). */}
+          {selected && selected.kind !== "planned" && selected.status === "failed" && canOps ? (
+            <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending}>
+              {retryRun.isPending ? "재시도 중…" : "재시도"}
+            </Button>
+          ) : null}
           <Button
             variant="primary"
             onClick={() => { const id = selected && selected.schedule_id; setSelected(null); window.location.hash = "#/schedules?id=" + encodeURIComponent(id || ""); }}

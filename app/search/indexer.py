@@ -1,13 +1,20 @@
-"""검색 인덱스 채우기 — **워커 틱에서만** 돈다 (PLAN Phase 5).
+"""검색 인덱스 채우기 — **워커 틱 + 운영자 수동 트리거**에서만 돈다 (PLAN Phase 5, C7).
 
 ## 뜨거운 경로에 훅을 걸지 않는다
 
 "글 하나 저장할 때 인덱스도 같이 갱신" 이 얼핏 더 신선해 보이지만, 이 앱에서 그 방식은
 정확히 가장 나쁜 곳을 때린다. 채팅 전송은 이미 INSERT + `event_seq` UPDATE 로 SAVEPOINT
 재시도를 도는 가장 뜨거운 쓰기 경로이고(PLAN C9), 폴링 경로에 인덱스 쓰기를 걸면 **읽기가
-쓰기가 된다** — ETag/304 로 아낀 것을 그대로 되돌린다. 그래서 인덱싱은 워커 틱 한 곳에서만
-일어나고, 검색 결과는 최대 한 틱만큼 늦다. 그 지연은 사람이 못 느끼고, 병목은 확실히 안 는다.
-(이 규칙은 `tests/unit/test_search_no_hot_path.py` 가 import 그래프로 못박는다.)
+쓰기가 된다** — ETag/304 로 아낀 것을 그대로 되돌린다. 그래서 인덱싱은 정기적으로는 워커 틱
+한 곳에서만 일어나고, 검색 결과는 최대 한 틱만큼 늦다. 그 지연은 사람이 못 느끼고, 병목은
+확실히 안 는다. (이 규칙은 `tests/unit/test_search_no_hot_path.py` 가 import 그래프로
+못박는다 — 채팅·게시판·티켓·문서 등 **핫패스**가 이 모듈을 부르면 안 된다는 뜻이다.)
+
+C7 로 두 번째 호출자가 생겼다: `app/search/reindex_router.py` 의
+`POST /api/search/reindex` — Notion 쪽 데이터가 깨졌다 복구됐을 때 다음 틱까지 기다리지
+않고 운영자가 명시적으로 지금 당장 돌리는 경로다. 이건 핫패스가 아니라 role+CSRF+잠금으로
+막힌 드문 관리 행위라 위 규칙이 막는 대상이 아니다 — 그래서 그 라우터는 `app/search/router.py`
+(순수 조회, 위 테스트가 감시하는 파일)와 **일부러 다른 파일**에 둔다.
 
 ## 티켓·문서는 저장소 seam 으로만 읽는다
 
@@ -27,6 +34,7 @@ UPDATE** 한다(내용이 같으면 건드리지 않는다) — 안 그러면 �
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
@@ -60,6 +68,19 @@ BODY_CHARS = 2000
 # 한 유형에서 인덱싱할 최대 건수. 코퍼스 상한을 두지 않으면 어느 날 티켓이 5만 건이 됐을 때
 # 워커 틱 하나가 조용히 수십 초를 먹는다.
 MAX_ROWS_PER_KIND = 5000
+
+# 수동 재색인(C7, POST /api/search/reindex)을 **한 번에 하나만** 진행한다.
+# `app/tickets/claim_lock.py` 와 같은 이유(웹이 `--workers 1` 로 고정돼 있어 프로세스 안
+# 잠금으로 충분하다) — 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
+#
+# **못 막는 것**: 워커 틱(app/worker_main.py `search_index_tick`)은 **다른 프로세스**라 이
+# 잠금이 못 막는다. `search_documents` 에는 (kind, ref_id) 유니크 제약이 없어서, 정기 틱과
+# 수동 트리거가 정말 같은 순간에 겹치면 중복 행이 생길 수 있다(다음 재구축에서 최신 내용으로
+# 갱신은 되지만, 그 사이 검색 결과에 같은 항목이 두 번 보일 수 있다) — 이건 이 잠금이 아니라
+# 원래 "재색인은 워커 틱 한 곳에서만 돈다"는 전제(§ 위 모듈 docstring)에 새 호출자(이 API)를
+# 더하면서 생기는 좁은 틈이다. 겹칠 확률은 낮고(재구축은 1초 안쪽), 웹 프로세스 쪽 중복은
+# 이 잠금이 완전히 막는다.
+reindex_lock = threading.Lock()
 
 
 @dataclass(frozen=True)

@@ -595,6 +595,18 @@ def list_assignees(db: Session, *, org_id: str | None = None) -> list[dict]:
     return [people.identity(u, org_names) for u in users]
 
 
+# ── 강제 재동기화 (C7) ────────────────────────────────────────────────────────
+
+def can_trigger_sync(user: User) -> bool:
+    """지금 당장 동기화를 돌릴 수 있는 사람 — 운영자군.
+
+    `team_docs.service.can_trigger_sync`, `ensure_can_edit` 와 **같은 기준**
+    (`MODERATOR_ROLES`)이다. 기준을 여기서 새로 정의하지 않는다 — "운영자"의 뜻이 화면마다
+    갈라지면 어떤 콘솔에서는 되는데 다른 콘솔에서는 막히는 혼란이 생긴다.
+    """
+    return user.role in MODERATOR_ROLES
+
+
 # ── 휴지통 ────────────────────────────────────────────────────────────────────
 
 def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, now, repo=None) -> dict:

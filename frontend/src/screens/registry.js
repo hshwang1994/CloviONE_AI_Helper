@@ -17,6 +17,17 @@
  * 스물일곱 개를 함께 내려받았다 — 평생 열지 않을 화면들이다. 이제 사용자 콘솔은
  * `registry/notifications.js` 만 들여온다.
  *
+ * ## 관리자 콘솔도 이제 이 파일을 정적으로 들여오지 않는다
+ *
+ * `AdminRoutes.jsx` 도 예전에는 이 파일을 최상단에서 정적으로 `import` 했다 — 그러면
+ * 관리자가 `/dashboard` 하나만 열어도 REGISTRY 를 조립하는 도메인 파일 일곱 개(스물여덟
+ * 화면분 설정)를 전부 받는다. 이제 `AdminRoutes.jsx` 는 마운트된 뒤 `import("./registry.js")`
+ * 로 이 파일을 지연 로드해, REGISTRY 기반 라우트를 실제로 방문할 때만 받는다. 이 파일
+ * 자체의 조립 방식(도메인 파일 일곱 개를 정적으로 모아 `REGISTRY` 하나로 합치는 것)은
+ * 그대로 둔다 — 여러 테스트가 `import { REGISTRY } from "./registry.js"` 로 동기적으로
+ * 바로 읽는다(예: registry-identifiers.test.jsx, rbac-matrix.test.jsx). REGISTRY 를 그
+ * 자체로 비동기화하면 그 계약이 깨진다.
+ *
  * 그래서 **여기에 새 화면을 직접 적지 않는다.** 도메인 파일에 적고 아래 조립에만 더한다.
  */
 import { INTEGRATION_SCREENS } from "./registry/integrations.js";

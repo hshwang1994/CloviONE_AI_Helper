@@ -2,88 +2,42 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { fmtDateTime, kstLocalToApi } from "../lib/format.js";
+import { kstLocalToApi } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
-import { SearchBox } from "../ui/filters.jsx";
-import { SavedViews } from "../ui/SavedViews.jsx";
-
-/* 상세 패널의 원문 블록과 키/값 줄 — 예전에는 <JsonBlock> 과
- * .c-kv/.c-kv-k/.c-kv-v 를 열다섯 곳에 손으로 흩어 두었다. 규칙이 CSS 파일에만 있어서
- * 새 상세 필드를 만들 때마다 클래스 이름을 외워 붙여야 했고, 한 곳만 빠뜨려도 조용히
- * 스타일이 없는 채로 떴다. 컴포넌트 두 개로 모아 그 규칙을 코드에 둔다. */
-function JsonBlock({ children }) {
-  return (
-    <Box component="pre" sx={{
-      m: 0, p: 1.5, borderRadius: 1.5, border: 1, borderColor: "divider",
-      bgcolor: "background.default", overflowX: "auto", whiteSpace: "pre-wrap",
-      overflowWrap: "anywhere", fontSize: "0.8125rem", lineHeight: 1.6,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-    }}>{children}</Box>
-  );
-}
-
-function KeyValueRow({ label, children }) {
-  return (
-    <Box sx={{
-      display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" },
-      gap: { xs: 0.25, sm: 1.5 }, py: 0.75, borderBottom: 1, borderColor: "divider", minWidth: 0,
-    }}>
-      <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>{label}</Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{children}</Box>
-    </Box>
-  );
-}
-import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
-import { NOTI_ROOT } from "../app/notification-keys.js";
-
+import { PageHeader, Card, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
  * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
- * "이 화면 검색만 느리다" 라서 원인이 안 보인다.
- *
- * 이 화면을 바꾸면 **화면 밖의 무엇이 같이 낡는가** (X10).
- *
- * 알림이 대표적이다: 목록에서 읽음 처리를 해도 상단 벨과 사이드바 배지는 다른 키로 폴링한다.
- * 지도를 한 곳에 두면 새 화면을 추가할 때 여기만 보면 된다. */
-const CROSS_SCREEN_KEYS = {
-  // 알림은 이제 벨·팝오버·이 화면이 **한 뿌리**(`["noti"]`)를 쓴다 (PF9). 그래서 여기 적을
-  // 것이 하나뿐이고, 그 하나가 셋을 다 덮는다 — 예전에는 세 네임스페이스를 손으로 나열해야
-  // 했고 한 줄이 빠질 때마다 "읽었는데 숫자가 그대로" 가 됐다.
-  notifications: [NOTI_ROOT],
-  // 조직도 트리(`["org-tree"]`)는 조직·부서와 **같은 자료의 다른 보기**다. 조직 콘솔
-  // (OrgConsole.jsx)이 둘을 한 화면에 나란히 놓은 뒤로는 그 어긋남이 곧바로 눈에 보인다 —
-  // 오른쪽에서 부서를 추가·이름 변경·비활성화했는데 왼쪽 트리가 옛 모습 그대로면 사용자는
-  // "추가했는데 조직도에 없다"로 읽는다. 조직 이름·정지 상태도 트리 맨 윗줄에 실려 있다.
-  organizations: [["org-tree"]],
-  departments: [["org-tree"]],
-};
+ * "이 화면 검색만 느리다" 라서 원인이 안 보인다. */
+import { SearchBox } from "../ui/filters.jsx";
+import { SavedViews } from "../ui/SavedViews.jsx";
+import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
+// 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
+// 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
+import { JsonBlock } from "./data-screen/JsonBlock.jsx";
+import { CROSS_SCREEN_KEYS } from "./data-screen/crossScreenKeys.js";
+import { handleApiError } from "./data-screen/apiError.js";
+import { mergeDetailFields, detailTitle } from "./data-screen/detailFields.js";
+import { SubListDrawer } from "./data-screen/SubListDrawer.jsx";
+
+// 열/필드 렌더 헬퍼(badgeCol 등)의 실제 구현은 data-screen/columnHelpers.jsx로 옮겼다.
+// registry/shared.js가 `from "../DataScreen.jsx"`로 이 이름들을 그대로 가져다 쓰므로
+// (수십 개 화면의 registry.js가 그 재수출에 기댄다) import 계약이 깨지지 않게 여기서 재수출한다.
+export {
+  badgeCol, mapCol, dateCol, activeCol, linkCol, truncateCol, readCol,
+  jsonField, objectField, listField, previewField,
+} from "./data-screen/columnHelpers.jsx";
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
  * 생성·수정은 공통 중앙 모달 폼. headerActions=폼 없는 즉시 실행/입력폼. 액션에 subList가 있으면
  * 하위 리소스(버전·실행 이력 등)를 별도 드로어로 조회한다. config.paginated면 서버 페이지네이션. */
-// 401(세션 만료)은 다른 실패와 다르게 다뤄야 한다 — 재시도해도 항상 401이라 일반 오류 토스트만
-// 띄우면 사용자가 뭘 해야 하는지 모른 채 막힌다(로그인 화면으로 가는 실제 동작이 없었다). 로그인
-// 화면으로 실제로 이동시킨다(UserMenu.logout()과 동일한 이동 방식).
-function handleApiError(e, toast) {
-  if (e && e.status === 401) {
-    toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error");
-    // 토스트를 띄운 바로 다음 줄에서 즉시 전체 페이지 이동을 하면 브라우저가 언로드를 시작하면서
-    // 방금 띄운 토스트가 사용자가 읽기도 전에 사라질 수 있다(리액트 상태 업데이트가 언마운트로
-    // 잘려나감) — 짧게 지연해 안내 문구를 실제로 볼 수 있는 시간을 준다.
-    window.setTimeout(() => { window.location.href = "/login"; }, 1200);
-    return;
-  }
-  toast(e.message, "error");
-}
-
 export function DataScreen({ config }) {
   /* 첫 렌더에서 주소의 쿼리(#/audit?action=user.login)를 그대로 읽어 초기 상태로 삼는다.
    * 마운트 후에 setState 로 넣으면 기본 필터로 한 번 조회한 뒤 다시 조회해 목록이 두 번
@@ -816,279 +770,3 @@ export function DataScreen({ config }) {
   );
 }
 
-/* 하위 리소스 드로어 — 액션의 subList로 지정한 엔드포인트(버전·실행 이력 등)를 조회해 표로 보여준다.
- * subList.rowAction이 있으면 각 하위 행에 작업(예: 특정 버전으로 롤백)을 건다. */
-function SubListDrawer({ view, onClose, onActed }) {
-  const { a, row } = view;
-  const sl = a.subList;
-  const confirm = useConfirm();
-  const toast = useToast();
-  const auth = useAuth();
-  const role = (auth && auth.data && auth.data.role) || null;
-  // 하위 행 작업(롤백·재시도 등)도 role 게이트 — 백엔드 RBAC와 일치시켜 권한 없는 버튼을 숨긴다.
-  const canDoRa = (ra) => !ra.roles || (role != null && ra.roles.includes(role));
-  const [subPage, setSubPage] = useState(1);
-  const [subFilters, setSubFilters] = useState({});
-  const [subInfo, setSubInfo] = useState(null);   // 조회형 하위 행 작업(예: 버전 비교 diff) 결과 모달
-  // 하위 행 작업 실행 중 — 부모 drawer의 busyKey와 동일한 패턴으로 '어느 행의 어느 액션'인지
-  // key로 구분한다(예전엔 단순 boolean이라 하나를 누르면 이 하위 목록의 모든 행·모든 액션 버튼이
-  // 동시에 '처리 중…'으로 바뀌었다 — localInfo처럼 네트워크 호출조차 없는 동기 작업까지 포함해).
-  const [subBusyKey, setSubBusyKey] = useState(null);
-  const subBusy = subBusyKey != null;
-  const subRowKey = (r) => r.id != null ? r.id : (r.version != null ? r.version : JSON.stringify(r).slice(0, 24));
-  const setSubFilter = (k, v) => { setSubFilters((s) => ({ ...s, [k]: v })); setSubPage(1); };
-  // endpoint는 (row, {page, filters})로 호출한다(기존 subList는 2번째 인자를 무시하므로 하위호환).
-  const q = useQuery({
-    queryKey: ["sub", a.label, row.id, subPage, JSON.stringify(subFilters)],
-    queryFn: () => api(sl.endpoint(row, { page: subPage, filters: subFilters })),
-    retry: false,
-  });
-  const rawRows = (q.data && q.data[sl.itemsKey || "items"]) || [];
-  // sl.filterRows(row, parentRow) — 백엔드가 이 하위 목록을 부모 행 기준으로 필터할 쿼리 파라미터를
-  // 지원하지 않을 때(예: 템플릿 목록엔 policy_id 필터가 없다) 이미 받아 온 전체 목록을 화면에서
-  // 직접 거른다(DataScreen 메인 목록의 clientFilter와 동일한 발상).
-  const rows = sl.filterRows ? rawRows.filter((r) => sl.filterRows(r, row)) : rawRows;
-  const total = q.data && q.data.total;
-  const pageSize = (q.data && q.data.page_size) || 20;
-  // 부모 목록의 페이저와 동일한 fallback — total이 없는 하위 목록 응답도(paginated:true인데 total
-  // 미포함) 이번 페이지가 꽉 찼으면 '다음'을 계속 켜 둔다(DataScreen.jsx 메인 페이저와 동일한 이유).
-  const totalPages = (sl.paginated && total != null) ? Math.max(1, Math.ceil(total / pageSize)) : null;
-  async function act(ra, subRow, key) {
-    // 조회형(로컬) 하위 행 작업 — 네트워크 호출 없이 이미 불러온 하위 행 데이터를 그대로 안내 모달로
-    // 보여준다(예: 실행 이력 목록에서는 60자로 자르는 보낸 페이로드/응답 요약의 전체 텍스트 보기).
-    // 동기 작업이라 busy 상태를 걸 필요가 없다(예전엔 이것도 subBusy를 켜서 다른 모든 행의 버튼까지
-    // '처리 중…'으로 바꿨다 — 네트워크 호출이 전혀 없는데도).
-    if (ra.localInfo) { setSubInfo({ title: ra.label, body: ra.localInfo(subRow, row) }); return; }
-    // 조회형(GET) 하위 행 작업 — 목록 갱신·드로어 닫기 없이 결과를 안내 모달로 보여준다(예: 버전 비교 diff).
-    if (ra.info) {
-      setSubBusyKey(key);
-      try { const res = await api(ra.path(subRow, row), { method: ra.method || "GET" }); setSubInfo({ title: ra.label, body: ra.info(res) }); }
-      catch (e) { handleApiError(e, toast); }
-      finally { setSubBusyKey(null); }
-      return;
-    }
-    // confirm은 path/when/body와 동일하게 (하위 행, 부모 행) 두 인자를 받는다 — 부모 행 상태에 따라
-    // 다른 경고를 붙여야 하는 롤백(예: 예약 워크플로 경고)을 지원한다.
-    if (ra.confirm && !(await confirm(ra.confirm(subRow, row), { danger: ra.variant === "danger", confirmLabel: ra.label }))) return;
-    setSubBusyKey(key);
-    try {
-      const res = await api(ra.path(subRow, row), { method: ra.method || "POST", body: ra.body ? ra.body(subRow) : {} });
-      // 승인 게이트가 걸리면 202 approval_pending — 성공으로 오인하지 않게 안내(예: 연동 롤백).
-      if (res && (res.status === "approval_pending" || res.approval_pending)) toast("승인 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.", "info");
-      else toast(ra.label + " 완료", "success");
-      onActed();
-      // keepOpen — 이 하위 행 작업이 지금 보고 있는 바로 이 목록 안의 항목을 제자리에서 바꿀 뿐이면
-      // (예: 실행 이력의 '재시도') 드로어를 닫지 않고 하위 목록만 다시 불러온다. 방금 누른 결과를
-      // 보려고 재시도했는데 곧바로 드로어가 닫혀 다시 열어야 했던 것을 없앤다. 그 외(예: 버전
-      // 롤백처럼 하위 목록을 벗어나는 게 자연스러운 작업)는 기존처럼 닫는다.
-      if (ra.keepOpen) q.refetch(); else onClose();
-    } catch (e) { handleApiError(e, toast); }
-    finally { setSubBusyKey(null); }
-  }
-  // subList는 단일 rowAction(하위호환) 또는 rowActions 배열(롤백+비교 등 다중)을 받는다. when은 (하위행, 부모행).
-  const rowActions = sl.rowActions || (sl.rowAction ? [sl.rowAction] : []);
-  const cols = rowActions.length
-    ? [...sl.columns, { key: "_act", label: "", render: (r) => {
-        const visible = rowActions.filter((ra) => (!ra.when || ra.when(r, row)) && canDoRa(ra));
-        // sl.actionHint(하위 행, 부모 행), 액션이 when()으로 숨겨졌을 때, 왜 숨겨졌는지 이유를 그
-        // 빈 자리에 대신 보여준다(예: 스케줄 재시도가 부모 스케줄 비활성으로 숨겨진 경우, 예전엔
-        // 버튼만 조용히 사라지고 아무 설명도 없었다).
-        if (!visible.length && sl.actionHint) {
-          const hint = sl.actionHint(r, row);
-          if (hint) return <span>{hint}</span>;
-        }
-        return <>{visible.map((ra, i) => {
-          const key = subRowKey(r) + ":" + ra.label;
-          // 클릭한 그 버튼만 라벨이 '처리 중…'으로 바뀐다(disabled는 중복 제출 방지를 위해 전체에
-          // 걸지만, 라벨은 실제로 진행 중인 액션 하나만, 부모 drawer의 busyKey와 동일한 패턴).
-          return <Button key={i} size="sm" variant={ra.variant || "default"} disabled={subBusy} onClick={() => act(ra, r, key)}>{subBusyKey === key ? "처리 중…" : ra.label}</Button>;
-        })}</>;
-      } }]
-    : sl.columns;
-  return (
-    <Drawer open onClose={onClose} title={sl.title || a.label}>
-      {/* sl.hint, 이 하위 목록의 동작 중 암묵적 규칙(예: '비교'가 어느 두 버전을 비교하는지)이
-       * 목록만 봐서는 드러나지 않을 때 짧은 안내를 붙인다(폼 필드 도움말과 동일한 스타일 재사용). */}
-      {sl.hint ? <div className="k-field-help">{sl.hint}</div> : null}
-      {/* 부모 DataScreen 툴바와 동일한 필터 유형(select/date/text)을 지원한다, 예전엔 select만
-       * 지원해 오늘날 없는 sl.filters의 date/text 사용처가 생겨도 조용히 <select>로 잘못 렌더될
-       * 뻔한 계약 불일치가 있었다(공용 목록 필터 규칙과 통일). */}
-      {/* 2026-08 MUI 전환. 예전에는 날것의 <input>/<select> 에 .c-filter 클래스를 붙였는데,
-          날짜 필터가 쓰던 .c-filter-date 와 .c-filter-date-label 은 **정의된 CSS 규칙이 아예
-          없었다** — 라벨과 입력이 스타일 없이 그대로 떴다. 이제 MUI TextField 가 라벨·테두리·
-          포커스 링을 전부 갖고 오므로 그 죽은 클래스도 함께 사라진다. */}
-      {(sl.filters || []).length ? (
-        <Stack direction="row" gap={1.5} flexWrap="wrap" sx={{ mb: 2 }}>
-          {(sl.filters).map((f) => f.type === "date" ? (
-            <TextField
-              key={f.key} type="date" size="small" label={f.label}
-              InputLabelProps={{ shrink: true }} sx={{ minWidth: "11rem" }}
-              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
-            />
-          ) : f.type === "text" ? (
-            <TextField
-              key={f.key} size="small" label={f.label} sx={{ minWidth: "12rem" }}
-              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
-            />
-          ) : (
-            <TextField
-              key={f.key} select size="small" label={f.label} sx={{ minWidth: "11rem" }}
-              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
-            >
-              <MenuItem value="">{f.label}: 전체</MenuItem>
-              {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-            </TextField>
-          ))}
-        </Stack>
-      ) : null}
-      {/* 부모 목록의 capWarning Callout과 동일한 경고 — 이 하위 목록도 백엔드가 페이지당 최대 500건을
-       * 반환한다(app/prompts/router.py). paginated가 아니면(전체를 한 번에 받는 하위 목록) 500건에
-       * 닿았을 때 '더 있을 수 있음'을 알린다(안 알리면 잘린 데이터가 조용히 사라진 것처럼 보인다). */}
-      {/* filterRows(클라이언트 필터)를 쓰는 하위 목록은 필터 후 행 수(rows)가 아니라 서버가 돌려준
-       * 원본(rawRows)이 500건 상한에 닿았는지로 판정해야 한다 — 그렇지 않으면 필터로 몇 건만 남은
-       * 경우 상한 경고가 안 떠서, 잘린 원본 때문에 누락된 항목이 있는데도 완전한 목록처럼 보였다
-       * (예: 정책의 '이 정책을 쓰는 템플릿' — 발행·롤백 전 영향 범위를 이 불완전한 목록으로 오판할 수 있다). */}
-      {!sl.paginated && (sl.filterRows ? rawRows.length >= 500 : rows.length >= 500) ? (
-        <Callout tone="warn">{sl.filterRows
-          ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다, 일부 관련 항목이 누락됐을 수 있습니다."
-          : "결과가 500건으로 제한되어 일부 항목이 보이지 않을 수 있습니다."}</Callout>
-      ) : null}
-      {q.isLoading ? <Skeleton lines={4} />
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        : rows.length === 0 ? <EmptyState title={sl.emptyTitle || "표시할 항목이 없습니다"} help={sl.emptyHelp} />
-        : <>
-            <DataTable columns={cols} rows={rows} rowKey={(r) => r.id || r.version || JSON.stringify(r).slice(0, 24)} />
-            {sl.paginated ? (
-              <Stack component="nav" aria-label="페이지 이동" direction="row" gap={1.5}
-                sx={{ alignItems: "center", justifyContent: "center", mt: 2 }}>
-                <Button size="sm" disabled={subPage <= 1} onClick={() => setSubPage((p) => Math.max(1, p - 1))}>이전</Button>
-                <Typography component="span" aria-live="polite" variant="body2" color="text.secondary">
-                  {totalPages != null ? `${subPage} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${subPage}페이지`}
-                </Typography>
-                <Button size="sm" disabled={totalPages != null ? subPage >= totalPages : rows.length < pageSize} onClick={() => setSubPage((p) => p + 1)}>다음</Button>
-              </Stack>
-            ) : null}
-          </>}
-      {subInfo ? (
-        <Modal open onClose={() => setSubInfo(null)} title={subInfo.title} size="md"
-          footer={<div className="k-footer-row"><div className="k-footer-main"><Button variant="primary" onClick={() => setSubInfo(null)}>확인</Button></div></div>}>
-          <JsonBlock>{subInfo.body}</JsonBlock>
-        </Modal>
-      ) : null}
-    </Drawer>
-  );
-}
-
-// 상세 드로어 필드 병합 — columns와 detailFields를 그냥 이어붙이면 같은 key가 두 화면(예: 러너의
-// base_url/config_version)에 모두 정의된 경우 드로어에 같은 값이 두 번 보인다. key가 겹치면
-// 먼저 오는(columns) 항목만 남기고 detailFields의 중복 항목은 버린다(레지스트리 작성자가 실수로
-// 같은 필드를 두 번 넣어도 드로어가 조용히 두 배로 늘어나지 않게).
-function mergeDetailFields(config, columns) {
-  const seen = new Set();
-  const merged = [];
-  [...(columns || config.columns || []), ...(config.detailFields || [])].forEach((c) => {
-    if (c.key != null) {
-      if (seen.has(c.key)) return;
-      seen.add(c.key);
-    }
-    merged.push(c);
-  });
-  return merged;
-}
-
-function detailTitle(row, columns) {
-  const first = (columns || [])[0];
-  // 열의 render(예: 날짜 KST 포맷)를 존중한다 — 원시 ISO 타임스탬프가 제목으로 새어 나오지 않게.
-  // 단 render가 문자열/숫자가 아닌(배지 등 JSX) 값을 주면 원시 값으로 되돌린다(제목은 문자열이어야 함).
-  if (first && first.render) {
-    const rendered = first.render(row);
-    if (typeof rendered === "string" || typeof rendered === "number") return String(rendered);
-  }
-  // columnsFrom 화면은 응답이 오기 전 한 프레임 동안 열이 비어 있을 수 있다 — 그때 first가
-  // undefined면 여기서 크래시가 난다(드로어가 열려 있는 상태에서만 드러나는 결함).
-  if (!first) return String(row.id || "상세");
-  return String(row[first.key] != null ? row[first.key] : (row.id || "상세"));
-}
-
-// 열/필드 렌더 헬퍼 — registry에서 사용.
-export const badgeCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key]} /> });
-export const mapCol = (key, label, map) => ({ key, label, render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
-export const dateCol = (key, label) => ({ key, label, render: (r) => fmtDateTime(r[key]) });
-// 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는
-// 같은 화면의 필터('사용 중'/'미사용')·체크박스 어휘와 어긋나므로 이 렌더로 통일한다.
-// 미사용(active=false)은 이 화면이 관리하는 핵심 상태(새로 배정 가능 여부를 가른다)라 눈에 잘
-// 안 띄는 중립(neutral) 톤 대신 주의(warn) 톤을 준다 — 훑어보다 놓치기 쉬웠다.
-export const activeCol = (label) => ({ key: "active", label, render: (r) => <Badge value={r.active ? "사용 중" : "미사용"} kind={r.active ? "ok" : "warn"} /> });
-// 외부 링크 열(예: 발행된 Notion 문서) — http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
-export const linkCol = (key, label) => ({ key, label, render: (r) => {
-  const v = r[key];
-  if (v == null || v === "") return "-";
-  const s = String(v);
-  return /^https?:\/\//i.test(s) ? <a href={s} target="_blank" rel="noopener noreferrer">{s}</a> : s;
-} });
-// 긴 문자열을 목록에서 말줄임(…)으로 자르되, title 속성으로 전체 텍스트를 마우스 오버 시 볼 수
-// 있게 한다(예전엔 '길면 말줄임, title 속성으로 전체 확인'이라는 주석만 있고 실제 title이 없었다).
-export const truncateCol = (key, label, max) => ({ key, label, render: (r) => {
-  const v = r[key];
-  if (v == null || v === "") return "-";
-  const s = String(v);
-  return s.length > max ? <span title={s}>{s.slice(0, max) + "…"}</span> : s;
-} });
-// 읽음 여부 — nullable 타임스탬프를 읽음/안읽음 배지로(원시 시각 노출 방지).
-export const readCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key] ? "읽음" : "안읽음"} kind={r[key] ? "neutral" : "warn"} /> });
-// 상세 전용: 객체/JSON 값을 보기 좋게 펼쳐 보여준다(정책 규칙·승인 payload·감사 전후 등).
-export const jsonField = (key, label) => ({ key, label, render: (r) => {
-  const v = r[key];
-  // 빈 객체/배열({}/[])도 '값 없음'으로 취급한다, 서버 기본값이 default_factory=dict인 필드(예:
-  // 연동의 capabilities)는 문자열 "{}"로 JSON.stringify되어 <pre> 블록 안에 그대로 보였다(listField가
-  // 이미 빈 배열을 '-'로 처리하는 것과 동일한 대우로 맞춘다).
-  if (v == null || v === "" || (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0) || (Array.isArray(v) && v.length === 0)) return "-";
-  const text = typeof v === "string" ? v : JSON.stringify(v, null, 2);
-  return <JsonBlock>{text}</JsonBlock>;
-} });
-// 상세 전용: 객체(예: 승인 요청 내용 request_payload)를 최상위 키/값 행으로 펼쳐 읽기 쉽게 보여준다.
-// '내용 없이 승인 금지' 원칙을 위해, 원시 JSON 한 덩어리 대신 각 필드를 라벨로 분해한다. 중첩 객체·
-// 배열은 들여쓴 JSON으로 보여준다. 서버 데이터는 JSX 텍스트로만 렌더(textContent 상당) — CSP/XSS 안전.
-export const objectField = (key, label) => ({ key, label, render: (r) => {
-  const v = r[key];
-  if (v == null || v === "") return "-";
-  if (typeof v !== "object") return <JsonBlock>{String(v)}</JsonBlock>;
-  const entries = Array.isArray(v) ? v.map((x, i) => [String(i), x]) : Object.entries(v);
-  if (!entries.length) return "-";
-  return (
-    <div>
-      {entries.map(([k, val], i) => (
-        <KeyValueRow label={k} key={i}>
-          <Box component="span">{val != null && typeof val === "object"
-            ? <JsonBlock>{JSON.stringify(val, null, 2)}</JsonBlock>
-            : (val == null || val === "" ? "-" : String(val))}</Box>
-        </KeyValueRow>
-      ))}
-    </div>
-  );
-} });
-// 상세 전용: 문자열 배열을 읽기 쉬운 목록으로(품질 문제 등). 배열이 아니면 JSON으로.
-export const listField = (key, label) => ({ key, label, render: (r) => {
-  const v = r[key];
-  if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return "-";
-  if (Array.isArray(v)) return <ul>{v.map((x, i) => <li key={i}>{typeof x === "string" ? x : JSON.stringify(x)}</li>)}</ul>;
-  return <JsonBlock>{typeof v === "string" ? v : JSON.stringify(v, null, 2)}</JsonBlock>;
-} });
-// 상세 전용: 문서 미리보기를 읽을 수 있게(제목·본문·행수·링크). 본문을 JSON 문자열로 뭉개지 않는다.
-// 서버 데이터는 JSX 텍스트로만 렌더(textContent 상당) — innerHTML 미사용(XSS/CSP 안전).
-export const previewField = (key, label) => ({ key, label, render: (r) => {
-  const p = r[key];
-  if (p == null || p === "") return "-";
-  if (typeof p === "string") return <JsonBlock>{p}</JsonBlock>;
-  const links = Array.isArray(p.notion_links) ? p.notion_links : [];
-  return (
-    <div>
-      {p.title ? <div><strong>{String(p.title)}</strong></div> : null}
-      {p.body != null && p.body !== "" ? <JsonBlock>{String(p.body)}</JsonBlock> : null}
-      {p.source_row_count != null ? <div>원본 행 수: {String(p.source_row_count)}</div> : null}
-      {links.length ? <div>{links.map((l, i) => { const s = String(l); return /^https?:\/\//i.test(s)
-        ? <a key={i} href={s} target="_blank" rel="noopener noreferrer">{s} </a>
-        : <span key={i}>{s} </span>; })}</div> : null}
-    </div>
-  );
-} });

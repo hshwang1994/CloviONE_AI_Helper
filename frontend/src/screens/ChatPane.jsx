@@ -43,10 +43,16 @@ import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 let _cseq = 0;
 const nextClientId = () => "c" + Date.now() + "-" + (++_cseq);
 
-// 로그 높이 — 방 페이지는 크게, 홈 위젯은 작게. vh로 화면 비율을 따르되 상·하한은 rem이라
-// 루트 폰트사이즈 레버(styles/root.css)를 따라 4K에서 함께 커진다.
+// 로그 높이 — 방 페이지는 크게, 홈 위젯은 작게. 예전엔 여기서 56vh(뷰포트의 56%)를 목표
+// 높이로 썼다 — 이 컴포넌트를 담는 그릇이 무엇이든 무시하고 화면 자체를 기준으로 재는 값이라,
+// 채팅방(ChatRoom.jsx)처럼 이미 스스로 스크롤하는 그릇 안에 놓이면 그 그릇과 로그가 각자
+// 따로 스크롤바를 그렸다(중첩 스크롤 — 옛 메시지를 보려면 바깥/안쪽 스크롤을 둘 다 만져야
+// 했다, K-H1/K-H3). 목표 높이를 뷰포트 비율 대신 **flex 채움**으로 바꾼다 — 부모가 flex/grid로
+// 실제 높이를 정해 주는 자리(방 페이지)에서는 남는 만큼만 채우고, 그런 부모가 없는 자리(홈
+// 위젯, Card는 내용만큼 자란다)에서는 아래 rem 하한까지만 자연스럽게 줄어든다. 상·하한은
+// 여전히 rem이라 루트 폰트사이즈 레버(styles/root.css)를 따라 4K에서 함께 커진다.
 const LOG_SX = {
-  full: { height: "56vh", minHeight: "18.75rem", maxHeight: "45rem" },
+  full: { flex: "1 1 auto", minHeight: "18.75rem", maxHeight: "45rem" },
   compact: { height: "18.75rem", minHeight: "12.5rem", maxHeight: "25rem" },
 };
 
@@ -267,7 +273,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
       <Box
         ref={logRef}
         sx={{

@@ -86,7 +86,10 @@ function SyncBanner({ sync, canSync, onSync, syncing }) {
   );
 }
 
-const EMPTY_DOC = { title: "", doc_type: "", work_field: "", project: "", tech: [], status: "", priority: "", memo: "", body: "" };
+// 서버(app/team_docs/schemas.py::DocumentCreate)는 owner(소유자)도 받는데, 예전엔 이 폼에
+// 칸이 없어 포털에서 만든 문서는 소유자를 영영 못 채웠다(문서 상세의 '소유자' 줄은 채워질
+// 방법이 없는 값이었다) — 폼↔API 불일치.
+const EMPTY_DOC = { title: "", doc_type: "", work_field: "", project: "", tech: [], status: "", priority: "", owner: "", memo: "", body: "" };
 
 /* 선택 필드 — 렌더 함수 **밖**에 둔다. 예전에는 컴포넌트 본문 안에서 정의해서, 부모가 다시
  * 그려질 때마다 React가 '다른 타입'으로 보고 select를 통째로 새로 마운트했다(포커스·열린
@@ -137,6 +140,7 @@ function DocCreateModal({ open, onClose, options, onCreated }) {
         project: f.project || null,
         status: f.status || null,
         priority: f.priority || null,
+        owner: f.owner,
         memo: f.memo,
         body: f.body,
       },
@@ -167,6 +171,14 @@ function DocCreateModal({ open, onClose, options, onCreated }) {
         <DocSelect id="doc-proj" label="프로젝트" value={f.project} onChange={set("project")} values={projectOptions} />
         <DocSelect id="doc-status" label="상태" value={f.status} onChange={set("status")} values={STATUSES} />
         <DocSelect id="doc-priority" label="우선순위" value={f.priority} onChange={set("priority")} values={PRIORITIES} />
+        {/* 서버가 받는 owner(app/team_docs/schemas.py, 최대 200자) 칸. 문서 상세(TeamDoc.jsx
+            DocMeta)는 값이 있으면 '소유자' 줄을 보여 주는데, 이 칸이 없으면 포털에서 만든
+            문서는 그 값을 절대 채울 수 없었다. */}
+        <TextField
+          id="doc-owner" size="small" fullWidth label="소유자"
+          helperText="이 문서를 책임지는 사람(선택)"
+          inputProps={{ maxLength: 200 }} value={f.owner} onChange={set("owner")}
+        />
       </Box>
       <Box sx={{ mt: 2.5 }}>
         <Typography variant="body2" color="text.secondary" component="div" id="doc-tech-label" sx={{ mb: 1 }}>기술 태그</Typography>

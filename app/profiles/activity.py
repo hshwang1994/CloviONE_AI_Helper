@@ -55,6 +55,9 @@ OBJECT_LABELS: dict[str, str] = {
     "notion_document": "문서",
     "document_comment": "문서 댓글",
     "document_sync": "문서 동기화",
+    # 강제 재동기화/재색인 트리거(C7). 운영자가 지금 당장 다시 동기화/색인하라고 누른 경로다.
+    "ticket_sync": "티켓 동기화",
+    "search_index": "검색 색인",
     "document_generation": "문서 생성",
     "board_post": "게시글",
     "board_comment": "댓글",

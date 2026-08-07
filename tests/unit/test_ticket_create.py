@@ -164,3 +164,20 @@ def test_list_projects_discovers_relation_db(db, settings):
 def test_title_required_by_schema():
     with pytest.raises(Exception):
         TicketCreate(title="   ", project_id="p1")
+
+
+def test_description_over_line_cap_is_rejected_not_truncated():
+    """설명은 그대로 노션 블록으로 바뀐다(markdown_to_blocks, app/core/notion_blocks.py).
+    그 변환기는 100줄을 넘으면 조용히 잘라내므로, 총 글자 수(4000자)만 보고 통과시키면
+    짧은 줄 150개(1300자 남짓, 4000자 밑)도 뒤 50줄이 소리 없이 사라진다. 여기서 거절해야
+    한다(TicketBodyUpdate와 같은 규칙)."""
+    desc = "\n".join(f"line {i}" for i in range(150))
+    assert len(desc) < 4000  # 글자 수 상한은 통과하는 입력이어야 이 테스트의 의미가 있다
+    with pytest.raises(Exception):
+        TicketCreate(title="t", description=desc)
+
+
+def test_description_within_line_cap_is_accepted():
+    desc = "\n".join(f"line {i}" for i in range(50))
+    tc = TicketCreate(title="t", description=desc)
+    assert tc.description == desc

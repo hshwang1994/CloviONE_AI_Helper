@@ -54,10 +54,12 @@ def chat_unread(db: Session, user, *, config_dir) -> int | None:
         r for r in chat_repo.rooms_for_user(db, user.id)
         if not chat_service.is_hidden_for(r, cursors.get(r.id))
     ]
+    # 방마다 get_member 를 따로 물으면 방 개수만큼 질의가 붙는다(M2, H4 와 같은 함정) —
+    # 한 번에 읽는다. GET /api/team-chat/rooms 가 이미 같은 방식으로 고쳤다(members_for_rooms).
+    members = chat_repo.members_for_rooms_and_user(db, [r.id for r in rooms], user.id)
     total = 0
     for room in rooms:
-        member = chat_repo.get_member(db, room.id, user.id)
-        total += chat_service.unread_for(room, member, cursors.get(room.id))
+        total += chat_service.unread_for(room, members.get(room.id), cursors.get(room.id))
     glob = chat_repo.get_global_room(db)
     if glob is not None:
         total += chat_service.unread_for(glob, None, cursors.get(glob.id))

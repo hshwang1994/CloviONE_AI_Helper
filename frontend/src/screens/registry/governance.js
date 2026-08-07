@@ -214,7 +214,18 @@ export const GOVERNANCE_SCREENS = {
     // — 감사·조사 화면 특성상(넓은 기간을 훑어야 함) 페이지당 더 많이 받아 클릭 수를 줄인다.
     pageSize: 100,
     filters: [
-      { key: "object_type", type: "select", label: "대상", options: OBJTYPE_OPTS },
+      // OBJTYPE_OPTS(shared.js)에는 organization·feature_flag가 빠져 있었다 — 둘 다 백엔드가
+      // 실제로 기록하는 object_type이고(app/org/router.py, app/admin/feature_flags.py), 이
+      // 화면과 같은 파일(governance.js)의 organizations·feature-flags가 아니라 org.js/platform.js가
+      // "감사 로그에서 보기"로 각각 ?object_type=organization / ?object_type=feature_flag 딥링크를
+      // 이미 건다(org.js:76, platform.js:288) — 그런데 이 드롭다운엔 그 값을 고를 옵션이 없어서
+      // 딥링크로 들어오면 필터는 서버에 그대로 실려 정상 작동하지만(값 자체는 select 컴포넌트가
+      // 검증하지 않는다) 드롭다운은 어떤 옵션과도 맞지 않아 빈 채로 보이고, 사용자가 직접 '조직'
+      // 이나 '기능 플래그' 대상만 골라 보려 해도 목록에 없어 고를 수 없었다(F15와 동일한 부류 —
+      // 감사 대상 옵션 누락). shared.js의 OBJTYPE_OPTS 자체는 이 작업의 편집 범위 밖이라(governance.js
+      // 만 손볼 수 있다) 이 화면이 실제로 쓰는 옵션 목록에서 두 값을 보강한다.
+      { key: "object_type", type: "select", label: "대상", options: [...OBJTYPE_OPTS,
+        { value: "organization", label: "조직" }, { value: "feature_flag", label: "기능 플래그" }] },
       // 특정 엔티티에 일어난 모든 사건을 추적한다(상세의 '대상 ID'·부서/직책 상세 id를 붙여넣는다).
       { key: "object_id", type: "text", label: "대상 ID" },
       // 감사 action은 백엔드가 정확 일치(==)로 필터한다(router: AuditLog.action == action). 실제 값은

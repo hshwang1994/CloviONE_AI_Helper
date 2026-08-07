@@ -178,4 +178,33 @@ describe("오프보딩 화면", () => {
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).getByRole("button", { name: "되돌리기" })).toBeInTheDocument();
   });
+
+  it("대상·실행자 이름을 못 받으면 UUID 대신 '알 수 없음'을 보여준다", async () => {
+    // 서버가 이름을 못 주는 경우(탈퇴·조인 실패 등) — 목록/상세 모두 raw UUID가 새어 나가면
+    // 안 된다(E-4). user_name/actor_name이 비어 있고 id만 있는 실행 이력.
+    const NO_NAME_RUN = {
+      ...RUN_ROW, id: "run-2", user_name: null, actor_name: null,
+      user_id: "11111111-1111-1111-1111-111111111111",
+      actor_user_id: "22222222-2222-2222-2222-222222222222",
+    };
+    runs = [NO_NAME_RUN];
+    apiMock.mockImplementation((path, opts) => {
+      const method = (opts && opts.method) || "GET";
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [LEAVER], total: 1, page_size: 20 });
+      if (path.startsWith("/api/admin/offboarding?")) {
+        return Promise.resolve({ items: runs, total: runs.length, page: 1, page_size: 20 });
+      }
+      if (path === "/api/admin/offboarding/run-2") return Promise.resolve({ run: { ...NO_NAME_RUN, moves: [] } });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderScreen();
+
+    const openRun = await screen.findByRole("button", { name: "상세 보기" });
+    await user.click(openRun);
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).queryByText(/1{8}-1{4}-1{4}-1{4}-1{12}/)).not.toBeInTheDocument();
+    expect(within(drawer).queryByText(/2{8}-2{4}-2{4}-2{4}-2{12}/)).not.toBeInTheDocument();
+    expect(within(drawer).getAllByText("알 수 없음").length).toBeGreaterThan(0);
+  });
 });

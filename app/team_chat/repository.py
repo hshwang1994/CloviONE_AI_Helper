@@ -73,6 +73,30 @@ def members_for_rooms(db: Session, room_ids: list[str]) -> dict[str, list[ChatRo
     return out
 
 
+def members_for_rooms_and_user(
+    db: Session, room_ids: list[str], user_id: str
+) -> dict[str, ChatRoomMember]:
+    """room_id → 그 사용자 한 명의 멤버 행. 안읽음 합계처럼 '나'만 필요한 호출자용(M2).
+
+    `members_for_rooms` 는 방마다 참여자 전원을 실어 목록 화면(이름 해석)에 맞지만, 안읽음
+    합계처럼 내 멤버 행 하나만 필요한 호출자가 그걸 쓰면 남의 멤버 행까지 긁어 온다. 이
+    함수는 `user_id` 로 한 번 더 좁혀 필요한 행만 읽는다. 방 하나씩 `get_member` 를 부르면
+    방 개수만큼 질의가 늘어난다 — `app/home/readers.chat_unread` 가 그 함정이었다.
+    """
+    if not room_ids:
+        return {}
+    rows = (
+        db.execute(
+            select(ChatRoomMember).where(
+                ChatRoomMember.room_id.in_(list(room_ids)), ChatRoomMember.user_id == user_id
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {row.room_id: row for row in rows}
+
+
 def last_messages_for_rooms(db: Session, room_ids: list[str]) -> dict[str, ChatMessage]:
     """room_id → 마지막(삭제 안 된) 메시지. 방 개수와 무관하게 **질의 두 번**이다 (H4).
 

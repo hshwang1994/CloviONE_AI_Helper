@@ -20,13 +20,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, RateLimitedError
 from app.core.scope import Scope, scope_allows_user
 from app.impersonation.models import (
     END_MANUAL,
@@ -37,6 +37,21 @@ from app.users.models import ROLE_SYSTEM_ADMIN, User, role_rank
 # 임퍼소네이션 최대 지속 시간. 넘으면 다음 요청에서 자동 종료된다 — 관리자가 창을 닫고
 # 잊어버린 세션이 8시간짜리 절대 만료까지 남의 화면을 열어 두는 상황을 막는다.
 MAX_DURATION_SECONDS = 30 * 60
+
+# ── 남용 방지: 짧은 시간에 서로 다른 대상을 훑어보는 패턴 (H3) ──────────────────────
+#
+# 값을 여기 상수로 뺀다(app/core/config.py 의 "매직 넘버를 이름 붙은 값으로" 관례를
+# 따른다 — MAX_DURATION_SECONDS 도 같은 자리에 같은 방식으로 있다). Settings 클래스에
+# 넣지 않은 이유: 이 파일이 이미 그 관례를 쓰고 있고, 이 상수들은 이 모듈의 판정
+# 로직에서만 읽힌다(다른 라우터가 참조할 이유가 없다).
+#
+# 창(WINDOW) 안에서 **새로운(그 창에서 아직 안 본)** 대상이 이 개수를 넘으면 막는다.
+# 이미 그 창 안에서 시작한 적 있는 대상을 다시 여는 것은 세지 않는다 — 지원 업무는
+# 흔히 같은 계정을 여러 번 드나든다(문의 확인 → 종료 → 재확인). 반대로 짧은 시간에
+# 서로 다른 여러 계정을 잇달아 여는 것은 지원 업무로는 드물고, 계정을 훑어보는
+# 남용(또는 탈취된 관리자 계정의 정찰) 패턴에 해당한다.
+IMPERSONATION_RATE_LIMIT_MAX_TARGETS = 3
+IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS = 10 * 60
 
 
 def can_impersonate(actor: User, target: User) -> tuple[bool, str]:
@@ -50,6 +65,46 @@ def can_impersonate(actor: User, target: User) -> tuple[bool, str]:
     if actor.role != ROLE_SYSTEM_ADMIN and role_rank(target.role) >= role_rank(actor.role):
         return False, "자신과 같거나 더 높은 권한의 계정은 임퍼소네이션할 수 없습니다."
     return True, ""
+
+
+def _recent_distinct_targets(
+    db: Session, *, actor_id: str, since: datetime
+) -> dict[str, datetime]:
+    """actor_id 가 since 이후 시작한 대리 보기의 **대상별 최초 시작 시각**.
+
+    같은 대상을 여러 번 시작했으면 그중 가장 이른 시각만 남긴다 — 창이 언제 풀려
+    새 대상을 다시 허용할지 계산하려면(재시도 대기 시간) 가장 오래된 진입 시각이
+    필요하다. 종료 여부는 보지 않는다: 이미 끝난 세션도 '그 시간에 그 대상을
+    열었다'는 사실 자체가 남용 판정의 재료이기 때문이다.
+    """
+    rows = db.execute(
+        select(ImpersonationSession.target_user_id, ImpersonationSession.started_at)
+        .where(
+            ImpersonationSession.actor_user_id == actor_id,
+            ImpersonationSession.started_at >= since,
+        )
+        .order_by(ImpersonationSession.started_at.asc())
+    ).all()
+    seen: dict[str, datetime] = {}
+    for target_id, started_at in rows:
+        seen.setdefault(target_id, started_at)
+    return seen
+
+
+def _check_distinct_target_rate_limit(
+    db: Session, *, actor: User, target: User, now: datetime
+) -> None:
+    """새로운 대상이면, 창 안에서 이미 본 대상 수가 한도 미만일 때만 통과시킨다."""
+    window_start = now - timedelta(seconds=IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS)
+    recent = _recent_distinct_targets(db, actor_id=actor.id, since=window_start)
+    if target.id in recent or len(recent) < IMPERSONATION_RATE_LIMIT_MAX_TARGETS:
+        return
+    oldest = min(recent.values())
+    retry_after = IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS - (now - oldest).total_seconds()
+    raise RateLimitedError(
+        "짧은 시간 안에 너무 많은 사용자를 대리 보기했습니다. 잠시 후 다시 시도하세요.",
+        retry_after_seconds=max(retry_after, 1.0),
+    )
 
 
 def active_for_session(db: Session, session_id: str) -> ImpersonationSession | None:
@@ -82,6 +137,11 @@ def start(
         raise ForbiddenError(why)
     if session.impersonated_user_id:
         raise ConflictError("이미 임퍼소네이션 중입니다. 먼저 종료해 주세요.")
+    # 남용 방지 (H3-a): 짧은 시간에 서로 다른 대상을 훑어보는 패턴을 막는다.
+    # 스코프·권한 판정 뒤, 실제로 행을 만들기 전에 확인한다 — 통과 못 할 시도까지
+    # 한도에 넣지 않는다(안 그러면 접근 불가 사용자에 대한 반복 시도로 정상적인
+    # 임퍼소네이션이 막히는 결과가 된다).
+    _check_distinct_target_rate_limit(db, actor=actor, target=target, now=now)
 
     row = ImpersonationSession(
         actor_user_id=actor.id,
