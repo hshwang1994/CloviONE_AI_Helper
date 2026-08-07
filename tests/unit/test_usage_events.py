@@ -65,8 +65,10 @@ def test_the_guard_above_is_not_vacuous():
 
 
 def test_record_usage_writes_a_row(db):
+    from app.org.constants import DEFAULT_ORG_ID
+
     row = record_usage(
-        db, event=EVENT_LOGIN, user_id="u-1", org_id="org-1",
+        db, event=EVENT_LOGIN, user_id="u-1", org_id=DEFAULT_ORG_ID,
         object_type="user", object_id="u-1", meta={"via": "web"},
         now=datetime(2026, 8, 3, 9, 0, 0),
     )

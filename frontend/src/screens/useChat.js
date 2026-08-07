@@ -19,7 +19,17 @@ import {
  * 포커스 이동·스크롤 고정·자동 높이가 전부 상태 전이의 일부라서, 화면 쪽에 두면 두 곳으로 쪼개진다.
  */
 
-export function useChat() {
+/**
+ * @param {{pasteEnabled?: boolean}} [options]
+ *   `pasteEnabled` — 이 대화가 지금 **화면에 보이는 컴포저**인가. 문서 전역 붙여넣기
+ *   리스너를 걸지 말지를 정한다. 기본은 true(전체 화면 `/chat` 처럼 항상 보이는 경우).
+ *
+ *   왜 옵션이 필요한가: `AssistantDrawer` 는 셸이 항상 마운트한다(닫아도 대화가 살아
+ *   있어야 하므로 `keepMounted`). 그래서 이 훅도 모든 화면에서 돌고, 문서에 건 붙여넣기
+ *   리스너가 **앱 전체의 Ctrl+V 를 가로챘다.** 팀 채팅 컴포저는 `preventDefault` 만 하고
+ *   전파를 막지 않으므로, 방에 보낸 스샷이 동시에 열지도 않은 AI 대화의 첨부로 담겼다.
+ */
+export function useChat({ pasteEnabled = true } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const [cid, setCid] = useState(null);
@@ -340,7 +350,10 @@ export function useChat() {
   }, []);
 
   // 스샷 붙여넣기(Ctrl+V) — 클립보드의 이미지 파일을 컴포저로 바로 넣는다(가장 자연스러운 첨부).
+  // 보이지 않는 컴포저는 붙여넣기를 가져가면 안 된다(위 pasteEnabled 주석) — 그때는 리스너를
+  // 아예 걸지 않는다. 걸어 두고 안에서 무시하면 preventDefault 가 이미 나간 뒤라 늦다.
   useEffect(() => {
+    if (!pasteEnabled) return undefined;
     const onPaste = (e) => {
       if (!e.clipboardData || !e.clipboardData.files || !e.clipboardData.files.length) return;
       const imgs = [];
@@ -352,7 +365,7 @@ export function useChat() {
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, []);
+  }, [pasteEnabled]);
 
   useEffect(() => {
     if (stick && bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;

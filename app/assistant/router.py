@@ -58,21 +58,29 @@ def _with_narrative(
     # 호출이 나가기 **전에** 보고, 나간 뒤에 센다 — 실패한 호출까지 상한을 깎으면 러너가
     # 죽은 날 사용자가 쿼터까지 잃는다.
     now = request.app.state.clock.now()
-    if db is not None:
-        ai_quotas.enforce(db, user_id=user.id, now=now)
-    narrative = narrate_service.narrate(
-        request.app.state.outbound_client, settings,
-        kind=body.get("kind", ""), facts=body,
-        requester={"user_id": user.id, "display_name": user.display_name},
-    )
-    # 성공한 호출만 센다. narrate()는 예외를 던지지 않고 {"enabled","text","error"}를
-    # 돌려주므로, 실제로 문장이 나온 경우(text 가 있고 error 가 없음)만 쿼터를 깎는다 —
-    # 러너가 죽은 날 사용자가 아무것도 못 받고 상한만 잃으면 안 된다.
-    if db is not None and (narrative or {}).get("text") and not (narrative or {}).get("error"):
-        ai_quotas.record_call(
-            db, user_id=user.id, org_id=getattr(user, "org_id", None),
-            kind=ai_quotas.KIND_ASSISTANT_NARRATIVE, now=now,
+
+    def _call():
+        return narrate_service.narrate(
+            request.app.state.outbound_client, settings,
+            kind=body.get("kind", ""), facts=body,
+            requester={"user_id": user.id, "display_name": user.display_name},
         )
+
+    if db is None:
+        return {**body, "narrative": _call()}
+
+    # 확인과 기록 **사이에 AI 호출이 통째로 들어 있다** — 그 몇 초가 동시 요청 둘이 같은
+    # 숫자를 읽는 창이었다 (Z15). 이제 한 사람의 판정은 한 번에 하나만 지난다.
+    with ai_quotas.consume(
+        db, user_id=user.id, org_id=getattr(user, "org_id", None),
+        kind=ai_quotas.KIND_ASSISTANT_NARRATIVE, now=now,
+    ) as slot:
+        narrative = _call()
+        # 성공한 호출만 센다. narrate()는 예외를 던지지 않고 {"enabled","text","error"}를
+        # 돌려주므로, 실제로 문장이 나온 경우(text 가 있고 error 가 없음)만 쿼터를 깎는다 —
+        # 러너가 죽은 날 사용자가 아무것도 못 받고 상한만 잃으면 안 된다.
+        if (narrative or {}).get("text") and not (narrative or {}).get("error"):
+            slot.record()
     return {**body, "narrative": narrative}
 
 

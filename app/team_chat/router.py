@@ -69,10 +69,11 @@ def _last_preview(last) -> str:
     return last.body[:80]
 
 
-def _room_summary(db: Session, room, me_id, names, cursor=None) -> dict:
-    mem = repository.members(db, room.id)
+def _room_summary(room, me_id, names, cursor, mem, last) -> dict:
+    """목록 한 줄. **참여자와 마지막 메시지를 인자로 받는다** — 여기서 직접 조회하면
+    방 하나당 질의 두 개가 붙어 목록이 곧 3N+3 이 된다(H4). 그 둘은 호출자가 방 전체를
+    한 번에 읽어 넘긴다(repository.members_for_rooms / last_messages_for_rooms)."""
     my = next((m for m in mem if m.user_id == me_id), None)
-    last = repository.last_message(db, room.id)
     return {
         "id": room.id,
         "kind": room.kind,
@@ -100,27 +101,37 @@ def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depen
     # '나에게만 숨김'한 1:1 은 새 메시지가 오기 전까지 내 목록에서 뺀다(방은 그대로 남는다 —
     # dm_key 가 unique 라 soft-delete 하면 그 사람과 다시 대화를 시작할 수 없다).
     rooms = [r for r in rooms if not service.is_hidden_for(r, cursors.get(r.id))]
+
+    # 아래 두 줄이 이 응답의 비용을 방 개수와 떼어 놓는다 (H4).
+    # 이 목록은 **모든 화면에서** 주기적으로 돈다(사이드바 안 읽음 배지). 예전에는 방마다
+    # 참여자와 마지막 메시지를 따로 물어 방이 늘수록 질의가 3배씩 늘었다 — SQLite 는
+    # writer 가 하나라 사람이 늘면 이 경로가 먼저 막힌다. 이제 방 전체를 한 번에 읽는다.
+    shown = [r for r in rooms if team is None or r.id != team.id]
+    extra = [r for r in (team, glob) if r is not None]
+    all_ids = [r.id for r in shown] + [r.id for r in extra]
+    members_by_room = repository.members_for_rooms(db, all_ids)
+    last_by_room = repository.last_messages_for_rooms(db, all_ids)
     # 상대 이름 해석을 위해 모든 방의 멤버 user_id 를 한 번에 읽는다.
-    all_uids: set[str] = set()
-    for r in rooms:
-        for m in repository.members(db, r.id):
-            all_uids.add(m.user_id)
+    all_uids = {m.user_id for mem in members_by_room.values() for m in mem}
     names = repository.users_by_ids(db, list(all_uids))
+
+    def summary(room):
+        return _room_summary(
+            room, me.id, names, cursors.get(room.id),
+            members_by_room.get(room.id, []), last_by_room.get(room.id),
+        )
+
     # 팀 방은 `items` 에서 뺀다 — 전체 채팅처럼 **따로 실어** 화면이 맨 위에 고정으로
     # 그린다. 목록 안에 섞이면 마지막 대화 시각 순으로 밀려 내려가고, "기본 방" 이라는
     # 성격이 사라진다.
-    items = [
-        _room_summary(db, r, me.id, names, cursors.get(r.id))
-        for r in rooms
-        if team is None or r.id != team.id
-    ]
+    items = [summary(r) for r in shown]
     result = {"items": items}
     unread_total = sum(x["unread"] for x in items)
     if team is not None:
-        result["team"] = _room_summary(db, team, me.id, names, cursors.get(team.id))
+        result["team"] = summary(team)
         unread_total += result["team"]["unread"]
     if glob is not None:
-        result["global"] = _room_summary(db, glob, me.id, names, cursors.get(glob.id))
+        result["global"] = summary(glob)
         unread_total += result["global"]["unread"]
     # 사이드바 '채팅방' 항목의 합계 배지 — 새 폴링을 만들지 않고 이미 도는 이 응답에 실어 준다.
     result["unread_total"] = unread_total
@@ -221,11 +232,21 @@ def _msg_view(m, names, images=None, *, me=None) -> dict:
 
 @router.get("/rooms/{room_id}/messages")
 def room_messages(request: Request, room_id: str, since: int = Query(default=0, ge=0),
+                  idle: bool = Query(default=False),
                   db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """`idle` 은 브라우저가 붙이는 신호다 (X12).
+
+    참이면 폴링은 여전히 오지만 **접속 표시를 갱신하지 않는다** — 모니터만 끄고 간 사람의
+    탭이 밤새 초록 점을 켜 두던 것이 그 때문이었다. 기본값은 거짓이라 이 파라미터를 안
+    붙이는 옛 클라이언트는 예전과 똑같이 동작한다.
+
+    이 값으로 **더 보여 주거나 덜 보여 주지 않는다.** 접근 판정은 아래 `ensure_access` 가
+    그대로 한다 — 클라이언트가 보낸 말이 권한 결정에 끼어들면 그건 다른 종류의 결함이다.
+    """
     room = _get_room_or_404(db, room_id)
     member = service.ensure_access(db, room, me)  # 멤버 아니면 403(전체 채팅만 예외)
     now = request.app.state.clock.now()
-    service.touch_presence(db, room, me, now=now)
+    service.touch_presence(db, room, me, now=now, idle=idle)
     msgs = repository.messages_since(db, room.id, since)
     mem = repository.members(db, room.id)
     names = repository.users_by_ids(db, list({m.sender_user_id for m in msgs if m.sender_user_id} | {m.user_id for m in mem}))

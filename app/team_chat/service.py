@@ -797,7 +797,9 @@ def transfer_owner(db: Session, room: ChatRoom, user: User, *, user_id: str, now
                     client_message_id=None, now=now)
 
 
-def touch_presence(db: Session, room: ChatRoom, user: User, *, now: datetime) -> None:
+def touch_presence(
+    db: Session, room: ChatRoom, user: User, *, now: datetime, idle: bool = False
+) -> None:
     """실제 멤버만 last_seen 갱신. 전체 채팅 방은 멤버십이 없어 아무 것도 쓰지 않는다
     (모든 페이지에서 폴링하는 위젯이 매 조회마다 쓰기를 만들지 않게).
 
@@ -805,10 +807,13 @@ def touch_presence(db: Session, room: ChatRoom, user: User, *, now: datetime) ->
     사실상 스로틀이 아니었고, 읽기 폴링이 그대로 쓰기 부하가 됐다 — SQLite writer 는 하나라
     사람이 늘수록 아무도 아무것도 안 하는 동안에도 쓰기 큐가 찬다.
     온라인 점의 임계값(계획 F)은 2분 이상으로 잡는다 — 30초면 그 창 안에 네 번은 찍혀서
-    실제로 붙어 있는 사람이 깜빡이지 않는다."""
+    실제로 붙어 있는 사람이 깜빡이지 않는다.
+
+    `idle` 은 브라우저가 "폴링은 돌지만 사람은 없다"고 알려 온 값이다 (X12). 판정 규칙은
+    `app/core/presence.py` 한 곳에 있다 — 여기서 다시 해석하지 않는다."""
     if room.is_global:
         return
     member = repository.get_member(db, room.id, user.id)
-    if member is not None and should_touch(member.last_seen, now):
+    if member is not None and should_touch(member.last_seen, now, idle=idle):
         member.last_seen = now
         db.flush()

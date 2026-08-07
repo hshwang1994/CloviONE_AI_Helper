@@ -42,6 +42,16 @@ const LEAF = {
   },
 };
 
+/* 어두운 면(상단바) 위의 글자색. 기준선은 이 자리에서 파일을 바꿔 끼운다 —
+ * brandLockup({inverse:true}) → app/static/brand/logo/clovirassist-logo-horizontal-dark.svg.
+ * 그 파일이 쓰는 값 그대로다: Clovir #FFFFFF, Assist #B7C4FA, 부제 #D4DAF0.
+ *
+ * Clovir 는 currentColor 로 두면 상단바가 물려주는 흰색이 그대로 오므로 여기 없다.
+ * 강조어만 따로 두는 이유: 라이트 면의 브랜드 인디고(#536CD6)는 딥 인디고 상단바 위에서
+ * 배경에 묻힌다. 사용자가 "흰바탕이 너무 크다"고 한 그 흰 판은 이 대비를 흰 면으로
+ * 억지로 만들어 낸 것이었다. 자산이 이미 답을 갖고 있었다. */
+const INVERSE_INK = { accent: "#B7C4FA", subtitle: "#D4DAF0" };
+
 const GRADS = [
   { key: "top", x1: 64, y1: 10, x2: 64, y2: 64, rotate: 0 },
   { key: "right", x1: 118, y1: 64, x2: 64, y2: 64, rotate: 90 },
@@ -95,12 +105,15 @@ export default function BrandLogo({
   subtitle = true,
   width,
   title = "ClovirAssist",
+  // 어두운 면(상단바) 위에 놓을 때. 흰 판을 깔지 않고 자산의 반전 색을 쓴다.
+  inverse = false,
   sx = {},
 }) {
   const theme = useTheme();
   const uid = React.useId().replace(/[:]/g, "");
-  const mode = theme.palette.mode;
-  const accent = theme.palette.primary.main;
+  // 반전은 잎 그라디언트도 한 단계 밝은 세트를 쓴다(-dark.svg 와 같은 값).
+  const mode = inverse ? "dark" : theme.palette.mode;
+  const accent = inverse ? INVERSE_INK.accent : theme.palette.primary.main;
   const w = width != null ? width : markOnly ? 40 : 230;
 
   if (markOnly) {
@@ -158,8 +171,8 @@ export default function BrandLogo({
         <text
           x="163"
           y="119"
-          fill="currentColor"
-          opacity="0.62"
+          fill={inverse ? INVERSE_INK.subtitle : "currentColor"}
+          opacity={inverse ? undefined : "0.62"}
           fontSize="20"
           fontWeight="600"
           letterSpacing="1.6"

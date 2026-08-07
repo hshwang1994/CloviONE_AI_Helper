@@ -32,6 +32,7 @@ Notion 의 `티켓 진행률`(rollup) / `프로젝트 진행률`(formula)은 **�
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime
 
 from sqlalchemy import select
@@ -50,6 +51,8 @@ from app.projects.models import (
     ProjectSyncState,
 )
 from app.tickets import notion_write as tickets_notion_write
+
+logger = logging.getLogger("app.projects.sync")
 
 # 동기화가 덮어쓰는 컬럼. **여기 없는 것은 앱 정본이다** - 부서·코드·목표·진행률 계산값·
 # 헬스·보관 시각은 Notion 에 대응이 없으므로 동기화가 손대면 되돌아오지 않는다.
@@ -152,11 +155,14 @@ def _apply(row: Project, field: str, value) -> bool:
     return True
 
 
-def _upsert(db: Session, p: dict, id_to_user: dict[str, str], now: datetime) -> None:
-    """파싱된 Notion 프로젝트 한 건을 앱 표에 반영한다(있으면 갱신, 없으면 삽입)."""
+def _upsert(db: Session, p: dict, id_to_user: dict[str, str], now: datetime) -> "Project | None":
+    """파싱된 Notion 프로젝트 한 건을 앱 표에 반영한다(있으면 갱신, 없으면 삽입).
+
+    반환값은 호출측이 **진행률을 재계산**할 대상을 고르는 데 쓴다(아래 sync_projects).
+    """
     page_id = p.get("id")
     if not page_id:
-        return
+        return None
     row = db.execute(
         select(Project).where(Project.notion_page_id == page_id)
     ).scalar_one_or_none()
@@ -214,13 +220,20 @@ def _upsert(db: Session, p: dict, id_to_user: dict[str, str], now: datetime) -> 
         #
         # 같은 값을 다시 대입해도 소용없다 - SQLAlchemy 는 값이 같으면 변경으로 세지 않아
         # 그 컬럼이 UPDATE 에서 빠지고, 결국 onupdate 가 이긴다. 안 건드리는 것이 답이다.
-        return
+        #
+        # ⚠️ 그래도 **row 는 돌려준다.** 프로젝트 자신은 안 바뀌었어도 그 프로젝트에 달린
+        # 티켓은 이번 회차에 바뀌었을 수 있다 - 진행률은 티켓을 세므로 재계산이 필요하다.
+        # 호출측이 진행률 재계산 대상을 이 반환값으로 고르기 때문에, 여기서 None 을 주면
+        # "프로젝트 필드는 그대로인데 티켓만 바뀐" 흔한 경우에 진행률이 영원히 안 바뀐다.
+        return row
 
     # "노션 값을 이 행에 반영한 시각" 이다. "언제 확인했나" 가 아니다 - 확인만 하고 같았던
     # 회차는 위에서 그냥 돌아간다. 미러 전체의 신선도는 `ProjectSyncState.last_success_at`
     # 이 답한다(그쪽은 회차마다 갱신된다).
     row.notion_synced_at = now
     row.updated_at = now
+    return row
+
 
 
 def _prune(db: Session, keep: set[str], now: datetime) -> PruneResult:
@@ -288,10 +301,30 @@ def sync_projects(db: Session, *, outbound, settings, now: datetime) -> ProjectS
         id_to_user = _verified_notion_to_user(db)
 
         keep: set[str] = set()
+        touched: list[Project] = []
         for p in rows:
-            _upsert(db, p, id_to_user, now)
+            row = _upsert(db, p, id_to_user, now)
+            if row is not None:
+                touched.append(row)
             if p.get("id"):
                 keep.add(p["id"])
+
+        # 🔴 진행률을 재계산한다. `_upsert` 는 프로젝트 자신의 필드만 채운다 - 진행률은
+        # `ticket_cache` 를 세므로 이 자리가 아니면 아무도 안 부른다. 실제로 안 부르고
+        # 있었고, 운영 프로젝트 22건이 전부 "아직 계산하지 않았습니다" 로 떴다.
+        #
+        # 함수 안에서 import 하는 이유: `service.py` 가 이 모듈을 import 하므로 파일 위에서
+        # 임포트하면 순환 임포트가 된다.
+        #
+        # 한 프로젝트가 터져도 나머지는 계속 돈다(휴지통 정리와 같은 원칙) - 계산 하나가
+        # 이상한 데이터로 죽는다고 이번 동기화 전체를 SYNC_ERROR 로 만들 이유는 없다.
+        from app.projects.service import recompute_progress
+
+        for row in touched:
+            try:
+                recompute_progress(db, row, now=now)
+            except Exception:
+                logger.exception("프로젝트 진행률 재계산 실패: %s", row.notion_page_id)
 
         # 상한에 걸려 일부만 받아왔다면 prune 하지 않는다 - 안 받아온 프로젝트를 'Notion 에서
         # 삭제됨' 으로 오인해 표시하면 멀쩡한 프로젝트에 배지가 붙는다.

@@ -14,10 +14,13 @@ import AlternateEmailRoundedIcon from "@mui/icons-material/AlternateEmailRounded
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
 import { fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
-import { useConfirm, useToast } from "../ui/kit.jsx";
+import { useIdleGetter } from "../lib/idle.js";
+import { Button, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
+import { idlePollDelayMs } from "./teamchat-poll.js";
+import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
@@ -47,7 +50,10 @@ const LOG_SX = {
   compact: { height: "18.75rem", minHeight: "12.5rem", maxHeight: "25rem" },
 };
 
-export function ChatPane({ roomId, compact = false, interval = 2000 }) {
+/* `interval` 은 **대화가 오가는 동안의** 간격이고, `idleMax` 는 아무 말도 없을 때
+ * 물러날 수 있는 상한이다. 조용한 방에서 간격이 배로 늘어나는 규칙은 teamchat-poll.js 에
+ * 있다(그 파일에 이유가 적혀 있다). 상한을 안 주면 base 의 3배까지만 물러난다. */
+export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0 }) {
   const toast = useToast();
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -69,11 +75,48 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
+  /* 이 방이 마지막으로 **바뀐** 시각. 방의 `event_seq` 는 말·삭제·입퇴장 무엇이든 생기면
+   * 오르므로, seq 가 그대로인 응답은 "그동안 아무 일도 없었다" 는 뜻이다. 그 시점을 담아
+   * 두고 조용했던 시간만큼 다음 간격을 늘린다(규칙과 이유는 teamchat-poll.js).
+   * ref 인 이유: 이 값이 바뀐다고 화면이 다시 그려질 이유가 없다. */
+  const lastSeqRef = React.useRef(null);
+  const quietSinceRef = React.useRef(0);
+  React.useEffect(() => { lastSeqRef.current = null; quietSinceRef.current = 0; }, [roomId]);
+
+  /* ⚠️ 이 파일에는 '유휴' 가 **두 개** 있다. 헷갈리면 둘 다 잘못 고친다.
+   *   - 위 `quietSinceRef`: **방이** 조용한가 → 폴링 간격을 얼마로 할까 (teamchat-poll.js)
+   *   - 아래 `userIsIdle`  : **사람이** 자리에 없는가 → 접속 표시를 켜 둘까 (lib/idle.js, X12)
+   * 방이 조용해도 사람은 앉아 있을 수 있고, 사람이 없어도 방은 시끄러울 수 있다. */
+  const userIsIdle = useIdleGetter();
+
   const q = useQuery({
     queryKey: ["team-chat-msgs", roomId],
-    queryFn: () => api(`/api/team-chat/rooms/${roomId}/messages?since=0`),
+    /* `idle=1` 은 "이 폴링을 접속 표시로 세지 말라" 는 뜻이다 (X12). 자리에 있을 때는
+       파라미터를 아예 붙이지 않는다 — 서버 기본값이 곧 '사람 있음' 이라, 이 배선이
+       끊겨도 예전 동작으로 돌아갈 뿐 아무도 사라지지 않는다. */
+    queryFn: () => api(
+      `/api/team-chat/rooms/${roomId}/messages?since=0` + (userIsIdle() ? "&idle=1" : "")
+    ),
     enabled: !!roomId,
-    refetchInterval: hidden ? false : interval,
+    /* 함수 형태를 쓴다 — react-query 는 응답이 들어올 때마다 이 콜백을 다시 부르지만,
+       숫자를 주면 컴포넌트가 **다시 그려질 때만** 간격이 바뀐다. 같은 응답이 반복되면
+       구조적 공유 때문에 화면이 다시 그려지지 않아 간격도 영영 그대로다 — 처음에 숫자로
+       짰다가 재 보니 20요청 그대로였고, 그래서 여기 적어 둔다.
+       아래 계산은 같은 상태에 같은 답을 주는 순수 계산이라 몇 번을 불려도 안전하다. */
+    refetchInterval: (query) => {
+      if (hidden) return false;
+      const st = query.state;
+      const updatedAt = st.dataUpdatedAt || 0;
+      // 아직 한 번도 못 받았으면 '언제부터 조용한지'의 기준선이 없다. 여기서 0 을 기준선으로
+      // 박아 두면 그 0 이 영영 남아 조용한 시간이 항상 0 으로 계산된다(실제로 그랬다).
+      if (!updatedAt) return idlePollDelayMs(interval, 0, idleMax);
+      const nextSeq = (st.data && st.data.seq) || 0;
+      if (lastSeqRef.current !== nextSeq || !quietSinceRef.current) {
+        lastSeqRef.current = nextSeq;
+        quietSinceRef.current = updatedAt;
+      }
+      return idlePollDelayMs(interval, updatedAt - quietSinceRef.current, idleMax);
+    },
     retry: false,
   });
 
@@ -89,7 +132,14 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
   });
   const read = useMutation({
     mutationFn: (seq) => api(`/api/team-chat/rooms/${roomId}/read`, { method: "POST", body: { seq } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }),
+    /* 목록을 **다시 받지 않고** 캐시를 그대로 고친다 (PF3).
+       예전에는 여기서 `invalidateQueries(["team-chat-rooms"])` 를 불렀다. 그 목록은 이 앱에서
+       가장 비싼 조회이고 이미 모든 화면에서 폴링된다 — 메시지 한 통마다 그걸 한 번 더 받는
+       셈이었다. 읽음이 목록에서 바꾸는 값은 그 방의 안 읽음 하나뿐이라 서버에 물을 것이 없다.
+       (규칙과 합계 계산은 teamchat-unread.js 에 있다.) */
+    onSuccess: () => {
+      qc.setQueriesData({ queryKey: ["team-chat-rooms"] }, (prev) => markRoomRead(prev, roomId));
+    },
   });
   // 붙여넣은 이미지 업로드 — FormData 라 api()가 JSON으로 감싸지 않는다(lib/api.js).
   const sendImage = useMutation({
@@ -226,8 +276,11 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
           ...(compact ? LOG_SX.compact : LOG_SX.full),
         }}
       >
-        {q.isPending ? note("불러오는 중…")
-          : q.isError ? note("불러오지 못했습니다.")
+        {/* 세 상태를 **서로 다르게** 그린다 (E-4/E-5).
+            예전에는 셋 다 같은 회색 한 줄이라, 로딩 중인지 서버가 오류를 줬는지 정말로
+            빈 방인지 구분할 방법이 사용자에게 없었다. 실패에는 이유와 '다시 시도' 를 준다. */}
+        {q.isPending ? <Box sx={{ px: 1 }}><Skeleton lines={compact ? 3 : 6} /></Box>
+          : (q.isError && msgs.length === 0) ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
           : msgs.length === 0 ? note("아직 메시지가 없습니다. 먼저 인사해 보세요.")
           : msgs.map((m) => {
             if (m.kind === "system") {
@@ -357,6 +410,18 @@ export function ChatPane({ roomId, compact = false, interval = 2000 }) {
             );
           })}
       </Box>
+      {/* 이미 읽던 대화가 있는데 폴링만 실패한 경우 (E-4).
+          예전에는 이때도 위 분기가 `note("불러오지 못했습니다.")` 를 그려서 **읽고 있던
+          대화 전체가 한 줄로 사라졌다** — 잠깐의 네트워크 끊김이 화면에서는 대화가 지워진
+          것처럼 보였다. 대화는 그대로 두고, 낡았다는 사실만 한 줄로 알린다. */}
+      {q.isError && msgs.length > 0 ? (
+        <Box role="alert" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.75, px: 0.5 }}>
+          <Typography sx={{ fontSize: "0.75rem", color: "error.main" }}>
+            새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
+          </Typography>
+          <Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>
+        </Box>
+      ) : null}
       {/* 붙여넣기 실패·업로드 중 안내 — 컴포저 바로 위에 둬야 원인과 결과가 붙어 보인다. */}
       {sendImage.isPending || composerError ? (
         <Typography

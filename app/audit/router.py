@@ -227,9 +227,31 @@ def audit_anomalies(
 
 
 # 내보내기 상한. 감사 로그는 수십만 행이 될 수 있고, 브라우저가 한 번에 받을 수 있는 양과
-# 사람이 실제로 검토할 수 있는 양은 그보다 훨씬 적다. 잘렸다는 사실은 헤더로 알린다 —
-# 조용히 자르면 "그 시간대엔 아무 일도 없었다"로 잘못 읽힌다.
+# 사람이 실제로 검토할 수 있는 양은 그보다 훨씬 적다.
 EXPORT_MAX_ROWS = 50_000
+
+
+def _truncation_notice(limit: int) -> list[str]:
+    """잘린 파일의 **마지막 줄**. 파일 자체가 자기가 일부라고 말해야 한다.
+
+    ## 왜 헤더로는 부족한가
+
+    예전에는 `X-Export-Truncated` 헤더로만 알렸다. 브라우저는 그 헤더를 사용자에게 보여
+    주지 않는다 — 다운로드 폴더에 떨어진 파일에는 아무 표시도 없다. 감사 담당자는 그
+    파일을 엑셀로 열어 **그게 전부인 줄 알고** 감사 보고서에 붙인다. 그러면 "그 기간엔
+    그것뿐이었다" 라는 결론이 조용히 틀린다. 감사에서 그건 가장 나쁜 종류의 오류다.
+
+    ## 왜 맨 아래인가
+
+    맨 위에 끼우면 머리글이 2행으로 밀려 엑셀의 열이 통째로 어긋나고, CSV 를 읽는 도구는
+    전부 깨진다. 아래에 붙이면 파싱은 그대로이고 사람은 끝까지 스크롤했을 때 본다.
+    파일 이름에도 함께 적어 두는 이유가 그것이다 — 열기 전에도 보이게.
+    """
+    return [
+        f"※ 이 파일은 내보내기 상한 {limit:,}행에서 잘렸습니다. "
+        "조회 결과의 일부만 들어 있으니 감사 보고에 전체로 쓰지 마세요. "
+        "기간을 좁혀 여러 번 내보내면 전부 받을 수 있습니다."
+    ]
 
 
 @router.get("/export.csv")
@@ -260,13 +282,18 @@ def export_audit_logs(
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
         actor_ids=visible_user_ids(db, principal.scope),
     )
+    limit = EXPORT_MAX_ROWS
+    # 상한보다 **한 줄 더** 읽는다. `len(rows) >= limit` 로 판정하면 정확히 상한인 파일이
+    # 거짓으로 "잘렸다"가 된다 — 한 번 거짓말하는 경고는 그다음 진짜 경고도 같이 죽인다.
     rows = (
         db.execute(
-            stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(EXPORT_MAX_ROWS)
+            stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit + 1)
         )
         .scalars()
         .all()
     )
+    truncated = len(rows) > limit
+    rows = rows[:limit]
     actor_ids = {row.user_id for row in rows if row.user_id}
     actor_names: dict[str, dict[str, str]] = {}
     if actor_ids:
@@ -292,11 +319,16 @@ def export_audit_logs(
             row.result, row.client_ip or "", row.request_id or "",
             row.before_json or "", row.after_json or "",
         ])
+    if truncated:
+        writer.writerow(_truncation_notice(limit))
     body = "﻿" + buffer.getvalue()
+    # 파일 이름도 함께 말한다 — 다운로드 폴더에서 이름만 보이는 상황이 흔하고, 그때
+    # `audit-log.csv` 는 "감사 로그 전부"로 읽힌다.
+    filename = f"audit-log-partial-{limit}rows.csv" if truncated else "audit-log.csv"
     headers = {
-        "Content-Disposition": 'attachment; filename="audit-log.csv"',
+        "Content-Disposition": f'attachment; filename="{filename}"',
         "X-Export-Rows": str(len(rows)),
-        "X-Export-Truncated": "1" if len(rows) >= EXPORT_MAX_ROWS else "0",
+        "X-Export-Truncated": "1" if truncated else "0",
         "Cache-Control": "no-store",
     }
     return Response(content=body, media_type="text/csv; charset=utf-8", headers=headers)

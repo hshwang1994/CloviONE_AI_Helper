@@ -27,13 +27,18 @@ from app.org.constants import DEFAULT_ORG_ID
 from app.projects import milestones as milestones_repo
 from app.projects import repository, sync, weekly
 from app.projects.health import (
+    TROUBLE_HEALTH_SCORE,
     HealthInput,
     HealthResult,
     MilestoneFact,
     TaskFact,
     compute_health,
 )
+# 차질 판정은 `health.py` 한 곳이다. 여기서는 이름만 빌려 온다 - `trouble_reasons` 라는
+# 이름을 그대로 쓰면 이 모듈의 다른 함수와 섞여 "여기가 판정하는 자리" 로 읽힌다.
+from app.projects.health import trouble_reasons as compute_trouble_reasons
 from app.projects.models import (
+    PROJECT_STATUSES,
     REPORT_SOURCE_RULE,
     Project,
     ProjectHealthSnapshot,
@@ -242,8 +247,15 @@ def recompute_progress(db: Session, project: Project, *, now: datetime) -> Progr
 
     셀 것이 없으면(`percent is None`) NULL 로 되돌린다 — 0.0 으로 적으면 "작업이 아직 안
     붙었다"와 "붙었는데 하나도 못 끝냈다"가 화면에서 똑같아진다(progress.py 참조).
+
+    🔴 **값이 실제로 안 바뀌면 `updated_at` 을 건드리지 않는다.** 이 함수는 이제 동기화
+    회차마다 프로젝트 전체에 불린다(app/projects/sync.py). 매번 `updated_at = now` 를 쓰면
+    티켓 하나 안 바뀐 프로젝트도 목록 정렬(`updated_at DESC`)의 맨 위로 튀어 오른다 -
+    `sync._upsert` 가 정확히 같은 이유로 이미 지키고 있는 규칙이다.
     """
     result = project_progress(db, project)
+    if project.progress_pct == result.percent:
+        return result
     project.progress_pct = result.percent
     project.updated_at = now
     db.flush()
@@ -399,6 +411,116 @@ def overall_weekly_report(
         "truncated": total > len(projects),
         "source": REPORT_SOURCE_RULE,
         "llm_summary": None,
+    }
+
+
+# ── 프로젝트 대시보드 (요약 집계) ─────────────────────────────────────────────────
+#
+# ## 왜 서버가 집계하는가
+#
+# 목록은 20건씩 잘려 나간다(`PageParams`). 화면이 그 한 장을 세면 "총 22건인데 대시보드는
+# 20건 기준" 이 된다 - 숫자가 그럴듯해서 아무도 신고하지 않는 종류의 오류다. 그래서 집계는
+# 페이지를 모르는 자리(여기)에서, 자르지 않은 표본으로 한다
+# (`repository.summary_rows_in_scope`).
+#
+# ## 범위는 목록과 같은 판정 하나를 지난다
+#
+# `scope_clause` 다. 여기서 조건을 다시 적으면 목록에서 가린 프로젝트가 대시보드 숫자에
+# 섞이고, 그건 목록에 범위를 건 의미를 통째로 없앤다.
+
+# 목록에 싣는 줄 수. `count` 는 언제나 진짜 총계이고 `items` 만 잘린다 - 화면이 "12건" 이라고
+# 쓰면서 5줄을 그리는 어긋남이 구조적으로 안 생긴다(`app/home/aggregate.py` 와 같은 규약).
+DASHBOARD_ITEM_LIMIT = 5
+
+
+def _dashboard_bucket(items: list[dict]) -> dict:
+    return {"count": len(items), "items": items[:DASHBOARD_ITEM_LIMIT]}
+
+
+def project_dashboard(db: Session, principal: Principal, *, today: str) -> dict:
+    """프로젝트 화면 맨 위의 요약. **읽기 전용이고 아무것도 다시 계산하지 않는다.**
+
+    진행률과 헬스는 이미 행에 캐시돼 있다(`recompute_progress`, `record_health_snapshot`).
+    여기서 다시 세면 같은 화면의 목록과 요약이 서로 다른 숫자를 말할 수 있다.
+
+    ## 평균 진행률에서 None 을 0 으로 세지 않는다
+
+    `progress_pct` 가 NULL 인 것은 "아직 한 번도 계산 안 했다" 지 0% 가 아니다. 0 으로 세면
+    프로젝트를 새로 만들 때마다 팀 전체의 평균이 떨어지고, 그 하락에는 아무 의미가 없다.
+    분모에서 빼고, **몇 건을 못 셌는지**를 함께 낸다 - 안 말하면 "평균 41%" 가 22건의 평균인지
+    3건의 평균인지 알 수 없다.
+
+    ## Health 가 NULL 인 것은 '하위' 가 아니다
+
+    아직 안 잰 것이다. 0 점(재 봤더니 나쁨)과 뭉치면 한 번도 안 잰 프로젝트가 전부 빨갛게
+    떠서 진짜 차질이 그 안에 묻힌다. 판정은 `health.trouble_reasons` 하나가 한다.
+    """
+    rows = repository.summary_rows_in_scope(db, principal.scope)
+
+    by_status = {status: 0 for status in PROJECT_STATUSES}
+    trouble: list[dict] = []
+    percents: list[float] = []
+    unscored = 0
+    for row in rows:
+        # 모르는 상태 값(옛 행, 손으로 넣은 값)도 세긴 세야 총합이 맞는다. 미리 만든 칸이
+        # 없으면 그 자리에서 만든다 - 조용히 빼면 상태별 합이 전체 건수보다 작아진다.
+        by_status[row.status] = by_status.get(row.status, 0) + 1
+        if row.progress_pct is not None:
+            percents.append(float(row.progress_pct))
+        if row.health_score is None:
+            unscored += 1
+        reasons = compute_trouble_reasons(row.notion_status, row.health_score)
+        if reasons:
+            trouble.append({
+                "project_id": row.id,
+                "name": row.name,
+                "code": row.code,
+                "status": row.status,
+                "health_score": row.health_score,
+                "progress_pct": row.progress_pct,
+                "notion_status": row.notion_status,
+                "reasons": reasons,
+            })
+
+    # 나쁜 것이 위로(점수 낮은 순), 같으면 이름순. 순서를 고정해야 같은 화면을 두 번 열어도
+    # 잘려 나가는 줄이 바뀌지 않는다. 점수가 없는 차질(노션 사유만)은 뒤로 보낸다.
+    trouble.sort(key=lambda p: (
+        p["health_score"] if p["health_score"] is not None else TROUBLE_HEALTH_SCORE + 1,
+        p["name"],
+    ))
+
+    overdue = [
+        {
+            "id": milestone.id,
+            "project_id": project_id,
+            "project_name": project_name,
+            "name": milestone.name,
+            "due_on": milestone.due_on,
+            "status": milestone.status,
+        }
+        for milestone, project_id, project_name
+        in repository.overdue_milestones_in_scope(db, principal.scope, today=today)
+    ]
+
+    return {
+        # 판정 기준일을 응답에 싣는다. 화면이 직접 오늘을 구하면 브라우저 시간대로 판정하게
+        # 되고, KST 09:00 이전에는 하루 밀린 '지연' 을 그린다(§불변 9).
+        "today": today,
+        "total": len(rows),
+        "by_status": by_status,
+        "progress": {
+            # 소수 한 자리. 화면이 그 자리까지만 그린다(project-format.js::percentText).
+            "average_pct": round(sum(percents) / len(percents), 1) if percents else None,
+            "counted": len(percents),
+            # 안 센 건수를 감추지 않는다. 감추면 "평균 41%" 의 표본을 알 수 없다.
+            "not_counted": len(rows) - len(percents),
+        },
+        "health": {
+            # 차질 0건이 "다 건강하다" 인지 "아무것도 안 쟀다" 인지는 완전히 다른 사실이다.
+            "unscored": unscored,
+            "trouble": _dashboard_bucket(trouble),
+        },
+        "milestones": {"overdue": _dashboard_bucket(overdue)},
     }
 
 

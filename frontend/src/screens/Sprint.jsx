@@ -18,6 +18,7 @@ import {
   SPRINT_FIELDS, SPRINT_REPORT_FIELDS, TicketEmptyState, TicketFilterBar, clearTicketFilters,
   hasTicketFilter, matchesTicketFilters, ticketFilterSpec,
 } from "./TicketFilterBar.jsx";
+import { BASELINE_TRACKS, TILE_GRID_GAP, TILE_PADDING } from "../ui/density.js";
 
 /* 도우미 > 주간 스프린트 회의. 한 화면에서 (1) 그 주의 담당자별 티켓, (2) 계획 티켓을 본다.
  * 편집은 회의 중 바로 — 기존 티켓 API 재사용. 데이터는 조회 전용.
@@ -181,6 +182,22 @@ function sprintRowMatches(row, filters, fields) {
  * 앱 user_id 가 없는 사람(앱에 연결되지 않은 Notion 계정, 예: '(미확인 담당자)')은 누를 수
  * 없다. 담당자 조건은 앱 user_id 로만 걸 수 있어서다(스펙 §12.3 — 브라우저는 소스 user id 를
  * 주지도 받지도 않는다). 누를 수 있는 척 그려 놓고 아무 일도 안 일어나게 두지 않는다. */
+/* 담당자 현황 카드 줄.
+ *
+ * 담는 정보는 이름 한 줄 + 숫자 셋이다. 기준선에서 이만한 정보를 담는 자리는
+ * `.admin-health`(작은 상태 타일 한 줄, 5열 + 12px 간격 + 16px 패딩)다 — `.card.pad`(20px)
+ * 급의 큰 카드가 아니다. 3열로 벌려 두면 한 장이 500px 를 넘어 이름 옆이 통째로 빈다
+ * (사용자 지적: "담당자 현황 카드도 정보에 비해서 카드가 너무 큰 거 아니야?"). */
+export const PEOPLE_GRID = {
+  display: "grid", gap: TILE_GRID_GAP, alignItems: "stretch",
+  gridTemplateColumns: {
+    xs: "1fr",
+    sm: "repeat(2, minmax(0,1fr))",
+    md: "repeat(3, minmax(0,1fr))",
+    xl: BASELINE_TRACKS.health,
+  },
+};
+
 function PersonCard({ person, active, onPick }) {
   const cells = [
     { label: "건수", value: `${person.assigned || 0}건` },
@@ -195,7 +212,8 @@ function PersonCard({ person, active, onPick }) {
       onClick={onPick}
       aria-pressed={onPick ? !!active : undefined}
       sx={{
-        p: 2.5, textAlign: "left", width: "100%", minWidth: 0,
+        // 여백은 기준선 `.health-card`(16px)다 — 이 타일이 담는 것도 이름 한 줄과 숫자 셋이다.
+        p: TILE_PADDING, textAlign: "left", width: "100%", minWidth: 0,
         // 카드 자신도 격자다 — 이름 줄을 위에, 숫자 줄을 바닥에 붙여 카드끼리 눈금이 맞는다.
         display: "grid", gap: 1.5, alignContent: "space-between",
         font: "inherit", color: "inherit", cursor: onPick ? "pointer" : "default",
@@ -381,12 +399,7 @@ export function Sprint() {
                   {canPick ? " 카드를 누르면 아래 목록이 그 사람 티켓만 남습니다." : ""}
                 </Typography>
                 {busy.length ? (
-                  <Box
-                    sx={{
-                      display: "grid", gap: 2, alignItems: "stretch",
-                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(3, minmax(0,1fr))" },
-                    }}
-                  >
+                  <Box sx={PEOPLE_GRID}>
                     {busy.map((p) => (
                       <PersonCard
                         key={p.user_id || p.name}

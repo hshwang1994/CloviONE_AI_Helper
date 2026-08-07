@@ -22,6 +22,7 @@ from app.conversations.models import (
 from app.core.config import Settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.jobs import repository as jobs_repo
+from app.jobs.models import JOB_TYPE_CHAT_MESSAGE
 from app.users.models import User
 
 _CLIENT_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
@@ -194,7 +195,7 @@ def post_user_message(
 
     job = jobs_repo.enqueue(
         db,
-        job_type="chat_message",
+        job_type=JOB_TYPE_CHAT_MESSAGE,
         payload=_build_job_payload(user, conversation, message, attachments=images),
         now=now,
         user_id=user.id,
@@ -262,7 +263,7 @@ def retry_message(
     # New idempotency key per retry attempt — the original is spent.
     job = jobs_repo.enqueue(
         db,
-        job_type="chat_message",
+        job_type=JOB_TYPE_CHAT_MESSAGE,
         payload=_build_job_payload(user, conversation, message, attachments=attachments),
         now=now,
         user_id=user.id,
@@ -282,7 +283,7 @@ def _recover_attachments_for_retry(db: Session, message_id: str) -> list[dict] |
     rows = (
         db.execute(
             select(Job)
-            .where(Job.message_id == message_id, Job.job_type == "chat_message")
+            .where(Job.message_id == message_id, Job.job_type == JOB_TYPE_CHAT_MESSAGE)
             .order_by(Job.created_at.desc())
         )
         .scalars()

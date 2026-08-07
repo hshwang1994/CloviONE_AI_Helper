@@ -13,6 +13,7 @@ import { LlmConsole } from "../screens/LlmConsole.jsx";
 import { SetupWizard } from "../screens/SetupWizard.jsx";
 import { DevReport } from "../screens/DevReport.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
+import { OrgConsole } from "../screens/OrgConsole.jsx";
 import { Search } from "../screens/Search.jsx";
 import { SchedulerCalendar } from "../screens/SchedulerCalendar.jsx";
 import { REGISTRY } from "../screens/registry.js";
@@ -48,6 +49,10 @@ function RequireRole({ roles, children, help }) {
   return children;
 }
 
+
+/* 조직 콘솔이 대신 그리는 화면 키. `REGISTRY` 에는 설정이 그대로 남아 있다 — 콘솔이 그
+ * 열·필터·폼 정의를 읽어 쓰기 때문이다(OrgConsole.jsx). 여기서는 **라우트만** 가져간다. */
+const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
 
 function AdminRoutes() {
   return (
@@ -89,7 +94,25 @@ function AdminRoutes() {
           </RequireRole>
         }
       />
-      {Object.keys(REGISTRY).map((key) => {
+      {/* 조직 콘솔(OrgConsole.jsx) — 조직 관리, 부서 관리, 조직도가 한 화면이다.
+       *
+       * **세 주소를 모두 남긴다.** 사라진 주소로 들어온 사람은 대시보드로 튕기고(위 `*`
+       * 라우트), 즐겨찾기와 다른 화면의 딥링크(registry/org.js 의 '조직도에서 보기',
+       * '부서 관리에서 열기')가 조용히 끊긴다.
+       *
+       * 리다이렉트 대신 **그 자리에서 열되 오른쪽 패널을 그 종류로 맞춘다.** 리다이렉트는
+       * 해시 쿼리를 버린다 — `#/departments?active=false` 나 저장된 뷰 링크를 열면 필터가
+       * 사라진 다른 화면이 뜨고, 사용자는 링크가 고장 났다고 읽는다. 여기서는 주소가 그대로
+       * 남아 DataScreen 이 그 쿼리를 예전과 똑같이 읽는다(datascreen-view.js 의 parseView 는
+       * 그 화면이 아는 필터 키만 취한다).
+       *
+       * `/org-tree` 의 기본값이 조직인 이유는 OrgConsole.jsx 헤더 주석 참조. */}
+      <Route path="/org-tree" element={<RequireRole roles={SCREEN_ROLES["org-tree"]} help={SCREEN_ROLE_HELP["org-tree"]}><OrgConsole /></RequireRole>} />
+      <Route path="/organizations" element={<RequireRole roles={SCREEN_ROLES.organizations} help={SCREEN_ROLE_HELP.organizations}><OrgConsole defaultKind="organizations" /></RequireRole>} />
+      <Route path="/departments" element={<RequireRole roles={SCREEN_ROLES.departments} help={SCREEN_ROLE_HELP.departments}><OrgConsole defaultKind="departments" /></RequireRole>} />
+      {/* 위 세 화면은 설정만으로 그려지지 않는다(트리 + 관리 패널) — 아래 일괄 등록에서 뺀다.
+          같은 경로를 두 번 등록하면 어느 쪽이 이기는지가 라우터의 정렬 규칙에 달리게 된다. */}
+      {Object.keys(REGISTRY).filter((key) => !ORG_CONSOLE_KEYS.includes(key)).map((key) => {
         const cfg = REGISTRY[key];
         const roles = cfg.roles || SCREEN_ROLES[key];
         const screen = <DataScreen config={cfg} />;

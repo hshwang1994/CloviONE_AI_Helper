@@ -294,6 +294,9 @@ export function TeamDocs() {
   const columns = [
     {
       key: "title", label: "제목",
+      // rowName: 문서를 구별하는 값은 제목이다(ui/rowName.js) — 선택 체크박스가 이 값을
+      // 접근 이름에 쓴다. render 가 있어 표가 원시 값을 읽을 수 없으니 여기서 직접 준다.
+      rowName: (d) => d.title || "제목 없음",
       // 제목(이름)을 눌러야 상세로 간다(행 전체 클릭 없음 — 체크박스 오클릭 방지).
       render: (d) => (
         <Link

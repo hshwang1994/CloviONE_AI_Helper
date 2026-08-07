@@ -5,19 +5,25 @@ import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import {
+  Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
+  Skeleton, useConfirm, useToast,
+} from "../ui/kit.jsx";
 import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { HealthBlock, ProgressPair } from "./ProjectMetrics.jsx";
+import { HealthBlock, ProgressBlock } from "./ProjectMetrics.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
 import {
-  MILESTONE_STATUS_KO, PROJECT_STATUS_KO, deptLabel, periodText,
+  MILESTONE_FORM_FIELDS, MILESTONE_STATUS_KO, PROJECT_FORM_FIELDS,
+  PROJECT_STATUS_KO, PROJECT_WRITE_ROLES, deptLabel, periodText,
 } from "./project-format.js";
 import {
-  useDeptNames, useProject, useProjectHealth, useProjectMilestones,
-  useProjectProgress, useProjectWbs, useProjectWeekly,
+  useCreateMilestone, useDeleteMilestone, useDeptNames, useProject, useProjectHealth,
+  useProjectMilestones, useProjectProgress, useProjectWbs, useProjectWeekly,
+  useUpdateMilestone, useUpdateProject,
 } from "./project-queries.js";
 
 /* 프로젝트 상세 — 개요, WBS 트리, 마일스톤, 티켓, 주간 리포트.
@@ -57,46 +63,134 @@ function MetaRow({ label, children }) {
   );
 }
 
-/* 마일스톤 타임라인. 기한 순서는 서버가 정한다(sort_order → 기한 → id). 화면이 다시 정렬하면
- * 사람이 손으로 정한 순서가 조용히 무시된다. */
-function MilestoneTimeline({ query }) {
+/* 마일스톤 타임라인 + **추가·수정·삭제**.
+ *
+ * 예전에는 읽기만 했다. 그런데 백엔드에는 처음부터 CRUD 가 다 있었고(app/projects/router.py)
+ * 화면에 버튼이 없어서 마일스톤을 노션에서만 만들 수 있었다 - 사용자가 없애라고 한 상태가
+ * 정확히 그것이다("노션에서 설정 및 추가를 못 한다고 생각해라").
+ *
+ * 순서는 서버가 정한다(sort_order → 기한 → id). 화면이 다시 정렬하면 사람이 손으로 정한
+ * 순서가 조용히 무시된다.
+ *
+ * 삭제는 확인을 받는다. 마일스톤에는 딸린 이력이 없어 하드 삭제고(app/projects/milestones.py),
+ * 되돌릴 방법이 없다.
+ */
+function MilestoneTimeline({ projectId, query, canWrite }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [editing, setEditing] = React.useState(null);
+  const create = useCreateMilestone(projectId);
+  const update = useUpdateMilestone(projectId);
+  const remove = useDeleteMilestone(projectId);
+
+  const items = (query.data && query.data.items) || [];
+
+  async function submit(body) {
+    if (editing && editing.id) await update.mutateAsync({ id: editing.id, body });
+    else await create.mutateAsync(body);
+    setEditing(null);
+    toast(editing && editing.id ? "마일스톤을 수정했습니다." : "마일스톤을 추가했습니다.", "success");
+  }
+
+  async function del(m) {
+    const ok = await confirm(
+      "'" + m.name + "' 마일스톤을 삭제할까요? 되돌릴 수 없습니다.",
+      { danger: true, title: "마일스톤 삭제", confirmLabel: "삭제" },
+    );
+    if (!ok) return;
+    try {
+      await remove.mutateAsync(m.id);
+      toast("마일스톤을 삭제했습니다.", "success");
+    } catch (e) {
+      toast((e && e.message) || "마일스톤을 삭제하지 못했습니다.", "error");
+    }
+  }
+
+  const addButton = canWrite ? (
+    <Button variant="primary" size="sm" onClick={() => setEditing({})}>+ 마일스톤 추가</Button>
+  ) : null;
+
+  /* 폼은 목록이 비어 있을 때도 열려야 한다 - 그래서 조기 반환보다 위에서 그린다.
+     `editing` 이 `{}` 면 추가, id 가 있으면 수정이다. */
+  const form = (
+    <FormModal
+      open={!!editing}
+      title={editing && editing.id ? "마일스톤 수정" : "마일스톤 추가"}
+      fields={MILESTONE_FORM_FIELDS}
+      initial={editing && editing.id ? editing : { status: "planned", sort_order: 0 }}
+      submitLabel={editing && editing.id ? "저장" : "추가"}
+      onSubmit={submit}
+      onClose={() => setEditing(null)}
+    />
+  );
+
   if (query.isPending) return <Card><Skeleton lines={5} /></Card>;
   if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
-  const items = (query.data && query.data.items) || [];
+
   if (!items.length) {
     return (
-      <Card>
-        <EmptyState
-          art="tickets"
-          title="마일스톤이 없습니다"
-          help="마일스톤이 하나도 없으면 일정 준수 여부를 판정할 수 없어 Health 에서도 그 항목이 빠집니다."
-        />
-      </Card>
+      <>
+        <Card>
+          <EmptyState
+            art="tickets"
+            title="마일스톤이 없습니다"
+            help="마일스톤이 하나도 없으면 일정 준수 여부를 판정할 수 없어 Health 에서도 그 항목이 빠집니다."
+            action={addButton}
+          />
+        </Card>
+        {form}
+      </>
     );
   }
+
   return (
-    <Card>
-      <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
-        {items.map((m) => (
-          <Box
-            component="li" key={m.id}
-            sx={{ listStyle: "none", display: "flex", gap: 1.5, alignItems: "baseline", flexWrap: "wrap", py: 1.25, borderBottom: 1, borderColor: "divider" }}
-          >
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
-              {m.due_on || "기한 없음"}
-            </Typography>
-            <Typography sx={{ fontWeight: 700, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
-              {m.name}
-            </Typography>
-            <Badge value={MILESTONE_STATUS_KO[m.status] || m.status} />
-          </Box>
-        ))}
-      </Box>
-    </Card>
+    <>
+      <Card>
+        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
+          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>마일스톤</Typography>
+          {addButton}
+        </Stack>
+        <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
+          {items.map((m) => (
+            <Box
+              component="li" key={m.id}
+              sx={{ listStyle: "none", display: "flex", gap: 1.5, alignItems: "baseline", flexWrap: "wrap", py: 1.25, borderBottom: 1, borderColor: "divider" }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
+                {m.due_on || "기한 없음"}
+              </Typography>
+              <Typography sx={{ fontWeight: 700, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
+                {m.name}
+              </Typography>
+              <Badge value={MILESTONE_STATUS_KO[m.status] || m.status} />
+              {canWrite ? (
+                <Stack direction="row" gap={0.5} sx={{ ml: "auto" }}>
+                  <Button
+                    size="sm"
+                    aria-label={"마일스톤 수정: " + m.name}
+                    onClick={() => setEditing(m)}
+                  >
+                    수정
+                  </Button>
+                  <Button
+                    size="sm"
+                    aria-label={"마일스톤 삭제: " + m.name}
+                    onClick={() => del(m)}
+                  >
+                    삭제
+                  </Button>
+                </Stack>
+              ) : null}
+            </Box>
+          ))}
+        </Box>
+      </Card>
+      {form}
+    </>
   );
 }
 
-function Overview({ project, deptNames, progressQuery, healthQuery }) {
+function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, onEdit }) {
   const p = project || {};
   const dept = deptLabel(p, deptNames);
   const progress = progressQuery.data || {};
@@ -104,7 +198,10 @@ function Overview({ project, deptNames, progressQuery, healthQuery }) {
   return (
     <Stack gap={2.5}>
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>개요</Typography>
+        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
+          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>개요</Typography>
+          {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
+        </Stack>
         <Box>
           <MetaRow label="상태">
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
@@ -137,12 +234,9 @@ function Overview({ project, deptNames, progressQuery, healthQuery }) {
         {progressQuery.isPending ? <Skeleton lines={4} />
           : progressQuery.isError ? <ErrorState error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
           : (
-            <ProgressPair
-              appPercent={progress.percent}
-              notionPercent={progress.notion_percent}
-              basis={progress.basis}
-              missingMeans="sample"
-            />
+            /* 포털이 계산한 값 하나만 그린다. 응답에는 `notion_percent` 도 있지만 그리지
+               않는다 - 정본은 포털이고 Notion 은 데이터 소스다(ProjectMetrics.jsx). */
+            <ProgressBlock percent={progress.percent} basis={progress.basis} />
           )}
       </Card>
 
@@ -159,10 +253,13 @@ function Overview({ project, deptNames, progressQuery, healthQuery }) {
 export function Project() {
   const { id } = useParams();
   const nav = useNavigate();
+  const toast = useToast();
+  const auth = useAuth();
   const [state, setState] = useQueryState(DETAIL_SPEC, DETAIL_RESET);
   // 주소를 손으로 고친 사람에게 오류 화면을 주지 않는다 - 모르는 값이면 개요를 보여 준다
   // (`weekly.resolve_week` 가 서버에서 같은 판단을 기록한다).
   const tab = TAB_KEYS.includes(state.tab) ? state.tab : "overview";
+  const [editing, setEditing] = React.useState(false);
 
   const projectQuery = useProject(id);
   const progressQuery = useProjectProgress(id, tab === "overview");
@@ -171,6 +268,10 @@ export function Project() {
   const milestoneQuery = useProjectMilestones(id, tab === "milestones");
   const weeklyQuery = useProjectWeekly(id, state.week, tab === "weekly");
   const deptNames = useDeptNames();
+  const update = useUpdateProject(id);
+
+  const role = (auth.data && auth.data.role) || "";
+  const canWrite = PROJECT_WRITE_ROLES.includes(role);
 
   const back = <Button onClick={() => nav("/projects")}>목록</Button>;
 
@@ -192,6 +293,17 @@ export function Project() {
   }
 
   const project = (projectQuery.data && projectQuery.data.project) || {};
+
+  /* 저장할 때 **편집을 시작한 시점의 지문**을 함께 보낸다.
+   *
+   * 안 보내면 두 사람이 같은 폼을 열어 뒀을 때 나중 사람이 앞사람 변경을 조용히 덮어쓰고
+   * 양쪽 다 성공 화면을 본다(app/projects/sync.py::ensure_not_changed). 서버가 이미 그
+   * 계약을 갖고 있는데 화면이 안 쓰면 배관만 깔려 있고 양 끝이 끊긴 상태다. */
+  async function submitEdit(body) {
+    await update.mutateAsync({ ...body, base_notion_version: project.notion_version });
+    setEditing(false);
+    toast("프로젝트를 저장했습니다.", "success");
+  }
 
   return (
     <div className="c-screen">
@@ -227,6 +339,7 @@ export function Project() {
         <Overview
           project={project} deptNames={deptNames}
           progressQuery={progressQuery} healthQuery={healthQuery}
+          canWrite={canWrite} onEdit={() => setEditing(true)}
         />
       ) : null}
 
@@ -236,7 +349,9 @@ export function Project() {
           : <ProjectWbs data={wbsQuery.data} ticketsLinked={!!project.notion_page_id} />
       ) : null}
 
-      {tab === "milestones" ? <MilestoneTimeline query={milestoneQuery} /> : null}
+      {tab === "milestones" ? (
+        <MilestoneTimeline projectId={id} query={milestoneQuery} canWrite={canWrite} />
+      ) : null}
 
       {tab === "tickets" ? (
         <ProjectTickets
@@ -252,6 +367,16 @@ export function Project() {
           query={weeklyQuery}
         />
       ) : null}
+
+      <FormModal
+        open={editing}
+        title="프로젝트 수정"
+        fields={PROJECT_FORM_FIELDS}
+        initial={project}
+        submitLabel="저장"
+        onSubmit={submitEdit}
+        onClose={() => setEditing(false)}
+      />
     </div>
   );
 }

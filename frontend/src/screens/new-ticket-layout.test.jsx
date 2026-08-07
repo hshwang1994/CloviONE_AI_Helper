@@ -42,9 +42,17 @@ vi.mock("../app/auth.jsx", () => ({
 
 import { NewTicket } from "./MyTickets.jsx";
 import { createClovirTheme } from "../ui/theme.js";
+import { BASELINE_TRACKS } from "../ui/density.js";
 
 /* 실측표(위 주석)의 컨테이너 폭. root 는 styles/root.css 의 루트 폰트사이즈
- * (기본 16px, ≥2200px 18px, ≥3000px 20px) — rem 임계값이 이 값으로 픽셀이 된다. */
+ * (기본 16px, ≥2200px 18px, ≥3000px 20px) — rem 임계값이 이 값으로 픽셀이 된다.
+ *
+ * ⚠️ 이 표는 2026-08-06 에 **레일이 22rem 고정이던 때** 브라우저로 잰 값이다. 2026-08-07 에
+ * 바깥 2열이 기준선 `.grid.two`(1.45 : 0.8 비율)로 바뀌면서 폼 열이 좁아졌다. 계산해 보면
+ * 1920 에서 격자 폭이 1152 → 약 976px(3열이면 한 칸 312px = 19.5rem)이라 아래 16rem 하한은
+ * 여전히 여유가 있고, 2560·3840 은 폼의 72rem 상한이 먼저 걸려 값이 그대로다. 다만
+ * **다시 재지는 않았다** — 브라우저 실측은 서버를 띄워야 해서 이 세션에서 못 했다.
+ * 표를 지우지 않는 이유: 지우면 이 검사가 무엇을 근거로 하는지가 사라진다. */
 const MEASURED = [
   { viewport: 390, container: 308, root: 16 },
   { viewport: 768, container: 670, root: 16 },
@@ -237,7 +245,10 @@ describe("새 티켓 — 필드 격자는 컨테이너 폭으로 열 수를 정�
 describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
   /* Q5(카드 높이 편차) 재발 방지. 이 화면은 레일과 폼의 바닥을 stretch 로 맞춰 뒀고,
    * start 로 되돌렸다가 474px 편차로 잡힌 이력이 있다. 격자를 건드리는 김에 같이 지킨다. */
-  it("바깥 2열은 lg 에서 '폼 + 22rem 레일' 이고 바닥을 stretch 로 맞춘다", async () => {
+  /* 2026-08-07: 레일 폭이 `22rem` 고정에서 기준 목업 `.grid.two` 의 비율 트랙으로 바뀌었다.
+   * 고정 폭은 폭 자체는 채웠지만 넓은 화면에서 레일만 얇은 띠로 남았고, 무엇보다 이 저장소가
+   * 화면마다 손으로 정한 폭이 기준선과 어긋나던 자리다. 값은 `ui/density.js` 한 곳에서 온다. */
+  it("바깥 2열은 lg 에서 기준선 .grid.two 트랙이고 바닥을 stretch 로 맞춘다", async () => {
     renderNewTicket();
     const { grid } = await fieldGrid();
     const outer = grid.closest("form").parentElement.parentElement;
@@ -246,7 +257,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     expect(declaration(base, "align-items")).toBe("stretch");
     const rail = rules.find((r) => /min-width:\s*1200px/.test(r.cond));
     expect(rail, "lg 에서 레일을 세우는 규칙이 사라졌다").toBeTruthy();
-    expect(declaration(rail, "grid-template-columns")).toMatch(/22rem/);
+    expect(declaration(rail, "grid-template-columns")).toBe(BASELINE_TRACKS.two);
   });
 
   it("여섯 개 입력이 모두 그려지고, 제목을 채워 제출하면 티켓을 만든다", async () => {

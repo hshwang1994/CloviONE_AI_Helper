@@ -70,7 +70,10 @@ export function routeContextLabel(pathname) {
 export function AssistantDrawer({ open, onClose }) {
   const nav = useNavigate();
   const loc = useLocation();
-  const chat = useChat();
+  /* 이 드로어는 셸이 **항상** 마운트한다(닫아도 대화가 살아 있어야 하므로 아래 keepMounted).
+     그래서 열려 있을 때만 붙여넣기를 가져간다 — 안 그러면 보이지도 않는 컴포저가 앱 전체의
+     Ctrl+V 를 삼켜, 팀 채팅에 보낸 스샷이 열지도 않은 AI 대화의 첨부로 함께 담긴다. */
+  const chat = useChat({ pasteEnabled: !!open });
   const bodyRef = React.useRef(null);
   const context = routeContextLabel(loc.pathname);
 

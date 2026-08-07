@@ -32,11 +32,15 @@ import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
 import { activeNavPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
+import TopBrand from "./TopBrand.jsx";
+import TopSearch from "./TopSearch.jsx";
 import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
+import { useRouteAnnounce } from "./routeAnnounce.js";
 import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
+import { NOTI_UNREAD, invalidateNotifications } from "./notification-keys.js";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
@@ -66,7 +70,7 @@ function getStoredCollapsed(userId) {
  * 폴링을 새로 만들지 않는다. 채팅방 화면이 이미 같은 queryKey로 방 목록을 받고 있고,
  * 서버가 그 응답에 unread_total을 실어 준다(배지 하나 때문에 엔드포인트를 늘리지 않으려고
  * 그렇게 만들었다). react-query가 옵저버들의 간격 중 **가장 짧은 것**을 쓰므로,
- * 채팅방 화면에 있을 때는 5초, 다른 화면에서는 여기 30초로 돈다 — 사이드바 배지 하나
+ * 채팅방 화면에 있을 때는 5초, 다른 화면에서는 여기 60초로 돈다 — 사이드바 배지 하나
  * 때문에 앱 전체가 5초 폴링을 하지는 않는다.
  */
 /* 어느 사이드바 항목이 어떤 알림 유형을 보여 주는가 (사용자 지적 S2).
@@ -92,16 +96,21 @@ function useNavBadges() {
   const rooms = useQuery({
     queryKey: ["team-chat-rooms"],
     queryFn: () => api("/api/team-chat/rooms"),
-    refetchInterval: 30000,
+    /* 60초다(예전 30초). 이 폴링은 **모든 화면에서** 돌고, 서버쪽에서 방 목록은 가장 비싼
+       조회 축에 속한다(H4). 그런데 이것이 채우는 것은 사이드바 숫자 하나뿐이고, 바로 옆
+       알림 배지는 이미 60초로 돈다 — 두 배지가 서로 다른 속도로 갱신될 이유가 없다.
+       채팅을 실제로 하는 중이면 채팅방 화면이 같은 키를 5초로 관찰하고, react-query 는
+       옵저버들 중 **가장 짧은 간격**을 쓴다. 즉 이 값은 '채팅을 안 보고 있을 때'의 속도다. */
+    refetchInterval: 60000,
     // 배지는 없어도 되는 정보다. 실패하면 조용히 0으로 두고 재시도로 소란 피우지 않는다.
     retry: false,
     staleTime: 10000,
   });
-  // 알림 배지 상태는 **벨이 이미 폴링한다**(NotificationBell 의 `["noti-unread"]`).
+  // 알림 배지 상태는 **벨이 이미 폴링한다**(NotificationBell 의 `NOTI_UNREAD`).
   // 같은 키·같은 엔드포인트를 써서 react-query 가 하나로 합치게 한다 — 폴링을 하나 더
   // 만들면 사이드바가 있다는 이유만으로 요청이 두 배가 된다(PF1 이 지적한 그 부류다).
   const notif = useQuery({
-    queryKey: ["noti-unread"],
+    queryKey: NOTI_UNREAD,
     queryFn: () => api("/api/notifications/unread-count"),
     refetchInterval: 60000,
     retry: false,
@@ -136,9 +145,8 @@ function useClearBadgeOnEntry(pathname, ready) {
     api("/api/notifications/read-types", { method: "POST", body: { types } })
       .then((res) => {
         if (cancelled || !res || !res.read) return;
-        qc.invalidateQueries({ queryKey: ["noti-unread"] });
-        qc.invalidateQueries({ queryKey: ["noti-list"] });
-        qc.invalidateQueries({ queryKey: ["notifications"] });
+        // 알림 캐시는 한 뿌리다 — 한 번이면 벨·팝오버 목록·전체 화면이 다 갱신된다 (PF9).
+        invalidateNotifications(qc);
       })
       .catch(() => { /* 배지가 한 번 더 보일 뿐이다 */ });
     return () => { cancelled = true; };
@@ -331,6 +339,9 @@ export function AppShell({
   const navigate = useNavigate();
   // 탭 제목을 화면마다 다르게 — 정적 <title> 하나뿐이라 어느 탭이 무엇인지 구분이 안 됐다.
   useDocumentTitle(loc.pathname);
+  /* 화면이 바뀌면 포커스를 본문으로 옮기고 그 사실을 한 줄 알린다 (Z14).
+     무엇을 언제 알릴지와 그 이유는 routeAnnounce.js 에 적어 뒀다. */
+  const routeMessage = useRouteAnnounce(loc.pathname);
   const role = auth.data && auth.data.role;
   const userId = auth.data && auth.data.id;
   const name = (auth.data && auth.data.display_name) || "";
@@ -372,9 +383,17 @@ export function AppShell({
   const homeUser = isUser || userSeg;
 
   const drawerContent = (
-    /* 기준 파일의 .sidebar 는 단색이 아니라 위에서 아래로 어두워지는 그라데이션이다 —
-       상단바(딥 인디고)와 이어지고 아래로 갈수록 가라앉아 목록이 길어도 답답하지 않다. */
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", background: "linear-gradient(180deg, #111936 0%, #0A1026 100%)", color: "common.white" }}>
+    /* 기준 파일의 .sidebar 는 단색이 아니라 위에서 아래로 어두워지는 그라데이션이다(기준선의
+       :root --sidebar 는 #111831 단색이지만, "2026-07-31 full rebuild" 구간에서
+       `.sidebar { background: linear-gradient(...) }` 로 다시 선언돼 — CSS는 나중 선언이
+       이기므로 — 기준선이 실제로 그리는 값은 이 그라데이션이다. --sidebar 변수 자체는
+       기준선 안에서도 이 규칙에 다시 쓰이지 않는 죽은 값이다). 상단바(딥 인디고)와 이어지고
+       아래로 갈수록 가라앉아 목록이 길어도 답답하지 않다.
+       리터럴을 여기 박아 두지 않고 tokens.css의 --sidebar-bg 를 참조한다 — 옛 tokens.css는
+       "디자인 시스템은 흰 사이드바다"라고 적혀 있었고 이 값과 어긋나 있었다(사용자 지적:
+       "사이드바가 흰색인데 어두운 남색이어야 한다"). tokens.css를 이 값에 맞춰 고쳤으니
+       이제 여기서도 그 토큰을 그대로 가져와, 두 소스가 다시 갈라지지 않게 한다. */
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--sidebar-bg)", color: "common.white" }}>
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5 }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
@@ -418,6 +437,11 @@ export function AppShell({
 
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
+      {/* 화면 전환 알림 (Z14). 비어 있어도 **항상** 떠 있어야 한다 — 라이브 영역이 내용과
+          같은 순간에 생기면 그 변화를 낭독하지 않는 스크린리더가 있다. 눈에는 보이지 않고
+          (sr-only) 레이아웃도 차지하지 않는다. */}
+      <Box className="sr-only" role="status" aria-live="polite" aria-atomic="true">{routeMessage}</Box>
+
       {/* HashRouter에서 href='#main-content'는 해시를 라우트로 파싱하므로 앵커 대신
           <main>(tabIndex=-1)에 직접 포커스를 준다. 첫 Tab에 나와야 한다. */}
       {!minimal ? (
@@ -469,84 +493,20 @@ export function AppShell({
           ) : null}
 
           {/* minimal(세션 만료) 화면에선 라우팅이 401에 갇혀 해시만 바뀌고 화면은 그대로다 —
-              홈 대신 유일한 실제 CTA인 로그인으로 보낸다(죽은 컨트롤 방지). */}
-          <Button
+              홈 대신 유일한 실제 CTA인 로그인으로 보낸다(죽은 컨트롤 방지).
+
+              로고 칸은 **사이드바 열과 정확히 같은 폭**이다 (사용자 지적). 상단바는 한 줄로
+              보이지만 실제로는 두 구역이다: 왼쪽은 사이드바 위, 오른쪽은 본문 위. 그 경계가
+              아래 사이드바 경계와 어긋나면 두 층이 서로 다른 격자를 쓰는 것처럼 보인다.
+              그래서 검색 막대는 이 칸 **다음**에서 시작한다. 좁은 화면(사이드바가 서랍으로
+              접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */}
+          <TopBrand
             onClick={() => { if (minimal) { window.location.href = "/login"; } else { navigate(homeUser ? "/me" : "/dashboard"); } }}
-            aria-label={minimal ? "로그인 화면으로" : "홈으로"}
-            color="inherit"
-            sx={{
-              /* 로고 칸은 **사이드바 열과 정확히 같은 폭**이다 (사용자 지적).
-                 상단바는 한 줄로 보이지만 실제로는 두 구역이다: 왼쪽은 사이드바 위,
-                 오른쪽은 본문 위. 그 경계가 아래 사이드바 경계와 어긋나면 두 층이
-                 서로 다른 격자를 쓰는 것처럼 보인다.
-                 그래서 검색 막대는 이 칸 **다음**에서 시작한다 — 사이드바 위로 넘어오면 안 된다.
-                 좁은 화면(사이드바가 서랍으로 접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */
-              width: isNarrow ? "auto" : DRAWER_WIDTH,
-              flexShrink: 0,
-              justifyContent: "flex-start",
-              gap: 1.5, textTransform: "none",
-              px: 2.5,
-            }}
-          >
-            {/* 공식 로고 전체 — 사용자 지적 P3("좌상단에 ClovirAssist, 하단에
-                Smart Workspace Assistant 가 들어간 아이콘을 사용해라").
-                예전에는 마크 + 평문 "ClovirAssist" 만 있고 **부제가 빠져 있었다**.
-                `BrandLogo` 는 그 부제까지 그리는 공식 워드마크의 인라인 재현이다.
+            label={minimal ? "로그인 화면으로" : "홈으로"}
+            width={isNarrow ? undefined : DRAWER_WIDTH}
+          />
 
-                흰 판 위에 얹는 이유: 워드마크의 강조어("Assist")가 브랜드 인디고(#536CD6)라
-                딥 인디고 상단바 위에서는 배경에 묻힌다. 자산의 색을 바꾸는 대신 자산이
-                전제하는 밝은 면을 준다 — 로고는 원본 그대로 읽히고 대비도 확보된다.
-                좁은 화면에서는 마크만 남긴다(부제까지 넣을 폭이 없다). */}
-            <Box sx={{
-              bgcolor: "common.white", borderRadius: 1.5, px: { xs: 0.25, sm: 1 }, py: 0.25,
-              display: "grid", placeItems: "center", color: "#1B2235",
-            }}>
-              {/* 폭은 사이드바 칸(264px)에서 버튼 패딩(40)과 흰 칩 패딩(16)을 뺀 값에 맞춘다.
-                  워드마크 viewBox 가 528x156 이라 높이는 폭 x 156/528 이고, 상단바 64px 안에
-                  들어가야 한다(로고 하나가 셸 높이를 밀면 안 된다 — 188px 로 뒀다가 상단바가
-                  72px 이 됐다). 사이드바가 넓어지는 xxl/uhd 에서는 로고도 같이 커진다. */}
-              <BrandLogo
-                markOnly={false}
-                width={{ xs: 158, xxl: 190, uhd: 216 }}
-                sx={{ display: { xs: "none", sm: "block" } }}
-              />
-              <BrandLogo markOnly width={26} sx={{ display: { xs: "block", sm: "none" } }} />
-            </Box>
-          </Button>
-
-          {/* 기준 파일의 상단바 검색(.top-search) — flex:1, max-width 720. 아이콘 버튼 하나만
-              두면 '검색이 있다'는 사실 자체가 안 보인다(§2 "검색 영역도 기준에 맞게").
-              누르면 Ctrl+K 팔레트를 연다 — 입력을 여기서 직접 받지 않는 이유는, 결과 목록이
-              뜰 자리가 상단바에는 없고 팔레트가 이미 그 일(키보드 이동, 그룹, 최근 항목)을
-              하기 때문이다. 되는 척하는 컨트롤이 아니라 **같은 기능의 더 큰 표적**이다.
-              좁은 화면에서는 자리를 차지하지 않게 돋보기 아이콘으로 접힌다. */}
-          {!minimal ? (
-            <Box
-              component="button"
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="통합 검색 열기"
-              sx={{
-                display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1.25,
-                flex: 1, maxWidth: "45rem", mx: 2, height: 40, px: 1.75,
-                border: 1, borderColor: "rgba(255,255,255,.26)", borderRadius: "12px",
-                background: "rgba(10,18,42,.22)", color: "rgba(255,255,255,.86)",
-                cursor: "text", textAlign: "left", font: "inherit",
-                "&:hover": { borderColor: "rgba(255,255,255,.45)" },
-                "&:focus-visible": { outline: "2px solid #fff", outlineOffset: 2 },
-              }}
-            >
-              <SearchRoundedIcon fontSize="small" aria-hidden="true" />
-              <Box component="span" sx={{ flex: 1, fontSize: "0.875rem", minWidth: 0 }}>
-                티켓, 문서, 게시판, 사용자 검색
-              </Box>
-              <Box component="kbd" sx={{
-                flexShrink: 0, fontSize: "0.6875rem", fontWeight: 700, letterSpacing: ".02em",
-                border: 1, borderColor: "rgba(255,255,255,.3)", borderRadius: 1,
-                px: 0.75, py: 0.125, fontFamily: "inherit",
-              }}>Ctrl K</Box>
-            </Box>
-          ) : null}
+          {!minimal ? <TopSearch onOpen={() => setPaletteOpen(true)} /> : null}
 
           {/* 오른쪽 컨트롤을 화면 끝으로 민다 — 사용자 지적 Q3.
               예전에는 이 스페이서가 `minimal` 일 때만 늘어나서, 일반 화면에서는 검색 막대

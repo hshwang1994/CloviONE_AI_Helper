@@ -379,3 +379,44 @@ def compute_health(data: HealthInput) -> HealthResult:
     for rule in RULES:
         rule(data, ledger)
     return ledger.result()
+
+
+# ── '차질' 판정 — 점수 계산이 아니라 **점수를 읽고 고르는** 규칙 ────────────────────
+#
+# 위의 `compute_health` 는 티켓과 마일스톤을 다시 세어 점수를 만든다. 아래는 이미 계산돼
+# 행에 캐시된 값(`health_score`, `notion_status`)만 보고 "사람이 봐야 할 프로젝트인가" 를
+# 고른다 - 값이 싸서 목록/대시보드가 프로젝트마다 부를 수 있다.
+#
+# 🔴 **여기 한 곳에 둔 이유.** 예전에는 이 규칙이 `app/home/work.py` 안에만 있었다. 프로젝트
+# 대시보드가 같은 판정을 다시 적으면 두 화면이 같은 프로젝트를 두고 하나는 '차질', 하나는
+# 아니라고 말하게 되고, 그때 사용자는 둘 다 안 믿는다(이 저장소가 범위 판정에서 네 번 겪은
+# 실수의 같은 모양이다).
+
+# 이 점수 아래면 '차질' 로 본다. 근거: 위 감점 상한이 규칙당 40(지연 작업 비율)·36(마일스톤)·
+# 25(노션 차질)이다. 100 에서 40 넘게 깎였다는 것은 규칙 하나가 통째로 걸렸거나 둘 이상이
+# 겹쳤다는 뜻이고, 그 정도면 사람이 봐야 한다.
+TROUBLE_HEALTH_SCORE = 60
+
+# 사용자에게 보이는 문구다. 가운뎃점과 em 대시를 쓰지 않는다(scripts/check_user_text.py).
+REASON_LOW_HEALTH = "Health 점수 낮음"
+
+
+def trouble_reasons(notion_status: str | None, health_score: int | None) -> list[str]:
+    """이 프로젝트가 차질인 **이유 목록**. 비어 있으면 차질이 아니다.
+
+    이유를 함께 내는 것이 이 판정의 존재 이유다. "차질 3건" 만 보여 주면 그것을 본 팀장이
+    할 수 있는 일이 없다 - 이유가 곧 할 일 목록이다.
+
+    순서는 노션 사유 먼저다. 그쪽은 사람이 직접 '차질' 이라고 적어 둔 것이라 규칙이 계산한
+    점수보다 근거가 강하다.
+
+    **`health_score is None` 은 차질이 아니다.** 아직 한 번도 안 잰 것이지 나쁜 것이 아니다.
+    0 점은 재 봤더니 나쁜 것이라 걸린다. 둘을 뭉치면 한 번도 안 잰 프로젝트가 전부 빨갛게
+    떠서 진짜 차질이 그 안에 묻힌다.
+    """
+    reasons: list[str] = []
+    if (notion_status or "") == NOTION_STATUS_TROUBLE:
+        reasons.append(RULE_LABELS[RULE_NOTION_TROUBLE])
+    if health_score is not None and health_score < TROUBLE_HEALTH_SCORE:
+        reasons.append(REASON_LOW_HEALTH)
+    return reasons

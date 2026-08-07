@@ -42,7 +42,8 @@ PROP_PROJECT_PROGRESS = "프로젝트 진행률"
 # 속성 이름을 바꿔도 후보 중 하나가 맞으면 계속 돈다. 이름 하나 바뀐 날 동기화가 통째로
 # 멈추는 것보다, 맞는 후보로 계속 도는 편이 낫다.
 PROP_ALIASES: dict[str, list[str]] = {
-    "title": [PROP_TITLE, "이름", "Name"],
+    # 이 워크스페이스의 실측 이름이 `프로젝트` 다. 다만 정본은 위 타입 탐색이다.
+    "title": [PROP_TITLE, "프로젝트", "이름", "Name"],
     "status": [PROP_STATUS, "진행상태"],
     "period": [PROP_PERIOD],
     "owner": [PROP_OWNER, "담당자"],
@@ -54,7 +55,23 @@ _MAX_PAGES = 20  # 100건 x 20 = 2000건 상한. 작업 DB 와 같은 규약(무
 
 
 def schema_prop(schema: dict, field: str) -> tuple[str | None, dict | None]:
-    """도메인 필드 이름으로 프로젝트 DB 스키마 속성 (이름, 정의) 을 찾는다."""
+    """도메인 필드 이름으로 프로젝트 DB 스키마 속성 (이름, 정의) 을 찾는다.
+
+    🔴 **제목만은 이름이 아니라 타입으로 찾는다.**
+
+    운영에서 프로젝트 목록이 통째로 `(제목 없음) 262c5c5a-...` 로 떴다. 이 워크스페이스의
+    프로젝트 DB 는 제목 속성 이름이 **`프로젝트`** 인데 별칭표에는 `제목`·`이름`·`Name` 만
+    있었다. 속성이 없으면 예외가 아니라 **그냥 없는 것**이라 조용히 빈 문자열이 됐고,
+    폴백 문구가 UUID 를 그대로 화면에 뿌렸다.
+
+    이름을 더 넣는 것으로는 같은 사고가 또 난다 - 고객마다 이름이 다르고 언제든 바뀐다.
+    Notion DB 에는 **`type: "title"` 인 속성이 정확히 하나** 있고 그것이 곧 제목이다.
+    그 구조를 쓰면 이름이 무엇이든 맞는다. 별칭은 그다음 폴백으로만 남긴다.
+    """
+    if field == "title":
+        for name, prop in (schema or {}).items():
+            if isinstance(prop, dict) and prop.get("type") == "title":
+                return name, prop
     return notion_write.schema_prop(schema, PROP_ALIASES.get(field) or [])
 
 

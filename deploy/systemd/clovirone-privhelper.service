@@ -36,7 +36,13 @@ Environment=CLOVIRONE_SERVICE_USER=clovirone-web
 RuntimeDirectory=clovirone-web-assistant
 RuntimeDirectoryMode=0750
 LogsDirectory=clovirone-web-assistant
-StateDirectory=clovirone-web-assistant
+# 🔴 `StateDirectory=` 를 쓰면 안 된다. systemd 는 그 디렉터리를 **이 유닛의 User:Group 으로
+# chown 하고 모드를 0755 로 맞춘다.** 이 헬퍼는 root:clovirone-web 이라
+# `/var/lib/clovirone-web-assistant` 가 root:clovirone-web 0755 가 되고, 그러면 그룹에
+# 쓰기가 없어 **워커가 worker.lock 을 못 만들어 기동에 실패한다.**
+# 실제 배포에서 그렇게 터졌다(PermissionError, restart 루프).
+# 그 디렉터리는 앱(clovirone-web)의 것이고 설치 스크립트가 소유권을 정한다. 헬퍼는 거기에
+# 아무것도 저장하지 않는다 - 백업은 /var/backups, 감사는 /var/log 로 간다.
 
 # root 로 돌지만 필요 없는 것은 여전히 막는다. ProtectSystem=strict 는 쓸 수 없다 —
 # 이 프로세스의 일 자체가 /etc 쓰기다. 대신 쓸 수 있는 곳을 명시적으로 나열한다.

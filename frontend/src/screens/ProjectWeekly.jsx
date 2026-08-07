@@ -9,7 +9,7 @@ import { useAuth } from "../app/auth.jsx";
 import { Badge, Button, Callout, Card, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
-import { MILESTONE_STATUS_KO } from "./project-format.js";
+import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
 
 /* 주간 리포트 탭.
  *
@@ -26,8 +26,6 @@ import { MILESTONE_STATUS_KO } from "./project-format.js";
  * 이 움직여 "언제 만든 리포트인가"라는 질문 자체가 사라진다. 그래서 저장본이 없으면 없다고
  * 말하고, 저장은 버튼이 시킨다.
  */
-
-const WRITE_ROLES = ["operator", "admin", "system_admin"];
 
 const SECTIONS = [
   ["done", "이번 주 완료"],
@@ -124,7 +122,8 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
   const toast = useToast();
   const qc = useQueryClient();
   const role = (auth.data && auth.data.role) || "";
-  const canWrite = WRITE_ROLES.includes(role);
+  // 역할 목록은 project-format.js 한 곳이다. 화면마다 적으면 한쪽만 고쳐진다.
+  const canWrite = PROJECT_WRITE_ROLES.includes(role);
 
   const save = useMutation({
     mutationFn: () => api(

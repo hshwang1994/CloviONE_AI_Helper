@@ -19,7 +19,15 @@ const BODY_EMOJIS = ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "�
  * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
 export const BODY_MAX_LINES = 100;
 
-export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
+/* label: 입력 상자의 **접근 이름**이다.
+ *
+ * 왜 필요한가: 이 편집기가 곧 '본문 편집' 그 자체인 자리(티켓 본문·문서 본문)에서는 화면에
+ * 딸린 <label> 이 없어, 스크린리더가 이름 없는 여러 줄 입력으로 읽었다 — "편집" 한 마디뿐이라
+ * 무엇을 쓰는 칸인지 알 수 없다. 이 앱에서 가장 많이 쓰는 편집 표면이 그 상태였다.
+ *
+ * 넘기지 않으면 아무 것도 붙이지 않는다. 새 티켓·새 문서 폼은 화면에 보이는 <label htmlFor>
+ * 로 이미 이름을 주고 있어서, 여기서 제 이름을 우기면 **보이는 라벨과 낭독되는 이름이 갈린다**. */
+export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label }) {
   const ref = useRef(null);
   const caret = () => {
     const ta = ref.current;
@@ -56,7 +64,7 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
     <>
       <Box
         role="group"
-        aria-label="본문 서식"
+        aria-label={label ? label + " 서식 도구" : "본문 서식"}
         sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", mb: 1 }}
       >
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목</MuiButton>
@@ -86,6 +94,9 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        /* placeholder 는 이름이 아니다 — 글자를 치는 순간 사라지고, 브라우저·리더에 따라
+           아예 안 읽힌다. 이름은 label 로만 준다. */
+        slotProps={{ htmlInput: label ? { "aria-label": label } : {} }}
       />
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: 700 }}>
         미리보기

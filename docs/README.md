@@ -1,7 +1,15 @@
-# 문서 색인
+# 문서 색인 — **여기서 시작한다**
 
 문서가 서른 개쯤 된다. 어디부터 볼지 몰라 헤매지 않도록 **하려는 일별로** 묶었다.
-저장소 전체의 출발점은 루트 [`README.md`](../README.md) 다.
+저장소 전체의 출발점은 루트 [`README.md`](../README.md) 이고, `docs/` 안의 출발점은 이 파일이다.
+
+> 급하면 이 세 줄만 보면 된다.
+>
+> | 지금 상황 | 여기로 |
+> |---|---|
+> | 장애가 났다 | **[RUNBOOK.md](RUNBOOK.md)** |
+> | 화면 쓰는 법을 모르겠다 | **[USER_GUIDE.md](USER_GUIDE.md)** / **[CONSOLE_SCREENS.md](CONSOLE_SCREENS.md)** |
+> | 이게 되는 기능인지 모르겠다 | **[KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)** |
 
 ---
 
@@ -18,6 +26,7 @@
 | 기능을 새로 만든다 | [EXTENSION_GUIDE.md](EXTENSION_GUIDE.md), [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 코드를 처음 읽는다 | [`CLAUDE.md`](../CLAUDE.md), [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 사용자에게 쓰는 법을 알려 준다 | [USER_GUIDE.md](USER_GUIDE.md), [ADMIN_GUIDE.md](ADMIN_GUIDE.md) |
+| 사이드바에서 처음 본 화면이 무엇인지 모르겠다 | **[CONSOLE_SCREENS.md](CONSOLE_SCREENS.md)** (프로젝트, 아이디어 제안, 초기 설정, 시스템 설정, Notion 관리, AI 관리) |
 | 무엇이 안 되는지 알고 싶다 | [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) |
 | 다음에 무엇을 할지 정한다 | [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) |
 
@@ -54,6 +63,7 @@
 |---|---|
 | [USER_GUIDE.md](USER_GUIDE.md) | 사용자 콘솔 사용 안내 |
 | [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | 관리자 콘솔 안내 |
+| [CONSOLE_SCREENS.md](CONSOLE_SCREENS.md) | 나중에 생긴 화면 여섯(프로젝트, 아이디어 제안, 초기 설정, 시스템 설정, Notion 관리, AI 관리) |
 | [DASHBOARD_METRICS.md](DASHBOARD_METRICS.md) | 화면에 뜨는 모든 숫자의 출처표 |
 | [SCHEDULER.md](SCHEDULER.md) | 스케줄 실행. 별도 데몬이 아니라 worker 안에서 돈다 |
 | [PROMPT_POLICY_MANAGEMENT.md](PROMPT_POLICY_MANAGEMENT.md) | Prompt / Policy / Template 의 불변 버전 모델 |

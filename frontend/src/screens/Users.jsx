@@ -278,18 +278,21 @@ export function Users() {
       // 잠긴(locked) 계정은 활성 상태와 별개 신호라 '활성' 배지만으론 목록에서 구분되지 않는다 —
       // 잠긴 계정은 겉보기엔 활성 계정과 똑같이 보여, 관리자가 이메일을 미리 알고 검색하지 않는 한
       // 목록에서 잠금을 발견할 방법이 없었다. 같은 셀에 잠금 배지를 함께 보여 준다(별도 열 없이).
-      // 보관된 계정은 활성/잠김 배지만으론 일반 계정과 구분되지 않는다 — '보관된 계정 보기'로 섞여
-      // 보일 때 각 행이 보관 상태임을 같은 셀에서 배지로 함께 알린다(위 배너와 짝).
       // 여러 배지를 한 그룹으로 묶는다 — 좁은 화면 카드 뷰에서 배지가 라벨과 함께 흩어지지 않게
       // 하나의 inline-flex 그룹으로 두고, 배지 사이 간격도 gap이 담당한다(예전엔 공백 텍스트 노드였다).
-      key: "active", label: "활성",
-      render: (r) => (
-        <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-          {r.active ? <Badge value="active" /> : <Badge value="disabled" />}
-          {r.locked ? <Badge value="잠김" kind="danger" /> : null}
-          {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
-        </Box>
-      ),
+      // 수명주기(사용 중/비활성/보관됨)는 배타적인 한 개다 — 판정과 이유는 lifecycleBadge 에 있다(X14).
+      // 열 이름도 '활성'이 아니라 '상태'다: 이 열이 답하는 것은 "활성인가"가 아니라 "지금 이
+      // 계정으로 로그인이 되는가, 안 된다면 어느 문을 열어야 하는가"이기 때문이다.
+      key: "active", label: "상태",
+      render: (r) => {
+        const life = lifecycleBadge(r);
+        return (
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+            <Badge value={life.label} kind={life.kind} />
+            {r.locked ? <Badge value="잠김" kind="danger" /> : null}
+          </Box>
+        );
+      },
     },
     // 상세 드로어(Row label="부서"/"직책")는 inactiveSuffix로 '(비활성)'을 붙이는데 목록 열은
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
@@ -544,6 +547,37 @@ const SESSION_COLUMNS = [
   { key: "last_seen_at", label: "최근 활동", render: (s) => fmtDateTime(s.last_seen_at) },
 ];
 
+/* 계정 수명주기 한 줄 (X14).
+ *
+ * ## 무엇이 틀렸었나
+ *
+ * 목록의 '활성' 열은 `r.active` 만 보고 초록 '사용 중' 배지를 그렸다. 그런데 **보관은
+ * `active` 를 건드리지 않는다**(app/users/service.py `archive_user`: "복구했을 때 보관 전
+ * 상태로 정확히 돌아와야 한다"). 그래서 보관된 계정 대부분이 목록에서 **초록 '사용 중'**
+ * 으로 떴다 — 로그인이 막혀 있는데(app/core/deps.py) 화면은 정상 계정이라고 말한 것이다.
+ * 옆에 회색 '보관됨' 칩이 하나 더 붙긴 했지만, 초록 배지와 나란히 있으면 사람은 초록을 읽는다.
+ *
+ * ## 어떻게 고치나
+ *
+ * 세 상태는 **서로 배타적**이고, 정확히 하나만 그린다. 지금 이 계정으로 로그인이 되는지가
+ * 기준이다(그게 관리자가 이 열에서 궁금해하는 유일한 것이다):
+ *
+ *   보관됨   로그인 불가. 목록·검색에서도 빠진다. '복구' 로 되돌린다        (warn)
+ *   비활성   로그인 불가. 목록에는 그대로 남는다. '활성화' 로 되돌린다      (neutral)
+ *   사용 중  로그인 가능                                                    (ok)
+ *
+ * 보관과 비활성의 색을 다르게 준다 — 둘 다 회색이면 "로그인이 안 된다" 는 같은 결론까지만
+ * 전해지고, **되돌리는 방법이 다르다는 것**은 전해지지 않는다. 보관 쪽이 더 무거운 상태라
+ * (목록에서 사라지고 이메일이 잠긴다) 주의 톤을 준다.
+ *
+ * 잠김은 이 축이 아니다 — 비밀번호를 여러 번 틀려서 걸린 **일시적** 상태이고 '잠금 해제' 로
+ * 푼다. 그래서 위 셋과 나란히가 아니라 덧붙는 배지로 남는다.
+ */
+export function lifecycleBadge(row) {
+  if (row.archived_at) return { label: "보관됨", kind: "warn" };
+  return row.active ? { label: "사용 중", kind: "ok" } : { label: "비활성", kind: "neutral" };
+}
+
 // 부서·직책이 비활성화됐는데도 이름만 봐서는 정상처럼 보이는 문제(수정 폼은 이미 처리, 상세는
 // 안 함) — dept/title 목록에서 지금 배정된 id를 찾아 active===false면 '(비활성)'을 덧붙인다.
 // 목록을 아직 못 불러왔거나(로딩/오류) id를 못 찾으면 판단을 보류하고 이름만 보여준다(오탐 방지).
@@ -760,7 +794,21 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
           <LinkButton onClick={copyId}>{copiedId || "복사"}</LinkButton>
         </Row>
         <Row label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</Row>
-        <Row label="활성"><Badge value={d.active ? "active" : "disabled"} /></Row>
+        {/* 목록과 **같은 판정**을 쓴다(X14) — 한쪽만 고치면 같은 계정이 목록에서는 '보관됨'
+            인데 상세에서는 '사용 중'으로 보인다. 보관된 계정은 `active` 가 참인 채로 남아
+            있으므로(복구 때 되돌리려고), 복구하면 어느 상태로 돌아오는지도 함께 말한다. */}
+        <Row label="상태">
+          <Badge value={lifecycleBadge(d).label} kind={lifecycleBadge(d).kind} />
+          {d.archived_at ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              로그인할 수 없고 목록에서도 빠집니다. 복구하면 {d.active ? "사용 중" : "비활성"} 상태로 돌아옵니다.
+            </Typography>
+          ) : !d.active ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              로그인할 수 없습니다. 목록에는 그대로 남아 있고 ‘활성화’로 되돌립니다.
+            </Typography>
+          ) : null}
+        </Row>
         <Row label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</Row>
         {/* 지금 이 사람이 **어디까지 보는지**. 관리자에게만 의미가 있으므로 일반 사용자에는
             안 그린다(전체 범위가 기본값이라 모든 계정에 '전체 포털'이 붙으면 소음이 된다). */}

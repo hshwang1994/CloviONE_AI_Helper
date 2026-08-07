@@ -25,7 +25,7 @@ import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
-import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, statusKind, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
@@ -204,8 +204,14 @@ function RichText({ text }) {
 
 // ── 결과 카드 ───────────────────────────────────────────────────────────────
 
-// 상태 톤 → 카드 왼쪽 색 띠. 배지뿐 아니라 카드 단위로도 상태가 한눈에 읽히게 한다.
-const TONE_PALETTE = { ok: "success", danger: "error", warn: "warning", info: "primary" };
+/* 여기 있던 TONE_PALETTE 는 상태에 따라 카드의 왼쪽에 0.25rem 색 띠를 두르고 테두리·바탕까지
+ * 물들이던 표다. 지웠다.
+ *
+ * 기준선(design/baseline/preview-standalone.html:216)의 카드는 상태와 무관하게 언제나
+ *     .kanban-card { background: var(--surface); border: 1px solid var(--border); }
+ * 이고, 상태를 색으로 말하는 자리는 칩(.chip.ok/.warn/.danger/.info) 하나뿐이다.
+ * 기준선 전체에 상태를 뜻하는 border-left 는 없다. 사용자도 그 색 띠를 쓰지 말자고 했다.
+ * 상태 정보 자체는 아래 <Badge value={t.status}> 가 그대로 전한다 — 지운 것은 색이지 정보가 아니다. */
 
 function CardRow({ label, children }) {
   return (
@@ -216,8 +222,10 @@ function CardRow({ label, children }) {
   );
 }
 
-function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
-  const theme = useTheme();
+/* export 인 이유: 카드의 겉모습(테두리·바탕)이 기준선을 벗어나지 않는지 시험이 직접 본다
+ * (chat-card-chrome.test.jsx). 화면 전체를 띄워서 보면 실패했을 때 원인이 카드인지
+ * 스레드인지 알 수 없다. */
+export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
   const [showAllProjects, setShowAllProjects] = useState(false);
   const url = t.url || t.notion_url || t.link;
   // 담당자, 정/부는 배열(이름 또는 {name})이 올 수 있다, peopleText로 어떤 모양이든 안전하게.
@@ -238,19 +246,15 @@ function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
   // 메시지의) 카드에만 붙인다, 스크롤해 올라간 옛 카드까지 번호를 달면, 더는 안 눌리는 버튼을
   // 여전히 클릭 가능한 것처럼 훈련시킨 그 번호 라벨이 계속 남아 사용자를 오도한다.
   const prefix = typeof index === "number" && onChoose ? index + ". " : (t.number ? "#" + t.number + ", " : "");
-  // 상태 띠는 진짜 티켓(상태 개념이 있는)에만. 프로젝트/일반 항목 카드엔 붙이지 않는다.
-  const tone = isTicket && t.status ? TONE_PALETTE[statusKind(t.status)] : null;
-  const toneColor = tone ? theme.palette[tone].main : null;
   return (
     <Paper
       variant="outlined"
       sx={{
         p: 1.75, display: "grid", gap: 0.5, minWidth: 0,
         borderRadius: 3,
-        borderColor: toneColor ? alpha(toneColor, 0.42) : "divider",
-        bgcolor: toneColor ? alpha(toneColor, 0.06) : "background.default",
-        borderLeftWidth: toneColor ? "0.25rem" : undefined,
-        borderLeftColor: toneColor || undefined,
+        /* 네 변이 같은 중립 테두리다 — 상태는 아래 배지가 말한다(기준선 .kanban-card). */
+        borderColor: "divider",
+        bgcolor: "background.default",
         transition: "box-shadow .15s ease",
         "&:hover": { boxShadow: 1 },
       }}

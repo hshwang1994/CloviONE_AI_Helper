@@ -96,6 +96,9 @@ export function Trash() {
     { key: "type_label", label: "종류", width: "7rem", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
     {
       key: "title", label: "제목",
+      // rowName: 휴지통에서 행을 구별하는 값은 제목이다(ui/rowName.js). 여기가 영구 삭제를
+      // 고르는 표라, 어느 줄을 고르는지 낭독되지 않으면 되돌릴 수 없는 실수가 난다.
+      rowName: (r) => r.title || "제목 없음",
       render: (r) => (safeExternal(r.url)
         ? <Link href={safeExternal(r.url)} target="_blank" rel="noreferrer noopener" underline="hover">{r.title || "제목 없음"}</Link>
         : <span>{r.title || "제목 없음"}</span>),

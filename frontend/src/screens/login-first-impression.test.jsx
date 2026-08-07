@@ -303,6 +303,36 @@ describe("동작 줄이기: 로그인 페이지", () => {
     expect(ui.message.textContent).toBe("오늘 업무를 준비했어요");
   });
 
+  /* 사용자 지적: "접속한 이후에 그냥 마우스를 옮기면 움직이지 않음. 한번 눌러야 눈이 움직임."
+   *
+   * 위 두 시험은 `setState("idle")` 로 상태를 **직접 만들어 놓고** 포인터를 움직인다.
+   * 그래서 화면을 그냥 연 사람이 겪는 경로를 한 번도 지나지 않았다 — 넓은 화면에서는
+   * login.js 가 이메일 칸에 초점을 준다(정적 autofocus 대체, login.js:103). 그 초점 때문에
+   * 등장 인사가 끝나는 자리에서 클로비가 idle 이 아닌 다른 상태로 내려앉으면, 시선 추적은
+   * 시작조차 하지 않는다. 사용자가 "한번 눌러야" 라고 한 그 클릭은 초점을 떼는 클릭이다.
+   *
+   * 기준선(design/baseline/preview-standalone.html:1364, 1368)은 이 자리에서
+   * 언제나 idle 로 내려가고, idle 과 welcome 두 상태에서 포인터를 따라간다. */
+  it("아무것도 누르지 않아도, 화면을 연 그대로 눈이 포인터를 따라간다", async () => {
+    // 넓은 화면 = login.js 가 첫 칸에 초점을 주는 조건.
+    const ui = bootLoginPage({ reduce: false, wide: true });
+    expect(document.activeElement, "넓은 화면 전제가 깨졌다").toBe(ui.email);
+
+    // 등장 인사(welcome 780ms)가 끝나 '쉬는 상태'로 내려갈 때까지 기다린다.
+    await tick(900);
+
+    // 클릭은 한 번도 하지 않는다. 마우스만 왼쪽 끝 → 오른쪽 끝으로 옮긴다.
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 80, clientY: 40, bubbles: true }));
+    await tick(60);
+    const atLeft = ui.stage.style.getPropertyValue("--eye-x");
+
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 900, clientY: 40, bubbles: true }));
+    await tick(60);
+    const atRight = ui.stage.style.getPropertyValue("--eye-x");
+
+    expect(atRight, `눈이 ${atLeft} 에 굳어 있다 — 포인터를 따라가지 않는다`).not.toBe(atLeft);
+  });
+
   it("login.css 가 동작 줄이기에서 애니메이션을 중립화한다", () => {
     // 이 화면에는 SPA 의 theme.js 전역 규칙이 닿지 않는다(Jinja 라 MUI 가 없다).
     // 그래서 같은 규칙이 이 파일에 따로 있어야 한다.

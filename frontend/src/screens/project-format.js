@@ -2,7 +2,7 @@
  *
  * ## 왜 따로 빼는가
  *
- * 목록 카드와 상세가 같은 값을 그린다. 문구를 화면마다 조립하면 "목록에서는 42.9%인데
+ * 목록 표와 상세가 같은 값을 그린다. 문구를 화면마다 조립하면 "목록에서는 42.9%인데
  * 상세에서는 43%" 같은 어긋남이 생기고, 사용자는 그것을 계산이 틀린 것으로 읽는다.
  * 서버가 진행률과 헬스를 한 함수에 모아 둔 것과 같은 이유다(app/projects/progress.py).
  *
@@ -17,6 +17,14 @@
  * 못 끝낸 프로젝트"가 화면에서 똑같아 보이고, 그럴듯해서 아무도 신고하지 않는다.
  * 그래서 두 상태에 **서로 다른 문구**를 준다.
  */
+
+/* 프로젝트를 만들고 고칠 수 있는 역할. 서버의 `CONSOLE_OPS_ROLES`(app/core/authz.py)와
+ * **같은 목록**이다. 여기가 서버보다 넓으면 사용자가 버튼을 눌러 놓고 403 을 받고, 좁으면
+ * 권한이 있는 사람에게 버튼이 안 보인다.
+ *
+ * ⚠️ 화면의 이 목록은 **편의**이지 권한이 아니다. 실제 차단은 서버가 한다 - 여기만 고쳐서
+ * 권한이 늘어나지는 않는다. */
+export const PROJECT_WRITE_ROLES = ["operator", "admin", "system_admin"];
 
 /* 상태 어휘는 계약(영어 열거값)이고 화면 문구는 한국어다. 계약을 한국어로 바꾸면 화면
  * 코드가 표시용 문자열로 분기하게 되고, 문구를 영어로 두면 읽는 사람이 뜻을 모른다
@@ -34,6 +42,53 @@ export const MILESTONE_STATUS_KO = {
   missed: "놓침",
 };
 
+/** 선택지. 계약 값(영어)을 value 로, 화면 문구(한국어)를 label 로. */
+function optionsFrom(table) {
+  return Object.keys(table).map((value) => ({ value, label: table[value] }));
+}
+
+export const PROJECT_STATUS_OPTIONS = optionsFrom(PROJECT_STATUS_KO);
+export const MILESTONE_STATUS_OPTIONS = optionsFrom(MILESTONE_STATUS_KO);
+
+/* 프로젝트 생성·수정 폼의 필드. **한 벌만 둔다.**
+ *
+ * 만들기와 고치기가 각자 필드 목록을 들고 있으면 한쪽에만 칸이 생기고, 그러면 "만들 때는
+ * 넣었는데 고칠 때는 못 고치는 값" 이 생긴다. 서버의 `EDITABLE_FIELDS`
+ * (app/projects/service.py) 를 따른다 - 서버가 안 받는 칸을 그리면 저장 버튼이 조용히
+ * 아무 일도 안 한다.
+ *
+ * ## 서버가 받는데 여기 **없는** 세 가지와 그 이유
+ *
+ *   `notion_status`  정본이 Notion 이고 허용 옵션도 저쪽 스키마가 정한다
+ *                    (app/projects/notion_write.py::_status_value). 자유 입력 칸으로 두면
+ *                    사용자가 저쪽에 없는 값을 적고 저장이 실패한다. 읽기로만 보여 준다.
+ *   `dept_id`        선택지를 만들려면 부서 이름이 필요한데 그 경로는 관리자군만 부를 수
+ *                    있다(project-queries.js::useDeptNames). 운영자에게는 빈 선택기가 되고,
+ *                    빈 선택기는 "고를 것이 없다" 가 아니라 "고장" 으로 읽힌다.
+ *   `owner_user_id`  같은 이유(사용자 명부가 필요하다). 게다가 잘못 고르면 그 프로젝트가
+ *                    내 범위 밖으로 나갈 수 있고, 나가면 되돌릴 수도 없다.
+ */
+export const PROJECT_FORM_FIELDS = [
+  { name: "name", label: "이름", required: true },
+  { name: "code", label: "코드", help: "조직 안에서 유일해야 합니다. 비워 둘 수 있습니다." },
+  { name: "status", label: "상태", type: "select", required: true, options: PROJECT_STATUS_OPTIONS },
+  { name: "starts_on", label: "시작일", type: "date" },
+  { name: "ends_on", label: "종료일", type: "date" },
+  { name: "biz_type", label: "사업 유형" },
+  { name: "product", label: "제품" },
+  { name: "goal", label: "목표", type: "textarea" },
+];
+
+export const MILESTONE_FORM_FIELDS = [
+  { name: "name", label: "이름", required: true },
+  { name: "due_on", label: "기한", type: "date", help: "비워 두면 일정 준수 여부를 판정하지 않습니다." },
+  { name: "status", label: "상태", type: "select", required: true, options: MILESTONE_STATUS_OPTIONS },
+  /* 필수로 두는 이유: 서버에서 NOT NULL 이다(app/projects/milestones.py::REQUIRED_FIELDS).
+     비워 두면 폼이 `null` 을 보내 400 이 나는데, 그 400 을 여기서 미리 막으면 사용자가
+     서버 왕복 없이 그 자리에서 안다. */
+  { name: "sort_order", label: "정렬 순번", type: "number", required: true, help: "작은 값이 위로 옵니다." },
+];
+
 /* 트리에 못 넣은 작업의 이유. 두 경우의 **고칠 곳이 다르다** — 순환은 노션에서 상위 작업을
  * 고쳐야 하고, 깊이 초과는 대개 데이터가 이상하다는 신호다(app/projects/wbs.py). */
 export const WBS_UNPLACED_KO = {
@@ -43,7 +98,6 @@ export const WBS_UNPLACED_KO = {
 
 export const NO_PROGRESS_CACHE = "아직 계산하지 않았습니다";
 export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다";
-export const NO_NOTION_PROGRESS = "Notion 값이 없습니다";
 export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다";
 export const NO_HEALTH_CACHE = "Health 를 아직 계산하지 않았습니다";
 
@@ -66,28 +120,12 @@ export function weightText(value) {
   return trimmed(value, 2);
 }
 
-/* 두 진행률이 **실제로** 다른가.
+/* 여기 있던 `progressDiffers` 와 `DIFFERS_NOTE` 는 지웠다(사용자 지시).
  *
- * 화면이 소수 한 자리까지만 보여 주므로 그 자리까지 같으면 같은 값으로 본다. 42.94 와
- * 42.95 를 "다릅니다"라고 말하면서 화면에는 둘 다 42.9% 로 그리면, 그 안내가 오히려
- * 화면을 못 믿게 만든다.
- *
- * 한쪽이 없으면 **다르다고 말하지 않는다.** 그건 두 주장이 갈린 것이 아니라 한쪽이 아직
- * 말을 안 한 것이고, 그 사실은 값 자리의 문구가 이미 말하고 있다.
- */
-export function progressDiffers(appPercent, notionPercent) {
-  if (appPercent == null || notionPercent == null) return false;
-  const a = Number(appPercent);
-  const b = Number(notionPercent);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-  return Math.round(a * 10) !== Math.round(b * 10);
-}
-
-/* 두 값이 다를 때의 설명. **왜 다른지**까지 말하지 않으면 사용자는 둘 중 하나를 거짓말로
- * 받아들이고, 그 다음부터 둘 다 안 본다(app/projects/progress.py 모듈 docstring). */
-export const DIFFERS_NOTE =
-  "두 값이 다릅니다. Notion 쪽 진행률은 취소한 작업을 완료로 세고, 하위 작업을 상위 작업과 "
-  + "두 번 셉니다. 포털은 취소를 분모에서 빼고 리프 작업만 셉니다.";
+ * 포털 계산값과 Notion 값을 나란히 놓고 "두 값이 다릅니다" 라고 경고하던 부품이다. 정본은
+ * 포털이고 Notion 은 데이터 소스일 뿐이라, 그 비교는 사용자에게 어느 쪽도 믿지 말라고
+ * 말하는 것이었다. 안 쓰게 됐으니 남겨 두지 않는다 - 죽은 코드는 다음 사람에게 "아직 쓰는
+ * 규칙" 으로 읽힌다. */
 
 /** 계산식. 숫자를 넣어 적는다 - 식만 적으면 이 프로젝트에서 무엇이 나왔는지 알 수 없다. */
 export function formulaText(basis) {

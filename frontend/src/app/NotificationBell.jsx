@@ -13,6 +13,7 @@ import { api } from "../lib/api.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
 import { Skeleton, ErrorState, useToast, useConfirm } from "../ui/kit.jsx";
 import { useAuth } from "./auth.jsx";
+import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey } from "./notification-keys.js";
 
 /* 알림 벨 + 팝오버(§6.4/§14) — 아이콘을 누르면 페이지로 튀지 않고 최근 알림 팝오버를 연다.
  * 개별/전체 읽음, 관련 화면 이동(딥링크), 전체 보기, 로딩·빈·오류 상태, 열림 애니메이션.
@@ -121,7 +122,7 @@ export function NotificationBell({ isUser }) {
   };
 
   const unread = useQuery({
-    queryKey: ["noti-unread"],
+    queryKey: NOTI_UNREAD,
     queryFn: () => api("/api/notifications/unread-count"),
     retry: false,
     enabled: isAuthed,
@@ -138,7 +139,7 @@ export function NotificationBell({ isUser }) {
   // 어긋났었다. 안 읽음이 0건일 때만 최근 혼합 목록으로 되돌아간다(계속 뭔가는 보여줘야 하므로).
   const hasUnread = typeof unread.data?.unread === "number" ? unread.data.unread > 0 : true;
   const list = useQuery({
-    queryKey: ["noti-list", hasUnread ? "unread" : "recent"],
+    queryKey: notiListKey(hasUnread ? "unread" : "recent"),
     queryFn: () => api("/api/notifications?page_size=8" + (hasUnread ? "&unread_only=true" : "")),
     retry: false,
     enabled: open && isAuthed,
@@ -148,29 +149,24 @@ export function NotificationBell({ isUser }) {
     // body로 튕겨 나갔다. keepPreviousData로 새 응답이 올 때까지 이전 항목을 계속 보여준다.
     placeholderData: keepPreviousData,
   });
-  // "notifications"도 함께 무효화한다 — 전체 알림 목록 화면(DataScreen, queryKey=["notifications",...])이
-  // 이 벨과 별개의 react-query 네임스페이스라, 여기서 읽음 처리해도 목록 화면을 열어 두고 있으면
-  // 갱신되지 않았다(product-quality-audit AREA=D). 반대 방향(목록 화면에서 읽음 처리 시 벨 갱신)은
-  // DataScreen.jsx의 refresh()에서 맞춰야 한다 — 이 파일만으로는 한쪽만 고칠 수 있다.
-  const invalidateNoti = () => {
-    qc.invalidateQueries({ queryKey: ["noti-unread"] });
-    qc.invalidateQueries({ queryKey: ["noti-list"] });
-    qc.invalidateQueries({ queryKey: ["notifications"] });
-  };
+  /* 벨·팝오버 목록·전체 알림 화면이 **한 뿌리(`["noti"]`)를 공유한다** (PF9). 그래서 여기서
+     세 줄을 적을 필요가 없다 — 예전에는 적었고, 한 줄이 빠질 때마다 "읽었는데 숫자가 그대로"가
+     됐다. 키의 정본은 notification-keys.js 다. */
+  const invalidateNoti = () => invalidateNotifications(qc);
   // 낙관적 업데이트 — 누른 항목만 즉시 읽음으로 바꿔(체크 버튼 사라짐) 공용 mutation의 isPending이
   // 모든 미읽음 버튼을 함께 잠그거나 이중 발사되던 문제를 없앤다. 실패하면 스냅샷으로 되돌린다.
   const readOne = useMutation({
     mutationFn: (id) => api("/api/notifications/" + id + "/read", { method: "POST", body: {} }),
     onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ["noti-list"] });
-      await qc.cancelQueries({ queryKey: ["noti-unread"] });
-      // ["noti-list"]는 실제로 캐시된 키가 아니다 — 실제 쿼리는 ["noti-list","unread"|"recent"]로
+      await qc.cancelQueries({ queryKey: NOTI_LIST });
+      await qc.cancelQueries({ queryKey: NOTI_UNREAD });
+      // NOTI_LIST는 실제로 캐시된 키가 아니다 — 실제 쿼리는 notiListKey("unread"|"recent")로
       // 저장된다(위 useQuery). getQueryData/setQueryData는 정확히 일치하는 키만 찾으므로 이 줄은
       // 항상 undefined를 돌려주고 쓰기도 아무 캐시에도 닿지 않아, 낙관 업데이트가 조용히
       // 아무 효과 없이 실패했었다(hasUnread가 바뀌어 다른 변형 키로 넘어갈 때는 더 잘 드러난다).
       // getQueriesData/setQueriesData(접두어 일치)로 바꿔 지금 마운트된 변형이 무엇이든 잡는다.
       let wasUnread = false;
-      qc.setQueriesData({ queryKey: ["noti-list"] }, (prevList) => {
+      qc.setQueriesData({ queryKey: NOTI_LIST }, (prevList) => {
         if (!prevList || !Array.isArray(prevList.items)) return prevList;
         if (prevList.items.some((it) => it.id === id && !it.read_at)) wasUnread = true;
         return {
@@ -181,9 +177,9 @@ export function NotificationBell({ isUser }) {
       });
       // noti-unread(벨 배지) 캐시도 같이 낙관 갱신한다 — 예전엔 noti-list만 바뀌어, 항목을 눌러
       // 즉시 팝오버가 닫히는 흐름(openItem)에서 벨 배지가 서버 무효화가 끝날 때까지 옛 값에 얼어붙었다.
-      const prevUnread = qc.getQueryData(["noti-unread"]);
+      const prevUnread = qc.getQueryData(NOTI_UNREAD);
       if (wasUnread && prevUnread && typeof prevUnread.unread === "number") {
-        qc.setQueryData(["noti-unread"], shiftUnread(prevUnread, -1));
+        qc.setQueryData(NOTI_UNREAD, shiftUnread(prevUnread, -1));
       }
       // 실패 시 되돌릴 컨텍스트로 "이 mutation이 바꾼 것"만 넘긴다(id/wasUnread) — 전체 캐시
       // 스냅샷을 onMutate 시점으로 통째 복원하지 않는다. 두 개의 읽음 처리가 동시에 날아가고
@@ -194,7 +190,7 @@ export function NotificationBell({ isUser }) {
     },
     onError: (e, _id, ctx) => {
       if (ctx && ctx.wasUnread) {
-        qc.setQueriesData({ queryKey: ["noti-list"] }, (prevList) => {
+        qc.setQueriesData({ queryKey: NOTI_LIST }, (prevList) => {
           if (!prevList || !Array.isArray(prevList.items)) return prevList;
           if (!prevList.items.some((it) => it.id === ctx.id && it.read_at)) return prevList; // 이미 되돌아갔거나 목록에서 빠짐.
           return {
@@ -203,8 +199,8 @@ export function NotificationBell({ isUser }) {
             unread: typeof prevList.unread === "number" ? prevList.unread + 1 : prevList.unread,
           };
         });
-        const cur = qc.getQueryData(["noti-unread"]);
-        if (cur && typeof cur.unread === "number") qc.setQueryData(["noti-unread"], shiftUnread(cur, 1));
+        const cur = qc.getQueryData(NOTI_UNREAD);
+        if (cur && typeof cur.unread === "number") qc.setQueryData(NOTI_UNREAD, shiftUnread(cur, 1));
       }
       toast(e.message || "읽음 처리하지 못했습니다.", "error");
     },
@@ -216,18 +212,18 @@ export function NotificationBell({ isUser }) {
     // 낙관적 처리 — 로드된 목록을 즉시 전부 읽음으로 바꾸고 배지를 0으로. 실패하면 스냅샷으로 되돌린다.
     // (확인 모달로 팝오버가 닫혀도 배지/목록 반영 지연이 눈에 덜 띄게.)
     onMutate: async () => {
-      await qc.cancelQueries({ queryKey: ["noti-list"] });
+      await qc.cancelQueries({ queryKey: NOTI_LIST });
       // readOne의 onMutate와 짝을 맞춘다 — 이게 없으면 '모두 읽음'을 누른 순간 이미 날아가 있던
       // noti-unread 백그라운드 재조회(60초 인터벌/포커스 시)가 낙관 업데이트보다 늦게 응답해
       // 배지를 옛 값으로 되돌려 버렸다(product-quality-audit AREA=D).
-      await qc.cancelQueries({ queryKey: ["noti-unread"] });
-      // readOne과 같은 이유로 접두어 일치 버전을 쓴다 — ["noti-list"] 단독 키는 캐시에 없다.
+      await qc.cancelQueries({ queryKey: NOTI_UNREAD });
+      // readOne과 같은 이유로 접두어 일치 버전을 쓴다 — NOTI_LIST 단독 키는 캐시에 없다.
       const now = new Date().toISOString();
       // 되돌리기용으로 "이 mutation이 실제로 안읽음→읽음 뒤집은 id"만 모은다 — onError에서
       // 고정 스냅샷 통째 복원 대신 이 id들만 되돌려, 동시에 끝난 다른(readOne) 낙관 업데이트를
       // 지우지 않는다(readOne.onMutate 주석과 같은 이유, product-quality-audit AREA=D).
       const changedIds = new Set();
-      qc.setQueriesData({ queryKey: ["noti-list"] }, (prev) => {
+      qc.setQueriesData({ queryKey: NOTI_LIST }, (prev) => {
         if (!prev || !Array.isArray(prev.items)) return prev;
         return {
           ...prev,
@@ -242,9 +238,9 @@ export function NotificationBell({ isUser }) {
       // noti-unread(벨 배지) 캐시도 같이 0으로 — readOne과 같은 이유(§readOne.onMutate 주석).
       // 안 그러면 목록은 즉시 다 읽음으로 보이는데 배지 숫자는 서버 무효화가 끝날 때까지 그대로 남아
       // "모두 읽음"을 눌렀는데 안 읽음처럼 보이는 깜빡임이 있었다.
-      const prevUnread = qc.getQueryData(["noti-unread"]);
+      const prevUnread = qc.getQueryData(NOTI_UNREAD);
       if (prevUnread && typeof prevUnread.unread === "number") {
-        qc.setQueryData(["noti-unread"], { ...prevUnread, unread: 0, ...(typeof prevUnread.badge === "number" ? { badge: 0 } : null) });
+        qc.setQueryData(NOTI_UNREAD, { ...prevUnread, unread: 0, ...(typeof prevUnread.badge === "number" ? { badge: 0 } : null) });
       }
       // 배지 복구는 changedIds.size(로드된 ≤8건)가 아니라 이 실제 전체 미읽음 스냅샷으로
       // 되돌린다 — 안 그러면 실제 미읽음이 8을 넘을 때(예: 15) 실패 후 배지가 8로 과소
@@ -258,7 +254,7 @@ export function NotificationBell({ isUser }) {
         // 캐시에 "unread"/"recent" 두 변형이 동시에 남아 있을 수 있어(setQueriesData는 접두어가
         // 일치하는 모든 쿼리를 돈다) 복구 카운트는 콜백마다 각자 새로 센다 — 바깥 공유 변수를
         // 쓰면 두 번째 변형이 첫 번째 변형의 복구분까지 더해 unread를 부풀린다.
-        qc.setQueriesData({ queryKey: ["noti-list"] }, (prev) => {
+        qc.setQueriesData({ queryKey: NOTI_LIST }, (prev) => {
           if (!prev || !Array.isArray(prev.items)) return prev;
           let restored = 0;
           const items = prev.items.map((it) => {
@@ -267,9 +263,9 @@ export function NotificationBell({ isUser }) {
           });
           return { ...prev, items, unread: typeof prev.unread === "number" ? prev.unread + restored : prev.unread };
         });
-        const cur = qc.getQueryData(["noti-unread"]);
+        const cur = qc.getQueryData(NOTI_UNREAD);
         if (cur && typeof cur.unread === "number") {
-          qc.setQueryData(["noti-unread"], { ...cur, unread: ctx.prevUnreadCount != null ? ctx.prevUnreadCount : cur.unread + ctx.changedIds.size });
+          qc.setQueryData(NOTI_UNREAD, { ...cur, unread: ctx.prevUnreadCount != null ? ctx.prevUnreadCount : cur.unread + ctx.changedIds.size });
         }
       }
       toast(e.message || "모두 읽음 처리하지 못했습니다.", "error");

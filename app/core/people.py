@@ -45,6 +45,31 @@ def org_name_map(db: Session) -> dict[str, str]:
     return {oid: name for oid, name in rows}
 
 
+def name_map(db: Session, user_ids) -> dict[str, dict[str, str]]:
+    """{user_id: {display_name, email}} — **한 번의 질의로** (E-4 UUID 노출).
+
+    ## 왜 여기 있나
+
+    관리자 상세 패널이 사람 자리를 전부 UUID 로 채우고 있었다. 운영자는
+    `9f2c…-…` 를 보고 "이게 누구냐" 를 알 수 없어, 사용자 화면을 따로 열어 id 를 검색해야
+    했다. 그런데 이름을 붙이는 코드는 이미 있었다 — 승인(approvals)과 대리 접속
+    (impersonation)이 **각자 한 벌씩** 들고 있었다. 세 번째 사본을 만들지 않으려고
+    여기로 올린다.
+
+    건별 조회를 하지 않는 이유는 `avatar_map` 과 같다: 목록 응답에 실려 나가는 값이라
+    N+1 이면 목록 화면이 그대로 느려진다.
+    """
+    ids = {i for i in (user_ids or ()) if i}
+    if not ids:
+        return {}
+    from app.users.models import User
+
+    rows = db.execute(
+        select(User.id, User.display_name, User.email).where(User.id.in_(tuple(ids)))
+    ).all()
+    return {r[0]: {"display_name": r[1], "email": r[2]} for r in rows}
+
+
 def identity(
     user, org_names: dict[str, str] | None = None, avatars: dict[str, str] | None = None
 ) -> dict:

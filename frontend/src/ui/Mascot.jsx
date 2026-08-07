@@ -7,6 +7,7 @@ import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
+import { alpha } from "@mui/material/styles";
 import { MASCOT } from "../lib/assets.js";
 import { KO_WORD_BREAK } from "./theme.js";
 
@@ -159,6 +160,81 @@ export function MascotPose({ mode = "idle", size = 96, label, decorative = false
   );
 }
 
+/* 기준선의 `.mascot-mini` — 상단바·사이드바·FAB 세 자리가 공유하는 작은 클로비.
+ *
+ * MascotPose 와 구조가 다르다. MascotPose 는 뒤에 흐린 후광을 깔지만, 기준선의 mascot-mini 는
+ *   1) 뒤에 **테두리 고리**(.mascot-mini-ring) 를 두고,
+ *   2) 마스코트 그림 자체에 반투명 흰 판을 깔며(어두운 면에서 흰 몸체가 묻히지 않게),
+ *   3) 오른쪽 아래에 상태 점(.mascot-mini-status) 을 찍는다.
+ * 세 자리 모두 사용자가 "이거 바꾸자고 했는데 왜 적용 안 돼있음" 이라고 한 자리다.
+ *
+ * 치수는 부르는 쪽이 정한다 — 기준선도 자리마다 다르다(상단바 36, 사이드바 48, FAB 58).
+ */
+export function MascotMini({
+  mode = "idle",
+  size = 48,
+  label,
+  // 그림에 깔 흰 판의 반지름·불투명도. 기준선이 자리마다 다르게 준다.
+  plateRadius = 14,
+  plateOpacity = 0.95,
+  ringInset = -4,
+  ringRadius = 18,
+  status = true,
+}) {
+  const src = POSE[mode] || POSE.idle;
+  const name = label || LABEL[mode] || LABEL.idle;
+  return (
+    <Box
+      role="img"
+      aria-label={name}
+      data-testid="mascot-mini"
+      sx={{
+        position: "relative", display: "inline-grid", placeItems: "center",
+        width: size, height: size, flex: "0 0 auto", isolation: "isolate",
+      }}
+    >
+      <Box
+        aria-hidden="true"
+        sx={{
+          position: "absolute", zIndex: 0, inset: `${ringInset}px`,
+          border: 2, borderStyle: "solid",
+          borderColor: (t) => alpha(t.palette.primary.main, 0.42),
+          borderRadius: `${ringRadius}px`, opacity: 0.55,
+          /* 기준선의 .mascot-mini-ring 애니메이션과 같은 뜻이다 — 듣는 중은 파장,
+             생각/응답 중은 회전. 모션 축소는 theme.js 의 전역 규칙이 처리한다. */
+          animation: haloAnimation(mode),
+        }}
+      />
+      <Box
+        component="img"
+        src={src}
+        alt=""
+        decoding="async"
+        sx={{
+          position: "relative", zIndex: 2,
+          width: "100%", height: "100%", objectFit: "contain",
+          borderRadius: `${plateRadius}px`,
+          bgcolor: `rgba(255,255,255,${plateOpacity})`,
+          transformOrigin: "50% 84%",
+          animation: bodyAnimation(mode),
+        }}
+      />
+      {status ? (
+        <Box
+          aria-hidden="true"
+          sx={{
+            position: "absolute", zIndex: 3, right: "-3px", bottom: "-3px",
+            width: size >= 48 ? "14px" : "10px", height: size >= 48 ? "14px" : "10px",
+            border: size >= 48 ? "2px solid" : "1.5px solid",
+            borderColor: "background.paper", borderRadius: "50%",
+            bgcolor: "success.main",
+          }}
+        />
+      ) : null}
+    </Box>
+  );
+}
+
 /* 우하단 플로팅 버튼. 모바일에서는 본문을 가리므로 숨기고 상단바 버튼을 쓴다. */
 export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
   const fab = (
@@ -166,31 +242,37 @@ export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
       aria-label="클로비 AI 도우미 열기"
       onClick={onClick}
       sx={{
-        width: 70,
-        height: 70,
-        /* 22px 둥근 사각형 — 기준 파일의 .ai-fab 과 같은 형태다.
-           예전에는 borderRadius:5.5(=테마 14px × 5.5 = 77px)라 70px 상자에서 **완전한 원**으로
-           잘렸고, 그 안에 64px 정사각 포즈를 넣어 마스코트 모서리가 원 밖으로 나갔다.
-           Chromium 은 버튼 콘텐츠를 안 자르지만 Firefox 는 자른다 — 브라우저마다 다르게 보였다. */
-        borderRadius: "22px",
-        overflow: "hidden",
-        bgcolor: "background.paper",
+        /* 기준선 `.ai-fab { width:70px; height:70px; border-radius:23px; padding:6px;
+           background:rgba(255,255,255,.96); }` 와 `.ai-fab .mascot-mini { width:58px }`.
+           예전 값(반지름 22, 패딩 4, 포즈 54)은 눈대중이었다. */
+        width: "70px",
+        height: "70px",
+        borderRadius: "23px",
+        /* 기준선은 overflow:visible 이다 — 고리와 상태 점이 상자 밖으로 3~4px 나가야 한다.
+           hidden 으로 두면 그 둘이 잘려 아예 안 보인다. */
+        overflow: "visible",
+        bgcolor: "rgba(255,255,255,.96)",
         border: 1,
-        borderColor: "divider",
-        p: 0.5,
+        borderColor: (t) => alpha(t.palette.primary.main, 0.28),
+        p: "6px",
+        boxShadow: (t) => t.shadowTokens?.md,
         // 바깥 래퍼(AppShell의 fixed Box)가 pointerEvents:none 이라 실제로 눌리는 것은 이 Fab
         // 하나다. 브라우저는 border-radius 를 히트 테스트에도 적용하므로, 이렇게 두면 둥근
         // 모서리 바깥의 빈 공간은 아래 콘텐츠가 그대로 받는다 — 안 보이는 사각형이 클릭을 먹지 않는다.
         pointerEvents: "auto",
-        "&:hover": { bgcolor: "background.paper", transform: "translateY(-2px)" },
+        "&:hover": {
+          bgcolor: "rgba(255,255,255,.96)",
+          transform: "translateY(-2px)",
+          boxShadow: (t) => t.shadowTokens?.lg,
+        },
       }}
     >
-      {/* 70px 상자 - 좌우 패딩 8px = 54px 이 안전한 최대치다(둥근 모서리 여유 포함). */}
-      <MascotPose mode={mode} size={54} decorative />
+      <MascotMini mode={mode} size={58} plateRadius={18} plateOpacity={0.96} />
     </Fab>
   );
   return (
-    <Box sx={{ display: { xs: "none", md: "block" } }}>
+    /* 기준선은 960px 이하에서 FAB 을 숨긴다(그 아래에서는 상단바 버튼이 그 일을 한다). */
+    <Box sx={{ "@media (max-width:960px)": { display: "none" } }}>
       {badge > 0 ? (
         <Badge badgeContent={badge} color="error" overlap="circular">
           {fab}
@@ -217,17 +299,19 @@ export function MascotTopButton({ onClick, mode = "listening", label = "AI 도�
         onClick={onClick}
         aria-label="클로비 AI 도우미 열기"
         sx={{
-          display: "inline-flex", alignItems: "center", gap: 0.75,
-          height: 42, pl: 0.5, pr: { xs: 0.5, sm: 1.25 },
+          /* 기준선 `.top-clovi-btn { min-height:44px; padding:3px 9px 3px 4px; gap:7px;
+             border:1px solid rgba(255,255,255,.18); border-radius:14px;
+             background:rgba(8,14,42,.22); }` 와 `.top-clovi-btn .mascot-mini { width:36px }`.
+             예전에는 34px 흰 판 안에 30px 포즈를 넣어 마스코트가 실제보다 작았다. */
+          display: "inline-flex", alignItems: "center", gap: "7px",
+          minHeight: "44px", pt: "3px", pb: "3px", pl: "4px", pr: "9px",
           border: 1, borderColor: "rgba(255,255,255,.18)", borderRadius: "14px",
           background: "rgba(8,14,42,.22)", color: "common.white",
           "&:hover": { background: "rgba(255,255,255,.16)" },
         }}
       >
-        <Box sx={{ bgcolor: "rgba(255,255,255,.92)", borderRadius: "10px", display: "grid", placeItems: "center", width: 34, height: 34 }}>
-          <MascotPose mode={mode} size={30} decorative />
-        </Box>
-        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: "0.75rem", fontWeight: 750 }}>
+        <MascotMini mode={mode} size={36} plateRadius={10} ringInset={-2} ringRadius={12} />
+        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: "12px", fontWeight: 750 }}>
           클로비
         </Box>
       </ButtonBase>
@@ -244,36 +328,47 @@ export function MascotSidebarCard({ onClick }) {
       onClick={onClick}
       variant="outlined"
       sx={{
-        // mx 로 이미 양옆을 3rem 비우는데 width 를 calc(100% - 1.5rem) 로 또 줄여서 폭이
-        // 1.5rem 어긋나 있었다. 블록 요소는 mx 만으로 남는 폭을 채운다.
-        width: "auto",
-        mx: 3,
-        mt: 4,
-        p: 2,
+        /* 기준선 `.sidebar-clovi { width:calc(100% - 12px); margin:18px 6px 4px;
+           grid-template-columns:52px minmax(0,1fr) auto; gap:10px; padding:9px 10px;
+           border:1px solid rgba(255,255,255,.11); border-radius:15px;
+           background:linear-gradient(135deg,rgba(117,138,225,.18),rgba(142,117,225,.08)) }`.
+           예전 값(여백 16, 좌우 24, 반지름 18, 단색 바탕)은 눈대중이었다. */
+        width: "calc(100% - 12px)",
+        mt: "18px", mx: "6px", mb: "4px",
+        px: "10px", py: "9px",
         display: "grid",
-        gridTemplateColumns: "52px minmax(0,1fr)",
-        gap: 2,
+        gridTemplateColumns: "52px minmax(0,1fr) auto",
+        gap: "10px",
         alignItems: "center",
         textAlign: "left",
         color: "inherit",
-        borderColor: "rgba(255,255,255,.12)",
-        bgcolor: "rgba(117,138,225,.12)",
+        borderRadius: "15px",
+        borderColor: "rgba(255,255,255,.11)",
+        background: "linear-gradient(135deg,rgba(117,138,225,.18),rgba(142,117,225,.08))",
         cursor: "pointer",
-        "&:hover": { bgcolor: "rgba(117,138,225,.2)" },
+        "&:hover": {
+          borderColor: "rgba(216,208,255,.45)",
+          background: "linear-gradient(135deg,rgba(117,138,225,.28),rgba(142,117,225,.14))",
+        },
       }}
     >
-      <MascotPose mode="listening" size={50} />
+      <MascotMini mode="listening" size={48} plateRadius={13} plateOpacity={0.94}
+        label="클로비가 질문을 기다리는 모습" />
       <Box minWidth={0}>
-        <Typography color="common.white" fontSize="0.8125rem" fontWeight={800}>
+        <Typography color="common.white" fontSize="12px" fontWeight={800}>
           클로비에게 물어보기
         </Typography>
         {/* wordBreak:"keep-all" — 한글 기본값은 아무 데서나 끊어서 "도와드/려요"처럼 단어
             중간에 줄이 바뀐다. 좁은 사이드바에서는 반드시 두 줄이 되므로 띄어쓰기에서만
             끊기게 한다(한국어 조판의 기본 설정이다). */}
-        <Typography color="rgba(237,240,255,.7)" fontSize="0.75rem" lineHeight={1.35}
+        <Typography color="sidebar.muted" fontSize="10px" lineHeight={1.35} mt="3px"
           sx={KO_WORD_BREAK}>
           현재 화면을 기준으로 도와드려요
         </Typography>
+      </Box>
+      {/* 기준선의 `.sidebar-clovi-arrow` — 누르면 무언가 열린다는 것을 알리는 홑화살표다. */}
+      <Box component="span" aria-hidden="true" sx={{ fontSize: "24px", opacity: 0.7, lineHeight: 1 }}>
+        ›
       </Box>
     </Paper>
   );

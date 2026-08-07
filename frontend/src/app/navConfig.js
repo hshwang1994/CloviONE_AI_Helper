@@ -141,6 +141,13 @@ export const USER_NAV = [
     { to: "/my-tickets", label: "내 티켓", icon: "ticket" },
     { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
     { to: "/new-ticket", label: "새 티켓", icon: "plus" },
+    /* 알림. 라우트(`/notifications`)는 UserRoutes 에 진작 있었는데 **메뉴 항목이 없었다** —
+       그래서 일반 사용자의 왼쪽 사이드바에는 안 읽음 배지가 붙을 자리 자체가 없었다
+       (`badge:"notifUnread"` 는 관리자 메뉴에만 선언돼 있었다). 사용자가 "신규 알람 하면
+       왼쪽 사이드바에 뜨기로 했는데 왜 안 됨" 이라고 한 것이 이것이다.
+       '내 업무' 그룹에 두는 이유: 티켓 배정·업무 인수처럼 **오늘 할 일을 바꾸는** 알림이
+       대부분이라, 되돌아보는 자리('내 정보')가 아니라 매일 훑는 자리에 있어야 한다. */
+    { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
   ] },
   /* 기준 파일의 '도우미' 그룹에는 AI 도우미가 항목으로 있다. 예전에 뺐던 이유는 AI 가 탭
      하나가 아니라 어디서든 부르는 전역 도우미가 됐기 때문인데, 그러다 보니 사이드바만 보는

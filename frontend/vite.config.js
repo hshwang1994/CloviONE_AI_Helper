@@ -29,6 +29,21 @@ export default defineConfig({
         chunkFileNames: "assets/[name].[hash].js",
         assetFileNames: "assets/[name].[hash][extname]",
         manualChunks(id) {
+          /* 두 콘솔이 **같이** 쓰는 설정 주도 화면 부품에 이름을 준다.
+           *
+           * 이름이 필요한 이유는 크기가 아니라 예산 검사다. 이 조각은 사용자·관리자 라우트가
+           * 둘 다 import 해서 rollup 이 알아서 공용 청크로 뺀다 — 그런데 그때 붙는 이름은
+           * 그 안의 아무 모듈 이름(`notifications`)이고, 모듈이 하나 늘고 줄 때마다 바뀐다.
+           * 그러면 `scripts/check_bundle_size.sh` 가 이 청크를 '초기 로드'로 잘못 세어
+           * 예산이 20KB 넘게 부풀어 보인다(실제로는 라우트에 들어갈 때 받는다).
+           *
+           * registry 의 **나머지** 도메인 파일은 여기 넣지 않는다. 그것들이 다시 한 덩어리가
+           * 되는 순간 PF7 이 되돌아온다 — 사용자 콘솔이 관리자 설정을 통째로 받는다. */
+          if (
+            id.includes("/src/screens/registry/shared.js") ||
+            id.includes("/src/screens/registry/actions.js") ||
+            id.includes("/src/screens/registry/notifications.js")
+          ) return "datascreen";
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("@mui") || id.includes("@emotion")) return "mui";
           if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) return "react";

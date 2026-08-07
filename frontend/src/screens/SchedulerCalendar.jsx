@@ -139,6 +139,14 @@ export function SchedulerCalendar() {
   });
 
   const cells = React.useMemo(() => buildGrid(cursor.year, cursor.month), [cursor]);
+  /* ARIA grid 는 role 계층이 강제다: grid > row > (columnheader | gridcell). 42칸을 격자에
+   * 그냥 늘어놓으면 스크린리더의 표 탐색이 통째로 동작하지 않아 **날짜 사이를 못 옮긴다** —
+   * 격자를 그려 놓고 격자로 읽을 수 없는 상태였다. 그래서 주 단위로 묶는다. */
+  const weeks = React.useMemo(() => {
+    const out = [];
+    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7));
+    return out;
+  }, [cells]);
   const byDay = React.useMemo(() => {
     const map = {};
     for (const event of (query.data && query.data.items) || []) {
@@ -250,57 +258,66 @@ export function SchedulerCalendar() {
               aria-label={`${monthLabel} 실행 달력`}
               sx={{ minWidth: "44rem", display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0.5 }}
             >
-              {DAY_LABELS.map((d, i) => (
-                <Box
-                  key={d}
-                  role="columnheader"
-                  sx={{
-                    textAlign: "center", py: 0.75, fontWeight: 800, fontSize: "0.8125rem",
-                    color: i === 0 ? "error.main" : i === 6 ? "primary.main" : "text.secondary",
-                  }}
-                >
-                  {d}
-                </Box>
-              ))}
-              {cells.map((cell) => {
-                const events = byDay[cell.key] || [];
-                const isToday = cell.key === todayKey;
-                return (
+              {/* 행 상자는 `display: contents` 다 — 의미(role="row")만 넣고 레이아웃은
+                  건드리지 않는다. 일반 블록으로 두면 일곱 칸이 바깥 격자의 열이 아니라
+                  행 안에서 다시 배치돼 달력이 세로 일곱 줄로 무너진다. */}
+              <Box role="row" sx={{ display: "contents" }}>
+                {DAY_LABELS.map((d, i) => (
                   <Box
-                    key={cell.key}
-                    role="gridcell"
+                    key={d}
+                    role="columnheader"
                     sx={{
-                      minHeight: { xs: "5.5rem", xl: "7rem", xxl: "8rem" },
-                      p: 0.75, borderRadius: 1.5,
-                      border: "1px solid",
-                      borderColor: isToday ? "primary.main" : "divider",
-                      bgcolor: cell.inMonth ? "background.paper" : "action.hover",
-                      opacity: cell.inMonth ? 1 : 0.55,
-                      overflow: "hidden",
+                      textAlign: "center", py: 0.75, fontWeight: 800, fontSize: "0.8125rem",
+                      color: i === 0 ? "error.main" : i === 6 ? "primary.main" : "text.secondary",
                     }}
                   >
-                    <Typography
-                      sx={{
-                        fontSize: "0.75rem", fontWeight: isToday ? 800 : 600, mb: 0.5,
-                        color: isToday ? "primary.main" : "text.secondary",
-                      }}
-                    >
-                      {Number(cell.key.slice(8, 10))}
-                      {isToday ? ", 오늘" : ""}
-                    </Typography>
-                    {events.slice(0, 4).map((event, i) => (
-                      <EventDot key={event.run_id || `${event.schedule_id}-${event.occurs_at}-${i}`} event={event} onClick={setSelected} />
-                    ))}
-                    {events.length > 4 ? (
-                      <Tooltip title={`${events.length - 4}건 더 있습니다`}>
-                        <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary" }}>
-                          +{events.length - 4}건
-                        </Typography>
-                      </Tooltip>
-                    ) : null}
+                    {d}
                   </Box>
-                );
-              })}
+                ))}
+              </Box>
+              {weeks.map((week) => (
+                <Box key={week[0].key} role="row" sx={{ display: "contents" }}>
+                  {week.map((cell) => {
+                    const events = byDay[cell.key] || [];
+                    const isToday = cell.key === todayKey;
+                    return (
+                      <Box
+                        key={cell.key}
+                        role="gridcell"
+                        sx={{
+                          minHeight: { xs: "5.5rem", xl: "7rem", xxl: "8rem" },
+                          p: 0.75, borderRadius: 1.5,
+                          border: "1px solid",
+                          borderColor: isToday ? "primary.main" : "divider",
+                          bgcolor: cell.inMonth ? "background.paper" : "action.hover",
+                          opacity: cell.inMonth ? 1 : 0.55,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: "0.75rem", fontWeight: isToday ? 800 : 600, mb: 0.5,
+                            color: isToday ? "primary.main" : "text.secondary",
+                          }}
+                        >
+                          {Number(cell.key.slice(8, 10))}
+                          {isToday ? ", 오늘" : ""}
+                        </Typography>
+                        {events.slice(0, 4).map((event, i) => (
+                          <EventDot key={event.run_id || `${event.schedule_id}-${event.occurs_at}-${i}`} event={event} onClick={setSelected} />
+                        ))}
+                        {events.length > 4 ? (
+                          <Tooltip title={`${events.length - 4}건 더 있습니다`}>
+                            <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary" }}>
+                              +{events.length - 4}건
+                            </Typography>
+                          </Tooltip>
+                        ) : null}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ))}
             </Box>
           </Card>
         </>

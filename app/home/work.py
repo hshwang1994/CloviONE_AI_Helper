@@ -64,14 +64,11 @@ TREND_WEEKS = 4
 # 이라고 쓰면서 5줄을 그리는 어긋남이 구조적으로 안 생긴다(aggregate.bucket 과 같은 규약).
 ITEM_LIMIT = aggregate.DEFAULT_ITEM_LIMIT
 
-# 이 점수 아래면 '차질' 로 본다. 근거: `app/projects/health.py` 의 감점 상한이 규칙당
-# 40(지연 작업 비율)·36(마일스톤)·25(노션 차질)이다. 100 에서 40 넘게 깎였다는 것은 규칙
-# 하나가 통째로 걸렸거나 둘 이상이 겹쳤다는 뜻이고, 그 정도면 사람이 봐야 한다.
-TROUBLE_HEALTH_SCORE = 60
-
-# 차질 이유 문구. 노션 사유는 헬스 규칙의 라벨을 **그대로** 가져다 쓴다 — 같은 사실을 두
-# 화면이 다른 말로 부르면 사용자는 서로 다른 문제라고 읽는다.
-REASON_LOW_HEALTH = "Health 점수 낮음"
+# 차질 판정은 `app/projects/health.py` **한 곳**에 있다. 여기서 다시 적으면 이 화면과
+# 프로젝트 대시보드가 같은 프로젝트를 두고 서로 다른 말을 하게 된다. 아래 이름들은 기존
+# 호출부와 테스트가 쓰던 것이라 별칭으로만 남긴다.
+TROUBLE_HEALTH_SCORE = project_health.TROUBLE_HEALTH_SCORE
+REASON_LOW_HEALTH = project_health.REASON_LOW_HEALTH
 REASON_NOTION_TROUBLE = project_health.RULE_LABELS[project_health.RULE_NOTION_TROUBLE]
 
 
@@ -116,22 +113,8 @@ def _bucket(items: list[dict]) -> dict:
 
 
 def _trouble_reasons(project) -> list[str]:
-    """이 프로젝트가 차질인 이유. 비어 있으면 차질이 아니다.
-
-    이유를 함께 내는 것이 이 지표의 존재 이유다. "차질 3건" 만 보여 주면 그것을 본 팀장이
-    할 수 있는 일이 없다 — 이유가 곧 할 일 목록이다(`app/projects/health.py` 가 점수와
-    이유를 함께 내는 것과 같은 판단).
-
-    순서는 노션 사유 먼저다. 그쪽은 사람이 직접 '차질' 이라고 적어 둔 것이라 규칙이 계산한
-    점수보다 근거가 강하다.
-    """
-    reasons: list[str] = []
-    if (project.notion_status or "") == project_health.NOTION_STATUS_TROUBLE:
-        reasons.append(REASON_NOTION_TROUBLE)
-    # NULL 은 '아직 안 쟀다' 라 여기 걸리면 안 된다. 0 은 '재 봤더니 나쁘다' 라 걸려야 한다.
-    if project.health_score is not None and project.health_score < TROUBLE_HEALTH_SCORE:
-        reasons.append(REASON_LOW_HEALTH)
-    return reasons
+    """이 프로젝트가 차질인 이유. 판정은 `app/projects/health.py::trouble_reasons` 하나다."""
+    return project_health.trouble_reasons(project.notion_status, project.health_score)
 
 
 def _project_row(project, reasons: list[str]) -> dict:

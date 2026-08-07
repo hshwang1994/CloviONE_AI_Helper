@@ -154,8 +154,10 @@ describe("오프보딩 화면", () => {
     await user.click(await screen.findByRole("button", { name: /상세 보기/ }));
     await screen.findByText("혼자 담당 A");
 
-    const boxes = screen.getAllByRole("checkbox", { name: "이 항목 선택" });
-    await user.click(boxes[0]);
+    /* 예전에는 "이 항목 선택" 이 모든 행에 똑같이 붙어서, 검사도 **몇 번째 상자인지**로만
+       고를 수 있었다(접근성 감사 1). 그건 스크린리더 사용자가 처한 상황 그대로다.
+       지금은 행마다 제목이 이름에 들어가므로, 끄려는 그 티켓을 이름으로 고른다. */
+    await user.click(screen.getByRole("checkbox", { name: "혼자 담당 A 선택" }));
     await waitFor(() => expect(screen.getByText(/선택 1건/)).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "오프보딩 실행" }));

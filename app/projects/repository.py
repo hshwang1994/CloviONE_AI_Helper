@@ -24,7 +24,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.core.scope import Scope, scope_filter
-from app.projects.models import Project, ProjectMilestone
+from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
 from app.tickets.query import token
@@ -83,6 +83,75 @@ def list_in_scope(
         .limit(limit)
     ).scalars().all()
     return list(rows), int(total)
+
+
+def summary_rows_in_scope(db: Session, scope: Scope) -> list:
+    """대시보드가 집계할 **범위 안 프로젝트 전부**(보관 제외). 페이지로 자르지 않는다.
+
+    ## 왜 `list_in_scope` 를 안 쓰는가
+
+    그쪽은 페이지 한 장을 준다. 대시보드가 그것으로 집계하면 "총 22건인데 대시보드는 20건
+    기준" 이 된다 - 숫자가 그럴듯해서 아무도 신고하지 않는 종류의 오류다. 집계는 자른 것을
+    세면 안 된다.
+
+    ## 왜 상한이 없는가
+
+    이 저장소의 다른 훑기(`overall_weekly_report`, `record_health_snapshots`)에는 상한이
+    있다. 그쪽은 **프로젝트마다 티켓 목록을 따로 읽어서**(가시성 판정을 한 곳에 두려고
+    일부러 그렇게 한다) 프로젝트 수만큼 질의가 늘어난다. 여기는 한 테이블에서 작은 열
+    여덟 개만 읽는 질의 **하나**라 그 함정이 없다. 상한을 두면 대신 '잘린 집계' 라는 더
+    나쁜 것이 생긴다.
+
+    조건은 목록과 **같은 것 하나**(`scope_clause`)를 지난다.
+
+    정렬을 고정하는 이유: 차질 목록의 items 는 상한으로 자르는데, 순서가 요청마다 흔들리면
+    같은 화면을 두 번 열었을 때 다른 프로젝트가 잘려 나간다.
+    """
+    stmt = apply_scope(
+        select(
+            Project.id, Project.name, Project.code, Project.status,
+            Project.dept_id, Project.progress_pct, Project.health_score,
+            Project.notion_status,
+        ).where(Project.archived_at.is_(None)),
+        scope,
+    ).order_by(Project.updated_at.desc(), Project.id.asc())
+    return list(db.execute(stmt).all())
+
+
+def overdue_milestones_in_scope(db: Session, scope: Scope, *, today: str) -> list:
+    """기한이 지났는데 아직 예정인 마일스톤 - **범위 안 프로젝트 전부**에서 한 질의로.
+
+    프로젝트마다 `milestones_for_project` 를 부르면 질의가 프로젝트 수만큼 늘어난다
+    (`app/home/work.py` 가 그렇게 하고, 그래서 그쪽은 상한이 있다). 대시보드는 상한 없이
+    정확해야 해서 조인 한 번으로 읽는다.
+
+    판정 조건 셋은 `app/home/work.py::_projects_and_milestones` 와 **같은 것**이다:
+      * 기한이 있다 (기한 없는 마일스톤은 늦을 수가 없다)
+      * 기한이 **오늘(KST)보다 이전**이다 (오늘이 기한이면 아직 자정까지 남았다)
+      * 아직 `planned` 다 (완료·놓침은 이미 결론이 난 일이라 계속 빨갛게 띄우면 진짜 지연이 묻힌다)
+
+    `due_on` 은 'YYYY-MM-DD' 문자열이라 사전순이 날짜순과 일치한다(models.py 가 날짜를
+    문자열로 두는 근거와 같다). 그래서 문자열 비교로 자를 수 있다.
+
+    보관된 프로젝트의 마일스톤은 빼는 것이 목록과 같은 규약이다 - 끝난 프로젝트의 지난
+    기한이 계속 쌓이면 '지금 볼 것' 이 죽은 일로 찬다.
+    """
+    stmt = apply_scope(
+        select(ProjectMilestone, Project.id, Project.name)
+        .join(Project, ProjectMilestone.project_id == Project.id)
+        .where(
+            Project.archived_at.is_(None),
+            ProjectMilestone.due_on.is_not(None),
+            ProjectMilestone.due_on < today,
+            ProjectMilestone.status == MILESTONE_PLANNED,
+        ),
+        scope,
+    ).order_by(
+        ProjectMilestone.due_on.asc(),
+        Project.name.asc(),
+        ProjectMilestone.id.asc(),
+    )
+    return list(db.execute(stmt).all())
 
 
 def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:

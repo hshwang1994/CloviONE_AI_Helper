@@ -27,6 +27,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { FAB_CLEARANCE } from "../ui/theme.js";
+import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
@@ -124,7 +125,10 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact }
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
-    { key: "title", label: "제목", minWidth: compact ? "11rem" : "16rem", render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
+    // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
+    // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
+    { key: "title", label: "제목", minWidth: compact ? "11rem" : "16rem", rowName: (t) => t.title || "제목 없음",
+      render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
     { key: "status", label: "상태", width: compact ? "6rem" : "7rem", nowrap: true, render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
     { key: "priority", label: "우선순위", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
@@ -799,6 +803,19 @@ function WritingAid({ description, onInsert }) {
  * 실측(크로미움 151, 뷰포트 10폭, 2026-08-06): 1200 → 1열 466px(전 2열 223px),
  * 1920 → 3열 371px(전 2열 566px), 3840 → 3열 463px. 나머지 일곱 폭은 전과 같다.
  * 어느 폭에서도 한 칸이 16rem 밑으로 안 내려간다 — 검사는 new-ticket-layout.test.jsx. */
+/* '새 티켓' 바깥 2열(폼 + 작성 도움 레일).
+ *
+ * `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이 어긋난다 —
+ * 사용자가 지적한 Q5("카드 크기가 제각각")가 정확히 그것이고, 여기서 한 번 다시 만들었다가
+ * 높이 편차 검사에 잡혔다(474px). */
+/* 트랙은 기준선 `.grid.two` 다. 예전 값 `minmax(0, 1fr) 22rem` 은 폭 자체는 채웠지만
+ * 레일이 어느 화면에서나 352px 로 고정이라, 넓은 화면에서 폼만 계속 늘어나고 레일은
+ * 얇은 띠로 남았다. 기준선은 둘 다 비율(1.45 : 0.8)로 두고 레일에 280px 하한만 준다. */
+export const NEW_TICKET_GRID = {
+  display: "grid", gap: GRID_GAP, alignItems: "stretch",
+  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.two },
+};
+
 const NT_FIELD_CONTAINER = "nt-fields";
 /* 한 칸이 이보다 좁아지면 프로젝트 이름·'예상 WD' 같은 값이 잘리기 시작한다. */
 const NT_FIELD_MIN_REM = 16;
@@ -882,13 +899,7 @@ export function NewTicket() {
       ) : (
         /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */
-        <Box sx={{
-          /* `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이
-             어긋난다 — 사용자가 지적한 Q5("카드 크기가 제각각")가 정확히 그것이고,
-             여기서 한 번 다시 만들었다가 높이 편차 검사에 잡혔다(474px). */
-          display: "grid", gap: 2.5, alignItems: "stretch",
-          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) 22rem" },
-        }}>
+        <Box sx={NEW_TICKET_GRID}>
         <Card>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
             간단한 티켓을 바로 만듭니다. 배경, 요구사항이 많은 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.

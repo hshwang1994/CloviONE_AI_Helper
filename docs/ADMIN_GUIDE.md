@@ -16,6 +16,12 @@
 | 콘텐츠 | 프롬프트, 정책, 템플릿 |
 | 자동화 | 실행 일정(스케줄), 문서 자동 생성, 개발자 월간 리포트, 승인 |
 
+> 나중에 생긴 system_admin 전용 화면 넷 — **초기 설정**(`#/setup`),
+> **시스템 설정**(`#/system`), **Notion 관리**(`#/notion-console`),
+> **AI 관리**(`#/llm-console`) — 의 사용법은 [CONSOLE_SCREENS.md](CONSOLE_SCREENS.md)
+> 에 따로 있다. 이 화면들은 서버 자체(서비스 재시작, 타임존, 인증서)와 외부 연결
+> (Notion 토큰, AI 백엔드)을 만지므로 다룰 때 알아야 할 경계가 많다.
+
 ## Dashboard
 
 컴포넌트 상태(web/worker/scheduler — heartbeat 90초 초과 시 stale), 연동 서비스 헬스,

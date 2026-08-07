@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 
@@ -23,6 +23,21 @@ export function useProjectList(qs) {
     retry: false,
     // 페이지를 넘길 때마다 카드가 통째로 스켈레톤으로 깜빡이면 목록이 어디로 갔는지 알 수 없다.
     placeholderData: keepPreviousData,
+  });
+}
+
+/* 목록 맨 위의 요약. **집계는 서버가 한다.**
+ *
+ * 화면에서 `items` 를 세면 안 된다 - 목록은 20건씩 잘려 나가므로 "총 22건인데 요약은
+ * 20건 기준" 이 된다(app/projects/service.py::project_dashboard 가 같은 판단을 기록한다).
+ * 그래서 이 훅은 목록 질의와 **별개의 경로**를 부르고, 조건(qs)을 싣지 않는다 - 요약은
+ * 보고 있는 페이지가 아니라 범위 전체를 말한다.
+ */
+export function useProjectDashboard() {
+  return useQuery({
+    queryKey: ["projects", "dashboard"],
+    queryFn: () => api("/api/projects/dashboard"),
+    retry: false,
   });
 }
 
@@ -65,6 +80,81 @@ export function useProjectMilestones(id, enabled) {
 /** 주간 리포트. `week` 는 주 중 아무 날이고, 비면 서버가 이번 주로 정한다. */
 export function useProjectWeekly(id, week, enabled) {
   return useQuery(detail(id, "weekly-report", enabled, week ? "week=" + encodeURIComponent(week) : ""));
+}
+
+/* ── 쓰기 ────────────────────────────────────────────────────────────────────
+ *
+ * 백엔드에는 처음부터 생성·수정·마일스톤 CRUD 가 다 있었는데(app/projects/router.py) 화면에
+ * 그 버튼이 하나도 없었다. 사용자가 지적한 것이 바로 그 상태다: "노션에서 설정 및 추가를
+ * 못 한다고 생각해라" - 포털에서 만들고 고칠 수 있어야 한다.
+ */
+
+/** 이 프로젝트를 그리는 **모든 캐시**를 무효화한다.
+ *
+ * 🔴 목록·요약·상세를 **전부** 건드리는 것이 요점이다. 하나만 하면 저장은 됐는데 다른
+ * 화면이 옛 값을 계속 보여 준다 - 이 저장소가 E6 에서 정확히 그 실수를 겪었다. 특히 요약
+ * (dashboard)을 빠뜨리기 쉽다: 상태를 '완료' 로 바꿨는데 맨 위 '진행 12건' 이 그대로다.
+ *
+ * `refetchType: "all"` 인 이유: 기본값은 지금 화면에 붙어 있는 질의만 다시 부른다. 상세에서
+ * 고치고 목록으로 돌아가면 목록 질의는 그때 비활성이라 옛 값이 그대로 남는다.
+ */
+function invalidateProject(qc, id) {
+  qc.invalidateQueries({ queryKey: ["projects", "list"], refetchType: "all" });
+  qc.invalidateQueries({ queryKey: ["projects", "dashboard"], refetchType: "all" });
+  if (id) qc.invalidateQueries({ queryKey: ["projects", "one", id], refetchType: "all" });
+}
+
+export function useCreateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api("/api/projects", { method: "POST", body }),
+    // 새 프로젝트는 아직 상세를 열고 있지 않으므로 id 를 넘길 필요가 없다. 목록과 요약은
+    // 반드시 다시 받아야 한다 - 안 하면 방금 만든 것이 목록에 없다.
+    onSuccess: () => invalidateProject(qc, null),
+  });
+}
+
+export function useUpdateProject(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api("/api/projects/" + encodeURIComponent(id), {
+      method: "PATCH", body,
+    }),
+    onSuccess: () => invalidateProject(qc, id),
+  });
+}
+
+/* 마일스톤 세 개는 경로만 다르고 무효화 대상이 같다. 마일스톤이 바뀌면 Health 판정("기한
+ * 지난 마일스톤")과 요약의 '지연 마일스톤' 이 함께 달라지므로 프로젝트 캐시 전체를 턴다. */
+function milestonePath(projectId, milestoneId) {
+  return "/api/projects/" + encodeURIComponent(projectId) + "/milestones"
+    + (milestoneId ? "/" + encodeURIComponent(milestoneId) : "");
+}
+
+export function useCreateMilestone(projectId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api(milestonePath(projectId), { method: "POST", body }),
+    onSuccess: () => invalidateProject(qc, projectId),
+  });
+}
+
+export function useUpdateMilestone(projectId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }) => api(milestonePath(projectId, id), {
+      method: "PATCH", body,
+    }),
+    onSuccess: () => invalidateProject(qc, projectId),
+  });
+}
+
+export function useDeleteMilestone(projectId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api(milestonePath(projectId, id), { method: "DELETE" }),
+    onSuccess: () => invalidateProject(qc, projectId),
+  });
 }
 
 /* 부서 id → 이름.

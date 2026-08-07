@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import literal_column, select, text
+from sqlalchemy import column, literal_column, select, table, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -56,16 +56,31 @@ def allowed_kinds(role: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _fts_candidates(db: Session, expression: str) -> list[int]:
-    """`search_index` 에서 관련도(rank) 순 rowid. 실패하면 빈 목록(호출측이 LIKE 로 내려간다)."""
-    rows = db.execute(
-        text(
-            "SELECT rowid FROM search_index WHERE search_index MATCH :m "
-            "ORDER BY rank LIMIT :cap"
-        ),
-        {"m": expression, "cap": CANDIDATE_LIMIT},
-    ).scalars().all()
-    return [int(r) for r in rows]
+# FTS5 인덱스를 원본 표에 붙이기 위한 얇은 이름들. `search_index` 는 가상 표라 ORM 모델이
+# 없고, rowid 는 SQLAlchemy 가 자동으로 실어 주지 않는다.
+_SEARCH_INDEX = table("search_index", column("rowid"), column("rank"))
+_SD_ROWID = literal_column("search_documents.rowid")
+
+
+def _fts_candidates(db: Session, expression: str, *, conditions) -> list[int]:
+    """`search_index` 에서 관련도(rank) 순 rowid. 실패하면 빈 목록(호출측이 LIKE 로 내려간다).
+
+    ⚠️ **조건을 LIMIT 보다 먼저 건다** (Z6). 예전에는 인덱스만 보고 전역 상위 400건을
+    뽑은 뒤 그 400건 안에서 범위를 걸렀다 — 범위 밖이 400건을 채우면 내 범위 결과가
+    한 건도 안 남는다. 그래서 원본 표를 rowid 로 조인해 **범위와 유형을 질의 안에서**
+    거르고, 그 뒤에 상한을 건다.
+    """
+    stmt = (
+        select(_SD_ROWID)
+        .select_from(_SEARCH_INDEX)
+        .join(SearchDocument, onclause=_SD_ROWID == _SEARCH_INDEX.c.rowid)
+        .where(text("search_index MATCH :m").bindparams(m=expression))
+    )
+    for condition in conditions:
+        if condition is not None:
+            stmt = stmt.where(condition)
+    stmt = stmt.order_by(_SEARCH_INDEX.c.rank).limit(CANDIDATE_LIMIT)
+    return [int(r) for r in db.execute(stmt).scalars().all()]
 
 
 def _hit(row: SearchDocument) -> dict:
@@ -103,15 +118,22 @@ def search(
     if not kinds:
         return _empty(text_query, mode)
 
-    stmt = select(SearchDocument).where(SearchDocument.kind.in_(kinds))
+    # 유형 게이트와 범위. **후보를 자르기 전에** 걸어야 하는 조건들이다 (Z6) —
+    # 두 질의(FTS 후보 뽑기, LIKE 폴백)가 같은 목록을 쓴다.
+    kind_clause = SearchDocument.kind.in_(kinds)
     clause = sql_clause(principal.scope)
+    narrowing = (kind_clause, clause)
+
+    stmt = select(SearchDocument).where(kind_clause)
     if clause is not None:
         stmt = stmt.where(clause)
 
     rank_of: dict[str, int] = {}
     if mode == q.MODE_FTS:
         try:
-            rowids = _fts_candidates(db, q.fts_expression(text_query))
+            rowids = _fts_candidates(
+                db, q.fts_expression(text_query), conditions=narrowing
+            )
         except SQLAlchemyError:
             # 인덱스가 없거나(마이그레이션 직후) 질의가 FTS5 문법에 걸렸다. 조용히 0건을
             # 돌려주면 "검색이 안 된다"가 되고 아무도 이유를 모른다 — LIKE 로 내려가되
@@ -137,6 +159,9 @@ def search(
         pairs.sort(key=lambda pair: rank_of.get(str(pair[1]), len(rank_of)))
         rows = [pair[0] for pair in pairs]
 
+    # 최종 판정은 여전히 여기다. 위 SQL 절은 **상한 앞에서 좁히는 관문**이지 판정의
+    # 대체가 아니다 — 판정을 SQL 로만 옮기면 소유자를 해석하는 규칙이 scope.py 밖으로
+    # 새어 나가고, 그때 목록 화면과 검색이 서로 다른 규칙을 갖게 된다.
     visible = owner_gate(db, principal.scope)
     hits = [row for row in rows if row_visible(row, visible)]
 
@@ -146,6 +171,10 @@ def search(
     #   1) 어떤 그룹이 가진 것보다 적게 보여 줬다,
     #   2) 후보 상한(CANDIDATE_LIMIT)에 걸려 **아예 안 본 일치**가 있을 수 있다.
     # 2번을 빼면 화면이 "총 400건"을 마치 전부인 양 말하게 된다.
+    #
+    # 이제 후보를 뽑을 때 범위가 이미 걸려 있으므로 이 신호는 "**내 범위 안에** 더 있다"를
+    # 뜻한다. 예전에는 전역 400건에 걸렸다는 뜻이라 범위 관리자에게는 늘 켜져 있었다 —
+    # 볼 것이 한 건뿐인데도 "더 있는데 안 보여 준다"고 말하는 배지였다.
     truncated = len(rows) >= CANDIDATE_LIMIT
     for kind in kinds:
         items = [row for row in hits if row.kind == kind]

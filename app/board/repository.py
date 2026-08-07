@@ -6,7 +6,7 @@ soft delete 규약: 조회 함수는 기본으로 deleted_at IS NULL 만 돌려�
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from app.board.models import (
@@ -84,6 +84,31 @@ def like_counts(db: Session, post_ids: list[str]) -> dict[str, int]:
     return {pid: int(n) for pid, n in rows}
 
 
+def author_search_clause(like: str):
+    """작성자 표시명이 검색어에 걸리는가 — **상관** 서브쿼리(EXISTS)로.
+
+    예전에는 비상관 서브쿼리였다:
+
+        Post.author_user_id.in_(select(User.id).where(User.display_name.ilike(like)))
+
+    SQLite 는 이런 `IN (SELECT ...)` 를 임시 표로 **구체화**한다. 게시판 검색 한 번마다
+    `users` 를 통째로 훑어 임시 인덱스를 만든다는 뜻이다 — 비용이 게시글이 아니라 **사람
+    수**에 비례하는데, 정작 필요한 것은 "이 글의 작성자가 그 이름인가" 하나다.
+
+    EXISTS 로 상관시키면 글 한 줄마다 `users.id` 기본키를 한 번 찍는다. 실행 계획이
+    `SCAN users` 에서 `SEARCH users ... (id=?)` 로 바뀐다
+    (`tests/unit/test_board_search_query_plan.py` 가 그 문자열을 못박는다 — 결과가 같고
+    속도만 다른 결함이라 결과만 보는 테스트로는 잡히지 않는다).
+
+    결과는 같다. `author_user_id` 가 NULL 이면 양쪽 다 거짓이다.
+    """
+    return (
+        select(literal(1))
+        .where(User.id == Post.author_user_id, User.display_name.ilike(like))
+        .exists()
+    )
+
+
 def list_posts(
     db: Session,
     *,
@@ -119,13 +144,12 @@ def list_posts(
         stmt = stmt.where(Post.category == category)
     if search:
         like = f"%{search.strip()}%"
-        # 제목·본문·작성자 표시명 검색(§18). 작성자 검색은 users를 조인해 표시명으로 찾는다.
-        author_ids = select(User.id).where(User.display_name.ilike(like))
+        # 제목·본문·작성자 표시명 검색(§18).
         stmt = stmt.where(
             or_(
                 Post.title.ilike(like),
                 Post.body.ilike(like),
-                Post.author_user_id.in_(author_ids),
+                author_search_clause(like),
             )
         )
     total = db.execute(

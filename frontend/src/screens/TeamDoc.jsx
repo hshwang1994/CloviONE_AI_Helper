@@ -18,7 +18,8 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { DETAIL_RAIL_MAX_WIDTH, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { docTypeKind } from "../lib/badges.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
@@ -29,14 +30,23 @@ import { DocComments } from "./DocComments.jsx";
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
  * 문서 안의 프롬프트처럼 보이는 문장도 그저 텍스트다, §11.3/§17.2).
  *
- * 2026-08 MUI 재설계: 본문은 산문이라 줄 길이를 PROSE_MAX_WIDTH(78ch)로 묶고, 4K에서 남는 폭은
- * 줄이 아니라 **두 번째 열**(메타 레일)로 보낸다. DocBody/safeExternal은 티켓 상세도 함께 쓰므로
- * export 이름과 prop 시그니처를 그대로 유지한다. */
+ * 2026-08 MUI 재설계: 폭은 두 층이다. **열 폭**은 기준선 `.ticket-layout`(DOC_DETAIL_GRID)이
+ * 정하고 화면을 꽉 채우며, **글줄 길이**만 그 안에서 PROSE_MAX_WIDTH(78ch)가 잡는다.
+ * 예전에는 격자 트랙을 78ch 로 못 박아 열이 폭을 다 못 쓰고 오른쪽이 비었다(티켓 상세와 같은 증상).
+ * DocBody/safeExternal은 티켓 상세도 함께 쓰므로 export 이름과 prop 시그니처를 그대로 유지한다. */
 
 // 정의는 `lib/safeUrl.js` 로 옮겼다 — 보안 원시함수가 화면 모듈에 있으니 다른 화면에서
 // 아무도 찾아 쓰지 않았고, 실제로 배너·휴지통·개발리포트 세 곳이 무방비였다.
 // 여기서 재수출하는 이유는 `Ticket.jsx` 와 `teamdoc.test.jsx` 가 이 경로로 가져오기 때문이다.
 export { safeExternal };
+
+/* 문서 상세의 두 열(본문 + 메타 레일). 기준선 `.ticket-layout` 과 같은 자리라 티켓 상세와
+ * **같은 값**을 쓴다 — 성격이 같은 두 화면이 서로 다른 폭이면 같은 앱으로 안 보인다.
+ * 왜 트랙에 `fr` 이 필요한지는 `Ticket.jsx` 의 DETAIL_GRID 주석에 적어 뒀다(같은 증상이었다). */
+export const DOC_DETAIL_GRID = {
+  display: "grid", alignItems: "start", gap: GRID_GAP,
+  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
+};
 
 function DocBlock({ block, onImage }) {
   const t = block.text || "";
@@ -258,12 +268,8 @@ export function TeamDoc() {
     <div className="c-screen">
       <PageHeader crumbRoot="" area="문서" title="문서" actions={actions} />
 
-      {/* 1열: 제목 + 본문(78ch 상한). 2열: 메타 레일. lg부터 갈라진다. */}
-      <Box sx={{
-        display: "grid", alignItems: "start",
-        columnGap: { lg: 4, xxl: 6 }, rowGap: 3,
-        gridTemplateColumns: { xs: "1fr", lg: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, ${DETAIL_RAIL_MAX_WIDTH})` },
-      }}>
+      {/* 1열: 제목 + 본문. 2열: 메타 레일. lg부터 갈라진다. */}
+      <Box sx={DOC_DETAIL_GRID}>
         <Card component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
             {doc.status ? <Badge value={doc.status} /> : null}

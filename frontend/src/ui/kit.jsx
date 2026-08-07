@@ -30,7 +30,9 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { ART, SPOT } from "../lib/assets.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
+import { declaredRowName, rowNameOf } from "./rowName.js";
 import { KO_WORD_BREAK } from "./theme.js";
+import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
  *
@@ -158,9 +160,13 @@ export function Button({ variant = "default", size, children, ...rest }) {
   );
 }
 
+/* 안쪽 여백은 기준선 `.card.pad`(20px)다. 예전에는 `p: 3`(=1.5rem, 기본 루트에서 24px)이었다.
+ * 한 변에 4px 이지만 **앱의 모든 카드**가 높이도 폭도 8px 씩 커지는 값이라
+ * "담은 정보에 비해 카드가 너무 크다"로 보였다. 게다가 이 앱은 4K에서 루트 폰트를 올리므로
+ * 24px 이 2560에서 27px, 3840에서 30px 로 더 벌어진다(기준선은 화면 폭과 무관하게 20px 다). */
 export function Card({ className, children, sx, ...rest }) {
   return (
-    <MuiCard className={className} elevation={0} sx={{ p: 3, ...sx }} {...rest}>
+    <MuiCard className={className} elevation={0} sx={{ p: CARD_PADDING, ...sx }} {...rest}>
       {children}
     </MuiCard>
   );
@@ -208,7 +214,12 @@ export function StatCard({ value, label, kind, onClick, active }) {
       aria-pressed={onClick ? !!active : undefined}
       variant="outlined"
       sx={{
-        p: 3, textAlign: "left", width: "100%", minWidth: 0, position: "relative",
+        /* 기준선 `.kpi-card`(17px 18px)다. 예전 `p: 3`(24px)은 카드가 담는 것이 숫자 한 줄과
+           라벨 한 줄뿐인데도 위아래 여백만 48px 을 먹었다. 기준선의 `min-height: 132px` 은
+           일부러 가져오지 않는다 — 기준선 카드는 그 안에 부연(kpi-note)과 증감 칩까지 그리고
+           우리는 안 그린다. 없는 내용을 위해 높이를 비워 두면 사용자가 지적한 그 문제
+           ("정보에 비해 카드가 크다")를 검사가 통과시키는 꼴이 된다. */
+        p: STAT_CARD_PADDING, textAlign: "left", width: "100%", minWidth: 0, position: "relative",
         display: "grid", gap: 0.5, alignContent: "start",
         font: "inherit", color: "inherit", cursor: onClick ? "pointer" : "default",
         borderColor: active ? "primary.main" : "divider",
@@ -219,7 +230,9 @@ export function StatCard({ value, label, kind, onClick, active }) {
     >
       <Typography
         component="div"
-        sx={{ fontSize: "clamp(1.5rem, 1.2rem + .6vw, 2.25rem)", fontWeight: 800, lineHeight: 1.1 }}
+        /* 기준선 `.kpi-value`(30px). 예전 clamp 는 상한이 2.25rem 이라 4K 루트(20px)에서
+           45px 까지 커졌다 — 숫자 하나가 카드 높이를 혼자 밀어 올리던 자리다. */
+        sx={{ fontSize: STAT_VALUE_FONT_SIZE, fontWeight: 800, lineHeight: 1.1 }}
         color={color && color !== "default" ? `${color}.main` : "text.primary"}
       >
         {value == null ? "-" : value}
@@ -382,6 +395,11 @@ export function ErrorState({ error, onRetry }) {
  *
  * 접근성: 행은 표 의미(row)를 유지하고, 상세 열기는 마지막 칸의 실제 <button>이 담당한다. */
 function rowOpenLabel(columns, row) {
+  /* 열 정의가 '행을 구별하는 값'을 명시했으면(rowName) 그것이 가장 정확하다 — 첫 열이
+     무엇이든 화면이 정한 식별 열을 쓴다(ui/rowName.js). 표식이 없는 표는 아래 옛 규칙
+     그대로 둔다: 폴백을 여기서 넓히면 첫 열이 render() 인 표들의 이름이 한꺼번에 바뀐다. */
+  const declared = declaredRowName(columns, row);
+  if (declared) return "상세 보기: " + declared;
   const primary = columns[0];
   if (!primary) return "상세 보기";
   // 첫 열이 커스텀 render()를 쓰면 원시 값을 텍스트로 못 쓴다 — 화면 쪽에서 openLabel(row)를
@@ -396,8 +414,12 @@ function rowOpenLabel(columns, row) {
 }
 const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
 
-function cellValue(c, row) {
-  if (c.render) return c.render(row);
+/* 셀 렌더러에 넘기는 두 번째 인자(ctx)는 **그 행에 대한 표의 지식**이다. 지금은 rowName
+ * 하나뿐이다: 선택 체크박스처럼 셀 안에 있으면서 '자기 행이 무엇인지' 알아야 하는 컨트롤이
+ * 쓴다. 화면이 열 정의마다 라벨을 손으로 적지 않게 하려면 표가 알려 주는 수밖에 없다
+ * (열은 자기 옆 열들을 모른다). 기존 render 들은 인자를 하나만 받으므로 그대로 동작한다. */
+function cellValue(c, row, ctx) {
+  if (c.render) return c.render(row, ctx);
   const v = row[c.key];
   return v == null || v === "" ? "-" : String(v);
 }
@@ -439,23 +461,26 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   if (narrow) {
     return (
       <Stack gap={1.5}>
-        {safeRows.map((row, i) => (
-          <Paper
-            key={keyOf(row, i)}
-            variant="outlined"
-            onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
-            sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
-          >
-            {cols.map((c) => c.open ? (
-              <Box key={c.key} sx={{ pt: 1 }}>{openButton(row)}</Box>
-            ) : (
-              <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{cellValue(c, row)}</Box>
-              </Box>
-            ))}
-          </Paper>
-        ))}
+        {safeRows.map((row, i) => {
+          const ctx = { rowName: rowNameOf(baseCols, row) };
+          return (
+            <Paper
+              key={keyOf(row, i)}
+              variant="outlined"
+              onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+              sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
+            >
+              {cols.map((c) => c.open ? (
+                <Box key={c.key} sx={{ pt: 1 }}>{openButton(row)}</Box>
+              ) : (
+                <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
+                  <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                  <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{cellValue(c, row, ctx)}</Box>
+                </Box>
+              ))}
+            </Paper>
+          );
+        })}
       </Stack>
     );
   }
@@ -484,30 +509,34 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
           </TableRow>
         </TableHead>
         <TableBody>
-          {safeRows.map((row, i) => (
-            /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
-               문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작. */
-            <TableRow
-              key={keyOf(row, i)}
-              hover={!!onRow}
-              onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
-              sx={{ cursor: onRow ? "pointer" : "default" }}
-            >
-              {cols.map((c) => (
-                <TableCell
-                  key={c.key}
-                  align={c.align || "left"}
-                  sx={ellipsis && !c.open
-                    ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
-                    : { overflowWrap: c.nowrap ? "normal" : "anywhere",
-                       whiteSpace: c.nowrap ? "nowrap" : undefined,
-                       minWidth: c.minWidth }}
-                >
-                  {c.open ? openButton(row) : cellValue(c, row)}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+          {safeRows.map((row, i) => {
+            // 행마다 한 번만 구한다 — 셀마다 다시 구하면 열 수만큼 같은 계산을 반복한다.
+            const ctx = { rowName: rowNameOf(baseCols, row) };
+            return (
+              /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
+                 문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작. */
+              <TableRow
+                key={keyOf(row, i)}
+                hover={!!onRow}
+                onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+                sx={{ cursor: onRow ? "pointer" : "default" }}
+              >
+                {cols.map((c) => (
+                  <TableCell
+                    key={c.key}
+                    align={c.align || "left"}
+                    sx={ellipsis && !c.open
+                      ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
+                      : { overflowWrap: c.nowrap ? "normal" : "anywhere",
+                         whiteSpace: c.nowrap ? "nowrap" : undefined,
+                         minWidth: c.minWidth }}
+                  >
+                    {c.open ? openButton(row) : cellValue(c, row, ctx)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>
@@ -910,7 +939,17 @@ export function useConfirm() { return React.useContext(ConfirmCtx); }
 
 /* 토스트 — window.alert 대체. useToast()(message, kind).
  * 오류는 더 오래 남기고(8s) 직접 닫기 버튼을 준다 — 3.5s에 사라지면 무엇이 실패했는지 놓친다.
- * aria: 정보/성공은 polite, 오류는 role="alert"(즉시 낭독). */
+ *
+ * 낭독은 **바깥 라이브 영역 하나**가 맡는다. 예전에는 그 영역 안의 MUI Alert 이 자기
+ * role="alert" 을 들고 있어 같은 문장이 두 번 읽혔다(라이브 영역 한 번, alert 한 번).
+ * MUI Alert 은 role 기본값이 'alert' 이라 `role={undefined}` 로는 지워지지 않는다 —
+ * 표시용 role("presentation")로 덮어써야 사라진다.
+ *
+ * 급함의 정도: 정보·성공은 polite(사용자가 읽고 있던 문장을 자르지 않는다), 오류만
+ * assertive 다 — 저장 실패처럼 다음 행동이 달라지는 소식은 지금 알려야 한다.
+ *
+ * Snackbar 를 늘 띄워 두는 이유: 라이브 영역이 **내용과 같은 순간에 생기면** 그 변화를
+ * 낭독하지 않는 스크린리더가 있다. 비어 있는 동안에는 클릭도 가로채지 않는다. */
 let _toastSeq = 0;
 const ToastCtx = React.createContext(() => {});
 export function ToastProvider({ children }) {
@@ -923,28 +962,37 @@ export function ToastProvider({ children }) {
     const ttl = k === "error" ? 8000 : 3500;
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ttl);
   }, []);
+  const urgent = toasts.some((t) => t.kind === "error");
   return (
     <ToastCtx.Provider value={push}>
       {children}
       <MuiSnackbar
-        open={toasts.length > 0}
+        open
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        sx={{ maxWidth: "min(92vw, 30rem)" }}
+        sx={{ maxWidth: "min(92vw, 30rem)", pointerEvents: toasts.length ? "auto" : "none" }}
       >
-        <Stack gap={1} sx={{ width: "100%" }} aria-live="polite" aria-atomic="false">
-          {toasts.map((t) => (
-            <MuiAlert
-              key={t.id}
-              severity={TONE_SEVERITY[t.kind] || (t.kind === "error" ? "error" : t.kind === "success" ? "success" : "info")}
-              variant="filled"
-              role={t.kind === "error" ? "alert" : undefined}
-              onClose={() => dismiss(t.id)}
-              sx={{ width: "100%" }}
-            >
-              {t.message}
-            </MuiAlert>
-          ))}
-        </Stack>
+        {/* 전이(Grow)는 자기 프롭을 자식에게 그대로 넘긴다 — 그 자식이 Stack 이면 Snackbar 가
+            넣는 `direction`("up")이 Stack 의 배치 방향으로 오해돼 경고가 난다. 전이가 잡는
+            자리는 평범한 상자로 두고 목록은 그 안에 둔다. 라이브 영역도 이 바깥 상자다:
+            안쪽 목록이 비어도 영역 자체는 남아 있어야 한다. */}
+        <Box sx={{ width: "100%" }} aria-live={urgent ? "assertive" : "polite"} aria-atomic="false">
+          <Stack gap={1} sx={{ width: "100%" }}>
+            {toasts.map((t) => (
+              <MuiAlert
+                key={t.id}
+                severity={TONE_SEVERITY[t.kind] || (t.kind === "error" ? "error" : t.kind === "success" ? "success" : "info")}
+                variant="filled"
+                /* 낭독은 바깥 라이브 영역이 한다. 여기 role 을 남기면 같은 문장을 두 번 읽는다.
+                   severity 가 주는 색·아이콘은 그대로다(시각 정보는 잃지 않는다). */
+                role="presentation"
+                onClose={() => dismiss(t.id)}
+                sx={{ width: "100%" }}
+              >
+                {t.message}
+              </MuiAlert>
+            ))}
+          </Stack>
+        </Box>
       </MuiSnackbar>
     </ToastCtx.Provider>
   );

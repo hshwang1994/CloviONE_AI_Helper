@@ -82,13 +82,31 @@ _ROLE_STRING = re.compile(r'["\'](?:user|operator|auditor|admin|system_admin)["\
 _LINE_COMMENT = re.compile(r"//[^\n]*")
 
 
+def _rbac_source_files() -> list[Path]:
+    """rbac 화면 설정이 있을 수 있는 파일들.
+
+    E-10/PF7 로 `registry.js` 가 조립 파일이 되고 화면 설정은 `registry/*.js` 로 쪼개졌다
+    (rbac 는 지금 `registry/governance.js`). 파일 이름을 못박으면 다음 재편에서 또 깨지므로,
+    조립 파일 자신과 그 아래 도메인 파일 전부를 훑어 `rbac:` 키를 실제로 든 파일을 찾는다.
+    """
+    screens_dir = PROJECT_ROOT / "frontend" / "src" / "screens"
+    registry_dir = screens_dir / "registry"
+    return [screens_dir / "registry.js", *sorted(registry_dir.glob("*.js"))]
+
+
 def _rbac_block() -> str:
-    registry = (PROJECT_ROOT / "frontend" / "src" / "screens" / "registry.js").read_text(
-        encoding="utf-8"
+    for path in _rbac_source_files():
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "  rbac: {" not in text:
+            continue
+        start = text.index("  rbac: {")
+        end = text.index("\n  },", start)
+        return _LINE_COMMENT.sub("", text[start:end])
+    raise AssertionError(
+        "rbac 화면 설정을 찾지 못했다 — registry.js 나 registry/*.js 어디에도 'rbac: {' 가 없다"
     )
-    start = registry.index("  rbac: {")
-    end = registry.index("\n  },", start)
-    return _LINE_COMMENT.sub("", registry[start:end])
 
 
 def test_the_matrix_screen_does_not_redeclare_the_role_list():

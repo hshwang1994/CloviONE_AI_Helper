@@ -52,7 +52,14 @@ def _friendly_backup_failure(exc: Exception) -> str:
     )
 
 
-def backup_view(row: Backup) -> dict:
+def backup_view(row: Backup, names: dict | None = None) -> dict:
+    """`names` 는 {user_id: {display_name, email}} (app/core/people.py::name_map).
+
+    실행자를 UUID 로만 주면 "이 백업을 누가 돌렸나" 를 화면에서 알 수 없었다. 이름을
+    **더하는** 것이지 id 를 감추는 것이 아니다 — id 는 감사 로그 대조에 그대로 쓴다.
+    `names` 를 안 주면 이름은 None 이다(모르는 것을 지어내지 않는다).
+    """
+    creator = (names or {}).get(row.created_by) or {}
     return {
         "id": row.id,
         "backup_type": row.backup_type,
@@ -61,6 +68,8 @@ def backup_view(row: Backup) -> dict:
         "size_bytes": row.size_bytes,
         "checksum": row.checksum,
         "created_by": row.created_by,
+        "created_by_name": creator.get("display_name"),
+        "created_by_email": creator.get("email"),
         "created_at": row.created_at.isoformat(),
         "verified_at": row.verified_at.isoformat() if row.verified_at else None,
         "error_message": row.error_message,

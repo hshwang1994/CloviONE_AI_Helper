@@ -24,6 +24,7 @@ from app.backups.service import (
     run_backup,
     verify_existing,
 )
+from app.core import people
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, SYSTEM_ADMIN_ONLY
 from app.core.deps import get_db, require_csrf, require_roles
@@ -48,7 +49,9 @@ def list_backups(request: Request, db: Session = Depends(get_db)):
         .scalars()
         .all()
     )
-    return {"items": [backup_view(r) for r in rows]}
+    # 실행자 이름은 **한 번의 질의로** — 행마다 조회하면 이 목록이 N+1 이 된다.
+    names = people.name_map(db, [r.created_by for r in rows])
+    return {"items": [backup_view(r, names) for r in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])

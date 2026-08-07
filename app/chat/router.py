@@ -154,20 +154,25 @@ def post_message(
     # 걸면서 정작 비용이 가장 큰 축을 열어 뒀고, 그래서 화면의 "300/100" 같은 숫자가
     # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
     # 버스트, 이쪽은 하루·한 달 총량이다.
-    ai_quotas.enforce(db, user_id=user.id, now=request.app.state.clock.now())
-    conversation = get_owned_conversation(db, user, conversation_id)
-    message, job = post_user_message(
-        db,
-        user,
-        conversation,
-        content=payload.content,
-        client_message_id=payload.client_message_id,
-        settings=request.app.state.settings,
-        now=request.app.state.clock.now(),
-        attachments=(
-            [a.model_dump() for a in payload.attachments] if payload.attachments else None
-        ),
-    )
+    #
+    # 확인과 적재를 **한 덩어리로** 묶는다 (Z15). 이 경로는 기록을 워커가 하므로
+    # 큐에 넣은 잡 자체가 예약이고, 그 예약이 다른 요청에 보이려면 블록 안에서
+    # 커밋해야 한다(`ai_quotas.reserve` docstring).
+    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+        conversation = get_owned_conversation(db, user, conversation_id)
+        message, job = post_user_message(
+            db,
+            user,
+            conversation,
+            content=payload.content,
+            client_message_id=payload.client_message_id,
+            settings=request.app.state.settings,
+            now=request.app.state.clock.now(),
+            attachments=(
+                [a.model_dump() for a in payload.attachments] if payload.attachments else None
+            ),
+        )
+        db.commit()
     return {
         "message": message_view(message),
         "job_id": job.id if job is not None else None,
@@ -201,12 +206,14 @@ def retry(
     # 걸면서 정작 비용이 가장 큰 축을 열어 뒀고, 그래서 화면의 "300/100" 같은 숫자가
     # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
     # 버스트, 이쪽은 하루·한 달 총량이다.
-    ai_quotas.enforce(db, user_id=user.id, now=request.app.state.clock.now())
-    message, job = retry_message(
-        db,
-        user,
-        message_db_id,
-        settings=request.app.state.settings,
-        now=request.app.state.clock.now(),
-    )
+    # 전송과 **같은 문지기**를 지난다 (Z15) — 한쪽만 묶으면 '다시 시도' 로 우회한다.
+    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+        message, job = retry_message(
+            db,
+            user,
+            message_db_id,
+            settings=request.app.state.settings,
+            now=request.app.state.clock.now(),
+        )
+        db.commit()
     return {"message": message_view(message), "job_id": job.id}

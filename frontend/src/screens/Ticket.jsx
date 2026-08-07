@@ -6,7 +6,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { DETAIL_RAIL_MAX_WIDTH, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -18,24 +19,36 @@ import { priorityKo, priorityKind } from "../lib/priority.js";
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
  *
- * 2026-08 재설계 — 폭 정책이 이 화면의 핵심이다.
- * 본문은 산문이라 줄이 길어질수록 읽기 어려워진다(눈이 다음 줄 첫 글자를 못 찾는다). 그래서
- * 본문 열은 PROSE_MAX_WIDTH(78ch)에서 멈추고, 화면이 넓어져서 남는 폭은 **줄 길이가 아니라
- * 두 번째 열(속성·활동 레일)** 로 보낸다. 3,840px 화면에서 한 줄이 3,000px가 되는 것보다
- * 담당자·마감·난이도를 본문 옆에 나란히 두는 편이 회의 중에도 훨씬 쓸모 있다.
+ * 2026-08 재설계 — 폭 정책이 이 화면의 핵심이고, **두 층으로 나뉜다.**
+ *   1) 열 폭: 기준선 `.ticket-layout`(아래 DETAIL_GRID)이 정한다. 비율 트랙이라 본문 열이
+ *      화면을 꽉 채우고, 남는 폭은 속성 레일이 비율대로 나눠 갖는다.
+ *   2) 글줄 길이: 그 열 **안에서** PROSE_MAX_WIDTH(78ch)가 잡는다. 산문은 줄이 길수록
+ *      읽기 어렵다(눈이 다음 줄 첫 글자를 못 찾는다).
+ * 2026-08-07 이전에는 (1)을 (2)로 대신했다 — 격자 트랙 자체를 78ch 로 못 박아서, 열이
+ * 채우지 못한 폭이 오른쪽에 그대로 남았다(사용자 지적 "왼쪽으로 쏠려있다"). 둘은 다른 문제다.
  * 좁은 화면에서는 레일이 본문 '위'로 온다(order) — 아래로 밀면 담당자·마감을 보려고 본문 전체를
  * 스크롤해 지나가야 한다. */
 
 function ticketId(t) { return t && t.tid != null ? "GIT-" + t.tid : "티켓"; }
 
-/* 두 열 그리드. xl(1536) 미만에서는 한 열이다 — 1366×768 사내 장비에서 사이드바를 빼면 본문 폭이
- * 1,100px 남짓이라, 78ch 본문 + 레일을 억지로 나란히 두면 둘 다 좁아진다. */
-const DETAIL_GRID = {
-  display: "grid", gap: 3, alignItems: "start",
-  gridTemplateColumns: {
-    xs: "1fr",
-    xl: `minmax(0, ${PROSE_MAX_WIDTH}) minmax(18rem, ${DETAIL_RAIL_MAX_WIDTH})`,
-  },
+/* 두 열 그리드 — 기준선 `.ticket-layout` 을 그대로 쓴다.
+ *
+ * 예전 값은 `minmax(0, 78ch) minmax(18rem, 26rem)` 이었고, 이것이 사용자가 본
+ * "티켓 상세가 왼쪽으로 쏠려있다"의 원인이다. **두 트랙 모두 상한이 고정값**이라
+ * 격자가 컨테이너보다 좁게 멈추고 오른쪽을 빈 채로 남긴다: 1920 기준 본문 열
+ * 1,592px 중 78ch(약 600px) + 26rem(416px) + 간격만 쓰고 550px 가까이가 그냥 비었다.
+ * 바깥 셸의 `mx:"auto"` 는 이걸 못 고친다 — 가운데로 옮길 뿐 폭을 채우지 않는다.
+ *
+ * 기준선은 두 트랙을 다 `fr` 로 둔다(1.5 : 0.65). 남는 폭이 본문과 레일에 비율대로 배분돼
+ * 어느 폭에서도 오른쪽이 비지 않고, 레일에는 300px 하한이 있어 짜부라지지도 않는다.
+ * 본문이 레일보다 2.3배 넓으므로 "본문이 속성보다 좁다"(Q1)도 그대로 지켜진다.
+ *
+ * 한 열로 접히는 지점은 lg(1200)다. 기준선은 960px 이하에서 한 열이 되는데, 우리 셸은
+ * 사이드바 264px 를 더 빼므로 그보다 한 단 위에서 접는 것이 같은 여유가 된다.
+ * 문서 상세(TeamDoc)도 같은 값을 쓴다 — 성격이 같은 두 화면이 다른 폭이면 안 된다. */
+export const DETAIL_GRID = {
+  display: "grid", gap: GRID_GAP, alignItems: "start",
+  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
 };
 
 /* 속성 필드 그리드 — 4K 반응형 계약(계획서 '상세/폼' 행): xxl(2200)에서 2열, uhd(3000)에서 3열.

@@ -19,7 +19,11 @@ import { Profile } from "../screens/Profile.jsx";
 import { MyStats } from "../screens/MyStats.jsx";
 import { Activity } from "../screens/Activity.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
-import { REGISTRY } from "../screens/registry.js";
+/* 알림 화면 설정만 들여온다 — `registry.js` 전체가 아니다 (PF7).
+   그 파일은 관리자 화면 스물여덟 개의 설정 덩어리(gzip 43KB)이고, 사용자 콘솔이 거기서
+   실제로 쓰는 것은 알림 하나뿐이다. 예전에는 이 한 줄 때문에 평범한 사용자가 평생 열지
+   않을 관리자 설정을 전부 내려받았다. */
+import { NOTIFICATIONS_SCREEN } from "../screens/registry/notifications.js";
 import { Card, Skeleton } from "../ui/kit.jsx";
 
 /* 사용자 콘솔 라우트
@@ -77,7 +81,7 @@ function UserRoutes() {
       <Route path="/team-docs/:id" element={<TeamDoc />} />
       <Route path="/games" element={<Games />} />
       <Route path="/games/:id" element={<Lazy><GameRoom /></Lazy>} />
-      <Route path="/notifications" element={<DataScreen config={REGISTRY.notifications} />} />
+      <Route path="/notifications" element={<DataScreen config={NOTIFICATIONS_SCREEN.notifications} />} />
       {/* 내 정보(계획서 Phase 6 사용자) — 프로필 셀프서비스·업무량 통계·활동 피드.
           역할과 무관하게 누구나 자기 것만 본다. 서버가 세션 사용자 기준으로만 답하므로
           라우트 역할 게이트가 필요 없다(가드가 없는 게 아니라 대상이 하나뿐이다). */}

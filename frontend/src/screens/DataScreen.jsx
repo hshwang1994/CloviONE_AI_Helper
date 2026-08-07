@@ -40,6 +40,7 @@ function KeyValueRow({ label, children }) {
   );
 }
 import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
+import { NOTI_ROOT } from "../app/notification-keys.js";
 
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
@@ -52,7 +53,16 @@ import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } fro
  * 알림이 대표적이다: 목록에서 읽음 처리를 해도 상단 벨과 사이드바 배지는 다른 키로 폴링한다.
  * 지도를 한 곳에 두면 새 화면을 추가할 때 여기만 보면 된다. */
 const CROSS_SCREEN_KEYS = {
-  notifications: [["noti-unread"]],
+  // 알림은 이제 벨·팝오버·이 화면이 **한 뿌리**(`["noti"]`)를 쓴다 (PF9). 그래서 여기 적을
+  // 것이 하나뿐이고, 그 하나가 셋을 다 덮는다 — 예전에는 세 네임스페이스를 손으로 나열해야
+  // 했고 한 줄이 빠질 때마다 "읽었는데 숫자가 그대로" 가 됐다.
+  notifications: [NOTI_ROOT],
+  // 조직도 트리(`["org-tree"]`)는 조직·부서와 **같은 자료의 다른 보기**다. 조직 콘솔
+  // (OrgConsole.jsx)이 둘을 한 화면에 나란히 놓은 뒤로는 그 어긋남이 곧바로 눈에 보인다 —
+  // 오른쪽에서 부서를 추가·이름 변경·비활성화했는데 왼쪽 트리가 옛 모습 그대로면 사용자는
+  // "추가했는데 조직도에 없다"로 읽는다. 조직 이름·정지 상태도 트리 맨 윗줄에 실려 있다.
+  organizations: [["org-tree"]],
+  departments: [["org-tree"]],
 };
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
@@ -155,6 +165,18 @@ export function DataScreen({ config }) {
   // page/검색 파라미터가 아예 없다)에서 이미 받아 온 전체 목록을 화면에서 직접 거른다. 서버로 보내면
   // 백엔드가 조용히 무시해 '골랐는데 아무 효과 없는' 필터가 되므로, 그런 화면은 이 표시를 쓴다
   // (부서/직책의 active 필터처럼 백엔드가 실제 지원하는 필터는 clientFilter 없이 그대로 서버로 간다).
+  /* 이 화면의 **캐시 주소**. 기본은 화면 키 하나지만, 설정이 `cacheKey` 를 주면 그것을 쓴다.
+   *
+   * 왜 화면 키와 나누는가 (PF9): `config.key` 는 경로·저장된 뷰의 이름이고, 캐시 주소는
+   * "같은 데이터를 보는 다른 부품들과 무엇을 공유하는가" 다. 알림이 그 예다 — 벨과 팝오버
+   * 목록이 같은 알림을 보는데, 화면 키를 그대로 캐시 주소로 쓰면 접두어가 달라 한 번의
+   * 무효화로 함께 갱신할 수가 없다. 화면 키를 바꾸면 캐시가 조용히 갈라지기도 한다. */
+  const cacheRoot = React.useMemo(
+    () => (Array.isArray(config.cacheKey) ? config.cacheKey : [config.key]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.key, config.cacheKey]
+  );
+
   const serverFilterDefs = (config.filters || []).filter((f) => !f.clientFilter);
   const clientFilterDefs = (config.filters || []).filter((f) => f.clientFilter);
   function buildUrl() {
@@ -177,7 +199,7 @@ export function DataScreen({ config }) {
   // 받아올 필요가 없다(그 값은 아래 filtered 계산에서만 쓰인다).
   const serverFiltersKey = JSON.stringify(Object.fromEntries(serverFilterDefs.map((f) => [f.key, filters[f.key]])));
   const query = useQuery({
-    queryKey: [config.key, config.searchable ? q : "", config.paginated ? page : 0, serverFiltersKey],
+    queryKey: [...cacheRoot, config.searchable ? q : "", config.paginated ? page : 0, serverFiltersKey],
     queryFn: () => api(buildUrl()),
     retry: false,
     // 페이지네이션/필터/검색이 바뀌면 queryKey도 바뀌어 캐시가 없다 — placeholderData로 이전 페이지
@@ -190,9 +212,9 @@ export function DataScreen({ config }) {
       : false,
   });
   // 요약 통계(선택) — 목록과 별도 엔드포인트(예: 작업 큐 stats)를 받아 상단 StatCard 줄로 보여준다.
-  // queryKey가 config.key로 시작하므로 refresh()의 invalidateQueries([config.key])에 함께 갱신된다.
+  // queryKey가 cacheRoot로 시작하므로 refresh()의 무효화에 함께 갱신된다.
   const summaryQuery = useQuery({
-    queryKey: [config.key, "summary"],
+    queryKey: [...cacheRoot, "summary"],
     queryFn: () => api(config.summary.endpoint),
     enabled: !!config.summary,
     retry: false,
@@ -204,13 +226,13 @@ export function DataScreen({ config }) {
   /* 화면 밖에서도 같은 값을 보여 주는 곳이 있으면 함께 갱신한다 (X10).
    *
    * 알림 화면에서 '모두 읽음' 을 눌러도 **상단 벨은 최대 60초 동안 옛 숫자**를 들고 있었다.
-   * 이 화면은 자기 키(`[config.key]`)만 무효화하고, 벨은 다른 키(`["noti-unread"]`)로
-   * 폴링하기 때문이다 — 코드 주석이 이 결함을 예고해 놓고 그대로 남아 있었다.
+   * 이 화면은 자기 키만 무효화하고, 벨은 접두어가 다른 키로 폴링했기 때문이다 — 코드
+   * 주석이 이 결함을 예고해 놓고 그대로 남아 있었다(PF9 에서 뿌리를 합쳤다).
    *
    * 지도를 **한 곳에** 둔다. 무효화를 부르는 자리마다 손으로 적으면 새 화면에서 빠뜨리고,
    * 그때 증상은 "숫자가 안 맞는다" 라 원인을 찾기 어렵다. */
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: [config.key] });
+    qc.invalidateQueries({ queryKey: cacheRoot });
     for (const key of CROSS_SCREEN_KEYS[config.key] || []) {
       qc.invalidateQueries({ queryKey: key });
     }

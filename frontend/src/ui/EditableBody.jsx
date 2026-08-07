@@ -129,7 +129,11 @@ export function EditableBody({
             </Callout>
           </Box>
         ) : null}
+        {/* 이름은 바로 위 heading 과 같은 말로 준다. 이 자리에는 화면에 보이는 <label> 이
+            없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
+            본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
         <BodyEditor id={editorId} value={draft} onChange={setDraft} rows={14}
+          label={heading + " 편집"}
           placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
       </Box>
     );

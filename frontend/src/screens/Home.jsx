@@ -13,6 +13,7 @@ import {
   Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
+import { GRID_GAP } from "../ui/density.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
 import { TeamChatWidget } from "./TeamChatWidget.jsx";
@@ -42,20 +43,25 @@ import { TeamChatWidget } from "./TeamChatWidget.jsx";
  * 서버와 다른 날을 '오늘'이라고 부르게 된다.
  */
 
-/* 통계 카드 줄 — 계획서의 4K 반응형 계약 표를 그대로 옮긴 값이다.
- * 카드는 항상 정확히 6장이라 ≥3000 에서 한 줄에 딱 맞는다(고아 카드가 생기지 않는다). */
-const STAT_GRID = {
-  display: "grid", gap: 2, mb: 2.5,
-  // 모든 트랙이 minmax(0,...) 다. 그냥 "1fr" 은 minmax(auto,1fr) 이라 **트랙이 내용보다
-  // 작아지지 않는다** — 긴 문서 제목 하나가 격자를 통째로 밀어내 페이지에 가로 스크롤이
-  // 생겼다(390px 캡처에서 실제로 727px 로 벌어졌다). 격자 폭 문제는 항상 이 한 줄이다.
+/* 통계 카드 줄 — 카드는 **항상 정확히 6장**이다(오늘 마감, 지연, 진행 중, 7일 내 마감,
+ * 안 읽은 알림, 그리고 안 읽은 채팅 또는 막힘).
+ *
+ * 그래서 열 수는 6의 약수여야 한다. 예전 사다리는 xl 에서 4열, xxl 에서 5열이라 마지막
+ * 줄에 2장·1장만 남고 오른쪽이 빈 칸이었다. 줄이 하나 더 생기니 이 격자의 높이가 두 배가
+ * 되고(사용자 지적: "그리드에 높이가 너무 크지 않아?"), 남은 카드가 왼쪽에 몰려 그 줄만
+ * 쏠려 보였다. 기준선 `.grid.kpi` 는 카드 4장을 4열에 넣어 **한 줄**로 끝낸다 — 열 수를
+ * 카드 수에 맞추는 것이 그 규칙이고, 검사(density.test.jsx)가 이 성질을 지킨다.
+ *
+ * 모든 트랙이 minmax(0,...) 다. 그냥 "1fr" 은 minmax(auto,1fr) 이라 **트랙이 내용보다
+ * 작아지지 않는다** — 긴 문서 제목 하나가 격자를 통째로 밀어내 페이지에 가로 스크롤이
+ * 생겼다(390px 캡처에서 실제로 727px 로 벌어졌다). 격자 폭 문제는 항상 이 한 줄이다. */
+export const STAT_GRID = {
+  display: "grid", gap: GRID_GAP, mb: 2.5,
   gridTemplateColumns: {
     xs: "minmax(0, 1fr)",
-    md: "repeat(2, minmax(0,1fr))",
-    lg: "repeat(3, minmax(0,1fr))",
-    xl: "repeat(4, minmax(0,1fr))",
-    xxl: "repeat(5, minmax(0,1fr))",
-    uhd: "repeat(6, minmax(0,1fr))",
+    sm: "repeat(2, minmax(0,1fr))",
+    md: "repeat(3, minmax(0,1fr))",
+    xl: "repeat(6, minmax(0,1fr))",
   },
 };
 

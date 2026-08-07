@@ -52,10 +52,18 @@ const EXTRA_LABELS = {
   "/board": "자유게시판",
 };
 
-export function titleForPath(pathname) {
+/** 경로 → 화면 이름(제품명 없이). 아는 화면이 아니면 "".
+ *
+ * 탭 제목과 **같은 표**를 쓰기 위해 따로 뺐다. 화면 전환 낭독(routeAnnounce.js)도 이 이름을
+ * 읽는데, 거기에 경로→이름 표를 한 벌 더 두면 메뉴 이름을 바꿀 때 한쪽만 고치게 된다. */
+export function labelForPath(pathname) {
   const paths = [...Object.keys(ROUTE_LABELS), ...Object.keys(EXTRA_LABELS)];
   const best = bestNavMatch(pathname || "/", paths);
-  const label = best ? ROUTE_LABELS[best] || EXTRA_LABELS[best] : null;
+  return (best ? ROUTE_LABELS[best] || EXTRA_LABELS[best] : "") || "";
+}
+
+export function titleForPath(pathname) {
+  const label = labelForPath(pathname);
   const b = brand();
   return label ? `${label} | ${b}` : b;
 }

@@ -54,6 +54,61 @@ def members(db: Session, room_id: str) -> list[ChatRoomMember]:
     )
 
 
+def members_for_rooms(db: Session, room_ids: list[str]) -> dict[str, list[ChatRoomMember]]:
+    """room_id → 참여자들. 목록 화면이 방마다 한 번씩 묻지 않게 한 번에 읽는다 (H4).
+
+    참여자가 없는 방은 키 자체가 없다 — 호출자가 빈 목록으로 읽으면 된다. 미리 채워 두면
+    '요청한 방'과 '실제로 참여자가 있는 방'의 구분이 흐려진다.
+    """
+    if not room_ids:
+        return {}
+    rows = (
+        db.execute(select(ChatRoomMember).where(ChatRoomMember.room_id.in_(list(room_ids))))
+        .scalars()
+        .all()
+    )
+    out: dict[str, list[ChatRoomMember]] = {}
+    for row in rows:
+        out.setdefault(row.room_id, []).append(row)
+    return out
+
+
+def last_messages_for_rooms(db: Session, room_ids: list[str]) -> dict[str, ChatMessage]:
+    """room_id → 마지막(삭제 안 된) 메시지. 방 개수와 무관하게 **질의 두 번**이다 (H4).
+
+    왜 두 번인가: 방마다 `ORDER BY seq DESC LIMIT 1` 을 돌리면 그게 곧 N+1 이다. 먼저
+    방별 최대 seq 를 한 번에 구하고(집계), 그 seq 에 해당하는 행만 한 번 더 읽는다.
+    윈도 함수 한 방으로도 되지만 설치처의 sqlite3 버전에 기대게 되므로 쓰지 않는다.
+
+    두 번째 질의의 `seq IN (...)` 는 **다른 방의 같은 seq** 도 걸린다(seq 는 방 안에서만
+    유일하다). 그래서 방별 최대값과 맞는 행만 남긴다 — 이 한 줄을 빼면 엉뚱한 방의
+    메시지가 미리보기로 나간다.
+    """
+    if not room_ids:
+        return {}
+    ids = list(room_ids)
+    max_rows = db.execute(
+        select(ChatMessage.room_id, func.max(ChatMessage.seq))
+        .where(ChatMessage.room_id.in_(ids), ChatMessage.deleted_at.is_(None))
+        .group_by(ChatMessage.room_id)
+    ).all()
+    top: dict[str, int] = {room_id: seq for room_id, seq in max_rows if seq is not None}
+    if not top:
+        return {}
+    rows = (
+        db.execute(
+            select(ChatMessage).where(
+                ChatMessage.room_id.in_(list(top.keys())),
+                ChatMessage.seq.in_(sorted(set(top.values()))),
+                ChatMessage.deleted_at.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {row.room_id: row for row in rows if top.get(row.room_id) == row.seq}
+
+
 def rooms_for_user(db: Session, user_id: str) -> list[ChatRoom]:
     """사용자가 속한(삭제 안 된) 방들 — 그룹·1:1. 전체 채팅 방은 서비스가 따로 붙인다."""
     return list(

@@ -1,23 +1,26 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Callout } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import {
-  DIFFERS_NOTE, NO_HEALTH_SCORE, NO_NOTION_PROGRESS, NO_PROGRESS_CACHE, NO_PROGRESS_SAMPLE,
-  formulaText, percentText, progressDiffers, sampleText, weightModeText,
+  NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE,
+  formulaText, percentText, sampleText, weightModeText,
 } from "./project-format.js";
 
-/* 진행률과 Health 를 그리는 부품. 목록 카드와 상세가 **같은 것**을 쓴다.
+/* 진행률과 Health 를 그리는 부품. 목록과 상세가 **같은 것**을 쓴다.
  *
- * ## 진행률을 왜 두 값으로 그리는가
+ * ## 진행률은 포털이 계산한 값 하나다 (사용자 지시)
  *
- * 포털과 Notion 의 진행률이 다른 것은 고장이 아니라 정상 상태다. Notion 의 rollup 은
- * 취소한 작업을 완료로 세고 하위 작업을 상위 작업과 두 번 센다(app/projects/progress.py 에
- * 실측 근거가 있다). 그래서 서버는 두 값을 나란히 보내고, 화면은 둘 다 그린다.
+ * 예전에는 포털 계산값과 Notion 값을 나란히 놓고, 다르면 "두 값이 다릅니다" 라고 경고했다.
+ * 그 화면은 사용자에게 **어느 쪽도 믿지 말라**고 말하는 화면이었다. 정본은 포털이고
+ * Notion 은 데이터 소스(DB)일 뿐이다 - 저쪽 숫자를 굳이 옆에 놓고 비교할 이유가 없다.
  *
- * 한쪽만 그리면 사용자는 Notion 화면과 포털을 번갈아 보다가 "포털이 틀렸다"고 결론 내리고,
- * 그 다음부터는 **둘 다** 안 본다. 그래서 숫자 옆에 계산식과 표본 수를 함께 적는다.
+ * 대신 **계산 근거는 남긴다**(`ProgressBasis`). 그건 "믿지 마라" 가 아니라 "이렇게 셌다"
+ * 라서 성격이 반대다. 근거가 없으면 숫자 하나는 그냥 주장이고, 근거가 있으면 확인할 수
+ * 있는 사실이 된다.
+ *
+ * ⚠️ 서버 응답의 `notion_progress_pct` / `notion_percent` 는 그대로 둔다(디버깅용). 화면이
+ * 그것을 **눈에 띄게 그리지 않는 것**이 이 파일의 몫이다.
  *
  * ## Health 를 왜 점수만 그리지 않는가
  *
@@ -26,11 +29,6 @@ import {
  * 판정하지 못한 항목도 감추지 않는다 - 감추면 가장 정보가 없는 프로젝트가 화면에서
  * 가장 건강해 보인다(app/projects/health.py 모듈 docstring).
  */
-
-const METRIC_GRID = {
-  display: "grid", gap: 2,
-  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-};
 
 function Metric({ label, value, dim }) {
   return (
@@ -58,7 +56,7 @@ function BasisRow({ label, children }) {
   );
 }
 
-/* 계산 근거. 이것이 없으면 위의 두 숫자는 서로를 부정하는 두 주장일 뿐이다. */
+/* 계산 근거. 이것이 없으면 위의 숫자는 확인할 수 없는 주장일 뿐이다. */
 export function ProgressBasis({ basis }) {
   if (!basis) return null;
   return (
@@ -70,46 +68,18 @@ export function ProgressBasis({ basis }) {
   );
 }
 
-/* `missingMeans` 는 **비어 있음의 뜻**이다. 두 가지가 있고 서로 다른 말이라 문구도 다르다:
- *   "cache"  프로젝트 행의 캐시가 비었다 = 아직 한 번도 계산 안 했다
- *   "sample" 세어 봤는데 분모가 0이었다 = 걸린 작업이 아직 없다
- * 둘 다 0% 가 아니다(project-format.js 의 계약). */
-export function ProgressPair({ appPercent, notionPercent, basis, missingMeans, footnote }) {
-  const app = percentText(appPercent);
-  const notion = percentText(notionPercent);
-  const differs = progressDiffers(appPercent, notionPercent);
-  const noSample = missingMeans === "sample";
-
+/* 진행률 한 값 + 계산 근거. 상세 화면의 `/progress` 응답을 그린다.
+ *
+ * 값이 비면 **"작업이 아직 없다"** 다. 그 경로는 요청할 때마다 실제로 세므로, null 은
+ * "세어 봤는데 분모가 0" 이라는 뜻 하나뿐이다. 목록의 `progress_pct` 는 캐시라 null 의 뜻이
+ * 다르고("아직 한 번도 계산 안 함"), 그래서 목록은 다른 문구를 쓴다(`NO_PROGRESS_CACHE`).
+ * 어느 쪽도 0% 가 아니다(project-format.js 의 계약). */
+export function ProgressBlock({ percent, basis }) {
+  const value = percentText(percent);
   return (
     <Box>
-      <Box sx={METRIC_GRID}>
-        <Metric
-          label="포털 계산"
-          value={app || (noSample ? NO_PROGRESS_SAMPLE : NO_PROGRESS_CACHE)}
-          dim={!app}
-        />
-        <Metric label="Notion 값" value={notion || NO_NOTION_PROGRESS} dim={!notion} />
-      </Box>
-      {differs ? (
-        <Box sx={{ mt: 1.5 }}><Callout tone="warn">{DIFFERS_NOTE}</Callout></Box>
-      ) : null}
-      {/* 한쪽만 없는 경우도 말은 해 준다. 값 자리의 문구만으로는 "그래서 저 70% 를 믿어도
-          되나" 에 답하지 못한다. */}
-      {!app && notion ? (
-        <Box sx={{ mt: 1.5 }}>
-          <Callout tone="info">
-            {noSample
-              ? "포털은 셀 작업을 찾지 못했습니다. 옆의 Notion 값은 다른 규칙으로 계산된 값이라 그대로 옮겨 적지 않습니다."
-              : "포털 계산값이 아직 없어 두 값을 비교할 수 없습니다."}
-          </Callout>
-        </Box>
-      ) : null}
+      <Metric label="진행률" value={value || NO_PROGRESS_SAMPLE} dim={!value} />
       <ProgressBasis basis={basis} />
-      {footnote ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, ...KO_WORD_BREAK }}>
-          {footnote}
-        </Typography>
-      ) : null}
     </Box>
   );
 }

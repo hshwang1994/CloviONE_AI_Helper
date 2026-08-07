@@ -19,6 +19,11 @@ ALL_STATUSES = frozenset(
     {STATUS_QUEUED, STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELLED}
 )
 
+# AI 도우미 채팅 한 건. 이름을 여기 둔 이유: 쿼터가 '아직 안 세어진 호출' 을 이 값으로
+# 세는데(app/quotas/service.py::pending) 그쪽이 chat 패키지를 import 하면 순환이 된다.
+# 문자열을 양쪽에 따로 적으면 한쪽만 바뀌는 날 쿼터가 조용히 0을 세기 시작한다.
+JOB_TYPE_CHAT_MESSAGE = "chat_message"
+
 
 class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "jobs"

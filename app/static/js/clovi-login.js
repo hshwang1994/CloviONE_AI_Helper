@@ -109,9 +109,20 @@
     cloviStage.style.setProperty("--eye-y", y + "px");
   };
 
+  /* 시선이 포인터를 따라가는 상태.
+   *
+   * 기준선(design/baseline/preview-standalone.html:1364)이 정한 목록 그대로다 — idle 과
+   * welcome 둘이다. 나머지 상태에는 뜻이 있는 고정 좌표(FIXED_GAZE)가 있어서, 포인터가
+   * 그걸 덮으면 "비밀번호를 안 본다" 같은 표현이 마우스 위치에 따라 깨진다.
+   *
+   * welcome 이 여기 있는 이유: 등장 인사 780ms 동안에도 사람은 이미 마우스를 움직인다.
+   * 그 사이 눈이 굳어 있으면 첫인상이 "안 움직이는 그림"이 된다. */
+  const POINTER_TRACKED_STATES = ["idle", "welcome"];
+  const tracksPointer = (state) => POINTER_TRACKED_STATES.indexOf(state) !== -1;
+
   const applyFixedGaze = (state) => {
     if (FIXED_GAZE[state]) setEyeOffset(FIXED_GAZE[state][0], FIXED_GAZE[state][1]);
-    else if (!latestPointer || state !== "idle") setEyeOffset(0, 0);
+    else if (!latestPointer || !tracksPointer(state)) setEyeOffset(0, 0);
   };
 
   const setCloviState = (nextState, options) => {
@@ -132,23 +143,7 @@
     }
   };
 
-  // 지금 초점이 있는 칸에 해당하는 '쉬는 상태'.
-  //
-  // 원본 정적본에는 autofocus가 없어서 로드 직후에는 언제나 idle이 맞았다. 이 저장소의
-  // login.js는 넓은 화면(≥1024px)에서만 첫 칸에 초점을 준다 — 모바일에서 소프트 키보드가
-  // 튀는 문제 때문에 정적 autofocus를 대신하는 장치다. 그래서 welcome이 끝나는 순간
-  // 이메일 칸에는 이미 초점이 있는데 클로비는 idle로 떨어져, 원본이 정한 규칙
-  // ("이메일에 초점이 가면 email 표정")과 화면이 어긋났다. 초점 이벤트는 이 파일이 로드되기
-  // 전에 이미 지나갔으므로 리스너로는 잡을 수 없다 — 만료 시점에 직접 본다.
-  const restingState = () => {
-    if (document.activeElement === email) return "email";
-    if (document.activeElement === password) return "privacy";
-    return "idle";
-  };
-
-  // ── 시선 추적 — idle에서만 ────────────────────────────────────────────────
-  // 다른 상태에는 고정 좌표가 있다. 포인터가 그걸 덮으면 "비밀번호를 안 본다"는 표현이
-  // 마우스 위치에 따라 깨진다.
+  // ── 시선 추적 ─────────────────────────────────────────────────────────────
   const resetPointerTracking = () => {
     latestPointer = null;
     applyFixedGaze(cloviState);
@@ -156,7 +151,7 @@
 
   const renderPointer = () => {
     pointerFrame = 0;
-    if (!latestPointer || cloviState !== "idle") return;
+    if (!latestPointer || !tracksPointer(cloviState)) return;
     const rect = cloviStage.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height * 0.27;
@@ -320,9 +315,18 @@
     if (document.hidden) resetPointerTracking();
   });
 
-  // 등장: 780ms 동안 welcome 인사를 하고 '쉬는 상태'로 내려간다. 원본은 언제나 idle이었지만
-  // 이 저장소는 넓은 화면에서 이메일 칸에 초점이 가 있을 수 있다(restingState 참고).
-  setCloviState("welcome", { duration: 780, after: restingState });
+  /* 등장: 780ms 동안 welcome 인사를 하고 idle로 내려간다(기준선 preview-standalone.html:1368).
+   *
+   * 한동안 여기서 activeElement를 보고 email/privacy로 내려앉게 했었다 — 이 저장소의
+   * login.js가 넓은 화면(≥1024px)에서 첫 칸에 초점을 주기 때문에, "이메일에 초점이 가면
+   * email 표정"이라는 규칙을 맞추려던 것이다. 그런데 email에는 고정 시선(3.8, 1.0)이 있어서
+   * 시선 추적이 아예 시작되지 않았다. 사용자가 본 화면이 그것이다 —
+   * "접속한 이후에 그냥 마우스를 옮기면 움직이지 않음. 한번 눌러야 눈이 움직임"
+   * (그 클릭은 이메일 칸의 초점을 떼는 클릭이었다).
+   *
+   * 규칙의 출처는 초점 **이벤트**다. 스크립트가 대신 준 초점은 사용자가 그 칸을 고른 것이
+   * 아니므로 표정을 바꾸지 않는다. 사용자가 실제로 칸을 고르면 focus 리스너가 잡는다. */
+  setCloviState("welcome", { duration: 780, after: "idle" });
 
   window.addEventListener(
     "pagehide",

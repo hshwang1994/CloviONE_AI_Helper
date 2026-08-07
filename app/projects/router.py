@@ -173,6 +173,25 @@ def overall_weekly_report(
     )
 
 
+# ⚠️ `/{project_id}` 보다 **먼저** 선언한다. FastAPI 는 선언 순서로 매칭하므로 뒤에 두면
+# `dashboard` 가 프로젝트 id 로 잡혀 "프로젝트를 찾을 수 없습니다" 404 가 된다 - 원인은
+# 라우팅인데 증상은 "그 프로젝트가 없다" 로 보인다(`/weekly-report` 와 같은 함정).
+@router.get("/dashboard")
+def project_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """프로젝트 화면 맨 위의 요약. **집계는 서버가 한다.**
+
+    목록은 20건씩 잘려 나가므로 화면이 그 한 장을 세면 "총 22건인데 대시보드는 20건 기준"
+    이 된다. 여기서는 페이지를 모르는 표본으로 센다(service.project_dashboard).
+
+    읽기라 운영자 게이트를 걸지 않는다 - 목록과 같은 사람들이 본다.
+    """
+    return service.project_dashboard(db, principal, today=_today(request))
+
+
 @router.get("/{project_id}")
 def get_project(
     project_id: str,

@@ -214,6 +214,43 @@ for f in allowed-services.json allowed-runners.json allowed-workflows.json featu
   chown root:"$SVC_USER" "$ETC_DIR/$f"; chmod 0640 "$ETC_DIR/$f"
 done
 
+# 6b. 기존 설치인데 설치처 고유값이 설정에 없으면 멈춘다 (P1 업그레이드 함정) ---------
+#
+# 🔴 실제 운영에서 이 사고가 났다. 예전 코드는 Notion DB id 의 **기본값을 소스에 들고**
+# 있어서, 그 설치의 web.env 에는 그 값이 한 줄도 없었다. P1 로 소스 기본값을 비우자
+# 업그레이드 직후 그 설치는 **DB id 가 빈 채로** 떴고, 티켓·문서 조회가 전부 400 이 됐다.
+# 서비스는 'active' 라 겉으로는 성공한 배포처럼 보였다 - 가장 나쁜 실패다.
+#
+# 그래서 **마이그레이션 전에** 막는다. 여기서 멈추면 되돌릴 것이 없다(아직 아무것도 안 바꿨다).
+# 신규 설치는 DB 가 없으므로 이 검사를 지나가고, 셋업 마법사가 안내한다.
+DB_FILE="$VAR_DIR/web.sqlite3"
+if [ -s "$DB_FILE" ]; then
+  MISSING_KEYS=""
+  for key in NOTION_TASKS_DATABASE_ID NOTION_DOCUMENTS_DATABASE_ID; do
+    grep -qE "^${key}=.+" "$ETC_DIR/web.env" || MISSING_KEYS="$MISSING_KEYS $key"
+  done
+  if [ -n "$MISSING_KEYS" ]; then
+    log "STOP: 기존 설치인데 설치처 고유값이 web.env 에 없다:$MISSING_KEYS"
+    cat >&2 <<EOM
+
+이 서버에는 이미 데이터가 있는데, 새 코드가 요구하는 설치처 고유값이
+  $ETC_DIR/web.env
+에 없습니다. 예전 코드는 이 값의 기본값을 소스에 들고 있었지만 이제는 없습니다
+(설치처마다 다른 값이라 소스에 두면 다른 고객에 설치했을 때 남의 워크스페이스를 가리킵니다).
+
+이대로 진행하면 서비스는 뜨지만 **티켓과 문서 조회가 전부 실패**합니다.
+
+고치는 법 - 아래를 web.env 에 추가하고 다시 실행하세요:
+$(for k in $MISSING_KEYS; do echo "  $k=<이 설치의 값>"; done)
+
+예전 값은 업그레이드 전 코드에서 확인할 수 있습니다:
+  git show <이전커밋>:app/core/config.py | grep database_id
+EOM
+    exit 21
+  fi
+  log "설치처 고유값 확인됨 (기존 설치)"
+fi
+
 # 7. DB migration -----------------------------------------------------------
 # Run from $APP_DIR so alembic's relative script_location resolves and
 # `python -m app...` finds the app package. runuser (no -l) preserves CWD.

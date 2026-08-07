@@ -215,21 +215,29 @@ def test_fixed_gaze_offsets_are_exactly_the_approved_numbers(state, x, y):
 def test_state_durations_are_preserved():
     """전이 시간이 바뀌면 같은 화면이 다른 리듬으로 움직인다."""
     js = CLOVI_JS.read_text(encoding="utf-8")
-    # welcome은 780ms 뒤 '쉬는 상태'로. 원본에선 언제나 idle이었지만 이 저장소의 login.js는
-    # 넓은 화면에서 이메일 칸에 초점을 준다 — 그 초점 이벤트는 이 파일이 로드되기 전에
-    # 지나갔으므로, 만료 시점에 activeElement를 보고 email/privacy/idle을 고른다.
-    assert 'setCloviState("welcome", { duration: 780, after: restingState })' in js
-    assert 'if (document.activeElement === email) return "email";' in js
+    # welcome은 780ms 뒤 idle로. 기준선(preview-standalone.html:1368)이 그렇다.
+    #
+    # 한동안 여기서 activeElement를 보고 email/privacy로 내려앉게 했었다. 그런데 email에는
+    # 고정 시선이 있어서 시선 추적이 시작조차 하지 않았고, 사용자가 "한번 눌러야 눈이 움직임"
+    # 이라고 지적한 화면이 그것이었다. 이 한 줄이 그 버그를 고정하고 있었다.
+    assert 'setCloviState("welcome", { duration: 780, after: "idle" })' in js
     # 검증 실패는 650ms 뒤 문제가 있던 칸으로. 서버 실패는 850ms 뒤 idle로.
     assert 'duration: 650, after: emailInvalid ? "email" : "privacy"' in js
     assert 'duration: 850, after: "idle"' in js
 
 
-def test_pointer_tracking_is_limited_to_idle():
-    """다른 상태에는 고정 좌표가 있다 — 포인터가 그걸 덮으면 표현이 깨진다."""
+def test_pointer_tracking_is_limited_to_resting_states():
+    """고정 시선이 있는 상태에서는 포인터가 눈을 덮지 않는다.
+
+    목록은 기준선(preview-standalone.html:1364)이 정한 idle·welcome 둘뿐이다. 여기에
+    email이나 privacy가 들어가면 "비밀번호를 안 본다"는 표현이 마우스 위치에 따라 깨진다.
+    """
     js = CLOVI_JS.read_text(encoding="utf-8")
-    assert 'if (!latestPointer || cloviState !== "idle") return;' in js, (
-        "renderPointer가 idle 밖에서도 눈을 움직인다"
+    assert 'const POINTER_TRACKED_STATES = ["idle", "welcome"];' in js, (
+        "시선 추적 상태 목록이 기준선과 다르다"
+    )
+    assert "if (!latestPointer || !tracksPointer(cloviState)) return;" in js, (
+        "renderPointer가 상태 목록을 보지 않는다"
     )
     # 눈이 움직일 수 있는 최대치(원본 값이자 mascot-lock의 상한).
     assert "normalizedX * 4" in js and "normalizedY * 2.5" in js

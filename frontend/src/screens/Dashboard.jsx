@@ -11,6 +11,7 @@ import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
+import { SECTION_GAP } from "../ui/density.js";
 
 /* 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 에 있다.
  * 지표마다 (어느 질의에서 오는가 / 어떤 시점 기준인가 / 범위를 지나는가 / 0과 없음을
@@ -65,7 +66,9 @@ export const HEADLINE_GRID = {
  * 한쪽에만 h2-row를 빠뜨려 같은 성격의 섹션이 화면마다 다른 간격으로 보였다. */
 export function DashSection({ title, action, children }) {
   return (
-    <Box component="section" sx={{ mb: { xs: 4, xxl: 5 } }}>
+    /* 섹션 사이 간격은 기준선 `.section`(24px)이다. 예전 값 `{ xs: 4, xxl: 5 }`(32px/40px)는
+       한 화면에 섹션이 대여섯 개인 대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
+    <Box component="section" sx={{ mb: SECTION_GAP }}>
       <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
         <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
         {action}

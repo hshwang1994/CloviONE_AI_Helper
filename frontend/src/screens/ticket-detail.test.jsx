@@ -157,8 +157,10 @@ describe("본문 편집", () => {
     wrap();
     await user.click(await screen.findByRole("button", { name: "본문 편집" }));
 
-    expect(screen.getByRole("textbox", { name: "" }).value ||
-           document.getElementById("ticket-body-page-1").value)
+    /* 예전에는 `{ name: "" }` 으로 골랐다 — 편집기에 접근 이름이 **없다는 사실**을 검사가
+       거꾸로 고정하고 있었다(접근성 감사 2). 지금은 위 heading 과 같은 이름을 가지므로
+       그 이름으로 고른다. 이름으로 고를 수 있다는 것 자체가 스크린리더로 찾을 수 있다는 뜻이다. */
+    expect(screen.getByRole("textbox", { name: "본문 편집" }).value)
       .toBe("## 배경\n본문 한 줄.");
   });
 

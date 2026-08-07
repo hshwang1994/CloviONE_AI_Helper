@@ -11,6 +11,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { ROLE_KO } from "../app/navConfig.js";
+import { invalidateNotifications } from "../app/notification-keys.js";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton,
   useConfirm, useToast,
@@ -428,7 +429,7 @@ export function Profile() {
     onSuccess: (data) => {
       qc.setQueryData(["me-preferences"], data);
       // 배지가 즉시 조용해지거나 다시 켜지도록 벨 폴링도 함께 무효화한다.
-      qc.invalidateQueries({ queryKey: ["noti-unread"] });
+      invalidateNotifications(qc);
       toast("설정을 저장했습니다.", "success");
     },
     onError: (e) => toast(e.message, "error"),

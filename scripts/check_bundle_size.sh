@@ -20,8 +20,10 @@ CSS_BUDGET_KB=${CSS_BUDGET_KB:-120}
 
 # 초기 로드 청크: 지연 로딩 청크를 제외한 나머지.
 # 관리자/사용자 콘솔은 통째로 별도 청크다 — 서로 다른 사람이 쓰므로 둘 다 받을 이유가 없다.
-# registry는 관리자 16화면의 설정 덩어리(1,870줄)라 함께 늦게 온다.
-LAZY_RE='^(Chat|GameRoom|DevReport|AdminRoutes|UserRoutes|registry)\.'
+# datascreen은 두 콘솔이 함께 쓰는 설정 주도 화면 부품(DataScreen + 공용 어휘/액션 + 알림
+# 설정)이다. 두 콘솔 라우트가 지연 로딩이므로 이것도 라우트에 들어갈 때 온다 — index.html의
+# script 태그에 없다는 것이 그 증거다. 예전 `registry` 청크는 E-10/PF7 로 갈라져 없어졌다.
+LAZY_RE='^(Chat|GameRoom|DevReport|AdminRoutes|UserRoutes|datascreen)\.'
 
 if [ ! -d "$DIR" ]; then
   echo "번들이 없다: $DIR — 먼저 'cd frontend && npm run build'" >&2

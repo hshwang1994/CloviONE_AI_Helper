@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import RateLimitedError, ValidationAppError
 from app.observability.models import UsageEvent
+from app.quotas import quota_lock
 from app.quotas.models import (
     ALL_PERIODS,
     ALL_SCOPES,
@@ -81,6 +82,48 @@ def used(db: Session, *, user_id: str, period: str, now: datetime) -> int:
                 UsageEvent.event == EVENT_AI_CALL,
                 UsageEvent.user_id == user_id,
                 UsageEvent.created_at >= period_start(period, now),
+            )
+        ).scalar_one()
+    )
+
+
+def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
+    """아직 세어지지 않았지만 **이미 쓰기로 확정된** AI 호출 수 (Z15).
+
+    ## 왜 이것까지 세야 하나
+
+    AI 도우미 채팅은 확인(라우터)과 기록(워커)이 서로 다른 프로세스에 있다. 큐에 들어간
+    호출은 워커가 끝낼 때까지 `usage_events` 어디에도 없으므로, 그동안 `used()` 만 보면
+    **아무것도 안 쓴 사람**으로 보인다. 하루 상한이 1인 사람도 워커가 도는 사이에 원하는
+    만큼 보낼 수 있었다. 잠금으로는 못 막는다. 잠금은 이 프로세스 안 이야기이고, 여기서
+    빠져 있는 것은 '이미 확정된 소비' 라는 사실 자체다.
+
+    그래서 예약을 **DB 에서** 읽는다. 잡 행이 곧 예약이다: 큐에 들어간 순간 생기고,
+    워커가 끝내면 상태가 바뀌어 사라지고, 그 자리를 `record_call` 이 이어받는다.
+    이중으로 세지 않는 근거가 그것이다. 예약이 사라지는 시점과 기록이 생기는 시점이
+    같은 트랜잭션이다(`app/jobs/handlers/chat_message.py`).
+
+    ## 기간 경계로 막는 이유
+
+    워커가 죽어 잡이 `queued` 로 굳으면 그 사람의 상한이 한 칸 줄어든 채로 남는다.
+    기간 시작 이후에 만들어진 잡만 세면 늦어도 다음 날 자정(KST)에는 저절로 풀린다.
+
+    ## 화면 숫자에는 넣지 않는다
+
+    `status()` 의 `used` 는 **실제로 쓴 수**여야 한다. 예약은 몇 초 뒤 사라지는 값이라
+    거기 섞으면 새로고침할 때마다 숫자가 오르내린다. 상한 판정만 이 값을 함께 본다.
+    """
+    from app.jobs.models import JOB_TYPE_CHAT_MESSAGE, STATUS_QUEUED, STATUS_RUNNING, Job
+
+    return int(
+        db.execute(
+            select(func.count())
+            .select_from(Job)
+            .where(
+                Job.job_type == JOB_TYPE_CHAT_MESSAGE,
+                Job.user_id == user_id,
+                Job.status.in_((STATUS_QUEUED, STATUS_RUNNING)),
+                Job.created_at >= period_start(period, now),
             )
         ).scalar_one()
     )
@@ -161,6 +204,10 @@ def enforce(db: Session, *, user_id: str, now: datetime) -> None:
     **fail-open 인 이유**: 쿼터는 비용 통제 장치이지 보안 장치가 아니다. 표가 비어 있는
     기본 상태에서 AI 기능이 통째로 막히면, 이 기능을 켠 적도 없는 운영자가 원인을 찾느라
     한나절을 쓴다. 반대로 상한이 명시돼 있으면 그건 의도된 값이므로 정확히 지킨다.
+
+    **기록된 호출 + 예약된 호출**을 함께 본다 (Z15). 기록만 보면 큐에 들어간 호출이
+    아무 데도 안 세어져 상한이 새고, 예약만 보면 이미 끝난 호출을 두 번 센다.
+    이 함수는 혼자 쓰면 여전히 창이 열려 있다 - `consume`/`reserve` 로 감싼다.
     """
     limits = effective_limits(db, user_id)
     if not limits:
@@ -170,7 +217,10 @@ def enforce(db: Session, *, user_id: str, now: datetime) -> None:
         if limit is None:
             continue
         max_calls, _source = limit
-        if used(db, user_id=user_id, period=period, now=now) >= max_calls:
+        counted = used(db, user_id=user_id, period=period, now=now) + pending(
+            db, user_id=user_id, period=period, now=now
+        )
+        if counted >= max_calls:
             resets = period_end(period, now)
             label = "하루" if period == PERIOD_DAY else "이번 달"
             raise RateLimitedError(
@@ -262,6 +312,94 @@ def _announce_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
             )
     except Exception:  # noqa: BLE001 — 알림이 AI 호출 기록을 막으면 안 된다
         logger.exception("AI 쿼터 소진 알림에 실패했다 (user_id=%s)", user_id)
+
+
+# ── 확인과 소비를 한 덩어리로 (Z15) ──────────────────────────────────────────
+#
+# `enforce()` 를 그냥 부르고 나중에 `record_call()` 을 부르면 그 사이가 잠기지 않은 창이다.
+# 동시 요청이 같은 숫자를 읽고 **함께** 통과한다. 아래 두 문지기가 그 구간을 감싼다.
+# 잠금이 프로세스 안이어도 되는 근거(그리고 워커를 늘리는 날 무엇을 같이 고쳐야 하는지)는
+# `app/quotas/quota_lock.py` 모듈 docstring 에 있다.
+
+
+class consume:
+    """확인 → AI 호출 → 기록을 한 덩어리로 (동기 경로 전용).
+
+        with ai_quotas.consume(db, user_id=…, org_id=…, kind=…, now=now) as slot:
+            result = call_the_ai()
+            if succeeded(result):
+                slot.record()
+
+    **`record()` 를 부르지 않으면 세지 않는다.** 성공한 호출만 센다는 기존 규약 그대로다
+    (러너가 죽은 날 사용자가 답을 못 받고 상한만 잃으면 안 된다). 잠금은 블록을 나갈 때
+    풀리므로, 호출이 오래 걸리는 동안 같은 사람의 다른 요청은 기다린다.
+    """
+
+    def __init__(
+        self,
+        db: Session,
+        *,
+        user_id: str,
+        org_id: str | None,
+        kind: str,
+        now: datetime,
+    ) -> None:
+        self._db = db
+        self._user_id = user_id
+        self._org_id = org_id
+        self._kind = kind
+        self._now = now
+        self._guard = quota_lock.quota_guard(user_id)
+
+    def __enter__(self) -> "consume":
+        self._guard.__enter__()
+        try:
+            enforce(self._db, user_id=self._user_id, now=self._now)
+        except BaseException:
+            # 막힌 요청은 블록 안으로 들어가지 못하므로 __exit__ 이 안 불린다.
+            self._guard.__exit__(None, None, None)
+            raise
+        return self
+
+    def record(self) -> None:
+        record_call(
+            self._db, user_id=self._user_id, org_id=self._org_id,
+            kind=self._kind, now=self._now,
+        )
+
+    def __exit__(self, *exc) -> None:
+        self._guard.__exit__(*exc)
+
+
+class reserve:
+    """확인 → 큐 적재를 한 덩어리로 (기록을 워커가 하는 경로 전용).
+
+        with ai_quotas.reserve(db, user_id=…, now=now):
+            message, job = post_user_message(…)
+            db.commit()   # 예약(잡 행)이 다른 요청에 보여야 뜻이 있다
+
+    ⚠️ **블록 안에서 커밋해야 한다.** SQLite 는 커밋 전 쓰기를 다른 커넥션에 보여 주지
+    않으므로, 잠금을 놓은 뒤에 커밋하면 그 사이에 들어온 요청이 이 잡을 못 보고 같은
+    한 칸을 또 가져간다 - 잠금을 걸어 놓고 아무것도 못 막는 상태가 된다.
+    """
+
+    def __init__(self, db: Session, *, user_id: str, now: datetime) -> None:
+        self._db = db
+        self._user_id = user_id
+        self._now = now
+        self._guard = quota_lock.quota_guard(user_id)
+
+    def __enter__(self) -> "reserve":
+        self._guard.__enter__()
+        try:
+            enforce(self._db, user_id=self._user_id, now=self._now)
+        except BaseException:
+            self._guard.__exit__(None, None, None)
+            raise
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._guard.__exit__(*exc)
 
 
 def view(row: AiQuota, names: dict[str, dict[str, str]] | None = None) -> dict:
