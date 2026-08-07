@@ -93,6 +93,20 @@ def sync_all(request: Request, db: Session = Depends(get_db)):
         user_id=request.state.user.id,
         idempotency_key=key,
     )
+    if job.status not in (STATUS_QUEUED, STATUS_RUNNING):
+        # `enqueue`'s idempotency lookup matches on key alone, regardless of status. The
+        # `active` check above already established there is no in-progress job, so a
+        # terminal job returned here means the key collided with one that finished within
+        # the same second (fast/mocked worker) — that is a fresh sync request, not a
+        # duplicate. Retry with a key that cannot collide with the finished job.
+        job = jobs_repo.enqueue(
+            db,
+            job_type="notion_mapping_sync",
+            payload={},
+            now=now,
+            user_id=request.state.user.id,
+            idempotency_key=f"{key}:{job.id}",
+        )
     record_audit_from_request(
         request, db, action="notion_mapping.sync", object_type="user_notion_mapping",
         object_id=None, after={"job_id": job.id},
