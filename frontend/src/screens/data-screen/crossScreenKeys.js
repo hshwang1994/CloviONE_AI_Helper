@@ -21,4 +21,10 @@ export const CROSS_SCREEN_KEYS = {
   // 30초 폴링으로만 봐서 여기 매핑이 없으면 최대 30초 동안 옛 건수를 계속 보여준다
   // (알림 화면이 예전에 벨을 못 갱신했던 것과 같은 부류의 결함, 위 notifications 주석 참고).
   jobs: [["dashboard"]],
+  // 공지 배너(Banners.jsx)는 AppShell에 한 번만 마운트되어 내비게이션 중에도 언마운트되지
+  // 않는다 — 다른 DataScreen처럼 화면을 벗어났다 돌아오는 것만으로는 staleTime:0 재조회가
+  // 일어나지 않는다. 그래서 이 화면(공지 관리)의 생성·수정·사용/사용 안 함·삭제가 배너의
+  // ["announcements-active"] 캐시까지 무효화해 주지 않으면, "즉시 사라집니다"(사용 안 함
+  // 확인 문구)라는 약속과 달리 다른 탭/세션은 배너의 5분 폴링이 돌 때까지 옛 상태를 본다.
+  announcements: [["announcements-active"]],
 };

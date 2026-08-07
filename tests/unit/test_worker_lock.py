@@ -94,6 +94,50 @@ def test_renew_fails_after_someone_else_took_over(tmp_path):
     assert stalled.renew() is False, "빼앗긴 걸 모르면 워커가 둘 돈다"
 
 
+def test_renew_notices_a_takeover_that_lands_right_after_its_own_write(tmp_path):
+    """쓰기 직후, 다시 확인하기 전 그 찰나에 남이 파일을 덮어썼다면 갱신이 성공했다고
+    믿으면 안 된다.
+
+    `renew()` 는 쓰기 전에만 확인하고 쓴 뒤에는 확인하지 않았다 - `acquire()` 가 만료된
+    리스를 인수할 때 쓰는 '쓰고 나서 바로 확인' 관용을 renew 는 안 따랐다. 그 틈에 남이
+    끼어들면 다음 갱신(최대 30초 뒤)까지 자기가 리스를 잃은 걸 모른다.
+    """
+    import json
+    from unittest import mock
+
+    from app.core.worker_lock import WorkerLock as _WorkerLockCls
+
+    path = tmp_path / "worker.lock"
+    clock = FakeClock()
+    holder = WorkerLock(path, owner="holder", lease_seconds=120, now_fn=clock)
+    assert holder.acquire() is True
+
+    orig_write = _WorkerLockCls._write
+
+    def patched_write(self, payload):
+        orig_write(self, payload)
+        if self is holder:
+            # 쓰기 직후, holder 가 다시 확인하기 전에 남이 끼어들어 리스를 가져간 상황.
+            path.write_text(
+                json.dumps(
+                    {
+                        "owner": "intruder",
+                        "pid": 0,
+                        "acquired_at": clock().isoformat(),
+                        "expires_at": (clock() + timedelta(seconds=120)).isoformat(),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+    with mock.patch.object(_WorkerLockCls, "_write", patched_write):
+        result = holder.renew()
+
+    assert result is False, "쓰기 직후 남이 덮어쓴 걸 놓치면 리스를 잃은 걸 계속 모른다"
+    assert holder._held is False
+
+
 def test_release_only_removes_your_own_lease(tmp_path):
     """남의 리스를 지우면 워커가 둘이 되는 창이 열린다."""
     path = tmp_path / "worker.lock"

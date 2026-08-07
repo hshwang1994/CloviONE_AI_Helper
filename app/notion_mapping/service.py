@@ -132,8 +132,12 @@ def verify_mapping(
             workflow, {"action": "lookup_user", "email": user.email}, timeout=30.0
         )
     except Exception as exc:
+        # 실패한 시도를 '방금 확인함'으로 보이게 하지 않는다 — last_verified_at은 건드리지
+        # 않는다. 배치 핸들러(app/jobs/handlers/notion_mapping_sync.py)도 워크플로 호출
+        # 자체가 실패하면 개별 행에 손대지 않는다(핸들러 진입 전에 raise). 여기만 예외였다:
+        # 조회가 실패했는데 error_message 옆에 방금 찍힌 시각이 남으면 화면은 '막 확인했는데
+        # 실패했다'가 아니라 '방금 검증됨'처럼 보인다.
         row.error_message = f"매핑 조회 실패: {type(exc).__name__}"
-        row.last_verified_at = now
         db.flush()
         return row
 

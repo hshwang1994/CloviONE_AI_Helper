@@ -151,6 +151,8 @@ def avatar_map(db, user_ids) -> dict[str, str]:
     ids = [i for i in set(user_ids or ()) if i]
     if not ids:
         return {}
+    from datetime import timezone
+
     from sqlalchemy import select
 
     from app.profiles.models import UserPreference
@@ -163,6 +165,12 @@ def avatar_map(db, user_ids) -> dict[str, str]:
     ).scalars().all()
     out: dict[str, str] = {}
     for r in rows:
-        stamp = int(r.avatar_updated_at.timestamp()) if r.avatar_updated_at else 0
+        # naive UTC 저장값이다 — tzinfo 없이 .timestamp() 를 부르면 서버 로컬 시각으로
+        # 해석돼 UTC 가 아닌 호스트에서 지문이 어긋난다(profiles/router.py::_avatar_url 과
+        # 같은 이유로 같은 수정).
+        stamp = (
+            int(r.avatar_updated_at.replace(tzinfo=timezone.utc).timestamp())
+            if r.avatar_updated_at else 0
+        )
         out[r.user_id] = f"/api/profile/avatar/{r.user_id}?v={stamp}"
     return out

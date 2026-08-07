@@ -180,7 +180,14 @@ def _as_int(value) -> int | None:
     if isinstance(value, int):
         return value
     if isinstance(value, str) and value.strip().lstrip("-").isdigit():
-        return int(value.strip())
+        # lstrip("-") 는 앞의 대시를 전부 지운다 - "--5" 도 여기를 통과하지만
+        # int() 는 부호 하나만 받아 ValueError 를 던진다. 숫자처럼 보여도 진짜
+        # int() 리터럴이 아니면 "설정 안 됨" 으로 떨어뜨린다(이 함수의 나머지와 같은
+        # fail-safe 원칙).
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
     return None
 
 

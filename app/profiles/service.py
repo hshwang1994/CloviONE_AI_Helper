@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
@@ -153,6 +154,11 @@ def apply_preference_changes(
             from datetime import timedelta
 
             pref.dnd_until = now + timedelta(minutes=minutes)
+            # 기간만 보내는 것도 '지금부터 조용히'다(schemas.py 의 필드 설명대로) — 여기서
+            # dnd_enabled 를 같이 켜지 않으면 dnd_until 만 미래로 저장되고 evaluate_quiet() 는
+            # dnd_enabled 가 꺼져 있으니 dnd_until 을 아예 보지 않아 아무 일도 안 일어난다.
+            pref.dnd_enabled = True
+            after["dnd_enabled"] = True
         after["dnd_until"] = pref.dnd_until.isoformat() if pref.dnd_until else None
 
     if "quiet_hours_enabled" in changes and changes["quiet_hours_enabled"] is not None:
@@ -367,8 +373,16 @@ def create_view(
         user_id=user_id, screen_key=screen_key, name=name, query=query,
         created_at=now, updated_at=now,
     )
-    db.add(row)
-    db.flush()
+    try:
+        # 두 요청이 같은 (screen_key, name) 으로 동시에 여기 도착하면 둘 다 위의
+        # `existing is None` 을 통과할 수 있다 — SAVEPOINT 로 감싸 진 쪽의 유니크 위반이
+        # 세션 전체를 망가뜨리지 않게 하고, 같은 메시지의 409 로 두 경로를 수렴시킨다
+        # (`app/team_chat/service.py::_append_message` 와 같은 관용).
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        raise ConflictError("같은 이름의 뷰가 이미 있습니다. 덮어쓸까요?")
     return row
 
 

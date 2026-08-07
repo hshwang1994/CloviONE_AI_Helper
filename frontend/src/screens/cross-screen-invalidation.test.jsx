@@ -122,4 +122,47 @@ describe("화면 밖 값 갱신", () => {
       expect(qc.getQueryState(["dashboard"]).isInvalidated, "대시보드").toBe(true);
     }, { timeout: 3000 });
   });
+
+  /* 공지 배너(app/Banners.jsx)는 AppShell에 한 번만 마운트되어 내비게이션 중에도
+   * 언마운트되지 않는다 — 다른 화면처럼 벗어났다 돌아오는 것만으로는 재조회가 일어나지
+   * 않는다. 공지 관리 화면(registry/platform.js의 announcements)의 '사용 안 함'
+   * 확인 문구는 "모든 화면에서 즉시 사라집니다"라고 말한다 — CROSS_SCREEN_KEYS에 매핑이
+   * 없으면 그 약속과 달리 배너는 자기 폴링(5분)이 돌 때까지 옛 상태를 그대로 보여준다. */
+  it("공지 화면의 '사용 안 함' 작업이 배너 캐시까지 무효화한다", async () => {
+    const announcementsConfig = {
+      key: "announcements",
+      title: "공지 배너",
+      endpoint: "/api/admin/announcements",
+      paginated: true,
+      columns: [{ key: "title", label: "제목" }],
+      detailFields: [],
+      actions: [
+        { label: "사용 안 함", when: (r) => r.active,
+          method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false } },
+      ],
+    };
+    apiMock.mockResolvedValue({ items: [{ id: "a-1", title: "정기 점검", active: true }], page: 1, page_size: 20, total: 1 });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // 배너가 이미 값을 들고 있는 상태를 만든다 — 그래야 '무효화됐다'가 뜻을 가진다.
+    qc.setQueryData(["announcements-active"], { items: [{ id: "a-1", title: "정기 점검" }] });
+    expect(qc.getQueryState(["announcements-active"]).isInvalidated).toBe(false);
+
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter><DataScreen config={announcementsConfig} /></MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText("정기 점검");
+    apiMock.mockResolvedValueOnce({ ok: true });
+
+    fireEvent.click(screen.getByText("정기 점검"));
+    fireEvent.click(await screen.findByRole("button", { name: "사용 안 함" }));
+
+    await waitFor(() => {
+      expect(qc.getQueryState(["announcements-active"]).isInvalidated, "배너").toBe(true);
+    }, { timeout: 3000 });
+  });
 });

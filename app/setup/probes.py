@@ -232,11 +232,17 @@ def probe_user_mapping(ctx: ProbeContext) -> Outcome:
             "사용자를 먼저 등록한 뒤 다시 확인해 주세요.",
         )
 
+    # active_users 와 같은 필터를 걸어야 한다. 걸지 않으면 오프보딩으로 archived 된
+    # 사용자의 예전 verified 행이 영원히 남아(app/offboarding/service.py 는 이 행을
+    # 지우거나 재설정하지 않는다) "활성 사용자 N명 중 1명 연결" 이 활성 사용자 0명이
+    # 실제로 연결된 상태에서도 나올 수 있다. 같은 join+필터를
+    # app/offboarding/service.py::_successor_candidates 가 이미 쓴다.
     counts = dict(
         ctx.db.execute(
-            select(UserNotionMapping.status, func.count()).group_by(
-                UserNotionMapping.status
-            )
+            select(UserNotionMapping.status, func.count())
+            .join(User, User.id == UserNotionMapping.user_id)
+            .where(User.active.is_(True), User.archived_at.is_(None))
+            .group_by(UserNotionMapping.status)
         ).all()
     )
     verified = counts.get(STATUS_VERIFIED, 0)

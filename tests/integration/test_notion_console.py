@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 
 import pytest
 
@@ -519,3 +521,67 @@ def test_create_database_reports_notion_failure_instead_of_claiming_success(
     assert payload["created"] is False
     assert payload["result"] == probe.RESULT_NO_PERMISSION
     assert client.app.state.settings.notion_documents_database_id == ""
+
+
+def test_concurrent_create_requests_do_not_create_two_databases(
+    client, login_as, fake_http, tokens_present
+):
+    """두 요청이 거의 동시에 눌려도 노션에 데이터베이스가 하나만 생겨야 한다.
+
+    `guard_create`의 '이미 있으면 안 만든다' 검사와 실제 노션 호출 + 설정 저장 사이에는
+    시간이 걸리는 진짜 외부 호출이 끼어 있다. 그 틈에 두 번째 요청이 들어오면 둘 다 같은
+    '아직 없음'을 보고 통과해 노션에 데이터베이스가 두 개 생기고, 하나는 설정에 못 들어간
+    채 워크스페이스에 고아로 남는다 - 그래서 노션의 실제 생성 호출이 **한 번만** 나가야
+    한다(그 자체가, 두 번째 요청이 아예 노션까지 못 갔다는 증거다).
+    """
+    csrf = login_as("system_admin")
+    client.app.state.settings.notion_documents_database_id = ""
+
+    def _create_handler(request):
+        if request.method != "POST":
+            return None
+        # 레이스가 벌어질 시간을 넉넉히 준다 - 잠금이 없으면 그 사이 두 번째 요청도
+        # guard_create를 통과해 이 핸들러를 또 부른다.
+        time.sleep(0.2)
+        return {"id": "9" * 32, "title": [{"plain_text": "문서"}]}
+
+    fake_http.on_handler(DATABASES, _create_handler)
+
+    body = {
+        "key": "notion_documents_database_id",
+        "parent_page_id": "parent-page",
+        "title": "문서",
+        "confirm": True,
+    }
+    results: list = []
+
+    def _fire():
+        results.append(
+            client.post(
+                "/api/admin/notion/databases", json=body, headers={"X-CSRF-Token": csrf}
+            )
+        )
+
+    threads = [threading.Thread(target=_fire) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15)
+
+    assert len(results) == 2
+    # 하나는 만들고(200, created=True), 다른 하나는 그 사이 값이 채워진 것을 보고
+    # '이미 있다'(409)로 막혀야 한다 - 둘 다 200으로 만들어지면 중복 생성이다.
+    statuses = sorted(r.status_code for r in results)
+    assert statuses == [200, 409], [
+        (r.status_code, r.text) for r in results
+    ]
+
+    created_true = [r for r in results if r.status_code == 200 and r.json().get("created") is True]
+    assert len(created_true) == 1, [r.json() for r in results]
+
+    post_calls = [
+        r for r in fake_http.requests if r.method == "POST" and str(r.url) == DATABASES
+    ]
+    assert len(post_calls) == 1, (
+        f"노션 데이터베이스 생성 호출이 {len(post_calls)}번 나갔다 - 중복 생성"
+    )

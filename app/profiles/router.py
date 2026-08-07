@@ -13,6 +13,8 @@ require_csrf 가 즉시 통과시키므로 기존 조회 경로는 그대로이�
 
 from __future__ import annotations
 
+from datetime import timezone
+
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
@@ -46,7 +48,13 @@ def _avatar_url(pref, user_id: str) -> str | None:
     """
     if pref is None or not pref.avatar_stored_name:
         return None
-    stamp = int(pref.avatar_updated_at.timestamp()) if pref.avatar_updated_at else 0
+    # `avatar_updated_at` 은 앱 전체 규약대로 naive UTC 다. naive datetime 에 그냥
+    # .timestamp() 를 부르면 파이썬이 이를 **서버 로컬 시각**으로 해석해 버려, UTC 가
+    # 아닌 호스트에서는 지문 값이 실제 변경 시각과 어긋난다 — tzinfo 를 명시해야 한다.
+    stamp = (
+        int(pref.avatar_updated_at.replace(tzinfo=timezone.utc).timestamp())
+        if pref.avatar_updated_at else 0
+    )
     return f"/api/profile/avatar/{user_id}?v={stamp}"
 
 
@@ -178,6 +186,11 @@ def update_preferences(
     now = request.app.state.clock.now()
     tz = request.app.state.settings.timezone
     pref = service.ensure_preference(db, user.id, now=now)
+    # GET 이 하는 자가치유를 여기서도 한다 — 안 그러면 이 요청과 무관한 필드만 바꿔도
+    # 응답이 '켜짐(dnd.enabled=true)인데 조용하지 않다(quiet_now=false)'는 모순된 DND
+    # 상태를 그대로 돌려주고, DB 행도 다음 GET 이 열릴 때까지 그 모순을 그대로 들고 있다.
+    state = service.quiet_state(pref, now=now, timezone_name=tz)
+    service.clear_expired_dnd(db, pref, state, now=now)
     after = service.apply_preference_changes(
         db, pref, payload.model_dump(exclude_unset=True), now=now
     )
@@ -207,14 +220,18 @@ def update_tour(
     if action not in {"complete", "skip", "reset"}:
         raise ValidationAppError("action 은 complete, skip, reset 중 하나여야 합니다.")
     now = request.app.state.clock.now()
+    tz = request.app.state.settings.timezone
     pref = service.ensure_preference(db, user.id, now=now)
+    # 투어 응답도 preference_view 로 dnd 를 함께 실어 보낸다 — PATCH 와 같은 이유로
+    # 만료된 DND 를 여기서도 정리해 둔다(위 update_preferences 참조).
+    state = service.quiet_state(pref, now=now, timezone_name=tz)
+    service.clear_expired_dnd(db, pref, state, now=now)
     if action == "reset":
         service.reset_tour(db, pref, now=now)
     else:
         service.mark_tour_seen(db, pref, skipped=(action == "skip"), now=now)
     return service.preference_view(
-        pref, now=now, timezone_name=request.app.state.settings.timezone,
-        avatar_url=_avatar_url(pref, user.id),
+        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id),
     )
 
 

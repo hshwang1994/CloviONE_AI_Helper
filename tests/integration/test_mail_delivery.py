@@ -183,6 +183,41 @@ def test_a_failed_send_is_recorded_not_swallowed(client, app, settings, fake_clo
         assert delivery.last_error, "왜 실패했는지 아무 데도 안 남았다"
 
 
+def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fake_clock):
+    """계정이 큐잉과 워커 처리 사이에 사라지면 render_body 가 발송 전에 실패한다.
+
+    handle_mail_send 가 그 실패를 try/except 밖에서 일으키면 잡은 영구 실패로 끊기지만
+    아웃박스 행은 MAIL_QUEUED 에 멈춰 영원히 '대기 중'으로 보인다 - mail_send.py 파일
+    docstring 이 명시적으로 막으려는 상태다.
+    """
+    from app.mail.models import MAIL_FAILED, MAIL_QUEUED, MailDelivery
+    from app.mail.renderers import KIND_PASSWORD_RESET
+    from app.mail.service import queue_mail
+
+    configure_smtp(app)
+    with app.state.session_factory() as db:
+        queue_mail(
+            db,
+            kind=KIND_PASSWORD_RESET,
+            to_email="ghost@goodmit.co.kr",
+            subject="[ClovirAssist] 비밀번호 재설정 안내",
+            # 실제 계정이 없는 user_id - 큐잉 뒤 계정이 삭제/보관된 경우를 흉내낸다.
+            params={"user_id": "does-not-exist"},
+            now=app.state.clock.now(),
+        )
+        db.commit()
+
+    drain_worker(app, settings, fake_clock, FakeSmtp())
+
+    with app.state.session_factory() as db:
+        delivery = db.query(MailDelivery).one()
+        assert delivery.status != MAIL_QUEUED, (
+            "렌더 실패가 아웃박스에 안 남고 MAIL_QUEUED 에 영원히 멈춰 있다"
+        )
+        assert delivery.status == MAIL_FAILED
+        assert delivery.last_error, "왜 실패했는지 아무 데도 안 남았다"
+
+
 def test_failures_surface_on_the_admin_status_screen(
     client, app, settings, fake_clock, login_as, make_user
 ):

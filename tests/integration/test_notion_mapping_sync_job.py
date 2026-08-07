@@ -156,3 +156,48 @@ def test_double_click_does_not_run_notion_twice(client, login_as):
     a = client.post("/api/admin/notion-mapping/sync", headers={"X-CSRF-Token": csrf}).json()
     b = client.post("/api/admin/notion-mapping/sync", headers={"X-CSRF-Token": csrf}).json()
     assert a["job_id"] == b["job_id"], "연달아 누르면 잡이 두 개 생긴다"
+
+
+def test_idempotency_key_is_deterministic_within_the_same_second():
+    """같은 초에 만든 키는 항상 같아야 `jobs_repo.enqueue`의 유니크 제약이 동시 요청의
+    경합(진행 중인 잡 조회와 삽입 사이의 틈)을 막아 준다.
+
+    예전엔 키에 ``uuid.uuid4().hex[:8]``를 더 붙여서 호출마다 무조건 달라졌다 - 그러면
+    유니크 제약에 절대 안 걸리므로 동시 요청 둘 다 삽입에 성공해 잡이 두 개 생긴다.
+    """
+    from datetime import datetime
+
+    from app.notion_mapping.router import _sync_idempotency_key
+
+    now = datetime(2026, 7, 14, 9, 30, 0)
+    assert _sync_idempotency_key(now) == _sync_idempotency_key(now)
+
+    later = datetime(2026, 7, 14, 9, 30, 1)
+    assert _sync_idempotency_key(now) != _sync_idempotency_key(later)
+
+
+def test_concurrent_sync_requests_do_not_enqueue_two_jobs(db, app, fake_clock):
+    """진짜 동시 요청(진행 중인 잡 조회 이후, 삽입 이전에 둘 다 도착)도 잡을 하나만 만든다.
+
+    라우터의 '진행 중인 잡' 조회만으로는 이 틈을 못 막는다 - 그래서 `jobs_repo.enqueue`의
+    유니크 idempotency_key가 최후의 안전망이다. 같은 초에 결정되는 키가 아니면 이 안전망은
+    작동하지 않는다(위 결정성 테스트가 그 전제를 고정한다).
+    """
+    from app.jobs import repository as jobs_repo
+    from app.notion_mapping.router import _sync_idempotency_key
+
+    now = fake_clock.now()
+    key = _sync_idempotency_key(now)
+
+    # 두 '동시' 요청이 이미 진행 중인 잡을 못 보고(active is None) 둘 다 enqueue에 닿았다고
+    # 가정한다 - 실제 레이스가 넓어지면 벌어지는 상황을 그대로 흉내 낸다.
+    first = jobs_repo.enqueue(
+        db, job_type="notion_mapping_sync", payload={}, now=now, idempotency_key=key,
+    )
+    db.commit()
+    second = jobs_repo.enqueue(
+        db, job_type="notion_mapping_sync", payload={}, now=now, idempotency_key=key,
+    )
+    db.commit()
+
+    assert second.id == first.id, "동시 요청이 동기화 잡을 두 개 만들었다"

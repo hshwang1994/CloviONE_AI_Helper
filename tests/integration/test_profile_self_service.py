@@ -114,6 +114,63 @@ def test_timed_dnd_expires_on_its_own_and_the_state_is_cleaned_up(client, fake_c
     assert body["dnd"]["until"] is None
 
 
+def test_patch_preferences_also_clears_an_already_expired_dnd(client, fake_clock, me):
+    """PATCH 는 GET 이 이미 하는 자가치유(만료된 DND 정리)를 하지 않았었다 — 요청과
+    무관한 필드만 바꿔도 응답이 '켜짐(enabled=true)인데 조용하지 않다(quiet_now=false)'는
+    모순된 상태를 그대로 돌려주면 안 된다."""
+    csrf, _user = me
+    client.patch(
+        "/api/me/preferences",
+        json={"dnd_enabled": True, "dnd_minutes": 5},
+        headers={"X-CSRF-Token": csrf},
+    )
+    fake_clock.advance(6 * 60)
+    # dnd 와 무관한 필드 하나만 바꾼다 — 이 요청 자체는 DND 를 건드리지 않는다.
+    body = client.patch(
+        "/api/me/preferences",
+        json={"muted_types": ["job_failed"]},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert body["dnd"]["enabled"] is False
+    assert body["dnd"]["quiet_now"] is False
+    assert body["dnd"]["until"] is None
+    assert body["dnd"]["reason"] is None
+
+    from app.profiles.models import UserPreference
+
+    with client.app.state.session_factory() as session:
+        row = session.query(UserPreference).one()
+        assert row.dnd_enabled is False, "DB 행도 다음 GET 을 기다리지 않고 바로 정리돼야 한다"
+
+
+def test_tour_update_also_clears_an_already_expired_dnd(client, fake_clock, me):
+    """POST /api/me/tour 도 같은 자가치유 계약을 지켜야 한다(PATCH 와 동일한 결함)."""
+    csrf, _user = me
+    client.patch(
+        "/api/me/preferences",
+        json={"dnd_enabled": True, "dnd_minutes": 5},
+        headers={"X-CSRF-Token": csrf},
+    )
+    fake_clock.advance(6 * 60)
+    body = client.post(
+        "/api/me/tour", json={"action": "complete"}, headers={"X-CSRF-Token": csrf}
+    ).json()
+    assert body["dnd"]["enabled"] is False
+    assert body["dnd"]["quiet_now"] is False
+
+
+def test_dnd_minutes_alone_actually_turns_dnd_on(client, me):
+    """`dnd_minutes` 만 보내도(별도로 dnd_enabled: true 를 안 보내도) 실제로 조용해져야
+    한다 — schemas.py 의 필드 설명("지금부터 N분간 조용")이 그렇게 약속한다."""
+    csrf, _user = me
+    body = client.patch(
+        "/api/me/preferences", json={"dnd_minutes": 30}, headers={"X-CSRF-Token": csrf}
+    ).json()
+    assert body["dnd"]["enabled"] is True
+    assert body["dnd"]["quiet_now"] is True
+    assert body["dnd"]["until"] is not None
+
+
 def test_dnd_cannot_be_set_beyond_the_cap(client, me):
     csrf, _user = me
     response = client.patch(
@@ -364,6 +421,52 @@ def test_saved_views_are_private_to_their_owner(app, client, make_user, me):
         f"/api/me/views/{view_id}", headers={"X-CSRF-Token": csrf_other}
     ).status_code == 404
     assert len(client.get("/api/me/views").json()["items"]) == 1
+
+
+def test_concurrent_duplicate_view_creation_returns_conflict_not_500(
+    client, app, fake_clock, me, monkeypatch
+):
+    """두 요청이 같은 (screen_key, name) 으로 동시에 도착하면 둘 다 `existing is None`
+    검사를 통과할 수 있다 — 진 쪽은 DB 유니크 위반(IntegrityError)을 만나야 하고, 그게
+    처리되지 않은 500 이 아니라 먼저 만든 경로와 같은 409 로 나와야 한다.
+
+    `service.list_views` 호출 시점(존재 확인 *이후*, 자기 행을 넣기 *직전*)에 경쟁자가
+    같은 행을 먼저 커밋하게 해, 실제 경쟁을 결정적으로 재현한다.
+    """
+    csrf, user = me
+    from app.profiles import service
+    from app.profiles.models import SavedView
+
+    original_list_views = service.list_views
+    now = fake_clock.now()
+    fired = {"done": False}
+
+    def _list_views_but_a_racer_wins_first(db, user_id, *, screen_key=None):
+        # 딱 한 번만 끼어든다 — 안 그러면 이 몽키패치가 살아 있는 동안(테스트 뒤쪽의
+        # 확인용 GET 호출까지) 매번 새로 경쟁자를 심어 넣어 그 자체가 같은 유니크
+        # 위반을 또 일으킨다.
+        if not fired["done"]:
+            fired["done"] = True
+            with app.state.session_factory() as racer:
+                racer.add(SavedView(
+                    user_id=user_id, screen_key="jobs", name="경쟁 뷰",
+                    query="racer-won", created_at=now, updated_at=now,
+                ))
+                racer.commit()
+        return original_list_views(db, user_id, screen_key=screen_key)
+
+    monkeypatch.setattr(service, "list_views", _list_views_but_a_racer_wins_first)
+
+    response = client.post(
+        "/api/me/views",
+        json={"screen_key": "jobs", "name": "경쟁 뷰", "query": "loser"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 409, response.text
+
+    # 경쟁에서 이긴 행만 남아 있어야 한다 — 진 쪽이 세션을 깨뜨려 둘 다 사라지면 안 된다.
+    items = client.get("/api/me/views?screen_key=jobs").json()["items"]
+    assert [i["query"] for i in items] == ["racer-won"]
 
 
 def test_saved_view_needs_a_name(client, me):

@@ -122,7 +122,12 @@ def setup_notice(
     blocking = [
         item
         for item in checklist["items"]
-        if item["key"] in USER_VISIBLE_KEYS and item["state"] == STATE_TODO
+        # STATE_TODO 만 보면 STATE_UNKNOWN(예: 토큰은 넣었는데 아직 한 번도 동기화되지
+        # 않은 Notion, 등록만 되고 헬스체크된 적 없는 러너/연동)이 조용히 빠진다. 그 상태도
+        # 화면은 똑같이 비거나 AI 가 답하지 않는다 - "확인 불가" 는 이 화면을 막을 이유가
+        # 아니라는 것과, 사용자에게 "왜 비어 있는지" 조용히 넘어가지 않는다는 것은 다른
+        # 얘기다. remaining 과 같은 기준(!= STATE_DONE)을 쓴다.
+        if item["key"] in USER_VISIBLE_KEYS and item["state"] != STATE_DONE
     ]
     if not blocking:
         return None

@@ -135,13 +135,22 @@ class WorkerLock:
         return bool(data) and data.get("owner") == self.owner
 
     def renew(self) -> bool:
-        """리스 연장. 그 사이 남이 가져갔으면 False — 부르는 쪽이 물러나야 한다."""
+        """리스 연장. 그 사이 남이 가져갔으면 False — 부르는 쪽이 물러나야 한다.
+
+        쓰기 자체는 조건 없이 덮어쓴다(파일에 CAS가 없다). 그래서 `acquire()` 가 만료된
+        리스를 인수할 때와 같은 관용을 따른다: 쓰고 나서 바로 다시 확인해, 그 찰나에 남이
+        새로 썼다면 내가 방금 쓴 것과 무관하게 그 사실을 알아챈다. 쓰기 전 확인(위)만 하고
+        쓴 뒤에는 확인하지 않으면, 쓰기와 확인 사이에 남이 리스를 가져가도 영영 모른다.
+        """
         if not self._held:
             return False
         if not self.verify_ownership():
             self._held = False
             return False
         self._write(self._payload())
+        if not self.verify_ownership():
+            self._held = False
+            return False
         return True
 
     def release(self) -> None:

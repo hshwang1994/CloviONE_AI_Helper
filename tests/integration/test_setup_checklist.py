@@ -350,6 +350,29 @@ def test_a_new_unmapped_user_does_not_reopen_the_banner(client, login_as, setup_
     assert [n for n in notices if n["id"] == USER_NOTICE_ID] == []
 
 
+def test_the_user_banner_reopens_when_the_only_gap_is_an_unknown_runner(
+    client, login_as, setup_complete, db
+):
+    """setup_complete 는 러너를 헬스체크 통과(up) 상태로 만든다. 그 러너를 '아직 헬스체크
+    안 됨(unknown)' 으로 되돌리면, 사람이 할 일은 없지만(확인 불가) AI 기능은 실제로
+    답하지 않을 수 있다 - 배너 문구("AI 기능이 답하지 않을 수 있습니다")가 그대로 말하는
+    상황이다.
+
+    setup_notice() 가 STATE_TODO 만 보고 STATE_UNKNOWN 을 빼먹으면 이 상태에서 배너가
+    조용해진다 - 이 기능이 없애려던 바로 그 침묵이다.
+    """
+    from app.runners.models import Runner
+
+    runner = db.query(Runner).one()
+    runner.last_health_status = "unknown"
+    db.commit()
+
+    login_as("user")
+    notices = client.get("/api/system/status").json()["notices"]
+    setup = [n for n in notices if n["id"] == USER_NOTICE_ID]
+    assert setup, "러너가 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
+
+
 def test_the_admin_notice_points_at_the_wizard(client, login_as):
     """관리자에게는 "관리자에게 문의하세요" 가 아무 도움이 안 된다.
 
@@ -432,6 +455,38 @@ def test_a_down_runner_beats_an_unchecked_one(client, db, sysadmin):
     )
     db.commit()
     assert _by_key(_items(client))["llm"]["state"] == STATE_TODO
+
+
+def test_a_departed_users_stale_mapping_does_not_count_as_connected(
+    client, db, sysadmin, make_user
+):
+    """오프보딩은 UserNotionMapping 행을 지우거나 재설정하지 않는다
+    (app/offboarding/service.py 는 그 행을 읽기만 한다). 유일하게 verified 였던 사람이
+    archived 되면, 실제로 연결된 활성 사용자는 0명인데 그 행만 영원히 남아 '활성 사용자
+    N명 중 1명 연결' 이라고 거짓말하면 안 된다.
+    """
+    from datetime import datetime
+
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+
+    left = make_user(email="left-already@goodmit.co.kr", display_name="퇴사자")
+    db.add(
+        UserNotionMapping(
+            user_id=left.id, notion_user_id="left-notion-id", status=STATUS_VERIFIED
+        )
+    )
+    db.commit()
+    # 아직 활성이니 지금은 '됨' 이어야 한다 - 이 검사가 아래 회귀를 실제로 잡는지 보증한다.
+    assert _by_key(_items(client))["user_mapping"]["state"] == STATE_DONE
+
+    left.active = False
+    left.archived_at = datetime(2026, 1, 1)
+    db.commit()
+
+    mapping = _by_key(_items(client))["user_mapping"]
+    assert mapping["state"] != STATE_DONE, (
+        "연결된 유일한 사람이 퇴사했는데 여전히 '됨' 이라고 말한다"
+    )
 
 
 def test_an_unchecked_integration_is_a_question_not_a_failure(client, db, sysadmin):

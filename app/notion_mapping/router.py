@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
@@ -44,6 +44,21 @@ class ResolveConflictRequest(BaseModel):
     notion_user_id: str = Field(min_length=8, max_length=64)
 
 
+def _sync_idempotency_key(now: datetime) -> str:
+    """초 단위로만 결정되는 키.
+
+    이전에는 여기에 난수 조각(``uuid.uuid4().hex[:8]``)을 더 붙였는데, 그러면 호출마다
+    키가 무조건 달라져 `jobs_repo.enqueue`의 유니크 제약(unique idempotency_key)이 절대
+    걸리지 않는다 — 바로 위 '진행 중인 잡' 조회는 조회와 삽입 사이에 진짜 동시 요청이 끼면
+    (둘 다 조회 시점엔 진행 중인 잡을 못 본다) 막지 못하는데, 그 틈을 막아 주는 것이 바로
+    이 유니크 키였다. 초 단위 키로 두면 같은 초 안의 진짜 동시 요청은 같은 키로 부딪혀
+    두 번째 삽입이 `IntegrityError`로 막히고 첫 번째 잡을 그대로 돌려받는다 — 그러면서도
+    분 단위 키가 가졌던 "새 사용자 추가 직후 재동기화가 늦게 반영되는" 문제는 재현하지
+    않는다(초 단위라 한 자리만 지나도 새 키를 받는다).
+    """
+    return f"notionsync:{now.strftime('%Y%m%d%H%M%S')}"
+
+
 @router.post("/sync", status_code=202, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def sync_all(request: Request, db: Session = Depends(get_db)):
     """전원의 Notion 매핑을 한 번에 맞춘다. 잡을 만들고 바로 돌려준다(202).
@@ -69,7 +84,7 @@ def sync_all(request: Request, db: Session = Depends(get_db)):
         # '이미 진행 중입니다'와 '새로 시작했습니다'를 구분해 안내한다(이 신호가 없으면
         # 더블클릭이 항상 '새로 시작'으로 잘못 보고된다).
         return {"job_id": active.id, "status": active.status, "deduplicated": True}
-    key = f"notionsync:{now.strftime('%Y%m%d%H%M%S')}:{uuid.uuid4().hex[:8]}"
+    key = _sync_idempotency_key(now)
     job = jobs_repo.enqueue(
         db,
         job_type="notion_mapping_sync",
@@ -133,7 +148,7 @@ def list_mappings(
     if q:
         needle = f"%{q.strip().lower()}%"
         stmt = stmt.where(
-            or_(func.lower(User.email).like(needle), User.display_name.like(f"%{q.strip()}%"))
+            or_(func.lower(User.email).like(needle), func.lower(User.display_name).like(needle))
         )
     if status:
         if status == STATUS_UNMAPPED:

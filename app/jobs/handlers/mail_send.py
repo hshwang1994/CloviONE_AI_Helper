@@ -73,8 +73,8 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         db.commit()
         raise PermanentJobError("메일 발송 설정이 없어 보낼 수 없습니다: " + "; ".join(problems))
 
-    body = render_body(db, delivery, ctx)
     try:
+        body = render_body(db, delivery, ctx)
         _transport(ctx).send(
             config,
             secret_provider,
@@ -83,8 +83,9 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
             body=body,
         )
     except Exception as exc:
-        # 렌더가 만든 토큰 행은 이 롤백과 함께 사라져야 한다 - 보내지도 못한 토큰이
-        # DB 에 살아 있으면 다음 재시도가 만든 토큰과 둘이 되고, 그만큼 열린 창이 는다.
+        # 렌더 실패도 발송 실패와 같은 자리에서 잡는다 - 렌더가 만든 토큰 행은 이 롤백과
+        # 함께 사라져야 한다. render_body 가 밖에서 raise 하면 아웃박스 기록 없이 잡만
+        # 영구 실패로 남는다 (파일 docstring 의 그 함정).
         db.rollback()
         fresh = db.get(MailDelivery, delivery_id)
         record_failure(db, fresh, error=f"{type(exc).__name__}: {exc}", now=now)

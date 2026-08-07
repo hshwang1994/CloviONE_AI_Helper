@@ -106,7 +106,11 @@ def smtp_config(raw: Any) -> MailConfig:
         from_name=str(values["from_name"] or "").strip(),
         username=str(values["username"] or "").strip(),
         password_ref=str(values["password_ref"] or "").strip(),
-        timeout_seconds=int(values["timeout_seconds"] or 20),
+        timeout_seconds=(
+            int(values["timeout_seconds"])
+            if str(values["timeout_seconds"]).strip().isdigit()
+            else 20
+        ),
     )
 
 
@@ -131,7 +135,13 @@ def config_from_db(db) -> MailConfig:
 def config_from_cache(settings_cache) -> MailConfig:
     if settings_cache is None:
         return smtp_config(None)
-    return smtp_config(settings_cache.current_value(SMTP_SETTING_KEY))
+    try:
+        return smtp_config(settings_cache.current_value(SMTP_SETTING_KEY))
+    except (ValueError, TypeError):
+        # smtp_config 자체는 예외를 던지지 않는 게 계약이지만(모듈 docstring), 캐시에
+        # registry.py 검증을 거치지 않은 값(레거시 행, 수동 DB 편집)이 들어와 있을 수
+        # 있다 - config_from_db 와 같은 방어를 여기도 준다.
+        return smtp_config(None)
 
 
 def configuration_problems(config: MailConfig, secret_provider=None) -> list[str]:

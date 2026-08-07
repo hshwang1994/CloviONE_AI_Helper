@@ -24,6 +24,8 @@ id 는 설정 레지스트리를 지난다(`PUT /api/admin/settings/{key}`). 거
 
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -44,6 +46,16 @@ router = APIRouter(
 # 토큰 길이 상한. 노션 통합 토큰은 60자 안팎이다. 상한을 두는 이유는 크기가 아니라
 # **잘못 붙여 넣은 것을 저장하지 않기 위해서**다 - 페이지를 통째로 복사해 넣는 일이 있다.
 MAX_TOKEN_LENGTH = 500
+
+# `service.guard_create`의 "이미 있으면 안 만든다" 검사와 실제 생성(노션 호출) +
+# 설정 저장(apply_setting) 사이에는 시간이 걸리는 진짜 외부 호출이 끼어 있다. 잠금 없이
+# 두면 그 틈으로 들어온 두 번째 요청도 같은 '아직 없음'을 보고 통과해, 노션에 데이터베이스가
+# 두 개 생기고 하나는 설정에 못 들어간 채 워크스페이스에 고아로 남는다 — guard_create의
+# docstring이 막으려는 바로 그 일이 검사와 쓰기 사이의 틈에서 그대로 재현된다.
+# 이 화면은 시스템 관리자만 쓰는, 설치 초기에 아주 드물게 누르는 화면이라 요청 전체를
+# 직렬화해도 정상 트래픽에 영향이 없다(프로세스가 단일 프로세스로 뜬다는 전제는
+# app/settings/service.py의 SettingsCache 주석과 같다).
+_create_database_lock = threading.Lock()
 
 
 def _effective(request: Request, db: Session) -> dict:
@@ -152,54 +164,60 @@ def create_notion_database(
     그래서 셋을 먼저 본다: 만들 수 있는 종류인가, 확인을 받았는가, 이미 있지는 않은가
     (`service.guard_create`). 만든 뒤에는 설정 레지스트리를 통해 id 를 저장한다 - 여기서
     직접 행을 쓰면 검증과 버전 이력을 건너뛴다.
+
+    확인부터 저장까지를 `_create_database_lock`으로 묶는다 - 그 사이에 노션을 실제로
+    부르는 시간이 걸리는 호출이 있고, 잠금이 없으면 그 틈에 들어온 두 번째 요청도 같은
+    '아직 없음'을 보고 통과해 데이터베이스가 두 개 생긴다.
     """
     from app.notion_console import probe_notion as probe
     from app.settings.service import apply_setting
 
     settings = request.app.state.settings
-    spec = service.guard_create(
-        payload.key, settings, _effective(request, db), confirm=payload.confirm
-    )
-    token_ref = getattr(settings, spec.token_ref_field, "") or ""
-    result = probe.create_database(
-        request.app.state.outbound_client,
-        settings,
-        parent_page_id=payload.parent_page_id.strip(),
-        title=payload.title.strip(),
-        kind=spec.kind,
-        token_ref=token_ref,
-    )
-    record_audit_from_request(
-        request,
-        db,
-        action="notion_database.create",
-        object_type=OBJECT_TYPE_DATABASE,
-        object_id=result.get("database_id") or payload.key,
-        after={"key": payload.key, "result": result["result"]},
-    )
-    if result["result"] != probe.RESULT_OK:
-        return {"created": False, **result}
+    with _create_database_lock:
+        spec = service.guard_create(
+            payload.key, settings, _effective(request, db), confirm=payload.confirm
+        )
+        token_ref = getattr(settings, spec.token_ref_field, "") or ""
+        result = probe.create_database(
+            request.app.state.outbound_client,
+            settings,
+            parent_page_id=payload.parent_page_id.strip(),
+            title=payload.title.strip(),
+            kind=spec.kind,
+            token_ref=token_ref,
+        )
+        record_audit_from_request(
+            request,
+            db,
+            action="notion_database.create",
+            object_type=OBJECT_TYPE_DATABASE,
+            object_id=result.get("database_id") or payload.key,
+            after={"key": payload.key, "result": result["result"]},
+        )
+        if result["result"] != probe.RESULT_OK:
+            return {"created": False, **result}
 
-    # 만들었으면 그 id 를 곧바로 설정에 넣는다. 안 넣으면 데이터베이스는 생겼는데 포털은
-    # 여전히 못 보고, 운영자는 id 를 손으로 옮겨 적어야 한다 - 그 한 단계에서 오타가 난다.
-    applied = apply_setting(
-        db,
-        request.app.state.settings_cache,
-        key=spec.key,
-        value=result["database_id"],
-        updated_by=request.state.user.id,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request,
-        db,
-        action="setting.update",
-        object_type="app_setting",
-        object_id=spec.key,
-        before={"value": applied["before"]},
-        after={"value": applied["after"]},
-    )
-    return {"created": True, **result, "apply_note": service.APPLY_NOTE}
+        # 만들었으면 그 id 를 곧바로 설정에 넣는다. 안 넣으면 데이터베이스는 생겼는데
+        # 포털은 여전히 못 보고, 운영자는 id 를 손으로 옮겨 적어야 한다 - 그 한 단계에서
+        # 오타가 난다.
+        applied = apply_setting(
+            db,
+            request.app.state.settings_cache,
+            key=spec.key,
+            value=result["database_id"],
+            updated_by=request.state.user.id,
+            now=request.app.state.clock.now(),
+        )
+        record_audit_from_request(
+            request,
+            db,
+            action="setting.update",
+            object_type="app_setting",
+            object_id=spec.key,
+            before={"value": applied["before"]},
+            after={"value": applied["after"]},
+        )
+        return {"created": True, **result, "apply_note": service.APPLY_NOTE}
 
 
 __all__ = ["router"]
