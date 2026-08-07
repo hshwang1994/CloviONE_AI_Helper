@@ -33,6 +33,7 @@ import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { useTicketProjects } from "./ticket-options.js";
+import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
@@ -306,10 +307,15 @@ function IdeaStatusBar({ post, onChanged }) {
         ) : null}
         {post.can_change_status ? (
           <>
+            {/* {...EMPTYABLE_SELECT} 가 없으면 MUI Select는 value=""를 "아직 안 골랐다"로 보고
+                MenuItem의 라벨("상태 바꾸기")을 그리지 않는다 — 상자가 통째로 빈 채로 보여
+                여기 무슨 선택지가 있는지조차 알 수 없었다(ui/filters.jsx의 EMPTYABLE_SELECT
+                주석과 같은 함정, 다른 select들은 이미 이걸 쓴다). */}
             <TextField
               select size="small" value={target} sx={{ minWidth: "10rem" }}
               onChange={(e) => setTarget(e.target.value)}
               inputProps={{ "aria-label": "다음 상태" }}
+              {...EMPTYABLE_SELECT}
             >
               <MenuItem value="">상태 바꾸기</MenuItem>
               {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
@@ -320,6 +326,7 @@ function IdeaStatusBar({ post, onChanged }) {
                 onChange={(e) => setProjectId(e.target.value)}
                 inputProps={{ "aria-label": "티켓 프로젝트" }}
                 helperText={projects.isError ? "프로젝트 목록을 불러오지 못했습니다." : "티켓이 들어갈 프로젝트"}
+                {...EMPTYABLE_SELECT}
               >
                 <MenuItem value="">프로젝트 선택</MenuItem>
                 {projectRows.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
@@ -466,7 +473,14 @@ export function BoardPost() {
               "이 제안은 어떻게 됐나"이기 때문이다. 자유게시글에는 아예 없다. */}
           {isIdea ? (
             <Box sx={{ mt: 2 }}>
-              <IdeaStatusBar post={post} onChanged={refetch} />
+              {/* key={post.id} — "/board/:id"는 다른 제안으로 이동해도(알림 딥링크 등 인앱
+                  이동) BoardPost 인스턴스가 재사용된다. key가 없으면 IdeaStatusBar 안의
+                  target/projectId(useState)가 리마운트되지 않고 그대로 남아, A 글에서 고른
+                  "다음 상태"가 B 글 드롭다운에도 이미 선택된 채로 뜬다 — 두 제안이 같은 상태
+                  어휘("진행" 등)를 쓰므로 그대로 "적용"을 누르면 B 글이 사용자가 고르지 않은
+                  상태로 바뀐다(board-post-idea-status-stale.test.jsx, CommentComposer의
+                  key={post.id}와 같은 이유). */}
+              <IdeaStatusBar key={post.id} post={post} onChanged={refetch} />
             </Box>
           ) : null}
 

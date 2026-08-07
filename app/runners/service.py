@@ -230,6 +230,12 @@ def record_runner_result(
 def run_runner_health_check(
     db: Session, row: Runner, *, outbound: OutboundClient, now: datetime
 ) -> dict:
+    """단건(수동) 상태 확인. `run_all_runner_health_checks`(자동 스윕)와 판정 기준이
+    같아야 한다 — 다르면 운영자가 '상태 확인' 버튼을 누를 때마다 정상 러너가 'down'으로
+    오판되고, 그 오판이 아래 record_runner_result(success=False)를 통해 서킷 브레이커에
+    반영돼 연속 몇 번 클릭만으로 멀쩡한 러너가 실제로 degraded/circuit_open 상태에
+    빠진다(round36 감사에서 발견).
+    """
     url = row.health_url or row.base_url
     started = time.perf_counter()
     try:
@@ -238,7 +244,10 @@ def run_runner_health_check(
             auth_type=row.auth_type, secret_ref=row.secret_ref,
         )
         latency_ms = (time.perf_counter() - started) * 1000
-        healthy = response.status_code < 400
+        # 전용 health_url이 있으면 엄격 기준(2xx/3xx). 없으면 base_url로는 '도달
+        # 가능성'만 본다 — 인증된 POST만 받는 러너가 GET에 404를 주는 경우가 흔해서다
+        # (run_all_runner_health_checks 문서 참조, 같은 근거).
+        healthy = response.status_code < 400 if row.health_url else response.status_code < 500
         status = "up" if healthy else "down"
         detail = f"HTTP {response.status_code}"
     except Exception as exc:

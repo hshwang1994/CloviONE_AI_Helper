@@ -73,6 +73,25 @@ def test_health_check_updates_status_and_breaker(client, admin_csrf, fake_http):
     assert detail.json()["runner"]["consecutive_failures"] == 1
 
 
+def test_health_check_without_health_url_treats_4xx_as_up(client, admin_csrf, fake_http):
+    """수동 '상태 확인'도 자동 스윕(run_all_runner_health_checks)과 같은 '거짓 down 방지'
+    규칙을 따라야 한다: 전용 health_url이 없는 러너는 base_url 도달 가능성만 본다 — 인증된
+    POST만 받는 러너가 GET에 404를 줘도 프로세스는 살아있으므로 'up'이다
+    (app/runners/service.py::run_all_runner_health_checks 문서 참조, round36 감사).
+
+    수정 전에는 단건 점검(run_runner_health_check)이 항상 `< 400` 엄격 기준을 써서 같은
+    404 응답을 'down'으로 오판했다 — 그 오판이 record_runner_result(success=False)로
+    이어져, 운영자가 '상태 확인' 버튼을 5번 누르면 정상 러너가 서킷 브레이커에 의해
+    실제로 degraded/circuit_open 상태로 떨어진다.
+    """
+    runner = _create(client, admin_csrf).json()["runner"]
+    fake_http.on("http://127.0.0.1:8787", status=404)
+    r = client.post(f"/api/admin/runners/{runner['id']}/health", headers=_headers(admin_csrf))
+    assert r.json()["status"] == "up"
+    detail = client.get(f"/api/admin/runners/{runner['id']}", headers=_headers(admin_csrf))
+    assert detail.json()["runner"]["consecutive_failures"] == 0
+
+
 def test_test_request_endpoint(client, admin_csrf, fake_http):
     runner = _create(client, admin_csrf).json()["runner"]
     fake_http.on("http://127.0.0.1:8787", json_body={"pong": True})

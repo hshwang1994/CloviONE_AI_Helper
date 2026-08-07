@@ -173,7 +173,19 @@ function OffboardPlan({ preview, onDone, toast }) {
   // 처음 열 때 모든 티켓을 선택해 둔다 — 전형적인 의도는 '전부 옮긴다'이고, 빼야 할 건만
   // 체크를 푸는 편이 하나씩 켜는 것보다 실수가 적다. 서버는 여전히 보낸 목록만 처리한다.
   const ids = tickets.map((t) => t.id);
-  React.useEffect(() => { selection.setAll(ids, true); }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 이 이펙트는 previewQ.data '객체' 자체가 아니라 그 안의 '티켓 id 집합'에만 반응해야 한다.
+  // 예전엔 [preview]에 매여 있어, 티켓 집합은 그대로인데 다른 값(예: Notion에서 마감일만
+  // 바뀜)이 달라진 새 응답이 배경 재조회(재연결 등, staleTime 경과 후)로 와도 매번 재실행돼
+  // 사람이 방금 뺀 체크를 조용히 되살렸다 — 그 상태로 실행하면 일부러 제외한 티켓까지
+  // 함께 옮겨진다. 실제로 티켓 구성이 달라졌을 때만(다른 사람으로 전환은 이 컴포넌트 자체가
+  // 다시 마운트되므로 별도 처리가 필요 없다) 다시 전체 선택한다.
+  const idsKey = ids.join(",");
+  const prevIdsKeyRef = React.useRef(null);
+  React.useEffect(() => {
+    if (prevIdsKeyRef.current === idsKey) return;
+    prevIdsKeyRef.current = idsKey;
+    selection.setAll(ids, true);
+  }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chosen = ids.filter((id) => selection.selected.has(id));
   const columns = [

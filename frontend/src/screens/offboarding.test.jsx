@@ -183,6 +183,41 @@ describe("오프보딩 화면", () => {
     expect(lastRunBody.ticket_page_ids).toEqual(["page-2"]);
   });
 
+  it("미리보기가 배경에서 다시 조회돼도(예: 재연결) 이미 체크를 푼 티켓 선택은 그대로 유지된다", async () => {
+    // OffboardPlan의 '전부 선택' 초기화 이펙트가 previewQ.data 객체 참조 하나에만 매여 있으면,
+    // 티켓 집합 자체는 그대로인데 다른 값(예: Notion에서 마감일이 바뀜)만 달라진 새 응답이 와도
+    // 매번 재실행돼 사람이 방금 뺀 체크를 조용히 되살린다 — 실행하면 그 티켓까지 함께 옮겨진다.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let previewCalls = 0;
+    apiMock.mockImplementation((path, opts) => {
+      const method = (opts && opts.method) || "GET";
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [LEAVER], total: 1, page_size: 20 });
+      if (path.startsWith("/api/admin/offboarding/preview/")) {
+        previewCalls += 1;
+        const due2 = previewCalls > 1 ? "2026-09-03" : "2026-09-02";
+        return Promise.resolve({
+          ...PREVIEW,
+          tickets: PREVIEW.tickets.map((t) => (t.id === "page-2" ? { ...t, due: due2 } : { ...t })),
+        });
+      }
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderScreen(qc);
+    await user.click(await screen.findByRole("button", { name: /상세 보기/ }));
+    await screen.findByText("혼자 담당 A");
+
+    await user.click(screen.getByRole("checkbox", { name: "혼자 담당 A 선택" }));
+    await waitFor(() => expect(screen.getByText(/선택 1건/)).toBeInTheDocument());
+
+    await qc.refetchQueries({ queryKey: ["offboarding-preview", "u-leaver"] });
+    await waitFor(() => expect(screen.getByText("2026-09-03")).toBeInTheDocument());
+
+    // 티켓 집합은 그대로인데 미리보기 객체만 새로 왔다고 해서 방금 사람이 뺀 티켓이
+    // 조용히 다시 선택되면 안 된다.
+    expect(screen.getByText(/선택 1건/)).toBeInTheDocument();
+  });
+
   it("이력 상세에 되돌리기 버튼이 있다", async () => {
     runs = [RUN_ROW];
     const user = userEvent.setup();

@@ -263,6 +263,67 @@ def test_run_now_and_retry_failed_run(
     assert runs["items"][0]["status"] == "succeeded"
 
 
+def test_retry_run_respects_schedule_max_attempts(
+    client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http
+):
+    """운영자의 '재시도'가 스케줄의 retry_policy.max_attempts를 무시하면 안 된다.
+
+    scheduler.create_run_and_enqueue는 _max_attempts(schedule)을 잡에 실어 보내는데,
+    schedules/router.py::retry_run은 잡을 새로 enqueue하면서 이 값을 빼먹고
+    jobs_repo.enqueue의 기본값(3)을 쓴다. max_attempts=1로 "재시도 없음"을 설정한
+    스케줄이라도, 운영자가 '재시도'를 누른 순간부터는 조용히 최대 3회까지 자동
+    재시도하게 된다 — 스케줄 정의가 명시한 정책과 어긋난다.
+    """
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(
+            workflow_id, name="재시도 정책 확인", retry_policy={"max_attempts": 1}
+        ),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+
+    ctx = WorkerContext(
+        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
+    )
+    worker = Worker(
+        app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
+    )
+
+    fake_http.on("http://127.0.0.1:5678/webhook/report", status=404)
+    r = client.post(
+        f"/api/admin/schedules/{created['id']}/run-now",
+        json={},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200
+    run_id = r.json()["run"]["id"]
+
+    # max_attempts=1이므로 첫 시도 실패 즉시 영구 실패(추가 백오프 재시도 없음).
+    worker.run_once()
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["items"][0]["status"] == "failed"
+
+    # 운영자가 재시도 — 새로 만들어지는 잡도 같은 스케줄의 max_attempts=1을 지켜야 한다.
+    r = client.post(
+        f"/api/admin/schedules/runs/{run_id}/retry", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+
+    fake_clock.advance(1)
+    worker.run_once()  # 웹훅은 여전히 404 — max_attempts=1을 지켰다면 이 한 번으로 영구 실패해야 한다.
+
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["items"][0]["status"] == "failed", (
+        "재시도로 만든 잡이 스케줄의 max_attempts=1을 무시하고 기본값(3)으로 "
+        "백오프 재시도에 들어갔다 — run이 'running'에 머물러 있다."
+    )
+
+
 def test_cancel_queued_run(client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http):
     """M9 — 실행 상세(달력)는 run_id 만 갖고 있어 취소할 방법이 없었다.
 

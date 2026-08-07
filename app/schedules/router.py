@@ -33,6 +33,7 @@ from app.schedules.models import (
 )
 from app.schedules.scheduler import (
     _has_active_run,
+    _max_attempts,
     advance_next_run,
     create_run_and_enqueue,
 )
@@ -735,6 +736,11 @@ def retry_run(request: Request, run_id: str, db: Session = Depends(get_db)):
         payload={"schedule_run_id": run.id, "schedule_id": schedule.id, "manual": True},
         now=now,
         idempotency_key=f"schedrun-retry:{run.id}:{now.strftime('%Y%m%d%H%M%S%f')}",
+        # create_run_and_enqueue(스케줄러 tick, run-now)는 스케줄의 retry_policy를
+        # 잡의 max_attempts로 싣는다. 여기서 빠뜨리면 jobs_repo.enqueue 기본값(3)이
+        # 조용히 대신 쓰여, "재시도 안 함"(max_attempts=1)으로 설정한 스케줄도 운영자가
+        # '재시도'를 누르는 순간부터 최대 3회까지 자동 재시도하게 된다.
+        max_attempts=_max_attempts(schedule),
     )
     record_audit_from_request(
         request, db, action="schedule.retry_run", object_type="schedule_run",
