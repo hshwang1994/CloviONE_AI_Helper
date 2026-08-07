@@ -4,7 +4,7 @@
   "brand": "ClovirAssist",
   "mascot": "Clovi",
   "tagline": "Smart Workspace Assistant",
-  "generated_at": "2026-07-30T23:23:58.802438+00:00",
+  "generated_at": "2026-08-07T10:18:33.731735+00:00",
   "file_count": 91,
   "files": [
     {
@@ -101,132 +101,132 @@
     },
     {
       "path": "empty-states/empty-board.png",
-      "size_bytes": 277311,
+      "size_bytes": 934758,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "1861b054773ff5e41eefd3a7adb53a0f50c57b54577ffdcb1bc7fa1c837d327f",
+      "sha256": "ab46283bf4c18d773e41b6a33f3a7622e85a93a6ab2d75381457962a61cb8d2d",
       "purpose": "Empty or system state illustration: empty board"
     },
     {
       "path": "empty-states/empty-chat.png",
-      "size_bytes": 450474,
+      "size_bytes": 1647072,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "6e02189a437cc09ccc9293a9f3bac56200f4938fbf0f5db25afe979208a07f8b",
+      "sha256": "d9ed86613e8917cdca79990fd69410d8f708ba1350e2a52074d17c7ced6c43a3",
       "purpose": "Empty or system state illustration: empty chat"
     },
     {
       "path": "empty-states/empty-docs.png",
-      "size_bytes": 513759,
+      "size_bytes": 985577,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "8bad68482759cddc7c60c3da6948596c76e7fb0b51c5cd82422c74167ef73eec",
+      "sha256": "d8f4768f45185fcd3808988c7802878217ebfc7edaad787ae7bb3fba5517f15b",
       "purpose": "Empty or system state illustration: empty docs"
     },
     {
       "path": "empty-states/empty-notify.png",
-      "size_bytes": 500605,
+      "size_bytes": 1021307,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "658fe9786a4cce9cd8b2639ce899d10ae98dd271315c5032340b29247bbc0e53",
+      "sha256": "99528ed5ae999b630ed8d9f5856712cbee38bba33b29f457a0a87b1dc709281b",
       "purpose": "Empty or system state illustration: empty notify"
     },
     {
       "path": "empty-states/empty-search.png",
-      "size_bytes": 409926,
+      "size_bytes": 956281,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "520b5e176784b58b03ffd72ccaf640199255ed8b639d29a72b04cd698c756f86",
+      "sha256": "ee6c640a1849b08ab72643864fb2dadd3a04d8544d9a2f6ff977126782f12a66",
       "purpose": "Empty or system state illustration: empty search"
     },
     {
       "path": "empty-states/empty-tickets.png",
-      "size_bytes": 531664,
+      "size_bytes": 1006423,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "7ab7b339ecb1102f32a9eb0e498b01271888dc1b117be61e783b1e0ee3288e4a",
+      "sha256": "14821fb50895136f2267d83c4c127e46d15c9e4611d5e3b5309431462f61a79b",
       "purpose": "Empty or system state illustration: empty tickets"
     },
     {
       "path": "empty-states/empty-trash.png",
-      "size_bytes": 470896,
+      "size_bytes": 882654,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "c700403a7b6124c2eacb93603e7100c305163e77101bb0e99184d9f0bfd8d0dd",
+      "sha256": "e98628a009398a44baf6fab3f71b014607d07181d03fd3cb65321b459007bd20",
       "purpose": "Empty or system state illustration: empty trash"
     },
     {
       "path": "empty-states/state-404.png",
-      "size_bytes": 461447,
+      "size_bytes": 834288,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "b6b53972902a7a6913a292e9cd7c815dd95be6abde978dc1f91fa1ecf776d257",
+      "sha256": "e83310642268e35aa0a0fe120ef6442bf9f20918ae4dfe68a599d43b3891e764",
       "purpose": "Empty or system state illustration: state 404"
     },
     {
       "path": "empty-states/state-500.png",
-      "size_bytes": 530292,
+      "size_bytes": 866266,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "272f30700287eb8a7b55df9c0b6d09e1f7c048746d27cb24d68dba5afafc9a86",
+      "sha256": "0f47eb9909ef3f7c84e3c1fa2fd15f71e95c8c17bac9fb887e9569049e2dc9e7",
       "purpose": "Empty or system state illustration: state 500"
     },
     {
       "path": "empty-states/state-no-permission.png",
-      "size_bytes": 444999,
+      "size_bytes": 961250,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "df45a768226e1a4905fd274f86387b844b1970e43f5e06ce944b27b71b7d0da3",
+      "sha256": "02438d7cbacfc8e7056af1b415467029d5120ec655b35170153a5c31f1835996",
       "purpose": "Empty or system state illustration: state no permission"
     },
     {
       "path": "empty-states/state-offline.png",
-      "size_bytes": 467776,
+      "size_bytes": 911071,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "fab7bcfc7d5b881c11ecfeb8792a42e92fc39065b4e4385553b1b3c4788ebe16",
+      "sha256": "b68f3bad7b57376d315cb2cbb0eca9e2fba1f3623f8e5490b3187c442f98ed63",
       "purpose": "Empty or system state illustration: state offline"
     },
     {
       "path": "empty-states/state-session-expired.png",
-      "size_bytes": 525891,
+      "size_bytes": 994438,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "6d9308a6c015cd4dd19ba9c9f687163f6fe4db09b116cb3a9bfaa0b068b92333",
+      "sha256": "e21d89e1fb65997e7732c87fbb5ef53529c5e54283861defd99841f956de2891",
       "purpose": "Empty or system state illustration: state session expired"
     },
     {
       "path": "empty-states/state-success.png",
-      "size_bytes": 404799,
+      "size_bytes": 1738491,
       "dimensions": {
-        "width": 800,
-        "height": 800
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "13ff3301b889c98496715f8b87cf5f0a6605038edba71ac336f569ce3b0d97aa",
+      "sha256": "e2c108f6b5e5449130c35fbd67fe64691d752edf0f45fddfba4badc9cd1282d3",
       "purpose": "Empty or system state illustration: state success"
     },
     {
@@ -378,322 +378,322 @@
     },
     {
       "path": "mascot/character-sheet.png",
-      "size_bytes": 1977344,
+      "size_bytes": 2822081,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "4eae5a31fc5f20dd467254c59bab92c4d59ce1d4ea9375eec2f5d61ffabca39f",
+      "sha256": "6b67cd88ac47528762f9964401f054e458e9bf14de34db13036d53df1611ba25",
       "purpose": "Clovi mascot asset: character sheet"
     },
     {
       "path": "mascot/clovi-avatar.png",
-      "size_bytes": 269544,
+      "size_bytes": 1696818,
       "dimensions": {
-        "width": 512,
-        "height": 512
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "7304cb7cf90d85662e2e18e589c7658a041fb7803636a3724c39cb4b0b58d2a7",
+      "sha256": "024ed11f27f7ce91d7d2b4dfac3d03ce9404e99fe977f16db784e9eeadfa5701",
       "purpose": "Clovi mascot asset: clovi avatar"
     },
     {
       "path": "mascot/clovi-button.png",
-      "size_bytes": 69488,
+      "size_bytes": 1598551,
       "dimensions": {
-        "width": 256,
-        "height": 256
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "ba5e810cde9d5b87eafab2de207519ee5944a3560aebbe1943e786526771cb3a",
+      "sha256": "dbbc302d418f742a6d7d5afb7eca59d2a54fd17c57276535c27640153d8abdba",
       "purpose": "Clovi mascot asset: clovi button"
     },
     {
       "path": "mascot/clovi-error.png",
-      "size_bytes": 595829,
+      "size_bytes": 1684704,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "d7cada90a9067b0bd7e35eb354298287f52cd90cc96bc010ec36ca659f2c89dc",
+      "sha256": "5e85bb91dfc997bc0cbc8c17c34cd850e6b9e0ef2bbb76eb1953316746606a2f",
       "purpose": "Clovi mascot asset: clovi error"
     },
     {
       "path": "mascot/clovi-happy.png",
-      "size_bytes": 601211,
+      "size_bytes": 1740646,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "9170d5703c8399775327dc45d912c052138dfdafa6d7cb64bc6c34849438c0a6",
+      "sha256": "391bd39ebafb93b9141352aca7fe30bb21dac1273e4c0af264aae607083bdf0b",
       "purpose": "Clovi mascot asset: clovi happy"
     },
     {
       "path": "mascot/clovi-idle-blink.png",
-      "size_bytes": 654142,
+      "size_bytes": 1690034,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "4f132ac72c8829317857f4afb476c978d71517db9578d59630c591fe3347d46d",
+      "sha256": "1e906518487b6526e443da31646878b8e15f618525d0427b0cbc4888ecf71a0b",
       "purpose": "Clovi mascot asset: clovi idle blink"
     },
     {
       "path": "mascot/clovi-idle.png",
-      "size_bytes": 643736,
+      "size_bytes": 1689335,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "0211225a7453ca72f4760478f3487dc31c37a78308470b04c30383b7c655eecd",
+      "sha256": "a99b1f2883d2ef4bbbaa86804e531b3ca225d145411a1adb952ddff8cbefcac3",
       "purpose": "Clovi mascot asset: clovi idle"
     },
     {
       "path": "mascot/clovi-love.png",
-      "size_bytes": 629167,
+      "size_bytes": 1769475,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "6d02ca3ee92ca2b93eef80669f172753afc79aed7f6e1ef6d9358349fb2f7c36",
+      "sha256": "ea00f9d8693d0900fa931194ce01595b2eb60d4162c1a764a168f6115e9f27e6",
       "purpose": "Clovi mascot asset: clovi love"
     },
     {
       "path": "mascot/clovi-sleep.png",
-      "size_bytes": 571379,
+      "size_bytes": 1680501,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "bee87ed15e6cc4da888e11afb51da1883672e2388d4fd77c80ee93b45f503902",
+      "sha256": "212c98d86b90f6b1866a4b8077800c6439d8fca0724b0541cc39c213cb37d424",
       "purpose": "Clovi mascot asset: clovi sleep"
     },
     {
       "path": "mascot/clovi-talking.png",
-      "size_bytes": 637469,
+      "size_bytes": 1741749,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "950fed2677a8a4ef847dcf8bb7099a37f0eded63d2287b887398464bf3fad919",
+      "sha256": "5deb5293db4b4c2b459289e6a2790a699d9d5e2852bb528a02d69a7efa3db0d1",
       "purpose": "Clovi mascot asset: clovi talking"
     },
     {
       "path": "mascot/clovi-think.png",
-      "size_bytes": 631320,
+      "size_bytes": 1700325,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "80069279dc6abad5b586c0df2f77db64567c1d3e4956da52524eb7d9c2195ad8",
+      "sha256": "4448edb2ff1587bc942ffdcbf0f610ab328076d828c5946b66b60b4527b3a2e2",
       "purpose": "Clovi mascot asset: clovi think"
     },
     {
       "path": "mascot/clovi-wave.png",
-      "size_bytes": 669816,
+      "size_bytes": 1703778,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "0c8e88bc70c6317ead8dc44075ff9b6fb0782f0ffcad044306fda9c4c659b96f",
+      "sha256": "ea20fe963cc0264b532b3f8fa22d3c5296608ec6d9a0449d1dfd2b8a83fdb599",
       "purpose": "Clovi mascot asset: clovi wave"
     },
     {
       "path": "mascot/frames/blink-01.png",
-      "size_bytes": 695426,
+      "size_bytes": 2463678,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "5558aaacffaa374f5677bd4be451e57dafa3e22b517037a89da216d1cfc84503",
+      "sha256": "0732ea866fb1af02427ebdafc16b610123e7f7a48a1268a39e13c0b8543a672f",
       "purpose": "Clovi mascot asset: blink 01"
     },
     {
       "path": "mascot/frames/blink-02.png",
-      "size_bytes": 641743,
+      "size_bytes": 2402842,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "11193733ee5493c1fcbc7f3bf7d1d27783ea72d25467e6c59b5b2656b3c2f5a1",
+      "sha256": "3eaf3d056f4f98865112edd0a42daab3815c8e55305bbfb161b874d0340e7929",
       "purpose": "Clovi mascot asset: blink 02"
     },
     {
       "path": "mascot/frames/blink-03.png",
-      "size_bytes": 628054,
+      "size_bytes": 2497785,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "b63d6d1438debf6971b9242294d557a80d419b619dd6796dc55455d708c783d2",
+      "sha256": "9ef5e4918ac58cc81cbcc0c082665f4d12d9c0c3390b165bce740bda1981302b",
       "purpose": "Clovi mascot asset: blink 03"
     },
     {
       "path": "mascot/frames/bounce-01.png",
-      "size_bytes": 768336,
+      "size_bytes": 2448146,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "a979a0f543b3a8a7cfcc2457ed74627a9b6c1a69f450080950e07236b8521490",
+      "sha256": "2061228ff4802e9afb65d7ae8b7168d3cf6f1437097ff24a1745a6bab4b973b6",
       "purpose": "Clovi mascot asset: bounce 01"
     },
     {
       "path": "mascot/frames/bounce-02.png",
-      "size_bytes": 693573,
+      "size_bytes": 1727711,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "7946c972fa4408b144b8e33b56fd763788845deb9ff9fae2e3b174d5aaa879d2",
+      "sha256": "4bad3cb9e057350ec18979ab25dcd3f8482bfe3c958097e0286c9ad0e9a4dbb0",
       "purpose": "Clovi mascot asset: bounce 02"
     },
     {
       "path": "mascot/frames/bounce-03.png",
-      "size_bytes": 689494,
+      "size_bytes": 1683831,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "54a39d85035f8a47e8f77838f076cbaefa83d4719bf2bd9182715f38cc101b45",
+      "sha256": "5f4a35dae995949ce27d302a242f3d90a628100618bef6534f9a877980430b06",
       "purpose": "Clovi mascot asset: bounce 03"
     },
     {
       "path": "mascot/frames/bounce-04.png",
-      "size_bytes": 620574,
+      "size_bytes": 2455547,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "d7f5ba48f95c42c82f2520339a344bd2991c2aab0d7e6b3db10aeb287e6ea181",
+      "sha256": "5a2c73641a4c863980975bc87b912983eeef9043ece854b5a3865aad26de3bd1",
       "purpose": "Clovi mascot asset: bounce 04"
     },
     {
       "path": "mascot/frames/celebrate-01.png",
-      "size_bytes": 706364,
+      "size_bytes": 2491343,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "0fc557351b0e49cbe53f402165640a5f85d6ec09da8b490a1f880f1e6a76a26d",
+      "sha256": "e5f625c9a26950cf3119211d4ff523c4cfc8598e1861e88ccab91b89aa2565e4",
       "purpose": "Clovi mascot asset: celebrate 01"
     },
     {
       "path": "mascot/frames/celebrate-02.png",
-      "size_bytes": 639408,
+      "size_bytes": 1682002,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "09dad0b3f86a4612cfa36f88d8cb68156d499305102cd199c08afa8ee1efde85",
+      "sha256": "0b2bc9e69c3c25fbbc9883f4f299c7c6302aaa889f7273e71f7f4901b254527c",
       "purpose": "Clovi mascot asset: celebrate 02"
     },
     {
       "path": "mascot/frames/celebrate-03.png",
-      "size_bytes": 663901,
+      "size_bytes": 2496247,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "f44273552e43099a098946008dd244fd7edbabcd23af46ad3bbc8a14ddee307d",
+      "sha256": "b00a3634b62987aba3318deab94c280ab4c9b1e6f69602bd7c261fbcd283a5a7",
       "purpose": "Clovi mascot asset: celebrate 03"
     },
     {
       "path": "mascot/frames/celebrate-04.png",
-      "size_bytes": 674847,
+      "size_bytes": 2365460,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "458071bf652e334f4931accf856893dd6dd2c938fca742fb415be156dd17bf23",
+      "sha256": "d1801366f7b6f0793c796086548b28efe0abdfd9cff64f8055acfdd419803eb5",
       "purpose": "Clovi mascot asset: celebrate 04"
     },
     {
       "path": "mascot/frames/celebrate-05.png",
-      "size_bytes": 681955,
+      "size_bytes": 2462965,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "a2b409b59d706d8b1d3c517a352ccf13abe66653380d578f16831200144c073f",
+      "sha256": "173d2e79741828e2cde03cb1ae8d87ecc97e20530516facc3c48152ebc222a7b",
       "purpose": "Clovi mascot asset: celebrate 05"
     },
     {
       "path": "mascot/frames/think-loop-01.png",
-      "size_bytes": 701468,
+      "size_bytes": 2563982,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "ceb5b452c3ff875ba22e7516053c068068635f82519d1241da725cbe9f0c2e8e",
+      "sha256": "124760f525da86902ff28dd1285386bbd8c45fcc8df1886fdcb4a00ba85d2ec3",
       "purpose": "Clovi mascot asset: think loop 01"
     },
     {
       "path": "mascot/frames/think-loop-02.png",
-      "size_bytes": 679283,
+      "size_bytes": 2508774,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "e279dfc1c8aaa3717237ac44cb51469fd199c776d059e7aa5b905c1b68068384",
+      "sha256": "589ba4856adabab0e1f5b57951f4ce6abe17d9f81886b1843a00b6b4f21d94ba",
       "purpose": "Clovi mascot asset: think loop 02"
     },
     {
       "path": "mascot/frames/think-loop-03.png",
-      "size_bytes": 693073,
+      "size_bytes": 2500997,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "118f9fe990d0d01bf4181b82650e3b32f5a192c2d720f06877ac8f183aeaaa8a",
+      "sha256": "a2dd92e8662b63c4d2267d3cc048ed5db521fb343cd3b8134622477b568f7b4f",
       "purpose": "Clovi mascot asset: think loop 03"
     },
     {
       "path": "mascot/frames/think-loop-04.png",
-      "size_bytes": 713576,
+      "size_bytes": 2491249,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "09e377185230e2dc6cc569fbe22c92235dbd33705407c5a17cf3dcf837d27d17",
+      "sha256": "69e65501835ea9230d70829022c1e43b7bdc8eabc05af71a56489909b4e15e6a",
       "purpose": "Clovi mascot asset: think loop 04"
     },
     {
       "path": "mascot/frames/wave-01.png",
-      "size_bytes": 271376,
+      "size_bytes": 2436468,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "29ae22440c2c8bc99b4f408c8e65b16d4b2ff89da9fb8c589f810b11769e7540",
+      "sha256": "c7fad103fddf0662018eedda22648c7e8ec3f0b4970dbe2318df3bbedb067050",
       "purpose": "Clovi mascot asset: wave 01"
     },
     {
       "path": "mascot/frames/wave-02.png",
-      "size_bytes": 293436,
+      "size_bytes": 2394614,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "a6c08310bb71aa378ea66dd92ee95a7d1ad26bd51e486a78377baf5b503680ac",
+      "sha256": "6783890101fa60c643122b0bd297c5b257969aa09e42f5174ba2b33a0d0d8497",
       "purpose": "Clovi mascot asset: wave 02"
     },
     {
       "path": "mascot/frames/wave-03.png",
-      "size_bytes": 282770,
+      "size_bytes": 2420408,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "3e4fcfd4ffcfea5a993a3662339a0fbc0df1e9973493e262246d504571cbaac7",
+      "sha256": "8edb4522e838bba4ab4bf1935fc88565c2e4190a2ec240539f9fe382cc5529f0",
       "purpose": "Clovi mascot asset: wave 03"
     },
     {
       "path": "mascot/frames/wave-04.png",
-      "size_bytes": 307652,
+      "size_bytes": 2407190,
       "dimensions": {
         "width": 1024,
-        "height": 1024
+        "height": 1536
       },
-      "sha256": "a9f86357bd43e462125a8c7ac244ace809a91413ce76670feb1957fc94a391d4",
+      "sha256": "72a6326d610d486782641000952a5ce3aff1a8deafa560d662706678d0d00758",
       "purpose": "Clovi mascot asset: wave 04"
     },
     {
@@ -708,182 +708,182 @@
     },
     {
       "path": "mascot/layers/arm-rest.png",
-      "size_bytes": 288873,
+      "size_bytes": 1502871,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "2cb4d037ddf48fa636fa26650c72c6de91a560bc722f5584de035399e58ed37c",
+      "sha256": "3b284628c3f721a8745cc8d4a116e50abfaf48e8bb81e137e00af81ad144254a",
       "purpose": "Clovi mascot asset: arm rest"
     },
     {
       "path": "mascot/layers/arm-wave.png",
-      "size_bytes": 128250,
+      "size_bytes": 1448309,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "844951308924d603f4f3a256bee19b22b83eb6fabac917d31620096665a434be",
+      "sha256": "040558df851fc80687e75aeb365041e68a9f0a6791c193ac83c8aba94d7ad9d3",
       "purpose": "Clovi mascot asset: arm wave"
     },
     {
       "path": "mascot/layers/base.png",
-      "size_bytes": 241814,
+      "size_bytes": 1542567,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "0ab621acb60928c79d89730859cbc94db1f4cf8f29e2e9d3ee5c47fe6587ef11",
+      "sha256": "1c4532c8c0a7959d951feb7d2f0c1afb58459c56e80d2ff75457ab84ec8c42af",
       "purpose": "Clovi mascot asset: base"
     },
     {
       "path": "mascot/layers/eyes-closed.png",
-      "size_bytes": 253574,
+      "size_bytes": 1484429,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "33c9b482311db5adc242be736b58e8e48091051735351693275dd18d4b9b0c2a",
+      "sha256": "f7729c00720161a50def8a9c351c2c4811459176c271fe3dfa9a8a18ea1cba44",
       "purpose": "Clovi mascot asset: eyes closed"
     },
     {
       "path": "mascot/layers/eyes-open.png",
-      "size_bytes": 268103,
+      "size_bytes": 1516086,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "7b92c34491a60ee51e69a72630a6d3ed33aafbc3803622638ed90dcaff59eb74",
+      "sha256": "6d17e2d174b6bfa4954de533aff592e6d5a641aea1bbd923d87cd983b2f2f575",
       "purpose": "Clovi mascot asset: eyes open"
     },
     {
       "path": "mascot/layers/mouth-smile.png",
-      "size_bytes": 128205,
+      "size_bytes": 1450211,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "d3ca528f26da73f9e8a4239a8a4538d1e4ccd82c8edb48e5a6e976396b60a87b",
+      "sha256": "19cf1d7a42bc6ecf943ebc9a5a136de52cfa98f913f2431cbcbc9b127c4ef03b",
       "purpose": "Clovi mascot asset: mouth smile"
     },
     {
       "path": "mascot/layers/mouth-talk.png",
-      "size_bytes": 72898,
+      "size_bytes": 1460663,
       "dimensions": {
         "width": 1024,
         "height": 1024
       },
-      "sha256": "703b72d4532750e61d6d7dc97b3a94ae94ed3cf6d464d3602edaddfdbd798984",
+      "sha256": "9c10cd3b17e6ff18a6e8bec0a156ca0564d9af576212a6fd8fa26e4b624a680a",
       "purpose": "Clovi mascot asset: mouth talk"
     },
     {
       "path": "misc/celebrate-winner.png",
-      "size_bytes": 284617,
+      "size_bytes": 308408,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "de7d75ac1c06314daf50d7ff92fdef33b5ae899d389338bb697b73a1b0672fec",
+      "sha256": "e968046b44781018ec2773984132fee8491b9667406c975f9f490d50c94cd621",
       "purpose": "Miscellaneous illustration: celebrate winner"
     },
     {
       "path": "misc/loading.png",
-      "size_bytes": 55860,
+      "size_bytes": 106597,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "36b6d58e9c0d567b5fecd7e5325a8c5060db434d6d2ac788808989fa0c8431d4",
+      "sha256": "7cb55bd73b4e2c7a0127437407671cb35bd8b1de9b3d4a0fd0581f35538d80ee",
       "purpose": "Miscellaneous illustration: loading"
     },
     {
       "path": "misc/onboarding-welcome.png",
-      "size_bytes": 284972,
+      "size_bytes": 244789,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "4183d0eef5351503c493a957c52cc1da0efe51e35fb6cafcf556bda686304a45",
+      "sha256": "f8817f2f54bd7c4a6ef374517c0a98f9583621fef32091d3141c90dc4efd5769",
       "purpose": "Miscellaneous illustration: onboarding welcome"
     },
     {
       "path": "spot/spot-assistant.png",
-      "size_bytes": 335836,
+      "size_bytes": 122145,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "a1d2f92b038e8ec56d631294f686d343fb7709de7df62dca2d64b7827075e35a",
+      "sha256": "9228ab5ce921c6443457ed9c46e2a8ecac31539b16dad08a7cffd5252193fba0",
       "purpose": "Section spot illustration: spot assistant"
     },
     {
       "path": "spot/spot-board.png",
-      "size_bytes": 315193,
+      "size_bytes": 177163,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "0dce712f991bfc3d5db5bcdb09f2825d0a674f78fc93729be74543b51ba61b6e",
+      "sha256": "aa222aa23a3403c0bdc5c3bc88fdcef8becec8c62a3c51db9bcea914c57f9a73",
       "purpose": "Section spot illustration: spot board"
     },
     {
       "path": "spot/spot-chat.png",
-      "size_bytes": 337259,
+      "size_bytes": 103374,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "6c5c8dc3aac68eca1f41e2062fbe60de3cad0fba5a7fd87c7b8fb50c6c47d75c",
+      "sha256": "3c63de551e0c594666668cf225c1246c71bd49fcfcf6696c42e50b18135c9b32",
       "purpose": "Section spot illustration: spot chat"
     },
     {
       "path": "spot/spot-docs.png",
-      "size_bytes": 249513,
+      "size_bytes": 143789,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "ad2ec2c7cc0e2a08656523fcd27d76fdaefa053ec941d33603eef9ce93eb707c",
+      "sha256": "0b5ab8ae029637eb902d9c7cb5b7d118ccb5b0bf09843e7f538979c0c07e0b6d",
       "purpose": "Section spot illustration: spot docs"
     },
     {
       "path": "spot/spot-games.png",
-      "size_bytes": 256803,
+      "size_bytes": 199034,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "b57dfd241ee52f761159d79e2ec20d89b1bcee0d333402cc2af172216cec19cb",
+      "sha256": "c78f0b280390ed90ecdc46fca1463d1a4e3abc111ad9cfccda6fefeb9e500fb0",
       "purpose": "Section spot illustration: spot games"
     },
     {
       "path": "spot/spot-mywork.png",
-      "size_bytes": 209849,
+      "size_bytes": 1691694,
       "dimensions": {
-        "width": 512,
-        "height": 512
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "5da8fecb53f3b19a28fd143c6d8333bc0a714fa14598aaefed4127cdde9c6f3f",
+      "sha256": "b85a8ef5248cf71713da979e3ad108cf5f1c573702ed725d4b175a34bb372b14",
       "purpose": "Section spot illustration: spot mywork"
     },
     {
       "path": "spot/spot-sprint.png",
-      "size_bytes": 338003,
+      "size_bytes": 1866676,
       "dimensions": {
-        "width": 512,
-        "height": 512
+        "width": 1024,
+        "height": 1024
       },
-      "sha256": "718e2a628585402c85ebce60ca8f37e372a8008ed114b2e433d12821a2b261b4",
+      "sha256": "293b9aae3e8982f645e162521629f60217cb04ba2809f0b9d5289e7116039ace",
       "purpose": "Section spot illustration: spot sprint"
     },
     {
       "path": "spot/spot-teamspace.png",
-      "size_bytes": 240105,
+      "size_bytes": 162768,
       "dimensions": {
         "width": 512,
         "height": 512
       },
-      "sha256": "9824b7b817e085782704307b64301fa3c4fd81021fcd49b801e98b64a7cfe8dd",
+      "sha256": "fa6949d9a6e1d56f9878f77b72b88587f57adee1b930a9a5caa91f5b13c5ef41",
       "purpose": "Section spot illustration: spot teamspace"
     },
     {
