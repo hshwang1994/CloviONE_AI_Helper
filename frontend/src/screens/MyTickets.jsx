@@ -24,7 +24,7 @@ import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
-import { BodyEditor } from "../ui/BodyEditor.jsx";
+import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
@@ -943,15 +943,24 @@ export function NewTicket() {
               <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
               <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} myId={myId} maxHeight="none" />
             </Box>
-            <Box sx={{ mb: 2.5, maxWidth: "60rem" }}>
-              <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>설명</Typography>
-              <BodyEditor
-                id="nt-desc"
-                value={form.description}
-                onChange={(v) => set("description", v)}
-                rows={12}
-                placeholder="배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다."
-              />
+            {/* 폭: 예전에는 이 블록만 maxWidth:"60rem" 을 손으로 박아 뒀다 — 바로 위 필드
+                격자와 폼 자체(72rem)는 컨테이너를 따라가는데 설명 블록만 그보다 좁은 상한에
+                갇혀, 4K 등 넓은 화면에서 편집기+미리보기가 폼의 다른 부분보다 눈에 띄게
+                좁게 왼쪽으로 쏠려 보였다. editorContainerSx/editorSurfaceWidthSx(BodyEditor.jsx)
+                는 고정 상한 대신 컨테이너 실측 폭을 쓴다 — 이 자리는 이미 폼의 72rem 상한
+                안에 있으므로 사실상 부모 폭을 그대로 따라가고, 아주 넓어졌을 때만(80rem)
+                한 번 더 멈춘다. */}
+            <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
+              <Box sx={editorSurfaceWidthSx("nt-desc-surface")}>
+                <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>설명</Typography>
+                <BodyEditor
+                  id="nt-desc"
+                  value={form.description}
+                  onChange={(v) => set("description", v)}
+                  rows={12}
+                  placeholder="배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다."
+                />
+              </Box>
             </Box>
             {/* 우하단 마스코트 FAB(고정, 70px, right/bottom 24)이 이 버튼을 덮는다.
                 셸의 pb 여백은 **맨 아래까지 스크롤했을 때만** 도움이 되고, 이 폼은 본문

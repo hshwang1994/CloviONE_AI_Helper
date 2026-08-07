@@ -171,6 +171,36 @@ describe("문서 댓글 (사용자 지적 #9)", () => {
   });
 });
 
+describe("레이아웃 — 댓글은 메타 레일에", () => {
+  const routed = (comments) => (path) => {
+    if (path.indexOf("/comments") >= 0) return Promise.resolve({ ok: true, comments });
+    return Promise.resolve({ document: DOC, blocks: [] });
+  };
+
+  it("댓글은 본문 카드가 아니라 메타 레일(우측 컬럼)에 렌더된다", async () => {
+    apiMock.mockImplementation(routed([]));
+    const { container } = wrap(<TeamDoc />);
+
+    await screen.findByRole("heading", { name: "네트워크 설계서" });
+    const main = container.querySelector('[data-testid="doc-detail-main"]');
+    const rail = container.querySelector('[data-testid="doc-detail-rail"]');
+    expect(main).toBeInTheDocument();
+    expect(rail).toBeInTheDocument();
+
+    const commentsRegion = await screen.findByRole("region", { name: "댓글" });
+    // 댓글은 본문 카드가 아니라 메타 레일 안에 있어야 한다.
+    expect(main.contains(commentsRegion)).toBe(false);
+    expect(rail.contains(commentsRegion)).toBe(true);
+
+    // 레일 안에서도 메타(업무 분야 등)가 댓글보다 먼저 나온다.
+    const metaLabel = within(rail).getByText("업무 분야");
+    expect(metaLabel.compareDocumentPosition(commentsRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // 좁은 화면에서 한 열로 접힐 때도 본문이 댓글보다 먼저 나와야 한다.
+    expect(main.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
 describe("safeExternal", () => {
   it("http(s)만 통과시킨다", () => {
     expect(safeExternal("https://notion.so/a")).toBe("https://notion.so/a");

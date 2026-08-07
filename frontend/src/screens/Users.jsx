@@ -65,7 +65,34 @@ const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v]
 /* 관리 범위 — `app/users/models.py` 의 `ALL_ADMIN_SCOPES` 와 같은 세 값이다.
  * 라벨은 '무엇을 볼 수 있는가'로 쓴다: `global`/`org`/`dept` 는 개발자 말이다. */
 const SCOPE_KO = { global: "전체 포털", org: "소속 조직", dept: "소속 부서(하위 포함)" };
-const SCOPE_OPTS = Object.keys(SCOPE_KO).map((v) => ({ value: v, label: SCOPE_KO[v] }));
+
+/* role=admin + admin_scope 의 조합에 붙는 이름 (RBAC 발견성).
+ *
+ * app/core/authz.py 의 ROLE_ORDER 와 app/users/models.py 의 admin_scope(global/org/dept)
+ * 는 서로 **조합**돼 실제 권한을 만든다 — role=admin + admin_scope=org 가 "조직관리자",
+ * dept 가 "부서관리자" 다. 이 조합은 백엔드(app/core/scope.py)에서 이미 동작하고 있었지만
+ * 화면 어디에도 이 이름이 없어(설정은 있어도 개념이 안 보여) 관리자가 이 기능 자체를
+ * 찾지 못했다. global 은 "전체 관리자" 라고 부르고, system_admin(시스템 관리자)과는
+ * 완전히 다른 축(역할이 아니라 범위)이라는 것을 도움말에서 별도로 밝힌다. */
+const ADMIN_CONCEPT_KO = { global: "전체 관리자", org: "조직관리자", dept: "부서관리자" };
+
+/* 목록/상세에 붙일 배지. admin 역할이 아니면(system_admin 포함) null — 이 개념은
+ * role=admin 조합에만 존재하고, system_admin 은 이미 자기 역할 배지로 구분된다. */
+export function adminConcept(row) {
+  if (!row || row.role !== "admin") return null;
+  const scope = row.admin_scope || "global";
+  const label = ADMIN_CONCEPT_KO[scope];
+  if (!label) return null;
+  // 전체 관리자는 '조직/부서로 좁혀지지 않은 관리자'라는 뜻이라 주의를 끌 필요가 있다(warn),
+  // 조직/부서 관리자는 이미 좁혀진 상태를 그대로 알려주는 정보다(info).
+  return { label, kind: scope === "global" ? "warn" : "info" };
+}
+
+const SCOPE_OPTS = Object.keys(SCOPE_KO).map((v) => ({
+  // 드롭다운에서부터 개념 이름이 보이게 — '소속 조직'만 보면 이게 '조직관리자'를 만드는
+  // 자리라는 걸 알아채기 어렵다(F2의 "넣는 길이 화면 어디에도 없었다"는 지금까지의 문제).
+  value: v, label: SCOPE_KO[v] + "(" + ADMIN_CONCEPT_KO[v] + (v === "global" ? ", 시스템 관리자와는 다른 개념)" : ")"),
+}));
 
 /* 상세 패널에 쓸 한 줄. 범위가 `dept`/`org` 인데 대상이 비어 있으면 **그 사람은 아무것도
  * 못 본다** — 저장 경계에서 막지만, 예전 데이터나 CLI 로 들어온 값이 있을 수 있으므로
@@ -272,7 +299,18 @@ export function Users() {
       // 일반 사용자(neutral). 예전엔 operator/auditor가 일반 사용자와 같은 무채색이라 '관리자 아래는 다 같다'로
       // 읽혀, 색 구분의 취지(민감한 역할 열을 등급으로 구분)가 절반만 전달됐다.
       key: "role", label: "역할",
-      render: (r) => <Badge value={ROLE_KO[r.role] || r.role} kind={r.role === "system_admin" ? "danger" : r.role === "admin" ? "warn" : (r.role === "operator" || r.role === "auditor") ? "info" : "neutral"} />,
+      // admin 역할은 admin_scope 조합으로 실제 성격이 갈린다(조직관리자/부서관리자/전체
+      // 관리자) — 역할 배지 하나만으로는 이 화면 어디서도 그 조합이 보이지 않았다(RBAC
+      // 발견성 문제). 개념이 있는 조합에만 두 번째 배지를 나란히 붙인다.
+      render: (r) => {
+        const concept = adminConcept(r);
+        return (
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+            <Badge value={ROLE_KO[r.role] || r.role} kind={r.role === "system_admin" ? "danger" : r.role === "admin" ? "warn" : (r.role === "operator" || r.role === "auditor") ? "info" : "neutral"} />
+            {concept ? <Badge value={concept.label} kind={concept.kind} /> : null}
+          </Box>
+        );
+      },
     },
     {
       // 잠긴(locked) 계정은 활성 상태와 별개 신호라 '활성' 배지만으론 목록에서 구분되지 않는다 —
@@ -341,7 +379,8 @@ export function Users() {
        * 역할과 같은 무게로 다룬다: 범위를 넓히는 것은 권한을 주는 일이고, 바뀌면 그
        * 사용자의 세션이 즉시 끊긴다. 그래서 안내 문구도 역할 옆에 나란히 둔다. */
       { name: "admin_scope", label: "관리 범위", type: "select", options: SCOPE_OPTS,
-        help: "관리자가 관리 화면에서 볼 수 있는 범위입니다. 좁히면 그 범위 밖 사람과 자원이 목록에서 사라집니다. 범위가 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다." },
+        help: "관리자가 관리 화면에서 볼 수 있는 범위입니다. 좁히면 그 범위 밖 사람과 자원이 목록에서 사라집니다. 범위가 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다. "
+          + "전체는 전체 관리자, 조직은 조직관리자, 부서는 부서관리자라고 부릅니다. 이름은 다르지만 시스템 관리자(system_admin, 역할 자체가 다른 계정)와는 별개 개념입니다." },
       { name: "scope_dept_id", label: "범위 대상 부서", type: "select", options: dept.options,
         help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다." },
     ];
@@ -813,7 +852,13 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
         {/* 지금 이 사람이 **어디까지 보는지**. 관리자에게만 의미가 있으므로 일반 사용자에는
             안 그린다(전체 범위가 기본값이라 모든 계정에 '전체 포털'이 붙으면 소음이 된다). */}
         {d.role && d.role !== "user" ? (
-          <Row label="관리 범위">{scopeLabel(d, dept)}</Row>
+          <Row label="관리 범위">
+            {/* role=admin + admin_scope 조합의 이름(조직관리자/부서관리자/전체 관리자)을
+                범위 설명 앞에 배지로 붙인다 — scopeLabel() 자체는 F2 계약(예: "소속 부서
+                (하위 포함): ClovirONE팀")을 그대로 유지한다(users-scope.test.js). */}
+            {adminConcept(d) ? <Badge value={adminConcept(d).label} kind={adminConcept(d).kind} /> : null}
+            {" " + scopeLabel(d, dept)}
+          </Row>
         ) : null}
         <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
         <Row label="Notion 연결"><Badge value={d.notion_mapping_status} /></Row>

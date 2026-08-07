@@ -268,43 +268,49 @@ export function TeamDoc() {
     <div className="c-screen">
       <PageHeader crumbRoot="" area="문서" title="문서" actions={actions} />
 
-      {/* 1열: 제목 + 본문. 2열: 메타 레일. lg부터 갈라진다. */}
+      {/* 1열: 제목 + 본문. 2열: 메타 + 댓글 레일. lg부터 갈라진다.
+          사용자 지시: "댓글 기능은 본문이 아니라 오른쪽에 배치." 두 Box 모두 order를
+          두지 않는다 — xs(한 열)에서는 DOM 순서 그대로 본문 → 메타 → 댓글로 쌓이고,
+          lg+(두 열)에서는 첫 자식이 1열, 둘째 자식이 2열에 자동으로 놓인다(티켓 상세와
+          같은 방식, Ticket.jsx의 DETAIL_GRID 주석 참고). 예전에는 댓글을 격자의 세 번째
+          자식으로 그냥 붙였는데, 그러면 2열 격자의 자동 배치가 댓글을 1열(본문 쪽) 다음
+          행에 놓아 "댓글이 본문 열에 있다"는 사용자 지적의 원인이 됐다. */}
       <Box sx={DOC_DETAIL_GRID}>
-        <Card component="article" sx={{ minWidth: 0 }}>
-          <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
-            {doc.status ? <Badge value={doc.status} /> : null}
-            {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
-          </Stack>
-          <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
-            {doc.title || "제목 없음"}
-          </Typography>
-          {/* 읽기와 편집을 한 패널이 맡는다(사용자 지적 #9). 티켓 본문과 **같은 컴포넌트**라
-              "저장은 됐지만 원본과 어긋남" 같은 상태를 두 화면이 똑같이 다룬다.
-              소스 본문 렌더러는 여기서 넘긴다 — 폭 상한은 화면이 정할 일이고, 그래야
-              ui/EditableBody 가 화면 모듈을 되짚어 import 하지 않는다(순환 import). */}
-          <EditableBody
-            editorId={"doc-body-" + id}
-            endpoint={"/api/team-docs/" + id + "/body"}
-            invalidateKeys={[["team-docs"], ["team-doc", id]]}
-            blocks={detail.data.blocks}
-            bodyMarkdown={detail.data.body_markdown}
-            bodyVersion={detail.data.body_version}
-            bodyIsLocal={detail.data.body_is_local}
-            bodySyncError={detail.data.body_sync_error}
-            onSaved={() => detail.refetch()}
-            sourceView={(
-              <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error}
-                originalUrl={original} />
-            )}
-          />
-        </Card>
+        <Box data-testid="doc-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+          <Card component="article" sx={{ minWidth: 0 }}>
+            <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+              {doc.status ? <Badge value={doc.status} /> : null}
+              {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
+            </Stack>
+            <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
+              {doc.title || "제목 없음"}
+            </Typography>
+            {/* 읽기와 편집을 한 패널이 맡는다(사용자 지적 #9). 티켓 본문과 **같은 컴포넌트**라
+                "저장은 됐지만 원본과 어긋남" 같은 상태를 두 화면이 똑같이 다룬다.
+                소스 본문 렌더러는 여기서 넘긴다 — 폭 상한은 화면이 정할 일이고, 그래야
+                ui/EditableBody 가 화면 모듈을 되짚어 import 하지 않는다(순환 import). */}
+            <EditableBody
+              editorId={"doc-body-" + id}
+              endpoint={"/api/team-docs/" + id + "/body"}
+              invalidateKeys={[["team-docs"], ["team-doc", id]]}
+              blocks={detail.data.blocks}
+              bodyMarkdown={detail.data.body_markdown}
+              bodyVersion={detail.data.body_version}
+              bodyIsLocal={detail.data.body_is_local}
+              bodySyncError={detail.data.body_sync_error}
+              onSaved={() => detail.refetch()}
+              sourceView={(
+                <DocBody blocks={detail.data.blocks} blocksError={detail.data.blocks_error}
+                  originalUrl={original} />
+              )}
+            />
+          </Card>
+        </Box>
 
-        <DocMeta doc={doc} />
-
-        {/* 논의는 본문 **바로 아래**, 메타 레일이 아니라 1열이다(티켓 상세와 같은 배치).
-            레일에 넣으면 좁은 화면에서 댓글이 "무엇에 대한 댓글인지"보다 먼저 나온다.
-            2열 격자의 세 번째 자식이라 자동으로 2행 1열에 놓인다. */}
-        <DocComments pageId={id} />
+        <Box data-testid="doc-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+          <DocMeta doc={doc} />
+          <DocComments pageId={id} />
+        </Box>
       </Box>
     </div>
   );

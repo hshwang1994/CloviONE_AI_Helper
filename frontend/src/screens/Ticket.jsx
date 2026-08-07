@@ -175,10 +175,12 @@ export function Ticket() {
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="티켓" title={ticketId(t)} actions={actions} />
       <Box sx={DETAIL_GRID}>
-        {/* 본문 열 — 본문과 댓글은 둘 다 산문이라 같은 열에 세로로 쌓고 78ch에서 멈춘다.
-            댓글을 레일에 넣으면 좁은 화면에서 order 때문에 본문보다 위로 올라가고(논의가
-            대상보다 먼저 나온다), 4K에서는 줄 길이가 2,000px가 된다. */}
-        <Box sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+        {/* 본문 열 — 첨부는 본문 **바로 아래**다(무엇에 대한 파일인지 먼저 보여야 한다).
+            댓글은 더 이상 여기 없다 — 사용자 지시대로 속성 레일로 옮겼다(아래 우측 컬럼).
+            두 Box 모두 order를 두지 않는다: xs(한 열)에서는 DOM 순서 그대로 본문 →
+            속성 → 댓글로 쌓이고, lg+(두 열)에서는 첫 자식이 자동으로 1열, 둘째 자식이
+            2열에 놓인다 — CSS 트릭 없이 두 목표(레일 배치·좁은 화면 순서)가 같이 풀린다. */}
+        <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
               {t.status ? <Badge value={t.status} /> : null}
@@ -199,20 +201,22 @@ export function Ticket() {
               onSaved={() => detail.refetch()}
             />
           </Card>
-          {/* 첨부는 본문 **바로 아래**다. 레일에 넣으면 좁은 화면에서 order 때문에 본문보다
-              위로 올라가 "무엇에 대한 파일인지"보다 파일이 먼저 나온다(댓글과 같은 이유). */}
           <TicketAttachments
             ticketId={id}
             attachments={data.attachments}
             canEdit={data.can_edit !== false}
             onChanged={() => detail.refetch()}
           />
-          <TicketComments ticketId={id} />
         </Box>
 
-        {/* 메타/활동 레일 — 좁은 화면에서는 본문 위로 올린다(order). 아래로 밀면 담당자·마감을
-            보려고 본문과 댓글 전체를 스크롤해 지나가야 한다. */}
-        <Box sx={{ order: { xs: -1, xl: 0 }, minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+        {/* 속성 레일 — 사용자 지시: "댓글 기능은 본문이 아니라 오른쪽에 배치." 속성 카드
+            바로 아래에 댓글을 둔다(속성을 먼저 보고 논의를 본다). 예전에는 이 Box에
+            `order:{xs:-1}`를 줘서 좁은 화면에서 본문보다 먼저 보이게 했었는데, 지금은
+            댓글도 이 Box 안에 있으므로 그대로 두면 댓글까지 본문보다 앞으로 올라간다
+            (그건 원래 댓글을 레일에 넣지 않았던 이유이기도 하다 — 논의가 대상보다 먼저
+            나오면 안 된다). 그래서 order를 없앴다: 좁은 화면에서도 DOM 순서(본문 → 속성 →
+            댓글)를 그대로 따른다. */}
+        <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card>
             <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>속성</Typography>
             {meta.length ? (
@@ -223,6 +227,7 @@ export function Ticket() {
               <Typography variant="body2" color="text.secondary">표시할 속성이 없습니다.</Typography>
             )}
           </Card>
+          <TicketComments ticketId={id} />
         </Box>
       </Box>
       <TicketEditModal ticket={t} open={editing} onClose={() => { setEditing(false); detail.refetch(); }} />

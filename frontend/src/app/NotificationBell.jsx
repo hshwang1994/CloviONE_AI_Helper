@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Badge from "@mui/material/Badge";
@@ -58,6 +58,17 @@ const ROUTE_ROLES = {
   "/jobs": ["operator", "admin", "system_admin"],
 };
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/* 관리 알림 / 내 업무 알림 구분(0051) — 서버가 저장한 audience("user"|"admin",
+ * app/notifications/models.py)를 사람이 읽는 섹션 이름으로 바꾼다. 값이 없는(캐시된 옛
+ * 응답, audience 컬럼이 생기기 전 데이터) 항목은 "user"로 안전하게 취급한다 — notify_admins
+ * 만 "admin"을 명시적으로 채우므로 모르면 개인 알림 쪽이 맞다. */
+function itemAudience(n) {
+  return (n && n.audience) || "user";
+}
+function audienceLabel(aud) {
+  return aud === "admin" ? "관리" : "내 업무";
+}
 
 /* 정적(딥링크 없는) 알림 행 — 내용이 2줄 클램프를 실제로 넘칠 때만 '펼치기' 토글로 만든다.
  * 넘치지 않는 행(제목만 있는 짧은 알림 등)까지 토글로 두면 눌러도 아무 변화가 없고
@@ -294,6 +305,17 @@ export function NotificationBell({ isUser }) {
   };
 
   const items = (list.data && list.data.items) || [];
+  /* 관리 알림/내 업무 알림을 시각적으로 구분한다(0051, 사용자 지적: "팀 알림과 관리자
+   * 알림이 한 벨에 섞여 구분이 안 됨"). 완전히 숨기지는 않는다 — 지금 콘솔(관리자/사용자)에
+   * 해당하는 audience를 앞에 모으고, 둘이 섞여 있을 때만 그룹 헤더("관리"/"내 업무")를
+   * 붙인다. 한 종류뿐이면 헤더가 소음이라 붙이지 않는다. */
+  const primaryAudience = isUser ? "user" : "admin";
+  const groupedItems = useMemo(() => {
+    const primary = items.filter((n) => itemAudience(n) === primaryAudience);
+    const other = items.filter((n) => itemAudience(n) !== primaryAudience);
+    return [...primary, ...other];
+  }, [items, primaryAudience]);
+  const showAudienceGroups = new Set(items.map(itemAudience)).size > 1;
   const rawCount = unread.data && unread.data.unread;
   // 목록 응답에도 전체 미읽음 수(unread)가 들어온다. 팝오버가 열려 목록을 받았으면 그 스냅샷을
   // 헤더 수로 신뢰해 헤더-목록 불일치(두 쿼리의 60s 타이머가 어긋나던 문제)를 없애고,
@@ -459,7 +481,13 @@ export function NotificationBell({ isUser }) {
                   <div className="noti-empty-help">{isUser ? "나에게 온 알림이 여기에 표시됩니다." : "승인, 작업 실패 등 나에게 온 알림이 여기에 표시됩니다."}</div>
                 </div>
               )
-              : items.map((n) => {
+              : groupedItems.map((n, idx) => {
+                // 그룹 헤더 — 바로 앞 항목과 audience가 다를 때만 그린다(showAudienceGroups가
+                // false면, 즉 한 종류뿐이면 아예 안 그린다. 항목이 8건뿐인 팝오버에서 매번
+                // 헤더가 뜨면 그게 오히려 소음이다).
+                const aud = itemAudience(n);
+                const prevAud = idx > 0 ? itemAudience(groupedItems[idx - 1]) : null;
+                const groupHeader = showAudienceGroups && aud !== prevAud ? audienceLabel(aud) : null;
                 // 일반 사용자에겐 딥링크 대상(관리자 화면)이 없다, 예전엔 아무 항목이나 눌러도
                 // /chat으로 튕겨 '어딘가 열린다'는 착각만 줬다. 사용자 항목은 정적으로 두고
                 // 읽음 처리는 옆의 체크 버튼이, 전체 보기는 하단 링크가 담당한다.
@@ -498,7 +526,22 @@ export function NotificationBell({ isUser }) {
                   <span className="noti-item-time" title={fmtDateTime(n.created_at)}>{fmtRelative(n.created_at)}</span>
                 </>);
                 return (
-                <div key={n.id} className={"noti-item" + (n.read_at ? "" : " is-unread")}>
+                <React.Fragment key={n.id}>
+                  {groupHeader ? (
+                    <Typography
+                      className="noti-group-header"
+                      role="separator"
+                      aria-label={groupHeader + " 알림"}
+                      sx={{
+                        px: 2, py: 0.5, fontSize: "0.6875rem", fontWeight: 700,
+                        letterSpacing: "0.02em", color: "text.secondary", bgcolor: "action.hover",
+                        borderBottom: 1, borderColor: "divider",
+                      }}
+                    >
+                      {groupHeader}
+                    </Typography>
+                  ) : null}
+                  <div className={"noti-item" + (n.read_at ? "" : " is-unread")}>
                   {/* aria-label은 항상 자식 subtree 텍스트(안 읽음, 유형, 제목, 본문, 시각)를 이긴다 -
                       예전엔 일반적인 "관련 목록 열기"만 있어 스크린리더 사용자가 팝오버의 모든
                       항목을 구분 없이 "관련 목록 열기, 버튼"으로만 들었다. 실제 알림 내용을
@@ -522,7 +565,8 @@ export function NotificationBell({ isUser }) {
                         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
                     </button>
                   ) : null}
-                </div>
+                  </div>
+                </React.Fragment>
                 );
               })}
           </Box>

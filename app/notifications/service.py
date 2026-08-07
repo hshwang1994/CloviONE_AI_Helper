@@ -11,8 +11,20 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.notifications.models import Notification
+from app.notifications.models import AUDIENCE_ADMIN, AUDIENCE_USER, Notification
 from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, User
+
+# 유형 자체가 명백히 관리자 전용인 이벤트 (0051). notify_admins가 이미 이 유형들만 보내
+# audience="admin"을 넘기지만, 그건 "이 함수를 거쳐 갔다"는 사실에 기대는 것이다. 나중에
+# 실수로 notify_user를 직접 호출해 같은 유형을 보내도(또는 새 호출부가 생겨도) 사용자
+# 알림 벨에 새지 않도록 유형 자체로 한 번 더 못박는다. job_failed는 여기 넣지 않는다 —
+# app/jobs/worker.py가 job.user_id 한 명(신청자 본인)에게만 보내는 개인 알림이지 관리자
+# 팬아웃이 아니다.
+_ADMIN_ONLY_TYPES = frozenset({"backup_failed", "runner_unavailable"})
+
+
+def _resolve_audience(type_: str, audience: str) -> str:
+    return AUDIENCE_ADMIN if type_ in _ADMIN_ONLY_TYPES else audience
 
 
 def notify_user(
@@ -24,6 +36,7 @@ def notify_user(
     body: str | None = None,
     related: tuple[str, str] | None = None,
     now: datetime,
+    audience: str = AUDIENCE_USER,
 ) -> Notification:
     row = Notification(
         user_id=user_id,
@@ -32,6 +45,7 @@ def notify_user(
         body=body,
         related_object_type=related[0] if related else None,
         related_object_id=related[1] if related else None,
+        audience=_resolve_audience(type_, audience),
         created_at=now,
     )
     db.add(row)
@@ -59,7 +73,9 @@ def notify_admins(
     )
     for admin in admins:
         notify_user(
-            db, admin.id, type_=type_, title=title, body=body, related=related, now=now
+            db, admin.id, type_=type_, title=title, body=body, related=related, now=now,
+            # 관리자 전용 발송 — 개인 알림과 섞이면 안 된다(0051).
+            audience=AUDIENCE_ADMIN,
         )
     return len(admins)
 
@@ -117,7 +133,13 @@ def notify_approvers(
     related: tuple[str, str] | None = None,
     now: datetime,
 ) -> int:
-    """결재할 수 있는 사람 전원에게 화면 알림. 대상 정의는 `approver_user_ids` 한 곳이다."""
+    """결재할 수 있는 사람 전원에게 화면 알림. 대상 정의는 `approver_user_ids` 한 곳이다.
+
+    audience는 기본값('user')을 그대로 쓴다(0051) — 결재는 관리자만이 아니라 활성 위임을
+    받은 일반 사용자도 하고, `app/profiles/prefs.py` 도 "내가 승인해야 할 건" 이라고
+    개인 할 일로 설명한다. notify_admins처럼 "관리자 전용 팬아웃"이 아니라 "이 사람에게
+    할당된 개인 업무"에 더 가깝다.
+    """
     recipients = approver_user_ids(db, now=now)
     for uid in recipients:
         notify_user(
@@ -136,7 +158,11 @@ def notify_active_users(
     now: datetime,
 ) -> int:
     """notify_admins와 같은 팬아웃이지만 역할 제한 없이 활성 사용자 전체 대상이다 —
-    유지보수 공지처럼 일반 사용자도 알아야 하는 이벤트에 쓴다(spec §13.5)."""
+    유지보수 공지처럼 일반 사용자도 알아야 하는 이벤트에 쓴다(spec §13.5).
+
+    audience는 기본값('user')을 그대로 쓴다(0051) — 이름과 달리 "관리자용"이 아니라
+    "역할 제한 없는 전체 공지"라 사용자 콘솔에서 보여야 할 개인 알림에 가깝다.
+    """
     users = db.execute(select(User).where(User.active.is_(True))).scalars().all()
     for user in users:
         notify_user(
@@ -175,7 +201,9 @@ def mark_all_read(db: Session, user_id: str, *, now: datetime) -> int:
     return int(result.rowcount or 0)
 
 
-def unread_by_type(db: Session, user_id: str, *, exclude: list[str] | None = None) -> dict[str, int]:
+def unread_by_type(
+    db: Session, user_id: str, *, exclude: list[str] | None = None, audience: str | None = None
+) -> dict[str, int]:
     """{알림 유형: 안 읽음 수}. 사이드바 항목별 배지가 이 값을 쓴다 (사용자 지적 S2).
 
     예전에는 합계(`unread`)만 돌려줬다. 그러면 화면은 "안 읽은 것이 12건" 까지만 알 수 있고
@@ -184,6 +212,9 @@ def unread_by_type(db: Session, user_id: str, *, exclude: list[str] | None = Non
 
     `exclude` 는 뮤트한 유형이다. `unread_count_excluding` 과 같은 원칙으로 **빼는 것은
     '지금 눈길을 끌 것인가' 하나뿐**이고, 알림 자체는 목록에 그대로 남는다.
+
+    `audience` 는 선택 필터다(0051). None(기본값)이면 예전과 똑같이 전체를 센다 — 기존
+    호출부(방해금지 배지)의 계약을 건드리지 않는다.
     """
     from sqlalchemy import func
 
@@ -194,6 +225,8 @@ def unread_by_type(db: Session, user_id: str, *, exclude: list[str] | None = Non
     )
     if exclude:
         stmt = stmt.where(Notification.type.notin_(exclude))
+    if audience:
+        stmt = stmt.where(Notification.audience == audience)
     return {t: int(n) for t, n in db.execute(stmt).all()}
 
 
@@ -222,28 +255,40 @@ def mark_types_read(db: Session, user_id: str, types: list[str], *, now: datetim
     return int(result.rowcount or 0)
 
 
-def unread_count(db: Session, user_id: str) -> int:
+def unread_count(db: Session, user_id: str, *, audience: str | None = None) -> int:
+    """전체(또는 audience로 좁힌) 안 읽음 총계.
+
+    `audience` 는 선택 필터다(0051) — None(기본값)이면 예전과 똑같은 총계를 돌려준다,
+    벨 배지 등 기존 계약을 지키는 호출부는 인자를 안 넘기면 그만이다.
+    """
     from sqlalchemy import func
 
-    return db.execute(
+    stmt = (
         select(func.count())
         .select_from(Notification)
         .where(Notification.user_id == user_id, Notification.read_at.is_(None))
-    ).scalar_one()
+    )
+    if audience:
+        stmt = stmt.where(Notification.audience == audience)
+    return db.execute(stmt).scalar_one()
 
 
-def unread_count_excluding(db: Session, user_id: str, types: list[str]) -> int:
+def unread_count_excluding(
+    db: Session, user_id: str, types: list[str], *, audience: str | None = None
+) -> int:
     """배지에 세는 안 읽음 — 사용자가 뮤트한 유형만 뺀다.
 
     **알림 자체를 지우거나 안 만드는 것이 아니다.** 뮤트한 유형도 `unread_count` 에는
     그대로 잡히고 목록에도 그대로 나온다. 여기서 빠지는 것은 '지금 눈길을 끌 것인가'
     하나뿐이다 — 방해금지와 같은 원칙이다(app/profiles/prefs.py 모듈 docstring).
+
+    `audience` 는 선택 필터다(0051), `unread_count`와 같은 기본값 규칙을 따른다.
     """
     if not types:
-        return unread_count(db, user_id)
+        return unread_count(db, user_id, audience=audience)
     from sqlalchemy import func
 
-    return db.execute(
+    stmt = (
         select(func.count())
         .select_from(Notification)
         .where(
@@ -251,4 +296,7 @@ def unread_count_excluding(db: Session, user_id: str, types: list[str]) -> int:
             Notification.read_at.is_(None),
             Notification.type.notin_(types),
         )
-    ).scalar_one()
+    )
+    if audience:
+        stmt = stmt.where(Notification.audience == audience)
+    return db.execute(stmt).scalar_one()

@@ -4,9 +4,14 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { BodyEditor, BodyPreview, BODY_MAX_LINES } from "./BodyEditor.jsx";
+import { BodyEditor, BodyPreview, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
 import { Button, Callout, useConfirm, useToast } from "./kit.jsx";
 import { PROSE_MAX_WIDTH } from "./theme.js";
+
+/* 편집 중인 표면(제목 행 + 안내문 + BodyEditor)의 컨테이너 질의 이름. 이 화면 전용 지역
+ * 값이라 상수로 뽑는다 — editorSurfaceWidthSx 가 만드는 `@container` 규칙과
+ * editorContainerSx 가 여는 조상이 같은 이름을 봐야 한다(BodyEditor.jsx 주석 참고). */
+const EDIT_SURFACE_CONTAINER = "editable-body-edit";
 
 /* 본문 읽기, 편집 패널 (티켓 본문과 문서 본문이 **같은 컴포넌트**를 쓴다).
  *
@@ -89,52 +94,60 @@ export function EditableBody({
   };
 
   if (editing) {
+    /* 폭: 읽기 모드(아래 non-editing return)는 산문이라 PROSE_MAX_WIDTH(78ch)에서 멈추는 게
+     * 맞다. 그런데 예전엔 편집 모드도 같은 78ch 로 묶었다 — 편집 표면은 툴바+입력 상자+
+     * 미리보기라 산문이 아니고, BodyEditor 안의 TextField 는 애초에 fullWidth 로 설계돼 있다
+     * (BodyEditor.jsx 의 BodyPreview wide 설명 참고). 그 결과 4K 등 넓은 화면에서 편집기 전체가
+     * 좁은 고정 폭에 갇혀 왼쪽으로 쏠려 보였다. `editorContainerSx`/`editorSurfaceWidthSx` 는
+     * 컨테이너의 실제 폭을 재서, 충분히 넓어졌을 때만(EDITOR_WIDE_STOP_REM) 상한을 건다. */
     return (
-      <Box sx={{ maxWidth: PROSE_MAX_WIDTH }}>
-        <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 편집</Typography>
-          <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
-          <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
-            onClick={() => save.mutate(draft)}>
-            {save.isPending ? "저장 중…" : "저장"}
-          </Button>
-        </Stack>
-        {/* 아직 우리 정본이 없는 본문(=원본에서 읽어온 근사치)을 여기서 저장하면 평문만 남는다.
-            정본이 생긴 뒤에는 저장이 무손실이라 경고하지 않는다 — 늘 경고하면 아무도 안 읽는다. */}
-        {/* 2026-08: 저장이 더 이상 이미지·표를 지우지 않는다(notion_write.py 의
-            replace_page_body, team_docs 쪽은 notion_docs.py). 그래서 "사라집니다"라는 옛 경고를
-            실제 동작에 맞춰 고쳤다 — 틀린 경고는 안 읽히는 데서 끝나지 않고, 되는 일을
-            안 된다고 믿게 만든다. */}
-        {!bodyIsLocal ? (
-          <Box sx={{ mb: 1.5 }}>
-            <Callout tone="warn">
-              이 본문은 원본(Notion)에서 읽어온 것입니다. 여기서 저장하면 굵게, 링크 같은 인라인
-              서식은 사라지고 글자만 남습니다. 서식을 지키려면 ‘원본 열기’에서 편집하세요.
-            </Callout>
-          </Box>
-        ) : null}
-        {lossy ? (
-          <Box sx={{ mb: 1.5 }}>
-            <Callout tone="info">
-              원본에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
-              그 블록은 지워지지 않습니다. 다만 원본에서의 위치는 글 앞쪽으로 모입니다.
-            </Callout>
-          </Box>
-        ) : null}
-        {tooManyLines ? (
-          <Box sx={{ mb: 1.5 }}>
-            <Callout tone="danger">
-              본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다(현재 {lineCount(draft)}줄).
-              줄 수를 줄여야 저장할 수 있습니다.
-            </Callout>
-          </Box>
-        ) : null}
-        {/* 이름은 바로 위 heading 과 같은 말로 준다. 이 자리에는 화면에 보이는 <label> 이
-            없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
-            본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
-        <BodyEditor id={editorId} value={draft} onChange={setDraft} rows={14}
-          label={heading + " 편집"}
-          placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
+      <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
+        <Box sx={editorSurfaceWidthSx(EDIT_SURFACE_CONTAINER)}>
+          <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
+            <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 편집</Typography>
+            <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
+            <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
+              onClick={() => save.mutate(draft)}>
+              {save.isPending ? "저장 중…" : "저장"}
+            </Button>
+          </Stack>
+          {/* 아직 우리 정본이 없는 본문(=원본에서 읽어온 근사치)을 여기서 저장하면 평문만 남는다.
+              정본이 생긴 뒤에는 저장이 무손실이라 경고하지 않는다 — 늘 경고하면 아무도 안 읽는다. */}
+          {/* 2026-08: 저장이 더 이상 이미지·표를 지우지 않는다(notion_write.py 의
+              replace_page_body, team_docs 쪽은 notion_docs.py). 그래서 "사라집니다"라는 옛 경고를
+              실제 동작에 맞춰 고쳤다 — 틀린 경고는 안 읽히는 데서 끝나지 않고, 되는 일을
+              안 된다고 믿게 만든다. */}
+          {!bodyIsLocal ? (
+            <Box sx={{ mb: 1.5 }}>
+              <Callout tone="warn">
+                이 본문은 원본(Notion)에서 읽어온 것입니다. 여기서 저장하면 굵게, 링크 같은 인라인
+                서식은 사라지고 글자만 남습니다. 서식을 지키려면 ‘원본 열기’에서 편집하세요.
+              </Callout>
+            </Box>
+          ) : null}
+          {lossy ? (
+            <Box sx={{ mb: 1.5 }}>
+              <Callout tone="info">
+                원본에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
+                그 블록은 지워지지 않습니다. 다만 원본에서의 위치는 글 앞쪽으로 모입니다.
+              </Callout>
+            </Box>
+          ) : null}
+          {tooManyLines ? (
+            <Box sx={{ mb: 1.5 }}>
+              <Callout tone="danger">
+                본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다(현재 {lineCount(draft)}줄).
+                줄 수를 줄여야 저장할 수 있습니다.
+              </Callout>
+            </Box>
+          ) : null}
+          {/* 이름은 바로 위 heading 과 같은 말로 준다. 이 자리에는 화면에 보이는 <label> 이
+              없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
+              본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
+          <BodyEditor id={editorId} value={draft} onChange={setDraft} rows={14}
+            label={heading + " 편집"}
+            placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
+        </Box>
       </Box>
     );
   }

@@ -10,8 +10,19 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
+import Tooltip from "@mui/material/Tooltip";
 import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, ROLE_KO, WRITE_ROLES, actionCol, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTime, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
 import { APPROVAL_DONE } from "./actions.js";
+
+/* app/core/authz.py `rbac_matrix()` 가 돌려주는 `scopes`(전체/조직/부서 + 각 설명)를
+ * 사람이 읽는 한 문단으로 만든다 — role 축(이 표의 열)과 직교하는 scope 축을
+ * '허용 매트릭스'에 새 열로 끼워 넣진 않는다(scope 는 capability 별이 아니라
+ * admin 역할 전체에 걸리는 조건이라 칸마다 다른 값이 아니다), 대신 admin 열
+ * 위에서 그 축의 존재와 각 값의 뜻을 설명한다. */
+function adminScopeTooltip(scopes) {
+  const lines = (scopes || []).map((s) => s.label + ": " + s.help).join(", ");
+  return "admin 역할은 관리 범위로 추가로 좁혀질 수 있습니다(사용자 관리에서 설정). " + lines;
+}
 
 export const GOVERNANCE_SCREENS = {
   approvals: {
@@ -340,7 +351,12 @@ export const GOVERNANCE_SCREENS = {
   },
   rbac: {
     key: "rbac", area: "사용자", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
-    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다. 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다.",
+    // 이 표는 역할(role) 축 하나만 보여준다 — role=admin 은 admin_scope(전체/조직/부서)로
+    // 추가로 좁혀질 수 있는데(app/core/scope.py), 그 축이 이 매트릭스 어디에도 안 보이면
+    // "부서 관리자가 왜 남의 부서를 못 보는지" 이 화면만 봐서는 알 수 없다. 그 범위 설정
+    // 자체는 사용자 관리(admin_scope 필드)에서 하므로 여기서는 안내만 한다.
+    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다. 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다. "
+      + "이 표는 역할(role) 기준이며, admin 역할은 관리 범위(전체/조직/부서)로 추가로 좁혀질 수 있습니다. 범위는 여기가 아니라 '사용자 관리'의 대상 사용자 수정에서 설정합니다. '관리자' 열에 마우스를 올리면 범위별 설명을 볼 수 있습니다.",
     emptyTitle: "권한 정의를 불러오지 못했습니다",
     // 열이 곧 역할이라 서버 응답에서 만든다 — 여기에 역할 배열을 적으면 두 벌이 되고,
     // 백엔드에서 규칙을 고쳐도 이 표만 옛 열을 계속 보여 준다(tests/security/test_rbac_matrix.py가 고정).
@@ -348,7 +364,24 @@ export const GOVERNANCE_SCREENS = {
       col("capability", "할 수 있는 일"),
       col("area", "영역"),
       ...((data && data.roles) || []).map((role) => ({
-        key: "role_" + role.value, label: role.label, align: "center",
+        key: "role_" + role.value,
+        // 범위(scope)가 걸리는 열에만, 서버가 실제로 돌려준 scopes(app/core/authz.py
+        // SCOPE_LABELS)로 툴팁을 붙인다 — 어느 역할인지도 data.scoped_role 로 서버가 알려준다
+        // (역할 이름을 여기 손으로 적으면 tests/security/test_rbac_matrix.py 가 잡는다).
+        // 고정 문구가 아니라 응답 데이터를 그대로 읽으므로 백엔드에서 범위 설명이 바뀌면
+        // 이 툴팁도 따라 바뀐다. 열의 접근 가능한 이름(role.label, 예: "관리자")은 그대로
+        // 둔다 — describeChild:true 라야 Tooltip이 title을 aria-describedby(설명)로만 붙이고
+        // aria-label로 accessible name 자체를 덮어쓰지 않는다(기본값은 반대다, MUI
+        // Tooltip.js: describeChild 기본 false면 title이 aria-label이 되어 "관리자"라는
+        // 이름이 사라진다) — tests/…/rbac-matrix.test.jsx의 열 이름 단정과 공존해야 한다.
+        label: data && role.value === data.scoped_role && Array.isArray(data.scopes) && data.scopes.length
+          ? React.createElement(
+              Tooltip,
+              { title: adminScopeTooltip(data.scopes), describeChild: true },
+              React.createElement("span", null, role.label),
+            )
+          : role.label,
+        align: "center",
         render: (r) => (r.allowed || []).includes(role.value)
           ? React.createElement(Badge, { value: "허용", kind: "ok" })
           : React.createElement("span", { "aria-label": "허용 안 됨" }, "—")  // clovi-allow-glyph: 권한 매트릭스의 '허용 안 됨' 표시. 글리프 자체가 내용이다,

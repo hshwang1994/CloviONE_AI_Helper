@@ -103,26 +103,53 @@ export function RoomDetailPanel({ id }) {
   );
 
   return (
-    <Box sx={{ display: "grid", gridTemplateRows: "auto 1fr", minWidth: 0, minHeight: 0 }}>
+    /* 래퍼는 flex 컬럼이다 — grid("auto 1fr")로 두면 아래 본문 칸이 자기 높이를 못 정해
+       ChatPane 의 height:100% 가 MemberStrip 높이를 못 빼고 계산되고, 예전처럼 이 래퍼에
+       overflowY:auto 를 얹으면 ChatPane 자신의 로그 상자와 스크롤이 두 겹으로 생긴다
+       (안쪽은 이미 맨 아래로 스크롤돼 있는데 바깥은 scrollTop:0 에서 시작 — 대화가 위로
+       밀려 보이는 원인). 스크롤은 ChatPane 혼자 갖는다: 헤더는 고정, 본문 칸은
+       flex:"1 1 auto" 로 나머지 공간만 차지하고 그 안에서 MemberStrip 은 고정, ChatPane 을
+       감싼 자리만 다시 flex:"1 1 auto" 로 남는 높이를 ChatPane 에 넘긴다. */
+    <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
       {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **칸 안의 머리**다. 왼쪽 목록과 같은 높이에서
           시작해야 두 칸이 한 판으로 읽힌다. */}
-      <Box sx={{
-        display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
-        px: 2.5, py: 1.75, borderBottom: 1, borderColor: "divider", minWidth: 0,
-      }}>
-        <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem", minWidth: 0,
-                                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {meta.isPending ? "채팅방" : (room.title || "채팅방")}
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box>
+      <Box sx={{ flexShrink: 0 }}>
+        <Box sx={{
+          display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
+          px: 2.5, py: 1.75, minWidth: 0,
+        }}>
+          <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem", minWidth: 0,
+                                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {meta.isPending ? "채팅방" : (room.title || "채팅방")}
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box>
+        </Box>
+        {/* 방 목록 헤더(ChatRooms.jsx listPanel)는 제목줄 + 검색줄, 2행이다. 대화창엔 검색이
+            없어 한 줄뿐이지만, 그 차이만큼 빈 자리를 안 주면 두 칸의 헤더/본문 경계선이
+            어긋나 한 판처럼 읽히지 않는다. 검색줄과 세로 치수를 맞춘다: py:1.25 로 감싼
+            자리에 기본 컨트롤 높이 2.5rem(MuiButton.styleOverrides.root.minHeight:40 /
+            design/baseline .field·.btn 의 min-height:40px 과 같은 값 — TextField(size="small")도
+            이 높이로 맞춰진다)짜리 빈 칸을 두고, 그 자리 아래에 구분선을 그린다. */}
+        <Box
+          data-testid="chatroom-header-spacer" aria-hidden="true"
+          sx={{ px: 2.5, py: 1.25, borderBottom: 1, borderColor: "divider" }}
+        >
+          <Box sx={{ height: "2.5rem" }} />
+        </Box>
       </Box>
-      <Box sx={{ p: { xs: 1.5, sm: 2.5 }, minHeight: 0, overflowY: "auto" }}>
+      <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, p: { xs: 1.5, sm: 2.5 } }}>
         {meta.isPending ? <Skeleton lines={6} /> : (
           <>
             {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
             <MemberStrip members={members} />
-            <ChatPane roomId={id} interval={1800} />
+            {/* ChatPane 은 height:"100%" 로 자기 몫을 채우는 컴포넌트라, 그 100% 를 계산할
+                기준(정해진 높이를 가진 부모)이 있어야 한다. flex:"1 1 auto" + minHeight:0 로
+                이 자리를 만들어 준다 — 부모(위 Box)가 flex 컬럼이라 MemberStrip 이 먼저
+                자기 높이를 차지하고 남는 만큼만 이 자리로 온다. */}
+            <Box sx={{ flex: "1 1 auto", minHeight: 0 }}>
+              <ChatPane roomId={id} interval={1800} />
+            </Box>
           </>
         )}
       </Box>

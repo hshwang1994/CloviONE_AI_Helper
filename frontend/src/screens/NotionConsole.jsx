@@ -5,7 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, useConfirm, useToast,
+  Badge, Button, Callout, Card, ErrorState, FormModal, PageHeader, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
 
 /* Notion 관리 (9-4).
@@ -190,6 +190,8 @@ export function NotionConsole() {
   const toast = useToast();
   const confirm = useConfirm();
   const [test, setTest] = React.useState(null);
+  // 부모 페이지 id 를 받는 중인 항목. null 이면 새로 만들기 다이얼로그가 닫혀 있다.
+  const [creatingItem, setCreatingItem] = React.useState(null);
 
   const state = useQuery({
     queryKey: ["notion-console"],
@@ -252,22 +254,29 @@ export function NotionConsole() {
   const testByKey = {};
   ((test && test.databases) || []).forEach((d) => { testByKey[d.key] = d; });
 
-  const onCreate = async (item) => {
-    const parent = window.prompt(
-      "새 데이터베이스를 넣을 노션 페이지의 id 를 입력하세요. 그 페이지를 통합에 공유해 두어야 합니다."
+  // 스타일 없는 브라우저 네이티브 팝업(window.prompt) 대신 테마 폼 다이얼로그로 부모 페이지
+  // id 를 받는다 - 아래 FormModal 이 그 입력을 담당한다.
+  const onCreate = (item) => setCreatingItem(item);
+
+  const submitCreateDb = async (values) => {
+    const item = creatingItem;
+    const ok = await confirm(
+      "노션에 실제로 데이터베이스가 생깁니다. 되돌리려면 노션에서 직접 지워야 합니다.",
+      { title: item.label + " 를 새로 만들까요?", confirmLabel: "만들기" },
     );
-    if (!parent) return;
-    const ok = await confirm({
-      title: item.label + " 를 새로 만들까요?",
-      body: "노션에 실제로 데이터베이스가 생깁니다. 되돌리려면 노션에서 직접 지워야 합니다.",
-    });
     if (!ok) return;
-    createDb.mutate({
-      key: item.key,
-      parent_page_id: parent.trim(),
-      title: item.label,
-      confirm: true,
-    });
+    try {
+      await createDb.mutateAsync({
+        key: item.key,
+        parent_page_id: values.parent_page_id.trim(),
+        title: item.label,
+        confirm: true,
+      });
+    } catch (e) {
+      // createDb 의 onError 가 이미 토스트로 알린다 - 다이얼로그는 열어 둔다(재시도 가능하게).
+      return;
+    }
+    setCreatingItem(null);
   };
 
   return (
@@ -289,6 +298,22 @@ export function NotionConsole() {
           />
         ))}
       </Card>
+
+      <FormModal
+        open={!!creatingItem}
+        title={(creatingItem ? creatingItem.label : "") + " 새로 만들기"}
+        fields={[
+          {
+            name: "parent_page_id",
+            label: "부모 페이지 id",
+            required: true,
+            help: "새 데이터베이스를 넣을 노션 페이지의 id 입니다. 그 페이지를 미리 노션 통합에 공유해 두어야 합니다.",
+          },
+        ]}
+        submitLabel="계속"
+        onSubmit={submitCreateDb}
+        onClose={() => setCreatingItem(null)}
+      />
 
       <TokenSection
         token={data.token || { items: [], writable: false }}

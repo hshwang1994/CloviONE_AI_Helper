@@ -11,7 +11,7 @@ from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
 from app.notifications.destinations import destination_for
-from app.notifications.models import Notification
+from app.notifications.models import AUDIENCES, Notification
 from app.notifications.service import (
     mark_all_read,
     mark_read,
@@ -31,6 +31,9 @@ def _view(row: Notification, muted: frozenset[str] = frozenset()) -> dict:
     return {
         "id": row.id,
         "type": row.type,
+        # 관리 알림 / 내 업무 알림 구분(0051). 벨이 콘솔(관리자/사용자)에 따라 우선순위나
+        # 섹션을 나누는 데 쓴다 — 값은 저장돼 있으므로 여기서 다시 계산하지 않는다.
+        "audience": row.audience,
         "title": row.title,
         "body": row.body,
         "read_at": row.read_at.isoformat() if row.read_at else None,
@@ -46,11 +49,14 @@ def _view(row: Notification, muted: frozenset[str] = frozenset()) -> dict:
     }
 
 
-def _badge_state(request: Request, db: Session, user) -> dict:
+def _badge_state(request: Request, db: Session, user, audience: str | None = None) -> dict:
     """배지에 실제로 띄울 숫자 + 왜 조용한지.
 
-    `unread` 는 예전과 똑같은 '안 읽음 총계'다(계약 유지). 새로 붙은 `badge` 가 화면이
-    그리는 숫자이며, 방해금지 중이거나 뮤트된 유형만 남았을 때 0 이 된다.
+    `unread` 는 예전과 똑같은 '안 읽음 총계'다(계약 유지, `audience` 가 없을 때). 새로 붙은
+    `badge` 가 화면이 그리는 숫자이며, 방해금지 중이거나 뮤트된 유형만 남았을 때 0 이 된다.
+
+    `audience` 는 선택 필터다(0051) — 관리 알림/내 업무 알림을 나눠 셀 때 쓴다. 기본값(None)
+    이면 예전과 똑같이 전체를 센다.
     """
     from app.profiles import service as profile_service
 
@@ -64,8 +70,8 @@ def _badge_state(request: Request, db: Session, user) -> dict:
     from app.profiles.prefs import parse_muted
 
     muted = parse_muted(pref.muted_types if pref else "")
-    total = unread_count(db, user.id)
-    badge = 0 if state.quiet else unread_count_excluding(db, user.id, muted)
+    total = unread_count(db, user.id, audience=audience)
+    badge = 0 if state.quiet else unread_count_excluding(db, user.id, muted, audience=audience)
     return {
         "unread": total,
         "badge": badge,
@@ -76,7 +82,7 @@ def _badge_state(request: Request, db: Session, user) -> dict:
         # 종류별 안 읽음 — 사이드바 항목별 배지가 쓴다(S2). 합계만으로는 "어느 메뉴에
         # 생긴 일인지" 를 알 수 없어 왼쪽에 표시할 수가 없었다.
         # 방해금지 중에는 배지를 조용히 한다 — 합계(`badge`)와 같은 규칙이다.
-        "by_type": {} if state.quiet else unread_by_type(db, user.id, exclude=muted),
+        "by_type": {} if state.quiet else unread_by_type(db, user.id, exclude=muted, audience=audience),
     }
 
 
@@ -115,6 +121,11 @@ def list_notifications(
         "unread_only=true는 하위 호환으로 'unread'와 같다.",
     ),
     type: str | None = Query(default=None, max_length=48),
+    audience: str | None = Query(
+        default=None,
+        max_length=16,
+        description="대상 필터: 'user'(내 업무) | 'admin'(관리). 기본값은 전체(0051).",
+    ),
 ):
     stmt = select(Notification).where(Notification.user_id == user.id)
     # unread_only(bool)는 기존 클라이언트 호환용, read(문자열)는 읽음까지 좁힐 수 있는
@@ -126,6 +137,10 @@ def list_notifications(
         stmt = stmt.where(Notification.read_at.is_not(None))
     if type:
         stmt = stmt.where(Notification.type == type)
+    # 알 수 없는 값은 조용히 무시한다(전체 보기로 폴백) — 오타 하나로 목록이 통째로 비어
+    # "알림이 없다"로 오독되는 것보다, 필터가 안 걸린 채 전체가 나오는 편이 덜 위험하다.
+    if audience in AUDIENCES:
+        stmt = stmt.where(Notification.audience == audience)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
@@ -155,6 +170,11 @@ def get_unread_count(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    audience: str | None = Query(
+        default=None,
+        max_length=16,
+        description="대상 필터: 'user'(내 업무) | 'admin'(관리). 기본값은 전체(0051).",
+    ),
 ):
     """알림 배지 숫자. **모든 화면에서 60초마다 폴링**되므로 ETag/304 를 건다.
 
@@ -164,7 +184,8 @@ def get_unread_count(
     방해금지가 걸리거나 풀리면 본문이 달라지므로 ETag 도 함께 바뀐다 — 조용해진 순간
     다음 폴링에서 304 가 아니라 200 이 나가고 배지가 실제로 꺼진다.
     """
-    return etag_json_response(request, _badge_state(request, db, user))
+    aud = audience if audience in AUDIENCES else None
+    return etag_json_response(request, _badge_state(request, db, user, audience=aud))
 
 
 @router.post("/read-types", dependencies=[Depends(require_csrf)])

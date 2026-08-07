@@ -5,6 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import MuiButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 
 /* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선/이모지)과
  * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
@@ -18,6 +19,42 @@ const BODY_EMOJIS = ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "�
 /* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
  * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
 export const BODY_MAX_LINES = 100;
+
+/* 편집 표면(툴바+입력 상자+미리보기)의 폭 — 이 컴포넌트를 감싸는 두 자리(새 티켓 설명의
+ * MyTickets.jsx, 티켓/문서 본문 편집의 EditableBody.jsx)가 예전에는 각자 손으로 고정
+ * rem/ch 상한(60rem, 78ch)을 박아 뒀다. 부모가 아무리 넓어져도 거기서 멈추니, 4K 등
+ * 넓은 화면에서 편집기+미리보기가 폼/본문 열의 다른 부분보다 눈에 띄게 좁아 왼쪽으로
+ * 쏠려 보였다.
+ *
+ * 이 편집기는 산문이 아니라 도구다(아래 BodyPreview 의 wide 설명 참고) — 읽기용 78ch 로
+ * 묶을 이유가 없다. 그렇다고 무제한으로 늘리면, 자신을 담는 열 자체에 상한이 없는 자리
+ * (티켓/문서 본문 열은 fr 트랙이라 위쪽 상한이 없다 — density.js BASELINE_TRACKS.detail)
+ * 에서는 4K 화면의 입력 상자 한 줄이 3,000px 를 넘어 버린다. 그래서 컨테이너의 **실제
+ * 폭**을 재서 충분히 넓어졌을 때만 멈춘다(round2 가 NT_FIELD_GRID 에 쓴 것과 같은
+ * `@container` 관례) — 컨테이너가 이미 좁게 정해진 자리(예: 새 티켓 폼의 72rem 상한)에서는
+ * 이 상한이 사실상 걸리지 않고 부모 폭을 그대로 따라간다.
+ *
+ * 두 자리가 같은 값을 쓰도록 여기서 한 번만 정의해 내보낸다 — 화면마다 다른 매직 넘버를
+ * 새로 정하면 그 사이에서 또 어긋난다. */
+export const EDITOR_WIDE_STOP_REM = 80;
+
+/* `container-type` 은 조상에만 걸 수 있다 — 이 Box 로 편집 표면을 한 겹 더 감싸야
+ * `editorSurfaceWidthSx` 의 `@container` 질의가 작동한다. */
+export function editorContainerSx(containerName) {
+  return { containerType: "inline-size", containerName };
+}
+
+/* 기본값은 100%(부모가 주는 만큼 그대로) — 컨테이너 질의를 못 알아듣는 브라우저는 이
+ * 기본값으로 남는다(안전한 퇴화). 컨테이너 실측 폭이 EDITOR_WIDE_STOP_REM 을 넘어서면
+ * 그때만 상한을 건다. */
+export function editorSurfaceWidthSx(containerName) {
+  return {
+    width: "100%",
+    [`@container ${containerName} (min-width: ${EDITOR_WIDE_STOP_REM}rem)`]: {
+      maxWidth: `${EDITOR_WIDE_STOP_REM}rem`,
+    },
+  };
+}
 
 /* label: 입력 상자의 **접근 이름**이다.
  *
@@ -58,7 +95,23 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
     apply(val.slice(0, pos) + text + val.slice(pos), pos + text.length);
   };
 
-  const fmtBtn = { minWidth: 0, px: 1.5, minHeight: 32, fontSize: "0.8125rem" };
+  /* 카드 배경(흰색)과 구별되는 옅은 표면 — theme.js 의 background.surface2 토큰을 그대로
+   * 쓴다(표 머리·칸반 열이 이미 쓰는 것과 같은 위계). 예전에는 `variant="outlined"
+   * color="inherit"` 라 배경이 투명이었고, 이모지 IconButton 은 배경 자체가 없어 흰 Card
+   * 위에서 버튼 경계가 잘 안 보인다는 지적이 있었다. */
+  const fmtBtn = {
+    minWidth: 0, px: 1.5, minHeight: 32, fontSize: "0.8125rem",
+    bgcolor: "background.surface2",
+    borderColor: "divider",
+    "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08), borderColor: "divider" },
+  };
+  const emojiBtn = {
+    minWidth: 32, minHeight: 32, fontSize: "1rem",
+    bgcolor: "background.surface2",
+    border: "1px solid",
+    borderColor: "divider",
+    "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08) },
+  };
 
   return (
     <>
@@ -78,7 +131,7 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
             size="small"
             aria-label={"이모지 " + em}
             onClick={() => insertAtCursor(em + " ")}
-            sx={{ minWidth: 32, minHeight: 32, fontSize: "1rem" }}
+            sx={emojiBtn}
           >
             {em}
           </IconButton>

@@ -16,6 +16,8 @@ import { PageHeader, Card, Button, DataTable, Drawer, FormDrawer, Modal, Skeleto
  * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
  * "이 화면 검색만 느리다" 라서 원인이 안 보인다. */
 import { SearchBox } from "../ui/filters.jsx";
+// 필터 줄 격자 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). 트랙 상한을 포함해 한 곳에서만 정한다.
+import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
 import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
@@ -567,16 +569,10 @@ export function DataScreen({ config }) {
       ) : null}
       {showToolbar ? (
         /* 필터 바 — 감사 로그처럼 필터가 6개 넘게 붙는 화면이 있어서 한 줄에 밀어 넣지 않고
-         * 자동 줄바꿈 그리드로 둔다. 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */
+         * 자동 줄바꿈 그리드로 둔다(TicketFilterBar 와 같은 트랙, ui/FilterBar.jsx 공유).
+         * 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */
         <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-          <Box sx={{
-            display: "grid", gap: 1.5, alignItems: "center",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(auto-fit, minmax(11rem, 1fr))",
-              xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
-            },
-          }}>
+          <FilterBarGrid>
             {showSearch ? (
               <SearchBox
                 value={q}
@@ -635,7 +631,7 @@ export function DataScreen({ config }) {
             {(q || hasFilter) ? (
               <Button size="sm" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
             ) : null}
-          </Box>
+          </FilterBarGrid>
           {/* 저장된 뷰 — 지금 걸어 둔 필터에 이름을 붙여 두고 다시 부른다. 실제로 저장되는 것은
               위에서 주소에 되쓴 쿼리 문자열이라, 뷰를 부르는 일과 링크를 여는 일이 같은 일이 된다. */}
           <Box sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: "divider" }}>

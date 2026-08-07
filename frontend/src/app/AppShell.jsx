@@ -182,6 +182,22 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
     return next;
   });
 
+  /* 활성 라우트가 든 그룹은 접혀 있었어도 강제로 펼쳐 보인다(아래 isOpen). 그런데 그
+   * "펼쳐 보임"을 실제로 펼친 것으로 기록해 두지 않으면, 다른 화면으로 넘어가는 순간 예전에
+   * 저장된 collapsed:true로 조용히 되돌아간다 — 사용자는 그 그룹을 접은 적이 없는데 다른
+   * 곳을 클릭했더니 저절로 접힌 것처럼 보인다(사용자 지적). 사용자가 실제로 편 것처럼
+   * collapsed 상태 자체를 false로 갱신해 둔다. */
+  const activeGroup = groups.find((g) => g.items.some((it) => it.to === activePath));
+  React.useEffect(() => {
+    if (!activeGroup || !collapsed[activeGroup.group]) return;
+    setCollapsed((c) => {
+      if (!c[activeGroup.group]) return c;
+      const next = { ...c, [activeGroup.group]: false };
+      try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
+      return next;
+    });
+  }, [activeGroup, collapsed, userId]);
+
   return (
     <List component="nav" sx={{ px: 1.5, py: 1, flex: 1, overflowY: "auto" }}>
       {groups.map((g) => {
@@ -394,14 +410,22 @@ export function AppShell({
        "사이드바가 흰색인데 어두운 남색이어야 한다"). tokens.css를 이 값에 맞춰 고쳤으니
        이제 여기서도 그 토큰을 그대로 가져와, 두 소스가 다시 갈라지지 않게 한다. */
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--sidebar-bg)", color: "common.white" }}>
-      <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5 }}>
+      {/* 로고+브랜드명 묶음은 사이드바 폭 안에서 가운데 정렬한다(사용자 지적). justifyContent
+          만으로는 좁은 화면에서 닫기 버튼이 로고 옆에 그대로 남아 묶음이 광학적으로 오른쪽에
+          치우쳐 보이므로, 그 버튼은 절대 위치로 오른쪽 끝에 고정해 가운데 정렬을 방해하지
+          않게 한다. */}
+      <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5, justifyContent: "center", position: "relative" }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>{brand()}</Typography>
           <Typography sx={{ fontSize: "0.75rem", color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
-          <IconButton onClick={onCloseNav} aria-label="메뉴 닫기" sx={{ ml: "auto", color: "inherit" }}>
+          <IconButton
+            onClick={onCloseNav}
+            aria-label="메뉴 닫기"
+            sx={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "inherit" }}
+          >
             <CloseRoundedIcon />
           </IconButton>
         ) : null}

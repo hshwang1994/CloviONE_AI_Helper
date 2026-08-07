@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import { DataScreen } from "./DataScreen.jsx";
 import { OrgTree, isOrgRow } from "./OrgTree.jsx";
 import { ORG_SCREENS } from "./registry/org.js";
+import { Callout, PageHeader } from "../ui/kit.jsx";
 
 /* 조직 콘솔 — 조직 관리, 부서 관리, 조직도를 한 화면으로.
  *
@@ -57,9 +58,21 @@ export function OrgConsole({ defaultKind = "organizations" }) {
   const [selected, setSelected] = useState(null);
   const screenKey = selected ? selected.screenKey : defaultKind;
   const config = ORG_SCREENS[screenKey] || ORG_SCREENS.organizations;
+  /* 오른쪽 DataScreen 이 그리는 PageHeader(제목="조직 관리"/"부서 관리")는 손대지 않는다
+   * (DataScreen.jsx 는 이 작업 범위 밖이고, 그 h1은 기존 테스트가 이미 기대하고 있다).
+   * 대신 그 화면에 넘기는 config 에서 area 만 뺀다 — area 는 "관리자 › 사용자" 빵부스러기
+   * 캡션을 한 줄 더 얹는데, 아래 콘솔 전체 제목이 이미 같은 빵부스러기를 보여주고 있어
+   * 그대로 넘기면 같은 캡션이 세로로 두 번 찍힌다. title(h1)은 그대로 남긴다 — "조직 관리"
+   * 라는 라벨 자체는 이 화면(오른쪽 절반)이 실제로 무엇을 관리하는 패널인지 알려 주는
+   * 유일한 단서라 없애면 오른쪽 패널만 봤을 때 무엇을 보고 있는지 알 수 없다. */
+  const panelConfig = { ...config, area: null };
 
   return (
     <div className="c-screen">
+      <PageHeader area="사용자" title="조직도" />
+      <Box sx={{ mb: 2.5 }}>
+        <Callout>조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.</Callout>
+      </Box>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 2.5 }}>
         <Box data-testid="org-console-tree" sx={TREE_PANE}>
           <OrgTree
@@ -67,10 +80,10 @@ export function OrgConsole({ defaultKind = "organizations" }) {
             onSelect={(row) => setSelected({ id: row.id, screenKey: screenKeyFor(row) })}
           />
         </Box>
-        <Box data-testid="org-console-panel" sx={MANAGE_PANE}>
+        <Box data-testid="org-console-panel" sx={{ ...MANAGE_PANE, "& .k-page-head": { mb: 1.5 } }}>
           {/* key 로 갈아 끼운다 — 같은 자리에 다른 설정만 넘기면 React 는 컴포넌트를 유지해
               조직 화면에서 걸어 둔 검색어, 페이지 번호가 부서 화면에 그대로 남는다. */}
-          <DataScreen key={config.key} config={config} />
+          <DataScreen key={config.key} config={panelConfig} />
         </Box>
       </Box>
     </div>

@@ -92,9 +92,13 @@ export const NAV = [
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
     { to: "/offboarding", label: "온보딩과 오프보딩", roles: ["admin", "system_admin"], icon: "users" },
+    // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다
+    // (트리는 왼쪽 1/3, 관리 패널은 오른쪽 2/3 — OrgConsole.jsx 참조). 그런데 사이드바
+    // 메뉴가 예전처럼 3개로 남아 있으면 클릭할 때마다 '다른 메뉴'가 활성화되며 OrgConsole
+    // 이 다시 마운트돼 트리 선택 상태가 리셋된다(사용자 신고: "3개 항목으로 남아있어서
+    // 3개 페이지처럼 보임"). 대표 경로 하나로 합친다 — /departments, /org-tree 로의 직접
+    // 진입(북마크)은 AdminRoutes.jsx 가 여전히 처리하므로 라우팅은 그대로 둔다.
     { to: "/organizations", label: "조직 관리", roles: ["admin", "system_admin"], icon: "org" },
-    { to: "/departments", label: "부서 관리", roles: ["admin", "system_admin"], icon: "org" },
-    { to: "/org-tree", label: "조직도", roles: ["admin", "system_admin"], icon: "org" },
     { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"], icon: "jobtitle" },
     // 권한 매트릭스는 규칙 표라 읽기 전용 역할(운영자·감사자)에게도 보인다.
     { to: "/rbac", label: "권한 매트릭스", icon: "policy" },

@@ -1,8 +1,8 @@
 import React from "react";
-import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Button, Card, EmptyState } from "../ui/kit.jsx";
 import { DebouncedTextField, FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
@@ -197,16 +197,9 @@ export function TicketFilterBar({ fields, value, onChange, total, extra, onClear
 
   return (
     <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-      {/* 조건이 여덟 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(문서 목록과 같은
-          규칙). 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */}
-      <Box sx={{
-        display: "grid", gap: 1.5, alignItems: "center",
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "repeat(auto-fit, minmax(11rem, 1fr))",
-          xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
-        },
-      }}>
+      {/* 조건이 여덟 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(설정 주도 목록
+          화면과 같은 규칙, ui/FilterBar.jsx 공유). 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */}
+      <FilterBarGrid>
         {show("q") ? (
           <SearchBox
             value={value.q}
@@ -251,7 +244,7 @@ export function TicketFilterBar({ fields, value, onChange, total, extra, onClear
         ) : null}
         {extra}
         {filtered ? <Button size="sm" onClick={clear}>필터 지우기</Button> : null}
-      </Box>
+      </FilterBarGrid>
       {total != null ? (
         <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ mt: 1.5 }}>
           총 {total}건

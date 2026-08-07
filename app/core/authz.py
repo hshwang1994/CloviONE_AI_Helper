@@ -209,5 +209,8 @@ def rbac_matrix() -> dict:
             {"value": value, "label": label, "help": help_text}
             for value, (label, help_text) in SCOPE_LABELS.items()
         ],
+        # admin_scope(조직/부서로 좁히기)가 실제로 걸리는 역할. 화면이 "admin" 을 직접
+        # 하드코딩하면 tests/security/test_rbac_matrix.py 가 잡는다 — 역할 이름은 여기서만 안다.
+        "scoped_role": "admin",
         "source": "app/core/authz.py",
     }

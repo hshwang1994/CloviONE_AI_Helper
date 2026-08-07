@@ -307,3 +307,35 @@ describe("댓글", () => {
     expect(await screen.findByRole("button", { name: "댓글 등록" })).toBeDisabled();
   });
 });
+
+// ── 레이아웃(댓글은 본문이 아니라 속성 레일) ──────────────────────────────────
+
+describe("레이아웃 — 댓글은 속성 레일에", () => {
+  it("댓글은 본문 열이 아니라 속성 레일(우측 컬럼)에 렌더된다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+
+    const { container } = wrap();
+    await screen.findByRole("heading", { name: "속성" });
+
+    const main = container.querySelector('[data-testid="ticket-detail-main"]');
+    const rail = container.querySelector('[data-testid="ticket-detail-rail"]');
+    expect(main).toBeInTheDocument();
+    expect(rail).toBeInTheDocument();
+
+    const commentsRegion = screen.getByRole("region", { name: "댓글" });
+    // 댓글은 본문 열이 아니라 속성 레일 안에 있어야 한다.
+    expect(main.contains(commentsRegion)).toBe(false);
+    expect(rail.contains(commentsRegion)).toBe(true);
+
+    // 레일 안에서도 속성이 댓글보다 먼저 나온다(속성을 먼저 보고 논의를 본다).
+    const attrHeading = within(rail).getByRole("heading", { name: "속성" });
+    expect(attrHeading.compareDocumentPosition(commentsRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // 좁은 화면에서 한 열로 접힐 때도 본문이 댓글보다 먼저 나와야 한다 — main 컬럼이
+    // DOM에서 rail 컬럼보다 앞서면(둘 다 order override가 없으므로) 그 순서로 쌓인다.
+    expect(main.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

@@ -250,4 +250,60 @@ describe("화면", () => {
     const docs = screen.getByTestId("notion-db-notion_documents_database_id");
     expect(within(docs).getByRole("button", { name: "새로 만들기" })).toBeInTheDocument();
   });
+
+  it("새로 만들기는 스타일 없는 브라우저 팝업(window.prompt) 대신 테마 다이얼로그로 부모 페이지 id 를 받는다", async () => {
+    // 예전에는 window.prompt() 로 부모 페이지 id 를 받고, 바로 다음 줄에서 앱의 confirm() 을
+    // 썼다 - 스타일 없는 네이티브 팝업과 테마 다이얼로그가 한 흐름에 섞여 튀어 보였다.
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("page-123");
+    apiMock.mockResolvedValue(overview());
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
+
+    const docs = screen.getByTestId("notion-db-notion_documents_database_id");
+    await userEvent.click(within(docs).getByRole("button", { name: "새로 만들기" }));
+
+    // 네이티브 팝업은 절대 불리지 않는다.
+    expect(promptSpy).not.toHaveBeenCalled();
+    // 대신 화면 안에 테마 다이얼로그(라벨이 붙은 입력)가 뜬다.
+    expect(await screen.findByLabelText(/부모 페이지 id/)).toBeInTheDocument();
+
+    promptSpy.mockRestore();
+  });
+
+  it("부모 페이지 id 를 넣고 확인하면 만들기 요청을 보낸다", async () => {
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/admin/notion" && (!opts || !opts.method)) {
+        return Promise.resolve(overview());
+      }
+      if (path === "/api/admin/notion/databases") {
+        return Promise.resolve({ created: true, message: "만들었습니다." });
+      }
+      return Promise.resolve({});
+    });
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
+
+    const docs = screen.getByTestId("notion-db-notion_documents_database_id");
+    await userEvent.click(within(docs).getByRole("button", { name: "새로 만들기" }));
+
+    const input = await screen.findByLabelText(/부모 페이지 id/);
+    await userEvent.type(input, "page-123");
+    await userEvent.click(screen.getByRole("button", { name: "계속" }));
+
+    // 정말 만드는지 다시 한번 테마 확인 대화상자로 묻는다(되돌릴 수 없다는 경고 포함).
+    const confirmDialog = await screen.findByText(/되돌리려면 노션에서 직접 지워야 합니다/);
+    expect(confirmDialog).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "만들기" }));
+
+    await waitFor(() => {
+      const call = apiMock.mock.calls.find((c) => c[0] === "/api/admin/notion/databases");
+      expect(call).toBeTruthy();
+      expect(call[1].body).toEqual({
+        key: "notion_documents_database_id",
+        parent_page_id: "page-123",
+        title: "문서 데이터베이스",
+        confirm: true,
+      });
+    });
+  });
 });

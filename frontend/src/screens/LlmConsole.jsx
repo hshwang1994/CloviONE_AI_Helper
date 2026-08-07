@@ -182,7 +182,7 @@ export function LlmConsole() {
 
         <Field label="사용 여부" help="비워 두면 서버 환경변수(LLM_ENABLED)를 따릅니다.">
           <TextField
-            select size="small" sx={{ minWidth: 280, mt: 0.5 }}
+            select size="small" sx={{ minWidth: 280, flex: 1, mt: 0.5 }}
             value={value("llm_enabled", "")}
             onChange={(e) => setValue("llm_enabled", e.target.value)}
             inputProps={{ "aria-label": "사용 여부" }}
@@ -195,7 +195,7 @@ export function LlmConsole() {
 
         <Field label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
           <TextField
-            select size="small" sx={{ minWidth: 320, mt: 0.5 }}
+            select size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
             value={value("llm_backend", "")}
             onChange={(e) => setValue("llm_backend", e.target.value)}
             inputProps={{ "aria-label": "백엔드" }}
@@ -208,7 +208,7 @@ export function LlmConsole() {
 
         <Field label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
           <TextField
-            size="small" sx={{ minWidth: 320, mt: 0.5 }}
+            size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
             value={value("llm_executable", "")}
             onChange={(e) => setValue("llm_executable", e.target.value)}
             inputProps={{ "aria-label": "실행 파일" }}
@@ -217,7 +217,7 @@ export function LlmConsole() {
 
         <Field label="모델" help="비워 두면 기본 모델을 씁니다.">
           <TextField
-            size="small" sx={{ minWidth: 320, mt: 0.5 }}
+            size="small" sx={{ minWidth: 320, flex: 1, mt: 0.5 }}
             value={value("llm_model", "")}
             onChange={(e) => setValue("llm_model", e.target.value)}
             inputProps={{ "aria-label": "모델" }}
@@ -230,7 +230,7 @@ export function LlmConsole() {
                 + (limits.max_timeout_seconds || 600) + "까지 넣을 수 있습니다."}
         >
           <TextField
-            size="small" type="number" sx={{ minWidth: 200, mt: 0.5 }}
+            size="small" type="number" sx={{ minWidth: 200, flex: 1, mt: 0.5 }}
             value={value("llm_timeout_seconds", 0)}
             onChange={(e) => setValue("llm_timeout_seconds", Number(e.target.value))}
             inputProps={{ "aria-label": "제한 시간(초)" }}
@@ -243,7 +243,7 @@ export function LlmConsole() {
                 + "입니다. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 사람과 나눠 쓰므로 작게 잡습니다."}
         >
           <TextField
-            size="small" type="number" sx={{ minWidth: 200, mt: 0.5 }}
+            size="small" type="number" sx={{ minWidth: 200, flex: 1, mt: 0.5 }}
             value={value("llm_max_concurrency", 1)}
             onChange={(e) => setValue("llm_max_concurrency", Number(e.target.value))}
             inputProps={{ "aria-label": "동시 실행 수" }}
