@@ -1,5 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Stack from "@mui/material/Stack";
+import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
@@ -27,11 +30,31 @@ import { ticketRows, useTicketList } from "./ticket-options.js";
 function ProjectTicketList({ pageId, page, onPage }) {
   const nav = useNavigate();
   const [editing, setEditing] = React.useState(null);
+  // 팀 티켓 화면과 같은 기본값(활성만) — 다른 이유는 팀 티켓의 activeToggle 주석과 같다:
+  // 완료·취소까지 항상 섞으면 "지금 할 일"을 찾는 화면이 끝난 일로 덮인다.
+  //
+  // 🔴 서버 기본값(active=true)에 기대지 않고 **항상 명시적으로 보낸다.** 예전에는 이 값을
+  // 아예 안 보냈다 — 그러면 완료·취소 티켓은 이 탭에서 영영 볼 방법이 없는데도 "총 N건"이
+  // 마치 이 프로젝트의 전체 티켓 수인 것처럼 보였다(팀 티켓엔 있는 '완료, 취소 포함' 스위치가
+  // 여기만 없었다 — 같은 목록 부품을 재사용한다고 적어 놓고 실제로는 그 기능만 빠져 있었다).
+  const [includeDone, setIncludeDone] = React.useState(false);
 
   const params = new URLSearchParams();
   params.set("project_id", pageId);
+  params.set("active", includeDone ? "false" : "true");
   if (page > 1) params.set("page", String(page));
   const q = useTicketList("/api/tickets/team", params.toString());
+
+  // 범위(완료·취소 포함 여부)를 바꾸면 페이지는 처음으로 - 필터를 바꿨는데 3페이지에 남으면
+  // 빈 목록을 "티켓이 없다"로 읽는다(다른 티켓 화면들과 같은 규약).
+  const toggleIncludeDone = (checked) => { setIncludeDone(checked); onPage(1); };
+  const activeToggle = (
+    <FormControlLabel
+      sx={{ m: 0 }}
+      control={<Switch size="small" checked={includeDone} onChange={(e) => toggleIncludeDone(e.target.checked)} />}
+      label={<Typography variant="body2">완료, 취소 포함</Typography>}
+    />
+  );
 
   if (q.isPending) return <Card><Skeleton lines={6} /></Card>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -52,9 +75,12 @@ function ProjectTicketList({ pageId, page, onPage }) {
 
   return (
     <Card>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }} aria-live="polite">
-        총 {data.total != null ? data.total : rows.length}건
-      </Typography>
+      <Stack direction="row" gap={2} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
+        <Typography variant="body2" color="text.secondary" aria-live="polite">
+          총 {data.total != null ? data.total : rows.length}건
+        </Typography>
+        {activeToggle}
+      </Stack>
       <GroupedTickets
         rows={rows} columns={cols} groupBy={groupByAssignee}
         emptyState={

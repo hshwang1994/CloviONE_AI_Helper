@@ -516,6 +516,26 @@ describe("프로젝트 상세 — 탭", () => {
     expect(lastQuery("/api/tickets/team").get("project_id")).toBe("np-1");
   });
 
+  it("티켓 탭은 완료·취소를 기본으로 숨기고, 스위치로 포함시킬 수 있다", async () => {
+    // TeamTickets 는 '완료, 취소 포함' 스위치가 있어 끝난 티켓도 볼 수 있다. 이 탭이 같은
+    // /api/tickets/team 을 재사용하면서 그 스위치를 안 그리면, 서버 기본값(active=true)에
+    // 조용히 갇혀 이 프로젝트의 완료·취소 티켓을 영영 볼 방법이 없어진다 - "총 N건"이
+    // 사실은 활성 티켓 수인데 전체인 것처럼 보인다.
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    await user.click(screen.getByRole("tab", { name: "티켓" }));
+    await screen.findByText("스키마 확정");
+
+    // 서버 기본값에 기대지 않고 명시적으로 활성만 요청한다(화면이 무엇을 요청하는지 보인다).
+    expect(lastQuery("/api/tickets/team").get("active")).toBe("true");
+
+    await user.click(screen.getByRole("switch", { name: "완료, 취소 포함" }));
+
+    await waitFor(() => expect(lastQuery("/api/tickets/team").get("active")).toBe("false"));
+  });
+
   it("노션 짝이 없는 프로젝트는 티켓 목록을 부르지 않는다", async () => {
     const user = userEvent.setup();
     detailProject = project({ notion_page_id: null });

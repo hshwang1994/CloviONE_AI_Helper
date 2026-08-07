@@ -66,10 +66,12 @@ export function RoomDetailPanel({ id }) {
   }
   const canLeave = room.kind === "group" && !room.is_global;
   const busy = leave.isPending || disband.isPending || hide.isPending;
-  // 방 종류(전체/1:1/그룹)는 목록 행과 같은 태그 어휘를 쓴다 — 목록에서 보던 표식이 방에 들어오면
-  // 사라지면, 지금 어떤 방에 있는지(나갈 수 있는 방인지)를 제목만으로 되짚어야 한다.
+  // 방 종류(전체/내 팀/1:1/그룹)는 목록 행(ChatRooms.jsx RoomRow)과 같은 태그 어휘를 쓴다 —
+  // 목록에서 보던 표식이 방에 들어오면 사라지면, 지금 어떤 방에 있는지(나갈 수 있는 방인지)를
+  // 제목만으로 되짚어야 한다. department_id 분기가 빠져 있어 팀 방에 들어가면 목록에서 본
+  // "내 팀"이 "그룹 N"으로 바뀌는 자기모순이 났다 — RoomRow와 같은 순서로 판정한다.
   const tag = meta.isPending ? null
-    : room.is_global ? "전체" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
+    : room.is_global ? "전체" : room.department_id ? "내 팀" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
   const actions = (
     <>
       {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: "0.75rem", alignSelf: "center" }} /> : null}

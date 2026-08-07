@@ -275,6 +275,10 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     dnd_ids = service.dnd_user_ids(db, [m.user_id for m in mem], now=now)
     return {
         "room": {"id": room.id, "kind": room.kind, "is_global": room.is_global,
+                 # 목록(list_rooms/_room_summary)과 같은 값을 싣는다 — 없으면 화면이 목록에서는
+                 # "내 팀" 태그를 붙이고 방 안(ChatRoom.jsx RoomDetailPanel)에서는 "그룹 N"이라
+                 # 해, 같은 방인데 들어가는 순간 표식이 바뀌는 자기모순이 난다.
+                 "department_id": getattr(room, "department_id", None),
                  "title": _room_title(room, mem, names, me.id), "member_count": len(mem)},
         "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names, dnd_ids)
                     for m in mem],

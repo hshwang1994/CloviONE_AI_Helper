@@ -11,9 +11,15 @@ import { CommentThread, MAX_COMMENT_CHARS } from "./CommentThread.jsx";
 
 export { MAX_COMMENT_CHARS };
 
+// key={ticketId}가 필요하다. Ticket.jsx는 "/tickets/:id" 라우트라, 알림 딥링크 등으로
+// id만 바뀌는 인앱 이동에서는 화면 컴포넌트가 리마운트되지 않는다(react-router가 같은
+// 자리의 같은 엘리먼트를 재사용) — key가 없으면 안의 CommentThread가 쓰던 댓글 초안이
+// 새 티켓으로 그대로 넘어가, "등록"을 누르면 엉뚱한 티켓에 댓글이 달린다
+// (DocComments.jsx와 같은 이유, comment-thread-stale-draft.test.jsx).
 export function TicketComments({ ticketId }) {
   return (
     <CommentThread
+      key={ticketId}
       queryKey={["ticket-comments", ticketId]}
       listUrl={"/api/tickets/" + ticketId + "/comments"}
       itemUrl={(id) => "/api/tickets/comments/" + id}

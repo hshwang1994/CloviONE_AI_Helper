@@ -104,3 +104,31 @@ def test_renaming_the_department_renames_the_room(client, login_as, make_user, a
         db.commit()
 
     assert client.get("/api/team-chat/rooms").json()["team"]["title"] == "새이름팀"
+
+
+def test_room_detail_also_carries_department_id(client, login_as, make_user, app):
+    """방 목록(`GET /rooms`)의 팀 방 행에는 `department_id`가 있어 화면이 "내 팀" 태그를
+    붙인다(위 `team_room_appears_for_a_user_with_a_department` 참고). 그런데 방 안에 들어가서
+    보는 상세(`GET /rooms/{id}/messages`)의 `room`에는 이 값이 없었다 — 같은 방인데 목록에서는
+    "내 팀"이라 하고 방 머리(ChatRoom.jsx RoomDetailPanel)에서는 "그룹 N"이라 해, 방에 들어가는
+    순간 표식이 바뀌는 자기모순이 났다(화면 쪽 주석이 "목록에서 보던 표식이 방에 들어오면
+    사라지면 안 된다"고 이미 말하고 있다)."""
+    from app.org.models import Department
+    from app.users.models import User
+
+    make_user("detail-tag@goodmit.co.kr")
+    with app.state.session_factory() as db:
+        dept = Department(name="상세팀", active=True)
+        db.add(dept)
+        db.flush()
+        db.query(User).filter(User.email == "detail-tag@goodmit.co.kr").one().department_id = dept.id
+        db.commit()
+
+    login_as("user", email="detail-tag@goodmit.co.kr")
+    team = client.get("/api/team-chat/rooms").json()["team"]
+    assert team["department_id"] is not None
+
+    detail = client.get(f"/api/team-chat/rooms/{team['id']}/messages?since=0").json()
+    assert detail["room"]["department_id"] == team["department_id"], (
+        "방 상세의 room 에도 department_id 가 있어야 목록과 같은 '내 팀' 태그를 그릴 수 있다"
+    )

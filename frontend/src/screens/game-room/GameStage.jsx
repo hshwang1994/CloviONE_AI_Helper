@@ -52,7 +52,13 @@ export function GameStage({ c }) {
             </Box>
           ) : isLadder && room.status === "finished" && ladderAssignments.length > 0 ? (
             gstate.result && gstate.result.columns ? (
-              <LadderBoard result={gstate.result} highlightUserId={you.user_id} />
+              // key=room.id: 방을 바꿔도 react-query 캐시에 새 방 데이터가 이미 있으면
+              // "pending"(스켈레톤)을 거치지 않아 이 서브트리가 마운트 해제되지 않는다 - 그러면
+              // LadderBoard가 같은 인스턴스로 재사용돼 내부 sel(고른 이름의 인덱스)이 이전
+              // 방 것 그대로 남는다. 새 방 참여자 수가 더 적으면 그 인덱스가 배열 범위를 벗어나
+              // cols[sel]이 undefined가 되어 화면이 크래시했다(gameroom-ladder-room-switch-
+              // stale-selection.test.jsx). key를 room.id에 묶어 방이 바뀌면 항상 새로 마운트되게 한다.
+              <LadderBoard key={room.id} result={gstate.result} highlightUserId={you.user_id} />
             ) : (
               <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
                 {ladderAssignments.map((a) => (

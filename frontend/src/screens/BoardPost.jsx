@@ -522,7 +522,11 @@ export function BoardPost() {
                 ))}
               </Box>
             )}
-          <CommentComposer postId={post.id} palette={palette} onDone={refetch} />
+          {/* key={post.id} — "/board/:id"는 다른 글로 이동해도(알림 딥링크 등 인앱 이동)
+              BoardPost 자체가 리마운트되지 않는다. key가 없으면 이 컴포저가 그대로 남아
+              A 글에 쓰던 초안이 B 글 댓글창까지 따라와 "등록"을 누르면 엉뚱한 글에 달린다
+              (board-post-comment-stale-draft.test.jsx). */}
+          <CommentComposer key={post.id} postId={post.id} palette={palette} onDone={refetch} />
         </Box>
       </Box>
 
