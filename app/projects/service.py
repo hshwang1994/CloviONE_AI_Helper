@@ -39,6 +39,7 @@ from app.projects.health import (
 from app.projects.health import trouble_reasons as compute_trouble_reasons
 from app.projects.models import (
     PROJECT_STATUSES,
+    REPORT_SOURCE_LLM,
     REPORT_SOURCE_RULE,
     Project,
     ProjectHealthSnapshot,
@@ -569,6 +570,52 @@ def save_weekly_report(
     row.updated_at = now
     db.flush()
     return {**report, "saved": _saved_view(row)}
+
+
+def save_llm_weekly_summary(
+    db: Session, project: Project, *, week: weekly.Week, text: str, now: datetime
+) -> ProjectWeeklyReport:
+    """AI 가 쓴 요약을 그 주의 저장본에 **덮어쓴다**(app/jobs/handlers/project_weekly_summary.py 가 부른다).
+
+    같은 (project_id, week_of) 행을 `save_weekly_report` 와 공유한다 - "그 주의 리포트"는
+    규칙이 썼든 AI 가 썼든 하나다. 행을 나누면 화면이 둘 중 뭘 보여줄지 또 판단해야 한다.
+    이 함수는 워커에서만 불린다(§L) - 여기서 LLM 을 다시 호출하지 않는다, 이미 받은
+    문장을 저장만 한다.
+    """
+    row = _saved_report(db, project.id, week.week_of)
+    if row is None:
+        row = ProjectWeeklyReport(
+            project_id=project.id, week_of=week.week_of,
+            created_at=now, updated_at=now,
+        )
+        db.add(row)
+    row.summary_md = text
+    row.source = REPORT_SOURCE_LLM
+    row.generated_at = now
+    row.updated_at = now
+    db.flush()
+    return row
+
+
+def request_weekly_llm_summary(
+    db: Session, project: Project, *, week: weekly.Week, user_id: str | None, now: datetime
+) -> None:
+    """그 주 AI 요약 생성을 큐에 넣는다. **여기서 LLM 을 부르지 않는다** - 워커가 부른다(§L).
+
+    idempotency_key 에 타임스탬프를 넣어 다시 생성(재생성) 요청을 허용한다 - 고정 키를 쓰면
+    한 주에 딱 한 번만 생성할 수 있게 되어 "다시 만들어줘"가 안 먹는다. 짧은 시간에 두 번
+    눌려도 `LlmService` 의 동시 실행 슬롯이 실제 CLI 중복 실행은 막는다(app/llm/service.py).
+    """
+    from app.jobs import repository as jobs_repo
+
+    jobs_repo.enqueue(
+        db,
+        job_type="project_weekly_summary",
+        payload={"project_id": project.id, "week_of": week.week_of},
+        now=now,
+        user_id=user_id,
+        idempotency_key=f"weekly-llm:{project.id}:{week.week_of}:{now.strftime('%Y%m%d%H%M%S%f')}",
+    )
 
 
 def project_wbs(db: Session, project: Project) -> WbsResult:

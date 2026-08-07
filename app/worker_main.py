@@ -245,6 +245,7 @@ def build_handlers() -> dict:
     from app.jobs.handlers.llm_connection_test import handle_llm_connection_test
     from app.jobs.handlers.mail_send import handle_mail_send
     from app.jobs.handlers.notion_mapping_sync import handle_notion_mapping_sync
+    from app.jobs.handlers.project_weekly_summary import handle_project_weekly_summary
     from app.jobs.handlers.schedule_run import handle_schedule_run
     from app.llm_console.service import JOB_TYPE_TEST
 
@@ -259,6 +260,8 @@ def build_handlers() -> dict:
         # AI 연결 테스트(9-5). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
         # 이유는 핸들러 파일 맨 위에 적어 뒀다.
         JOB_TYPE_TEST: handle_llm_connection_test,
+        # 주간 리포트 AI 요약(§L 소비처). 같은 이유로 웹에서 안 부르고 잡 큐를 지난다.
+        "project_weekly_summary": handle_project_weekly_summary,
     }
 
 

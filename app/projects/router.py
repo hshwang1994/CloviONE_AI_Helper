@@ -343,6 +343,35 @@ def generate_weekly_report(
     return body
 
 
+@router.post("/{project_id}/weekly-report/llm-summary")
+def generate_weekly_llm_summary(
+    request: Request,
+    project_id: str,
+    db: Session = Depends(get_db),
+    week: str | None = Query(default=None, max_length=10),
+    principal: Principal = Depends(get_principal),
+    _: object = require_write,
+):
+    """그 주 AI 요약 생성을 큐에 넣는다(§L). **여기서 기다리지 않는다** - CLI 왕복은
+    수십 초가 걸릴 수 있어 워커가 대신 돈다(app/jobs/handlers/project_weekly_summary.py).
+
+    완료 시점은 이 응답이 아니라 그 뒤의 GET 이 `saved.source == "llm"` 로 알려 준다.
+    """
+    now = request.app.state.clock.now()
+    project = service.get_scoped_project_or_404(db, project_id, principal)
+    service.request_weekly_llm_summary(
+        db, project,
+        week=_week_from(request, week),
+        user_id=principal.user_id,
+        now=now,
+    )
+    record_audit_from_request(
+        request, db, action="project.weekly_report.llm_summary_requested",
+        object_type="project", object_id=project.id,
+    )
+    return {"ok": True, "queued": True}
+
+
 # ── 마일스톤 ──────────────────────────────────────────────────────────────────
 #
 # 경로가 `/{project_id}/milestones/...` 인 것이 설계의 전부다. 마일스톤 id 하나로 여는
