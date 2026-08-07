@@ -31,6 +31,7 @@ from datetime import datetime
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.core import people
 from app.core.authz import MODERATOR_ROLES
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs.models import DocumentComment
@@ -92,8 +93,13 @@ def get_or_404(db: Session, comment_id: str) -> DocumentComment:
     return comment
 
 
-def list_comments(db: Session, *, page_id: str, me: User) -> list[dict]:
-    """그 문서의 댓글 전부(삭제된 것은 툼스톤으로). 오래된 것부터."""
+def list_comments(db: Session, *, page_id: str, me: User) -> dict:
+    """그 문서의 댓글 전부(삭제된 것은 툼스톤으로) + 등장인물 신원(`people`). 오래된 것부터.
+
+    사용자 지시(#13): *"게시글과 댓글에는 작성자의 부서·팀·직책을 함께 표시한다"*.
+    게시판(`app/board/router.py::_people_of`)이 이미 같은 것을 답하고 있어, 조립은
+    `core/people.identities_for` 를 그대로 쓴다 -- 새로 짜지 않는다(티켓 댓글과 같은 판단).
+    """
     rows = db.execute(
         select(DocumentComment)
         .where(DocumentComment.notion_page_id == page_id)
@@ -105,17 +111,27 @@ def list_comments(db: Session, *, page_id: str, me: User) -> list[dict]:
         # 다른 DB 로 옮기면 이 줄은 조용히 틀리는 게 아니라 곧바로 에러가 난다.
         .order_by(DocumentComment.created_at.asc(), text("document_comments.rowid ASC"))
     ).scalars().all()
-    names = _author_names(db, [r.author_user_id for r in rows])
-    return [comment_view(r, author_name=names.get(r.author_user_id, ""), me=me) for r in rows]
+    authors = _authors_by_ids(db, [r.author_user_id for r in rows])
+    names = {uid: (u.display_name or "") for uid, u in authors.items()}
+    return {
+        "comments": [
+            comment_view(r, author_name=names.get(r.author_user_id, ""), me=me) for r in rows
+        ],
+        "people": people.identities_for(db, authors),
+    }
 
 
-def _author_names(db: Session, user_ids: list[str]) -> dict[str, str]:
-    if not user_ids:
+def _authors_by_ids(db: Session, user_ids: list[str]) -> dict[str, User]:
+    """{user_id: User} -- 표시 이름과 신원(부서·직책·사진)을 **한 번의 질의**로 함께 얻는다.
+
+    `department`/`title` 은 `User` 의 관계 프로퍼티고 `lazy="joined"` 다(app/users/models.py)
+    -- 이 select 하나로 추가 질의 없이 함께 실린다.
+    """
+    ids = {i for i in (user_ids or ()) if i}
+    if not ids:
         return {}
-    rows = db.execute(
-        select(User.id, User.display_name).where(User.id.in_(set(user_ids)))
-    ).all()
-    return {uid: name or "" for uid, name in rows}
+    rows = db.execute(select(User).where(User.id.in_(ids))).scalars().all()
+    return {u.id: u for u in rows}
 
 
 def create_comment(

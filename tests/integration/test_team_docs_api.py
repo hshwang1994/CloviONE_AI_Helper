@@ -112,6 +112,37 @@ def test_detail_missing_returns_404(client, login_as):
     assert client.get("/api/team-docs/nope").status_code == 404
 
 
+def test_trashed_document_detail_is_not_found(client, login_as, db):
+    """휴지통 문서는 상세로도 없는 것으로 취급한다 (H2, 티켓과 같은 규칙 —
+    app/tickets/service.py::ensure_not_trashed 주석 참고).
+
+    이 판정이 없으면 지운 문서가 계속 상세로 열리고(제목·본문 그대로), 그 상태에서 계속
+    편집·댓글·즐겨찾기가 되는데 보관기간이 끝나면 그 문서와 함께 조용히 사라진다."""
+    csrf = login_as("operator", email="trashdet@goodmit.co.kr")
+    _add_doc(db, "td1", "지울 문서")
+    r = client.post("/api/team-docs/td1/trash", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+
+    detail = client.get("/api/team-docs/td1")
+    assert detail.status_code == 404, f"휴지통 문서가 상세로 열린다: {detail.status_code} {detail.text}"
+
+
+def test_trashed_document_comments_are_not_found(client, login_as, db):
+    """댓글 목록·작성도 상세와 같은 판정을 지나야 한다 — 안 그러면 지운 문서의 논의가
+    보관기간 동안 계속된다(상세는 막혀도 딥링크로 댓글만 열리는 구멍)."""
+    csrf = login_as("operator", email="trashcom@goodmit.co.kr")
+    _add_doc(db, "td2", "지울 문서 2")
+    r = client.post("/api/team-docs/td2/trash", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+
+    listing = client.get("/api/team-docs/td2/comments")
+    assert listing.status_code == 404, f"휴지통 문서의 댓글 목록이 열린다: {listing.status_code} {listing.text}"
+
+    created = client.post("/api/team-docs/td2/comments", json={"body": "댓글"},
+                          headers={"X-CSRF-Token": csrf})
+    assert created.status_code == 404, f"휴지통 문서에 댓글을 달 수 있다: {created.status_code} {created.text}"
+
+
 def test_filters_endpoint_returns_fixed_lists_and_projects(client, login_as, db):
     login_as("user", email="filt@goodmit.co.kr")
     _add_doc(db, "a", "A", project_names=["포스코DX"])

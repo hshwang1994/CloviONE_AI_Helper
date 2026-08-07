@@ -1134,7 +1134,7 @@ def list_ticket_comments(
     # 새는데, 그건 상세가 새는 것과 다르지 않다.
     ensure_ticket_visible(db, page_id, user)
     uid = _repo(settings, outbound, repo).local_uid(db, page_id=page_id)
-    return {"comments": comments.list_comments(db, ticket_uid=uid, me=user)}
+    return comments.list_comments(db, ticket_uid=uid, me=user)
 
 
 def add_ticket_comment(
@@ -1154,7 +1154,7 @@ def add_ticket_comment(
     _notify_ticket_comment(db, page_id=page_id, uid=uid, author=user, now=stamp)
     return {
         "comment_id": created.id,
-        "comments": comments.list_comments(db, ticket_uid=uid, me=user),
+        **comments.list_comments(db, ticket_uid=uid, me=user),
     }
 
 
@@ -1216,7 +1216,7 @@ def edit_ticket_comment(
     ensure_comment_ticket_visible(db, comment.ticket_uid, user)
     comments.ensure_can_edit(comment, user)
     comments.update_comment(db, comment, body=body, now=now or utcnow())
-    return {"comments": comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)}
+    return comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)
 
 
 def delete_ticket_comment(
@@ -1227,7 +1227,7 @@ def delete_ticket_comment(
     ensure_comment_ticket_visible(db, comment.ticket_uid, user)
     comments.ensure_can_delete(comment, user)
     comments.soft_delete_comment(db, comment, now=now or utcnow())
-    return {"comments": comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)}
+    return comments.list_comments(db, ticket_uid=comment.ticket_uid, me=user)
 
 
 # ── 첨부 (지시서 §4) ──────────────────────────────────────────────────────────

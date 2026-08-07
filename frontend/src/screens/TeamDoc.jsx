@@ -213,6 +213,10 @@ export function TeamDoc() {
       toast("문서를 휴지통으로 옮겼습니다.", "success");
       qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      // 이 상세 자신의 캐시도 무효화한다 — 목록으로 이동은 하지만, 사용자가 브라우저
+      // 뒤로가기로 이 상세에 돌아오면 staleTime(30초) 동안 방금 지운 문서가 그대로
+      // 보였다(TeamDocs.jsx 선택 삭제와 같은 이유).
+      qc.invalidateQueries({ queryKey: ["team-doc", id], refetchType: "all" });
       nav("/team-docs");
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),

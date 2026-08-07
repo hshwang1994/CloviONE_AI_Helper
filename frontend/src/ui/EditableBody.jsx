@@ -64,6 +64,24 @@ export function EditableBody({
   // 남의 글을 조용히 덮어쓴다(editable-body-stale-base-version.test.jsx 가 이 결함을 고정한다).
   const [editBaseVersion, setEditBaseVersion] = React.useState(bodyVersion);
 
+  /* editorId 가 바뀌면 **다른 문서로 자리가 바뀐 것**이다(호출부가 "ticket-body-<id>"/
+   * "doc-body-<id>" 처럼 문서 정체성을 그대로 실어 보낸다). `screens/Ticket.jsx` 는
+   * `<Route path="/tickets/:id">` 하나에 붙어 있어 react-router 가 `:id` 만 바뀌어도 이
+   * 컴포넌트를 다시 만들지 않는다 — 그 새 문서가 이미 캐시돼 있으면(알림 벨·검색 결과·뒤로가기로
+   * 예전에 열어 본 문서) 로딩 화면 없이 곧바로 새 props 가 온다. 그 사이 이 컴포넌트는 한 번도
+   * 언마운트되지 않으므로, 편집 중이던 이전 문서의 `editing`/`draft`/`editBaseVersion` 이 그대로
+   * 남는다 — '저장'을 누르면 **이전 문서에서 쓰던 글이 새 문서의 엔드포인트로** 나간다(남의 문서를
+   * 조용히 덮어쓰는 데이터 손상). 위 base_version 동결과는 다른 문제다: 그건 같은 문서를 계속
+   * 보는 동안의 보호이고, 이건 문서 자체가 바뀌었을 때 남은 편집 상태를 버리는 것이다. */
+  const editorIdRef = React.useRef(editorId);
+  React.useEffect(() => {
+    if (editorIdRef.current === editorId) return;
+    editorIdRef.current = editorId;
+    setEditing(false);
+    setDraft(bodyMarkdown || "");
+    setEditBaseVersion(bodyVersion);
+  }, [editorId, bodyMarkdown, bodyVersion]);
+
   // 본문을 읽지 못했으면(blocks 실패) bodyMarkdown 은 null 이다. 그 상태로 편집기를 열면
   // 빈 칸이 뜨고, 저장이 곧 본문 삭제가 된다. 그래서 편집 자체를 막는다.
   const canEdit = bodyMarkdown != null;

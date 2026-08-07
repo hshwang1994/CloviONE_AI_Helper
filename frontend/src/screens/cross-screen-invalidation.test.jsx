@@ -78,4 +78,48 @@ describe("화면 밖 값 갱신", () => {
       expect(qc.getQueryState(notiListKey("unread")).isInvalidated, "팝오버 목록").toBe(true);
     }, { timeout: 3000 });
   });
+
+  /* 작업 큐(/jobs)의 실패 건수는 대시보드 상단 경보/지표 타일("실패 작업"/"미해결 실패
+   * 작업")과 **같은 사실**(jobs.failed_open, app/health/service.py)을 보여준다. 재시도로
+   * 그 작업이 failed 상태를 벗어나면 서버 값은 즉시 바뀌지만, 대시보드는 자기 cacheRoot만
+   * 무효화하는 여느 화면과 달리 별도 queryKey(["dashboard"])를 30초 폴링으로만 본다 —
+   * CROSS_SCREEN_KEYS(X10)에 매핑이 없으면 재시도 직후에도 대시보드가 최대 30초 동안
+   * 옛 실패 건수를 보여준다(알림 화면이 예전에 벨을 못 갱신했던 것과 같은 부류의 결함). */
+  it("작업 큐의 재시도 작업이 대시보드 캐시까지 무효화한다", async () => {
+    const jobsConfig = {
+      key: "jobs",
+      title: "작업 큐",
+      endpoint: "/api/admin/jobs",
+      paginated: true,
+      columns: [{ key: "id", label: "ID" }],
+      detailFields: [],
+      actions: [
+        { label: "재시도", when: (r) => r.status === "failed",
+          path: (r) => "/api/admin/jobs/" + r.id + "/retry" },
+      ],
+    };
+    apiMock.mockResolvedValue({ items: [{ id: "job-1", status: "failed" }], page: 1, page_size: 20, total: 1 });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // 대시보드가 이미 값을 들고 있는 상태를 만든다 — 그래야 '무효화됐다'가 뜻을 가진다.
+    qc.setQueryData(["dashboard"], { jobs_24h: { failed_open: 3 } });
+    expect(qc.getQueryState(["dashboard"]).isInvalidated).toBe(false);
+
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter><DataScreen config={jobsConfig} /></MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText("job-1");
+    apiMock.mockResolvedValueOnce({ ok: true });
+
+    fireEvent.click(screen.getByText("job-1"));
+    fireEvent.click(await screen.findByRole("button", { name: "재시도" }));
+
+    await waitFor(() => {
+      expect(qc.getQueryState(["dashboard"]).isInvalidated, "대시보드").toBe(true);
+    }, { timeout: 3000 });
+  });
 });

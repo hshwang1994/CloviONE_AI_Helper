@@ -93,6 +93,52 @@ def test_unknown_ticket_lists_empty_without_creating_a_row(client, api, db):
     assert db.execute(select(TicketCache)).scalars().all() == []
 
 
+def test_unknown_ticket_lists_empty_people_too(client, api):
+    """빈 댓글 목록과 함께 people도 빈 묶음이어야 한다 — 누락이 아니라 자리는 있다."""
+    api("a@goodmit.co.kr", name="가")
+    r = client.get("/api/tickets/page-does-not-exist/comments")
+    assert r.json()["people"] == {}
+
+
+# ── 신원(people) ─────────────────────────────────────────────────────────────
+# 사용자 지시(#13/#8): "게시글과 댓글에는 작성자의 부서·팀·직책을 함께 표시한다" —
+# 게시판(app/board/router.py::_people_of, tests/integration/test_board_people_payload.py)은
+# 이미 답한다. 여기서는 티켓 댓글도 같은 people 묶음을 실어 보내는지만 고정한다 — 조립 자체
+# (조직명·사진 지문 등)는 core/people.py 쪽 테스트가 이미 검증했다.
+
+def test_comment_authors_carry_department_and_title(client, api, db):
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Department, JobTitle
+    from app.users.service import get_user_by_email
+
+    csrf = api("id-author@goodmit.co.kr", name="아이디작성자")
+    dept = Department(name="인프라팀", org_id=DEFAULT_ORG_ID)
+    jt = JobTitle(name="수석", org_id=DEFAULT_ORG_ID)
+    db.add_all([dept, jt])
+    db.flush()
+    me = get_user_by_email(db, "id-author@goodmit.co.kr")
+    me.department_id = dept.id
+    me.title_id = jt.id
+    db.commit()
+
+    r = _post(client, csrf, f"/api/tickets/{PAGE_ID}/comments", {"body": "댓글"})
+    person = r.json()["people"][me.id]
+    assert person["dept"] == "인프라팀", f"부서가 안 실린다: {person}"
+    assert person["title"] == "수석", f"직책이 안 실린다: {person}"
+
+
+def test_listing_carries_people_too(client, api, db):
+    """쓰기 응답만이 아니라 GET 목록도 같은 묶음을 실어야 새로고침에도 신원을 안다."""
+    from app.users.service import get_user_by_email
+
+    csrf = api("id-list@goodmit.co.kr", name="아이디목록")
+    _post(client, csrf, f"/api/tickets/{PAGE_ID}/comments", {"body": "댓글"})
+
+    listing = client.get(f"/api/tickets/{PAGE_ID}/comments").json()
+    me = get_user_by_email(db, "id-list@goodmit.co.kr")
+    assert me.id in listing["people"], f"목록 응답에 people 이 없다: {listing.keys()}"
+
+
 # ── 권한 ─────────────────────────────────────────────────────────────────────
 
 def test_another_user_cannot_delete_my_comment(client, api):

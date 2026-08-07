@@ -31,6 +31,7 @@ from datetime import datetime
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.core import people
 from app.core.errors import ForbiddenError, NotFoundError
 from app.tickets.models import TicketComment
 from app.users.models import (
@@ -100,14 +101,18 @@ def get_or_404(db: Session, comment_id: str) -> TicketComment:
     return comment
 
 
-def list_comments(db: Session, *, ticket_uid: str | None, me: User) -> list[dict]:
-    """티켓의 댓글 전부(삭제된 것은 툼스톤으로). 오래된 것부터.
+def list_comments(db: Session, *, ticket_uid: str | None, me: User) -> dict:
+    """티켓의 댓글 전부(삭제된 것은 툼스톤으로) + 등장인물 신원(`people`). 오래된 것부터.
 
     `ticket_uid` 가 None 이면(아직 로컬에 없는 티켓) 빈 목록이다 — 댓글을 달기 전에는
     우리 쪽 행 자체가 없으므로 조회만으로 행을 만들지 않는다(GET 이 쓰기를 하지 않는다).
+
+    사용자 지시(#13): *"게시글과 댓글에는 작성자의 부서·팀·직책을 함께 표시한다"*.
+    게시판(`app/board/router.py::_people_of`)이 이미 같은 것을 답하고 있어, 조립은
+    `core/people.identities_for` 를 그대로 쓴다 — 새로 짜지 않는다.
     """
     if not ticket_uid:
-        return []
+        return {"comments": [], "people": {}}
     rows = db.execute(
         select(TicketComment)
         .where(TicketComment.ticket_uid == ticket_uid)
@@ -120,17 +125,27 @@ def list_comments(db: Session, *, ticket_uid: str | None, me: User) -> list[dict
         # 틀리는 게 아니라 곧바로 에러가 난다.
         .order_by(TicketComment.created_at.asc(), text("ticket_comments.rowid ASC"))
     ).scalars().all()
-    names = _author_names(db, [r.author_user_id for r in rows])
-    return [comment_view(r, author_name=names.get(r.author_user_id, ""), me=me) for r in rows]
+    authors = _authors_by_ids(db, [r.author_user_id for r in rows])
+    names = {uid: (u.display_name or "") for uid, u in authors.items()}
+    return {
+        "comments": [
+            comment_view(r, author_name=names.get(r.author_user_id, ""), me=me) for r in rows
+        ],
+        "people": people.identities_for(db, authors),
+    }
 
 
-def _author_names(db: Session, user_ids: list[str]) -> dict[str, str]:
-    if not user_ids:
+def _authors_by_ids(db: Session, user_ids: list[str]) -> dict[str, User]:
+    """{user_id: User} — 표시 이름과 신원(부서·직책·사진)을 **한 번의 질의**로 함께 얻는다.
+
+    `department`/`title` 은 `User` 의 관계 프로퍼티고 `lazy="joined"` 다(app/users/models.py)
+    — 이 select 하나로 추가 질의 없이 함께 실린다.
+    """
+    ids = {i for i in (user_ids or ()) if i}
+    if not ids:
         return {}
-    rows = db.execute(
-        select(User.id, User.display_name).where(User.id.in_(set(user_ids)))
-    ).all()
-    return {uid: name or "" for uid, name in rows}
+    rows = db.execute(select(User).where(User.id.in_(ids))).scalars().all()
+    return {u.id: u for u in rows}
 
 
 def create_comment(

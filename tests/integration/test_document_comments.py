@@ -134,6 +134,34 @@ def test_an_empty_body_is_rejected(client, login_as, world):
     assert r.status_code == 422, r.text
 
 
+# ── 신원(people) ──────────────────────────────────────────────────────────────
+# 게시판(app/board/router.py::_people_of, tests/integration/test_board_people_payload.py)이
+# 이미 부서·직책·사진·보관됨을 답한다. 문서 댓글도 같은 people 묶음을 실어 보내는지만
+# 여기서 고정한다 - 조립 자체(조직명·사진 지문 등)는 core/people.py 쪽에서 이미 검증됐다.
+
+def test_comment_authors_carry_department(client, login_as, world, db):
+    from app.users.service import get_user_by_email
+
+    hdr = _hdr(login_as, AUTHOR)
+    created = _write(client, hdr, MINE, "신원 확인용 댓글")
+
+    author = get_user_by_email(db, AUTHOR)
+    person = created["people"][author.id]
+    assert person["dept"] == "우리팀", f"부서가 안 실린다: {person}"
+
+
+def test_listing_also_carries_people(client, login_as, world, db):
+    """쓰기 응답만이 아니라 GET 목록도 같은 묶음을 실어야 새로고침에도 신원을 안다."""
+    from app.users.service import get_user_by_email
+
+    hdr = _hdr(login_as, AUTHOR)
+    _write(client, hdr, MINE, "댓글")
+
+    listed = client.get(f"/api/team-docs/{MINE}/comments", headers=hdr).json()
+    author = get_user_by_email(db, AUTHOR)
+    assert author.id in listed["people"], f"목록에 people 이 없다: {listed.keys()}"
+
+
 # ── 수정 ──────────────────────────────────────────────────────────────────────
 
 def test_the_author_can_edit_their_own_comment(client, login_as, world):
@@ -316,3 +344,20 @@ def test_my_own_comment_does_not_notify_me(client, login_as, app, world):
     """내가 쓴 것을 나에게 알리면 배지가 늘 켜져 있다."""
     _write(client, _hdr(login_as, AUTHOR), MINE, "제가 쓴 문서에 제가 남기는 메모")
     assert _notifications(app, world["author_id"]) == 0, "내 댓글이 나에게 알림으로 왔다"
+
+
+def test_the_notification_deep_links_to_the_document(client, login_as, world):
+    """document_comment 알림을 눌렀을 때 문서 상세로 가야 한다(티켓 댓글 알림과 같은 계약,
+    tests/integration/test_assignment_notification.py::test_the_deep_link_points_at_the_ticket_screen
+    참고). `/team-docs/:id`(TeamDoc.jsx)가 그 id 를 실제로 소비하므로
+    app/notifications/destinations.py::RELATED_DESTINATIONS 표의 첫 번째 규칙("그 화면이
+    실제로 그 id 를 소비해야 한다")을 만족하는 경우인데도 표에 "document" 항목이 없어서,
+    문서 댓글 알림은 눌러도 아무 데로도 가지 않았다."""
+    _write(client, _hdr(login_as, MATE), MINE, "여기 근거가 뭔가요?")
+
+    login_as("user", email=AUTHOR)
+    items = client.get("/api/notifications?type=document_comment").json()["items"]
+    assert len(items) == 1
+    assert items[0]["related_object_type"] == "document"
+    assert items[0]["related_object_id"] == MINE
+    assert items[0]["related_route"] == f"/team-docs/{MINE}", "딥링크가 문서 상세를 안 가리킨다"

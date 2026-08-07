@@ -70,13 +70,25 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
     """최근 수정된 팀 문서. 문서 목록 화면의 기본 정렬(recent)과 같은 순서를 쓴다.
 
     last_edited 는 Notion 이 준 ISO 문자열이라 사전순 정렬이 곧 시간순이다(모델 주석 참조).
+
+    휴지통 문서는 뺀다 -- `GET /api/team-docs` 목록은 이미 `exclude_page_ids`(trashed_page_ids)
+    로 거르는데 이 위젯만 `archived` 만 보고 있었다. 그래서 문서를 지운 뒤에도 홈 '최근 문서'에는
+    남아 있었고, 그 카드를 누르면 상세로 이어졌다(지운 문서로 가는 살아있는 링크).
     """
-    rows = db.execute(
+    from app.trash import repository as trash_repo
+    from app.trash.models import TRASH_DOCUMENT
+
+    trashed = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
+    stmt = (
         select(DocumentCache)
         .where(DocumentCache.archived.is_(False))
         .order_by(DocumentCache.last_edited.desc().nulls_last(), DocumentCache.title.asc())
-        .limit(limit)
-    ).scalars().all()
+    )
+    # 휴지통이 크지 않은 정상 범위에서는 SQL NOT IN 으로 거른다 -- 파이썬에서 한 번 더 페이지
+    # 만큼만 읽어서는 거른 뒤 limit 아래로 줄어들 수 있다(트래시 항목이 상위 몇 건에 몰린 경우).
+    if trashed:
+        stmt = stmt.where(DocumentCache.notion_page_id.notin_(trashed))
+    rows = db.execute(stmt.limit(limit)).scalars().all()
     return [
         {
             # 화면 딥링크(#/team-docs/:id)가 쓰는 키와 같아야 한다 — 문서 API 의 id 는 page id 다.

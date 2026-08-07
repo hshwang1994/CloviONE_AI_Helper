@@ -179,6 +179,25 @@ def test_today_carries_unread_counts_and_recent_activity(home_client):
     assert [p["title"] for p in body["recent"]["board"]] == ["최근 글"]
 
 
+def test_today_excludes_a_trashed_document_from_recent(home_client, db, fake_clock):
+    """휴지통 문서는 '최근 문서'에서도 빠져야 한다 — 목록(GET /api/team-docs)은 이미
+    trashed_page_ids 로 거르는데, 이 위젯(app/home/readers.py::recent_documents)은
+    archived 만 보고 있었다. 지운 문서로 이어지는 링크가 홈에 남는 이유였다."""
+    from app.trash.models import TRASH_DOCUMENT
+    from app.trash.service import move_to_trash
+    from app.users.service import get_user_by_email
+
+    who = get_user_by_email(db, EMAIL)
+    move_to_trash(db, item_type=TRASH_DOCUMENT, notion_page_id="home-doc-1",
+                  title="최근 문서", url=None, user=who, now=fake_clock.now())
+    db.commit()
+
+    body = _today(home_client)
+    assert body["recent"]["documents"] == [], (
+        f"휴지통 문서가 홈 '최근 문서'에 남아 있다: {body['recent']['documents']}"
+    )
+
+
 def test_today_includes_mirror_freshness(home_client):
     sync = _today(home_client)["sync"]
     assert sync["status"] == "ok" and sync["ticket_count"] == 7 and sync["truncated"] is False

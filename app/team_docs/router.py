@@ -310,6 +310,10 @@ def get_document(
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
+    # 휴지통 문서는 상세로도 없는 것으로 본다(H2, 티켓과 같은 규칙 —
+    # service.ensure_doc_not_trashed 주석 참고). 목록만 걸러 두면 지운 문서가 계속
+    # 상세로 열리고, 그 상태로 계속 즐겨찾기·댓글이 쌓이다가 보관기간이 끝나면 함께 사라진다.
+    service.ensure_doc_not_trashed(db, page_id)
     row = _repo(request).get(db, page_id=page_id)
     if row is None:
         raise NotFoundError("문서를 찾을 수 없습니다. 동기화가 필요할 수 있습니다.")

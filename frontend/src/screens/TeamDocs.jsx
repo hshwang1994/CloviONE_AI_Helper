@@ -285,6 +285,13 @@ export function TeamDocs() {
       toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
       qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      // 방금 지운 문서의 상세 캐시(["team-doc", id])도 각각 무효화한다 — 목록만 갱신하면
+      // 그 문서의 상세를 먼저 열어 본 적이 있는 탭에서 뒤로가기·딥링크로 다시 열었을 때
+      // staleTime(30초) 동안 "이미 지운 문서가 아직 멀쩡하게" 뜬다(티켓은 invalidateTicketViews의
+      // ["ticket"] 접두어가 이미 이걸 잡는다 — 문서 목록만 빠져 있었다).
+      for (const it of res.trashed || []) {
+        qc.invalidateQueries({ queryKey: ["team-doc", it.id], refetchType: "all" });
+      }
       sel.clear();
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),

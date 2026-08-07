@@ -102,6 +102,23 @@ def identity(
     }
 
 
+def identities_for(db: Session, authors: dict) -> dict[str, dict]:
+    """{user_id: identity(...)} — 여러 사람의 신원을 한 번에.
+
+    `app/board/router.py::_people_of` 가 처음 이 조립(조직명 1질의 + 사진 1질의 +
+    `identity()` 매핑)을 했다. 댓글이 있는 다른 자원(티켓·문서)이 **두 번째 소비자**가
+    되면서, 조립을 board 안에 그대로 두면 세 번째부터도 각자 인라인으로 다시 짤 판이었다
+    — 그래서 여기(신원의 단일 정의가 있는 자리)로 올린다.
+
+    `authors` 는 `{user_id: User}` — 호출부가 이미 작성자 행을 불러 둔 상태(댓글·글
+    작성자 조회)를 그대로 넘긴다. 여기서 다시 조회하지 않는 이유는 N+1 을 만들지
+    않기 위해서다(조직명 1질의 + 사진 1질의는 작성자 수와 무관하게 고정이다).
+    """
+    org_names = org_name_map(db)
+    avatars = avatar_map(db, authors.keys())
+    return {uid: identity(u, org_names, avatars) for uid, u in authors.items()}
+
+
 def affiliation(person: dict, *, with_org: bool = False) -> str:
     """'개발본부 팀장' 처럼 소속을 한 줄로. 비어 있는 조각은 건너뛴다.
 

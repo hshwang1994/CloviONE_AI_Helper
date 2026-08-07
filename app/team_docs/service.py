@@ -492,7 +492,13 @@ def _doc_or_404(db: Session, page_id: str, me: User) -> DocumentCache:
 
     403 은 "그 id 는 존재하지만 너는 못 본다" 를 알려 준다 -- 그걸 세면 남의 부서 문서의
     존재를 열거할 수 있다. 문구도 없는 문서와 같아야 한다.
+
+    휴지통 판정(H2)도 여기서 같이 본다 -- 네 댓글 함수(list/add/edit/delete)가 전부 이
+    함수 하나를 지나므로, 여기 한 번이면 네 곳 모두 지운 문서를 없는 것으로 본다. 따로따로
+    적으면 한 곳만 고치는 날 조용히 갈라진다(save_document_body 가 이미 그 갈라짐이었다 --
+    본문 저장만 ensure_doc_not_trashed 를 부르고 댓글은 안 불렀다).
     """
+    ensure_doc_not_trashed(db, page_id)
     doc = get_doc_in_scope(db, page_id, me)
     if doc is None:
         raise NotFoundError("문서를 찾을 수 없습니다.")
@@ -503,7 +509,7 @@ def list_document_comments(db: Session, *, page_id: str, me: User) -> dict:
     # 상세와 **같은 규칙**이어야 한다. 상세만 막고 댓글을 열어 두면 id 하나로 논의 전체가
     # 새는데, 그건 상세가 새는 것과 다르지 않다.
     _doc_or_404(db, page_id, me)
-    return {"comments": doc_comments.list_comments(db, page_id=page_id, me=me)}
+    return doc_comments.list_comments(db, page_id=page_id, me=me)
 
 
 def add_document_comment(
@@ -516,7 +522,7 @@ def add_document_comment(
     _notify_document_comment(db, doc=doc, author=me, now=now)
     return {
         "comment_id": created.id,
-        "comments": doc_comments.list_comments(db, page_id=page_id, me=me),
+        **doc_comments.list_comments(db, page_id=page_id, me=me),
     }
 
 
@@ -570,7 +576,7 @@ def edit_document_comment(
     _doc_or_404(db, comment.notion_page_id, me)
     doc_comments.ensure_can_edit(comment, me)
     doc_comments.update_comment(db, comment, body=body, now=now)
-    return {"comments": doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)}
+    return doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)
 
 
 def delete_document_comment(
@@ -581,4 +587,4 @@ def delete_document_comment(
     _doc_or_404(db, comment.notion_page_id, me)
     doc_comments.ensure_can_delete(comment, me)
     doc_comments.soft_delete_comment(db, comment, now=now)
-    return {"comments": doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)}
+    return doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)

@@ -22,10 +22,14 @@ import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey } from "./
 // related_object_type → 이동할 화면(딥링크 리졸버). 백엔드가 실제로 보내고, 대상 화면에서
 // 그 행에 닿을 수 있는 유형만 남긴다. schedule_run은 개별 실행을 보여 주는 화면이 없어
 // /schedules 목록으로 보내도 대상을 못 찾으므로 뺀다(정적 항목으로 자연스럽게 강등).
-// document/workflow/integration은 알림 관련 유형으로 발신되지 않는다. runner는 실제로
+// workflow/integration은 알림 관련 유형으로 발신되지 않는다. runner는 실제로
 // 발신된다 — app/runners/service.py가 서킷브레이커가 degraded로 트립할 때마다
 // notify_admins(type_="runner_unavailable", related=("runner", runner.id))를 보낸다
 // (product-quality-audit AREA=D: 이 항목의 이전 주석이 틀렸었다).
+// document(team_docs 댓글, app/team_docs/service.py::_notify_document_comment)는 이 표에
+// 없다 — 여기 없어도 딥링크가 빠지지 않는다: 서버가 app/notifications/destinations.py의
+// RELATED_DESTINATIONS에서 이미 "/team-docs/{id}"를 계산해 related_route로 실어 주므로
+// serverRoute(n)가 이 폴백 표보다 먼저 잡는다(위 42번째 줄 주석 참고).
 const OBJ_ROUTE = {
   approval: "/approvals", job: "/jobs", user: "/users", schedule: "/schedules", runner: "/runners",
 };

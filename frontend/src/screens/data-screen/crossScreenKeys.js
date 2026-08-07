@@ -15,4 +15,10 @@ export const CROSS_SCREEN_KEYS = {
   // "추가했는데 조직도에 없다"로 읽는다. 조직 이름·정지 상태도 트리 맨 윗줄에 실려 있다.
   organizations: [["org-tree"]],
   departments: [["org-tree"]],
+  // 대시보드의 "실패 작업"/"미해결 실패 작업" 타일은 이 화면과 같은 사실(jobs.failed_open,
+  // app/health/service.py)을 보여준다. 재시도·취소로 그 작업이 failed/queued 상태를
+  // 벗어나면 서버 값은 그 자리에서 바뀌지만, 대시보드는 별도 queryKey(["dashboard"])를
+  // 30초 폴링으로만 봐서 여기 매핑이 없으면 최대 30초 동안 옛 건수를 계속 보여준다
+  // (알림 화면이 예전에 벨을 못 갱신했던 것과 같은 부류의 결함, 위 notifications 주석 참고).
+  jobs: [["dashboard"]],
 };

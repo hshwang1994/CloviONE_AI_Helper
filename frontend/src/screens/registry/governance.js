@@ -307,16 +307,17 @@ export const GOVERNANCE_SCREENS = {
     actions: [
       // 대상 화면 중 일부(사용자·부서·직책·작업 큐)는 role이 이 감사 화면 자체보다 더 좁게 제한된다
       // (App.jsx SCREEN_ROLES) — auditor가 그 화면들에 못 들어가는데 버튼만 보이면 클릭 즉시 403이다.
-      // schedule_run은 제외한다 — '#/schedules'로 보내도 특정 실행 행을 찾아 주지 못한다(스케줄
-      // 화면에 그런 딥링크가 없다) — 알림 화면의 동일한 제외(registry.js notifications.actions)와 맞춘다.
       // 대상 유형이 OBJ_ID_PARAM에 있으면(workflow/integration/schedule/runner/job/user_notion_mapping/
       // document_generation) 그 화면이 ?id= 딥링크를 지원하므로 목록이 아니라 그 행 하나를 직접 연다
       // — 라벨도 실제 동작대로 '관련 항목 보기'로 구분한다(예전엔 이 딥링크 인프라가 있는데도 아무
       // 곳에서도 쓰지 않아, jobs.onQuery의 '감사 로그/알림에서 딥링크' 주석이 거짓이었다).
       { label: "관련 항목 보기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && !!OBJ_ID_PARAM[r.object_type] && !!r.object_id && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => objRouteHref(r.object_type, r.object_id) },
       // 그 외(딥링크 미지원 대상 유형, 또는 object_id 없음)는 여전히 목록 전체로만 이동한다 — 라벨을
-      // 실제 동작대로 정직하게 맞춘다.
-      { label: "관련 목록 열기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && r.object_type !== "schedule_run" && !(OBJ_ID_PARAM[r.object_type] && r.object_id) && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => OBJ_ROUTE[r.object_type] },
+      // 실제 동작대로 정직하게 맞춘다. schedule_run도 포함한다 — '#/schedules'로 보내도 특정 실행
+      // 행을 찾아 주지는 못하지만(스케줄 화면에 그런 딥링크가 없다), 목록 전체로라도 보내는 게 아무
+      // 동작도 없는 것보다는 낫다(알림 화면 registry/notifications.js가 이미 같은 이유로 schedule_run을
+      // 포함하도록 고쳐졌다 — 이 화면만 옛 제외를 그대로 두고 있었다).
+      { label: "관련 목록 열기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && !(OBJ_ID_PARAM[r.object_type] && r.object_id) && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => OBJ_ROUTE[r.object_type] },
     ],
   },
   "audit-anomalies": {

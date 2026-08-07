@@ -8,6 +8,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { AuthorLine } from "./Board.jsx";
 
 /* 댓글 타래 (티켓 · 문서 공용).
  *
@@ -45,14 +46,17 @@ function Tombstone({ comment }) {
   );
 }
 
-function CommentRow({ comment, busy, onEdit, onDelete }) {
+function CommentRow({ comment, person, busy, onEdit, onDelete }) {
   if (comment.deleted) return <Tombstone comment={comment} />;
   const edited = comment.updated_at && comment.updated_at !== comment.created_at;
   return (
     <Box sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 } }}>
       <Stack direction="row" gap={1} sx={{ alignItems: "baseline", flexWrap: "wrap", mb: 0.5 }}>
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-          {comment.author_name || "알 수 없음"}
+        {/* 댓글에서도 작성자의 소속·사진을 말한다(사용자 지시 #13/#8, 게시판과 같은 규칙) —
+            동명이인이면 이름 두 글자로는 "누가 답을 달았는지"에 답할 수 없다. Board.jsx의
+            AuthorLine을 그대로 쓴다: 자리를 두 벌로 만들면 규칙이 갈라진다. */}
+        <Typography variant="body2" component="div">
+          <AuthorLine name={comment.author_name} person={person} bold />
         </Typography>
         <TimeStamp value={comment.created_at} />
         {edited ? (
@@ -112,6 +116,10 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
   const busy = create.isPending || update.isPending || remove.isPending;
   const comments = (list.data && list.data.comments) || [];
   const liveCount = comments.filter((c) => !c.deleted).length;
+  /* 댓글 작성자의 신원(부서·직책·사진). 사람 한 명당 한 줄만 오고 댓글은 uid로 찾아
+   * 쓴다(Board.jsx의 people과 같은 모양) — 댓글마다 되풀이하면 응답이 부풀고, 옛
+   * 캐시·응답에는 없을 수 있다. */
+  const people = (list.data && list.data.people) || {};
 
   const submit = () => {
     const body = draft.trim();
@@ -166,6 +174,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
             <CommentRow
               key={c.id}
               comment={c}
+              person={people[c.author_user_id]}
               busy={busy}
               onEdit={() => { setEditingId(c.id); setEditDraft(c.body || ""); }}
               onDelete={() => askDelete(c.id)}

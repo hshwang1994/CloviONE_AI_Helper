@@ -39,6 +39,15 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # related 를 이미 ("ticket", page_id) 로 싣고 있었는데 표에 칸이 없어 목적지가 늘 null
     # 이었다. 한 표만 고치면 둘 다 따라오는 것이 이 표를 만든 이유다.
     "ticket": "/tickets/{id}",
+    # 팀 문서 댓글(document_comment) — 문서 상세로 바로 들어간다. id 는 Notion page id 이고
+    # `/team-docs/:id` 가 그 값을 그대로 `GET /api/team-docs/{page_id}` 에 쓴다
+    # (frontend/src/screens/TeamDoc.jsx). app/team_docs/service.py::_notify_document_comment 가
+    # related=("document", doc.notion_page_id) 로 이미 이 유형을 보내고 있었는데 표에 칸이
+    # 없어 related_route 가 늘 null 이었다 — 알림은 뜨는데 눌러도 아무 데도 안 갔다.
+    #
+    # 아래 document_ready 의 "document_generation" 과 이름이 비슷하지만 다른 자원이다 —
+    # 이건 team_docs(§17, Notion "문서" DB 미러)이고 그건 관리 콘솔의 문서 생성 작업이다.
+    "document": "/team-docs/{id}",
 }
 
 # 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라
@@ -46,6 +55,8 @@ RELATED_DESTINATIONS: dict[str, str] = {
 # (frontend/src/screens/registry.js 의 OBJ_ROUTE/OBJ_ID_PARAM)가 `document_generation` 으로
 # 들고 있다. 같은 지식을 여기 한 벌 더 쓰면 두 표가 어긋나는 날이 온다 — 그 화면이 단건
 # 라우트(`/documents/{id}`)를 갖게 되면 그때 여기 한 줄 추가하고 프런트 쪽을 지운다.
+# (related_object_type 은 "document_generation" 이라 위 team_docs 의 "document" 와 겹치지
+# 않는다 — app/jobs/handlers/document_generate.py 참고.)
 
 # 아직 표에 없는 관련 유형(approval / schedule / job / runner / user)은 **일부러** 비워 둔다.
 # 그 화면들은 전부 목록 화면(DataScreen)이라 경로에 id 자리가 없다 — 보내 봐야 목록만 열리고
