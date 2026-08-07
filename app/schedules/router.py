@@ -17,11 +17,13 @@ from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.jobs import repository as jobs_repo
+from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
 from app.schedules import cron
 from app.schedules.models import (
     RUN_FAILED,
     RUN_QUEUED,
     RUN_RUNNING,
+    RUN_SKIPPED,
     TARGET_SYSTEM,
     TARGET_WORKFLOW,
     TYPE_CRON,
@@ -737,5 +739,44 @@ def retry_run(request: Request, run_id: str, db: Session = Depends(get_db)):
     record_audit_from_request(
         request, db, action="schedule.retry_run", object_type="schedule_run",
         object_id=run.id,
+    )
+    return {"ok": True, "run": _run_view(run)}
+
+
+@router.post("/runs/{run_id}/cancel", dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))])
+def cancel_run(request: Request, run_id: str, db: Session = Depends(get_db)):
+    """실행 이력 화면(달력)이 run_id 만 갖고 있어 취소할 방법이 없다는 지적(M9)에 대한 응답.
+
+    `app/jobs/router.py::cancel` 은 job_id 기준이라 여기서는 못 쓴다 — ScheduleRun 에
+    job_id 를 직접 저장하는 컬럼이 없어(잡을 만들 때 payload 에 schedule_run_id 를 실어
+    보내는 반대 방향 참조만 있다), payload_json 에서 이 run_id 를 실은 대기/실행 중
+    잡을 거꾸로 찾는다. json.dumps 의 기본 구분자(`": "`, `", "`)가 안정적이라 값 앞뒤로
+    따옴표를 포함한 부분 문자열 매칭으로 충분하다(그러지 않으면 다른 run_id 의 부분
+    문자열과 우연히 겹칠 수 있다 — 값 전체를 따옴표로 감싸 매칭하면 그 위험이 없다)."""
+    run = db.get(ScheduleRun, run_id)
+    if run is None:
+        raise NotFoundError("실행 이력을 찾을 수 없습니다.")
+    if run.status not in (RUN_QUEUED, RUN_RUNNING):
+        raise ConflictError("대기 또는 실행 중인 실행만 취소할 수 있습니다.")
+    now = request.app.state.clock.now()
+
+    needle = f'"schedule_run_id": "{run.id}"'
+    job = db.execute(
+        select(Job).where(
+            Job.job_type == "schedule_run",
+            Job.status.in_([STATUS_QUEUED, STATUS_RUNNING]),
+            Job.payload_json.like(f"%{needle}%"),
+        )
+    ).scalars().first()
+    if job is not None:
+        jobs_repo.cancel_queued(db, job, now=now)
+
+    run.status = RUN_SKIPPED
+    run.finished_at = now
+    run.error_message = "운영자가 취소했습니다."
+    db.flush()
+    record_audit_from_request(
+        request, db, action="schedule.cancel_run", object_type="schedule_run",
+        object_id=run.id, after={"job_cancelled": job is not None},
     )
     return {"ok": True, "run": _run_view(run)}

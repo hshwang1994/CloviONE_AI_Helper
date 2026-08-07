@@ -27,6 +27,7 @@ import {
 import { fmtDateTime } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
+import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { SearchBox } from "../ui/filters.jsx";
@@ -379,14 +380,7 @@ export function TeamDocs() {
       {/* 필터가 일곱 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(DataScreen과 같은 규칙).
        * 화면이 넓어지면 열이 늘어 한 줄에 담긴다 — 4K에서 필터 바가 세 줄로 접히지 않게. */}
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-        <Box sx={{
-          display: "grid", gap: 1.5, alignItems: "center",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(auto-fit, minmax(11rem, 1fr))",
-            xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
-          },
-        }}>
+        <FilterBarGrid>
           <SearchBox
             value={q}
             onSearch={commitSearch}
@@ -412,7 +406,7 @@ export function TeamDocs() {
             sx={{ justifySelf: "start" }}
           />
           {hasFilter ? <Button size="sm" onClick={clearFilters}>필터 지우기</Button> : null}
-        </Box>
+        </FilterBarGrid>
         {/* 보기 전환. 필터 줄 안이 아니라 그 아래 오른쪽에 둔다 — 필터는 '무엇을 볼지',
             이건 '어떻게 볼지'다. 섞으면 필터를 하나 더 건 것처럼 읽힌다. */}
         <Box role="group" aria-label="목록 보기 방식"

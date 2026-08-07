@@ -16,6 +16,7 @@ import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
+import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 
 // 생성/수정 폼의 역할 선택지를 행위자 권한으로 제한한다. 서버는 비-system_admin이 관리자·시스템
@@ -419,14 +420,7 @@ export function Users() {
       {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
           늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다). */}
       <Card sx={{ p: 2, mb: 2.5 }}>
-        <Box sx={{
-          display: "grid", gap: 1.5, alignItems: "center",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(auto-fit, minmax(11rem, 1fr))",
-            xxl: "repeat(auto-fit, minmax(13rem, 1fr))",
-          },
-        }}>
+        <FilterBarGrid>
           <TextField
             type="search" size="small" value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="이메일 또는 이름 검색"
@@ -454,7 +448,7 @@ export function Users() {
           {query.isFetching && !query.isLoading ? (
             <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">불러오는 중…</Typography>
           ) : null}
-        </Box>
+        </FilterBarGrid>
       </Card>
 
       {deptFilter ? (

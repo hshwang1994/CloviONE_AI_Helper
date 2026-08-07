@@ -208,8 +208,40 @@ describe("실행 상세의 재시도 액션 (M9)", () => {
     expect(screen.queryByRole("button", { name: "재시도" })).not.toBeInTheDocument();
   });
 
-  it("취소 가능한 액션이 없으면 취소 버튼을 그리지 않는다(백엔드에 실행 취소 API가 없음)", async () => {
-    mockApi(() => Promise.resolve(bodyWithRun("queued")));
+  it("🔴 대기 중인 실행에는 취소 버튼이 있고, 확인 후 취소 API를 호출한다", async () => {
+    mockApi((path) => {
+      lastUrl = path;
+      if (path.startsWith("/api/admin/schedules/runs/")) {
+        return Promise.resolve({ ok: true, run: { id: "r-1", status: "skipped" } });
+      }
+      return Promise.resolve(bodyWithRun("queued"));
+    });
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    const cancelBtn = await screen.findByRole("button", { name: "취소" });
+    await userEvent.click(cancelBtn);
+    // 되돌릴 수 없는 부수효과(대기/실행 중인 작업을 실제로 중단)라 확인창을 거친다.
+    const buttons = await screen.findAllByRole("button", { name: "취소하기" });
+    await userEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith(
+      "/api/admin/schedules/runs/r-1/cancel",
+      expect.objectContaining({ method: "POST" }),
+    ));
+  });
+
+  it("실행 중인 실행에도 취소 버튼이 있다", async () => {
+    mockApi(() => Promise.resolve(bodyWithRun("running")));
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    expect(await screen.findByRole("button", { name: "취소" })).toBeInTheDocument();
+  });
+
+  it("성공/실패로 끝난 실행에는 취소 버튼이 없다", async () => {
+    mockApi(() => Promise.resolve(bodyWithRun("succeeded")));
     renderCalendar();
     const dot = await screen.findByTitle(/매일 리포트/);
     await userEvent.click(dot);

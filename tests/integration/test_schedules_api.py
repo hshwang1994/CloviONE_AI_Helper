@@ -263,6 +263,64 @@ def test_run_now_and_retry_failed_run(
     assert runs["items"][0]["status"] == "succeeded"
 
 
+def test_cancel_queued_run(client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http):
+    """M9 — 실행 상세(달력)는 run_id 만 갖고 있어 취소할 방법이 없었다.
+
+    job_id 기준 취소(app/jobs/router.py)만 있고 ScheduleRun→job_id 매핑 경로가 없어
+    '해결 불가'로 보고됐던 항목. run_id 로 직접 취소하는 엔드포인트를 신설했다.
+    """
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="취소 테스트"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+    client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+
+    r = client.post(
+        f"/api/admin/schedules/{created['id']}/run-now",
+        json={},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200
+    run_id = r.json()["run"]["id"]
+
+    # Worker 가 아직 안 돌았으니 대기(queued) 상태다 — 지금 취소한다.
+    r = client.post(
+        f"/api/admin/schedules/runs/{run_id}/cancel", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+    assert r.json()["run"]["status"] == "skipped"
+
+    runs = client.get(
+        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
+    ).json()
+    assert runs["items"][0]["status"] == "skipped"
+
+    # 연결된 잡도 함께 취소돼, 워커가 나중에 돌아도 이 run 을 다시 처리하지 않는다.
+    ctx = WorkerContext(
+        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
+    )
+    worker = Worker(
+        app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
+    )
+    fake_clock.advance(1)
+    processed = worker.run_once()
+    assert processed is False  # 취소된 잡은 더 이상 대기 상태가 아니라 워커가 집을 게 없다
+
+    # 이미 끝난(skipped) 실행을 또 취소하면 거부된다.
+    r = client.post(
+        f"/api/admin/schedules/runs/{run_id}/cancel", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 409
+
+
+def test_cancel_run_rejects_unknown_run(client, admin_csrf):
+    r = client.post(
+        "/api/admin/schedules/runs/does-not-exist/cancel", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 404
+
+
 def test_write_workflow_with_approval_rejected_at_create(client, admin_csrf):
     # 승인이 필요한 write workflow를 스케줄로 자동 실행하면 매번 반드시 실패한다(스케줄 실행에는
     # payload.approved를 채울 사람이 없다) — 절대 성공할 수 없는 조합이므로 예전처럼 생성을 허용해

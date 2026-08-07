@@ -150,20 +150,28 @@ export function SchedulerCalendar() {
     retry: false,
   });
 
-  /* 실패한 실행의 재시도(M9, 운영 백로그) — app/schedules/router.py
-   * `POST /api/admin/schedules/runs/{run_id}/retry` 를 그대로 호출한다.
+  /* 실패한 실행의 재시도 + 대기/실행 중인 실행의 취소(M9, 운영 백로그) —
+   * app/schedules/router.py 의 `POST /api/admin/schedules/runs/{run_id}/retry` 와
+   * `POST /api/admin/schedules/runs/{run_id}/cancel` 을 그대로 호출한다.
    *
-   * **취소는 여기 없다.** 취소는 app/jobs/router.py 에 있지만 `job_id` 로 찾는데, 이
-   * 달력 이벤트(app/schedules/router.py:calendar)는 `run_id`(ScheduleRun.id)만 주고
-   * `job_id` 로 잇는 경로가 없다(ScheduleRun 테이블에 job_id 컬럼이 없고, Job 목록
-   * API 도 payload 안의 schedule_run_id 로 거꾸로 찾는 필터가 없다) — 있는 척 버튼만
-   * 달면 눌러도 아무 일도 안 하거나 엉뚱한 job을 취소하게 된다. 필요 API:
-   * `POST /api/admin/schedules/runs/{run_id}/cancel`(또는 calendar 응답에 job_id 를
-   * 실어 기존 jobs 취소 API로 잇기) 가 생기면 그때 추가한다. */
+   * 취소는 처음엔 app/jobs/router.py 의 job_id 기준 취소만 있었다 — 이 달력 이벤트는
+   * run_id(ScheduleRun.id)만 주고 job_id 로 잇는 경로가 없어서(ScheduleRun 에 job_id
+   * 컬럼이 없다) 있는 척 버튼만 달면 눌러도 아무 일도 안 하거나 엉뚱한 job을 취소하게
+   * 됐을 것이다. run_id 로 직접 받는 취소 엔드포인트를 신설해 해결했다. */
   const retryRun = useMutation({
     mutationFn: (runId) => api("/api/admin/schedules/runs/" + runId + "/retry", { method: "POST", body: {} }),
     onSuccess: () => {
       toast("실행을 다시 대기열에 넣었습니다.", "success");
+      qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
+      setSelected(null);
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const cancelRun = useMutation({
+    mutationFn: (runId) => api("/api/admin/schedules/runs/" + runId + "/cancel", { method: "POST", body: {} }),
+    onSuccess: () => {
+      toast("실행을 취소했습니다.", "success");
       qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
       setSelected(null);
     },
@@ -177,6 +185,15 @@ export function SchedulerCalendar() {
       { title: "실행 재시도", confirmLabel: "재시도" },
     );
     if (ok) retryRun.mutate(selected.run_id);
+  }
+
+  async function cancelSelectedRun() {
+    if (!selected) return;
+    const ok = await confirm(
+      "이 실행을 취소할까요? 대기 중이거나 실행 중인 작업이 중단됩니다.",
+      { title: "실행 취소", confirmLabel: "취소하기" },
+    );
+    if (ok) cancelRun.mutate(selected.run_id);
   }
 
   const cells = React.useMemo(() => buildGrid(cursor.year, cursor.month), [cursor]);
@@ -393,6 +410,12 @@ export function SchedulerCalendar() {
           {selected && selected.kind !== "planned" && selected.status === "failed" && canOps ? (
             <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending}>
               {retryRun.isPending ? "재시도 중…" : "재시도"}
+            </Button>
+          ) : null}
+          {/* 대기/실행 중인 실행만 취소할 수 있다(백엔드 cancel_run 이 RUN_QUEUED/RUN_RUNNING 만 허용). */}
+          {selected && selected.kind !== "planned" && (selected.status === "queued" || selected.status === "running") && canOps ? (
+            <Button variant="danger" onClick={cancelSelectedRun} disabled={cancelRun.isPending}>
+              {cancelRun.isPending ? "취소하는 중…" : "취소"}
             </Button>
           ) : null}
           <Button
