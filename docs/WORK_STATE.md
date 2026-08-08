@@ -38,8 +38,10 @@ worktree 정리 · 이 문서들 작성.
 | C0-3c | 정적 검사 · 마이그레이션 리허설 | ✅ 완료 | `STATIC_CHECKS_OK` · `REHEARSAL_OK`(왕복 후 스키마·76테이블 행수 동일, `integrity_check ok`) |
 | C0-2 | **HEAD를 테스트 서버에 배포** | ✅ 완료 | `UPGRADE_OK` → `DEPLOY_VERIFY_OK`(healthz/readyz 200, 정적 자산 **30/30 새 번들**, 새 라우트 401, CSP 새 정책). 파일 해시 5종 로컬=서버 일치, 번들명 `AdminRoutes.2BH7K_x6.js` 일치 |
 | C0-4 | QA 하네스 라우트 보강 | ✅ 완료 | 62 → **70 라우트**(`/projects`·`/projects/:id`·`/ideas`·`/system`·`/setup`·`/notion-console`·`/llm-console`). 원격 강제 비밀번호 변경 처리도 추가 |
-| C0-5 | 역할별 QA 계정 4개 | ⏳ 다음 | 서버 계정 14개 중 **operator·auditor가 0명**, `user`는 비활성 1명뿐이라 역할 매트릭스 재현 불가임을 확인 |
-| C0-6 | QA 하네스 전체 매트릭스 1회 실행 | ⏳ 다음 | SSH 터널 경유 |
+| C0-5 | 역할별 QA 계정 4개 | ✅ 완료 | `qa-user`·`qa-operator`·`qa-auditor`·`qa-admin` 생성. 서버 실계정 14개 중 12개가 `admin`이고 **operator·auditor가 0명**이라 역할 매트릭스를 재현할 방법이 애초에 없었다 |
+| C0-6 | 하네스 원격 대응 | ✅ 완료 | `--insecure`(터널 불가 이유는 [DECISIONS D-05a](DECISIONS.md)) + 원격 강제 비밀번호 변경 처리. qa-admin으로 실서버 캡처 성공 |
+| C0-8 | **첫 실환경 전 라우트 캡처** `c1-admin` | 🔄 진행 중 | 70라우트 × 2테마 × 1920·3840 = 272페이지, `--modals`. **이미 나온 것: 4K에서 `tiny_text` 29건 실패**(SPA 전 화면, Jinja 로그인만 통과) → `DS-32`로 원인까지 확정 |
+| C0-9 | 실화면 눈 판독 | 🔄 진행 중 | `/projects`·`/schedules`·`/chat` 3화면에서 **23건**(`VIS-01`~`VIS-23`). **그 3화면은 기계 검사 21종을 전부 통과했다** — "안 깨졌는가"와 "좋은 제품인가"가 다르다는 증거 |
 | C0-7 | `git worktree prune` (잔재 88개) | 보류 | `du`가 2분 타임아웃 날 만큼 큼. 번들 스크립트가 `.claude`를 이미 제외하므로 배포 차단 요인은 아님 |
 
 **조사 완료 영역** — 결과는 전부 [BACKLOG.md](BACKLOG.md)에 항목화(총 197건):
