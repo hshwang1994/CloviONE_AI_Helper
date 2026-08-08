@@ -18,8 +18,8 @@
 
 ## 0. 한 줄 요약
 
-**조사는 아직 수렴하지 않았다.** BACKLOG **269건**(사이클 0에서 대부분 신규). 판독한 화면 5/70에서
-38건이 나왔고 **화면당 약 6~8건 속도가 유지되고 있다** — 남은 65개 화면에서 새 결함이 계속 나온다는
+**조사는 아직 수렴하지 않았다.** BACKLOG **289건**(사이클 0에서 대부분 신규). 판독한 화면 **10/70**에서
+**63건**이 나왔고 화면당 약 6건 속도가 유지되고 있다 — 남은 65개 화면에서 새 결함이 계속 나온다는
 뜻이므로 Sonnet 인계 기준(§5)을 아직 못 넘었다. 다음에 무엇을 집어 들지는 §3에 있다.
 
 ---
@@ -49,7 +49,7 @@ worktree 정리 · 이 문서들 작성.
 | C0-5 | 역할별 QA 계정 4개 | ✅ 완료 | `qa-user`·`qa-operator`·`qa-auditor`·`qa-admin` 생성. 서버 실계정 14개 중 12개가 `admin`이고 **operator·auditor가 0명**이라 역할 매트릭스를 재현할 방법이 애초에 없었다 |
 | C0-6 | 하네스 원격 대응 | ✅ 완료 | `--insecure`(터널 불가 이유는 [DECISIONS D-05a](DECISIONS.md)) + 원격 강제 비밀번호 변경 처리. qa-admin으로 실서버 캡처 성공 |
 | C0-8 | **첫 실환경 전 라우트 캡처** `c1-admin` | ✅ 완주 | 272페이지. **21검사 중 20개는 전 페이지 통과**, `tiny_text`만 134 fail(3840 전용, 1920은 skip). 모달 **512개를 실제로 열어** 7가지 기하 검사 전부 통과(공허한 pass 아님 — `capture.py:370` 가드 확인) |
-| C0-9 | 실화면 눈 판독 | 🔄 **5/70** | `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트)·`/me` + `/dashboard`(다크)에서 **38건**(`VIS-01`~`38`). **그 화면들은 기계 검사 21종을 전부 통과했다** |
+| C0-9 | 실화면 눈 판독 | 🔄 **10/70** | `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트·다크)·`/me`·`/users`·`/team-docs`·`/settings`·`/audit`·`/my-tickets`(4K)에서 **63건**(`VIS-01`~`63`). **그 화면들은 기계 검사 21종을 전부 통과했다.** `/audit`(100행)에서만 밀도 문제가 드러났다 — **데이터 많은 화면을 우선 판독해야 새 범주가 나온다** |
 | C0-10 | 미감사 영역 추가 조사 | ✅ 완료 | `app/core`(12) · 미감사 19모듈(59) · registry 28화면↔API(8) · **러너 `assistant.py`(20, 라우터를 실제 실행해 재현)** |
 | C0-7 | `git worktree prune` (잔재 88개) | 보류 | `du`가 2분 타임아웃 날 만큼 큼. 번들 스크립트가 `.claude`를 이미 제외하므로 배포 차단 요인은 아님 |
 
@@ -71,7 +71,7 @@ worktree 정리 · 이 문서들 작성.
 
 1. **PNG 판독을 계속한다** (가장 생산적). `dist/ui-qa-admin/c1-admin/{light,dark}/{1920x1080,3840x2160}/`에
    70라우트 × 2테마 × 2뷰포트가 있다. 판독한 것: `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트)
-   + `/dashboard`(다크). **아직 안 본 것 65개.** 판정 기준은 [DECISIONS](DECISIONS.md) D-06~D-12.
+   + `/dashboard`(다크). **아직 안 본 것 60개.** 데이터가 많은 화면(`/board`·`/games`·`/chat-rooms`·`/jobs`·`/notifications`)을 우선한다 — `/audit` 100행에서만 밀도 문제가 처음 나왔다. 판정 기준은 [DECISIONS](DECISIONS.md) D-06~D-12.
 2. **`DS-32` 두 줄 고치고 재실행해 확인**한다 — `TopSearch.jsx:68` `fontSize:"11px"` +
    `Mascot.jsx:364` `fontSize="10px"`. `results.json`의 samples가 페이지마다 이 둘만 지목하므로
    **134건이 한 번에 사라질 것으로 본다**(확인 필요). 두 번째는 `sx`가 아니라 prop이라 grep에
