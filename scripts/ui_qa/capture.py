@@ -57,9 +57,16 @@ class Viewport:
 
 # The matrix from the QA brief: phone, tablet, laptop, FHD, QHD, 3K, 4K, plus a
 # FHD pass at dsf=2 which is what a 4K panel at 200% OS scaling actually reports.
+#
+# ⚠️ `1200x900` 은 나중에 **결함을 실제로 잡아서** 추가했다. 원래 목록은 768 다음이 1366 이라
+# 그 사이가 통째로 비어 있었는데, 표가 카드로 접히는 폭(≤899.95px)과 열이 넉넉해지는 폭(1366)
+# **사이**에서만 `vertical_text_collapse` 가 난다. 1199·1201 양쪽에서 재현되므로 브레이크포인트
+# 교차 문제가 아니라 "그 근처 폭에서는 표가 좁다" 는 문제이고, 노트북·반쪽 창에서 가장 흔한
+# 폭이다. 경계에서 먼 안전한 값만 재면 이런 것은 영원히 안 보인다.
 VIEWPORTS: tuple[Viewport, ...] = (
     Viewport("390x844", 390, 844),
     Viewport("768x1024", 768, 1024),
+    Viewport("1200x900", 1200, 900),
     Viewport("1366x768", 1366, 768),
     Viewport("1920x1080", 1920, 1080),
     Viewport("2560x1440", 2560, 1440),
