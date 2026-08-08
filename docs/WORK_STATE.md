@@ -55,12 +55,27 @@ worktree 정리 · 이 문서들 작성.
 
 ---
 
-## 3. 다음 작업
+## 3. 다음 작업 (이어받는 사람이 그대로 집어 들 수 있게)
 
-1. C0-2 **HEAD 배포**를 끝낸다 — 이게 안 되면 이후 Chrome 조사가 통째로 오염된다(아래 Blocker B-1).
-2. C0-4 QA 하네스를 서버에 겨누고 전체 매트릭스 1회 실행 → PNG 판독 → BACKLOG 반영.
-3. 사이클 1 전수조사: 아직 아무도 안 본 영역부터(§4 Coverage 공백).
-4. 사이클 2 이후 수렴할 때까지 반복.
+**조사는 아직 수렴하지 않았다.** 판독한 화면 5개에서 31건이 나왔고 **화면당 약 6건 속도가
+유지되고 있다** — 남은 65개 화면에서 새 결함이 계속 나온다는 뜻이다.
+
+1. **PNG 판독을 계속한다** (가장 생산적). `dist/ui-qa-admin/c1-admin/{light,dark}/{1920x1080,3840x2160}/`에
+   70라우트 × 2테마 × 2뷰포트가 있다. 판독한 것: `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트)
+   + `/dashboard`(다크). **아직 안 본 것 65개.** 판정 기준은 [DECISIONS](DECISIONS.md) D-06~D-12.
+2. **`DS-32` 한 줄 고치고 재실행해 확인**한다 — `TopSearch.jsx:68`의 `fontSize:"11px"`.
+   앱 전체에서 12px 미만은 이것 하나뿐이라 **67건이 한 번에 사라질 것으로 본다**(확인 필요).
+3. **역할 매트릭스 실행**. 계정은 만들어 뒀다(`qa-user`/`qa-operator`/`qa-auditor`/`qa-admin`,
+   비밀번호는 `dist/ui-qa-*/credentials.json`). 역할별로 `--out-dir`을 따로 줘야 세션이 안 섞인다:
+   ```bash
+   UI_QA_EMAIL=qa-operator@goodmit.co.kr UI_QA_PASSWORD=... UI_QA_ROLE=operator \
+   .venv/Scripts/python.exe -u -m scripts.ui_qa.run --label c1-operator --insecure --modals \
+     --base-url https://clovirone-ai.gooddi.lab --viewports 1920x1080 --out-dir dist/ui-qa-operator
+   ```
+   보는 것: 메뉴 노출 · 데이터 범위 · "눌렀더니 403" 막다른 길 · `SEC-01`·`UB-01`·`UA-02` 재현.
+4. **`F`~`L` 축은 아직 0%다** — 실제 조작·결과 데이터·관련 화면 반영·Console/Network.
+   [QA_COVERAGE](QA_COVERAGE.md) §7의 흐름 9개가 착수 대상이다.
+5. **미판독 영역**: 러너(`assistant.py` 5,890줄)와 registry 28화면 설정↔API 대조는 조사 중이다.
 
 ---
 
