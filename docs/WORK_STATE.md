@@ -53,7 +53,7 @@ worktree 정리 · 이 문서들 작성.
 | C0-10 | 미감사 영역 추가 조사 | ✅ 완료 | `app/core`(12) · 미감사 19모듈(59) · registry 28화면↔API(8) · **러너 `assistant.py`(20, 라우터를 실제 실행해 재현)** |
 | C0-7 | `git worktree prune` (잔재 88개) | 보류 | `du`가 2분 타임아웃 날 만큼 큼. 번들 스크립트가 `.claude`를 이미 제외하므로 배포 차단 요인은 아님 |
 
-**조사 완료 영역** — 결과는 전부 [BACKLOG.md](BACKLOG.md)에 항목화(총 197건):
+**조사 완료 영역** — 결과는 전부 [BACKLOG.md](BACKLOG.md)에 항목화(총 **269건**):
 프런트 디자인 시스템 · 백엔드 기능/RBAC/배선 · 빌드/배포/테스트 · AI 도우미(백엔드 파이프라인 +
 프런트 UX) · **`app/core/`(사상 최초)** · **미감사 모듈 19개(사상 최초)**.
 
@@ -66,14 +66,16 @@ worktree 정리 · 이 문서들 작성.
 
 ## 3. 다음 작업 (이어받는 사람이 그대로 집어 들 수 있게)
 
-**조사는 아직 수렴하지 않았다.** 판독한 화면 5개에서 31건이 나왔고 **화면당 약 6건 속도가
-유지되고 있다** — 남은 65개 화면에서 새 결함이 계속 나온다는 뜻이다.
+**조사는 아직 수렴하지 않았다.** 판독한 화면 5개에서 **43건**이 나왔고 화면당 6~9건 속도가
+유지되고 있다 — 남은 65개 화면에서 새 결함이 계속 나온다는 뜻이다.
 
 1. **PNG 판독을 계속한다** (가장 생산적). `dist/ui-qa-admin/c1-admin/{light,dark}/{1920x1080,3840x2160}/`에
    70라우트 × 2테마 × 2뷰포트가 있다. 판독한 것: `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트)
    + `/dashboard`(다크). **아직 안 본 것 65개.** 판정 기준은 [DECISIONS](DECISIONS.md) D-06~D-12.
-2. **`DS-32` 한 줄 고치고 재실행해 확인**한다 — `TopSearch.jsx:68`의 `fontSize:"11px"`.
-   앱 전체에서 12px 미만은 이것 하나뿐이라 **67건이 한 번에 사라질 것으로 본다**(확인 필요).
+2. **`DS-32` 두 줄 고치고 재실행해 확인**한다 — `TopSearch.jsx:68` `fontSize:"11px"` +
+   `Mascot.jsx:364` `fontSize="10px"`. `results.json`의 samples가 페이지마다 이 둘만 지목하므로
+   **134건이 한 번에 사라질 것으로 본다**(확인 필요). 두 번째는 `sx`가 아니라 prop이라 grep에
+   안 걸린다 — 정적 검사를 만들 때 두 형태를 모두 봐야 한다.
 3. **역할 매트릭스 실행**. 계정은 만들어 뒀다(`qa-user`/`qa-operator`/`qa-auditor`/`qa-admin`,
    비밀번호는 `dist/ui-qa-*/credentials.json`). 역할별로 `--out-dir`을 따로 줘야 세션이 안 섞인다:
    ```bash
@@ -84,7 +86,10 @@ worktree 정리 · 이 문서들 작성.
    보는 것: 메뉴 노출 · 데이터 범위 · "눌렀더니 403" 막다른 길 · `SEC-01`·`UB-01`·`UA-02` 재현.
 4. **`F`~`L` 축은 아직 0%다** — 실제 조작·결과 데이터·관련 화면 반영·Console/Network.
    [QA_COVERAGE](QA_COVERAGE.md) §7의 흐름 9개가 착수 대상이다.
-5. **미판독 영역**: 러너(`assistant.py` 5,890줄)와 registry 28화면 설정↔API 대조는 조사 중이다.
+5. **판독 대상 우선순위 제안**: 아직 안 본 65개 중 `/team-docs`·`/board`·`/games`·`/my-tickets`·
+   `/tickets/:id`·`/sprint`(사용자 핵심 흐름)와 `/settings`·`/audit`·`/notion-console`·`/llm-console`
+   (관리자 밀도 높은 화면)을 먼저 보면 새 범주가 나올 가능성이 크다. 4K(3840) PNG도 같이 본다 —
+   1920만 보면 `DS-24`(`xl` 구간 미지정) 같은 것이 안 드러난다.
 
 ---
 
@@ -107,7 +112,7 @@ worktree 정리 · 이 문서들 작성.
 |---|---|---|---|
 | ~~B-1~~ | ~~테스트 서버가 HEAD가 아니다~~ | — | **✅ 해소됨** (2026-08-08 10:01, `UPGRADE_OK`+`DEPLOY_VERIFY_OK`). 이제 서버 = HEAD이므로 실물 조사 결과를 신뢰할 수 있다 |
 | **B-2** | **Chrome 확장 미연결.** `mcp__claude-in-chrome__list_connected_browsers` → `[]` (4회 확인) | Chrome MCP 검증 불가(콘솔·네트워크 탭·수동 조작·폭 실시간 변경) | **사용자 조치 필요**: 확장이 Claude Code와 **같은 claude.ai 계정**으로 로그인됐는지 · 설치 후 Chrome 재시작 · 확장 팝업에서 연결 버튼 클릭. 그 전까지 Playwright 하네스(실제 Chromium·실제 로그인·실제 서버 DB)로 대체하고 PNG를 직접 판독 |
-| B-3 | QA 하네스가 자체서명 HTTPS를 못 탄다 (`run.py:52` `urlopen`, `new_context()`에 TLS 예외 없음) | 서버를 직접 못 겨눔 | SSH 터널로 우회(하네스 무수정). CSP는 nginx가 아니라 `app/core/middleware.py`가 내므로 검사 대상 유지 — 확인함 |
+| ~~B-3~~ | ~~하네스가 자체서명 HTTPS를 못 탄다~~ | — | **✅ 해소됨** — `--insecure` 추가. **SSH 터널은 쓰면 안 된다**(서버가 `COOKIE_SECURE=true`라 Playwright API 클라이언트가 http로 세션 쿠키를 안 싣는다, [DECISIONS D-05a](DECISIONS.md)) |
 
 ---
 
