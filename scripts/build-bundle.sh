@@ -56,7 +56,15 @@ echo "== build offline wheelhouse (manylinux cp312) =="
 "$PY" -m pip download --only-binary=:all: -d "$STAGE/wheels" pip setuptools wheel || true
 
 echo "== manifest =="
-( cd "$STAGE" && find . -type f -exec sha256sum {} + > MANIFEST.sha256 )
+# `! -name MANIFEST.sha256` 가 없으면 안 된다. 리다이렉트가 find 보다 먼저 파일을 만들기 때문에
+# find 가 그 빈 파일을 목록에 넣고 그때의 해시(=빈 파일)를 적는데, 다 쓰고 나면 내용이 달라져
+# **자기 자신과 절대 일치하지 않는다.** 그 결과 `sha256sum -c MANIFEST.sha256` 이 모든 번들에서
+# 항상 "1 computed checksum did NOT match" 로 exit 1 이었다.
+#
+# 늘 실패하는 검사는 없는 검사보다 나쁘다 — 운영자가 그 한 줄을 정상으로 학습하고 나면, 진짜로
+# 파일 하나가 깨진 번들도 똑같아 보인다. 실제로 이 저장소의 배포 절차서가 이 명령을 무결성
+# 확인 단계로 적어 두고 있다(docs/MAINTENANCE_PLAYBOOK.md §2-3).
+( cd "$STAGE" && find . -type f ! -name MANIFEST.sha256 -exec sha256sum {} + > MANIFEST.sha256 )
 
 echo "== tarball =="
 tar czf "$OUT/clovirone-web-assistant-bundle.tar.gz" -C "$OUT" stage

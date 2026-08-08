@@ -264,7 +264,30 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
         if not user:
             raise AuthError("로그인은 됐지만 /api/me가 인증을 인정하지 않습니다.")
         if user.get("must_change_password"):
-            raise AuthError("계정이 여전히 비밀번호 변경 강제 상태입니다.")
+            # 여기서 그냥 죽으면 **원격 서버를 겨눈 실행이 통째로 불가능하다.**
+            #
+            # 강제 변경 해제는 지금까지 `_provision` 경로에만 있었다. 그 경로는 로컬
+            # `python -m app.cli.user_cli` 를 부르므로 **로컬 DB 에만 통한다.** 서버를 겨눌 때는
+            # 계정을 서버에서 미리 만들어 두고 UI_QA_EMAIL/UI_QA_PASSWORD 로 로그인하는데,
+            # `user_cli add` 도 `passwd` 도 항상 must_change_password=True 로 남기기 때문에
+            # (app/users/service.py) 로그인은 되지만 여기서 예외로 끝났다.
+            #
+            # 로그인에 성공했다는 것은 현재 비밀번호를 알고 있다는 뜻이므로, 실제 화면으로
+            # 변경을 끝내면 된다 — 프로비저닝 경로가 하던 것과 같은 일이다.
+            if not password:
+                raise AuthError(
+                    "계정이 비밀번호 변경 강제 상태인데 현재 비밀번호를 모릅니다"
+                    "(캐시된 세션만 있고 자격증명이 없음). --rebuild-auth 로 다시 시도하세요.")
+            changed = _generate_password()
+            log(f"[auth] 계정이 비밀번호 변경 강제 상태 → 변경 화면에서 해제: {email}")
+            _complete_forced_change(page, base_url, password, changed)
+            password = changed
+            _save_credentials(creds_path, email, changed)
+            user = _fetch_me(context, base_url)
+            if not user:
+                raise AuthError("비밀번호는 바꿨는데 /api/me가 인증을 인정하지 않습니다.")
+            if user.get("must_change_password"):
+                raise AuthError("비밀번호를 바꿨는데도 강제 변경 상태가 풀리지 않았습니다.")
         context.storage_state(path=str(state_path))
         session = QaSession(email=user["email"], user_id=user["id"], role=user["role"],
                             display_name=user.get("display_name") or "",

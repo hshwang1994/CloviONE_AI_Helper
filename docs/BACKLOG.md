@@ -11,21 +11,31 @@
 > 관련: [IDEAS_BACKLOG.md](IDEAS_BACKLOG.md)(미확정 아이디어, 다른 목적) ·
 > [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)(구조적 한계) · [DECISIONS.md](DECISIONS.md)
 
-**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 96
+**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 197
 
 ---
 
 ## 요약
 
-| 영역 | High | Med | Low | 계 |
-|---|---|---|---|---|
-| [DS 디자인 시스템](#ds--디자인-시스템) | 6 | 12 | 5 | 23 |
-| [AI AI 도우미·채팅](#ai--ai-도우미채팅) | 9 | 16 | 8 | 33 |
-| [FN 기능·API·DB](#fn--기능apidb) | 3 | 9 | 6 | 18 |
-| [SEC 권한·보안](#sec--권한보안) | 1 | 2 | 2 | 5 |
-| [IA 정보구조](#ia--정보구조검색) | 0 | 4 | 1 | 5 |
-| [QA 검증 인프라](#qa--검증-인프라) | 3 | 5 | 0 | 8 |
-| [DOC 문서 정합성](#doc--문서-정합성) | 0 | 2 | 4 | 6 |
+| 영역 | 항목 | 성격 |
+|---|---|---|
+| [DS 디자인 시스템](#ds--디자인-시스템) | DS-01~31 (31) | 토큰·Variant·Typography·Color·Card·반응형·다크. High 6 |
+| [AI AI 도우미·채팅](#ai--ai-도우미채팅) | AI-01~50 (50) | 고장·아키텍처·기억·능력·프런트. High 11 |
+| [FN 기능·API·DB](#fn--기능apidb) | FN-01~20 (20) | 고아 엔드포인트·죽은 조작판·죽은 스키마. High 2 |
+| [SEC 권한·보안](#sec--권한보안) | SEC-01~05 (5) | 권한 경계·스코프·CSRF. High 1 |
+| [IA 정보구조](#ia--정보구조검색) | IA-01~05 (5) | 관리자 IA·검색 역할 분리 |
+| [QA 검증 인프라](#qa--검증-인프라) | QA-01~09 (9) | 배포 동기화·시각 QA·시간 의존 테스트·번들 무결성. High 4 |
+| [DOC 문서 정합성](#doc--문서-정합성) | DOC-01~06 (6) | 코드와 어긋난 문서 |
+| [CORE `app/core/`](#core--appcore-전수조사-사이클-0) | CORE-01~12 (12) | **한 번도 감사된 적 없는 인프라 계층.** High 1 |
+| [UB 미감사 batch 1](#ub--미감사-모듈-전수조사-사이클-0-batch-1) | UB-01~30 (30) | announcements·impersonation·quotas·observability·templates·prompts·conversations. High 3 |
+| [UA 미감사 batch 2](#ua--미감사-모듈-전수조사-사이클-0-batch-2) | UA-01~29 (29) | home·assistant·reports·sprints·trash·documents·backups·org·offboarding·audit·llm. High 3 |
+
+**사이클 0에서 새로 드러난 것 중 가장 무거운 것**(전부 직접 재확인함):
+`UA-01` 전사 생산성 데이터가 아무 인증 사용자에게 노출 · `UA-02` org 스코프 관리자가 스프린트
+스코프를 통째로 우회 · `UA-03` 백업이 도는 동안 앱의 모든 쓰기가 잠김 · `UB-01` 부서 admin이
+전사 배너를 띄움 · `UB-02` 전역 AI 상한이 강제와 표시가 서로 다른 것을 셈 · `UB-03` 로그아웃이
+임퍼소네이션 기록을 영원히 "진행 중"으로 남김 · `CORE-01` 워커 리스를 두 프로세스가 동시에 잡음 ·
+`SEC-01` Notion 신원 결속에 권한 경계 누락.
 
 우선순위는 [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md)의 사이클 순서를 따른다.
 
@@ -64,7 +74,7 @@
 | DS-18 | Med | **토큰이 4벌** — `ui/theme.js`(MUI rem) · `styles/tokens.css`(145변수) · `ui/density.js`(px→rem) · `app/static/css/tokens.css`(Jinja 사본) | | 발견 |
 | DS-19 | Med | **`kit.css`가 `sx`와 동일 명시도(0,1,0)로 7요소에서 충돌** — 승자가 스타일 주입 순서에 달렸다(`.k-empty` flex vs grid, `.k-stat`, `.k-badge`, `.k-page-head`, `.k-field`, `.c-toolbar-card`, `.c-list-card`) | `ui/kit.css` | 발견 |
 | DS-20 | Low | **`screens.css` 240클래스 중 138(58%)이 미참조.** 죽은 계열: `.chat-*` 30 · `.game-*` 25 · `.devrep-*` 12 · `.board-*` 13 · `.doc-*` 10 | `styles/screens.css` | 발견 |
-| DS-21 | Low | **`.c-screen`이 유령 클래스** — 39곳에 붙어 있는데 기본 규칙이 없고 자식 margin 2줄뿐. 9개 화면은 아예 안 붙어 있어 페이지 리듬이 다르다 | `styles/screens.css:307-308` | 발견 |
+| DS-21 | Med | **`.c-screen`이 유령 클래스** — 39곳에 붙어 있는데 기본 규칙이 없고 자식 margin 2줄뿐. 9개 화면은 아예 안 붙어 있어 페이지 리듬이 다르다. **주목할 상관관계: 시각 QA 밖에 있던 `SystemOps`·`SetupWizard`·`NotionConsole`·`LlmConsole` 4화면이 전부 `c-screen` 0건이고 그중 3개는 `EmptyState`도 0건이다** — 아무도 안 본 화면이 규약에서 가장 멀리 떠내려갔다. 검사 공백과 품질 드리프트가 같은 자리에 있다 | `styles/screens.css:307-308`; 4화면 직접 대조 | 발견 |
 | DS-22 | Low | **`ui/Pager.jsx`가 `Activity.jsx`에 복붙**됐고 동작이 갈라졌다(원본은 1페이지에서 `null`, 복사본은 항상 렌더) | `Activity.jsx:175-189` vs `ui/Pager.jsx:18-24` | 발견 |
 | DS-23 | Low | **관리자 표 안 링크가 브라우저 기본 파란/보라 밑줄** — `columnHelpers`가 맨 `<a>`/`<ul>`/`<div>`를 뱉고 `a{}` 규칙이 없다. `registry/shared.js:74-75`는 raw `style` 객체 | `data-screen/columnHelpers.jsx:17-23,66,75-86` | 발견 |
 
@@ -247,7 +257,130 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 | QA-05 | Med | **QA 하네스가 역할 1종(system_admin)으로만 돈다** — 역할별 메뉴 노출·데이터 범위·403 막다른 길을 실물에서 못 본다 | `scripts/ui_qa/auth.py:44` | 작업예정 |
 | QA-06 | Med | **전체 백엔드 스위트가 HEAD에서 완주된 적 없다**(라운드 14가 환경 이벤트로 두 번 중단) | 커밋 본문 | 작업중 |
 | QA-07 | **High** | **시간이 지나면 저절로 깨지는 테스트.** `ops-service-status.test.jsx`가 `last_backup_at: "2026-08-01T00:00:00"` 절대 날짜를 박아 뒀는데 `opsHelpers.js:158`의 판정은 `daysSince(...) > BACKUP_STALE_DAYS(=7)`라는 **상대** 기준이다 → 2026-08-07에 작성돼 **다음 날 스스로 깨졌고**, `final_verify.sh`가 막혀 **배포까지 멈췄다**. 프런트 스위트가 "green"이라던 기록이 하루 만에 거짓이 된 것 | 재현·수정·재검증함(아래) | **구현완료** |
+| QA-09 | **High** | **번들 무결성 검사가 모든 번들에서 항상 1건 실패한다.** `build-bundle.sh:59`가 `find . -type f -exec sha256sum {} + > MANIFEST.sha256`라 셸이 find보다 먼저 만든 **빈 매니페스트 자신**을 목록에 넣고 그때의 해시를 적는다 → 다 쓰고 나면 내용이 달라져 **자기 자신과 영원히 불일치**. 서버에서 실측: 1,426개 중 1개 실패, 실패한 것이 `./MANIFEST.sha256`. `MAINTENANCE_PLAYBOOK.md` §2-3이 이 명령을 **배포 전 무결성 확인 단계**로 적어 뒀다 → **늘 실패하는 검사는 없는 검사보다 나쁘다**: 운영자가 그 한 줄을 정상으로 학습하면 진짜 깨진 번들도 똑같아 보인다 | 서버 실측 + 스크립트 확인 | **구현완료** (`! -name MANIFEST.sha256` 추가 + `tests/regression/test_bundle_manifest_self_reference.py` 3건으로 핀) |
 | QA-08 | Med | QA-07의 **구조적 원인**: 프런트에 시계 주입 관례가 없다. 백엔드는 `tests/fakes/clock.py`를 두고 결정론을 강제하는데 프런트는 `vi.setSystemTime`을 **172파일 중 5개**만 쓴다. 절대 날짜 픽스처는 **55개 파일**에 있다. 상대 시각 헬퍼(`Dashboard.daysSince`, `lib/format.js:79`, `registry/automation.js:112,336,358`, `registry/integrations.js:144`, `chat-helpers.js:38,94`, `LoginHandoff.jsx:58`)와 만나는 조합만 위험하다 — 이번에 전수 대조해 **활성 rot는 1건뿐**임을 확인했고(`scheduler-calendar`의 "예정"은 서버 `kind` 파생이라 안전) 나머지는 잠복이다. **잠복을 잡을 가드가 없다** | 전수 대조 | 발견 |
+
+---
+
+## CORE — `app/core/` 전수조사 (사이클 0)
+
+인프라 계층. 14라운드 감사가 **한 번도 대상으로 삼지 않았다**(다른 모듈 수정의 부수효과로만 닿았다).
+
+| ID | 심각 | 문제 | 근거 | 상태 |
+|---|---|---|---|---|
+| CORE-01 | **High** | **워커 리스를 두 프로세스가 동시에 잡을 수 있다.** `worker_lock.py:117-131` — `O_CREAT\|O_EXCL`은 **0바이트 파일**을 만들고 페이로드는 `fdopen` 블록이 끝날 때 쓰인다. 그 틈에 P2가 `FileExistsError` → 빈 파일 파싱 실패 → `read()`가 `None` → `is_expired(None)`이 `True` → 자기 것을 쓰고 `verify_ownership()` 통과 → **True**. P1은 뒤늦게 덮어쓰고 **`verify_ownership` 없이** `_held=True`로 **True**. 인수 경로(118-126)는 검증하는데 **생성 경로(`else:`)만 검증이 없다**. 게다가 주석이 말하는 "마지막 쓰기가 이긴다 + verify가 진 쪽을 물러나게 한다"는 `write1,verify1,write2,verify2` 순서에선 **둘 다 통과한다** → 스케줄러가 두 프로세스에서 돌아 일정이 두 번 실행되고 Notion 동기화가 서로의 prune과 경합. 모듈 docstring이 막겠다고 선언한 바로 그 사고. `tests/unit/test_worker_lock.py`는 동시 생성 창을 검사하지 않는다 | 코드 직접 확인 | 발견 |
+| CORE-02 | **Med** | **만료 세션의 `revoked_at`이 절대 저장되지 않는다.** `sessions.py:88-95`가 `record.revoked_at = now` 후 `None`을 반환 → `UnauthorizedError` → `deps.py:76-78 get_db`의 `except: db.rollback()`이 그 쓰기를 버린다(직접 확인). 결과: ① `profiles`의 "활성 세션" 목록·개수가 `revoked_at IS NULL`만 보고 `expires_at`을 안 봐서 **죽은 세션이 활성으로 보인다**(사용자가 어느 줄을 끊어야 할지 모른다 — 그 화면이 존재하는 이유가 무력화) ② `revoke_all_for_user`의 rowcount가 부풀어 "N개 종료했습니다"가 과장 ③ `retention.py`가 세션을 정리 대상에 넣지 않아 **행이 무한 증가** | 코드 직접 확인 | 발견 |
+| CORE-03 | Med | **`worker_lock._write`가 비원자적**(`write_text`가 먼저 truncate). 다른 워커의 30초 `renew()` 도중 시작한 워커가 잘린 파일을 읽고 → `None` → "만료" 판정 → **살아 있는 워커에게서 리스를 뺏는다**. 같은 저장소의 `secret_refs.write()`는 정확히 같은 이유로 `mkstemp`+`os.replace`를 쓰고 그 이유를 주석에 적어 뒀는데 여기만 안 받았다 | | 발견 |
+| CORE-04 | Med | **500 응답이 모든 보안 헤더와 접근 로그를 건너뛴다.** `@app.exception_handler(Exception)`이 Starlette `ServerErrorMiddleware`에 설치돼 `user_middleware` **바깥**에 놓이므로 `RequestContextMiddleware.dispatch`의 `await call_next` 뒤가 실행되지 않는다 → 500엔 CSP·`X-Content-Type-Options`·`X-Frame-Options`·`Referrer-Policy`·`Cache-Control: no-store`·`X-Request-ID`가 **전부 없고**, `logging_setup.py`가 "`request_id`를 담은 유일한 줄"이라 부른 접근 로그도 안 남는다 — 가장 상관관계가 필요한 요청에서. 본문에 내부 정보는 안 샌다(확인함) | 실제 미들웨어 스택으로 검증됨 | 발견 |
+| CORE-05 | Med/Low | **잘못된 포트가 정책 판단을 500으로 만든다.** `allowlist.py:46` `parsed.port`가 `ValueError`를 던져 `URLNotAllowedError`(400) 계약을 빠져나간다. `base_url`/`health_url`/`webhook_url`은 저장 시 URL 검증이 없는 평범한 `str`이라, 관리자가 `http://runner.internal:99999/health`를 저장하면 헬스체크마다 "허용 목록에 없는 대상입니다" 대신 불투명한 500 | 재현 확인 | 발견 |
+| CORE-06 | Med/Low | **allowlist 캐시 키가 `st_mtime` 하나뿐**이라 타임스탬프를 보존하는 복원(`cp -p`·`rsync -a`·tar·installer)이면 프로세스 수명 내내 **옛 허용목록을 계속 쓴다**(더 넓은 쪽으로). 나중에 같은 문제로 쓰인 `feature_flags._stat_key`는 `(경로, mtime_ns, size)`를 쓰고 그 이유를 docstring에 적어 뒀다. 웹·워커가 각자 캐시라 한쪽만 낡을 수 있다 | | 발견 |
+| CORE-07 | Low | `Retry-After: nan`이 단일 아웃바운드 관문을 죽인다 — `nan<0`도 `nan>MAX`도 `False`라 `time.sleep(nan)` → `ValueError`. `inf`는 올바로 처리된다 | 재현 확인 | 발견 |
+| CORE-08 | Low(잠복) | **`get_page_auth`가 임퍼소네이션 쓰기 차단과 `request.state.actor`를 빠뜨린다**. 현재 호출부 3곳이 전부 GET이라 악용 불가지만, `get_current_auth`의 docstring이 "라우터마다 걸면 새 라우터에서 빠뜨리고 그 라우터만 조용히 뚫린다"며 가드를 여기 둔 이유를 설명한다 — 이 함수만 그 가드 밖이다. 여기 붙는 첫 POST 페이지 라우트가 쓰기 우회가 되고, 감사도 **대상자**에게 귀속된다 | | 발견 |
+| CORE-09 | Low | **임퍼소네이션 최대 시간(30분)을 건너뛸 수 있다.** `deps.py:133-151`이 `row is None`이면 만료 검사를 공허하게 통과시켜 8시간 절대 세션 TTL까지 유지된다. `imp_service.end()`엔 바로 그 경우를 위한 `active_for_session` 폴백이 있는데 `_impersonated_auth`엔 없다 | | 발견 |
+| CORE-10 | Low | **기능 플래그에 타입 강제가 없다.** `_parse`가 JSON 값을 그대로 담아서 `"game_ai_enabled": "false"`(문자열)이면 truthy → 파일엔 `false`인데 **기능이 켜진다**. 이 모듈의 존재 이유가 "설정했는데 아무 일도 안 일어난다"를 없애는 것인데 그 역방향 실패가 남아 있다 | | 발견 |
+| CORE-11 | Low | `safe_url.normalize_external_url`이 **호출부 0건**(죽은 코드). `announcements`가 `is_safe_external_url`로 검사만 하고 `link_url`을 **원문 그대로 저장**한다 → 검증 형태와 저장 형태가 갈라졌다(`"\x01https://ok.example"`가 통과·저장되어 전 사용자 배너로 나간다). 오늘은 무해하나 다음 `javascript:` 변종의 발판. `link_url=""`이 "링크 없음"이 아니라 422가 되는 것도 같은 가드 탓 | | 발견 |
+| CORE-12 | Low | 자잘한 것들: `ratelimit._buckets`가 상한·청소 없이 무한 증가 · `_is_safe_request_id`가 유니코드 `isalnum()`이라 `µ²ª-ª` 같은 값을 헤더·로그에 반사(nginx가 덮어써 실제 도달은 어려움) · `audit._SENSITIVE_KEY`가 `secret_ref` **이름**까지 `***`로 가려 감사 기록이 어느 자격증명으로 바뀌었는지 못 말한다(같은 변경의 `config_versions`는 말한다 → 두 기록이 불일치) · `SecretMissingError`가 아무 데서도 안 잡혀 ref **이름**이 응답 본문에 노출(값은 아님) · `SettingsCache.current()`가 내부 dict를 **참조로** 반환(`feature_flags`는 같은 이유로 `dict()` 복사본을 준다 — 두 캐시가 관례가 다르다) · `main.py:119-123`의 `except: pass`가 DB 잠금·손상까지 삼켜 테넌트 오버라이드가 조용히 env 값으로 남는다 | | 발견 |
+
+> **확인된 강점(회귀시키지 말 것)**: SSRF 관문은 견고하다 — 스킴 allowlist·userinfo 거부·호스트
+> 소문자화·기본 포트 해석·정확한 `host:port` 일치·파일 없으면 전면 거부·**저장 시점이 아니라
+> 호출 시점 검사**·`follow_redirects=False`·`trust_env=False`. urlsplit이 제어문자를 지우는
+> split-parser 우회는 httpx 자체 URL 검증이 막는다(실제 시험함). `SecretValue`는 `%s`/`%r`/
+> f-string/`json.dumps(default=str)` 전부에서 `***`로 가려진다. `scope.py`는 알 수 없는
+> `admin_scope`에 대해 fail-closed이고 BFS는 순환 안전. `authz.MODERATOR_ROLES`는 `auditor`를
+> 올바로 제외한다. `assets.py`는 요청마다 stat하고 traversal을 막는다.
+> **§8의 `STRFTIME('%f')` 함정은 실제로 닫혀 있다** — `app/`·`alembic/` 전체에 해당 패턴이 없다.
+
+---
+
+## UB — 미감사 모듈 전수조사 (사이클 0, batch 1)
+
+`announcements` · `impersonation` · `quotas` · `observability` · `templates` · `prompts` ·
+`conversations` — 라운드 8~14가 한 번도 보지 않은 7개 모듈.
+
+| ID | 심각 | 문제 | 근거 | 상태 |
+|---|---|---|---|---|
+| UB-01 | **High** | **공지에 `admin_scope` 강제가 전혀 없다.** `announcements/router.py`에 `get_principal`이 **0회** 등장한다(직접 확인) → 부서 범위 `admin`이 `audience=all`·`level=critical`·`dismissible=false`·임의 `link_url`로 **전사 배너**를 띄우고 전역 admin의 공지를 지울 수도 있다. 바로 옆 `quotas/router.py:62-71`은 같은 위험을 두고 "부서 관리자가 전역 상한을 0으로 만들면 전 사용자의 AI가 멈춘다. 범위를 좁혀 놓고 이 문을 열어 두면 좁힌 의미가 없다"며 `_ensure_may_touch_global`을 두는데, 공지엔 대응물이 없다 | grep 0건 | 발견 |
+| UB-02 | **High** | **전역 AI 상한을 '사용자별'로 강제하면서 화면엔 '전사 공용 풀'로 보여 준다.** 강제는 `service.py:216-220`이 항상 `used(db, user_id=user_id, …)`(사용자별)를 쓰는데(직접 확인), 목록은 `router.py:110-114`가 global 행에 `used_all`(전 사용자 합계)을 넣는다 → 상한 100에 50명이 3회씩 쓰면 콘솔이 **"150 / 100"**과 함께 "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다"를 단언한다. **아무도 안 막혀 있다.** 반대로 한 사용자가 99/100인 상황은 이 화면에 안 보인다 | 양쪽 직접 확인 | 발견 |
+| UB-03 | **High** | **로그아웃이 임퍼소네이션 세션을 끝내지 않는다.** `END_LOGOUT` 상수가 `app/` 전체에서 **사용처 0건**(직접 확인). `/logout`은 임퍼소네이션 중 허용된 쓰기라 지원되는 종료 경로인데 `ended_at`·`ended_reason`이 영원히 NULL로 남는다 → `GET /sessions?active=true`가 그 세션을 **무기한 "진행 중"**으로 표시한다. 이 표가 `audit_logs`와 별도로 존재하는 이유가 "지금 누가 남의 화면을 보고 있는가"를 한 행으로 답하는 것인데 그 답이 영구히 틀린다. `impersonation.stop` 감사 줄도 안 남는다(모듈 docstring은 "시작과 종료 둘 다 남긴다"고 적음). 권한 상승은 아님 — 쿠키는 폐기된다 | grep 0건 | 발견 |
+| UB-04 | Med/High | **"발행 버전 하나" 불변식이 경합에 깨지고, 깨지면 문서 생성이 500이 된다.** `prompts/service.py:83-91`이 잠금·제약 없는 read-then-write다(`UNIQUE(name, version)`만 있고 published 유일성 제약은 없음). 동시에 두 명이 발행하면 published 행이 둘 → 이후 그 이름의 모든 `transition`·`rollback`이 `scalar_one_or_none()`에서 `MultipleResultsFound` → **500**, 그리고 그 이름에 묶인 템플릿의 `POST /documents/generate`도 500 | | 발견 |
+| UB-05 | Med | **PATCH가 저장된 `link_url`을 재검증해 옛 위험 배너를 끌 수 없다.** `router.py:184-190`이 `data.get("link_url", row.link_url)`을 검증에 넣는데, `core/safe_url.py:7-11`이 수정 이전 행에 안전하지 않은 값이 실제로 들어 있다고 적어 뒀다 → 화면의 원클릭 내리기(`{"active": false}`)가 **422**로 거부되고 배너는 그대로 떠 있다. `javascript:` 배너를 막으려고 만든 모듈이 그 배너를 못 내리게 하는 셈 | | 발견 |
+| UB-06 | Med | 공지에 **`starts_at < ends_at` 검증이 없다.** 뒤집어 넣으면 201 + "활성" 행이 생기고 **아무에게도 안 보인다**. 화면엔 경고가 없다 | | 발견 |
+| UB-07 | Med | 공지 `dismiss()`가 UNIQUE 제약을 상대로 **check-then-insert**(`service.py:104-118`) → 탭 두 개나 재시도에서 `IntegrityError` → **500**. docstring은 "이미 닫았으면 False(멱등)"라고 적었지만 원자적이지 않다 | | 발견 |
+| UB-08 | Med | **`consume`이 커밋 전에 잠금을 놓는다**(`quotas/service.py:325-371`). `reserve`의 docstring이 "⚠️ 블록 안에서 커밋해야 한다. 잠금을 놓은 뒤에 커밋하면 그 사이 요청이 같은 한 칸을 또 가져간다"고 경고하는데 `consume`엔 그 경고도 커밋도 없다 → 9/10에서 두 요청이 통과해 11/10. 기존 TOCTOU 테스트는 Barrier가 **잠금 안**에 있어 이 창을 못 짚는다 | | 발견 |
+| UB-09 | Med | `pending()`이 `chat_message` 잡만 센다(`service.py:116-129`). 오늘은 맞지만 `enforce` 계약은 일반적으로 쓰여 있어, 다른 AI 잡이 큐에 들어가는 순간 예약이 안 보여 큐 깊이만큼 상한이 샌다 — 증상이 "청구서가 예상보다 크다"라 몇 달 뒤에 드러난다(모듈이 스스로 적은 경고) | | 발견 |
+| UB-10 | Med | `list_quotas`가 무제한 + N+1(행마다 COUNT 2회). 화면은 "받아 온 것이 곧 전부"라고 가정해 클라이언트 필터를 쓰는데 `capWarning`이 없어, 상한이 생기는 순간 필터가 조용히 결손된다 | | 발견 |
+| UB-11 | Med | **`usage_stats`의 50개 상한이 프롬프트를 "쓰이지 않음"으로 오표기한다.** `sorted(ids)[:50]`은 UUID 사전순이라 임의 표본이다 → 버전 80개 중 63번이 실제 사용 중이어도 표본 밖이면 `document_runs: 0` → **"쓰이지 않음" 배지**. 그 배지가 이 화면의 존재 이유("정리 대상을 고를 때 씁니다")라 **운영 중인 프롬프트를 지우게 만든다** | | 발견 |
+| UB-12 | Med | `usage_stats`가 무제한 + N+1 + `LIKE '%uuid%'`(인덱스 불가) 전체 스캔을 이름마다 수행. 페이지네이션도 페이저도 없다 | | 발견 |
+| UB-13 | Med | **"이 프롬프트 버전 보기" 딥링크가 빈 목록을 연다.** `#/prompts?name=X`로 가는데 `DataScreen`이 필터를 키 단위로 병합해 화면 기본값 `status:"published"`가 살아남는다 → **발행 버전이 없는 프롬프트**(= 가장 유력한 정리 대상)를 클릭하면 0건이 떠서 관리자가 "없는 프롬프트"로 오해한다. `policy-usage`도 같다 | | 발견 |
+| UB-14 | Med | **템플릿 `enable`이 참조를 재검증하지 않는다**(생성·수정은 한다). 참조하던 워크플로가 삭제된 뒤 활성화하면 200 OK에 초록 배지가 뜨고, 실패는 **관리자의 조작 시점이 아니라 사용자의 문서 생성 시점**에 터진다 | | 발견 |
+| UB-15 | Med | **`read_count`가 브라우징이 아니라 폴링을 센다.** `Banners.jsx`가 60초마다 `GET /state`를 모든 화면에서 부르는데 증가가 거기 붙어 있다 → 모델이 적어 둔 목적("0인데 30분 열려 있었다 같은 이상을 보기 위한 값")이 **구조적으로 불가능**해졌다. 화면 라벨은 "조회 횟수"라 감사자가 페이지뷰로 읽는다 | | 발견 |
+| UB-16 | Med | 그 증가가 **GET 안의 non-atomic read-modify-write**다: 탭 두 개면 증가가 유실되고, `require_csrf`가 안전 메서드를 통과시켜 `<img src>`로도 부풀릴 수 있으며(감사 필드에 공격자 잡음), 폴링마다 SQLite 쓰기 트랜잭션이 열린다 — `observability/service.py:11-14`가 금지한 바로 그 패턴 | SEC-03·UA-18과 같은 부류 | 발견 |
+| UB-17 | Med | **자동 종료가 감사 줄을 안 남긴다**(수동 종료는 남긴다). 가장 보안상 중요한 두 종료(30분 상한, 대상 계정 잠김)가 `start`만 있고 `stop`이 없다. `"expired"`도 상수가 아닌 문자열 리터럴이라 프런트와 두 곳에 흩어져 있다 | | 발견 |
+| UB-18 | Med | **`record_usage`가 `flush()` 실패를 삼켜 호출자의 세션을 오염시킨다**(`observability/service.py:67-84`). INSERT가 실패하면 세션이 rollback 필요 상태가 되고 **다음 문장**이 `PendingRollbackError`를 던진다 → "통계 한 줄 때문에 사용자의 로그인이나 티켓 생성이 실패하면 안 된다"는 계약이 정확히 반대로 작동한다. `quotas`에서 최악(그 직후 4개 질의를 더 던진다). `begin_nested()` SAVEPOINT가 필요 | | 발견 |
+| UB-19 | Low/Med | 공지 삭제가 `AnnouncementDismissal`을 고아로 남긴다(FK·cascade 없음). 그 집합을 배너 폴링마다 전부 읽는다 | | 발견 |
+| UB-20 | Low/Med | 삭제된 사용자의 쿼터 행이 **영구히 못 지운다**(DELETE가 404). 목록엔 raw UUID로 남는다 | | 발견 |
+| UB-21 | Low/Med | 프롬프트/정책 생성·새버전이 경합 시 409가 아니라 **500**(`IntegrityError`). 순차 경로엔 이미 `ConflictError`가 있어 같은 상황이 상태 코드만 달라진다 | | 발견 |
+| UB-22 | Low/Med | `_json_object_to_str`의 `None → "{}"` 분기가 타입 게이트 없이 공유돼, `PATCH prompts/{id} {"content": null}`이 422가 아니라 **프롬프트 본문에 문자열 `{}`를 저장**한다 | | 발견 |
+| UB-23 | Low/Med | `Message.message_id`가 클라이언트 제공 키인데 **전역 UNIQUE**이고 조회에 소유자 필터가 없다 → 존재 여부 오라클(409 vs 201), 그리고 워커가 만드는 파생 id(`a-{id}-{n}`)와 네임스페이스가 겹쳐 사용자가 스스로 답장을 막을 수 있다. `UNIQUE(conversation_id, message_id)`면 둘 다 닫힌다 | | 발견 |
+| UB-24 | Low | 공지 화면의 검색 상자가 **설정돼 있는데 안 그려진다** — `DataScreen.jsx:467 showSearch = config.searchable \|\| !config.paginated`이고 공지는 `paginated:true`에 `searchable` 미설정 → `searchFields`·`searchPlaceholder`가 죽은 설정. 제목으로 배너를 찾을 방법이 없다(백엔드에도 `q`가 없다) | | 발견 |
+| UB-25 | Low | 죽은 것들: `observability`의 `body["components"]`(소비자 0, 관리자 폴링마다 생성) · `list_sync_status`(호출 0) · `SyncStatus.detail_json`(쓰기만 하고 읽지 않음) · `KNOWN_EVENTS`(검증에 안 쓰임 — 존재 이유가 오타 누적 방지인데 강제가 없음) · `ROLE_SYSTEM_MSG`(생산자·소비자 0) · `GET /ai-quotas/usage`(호출 0, FN-05과 동일) | | 발견 |
+| UB-26 | Low | 한 번도 성공한 적 없고 `error`도 아닌 미러는 **아무 안내도 안 낸다**(`router.py:69-78`) — 사용자가 빈 티켓 목록을 이유 없이 본다. 모듈 docstring이 깨겠다고 한 바로 그 상태이고, 판단에 쓸 `last_run_at`은 이미 로드돼 있는데 안 쓴다 | | 발견 |
+| UB-27 | Low | 임퍼소네이션 만료가 **다음 요청에서만** 평가된다(스윕 없음) → 브라우저를 닫으면 30분 상한을 넘겨도 "진행 중"으로 남는다. 온보딩 문구는 "최대 30분 뒤 자동 종료"라고 약속한다. UB-03과 겹쳐 "진행 중" 목록 전체를 신뢰할 수 없다 | | 발견 |
+| UB-28 | Low | `visible_user_ids`를 `IN (…)`로 인라인(`impersonation/router.py:164-166`) → 문서화된 ~1000 사용자 규모에서 SQLite 변수 상한(999) 초과. UA-24와 같은 부류 | | 발견 |
+| UB-29 | Low | 템플릿: 목록 무제한·파라미터 없음(정책 화면이 "이 정책을 쓰는 템플릿"을 위해 **전 테이블을 끌어와** JS로 거른다) · `created_by`가 raw UUID(프롬프트·정책은 이름을 해석한다) · `prompt_id`가 draft·archived를 가리켜도 통과 · 삭제 수명주기 없음 | | 발견 |
+| UB-30 | Low | `PATCH {"max_calls": null}`이 조용히 no-op(200 + 변화 없는 감사 행). `RollbackRequest.name`만 `max_length` 없음 | | 발견 |
+
+> **확인된 것(결함 아님)**: 쿼터의 KST 경계 계산은 **정확하다** — `period_start`/`period_end`의
+> 월 롤오버(`replace(day=28)+7일→replace(day=1)`)가 2월 포함 모든 달 길이에서 맞고 KST는 DST가
+> 없어 자정 산술이 정확하다. 임퍼소네이션의 **권한 상승 경로는 없다** — `require_roles`·
+> `get_principal`이 대상 사용자를 보므로 대상의 권한을 넘을 수 없고, 자기 자신·비활성·동급 이상은
+> 차단되며, 재진입은 이중으로 막히고, `blocked_write_count`는 롤백에 지워지지 않게 별도 세션을
+> 쓴다. `/stop`에 역할 게이트가 없는 것도 올바른 판단이다.
+
+---
+
+## UA — 미감사 모듈 전수조사 (사이클 0, batch 2)
+
+`home` · `assistant` · `reports` · `sprints` · `trash` · `documents` · `backups` · `org` ·
+`offboarding` · `audit` · `llm_console` · `llm` — 라운드 8~14가 한 번도 보지 않은 12개 모듈.
+
+| ID | 심각 | 문제 | 근거 | 상태 |
+|---|---|---|---|---|
+| UA-01 | **High** | **`GET /api/assistant/weekly-digest`가 전사 데이터를 아무 인증 사용자에게나 준다.** 라우터가 `get_current_user`만 걸고 `require_roles`도 `principal`도 없는데, `facts.py:102-111`이 `build_period_report(...)`를 **`visible_user_ids` 없이** 부르고 `_top_contributors`로 **이름이 붙은 상위 기여자**까지 만든다. 같은 집계의 형제 경로 `reports/router.py:25,52`는 `SENSITIVE_READ_ROLES` + 스코프를 건다. `Home.jsx:417`이 이 패널을 임베드하므로 일반 사원이 홈에서 탭만 바꾸면 전사 티켓·WD·지연 합계와 상위 5인 명단을 받는다 | 라우터·facts 양쪽 직접 확인 | 발견 |
+| UA-02 | **High** | **org 스코프 관리자가 스프린트 스코프를 통째로 우회한다.** `sprints/service.py:54-61` `_visible_ids`가 `scope.is_dept`일 때만 필터를 걸고 그 외에는 `None`(무제한)을 돌려준다. `tickets/service.py:156` `drop_out_of_scope_dtos`도 같다 → 멀티테넌트 설치에서 org B 관리자가 org A의 **직원 명단과 티켓 합계**를 본다. 코드 주석은 이 유출을 "고쳤다"고 적어 뒀는데 dept 스코프에만 적용됐다 | 직접 확인 | 발견 |
+| UA-03 | **High** | **백업이 도는 동안 앱의 모든 쓰기가 막힌다.** `backups/service.py:87-109`가 `db.flush()`로 SQLite RESERVED 쓰기 잠금을 잡은 뒤 그 상태로 전체 DB 복사 + 임시 복원 + `integrity_check`(사본 2벌)를 수행하고, 커밋은 요청 끝(`get_db`)에 일어난다 → 그동안 다른 쓰기는 `busy_timeout` 후 `database is locked` 500. `trash/service.py:167-180`이 **똑같은 실패 양식**을 길게 문서화하고 구조를 바꿔 피했는데 백업 경로만 그대로다. 수동(`router.py:60`)·스케줄(`service.py:311`) 양쪽 해당 | 직접 확인 | 발견 |
+| UA-04 | Med/High | **문서 "재시도"가 만들어 둔 수정 경로를 안 쓰고 옛 막다른 길을 그대로 쓴다.** `documents/router.py:148`의 `/{id}/retry`는 프런트 호출자가 **0건**이고, `registry/automation.js:283`은 여전히 `/documents/generate`를 부른다. 백엔드 docstring이 "생성 폼을 다시 여는 방식은 idempotency 중복으로 막다른 길이었다(round30 감사 E High)"라고 적어 둔 바로 그 방식이다. 운영자가 같은 기간을 다시 넣으면 409 "이미 생성된 문서입니다" | FN-07과 동일 뿌리, 근거 보강 | 발견 |
+| UA-05 | Med | **`/weekly-digest`가 Notion 실패 시 502로 죽는다.** `facts.py:102`가 `configured`만 보고 `ok`를 안 봐서(형제 줄 96-98은 `ok and mapped`를 본다) 소스 장애 때 `NotionQueryError`가 그대로 올라간다 → Notion과 무관한 문서·게시판 집계까지 화면에서 사라진다. 모듈 docstring이 정반대를 약속한다 | 직접 확인 | 발견 |
+| UA-06 | Med | **홈이 같은 집계를 한 번의 화면 진입에 두 번 돌린다.** `facts.py:47-49` `briefing_facts`가 `home_service.build_today(...)`를 다시 부르고, `Home.jsx:283`(`/api/home/today`)과 `Home.jsx:417`(`AssistantPanel` → `/assistant/briefing`)이 둘 다 마운트된다. `staleTime`도 30s/60s로 달라 값이 어긋난다 | | 발견 |
+| UA-07 | Med | 스프린트 기본 창이 **UTC**로 계산된다(`sprints/router.py:36`). KST 월요일 00:00~09:00 사이엔 UTC가 아직 일요일이라 **지난주 창**이 잡힌다. 브라우저가 명시 날짜를 보내 가려져 있을 뿐 | 저장소가 네 번 문서화한 M4 함정 | 발견 |
+| UA-08 | Med | 월간 리포트 기본 기간·`today`도 **UTC**(`reports/router.py:40-52`). 매월 1일 KST 00:00~09:00엔 **지난달** 리포트가 기본이 되고, 매일 9시간 동안 "어제 마감"이 `overdue`로 안 세어진다. `DevReport.jsx:23-26`은 브라우저 로컬로 계산해 **화면 기본값과 API 기본값이 어긋난다** | | 발견 |
+| UA-09 | Med | **형제 지표가 휴지통 필터를 서로 다르게 건다.** `home/readers.py:78-91` `recent_documents`는 휴지통을 빼도록 고쳐졌는데(주석에 "지운 문서로 가는 살아있는 링크" 사고 기록), `readers.py:146-150` `documents_changed_between`은 `archived`만 본다 → 주간 다이제스트가 과다 집계하고 `AssistantPanel.jsx:157-160`이 404 링크를 그린다 | | 발견 |
+| UA-10 | Med | **`GET /api/trash`가 무제한**이다. `list_items`가 전 행을 가져와 파이썬에서 거르고(사용자 전 행 스캔 추가), `Trash.jsx:41`이 **15초마다 폴링**한다. 양쪽 다 페이지네이션이 없다 | | 발견 |
+| UA-11 | Med | **org 생성에 스코프 게이트가 없다**(`org/router.py:308-328`). 목록·단건은 `scope.org_id`로 좁히는데 생성만 무방비라 dept 범위 admin도 새 테넌트를 만들 수 있고, 만든 뒤엔 자기 스코프 밖이라 **자기 눈에 안 보이는 유령 행**이 된다(부서 쪽에서 바로 그 상태를 막으려고 쓴 주석이 있다) | | 발견 |
+| UA-12 | Med | **`JobTitle` 중복 검사가 제약과 어긋나 500이 난다.** `org/service.py:227`은 org 범위로 중복을 보는데 `models.py:91`의 유니크는 **전역**이다 → 다른 org에 같은 이름이 있으면 사전검사를 통과하고 INSERT에서 `IntegrityError`가 잡히지 않은 채 500. 이름 변경(`service.py:281`)도 같다. 반대로 전역 admin이 부서를 만들 땐 검사가 **제약보다 엄격**해 잘못된 409가 난다 | | 발견 |
+| UA-13 | Med | **부서 부모가 같은 조직인지 확인하지 않는다**(`org/service.py:241-248`, `tree.py:221-223`). 전역 admin이 org B 부서를 org A 부서의 부모로 지정할 수 있고, 그러면 조직도가 엉키고 `department_subtree_ids`가 **다른 테넌트 부서를 dept 스코프에 끌어들여 권한이 조용히 넓어진다** | | 발견 |
+| UA-14 | Med | **부분 실패한 오프보딩 되돌리기를 영영 재시도할 수 없다.** `offboarding/service.py:428`이 `undone_at`을 실패 여부와 무관하게 찍는데 `:383` 가드가 `undone_at is not None`이면 거부한다. `REVERTIBLE_MOVES`에 `revert_failed`를 넣어 재시도를 의도한 설계와 모순. Notion이 불안정해 12건 중 3건이 실패하면 그 3건은 영구히 후임자에게 남는다 | | 발견 |
+| UA-15 | Med | **오프보딩 중복 실행을 막는 것이 없다.** `_open_run_view`가 경고만 띄우고 `run_offboarding`은 확인하지 않는다. `service.py:227`이 느린 Notion 단계 **전에** 커밋하므로 더블클릭·새로고침으로 두 번 돌면 두 번째 run의 `before_user_ids`가 이미 후임자라 **되돌리기 계약이 깨진다** | | 발견 |
+| UA-16 | Med | `org` 목록 3종이 N+1(부서·직책 각 행마다 `usage_count`, 조직은 행마다 COUNT 2번). 같은 파일의 `tree.py:38-42`·`_org_names`는 이미 그룹 질의로 고쳐져 있다 | | 발견 |
+| UA-17 | Med | **감사 이상징후가 창 전체를 파이썬으로 끌어온다**(`audit/anomalies.py:127-135`, `limit` 없음). `MAX_WINDOW_HOURS=720`이고 화면에 "최근 30일" 선택지가 있어, 30일치 전 행을 `before_json`/`after_json` 포함 ORM 객체로 적재 + 기준선 질의로 30일 더 | | 발견 |
+| UA-18 | Low | `GET /api/admin/backups`가 **GET 안에서 쓴다**(`reap_stuck_running`) → 읽기 경로가 쓰기 잠금을 잡고, CSRF는 안전 메서드라 통과. 게다가 **사람이 화면을 열 때만** 정리가 돈다(워커 틱 없음) | SEC-03과 같은 부류 | 발견 |
+| UA-19 | Low | `POST /backups/{id}/verify`가 `running` 행을 막지 않는다(막는 것은 프런트 `when`뿐). 백업 도중 호출하면 `file_missing`으로 행이 잠깐 `failed`가 된다. `reap_stuck_running` docstring은 API가 막는다고 단언한다 | | 발견 |
+| UA-20 | Low | 부모 부서를 지울 때 **하위 부서 경고가 없다**(사용자 수만 본다). FK가 `SET NULL`이라 자식이 루트로 올라온다 — 3단 트리가 클릭 한 번에 평탄해진다 | | 발견 |
+| UA-21 | Low | 깊이 상한(32) 절단을 **순환으로 보고**한다(`org/tree.py:78,105-107`) → 순환이 없는 트리에 `상위 관계 오류` 빨간 배지가 뜨고 관리자에게 부모를 고치라고 안내한다 | | 발견 |
+| UA-22 | Low | 죽은 값들: `home/aggregate.py:96 done_total`(소비자 0, 유일하게 창이 없음) · `blocked` 버킷(팀채팅이 켜져 있으면 도달 불가 UI인데 매 요청 계산) · `work.py`의 `in_scope`/`today`/실패 사유(화면이 일반 문구로 덮어써 "토큰 미설정"과 "조회 실패"가 구분 안 됨) · `llm_console/service.py:197 verified`(항상 False, 화면은 하드코딩 배지) · `documents/router.py:78-87`이 N+1 피하려 붙인 `requested_by_name`을 화면이 **안 쓰고 UUID를 그린다** | | 발견 |
+| UA-23 | Low | `home/aggregate.py:126`이 `t not in cancelled`로 dict 값 비교를 O(n²) 수행(500티켓·50취소 = 2.5만 회 깊은 비교), `work.py`가 같은 리스트로 4회 더 호출 | | 발견 |
+| UA-24 | Low | `readers.py:81` `trashed_page_ids`를 `notin_()`에 통째로 넣어 휴지통이 커지면 SQLite 변수 상한(999)으로 **홈 전체가 500** | | 발견 |
+| UA-25 | Low | 휴지통 일괄 실패 토스트가 원인을 **전부 "권한이 없어"로 뭉갠다**(실제로는 이미 처리됨·권한·**Notion 보관 실패** 3종). Notion 장애 때 관리자가 다른 계정으로 재시도한다 | | 발견 |
+| UA-26 | Low | 오프보딩 방 소유권 인계가 **비활성/보관 계정도 후보로 받는다**(`service.py:573-586`) → 이미 퇴사 처리된 계정이 방장이 되어 그 함수가 막으려던 상태가 된다 | | 발견 |
+| UA-27 | Low | 이상징후 `new_actor_action`의 `count`가 **이벤트 수가 아니라 액션 종류 수**인데 화면은 한 "건수" 열로 그린다 | | 발견 |
+| UA-28 | Low | `llm_console/service.py:143-151` `_source_of`가 `0`·bool 저장값을 `env`로 오분류. `provider.py:219-221`의 backend 오타는 화면에 "꺼짐"으로만 보여 "설정값이 잘못됨"과 구분 안 됨 | | 발견 |
+| UA-29 | Low | `documents/service.py:258` `int(config.get("template_version", 1))`이 자유형 dict 값이라 `"v2"` 같은 입력에 422가 아니라 **500** | | 발견 |
+
+> **확인된 것(결함 아님)**: `backups`의 보존 정책은 **정상**이다 — `apply_retention`은 실패 백업을
+> keep 창에 넣지 않는다(`service.py:170-175`). 이전 기록의 의심은 근거가 없다.
+> **`STRFTIME('%f')` 마이그레이션 함정도 없다** — 40여 리비전 전수 확인 결과 모든 타임스탬프가
+> 파이썬에서 만들어져 바인딩된다. 감사 모듈의 KST 경계 계산(`_parse_boundary`·`_is_off_hours`·
+> CSV 렌더·절단 센티널)도 전부 맞다.
 
 ---
 
