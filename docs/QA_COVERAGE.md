@@ -30,8 +30,9 @@
   서버 실계정 14개 중 12개가 `admin`이고 **`operator`·`auditor`는 0명**이라 역할 매트릭스를
   재현할 방법이 애초에 없었다
 
-첫 실환경 캡처(`c1-admin`, role=admin, 70라우트 × 2테마 × 1920·3840, `--modals`)가 **진행 중**이다.
-아래 표의 `S`/`V`는 그 결과가 나오면 채운다. 나머지 축(`F`·`A`·`D`·`C`·`L`·`R`)은 그 다음이다.
+첫 실환경 캡처 `c1-admin`(role=admin, 70라우트 × 2테마 × 1920·3840, `--modals`)이 **완주했다**
+— 272페이지. 아래 §1~§4의 라우트별 `S` 열은 **판독(눈으로 봄)** 기준이라 대부분 아직 `-`다.
+캡처 자체는 70/73 전부 끝났으므로 PNG는 `dist/ui-qa-admin/c1-admin/` 에 있고 판독만 하면 된다.
 
 ---
 
@@ -70,7 +71,10 @@
 | `/forgot-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함. **FN-01(메일 UI 없음)과 직결** |
 | `/reset-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함 |
 
-## 2. 사용자 콘솔 (25)
+## 2. 사용자 콘솔 (26)
+
+> 아래 `S`는 **판독** 기준이다. 캡처는 26/26 전부 끝났다(`dist/ui-qa-admin/c1-admin/`).
+> `ui_qa` 열의 "없음"이던 3개(`/projects`·`/projects/:id`·`/ideas`)는 이번에 추가돼 이제 전부 있다.
 
 | 라우트 | 화면 | ui_qa | S | F | A | D | C | R | L | V |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -80,15 +84,15 @@
 | `/new-ticket` | NewTicket | O | - | - | - | - | - | - | - | - |
 | `/tickets/:id` | Ticket | O | - | - | - | - | - | - | - | - |
 | `/team-tickets` | TeamTickets | O | - | - | - | - | - | - | - | - |
-| `/projects` | Projects | **없음** | - | - | - | - | - | - | - | - |
-| `/projects/:id` | Project(+Metrics/Wbs/Weekly/Tickets) | **없음** | - | - | - | - | - | - | - | - |
+| `/projects` | Projects | O(신규) | - | - | - | - | - | - | - | - |
+| `/projects/:id` | Project(+Metrics/Wbs/Weekly/Tickets) | O(신규) | - | - | - | - | - | - | - | - |
 | `/sprint` | Sprint | O | - | - | - | - | - | - | - | - |
 | `/chat` | Chat | O | - | - | - | - | - | - | - | - |
 | `/chat-rooms` | ChatRooms | O | - | - | - | - | - | - | - | - |
 | `/chat-rooms/:id` | ChatRoom | O | - | - | - | - | - | - | - | - |
 | `/board` | Board | O | - | - | - | - | - | - | - | - |
 | `/board/:id` | BoardPost | O | - | - | - | - | - | - | - | - |
-| `/ideas` | IdeaBoard | **없음** | - | - | - | - | - | - | - | - |
+| `/ideas` | IdeaBoard | O(신규) | - | - | - | - | - | - | - | - |
 | `/team-docs` | TeamDocs | O | - | - | - | - | - | - | - | - |
 | `/team-docs/trash` | Trash | O | - | - | - | - | - | - | - | - |
 | `/team-docs/:id` | TeamDoc | O | - | - | - | - | - | - | - | - |
@@ -115,10 +119,10 @@
 | `/maintenance` | Ops/Maintenance | O | operator | - | - | - | - | - | - | - | - |
 | `/dev-report` | DevReport | O | auditor | - | - | - | - | - | - | - | - |
 | `/scheduler-calendar` | SchedulerCalendar | O | operator | - | - | - | - | - | - | - | - |
-| `/system` | SystemOps(298줄) | **없음** | system_admin | - | - | - | - | - | - | - | - |
-| `/setup` | SetupWizard(232줄) | **없음** | system_admin | - | - | - | - | - | - | - | - |
-| `/notion-console` | NotionConsole(377줄) | **없음** | system_admin | - | - | - | - | - | - | - | - |
-| `/llm-console` | LlmConsole(354줄) | **없음** | system_admin | - | - | - | - | - | - | - | - |
+| `/system` | SystemOps(298줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
+| `/setup` | SetupWizard(232줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
+| `/notion-console` | NotionConsole(377줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
+| `/llm-console` | LlmConsole(354줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
 | `/search` | Search(공유) | O | — | - | - | - | - | - | - | - | - |
 
 ## 4. 관리자 registry — DataScreen 28키
@@ -148,7 +152,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | Empty | 미검증. 시드 데이터가 없어 재현 조건 자체를 안 만들었다 |
 | Loading | 미검증 |
 | Error | 미검증 |
-| **Permission Denied** | 미검증. QA 계정이 system_admin 1종뿐이라 **재현 불가**였다 |
+| **Permission Denied** | 미검증. 단 이제 4역할 계정이 있어 **재현 가능해졌다** |
 | 긴 텍스트 | 미검증 |
 | 데이터 0건 | 미검증 |
 | 데이터 대량 | 미검증(ticket_cache 1077행은 있으나 표별 대량 상태는 미확인) |
@@ -158,12 +162,16 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 
 | 역할 | 계정 | 상태 |
 |---|---|---|
-| system_admin | `ui-qa@goodmit.co.kr`(하네스 자동 생성), `hshwang@goodmit.co.kr` | 하네스가 쓰던 유일한 역할 |
-| admin | — | **계정 없음** → 생성 예정 `qa-admin@` |
-| operator | — | **계정 없음** → 생성 예정 `qa-operator@` |
-| auditor | — | **계정 없음** → 생성 예정 `qa-auditor@` |
-| user | — | **계정 없음** → 생성 예정 `qa-user@` |
-| `admin_scope` dept/org/global | — | 전부 미검증 |
+| system_admin | `hshwang@goodmit.co.kr`(실계정) | 서버 실계정 14개 중 유일 |
+| admin | **`qa-admin@goodmit.co.kr`** | ✅ 생성·로그인 확인. `c1-admin` 캡처 272페이지를 이 계정으로 돌렸다 |
+| operator | **`qa-operator@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
+| auditor | **`qa-auditor@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
+| user | **`qa-user@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
+| `admin_scope` dept/org/global | — | 전부 미검증. `SEC-01`·`UB-01`·`UA-02`가 여기서만 재현된다 |
+
+> 비밀번호는 `dist/ui-qa-*/credentials.json`(gitignore). 실행 시 역할마다 `--out-dir`을 따로 줘야
+> `storage_state`가 안 섞인다. 서버 실계정 14개 중 **12개가 `admin`, `operator`·`auditor`는 0명**이라
+> 이 계정들 없이는 역할 매트릭스를 재현할 방법이 애초에 없었다.
 
 ## 7. 주요 End-to-End 흐름
 
