@@ -11,7 +11,7 @@
 > 관련: [IDEAS_BACKLOG.md](IDEAS_BACKLOG.md)(미확정 아이디어, 다른 목적) ·
 > [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)(구조적 한계) · [DECISIONS.md](DECISIONS.md)
 
-**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 292
+**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 297
 
 ---
 
@@ -423,6 +423,21 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 | VIS-36 | Med | **팀 채팅 카드가 "아직 메시지가 없습니다"를 말하는 데 약 500px를 쓴다**(빈 영역 + 컴포저). 정보량 대비 공간이 화면에서 가장 크다 |
 | VIS-37 | Low | 게시판 카드가 `0 내 글 / 0 받은 댓글 / 0 조회` 세 숫자 아래에 "기능개선 · 서운경, 댓글 0"이라는 **다른 모양의 데이터**를 같은 카드에 밀어 넣는다 |
 | VIS-38 | Low | AI 카드의 "'문장 요약 만들기'를 누르면 같은 숫자를 문장으로 옮겨 줍니다"는 정직한 문구이지만, `AI-01`에 따라 **그 버튼은 아무 문장도 만들지 못한다**(러너에 `/v1/assistant/summarize`가 없어 404). 화면이 약속하는 것과 동작이 어긋난다 |
+
+### Chrome 실브라우저 확인 (2026-08-08, 실계정 `hshwang@`, 2560×1305)
+Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직접 봤다.
+
+| ID | 심각 | 확인 결과 |
+|---|---|---|
+| VIS-67 | — | **콘솔 오류 0건**(`/me`·`/chat`·`/team-docs`·`/sprint` 순회). 런타임은 깨끗하다 — **강점** |
+| VIS-68 | Med | **`AI-32` 실측 확인** — 홈을 여는 것만으로 `/api/conversations`와 `/api/conversations/{id}/messages`가 나간다. 드로어는 **닫혀 있는데** 항상 마운트돼 있어 모든 화면에서 대화 목록과 메시지를 받아 온다 |
+| VIS-69 | Med | **`UA-06` 실측 확인** — 홈 한 번에 `/api/home/today`와 `/api/assistant/briefing`이 **둘 다** 나간다. 후자가 내부에서 `build_today`를 다시 부르므로 **같은 집계가 한 화면에 두 번** 돈다 |
+| VIS-70 | Med | **`UB-15`·`UB-16` 실측 확인** — 홈에서 `/api/admin/impersonation/state`가 나간다(배너 폴러). 그 GET은 **`read_count += 1` 쓰기를 한다** → 임퍼소네이션 중이 아닌 사람의 평범한 화면 열기가 SQLite 쓰기 트랜잭션을 연다 |
+| VIS-71 | Low | 홈 1회 로드에 **API 요청 14건**(`impersonation/state`·`system/status`·`announcements`·`conversations`·`conversations/{id}/messages`·`me`·`notifications/unread-count`·`team-chat/rooms`·`me/preferences`·`home/today`·`assistant/briefing`·`team-chat/rooms/{id}/messages`·`board/mine`·`team-chat/directory`). 그중 **3건이 위 중복·불필요 요청**이다 |
+
+> 4K 레버 실측: 2560 폭에서 `getComputedStyle(html).fontSize === "18px"` — `xxl`(2200) 구간이
+> 의도대로 동작한다. `scrollWidth === clientWidth`(2545)라 가로 넘침도 없다. **레버 자체는 건강하고
+> 문제는 `DS-32`의 절대 px 두 줄뿐**이라는 것이 실브라우저에서도 확인됐다.
 
 ### `/sprint` 스프린트 회의 (1920×1080, light) — **제품에서 가장 긴 화면**
 | ID | 심각 | 문제 |
