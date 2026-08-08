@@ -14,6 +14,7 @@ import json
 import sys
 import time
 import urllib.error
+import ssl
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -41,7 +42,7 @@ def _split_csv(values: list[str] | None) -> list[str]:
     return out
 
 
-def _probe_server(base_url: str) -> tuple[bool, str]:
+def _probe_server(base_url: str, insecure: bool = False) -> tuple[bool, str]:
     """Fail fast (and loudly) if the real server is not there.
 
     A harness that quietly falls back to ``page.set_content()`` measures nothing;
@@ -49,7 +50,8 @@ def _probe_server(base_url: str) -> tuple[bool, str]:
     """
     url = f"{base_url.rstrip('/')}/readyz"
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        ctx = ssl._create_unverified_context() if insecure else None
+        with urllib.request.urlopen(url, timeout=10, context=ctx) as response:
             body = response.read(200).decode("utf-8", "replace")
             return response.status == 200, f"HTTP {response.status} {body.strip()}"
     except urllib.error.HTTPError as exc:
@@ -75,6 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help=f"치명 처리할 검사 항목: {', '.join(assertions.CLASSES)} (또는 all)")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT))
     parser.add_argument("--rebuild-auth", action="store_true", help="세션 캐시를 무시하고 재로그인")
+    parser.add_argument(
+        "--insecure", action="store_true",
+        help=("자체서명 인증서를 신뢰한다. 사내 서버(https://…gooddi.lab)를 겨눌 때 필요하다. "
+              "SSH 터널로 http 로 우회하는 방법은 쓰지 마라 — 서버가 COOKIE_SECURE=true 라 "
+              "Playwright 의 API 클라이언트가 http 로는 세션 쿠키를 안 실어 /api/me 가 401 이 된다."))
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--settle-ms", type=int, default=capture.DEFAULT_SETTLE_MS)
     parser.add_argument("--timeout-ms", type=int, default=capture.DEFAULT_NAV_TIMEOUT_MS)
@@ -131,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     _log(f"출력: {out_root}")
     _log("=" * 78)
 
-    ok, detail = _probe_server(args.base_url)
+    ok, detail = _probe_server(args.base_url, args.insecure)
     if not ok:
         _log(f"[FATAL] 서버에 닿을 수 없습니다: {detail}")
         _log("        먼저 서버를 띄우세요:")
@@ -158,14 +165,16 @@ def main(argv: list[str] | None = None) -> int:
         try:
             try:
                 session = ensure_session(browser, args.base_url, out_base,
-                                         rebuild=args.rebuild_auth, log=_log)
+                                         rebuild=args.rebuild_auth, log=_log,
+                                         insecure=args.insecure)
             except AuthError as exc:
                 _log(f"[FATAL] 세션을 만들지 못했습니다: {exc}")
                 return EXIT_HARNESS
 
             # Resolve detail-route ids once, with the session's own permissions.
             detail_hashes: dict[str, str] = {}
-            probe_ctx = browser.new_context(storage_state=session.storage_state)
+            probe_ctx = browser.new_context(storage_state=session.storage_state,
+                                            ignore_https_errors=args.insecure)
             try:
                 for route in selected_routes:
                     if not route.is_detail:
@@ -203,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
                             continue
                         context = capture.new_context(
                             browser, storage_state=state,
-                            user_id=session.user_id, theme=theme, viewport=viewport)
+                            user_id=session.user_id, theme=theme, viewport=viewport,
+                            insecure=args.insecure)
                         page = context.new_page()
                         try:
                             for route in group:

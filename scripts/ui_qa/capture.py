@@ -133,8 +133,11 @@ def resolve_themes(selectors: Iterable[str] | None) -> list[str]:
 
 
 def new_context(browser, *, storage_state: str | None, user_id: str, theme: str,
-                viewport: Viewport):
-    """``storage_state=None`` 이면 로그인하지 않은 브라우저다 — 로그인 화면 촬영용."""
+                viewport: Viewport, insecure: bool = False):
+    """``storage_state=None`` 이면 로그인하지 않은 브라우저다 — 로그인 화면 촬영용.
+
+    ``insecure`` 는 자체서명 인증서를 쓰는 설치처(사내 서버)를 겨눌 때만 켠다.
+    """
     context = browser.new_context(
         storage_state=storage_state,
         viewport={"width": viewport.width, "height": viewport.height},
@@ -143,6 +146,7 @@ def new_context(browser, *, storage_state: str | None, user_id: str, theme: str,
         locale="ko-KR",
         timezone_id="Asia/Seoul",
         reduced_motion="reduce",
+        ignore_https_errors=insecure,
     )
     context.add_init_script(theme_init_script(theme, user_id))
     context.set_default_timeout(DEFAULT_NAV_TIMEOUT_MS)

@@ -207,7 +207,7 @@ def _fetch_me(context, base_url: str) -> dict | None:
 # public entry point
 # --------------------------------------------------------------------------- #
 def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = False,
-                   log=print) -> QaSession:
+                   log=print, insecure: bool = False) -> QaSession:
     """Return a QaSession backed by a validated storage_state.json.
 
     ``out_dir`` is ``dist/ui-qa`` — the cache is shared across ``--label`` runs
@@ -221,7 +221,8 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
 
     # 1. cached session still good?
     if not rebuild and state_path.exists() and meta_path.exists():
-        context = browser.new_context(storage_state=str(state_path))
+        context = browser.new_context(storage_state=str(state_path),
+                                      ignore_https_errors=insecure)
         try:
             user = _fetch_me(context, base_url)
         finally:
@@ -237,7 +238,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
     email = (creds or {}).get("email") or DEFAULT_EMAIL
     password = (creds or {}).get("password")
 
-    context = browser.new_context()
+    context = browser.new_context(ignore_https_errors=insecure)
     page = context.new_page()
     try:
         logged_in = False

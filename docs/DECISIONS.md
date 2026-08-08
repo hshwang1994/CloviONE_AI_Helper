@@ -49,6 +49,18 @@ Chrome MCP가 붙으면 콘솔·네트워크 탭·수동 조작·폭 실시간 �
 
 ---
 
+### D-05a. QA 하네스는 SSH 터널이 아니라 **HTTPS 를 직접** 겨눈다 (`--insecure`)
+처음엔 자체서명 인증서를 피하려고 `ssh -L 8081:127.0.0.1:8080` 터널로 http 를 쓰려 했다.
+**되지 않는다.** 서버가 `COOKIE_SECURE=true`(확인함)라 세션 쿠키에 `Secure` 가 붙는데,
+Playwright 의 `context.request`(APIRequestContext)는 http 로 `Secure` 쿠키를 **싣지 않는다**.
+브라우저 페이지 쪽은 `127.0.0.1` 을 신뢰 컨텍스트로 봐서 통과하지만 API 클라이언트는 더 엄격하다.
+증상은 "로그인은 됐지만 `/api/me` 가 인증을 인정하지 않습니다" 로만 나와 원인이 안 보인다
+(같은 흐름을 curl 로 하면 200 이라 서버 문제가 아님이 드러난다).
+
+그래서 하네스에 `--insecure` 를 넣었다 — `urlopen` 프로브에 `ssl._create_unverified_context()`,
+모든 `new_context()` 에 `ignore_https_errors`. **터널은 쓰지 않는다.** 부수 효과로 nginx 경유
+경로(gzip·헤더·프록시 타임아웃)까지 실제로 검사 대상이 된다.
+
 ### D-05b. 상대 기준으로 판정하는 것은 픽스처도 상대값으로 쓴다 (가짜 타이머보다 먼저)
 `ops-service-status.test.jsx`가 `last_backup_at`에 절대 날짜를 박아 뒀는데 판정은
 `daysSince(...) > BACKUP_STALE_DAYS(=7)`라는 상대 기준이라, 작성 **다음 날** 스스로 깨졌다
