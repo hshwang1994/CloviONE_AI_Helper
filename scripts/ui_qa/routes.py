@@ -18,11 +18,22 @@ Sources (re-derive from these if the app's routing changes):
       세그먼트 소유"), so it is catalogued here as an admin-console route.
 
   frontend/src/screens/registry.js
-    * ``REGISTRY`` — 16 keys, each rendered by ``AdminBody`` at ``"/" + key``:
-      integrations, runners, workflows, prompts, policies, templates, schedules,
-      documents, approvals, departments, job-titles, notion-mapping, jobs,
-      audit, notifications, backup.  None of them declare their own
-      ``roles:``, so ``SCREEN_ROLES`` alone gates them.
+    * ``REGISTRY`` — **28** keys (not 16; the count in this docstring was stale
+      for a long while), assembled from 7 domain files under
+      ``frontend/src/screens/registry/`` and each rendered by ``AdminRoutes`` at
+      ``"/" + key``:
+        integrations.js  integrations runners workflows
+        authoring.js     prompts policies templates prompt-usage policy-usage
+        automation.js    schedules documents jobs
+        org.js           organizations departments job-titles org-tree notion-mapping
+        governance.js    approvals approval-delegations audit audit-anomalies rbac impersonation
+        platform.js      backup restore-drills announcements ai-quotas feature-flags
+        notifications.js notifications
+      None of them declare their own ``roles:``, so ``SCREEN_ROLES`` alone gates
+      them.  ``organizations``/``departments``/``org-tree`` are excluded from the
+      auto-registration (``ORG_CONSOLE_KEYS``) and served by ``OrgConsole``, but
+      their configs stay in ``REGISTRY`` because ``OrgConsole`` reads columns and
+      forms from them.
 
   app/admin/router.py  — ``GET /admin`` redirects ``role == "user"`` to ``/``,
       which is why every admin-console route needs at least ``operator``.
@@ -147,6 +158,15 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_profile", "/profile", "내 프로필"),
     _u("user_my-stats", "/my-stats", "내 업무량 · 완료 통계"),
     _u("user_activity", "/activity", "내 활동"),
+    # ── 목록에서 빠져 있던 화면들 (2026-08-08) ────────────────────────────────
+    # 이 세 개는 `UserRoutes.jsx` 에 라우트가 있는데도 여기 없어서 **한 번도 캡처된 적이 없다**.
+    # 하네스가 "전 화면을 돈다"고 말하면서 실제로는 돌지 않은 구간이 있었다는 뜻이다.
+    # (`Projects.jsx` 306 + `Project.jsx` 382 + 하위 4개 + `Board.jsx` 의 아이디어 모드)
+    _u("user_projects", "/projects", "프로젝트"),
+    _u("user_project-detail", "/projects", "프로젝트 상세",
+       hash_template="/projects/{id}", discover=("/api/projects",)),
+    # 기능 개선 제안 — 게시판과 같은 API 를 종류만 바꿔 쓴다(navConfig.js). 화면은 Board.jsx 다.
+    _u("user_ideas", "/ideas", "기능 개선 제안"),
 )
 
 # --- admin console (App.jsx AdminBody) --------------------------------------
@@ -222,6 +242,15 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_policy-usage", "/policy-usage", "정책 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
+    # ── system_admin 전용 4화면 (2026-08-08 추가) ─────────────────────────────
+    # 넷 다 `AdminRoutes.jsx` 에 전용 라우트가 있는데 이 목록에 없어서 **한 번도 캡처된 적이
+    # 없다** — 화면 코드 약 1,260줄이 시각 검사 밖에 있었다. 역할 게이트는 `navConfig.js` 의
+    # `roles: ["system_admin"]` 및 각 라우터(`sysops`/`setup`/`notion_console`/`llm_console`)와
+    # 같은 집합이다. 하네스 기본 계정이 `system_admin` 이라 그대로 찍힌다.
+    _a("admin_system", "/system", "시스템 설정", "system_admin", ("system_admin",)),
+    _a("admin_setup", "/setup", "초기 설정", "system_admin", ("system_admin",)),
+    _a("admin_notion-console", "/notion-console", "Notion 관리", "system_admin", ("system_admin",)),
+    _a("admin_llm-console", "/llm-console", "AI 관리", "system_admin", ("system_admin",)),
 )
 
 # --- 로그인 전 화면 -----------------------------------------------------------

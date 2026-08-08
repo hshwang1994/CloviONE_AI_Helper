@@ -42,10 +42,20 @@ function renderDiagnostics() {
   );
 }
 
+/* 백업 시각은 **상대값**이어야 한다. 예전엔 `"2026-08-01T00:00:00"` 이라고 절대 날짜를 박아
+ * 두었는데, `opsHelpers.js` 의 판정은 `daysSince(...) > BACKUP_STALE_DAYS(=7)` 라는 **상대**
+ * 기준이다. 그래서 이 픽스처는 작성 다음 날부터 조용히 썩었다 — 2026-08-07 에 통과하던
+ * '시스템 정상' 단언이 2026-08-08 에 '마지막 백업이 오래됨(7일 전)' 으로 뒤집혀 프런트 스위트가
+ * 깨졌고, `final_verify.sh` 가 막혀 배포까지 멈췄다. 시계를 고정(`vi.setSystemTime`)하는 방법도
+ * 있지만 이 파일은 `userEvent` 와 `findBy*` 를 쓰므로 가짜 타이머가 오히려 부작용이 크다.
+ * **기준일을 지금으로부터 재는 것이 이 픽스처가 원래 뜻하던 바다: "최근에 성공한 백업".** */
+const RECENT_BACKUP_AT = new Date(Date.now() - 24 * 3600 * 1000)
+  .toISOString().replace(/\.\d+Z$/, "");   // 백엔드와 같은 naive-UTC 표기(CLAUDE.md §2.9)
+
 const BASE_DASH = {
   integrations: {}, counts: {}, jobs_24h: {}, recent_critical_audit: [],
   disk: {}, memory: {}, cert_days_remaining: null,
-  last_backup_at: "2026-08-01T00:00:00", last_backup_status: "succeeded",
+  last_backup_at: RECENT_BACKUP_AT, last_backup_status: "succeeded",
 };
 
 beforeEach(() => {

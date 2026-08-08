@@ -28,7 +28,11 @@
 | 사용자에게 쓰는 법을 알려 준다 | [USER_GUIDE.md](USER_GUIDE.md), [ADMIN_GUIDE.md](ADMIN_GUIDE.md) |
 | 사이드바에서 처음 본 화면이 무엇인지 모르겠다 | **[CONSOLE_SCREENS.md](CONSOLE_SCREENS.md)** (프로젝트, 아이디어 제안, 초기 설정, 시스템 설정, Notion 관리, AI 관리) |
 | 무엇이 안 되는지 알고 싶다 | [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) |
-| 다음에 무엇을 할지 정한다 | [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) |
+| **작업을 이어받는다 / 지금 어디까지 했는지 알고 싶다** | **[WORK_STATE.md](WORK_STATE.md)** ← 여기부터 |
+| 다음에 무엇을 할지 정한다 | [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) (MASTER PLAN) |
+| 알려진 문제 전체와 각각의 상태를 본다 | [BACKLOG.md](BACKLOG.md) |
+| 무엇이 아직 검증 안 됐는지 본다 | [QA_COVERAGE.md](QA_COVERAGE.md) |
+| 왜 이렇게 설계했는지 찾는다 | [DECISIONS.md](DECISIONS.md) |
 
 ---
 

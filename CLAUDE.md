@@ -4,6 +4,29 @@
 > 향후 유지보수·수정을 하는 세션은 **먼저 이 파일을 읽고**, 필요한 세부는 `docs/`를 참조한다.
 > 코드를 고치기 전에 아래 **§2 불변 규칙**을 반드시 확인한다.
 
+## 0. 작업 상태는 대화가 아니라 파일에 있다 (먼저 읽어라)
+
+**세션을 시작할 때 · Context가 압축됐을 때 · 오랜 작업 후 방향이 불확실할 때는
+[`docs/WORK_STATE.md`](docs/WORK_STATE.md)를 가장 먼저 읽는다.** 대화 History는 Source of Truth가
+아니다. 아래 6개 문서만으로 "현재 목표 / 발견한 문제 / 남은 작업 / 미검증 범위 / 우선순위 /
+중요한 설계 결정 / 최근 작업 위치 / 다음 작업"이 복원돼야 한다.
+
+| 문서 | 역할 |
+|---|---|
+| [`docs/WORK_STATE.md`](docs/WORK_STATE.md) | **진입점.** 현재 사이클·위치·완료 범위·다음 작업·Blocker |
+| [`docs/WORK_PLAN_INDEX.md`](docs/WORK_PLAN_INDEX.md) | MASTER PLAN — 전체 목표·확정 계획·완료 기준 |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | 발견한 모든 문제·개선사항 + 상태(발견→…→실환경검증완료) |
+| [`docs/QA_COVERAGE.md`](docs/QA_COVERAGE.md) | Route × 검증 7축 매트릭스 — 무엇이 아직 검증 안 됐는가 |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | 이후 작업에 영향을 주는 결정과 그 이유 |
+| [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
+
+**"전에 했던 것 같다" / "아마 수정했을 것이다"라고 추측하지 않는다.** 기록이나 검증 상태가
+불확실하면 다시 확인한다. 코드를 고쳤다는 이유만으로 완료 처리하지 않는다 —
+`실환경검증완료`만 완료다.
+
+갱신 시점: 새 문제 → BACKLOG · 새 Route/기능 검증 → QA_COVERAGE · 중요한 설계 판단 → DECISIONS ·
+사이클 종료 → WORK_STATE + BUILD_LOG. 작은 수정 하나마다 기록하지 않는다.
+
 ## 1. 이 프로젝트가 무엇인가
 
 사내 업무 자동화 웹 플랫폼. 기존 ClovirONE AI 업무 도우미(n8n + Claude Runner + Notion)를
@@ -174,7 +197,12 @@ SSH **키 인증**(비번 없음). **sudo는 비밀번호 필요**(임시 NOPASS
 
 | 문서 | 내용 |
 |---|---|
-| **BUILD_LOG.md** | 세션 인수인계 이력 — **새 세션은 여기부터** |
+| **WORK_STATE.md** | **새 세션은 여기부터** — 현재 사이클·위치·다음 작업·Blocker (§0 참조) |
+| **WORK_PLAN_INDEX.md** | MASTER PLAN — 전체 목표·사이클 순서·완료 기준 |
+| **BACKLOG.md** | 발견한 모든 문제 + 상태. `IDEAS_BACKLOG.md`(미확정 아이디어)와는 다른 목적 |
+| **QA_COVERAGE.md** | Route × 검증 7축 매트릭스 |
+| **DECISIONS.md** | 설계 결정과 이유 (불변규칙 자체는 §2가 정본) |
+| **BUILD_LOG.md** | 세션 인수인계 이력(HISTORY) |
 | **MAINTENANCE_PLAYBOOK.md** | 흔한 유지보수·수정 작업 레시피(단계별) + 배포/롤백 |
 | ARCHITECTURE.md | 시스템 설계·데이터 모델 |
 | SECURITY.md | 위협 모델·보안 통제 | OPERATIONS.md / RUNBOOK.md | 운영·장애 대응 |
