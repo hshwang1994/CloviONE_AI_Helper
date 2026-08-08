@@ -43,7 +43,9 @@
 | 공개(로그인 전) | 4 | 1/4 | 0 | - | - | - | - | - | - | ~ |
 | 사용자 콘솔 | 26 | **26/26** | 2 | - | - | - | - | - | - | ~ |
 | 관리자(전용+registry) | 43 | **43/43** | 2 | - | - | - | - | - | - | ~ |
-| **계** | **73** | **70/73** | **4** | 0 | 0 | 0 | 0 | 0 | 0 | ~ |
+| **계** | **73** | **70/73** | **9** | 0 | ~ | 0 | 0 | **~** | 0 | ~ |
+
+> `A`(API)와 `R`(RBAC)이 `0`에서 `~`로 올라갔다 — §6-1에 4역할 × 17엔드포인트 실측 매트릭스가 있다.
 
 - **S(캡처)** = 하네스가 실서버에서 스크린샷을 남겼다. `c1-admin` 실행(role=admin, 70라우트 ×
   2테마 × 1920·3840). 미캡처 3개는 `/change-password`·`/forgot-password`·`/reset-password`(Jinja).
@@ -188,6 +190,33 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 > 비밀번호는 `dist/ui-qa-*/credentials.json`(gitignore). 실행 시 역할마다 `--out-dir`을 따로 줘야
 > `storage_state`가 안 섞인다. 서버 실계정 14개 중 **12개가 `admin`, `operator`·`auditor`는 0명**이라
 > 이 계정들 없이는 역할 매트릭스를 재현할 방법이 애초에 없었다.
+
+## 6-1. RBAC 실측 매트릭스 (2026-08-08, 배포 서버, 4역할 실제 로그인)
+
+`qa-user`/`qa-operator`/`qa-auditor`/`qa-admin`으로 실제 로그인해 GET 응답 코드를 측정한 것이다.
+
+| 엔드포인트 | user | operator | auditor | admin | 판정 |
+|---|---|---|---|---|---|
+| `/api/assistant/weekly-digest` | **200** | **200** | 200 | 200 | 🔴 **게이트 없음** — `BACKLOG UA-01` |
+| `/api/sprint/summary` | **200** | **200** | 200 | 200 | 🔴 **게이트 없음** — `BACKLOG UA-02` |
+| `/api/admin/reports/dev-monthly` | 403 | 403 | 200 | 200 | ✅ `SENSITIVE_READ` |
+| `/api/admin/users` | 403 | 403 | 403 | 200 | ✅ `CONSOLE_WRITE` |
+| `/api/admin/audit` | 403 | 403 | 200 | 200 | ✅ `SENSITIVE_READ` |
+| `/api/admin/settings` | 403 | 200 | 200 | 200 | ✅ `CONSOLE_READ` |
+| `/api/admin/jobs` | 403 | 200 | **403** | 200 | ✅ `OPS`(auditor 제외 의도) |
+| `/api/admin/impersonation/sessions` | 403 | **403** | 200 | 200 | ✅ `SENSITIVE_READ` |
+| `/api/admin/backups`·`rbac-matrix`·`announcements`·`ai-quotas`·`feature-flags`·`integrations`·`schedules` | 403 | 200 | 200 | 200 | ✅ `CONSOLE_READ` |
+| `/api/admin/mail/status` | 403 | 200 | 200 | 200 | ⚠️ 권한은 맞으나 **부를 화면이 0개**(`FN-01`) |
+| `/api/system/status` | 200 | 200 | 200 | 200 | 인증만 — 배너 알림용(의도) |
+
+### 이 표가 드러낸 가장 중요한 것
+**제품에 정책이 있는데 옆문이 그 정책을 무시한다.** `dev-monthly`는 같은 전사 집계를
+`SENSITIVE_READ_ROLES`로 막아 **operator조차 403**인데, `weekly-digest`는 **아무 게이트가 없어
+평범한 `user`에게도 같은 `team` 합계와 이름 붙은 상위 기여자를 준다.** 즉 이것은 "게이트를
+깜빡했다"가 아니라 **명시적으로 정한 기밀 등급을 다른 경로가 무효화하는** 상태다.
+
+나머지는 전부 설계대로다 — `auditor`가 `jobs`에서 빠지고 `impersonation/sessions`에 들어가는
+비대칭까지 코드 의도와 일치한다. **RBAC 뼈대는 건강하고, 구멍은 위 두 개다.**
 
 ## 7. 주요 End-to-End 흐름
 
