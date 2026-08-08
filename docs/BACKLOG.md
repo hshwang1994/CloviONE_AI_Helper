@@ -502,6 +502,30 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 
 ---
 
+> ### 🔴 UA-01 · UA-02 — 배포된 서버에서 직접 재현했다 (2026-08-08)
+>
+> `qa-user@goodmit.co.kr`(**`role=user`**, 관리자 아님)로 로그인해 실제로 호출한 결과다.
+> `/api/me`가 `role=user`, `admin_scope=global`(부서가 없어 전역으로 떨어진 상태)임을 확인했다.
+>
+> ```
+> GET /api/assistant/weekly-digest        → 200
+>   team = {"total":24,"done":16,"in_progress":2,"verify":3,"plan":3,
+>           "cancel":0,"overdue":8,"est_done_total":3.5,"est_all_total":17.5}
+>   top_contributors = 5명  예) {"name":"김정미","done":7,"assigned":7}
+>
+> GET /api/sprint/summary                 → 200
+>   developers = 17명  예) {"name":"김정미","done":7,"assigned":7,
+>                          "completion_rate":100,"overdue":0, ...}
+> ```
+>
+> **즉 사원 아무나 전사 티켓 합계와 개인별 완료율·지연 건수·이름을 볼 수 있다.**
+> 대조군으로 같은 세션에서 관리자 엔드포인트는 **정상적으로 막힌다** —
+> `/api/admin/users` `/api/admin/audit` `/api/admin/settings` `/api/admin/reports/dev-monthly`
+> 전부 **403**. 즉 RBAC 자체는 동작하고, **이 두 엔드포인트에만 역할 게이트가 없다.**
+> 특히 `dev-monthly`는 같은 집계를 `SENSITIVE_READ_ROLES`로 막는데 `weekly-digest`는 안 막는다.
+
+---
+
 ## CORE — `app/core/` 전수조사 (사이클 0)
 
 인프라 계층. 14라운드 감사가 **한 번도 대상으로 삼지 않았다**(다른 모듈 수정의 부수효과로만 닿았다).
@@ -586,8 +610,8 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 
 | ID | 심각 | 문제 | 근거 | 상태 |
 |---|---|---|---|---|
-| UA-01 | **High** | **`GET /api/assistant/weekly-digest`가 전사 데이터를 아무 인증 사용자에게나 준다.** 라우터가 `get_current_user`만 걸고 `require_roles`도 `principal`도 없는데, `facts.py:102-111`이 `build_period_report(...)`를 **`visible_user_ids` 없이** 부르고 `_top_contributors`로 **이름이 붙은 상위 기여자**까지 만든다. 같은 집계의 형제 경로 `reports/router.py:25,52`는 `SENSITIVE_READ_ROLES` + 스코프를 건다. `Home.jsx:417`이 이 패널을 임베드하므로 일반 사원이 홈에서 탭만 바꾸면 전사 티켓·WD·지연 합계와 상위 5인 명단을 받는다 | 라우터·facts 양쪽 직접 확인 | 발견 |
-| UA-02 | **High** | **org 스코프 관리자가 스프린트 스코프를 통째로 우회한다.** `sprints/service.py:54-61` `_visible_ids`가 `scope.is_dept`일 때만 필터를 걸고 그 외에는 `None`(무제한)을 돌려준다. `tickets/service.py:156` `drop_out_of_scope_dtos`도 같다 → 멀티테넌트 설치에서 org B 관리자가 org A의 **직원 명단과 티켓 합계**를 본다. 코드 주석은 이 유출을 "고쳤다"고 적어 뒀는데 dept 스코프에만 적용됐다 | 직접 확인 | 발견 |
+| UA-01 | **High** | **`GET /api/assistant/weekly-digest`가 전사 데이터를 아무 인증 사용자에게나 준다.** 라우터가 `get_current_user`만 걸고 `require_roles`도 `principal`도 없는데, `facts.py:102-111`이 `build_period_report(...)`를 **`visible_user_ids` 없이** 부르고 `_top_contributors`로 **이름이 붙은 상위 기여자**까지 만든다. 같은 집계의 형제 경로 `reports/router.py:25,52`는 `SENSITIVE_READ_ROLES` + 스코프를 건다. `Home.jsx:417`이 이 패널을 임베드하므로 일반 사원이 홈에서 탭만 바꾸면 전사 티켓·WD·지연 합계와 상위 5인 명단을 받는다 | **실서버에서 재현됨**(아래) | **실환경확인** |
+| UA-02 | **High** | **일반 사용자에게 전사 개인별 생산성이 그대로 나간다(실서버 확인).** `sprints/service.py:54-61` `_visible_ids`가 `scope.is_dept`일 때만 필터를 걸고 그 외에는 `None`(무제한)을 돌려준다. `tickets/service.py:156` `drop_out_of_scope_dtos`도 같다 → 멀티테넌트 설치에서 org B 관리자가 org A의 **직원 명단과 티켓 합계**를 본다. 코드 주석은 이 유출을 "고쳤다"고 적어 뒀는데 dept 스코프에만 적용됐다.<br>**게다가 더 나쁘다**: 부서가 없는 계정은 `scope.py:150-153`이 `GLOBAL_SCOPE`로 떨어뜨리므로 `is_dept`가 거짓이 되어 **평범한 `role=user`도 그대로 통과한다** | **실서버에서 재현됨**(아래) | **실환경확인** |
 | UA-03 | **High** | **백업이 도는 동안 앱의 모든 쓰기가 막힌다.** `backups/service.py:87-109`가 `db.flush()`로 SQLite RESERVED 쓰기 잠금을 잡은 뒤 그 상태로 전체 DB 복사 + 임시 복원 + `integrity_check`(사본 2벌)를 수행하고, 커밋은 요청 끝(`get_db`)에 일어난다 → 그동안 다른 쓰기는 `busy_timeout` 후 `database is locked` 500. `trash/service.py:167-180`이 **똑같은 실패 양식**을 길게 문서화하고 구조를 바꿔 피했는데 백업 경로만 그대로다. 수동(`router.py:60`)·스케줄(`service.py:311`) 양쪽 해당 | 직접 확인 | 발견 |
 | UA-04 | Med/High | **문서 "재시도"가 만들어 둔 수정 경로를 안 쓰고 옛 막다른 길을 그대로 쓴다.** `documents/router.py:148`의 `/{id}/retry`는 프런트 호출자가 **0건**이고, `registry/automation.js:283`은 여전히 `/documents/generate`를 부른다. 백엔드 docstring이 "생성 폼을 다시 여는 방식은 idempotency 중복으로 막다른 길이었다(round30 감사 E High)"라고 적어 둔 바로 그 방식이다. 운영자가 같은 기간을 다시 넣으면 409 "이미 생성된 문서입니다" | FN-07과 동일 뿌리, 근거 보강 | 발견 |
 | UA-05 | Med | **`/weekly-digest`가 Notion 실패 시 502로 죽는다.** `facts.py:102`가 `configured`만 보고 `ok`를 안 봐서(형제 줄 96-98은 `ok and mapped`를 본다) 소스 장애 때 `NotionQueryError`가 그대로 올라간다 → Notion과 무관한 문서·게시판 집계까지 화면에서 사라진다. 모듈 docstring이 정반대를 약속한다 | 직접 확인 | 발견 |
