@@ -182,7 +182,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 |---|---|---|
 | system_admin | `hshwang@goodmit.co.kr`(실계정) | 서버 실계정 14개 중 유일 |
 | admin | **`qa-admin@goodmit.co.kr`** | ✅ 생성·로그인 확인. `c1-admin` 캡처 272페이지를 이 계정으로 돌렸다 |
-| operator | **`qa-operator@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
+| operator | **`qa-operator@goodmit.co.kr`** | ✅ **68라우트 캡처 완료**(`c1-operator`). 권한 화면·사이드바 축소가 API 실측과 정확히 일치 |
 | auditor | **`qa-auditor@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
 | user | **`qa-user@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
 | `admin_scope` dept/org/global | — | 전부 미검증. `SEC-01`·`UB-01`·`UA-02`가 여기서만 재현된다 |
