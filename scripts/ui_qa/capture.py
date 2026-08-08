@@ -108,12 +108,38 @@ def resolve_viewports(selectors: Iterable[str] | None) -> list[Viewport]:
             out.extend(v for v in VIEWPORTS if v not in out)
             continue
         if name not in VIEWPORTS_BY_NAME:
-            raise SystemExit(
-                f"알 수 없는 뷰포트: {raw}\n사용 가능: {', '.join(VIEWPORTS_BY_NAME)}")
-        vp = VIEWPORTS_BY_NAME[name]
+            # 이름표에 없는 폭도 받는다. **브레이크포인트 '사이'가 진짜 위험한 구간**이라
+            # 그렇다 — 목록에 박힌 8개는 전부 경계에서 멀리 떨어진 안전한 값이고,
+            # 실제 사고는 `xl`(1200~1536)처럼 지정이 가장 적은 띠나 `xxl`(2200)·`uhd`(3000)·
+            # 사이드바 서랍 전환(860) **바로 양옆**에서 난다. 그 폭을 재려고 매번 이 파일을
+            # 고치게 하면 아무도 안 잰다.
+            vp = _parse_viewport(name)
+            if vp is None:
+                raise SystemExit(
+                    f"알 수 없는 뷰포트: {raw}\n"
+                    f"이름표: {', '.join(VIEWPORTS_BY_NAME)}\n"
+                    f"또는 임의 크기: 1440x900, 2201x1200, 1440x900@2x")
+        else:
+            vp = VIEWPORTS_BY_NAME[name]
         if vp not in out:
             out.append(vp)
     return out
+
+
+_VIEWPORT_RE = re.compile(r"^(\d{2,5})x(\d{2,5})(?:@(\d+(?:\.\d+)?)x)?$", re.I)
+
+
+def _parse_viewport(name: str) -> Viewport | None:
+    """`1440x900` / `2201x1200@2x` 를 Viewport 로. 못 읽으면 None."""
+    m = _VIEWPORT_RE.match(name)
+    if not m:
+        return None
+    width, height = int(m.group(1)), int(m.group(2))
+    # Chromium 이 거부하는 값을 그대로 넘기면 실패가 캡처 중간에 터진다 — 여기서 막는다.
+    if not (200 <= width <= 8192 and 200 <= height <= 8192):
+        return None
+    scale = float(m.group(3)) if m.group(3) else 1.0
+    return Viewport(name, width, height, scale)
 
 
 def resolve_themes(selectors: Iterable[str] | None) -> list[str]:
