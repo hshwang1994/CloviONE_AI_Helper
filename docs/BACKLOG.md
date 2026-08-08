@@ -11,7 +11,7 @@
 > 관련: [IDEAS_BACKLOG.md](IDEAS_BACKLOG.md)(미확정 아이디어, 다른 목적) ·
 > [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)(구조적 한계) · [DECISIONS.md](DECISIONS.md)
 
-**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 220
+**마지막 갱신**: 2026-08-08 (사이클 0) · **총 항목**: 244
 
 ---
 
@@ -26,6 +26,7 @@
 | [IA 정보구조](#ia--정보구조검색) | IA-01~05 (5) | 관리자 IA·검색 역할 분리 |
 | [QA 검증 인프라](#qa--검증-인프라) | QA-01~09 (9) | 배포 동기화·시각 QA·시간 의존 테스트·번들 무결성. High 4 |
 | [DOC 문서 정합성](#doc--문서-정합성) | DOC-01~06 (6) | 코드와 어긋난 문서 |
+| [RG registry 28화면 ↔ API](#rg--관리자-registry-28화면-설정--api-대조-사이클-0) | RG-01~08 (8) | 설정과 라우터를 **양쪽 다 읽고** 대조. High 1 |
 | [VIS 실화면 판독](#vis--실화면-판독-사이클-0-서버-배포본) | VIS-01~23 (23) | **기계 검사 21종이 전부 통과한 화면**에서 눈으로 찾은 것 |
 | [CORE `app/core/`](#core--appcore-전수조사-사이클-0) | CORE-01~12 (12) | **한 번도 감사된 적 없는 인프라 계층.** High 1 |
 | [UB 미감사 batch 1](#ub--미감사-모듈-전수조사-사이클-0-batch-1) | UB-01~30 (30) | announcements·impersonation·quotas·observability·templates·prompts·conversations. High 3 |
@@ -84,12 +85,22 @@
 |---|---|---|---|---|
 | DS-32 | **High** | **4K에서 `tiny_text` 검사가 사용자 콘솔 전 화면에서 실패한다**(3840×2160). 2026-08-04 전체 실행은 0건이었으므로 그 이후 회귀다. 원인은 **절대 px 글자 크기가 4K 레버를 무력화**하는 것: `--clv-root-fs`가 16→18→20px로 커져도 px로 박힌 글자는 그대로 남는다. 확정된 지점: **`app/TopSearch.jsx:68`의 `Ctrl K` 배지가 `fontSize:"11px"`** — 상단바라 **모든 SPA 화면에 있고**, 12px 하한을 어느 뷰포트에서도 밑돈다. 같은 파일 `:56`의 검색 placeholder도 `13px` 절대값이라 안 커진다. 더 넓게는 **`ui/kit.css`에 12/13/14px 절대값이 20군데 이상** 남아 있다(DS-19의 명시도 충돌과 같은 파일) | 하네스 실측 + 소스 확인. 레버 자체는 정상이고 번들에도 반영돼 있음을 확인함 | 발견 |
 
-> **범인은 한 줄일 가능성이 매우 높다.** 앱 전체에서 12px 미만으로 렌더될 수 있는 글자를 전수로
-> 좁혔다: 절대 px 글자크기는 `kit.css` 20곳 + JSX 5곳뿐이고 **그중 12px 미만은 `TopSearch.jsx:68`의
-> `11px` 하나다**(나머지는 12·13·14·20·24·32·36px). rem 쪽도 최소가 `theme.js:361`의 `0.6875rem`
-> = 4K에서 13.75px라 안전하다. 그리고 `tiny_text` 검사는 폭 ≥2200에서만 도는데, 그 배지는
-> **상단바라 모든 SPA 화면에 있다** — 실패가 정확히 "SPA 전 화면, Jinja 로그인만 통과"인 것과 일치한다.
-> → **한 줄 고치면 67건이 한 번에 사라질 것으로 본다**(고친 뒤 재실행으로 확인해야 함).
+> **범인은 정확히 두 줄이다** — `results.json`의 `samples`가 페이지마다 같은 둘을 지목한다
+> (67라우트 × 2테마 = fail 134건, 페이지당 `count: 2`):
+>
+> | 요소 | 크기 | 위치 | 왜 모든 화면에 있나 |
+> |---|---|---|---|
+> | `kbd` «Ctrl K» | **11px** | `app/TopSearch.jsx:68` | 상단바 |
+> | `p` «현재 화면을 기준으로 도와드려요» | **10px** | `ui/Mascot.jsx:364` | 사이드바 도킹 카드 |
+>
+> 그래서 실패가 정확히 "SPA 전 화면, Jinja 로그인만 통과"와 일치한다. **두 줄 고치면 134건이
+> 사라질 것으로 본다**(고친 뒤 재실행으로 확인해야 함).
+>
+> ⚠️ **검사를 만들 때 주의**: 두 번째 것은 `sx` 안이 아니라 **Typography prop**(`fontSize="10px"`)
+> 이라 `fontSize:` 패턴 grep에 안 걸린다. 내가 처음에 "범인은 한 줄"이라고 좁혔던 것이 그 때문에
+> 틀렸다 — 측정이 아니었으면 못 잡았다. 정적 검사는 `sx`와 prop **두 형태를 모두** 봐야 한다.
+> 덧붙여 그 10px 문구는 `AI-30`·`VIS-19`가 지적한 **거짓 문구와 같은 요소**다(라우트 정보는
+> 전송되지 않는다). 한 요소가 접근성 실패와 허위 안내를 동시에 하고 있다.
 >
 > 그래도 근본 대책이 따로 필요하다: 이 저장소가 4K를 위해 만든 유일한 장치가 "루트 폰트사이즈
 > 하나로 글자·여백·간격이 같은 비율로 커진다"는 것인데(`styles/root.css` 주석), 절대 px이 하나
@@ -282,6 +293,31 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 | QA-07 | **High** | **시간이 지나면 저절로 깨지는 테스트.** `ops-service-status.test.jsx`가 `last_backup_at: "2026-08-01T00:00:00"` 절대 날짜를 박아 뒀는데 `opsHelpers.js:158`의 판정은 `daysSince(...) > BACKUP_STALE_DAYS(=7)`라는 **상대** 기준이다 → 2026-08-07에 작성돼 **다음 날 스스로 깨졌고**, `final_verify.sh`가 막혀 **배포까지 멈췄다**. 프런트 스위트가 "green"이라던 기록이 하루 만에 거짓이 된 것 | 재현·수정·재검증함(아래) | **구현완료** |
 | QA-09 | **High** | **번들 무결성 검사가 모든 번들에서 항상 1건 실패한다.** `build-bundle.sh:59`가 `find . -type f -exec sha256sum {} + > MANIFEST.sha256`라 셸이 find보다 먼저 만든 **빈 매니페스트 자신**을 목록에 넣고 그때의 해시를 적는다 → 다 쓰고 나면 내용이 달라져 **자기 자신과 영원히 불일치**. 서버에서 실측: 1,426개 중 1개 실패, 실패한 것이 `./MANIFEST.sha256`. `MAINTENANCE_PLAYBOOK.md` §2-3이 이 명령을 **배포 전 무결성 확인 단계**로 적어 뒀다 → **늘 실패하는 검사는 없는 검사보다 나쁘다**: 운영자가 그 한 줄을 정상으로 학습하면 진짜 깨진 번들도 똑같아 보인다 | 서버 실측 + 스크립트 확인 | **구현완료** (`! -name MANIFEST.sha256` 추가 + `tests/regression/test_bundle_manifest_self_reference.py` 3건으로 핀) |
 | QA-08 | Med | QA-07의 **구조적 원인**: 프런트에 시계 주입 관례가 없다. 백엔드는 `tests/fakes/clock.py`를 두고 결정론을 강제하는데 프런트는 `vi.setSystemTime`을 **172파일 중 5개**만 쓴다. 절대 날짜 픽스처는 **55개 파일**에 있다. 상대 시각 헬퍼(`Dashboard.daysSince`, `lib/format.js:79`, `registry/automation.js:112,336,358`, `registry/integrations.js:144`, `chat-helpers.js:38,94`, `LoginHandoff.jsx:58`)와 만나는 조합만 위험하다 — 이번에 전수 대조해 **활성 rot는 1건뿐**임을 확인했고(`scheduler-calendar`의 "예정"은 서버 `kind` 파생이라 안전) 나머지는 잠복이다. **잠복을 잡을 가드가 없다** | 전수 대조 | 발견 |
+
+---
+
+## RG — 관리자 registry 28화면 설정 ↔ API 대조 (사이클 0)
+
+`screens/registry/*.js` 7파일의 28개 설정을 각자의 라우터·직렬화기와 **양쪽 다 읽고** 대조했다.
+
+| ID | 심각 | 문제 | 근거 | 상태 |
+|---|---|---|---|---|
+| RG-01 | **High** | **"발행 내용 보기" 버튼이 구조적으로 절대 작동할 수 없다.** `governance.js:139`가 `method:"GET"`인데 `DataScreen.jsx:287`이 모든 행 액션을 `api(path, {method, body: a.body \|\| {}})`로 부른다. `lib/api.js:22`는 GET일 때 body를 직렬화하지 않고 **객체 그대로** 남기므로 `fetch`가 `TypeError: Request with GET/HEAD method cannot have body`를 던지고, `api.js:31-36`이 그걸 "서버에 연결할 수 없습니다."로 바꾼다. 엔드포인트 자체는 멀쩡하다. 같은 `info` 액션이라도 헤더 액션 분기(`DataScreen.jsx:305`)와 `SubListDrawer.jsx:59`는 body를 안 넘겨 정상 — **행 액션 분기만 깨져 있다** | 양쪽 직접 확인 | 발견 |
+| RG-02 | Med | **팀 문서 댓글 알림의 "관련 항목 보기"가 404로 간다.** 서버는 `related_route`로 `/team-docs/{id}`를 계산해 내려보내는데(`destinations.py:45`), 화면은 그것을 **버리고** 프런트의 중복 표(`shared.js:150`)로 `#/documents?id=<notion_page_id>`를 만든다 → `GET /api/admin/documents/<notion_page_id>` 404. `shared.js:171-173`의 "알림은 document_generation이다"라는 단언이 팀 문서 댓글에는 **거짓**이다 | | 발견 |
+| RG-03 | Med | **알림 화면에 사용자용 알림의 액션이 아예 없다** — `chat_room`/`chat_mention`/`ticket`/`board_post`가 `OBJ_ROUTE`에 없어 두 이동 액션의 `when`이 모두 false다. `muted`(직렬화기 주석: "목록에서 빼지 않고 표시만 한다")를 보여 주는 열도 없고, **`DELETE /api/notifications/{id}`에 대응하는 액션도 없다**(그 엔드포인트는 "알림이 무한정 쌓였다"를 고치려고 만든 것이다 — `FN-03`) | | 발견 |
+| RG-04 | Med | **`jobs` 화면이 서버가 붙여 준 역추적 링크를 안 쓴다.** `jobs/router.py:44-62`가 `schedule_id`/`schedule_run_id`/`generation_id`를 "idempotency_key 문자열 파싱 말고는 갈 길이 없었다"는 이유로 추가했는데, 화면에 열도 상세 필드도 없다 → `FN-13`(워크플로 실행 이력 역추적 불가)이 **서버는 이미 고쳐졌는데 화면이 안 받은** 상태임이 드러났다 | | 발견 |
+| RG-05 | Med | **승인 큐에 서버가 지원하는 필터가 안 붙어 있다.** `approvals/router.py:73-74`가 `request_type`·`requested_by`를 받도록 "서버 페이지네이션이라 clientFilter로는 부정확하다"는 이유로 확장됐는데 `governance.js:53`은 `status`만 쓴다 → 5종이 섞인 페이지네이션 큐를 종류·요청자로 좁힐 방법이 없다 | | 발견 |
+| RG-06 | Med | **복구 리허설 첫 실행 안내 4종이 절대 안 그려진다.** `platform.js:100-107`이 `emptySituation`/`emptyPrerequisite`/`emptySteps`/`emptyExpected`를 정성껏 써 뒀는데, `DataScreen.jsx:503` `canOnboard = canCreate \|\| !!primaryHeaderAction`이고 이 화면은 `create`도 `primary` 헤더 액션도 없다 → 어떤 역할에서도 `emptyHelp`만 보인다 | | 발견 |
+| RG-07 | Med | 서버가 이름을 해석해 내려보내는데 **화면이 raw UUID를 그린다**: `documents`의 `requested_by`(서버는 `requested_by_name`/`_email`을 매 페이지 계산 — 주석: "원시 UUID로만 내려가 '누가 요청했나'를 알 수 없었다"), `workflows` 버전 이력의 `created_by`(서버는 `created_by_name` 제공). 같은 파일의 `approvals`·`audit`는 이름을 쓴다 — **한 곳만 안 받았다**. ※ integrations·runners의 `/versions`는 서버가 정말 이름을 안 주므로 현행이 맞다 | | 발견 |
+| RG-08 | Med | **`prompt-usage`/`policy-usage`의 "버전 보기"가 빈 목록으로 간다** — `#/prompts?name=X`로 가는데 대상 화면 기본 필터 `status:"published"`가 살아남는다(`DataScreen.jsx:76-81`이 키 단위 병합). **발행 버전이 없는 행**(= 이 화면이 드러내려는 `unused` 행)을 누르면 "검색 결과가 없습니다"가 뜬다. `UB-13`과 같은 결함을 양쪽에서 확인 | | 발견 |
+
+> **확인 결과 결함이 아닌 것(문서화된 의도)**: `documents`의 `mode` clientFilter는 **28개 중 유일한
+> `paginated + clientFilter` 조합**인데 주석·런타임 Callout·빈 상태 페이저 유지로 3중 공시돼 있다.
+> 나머지 clientFilter 화면 11개는 전부 비페이지네이션이라 결손이 없다(각 라우터로 확인).
+> `jobs`가 요청자 이름을 안 보여 주는 것은 **의도**이고 그 이유가 적혀 있다.
+> `prompts`의 `capWarning: 500`은 서버가 `total`을 주기 시작해 이미 억제된다.
+> **폼은 28개 전부 요청 스키마와 일치**하고, 페이지네이션 10개 화면 모두 서버가 `page`/`page_size`를
+> 받고 `total`을 준다. 컬럼·상세필드도 위 RG-07 두 곳 빼고 전부 직렬화기에 존재한다.
 
 ---
 
