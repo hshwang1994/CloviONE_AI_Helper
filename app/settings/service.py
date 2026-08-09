@@ -71,10 +71,20 @@ class SettingsCache:
 
     def current(self) -> dict[str, Any]:
         """Effective values without a DB session. Falls back to registry
-        defaults if not yet loaded (e.g. before startup load)."""
+        defaults if not yet loaded (e.g. before startup load).
+
+        CORE-12: returns a **copy** — the old code returned the cache's own
+        dict by reference, so any caller mutating what current() gave them
+        (even by accident, e.g. building a response dict via `**current()`
+        then `.update(...)`-ing a field back onto it) silently corrupted the
+        shared cache for every other reader, with no DB write involved.
+        `feature_flags.load_feature_flags()` already guards against exactly
+        this for the same reason (its own docstring: "부르는 쪽이 dict를
+        고쳐도 캐시가 오염되지 않게").
+        """
         with self._lock:
             if self._values is not None:
-                return self._values
+                return dict(self._values)
         return {key: spec.default for key, spec in REGISTRY.items()}
 
     def current_value(self, key: str) -> Any:

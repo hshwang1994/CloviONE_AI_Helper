@@ -7,6 +7,7 @@ Production runs the same factory via systemd (spec §26.1).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -83,6 +84,8 @@ from app.workflows.router import router as workflows_router
 
 APP_DIR = Path(__file__).resolve().parent
 
+logger = logging.getLogger("app.main")
+
 
 def create_app(
     settings: Settings | None = None,
@@ -120,7 +123,17 @@ def create_app(
         with app.state.session_factory() as _db:
             app.state.settings_cache.load(_db)
     except Exception:
-        pass  # tables may not exist yet (e.g. before first migration)
+        # CORE-12: 이 except가 두 가지를 구별 없이 삼켰다 — ① 정말 기대한 경우(첫
+        # 마이그레이션 전이라 테이블이 아직 없음, 무해함)와 ② DB 잠금·손상 같은 진짜
+        # 장애. ②일 때도 조용히 넘어가면 `settings_cache`가 DB 오버라이드 없이
+        # env/기본값으로 굳고, 관리자가 설정 화면에서 바꾼 값이 실제 조회에 안 실리는데
+        # 그 사실을 알 방법이 로그 어디에도 없었다. 기동을 막지는 않되(설치 직후 실행이
+        # 여전히 정상 흐름이어야 한다) 최소한 로그에는 남긴다.
+        logger.warning(
+            "설정 캐시 초기 로드에 실패했다(첫 마이그레이션 전이면 정상). "
+            "그게 아니라면 DB 오버라이드 없이 기본값으로 기동한 것이다",
+            exc_info=True,
+        )
 
     app.state.session_service = SessionService(settings, clock, app.state.settings_cache)
     # Login brute-force guard (spec §25.2): ~10 attempts/min per client IP.

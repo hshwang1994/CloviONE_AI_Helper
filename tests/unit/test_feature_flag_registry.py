@@ -89,6 +89,32 @@ def test_a_db_owned_key_written_into_the_file_is_ignored(tmp_path):
     assert "maintenance_mode" not in flags
 
 
+# CORE-10: JSON 값을 그대로 담으면 문자열 "false"가 파이썬에서 참이라, 파일엔
+# 꺼져 있는데 기능이 켜진다 — 이 모듈의 존재 이유("설정했는데 아무 일도 안
+# 일어난다"를 없애는 것)의 반대 방향 실패다.
+@pytest.mark.parametrize("bad_value", ["false", "0", "", "no", 0, 1, None, [], {}])
+def test_a_non_boolean_value_falls_back_to_the_default_instead_of_being_truthy(
+    tmp_path, bad_value
+):
+    reset_cache()
+    (tmp_path / "feature-flags.json").write_text(
+        json.dumps({"game_ai_enabled": bad_value}), encoding="utf-8"
+    )
+    flags = load_feature_flags(tmp_path)
+    assert flags["game_ai_enabled"] is False, (
+        f"타입 강제가 없어 {bad_value!r}(정수/문자열 등)이 켜짐으로 해석됐다: {flags['game_ai_enabled']!r}"
+    )
+
+
+def test_a_real_boolean_value_still_works(tmp_path):
+    """회귀 없음 — 진짜 JSON boolean은 그대로 반영돼야 한다."""
+    reset_cache()
+    (tmp_path / "feature-flags.json").write_text(
+        json.dumps({"game_ai_enabled": True}), encoding="utf-8"
+    )
+    assert load_feature_flags(tmp_path)["game_ai_enabled"] is True
+
+
 def test_registry_owners_are_only_the_two_known_values():
     for name, spec in FLAG_REGISTRY.items():
         assert spec.owner in (OWNER_FILE, OWNER_DB), f"{name}: 알 수 없는 소유자 {spec.owner}"

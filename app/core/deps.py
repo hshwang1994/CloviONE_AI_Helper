@@ -218,12 +218,25 @@ def get_current_user(auth: AuthContext = Depends(get_current_auth)) -> User:
 
 
 def get_page_auth(request: Request, db: Session = Depends(get_db)) -> AuthContext:
-    """Like get_current_auth but for HTML pages: unauthenticated → /login redirect."""
+    """Like get_current_auth but for HTML pages: unauthenticated → /login redirect.
+
+    CORE-08: `get_current_auth`'s own docstring explains exactly why the
+    impersonation write-guard and `request.state.actor` live in one shared
+    place instead of on each router — a new call site that skips this
+    function silently reopens the write bypass. This one did: it duplicated
+    the auth-loading logic but left both out. Harmless today only because
+    every current caller is a GET page route; the first POST page route
+    built on this dependency would let an impersonated session write with
+    the audit trail attributed to the *target*, not the actor.
+    """
     auth = _load_auth(request, db)
     if auth is None:
         raise PageAuthRequired()
     request.state.user = auth.user
     request.state.session = auth.session
+    request.state.actor = auth.audit_actor
+    if auth.impersonating:
+        _guard_impersonation_write(request, db, auth)
     return auth
 
 

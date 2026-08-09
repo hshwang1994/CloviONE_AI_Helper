@@ -129,8 +129,18 @@ def _parse(path: Path) -> dict:
     for key, value in data.items():
         if key.startswith("_"):
             continue  # 주석 필드
-        if key in _FILE_DEFAULTS:
-            flags[key] = value
+        if key not in _FILE_DEFAULTS:
+            continue
+        # CORE-10: JSON 값을 그대로 담으면 `"game_ai_enabled": "false"`(따옴표 붙은
+        # 문자열 — 손으로 편집할 때 흔한 실수)가 파이썬에서 **참**이라 파일엔 꺼져
+        # 있는데 기능은 켜진다. 이 모듈의 존재 이유가 "설정했는데 아무 일도 안
+        # 일어난다"를 없애는 것인데, 그 반대 방향(설정과 다르게 동작한다)이 뚫려
+        # 있었다. 진짜 JSON boolean이 아니면 조용히 버리고 기본값으로 돈다 —
+        # 문자열을 "true"/"false"로 해석해 주면 "0"/"no"/"off" 같은 다른 흔한
+        # 오타에는 또 안 먹혀 문제를 절반만 없앤다.
+        if not isinstance(value, bool):
+            continue
+        flags[key] = value
     return flags
 
 
