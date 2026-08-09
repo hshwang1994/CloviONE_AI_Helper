@@ -25,9 +25,10 @@ from app.announcements.models import (
 )
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_current_user, get_db, require_csrf, require_roles
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
+from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+from app.core.scope import Principal
 from app.users.models import ROLE_USER, User
 
 admin_router = APIRouter(
@@ -108,6 +109,17 @@ def _get_or_404(db: Session, row_id: str) -> Announcement:
     return row
 
 
+def _ensure_may_touch_announcements(principal: Principal) -> None:
+    """공지는 감사 대상(`audience`)별로 나뉘어 저장되지 않는다 — `all`/`admin` 둘 다
+    **포탈 전체**에 뜬다(부서별로 좁혀 보여줄 방법 자체가 없다). 그래서 쿼터의
+    `_ensure_may_touch_global`과 같은 이유로, 쓰기(생성·수정·삭제) 전부를 전역 범위
+    관리자로 한정한다(UB-01) — 예전엔 이 라우터에 `get_principal`이 아예 없어 부서
+    범위 admin이 전사 배너를 띄우거나 전역 admin의 공지를 지울 수 있었다.
+    """
+    if not principal.scope.is_global:
+        raise ForbiddenError("공지는 전체 범위 관리자만 만들고 바꿀 수 있습니다.")
+
+
 @admin_router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_announcements(
     db: Session = Depends(get_db),
@@ -144,7 +156,9 @@ def create_announcement(
     payload: AnnouncementRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
+    _ensure_may_touch_announcements(principal)
     service.validate(payload.level, payload.audience, payload.link_url)
     now = request.app.state.clock.now()
     row = Announcement(
@@ -177,7 +191,9 @@ def update_announcement(
     row_id: str,
     payload: AnnouncementPatch,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
+    _ensure_may_touch_announcements(principal)
     row = _get_or_404(db, row_id)
     before = service.view(row)
     data = payload.model_dump(exclude_unset=True)
@@ -217,7 +233,13 @@ def update_announcement(
 
 
 @admin_router.delete("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def delete_announcement(request: Request, row_id: str, db: Session = Depends(get_db)) -> dict:
+def delete_announcement(
+    request: Request,
+    row_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> dict:
+    _ensure_may_touch_announcements(principal)
     row = _get_or_404(db, row_id)
     before = service.view(row)
     db.delete(row)

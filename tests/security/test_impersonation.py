@@ -134,6 +134,27 @@ def test_stop_is_allowed_and_restores_the_actor(impersonating, client):
     assert again.status_code == 200 and again.json()["ended"] is False
 
 
+# UB-03: 로그아웃은 IMPERSONATION_ALLOWED_WRITES에 있는 지원되는 종료 경로인데,
+# 예전엔 세션 토큰만 폐기하고 ImpersonationSession의 ended_at/ended_reason을 안 남겨
+# `GET /sessions?active=true`가 그 임퍼소네이션을 무기한 "진행 중"으로 보여줬다.
+def test_logging_out_while_impersonating_ends_the_impersonation_session(
+    impersonating, client, login_as
+):
+    client, csrf, target_id = impersonating
+    logged_out = client.post("/logout", headers={"X-CSRF-Token": csrf})
+    assert logged_out.status_code == 200, logged_out.text
+
+    login_as("system_admin")
+    sessions = client.get("/api/admin/impersonation/sessions").json()["items"]
+    row = next(s for s in sessions if s["target_user_id"] == target_id)
+    assert row["active"] is False, "로그아웃해도 임퍼소네이션이 '진행 중'으로 남는다"
+    assert row["ended_reason"] == "logout"
+
+    stops = client.get("/api/admin/audit?action=impersonation.stop").json()["items"]
+    assert stops, "로그아웃으로 끝난 임퍼소네이션에 impersonation.stop 감사 기록이 없다"
+    assert stops[0]["after"]["ended_reason"] == "logout"
+
+
 def test_audit_records_the_admin_not_the_target(client, login_as, make_user):
     """감사 로그를 **다시 읽어** 행위자가 관리자인지 확인한다."""
     target = make_user(email="audited@goodmit.co.kr", role="user")

@@ -222,6 +222,67 @@ def test_a_filesystem_failure_while_taking_over_an_expired_lease_is_not_silently
             fresh.acquire()
 
 
+def test_fresh_creation_notices_a_takeover_that_lands_right_after_its_own_write(tmp_path):
+    """CORE-01: `O_CREAT|O_EXCL`은 **빈 파일**을 만들 뿐이고 실제 내용은 그 뒤
+    `_write()`가 쓴다. 그 `_write()`가 끝난 직후, 자신이 다시 확인하기 전 그 찰나에
+    다른 프로세스가 끼어들어 자기 리스를 덮어쓸 수 있다. 예전엔 최초 생성 경로가
+    쓴 뒤 `verify_ownership()`을 안 불러 이 상황에서도 자신이 주인이라 믿고 `True`를
+    반환했다 — 침입자와 자신 둘 다 리스를 들고 있다고 믿는 상태가 됐다.
+    """
+    from unittest import mock
+
+    from app.core.worker_lock import WorkerLock as _WorkerLockCls
+
+    path = tmp_path / "worker.lock"
+    clock = FakeClock()
+    holder = WorkerLock(path, owner="holder", lease_seconds=120, now_fn=clock)
+    intruder = WorkerLock(path, owner="intruder", lease_seconds=120, now_fn=clock)
+
+    orig_write = _WorkerLockCls._write
+
+    def patched_write(self, payload):
+        orig_write(self, payload)
+        if self is holder:
+            # holder가 자기 내용을 막 써넣은 직후, verify_ownership()으로 다시 읽기
+            # 전 — 정확히 그 틈에 침입자가 끼어들어 자기 리스로 덮어쓴다.
+            intruder._write(intruder._payload())
+
+    with mock.patch.object(_WorkerLockCls, "_write", patched_write):
+        result = holder.acquire()
+
+    assert result is False, "쓴 직후 끼어든 침입자를 못 알아채고 둘 다 주인이라 믿는다"
+    assert holder._held is False
+    assert intruder.verify_ownership() is True, "침입자의 리스가 남아 있어야 한다"
+
+
+def test_write_is_atomic_a_failure_mid_write_does_not_corrupt_the_existing_lease(tmp_path):
+    """CORE-03: 예전 `_write`(`Path.write_text`)는 열기(잘라내기 포함) 후 쓰는 두 단계라,
+    그 사이 다른 프로세스가 읽으면 **빈 파일**을 본다 — `renew()`가 30초마다 이 함수를
+    부르므로, 그 순간 다른 프로세스의 `is_expired()`가 걸리면 살아 있는 워커의 리스를
+    빼앗는다. `mkstemp`+`os.replace`로 고치면 실패가 나도 기존 파일은 손상되지 않아야
+    한다 — 임시 파일에만 쓰고 마지막에 원자적으로 교체하기 때문이다.
+    """
+    from unittest import mock
+
+    path = tmp_path / "worker.lock"
+    clock = FakeClock()
+    holder = WorkerLock(path, owner="holder", lease_seconds=120, now_fn=clock)
+    assert holder.acquire() is True
+    original = path.read_text(encoding="utf-8")
+
+    with mock.patch("os.replace", side_effect=OSError("동시 두절")):
+        with pytest.raises(OSError):
+            holder._write(holder._payload())
+
+    assert path.read_text(encoding="utf-8") == original, (
+        "쓰기 실패 후 기존 리스 내용이 손상됐다 — 원자적이지 않다는 뜻이다"
+    )
+    assert holder.verify_ownership() is True, "실패한 쓰기가 기존 소유권까지 지웠다"
+    # 임시 파일이 안 치워진 채로 남으면 안 된다(누적되면 디스크를 조금씩 갉아먹는다).
+    leftovers = [p for p in path.parent.iterdir() if p.name.startswith(".worker-lock-tmp-")]
+    assert leftovers == [], f"실패한 쓰기의 임시 파일이 안 지워졌다: {leftovers}"
+
+
 def test_lock_file_records_who_holds_it(tmp_path):
     """운영자가 'lock 파일을 열어 누가 잡고 있나'를 볼 수 있어야 진단이 된다."""
     lock = WorkerLock(tmp_path / "worker.lock", owner="host-a:1234")

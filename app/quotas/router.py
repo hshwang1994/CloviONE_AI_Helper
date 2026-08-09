@@ -107,8 +107,12 @@ def list_quotas(
     items = []
     for row in rows:
         item = service.view(row, names)
+        # UB-02: `enforce()`는 전역 상한도 사용자별로 판정한다 — 화면은 그 판정과 같은
+        # 축(개인별 최댓값)을 보여줘야 "X / 상한"이 실제로 누군가를 막는 숫자가 된다.
+        # 예전의 `used_all`(전 사용자 합계)은 아무도 안 막힌 상황에서도 상한 도달을
+        # 알리는 화면을 만들었다.
         item["used"] = (
-            service.used_all(db, period=row.period, now=now)
+            service.max_user_used(db, period=row.period, now=now)
             if row.scope_type == SCOPE_GLOBAL
             else service.used(db, user_id=row.user_id, period=row.period, now=now)
         )

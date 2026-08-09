@@ -87,7 +87,14 @@ def weekly_digest_facts(
 
     팀 합계는 기존 리포트 코어(build_period_report)를 그대로 쓴다. 같은 주의 티켓을 두 번
     읽지 않도록 목록을 한 번 읽어 리포트에 넘긴다(스프린트 요약이 하는 것과 같은 방식).
+
+    이 엔드포인트는 (관리 콘솔의 `dev-monthly`와 달리) **전 사용자용 개인 다이제스트**라
+    role 게이트를 걸 수 없다 — 그래서 대신 스프린트 요약(`sprints/service.py::
+    build_sprint_summary`)과 같은 방식으로 **호출자의 범위**로 좁힌다(UA-01). 예전엔
+    `visible_user_ids`를 안 넘겨 전사 팀 합계·상위 기여자 명단이 role=user 전원에게
+    그대로 나갔다.
     """
+    from app.core.scope import build_scope, visible_user_ids
     from app.reports import service as reports_service
 
     today, start, end = _window_for(settings, now)
@@ -106,6 +113,7 @@ def weekly_digest_facts(
         report = reports_service.build_period_report(
             db, outbound, settings, start=start, end=end,
             today=datetime.fromisoformat(today).date(), tickets=period,
+            visible_user_ids=visible_user_ids(db, build_scope(db, user)),
         )
         team = report["team"]
         contributors = _top_contributors(report["developers"])

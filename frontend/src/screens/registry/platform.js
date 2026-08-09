@@ -235,7 +235,7 @@ export const PLATFORM_SCREENS = {
       { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-") },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
       { key: "max_calls", label: "상한", align: "right" },
-      { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls) },
+      { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
       dateCol("resets_at", "초기화"),
     ],
     detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),

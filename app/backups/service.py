@@ -88,24 +88,48 @@ def run_backup(
                  created_at=now)
     db.add(row)
     db.flush()
+    row_id = row.id
+
+    # UA-03: 쓰기 락을 쥔 채 느린 I/O 를 하지 않는다 (trash/service.py::purge_expired 의
+    # S7과 같은 실패 양식). 이 지점까지의 `db.flush()`가 SQLite 의 쓰기 락을 잡았는데,
+    # 예전엔 그 상태로 전체 DB 복사(backup_database) + 임시 복원 + 무결성 검사 2벌
+    # (restore_test)을 수행하고 커밋은 요청 끝에야 일어났다 — 그동안 앱의 다른 모든
+    # 쓰기가 `busy_timeout` 후 "database is locked" 500이었다. 여기서 커밋해 락을
+    # 놓고, 느린 구간은 락 없이 돈다. 아래에서 죽어도(OOM 등) 행은 'running'으로 남아
+    # `reap_stuck_running`이 정리한다 — 원래 있던 실패 처리 그대로다.
+    db.commit()
+
     try:
         result = backup_database(settings.database_url, dest)
-        row.size_bytes = result["size_bytes"]
-        row.checksum = result["checksum"]
-        row.status = STATUS_SUCCEEDED
+        size_bytes = result["size_bytes"]
+        checksum = result["checksum"]
         # Immediate temp-restore verification (spec §6.3).
         verify = restore_test(dest)
         if verify["ok"]:
-            row.status = STATUS_VERIFIED
-            row.verified_at = now
+            status = STATUS_VERIFIED
+            verified_at: datetime | None = now
+            error_message = None
         else:
             logger.warning("backup restore-verify failed: %s (%s)", dest, verify.get("reason"))
-            row.status = STATUS_FAILED
-            row.error_message = _friendly_verify_reason(verify.get("reason"))
+            status = STATUS_FAILED
+            verified_at = None
+            error_message = _friendly_verify_reason(verify.get("reason"))
     except Exception as exc:
         logger.exception("backup creation failed: %s", dest)
-        row.status = STATUS_FAILED
-        row.error_message = _friendly_backup_failure(exc)
+        size_bytes = checksum = None
+        status = STATUS_FAILED
+        verified_at = None
+        error_message = _friendly_backup_failure(exc)
+
+    # 짧은 마무리 쓰기 — 한 문장(행 하나)만 바꾸므로 락을 쥐는 시간이 이 I/O 시간과
+    # 무관해진다.
+    row = db.get(Backup, row_id)
+    row.size_bytes = size_bytes
+    row.checksum = checksum
+    row.status = status
+    row.error_message = error_message
+    if verified_at is not None:
+        row.verified_at = verified_at
     db.flush()
     return row
 

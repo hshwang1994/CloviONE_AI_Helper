@@ -25,7 +25,7 @@ from app.notion_mapping.service import (
     unmap,
     verify_mapping,
 )
-from app.users.service import get_scoped_user_or_404
+from app.users.service import ensure_can_manage_target, get_scoped_user_or_404
 
 router = APIRouter(
     prefix="/api/admin/notion-mapping",
@@ -219,6 +219,7 @@ def verify(request: Request, user_id: str, db: Session = Depends(get_db), princi
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
     user = get_scoped_user_or_404(db, user_id, principal.scope)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = verify_mapping(
         db, user,
         outbound=request.app.state.outbound_client,
@@ -239,6 +240,7 @@ def map_manual(
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
     user = get_scoped_user_or_404(db, user_id, principal.scope)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = manual_map(
         db, user,
         notion_user_id=payload.notion_user_id,
@@ -257,6 +259,7 @@ def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db), pr
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
     user = get_scoped_user_or_404(db, user_id, principal.scope)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = unmap(db, user_id)
     record_audit_from_request(
         request, db, action="notion_mapping.unmap", object_type="user_notion_mapping",
@@ -273,6 +276,7 @@ def resolve(
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
     user = get_scoped_user_or_404(db, user_id, principal.scope)
+    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = resolve_conflict(
         db, user, notion_user_id=payload.notion_user_id, now=request.app.state.clock.now()
     )

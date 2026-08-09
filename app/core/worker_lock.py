@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -123,6 +124,13 @@ class WorkerLock:
         파일시스템 고장은 서로 다른 사고이므로 구분한다 - 후자는 `WorkerLockError` 로
         올려 호출자가 "리스를 못 잡았다"(False) 가 아니라 "그 자체가 못 도는 환경이다"
         (예외)를 알 수 있게 한다.
+
+        CORE-01: `O_CREAT|O_EXCL` 은 **빈 파일**을 만들 뿐이고 내용은 그 뒤에 쓰인다. 그
+        틈에 다른 프로세스가 `FileExistsError` 를 만나 빈 파일을 "만료된 리스"로 오인하고
+        자기 것을 덮어쓸 수 있다 — 그러면 둘 다 자신이 주인이라 믿는다. 그래서 새로 만든
+        경우도 만료 리스를 인수하는 경우와 **똑같이** 쓴 뒤 `verify_ownership()` 으로
+        확인한다: 그 사이 남이 다시 덮어썼다면 내가 방금 쓴 값이 더 이상 파일에 없다는
+        것을 알아채고 물러난다.
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = self._payload()
@@ -133,27 +141,30 @@ class WorkerLock:
             existing = self.read()
             if not self.is_expired(existing):
                 return False
-            # 만료된 리스 인수. 여기서 두 프로세스가 동시에 덮어쓸 수 있지만, 둘 다
-            # '만료된 리스를 봤다'는 뜻이고 마지막 쓰기가 이긴다. 그 뒤 verify_ownership()
-            # 이 자기 것이 아님을 알아채고 진 쪽이 물러난다.
-            try:
-                self._write(payload)
-            except OSError as exc:
-                raise WorkerLockError(f"만료된 리스를 인수하려다 쓰기에 실패했다: {exc}") from exc
-            if not self.verify_ownership():
-                return False
-            self._held = True
-            logger.warning("만료된 워커 리스를 인수했다: 이전 소유자=%s", (existing or {}).get("owner"))
-            return True
+            expired_owner = (existing or {}).get("owner")
         except OSError as exc:
             # 리스 경쟁이 아니다 - 이 경로에서 락을 아예 못 쓴다는 뜻이라, "다른 워커가
             # 있다"(False) 처럼 조용히 넘기면 원인을 아무도 모른다.
             raise WorkerLockError(f"워커 리스 파일을 열 수 없다: {exc}") from exc
         else:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-            self._held = True
-            return True
+            # 원자적 생성은 "내가 먼저다" 신호로만 쓴다 - 실제 내용은 아래 `_write()`
+            # (원자적 교체)가 쓴다. 빈 파일 상태로 오래 두지 않기 위해 fd는 바로 닫는다.
+            os.close(fd)
+            expired_owner = None
+
+        # 만료된 리스 인수(또는 방금 새로 만든 자리) 인수. 여기서 두 프로세스가 동시에
+        # 덮어쓸 수 있지만, 마지막 쓰기가 이기고 `verify_ownership()` 이 자기 것이 아님을
+        # 알아채는 쪽을 물러나게 한다.
+        try:
+            self._write(payload)
+        except OSError as exc:
+            raise WorkerLockError(f"워커 리스를 쓰지 못했다: {exc}") from exc
+        if not self.verify_ownership():
+            return False
+        self._held = True
+        if expired_owner is not None:
+            logger.warning("만료된 워커 리스를 인수했다: 이전 소유자=%s", expired_owner)
+        return True
 
     def verify_ownership(self) -> bool:
         data = self.read()
@@ -198,9 +209,26 @@ class WorkerLock:
         }
 
     def _write(self, payload: dict) -> None:
-        self.path.write_text(
-            json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
-        )
+        """리스 내용을 쓴다 — **원자적으로**(CORE-03).
+
+        예전엔 `Path.write_text` 였다. 그건 열기(잘라내기 포함) 후 쓰는 두 단계라, 그
+        사이에 다른 프로세스가 `read()` 를 하면 **빈 파일**을 본다. `renew()` 가 30초마다
+        이 함수를 부르는데, 그 순간 다른 프로세스의 `is_expired()` 가 걸리면 `None` →
+        "만료됨"으로 오판해 **살아 있는 워커의 리스를 빼앗는다.** 같은 사고를
+        `secret_refs.write()` 가 이미 같은 이유로 `mkstemp`+`os.replace` 로 피해 뒀다 —
+        여기도 같은 패턴을 쓴다. `os.replace` 는 같은 파일시스템 안에서 원자적이므로
+        임시 파일을 **같은 디렉터리**에 만든다.
+        """
+        data = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        fd, tmp_name = tempfile.mkstemp(dir=self.path.parent, prefix=".worker-lock-tmp-")
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(data)
+            os.replace(tmp_path, self.path)
+        except OSError:
+            tmp_path.unlink(missing_ok=True)
+            raise
 
     def __enter__(self) -> WorkerLock:
         if not self.acquire():

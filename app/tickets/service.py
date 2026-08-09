@@ -152,9 +152,9 @@ def drop_out_of_scope_dtos(db: Session, dtos, viewer) -> list:
         return list(dtos)
     from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
 
+    # UA-02: 예전엔 `scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 통과했다.
+    # `visible_user_ids`가 전역일 때만 `None`(무제한)을 주므로 그 판정 하나로 충분하다.
     scope = build_scope(db, viewer)
-    if not scope.is_dept:
-        return list(dtos)
     id_to_user = _verified_id_to_user(db)
     visible = visible_user_ids(db, scope)
     return [

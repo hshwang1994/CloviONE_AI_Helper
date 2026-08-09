@@ -52,13 +52,18 @@ def _by_assignee(db: Session, period_tickets, developers: list[dict]) -> list[di
 
 
 def _visible_ids(db: Session, viewer):
-    """이 사람에게 보이는 사용자 집합. 범위가 안 걸리면 `None`(= 제한 없음)."""
+    """이 사람에게 보이는 사용자 집합. 범위가 안 걸리면 `None`(= 제한 없음).
+
+    UA-02: 예전엔 `scope.is_dept`일 때만 걸러 org 범위 관리자는 그대로 통과했다(원
+    조건이 "부서 범위가 아니면 무제한"으로 읽혀, org 범위·설정오류로 인한 fail-closed
+    빈 범위를 전부 놓쳤다). `visible_user_ids` 자신이 이미 전역일 때만 `None`을 주므로
+    그 판정 하나로 충분하다 — 여기서 다시 종류를 따질 필요가 없다.
+    """
     if viewer is None:
         return None
     from app.core.scope import build_scope, visible_user_ids
 
-    scope = build_scope(db, viewer)
-    return visible_user_ids(db, scope) if scope.is_dept else None
+    return visible_user_ids(db, build_scope(db, viewer))
 
 
 def build_sprint_summary(

@@ -500,6 +500,28 @@ def logout(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_current_auth),
 ):
+    now = request.app.state.clock.now()
+    # UB-03: 임퍼소네이션 중 로그아웃은 지원되는 종료 경로인데(그래서 이 라우트가
+    # IMPERSONATION_ALLOWED_WRITES에 있다) `ImpersonationSession`을 안 끝냈다 —
+    # `ended_at`/`ended_reason`이 영원히 NULL로 남아 `GET /sessions?active=true`가
+    # 그 임퍼소네이션을 무기한 "진행 중"으로 표시했다. 세션 폐기(아래)보다 먼저 끝내야
+    # `service.end`가 `auth.session.impersonation_id`를 읽을 수 있다.
+    if auth.impersonating:
+        from app.impersonation import service as imp_service
+        from app.impersonation.models import END_LOGOUT
+
+        ended = imp_service.end(db, session=auth.session, now=now, reason=END_LOGOUT)
+        if ended is not None:
+            record_audit_from_request(
+                request, db, action="impersonation.stop", object_type="user",
+                object_id=ended.target_user_id,
+                after={
+                    "impersonation_id": ended.id,
+                    "duration_seconds": int((ended.ended_at - ended.started_at).total_seconds()),
+                    "blocked_write_count": ended.blocked_write_count,
+                    "ended_reason": END_LOGOUT,
+                },
+            )
     session_service = request.app.state.session_service
     session_service.revoke(db, auth.session)
     record_audit_from_request(

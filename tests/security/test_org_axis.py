@@ -387,6 +387,63 @@ def test_the_impersonation_history_stays_inside_the_scope(client, login_as, two_
     assert two_orgs.user_a.id not in targets, "다른 조직의 대리 보기 이력이 보인다"
 
 
+# UA-02: `_visible_ids`(sprints)와 `drop_out_of_scope_dtos`(tickets) 둘 다 예전엔
+# `scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 무제한(None)이었다. 이 세계의
+# `two_orgs`는 org 범위(부서가 아니라)이므로 그 구멍을 정확히 재현한다.
+@pytest.fixture()
+def two_orgs_with_tickets(two_orgs, db, settings, fake_http, app):
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+    from app.tickets.sync import sync_tickets
+    from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
+
+    # 2026-07-14(화)가 기본 FakeClock now 다 — 그 주 [07-13, 07-20) 안에 마감을 둬야
+    # `/api/assistant/weekly-digest`(query param 없이 항상 '이번 스프린트 창')에도 잡힌다.
+    nid_a, nid_b = "notion-orgaxis-a", "notion-orgaxis-b"
+    FakeNotionTasksDB(
+        rows=[
+            task_row(page_id="oa-a", tid=101, title="A조직 스프린트", status="진행",
+                     due="2026-07-15", people=[nid_a], est_wd=2.0),
+            task_row(page_id="oa-b", tid=102, title="B조직 스프린트", status="진행",
+                     due="2026-07-16", people=[nid_b], est_wd=3.0),
+        ],
+        projects=[project_row(page_id="oa-p1", name="알파")],
+        projects_db=DEFAULT_PROJECTS_DB,
+    ).install(fake_http)
+    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
+    db.add_all([
+        UserNotionMapping(user_id=two_orgs.user_a.id, notion_user_id=nid_a, status=STATUS_VERIFIED),
+        UserNotionMapping(user_id=two_orgs.user_b.id, notion_user_id=nid_b, status=STATUS_VERIFIED),
+    ])
+    db.commit()
+    with app.state.session_factory() as s:
+        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
+                     now=app.state.clock.now())
+        s.commit()
+    return two_orgs
+
+
+def test_org_scoped_sprint_summary_does_not_leak_the_other_organization(
+    client, login_as, two_orgs_with_tickets, db
+):
+    _scope_boss_to_org_b(client, login_as, two_orgs_with_tickets, db)
+    body = client.get("/api/sprint/summary?start=2026-07-01&end=2026-08-01").json()
+    names = {d["name"] for d in body.get("developers", [])}
+    assert "B사람" in names, f"자기 조직 담당자가 없다: {names}"
+    assert "A사람" not in names, f"org 범위 뷰어에게 다른 조직 담당자 생산성이 보인다: {names}"
+
+
+def test_org_scoped_weekly_digest_does_not_leak_the_other_organization(
+    client, login_as, two_orgs_with_tickets, db
+):
+    """UA-01: `weekly_digest_facts`가 `visible_user_ids`를 안 넘겨 top_contributors가
+    호출자의 조직과 무관하게 항상 전사였다."""
+    _scope_boss_to_org_b(client, login_as, two_orgs_with_tickets, db)
+    body = client.get("/api/assistant/weekly-digest").json()
+    names = {c["name"] for c in body.get("top_contributors", [])}
+    assert "B사람" in names, f"자기 조직 기여자가 없다: {names}"
+    assert "A사람" not in names, f"org 범위 뷰어에게 다른 조직 기여자 명단이 보인다: {names}"
+
+
 def test_the_job_queue_stays_inside_the_scope(client, login_as, two_orgs, db, app):
     """잡에는 **요청자의 입력이 payload 로 들어 있다** (2순위 #6) — 문서 생성 요청의 제목·기간,
     채팅 메시지 등. 큐를 훑는 것은 그 사람이 무엇을 요청했는지 읽는 것과 같다.

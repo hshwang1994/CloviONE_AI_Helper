@@ -142,6 +142,28 @@ def used_all(db: Session, *, period: str, now: datetime) -> int:
     )
 
 
+def max_user_used(db: Session, *, period: str, now: datetime) -> int:
+    """이번 기간에 **가장 많이 쓴 한 사람**의 호출 수 (UB-02).
+
+    `enforce()`는 전역(global) 상한도 `used(user_id=...)`, 즉 **사용자별**로 판정한다
+    (전사 공용 풀이 아니다 — 그러려면 사용자 전원을 아우르는 잠금이 있어야 하는데 지금은
+    사람별 잠금뿐이다). 예전엔 관리 화면 목록이 전역 행의 '현재 사용'에 `used_all`
+    (전 사용자 합계)을 보여줘서, 실제로는 아무도 안 막힌 상황에서도 "150 / 100 — 상한
+    도달"처럼 존재하지 않는 차단을 알리는 화면이 됐다. 여기서는 **실제 판정이 보는 값**과
+    같은 축(개인별 사용량)으로 답한다 — 이 값이 상한에 닿아야 그 사람이 실제로 막힌다.
+    """
+    rows = db.execute(
+        select(UsageEvent.user_id, func.count())
+        .select_from(UsageEvent)
+        .where(
+            UsageEvent.event == EVENT_AI_CALL,
+            UsageEvent.created_at >= period_start(period, now),
+        )
+        .group_by(UsageEvent.user_id)
+    ).all()
+    return max((count for _user_id, count in rows), default=0)
+
+
 def effective_quota_rows(db: Session, user_id: str) -> dict[str, AiQuota]:
     """period → **실제로 적용되는 쿼터 행**. 사용자 전용 행이 전역보다 우선한다.
 
