@@ -91,7 +91,15 @@ def _perform_info(runner: Runner, _params: dict) -> ActionOutcome:
 
     disk = runner.run([DF, "-h", "/"])
     data = {
-        "hostname": _value(runner, [HOSTNAMECTL, "show", "-p", "StaticHostname", "--value"]),
+        # SYS-02: `hostnamectl show -p … --value` 는 systemd 255 에 없는 verb다(이 서버
+        # 실측: `Unknown command verb 'show'`) - `/system` 화면이 호스트 이름을 영구히
+        # "확인하지 못했습니다"로 보여준다. `hostname.set`(actions_system.py:202)은 이미
+        # `status --static` 을 먼저 쓰는 폴백을 갖고 있고 그게 이 서버에서 동작한다 -
+        # 같은 지식을 조회 쪽에도 적용한다. `show -p` 는 더 신버전 systemd 를 위한 폴백으로 남긴다.
+        "hostname": (
+            _value(runner, [HOSTNAMECTL, "status", "--static"])
+            or _value(runner, [HOSTNAMECTL, "show", "-p", "StaticHostname", "--value"])
+        ),
         "timezone": _value(runner, [TIMEDATECTL, "show", "-p", "Timezone", "--value"]),
         "ntp_synchronized": _value(runner, [TIMEDATECTL, "show", "-p", "NTPSynchronized", "--value"]),
         "units": units,

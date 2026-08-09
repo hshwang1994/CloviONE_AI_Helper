@@ -6,6 +6,47 @@
 > 남은 문제는 [BACKLOG.md](BACKLOG.md), 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md).
 > 이 문서는 "무엇을 했는가"의 누적 이력이다. Raw log를 복사해 비대하게 만들지 않는다.
 
+## 2026-08-09 (Sonnet 구현 사이클 2) — Critical/High 축 (`SONNET_HANDOFF.md §3` 2~4단계)
+
+**무엇을 했나**: 배포 경로가 복구된 뒤(사이클 1) 남은 Critical/High를 일괄 구현했다.
+`SYS-01`(TLS 인증서 교체 무동작 — `TLS_CERT_PATH` 로 통일 + privhelper 유닛에
+`EnvironmentFile=`) · `SYS-02`(무료 동승: `hostnamectl show -p` 가 systemd 255 에 없어
+호스트 이름이 영구 공백) · `SEC-30`(CSV 가져오기 권한 상승 — 게이트를 `create_user()` 안으로
+이동해 웹 폼·CSV·CLI·`seed_admin.py` 네 진입점이 한 곳을 지나게 함) · `SEC-22`(CLI 계정
+조작이 이상 탐지 5규칙 중 3개에서 안 보임 — `app/audit/actions.py` 신설로 `health/service.py`
+·`anomalies.py` 가 목록 공유) · `FN-40`(공지 PATCH 가 `body`/`title`/`level`/`audience` 를
+`null` 로 받으면 NOT NULL 위반 500) · `OPS-10`/`OPS-11`(워커 리스 실패·하트비트 갱신 실패가
+예외로 새면 재시작 루프·좀비 상태).
+
+**실서버 검증(전부 실제로 재현·확인, "될 것이다" 없음)**:
+- TLS: 실제 신규 인증서(다른 만료일)로 교체 → `openssl s_client` 로 nginx 가 그 인증서를
+  서빙하는 것 확인 → 원본으로 복원. `/system` 호스트 이름도 정상 표시로 확인.
+- SEC-30: plain admin(`qa-admin`) 계정으로 CSV 가져오기 미리보기에 `role=system_admin` 행을
+  넣어 "admin 이상 권한 계정 생성은 system_admin만 가능합니다" 거부 확인. 같은 계정의 웹 폼은
+  역할 드롭다운에 admin/system_admin 옵션 자체가 없음(정상, 회귀 아님).
+- SEC-22: CLI 로 실제 역할 변경(`set-role qa-user → operator → user`) 실행 → 관리 콘솔
+  `/api/admin/audit/anomalies` 에 `critical_action` 소견으로 `cli.user.set_role` 이 잡히는 것
+  확인.
+- FN-40: 실제 PATCH 요청 두 종류 — `{"body": null}` → 200(빈 문자열) · `{"title": null}` →
+  422("제목은(는) 비울 수 없습니다").
+- OPS-10/11: 배포 후 워커 정상 기동·리스 획득(`journalctl`)만 실배포로 확인 — 실패 주입은
+  **공유 테스트 서버의 워커를 실제로 고장내지 않기 위해** mock 기반 단위/통합 테스트로 대체
+  (`WorkerLockError` 발생 경로, `renew()` 예외 경로 둘 다).
+
+**자율 연속 실행**: 사용자가 세션 하나가 끝나도 사용자 입력 없이 계속 이어지는 구조를
+만들고 검증하라고 요청. 하네스 내장 `/loop` dynamic mode + `ScheduleWakeup` 을 그 목적으로
+재사용(새 Supervisor 스크립트를 만들지 않음, D-53). 이 사이클 자체가 그 실측 증거다 —
+사이클 1 종료 → 사이클 2 시작, 사이클 2 안에서도 배경 pytest 완료 알림만으로 여러 차례
+재개돼 SEC-22 발견·구현·배포·검증까지 사용자 메시지 없이 이어졌다.
+
+**게이트**: pytest 루트 전체 green(2회, SEC-22 추가 전/후) · `STATIC_CHECKS_OK` · 신규 회귀
+테스트 다수(SEC-30 `actor_role` 배선, SYS-01 TLS 경로 유도, SYS-02 hostname 폴백, FN-40 PATCH
+null 가드, OPS-10 `WorkerLockError`, OPS-11 `renew()` 예외, SEC-22 CLI 액션 가시성).
+
+**다음**: `SONNET_HANDOFF.md §3` 5~11단계 — 설정 화면 배선(H-2 후속 3건) · Notion 본문 쓰기
+안전(H-1, 자식 블록 유실) · 설정 오버레이 배선(워커 캐시 최대 10분 지연) · 셸 스코프 배선
+(ScopeBar 4건) · 게시판·채팅 규약 통일(7건) · 채팅 텍스트 파서 공용화(3건) · 위생 묶음(11건).
+
 ## 2026-08-09 (Sonnet 구현 사이클 1) — 배포 경로 복구 (`SONNET_HANDOFF.md §3` 1단계)
 
 **무엇을 했나**: Opus 인계 문서의 1단계(배포 경로 복구)부터 착수. 그 이후 모든 사이클의

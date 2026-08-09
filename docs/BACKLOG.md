@@ -19,9 +19,9 @@
 > | `OPS-01` | **실서버에서 파일 첨부 업로드 불가**(uploads 가 root 소유 750) | **사용자** — `chown -R` |
 > | `SEC-20` | 조사 중 sudo 비밀번호를 명령행에 반복 노출 | **사용자** — 회전 |
 > | `SEC-30` | **CSV 가져오기가 권한 상승 게이트를 우회**(admin 이 system_admin 생성) | 구현 |
-> | `SYS-01` | TLS 인증서 교체가 nginx 가 안 읽는 경로에 쓰고 **성공을 보고** | 구현 |
+> | `SYS-01` | TLS 인증서 교체가 nginx 가 안 읽는 경로에 쓰고 **성공을 보고** | ✅ **실환경검증완료**(2026-08-09) |
 > | `DEPLOY-01` | **문서대로 업그레이드하면 서비스가 멈춘 채 남는다**(복구 코드 없음) | ✅ **실환경검증완료**(2026-08-09) |
-> | `FN-40` | 공지 「내용」을 비우고 저장하면 **500** | 구현 |
+> | `FN-40` | 공지 「내용」을 비우고 저장하면 **500** | ✅ **실환경검증완료**(2026-08-09) |
 >
 > ## ⚠️ 이 문서에는 **철회·정정된 항목**이 있다
 > `ADM-01`(관리자가 웹 대신 SSH 를 쓴다 — **결론 철회**) · `NOTI-04`(딥링크 3건 → **94/97 이동
@@ -948,8 +948,8 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 
 | ID | 심각 | 문제 | 근거 | 상태 |
 |---|---|---|---|---|
-| SYS-01 | **Critical** | **TLS 인증서 교체가 조용한 무동작이다.** `cert.install`은 `/etc/ssl/clovirone/server.crt`에 쓰는데(`actions_service.py:40-41`) nginx가 읽는 것은 `/etc/clovirone-web-assistant/tls/<DNS_NAME>.crt`다. 두 경로는 **설치 스크립트 안에서 13줄 떨어져** 나란히 존재한다(`install-…sh:281` vs `:294`). 서버 실측: `/etc/ssl/clovirone/`은 **빈 디렉터리**, nginx `ssl_certificate`는 다른 경로. 그런데 흐름 전체가 성공을 보고한다 — openssl 쌍 검증 통과 → 파일 기록 → `nginx -t` 통과(그 파일을 읽지 않으므로 항상 통과) → `systemctl reload nginx` 성공 → 화면에 **새 인증서의 subject·만료일과 함께 "인증서를 교체하고 nginx 를 다시 읽었습니다."** 브라우저는 계속 옛 자체서명 인증서를 받는다. 게다가 `/setup`·`/diagnostics`는 `TLS_CERT_PATH`(올바른 경로)를 읽으므로 **교체 후에도 옛 만료일을 계속 보여 준다** → 관리자에겐 "아직 반영이 안 됐나 보다"로 보인다. **제품 안에 이미 정답이 있다**: `settings.tls_cert_path`가 web.env에서 실경로를 들고 있고 `probe_tls`·`app/health/service.py`가 그것을 쓴다. sysops만 하드코딩했다 | 서버 실측(`ls /etc/ssl/clovirone` = 빈 디렉터리, `grep ssl_certificate /etc/nginx/`), `TLS_CERT_PATH=/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt` | 발견 |
-| SYS-02 | High | **`hostnamectl show -p …`는 systemd 255에 존재하지 않는 verb다.** `actions_service.py:64`가 이 형태만 쓰므로 `system.info`의 호스트 이름이 **영구히 빈 문자열** → `/system` 화면이 "호스트 이름: 확인하지 못했습니다"를 항상 띄운다(실화면 확인). 서버 실측: `hostnamectl show` → `Unknown command verb 'show'`, `--property` 옵션도 없음. `timedatectl`은 `-p`를 지원해서 타임존·NTP만 정상으로 보이고, 그 대비가 "환경 문제"처럼 보이게 만든다. **정답도 제품 안에 있다** — `actions_system.py:202`의 `hostname.set`은 `hostnamectl status --static`을 **먼저** 시도하는 폴백을 갖고 있고 그것은 실서버에서 동작한다(`ai-n8n-svr` 반환). 같은 지식이 한 곳에만 적용됐다 | 서버 실측 3회 | 발견 |
+| SYS-01 | **Critical** | **TLS 인증서 교체가 조용한 무동작이었다.** `cert.install`은 `/etc/ssl/clovirone/server.crt`에 쓰는데(`actions_service.py:40-41`) nginx가 읽는 것은 `/etc/clovirone-web-assistant/tls/<DNS_NAME>.crt`다. 두 경로는 **설치 스크립트 안에서 13줄 떨어져** 나란히 존재한다(`install-…sh:281` vs `:294`). 서버 실측: `/etc/ssl/clovirone/`은 **빈 디렉터리**, nginx `ssl_certificate`는 다른 경로. 그런데 흐름 전체가 성공을 보고한다 — openssl 쌍 검증 통과 → 파일 기록 → `nginx -t` 통과(그 파일을 읽지 않으므로 항상 통과) → `systemctl reload nginx` 성공 → 화면에 **새 인증서의 subject·만료일과 함께 "인증서를 교체하고 nginx 를 다시 읽었습니다."** 브라우저는 계속 옛 자체서명 인증서를 받는다. 게다가 `/setup`·`/diagnostics`는 `TLS_CERT_PATH`(올바른 경로)를 읽으므로 **교체 후에도 옛 만료일을 계속 보여 준다** → 관리자에겐 "아직 반영이 안 됐나 보다"로 보인다. **제품 안에 이미 정답이 있다**: `settings.tls_cert_path`가 web.env에서 실경로를 들고 있고 `probe_tls`·`app/health/service.py`가 그것을 쓴다. sysops만 하드코딩했다 | 서버 실측(`ls /etc/ssl/clovirone` = 빈 디렉터리, `grep ssl_certificate /etc/nginx/`), `TLS_CERT_PATH=/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt` | ✅ **실환경검증완료**(2026-08-09) — `TLS_CERT_PATH` 기반으로 경로 수정 + privhelper 유닛에 `EnvironmentFile=`. 실서버에서 실제 신규 인증서(다른 만료일·serial)로 교체 후 `openssl s_client`로 nginx 가 **실제로 그 인증서를 서빙**하는 것을 확인, 이후 원래 인증서로 복원 |
+| SYS-02 | High | **`hostnamectl show -p …`는 systemd 255에 존재하지 않는 verb다.** `actions_service.py:64`가 이 형태만 쓰므로 `system.info`의 호스트 이름이 **영구히 빈 문자열** → `/system` 화면이 "호스트 이름: 확인하지 못했습니다"를 항상 띄운다(실화면 확인). 서버 실측: `hostnamectl show` → `Unknown command verb 'show'`, `--property` 옵션도 없음. `timedatectl`은 `-p`를 지원해서 타임존·NTP만 정상으로 보이고, 그 대비가 "환경 문제"처럼 보이게 만든다. **정답도 제품 안에 있다** — `actions_system.py:202`의 `hostname.set`은 `hostnamectl status --static`을 **먼저** 시도하는 폴백을 갖고 있고 그것은 실서버에서 동작한다(`ai-n8n-svr` 반환). 같은 지식이 한 곳에만 적용됐다 | 서버 실측 3회 | ✅ **실환경검증완료**(2026-08-09, SYS-01 과 같은 파일이라 무료 동승) — `_perform_info` 가 `hostname.set` 과 같은 `status --static` 우선 조회로 통일, `show -p` 는 신버전 폴백으로 남김. 배포 후 `/system` 화면에서 "호스트 이름: ai-n8n-svr" 정상 표시 확인 |
 | SYS-03 | Med | **`tests/unit/test_deploy_wiring.py:94`가 틀린 경로를 정답으로 못 박아 SYS-01을 보호했다.** `test_the_installer_prepares_the_certificate_directory`가 `"/etc/ssl/clovirone" in INSTALL`을 단언하고, `:50`은 헬퍼 `ReadWritePaths`에 같은 경로가 있는지 확인한다. 두 테스트 모두 통과하는데 그 경로는 아무도 읽지 않는다 — **테스트가 미배선을 배선으로 인증한다** | | 발견 |
 | SYS-04 | Med | **`app/sysops/`의 argv 정확성은 현재 테스트 구조로는 검증 불가능하다.** `FakeRunner`는 등록되지 않은 명령을 실패로 답하는 좋은 설계지만(`tests/fakes/sysops.py:37-40`), 등록은 사람이 **코드와 같은 가정으로** 한다 → 코드가 없는 verb를 부르면 fake도 그 verb에 답하도록 등록돼 초록이 된다. SYS-02가 정확히 그 구멍으로 나왔다(`StaticHostname`은 테스트에 단 한 번도 등장하지 않는다). 필요한 것은 대상 OS에서 **읽기 전용 argv만 실제로 한 번 돌려 보는 대조 검사** | | 발견 |
 | SYS-05 | Med | **`/setup`의 TLS 항목이 자체서명 인증서를 초록 "됨"으로 판정한다.** `probe_tls`는 존재 여부와 만료일만 본다 → "인증서 만료까지 340일 남았습니다" 초록. 그런데 같은 화면의 영향 문구가 **"인증서가 만료되면 브라우저가 경고를 띄우고 사용자는 접속을 포기합니다"**라고 적혀 있다 — 자체서명이라 그 경고는 **오늘 이미 뜨고 있다**. 실측: issuer == subject == `CN=clovirone-ai.gooddi.lab`. 측정하는 것과 경고하는 해악이 어긋난다. `CLAUDE.md` §10이 "운영 전 사설 CA로 교체"를 남은 조치로 적어 둔 바로 그 항목인데, "설치가 끝났는가"를 답하는 화면은 끝났다고 말한다 | 서버 실측 `openssl x509 -issuer -subject` | 발견 |
@@ -2431,6 +2431,11 @@ if [ -z "$DNS_NAME" ] || [ -z "$BIND_IP" ]; then echo "…지정해야 합니다
 화면에는 영어 **"Internal server error"** 만 뜬다.
 **POST 경로는 `body=payload.body or ""` 로 이미 방어하고 있다**(router.py:152) — PATCH 만 빠진 비대칭.
 
+> ✅ **실환경검증완료**(2026-08-09) — `body`는 POST와 같은 규칙(`or ""`)으로 채우고,
+> `title`/`level`/`audience`(같은 구조적 결함, 같이 발견)는 명확한 422로 막는다. 실서버에
+> `PATCH {"body": null}` → 200(빈 문자열로 저장) · `PATCH {"title": null}` → 422("제목은(는)
+> 비울 수 없습니다") 직접 확인.
+
 ### 홈 위젯이 **권한 판정을 두 벌로 만든다** (High 2건, 내가 재확인)
 
 | ID | 심각 | 문제 | 상태 |
@@ -2829,10 +2834,10 @@ runuser -u clovirone-web -- test -w .../exports   →  쓰기 가능
 | ID | 심각 | 문제 | 고칠 지점 |
 |---|---|---|---|
 | `OPS-01` | **Critical** | **업로드 디렉터리가 root 소유라 첨부가 안 올라간다**(위 `OPS-01` 절, 내가 실서버에서 확정) | `chown -R` + installer 목록에 `uploads` 추가 + `readyz` 에 쓰기 가능성 |
-| `OPS-10` | **Critical** | **워커가 무한 재시작 루프에 빠질 수 있다.** `worker_lock.acquire()` 가 `os.open` 의 **`FileExistsError` 만** 잡는다 — `EACCES`/`ENOSPC`/`EIO` 는 `main()` 을 관통해 traceback 으로 죽고(exit≠0) systemd 가 **3초 뒤 재시작 → 같은 실패 → 상한 없는 루프**. **디스크가 차거나 권한이 어긋나면 즉시 발생**하고, `OPS-01` 이 보여 주듯 이 서버에서 권한 어긋남은 **이미 일어났다** | `except OSError` 로 넓혀 **리스 경쟁**과 **파일시스템 고장**을 구분, 후자는 백오프. 유닛에 `RestartSec` 상향 + `StartLimitIntervalUSec` |
-| `OPS-11` | High | **하트비트 스레드가 조용히 죽는다.** `beat_liveness()` 는 예외를 다 가두는데 **바로 다음 줄 `lock.renew()` 는 무방비**다 — `Path.write_text()` 의 `OSError` 가 스레드 밖으로 나가 데몬 스레드만 죽고 `stop_event` 는 꺼진 채라 **본 루프는 계속 돈다**. 90초 뒤 대시보드는 「워커 중단」이라 말하는데 **워커는 잡을 처리하고 있다** | `renew()` 를 `try/except OSError` 로 감싸 '리스 상실'과 '갱신 실패'를 구분. **본 루프가 스레드 생존을 감시하는 장치가 없다** |
+| `OPS-10` | **Critical** | **워커가 무한 재시작 루프에 빠질 수 있다.** `worker_lock.acquire()` 가 `os.open` 의 **`FileExistsError` 만** 잡는다 — `EACCES`/`ENOSPC`/`EIO` 는 `main()` 을 관통해 traceback 으로 죽고(exit≠0) systemd 가 **3초 뒤 재시작 → 같은 실패 → 상한 없는 루프**. **디스크가 차거나 권한이 어긋나면 즉시 발생**하고, `OPS-01` 이 보여 주듯 이 서버에서 권한 어긋남은 **이미 일어났다** | ✅ **실환경검증완료**(2026-08-09) — `acquire()` 가 `WorkerLockError` 로 구분해 던지고 `main()` 이 잡아 깨끗이 exit(1), 유닛 `RestartSec=10`+`StartLimitIntervalSec=300`/`Burst=10`. 실서버 배포 후 워커 정상 기동·리스 획득 확인(`journalctl`), 실패 주입은 mock 기반 단위테스트로(공유 워커를 실제로 고장내지 않음) |
+| `OPS-11` | High | **하트비트 스레드가 조용히 죽는다.** `beat_liveness()` 는 예외를 다 가두는데 **바로 다음 줄 `lock.renew()` 는 무방비**다 — `Path.write_text()` 의 `OSError` 가 스레드 밖으로 나가 데몬 스레드만 죽고 `stop_event` 는 꺼진 채라 **본 루프는 계속 돈다**. 90초 뒤 대시보드는 「워커 중단」이라 말하는데 **워커는 잡을 처리하고 있다** | ✅ **실환경검증완료**(2026-08-09) — `run_heartbeat_loop` 이 `renew()` 를 `try/except OSError` 로 감싸 실패 시 `stop_event.set()`. 회귀 테스트로 확인(가짜 lock 의 `renew()` 가 `OSError` 를 던져도 함수가 정상 반환 + `stop_event` 켜짐) |
 | `BKP-10` | High | **백업 보존이 "7일"이 아니라 "7개"다.** 배포 백업이 **같은 스크립트·같은 이름 규칙**으로 만들어져 일일 백업과 **카운터 7칸을 공유**한다 → **배포가 잦은 날 하루에 일주일치 복원 지점이 증발한다** | 배포 백업에 접두어(`pre-upgrade_<ts>`)를 주고 KEEP 분리, 또는 개수 대신 **나이 기준**(`find -mtime +7`) |
-| `SEC-22` | High | **이상 탐지가 CLI 를 통째로 못 본다.** `anomalies.py:49-59` 의 `SENSITIVE_ACTION_PREFIXES` 에 `"user."` 만 있어 **`cli.user.*` 가 하나도 매칭되지 않고**, `CRITICAL_ACTIONS` 에도 `cli.user.set_role` 이 없다 → 5개 규칙 중 **off_hours·critical_action·new_actor_action 세 개가 CLI 계정 조작을 못 잡는다.** CLI 로 역할을 올려도 이상 징후가 안 뜬다 | **두 모듈이 한 목록을 공유**하게 한다(`app/audit/actions.py` 신설). 같은 사실이 두 벌이면 한쪽만 고쳐지는 이 상태가 재발한다 |
+| `SEC-22` | High | **이상 탐지가 CLI 를 통째로 못 본다.** `anomalies.py:49-59` 의 `SENSITIVE_ACTION_PREFIXES` 에 `"user."` 만 있어 **`cli.user.*` 가 하나도 매칭되지 않고**, `CRITICAL_ACTIONS` 에도 `cli.user.set_role` 이 없다 → 5개 규칙 중 **off_hours·critical_action·new_actor_action 세 개가 CLI 계정 조작을 못 잡는다.** CLI 로 역할을 올려도 이상 징후가 안 뜬다 | ✅ **실환경검증완료**(2026-08-09) — `app/audit/actions.py` 신설, `health/service.py`·`anomalies.py` 공유. 실서버에서 CLI 로 실제 역할 변경(`set-role qa-user→operator→user`)을 실행하고 `GET /api/admin/audit/anomalies` 에 `critical_action` 소견으로 `cli.user.set_role` 이 잡히는 것을 직접 확인 |
 
 > **`SEC-22` 는 `ADM-01` 철회와 나란히 봐야 한다.** 나는 "관리자가 CLI 를 쓴다"는 결론을 철회했지만,
 > **CLI 가 감사·이상탐지의 사각지대라는 사실은 그대로 남는다** — 오히려 CLI 사용이 적은 지금이
@@ -2871,7 +2876,7 @@ service.py:98-111  create_user  →  role 이 ALL_ROLES 에 있는지만 검사
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| SEC-30 | **Critical** | 위. **같은 권한 부여가 세 경로에서 세 가지 규칙을 갖는다**(403 / 승인 / 무검사). `WF2 R1`(부차 경로가 관문 밖)의 가장 심한 사례이고, 이번엔 **읽기가 아니라 권한 부여**다 | 발견 |
+| SEC-30 | **Critical** | 위. **같은 권한 부여가 세 경로에서 세 가지 규칙을 갖는다**(403 / 승인 / 무검사). `WF2 R1`(부차 경로가 관문 밖)의 가장 심한 사례이고, 이번엔 **읽기가 아니라 권한 부여**다 | ✅ **실환경검증완료**(2026-08-09) — 게이트를 `create_user()` 안(`ensure_can_grant_role`)으로 이동해 웹 폼·CSV·CLI·`seed_admin.py` 전부 한 곳을 지나게 함. 실서버에서 plain admin(`qa-admin`) 계정으로 CSV 가져오기 미리보기에 `role=system_admin` 행을 넣어 `실패: admin 이상 권한 계정 생성은 system_admin만 가능합니다` 확인, 같은 계정의 웹 폼은 역할 드롭다운 자체에 admin/system_admin 옵션이 없음(프런트도 정상) |
 | SEC-31 | High | **`dry_run` 미리보기도 같은 경로를 지난다** — 미리보기 결과에 `role: system_admin` 이 `created` 로 표시되면 관리자는 그것이 허용된다고 믿는다. 게이트가 없으니 실제로 허용된다 | 발견 |
 
 > **고칠 지점**: `bulk.import_users` 에 단건 생성과 **같은 검사**를 넣거나, 더 낫게는

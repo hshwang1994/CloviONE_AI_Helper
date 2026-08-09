@@ -18,6 +18,42 @@
 
 ## 0. 한 줄 요약
 
+## 🔵 Sonnet 구현 사이클 2 완료 — Critical/High 축(SYS-01·SEC-30·SEC-22·FN-40·OPS-10/11) 전부 실환경검증완료 (2026-08-09)
+
+`SONNET_HANDOFF.md §3` 2~4단계를 끝냈다. **여섯 항목 전부 실서버에서 직접 재현·확인**했다
+(코드만 고치고 "될 것이다"로 남긴 것 없음):
+
+- **`SYS-01`** TLS 인증서 교체 무동작 — `settings.tls_cert_path`(env `TLS_CERT_PATH`)로 통일하고
+  privhelper 유닛에 `EnvironmentFile=` 추가(그 프로세스는 FastAPI `Settings` 가 없는 별도
+  프로세스라 env 로 전달해야 했다). **실제로 새 인증서(다른 만료일·serial)로 교체하고
+  `openssl s_client` 로 nginx 가 그것을 서빙하는 것을 확인한 뒤 원래 인증서로 복원**했다.
+- **`SYS-02`**(무료 동승, 같은 파일) `hostnamectl show -p` 가 systemd 255 에 없는 verb라 호스트
+  이름이 영구히 빈 문자열 — `hostname.set` 이 이미 쓰던 `status --static` 폴백으로 통일.
+- **`SEC-30`** CSV 가져오기 권한 상승 — 게이트(`ensure_can_grant_role`)를 `create_user()` 안으로
+  옮겨 웹 폼·CSV·CLI·`seed_admin.py` 가 전부 한 곳을 지나게 함. **plain admin 계정으로 실제
+  CSV 미리보기에 `role=system_admin` 행을 넣어 거부되는 것을 확인.**
+- **`SEC-22`**(SEC-30 과 같이 묶임) CLI 계정 조작이 이상 탐지에서 전부 안 보이던 것 —
+  `app/audit/actions.py` 신설로 `health/service.py`·`anomalies.py` 가 목록을 공유하게 함.
+  **CLI 로 실제 역할 변경을 실행하고 `/api/admin/audit/anomalies` 에 잡히는 것을 확인.**
+- **`FN-40`** 공지 PATCH 가 `body`/`title`/`level`/`audience` 를 `null` 로 보내면 500 —
+  `body` 는 POST 와 같은 규칙(빈 문자열)으로, 나머지 셋은 명확한 422 로. **실제 PATCH 요청
+  두 종류(`body:null`→200, `title:null`→422) 를 직접 보냈다.**
+- **`OPS-10`/`OPS-11`** 워커 리스 획득 실패·하트비트 갱신 실패가 예외로 새면 재시작 루프·
+  좀비 상태가 됐다 — `WorkerLockError` 로 구분해 깨끗이 종료, `renew()` 도 `beat_liveness()`
+  와 같은 방어. 유닛 `RestartSec=10`+`StartLimitIntervalSec=300`. 실패 주입은 **공유 워커를
+  실제로 고장내지 않기 위해** mock 기반 단위테스트로(정상 기동·리스 획득은 실배포로 확인).
+
+**자율 연속 실행 체계**: 사용자가 "세션 하나가 끝나도 재호출 없이 계속 이어지는 구조를
+만들고 검증하라"고 요청 → 하네스 내장 `/loop` dynamic mode + `ScheduleWakeup` 을 그 목적으로
+재사용하기로 결정(D-53). **이미 실측 검증됨**: 사이클 1→2, 사이클 2 안에서도 여러 차례
+사용자 입력 없이 `ScheduleWakeup`/배경 작업 완료 알림만으로 재개됨.
+
+로컬 게이트 전부 green(pytest 루트 전체 2회 + 러너 + vitest, `STATIC_CHECKS_OK`).
+**다음**: `SONNET_HANDOFF.md §3` 5~11단계(설정 화면 배선 · Notion 본문 쓰기 안전 · 설정
+오버레이 배선 · 셸 스코프 배선 · 게시판·채팅 규약 통일 · 채팅 파서 공용화 · 위생 묶음).
+
+---
+
 ## 🔵 Sonnet 구현 사이클 1 완료 — 배포 경로 자체를 고쳐야 나머지를 검증할 수 있었다 (2026-08-09)
 
 `SONNET_HANDOFF.md §3` 의 순서대로 착수. **1단계(배포 경로 복구)를 먼저 끝냈다** — 이후
