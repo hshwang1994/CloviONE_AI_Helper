@@ -4,6 +4,7 @@ import Chip from "@mui/material/Chip";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button } from "../../ui/kit.jsx";
+import { fmtDuration } from "./settingsRegistry.js";
 
 // 스키마가 정해진 object 설정을 타입에 맞는 입력으로 편집한다. 값의 참(source of truth)은 여전히
 // SettingEditor의 JSON 문자열(val)이다 — 여기선 그 문자열을 파싱해 보여주고, 바뀌면 다시

@@ -65,11 +65,15 @@ Vite가 파일명에 콘텐츠 해시를 박고, 그 밖의 정적은 `app/core/
    ssh -t cloviradmin@10.100.64.71 'cd ~/deploy && sha256sum -c MANIFEST.sha256 && \
      mkdir -p stage && tar -xzf clovirone-web-assistant-bundle.tar.gz -C stage'
    ```
-4. **사용자가** 업그레이드 실행(root, 백업→정지→멱등 installer 재실행→기동):
+4. **사용자가** 업그레이드 실행(root, 백업→정지→멱등 installer 재실행→검증→실패 시 자동 롤백→기동):
    ```bash
-   ssh -t cloviradmin@10.100.64.71 'sudo STAGE=~/deploy/stage ~/deploy/stage/app-src/scripts/upgrade-clovirone-web-assistant.sh'
-   # 끝에 UPGRADE_OK
+   ssh -t cloviradmin@10.100.64.71 'sudo DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71 \
+     STAGE=~/deploy/stage ~/deploy/stage/app-src/scripts/upgrade-clovirone-web-assistant.sh'
+   # 끝에 UPGRADE_OK (실패하면 UPGRADE_ROLLED_BACK <backup-dir> 로 자동 복원됨 - DEPLOY-01/02)
    ```
+   `DNS_NAME`/`BIND_IP`는 **이 서버의 값**이다(다른 설치처에 그대로 쓰지 말 것 — installer가
+   이 값으로 nginx vhost의 `server_name`/`listen`과 TLS 인증서 SAN을 채운다). 이 서버의 값은
+   `grep server_name /etc/nginx/sites-available/clovirone-web-assistant`로 언제든 재확인할 수 있다.
 5. 검증: `scripts/validate-clovirone-web-assistant.sh` 또는 §12 헬스체크 → `https://.../readyz` 200.
 
 ---

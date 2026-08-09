@@ -79,9 +79,10 @@ Worker는 15초마다 `heartbeats` 테이블에 worker/scheduler를 기록한다
   절차와 복원은 `docs/BACKUP_RESTORE.md`
 - **설치 검증**: `sudo scripts/validate-clovirone-web-assistant.sh` —
   서비스 active, 포트, healthz/readyz, TLS를 일괄 점검하고 `VALIDATE_OK` 출력
-- **업그레이드**: 스테이징 디렉터리에 소스 배치 후
-  `sudo scripts/upgrade-clovirone-web-assistant.sh` — 백업 → worker부터 중지 →
-  installer 재실행(의존성/Alembic migrate/유닛/nginx/기동)
+- **업그레이드**: 스테이징 디렉터리에 소스 배치 후 `sudo DNS_NAME=<이 서버 값> BIND_IP=<이 서버
+  값> scripts/upgrade-clovirone-web-assistant.sh` — 백업 → worker부터 중지 → installer
+  재실행(의존성/Alembic migrate/유닛/nginx/기동) → healthz/readyz 검증 → **실패 시 자동 롤백**
+  (`docs/MAINTENANCE_PLAYBOOK.md` §2에 이 서버의 정확한 값과 전체 명령이 있다)
 - **사용자 관리(비상용 CLI)**: `venv/bin/python -m app.cli.user_cli list|show|unlock ...`
   (웹이 죽어도 동작, `docs/USER_LIFECYCLE.md`)
 - **allowlist 변경**: `/etc/clovirone-web-assistant/allowed-*.json` 편집 —
