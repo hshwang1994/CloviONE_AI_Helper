@@ -12,9 +12,64 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치4(CORE-08·10·12 일부) —
-로컬 게이트 green + 배포 완료. **CORE 표 사실상 마무리(남은 건 CORE-12 잔여 소항목들과
-Critical 2건)** · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치5(CORE-12 잔여 4건 전부) —
+로컬 게이트 green + 배포 완료 + 부분 실환경검증. **CORE-12 표 완전히 마무리. 남은 건
+Critical 2건(`AI-30`·`FAIL-01`)과 BACKLOG 나머지 약 93%** — 진행률 실측치는
+[docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고(이 문서가 새 진입점 보조 역할, 원래
+Master Plan과의 격차를 숨기지 않고 기록함) · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🔵 Sonnet 구현 사이클 4, 배치 5 — CORE-12 잔여 4건 + Notion 호출부 회귀 자체 발견·수정 (2026-08-10)
+
+**CORE-12(마무리)**: 배치 4에서 미룬 4개 소항목을 전부 고쳤다.
+- `ratelimit._buckets`가 상한·청소 없이 무한 증가 → dict 삽입 순서를 LRU로 재사용,
+  1만 건 넘으면 가장 오래 안 쓴 키부터 제거.
+- `_is_safe_request_id`가 `str.isalnum()`(유니코드 인식)이라 한글 등도 통과시켜 응답 헤더
+  조립 단계에서 `UnicodeEncodeError`로 죽을 수 있었다(`try/except`가 감싸는 범위 밖) →
+  ASCII 영숫자·하이픈만 허용.
+- `audit.mask_sensitive`가 `secret_ref`/`secret_reference` **이름**까지 `***`로 가려,
+  같은 변경이 `config_versions`엔 이름으로 남는데 감사 로그엔 "***→***"로만 남아 변경
+  여부조차 못 읽었다 → 이 두 필드명만 정확히 예외 처리.
+- `SecretMissingError`가 ref 이름을 예외 메시지에 실어 그대로 HTTP 응답 본문에 노출됐다
+  (이 예외를 일으키는 `OutboundClient` 경로는 관리자 전용이 아니다) → 기본 메시지로 바꾸고
+  이름은 서버 로그(`logger.warning`)로만.
+
+**부수 발견(자체 검증 루프가 잡음)**: `SecretMissingError` 메시지에서 이름을 뺀 순간,
+Notion 호출부 4곳(`app/reports/notion_source.py`, `app/team_docs/notion_docs.py` ×2,
+`app/tickets/notion_write.py`, `app/notion_console/probe_notion.py`)이 전부 "토큰 미설정"
+판별을 `그_이름 in str(exc)` 문자열 매칭으로 하고 있었다 — 이름이 메시지에서 빠지자 전부
+"설정 안 됨"을 "조회 실패"로 오판하게 됐다. 전체 pytest 1차 실행에서 10건 실패로 잡혔고,
+`except SecretMissingError`(타입 기반)로 교체 + 테스트 커버리지가 없던 두 곳
+(`notion_docs.py`, `notion_write.py`)에 회귀 테스트를 새로 추가해 고쳤다. **이 문자열
+매칭 자체가 CORE-12가 지적한 것과 같은 종류의 설계 취약점이었다** — 고치는 김에 근본
+원인까지 없앴다.
+
+**검증 방법론**: 4건 전부(+ Notion 호출부 회귀 2건) revert-to-verify: 고치기 전 코드로
+되돌려 새 테스트가 실패하는 것을 직접 확인 → 복원 → 통과 재확인.
+
+**로컬 게이트**: 백엔드 pytest 전체 green(1차 실행에서 위 회귀로 10건 실패 → 원인 수정 →
+재실행 green), `STATIC_CHECKS_OK`. 커밋 `6e300b3` → 배포 `UPGRADE_OK`(2026-08-10 07:06),
+서비스 3종(`clovirone-web-assistant`·`clovirone-web-worker`·`clovirone-privhelper`) 전부
+`active`, `/healthz`·`/readyz` 200.
+
+**실서버 검증**: request-id 건은 **직접 확인함** — `curl -H "X-Request-ID: 한글한글테스트"
+https://clovirone-ai.gooddi.lab/healthz` → `200 OK` + 응답 헤더 `x-request-id`가 생성된
+uuid(`ab4c5982acd6051c38e42df217a8ce17`)로 교체됨(크래시도 반사도 없음). 나머지 세 건은
+정직하게 미검증으로 남긴다 — ratelimit 버킷 상한은 순수 파이썬 객체 상태라 HTTP로 관측
+불가, 감사 마스킹은 같은 이유로 관측하려면 실제 secret_ref 변경 감사 로그를 읽어야 하는데
+그러려면 테스트용 Integration을 만들어야 하고 **Integration Registry엔 삭제 API가 없어**
+영구 클러터가 남는다(이번엔 만들지 않기로 결정), SecretMissingError 노출 건도 같은 이유로
+막힘. 상세 표는 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) §6.
+
+**신규 상시 문서**: `docs/PROGRESS_STATUS.md` 신설 — 사용자가 "기억·문서 완료 표시를
+맹신하지 말고, Master Plan·BACKLOG·QA_COVERAGE·실소스·배포상태·Chrome 검증을 계속
+대조하라"고 명시적으로 지시했다. 이 문서가 그 대조 결과의 단일 Snapshot이다(여러 개 안
+만듦). **핵심 발견**: BACKLOG 전체 약 522건 중 이번 세션이 손댄 건 약 39건(약 7%),
+QA_COVERAGE 7축 체계적 검증은 73라우트 중 F/D/C축이 사실상 전부 0 — Cycle 4가 CORE/UA/UB만
+파고드는 동안 Master Plan §3이 명시한 원래 순서(디자인 시스템 → AI 도우미 → 관리자 IA →
+기능/권한 E2E)에서 1~3단계를 건너뛰었다는 것도 기록해 뒀다(§5-1, 아직 결정 안 됨 — 되돌릴지
+이대로 계속할지).
 
 ---
 

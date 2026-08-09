@@ -6,6 +6,22 @@
 > 남은 문제는 [BACKLOG.md](BACKLOG.md), 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md).
 > 이 문서는 "무엇을 했는가"의 누적 이력이다. Raw log를 복사해 비대하게 만들지 않는다.
 
+## 2026-08-10 (Sonnet 구현 사이클 4, 배치 5) — CORE-12 완전 마무리 + Notion 호출부 자체 회귀 발견·수정 + PROGRESS_STATUS.md 신설
+
+**무엇을 했나**: 배치 4에서 미룬 CORE-12 잔여 4건을 전부 고침 — ratelimit 버킷 LRU 상한,
+request-id ASCII 전용 검사(유니코드 `isalnum()`이 응답 헤더 latin-1 인코딩을 깨뜨릴 수
+있었음), audit masking에서 `secret_ref`/`secret_reference` 필드명 예외 처리,
+`SecretMissingError`에서 ref 이름을 응답 본문 대신 서버 로그로 이동. 네 번째 수정이 Notion
+호출부 4곳의 "토큰 미설정" 판별(문자열 매칭 `이름 in str(exc)`)을 깨뜨리는 것을 전체 pytest
+1차 실행에서 잡아 타입 기반 판별로 교체하고 회귀 테스트를 보강함(상세는 WORK_STATE.md 배치
+5 항목). 커밋 `6e300b3` → 배포 `UPGRADE_OK` → request-id 건 실서버 curl 검증 완료.
+
+사용자 지시로 `docs/PROGRESS_STATUS.md`를 신설 — Master Plan·BACKLOG·QA_COVERAGE·실제
+배포 상태를 대조한 단일 Snapshot. 핵심 발견: BACKLOG 전체 약 522건 중 Cycle 4가 손댄 건
+약 39건(7%)뿐이고, QA_COVERAGE 7축 체계적 검증(73라우트)은 F/D/C축이 사실상 0. Cycle 4가
+Master Plan §3의 원래 순서(디자인 시스템→AI 도우미→관리자 IA→기능/권한 E2E)를 건너뛰고
+곧장 기능/권한 E2E 성격의 CORE/UA/UB로 들어간 것도 기록해 둠 — 되돌릴지는 미결정.
+
 ## 2026-08-10 (Sonnet 구현 사이클 4, 배치 4) — page-auth 임퍼소네이션 누락·기능 플래그 타입 강제·설정 캐시 참조 공유·기동 실패 침묵
 
 **무엇을 했나**: `get_page_auth`가 `get_current_auth`와 다른 경로로 인증을 로드하면서
