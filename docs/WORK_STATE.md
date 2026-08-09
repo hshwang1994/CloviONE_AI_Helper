@@ -12,12 +12,93 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 3 — **`SONNET_HANDOFF.md §3` 5~11단계
-전부 로컬 게이트 green + 배포 + Chrome 실환경검증 완료** · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치1 — 로컬 게이트 green +
+배포 + 실환경검증(부분) 완료. **BACKLOG.md의 나머지 항목(Critical 2건 포함)으로 계속 진행 중**
+· **브랜치**: `ui/mui-migration`
 
 ---
 
 ## 0. 한 줄 요약
+
+## 🔵 Sonnet 구현 사이클 4, 배치 1 — RBAC 스코프 가드·쿼터 표시·임퍼소네이션 로그아웃·워커 락·백업 락 (2026-08-10)
+
+사이클 3(11단계) 완료 후 `docs/BACKLOG.md`(529항목)를 다시 훑어 다음 배치를 골랐다 — Opus의
+6라운드 전수조사 이후 처음으로 **BACKLOG 자체를 근거로** 고른 사이클이다(SONNET_HANDOFF.md의
+11단계 목록이 아니라). 남은 Critical 2건(`AI-30`·`FAIL-01`)은 러너 별도 서브프로젝트·5화면
+이상 걸친 교차 패턴이라 각각 전용 사이클로 미루고, 이번엔 **"이미 있는 가드를 새 자리에
+안 걸었다"** 류의 High 8건 + 인프라 2건을 같은 뿌리로 묶어 처리했다.
+
+**UA-01·UA-02(전사 데이터 유출, 실서버에서 이미 재현됐던 건)**: `weekly_digest_facts`가
+`visible_user_ids`를 안 넘겨 주간 다이제스트 팀 합계·상위 기여자가 항상 전사였다.
+`sprints/service.py::_visible_ids`·`tickets/service.py::drop_out_of_scope_dtos`는
+`scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 무제한이었다(`visible_user_ids` 자신이
+이미 전역일 때만 `None`을 주므로 그 판정 하나면 충분한데 불필요하게 좁게 조건을 걸었던 것).
+셋 다 고침.
+
+**SEC-01(Notion 신원 결속 권한 상승)**: `notion_mapping` 쓰기 4종에 `ensure_can_manage_target`
+누락 — `users/router.py`의 형제 엔드포인트와 같은 패턴으로 추가.
+
+**UB-01(공지 스코프 가드 전무)**: 공지는 부서별로 좁혀 보여줄 방법이 없어(`audience`가
+all/admin 둘뿐) 쓰기 전부를 전역 범위로 한정(`quotas`의 `_ensure_may_touch_global`과 같은 판단).
+
+**UB-02(쿼터 화면 표시-집행 불일치)**: 전역 쿼터 집행은 항상 사용자별인데 목록은 전 사용자
+합계를 보여줘 존재하지 않는 "상한 도달"을 알렸다. `max_user_used()`(최다 사용자 1인의 값)로 교체.
+
+**UB-03(로그아웃이 임퍼소네이션을 안 끝냄)**: `/logout`이 세션은 폐기하면서
+`ImpersonationSession.ended_at`은 영원히 NULL로 남겼다 — 세션 폐기 전에 `imp_service.end(...,
+reason="logout")` + 감사 기록을 추가.
+
+**CORE-01·CORE-03(워커 락 경쟁)**: 새 리스 생성 경로가 만료-리스-인수 경로와 달리
+`verify_ownership()` 없이 성공을 반환했다(두 프로세스가 동시에 자신이 주인이라 믿을 수 있음).
+`_write()`도 `Path.write_text`(truncate-then-write)라 `renew()` 도중 다른 프로세스가 빈 파일을
+볼 수 있었다. 생성 경로를 인수 경로와 같은 "쓰고 verify" 구조로 통일하고, `_write()`를
+`secret_refs.write()`와 같은 `mkstemp`+`os.replace` 원자적 패턴으로 교체.
+
+**UA-03(백업이 앱 전체 쓰기를 막음)**: `run_backup`이 "running" 행을 만든 `db.flush()` 직후
+커밋 없이 전체 DB 복사+임시 복원+무결성 검사 2벌을 수행해 그동안 SQLite 쓰기 락을 계속
+쥐고 있었다 — `trash/service.py::purge_expired`(S7)가 이미 겪고 고친 것과 같은 실패 양식.
+행 생성 직후 커밋해 락을 놓고, 느린 구간 뒤 짧은 마무리 쓰기로 상태를 확정.
+
+**검증 방법론에 대한 정직한 기록**: 9건 전부 회귀 테스트를 새로 추가했고, **그 테스트가 실제로
+버그를 잡는지 고치기 전 코드로 일부러 되돌려 실패를 직접 확인한 뒤 복원**했다(D-54와 같은
+정신 — 자기 자신의 "테스트 통과"도 액면 그대로 안 믿는다). 배포 후 실서버에서도 검증을
+시도했는데, 그 과정에서 **두 항목의 테스트 설계 결함을 스스로 발견**했다: UA-01/UA-02는
+이 서버가 조직 1개·부서 2개(부모-자식이라 사실상 전 직원이 한 트리)뿐이라 "범위 밖 사람이
+안 보인다"를 보여줄 고립된 집단이 없었고, SEC-01은 대상(system_admin, 부서 없음)이 애초에
+**기존** 범위 검사에서 먼저 404로 막혀 이번에 추가한 새 검사를 전혀 통과시키지 못했다 —
+둘 다 "200/404가 나왔다"를 검증 성공으로 착각할 뻔한 자리였다. 상세는 아래 및
+`docs/BACKLOG.md`의 각 항목 상태 칸.
+
+**로컬 게이트**: 백엔드 pytest 전체 green(exit 0), 프런트 vitest 189파일/1272건 green,
+`STATIC_CHECKS_OK`. 커밋 `aa5e346` 배포 → `UPGRADE_OK`, 서비스 3종(web·worker·privhelper)
+전부 active, `/healthz`·`/readyz` 정상.
+
+**실서버 검증(system_admin 계정 + curl, 임시 부서범위 admin 계정 하나를 만들어 검증 후
+바로 보관 처리)**:
+- **UB-01(실환경검증완료)** — 임시 부서범위 admin으로 `POST /api/admin/announcements` 호출
+  → **`403 forbidden`, "공지는 전체 범위 관리자만 만들고 바꿀 수 있습니다."** 실측 확인.
+- **UB-03(실환경검증완료)** — system_admin이 QA 테스트 계정(`qa-user`)을 대리 보기 시작 →
+  `/logout` → `GET /api/admin/impersonation/sessions`로 그 세션을 다시 조회 →
+  **`ended_at`이 실제로 채워지고 `ended_reason: "logout"`, `active: false`** 확인.
+- **UA-03(부분)** — "지금 백업"을 실제로 실행 → `201`, `status: "verified"` 정상 확인(기능
+  자체 회귀 없음). 이 서버 DB가 작아(6MB) 백업이 0.19초 만에 끝나 "그 사이 다른 쓰기가
+  막히는지"는 수동 타이밍으로 관찰 불가 — 락 미보유 자체는 로컬의 인위적 지연 테스트로만
+  확실히 증명됨.
+- **UA-01·UA-02·SEC-01·UB-02·CORE-01·CORE-03 — 실서버에서 시도했지만 결론에 이르지 못함
+  (정직하게 미검증으로 남긴다)**:
+  - UA-01/UA-02: 임시 부서범위 admin으로 weekly-digest·sprint-summary 호출 → 200 정상
+    응답은 받았으나, 이 서버의 부모-자식 부서 구조상 "범위 밖이라 안 보이는 사람"이 존재하지
+    않아 필터가 실제로 작동하는지와 애초에 안 걸렸을 때의 차이를 구별할 수 없었다.
+  - SEC-01: 대상(system_admin)이 부서가 없어 **기존**(이번에 안 바꾼) 범위 검사에서 먼저
+    404가 나 이번에 추가한 `ensure_can_manage_target`을 애초에 통과시키지 못했다.
+  - UB-02: `/api/admin/ai-quotas` 목록이 200으로 정상 응답(회귀 없음)하는 것만 확인 — 이
+    서버엔 전역 쿼터 행 자체가 설정돼 있지 않아 표시값 변화를 볼 표본이 없었다.
+  - CORE-01/CORE-03: 워커 프로세스를 실제로 둘 띄워 경쟁을 재현하는 것은 운영 워커에
+    위험해 시도하지 않음 — 의도적으로 로컬 테스트로만 검증.
+  이 다섯/여섯 항목은 `docs/BACKLOG.md`에도 "로컬 테스트로만 확실히 검증됨"이라고 같은
+  수위로 적어 뒀다 — 표에는 "구현완료"로만 표시하고 "실환경검증완료"라고 과장하지 않았다.
+
+---
 
 ## 🔵 Sonnet 구현 사이클 3, 9·10단계 — 배포·실환경검증 완료 (2026-08-10)
 
