@@ -12,12 +12,14 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치6(UA-05/07/08/09) —
-로컬 게이트 green + 배포 완료 + 부분 실환경검증(무회귀 확인 수준). **UA-04/06/10은
-프런트 변경이 필요해 의도적으로 보류**(별도 배치). 남은 건 Critical 2건(`AI-30`·
-`FAIL-01`), UA-04/06/10, BACKLOG 나머지 대부분 — 진행률 실측치는
-[docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고(이 문서가 새 진입점 보조 역할, 원래
-Master Plan과의 격차를 숨기지 않고 기록함) · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: **작업 방식을 MEGA CYCLE로 전환**(D-53,
+`docs/DECISIONS.md`) — Cycle 4의 소배치(4~5건 → 전체테스트 → 배포) 방식을 그만두고,
+제품 영역 단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 바꾼다. Cycle 4
+배치 1~6(UA/CORE/SEC 22건, 전부 배포·문서화 완료)은 그대로 유지 — 버리지 않음.
+**지금**: MEGA CYCLE A(AI Assistant / 러너 대화 엔진) 착수 — `runner/claude-work-
+assistant/assistant.py`의 상태 머신 조사 중(`RN-01`~`RN-14` + Critical `AI-30`).
+진행률 실측치는 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**:
+`ui/mui-migration`
 
 ---
 
