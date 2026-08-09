@@ -42,6 +42,7 @@ def _client_for(rbac_app, settings, role):
             display_name=f"{role} 계정",
             password=DEFAULT_TEST_PASSWORD,
             settings=settings,
+            actor_role="system_admin",
             role=role,
             must_change_password=False,
         )

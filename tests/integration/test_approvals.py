@@ -98,7 +98,7 @@ def test_other_admin_approves_and_action_applies_once(
 
     create_user(
         db, email="approver@goodmit.co.kr", display_name="승인자",
-        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings,
+        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings, actor_role="system_admin",
         role="admin", must_change_password=False,
     )
     db.commit()
@@ -147,7 +147,7 @@ def test_reject_does_not_apply(app, client, login_as, workflow_id, db):
 
     create_user(
         db, email="rejecter@goodmit.co.kr", display_name="거절자",
-        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings,
+        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings, actor_role="system_admin",
         role="admin", must_change_password=False,
     )
     db.commit()

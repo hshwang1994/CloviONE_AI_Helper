@@ -87,6 +87,10 @@ def cmd_add(db: Session, session_service: SessionService, settings: Settings, ar
         display_name=args.name,
         password=password,
         settings=settings,
+        # CLI 는 서버 root/SSH 접근을 이미 전제한다(비상용 도구, CLAUDE.md §10) — 그 접근
+        # 자체가 이미 system_admin 이상의 권한이므로 다른 update_* 호출과 같은 관례로
+        # actor_role='system_admin' 을 self-declare 한다(SEC-30).
+        actor_role="system_admin",
         role=args.role,
         active=not args.inactive,
         must_change_password=True,

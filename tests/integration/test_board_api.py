@@ -368,6 +368,7 @@ def test_feature_flag_off_hides_board(db_path, tmp_path, fake_clock, fake_http):
             display_name="FF",
             password=DEFAULT_TEST_PASSWORD,
             settings=settings,
+            actor_role="system_admin",
             role="user",
             active=True,
             must_change_password=False,

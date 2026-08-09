@@ -37,6 +37,7 @@ from app.users.models import ALL_ROLES, User
 from app.users.service import (
     archive_user,
     create_user,
+    ensure_can_grant_role,
     ensure_can_manage_target,
     get_scoped_user_or_404,
     set_user_active,
@@ -234,14 +235,22 @@ def import_users(
             continue
 
         if dry_run:
-            # 만들지 않고, 만들었을 때 범위 밖이 되는지까지 미리 본다 — 실행 단계에서만
-            # 알게 되면 "미리보기는 초록이었는데 실행은 빨갛다"가 된다.
-            if not _dept_in_scope(scope, dept_id):
-                out.update(status="failed", message="관리 범위 밖 부서로는 계정을 만들 수 없습니다.")
+            # 만들지 않고, 만들었을 때 범위 밖이 되는지·권한 상승 요청인지까지 미리 본다 —
+            # 실행 단계에서만 알게 되면 "미리보기는 초록이었는데 실행은 빨갛다"가 된다.
+            # SEC-30: role 검사도 실제 create_user() 가 던지는 것과 같은 규칙
+            # (ensure_can_grant_role)이어야 두 판정이 갈라지지 않는다.
+            try:
+                ensure_can_grant_role(actor.role, row.get("role") or "user")
+            except AppError as exc:
+                out.update(status="failed", message=exc.message)
                 failed += 1
             else:
-                out.update(status="ready", message="새로 만들 계정입니다.")
-                created += 1
+                if not _dept_in_scope(scope, dept_id):
+                    out.update(status="failed", message="관리 범위 밖 부서로는 계정을 만들 수 없습니다.")
+                    failed += 1
+                else:
+                    out.update(status="ready", message="새로 만들 계정입니다.")
+                    created += 1
             results.append(out)
             continue
 
@@ -249,6 +258,7 @@ def import_users(
             user = create_user(
                 db, email=email, display_name=row["display_name"],
                 password=generate_temp_password(), settings=settings,
+                actor_role=actor.role,
                 role=row.get("role") or "user", active=bool(row.get("active", True)),
                 must_change_password=True, department_id=dept_id, title_id=title_id,
                 created_by=actor.id, effective_settings=effective_settings,

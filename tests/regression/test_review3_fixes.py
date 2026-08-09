@@ -339,7 +339,7 @@ def test_schedule_definition_changed_after_request_invalidates_approval(
 
     create_user(
         db, email="r3-approver@goodmit.co.kr", display_name="승인자",
-        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings,
+        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings, actor_role="system_admin",
         role="admin", must_change_password=False,
     )
     db.commit()
@@ -373,7 +373,7 @@ def test_unchanged_definition_still_approves(app, client, login_as, sched_workfl
 
     create_user(
         db, email="r3-approver2@goodmit.co.kr", display_name="승인자2",
-        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings,
+        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings, actor_role="system_admin",
         role="admin", must_change_password=False,
     )
     db.commit()
@@ -400,7 +400,8 @@ def _approve_as_second_admin(app, db, approval_id, email):
 
     create_user(
         db, email=email, display_name="승인자", password=DEFAULT_TEST_PASSWORD,
-        settings=app.state.settings, role="admin", must_change_password=False,
+        settings=app.state.settings, actor_role="system_admin", role="admin",
+        must_change_password=False,
     )
     db.commit()
     with TestClient(app, raise_server_exceptions=False) as approver:

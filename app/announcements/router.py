@@ -26,7 +26,7 @@ from app.announcements.models import (
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_current_user, get_db, require_csrf, require_roles
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.users.models import ROLE_USER, User
 
@@ -181,6 +181,19 @@ def update_announcement(
     row = _get_or_404(db, row_id)
     before = service.view(row)
     data = payload.model_dump(exclude_unset=True)
+    # FN-40: title/body/level/audience 컬럼은 nullable=False 인데, 이 스키마는 부분 갱신을
+    # 위해 넷 다 `str | None` 이다. Pydantic 은 Optional 필드의 None 값에 min_length 같은
+    # 문자열 제약을 적용하지 않으므로, 클라이언트가 필드를 아예 안 보낸 것(exclude_unset 이
+    # 걸러 준다)이 아니라 명시적으로 `null` 을 보내면 그대로 setattr 까지 내려가
+    # IntegrityError(NOT NULL constraint) → 500 이 났다. POST 경로는 body 하나만
+    # `payload.body or ""`(:152)로 이미 방어하고 있었다 - PATCH 는 넷 다 빠져 있었다.
+    # body 는 POST 와 같은 규칙(빈 문자열이 유효한 값)으로 채우고, 나머지 셋은 빈 값이
+    # 의미가 없으므로(제목 없는 공지·중요도 없는 공지는 말이 안 된다) 명확한 오류로 막는다.
+    if "body" in data and data["body"] is None:
+        data["body"] = ""
+    for key, label in (("title", "제목"), ("level", "중요도"), ("audience", "대상")):
+        if key in data and data[key] is None:
+            raise ValidationAppError(f"{label}은(는) 비울 수 없습니다.")
     service.validate(
         data.get("level", row.level),
         data.get("audience", row.audience),

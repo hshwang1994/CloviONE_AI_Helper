@@ -45,6 +45,15 @@ class WorkerLockHeld(RuntimeError):
     """다른 워커가 살아 있는 리스를 들고 있다."""
 
 
+class WorkerLockError(RuntimeError):
+    """리스 경쟁이 아니라 파일시스템 자체가 리스를 못 쓰게 한다(OPS-10).
+
+    `WorkerLockHeld`/`acquire() == False` 와 다르다 - 그 둘은 "다른 워커가 있으니 내가
+    물러난다"는 정상적인 결과다. 이것은 "이 환경에서는 락 자체를 쓸 수 없다"는 뜻이라
+    호출자가 조용히 넘기면 안 된다.
+    """
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -105,6 +114,15 @@ class WorkerLock:
 
         경쟁 해소는 `O_CREAT|O_EXCL` 원자적 생성이 한다. 파일이 이미 있으면 만료됐는지
         보고, 만료됐을 때만 덮어쓴다.
+
+        OPS-10: 예전엔 `os.open` 의 `FileExistsError`(= 리스 경쟁, 정상적인 일)만 잡고
+        나머지 `OSError`(권한 어긋남 EACCES·디스크 가득 참 ENOSPC·입출력 오류 EIO)는
+        그대로 던졌다 — `main()` 을 관통해 프로세스가 트레이스백과 함께 죽고, systemd 가
+        `RestartSec=3` 로 다시 띄우고 또 같은 이유로 죽는 재시작 루프에 빠졌다. 이 서버에서
+        권한 어긋남은 실제로 일어난 적이 있다(`OPS-01`, uploads 디렉터리). 리스 경쟁과
+        파일시스템 고장은 서로 다른 사고이므로 구분한다 - 후자는 `WorkerLockError` 로
+        올려 호출자가 "리스를 못 잡았다"(False) 가 아니라 "그 자체가 못 도는 환경이다"
+        (예외)를 알 수 있게 한다.
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = self._payload()
@@ -118,12 +136,19 @@ class WorkerLock:
             # 만료된 리스 인수. 여기서 두 프로세스가 동시에 덮어쓸 수 있지만, 둘 다
             # '만료된 리스를 봤다'는 뜻이고 마지막 쓰기가 이긴다. 그 뒤 verify_ownership()
             # 이 자기 것이 아님을 알아채고 진 쪽이 물러난다.
-            self._write(payload)
+            try:
+                self._write(payload)
+            except OSError as exc:
+                raise WorkerLockError(f"만료된 리스를 인수하려다 쓰기에 실패했다: {exc}") from exc
             if not self.verify_ownership():
                 return False
             self._held = True
             logger.warning("만료된 워커 리스를 인수했다: 이전 소유자=%s", (existing or {}).get("owner"))
             return True
+        except OSError as exc:
+            # 리스 경쟁이 아니다 - 이 경로에서 락을 아예 못 쓴다는 뜻이라, "다른 워커가
+            # 있다"(False) 처럼 조용히 넘기면 원인을 아무도 모른다.
+            raise WorkerLockError(f"워커 리스 파일을 열 수 없다: {exc}") from exc
         else:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))

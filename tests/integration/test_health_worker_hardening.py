@@ -161,6 +161,28 @@ def test_run_heartbeat_loop_beats_then_stops(settings):
             assert db.get(Heartbeat, component).last_beat_at == now
 
 
+def test_run_heartbeat_loop_stops_when_lock_renew_raises(settings):
+    """OPS-11: `beat_liveness` 는 예외를 전부 가두는데 `lock.renew()` 는 무방비였다 -
+    `renew()` 가 (반환값이 아니라) 예외로 실패하면 이 데몬 스레드가 조용히 죽고
+    `stop_event` 는 끝내 안 켜져서, 대시보드는 하트비트 단절로 "워커 중단"을 보여 주는데
+    본 루프(`worker.run_forever`)는 그 사실을 모른 채 잡을 계속 처리하는 좀비 상태가 됐다.
+    이 테스트는 `run_heartbeat_loop` 자신이 그 예외를 잡아 `stop_event` 를 켜고 돌아오는지
+    본다(그래야 본 루프가 그 신호를 보고 같이 멈춘다)."""
+    session_factory = _session_factory(settings)
+    clock = FakeClock(datetime(2026, 7, 19, 12, 0, 0))
+    stop_event = threading.Event()
+
+    class ExplodingLock:
+        def renew(self):
+            raise OSError("ENOSPC")
+
+    # 데몬 스레드가 조용히 죽지 않고 정상적으로 리턴해야 이 호출 자체가 끝난다 -
+    # 예전 코드라면 여기서 OSError 가 그대로 튀어나와 테스트가 실패(에러)했을 것이다.
+    run_heartbeat_loop(session_factory, clock, stop_event, interval=0.01, lock=ExplodingLock())
+
+    assert stop_event.is_set(), "renew() 예외 뒤에도 stop_event 가 안 켜지면 본 루프가 계속 돈다"
+
+
 def test_run_heartbeat_loop_exits_when_already_stopped(settings):
     session_factory = _session_factory(settings)
     clock = FakeClock()

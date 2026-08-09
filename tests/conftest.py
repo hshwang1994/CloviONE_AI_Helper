@@ -142,6 +142,9 @@ def make_user(db, settings):
             display_name=display_name,
             password=password,
             settings=settings,
+            # 테스트 픽스처는 seed_admin.py 와 같은 성격의 부트스트랩이다 - 임의 역할의
+            # 테스트 사용자를 자유롭게 만들 수 있어야 하므로 system_admin 으로 self-declare.
+            actor_role="system_admin",
             role=role,
             active=active,
             must_change_password=must_change_password,

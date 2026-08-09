@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.config import Settings
 from app.core.errors import (
     ConflictError,
@@ -88,6 +89,24 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     ).scalar_one_or_none()
 
 
+def ensure_can_grant_role(actor_role: str, role: str) -> None:
+    """Authority boundary for account CREATION (spec §20, SEC-30): minting an
+    admin-or-above account is a role grant, so only system_admin may do it —
+    a plain admin (even org/global-scoped) cannot create another admin or
+    system_admin account.
+
+    Enforced *inside* ``create_user`` (below) rather than left to each caller,
+    because it used to be left to each caller: the single-user web form had
+    this check, but the CSV bulk-import path (``app/users/bulk.py``) called
+    ``create_user`` directly with no equivalent check at all — an `admin`
+    could mint a `system_admin` account through a CSV upload. Putting the
+    gate here means every entry point (web form, CSV import, CLI,
+    seed_admin.py) is covered by construction; a new caller cannot forget it.
+    """
+    if role in CONSOLE_WRITE_ROLES and actor_role != ROLE_SYSTEM_ADMIN:
+        raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
+
+
 def create_user(
     db: Session,
     *,
@@ -95,6 +114,7 @@ def create_user(
     display_name: str,
     password: str,
     settings: Settings,
+    actor_role: str,
     role: str = "user",
     active: bool = True,
     must_change_password: bool = True,
@@ -109,6 +129,7 @@ def create_user(
         raise ValidationAppError("이름을 입력해야 합니다.")
     if role not in ALL_ROLES:
         raise ValidationAppError(f"알 수 없는 역할입니다: {role}")
+    ensure_can_grant_role(actor_role, role)
 
     eff = effective_settings or {}
     if "allowed_email_domains" in eff:

@@ -77,6 +77,24 @@ def test_require_roles_is_never_called_with_string_literals():
     assert not offenders, "require_roles 에 문자열 리터럴이 직접 들어갔다:\n  " + "\n  ".join(offenders)
 
 
+def test_require_roles_always_splats_a_group_constant():
+    """`require_roles(ROLE_SYSTEM_ADMIN)` 처럼 그룹 상수가 아니라 역할 상수 하나를
+    splat 없이 직접 넘기면, 그 자리만 이 저장소의 나머지 전부가 쓰는
+    `require_roles(*GROUP)` 관례에서 벗어난다 — `app/sysops/router.py` 가 실제로 그랬다
+    (SYS-01 과 같은 배선점). 문자열 리터럴 검사(위)는 그 형태를 안 잡는다 - `ROLE_SYSTEM_ADMIN`
+    은 리터럴이 아니라 import 된 이름이기 때문이다."""
+    offenders = []
+    for path in _python_sources():
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"require_roles\(\s*[A-Z][A-Z0-9_]*\s*\)", text):
+            line = text[: match.start()].count("\n") + 1
+            offenders.append(f"{path.relative_to(PROJECT_ROOT).as_posix()}:{line}: {match.group(0)}")
+    assert not offenders, (
+        "require_roles 가 그룹 상수를 splat(*) 없이 하나만 받는다 - 나머지 전부는 "
+        "require_roles(*GROUP) 형태다:\n  " + "\n  ".join(offenders)
+    )
+
+
 def test_moderator_roles_and_console_ops_roles_are_the_same_set():
     """둘이 갈라지면 '운영자'의 뜻이 화면마다 달라진다.
 

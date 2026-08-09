@@ -45,6 +45,10 @@ def main() -> int:
             display_name=args.name,
             password=temp_password,
             settings=settings,
+            # 이 스크립트는 서버 root/SSH 접근을 전제하는 최초 부트스트랩이라 그 자체가
+            # 이미 system_admin 이상의 권한이다 - 아직 아무 계정도 없어 "요청한 사람의
+            # role" 이라는 개념 자체가 없다(SEC-30).
+            actor_role="system_admin",
             role="system_admin",
             active=True,
             must_change_password=True,

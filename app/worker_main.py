@@ -19,7 +19,7 @@ from app.core.db import make_engine, make_session_factory
 from app.core.http_client import OutboundClient
 from app.core.logging_setup import configure_logging
 from app.core.secret_refs import FileSecretReferenceProvider
-from app.core.worker_lock import WorkerLock, default_lock_path
+from app.core.worker_lock import WorkerLock, WorkerLockError, default_lock_path
 from app.jobs.worker import Worker, WorkerContext
 from app.observability.models import COMPONENT_DOCUMENTS, COMPONENT_TICKETS
 
@@ -81,7 +81,21 @@ def run_heartbeat_loop(
     """
     while not stop_event.is_set():
         beat_liveness(session_factory, clock, components)
-        if lock is not None and not lock.renew():
+        # OPS-11: beat_liveness()는 예외를 전부 가두는데(위 함수 docstring), renew()는
+        # 무방비였다 - renew() 안의 _write()가 OSError(디스크 가득 참·권한 어긋남 등)를
+        # 던지면 이 데몬 스레드가 그 예외로 조용히 죽고, stop_event 는 끝내 안 켜진다.
+        # 그러면 대시보드는 하트비트가 끊겨 "워커 중단"으로 보이는데, 본 루프
+        # (worker.run_forever)는 이 스레드가 죽은 줄 모른 채 잡을 계속 처리한다 - 상태
+        # 표시와 실제 동작이 어긋난 좀비 상태다. 리스를 남이 가져간 경우(정상적인 False
+        # 반환)와 같은 대응(멈춘다)으로 통일한다.
+        lease_lost = False
+        if lock is not None:
+            try:
+                lease_lost = not lock.renew()
+            except OSError:
+                logger.exception("워커 리스 갱신 중 오류 - 리스를 잃은 것으로 간주하고 중단한다.")
+                lease_lost = True
+        if lease_lost:
             logger.error("워커 리스를 잃었다. 다른 워커가 인수했다. 중단한다.")
             stop_event.set()
             break
@@ -276,7 +290,21 @@ def main() -> int:
     # systemd 재시작 중첩, 운영자가 진단하려고 손으로 띄운 워커, 배포 스크립트의 중복
     # start — 셋 다 실제로 있는 경로다. 잡지 못하면 **뜨지 않는다**(조용히 둘째로 돌지 않는다).
     lock = WorkerLock(default_lock_path(settings.data_dir))
-    if not lock.acquire():
+    try:
+        acquired = lock.acquire()
+    except WorkerLockError:
+        # OPS-10: 리스 경쟁(다른 워커가 있다)이 아니라 파일시스템이 리스 자체를 못 쓰게
+        # 한다(권한 어긋남·디스크 가득 참 등) - 여기서 잡지 않으면 트레이스백과 함께
+        # 죽고 systemd 가 RestartSec=3 로 계속 재시도하며 같은 이유로 또 죽는다(재시작
+        # 루프). 명확한 원인과 함께 조용히 종료해, 유닛의 완화된 재시작 정책
+        # (deploy/systemd/clovirone-web-worker.service - RestartSec 10, StartLimitBurst)이
+        # 감당하게 한다.
+        logger.exception(
+            "워커 리스 파일을 쓸 수 없다(lock=%s) - 디렉터리 권한이나 디스크 공간을 확인하라.",
+            lock.path,
+        )
+        return 1
+    if not acquired:
         holder = (lock.read() or {}).get("owner", "?")
         logger.error(
             "다른 워커가 이미 돌고 있다(owner=%s, lock=%s). 중복 실행을 막기 위해 종료한다. "

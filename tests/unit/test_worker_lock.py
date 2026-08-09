@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.core.worker_lock import WorkerLock, WorkerLockHeld
+from app.core.worker_lock import WorkerLock, WorkerLockError, WorkerLockHeld
 
 pytestmark = pytest.mark.unit
 
@@ -187,6 +187,39 @@ def test_a_corrupt_lock_file_does_not_wedge_the_worker(tmp_path):
     lock = WorkerLock(path, owner="fresh")
     assert lock.acquire() is True
     assert lock.verify_ownership() is True
+
+
+def test_a_filesystem_failure_on_first_create_is_not_mistaken_for_lease_competition(tmp_path):
+    """OPS-10: `os.open` 이 `FileExistsError` 가 아닌 `OSError`(권한 어긋남·디스크 가득
+    참·입출력 오류)로 실패하면, 예전엔 이 예외가 그대로 위로 전파돼 `main()` 을 관통하고
+    프로세스가 트레이스백과 함께 죽었다(그 시점엔 systemd 가 `RestartSec=3` 로 계속
+    재시도하며 같은 이유로 또 죽는 재시작 루프였다). "다른 워커가 있다"(False 반환)와
+    "이 환경에서는 락 자체를 못 쓴다"(예외)는 다른 사고라 구분한다."""
+    from unittest import mock
+
+    path = tmp_path / "worker.lock"
+    lock = WorkerLock(path)
+
+    with mock.patch("os.open", side_effect=PermissionError("EACCES")):
+        with pytest.raises(WorkerLockError):
+            lock.acquire()
+
+
+def test_a_filesystem_failure_while_taking_over_an_expired_lease_is_not_silently_lost(tmp_path):
+    """만료된 리스를 인수하는 두 번째 쓰기(`_write`)에서도 같은 구분이 필요하다 - 이
+    경로는 `except FileExistsError:` 블록 안이라 첫 `os.open` 에는 안 걸린다."""
+    from unittest import mock
+
+    path = tmp_path / "worker.lock"
+    clock = FakeClock()
+    dead = WorkerLock(path, owner="dead", lease_seconds=60, now_fn=clock)
+    assert dead.acquire() is True
+    clock.advance(61)  # 만료됨
+
+    fresh = WorkerLock(path, owner="fresh", now_fn=clock)
+    with mock.patch.object(WorkerLock, "_write", side_effect=OSError("ENOSPC")):
+        with pytest.raises(WorkerLockError):
+            fresh.acquire()
 
 
 def test_lock_file_records_who_holds_it(tmp_path):

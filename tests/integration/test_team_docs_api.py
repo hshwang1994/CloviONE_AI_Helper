@@ -257,7 +257,8 @@ def test_feature_flag_off_hides_team_docs(db_path, tmp_path, fake_clock, fake_ht
     app = create_app(settings, clock=fake_clock, outbound_transport=fake_http.transport())
     with app.state.session_factory() as s:
         create_user(s, email="ff@goodmit.co.kr", display_name="FF", password=DEFAULT_TEST_PASSWORD,
-                    settings=settings, role="user", active=True, must_change_password=False)
+                    settings=settings, actor_role="system_admin", role="user", active=True,
+                    must_change_password=False)
         s.commit()
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "ff@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})

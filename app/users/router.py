@@ -10,12 +10,12 @@ from app.auth.models import UserSession
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
-from app.core.errors import ValidationAppError
+from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
 from app.mail.models import MAIL_QUEUED
 from app.users import bulk
-from app.users.models import ALL_ROLES, ROLE_SYSTEM_ADMIN, User
+from app.users.models import ALL_ROLES, User
 from app.users.schemas import (
     BulkUserActionRequest,
     ImportUsersRequest,
@@ -275,15 +275,11 @@ def create_user_endpoint(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    from app.core.errors import ForbiddenError
     from app.core.security import generate_temp_password
 
-    # Spec §20: granting admin+ is a gated authority. Creating a privileged
-    # account directly is a role grant, so only system_admin may do it — a
-    # plain admin cannot mint an admin/system_admin without that authority.
-    if payload.role in CONSOLE_WRITE_ROLES and request.state.user.role != ROLE_SYSTEM_ADMIN:
-        raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
-
+    # SEC-30: the admin+ role-grant gate now lives inside create_user() itself
+    # (ensure_can_grant_role) so every entry point shares one rule — see that
+    # function's docstring for why (the CSV import path used to skip it).
     settings = request.app.state.settings
     # Blank/whitespace from the admin form means "generate one" — never accept it
     # as a real password.
@@ -297,6 +293,7 @@ def create_user_endpoint(
         display_name=payload.display_name,
         password=password,
         settings=settings,
+        actor_role=request.state.user.role,
         role=payload.role,
         active=payload.active,
         must_change_password=payload.must_change_password,

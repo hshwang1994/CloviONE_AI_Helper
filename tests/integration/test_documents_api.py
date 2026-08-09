@@ -171,7 +171,7 @@ def test_preview_then_approve_approval_has_due_at_and_notifies_delegate(
 
     delegate = create_user(
         db, email="doc-delegate@goodmit.co.kr", display_name="위임받은 운영자",
-        password="Str0ng-Passw0rd!", settings=app.state.settings,
+        password="Str0ng-Passw0rd!", settings=app.state.settings, actor_role="system_admin",
         role="operator", must_change_password=False,
     )
     db.commit()
