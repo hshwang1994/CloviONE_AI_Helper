@@ -6,6 +6,29 @@
 > 남은 문제는 [BACKLOG.md](BACKLOG.md), 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md).
 > 이 문서는 "무엇을 했는가"의 누적 이력이다. Raw log를 복사해 비대하게 만들지 않는다.
 
+## 2026-08-10 (Sonnet 구현 사이클 4, 배치 2) — CORE 인프라 4건: 세션 폐기 영속화·500 헤더/로그·allowlist 포트/캐시
+
+**무엇을 했나**: `app/core/`(14라운드 감사가 부수효과로만 닿았던 인프라 계층)에서 4건.
+세션 `validate()`가 만료·유휴초과를 감지하고도 그 사실(`revoked_at`)을 커밋 전에
+예외→롤백으로 잃던 것을 고치고(CORE-02), 그 표를 정리하는 retention 경로가 아예 없던
+것도 함께 추가. 미처리 예외가 500이 될 때 `RequestContextMiddleware`(보안 헤더·접근
+로그를 붙이는 곳)를 안 거치고 Starlette `ServerErrorMiddleware`가 바로 응답을 만들던
+구조적 문제를 고침(CORE-04, 핸들러 로직을 공용 함수로 뽑아 미들웨어의 예외 처리 분기에서도
+재사용). SSRF allowlist의 포트 검사가 범위 밖 포트에서 `ValueError`를 던져 400 계약을
+빠져나가던 것(CORE-05)과 캐시 키가 `st_mtime` 하나뿐이라 타임스탬프 보존 복원에 취약하던
+것(CORE-06, `feature_flags._stat_key`와 같은 `(mtime_ns, size)` 키로 교체)을 고침.
+
+**검증 방법론**: 4건 전부 회귀 테스트를 새로 추가했고, 고치기 전 코드로 일부러 되돌려
+전부 실패하는 것을 직접 확인한 뒤 복원했다. **실서버 재검증은 이번 배치는 의도적으로
+안 했다** — 유휴 타임아웃 실시간 대기, 운영 서버에서 미처리 예외 유발, 실제 allowlist
+설정 훼손 없이는 재현이 안 되는 종류라 득보다 실이 크다고 판단했다(상세 근거는
+WORK_STATE.md).
+
+**검증 상태**: 백엔드 pytest 전체 green, `STATIC_CHECKS_OK`(프런트 변경 없음). 커밋
+`07e532f` 배포 → `UPGRADE_OK`, 서비스 3종 active, healthz/readyz 정상.
+
+---
+
 ## 2026-08-10 (Sonnet 구현 사이클 4, 배치 1) — BACKLOG 기반 첫 사이클: RBAC 스코프 가드·쿼터 표시·임퍼소네이션 로그아웃·워커 락·백업 락
 
 **무엇이 달라졌나**: `SONNET_HANDOFF.md`의 11단계를 다 마친 뒤, 처음으로 `docs/BACKLOG.md`

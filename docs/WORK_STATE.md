@@ -12,9 +12,56 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치1 — 로컬 게이트 green +
-배포 + 실환경검증(부분) 완료. **BACKLOG.md의 나머지 항목(Critical 2건 포함)으로 계속 진행 중**
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치2(CORE 인프라 4건) — 로컬
+게이트 green + 배포 완료. **BACKLOG.md의 나머지 항목(Critical 2건 포함)으로 계속 진행 중**
 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🔵 Sonnet 구현 사이클 4, 배치 2 — 세션 폐기 영속화·500 헤더/로그·allowlist 포트/캐시 (2026-08-10)
+
+`app/core/` 인프라 계층에서 4건(CORE-02·04·05·06) — 14라운드 감사가 다른 모듈 수정의
+부수효과로만 닿았을 뿐 한 번도 정면으로 조사하지 않은 층이다.
+
+**CORE-02**: `sessions.py::validate()`가 만료·유휴초과 세션의 `revoked_at`을 메모리에서만
+바꾸고 `None`을 돌려줬는데, 그 `None`이 `UnauthorizedError`로 이어져 `get_db`의 예외 처리가
+그 쓰기까지 롤백했다 — 만료된 세션이 `profiles` 화면에 영원히 "활성"으로 남았다. 두 분기
+모두에 `db.commit()` 추가. 게다가 `retention.py`가 세션 표를 정리 대상에 **아예** 안 넣어
+(revoked_at이 제대로 저장되기 시작해도) 표가 무한히 자라는 문제가 별도로 있어
+`purge_old_sessions()`를 신설해 `run_retention`에 배선(살아 있는 세션은 나이와 무관하게
+절대 안 지운다 — 60일 지난 **폐기된** 세션만).
+
+**CORE-04**: `@app.exception_handler(Exception)`은 Starlette `ServerErrorMiddleware`(모든
+`add_middleware` 레이어 **바깥**)에 설치된다 — 그래서 예외가 라우터를 빠져나가면
+`RequestContextMiddleware`의 `call_next` 이후 코드(보안 헤더 부착, 접근 로그)가 아예 안
+돈다. `_unhandled` 핸들러의 로직을 `errors.py::unhandled_error_response()`로 뽑아 공용화하고,
+`RequestContextMiddleware.dispatch`가 `call_next`를 try/except로 감싸 예외를 직접 잡아 같은
+함수로 응답을 만든 뒤 평소 응답과 똑같이 헤더·로그 처리를 받게 했다.
+
+**CORE-05**: `urlsplit(...).port`는 파싱이 아니라 **접근 시점**에 포트 범위(0~65535)를
+검사해 `ValueError`를 던진다 — 저장 시점 URL 검증이 없는 `base_url`/`health_url`/
+`webhook_url`에 잘못된 포트가 들어가면 매 헬스체크마다 문서화된 400(`URLNotAllowedError`)
+대신 불투명한 500이었다. `try/except ValueError`로 감쌈.
+
+**CORE-06**: allowlist 캐시 키가 `st_mtime`(초 단위) 하나뿐이라, 타임스탬프를 보존하는
+복원(`cp -p`·`rsync -a`·tar·installer)이 예전 mtime을 그대로 들고 오면 프로세스 수명 내내
+그 시점의(더 넓을 수 있는) 옛 허용목록을 계속 쓴다. 같은 문제를 이미 풀어 둔
+`feature_flags._stat_key`와 같은 `(mtime_ns, size)` 키로 교체.
+
+**검증 방법론**: 4건 전부 회귀 테스트를 새로 추가했고, 고치기 전 코드로 일부러 되돌려
+전부 실패하는 것을 직접 확인한 뒤 복원했다.
+
+**로컬 게이트**: 백엔드 pytest 전체 green(exit 0), `STATIC_CHECKS_OK`(프런트 변경 없음,
+번들 재빌드 불필요). 커밋 `07e532f` 배포 → `UPGRADE_OK`, 서비스 3종 active, `/healthz`·
+`/readyz` 정상.
+
+**실서버 실환경검증 — 이번엔 의도적으로 시도하지 않음(정직하게 남긴다)**: 이 배치의 네
+항목은 전부 "실서버에서 안전하게 재현하려면 득보다 실이 큰" 종류다 — CORE-02는 실제 유휴
+타임아웃(설정값 분 단위)을 실시간으로 기다려야 하고, CORE-04는 운영 서버에서 **일부러
+처리되지 않은 예외를 유발**해야 하며, CORE-05/06은 실제 러너·워크플로 allowlist 설정을
+망가뜨리거나 서버 파일 타임스탬프를 조작해야 재현된다. 넷 다 사이클 3·4-배치1에서 이미
+"고치기 전 코드로 되돌려 실패를 직접 본" 회귀 테스트로 확실히 증명했으므로, 그 확인을
+실서버에서 반복하는 대신 배포·서비스 정상 여부만 확인하는 쪽을 택했다.
 
 ---
 
