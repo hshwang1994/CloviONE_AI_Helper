@@ -137,6 +137,18 @@ export function summarizeSetting(key, v) {
     if (v.support_email) parts.push("지원: " + String(v.support_email));
     return parts.length ? parts.join(", ") : null;
   }
+  if (key === "smtp") {
+    // VIS-54: 이 case 가 없어서 backup_schedule 과 같은 object 설정인데도 요약이 없어
+    // displayValue()의 잘린 raw JSON({"enabled":false,"host":"",...)으로 새어 나갔다 -
+    // 다른 object 설정과 같은 "켜짐/꺼짐 + 핵심 정보" 관례로 맞춘다. 비밀번호는
+    // password_ref(파일 이름)일 뿐이라 여기 보여도 값 노출이 아니다.
+    if (!v.enabled) return "꺼짐";
+    const parts = ["켜짐"];
+    if (v.host) parts.push(String(v.host) + ":" + (v.port != null ? v.port : "?"));
+    if (v.security) parts.push(String(v.security));
+    if (v.from_address) parts.push("발신: " + String(v.from_address));
+    return parts.join(", ");
+  }
   return null;
 }
 
@@ -172,6 +184,16 @@ export function securityDowngradeWarning(setting, value) {
       reasons.push("최대 세션 길이 " + fmtDuration(cur.absolute_timeout_seconds) + " → " + fmtDuration(value.absolute_timeout_seconds));
     if (reasons.length)
       return "세션 정책을 완화합니다(" + reasons.join(", ") + "). 세션이 더 오래 유지됩니다, 계속할까요?";
+    // 유휴 제한을 줄이는 것은 '완화'가 아니라 반대(강화)지만, 다른 위험이 있다: absolute_timeout_seconds
+    // 와 달리 idle_timeout_seconds 는 세션 생성 시점에 굳지 않고 매 요청마다 그때의 설정값으로 다시
+    // 계산된다(app/core/sessions.py::validate). 그래서 "신규 세션부터 적용"이 아니라 저장 즉시 이미
+    // 로그인된 모든 세션에 적용되고, 유휴 상태인 사용자는(저장한 관리자 자신 포함) 그 자리에서
+    // 로그아웃될 수 있다 — 늘릴 때만 확인받고 줄일 때는 조용히 저장되던 것이 비대칭이었다.
+    if (value && cur.idle_timeout_seconds != null && value.idle_timeout_seconds != null && value.idle_timeout_seconds < cur.idle_timeout_seconds) {
+      return "유휴 제한을 " + fmtDuration(cur.idle_timeout_seconds) + " → " + fmtDuration(value.idle_timeout_seconds)
+        + " 로 줄입니다. 신규 세션부터가 아니라 저장 즉시 이미 로그인된 모든 세션에 적용되어, "
+        + "유휴 상태인 사용자는(나 자신 포함) 그 자리에서 로그아웃될 수 있습니다. 계속할까요?";
+    }
     return null;
   }
   return null;

@@ -227,14 +227,6 @@ def _llm_concurrency(value: Any) -> None:
         raise ValidationAppError(f"1~{MAX_CONCURRENCY} 사이의 정수여야 합니다.")
 
 
-def _retry_policy(value: Any) -> None:
-    if not isinstance(value, dict):
-        raise ValidationAppError("객체여야 합니다.")
-    ma = value.get("max_attempts", 3)
-    if not isinstance(ma, int) or ma < 1 or ma > 10:
-        raise ValidationAppError("max_attempts는 1~10 정수여야 합니다.")
-
-
 # Every key here is wired to a real consumer (verified — no placebos). Settings
 # that are only configurable via env or per-object (base URL, default timeout,
 # page size, timezone, retry policy, schedule misfire default) are intentionally
@@ -256,9 +248,15 @@ REGISTRY: dict[str, SettingSpec] = {
                     "유지보수 공지 메시지", _non_empty_str),
         SettingSpec("password_policy", "object", {"min_length": 12, "min_classes": 3}, False,
                     "비밀번호 정책: 즉시 적용", _password_policy),
+        # "신규 세션부터 적용"은 absolute_timeout_seconds에만 맞는 말이다(app/core/sessions.py
+        # ::create가 그 값을 세션 생성 시점에 expires_at으로 굳힌다). idle_timeout_seconds는
+        # 굳지 않는다 - validate()가 매 요청마다 그때의 설정값으로 idle_deadline을 다시 계산하므로,
+        # 줄이면 저장 즉시 이미 열려 있는 모든 세션에(저장한 관리자 본인 포함) 적용된다. 바로 위
+        # password_policy 설명("즉시 적용")은 정확한데 이 칸만 두 필드를 뭉뚱그려 틀렸었다.
         SettingSpec("session_policy", "object",
                     {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, False,
-                    "세션 정책: 신규 세션부터 적용", _session_policy),
+                    "세션 정책: 유휴 제한은 저장 즉시(이미 열린 세션 포함), 최대 세션 길이는 신규 세션부터 적용",
+                    _session_policy),
         # 기본값이 비어 있다(= 제한 없음). 설치처마다 다른 값이라 여기에 한 회사의 도메인을
         # 박아 두면 다른 고객사 설치에서도 그 회사 도메인으로만 계정을 만들 수 있게 된다.
         # env 기본값(app/core/config.py)만 비우고 여기를 두면 첫 부팅에서 레지스트리

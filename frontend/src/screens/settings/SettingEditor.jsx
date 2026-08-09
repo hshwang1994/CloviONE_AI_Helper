@@ -169,9 +169,11 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
         <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
       </Box>
       <Box className="k-footer-main">
-        {canWrite ? <Button onClick={onCheck} disabled={dryRun.isPending}>{dryRun.isPending ? "검증 중…" : "미리 검증"}</Button> : null}
+        {/* 쓰기 권한이 없어도 버튼을 지우지 않는다 — 비활성 + 위 안내문(aria-describedby)으로
+            '있지만 지금은 못 누른다'를 보여 준다(Maintenance.jsx 가 같은 실수를 겪고 고친 관례). */}
+        <Button onClick={onCheck} disabled={!canWrite || dryRun.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>{dryRun.isPending ? "검증 중…" : "미리 검증"}</Button>
         {/* 변경이 없으면 저장을 막는다, 같은 값 재저장은 config_versions, 감사 로그에 no-op을 쌓는다. */}
-        {canWrite ? <Button variant="primary" onClick={onSave} disabled={save.isPending || !dirty}>{save.isPending ? "저장 중…" : "저장"}</Button> : null}
+        <Button variant="primary" onClick={onSave} disabled={!canWrite || save.isPending || !dirty} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>{save.isPending ? "저장 중…" : "저장"}</Button>
       </Box>
     </Box>
   );
@@ -181,7 +183,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "변경됨"})</Typography>
       <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5, maxWidth: "70ch" }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
-      {!canWrite ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다, 값은 변경할 수 없습니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
+      {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다, 값은 변경할 수 없습니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
       {/* bool select, document_automation_enabled(SETTING_LABELS에 라벨 추가됨, MAINTENANCE_KEYS로
           걸러지지 않음)가 이 표에 노출되는 실제 bool 설정이라 이 분기는 지금 실사용된다. 입력은
           FormField와 동일하게 aria-invalid, aria-describedby로 오류/도움말과 프로그래매틱하게 연결한다.
