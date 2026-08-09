@@ -9,6 +9,7 @@ authentication from secret references without exposing plaintext.
 from __future__ import annotations
 
 import logging
+import math
 import time
 
 import httpx
@@ -58,9 +59,17 @@ def retry_wait_seconds(response: httpx.Response, attempt: int) -> float | None:
             # 여기서 날짜 파서를 들이면 시계 어긋남까지 떠안게 된다.
             wanted = None
         else:
-            if wanted < 0:
+            # CORE-07: `float("nan")`은 ValueError를 안 던진다 — 그리고 NaN과의 비교는
+            # IEEE 754상 전부 False라 `wanted < 0`도 `wanted > MAX_RETRY_WAIT_SECONDS`도
+            # 둘 다 안 걸려 NaN이 그대로 반환됐다. 호출부의 `time.sleep(nan)`이
+            # `ValueError`를 던져 단일 아웃바운드 관문 전체가 죽었다(`inf`는 두 비교
+            # 중 하나에 걸려 이미 올바르게 처리된다).
+            if math.isnan(wanted):
+                wanted = None
+            elif wanted < 0:
                 return None
-            return None if wanted > MAX_RETRY_WAIT_SECONDS else wanted
+            else:
+                return None if wanted > MAX_RETRY_WAIT_SECONDS else wanted
     return min(0.5 * (2 ** attempt), MAX_RETRY_WAIT_SECONDS)
 
 

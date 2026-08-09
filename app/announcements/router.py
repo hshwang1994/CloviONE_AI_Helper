@@ -28,6 +28,7 @@ from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+from app.core.safe_url import normalize_external_url
 from app.core.scope import Principal
 from app.users.models import ROLE_USER, User
 
@@ -170,7 +171,10 @@ def create_announcement(
         ends_at=_naive(payload.ends_at),
         active=payload.active,
         dismissible=payload.dismissible,
-        link_url=payload.link_url,
+        # CORE-11: 검증한 형태(정규화된 값)를 그대로 저장한다 — 원문을 저장하면 검증이
+        # 본 문자열과 저장된 문자열이 갈라진다(예: 선행 제어문자가 검사에선 벗겨지고
+        # 저장엔 남는다). 오늘은 무해해도 스킴 검사가 더 정교해질 다음번엔 발판이 된다.
+        link_url=normalize_external_url(payload.link_url),
         link_label=payload.link_label,
         created_by=user.id,
         created_at=now,
@@ -213,13 +217,17 @@ def update_announcement(
     service.validate(
         data.get("level", row.level),
         data.get("audience", row.audience),
-        # PATCH 는 부분 갱신이라 link_url 이 안 왔으면 기존 값을 검사한다. `exclude_unset`
-        # 때문에 '안 보냄'과 'null 로 지움'이 구분되므로 sentinel 없이 get 으로 충분하다.
-        data.get("link_url", row.link_url),
+        # UB-05: link_url을 안 건드리는 PATCH(예: 배너 끄기 {"active": false})까지 기존
+        # 저장값을 재검증하지 않는다 — safe_url 가드가 생기기 전에 저장된 위험한 값이
+        # 남아 있는 행이면, 그 값을 고치라고 강제하느라 정작 하려던 조치(끄기)까지
+        # 422로 막혔다("한 번에 끄기"가 존재하는 이유를 무력화). link_url 자체를 바꾸려는
+        # 요청만 검증한다.
+        data["link_url"] if "link_url" in data else None,
     )
     for key in ("title", "body", "level", "audience", "active", "dismissible", "link_url", "link_label"):
         if key in data:
-            setattr(row, key, data[key])
+            # CORE-11: 저장 형태를 검증한 형태와 맞춘다(생성 경로와 동일한 이유).
+            setattr(row, key, normalize_external_url(data[key]) if key == "link_url" else data[key])
     for key in ("starts_at", "ends_at"):
         if key in data:
             setattr(row, key, _naive(data[key]))

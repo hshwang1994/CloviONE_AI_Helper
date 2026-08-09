@@ -93,3 +93,48 @@ def test_patch_without_link_url_keeps_working(client, login_as):
     )
     assert r.status_code == 200, r.text
     assert r.json()["link_url"] == "https://ok/a"  # 기존 값이 살아 있다
+
+
+# CORE-11: 빈 문자열은 "링크 없음"이지 안전하지 않은 값이 아니다.
+def test_empty_link_url_means_no_link_not_a_rejection(client, login_as):
+    csrf = login_as("system_admin")
+    r = _create(client, csrf, "")
+    assert r.status_code == 201, f"빈 문자열이 거부됐다(링크 없음으로 처리돼야 한다): {r.text}"
+    assert r.json()["link_url"] is None
+
+
+def test_link_url_with_leading_control_characters_is_stored_normalized(client, login_as):
+    """CORE-11: 검증이 본 형태(제어문자를 벗긴 형태)와 저장된 형태가 같아야 한다 —
+    다르면 검증을 통과한 문자열과 실제로 저장·렌더되는 문자열이 갈라진다."""
+    csrf = login_as("system_admin")
+    r = _create(client, csrf, "\x01https://ok.example/a")
+    assert r.status_code == 201, r.text
+    assert r.json()["link_url"] == "https://ok.example/a", (
+        "저장된 값에 제어문자가 남아 있다 — 검증한 형태와 저장한 형태가 다르다"
+    )
+
+
+# UB-05: 저장된 값이 이미 안전하지 않아도(safe_url 가드 이전에 들어온 legacy 값),
+# link_url 자체를 건드리지 않는 PATCH(예: 배너 끄기)는 막히면 안 된다.
+def test_disabling_a_banner_works_even_if_its_stored_link_is_legacy_unsafe(client, login_as, db):
+    from datetime import datetime
+
+    from app.announcements.models import Announcement
+
+    csrf = login_as("system_admin")
+    row = Announcement(
+        title="레거시 배너", body="", level="info", audience="all",
+        active=True, dismissible=True,
+        link_url="javascript:alert(1)",  # safe_url 가드가 생기기 전에 들어온 값을 흉내
+        created_by=None, created_at=datetime(2026, 1, 1), updated_at=datetime(2026, 1, 1),
+    )
+    db.add(row)
+    db.commit()
+
+    r = client.patch(
+        f"/api/admin/announcements/{row.id}",
+        json={"active": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 200, f"link_url을 안 건드렸는데도 기존 값 때문에 막혔다: {r.text}"
+    assert r.json()["active"] is False

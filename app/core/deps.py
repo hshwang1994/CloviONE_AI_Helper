@@ -136,6 +136,13 @@ def _impersonated_auth(
         if record.impersonation_id
         else None
     )
+    if row is None:
+        # CORE-09: `record.impersonation_id`가 비어 있거나 낡았으면(그 자체가 이미
+        # `imp_service.end()`가 이 폴백을 두는 이유다) `row is not None and expired(...)`가
+        # 통째로 건너뛰어져 **최대 지속 시간(30분) 검사가 무력화**된다 — 세션의 절대 TTL
+        # (8시간)까지 임퍼소네이션이 그대로 이어질 수 있었다. `end()`와 같은 방식으로
+        # session_id 기준 조회를 한 번 더 시도한다.
+        row = imp_service.active_for_session(db, record.id)
     target = db.get(User, record.impersonated_user_id)
     unavailable = (
         target is None or not target.active or target.archived_at is not None

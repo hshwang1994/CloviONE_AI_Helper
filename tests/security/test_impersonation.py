@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.routing import APIRoute
+from sqlalchemy import select
 
 pytestmark = pytest.mark.security
 
@@ -278,6 +279,61 @@ def test_reentering_an_already_seen_target_does_not_count_against_the_limit(
         assert started.status_code == 200, started.text
         stopped = client.post("/api/admin/impersonation/stop", headers={"X-CSRF-Token": csrf})
         assert stopped.status_code == 200, stopped.text
+
+
+def _backdate_impersonation_start(db, *, target_id, seconds_ago):
+    """세션 자신의 유휴/절대 타임아웃(기본값 둘 다 MAX_DURATION_SECONDS와 같은 30분)을
+    건드리지 않고 임퍼소네이션의 '시작 시각'만 과거로 민다 — 전역 시계를 30분 이상
+    돌리면 세션 자체가 유휴 만료로 먼저 401이 되어 이 항목이 검증하려는 것(임퍼소네이션
+    자신의 최대 지속 시간 판정)에 닿지도 못한다."""
+    from datetime import timedelta
+
+    from app.impersonation.models import ImpersonationSession
+
+    row = db.execute(
+        select(ImpersonationSession).where(
+            ImpersonationSession.target_user_id == target_id,
+            ImpersonationSession.ended_at.is_(None),
+        )
+    ).scalar_one()
+    row.started_at = row.started_at - timedelta(seconds=seconds_ago)
+    db.commit()
+    return row
+
+
+# CORE-09: 최대 지속 시간(30분) 검사 — 이전엔 전혀 테스트되지 않았다.
+def test_impersonation_auto_ends_after_max_duration(impersonating, client, db):
+    from app.impersonation.service import MAX_DURATION_SECONDS
+
+    client, _csrf, target_id = impersonating
+    _backdate_impersonation_start(db, target_id=target_id, seconds_ago=MAX_DURATION_SECONDS + 1)
+
+    me = client.get("/api/me").json()["user"]
+    assert me["id"] != target_id, "30분이 지났는데도 여전히 대상의 눈으로 보인다"
+    assert me["role"] == "system_admin", "관리자 자신의 세션으로 안 돌아왔다"
+
+
+def test_max_duration_still_applies_when_the_session_lost_track_of_the_row(
+    impersonating, client, db
+):
+    """CORE-09: `record.impersonation_id`가 비어 있으면(낡았거나 다른 경로로 지워졌거나)
+    `row is not None and expired(...)`가 통째로 건너뛰어져, 최대 지속 시간 검사 자체가
+    무력화됐다 — `imp_service.end()`가 이미 `active_for_session()` 폴백을 두는 바로
+    그 불일치 상황이다. `_impersonated_auth`도 같은 폴백을 쓰게 고쳤다."""
+    from app.auth.models import UserSession
+    from app.impersonation.service import MAX_DURATION_SECONDS
+
+    client, _csrf, target_id = impersonating
+    row = db.execute(
+        select(UserSession).where(UserSession.impersonated_user_id == target_id)
+    ).scalar_one()
+    row.impersonation_id = None  # 세션이 자기 임퍼소네이션 행에 대한 포인터를 잃은 상태
+    db.commit()
+    _backdate_impersonation_start(db, target_id=target_id, seconds_ago=MAX_DURATION_SECONDS + 1)
+
+    me = client.get("/api/me").json()["user"]
+    assert me["id"] != target_id, "포인터를 잃었다는 이유로 최대 지속 시간 검사를 건너뛴다"
+    assert me["role"] == "system_admin"
 
 
 def test_switching_target_while_impersonating_is_rejected(impersonating, make_user):

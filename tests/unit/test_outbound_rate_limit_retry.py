@@ -53,6 +53,18 @@ def test_a_garbage_header_falls_back_to_backoff_instead_of_crashing():
     assert got is not None and got > 0
 
 
+def test_a_nan_header_falls_back_to_backoff_instead_of_crashing():
+    """CORE-07: `float("nan")`은 ValueError를 안 던지고, NaN과의 비교는 IEEE 754상
+    전부 False다 — `wanted < 0`도 `wanted > MAX_RETRY_WAIT_SECONDS`도 안 걸려 NaN이
+    그대로 반환됐고, 호출부의 `time.sleep(nan)`이 `ValueError`로 단일 아웃바운드
+    관문 전체를 죽였다. `inf`는 두 비교 중 하나에 걸려 이미 올바르게 처리된다(회귀
+    없음을 함께 고정)."""
+    got = retry_wait_seconds(_response(429, {"Retry-After": "nan"}), 0)
+    assert got is not None and got > 0
+
+    assert retry_wait_seconds(_response(429, {"Retry-After": "inf"}), 0) is None
+
+
 def test_without_a_header_we_back_off_further_each_time():
     """🔴 처음엔 `waits == sorted(waits)` 로만 단정했는데, 그건 **전부 같은 값도 통과**한다.
 

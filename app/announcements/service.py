@@ -16,7 +16,7 @@ from app.announcements.models import (
     AnnouncementDismissal,
 )
 from app.core.errors import ValidationAppError
-from app.core.safe_url import is_safe_external_url
+from app.core.safe_url import is_safe_external_url, normalize_external_url
 
 
 def validate(level: str, audience: str, link_url: str | None = None) -> None:
@@ -26,12 +26,18 @@ def validate(level: str, audience: str, link_url: str | None = None) -> None:
     `javascript:` 페이로드를 넣으면 누른 사람의 세션에서 실행된다 — 관리자 → 시스템 관리자
     권한 상승 경로다. 화면 쪽 `safeExternal()` 은 이중 방어일 뿐이고 **경계는 여기다**
     (API 를 직접 부르면 화면 검사는 지나가지도 않는다). app/core/safe_url.py 참조.
+
+    CORE-11: 빈 문자열(`""`)은 "링크 없음"으로 본다 — `normalize_external_url`로 먼저
+    정규화한 뒤 그 결과가 있을 때만 스킴을 검사한다. 예전엔 `link_url is not None`만
+    보고 빈 문자열까지 `is_safe_external_url("")`(거짓)에 넣어 폼을 비웠을 뿐인 요청이
+    422로 거부됐다.
     """
     if level not in ALL_LEVELS:
         raise ValidationAppError(f"level 은 {', '.join(ALL_LEVELS)} 중 하나여야 합니다.")
     if audience not in ALL_AUDIENCES:
         raise ValidationAppError(f"audience 는 {', '.join(ALL_AUDIENCES)} 중 하나여야 합니다.")
-    if link_url is not None and not is_safe_external_url(link_url):
+    normalized = normalize_external_url(link_url)
+    if normalized is not None and not is_safe_external_url(normalized):
         raise ValidationAppError("링크는 http:// 또는 https:// 로 시작해야 합니다.")
 
 

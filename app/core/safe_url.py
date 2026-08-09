@@ -26,6 +26,18 @@ from __future__ import annotations
 # 앱 내부 이동은 라우터가 한다. 허용 목록을 좁게 두는 편이 판정이 명확하다.
 ALLOWED_SCHEMES = ("http://", "https://")
 
+_LEADING_CONTROL_CHARS = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r"
+
+
+def _clean(value: str) -> str:
+    """공백·선행 제어문자를 지운 표준형 — 검사와 저장이 **같은 함수**로 이 형태를
+    만들어야 한다(CORE-11). 예전엔 `is_safe_external_url`만 이 정리를 하고
+    `normalize_external_url`은 `.strip()`만 했다 — 검증이 통과시킨 문자열과 실제로
+    저장·렌더되는 문자열이 갈라져, 오늘은 무해해도(`\\x01https://…`는 브라우저가 여전히
+    http(s)로 읽는다) 스킴 검사가 더 정교해질 다음번엔 두 형태가 다시 벌어질 발판이었다.
+    """
+    return value.strip().lstrip(_LEADING_CONTROL_CHARS)
+
 
 def is_safe_external_url(value: str | None) -> bool:
     """`http(s)://` 로 시작하는가. 그 외(`javascript:`·`data:`·`vbscript:`·상대경로)는 전부 거짓."""
@@ -33,13 +45,12 @@ def is_safe_external_url(value: str | None) -> bool:
         return False
     # 선행 공백·제어문자로 스킴 검사를 우회하는 고전적인 수법을 먼저 지운다
     # (`\x01javascript:` 같은 값은 브라우저가 관대하게 해석한다).
-    cleaned = value.strip().lstrip("\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r")
-    return cleaned.lower().startswith(ALLOWED_SCHEMES)
+    return _clean(value).lower().startswith(ALLOWED_SCHEMES)
 
 
 def normalize_external_url(value: str | None) -> str | None:
     """저장하기 좋은 모양으로. 빈 값이면 None, 안전하지 않으면 예외를 부르는 쪽에 맡긴다."""
     if value is None:
         return None
-    cleaned = value.strip()
+    cleaned = _clean(value)
     return cleaned or None
