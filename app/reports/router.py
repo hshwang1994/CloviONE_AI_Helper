@@ -15,6 +15,7 @@ from app.core.authz import SENSITIVE_READ_ROLES
 from app.core.deps import get_db, get_principal, require_roles
 from app.core.errors import NotionNotConfiguredError, NotionQueryError
 from app.core.scope import Principal, visible_user_ids
+from app.home.service import local_today
 from app.reports.service import build_dev_monthly_report
 
 router = APIRouter(prefix="/api/admin/reports", tags=["admin-reports"])
@@ -38,16 +39,21 @@ def dev_monthly(
     `visible_user_ids` 가 None 이라 예전 응답과 바이트 단위로 같다.
     """
     now = request.app.state.clock.now()
+    settings = request.app.state.settings
+    # UA-08(M4): `now`는 UTC다. 매월 1일 KST 00:00~09:00엔 `now.month`가 아직 지난달이라
+    # period 기본값이 지난달 리포트가 되고, `today=now.date()`도 하루 밀려 그 9시간 동안
+    # "어제 마감"이 overdue로 안 세어진다. `DevReport.jsx`는 브라우저 로컬(=KST)로 기본
+    # period를 계산해 화면 기본값과 API 기본값이 이미 어긋나 있었다.
+    today = local_today(settings, now)
     if period is None:
-        period = f"{now.year:04d}-{now.month:02d}"
+        period = f"{today.year:04d}-{today.month:02d}"
     if not _PERIOD_RE.match(period):
         return {"configured": True, "ok": False, "error": "기간 형식이 올바르지 않습니다(YYYY-MM)."}
 
-    settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     try:
         report = build_dev_monthly_report(
-            db, outbound, settings, period=period, today=now.date(),
+            db, outbound, settings, period=period, today=today,
             repo=request.app.state.repositories.tickets,
             visible_user_ids=visible_user_ids(db, principal.scope),
         )

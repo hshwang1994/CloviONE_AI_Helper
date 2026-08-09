@@ -142,12 +142,23 @@ def documents_changed_between(
 
     `since_iso` / `until_iso` 는 그 함수가 준 naive UTC ISO 문자열이다(예
     '2026-08-02T15:00:00'). 문자열로 자르는 근거는 그 함수의 주석에 적어 뒀다.
+
+    UA-09: `archived`만 보고 휴지통은 안 걸렀다 — `recent_documents`가 정확히 같은 이유로
+    이미 고쳐진 자리인데(주석 참조), 여기는 형제 함수라 안 옮겨졌다. 휴지통에 있는 문서가
+    "이번 주 바뀐 문서"로 과다 집계되고, `AssistantPanel.jsx`가 그 항목을 클릭 가능한
+    링크로 그려서 누르면 404였다.
     """
+    from app.trash import repository as trash_repo
+    from app.trash.models import TRASH_DOCUMENT
+
+    trashed = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
     base = (
         DocumentCache.archived.is_(False),
         DocumentCache.last_edited >= since_iso,
         DocumentCache.last_edited < until_iso,
     )
+    if trashed:
+        base = (*base, DocumentCache.notion_page_id.notin_(trashed))
     total = db.execute(
         select(func.count()).select_from(DocumentCache).where(*base)
     ).scalar_one()

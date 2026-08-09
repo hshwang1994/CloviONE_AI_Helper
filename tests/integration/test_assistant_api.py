@@ -204,6 +204,40 @@ def test_weekly_digest_cuts_documents_at_kst_midnight_on_both_sides(asst_client,
     assert changed["count"] == 2      # 기존 '이번 주 문서' 1건 + 월요일 오전 1건
 
 
+# UA-05: weekly_digest_facts used to check only my_state["configured"] before making a
+# *second*, independent Notion query (list_period_tickets) for the team/contributors
+# section — even when the first query had already come back with ok=False (Notion
+# configured but currently failing). That second call's NotionQueryError was unguarded
+# and propagated all the way to a 502 for the whole endpoint, wiping out documents_changed
+# and board too even though neither has anything to do with Notion being down.
+def test_weekly_digest_degrades_team_section_instead_of_502ing_when_notion_is_down(
+    asst_client, monkeypatch
+):
+    from app.core.errors import NotionQueryError
+    from app.tickets import service as tickets_service
+
+    def _boom(*args, **kwargs):
+        raise NotionQueryError("Notion 다운")
+
+    monkeypatch.setattr(tickets_service, "list_my_tickets", _boom)
+    # The bug's second call site — must never be reached once my_state.ok is False.
+    monkeypatch.setattr(
+        tickets_service,
+        "list_period_tickets",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError(
+            "list_period_tickets was called even though load_my_tickets already failed"
+        )),
+    )
+
+    body = _get(asst_client, "/api/assistant/weekly-digest")
+    assert body["tickets"]["ok"] is False
+    assert body["team"] is None
+    assert body["top_contributors"] == []
+    # Notion being down must not take documents/board down with it.
+    assert body["documents_changed"]["count"] == 1
+    assert body["board"]["count"] == 1
+
+
 def test_triage_suggests_order_and_candidates_but_assigns_nothing(asst_client, db):
     before = {
         row.notion_page_id: row.assignee_notion_ids

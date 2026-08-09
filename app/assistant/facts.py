@@ -106,17 +106,27 @@ def weekly_digest_facts(
 
     team = None
     contributors: list[dict] = []
-    if my_state["configured"]:
-        period = tickets_service.list_period_tickets(
-            db, outbound, settings, start=start, end=end, repo=repo
-        )
-        report = reports_service.build_period_report(
-            db, outbound, settings, start=start, end=end,
-            today=datetime.fromisoformat(today).date(), tickets=period,
-            visible_user_ids=visible_user_ids(db, build_scope(db, user)),
-        )
-        team = report["team"]
-        contributors = _top_contributors(report["developers"])
+    # UA-05: `my_state["configured"]`만 보고 있었다 — Notion이 설정은 됐지만 지금 응답을
+    # 안 하는 상태(`configured=True, ok=False`, 위 `my_state` 조회에서 이미 확인됨)에서도
+    # 이 블록이 그대로 진입해 **별개의** Notion 조회(list_period_tickets)를 새로 시도했다.
+    # 실패하면 NotionQueryError가 여기서도 저기서도 안 잡혀 엔드포인트 전체가 502가 되고,
+    # Notion과 무관한 문서·게시판 집계(아래 return의 documents_changed/board)까지 함께
+    # 사라졌다. `ok`도 같이 보고, 두 번째 조회 자체가 그 사이 새로 실패하는 경우도 잡는다.
+    if my_state["configured"] and my_state["ok"]:
+        try:
+            period = tickets_service.list_period_tickets(
+                db, outbound, settings, start=start, end=end, repo=repo
+            )
+            report = reports_service.build_period_report(
+                db, outbound, settings, start=start, end=end,
+                today=datetime.fromisoformat(today).date(), tickets=period,
+                visible_user_ids=visible_user_ids(db, build_scope(db, user)),
+            )
+            team = report["team"]
+            contributors = _top_contributors(report["developers"])
+        except (NotionNotConfiguredError, NotionQueryError):
+            team = None
+            contributors = []
 
     # 같은 KST 창을 **두 형식**으로 옮긴다. 게시글 created_at 은 naive UTC datetime 컬럼이고
     # 문서 last_edited 는 Notion 원문을 담은 String 컬럼이라, 한 창이 두 축으로 나가는 것이

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
 from app.core.errors import NotionNotConfiguredError, NotionQueryError
+from app.home.service import local_today
 from app.sprints import service
 from app.users.models import User
 
@@ -32,13 +33,18 @@ def sprint_summary(
 ):
     """스프린트 요약(완료 현황 + 배분 대상 + 계획). start/end 미지정 시 이번 주(월~다음 주 월)."""
     now = request.app.state.clock.now()
-    if not (start and _DATE_RE.match(start) and end and _DATE_RE.match(end)):
-        start, end = service.default_sprint_window(now.date())
     settings = request.app.state.settings
+    # UA-07(M4): `now`는 UTC다(불변 규칙 - UTC 저장, Asia/Seoul은 표시 때만 변환). KST
+    # 월요일 00:00~09:00 사이엔 `now.date()`가 아직 일요일이라 기본 창이 지난주로 잡히고,
+    # `today` 도 같은 이유로 하루 밀려 "오늘 마감"·"지연" 분류가 그 9시간 동안 틀렸다.
+    # 브라우저가 명시 start/end 를 보내는 정상 경로에선 가려져 있었을 뿐이다.
+    today = local_today(settings, now)
+    if not (start and _DATE_RE.match(start) and end and _DATE_RE.match(end)):
+        start, end = service.default_sprint_window(today)
     outbound = request.app.state.outbound_client
     try:
         summary = service.build_sprint_summary(
-            db, outbound, settings, start=start, end=end, today=now.date(),
+            db, outbound, settings, start=start, end=end, today=today,
             repo=request.app.state.repositories.tickets,
             viewer=user,   # 1순위 유출 #3 - 보는 사람의 팀으로 좁힌다
         )
