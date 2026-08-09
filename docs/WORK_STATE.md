@@ -12,92 +12,97 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-08 · **단계**: Opus 전수조사 (구현 전) · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-09 · **단계**: Opus 전수조사 (구현 전, **수렴 안 함**) · **브랜치**: `ui/mui-migration`
 
 ---
 
 ## 0. 한 줄 요약
 
-**조사는 아직 수렴하지 않았다.** BACKLOG **334건**(사이클 0에서 대부분 신규). 판독한 화면 **11/70**에서
-**66건**이 나왔고 화면당 약 6건 속도가 유지되고 있다 — 남은 65개 화면에서 새 결함이 계속 나온다는
-뜻이므로 Sonnet 인계 기준(§5)을 아직 못 넘었다. 다음에 무엇을 집어 들지는 §3에 있다.
+## ✅ 탐색은 수렴했다 — Sonnet 인계 준비 완료 (2026-08-09)
 
----
+> **먼저 읽을 것: [`SONNET_HANDOFF.md`](SONNET_HANDOFF.md)** — 이 문서 하나로 구현을 시작할 수 있다.
 
-## 1. 현재 단계
+**발견 곡선(6라운드 실측)이 수렴을 보여 준다** — Critical `0 → 2 → 2 → 1 → **0**`,
+High 비중 9.6% → 19.6% → 6.7% → 10% → **5.4%**(최저), Low 비중 **62%**(최고).
+마지막 라운드의 Low 23건 중 **10건이 "코드는 맞는데 주석·문서가 거짓"** 유형이다 —
+실행 결함이 고갈되고 문서 정합만 남았다는 신호다. **신규 범주 0개**, 반증률도 27~35%로 평평하다.
 
-**Opus 조사 단계.** 제품 코드 구현·리팩터링을 하지 않는다. 전수조사로 문제를 최대한 발견해
-BACKLOG와 계획을 실행 가능한 수준까지 완성한 뒤 Sonnet 구현 단계로 인계한다.
+**단, "수렴"은 조사가 끝났다는 뜻이지 제품이 고쳐졌다는 뜻이 아니다.**
+BACKLOG 529행 중 `실환경검증완료` 는 **2건**이다. 인계 성격은 **조사 종료 → 구현 착수**다.
 
-조사를 가능하게 하는 작업만 예외로 수행한다: HEAD 배포 · QA 하네스 보강 · QA 계정 생성 ·
-worktree 정리 · 이 문서들 작성.
+| | |
+|---|---|
+| BACKLOG | **529행 / 36범주** · Critical 5 · High 113 |
+| 화면 판독 | 66/70 + 4K 128페이지 + 다크 + 반응형 6폭 |
+| 역할 매트릭스 | 4역할 197페이지 — **화면 게이팅 결함 0** |
+| 새로 연 검증 축 | `U` 실사용 · `K` 대비 · `B` 키보드 · `S2` 시맨틱 (+ `FAIL`·`HOST`·`RESP`) |
+| 워크플로 | 5회 · 에이전트 63개 · **원 보고 447건 중 176건(39%) 반증 폐기** |
+| 내 오판 | 프로브 위양성 4 · 판정 철회·정정 8 (전부 근거와 함께 기록) |
 
-**사이클**: 0 (준비) → 진행 중
+**지배적 결함 유형은 6라운드 내내 하나로 수렴했다** —
+**규칙·헬퍼·술어·토큰이 이미 있는데 부르는 쪽이 안 부른다.**
+구현은 "만들기"가 아니라 **"배선하기"**다.
 
----
+## 3-0-Z. ✅ **사용자 조치 2건 완료** (2026-08-09) — 후속은 남아 있다
 
-## 2. 완료한 범위
+- **`OPS-01` 업로드 디렉터리 `chown` 완료**(사용자). ⚠️ **`OPS-02` 는 남았다** —
+  installer 의 `install -d -o $SVC_USER` 목록에 `uploads` 가 없어서 **다음 배포에 재발한다.**
+  그리고 **"고쳐졌다"를 믿지 말고 실제로 첨부를 한 번 올려 확인해야 한다**(실패는 감사에 안 남는다).
+- **`SEC-20` sudo 비밀번호 회전 완료**(사용자). 문서에서 옛 값 제거함.
+- `SEC-10`(Notion 문서의 평문 자격증명) 처리 여부는 **미확인**.
 
-| # | 항목 | 상태 | 증거 |
-|---|---|---|---|
-| C0-1 | 지속 작업 문서 6종 생성 | ✅ 완료 | `WORK_STATE`·`WORK_PLAN_INDEX`·`BACKLOG`·`QA_COVERAGE`·`DECISIONS`·`BUILD_LOG` + `CLAUDE.md` §0 |
-| C0-3 | **전체 백엔드 스위트 HEAD 완주 (역대 최초)** | ✅ 완료 | `pytest tests/ -q` **exit 0**, 100%, 실패 0 (`var/pytest_head_run.log`). 라운드 14가 두 번 중단돼 못 하던 것 |
-| C0-3b | 프런트 스위트 | ✅ 완료 | `npx vitest run` **172파일 / 1212 테스트 전부 통과** (QA-07 수정 후) |
-| C0-3c | 정적 검사 · 마이그레이션 리허설 | ✅ 완료 | `STATIC_CHECKS_OK` · `REHEARSAL_OK`(왕복 후 스키마·76테이블 행수 동일, `integrity_check ok`) |
-| C0-2 | **HEAD를 테스트 서버에 배포** | ✅ 완료 | `UPGRADE_OK` → `DEPLOY_VERIFY_OK`(healthz/readyz 200, 정적 자산 **30/30 새 번들**, 새 라우트 401, CSP 새 정책). 파일 해시 5종 로컬=서버 일치, 번들명 `AdminRoutes.2BH7K_x6.js` 일치 |
-| C0-4 | QA 하네스 라우트 보강 | ✅ 완료 | 62 → **70 라우트**(`/projects`·`/projects/:id`·`/ideas`·`/system`·`/setup`·`/notion-console`·`/llm-console`). 원격 강제 비밀번호 변경 처리도 추가 |
-| C0-5 | 역할별 QA 계정 4개 | ✅ 완료 | `qa-user`·`qa-operator`·`qa-auditor`·`qa-admin` 생성. 서버 실계정 14개 중 12개가 `admin`이고 **operator·auditor가 0명**이라 역할 매트릭스를 재현할 방법이 애초에 없었다 |
-| C0-6 | 하네스 원격 대응 | ✅ 완료 | `--insecure`(터널 불가 이유는 [DECISIONS D-05a](DECISIONS.md)) + 원격 강제 비밀번호 변경 처리. qa-admin으로 실서버 캡처 성공 |
-| C0-8 | **첫 실환경 전 라우트 캡처** `c1-admin` | ✅ 완주 | 272페이지. **21검사 중 20개는 전 페이지 통과**, `tiny_text`만 134 fail(3840 전용, 1920은 skip). 모달 **512개를 실제로 열어** 7가지 기하 검사 전부 통과(공허한 pass 아님 — `capture.py:370` 가드 확인) |
-| C0-9 | 실화면 눈 판독 | 🔄 **11/70** | `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트·다크)·`/me`·`/users`·`/team-docs`·`/settings`·`/audit`·`/my-tickets`(4K)에서 **63건**(`VIS-01`~`63`). **그 화면들은 기계 검사 21종을 전부 통과했다.** `/audit`(100행)에서만 밀도 문제가 드러났다 — **데이터 많은 화면을 우선 판독해야 새 범주가 나온다** |
-| C0-11 | **Chrome 실조작·콘솔·네트워크** | ✅ 2차 | 콘솔 오류 **0건**(강점) · 홈 1회에 API **14건**(중복 3건 실측) · **`VIS-72` 검색 콘솔 튕김**(실조작으로만 발견) · AI 드로어↔전체화면 A/B로 `AI-25`·`26`·`27`·`30`·`36`·`43` 실물 확인 + 같은 되묻기 반복(`VIS-80`) 발견 |
-| C0-12 | **브레이크포인트 '사이' 실측** | ✅ 완료 | 경계 양옆 54페이지. **폭 1200 근처에서 표가 세로로 무너진다**(`VIS-73`). 기존 행렬이 768→1366으로 건너뛰어 **그 구간을 한 번도 안 봤다**(`VIS-74`) → `1200x900`을 기본 목록에 추가, 임의 `WxH` 지원 |
-| C0-10 | 미감사 영역 추가 조사 | ✅ 완료 | `app/core`(12) · 미감사 19모듈(59) · registry 28화면↔API(8) · **러너 `assistant.py`(20, 라우터를 실제 실행해 재현)** |
-| C0-7 | `git worktree prune` (잔재 88개) | 보류 | `du`가 2분 타임아웃 날 만큼 큼. 번들 스크립트가 `.claude`를 이미 제외하므로 배포 차단 요인은 아님 |
+### (기록) 원래 내용 — 실서버가 깨져 있던 상태
 
-**조사 완료 영역** — 결과는 전부 [BACKLOG.md](BACKLOG.md)에 항목화(총 **269건**):
-프런트 디자인 시스템 · 백엔드 기능/RBAC/배선 · 빌드/배포/테스트 · AI 도우미(백엔드 파이프라인 +
-프런트 UX) · **`app/core/`(사상 최초)** · **미감사 모듈 19개(사상 최초)**.
+**`OPS-01` 파일 첨부 업로드가 2026-08-07 부터 불가능하다.**
+`/var/lib/clovirone-web-assistant/uploads` 만 **root:clovirone-web 750** 이라 서비스 사용자
+(`clovirone-web`)에게 쓰기 비트가 없다 — `runuser -u clovirone-web -- test -w` 로 **쓰기 불가 확인**.
+형제 디렉터리(`exports`·`generated`·`locks`·`temp`)는 전부 정상 소유다.
+마지막 성공 업로드는 **2026-08-05 00:23**, 이후 시도 자체가 없어 아무도 모르고 있다.
+**업그레이드로 안 고쳐진다** — installer 의 `install -d -o $SVC_USER` 목록에 `uploads` 가 없다.
 
-**사이클 0에서 고친 것**(조사를 가능하게 하는 범위):
-- `QA-07` 시간이 지나 스스로 깨진 프런트 테스트 → 픽스처를 상대값으로. `final_verify`를 막고 있었다
-- `QA-09` **번들 무결성 검사가 모든 번들에서 항상 1건 실패**(매니페스트가 자기를 해싱) →
-  `! -name MANIFEST.sha256` + 회귀 테스트 3건으로 핀
+```
+sudo chown -R clovirone-web:clovirone-web /var/lib/clovirone-web-assistant/uploads
+```
++ installer 목록에 `uploads` 추가(안 하면 재발). `BKP-01`(업로드가 백업에 없음)과 겹친다.
 
----
+**`SEC-20` 내 조사가 sudo 비밀번호를 명령행에 반복 노출했다** — 불변규칙 §2-4 위반이고
+워크플로 프롬프트로 서브에이전트 13개에 배포했다. **그 비밀번호는 손상된 것으로 보고 회전해야 한다.**
 
-## 3. 다음 작업 (이어받는 사람이 그대로 집어 들 수 있게)
+## 3-0-B. **Critical 2건 — 조사 중 새로 나왔고 내가 재확인했다** (2026-08-09)
 
-**조사는 아직 수렴하지 않았다.** 판독한 화면 5개에서 **43건**이 나왔고 화면당 6~9건 속도가
-유지되고 있다 — 남은 65개 화면에서 새 결함이 계속 나온다는 뜻이다.
+1. **`DEPLOY-01` 문서에 적힌 업그레이드 절차가 반드시 실패하고 서비스는 멈춘 채 남는다.**
+   `upgrade-*.sh` 가 installer 에 `DNS_NAME`·`BIND_IP` 를 안 넘기는데 installer 는 그 둘이 없으면
+   `exit 2`(`install-*.sh:46-51`). 그 시점엔 이미 **web·worker 를 둘 다 정지**시킨 뒤이고
+   되살리는 코드가 없다. `MAINTENANCE_PLAYBOOK.md` §2 대로 하면 **서비스 중단**이다.
+   ※ 이번 사이클 배포가 성공한 것은 내가 두 값을 직접 넘겼기 때문이다.
+   ※ 같은 파일의 **git 경로에는 `rollback_now()` 가 있는데 번들 경로에는 없다**(`DEPLOY-02`).
+2. **`FN-40` 공지 「내용」을 비우고 저장하면 500.** `AnnouncementPatch.body` 는 `str|None` 인데
+   컬럼은 `nullable=False` 이고 PATCH 루프가 null 을 그대로 넣는다. **POST 경로는 이미
+   `or ""` 로 막고 있다** — PATCH 만 빠졌다. 화면엔 영어 "Internal server error" 만 뜬다.
 
-1. **PNG 판독을 계속한다** (가장 생산적). `dist/ui-qa-admin/c1-admin/{light,dark}/{1920x1080,3840x2160}/`에
-   70라우트 × 2테마 × 2뷰포트가 있다. 판독한 것: `/projects`·`/schedules`·`/chat`·`/dashboard`(라이트)
-   + `/dashboard`(다크). **아직 안 본 것 60개.** 데이터가 많은 화면(`/board`·`/games`·`/chat-rooms`·`/jobs`·`/notifications`)을 우선한다 — `/audit` 100행에서만 밀도 문제가 처음 나왔다. 판정 기준은 [DECISIONS](DECISIONS.md) D-06~D-12.
-2. **`DS-32` 두 줄 고치고 재실행해 확인**한다 — `TopSearch.jsx:68` `fontSize:"11px"` +
-   `Mascot.jsx:364` `fontSize="10px"`. `results.json`의 samples가 페이지마다 이 둘만 지목하므로
-   **134건이 한 번에 사라질 것으로 본다**(확인 필요). 두 번째는 `sx`가 아니라 prop이라 grep에
-   안 걸린다 — 정적 검사를 만들 때 두 형태를 모두 봐야 한다.
-3. **역할 매트릭스 실행**. 계정은 만들어 뒀다(`qa-user`/`qa-operator`/`qa-auditor`/`qa-admin`,
-   비밀번호는 `dist/ui-qa-*/credentials.json`). 역할별로 `--out-dir`을 따로 줘야 세션이 안 섞인다:
-   ```bash
-   UI_QA_EMAIL=qa-operator@goodmit.co.kr UI_QA_PASSWORD=... UI_QA_ROLE=operator \
-   .venv/Scripts/python.exe -u -m scripts.ui_qa.run --label c1-operator --insecure --modals \
-     --base-url https://clovirone-ai.gooddi.lab --viewports 1920x1080 --out-dir dist/ui-qa-operator
-   ```
-   보는 것: 메뉴 노출 · 데이터 범위 · "눌렀더니 403" 막다른 길 · `SEC-01`·`UB-01`·`UA-02` 재현.
-4. **Chrome 실조작을 계속한다 — 지금 가장 수확이 크다.** 스크린샷으로는 안 나오는 것이 나온다
-   (`VIS-72` 검색 콘솔 튕김이 그 예). 아직 안 해 본 것: 모달 열고 저장까지 · 티켓 생성 폼 · 채팅방 · 놀이. `A`(API)·`R`(RBAC)은 §6-1 매트릭스로 `~`까지 왔고
-   `F`·`D`·`L`이 아직 비어 있다.
-   ⚠️ 러너 쓰기(`RN-01`~`03`)는 실서버에서 재현하지 않는다 — 이유는 [DECISIONS](DECISIONS.md) D-21.
-5. **판독 대상 우선순위 제안**: 아직 안 본 65개 중 `/team-docs`·`/board`·`/games`·`/my-tickets`·
-   `/tickets/:id`·`/sprint`(사용자 핵심 흐름)와 `/settings`·`/audit`·`/notion-console`·`/llm-console`
-   (관리자 밀도 높은 화면)을 먼저 보면 새 범주가 나올 가능성이 크다. 4K(3840) PNG도 같이 본다 —
-   1920만 보면 `DS-24`(`xl` 구간 미지정) 같은 것이 안 드러난다.
+## 3-0. 임박한 것 (시간이 지나면 저절로 터진다)
 
----
+- **`UB-40` 오프보딩 목록이 21명째부터 잘린다** — 현재 **18명**. `Offboarding.jsx:65` 가
+  `page_size=20` 하드코딩이고 총건수·페이저·잘림 경고가 없다. 세 명만 더 들어오면
+  퇴사 처리 대상자를 목록에서 못 찾는다.
+- **`RSTR-03` 자동 백업이 꺼져 있고 마지막 백업이 2026-07-19** — 매일 멀어진다.
+- **`SCHD-01` 유일한 스케줄이 AI 채팅 웹훅을 가리킨다** — 누군가 「활성」을 켜는 순간
+  매주 월요일 09:00 에 Notion 쓰기가 나갈 수 있다. **켜지 않았다.**
+- **`SEC-10` Notion 문서 1건에 평문 자격증명** — 사용자에게 알려야 할 항목(원본은 실고객 워크스페이스).
 
 ## 3-1. 가장 먼저 손대야 할 것 (사이클 0이 남긴 결론)
+
+**최우선은 `SYS-01`이다** — TLS 인증서 교체가 성공 메시지·새 인증서의 subject·만료일까지
+보여 주면서 **실제로는 아무것도 바꾸지 않는다**(nginx 가 읽지 않는 경로에 쓴다). `CLAUDE.md`
+§10이 "운영 전 사설 CA 인증서로 교체"를 남은 조치로 적어 둔 바로 그 경로이고, 관리자는
+성공했다고 믿게 된다. 고치는 것은 경로 한 곳이며 **올바른 값이 이미 `settings.tls_cert_path`에
+있다**(`probe_tls`·`app/health/service.py`가 그것을 쓴다).
+
+그다음이 `AI-30`(11일 묵은 CREATE 모드가 질문을 티켓 생성으로 바꾼다 — 러너 문맥에 만료가
+없다)과 `AI-37`(그 상태의 탈출어를 그 자리에서 안 알려 준다). **둘 다 러너 쪽 작은 변경인데
+체감 효과가 가장 크다.**
+
+이어서 아래 러너 쓰기 3건 —
 
 러너에서 **재현까지 끝난** 세 건이 제품 전체에서 가장 위험하다 — AI가 사용자의 **질문과 거절을
 승인 없는 Notion 쓰기로 바꾼다**:
@@ -118,7 +123,24 @@ worktree 정리 · 이 문서들 작성.
   `sudo … venv/bin/python -m app.cli.user_cli disable --email qa-*@goodmit.co.kr`
 - `~/deploy/stage-new2`, `dist/ui-qa-*` 등 산출물은 서버·로컬 모두 `dist`·홈이라 무해하지만,
   서버 홈에 116MB짜리 옛 번들이 여러 개 쌓여 있다(7GB) — 정리하면 좋다.
-- 로컬 `.claude/worktrees/` 88개(`C0-7`, 보류 중).
+- 로컬 `.claude/worktrees/` 88개(`C0-7`, 보류 중) — **저장소 grep 을 오염시키므로 조사 방해 요인이기도 하다.**
+- **`hshwang@` 계정에 조사용 대화 4개**가 생겼다("방금 말한 것 중에 제일 오래된 건 뭐야?" ×2 등).
+  기존 52개에 섞여 있다. 지우거나, 남기기로 했다면 그 사실을 여기 유지한다.
+- **`/chat` 의 오래된 대화 하나가 `mode=CREATE` 로 갇혀 있다**(`112347f0-…`, `AI-30`의 실물).
+  고치기 전에는 **재현용 증거이므로 지우지 않는다.**
+- **`mail_deliveries` 14행 · `approvals` 1행 · `restore_rehearsals` 1행** — 내 실행 검증의 흔적.
+  메일은 전부 `unconfigured` 라 **실제 발송은 없었다.** `USE-01` 집계를 다시 낼 때 이것을 뺀다.
+- **`saved_views` 에 조사용 행 1개**(`QA 조사용 뷰`, `/workflows`, `hshwang@` 소유). 개인 뷰라
+  다른 사용자에게 안 보인다. 지우거나 남겨도 무해하다.
+
+## 3-3. 이번 구간에 철회한 것 (같은 실수를 반복하지 않기 위해 남긴다)
+
+| 철회 | 왜 틀렸나 |
+|---|---|
+| 「클로비가 ~를 가린다」 계열 **7건**(`VIS-104`·`VIS-122` 등) | **전체 페이지 스크린샷이 `position:fixed` 를 엉뚱한 자리에 그린다.** 살아 있는 DOM 으로 재니 60라우트 중 1건, 긴 표 8종×스크롤 4위치에서 0건. 하네스의 `fab_overlap`은 내내 옳았다 → [D-23](DECISIONS.md) |
+| `USE-03` "저장된 뷰에 빈 상태가 없다" | **클릭하지 않고 스크린샷만 보고 판정했다.** 실제로는 빈 상태 문구·저장 미리보기까지 잘 만들어져 있고 DB 저장까지 정상이다 |
+| `AI-31` "조건을 조용히 버린다" | **조용하지 않다** — 코드가 반드시 고지하고, 그 주석에 세 번의 회귀 이력까지 적혀 있다. 진짜 문제는 앞단의 의도 분류다 |
+| `VIS-107~109` "지금 오류 4건이 나 있다" | **전부 3주 전 것**이고 원인 하나는 이미 고쳐졌다. 진짜 문제는 **아무도 3주간 재시도를 안 눌렀다**는 것 |
 
 ## 4. Blocker
 
@@ -141,8 +163,22 @@ worktree 정리 · 이 문서들 작성.
 n8n `:5678` active, 워크플로 2개 active + 웹훅 2개 등록(`clovirone-work-assistant`,
 `clovirone-notion-user-mapping`) · Claude CLI 2.1.197 · `ASSISTANT_MODEL=sonnet`(systemd env).
 
-**데이터 규모**(서버 DB): users 15 · conversations 66 · messages 237 · ticket_cache 1077.
-DB는 `/var/lib/clovirone-web-assistant/web.sqlite3`(읽기는 `sudo sqlite3 -readonly`).
+**데이터 규모**(서버 DB, 2026-08-08 실측): users 19 · conversations 68 · messages 247 ·
+ticket_cache 1077 · search_documents 1201 · notifications 103 · audit_logs 603 · jobs 130.
+**0행인 것**: approvals · document_generations · schedule_runs · mail_deliveries ·
+offboarding_runs · restore_rehearsals · impersonation_sessions · ai_quotas · announcements ·
+saved_views · trash_items · project_weekly_reports (→ `USE-01`).
+DB는 `/var/lib/clovirone-web-assistant/web.sqlite3`(**`app.db` 아님**).
+읽는 법 — 리다이렉트를 쓰면 sudo 가 stdin 을 빼앗기므로 **SQL 을 인자로** 넘긴다:
+```bash
+ssh cloviradmin@10.100.64.71 "echo '<비밀번호>' | sudo -S sqlite3 -readonly \
+  /var/lib/clovirone-web-assistant/web.sqlite3 \"SELECT COUNT(*) FROM jobs;\""
+```
+
+**호스트 사실**: static hostname `ai-n8n-svr` · systemd 255 (`hostnamectl` 에 `show` verb 와
+`--property` 옵션이 **없다**, `SYS-02`) · nginx TLS 는
+`/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt`(자체서명, issuer==subject,
+2027-07-14 만료) · `/etc/ssl/clovirone/` 은 설치 스크립트가 만들지만 **비어 있고 아무도 안 읽는다**.
 
 **로컬 게이트 현황**: `static_checks.sh` → `STATIC_CHECKS_OK` · pytest 2512개 수집 ·
 vitest 172파일 · 번들 신선도 OK · playwright 1.62.0 + chromium 설치됨 · node 24 / npm 11.

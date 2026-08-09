@@ -92,6 +92,22 @@ class Route:
             return PUBLIC_SHELL
         return USER_SHELL if self.console == "user" else ADMIN_SHELL
 
+    def visible_to(self, role: str) -> bool:
+        """이 역할이 **실제 내용**을 볼 수 있는가.
+
+        🔴 이것이 없으면 라우트 커버리지가 허수가 된다. `system_admin` 전용 4화면을
+        `admin` 계정으로 찍으면 **권한 거부 배너**가 찍히는데, 21개 검사는 그 배너를
+        기준으로 전부 통과하고 요약에는 `ok` 로 올라간다 — 화면이 아니라 배너를 검사한 것이다
+        (BACKLOG `QA-12`). 볼 수 없는 라우트는 `ok` 가 아니라 **미검사**로 세야 한다.
+        """
+        if self.is_public or not role:
+            return True
+        if self.allowed_roles:
+            return role in self.allowed_roles
+        if not self.min_role:
+            return True
+        return ROLE_RANK.get(role, -1) >= ROLE_RANK.get(self.min_role, 0)
+
     def url(self, base_url: str, hash_path: str | None = None) -> str:
         path = hash_path or self.hash_path
         if self.console == "public":   # 해시 라우터가 아니라 진짜 경로다

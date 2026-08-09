@@ -212,25 +212,41 @@ def _first_id(payload) -> str | None:
 
 
 def discover_detail_hash(context, base_url: str, route: Route, log=print) -> tuple[str | None, str]:
-    """Return ``(hash_path, note)`` for a detail route, or ``(None, reason)``."""
+    """Return ``(hash_path, note)`` for a detail route, or ``(None, reason)``.
+
+    🔴 이유를 **뭉개지 않는다**. 예전에는 403 도 "표시할 데이터가 없어…" 라고 적었다.
+    역할 매트릭스 실행에서 그 문장은 치명적이다 — "이 역할이 못 본다"와 "기능에 행이 없다"는
+    정반대의 사실이고, 역할 조사에서 가장 알고 싶은 차이가 바로 그것이다.
+    (`auditor` 는 `CONSOLE_OPS_ROLES` 밖이라 `/api/admin/jobs` 가 403 인데 "데이터 없음"으로
+    보고됐다 — BACKLOG `QA-11`.)
+    """
+    statuses: list[str] = []
     for endpoint in route.discover:
         url = f"{base_url.rstrip('/')}{endpoint}"
         try:
             response = context.request.get(url, timeout=15_000)
         except Exception as exc:
             log(f"[capture] {route.id}: {endpoint} 호출 실패 ({exc})")
+            statuses.append(f"{endpoint}→호출실패")
             continue
         if response.status != 200:
             log(f"[capture] {route.id}: {endpoint} -> HTTP {response.status}")
+            statuses.append(f"{endpoint}→HTTP {response.status}")
             continue
         try:
             payload = response.json()
         except Exception:
+            statuses.append(f"{endpoint}→JSON 아님")
             continue
         found = _first_id(payload)
         if found:
             return route.hash_template.format(id=found), f"{endpoint} 첫 항목 id={found}"
-    return None, "표시할 데이터가 없어 상세 id를 찾지 못했습니다 (" + ", ".join(route.discover) + ")"
+        statuses.append(f"{endpoint}→200, 항목 0건")
+
+    denied = [s for s in statuses if "HTTP 401" in s or "HTTP 403" in s]
+    if denied:
+        return None, "이 계정 권한으로는 조회할 수 없습니다 (" + ", ".join(denied) + ")"
+    return None, "표시할 데이터가 없어 상세 id를 찾지 못했습니다 (" + ", ".join(statuses) + ")"
 
 
 # --------------------------------------------------------------------------- #

@@ -158,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
 
     notes: list[str] = []
     pages: list[dict] = []
+    out_of_reach: list = []   # 이 역할로 볼 수 없어 찍지 않은 라우트 (QA-12)
     clock = time.perf_counter()
 
     with sync_playwright() as pw:
@@ -170,6 +171,22 @@ def main(argv: list[str] | None = None) -> int:
             except AuthError as exc:
                 _log(f"[FATAL] 세션을 만들지 못했습니다: {exc}")
                 return EXIT_HARNESS
+
+            # 🔴 이 계정의 역할로 **볼 수 없는** 라우트를 먼저 걷어낸다.
+            # 찍으면 권한 거부 배너가 나오고, 21개 검사가 그 배너를 기준으로 전부 통과해
+            # 요약에 `ok` 로 올라간다 — 화면이 아니라 배너를 검사한 것이다(BACKLOG `QA-12`).
+            # 커버리지 숫자를 정직하게 유지하려면 `ok` 가 아니라 **미검사**로 세야 한다.
+            out_of_reach = [r for r in selected_routes if not r.visible_to(session.role)]
+            if out_of_reach:
+                selected_routes = [r for r in selected_routes if r.visible_to(session.role)]
+                for route in out_of_reach:
+                    need = " | ".join(route.allowed_roles) or f"{route.min_role} 이상"
+                    notes.append(
+                        f"{route.id} ({route.label}) **권한부족(미검사)** — "
+                        f"이 계정은 {session.role}, 필요한 역할 {need}")
+                _log(f"[capture] 역할 {session.role} 로 볼 수 없는 라우트 {len(out_of_reach)}개를 "
+                     f"**미검사**로 제외했습니다: "
+                     + ", ".join(r.id for r in out_of_reach))
 
             # Resolve detail-route ids once, with the session's own permissions.
             detail_hashes: dict[str, str] = {}
@@ -267,6 +284,12 @@ def main(argv: list[str] | None = None) -> int:
             "themes": themes,
             "viewports": [v.name for v in viewports],
             "routes": [r.id for r in selected_routes],
+            # 이 실행의 역할로 볼 수 없어 **찍지 않은** 라우트. 커버리지를 계산하는 쪽이
+            # 이 목록을 빼지 않으면 "70라우트 전부 ok" 같은 허수가 나온다(`QA-12`).
+            "routes_out_of_reach": [
+                {"id": r.id, "label": r.label, "min_role": r.min_role,
+                 "allowed_roles": list(r.allowed_roles)} for r in out_of_reach
+            ],
             "fail_on": fail_on,
             "full_page": not args.no_full_page,
             "pages_captured": len(pages),
@@ -284,11 +307,26 @@ def main(argv: list[str] | None = None) -> int:
     _log("")
     _log("=" * 78)
     _log(f"검사 요약 ({len(pages)} 페이지, {elapsed:.1f}s)")
-    _log(f"{'검사 항목':<24} {'통과':>6} {'실패':>6} {'건너뜀':>7}")
+    _log(f"{'검사 항목':<24} {'통과':>6} {'실패':>6} {'건너뜀':>7}   비고")
+    never_ran: list[str] = []
     for name in assertions.CLASSES:
         counts = summary.get(name, {})
-        _log(f"{name:<24} {counts.get('pass', 0):>6} {counts.get('fail', 0):>6} "
-             f"{counts.get('skip', 0):>7}")
+        passed, failed, skipped = (counts.get('pass', 0), counts.get('fail', 0),
+                                   counts.get('skip', 0))
+        # 🔴 `통과 0 / 실패 0 / 건너뜀 N` 은 요약만 보면 "문제 없음"으로 읽힌다.
+        # 실제로는 **이 검사가 한 번도 돌지 않았다**는 뜻이다 — `tiny_text` 가 폭 2200
+        # 미만에서 전부 skip 이라 1920 캡처의 요약이 늘 그렇게 나왔고, 3840 으로 다시
+        # 돌리자 6/6 실패였다(BACKLOG `QA-10`). skip 과 pass 를 눈으로 구분시킨다.
+        mark = ""
+        if passed == 0 and failed == 0 and skipped:
+            mark = "  ← 한 번도 돌지 않음"
+            never_ran.append(name)
+        _log(f"{name:<24} {passed:>6} {failed:>6} {skipped:>7}{mark}")
+    if never_ran:
+        _log("")
+        _log(f"[주의] 이 실행에서 **한 번도 돌지 않은 검사 {len(never_ran)}개**: "
+             + ", ".join(never_ran))
+        _log("       통과가 아니라 미실행이다. 게이트 조건(뷰포트·모달 등)을 맞춰 다시 돌려야 한다.")
     if notes:
         _log("")
         _log("메모:")

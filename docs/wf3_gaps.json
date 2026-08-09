@@ -1,0 +1,330 @@
+[
+ {
+  "unexamined": [
+   {
+    "area": "app/team_chat/ (7파일 1,953줄 — service 819 · router 499 · repository 276 · models 139 · schemas 137 · mentions 83)",
+    "why_it_matters": "제품에서 **가장 큰 미감사 백엔드 모듈**이다. 라우터 docstring 자체가 위험 경계를 스스로 선언한다 — \"게시판 서빙 라우트를 채팅이 재사용하면 1:1 DM 이미지가 전사 공개가 된다\"며 별도 라우트(`GET /messages/{message_id}/images/{image_id}`)를 두고 접근 불가를 403이 아닌 **404**로 답한다. 그 IDOR 경계가 실제로 지켜지는지 아무도 검증한 적이 없다. 게다가 service.py 는 \"놀이(games)의 seq 할당기를 그대로 옮겼다\"고 적는데, games 는 12라운드에서 **동시성/유령우승 버그 3건**이 실제로 나온 바로 그 코드다 — 복제된 결함이 함께 옮겨왔는지 확인되지 않았다.",
+    "evidence_never_examined": "`grep -o 'app/team_chat/[a-z_]*\\.py' docs/BACKLOG.md docs/wf1_findings.json docs/wf2_findings.json` → **0건**. BACKLOG 의 team_chat 언급 6건은 전부 프런트 시각 판독(VIS-36 빈 상태 500px · VIS-90 빈 상태 회색 한 줄 · VIS-93 컴포저 버튼 순서 · VIS-71 홈 API 14건 목록 · UA-22 blocked 버킷 · VIS-129 권한 매트릭스 누락)이고 백엔드 코드를 읽은 흔적이 없다. QA_COVERAGE.md:98-99 `/chat-rooms`·`/chat-rooms/:id` 는 **S(화면)만 O 이고 F·A·D·C·R·L·V 8축 중 7축이 `-`**. UB(batch1 7모듈)·UA(batch2 12모듈)·WF2(6영역) 어느 명단에도 team_chat 이 없다.",
+    "risk": "High",
+    "first_probe": "① `app/team_chat/router.py` 의 이미지 서빙 라우트에서 방 멤버십 검사가 **DB 조회 전에** 도는지 확인 → 1:1 방 A의 message_id·image_id 를 비멤버 세션으로 GET 해 404 가 나오는지 실측(403 이 나오면 존재 오라클). ② `service.py` 의 seq 할당 재시도를 `games/service.py` 의 12라운드 수정본과 diff — 수정이 반영됐는지. ③ `mentions.py` + `core/people.py::_mention_candidates` 동명이인 처리(둘 다 조용히 제외)."
+   },
+   {
+    "area": "app/core/uploads.py (9,655 bytes — 매직바이트 판정 · 네임스페이스 = 접근통제 경계 · traversal 가드)",
+    "why_it_matters": "docstring 이 \"**네임스페이스가 곧 접근 통제 경계다**\"라고 선언하고, 그 경계가 깨지는 시나리오(DM 이미지 전사 공개)를 이유까지 적어 뒀다. 실제 소비자가 board·team_chat·tickets **3모듈**이라 여기 한 곳이 뚫리면 세 곳이 동시에 뚫린다. 파일 업로드는 이 제품에서 유일하게 사용자가 바이트를 서버 디스크에 쓰는 경로다.",
+    "evidence_never_examined": "docs 4종(BACKLOG·QA_COVERAGE·wf1_synthesis·wf2_synthesis)에서 `uploads` 의 유일한 히트는 BACKLOG.md:2251 `job_attachments(24시간) · missing_tickets · orphan_uploads` — **retention 대상 표의 이름 나열**이지 감사가 아니다. `업로드` 한글 검색 0건. CORE-01~12(app/core 전수조사)는 worker_lock·sessions·middleware·allowlist·http_client·deps·feature_flags·safe_url·ratelimit·audit·secret_refs·config 만 다루고 uploads.py 는 항목에도 강점 노트에도 **없다**.",
+    "risk": "High",
+    "first_probe": "매직바이트 판정 함수에 polyglot(GIF 헤더 + `<script>` 본문, PNG 헤더 + HTML)을 넣어 통과 여부 확인 → 통과하면 서빙 라우트의 `Content-Type`·`nosniff`·`Content-Disposition`(`content_disposition()`)이 실행을 막는지 확인. 이어서 `namespace`/`owner_id` 인자에 `../` 와 널바이트를 넣어 저장 경로가 `data_dir/uploads/` 밖으로 나가는지."
+   },
+   {
+    "area": "app/notion_console/ (3파일 865줄 — probe_notion 329 · service 312 · router 223)",
+    "why_it_matters": "`SYS-01`(Critical)과 **정확히 같은 실패 형태**의 후보다: sysops 의 TLS 인증서 교체가 성공 메시지·subject·만료일까지 보여 주면서 nginx 가 읽지 않는 경로에 쓴다. notion_console 도 관리자가 **Notion 토큰을 교체하고 DB 를 생성하는** 쓰기 콘솔이고, service.py docstring 이 \"설정 레지스트리를 지난다 / 토큰은 secret_ref 다 / **두 번째 쓰기 경로를 내지 않는다**\"고 계약을 선언한다. 그 계약이 실제로 지켜지는지, 저장이 실효를 갖는지 아무도 확인한 적이 없다. `USE-01`(자동화 12종 실행 이력 0)의 원인 후보이기도 하다.",
+    "evidence_never_examined": "BACKLOG 의 notion-console 언급 8건은 전부 **화면 판독**이다 — SYS-09(저장 버튼 3개 vs 1개) · SYS-10(같은 경고 두 번) · SYS-11(칩이 상태와 출처를 섞음) · VIS-110(1,300px 공백) · VIS-113(내비 활성 항목이 화면 밖) · QA-04(하네스 라우트 누락). `grep 'app/notion_console/[a-z_]*\\.py'` → BACKLOG·wf1·wf2 **전부 0건**. BACKLOG.md:929 이 이 4화면을 \"이번 세션 전까지 한 번도 본 적 없다\"고 적었고, 그 세션에서도 **PNG 만 봤다**.",
+    "risk": "High",
+    "first_probe": "`service.py` 의 토큰 저장 경로가 `core/secret_refs.py::write`(mkstemp+os.replace) 를 실제로 부르는지, 그리고 저장 후 **읽는 쪽**(`OutboundClient` 의 secret 주입)이 같은 ref 이름을 보는지 대조 — SYS-01 처럼 쓰는 경로와 읽는 경로가 갈라져 있으면 \"저장됨\" 이 거짓이다. 이어서 `probe_notion.py` 의 DB 생성이 `OutboundClient` 관문을 지나는지(불변규칙 §2-2)."
+   },
+   {
+    "area": "app/cli/user_cli.py (390줄)",
+    "why_it_matters": "**감사된 표면과 실제로 쓰이는 표면이 반대다.** `ADM-01` 이 감사 로그 전수 집계로 확정했다 — 잠금 해제 웹 0회 / **CLI 13회**, 비밀번호 재설정 4 / **15**, 계정 생성 2 / **15**. 즉 관리자 계정 수명주기의 대부분이 이 파일을 통과하는데, 14라운드 감사와 사이클 0 전수조사는 전부 웹 라우터만 봤다. docstring 은 \"웹 admin API 와 같은 service 층을 쓰므로 동작이 갈라지지 않는다\"고 단언하지만 그 단언이 검증된 적이 없다 — 특히 `ensure_can_manage_target`(§7 보안 체크리스트의 권한 상승 가드)이 CLI 경로에도 걸리는지가 미확인이다.",
+    "evidence_never_examined": "BACKLOG 의 user_cli 언급 2건은 둘 다 **조사자 자신의 도구 사용 기록**이다 — BACKLOG.md:506(QA 계정을 나중에 `user_cli disable` 로 지울 것) · QA-14(하네스가 원격을 겨눈 채 로컬 DB 에 계정을 만든 하네스 결함). `grep 'app/cli/'` → BACKLOG·wf1·wf2 0건. QA_COVERAGE 는 라우트 매트릭스라 CLI 축 자체가 없다.",
+    "risk": "High",
+    "first_probe": "`user_cli` 의 각 서브커맨드(`add`·`passwd`·`disable`·`archive`·`unlock`)가 웹 라우터와 같은 service 함수를 부르는지 호출 그래프로 대조하고, 웹에만 있고 CLI 에 없는 가드를 찾는다 — 우선 `ensure_can_manage_target`·감사 로그 기록·CSRF 대응물(actor 귀속). `ADM-01` 의 13회 잠금 해제가 `audit_logs` 에 어떤 actor 로 남았는지 실서버 DB 로 확인."
+   },
+   {
+    "area": "app/core/sync_prune.py (6,351 bytes — 대량 삭제 바닥)",
+    "why_it_matters": "복구 불가능한 데이터 손실을 막는 **유일한 안전장치**다. docstring 이 손실 대상을 명시한다: `ticket_comments`·`ticket_attachments`(CASCADE, Notion 에 없음) · `ticket_cache.body_markdown`(\"push 전 본문은 우리 DB 에만 있다\") · `document_cache.classification_manual`(Notion 에 대응 필드 없음). 방어는 두 줄뿐이다 — `keep` 이 비면 안 지움, `MAX_DROP_RATIO`(절반) 초과면 안 지움. 소비자가 tickets·team_docs·projects **3개 sync 경로 전부**이고, 이 제품의 Notion 경로는 이미 불안정하다는 증거가 쌓여 있다(`UB-26` 한 번도 성공 못 한 미러 · `UA-05` Notion 실패 시 502 · `notion_mapping_sync` 잡 실패 이력).",
+    "evidence_never_examined": "docs 4종에서 `sync_prune` **0건**. CORE-01~12 에도 강점 노트에도 없다. `RET` 절(보존 정책)은 `core/retention.py` 만 다루고 prune 은 별개 모듈이다.",
+    "risk": "High",
+    "first_probe": "`prune_missing()` 을 직접 호출해 경계를 시험한다 — ① `keep=set()` 빈 집합 ② `keep` 이 기존의 정확히 50%(경계 off-by-one) ③ 기존이 1건일 때 0건 반환(비율 계산의 0 나눗셈/정수 절삭). 그리고 3개 호출부(`tickets/sync.py:20`·`team_docs/sync.py:15`·`projects/sync.py:43`)가 `PruneResult` 의 **거부 신호를 실제로 읽고 사용자에게 알리는지** — `WF2 R5`(부분 성공이 성공 신호를 낸다, 5건)와 같은 부류일 가능성이 높다."
+   },
+   {
+    "area": "app/core/tenant_config.py (11,150 bytes — app/core 에서 두 번째로 큰 파일)",
+    "why_it_matters": "소비자가 **13개 모듈**(health·llm·llm_console·mail/config·notion_console·settings/registry·settings/service·setup/checklist·setup/probes·setup/steps·jobs/handlers/llm_connection_test·config·main)로 core 에서 가장 넓게 퍼져 있다. \"설치처 고유 설정이 채워졌는지\"를 판정하는 단일 진실원이고, docstring 이 존재 이유로 든 사고가 실제로 있었다 — config.py 기본값에 개발 워크스페이스 Notion DB id 가 박혀 있어 다른 고객사 설치가 조용히 그것을 가리켰다. `DEPLOY-01`·`WF2 H4`(설치처 고유값 가드가 rsync 뒤에 있어 \"되돌릴 것이 없다\"는 주석이 거짓)가 **바로 이 판정을 소비하는 설치 경로**에서 이미 Critical/High 로 터졌는데, 판정 모듈 자체는 안 봤다.",
+    "evidence_never_examined": "docs 4종에서 `tenant_config` **0건**. BACKLOG 의 `테넌트` 7건은 전부 멀티테넌트 데이터 스코프(UA-02 org B 가 org A 를 봄, UA-11 org 생성 게이트, UA-13 부서 부모 교차)이고 설정 판정 모듈과 무관하다. CORE-12 가 `main.py:119-123 except: pass`(테넌트 오버라이드 로드 실패를 삼킴)를 **호출부 한 줄**로만 짚었고 모듈 내부는 안 열었다.",
+    "risk": "Med",
+    "first_probe": "판정 함수에 \"빈 문자열\" / \"공백만\" / \"개발 기본값과 동일한 값\" 세 가지를 넣어 각각 `설정 안 함`·`설정됨` 중 무엇으로 떨어지는지 — 특히 **개발 기본값이 그대로 남아 있을 때 '설정됨' 으로 판정되면** docstring 이 막겠다던 사고가 그대로 살아 있다. 이어서 13개 소비자가 같은 판정 함수를 쓰는지, 아니면 자기 사본을 갖고 있는지(이 제품의 지배적 결함 유형 = \"규칙이 있는데 부르는 쪽이 안 부른다\")."
+   },
+   {
+    "area": "app/notion_mapping/ (3파일 555줄 — router 283 · service 239 · models 33)",
+    "why_it_matters": "티켓 귀속과 오프보딩이 이 결속을 **키로 쓴다**. `SEC-01`(High) 이 이미 여기서 나왔지만 그것은 `grep 'ensure_can_manage_target'` 0건이라는 **단일 grep 결과**였고 모듈 전수조사가 아니다. service.py docstring 이 선언한 두 계약 — \"웹앱은 이메일 문자열을 People 속성 값으로 보내지 않는다\", \"브라우저에서 온 Notion user id 를 받지 않는다\"(스펙 §12.3) — 이 실제로 지켜지는지는 미확인이다. 실데이터 `user_notion_mappings` 14행이 있고 `notion_mapping_sync` 잡은 **실행 2건 중 1건이 실패 이력**이다.",
+    "evidence_never_examined": "`grep 'app/notion_mapping/[a-z_]*\\.py'` → BACKLOG **0건**, wf1/wf2 **0건**. BACKLOG 의 notion_mapping 언급은 SEC-01(router.py 줄번호만) · SEC-03/04(다른 모듈을 설명하며 이 모듈을 *모범*으로 인용) · USE-02/VIS-107(잡 실패) · VIS-141/WF1(화면 버튼 스타일)뿐 — **service.py 는 한 번도 인용되지 않았다**. UB·UA·WF2 명단에 없다.",
+    "risk": "Med",
+    "first_probe": "`service.py` 의 매핑 확정 경로에서 브라우저 입력이 Notion user id 로 직행하는 지점이 있는지 추적(`resolve-conflict`·`map` 두 엔드포인트의 body 스키마부터). 그리고 `SEC-01` 이 지적한 4종 쓰기에 `ensure_can_manage_target` 을 붙였을 때 **부서범위 admin 이 실제로 막히는지** — UI 가 쓰는 경로가 가드 없는 쪽이라고 SEC-01 이 적었으므로 UI 경로도 함께."
+   },
+   {
+    "area": "app/jobs/handlers/ 중 5개 — document_generate.py · llm_connection_test.py · mail_send.py · project_weekly_summary.py · schedule_run.py",
+    "why_it_matters": "**한 번도 실행된 적 없고 한 번도 읽힌 적도 없다**는 이중 공백이다. `USE-02`(High) 가 프로덕션 `jobs` 130행 전부가 `chat_message`(128) + `notion_mapping_sync`(2) 임을 확정했으므로, 나머지 5개는 실행 증거가 0 이다. WORK_STATE §3-1 의 최우선 후속(\"미실행 기능을 하나씩 끝까지 돌린다\")이 **화면 쪽**만 겨누고 있어서, 그 화면들이 큐에 넣을 워커 측 핸들러는 여전히 사각이다. `AI-07`(High, schedule_run 이 최대 3600초 단일 슬롯을 잡아 전 사용자 채팅이 pending)은 워커 루프 관점의 지적이지 핸들러 본체 감사가 아니다.",
+    "evidence_never_examined": "핸들러 파일명별 docs 4종 히트 — `document_generate` **0** · `llm_connection_test` **0** · `mail_send` **0** · `project_weekly_summary` **0**. (`schedule_run` 8건은 전부 `SCHD` 절의 스케줄 화면·잡 타입 이름 언급이고 handlers/schedule_run.py 코드 인용은 없다.) `chat_message` 만 14건으로 실제 감사됐다.",
+    "risk": "Med",
+    "first_probe": "5개 핸들러가 워커 계약을 지키는지 정적으로 대조 — ① 예외를 삼키고 `succeeded` 를 쓰지 않는가(`WF2 R5` 부분 성공 = 성공 신호) ② 재시도 시 멱등한가(`UA-04` 문서 재시도가 409 막다른 길과 같은 뿌리) ③ 외부 호출이 `OutboundClient` 를 지나는가 ④ `document_generate`·`mail_send` 는 외부 부작용이 있으므로 **D-21 확인 후 로컬 TestClient 에서만** 돌린다."
+   },
+   {
+    "area": "app/core/people.py (8,802 bytes, 2026-08-08 수정 — 신원 조각 단일 정의)",
+    "why_it_matters": "사용자 지시(2026-08-04) \"동명이인 등을 고려해 어떤 조직의 어떤 부서인지 나와야 한다\"에 대한 **정본 구현**이고, 소비자가 board·team_chat·backups·schedules 4모듈이다. docstring 이 스스로 미해결 결함을 적고 있다 — `users.display_name` 에 유일성 제약이 없어 동명이인이 스키마상 정상인데 `team_chat/service.py::_mention_candidates` 는 이름이 겹치면 **두 사람 다 멘션 후보에서 조용히 뺀다**. 그 \"조용히\"가 고쳐졌는지 확인된 적이 없다. `core/` 에서 **가장 최근에 수정된 축**(worker_lock·versioning 과 같은 날)인데 그 수정은 CORE 전수조사(그 이전) 이후다.",
+    "evidence_never_examined": "docs 4종에서 `people.py` **0건**, `core.people` **0건**. CORE-01~12 항목·강점 노트 어디에도 없다. 이 파일은 CORE 전수조사가 끝난 뒤 갱신됐으므로 **최신 상태는 정의상 미감사**다.",
+    "risk": "Med",
+    "first_probe": "`identity()`·`name_map()`·`org_name_map()`·`avatar_map()` 4함수가 4개 소비자에게 **같은 조각 집합**을 주는지 대조(board 는 `avatars` 를 넘기고 team_chat 은 안 넘긴다 — router.py:114 vs :194). 이어서 동명이인 2계정을 만들어 멘션 후보·댓글 작성자·방 멤버 목록 세 자리에서 구분되는지, 아니면 여전히 조용히 빠지는지 실측."
+   },
+   {
+    "area": "app/core/versioning.py (4,140 bytes, 2026-08-08 수정) — 설정 스냅샷·롤백의 공용 기반",
+    "why_it_matters": "integrations·runners·settings·workflows **4개 레지스트리의 모든 변경**이 여기를 지나고, 롤백이 여기서 스냅샷을 읽는다. docstring 이 \"스냅샷은 마스킹하지 않는다(복원 가능해야 하므로)\"고 명시하므로 §2-3(secret 은 DB·응답·로그에 없다) 불변규칙과 **정면으로 접한 유일한 지점**이다 — \"secret reference NAME 만 들어간다\"는 주장이 실제로 성립하는지가 미검증이다. `UB-04`(발행 유일성 경합이 깨지면 rollback 이 `MultipleResultsFound` → 500)와 `UB-21`(경합 시 409 대신 500)은 호출부 쪽 지적이고 이 기반 모듈은 안 봤다.",
+    "evidence_never_examined": "docs 4종에서 `versioning` **0건**. CORE-01~12 에 없고 강점 노트에도 없다. `config_versions` 는 CORE-12 에서 감사 마스킹 불일치를 설명하는 *대조군*으로만 한 번 언급된다.",
+    "risk": "Med",
+    "first_probe": "스냅샷 저장 함수에 `secret_ref` 를 가진 integration 객체를 넣고 `config_versions` 행을 raw SQL 로 다시 읽어 **값이 아니라 이름만 들어갔는지** 확인(§2-3 · §7 커밋 전 체크리스트). 이어서 per-object monotonic version 할당이 동시 쓰기에서 유일한지 — `IntegrityError` import 가 있는 걸 보면 경합을 의식하고 있으나 `UB-04`·`UB-21` 과 같은 read-then-write 인지."
+   },
+   {
+    "area": "app/core/etag.py (4,275) + app/core/presence.py (4,460) — 폴링 스케일 심 2종",
+    "why_it_matters": "이 제품은 폴링으로 돌아간다 — 놀이 3초(방 화면 1.2초), 휴지통 15초, 알림 60초, 공지 60초. `VIS-71` 이 홈 1회 로드에 API 14건(중복 3건)을 실측했고 `UB-15`/`UB-16` 이 폴링이 GET 안에서 쓰기를 유발하는 결함을 이미 찾았다. 그런데 그 비용을 **줄이라고 만든 두 모듈 자체**는 안 봤다. presence.py docstring 은 **결합을 명시적으로 경고한다**: 스로틀 30초 vs 소비자 임계값(놀이 `PRESENCE_SECONDS=90`, 채팅 온라인 점 120초) — \"이 파일과 소비자 임계값은 함께 봐야 한다. 스로틀을 이 두 값에 가깝게 올리면 그 순간 깜빡이기 시작한다.\" 그 함께-보기를 아무도 안 했다.",
+    "evidence_never_examined": "docs 4종에서 `etag` **0건** · `If-None-Match` **0건** · `presence` **0건** · `온라인`/`접속 상태` **0건**. 소비자는 실재한다 — etag: games·notifications·trash 라우터 3곳, presence: games·team_chat service 2곳.",
+    "risk": "Med",
+    "first_probe": "① 실서버에서 `/api/notifications/unread-count` 를 `If-None-Match` 를 붙여 두 번 호출해 **304 가 실제로 나오는지** (강한 ETag 라고 선언했으므로 `W/` 접두사가 없어야 한다). ② `games/router.py`·`trash/router.py` 의 `etag_json_response` 가 **사용자별로 다른 응답에 같은 ETag** 를 주지 않는지(캐시 오염 = 남의 데이터 노출). ③ presence 스로틀 30초와 `PRESENCE_SECONDS=90` 을 같이 놓고 3주기 안에 최소 2회 갱신이 보장되는지 산술 확인."
+   },
+   {
+    "area": "app/core/notion_blocks.py (7,479) + app/core/source_registry.py (3,550)",
+    "why_it_matters": "notion_blocks 는 티켓 설명과 문서 본문이 **같은 규칙으로 렌더되도록** 한 곳에 모은 변환기이고, 프런트 `BodyEditor` 미리보기와 규칙이 정확히 일치해야 \"본 미리보기 ≠ 저장 결과\"가 안 생긴다. `WF2` 의 `BodyPreview` 문구 불일치(\"이후 N줄은 저장되지 않습니다\"인데 서버는 전체 거절)와 Board/TeamDocs 본문 무제한 문제가 전부 이 파일의 `MAX_BLOCKS`/`MAX_LINE_CHARS` 상수를 물고 있다 — 상수를 인용한 findings 는 있어도 **변환 로직 자체는 안 봤다**. source_registry 는 `ticket_source` 킬 스위치의 단일 선택 지점으로 \"미러가 이상하면 이 값 하나만 바꿔 재시작하면 원복된다\"는 운영 안전장치인데, 그 스위치가 실제로 먹는지 미확인이다.",
+    "evidence_never_examined": "docs 4종에서 `notion_blocks` **0건** · `source_registry` **0건**. team_docs/tickets 의 schemas.py 가 이 상수를 import 하는 사실은 코드에만 있고 조사 기록에는 없다.",
+    "risk": "Med",
+    "first_probe": "notion_blocks: `markdown_to_blocks()` 에 100블록 초과 · 1900자 초과 줄 · 중첩 목록 · `---` 만 있는 입력을 넣어 **조용한 절단**이 일어나는지(`WF2 R5` 부분 성공) 확인하고 프런트 BodyEditor 규칙과 diff. source_registry: `ticket_source=notion` 으로 부트해 캐시 조회가 **정말 0회**인지 쿼리 로그로 확인(킬 스위치가 반만 먹으면 사고 시 무용지물)."
+   },
+   {
+    "area": "app/games/ (7파일 1,813줄 — service 1,102 · router 273 · schemas 171)",
+    "why_it_matters": "**부분 감사**다 — 정직하게 말하면 12라운드 커밋(`0a345e7`)이 \"게임 동시성/유령우승 버그 3건\"을 고쳤으므로 백지가 아니다. 그러나 그것은 사이클 0 전수조사 **이전**이고, 현재 조사 문서에는 코드 감사 흔적이 없다. 중요한 이유는 team_chat 이 \"놀이의 seq 할당기를 그대로 옮겼다\"고 선언했다는 점 — **결함이 나왔던 코드가 복제됐다**. 또 `games/ai.py`(AI 퀴즈)는 `FN-08` 이 지적한 대로 러너 레지스트리를 우회해 `settings.game_runner_url` 을 직접 읽는다.",
+    "evidence_never_examined": "`grep 'app/games/[a-z_]*\\.py'` → BACKLOG **0건**(FN-08 이 `games/ai.py` 를 근거 칸에 적은 1건 예외), wf1/wf2 **0건**. BACKLOG 의 GM-01~04 는 전부 **DB 행 수와 화면 판독**이다 — `game_rooms` 15행이 화면에 안 보임 · 빈 상태에 게임 종류가 없음 · 끝난 방이 어디에도 없음 · 보존 정책 없음(`RET-03`). service.py 1,102줄의 서버 확정 로직은 읽힌 적이 없다.",
+    "risk": "Med",
+    "first_probe": "12라운드가 고친 3건을 먼저 특정(`git show 0a345e7 -- app/games/`)하고, 같은 결함 패턴이 **team_chat/service.py 의 복제된 seq 할당기**에 남아 있는지 diff. 이어서 7종 게임의 승자 확정이 서버에서만 나오는지(`schemas.py` 가 클라이언트에서 결과를 받지 않는지)."
+   },
+   {
+    "area": "app/admin/rbac.py (27줄) + app/admin/router.py (32줄) — admin 패키지의 얇은 두 파일",
+    "why_it_matters": "`VIS-129`/`RBAC 매트릭스 화면`이 \"이 표는 서버의 권한 정의(`app/core/authz.py`) 하나에서 그대로 옵니다\"라고 사용자에게 **단언**한다(BACKLOG.md:1150). 그 단언을 실제로 만드는 어댑터가 `admin/rbac.py` 27줄인데 아무도 열어보지 않았다 — 화면이 보여 주는 표와 서버가 실제로 판정하는 것이 갈라져 있으면, 그 화면은 **거짓을 확신에 찬 문장으로 말하는** SYS-01 형 결함이 된다.",
+    "evidence_never_examined": "`grep 'admin/rbac\\|admin/router'` → BACKLOG **0건**. admin 패키지에서 조사 흔적이 있는 파일은 `admin/feature_flags.py:100` **1건**뿐(WF1, 설명 문자열을 기계 파싱한다는 지적). BACKLOG 의 `admin` 36건은 전부 관리자 *화면*·역할 이름이다.",
+    "risk": "Low",
+    "first_probe": "`admin/rbac.py` 가 `core/authz.py` 의 역할 상수를 **직접 읽는지** 아니면 자기 사본을 갖는지 확인 — 사본이면 QA_COVERAGE §10-1 의 \"routes.py 역할 표가 앱의 실제 게이팅과 일치\" 검증이 화면 층만 덮었다는 뜻이다. `CONSOLE_OPS_ROLES`·`MODERATOR_ROLES`·`SENSITIVE_READ_ROLES` 세 집합이 표에 전부 반영되는지 대조."
+   },
+   {
+    "area": "app/policies/ — __init__.py 0바이트뿐인 빈 패키지",
+    "why_it_matters": "결함은 아니지만 **디렉터리 지도가 거짓**이라는 사실이다. CLAUDE.md §3 저장소 지도가 `policies` 를 다른 feature 와 같은 줄에 나열하고 \"각 feature = router + service + repository + schemas + models\"라고 적는데, 실제 policies 라우터는 `app/prompts/router.py::policies_router` 에 있고(`main.py:65,193`) policies 디렉터리는 완전히 비어 있다. 이런 유령 디렉터리는 다음 조사자가 \"policies 를 봤다\"고 잘못 집계하게 만든다 — 실제로 이번 대조에서 BACKLOG 히트 1건이 나왔지만 그건 prompts 감사(UB-04·UB-21·UB-13)가 \"프롬프트/정책\"이라고 쓴 것이었다.",
+    "evidence_never_examined": "`ls -la app/policies/` → `__init__.py` 0바이트 1개. `grep 'app/policies/'` → docs 4종 **0건**. BACKLOG 의 policies 히트 1건은 UB 절의 \"프롬프트/정책 생성·새버전\" 문장으로, prompts 모듈 감사 결과다.",
+    "risk": "Low",
+    "first_probe": "빈 패키지를 지우거나 CLAUDE.md §3 지도를 정정한다(policies 는 prompts 안에 있다고 명시). 겸해서 `models_registry.py`(46줄)·`main.py` include_router 목록과 실제 디렉터리 목록을 diff 해 **다른 유령/누락**이 있는지 한 번에 확인."
+   }
+  ],
+  "already_covered_well": [
+   "app/core/http_client.py + allowlist.py — SSRF 관문. CORE-05·06·07 + 강점 노트에 스킴 allowlist·userinfo 거부·정확한 host:port 일치·호출시점 검사·follow_redirects=False·trust_env=False 까지 명시적으로 검증됨(split-parser 우회는 실제로 시험함)",
+   "app/core/worker_lock.py — CORE-01(High, 동시 리스 획득) · CORE-03(비원자 _write). 코드 직접 확인",
+   "app/core/sessions.py — CORE-02(만료 세션 revoked_at 이 rollback 에 버려짐, 3중 파급까지 추적)",
+   "app/core/deps.py — CORE-08(get_page_auth 가드 밖) · CORE-09(임퍼소네이션 30분 우회)",
+   "app/core/middleware.py + logging_setup.py — CORE-04(500 이 보안헤더·접근로그를 통째로 건너뜀, 실제 미들웨어 스택으로 검증) · CORE-12 · DOC-01(CSP 문서 불일치)",
+   "app/core/feature_flags.py — CORE-10(타입 강제 없음) + _stat_key 가 CORE-06 의 대조군으로 인용됨",
+   "app/core/safe_url.py — CORE-11(normalize_external_url 호출부 0건, announcements 가 원문 저장)",
+   "app/core/retention.py — RET-01~03 + 'RET 정정' 절(내 판정이 틀렸다는 자기수정까지 기록됨). 10개 표를 시간당 정리하는 것 확인",
+   "app/core/scope.py + authz.py — UA-02(High, is_dept 아니면 무제한) · QA-11 · 강점 노트(알 수 없는 admin_scope 에 fail-closed, BFS 순환 안전, MODERATOR_ROLES 가 auditor 제외)",
+   "app/core/assets.py + secret_refs.py + config.py — 강점 노트(요청마다 stat, traversal 차단, SecretValue 4가지 포맷에서 *** ) + CORE-12 + AI-01",
+   "app/home/readers.py — WF2 R1 의 진앙. H6(게시판 org 우회) · H7(문서 부서 우회, 실서버 재현) · UA-06·UA-09·UA-24. '3함수에 viewer 인자' 로 수정 지점까지 확정됨",
+   "app/team_docs/ — WF2 에서 path ref 13건. H7·H8(범위를 페이지 자른 뒤 파이썬 필터 → total 거짓) · doc_in_scope 관문 목록까지 분석됨",
+   "app/board/ — WF2 에서 path ref 22건(최다). H6 + 본문 상한 없음 + 첨부 삭제 경로 없음",
+   "app/tickets/ — WF2 path ref 13건 + _scope_assignee_ids/_drop_out_of_scope 가 '정답 패턴' 으로 인용됨. attachments.py 도 wf2_findings 에서 검증됨",
+   "app/announcements · impersonation · quotas · observability · templates · prompts · conversations — UB-01~30 전수조사(High 3, batch 1)",
+   "app/home · assistant · reports · sprints · trash · documents · backups · org · offboarding · audit · llm_console · llm — UA-01~29 전수조사(High 3, batch 2). UA-01·UA-02 는 실서버 재현까지 완료",
+   "app/projects/health.py — WF2 H9(규칙 1개만 판정돼도 score=100, compute_health 를 실제 실행해 재현)",
+   "app/sysops/ — SYS-01~11. 읽기전용 argv 11종을 실서버에서 직접 실행해 대조(SYS-01 Critical: TLS 교체가 nginx 가 안 읽는 경로에 쓴다)",
+   "app/setup/probes.py — '이 제품에서 가장 잘 만든' 것으로 명시 평가됨(BACKLOG.md:952)",
+   "app/jobs/ (worker.py · handlers/chat_message.py) — AI-07(단일 슬롯 직렬화) · USE-02 · VIS-107(job_type 미등록 오류 추적)",
+   "app/search/ — SRCH 절(같은 질의 4종 × 표면 전부 실측) + VIS-72(검색이 관리자 콘솔로 튕김, 실조작으로만 발견)",
+   "runner/claude-work-assistant/assistant.py — RN-01~20 재현 확인 + WF2 H10(호환 자모 리터럴 정규식). 별도 트랙으로 예산 배분까지 결정됨",
+   "scripts/install·upgrade·rollback·backup .sh — DEPLOY-01·02(Critical) + WF2 H3·H4·H5. '설치·배포 = 최약점, 최우선·최대 예산' 으로 판정됨",
+   "frontend 전반 — VIS-01~158 + WF1 73건 + RESP·CTR·FAIL·HOST·KBD·SEM 6개 축 실측. 4K 전수 스윕 128페이지까지"
+  ]
+ },
+ {
+  "unexamined": [
+   {
+    "area": "`/games/:id` 게임방 — 실시간 게임플레이 전체 (GameStage 328줄 · RpsViews · LadderBoard · Scoreboard · StageShared · useGameRoomController 301줄 · ChatPanel · MembersList · celebration.js), 7종 게임 × 14개 mutation × 1.2초 폴링",
+    "why_it_matters": "`/games/:id`는 QA_COVERAGE §2에 `GameRoom | O`(캡처 완료)로 적혀 있지만 **실제로는 단 한 장도 찍힌 적이 없다**. 즉 커버리지 표가 거짓 양성을 담고 있고, 사용자 콘솔 26/26이라는 수치도 허수다. 내용도 가볍지 않다 — 서버 확정 승자·축포·방장 위임·관전자/참여자 분기·토너먼트·퀴즈 라운드·제출 현황 배지가 전부 여기 있고, **폴링이 1.2초**다. TeamChatWidget의 3초 폴링을 `PF1`으로 잡아 30초 백오프까지 넣은 기준을 그대로 대면 게임방은 뷰어당 분당 50요청으로 제품에서 가장 비싼 화면인데 `PERF` 절에 없다. GM-01~04는 `/games` 목록과 DB 행만 다뤘다.",
+    "evidence_never_examined": "① `dist/ui-qa-*/*/results.json` **51개 실행 전부**를 파싱한 결과 `user_game-room` 페이지 레코드 **0건**(`user_games` 목록만 존재). route_inventory에는 70개 라우트 중 하나로 들어가 있으므로 '검사했는데 통과'가 아니라 '한 번도 안 열림'이다. ② 원인은 `scripts/ui_qa/routes.py:171` `discover=(\"/api/games/rooms\",)` — 이 API는 `closed_at IS NULL`만 세는데 서버 실측 15행 전부 closed라 id를 못 찾고 `capture.py:249`가 `(None, \"표시할 데이터가 없어…\")`를 반환한다. ③ `docs/` 전체 grep: `GameStage` 0 · `LadderBoard` 0 · `RpsViews` 0 · `Scoreboard` 0 · `useGameRoomController` 0 · `celebration` 0 · `축포` 0.",
+    "risk": "High",
+    "first_probe": "실서버에서 방을 하나 만들고(qa-user + qa-operator 2계정) `random_draw`·`rps`(토너먼트)·`quiz`·`number`를 끝까지 돌린다. 볼 것 3가지: (1) 승자 확정 순간 축포가 **한 번만** 터지는가(`deriveCelebrateKey`가 폴링마다 재발화하지 않는지), (2) 방을 옮길 때 stale 선택/스크롤이 남는지(이미 유닛테스트가 있는 시나리오의 실환경 확인), (3) DevTools Network로 1.2초 폴링의 분당 요청수·응답 크기를 재서 `PERF` 절에 넣는다. 끝나면 반드시 방을 파한다."
+   },
+   {
+    "area": "중첩 표면 — 이미 열린 모달/드로어 **안에서** 여는 2단계 표면. `data-screen/SubListDrawer.jsx`(174줄: 버전 기록·실행 이력·비교 diff·롤백·재시도·500건 상한 경고·actionHint)와 그 안의 `JsonBlock` 모달",
+    "why_it_matters": "QA_COVERAGE가 '모달 512개를 실제로 열어 7가지 기하 검사 전부 통과, 공허한 pass 아님'을 강점으로 못 박아 뒀는데, 그 512개에 **2단계 표면은 구조적으로 한 건도 포함될 수 없다**. 그래서 '모달 레이어의 기하는 믿어도 된다'는 결론이 실제로는 1단계에만 해당한다. 이 표면에 걸린 기능은 가볍지 않다 — 프롬프트/정책/템플릿 버전 롤백, 스케줄 실행 이력 재시도, 연동 롤백(202 approval_pending 분기)처럼 **되돌릴 수 없는 조작**이 여기 있다.",
+    "evidence_never_examined": "① `scripts/ui_qa/interact.py:44-50` `OPENER_SELECTORS`가 전부 `#main-content` 하위로 한정돼 있는데, MUI Modal은 `document.body` 포털로 렌더되므로 열린 모달 안의 버튼은 후보 집합에 **원리적으로 들어오지 않는다**. ② 같은 파일 `open_modals`는 probe 직후 `close_modal(page)`를 호출하고 다음 opener로 넘어간다 — 안으로 들어가는 경로 자체가 없다. ③ `docs/` 의 `SubListDrawer` 언급 2건은 둘 다 **코드 정독**이지 렌더 확인이 아니다(`BACKLOG DS-10` Drawer=Modal 별칭, `RG-01` GET body 대조). `JsonBlock`·`apiError.js`·`datascreen-view.js`는 docs 언급 0.",
+    "risk": "High",
+    "first_probe": "`/prompts` → 행 '상세' → '버전 기록' 서브드로어 → '비교' → diff 모달까지 3단계를 손으로 연다. 볼 것: (1) 3단계 모달의 z-index·포커스 트랩·Esc가 **바깥 것까지 같이 닫는지**, (2) 500건 상한 Callout이 `filterRows`를 쓰는 정책→템플릿 목록에서 실제로 뜨는지, (3) `keepOpen` 재시도 후 하위 목록만 갱신되는지. 같은 절차를 `/schedules`(실행 이력)·`/integrations`(롤백)에도 반복."
+   },
+   {
+    "area": "정적 자산 핫 교체 이후 **열려 있던 탭**의 lazy 청크 404 — `UserRoutes.jsx:38-39`의 `React.lazy(Chat)` / `React.lazy(GameRoom)`, `AdminRoutes` 분할 청크",
+    "why_it_matters": "`CLAUDE.md` §6이 \"정적 파일만 바꿨을 때 서비스 재시작 불필요 · **사용자에게 새로고침을 부탁하지 않는다**\"고 단언한다. 그런데 그 주장은 이미 로드된 index.html이 들고 있는 **옛 해시 청크가 서버에 남아 있을 때만** 참이다. 배포가 `rsync --delete`라 옛 청크는 사라지므로, 배포 순간 열려 있던 탭이 그 뒤에 `/chat`이나 `/games/:id`로 이동하면 dynamic import가 404로 거절되고 `App.jsx:89`의 ErrorBoundary가 화면을 통째로 오류로 바꾼다. 사용자에게는 '멀쩡히 쓰던 앱이 갑자기 깨졌다'로 보이고, 자동 복구(새로고침 유도)가 없다. 배포 빈도가 올라갈수록 확률이 오르는데 `DEPLOY-01`·`DEPLOY-02`는 업그레이드 **스크립트**만 다룬다.",
+    "evidence_never_examined": "① `scripts/install-clovirone-web-assistant.sh:156-158` — `--delete keeps the tree clean` 주석과 함께 `rsync -a --delete`. 옛 해시 파일은 남지 않는다. ② `frontend/src/app/UserRoutes.jsx:38-39` 두 화면이 `React.lazy` 지연 청크. ③ `docs/*.md` 전체에서 `chunk`/`청크` 검색 결과는 `TEST_SCENARIOS.md:92`의 '대화 청크 purge' 한 건뿐 — 자산 청크 staleness를 다룬 기록이 없다. ④ 청크 로드 실패 시 재시도/새로고침 유도 코드도 저장소에 없다(`App.jsx`의 ErrorBoundary는 정적 문구만 그린다).",
+    "risk": "High",
+    "first_probe": "테스트 서버에서 `/me`를 연 탭을 그대로 둔 채 프런트 번들만 교체(`docs/MAINTENANCE_PLAYBOOK.md` §1)한 뒤, 그 **옛 탭에서** 좌측 내비로 `AI 도우미`(/chat)를 누른다. 30초 안에 판정된다 — 화면이 그려지면 무해, ErrorBoundary 문구가 뜨면 확정. 뜨면 회복 경로(청크 로드 실패 시 1회 자동 `location.reload()`)의 유무까지 함께 적는다."
+   },
+   {
+    "area": "티켓 첨부 위젯 `screens/TicketAttachments.jsx`(299줄) — 파일 선택·드래그앤드롭·순차 업로드·10개/10MB 상한·이미지 라이트박스·첨부 떼기·`canEdit` 안내",
+    "why_it_matters": "지시서 §4가 명시적으로 요구한 기능이고, 티켓 상세는 사용자 콘솔에서 가장 자주 열리는 상세 화면(BACKLOG가 직접 그렇게 적었다)인데 그 화면의 카드 하나가 통째로 미검증이다. 코드 주석이 \"사용자가 '첨부 추가 버튼이 동작하지 않는다'고 말한 것이 이 증상\"이라며 **이미 한 번 실사용에서 터진 이력**을 기록해 두고 있다 — 회귀 확인이 가장 값싼 자리인데 회귀를 확인할 실환경 절차가 없다. 서버 상한(`app/tickets/attachments.py`)과 프런트 상수 3종이 손으로 맞춰져 있어 어긋나면 '올렸는데 거부'가 된다.",
+    "evidence_never_examined": "① `docs/` 전체에서 `TicketAttachments` 언급 **0건**. ② BACKLOG의 `첨부` 6건은 전부 다른 것이다 — `AI-39`/`VIS-23`은 AI 채팅 첨부(`app/chat/attachments`), `SEC` 절은 서빙 권한 일반론, `WF2:2511`은 게시판 첨부. 포털 티켓 첨부를 가리키는 항목이 없다. ③ 하네스가 절대 누를 수 없다 — `interact.py:31-36` `DENY` 정규식에 `첨부|업로드`가 들어 있고, 파일 입력은 `display:none`이라 클릭해도 네이티브 피커가 뜰 뿐이다.",
+    "risk": "High",
+    "first_probe": "실계정으로 티켓 상세를 열고 (1) 버튼으로 이미지 2장을 **한 번에** 고른다(FileList 스냅샷 회귀 지점), (2) 곧바로 3장을 드래그로 떨군다(순차 업로드 중 두 번째 배치 차단), (3) 11장째를 시도해 상한 문구를 본다, (4) 담당자가 아닌 계정으로 같은 티켓을 열어 Callout 문구가 서버 `ensure_can_edit`와 같은 선인지 대조. DB `ticket_attachments` 행수와 디스크 파일을 함께 확인하고 마지막에 전부 뗀다."
+   },
+   {
+    "area": "사용자 CSV 가져오기/내보내기 + 일괄 작업 바 — `screens/UsersBulk.jsx`(240줄) 및 그것을 그리는 공용 부품 `ui/bulkSelect.jsx`(`selectionColumn`·`BulkActions`·`useRowSelection`)",
+    "why_it_matters": "계정을 **대량 생성**(CSV import)하고 **대량 비활성화·보관·세션 해제**하는 경로다. `ADM-01`이 \"관리자가 웹 콘솔 대신 SSH를 쓴다 — 계정 생성 웹 2 / CLI 15\"를 이 조사의 핵심 발견으로 올려 뒀는데, 정작 웹 쪽의 대량 생성 수단이 검증 대상에 들어간 적이 없다. 그 수단이 실제로 작동하는지 모르는 채로 IA 재설계를 논하는 셈이다. 코드에는 이미 두 번 물린 흔적이 있다 — `UNASSIGNED_VALUE` 상수(값을 안 건드리고 '적용'하면 전원 부서가 조용히 null이 되던 것)와 `danger` 인자(되돌리기 쉬운 작업까지 위험 스타일이던 것). 둘 다 실환경 회귀 확인이 없다.",
+    "evidence_never_examined": "① `docs/`의 `UsersBulk` 언급 1건은 `VIS-88`(미저장 보호 opt-in 목록)에 **파일명만** 나열된 것으로, 기능이 아니라 모달 dirty 계약 얘기다. ② BACKLOG의 `CSV` 3건은 전부 AI 채팅 첨부 허용 형식(`PDF·CSV·DOCX 불가`) 문맥이고, `csv`(소문자) 0건, `업로드` 0건. ③ 하네스는 두 버튼 다 못 누른다 — `interact.py:31-36` `DENY`에 `가져오기|내보내기`가 모두 포함. ④ `BulkBar`는 `if (!ids.length) return null`이라 행을 선택해야 렌더되는데 하네스는 체크박스를 누르지 않는다 → `selectionColumn`·`BulkActions`·`BulkBar`가 **어떤 캡처에도 렌더된 적이 없다**(모달 512개 통계와 무관한 영역).",
+    "risk": "High",
+    "first_probe": "`/users`에서 (1) 행 2개를 체크해 BulkBar가 뜨는지 + 전체선택 체크박스의 접근 이름(`rowName` 배선), (2) '일괄 지정 → 부서'를 고르고 **값을 안 건드린 채** 적용이 비활성인지(`UNASSIGNED_VALUE` 회귀), (3) 'CSV 내보내기' 링크가 지금 걸린 필터를 그대로 실어 내려받는지, (4) 'CSV 가져오기'에 **이미 존재하는 이메일 1행 + 새 이메일 1행**을 넣고 dry-run 미리보기 → 실제 적용까지. 계정이 실제로 생기므로 만든 계정은 즉시 비활성화하고 `USE-01` 재집계 시 제외 표시를 남긴다."
+   },
+   {
+    "area": "`src/lib/` 원시 모듈 6개 — `useQueryState.js`(129줄, URL이 유일 진실인 필터 상태) · `idle.js`(92줄, 10분 유휴 → 온라인 점) · `safeUrl.js` · `search.js` · `priority.js` · `assets.js`",
+    "why_it_matters": "조사가 화면 단위로만 돌아서 **화면 밑의 공용 원시함수 층**이 통째로 비어 있다. `WF1-R1`이 뽑은 지배적 결함 유형이 정확히 '공용 규칙을 부르는 쪽이 안 부른다'인데, 그 공용 규칙들이 사는 디렉터리가 미조사다. 특히 `useQueryState`는 사용자가 두 화면에서 같은 불만(\"상세를 보고 돌아오면 필터가 풀린다\")을 말해서 만들어진 것이고, `idle.js`는 감사가 지적한 '퇴근한 사람이 접속 중'을 끄는 유일한 장치다. 둘 다 '고쳤다'만 있고 '실환경에서 그렇게 되는 걸 봤다'가 없다.",
+    "evidence_never_examined": "`docs/` 전체 grep 결과 파일명·심볼 언급 0건: `useQueryState` 0 · `idle.js` 0 · `safeUrl` 0 · `lib/search.js` 0 · `priority.js` 0 · `assets.js` 0. (같은 디렉터리의 `api.js` 17건, `format.js` 7건, `badges.js` 4건과 대조된다 — 조사가 lib를 통째로 건너뛴 게 아니라 이 여섯 개만 안 봤다.) `QA_COVERAGE`의 7축은 라우트 단위라 이 층을 담을 칸 자체가 없다.",
+    "risk": "Med",
+    "first_probe": "`useQueryState`부터: `/my-tickets`에서 필터 2개를 건 뒤 (1) 티켓 상세로 들어갔다 뒤로가기, (2) F5, (3) 주소를 복사해 새 탭에 붙여넣기 — 셋 다 같은 목록이 나와야 한다. 이어서 **같은 핸들러에서 필터 두 개를 연속 변경**해 첫 patch가 살아남는지(코드 주석이 react-router 갱신함수의 stale 캡처를 직접 지목한다). `idle.js`는 팀 채팅 온라인 점을 켠 채 10분 무입력 후 서버 `last_seen`/온라인 표시가 실제로 꺼지는지 DB로 확인."
+   },
+   {
+    "area": "모든 화면에 항상 떠 있는 셸 부품 — `app/UserMenu.jsx` · `TopBrand.jsx` · `ScopeBar.jsx` · `Tour.jsx` · `documentTitle.js` · `routeAnnounce.js` · `theme-store.js` · `navIcons.js` · `ui/BrandLogo.jsx`",
+    "why_it_matters": "화면마다 다른 것은 70장을 찍어 봤지만 **모든 화면에 공통으로 얹히는 층**은 아무도 항목화하지 않았다. 여기서 나오는 결함은 1건이 아니라 70건이다. 셋이 특히 걸린다. (1) `ScopeBar`는 dept/org 스코프 계정에서만 렌더되는데 조사 계정 4개가 전부 global 스코프라 **한 번도 그려지지 않았을 가능성**이 높다 — `UB-01`(부서 admin이 전사 배너)과 같은 축의 화면이다. (2) `Tour`는 `VIS-32`에서 '하네스를 가린다'는 방해물로만 다뤄졌고 **5단계 내용 자체는 판정된 적이 없다** — 3단계가 \"오른쪽 아래 클로비 버튼을 누르면 AI 도우미가 열립니다\"라고 약속하는데 BACKLOG는 그 드로어를 스텁으로 분류해 뒀다(`AI 프런트 — 드로어가 스텁`). 신규 사용자가 제품에서 **가장 먼저 읽는 다섯 문장**이 검증 밖이다. (3) `documentTitle.js`의 `EXTRA_LABELS`에 `/games`·`/chat-rooms`·`/ideas`·`/profile`·`/projects`가 없어 탭 제목이 브랜드명으로만 떨어진다.",
+    "evidence_never_examined": "`docs/` grep: `ScopeBar` 0 · `UserMenu` 0 · `TopBrand` 0 · `documentTitle` 0 · `routeAnnounce` 0 · `theme-store` 0 · `navIcons` 0 · `BrandLogo` 0 · `관리 범위` 0(ScopeBar가 그리는 문구) · `둘러보기`는 `USER_GUIDE.md`에만(사용 설명서이지 검증 기록이 아니다). `Tour`의 유일한 BACKLOG 언급 `VIS-32`는 하네스가 투어를 안 껐다는 **QA 인프라 결함**이지 투어 내용 판독이 아니다.",
+    "risk": "Med",
+    "first_probe": "`qa-operator`에 부서를 하나 지정하고 `admin_scope=dept`로 바꾼 뒤 3화면만 다시 찍어 ScopeBar가 실제로 뜨는지, 문구(\"이 범위 밖의 항목은 목록에 나오지 않습니다\")가 실제 목록 축소와 일치하는지 본다. 이어서 새 QA 계정으로 첫 로그인해 투어 5단계를 끝까지 읽고 각 단계의 약속을 그 자리에서 대조한다(특히 3단계 ↔ AI 드로어 실제 상태). 탭 제목은 `/games`·`/ideas`·`/profile`을 열어 제목 표시줄만 보면 30초."
+   },
+   {
+    "area": "댓글 타래 공용 컴포넌트 — `screens/CommentThread.jsx`(205줄, 티켓·문서 공용) + `TicketComments.jsx` + `DocComments.jsx`. 툼스톤(삭제된 댓글)·수정됨 표시·2000자 상한·`people` 신원 맵·`can_edit`/`can_delete` 게이트",
+    "why_it_matters": "게시판 댓글은 `board-comment-edit-stale`·`board-post-comment-stale-draft` 같은 유닛테스트와 `VIS-141`로 여러 번 다뤄졌는데, **티켓·문서 쪽 댓글은 같은 코드가 아니다** — 이 공용 컴포넌트가 따로 있고 서버도 `app/tickets/comments.py`/`app/team_docs/comments.py` 두 벌이다. `RG-02`가 팀 문서 댓글 알림의 딥링크가 404로 간다는 것까지 잡았으면서 그 알림이 도착한 뒤 열리는 **댓글 화면 자체**는 안 봤다. 툼스톤 규약(삭제해도 행이 남는다)은 사용자에게 보이는 약속이라 한쪽만 어긋나면 바로 신고 대상이다.",
+    "evidence_never_examined": "`docs/`의 `CommentThread` 언급은 `BACKLOG DS-26` 한 줄뿐이고 내용은 **폭(`PROSE_MAX_WIDTH`)** 얘기다. `DocComments` 0건, `TicketComments` 0건. `QA_COVERAGE`의 `/tickets/:id`·`/team-docs/:id` 행은 F(실제 기능 실행) 축이 `-`다.",
+    "risk": "Med",
+    "first_probe": "티켓 하나에 댓글을 달고 → 수정(‘(수정됨)’ 표시) → 삭제(툼스톤이 남는지) 한 뒤, **같은 절차를 팀 문서에서 반복**해 두 화면이 같은 말을 하는지 대조한다. 이어서 남의 댓글에 수정/삭제 버튼이 안 뜨는지(`can_edit`/`can_delete`가 서버 판정과 같은 선인지) 다른 계정으로 확인. 2000자 경계도 함께."
+   },
+   {
+    "area": "차트 4종의 실제 렌더 — `ui/charts/Donut.jsx` · `BarSeries.jsx` · `LineSeries.jsx` · `Sparkline.jsx` (라이트/다크 × 1920/3840 × 데이터 있음/없음/1개)",
+    "why_it_matters": "`CTR`(대비) 조사는 **텍스트 색만** 쟀고 도형 채움색은 안 쟀다. 그런데 이 앱 차트는 손으로 그린 SVG라 색이 전부 `resolveChartColor`를 통과하고, 그 함수 주석 자체가 \"`slot.main`만 보면 cyan이 CSS 네임드 컬러로 새 나가 **다크에서 대비가 깨진다**\"는 사고 이력을 적고 있다. 즉 이 층에도 대비 사고가 있었다는 기록이 있는데 재보지 않았다. 게다가 `CTR`이 찾은 근본 원인(`theme.js:185`가 `primary.main`을 두 테마에 같은 hex)이 그대로 차트 기본색이다 — 텍스트에서 확인된 결함이 도형에도 있을 개연성이 높다.",
+    "evidence_never_examined": "`docs/`의 `charts/` 언급 4건은 전부 `charts/base.jsx:47-63`을 **본받아야 할 모범 사례로 인용**한 것이다(`BACKLOG:161` '보존할 올바른 패턴', `DECISIONS.md:111,196`, `WORK_PLAN_INDEX.md:113`). 개별 차트 컴포넌트 4개는 이름조차 나오지 않고, `CTR` 절의 검사 대상은 텍스트 노드다.",
+    "risk": "Med",
+    "first_probe": "`/dashboard`(도넛 + 막대)와 `/sprint`(스파크라인·꺾은선)를 다크 3840으로 열고, `getComputedStyle`이 아니라 렌더된 `fill`/`stroke` 값을 뽑아 배경 대비를 계산한다(`scripts/ui_qa/contrast.py`에 도형 경로를 추가하면 재사용 가능). 동시에 데이터 0건일 때 `ChartEmpty`('데이터 없음' 점선 상자)가 실제로 나오는지 — 빈 차트와 미로딩을 구분한다는 이 파일의 규칙이 화면에서 지켜지는지 본다."
+   },
+   {
+    "area": "`/settings` 하위 표면 — `settings/SettingsMain.jsx` · `SettingEditor.jsx`(257줄) · `SettingVersions.jsx` · `StructuredObjectFields.jsx`(169줄) · `AccentPicker.jsx`. 그리고 강조색이 **계정 구분 없이** 저장되는 문제(`ui/ThemeModeProvider.jsx`)",
+    "why_it_matters": "`/settings`는 판독됐지만(`VIS`, BACKLOG:690) 그건 목록 화면이고, 실제로 값을 바꾸는 **편집기·버전 기록·구조화 객체 필드**는 그 아래 표면이라 위 2번(중첩 표면) 사각지대에 그대로 들어간다. 설정은 잘못 저장되면 전원에게 영향이 가는 자리다. 부수적으로 `ThemeModeProvider`는 강조색을 `clovirone_accent` **단일 키**로만 저장하는데, 바로 옆 `theme-store.js`는 같은 문제(공용 PC에서 앞사람 취향이 넘어감)를 계정별 키로 이미 해결해 뒀다 — `WF1-R1`(답이 저장소 안에 있는데 배선이 안 됨)의 전형이다.",
+    "evidence_never_examined": "`docs/` grep: `SettingsMain` 0 · `SettingVersions` 0 · `StructuredObjectFields` 0 · `AccentPicker` 0 (`SettingEditor`는 4건이나 전부 registry 대조 문맥). `CTR` 절이 '고를 수 있는 강조색 4개가 다크에서 전부 미달'을 다루므로 **색 자체는 검사됐지만 그것을 고르는 화면과 저장 방식은 검사되지 않았다**.",
+    "risk": "Med",
+    "first_probe": "`/settings`에서 구조화 객체 설정 하나(예: 알림/브랜딩 계열)를 열어 필드 편집 → 저장 → '버전 기록'에서 이전 버전으로 롤백까지 한 바퀴 돌리고 DB `app_settings`/버전 테이블을 다시 읽는다. 강조색은 30초짜리 확인 — 강조색을 바꾼 뒤 로그아웃하고 **다른 계정으로 로그인**해 색이 따라오는지 본다(따라오면 확정)."
+   },
+   {
+    "area": "동작 최소화(prefers-reduced-motion) 축 — `ui/motion.js` + `game-room/celebration.js`(canvas-confetti 축포) + MUI transition 전반 + `Mascot` 애니메이션",
+    "why_it_matters": "사이클 0에서 접근성 축을 세 개 새로 열었지만(`KBD` 포커스 · `CTR` 대비 · `SEM` 시맨틱) **모션 축은 안 열렸다**. 이 제품은 JS로 캔버스에 직접 그리는 연출(축포)을 갖고 있어 CSS 전역 규칙이 닿지 않고, 코드도 그 사실을 알고 이중 방어를 넣어 뒀다 — 즉 '설계는 있는데 확인이 없다'는 상태다. 전정 장애·편두통 사용자에게 전체 화면 파티클은 즉시 이탈 요인이고, 하필 그 연출이 **위 1번(게임방) 안에 있어** 지금까지 한 번도 렌더된 적이 없다.",
+    "evidence_never_examined": "`docs/`에서 `motion.js` 0건 · `celebration` 0건 · `축포` 0건 · `prefers-reduced-motion`은 `BUILD_LOG.md`의 구현 메모 1건뿐(검증 기록 아님). `canvas-confetti`도 `BUILD_LOG.md:149`에 '빌드타임 의존'이라는 도입 메모로만 존재한다. 하네스에 모션 관련 검사 자체가 없다(`scripts/ui_qa/`에 assertions/contrast/keyboard/semantics는 있고 motion은 없다).",
+    "risk": "Low",
+    "first_probe": "Chrome DevTools의 Rendering → `Emulate CSS prefers-reduced-motion: reduce`를 켠 채 (1) 게임 하나를 끝내 축포가 **안 터지는지**, (2) 모달 열기/토스트/사이드바 전환의 MUI transition이 죽는지, (3) `Mascot`의 눈깜빡임·손흔들기 프레임 교체가 멈추는지 본다. 셋 다 같은 세션에서 5분이면 끝난다."
+   },
+   {
+    "area": "`/chat-rooms/:id` 방 관리 조작 — `screens/ChatRoom.jsx` · `ChatRoomMembers.jsx`(초대·강퇴·보관·방장 권한) · `teamchat-unread.js` · `teamchat-poll.js`",
+    "why_it_matters": "`/chat-rooms/:id`는 캡처는 됐지만(전 실행 중 일부) **멤버 관리 조작은 F 축이 0**이다. 팀 채팅은 `PF1`에서 홈 요청의 83%를 만들던 서브시스템이고, 읽음 처리(`teamchat-read-amplification` 테스트가 있는 걸 보면 한 번 물린 적이 있다)·안 읽음 배지·보관된 멤버 표시가 전부 여기서 갈린다. 게다가 방을 만드는 모달은 `VIS-88`이 지목한 '미저장 보호 없는 18곳'에 포함된다.",
+    "evidence_never_examined": "`docs/`의 `ChatRoomMembers` 언급 1건은 `DS-14`(지역 빈 상태 8벌)에 **파일:줄 번호만** 나열된 것이고, `ChatRoom.jsx` 0건 · `teamchat-unread` 0건 · `teamchat-poll` 0건. `QA_COVERAGE` §2 `/chat-rooms/:id` 행의 F·D·L 축이 모두 `-`.",
+    "risk": "Med",
+    "first_probe": "2계정으로 방을 만들어 초대 → 상대가 안 읽은 상태의 배지 숫자 → 읽은 뒤 배지 소멸 → 강퇴 → 보관된 멤버가 목록에 어떻게 남는지까지 한 줄로 돌린다. 방 만들기 모달에서 제목을 입력한 채 Esc를 눌러 `VIS-88`(미저장 보호 누락)이 여기서도 재현되는지 함께 확인."
+   },
+   {
+    "area": "AI 채팅 본문 렌더 하위 부품 — `screens/ChatBubbleText.jsx` · `chat/RichText.jsx` · `chat/WelcomeStatus.jsx` · `chat-text.js` · `chat-compose.js`",
+    "why_it_matters": "`AI-31`/`AI-32`(말풍선 렌더의 한계)와 `VIS-158R`(2200px 이상에서만 존재하는 결과 카드 패널)이 **말풍선 렌더가 병목**이라고 결론 내렸는데, 정작 그 렌더를 담당하는 파서·블록 렌더러는 항목화되지 않았다. `RichText`는 서버가 준 자유 텍스트를 머리글/목록/키-값/문단으로 재구성하는 **휴리스틱 파서**를 통과시킨다 — 러너 응답 포맷이 바뀌면 조용히 오해석하는 자리이고, 링크 처리(`links.jsx`의 allowlist 게이트)까지 여기 걸려 있다.",
+    "evidence_never_examined": "`docs/` grep: `ChatBubbleText` 0 · `RichText` 0 · `WelcomeStatus` 0 · `chat-text.js` 0 · `chat-compose.js` 0. (같은 디렉터리의 `MessageThread` 4건, `TicketCard` 3건, `ConversationSidebar` 3건과 대조 — chat 폴더 전체가 아니라 이 다섯 개만 빠졌다.) `AI-E2E` 절의 3턴 실대화는 **응답 내용**을 판정했지 마크업 변환을 판정하지 않았다.",
+    "risk": "Low",
+    "first_probe": "`AI-30` 재현용으로 남겨 둔 대화(`112347f0-…`)를 열어, 이미 저장돼 있는 응답들이 어떤 블록으로 파싱됐는지 DOM으로 확인한다(머리글로 잡혀야 할 줄이 문단이 됐거나 그 반대). 그다음 `HOST` 절에서 쓴 적대적 문자열(아주 긴 URL·유사 목록 마커·전각 문자)을 채팅으로 한 번 보내 파서가 무너지는 지점을 찾는다."
+   }
+  ],
+  "already_covered_well": [
+   "`ui/kit.jsx` — docs 언급 62건으로 압도적 1위. `TABLE_CARD_BREAKPOINT`(RESP-01)·`Modal` dirty opt-in(VIS-88)·`openLabel`(SEM)·`EmptyState`(WF1-R1)까지 줄 번호 단위로 파고들었다. 여기에 더 쓸 예산 없음",
+   "`screens/registry/*.js` 8파일 — `RG-01`~`08`에서 28화면 설정 ↔ API 라우터를 **양쪽 다 읽고** 대조했고, `WF1` 판독이 platform.js(30건)·governance.js(18)·integrations.js(17)·automation.js(16)·authoring.js(11)·org.js(12)를 줄 번호로 인용한다",
+   "`screens/DataScreen.jsx`(26건) — 툴바 게이팅(`:468`)·capWarning·help/emptyHelp 이중 서술·기본 필터 셈법(`:454-465`)까지 `WF1-R5`가 구조적으로 분해했다",
+   "`ui/theme.js`(16) + `styles/tokens.css`(13) — `CTR` 절이 `theme.js:185`의 primary.main 동일 hex를 근본 원인으로 확정했고, 강조색 4종의 다크 대비를 수치로 냈다",
+   "`screens/Home.jsx`(23) — `WF2`의 `SEC-12`(홈 게시판 위젯이 조직 게이트 밖)·`home-request-budget`·`PF1`(분당 24요청 중 20이 팀 채팅 위젯)까지 요청 예산 단위로 측정됨",
+   "`app/TopSearch.jsx`(9) + `ui/Mascot.jsx`(6) — `DS-32`가 4K tiny_text 252건의 원인을 이 두 줄(`TopSearch.jsx:68`, `Mascot.jsx:364`)로 좁혀 확정",
+   "`screens/Search.jsx`(17) — `SRCH-01`~`05` + `VIS-72`(검색하면 관리자 콘솔로 튕김, Chrome 실조작으로만 발견) + 3중 검색 구조 실측",
+   "`screens/Board.jsx`(17)·`BoardPost.jsx`(20) — 게시판 필터 관용구(VIS-92)·참여 신호 부재(VIS-141)·댓글 초안 오염(라운드 10 커밋)까지",
+   "`screens/Users.jsx`(13)·`TeamDocs.jsx`(13)·`MyTickets.jsx`(13)·`ticket-views.js`(13) — RESP-01 실측의 주 무대이자 `HOST` 적대적 데이터 주입 대상",
+   "`app/navConfig.js`(9) — `ROUTE_OWNER`/`activeNavPath` 미등록 2경로를 `WF1-R1`이 정확히 지목",
+   "`lib/api.js`(17) — `RG-01`이 `api.js:22`(GET에 body 미직렬화) → `:31-36`(오류 문구 치환)까지 호출 사슬로 추적",
+   "`app/AssistantDrawer.jsx`(8)·`screens/Chat.jsx`(7)·`useChat.js`(8)·`chat-helpers.js`(8) — `AI` 절 50항목 + `AI-E2E` 실대화 3턴 + 드로어↔전체화면 A/B 대조"
+  ]
+ },
+ {
+  "unexamined": [
+   {
+    "area": "백업에 사용자 업로드 파일이 하나도 들어 있지 않다 (복구 = 첨부 전멸)",
+    "why_it_matters": "`scripts/backup-clovirone-web-assistant.sh` 가 담는 것은 `/opt`(app.tar.gz) · `/etc`(etc.tar.gz) · systemd 유닛 · nginx vhost · `web.sqlite3`(.backup API) 다섯 가지뿐이다. `/var/lib/clovirone-web-assistant/uploads/` 는 한 줄도 없다. 제품 안 백업(`app/backups/service.py::run_backup`)도 sqlite 파일 한 개만 복사하고, `rollback-clovirone-web-assistant.sh:51-58` 도 DB만 되돌린다. 그런데 그 디렉터리에는 게시판 첨부·티켓 첨부·프로필 사진·팀채팅 이미지가 전부 들어 있다(`app/core/uploads.py` 의 4개 네임스페이스 NS_BOARD/NS_TEAM_CHAT/NS_AVATAR/NS_TICKET, 저장 루트 `data_dir/uploads/<ns>/<owner>/`, `DATA_DIR=/var/lib/clovirone-web-assistant`). 결과: 어떤 백업에서 복구해도 **첨부 행은 다 살아나고 파일만 전멸**한다 — `attachment_path()` 가 `is_file()` 에서 None 을 돌려주므로 화면에는 깨진 링크만 남고, 되돌릴 방법이 없다. 게다가 `retention.sweep_orphan_uploads` 는 반대 방향(행 없는 파일 삭제)이라 도움이 안 된다. `RSTR` 절이 증명한 것은 **DB 복원**이지 첨부 복원이 아니다.",
+    "evidence_never_examined": "BACKLOG 전체에서 `uploads` 는 **1회**(2251행, retention 대상 나열의 `orphan_uploads`)뿐이고 백업 맥락은 0건. `첨부` 히트 6건은 전부 AI 첨부 형식(AI-39·VIS-23)·게시판 첨부 분리(2511)·문맥 만료(AI-30)이고 백업/복구와 무관. `RSTR` 절(1587~1641)은 `web.sqlite3` 복원과 화면 반영만 3단계로 검증했다. QA_COVERAGE·DECISIONS 에도 `uploads` 0건.",
+    "risk": "High",
+    "first_probe": "① `sudo du -sh /var/lib/clovirone-web-assistant/uploads/*` 로 실제 바이트 확인 ② `sqlite3 -readonly … \"SELECT COUNT(*) FROM board_attachments; SELECT COUNT(*) FROM ticket_attachments;\"` ③ `sudo ls -R /var/backups/clovirone-web-assistant/<최신ts>/` 에 그 바이트가 하나도 없음을 눈으로 확인 ④ `scripts/restore_rehearsal.py` 에 `uploads` 문자열이 0건임을 grep 으로 못 박기."
+   },
+   {
+    "area": "디스크 가득 참 — 사전 점검도, 임계값도, readyz 반영도 없다",
+    "why_it_matters": "① `run_backup`(`backups/service.py:79-110`)은 남은 공간을 재지 않고 DB 전체 사본을 쓰고, 곧바로 `restore_test` 가 **또 한 벌**을 만든다. 보존은 `apply_retention(keep=14)` — 즉 정상 상태에서도 라이브 DB 14벌이 `data_dir/exports/` 에 쌓인다. ② `shutil.disk_usage` 는 `health/service.py:90,328` 에서 **화면에 숫자를 뿌리는 용도로만** 쓰인다 — 임계값도, 경고도, 알림 종류도 없다(`FN-09` 의 누락 알림 5종에도 디스크는 없다). ③ 결정적으로 `/readyz`(`health/router.py:31-40`)는 `SELECT 1` **읽기 한 번**이 전부다. SQLite 는 디스크가 차도 읽기는 성공하므로 **readyz 는 200 을 계속 뱉는 동안 모든 쓰기가 `database or disk is full` 로 500** 이 난다. 게다가 그 상태에서 `FAIL` 절이 이미 밝힌 대로 화면은 실패를 「~가 없습니다」로 바꿔 말한다 — 디스크가 찬 것을 **아무도, 어떤 층에서도 알 수 없다.**",
+    "evidence_never_examined": "BACKLOG 의 `디스크` 히트 3건은 전부 대시보드 표시 문제(`VIS-25` 같은 숫자 3회 반복, `VIS-26` 의미색) + 2079(내 로컬 PNG 얘기). `ENOSPC`·`statvfs`·`shutil.disk_usage`·`free_gb` 0건. `가득` 히트는 `RN-13`(러너가 DB 잠김/가득을 삼킨다) 하나이며 플랫폼 쪽 경로가 아니다. `readyz` 는 BACKLOG·QA_COVERAGE 어디에도 항목이 없다(배포 검증 로그의 `healthz/readyz 200` 확인이 전부).",
+    "risk": "High",
+    "first_probe": "프로덕션 DB 사본으로 로컬 재현: 작은 루프백/tmpfs 를 `DATA_DIR` 로 마운트해 여유를 5MB 남기고 ① `GET /readyz` 가 200 인지 ② 게시판 글 작성·첨부 업로드·티켓 본문 저장이 각각 어떤 문구로 실패하는지 ③ `POST /api/admin/backups` 가 어떤 상태로 남는지(`running` 고착 여부, `reap_stuck_running` 60분) 를 본다."
+   },
+   {
+    "area": "백업이 원본과 같은 볼륨에 있고 오프사이트 사본이 0",
+    "why_it_matters": "`df` 실측: 서버는 `/` 와 `/var` 가 같은 LV(`/dev/mapper/ubuntu--vg-ubuntu--lv`, 294G, 9% 사용) 하나다. 라이브 DB(`/var/lib/...`)·제품 백업(`data_dir/exports/`)·스크립트 백업(`/var/backups/...`) **세 벌이 전부 같은 물리 볼륨**에 있다. 볼륨 하나가 죽거나 차면 원본과 모든 백업을 동시에 잃는다. 복사본을 서버 밖으로 내보내는 코드·스크립트·스케줄은 저장소에 없다(`backup-cron.sh` 도 로컬 경로만 쓴다). `RSTR-03`(자동 백업 꺼짐, 마지막 백업 2026-07-19)과 곱해지면 「복구 가능하다」는 전제 자체가 검증된 적이 없다.",
+    "evidence_never_examined": "BACKLOG·DECISIONS·QA_COVERAGE 에서 `오프사이트`·`off-site`·`같은 디스크`·`같은 볼륨`·`동일 볼륨`·`외부 저장`·`3-2-1` **전부 0건**. `RSTR` 절은 복원이 **되는가**만 증명했고 백업본이 **어디에 있는가**는 다루지 않았다.",
+    "risk": "Med",
+    "first_probe": "`ssh … df -h /var/lib/clovirone-web-assistant /var/backups/clovirone-web-assistant` 로 같은 device 임을 확인하고, `grep -rn \"scp\\|rsync\\|s3\\|remote\" scripts/backup*.sh` 가 0건임을 못 박는다. 그다음 사용자에게 '백업 목적지'가 정책상 결정된 적이 있는지 확인(D-항목으로 승격 후보)."
+   },
+   {
+    "area": "시계 역행(NTP 스텝·관리자의 시각 변경) — 전 코드가 벽시계, monotonic 0건",
+    "why_it_matters": "`app/core/clock.py:20`·`models_base.py:15`·`worker_lock.py:48` 전부 `datetime.now(timezone.utc)` 이고 저장소 전체에 `time.monotonic` 사용처가 없다(경과시간용 `perf_counter` 는 액세스 로그 1곳뿐). 가장 나쁜 자리가 **로그인 무차별 대입 방어**다 — `RateLimiter.allow`(`core/ratelimit.py:23-31`)는 `elapsed = (now - last).total_seconds()` 를 그대로 `tokens + elapsed*refill` 에 더하고 **음수 가드가 없다**. 시계가 1시간 뒤로 점프하면 토큰이 깊은 음수가 되어 그 키(로그인·채팅·AI)가 **몇 시간 동안 조용히 잠긴다**. 반대로 앞으로 점프하면 `worker_lock` 리스가 만료로 보여 **살아 있는 워커에게서 리스를 뺏고**(CORE-01/03 과 같은 사고를 다른 트리거로 재현), 세션은 `expires_at` 절대비교라 전원 로그아웃된다. 결정적으로 **이 제품은 스스로 시계를 스텝시킬 수 있다** — `/system` 화면에 「NTP 변경」·「타임존 변경」 버튼이 있고(`VIS-111`) `app/sysops` 가 `timedatectl` 을 실행한다.",
+    "evidence_never_examined": "BACKLOG 의 `시계`·`clock` 히트는 `QA-08`(프런트 테스트에 시계 주입 관례가 없다) **하나뿐**이고 런타임 얘기가 아니다. `monotonic`·`NTP 역행`·`시각 점프` 0건. 시간 관련 기존 항목(`UA-07`·`UA-08`)은 전부 **UTC vs KST 경계** 문제이지 시계가 움직이는 경우가 아니다.",
+    "risk": "Med",
+    "first_probe": "순수 유닛 재현이 가능하다 — `tests/fakes/clock.py` 로 1시간 뒤로 점프하는 Clock 을 만들어 `RateLimiter(capacity=5, refill=…)` 에 `allow()` 를 먹이고 반환값과 `_buckets` 값을 본다(음수 토큰 확인). 그다음 `WorkerLock.is_expired` 에 앞으로 점프시킨 시계를 주입해 인수 판정이 뒤집히는지 본다. 실서버에서 `timedatectl` 을 건드리지 않는다."
+   },
+   {
+    "area": "워커가 죽었을 때 — 아무도 모르고, 죽은 채 재시작 루프에 갇히는 경로가 있다",
+    "why_it_matters": "① **감지가 없다.** heartbeat 가 stale 이면 `_component_status` 가 `down` 을 돌려주지만 그것을 보는 곳은 화면뿐이고, `/readyz` 는 여전히 200 이며, 알림 종류에 「워커 다운」이 없다(실데이터의 103건은 `account_locked`·`runner_unavailable` 두 종이 92%). 워커가 멈추면 잡·스케줄러·retention(시간당)·stuck 복구·동기화 틱이 **한꺼번에** 멈추는데, 그 사실이 어디로도 전달되지 않는다. `USE-01`(자동화 12종 실행 이력 0)의 원인 후보로 한 번도 검토된 적이 없다. ② **죽은 채 남는 경로.** `worker_main.main()` 은 리스 획득 실패 시 `return 1`(279-286행) → 유닛은 `Restart=on-failure`/`RestartSec=3` → 낡은 `worker.lock` 파일 하나가 남아 있으면 **3초마다 영구 재시작 루프**를 돌고 로그에만 남는다. ③ **사용자 체감.** 워커가 죽으면 채팅 메시지가 `processing` 에 고착되는데 스윕 컷오프는 3900초이고, 그 스윕도 **워커 안에서만** 돈다 — 즉 워커가 죽어 있는 동안에는 영원히 복구되지 않는다(`AI-48` 은 '스윕이 늦다'까지만 적었고 '스위퍼가 곧 죽은 그놈'이라는 순환은 다루지 않았다).",
+    "evidence_never_examined": "BACKLOG 에 `워커 죽`·`워커가 죽`·`재기동`·`Restart=`·`systemd 재시작` 0건. 워커 관련 기존 항목은 `CORE-01`·`CORE-03`(리스 경합/비원자적 쓰기)뿐으로 **둘 다 워커가 살아 있는 상태**를 다룬다. `readyz` 항목 0건.",
+    "risk": "Med",
+    "first_probe": "테스트 서버에서 `sudo systemctl stop clovirone-web-worker` → ① `curl -k https://…/readyz` 가 200 인지 ② `/api/health`·`/dashboard` 가 무엇을 보여 주는지 ③ 알림이 하나라도 생기는지 ④ 채팅 1건 전송 후 `messages.status` 가 `processing` 에 남는지. 그다음 stop 상태에서 lock 파일을 남긴 채 `start` 해 `journalctl -u clovirone-web-worker -f` 로 3초 루프를 확인. **끝나면 반드시 다시 start.**"
+   },
+   {
+    "area": "nginx 접근 로그에 검색어·이메일이 평문으로 남고, 회전본 하나가 world-readable · privhelper 감사 로그는 회전 대상이 아니다",
+    "why_it_matters": "`deploy/nginx/clovirone-web-assistant.conf:78` 이 `combined` 포맷을 쓴다 — `$request` 에 **쿼리스트링이 통째로** 들어간다. 실서버 실측(읽기만): `clovirone-web-assistant.access.log.1` 에 `[?&]q=` 가 **53건**, 예: `?q=%ED%9A%8C%EC%9D%98`(회의) 23회 · `?q=%ED%8B%B0%EC%BC%93`(티켓) 5회 · **`&q=qa-user@goodmit.co.kr` 4회** · `%40`(이메일 @) 4건. 즉 **누가 언제 무엇을 검색했는지와 이메일이 IP·시각과 함께 평문으로 14일치** 남는다. 파일 권한은 현재 파일이 `0640 www-data:adm` 인데 **회전본 `.1` 은 `-rw-r--r-- www-data root` 6.5MB — 서버의 모든 로컬 계정이 읽을 수 있다.** 애플리케이션 로그 자체는 깨끗하다(액세스 로그가 `request.url.path` 만 찍고 쿼리를 뺀다, `middleware.py:136-142`) — 즉 앱은 조심했는데 그 앞단이 다 흘리고 있다. 추가로 `/var/log/clovirone-web-assistant/privhelper.jsonl`(root 특권 헬퍼의 감사 기록, 실측 4,408바이트)은 **어떤 logrotate 설정에도 들어 있지 않다** — 우리 설정은 nginx 두 파일만 다루고 배포판 설정은 `/var/log/nginx/*.log` 만 본다. 무한히 자라고, 보존 정책도 없다.",
+    "evidence_never_examined": "BACKLOG 전체에 `개인정보`·`PII`·`logrotate`·`journalctl`·`로테이션` **0건**. `로그에` 히트 5건은 러너 트레이스백 폭주(`RN-16`)·감사 딥링크·잠금 해제 집계로 전부 다른 얘기. `core/retention.py` 의 정리 대상 10종은 전부 DB 표 + 고아 업로드이고 **로그 파일은 대상이 아니다**; `RET 정정` 절도 로그를 세지 않았다.",
+    "risk": "Med",
+    "first_probe": "이미 확인한 명령 그대로 재현 가능(읽기 전용): `ssh cloviradmin@10.100.64.71 'ls -l /var/log/nginx/clovirone-*; grep -c \"[?&]q=\" /var/log/nginx/clovirone-web-assistant.access.log*'`. 그다음 `sudo logrotate -d /etc/logrotate.d/nginx` 출력에 `privhelper.jsonl` 이 없음을 확인하고, `q` 를 쿼리가 아닌 POST 본문으로 옮길지 / nginx `log_format` 에서 `$uri` 만 남길지를 결정 항목(D-)으로 올린다."
+   },
+   {
+    "area": "낙관적 잠금이 '본문'에만 있다 — 폼 전체 저장(설정·러너·워크플로·registry 28화면)은 마지막 저장이 조용히 이긴다",
+    "why_it_matters": "`base_version` 전수 grep 결과 존재하는 곳은 **딱 3경로**다: 티켓 본문(`tickets/service.py:1026-1059`) · 문서 본문(`team_docs/service.py:408-431`) · 프로젝트 Notion 동기화(`projects/sync.py:102`). 프런트도 `EditableBody.jsx` 하나만 지문을 얼려 보낸다. 나머지 쓰기 경로 — `PUT /api/admin/settings/{key}`, 관리자 registry 28화면의 저장, 러너/워크플로/템플릿 설정, 게시글·댓글 수정 — 은 **객체 전체를 덮어쓰면서 기준 버전을 묻지 않는다.** 두 관리자가 같은 설정 화면을 열고 각자 다른 칸을 고쳐 저장하면 먼저 저장한 쪽 변경이 **오류도 경고도 없이 사라진다**. `config_versions` 에 흔적은 남지만 그것을 보러 가는 사람이 없다는 것은 `ADM-01`(관리자들이 웹 콘솔을 안 쓴다)이 이미 증명했다. 이 제품의 지배적 결함 유형(`WF1-R1`/`WF2-R2`: 규칙은 만들어 놨는데 부르는 쪽이 안 부른다)의 정확한 사례다 — 낙관적 잠금 헬퍼가 **이미 세 벌 있는데** 폼 경로가 아무도 안 쓴다.",
+    "evidence_never_examined": "BACKLOG 에 `낙관`·`ETag`·`If-Match`·`lost update` **0건**(`core/etag.py` 는 폴링 304 용이고 쓰기 충돌과 무관). 기록된 동시성 항목은 워커 리스(`CORE-01`·`CORE-03`) · 프롬프트 발행 경합(`UB-04`) · 공지 dismiss(`UB-07`) · 쿼터 TOCTOU(`UB-08`) · 러너 대화 락(`RN-11`·`RN-12`) · 게임 CAS 뿐으로 **전부 서버 내부 경합**이다. '두 사람이 같은 폼을 저장한다'는 시나리오는 한 항목도 없다.",
+    "risk": "Med",
+    "first_probe": "브라우저 두 세션(`qa-admin`·실계정)으로 `/settings` 의 같은 키를 열어 A 가 값1, B 가 값2 로 저장 → 화면 값과 `config_versions` 두 행을 대조. 같은 절차를 `/runners` 편집 모달로 반복. 서버 쪽은 `grep -rn \"base_version\" app/` 이 3경로뿐임을 못 박으면 끝난다."
+   },
+   {
+    "area": "대용량 업로드 — 10MB 상한은 있으나 전량 메모리 버퍼 3중 + 사용자별 총량 상한 0",
+    "why_it_matters": "형식·크기 검증 자체는 훌륭하다(매직바이트, 서버 생성 저장명, 네임스페이스 traversal 가드, `MAX_UPLOAD_BYTES=10MB`). 검증되지 않은 것은 **그 10MB 가 지나가는 길**이다: `BodySizeLimitMiddleware` 가 본문 전체를 버퍼링한 뒤 `_replay_receive` 로 한 번에 넘기고(순수 ASGI, 스트리밍 아님) → multipart 파서가 또 한 벌 → `save_upload(content: bytes)` 가 또 한 벌을 든다. 업로드 라우트의 상한은 **12MB**(`UPLOAD_BODY_BYTES`)이고 채팅 첨부는 **8MB**(base64 라 실제로는 더 큰 본문). 웹은 `--workers 1` **고정**이며 유닛 주석이 '올리지 마라'고 못박아 두었다 — 즉 동시 업로드가 곧 단일 프로세스 RSS 이고, 그 프로세스가 모든 사용자의 모든 요청을 처리한다. 더구나 업로드에는 **레이트리밋도 사용자별·조직별 총량 상한도 없다**(제한은 '글당 첨부 5개'뿐). 한 사람이 글을 반복 생성하며 첨부를 올리면 §2의 디스크 항목과 곧바로 만난다.",
+    "evidence_never_examined": "BACKLOG 의 업로드/첨부 관련 히트는 `AI-39`(첨부가 이미지 3종뿐) · `VIS-23`(클립 버튼이 뭘 받는지 모름) · 2511(게시판 첨부를 뗄 수 없다) 셋뿐 — 전부 **형식·UX**다. `MB`·`파일 크기`·`max_size`·`메모리`·`RSS` 로 검색해도 크기·메모리·총량 항목 0건. `PERF` 절(응답 시간 실측)도 업로드는 재지 않았다.",
+    "risk": "Med",
+    "first_probe": "테스트 서버에 12MB 근처 PNG 를 만들어 `/api/board/posts/{id}/attachments` 로 5회 연속 업로드하며 `systemctl status clovirone-web-assistant` 의 Memory 값을 관찰. 같은 계정으로 글+첨부를 30회 반복해 `sudo du -sh /var/lib/clovirone-web-assistant/uploads` 증가량을 재고, 그 사이 다른 화면의 응답 시간이 흔들리는지 본다."
+   },
+   {
+    "area": "마이그레이션이 중간에 죽었을 때의 상태 — 0050 은 표 8개를 통째로 재생성하고 FTS5 트리거를 지웠다 다시 만든다",
+    "why_it_matters": "`batch_alter_table` 을 쓰는 리비전이 **11개**이고 그중 `0050_org_fk_constraints` 가 가장 무겁다: 자기 docstring 이 밝히듯 `recreate=\"always\"` 로 표 8개를 새로 만들어 행을 복사하고, `search_documents` 는 FTS5 external-content 인덱스라 **트리거 삭제 → 표 재생성 → 트리거 재생성 → `rebuild`** 순서를 밟는다. 그리고 그 docstring 스스로 *\"그대로 두면 검색이 조용히 0건이 되거나 다른 행의 제목을 돌려준다\"* 고 적어 두었다. 문제는 그 순서가 **끝까지 도는 경우만** 검증됐다는 것이다 — `DEPLOY-02` 가 이미 밝힌 대로 업그레이드 스크립트는 alembic 실패를 잡지 않고(번들 경로엔 `rollback_now()` 도 없다) 그냥 종료한다. OOM·SIGKILL·디스크 부족으로 트리거 재생성 전에 죽으면 `alembic_version` 은 앞 리비전에 남고 검색은 조용히 망가진 채 서비스가 다시 뜬다. 리허설(`REHEARSAL_OK`)이 증명한 것은 **완주 시 왕복 동일성**이지 중단 내성이 아니다.",
+    "evidence_never_examined": "BACKLOG 의 마이그레이션 히트는 `STRFTIME('%f')` 함정이 닫혀 있음(818·908행) · `alembic_version` 0052 대조(1598행) · `DEPLOY-02`(업그레이드 실패 처리 없음) 셋뿐. **중단·부분 적용·트랜잭션 경계**를 다룬 항목은 0건이고, `batch_alter_table` 이라는 문자열 자체가 BACKLOG·DECISIONS 에 없다.",
+    "risk": "Med",
+    "first_probe": "프로덕션 DB 사본(`scripts/migration_rehearsal.sh` 가 이미 사본을 뜬다)으로 `alembic upgrade 0050` 을 걸고 트리거 재생성 직전에 프로세스를 kill → ① `SELECT * FROM alembic_version` ② `SELECT COUNT(*) FROM search_index` vs `search_documents` ③ `PRAGMA integrity_check` ④ 남은 `_alembic_tmp_*` 표 유무. 실서버에서는 하지 않는다."
+   },
+   {
+    "area": "`usage_events` 가 보존 대상이 아니다 — RET 정정이 센 10개 표에서 빠졌고, `sessions`·게임과 달리 요청량에 비례해 자란다",
+    "why_it_matters": "`run_retention`(`core/retention.py:214-256`)이 실제로 다루는 것은 conversations·notifications·job_attachments·missing_tickets·jobs·schedule_runs·mail_history·reset_tokens·orphan_uploads·trash 열 개다. `usage_events`(0026, `app/observability/models.py:43`)는 그 목록에 없고 `UsageEvent` 를 지우는 코드가 `app/` 전체에 0건이다. `RET 정정` 절은 *\"`sessions` **만** 보존 대상에서 빠져 있다\"* 고 단정했는데 그 문장이 정확하지 않다. 심각도 자체는 낮다(실측 148행) — 다만 이것은 **사용량 이벤트**라 사람 수·기능 사용량에 비례해 자라는 유일한 표이고, `USE-01` 이 지적한 '자동화가 안 돈다' 상태가 풀리는 순간 증가 속도가 바뀐다. 지금 값이 작은 이유가 '정책'이 아니라 '아무도 안 써서'라는 점이 핵심이다.",
+    "evidence_never_examined": "`RET 정정` 절(2243~2270)의 정리 대상 10개 나열과 `RET-01R`·`RET-03` 두 항목 어디에도 `usage_events` 가 없다. BACKLOG 에서 `usage_events` 는 1083행(행 수 집계 148) 한 번만 등장하고 보존 맥락이 아니다. (참고: `audit_logs` 는 1535행에 \"보존일수 설정은 있으나 아무 일도 안 한다\"로 **이미 기록돼 있으므로** 새 발견으로 세지 않는다.)",
+    "risk": "Low",
+    "first_probe": "`grep -rn \"UsageEvent\" app/ | grep -i \"delete\\|purge\"` 가 0건임을 확인하고, `RET-01R` 문구를 \"sessions·usage_events\" 로 정정. 성장률은 서버에서 `SELECT MIN(created_at), MAX(created_at), COUNT(*) FROM usage_events` 한 줄로 잡힌다."
+   }
+  ],
+  "already_covered_well": [
+   "**Notion API 실패 모드는 대체로 잘 돼 있다** — `team_docs/notion_docs.py` 가 `page_size=100` + `start_cursor`/`has_more` 페이지네이션을 4곳에서 정확히 돌리고 `_MAX_PAGES` 소진 가드까지 두었으며(217-230, 257-275, 468-487, 518-527), 429 재시도는 `_request` 안에서 호출 단위로 자기완결적이고(105행 주석: \"동기화 한 번이 최대 251요청이라 429 가 실제로 난다\"), 401 은 `NotionDocsNotConfiguredError(\"토큰이 유효하지 않습니다\")` 로, 403 은 쓰기권한 메시지로 분기한다. 문서/티켓 토큰을 분리한 관문도 있다(497-499). 여기에 새로 팔 것은 없다 — 남은 Notion 위험은 이미 BACKLOG 에 있는 쓰기 쪽(`AI-02` 타임아웃 역전, `RN-01~03`, `UA-14`)이다.",
+   "**문자 인코딩은 세 경계 모두 이미 닫혀 있다** — ① CSV: 감사 내보내기(`audit/router.py:277`)와 사용자 일괄(`users/bulk.py:20,125`) 둘 다 UTF-8 BOM 을 붙이고 그 이유(엑셀이 CP949 로 읽는다)를 주석에 적어 두었다. ② 첨부 파일명: `core/uploads.py::content_disposition` 이 RFC 6266/5987 대로 `filename=`(ASCII 폴백) + `filename*=UTF-8''`(퍼센트 인코딩) 두 벌을 보내고, 한글 파일명 실측 사례까지 주석에 남겼다. ③ subprocess: `scripts/check_subprocess_encoding.py` 정적 검사가 상시 감시한다. 마이그레이션 첫 줄의 em 대시 금지(cp949 파이프 깨짐)까지 0044~0046 에 기록돼 있다.",
+   "**cron 의 DST 는 이미 해결돼 있다** — `app/schedules/cron.py` 가 `cronsim` + `zoneinfo` 로 스케줄별 timezone(기본 `Asia/Seoul`)에서 평가하고 UTC 로 되돌려 저장하며, docstring 이 \"cronsim handles DST transitions\" 를 명시한다. `validate_timezone` 이 잘못된 존을 422 로 막는다. 남은 시간대 결함은 이미 기록된 `UA-07`(스프린트 창 UTC)·`UA-08`(월간 리포트 UTC)뿐이고 KST 에는 DST 가 없어 그 축은 닫혀 있다(쿼터의 KST 월 롤오버도 861행에서 정확함이 확인됨).",
+   "**본문 편집의 동시성은 제대로 돼 있다** — 티켓 본문·문서 본문·프로젝트 Notion 동기화 세 경로에 `base_version` 낙관적 잠금이 있고(`tickets/service.py:1026`, `team_docs/service.py:408`, `projects/sync.py:102`), 프런트 `EditableBody.jsx` 가 **편집을 시작한 시점의 지문을 얼려** 보내며 그 규칙을 지키는 vitest 3개(`editable-body-stale-base-version` 등)가 붙어 있다. 게임은 별도로 CAS(`games/service.py:95,441,567,646`), 잡 큐는 단일 `UPDATE … RETURNING` 원자적 claim + 지수 백오프 + 3900초 stuck 복구다.",
+   "**셸 백업/롤백의 SQLite 취급은 정확하다** — `backup-clovirone-web-assistant.sh` 가 naive `cp` 가 아니라 `sqlite3 .backup` 을 쓰고, `rollback-clovirone-web-assistant.sh:55-60` 은 복원 전에 `-wal`·`-shm` 을 지운 뒤 `PRAGMA integrity_check` 로 검증한다. (문제는 **무엇을 담느냐**이지 어떻게 담느냐가 아니다 — 위 §1 참조.)",
+   "**업로드 보안은 강점이다** — 매직바이트 판정(선언 Content-Type 불신), 서버 생성 UUID 저장명, 사용자 파일명은 표시용으로만 새니타이즈, 네임스페이스별 저장 루트 + `resolve().relative_to(root)` traversal 가드, 네임스페이스가 곧 접근통제 경계라는 설계 근거까지 모듈 docstring 에 적혀 있다. 형식·경로 축은 더 팔 것이 없다.",
+   "**애플리케이션 로그 자체에는 개인정보가 없다** — 액세스 로그는 `request.url.path` 만 찍어 쿼리스트링을 뺀다(`middleware.py:136-142`). 각 모듈의 `logger.*` 를 전수로 보면 id·kind·상태코드·예외 타입만 남기고 이메일·본문·메시지 내용을 찍는 줄이 없다. 유출은 앱이 아니라 그 앞단(nginx `combined`)에서 일어난다.",
+   "**마이그레이션의 알려진 함정은 닫혀 있다** — `STRFTIME('%f')` 패턴이 `app/`·`alembic/` 전체에 0건이고(818·908행에서 40여 리비전 전수 확인), 53개 리비전 전부 `downgrade` 를 갖고 있으며 왕복 리허설이 `REHEARSAL_OK`(스키마·76테이블 행수 동일, `integrity_check ok`)로 통과했다. `0050` 은 데이터 유실 없는 방법·고아 `org_id` 처리·FTS 트리거 순서를 전부 문서화한 모범 사례다. 남은 구멍은 '완주하지 못했을 때'뿐이다(위 §9)."
+  ]
+ }
+]

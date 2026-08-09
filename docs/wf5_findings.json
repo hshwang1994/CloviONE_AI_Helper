@@ -1,0 +1,542 @@
+[
+ {
+  "severity": "High",
+  "category": "partial-failure-reporting",
+  "where": "frontend/src/screens/TicketAttachments.jsx:63-79 (mutationFn/onSuccess/onError)",
+  "problem": "순차 업로드 중 N번째가 실패하면 이미 서버에 저장된 앞의 N-1개가 화면에 나타나지 않는다. refresh()(invalidateQueries + onChanged→detail.refetch())가 onSuccess에만 있고 onError에는 없다. 사용자는 오류 토스트 하나만 보고 목록은 업로드 전 상태 그대로다. 같은 파일들을 다시 고르면 앞의 N-1개가 중복 업로드된다 — 서버 add_attachment(app/tickets/attachments.py:103-124)에 파일명·해시 중복 검사가 없어 매번 새 UUID로 또 저장되고 10칸 상한을 스스로 소모한다.",
+  "evidence": "TicketAttachments.jsx:69-75 순차 루프(`last = await api(...)`) → 중간 throw 시 앞 반복은 이미 커밋됨. :77 `onSuccess: () => { toast(...); refresh(); }` / :78 `onError: (e) => toast(...)` — onError에 refresh 없음. 부모 Ticket.jsx:204-209 `onChanged={() => detail.refetch()}`, 질의는 Ticket.jsx:84-88 `useQuery({queryKey:['ticket',id], retry:false})`. 대조: Board.jsx:153-170 이 같은 문제를 이미 풀어 뒀다(파일별 try/catch → failed[] → onSuccess에서 invalidate + \"글은 저장했지만 첨부 N개를 올리지 못했습니다: <파일명>\"), 주석 :154-156 \"예전엔 첨부 실패가 mutation 전체를 reject시켜… 다시 누르면 글이 중복 생성됐다\".",
+  "fix_hint": "Board.jsx:153-170 패턴 이식: 파일별 try/catch → {ok, failed[]} 반환, onSettled에서 항상 refresh(), 토스트는 \"N개 올렸고 M개 실패: <파일명>\". 매 POST 응답이 attachments 전체 목록을 돌려주므로(app/tickets/service.py:1255-1257) 마지막 성공 응답으로 낙관 갱신도 가능.",
+  "note": "직접 재확인: (1) 원 보고의 fix_hint 인용 \"attachments.py:1256\"은 틀렸다 — 그 파일은 157줄이고 실제 위치는 app/tickets/service.py:1255-1257이다(핵심 근거가 아니라 힌트의 오타). (2) \"화면에 절대 안 나타난다\"는 과장이다: main.jsx:17-19가 `refetchOnWindowFocus:false, staleTime:30s`라 포커스 복귀로는 안 살아나지만, 30초 뒤 화면을 떠났다 돌아오면 재조회된다. 자동 복구 경로가 없다는 결론 자체는 유지. (3) 발동 조건을 보강한다 — 첫 파일부터 실패하는 상황(예: OPS-01)에서는 부분 성공이 안 생긴다. 현실적 방아쇠는 F8(드래그앤드롭에 형식 선검사 없음)이다: png 3개 + txt 1개를 끌어다 놓으면 3개가 저장된 뒤 4번째가 422 → 화면엔 0개 → 재드롭 시 3개 중복. (4) 추가로 확인한 비대칭: mutationFn:64-68의 크기 선검사는 첫 초과 파일에서 throw 해 **아무것도** 올리지 않는데, Board.jsx:247-250은 초과분만 걸러내고 나머지를 올린다 — 같은 저장소 안 두 벌 규칙. BACKLOG grep 결과 TicketAttachments 관련 항목 0건(신규)."
+ },
+ {
+  "severity": "High",
+  "category": "error-message-quality",
+  "where": "app/core/uploads.py:146-148 + app/core/errors.py:258-277 + frontend/src/lib/api.js:49-50 + app/tickets/router.py:600-624",
+  "problem": "save_upload의 mkdir/write_bytes에 OSError 처리가 없어 파일시스템 권한·용량 오류가 전역 `_unhandled` 핸들러까지 올라가고, 사용자는 한국어 UI 안에서 영어 한 줄 \"Internal server error\"를 받는다. api.js:49-50이 \"서버 문구가 있으면 항상 이긴다\" 규칙이라 준비된 한국어 폴백(api.js:15 \"서버에서 문제가 생겼습니다…\")은 쓰이지 않는다. 원인도 조치도 영구 실패라는 사실도 말하지 않는다. 덤으로 record_audit_from_request가 서비스 호출 **뒤**(router.py:620-623)라 업로드 실패는 감사 로그에 한 줄도 안 남는다.",
+  "evidence": "내가 직접 재현(임시 pytest 프로브, 실행 후 tests/integration/test_zz_probe_attach_tmp.py 삭제 완료): `pathlib.Path.mkdir`이 uploads 경로에서 PermissionError(13)을 던지게 하고 `POST /api/tickets/page-a001/attachments` → **STATUS 500**, BODY `{\"error\":{\"code\":\"internal_error\",\"message\":\"Internal server error\",\"request_id\":\"2bedc145eeb8480c981c039bfbfad0d2\"}}`, 스택 최하단 `app/core/uploads.py:147 target_dir.mkdir(parents=True, exist_ok=True)`. 같은 세션 감사 로그 = `[('user.login','success')]` — 업로드 실패 흔적 0건. errors.py:271-277이 message=\"Internal server error\"를 넣는 자리다.",
+  "fix_hint": "save_upload에서 OSError를 잡아 사용자 언어 AppError로 번역(503 + \"파일 저장소에 쓸 수 없습니다. 관리자에게 문의해 주세요(문의 번호 …)\")하고 logger.exception으로 원인은 서버에만. 실패도 감사에 남기려면 router에서 try/except로 감싸 result=\"failure\" 기록 후 재발생. 별개로 errors.py의 500 기본 문구 한국어화는 앱 전체를 함께 닫는다.",
+  "note": "범위를 좁혀서 유지한다. 「500이 영어로 뜬다」 자체는 신규가 아니다 — BACKLOG:2417(FN-40)이 공지 PATCH 경로에서 같은 문장을 이미 적었고, wf2 R4가 422판(UX-40, 호출부 131개)을 규칙으로 세워 뒀다. **신규는 두 가지다**: ① uploads.py에 OSError 번역이 아예 없어 파일시스템 오류가 곧장 500이 된다(uploads.py:146-148, 재현 확인), ② 업로드 실패가 감사에 남지 않는다(record_audit가 서비스 뒤). ②는 BACKLOG의 OPS-01 절이 \"그 이후 업로드 시도: 감사·로그에 없음 → 아무도 시도하지 않아서\"라고 추론한 근거를 약화시킨다 — 시도해서 실패해도 감사에는 안 남는다(journal 접근 로그는 별개이며 서버 확인 필요, 나는 확인하지 않았다). OPS-01/OPS-03 자체는 이미 BACKLOG에 있으므로 이 항목은 \"서버 상태\"가 아니라 \"코드 경로\"로만 읽어야 한다."
+ },
+ {
+  "severity": "Med",
+  "category": "data-retention",
+  "where": "app/core/retention.py:296-345 (특히 :312, :329-333) + app/tickets/attachments.py:135-142 + app/worker_main.py:415-430",
+  "problem": "첨부를 떼면 DB 행만 지우고 바이트는 남기는데(의도적, 문서화됨), 그 바이트를 치우는 고아 스윕의 30일 유예가 **파일 mtime 기준**이라 '언제 도달 불가가 됐는가'와 무관하다. 결과가 의도와 반대다: 오늘 올려 오늘 뗀 파일은 30일 보호받고, 6개월 전에 올려 오늘 뗀 파일은 다음 시간별 틱(최대 1시간)에 영구 삭제된다. remove_attachment가 밝힌 보존 이유는 \"동기화 사고 한 번으로 사용자가 올린 원본이 사라진다\"는 회수 창인데, 오래된 파일일수록 창이 0이다.",
+  "evidence": "retention.py:312 `cutoff = now - timedelta(days=max(1, int(grace_days)))`, :329 `modified = datetime.utcfromtimestamp(stat.st_mtime)`, :330-332 `if modified > cutoff: kept_young; continue` → 오래되면 :339 `path.unlink()`. ORPHAN_UPLOAD_GRACE_DAYS=30(:270). 실행은 dry_run 아님 — retention.py:245 `sweep_orphan_uploads(db, data_dir=data_dir, now=now)`(기본 dry_run=False, :299), worker_main.py:421 `>= 3600.0` 시간별. 유예 주석(:264-270)은 \"②가 없으면 방금 저장했는데 아직 커밋되지 않은 행의 파일을 지운다\"만 방어 대상으로 적어, 기준 시각이 mtime인 것이 검토된 흔적이 없다.",
+  "fix_hint": "detached_at을 두거나 삭제 시 uploads/<ns>/_trash/로 rename해 mtime을 갱신하고 그 시각 기준으로 유예를 잰다. 최소 조치는 remove_attachment에서 Path.touch()(그 의미를 주석에 명시).",
+  "note": "코드는 원 보고대로 확인했다(줄 번호만 1~2줄 어긋나 있어 위에서 교정). 다만 **심각도는 Med보다 Low에 가깝다**: 남겨 둔 바이트를 되살리는 경로가 제품에 없다(첨부 복원 UI·스크립트 grep 0건). 즉 유예는 운영자가 수동으로 파일 복사 + 행 삽입을 할 때만 쓸 수 있는 창이라 실질 손실이 제한적이다. 그럼에도 두 모듈의 의도가 서로 어긋난 것은 사실이고(회수 창 vs 미커밋 행 보호), BACKLOG·DECISIONS grep 결과 고아 스윕 유예 기준에 대한 기존 항목은 없다(BACKLOG:2255·DECISIONS:388은 대상 목록만 나열)."
+ },
+ {
+  "severity": "Low",
+  "category": "recovery-affordance",
+  "where": "frontend/src/screens/TicketAttachments.jsx:77-79, 136 + frontend/src/ui/kit.jsx:955-963",
+  "problem": "업로드가 실패했을 때 재시도 수단이 없고 무엇이 실패했는지 8초 뒤 사라진다. 실패 목록도 '다시 시도' 버튼도 없다. 파일 입력은 pick 직후 `e.target.value=\"\"`로 비워지고 dataTransfer도 사라져 사용자는 OS 대화상자에서 처음부터 다시 골라야 한다. 서버 거절 문구에 파일명이 없어(uploads.py:130, 141-143) 여러 개를 놓았을 때 어느 것이 문제인지 알 수 없다.",
+  "evidence": "TicketAttachments.jsx:78 `onError: (e) => toast((e && e.message) || \"첨부하지 못했습니다.\", \"error\")` — 실패 파일 상태 저장 없음. :136 `onChange={(e) => { pick(e.target.files); e.target.value = \"\"; }}`. kit.jsx:962 `const ttl = k === \"error\" ? 8000 : 3500;` 후 setTimeout 제거. 서버 문구에 파일명 없음: uploads.py:130 \"빈 파일은 올릴 수 없습니다.\", :141-143 \"허용되지 않은 파일 형식입니다…\".",
+  "fix_hint": "실패 File 객체를 컴포넌트 state에 남겨 Callout(tone=\"error\")로 목록 + \"이 파일들만 다시 올리기\" 버튼(재선택 불필요). 서버 검증 문구에 파일명 포함.",
+  "note": "심각도를 Med→Low로 내린다. **원 보고의 requestId 주장은 위젯 고유 결함이 아니다**: frontend/src 전체 grep 결과 `requestId` 소비처는 kit.jsx:327·377-382(ErrorState) 한 곳뿐이고, 다른 어떤 토스트도 문의 번호를 싣지 않는다 — 이 위젯을 지목할 근거가 없는 전역 관례다(반증 항목 참조). 살아남는 부분은 ①재시도 어포던스 없음 ②실패 목록 소멸 ③서버 문구에 파일명 없음 셋이다. 또 크기 초과는 클라가 파일명을 넣어 말해 주므로(:66) '파일명 없음'은 서버 검증 경로(형식·빈 파일)에 한정된다. 내용이 F1과 크게 겹치므로 별건이 아니라 F1 수정에 함께 담는 편이 맞다."
+ },
+ {
+  "severity": "Low",
+  "category": "contract-drift-guard",
+  "where": "app/core/middleware.py:75-91 (주석) vs tests/unit/test_update_script_contract.py:411-419",
+  "problem": "미들웨어 주석이 \"한곳에 모아 두고 tests/regression 이 개수를 지킨다\"(middleware.py:82)고 적었는데 tests/regression에 그런 테스트가 없고, 실제 가드는 tests/unit/test_update_script_contract.py:417의 `text.count(\"client_max_body_size 12m;\") == 4` — **nginx 파일의 문자열 개수만** 센다. 미들웨어의 `_UPLOAD_ROUTE_RES`와 nginx location 집합을 대조하는 것은 없어, 새 업로드 라우트를 미들웨어에만 추가하고 nginx location을 빠뜨리면(주석이 팀 채팅·프로필 사진에서 실제로 두 번 났다고 적은 사고) 테스트는 그대로 통과하고 프로덕션에서만 413이 난다.",
+  "evidence": "middleware.py:79-82 주석 원문 + :85-90 `_UPLOAD_ROUTE_RES` 4개(board/team-chat/tickets/me-avatar). nginx deploy/nginx/clovirone-web-assistant.conf:153-154,171-172,189-190,206-207 에 같은 4개 location. tests/ 전체 grep: `_UPLOAD_ROUTE_RES`·`UPLOAD_BODY_BYTES`·`MAX_TICKET_ATTACHMENTS` 참조 **0건**. 값 대조는 전부 일치: MAX_ATTACHMENTS=10(TicketAttachments.jsx:29) ↔ MAX_TICKET_ATTACHMENTS=10(attachments.py:42), MAX_BYTES(:30) ↔ MAX_UPLOAD_BYTES(uploads.py:27), ACCEPT 5종(:31) ↔ ALLOWED_TICKET_MEDIA(attachments.py:45). 프런트 사본 3개(TicketAttachments.jsx:30, Board.jsx:55, chat-compose.js:45) + 하드코딩 문구 1개(Profile.jsx:132).",
+  "fix_hint": "`_UPLOAD_ROUTE_RES`의 각 패턴이 nginx conf에 같은 정규식 location으로 있는지 **집합 대조**하는 테스트를 추가(개수 아님). 최소한 middleware.py:82 주석을 실제 테스트 경로로 고쳐라. 상한 3종을 서버가 내려 주면 프런트 사본 4개가 사라진다.",
+  "note": "심각도를 Med→Low로 내리고 **원 보고의 \"그것을 지키는 테스트가 없고\"는 부분적으로 사실과 다르다**: 미들웨어 쪽 누락은 라우트별 통합테스트가 잡는다 — 400KB 업로드가 200이어야 한다는 테스트가 board(test_board_api.py:301), team-chat(test_team_chat_api.py:147), tickets(test_ticket_attachments.py:116) 3개에 있다. 새로 확인한 실제 구멍은 두 개다: ① `/api/me/avatar`에는 그 크기 테스트가 없다(test_profile_self_service.py:289-313은 PNG 소용량만), ② nginx↔미들웨어 **집합** 대조가 없어 nginx만 빠진 경우는 어느 테스트도 못 잡는다. \"nginx만 추가하면 테스트가 고칠 쪽을 틀리게 지목한다\"는 해석은 과하다 — count가 5가 되어 실패하면 개발자는 그 자리에서 5로 올릴 뿐이다."
+ },
+ {
+  "severity": "Low",
+  "category": "affordance-inconsistency",
+  "where": "frontend/src/screens/TicketAttachments.jsx:251-252, 272 (vs :123)",
+  "problem": "첨부가 10/10으로 꽉 찬 드롭존은 `cursor: not-allowed`를 보여 주면서 누르면 파일 선택창이 열린다. 사용자가 파일을 고르고 나서야 \"최대 10개까지\" 오류를 받는다. 같은 화면의 '파일 추가' 버튼은 `disabled={upload.isPending || full}`로 올바르게 잠겨 있어 두 입구의 상태가 어긋난다.",
+  "evidence": "코드 직접 확인 — :251 `disabled={upload.isPending}`(full 없음), :252 `onClick={() => { if (!upload.isPending) openPicker(); }}`, :272 `cursor: full || upload.isPending ? \"not-allowed\" : \"pointer\"`, 대조 :123 `disabled={upload.isPending || full}`. full은 :52 `list.length >= MAX_ATTACHMENTS`. 클릭 시 :90 pick → :92-95에서 `list.length + picked.length > 10` → 토스트 거절.",
+  "fix_hint": "`disabled={upload.isPending || full}`로 맞추거나 onClick 가드를 `if (!upload.isPending && !full)`로. 더 나은 방향은 isPending/full 가드를 pick() 안으로 옮겨 주석(:88-89)이 말하는 '문 하나' 원칙을 어포던스에도 적용.",
+  "note": "코드 근거 전부 재확인했다. **의도 주석이 이 결함을 덮지 않는다는 점을 확인했다**: :245-248 주석은 \"꽉 찼을 때도 (판을) 치우지 않고 남긴다 — 사라진 판은 이유를 말해 주지 못한다\"로 *보이게 두는 이유*만 말하고, 눌리게 두는 이유는 어디에도 없다. disabled로 잠가도 안내 문구(:275-278)는 그대로 보이므로 주석의 의도와 충돌하지 않는다. 피해는 헛클릭 한 번 + 한국어 토스트이므로 Low가 맞다."
+ },
+ {
+  "severity": "Low",
+  "category": "stale-ui",
+  "where": "frontend/src/screens/TicketAttachments.jsx:81-86, 194, 229",
+  "problem": "첨부 삭제가 실패해도 목록을 다시 읽지 않는다. 특히 404(다른 사람이 이미 뗐다)처럼 \"서버 상태가 내 화면과 다르다\"는 신호일 때가 반드시 다시 읽어야 하는 경우인데, 오류 토스트만 뜨고 이미 사라진 첨부가 화면에 남는다. X를 다시 눌러도 같은 404가 반복된다. 부수적으로 `disabled={remove.isPending}`이 개별 항목이 아니라 모든 첨부의 X 버튼을 함께 잠근다.",
+  "evidence": "코드 직접 확인 — :84 `onSuccess: () => { toast(\"첨부를 뗐습니다.\", \"success\"); refresh(); }`, :85 `onError: (e) => toast((e && e.message) || \"떼지 못했습니다.\", \"error\")` (refresh 없음). X 버튼 :194(이미지)·:229(파일) 둘 다 `disabled={remove.isPending}`으로 뮤테이션 전체 상태를 본다. 서버 404 문구: app/tickets/router.py:586-588 `NotFoundError(\"첨부를 찾을 수 없습니다.\")`, service.py:1267-1268에도 같은 판정.",
+  "fix_hint": "onSettled에서 항상 refresh() 하거나 최소한 onError에서 404/409면 refresh(). X의 disabled는 `remove.isPending && remove.variables === a.id`로 항목 단위로.",
+  "note": "코드 근거 재확인 완료. BACKLOG grep(invalidate·새로고침·404 관련) 결과 동일 항목 없음(신규). F1과 같은 뿌리(성공 경로에만 refresh)이므로 onSettled 한 줄로 둘이 함께 닫힌다. 다만 티켓 첨부는 동시 편집자가 드문 경로라 노출 빈도가 낮아 Low가 적정하다."
+ },
+ {
+  "severity": "Low",
+  "category": "validation-asymmetry",
+  "where": "frontend/src/screens/TicketAttachments.jsx:134 (accept) vs :255-265 (onDrop)",
+  "problem": "개수·크기 검증은 두 입구가 같은 문(pick/mutationFn)을 지나지만 형식 검증은 대칭이 아니다. 파일 선택창은 accept로 5종만 보여 주는 반면 드래그앤드롭 경로에는 형식 판정이 전혀 없다(클라이언트가 f.type을 한 번도 읽지 않는다). .txt/.zip/폴더를 끌어다 놓으면 서버 422까지 갔다가 거절되고, F1(부분 성공 미보고) 때문에 그 지점에서 배치가 멈추며 앞서 올라간 파일들은 화면에 나타나지 않는다.",
+  "evidence": "코드 직접 확인 — :134 `accept={ACCEPT}`(:31의 5종), :264 `pick(e.dataTransfer.files)` 앞뒤에 type/확장자 검사 없음, :63-76 mutationFn도 size만 본다. 서버 거절: app/core/uploads.py:135-143(매직바이트 판정 후 ValidationAppError), 상태코드는 app/core/errors.py:66-68 `ValidationAppError.status_code = 422`. 폴더 드롭은 size 0으로 :129-130 \"빈 파일은 올릴 수 없습니다.\"에 걸린다.",
+  "fix_hint": "pick() 안에서 ACCEPT로 f.type 선검사(빈 type은 서버 매직바이트 판정에 맡기고 통과) + size 0 선검사, 거절 문구에 파일명 포함. 서버 매직바이트 판정은 정본으로 유지.",
+  "note": "코드·상태코드 모두 재확인. accept는 브라우저 대화상자의 필터일 뿐 강제가 아니므로(사용자가 '모든 파일' 선택 가능) 엄밀히는 '두 입구 모두 클라 형식검증 없음, 한쪽만 힌트 있음'이다 — 그래도 같은 화면 두 입구의 체감 결과가 다르다는 결론은 유지된다. 이 항목의 진짜 값은 **F1의 현실적 방아쇠를 제공한다는 것**이다(png 3 + txt 1 드롭 → 3개 저장 + 화면 0개)."
+ },
+ {
+  "severity": "Low",
+  "category": "missing-fallback-ui",
+  "where": "frontend/src/screens/TicketAttachments.jsx:176-187",
+  "problem": "첨부 이미지에 onError 처리가 없어, 서버가 404를 주는 경우(디스크에 파일이 없음) 사용자는 4:3 상자 안의 깨진 이미지 아이콘과 파일명만 보고 이유를 알 수 없다. DB만 복원되는 시나리오(BKP-01)에서는 모든 첨부 행이 파일 없는 상태가 되고, file_path()가 None을 돌려줘 라우터가 404를 낸다. PDF 링크도 같은 상황에서 새 탭에 JSON 404를 보여 준다.",
+  "evidence": "코드 직접 확인 — :176-187 `<Box component=\"img\" src={a.url} alt={a.filename} loading=\"lazy\" decoding=\"async\" sx={{...}} />`, onError 핸들러·대체 UI 없음. 서버 404 경로: app/tickets/router.py:555-557 `path = ticket_attachments.file_path(...)` → `if path is None: raise NotFoundError(\"첨부 파일을 찾을 수 없습니다.\")`, attachments.py:131-132·uploads.py:170-175(`resolved.is_file()` 아니면 None).",
+  "fix_hint": "onError에서 해당 항목을 '파일을 찾을 수 없음' 상태로 바꿔 아이콘 + \"원본 파일이 서버에 없습니다\" 캡션을 그린다. PDF 링크도 같은 처리 필요.",
+  "note": "코드 근거는 맞다. 다만 두 가지를 깎아 둔다. ① **원 보고의 \"F4(오래된 파일이 뗀 직후 스윕됨)와도 만난다\"는 틀렸다** — 고아 스윕은 DB가 참조하지 않는 저장명만 지우므로(retention.py:279-294 `_referenced_stored_names`에 TicketAttachment.stored_name 포함) 목록에 보이는 첨부는 절대 스윕 대상이 아니다. 남는 시나리오는 BKP-01식 DB-only 복원과 디스크 유실뿐이다. ② 화면-첨부-깨짐 자체는 BACKLOG:2661(BKP-01)이 \"화면에 첨부가 있는데 열면 깨진다\"로 이미 예고한다 — 신규인 부분은 **프런트에 폴백 UI가 없다**는 코드 사실이고, 그마저 frontend/src 전체에서 `component=\"img\"`에 onError를 단 곳이 0건이라 이 위젯만의 비일관은 아니다(전역 관례). 브라우저 실렌더는 확인하지 않았다."
+ },
+ {
+  "severity": "High",
+  "category": "idempotency",
+  "where": "app/games/service.py:451-479(maybe_autoresolve) · router.py:122",
+  "problem": "타이머 마감 자동 확정이 **두 번 실행되어 서로 다른 승자를 쓴다.** 가드가 `if room.status != ROOM_PLAYING: return` 하나뿐인 read-then-write 라, 1.2초 폴링 두 건이 겹치면 둘 다 status=playing 을 읽고 각자 무작위 채움으로 결과를 확정한다. 확정을 수행한 요청은 **자기가 계산한 결과를 그 응답에 그대로 실어 돌려주므로**(router.py:126 `public_state(room, me.id)`가 autoresolve 뒤에 호출됨) 클라이언트 A는 승자1을, 클라이언트 B는 승자2를 보고, 다음 폴링에서 마지막 커밋 값으로 뒤집힌다 → 발표된 승자가 바뀌고 deriveCelebrateKey 가 두 번 달라져 축포가 두 번 터진다.",
+  "evidence": "로컬 프로브 재현(제품 코드 미변경, tests/integration/test_games_api.py:656 이 쓰는 두-세션 기법 그대로): rps 방, 두 세션이 status=playing 을 읽은 뒤 A 확정·커밋 → B 확정·커밋. `game_events` 의 `result` 이벤트 **2건**, payload 의 winners 가 `[]`(무승부)와 `[호스트]`로 **서로 다름**. 확정 진입에 조건부 UPDATE 가 없다(`room.status = ROOM_FINISHED` 단순 대입: service.py:521, 594, 872, 989).",
+  "fix_hint": "확정 진입을 조건부 UPDATE 로: `UPDATE game_rooms SET status='finished' WHERE id=? AND status='playing'` 의 rowcount==1 인 요청만 결과를 계산·기록한다.",
+  "note": "새로 확인: ① 트리거 경로가 방장이 아니라 **인증된 아무나의 GET /state** 라 참여자 수만큼 동시 진입이 생긴다(router.py:122). ② `_append_event` 는 seq 충돌을 흡수·재시도하므로(service.py:69-86) 두 번째 결과도 조용히 로그에 남는다. ③ **원 보고의 start_game 부분은 기각**한다(rejected 참조) — 이 항목은 maybe_autoresolve 경로만으로 성립한다. ④ BACKLOG grep(`유령|host|폴링|커서`) 결과 게임 동시성 항목은 GM-01~04 어디에도 없다."
+ },
+ {
+  "severity": "High",
+  "category": "ghost-winner",
+  "where": "app/games/service.py:678(_open_rps_tournament 시딩) · 744-745(_tournament_advance force 경로) — 대조: 219-225, 301, 318, 367, 573, 843, 893",
+  "problem": "가위바위보 **토너먼트만** 유령 필터가 약하다. 참가자 시딩은 `m.active and role != spectator`, 강제 마감의 present 판정은 `repository.get_member(...) is not None`(= '나가기'를 눌러 행이 지워졌는가)뿐이다. 나머지 6개 경로(추첨·팀나누기·사다리·숫자·rps 단판·퀴즈)는 전부 `_present_players`(active + last_seen 90초 + 비관전)를 쓰고 각각 '자리를 뜬 유령은 …에서 제외'라는 주석까지 달려 있다. `active` 는 저장소 어디서도 False 가 되지 않으므로(아래 근거) 탭만 닫고 떠난 사람이 대진에 들어가고, 강제 마감에서 서버 무작위 채움+코인플립으로 **챔피언까지 올라갈 수 있다.**",
+  "evidence": "로컬 프로브: 유령(last_seen 10분 전, active=True) 포함 3인 방에서 `_present_players` → ['지영','호스트'] / 토너먼트 시딩 필터 → ['유령','지영','호스트']. `grep -rn '\\.active = ' app/ alembic/` → service.py:157, 1100 **둘 다 True 대입뿐**. 로컬 DB `select count(*) from game_room_members where active=0` → **0** (전체 7행). PRESENCE_SECONDS 주석(service.py:213-216)이 막겠다고 명시한 대상이 정확히 이 유령이다.",
+  "fix_hint": "678 시딩과 744-745 present 판정을 모두 `_present_players` 기준으로 통일한다.",
+  "note": "새로 확인: 744-745 에는 의도 주석이 있으나 **범위가 '멤버 row 가 사라진(나간)' 상대에 한정**되고, 스스로 '토너먼트 강제 마감엔 그 대응 필터가 없었다'고 적는다 — 즉 부분 수정임을 자인한 자리지, 유령을 present 로 보겠다는 의도 선언이 아니다. 고정 테스트(tests/integration/test_games_api.py:521)도 `leave` 로 행을 지우는 경우만 검증한다."
+ },
+ {
+  "severity": "Med",
+  "category": "concurrency-lost-update",
+  "where": "app/games/service.py:509-525(_finish_vote) · 571-598(_finish_number) · 841-876(_finish_rps) · 940-959(_reveal_quiz) · 962-1003(next_quiz) — 대조: 89-123",
+  "problem": "12라운드의 CAS(`_cas_update_state`)가 **제출 4경로에만** 붙어, state_json 을 쓰는 나머지 전부(_open_*, _finish_*, _reveal_quiz, next_quiz, _tournament_submit, reset_room)는 여전히 자기 스냅샷을 통째로 덮어쓴다. '제출 vs 제출'은 막혔지만 '제출 vs 종료/공개'는 그대로다 — 마감 직전 제출이 200 OK 를 받았는데 결과에서 사라진다.",
+  "evidence": "로컬 프로브: 종료 요청이 방을 읽은 뒤 투표가 커밋되고 종료가 뒤이어 쓰면 → 결과 `counts:[0,0], winners:[], total:0`(투표 1건 유실). SQLAlchemy 세션 설정상 방어막이 없다 — `make_session_factory`(app/core/db.py:96)는 pysqlite 기본 트랜잭션 처리라 SELECT 가 스냅샷을 잡지 않으므로 BUSY_SNAPSHOT 로 걸러지지 않는다.",
+  "fix_hint": "_finish_*/_reveal_quiz/next_quiz 도 `_cas_update_state`(또는 최소 `db.refresh(room)` 후 재계산)로 감싼다.",
+  "note": "**High → Med 로 낮춘다.** 새로 확인한 세 가지: ① 창이 좁다 — _finish_vote·_reveal_quiz 는 state 읽기와 쓰기 사이에 DB 왕복이 없다(_finish_number/_finish_rps/next_quiz 만 `_present_players` 질의가 끼어 창이 조금 넓다). ② 원 보고의 '화면에 「민수 → 국밥」이 흐른다'는 **사실이 아니다**(rejected 참조). ③ rps 의 `auto:true` 는 유실의 증거가 아니라 미제출자 무작위 채움이라는 **명시된 의도**(service.py:846-847)다. 그래도 위험이 마감 순간(autoresolve + 막판 제출)에 집중되므로 유지한다."
+ },
+ {
+  "severity": "Med",
+  "category": "state-divergence",
+  "where": "app/games/router.py:124 · frontend/src/screens/GameRoom.jsx:77,81 · game-room/MembersList.jsx:57-58 · useGameRoomController.js:254-262 — 대조: app/games/service.py:213-216",
+  "problem": "서버 판정은 `_present_players`(90초 창)로 유령을 빼지만 **표시 계층은 `active` 플래그를 쓴다** — 그리고 `active` 는 절대 False 가 되지 않는다. 그래서 탭 닫고 간 사람이 참여자 목록에 영원히 '대기' 배지로 남고, `제출 n/m` 의 분모에 계속 들어가 **\"모두 제출했습니다\"가 절대 뜨지 않는다.** 타이머 0이 기본인 숫자 눈치·빠른 투표에서는 방장이 언제 닫아도 되는지 알 방법이 사라진다.",
+  "evidence": "router.py:124 `[m for m in repository.members(...) if m.active]` 는 항상 전체 통과(위 grep: active 대입은 True 둘뿐, 로컬 DB active=0 → 0행). GameRoom.jsx:77 `제출 {submittedCount}/{activePlayers.length}`, :81 `waitingNames.length > 0 ? '대기 …' : '모두 제출했습니다'`, useGameRoomController.js:259 `activePlayers = members.filter(m => m.role !== 'spectator')`. MembersList.jsx:57-58 이 그 집합에 제출/대기 배지를 그린다.",
+  "fix_hint": "응답 `_member_view` 에 서버가 판정한 `present`(last_seen 기준) 를 실어 내리고 프런트가 그것으로 분모·배지를 만든다.",
+  "note": "새로 확인: `join_room` 156-162 의 `was_inactive` 재접속 이벤트는 **도달 불가능한 죽은 코드**가 맞다. 다만 service.py:213-216 은 '`active` 를 영구히 내리지 않고 액션 시점에만 거른다'를 **서버 판정의 의도로 명시**하므로, 결함은 서버가 아니라 '서버는 걸렀는데 화면은 안 걸렀다'는 계층 간 불일치에 한정된다."
+ },
+ {
+  "severity": "Med",
+  "category": "stuck-state",
+  "where": "app/games/service.py:187-206(유일한 host 재위임) · 209-217 · 56(DEFAULT_TIMERS) · frontend/src/screens/Games.jsx:139",
+  "problem": "방장이 '나가기'를 누르지 않고 브라우저만 닫으면 방이 **아무도 진행할 수 없는 상태로 굳는다.** host_user_id 를 바꾸는 코드는 leave_room 한 곳뿐이라 자동 재위임이 없고, start/finish/reveal/next/reset/disband 가 전부 `_ensure_host`(272-274)에 막힌다. 숫자 눈치·빠른 투표는 서버 기본 타이머가 0이고 방 만들기 기본값도 0이라 maybe_autoresolve 라는 탈출구조차 없다. 시작 전 대기 중인 추첨·팀나누기·사다리도 같다(그쪽은 타이머 개념 자체가 없다).",
+  "evidence": "`grep -rn host_user_id app/` → 대입은 service.py:136(생성)·201(leave_room) **둘뿐**. service.py:209-211 주석이 전제를 명시: \"진행 중인 방은 참여자가 1.2초마다 폴링하므로 절대 이 값에 안 걸린다\". service.py:56 `DEFAULT_TIMERS = {rps:15, quiz:25, number:0, quick_vote:0}`; Games.jsx:139 `setTimer(gameType === \"rps\" ? 15 : gameType === \"quiz\" ? 25 : 0)`.",
+  "fix_hint": "touch_presence 진입에서 방장의 last_seen 이 PRESENCE_SECONDS 를 넘으면 leave_room 과 같은 규칙으로 재위임하고 system 이벤트(\"○○님이 방장이 되었습니다\")를 남긴다 — 프런트는 그 문구를 이미 채팅 피드에 띄운다(useGameRoomController.js:18).",
+  "note": "원 보고의 '**영구** 정지'는 과장이라 정정한다: 남은 사람이 전부 나가거나 180초 동안 아무도 폴링하지 않으면 cleanup_idle_rooms 가 방을 닫는다. 즉 '남은 사람이 계속 있는 동안만' 잠긴다 — 그래도 참여자에게 남는 선택지는 '나가기'뿐이라 Med 유지."
+ },
+ {
+  "severity": "Low",
+  "category": "consistency",
+  "where": "app/games/service.py:509-525(_finish_vote) — 대조: 573-576, 843-847, 973-978",
+  "problem": "종료 집계에서 참여 여부를 거르는 필터가 **빠른 투표에만 없다.** 숫자 눈치·가위바위보·퀴즈는 전부 `_present_players` 로 거르고 이유를 주석으로 남겼는데, `_finish_vote` 는 `votes.values()` 를 그대로 센다. 왜 투표만 다른지 설명이 없다.",
+  "evidence": "로컬 프로브(유령 last_seen 10분 전, 그가 던진 표 하나뿐): quick_vote 종료 → `counts:[1,0], winners:['감'], total:1`. 같은 조건의 number 종료 → `picks:[], winner:None`.",
+  "fix_hint": "의도적으로 '던진 표는 남긴다'면 그 한 줄을 주석으로 명시하고, 아니면 다른 세 곳과 같이 `_present_players` 로 거른다.",
+  "note": "**Med → Low 로 낮추고 category 를 ghost-winner 에서 consistency 로 바꾼다.** 새로 확인: quick_vote 의 winners 는 `options[i]` 즉 **선택지 문자열**이지 사람이 아니다(service.py:517) — 유령이 '우승'하는 일은 구조적으로 불가능하다. 게다가 빠른 투표는 설계상 공개 투표라(아래 rejected 참조) '던진 표는 유효하다'가 오히려 자연스러운 해석이다. 남는 것은 네 종료 경로의 규칙 불일치와 그 무설명뿐."
+ },
+ {
+  "severity": "Low",
+  "category": "identity-by-name",
+  "where": "app/games/service.py:805-838(_rps_tournament_public) · 760-772(_wname) · frontend/src/screens/game-room/RpsViews.jsx:65-77, 122-129",
+  "problem": "토너먼트 대진표만 user_id 없이 **이름 문자열로** 승패를 표현한다. 프런트가 `m.winner_name === m.a_name` / `=== m.b_name` 로 판정하므로 동명이인 둘이 붙으면 양쪽 모두 '승' 배지 + 굵게 + primary 색이 된다.",
+  "evidence": "service.py:813-814 가 winner_name 만 만들고 view_matches(815-821)에 a/b 의 user_id 가 없다. RpsViews.jsx:68 `winner={m.winner_name === m.a_name}`, :77 동일. `display_name` 에 유니크 제약 없음(app/users/models.py:67 `mapped_column(String(120), nullable=False)`).",
+  "fix_hint": "뷰에 `winner_slot: \"a\"|\"b\"|null` 을 실어 프런트가 문자열 비교를 안 하게 한다.",
+  "note": "새로 확인: 같은 문제가 라운드 히스토리(service.py:766-770 `rounds` 는 a_name/b_name/winner_name 만)에도 있어 RpsViews.jsx:122-129 의 지난 라운드 표시까지 같은 방식으로 틀린다. 다른 게임 결과는 전부 user_id 를 동봉한다(_finish_rps 의 winners/reveal, _finish_number 의 winner)."
+ },
+ {
+  "severity": "Low",
+  "category": "missing-feedback",
+  "where": "app/games/service.py:697-709(_resolve_match) · 820 · frontend/src/screens/game-room/RpsViews.jsx:82-93",
+  "problem": "토너먼트에서 비기면 그 대진만 다시 내야 하는데(_resolve_match 가 두 선택을 지우고 `replayed += 1`), 프런트가 그 사실을 어디에도 표시하지 않는다. 사용자 화면에서는 방금 누른 손이 조용히 해제되고 배지가 '제출'→'대기'로 되돌아갈 뿐이라 '내 클릭이 안 먹었다'로 읽힌다.",
+  "evidence": "`grep -rn replayed frontend/src` → **0건**(같은 grep 에서 winner_name 은 10건 잡히므로 파일·경로 문제는 아니다). service.py:820 이 뷰에 `\"replayed\": int(m.get(\"replayed\", 0))` 를 실어 보낸다.",
+  "fix_hint": "`replayed > 0` 이면 your_match 영역에 '비겼습니다 — 다시 내세요(N회째)' 를 띄운다.",
+  "note": "서버가 이 안내를 위해 값을 만들어 내려보내는데 소비처가 0인, 반쪽 구현이 맞다."
+ },
+ {
+  "severity": "Low",
+  "category": "polling-cost",
+  "where": "frontend/src/screens/game-room/useGameRoomController.js:43 · app/games/repository.py:82-89 · app/games/models.py:3-5",
+  "problem": "프런트가 폴링 커서를 한 번도 쓰지 않는다 — 1.2초마다 `?since=0` 고정. 서버는 `events_since(room_id, 0)` 로 방의 **전체 이벤트 로그**(join/leave/ready/vote/pick/result/chat, LIMIT 없음)를 매번 직렬화해 모든 참여자에게 재전송한다. models.py:3-5 의 설계 주석('클라이언트는 `?since=<seq>` 폴링으로 따라온다')이 구현되지 않았다.",
+  "evidence": "useGameRoomController.js:43 `api(\\`/api/games/rooms/${id}/state?since=0\\`)` — frontend/src 전체에서 게임 관련 since 사용은 이 한 줄뿐. repository.py:82-89 `events_since` 에 LIMIT 없음.",
+  "fix_hint": "응답의 `seq` 를 커서로 보관해 다음 폴링에 넘긴다(이벤트는 append-only 라 안전). 커서를 쓰면 채팅 목록은 프런트에서 누적해야 한다.",
+  "note": "**High/Med → Low 로 낮춘다.** ① 같은 `since=0` 관행이 팀 채팅에도 있어(ChatPane.jsx:104, ChatRoom.jsx:35) 게임 고유의 실수가 아니다. ② 방은 단명한다(끝나면 disband, 180초 무폴링이면 cleanup) — 로컬 DB 의 방당 이벤트 최대치는 **2건**이라 현재 실측 비용은 미미하다. ③ 원 보고의 'room_state 에 ETag 이 없다'는 지적은 기각(rejected 참조)."
+ },
+ {
+  "severity": "Low",
+  "category": "data-consistency",
+  "where": "app/games/service.py:204-206(leave_room) — 대조: 243-251(disband_room)",
+  "problem": "마지막 참여자가 나가 방을 닫을 때 `room.closed_at = now` 만 찍고 `status` 는 진행 중 값 그대로 둔다. disband_room 은 같은 상황에서 `status = ROOM_FINISHED` + `closed_at` 둘 다 바꾼다.",
+  "evidence": "로컬 프로브: playing 방에서 방장이 나가고 관전자만 남음 → `status='playing'`, `closed_at=2026-07-14 00:00:00`. 로컬 DB 실측도 `status='waiting'` 이면서 closed_at 이 찍힌 방 **7/7**.",
+  "fix_hint": "leave_room·cleanup_idle_rooms·disband_room 이 공통 `_close_room(room, now)` 헬퍼를 쓰게 한다.",
+  "note": "**BACKLOG GM-01 과 같은 결함 클래스**다(GM-01 은 `cleanup_idle_rooms` 만 지목). 새로 확인한 것은 '두 번째 호출 지점'이라는 사실뿐이므로, 새 항목이 아니라 GM-01 의 범위 확장으로 기록하는 편이 맞다."
+ },
+ {
+  "severity": "Critical",
+  "category": "권한 상승",
+  "where": "app/users/router.py:243-268 (import 엔드포인트) vs router.py:284-285 (단건 생성 게이트) · app/users/service.py:91-154 (create_user에 행위자 권한 검사 없음)",
+  "problem": "`/api/admin/users/import/csv`가 역할 부여 게이트를 우회한다. 단건 생성은 `payload.role in CONSOLE_WRITE_ROLES and actor.role != system_admin` → 403이고(router.py:284-285), PATCH의 역할 변경도 system_admin 부여/회수 금지(router.py:428-430)·admin 승격은 승인(router.py:433-436)인데, CSV 경로는 `parse_import_csv`가 `ALL_ROLES` 안이기만 하면(bulk.py:172-175) 그대로 `create_user(role=...)`에 넘긴다. 게이트가 전부 라우터에만 있고 CSV 라우터만 그것을 안 지난다.",
+  "evidence": "로컬 재현(같은 `plain@goodmit.co.kr` = role `admin`, 전역 범위 세션):\n· POST /api/admin/users {role:\"system_admin\"} → **403** \"admin 이상 권한 계정 생성은 system_admin만 가능합니다.\"\n· POST /api/admin/users/import/csv (역할=system_admin, admin / dry_run=false) → **200** {'created': 2}\n· DB: [('evil-sa@goodmit.co.kr','system_admin','global'), ('evil-ad@goodmit.co.kr','admin','global')]",
+  "fix_hint": "게이트를 라우터가 아니라 `create_user`로 내려 `actor_role`을 필수 인자로 만든다(CSV·CLI·승인 실행기가 같은 규칙을 탄다). 최소한: 비-system_admin이 올린 CSV의 admin/system_admin 행은 `failed`로 떨어뜨리거나 patch_user와 같은 승인 요청으로 돌린다.",
+  "note": "내가 새로 확인한 것 — (1) 이 우회는 PATCH 경로로는 재현되지 않는다: router.py:428-436이 system_admin 부여를 하드 403, admin 승격을 승인으로 돌리므로 **CSV가 유일하게 열린 문**이다. 즉 다른 경로의 중복이 아니다. (2) tests/integration/test_users_bulk_csv.py의 `admin` 픽스처는 role=`system_admin`이라(:30) 기존 테스트 15개 전부가 이 경계를 한 번도 밟지 않는다 — 초록불이 게이트 부재를 가려 왔다. (3) docs/BACKLOG.md·wf1/2/4 synthesis grep 결과 CSV 가져오기 관련 항목 0건(BACKLOG의 'CSV' 4건은 첨부 확장자·백업 디렉터리 얘기)."
+ },
+ {
+  "severity": "Med",
+  "category": "안전하지 않은 기본값",
+  "where": "app/users/schemas.py:37-54 (UserCreateRequest에 admin_scope 필드 자체가 없음) · app/users/service.py:140-151 (User(...)에 admin_scope 미지정) · app/users/models.py:82-87 (default=global)",
+  "problem": "새로 만들어지는 admin 계정은 **언제나 admin_scope='global'로 태어난다.** create_user가 행위자 범위를 물려주지 않을 뿐 아니라, 생성 스키마에 `admin_scope` 필드가 아예 없어 **한 번의 생성으로 범위 좁힌 관리자를 만들 방법이 제품에 없다**(PATCH로 사후에 좁혀야 한다). 생성 직후 검사(router.py:315, bulk.py:263)는 '만들어진 사람이 내 범위 안인가'만 보고 '그 사람이 갖게 될 범위'는 안 본다.",
+  "evidence": "부서 관리자(admin_scope='dept', scope_dept_id='d-a')가 CSV로 만든 계정: `STEP1 puppet ('admin', 'global', None, '…org1')` — 역할 admin, 범위 global, scope_dept_id None. 그리고 schemas.py:37-48의 UserCreateRequest 필드 목록에 admin_scope/scope_org_id/scope_dept_id가 없다(UserUpdateRequest에만 :67-69에 있다).",
+  "fix_hint": "UserCreateRequest에 admin_scope 3필드를 추가하고, create_user가 행위자 범위보다 넓은 범위를 줄 수 없게 한다. 사후 검사도 `new_user.admin_scope`가 actor 범위 이하인지 함께 본다.",
+  "note": "원문 severity(High, '권한 상승 증폭')는 과대평가라 낮췄다. 내가 확인한 반증 근거: **부서 범위 관리자는 CSV 없이도 PATCH 한 번으로 자기 범위를 전역으로 넓힐 수 있다** — `PATCH /api/admin/users/{자기 id} {\"admin_scope\":\"global\"}` → 200, DB 확인 `SCOPE NOW global`. `_apply_admin_scope`(service.py:293-350)에 행위자 검사가 없고 `ensure_can_manage_target`은 대상이 system_admin일 때만 막기 때문이다. 즉 '범위를 좁혀 둔 의미가 사라진다'는 결과는 이 항목이 만드는 것이 아니라 이미 더 짧은 경로로 존재한다(이건 CSV 영역 밖의 별건이며 BACKLOG에 없다 — 별도 조사 권장). 이 항목의 **고유한** 잔여 결함은 'system_admin이 부서 관리자를 만들려 해도 한 번에 못 만들고, 잊으면 전역 관리자가 하나 생긴다'는 기본값 문제다."
+ },
+ {
+  "severity": "Med",
+  "category": "기능 결손 (경로 비대칭)",
+  "where": "app/users/bulk.py:251 (generate_temp_password() 반환값을 인자로 넘기고 버림) · router.py:333 `_queue_invite_mail` (단건 생성에만 존재) · frontend/src/screens/UsersBulk.jsx:216-218",
+  "problem": "CSV로 만든 계정의 임시 비밀번호는 **아무 데도 나오지 않는다.** 응답 항목 키에 없고, 단건 생성이 하는 초대 메일 큐잉도 가져오기 경로에는 없다. 화면 안내는 \"임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다\"라고만 해서, **전달 경로가 없다**는 사실을 말하지 않는다.",
+  "evidence": "① import 응답 행의 키 = ['display_name','email','line','message','role','status','user_id'] — temp_password 없음(직접 출력 확인). ② `grep -rn '_queue_invite_mail|KIND_INVITE' app/` → app/mail/renderers.py(정의)와 app/users/router.py:333,337,347,353뿐. bulk.py에는 mail 관련 심볼이 0건.",
+  "fix_hint": "import_users도 행별로 `queue_mail(kind=KIND_INVITE)`(1회용 재설정 링크, 평문 비밀번호 미포함)를 걸고 결과 표에 '초대 메일 발송됨/실패' 열을 추가한다. 메일 미설정 설치처를 위해 모달 안내문에 실제 전달 방법을 명시한다.",
+  "note": "원문 severity(High)와 \"100명이 통째로 로그인 불가\"는 과장이라 낮췄다 — 내가 확인한 반례: **자가 재설정 경로가 이미 있다.** app/auth/reset_router.py:124-192 `/forgot-password`(로그인 화면 링크 app/templates_html/login.html:201). 다만 SMTP 미설정 시 503이고(reset_router.py:53-65), 무엇보다 **당사자에게 아무 통보가 안 가므로 계정이 생긴 사실 자체를 모른다** — 단건 생성과의 비대칭(초대 메일 유무)은 실재한다."
+ },
+ {
+  "severity": "Med",
+  "category": "입력 검증 우회 (검증 규칙 두 벌)",
+  "where": "app/users/bulk.py:131-183 (parse_import_csv — 이메일 형식·길이 검사 없음) vs app/users/schemas.py:17-23,37-53 (_EMAIL_SHAPE_RE)",
+  "problem": "CSV 가져오기는 단건 생성이 스키마 층에서 하는 필드 검증을 하나도 하지 않는다. 이메일은 '비었는가'만 보고 형태를 안 본다. schemas.py:14-16 주석이 \"`a@b@company.com` 같은 값도 company.com 도메인으로 통과시킨다 — 정확히 하나의 '@'만 요구하는 이 형태 검사가 그 틈을 막는다\"고 못박은 바로 그 방어가 CSV 경로에는 없다. display_name 길이 상한(120)도 없다.",
+  "evidence": "같은 system_admin 세션에서:\n· POST /api/admin/users {email:'no at sign'} → 422 / {email:'a@b@goodmit.co.kr'} → 422\n· POST /import/csv (같은 두 값 + 300자 이름) → 200 {'created': 3}\n· DB: 'no at sign'(공백 포함), 'a@b@goodmit.co.kr'(@ 2개)가 계정으로 앉았고 display_name 길이 300(선언 120, models.py:67 — SQLite가 VARCHAR 길이를 강제하지 않음).",
+  "fix_hint": "parse_import_csv가 행 단위로 `_validate_email_shape`와 길이 상한을 재사용해 `row['error']`를 채운다(행별 실패 원칙과 일치). 규칙이 스키마·파서 두 벌이 되지 않게 공용 함수 하나로 뽑는다.",
+  "note": "원문 severity(High)를 낮춘 근거: **도메인 제한 우회는 조건부다.** service.py:52-73 주석이 \"설치처 고유값을 기본값에서 비웠으므로 빈 목록 = 제한 없음\"으로 방향을 고정했고, 지금 설치는 allowed_email_domains가 비어 있어 그 시나리오가 성립하지 않는다(허용 목록을 켠 설치처에서만 High). 무조건 성립하는 피해는 '깨진 이메일·초과 길이 데이터가 DB에 앉는다'와 'Postgres 전환 시 여기서 깨진다'다. 단건 422 / CSV 200 의 비대칭 자체는 재현으로 확정."
+ },
+ {
+  "severity": "Med",
+  "category": "감사 누락 (+ 부수적 정보 노출)",
+  "where": "app/users/router.py:260 (`if not payload.dry_run:` — dry_run이면 감사 0행) · app/users/bulk.py:223 (get_user_by_email — 범위 미적용)",
+  "problem": "dry_run 요청은 감사 로그를 **한 줄도 남기지 않는다.** 200행짜리 이메일 사전을 반복해 넣어도 흔적이 없다. 그리고 그 응답은 범위 밖 계정의 존재를 구분해 준다 — 중복 판정이 `get_user_by_email`을 스코프 없이 부르므로 범위 밖 기존 계정은 \"이미 있는 이메일입니다\", 미존재는 다른 문구가 된다. app/core/scope.py:11-16 / service.py:164-179이 \"403은 존재를 알려 주는 유출이라 404로 답한다\"고 막아 둔 것과 같은 종류의 유출이다.",
+  "evidence": "부서 범위 관리자(scope_dept_id='d-a') 세션:\n· GET /api/admin/users → total 1, ['da@goodmit.co.kr']\n· POST /import/csv dry_run=true 2행 → hidden@goodmit.co.kr(다른 부서, 존재) = 'skipped' \"이미 있는 이메일입니다…\" / nope@goodmit.co.kr(미존재) = 'ready' \"새로 만들 계정입니다.\"\n· 감사 테이블 전체 = ['user.login'] 뿐.",
+  "fix_hint": "dry_run에도 요약 감사 1행(행 수·요청자·결과 분포)을 남긴다. 중복 판정에도 범위를 태워 범위 밖 기존 계정을 '범위 밖 실패'와 같은 문구로 답한다(같은 수정을 단건 생성에도 적용해야 한다 — 아래 note).",
+  "note": "원문 evidence 중 **한 줄은 재현되지 않았다**: \"nope@…(미존재) = failed '관리 범위 밖 부서로는…'\"은 CSV에 부서를 비웠거나 범위 밖 부서를 넣었을 때의 결과다. 부서=A팀(범위 안)으로 넣으면 'ready'가 나온다 — 구분 오라클은 여전히 존재하지만 대비 쌍은 skipped-vs-ready다. 더 중요한 반증: **같은 존재 오라클이 단건 생성에 이미 있다.** 같은 부서 관리자로 POST /api/admin/users {email:'hidden@…'} → **409** \"이미 등록된 이메일입니다.\", {email:'nope@…'} → **201**(create_user의 ConflictError가 router.py:315의 범위 검사보다 먼저 터진다). 따라서 '열거 가능'은 CSV 고유 결함이 아니다 — CSV dry-run이 더 나쁜 점은 **계정을 만들지도, 감사를 남기지도 않고 200행씩 조용히** 할 수 있다는 것뿐이다. 이 항목의 novel한 절반은 'dry_run 무감사'다."
+ },
+ {
+  "severity": "Med",
+  "category": "미리보기 신뢰성 (주석이 약속한 것과 반대)",
+  "where": "app/users/bulk.py:306-311 (_dept_in_scope: is_org면 무조건 True) vs app/core/scope.py:226 (org 범위는 user.org_id 일치를 요구) · app/users/service.py:140-151 (create_user가 org_id 미지정 → app/core/models_base.py:78-92의 DEFAULT_ORG_ID)",
+  "problem": "bulk.py:236-238 주석이 \"실행 단계에서만 알게 되면 '미리보기는 초록이었는데 실행은 빨갛다'가 된다\"고 못박았는데, 조직 범위 관리자에게 정확히 그 일이 일어난다. dry-run의 `_dept_in_scope`는 is_org면 무조건 통과, 실행의 `scope_allows_user`는 새 계정의 org_id를 본다. create_user가 org_id를 넣지 않아 항상 DEFAULT_ORG_ID가 박히므로 기본 조직이 아닌 조직의 범위 관리자는 **미리보기 전건 성공 → 실행 전건 실패**가 되고 CSV 가져오기를 사실상 영영 못 쓴다.",
+  "evidence": "org-2 범위 관리자(admin_scope='org', scope_org_id='org-2', org_id='org-2')로 직접 재현:\n· dry_run=true → 200 [('ready', '새로 만들 계정입니다.')]\n· dry_run=false → 200 [('failed', '관리 범위 밖 부서로는 계정을 만들 수 없습니다.')]\n(같은 CSV, 같은 세션, 연속 두 요청)",
+  "fix_hint": "dry-run도 실제와 같은 판정을 쓴다 — 임시 User 인스턴스로 `scope_allows_user`를 그대로 태우거나, create_user가 행위자의 org_id를 물려받게 한다(후자는 조직 축 전반에 영향 → DECISIONS 사안).",
+  "note": "내가 새로 확인한 보강: 실패 메시지가 \"관리 범위 밖 **부서**로는\"이라 원인(조직 불일치)을 정확히 반대로 지목한다 — 관리자는 부서 열을 계속 고치며 헤매게 된다. 또한 이 경로는 실행 중 계정을 만들었다가 bulk.py:267 `db.delete(user)`로 되돌리므로 매 행 INSERT+DELETE가 돈다. 현 운영 데이터에는 조직이 1개뿐일 가능성이 크므로(BACKLOG:2444 '사용자 18명 전원 admin_scope=global') 지금 당장의 피해자는 없을 수 있다 — 서버 확인 필요 항목."
+ },
+ {
+  "severity": "Low",
+  "category": "범위 경계 (비대칭)",
+  "where": "app/users/bulk.py:341-344 (대상 부서 존재만 확인) · bulk.py:410-417 (set_department 적용 후 검사 없음) vs app/users/router.py:308-316 (생성 경로는 사후 scope_allows_user 검사를 한다)",
+  "problem": "부서 범위 관리자가 대량 '부서 지정'으로 자기 범위 안의 사용자를 **범위 밖 부서로 밀어낼 수 있다.** `bulk_apply`는 `db.get(model, value) is None`만 보고 그 부서가 행위자 범위 안인지는 안 본다. 생성 경로에는 사후 `scope_allows_user` 검사가 있는데(router.py:308-316) 대량 변경·단건 PATCH에는 같은 검사가 없다.",
+  "evidence": "d-a 범위 관리자 세션으로 POST /bulk/apply {action:'set_department', value:'d-b'} → 200, applied 1건 changed=True. DB 재조회 `VICTIM DEPT NOW d-b`. 이후 그 사용자는 이 관리자의 목록에서 사라진다(get_scoped_user_or_404가 404).",
+  "fix_hint": "set_department/set_title의 사전 검증에 `value in scope.dept_ids` 검사를 넣고, 적용 후 `scope_allows_user(scope, user)`로 되확인한다. 같은 구멍이 patch_user에도 있으므로 update_user 쪽에 두는 편이 갈라지지 않는다.",
+  "note": "원문 severity(Med)를 낮춘 근거: 원문이 인용한 router.py:308-316 주석의 위험('다른 부서 소속 계정을 만들어 두고 발판으로 삼는다')은 **범위 밖에 새 계정을 만드는** 시나리오이고, 여기서 가능한 것은 **이미 내 범위 안인 사용자를 밖으로 내보내는 것**뿐이다(대상이 먼저 범위 안이어야 get_scoped_user_or_404를 통과한다). 즉 권한 획득이 아니라 업무 방해/데이터 훼손이며, 옮겨진 사용자는 전역 관리자와 d-b 관리자에게는 그대로 보인다. 단건 PATCH에도 같은 구멍이 있다는 주장은 코드로 확인했다(router.py:400-508에 사후 범위 검사 없음)."
+ },
+ {
+  "severity": "Med",
+  "category": "감사 로그 + 실패 가시성",
+  "where": "app/users/router.py:195-201 (changed인 applied 행만 감사) · app/users/bulk.py:361 (failed 행은 id와 error뿐) · frontend/src/screens/UsersBulk.jsx:67-68, 72",
+  "problem": "대량 작업의 **실패 건은 감사에 한 줄도 안 남는다.** 권한 경계에 막힌 시도야말로 감사가 알아야 할 사건이다. 화면도 짝을 이뤄 실패한다: 서버가 실패 행에 `id`만 담고(email/display_name 없음) UI는 `res.failed[0].error` 하나만 토스트하므로 관리자는 '3명 실패'는 알아도 **어느 3명인지 알 수 없다.** 게다가 실패 직후에도 `selection.clear()`가 돌아 재시도 대상까지 사라진다.",
+  "evidence": "role=`admin` 세션으로 system_admin 1명에 disable 대량 적용 → 200 {'applied': [], 'failed': [{'id':'d8aae405-…','error':'system_admin 계정은 system_admin만 관리할 수 있습니다.'}]}. 직후 감사 테이블 전체 = [('user.login', None)] — user.bulk_disable 없음. 프런트: UsersBulk.jsx:68 `toast(\\`${changed}명 적용, ${failed}명 실패: ${res.failed[0].error}\\`)`, :72 `selection.clear()`(성공/실패 분기 밖).",
+  "fix_hint": "실패 행도 `user.bulk_<action>_denied` 같은 액션으로 object_id와 사유를 남긴다. 응답 failed 항목에 email/display_name을 넣되 범위 밖 id는 지금처럼 익명 유지하고, 실패가 있으면 selection을 비우지 말고 실패 건만 남긴다.",
+  "note": "내가 확인한 보강 근거 — 원문이 인용한 대조군이 정확하다: app/core/deps.py:179-202가 임퍼소네이션의 **막힌 쓰기**를 굳이 별도 세션(`_count_blocked_write`)까지 열어 세면서 \"막힌 시도는 세어 둔다. …그 사실은 감사가 알아야 한다(실수든 아니든)\"고 적어 뒀다. 같은 저장소가 같은 종류의 사건을 여기서만 버린다. 또한 실패 행에 `changed` 키가 없어 화면 표도 실패 행을 그릴 수 없다(bulk.py:361 vs :356-359)."
+ },
+ {
+  "severity": "Med",
+  "category": "감사 로그 (개인정보 반출)",
+  "where": "app/users/router.py:229-232",
+  "problem": "CSV 내보내기 감사가 **무엇을 내보냈는지**를 안 남긴다. `after={\"row_count\":…, \"archived\":…}`뿐이라 q·role·active·department_id·title_id가 전부 빠진다. 전 직원 개인정보(이메일·이름·부서·직책·최근로그인)가 파일로 나가는 유일한 경로인데 사후에 '어떤 데이터가 나갔나'에 답할 수 없다 — 행 수만으로는 '개발팀 12명'과 '임원 12명'이 구별되지 않는다.",
+  "evidence": "GET /api/admin/users/export/csv?role=user&q=abc&department_id=zzz → 200. 감사 행: ('user.export_csv', '{\"row_count\": 0, \"archived\": false}') — 세 필터 모두 없음.",
+  "fix_hint": "`after`에 적용된 필터 전부(값이 있는 것만)와 내보낸 열 목록을 넣는다. 대량 반출은 건별 감사가 불가능하니 '어떤 질의의 결과였는가'는 남겨야 재구성할 수 있다.",
+  "note": "'다른 곳에 남아 있지 않은가'를 반증 시도했고 남지 않는다는 것을 확인했다: (1) `record_audit_from_request`(app/core/audit.py:70-99)는 request URL·query를 아예 받지 않는다 — actor/action/object/before/after/client_ip/request_id뿐. (2) 액세스 로그도 `request.url.path`만 찍는다(app/core/middleware.py:136-139) — 실행 로그에서 `GET /api/admin/users/export/csv 200`처럼 **쿼리 없이** 나오는 것을 직접 확인했다. 즉 필터는 어디에도 안 남는다."
+ },
+ {
+  "severity": "Low",
+  "category": "사용성 / 데이터 입력",
+  "where": "frontend/src/screens/UsersBulk.jsx:220-225 (텍스트 붙여넣기 전용 + helperText) · app/users/bulk.py:140 (csv.DictReader, 구분자 콤마 고정)",
+  "problem": "가져오기에 파일 선택이 없고 붙여넣기 전용인데, 도움말은 \"내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)\"라고 안내한다. 내보내기 파일은 엑셀용으로 BOM까지 붙여 두었는데(bulk.py:20-21,126) 엑셀에서 셀을 복사하면 클립보드가 탭 구분이라 콤마 고정 파서가 헤더를 못 읽고 파일 전체를 거절한다.",
+  "evidence": "`parse_import_csv('이메일\\t이름\\t역할\\nhong@x.com\\t홍길동\\tuser\\n')` → ValidationAppError \"CSV 에 '이메일'(email)과 '이름'(display_name) 열이 있어야 합니다. 찾은 열: 이메일\\t이름\\t역할\"(직접 호출로 확인). UsersBulk.jsx에 `type=\"file\"` 없음.",
+  "fix_hint": "헤더 한 줄에 탭이 있으면 구분자를 탭으로 자동 판정한다. 겸해서 `<input type=\"file\" accept=\".csv\">`로 파일을 읽어 textarea를 채우면 CP949 파일도 프런트에서 디코딩할 수 있다(서버 멀티파트 없이 schemas.py:87-92의 설계 의도 유지).",
+  "note": "원문 severity(Med)를 낮춘 근거: (1) 실패가 조용하지 않다 — 422와 함께 **찾은 열을 그대로 되돌려 주는** 메시지가 나오므로 사용자가 원인을 볼 수 있다. (2) 내보낸 파일을 메모장/VS Code로 열어 복사하면 정상 동작하므로 '화면이 시킨 그대로 하면 반드시 실패'는 아니다 — '엑셀로 열었을 때만' 실패한다. 다만 BOM을 붙인 이유 자체가 '엑셀로 열리라고'이므로(bulk.py:20-21) 안내와 파서가 서로 다른 도구를 가정하는 것은 맞다."
+ },
+ {
+  "severity": "Low",
+  "category": "안전장치 비대칭",
+  "where": "app/users/bulk.py:328-368 (bulk_apply에 dry_run 인자 없음) · frontend/src/screens/UsersBulk.jsx:57-58 · app/core/authz.py:169-172",
+  "problem": "가져오기에는 dry-run이 강제인데(\"미리보기 없이 100명이 생기는 버튼은 아무도 못 누른다\") 대량 작업에는 미리보기도 되돌리기도 없다. 최대 200명의 비활성화·보관·세션 해제가 확인창 한 번으로 끝나고 그 창에는 대상 명단이 없다. 선택 집합은 페이지·필터를 넘어 유지되므로(Users.jsx:245-247, 의도된 설계) 지금 화면에 안 보이는 사람이 섞여 있어도 확인할 방법이 없다.",
+  "evidence": "bulk_apply 시그니처(bulk.py:328-331)에 dry_run 없음. UsersBulk.jsx:58 `confirm(confirmMsg + '\\n\\n대상 ' + ids.length + '명.')` — 인원수만. bulk.py·UsersBulk.jsx 어디에도 되돌리기 엔드포인트/버튼 없음. 대조: authz.py:169-172가 오프보딩에 대해 \"실행 전 미리보기가 강제되고, 실행 결과는 되돌릴 수 있다\"고 선언한다.",
+  "fix_hint": "bulk_apply에 import와 같은 `dry_run` 플래그를 추가해 '적용 예정/이미 그 상태/막힘'을 표로 먼저 보여 준다. 감사에 before/after 스냅샷이 이미 있으므로(router.py:198-201) 배치 id로 되돌리는 경로를 만들 여지도 있다.",
+  "note": "Users.jsx:245-247의 '선택이 페이지·필터를 넘어 유지된다'가 **의도된 설계로 주석에 명시**돼 있음을 확인했다(\"여러 페이지에 걸쳐 고른 뒤 한 번에 처리하는 것이 이 기능의 목적\") — 원문도 그 점을 인정하고 있어 규칙 2(의도 명시=결함 아님) 위반은 아니다. 결함으로 남는 부분은 '그 설계 때문에 확인창에 명단이 필요해졌는데 없다'는 조합뿐이라 Low가 적정하다. 또한 UsersBulk가 `dirty` 가드를 안 넘기는 문제는 이미 BACKLOG VIS-88에 있으므로(docs/BACKLOG.md:550) 그 부분은 새 발견이 아니다."
+ },
+ {
+  "severity": "Low",
+  "category": "자원 상한 비대칭",
+  "where": "app/users/bulk.py:49-53 (MAX_BULK_USERS/MAX_IMPORT_ROWS=200, 근거 주석) vs app/users/router.py:226 (export 무제한)",
+  "problem": "상한의 근거가 한쪽에만 적용됐다. 가져오기·대량 작업은 \"동기 워커 하나가 그만큼 잡혀 있다(WEB_WORKERS=1 고정, PLAN C10)\"는 이유로 200으로 묶여 있는데, 내보내기는 같은 워커에서 전 사용자 행을 `.scalars().all()`로 메모리에 올리고 CSV 문자열을 통째로 만든 뒤 한 번에 반환한다 — 상한도, 스트리밍도, 페이지네이션도 없다.",
+  "evidence": "router.py:226 `rows = db.execute(stmt.order_by(User.created_at.desc(), User.id.desc())).scalars().all()` — limit/offset 없음(목록 경로 :149-155는 offset/limit를 건다). bulk.py:49-51 주석이 같은 워커 제약으로 200 상한을 설명한다.",
+  "fix_hint": "행 수 상한(초과 시 필터를 좁히라고 안내)이나 StreamingResponse + 청크 생성으로 바꾼다.",
+  "note": "실피해는 현 규모에서 없다고 봐야 한다 — BACKLOG.md:2444가 '사용자 18명'이라고 적고 있어 18행 CSV다. 순수하게 '같은 파일이 근거로 든 제약을 형제 경로가 안 지킨다'는 일관성 결함으로만 유효하며, 그 이상으로 부풀리면 규칙 4(일어날 수 없는 입력으로 만든 수치) 위반이 된다. 실제 사용자 수는 서버 확인 필요."
+ },
+ {
+  "severity": "Med",
+  "category": "session-lifecycle",
+  "where": "frontend/src/app/auth.jsx:11-26 · frontend/src/main.jsx:16-18 · frontend/src/app/App.jsx:67,84-85 · frontend/src/app/AppShell.jsx:112-118,176-177",
+  "problem": "셸이 세션 사망을 시간·포커스로는 절대 감지하지 못한다. `[\"me\"]` 쿼리에 `refetchInterval`이 없고(auth.jsx:23-24 `retry:false`+`staleTime:5분`만), main.jsx:17이 전역 `refetchOnWindowFocus:false`를 박아 두어 창을 다시 봐도 재조회가 없다. 무효화 지점은 저장소 전체에서 Profile.jsx:467 한 곳뿐. 그 결과 세션이 죽어도 사이드바 배지(AppShell.jsx:112-118 → NavBadge:155-172)는 마지막 성공값을 아무 표식 없이 계속 그린다.",
+  "evidence": "직접 확인: `grep -rn '[\"me\"]' frontend/src` → auth.jsx:12(정의)·Profile.jsx:467(유일 무효화). `grep -rn '/api/me' frontend/src` → 호출부는 auth.jsx:14 한 곳. auth.jsx에 refetchInterval 없음, main.jsx:17 `refetchOnWindowFocus:false` 확인. NavBadge(AppShell.jsx:155-172)는 `count`만 받고 error/stale 인자가 없음.",
+  "note": "내가 새로 확인한 것 3가지로 원 보고를 **부분 정정**한다. ① `refetchOnReconnect`는 끄지 않았고 query-core 5.101.2 기본값이 true다(node_modules/@tanstack/query-core/build/modern/queryClient.js:271-272 `refetchOnReconnect = networkMode !== \"always\"`, queryObserver.js:64-70 `shouldFetchOnReconnect`). staleTime 5분이 지난 뒤 `online` 이벤트(노트북 절전 복귀·WiFi 전환)가 나면 `/api/me`가 실제로 재조회되고 isError가 켜진다 — '절대/영원히'는 틀렸다. 감지가 **없는** 게 아니라 **시간·포커스로는 안 되고 네트워크 이벤트에만 걸린다**가 정확하다. ② 몸통은 막다른 길이 아니다: 화면 쿼리가 401을 맞으면 kit.jsx:322-370 ErrorState가 '로그인이 필요합니다' + `href=\"/login\"` 버튼을 그린다(Home.jsx:312-313에서 실제 사용). ③ 알림 벨 배지는 '거짓말'하지 않는다 — NotificationBell.jsx:336 `countError`가 켜지면 배지 색이 warning으로 바뀌고 툴팁이 '표시된 숫자가 최신이 아닐 수 있습니다'(:396)로 바뀐다. **얼어붙어도 아무 표식이 없는 것은 사이드바 배지 쪽뿐이다.** 이 세 정정을 반영해 High→Med.",
+  "fix_hint": "`auth.jsx`의 me 쿼리에만 `refetchOnWindowFocus:true` + 완만한 `refetchInterval`(5분)을 주거나, `lib/api.js:39-43`의 401 분기에서 `[\"me\"]`를 무효화한다. 최소 조치로는 `useNavBadges`가 error를 NavBadge에 전달해 벨과 같은 '최신 아님' 표식을 붙이는 것."
+ },
+ {
+  "severity": "Med",
+  "category": "polling",
+  "where": "frontend/src/app/AppShell.jsx:96-108, 112-118 (useNavBadges) vs frontend/src/app/NotificationBell.jsx:144-148",
+  "problem": "NotificationBell이 주석까지 달아 만든 401 폴링 정지가 같은 캐시 키의 두 번째 옵저버 때문에 무력화된다. `useNavBadges`(AppShell.jsx:112-118)가 같은 `NOTI_UNREAD` 키에 상수 `refetchInterval: 60000`을 걸고, `/api/team-chat/rooms`(:96-108)에는 401 정지 로직이 아예 없다.",
+  "evidence": "NotificationBell.jsx:144-147 주석 — \"401(세션 만료)로 실패했을 때만 인터벌을 멈춘다 — 안 그러면 세션 만료 중에도 60초마다 계속 실패 요청을 쏘며 지울 수 없는 오류 표식을 재발시킨다\", :148 `refetchInterval: (q) => (isAuthed && q.state.error?.status !== 401 ? 60*1000 : false)` + `enabled: isAuthed`. 대비되는 AppShell.jsx:105 `refetchInterval: 60000`(상수), :116 `refetchInterval: 60000`(상수) — 둘 다 `enabled` 없음.",
+  "note": "react-query 5.101.2에서 옵저버는 각자 자기 타이머를 돌린다 — queryObserver.js의 `#updateRefetchInterval`/`#executeFetch`가 옵저버 단위이고 error 상태를 보지 않는다. 따라서 벨이 멈춰도 사이드바 옵저버가 같은 엔드포인트를 계속 때린다는 판정은 코드 의미상 성립한다(프로브에 의존하지 않고 확인). **다만 조건을 좁혀 둔다**: 진짜 `minimal`(auth.isError) 상태에서는 AppShell.jsx:568 `showMenu` 게이트로 사이드바 자체가 언마운트되어 이 폴링도 함께 멎는다. 무기한 폴링이 성립하는 것은 위 Med 건의 상태(세션은 죽었는데 auth는 아직 성공값을 들고 있는 구간)뿐이다. 폴링 간격은 실측 확인: Banners.jsx:36(60s)/:43(120s 기본, 서버 poll_seconds로 조정)/:62(300s) — 분당 3.7회 추정치는 맞다.",
+  "fix_hint": "`useNavBadges`의 두 쿼리에도 NotificationBell과 같은 함수형 `refetchInterval`(401이면 false) + `enabled: isAuthed`를 준다. 또는 배지 폴링을 벨 쪽 훅 하나로 합친다."
+ },
+ {
+  "severity": "Low",
+  "category": "dead-code",
+  "where": "frontend/src/app/AppShell.jsx:434-443 (drawerContent) vs :568 (`{showMenu ? …}`) · frontend/src/app/App.jsx:67",
+  "problem": "사이드바의 '세션이 만료되었습니다 / 다시 로그인' 패널(:436-443)과 로딩 스켈레톤 분기(:434-435)가 구조적으로 도달 불가능하다. App.jsx:67이 `showMenu = !auth.isError && !auth.isLoading`을 넘기고 AppShell.jsx:568이 `<aside>`+`<Drawer>` 전체를 그 값으로 감싸므로, 두 분기가 참이 되는 조건에서는 사이드바 자체가 렌더되지 않는다.",
+  "evidence": "AppShell.jsx:568 `{showMenu ? (` … :589 `) : null}`가 drawerContent를 포함한 전체를 감싼다(직접 확인). :437-439 주석은 반대 의도를 명시 — \"상단바를 minimal로 접는 것과 같은 정신으로 사이드바도 재로그인 안내 한 칸으로 접는다\". `git log -S`로 확인: `showMenu`와 \"세션이 만료되었습니다\" 둘 다 **같은 커밋 413b798**에서 들어왔다 — 나중의 의도적 변경이 아니라 한 커밋 안의 자체모순이다.",
+  "note": "원 보고의 **결론은 틀렸다**: \"재로그인 CTA가 화면에서 완전히 없어지고 남는 유일한 경로는 상단바 로고뿐\"이 아니다. minimal 상태에서도 본문(`children`)은 그려지고, 화면 쿼리가 401을 맞으면 kit.jsx:322-370 ErrorState가 **'로그인이 필요합니다' 제목 + `href=\"/login\"` 실버튼**을 화면 한가운데에 그린다(Home.jsx:312-313에서 실사용). 프로브가 children 없이 AppShell만 렌더해서 이걸 못 본 것이다. 남는 실제 결함은 '도달 불가능한 분기 + 주석과 코드의 모순'이라는 유지보수 위험이고, 위 Med 건을 고쳐 minimal이 자주 켜지는 순간 곧바로 눈에 띈다. 그래서 Med→Low.",
+  "fix_hint": "App.jsx가 `showMenu`를 `!auth.isLoading`으로 넘기고 사이드바 내부 분기가 상태를 책임지게 하거나, :568 게이트를 `showMenu || auth.isError`로 넓힌다. 고칠 생각이 없다면 :434-443 죽은 분기를 지우고 주석도 사실에 맞춘다."
+ },
+ {
+  "severity": "Low",
+  "category": "dead-control",
+  "where": "frontend/src/app/AppShell.jsx:647 (CommandPalette) · :373 (useCommandPaletteHotkey)",
+  "problem": "`minimal`(세션 만료)에서 오버레이 중 Ctrl+K 팔레트만 게이트가 없다. 같은 파일의 다른 오버레이는 전부 `!minimal`로 막혀 있다(TopSearch :533, 벨 :563, 유저메뉴 :564, 배너 :607, 스코프바 :624, FAB :640, AssistantDrawer :652, Tour :658).",
+  "evidence": "`grep -n 'minimal' AppShell.jsx` 결과 :647(CommandPalette)과 :373(useCommandPaletteHotkey)만 `!minimal` 없이 무조건 렌더/등록된다 — 직접 확인. `navConfig.js`의 USER_NAV는 항목 18개이고 그중 `roles` 게이트가 달린 항목이 **0개**여서(grep으로 확인), role이 undefined인 minimal에서도 :376-382 필터가 18개를 전부 통과시킨다. 즉 원 보고의 '18개'는 수치가 맞다.",
+  "note": "사이드바 주석(:437-439)이 바로 그 상태를 \"누르는 족족 401로 가는 죽은 링크 더미\"라 부르며 사이드바에서 없앤 것과 같은 목록이 팔레트로는 그대로 나온다 — 같은 파일 안의 정책 불일치라는 점이 이 건의 핵심이다. 다만 눌러도 각 화면이 ErrorState로 '로그인 화면으로'를 주므로 사용자가 갇히지는 않는다. Low 유지.",
+  "fix_hint": "`{!minimal ? <CommandPalette …/> : null}`로 감싸고 `useCommandPaletteHotkey`를 minimal에서 등록하지 않는다."
+ },
+ {
+  "severity": "Low",
+  "category": "duplication",
+  "where": "frontend/src/lib/people.js:16-23 (`affiliation`) vs frontend/src/lib/format.js:217-224 (`affiliationOf`)",
+  "problem": "lib/ 안에 \"사람 한 명의 소속 한 줄\" 규칙이 본문까지 동일한 두 벌로 존재하고, 두 함수 모두 자기가 정본이라고 주석에 적어 두었다(people.js:1 \"단일 정의\", format.js:207 \"서버 core/people.affiliation 과 같은 규칙\"). 두 주석이 \"가운뎃점을 구분자로 쓰지 않는다\"는 제품 규칙도 각자 따로 적고 있어, 그 규칙을 바꾸는 날 한쪽만 고쳐진다.",
+  "evidence": "두 본문을 직접 대조 — `if(!person) return \"\"` → withOrg&&org / dept / title 순 push → `parts.join(\" \")`. 문자 단위로 동일. 호출부가 실제로 갈라져 있다: people.js판 = ChatRoomMembers.jsx:9,67,69,111 · MyTickets.jsx:32,359 · TicketFilterBar.jsx:7,172 / format.js판 = Board.jsx:23,69 · ChatPane.jsx:16,333,335.",
+  "note": "원 보고가 근거로 든 세 번째 사본 이야기를 직접 확인했다 — MembersList.jsx:18-20 주석: \"lib/people.js::affiliation / lib/format.js::affiliationOf / app/core/people.py::affiliation 이 전부 '부서 직책' 순서를 쓴다. 이 화면만 손으로 [title, dept] 순서를 만들어 같은 두 값이 게임방에서만 뒤집혀 보였다.\" 즉 **이 중복은 이미 한 번 실제 화면 버그를 냈고, 그때도 사본만 고치고 lib의 두 벌은 합치지 않았다**는 것이 저장소 자신의 기록으로 확인된다. BACKLOG에 `affiliation`·`people.js`·`format.js` 검색 결과 관련 항목 0건 — 기존 발견 아님.",
+  "fix_hint": "`format.js::affiliationOf`를 `people.js::affiliation`의 re-export로 만든다(호출부 5곳 무손상). MembersList.jsx:21의 손조립도 그것을 import하게 한다."
+ },
+ {
+  "severity": "Low",
+  "category": "timezone",
+  "where": "frontend/src/lib/format.js:65-69 (`fmtTimeShort`)",
+  "problem": "같은 파일의 다른 시각 포맷터는 전부 `timeZone: \"Asia/Seoul\"`을 강제하는데 `fmtTimeShort`만 브라우저 로컬 시간대를 쓴다. OS 시간대가 KST가 아닌 기기에서 채팅 말풍선 시각만 어긋나고, 같은 화면의 다른 시각 표시와 서로 다른 시각을 말하게 된다.",
+  "evidence": "format.js:68 `return d.toLocaleTimeString(\"ko-KR\", { hour: \"2-digit\", minute: \"2-digit\" });` — 옵션에 timeZone 없음(직접 확인). 대비: :3-5 `KST`(timeZone 지정), :39-42 `KST_PARTS`(timeZone 지정), :38 `KST_OFFSET`. 파일 헤더 :1-2가 \"화면에는 Asia/Seoul로 표시한다(불변규칙 §9)\"라고 규약을 못박는다. 사용처는 ChatPane.jsx:404,410 두 곳뿐(grep 확인).",
+  "note": "의도 명시 여부를 3방향으로 찾았다 — ① 함수 위 주석 :64는 \"시:분(HH:MM) — 채팅 말풍선 시각용\"뿐, 시간대 언급 없음 ② `docs/DECISIONS.md`에 `Asia/Seoul`·`시간대`·`로컬 시간` 검색 결과 0건 ③ BACKLOG에 `fmtTimeShort`·`시간대` 관련 항목 없음. 반면 원 보고가 짚은 대로 `game-room/timeUtils.js:15` 주석은 \"UTC로 파싱한 뒤 **브라우저 로컬 시간으로 표시**\"라고 의도를 밝혀 뒀다 — 같은 코드라도 그쪽은 결함이 아니라는 판단에 동의한다. 이 구분을 원 보고가 스스로 해 둔 점이 근거로서 신뢰할 만하다.",
+  "fix_hint": "`new Intl.DateTimeFormat(\"ko-KR\", {timeZone:\"Asia/Seoul\", hour:\"2-digit\", minute:\"2-digit\"})`를 모듈 상수로 두고 쓴다(KST와 같은 방식)."
+ },
+ {
+  "severity": "Low",
+  "category": "shared-pc",
+  "where": "frontend/src/app/UserMenu.jsx:44-49 · frontend/src/app/theme-store.js:7-12,33-46,56-58",
+  "problem": "theme-store.js:7-9가 계정별 키를 둔 이유를 \"공용/키오스크 PC에서 한 사람의 선택이 다음 사람에게 넘어가지 않게\"라고 명시하는데, 그 보장이 **이전 사용자가 명시적으로 로그아웃한 경우에만** 성립한다. 부팅 키를 지우는 곳은 UserMenu.logout() 한 곳뿐이라, A가 로그아웃 없이 브라우저를 닫으면 계정 무관 키 `clovirone_theme`에 A의 선택이 남고, B가 로그인해도 복원 effect가 `if (!saved) return;`에서 빠져나가 B는 A의 테마를 물려받는다.",
+  "evidence": "UserMenu.jsx:45-48 `const saved = readTheme(userId, { onlyAccount: true }); if (!saved) return;` — 계정 테마가 없으면 아무 보정도 하지 않고 종료(직접 확인). theme-store.js:33-46 `readTheme(..., {onlyAccount:true})`는 계정 키가 없으면 `\"\"` 반환. 부팅 적용 경로는 App.jsx:23·101 `applyBootTheme()` → :62 `readTheme()`(계정 키 없음 → 부팅 키 우선). `grep -rn clearBootTheme frontend/src app/static/js` → 정의 theme-store.js:56, 호출 UserMenu.jsx:55 **단 한 곳**.",
+  "note": "BACKLOG:577이 이 설계를 \"✅ 공용 PC 대비 설계가 실제로 동작\"이라고 이미 판정해 뒀지만, **바로 다음 줄(:578)이 \"재로그인 후 유지 | ⚠️ 미확인 — 로그아웃/재로그인까지는 안 해 봤다\"**라고 스스로 적어 두었다. 즉 기존 판정은 이 경로를 검증하지 않은 상태의 ✅다 — 기존 발견의 중복이 아니라 그 ⚠️ 구간에 대한 첫 코드 확인이다. 주석에 적힌 의도는 '계정 테마가 있을 때'만 다루므로 §2(의도 명시)에 해당하지 않는다.",
+  "fix_hint": "UserMenu.jsx:46의 early return을 없애고, 계정 테마가 없으면 OS 선호(prefers-color-scheme)로 되돌린 뒤 그 값을 `storeTheme(theme, userId)`로 양쪽 키에 기록한다."
+ },
+ {
+  "severity": "Low",
+  "category": "dead-code",
+  "where": "frontend/src/app/ScopeBar.jsx:24-27 (`SCOPE_TEXT`) vs :35,:42",
+  "problem": "`export const SCOPE_TEXT = { dept: \"내 팀\", org: \"내 조직\" }`가 저장소 어디에서도 참조되지 않고, 바로 아래 `scopeSummary`가 같은 문자열을 리터럴로 다시 적는다. 문구를 바꾸려는 사람이 export된 표만 고치고 화면은 그대로인 함정이 남는다.",
+  "evidence": "`grep -rn \"SCOPE_TEXT\" frontend/`(js·jsx·json 전체) → `frontend/src/app/ScopeBar.jsx:24` **한 줄뿐**, 테스트 포함 참조 0건(직접 실행). 리터럴 재기술은 :35 `return me.department ? { label: \"내 팀\", detail: me.department } : null;`, :42 `return { label: \"관리 범위\", detail: \"내 조직\" };`.",
+  "note": "내가 추가로 확인한 것: 표와 실제 쓰임의 **의미까지 어긋나 있다**. `SCOPE_TEXT.dept`(\"내 팀\")는 :35에서 `label`로, `SCOPE_TEXT.org`(\"내 조직\")는 :42에서 `detail`로 쓰인다 — 표가 두 문자열의 역할을 잘못 묶어 두었으므로 나중에 표를 참조하도록 배선하는 것만으로는 정합이 되지 않는다. 그냥 지우는 쪽이 안전하다. ScopeBar.jsx:7-23의 긴 주석에도 이 상수에 대한 의도 설명은 없다.",
+  "fix_hint": "상수를 지운다(참조가 0이라 무손상). 문구 일원화가 목적이라면 label/detail 두 축을 구분한 표로 다시 만들고 :35,:42가 그것을 참조하게 한다."
+ },
+ {
+  "severity": "Med",
+  "category": "data-loss / 계약 비대칭(④)",
+  "where": "app/notion_mapping/service.py:144-146,164-169 (대조: app/jobs/handlers/notion_mapping_sync.py:75-84 + 파일 docstring 10-11행)",
+  "problem": "`verify_mapping`이 워크플로 응답을 모양 검사 없이 흡수한다. 144행 `matches = result.get(\"matches\", []) if isinstance(result, dict) else []` 와 145-146행 `if not isinstance(matches, list): matches = []` 가 (a) n8n이 배열을 돌려준 경우, (b) `{\"error\": ...}` 로 스스로 실패를 보고한 경우, (c) matches가 list가 아닌 경우를 **모두 빈 목록**으로 접는다. 그러면 164-169행이 실행돼 verified(수동 포함)였던 행의 `notion_user_id`/`notion_email`을 지우고 status를 unmapped로 내리며 `last_verified_at = now`(148행)를 찍고 «일치하는 Notion 사용자가 없습니다.»를 error_message에 넣는다. 형제 배치 핸들러는 정확히 같은 세 경우를 각각 PermanentJobError로 막는다(75, 77, 82행).",
+  "evidence": "코드 직접 확인. (1) `N8nWorkflowProvider.invoke`(app/workflows/provider_n8n.py:47-55)는 `raise_for_status()` 뒤 `response.json()`을 그대로 돌려주므로 HTTP 200 + 배열/에러객체는 130-142행의 예외 분기('건드리지 않는다')를 타지 않는다. (2) 같은 워크플로를 쓰는 `notion_mapping_sync.py`는 docstring에 «Notion을 못 읽었는데 '일치하는 사용자가 없다'로 답하면 사용자는 그 사람이 Notion에 없다고 믿는다 — 이 파일이 막으려는 것이 그 오해다»(10-11행)라고 적고 세 가드를 뒀다. 단건 verify 경로에만 그 가드가 없다. (3) 지워진 값의 하류 소비처 확인: app/tickets/service.py:66-77 `my_notion_id`(status==verified 필수), :80-95 `_verified_id_to_user`(담당자 편집/보존 판정). (4) BACKLOG grep(`notion_mapping`, `verify_mapping`)에 이 항목 없음. wf4_findings.json:222는 같은 함수의 **감사 로그 누락**만 다룬다 — 다른 결함.",
+  "fix_hint": "`notion_mapping_sync.py:75-84`의 세 가드를 이식하되, 실패로 판정하면 130-142행 분기와 동일하게 행을 손대지 말고(last_verified_at·status·notion_user_id 보존) `error_message`만 «매핑 조회 응답이 올바르지 않습니다»로 남긴다. 두 경로가 같은 판정 함수를 공유하는 편이 낫다.",
+  "note": "원 보고를 **High → Med로 내렸다.** 근거를 확인하는 과정에서 두 가지를 새로 확인했다. ① 프런트는 이 파괴를 이미 부분적으로 예고한다 — frontend/src/screens/registry/org.js:306-310이 `source === 'manual'`일 때 «자동 검증이 일치를 못 찾으면 연결이 해제될 수 있습니다»를 confirm으로 띄운다. 즉 '무일치 → 해제'는 의도된 동작이고, 결함은 **'응답이 깨졌다'를 '무일치'로 오독하는 부분에 한정된다**(이 구분이 남아야 지적이 성립한다). ② 복구 비용이 낮다 — 같은 화면의 '수동 연결' 한 번이면 되돌아온다. ③ 그래도 유효한 이유: 같은 오구성(n8n 배열 응답)에서 sync 잡은 PermanentJobError로 시끄럽게 죽는데 verify는 조용히 데이터를 지우고 **거짓 사실을 화면에 쓴다**. 형제 파일이 그 오해를 막으려고 존재한다고 스스로 적어 뒀다."
+ },
+ {
+  "severity": "Med",
+  "category": "재시도 분류(①) / 입력 검증",
+  "where": "app/jobs/handlers/document_generate.py:111-112 (가드는 103행, 분류 규약은 39-56행 docstring)",
+  "problem": "n8n preview 응답을 `int(preview.get(\"source_row_count\", 0))`로 검증 없이 캐스팅한다. 값이 JSON null이면 TypeError, 숫자 아닌 문자열이면 ValueError가 나고, 이 예외는 `_invoke_classified`(39-54행) **바깥**에서 발생하므로 PermanentJobError로 분류되지 못한 채 worker.py:95-106의 일반 재시도 경로를 탄다 → `repository.fail`이 `attempt_count < max_attempts(3)`이면 백오프 재큐잉(app/jobs/repository.py:173-180). 즉 «n8n이 이상한 모양으로 답한다»는 결정적 실패인데 preview POST가 최대 3회 반복된다. 39-48행 docstring이 «n8n의 비-JSON 응답 등은 재시도해도 똑같이 실패하는 확정적 오류라 PermanentJobError로 감싼다»고 세운 규약이 필드 단위 파싱에서 새는 것이다. 112행 `notion_links`도 같은 성격이다.",
+  "evidence": "코드 직접 확인. 103행 `if not isinstance(preview, dict)` 가 dict 여부만 보고 필드 타입은 안 본다. `check_document`(app/documents/quality.py:23-45)는 `source_row_count: int`를 전제하고 `notion_links`를 `for link in notion_links or []`로 순회하므로 문자열이 오면 **글자 단위로 순회해** 각 글자마다 «유효하지 않은 Notion 링크» 문제를 만든다(정수/None이 오면 TypeError → 같은 재시도 경로). 기존 테스트가 이 경계를 한 번도 밟지 않는 것도 확인: `source_row_count` grep 결과 tests/의 모든 값이 정수 리터럴(0,2,3,4,5,7,99)이다(test_documents_api.py:80,98,113,130,142,190 · test_handlers_hardening.py:87,114 · test_review3_fixes.py:243 · test_review4_fixes.py:243,311,357 · test_lifecycle_notifications.py:99,123,138,287,308).",
+  "fix_hint": "103행 옆에서 필드 단위로도 방어한다: `source_row_count`를 try/except로 int 변환하고 실패 시 `PermanentJobError(\"Workflow preview 응답의 source_row_count가 숫자가 아닙니다\")`. `notion_links`는 `isinstance(..., list)`가 아니면 `[]`로 정규화하거나 같은 PermanentJobError로 끊는다.",
+  "note": "원 보고를 **High → Med로 내렸다.** 원 보고가 제시한 자작 프로브 로그는 재현하지 않고 코드 경로만으로 판정했다 — 111행이 `_invoke_classified`의 try 블록 밖이라는 사실과 worker.py:95-106의 분기는 읽기만으로 확정된다. 다만 실피해는 '데이터 손상'이 아니라 '결정적 실패에 3회 재시도 + 외부 POST 3회 + last_error에 `TypeError: int() argument...`라는 사람이 못 읽는 문구'다. 문서화된 계약(app/documents/service.py:19 `{\"source_row_count\": int}`)을 n8n이 어겼을 때만 발생하므로 Med가 맞다."
+ },
+ {
+  "severity": "Med",
+  "category": "알림 누락(②)",
+  "where": "app/jobs/handlers/document_generate.py:114-121, 178-183",
+  "problem": "품질 게이트 실패는 핸들러가 정상 종료로 처리한다(119행 `return`, 주석 «품질 게이트 실패 = 정상 종료(발행 안 함), 재시도 대상 아님»). 그래서 잡이 succeeded가 되어 worker의 `_notify_failure`(worker.py:87-94)를 안 타고, 동시에 `_READY_LABEL`(180-183)이 published/preview_ready만 담고 있어 `document_ready`도 안 간다. 결과: 문서 생성을 요청한 사람에게 **종착 상태 중 유일하게 아무 알림도 가지 않는다.** 178-179행 주석은 '완료 알림을 보내지 않는 이유'만 적었을 뿐 '실패 알림도 안 보내는 이유'는 어디에도 없다.",
+  "evidence": "코드·grep 직접 확인. ① `document_ready`는 저장소 전체에서 document_generate.py:222 한 곳에서만 발신된다(grep: app/notifications/destinations.py:48,60은 주석, app/profiles/prefs.py:54는 수신 설정 라벨). `document_failed` 같은 유형은 존재하지 않는다. ② 같은 파일 186-197행이 «요청 후 화면을 떠난 뒤 일어나는 결과는 알려 주지 않으면 알 방법이 없다»는 원칙을 명시하고, 그 근거로 job_failed·schedule_failed가 이미 요청자에게 간다고 적었다. ③ docs/DOCUMENT_AUTOMATION.md:28은 «품질 게이트 실행 — 실패 시 quality_failed로 **정상 종료**(재시도·발행 없음)»라고 잡 결과만 규정할 뿐 알림은 언급하지 않는다.",
+  "fix_hint": "114-119행 분기에서 `notify_user(type_=\"job_failed\"` 또는 신규 `document_failed`)로 요청자에게 «품질 게이트에 걸려 발행하지 않았습니다» + 문제 요약을 보낸다. `related=(\"document_generation\", gen.id)` — 프런트는 이미 `#/documents?id=` 딥링크를 갖고 있다(automation.js:214-216 onQuery).",
+  "note": "**부분 반증을 새로 확인했다.** 원 보고는 «아무 신호도 가지 않는다»고 썼는데, 문서 화면은 `pollWhile: (r) => r.status === \"pending\"`(automation.js:222)이라 요청 직후 그 화면에 **머물러 있으면** pending→quality_failed 전이를 자동으로 따라가 행에서 결과를 본다. 즉 즉시 피드백은 있다. 그럼에도 지적은 남는다: preview_ready·published도 똑같이 폴링으로 보이는데 그 둘만 알림을 받는다 — 폴링이 알림 필요성을 없앤다면 `document_ready` 자체가 필요 없었을 것이다. 화면을 떠난 요청자에게만 침묵한다는 비대칭이 결함이다."
+ },
+ {
+  "severity": "Low",
+  "category": "중복 부작용(②③)",
+  "where": "app/mail/transport.py:63-77 · app/jobs/handlers/mail_send.py:85-94 · app/mail/service.py:47,92-98",
+  "problem": "SMTP 세션이 **메시지가 이미 수락된 뒤** 실패하면 메일 전체가 재발송된다. `with server:` 블록(63행)이 `send_message`(72행)뿐 아니라 `SMTP.__exit__`의 QUIT까지 감싸는데, 표준 라이브러리는 QUIT 응답이 221이 아니면 `SMTPResponseException`을 던진다(연결 끊김은 `SMTPServerDisconnected`로 삼켜지므로 이 경로만 남는다). 73-74행이 그것을 `MailTransportError`로 바꾸고, mail_send.py:85-94가 아웃박스에 실패를 적은 뒤 그대로 다시 던지므로 잡이 재큐잉된다. `MAIL_MAX_ATTEMPTS = 5`(mail/service.py:47 → :97 enqueue 인자)라 같은 메일이 최대 5통 나갈 수 있다.",
+  "evidence": "코드 직접 확인. transport.py:63-72(with 블록 안에 send_message) + 73-77(SMTPException/OSError 일괄 변환) → mail_send.py:85 `except Exception as exc:` → :89-94(rollback → record_failure → commit → `raise`) → worker.py:95-106(일반 예외 = fail) → repository.py:173-180(`attempt_count < max_attempts` 면 status=queued + 백오프). `MAIL_SENT` 단락(mail_send.py:59-63)은 완전 성공 뒤에만 세워지므로 이 경로에서 걸리지 않는다.",
+  "fix_hint": "`send_message` 성공을 QUIT 이전에 확정한다: `with server:` 대신 명시적 `try/finally: server.close()`로 감싸 QUIT 단계 예외가 발송 실패로 승격되지 않게 하거나, transport가 send_message 성공 시점을 별도 신호로 돌려주고 호출부가 그 뒤 예외는 로그만 남긴다.",
+  "note": "원 보고를 **Med → Low로 내리고 메커니즘 하나를 정정했다.** ① 정정: 원 보고는 «재시도마다 mint_token이 기존 미사용 토큰을 태워 먼저 온 메일 링크가 죽는다»고 했으나, 실제 경로는 다르다 — mail_send.py:89가 예외 시 **`db.rollback()`을 먼저 한다.** 그 롤백이 render_body가 방금 만든 토큰 행 자체를 지운다(86-88행 주석이 그 롤백을 의도로 명시: «렌더가 만든 토큰 행은 이 롤백과 함께 사라져야 한다»). 즉 먼저 도착한 메일의 링크는 `invalidate_open_tokens`(reset_service.py:76)에 태워져서가 아니라 **DB에 존재한 적이 없어서** 죽는다. 결론(마지막 한 통만 유효)은 같지만 근거가 달랐다. ② 하향 이유: 발동 조건이 'QUIT에 non-221 응답'으로 매우 좁고, 프로덕션은 SMTP가 아예 미구성이라(BACKLOG ADM-02/FN-01: SMTP 키 0개, mail_deliveries 0행) 현재 실피해가 0인 잠복 결함이다."
+ },
+ {
+  "severity": "Low",
+  "category": "주석의 방어 근거 부재(③)",
+  "where": "app/projects/service.py:607-609(주석), :619(키) · app/jobs/worker.py:62-63 · app/worker_main.py:278-287 · app/llm/service.py:170-184",
+  "problem": "`request_weekly_llm_summary`는 idempotency_key에 마이크로초를 넣어 재생성을 허용하고(619행), 중복 클릭에 대한 방어를 주석으로 «짧은 시간에 두 번 눌려도 `LlmService`의 동시 실행 슬롯이 실제 CLI 중복 실행은 막는다»(609행)고 적었다. **그 방어는 성립할 수 없다.** 워커는 리스로 단일 프로세스가 강제되고(worker_main.py:278-287, 중복 워커는 뜨지 않고 return 1), `run_once`는 «Claim and execute at most one job»(worker.py:63)이라 잡이 직렬로 돈다. 두 잡이 겹치는 순간이 없으므로 `SlotLock`은 두 번째 잡 차례엔 항상 비어 있고(llm/service.py:170-174 acquire, 181-184 finally release), 두 번째 잡도 CLI를 다시 띄운다.",
+  "evidence": "코드 직접 확인. `concurrency_lock`(llm/service.py:123-127)은 lease 기반 SlotLock이지만 `summarize`의 `finally: lock.release()`(181-184)가 호출마다 즉시 반납한다 → 직렬 실행에서는 절대 contend하지 않는다. 라우터(app/projects/router.py:359-376)에도 중복 방지가 없다(진행 중 잡 조회 없음, 감사만 남기고 `{\"ok\": True, \"queued\": True}` 반환). 결과적으로 같은 project/week에 CLI가 두 번 돌고 `save_llm_weekly_summary`(service.py:587-599)가 뒤에 끝난 것으로 덮어쓴다.",
+  "fix_hint": "enqueue 전에 같은 project/week의 queued·running 잡을 조회해 있으면 그걸 돌려준다 — app/notion_mapping/router.py:76-86이 이미 쓰는 패턴(`deduplicated` 플래그 포함)이고 같은 화면 계열이라 규약이 일치한다. 또는 고정 키 + `jobs_repo.retry_failed` 방식(documents의 retry_generation과 동일 패턴).",
+  "note": "원 보고를 **Med → Low로 내렸다.** 마이크로초 키 자체는 «재생성 요청을 허용한다»고 607-608행이 의도를 명시했으므로 결함이 아니다. 남는 것은 **609행 주석이 근거로 든 안전장치가 실재하지 않는다**는 사실 하나다(SlotLock은 웹/워커/진단 등 프로세스 간 동시 호출만 막는다 — build_test_service의 주석 51-52행이 그 용도를 정확히 설명한다). 실피해도 원 보고가 쓴 것보다 작다: 두 잡의 입력이 같은 주·같은 프로젝트라 결과 내용이 사실상 동일하고, 손실은 CLI 재실행 비용과 워커 슬롯 점유(최대 2×timeout)뿐이다."
+ },
+ {
+  "severity": "Low",
+  "category": "알림 노이즈",
+  "where": "app/llm_console/router.py:62-89 · app/jobs/worker.py:87-93,170-193 · app/jobs/handlers/llm_connection_test.py:74-79",
+  "problem": "AI 연결 테스트가 실패하면(로그인 안 됨·busy·disabled 등 **정상적인 진단 결과**) 핸들러가 `PermanentJobError(result.status)`를 던지고(79행), worker가 `_notify_failure`로 잡 소유자에게 «요청 처리에 실패했습니다» 벨 알림을 보낸다(worker.py:179-190). 그런데 그 소유자는 방금 버튼을 눌러 `GET /api/admin/llm/test/{job_id}`를 폴링하며 같은 결과를 한국어 문장으로 화면에서 보고 있는 사람이다(llm_console/router.py:111-115 → service.test_message, TEST_MESSAGES에 상태별 문장이 이미 있다).",
+  "evidence": "코드 직접 확인. llm_console/router.py:71 `user_id=request.state.user.id`로 잡에 소유자가 붙고, worker.py:179-190이 `if job.user_id:` 조건 하나로 무조건 notify_user를 부른다(핸들러별 억제 수단 없음). handle_llm_connection_test에는 `on_failure` 속성이 없어 176-178행은 건너뛰고 알림만 나간다. document_generate.py:192-197이 세운 «내가 한 일을 나에게 보내지 않는다 — 그 규칙이 막는 것은 방금 내가 눌러서 그 자리에서 결과를 본 일이다»에 정확히 해당한다.",
+  "fix_hint": "`_notify_failure`가 핸들러의 opt-out 속성(예: `handle_llm_connection_test.notify_owner = False`)을 존중하게 하거나, 이 잡만 `user_id=None`으로 넣고 행위자는 이미 남는 감사 로그(llm.connection.test, router.py:76-83)로 추적한다.",
+  "note": "새로 확인한 것: ① 저장소 안에서 이 규칙을 명문화한 자리는 document_generate.py:192-197 한 곳뿐이고, 그 자리가 «걸리지 않는다»고 자기 면제를 논증하면서 규칙의 경계를 정의했다 — llm_connection_test는 그 경계의 반대편에 정확히 놓인다. ② user_id를 다른 목적으로 쓰지도 않는다: 결과 조회 엔드포인트(router.py:101)는 `db.get(Job, job_id)`로 스코프 없이 읽고, 이 라우터는 SYSTEM_ADMIN_ONLY라 잡 목록 스코프에도 영향이 없다. ③ 실패가 5초 뒤에도 같은 답이라 max_attempts=1(router.py:74)로 알림은 1건이다 — 스팸은 아니고 순수 노이즈라 Low가 맞다."
+ },
+ {
+  "severity": "Low",
+  "category": "입력 검증",
+  "where": "app/notion_mapping/service.py:34,187 · app/notion_mapping/router.py:38-45",
+  "problem": "`_NOTION_USER_ID = re.compile(r\"^[A-Za-z0-9-]{8,64}$\")`를 `re.match`로 쓴다(187행). Python의 `$`는 문자열 끝 직전의 개행에도 매치하므로 `\"aaaaaaaa-bbbb\\n\"` 같은 값이 통과한다. Pydantic 쪽 제약(router.py:39,44)도 min/max 길이뿐이라 개행을 거르지 않는다. 통과한 값은 그대로 `notion_user_id`로 저장되고, 나중에 Notion People 속성 payload(`{\"people\": [{\"id\": v} for v in ids if v]}`, app/tickets/notion_write.py:411-413)로 나간다.",
+  "evidence": "코드 직접 확인 + Python 정규식 의미 확인: `^...$` + `re.match`는 후행 개행 1개를 허용한다(`re.fullmatch` 또는 `\\Z`가 아니면). router.py:38-45의 `ManualMapRequest`/`ResolveConflictRequest` 어디에도 `pattern=`이 없다. 이 함수를 지나는 경로는 manual_map(router.py:234-252)과 resolve_conflict(→ service.py:225 manual_map 위임) 둘이다.",
+  "fix_hint": "`re.fullmatch`로 바꾸거나 패턴을 `\\A[A-Za-z0-9-]{8,64}\\Z`로 고치고, Pydantic 필드에 같은 `pattern=`을 직접 걸어 라우터 경계에서 먼저 거른다.",
+  "note": "**원 보고의 위험 서술을 한 단계 낮췄다.** 개행이 Notion API 쪽 주입으로 이어지지는 않는다 — payload는 JSON 직렬화되므로 `\\n`이 이스케이프되어 값 안에 남을 뿐이다. 실제 결과는 '형식이 깨진 id가 검증을 통과해 DB에 앉고, 나중에 Notion이 400을 돌려주는데 원인은 화면에서 안 보인다'이다. 그래서 보안이 아니라 순수 입력 검증 결함이고 Low가 맞다. 다만 `resolve_conflict` 경로는 후보 목록 대조(service.py:220-224)를 먼저 지나므로 실질적으로 manual_map(관리자 직접 입력)만 해당한다."
+ },
+ {
+  "severity": "Low",
+  "category": "오류 메시지 어휘",
+  "where": "app/jobs/handlers/project_weekly_summary.py:74 · frontend/src/screens/registry/automation.js:367,381",
+  "problem": "`raise PermanentJobError(result.status)`가 provider의 **원시 어휘 한 단어**(`not_logged_in`, `busy`, `missing_cli`, `unconfigured`, `timeout`…)를 `job.last_error`에 그대로 넣는다. llm_connection_test는 전용 화면이 그 어휘를 한국어로 번역하지만(llm_console/router.py:111-115 → service.test_message, TEST_MESSAGES), 주간 요약 잡의 실패는 **작업 큐 화면**에만 남고 그 화면은 `last_error`를 원문 그대로 렌더한다. 사용자는 «not_logged_in»이라는 영어 토큰을 본다.",
+  "evidence": "코드 직접 확인. project_weekly_summary.py:19-26 docstring이 «`llm_connection_test` 핸들러와 같은 판단»이라고 적었는데, llm_connection_test.py:19-27은 그 판단의 전제를 명시한다 — «화면은 그 단어를 한국어 문장으로 옮긴다(app/llm_console/service.py::test_message)». 주간 요약 잡에는 그 화면이 없다. 큐 화면 렌더 확인: automation.js:367 `const v = r.last_error; ... String(v)` (60자 truncate + title), :381 `React.createElement(\"pre\", ..., String(r.last_error))`. 둘 다 어휘표를 거치지 않는다. BACKLOG grep에 해당 항목 없음.",
+  "fix_hint": "`app.llm_console.service.test_message(result.status)`를 통과시킨 한국어 문장을 PermanentJobError에 담거나(원시 상태 단어는 logger.warning 71-73행에 이미 남는다), 잡 화면이 `last_error`를 이 어휘표로 한 번 거치게 한다.",
+  "note": "새로 확인: TEST_MESSAGES(app/llm_console/service.py:48-84)는 STATUS_OK/DISABLED/NOT_LOGGED_IN/TIMEOUT/BUSY/MISSING_CLI/UNCONFIGURED 전부에 완성된 한국어 문장을 갖고 있고 `test_message`가 모르는 코드는 FALLBACK으로 접는다(:84) — 즉 재사용에 필요한 것이 이미 다 있는데 이 경로만 안 쓴다. 원 보고 그대로 유지."
+ },
+ {
+  "severity": "Low",
+  "category": "주석 부패(stale)",
+  "where": "app/jobs/handlers/mail_send.py:59-63 · app/jobs/worker.py:125-165",
+  "problem": "`if delivery.status == MAIL_SENT:` 단락의 근거로 «완료 기록만 실패해 재큐잉된 경우(app/jobs/worker.py::_finish_out_of_band 참조)»(60행)라고 적혀 있는데, 지금의 `_finish_out_of_band`는 **재큐잉하지 않는다** — docstring이 명시적으로 «성공을 재시도하지 않고 실패로 확정한다(재시도는 하지 않는다)»(136-137행)로 바뀌었고 :151이 `repository.fail(..., permanent=True)`를 부른다.",
+  "evidence": "코드 직접 확인. mail_send.py:60-61 주석 vs worker.py:130-143 docstring(«예전에는 여기서도 repository.finish()로 succeeded 확정을 다시 시도했다 … 그래서 여기서는 성공을 재시도하지 않고 실패로 확정한다») + :151 `permanent=True`.",
+  "fix_hint": "주석을 현재 동작에 맞춘다. 이 가드가 지금도 유효한 실제 근거는 worker.py:157-164의 이중 실패 경로다 — failed로도 못 적으면 잡이 running에 남고 «스윕이 재큐잉하면 중복 실행된다»고 그 자리에 적혀 있다. 그 경로를 주석에 적는 편이 정확하다.",
+  "note": "**원 보고의 결론에 단서를 하나 붙였다.** 원 보고는 «가드 자체는 무해하지만 이 주석을 믿으면 SMTP 사후 실패 재발송을 놓친다»고 했는데, 확인해 보니 가드가 완전히 죽은 코드는 아니다: `recover_stuck`(repository.py:234-253)과 worker.py:157-164의 이중 실패 경로가 여전히 running 잡을 재큐잉할 수 있다. 다만 그 경로에서는 `record_sent`도 함께 롤백돼 delivery가 MAIL_SENT가 아닐 가능성이 높아, 가드가 실제로 발동할 창은 매우 좁다. 지적의 본질(참조 대상이 그 동작을 더 이상 하지 않는다)은 그대로 성립한다."
+ },
+ {
+  "severity": "Low",
+  "category": "입력 검증 / 스케줄 occurrence 소실",
+  "where": "app/schedules/scheduler.py:183-188, 102-109, 220-226 · app/schedules/router.py:63,110-118",
+  "problem": "`_max_attempts`가 `int(policy.get(\"max_attempts\", 3))`로 관리자가 자유롭게 넣는 `retry_policy` JSON을 파싱하는데 `json.JSONDecodeError`만 잡는다(186행). `{\"max_attempts\": null}`이면 TypeError, `{\"max_attempts\": \"많이\"}`면 ValueError가 난다. 이 함수는 `create_run_and_enqueue`가 ScheduleRun 행을 이미 flush한 **뒤**(94-96행) enqueue 인자로 호출되므로(108행), 예외가 나면 `jobs_repo.enqueue`가 실행되지 않은 채 tick의 per-schedule try/except(221-225)가 삼키고 226행 `db.commit()`이 **잡 없는 고아 queued 실행 행**을 커밋한다. `advance_next_run`(266행)도 못 돌아 `next_run_at`이 과거에 머문다. 라우터는 `retry_policy`를 «직렬화 가능한 dict»인지만 검사한다(router.py:110-118 `_serializable`).",
+  "evidence": "코드 직접 확인. `with db.begin_nested():`(95행)는 정상 종료 시 SAVEPOINT를 RELEASE해 run 행을 외부 트랜잭션에 남긴다 → 이후 TypeError가 나도 그 행은 세션에 살아 있고 226행 commit이 확정한다. 모델 확인: `retry_policy_json: Mapped[str] = mapped_column(Text, nullable=False, default=\"{}\")`(app/schedules/models.py:47)라 None은 못 들어오지만 **값이 null인 키**는 막지 못한다. router.py:63 `retry_policy: dict = Field(default_factory=dict)`에 값 검증 없음.",
+  "fix_hint": "`ScheduleRequest`에 `retry_policy.max_attempts`를 `int, ge=1, le=10`으로 검증하는 validator를 추가하고, `_max_attempts`는 `except (json.JSONDecodeError, TypeError, ValueError)`로 넓혀 기본 3으로 폴백한다.",
+  "note": "**원 보고의 자가복구 서술을 정정·보강했다.** 원 보고는 «다음 tick에서 concurrency=skip이 고아 행을 진행 중으로 보고 건너뛰며 자동 복구된다»고만 썼는데, 직접 확인해 보니 복구는 두 겹이다. ① concurrency=allow인 스케줄도 복구된다 — 같은 key로 다시 insert하면 IntegrityError → `create_run_and_enqueue`가 None을 반환하고(98-100행) `_max_attempts`에 닿기 전에 빠져나가 266행 advance가 돈다. ② 고아 행 자체도 영구히 남지 않는다 — `sweep_zombie_runs`(116-180행)가 grace 900초 뒤 살아 있는 잡이 없는 queued/running 실행을 RUN_FAILED로 정리하며 «실행을 처리하던 작업이 끝났는데 결과가 기록되지 않아 정리했습니다»를 남긴다. 따라서 영구 wedge는 아니고, 실피해는 '그 occurrence 1회가 조용히 사라지고 로그에만 예외가 남는다'로 한정된다 — Low가 맞다."
+ },
+ {
+  "severity": "High",
+  "category": "동시성/낙관적잠금",
+  "where": "frontend/src/ui/kit.jsx:826(shownFields),835-838(submit) · frontend/src/screens/DataScreen.jsx:727-731 ↔ app/integrations/router.py:95, app/runners/router.py:110, app/workflows/router.py:71",
+  "problem": "관리 콘솔의 공유 편집 폼(DataScreen+FormModal)이 화면에 그린 모든 필드를 매번 재전송하고, 서버는 `merged = {**before, **payload.model_dump(exclude_unset=True)}`로 받으므로 폼에 있는 필드는 전부 '명시적으로 설정됨'이 된다. 두 관리자가 같은 행을 열면 나중 저장이 앞사람 변경을 조용히 되돌리고 양쪽 다 성공 토스트를 본다. `config_version`은 존재·증가·응답·목록열까지 다 있는데 되돌려 받지도 검사하지도 않는다.",
+  "evidence": "kit.jsx:837-838 `const body = {}; for (const f of shownFields)` — shownFields는 showIf만 거른 전체 필드. DataScreen.jsx:729-731이 그 body를 그대로 PATCH/PUT. 서버 3곳 merge 확인(integrations/router.py:95, runners/router.py:110, workflows/router.py:71). 편집 폼 12개 라인 전부 실재 확인: authoring.js:87,162,297 · automation.js:174 · integrations.js:67,176,326 · org.js:57,110,150 · platform.js:194,252. BACKLOG 2828줄 grep(동시 편집/optimistic/lost update/조용히 덮어/경합) 결과 해당 항목 0건.",
+  "fix_hint": "Users.jsx:50 `diffFields`를 공용 모듈로 올려 DataScreen.jsx:729에서 `apiBody = diffFields(body, editing)`로 쓰거나, 행이 이미 들고 있는 `config_version`을 `expected_config_version`으로 되돌려 보내 apply_* 진입 전 대조.",
+  "note": "내가 새로 확인한 근거 3건이 원 보고보다 강하다. ① 저장소에 lost-update 방지 패턴이 **세 벌** 이미 있다: `Users.jsx:50 diffFields`(+ users-helpers.test.js에 유닛테스트 7개) · `app/projects/router.py:101-103` \"편집 시작 시점의 지문. 저장할 때 base_notion_version 으로 그대로 돌려보내면 그 사이 누가 먼저 저장한 경우 409 로 막힌다 — 안 보내면 예전처럼 덮어쓴다\" + `app/projects/sync.py:102-113 ensure_not_changed` · 문서 본문 `base_version`. 공유 부품인 DataScreen에만 없다. ② `tests/unit/test_config_versioning.py:1-8` docstring이 \"두 관리자가 같은 설정을 거의 동시에 저장\"을 명시적으로 상정하는데, 다루는 것은 스냅샷 version 번호 충돌(IntegrityError→500)뿐이고 **lost update 쪽은 손대지 않았다** — 이 시나리오를 인지했으면서 한쪽만 막은 것. ③ 원 보고가 놓친 완화 요인: 레지스트리 작성자가 `enabled`/`status`/`active` 같은 **상태 전이 필드는 대부분의 편집 폼에서 이미 뺐다**(integrations edit에 enabled 없음, workflows edit에 enabled 없음). 따라서 노출 범위는 '전원 차단' 급 필드가 아니라 name/base_url/description/timeout 등 내용 필드다. 그래도 base_url 같은 값이 조용히 되돌아가는 것은 High."
+ },
+ {
+  "severity": "High",
+  "category": "동시성/낙관적잠금",
+  "where": "app/runners/service.py:108(폼 writer) ↔ :205-227(record_runner_result, 기계 writer) ↔ frontend/src/screens/registry/integrations.js:184",
+  "problem": "`maintenance_state`는 서킷 브레이커가 자동으로 쓰는 필드(연속 실패 임계 → degraded, 성공 → normal)인데 동시에 관리자 편집 폼 필드이기도 하고, FormModal은 select 값을 항상 body에 담는다. 관리자가 폼을 연 뒤 러너가 degraded로 넘어가고 관리자가 다른 칸만 고쳐 저장하면 상태가 조용히 되돌아간다. 반대로 관리자 A가 '점검'으로 내려 배분을 멈춘 것을 관리자 B의 낡은 폼이 `normal`로 되살리면 새 작업이 장애/점검 중 러너로 흘러간다(`app/runners/service.py:188`이 maintenance일 때만 배분을 막는다).",
+  "evidence": "service.py:207-208 `if runner.maintenance_state == MAINT_DEGRADED: runner.maintenance_state = MAINT_NORMAL  # 자동 복구 (spec §15.6)` / :213 `runner.maintenance_state = MAINT_DEGRADED` ↔ service.py:108 `row.maintenance_state = config.maintenance_state`. 폼 필드 integrations.js:184. 스키마 왕복 확인: RunnerUpdateRequest.maintenance_state(schemas.py:87) → merged(runners/router.py:110) → RunnerConfig 검증(schemas.py:49-54, {normal,degraded,maintenance}) → apply. RUNNER_MAINT_OPTS(shared.js:91)에 세 값 모두 있어 select가 out-of-range로 빠지는 회피 경로도 없다.",
+  "fix_hint": "`maintenance_state`를 편집 폼에서 빼고 onoff 같은 단일 필드 전용 액션(확인 문구 포함)으로만 바꾸게 하거나, RunnerUpdateRequest에 `expected_config_version`을 요구.",
+  "note": "핵심 반증 시도 결과 오히려 강해졌다 — **저장소 스스로 이 규칙을 이미 세워 두고 딱 여기만 예외로 남겼다.** `org.js:107` 과 `org.js:147`에 같은 문장이 두 번 적혀 있다: \"활성 토글은 확인 문구가 붙은 아래 활성/비활성 액션으로만 처리한다(수정 폼의 무경고 체크박스 제거).\" 실제로 organizations/departments/job-titles/integrations/workflows 편집 폼에는 상태 전이 필드가 하나도 없다. 반대 근거로 볼 만한 것: integrations.js:173-175에 \"점검 상태(maintenance_state)·담당자까지 편집 가능하게 명시적 edit 폼(PATCH)을 둔다\"는 **편집 가능성 자체에 대한 의도**가 적혀 있다 — 다만 자동 writer와의 경쟁에 대해서는 한 줄도 없으므로 §2 '의도 명시' 면제에는 해당하지 않는다. 완화 요인도 있다: degraded→normal 되돌림은 `circuit_open_until`이 RunnerConfig에 없어 살아남고 다음 실패들이 다시 degraded로 만들므로 자기치유적이다. 되돌릴 수 없는 쪽은 maintenance→normal 방향(사람이 의도적으로 세운 것을 되살림)이고, 이게 High를 유지시키는 이유다."
+ },
+ {
+  "severity": "Med",
+  "category": "마이그레이션/원자성",
+  "where": "alembic/env.py:39-48 · alembic/versions/0001~0039 전부 · scripts/install-clovirone-web-assistant.sh:2(헤더 'Idempotent, re-runnable'),255-260",
+  "problem": "pysqlite는 DDL 앞에서 BEGIN을 걸지 않는다(DML에서만). alembic이 SQLite에 대해 마이그레이션마다 SQLAlchemy 레벨 트랜잭션을 열어도 실제 BEGIN이 안 나가므로, **첫 문장이 DDL인 마이그레이션**이 중간에 죽으면 이미 만든 표가 커밋된 채 남고 `alembic_version`은 안 오른다. 0001~0039에는 존재 가드가 0개라 그 상태에서 재실행하면 `table already exists`로 영구 실패한다.",
+  "evidence": "내가 직접 3단계로 재현(scratch DB, 제품 코드 무수정, 스크립트 삭제 완료). ① SQLAlchemy 2.0.40 + Python 3.11.9 pysqlite 직접 확인 — `conn.begin()` 후 CREATE TABLE → `dbapi_connection.in_transaction == False`, rollback 후에도 다른 커넥션에서 표가 보임. UPDATE를 먼저 실행하면 `in_transaction == True`가 되고 이후 DDL이 rollback으로 사라짐. ② 알렘빅 내부 확인: `MigrationContext.begin_transaction()`은 SQLite(transactional_ddl=False)에서 env.py 호출(`_per_migration=False`)에 대해 `nullcontext()`를 반환하고, run_migrations가 `_per_migration=True`로 여는 트랜잭션도 pysqlite에 BEGIN을 내보내지 않는다. ③ 실제 실행: DB를 0032에 두고 0033의 4번째 `op.create_table`에 예외 주입 → `alembic_version=0032`인데 `impersonation_sessions`/`approval_delegations`/`announcements` 3표가 남음. 이어서 `alembic upgrade head` 재실행 → `sqlite3.OperationalError: table impersonation_sessions already exists`로 고착. 가드 분포도 확인: `get_table_names|get_columns|inspect(` grep 결과 0040~0052 13개 파일만 해당, 0001~0039는 0개.",
+  "fix_hint": "0001~0039에 0044/0050이 이미 쓰는 `_existing_tables()` 류 가드를 소급하거나, 최소한 install.sh 헤더의 're-runnable' 주장을 '마이그레이션이 완주한 경우에만'으로 정정. (`transaction_per_migration=True`는 이미 실효 상태라 효과 없음 — 필요한 것은 각 마이그레이션 첫 문장을 DML로 만들거나 가드다.)",
+  "note": "원 보고를 High→Med로 낮춘다. 실질 노출 범위가 작다: 프로덕션은 `alembic_version=0052`(BACKLOG:1598 '0052 == 0052')이고, 기존 설치에서 앞으로 돌 마이그레이션은 0040 이후 = 전부 가드가 있다. 고착이 실제로 발생 가능한 경로는 (a) 신규 설치(docs/INSTALL_FROM_GIT.md:104-105가 문서화한 경로) (b) 0040 이전에 멈춰 있는 DB 뿐이다. 원 보고의 재현 서술 중 '`impersonation_sessions` 표만 남음'은 내 재현과 다르다(3표 남음) — 결론에는 영향 없는 세부 오차. fix_hint 중 `transaction_per_migration=True` 제안은 실효 없음이라 위에서 정정했다."
+ },
+ {
+  "severity": "Med",
+  "category": "시계/레이트리밋",
+  "where": "app/core/ratelimit.py:22-32(allow), :46-54(retry_after_seconds)",
+  "problem": "토큰 버킷 충전이 벽시계 차분인데 하한이 없다. `elapsed = (now - last).total_seconds()`에 `max(0.0, …)`가 없어 시계가 뒤로 스텝하면 토큰이 음수로 내려가고, 회복 속도가 충전 속도와 같아 역행한 시간만큼 그대로 차단된다. 키가 `login:{client_ip}`라 NAT 뒤 사무실 전원이 함께 막힌다.",
+  "evidence": "코드 확인 + FakeClock 실측(제품 코드 무수정). 로그인 리미터(capacity=10, refill=10/60): -3600s 스텝 → `allow=False`, `retry_after=3552.0`초, +3500s 전진해도 여전히 False, +3700s에서야 통과. -60s만으로도 `allow=False`, `retry_after=12.0`. 트리거 경로 실재 확인: `app/sysops/actions_system.py:123-150 _perform_ntp`가 관리 콘솔에서 `systemd-timesyncd`를 재시작한다(임의 NTP 서버 지정 가능).",
+  "fix_hint": "두 함수 모두 `elapsed = max(0.0, (now - last).total_seconds())`. 더 옳은 방향은 벽시계 대신 `time.monotonic()` — 여기서 필요한 것은 시각이 아니라 경과뿐이고, 러너는 이미 그렇게 한다(runner/claude-work-assistant/assistant.py).",
+  "note": "High→Med로 낮춘다(트리거인 역방향 시계 스텝이 드물다). 대신 원 보고가 못 짚은 악화 요인 2개를 확인했다: ① `RateLimiter.reset()`이 **app/ 어디에서도 호출되지 않는다**(grep `\\.reset(` 결과 0건) — 올바른 자격증명으로도 버킷이 안 풀린다. 유일한 탈출구는 프로세스 재시작(in-memory 상태). ② 같은 login 버킷을 `auth/router.py:354`(로그인)·`:568`·`auth/reset_router.py:95`(비밀번호 재설정)가 공유하므로, 막히면 스스로 복구할 우회로까지 함께 막힌다. 문서화된 의도 없음 — ratelimit.py docstring은 'Clock-injected for deterministic tests'만 말한다."
+ },
+ {
+  "severity": "Med",
+  "category": "동시성/낙관적잠금",
+  "where": "frontend/src/screens/registry/platform.js:204(edit의 active) ↔ :206-207(사용/사용 안 함 액션)",
+  "problem": "공지 배너의 `active`가 편집 폼과 전용 액션 두 경로에 동시에 있다. 관리자 A가 확인 대화상자까지 거쳐 공지를 내린 직후, 폼을 열어 두고 있던 관리자 B가 오탈자만 고쳐 저장하면 공지가 전 사용자 화면에 다시 올라간다. B는 확인 대화상자도 못 보고 자기가 무엇을 되살렸는지 모른다.",
+  "evidence": "platform.js:204 `{ name: \"active\", label: \"사용\", type: \"checkbox\", checkLabel: \"지금 사용\" }`가 edit.fields 안에 있음. :206-207에 `사용`/`사용 안 함` PATCH 액션(후자에 confirm \"이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다.\"). kit.jsx:848 `else if (f.type === \"checkbox\") { … body[f.name] = !!val; continue; }` — 안 건드려도 항상 보낸다.",
+  "fix_hint": "`active`를 edit.fields에서 제거하고 기존 사용/사용 안 함 액션에만 남긴다(org.js가 이미 한 그대로).",
+  "note": "**원 보고의 evidence 절반이 사실과 반대라 정정한다.** \"같은 구조가 org.js:69,74(조직 정지/해제)와 actions.js:26,29(active 토글)에도 있다\"는 틀렸다 — 그 두 곳은 이 패턴을 **이미 고쳐 놓은 자리**이고 이유까지 적혀 있다. 원문 확인: org.js의 organizations edit.fields는 `name` 하나뿐(status 없음), departments edit는 `name`+`PARENT_DEPT_FIELD`(active 없음), job-titles edit는 `name` 하나뿐. 그 위 org.js:107·147에 같은 주석이 두 번 — \"활성 토글은 확인 문구가 붙은 아래 활성/비활성 액션으로만 처리한다(수정 폼의 무경고 체크박스 제거).\" 즉 관례는 확립돼 있고 **공지 화면만 누락됐다.** 이 정정으로 지적의 성격이 '전반적 설계 문제'에서 '확립된 관례의 유일한 낙오' 로 바뀌며, 오히려 고쳐야 할 이유가 분명해진다(F2와 함께 낙오 2건)."
+ },
+ {
+  "severity": "Low",
+  "category": "마이그레이션/잠금",
+  "where": "alembic/env.py:39-40 ↔ app/core/db.py:63-93 · scripts/install-clovirone-web-assistant.sh:257-260",
+  "problem": "alembic이 자체 엔진(`create_engine(_database_url(), poolclass=pool.NullPool)`)을 쓰고 app/core/db.py의 connect 리스너를 거치지 않아 `busy_timeout`이 안 붙는다 → SQLite 기본값 0 → 다른 커넥션이 쓰는 중이면 재시도 없이 즉시 `database is locked`. install.sh는 마이그레이션 전에 서비스를 멈추지 않는다.",
+  "evidence": "env.py:39-40에 `connect_args`도 `event.listens_for(..., 'connect')`도 없음(파일 전문 54줄 확인). `busy_timeout=5000`을 거는 유일한 자리는 db.py:83-92 `_set_sqlite_pragmas`이고 `make_engine` 전용. install-…sh에서 `systemctl stop` grep 결과 0건(restart만 290/353/363/369). 직접 실행 경로도 문서화돼 있다: docs/INSTALL_FROM_GIT.md:104-105 `sudo DNS_NAME=… bash scripts/install-clovirone-web-assistant.sh --from-repo`.",
+  "fix_hint": "env.py의 엔진 생성을 `app.core.db.make_engine`로 통일하거나 최소한 busy_timeout PRAGMA connect 리스너 추가.",
+  "note": "Med→Low로 낮춘다. 코드 사실(busy_timeout 부재, 앱과의 비대칭)은 확실하지만, 상위 래퍼 두 개는 모두 먼저 서비스를 멈춘다(upgrade-…sh:26-28, update-from-git.sh) — 위험은 '운영자가 install.sh를 라이브 호스트에서 직접 재실행할 것'이라는 행동 가정에 걸려 있고 그건 추정이다. 참고로 env.py가 `foreign_keys=ON`을 안 거는 것은 결함이 아니다(배치 마이그레이션에는 오히려 필요) — db.py:41-43 주석이 \"끄는 것은 특수 상황(스키마 정비) 전용\"이라고 명시. F3와 결합하면(락 실패로 마이그레이션 중단 → 고착) 의미가 커진다."
+ },
+ {
+  "severity": "Low",
+  "category": "동시성/낙관적잠금",
+  "where": "app/approvals/service.py:581-592(_execute_integration_config, 동일 패턴 _execute_runner_config/_execute_schedule_enable) ↔ app/integrations/router.py:94-102, app/runners/router.py:109-110",
+  "problem": "같은 실패 모드에 대해 승인 경로에만 가드가 있다. 승인을 거쳐 적용되는 설정 변경은 요청 시점 스냅샷과 현재 상태를 전체 대조해 다르면 STALE로 거절하는데, `needs_approval(actor) == False`(=system_admin, service.py:115-117)인 직접 PATCH는 같은 `apply_*_config`를 아무 대조 없이 탄다.",
+  "evidence": "service.py:582-587 주석 확인: \"승인은 요청 시점에 승인자가 본 integration 상태에 대한 것이다. … 이 승인을 그대로 적용하는 것은 승인자가 검토한 적 없는 변경(옛 설정으로의 조용한 되돌림)을 만든다 — STALE로 거절한다.\" service.py:588 `if before is None or integration_snapshot(integration) != before: raise ConflictError(...)`. 직접 경로(integrations/router.py:94-95)는 `before`를 merge 재료로만 쓰고 대조는 없음.",
+  "fix_hint": "`apply_integration_config`/`apply_runner_config` 진입부에 `expected_config_version`을 받고 라우터가 payload에서 넘긴다. 승인 경로의 스냅샷 대조는 유지.",
+  "note": "Med→Low로 낮춘다. **F1과 같은 결함을 서버 측에서 본 것**이라 독립 항목으로 세기 어렵다(고치는 자리도 같다). 다만 반대 논거도 있다: 승인 경로는 요청→결정 사이가 설계상 시간·수일 단위로 벌어지고 직접 PATCH는 폼이 열려 있는 몇 분이라, 비대칭 자체에 나름의 근거가 있다. 그래도 '가장 강한 권한을 가진 사람의 저장에만 안전장치가 없다'는 관찰은 유효하므로 F1의 서버측 보강 근거로 남긴다."
+ },
+ {
+  "severity": "Low",
+  "category": "시계/워커싱글턴",
+  "where": "app/core/worker_lock.py:48-49(_utcnow), :88-100(is_expired), :166-173(_payload) · app/worker_main.py:83-87",
+  "problem": "워커 싱글턴 리스의 만료 판정이 벽시계다. 리스 120초/갱신 30초의 4배 여유는 docstring에 '잠깐 느려진 워커'를 근거로 적혀 있는데, 시계가 앞으로 스텝하면 그 여유가 통째로 무의미해진다. 살아 있는 워커의 리스가 만료로 보여 두 번째 워커가 인수하고, 원래 워커는 다음 하트비트(최대 30초)에야 물러난다.",
+  "evidence": "worker_lock.py:48-49 `datetime.now(timezone.utc)`, :99 `return self._now() >= deadline`, :169-172가 `expires_at = now + lease_seconds`를 벽시계로 씀. docstring(:17-22)은 PID 재사용은 명시적으로 다루지만(\"os.kill(pid,0)은 … PID는 재사용된다 … 만료 시각 하나만 보는 편이 이식성 있고 추론하기 쉽다\") 시계 스텝은 한 줄도 없음 — 확인. worker_main.py:83-87이 renew 실패 시 stop_event.set()으로 물러나므로 창은 ≤30초로 유한.",
+  "fix_hint": "docstring에 '시계가 앞으로 스텝하면 살아 있는 리스도 인수될 수 있다'를 명시하고, 인수 전에 만료 정도가 lease_seconds를 명백히 넘는지 추가 확인.",
+  "note": "Med→Low로 낮춘다. **결과 자체는 이미 BACKLOG에 High로 두 번 등록돼 있다** — CORE-01(BACKLOG:798, `O_CREAT|O_EXCL`이 0바이트 파일을 만드는 창)과 CORE-03(:800, `_write`가 비원자적이라 truncate 중 읽으면 만료로 오판). 둘 다 **시계 스텝 없이도** 같은 인수를 일으키므로, 이 항목이 더하는 것은 세 번째 원인 하나뿐이고 조건은 셋 중 가장 까다롭다. 또 하나 원 보고가 과장한 부분: 잡 이중 실행은 `app/jobs/repository.py:120-142 claim_next`가 `UPDATE … WHERE status='queued'` CAS + 즉시 commit이라 막힌다. 실제로 이중 실행되는 것은 스케줄러 tick 쪽이다(`app/schedules/scheduler.py:205-226`가 SELECT-후-ORM-변경, 커밋은 tick 끝) — 이건 확인했다."
+ },
+ {
+  "severity": "Low",
+  "category": "시계/데이터보존",
+  "where": "app/core/retention.py:32-33,54-55, :213-256(run_retention) · app/trash/service.py purge_expired",
+  "problem": "되돌릴 수 없는 삭제 8종이 전부 `cutoff = now - timedelta(days=N)` 하나에만 걸려 있고 `now`의 그럴듯함을 검사하는 곳이 없다. 시계가 앞으로 튄 상태에서 워커 tick이 한 번 돌면 대화(365일)·알림(90일)·잡/스케줄런(60일)·메일(90일)·휴지통(기본 7일)이 기한 전에 영구 삭제된다.",
+  "evidence": "retention.py:33 `cutoff = now - timedelta(days=retention_days)`(purge_old_conversations), :55(purge_old_notifications) 등 동일 형태. run_retention(:213-256)에 정합성 검사 없음 — `now`는 워커의 `clock.now()`를 그대로 받는다. 같은 파일 :265-271이 다른 위험에는 아주 조심스럽다(\"경로를 모르면 추측하지 않고 건너뛴다. 파일을 지우는 일에서 경로를 추측하는 것은 할 수 있는 가장 나쁜 선택이다\") — 시각에는 같은 조심성이 없다. 휴지통 기본 7일: run_retention:249 `int(values.get(\"trash_retention_days\", 7))`.",
+  "fix_hint": "run_retention 진입부에 `now`가 마지막 성공 tick(heartbeat/sync_status)보다 하루 이상 앞서면 삭제를 건너뛰고 경고를 남기는 가드, 또는 1회차 삭제 건수 상한.",
+  "note": "Med→Low로 낮춘다 — 구체적 버그라기보다 하드닝 제안이다. 코드 사실(가드 부재)은 확인했지만, '시계가 며칠 앞으로 튄다'는 전제 자체가 이 배포(NTP 관리 Ubuntu)에서 근거 없이 가정된 것이다. 제품 안의 유일한 유발 경로는 F4와 같은 `app/sysops/actions_system.py:123-150 _perform_ntp`(관리자가 임의 NTP 서버를 지정) 뿐이고, 이건 이미 특권 액션이다. 참고: DECISIONS D-48이 retention을 다루지만 '보존 정책이 존재하는가'에 대한 것이고 시계 신뢰는 다루지 않는다 — 중복 아님."
+ },
+ {
+  "severity": "Low",
+  "category": "마이그레이션/원자성(가설 반증)",
+  "where": "alembic/versions/0050_org_fk_constraints.py:130-145(_adopt_orphans), :157-189(upgrade)",
+  "problem": "'0050이 중간에 죽으면 FTS5 트리거가 사라진 채 남는다'는 가설은 반증됐다. 다만 원자성이 설계가 아니라 문장 순서의 부산물이다 — 첫 표(job_titles)의 `_adopt_orphans` UPDATE가 pysqlite BEGIN을 열어 주기 때문에 이후 8표 재생성·DROP TRIGGER·FTS rebuild가 전부 그 트랜잭션에 들어간다. 누가 고아 정리를 뒤로 옮기거나 '고아가 없으면 UPDATE를 건너뛴다'로 최적화하면 0050은 조용히 비원자적이 되고, 그때 남는 상태가 정확히 docstring이 경고한 것이다.",
+  "evidence": "내가 직접 재현: 0049 상태 scratch DB에서 `op.batch_alter_table`이 search_documents를 받는 순간(=3개 트리거를 DROP한 직후) 예외 주입 → `alembic_version=0049`, `search_documents_ai/ad/au` 3개 전부 생존, `_alembic_tmp_*` 잔재 0개. 대조군으로 `departments`의 org FK가 0049 시점에 이미 존재함도 확인(0050 대상 아님, 오판 방지). 메커니즘도 별도 확인 — 빈 테이블에 대한 `UPDATE`(0행 매치)만으로도 `dbapi_connection.in_transaction`이 True가 되고 이후 DDL이 rollback으로 사라진다. `_TABLES`(:89-98)에 search_documents가 마지막이라 UPDATE가 항상 먼저 온다. upgrade()(:157-189)에 `_has_org_fk` 호출 없음 — :150-155의 함수는 downgrade(:191-)에서만 쓰임(확인).",
+  "fix_hint": "docstring에 '이 마이그레이션의 원자성은 첫 문장이 DML이라는 데 의존한다 — 순서를 바꾸지 마라'를 명시. upgrade()에도 `if _has_org_fk(table): continue` 가드 추가.",
+  "note": "반증 자체가 정확하다는 것을 독립 재현으로 확인했다. 다만 원 보고의 부수 주장 \"upgrade()에는 가드가 없어 재실행이 FK를 중복 생성한다\"는 **실제로는 도달 불가에 가깝다** — 0050이 원자적이라는 바로 그 이유 때문에 alembic_version=0049 + FK 존재 상태가 만들어지지 않는다(수동 stamp 같은 예외 상황 제외). 가드 추가는 여전히 옳지만 근거는 '방어'이지 '재현 가능한 버그'가 아니다."
+ },
+ {
+  "severity": "Low",
+  "category": "시계/프런트",
+  "where": "frontend/src/screens/game-room/timeUtils.js:22-34(useCountdown) ↔ frontend/src/screens/game-room/useGameRoomController.js:190-197",
+  "problem": "게임방 카운트다운이 서버가 준 UTC 마감을 브라우저의 `Date.now()`와 비교해 그린다. 사용자 PC 시계가 어긋나면 '10초 남음'인데 이미 자동 처리됐거나, 0으로 보이는데 아직 남은 상태가 된다. 판정은 서버가 강제하므로 표시만 어긋난다.",
+  "evidence": "timeUtils.js:24 `useState(() => Date.now())`, :27 `setInterval(() => setNowMs(Date.now()), 250)`, :33 `Math.max(0, Math.ceil((d.getTime() - nowMs) / 1000))`. 서버 시각 기준 보정 없음. 같은 파일 :3-6이 UTC 파싱 함정은 이미 주석으로 못박아 뒀다(\"Z를 붙여 UTC로 파싱해야 … 이걸 빼먹으면 마감이 9시간 과거로 계산돼 …\") — 클라이언트 시계 스큐만 남아 있다. controller:195-197 주석 \"마감은 이제 서버가 폴링 진입마다 강제한다(service.maybe_autoresolve) … 클라이언트 자동 진행은 두지 않는다\"로 판정 안전성 확인.",
+  "fix_hint": "폴링 응답에 `server_now`를 실어 `offset = server_now - Date.now()`를 한 번 계산해 카운트다운에 더한다(폴링이 이미 1.2초마다 도므로 추가 왕복 없음).",
+  "note": "코드 사실은 전부 확인했고 서술에 과장이 없다(표시 전용이라고 스스로 못박았다). 다만 BACKLOG QA-08(:330)이 프런트의 시계 주입 관례 부재를 이미 다루는데 그건 **테스트 결정성** 문제이고 런타임 클라이언트 스큐는 아니다 — 중복 아님. Low가 적정. 사내 도메인 가입 PC가 NTP 동기화된다는 점을 감안하면 실제 발현 가능성은 낮다."
+ }
+]

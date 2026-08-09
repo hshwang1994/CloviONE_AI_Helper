@@ -32,6 +32,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -114,13 +115,34 @@ def _user_exists(email: str) -> bool:
     return _run_cli(["show", "--email", email]).returncode == 0
 
 
-def _provision(email: str, initial_password: str, log) -> None:
+def is_local_target(base_url: str) -> bool:
+    """겨누는 서버가 **이 저장소의 DB 를 쓰는** 로컬 서버인가."""
+    host = (urlsplit(base_url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1", ""}
+
+
+def _provision(email: str, initial_password: str, log, *, base_url: str) -> None:
     """Create the account, or reset it to a password we know.
 
     Both paths leave ``must_change_password=True`` (app/users/service.py
     create_user / admin_reset_password), which the caller resolves through the
     real /change-password screen.
+
+    🔴 **원격 서버를 겨눌 때는 절대 하지 않는다.** `user_cli` 는 `cwd=REPO_ROOT` 로 돌아
+    **이 저장소의 로컬 SQLite** 를 고친다. 원격 대상에 대고 부르면 로컬 DB 에 계정을 만들고
+    rc=0 을 돌려주므로 하네스가 **"계정 생성 → 생성됨"** 이라고 보고한 뒤 원격 로그인에서
+    실패한다 — 아무것도 안 하고 성공을 보고하는 최악의 실패다(실제로 `qa-user`·`qa-auditor`
+    실행이 이렇게 죽었고, 그 사이 로컬 개발 DB 에 QA 계정이 쌓였다).
+    원격에서는 사람이 서버에서 직접 만들어야 한다.
     """
+    if not is_local_target(base_url):
+        raise AuthError(
+            f"원격 대상({base_url})에는 계정을 만들 수 없습니다 — `user_cli` 는 로컬 DB 만 고칩니다.\n"
+            f"서버에서 직접 실행하세요:\n"
+            f"  ssh <server> \"sudo -u clovirone-web /opt/clovirone-web-assistant/venv/bin/python \\\n"
+            f"    -m app.cli.user_cli passwd --email {email}\"   # 비밀번호는 stdin 으로만\n"
+            f"그런 다음 UI_QA_EMAIL / UI_QA_PASSWORD 로 다시 실행하세요."
+        )
     if _user_exists(email):
         log(f"[auth] 기존 계정 발견 → 비밀번호 재설정: {email}")
         # `passwd` 에는 `add` 와 달리 --password-stdin 플래그가 없다. --temp 를 주지 않으면
@@ -253,7 +275,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
         if not logged_in:
             initial = _generate_password()
             final = _generate_password()
-            _provision(email, initial, log)
+            _provision(email, initial, log, base_url=base_url)
             _submit_login(page, base_url, email, initial)
             # user_cli always forces a first-login change; complete it for real.
             _complete_forced_change(page, base_url, initial, final)
