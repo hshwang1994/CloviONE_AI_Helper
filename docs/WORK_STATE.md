@@ -12,9 +12,50 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치3(CORE-07·09·11, UB-04·05) —
-로컬 게이트 green + 배포 완료(신규 마이그레이션 0053 포함). **BACKLOG.md의 나머지 항목
-(Critical 2건 포함)으로 계속 진행 중** · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치4(CORE-08·10·12 일부) —
+로컬 게이트 green + 배포 완료. **CORE 표 사실상 마무리(남은 건 CORE-12 잔여 소항목들과
+Critical 2건)** · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🔵 Sonnet 구현 사이클 4, 배치 4 — page-auth 임퍼소네이션 누락·기능 플래그 타입 강제·설정 캐시 참조 공유·기동 실패 침묵 (2026-08-10)
+
+**CORE-08**: `get_page_auth`가 `get_current_auth`와 같은 `_load_auth` 처리를 중복
+구현하면서 임퍼소네이션 쓰기 차단과 `request.state.actor` 배선을 빠뜨렸다 —
+`get_current_auth`의 docstring이 정확히 이런 재발을 막으려고 가드를 한 곳에 뒀다고
+설명하는데, 이 함수가 그 가드 밖이었다. 지금은 이 의존성을 쓰는 라우트가 전부 GET이라
+무해하지만, 이 의존성 자체는 테스트가 0건이었다 — 일반 GET 케이스, 쓰기 차단 케이스,
+`request.state.actor` 배선 케이스를 새로 추가.
+
+**CORE-10**: `feature_flags._parse`가 JSON 값을 타입 검사 없이 그대로 담아
+`"game_ai_enabled": "false"`(따옴표 붙은 문자열)가 파이썬에서 참이 돼 파일엔 꺼져
+있는데 기능이 켜졌다 — 이 모듈의 존재 이유("설정했는데 아무 일도 안 일어난다"를
+없애는 것)의 반대 방향 실패. 진짜 JSON boolean만 받아들이고 그 외는 조용히 기본값으로.
+
+**CORE-12(부분)**: `SettingsCache.current()`가 내부 dict를 참조로 돌려줘 부르는 쪽이
+고치면 DB 왕복도 `invalidate()`도 없이 캐시 자체가 오염됐다 — `feature_flags`가 같은
+이유로 이미 사본을 주는 것과 같은 계약으로 맞춤. `create_app`의 설정 캐시 초기 로드
+실패가 `except: pass`로 모든 예외를 구별 없이 삼켜, DB 잠금·손상 같은 진짜 장애에도
+로그 한 줄 없이 기본값으로 조용히 기동했다 — 경고 로그 추가(기동은 계속 막지 않음).
+CORE-12의 나머지 소항목(ratelimit 버킷 무한 증가, request-id 유니코드 반사, 감사
+마스킹 불일치, SecretMissingError 이름 노출)은 이번 배치에서 다루지 않음 — 다음 배치로
+미룸.
+
+**검증 방법론**: 4건 전부 회귀 테스트를 새로 추가했고, 고치기 전 코드로 일부러 되돌려
+전부 실패하는 것을 직접 확인한 뒤 복원했다. **static_checks가 실제로 잡은 것**: 처음
+쓴 CORE-12 경고 로그 문구에 이 저장소가 금지한 glyph(em dash —)가 들어가
+`USER_TEXT_FAILED`로 걸렸다 — 배포 전에 고쳤다.
+
+**로컬 게이트**: 백엔드 pytest 전체 green, `STATIC_CHECKS_OK`(프런트 변경 없음). 커밋
+`bc650d7` 배포 → `UPGRADE_OK`, 서비스 3종 active, `/healthz`·`/readyz` 정상.
+
+**실서버 검증**: 이 배치의 네 항목은 전부 실서버에서 안전하게 재현할 방법이 없다 —
+CORE-08은 이 의존성을 쓰는 실제 POST 페이지 라우트가 아직 하나도 없고(그래서 Low(잠복)),
+CORE-10은 재현하려면 운영 `feature-flags.json`을 손으로 망가뜨려야 하며, CORE-12
+두 건은 각각 파이썬 객체 참조(HTTP로 관측 불가)와 DB 잠금·손상 주입(운영 위험)이 필요하다.
+대신 배포 후 `/api/admin/feature-flags` 목록과 `/admin` 콘솔 셸이 둘 다 200으로 정상
+로드되는 것만 확인해 **회귀가 없음**을 확인했다 — 버그 자체의 재현은 로컬 테스트로만
+검증됨(정직하게 남긴다).
 
 ---
 
