@@ -61,7 +61,11 @@ if [ -f "$BACKUP_DIR/web.sqlite3" ]; then
     echo "복원된 DB 무결성 검사 실패 — 중단"; exit 6
   fi
 fi
-for u in clovirone-web-assistant.service clovirone-web-worker.service; do
+# DEPLOY-04: privhelper 도 되살린다 - 예전엔 web·worker 만 복원해 healthz 는 통과하고
+# "ROLLBACK_OK" 가 찍히는데, 관리 콘솔의 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은
+# 죽은 채로 남았다. 백업이 그 유닛을 안 담고 있으면(구버전 백업) 조용히 건너뛴다 - 그 경우
+# install 이 다음에 다시 배포될 때 재생성된다, 지금 당장은 web·worker 복원이 우선이다.
+for u in clovirone-web-assistant.service clovirone-web-worker.service clovirone-privhelper.service; do
   [ -f "$BACKUP_DIR/$u" ] && cp "$BACKUP_DIR/$u" /etc/systemd/system/
 done
 [ -f "$BACKUP_DIR/nginx-vhost.conf" ] && cp "$BACKUP_DIR/nginx-vhost.conf" /etc/nginx/sites-available/clovirone-web-assistant
@@ -74,6 +78,8 @@ if ! nginx -t; then
 fi
 systemctl reload nginx 2>/dev/null || true
 systemctl restart clovirone-web-assistant.service clovirone-web-worker.service 2>/dev/null || true
+systemctl restart clovirone-privhelper.service 2>/dev/null || \
+  echo "privhelper 재시작 실패 - 시스템 설정 화면이 '도우미 없음'을 보일 수 있습니다(치명적이지 않음)"
 
 for i in $(seq 1 20); do
   curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1 && { echo "ROLLBACK_OK"; exit 0; }

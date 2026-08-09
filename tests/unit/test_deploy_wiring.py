@@ -26,6 +26,7 @@ pytestmark = pytest.mark.unit
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 INSTALL = ROOT / "scripts" / "install-clovirone-web-assistant.sh"
 ROLLBACK = ROOT / "scripts" / "rollback-clovirone-web-assistant.sh"
+BACKUP = ROOT / "scripts" / "backup-clovirone-web-assistant.sh"
 WEB_UNIT = ROOT / "deploy" / "systemd" / "clovirone-web-assistant.service"
 HELPER_UNIT = ROOT / "deploy" / "systemd" / "clovirone-privhelper.service"
 
@@ -161,6 +162,34 @@ def test_the_installer_refuses_an_upgrade_that_would_blank_the_tenant_config():
         f"검사가 마이그레이션보다 뒤에 있다(검사 {guard_at}행, 마이그레이션 {migrate_at}행) "
         "- 멈춰도 이미 스키마가 바뀐 뒤다"
     )
+
+
+def test_the_backup_captures_the_helper_unit():
+    """DEPLOY-04: 백업이 web·worker 유닛만 담으면 롤백이 헬퍼를 되살릴 방법이 없다."""
+    text = _text(BACKUP)
+    assert "clovirone-privhelper.service" in text, (
+        "백업이 헬퍼 유닛을 담지 않는다 - 롤백해도 시스템 설정 기능이 죽은 채로 남는다"
+    )
+
+
+def test_the_rollback_restores_and_restarts_the_helper_too():
+    """DEPLOY-04: 예전엔 롤백이 web·worker 만 복원·재시작해 healthz 는 통과하고
+    'ROLLBACK_OK'가 찍히는데, 관리 콘솔의 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은
+    죽은 채로 남았다 - 실패가 성공처럼 보이는 것이 가장 나쁜 결과다."""
+    text = _text(ROLLBACK)
+    restore_section = text.split("stop_services()")[-1].split("systemctl daemon-reload")[0]
+    assert "clovirone-privhelper.service" in restore_section, (
+        "복원 루프가 헬퍼 유닛 파일을 되살리지 않는다"
+    )
+    restart_at = _line_of_text(text, "systemctl restart clovirone-privhelper.service")
+    assert restart_at is not None, "롤백이 헬퍼를 재시작하지 않는다"
+
+
+def _line_of_text(text: str, needle: str):
+    for idx, line in enumerate(text.splitlines()):
+        if needle in line:
+            return idx
+    return None
 
 
 def test_the_guard_only_fires_for_an_existing_install():

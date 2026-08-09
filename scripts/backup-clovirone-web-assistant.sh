@@ -18,7 +18,9 @@ echo "backup dir: $BACKUP_DIR"
 [ -d "$ETC_DIR" ] && tar czf "$BACKUP_DIR/etc.tar.gz" -C /etc clovirone-web-assistant 2>/dev/null || true
 
 # systemd units + nginx vhost
-for u in clovirone-web-assistant.service clovirone-web-worker.service; do
+# DEPLOY-04: privhelper 도 함께 백업한다 - 안 하면 롤백이 web·worker 만 되살리고 관리 콘솔의
+# 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은 죽은 채로 "ROLLBACK_OK" 가 찍힌다.
+for u in clovirone-web-assistant.service clovirone-web-worker.service clovirone-privhelper.service; do
   [ -f "/etc/systemd/system/$u" ] && cp "/etc/systemd/system/$u" "$BACKUP_DIR/" || true
 done
 [ -f /etc/nginx/sites-available/clovirone-web-assistant ] && cp /etc/nginx/sites-available/clovirone-web-assistant "$BACKUP_DIR/nginx-vhost.conf" || true

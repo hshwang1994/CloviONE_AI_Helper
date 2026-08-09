@@ -60,10 +60,26 @@ Vite가 파일명에 콘텐츠 해시를 박고, 그 밖의 정적은 `app/core/
    bash scripts/build-bundle.sh          # dist/clovirone-web-assistant-bundle.tar.gz
    ```
 3. 서버로 전송·검증·스테이징:
+   > ⚠️ 예전 버전은 두 가지가 틀려 있었다(둘 다 실제로 재현해 확인했다).
+   > **(a)** `MANIFEST.sha256`(스테이징 안의 파일별 체크섬)을 **압축을 풀기 전에, 그것도
+   > 없는 경로(`~/deploy/`)에서** 검증하려 했다 — `build-bundle.sh` 는 그 파일을 `stage/`
+   > 안에 만들어 tar에 같이 넣으므로, 압축을 풀기 전에는 애초에 존재하지 않는다.
+   > `sha256sum: MANIFEST.sha256: No such file or directory` 로 실패하는데 뒤에 `&&` 로
+   > 이어져 있어 있어야 할 스테이징 단계까지 조용히 건너뛰고 **옛 스테이징이 남아 있으면
+   > 그걸 그대로 쓰게** 된다 — 무결성 검사가 아무것도 안 걸러 주면서 걸러 준다고 믿게
+   > 만드는, 없는 검사보다 나쁜 상태였다.
+   > **(b)** `mkdir -p stage && tar -xzf … -C stage` — 번들 tar 안의 경로가 이미
+   > `stage/…`(`build-bundle.sh:70` `tar czf … -C "$OUT" stage`)로 시작하는데 그걸 다시
+   > `stage/` 라는 디렉터리 **안으로** 풀어서 `~/deploy/stage/stage/app-src/…` 로 **이중
+   > 중첩**됐다. §2-4 단계의 `STAGE=~/deploy/stage` 는 그 안에 `app-src` 가 없으므로 즉시
+   > `install-clovirone-web-assistant.sh: No such file or directory` 로 죽는다.
+   > 아래는 실제로 도는 순서(전송 파일 자체의 체크섬을 먼저 → **`~/deploy` 로** 압축 해제
+   > → 압축 안의 파일별 체크섬)로 고친 것이다.
    ```bash
-   scp dist/clovirone-web-assistant-bundle.tar.gz cloviradmin@10.100.64.71:~/deploy/
-   ssh -t cloviradmin@10.100.64.71 'cd ~/deploy && sha256sum -c MANIFEST.sha256 && \
-     mkdir -p stage && tar -xzf clovirone-web-assistant-bundle.tar.gz -C stage'
+   scp dist/clovirone-web-assistant-bundle.tar.gz dist/bundle.sha256 cloviradmin@10.100.64.71:~/deploy/
+   ssh -t cloviradmin@10.100.64.71 'cd ~/deploy && sha256sum -c bundle.sha256 && \
+     rm -rf stage && tar -xzf clovirone-web-assistant-bundle.tar.gz && \
+     (cd stage && sha256sum -c MANIFEST.sha256)'
    ```
 4. **사용자가** 업그레이드 실행(root, 백업→정지→멱등 installer 재실행→검증→실패 시 자동 롤백→기동):
    ```bash
