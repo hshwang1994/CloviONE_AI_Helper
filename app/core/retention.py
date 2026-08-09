@@ -96,6 +96,28 @@ def purge_old_schedule_runs(db: Session, *, now: datetime, retention_days: int =
     return result.rowcount or 0
 
 
+def purge_old_sessions(db: Session, *, now: datetime, retention_days: int = 60) -> int:
+    """만료·폐기된 세션 행을 정리한다 (CORE-02, `purge_old_jobs`와 같은 판단).
+
+    **아직 살아 있는 세션은 나이와 무관하게 절대 안 지운다** — `revoked_at IS NOT NULL`인
+    행(로그아웃·만료·강제 종료로 이미 끝난 것)만 대상이고, 그중에서도 끝난 지
+    `retention_days`가 지난 것만 지운다(당장은 `profiles`의 "최근 종료된 세션" 목록이
+    잠시 보여야 하므로 즉시 지우지 않는다). 이 표는 지금까지 어디서도 정리하지 않아
+    무한히 자라고 있었다 — `sessions.py::validate()`가 `revoked_at`을 실제로 커밋하게
+    고친 뒤(위 CORE-02 본 수정)에도 이 표는 그 자체로는 안 줄어든다.
+    """
+    from app.auth.models import UserSession
+
+    cutoff = now - timedelta(days=retention_days)
+    result = db.execute(
+        delete(UserSession).where(
+            UserSession.revoked_at.is_not(None), UserSession.revoked_at < cutoff
+        )
+    )
+    db.flush()
+    return result.rowcount or 0
+
+
 # 티켓이 Notion 에서 사라진 뒤 캐시 행을 붙들고 있는 기간 (0043).
 #
 # 왜 유예를 두는가: prune 은 "이번 조회에서 못 봤다" 만 안다. 그 이유가 진짜 삭제인지
@@ -226,6 +248,7 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
         "missing_tickets": purge_missing_tickets(db, now=now),
         "jobs": purge_old_jobs(db, now=now, retention_days=job_days),
         "schedule_runs": purge_old_schedule_runs(db, now=now, retention_days=run_days),
+        "sessions": purge_old_sessions(db, now=now),
         # 메일 아웃박스와 재설정 토큰(9-9 P4). 둘 다 안 지우면 무한히 자라고, 토큰 쪽은
         # 다 쓴 비밀의 해시를 필요 이상으로 오래 들고 있게 된다.
         "mail_history": purge_mail_history(db, now=now, retention_days=notif_days),

@@ -43,7 +43,15 @@ class Allowlist:
         host = (parsed.hostname or "").lower()
         if not host:
             raise URLNotAllowedError("URL에 호스트가 없습니다.")
-        port = parsed.port or _DEFAULT_PORTS[parsed.scheme]
+        try:
+            # CORE-05: `urlsplit(...).port`는 파싱이 아니라 **접근 시점**에 범위(0~65535)를
+            # 검사해 `ValueError`를 던진다 — 저장 시점엔 URL 검증이 없으니(base_url/
+            # health_url/webhook_url이 평범한 str) 관리자가 `:99999` 같은 포트를 저장해
+            # 두면 헬스체크마다 이 함수가 이 계약(400 URLNotAllowedError)을 빠져나가
+            # 불투명한 500이 됐다.
+            port = parsed.port or _DEFAULT_PORTS[parsed.scheme]
+        except ValueError:
+            raise URLNotAllowedError("URL의 포트 번호가 올바르지 않습니다.") from None
         if f"{host}:{port}" not in self._hosts:
             raise URLNotAllowedError(
                 f"허용 목록({self.name})에 없는 대상입니다: {host}:{port}"
@@ -56,7 +64,7 @@ class AllowlistRegistry:
 
     def __init__(self, config_dir: Path) -> None:
         self._config_dir = Path(config_dir)
-        self._cache: dict[str, tuple[float, Allowlist]] = {}
+        self._cache: dict[str, tuple[tuple, Allowlist]] = {}
 
     def get(self, name: str) -> Allowlist:
         if name not in ALLOWLIST_FILES:
@@ -65,12 +73,18 @@ class AllowlistRegistry:
         if not path.exists():
             # Missing file = deny all, never allow-all.
             return Allowlist(name, frozenset())
-        mtime = path.stat().st_mtime
+        # CORE-06: `st_mtime`(초 단위) 하나만 캐시 키로 쓰면, 타임스탬프를 보존하는 복원
+        # (`cp -p`·`rsync -a`·tar·installer)이 예전 mtime을 그대로 들고 오는 순간 프로세스
+        # 수명 내내 그 mtime의 옛 허용목록을 계속 쓴다(더 넓은 쪽으로 낡을 수 있다는 뜻이라
+        # 위험하다). `feature_flags._stat_key`가 같은 문제를 `(mtime_ns, size)`로 이미
+        # 풀어 뒀다 — 여기도 같은 키 모양을 쓴다.
+        stat = path.stat()
+        key = (stat.st_mtime_ns, stat.st_size)
         cached = self._cache.get(name)
-        if cached is not None and cached[0] == mtime:
+        if cached is not None and cached[0] == key:
             return cached[1]
         data = json.loads(path.read_text(encoding="utf-8"))
         hosts = frozenset(str(h).strip().lower() for h in data.get("hosts", []))
         allowlist = Allowlist(name, hosts)
-        self._cache[name] = (mtime, allowlist)
+        self._cache[name] = (key, allowlist)
         return allowlist

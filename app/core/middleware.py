@@ -105,7 +105,18 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
 
         started = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            # CORE-04: an exception that escapes the router propagates past this
+            # `await call_next(...)` entirely — the code below (security headers,
+            # access log) never runs, and Starlette's `ServerErrorMiddleware`
+            # (which sits *outside* this middleware) builds the 500 on its own,
+            # with none of it. Build that same response here instead, so it goes
+            # through the identical header/log treatment as every other response.
+            from app.core.errors import unhandled_error_response
+
+            response = await unhandled_error_response(request, exc)
         elapsed_ms = (time.perf_counter() - started) * 1000
 
         response.headers["X-Request-ID"] = request_id

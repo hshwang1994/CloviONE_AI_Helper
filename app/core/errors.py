@@ -258,20 +258,41 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):
-        logger.exception(
-            "unhandled error request_id=%s", getattr(request.state, "request_id", None)
-        )
-        # A no-JS <form> POST /login that hits a genuinely unexpected 500 used to
-        # get raw JSON here (unlike every AppError failure path, which redirects
-        # via _app_error). A real browser navigation can't consume a bare JSON
-        # body, so the no-JS user saw a JSON dump instead of a rendered Korean
-        # error page. Route it through the same fallback redirect; login_page()
-        # renders _LOGIN_ERROR_MESSAGES["internal_error"].
-        if _is_login_form_fallback(request):
-            return await _login_fallback_redirect(request, "internal_error")
-        return error_response(
-            request,
-            code="internal_error",
-            message="Internal server error",
-            status_code=500,
-        )
+        return await unhandled_error_response(request, exc)
+
+
+async def unhandled_error_response(request: Request, exc: Exception):
+    """The 500 an unhandled exception turns into — shared so CORE-04's fix can
+    reuse it (see below), not just the ``@app.exception_handler(Exception)``
+    registration above.
+
+    CORE-04: that registration becomes Starlette's ``ServerErrorMiddleware``
+    handler, which sits **outside** every ``app.add_middleware(...)`` layer
+    (including ``RequestContextMiddleware``, which adds the security headers
+    and writes the access log on its way back out through ``call_next``). An
+    exception that reaches here never passes back through that middleware —
+    the 500 response it produces has no CSP/X-Frame-Options/etc. and never
+    gets logged. So ``RequestContextMiddleware.dispatch`` now catches the
+    exception itself, calls this same function to build the identical
+    response, and adds headers + logs it exactly like a normal response —
+    meaning this handler becomes a backstop for whatever still slips past
+    the middleware layer (e.g. an ASGI-level failure outside dispatch),
+    not the only place a 500 body gets built.
+    """
+    logger.exception(
+        "unhandled error request_id=%s", getattr(request.state, "request_id", None)
+    )
+    # A no-JS <form> POST /login that hits a genuinely unexpected 500 used to
+    # get raw JSON here (unlike every AppError failure path, which redirects
+    # via _app_error). A real browser navigation can't consume a bare JSON
+    # body, so the no-JS user saw a JSON dump instead of a rendered Korean
+    # error page. Route it through the same fallback redirect; login_page()
+    # renders _LOGIN_ERROR_MESSAGES["internal_error"].
+    if _is_login_form_fallback(request):
+        return await _login_fallback_redirect(request, "internal_error")
+    return error_response(
+        request,
+        code="internal_error",
+        message="Internal server error",
+        status_code=500,
+    )

@@ -11,10 +11,12 @@ from datetime import timedelta
 
 import pytest
 
+from app.auth.models import UserSession
 from app.core.retention import (
     purge_old_conversations,
     purge_old_jobs,
     purge_old_schedule_runs,
+    purge_old_sessions,
     run_retention,
 )
 from app.jobs.models import (
@@ -106,6 +108,54 @@ def test_purge_old_schedule_runs_removes_aged(db, fake_clock):
     remaining = {row.id for row in db.query(ScheduleRun).all()}
     assert remaining == {kept.id}
     assert db.get(ScheduleRun, aged.id) is None
+
+
+def _make_session(db, *, user_id, revoked_at=None, expires_at) -> UserSession:
+    row = UserSession(
+        token_hash=f"hash-{user_id}-{expires_at.isoformat()}",
+        user_id=user_id,
+        csrf_token="csrf",
+        expires_at=expires_at,
+        revoked_at=revoked_at,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def test_purge_old_sessions_keeps_active_sessions_forever(db, fake_clock, make_user):
+    """CORE-02: 살아 있는 세션은 나이와 무관하게 절대 안 지운다."""
+    now = fake_clock.now()
+    u = make_user("retention-active@goodmit.co.kr")
+    still_active = _make_session(
+        db, user_id=u.id, revoked_at=None, expires_at=now - timedelta(days=200)
+    )
+    db.commit()
+
+    deleted = purge_old_sessions(db, now=now, retention_days=60)
+    db.commit()
+
+    assert deleted == 0
+    assert db.get(UserSession, still_active.id) is not None
+
+
+def test_purge_old_sessions_removes_aged_revoked_only(db, fake_clock, make_user):
+    now = fake_clock.now()
+    u = make_user("retention-revoked@goodmit.co.kr")
+    aged_revoked = _make_session(
+        db, user_id=u.id, revoked_at=now - timedelta(days=61), expires_at=now - timedelta(days=61)
+    )
+    kept_recent_revoked = _make_session(
+        db, user_id=u.id, revoked_at=now - timedelta(days=2), expires_at=now - timedelta(days=2)
+    )
+    db.commit()
+
+    deleted = purge_old_sessions(db, now=now, retention_days=60)
+    db.commit()
+
+    assert deleted == 1
+    assert db.get(UserSession, aged_revoked.id) is None
+    assert db.get(UserSession, kept_recent_revoked.id) is not None
 
 
 def test_purge_old_conversations_chunks_large_backlog(db, fake_clock, make_user):

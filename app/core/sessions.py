@@ -88,10 +88,17 @@ class SessionService:
         now = self._clock.now()
         if record.expires_at <= now:
             record.revoked_at = now
+            # CORE-02: 이 뒤 호출자는 None을 UnauthorizedError로 바꿔 던지고,
+            # get_db(deps.py)의 except 절이 그 요청 세션 전체를 롤백한다 — 커밋
+            # 안 된 이 쓰기도 함께 사라져 만료된 세션이 profiles 화면에
+            # 영원히 "활성"으로 남았다(retention도 정리 대상에서 빠뜨렸다).
+            # 예외로 번지기 전에 여기서 직접 커밋해 그 롤백을 피한다.
+            db.commit()
             return None
         idle_deadline = record.last_seen_at + timedelta(seconds=self._idle_timeout())
         if idle_deadline <= now:
             record.revoked_at = now
+            db.commit()
             return None
 
         if now - record.last_seen_at > timedelta(seconds=_LAST_SEEN_WRITE_INTERVAL_SECONDS):
