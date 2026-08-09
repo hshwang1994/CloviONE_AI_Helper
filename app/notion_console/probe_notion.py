@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.secret_refs import SecretMissingError
 from app.reports.notion_source import (
     PROP_ACT,
     PROP_CATEGORY,
@@ -158,9 +159,12 @@ def _call(outbound, settings, method: str, path: str, *, token_ref: str, json=No
         )
     except FileNotFoundError:
         return RESULT_TOKEN_MISSING, None
+    except SecretMissingError:
+        # CORE-12: SecretMissingError는 더 이상 secret 이름을 메시지에 싣지 않는다
+        # (app/core/secret_refs.py::require) — 이름이 메시지에 있는지로 판별하던
+        # 예전 방식 대신 예외 타입으로 바로 판별한다.
+        return RESULT_TOKEN_MISSING, None
     except Exception as exc:  # noqa: BLE001 - 네트워크/전송 오류 전부
-        if token_ref and token_ref in str(exc):
-            return RESULT_TOKEN_MISSING, None
         # 원문은 서버 로그에만. 주소나 secret 이름이 섞여 있을 수 있다.
         logger.warning("노션 호출 실패 %s %s: %s", method, path, type(exc).__name__)
         return RESULT_UNREACHABLE, None

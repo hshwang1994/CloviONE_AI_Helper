@@ -93,7 +93,12 @@ STATIC_CACHE_CONTROL = "public, max-age=3600"
 
 
 def _is_safe_request_id(value: str) -> bool:
-    return bool(value) and len(value) <= 64 and value.replace("-", "").isalnum()
+    # CORE-12: str.isalnum()은 유니코드 인식이라 한글 등도 통과시킨다. 그런 값을
+    # 그대로 응답 헤더(X-Request-ID)에 넣으면 Starlette가 latin-1로 인코딩하다
+    # UnicodeEncodeError를 던진다 — try/except로 감싼 call_next() 바깥(헤더 조립
+    # 단계)이라 잡히지 않고 그대로 터진다. ASCII 영숫자·하이픈만 허용해서 막는다.
+    stripped = value.replace("-", "")
+    return bool(value) and len(value) <= 64 and stripped.isascii() and stripped.isalnum()
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

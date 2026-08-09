@@ -14,6 +14,7 @@ from __future__ import annotations
 import concurrent.futures
 
 from app.core.errors import AppError, ValidationAppError
+from app.core.secret_refs import SecretMissingError
 
 # 우리가 읽는 "문서" DB 속성 이름 — Notion 스키마와 정확히 일치해야 한다(§17.2 추측 금지, 실제 확인함).
 PROP_TITLE = "제목"
@@ -107,9 +108,12 @@ def _request(outbound, settings, method: str, path: str, *, json: dict | None = 
         )
     except FileNotFoundError as exc:
         raise NotionDocsNotConfiguredError() from exc
+    except SecretMissingError as exc:
+        # CORE-12: SecretMissingError는 더 이상 secret 이름을 메시지에 싣지 않는다
+        # (app/core/secret_refs.py::require) — 이름이 메시지에 있는지로 판별하던
+        # 예전 방식 대신 예외 타입으로 바로 판별한다.
+        raise NotionDocsNotConfiguredError() from exc
     except Exception as exc:
-        if settings.notion_docs_token_ref in str(exc):
-            raise NotionDocsNotConfiguredError() from exc
         raise NotionDocsQueryError(f"Notion 조회 실패: {type(exc).__name__}") from exc
     if resp.status_code == 401:
         raise NotionDocsNotConfiguredError("Notion 토큰이 유효하지 않습니다(401).")
@@ -429,9 +433,9 @@ def create_document(outbound, settings, *, properties: dict, children: list) -> 
         )
     except FileNotFoundError as exc:
         raise NotionDocsNotConfiguredError() from exc
+    except SecretMissingError as exc:
+        raise NotionDocsNotConfiguredError() from exc
     except Exception as exc:
-        if settings.notion_docs_token_ref in str(exc):
-            raise NotionDocsNotConfiguredError() from exc
         raise NotionDocsQueryError(f"문서 생성 실패: {type(exc).__name__}") from exc
     if resp.status_code == 401:
         raise NotionDocsNotConfiguredError("Notion 토큰이 유효하지 않습니다(401).")

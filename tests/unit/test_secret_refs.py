@@ -36,6 +36,20 @@ def test_missing_secret(tmp_path):
         provider.require("nope")
 
 
+# CORE-12: this exception's .message is put verbatim into the HTTP response
+# body by register_error_handlers (errors.py) — and require() is reachable
+# from ordinary (non-admin) user actions via OutboundClient, not just admin
+# screens. The internal reference name (which secret *file* backs an
+# integration) must never ride along in what the caller sees; code
+# "secret_missing" is enough for the frontend to render a message.
+def test_missing_secret_error_does_not_leak_the_reference_name(tmp_path):
+    provider = FileSecretReferenceProvider(tmp_path)
+    with pytest.raises(SecretMissingError) as exc_info:
+        provider.require("n8n-runner-token-prod")
+    assert "n8n-runner-token-prod" not in exc_info.value.message
+    assert exc_info.value.code == "secret_missing"
+
+
 def test_path_traversal_names_rejected(tmp_path):
     provider = FileSecretReferenceProvider(tmp_path)
     for evil in ["../etc/passwd", "..\\x", "/abs/path", "a/b", ".hidden-start-dot"]:

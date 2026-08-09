@@ -23,6 +23,33 @@ def test_unsafe_incoming_request_id_is_replaced(client):
     assert r.headers["X-Request-ID"] != "bad<script>id"
 
 
+# CORE-12: str.isalnum() is Unicode-aware, so a non-ASCII "alphanumeric" value
+# (e.g. Hangul) used to pass the safety check, then blow up when Starlette
+# tried to latin-1-encode it as a response header value. Going through the
+# real ASGI/httpx transport can't reproduce this directly: incoming header
+# *bytes* get latin-1-decoded before reaching our code, so raw UTF-8 bytes
+# for Hangul turn into C1-control mojibake that already fails isalnum() for
+# an unrelated reason and would mask a regression here. Test the function
+# (and the header-encoding failure it exists to prevent) directly instead.
+def test_non_ascii_alnum_value_is_rejected_as_unsafe():
+    from app.core.middleware import _is_safe_request_id
+
+    assert _is_safe_request_id("한글한글한글") is False
+
+
+def test_ascii_alnum_value_is_still_accepted():
+    from app.core.middleware import _is_safe_request_id
+
+    assert _is_safe_request_id("abc-123-def") is True
+
+
+def test_a_value_isalnum_would_wrongly_accept_cannot_be_a_response_header():
+    """Documents *why* the check must stay ASCII-only, independent of our own
+    fix: if it accepted this string, building the response would crash."""
+    with pytest.raises(UnicodeEncodeError):
+        "한글한글한글".encode("latin-1")
+
+
 def test_security_headers_present(client):
     r = client.get("/healthz")
     assert r.headers["Content-Security-Policy"] == CSP_POLICY

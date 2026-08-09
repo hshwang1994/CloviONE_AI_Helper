@@ -18,11 +18,27 @@ from app.audit.models import AuditLog
 _SENSITIVE_KEY = re.compile(r"password|secret|token|credential|api[_-]?key", re.IGNORECASE)
 MASK = "***"
 
+# CORE-12: `secret_ref`/`secret_reference` 필드는 실제 secret 값이 아니라
+# SECRETS_DIR 안 파일을 가리키는 이름일 뿐이다(§2-3 불변 규칙; app/core/versioning.py
+# 의 config_versions 스냅샷도 같은 이유로 이 필드를 마스킹 없이 그대로 저장한다 —
+# 복구하려면 어느 이름을 참조했는지 알아야 한다). 그런데 이 정규식은 "secret"이
+# 들어간 키를 이름 fields까지 뭉뚱그려 "***"로 지워버려서, 같은 변경이
+# config_versions 이력에는 실제 이름으로 보이는데 감사 로그에는 "*** → ***"로
+# 변경이 있었는지조차 알 수 없게 나온다. 정확히 이 필드명만 예외로 둔다 — 다른
+# "…secret…" 키(예: client_secret, secret_value)는 여전히 마스킹된다.
+_SECRET_REFERENCE_FIELDS = frozenset({"secret_ref", "secret_reference"})
+
 
 def mask_sensitive(value: Any) -> Any:
     if isinstance(value, dict):
         return {
-            key: MASK if _SENSITIVE_KEY.search(str(key)) else mask_sensitive(item)
+            key: (
+                item
+                if str(key).lower() in _SECRET_REFERENCE_FIELDS
+                else MASK
+                if _SENSITIVE_KEY.search(str(key))
+                else mask_sensitive(item)
+            )
             for key, item in value.items()
         }
     if isinstance(value, (list, tuple)):

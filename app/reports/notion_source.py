@@ -12,6 +12,7 @@ from app.core.errors import (  # noqa: F401 — 아래 주석대로 두 오류�
     NotionNotConfiguredError,
     NotionQueryError,
 )
+from app.core.secret_refs import SecretMissingError
 
 # 마감일 필터에 쓰는 Notion 속성 이름과, 우리가 읽는 속성들. Notion 스키마와 정확히 일치해야 한다.
 PROP_DUE = "마감일"
@@ -200,11 +201,14 @@ def _query_tasks_paged(
         except FileNotFoundError as exc:
             # secrets_dir 에 토큰 파일이 없음 = 아직 연동 안 됨.
             raise NotionNotConfiguredError() from exc
+        except SecretMissingError as exc:
+            # CORE-12: 예전엔 이 분기를 "메시지에 secret 이름이 들어 있는가"로 판별했다 —
+            # SecretMissingError가 그 이름을 메시지에 실어 보내던 시절엔 동작했지만, 그
+            # 자체가 이름을 응답 본문까지 새게 하던 원인이었다(app/core/secret_refs.py의
+            # require()에서 고침). 지금은 예외 타입으로 바로 판별한다 — 메시지 내용에
+            # 기대지 않아 더 견고하고, secret 이름이 이 경로에도 남지 않는다.
+            raise NotionNotConfiguredError() from exc
         except Exception as exc:  # 네트워크/전송 오류
-            # secret provider 가 '없음'을 어떤 예외로 던지든 토큰 미설정으로 취급할 수 있게,
-            # 메시지에 secret 이름이 있으면 not-configured 로 매핑한다.
-            if settings.notion_report_token_ref in str(exc):
-                raise NotionNotConfiguredError() from exc
             raise NotionQueryError(f"Notion 조회 실패: {type(exc).__name__}") from exc
 
         if resp.status_code == 401:

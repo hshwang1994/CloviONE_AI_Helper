@@ -13,6 +13,7 @@ from __future__ import annotations
 import concurrent.futures
 
 from app.core.errors import AppError, ValidationAppError
+from app.core.secret_refs import SecretMissingError
 from app.reports.notion_source import (
     PROP_ACT,
     PROP_CATEGORY,
@@ -108,9 +109,12 @@ def _request(
         )
     except FileNotFoundError as exc:
         raise NotionNotConfiguredError() from exc
+    except SecretMissingError as exc:
+        # CORE-12: SecretMissingError는 더 이상 secret 이름을 메시지에 싣지 않는다
+        # (app/core/secret_refs.py::require) — 이름이 메시지에 있는지로 판별하던
+        # 예전 방식 대신 예외 타입으로 바로 판별한다.
+        raise NotionNotConfiguredError() from exc
     except Exception as exc:  # 네트워크/전송 오류
-        if settings.notion_report_token_ref in str(exc):
-            raise NotionNotConfiguredError() from exc
         raise NotionQueryError(f"Notion 요청 실패: {type(exc).__name__}") from exc
 
     if resp.status_code == 401:

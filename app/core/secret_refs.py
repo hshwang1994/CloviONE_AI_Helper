@@ -8,12 +8,15 @@ secret can never leak through logging or error messages by accident.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import tempfile
 from pathlib import Path
 
 from app.core.errors import AppError
+
+logger = logging.getLogger("app.secrets")
 
 _REF_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -100,7 +103,14 @@ class FileSecretReferenceProvider:
     def require(self, name: str) -> SecretValue:
         value = self.get(name)
         if value is None:
-            raise SecretMissingError(f"Secret reference가 비어 있습니다: {name}")
+            # CORE-12: 예전엔 이 이름을 예외 메시지에 직접 실었다. AppError.message는
+            # register_error_handlers(errors.py)가 그대로 응답 본문에 싣는다 — 이 예외를
+            # 일으키는 요청은 관리자만 부르는 게 아니다(app/core/http_client.py의
+            # OutboundClient가 일반 사용자 흐름에서도 부른다). 어떤 secret_ref 파일이
+            # 서버에 없는지는 운영자가 로그에서 볼 정보지, 응답을 받는 사람 모두에게
+            # 노출할 정보가 아니다. code="secret_missing" 만으로 화면이 판별할 수 있다.
+            logger.warning("secret reference missing: %s", name)
+            raise SecretMissingError()
         return value
 
     @property
