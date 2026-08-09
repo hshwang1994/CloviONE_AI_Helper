@@ -195,3 +195,66 @@ def test_archived_user_owned_schedules_are_disabled(client, admin_csrf, make_use
 
     db.expire_all()
     assert db.get(Schedule, schedule.id).enabled is False
+
+
+def _owned_group_room(db, owner, other, *, joined_at):
+    from datetime import datetime
+
+    from app.team_chat.models import ChatRoom, ChatRoomMember
+
+    room = ChatRoom(title="보관 전 방장 방", kind="group", is_global=False)
+    db.add(room)
+    db.flush()
+    db.add(ChatRoomMember(room_id=room.id, user_id=owner.id, role="owner",
+                           joined_at=datetime(2026, 1, 1)))
+    db.add(ChatRoomMember(room_id=room.id, user_id=other.id, role="member", joined_at=joined_at))
+    db.commit()
+    return room
+
+
+def _role_of(db, room, user):
+    from sqlalchemy import select
+
+    from app.team_chat.models import ChatRoomMember
+
+    row = db.execute(
+        select(ChatRoomMember).where(
+            ChatRoomMember.room_id == room.id, ChatRoomMember.user_id == user.id
+        )
+    ).scalar_one_or_none()
+    return None if row is None else row.role
+
+
+def test_archived_user_owned_chat_rooms_are_transferred(client, admin_csrf, make_user, db):
+    """`/users`에서 **바로** 보관해도(오프보딩 마법사를 거치지 않아도) 방장직은 넘어가야
+    한다(step 9 #2) — 안 그러면 그 방은 그 순간부터 아무도 관리 못 하는 방으로 남는다.
+    예전엔 이 인계가 오프보딩 마법사 전체 실행 경로에만 있었다."""
+    from datetime import datetime
+
+    target = make_user("room-owner@goodmit.co.kr")
+    mate = make_user("room-mate@goodmit.co.kr")
+    room = _owned_group_room(db, target, mate, joined_at=datetime(2026, 2, 1))
+
+    client.post(f"/api/admin/users/{target.id}/archive", headers=_headers(admin_csrf))
+
+    db.expire_all()
+    assert _role_of(db, room, mate) == "owner", "방장직이 안 넘어갔다"
+    assert _role_of(db, room, target) == "member", "보관된 계정이 아직 방장이다"
+
+
+def test_deactivated_user_owned_chat_rooms_are_transferred(client, admin_csrf, make_user, db):
+    """비활성화도 보관과 같은 이유다 — 계정이 로그인을 못 하게 되는 순간은 같다."""
+    from datetime import datetime
+
+    target = make_user("room-owner2@goodmit.co.kr")
+    mate = make_user("room-mate2@goodmit.co.kr")
+    room = _owned_group_room(db, target, mate, joined_at=datetime(2026, 2, 1))
+
+    r = client.post(
+        f"/api/admin/users/{target.id}/disable", headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200, r.text
+
+    db.expire_all()
+    assert _role_of(db, room, mate) == "owner", "방장직이 안 넘어갔다"
+    assert _role_of(db, room, target) == "member", "비활성화된 계정이 아직 방장이다"

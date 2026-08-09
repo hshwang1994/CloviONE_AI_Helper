@@ -211,17 +211,30 @@ def leave_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> Non
 IDLE_ROOM_SECONDS = 180
 
 # 최근 이 시간(초) 안에 폴링한 참여자만 '현재 있는' 사람으로 본다. 탭만 닫고 떠난(나가기 안 누른)
-# 유령이 추첨/팀나누기/사다리 대상이나 결과 승자로 잡히는 걸 막는다. 백그라운드 탭 폴링 스로틀을
-# 견디도록 넉넉히 둔다(active 플래그를 영구히 내리지 않고, 액션 시점에만 걸러 재접속에 안전).
+# 유령이 추첨/팀나누기/사다리 대상이나 결과 승자로 잡히는 걸 막는다.
+#
+# ⚠️ 이 값의 근거는 한때 "백그라운드 탭 폴링 스로틀을 견디도록 넉넉히 둔다"였는데, 그건
+# 사실이 아니다 - react-query의 focusManager 소스를 직접 읽어 확인했다: 숨은 탭에서
+# 폴링은 스로틀(느려짐)이 아니라 완전히 멈춘다(포커스가 돌아와야 재개된다). 즉 탭을 잠깐
+# 숨겼다 돌아오는 사람은 '느리게 폴링됨'이 아니라 '그 사이 아예 폴링이 없었다'는 뜻이고,
+# 90초는 그 공백(회의 참석, 다른 탭 확인 등 짧은 자리 비움)을 견디기 위한 여유값이다.
 PRESENCE_SECONDS = 90
+
+
+def is_present(member: GameRoomMember, now: datetime) -> bool:
+    """이 멤버가 **지금** 방에 있다고 볼 수 있는가 — `_present_players`와 같은 판정을
+    멤버 하나에 대해 묻는다. 화면 명단(`app/games/router.py::_member_view`)이 이 값을
+    실어야 "5명이 보이는데 4명 중에서 뽑힌다"는 것을 사용자가 미리 알 수 있다 - 예전엔
+    이 판정이 서버 확정 시점에만 조용히 적용돼 명단과 결과가 어긋나도 아무 표시가 없었다."""
+    cutoff = now - timedelta(seconds=PRESENCE_SECONDS)
+    return bool(member.active and member.last_seen >= cutoff)
 
 
 def _present_players(db: Session, room: GameRoom, now: datetime) -> list[GameRoomMember]:
     """지금 방에 실제로 있는 참여자(활성 + 최근 폴링 + 비관전)만. 서버 확정 게임의 대상 풀."""
-    cutoff = now - timedelta(seconds=PRESENCE_SECONDS)
     return [
         m for m in repository.members(db, room.id)
-        if m.active and m.role != ROLE_SPECTATOR and m.last_seen >= cutoff
+        if m.role != ROLE_SPECTATOR and is_present(m, now)
     ]
 
 

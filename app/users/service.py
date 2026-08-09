@@ -389,6 +389,7 @@ def set_user_active(
         # Spec §11.5: 비활성화 시 기존 세션 즉시 폐기.
         session_service.revoke_all_for_user(db, user.id)
         _disable_owned_schedules(db, user.id)
+        _transfer_owned_chat_rooms(db, user)
     db.flush()
     return user
 
@@ -425,6 +426,7 @@ def archive_user(
     # 감춘 시늉만 한 것이 된다(§11.5의 비활성화와 같은 이유).
     session_service.revoke_all_for_user(db, user.id)
     _disable_owned_schedules(db, user.id)
+    _transfer_owned_chat_rooms(db, user)
     db.flush()
     return user
 
@@ -458,6 +460,23 @@ def _disable_owned_schedules(db: Session, user_id: str) -> int:
         schedule.next_run_at = None
     db.flush()
     return len(rows)
+
+
+def _transfer_owned_chat_rooms(db: Session, user: User) -> int:
+    """로그인 못 하게 되는 계정이 채팅방 방장으로 남지 않게 넘긴다(X8, step 9 #2).
+
+    `_disable_owned_schedules`와 같은 이유·같은 자리다: 여기서 계정을 로그인 못 하게
+    만들면(비활성화·보관) 그 순간부터 그 사람이 방장인 그룹 방은 `ensure_can_manage_room`에
+    관리자 우회가 없어 **아무도** 이름을 바꾸거나 사람을 초대하거나 방을 파할 수 없다.
+
+    예전엔 이 인계(`app.team_chat.service.transfer_owned_rooms`, 옛 이름
+    `_transfer_room_ownership`)가 오프보딩 마법사 전체 실행 경로에만 있었다 — 관리자가
+    `/users`에서 바로 비활성화·보관하면(오프보딩 마법사를 거치지 않고도 계정은 똑같이
+    로그인을 못 하게 된다) 이 인계를 건너뛰었다. 후임 개념이 없는 경로라 `successor=None`
+    으로 부른다(그 방의 가장 오래된 다른 멤버에게 넘어간다)."""
+    from app.team_chat.service import transfer_owned_rooms
+
+    return transfer_owned_rooms(db, target=user, successor=None)
 
 
 def admin_reset_password(

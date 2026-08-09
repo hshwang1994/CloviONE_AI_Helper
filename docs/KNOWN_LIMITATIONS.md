@@ -131,6 +131,15 @@ root 로 도는 특권 헬퍼(`deploy/systemd/clovirone-privhelper.service`)가 
   일이 드물고(운영 UGC 실측 중 없음), 닿으면 거절 메시지가 명확해(줄 수를 줄이라는
   안내) 조용한 실패가 아니다. 늘리려면 `replace_page_body`의 append를 100줄 단위
   루프로 바꾸면 된다.
+- **채팅 링크화기(`trimUrlTail`)는 URL 뒤에 공백 없이 바로 붙은 한글 조사를 못 뗀다.**
+  `"...(https://a.b/c) 참고"`(괄호 뒤 공백)는 정확히 다듬어지지만, `"...(https://a.b/c)에서"`
+  (공백 없이 조사가 바로 붙음 — 한글 문장에서 흔하다)는 `)에서`가 통째로 URL에 남는다.
+  `trimUrlTail`은 ASCII 문장부호·괄호만 알고 임의의 뒤따르는 문자를 모른다 — 팀 채팅
+  (`chat-text.js`)과 AI 답변(`chat/links.jsx`) 링크화기 **둘 다** 같은 한계를 공유한다
+  (step 10 #1에서 둘을 같은 함수로 통일했지만, 통일된 그 함수 자체의 한계는 그대로다).
+  실제로 고치려면 URL 매칭 정규식이 한글(Hangul) 문자를 만나면 거기서 멈추게 해야 한다
+  (URL은 사실상 항상 punycode/percent-encoding으로 한글을 표현하지 raw Hangul을 안 쓴다) —
+  범위가 더 넓은 변경이라 지금은 하지 않았다.
 
 ## §32 검수 루프에서 확인·문서화한 잔여 항목 (Medium/Low)
 

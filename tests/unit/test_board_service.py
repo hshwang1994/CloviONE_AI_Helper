@@ -125,15 +125,29 @@ def test_reaction_rejects_bad_emoji_and_target():
 
 
 # ── 서비스 규칙 (DB) ─────────────────────────────────────────────────────────
-def test_ensure_can_edit_author_and_moderator(make_user):
+def test_ensure_can_edit_author_only(make_user):
+    """수정은 작성자 본인만 — 운영자도 남의 글을 고쳐 쓸 수 없다(티켓·문서 댓글과 같은 규칙,
+    step 9 #1). 예전엔 운영자도 통과했다 — 삭제 권한과 뭉뚱그려져 있었다."""
     author = make_user("author@goodmit.co.kr", role="user")
     other = make_user("other@goodmit.co.kr", role="user")
     admin = make_user("admin1@goodmit.co.kr", role="admin")
 
     service.ensure_can_edit(author.id, author)  # 본인 OK
-    service.ensure_can_edit(author.id, admin)  # 운영자군 OK
+    with pytest.raises(ForbiddenError):
+        service.ensure_can_edit(author.id, admin)  # 운영자군도 불가 — 삭제와 다른 선
     with pytest.raises(ForbiddenError):
         service.ensure_can_edit(author.id, other)  # 남은 불가
+
+
+def test_ensure_can_delete_author_and_moderator(make_user):
+    author = make_user("d-author@goodmit.co.kr", role="user")
+    other = make_user("d-other@goodmit.co.kr", role="user")
+    admin = make_user("d-admin@goodmit.co.kr", role="admin")
+
+    service.ensure_can_delete(author.id, author)  # 본인 OK
+    service.ensure_can_delete(author.id, admin)  # 운영자군 OK(삭제는 여전히 가능)
+    with pytest.raises(ForbiddenError):
+        service.ensure_can_delete(author.id, other)  # 남은 불가
 
 
 def test_can_moderate_roles(make_user):
@@ -181,15 +195,22 @@ def test_one_level_reply_enforced(db, make_user):
 
 
 def test_soft_delete_comment_cascades_to_replies(db, make_user):
+    """부모 삭제는 답글도 함께 지운다(deleted_at 채움) — 살아있는 댓글 카운트는 0으로
+    줄지만, `list_comments`는 **행을 지우지 않는다**(step 9 #4 — 툼스톤 규약,
+    tests/integration/test_board_api.py::test_deleted_comment_is_a_tombstone_not_a_missing_row
+    가 API 계약을 고정한다)."""
     author = make_user("cas@goodmit.co.kr")
     now = utcnow()
     post = service.create_post(db, author=author, category="자유", title="글", body="", now=now)
     top = service.create_comment(db, post=post, author=author, body="부모", parent_comment_id=None, now=now)
-    service.create_comment(db, post=post, author=author, body="답글", parent_comment_id=top.id, now=now)
+    reply = service.create_comment(db, post=post, author=author, body="답글", parent_comment_id=top.id, now=now)
     assert len(repository.list_comments(db, post.id)) == 2
-    # 부모 삭제 → 답글도 함께 숨어 목록·카운트가 0.
+    # 부모 삭제 → 답글도 함께 deleted_at 이 채워진다. 행 자체는 여전히 2개 남는다.
     service.soft_delete_comment(db, top, now=now)
-    assert repository.list_comments(db, post.id) == []
+    rows = {c.id: c for c in repository.list_comments(db, post.id)}
+    assert set(rows) == {top.id, reply.id}, "삭제된 행이 목록에서 사라졌다 — 툼스톤 규약 위반"
+    assert rows[top.id].deleted_at is not None
+    assert rows[reply.id].deleted_at is not None
     assert repository.comment_count(db, post.id) == 0
 
 

@@ -35,7 +35,12 @@ export const LINK_TARGET = "_blank";
 const TRAILING_PUNCT = ".,;:!?…\"'`";
 const CLOSERS = { ")": "(", "]": "[", "}": "{" };
 
-function trimUrlTail(raw) {
+// AI 도우미의 링크화기(chat/links.jsx::linkifyText)도 이 함수를 쓴다(step 10 #1) —
+// 예전엔 그쪽에 이 다듬기가 아예 없어서 "...(https://a.b/c)에서" 같은 문장이 통째로
+// (닫는 괄호·조사까지) 하나의 URL로 잡혔다(공백 전까지 욕심껏 먹는 정규식이라 괄호 뒤에
+// 붙은 한글 조사엔 공백이 없으면 안 멈춘다). 팀 채팅 말풍선은 처음부터 이 함수를 썼는데
+// AI 채팅만 못 쓰고 있었다 — 같은 문제를 겪는 두 링크화기가 다른 결과를 냈다.
+export function trimUrlTail(raw) {
   let out = raw;
   for (;;) {
     const last = out.slice(-1);

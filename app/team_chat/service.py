@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -817,3 +818,66 @@ def touch_presence(
     if member is not None and should_touch(member.last_seen, now, idle=idle):
         member.last_seen = now
         db.flush()
+
+
+def transfer_owned_rooms(db: Session, *, target: User, successor: User | None = None) -> int:
+    """`target` 이 방장인 **그룹** 방의 방장직을 다른 멤버에게 넘긴다. 넘긴 방 수를 돌려준다.
+
+    로그인 불가 계정(비활성화·보관)이 방장으로 남으면 그 방을 **아무도 관리 못 한다** —
+    `ensure_can_manage_room` 에 관리자 우회가 없어 system_admin 도 이름 변경·초대·파하기를
+    못 한다(X8). 계정을 로그인 못 하게 만드는 자리라면 어디서 그러든 이 함수를 불러야
+    한다 — `app/users/service.py::set_user_active`/`archive_user`(직접 비활성화·보관)와
+    `app/offboarding/service.py::run_offboarding`(오프보딩 전체 실행) 둘 다.
+
+    이 함수는 원래 오프보딩 전용이었다(app/offboarding/service.py 안의 `_transfer_room_ownership`).
+    그런데 오프보딩 마법사를 거치지 않고 `/users`에서 바로 비활성화·보관해도 계정은 로그인을
+    못 하게 되는 것은 같다 — 호출부가 오프보딩 실행 한 곳뿐이라 그 경로만 안전했다. 채팅방
+    도메인 로직이라 여기(team_chat)로 옮겨 두 호출부가 순환 import 없이 공유한다
+    (app/users/service.py 는 app/offboarding/service.py 를 모르고, app/offboarding/service.py
+    는 이미 app/users/service.py 를 부른다 — 반대로 옮기면 순환 import 다).
+
+    **누구에게 넘기는가**: 후임(`successor`)이 그 방 멤버면 후임, 아니면 **가장 오래된
+    다른 멤버**다. 후임을 방에 억지로 넣지 않는다 — 오프보딩은 티켓을 넘기는 일이지 남의
+    대화방에 사람을 밀어 넣는 일이 아니다. 직접 비활성화·보관 경로에는 후임 개념이 없으므로
+    `successor=None`으로 부른다(=가장 오래된 멤버에게 넘어간다). 넘길 사람이 아무도
+    없으면(혼자 있던 방) 그대로 둔다: 받을 사람이 없는데 방장을 비우면 그때부터는
+    **되살릴 방법도 없다.**
+
+    **멤버십은 유지한다.** 지우면 지난 대화의 발신자가 참여자 목록에서 사라져 "이 말을
+    누가 했는지" 를 못 읽는다. 계정을 화면에서 지우는 것이 아니라 **보관됨으로 표시**하는
+    것이 이 저장소의 방향이다(N3).
+
+    1:1(dm)과 전체 방은 건드리지 않는다 — 방장 개념이 뜻을 갖지 않는다.
+    """
+    owned = db.execute(
+        select(ChatRoomMember)
+        .join(ChatRoom, ChatRoom.id == ChatRoomMember.room_id)
+        .where(
+            ChatRoomMember.user_id == target.id,
+            ChatRoomMember.role == ROLE_OWNER,
+            ChatRoom.kind == ROOM_GROUP,
+            ChatRoom.is_global.is_(False),
+        )
+    ).scalars().all()
+
+    moved = 0
+    for mine in owned:
+        candidates = db.execute(
+            select(ChatRoomMember)
+            .where(
+                ChatRoomMember.room_id == mine.room_id,
+                ChatRoomMember.user_id != target.id,
+            )
+            .order_by(ChatRoomMember.joined_at.asc(), ChatRoomMember.id.asc())
+        ).scalars().all()
+        if not candidates:
+            continue
+        heir = next(
+            (c for c in candidates if successor is not None and c.user_id == successor.id),
+            candidates[0],
+        )
+        heir.role = ROLE_OWNER
+        mine.role = ROLE_MEMBER
+        moved += 1
+    db.flush()
+    return moved

@@ -194,10 +194,19 @@ export const RE_SUBLINE = /^\s{2,}(\S.*)$/;
 // 키는 짧다. 콜론이 든 평범한 문장을 표로 오해하지 않으려는 상한이다.
 export const RE_KV = /^([^:\s][^:]{0,15}?)\s*:\s*(.*)$/;
 
+// 시각 표기 오탐 방지(step 10 #3, node로 재현 확인) — RE_KV는 첫 콜론만 보므로
+// "시" 부분이 키에, "분" 부분이 값 머리에 걸린다. 예전엔 키가 **순수 숫자뿐**일 때만
+// 막았다("09:00") — "오전 9:30에 회의"처럼 시 앞에 다른 말이 붙으면 못 잡아 2줄짜리
+// 정의목록(dl)으로 잘못 렌더됐다. 키 끝이 시(0~23)로 끝나고 값 머리가 분(00~59)이면
+// 시각으로 본다(줄 시작·공백·여는 괄호 뒤에 오는 숫자만 "시"로 본다 — "질문2"의 "2"처럼
+// 글자 바로 뒤에 붙은 숫자는 시가 아니다).
+const HOUR_TAIL = /(?:^|[\s(])([01]?\d|2[0-3])\s*$/;
+const MINUTE_HEAD = /^([0-5]\d)(?!\d)/;
+
 export function kvOf(line) {
   const m = RE_KV.exec(line);
   if (!m) return null;
-  if (/^\d+$/.test(m[1])) return null;         // "09:00" — 시각
+  if (HOUR_TAIL.test(m[1]) && MINUTE_HEAD.test(m[2])) return null;  // "09:00", "오전 9:30" — 시각
   if (m[2].slice(0, 2) === "//") return null;  // "https://…" — URL 스킴
   return { kind: "kv", key: m[1], text: m[2], raw: line };
 }

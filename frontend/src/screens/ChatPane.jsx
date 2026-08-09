@@ -188,10 +188,22 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     retry: false,
   });
   const dirUsers = (dir.data && dir.data.users) || [];
+  /* `/api/team-chat/directory` 는 **호출자 본인을 항상 뺀다**(1:1 상대 고르기용 —
+   * app/team_chat/repository.py::directory 의 `User.id != exclude_user_id`). 그래서 전체
+   * 채팅에서는 이 목록에 내 이름이 들어올 길이 애초에 없다 — `mentionNames` 를 `meId` 없이
+   * 불러도 소용없다, 원본 배열 자체에 내가 없기 때문이다. 렌더용 목록에 한해 내 이름을
+   * 직접 채워 넣는다. 전체 채팅 방은 `chat_room_members` 행이 없어(마이그 0021, 방만
+   * INSERT) `people`/`members` 에도 나를 찾을 길이 없다 — 그래서 이미 이 화면이 받는
+   * `you.display_name`(app/team_chat/router.py, 이 목적으로 추가)을 쓴다. */
+  const dirUsersForRender = React.useMemo(() => {
+    if (!room.is_global || !you.user_id || !you.display_name) return dirUsers;
+    if (dirUsers.some((u) => u.user_id === you.user_id)) return dirUsers;
+    return [...dirUsers, { user_id: you.user_id, display_name: you.display_name }];
+  }, [dirUsers, room.is_global, you.user_id, you.display_name]);
   // 렌더용 — 아무도 빼지 않는다. **남이 나를 부른 말**에도 강조가 붙어야 한다.
   const names = React.useMemo(
-    () => mentionNames({ isGlobal: !!room.is_global, members, directory: dirUsers }),
-    [room.is_global, members, dir.data] // eslint-disable-line react-hooks/exhaustive-deps
+    () => mentionNames({ isGlobal: !!room.is_global, members, directory: dirUsersForRender }),
+    [room.is_global, members, dirUsersForRender] // eslint-disable-line react-hooks/exhaustive-deps
   );
   // 고르기 버튼용 — 나를 뺀다. 자기를 부르면 서버가 알림을 만들지 않아 죽은 선택지가 된다.
   const pickable = React.useMemo(

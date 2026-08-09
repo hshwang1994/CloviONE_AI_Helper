@@ -246,11 +246,18 @@ def test_a_moderator_in_another_department_can_still_moderate(
     headers = {"X-CSRF-Token": csrf}
     post_id = seeded["post_id"]
 
+    # 수정(PATCH)은 작성자 본인만 — 운영자도 남의 글을 고쳐 쓸 수 없다(step 9 #1,
+    # 티켓·문서 댓글과 같은 규칙). **같은 조직인데도** 403 이어야 그 거절이 조직 범위가
+    # 아니라 "본인 글이 아니다"라는 별개의 규칙에서 온다는 뜻이다 - 아래 같은 사람이
+    # 고정·삭제(운영자에게 남는 중재 권한)는 그대로 통과하는 것으로 그 구분을 증명한다.
     patch = client.patch(
         f"/api/board/posts/{post_id}", json={"title": "정정된 공지"}, headers=headers
     )
-    assert patch.status_code == 200, f"같은 조직 운영자가 글을 못 고친다: {patch.text[:200]}"
-    assert _read_post(app, post_id).title == "정정된 공지"
+    assert patch.status_code == 403, (
+        f"같은 조직 운영자가 남의 글을 수정할 수 있다(본인 글만 수정 가능해야 한다): "
+        f"{patch.text[:200]}"
+    )
+    assert _read_post(app, post_id).title != "정정된 공지"
 
     pin = client.post(f"/api/board/posts/{post_id}/pin?pinned=true", headers=headers)
     assert pin.status_code == 200, f"같은 조직 운영자가 공지를 못 고정한다: {pin.text[:200]}"

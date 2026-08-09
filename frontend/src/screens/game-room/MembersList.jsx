@@ -49,6 +49,10 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
                 ) : null}
               </Box>
               <Stack direction="row" gap={0.5} alignItems="center" sx={{ ml: "auto", flexShrink: 0 }}>
+                {/* 명단엔 남아 있어도(active) 90초 넘게 폴링이 없으면 추첨·팀나누기·사다리·
+                    투표 대상 풀에서는 빠진다(app/games/service.py::_present_players,
+                    step 9 #7) - 그 어긋남을 결과가 나오기 전에 미리 알린다. */}
+                {m.present === false ? <Badge value="자리 비움" kind="neutral" /> : null}
                 {isHostRow
                   ? <Badge value="방장" kind="info" />
                   : <Badge value={ROLE_LABELS[m.role] || m.role} kind="neutral" />}

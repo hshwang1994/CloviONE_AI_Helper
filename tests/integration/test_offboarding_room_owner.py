@@ -64,9 +64,9 @@ def cast(db, make_user):
 
 
 def _transfer(db, leaver, successor):
-    from app.offboarding.service import _transfer_room_ownership
+    from app.team_chat.service import transfer_owned_rooms
 
-    n = _transfer_room_ownership(db, target=leaver, successor=successor)
+    n = transfer_owned_rooms(db, target=leaver, successor=successor)
     db.commit()
     return n
 

@@ -20,6 +20,19 @@ import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
  * 1:1 은 파할 수 없어서 — dm_key 가 unique 라 soft-delete 하면 그 사람과 다시 대화를 시작할
  * 수 없다 — 내 목록에서만 숨긴다. 서버도 1:1 disband 를 409 로 막는다. */
 
+/* '나가기' 확인 문구 — 방장이 나가면 결과가 방장이 아닐 때와 다르다(app/team_chat/
+ * service.py::leave_room). 예전엔 누가 나가든 "계속할까요?" 한 문장이었는데, 방장이면
+ * 남은 사람이 없을 때 **방이 사라진다**(파하기와 같은 결과) — 바로 옆 파하기 버튼만
+ * "되돌릴 수 없습니다"라고 경고해, 결과가 같은 두 버튼이 다른 무게로 보였다. 문구를 갈라
+ * 쓸 재료(you.role, room.member_count)는 이미 응답에 있다 — 새로 물을 것이 없다. */
+export function leaveRoomConfirmMessage(you, room) {
+  if (you.role !== "owner") return "이 채팅방을 나갑니다. 계속할까요?";
+  if ((room.member_count || 0) <= 1) {
+    return "이 채팅방을 나갑니다. 남은 참여자가 없어 방이 사라지며 되돌릴 수 없습니다.";
+  }
+  return "이 채팅방을 나갑니다. 방장 권한은 가장 먼저 들어온 다른 참여자에게 자동으로 넘어갑니다.";
+}
+
 /* 오른쪽 칸에 그려지는 대화 본문. 라우트 파라미터가 아니라 **prop 으로 id 를 받는다** —
  * 통합 껍데기(ChatRooms)가 왼쪽 목록과 나란히 이걸 그리기 때문이다.
  * 목록으로 돌아가는 버튼은 없다. 목록이 옆에 계속 떠 있으므로 돌아갈 곳이 없다. */
@@ -89,7 +102,7 @@ export function RoomDetailPanel({ id }) {
       {canLeave ? (
         <Button variant="danger" disabled={busy}
           onClick={async () => {
-            const ok = await confirm("이 채팅방을 나갑니다. 계속할까요?", { title: "채팅방 나가기", confirmLabel: "나가기", danger: true });
+            const ok = await confirm(leaveRoomConfirmMessage(you, room), { title: "채팅방 나가기", confirmLabel: "나가기", danger: true });
             if (ok) leave.mutate();
           }}>나가기</Button>
       ) : null}

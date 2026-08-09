@@ -169,6 +169,57 @@ describe("관리 대화상자", () => {
     expect(posted("/api/team-chat/rooms/r1/owner")[0][1].body).toEqual({ user_id: PEER });
   });
 
+  it("이름을 저장해도 골라 둔 초대 대상이 그대로 남는다(step 9 #6)", async () => {
+    /* rename.onSuccess → refresh() → room 쿼리 재조회 → title prop 갱신. 예전엔 그 갱신이
+       "모달이 새로 열렸다"와 같은 취급을 받아 picked 를 조용히 비웠다 - 초대 후보를
+       고르는 중간에 이름만 먼저 저장하면 방금 고른 사람이 흔적도 없이 사라졌다. */
+    const user = userEvent.setup();
+    let renamed = false;
+    apiMock.mockImplementation((url, opts) => {
+      const u = String(url);
+      if (u.startsWith("/api/team-chat/rooms/r1/messages?")) {
+        return Promise.resolve(meta({ room: { id: "r1", kind: "group", is_global: false,
+          title: renamed ? "새 이름" : "우리방", member_count: 2 } }));
+      }
+      if (u.startsWith("/api/team-chat/directory")) {
+        return Promise.resolve({ users: [{ user_id: "u9", display_name: "새사람", dept: "개발", title: "" }] });
+      }
+      if (u === "/api/team-chat/rooms/r1/rename" && opts && opts.method === "POST") {
+        renamed = true;
+        return Promise.resolve({ ok: true });
+      }
+      return Promise.resolve({ ok: true, added: 1 });
+    });
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter initialEntries={["/chat-rooms/r1"]}>
+            <Routes>
+              <Route path="/chat-rooms/:id" element={<RoomDetailPanel id="r1" />} />
+              <Route path="/chat-rooms" element={<div>채팅방 목록</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>
+    );
+    await openManage(user);
+
+    // 초대 후보를 먼저 고른다.
+    await user.click(await screen.findByRole("checkbox"));
+    expect(await screen.findByRole("button", { name: "1명 초대" })).toBeInTheDocument();
+
+    // 이어서 이름을 바꿔 저장한다(초대는 아직 안 눌렀다).
+    const input = screen.getByDisplayValue("우리방");
+    await user.clear(input);
+    await user.type(input, "새 이름");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(screen.getByDisplayValue("새 이름")).toBeInTheDocument());
+
+    // 골라 둔 초대 대상이 그대로 남아 있어야 한다 — 체크박스도, 버튼 글자도.
+    expect(screen.getByRole("checkbox")).toBeChecked();
+    expect(screen.getByRole("button", { name: "1명 초대" })).toBeInTheDocument();
+  });
+
   it("내 줄에는 관리 버튼이 없다 — 주인 없는 방을 만들 수 있는 버튼은 존재하지 않는다", async () => {
     const user = userEvent.setup();
     mount(meta());

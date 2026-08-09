@@ -469,6 +469,38 @@ def test_timer_autoresolves_server_side_on_poll(app, client, login_as, fake_cloc
     assert st["room"]["status"] == "finished" and st["state"]["result"] is not None
 
 
+def test_roster_marks_stale_members_as_not_present(app, client, login_as, make_user, fake_clock):
+    """명단은 남아 있어도(active) 90초 넘게 폴링이 없으면 추첨·팀나누기·사다리·투표
+    대상 풀(_present_players)에서는 조용히 빠진다(step 9 #7) - 그 어긋남을 화면이 미리
+    알 수 있어야 "5명이 보이는데 4명 중에서 뽑힌다"가 결과로만 드러나지 않는다.
+    `_member_view`가 실어 보내는 `present` 플래그가 그 판정과 정확히 같아야 한다."""
+    csrf = login_as("user", email="stay@goodmit.co.kr")
+    rid = _create(client, csrf)["id"]
+    make_user("ghost3@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "ghost3@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    members = {m["user_id"]: m for m in st["members"]}
+    assert len(members) == 2 and all(m["present"] for m in members.values()), (
+        "방금 폴링한 두 사람이 present:false 로 나온다"
+    )
+
+    # ghost3 은 더는 폴링하지 않는다(탭만 숨김 - 나가기는 안 눌렀다). 90초(PRESENCE_SECONDS)
+    # 를 넘겨 stay 만 다시 폴링한다.
+    from app.games.service import PRESENCE_SECONDS
+
+    fake_clock.advance(PRESENCE_SECONDS + 1)
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    members = {m["user_id"]: m for m in st["members"]}
+    assert len(members) == 2, "명단에서 통째로 사라졌다 — active 는 그대로 True 여야 한다"
+    assert all(m["active"] for m in members.values()), "폴링을 멈춘 것뿐인데 active 가 꺼졌다"
+    present_flags = sorted(m["present"] for m in members.values())
+    assert present_flags == [False, True], (
+        f"방금 폴링한 사람과 90초 넘게 조용한 사람이 구분되지 않는다: {members}"
+    )
+
+
 def test_rps_tournament_two_players_crowns_champion(app, client, login_as, make_user):
     """토너먼트 2인: 두 선택이 다르면 그 자리에서 승부가 나고 곧바로 챔피언이 확정된다."""
     csrf = login_as("user", email="tour2h@goodmit.co.kr")

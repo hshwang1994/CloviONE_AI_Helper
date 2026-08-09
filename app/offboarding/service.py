@@ -238,7 +238,9 @@ def run_offboarding(
     # **아무도 그 방을 관리할 수 없다** — 그런데 관리자는 "완료" 를 보고 끝났다고 믿는다.
     # 계정 처리 **앞**이다: 비활성/보관된 계정을 멤버 후보로 다루지 않으려면 아직 살아
     # 있는 동안 정리해야 한다(티켓과 같은 순서 논리).
-    run.rooms_transferred = _transfer_room_ownership(db, target=target, successor=successor)
+    from app.team_chat.service import transfer_owned_rooms
+
+    run.rooms_transferred = transfer_owned_rooms(db, target=target, successor=successor)
     db.commit()   # 방 결과도 계정 처리 성패와 무관하게 남아야 한다
 
     # 계정 처리는 티켓 이동 **뒤**다(순서가 계약 — 모듈 docstring).
@@ -541,51 +543,3 @@ def resolve_target(db: Session, user_id: str, scope) -> User:
     return get_scoped_user_or_404(db, user_id, scope)
 
 
-def _transfer_room_ownership(db: Session, *, target: User, successor: User | None) -> int:
-    """퇴사자가 방장인 **그룹** 방의 방장직을 넘긴다. 넘긴 방 수를 돌려준다 (X8).
-
-    **누구에게 넘기는가**: 후임이 그 방 멤버면 후임, 아니면 **가장 오래된 다른 멤버**다.
-    후임을 방에 억지로 넣지 않는다 — 오프보딩은 티켓을 넘기는 일이지 남의 대화방에
-    사람을 밀어 넣는 일이 아니다. 넘길 사람이 아무도 없으면(혼자 있던 방) 그대로 둔다:
-    받을 사람이 없는데 방장을 비우면 그때부터는 **되살릴 방법도 없다.**
-
-    **멤버십은 유지한다.** 지우면 지난 대화의 발신자가 참여자 목록에서 사라져 "이 말을
-    누가 했는지" 를 못 읽는다. 퇴사자를 화면에서 지우는 것이 아니라 **보관됨으로 표시**하는
-    것이 이 저장소의 방향이다(N3).
-
-    1:1(dm)과 전체 방은 건드리지 않는다 — 방장 개념이 뜻을 갖지 않는다.
-    """
-    from app.team_chat.models import ROLE_MEMBER, ROLE_OWNER, ROOM_GROUP, ChatRoom, ChatRoomMember
-
-    owned = db.execute(
-        select(ChatRoomMember)
-        .join(ChatRoom, ChatRoom.id == ChatRoomMember.room_id)
-        .where(
-            ChatRoomMember.user_id == target.id,
-            ChatRoomMember.role == ROLE_OWNER,
-            ChatRoom.kind == ROOM_GROUP,
-            ChatRoom.is_global.is_(False),
-        )
-    ).scalars().all()
-
-    moved = 0
-    for mine in owned:
-        candidates = db.execute(
-            select(ChatRoomMember)
-            .where(
-                ChatRoomMember.room_id == mine.room_id,
-                ChatRoomMember.user_id != target.id,
-            )
-            .order_by(ChatRoomMember.joined_at.asc(), ChatRoomMember.id.asc())
-        ).scalars().all()
-        if not candidates:
-            continue
-        heir = next(
-            (c for c in candidates if successor is not None and c.user_id == successor.id),
-            candidates[0],
-        )
-        heir.role = ROLE_OWNER
-        mine.role = ROLE_MEMBER
-        moved += 1
-    db.flush()
-    return moved

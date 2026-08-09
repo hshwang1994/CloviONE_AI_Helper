@@ -263,10 +263,17 @@ def get_comment(
 
 
 def list_comments(db: Session, post_id: str) -> list[Comment]:
+    """이 함수는 **삭제된 댓글도 돌려준다** — 위 모듈 docstring의 "조회 함수는 기본으로
+    deleted_at IS NULL만 돌려준다" 규약의 의도된 예외다. 그 규약은 게시글(Post)처럼
+    독립된 자원을 위한 것이다: 지운 글이 목록에서 사라지는 것은 맞다. 그런데 댓글은
+    스레드 안의 한 노드이고, 답글(parent_comment_id)이 그 노드를 가리킬 수 있다 —
+    행이 조용히 사라지면 답글만 남아 부모 없는 대화가 된다(티켓·문서 댓글과 같은
+    이유로 툼스톤을 쓴다, `app/tickets/comments.py`). 호출부(`app/board/router.py::
+    _comment_view`)가 삭제된 행을 본문 없는 툼스톤으로 감싼다."""
     rows = (
         db.execute(
             select(Comment)
-            .where(Comment.post_id == post_id, Comment.deleted_at.is_(None))
+            .where(Comment.post_id == post_id)
             .order_by(Comment.created_at.asc(), Comment.id.asc())
         )
         .scalars()

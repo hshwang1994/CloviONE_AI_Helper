@@ -188,7 +188,7 @@ def test_non_author_cannot_edit_or_delete(app, client, login_as, make_user):
         assert r.status_code == 403
 
 
-def test_moderator_can_edit_others_and_pin_but_user_cannot_pin(app, client, login_as, make_user):
+def test_moderator_can_pin_but_user_cannot_pin(app, client, login_as, make_user):
     csrf = login_as("user", email="poster@goodmit.co.kr")
     post = _create(client, csrf, title="공지 후보")
     pid = post["id"]
@@ -197,17 +197,12 @@ def test_moderator_can_edit_others_and_pin_but_user_cannot_pin(app, client, logi
     r = client.post(f"/api/board/posts/{pid}/pin?pinned=true", headers={"X-CSRF-Token": csrf})
     assert r.status_code == 403
 
-    # 관리자는 타인 글 수정 + 고정 가능.
+    # 관리자는 고정 가능(모더레이션 — 수정과는 다른 권한, 아래 test_moderator_cannot_edit
+    # 참조).
     make_user("mod@goodmit.co.kr", role="admin")
     with TestClient(app, raise_server_exceptions=False) as mod:
         mod.post("/login", json={"email": "mod@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         mcsrf = mod.get("/api/me").json()["csrf_token"]
-        r = mod.patch(
-            f"/api/board/posts/{pid}",
-            json={"category": "공지"},
-            headers={"X-CSRF-Token": mcsrf},
-        )
-        assert r.status_code == 200 and r.json()["post"]["category"] == "공지"
         r = mod.post(f"/api/board/posts/{pid}/pin?pinned=true", headers={"X-CSRF-Token": mcsrf})
         assert r.status_code == 200 and r.json()["post"]["is_pinned"] is True
 
@@ -215,6 +210,102 @@ def test_moderator_can_edit_others_and_pin_but_user_cannot_pin(app, client, logi
     _create(client, csrf, title="일반 글")
     items = client.get("/api/board/posts").json()["items"]
     assert items[0]["id"] == pid and items[0]["is_pinned"] is True
+
+
+def test_moderator_cannot_edit_others_post_or_comment_but_can_delete(app, client, login_as, make_user):
+    """수정은 작성자 본인만, 삭제는 작성자 또는 운영자군 — 티켓·문서 댓글과 같은 규칙
+    (step 9 #1). 예전엔 이 둘이 `can_edit` 하나로 뭉뚱그려져 운영자가 남의 글·댓글
+    본문을 조용히 고쳐 쓸 수 있었다(감사 로그는 남지만 화면엔 흔적이 없었다)."""
+    csrf = login_as("user", email="post-owner@goodmit.co.kr")
+    post = _create(client, csrf, title="원작자 글")
+    pid = post["id"]
+    c = client.post(
+        f"/api/board/posts/{pid}/comments", json={"body": "원작자 댓글"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert c.status_code == 200, c.text
+    cid = c.json()["post"]["comments"][0]["id"]
+
+    make_user("mod2@goodmit.co.kr", role="admin")
+    with TestClient(app, raise_server_exceptions=False) as mod:
+        mod.post("/login", json={"email": "mod2@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
+        mcsrf = mod.get("/api/me").json()["csrf_token"]
+
+        # 수정은 운영자도 거절 — 본인 글이 아니다.
+        r = mod.patch(
+            f"/api/board/posts/{pid}", json={"title": "운영자가 고침"},
+            headers={"X-CSRF-Token": mcsrf},
+        )
+        assert r.status_code == 403, r.text
+        r = mod.patch(
+            f"/api/board/comments/{cid}", json={"body": "운영자가 고침"},
+            headers={"X-CSRF-Token": mcsrf},
+        )
+        assert r.status_code == 403, r.text
+
+        # 삭제는 여전히 허용 — 모더레이션은 삭제 쪽에 남는다.
+        r = mod.request(
+            "DELETE", f"/api/board/comments/{cid}", headers={"X-CSRF-Token": mcsrf}
+        )
+        assert r.status_code == 200, r.text
+        r = mod.request(
+            "DELETE", f"/api/board/posts/{pid}", headers={"X-CSRF-Token": mcsrf}
+        )
+        assert r.status_code == 200, r.text
+
+
+def test_deleted_comment_is_a_tombstone_not_a_missing_row(client, login_as):
+    """삭제된 댓글은 목록에서 **사라지지 않고** 본문 없는 툼스톤으로 남는다(step 9 #4,
+    티켓·문서 댓글과 같은 규약). 답글이 달린 댓글이 조용히 사라지면 그 답글만 남아 부모
+    없는 대화가 된다."""
+    csrf = login_as("user", email="tomb-author@goodmit.co.kr")
+    post = _create(client, csrf, title="댓글 삭제 테스트")
+    pid = post["id"]
+    c = client.post(
+        f"/api/board/posts/{pid}/comments", json={"body": "지워질 댓글"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    cid = c.json()["post"]["comments"][0]["id"]
+    reply = client.post(
+        f"/api/board/posts/{pid}/comments",
+        json={"body": "답글", "parent_comment_id": cid},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert reply.status_code == 200, reply.text
+
+    r = client.request(
+        "DELETE", f"/api/board/comments/{cid}", headers={"X-CSRF-Token": csrf}
+    )
+    assert r.status_code == 200, r.text
+
+    detail = client.get(f"/api/board/posts/{pid}").json()["post"]
+    comments = {row["id"]: row for row in detail["comments"]}
+    assert cid in comments, "삭제된 댓글 행이 목록에서 통째로 사라졌다 — 답글이 고아가 된다"
+    assert comments[cid]["deleted"] is True
+    assert comments[cid]["body"] == ""
+    assert comments[cid]["can_edit"] is False
+    assert comments[cid]["can_delete"] is False
+
+
+def test_edited_comment_shows_a_different_updated_at(client, login_as):
+    """'(수정됨)' 표시는 프런트가 `updated_at != created_at` 으로 판단한다
+    (CommentThread.jsx 와 같은 규칙) — 서버가 그 둘을 같은 값으로 주면 절대 못 켜진다."""
+    csrf = login_as("user", email="edit-author@goodmit.co.kr")
+    post = _create(client, csrf, title="댓글 수정 테스트")
+    pid = post["id"]
+    c = client.post(
+        f"/api/board/posts/{pid}/comments", json={"body": "원문"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    comment = c.json()["post"]["comments"][0]
+    assert comment["created_at"] == comment["updated_at"]
+
+    r = client.patch(
+        f"/api/board/comments/{comment['id']}", json={"body": "고친 글"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    updated = next(x for x in r.json()["post"]["comments"] if x["id"] == comment["id"])
+    assert updated["updated_at"] != updated["created_at"]
 
 
 def test_attachment_upload_serve_and_reject_bad_type(client, login_as):
@@ -274,8 +365,12 @@ def test_reaction_on_missing_target_404(client, login_as):
     assert r.status_code == 404
 
 
-def test_deleting_parent_comment_hides_its_replies_and_count(client, login_as):
-    # 부모 댓글 삭제는 그 답글까지 함께 숨긴다(고아 답글 + 카운트 불일치 방지, 검수 결함).
+def test_deleting_parent_comment_cascades_and_tombstones_the_replies(client, login_as):
+    """부모 댓글 삭제는 그 답글까지 함께 지운다(카운트 불일치 방지, 검수 결함) — 하지만
+    **행 자체는 사라지지 않는다.** step 9 #4 이후로는 삭제된 댓글을 툼스톤으로 남기므로
+    (test_deleted_comment_is_a_tombstone_not_a_missing_row 참조), 부모·답글 둘 다 목록에
+    남고 둘 다 `deleted: true`·본문 빈 문자열이어야 한다. 댓글 수 배지(comment_count)만
+    0으로 줄어든다 — 그건 살아있는 댓글만 센다(app/board/repository.py::comment_count)."""
     csrf = login_as("user", email="cascade@goodmit.co.kr")
     post = _create(client, csrf)
     pid = post["id"]
@@ -283,14 +378,18 @@ def test_deleting_parent_comment_hides_its_replies_and_count(client, login_as):
                     json={"body": "부모", "parent_comment_id": None},
                     headers={"X-CSRF-Token": csrf}).json()["post"]
     top_id = d["comments"][0]["id"]
-    client.post(f"/api/board/posts/{pid}/comments",
+    reply = client.post(f"/api/board/posts/{pid}/comments",
                 json={"body": "답글", "parent_comment_id": top_id},
-                headers={"X-CSRF-Token": csrf})
-    # 부모 삭제 → 상세엔 댓글 0개, 목록의 댓글 수도 0.
+                headers={"X-CSRF-Token": csrf}).json()["post"]
+    reply_id = [c for c in reply["comments"] if c["id"] != top_id][0]["id"]
+
     r = client.request("DELETE", f"/api/board/comments/{top_id}", headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200
     detail = client.get(f"/api/board/posts/{pid}").json()["post"]
-    assert detail["comments"] == []
+    by_id = {c["id"]: c for c in detail["comments"]}
+    assert {top_id, reply_id} <= set(by_id), "삭제된 부모·답글 행이 통째로 사라졌다"
+    assert by_id[top_id]["deleted"] is True and by_id[top_id]["body"] == ""
+    assert by_id[reply_id]["deleted"] is True and by_id[reply_id]["body"] == ""
     assert client.get("/api/board/posts").json()["items"][0]["comment_count"] == 0
 
 

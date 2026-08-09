@@ -5,6 +5,7 @@ import Tooltip from "@mui/material/Tooltip";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { useToast } from "../../ui/kit.jsx";
 import { URL_RE, copyText, safeNotion } from "../chat-helpers.js";
+import { trimUrlTail } from "../chat-text.js";
 
 /* 본문·카드 안 URL을 안전하게 그리는 두 부품 — 허용 도메인은 실제 링크로, 그 외는 복사 버튼으로.
  * TicketCard/CardStack, RichText(말풍선 프로즈)가 모두 이 게이트를 공유한다(같은 판정을 두 번
@@ -54,9 +55,23 @@ export function linkifyText(text, keyBase) {
   const s = String(text == null ? "" : text);
   const parts = s.split(URL_RE);
   if (parts.length === 1) return s;
-  return parts.map((part, i) => (i % 2 === 1)
-    ? (safeNotion(part)
-        ? <NotionLink key={keyBase + "-u" + i} url={part}>{part}</NotionLink>
-        : <PlainUrl key={keyBase + "-u" + i} url={part} />)
-    : part);
+  // URL_RE는 공백 전까지 욕심껏 먹는다 - "(https://a.b/c)에서"처럼 뒤에 괄호·조사가 바로
+  // 붙으면 그것까지 통째로 "URL"에 들어간다. 팀 채팅 말풍선(chat-text.js)이 이미 겪고
+  // 고친 문제라 같은 다듬기(trimUrlTail)를 쓴다 - 잘려 나간 꼬리는 버리지 않고 바로 뒤
+  // 텍스트 조각 앞에 되돌려 붙인다(글자를 잃지 않는다).
+  const out = [];
+  let carry = "";
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      const raw = trimUrlTail(part);
+      carry = part.slice(raw.length);
+      out.push(safeNotion(raw)
+        ? <NotionLink key={keyBase + "-u" + i} url={raw}>{raw}</NotionLink>
+        : <PlainUrl key={keyBase + "-u" + i} url={raw} />);
+    } else {
+      out.push(carry + part);
+      carry = "";
+    }
+  });
+  return out;
 }

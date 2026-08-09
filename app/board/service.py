@@ -44,10 +44,21 @@ def can_moderate(user: User) -> bool:
 
 
 def ensure_can_edit(author_user_id: str, user: User) -> None:
-    """작성자 본인 또는 운영자군만 수정·삭제할 수 있다. 아니면 403."""
+    """수정은 **작성자 본인만.** 티켓·문서 댓글(`app/tickets/comments.py`,
+    `app/team_docs/comments.py`)과 같은 규칙이다 — 운영자도 남의 문장을 고쳐 쓸 수는
+    없다. 남의 말을 바꾸는 것은 지우는 것보다 나쁘다(누가 썼는지는 그대로인데 내용만
+    달라진다). 예전에는 이 함수가 삭제까지 함께 검사해 운영자가 남의 글을 조용히
+    고쳐 쓸 수 있었다(감사 로그에는 남지만 화면에는 "(수정됨)" 조차 없었다) — 삭제
+    권한은 `ensure_can_delete`로 분리했다."""
+    if user.id != author_user_id:
+        raise ForbiddenError("본인이 작성한 글만 수정할 수 있습니다.")
+
+
+def ensure_can_delete(author_user_id: str, user: User) -> None:
+    """삭제는 작성자 본인 또는 운영자군(모더레이션) — 티켓·문서 댓글과 같은 규칙."""
     if user.id == author_user_id or can_moderate(user):
         return
-    raise ForbiddenError("본인이 작성한 글만 수정하거나 삭제할 수 있습니다.")
+    raise ForbiddenError("본인이 작성한 글만 삭제할 수 있습니다.")
 
 
 # ── 게시글 ────────────────────────────────────────────────────────────────

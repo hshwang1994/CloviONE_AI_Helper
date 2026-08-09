@@ -154,10 +154,32 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
   );
 }
 
+/* 삭제된 댓글의 자리 — 본문 없는 툼스톤. CommentThread.jsx(티켓·문서 공용 댓글)와 같은
+ * 규약이다: 행이 조용히 사라지면 그 답글(자식)만 남아 부모 없는 대화처럼 보인다. */
+function CommentTombstone({ comment, isReply }) {
+  return (
+    <Paper
+      component="article" variant="outlined"
+      sx={{
+        p: 2, minWidth: 0,
+        borderLeft: isReply ? 3 : 1,
+        borderLeftColor: isReply ? "primary.light" : "divider",
+      }}
+    >
+      <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
+        {comment.author_name || "알 수 없음"}, 삭제된 댓글입니다
+      </Typography>
+    </Paper>
+  );
+}
+
 /* 댓글 한 건. 목록 시맨틱(<li>)은 부모가 만든다 — 답글은 최상위 댓글 안에 중첩된 <ul>로 들어가야
  * 하는데, 이 컴포넌트가 스스로 <li>를 그리면 최상위 댓글이 <li> 안의 <li>가 되어 무효 마크업이 된다. */
 function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   const toast = useToast();
+  if (comment.deleted) return <CommentTombstone comment={comment} isReply={isReply} />;
+  // CommentThread.jsx(티켓·문서 공용 댓글)와 같은 판정 — 수정된 댓글에는 "(수정됨)" 표시.
+  const edited = comment.updated_at && comment.updated_at !== comment.created_at;
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [replying, setReplying] = useState(false);
@@ -198,6 +220,9 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           <AuthorLine name={comment.author_name} person={person} bold />
         </Typography>
         <Typography variant="caption" color="text.secondary">{fmtDateTime(comment.created_at)}</Typography>
+        {edited ? (
+          <Typography component="span" variant="caption" color="text.secondary">(수정됨)</Typography>
+        ) : null}
       </Stack>
       {editing ? (
         <Box sx={{ mt: 1 }}>
@@ -229,15 +254,15 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
             <Button variant="ghost" size="sm" onClick={() => setReplying((v) => !v)}>답글</Button>
           ) : null}
           {comment.can_edit ? (
-            <>
-              {/* text state는 마운트 시 한 번만 comment.body로 초기화된다(useState 초깃값).
-                  이 세션 안의 다른 동작(새 댓글 등록 등)이 상세를 재조회해 comment.body가
-                  그 사이 바뀌어도(다른 세션이 먼저 고친 경우 등) text는 리마운트 없이는
-                  따라가지 않는다 — "수정"을 누르는 순간 지금 comment.body로 다시 채워,
-                  옛 내용으로 최신 내용을 덮어쓰는 잃어버린 갱신을 막는다(취소 버튼과 같은 규칙). */}
-              <Button variant="ghost" size="sm" onClick={() => { setText(comment.body); setEditing(true); }}>수정</Button>
-              <Button variant="ghost" size="sm" color="error" onClick={askDelete}>삭제</Button>
-            </>
+            /* text state는 마운트 시 한 번만 comment.body로 초기화된다(useState 초깃값).
+               이 세션 안의 다른 동작(새 댓글 등록 등)이 상세를 재조회해 comment.body가
+               그 사이 바뀌어도(다른 세션이 먼저 고친 경우 등) text는 리마운트 없이는
+               따라가지 않는다 — "수정"을 누르는 순간 지금 comment.body로 다시 채워,
+               옛 내용으로 최신 내용을 덮어쓰는 잃어버린 갱신을 막는다(취소 버튼과 같은 규칙). */
+            <Button variant="ghost" size="sm" onClick={() => { setText(comment.body); setEditing(true); }}>수정</Button>
+          ) : null}
+          {comment.can_delete ? (
+            <Button variant="ghost" size="sm" color="error" onClick={askDelete}>삭제</Button>
           ) : null}
         </Stack>
       </Stack>
@@ -431,11 +456,9 @@ export function BoardPost() {
           {post.is_pinned ? "고정 해제" : "공지 고정"}
         </Button>
       ) : null}
-      {post.can_edit ? (
-        <>
-          <Button onClick={() => setEditing(true)}>수정</Button>
-          <Button variant="danger" onClick={askDeletePost} disabled={remove.isPending}>삭제</Button>
-        </>
+      {post.can_edit ? <Button onClick={() => setEditing(true)}>수정</Button> : null}
+      {post.can_delete ? (
+        <Button variant="danger" onClick={askDeletePost} disabled={remove.isPending}>삭제</Button>
       ) : null}
     </>
   );

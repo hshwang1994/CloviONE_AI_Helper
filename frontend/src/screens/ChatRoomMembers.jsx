@@ -136,7 +136,13 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   const confirm = useConfirm();
   const [name, setName] = React.useState(title || "");
   const [picked, setPicked] = React.useState({});
-  React.useEffect(() => { if (open) { setName(title || ""); setPicked({}); } }, [open, title]);
+  /* 열릴 때만 초기화한다(step 9 #6) — `title`을 의존성에 넣으면, 이미 열려 있는 채로
+   * 이름을 저장했을 때(rename.onSuccess → refresh() → room 쿼리 재조회 → title prop 갱신)
+   * 이 효과가 다시 돌아 방금 골라 둔 초대 대상(picked)까지 조용히 날아간다. 초대 성공
+   * 경로는 이미 `setPicked({})`를 명시적으로 부르므로(위 invite.onSuccess), 여기서 title
+   * 변화에 반응할 이유가 없다 - 모달이 열리는 순간의 값으로 한 번만 채우면 된다(그 시점에는
+   * title 이 이미 최신값이다 - "관리" 버튼 자체가 room 데이터 로딩 후에만 보인다). */
+  React.useEffect(() => { if (open) { setName(title || ""); setPicked({}); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["team-chat-msgs", roomId] });

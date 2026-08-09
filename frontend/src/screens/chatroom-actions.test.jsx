@@ -22,7 +22,7 @@ vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: (
 // S1 로 목록·상세를 한 껍데기에 합치면서 방 본문이 RoomDetailPanel 이 됐다.
 // 라우트 파라미터가 아니라 prop 으로 id 를 받는다 — 여기서 확인하는 동작
 // (파하기·나가기·숨기기·관리 버튼의 노출 조건)은 그대로다.
-import { RoomDetailPanel } from "./ChatRoom.jsx";
+import { RoomDetailPanel, leaveRoomConfirmMessage } from "./ChatRoom.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -112,6 +112,34 @@ describe("1:1 숨기기 버튼", () => {
     await waitFor(() => expect(posted("/api/team-chat/rooms/r1/hide")).toHaveLength(1));
     // 숨기고 나면 목록으로 돌아간다.
     expect(await screen.findByText("채팅방 목록")).toBeInTheDocument();
+  });
+});
+
+describe("나가기 확인 문구 — 방장이면 결과가 다르다(step 9 #5)", () => {
+  /* 예전엔 누가 나가든 "계속할까요?" 한 문장이었다 - 방장이 나가고 남은 사람이 없으면
+     방이 사라지는데(파하기와 같은 결과), 바로 옆 파하기 버튼만 "되돌릴 수 없습니다"를
+     경고해 결과가 같은 두 버튼이 다른 무게로 보였다. */
+  it("방장이 아니면 그냥 나간다는 안내다", () => {
+    expect(leaveRoomConfirmMessage({ role: "member" }, { member_count: 3 }))
+      .toBe("이 채팅방을 나갑니다. 계속할까요?");
+  });
+
+  it("방장이고 남은 사람이 없으면 방이 사라진다고 말한다(파하기와 같은 결과)", () => {
+    const msg = leaveRoomConfirmMessage({ role: "owner" }, { member_count: 1 });
+    expect(msg).toMatch(/사라|되돌릴 수 없/);
+  });
+
+  it("방장이고 남은 사람이 있으면 방장 권한이 자동으로 넘어간다고 말한다", () => {
+    const msg = leaveRoomConfirmMessage({ role: "owner" }, { member_count: 3 });
+    expect(msg).toMatch(/방장.*넘어|넘어.*방장/);
+    expect(msg).not.toMatch(/사라/);
+  });
+
+  it("실제 화면에서 방장으로 나가기를 누르면 방장 전용 문구가 뜬다", async () => {
+    const user = userEvent.setup();
+    mount(meta({ role: "owner", can_disband: true }, { member_count: 3 }));
+    await user.click(await screen.findByRole("button", { name: "나가기" }));
+    expect(await screen.findByText(/방장 권한은 가장 먼저 들어온/)).toBeInTheDocument();
   });
 });
 

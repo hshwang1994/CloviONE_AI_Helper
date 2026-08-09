@@ -122,6 +122,17 @@ describe("classifyLine", () => {
   it("does not treat a time (09:00) as kv", () => {
     expect(classifyLine("09:00 미팅")).toMatchObject({ kind: "text" });
   });
+  it("does not treat a time with a prefix (오전 9:30) as kv either (step 10 #3)", () => {
+    // 예전엔 키가 순수 숫자일 때만 막아서("09:00") 시 앞에 다른 말이 붙으면
+    // ("오전 9:30에 회의") 정의목록(dl) 2줄로 잘못 렌더됐다.
+    expect(classifyLine("오전 9:30에 회의")).toMatchObject({ kind: "text" });
+    expect(classifyLine("오후 11:05 마감")).toMatchObject({ kind: "text" });
+  });
+  it("still treats a genuine numeric-looking key as kv (no over-correction)", () => {
+    // 키 끝이 숫자여도 그 앞이 공백/괄호/줄 시작이 아니면(=글자에 바로 붙은 숫자) 시각이
+    // 아니다 - "질문2"의 "2"를 시(hour)로 오인해 진짜 키-값 줄까지 막으면 안 된다.
+    expect(classifyLine("질문2: 15번 참고")).toMatchObject({ kind: "kv", key: "질문2", text: "15번 참고" });
+  });
   it("falls back to plain text", () => {
     expect(classifyLine("그냥 문장입니다")).toEqual({ kind: "text", text: "그냥 문장입니다" });
   });

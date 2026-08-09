@@ -151,7 +151,10 @@ def _post_summary(
         "is_pinned": post.is_pinned,
         "view_count": post.view_count,
         "comment_count": comments,
-        "can_edit": me.id == post.author_user_id or service.can_moderate(me),
+        # 수정은 작성자 본인만, 삭제는 작성자 또는 운영자군 — 두 값이 다른 이유는
+        # `service.ensure_can_edit`/`ensure_can_delete` 의 docstring 참조.
+        "can_edit": me.id == post.author_user_id,
+        "can_delete": me.id == post.author_user_id or service.can_moderate(me),
         "created_at": post.created_at.isoformat(),
         "updated_at": post.updated_at.isoformat(),
     }
@@ -169,15 +172,24 @@ def _attachment_view(att) -> dict:
 
 
 def _comment_view(c: Comment, *, author_name: str, reactions: list[dict], me: User) -> dict:
+    """댓글 한 건의 API 응답. 삭제된 댓글은 **본문 없는 툼스톤**으로 나간다 —
+    `app/tickets/comments.py::comment_view`·`app/team_docs/comments.py`와 같은 규약
+    (`docs/DECISIONS.md` 참조). 예전에는 목록 쿼리가 삭제된 행 자체를 걸러냈다 —
+    행이 조용히 사라지면 그 답글(자식)만 남아 부모 없는 대화처럼 보였다."""
+    deleted = c.deleted_at is not None
     return {
         "id": c.id,
         "post_id": c.post_id,
         "parent_comment_id": c.parent_comment_id,
         "author_user_id": c.author_user_id,
         "author_name": author_name,
-        "body": c.body,
-        "reactions": reactions,
-        "can_edit": me.id == c.author_user_id or service.can_moderate(me),
+        # 본문은 살아 있는 댓글에만 — 지운 내용을 계속 내려보내면 삭제가 아니다.
+        "body": "" if deleted else c.body,
+        "deleted": deleted,
+        "reactions": [] if deleted else reactions,
+        # 수정은 작성자 본인만, 삭제는 작성자 또는 운영자군 — 이미 지운 댓글은 둘 다 불가.
+        "can_edit": (not deleted) and me.id == c.author_user_id,
+        "can_delete": (not deleted) and (me.id == c.author_user_id or service.can_moderate(me)),
         "created_at": c.created_at.isoformat(),
         "updated_at": c.updated_at.isoformat(),
     }
@@ -209,7 +221,9 @@ def _post_detail(db: Session, post: Post, me: User) -> dict:
         "author_name": names.get(post.author_user_id, "(알 수 없음)"),
         "is_pinned": post.is_pinned,
         "view_count": post.view_count,
-        "can_edit": me.id == post.author_user_id or service.can_moderate(me),
+        # 수정은 작성자 본인만, 삭제는 작성자 또는 운영자군 — `_post_summary`와 같은 분리.
+        "can_edit": me.id == post.author_user_id,
+        "can_delete": me.id == post.author_user_id or service.can_moderate(me),
         "can_moderate": service.can_moderate(me),
         # 상태 버튼을 그릴지 판단하는 값. 감추는 것은 편의일 뿐이고 통제는 서버가 한다.
         "can_change_status": service.can_moderate(me),
@@ -466,7 +480,7 @@ def delete_post(
     me: User = Depends(get_current_user),
 ):
     post = _get_post_or_404(db, post_id, me)
-    service.ensure_can_edit(post.author_user_id, me)
+    service.ensure_can_delete(post.author_user_id, me)
     service.soft_delete_post(db, post, now=request.app.state.clock.now())
     record_audit_from_request(
         request,
@@ -604,7 +618,7 @@ def delete_comment(
     me: User = Depends(get_current_user),
 ):
     comment = _get_comment_or_404(db, comment_id, me)
-    service.ensure_can_edit(comment.author_user_id, me)
+    service.ensure_can_delete(comment.author_user_id, me)
     service.soft_delete_comment(db, comment, now=request.app.state.clock.now())
     record_audit_from_request(
         request,

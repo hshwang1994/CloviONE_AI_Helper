@@ -12,14 +12,79 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 3 — **배포·실환경검증 완료(핵심 경로)**,
-9·10단계는 다음 사이클 · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 3 — **`SONNET_HANDOFF.md §3` 5~11단계
+전부 로컬 게이트 green, 9·10단계는 배포·실환경검증 진행 중** · **브랜치**: `ui/mui-migration`
 
 ---
 
 ## 0. 한 줄 요약
 
-## 🔵 Sonnet 구현 사이클 3 완료 — 설정/Notion 쓰기/셸 스코프/위생 묶음, 배포·실환경검증 (2026-08-10)
+## 🟡 Sonnet 구현 사이클 3, 9·10단계 — 로컬 완료, 배포 진행 중 (2026-08-10)
+
+`SONNET_HANDOFF.md §3` 9단계(게시판·채팅 규약 통일, 7항목)·10단계(채팅 텍스트 파서
+공용화, 3항목) 전부 구현 완료. 전체 백엔드 pytest green(1건 실패 발견·수정 후 재확인 —
+`test_a_moderator_in_another_department_can_still_moderate`가 **예전(운영자가 남의 글
+수정 가능) 동작을 정답으로 못박아 둔 테스트**였다, 아래 9-1과 같은 이유로 의도적으로
+바꾼 동작이라 테스트를 새 계약에 맞춰 고쳤다), 프런트 vitest 189파일/1272건 green,
+`STATIC_CHECKS_OK`, 번들 재빌드 완료. **배포·Chrome 실환경검증은 이 턴 이후 진행.**
+
+**9-1·9-4 (게시판 수정 흔적 + 툼스톤)**: `app/board/service.py`의 `ensure_can_edit`을
+작성자 본인만으로 좁히고(`ensure_can_delete`를 새로 분리 — 삭제는 여전히 작성자 또는
+운영자군), 응답에 `can_edit`/`can_delete`를 별도 필드로 분리(`_post_summary`·`_post_detail`·
+`_comment_view`). 댓글 목록(`repository.list_comments`)이 삭제된 행도 함께 돌려주게
+바꾸고(예전엔 `deleted_at IS NULL` 필터로 통째로 사라져 답글만 남으면 고아가 됐다),
+`_comment_view`가 삭제된 댓글을 본문 없는 툼스톤으로 감싼다 — 티켓·문서 댓글
+(`app/tickets/comments.py`)과 같은 규약. 프런트(`BoardPost.jsx`)에 툼스톤 렌더 +
+"(수정됨)" 표시 + 버튼 분리 추가.
+
+**9-2 (방장 오프보딩 인계)**: 방장직 이전 로직(`_transfer_room_ownership`)이 오프보딩
+마법사 전체 실행 경로에만 있었다 — `/users`에서 바로 비활성화·보관해도 계정은 똑같이
+로그인을 못 하게 되는데 그 경로는 인계를 건너뛰었다. 순환 import를 피해
+`app/team_chat/service.py::transfer_owned_rooms`로 옮기고, `app/users/service.py`의
+`set_user_active`/`archive_user`(직접 비활성화·보관)와 `app/offboarding/service.py`
+(오프보딩 실행) 둘 다 부르게 함.
+
+**9-3 (전체 채팅 @멘션 강조)**: `/api/team-chat/directory`가 호출자 본인을 항상 빼서
+(1:1 상대 고르기용 설계) 전체 채팅에서는 렌더용 멘션 후보 목록에 내 이름이 들어올 길이
+없었다. `you.display_name`을 `/api/team-chat/rooms/{id}/messages` 응답에 추가하고
+(`app/team_chat/router.py`), `ChatPane.jsx`가 전체 채팅일 때 그 값으로 렌더용 목록을
+보완.
+
+**9-5 (나가기 문구)**: 방장이 나가면 남은 사람이 없을 때 방이 사라지는데(파하기와 같은
+결과) 확인 문구는 "계속할까요?" 한 마디였다. `you.role`/`room.member_count`로 결과가
+다른 문구를 만드는 `leaveRoomConfirmMessage()` 신설(`ChatRoom.jsx`).
+
+**9-6 (방 이름 저장이 초대 대상을 날림)**: `ManageRoomModal`의 초기화 effect가
+`[open, title]`에 의존해, 열린 채로 이름만 저장해도(rename.onSuccess → refresh() →
+title prop 갱신) 골라 둔 초대 대상이 조용히 날아갔다. 의존성을 `[open]`으로 좁힘 —
+일부러 되돌려서 새 회귀 테스트가 실제로 잡는 것까지 확인한 뒤 다시 고쳤다.
+
+**9-7 (게임 명단/추첨 풀 어긋남)**: 명단엔 남아 있어도(active) 90초 폴링 정지면 추첨
+대상 풀(`_present_players`)에서 조용히 빠졌다 - 명단이 그 사실을 표시할 수단이 없었다.
+`app/games/service.py::is_present()` 신설 + `_member_view`에 `present` 플래그 추가,
+프런트(`MembersList.jsx`)에 "자리 비움" 배지. `PRESENCE_SECONDS=90`의 거짓 근거 주석
+("폴링 스로틀")도 정정 — react-query focusManager는 숨은 탭에서 스로틀이 아니라 폴링을
+완전히 멈춘다.
+
+**10-1 (`trimUrlTail` 미공유)**: `chat-text.js`(팀 채팅)의 URL 꼬리 다듬기를 export해
+`chat/links.jsx`(AI 답변 링크화기)도 같은 함수를 쓰게 함. **검증 중 발견**: 이 함수는
+공백 없이 바로 붙은 한글 조사("...(url)에서")는 못 뗀다 — chat-text.js 자신도 같은
+한계가 있고(기존 테스트가 공백 있는 입력만 검증), 이번 통일로 그 한계까지 AI 링크화기가
+동일하게 물려받았다. 근본 수정(URL 정규식이 한글 문자를 만나면 멈추게)은 범위가 더 커
+`docs/KNOWN_LIMITATIONS.md`에 기록만 하고 보류.
+
+**10-2 (RichText 머리글 미링크화)**: `parseBlocks`의 네 블록(head·list·kv·para) 중
+head만 `linkifyText`를 안 거쳤다 — "■ https://…"로 시작하는 답변 줄의 URL이 죽은
+글자로 남았다. `RichText.jsx`의 head 렌더에 `linkifyText` 적용.
+
+**10-3 (`kvOf` 시각 오탐)**: "09:00" 같은 **순수 숫자 키**만 시각으로 걸러 냈다 —
+"오전 9:30에 회의"처럼 시 앞에 말이 붙으면 못 걸러 2줄이면 정의목록(dl)으로 잘못
+렌더됐다. 키 끝이 시(0~23)로 끝나고(줄 시작·공백·여는 괄호 뒤에서만) 값 머리가
+분(00~59)이면 시각으로 보는 `HOUR_TAIL`/`MINUTE_HEAD` 판정 추가(`chat-helpers.js`).
+
+---
+
+## 🔵 Sonnet 구현 사이클 3 완료(1차) — 설정/Notion 쓰기/셸 스코프/위생 묶음, 배포·실환경검증 (2026-08-10)
 
 `SONNET_HANDOFF.md §3` 5~11단계(설정 화면 배선 · Notion 본문 쓰기 안전 · 설정 오버레이 배선 ·
 셸 스코프 배선 · 게시판/채팅 규약 통일 일부 · 위생 묶음)를 구현하고 **실서버(10.100.64.71)에

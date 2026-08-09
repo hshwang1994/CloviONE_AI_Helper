@@ -16,8 +16,8 @@ export function RichText({ text }) {
               key={bi} component="h4"
               sx={{ mt: bi === 0 ? 0 : 1.5, mb: 0.5, fontSize: "1rem", fontWeight: 750, color: "text.primary", lineHeight: 1.4 }}
             >
-              {b.text}
-              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: 500, fontSize: "0.8125rem", color: "text.secondary" }}>{b.note}</Box> : null}
+              {linkifyText(b.text, "h" + bi)}
+              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: 500, fontSize: "0.8125rem", color: "text.secondary" }}>{linkifyText(b.note, "hn" + bi)}</Box> : null}
             </Typography>
           );
         }

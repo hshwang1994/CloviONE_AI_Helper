@@ -60,11 +60,15 @@ def _room_summary(db: Session, room) -> dict:
     }
 
 
-def _member_view(m, user=None) -> dict:
+def _member_view(m, user=None, *, now=None) -> dict:
     # 참여자 카드에 이름과 함께 직책·부서를 보여준다(사람을 알아보게). 명부에 없으면 빈칸.
     return {
         "user_id": m.user_id, "name": m.display_name, "role": m.role,
         "ready": m.ready, "active": m.active,
+        # 명단에는 남아 있어도 추첨·팀나누기·사다리·투표 대상 풀(service._present_players)
+        # 에서는 빠질 수 있다(90초 넘게 폴링이 없으면) - 그 어긋남을 화면이 미리 말해야
+        # "5명이 보이는데 4명 중에서 뽑힌다"는 게 나중에야 결과로 드러나지 않는다.
+        "present": now is None or service.is_present(m, now),
         "title": (user.title if user else None) or "",
         "dept": (user.department if user else None) or "",
     }
@@ -126,7 +130,7 @@ def room_state(
     return {
         "room": _room_summary(db, room),
         "state": service.public_state(room, me.id),
-        "members": [_member_view(m, umap.get(m.user_id)) for m in active_members],
+        "members": [_member_view(m, umap.get(m.user_id), now=now) for m in active_members],
         # 대화는 **방 안 사람에게만** (1순위 유출 #10). 로비 미리보기(방·멤버·진행 상태)는
         # 설계다 — `you.in_room` 과 `join(spectate=…)` 이 그걸 전제로 있다. 하지만 "무슨
         # 게임이 몇 명으로 돌아가는지" 를 보는 것과 "그 사람들이 무슨 말을 했는지" 를 읽는
