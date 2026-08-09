@@ -6,6 +6,40 @@
 > 남은 문제는 [BACKLOG.md](BACKLOG.md), 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md).
 > 이 문서는 "무엇을 했는가"의 누적 이력이다. Raw log를 복사해 비대하게 만들지 않는다.
 
+## 2026-08-10 (Sonnet 구현 사이클 4, 배치 3) — Retry-After NaN·임퍼소네이션 시간제한 우회·공지 링크 정규화·프롬프트 발행 경합
+
+**무엇을 했나**: Notion 429 응답의 `Retry-After: nan`이 단일 아웃바운드 관문을 죽이던 것
+(CORE-07, `math.isnan()` 검사 추가 — `float("nan")`은 `ValueError`를 안 던지고 NaN 비교는
+전부 `False`라 두 범위 검사를 그대로 통과했다). 임퍼소네이션 최대 지속 시간(30분) 검사가
+세션의 `impersonation_id` 포인터가 비면 통째로 건너뛰어지던 것(CORE-09, `imp_service.end()`
+가 이미 갖고 있던 `active_for_session()` 폴백을 인증 경로에도 적용 — 이 검사 자체가
+테스트 0건이었다). 공지 `link_url`의 검증 형태(제어문자를 벗긴 형태)와 저장 형태(원문)가
+갈라져 있던 것과 빈 문자열이 422가 되던 것(CORE-11, 하나의 `_clean()` 함수로 통일 + 정규화된
+값 저장). PATCH가 안 건드린 필드(legacy 위험 `link_url`)까지 재검증해 배너 끄기 자체를
+막던 것(UB-05, 실제로 바뀌는 필드만 검증). 발행(publish) 전환이 잠금 없는 read-then-write라
+동시 발행이 같은 이름에 published 행을 두 개 만들 수 있던 것(UB-04, 새 마이그레이션 0053이
+부분 유일 인덱스 추가 + `transition()`이 `IntegrityError`를 409로 변환).
+
+**구현 중 자체 발견(UB-04)**: 옛 발행본을 archived로 내리는 UPDATE와 새 행을 published로
+올리는 UPDATE를 같은 flush에 섞었더니, SQLAlchemy가 문장을 내보내는 순서에 따라 찰나에
+"같은 이름에 published 둘"이 생겨 **정상적인 단일 요청 발행 경로 자체**가 새 유일
+인덱스에 걸렸다 — 기존 테스트(`test_publish_archives_previous_published`)가 실제로 이
+결함을 잡아냈다. 두 UPDATE를 분리된 flush로 나눠 고쳤다. 자기 수정을 자기가 깬 사례를
+숨기지 않고 그대로 기록한다.
+
+**검증 방법론**: 5건 전부 회귀 테스트를 새로 추가했고, 고치기 전 코드로 일부러 되돌려
+전부 실패하는 것을 직접 확인한 뒤 복원했다.
+
+**검증 상태**: 백엔드 pytest 전체 green, `STATIC_CHECKS_OK`. 마이그레이션 0053
+downgrade/upgrade 왕복 로컬 확인. 커밋 `11949e9` 배포 → `UPGRADE_OK`, 서비스 3종 active,
+healthz/readyz 정상, 마이그레이션 적용은 실서버 `sqlite3`로 직접 확인(`alembic_version=0053`
++ 새 인덱스 둘 다 존재). 실서버 검증은 CORE-11의 빈 문자열 케이스만 안전하게 실시(공지
+생성 시 `link_url=""` → 201 + `null` 저장 확인, 정리함) — 나머지 네 항목은 실제 429 응답,
+DB 포인터 불일치, 진짜 동시 요청, legacy 위험 데이터를 실서버에 인위적으로 만들어야
+재현되는 종류라 시도하지 않음.
+
+---
+
 ## 2026-08-10 (Sonnet 구현 사이클 4, 배치 2) — CORE 인프라 4건: 세션 폐기 영속화·500 헤더/로그·allowlist 포트/캐시
 
 **무엇을 했나**: `app/core/`(14라운드 감사가 부수효과로만 닿았던 인프라 계층)에서 4건.

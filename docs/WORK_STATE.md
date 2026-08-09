@@ -12,9 +12,65 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치2(CORE 인프라 4건) — 로컬
-게이트 green + 배포 완료. **BACKLOG.md의 나머지 항목(Critical 2건 포함)으로 계속 진행 중**
-· **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치3(CORE-07·09·11, UB-04·05) —
+로컬 게이트 green + 배포 완료(신규 마이그레이션 0053 포함). **BACKLOG.md의 나머지 항목
+(Critical 2건 포함)으로 계속 진행 중** · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🔵 Sonnet 구현 사이클 4, 배치 3 — Retry-After NaN·임퍼소네이션 시간제한 우회·공지 링크 정규화·프롬프트 발행 경합 (2026-08-10)
+
+**CORE-07**: `float("nan")`은 `ValueError`를 안 던지고 NaN과의 비교는 IEEE 754상 전부
+`False`라 `Retry-After: nan` 헤더가 두 범위 검사를 그대로 통과해 `time.sleep(nan)`이
+단일 아웃바운드 관문 전체를 죽였다. `math.isnan()` 검사 추가(`inf`는 이미 정상 처리되던
+것을 회귀 테스트로 함께 고정).
+
+**CORE-09**: 임퍼소네이션 최대 지속 시간(30분) 검사가 `record.impersonation_id`가
+비어 있으면(`imp_service.end()`가 이미 폴백을 두는 바로 그 불일치) 통째로 건너뛰어졌다
+— `_impersonated_auth`도 같은 `active_for_session()` 폴백을 쓰게 고침. 이 검사 자체가
+지금까지 테스트 0건이었다(일반 케이스·이 폴백 케이스 둘 다 새로 추가).
+
+**CORE-11**: `is_safe_external_url`의 제어문자 제거와 `normalize_external_url`의 정리가
+서로 다른(그리고 서로 벌어질 수 있는) 구현이었고, `announcements`는 검증에 쓴 정규화된
+값이 아니라 **원문**을 저장했다 — 검증한 형태와 저장한 형태가 갈라지는 구조였다(오늘은
+무해해도 스킴 검사가 정교해질 다음번의 발판). 하나의 `_clean()`으로 통일하고 저장 경로도
+정규화된 값을 쓰게 고침. `link_url=""`이 "링크 없음"이 아니라 422가 되던 것도 함께 고침.
+
+**UB-05**: PATCH가 `link_url`을 안 건드려도 기존 저장값을 재검증해서, safe_url 가드
+이전에 저장된 legacy 위험 값이 있는 배너는 **끄기(`{"active": false}`)조차** 422로
+막혔다 — "한 번에 끄기"가 존재하는 이유를 무력화. `link_url` 자체를 바꾸려는 요청만
+검증하게 좁힘.
+
+**UB-04**: 발행(publish) 전환이 "기존 발행본 조회 → 이전 것 archived → 이 행 published"를
+잠금·제약 없이 했다 — 두 관리자가 같은 이름의 다른 버전을 거의 동시에 발행하면 같은
+이름에 published가 둘 생기고, 그 뒤 그 이름의 모든 조회가 `MultipleResultsFound` → 500이
+됐다. **새 마이그레이션 0053**이 `prompts`·`policies`에 부분 유일 인덱스
+(`name` WHERE `status='published'`)를 추가(배포 전 기존 중복은 최신 것만 남기고 자동
+정리, approvals의 0052와 같은 패턴). `transition()`이 그 `IntegrityError`를 깨끗한
+409로 변환. **구현 중 자체 발견**: 옛 발행본을 archived로 내리는 것과 새 행을 published로
+올리는 것을 **같은 flush**에 섞으면, 문장이 나가는 순서에 따라 찰나에 "같은 이름에
+published가 둘"인 상태가 생겨 **우리 자신의 정상 발행 경로**가 그 인덱스에 걸릴 수
+있었다(기존 테스트 `test_publish_archives_previous_published`가 실제로 이렇게 깨짐 →
+재현·원인 확정 후 두 UPDATE를 분리된 flush로 나눠 고침).
+
+**검증 방법론**: 5건 전부 회귀 테스트를 새로 추가했고, 고치기 전 코드로 일부러 되돌려
+전부 실패하는 것을 직접 확인한 뒤 복원했다(UB-04는 "고치는 과정에서 기존 테스트가 깨진 것"
+자체도 정직하게 기록 — 처음 짠 수정이 완전하지 않았다는 증거이자, 전체 테스트를 돌려야만
+잡히는 종류의 결함이었다).
+
+**로컬 게이트**: 백엔드 pytest 전체 green(exit 0), `STATIC_CHECKS_OK`(프런트 변경 없음).
+마이그레이션 downgrade/upgrade 왕복도 로컬에서 확인. 커밋 `11949e9` 배포 → `UPGRADE_OK`,
+서비스 3종 active, `/healthz`·`/readyz` 정상. **실서버에서 마이그레이션 0053이 실제로
+적용된 것을 `sqlite3`로 직접 확인**(`alembic_version=0053`, `ux_prompts_published_dedup`·
+`ux_policies_published_dedup` 인덱스 둘 다 존재).
+
+**실서버 실환경검증**: CORE-11만 안전하게 실시 — `POST /api/admin/announcements`에
+`link_url=""`을 보내 **422가 아니라 201로 성공하고 `link_url`이 `null`로 저장되는 것**을
+실측 확인(테스트 공지는 확인 후 삭제해 정리함). 제어문자 접두 케이스는 셸 도구가 제어문자를
+명령어에 못 넣게 막아 실서버에서 직접 만들지 못했다 — 로컬 테스트로만 검증. 나머지 네
+항목(CORE-07·09, UB-04·05)은 각각 실제 Notion 429 응답의 NaN 헤더, 임퍼소네이션 포인터
+불일치의 자연 발생, 진짜 동시 요청, legacy 위험 링크 행을 실서버에 인위적으로 만들어야
+재현되는 종류라 시도하지 않음 — 로컬 테스트로만 검증(정직하게 남긴다).
 
 ---
 
