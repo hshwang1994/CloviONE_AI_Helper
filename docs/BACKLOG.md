@@ -20,7 +20,7 @@
 > | `SEC-20` | 조사 중 sudo 비밀번호를 명령행에 반복 노출 | **사용자** — 회전 |
 > | `SEC-30` | **CSV 가져오기가 권한 상승 게이트를 우회**(admin 이 system_admin 생성) | 구현 |
 > | `SYS-01` | TLS 인증서 교체가 nginx 가 안 읽는 경로에 쓰고 **성공을 보고** | 구현 |
-> | `DEPLOY-01` | **문서대로 업그레이드하면 서비스가 멈춘 채 남는다**(복구 코드 없음) | 구현 |
+> | `DEPLOY-01` | **문서대로 업그레이드하면 서비스가 멈춘 채 남는다**(복구 코드 없음) | ✅ **실환경검증완료**(2026-08-09) |
 > | `FN-40` | 공지 「내용」을 비우고 저장하면 **500** | 구현 |
 >
 > ## ⚠️ 이 문서에는 **철회·정정된 항목**이 있다
@@ -2418,10 +2418,10 @@ if [ -z "$DNS_NAME" ] || [ -z "$BIND_IP" ]; then echo "…지정해야 합니다
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| DEPLOY-01 | **Critical** | 위. `MAINTENANCE_PLAYBOOK.md` 의 번들 업그레이드 절차가 **항상 실패**하고 롤백도 없다 | 발견 |
-| DEPLOY-02 | High | 업그레이드 실패 처리가 **전무**하다 — pip·alembic·`nginx -t`·healthz 어디서 죽든 그냥 종료한다. **git 경로에는 `rollback_now()` 가 있는데 번들 경로에는 없다**(같은 파일 안의 비대칭) | 발견 |
-| DEPLOY-03 | High | installer 의 설치처 고유값 가드(`:226-252`) 주석이 **"여기서 멈추면 되돌릴 것이 없다(아직 아무것도 안 바꿨다)"** 라고 단언하는데 **사실이 아니다** — 그 전 `:158` 에서 `rsync -a --delete` 로 `/opt` 를 갈아치웠고 `:180` 에서 venv 도 올렸다. `exit 21` 시점의 상태는 **새 코드 + 옛 스키마**다 | 발견 |
-| DEPLOY-04 | High | **롤백이 특권 헬퍼를 되살리지 않는다.** `stop_services()` 는 privhelper 까지 멈추는데(`:20`) 복원 루프(`:64-66`)와 재시작(`:76`)은 web·worker 둘만 다룬다. 롤백 후 `healthz` 는 통과해 **`ROLLBACK_OK` 가 찍히지만** 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은 죽어 있다 | 발견 |
+| DEPLOY-01 | **Critical** | 위. `MAINTENANCE_PLAYBOOK.md` 의 번들 업그레이드 절차가 **항상 실패**하고 롤백도 없다 | **실환경검증완료**(2026-08-09) — `upgrade-clovirone-web-assistant.sh` 가 DNS_NAME/BIND_IP 를 요구·전달하고, 실서버에서 정상 배포(`UPGRADE_OK`) 1회 + 고의 실패(requirements.txt 제거) 1회로 자동 복구(`UPGRADE_ROLLED_BACK`→서비스 active) 확인 |
+| DEPLOY-02 | High | 업그레이드 실패 처리가 **전무**하다 — pip·alembic·`nginx -t`·healthz 어디서 죽든 그냥 종료한다. **git 경로에는 `rollback_now()` 가 있는데 번들 경로에는 없다**(같은 파일 안의 비대칭) | **실환경검증완료**(2026-08-09) — DEPLOY-01 과 같은 커밋·같은 실서버 검증(backup→install→verify→실패 시 rollback_now, update-from-git.sh 와 동일 골격) |
+| DEPLOY-03 | High | installer 의 설치처 고유값 가드(`:226-252`) 주석이 **"여기서 멈추면 되돌릴 것이 없다(아직 아무것도 안 바꿨다)"** 라고 단언하는데 **사실이 아니다** — 그 전 `:158` 에서 `rsync -a --delete` 로 `/opt` 를 갈아치웠고 `:180` 에서 venv 도 올렸다. `exit 21` 시점의 상태는 **새 코드 + 옛 스키마**다 | **실환경검증완료**(2026-08-09) — 주석을 사실대로 정정, 실제 복구 보장은 DEPLOY-01/02(호출자의 backup/rollback)로 대체됐다는 것을 명시 |
+| DEPLOY-04 | High | **롤백이 특권 헬퍼를 되살리지 않는다.** `stop_services()` 는 privhelper 까지 멈추는데(`:20`) 복원 루프(`:64-66`)와 재시작(`:76`)은 web·worker 둘만 다룬다. 롤백 후 `healthz` 는 통과해 **`ROLLBACK_OK` 가 찍히지만** 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은 죽어 있다 | **실환경검증완료**(2026-08-09) — 백업·롤백에 privhelper 추가, 실서버 고의 실패 재현에서 `clovirone-privhelper.service: OK`(체크섬 일치) 복원 + `systemctl is-active` 3종 전부 active 확인 |
 
 #### `FN-40` (Critical) — 공지 「내용」을 비우고 저장하면 **500**
 
@@ -2950,7 +2950,7 @@ ReferenceError: fmtDuration is not defined
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| UX-50 | **High** | `/settings` 「세션 정책」 편집기 크래시(실서버 재현). import 한 줄 | 발견 |
+| UX-50 | **High** | `/settings` 「세션 정책」 편집기 크래시(실서버 재현). import 한 줄 | **실환경검증완료**(2026-08-09) — `fmtDuration` import 추가 + 렌더 회귀 테스트, 실서버 배포 후 Chrome 으로 「세션 정책」 상세를 직접 열어 크래시 없이 `= 680분`/`= 8시간` 렌더 확인(콘솔 오류 0) |
 | FN-50 | **High** | Notion 본문 저장이 1레벨만 읽고 자식 있는 블록을 지운다 → **손자 유실**. 미재현(D-21) | 발견 |
 | WORKER-01 | Med | **워커 동기화 틱이 설정 캐시를 다시 읽지 않는다** — 노션 DB id 를 바꿔도 티켓·문서·프로젝트·검색 동기화는 **최대 600초** 옛 DB 를 계속 읽어 **두 소스가 섞인 미러**를 만든다. ‖ **코드 주석 4곳이 정반대를 약속한다**: `worker_main.py:298-299` *"워커는 틱마다 다시 load 하므로 … 한 틱 안에 여기에도 온다"* · `llm_connection_test.py:68-69` · `docs/CONSOLE_SCREENS.md:185` · `notion_console` 의 `APPLY_NOTE`. **600초라는 상한조차 우연이다** — 백업 틱이 `enabled` 와 무관하게 먼저 `load()` 를 부르는 부수 효과다 | 발견 |
 | SET-10 | Low | `apply_overrides` 가 **`LLM_MAX_CONCURRENCY` 환경변수를 영구히 덮는다.** `_override_is_set` docstring 이 *"이 목록의 숫자 키는 `llm_timeout_seconds` 뿐"* 이라 전제하는데 **틀렸다**(`llm_max_concurrency` 도 있고 기본값이 0 이 아닌 **1**). 아무도 콘솔에서 손대지 않은 설치에서도 매 load 마다 1 이 얹힌다. ‖ 검증자가 **Med→Low 로 내렸다** — 이 노브가 어느 env 템플릿에도 없어 실제로 걸어 둔 설치가 있다는 근거가 없다 | 발견 |

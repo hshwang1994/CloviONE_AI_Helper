@@ -6,6 +6,40 @@
 > 남은 문제는 [BACKLOG.md](BACKLOG.md), 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md).
 > 이 문서는 "무엇을 했는가"의 누적 이력이다. Raw log를 복사해 비대하게 만들지 않는다.
 
+## 2026-08-09 (Sonnet 구현 사이클 1) — 배포 경로 복구 (`SONNET_HANDOFF.md §3` 1단계)
+
+**무엇을 했나**: Opus 인계 문서의 1단계(배포 경로 복구)부터 착수. 그 이후 모든 사이클의
+"배포 후 재검증"이 여기 의존하므로 먼저 끝내지 않으면 아무것도 실환경 검증할 수 없었다.
+
+**고친 것**: `DEPLOY-01`/`DEPLOY-02`(`upgrade-clovirone-web-assistant.sh` 번들 경로가
+`DNS_NAME`/`BIND_IP` 를 안 넘겨 installer 가 즉시 죽는데 서비스는 이미 정지된 채 복구
+코드가 없었다 — `update-from-git.sh` 의 backup→install→verify→`rollback_now()` 골격을
+이식) · `UX-50`/H-2(`StructuredObjectFields.jsx` 의 `fmtDuration` import 누락으로
+`/settings` 세션 정책 편집기가 크래시) — 무료 동승으로 같이 배포.
+
+**배포 절차를 실제로 따라가다가 문서·스크립트 버그를 2개 더 찾았다(둘 다 새 발견)**:
+`DEPLOY-03`(installer 주석이 "여기서 멈추면 아무것도 안 바꿨다"고 하는데 이미 rsync·venv가
+끝난 뒤였다 — 주석 정정) · `DEPLOY-04`(롤백이 특권 헬퍼(privhelper) 유닛을 안 되살려
+`ROLLBACK_OK` 가 찍혀도 시스템 설정 화면이 죽어 있었다 — 백업·롤백에 추가). 그리고
+`MAINTENANCE_PLAYBOOK.md §2-3` 의 스테이징 명령 자체가 (a) 체크섬 파일을 압축 풀기 전에
+없는 경로에서 확인하려 했고 (b) `-C stage` 로 풀어 tar 내부의 `stage/` 접두사와 겹쳐
+`~/deploy/stage/stage/app-src` 로 이중 중첩됐다 — 둘 다 실제로 그 명령을 그대로 실행해서
+발견했고 고쳤다.
+
+**실서버 검증**: 정상 배포 1회(`UPGRADE_OK`) + 스테이징 사본을 고의로 깨서(`requirements.txt`
+제거) 재배포해 install 실패 유도 → `rollback_now` 가 백업을 복원 → `UPGRADE_ROLLED_BACK` →
+`systemctl is-active clovirone-web-assistant clovirone-web-worker clovirone-privhelper` 3종
+전부 active + `healthz`/`readyz` 200. **두 번** 재현해 DEPLOY-04 수정 전/후를 비교했다(백업
+스크립트 자체가 새 코드에서만 privhelper 를 담으므로 최초 1회는 담기지 않는 것까지 확인).
+Chrome 으로 `/settings` → 「세션 정책」 상세를 직접 열어 크래시 없이 `= 680분`/`= 8시간`
+렌더 확인(콘솔 오류 0).
+
+**게이트**: pytest 루트 전체 green · 러너 263개 green · vitest 173파일/1213개 green(신규
+회귀 테스트 3개 추가) · `STATIC_CHECKS_OK`.
+
+**다음**: `SONNET_HANDOFF.md §3` 2~4단계 — `SYS-01`(TLS 무동작) · `SEC-30`(CSV 권한 상승
+우회) · `FN-40`(공지 PATCH 500) · `OPS-10`/`OPS-11`(워커 내구성).
+
 ## 2026-08-08 (사이클 0) — 지속 작업 기억 구축 + Opus 전수조사
 
 **무엇을 했나**: 작업 상태를 대화에서 프로젝트 파일로 옮기고, 서버를 HEAD로 올린 뒤,
