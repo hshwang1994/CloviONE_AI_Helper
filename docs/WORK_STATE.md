@@ -12,11 +12,51 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치5(CORE-12 잔여 4건 전부) —
-로컬 게이트 green + 배포 완료 + 부분 실환경검증. **CORE-12 표 완전히 마무리. 남은 건
-Critical 2건(`AI-30`·`FAIL-01`)과 BACKLOG 나머지 약 93%** — 진행률 실측치는
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 4 배치6(UA-05/07/08/09) —
+로컬 게이트 green + 배포 완료 + 부분 실환경검증(무회귀 확인 수준). **UA-04/06/10은
+프런트 변경이 필요해 의도적으로 보류**(별도 배치). 남은 건 Critical 2건(`AI-30`·
+`FAIL-01`), UA-04/06/10, BACKLOG 나머지 대부분 — 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고(이 문서가 새 진입점 보조 역할, 원래
 Master Plan과의 격차를 숨기지 않고 기록함) · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🔵 Sonnet 구현 사이클 4, 배치 6 — Notion 다운 시 502 캐스케이드 + M4 두 건 더 + 휴지통 필터 불일치 (2026-08-10)
+
+**UA-05**: `weekly_digest_facts`가 `my_state["configured"]`만 보고 팀/기여자 집계용
+**별개의** Notion 조회(`list_period_tickets`)를 새로 시도했다 — 이미 `ok=False`(Notion
+장애)로 알고 있는 상태에서도. 실패하면 그 예외가 안 잡혀 엔드포인트 전체가 502가 되고
+Notion과 무관한 문서·게시판 집계까지 함께 사라졌다. `configured and ok`를 보고, 두 번째
+조회 자체의 새 실패도 잡아 `team=None`으로 부드럽게 접도록 고침.
+
+**UA-07·UA-08**: 이 저장소가 이미 "M4"라고 이름 붙인 함정(`home/service.py::local_today`
+docstring)의 재발 두 건. 스프린트 요약 기본 창(`sprints/router.py`)과 월간 리포트 기본
+기간·`today`(`reports/router.py`)가 각각 UTC 시계로 계산되고 있었다 — KST 월요일/월초
+00:00~09:00 사이엔 UTC 날짜가 아직 어제/지난달이라 기본값이 하루~한 달 밀렸다. 둘 다
+`home_service.local_today(settings, now)`로 교체.
+
+**UA-09**: `home/readers.py`의 형제 함수 `recent_documents`(휴지통 제외, 이미 고쳐짐)와
+`documents_changed_between`(휴지통 미제외, 안 고쳐짐)이 갈라져 있었다 — 후자에 같은
+제외 조건 추가.
+
+**의도적으로 보류(다음 배치)**: UA-04(프런트 "재시도" 버튼이 백엔드 `/retry` 대신 옛
+우회를 씀), UA-06(홈 집계 중복 호출 — React Query staleTime 조정), UA-10(휴지통
+페이지네이션) — 셋 다 프런트(React) 변경 + vitest + 번들 재빌드가 필요해 이번 배치(백엔드
+전용)와 범위가 다르다. 특히 UA-10은 백엔드만 반쪽으로 고치면(무언 절삭 또는 프런트가 안
+쓰는 파라미터 추가) 오히려 "미완성 구현"이 되므로 일부러 손 안 댔다 — 이유는 BACKLOG.md에
+개별 기록.
+
+**검증 방법론**: 4건 전부 revert-to-verify. **로컬 게이트**: 백엔드 pytest 전체 green,
+`STATIC_CHECKS_OK`. 커밋 `40073c1` → 배포 `UPGRADE_OK`(2026-08-10 07:53), 서비스 3종
+`active`, `/healthz`·`/readyz` 200.
+
+**실서버 검증**: 넷 다 특정 시각(KST 경계)이나 특정 상태(Notion 장애, 휴지통 문서 존재)
+에서만 재현되는 종류라, 지금(2026-08-10, 마침 월요일이라 정상 케이스와 버그 케이스가
+같은 답을 낸다) 시점엔 버그 자체를 실서버에서 재현할 방법이 없다. 대신 세 엔드포인트를
+실제 로그인 세션으로 직접 호출해 **정상 경로에 회귀가 없음**을 확인함: `/api/sprint/
+summary` → 오늘(월요일) 기준 정상 창(`2026-08-10~2026-08-17`), `/api/admin/reports/
+dev-monthly` → 정상 기간(`2026-08`), `/api/assistant/weekly-digest` → 200 정상 응답.
+UA-09는 실제 고객 문서를 휴지통에 넣는 부작용을 감수할 이유가 없어 로컬 테스트로만 검증.
 
 ---
 
