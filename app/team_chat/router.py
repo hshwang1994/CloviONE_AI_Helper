@@ -20,6 +20,7 @@ from app.core import people, uploads
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError
+from app.core.etag import etag_json_response
 from app.core.feature_flags import load_feature_flags
 from app.team_chat import repository, service
 from app.team_chat.models import MSG_IMAGE, ROLE_OWNER, ROOM_DIRECT
@@ -135,7 +136,10 @@ def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depen
         unread_total += result["global"]["unread"]
     # 사이드바 '채팅방' 항목의 합계 배지 — 새 폴링을 만들지 않고 이미 도는 이 응답에 실어 준다.
     result["unread_total"] = unread_total
-    return result
+    # 이 목록은 로그인한 사용자 전원의 브라우저가 60초마다 깨워 부른다 — 제품 전체에서
+    # fanout 이 가장 큰 폴링이다. payload 는 이미 사용자별(멤버십·읽음 커서)로 다르므로
+    # ETag 도 요청자마다 자연히 갈린다 - 공용 캐시가 아니다(app/core/etag.py 참고).
+    return etag_json_response(request, result)
 
 
 @router.post("/rooms", dependencies=[Depends(require_csrf)])

@@ -2,7 +2,9 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
+import { isScopeEnforcedRoute } from "./navConfig.js";
 
 /* 스코프 바 — **지금 보고 있는 범위를 화면에 적는다** (S4 / A8, 기준 목업의 `관리 범위` 줄).
  *
@@ -36,18 +38,29 @@ export function scopeSummary(me) {
   }
   const scope = me.admin_scope || "global";
   if (scope === "dept") {
-    return { label: "관리 범위", detail: me.department || "지정된 부서 없음" };
+    // ⚠️ 관리자 **본인 소속 부서**(`me.department`)가 아니라 **배정받은 관리 범위**
+    // (`scope_dept_id`)의 이름이다 — 둘은 다른 개념이고(관리자가 자기 부서가 아닌 다른
+    // 부서를 관리 범위로 배정받을 수 있다) 우연히 같은 문자열일 때만 예전 코드가 맞아
+    // 보였다. 이름은 `/api/me` 가 함께 실어 준다(`app/profiles/router.py::_scope_names`,
+    // `Users.jsx::scopeLabel` 과 같은 판정).
+    return { label: "관리 범위", detail: me.scope_dept_name || "지정된 부서 없음" };
   }
   if (scope === "org") {
-    return { label: "관리 범위", detail: "내 조직" };
+    return { label: "관리 범위", detail: me.scope_org_name || "지정된 조직 없음" };
   }
   return null;   // global — 소음이라 안 띄운다
 }
 
 export function ScopeBar() {
   const auth = useAuth();
+  const location = useLocation();
   const summary = scopeSummary(auth.data && auth.data.user ? auth.data.user : auth.data);
   if (!summary) return null;
+  // 범위가 실제로 걸리는 화면에서만 "이 범위 밖은 안 보인다"고 단언한다 - 게시판·놀이·
+  // 알림처럼 부서 범위를 안 거는 화면에서까지 그 문장을 띄우면 그 화면을 여는 순간
+  // 거짓말이 된다(navConfig.js::SCOPE_ENFORCED_PATHS 참조). 배지 자체(관리 범위: OO팀)는
+  // "지금 내가 이 역할로 로그인했다"는 사실이라 어느 화면에서나 유효해 계속 띄운다.
+  const enforced = isScopeEnforcedRoute(location.pathname);
   return (
     <Box
       role="status"
@@ -65,9 +78,11 @@ export function ScopeBar() {
       </Typography>
       <Typography component="span" sx={{ fontSize: "0.8125rem" }}>{summary.detail}</Typography>
       <Box sx={{ flex: 1 }} />
-      <Typography component="span" sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
-        이 범위 밖의 항목은 목록에 나오지 않습니다.
-      </Typography>
+      {enforced ? (
+        <Typography component="span" sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+          이 범위 밖의 항목은 목록에 나오지 않습니다.
+        </Typography>
+      ) : null}
     </Box>
   );
 }

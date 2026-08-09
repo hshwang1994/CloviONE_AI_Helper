@@ -304,6 +304,23 @@ def test_a_failed_ticket_leaves_the_status_untouched(client, login_as, settings,
     assert not after["ticket_page_id"]
 
 
+def test_a_long_single_paragraph_idea_still_becomes_a_ticket(client, login_as, notion):
+    """게시글은 줄바꿈 없는 긴 문단 하나로 쓰이는 일이 흔하다 - 예전엔 본문을
+    `[:3900]`로만 잘라 그 한 줄이 여전히 티켓 설명의 줄당 상한(1900자)을 넘었고,
+    티켓 생성이 **결정적으로** 거절돼 이 제안은 영원히 '진행'으로 못 넘어갔다
+    (같은 버튼을 다시 눌러도 같은 본문이라 같은 이유로 또 거절된다).
+    """
+    author = login_as("user", email="member@goodmit.co.kr")
+    long_body = "이 제안은 아주 길게 설명해야 합니다. " * 100  # 줄바꿈 없이 2000자 이상
+    idea = _write_idea(client, author, title="긴 제안", body=long_body)
+    op = login_as("operator", email="op@goodmit.co.kr")
+
+    assert _set_status(client, op, idea["id"], "검토중").status_code == 200
+    r = _set_status(client, op, idea["id"], "진행", project_id="proj-1")
+    assert r.status_code == 200, r.text
+    assert r.json()["post"]["ticket_page_id"], "긴 본문 때문에 티켓 연결이 비었다"
+
+
 def test_moving_to_progress_twice_does_not_make_a_second_ticket(client, login_as, notion):
     """이미 티켓이 붙은 제안을 다시 진행으로 밀어도 티켓은 하나다(중복 발주 방지).
 

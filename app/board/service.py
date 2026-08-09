@@ -238,6 +238,34 @@ def _notify_idea_status_change(
         logger.exception("제안 상태 알림에 실패했다 (post_id=%s)", post.id)
 
 
+def _fit_for_ticket_description(text: str) -> str:
+    """게시글 본문을 티켓 설명(`TicketCreate._check_desc`)의 제약에 맞춘다 — **자르되
+    거절당하지 않는 형태로** 자른다.
+
+    예전엔 총 글자 수만 보고 `post.body[:3900]`로 잘랐다. 게시글(최대 20,000자, 줄 길이
+    제한 없음)은 흔히 줄바꿈 없는 긴 문단 하나로 써진다 — 그래서 3900자 밑으로 잘라도
+    **그 한 줄 자체**가 여전히 `TicketCreate`의 줄당 상한(`BODY_MAX_LINE_CHARS`, 1900자)을
+    넘어 티켓 생성이 **결정적으로** 거절됐다. `change_idea_status`의 "실패하면 같은 버튼을
+    다시 누르면 된다"는 안내는 이 경우엔 거짓이다 — 같은 본문이면 몇 번을 눌러도 같은
+    이유로 거절된다.
+
+    긴 줄을 먼저 나눠(내용은 보존, `MAX_LINE_CHARS` 자마다 줄바꿈만 끼워 넣는다) 그 거절을
+    피하고, 그래도 남는 총 길이 초과(게시글 20,000자 vs 티켓 4000자)와 줄 수 초과만
+    자른다 — 그 둘은 게시글이 정말 클 때만 발생하고, 아주 긴 문서를 옮기면서 잘릴 수
+    있다는 것 자체는 기존에도 있던, 별개의 제약이다.
+    """
+    from app.core.notion_blocks import MAX_BLOCKS, MAX_LINE_CHARS
+
+    wrapped_lines: list[str] = []
+    for line in (text or "").split("\n"):
+        while len(line) > MAX_LINE_CHARS:
+            wrapped_lines.append(line[:MAX_LINE_CHARS])
+            line = line[MAX_LINE_CHARS:]
+        wrapped_lines.append(line)
+    wrapped = "\n".join(wrapped_lines)[:3900]
+    return "\n".join(wrapped.split("\n")[:MAX_BLOCKS])
+
+
 def _create_linked_ticket(
     db: Session, post: Post, *, actor: User, outbound, settings,
     project_id: str | None, now: datetime, repo=None,
@@ -261,8 +289,7 @@ def _create_linked_ticket(
         title=post.title,
         project_id=project_id,
         # 제안 본문을 그대로 옮긴다 — 티켓만 보는 사람이 원문을 찾아 헤매지 않게.
-        # 티켓 설명은 4000자 상한이라(TicketCreate) 게시글 본문(20000자)을 잘라 넘긴다.
-        description=(post.body or "")[:3900] or None,
+        description=_fit_for_ticket_description(post.body or "") or None,
         assignee_user_ids=[],
     )
     result = create_ticket(

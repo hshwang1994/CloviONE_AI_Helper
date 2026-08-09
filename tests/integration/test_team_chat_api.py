@@ -33,6 +33,28 @@ def test_global_room_send_and_poll(app, client, login_as):
     assert client.get(f"/api/team-chat/rooms/{gid}/messages?since={seq}").json()["messages"] == []
 
 
+def test_rooms_list_is_etag_polled(client, login_as):
+    """`/api/team-chat/rooms` 는 로그인한 사용자 전원이 60초마다 깨워 부르는, 제품에서
+    fanout 이 가장 큰 폴링이다(app/team_chat/router.py list_rooms 주석 참조) - 다른 폴링
+    엔드포인트(app/core/etag.py 사용처: games/rooms, notifications/unread-count, trash)와
+    같은 ETag/304 계약을 따라야 한다. 응답이 사용자별(멤버십·읽음 커서)이라도 페이로드를
+    그대로 해시하는 이 헬퍼는 특별 취급 없이 자연히 사용자마다 다른 ETag 를 낸다.
+    """
+    login_as("user", email="etag1@goodmit.co.kr")
+
+    first = client.get("/api/team-chat/rooms")
+    assert first.status_code == 200
+    etag = first.headers.get("ETag")
+    assert etag, "폴링 응답에 ETag 헤더가 없다"
+
+    second = client.get("/api/team-chat/rooms", headers={"If-None-Match": etag})
+    assert second.status_code == 304, second.text
+    # **본문이 실제로 비어야 한다** - status 만 304 이고 payload 가 그대로 실리면
+    # 대역폭을 하나도 아끼지 못하면서 클라이언트만 헷갈리게 한다.
+    assert second.content == b""
+    assert second.headers.get("ETag") == etag
+
+
 def test_global_room_open_to_any_user(app, client, login_as, make_user):
     csrf = login_as("user", email="gopen1@goodmit.co.kr")
     gid = client.get("/api/team-chat/rooms").json()["global"]["id"]

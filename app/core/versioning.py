@@ -1,7 +1,12 @@
 """Config version snapshots for registries and settings (spec §21.18).
 
-Every mutation writes a full post-change JSON snapshot with a per-object
-monotonic version. Rollback (implemented per module) loads a snapshot,
+Every mutation writes a full JSON snapshot with a per-object monotonic
+version, but call sites differ on which side of the mutation they snapshot:
+registries (integrations/runners/workflows) snapshot the row AFTER applying
+the change (post-change — see the respective service.py create_*/update_*),
+while app/settings/service.py::apply_setting snapshots the value BEFORE
+applying the new one (pre-change — it saves "before" so rollback_setting has
+something to restore to). Rollback (implemented per module) loads a snapshot,
 re-validates it against the current schema, and applies it through the normal
 update path — so rollback itself is an audited, versioned change and history
 stays append-only. Snapshots are NOT masked (they must be restorable); they
@@ -13,7 +18,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, func, select
+from sqlalchemy import DateTime, Index, Integer, String, Text, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -23,6 +28,21 @@ from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
 
 class ConfigVersion(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "config_versions"
+    # alembic/versions/0004_integrations_config_versions.py 가 DB 단에 만드는 것과 같은
+    # 제약을 ORM 메타데이터에도 선언한다 - 안 하면 Base.metadata.create_all() 로 테이블을
+    # 만드는 경로(alembic 을 안 거치는 일부 테스트/스크립트)는 이 유니크 제약이 빠진 채
+    # 테이블이 만들어져, snapshot_config 의 재시도 로직과 get_version 의
+    # scalar_one_or_none() 이 기대는 "동시 삽입은 IntegrityError 로 걸린다" 전제가 조용히
+    # 깨진다.
+    __table_args__ = (
+        Index(
+            "uq_config_versions_object_version",
+            "object_type",
+            "object_id",
+            "version",
+            unique=True,
+        ),
+    )
 
     object_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     object_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

@@ -24,8 +24,16 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/healthz")
-def healthz() -> dict:
-    return {"status": "ok"}
+def healthz(request: Request) -> dict:
+    # ticket_source(app/core/config.py:136-164 설명 참고)는 저장소 배선을 바꾸는 운영
+    # 킬 스위치인데 지금까지 SSH로 web.env를 직접 읽는 것 말고는 현재 모드를 확인할 방법이
+    # 없었다. secret이 아니라 'notion'/'notion_cache'/'native' 중 하나를 가리키는 운영
+    # 모드 문자열일 뿐이라(§2 불변 규칙 3의 secret_ref 대상이 아님) 이 인증 없는 liveness
+    # 엔드포인트에 얹어도 안전하다 — curl 한 번으로 지금 어느 모드로 떠 있는지 알 수 있다.
+    return {
+        "status": "ok",
+        "ticket_source": request.app.state.settings.ticket_source,
+    }
 
 
 @router.get("/readyz")

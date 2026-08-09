@@ -70,6 +70,30 @@ def _menu_features(request) -> dict:
     return {k: bool(flags.get(k, True)) for k in _MENU_FLAGS}
 
 
+def _scope_names(db: Session, user: User) -> dict:
+    """관리 범위 대상의 **이름**(부서/조직) - id 만으로는 화면이 아무것도 못 그린다.
+
+    `ScopeBar.jsx` 는 예전에 `admin_scope='dept'` 일 때 이 값 대신 **본인 소속 부서**
+    (`user.department`)를 보여 줬다 - 관리자가 배정받은 관리 범위(`scope_dept_id`)와 본인이
+    속한 부서는 다른 개념인데(둘 다 있을 수 있고 다를 수 있다) 우연히 같은 문자열이라 지금까지
+    아무도 못 봤을 뿐이다. `Users.jsx::scopeLabel` 이 admin 화면에서 이미 정확히 이 판정을
+    하므로, 셸도 같은 근거(대상 행의 이름)를 쓰게 여기서 계산해 함께 보낸다 - 셸에
+    관리자 전용 목록 API(`/api/admin/organizations` 등)를 또 물릴 필요가 없게.
+    """
+    scope = user.admin_scope or "global"
+    if scope == "dept" and user.scope_dept_id:
+        from app.org.models import Department
+
+        dept = db.get(Department, user.scope_dept_id)
+        return {"scope_dept_name": dept.name if dept else None, "scope_org_name": None}
+    if scope == "org" and user.scope_org_id:
+        from app.org.models import Organization
+
+        org = db.get(Organization, user.scope_org_id)
+        return {"scope_dept_name": None, "scope_org_name": org.name if org else None}
+    return {"scope_dept_name": None, "scope_org_name": None}
+
+
 def _branding(request: Request) -> dict:
     """설정된 제품명(없으면 기본값). 실패해도 셸이 이름 없이 뜨면 안 된다."""
     from app.settings.registry import get_spec
@@ -109,6 +133,7 @@ def me(
             "admin_scope": user.admin_scope,
             "scope_org_id": user.scope_org_id,
             "scope_dept_id": user.scope_dept_id,
+            **_scope_names(db, user),
             "org_id": getattr(user, "org_id", None),
             "department_id": user.department_id,
             # 셸(상단바 아바타)이 이 한 필드 때문에 별도 요청을 하지 않게 여기 싣는다.

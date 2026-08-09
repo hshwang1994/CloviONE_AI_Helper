@@ -174,8 +174,21 @@ CAPABILITIES: tuple[Capability, ...] = (
         "org.manage", "부서, 직책 명부와 조직도 트리 편집", "사용자", CONSOLE_WRITE_ROLES,
     ),
     Capability(
+        "impersonation.start", "대리 보기 시작(다른 사용자 계정으로 접속)", "사용자",
+        CONSOLE_WRITE_ROLES,
+        "운영자는 남의 화면을 볼 수 없다. 감사자는 시작할 수 없고 기록 조회만 할 수 있다"
+        "(sensitive.read 와 같은 선). 종료는 누구나 자기 세션을 끝낼 수 있어야 하므로 "
+        "역할 게이트가 없다. 대상 역할로 보이는 도중에 게이트를 걸면 스스로 빠져나올 수 없다.",
+    ),
+    Capability(
         "system.admin", "백업 생성, 검증, 복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
         "스펙 §14.6 이 system_admin 으로 못박은 것들.",
+    ),
+    Capability(
+        "system.settings", "시스템 설정 변경(TLS, 호스트 이름, DNS, 프록시, 인증서, 서비스 제어)",
+        "시스템", SYSTEM_ADMIN_ONLY,
+        "바뀌는 대상이 조직 단위가 아니라 서버 한 대 전체라 admin_scope 라는 개념 자체가 없다. "
+        "부서 범위로 좁혀질 수 있는 admin 은 제외한다.",
     ),
     Capability(
         "setup.read", "최초 실행 셋업 체크리스트 조회", "시스템", SYSTEM_ADMIN_ONLY,

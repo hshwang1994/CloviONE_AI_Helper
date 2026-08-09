@@ -130,57 +130,93 @@ export default function BrandLogo({
     );
   }
 
+  /* 부제("SMART WORKSPACE ASSISTANT")는 SVG <text>로 그리지 않는다 — charts/base.jsx가
+   * 이미 같은 이유로 금지해 둔 패턴이다: SVG 텍스트는 px 속성이 이 컴포넌트의
+   * viewBox(528×156)→CSS 폭(150~224px) 축소 배율을 그대로 먹는다. fontSize="20"이라고
+   * 적어도 실제로는 20 × (w/528) ≈ 6~8px로 그려져 QA의 tiny_text 검사 최소치(12px)에
+   * 한참 못 미쳤다 — 그런데 그 검사는 렌더된 크기가 아니라 마크업의 명목값(20)을 읽어서
+   * 통과로 오판했다(검사의 사각지대이지, 검사를 고칠 문제가 아니다).
+   * 이 컴포넌트의 `markOnly` 변형(AppShell.jsx의 사이드바 헤더가 쓰는 자리)은 부제 자체를
+   * 안 그려서 이 함정을 애초에 안 만난다 - 참고할 기존 HTML 렌더 사례는 없었고, 여기서
+   * charts/base.jsx의 규칙을 그대로 적용해 새로 만들었다.
+   *
+   * 바깥 상자에 aspectRatio(528/156, 원본 viewBox 그대로)를 못박아 두는 이유: 이 컴포넌트를
+   * 쓰는 TopBrand.jsx의 상단바 Toolbar는 `minHeight: APPBAR_HEIGHT`로 짜여 있고, 그 아래
+   * 본문 영역은 `pt: APPBAR_HEIGHT/8`로 고정폭 오프셋을 준다(AppBar가 position:fixed라
+   * 실제 높이와 본문 padding-top이 어긋나면 본문 위쪽이 가려진다). 부제를 SVG 밖 HTML로
+   * 뺐다고 로고 전체 높이가 늘어나면 이 오프셋이 깨진다 — 그래서 SVG는 마크+"Clovir"+
+   * "Assist"만 그대로 그리고, 부제는 그 위에 절대위치로 얹어 바깥 상자의 가로세로 비율을
+   * SVG 하나였을 때와 똑같이 유지한다. */
   return (
     <Box
-      component="svg"
-      viewBox="0 0 528 156"
-      role="img"
-      aria-label={`${title} Smart Workspace Assistant`}
-      className="wordmark"
-      sx={{ display: "block", width: w, maxWidth: "100%", height: "auto", flexShrink: 0, ...sx }}
+      sx={{
+        position: "relative",
+        display: "block",
+        width: w,
+        maxWidth: "100%",
+        aspectRatio: "528 / 156",
+        flexShrink: 0,
+        ...sx,
+      }}
     >
-      <g transform="translate(10 14)">
-        <CloverMark uid={uid} mode={mode} />
-      </g>
-      {/* 글자는 놓인 면의 색을 따른다(currentColor). 강조어만 테마 액센트. */}
-      <text
-        x="160"
-        y="86"
-        fill="currentColor"
-        fontSize="62"
-        fontWeight="800"
-        letterSpacing="-2.2"
-        textLength="167"
-        lengthAdjust="spacingAndGlyphs"
+      <Box
+        component="svg"
+        viewBox="0 0 528 156"
+        role="img"
+        aria-label={`${title} Smart Workspace Assistant`}
+        className="wordmark"
+        sx={{ position: "absolute", inset: 0, display: "block", width: "100%", height: "100%" }}
       >
-        Clovir
-      </text>
-      <text
-        x="338"
-        y="86"
-        fill={accent}
-        fontSize="62"
-        fontWeight="850"
-        letterSpacing="-2.2"
-        textLength="168"
-        lengthAdjust="spacingAndGlyphs"
-      >
-        Assist
-      </text>
-      {subtitle ? (
+        <g transform="translate(10 14)">
+          <CloverMark uid={uid} mode={mode} />
+        </g>
+        {/* 글자는 놓인 면의 색을 따른다(currentColor). 강조어만 테마 액센트. */}
         <text
-          x="163"
-          y="119"
-          fill={inverse ? INVERSE_INK.subtitle : "currentColor"}
-          opacity={inverse ? undefined : "0.62"}
-          fontSize="20"
-          fontWeight="600"
-          letterSpacing="1.6"
-          textLength="334"
+          x="160"
+          y="86"
+          fill="currentColor"
+          fontSize="62"
+          fontWeight="800"
+          letterSpacing="-2.2"
+          textLength="167"
           lengthAdjust="spacingAndGlyphs"
         >
-          SMART WORKSPACE ASSISTANT
+          Clovir
         </text>
+        <text
+          x="338"
+          y="86"
+          fill={accent}
+          fontSize="62"
+          fontWeight="850"
+          letterSpacing="-2.2"
+          textLength="168"
+          lengthAdjust="spacingAndGlyphs"
+        >
+          Assist
+        </text>
+      </Box>
+      {subtitle ? (
+        // aria-hidden — 위 <svg role="img">의 aria-label이 이미 "Smart Workspace Assistant"를
+        // 포함한다(subtitle prop과 무관하게 항상). 이 글자를 스크린리더에도 노출하면 같은
+        // 문구를 두 번 읽는다.
+        <Box
+          component="span"
+          aria-hidden="true"
+          sx={{
+            position: "absolute",
+            left: "31%",
+            top: "74%",
+            whiteSpace: "nowrap",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            color: inverse ? INVERSE_INK.subtitle : "currentColor",
+            opacity: inverse ? undefined : 0.62,
+          }}
+        >
+          SMART WORKSPACE ASSISTANT
+        </Box>
       ) : null}
     </Box>
   );

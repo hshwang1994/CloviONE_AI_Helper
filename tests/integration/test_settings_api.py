@@ -174,3 +174,25 @@ def test_operator_cannot_change_settings(client, login_as):
     )
     assert r.status_code == 403
     assert client.get("/api/admin/settings").status_code == 200  # read OK
+
+
+def test_string_setting_is_trimmed_on_save(client, login_as):
+    """공백 낀 값을 저장해도 실제 저장되는 값엔 공백이 없다.
+
+    관리 화면(NotionConsole.jsx)은 이미 `.trim()` 하지만, 그 화면을 거치지 않는 raw API
+    PUT(system_admin)이나 DB 직접 수정으로 공백 섞인 값이 들어오면 - 검증기(`_non_empty_str`)는
+    `strip()` 해서 모양만 보고 원문은 그대로 통과시키므로 - 조회 URL 에 `%20` 이 그대로
+    붙는다. `notion_tasks_database_id` 는 SYSTEM_ADMIN_ONLY_KEYS 라 system_admin 으로 문다.
+    """
+    csrf = login_as("system_admin")
+    db_id = "a1b2c3d4e5f60718293a4b5c6d7e8f90"  # 32자리 16진수(유효한 모양)
+    r = client.put(
+        "/api/admin/settings/notion_tasks_database_id",
+        json={"value": f" {db_id}\n"},
+        headers=_headers(csrf),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["after"] == db_id, "저장 응답에 공백이 그대로 남아 있다"
+
+    fetched = client.get("/api/admin/settings").json()["settings"]["notion_tasks_database_id"]
+    assert fetched["value"] == db_id, f"저장된 값에 공백이 남았다: {fetched['value']!r}"

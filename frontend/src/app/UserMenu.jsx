@@ -8,7 +8,9 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
+import { useToast } from "../ui/kit.jsx";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
+import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
 
 /* 사용자 메뉴 — 이름/아바타를 누르면 내 프로필·비밀번호 변경·로그아웃.
  * 로그아웃이 없던 것이 큰 공백이었다(공용 PC 보안).
@@ -34,6 +36,8 @@ export function UserMenu({ name, userId, avatarUrl }) {
   const [busy, setBusy] = React.useState(false);
   const open = Boolean(anchor);
   const nav = useNavigate();
+  const toast = useToast();
+  const { identifyAccentUser } = useThemeMode();
 
   React.useEffect(() => {
     if (!userId) return;
@@ -43,17 +47,40 @@ export function UserMenu({ name, userId, avatarUrl }) {
        비교 대상이 React 상태가 아니라 `<html data-theme>` 인 이유: 그것이 정본이고,
        여기서 사본을 들면 다시 두 벌이 된다(위 주석의 그 결함). */
     const saved = readTheme(userId, { onlyAccount: true });
-    if (!saved) return;
-    if (saved !== document.documentElement.getAttribute("data-theme")) applyTheme(saved);
-    storeTheme(saved, userId);
-  }, [userId]);
+    if (saved) {
+      if (saved !== document.documentElement.getAttribute("data-theme")) applyTheme(saved);
+      storeTheme(saved, userId);
+    }
+    // 강조색도 같은 이유로 같은 자리에서 복원한다 - ThemeModeProvider는 AuthProvider
+    // 바깥에 마운트돼 있어 userId를 prop으로 받을 수 없다(ui/ThemeModeProvider.jsx 참고).
+    // 이후 setAccent 호출(강조색 선택 UI)도 이 호출로 알려 준 계정의 키에 저장된다.
+    identifyAccentUser(userId);
+  }, [userId, identifyAccentUser]);
 
   async function logout() {
     setBusy(true);
     // 계정 구분 없는 테마 키는 로그아웃 때 지운다 — 공용/키오스크 PC에서 다음 사용자가
     // 로그인 화면부터 이전 사용자의 테마를 물려받지 않게. 계정별 키는 남겨 본인 재로그인 시 복원.
     clearBootTheme();
-    try { await api("/logout", { method: "POST", body: {} }); } catch (e) { /* 세션이 이미 없어도 로그인으로 */ }
+    // 강조색도 같은 이유로 계정 구분 없는 키만 지운다(ui/ThemeModeProvider.jsx 참고).
+    clearBootAccent();
+    try {
+      await api("/logout", { method: "POST", body: {} });
+    } catch (e) {
+      // 401(세션이 이미 없음)만 "그래도 로그인으로" 를 정당화한다 - 그때는 쿠키가 이미
+      // 죽었으니 이동해도 안전하다. 5xx·망 순단처럼 세션이 **아직 살아 있을 수 있는**
+      // 실패까지 무조건 이동시키면, 쿠키가 살아 있는 채로 `GET /login` 이 303 으로 `/` 로
+      // 되돌려 "로그아웃 중…" 을 보고 기다렸다가 대시보드로 돌아오는데 아무 설명도 없다
+      // (Banners.jsx 의 대리 보기 종료 실패와 같은 판단 - 조용히 삼키면 사용자가 로그아웃된
+      // 줄 알고 자리를 뜬다).
+      if (e && e.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      setBusy(false);
+      toast((e && e.message) || "로그아웃하지 못했습니다. 다시 시도해 주세요.", "error");
+      return;
+    }
     window.location.href = "/login";
   }
 

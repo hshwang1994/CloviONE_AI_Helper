@@ -33,6 +33,7 @@ import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { KO_WORD_BREAK } from "./theme.js";
 import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
+import { prefersReducedMotion } from "./motion.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
  *
@@ -804,10 +805,12 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     onClose();
   }, [busy, values, confirm, onClose, normalizeForCompare]);
   // 검증 실패 필드를 화면 안으로 스크롤·포커스한다(큰 폼에서 오류가 스크롤 아래 숨는 문제).
+  // behavior 를 명시하면 CSS scroll-behavior(theme.js 의 동작 최소화 전역 규칙)가 이 호출에는
+  // 닿지 않는다 — 그래서 여기서 직접 판정해서 behavior 를 고른다.
   React.useEffect(() => {
     if (!errField) return;
     const el = document.getElementById("ff-" + errField);
-    if (el) { try { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    if (el) { try { el.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }, [errField]);
   /* 조건부 필드 (사용자 지적 #15).
    *

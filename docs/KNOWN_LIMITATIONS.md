@@ -122,6 +122,15 @@ root 로 도는 특권 헬퍼(`deploy/systemd/clovirone-privhelper.service`)가 
   (감사 기록은 지우지 않는 편이 안전한 기본값이지만, **설정이 아무 일도 안 한다는
   사실은 화면에 적혀 있지 않다**).
 - 다국어 미지원 — UI/메시지는 한국어 고정
+- **티켓·문서 본문 저장은 한 번에 최대 100줄**(`app/core/notion_blocks.py::MAX_BLOCKS`,
+  `app/tickets/schemas.py`·`app/team_docs/schemas.py`가 초과 시 자르지 않고 거절한다).
+  **이 상한은 Notion API 자체의 제약이 아니다** — `replace_page_body`가 새 블록을
+  `PATCH /v1/blocks/{id}/children`으로 **한 번만** 보내고(`json={"children": blocks[:100]}`),
+  그 API 호출 한 번의 상한이 100개다. 여러 번 나눠 보내는(청크) 루프를 두면 이 100줄
+  상한 자체를 없앨 수 있지만, 지금은 구현하지 않았다 — 실사용 본문이 이 상한에 닿는
+  일이 드물고(운영 UGC 실측 중 없음), 닿으면 거절 메시지가 명확해(줄 수를 줄이라는
+  안내) 조용한 실패가 아니다. 늘리려면 `replace_page_body`의 append를 100줄 단위
+  루프로 바꾸면 된다.
 
 ## §32 검수 루프에서 확인·문서화한 잔여 항목 (Medium/Low)
 

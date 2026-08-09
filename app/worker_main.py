@@ -323,8 +323,7 @@ def main() -> int:
 
     from app.settings.service import SettingsCache
 
-    # 웹과 같은 이유로 `settings` 를 넘긴다(app/main.py 의 같은 줄 참조). 워커는 틱마다
-    # 다시 load 하므로 관리 콘솔에서 바꾼 노션 DB id 와 LLM 설정이 한 틱 안에 여기에도 온다.
+    # 웹과 같은 이유로 `settings` 를 넘긴다(app/main.py 의 같은 줄 참조).
     settings_cache = SettingsCache(settings)
     with session_factory() as db:
         settings_cache.load(db)
@@ -336,6 +335,31 @@ def main() -> int:
         extras={"settings_cache": settings_cache, "secret_provider": secrets},
     )
     worker = Worker(session_factory, clock, build_handlers(), ctx)
+
+    # 설정 캐시 재적재 — 60초 간격. 이 콜백을 **맨 먼저** 등록한다: 같은 반복(iteration)
+    # 안에서 다른 콜백(스케줄러, 백업, 보존, 티켓/문서/프로젝트 미러 동기화)보다 먼저 돌아야
+    # 그 콜백들이 이번 반복에서 이미 새로 고친 값을 읽는다.
+    #
+    # 예전엔 `SettingsCache.load` 를 부르는 곳이 부팅·백업 틱(600초)·보존 틱(3600초)
+    # 셋뿐이었다 - 관리자가 Notion 작업 DB id 를 바꿔도 티켓 미러 동기화(180초 간격)는
+    # 최대 600초 동안 옛 DB 를 읽어 그 결과를 같은 미러에 계속 써 넣었다(두 소스가 섞인
+    # 미러). 60초는 가장 짧은 소비 주기(티켓 동기화 180초)보다 확실히 촘촘해, 그 다음 동기화
+    # 틱은 항상 최근 값을 본다.
+    _last_settings_reload: list = [None]
+    SETTINGS_RELOAD_INTERVAL_SECONDS = 60.0
+
+    def settings_cache_tick(now):
+        if (_last_settings_reload[0] is not None
+                and (now - _last_settings_reload[0]).total_seconds() < SETTINGS_RELOAD_INTERVAL_SECONDS):
+            return
+        _last_settings_reload[0] = now
+        try:
+            with session_factory() as db:
+                settings_cache.load(db)
+        except Exception:
+            logger.exception("settings cache reload tick failed")
+
+    worker.tick_callbacks.append(settings_cache_tick)
 
     # Scheduler runs inside the worker loop (spec §2.3 — Worker 내부 Scheduler).
     # A dedicated clovirone-web-scheduler.service can host this instead later.

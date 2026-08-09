@@ -25,7 +25,10 @@ export function Donut({
   );
   const total = rows.reduce((sum, s) => sum + s.value, 0);
 
-  if (!rows.length || total <= 0) return <ChartEmpty label={emptyLabel} />;
+  // size가 도넛 자체의 폭·높이를 정하는 값이라(기본 9rem), 빈 상태도 그대로 넘겨야 카드가
+  // 로딩→빈 전환에서 ChartEmpty의 기본값(4rem)으로 훅 줄어들지 않는다 — LineSeries/Sparkline이
+  // 자신의 height를 ChartEmpty에 그대로 넘기는 것과 같은 이유다.
+  if (!rows.length || total <= 0) return <ChartEmpty label={emptyLabel} height={size} />;
 
   const R = 15.91549431;
   let acc = 0;

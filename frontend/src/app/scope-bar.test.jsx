@@ -22,18 +22,28 @@ describe("범위 요약", () => {
     expect(scopeSummary({ role: "system_admin" })).toBeNull();
   });
 
-  it("부서 관리자는 어느 부서인지 말한다", () => {
-    expect(scopeSummary({ role: "admin", admin_scope: "dept", department: "브로드컴사업본부" }))
-      .toEqual({ label: "관리 범위", detail: "브로드컴사업본부" });
+  it("부서 관리자는 어느 부서인지 말한다 - 배정받은 관리 범위(scope_dept_name)다", () => {
+    // ⚠️ 본인 소속 부서(department)가 아니다 - 관리자가 자기 부서와 다른 부서를 관리
+    // 범위로 배정받을 수 있다. 우연히 같은 문자열이던 예전 동작을 여기서 명시적으로 갈랐다.
+    expect(scopeSummary({
+      role: "admin", admin_scope: "dept",
+      department: "본인 소속 부서(관리 범위와 다를 수 있다)",
+      scope_dept_name: "브로드컴사업본부",
+    })).toEqual({ label: "관리 범위", detail: "브로드컴사업본부" });
   });
 
   it("대상 부서가 없으면 그 사실을 말한다 — 그 계정은 아무것도 못 본다", () => {
-    expect(scopeSummary({ role: "admin", admin_scope: "dept", department: null }).detail)
+    expect(scopeSummary({ role: "admin", admin_scope: "dept", scope_dept_name: null }).detail)
       .toBe("지정된 부서 없음");
   });
 
-  it("조직 관리자", () => {
-    expect(scopeSummary({ role: "admin", admin_scope: "org" }))
-      .toEqual({ label: "관리 범위", detail: "내 조직" });
+  it("조직 관리자는 배정받은 조직 이름을 말한다(하드코딩된 '내 조직'이 아니다)", () => {
+    expect(scopeSummary({ role: "admin", admin_scope: "org", scope_org_name: "goodmit" }))
+      .toEqual({ label: "관리 범위", detail: "goodmit" });
+  });
+
+  it("대상 조직이 없으면 그 사실을 말한다", () => {
+    expect(scopeSummary({ role: "admin", admin_scope: "org", scope_org_name: null }).detail)
+      .toBe("지정된 조직 없음");
   });
 });

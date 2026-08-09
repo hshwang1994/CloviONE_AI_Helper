@@ -167,3 +167,10 @@ def test_the_scope_shows_up_in_my_own_profile_payload(client, login_as, make_use
 
     assert me.get("admin_scope") == "dept", f"/api/me 가 범위를 안 준다: {sorted(me)}"
     assert me.get("scope_dept_id") == dept.id
+    # ScopeBar 는 id 만으로 아무것도 못 그린다 - **이름**을 준다. 그리고 이 이름은 관리자
+    # 본인의 소속 부서(department)가 아니라 배정받은 관리 범위의 부서 이름이어야 한다
+    # (이 테스트에서 target 은 어느 부서에도 소속되지 않은 채 "범위표시팀"을 관리 범위로만
+    # 배정받았다 - department 필드로 잘못 읽으면 여기서 None 이 나온다).
+    assert me.get("scope_dept_name") == "범위표시팀", (
+        f"/api/me 가 관리 범위 부서 '이름'을 안 준다: {me.get('scope_dept_name')!r}"
+    )

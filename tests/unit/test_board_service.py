@@ -216,3 +216,47 @@ def test_soft_delete_hides_post(db, make_user):
     service.soft_delete_post(db, post, now=now)
     assert repository.get_post(db, post.id) is None  # 기본 조회에서 제외
     assert repository.get_post(db, post.id, include_deleted=True) is not None  # 행은 남음
+
+
+# ── _fit_for_ticket_description — 제안→티켓 본문이 TicketCreate 를 통과하는 형태로 잘리는가
+def test_fit_for_ticket_description_wraps_a_single_long_line():
+    """줄바꿈 없는 긴 문단(게시글의 흔한 형태) — 예전엔 [:3900] 로만 잘라 한 줄이 여전히
+    1900자를 넘어 TicketCreate._check_desc 가 결정적으로 거절했다."""
+    from app.core.notion_blocks import MAX_LINE_CHARS
+
+    body = "가" * 2500  # 줄바꿈 없는 한 문단
+    fitted = service._fit_for_ticket_description(body)
+
+    lines = fitted.split("\n")
+    assert all(len(ln) <= MAX_LINE_CHARS for ln in lines), (
+        f"줄 길이가 여전히 상한을 넘는다: {[len(ln) for ln in lines]}"
+    )
+    assert len(fitted) <= 3900
+    # 내용은 보존된다(잘라 버리는 게 아니라 줄바꿈만 끼워 넣는다) — 총 길이가 4000자
+    # 미만이므로 원문이 그대로 다 들어가야 한다.
+    assert fitted.replace("\n", "") == body
+
+
+def test_fit_for_ticket_description_passes_ticket_create_validation():
+    """실제 관문(TicketCreate._check_desc)을 통과하는지 — 문자열 모양만 보지 않는다."""
+    from app.tickets.schemas import TicketCreate
+
+    body = "긴 문단입니다. " * 400  # 공백 섞인 긴 문단, 줄바꿈 없음
+    fitted = service._fit_for_ticket_description(body)
+    payload = TicketCreate(title="t", description=fitted)  # 안 터지면 통과
+    assert payload.description == fitted.strip()
+
+
+def test_fit_for_ticket_description_caps_line_count():
+    """줄 수가 MAX_BLOCKS 를 넘으면(개행이 아주 많은 본문) 뒤는 잘라낸다 — 총 글자수·
+    줄 길이만 맞추고 줄 수는 안 맞추면 여전히 거절당한다."""
+    from app.core.notion_blocks import MAX_BLOCKS
+
+    body = "\n".join(f"줄{i}" for i in range(MAX_BLOCKS + 50))
+    fitted = service._fit_for_ticket_description(body)
+    assert len(fitted.split("\n")) <= MAX_BLOCKS
+
+
+def test_fit_for_ticket_description_empty_stays_empty():
+    assert service._fit_for_ticket_description("") == ""
+    assert service._fit_for_ticket_description(None) == ""

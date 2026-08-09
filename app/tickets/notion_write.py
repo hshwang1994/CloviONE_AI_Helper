@@ -256,6 +256,13 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
                 item = {"kind": _TEXT_BLOCK_TYPES[btype], "text": _block_text(block, btype)}
                 if btype == "to_do":
                     item["checked"] = bool((block.get("to_do") or {}).get("checked"))
+                # H-1: 이 자리(1레벨 읽기)에서는 자식을 안 읽는다(_MAX_BLOCK_PAGES 는 형제
+                # 페이지네이션이지 깊이가 아니다) - 그런데 저장(replace_page_body)은 이 블록
+                # 타입이 "우리가 표현할 수 있다"는 이유만으로 지워도 되는 목록에 넣었다.
+                # 접힌 토글 속 글, 중첩 글머리 목록처럼 **화면에 실리지도 않은 내용**이 부모와
+                # 함께 사라지던 자리다. has_children 을 그대로 실어 보내 화면이 미리 경고하게
+                # 한다 - 실제 삭제 여부는 저장 쪽(_EDITABLE_BLOCK_TYPES 필터)에서 막는다.
+                item["has_children"] = bool(block.get("has_children"))
                 out.append(item)
             elif btype == "image":
                 image = _image_view(block)
@@ -271,31 +278,29 @@ def fetch_page_blocks(outbound, settings, page_id: str) -> list[dict]:
     return out
 
 
-def page_block_ids(outbound, settings, page_id: str, *, limit: int | None = None) -> list[str]:
-    """페이지 본문(1레벨 children)의 블록 id 목록.
-
-    `limit` 을 주면 그 개수를 넘어서는 순간 멈춘다(넘었는지 알 수 있게 limit+1 개까지 모은다).
-    """
-    return [bid for bid, _ in page_block_refs(outbound, settings, page_id, limit=limit)]
-
-
 def page_block_refs(
     outbound, settings, page_id: str, *, limit: int | None = None
-) -> list[tuple[str, str]]:
-    """(블록 id, 블록 타입) 목록.
+) -> list[tuple[str, str, bool]]:
+    """(블록 id, 블록 타입, has_children) 목록.
 
     타입이 필요한 이유: 본문을 저장할 때 **우리 편집기가 표현할 수 있는 블록만** 지워야 한다.
     예전에는 id 만 모아 전부 지웠고, 그래서 이미지·표가 저장 한 번에 사라졌다.
+
+    has_children 이 필요한 이유(H-1): fetch_page_blocks 는 1레벨만 읽는다 - 텍스트 블록
+    타입(paragraph·heading_*·bulleted_list_item·…)이라도 **자식이 있으면 그 자식은 화면에
+    실리지 않는다.** 그런데 "이 타입은 우리가 표현할 수 있다"는 이유만으로 지워도 되는
+    목록에 들어가면, 접힌 토글 속 글이나 중첩 글머리 목록처럼 **본 적도 없는 내용**이 부모와
+    함께 사라진다. 자식이 있는 블록은 이미지·표와 같은 취급(지우지 않는다)을 받아야 한다.
     """
     path = f"/v1/blocks/{page_id}/children"
-    refs: list[tuple[str, str]] = []
+    refs: list[tuple[str, str, bool]] = []
     cursor: str | None = None
     for _ in range(_MAX_BLOCK_PAGES):
         q = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
         data = _request(outbound, settings, "GET", path + q)
         for block in data.get("results", []):
             if isinstance(block, dict) and block.get("id"):
-                refs.append((block["id"], block.get("type") or ""))
+                refs.append((block["id"], block.get("type") or "", bool(block.get("has_children"))))
         if limit is not None and len(refs) > limit:
             return refs
         if not data.get("has_more"):
@@ -364,7 +369,12 @@ def replace_page_body(outbound, settings, *, page_id: str, blocks: list[dict]) -
             f"원본에서 편집해 주세요."
         )
     # 편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 — 그대로 둔다.
-    deletable = [bid for bid, btype in refs if not btype or btype in _EDITABLE_BLOCK_TYPES]
+    # H-1: 자식이 있는 블록도 마찬가지다 - 그 자식은 애초에 화면에 실리지 않았으므로
+    # "사용자가 지운 적 없는 내용"이라는 같은 논리가 적용된다(이미지·표와 동급 취급).
+    deletable = [
+        bid for bid, btype, has_children in refs
+        if not has_children and (not btype or btype in _EDITABLE_BLOCK_TYPES)
+    ]
     if deletable:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(deletable))) as pool:
             futures = [

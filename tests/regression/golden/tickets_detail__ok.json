@@ -2,15 +2,18 @@
   "attachments": [],
   "blocks": [
     {
+      "has_children": false,
       "kind": "heading_2",
       "text": "배경"
     },
     {
+      "has_children": false,
       "kind": "paragraph",
       "text": "본문 한 줄."
     },
     {
       "checked": true,
+      "has_children": false,
       "kind": "todo",
       "text": "할 일"
     },

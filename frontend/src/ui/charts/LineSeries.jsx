@@ -2,7 +2,22 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, finiteValues, resolveChartColor } from "./base.jsx";
+import { ChartEmpty, resolveChartColor } from "./base.jsx";
+
+// base.jsx의 finiteValues는 null/undefined/NaN을 배열에서 통째로 들어낸다 — 값만 볼 때는
+// 맞는 동작이지만, 여기서는 원래 인덱스(=x좌표)가 살아 있어야 한다. finiteValues를 그대로
+// 쓰면 중간에 뚫린 null 하나 때문에 그 뒤 점들이 전부 한 칸씩 당겨져(압축) 그려진다 — 실제
+// 시간축 위의 위치가 아니라 "null이 없었다면의 위치"가 나가는 것이다. 원본 배열의 인덱스를
+// {i, v} 쌍으로 붙여 들고 다녀서, null 자리는 값 없이 인덱스만 소비하고(=선이 끊긴 채로
+// 자기 x좌표를 지키고) 뒤따르는 값은 자기 원래 자리에 그대로 남게 한다.
+function indexedFiniteValues(list) {
+  const arr = Array.isArray(list) ? list : [];
+  const out = [];
+  arr.forEach((v, i) => {
+    if (typeof v === "number" && Number.isFinite(v)) out.push({ i, v });
+  });
+  return out;
+}
 
 /* 여러 꺾은선을 **같은 눈금** 위에 겹쳐 그린다 — 두 값을 비교하는 그림(번다운의 계획선/잔여선).
  *
@@ -24,12 +39,18 @@ export function LineSeries({
 }) {
   const theme = useTheme();
   const rows = (Array.isArray(series) ? series : [])
-    .map((s) => ({
-      label: (s && s.label) || "",
-      color: resolveChartColor(theme, s && s.color),
-      values: finiteValues(s && s.points),
-    }))
-    .filter((s) => s.values.length >= 2);
+    .map((s) => {
+      const rawPoints = Array.isArray(s && s.points) ? s.points : [];
+      return {
+        label: (s && s.label) || "",
+        color: resolveChartColor(theme, s && s.color),
+        // 원본 배열 길이(null 포함). x축 전체 칸 수는 "값이 있는 점의 개수"가 아니라
+        // "슬롯의 개수"로 정해야 null 뒤의 점들이 앞으로 밀리지 않는다.
+        slotCount: rawPoints.length,
+        points: indexedFiniteValues(rawPoints),
+      };
+    })
+    .filter((s) => s.points.length >= 2);
 
   // 선 하나짜리(또는 점 하나짜리) '추세'는 없는 추세를 있는 것처럼 보이게 한다.
   if (!rows.length) return <ChartEmpty label={emptyLabel} height={height} />;
@@ -37,14 +58,23 @@ export function LineSeries({
   const W = 100;
   const H = 32;
   const PAD = 2;
-  const n = Math.max(...rows.map((r) => r.values.length));
-  const peak = Math.max(...rows.flatMap((r) => r.values), 0);
+  const n = Math.max(...rows.map((r) => r.slotCount));
+  const peak = Math.max(...rows.flatMap((r) => r.points.map((p) => p.v)), 0);
   // 값이 전부 0이면(할 일이 없는 주) 나눌 수 없다 — 바닥에 붙은 평평한 선으로 그린다.
   const scale = peak > 0 ? (H - PAD * 2) / peak : 0;
   const x = (i) => (n > 1 ? (i * W) / (n - 1) : 0);
   const y = (v) => H - PAD - v * scale;
-  const path = (values) =>
-    values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(2)} ${y(v).toFixed(2)}`).join(" ");
+  // points는 이미 null 슬롯이 빠진 목록이다. 원래 인덱스(p.i)가 바로 앞 점의 인덱스+1이
+  // 아니면 그 사이에 null이 있었다는 뜻이다 — 이어 그리지 않고(M) 새로 띄워서 끊긴 선으로
+  // 보여 준다. 이어 그리면(L) null을 건너뛴 직선 보간이 되어 "값이 있었다"는 착각을 준다.
+  const path = (points) =>
+    points
+      .map((p, i) => {
+        const prev = points[i - 1];
+        const gap = i === 0 || !prev || p.i !== prev.i + 1;
+        return `${gap ? "M" : "L"}${x(p.i).toFixed(2)} ${y(p.v).toFixed(2)}`;
+      })
+      .join(" ");
 
   const ticks = Array.isArray(labels) && labels.length >= 2
     ? [labels[0], labels[labels.length - 1]]
@@ -70,7 +100,7 @@ export function LineSeries({
         {rows.map((r, idx) => (
           <path
             key={r.label || idx}
-            d={path(r.values)} fill="none" stroke={r.color} strokeWidth={2.5}
+            d={path(r.points)} fill="none" stroke={r.color} strokeWidth={2.5}
             // 두 번째 선부터는 파선 — 색을 못 보는 사람도 두 선을 구분할 수 있어야 한다.
             strokeDasharray={idx === 0 ? undefined : "4 3"}
             strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
@@ -97,7 +127,7 @@ export function LineSeries({
               }}
             />
             <Typography variant="caption" color="text.secondary">
-              {r.label}: 시작 {fmt(r.values[0])} → 끝 {fmt(r.values[r.values.length - 1])}
+              {r.label}: 시작 {fmt(r.points[0].v)} → 끝 {fmt(r.points[r.points.length - 1].v)}
             </Typography>
           </Box>
         ))}

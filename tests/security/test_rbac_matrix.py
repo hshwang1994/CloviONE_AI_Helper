@@ -70,10 +70,33 @@ def test_matrix_rows_only_reference_known_roles():
 def test_auditor_never_appears_in_a_write_capability():
     """auditor 는 읽기 전용 가지다(§10) — 매트릭스가 그 전제를 어기면 화면이 거짓말을 한다."""
     write_keys = {"console.write", "users.manage", "users.bulk",
-                  "offboarding.run", "org.manage", "system.admin", "content.moderate"}
+                  "offboarding.run", "org.manage", "system.admin", "content.moderate",
+                  "impersonation.start", "system.settings"}
     for row in rbac_matrix()["items"]:
         if row["id"] in write_keys:
             assert "auditor" not in row["allowed"], row
+
+
+def test_impersonation_and_system_settings_have_matrix_rows():
+    """대리 보기 시작과 시스템 설정 변경은 이 제품에서 가장 민감한 동작이다.
+
+    둘 다 실제 라우터의 `require_roles(...)` 게이트와 정확히 같은 역할 집합이어야 한다 -
+    `app/impersonation/router.py` 의 `POST /start` 는 `CONSOLE_WRITE_ROLES`, `app/sysops/router.py`
+    는 라우터 전체에 `SYSTEM_ADMIN_ONLY` 를 건다. 매트릭스가 이 둘을 빠뜨리면 제품에서 가장
+    강한 두 권한이 화면 어디에도 나오지 않는다.
+    """
+    by_id = {row["id"]: row for row in rbac_matrix()["items"]}
+
+    assert "impersonation.start" in by_id, "대리 보기 시작 행이 매트릭스에 없다"
+    impersonation_row = by_id["impersonation.start"]
+    assert set(impersonation_row["allowed"]) == set(CONSOLE_WRITE_ROLES)
+    assert "operator" not in impersonation_row["allowed"]
+    assert "auditor" not in impersonation_row["allowed"]
+
+    assert "system.settings" in by_id, "시스템 설정 행이 매트릭스에 없다"
+    settings_row = by_id["system.settings"]
+    assert set(settings_row["allowed"]) == set(SYSTEM_ADMIN_ONLY)
+    assert settings_row["allowed"] == ["system_admin"]
 
 
 _ROLE_STRING = re.compile(r'["\'](?:user|operator|auditor|admin|system_admin)["\']')

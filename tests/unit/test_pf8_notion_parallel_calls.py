@@ -139,3 +139,46 @@ def test_replace_page_body_deletes_blocks_concurrently_for_team_docs(settings):
     assert elapsed < _DELETE_THRESHOLD, (
         f"블록 {n}개 삭제가 병렬로 돌지 않는다: 경과 {elapsed:.3f}s (문턱 {_DELETE_THRESHOLD:.3f}s)"
     )
+
+
+# ── H-1: has_children 인 블록은 지우지 않는다 (접힌/중첩 내용 유실 방지) ──────────────
+def test_replace_page_body_skips_blocks_with_children_for_tickets(settings):
+    """토글 속에 글이 있는 문단(has_children=True)은 화면에 실리지 않았으므로 지우지
+    않는다 - 지우면 사용자가 본 적도 없는 내용이 부모와 함께 사라진다."""
+    blocks = [
+        {"id": "leaf", "type": "paragraph", "paragraph": {"rich_text": []}, "has_children": False},
+        {"id": "nested", "type": "paragraph", "paragraph": {"rich_text": []}, "has_children": True},
+    ]
+    ob = _SlowOutbound(delay=0.0, blocks=blocks)
+
+    tickets_notion_write.replace_page_body(ob, settings, page_id="page-1", blocks=[])
+
+    deleted_ids = {url.rsplit("/", 1)[-1] for method, url in ob.calls if method == "DELETE"}
+    assert deleted_ids == {"leaf"}, f"자식 있는 블록까지 지웠다: {deleted_ids}"
+
+
+def test_replace_page_body_skips_blocks_with_children_for_team_docs(settings):
+    blocks = [
+        {"id": "leaf", "type": "paragraph", "paragraph": {"rich_text": []}, "has_children": False},
+        {"id": "nested", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": []}, "has_children": True},
+    ]
+    ob = _SlowOutbound(delay=0.0, blocks=blocks)
+
+    notion_docs.replace_page_body(ob, settings, page_id="doc-1", blocks=[])
+
+    deleted_ids = {url.rsplit("/", 1)[-1] for method, url in ob.calls if method == "DELETE"}
+    assert deleted_ids == {"leaf"}, f"자식 있는 블록까지 지웠다: {deleted_ids}"
+
+
+def test_fetch_page_blocks_reports_has_children_for_tickets(settings):
+    """읽기 쪽도 has_children 을 실어 보내야 화면이 경고를 띄울 수 있다."""
+    blocks = [
+        {"id": "leaf", "type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "글"}]}, "has_children": False},
+        {"id": "nested", "type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "접힌글"}]}, "has_children": True},
+    ]
+    ob = _SlowOutbound(delay=0.0, blocks=blocks)
+
+    items = tickets_notion_write.fetch_page_blocks(ob, settings, "page-1")
+
+    assert any(item.get("has_children") for item in items), "has_children 이 하나도 안 실렸다"
+    assert not all(item.get("has_children") for item in items), "모든 블록이 has_children 이다 - 구분이 안 된다"

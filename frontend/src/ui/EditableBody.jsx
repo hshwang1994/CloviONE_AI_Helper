@@ -47,6 +47,15 @@ export function hasUnsupportedBlocks(blocks) {
   return (blocks || []).some((b) => b && b.kind === "unsupported");
 }
 
+/* H-1: 이 블록들은 kind 로는 우리가 표현할 수 있는 타입(문단·글머리 목록·토글…)이지만
+ * **자식이 있다**(접힌 토글 속 글, 중첩 목록). 본문 조회가 1레벨만 읽으므로 그 자식은 이
+ * blocks 배열에 애초에 없다 — 서버(replace_page_body)는 그 사실을 알고 이 블록을 지우지
+ * 않지만(이미지·표와 같은 취급), 화면에서 보기엔 평범한 문단처럼 보여 사용자가 그 사실을
+ * 모른 채 저장을 누를 수 있다. hasUnsupportedBlocks 와 같은 이유로, 같은 시점에 미리 알린다. */
+export function hasNestedBlocks(blocks) {
+  return (blocks || []).some((b) => b && b.has_children);
+}
+
 export function EditableBody({
   editorId, endpoint, invalidateKeys = [], heading = "본문", placeholder,
   blocks, bodyMarkdown, bodyVersion, bodyIsLocal, bodySyncError, sourceView, onSaved,
@@ -87,6 +96,7 @@ export function EditableBody({
   const canEdit = bodyMarkdown != null;
   const tooManyLines = lineCount(draft) > BODY_MAX_LINES;
   const lossy = hasUnsupportedBlocks(blocks);
+  const nested = hasNestedBlocks(blocks);
 
   const save = useMutation({
     mutationFn: ({ body, baseVersion }) => api(endpoint, {
@@ -157,6 +167,17 @@ export function EditableBody({
               <Callout tone="info">
                 원본에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
                 그 블록은 지워지지 않습니다. 다만 원본에서의 위치는 글 앞쪽으로 모입니다.
+              </Callout>
+            </Box>
+          ) : null}
+          {nested ? (
+            <Box sx={{ mb: 1.5 }}>
+              <Callout tone="info">
+                원본에 접히거나 중첩된 내용(토글 속 글, 여러 단계 목록 등)을 담은 블록이
+                있습니다. 이 편집기에는 그 안쪽 내용까지는 실리지 않아, 저장해도 그 블록은
+                지우지 않고 그대로 둡니다. 다만 여기서 같은 줄을 고쳐 저장하면 원본에는
+                고치기 전 원래 블록과 고친 내용이 둘 다 남아 겹쳐 보일 수 있습니다. 온전히
+                편집하려면 ‘원본 열기’를 이용하세요.
               </Callout>
             </Box>
           ) : null}

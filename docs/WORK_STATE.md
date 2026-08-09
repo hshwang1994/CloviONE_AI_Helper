@@ -12,11 +12,82 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-09 · **단계**: Opus 전수조사 (구현 전, **수렴 안 함**) · **브랜치**: `ui/mui-migration`
+**마지막 갱신**: 2026-08-10 · **단계**: Sonnet 구현 사이클 3 — 로컬 게이트 green, **배포·실환경검증 전** · **브랜치**: `ui/mui-migration`
 
 ---
 
 ## 0. 한 줄 요약
+
+## 🟡 Sonnet 구현 사이클 3 — 로컬 완료, 배포·실환경검증은 다음 단계 (2026-08-10)
+
+`SONNET_HANDOFF.md §3` 5~11단계(설정 화면 배선 · Notion 본문 쓰기 안전 · 설정 오버레이 배선 ·
+셸 스코프 배선 · 게시판/채팅 규약 통일 일부 · 위생 묶음)를 구현했다. **주의: 이 블록은
+`구현완료`까지다 — `실환경검증완료`가 아니다.** 다음 세션(또는 이 세션 다음 턴)이 반드시
+할 일: 서버 배포 + Chrome 실환경 검증 + 이 블록을 그 결과로 갱신.
+
+**로컬 게이트(전부 확인됨)**: 백엔드 pytest 전체 2회 green(중간에 Notion 블록 계약 골든
+파일 갱신 1건 — 의도된 드리프트, `has_children` 필드 추가), 프런트 vitest 전체 3회 green
+(174→184 파일, 1224→1248 테스트), `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`
+(44개 검사 전부 통과), `npm run build` + `check_bundle_fresh.py --write` 로 번들 재생성 완료.
+
+**5단계 설정 화면 배선**: `fmtDuration` import(이미 사이클 1에서 완료 확인), `session_policy`
+설명문 정정 + 줄이기 경고 추가, `settings-labels.test.js`의 손유지 `OBJECT_TYPES` 목록을
+레지스트리에서 동적으로 뽑도록 교체(`SET-...`류, `retry_policy` 죽은 검증기 삭제),
+`SettingEditor.jsx` 읽기 전용 버튼을 `disabled`로(안 사라지게).
+
+**6단계 Notion 본문 쓰기 안전 (`FN-50`/H-1)**: `page_block_refs`가 `has_children`도 읽어
+자식 있는 블록을 `deletable`에서 제외(`notion_write.py`·`notion_docs.py` 동일 패턴,
+죽은 `page_block_ids` 삭제). `EditableBody.jsx`에 중첩 콘텐츠 경고 추가. 게시판→티켓 전환
+영구 실패 버그(`_fit_for_ticket_description` 신설 — 긴 한 줄 문단을 줄바꿈으로 나눠
+`TicketCreate._check_desc`를 통과시킴, `board/service.py`) 로컬 스텁 테스트로 검증
+(D-21 — 실서버 Notion 쓰기는 재현하지 않음, 로컬 스텁이 이 항목의 검증 상한).
+
+**7단계 설정 오버레이 배선 (`WORKER-01`/`SET-10`/`SET-11`)**: `worker_main.py`에 60초 간격
+`settings_cache_tick` 신설(다른 콜백보다 먼저 등록 — 같은 반복 안에서 최신값을 보게).
+거짓 주석 4곳 정정(worker_main.py·llm_connection_test.py·CONSOLE_SCREENS.md·
+tenant_config.py). `apply_setting`이 저장 전 문자열을 `strip()`. `SYS-08`(숫자 센티널
+비대칭) docstring 정정 + 참조 연결. `TENANT_SETTINGS`/`OVERRIDABLE_KEYS` 두 목록이 다른
+이유(타입 불일치 위험)를 코드에 명시.
+
+**8단계 셸 스코프 배선**: `ScopeBar`가 라우트를 가려 실제로 범위가 걸리는 화면
+(`navConfig.js::SCOPE_ENFORCED_PATHS`)에서만 "범위 밖은 안 보인다" 문구를 띄움. 부서
+관리자 표시가 본인 소속 부서가 아니라 **배정받은 관리 범위**(`scope_dept_name`/
+`scope_org_name`, `/api/me` 신설 필드)를 보이게. 다른 API의 401이 `["me"]` 쿼리를
+무효화해 세션 만료 화면이 실제로 켜지게(`api.js::api.onUnauthorized`, `auth.jsx`) —
+**구현 중 자체 발견 버그**: 최초 설계가 `/api/me` 자신의 401에도 무효화를 걸어 무한
+재무효화 루프로 vitest 워커가 힙 고갈로 죽는 것을 실측, `path !== "/api/me"` 가드로 수정
++ 회귀 테스트로 고정. 로그아웃 5xx/망 실패 시 무조건 `/login`으로 보내던 것을 401만
+그렇게 하고 나머지는 토스트로 알리게(`UserMenu.jsx`).
+
+**11단계 위생 묶음 — 10개 항목을 워크플로(병렬 서브에이전트 10개)로 구현**: RBAC 매트릭스에
+`impersonation.start`·`system.settings` 행 추가, `ConfigVersion` ORM에 유니크 제약
+선언(alembic 0004와 동일), `versioning.py` docstring의 pre/post-change 서술 정정,
+`/healthz`에 `ticket_source` 노출, `/api/team-chat/rooms`에 ETag 적용, `Donut` 빈 상태
+높이 유지, `BrandLogo` 부제를 SVG `<text>`(실렌더 ~6.4px)에서 HTML로, `LineSeries`의 null
+값 x좌표 보존, 강조색 계정별 저장, `scrollIntoView`의 reduced-motion 반영, 빈
+`@media(prefers-reduced-motion)` 블록 8개 + 죽은 `.chat-thinking` CSS 삭제.
+**서브에이전트 결과를 그대로 안 믿고 직접 리뷰해서 잡은 것 1건**: 강조색 계정별 저장이
+`ThemeModeProvider`에 `userId` prop을 받게 설계됐는데, 그 컴포넌트는 `AuthProvider`
+**바깥**(main.jsx)에 마운트돼 있어 그 prop이 실제로는 **한 번도 채워질 수 없는** 구조였다
+(에이전트의 단위 테스트는 prop을 직접 주입해서 통과했을 뿐, 실제 앱에서는 죽은 코드).
+`identifyAccentUser()`를 컨텍스트에 노출해 `UserMenu.jsx`(계정을 아는 첫 지점, 테마 복원과
+같은 자리)가 호출하는 구조로 다시 짜고, 실제 트리로 배선이 닿는지 보는 회귀 테스트
+(`user-menu-accent-wiring.test.jsx`)를 새로 추가해 고정했다 — 이 저장소가 그동안 계속
+찾아낸 "헬퍼는 있는데 부르는 쪽이 안 부른다" 결함을 새 코드에서 스스로 반복할 뻔한 사례.
+
+**9·10단계는 아직 착수 전** — 게시판·채팅 규약 통일 나머지(수정 흔적 표시, 방장 오프보딩
+인계, 전체 채팅 @mention 강조, 댓글 툼스톤, 나가기 문구, 방 이름 저장 버그, 게임 명단/추첨
+불일치)와 채팅 텍스트 파서 공용화(`trimUrlTail`, RichText 머리글, `kvOf` 오탐)는 다음 작업.
+
+**다음(순서대로)**: ① 커밋 ② `scripts/build-bundle.sh` → scp → 실서버 배포(DNS_NAME/
+BIND_IP 지정) ③ `systemctl is-active` 3종 + `/healthz`(`ticket_source` 필드 확인) ④ Chrome
+으로 최소: `/settings`(session_policy·smtp), `/scope`가 걸리는 화면(부서 관리자 계정으로
+`/team-docs` vs `/board`), 로그아웃(정상 흐름), `/rbac`(새 두 행), BrandLogo 렌더(육안
+확인 — 자동 테스트가 못 잡는 실제 픽셀), Donut 빈 상태 카드 높이 ⑤ 이 블록을
+실환경검증완료로 갱신 + BUILD_LOG.md 추가 ⑥ 9·10단계 착수, 그다음 사이클 4(전체 제품
+재감사).
+
+---
 
 ## 🔵 Sonnet 구현 사이클 2 완료 — Critical/High 축(SYS-01·SEC-30·SEC-22·FN-40·OPS-10/11) 전부 실환경검증완료 (2026-08-09)
 

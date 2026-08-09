@@ -119,6 +119,14 @@ def apply_setting(
     now: datetime,
 ) -> dict:
     spec = get_spec(key)
+    # 문자열 값은 저장 전에 정규화한다 - 안 하면 관리 화면이 보여 주는 값(깨끗함)과 실제
+    # 저장된 값(앞뒤 공백 포함)이 달라진다. 화면에서 쓰는 NotionConsole.jsx 는 이미
+    # `.trim()` 하지만, 그 화면을 거치지 않는 raw API PUT(system_admin)이나 DB 직접
+    # 수정으로 공백 섞인 값이 들어오면 조회 URL 에 `%20` 이 그대로 붙는다(개행이면
+    # `httpx.InvalidURL`). 검증기(`_non_empty_str` 등)는 `strip()` 해서 **모양만** 보고
+    # 원문은 그대로 통과시키므로 여기서 막지 않으면 아무 데도 안 걸린다.
+    if isinstance(value, str) and spec.value_type == "string":
+        value = value.strip()
     validate_value(key, value)
 
     row = db.get(AppSetting, key)

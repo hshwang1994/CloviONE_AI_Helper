@@ -211,6 +211,36 @@ export function inUserSegment(pathname) {
   return USER_SEG_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+/* 관리 범위(부서/조직)가 **실제로 걸리는** 경로 (ScopeBar).
+ *
+ * `ScopeBar` 는 라우트를 안 가리고 모든 화면에 "이 범위 밖의 항목은 목록에 나오지
+ * 않습니다"를 단언했다. 그런데 서버가 실제로 범위를 거는 곳은 백엔드 서비스 계층에서
+ * `app/core/scope.py::build_scope`/`apply_user_scope` 를 부르는 모듈뿐이다 - 게시판·놀이·
+ * 알림은 부서 범위를 안 건다(`app/board/repository.py` 가 "사내 공지판이다 … 부서로 좁히지는
+ * 않는다"고 명시한다). 부서가 배정된 일반 사용자에게는 `/board` 를 열 때마다 그 자리에서
+ * 거짓말이 됐다.
+ *
+ * 이 목록은 범위를 거는 백엔드 모듈과 1:1 이다 - 새로 범위를 걸기 시작하면 여기도 넣어야
+ * ScopeBar 가 그 화면에서도 경고를 띄운다:
+ *   tickets    → build_scope   → /my-tickets, /unassigned, /new-ticket, /team-tickets, /tickets/:id
+ *   team_docs  → build_scope   → /team-docs
+ *   trash      → build_scope   → /team-docs/trash
+ *   sprints    → build_scope   → /sprint
+ *   users      → apply_user_scope → /users
+ *   org        → apply_user_scope → /organizations, /departments, /org-tree
+ *   offboarding→ build_scope   → /offboarding
+ */
+export const SCOPE_ENFORCED_PATHS = [
+  "/my-tickets", "/unassigned", "/new-ticket", "/team-tickets", "/tickets",
+  "/team-docs",
+  "/sprint",
+  "/users", "/offboarding", "/organizations", "/departments", "/org-tree",
+];
+
+export function isScopeEnforcedRoute(pathname) {
+  return SCOPE_ENFORCED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 /* 현재 경로에 '가장 길게 맞는' 항목만 활성으로 본다.
  * 접두 매칭이면 /team-docs 가 /team-docs/trash 에서도 활성이라 '문서'와 '휴지통'이 동시에
  * 켜졌다(실제 사용자 신고 버그). 가장 구체적인 항목 하나만 활성이 되게 한다. */

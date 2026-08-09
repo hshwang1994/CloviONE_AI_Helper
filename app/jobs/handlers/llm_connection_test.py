@@ -65,8 +65,9 @@ def build_test_service(settings, *, backend=None, outbound=None) -> LlmService:
 def handle_llm_connection_test(db: Session, job: Job, ctx: WorkerContext) -> None:
     # payload 는 항상 {} 다. 읽어 쓰는 필드는 없지만 손상된 payload 를 여기서 조기에 잡는다.
     parse_payload(job)
-    # 워커는 틱마다 설정 캐시를 다시 읽고, 그 load 가 관리 콘솔에서 바꾼 값을 `settings` 에
-    # 얹는다(app/core/tenant_config.py::apply_overrides). 여기서 다시 읽을 것은 없다.
+    # 워커는 60초 간격으로 설정 캐시를 다시 읽고(worker_main.py::settings_cache_tick), 그
+    # load 가 관리 콘솔에서 바꾼 값을 `settings` 에 얹는다(tenant_config.py::apply_overrides).
+    # 여기서 다시 읽을 것은 없다.
     service = build_test_service(
         ctx.settings, backend=ctx.extras.get("llm_backend"), outbound=ctx.outbound_client
     )
