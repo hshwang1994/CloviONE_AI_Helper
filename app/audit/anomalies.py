@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit.actions import SENSITIVE_ACTION_PREFIXES, with_cli_variants
 from app.audit.models import AuditLog
 from app.audit.repository import apply_scope
 
@@ -46,25 +47,19 @@ OFF_HOURS_END = 7
 
 # 심야에 일어나면 눈에 띄어야 하는 동작들. 조회는 포함하지 않는다 — 밤에 대시보드를 본 것은
 # 이상이 아니다. **상태를 바꾸거나 권한에 닿는 것**만 본다.
-SENSITIVE_ACTION_PREFIXES = (
-    "user.",
-    "impersonation.",
-    "approval.",
-    "approval_delegation.",
-    "feature_flag.",
-    "app_setting.",
-    "backup.",
-    "runner.change_config",
-    "integration.change_config",
-)
+# (SEC-22: app/audit/actions.py 에서 가져온다 - app/health/service.py 의 "최근 주요
+# 변경" 위젯과 같은 목록을 봐야, CLI(cli.user.*)로 한 동작이 이 화면에서만 조용히
+# 빠지는 사각지대가 다시 생기지 않는다.)
 
-# 그 자체로 항상 보고 대상인 동작. 한 번만 일어나도 소견을 낸다.
+# 그 자체로 항상 보고 대상인 동작(웹 스펠링). CLI 는 대부분 다른 철자를 쓰므로
+# (SEC-22, app/audit/actions.py 참조) 아래에서 with_cli_variants() 로 넓힌 뒤에 쓴다.
 CRITICAL_ACTIONS = (
     "user.role_change",
     "impersonation.start",
     "approval_delegation.create",
     "feature_flag.update",
 )
+CRITICAL_ACTIONS_MATCH = with_cli_variants(CRITICAL_ACTIONS)
 
 SEVERITY_LOW = "low"
 SEVERITY_MEDIUM = "medium"
@@ -174,7 +169,7 @@ def detect(
                 first_at=night[0].created_at, last_at=night[-1].created_at,
             ))
 
-        critical = [e for e in entries if e.action in CRITICAL_ACTIONS]
+        critical = [e for e in entries if e.action in CRITICAL_ACTIONS_MATCH]
         if critical:
             findings.append(_finding(
                 "critical_action", SEVERITY_HIGH, actor_id,

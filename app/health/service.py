@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.audit.actions import with_cli_variants
 from app.audit.models import AuditLog
 from app.backups.service import last_successful_backup
 from app.core.config import Settings
@@ -58,13 +59,13 @@ CRITICAL_ACTIONS = (
 # silently drops every CLI-driven critical action from "최근 주요 변경", even
 # though it's exactly the kind of out-of-band change this widget exists to
 # surface. Match every known spelling of the same underlying action.
-CRITICAL_ACTIONS_MATCH = (
-    CRITICAL_ACTIONS
-    + tuple("cli." + a for a in CRITICAL_ACTIONS)
-    # cli.user.set_role has no "user.role_change" substring, so the generic
-    # "cli."-prefix rule above can't derive it — list it explicitly.
-    + ("cli.user.set_role",)
-)
+#
+# SEC-22: this exact mapping used to be hand-rolled here only — the audit
+# anomaly rules (app/audit/anomalies.py) didn't know it, so CLI-driven role
+# changes never tripped "critical_action". with_cli_variants() (and its odd-
+# spelling exceptions) now lives in app/audit/actions.py so both consumers
+# stay in sync.
+CRITICAL_ACTIONS_MATCH = with_cli_variants(CRITICAL_ACTIONS)
 
 
 def write_heartbeat(db: Session, component: str, now: datetime, detail: str | None = None) -> None:
