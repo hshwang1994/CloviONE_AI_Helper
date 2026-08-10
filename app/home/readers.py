@@ -66,7 +66,7 @@ def chat_unread(db: Session, user, *, config_dir) -> int | None:
     return total
 
 
-def recent_documents(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
+def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> list[dict]:
     """최근 수정된 팀 문서. 문서 목록 화면의 기본 정렬(recent)과 같은 순서를 쓴다.
 
     last_edited 는 Notion 이 준 ISO 문자열이라 사전순 정렬이 곧 시간순이다(모델 주석 참조).
@@ -74,6 +74,12 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
     휴지통 문서는 뺀다 -- `GET /api/team-docs` 목록은 이미 `exclude_page_ids`(trashed_page_ids)
     로 거르는데 이 위젯만 `archived` 만 보고 있었다. 그래서 문서를 지운 뒤에도 홈 '최근 문서'에는
     남아 있었고, 그 카드를 누르면 상세로 이어졌다(지운 문서로 가는 살아있는 링크).
+
+    SEC-13: `GET /api/team-docs`(진짜 문서 목록)는 `service.doc_in_scope`로 부서 범위 밖
+    문서를 거르는데, 이 홈 위젯은 그 판정 자체가 없어 다른 부서 문서의 제목·소유자·수정시각이
+    전 직원 홈 화면에 그대로 떴다. `viewer`를 받아 같은 판정을 적용한다 — 부서 스코프 필터링은
+    Python 쪽(`doc_in_scope`)에서만 가능해 SQL LIMIT 뒤에 걸리므로, 필터 뒤 부족해지는 걸
+    막기 위해 넉넉히 더 가져와 거른 뒤 자른다(위젯 用 "최근 5건"이라 과다 조회 비용은 작다).
     """
     from app.trash import repository as trash_repo
     from app.trash.models import TRASH_DOCUMENT
@@ -88,7 +94,12 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
     # 만큼만 읽어서는 거른 뒤 limit 아래로 줄어들 수 있다(트래시 항목이 상위 몇 건에 몰린 경우).
     if trashed:
         stmt = stmt.where(DocumentCache.notion_page_id.notin_(trashed))
-    rows = db.execute(stmt.limit(limit)).scalars().all()
+    fetch_limit = limit * 4 if viewer is not None else limit
+    rows = db.execute(stmt.limit(fetch_limit)).scalars().all()
+    if viewer is not None:
+        from app.team_docs.service import doc_in_scope
+
+        rows = [r for r in rows if doc_in_scope(db, r, viewer)][:limit]
     return [
         {
             # 화면 딥링크(#/team-docs/:id)가 쓰는 키와 같아야 한다 — 문서 API 의 id 는 page id 다.
@@ -102,10 +113,15 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
     ]
 
 
-def recent_board_posts(db: Session, *, limit: int = RECENT_LIMIT) -> list[dict]:
-    """자유게시판 최신 글. board 저장소를 그대로 쓴다(고정글 우선 + 최신순 = 게시판 첫 화면)."""
+def recent_board_posts(db: Session, *, limit: int = RECENT_LIMIT, org_id: str | None = None) -> list[dict]:
+    """자유게시판 최신 글. board 저장소를 그대로 쓴다(고정글 우선 + 최신순 = 게시판 첫 화면).
+
+    SEC-12: 게시판의 모든 실제 경로(`board/router.py`)는 `_viewer_org_id(me)`로 조직
+    게이트를 지나는데 이 위젯만 `org_id` 없이 불렀다 — `list_posts`가 이미 그 인자를
+    받으므로 그대로 전달한다(가려야 할 글이 새 SQL 없이 걸러진다).
+    """
     rows, _total = board_repo.list_posts(
-        db, category=None, search=None, sort="recent", offset=0, limit=limit
+        db, category=None, search=None, sort="recent", offset=0, limit=limit, org_id=org_id
     )
     names = board_repo.author_names(db, {p.author_user_id for p in rows})
     return [

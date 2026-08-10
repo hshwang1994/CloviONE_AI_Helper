@@ -253,19 +253,28 @@ def recover_stuck(
     return list(stuck)
 
 
-def queue_stats(db: Session, *, now: datetime) -> dict:
+def queue_stats(db: Session, *, now: datetime, visible: frozenset[str] | None = None) -> dict:
+    """SEC-02: 형제인 목록·상세·재시도·취소는 전부 `apply_scope`를 지나는데 이 요약만
+    빠져 있었다 — 부서 범위 admin이 전역 큐 깊이·실패 수를 그대로 봤다. `visible=None`
+    (전역 권한)이면 예전과 동일하게 전체를 센다."""
     from sqlalchemy import func
 
     counts = dict(
-        db.execute(select(Job.status, func.count()).group_by(Job.status)).all()
+        db.execute(
+            apply_scope(select(Job.status, func.count()), visible).group_by(Job.status)
+        ).all()
     )
     ready = db.execute(
-        select(func.count())
-        .select_from(Job)
-        .where(Job.status == STATUS_QUEUED, Job.available_at <= now)
+        apply_scope(
+            select(func.count()).select_from(Job)
+            .where(Job.status == STATUS_QUEUED, Job.available_at <= now),
+            visible,
+        )
     ).scalar_one()
     oldest_queued = db.execute(
-        select(func.min(Job.created_at)).where(Job.status == STATUS_QUEUED)
+        apply_scope(
+            select(func.min(Job.created_at)).where(Job.status == STATUS_QUEUED), visible
+        )
     ).scalar_one()
     return {
         "queued": counts.get(STATUS_QUEUED, 0),

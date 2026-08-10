@@ -61,9 +61,12 @@ def current_state(auth: AuthContext = Depends(get_current_auth), db: Session = D
         if auth.session.impersonation_id
         else None
     )
-    # 읽은 횟수는 이 조회에서만 올린다. 요청마다 올리면 폴링이 곧 쓰기가 된다(0026 규칙).
-    if row is not None:
-        row.read_count = (row.read_count or 0) + 1
+    # SEC-03: 예전에는 폴링(모든 화면이 이 GET을 부른다)마다 write 가 나갔다 — require_csrf
+    # 는 안전 메서드(GET)를 통과시키므로 이 write 는 CSRF 로부터 완전히 무방비였다. 최초
+    # 1회만 올려 그 뒤로는 이 GET 이 진짜로 읽기 전용이 되게 한다("관찰됐는가"는 여전히
+    # 감사 화면에 남지만, 반복 요청이 더는 상태를 바꾸지 않는다).
+    if row is not None and row.read_count == 0:
+        row.read_count = 1
         db.flush()
     return {
         "impersonating": True,

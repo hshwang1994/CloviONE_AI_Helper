@@ -164,8 +164,12 @@ def list_jobs(
 
 
 @router.get("/stats")
-def stats(request: Request, db: Session = Depends(get_db)):
-    return queue_stats(db, now=request.app.state.clock.now())
+def stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    return queue_stats(db, now=request.app.state.clock.now(), visible=visible_user_ids(db, principal.scope))
 
 
 @router.get("/{job_id}")

@@ -9,6 +9,7 @@
     "localhost:8787",
     "localhost:8788",
     "localhost:8789",
-    "api.notion.com:443"
+    "api.notion.com:443",
+    "api.anthropic.com:443"
   ]
 }

@@ -117,6 +117,20 @@ def test_blocked_writes_are_counted(impersonating):
     assert state["blocked_write_count"] >= 3
 
 
+def test_state_read_count_increments_once_not_per_poll(impersonating, db):
+    """SEC-03: /state 는 GET이라 require_csrf가 안전 메서드로 통과시킨다 — 예전에는
+    폴링마다 write가 나가 CSRF로부터 완전히 무방비였다. 최초 1회만 올리고 그 뒤로는
+    진짜 읽기 전용이어야 한다(반복 GET이 더는 DB를 건드리지 않는다)."""
+    from app.impersonation.models import ImpersonationSession
+
+    client, _csrf, _target_id = impersonating
+    for _ in range(5):
+        client.get("/api/admin/impersonation/state")
+    db.expire_all()
+    row = db.execute(select(ImpersonationSession)).scalars().first()
+    assert row.read_count == 1, "반복된 GET이 계속 write를 내고 있다"
+
+
 def test_stop_is_allowed_and_restores_the_actor(impersonating, client):
     client, csrf, _ = impersonating
     stopped = client.post("/api/admin/impersonation/stop", headers={"X-CSRF-Token": csrf})

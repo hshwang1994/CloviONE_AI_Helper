@@ -123,8 +123,9 @@ def build_today(
             "chat_unread": readers.chat_unread(db, user, config_dir=settings.config_dir),
         },
         "recent": {
-            "documents": readers.recent_documents(db, limit=item_limit),
-            "board": readers.recent_board_posts(db, limit=item_limit),
+            # SEC-12/SEC-13: 두 위젯 다 이제 요청자 범위(부서/조직)를 지난다.
+            "documents": readers.recent_documents(db, limit=item_limit, viewer=user),
+            "board": readers.recent_board_posts(db, limit=item_limit, org_id=getattr(user, "org_id", None)),
         },
     }
     # 미러로 답했을 때만 신선도를 싣는다(실시간 응답에 미러 상태를 실으면 거짓말이다).

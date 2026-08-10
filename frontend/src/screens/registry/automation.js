@@ -281,14 +281,13 @@ export const AUTOMATION_SCREENS = {
       // approval.object_id로 직접 담지 않는다), 최소한 '대기' 상태로는 걸러 보여준다 — approvals.onQuery가
       // 이제 ?status=를 소비해 실제로 '대기' 큐만 남기고 승인/거절/만료/취소 이력에 묻히지 않게 한다.
       { label: "승인 대기 목록으로", when: (r) => r.status === "awaiting_approval", navigate: () => "#/approvals?status=pending" },
-      // 실패·품질 미달 문서는 같은 기간/대상으로 재생성할 수 없다(화면 help가 이미 이렇게 안내한다) —
-      // '+ 문서 생성' 폼을 이 행의 워크플로·모드·설정으로 프리필해 다시 열어, 기간부터 다시 입력해
-      // 새로 만들 수 있게 한다(빈 폼에 UUID·JSON을 처음부터 다시 옮겨 적지 않게).
+      // FN-07: '+ 문서 생성' 폼을 재오픈해 같은 기간·대상으로 다시 제출하면 idempotency
+      // 충돌로 409 막다른 길이었다(round30 감사 E High) — 그래서 백엔드에 같은 레코드를
+      // 그대로 재큐잉하는 전용 POST /{id}/retry 가 이미 있는데, 이 버튼은 계속 옛 재오픈
+      // 경로(/generate)를 불렀다. jobs·schedule-runs 재시도와 같은 confirm+path 패턴으로
+      // 바꾼다 — 새 생성이 아니라 진짜 재시도가 되게.
       { label: "재시도", roles: WRITE_ROLES, when: (r) => r.status === "failed" || r.status === "quality_failed",
-        path: () => "/api/admin/documents/generate", result: docGenerateResult, fields: DOC_GENERATE_FIELDS, transform: docConfigTransform,
-        // 실패 행의 워크플로·모드·설정은 물려받고 기간만 비워 다시 연다. docConfigInitial이 config를
-        // 명명 필드로 풀어 채운다(period는 known 키라 config_extra로 새지 않는다).
-        initial: (r) => docConfigInitial({ workflow_id: r.workflow_id, mode: r.mode, config: r.config, period: "" }) },
+        path: (r) => "/api/admin/documents/" + r.id + "/retry", confirm: "이 문서 생성을 같은 설정으로 다시 시도할까요?" },
       // document_generation은 감사 로그의 유효한 object_type이고(app/documents/router.py가 이 이름으로
       // 기록한다) OBJTYPE_OPTS에도 이미 있다 — 부서·직책과 동일한 딥링크를 추가한다.
       // operator는 이 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES) —

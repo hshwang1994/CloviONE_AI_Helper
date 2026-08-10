@@ -36,6 +36,40 @@ def test_stats_endpoint(client, login_as, seeded_jobs):
     assert body["failed"] == 1
 
 
+def test_stats_endpoint_honors_dept_admin_scope(db, client, login_as, make_user, fake_clock):
+    """SEC-02: 형제인 목록·상세·재시도·취소는 apply_scope를 지나는데 요약(stats)만
+    빠져 있었다 — 부서 범위 admin이 전역 큐 깊이·실패 수를 그대로 봤다."""
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Department
+
+    mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
+    theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
+    db.add_all([mine, theirs])
+    db.flush()
+
+    mine_user = make_user("j-mine@goodmit.co.kr", role="user", display_name="우리팀사람")
+    theirs_user = make_user("j-theirs@goodmit.co.kr", role="user", display_name="남의팀사람")
+    mine_user.department_id = mine.id
+    theirs_user.department_id = theirs.id
+
+    dept_admin = make_user("j-dept-admin@goodmit.co.kr", role="admin", display_name="부서관리자")
+    dept_admin.department_id = mine.id
+    dept_admin.admin_scope = "dept"
+    dept_admin.scope_dept_id = mine.id
+    db.commit()
+
+    now = fake_clock.now()
+    repository.enqueue(db, job_type="chat_message", payload={}, now=now, user_id=mine_user.id)
+    failed = repository.enqueue(db, job_type="chat_message", payload={}, now=now, user_id=theirs_user.id)
+    failed.status = "failed"
+    db.commit()
+
+    login_as("admin", email="j-dept-admin@goodmit.co.kr")
+    body = client.get("/api/admin/jobs/stats").json()
+    assert body["queued"] == 1, "우리팀 잡만 보여야 한다"
+    assert body["failed"] == 0, "남의팀 잡의 실패가 부서 admin에게 새면 안 된다"
+
+
 def test_operator_can_retry_failed_job(client, login_as, seeded_jobs):
     csrf = login_as("operator")
     r = client.post(
