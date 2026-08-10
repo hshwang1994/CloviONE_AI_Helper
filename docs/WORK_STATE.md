@@ -12,16 +12,60 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE C 완료(Design System 근본원인 배치),
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE D 완료(로그인 화면 토큰 부분 동기화),
 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게
 조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로
-유지. **MEGA CYCLE A**(AI Assistant / 러너 대화 엔진, RN-01~14 + Critical AI-30)와
-**MEGA CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51) 둘 다
-구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical 0건. **MEGA CYCLE C**(Design
-System, DS-01~32 전수 재검증)도 구현·테스트·배포·실환경검증까지 완료 — 상세는 각
-§MEGA CYCLE 섹션. MEGA CYCLE A 검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**:
-`n8n` 계정 Claude CLI 미인증(`OPS-06`, **사용자 조치 필요**, 아직 미해결). 진행률 실측치는
+유지. **MEGA CYCLE A**(AI Assistant, RN-01~14 + Critical AI-30)·**MEGA CYCLE B**(제품
+전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51)·**MEGA CYCLE C**(Design System,
+DS-01~32 전수 재검증) 전부 구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical
+0건. **MEGA CYCLE D**(MEGA CYCLE C가 발견한 `DS-18`의 후속 — 로그인 화면 정적 토큰
+사본의 핵심 색 부분 동기화)도 완료. 상세는 각 §MEGA CYCLE 섹션. MEGA CYCLE A 검증 중
+**배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증(`OPS-06`,
+**사용자 조치 필요**, 아직 미해결). 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE D — 로그인 화면 정적 토큰 사본 부분 동기화 (DS-18 후속) 완료 (2026-08-10)
+
+MEGA CYCLE C가 DS-18을 재조사하다 발견한 것의 후속 — `app/static/css/tokens.css`
+(로그인 화면·`base.html` 전용, React 번들과 별개)가 `frontend/src/styles/tokens.css`
+와 약 54개 변수만큼 어긋나 있었다.
+
+**의도적으로 축소한 범위**: 54개 전부를 맞추지 않고 **핵심 브랜드/중립/상태 색 +
+모서리(약 20개)만** 동기화했다 — `color-primary-strong`·`color-bg`·`color-card`·
+`color-border`·`color-text`·`color-muted`·`color-success`·`color-warning`·
+`color-error`·`radius-*`(라이트·다크). **일부러 안 건드린 것**: 상단바 그라데이션
+(`--g-topbar`)·사이드바 활성색·배지 글자색처럼 이 파일 자체에 개별 WCAG 대비 계산이
+딸린 합성 토큰(맹목적 값 치환이 그 계산을 무효화할 위험이 있어 재계산 없이는 손 안
+댐), `--color-ink`(프런트는 테마 무관 고정인데 이 파일은 테마별로 다른 구조적 차이라
+값만 맞추는 걸로 안 끝남 — 설계 판단 필요).
+
+**검증에서 실제로 잡힌 것**: `tests/regression/test_css_says_what_it_does.py`(사이드바
+대비를 코드에서 직접 재계산해 주석과 대조하는 자동 테스트)가 색 동기화로 실제
+계산값이 바뀐 4곳을 정확히 잡아냈다 — 전부 진짜 회귀는 아니었고(4.97~15.00, 전부
+AA 4.5 기준 통과) 주석에 박힌 옛 숫자가 낡은 것이었다, 재계산한 값으로 주석 갱신 후
+재통과 확인. **이 자동 테스트가 커버 안 하는 배지(badge) 8곳도 직접 재계산해서
+주석을 갱신**했다(5.10~7.79) — 이 과정에서 **neutral 배지의 대비가 라이트에서
+4.5에 살짝 못 미치는 것(4.28)을 발견**했는데, `frontend/src/styles/tokens.css`의
+실제 값으로 같은 조합을 재계산해도 4.43으로 똑같이 살짝 못 미쳐 **이 파일이 새로
+만든 문제가 아니라 제품 전체가 공유하는 기존의 작은 결함**임을 확인 — `DS-33`으로
+신규 기록만 하고 이번 사이클에선 안 고침(범위 밖).
+
+**검증**: 백엔드 pytest 전체 green(`test_css_says_what_it_does.py` 포함),
+`STATIC_CHECKS_OK`. 배지 색 4종(성공/경고/오류/정보) × 라이트/다크 전부 WCAG 상대휘도
+공식으로 직접 재계산해 4.5 이상 확인(5.10~7.79). 커밋 `3170857` + `6b3a9f4`.
+
+**배포**: `build-bundle.sh` → scp → 체크섬 확인 → `upgrade-clovirone-web-assistant.sh`
+→ `UPGRADE_OK`(2026-08-10 13:02 KST, 두 번째 배포가 최종본) → 서비스 3종 `active` →
+`/healthz` 200. 배포된 정적 파일을 직접 curl로 확인해 새 값이 실제로 서빙되는 것 확인.
+
+**실서버 실환경검증 — 정직하게 한계를 남긴다**: 로그인 화면 자체를 Chrome으로 직접
+열어 라이트/다크 렌더링을 눈으로 비교하지는 **않았다** — 이 브라우저 세션의 모든 탭이
+같은 쿠키를 공유해서, 로그인 화면을 보려고 로그아웃하면 동시에 다른 화면들을 검증하던
+탭도 전부 끊긴다. 그 정도 지장을 감수할 만큼 급한 변경이 아니라고 판단해, 대신
+① 정적 CSS 파일이 실제로 새 값으로 배포된 것을 curl로 직접 확인, ② 모든 색 변경의
+WCAG 대비를 코드로 직접 재계산, ③ 기존 자동 회귀 테스트 통과로 검증 상한을 삼았다.
 
 ---
 
