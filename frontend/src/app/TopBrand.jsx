@@ -1,6 +1,7 @@
 import React from "react";
 import Button from "@mui/material/Button";
 import BrandLogo from "../ui/BrandLogo.jsx";
+import { NAV_BREAKPOINT_PX } from "./navConfig.js";
 
 /* 상단바 왼쪽의 브랜드 자리 — 기준선의 `.brand > .brand-lockup`.
  *
@@ -15,10 +16,18 @@ import BrandLogo from "../ui/BrandLogo.jsx";
  * 글자색이었다. `BrandLogo inverse` 가 그 자산의 색을 그대로 쓴다.
  */
 
-/* 기준선의 로고 폭. `.brand-lockup.is-compact > img` 가 170px 이고, 아래 두 미디어쿼리가
- * 좁아질수록 줄인다(1100 이하 150, 899 이하는 마크만 42px 로 잘라 쓴다).
- * 4K 쪽(xxl/uhd)은 기준선에 없다 — 사이드바 열이 넓어지는 만큼 같이 키운 우리 값이다. */
-const LOCKUP_WIDTH = { xs: 150, md: 170, xxl: 196, uhd: 224 };
+/* 락업이냐 마크만이냐의 경계.
+ *
+ * 기준선은 899px 이하에서 락업을 마크 폭(42px)으로 잘라 쓴다. 예전 코드는 그 경계를
+ * MUI 의 `sm`(600px)으로 잡아 두었는데, 그러면 600~860px 구간에서 좁은 상단바에 2줄 락업이
+ * 통째로 들어가 검색 막대를 밀어낸다. 그 구간은 사이드바가 서랍으로 접히는 구간이기도 하다
+ * (AppShell 의 `isNarrow` = NAV_BREAKPOINT_PX 이하) — 락업이 앉을 264px 열 자체가 없다.
+ * 그래서 경계를 그 값 하나로 맞춘다: 열이 있으면 락업, 없으면 마크.
+ *
+ * 락업 자체의 폭은 여기서 정하지 않는다. BrandLogo 가 rem 으로 짜여 있어 4K 에서 루트
+ * 폰트사이즈 레버(styles/root.css)를 타고 같이 커진다 — 브레이크포인트별 px 표(예전
+ * LOCKUP_WIDTH)는 그 레버와 이중으로 크기를 정하고 있었다. */
+const WIDE = `@media (min-width:${NAV_BREAKPOINT_PX + 1}px)`;
 
 export default function TopBrand({ onClick, label = "홈으로", width }) {
   return (
@@ -45,14 +54,9 @@ export default function TopBrand({ onClick, label = "홈으로", width }) {
         minWidth: 0,
       }}
     >
-      <BrandLogo
-        inverse
-        width={LOCKUP_WIDTH}
-        sx={{ display: { xs: "none", sm: "block" } }}
-      />
-      {/* 기준선은 899px 이하에서 락업을 마크 폭(42px)으로 잘라 쓴다. 우리는 자르는 대신
-          같은 마크를 그린다 — 인라인 SVG라 자를 이유가 없다. */}
-      <BrandLogo inverse markOnly width={42} sx={{ display: { xs: "block", sm: "none" } }} />
+      <BrandLogo inverse sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
+      {/* 자르는 대신 같은 마크를 그린다 — 인라인 SVG라 자를 이유가 없다. */}
+      <BrandLogo inverse markOnly width={42} sx={{ [WIDE]: { display: "none" } }} />
     </Button>
   );
 }

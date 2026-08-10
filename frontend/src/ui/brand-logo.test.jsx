@@ -79,13 +79,20 @@ describe("BrandLogo 부제 — SVG <text> 대신 HTML로 그린다", () => {
     expect(subtitle.closest("svg")).toBeNull();
   });
 
-  it("부제 글자 크기가 사이드바와 같은 읽을 수 있는 값(0.75rem)이다 — 6px대가 아니다", () => {
+  it("부제 글자 크기가 4K에서도 12px 이상으로 남는 rem 값이다 — 6px대가 아니다", () => {
     renderLogo();
     const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
     const fontSize = lastUnconditionalDeclaration(subtitle, "font-size");
-    expect(fontSize).toBe("0.75rem");
-    expect(fontSize).not.toMatch(/^6(\.\d+)?px$/);
-    expect(fontSize).not.toBe("20px");
+
+    /* 값을 리터럴로 못박지 않는 이유: 부제 크기는 워드마크 폭과 맞물려 있다(BrandLogo 의
+     * '락업 치수' 주석 — 부제의 진행폭 × 글자크기 = 워드마크 폭이라야 두 줄이 한 덩어리로
+     * 보인다). 그 균형을 조정할 때마다 여기 적힌 숫자가 같이 틀리면 검사가 아니라 걸림돌이다.
+     * 지킬 것은 숫자가 아니라 하한선이다: (1) px 고정이 아니라 rem 이라 4K 레버를 타야 하고,
+     * (2) tiny_text 검사가 도는 2200px 이상(루트 18px)에서 12px 아래로 내려가면 안 된다. */
+    expect(fontSize, "부제가 rem이 아니다 — 4K 루트 폰트사이즈 레버를 안 탄다").toMatch(/rem$/);
+    const atFourK = Number.parseFloat(fontSize) * 18;
+    expect(atFourK, `2200px 이상에서 ${atFourK}px — QA tiny_text 하한(12px) 미만`)
+      .toBeGreaterThanOrEqual(12);
   });
 
   it("워드마크 SVG 안에는 'Clovir'/'Assist' <text> 두 개만 남는다(부제 <text>는 제거됐다)", () => {
@@ -93,5 +100,54 @@ describe("BrandLogo 부제 — SVG <text> 대신 HTML로 그린다", () => {
     const svg = document.querySelector("svg.wordmark");
     const texts = [...svg.querySelectorAll("text")].map((t) => t.textContent);
     expect(texts).toEqual(["Clovir", "Assist"]);
+  });
+});
+
+/* 부제가 워드마크 **바로 아래**에 붙어 있는가 — 구조로 본다.
+ *
+ * 사용자 지적: "SMART WORKSPACE ASSISTANT 가 Header 하단에 따로 떨어져 보인다".
+ * 원인은 여백이 아니라 구조였다. 마크·글자·빈 여백까지 다 든 528×156 SVG 한 장을 그려 놓고
+ * 부제를 그 위에 절대위치(left 31% / top 74%)로 얹었는데, 그 상자는 글자 베이스라인 아래로
+ * 45%가 빈 채여서 부제가 상단바 바닥까지 밀려 내려갔다. 좌표를 다른 숫자로 바꾸는 것은
+ * 해법이 아니다 — 그래서 이 검사는 "부제가 워드마크의 형제로, 세로 흐름 안에 있는가"를 본다.
+ * jsdom 은 레이아웃을 계산하지 않으므로 픽셀 위치는 물을 수 없다(density.test.jsx 와 같은 이유).
+ */
+describe("BrandLogo 락업 — 마크 + 2단 텍스트 블록", () => {
+  it("부제가 워드마크와 같은 부모 안에 있고, 그 부모는 세로 배치다", () => {
+    renderLogo();
+    const wordmark = document.querySelector("svg.wordmark");
+    const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
+
+    expect(subtitle.parentElement).toBe(wordmark.parentElement);
+    const block = wordmark.parentElement;
+    expect(lastUnconditionalDeclaration(block, "flex-direction")).toBe("column");
+    // 워드마크가 먼저, 부제가 그 다음 — 2줄 순서 자체를 못박는다.
+    expect([...block.children].indexOf(wordmark)).toBeLessThan(
+      [...block.children].indexOf(subtitle),
+    );
+  });
+
+  it("부제를 절대위치로 얹지 않는다 — 좌표로 미는 방식으로 되돌아가면 여기서 걸린다", () => {
+    renderLogo();
+    const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
+
+    expect(lastUnconditionalDeclaration(subtitle, "position")).not.toBe("absolute");
+    for (const prop of ["top", "left", "bottom", "right", "margin-top"]) {
+      expect(lastUnconditionalDeclaration(subtitle, prop), `부제에 ${prop} 보정이 있다`)
+        .toBeNull();
+    }
+  });
+
+  it("마크와 텍스트 블록은 가로로 나란히 놓인다", () => {
+    renderLogo();
+    const wordmark = document.querySelector("svg.wordmark");
+    const root = wordmark.parentElement.parentElement;
+
+    expect(lastUnconditionalDeclaration(root, "display")).toBe("inline-flex");
+    expect(lastUnconditionalDeclaration(root, "align-items")).toBe("center");
+    // 마크는 텍스트 블록의 형제다(예전처럼 워드마크 SVG 안에 그려 넣지 않는다).
+    const mark = [...root.children].find((el) => el.tagName.toLowerCase() === "svg");
+    expect(mark, "마크 SVG가 락업 루트의 자식이 아니다").toBeTruthy();
+    expect(mark).not.toBe(wordmark);
   });
 });

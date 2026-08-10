@@ -17,9 +17,9 @@ import { useTheme } from "@mui/material/styles";
  * 끝난다(헤드리스 브라우저로 getBBox 측정). 오른쪽 36%가 빈 채라 같은 CSS 폭을 줘도 로고가
  * 작고 왼쪽으로 쏠려 보였다. 내용에 맞춰 528로 좁혔다.
  *
- * 글자 폭은 textLength로 고정한다. 원본은 Inter/Pretendard를 전제로 좌표를 박아 뒀는데
- * 이 앱은 웹폰트를 쓰지 않아(사내망 CDN 차단, 6.7MB) 시스템 폰트로 대체된다 — 고정하지 않으면
- * 장비마다 두 단어가 붙거나 벌어진다.
+ * 글자 폭은 textLength로 고정한다. 원본은 Inter/Pretendard를 전제로 좌표를 박아 뒀는데,
+ * 폰트가 아직 안 받아졌거나(font-display: swap) 폴백으로 떨어지면 시스템 폰트로 그려진다 —
+ * 고정하지 않으면 장비마다 두 단어가 붙거나 벌어진다.
  */
 
 const CLOVER_PATH =
@@ -100,6 +100,37 @@ function CloverMark({ uid, mode }) {
   );
 }
 
+/* ── 락업 치수 ───────────────────────────────────────────────────────────────
+ * 부제가 워드마크 폭 안에 들어오려면 두 폭을 **재서** 맞춰야 한다. 눈대중으로 잡았던 것이
+ * 예전 결함의 절반이었다 — 부제(CSS 12px)가 워드마크보다 1.5배 넘게 길어서, 어떻게 얹어도
+ * 하나의 덩어리로 안 보였다.
+ *
+ * 잰 값(PIL/FreeType 으로 실제 폰트 파일에서 진행폭 측정):
+ *   "SMART WORKSPACE ASSISTANT" — Pretendard Variable 600 에서 자간 없이 15.58em.
+ *   여기에 letter-spacing 0.08em × 25자 = 2.0em → 17.58em.
+ *   → 0.68rem × 17.58 = 11.95rem ≈ WORDMARK_WIDTH(12rem). 두 줄이 같은 폭이 된다.
+ *   폴백 스택은 전부 이보다 좁다(Segoe UI Semibold 14.85em, Malgun 14.84em, Segoe UI 14.42em)
+ *   — 폰트가 안 받아져도 부제가 워드마크 밖으로 나가지 않는다.
+ *
+ * 부제 0.68rem 의 하한 근거: QA 의 tiny_text 검사는 2200px 이상에서만 12px 미만을 잡는데
+ * (scripts/ui_qa/assertions.py), 그 폭에서는 styles/root.css 의 루트 폰트사이즈가 18px 라
+ * 0.68rem = 12.24px 다. 전부 rem 이라 4K 에서 락업이 통째로 같이 커진다 — 브레이크포인트별
+ * px 표(예전 TopBrand 의 LOCKUP_WIDTH)가 필요 없어진 이유다. */
+const WORDMARK_WIDTH = "12rem";
+const SUBTITLE_SIZE = "0.68rem";
+const SUBTITLE_TRACKING = "0.08em";
+const SUBTITLE_LINE_HEIGHT = 1.2;
+/* 마크는 2줄 텍스트 블록과 같은 높이의 정사각형이다(요구: 아이콘이 2줄 블록과 균형).
+ * 블록 높이 = 12rem × 50/346(아래 viewBox 비율) + 0.68rem × 1.2 = 2.55rem. */
+const MARK_SIZE = "2.5rem";
+const MARK_GAP = "0.5rem";
+/* 글자에 맞춰 자른 워드마크 viewBox. 원본 좌표계(0 0 528 156)에서 글자는 x 160..506,
+ * 베이스라인 y=86 이고 잉크는 베이스라인 위 0.752em·아래 0.010em 까지다(같은 방법으로 측정,
+ * weight 800) — fontSize 62 기준 y 39.4..86.6. 위아래 1~2유닛만 남기고 자른다.
+ * 자르지 않으면 상자 아래쪽 70유닛(=상자 높이의 45%)이 빈 채로 남고, 그 빈 칸이 부제를
+ * 상단바 바닥까지 밀어 내렸다. */
+const WORDMARK_VIEWBOX = "160 38 346 50";
+
 export default function BrandLogo({
   markOnly = false,
   subtitle = true,
@@ -114,7 +145,7 @@ export default function BrandLogo({
   // 반전은 잎 그라디언트도 한 단계 밝은 세트를 쓴다(-dark.svg 와 같은 값).
   const mode = inverse ? "dark" : theme.palette.mode;
   const accent = inverse ? INVERSE_INK.accent : theme.palette.primary.main;
-  const w = width != null ? width : markOnly ? 40 : 230;
+  const w = width != null ? width : markOnly ? 40 : WORDMARK_WIDTH;
 
   if (markOnly) {
     return (
@@ -130,94 +161,110 @@ export default function BrandLogo({
     );
   }
 
-  /* 부제("SMART WORKSPACE ASSISTANT")는 SVG <text>로 그리지 않는다 — charts/base.jsx가
-   * 이미 같은 이유로 금지해 둔 패턴이다: SVG 텍스트는 px 속성이 이 컴포넌트의
-   * viewBox(528×156)→CSS 폭(150~224px) 축소 배율을 그대로 먹는다. fontSize="20"이라고
-   * 적어도 실제로는 20 × (w/528) ≈ 6~8px로 그려져 QA의 tiny_text 검사 최소치(12px)에
-   * 한참 못 미쳤다 — 그런데 그 검사는 렌더된 크기가 아니라 마크업의 명목값(20)을 읽어서
-   * 통과로 오판했다(검사의 사각지대이지, 검사를 고칠 문제가 아니다).
-   * 이 컴포넌트의 `markOnly` 변형(AppShell.jsx의 사이드바 헤더가 쓰는 자리)은 부제 자체를
-   * 안 그려서 이 함정을 애초에 안 만난다 - 참고할 기존 HTML 렌더 사례는 없었고, 여기서
-   * charts/base.jsx의 규칙을 그대로 적용해 새로 만들었다.
+  /* ── 락업 구조 ──────────────────────────────────────────────────────────────
+   *   BrandRoot(가로)
+   *     ├─ Symbol    : 네잎클로버 마크 — 정사각 SVG, 텍스트 블록과 같은 높이
+   *     └─ TextBlock(세로)
+   *          ├─ MainWordmark : "ClovirAssist" 만 담은 SVG(글자에 맞춰 자른 viewBox)
+   *          └─ Subtitle     : "SMART WORKSPACE ASSISTANT" — 일반 HTML span
    *
-   * 바깥 상자에 aspectRatio(528/156, 원본 viewBox 그대로)를 못박아 두는 이유: 이 컴포넌트를
-   * 쓰는 TopBrand.jsx의 상단바 Toolbar는 `minHeight: APPBAR_HEIGHT`로 짜여 있고, 그 아래
-   * 본문 영역은 `pt: APPBAR_HEIGHT/8`로 고정폭 오프셋을 준다(AppBar가 position:fixed라
-   * 실제 높이와 본문 padding-top이 어긋나면 본문 위쪽이 가려진다). 부제를 SVG 밖 HTML로
-   * 뺐다고 로고 전체 높이가 늘어나면 이 오프셋이 깨진다 — 그래서 SVG는 마크+"Clovir"+
-   * "Assist"만 그대로 그리고, 부제는 그 위에 절대위치로 얹어 바깥 상자의 가로세로 비율을
-   * SVG 하나였을 때와 똑같이 유지한다. */
+   * 예전에는 마크·글자·빈 여백까지 전부 든 528×156 SVG 하나를 그려 놓고 부제를 그 위에
+   * 절대위치(left 31% / top 74%)로 얹었다. 그 상자는 글자 베이스라인(y=86) 아래로 70유닛이
+   * 빈 채였고, 부제는 그 빈 칸 안에 떠 있었다 — 화면에서는 부제만 상단바 바닥으로 떨어져
+   * 나온 것처럼 보였다. 여백·음수마진·좌표로는 못 고친다(그 절대위치를 다른 숫자로 미는
+   * 것일 뿐이고, 폭이 다른 두 줄은 여전히 한 덩어리가 아니다). 두 줄을 진짜 형제로 만들고
+   * 폭을 맞추는 것이 답이다 — 위 '락업 치수' 주석이 그 폭을 어떻게 맞췄는지 적어 뒀다.
+   *
+   * 부제를 SVG <text> 로 되돌리지 않는다: charts/base.jsx 가 같은 이유로 금지해 둔
+   * 패턴이다. SVG 텍스트의 fontSize 는 viewBox→CSS 폭 축소 배율을 그대로 먹어서 실제로는
+   * 6~8px 로 그려지는데, QA 의 tiny_text 검사는 렌더 크기가 아니라 마크업의 명목값을 읽어
+   * 통과로 오판한다(검사의 사각지대이지, 검사를 고칠 문제가 아니다).
+   *
+   * 높이: 이 락업은 2.55rem(≈41px)이다. 예전 구조(폭 170px × 528/156 = 50px)보다 낮으므로
+   * TopBrand 가 앉는 Toolbar 의 `minHeight: APPBAR_HEIGHT`(64px)를 밀어 올리지 않는다 —
+   * AppBar 가 position:fixed 라 실제 높이가 본문의 `pt: APPBAR_HEIGHT/8` 오프셋과 어긋나면
+   * 본문 위쪽이 가려진다. */
   return (
     <Box
+      component="span"
+      role="img"
+      aria-label={`${title} Smart Workspace Assistant`}
       sx={{
-        position: "relative",
-        display: "block",
-        width: w,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: MARK_GAP,
         maxWidth: "100%",
-        aspectRatio: "528 / 156",
         flexShrink: 0,
         ...sx,
       }}
     >
       <Box
         component="svg"
-        viewBox="0 0 528 156"
-        role="img"
-        aria-label={`${title} Smart Workspace Assistant`}
-        className="wordmark"
-        sx={{ position: "absolute", inset: 0, display: "block", width: "100%", height: "100%" }}
+        viewBox="0 0 128 128"
+        aria-hidden="true"
+        sx={{ display: "block", width: MARK_SIZE, height: MARK_SIZE, flexShrink: 0 }}
       >
-        <g transform="translate(10 14)">
-          <CloverMark uid={uid} mode={mode} />
-        </g>
-        {/* 글자는 놓인 면의 색을 따른다(currentColor). 강조어만 테마 액센트. */}
-        <text
-          x="160"
-          y="86"
-          fill="currentColor"
-          fontSize="62"
-          fontWeight="800"
-          letterSpacing="-2.2"
-          textLength="167"
-          lengthAdjust="spacingAndGlyphs"
-        >
-          Clovir
-        </text>
-        <text
-          x="338"
-          y="86"
-          fill={accent}
-          fontSize="62"
-          fontWeight="850"
-          letterSpacing="-2.2"
-          textLength="168"
-          lengthAdjust="spacingAndGlyphs"
-        >
-          Assist
-        </text>
+        <CloverMark uid={uid} mode={mode} />
       </Box>
-      {subtitle ? (
-        // aria-hidden — 위 <svg role="img">의 aria-label이 이미 "Smart Workspace Assistant"를
-        // 포함한다(subtitle prop과 무관하게 항상). 이 글자를 스크린리더에도 노출하면 같은
-        // 문구를 두 번 읽는다.
+
+      <Box
+        component="span"
+        sx={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: 0 }}
+      >
         <Box
-          component="span"
+          component="svg"
+          viewBox={WORDMARK_VIEWBOX}
           aria-hidden="true"
-          sx={{
-            position: "absolute",
-            left: "31%",
-            top: "74%",
-            whiteSpace: "nowrap",
-            fontSize: "0.75rem",
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            color: inverse ? INVERSE_INK.subtitle : "currentColor",
-            opacity: inverse ? undefined : 0.62,
-          }}
+          className="wordmark"
+          sx={{ display: "block", width: w, maxWidth: "100%", height: "auto" }}
         >
-          SMART WORKSPACE ASSISTANT
+          {/* 글자는 놓인 면의 색을 따른다(currentColor). 강조어만 테마 액센트.
+              x·y·textLength 는 원본 좌표계 그대로다 — viewBox 만 글자에 맞춰 잘랐다. */}
+          <text
+            x="160"
+            y="86"
+            fill="currentColor"
+            fontSize="62"
+            fontWeight="800"
+            letterSpacing="-2.2"
+            textLength="167"
+            lengthAdjust="spacingAndGlyphs"
+          >
+            Clovir
+          </text>
+          <text
+            x="338"
+            y="86"
+            fill={accent}
+            fontSize="62"
+            fontWeight="850"
+            letterSpacing="-2.2"
+            textLength="168"
+            lengthAdjust="spacingAndGlyphs"
+          >
+            Assist
+          </text>
         </Box>
-      ) : null}
+        {subtitle ? (
+          // aria-hidden — 바깥 상자의 role="img" aria-label 이 이미 "Smart Workspace
+          // Assistant"를 포함한다. 여기서 또 노출하면 같은 문구를 두 번 읽는다.
+          <Box
+            component="span"
+            aria-hidden="true"
+            sx={{
+              whiteSpace: "nowrap",
+              fontSize: SUBTITLE_SIZE,
+              lineHeight: SUBTITLE_LINE_HEIGHT,
+              fontWeight: 600,
+              letterSpacing: SUBTITLE_TRACKING,
+              color: inverse ? INVERSE_INK.subtitle : "currentColor",
+              opacity: inverse ? undefined : 0.62,
+            }}
+          >
+            SMART WORKSPACE ASSISTANT
+          </Box>
+        ) : null}
+      </Box>
     </Box>
   );
 }
