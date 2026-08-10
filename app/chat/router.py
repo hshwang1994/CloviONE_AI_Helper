@@ -66,6 +66,10 @@ class MessageCreateRequest(BaseModel):
     content: str = Field(default="", max_length=20000)  # hard cap; policy limit checked in service
     client_message_id: str = Field(min_length=8, max_length=64)
     attachments: list[MessageAttachment] | None = Field(default=None, max_length=3)
+    # AI-30(Med): AssistantDrawer.jsx's routeContextLabel() — a short curated label, but this
+    # is client-supplied so it's capped like any other input, not trusted for anything beyond
+    # a hint forwarded to the assistant's conversational prompt.
+    screen_context: str | None = Field(default=None, max_length=100)
 
 
 @router.get("/api/conversations")
@@ -171,6 +175,7 @@ def post_message(
             attachments=(
                 [a.model_dump() for a in payload.attachments] if payload.attachments else None
             ),
+            screen_context=payload.screen_context,
         )
         db.commit()
     return {

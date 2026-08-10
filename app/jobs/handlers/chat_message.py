@@ -182,6 +182,13 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         # 남는다. tests/integration/test_chat_ticket_routing_contract.py 가 못 박는다.
         "idempotency_key": f"chatmsg:{payload['message_id']}",
     }
+    # AI-30(Med): "현재 문맥: X"가 실제로는 아무 데도 전달되지 않던 것을 고치는 자리 —
+    # 플랫폼→러너까지는 이제 실려 간다. n8n 워크플로가 이 필드를 러너 호출(POST
+    # /v1/assistant/message)로 그대로 넘겨야 마지막 구간이 완성된다(이 저장소가 소유하지
+    # 않는 n8n 워크플로 정의 쪽 변경 — docs/RUNNER_HANDOFF.md의 기존 미해결 항목과 같은 종류).
+    screen_context = payload.get("screen_context")
+    if screen_context:
+        request_body = {**request_body, "screen_context": screen_context}
     attachments = payload.get("attachments")
     if isinstance(attachments, list) and attachments:
         request_body = {**request_body, "attachments": attachments}

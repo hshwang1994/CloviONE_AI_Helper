@@ -37,6 +37,13 @@ TIMEZONE = ZoneInfo("Asia/Seoul")
 WORK_DB_ID = os.environ.get("NOTION_WORK_DATABASE_ID", "262c5c5a-5684-81fa-9697-ee5691cb558d")
 MANUAL_MAP_PATH = Path(os.environ.get("ASSISTANT_USER_MAP_FILE", "/etc/claude-work-assistant/user-map.json"))
 STATE_DB_PATH = Path(os.environ.get("ASSISTANT_STATE_DB_FILE", "/var/lib/n8n/clovirone-work-assistant-state.sqlite3"))
+# AI-30(Critical)/RN-07/RN-14: conversation_state에는 만료가 없었다. 11일 전에 중단된
+# CREATE 플로우가 그대로 남아 있다가 무관한 질문("방금 말한 것 중에 제일 오래된 건
+# 뭐야?")을 "프로젝트를 알려주세요"로 납치했다 — mode/pending_action/pending_question/
+# ticket_draft를 영원히 신뢰한 게 원인이다. 이미지 첨부(IMAGE_TTL_SECONDS, 24h)와 같은
+# 기준을 쓴다 — "초안을 만들고 하루 넘게"를 정상으로 보는 기존 주석(missing_draft_images
+# 근처)과도 맞춘다.
+CONTEXT_MODE_TTL_SECONDS = int(os.environ.get("ASSISTANT_CONTEXT_MODE_TTL_SECONDS", str(24 * 3600)))
 STATE_LOCK = threading.Lock()
 _REQUEST_DEADLINE = threading.local()
 REQUEST_SEMAPHORE = threading.BoundedSemaphore(int(os.environ.get("ASSISTANT_MAX_CONCURRENCY", "2")))
@@ -258,7 +265,14 @@ def conversation_lock(requester: dict[str, Any], conversation_id: str) -> thread
         lock = _CONV_LOCKS.get(key)
         if lock is None:
             if len(_CONV_LOCKS) >= _CONV_LOCKS_MAX:
-                _CONV_LOCKS.clear()  # rare; only idle locks are dropped
+                # RN-11: `.clear()`는 dict를 무조건 통째로 비운다 — threading.Lock 객체는
+                # 그 자체로 "지금 잠겨 있는지"를 dict가 알 방법이 없어서, 이 주석이 말하던
+                # "유휴 락만 버린다"는 사실이 아니었다. 다른 스레드가 지금 쥐고 있는 락도
+                # 함께 지워지면, 그 키로 다음에 오는 요청은 새 Lock() 객체를 받아 원래
+                # 락이 아직 잠겨 있는데도 통과한다 — 같은 대화의 두 턴이 동시에 처리된다.
+                # 지금 안 잠긴 것만 골라 지운다(잠긴 것은 다음 라운드로 남긴다).
+                for k in [k for k, v in _CONV_LOCKS.items() if not v.locked()]:
+                    del _CONV_LOCKS[k]
             lock = threading.Lock()
             _CONV_LOCKS[key] = lock
         return lock
@@ -277,6 +291,23 @@ def clear_persisted_context(requester: dict[str, Any], conversation_id: str) -> 
                 )
     except Exception as exc:
         print(json.dumps({"event": "state_clear_error", "detail": str(exc)}, ensure_ascii=False), flush=True)
+
+
+def cleanup_stale_conversation_state(now: datetime | None = None) -> int:
+    """RN-14: `conversation_state` 행이 영원히 안 지워졌다(`clear_persisted_context`는
+    존재하지만 호출 0건이었다). `cleanup_image_store`(같은 파일, 이미지 첨부용)와 같은
+    주기(`_sweep_loop`, 1시간마다)로 돌며, 같은 만료 기준(`CONTEXT_MODE_TTL_SECONDS`)을
+    넘은 대화를 실제로 지운다. 반환값은 지운 행 수(로그·테스트용)."""
+    now = now or now_kst()
+    cutoff = (now - timedelta(seconds=CONTEXT_MODE_TTL_SECONDS)).isoformat()
+    try:
+        with STATE_LOCK:
+            with state_db() as conn:
+                cur = conn.execute("DELETE FROM conversation_state WHERE updated_at < ?", (cutoff,))
+                return cur.rowcount
+    except Exception as exc:
+        print(json.dumps({"event": "state_sweep_error", "detail": str(exc)}, ensure_ascii=False), flush=True)
+        return 0
 
 
 def load_processed_message(requester: dict[str, Any], conversation_id: str, message_id: str) -> dict[str, Any] | None:
@@ -317,6 +348,32 @@ def choose_context(incoming: dict[str, Any], persisted: dict[str, Any]) -> dict[
     incoming_revision = int(incoming.get("_context_revision") or 0)
     persisted_revision = int(persisted.get("_context_revision") or 0)
     return deepcopy(persisted if persisted_revision > incoming_revision else incoming)
+
+
+def drop_stale_in_progress_state(context: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """AI-30(Critical)/RN-07의 근본 원인 수정: 진행 중 표시(mode/pending_action/
+    pending_question/ticket_draft)가 `CONTEXT_MODE_TTL_SECONDS`보다 오래됐으면 지운다.
+    나머지(conversation_history 등)는 그대로 둔다 — 이건 "이 CREATE/UPDATE는 끝났다"는
+    판단이지 "이 대화 자체를 잊는다"는 판단이 아니다(그건 `cleanup_stale_conversation_state`
+    가 별도 주기로 한다). route_request가 `context`를 쓰기 시작하기 전에 불러야 한다 —
+    안 그러면 `is_create_intent` 등이 여전히 오래된 `mode`를 그대로 신뢰한다."""
+    if not (context.get("mode") or context.get("pending_action") or context.get("pending_question")):
+        return context
+    updated_at = text(context.get("_context_updated_at"))
+    if not updated_at:
+        return context
+    try:
+        updated = datetime.fromisoformat(updated_at)
+    except ValueError:
+        return context
+    if updated.tzinfo is not None:
+        updated = updated.replace(tzinfo=None)
+    if (now.replace(tzinfo=None) - updated).total_seconds() <= CONTEXT_MODE_TTL_SECONDS:
+        return context
+    dropped = deepcopy(context)
+    for key in ("mode", "pending_action", "pending_question", "ticket_draft"):
+        dropped.pop(key, None)
+    return dropped
 
 
 def remember_unhandled(context: dict[str, Any], message: str) -> dict[str, Any]:
@@ -508,6 +565,13 @@ def explicit_unsupported_action(message: str) -> str:
     n = norm(raw)
     # 티켓 내용 자체가 메일/날씨 기능인 경우를 미지원 요청으로 오인하지 않는다.
     creating_ticket = "티켓" in n and any(x in n for x in ["생성", "만들", "등록", "추가"])
+    # RN-06: 예전엔 "그리고메일"처럼 붙어 있는 특정 순서만 "별개 지시"로 인정했다 — 순서가
+    # 바뀌면("담당자에게 메일 보내줘 그리고 티켓도 만들어줘") 아무 이스케이프 문구도 안 걸려
+    # 메일 요청이 거절 없이 조용히 사라졌다(요청은 티켓만 만들고 메일 얘기는 응답에서 증발).
+    # "그리고"/쉼표/"및" 같은 절 구분자가 있으면 순서와 무관하게 두 개의 별개 지시로 보고
+    # 미지원 쪽은 그대로 거절한다. 구분자가 아예 없을 때만 "메일"을 티켓 **내용**의 일부
+    # (예: '이메일 발송 기능 버그 티켓')로 보고 거절하지 않는다.
+    has_clause_separator = bool(re.search(r"그리고|,|및", raw))
     patterns = [
         (r"(?:메일|이메일)(?:로|도|을|를)?\s*(?:보내|발송|전송)(?:줘|주세요|해줘|해)", "이메일 발송"),
         (r"(?:팀즈|teams)(?:로|에도|에)?\s*(?:메시지|알림)?\s*(?:보내|발송|전송)(?:줘|주세요|해줘|해)", "Teams 메시지 발송"),
@@ -515,7 +579,7 @@ def explicit_unsupported_action(message: str) -> str:
     ]
     for pattern, label in patterns:
         if re.search(pattern, raw, re.IGNORECASE):
-            if creating_ticket and not any(x in n for x in ["보여주고", "조회하고", "완료하고", "그리고메일", "메일도", "이메일도"]):
+            if creating_ticket and not has_clause_separator:
                 continue
             return label
     # Small talk (날씨, 메뉴, 뉴스 등) is NOT refused here anymore — the conversational
@@ -2679,6 +2743,7 @@ QUERY_PROMPT = """당신은 ClovirONE 업무 도우미다. 팀의 Notion 티켓�
 - 인터넷과 실시간 정보(날씨, 뉴스, 주가, 환율 등)에는 접근할 수 없다. 아는 척하지 말고 솔직하게 말하되, 대신 도울 수 있는 일을 한 문장으로 덧붙인다.
 - conversation_history가 대화의 흐름이다. 잡담을 하다가 업무 요청이 나오면 자연스럽게 업무로 전환하고, 업무 중에 잡담이 나와도 어색해하지 않는다.
 - pending_note가 있으면 사용자가 승인을 기다리는 작업이 있다는 뜻이다. 질문에 먼저 답한 뒤, 그 작업을 이어갈 수 있다는 것을 한 문장으로 부드럽게 알려준다.
+- screen_context가 있으면 사용자가 지금 보고 있는 화면 이름이다("이거"·"여기"처럼 화면을 가리키는 지시어를 그 화면으로 해석하는 데 참고하되, tickets/projects에 없는 사실을 그 화면에서 지어내지 않는다). 없으면 화면 정보 없이 답한다.
 
 업무 원칙:
 - 티켓·프로젝트에 대한 질문은 반드시 입력 JSON의 tickets/projects에 있는 사실만 사용한다. 없는 값은 추측하지 않는다.
@@ -3027,6 +3092,9 @@ def claude_query(
             "notion_user_id": (current_user or {}).get("id"),
         },
         "pending_note": pending_note,
+        # AI-30(Med): 사용자가 지금 보고 있는 화면(예: "티켓 상세", "휴지통"). 없으면 빈 문자열 —
+        # 전체화면 /chat이나 아직 안 올라온 예전 클라이언트에서는 안 온다.
+        "screen_context": text(context.get("screen_context")),
         "conversation_history": safe_list(context.get("conversation_history"))[-8:],
         "image_notes": safe_list(context.get("image_notes"))[-MAX_IMAGE_NOTES:],
         "tickets": [_slim_ticket_for_query(t) for t in tickets[:800]],
@@ -3101,6 +3169,25 @@ def response(action: str, message: str, context: dict[str, Any], **extra: Any) -
     data = {"action": action, "response_text": message, "context": context}
     data.update(extra)
     return data
+
+
+_PENDING_PRESERVING_ACTIONS = {"NEED_INPUT", "FORBIDDEN", "NO_CHANGE"}
+
+
+def _restore_pending_on_stall(original_context: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    """RN-09: 여러 곳이 재정의/피벗 호출 **전에** pending_action/pending_question을 미리
+    지운 context를 넘겼다 — 그 호출이 NEED_INPUT/FORBIDDEN/NO_CHANGE로 돌아오면(=실제로는
+    반영되지 않았으면) 이미 지워진 pending 때문에 사용자의 다음 답이 이어받을 문맥이 없다.
+    그 세 결과로 돌아왔을 때만 원래 pending을 그 결과의 context에 되돌린다 — 성공(또는 다른
+    미리보기로 이어짐)한 경우는 그 결과 자신의 context가 맞으므로 손대지 않는다."""
+    if not isinstance(result, dict) or result.get("action") not in _PENDING_PRESERVING_ACTIONS:
+        return result
+    restored_context = dict(result.get("context") or {})
+    if "pending_action" in original_context:
+        restored_context["pending_action"] = original_context["pending_action"]
+    if "pending_question" in original_context:
+        restored_context["pending_question"] = original_context["pending_question"]
+    return {**result, "context": restored_context}
 
 
 def query_tickets(
@@ -3765,7 +3852,14 @@ def detect_target_status(message: str, status_map: dict[str, str]) -> str:
     #
     # 문장 끝 동사가 의도를 정한다(CLAUDE.md). '완료 처리해줘'는 문장이 완료를 지시하지만,
     # '완료했으니 ~ 바꿔줘'는 문장이 마감일을 지시한다.
-    if _STATUS_ONLY_DONE_RE.search(n):
+    #
+    # RN-01: norm()이 물음표를 지운다 — "완료했어?"(다 했는지 묻는 말)와 "완료했어"(다
+    # 했다는 선언)가 여기서는 똑같이 n="완료했어"가 되고, 이 정규식은 후자를 상태 지시로
+    # 잡으려고 설계됐다(주석의 "완료했어" 예시가 그 증거). 그래서 질문이 선언으로 오인돼
+    # _READ_OR_QUESTION_RE도 안 걸리는 채로(그 정규식엔 이 어미 형태가 없다) 곧장 완료로
+    # 확정됐다. 원문(raw, norm 전)이 물음표로 끝나면 여기서는 지시로 보지 않는다 — 애매하면
+    # 쓰지 않는다는 이 파일의 기존 fail-safe 철학과 같다.
+    if _STATUS_ONLY_DONE_RE.search(n) and not raw.rstrip().endswith("?"):
         return status_map.get(norm("완료"), "완료")
     # 지시 위치에 상태가 없으면 상태 변경이 아니다.
     return ""
@@ -3883,6 +3977,15 @@ def update_ticket(
     candidates, source = resolve_ticket_reference(
         _TITLE_CHANGE_RE.sub(" ", message) if new_title else message, context, tickets
     )
+    # RN-03: ticket_selection 대기 중엔 is_update_intent가 내용을 안 보고 무조건 True를
+    # 돌려주므로(그 파일에서), 어떤 답이든 여기까지 온다. resolve_ticket_reference의 느슨한
+    # 키워드 부분일치("keyword" — 상태·명령어를 뺀 나머지 낱말이 어떤 티켓 제목에 우연히
+    # 포함되기만 하면 뽑는다)로 걸리면, 선택과 무관한 곁말이 엉뚱한 티켓을 고르고
+    # pending_original_message(원래 하려던 변경)가 그 티켓에 그대로 쓰인다. 이 대기 상태에서는
+    # 번호·정확한 제목 일치만 진짜 선택으로 인정하고, 나머지는 candidates 없음과 똑같이
+    # 처리한다(아래 NEED_INPUT 재질문으로 안전하게 빠진다).
+    if context.get("pending_question") == "ticket_selection" and source == "keyword":
+        candidates, source = [], "none"
     # 제목으로 티켓을 특정했으면 그 제목 문자열을 필드 추출 대상에서 빼둔다 — 제목이
     # '배포 완료 안내'라는 이유로 진행상태가 완료로 뒤집히면 안 된다.
     if source == "title":
@@ -4977,6 +5080,11 @@ def carries_change(message: str, status_map: dict[str, str]) -> bool:
 _NEGATION_RE = re.compile(
     r"아니(?:다|요|야|고|라|에)?|하지\s*마|하지\s*말|말고|말아|말자|마세요|취소|그만두|그만해|그만할"
     r"|안\s*할|안\s*하|안\s*해|안\s*돼|안\s*되|하지말|않을래|필요\s*없|됐어\s*그만"
+    # RN-02: 위 목록은 "하지 마/말"만 어간을 못박아 뒀다 — "바꾸지 마"("완료로 바꾸지 마")처럼
+    # 다른 동사 어간 + "-지 마"는 하나도 안 걸렸다("마세요"는 걸리지만 "마"로 끝나는 반말은
+    # 안 걸렸다). 임의 어간 + "-지 마"를 일반으로 잡는다. "마감"처럼 "마" 뒤에 글자가 더
+    # 붙으면 부정이 아니므로 "마"가 낱말 끝일 때만(뒤에 공백이 아닌 문자가 없을 때만) 잡는다.
+    r"|[가-힣]{1,8}지\s*마(?!\S)"
 )
 # 이 답이 '쓰라는 지시'가 아니라 '묻는 말'인가. 물음이면 pending을 건드리지 않고 답만 한다 —
 # '1번 완료로 변경된 거 맞아?'가 값 토큰('완료로')만으로 재정의로 오인돼 확인 없이 direct write
@@ -5159,9 +5267,16 @@ def is_create_intent(message: str, context: dict[str, Any]) -> bool:
         # stay in context, so the next field answer resumes the creation.
         # Explicit query FORMS only — bare nouns (목록/현황/조회) appear inside
         # perfectly normal field answers ("관리자 목록 화면 개선") and stole them.
+        # AI-30(Critical) 방어선 2단계: TTL(위 route_request의 drop_stale_in_progress_state)이
+        # "오래 방치된 CREATE"는 이미 막지만, TTL 안쪽에서도 완전히 무관한 질문("방금 말한 것
+        # 중에 제일 오래된 건 뭐야?")이 여기로 들어올 수 있다. `_READ_OR_QUESTION_RE`(더 넓은
+        # 정규식)를 통째로 쓰지 않는다 — 위 주석대로 "관리자 목록 화면 개선" 같은 정상 필드
+        # 답변까지 read-only로 오판했던 전례가 있다. 대신 실제 사고 문장에서 확인된, 필드
+        # 답변에 나타날 가능성이 낮은 명확한 질문형 어미만 좁게 추가한다.
         read_only = any(x in n for x in [
             "보여줘", "보여주", "몇개야", "몇건이야", "조회해줘", "도움말",
             "검색해줘", "검색해주", "찾아줘", "찾아주", "찾아봐",
+            "뭐야", "뭐임", "뭔데", "뭔지",
         ])
         creating = any(x in n for x in ["생성", "만들", "등록", "추가"])
         # A capability/feasibility question mid-creation ("이런 것도 돼?", "일괄로 되는지만")
@@ -5317,6 +5432,13 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
         "teams_user_id": text(requester_raw.get("teams_user_id")),
     }
     context = body.get("context") if isinstance(body.get("context"), dict) else {}
+    context = drop_stale_in_progress_state(context, now_kst())
+    # AI-30(Med): 플랫폼이 이제 현재 화면 라벨을 실어 보낸다(AssistantDrawer.jsx의 "현재
+    # 문맥: X" — 예전엔 화면에만 있고 여기까지 온 적이 없었다). 매 턴 body에서 새로 읽는다
+    # — context에 한 번 박히면 사용자가 다른 화면으로 옮긴 뒤에도 옛 화면이 남는다.
+    screen_context = text(body.get("screen_context"))
+    if screen_context:
+        context = {**context, "screen_context": screen_context}
     raw_projects = safe_list(body.get("projects"))
     raw_tickets = safe_list(body.get("tickets"))
     schema = body.get("work_schema") if isinstance(body.get("work_schema"), dict) else {}
@@ -5377,9 +5499,23 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             "주세요(예: 결제 오류 수정 티켓 취소로 바꿔줘). 완전히 삭제하려면 Notion에서 직접 지워주세요.",
             cleared,
         ), 0
-    if any(x in n for x in ["진단", "계정매핑확인", "스키마확인"]):
+    # RN-05: 이 진단 트리거가 맨 `in` 부분일치라 "성능 진단 티켓 만들어줘"·"스키마 확인
+    # 티켓 만들어줘"의 생성 요청을 가로챘다. explicit_unsupported_action의 creating_ticket과
+    # 같은 판정을 쓴다 — 티켓/작업 생성 동사가 함께 있으면 진단이 아니라 생성이다.
+    _creating = any(noun in n for noun in _WORK_NOUNS) and any(x in n for x in ["생성", "만들", "등록", "추가"])
+    if any(x in n for x in ["진단", "계정매핑확인", "스키마확인"]) and not _creating:
         return diagnose(requester, current_user, quality, projects, tickets, schema, context), 0
-    if any(x in n for x in ["진행중인작업", "작업내용보여", "어디까지했", "대화내용보여", "작업재개"]):
+    # RN-04: norm()이 "진행 중인"과 "작업" 사이 공백을 지워 "진행중인작업"이 되면서, 이
+    # 대화 세션 재개 질문("어디까지 했어")과 순수 티켓 조회("진행 중인 작업 보여줘")가
+    # 같은 문자열이 됐다. "진행중인작업"만은 조회 동사(보여줘/조회/목록 등)가 함께 있으면
+    # 세션 상태가 아니라 진짜 티켓 목록 요청으로 보고 여기서 가로채지 않는다 — 다른
+    # 트리거 문구(대화내용보여 등)는 이미 세션 얘기라는 게 분명해 그대로 둔다.
+    _work_query_verb = any(v in n for v in ["보여줘", "보여주", "조회", "목록", "리스트", "몇개", "몇건"])
+    _context_status = (
+        any(x in n for x in ["작업내용보여", "어디까지했", "대화내용보여", "작업재개"])
+        or ("진행중인작업" in n and not _work_query_verb)
+    )
+    if _context_status:
         return response("CONTEXT_STATUS", active_work_summary(context), context), 0
 
     pending = context.get("pending_action") if isinstance(context.get("pending_action"), dict) else None
@@ -5451,7 +5587,11 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             _reproj, _, _reproj_mentioned = resolve_project(message, projects, context)
             _diff_project = bool(_reproj_mentioned and _reproj and isinstance(context.get("selected_project"), dict)
                                  and _reproj.get("id") != context["selected_project"].get("id"))
-            _real_edit = _carries or _content_edit or _diff_project or body.get("_has_new_images")
+            # RN-02: 부정("완료로 바꾸지 마")이 섞인 값 토큰도 carries_change=True가 되므로,
+            # _content_edit/_diff_project(실제 필드 편집)는 안 건드리고 _carries만 부정 확인한다
+            # — 안 그러면 "취소 안내 문서로 제목 바꿔줘"처럼 내용에 부정어(취소)가 든 정당한
+            # 편집까지 억눌린다.
+            _real_edit = (_carries and not _NEGATION_RE.search(message)) or _content_edit or _diff_project or body.get("_has_new_images")
             if (is_revision_intent(message) or _real_edit) and (_real_edit or not is_approval_message(message, pending)):
                 revision_context = {**context, "pending_action": None, "pending_question": "revision"}
                 return create_ticket(message, revision_context, requester, current_user, directory, projects, schema, message_id)
@@ -5462,10 +5602,13 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             if is_update_intent(message, context, status_map):
                 # 생성 미리보기에서 무관한 업데이트로 피벗할 때 안 지운 CREATE 초안이 남으면,
                 # 나중의 정당한 '응'이 그 엉뚱한 초안을 등록한다(round3 확정). 초안을 접고 넘긴다.
+                # RN-09: 지우고 넘긴 뒤 결과가 NEED_INPUT/FORBIDDEN/NO_CHANGE(=실제 반영 안 됨)면
+                # 이 pending을 되돌린다 — _restore_pending_on_stall 참조.
                 pivot_context = deepcopy(context)
                 pivot_context.pop("pending_action", None)
                 pivot_context.pop("pending_question", None)
-                return update_ticket(message, pivot_context, requester, current_user, directory, tickets, schema, status_map), 0
+                result = update_ticket(message, pivot_context, requester, current_user, directory, tickets, schema, status_map)
+                return _restore_pending_on_stall(context, result), 0
             if is_query_intent(message, context):
                 return answer_query(message, context, requester, current_user, projects, tickets, status_map), 0
             # Anything else during an approval wait is just conversation — answer it
@@ -5495,19 +5638,26 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
                 return claude_query(message, context, requester, current_user, projects, tickets, status_map), 0
             # ② 새 티켓 생성 요청이면 생성으로(값 없는 UPDATE 대기 중 '…만들어줘'가 조회로 샜다, F16).
             if is_create_intent(message, context):
+                # RN-09: create_ticket이 NEED_INPUT 등으로 돌아오면 이 UPDATE pending을 되돌린다.
+                # create_ticket은 update_ticket과 달리 (dict, ai_ms) 튜플을 돌려준다.
                 pivot_context = deepcopy(context)
                 pivot_context.pop("pending_action", None)
                 pivot_context.pop("pending_question", None)
-                return create_ticket(message, pivot_context, requester, current_user, directory, projects, schema, message_id)
+                data, ai_ms = create_ticket(message, pivot_context, requester, current_user, directory, projects, schema, message_id)
+                return _restore_pending_on_stall(context, data), ai_ms
             # ③ 값을 담은 재정의('응 높음으로 진행해줘'·'낮음으로 바꿔줘')는 그 값으로의 변경이다.
             #    selected_ticket을 남겨 update_ticket이 승인 대기 중이던 그 티켓을 대상으로 복원하고,
             #    승인동사(진행/등록…)를 변경동사로 정규화해 값 추출기가 그 값을 집게 한다 — 안 하면
             #    대상 재특정 실패로 NEED_INPUT에 새고 pending이 통째로 유실됐다(round16 F3·F11).
-            if _carries:
+            # RN-02: "완료로 바꾸지 마"도 value_tokens 로 "완료" + "로" 패턴을 그대로 만족해
+            # _carries=True가 됐다 — 부정(_NEGATION_RE)은 is_approval_message 안에서만 보는데
+            # 그건 ④에서나 닿는다. ③이 ④보다 먼저라 부정이 한 번도 안 걸리고 그대로 확정 발행됐다.
+            if _carries and not _NEGATION_RE.search(message):
                 replacement_context = deepcopy(context)
                 replacement_context.pop("pending_action", None)
                 replacement_context.pop("pending_question", None)
-                return update_ticket(canonicalize_redefinition(message), replacement_context, requester, current_user, directory, tickets, schema, status_map), 0
+                result = update_ticket(canonicalize_redefinition(message), replacement_context, requester, current_user, directory, tickets, schema, status_map)
+                return _restore_pending_on_stall(context, result), 0
             # ④ 값 없는 순수 승인/재시도 → 확정. (in-flight direct는 중복 발행 방지로 막는다, round11·12.)
             if not _direct_inflight and (is_approval_message(message, pending) or retry_requested(n)):
                 confirmed = handle_confirmation(context, schema, tickets, current_user, requester, conversation_id)
@@ -5518,7 +5668,8 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
                 replacement_context = deepcopy(context)
                 replacement_context.pop("pending_action", None)
                 replacement_context.pop("pending_question", None)
-                return update_ticket(message, replacement_context, requester, current_user, directory, tickets, schema, status_map), 0
+                result = update_ticket(message, replacement_context, requester, current_user, directory, tickets, schema, status_map)
+                return _restore_pending_on_stall(context, result), 0
             if is_query_intent(message, context):
                 return answer_query(message, context, requester, current_user, projects, tickets, status_map), 0
             # Anything else during a pending update is conversation — answer it and
@@ -5540,12 +5691,16 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             # ② 값을 담은 재정의('네 완료로 바꿔줘'·'응 낮음으로 변경해줘')는 댓글 승인이 아니라 상태·값
             #    변경이다. 승인보다 먼저 봐서 댓글이 잘못 발행되지 않게 한다(round16 F5). 단 새 댓글 본문을
             #    적은 정정은 아래에서 따로 받으므로 여기서 가로채지 않는다.
+            # RN-02: 같은 부정 가드. 값 토큰이나 update_intent가 잡혀도 부정문이면 댓글 승인
+            # 대기를 상태 변경으로 피벗시키지 않는다.
             if (carries_change(message, status_map) or is_update_intent(message, context, status_map)) \
+                    and not _NEGATION_RE.search(message) \
                     and not (is_comment_intent(message) and extract_comment_text(message)):
                 pivot_context = deepcopy(context)
                 pivot_context.pop("pending_action", None)
                 pivot_context.pop("pending_question", None)
-                return update_ticket(canonicalize_redefinition(message), pivot_context, requester, current_user, directory, tickets, schema, status_map), 0
+                result = update_ticket(canonicalize_redefinition(message), pivot_context, requester, current_user, directory, tickets, schema, status_map)
+                return _restore_pending_on_stall(context, result), 0
             if is_comment_intent(message) and extract_comment_text(message):
                 # 확인 대기 중 새 댓글 본문을 다시 적으면 그 본문으로 미리보기를 갱신한다 — 옛 본문이
                 # 그대로 확정되거나 대화로 새 조용히 안 달리던 결함(round16 F9·F15). 대상은 이미 확정된
@@ -5565,7 +5720,8 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
                 pivot_context = deepcopy(context)
                 pivot_context.pop("pending_action", None)
                 pivot_context.pop("pending_question", None)
-                return comment_ticket(message, pivot_context, tickets, requester, current_user), 0
+                result = comment_ticket(message, pivot_context, tickets, requester, current_user)
+                return _restore_pending_on_stall(context, result), 0
             # ③ 값 없는 순수 승인/재시도 → 확정.
             if not _direct_inflight and (is_approval_message(message, pending) or retry_requested(n)):
                 confirmed = handle_confirmation(context, schema, tickets, current_user, requester, conversation_id)
@@ -5774,7 +5930,11 @@ class Handler(BaseHTTPRequestHandler):
             if len(json.dumps(context, ensure_ascii=False)) > MAX_CONTEXT_CHARS:
                 self.send_json(413, {"error": "context_too_large"})
                 return
-            saved, stored = persist_context_result(requester, conversation_id, context)
+            # RN-12: /message 턴은 LLM 호출 내내(10~60초) conversation_lock을 쥔다. 이 경로가
+            # 그 락을 안 잡으면, 그 턴이 진행되는 동안 들어온 sync가 먼저 저장해도 턴이 끝나며
+            # 도로 자기 context로 덮어써 sync가 반영한 값이 사라진다. 같은 락으로 직렬화한다.
+            with conversation_lock(requester, conversation_id):
+                saved, stored = persist_context_result(requester, conversation_id, context)
             if not stored:
                 # 실패를 성공이라고 말하지 않는다. n8n의 '동기화 후 응답'은 이 응답만 보고
                 # 사용자에게 '이어지는 대화가 이 변경을 모를 수 있다'고 알린다 — 여기서
@@ -5826,6 +5986,11 @@ class Handler(BaseHTTPRequestHandler):
             if prior is not None:
                 prior = deepcopy(prior)
                 prior["duplicate"] = True
+                # RN-10: `duplicate: True`는 n8n이 보고 판단해 주길 바라는 신호일 뿐, 실행
+                # 가능한 write_request가 여전히 이 응답 안에 그대로 실려 있었다 — 그 필드를 보고
+                # 다시 실행하는 워크플로 노드가 있다면 이 "중복 보호"는 방어가 아니라 장식이다.
+                # n8n의 판단에 기대지 않고 여기서 구조적으로 없앤다.
+                prior.pop("write_request", None)
                 self.send_json(200, {"ok": True, "data": prior, "meta": {"duration_ms": 0, "ai_ms": 0, "ai_used": False, "duplicate": True}})
                 return
             # Serialize turns of the SAME conversation: without this, two concurrent
@@ -5846,7 +6011,14 @@ class Handler(BaseHTTPRequestHandler):
                         requester, conversation_id, {"_context_revision": old_rev}
                     )
                 elif isinstance(data.get("context"), dict):
-                    data["context"] = persist_context(requester, conversation_id, data["context"])
+                    # RN-13: persist_context 래퍼는 성공 여부를 버린다 — CREATE/UPDATE 미리보기를
+                    # 담은 200 응답이 나가는데 그 사이 DB엔 실제로 저장이 안 됐을 수 있다. 실패는
+                    # persist_context_result 안에서 이미 로그로 남지만(state_save_error), 이
+                    # 응답 자체에도 신호를 싣는다 — /context/sync가 같은 이유로 이미 하는 것과 같다.
+                    saved_context, stored = persist_context_result(requester, conversation_id, data["context"])
+                    data["context"] = saved_context
+                    if not stored:
+                        data["state_saved"] = False
                 duration = int((time.monotonic() - started) * 1000)
                 request_id = text(body.get("request_id"))
                 print(json.dumps({"event": "assistant_complete", "request_id": request_id, "action": data.get("action"), "duration_ms": duration, "ai_ms": ai_ms}, ensure_ascii=False), flush=True)
@@ -5879,6 +6051,10 @@ def _sweep_loop() -> None:
         time.sleep(3600)
         try:
             cleanup_image_store()
+        except Exception:
+            pass
+        try:
+            cleanup_stale_conversation_state()
         except Exception:
             pass
 

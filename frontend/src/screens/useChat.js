@@ -29,7 +29,7 @@ import {
  *   리스너가 **앱 전체의 Ctrl+V 를 가로챘다.** 팀 채팅 컴포저는 `preventDefault` 만 하고
  *   전파를 막지 않으므로, 방에 보낸 스샷이 동시에 열지도 않은 AI 대화의 첨부로 담겼다.
  */
-export function useChat({ pasteEnabled = true } = {}) {
+export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const [cid, setCid] = useState(null);
@@ -164,7 +164,10 @@ export function useChat({ pasteEnabled = true } = {}) {
 
   const send = useMutation({
     // client_message_id는 서버가 필수로 요구한다(멱등·중복 방지). 8~64자. 첨부는 있을 때만.
-    mutationFn: ({ id, content, clientMessageId, attachments }) => api("/api/conversations/" + id + "/messages", { method: "POST", body: { content, client_message_id: clientMessageId, attachments: attachments && attachments.length ? attachments : undefined } }),
+    // screenContext(AssistantDrawer가 넘기는 routeContextLabel)는 이 서랍이 "현재 문맥: X"라고
+    // 화면에 약속해 놓고도 실제로는 아무 데도 안 보내던 것을 고친 자리다(AI-30) — 전체화면
+    // /chat에는 배경 화면이라는 개념이 없어 null로 둔다.
+    mutationFn: ({ id, content, clientMessageId, attachments }) => api("/api/conversations/" + id + "/messages", { method: "POST", body: { content, client_message_id: clientMessageId, attachments: attachments && attachments.length ? attachments : undefined, screen_context: screenContext || undefined } }),
     // 낙관적 에코 — 보낸 메시지를 서버 왕복 전에 즉시 스레드에 띄운다(빈 화면 체감 제거).
     // 진행 중 폴링이 낙관적 항목을 덮어쓰지 않도록 cancelQueries로 먼저 멈춘다.
     onMutate: async ({ id, content, clientMessageId, attachments }) => {

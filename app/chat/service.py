@@ -143,6 +143,7 @@ def post_user_message(
     settings: Settings,
     now: datetime,
     attachments: list | None = None,
+    screen_context: str | None = None,
 ):
     """Save the user message and enqueue the n8n job. Returns (message, job)."""
     import json as _json
@@ -196,7 +197,9 @@ def post_user_message(
     job = jobs_repo.enqueue(
         db,
         job_type=JOB_TYPE_CHAT_MESSAGE,
-        payload=_build_job_payload(user, conversation, message, attachments=images),
+        payload=_build_job_payload(
+            user, conversation, message, attachments=images, screen_context=screen_context
+        ),
         now=now,
         user_id=user.id,
         conversation_id=conversation.id,
@@ -212,6 +215,7 @@ def _build_job_payload(
     message: Message,
     *,
     attachments: list[dict] | None = None,
+    screen_context: str | None = None,
 ) -> dict:
     # Requester comes ONLY from the authenticated session user (spec §11.2).
     payload = {
@@ -227,6 +231,8 @@ def _build_job_payload(
     }
     if attachments:
         payload = {**payload, "attachments": attachments}
+    if screen_context:
+        payload = {**payload, "screen_context": screen_context}
     return payload
 
 

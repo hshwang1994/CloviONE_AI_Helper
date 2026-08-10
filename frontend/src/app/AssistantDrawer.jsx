@@ -74,12 +74,14 @@ export function routeContextLabel(pathname) {
 export function AssistantDrawer({ open, onClose }) {
   const nav = useNavigate();
   const loc = useLocation();
+  const context = routeContextLabel(loc.pathname);
   /* 이 드로어는 셸이 **항상** 마운트한다(닫아도 대화가 살아 있어야 하므로 아래 keepMounted).
      그래서 열려 있을 때만 붙여넣기를 가져간다 — 안 그러면 보이지도 않는 컴포저가 앱 전체의
      Ctrl+V 를 삼켜, 팀 채팅에 보낸 스샷이 열지도 않은 AI 대화의 첨부로 함께 담긴다. */
-  const chat = useChat({ pasteEnabled: !!open });
+  // AI-30: "현재 문맥: X" 줄과 "지금 화면 기준으로 도와드려요"라는 문구가 실제로는 아무 데도
+  // 전달되지 않는 장식이었다 — useChat에 넘겨 진짜로 서버까지 가게 한다.
+  const chat = useChat({ pasteEnabled: !!open, screenContext: context });
   const bodyRef = React.useRef(null);
-  const context = routeContextLabel(loc.pathname);
 
   // 새 답이 오면 아래로 붙인다. 드로어는 좁아서 스크롤이 금방 생긴다.
   React.useEffect(() => {
