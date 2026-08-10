@@ -13,7 +13,7 @@ import { useAuth } from "../app/auth.jsx";
 import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import {
-  Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 
@@ -59,18 +59,8 @@ const DND_PRESETS = [
   { minutes: 0, label: "직접 끌 때까지" },
 ];
 
-function SectionTitle({ children, help }) {
-  return (
-    <Box sx={{ mb: 2 }}>
-      <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>{children}</Typography>
-      {help ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "70ch" }}>
-          {help}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-}
+/* SectionTitle(ui/kit.jsx)로 옮겨졌다(DS-07) — 이 화면은 h2 태그 + mb:2를 그대로 쓰려고
+ * component/sx로 넘긴다(다른 화면들의 기본값 h3/mb:1.5보다 한 단계 무게가 있다). */
 
 function Row({ label, children }) {
   return (
@@ -129,7 +119,7 @@ function AccountCard({ profile, prefs, onChanged }) {
 
   return (
     <Card>
-      <SectionTitle help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
+      <SectionTitle component="h2" sx={{ mb: 2 }} help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
         계정
       </SectionTitle>
       <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
@@ -185,7 +175,7 @@ function NotificationCard({ prefs, save, saving }) {
   };
   return (
     <Card>
-      <SectionTitle help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
+      <SectionTitle component="h2" sx={{ mb: 2 }} help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
         알림 설정
       </SectionTitle>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
@@ -223,7 +213,7 @@ function DndCard({ prefs, save, saving }) {
 
   return (
     <Card>
-      <SectionTitle help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 끄면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
+      <SectionTitle component="h2" sx={{ mb: 2 }} help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 끄면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
         방해금지
       </SectionTitle>
 
@@ -343,7 +333,7 @@ function SessionsCard() {
 
   return (
     <Card>
-      <SectionTitle help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다.">
+      <SectionTitle component="h2" sx={{ mb: 2 }} help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다.">
         내 기기(로그인 세션)
       </SectionTitle>
       {q.isLoading ? <Skeleton lines={3} /> : q.isError ? (
@@ -474,7 +464,7 @@ export function Profile() {
             <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
           </Box>
           <Card>
-            <SectionTitle help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
+            <SectionTitle component="h2" sx={{ mb: 2 }} help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
               둘러보기
             </SectionTitle>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

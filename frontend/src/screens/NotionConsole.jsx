@@ -289,7 +289,7 @@ export function NotionConsole() {
   };
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader area="연동" title="Notion 관리" />
 
       <Callout tone="info">{data.apply_note}</Callout>

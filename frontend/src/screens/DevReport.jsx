@@ -139,7 +139,7 @@ export function DevReport() {
   const wdRows = devs.filter((d) => d.est_done > 0).map((d) => ({ label: d.name, value: d.est_done }));
 
   return (
-    <Box className="devrep"
+    <Box className="devrep c-screen"
       sx={{
         fontVariantNumeric: "tabular-nums",
         // 인쇄: 카드 그림자는 회색 얼룩으로만 나오고, 섹션이 페이지 중간에서 잘리면 표 머리가 사라진다.

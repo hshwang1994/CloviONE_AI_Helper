@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import {
-  Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard,
+  Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, StatCard,
 } from "../ui/kit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
@@ -59,14 +59,7 @@ function pct(rate) {
   return rate == null ? "-" : Math.round(rate * 100) + "%";
 }
 
-function CardHead({ title, help }) {
-  return (
-    <Box sx={{ mb: 1.5 }}>
-      <Typography component="h3" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
-      {help ? <Typography variant="body2" color="text.secondary">{help}</Typography> : null}
-    </Box>
-  );
-}
+/* SectionTitle(ui/kit.jsx)로 옮겨졌다(DS-07). */
 
 /* 티켓 소스가 왜 비었는지 — 0건과 '못 읽었다'는 다른 말이다. */
 function SourceNotice({ source }) {
@@ -159,7 +152,7 @@ export function MyStats() {
             <Box sx={BODY_GRID}>
               <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
                 <Card>
-                  <CardHead
+                  <SectionTitle
                     title="달별 완료 추이"
                     help="마감일이 그 달인 티켓 기준입니다. 완료율의 분모에서 취소는 뺍니다."
                   />
@@ -204,7 +197,7 @@ export function MyStats() {
                 </Card>
 
                 <Card>
-                  <CardHead
+                  <SectionTitle
                     title="앞으로의 부하(주별)"
                     help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
                   />
@@ -225,7 +218,7 @@ export function MyStats() {
 
               <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
                 <Card>
-                  <CardHead title="상태 구성" />
+                  <SectionTitle title="상태 구성" />
                   <Donut
                     segments={load.by_status.map((s) => ({
                       label: s.name,
@@ -238,7 +231,7 @@ export function MyStats() {
                   />
                 </Card>
                 <Card>
-                  <CardHead title="남은 일의 우선순위" />
+                  <SectionTitle title="남은 일의 우선순위" />
                   <BarSeries
                     items={load.by_priority.map((p) => ({ label: p.name, value: p.count }))}
                     unit="건"
@@ -246,7 +239,7 @@ export function MyStats() {
                   />
                 </Card>
                 <Card>
-                  <CardHead title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
+                  <SectionTitle title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
                   <Box sx={{ display: "grid", gap: 1 }}>
                     {[
                       ["남은 예상 공수", load.est_wd_active],

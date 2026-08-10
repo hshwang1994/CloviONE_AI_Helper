@@ -137,7 +137,7 @@ export function Diagnostics() {
   // 죽은 요약 Callout은 만들지 않는다(백엔드가 이 필드를 되살리면 그때 다시 추가).
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader area="운영" title="진단"
         actions={
           <DiagnosticActions manualCollecting={manualCollecting} onCollect={() => collect(true)}

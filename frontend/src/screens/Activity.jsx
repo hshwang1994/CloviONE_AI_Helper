@@ -12,6 +12,7 @@ import { fmtDateTime, fmtRelative } from "../lib/format.js";
 import {
   Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
+import { Pager } from "../ui/Pager.jsx";
 
 /* 내 활동 피드 — 내가 한 일 / 나에게 일어난 일 (계획서 Phase 6 사용자).
  *
@@ -112,7 +113,6 @@ export function Activity() {
 
   const items = (q.data && q.data.items) || [];
   const total = q.data && q.data.total;
-  const totalPages = total != null ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : null;
   const groups = groupByDay(items);
 
   return (
@@ -169,23 +169,13 @@ export function Activity() {
               </Box>
             </Box>
           ))}
-          <Box
-            component="nav"
-            aria-label="페이지 이동"
-            sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, borderTop: 1, borderColor: "divider" }}
-          >
-            <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
-            <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
-              {totalPages != null ? `${page} / ${totalPages}, 총 ${total}건` : `${page}페이지`}
-            </Typography>
-            <Button
-              size="sm"
-              disabled={totalPages != null ? page >= totalPages : items.length < PAGE_SIZE}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              다음
-            </Button>
-          </Box>
+          <Pager
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            hasNext={items.length >= PAGE_SIZE}
+            onPage={(p) => setPage(Math.max(1, p))}
+          />
         </Card>
       )}
     </div>

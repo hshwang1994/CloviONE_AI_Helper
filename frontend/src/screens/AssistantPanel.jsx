@@ -8,7 +8,7 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { Badge, Button, Card, EmptyState, ErrorState, SectionTitle, Skeleton } from "../ui/kit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 
 /* AI 도우미 — 오늘 브리핑 / 스탠드업 초안 / 주간 다이제스트 / 미할당 트리아지.
@@ -255,14 +255,15 @@ export function AssistantPanel() {
 
   return (
     <Card>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1 }}>
-        <Typography component="h3" variant="h6" sx={{ fontSize: "1.0625rem" }}>AI 도우미</Typography>
-        {tab.narratable ? (
+      <SectionTitle
+        title="AI 도우미"
+        sx={{ mb: 1 }}
+        action={tab.narratable ? (
           <Button size="sm" disabled={q.isFetching} onClick={() => setNarrate(true)}>
             {narrate && q.isFetching ? "요약 만드는 중…" : "문장 요약 만들기"}
           </Button>
         ) : null}
-      </Box>
+      />
       <Tabs
         value={index}
         onChange={(_e, v) => select(v)}

@@ -166,7 +166,7 @@ export function Search() {
   const groups = (result && result.groups) || [];
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader
         crumbRoot=""
         area="통합 검색"

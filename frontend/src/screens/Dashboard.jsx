@@ -337,7 +337,7 @@ export function Dashboard() {
   const staleAfterError = q.isError && !!q.data;
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader area="운영" title="대시보드" spot="assistant"
         actions={<>
           {/* 30초마다 갱신되는 비-조치성 타임스탬프에 aria-live를 달면 스크린리더 사용자에게

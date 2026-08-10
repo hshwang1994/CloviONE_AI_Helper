@@ -126,7 +126,7 @@ export function Maintenance() {
   const lockedDescribedBy = canWrite ? undefined : "maint-locked-reason";
 
   return (
-    <Box>
+    <Box className="c-screen">
       {/* 유지보수 모드는 다른 admin이 지금 이 순간 켜고/끌 수 있는 상태다, Diagnostics처럼 자동
           폴링을 걸진 않되(쓰기가 잦은 화면은 아니다), 최소한 수동 새로고침은 준다. QueryClient가
           refetchOnWindowFocus:false, staleTime 30s라 아무 조작도 없이 놔두면 30초 넘게 낡은 값이

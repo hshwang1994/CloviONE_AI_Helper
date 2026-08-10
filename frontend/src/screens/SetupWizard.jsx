@@ -171,7 +171,7 @@ export function SetupWizard() {
 
   if (!allowed) {
     return (
-      <>
+      <Box className="c-screen">
         <PageHeader area="시스템" title="초기 설정" />
         <EmptyState
           title="권한이 없습니다"
@@ -179,30 +179,30 @@ export function SetupWizard() {
           art="noPermission"
           action={<Button variant="primary" onClick={() => { window.location.hash = "#/dashboard"; }}>대시보드로 이동</Button>}
         />
-      </>
+      </Box>
     );
   }
   if (query.isLoading) {
     return (
-      <>
+      <Box className="c-screen">
         <PageHeader area="시스템" title="초기 설정" />
         <Card><Skeleton lines={7} /></Card>
-      </>
+      </Box>
     );
   }
   if (query.isError) {
     return (
-      <>
+      <Box className="c-screen">
         <PageHeader area="시스템" title="초기 설정" />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
-      </>
+      </Box>
     );
   }
 
   const data = query.data || {};
   const items = data.items || [];
   return (
-    <>
+    <Box className="c-screen">
       <PageHeader
         area="시스템"
         title="초기 설정"
@@ -225,7 +225,7 @@ export function SetupWizard() {
           </Box>
         </Card>
       ) : null}
-    </>
+    </Box>
   );
 }
 

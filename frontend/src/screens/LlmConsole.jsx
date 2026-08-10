@@ -190,7 +190,7 @@ export function LlmConsole() {
   const result = testJob.data && testJob.data.result;
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader area="연동" title="AI 관리" />
 
       <Callout tone="info">{data.apply_note}</Callout>

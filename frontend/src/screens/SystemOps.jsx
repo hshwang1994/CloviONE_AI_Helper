@@ -213,7 +213,7 @@ export function SystemOps() {
   };
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader area="운영" title="시스템 설정" />
 
       {!usable && (

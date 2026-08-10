@@ -1086,3 +1086,26 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
     </Box>
   );
 }
+
+/* 카드/패널 안의 소제목(PageHeader보다 한 단계 아래) — 예전엔 Home.jsx `CardHead`,
+ * MyStats.jsx `CardHead`, Profile.jsx `SectionTitle`, AssistantPanel.jsx 인라인 코드로
+ * 네 벌이 따로 있었다(DS-07). 넷 다 폰트 크기는 이미 17px로 수렴돼 있었지만(재검증으로
+ * 확인), 컴포넌트 자체가 갈라져 있어 나중에 하나를 고치면 나머지 셋이 안 따라왔다.
+ * title/children 둘 다 받는다(호출부 관성을 다 지원), action(오른쪽 링크·버튼)과
+ * help(아래 설명문)는 있으면만 그린다. */
+export function SectionTitle({ title, children, action, help, component = "h3", sx }) {
+  const label = title != null ? title : children;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5, ...sx }}>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography component={component} variant="h6" sx={{ fontSize: "1.0625rem" }}>{label}</Typography>
+        {help ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "70ch" }}>
+            {help}
+          </Typography>
+        ) : null}
+      </Box>
+      {action}
+    </Box>
+  );
+}

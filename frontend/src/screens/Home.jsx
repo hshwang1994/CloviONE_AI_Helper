@@ -10,7 +10,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard,
+  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, StatCard,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { GRID_GAP } from "../ui/density.js";
@@ -84,14 +84,8 @@ const VIEWS = [
   { key: "blocked", label: "막힘(이슈)", kind: "danger" },
 ];
 
-function CardHead({ title, action }) {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5 }}>
-      <Typography component="h3" variant="h6" sx={{ fontSize: "1.0625rem", minWidth: 0 }}>{title}</Typography>
-      {action}
-    </Box>
-  );
-}
+/* SectionTitle(ui/kit.jsx)로 옮겨졌다 — 이 화면·MyStats·Profile·AssistantPanel이
+ * 각자 갖고 있던 같은 모양의 컴포넌트를 하나로 합쳤다(DS-07). */
 
 /* 목록 한 줄(문서·게시글 공용). 제목은 링크, 오른쪽은 메타.
  *
@@ -245,15 +239,15 @@ function SideRail({ data }) {
   return (
     <Stack gap={2.5}>
       <Card>
-        <CardHead title="이번 주 내 진척" action={<Link href="#/sprint" underline="hover">스프린트 회의</Link>} />
+        <SectionTitle title="이번 주 내 진척" action={<Link href="#/sprint" underline="hover">스프린트 회의</Link>} />
         <SprintProgress sprint={data.sprint} />
       </Card>
       <Card>
-        <CardHead title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
+        <SectionTitle title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
         <RecentDocuments items={recent.documents || []} />
       </Card>
       <Card>
-        <CardHead title="게시판" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
+        <SectionTitle title="게시판" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
         <MyBoardStats />
         <RecentBoard items={recent.board || []} />
       </Card>
@@ -373,7 +367,7 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
       <Box sx={BODY_GRID}>
         <Stack gap={2.5} sx={{ minWidth: 0 }}>
           <Card>
-            <CardHead
+            <SectionTitle
               title={`${view.label} (${total}건)`}
               action={<Link href="#/my-tickets" underline="hover">내 티켓 전체</Link>}
             />
