@@ -12,17 +12,121 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE B 완료(마지막 남은 Critical `FAIL-01`
-포함), 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역
-단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC
-22건, 전부 배포·문서화 완료)은 그대로 유지. **MEGA CYCLE A**(AI Assistant / 러너 대화
-엔진, RN-01~14 + Critical AI-30)는 구현·테스트·배포·부분 실환경검증까지 완료. **MEGA
-CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + 부수 발견 FN-51)도
-구현·테스트·배포·실환경검증까지 완료 — **BACKLOG의 마지막 Critical이 이걸로 0건**이
-됐다(남은 건 High 이하와 `OPS-06` 사용자 조치 항목뿐). 상세는 각 §MEGA CYCLE 섹션. MEGA
-CYCLE A 검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI
-미인증(`OPS-06`, **사용자 조치 필요**, 아직 미해결). 진행률 실측치는
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE C 완료(Design System 근본원인 배치),
+다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게
+조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로
+유지. **MEGA CYCLE A**(AI Assistant / 러너 대화 엔진, RN-01~14 + Critical AI-30)와
+**MEGA CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51) 둘 다
+구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical 0건. **MEGA CYCLE C**(Design
+System, DS-01~32 전수 재검증)도 구현·테스트·배포·실환경검증까지 완료 — 상세는 각
+§MEGA CYCLE 섹션. MEGA CYCLE A 검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**:
+`n8n` 계정 Claude CLI 미인증(`OPS-06`, **사용자 조치 필요**, 아직 미해결). 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE C — Design System 근본원인 (DS-01~32 전수 재검증) 완료 (2026-08-10)
+
+Master Plan 원래 순서(§WORK_PLAN_INDEX §3)의 축 1(디자인 시스템)을 Cycle 4가 건너뛰고
+곧장 CORE/UA/UB로 들어간 것이 이 세션의 가장 큰 계획 이탈이었다(PROGRESS_STATUS §5-1) —
+Critical 2건(AI-30·FAIL-01)이 이번 세션에서 전부 처리되며 그 이탈을 되돌릴 여유가
+생겨, D-53 지시대로 원래 축으로 복귀했다.
+
+**방법론**: `docs/BACKLOG.md`의 DS-01~32(2026-08-04~08 감사에서 나온 미착수 항목) **31건을
+전부 재검증**하고 나서야 손을 댔다 — 오래된 조사라 코드가 그 사이 바뀌었을 수 있다는
+전제로, 각 항목의 file:line을 다시 읽고 원 서술이 지금도 맞는지 먼저 확인했다(네 개
+병렬 조사 에이전트로 토큰/버튼/배지 · 컴포넌트 통합 · CSS 위생/죽은 코드 ·
+반응형/대비/4K 네 클러스터를 나눠 맡김). **재검증 결과 12건은 원 서술 그대로 실재해
+고쳤고, 12건은 재현이 안 되거나 이미 해결돼 있어 코드를 안 건드리고 정정만 했고, 나머지는
+설계는 확정했지만 이번 사이클 범위 밖으로 미뤘다.** 이 비율 자체가 "오래된 감사 결과를
+그대로 실행하면 안 된다"는 이 세션의 원칙을 다시 확인해 준다.
+
+**구현한 12건**(전부 공통 원인 하나를 고쳐 여러 화면이 동시에 좋아지는 형태, 개별 화면
+패치 없음):
+- **`DS-32`(High, 확정 회귀)** — `TopSearch.jsx` 2곳 + `kit.css` 13곳의 절대 px 폰트
+  크기를 기존 `--font-size-xs/sm/md` rem 토큰으로 교체. 4K에서 `--clv-root-fs`(16→18→20px)
+  레버가 커져도 안 따라가던 게 근본 원인 — 그중 `Ctrl K` 배지(11px)는 12px 접근성
+  하한을 어느 뷰포트에서나 밑돌고 있었다.
+- **`DS-19`** — `kit.css`/`sx` 이중 선언 실충돌 6곳(`.k-empty`·`.k-stat`·`.k-page-head`·
+  `.k-field`·`.c-toolbar-card`·`.k-badge`) 제거 — 승자가 스타일 주입 순서라는 우연에
+  달려 있던 비결정성을 없앰. `justify-content`처럼 CSS에만 있던 속성 하나는 먼저
+  `PageHeader`의 sx로 옮긴 뒤 CSS를 지웠다.
+- **`DS-09`** — `Badge`에 purple/teal/indigo/pink 톤 배선. `tokens.css`에 이미 있던
+  (다크모드 대응·대비 검증 완료) CSS 변수를 그대로 재사용 — 새 색 발명 없음. 문서 종류
+  8종이 전부 회색 한 가지로 뭉개지던 것이 이제 다 다른 색으로 렌더된다.
+- **`DS-04`** — `Button`에 `loading` prop(스피너 오버레이 + `visibility:hidden`으로 라벨
+  폭 고정). 가장 레버리지 큰 호출부인 `ModalFooter`(앱 전역 폼 제출 버튼)를 마이그레이션.
+- **`DS-06`** — `DataTable` 본문 셀에 기본 `minWidth`(4.5rem) 바닥값 — 열 폭 미지정 시
+  `overflowWrap:anywhere`가 폭을 한 글자까지 줄이던 것(SettingsMain.jsx가 실측으로
+  이미 겪은 것과 같은 버그)을 관리자 registry 표 28개 전부에서 한 줄로 막음.
+- **`DS-17`** — `Dashboard.jsx`(916줄)에 있던 공유 컴포넌트(`DashSection`·`StatusTile`·
+  `Note`·`STAT_GRID`·`SERVICE_GRID`·`HEADLINE_GRID`)를 새 `ui/adminKit.jsx`로, 순수
+  포맷 헬퍼(`serviceLabel`·`daysSince`·`fmtNum`·`fmtProcessingTime`·`fmtCertDays` 등)를
+  기존 `ops/opsHelpers.js`로 이동(동작 변경 없는 순수 리팩터). **조사 중 자체 발견**:
+  `opsHelpers.js`가 `fmtCertDays`를 Dashboard.jsx와 별개로 재정의해 두 벌이 따로 살아
+  있었다 — 이 이동으로 자동 해소.
+- **`DS-10`** — `Drawer = Modal` 별칭 삭제, 실제로는 중앙 다이얼로그로 쓰이던 6개 호출부
+  (SubListDrawer·DataScreen·Offboarding·SettingEditor·SettingVersions·Users)를 `Modal`
+  로 직접 부르게 이름 정정(동작 변경 없음, 이름만 정확해짐).
+- **`DS-11`** — 중복 미디어쿼리 리터럴(`"(max-width:899.95px)"`, kit.jsx·MyTickets.jsx
+  각자 갖고 있었다)을 `theme.js`의 `TABLE_CARD_QUERY`(`BREAKPOINTS.md` 기반)로 추출.
+  **표 자체 통합은 안 함** — 재검증 결과 `GroupedTickets`(다중 tbody 그룹 헤더)와
+  `DevReport`(인쇄 CSS·헤더 툴팁·인라인 차트)는 `DataTable`이 못 하는 실제 구조적
+  필요가 있었다.
+- **`DS-23`** — `columnHelpers.jsx`의 bare `<a>` 2곳을 MUI `Link`로(28개 registry 표
+  전부에 한 번에 적용), `registry/shared.js`의 raw `style` 객체도 `Typography`+시맨틱
+  토큰으로 교체.
+- **`DS-29`** — 상단바 그라데이션 마지막 정지점이 `DEFAULT_ACCENT`(#536CD6) 리터럴로
+  박혀 있어 사용자가 강조색을 바꿔도 상단바만 그대로였던 것 — `theme.palette.brand.accent`
+  (실제 선택된 강조색)를 읽게 고침.
+- **`DS-30`** — `PROJECT_TONE_COLORS`의 주황(`#F08C00`)이 라이트 테마에서 대비 2.48:1로
+  기준(3:1) 미달 — `#C26A00`로 교체, WCAG 상대휘도 공식으로 라이트·다크 양쪽 대비를
+  직접 재계산해 확인(라이트 3.921·다크 4.491).
+- **`DS-05`(부분)** — `theme.js`에 `FONT_WEIGHT` 토큰(regular/medium/semibold/bold/
+  extrabold) 신설. 실제 호출부 70여 곳의 일괄 치환은 이번 범위 밖 — 토큰만 만들어 새
+  코드가 쓸 수 있게 함.
+
+**재검증 후 다운그레이드(코드 변경 없음)**: `DS-01`·`DS-02`(버튼 위계는 이미 표준적),
+`DS-03`(이미 `size="sm"` 지원), `DS-12`(9화면 중 3개는 필터 UI 자체가 없고 나머지도
+전제가 안 맞음), `DS-13`(AppShell pill은 애초에 탭이 아님), `DS-16`(StatCard가 이미
+`kind` 축을 가짐), `DS-24`(원 서술의 영향 구간이 틀림, `lg`가 아니라 `xl`), `DS-26`
+(PROSE_MAX_WIDTH 이미 적용됨), `DS-27`(두 세부 주장 다 재현 안 됨), `DS-31`(세 곳 다
+컨텍스트상 올바른 선택, 버그 아님). **`DS-25`**는 부분 정정(`FAB_CLEARANCE` "소비자
+0" 서술이 낡음, 이미 3곳이 쓰고 있음).
+
+**설계는 확정, 구현은 후속 배치로 미룸**: `DS-07`(공용 `SectionTitle` 컴포넌트 설계
+확정, 5곳 이관 안 함), `DS-14`/`DS-15`(`EmptyState`/`ErrorState`에 `size="compact"`
+추가하는 설계 확정, `NotificationBell.jsx` 등 마이그레이션 안 함), `DS-20`(dead CSS
+계열 4개는 전수 확인으로 안전 삭제 가능하나 실행 안 함, `devrep-*`/`noti-*`는 부분
+생존이라 개별 검토 필요), `DS-21`(4~9개 화면에 `className="c-screen"` 추가하는 방법
+확정), `DS-22`(`Pager.jsx`가 `total==null` 폴백을 먼저 지원해야 함).
+
+**재평가로 범위가 오히려 커진 항목**: `DS-18`("토큰 4벌, 3개 값 어긋남")은 재검증
+결과 원 서술이 크게 축소돼 있었다 — `theme.js`/`tokens.css`/`density.js` 셋은 정상
+(기준선 대조 테스트로 지켜짐). **진짜 문제는 `app/static/css/tokens.css`(로그인 화면
+전용 정적 사본) 단 하나**인데, 두 파일에 공통으로 존재하는 변수만 놓고 값을 직접
+대조하니 **약 54개**(라이트 34·다크 20)가 어긋나 있었고, `frontend/src/styles/
+tokens.css`에 새로 생긴 변수(`font-size-*`·`space-*`·`badge-purple/teal/pink/indigo`
+등)는 정적 사본에 아예 없었다. **로그인 화면이 지금 React 앱과 다른, 한 세대 전
+팔레트로 렌더되고 있다는 뜻** — 안전하게 고치려면 라이트/다크 양쪽 시각 회귀 확인이
+함께 필요해 이번엔 손대지 않고 **다음 MEGA CYCLE 후보로 승격**했다.
+
+**검증**: 프런트 vitest 192파일/1280건 green(신규 파일 `ui/adminKit.jsx` 포함), 백엔드
+pytest 전체 green(변경 없음, 게이트로 재확인), `STATIC_CHECKS_OK`, 번들 재빌드. 커밋
+`d2286ab`.
+
+**배포**: `build-bundle.sh` → scp → `bundle.sha256`/`MANIFEST.sha256` 둘 다 일치 확인 →
+`upgrade-clovirone-web-assistant.sh` → `UPGRADE_OK`(2026-08-10 12:09 KST), 서비스 3종
+`active`, `/healthz`·`/readyz` 200.
+
+**실서버 실환경검증**: `/dashboard`·`/diagnostics`(DS-17 리팩터 소비자) · `/team-docs`
+(DS-09 배지 톤 — 실제로 문서 종류별로 다른 색이 렌더되는 것 직접 확인) · `/users` 상세
+모달(DS-10 Drawer→Modal 개명) · `/me` 전부 Chrome으로 직접 열어 정상 렌더 + 콘솔 오류
+0건 확인. 배포 직후 한 번 스테일 콘솔 오류(옛 번들 해시를 가리키는 동적 import 실패)가
+보였으나, 재확인 결과 `read_console_messages` 도구의 버퍼에 남아 있던 배포 이전 기록
+이었다(같은 타임스탬프로 반복 출현) — `clear` 후 새로고침하니 깨끗했다. `DS-29`(강조색
+반영)는 코드 경로(테마 생성 → `AppShell` sx)를 직접 추적해 확인했고, 실제 강조색을
+바꿔 가며 라이브로 대조하지는 않았다(정직하게 남긴다).
 
 ---
 
