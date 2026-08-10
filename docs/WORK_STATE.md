@@ -186,6 +186,27 @@ SSH/sudo 비밀번호를 제공하며 비대화형 자동 배포를 지시했으
 둘 다 배포 Blocker와 무관하게 바로 진행 가능하다 — 다음 세션(사람이든 D-57 자율 Runner든)은
 이 중 하나를 골라 조사부터 시작한다.
 
+**계속(2026-08-11, 연속 실행) — RG-01·VIS-72 구현완료**: 사용자의 "CONTINUOUS RUNNER
+CORRECTION" 지시(작업 조각→종료→idle-tick 예약 패턴 금지, 다음 작업이 있으면 곧바로
+이어간다)에 따라 조사만 끝나 있던 RG-01을 마저 구현하고 VIS-72(이미 구현·테스트됐지만
+미커밋 상태였던 것)를 함께 커밋했다.
+- **RG-01**: `DataScreen.jsx`의 `runAction`이 `method==="GET"`이면 `{method}`만 보내고
+  아니면 `{method, body}`를 보내도록 분기 — `runHeaderAction`/`SubListDrawer.act`가
+  이미 쓰던 패턴과 통일했다. `actions.js`의 "비교"(subList 하위 행 액션)는 애초에
+  `SubListDrawer.act`의 올바른 GET 분기를 타고 있어 영향 없음을 확인. revert-to-verify:
+  `admin-uiux.test.jsx`에 신규 회귀 시험 1건 추가, 수정을 stash하면 타임아웃으로 실패,
+  복원하면 통과 확인.
+- **VIS-72**: `navConfig.js`의 `USER_SEG_PATHS`에 `/search` 추가(`ROUTE_OWNER`와의
+  모순 해소, `/projects`와 같은 결함 부류). revert-to-verify: 신규 시험 파일
+  `user-segment-routes.test.js` 4건, stash 시 2건 실패 확인.
+- **검증**: 프런트 전체 회귀(208파일/1370건) green, `bash scripts/static_checks.sh` →
+  `STATIC_CHECKS_OK`(번들 재빌드 포함).
+
+다음은 VIS-88(19개 `Modal` 호출부 중 18개가 `dirty` prop 누락 — Esc/배경 클릭/X로 조용히
+데이터 유실, `MyTickets.jsx` 티켓 수정 모달 포함 다수 화면)로 곧바로 이어간다 — 사용자
+확인 대기 없이, 완료 즉시 다음 후보(VIS-32/VIS-104/VIS-81/VIS-73·74/VIS-90/VIS-107 등)로
+계속한다.
+
 ---
 
 ## 🟣 MEGA CYCLE H — AI 도우미, MEGA CYCLE A 후속 quick-fix 스윕 완료 (2026-08-10)

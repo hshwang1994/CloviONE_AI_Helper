@@ -140,6 +140,38 @@ describe("위험 액션 확인", () => {
     expect(within(drawer).queryByRole("button", { name: "거절" })).not.toBeInTheDocument();
   });
 
+  /* RG-01 — "발행 내용 보기"(document.publish 승인의 GET 조회 액션)가 "서버에 연결할 수
+   * 없습니다."로 죽어 있었다. 원인은 DataScreen.jsx의 runAction이 method를 안 가리고
+   * body:{}를 실어 보낸 것 — GET에 body를 실으면 fetch 스펙 자체가 TypeError를 던진다
+   * (lib/api.js는 method!=="GET"일 때만 body를 JSON.stringify하고, GET이면 원시 객체를
+   * 그대로 fetch에 넘긴다). 이 시험은 그 계약을 고정한다: GET 액션은 body 키 자체가 없어야
+   * 한다 — 값이 없는 게 아니라 키가 없어야 한다(수정 전에는 항상 body:{} 가 실려 있었다). */
+  it("'발행 내용 보기'(GET): body 없이 요청하고, 발행 미리보기를 안내 모달로 보여준다 (RG-01)", async () => {
+    apiMock.mockImplementation((path, opts) => {
+      if (opts && opts.method === "GET" && String(path).includes("/api/admin/documents/")) {
+        expect(opts).not.toHaveProperty("body");
+        return Promise.resolve({ generation: { status: "completed", preview: { title: "월간 리포트", body: "본문 내용" } } });
+      }
+      return Promise.resolve({
+        items: [{
+          id: "a1", request_type: "document.publish", object_type: "team_doc", object_id: "d-9",
+          requested_by: "u-2", requester_name: "홍길동", status: "pending",
+          requested_at: "2026-08-01T00:00:00Z", expires_at: "2026-08-04T00:00:00Z",
+          due_at: null, overdue: false, can_decide: true,
+          request_payload: { generation_id: "gen-1" },
+        }],
+        total: 1, page: 1, page_size: 20,
+      });
+    });
+    renderScreen("approvals");
+    const drawer = await openRow("홍길동");
+    await userEvent.click(within(drawer).getByRole("button", { name: "발행 내용 보기" }));
+
+    const dlg = await screen.findByRole("dialog", { name: "발행 내용 보기" }, WAIT);
+    expect(dlg).toHaveTextContent("월간 리포트");
+    expect(dlg).toHaveTextContent("본문 내용");
+  });
+
   it("조직 '정지': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {
     apiMock.mockImplementation(() => Promise.resolve({
       items: [{

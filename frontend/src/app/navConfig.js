@@ -225,6 +225,11 @@ export const USER_SEG_PATHS = [
   // 프로필·업무량·활동은 '나에 대한 것'이라 역할과 무관하게 사용자 콘솔에 산다 —
   // 관리자가 자기 프로필을 열면 사용자 세그먼트로 넘어가고, 상단 세그먼트 탭이 그걸 보여 준다.
   "/profile", "/my-stats", "/activity",
+  // 통합 검색(VIS-72) — ROUTE_OWNER는 이미 "/search": "/me"로 사용자 콘솔 소유라 선언하는데
+  // 여기 목록엔 빠져 있었다. 관리자군이 Ctrl+K로 검색을 열면 상단 세그먼트가 관리자로
+  // 튕기고 사이드바가 통째로 관리자 메뉴로 바뀌었다 — 위 /projects와 같은 부류의 결함
+  // (그건 이미 한 번 고쳐졌는데 /search는 안 고쳐져 있었다).
+  "/search",
 ];
 
 export function inUserSegment(pathname) {

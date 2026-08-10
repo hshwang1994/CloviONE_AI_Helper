@@ -284,7 +284,14 @@ export function DataScreen({ config }) {
     if (a.fields) { setActionForm({ a, row, initial: a.initial ? a.initial(row) : null }); return; }
     setBusyKey(key);
     try {
-      const res = await api(a.path(row), { method: a.method || "POST", body: a.body || {} });
+      // RG-01 — method가 GET이면 body를 아예 안 보낸다. lib/api.js는 GET일 때 body를
+      // JSON.stringify하지 않고 원시 객체 그대로 fetch에 넘기는데, fetch 스펙 자체가
+      // "GET/HEAD 요청은 body를 가질 수 없다"고 못 박아 TypeError를 던진다 — 그 예외가
+      // "서버에 연결할 수 없습니다."로 둔갑해, 멀쩡한 엔드포인트가 죽은 것처럼 보였다
+      // (같은 파일의 runHeaderAction은 애초에 body를 안 실어 이 문제를 안 겪는다).
+      const method = a.method || "POST";
+      const opts = method === "GET" ? { method } : { method, body: a.body || {} };
+      const res = await api(a.path(row), opts);
       // 조회형 액션(미리보기/드라이런 등) — 목록 갱신·드로어 닫기 없이 결과를 안내 모달로 보여준다.
       if (a.info) { setInfoView({ title: a.label, body: a.info(res) }); return; }
       finishAction(a, res, row);
