@@ -256,7 +256,7 @@ export function TeamDocs() {
   const [composing, setComposing] = useState(false);
   const sel = useRowSelection();
 
-  const filters = useQuery({ queryKey: ["team-docs-filters"], queryFn: () => api("/api/team-docs/filters") });
+  const filters = useQuery({ queryKey: ["team-docs-filters"], queryFn: () => api("/api/team-docs/filters"), retry: false });
 
   /* 화면 상태 → 서버 질의. 주소의 표기와 API 의 표기가 한 군데(favorites)에서 다르다:
      주소는 `1`, API 는 `true` 다. 옮겨 적는 자리를 하나로 모아 둔다. */
@@ -272,6 +272,10 @@ export function TeamDocs() {
     // 필터/페이지가 바뀌어도 이전 결과를 유지해 표가 통째로 스켈레톤으로 깜빡이지 않게 한다
     // (레포 관례: DataScreen/Users/NotificationBell도 동일).
     placeholderData: keepPreviousData,
+    // 기본 재시도(최대 3회, 지수 백오프)면 실패가 isError로 뜨기까지 ~7초 걸려 그동안
+    // 스켈레톤이 "영원히 로딩 중"처럼 보인다(FAIL-03) — 다른 화면(Users/Diagnostics/
+    // DataScreen)과 같은 규약으로 맞춤.
+    retry: false,
   });
 
   // 보이는 문서 집합이 바뀌면(검색·필터·페이지) 선택을 비운다 — 숨겨진 문서가 선택된 채 남지 않게.

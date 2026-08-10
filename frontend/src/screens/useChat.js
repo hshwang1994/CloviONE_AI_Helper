@@ -297,6 +297,11 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
     // onError 토스트는 두지 않는다 — doSend의 catch가 이미 한 번 알린다(이중 토스트 방지).
   });
 
+  // 마운트 시점엔 cid가 항상 null이라, 복원 이펙트(아래)가 convs 응답을 기다리는 동안
+  // 저장 이펙트가 먼저 "대화 없음"으로 오해해 sessionStorage를 지워 버릴 수 있었다 —
+  // 복원 시도가 끝나기 전엔 저장 이펙트가 손을 대지 않게 막는 플래그.
+  const restoredRef = useRef(false);
+
   // 새로고침 후에도 보던 대화를 이어서 연다 — 그냥 items[0](최신순 맨 위)을 열면, 최근에 손댄 적
   // 없는 옛 대화를 읽던 사용자가 새로고침 때마다 엉뚱한(가장 최근에 '바뀐') 대화로 튕겨나간다.
   // sessionStorage에 남겨 둔 id가 아직 목록에 있으면 그걸 열고, 없으면(삭제·다른 세션) items[0]로 폴백한다.
@@ -305,6 +310,7 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
       let restoreId = null;
       try { restoreId = window.sessionStorage.getItem(CHAT_LAST_CONV_KEY); } catch (e) { /* 비보안 컨텍스트 등 */ }
       const found = restoreId && convs.data.items.find((c) => c.id === restoreId);
+      restoredRef.current = true;
       setCid(found ? found.id : convs.data.items[0].id);
       // 대화 복원 직후 컴포저에 포커스를 둔다 — 키보드 사용자가 매번 직접 클릭해 들어가지 않아도 되게.
       textareaRef.current && textareaRef.current.focus();
@@ -312,7 +318,11 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
   }, [convs.data, cid, composingNew]);
 
   // 현재 열린 대화 id를 남겨 새로고침 후 복원에 쓴다(위 이펙트). 대화가 없으면(새 대화 작성 중 등) 지운다.
+  // 복원을 아직 시도 못 했는데(convs 쿼리가 여전히 로딩 중이거나 실패 중) cid가 null이라는
+  // 이유만으로 지우면, 복원 이펙트가 나중에 성공해도 읽을 값이 이미 사라진 뒤다 — 매 새로고침마다
+  // 복원이 조용히 실패하는 원인이었다(FAIL-01 조사 중 발견, 실패 상황뿐 아니라 정상 경로도 영향받음).
   useEffect(() => {
+    if (!restoredRef.current && !cid) return;
     try {
       if (cid) window.sessionStorage.setItem(CHAT_LAST_CONV_KEY, cid);
       else window.sessionStorage.removeItem(CHAT_LAST_CONV_KEY);

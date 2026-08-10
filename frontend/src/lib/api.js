@@ -49,7 +49,20 @@ export async function api(path, options = {}) {
     throw err;
   }
   let body = null;
-  try { body = await r.json(); } catch (e) { body = null; }
+  let parseFailed = false;
+  try { body = await r.json(); } catch (e) { parseFailed = true; }
+  if (r.ok && parseFailed) {
+    /* 200 인데 본문이 JSON 이 아니다 — 프록시 중간 페이지·SSO 리다이렉트·WAF 차단면이
+       전부 이 모양이다(실제 사례: n8n 이 HTML 을 돌려준 적이 있다). 예전엔 여기서
+       `body = null` 로 조용히 넘어가 화면이 "빈 상태"로 보였다(FAIL-01) — 실패인데
+       "데이터가 없다"고 말하는 것보다 나쁜 게 없다. 반드시 던져서 화면의 `isError` 로
+       흐르게 한다. */
+    const err = new Error("서버 응답을 해석하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    err.kind = "invalid_response";
+    err.status = r.status;
+    err.requestId = r.headers.get("X-Request-ID") || null;
+    throw err;
+  }
   if (!r.ok) {
     /* 서버가 문구를 안 줬을 때의 대비책 (E10). 예전에는 `"요청 실패 (500)"` 을 그대로 띄웠다 —
        **사용자가 HTTP 상태 코드를 읽는다.** 무엇이 잘못됐는지도, 무엇을 하면 되는지도 말하지
