@@ -506,3 +506,36 @@ assistant.py`, 5,890줄). `RN-01`~`RN-14`(24건 다수가 이 파일)와 `AI-30`
 (Critical — 빈 상태와 오류 상태가 같은 화면)은 공용 UI kit 컴포넌트(`frontend/src/ui/
 kit.jsx`)가 근본 원인이라 이 사이클이 아니라 다음 Design System 사이클로 배정한다
 (Critical이라 순서상 그 다음으로 당긴다 — 미루는 게 아니라 순서 배정).
+
+### D-54. MEGA CYCLE의 기준은 "몇 건 처리했나"가 아니라 "제품 영역이 거의 끝났나"다
+D-53 전환 후에도 실제 작업 단위가 다시 작아지는 경향이 나타났다(같은 제품 영역의 후속
+작업 C/D/E/F를 각각 별도 MEGA CYCLE로 쪼개고, 매번 전체 테스트→배포→Chrome 검증을
+반복). 사용자가 명시적으로 교정: **MEGA CYCLE의 종료 기준은 Backlog 처리 건수가 아니라
+해당 제품 영역/서브시스템이 실질적으로 거의 끝났는가다.** 같은 제품 영역의 후속 작업(같은
+Design System이면 토큰 몇 개·컴포넌트 3개·dead CSS 등)을 각각 쪼개지 말고 하나의 큰
+MEGA CYCLE 안에서 계속 처리한다. 구현 중에는 변경 영역과 직접 관련된 focused test만
+반복하고(frontend-only 변경에 backend full suite를 매번 돌리지 않음, 그 역도 마찬가지),
+Full 회귀(backend+frontend+static+build)·배포·광범위 Chrome E2E는 그 제품 영역이 배포
+가능한 큰 단위로 충분히 완성됐을 때 한 번 수행한다. 건수 제한은 인위적으로 두지 않는다
+(한 사이클에 20~100건 이상도 가능). Critical/Security/RBAC/데이터손실/마이그레이션/
+동시성 또는 즉시 실환경 확인이 필요한 고위험 변경은 이 배칭 예외로 그대로 즉시·개별
+처리한다. **적용 예**: MEGA CYCLE G(관리자 IA)가 이 지시 직후 IA-01/IA-02 2건만 고치고
+끝내려던 것을 대신 FN-13·IA-04·RG-11까지 같은 사이클 안에서 넓혀 처리하고 마지막에
+한 번만 전체 회귀·배포·Chrome 검증을 수행했다.
+
+### D-55. Backlog ID 중복을 지울 때 "파일에서 나중에 나온 쪽"이 자동으로 "틀린 쪽"은 아니다
+`AI-*` 항목 15개가 세 차례의 서로 다른 조사 라운드에서 번호를 재사용해 중복돼 있었다
+(예: `AI-30`이 서로 무관한 두 항목 — Critical CREATE 하이재킹과 Med screen_context —
+에 동시에 쓰였고, `AI-31`·`AI-37`도 각각 2개씩이었다). 1차 수정에서 "파일에 두 번째로
+나오는 occurrence"를 기계적으로 새 ID로 옮겼는데, 이것이 **틀렸다** — `docs/WORK_STATE.md`
+의 MEGA CYCLE A 절과 `docs/DECISIONS.md`(D-53 포함) 자체가 이미 "AI-30 Critical"·
+"AI-37"을 구체적인 하나의 finding으로 여러 번 인용하고 있었고, 그 인용이 가리키는
+실체는 file상 두 번째 occurrence(즉 내가 새 ID로 옮기려던 쪽)였다. **교훈**: 중복 ID를
+해소할 때는 raw file 순서가 아니라, `WORK_STATE.md`·`DECISIONS.md`·`PROGRESS_STATUS.md`
+같은 다른 load-bearing 문서가 그 번호를 이미 특정 finding으로 인용하고 있는지 먼저
+grep으로 전수 확인하고, 인용이 있는 쪽의 번호를 보존한 채 인용이 **없는** 쪽만 새 번호로
+옮긴다. 이번엔 `AI-30`(Critical, 되돌림)·`AI-31`(의도분류, 되돌림)·`AI-37`(탈출어 안내,
+되돌림) 3건이 이 방식으로 걸렸고, 밀려난 3건은 각각 `AI-66`·`AI-67`·`AI-68`로 이동했다.
+부수적으로, 재확인 과정에서 `AI-30`(Critical)과 `AI-66`(구 AI-30 Med, screen_context)이
+실제로는 **둘 다 MEGA CYCLE A에서 이미 고쳐졌는데** BACKLOG.md 상태 칸이 "발견"으로
+방치돼 있던 것도 함께 드러나 바로잡았다(코드 재확인 후 각각 구현완료/부분구현으로 갱신).

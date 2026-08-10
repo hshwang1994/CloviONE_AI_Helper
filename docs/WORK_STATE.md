@@ -40,6 +40,17 @@ DS-14/15/20 구현 + DS-33)·**MEGA CYCLE G**(Admin IA 전체 스윕, IA-01/02·
 자유 질문 1건이 남아 있다. 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
 
+**BACKLOG ID 정합성 수정(2026-08-10, MEGA CYCLE G→H 사이 정리, D-55)**: `AI-*` 15건이 세
+조사 라운드에서 번호가 중복돼 있어 한 차례 재번호했는데, 1차 시도가 "AI-30"(Critical
+CREATE 하이재킹, 이 문서 §MEGA CYCLE A가 이미 그렇게 인용) · "AI-31"(의도분류 오탐) ·
+"AI-37"(탈출어 안내 없음) 3건을 **엉뚱한 쪽으로 옮기는 실수**를 했다가, 이 문서·
+`DECISIONS.md`의 기존 인용과 교차검증해 되돌렸다. 지금은 `AI-30`·`AI-31`·`AI-37`이
+원래 의미(위 §MEGA CYCLE A가 인용하는 그 finding들)를 다시 갖고, 밀려난 3건(구 중복
+AI-30 Med screen_context·구 중복 AI-31 dead code·구 중복 AI-37 내보내기 없음)은
+`AI-66`~`AI-68`로 이동했다. 코드 재확인 결과 `AI-30`(Critical)·`AI-66`(Med)**둘 다
+MEGA CYCLE A에서 이미 고쳐져 있었다** — BACKLOG.md 상태 칸이 "발견"으로 방치돼 있던
+것도 이번에 구현완료/부분구현으로 갱신했다. 상세 경위는 `DECISIONS.md` D-55.
+
 ---
 
 ## 🟣 MEGA CYCLE G — Admin IA 전체 스윕 (D-54 이후 첫 큰 사이클) 완료 (2026-08-10)
