@@ -1,13 +1,16 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
-import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import { api } from "../lib/api.js";
+import { Card, Callout, ErrorState, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
+import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, TicketSyncBanner } from "./MyTickets.jsx";
 import { ticketRows, useTicketList } from "./ticket-options.js";
+import { invalidateTicketViews } from "./ticket-views.js";
 import {
   TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter,
   ticketFilterSpec, ticketQueryParams,
@@ -58,6 +61,20 @@ export function TeamTickets() {
   const [editing, setEditing] = React.useState(null);
   const qs = ticketQueryParams(filters, TEAM_FIELDS, { active: filters.active ? "true" : "false" }).toString();
   const q = useTicketList("/api/tickets/team", qs);
+  const toast = useToast();
+  const qc = useQueryClient();
+  // 티켓 동기화(FN-03) — team_docs 화면과 같은 패턴, app/tickets/router.py trigger_sync의
+  // 주석이 그 패턴을 그대로 따르라고 명시한다.
+  const sync = useMutation({
+    mutationFn: () => api("/api/tickets/sync", { method: "POST", body: {} }),
+    onSuccess: (res) => {
+      invalidateTicketViews(qc, { refetchType: "all" });
+      const st = res && res.sync;
+      if (st && st.status === "error") toast("동기화 실패: " + (st.error || "Notion 연결 확인 필요"), "error");
+      else toast("동기화했습니다. 티켓 " + (st ? st.ticket_count : 0) + "개.", "success");
+    },
+    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다.", "error"),
+  });
 
   // 완료·취소까지 볼지는 필터 줄 안에 둔다 — 조건과 떨어져 있으면 목록이 왜 이만큼인지 보이지 않는다.
   const activeToggle = (
@@ -92,6 +109,10 @@ export function TeamTickets() {
           const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
+              <TicketSyncBanner
+                sync={data.sync} canSync={data.can_sync}
+                onSync={() => sync.mutate()} syncing={sync.isPending}
+              />
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
                 total={data.total} extra={activeToggle}

@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { KO_WORD_BREAK } from "../ui/theme.js";
+import { Skeleton } from "../ui/kit.jsx";
 import {
   NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE,
   formulaText, percentText, sampleText, weightModeText,
@@ -146,6 +147,36 @@ export function HealthBlock({ score, reasons, unknown }) {
           </Box>
         </>
       ) : null}
+    </Box>
+  );
+}
+
+/* 주간 Health 추세(FN-06). 점 하나(지금 점수)만으로는 "계속 나빠지고 있다"를 말할 수 없다 —
+ * app/projects/router.py::get_health_history 의 같은 판단을 화면에서도 지킨다. 서버가 이미
+ * week_of DESC 로 정렬해 보낸다(재정렬 안 함). */
+export function HealthHistory({ query }) {
+  if (!query) return null;
+  if (query.isPending) return <Skeleton lines={3} />;
+  if (query.isError) return null; // 이력은 부차 정보 — 본문(HealthBlock)까지 막지 않는다
+  const items = (query.data && query.data.items) || [];
+  if (!items.length) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+        아직 쌓인 주간 이력이 없습니다. "다시 계산"을 누르면 이번 주 점수가 이력에 남습니다.
+      </Typography>
+    );
+  }
+  return (
+    <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+      <Typography component="h3" variant="body2" sx={{ fontWeight: 750, mb: 1 }}>주간 추세</Typography>
+      <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none", display: "grid", gap: 0.75 }}>
+        {items.map((it) => (
+          <Box component="li" key={it.week_of} sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6rem" }}>{it.week_of}</Typography>
+            <Typography sx={{ fontWeight: 700 }}>{it.score + "점"}</Typography>
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 }

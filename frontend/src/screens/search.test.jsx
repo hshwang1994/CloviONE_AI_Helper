@@ -20,6 +20,12 @@ vi.mock("../lib/api.js", () => ({
   api: (...args) => apiMock(...args),
   setCsrf: () => {},
 }));
+// FN-03(재색인 버튼)이 useAuth를 쓰기 시작하면서 이 파일이 AuthProvider 없이 렌더링하던
+// 것이 깨졌다 — 다른 화면 테스트들과 같은 방식으로 mock한다(role은 재색인 버튼이 안
+// 뜨는 "user"로 둔다, 이 파일의 관심사는 검색 결과 자체라 버튼 유무는 search-reindex.test.jsx가 본다).
+vi.mock("../app/auth.jsx", () => ({
+  useAuth: () => ({ data: { role: "user", id: "u-1" } }),
+}));
 
 import { Search } from "./Search.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";

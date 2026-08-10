@@ -63,6 +63,27 @@ def _sync_idempotency_key(now: datetime) -> str:
 def sync_all(request: Request, db: Session = Depends(get_db)):
     """전원의 Notion 매핑을 한 번에 맞춘다. 잡을 만들고 바로 돌려준다(202).
 
+    ## 왜 이 "동기화" 버튼만 admin+ 인가 (SEC-04)
+
+    `tickets/sync`·`team-docs/sync`·`search/reindex`는 전부 operator+(`MODERATOR_ROLES`)로
+    실행할 수 있는데 이 엔드포인트만 admin+(`CONSOLE_WRITE_ROLES`)다 — 겉보기엔 셋 다 "동기화"
+    버튼이라 불일치처럼 보이지만 의도한 차이다.
+
+    1. 이 라우터의 형제 쓰기 엔드포인트(`/verify`·`/map`·`/unmap`·`/resolve-conflict`)는
+       전부 이미 admin+다 — `/sync`는 그 개별 조작을 사람 전원에 대해 한 번에 하는 벌크 형태일
+       뿐이라, 여기만 낮추면 오히려 이 라우터 안에서 스스로 모순된다.
+    2. 다른 세 동기화는 **읽기 전용 캐시/미러**(Notion→DB 미러, DB→검색 색인)를 새로고침할
+       뿐이지만, 이건 로그인 계정↔Notion 신원의 **결속 자체**(`UserNotionMapping`)를 다시
+       쓴다 — 이후 담당자/작성자 판정(`is_first_person_request`)의 근거가 되는 데이터라 잘못되면
+       조용히 신원이 뒤바뀐다.
+    3. `sync_all`은 스코프 필터가 전혀 없다(`select(User).where(archived_at.is_(None))`,
+       부서/조직 무관) — 한 번 눌러 시스템 전체 사용자의 신원 결속을 바꾼다. 다른 세 동기화보다
+       영향 범위가 구조적으로 크다.
+
+    이 라우터는 Notion 신원 결속을 이미 한 번 더 엄격하게 다룬 전례가 있다(SEC-01 —
+    부서범위 admin이 system_admin의 매핑을 바꿀 수 있던 것을 막음, `tests/security/
+    test_admin_authority_boundary.py` 참고). 상세 판단 근거는 `docs/DECISIONS.md`.
+
     사용자당 '검증'을 누르는 방식은 n8n을 **동기로** 부른다. 그 워크플로는 Notion의 작업·
     프로젝트 DB를 통째로 읽어 9~13초가 걸리고(실측), 12명이면 브라우저를 2분 붙잡으면서
     같은 조회를 12번 반복한다. 한 번 읽어서 전원에게 나눠 주는 것이 맞다.

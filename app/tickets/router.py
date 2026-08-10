@@ -255,6 +255,7 @@ def team_tickets(
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
     return _with_sync(db, repo, {
         "configured": True, "ok": True,
+        "can_sync": service.can_trigger_sync(user),
         **_paged(result["tickets"], result["total"], page),
     })
 

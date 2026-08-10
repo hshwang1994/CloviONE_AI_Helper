@@ -56,6 +56,13 @@ export const NOTIFICATIONS_SCREEN = {
       // 닫는 대신 read_at을 로컬에서 채워 드로어를 열어 둔 채로 '읽음' 상태를 바로 보여준다.
       { label: "읽음 처리", when: (r) => !r.read_at, path: (r) => "/api/notifications/" + r.id + "/read",
         localPatch: (r) => ({ ...r, read_at: new Date().toISOString() }) },
+      // 삭제(FN-03) — 이 엔드포인트는 role이 아니라 소유권(user_id==나)으로 막는다
+      // (app/notifications/router.py) — 그래서 다른 액션과 달리 roles: 를 안 준다. roles를
+      // 주면 백엔드가 이미 허용하는 '자기 알림 삭제'가 일반 사용자에게만 숨겨지는 반대 방향
+      // 버그가 된다. 삭제는 DataScreen이 CROSS_SCREEN_KEYS.notifications로 벨 배지/팝오버까지
+      // 이미 함께 무효화한다(다른 액션과 동일 배선, shared.js 참고).
+      { label: "삭제", variant: "danger", method: "DELETE", path: (r) => "/api/notifications/" + r.id,
+        confirm: "이 알림을 삭제할까요? 목록에서 완전히 사라지며 되돌릴 수 없습니다." },
       // 관련 대상(승인·작업·스케줄 등)이 있으면 해당 관리 화면으로 이동한다(문서 화면 navigate 방식과 동일).
       // 대상은 모두 관리자 콘솔 경로라 일반 사용자(role=user)에겐 숨긴다 — 누르면 채팅으로 튕겨 나가기 때문.
       // ADMIN_VIEW_ROLES 통과만으로는 부족하다 — 대상 화면 중 일부(사용자·부서·직책·작업 큐)는

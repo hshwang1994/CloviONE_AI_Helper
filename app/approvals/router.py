@@ -50,6 +50,7 @@ def _view(
     db: Session,
     row: Approval,
     names: dict | None = None,
+    can_decide: bool = False,
 ) -> dict:
     """만료 판정은 approval_view 한 곳에서만 한다 — 모든 화면이 그 결론을 공유한다.
 
@@ -62,7 +63,7 @@ def _view(
     """
     if names is None:
         names = resolve_names(db, {row.requested_by, row.approver_id})
-    return approval_view(row, request.app.state.clock.now(), names=names)
+    return approval_view(row, request.app.state.clock.now(), names=names, can_decide=can_decide)
 
 
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
@@ -134,8 +135,13 @@ def list_approvals(
     names = resolve_names(
         db, {i for r in rows for i in (r.requested_by, r.approver_id)}
     )
+    # can_decide(FN-11)는 행이 아니라 **보는 사람**에게 달린 값이라(role 또는 활성 위임)
+    # 페이지당 한 번만 계산한다 — 행마다 다시 물으면 N+1이고, 어차피 같은 사람이 보는
+    # 한 페이지 안에서는 전부 같은 답이다.
+    now = request.app.state.clock.now()
+    can_decide, _ = delegation_service.resolve_authority(db, request.state.user, now)
     return {
-        "items": [_view(request, db, r, names) for r in rows],
+        "items": [_view(request, db, r, names, can_decide=can_decide) for r in rows],
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
@@ -152,7 +158,9 @@ def get_approval(
     # 목록에서 가린 것이 상세에서 새면 가린 의미가 없다 — payload 에 '누구를 무슨 역할로'
     # 가 그대로 적혀 있다. 목록과 **같은** 함수로 판정한다.
     row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
-    return {"approval": _view(request, db, row)}
+    now = request.app.state.clock.now()
+    can_decide, _ = delegation_service.resolve_authority(db, request.state.user, now)
+    return {"approval": _view(request, db, row, can_decide=can_decide)}
 
 
 def _decide(

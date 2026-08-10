@@ -108,18 +108,21 @@ export const GOVERNANCE_SCREENS = {
       dateCol("decided_at", "결정 시각"),
       { key: "approver_name", label: "결정자", render: (r) => r.approver_name || r.approver_email || r.approver_id || "-" },
       field("decision_comment", "결정 메모")],
-    // 승인/거절은 결정 권한(admin/system_admin)만, 취소는 운영 역할까지. 백엔드 RBAC와 일치시켜
-    // 읽기 전용 역할(operator/auditor)에게 항상 403이 되는 버튼을 숨긴다.
+    // 승인/거절 권한은 role 하나로 못 정한다(FN-11) — 위임받은 대리 결재자는 admin/system_admin이
+    // 아니어도 결재할 수 있다(app/approvals/delegation.py). 그래서 여기 static roles: 게이트를
+    // 안 쓰고, 서버가 role+위임을 이미 합쳐 계산해 준 r.can_decide를 그대로 믿는다(approval_view의
+    // overdue와 같은 원칙 — 판단은 서버 한 곳에서만). 취소는 위임과 무관한 별개 권한이라(백엔드도
+    // require_roles로 고정) 아래 static roles: OPS_ROLES를 그대로 둔다.
     actions: [
       // 자기 요청은 자기 승인·거절이 백엔드에서 금지된다(403) → 본인 요청 행에서는 두 버튼을 숨긴다(취소만 남긴다).
-      { label: "승인", variant: "primary", roles: WRITE_ROLES, when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId), path: (r) => "/api/admin/approvals/" + r.id + "/approve",
+      { label: "승인", variant: "primary", when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId) && !!r.can_decide, path: (r) => "/api/admin/approvals/" + r.id + "/approve",
         fields: [{ name: "comment", label: "승인 메모(선택)", type: "textarea", help: "승인 사유, 조건 등을 남기면 감사 기록에 함께 저장됩니다." }] },
       // 거절은 되돌릴 수 없다 — 한 번 결정된 요청은 백엔드가 어떤 재결정도 409로 막는다
       // ("이미 처리된 승인 요청입니다", app/approvals/service.py). 사유 입력 폼은 '무엇을 적을지'만
       // 묻지 '무슨 일이 일어나는지'는 말하지 않았다 — 같은 저장소의 다른 되돌릴 수 없는 액션(공지
       // 삭제·상한 삭제)처럼 확인을 먼저 받는다. document.publish 거절은 대상 문서 생성까지 실패로
       // 확정한다(_fail_pending_document_publish) — 그 파급을 요청 유형별로 밝힌다.
-      { label: "거절", variant: "danger", roles: WRITE_ROLES, when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId), path: (r) => "/api/admin/approvals/" + r.id + "/reject",
+      { label: "거절", variant: "danger", when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId) && !!r.can_decide, path: (r) => "/api/admin/approvals/" + r.id + "/reject",
         confirm: (r) => "이 요청을 거절하면 되돌릴 수 없습니다, 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다."
           + (r.request_type === "document.publish" ? " 이 요청은 문서 발행 건이라, 거절하면 대상 문서 생성도 실패로 확정됩니다." : "")
           + " 계속 거절할까요?",
@@ -174,7 +177,12 @@ export const GOVERNANCE_SCREENS = {
         value: ({ active: "진행 중", scheduled: "예정", ended: "종료", revoked: "거둠" })[r.state] || r.state,
         kind: r.state === "active" ? "ok" : r.state === "scheduled" ? "info" : "neutral",
       }) },
-      dateCol("starts_at", "시작"), dateCol("ends_at", "종료"),
+      dateCol("starts_at", "시작"),
+      // SEC-05 — 거둔(revoked) 위임은 원래 예정됐던 ends_at을 그대로 보여주면 "그날까지 아직
+      // 진행 중"으로 오해하게 만든다(실제로는 revoked_at에 이미 끝났다). 승인 화면의 만료
+      // 열이 같은 이유로 종료된 행엔 원래 시각을 안 보여주는 것(위 expires_at 열 주석)과
+      // 같은 판단 — 여기는 대체할 실제 종료 시각(revoked_at)이 있으므로 그걸 보여준다.
+      { key: "ends_at", label: "종료", render: (r) => fmtDateTime(r.state === "revoked" ? r.revoked_at : r.ends_at) },
       truncateCol("reason", "사유", 40),
     ],
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),

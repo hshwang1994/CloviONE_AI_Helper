@@ -77,6 +77,12 @@ SYSTEM_ADMIN_ONLY: tuple[str, ...] = (ROLE_SYSTEM_ADMIN,)
 # `user.role in MODERATOR_ROLES` 형태로 쓰이므로 frozenset 이다.
 # 집합으로 보면 CONSOLE_OPS_ROLES 와 같다 — 같은지 여부는 tests/security/test_rbac_basics.py
 # 가 못박는다(둘이 갈라지면 '운영자'의 뜻이 화면마다 달라진다).
+#
+# 주의(SEC-04): tickets/team-docs/search 의 "동기화" 엔드포인트는 여기 MODERATOR_ROLES를
+# 쓰는데, 겉보기엔 같은 "동기화" 버튼인 notion_mapping/sync 만 CONSOLE_WRITE_ROLES(admin+)다.
+# 실수가 아니다 — notion_mapping/sync 는 읽기 캐시가 아니라 신원 결속 자체를 다시 쓰고,
+# 스코프 필터 없이 전체 사용자에게 걸린다. 근거는 app/notion_mapping/router.py::sync_all
+# 의 독스트링과 docs/DECISIONS.md 참고.
 MODERATOR_ROLES: frozenset[str] = roles_at_least(ROLE_OPERATOR)
 
 

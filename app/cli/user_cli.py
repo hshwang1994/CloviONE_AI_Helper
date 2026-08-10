@@ -212,10 +212,16 @@ def cmd_unlock(db, session_service, settings, args) -> int:
 
 def cmd_sessions(db, session_service, settings, args) -> int:
     user = _require_user(db, args.email)
+    # SEC-05 — revoked_at IS NULL 만으로는 부족하다. 만료됐지만 다시 쓰인 적 없는 세션은
+    # SessionService.validate 가 지연 채점할 기회 자체가 없어 revoked_at 이 계속 비어 있다.
+    now = SystemClock().now()
     rows = (
         db.execute(
             select(UserSession)
-            .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+            .where(
+                UserSession.user_id == user.id, UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
             .order_by(UserSession.last_seen_at.desc())
         )
         .scalars()

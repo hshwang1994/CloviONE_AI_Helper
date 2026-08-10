@@ -13,8 +13,9 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.backups.models import Backup, RestoreRehearsal
+from app.backups.models import Backup, RestoreRehearsal, STATUS_FAILED
 from app.backups.service import (
+    announce_backup_failure,
     apply_retention,
     backup_schedule_config,
     backup_view,
@@ -60,6 +61,15 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
     row = run_backup(
         db, request.app.state.settings, created_by=request.state.user.id, now=now
     )
+    # FN-09 — run_backup은 실패를 삼키고 행 상태만 바꾼다(run_scheduled_backup과 같은 이유,
+    # backups/service.py 주석 참고). 예약 경로는 이미 실패를 알리는데 수동 '지금 백업' 경로는
+    # 여기서 그 상태를 한 번도 확인한 적이 없었다 — 누른 사람은 응답으로 바로 알지만, 다른
+    # 관리자들은 다음 예약 백업이 실패할 때까지 전혀 모른다.
+    if row.status == STATUS_FAILED:
+        announce_backup_failure(
+            db, reason=row.error_message or "원인이 기록되지 않았습니다.",
+            now=now, title="수동 백업이 실패했습니다",
+        )
     # 예약 백업(run_scheduled_backup)은 backup_schedule.keep 을 읽어 보관 개수를 정하는데,
     # 여기서 인자 없이 apply_retention(db) 를 부르면 하드코딩된 기본값(14)이 적용돼
     # 관리자가 설정 화면에서 좁힌 keep 이 수동 '지금 백업'에는 지켜지지 않았다.

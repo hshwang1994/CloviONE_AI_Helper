@@ -276,8 +276,11 @@ def due_for_scheduled_backup(db, config: dict, *, now) -> bool:
     return last is None or last.created_at < previous
 
 
-def _announce_backup_failure(db, *, reason: str, now) -> None:
+def announce_backup_failure(db, *, reason: str, now, title: str = "예약 백업이 실패했습니다") -> None:
     """백업 실패를 **사람에게** 알린다 (9-9 P4, §E-6).
+
+    `title` 기본값은 예약 백업 경로(아래 `run_scheduled_backup`)의 문구다 — 수동 백업
+    경로(app/backups/router.py::create_backup, FN-09)는 다른 문구로 이 함수를 부른다.
 
     이 함수가 생기기 전에는 예약 백업 실패가 `logger.exception` 한 줄로 끝났다.
     journalctl 을 매일 보는 사람은 없다 - 그래서 백업이 멈춘 사실은 **복원이 필요해진 날**에
@@ -303,7 +306,7 @@ def _announce_backup_failure(db, *, reason: str, now) -> None:
         queue_mail_to_admins(
             db,
             kind=KIND_BACKUP_FAILED,
-            subject="[ClovirAssist] 예약 백업이 실패했습니다",
+            subject=f"[ClovirAssist] {title}",
             params={"reason": reason[:500], "at": now.isoformat()},
             now=now,
         )
@@ -317,7 +320,7 @@ def _announce_backup_failure(db, *, reason: str, now) -> None:
         # 관리 콘솔 쪽 표(registry.js)가 이미 `backup` → 백업 화면으로 보낸다.
         notify_admins(
             db, type_="backup_failed",
-            title="예약 백업이 실패했습니다",
+            title=title,
             body=reason[:200],
             related=("backup", None), now=now,
         )
@@ -336,7 +339,7 @@ def run_scheduled_backup(db, settings, config: dict, *, now):
         keep = int(config.get("keep", 14) or 14)
         apply_retention(db, keep=keep)
         if row is not None and row.status == STATUS_FAILED:
-            _announce_backup_failure(
+            announce_backup_failure(
                 db,
                 reason=row.error_message or "원인이 기록되지 않았습니다.",
                 now=now,
@@ -344,7 +347,7 @@ def run_scheduled_backup(db, settings, config: dict, *, now):
         return row
     except Exception as exc:
         logger.exception("예약 백업 실패")
-        _announce_backup_failure(db, reason=f"{type(exc).__name__}: {exc}", now=now)
+        announce_backup_failure(db, reason=f"{type(exc).__name__}: {exc}", now=now)
         return None
 
 

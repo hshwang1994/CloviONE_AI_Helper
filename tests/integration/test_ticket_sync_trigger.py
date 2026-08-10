@@ -11,10 +11,12 @@ test_operator_sync_faults_gracefully_without_notion)과 같은 모양을 그대�
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from app.audit.models import AuditLog
-from app.tickets.models import SYNC_IDLE, TicketSyncState, SYNC_STATE_ID
+from app.tickets.models import SYNC_IDLE, SYNC_OK, TicketCache, TicketSyncState, SYNC_STATE_ID
 
 pytestmark = pytest.mark.integration
 
@@ -96,3 +98,41 @@ def test_concurrent_trigger_is_rejected(client, login_as):
     # 않는다는 것을 스스로 증명한다.
     r2 = client.post("/api/tickets/sync", headers=_headers(csrf))
     assert r2.status_code == 200
+
+
+def _mirror_ready(db, settings) -> None:
+    """GET /api/tickets/team 이 실시간 Notion 호출 대신 미러(캐시)를 읽게 한다
+    (test_ticket_filters.py 의 같은 이름 헬퍼와 동일한 이유) — 이게 없으면 이 파일의
+    fake_http 에 아무 경로도 없어 NotionNotConfiguredError/NotionQueryError 로 일찍
+    반환되고, 그 두 예외 분기 다 `can_sync`를 안 실어 시험이 실제로 아무것도 못 본다.
+    `_cache_ready`(repository_notion.py)는 성공 이력 + **캐시 행이 1건 이상**이어야
+    참이 되므로(0건이면 신선해도 실시간으로 폴백) 더미 행을 하나 심는다."""
+    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
+    db.add(TicketCache(notion_page_id="page-cansync", title="더미", status="완료"))
+    state = db.get(TicketSyncState, SYNC_STATE_ID)
+    if state is None:
+        state = TicketSyncState(id=SYNC_STATE_ID)
+        db.add(state)
+    state.status = SYNC_OK
+    state.last_run_at = datetime(2026, 7, 14)
+    state.last_success_at = datetime(2026, 7, 14)
+    state.ticket_count = 1
+    state.truncated = False
+    state.error = None
+    db.commit()
+
+
+@pytest.mark.parametrize("role,expected", [
+    ("user", False), ("auditor", False),
+    ("operator", True), ("admin", True), ("system_admin", True),
+])
+def test_team_list_exposes_can_sync_per_role(client, login_as, db, settings, role, expected):
+    """GET /api/tickets/team 의 can_sync (FN-03) — 화면이 이 필드를 보고 '지금 동기화'
+    버튼을 켤지 판단한다(team_docs 의 can_sync 와 같은 이유, app/team_docs/router.py:134)."""
+    _mirror_ready(db, settings)
+    csrf = login_as(role, email=f"ticketsync-cansync-{role}@goodmit.co.kr")
+    r = client.get("/api/tickets/team?active=false", headers=_headers(csrf))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["configured"] is True and body["ok"] is True, body
+    assert body["can_sync"] is expected

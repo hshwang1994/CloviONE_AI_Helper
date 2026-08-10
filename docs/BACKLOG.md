@@ -30,7 +30,8 @@
 >
 > ## ⚠️ 이 문서에는 **철회·정정된 항목**이 있다
 > `ADM-01`(관리자가 웹 대신 SSH 를 쓴다 — **결론 철회**) · `NOTI-04`(딥링크 3건 → **94/97 이동
-> 가능**) · `HOST-01`(불가능한 입력으로 만든 수치) · `AI-40`(전제 오류) · `USE-03` · `RET-01/02` ·
+> 가능**) · `HOST-01`(불가능한 입력으로 만든 수치) · `AI-40`(전제 오류) · `FN-10`(전제 오류 — 그런
+> 설정 자체가 없다) · `USE-03` · `RET-01/02` ·
 > 「클로비 가림」 계열 7건 · `ADM-06`. **항목을 집어 들기 전에 그 자리의 정정 블록을 먼저 읽어라.**
 > 정정 목록은 [WORK_STATE §3-3](WORK_STATE.md) 과 이 문서의 `WF3 재검증` 절에 있다.
 
@@ -286,24 +287,54 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 |---|---|---|---|---|
 | FN-01 | **High** | **메일 모듈에 UI가 0개 — 서버는 무엇이 틀렸는지 정확히 알고 있는데 아무도 못 본다(실서버 확인).** `GET /api/admin/mail/status`·`POST /test`를 부르는 화면이 없고 `setup/probes.py`의 7개 프로브에도 메일이 없다 → SMTP가 틀리면 **비밀번호 재설정 메일이 조용히 안 간다**(승인 알림·백업 실패 알림도 같은 큐) ‖ **구현완료(MEGA CYCLE I 계속)**: 새 화면 `MailStatus.jsx`(진단 문제 목록·서버 설정 요약·발송 현황 카운트·최근 실패 표·"시험 메일 보내기") + `/mail` 라우트("시스템 인프라" 그룹, CONSOLE_READ_ROLES와 같은 role 집합) 신설. `setup/probes.py`의 7개 프로브에 메일을 추가하는 것은 별개 항목이라 이번엔 안 건드림(프로브는 "설치 초기 셋업 체크리스트"라는 다른 화면 계약, 이 화면은 상시 운영 진단) | `app/mail/router.py:45,54`; 프런트 grep 0건.<br>**실서버 `GET /api/admin/mail/status` → 200:** `configured:false` + `problems:["메일 발송이 꺼져 있습니다. 설정에서 smtp.enabled 를 켜세요.", "SMTP 서버 주소(host)가 비어 있습니다.", "보내는 사람 주소(from_address)가 비어 있습니다."]` — **딱 필요한 진단을 한국어로 완성해 놓고 그것을 띄우는 화면이 없다.** 그동안 비밀번호 재설정 메일은 조용히 안 간다 | 구현완료 |
 | FN-02 | High | **`config/allowed-services.json`에 `api.anthropic.com:443`이 없다.** `llm/api_backend.py:50`이 그 호스트를 부른다 → `llm_backend=api`는 **영구 실패**하고 규칙기반 요약으로 조용히 대체돼 관리자가 원인을 알 길이 없다(allowlist UI 자체가 없다) | 파일 직접 확인 | 발견 |
-| FN-03 | Med | **고아 엔드포인트 — 문제를 고치려고 만들었는데 부를 방법이 없다**: `POST /api/tickets/sync`(주석: "이 버튼이 없어서" 문제였다고 적힘) · `POST /api/search/reindex` · `DELETE /api/notifications/{id}`(주석: "알림이 무한정 쌓였다") | 프런트 grep 0건 (직접 확인) | 발견 |
+| FN-03 | Med | **고아 엔드포인트 — 문제를 고치려고 만들었는데 부를 방법이 없다**: `POST /api/tickets/sync`(주석: "이 버튼이 없어서" 문제였다고 적힘) · `POST /api/search/reindex` · `DELETE /api/notifications/{id}`(주석: "알림이 무한정 쌓였다") ‖ **구현완료**: (1) 팀 티켓 화면에 `TicketSyncBanner`(team_docs와 같은 패턴) — 백엔드에 `can_sync` 필드 1줄 추가, (2) 통합 검색 화면에 operator+ 게이트 "지금 재색인" 버튼(목록 GET은 role-free라 화면에서 직접 판단), (3) 알림 화면에 "삭제" 액션(소유권 기반이라 `roles:` 없음 — 다른 3개 정밀 선례와 달리 역할로 숨기지 않음) | 프런트 grep 0건 (직접 확인) | 구현완료 |
 | FN-04 | Med | **프로젝트 "보관"을 시킬 방법이 없다** — 화면엔 "보관됨" 배지와 "보관한 프로젝트 포함" 체크박스가 있는데 `DELETE /api/projects/{id}`(archive)를 부르는 UI가 없다 ‖ **구현완료(MEGA CYCLE I)**: 상세 화면(`Project.jsx`)의 "수정" 버튼 옆에 "보관" 버튼 추가(`useArchiveProject` 신설) — 되돌리는 API가 없어 이미 보관된 프로젝트에는 버튼을 다시 안 그린다 | `Projects.jsx:147,238-242`; `projects/router.py:243` | 구현완료 |
-| FN-05 | Med | **AI 쿼터 화면에 실사용량이 없다** — `GET /api/admin/ai-quotas/usage`를 안 부르고 상한만 보여준다(운영자가 원하는 유일한 숫자가 없음) | `quotas/router.py:129` vs `registry/platform.js:214` | 발견 |
-| FN-06 | Med | 프로젝트 진척·헬스 엔드포인트 3종이 고아 — `progress/recompute`, `health/snapshot`, `health/history`. 결과적으로 `project_health_snapshots`는 영원히 빈 테이블 | `projects/router.py:282,524,555` | 발견 |
+| FN-05 | Med | ~~AI 쿼터 화면에 실사용량이 없다 — GET /api/admin/ai-quotas/usage를 안 부르고 상한만 보여준다~~ **전제 절반 오류**: 재확인 결과 행별 "현재 사용" 열은 이미 실사용량을 보여준다(`admin-backlog-screens.test.jsx`가 이미 고정, 커밋 9852a75/aa5e346). 진짜 죽어 있던 것은 `/usage` 엔드포인트 자체(org 전체 합계, UB-25와 동일 결함) — 행별 값과는 다른 숫자다. **구현완료**: `ai-quotas` 화면에 `summary` 블록(기존 restore-drills 패턴 재사용) 추가 — 오늘/이번 달 조직 전체 AI 호출 합계 카드 2개. help 문구에 두 숫자가 다른 것을 셈을 명시 | `quotas/router.py:133` vs `registry/platform.js:216`(재확인, UB-25와 병합) | 구현완료 |
+| FN-06 | Med | 프로젝트 진척·헬스 엔드포인트 3종이 고아 — `progress/recompute`, `health/snapshot`, `health/history`. ~~결과적으로 project_health_snapshots는 영원히 빈 테이블~~ **틀렸다**: 시간당 워커 스윕(`record_health_snapshots`)과 동기화 후 `recompute_progress`가 이미 채운다 — 진짜 갭은 수동 새로고침·이력 화면이 없다는 것뿐 ‖ **구현완료(프런트 전용, 백엔드 무변경)**: `project-queries.js`에 `useProjectHealthHistory`/`useRecomputeProgress`/`useSnapshotHealth`, `ProjectMetrics.jsx`에 `HealthHistory`(주간 추세), `Project.jsx` Overview에 "다시 계산" 버튼 2개 + 이력 목록 배선 | `projects/router.py:282,524,555` | 구현완료 |
 | FN-07 | Med | **문서 "재시도"가 `/{id}/retry`가 아니라 `/generate`를 호출** → 재시도가 아니라 새 생성. 멱등성·연결이 사라진다 ‖ **구현완료(MEGA CYCLE I)**: jobs·schedule-runs 재시도와 같은 confirm+path 패턴으로 교체 — `path: (r) => "/api/admin/documents/" + r.id + "/retry"`. 백엔드는 이미 round30(감사 E High)에서 이 엔드포인트를 만들어 뒀는데 프런트가 안 옮겨 탄 상태였다 | `registry/automation.js:282-283` vs `documents/router.py:148` | 구현완료 |
 | FN-08 | Med | **러너 레지스트리가 죽은 조작판** — CRUD·enable/disable·health·rollback UI가 완비인데 실제 러너를 부르는 두 기능은 `settings.game_runner_url`·`assistant_runner_url`을 **직접 읽어 레지스트리를 우회**한다. 화면에서 base_url을 바꿔도 아무 일도 안 일어난다 | `games/ai.py`, `assistant/narrate.py`, `config.py:122,132` | 발견 |
-| FN-09 | Med | **알림 5종 누락**: 티켓 배정 · 문서 생성 성공 · 오프보딩 후임자 · AI 쿼터 소진 · **백업 실패(예외를 삼키고 로그만)** | | 발견 |
-| FN-10 | Med | **감사 로그 보존일수 설정이 아무 일도 하지 않는다**(자동 아카이브가 없다). 그 사실이 화면에 안 적혀 있어 설정한 사람은 동작한다고 믿는다 | `KNOWN_LIMITATIONS.md` §8 | 발견 |
-| FN-11 | Med | 승인 **위임받은 운영자에게 승인/거절 버튼이 없다**(서버는 delegation-aware로 완전히 동작) | 라운드 9 보고 | 발견 |
+| FN-09 | Med | ~~알림 5종 누락: 티켓 배정 · 문서 생성 성공 · 오프보딩 후임자 · AI 쿼터 소진 · 백업 실패(예외를 삼키고 로그만)~~ **4/5는 전제 오류 — 이미 구현·테스트돼 있다**(티켓 배정 `tickets/service.py::_notify_assignees_added` · 문서 생성 성공 `jobs/handlers/document_generate.py::_notify_requester_ready` · 오프보딩 후임자 `offboarding/service.py::_notify_handover` · AI 쿼터 소진 `quotas/service.py::_announce_exhausted`, 전부 `test_lifecycle_notifications.py`가 고정). 진짜 남은 1/5: 백업 실패는 **예약 경로만** 알림이 있었고 수동("지금 백업") 경로는 조용했다 ‖ **구현완료**: `_announce_backup_failure`를 `announce_backup_failure`(공개)로 바꾸고 `title` 매개변수화, `create_backup`(app/backups/router.py)에서 `row.status=="failed"`면 "수동 백업이 실패했습니다" 제목으로 호출. `prefs.py` 문구도 "예약 또는 수동"으로 갱신 | | 구현완료 |
+| ~~FN-10~~ | ~~Med~~ | ~~감사 로그 보존일수 설정이 아무 일도 하지 않는다(자동 아카이브가 없다). 그 사실이 화면에 안 적혀 있어 설정한 사람은 동작한다고 믿는다~~ **전제 오류 — 그런 설정이 없다.** `app/settings/registry.py`(2026-08-10 재확인, 20개 키 전수 확인)에 audit 관련 키가 0건이고, 프런트 설정 화면에도 없다. git 히스토리 전체에서도 이 키는 존재한 적이 없다(`git log --all -p` 확인). 아래 `FN-10 정정` 참고. 남는 사실: 감사 로그는 `run_retention`의 10종 정리 대상에도 없어 **자동 아카이브가 정말 없다** — 다만 그건 UI 기만이 아니라 아직 안 만든 기능이다 | `app/settings/registry.py` 전체 재확인(2026-08-10), git log 전체 재확인 | 정정됨 |
+| FN-11 | Med | 승인 **위임받은 운영자에게 승인/거절 버튼이 없다**(서버는 delegation-aware로 완전히 동작) ‖ **구현완료**: `approval_view`(app/approvals/service.py)에 `can_decide`(role 또는 활성 위임, `delegation.resolve_authority` 재사용) 신설, 목록/상세 둘 다 배선(overdue와 같은 "판정은 서버 한 곳" 원칙). 프런트(`registry/governance.js`)는 승인/거절 액션의 static `roles: WRITE_ROLES` 게이트를 지우고 `r.can_decide`를 `when`에 추가. 위임과 무관한 취소는 그대로 `roles: OPS_ROLES` 유지. revert-to-verify로 신규 백엔드 시험 2건 확인 | 라운드 9 보고 | 구현완료 |
 | FN-12 | Med | **"승인 대기" 사이드바 배지가 실제 대기 건수가 아니라 개인 안읽음 알림수** — 다른 관리자가 처리해도 안 사라진다 ‖ **보류(MEGA CYCLE I, 코드 확인)**: `AppShell.jsx:83-127`을 읽어 확인 — 이 배지 구조 전체가 "배지 하나 때문에 새 폴링 엔드포인트를 만들지 않는다"는 명시적 설계 원칙 위에 있다(알림 벨이 이미 도는 `/api/notifications/unread-count`를 재사용). FN-12가 지적하는 증상은 실재하지만(다른 관리자가 처리해도 내 안읽음 알림은 안 지워짐), 제대로 고치려면 실시간 대기열 깊이를 도는 새 엔드포인트가 필요해 이 파일이 피하려던 바로 그 트레이드오프를 되돌리는 일이다 — quick-fix 범위를 넘어 별도 판단(비용 대비 가치) 필요, 다음 사이클로 미룬다 | 라운드 9 보고 | 발견 |
 | FN-13 | Med | 워크플로 실행 이력을 `/jobs`에서 **역추적할 방법이 없다** | 라운드 9 보고 | **구현완료**(MEGA CYCLE G) — IA-02와 같은 뿌리임을 재확인. IA-02가 먼저 고친 방향(작업 큐→스케줄/문서)에 이어 **반대 방향(스케줄/문서→작업 큐)도 마저 고쳤다** — `ScheduleRun`에 `job_id` 컬럼이 없어(마이그레이션 필요) 대신 `GET /api/admin/jobs`에 `schedule_id`/`schedule_run_id`/`generation_id` 필터를 새로 추가(`payload_json`을 `json_extract`로 조회, 이 값들이 존재하는 소량의 크로스링크 클릭에만 쓰이므로 인덱스 없이도 감내 가능하다고 판단). 스케줄 "실행 이력" 하위 목록에 "작업 큐" 링크 열, 문서 생성 화면에 "작업 큐에서 보기" 액션, 실행 달력의 실행 상세 모달에 같은 버튼을 추가 |
-| FN-14 | Med | `Trash` 복구/영구삭제가 **문서 상세 캐시를 못 씻는다**(트래시 API가 `notion_page_id`를 안 준다 — API 확장 필요) | 라운드 9 보고 | 발견 |
+| FN-14 | Med | `Trash` 복구/영구삭제가 **문서 상세 캐시를 못 씻는다**(트래시 API가 `notion_page_id`를 안 준다 — API 확장 필요) ‖ **구현완료**: `_item_view`(app/trash/router.py)에 `notion_page_id` 1줄 추가(이미 행에 있던 값, 조인 없음). 프런트: 단일 복원/영구삭제는 `mutate(id)`→`mutate(row)`로 바꿔 그 값을 받아 `["team-doc", notion_page_id]`를 무효화, 선택(bulk) 경로는 이미 응답에 있던 `notion_page_id`를 그제야 씀(team_docs 선택삭제와 같은 패턴). 부수적으로 단일 영구삭제만 `invalidateTicketViews`/`["team-docs"]`가 빠져 있던 비대칭도 같은 자리에서 맞춤 | 라운드 9 보고 | 구현완료 |
 | FN-15 | Low | **죽은 테이블 `project_members`** — 모델·마이그레이션(`0044`)·인덱스·`MEMBER_*` 상수 전부 있는데 읽기 0·쓰기 0 | `projects/models.py:203-225`; grep 확인 | 발견 |
 | FN-16 | Low | **죽은 컬럼 `ticket_cache.scope_dept_id`** + 인덱스 — `core/scope.py:139`가 이미 "아무도 안 읽는 컬럼"이라 지목. 미러 동기화마다 쓰기 비용만 | `tickets/models.py:79`, `0023` | 발견 |
 | FN-17 | Low | **`app/policies/`가 0바이트 빈 패키지** — 실제 기능은 `app/prompts/`에 있다. 혼동만 유발 | | 발견 |
 | FN-18 | Low | `limited_service_actions_enabled` 플래그의 **소비자가 0**(레지스트리가 정직하게 `has_consumer:false`로 표시는 한다) | `core/feature_flags.py:76-82` | 발견 |
 | FN-19 | Low | `restore_rehearsals`는 `scripts/restore_rehearsal.py`(cron/수동)만 쓴다 — 그게 안 걸려 있으면 "복구 리허설" 화면이 영구히 빈 화면인데 앱 안에 채울 방법이 없다 | `backups/router.py:89,116` | 발견 |
 | FN-20 | Low | 토너먼트 개별전 제출에 경합이 남아 있다(RPS/퀴즈는 CAS로 해결됨) | 라운드 12 커밋 | 발견 |
+
+### FN-10 정정 (2026-08-10, 전수 재검증)
+
+원 서술("보존일수 설정이 아무 일도 하지 않는다")은 `KNOWN_LIMITATIONS.md` §8 한 줄만 근거로
+삼았는데, 그 §8 자체가 검증 없는 서술이었다. 실제로 확인해 보니:
+
+- `app/settings/registry.py`의 `REGISTRY`에 정확히 20개 키가 있고(`conversation_retention_days`·
+  `notification_retention_days`·`trash_retention_days`는 있지만) **audit 관련 키는 0개**다.
+  이 파일 자체(230~233행)가 "레지스트리의 모든 키는 실제 소비자에 연결돼 있다(placebo 없음) —
+  env로만 설정하거나 객체별로만 설정되는 것은 일부러 여기 안 넣어 관리자 화면이 절대 무동작
+  스위치를 보여주지 않게 한다"는 자기 규율을 명시한다.
+- `git log --all -p -- app/settings/registry.py`에서 audit 언급 0건 — 이 설정은 **삭제된 게
+  아니라 애초에 만들어진 적이 없다.**
+- 프런트(`settingsRegistry.js`)에도 audit 항목이 없고, `registry/governance.js`의 `audit` 화면은
+  읽기 전용 로그 뷰어(목록/CSV/이상징후)일 뿐 설정 화면이 아니다.
+
+**남는 사실(진짜 결함, UI 기만은 아님)**: `app/core/retention.py::run_retention`이 매시간
+정리하는 10종 대상(conversations·notifications·jobs·schedule_runs·mail_history·trash·
+reset_tokens·job_attachments·missing_tickets·orphan_uploads) 중 **`audit_logs`는 없다** —
+자동 아카이브가 정말 없다. 다만 이건 "설정이 거짓말한다"가 아니라 "아직 안 만든 기능"이고,
+감사·컴플라이언스 기록은 보통 지우지 않는 게 기본값이라 이 자체가 결함이라 단정하기도 어렵다.
+
+실제로 구현하려면(별도 항목으로 새로 등록 권장): `registry.py`에 `audit_log_retention_days`
+SettingSpec 추가(기본값은 "삭제 안 함" 쪽에 가깝게, 컴플라이언스 소유자 판단 필요) +
+`app/core/retention.py`에 `purge_old_audit_logs`류 함수(`purge_old_notifications`와 같은
+모양) + `run_retention()` 결과 dict에 한 줄 추가(워커 배선은 무수정 — 기존 `retention_tick`이
+결과 dict를 순회할 뿐이라 자동으로 픽업). **아카이브 대상을 지울지 별도 저장소로 옮길지는
+컴플라이언스 요구사항을 아는 사람의 결정이 필요 — 임의로 delete-only 기본값을 넣지 않는다.**
+
+같은 근거 오류가 `docs/KNOWN_LIMITATIONS.md` §8에도 있어 함께 정정했다.
 
 ---
 
@@ -314,8 +345,8 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 | SEC-01 | **High** | **`notion_mapping` 쓰기 4종(`verify`/`map`/`unmap`/`resolve-conflict`)이 `ensure_can_manage_target`을 호출하지 않는다.** 같은 동작의 다른 구현(`users/router.py:693`)에는 있다 → 부서범위 `admin`이 `system_admin`의 Notion 신원 결속을 바꿀 수 있고, **티켓 귀속·오프보딩이 그 결속을 키로 쓴다**. 게다가 UI가 실제로 쓰는 경로가 가드 없는 쪽이다 | `notion_mapping/router.py:203,220,241,254` — grep 0건(직접 확인) | **구현완료(2026-08-10)** — 4개 엔드포인트 전부에 `ensure_can_manage_target(request.state.user.role, user)` 추가(`users/router.py:690`과 동일 패턴). 배포됨. 실서버에서 dept-scoped 임시 admin으로 재현을 시도했으나, 대상(system_admin, 부서 없음)이 애초에 `get_scoped_user_or_404`의 **기존** 범위 검사에서 먼저 404로 막혀 **이번에 추가한 새 검사를 실제로 통과시키지 못했다** — 이 시도는 이 항목을 검증하지 못했다(정직하게 미검증으로 남긴다). `tests/security/test_admin_authority_boundary.py`(같은 부서·범위 안이지만 역할만 낮은 대상으로 구성)로만 확실히 검증됨 |
 | SEC-02 | Med | `GET /api/admin/jobs/stats`만 `admin_scope`를 무시한다(형제인 목록·상세는 `visible_user_ids`로 스코프). 부서범위 admin이 전역 큐 깊이·실패 수를 본다 ‖ **구현완료(MEGA CYCLE I)**: `repository.queue_stats`에 `visible` 인자 추가, 세 하위 질의(상태별 카운트·ready·oldest_queued) 전부 `apply_scope`(목록·단건과 같은 함수)를 지나게 함. 부서 admin이 자기 팀 잡만 세는 걸 revert-to-verify로 확인 | `jobs/router.py:152` vs `:112,157` | 구현완료 |
 | SEC-03 | Med | **`GET /api/admin/impersonation/state`가 GET 안에서 쓴다**(`read_count += 1`) → `require_csrf`가 안전 메서드를 통과시키므로 CSRF 무방비. 저장소 자체 규칙(`notion_mapping/router.py:192-195`)에 위배 ‖ **구현완료(MEGA CYCLE I)**: 최초 1회만 올리도록 가드(`row.read_count == 0`일 때만) — 반복 GET이 더 이상 DB를 건드리지 않는다(진짜 멱등). "몇 번 조회됐는가"에서 "관찰됐는가"로 감사 신호 정밀도는 약간 낮아지지만, 폭 좁은 실제 위험(임퍼소네이션 도중에만 유효한 창)을 반복 위조 요청으로 무한 증가시키는 경로는 닫힌다 | `impersonation/router.py:48,61-63` | 구현완료 |
-| SEC-04 | Low | "강제 동기화" 권한 기준이 모듈마다 다르다 — `tickets/sync`·`team-docs/sync`·`search/reindex`는 operator+, `notion-mapping/sync`는 admin+. 근거가 문서화돼 있지 않다 | | 발견 |
-| SEC-05 | Low | 라운드 13·14가 "리포트만" 하고 남긴 것: 세션 만료 미필터링 · 아바타 조회 시 `active` 미확인 · 위임 취소 시 만료일 표시 오류 · allowlist 캐시 staleness | 커밋 본문 | 발견 |
+| SEC-04 | Low | "강제 동기화" 권한 기준이 모듈마다 다르다 — `tickets/sync`·`team-docs/sync`·`search/reindex`는 operator+, `notion-mapping/sync`는 admin+. 근거가 문서화돼 있지 않다 ‖ **구현완료(문서화, 코드 무변경)**: 재조사 결과 불일치가 아니라 의도(신원 결속 자체를 바꾸는 벌크 작업 + 스코프 필터 없음 + 같은 라우터의 형제 엔드포인트 4개가 이미 admin+). role/테스트는 그대로 두고 `app/notion_mapping/router.py::sync_all` 독스트링 + `app/core/authz.py`의 `MODERATOR_ROLES` 주석에 근거를 남김. 상세는 `DECISIONS.md` D-56 | 코드 재확인(2026-08-10) | 구현완료 |
+| SEC-05 | Low | 라운드 13·14가 "리포트만" 하고 남긴 것: 세션 만료 미필터링 · 아바타 조회 시 `active` 미확인 · 위임 취소 시 만료일 표시 오류 · allowlist 캐시 staleness ‖ **구현완료(4건 중 3건 실재, 1건 전제 오류)**: (1) 세션 만료 — `revoked_at IS NULL`만 보고 `expires_at` 필터가 빠져 있던 4곳(`app/profiles/router.py` `/api/profile`·`/api/me/sessions`, `app/users/router.py` 상세·세션 목록, `app/cli/user_cli.py` sessions 명령)에 만료 필터 추가, revert-to-verify로 실제 유령 세션이 사라지는 것 확인. (2) 아바타 — `get_scoped_avatar_owner_or_404`가 `archived_at`만 보고 `active`는 안 봤다(자신이 인용하는 `team_chat/repository.py::directory()`는 둘 다 본다) — `active` 검사 추가. (3) 위임 취소 만료일 — `registry/governance.js`의 "종료" 열이 거둔(revoked) 위임에도 원래 예정된 `ends_at`을 그대로 보여줘 "아직 진행 중"으로 오해하게 만들었다 — `state==="revoked"`일 때 `revoked_at`(실제 종료 시각)을 대신 보여주게 수정. (4) allowlist 캐시 — **전제 오류**: `AllowlistRegistry`(app/core/allowlist.py)는 이미 `(mtime_ns, size)` 기반으로 매 요청마다 재확인한다(CORE-06 수정, `tests/security/test_ssrf_allowlist.py::test_registry_reloads_on_file_change`·`test_registry_reloads_when_size_changes_but_mtime_does_not`가 이미 고정) — 재시작 불필요, 코드 무변경 | 커밋 본문 | 구현완료 |
 
 > **확인된 강점(회귀시키지 말 것)**: CSRF 커버리지에 빈틈 없음(26개 라우터 레벨 + 나머지 개별) ·
 > 스코프 위반 시 403이 아니라 **404**(열거 방지) · 첨부/이미지 서빙이 부모 객체 가시성을 재유도 ·
@@ -872,7 +903,7 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | UB-22 | Low/Med | `_json_object_to_str`의 `None → "{}"` 분기가 타입 게이트 없이 공유돼, `PATCH prompts/{id} {"content": null}`이 422가 아니라 **프롬프트 본문에 문자열 `{}`를 저장**한다 | | 발견 |
 | UB-23 | Low/Med | `Message.message_id`가 클라이언트 제공 키인데 **전역 UNIQUE**이고 조회에 소유자 필터가 없다 → 존재 여부 오라클(409 vs 201), 그리고 워커가 만드는 파생 id(`a-{id}-{n}`)와 네임스페이스가 겹쳐 사용자가 스스로 답장을 막을 수 있다. `UNIQUE(conversation_id, message_id)`면 둘 다 닫힌다 | | 발견 |
 | UB-24 | Low | 공지 화면의 검색 상자가 **설정돼 있는데 안 그려진다** — `DataScreen.jsx:467 showSearch = config.searchable \|\| !config.paginated`이고 공지는 `paginated:true`에 `searchable` 미설정 → `searchFields`·`searchPlaceholder`가 죽은 설정. 제목으로 배너를 찾을 방법이 없다(백엔드에도 `q`가 없다) | | 발견 |
-| UB-25 | Low | 죽은 것들: `observability`의 `body["components"]`(소비자 0, 관리자 폴링마다 생성) · `list_sync_status`(호출 0) · `SyncStatus.detail_json`(쓰기만 하고 읽지 않음) · `KNOWN_EVENTS`(검증에 안 쓰임 — 존재 이유가 오타 누적 방지인데 강제가 없음) · `ROLE_SYSTEM_MSG`(생산자·소비자 0) · `GET /ai-quotas/usage`(호출 0, FN-05과 동일) | | 발견 |
+| UB-25 | Low | 죽은 것들: `observability`의 `body["components"]`(소비자 0, 관리자 폴링마다 생성) · `list_sync_status`(호출 0) · `SyncStatus.detail_json`(쓰기만 하고 읽지 않음) · `KNOWN_EVENTS`(검증에 안 쓰임 — 존재 이유가 오타 누적 방지인데 강제가 없음) · `ROLE_SYSTEM_MSG`(생산자·소비자 0) · ~~`GET /ai-quotas/usage`(호출 0, FN-05과 동일)~~ **FN-05가 구현완료로 닫으며 호출부가 생겼다(2026-08-10)** — 나머지 5개는 여전히 죽어 있다, 이 행은 부분 해결 | | 발견(부분) |
 | UB-26 | Low | 한 번도 성공한 적 없고 `error`도 아닌 미러는 **아무 안내도 안 낸다**(`router.py:69-78`) — 사용자가 빈 티켓 목록을 이유 없이 본다. 모듈 docstring이 깨겠다고 한 바로 그 상태이고, 판단에 쓸 `last_run_at`은 이미 로드돼 있는데 안 쓴다 | | 발견 |
 | UB-27 | Low | 임퍼소네이션 만료가 **다음 요청에서만** 평가된다(스윕 없음) → 브라우저를 닫으면 30분 상한을 넘겨도 "진행 중"으로 남는다. 온보딩 문구는 "최대 30분 뒤 자동 종료"라고 약속한다. UB-03과 겹쳐 "진행 중" 목록 전체를 신뢰할 수 없다 | | 발견 |
 | UB-28 | Low | `visible_user_ids`를 `IN (…)`로 인라인(`impersonation/router.py:164-166`) → 문서화된 ~1000 사용자 규모에서 SQLite 변수 상한(999) 초과. UA-24와 같은 부류 | | 발견 |

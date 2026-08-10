@@ -26,6 +26,7 @@ import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { fmtDateTime } from "../lib/format.js";
 
 function renderScreen(key) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -128,6 +129,69 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     renderScreen("ai-quotas");
     expect(await screen.findByText("18 / 20")).toBeInTheDocument();
     expect(screen.getByText("홍길동")).toBeInTheDocument();
+  });
+
+  it("AI 상한: 조직 전체 오늘/이번 달 호출 합계를 요약 카드로 보여 준다 (FN-05)", async () => {
+    apiMock.mockImplementation((path) => {
+      const p = String(path);
+      if (p.startsWith("/api/admin/ai-quotas/usage")) {
+        return Promise.resolve({
+          user_id: null,
+          periods: [
+            { period: "day", limit: null, source: null, used: 42, resets_at: "2026-08-11T00:00:00" },
+            { period: "month", limit: null, source: null, used: 900, resets_at: "2026-09-01T00:00:00" },
+          ],
+        });
+      }
+      return Promise.resolve({
+        items: [{
+          id: "q1", scope_type: "user", user_id: "u-1", user_name: "홍길동",
+          period: "day", max_calls: 20, used: 18, note: null,
+          created_at: "2026-08-01T00:00:00", updated_at: "2026-08-01T00:00:00",
+          resets_at: "2026-08-04T15:00:00",
+        }],
+        enforced_on: [{ kind: "assistant_narrative", label: "AI 도우미 문장 생성" }],
+        periods: ["day", "month"],
+      });
+    });
+    renderScreen("ai-quotas");
+    // 요약 카드(조직 전체 합계)와 행별 "18 / 20"(1인 기준)이 동시에, 서로 다른 숫자로 보인다.
+    expect(await screen.findByText("오늘 전체 AI 호출")).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("이번 달 전체 AI 호출")).toBeInTheDocument();
+    expect(screen.getByText("900")).toBeInTheDocument();
+    expect(screen.getByText("18 / 20")).toBeInTheDocument();
+  });
+
+  it("승인 위임: 거둔 위임은 원래 예정된 종료일이 아니라 실제로 거둔 시각을 보여준다 (SEC-05)", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({
+      items: [
+        {
+          id: "d1", delegator_user_id: "u-1", delegator_name: "김부장", delegate_user_id: "u-2",
+          delegate_name: "이대리", reason: "휴가", state: "revoked",
+          starts_at: "2026-08-01T00:00:00", ends_at: "2026-08-20T00:00:00",
+          revoked_at: "2026-08-03T00:00:00", created_at: "2026-07-30T00:00:00",
+        },
+        {
+          id: "d2", delegator_user_id: "u-3", delegator_name: "박과장", delegate_user_id: "u-4",
+          delegate_name: "최사원", reason: "출장", state: "active",
+          starts_at: "2026-08-01T00:00:00", ends_at: "2026-08-10T00:00:00",
+          revoked_at: null, created_at: "2026-07-30T00:00:00",
+        },
+      ],
+      total: 2, page: 1, page_size: 20,
+    }));
+    renderScreen("approval-delegations");
+    await screen.findByText("김부장");
+
+    // 거둔 행 — 8/20(원래 예정)이 아니라 8/3(실제로 거둔 날)이 표에 보여야 한다.
+    const revokedRow = screen.getByText("김부장").closest("tr");
+    expect(within(revokedRow).queryByText(fmtDateTime("2026-08-20T00:00:00"))).toBeNull();
+    expect(within(revokedRow).getByText(fmtDateTime("2026-08-03T00:00:00"))).toBeInTheDocument();
+
+    // 진행 중인 행은 그대로 원래 종료 예정일을 보여준다(오탐 방지).
+    const activeRow = screen.getByText("박과장").closest("tr");
+    expect(within(activeRow).getByText(fmtDateTime("2026-08-10T00:00:00"))).toBeInTheDocument();
   });
 
   it("감사 이상 징후: 근거와 임계값을 상세에 그대로 보여 준다", async () => {

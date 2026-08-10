@@ -40,6 +40,7 @@ def approval_view(
     row: Approval,
     now: datetime | None = None,
     names: dict[str, dict[str, str]] | None = None,
+    can_decide: bool | None = None,
 ) -> dict:
     # A pending row past its expiry displays as 'expired' immediately, even before
     # the background sweep persists the change (else it looks decidable but isn't).
@@ -96,6 +97,11 @@ def approval_view(
         ),
         "decided_on_behalf_of": row.decided_on_behalf_of,
         "decided_on_behalf_of_name": _name(row.decided_on_behalf_of),
+        # 위임(delegation.py)까지 아는 결정 권한 판정 — 프런트가 role만 보고 버튼을 켜면
+        # 위임받은 대리 결재자(operator 등 CONSOLE_WRITE_ROLES 아닌 역할)에게는 승인/거절
+        # 버튼이 영원히 안 뜬다(FN-11). 판정은 여기(서버) 한 곳에서만 한다 — overdue와
+        # 같은 이유(바로 위 주석): 목록과 상세가 서로 다른 답을 내면 안 된다.
+        "can_decide": bool(can_decide),
     }
 
 

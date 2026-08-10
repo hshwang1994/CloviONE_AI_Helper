@@ -186,6 +186,45 @@ def test_a_delegate_can_still_decide(client, login_as, db, world, fake_clock):
     assert _role_of(db, world.victim_id) == "admin", "승인했는데 실제로 적용되지 않았다"
 
 
+def test_a_delegate_sees_can_decide_before_deciding(client, login_as, db, world, fake_clock):
+    """FN-11 — 위임받은 사람이 결재하기 전에, 프런트가 승인/거절 버튼을 켤 근거(can_decide)를
+    API가 줘야 한다. 위임 없이는 결재 자체가 안 되므로(test_a_delegate_can_still_decide) 이건
+    별개 시험이다 — '결재할 수 있다'와 '결재할 수 있다는 사실을 목록/상세가 미리 알려준다'는
+    다른 주장이고, 후자가 빠지면 버튼 자체가 영원히 안 뜬다."""
+    from app.approvals import delegation
+    from app.users.models import User
+
+    now = fake_clock.now()
+    delegator = db.get(User, world.mate_id)
+    delegate = db.get(User, world.delegate_id)
+    delegation.create(
+        db, delegator=delegator, delegate=delegate,
+        starts_at=now - timedelta(hours=1), ends_at=now + timedelta(days=3),
+        reason="휴가", created_by=delegator.id, now=now,
+    )
+    db.commit()
+
+    headers = {"X-CSRF-Token": login_as("operator", email=world.delegate_email)}
+    detail = client.get(f"/api/admin/approvals/{world.outside_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["approval"]["can_decide"] is True
+
+    listing = client.get("/api/admin/approvals?status=pending", headers=headers)
+    assert listing.status_code == 200
+    item = next(i for i in listing.json()["items"] if i["id"] == world.outside_id)
+    assert item["can_decide"] is True
+
+
+def test_a_non_delegate_operator_sees_can_decide_false(client, login_as, world, make_user):
+    """오탐 방지 — 위임이 없으면(operator 역할만으로는) can_decide 가 여전히 False 여야 한다.
+    이게 항상 True 로 새면 모든 operator 화면에 승인/거절 버튼이 뜨는 반대 방향 회귀가 된다."""
+    make_user("ap-plain-operator@goodmit.co.kr", role="operator", display_name="평범한운영자")
+    headers = {"X-CSRF-Token": login_as("operator", email="ap-plain-operator@goodmit.co.kr")}
+    detail = client.get(f"/api/admin/approvals/{world.inside_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["approval"]["can_decide"] is False
+
+
 def test_no_role_can_be_told_apart_from_a_missing_approval(client, login_as, world):
     """범위 밖과 '없는 id' 는 **구별되지 않아야** 한다 — 구별되면 큐를 열거할 수 있다."""
     headers = _boss(login_as, world)

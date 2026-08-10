@@ -42,13 +42,22 @@ export function Trash() {
   const sel = useRowSelection();
 
   const bulkMsg = (res, verb) => {
-    const n = ((res.restored || res.purged) || []).length;
+    const changed = (res.restored || res.purged) || [];
+    const n = changed.length;
     const f = (res.failed || []).length;
     toast(f ? `${n}건을 ${verb}했습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 ${verb}했습니다.`, f ? "info" : "success");
     qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
     // 복원한 티켓은 홈·스프린트에도 다시 나타나야 한다 — 그 키 목록은 ticket-views.js 가 안다.
     invalidateTicketViews(qc, { refetchType: "all" });
     qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+    // FN-14 — ["team-docs"] 무효화는 목록만 다시 받는다. 문서 상세 캐시는 키가
+    // ["team-doc", notion_page_id]로 달라(TeamDoc.jsx) prefix가 안 겹쳐 안 씻긴다
+    // (TeamDocs.jsx의 bulkTrash가 이미 같은 이유로 이렇게 한다).
+    for (const it of changed) {
+      if (it.item_type === "document" && it.notion_page_id) {
+        qc.invalidateQueries({ queryKey: ["team-doc", it.notion_page_id], refetchType: "all" });
+      }
+    }
     sel.clear();
   };
   const bulkRestore = useMutation({
@@ -62,19 +71,37 @@ export function Trash() {
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
+  // FN-14 — id가 아니라 행 전체(row)를 넘긴다. 목록 응답(_item_view, app/trash/router.py)이
+  // 이제 notion_page_id를 실어 주므로, 그 값을 mutate의 variables로 받아 onSuccess에서
+  // 문서 상세 캐시([ "team-doc", notion_page_id ])까지 무효화한다 — 단일 restore/purge
+  // 엔드포인트는 {"ok":true}만 돌려줘서(대칭 확장은 안 함) 응답이 아니라 행 데이터가 근거다.
   const restore = useMutation({
-    mutationFn: (id) => api("/api/trash/" + id + "/restore", { method: "POST" }),
-    onSuccess: () => {
+    mutationFn: (row) => api("/api/trash/" + row.id + "/restore", { method: "POST" }),
+    onSuccess: (res, row) => {
       toast("복원했습니다. 원래 목록에서 다시 볼 수 있습니다.", "success");
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      if (row.item_type === "document" && row.notion_page_id) {
+        qc.invalidateQueries({ queryKey: ["team-doc", row.notion_page_id], refetchType: "all" });
+      }
     },
     onError: (e) => toast((e && e.message) || "복원하지 못했습니다.", "error"),
   });
   const purge = useMutation({
-    mutationFn: (id) => api("/api/trash/" + id + "/purge", { method: "POST" }),
-    onSuccess: () => { toast("영구 삭제했습니다. 원본이 보관처리됐습니다.", "success"); qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" }); },
+    mutationFn: (row) => api("/api/trash/" + row.id + "/purge", { method: "POST" }),
+    onSuccess: (res, row) => {
+      toast("영구 삭제했습니다. 원본이 보관처리됐습니다.", "success");
+      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
+      // restore와 대칭을 맞춘다 — 예전엔 purge만 이 둘이 빠져 있어 티켓/문서 목록이 영구
+      // 삭제 뒤에도 최대 staleTime 동안 그 항목을 계속 보여줄 수 있었다(FN-14와 같은 자리에서
+      // 함께 고친다).
+      invalidateTicketViews(qc, { refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      if (row.item_type === "document" && row.notion_page_id) {
+        qc.invalidateQueries({ queryKey: ["team-doc", row.notion_page_id], refetchType: "all" });
+      }
+    },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
@@ -110,12 +137,12 @@ export function Trash() {
       key: "_actions", label: "", align: "right", width: "14rem",
       render: (r) => (r.can_manage ? (
         <Stack direction="row" gap={1} justifyContent="flex-end">
-          <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r.id)}>복원</Button>
+          <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r)}>복원</Button>
           <Button size="sm" variant="danger" disabled={purge.isPending}
             onClick={async () => {
               const ok = await confirm("지금 영구 삭제하면 노션 원본이 보관처리되어 목록에서 사라집니다(노션 휴지통에서 30일 내 복구 가능). 계속할까요?",
                 { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
-              if (ok) purge.mutate(r.id);
+              if (ok) purge.mutate(r);
             }}>영구 삭제</Button>
         </Stack>
       ) : <Typography variant="body2" color="text.secondary">권한 없음</Typography>),

@@ -54,7 +54,7 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "document_ready": ("문서 생성 완료", "내가 요청한 문서가 다 만들어졌을 때"),
     "offboarding_handover": ("업무 인수", "퇴사자의 티켓을 내가 넘겨받았을 때"),
     "ai_quota_exhausted": ("AI 사용 상한 도달", "이번 기간의 AI 호출 상한을 다 썼을 때"),
-    "backup_failed": ("백업 실패", "예약 백업이 실패했을 때"),
+    "backup_failed": ("백업 실패", "예약 또는 수동 백업이 실패했을 때"),
 }
 
 # 뮤트할 수 없는 유형 — 계정 보안에 관한 알림이다. 끌 수 있게 만들면 침해를 알리는

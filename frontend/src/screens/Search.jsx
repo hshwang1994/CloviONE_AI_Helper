@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
@@ -12,9 +12,12 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import { api } from "../lib/api.js";
+import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
+import { useAuth } from "../app/auth.jsx";
+import { OPS_ROLES } from "./registry/shared.js";
 
 /* 통합 검색 결과 화면 (계획서 Phase 5).
  *
@@ -162,6 +165,33 @@ export function Search() {
     if (route) navigate(route);
   }, [navigate]);
 
+  // 재색인(FN-03) — 색인은 읽기 미러라 tickets/team-docs 동기화와 달리 이 목록(GET /api/search)
+  // 자체는 role 없이 누구나 쓴다. 그래서 can_reindex 같은 필드를 목록 응답에 실을 자리가 없고
+  // (search/reindex_router.py 가 일부러 읽기/쓰기 경로를 분리해 뒀다), 화면에서 role을 직접 본다.
+  const auth = useAuth();
+  const role = auth.data && auth.data.role;
+  const canReindex = role != null && OPS_ROLES.includes(role);
+  const confirm = useConfirm();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const reindex = useMutation({
+    mutationFn: () => api("/api/search/reindex", { method: "POST", body: {} }),
+    onSuccess: (res) => {
+      const r = res && res.reindex;
+      qc.invalidateQueries({ queryKey: ["search"] });
+      if (r && r.status === "error") toast("재색인 실패: " + (r.error || "확인이 필요합니다"), "error");
+      else toast("검색 색인을 다시 만들었습니다" + (r ? " (" + r.item_count + "건)" : "") + ".", "success");
+    },
+    onError: (e) => toast((e && e.message) || "재색인하지 못했습니다.", "error"),
+  });
+  async function doReindex() {
+    const ok = await confirm(
+      "검색 색인을 지금 다시 만들까요? 데이터가 많으면 잠시 시간이 걸릴 수 있습니다.",
+      { title: "검색 재색인", confirmLabel: "재색인" },
+    );
+    if (ok) reindex.mutate();
+  }
+
   const result = q.data;
   const groups = (result && result.groups) || [];
 
@@ -171,6 +201,11 @@ export function Search() {
         crumbRoot=""
         area="통합 검색"
         title={enabled ? `‘${urlQuery}’ 검색 결과` : "통합 검색"}
+        actions={canReindex ? (
+          <Button size="sm" onClick={doReindex} disabled={reindex.isPending}>
+            {reindex.isPending ? "재색인 중…" : "지금 재색인"}
+          </Button>
+        ) : null}
       />
       <SearchField value={draft} onChange={setDraft} onSubmit={submit} />
 

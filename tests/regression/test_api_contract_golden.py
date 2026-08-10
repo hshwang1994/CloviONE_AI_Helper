@@ -94,6 +94,11 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     but note for the reader that the same plan step widened them —
     ``members[]`` gained ``last_read_seq``/``online`` and messages gained
     ``mentions_me``; those are pinned by ``tests/integration/test_team_chat_*``.
+  * ``/api/tickets/team`` gained **``can_sync``** (FN-03 — the sync trigger button
+    had no frontend caller; ``TeamTickets.jsx`` now reads this to decide whether
+    to render it, mirroring ``/api/team-docs``'s existing ``can_sync``). ``/mine``
+    and ``/unassigned`` were **not** touched — only the team screen exposes a
+    manual sync trigger.
 """
 
 from __future__ import annotations

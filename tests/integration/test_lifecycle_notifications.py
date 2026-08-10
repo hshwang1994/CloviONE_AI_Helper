@@ -361,6 +361,43 @@ def test_a_successful_backup_says_nothing(app, settings, make_user):
     assert _rows(app, "backup_failed") == [], "성공한 백업이 실패 알림을 냈다"
 
 
+def test_a_failed_manual_backup_reaches_the_admins_in_the_app(app, client, login_as, make_user):
+    """FN-09 — 예약 백업은 실패를 알리는데, '지금 백업' 버튼(수동 경로)은 실패해도 누른
+    사람 말고는 아무도 몰랐다(POST 응답으로만 봄). run_backup 자체는 두 경로가 공유하므로
+    (app/backups/service.py) 실패 시뮬레이션 방식은 예약 백업 시험과 같다."""
+    import app.backups.service as backups_service
+
+    ops = make_user("ops-noti-manual@goodmit.co.kr", role="admin", display_name="운영자")
+    csrf = login_as("system_admin", email="ops-noti-manual-actor@goodmit.co.kr")
+
+    def boom(*_args, **_kwargs):
+        raise OSError("디스크에 공간이 없습니다")
+
+    original = backups_service.backup_database
+    backups_service.backup_database = boom
+    try:
+        r = client.post("/api/admin/backups", headers={"X-CSRF-Token": csrf})
+    finally:
+        backups_service.backup_database = original
+
+    assert r.status_code == 201, r.text
+    assert r.json()["backup"]["status"] == "failed"
+    assert _count(app, ops.id, "backup_failed") == 1, (
+        "FN-09: 수동 백업 실패가 여전히 앱 안에서는 조용하다"
+    )
+
+
+def test_a_successful_manual_backup_says_nothing(app, client, login_as, make_user):
+    """값이 실제로 달라지는 표본 — 성공한 수동 백업이 실패 알림을 만들면 안 된다."""
+    make_user("ops-noti-manual2@goodmit.co.kr", role="admin", display_name="운영자")
+    csrf = login_as("system_admin", email="ops-noti-manual2-actor@goodmit.co.kr")
+
+    r = client.post("/api/admin/backups", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 201, r.text
+    assert r.json()["backup"]["status"] != "failed"
+    assert _rows(app, "backup_failed") == [], "성공한 수동 백업이 실패 알림을 냈다"
+
+
 # ── 새 유형은 전부 설정 화면에서 끌 수 있어야 한다 ────────────────────────────
 
 def test_every_new_type_is_in_the_preference_registry(client, login_as):

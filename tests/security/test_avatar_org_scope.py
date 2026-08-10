@@ -126,3 +126,28 @@ def test_an_archived_accounts_avatar_is_still_hidden(
     r = client.get(url)
     assert r.status_code == 404, f"보관된 계정의 사진이 나간다: {r.status_code}"
     assert r.content != PNG_BYTES
+
+
+def test_a_deactivated_accounts_avatar_is_also_hidden(client, login_as, two_orgs, make_user, db):
+    """SEC-05 — `active=False`(보관은 아니고 비활성화만 된 계정)도 archived와 같이 막혀야 한다.
+
+    이 판정이 참조하는 team_chat/repository.py::directory() 는 "누가 보이는가"를
+    active와 archived_at 둘 다로 정한다 — 사진만 archived_at 하나만 보면, 디렉터리에서
+    이미 감춘 비활성 사용자의 얼굴이 URL로는 여전히 나가는 비대칭이 생긴다.
+    """
+    disabled = make_user("orga-disabled@goodmit.co.kr", role="user", display_name="비활성")
+    disabled.org_id = two_orgs.org_a_id
+    disabled.department_id = two_orgs.dept_a.id
+    db.commit()
+
+    url = _upload_avatar_as(client, login_as, "orga-disabled@goodmit.co.kr")
+
+    login_as("user", email="orga@goodmit.co.kr")
+    assert client.get(url).status_code == 200, "비활성화 전에는 보여야 한다 — 아니면 아래 404 는 무의미하다"
+
+    disabled.active = False
+    db.commit()
+
+    r = client.get(url)
+    assert r.status_code == 404, f"비활성화된 계정의 사진이 나간다: {r.status_code}"
+    assert r.content != PNG_BYTES

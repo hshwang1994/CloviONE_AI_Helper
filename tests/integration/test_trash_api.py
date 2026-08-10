@@ -133,6 +133,9 @@ def test_trash_list_and_restore_api(app, db, make_user):
         assert it["item_type"] == "ticket" and it["type_label"] == "티켓"
         assert it["title"] == "API 티켓" and it["deleted_by"] == "API유저" and it["can_manage"] is True
         assert it["deleted_at"] and it["purge_after"]
+        # FN-14 — 프런트가 문서 상세 캐시([team-doc, notion_page_id])를 지우려면 이 값이
+        # 목록 응답에 있어야 한다(조인 없이 이미 행에 있던 값을 노출만 하면 된다).
+        assert it["notion_page_id"] == "t-api"
         # 복원.
         assert c.post(f"/api/trash/{it['id']}/restore", headers={"X-CSRF-Token": csrf}).status_code == 200
         assert c.get("/api/trash").json()["items"] == []

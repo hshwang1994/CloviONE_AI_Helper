@@ -69,6 +69,12 @@ export function useProjectHealth(id, enabled) {
   return useQuery(detail(id, "health", enabled));
 }
 
+// FN-06: 백엔드는 이미 주 단위 이력을 쌓고 있었다(worker_main.py 의 시간당 스윕) — 화면만
+// 그걸 부를 방법이 없었다.
+export function useProjectHealthHistory(id, enabled) {
+  return useQuery(detail(id, "health/history", enabled));
+}
+
 export function useProjectWbs(id, enabled) {
   return useQuery(detail(id, "wbs", enabled));
 }
@@ -131,6 +137,30 @@ export function useArchiveProject() {
   return useMutation({
     mutationFn: (id) => api("/api/projects/" + encodeURIComponent(id), { method: "DELETE" }),
     onSuccess: (_data, id) => invalidateProject(qc, id),
+  });
+}
+
+// FN-06: progress_pct/health_score는 이미 백그라운드가 채워 준다(sync.py의 동기화 후
+// recompute_progress 호출, worker_main.py의 시간당 record_health_snapshots 스윕) — 이
+// 두 뮤테이션은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친 사람이 다음 스윕까지
+// 기다리지 않고 지금 당장 반영시킬 수 있게 하는 수동 트리거다.
+export function useRecomputeProgress(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/api/projects/" + encodeURIComponent(id) + "/progress/recompute", {
+      method: "POST",
+    }),
+    onSuccess: () => invalidateProject(qc, id),
+  });
+}
+
+export function useSnapshotHealth(id) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/api/projects/" + encodeURIComponent(id) + "/health/snapshot", {
+      method: "POST",
+    }),
+    onSuccess: () => invalidateProject(qc, id),
   });
 }
 

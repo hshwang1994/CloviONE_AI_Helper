@@ -232,9 +232,14 @@ def get_scoped_avatar_owner_or_404(db: Session, actor: User, user_id: str) -> Us
     한쪽 `org_id` 가 비어 있으면 막지 않는다. 조직 축이 붙기 전 데이터를 여기서 막으면
     기존 사용자들의 사진이 통째로 사라진다(`OrgScopedMixin` 이 nullable 인 이유와 같은
     판단이고, `get_scoped_participants_or_404` 도 같게 처리한다).
+
+    **비활성(`active=False`)도 archived와 같이 막는다(SEC-05).** 이 판단이 참조하는
+    `directory()`(app/team_chat/repository.py)가 "누가 보이는가"를 `active` + `archived_at`
+    둘 다로 정한다 — 목록이 비활성 사용자를 이미 감추는데 사진만 archived_at 하나만 보고
+    직접 URL로 계속 나가면, 목록에서 가린 것이 URL로 뚫리는 이 저장소의 익숙한 실패 모양이다.
     """
     target = db.get(User, user_id)
-    if target is None or target.archived_at is not None:
+    if target is None or target.archived_at is not None or not target.active:
         raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
     my_org = getattr(actor, "org_id", None)
     their_org = getattr(target, "org_id", None)
@@ -245,16 +250,24 @@ def get_scoped_avatar_owner_or_404(db: Session, actor: User, user_id: str) -> Us
 
 # ── 세션 ─────────────────────────────────────────────────────────────────────
 
-def list_sessions(db: Session, user_id: str, *, current_session_id: str) -> list[dict]:
+def list_sessions(db: Session, user_id: str, *, current_session_id: str, now: datetime) -> list[dict]:
     """내 살아 있는 세션 목록. 토큰 해시는 절대 나가지 않는다.
 
     '현재 세션'을 표시하는 것이 이 화면의 핵심이다 — 어느 줄이 지금 보고 있는 창인지
     모르면 사용자는 무서워서 아무것도 못 끊는다.
+
+    SEC-05 — `revoked_at IS NULL`만으로는 부족하다. 만료(`expires_at` 지남)됐지만 그
+    토큰으로 아무도 다시 요청하지 않은 세션은 `SessionService.validate`(core/sessions.py)가
+    지연 채점하듯 `revoked_at`을 채우는 시점이 영원히 안 온다 — 이 목록이 만료된 세션을
+    "여전히 살아 있다"고 계속 보여준다.
     """
     rows = (
         db.execute(
             select(UserSession)
-            .where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+            .where(
+                UserSession.user_id == user_id, UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
             .order_by(UserSession.last_seen_at.desc())
         ).scalars().all()
     )

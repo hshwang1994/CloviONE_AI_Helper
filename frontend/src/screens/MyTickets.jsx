@@ -35,6 +35,7 @@ import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { fmtDateTime } from "../lib/format.js";
 import { TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
@@ -565,6 +566,31 @@ export function ticketConnState(data) {
     return <Callout tone="danger">{data.error}</Callout>;
   }
   return null;
+}
+
+// 티켓 동기화 배너(FN-03) — TeamDocs.jsx의 SyncBanner와 같은 모양. app/tickets/router.py
+// trigger_sync의 주석이 team_docs 패턴을 그대로 따르라고 명시해서다. 필드명만 다르다
+// (ticket_count vs doc_count). 팀 티켓 화면만 쓴다 — 내 티켓/미할당은 개인 범위라 동기화
+// 트리거가 필요 없다.
+export function TicketSyncBanner({ sync, canSync, onSync, syncing }) {
+  if (!sync) return null;
+  const last = sync.last_success_at ? fmtDateTime(sync.last_success_at) : "없음";
+  const tone = sync.status === "error" ? "warn" : "info";
+  return (
+    <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} alignItems={{ sm: "center" }} sx={{ mb: 2.5 }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Callout tone={tone}>
+          마지막 동기화: {last}, 티켓 {sync.ticket_count}개
+          {sync.status === "error" ? ", 최근 동기화 실패(마지막 정상 데이터 표시 중)" : ""}
+        </Callout>
+      </Box>
+      {canSync ? (
+        <Button size="sm" onClick={onSync} disabled={syncing}>
+          {syncing ? "동기화 중" : "지금 동기화"}
+        </Button>
+      ) : null}
+    </Stack>
+  );
 }
 
 /* 내 티켓·미할당이 쓰는 필터 조건.

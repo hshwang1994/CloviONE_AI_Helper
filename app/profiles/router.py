@@ -154,13 +154,22 @@ def me(
 
 @router.get("/api/profile")
 def profile(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    # SEC-05 — revoked_at만으로는 "지금 진짜 살아있는 세션"이 아니다. 만료된(expires_at
+    # 지남) 세션은 다음에 그 토큰으로 실제 요청이 와야만 validate()가 뒤늦게 revoked_at을
+    # 채운다(core/sessions.py) — 아무도 다시 안 쓰면 영원히 revoked_at IS NULL로 남아
+    # 이 카운트에 "활성"으로 잡힌다.
+    now = request.app.state.clock.now()
     active_sessions = db.execute(
         select(func.count())
         .select_from(UserSession)
-        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .where(
+            UserSession.user_id == user.id, UserSession.revoked_at.is_(None),
+            UserSession.expires_at > now,
+        )
     ).scalar_one()
     from app.notion_mapping.service import mapping_status
 
@@ -388,10 +397,12 @@ def serve_avatar(
 
 @router.get("/api/me/sessions")
 def my_sessions(
+    request: Request,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_current_auth),
 ):
-    return {"items": service.list_sessions(db, auth.user.id, current_session_id=auth.session.id)}
+    now = request.app.state.clock.now()
+    return {"items": service.list_sessions(db, auth.user.id, current_session_id=auth.session.id, now=now)}
 
 
 @router.post("/api/me/sessions/revoke-others")

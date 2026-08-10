@@ -118,9 +118,12 @@ root 로 도는 특권 헬퍼(`deploy/systemd/clovirone-privhelper.service`)가 
 - run-now/스케줄 payload는 template 그대로 전달 — 변수 치환(예: `{week}`)은
   workflow(n8n) 쪽 책임
 - **알림은 자동 정리된다**(`notification_retention_days`, 같은 보존 정리 틱).
-  감사 로그는 자동 아카이브가 없다 — 보존 일수 설정만 있고 아무도 안 읽는다
-  (감사 기록은 지우지 않는 편이 안전한 기본값이지만, **설정이 아무 일도 안 한다는
-  사실은 화면에 적혀 있지 않다**).
+  감사 로그는 자동 아카이브가 없다 — **다만 "보존 일수 설정이 있는데 아무 일도 안 한다"는
+  이전 서술은 틀렸다(2026-08-10 정정, `docs/BACKLOG.md` FN-10)**: 감사 로그용 보존 설정 자체가
+  `app/settings/registry.py`에 없다(그 파일은 무동작 스위치를 일부러 안 만드는 정책을 스스로
+  명시한다). 즉 "설정이 거짓말한다"가 아니라 **그런 설정이 애초에 없다** — 감사 로그는 그냥
+  `run_retention`의 10종 정리 대상에서 빠져 있어 자동 아카이브가 없을 뿐이다(컴플라이언스
+  기록은 보통 지우지 않는 게 안전한 기본값이라 이 자체를 결함으로 보기도 애매하다).
 - 다국어 미지원 — UI/메시지는 한국어 고정
 - **티켓·문서 본문 저장은 한 번에 최대 100줄**(`app/core/notion_blocks.py::MAX_BLOCKS`,
   `app/tickets/schemas.py`·`app/team_docs/schemas.py`가 초과 시 자르지 않고 거절한다).

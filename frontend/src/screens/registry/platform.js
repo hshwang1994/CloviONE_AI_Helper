@@ -215,7 +215,7 @@ export const PLATFORM_SCREENS = {
   "ai-quotas": {
     key: "ai-quotas", area: "자동화", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
-    help: "AI 호출을 사용자, 기간별로 제한합니다. 상한이 걸리는 곳은 아래 표 위의 ‘상한이 걸리는 곳’ 목록에 서버가 직접 알려 줍니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다.",
+    help: "AI 호출을 사용자, 기간별로 제한합니다. 상한이 걸리는 곳은 아래 표 위의 ‘상한이 걸리는 곳’ 목록에 서버가 직접 알려 줍니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다. 위 요약 카드는 조직 전체 합계이고, 아래 표의 ‘현재 사용’은 그 행(전체 범위면 가장 많이 쓴 사람 1인, 사용자 범위면 그 1인)의 값입니다. 두 숫자는 서로 다른 것을 셉니다.",
     emptyTitle: "설정된 상한이 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
     emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
@@ -233,6 +233,22 @@ export const PLATFORM_SCREENS = {
     ],
     searchFields: ["user_name", "user_email", "note"],
     searchPlaceholder: "대상 이름, 이메일, 메모로 검색",
+    // FN-05 — GET /ai-quotas/usage(app/quotas/router.py)는 처음부터 있었는데 부르는 화면이
+    // 없어 죽어 있었다(UB-25와 같은 결함). 아래 행별 "현재 사용" 열은 최다 사용자 1인 또는
+    // 특정 사용자 1인의 값이라 "오늘 전체 몇 번 썼나"에는 답을 못한다 — 그건 이 요약 카드가
+    // 준다(같은 화면 안에 서로 다른 두 숫자가 있다는 것을 help 문구에도 적어 둔다).
+    summary: {
+      endpoint: "/api/admin/ai-quotas/usage",
+      cards: (data) => {
+        const periods = (data && data.periods) || [];
+        const day = periods.find((p) => p.period === "day");
+        const month = periods.find((p) => p.period === "month");
+        return [
+          { value: day ? String(day.used) : "-", label: "오늘 전체 AI 호출" },
+          { value: month ? String(month.used) : "-", label: "이번 달 전체 AI 호출" },
+        ];
+      },
+    },
     columns: [
       mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
       { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-") },

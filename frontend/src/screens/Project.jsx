@@ -12,7 +12,7 @@ import {
 import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { HealthBlock, ProgressBlock } from "./ProjectMetrics.jsx";
+import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
@@ -22,7 +22,8 @@ import {
 } from "./project-format.js";
 import {
   useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames, useProject,
-  useProjectHealth, useProjectMilestones, useProjectProgress, useProjectWbs, useProjectWeekly,
+  useProjectHealth, useProjectHealthHistory, useProjectMilestones, useProjectProgress,
+  useProjectWbs, useProjectWeekly, useRecomputeProgress, useSnapshotHealth,
   useUpdateMilestone, useUpdateProject,
 } from "./project-queries.js";
 
@@ -190,7 +191,10 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   );
 }
 
-function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, onEdit, onArchive, archiving }) {
+function Overview({
+  project, deptNames, progressQuery, healthQuery, healthHistoryQuery, canWrite, onEdit,
+  onArchive, archiving, onRecomputeProgress, recomputingProgress, onSnapshotHealth, snapshottingHealth,
+}) {
   const p = project || {};
   const dept = deptLabel(p, deptNames);
   const progress = progressQuery.data || {};
@@ -236,7 +240,17 @@ function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, on
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1.5 }}>진행률</Typography>
+        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
+          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>진행률</Typography>
+          {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
+              주석 참조) — 이 버튼은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친
+              사람이 다음 스윕까지 기다리지 않게 하는 수동 트리거다. */}
+          {canWrite ? (
+            <Button size="sm" disabled={recomputingProgress} onClick={onRecomputeProgress}>
+              {recomputingProgress ? "계산하는 중" : "다시 계산"}
+            </Button>
+          ) : null}
+        </Stack>
         {progressQuery.isPending ? <Skeleton lines={4} />
           : progressQuery.isError ? <ErrorState error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
           : (
@@ -247,10 +261,18 @@ function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, on
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1.5 }}>Health</Typography>
+        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
+          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>Health</Typography>
+          {canWrite ? (
+            <Button size="sm" disabled={snapshottingHealth} onClick={onSnapshotHealth}>
+              {snapshottingHealth ? "계산하는 중" : "다시 계산"}
+            </Button>
+          ) : null}
+        </Stack>
         {healthQuery.isPending ? <Skeleton lines={5} />
           : healthQuery.isError ? <ErrorState error={healthQuery.error} onRetry={() => healthQuery.refetch()} />
           : <HealthBlock score={health.score} reasons={health.reasons} unknown={health.unknown} />}
+        <HealthHistory query={healthHistoryQuery} />
       </Card>
     </Stack>
   );
@@ -271,12 +293,15 @@ export function Project() {
   const projectQuery = useProject(id);
   const progressQuery = useProjectProgress(id, tab === "overview");
   const healthQuery = useProjectHealth(id, tab === "overview");
+  const healthHistoryQuery = useProjectHealthHistory(id, tab === "overview");
   const wbsQuery = useProjectWbs(id, tab === "wbs");
   const milestoneQuery = useProjectMilestones(id, tab === "milestones");
   const weeklyQuery = useProjectWeekly(id, state.week, tab === "weekly");
   const deptNames = useDeptNames();
   const update = useUpdateProject(id);
   const archive = useArchiveProject();
+  const recomputeProgress = useRecomputeProgress(id);
+  const snapshotHealth = useSnapshotHealth(id);
 
   const role = (auth.data && auth.data.role) || "";
   const canWrite = PROJECT_WRITE_ROLES.includes(role);
@@ -322,6 +347,29 @@ export function Project() {
     toast("프로젝트를 보관했습니다.", "success");
   }
 
+  async function handleRecomputeProgress() {
+    try {
+      await recomputeProgress.mutateAsync();
+      toast("진행률을 다시 계산했습니다.", "success");
+    } catch (e) {
+      toast((e && e.message) || "진행률을 다시 계산하지 못했습니다.", "error");
+    }
+  }
+
+  async function handleSnapshotHealth() {
+    try {
+      const result = await snapshotHealth.mutateAsync();
+      toast(
+        result && result.snapshot
+          ? "Health를 다시 계산하고 이번 주 이력에 남겼습니다."
+          : "Health를 다시 계산했습니다. 판정할 지표가 없어 이력에는 남기지 않았습니다.",
+        "success",
+      );
+    } catch (e) {
+      toast((e && e.message) || "Health를 다시 계산하지 못했습니다.", "error");
+    }
+  }
+
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="프로젝트" title={project.name || "프로젝트"} actions={back} />
@@ -355,9 +403,11 @@ export function Project() {
       {tab === "overview" ? (
         <Overview
           project={project} deptNames={deptNames}
-          progressQuery={progressQuery} healthQuery={healthQuery}
+          progressQuery={progressQuery} healthQuery={healthQuery} healthHistoryQuery={healthHistoryQuery}
           canWrite={canWrite} onEdit={() => setEditing(true)}
           onArchive={handleArchive} archiving={archive.isPending}
+          onRecomputeProgress={handleRecomputeProgress} recomputingProgress={recomputeProgress.isPending}
+          onSnapshotHealth={handleSnapshotHealth} snapshottingHealth={snapshotHealth.isPending}
         />
       ) : null}
 

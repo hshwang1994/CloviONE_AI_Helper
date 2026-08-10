@@ -96,7 +96,7 @@ describe("위험 액션 확인", () => {
           id: "a1", request_type: "user.role_change", object_type: "user", object_id: "u-9",
           requested_by: "u-2", requester_name: "홍길동", status: "pending",
           requested_at: "2026-08-01T00:00:00Z", expires_at: "2026-08-04T00:00:00Z",
-          due_at: null, overdue: false, request_payload: { role: "admin" },
+          due_at: null, overdue: false, can_decide: true, request_payload: { role: "admin" },
         }],
         total: 1, page: 1, page_size: 20,
       });
@@ -120,6 +120,24 @@ describe("위험 액션 확인", () => {
     await userEvent.click(within(form.closest("[role=dialog]")).getByRole("button", { name: /저장|거절/ }));
     await waitFor(() =>
       expect(apiMock.mock.calls.some(([p]) => String(p).includes("/api/admin/approvals/a1/reject"))).toBe(true), WAIT);
+  });
+
+  it("승인/거절 버튼은 role이 아니라 서버가 준 can_decide로 켜진다 (FN-11 위임 지원)", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({
+      items: [{
+        id: "a1", request_type: "user.role_change", object_type: "user", object_id: "u-9",
+        requested_by: "u-2", requester_name: "홍길동", status: "pending",
+        requested_at: "2026-08-01T00:00:00Z", expires_at: "2026-08-04T00:00:00Z",
+        due_at: null, overdue: false, can_decide: false, request_payload: { role: "admin" },
+      }],
+      total: 1, page: 1, page_size: 20,
+    }));
+    renderScreen("approvals");
+    const drawer = await openRow("홍길동");
+    // 이 화면을 그린 mock role은 system_admin(WRITE_ROLES 안)이지만 can_decide:false라
+    // 버튼이 없어야 한다 — role만 보고 켜던 예전 방식으로 되돌아가면 이 시험이 깨진다.
+    expect(within(drawer).queryByRole("button", { name: "승인" })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: "거절" })).not.toBeInTheDocument();
   });
 
   it("조직 '정지': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {

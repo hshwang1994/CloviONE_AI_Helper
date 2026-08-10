@@ -130,3 +130,33 @@ def test_revoke_others_requires_csrf(two_sessions):
     assert response.status_code == 403
     # 아무것도 안 끊겼다.
     assert session_b.get("/api/me").status_code == 200
+
+
+def test_an_expired_but_never_reused_session_is_not_counted_as_active(client, make_user, db, fake_clock):
+    """SEC-05 — 만료(expires_at 지남)됐지만 그 토큰으로 다시 요청이 온 적 없는 세션은
+    SessionService.validate 가 지연 채점(core/sessions.py)할 기회조차 없어 revoked_at 이
+    영원히 비어 있다. revoked_at IS NULL 만 보는 목록/카운트는 그런 유령 세션을 계속
+    '활성'으로 보여준다."""
+    from datetime import timedelta
+
+    user = make_user("ghost-session@goodmit.co.kr")
+    csrf = _login(client, "ghost-session@goodmit.co.kr")
+
+    # 진짜 살아 있는 세션은 방금 로그인으로 이미 1개 있다. 여기에 만료됐지만(과거 expires_at)
+    # revoked_at 은 비어 있는 유령 세션을 하나 더 심는다 — validate()를 거치지 않고 DB에
+    # 직접 넣는 것이 핵심이다(그래야 지연 채점이 일어날 기회 자체가 없다).
+    now = fake_clock.now()
+    ghost = UserSession(
+        user_id=user.id, token_hash="ghost-hash-sec05", csrf_token="ghost-csrf",
+        created_at=now - timedelta(days=2), last_seen_at=now - timedelta(days=2),
+        expires_at=now - timedelta(hours=1), revoked_at=None,
+    )
+    db.add(ghost)
+    db.commit()
+
+    items = client.get("/api/me/sessions", headers={"X-CSRF-Token": csrf}).json()["items"]
+    assert len(items) == 1, "만료된 유령 세션이 '내 세션' 목록에 살아있는 것처럼 나온다"
+    assert all(it["id"] != ghost.id for it in items)
+
+    profile = client.get("/api/profile", headers={"X-CSRF-Token": csrf}).json()
+    assert profile["active_session_count"] == 1, "만료된 유령 세션이 활성 세션 수에 잡힌다"

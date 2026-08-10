@@ -386,10 +386,16 @@ def get_user_detail(
         ensure_can_manage_target(request.state.user.role, user)
     except ForbiddenError:
         return row
+    # SEC-05 — revoked_at IS NULL 만으로는 "지금 살아있다"가 아니다. 만료됐지만 그 토큰으로
+    # 다시 요청이 온 적 없는 세션은 SessionService.validate(core/sessions.py)가 지연 채점할
+    # 기회 자체가 없어 revoked_at이 영원히 비어 있다 — expires_at도 같이 걸러야 한다.
     active_sessions = db.execute(
         select(func.count())
         .select_from(UserSession)
-        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .where(
+            UserSession.user_id == user.id, UserSession.revoked_at.is_(None),
+            UserSession.expires_at > now,
+        )
     ).scalar_one()
     return {**row, "active_session_count": active_sessions}
 
@@ -638,10 +644,15 @@ def list_sessions(
     user = get_scoped_user_or_404(db, user_id, principal.scope)
     # 세션 메타데이터도 권한 경계 안에서만 조회한다(상위 권한 계정 정보 정찰 차단).
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
+    # SEC-05 — revoked_at IS NULL 만으로는 부족하다(위 active_session_count와 같은 이유).
+    now = request.app.state.clock.now()
     rows = (
         db.execute(
             select(UserSession)
-            .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+            .where(
+                UserSession.user_id == user.id, UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
             .order_by(UserSession.last_seen_at.desc())
         )
         .scalars()

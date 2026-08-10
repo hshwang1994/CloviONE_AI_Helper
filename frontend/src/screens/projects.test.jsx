@@ -820,3 +820,116 @@ describe("마일스톤 CRUD", () => {
     expect(screen.queryByRole("button", { name: "마일스톤 삭제: 베타 배포" })).toBeNull();
   });
 });
+
+describe("진행률/Health 다시 계산 + 주간 추세 (FN-06)", () => {
+  beforeEach(() => {
+    authRole = "admin";
+    apiMock.mockImplementation((path, opt) => {
+      const p = String(path);
+      const method = opt && opt.method;
+      if (p === "/api/projects/p-1/progress/recompute" && method === "POST") {
+        return Promise.resolve({ project_id: "p-1", percent: 55, basis: BASIS });
+      }
+      if (p === "/api/projects/p-1/health/snapshot" && method === "POST") {
+        return Promise.resolve({
+          project_id: "p-1", score: 70, reasons: [], unknown: [],
+          snapshot: { week_of: "2026-08-03", score: 70, reasons: [], unknown: [], created_at: "2026-08-10T00:00:00" },
+        });
+      }
+      if (p.startsWith("/api/projects/p-1/health/history")) {
+        return Promise.resolve({
+          project_id: "p-1",
+          items: [
+            { week_of: "2026-08-03", score: 71, reasons: [], unknown: [], created_at: "2026-08-03T00:00:00" },
+            { week_of: "2026-07-27", score: 58, reasons: [], unknown: [], created_at: "2026-07-27T00:00:00" },
+          ],
+        });
+      }
+      if (p.startsWith("/api/projects/dashboard")) return Promise.resolve(DASHBOARD);
+      if (p.startsWith("/api/projects/p-1/progress")) return Promise.resolve(progressPayload);
+      if (p.startsWith("/api/projects/p-1/health")) return Promise.resolve(healthPayload);
+      if (p.startsWith("/api/projects/p-1")) return Promise.resolve({ project: detailProject });
+      return Promise.resolve({});
+    });
+  });
+
+  it("주간 추세 목록을 서버가 준 순서 그대로 보여준다", async () => {
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    const heading = await screen.findByText("주간 추세");
+    const section = heading.closest("ul") ? heading.parentElement : heading.closest("div");
+    const rows = within(section).getAllByText(/^2026-0[78]-\d\d$/).map((el) => el.textContent);
+    expect(rows).toEqual(["2026-08-03", "2026-07-27"]);
+  });
+
+  it("이력이 비어 있으면 '다시 계산'을 안내하고 표는 안 그린다", async () => {
+    apiMock.mockImplementation((path) => {
+      const p = String(path);
+      if (p.startsWith("/api/projects/p-1/health/history")) return Promise.resolve({ project_id: "p-1", items: [] });
+      if (p.startsWith("/api/projects/dashboard")) return Promise.resolve(DASHBOARD);
+      if (p.startsWith("/api/projects/p-1/progress")) return Promise.resolve(progressPayload);
+      if (p.startsWith("/api/projects/p-1/health")) return Promise.resolve(healthPayload);
+      if (p.startsWith("/api/projects/p-1")) return Promise.resolve({ project: detailProject });
+      return Promise.resolve({});
+    });
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    expect(await screen.findByText(/아직 쌓인 주간 이력이 없습니다/)).toBeInTheDocument();
+    expect(screen.queryByText("주간 추세")).toBeNull();
+  });
+
+  it("🔴 진행률 '다시 계산'이 실제로 POST를 부르고 성공 토스트를 띄운다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    const progressCard = screen.getByRole("heading", { name: "진행률" }).closest(".MuiCard-root");
+    await user.click(within(progressCard).getByRole("button", { name: "다시 계산" }));
+
+    await waitFor(() => expect(lastWrite("/api/projects/p-1/progress/recompute", "POST")).not.toBeNull());
+    expect(await screen.findByText("진행률을 다시 계산했습니다.")).toBeInTheDocument();
+  });
+
+  it("🔴 Health '다시 계산'이 스냅샷이 있으면 이력에 남겼다고 말한다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    await user.click(within(healthCard).getByRole("button", { name: "다시 계산" }));
+
+    await waitFor(() => expect(lastWrite("/api/projects/p-1/health/snapshot", "POST")).not.toBeNull());
+    expect(await screen.findByText(/이번 주 이력에 남겼습니다/)).toBeInTheDocument();
+  });
+
+  it("Health '다시 계산'이 판정할 지표가 없으면 이력에 안 남겼다고 정직하게 말한다", async () => {
+    apiMock.mockImplementation((path, opt) => {
+      const p = String(path);
+      const method = opt && opt.method;
+      if (p === "/api/projects/p-1/health/snapshot" && method === "POST") {
+        return Promise.resolve({ project_id: "p-1", score: null, reasons: [], unknown: [], snapshot: null });
+      }
+      if (p.startsWith("/api/projects/p-1/health/history")) return Promise.resolve({ project_id: "p-1", items: [] });
+      if (p.startsWith("/api/projects/dashboard")) return Promise.resolve(DASHBOARD);
+      if (p.startsWith("/api/projects/p-1/progress")) return Promise.resolve(progressPayload);
+      if (p.startsWith("/api/projects/p-1/health")) return Promise.resolve(healthPayload);
+      if (p.startsWith("/api/projects/p-1")) return Promise.resolve({ project: detailProject });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    await user.click(within(healthCard).getByRole("button", { name: "다시 계산" }));
+
+    expect(await screen.findByText(/이력에는 남기지 않았습니다/)).toBeInTheDocument();
+  });
+
+  it("쓰기 권한이 없으면 두 '다시 계산' 버튼 모두 안 그린다", async () => {
+    authRole = "user";
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    expect(screen.queryByRole("button", { name: "다시 계산" })).toBeNull();
+  });
+});
