@@ -101,29 +101,40 @@ function CloverMark({ uid, mode }) {
 }
 
 /* ── 락업 치수 ───────────────────────────────────────────────────────────────
- * 부제가 워드마크 폭 안에 들어오려면 두 폭을 **재서** 맞춰야 한다. 눈대중으로 잡았던 것이
- * 예전 결함의 절반이었다 — 부제(CSS 12px)가 워드마크보다 1.5배 넘게 길어서, 어떻게 얹어도
- * 하나의 덩어리로 안 보였다.
+ * 치수를 **하나의 단위(BRAND_UNIT)에서 전부 파생**시킨다. 마크·간격·워드마크 폭·부제가
+ * 전부 그 단위의 em 이라, 한 값을 바꾸면 락업 전체가 같은 비율로 움직인다. 해상도별 px 표를
+ * 두지 않는 이유이자, 어느 하나만 어긋나 균형이 깨지는 일을 구조적으로 막는 방법이다.
  *
- * 잰 값(PIL/FreeType 으로 실제 폰트 파일에서 진행폭 측정):
- *   "SMART WORKSPACE ASSISTANT" — Pretendard Variable 600 에서 자간 없이 15.58em.
- *   여기에 letter-spacing 0.08em × 25자 = 2.0em → 17.58em.
- *   → 0.68rem × 17.58 = 11.95rem ≈ WORDMARK_WIDTH(12rem). 두 줄이 같은 폭이 된다.
- *   폴백 스택은 전부 이보다 좁다(Segoe UI Semibold 14.85em, Malgun 14.84em, Segoe UI 14.42em)
- *   — 폰트가 안 받아져도 부제가 워드마크 밖으로 나가지 않는다.
+ * BRAND_UNIT = 부제의 글자 크기다. 왜 이것이 기준인가 — 두 줄 중 크기를 **마음대로 못 정하는
+ * 쪽**이 부제이기 때문이다. QA 의 tiny_text 검사(scripts/ui_qa/assertions.py:319)는 뷰포트
+ * 2200px 이상에서 12px 미만 글자를 실패로 잡고, aria-hidden 예외가 없다. 그 폭에서는
+ * styles/root.css 의 루트 폰트사이즈가 18px 이므로 `0.68rem = 12.24px` 로 하한을 넘긴다.
+ * 워드마크는 그 부제에 맞춰 따라가는 쪽이다.
  *
- * 부제 0.68rem 의 하한 근거: QA 의 tiny_text 검사는 2200px 이상에서만 12px 미만을 잡는데
- * (scripts/ui_qa/assertions.py), 그 폭에서는 styles/root.css 의 루트 폰트사이즈가 18px 라
- * 0.68rem = 12.24px 다. 전부 rem 이라 4K 에서 락업이 통째로 같이 커진다 — 브레이크포인트별
- * px 표(예전 TopBrand 의 LOCKUP_WIDTH)가 필요 없어진 이유다. */
-const WORDMARK_WIDTH = "12rem";
-const SUBTITLE_SIZE = "0.68rem";
-const SUBTITLE_TRACKING = "0.08em";
+ * `min(0.68rem, 12.4px)` 의 두 번째 항이 상한이다. rem 만 쓰면 4K(루트 20px)에서 락업이
+ * 25% 커져 "해상도가 올라갈수록 로고만 계속 커지는" 상태가 된다(사용자 지적). 상한을 두면
+ * 실제 크기는 10.88px(≤2199) → 12.24px(2200~2999) → 12.4px(≥3000) 로 **+14% 안에서** 멈춘다.
+ * 브라우저 배율을 바꿔 유효 뷰포트가 오가도 이 세 값 사이에서만 움직인다.
+ *
+ * 폭은 눈대중이 아니라 실측이다(PIL/FreeType 으로 폰트 파일에서 진행폭 측정):
+ *   "SMART WORKSPACE ASSISTANT" — Pretendard Variable 600, 자간 없이 **15.58em**.
+ *   letter-spacing 0.01em × 25자를 더해 15.83em → 1080p 기준 172px.
+ *   워드마크는 15em(163px)으로 그보다 조금 좁게 두고 **가운데 정렬**한다. 공식 자산
+ *   (clovirassist-logo-horizontal.svg)도 부제가 워드마크보다 1.6% 넓다 — 두 줄을 억지로
+ *   같은 폭에 맞추려고 letter-spacing 을 벌리지 않는다.
+ *   폴백 폰트는 전부 이보다 좁아(Segoe UI Semibold 14.85em, Malgun 14.84em) 넘치지 않는다.
+ *
+ * 예전 값과 비교: 워드마크 192px → 163px(-15%), 락업 전체 240×41px → 216×37px.
+ * 부제 글자 크기는 10.88px 그대로다 — **줄인 것은 부제의 letter-spacing(0.08em → 0.01em)이지
+ * 글자 크기가 아니다.** 워드마크만 작아지고 부제는 읽을 수 있는 크기를 지킨다. */
+const BRAND_UNIT = "min(0.68rem, 12.4px)";
+const WORDMARK_WIDTH = "15em";
+const SUBTITLE_TRACKING = "0.01em";
 const SUBTITLE_LINE_HEIGHT = 1.2;
-/* 마크는 2줄 텍스트 블록과 같은 높이의 정사각형이다(요구: 아이콘이 2줄 블록과 균형).
- * 블록 높이 = 12rem × 50/346(아래 viewBox 비율) + 0.68rem × 1.2 = 2.55rem. */
-const MARK_SIZE = "2.5rem";
-const MARK_GAP = "0.5rem";
+/* 마크는 2줄 텍스트 블록과 같은 높이의 정사각형이다(아이콘이 2줄 블록과 균형).
+ * 블록 높이 = 15em × 50/346(아래 viewBox 비율) + 1.2em = 3.37em. */
+const MARK_SIZE = "3.37em";
+const MARK_GAP = "0.65em";
 /* 글자에 맞춰 자른 워드마크 viewBox. 원본 좌표계(0 0 528 156)에서 글자는 x 160..506,
  * 베이스라인 y=86 이고 잉크는 베이스라인 위 0.752em·아래 0.010em 까지다(같은 방법으로 측정,
  * weight 800) — fontSize 62 기준 y 39.4..86.6. 위아래 1~2유닛만 남기고 자른다.
@@ -180,10 +191,14 @@ export default function BrandLogo({
    * 6~8px 로 그려지는데, QA 의 tiny_text 검사는 렌더 크기가 아니라 마크업의 명목값을 읽어
    * 통과로 오판한다(검사의 사각지대이지, 검사를 고칠 문제가 아니다).
    *
-   * 높이: 이 락업은 2.55rem(≈41px)이다. 예전 구조(폭 170px × 528/156 = 50px)보다 낮으므로
-   * TopBrand 가 앉는 Toolbar 의 `minHeight: APPBAR_HEIGHT`(64px)를 밀어 올리지 않는다 —
-   * AppBar 가 position:fixed 라 실제 높이가 본문의 `pt: APPBAR_HEIGHT/8` 오프셋과 어긋나면
-   * 본문 위쪽이 가려진다. */
+   * 높이: 이 락업은 3.37em(1080p 기준 ≈37px)이다. Toolbar 의 `minHeight: APPBAR_HEIGHT`
+   * (64px)를 밀어 올리지 않는다 — AppBar 가 position:fixed 라 실제 높이가 본문의
+   * `pt: APPBAR_HEIGHT/8` 오프셋과 어긋나면 본문 위쪽이 가려진다.
+   *
+   * 정렬: 바깥 상자에 `fontSize: BRAND_UNIT` 을 한 번 주고 안쪽 치수는 전부 em 이다.
+   * 두 줄은 `alignItems: center` + 부제 `textAlign: center` 로 **가운데를 맞춘다** —
+   * 시작점만 맞추면 폭이 다른 두 줄이 왼쪽으로 쏠려 보이고, 폰트가 폴백으로 떨어져 부제가
+   * 좁아질 때 그 쏠림이 더 커진다. 가운데 정렬은 폭이 달라져도 균형이 유지된다. */
   return (
     <Box
       component="span"
@@ -193,6 +208,7 @@ export default function BrandLogo({
         display: "inline-flex",
         alignItems: "center",
         gap: MARK_GAP,
+        fontSize: BRAND_UNIT,
         maxWidth: "100%",
         flexShrink: 0,
         ...sx,
@@ -209,7 +225,7 @@ export default function BrandLogo({
 
       <Box
         component="span"
-        sx={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: 0 }}
+        sx={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}
       >
         <Box
           component="svg"
@@ -253,10 +269,12 @@ export default function BrandLogo({
             aria-hidden="true"
             sx={{
               whiteSpace: "nowrap",
-              fontSize: SUBTITLE_SIZE,
+              // 크기는 바깥 상자의 BRAND_UNIT 그대로다 — 이 글자가 락업의 기준 단위다.
+              fontSize: "1em",
               lineHeight: SUBTITLE_LINE_HEIGHT,
               fontWeight: 600,
               letterSpacing: SUBTITLE_TRACKING,
+              textAlign: "center",
               color: inverse ? INVERSE_INK.subtitle : "currentColor",
               opacity: inverse ? undefined : 0.62,
             }}

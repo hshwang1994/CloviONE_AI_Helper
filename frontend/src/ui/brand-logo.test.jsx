@@ -79,20 +79,35 @@ describe("BrandLogo 부제 — SVG <text> 대신 HTML로 그린다", () => {
     expect(subtitle.closest("svg")).toBeNull();
   });
 
-  it("부제 글자 크기가 4K에서도 12px 이상으로 남는 rem 값이다 — 6px대가 아니다", () => {
+  it("부제 크기가 2200px 이상에서 12px 이상이고, 4K에서 무한정 커지지도 않는다", () => {
     renderLogo();
     const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
-    const fontSize = lastUnconditionalDeclaration(subtitle, "font-size");
+    const root = document.querySelector("svg.wordmark").parentElement.parentElement;
 
-    /* 값을 리터럴로 못박지 않는 이유: 부제 크기는 워드마크 폭과 맞물려 있다(BrandLogo 의
-     * '락업 치수' 주석 — 부제의 진행폭 × 글자크기 = 워드마크 폭이라야 두 줄이 한 덩어리로
-     * 보인다). 그 균형을 조정할 때마다 여기 적힌 숫자가 같이 틀리면 검사가 아니라 걸림돌이다.
-     * 지킬 것은 숫자가 아니라 하한선이다: (1) px 고정이 아니라 rem 이라 4K 레버를 타야 하고,
-     * (2) tiny_text 검사가 도는 2200px 이상(루트 18px)에서 12px 아래로 내려가면 안 된다. */
-    expect(fontSize, "부제가 rem이 아니다 — 4K 루트 폰트사이즈 레버를 안 탄다").toMatch(/rem$/);
-    const atFourK = Number.parseFloat(fontSize) * 18;
-    expect(atFourK, `2200px 이상에서 ${atFourK}px — QA tiny_text 하한(12px) 미만`)
+    /* 부제는 자기 크기를 스스로 정하지 않는다 — 락업 바깥 상자의 BRAND_UNIT 을 그대로 받는다
+     * (`1em`). 그 단위 하나에서 마크·간격·워드마크 폭까지 파생되므로, 크기를 물으려면
+     * 바깥 상자를 봐야 한다. */
+    expect(lastUnconditionalDeclaration(subtitle, "font-size")).toBe("1em");
+
+    /* 값을 리터럴로 못박지 않는 이유: 이 단위는 워드마크 폭과 맞물려 있다(BrandLogo 의
+     * '락업 치수' 주석). 균형을 조정할 때마다 여기 적힌 숫자가 같이 틀리면 검사가 아니라
+     * 걸림돌이다. 지킬 것은 숫자가 아니라 양쪽 경계다:
+     *   하한 — QA tiny_text 가 도는 2200px 이상(루트 18px)에서 12px 미만이면 안 된다.
+     *   상한 — rem 만 쓰면 4K(루트 20px)에서 로고만 25% 커진다(사용자 지적). 상한이 있어야
+     *          해상도·브라우저 배율이 바뀌어도 크기가 좁은 범위 안에서만 움직인다. */
+    const unit = lastUnconditionalDeclaration(root, "font-size");
+    const m = /^min\(\s*([\d.]+)rem\s*,\s*([\d.]+)px\s*\)$/.exec(unit || "");
+    expect(m, `락업 단위가 min(<n>rem, <n>px) 꼴이 아니다: ${unit}`).not.toBeNull();
+
+    const [, remPart, pxCap] = m.map(Number);
+    const at = (rootPx) => Math.min(remPart * rootPx, pxCap);
+
+    expect(at(18), `2200px 이상에서 ${at(18)}px — QA tiny_text 하한(12px) 미만`)
       .toBeGreaterThanOrEqual(12);
+    // 루트 16px(≤2199) 대비 루트 20px(≥3000)에서의 증가폭. rem 만 쓰면 25%가 된다.
+    const growth = at(20) / at(16);
+    expect(growth, `4K에서 락업이 ${Math.round((growth - 1) * 100)}% 커진다 — 상한이 없다`)
+      .toBeLessThan(1.2);
   });
 
   it("워드마크 SVG 안에는 'Clovir'/'Assist' <text> 두 개만 남는다(부제 <text>는 제거됐다)", () => {
@@ -136,6 +151,19 @@ describe("BrandLogo 락업 — 마크 + 2단 텍스트 블록", () => {
       expect(lastUnconditionalDeclaration(subtitle, prop), `부제에 ${prop} 보정이 있다`)
         .toBeNull();
     }
+  });
+
+  it("두 줄은 시작점이 아니라 가운데를 맞춘다", () => {
+    /* 두 줄의 폭은 정확히 같지 않다(부제 15.83em vs 워드마크 15em, 그리고 폰트가 폴백으로
+     * 떨어지면 부제가 더 좁아진다). 시작점만 맞추면 그 차이가 전부 오른쪽에 몰려 블록이
+     * 왼쪽으로 쏠려 보인다 — 사용자 지적("중앙 정렬이 어색하다")이 그것이다.
+     * letter-spacing 을 벌려 폭을 억지로 맞추는 대신 가운데를 맞춘다. */
+    renderLogo();
+    const wordmark = document.querySelector("svg.wordmark");
+    const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
+
+    expect(lastUnconditionalDeclaration(wordmark.parentElement, "align-items")).toBe("center");
+    expect(lastUnconditionalDeclaration(subtitle, "text-align")).toBe("center");
   });
 
   it("마크와 텍스트 블록은 가로로 나란히 놓인다", () => {
