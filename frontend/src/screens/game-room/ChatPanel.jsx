@@ -4,7 +4,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button } from "../../ui/kit.jsx";
+import { Button, EmptyState } from "../../ui/kit.jsx";
 import { fmtTime } from "./timeUtils.js";
 
 /* 오른쪽 레일 아래쪽 — 채팅. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다.
@@ -25,9 +25,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
         maxHeight: { xs: "45rem", md: "none" }, flex: { md: "1 1 auto" },
       }}>
         {chatMsgs.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
-            아직 메시지가 없습니다. 먼저 인사해 보세요.
-          </Typography>
+          <EmptyState size="compact" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
         ) : chatMsgs.map((e) => {
           if (e.kind === "system") {
             return (

@@ -138,6 +138,27 @@ describe("빈 화면 / 오류 상태", () => {
     await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalled();
   });
+
+  // DS-14/15 — 팝오버·모달 하위목록처럼 폭이 좁은 맥락에서 전체 페이지 크기 일러스트가 남아
+  // 옆의 손으로 맞춘 크기보다 크게 떴다(NotificationBell.jsx 등). size="compact"는 일러스트를
+  // 빼고 텍스트/여백을 줄인다 — 내용(제목·안내)은 그대로 낭독돼야 한다.
+  it("EmptyState는 size=\"compact\"에서 일러스트를 빼고 내용은 그대로 낭독한다", () => {
+    ui(<EmptyState size="compact" title="새 알림이 없습니다" help="여기에 표시됩니다" art="tickets" />);
+    const region = screen.getByRole("status");
+    expect(within(region).getByRole("heading", { name: "새 알림이 없습니다" })).toBeInTheDocument();
+    expect(screen.getByText("여기에 표시됩니다")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull(); // art는 <img aria-hidden>이라 role은 없지만, 있다면 alt=""로도 쿼리되지 않는다
+    expect(region.querySelector("img")).toBeNull();
+  });
+
+  it("ErrorState는 size=\"compact\"에서 일러스트를 빼고 재시도 동작은 그대로다", async () => {
+    const onRetry = vi.fn();
+    ui(<ErrorState size="compact" error={{ status: 500, message: "서버 오류" }} onRetry={onRetry} />);
+    const region = screen.getByRole("alert");
+    expect(region.querySelector("img")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
 });
 
 describe("DataTable", () => {

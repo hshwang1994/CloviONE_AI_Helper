@@ -172,7 +172,7 @@ export function ConversationSidebar({
                     onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
                     onArchive={(archived) => archiveConv.mutate({ id: c.id, archived })}
                     onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
-                )) : <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", px: 1 }}>검색 결과가 없습니다.</Typography>)}
+                )) : <EmptyState size="compact" title="검색 결과가 없습니다" />)}
         </Box>
       </Box>
       {sideOpen && listIsDrawer ? (

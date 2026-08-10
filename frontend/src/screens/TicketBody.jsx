@@ -16,14 +16,7 @@ import { DocBody } from "./TeamDoc.jsx";
  * 헬퍼(lineCount/hasUnsupportedBlocks)는 이 경로로 계속 내보낸다 — 기존 테스트가 여기서
  * 가져오고, 옮겼다는 사실 때문에 그 계약을 깨뜨릴 이유는 없다. */
 
-const PROSE_SX = {
-  maxWidth: PROSE_MAX_WIDTH,
-  "& .doc-body": { fontSize: "1rem" },
-  "& .doc-h1": { fontSize: "1.25rem" },
-  "& .doc-h2": { fontSize: "1.0625rem" },
-  "& .doc-h3": { fontSize: "1rem" },
-  "& .doc-code, & .doc-unsupported": { fontSize: "0.875rem" },
-};
+const PROSE_SX = { maxWidth: PROSE_MAX_WIDTH };
 
 export { lineCount, hasUnsupportedBlocks };
 

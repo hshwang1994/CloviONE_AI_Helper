@@ -11,7 +11,7 @@ import Typography from "@mui/material/Typography";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { api } from "../lib/api.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
-import { Skeleton, ErrorState, useToast, useConfirm } from "../ui/kit.jsx";
+import { Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/kit.jsx";
 import { useAuth } from "./auth.jsx";
 import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey } from "./notification-keys.js";
 
@@ -469,21 +469,26 @@ export function NotificationBell({ isUser }) {
             {list.isPending ? <div className="noti-loading"><Skeleton lines={3} /></div>
               // 앱 전역의 401/403 오류 패턴을 그대로 쓴다(kit.jsx의 ErrorState), 세션 만료 시
               // '로그인이 필요합니다' + 로그인 링크를 보이고, 소용없는 재시도 버튼을 숨긴다.
-              // 자체 오류 UI를 만들지 않는다.
-              : list.isError ? <div className="noti-pop-error"><ErrorState error={list.error} onRetry={() => list.refetch()} /></div>
+              // 자체 오류 UI를 만들지 않는다. size="compact"(DS-15) — 340px 팝오버 폭에 맞춘다,
+              // 예전엔 이 크기를 global.css의 특이도 전쟁 CSS로 되짚어 맞췄다.
+              : list.isError ? <ErrorState size="compact" error={list.error} onRetry={() => list.refetch()} />
               : items.length === 0 ? (
-                <div className="noti-empty">
-                  {/* 트리거 버튼과 같은 종 아이콘을 흐리게만 재사용하면 '장식이 흐려진 벨'로 보여
-                      플레이스홀더처럼 읽힌다, '다 확인함'을 뜻하는 별개의 체크 아이콘으로 바꾼다. */}
-                  <svg className="noti-empty-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" />
-                  </svg>
-                  <div className="noti-empty-title">새 알림이 없습니다</div>
-                  {/* 일반 사용자에겐 승인, 작업 실패 알림이 거의 오지 않으므로(notify_admins는 관리자 대상)
-                      관리자 중심 예시 대신 중립적 문구를 쓴다. */}
-                  <div className="noti-empty-help">{isUser ? "나에게 온 알림이 여기에 표시됩니다." : "승인, 작업 실패 등 나에게 온 알림이 여기에 표시됩니다."}</div>
-                </div>
+                // kit `EmptyState`로 통일(DS-14) — 예전엔 이 팝오버만 지역 구현(hand-rolled div+svg)
+                // 이었다. 트리거 버튼과 같은 종 아이콘을 흐리게만 재사용하면 '장식이 흐려진 벨'로
+                // 보여 플레이스홀더처럼 읽힌다, '다 확인함'을 뜻하는 별개의 체크 아이콘을 그대로 쓴다.
+                <EmptyState
+                  size="compact"
+                  icon={
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" />
+                    </svg>
+                  }
+                  title="새 알림이 없습니다"
+                  // 일반 사용자에겐 승인, 작업 실패 알림이 거의 오지 않으므로(notify_admins는 관리자 대상)
+                  // 관리자 중심 예시 대신 중립적 문구를 쓴다.
+                  help={isUser ? "나에게 온 알림이 여기에 표시됩니다." : "승인, 작업 실패 등 나에게 온 알림이 여기에 표시됩니다."}
+                />
               )
               : groupedItems.map((n, idx) => {
                 // 그룹 헤더 — 바로 앞 항목과 audience가 다를 때만 그린다(showAudienceGroups가

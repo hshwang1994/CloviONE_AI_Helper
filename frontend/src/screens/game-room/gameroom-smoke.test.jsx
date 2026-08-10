@@ -78,8 +78,9 @@ describe("게임방 구조 분리 스모크", () => {
     expect(screen.getByText("김운영")).toBeInTheDocument();
     expect(screen.getByText("방장")).toBeInTheDocument();
 
-    // 채팅 레일(RoomSidebar → ChatPanel) — 메시지가 없을 때의 안내문.
-    expect(screen.getByText("아직 메시지가 없습니다. 먼저 인사해 보세요.")).toBeInTheDocument();
+    // 채팅 레일(RoomSidebar → ChatPanel) — 메시지가 없을 때의 안내문(kit EmptyState, DS-14).
+    expect(screen.getByText("아직 메시지가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("먼저 인사해 보세요.")).toBeInTheDocument();
 
     // 방장 + 대기 상태 → 시작 버튼.
     expect(screen.getByRole("button", { name: "투표 시작" })).toBeInTheDocument();

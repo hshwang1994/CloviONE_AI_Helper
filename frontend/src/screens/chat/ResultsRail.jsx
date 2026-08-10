@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
+import { EmptyState } from "../../ui/kit.jsx";
 import { fmtTime, ticketPageStart } from "../chat-helpers.js";
 import { CardStack } from "./TicketCard.jsx";
 
@@ -37,13 +38,12 @@ export function ResultsRail({ railOpen, railMsg, railPayload, railIsLast, doSend
             ) : null}
           </>
         ) : (
-          <Box sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1, color: "text.secondary", py: 4 }}>
-            <MascotPose mode="sleep" size="4.5rem" decorative />
-            <Typography sx={{ fontSize: "0.875rem" }}>아직 표시할 결과가 없습니다.</Typography>
-            <Typography sx={{ fontSize: "0.8125rem", maxWidth: "24rem", lineHeight: 1.6 }}>
-              티켓, 프로젝트를 조회하면 그 결과 카드가 여기에 모입니다. 스레드는 대화만 남습니다.
-            </Typography>
-          </Box>
+          <EmptyState
+            size="compact"
+            icon={<MascotPose mode="sleep" size="4.5rem" decorative />}
+            title="아직 표시할 결과가 없습니다"
+            help="티켓, 프로젝트를 조회하면 그 결과 카드가 여기에 모입니다. 스레드는 대화만 남습니다."
+          />
         )}
       </Box>
     </Box>

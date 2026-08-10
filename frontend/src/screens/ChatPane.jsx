@@ -15,7 +15,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
 import { fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
-import { Button, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
@@ -245,7 +245,6 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
   }, [seq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doSend = () => { const t = draft.trim(); if (t && !send.isPending) send.mutate(t); };
-  const note = (msg) => <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem", py: 2, textAlign: "center" }}>{msg}</Typography>;
 
   // 커서 자리에 글자를 끼워 넣고 포커스·커서를 그 뒤로 되돌린다(피커를 닫아도 이어 쓸 수 있게).
   // 이모지와 멘션이 같은 경로를 쓴다 — 삽입 규칙이 두 벌이 되면 한쪽만 커서를 잃는다.
@@ -303,7 +302,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             빈 방인지 구분할 방법이 사용자에게 없었다. 실패에는 이유와 '다시 시도' 를 준다. */}
         {q.isPending ? <Box sx={{ px: 1 }}><Skeleton lines={compact ? 3 : 6} /></Box>
           : (q.isError && msgs.length === 0) ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          : msgs.length === 0 ? note("아직 메시지가 없습니다. 먼저 인사해 보세요.")
+          : msgs.length === 0 ? <EmptyState size="compact" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
           : msgs.map((m) => {
             if (m.kind === "system") {
               return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: "0.75rem", height: "1.5rem", maxWidth: "100%" }} />;

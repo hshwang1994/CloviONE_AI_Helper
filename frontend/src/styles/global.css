@@ -60,14 +60,6 @@ button { font-family: inherit; }
 }
 /* 마지막 항목의 border-bottom과 팝오버 푸터의 border-top이 겹쳐 목록 끝에 2px 이중선이 생겼다. */
 .noti-item:last-child { border-bottom: 0; }
-/* 오류 상태(.noti-pop-error, NotificationBell.jsx list.isError) — ErrorState는 전체 페이지
-   크기(.k-empty, kit.css: padding 48px 24px·아이콘 36px·제목 16px)로 튜닝돼 있어 340px 폭
-   팝오버 안에서 옆의 성공/빈 상태(.noti-empty, screens.css)보다 눈에 띄게 크게 떴다.
-   같은 규모로 맞춘다(product-quality-audit AREA=D). */
-.noti-pop-error .k-empty { padding: 28px 20px; gap: 6px; }
-.noti-pop-error .k-empty-icon { font-size: 1.375rem; opacity: 0.5; }
-.noti-pop-error .k-empty-title { font-size: 0.875rem; }
-.noti-pop-error .k-empty-help { font-size: 0.75rem; max-width: 260px; }
 /* 표시 건수 힌트(.noti-pop-hint, NotificationBell.jsx) — 안 읽음이 page_size(8건)보다 많을 때. */
 .noti-pop-hint { padding: 6px 16px; font-size: 0.6875rem; color: var(--color-muted); border-bottom: 1px solid var(--color-border); }
 /* 클릭 가능한(딥링크가 있는) 행과 정적 행이 커서(cursor:pointer vs default) 말고는 시각적으로

@@ -138,7 +138,7 @@ function GroupModal({ open, onClose }) {
         <Typography sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>초대할 사람 (선택)</Typography>
         {dir.isPending ? <Skeleton lines={4} />
           : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
-          : users.length === 0 ? <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem", py: 2, textAlign: "center" }}>초대할 다른 사용자가 없습니다.</Typography>
+          : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           : (
             <Box sx={PICKER_SX}>
               {users.map((u) => (
@@ -177,7 +177,7 @@ function DirectModal({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="1:1 대화 시작" footer={<Button onClick={onClose}>닫기</Button>}>
       {dir.isPending ? <Skeleton lines={5} />
         : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
-        : users.length === 0 ? <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem", py: 2, textAlign: "center" }}>대화할 다른 사용자가 없습니다.</Typography>
+        : users.length === 0 ? <EmptyState size="compact" title="대화할 다른 사용자가 없습니다" />
         : (
           <Box sx={PICKER_SX}>
             {users.map((u) => (

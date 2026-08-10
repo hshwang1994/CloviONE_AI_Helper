@@ -308,45 +308,49 @@ export function Skeleton({ lines = 3 }) {
  * 추가 prop:
  *   art — 일러스트 키(lib/assets.js의 ART). 자산 12종이 처음부터 있었는데 어디에도
  *         연결돼 있지 않았다. 좁은 화면에서는 세로 공간을 아끼려고 숨긴다.
+ *   size="compact" — 팝오버·모달 하위목록·사이드바처럼 세로/가로가 제약된 맥락용(DS-14/15).
+ *         일러스트를 아예 빼고 여백·글자를 줄인다. 기본(undefined)은 전체 페이지 크기 그대로.
  */
 export function EmptyState({
   icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
-  steps, expected, action, relatedLink, art,
+  steps, expected, action, relatedLink, art, size,
 }) {
+  const compact = size === "compact";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
-  const artSrc = art && ART[art] ? ART[art] : null;
+  const artSrc = !compact && art && ART[art] ? ART[art] : null;
+  const bodySx = { maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined };
   // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
   return (
-    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1.5, py: 6, px: 3 }}>
+    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
       {artSrc ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
           sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto", opacity: 0.95 }}
         />
       ) : icon ? (
-        <Box aria-hidden="true" sx={{ fontSize: 32, color: "text.disabled" }}>{icon}</Box>
+        <Box aria-hidden="true" sx={{ fontSize: compact ? 20 : 32, color: "text.disabled" }}>{icon}</Box>
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>{title}</Typography>
-      {situation ? <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{situation}</Typography> : null}
-      {help ? <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{help}</Typography> : null}
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem" }}>{title}</Typography>
+      {situation ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{situation}</Typography> : null}
+      {help ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{help}</Typography> : null}
       {prerequisite ? (
-        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>
+        <Typography variant="body2" color="text.secondary" sx={bodySx}>
           <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>필요한 것</Box>{prerequisite}
         </Typography>
       ) : null}
       {stepList && stepList.length ? (
-        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch" }}>
+        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? "0.8125rem" : "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch" }}>
           {stepList.map((s, i) => <li key={i}>{s}</li>)}
         </Box>
       ) : null}
       {expected ? (
-        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>
+        <Typography variant="body2" color="text.secondary" sx={bodySx}>
           <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>기대 결과</Box>{expected}
         </Typography>
       ) : null}
-      {action ? <Box sx={{ mt: 1 }}>{action}</Box> : null}
+      {action ? <Box sx={{ mt: compact ? 0.5 : 1 }}>{action}</Box> : null}
       {relatedLink && relatedLink.href ? (
-        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: "0.875rem" }}>
+        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? "0.8125rem" : "0.875rem" }}>
           {relatedLink.label || "관련 화면으로"}
         </Link>
       ) : null}
@@ -354,7 +358,12 @@ export function EmptyState({
   );
 }
 
-export function ErrorState({ error, onRetry }) {
+/* size="compact" — EmptyState와 같은 이유(DS-15): 팝오버·모달 하위목록처럼 폭이 좁은 맥락에서
+ * 일러스트를 빼고 여백·글자를 줄인다. 예전엔 이 크기 차이를 소비 측 CSS(global.css 등)가
+ * `.noti-pop-error .k-empty { padding:... }` 식으로 소유권 밖에서 되짚어 맞췄다 — 컴포넌트가
+ * 직접 size를 받으면 그 특이도 전쟁 CSS가 필요 없어진다. */
+export function ErrorState({ error, onRetry, size }) {
+  const compact = size === "compact";
   const msg = (error && error.message) || "문제가 발생했습니다.";
   const status = error && error.status;
   const code = error && error.body && error.body.error && error.body.error.code;
@@ -388,28 +397,30 @@ export function ErrorState({ error, onRetry }) {
   const artSrc = ART[art];
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
-    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1.5, py: 6, px: 3 }}>
-      <Box
-        component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-        sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto" }}
-      />
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>{title}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch" }}>{help}</Typography>
-      <Box sx={{ mt: 1 }}>
+    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
+      {!compact ? (
+        <Box
+          component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto" }}
+        />
+      ) : null}
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem" }}>{title}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined }}>{help}</Typography>
+      <Box sx={{ mt: compact ? 0.5 : 1 }}>
         {isAuth
-          ? <MuiButton variant="contained" href="/login">로그인 화면으로</MuiButton>
+          ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/login">로그인 화면으로</MuiButton>
           // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
-          : isPwChange ? <MuiButton variant="contained" href="/change-password">비밀번호 변경하기</MuiButton>
+          : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
           // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
-          : (isForbidden || isGone) ? <MuiButton variant="contained" href="#/">홈으로</MuiButton>
+          : (isForbidden || isGone) ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="#/">홈으로</MuiButton>
           : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry}>다시 시도</Button> : null)}
       </Box>
       {/* 문의 번호 (Z8). 서버는 요청마다 id 를 만들어 오류 봉투와 `X-Request-ID` 에 실어
           보내고 감사 로그도 그 값을 저장하는데, 화면이 한 번도 보여 주지 않아 **사용자가
           불러 줄 수가 없었다.** 새벽 3시에 "화면이 안 나와요" 를 받으면 경로와 상태 코드밖에
           단서가 없었다. 로그인·권한 문제처럼 원인이 뻔한 것에는 붙이지 않는다 — 번호를
-          아무 데나 붙이면 아무도 안 읽는다. */}
-      {requestId && !isAuth && !isForbidden && !isGone ? (
+          아무 데나 붙이면 아무도 안 읽는다. compact에선 이미 좁은 공간이라 더 뺀다. */}
+      {requestId && !isAuth && !isForbidden && !isGone && !compact ? (
         <Typography
           variant="body2" color="text.disabled"
           sx={{ fontSize: "0.75rem", userSelect: "all", mt: 0.5 }}

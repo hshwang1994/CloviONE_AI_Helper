@@ -175,7 +175,9 @@
    * 통과라 통일감이 없다 — 네 색 모두 한 단 짙게 써서 5.9~6.3 사이로 맞춘다(다크는 배경이
    * 짙어 원색 그대로도 6.3~8.0이라 그대로 쓴다, 아래 다크 블록). */
   --badge-neutral-bg: var(--color-surface-3);   /* 기준선 기본 .chip과 같은 패턴 */
-  --badge-neutral-fg: var(--color-muted);
+  /* DS-33 — var(--color-muted)는 surface-3 위에서 4.43(AA 4.5 미달, 기존 공유 결함).
+   * success/warning/error/info와 같은 패턴으로 전용 짙은 회색을 준다. */
+  --badge-neutral-fg: #4F5A69;                           /* 6.23 */
   --badge-neutral-border: var(--color-border);
   --badge-success-bg: var(--color-success-bg);
   --badge-success-fg: #126B4A;                           /* 5.95 */

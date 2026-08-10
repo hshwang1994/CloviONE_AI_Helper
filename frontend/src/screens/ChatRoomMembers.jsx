@@ -5,7 +5,7 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, EmptyState, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
 
@@ -246,7 +246,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
         {dir.isPending ? <Skeleton lines={3} />
           : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
           : candidates.length === 0 ? (
-            <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem", py: 1.5 }}>초대할 다른 사용자가 없습니다.</Typography>
+            <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           ) : (
             <>
               <Box sx={PICKER_SX}>
