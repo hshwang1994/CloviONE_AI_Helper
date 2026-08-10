@@ -12,14 +12,73 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **작업 방식을 MEGA CYCLE로 전환**(D-53,
-`docs/DECISIONS.md`) — Cycle 4의 소배치(4~5건 → 전체테스트 → 배포) 방식을 그만두고,
-제품 영역 단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 바꾼다. Cycle 4
-배치 1~6(UA/CORE/SEC 22건, 전부 배포·문서화 완료)은 그대로 유지 — 버리지 않음.
-**지금**: MEGA CYCLE A(AI Assistant / 러너 대화 엔진) 착수 — `runner/claude-work-
-assistant/assistant.py`의 상태 머신 조사 중(`RN-01`~`RN-14` + Critical `AI-30`).
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE A 완료, 다음 MEGA CYCLE 착수 준비**.
+Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게 조사·대량 수정·영역 종료 시
+1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건, 전부 배포·문서화 완료)은 그대로 유지.
+**MEGA CYCLE A**(AI Assistant / 러너 대화 엔진, RN-01~14 + Critical AI-30)는 구현·테스트·
+배포·부분 실환경검증까지 완료 — 상세는 §MEGA CYCLE A 섹션. 검증 중 **배포와 무관한 실서버
+인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증(`OPS-06`, **사용자 조치 필요**).
 진행률 실측치는 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**:
 `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE A — AI Assistant / 러너 대화 엔진 (RN-01~14 + Critical AI-30) 완료 (2026-08-10)
+
+D-53 전환 후 첫 MEGA CYCLE. 조사 범위: `runner/claude-work-assistant/assistant.py`의 상태
+머신 전체(플랫폼 쪽 `screen_context` 배선 포함). 소단위 티켓 15건을 **공통 원인 5개**로
+묶어 한 파일에 한 번에 구현·검증·배포했다(개별 패치 15회 반복 대신).
+
+**5개 공통 원인**:
+1. **문맥 상태 TTL 부재** — `mode`/`pending_action`/`pending_question`/`ticket_draft`가
+   만료 없이 영속돼, 오래 전에 시작한 CREATE 흐름이 몇 시간 뒤 무관한 메시지를 그 흐름
+   안으로 계속 흡수했다(`AI-30` Critical의 근본 원인). `CONTEXT_MODE_TTL_SECONDS`(기본
+   24h) 신설 + `drop_stale_in_progress_state()`로 `route_request` 진입 시점에 항상 정리.
+2. **부정어 인식이 "하지 마/말"류 어간에만 걸림** — "바꾸지 마"류 흔한 구어체 부정을
+   놓쳐 부정 명령이 긍정 명령으로 잘못 라우팅됐다(`RN-02`). `_NEGATION_RE`에
+   `[가-힣]{1,8}지\s*마(?!\S)` 패턴 추가(부정 lookahead로 "마감" 등 오탐 방지).
+3. **pending 상태가 실패 응답에서도 무조건 지워짐** — `NEED_INPUT`/`FORBIDDEN`/`NO_CHANGE`
+   같은 "진행 안 됨" 결과에서도 pending을 지워, 사용자가 다음 턴에 이어가려 하면 문맥이
+   이미 사라져 있었다(`RN-05`·`RN-09`·`RN-11` 등 여러 티켓의 공통 증상).
+   `_restore_pending_on_stall()`로 6개 pending-clear-then-pivot 호출부 전부 감쌈.
+4. **conversation_lock이 전체 잠금 해제** — 한 대화의 lock 해제가 `.clear()`로 **다른 모든
+   대화**의 lock까지 지워 동시성 경합 창을 만들었다(`RN-07`). 해당 키만 선택적으로 해제.
+5. **화면 문맥(screen_context)이 어디에도 전달 안 됨** — 사용자가 "지금 보고 있는 화면"을
+   AI가 알 방법이 없어 매번 다시 설명해야 했다(`AI-30` Med). 프런트(`useChat.js` →
+   `AssistantDrawer.jsx`) → `POST /api/assistant/message`(`chat/router.py`·`service.py`) →
+   잡 페이로드(`jobs/handlers/chat_message.py`) → 러너 `QUERY_PROMPT`까지 전 구간 배선.
+   **알려진 한계**: n8n 워크플로가 이 필드를 최종 전달하는 홉은 저장소 밖(n8n 쪽 워크플로
+   변경 필요) — 플랫폼 레이어까지는 라이브로 끝까지 확인됨, 마지막 홉만 미완.
+
+**RN-08은 의도적으로 미수정**: n8n 쪽 쓰기-결과 보고가 없어 이 코드베이스만으로는 안전하게
+고칠 수 없음(억지로 고치면 기존 교착 회피 로직이 회귀). `docs/BACKLOG.md`에 그대로 기록.
+
+**검증**: 신규 회귀 테스트 16건(`test_mega_cycle_ai_assistant.py`) 전부 revert-to-verify로
+작성 — 되돌려서 실패 확인 → 복원 → 통과 재확인. 기존 러너 테스트 263건 + 신규 16건 +
+플랫폼 백엔드 전체 + 프런트 vitest 전체(1272건) 전부 green. 커밋 `5db9fbf`.
+
+**배포**: 러너(별도 파이프라인, `dist/deploy-runner.sh`)와 플랫폼(`build-bundle.sh` →
+`upgrade-...sh`) **둘 다** 배포 — MD5/체크섬 일치, 서비스 fresh-restart 타임스탬프,
+`/healthz`·`/readyz` 확인.
+
+**실서버 검증 — 정직한 구분**:
+- **규칙 기반 라우팅 경로(티켓 조회/상태변경/목록 등)** — Chrome으로 직접 조작해 **라이브로
+  정상 동작 확인함**. 이 경로들은 LLM 을 거치지 않아 아래 CLI 이슈와 무관.
+- **`screen_context` 플랫폼 배선** — 브라우저 Network 탭에서 실제 요청 페이로드에
+  `screen_context` 필드가 채워져 나가는 것 확인(라이브). n8n → 러너 마지막 홉은 저장소
+  범위 밖이라 미확인.
+- **TTL/부정어/lock/pending-restore 같은 코드 수정 자체의 정확한 트리거 시나리오** —
+  백엔드 유닛/통합 테스트로는 확실히 증명됐고 배포도 healthy 하지만, 실제 프로덕션 Notion
+  데이터로 그 정확한 트리거(예: 24시간 지난 뒤 재개, 동시 두 대화의 lock 경합)를 독립적으로
+  재현하지는 않았다 — 이 세션의 검증 원칙(안전하게 재현 불가능한 것은 로컬 테스트 상한으로
+  정직하게 남긴다)에 따름.
+- **LLM 의존 자유 대화 경로(`claude_query`/`claude_draft`)** — **검증 중 발견한 별개
+  인프라 문제로 막힘**: 실서버 `n8n` 계정의 Claude CLI 가 로그인 상태가 아니다(`"Not
+  logged in · Please run /login"`). 내 코드를 거치지 않고 SSH로 직접 재현 확인, 시간대·
+  자격증명 파일 터치 패턴 분석으로 **이번 배포가 원인일 가능성은 낮고 자연 세션 만료 쪽이
+  더 유력**하다고 판단(100% 확정은 불가 — 자격증명 내용은 보안 불변규칙상 열람 안 함).
+  **`OPS-06`으로 BACKLOG에 기록, 사용자 조치 필요**(서버에서 `n8n` 계정 `claude /login`
+  재인증). 규칙 기반 경로에는 영향 없음.
 
 ---
 
