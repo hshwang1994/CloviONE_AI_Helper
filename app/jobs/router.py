@@ -115,6 +115,9 @@ def list_jobs(
     page: PageParams = Depends(),
     status: str | None = Query(default=None),
     job_type: str | None = Query(default=None, max_length=64),
+    schedule_id: str | None = Query(default=None, max_length=64),
+    schedule_run_id: str | None = Query(default=None, max_length=64),
+    generation_id: str | None = Query(default=None, max_length=64),
     principal: Principal = Depends(get_principal),
 ):
     stmt = select(Job)
@@ -132,6 +135,17 @@ def list_jobs(
         stmt = stmt.where(Job.status == status)
     if job_type:
         stmt = stmt.where(Job.job_type == job_type)
+    # 스케줄/문서 생성이 자신을 실행한 작업으로 역추적하는 경로(FN-13, IA-02의 반대 방향) —
+    # _link_ids(아래)가 응답에 싣는 것과 같은 세 키를 payload_json 안에서 찾는다. 인덱스가
+    # 없는 컬럼 스캔이지만 크로스링크를 눌렀을 때 1회만 도는 조회라(목록 전체를 매번 훑는
+    # 경로가 아니다) 감내할 수 있는 비용이다.
+    for key, value in (
+        ("schedule_id", schedule_id),
+        ("schedule_run_id", schedule_run_id),
+        ("generation_id", generation_id),
+    ):
+        if value:
+            stmt = stmt.where(func.json_extract(Job.payload_json, "$." + key) == value)
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (

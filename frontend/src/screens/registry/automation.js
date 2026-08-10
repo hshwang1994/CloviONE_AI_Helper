@@ -140,7 +140,12 @@ export const AUTOMATION_SCREENS = {
           // 건너뛴 실행(_record_skip, app/schedules/scheduler.py)은 error_message에 원문 영어 사유
           // 코드('misfire_skip'/'concurrent_run_active')를 그대로 담아 온다 — backupReasonText와 동일한
           // 패턴으로 한국어로 치환하고, 그 외(실제 예외 메시지)는 원문 그대로 보여준다.
-          { key: "error_message", label: "오류", render: (r) => schedSkipReasonText(r.error_message) }],
+          { key: "error_message", label: "오류", render: (r) => schedSkipReasonText(r.error_message) },
+          // 이 실행 건을 실제로 처리한 작업(큐)으로 가는 링크(FN-13/IA-02 반대 방향) — 예전엔
+          // 실패 원인을 더 깊이 보려면(시도 횟수·워커 last_error·소요 시간) 작업 큐에서 이
+          // schedule_run_id를 손으로 찾는 것 말고는 길이 없었다. SubListDrawer의 rowActions는
+          // navigate를 지원하지 않아(act()가 path()를 호출하는 mutation 전용) 컬럼 링크로 둔다.
+          { key: "job_link", label: "작업 큐", render: (r) => React.createElement("a", { href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
         emptyTitle: "실행 이력이 없습니다", emptyHelp: "아직 이 일정이 실행된 적이 없습니다(또는 이 필터에 해당하는 기록이 없습니다).",
         rowActions: [
           // 목록 열은 진단 핵심 두 값(보낸 페이로드/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이
@@ -289,6 +294,10 @@ export const AUTOMATION_SCREENS = {
       // operator는 이 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES) —
       // 다른 화면들의 동일한 '감사 로그에서 보기'와 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=document_generation&object_id=" + r.id },
+      // 이 생성 건을 실제로 처리한 작업(큐)으로 가는 링크(FN-13/IA-02 반대 방향) — jobs.onQuery의
+      // generation_id 필터가 소비한다. 진행 상황(대기·재시도 횟수)이나 워커의 원시 오류를 보려면
+      // 예전엔 작업 큐에서 이 문서의 generation_id를 손으로 찾는 것 말고는 길이 없었다.
+      { label: "작업 큐에서 보기", navigate: (r) => "#/jobs?generation_id=" + encodeURIComponent(r.id) },
     ],
   },
   jobs: {
@@ -302,7 +311,14 @@ export const AUTOMATION_SCREENS = {
     emptyTitle: "처리된 작업이 없습니다", emptyHelp: "채팅, 문서 생성, Notion 동기화, 예약 실행 같은 백그라운드 작업이 실행되면 처리 현황과 실패 내역이 여기에 표시됩니다.",
     // 감사 로그·알림에서 특정 작업으로 딥링크할 때(?job_id=) 무필터 전체 목록 대신 그 작업의 상세
     // 드로어를 곧바로 연다 — GET /api/admin/jobs/{id}는 이미 pollJobUntilDone이 쓰는 엔드포인트다.
-    onQuery: (p) => p.job_id ? { open: "select", id: p.job_id } : null,
+    // schedule_id/schedule_run_id/generation_id는 그 반대 방향(FN-13/IA-02) — 스케줄 실행
+    // 이력·문서 생성 상세가 "이 실행을 담당한 작업"으로 오는 딥링크다. 특정 행 하나가 아니라
+    // 목록을 그 값으로 미리 걸러서 연다(schedule_id/generation_id는 여러 작업과 매칭될 수 있다 —
+    // schedule_run_id만 사실상 1건이지만 같은 방식으로 다뤄 일관성을 지킨다).
+    onQuery: (p) => p.job_id ? { open: "select", id: p.job_id }
+      : (p.schedule_id || p.schedule_run_id || p.generation_id)
+        ? { open: "filter", values: { schedule_id: p.schedule_id, schedule_run_id: p.schedule_run_id, generation_id: p.generation_id } }
+        : null,
     selectKey: "job",
     paginated: true,
     // 큐가 정체된 실제 장애 상황에선 실패/대기 행을 빠르게 훑어야 한다 — 감사 화면과 동일한
@@ -348,6 +364,12 @@ export const AUTOMATION_SCREENS = {
     filters: [
       { key: "status", type: "select", label: "상태", options: opt([["queued", "대기"], ["running", "실행 중"], ["succeeded", "완료"], ["failed", "실패"], ["cancelled", "취소됨"]]) },
       { key: "job_type", type: "select", label: "유형", options: opt([["chat_message", "채팅 메시지"], ["document_generate", "문서 생성"], ["notion_mapping_sync", "Notion 동기화"], ["schedule_run", "예약 실행"]]) },
+      // governance.js audit 화면의 actor_user_id/target_user_id와 같은 패턴(자유 텍스트 ID
+      // 필터). 스케줄/문서 생성 화면의 크로스링크(onQuery)가 채우지만, 운영자가 직접 ID를
+      // 붙여넣어 찾는 용도로도 그대로 쓴다 — 숨긴 필터가 아니라 진짜 검색 기능이다.
+      { key: "schedule_id", type: "text", label: "연결된 스케줄 ID" },
+      { key: "schedule_run_id", type: "text", label: "실행 건 ID" },
+      { key: "generation_id", type: "text", label: "연결된 문서 생성 ID" },
     ],
     columns: [dateCol("created_at", "생성"), mapCol("job_type", "유형", JOB_TYPE), badgeCol("status", "상태"),
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
@@ -373,6 +395,16 @@ export const AUTOMATION_SCREENS = {
     // 되지 않게). 여기에 이름을 그리려면 그 원칙부터 다시 정해야 한다 — 그래서 id 로
     // 남기되, 라벨에 "계정 ID" 라고 적어 이게 사람 이름이 아니라는 것을 분명히 한다.
     detailFields: [field("id", "작업 ID"), field("idempotency_key", "멱등키"), field("user_id", "요청자 계정 ID"), field("conversation_id", "대화 ID"), field("message_id", "메시지 ID"),
+      // schedule_run/document_generate 작업이 자신을 구동한 스케줄/문서로 돌아갈 길이 없었다
+      // (IA-02) — 백엔드는 이미 참조 ID를 내려주고 있었다(app/jobs/router.py::_link_ids,
+      // round30 감사 E에서 이 문제를 위해 추가됨) 프런트가 안 그렸을 뿐이다. schedule_run_id는
+      // 개별 실행 건을 여는 화면이 따로 없어(스케줄 상세의 '실행 이력' 하위 목록만 있다)
+      // 링크 대신 참조값으로만 보여준다 — 없는 화면으로 가짜 링크를 걸지 않는다.
+      { key: "schedule_id", label: "연결된 스케줄", render: (r) => r.schedule_id
+        ? React.createElement("a", { href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
+      { key: "schedule_run_id", label: "실행 건 ID", render: (r) => r.schedule_run_id || "-" },
+      { key: "generation_id", label: "연결된 문서 생성", render: (r) => r.generation_id
+        ? React.createElement("a", { href: "#/documents?id=" + encodeURIComponent(r.generation_id) }, r.generation_id) : "-" },
       { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTime(r.available_at) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "duration_ms", label: "소요 시간", render: (r) => r.duration_ms != null ? (Math.round(r.duration_ms / 100) / 10) + "초" : "-" }, // 백엔드 오류 문자열(f"{type(exc).__name__}: {exc}", worker.py)은 pydantic ValidationError 등에서

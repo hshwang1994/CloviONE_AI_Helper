@@ -71,3 +71,34 @@ def test_unknown_status_filter_rejected(client, login_as):
     login_as("operator")
     r = client.get("/api/admin/jobs", params={"status": "exploded"})
     assert r.status_code == 422
+
+
+def test_schedule_and_generation_id_filters_find_the_triggering_job(client, login_as, db, fake_clock):
+    # FN-13/IA-02 반대 방향 — 스케줄/문서 생성이 자신을 실행한 작업으로 역추적한다.
+    now = fake_clock.now()
+    schedule_run = repository.enqueue(
+        db, job_type="schedule_run",
+        payload={"schedule_id": "sched-abc", "schedule_run_id": "run-xyz"}, now=now,
+    )
+    doc_gen = repository.enqueue(
+        db, job_type="document_generate", payload={"generation_id": "gen-123"}, now=now,
+    )
+    unrelated = repository.enqueue(db, job_type="chat_message", payload={"q": 1}, now=now)
+    db.commit()
+
+    login_as("operator")
+
+    r = client.get("/api/admin/jobs", params={"schedule_id": "sched-abc"})
+    assert r.status_code == 200
+    assert [it["id"] for it in r.json()["items"]] == [schedule_run.id]
+
+    r = client.get("/api/admin/jobs", params={"schedule_run_id": "run-xyz"})
+    assert [it["id"] for it in r.json()["items"]] == [schedule_run.id]
+
+    r = client.get("/api/admin/jobs", params={"generation_id": "gen-123"})
+    assert [it["id"] for it in r.json()["items"]] == [doc_gen.id]
+
+    # 매칭 없는 값은 빈 목록이지 다른 작업이 새지 않는다.
+    r = client.get("/api/admin/jobs", params={"schedule_id": "no-such-schedule"})
+    assert r.json()["items"] == []
+    assert unrelated.id not in [it["id"] for it in r.json()["items"]]

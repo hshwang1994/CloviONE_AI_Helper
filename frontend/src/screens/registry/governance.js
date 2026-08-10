@@ -191,6 +191,10 @@ export const GOVERNANCE_SCREENS = {
         path: (r) => "/api/admin/approval-delegations/" + r.id + "/revoke",
         confirm: "이 위임을 지금 거둘까요? 대리 승인자는 즉시 결재할 수 없게 됩니다." },
       { label: "승인 큐 보기", navigate: () => "#/approvals" },
+      // approval_delegation은 감사 로그의 유효한 object_type이고(app/approvals/router.py
+      // delegations_router) 이제 OBJ_ROUTE에도 있다 — 다른 쓰기 화면들과 동일한 딥링크를
+      // 추가한다(MEGA CYCLE G).
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=approval_delegation&object_id=" + r.id },
     ],
   },
   audit: {
@@ -240,8 +244,13 @@ export const GOVERNANCE_SCREENS = {
       // 이나 '기능 플래그' 대상만 골라 보려 해도 목록에 없어 고를 수 없었다(F15와 동일한 부류 —
       // 감사 대상 옵션 누락). shared.js의 OBJTYPE_OPTS 자체는 이 작업의 편집 범위 밖이라(governance.js
       // 만 손볼 수 있다) 이 화면이 실제로 쓰는 옵션 목록에서 두 값을 보강한다.
+      // ai_quota/approval_delegation/announcement/offboarding_run도 organization/feature_flag와
+      // 같은 이유(F15 부류)로 여기 보강한다 — shared.js의 OBJ_ROUTE에는 이제 있지만 OBJTYPE_OPTS
+      // 자체는 여전히 이 작업의 편집 범위 밖이다(MEGA CYCLE G).
       { key: "object_type", type: "select", label: "대상", options: [...OBJTYPE_OPTS,
-        { value: "organization", label: "조직" }, { value: "feature_flag", label: "기능 플래그" }] },
+        { value: "organization", label: "조직" }, { value: "feature_flag", label: "기능 플래그" },
+        { value: "ai_quota", label: "AI 사용 상한" }, { value: "approval_delegation", label: "승인 위임" },
+        { value: "announcement", label: "공지 배너" }, { value: "offboarding_run", label: "오프보딩" }] },
       // 특정 엔티티에 일어난 모든 사건을 추적한다(상세의 '대상 ID'·부서/직책 상세 id를 붙여넣는다).
       { key: "object_id", type: "text", label: "대상 ID" },
       // 감사 action은 백엔드가 정확 일치(==)로 필터한다(router: AuditLog.action == action). 실제 값은

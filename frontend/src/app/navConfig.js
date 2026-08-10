@@ -1,4 +1,6 @@
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import DnsOutlinedIcon from "@mui/icons-material/DnsOutlined";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
@@ -66,13 +68,19 @@ export const SCREEN_ROLE_HELP = {
 };
 
 export const NAV = [
-  { group: "운영", icon: DashboardOutlinedIcon, items: [
+  // 예전엔 "운영" 한 그룹 14항목이 평평하게 섞여 있었다(IA-01) — 매일 훑는 화면(대시보드·
+  // 알림·작업 큐·설정), 저빈도·고위험 시스템 인프라(백업·진단·시스템 설정 등), 규정 준수·
+  // 통제(감사·기능 플래그·공지)가 한 목록 안에 순서 없이 나열돼 있었다. 사이드바 렌더러
+  // (AppShell.jsx SidebarNav)는 배열의 원소 하나 = 그룹 하나로만 그리고 그룹 안에 또
+  // 하위헤더를 넣는 개념이 없어(코드 수정 없이 되는 안은 최상위 그룹을 늘리는 것뿐이다),
+  // 셋으로 쪼갠다. 항목·role·배지는 전부 그대로다 — 어느 그룹에 속하는지만 바뀐다.
+  { group: "운영 현황", icon: DashboardOutlinedIcon, items: [
     { to: "/dashboard", label: "대시보드", icon: "dashboard" },
     { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
     { to: "/jobs", label: "작업 큐", roles: ["operator", "admin", "system_admin"], badge: "jobFailed", icon: "ticket" },
     { to: "/settings", label: "설정", icon: "settings" },
-    { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
-    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], icon: "backup" },
+  ] },
+  { group: "시스템 인프라", icon: DnsOutlinedIcon, items: [
     { to: "/diagnostics", label: "진단", roles: ["admin", "system_admin"], icon: "diagnostics" },
     // 시스템 설정(§S) - 타임존·DNS·호스트 이름·프록시·인증서·서비스 제어.
     // `admin` 은 부서 범위로 좁혀질 수 있어 넣지 않는다(SystemOps.jsx 주석 참조).
@@ -84,10 +92,14 @@ export const NAV = [
     // GET /api/admin/settings(유지보수 모드가 담긴 응답)는 READ_ROLES까지 허용하는데 이 화면만
     // admin/system_admin으로 막혀 있었다 — 쓰기는 Ops.jsx의 canWrite가 따로 가드한다.
     { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"], icon: "maintenance" },
-    { to: "/announcements", label: "공지 배너", icon: "announce" },
-    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
-    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
+    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], icon: "backup" },
     { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
+  ] },
+  { group: "거버넌스", icon: GavelOutlinedIcon, items: [
+    { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
+    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
+    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
+    { to: "/announcements", label: "공지 배너", icon: "announce" },
   ] },
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
@@ -121,6 +133,10 @@ export const NAV = [
     { to: "/policies", label: "정책", icon: "policy" },
     { to: "/templates", label: "템플릿", icon: "template" },
     { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
+    // registry/authoring.js에 화면(policy-usage)과 역할 게이트(SCREEN_ROLES 아래)는 있는데
+    // 사이드바 항목만 빠져 있었다(IA-01) — 형제 항목 prompt-usage의 headerActions에서만
+    // 갈 수 있었고, 직접 주소로만 닿을 수 있었다.
+    { to: "/policy-usage", label: "정책 사용 통계", icon: "report" },
   ] },
   { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
     { to: "/schedules", label: "실행 일정(스케줄)", icon: "schedule" },

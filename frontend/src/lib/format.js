@@ -99,12 +99,19 @@ export const OBJECT_KO = {
   // 백엔드가 실제로 저장하는 object_type 문자열(복수형·접미 포함) — 없으면 감사/대시보드 '대상'
   // 칸에 영어 원문이 새어 나온다(예: 'prompts', 'document_generation').
   prompts: "프롬프트", policies: "정책", app_setting: "설정", document_generation: "문서",
+  // organization/feature_flag는 OBJ_ROUTE(registry/shared.js)에 먼저 추가됐지만 여기(표시용
+  // 사전)엔 한 번도 안 들어와 있었다 — 감사 로그 '대상' 칸에 영어 원문이 샜다. ai_quota/
+  // approval_delegation/announcement/offboarding(액션 접두사)/offboarding_run(object_type)은
+  // MEGA CYCLE G에서 크로스링크와 함께 발견(같은 결함 부류, 표시만 다르다).
+  organization: "조직", feature_flag: "기능 플래그", ai_quota: "AI 사용 상한",
+  approval_delegation: "승인 위임", announcement: "공지", offboarding: "오프보딩",
+  offboarding_run: "오프보딩",
 };
 export const VERB_KO = {
   create: "생성", update: "수정", delete: "삭제", enable: "활성화", disable: "비활성화",
   archive: "보관", unarchive: "복구", approve: "승인", reject: "거절", cancel: "취소",
   transition: "상태 변경", rollback: "롤백", grant: "부여", revoke: "회수", map: "연결",
-  manual_map: "수동 연결", unmap: "연결 해제", sync: "동기화", run: "실행", verify: "검증",
+  manual_map: "수동 연결", unmap: "연결 해제", sync: "동기화", run: "실행", undo: "되돌리기", verify: "검증",
   test: "테스트", login: "로그인", login_failed: "로그인 실패", logout: "로그아웃", unlock: "잠금 해제",
   reset_password: "비밀번호 재설정", "reset-password": "비밀번호 재설정",
   "revoke-sessions": "세션 해제", "new-version": "새 버전", "resolve-conflict": "충돌 해결",

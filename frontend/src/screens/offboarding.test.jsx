@@ -230,6 +230,28 @@ describe("오프보딩 화면", () => {
     expect(within(drawer).getByRole("button", { name: "되돌리기" })).toBeInTheDocument();
   });
 
+  it("이력 상세에 감사 로그로 가는 링크가 offboarding_run/그 실행 id로 걸려 있다(MEGA CYCLE G) — 되돌린 뒤에도 남는다", async () => {
+    const UNDONE_RUN = { ...RUN_ROW, id: "run-1", undone_at: "2026-08-04T00:00:00" };
+    runs = [UNDONE_RUN];
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [LEAVER], total: 1, page_size: 20 });
+      if (path.startsWith("/api/admin/offboarding?")) {
+        return Promise.resolve({ items: runs, total: runs.length, page: 1, page_size: 20 });
+      }
+      if (path === "/api/admin/offboarding/run-1") return Promise.resolve({ run: { ...UNDONE_RUN, moves: [] } });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    const openRun = await screen.findByRole("button", { name: "상세 보기" });
+    await user.click(openRun);
+    const drawer = await screen.findByRole("dialog");
+    const link = within(drawer).getByRole("link", { name: "감사 로그에서 보기" });
+    expect(link).toHaveAttribute("href", "#/audit?object_type=offboarding_run&object_id=run-1");
+    // 이미 되돌린 실행에는 '되돌리기' 버튼은 없어야 하지만 감사 로그 링크는 계속 유효하다.
+    expect(within(drawer).queryByRole("button", { name: "되돌리기" })).not.toBeInTheDocument();
+  });
+
   it("대상·실행자 이름을 못 받으면 UUID 대신 '알 수 없음'을 보여준다", async () => {
     // 서버가 이름을 못 주는 경우(탈퇴·조인 실패 등) — 목록/상세 모두 raw UUID가 새어 나가면
     // 안 된다(E-4). user_name/actor_name이 비어 있고 id만 있는 실행 이력.

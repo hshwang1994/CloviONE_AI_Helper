@@ -249,3 +249,35 @@ describe("실행 상세의 재시도 액션 (M9)", () => {
     expect(screen.queryByRole("button", { name: "취소" })).not.toBeInTheDocument();
   });
 });
+
+describe("실행 상세 → 작업 큐로 가는 크로스링크 (FN-13/IA-02 반대 방향)", () => {
+  const todayKst = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+
+  it("실제 실행(run_id 있음)에는 '작업 큐에서 보기' 버튼이 있고 schedule_run_id로 딥링크한다", async () => {
+    mockApi(() => Promise.resolve(body({
+      items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
+        occurs_at: `${todayKst}T00:00:00`, status: "succeeded", run_id: "r-1", error_message: null }],
+    })));
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    const btn = await screen.findByRole("button", { name: "작업 큐에서 보기" });
+    await userEvent.click(btn);
+    expect(window.location.hash).toBe("#/jobs?schedule_run_id=r-1");
+  });
+
+  it("예정(run_id 없음)에는 버튼이 없다 — 아직 처리한 작업이 없다", async () => {
+    mockApi(() => Promise.resolve(body({
+      items: [{ kind: "planned", schedule_id: "s-1", schedule_name: "매일 리포트",
+        occurs_at: `${todayKst}T02:00:00`, status: null, run_id: null, error_message: null }],
+    })));
+    renderCalendar();
+    const dot = await screen.findByTitle(/매일 리포트/);
+    await userEvent.click(dot);
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: "작업 큐에서 보기" })).not.toBeInTheDocument();
+  });
+});

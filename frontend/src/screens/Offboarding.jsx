@@ -455,11 +455,20 @@ function RunHistory() {
 
       <Modal open={!!sel} onClose={() => setSel(null)} size="lg"
         title={sel ? (sel.user_name || "오프보딩") + " 실행 상세" : ""}
-        footer={sel && !sel.undone_at ? (
+        footer={sel ? (
           <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
             <Box className="k-footer-main">
-              <Button variant="primary" disabled={busy} onClick={() => undo(sel)}>
-                {busy ? "되돌리는 중…" : "되돌리기"}
+              {!sel.undone_at ? (
+                <Button variant="primary" disabled={busy} onClick={() => undo(sel)}>
+                  {busy ? "되돌리는 중…" : "되돌리기"}
+                </Button>
+              ) : null}
+              {/* offboarding_run은 감사 로그의 유효한 object_type이고(app/offboarding/router.py)
+                  이제 OBJ_ROUTE에도 있다 — 이 화면은 admin/system_admin 전용(navConfig.js
+                  SCREEN_ROLES.offboarding)이라 audit 접근 역할의 부분집합이라 별도 role 게이트가
+                  필요 없다(MEGA CYCLE G). */}
+              <Button href={"#/audit?object_type=offboarding_run&object_id=" + sel.id}>
+                감사 로그에서 보기
               </Button>
             </Box>
           </Box>

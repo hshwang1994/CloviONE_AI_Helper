@@ -152,6 +152,13 @@ export const OBJ_ROUTE = {
   user_notion_mapping: "#/notion-mapping", job: "#/jobs",
   department: "#/departments", job_title: "#/job-titles", user: "#/users",
   app_setting: "#/settings", organization: "#/organizations", feature_flag: "#/feature-flags",
+  // organization/feature_flag와 같은 부류(F15) — 백엔드는 이미 이 object_type들로 감사 기록을
+  // 남기는데(app/quotas/router.py, app/approvals/router.py의 delegations_router,
+  // app/announcements/router.py, app/offboarding/router.py) 이 표에 없어 그 행들만 '관련 항목
+  // 보기'/'관련 목록 열기' 버튼이 항상 숨겨졌다(MEGA CYCLE G 조사). 넷 다 단건 GET 엔드포인트가
+  // 없어 목록으로만 보낸다(schedule_run과 같은 패턴 — OBJ_ID_PARAM에 없음).
+  ai_quota: "#/ai-quotas", approval_delegation: "#/approval-delegations",
+  announcement: "#/announcements", offboarding_run: "#/offboarding",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은
 // admin/system_admin만, 작업 큐는 operator/admin/system_admin만 — auditor 제외). '관련 항목 보기'가
@@ -162,7 +169,10 @@ export const OBJ_ROUTE = {
 // 목록 열기'가 보여 눌러도 늘 403인 막다른 링크가 된다(위 department/job_title과 동일한 이유).
 // feature_flag는 여기 없다 — navConfig.js SCREEN_ROLES["feature-flags"]가 operator/admin/
 // system_admin/auditor를 모두 허용해(audit에 들어올 수 있는 역할의 상위집합) 추가 제한이 필요 없다.
-export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES };
+// offboarding_run — navConfig.js SCREEN_ROLES.offboarding은 admin/system_admin만 허용한다
+// (auditor 제외) — audit 화면(admin/system_admin/auditor)에 들어온 auditor에게도 이 게이트 없이는
+// '관련 목록 열기'가 보여 늘 403인 막다른 링크가 된다(department/job_title과 동일한 이유).
+export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES };
 export const canReachObjRoute = (objType, role) => !OBJ_ROUTE_ROLES[objType] || (role != null && OBJ_ROUTE_ROLES[objType].includes(role));
 // 대상 화면 중 일부는 이제 id 기반 딥링크(onQuery: p.<param> → 상세 드로어를 곧바로 연다)를 지원한다
 // (runners: ?id=, jobs: ?job_id=, notion-mapping: ?user_id= — 이 셋은 object_id가 곧 그 파라미터 값).

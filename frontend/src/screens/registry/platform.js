@@ -207,6 +207,9 @@ export const PLATFORM_SCREENS = {
       { label: "사용", roles: WRITE_ROLES, when: (r) => !r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: true } },
       { label: "사용 안 함", roles: WRITE_ROLES, when: (r) => r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false }, confirm: "이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다." },
       { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 지울까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
+      // announcement은 감사 로그의 유효한 object_type이고(app/announcements/router.py) 이제
+      // OBJ_ROUTE에도 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=announcement&object_id=" + r.id },
     ],
   },
   "ai-quotas": {
@@ -255,6 +258,9 @@ export const PLATFORM_SCREENS = {
     ] },
     actions: [
       { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위, 기간에는 제한이 없어집니다." },
+      // ai_quota는 감사 로그의 유효한 object_type이고(app/quotas/router.py) 이제 OBJ_ROUTE에도
+      // 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=ai_quota&object_id=" + r.id },
     ],
   },
   "feature-flags": {

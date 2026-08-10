@@ -429,6 +429,15 @@ export function SchedulerCalendar() {
           >
             이 일정 열기
           </Button>
+          {/* 실제 실행(run_id가 있는)만 처리한 작업이 있다 — 예정(planned)은 아직 실행 자체가
+              없어 갈 작업이 없다(FN-13/IA-02 반대 방향, jobs.onQuery의 schedule_run_id 필터가 소비). */}
+          {selected && selected.kind !== "planned" && selected.run_id ? (
+            <Button
+              onClick={() => { const id = selected.run_id; setSelected(null); window.location.hash = "#/jobs?schedule_run_id=" + encodeURIComponent(id); }}
+            >
+              작업 큐에서 보기
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={() => setSelected(null)}>닫기</Button>
         </Box>
       </Modal>
