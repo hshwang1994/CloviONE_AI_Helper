@@ -10,7 +10,7 @@
 > 진입점은 여전히 [WORK_STATE.md](WORK_STATE.md)다 — "지금 뭘 하고 있는가"는 거기,
 > "전체로 보면 어디쯤인가"는 이 문서.
 
-**마지막 갱신**: 2026-08-10 (MEGA CYCLE E 완료 직후, 대조 근거는 아래 §7)
+**마지막 갱신**: 2026-08-10 (MEGA CYCLE F 완료 직후, 대조 근거는 아래 §7)
 
 > **D-53 이후 방법론 전환**: 이 문서의 "손댄 항목 %"는 이제 개별 티켓 수가 아니라 MEGA
 > CYCLE 단위로 해석해야 한다 — 한 MEGA CYCLE이 여러 BACKLOG ID를 공통 원인으로 묶어 한 번에
@@ -23,10 +23,10 @@
 | 지표 | 근사치 | 근거 |
 |---|---|---|
 | BACKLOG 전체 항목 수 | **약 523건**(고유 ID 기준 약 505건) | `docs/BACKLOG.md`의 `\| XX-NN \|` 형식 행 정규식 카운트 |
-| 손댄 항목(구현완료+실환경검증완료+부분) | **약 88건 (약 17%)** | MEGA CYCLE B까지 약 63건 + MEGA CYCLE C(구현완료 12건 + 다운그레이드·정정 19건 — DS-01/02/03/08/12/13/16/24/25/26/27/28/31 + 설계확정·미구현 5건 DS-07/14/15/20/21/22 + 재평가·범위확대 1건 DS-18) |
+| 손댄 항목(구현완료+실환경검증완료+부분) | **약 95건 (약 18%)** | MEGA CYCLE B까지 약 63건 + MEGA CYCLE C(구현완료 12건 + 다운그레이드·정정 19건 + 재평가·범위확대 1건 DS-18) + MEGA CYCLE E(구현완료 3건 — DS-07/21/22) + MEGA CYCLE F(구현완료 4건 — DS-14/15/20/33, DS-33은 수치만 정정·화면 효과 없음을 확인) |
 | Critical 잔존 수 | **0건**(변동 없음) | MEGA CYCLE A·B가 이미 처리 — MEGA CYCLE C엔 Critical 항목 없음(DS-32만 확정 High) |
 | 미착수("발견"만 있음) | **약 260건대** | 정확한 재집계는 안 함(근사치 유지) — MEGA CYCLE C로 DS-* 상당수가 미착수/다운그레이드/설계확정 상태로 세분화됨 |
-| 기타 상태(의도적 보류/작업예정/작업중/사용자조치필요/다운그레이드 등) | **약 210건대 + `OPS-06`(사용자 조치 필요)** | 아래 §5 참고 |
+| 기타 상태(의도적 보류/작업예정/작업중/사용자조치필요/다운그레이드 등) | **약 210건대** (`OPS-06` 는 2026-08-10 해소) | 아래 §5 참고 |
 | QA_COVERAGE 7축 중 실제로 진행된 축 | **S(캡처) 70/73, S(판독) 9/70, 나머지(F/A/D/C/R/L/V) 거의 0~부분** | `docs/QA_COVERAGE.md` §0 전체 요약 (2026-08-08 갱신, 이후 재실행 안 됨 — MEGA CYCLE A·B·C 배포가 반영 안 된 상태) |
 | 실환경 검증 완료율(이번 세션이 다룬 항목 기준) | **약 45%대**(MEGA CYCLE C는 영향받은 5화면 Chrome 확인 완료, 강조색 실시간 전환은 코드 추적으로만 확인 — 정직하게 기록) | 아래 §3 |
 | 실환경 검증 완료율(BACKLOG 전체 기준) | **약 2~3%대** (정밀 재계산 안 함) | 위 두 줄의 합성 — **이 숫자가 진짜 기준선이다** |
@@ -67,7 +67,8 @@ BACKLOG.md의 상태 문자열이 이 구분과 정확히 대응한다: `발견`
 `AI-30` + `AI-30`(Med, screen_context)를 5개 공통 원인으로 묶어 `assistant.py` 한 파일에서
 구현·테스트·배포까지 끝냈다. 상세 근본원인·검증 구분은 `docs/WORK_STATE.md`의
 "MEGA CYCLE A" 섹션 참고. **부산물**: 실서버 `n8n` Claude CLI 미인증 발견(`OPS-06`,
-BACKLOG 신규, 사용자 조치 필요, 아직 미해결) — MEGA CYCLE A의 코드 변경과는 무관.
+BACKLOG 신규) — MEGA CYCLE A의 코드 변경과는 무관. **2026-08-10 사용자 재인증으로 해결,
+실호출 확인 완료.**
 
 **MEGA CYCLE B(제품 전역 실패 처리) — 완료.** 마지막 남은 Critical `FAIL-01`("실패를
 '없음'으로 표시한다")을 공통 원인 하나(`api.js`가 `200+비JSON` 파싱 실패를 조용히
@@ -112,12 +113,27 @@ shim 파일을 잘못 짚은 것 2건 발견) · `DS-22`(`Pager.jsx`에 `hasNext
 Chrome 확인(`/activity`는 실제 페이지 이동까지 라이브로 확인). 상세는
 `docs/WORK_STATE.md`의 "MEGA CYCLE E" 섹션.
 
+**MEGA CYCLE F(Design System 후속 배치 2 + DS-33) — 완료.** MEGA CYCLE E가 마지막으로
+남긴 3건을 마저 구현: `DS-14`+`DS-15`(`EmptyState`/`ErrorState`에 `size="compact"`
+추가, 확정된 7곳 이관) · `DS-20`(`screens.css`의 `chat-*`/`game-*`/`board-*`/`doc-*`
+4계열 91개 죽은 규칙 삭제, 622→약 470줄). 같은 조사에서 `DS-33`(neutral 배지 대비)도
+처리했는데, 손대며 소비처를 추적하니 **그 토큰 자체가 어디서도 적용되지 않는 죽은
+CSS였음을 발견** — 수치는 정정했지만 화면 효과는 없다(정직하게 기록). 부산물로
+`TicketBody.jsx`의 죽은 `PROSE_SX` nested selector와 `kit.css`의 `.k-badge--*`(9개,
+Badge가 톤 접미사 className을 더 이상 안 붙여 전부 죽음)도 함께 정리. 프런트 vitest
+192파일/1283건, 백엔드 pytest 2642개 전체 green, `/chat` 검색 빈 상태를 실서버
+Chrome으로 직접 확인(컴팩트 크기 정상 렌더, 콘솔 오류 0건). 상세는
+`docs/WORK_STATE.md`의 "MEGA CYCLE F" 섹션.
+
 **다음 MEGA CYCLE 미정** — D-53 지시에 따라 Master Plan 원래 축(디자인 시스템 후속·
 AI 도우미·관리자 IA·RBAC/조직·기능 E2E)을 다시 대조해 가장 영향도가 큰 다음 영역을
-골라야 한다 — 이 문서 갱신 직후 바로 선정. 후보: ① Design System 후속 배치 2(DS-14/
-15/20, 설계는 이미 확정 · DS-33 neutral 배지) ② `DS-18` 남은 34개(합성 토큰, 시각
-회귀 확인 필요) ③ 관리자 IA(`IA-*`, 아직 미착수) ④ QA_COVERAGE 73라우트 전수검증
-(F/A/D/C/R/L/V 7축이 사실상 비어 있음, MEGA CYCLE A~E 배포가 전혀 반영 안 됨).
+골라야 한다 — 이 문서 갱신 직후 바로 선정. 후보: ① `DS-18` 남은 34개(합성 토큰, 시각
+회귀 확인 필요) ② 관리자 IA(`IA-*`, 아직 미착수) ③ QA_COVERAGE 73라우트 전수검증
+(F/A/D/C/R/L/V 7축이 사실상 비어 있음, MEGA CYCLE A~F 배포가 전혀 반영 안 됨) ④ Design
+System 전체 재감사(DS-01~33이 여러 번 다운그레이드·재평가된 만큼, 배지/카드 등 나머지
+컴포넌트군도 이번 사이클에서 드러난 "MUI 전환 후 죽은 CSS" 패턴이 더 있을 가능성 —
+`app/static/css/tokens.css`에 이미 `find_dead_css.py`/`prune_dead_css.py` 도구가
+서버에 존재하는 것을 배포 중 발견, 다음 사이클에서 이 도구의 출처·용도부터 확인).
 Critical이 0건이 됐다고 재조사를 멈추지 않는다 — §1 해석 참고.
 
 ---
@@ -250,6 +266,17 @@ CORE-01~10 대부분, UB-01~05, SEC-01 — 각 항목의 BACKLOG 행에 **왜** 
 
 ## 7. 최근 테스트 / 배포 상태 (근거 시각)
 
+- **MEGA CYCLE F**: 프런트 vitest **192파일/1283건** green(`kit.test.jsx` compact 케이스
+  2건 신규, `gameroom-smoke.test.jsx` 어서션 갱신 — 1건 무관 타임아웃 플레이키는 단독
+  재실행으로 재현·확인), 백엔드 pytest **2642개 전체 green**, `npm run build` 통과,
+  `STATIC_CHECKS_OK`(번들 신선도 포함). 커밋 `d34eda6` → `UPGRADE_OK`(2026-08-10
+  15:20 KST) → 서비스 3종 `active` → `/healthz`·`/readyz` 200(BIND_IP 직접 curl로
+  확인). 서빙된 번들 해시(`index.DVCoIXcd.js`)가 로컬 빌드와 일치 확인. 실서버
+  `/chat` 사이드바에서 존재하지 않는 검색어로 컴팩트 빈 상태가 실제로 좁은 폭에 맞게
+  렌더되는 것 직접 확인(콘솔 오류 0건), `/chat-rooms`·`/team-docs`·`/my-tickets`(배지
+  다수 포함) Chrome 직접 확인 — 정상 렌더, 콘솔 오류 0건. `NotificationBell`/
+  `ChatRooms` 초대 목록/`game-room/ChatPanel`의 빈 상태 자체는 이 서버에 실 데이터가
+  있어 라이브 재현 못 함(유닛 테스트 + revert-to-verify로만 검증, 정직하게 기록).
 - **MEGA CYCLE E**: 프런트 vitest **192파일/1281건** green(`activity.test.jsx` 신규
   케이스 포함), 백엔드 pytest 전체 green(변경 없음, 게이트로 재확인), `STATIC_CHECKS_OK`,
   번들 재빌드 완료. `Pager.jsx` 단독 revert-to-verify로 `DS-22` 버그 재현 확인(Activity.jsx
@@ -280,27 +307,32 @@ CORE-01~10 대부분, UB-01~05, SEC-01 — 각 항목의 BACKLOG 행에 **왜** 
 - **QA_COVERAGE**: 마지막 갱신 2026-08-08(사이클 0) — **MEGA CYCLE A·B·C를 포함해 이후
   배포가 누적으로 한 번도 재실행되지 않았다.** 사이클이 늘어날수록 이 공백이 벌어지고
   있다 — 다음 MEGA CYCLE 선정 시 QA_COVERAGE 전수검증 자체를 후보로 고려해야 한다.
-- **미해결 — 배포와 무관한 실서버 이슈**: `n8n` 계정 Claude CLI 미인증(`OPS-06`). 규칙
-  기반 라우팅에는 영향 없음, LLM 자유 대화 경로만 막힘. 사용자 조치 필요, 아직 미해결.
+- **해결됨(2026-08-10) — 배포와 무관한 실서버 이슈**: `n8n` 계정 Claude CLI 미인증(`OPS-06`).
+  규칙 기반 라우팅에는 영향 없었고, LLM 자유 대화 경로만 막혀 있었다. **사용자 재인증
+  (`sudo -iu n8n` → `claude` → `/login`) 후 러너와 동일 조건 실호출로 정상 응답 확인**
+  (`result:"PROBE_OK"`, 실제 토큰 소모). ⚠️ 웹 AI 도우미 대화 E2E 는 아직 미검증.
 
 ---
 
 ## 8. Blocker
 
-**`OPS-06`(사용자 조치 필요)** — 실서버 `n8n` 계정 Claude CLI 재인증 필요. 에이전트가
-직접 수행할 수 없는 항목(자격증명·로그인 플로우, 보안 불변규칙). 이 문서의 자동 진행
-작업 자체를 막지는 않음(다음 MEGA CYCLE 착수는 이 이슈와 독립적으로 계속 가능) — 다만
-LLM 의존 AI 도우미 기능의 실환경검증은 사용자 조치 전까지 이 항목에서 막혀 있다.
+~~**`OPS-06`(사용자 조치 필요)** — 실서버 `n8n` 계정 Claude CLI 재인증 필요.~~
+✅ **2026-08-10 해소.** 사용자가 재인증했고 실호출로 확인했다. LLM 의존 AI 도우미 기능의
+실환경검증을 막고 있던 Blocker가 풀렸다 — **이제 웹 AI 도우미 자유 대화 E2E 를 실제로
+수행할 수 있다**(아직 수행 안 함, 이것이 남은 유일한 미검증 항목).
+
+**현재 Blocker 없음.**
 
 ---
 
 ## 9. 다음 자동 진행 작업
 
-1. MEGA CYCLE E 문서 마감(WORK_STATE.md·BACKLOG.md·PROGRESS_STATUS.md 갱신 + 커밋) —
+1. MEGA CYCLE F 문서 마감(WORK_STATE.md·BACKLOG.md·PROGRESS_STATUS.md 갱신 + 커밋) —
    **이 갱신으로 완료**
 2. Master Plan 원래 축을 다시 대조해 다음 MEGA CYCLE을 선정하고 즉시 착수 — 사용자
-   확인을 기다리지 않는다(D-53 지시에 따름). 후보 목록은 §3 끝에 정리됨(Design System
-   후속 배치 2(DS-14/15/20) · `DS-18` 남은 34개(합성 토큰) · 관리자 IA · QA_COVERAGE
-   전수검증). BACKLOG의 Critical은 0건이지만, §1 해석이 명시하듯 이것이 "완료"를 뜻하지
-   않는다 — Master Plan의 3단계(관리자 IA)는 아직 미착수이고, 축 1(디자인 시스템)도
-   상당수가 미구현이다.
+   확인을 기다리지 않는다(D-53 지시에 따름). 후보 목록은 §3 끝에 정리됨(`DS-18` 남은
+   34개(합성 토큰) · 관리자 IA · QA_COVERAGE 전수검증 · Design System 전체 재감사).
+   BACKLOG의 Critical은 0건이지만, §1 해석이 명시하듯 이것이 "완료"를 뜻하지 않는다 —
+   Master Plan의 3단계(관리자 IA)는 아직 미착수이고, 축 1(디자인 시스템)도 DS-01~33이
+   여러 차례 다운그레이드·재평가된 것처럼 겉보기 진행률과 실제 남은 작업이 다를 수
+   있다.

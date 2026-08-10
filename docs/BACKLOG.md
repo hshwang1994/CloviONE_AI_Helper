@@ -16,12 +16,17 @@
 > ## 🔴 먼저 읽을 것 — Critical 5건과 담당
 > | ID | 문제 | 담당 |
 > |---|---|---|
-> | `OPS-01` | **실서버에서 파일 첨부 업로드 불가**(uploads 가 root 소유 750) | **사용자** — `chown -R` |
+> | `OPS-01` | ~~실서버에서 파일 첨부 업로드 불가(uploads 가 root 소유 750)~~ | ✅ **소유권 복구 확인**(2026-08-10) — 앱 층 첨부 E2E 는 미검증 |
 > | `SEC-20` | 조사 중 sudo 비밀번호를 명령행에 반복 노출 | **사용자** — 회전 |
 > | `SEC-30` | **CSV 가져오기가 권한 상승 게이트를 우회**(admin 이 system_admin 생성) | 구현 |
 > | `SYS-01` | TLS 인증서 교체가 nginx 가 안 읽는 경로에 쓰고 **성공을 보고** | ✅ **실환경검증완료**(2026-08-09) |
 > | `DEPLOY-01` | **문서대로 업그레이드하면 서비스가 멈춘 채 남는다**(복구 코드 없음) | ✅ **실환경검증완료**(2026-08-09) |
 > | `FN-40` | 공지 「내용」을 비우고 저장하면 **500** | ✅ **실환경검증완료**(2026-08-09) |
+>
+> **2026-08-10 실서버 확인**: 위 표의 `OPS-01`(업로드 소유권)은 **이미 복구돼 있었고**(표가 낡았던 것),
+> 별건 `OPS-06`(`n8n` 계정 Claude CLI 미인증)은 **사용자 재로그인으로 해결**됐다. 둘 다 각 절의
+> 「재확인/해결」 블록에 증거를 남겼다. **다만 둘 다 앱 층 E2E 는 아직 미검증**이다 —
+> 첨부 1건 업로드 · AI 도우미 자유 질문 1건이 남아 있다.
 >
 > ## ⚠️ 이 문서에는 **철회·정정된 항목**이 있다
 > `ADM-01`(관리자가 웹 대신 SSH 를 쓴다 — **결론 철회**) · `NOTI-04`(딥링크 3건 → **94/97 이동
@@ -44,7 +49,7 @@
 | **SEC** 보안 | 15 | **`SEC-30` CSV 권한 상승** · `SEC-20` 자격증명 노출 · `SEC-22` CLI 감사 사각 |
 | **QA** 검증 인프라 | 14 | 하네스 정직성 4건 수정 완료 |
 | **CORE·SYS** 인프라 | 23 | **`SYS-01` TLS 무동작** |
-| **OPS·DEPLOY·BKP·RSTR** 운영 | 18 | **`OPS-01` 업로드 불가** · **`DEPLOY-01` 업그레이드 실패** · 백업에 첨부 없음 |
+| **OPS·DEPLOY·BKP·RSTR** 운영 | 18 | ~~`OPS-01` 업로드 불가~~(소유권 복구 확인 2026-08-10) · **`DEPLOY-01` 업그레이드 실패** · 백업에 첨부 없음 |
 | **CTR·KBD·SEM·RESP·HOST·FAIL** 새 축 6종 | 25 | 대비·키보드·시맨틱·반응형·적대적데이터·실패상태 |
 | **USE·SRCH·NOTI·ADM·GM·MAIL·APPR·SCHD·DGEN·PERF·RET·IA·DOC·RG·UX·PERF** 기타 | ~65 | 실사용 집계·검색·알림·게임·메일·승인·스케줄 |
 
@@ -118,13 +123,13 @@
 | DS-11 | Med | **표 구현 3벌** — `kit.DataTable` + `MyTickets.GroupedTickets` + `DevReport.TableWrap/Th`. `"(max-width:899.95px)"` 리터럴이 두 파일에 중복 선언 | `kit.jsx:415`, `MyTickets.jsx:197,222`, `DevReport.jsx:88-113` | **부분 구현완료**(MEGA CYCLE C) — 중복 미디어쿼리 리터럴을 `theme.js`의 `TABLE_CARD_QUERY`(BREAKPOINTS.md 기반)로 추출, `kit.jsx`·`MyTickets.jsx` 둘 다 이걸 쓰게 함. **표 통합 자체는 안 함** — 재검증 결과 `GroupedTickets`(다중 tbody 그룹 헤더)와 `DevReport`(인쇄 CSS·헤더 툴팁·인라인 차트)는 `DataTable`이 못 하는 실제 구조적 필요가 있어 통합 대상이 아님 |
 | DS-12 | Med | **손수 만든 필터/툴바 9개** — `Search`, `Activity`(앱 유일 `ToggleButtonGroup`), `ChatRooms`, `Projects`, `SchedulerCalendar`, `Games`, `Trash`, `Offboarding`, `ConversationSidebar`. 공통 `FilterBarGrid`는 4곳만 사용 | `ui/FilterBar.jsx` 소비자 4개 | **다운그레이드·해소**(코드 변경 없음, MEGA CYCLE C 재검증) — 지목된 9화면 중 3개(Trash/Projects/Games)는 필터 UI 자체가 없고(서술이 낡음), 2개(SchedulerCalendar/Activity)는 목록 필터가 아닌 다른 패턴(달력 탐색/세그먼트 토글)이라 `FilterBarGrid` 대상이 아니며, 나머지 4개는 단일 입력 검색창이라 다중열 격자가 이득이 없다. 전제가 재검증을 못 버팀 |
 | DS-13 | Med | **탭 관용구 3종** — MUI `Tabs`(Project·AssistantPanel) / `ToggleButtonGroup`(Activity) / `AppShell` 수제 pill | `AppShell.jsx:308-321` | **다운그레이드**(코드 변경 없음, MEGA CYCLE C 재검증) — `AppShell`의 pill 토글은 콘텐츠 탭이 아니라 최상위 라우트 전환(사용자↔관리자)이라 애초에 같은 UI 패턴이 아니다(이 서술은 폐기). 남는 것은 `Activity.jsx`의 `ToggleButtonGroup` 하나뿐이고 그것도 방어 가능한 저우선 선택 — 코드 변경 안 함 |
-| DS-14 | Med | **빈 상태 8벌.** `EmptyState`가 31파일에 쓰이는데도 지역 구현이 남아 있다 | `NotificationBell.jsx:482`, `ChatRooms.jsx:141,180`, `ChatRoomMembers.jsx:243`, `chat/ConversationSidebar.jsx:175`, `chat/ResultsRail.jsx:42`, `game-room/ChatPanel.jsx:28`, `ChatPane.jsx:294`, `BoardPost.jsx:515` | 재검증 결과 8곳 중 6곳(NotificationBell·ChatRooms·ChatRoomMembers·ResultsRail·ChatPanel·ChatPane)은 실제로 좁은/제약된 맥락(팝오버·모달 하위목록·사이드바)이라 `EmptyState`의 기본 크기가 안 맞아 이관 전에 `size="compact"`가 먼저 필요함을 확인. **`BoardPost.jsx`의 두 항목은 오분류** — 하나는 빈 상태가 아니라 본문 없음 표시고, 하나는 이미 `Callout`을 쓰고 있었다(그 둘은 목록에서 제외). 고친 컴포넌트 설계안은 나왔으나 이번 사이클엔 구현 안 함(DS-15와 함께 후속 배치) |
-| DS-15 | Med | **`ErrorState`에 `size`가 없어** 340px 팝오버에서 넘치고 `global.css`가 명시도 전쟁으로 덮는다(약 65줄) | `global.css:52-133` | 재검증 결과 실제 충돌 CSS는 약 65줄이 아니라 12줄(`global.css:63-70` 4줄 + `screens.css` 4줄, 나머지는 `ErrorState`가 더 이상 안 쓰는 하위 className을 겨눈 죽은 규칙이었다). `size="compact"` prop을 `EmptyState`/`ErrorState`에 추가하는 설계는 확정됐으나 이번 사이클엔 구현 안 함 — DS-14와 함께 후속 배치(NotificationBell.jsx 마이그레이션 시 죽은 CSS도 같이 정리) |
+| DS-14 | Med | **빈 상태 8벌.** `EmptyState`가 31파일에 쓰이는데도 지역 구현이 남아 있다 | `NotificationBell.jsx:482`, `ChatRooms.jsx:141,180`, `ChatRoomMembers.jsx:243`, `chat/ConversationSidebar.jsx:175`, `chat/ResultsRail.jsx:42`, `game-room/ChatPanel.jsx:28`, `ChatPane.jsx:294`, `BoardPost.jsx:515` | **구현완료**(MEGA CYCLE F) — `EmptyState`에 `size="compact"` prop 추가(일러스트 제거, 여백·글자 축소), 확정된 6곳(NotificationBell·ChatRooms 2곳·ChatRoomMembers·ConversationSidebar·ResultsRail·ChatPanel·ChatPane, 총 7건 — 재검증 중 `ChatRooms.jsx`에 동일 패턴이 2곳임을 추가로 확인) 전부 이관. `BoardPost.jsx`의 두 항목은 원 조사의 오분류로 확인돼(빈 상태 아님/이미 Callout) 목록에서 계속 제외. `ResultsRail.jsx`는 기존 `MascotPose` 일러스트를 `EmptyState`의 `icon` 슬롯에 그대로 넣어 시각은 유지. 프런트 vitest 192파일/1283건 green, `size="compact"` revert-to-verify로 재현 확인 |
+| DS-15 | Med | **`ErrorState`에 `size`가 없어** 340px 팝오버에서 넘치고 `global.css`가 명시도 전쟁으로 덮는다(약 65줄) | `global.css:52-133` | **구현완료**(MEGA CYCLE F) — `ErrorState`에도 `size="compact"` 추가(일러스트 제거, 재시도 버튼 축소, 문의 번호 숨김). `NotificationBell.jsx`가 이제 `ErrorState`에 직접 `size="compact"`를 넘겨, 이를 흉내 내던 `global.css`의 `.noti-pop-error .k-empty*` 특이도 전쟁 CSS 4줄과 `screens.css`의 `.noti-empty*`(팝오버 자체 빈 상태 지역 구현, DS-14와 같은 자리) 4줄을 모두 삭제 |
 | DS-16 | Med | **카드 유형이 `Card`+`StatCard` 둘뿐.** Metric/Status/Summary/Warning/Action/Content 구분 없이 숫자가 있으면 크게·굵게 처리 | `ui/kit.jsx:167,204` | **다운그레이드·보류**(코드 변경 없음, MEGA CYCLE C 재검증) — `StatCard`는 이미 `kind`(ok/warn/danger/neutral) 축으로 색+문구를 구분한다. 실제로 다른 종류가 필요했을 때(서비스 상태) 팀이 이미 별도 컴포넌트(`StatusTile`)를 만든 전례가 있다 — 새 카드 종류를 미리 만드는 건 아직 근거 없는 선제 추상화 |
 | DS-17 | Med | **`Dashboard.jsx`(916줄)가 사실상 '관리자 전용 디자인 시스템'** — `DashSection`/`StatusTile`/`STAT_GRID` 등을 export해 5개 모듈이 의존 | `ops/Diagnostics.jsx`, `ops/JobQueuePanel.jsx`, `ops/Maintenance.jsx`, `ops/ServiceStatusPanel.jsx`, `DevReport.jsx` | **구현완료**(MEGA CYCLE C) — `DashSection`/`StatusTile`/`Note`/`STAT_GRID`/`SERVICE_GRID`/`HEADLINE_GRID`를 새 `ui/adminKit.jsx`로, `serviceLabel`/`SERVICE_LABELS`/`daysSince`/`BACKUP_STALE_DAYS`/`fmtNum`/`fmtProcessingTime`/`fmtCertDays`를 기존 `ops/opsHelpers.js`로 옮김(순수 이동, 동작 변경 없음). 5개 소비 모듈(Diagnostics·JobQueuePanel·Maintenance·ServiceStatusPanel·DevReport) import 갱신. **조사 중 발견한 부수 버그**: `opsHelpers.js`가 `fmtCertDays`를 Dashboard.jsx와 별개로 다시 정의해 두 벌이 따로 살아 있었다 — 이 이동으로 자동 해소 |
 | DS-18 | **재평가 → 원래보다 훨씬 크다** | ~~토큰이 4벌 있고 3개 값이 어긋난다~~ — **MEGA CYCLE C 재검증 결과 서술이 완전히 축소돼 있었다.** `ui/theme.js`(MUI)와 `styles/tokens.css`는 실제로 의도된 분리이고 기준선 대조 테스트로 지켜지고 있어 정상이다. `ui/density.js`도 별개 관심사(레이아웃 치수)로 정상. **진짜 문제는 `app/static/css/tokens.css`(로그인 화면·`base.html`이 쓰는, React 번들과 별개인 정적 사본) 단 하나다** — 두 파일에 공통으로 존재하는 변수만 놓고 값을 직접 대조하니 라이트 34개·다크 20개, 총 **약 54개 변수**가 어긋나 있었다(primary-strong·ink·bg·text·muted·border·success·warning·error·radius·shadow·sidebar-* 전부 포함). 게다가 `frontend/src/styles/tokens.css`(364줄)에 새로 생긴 변수(`font-size-*`·`space-*`·`badge-purple/teal/pink/indigo`·`shadow-*`·`fw-*` 등)를 정적 사본(194줄)은 아예 갖고 있지 않다. **즉 로그인 화면은 React 앱이 지금 쓰는 색과 다른, 한 세대 전의 팔레트로 렌더되고 있다.** | `app/static/css/tokens.css` vs `frontend/src/styles/tokens.css`, 값 단위 직접 대조(둘 다 존재하는 변수만) | **부분 구현완료**(MEGA CYCLE D, 2026-08-10) — 54개 중 **핵심 브랜드/중립/상태 색 + 모서리(약 20개)만 동기화**했다: `color-primary-strong`·`color-bg`·`color-card`·`color-border`·`color-text`·`color-muted`·`color-success`·`color-warning`·`color-error`·`radius-*`(라이트·다크 양쪽). **일부러 안 건드린 것**: 상단바 그라데이션(`--g-topbar`)·사이드바 활성색·배지 글자색처럼 이 파일 자체에 개별 WCAG 대비 계산이 딸린 합성 토큰, 그리고 `--color-ink`(프런트는 테마 무관 고정인데 이 파일은 테마별로 다름 — 구조적 차이라 값만 맞추면 안 되고 설계 판단이 필요) — 이걸 다 맹목적으로 맞추면 이미 검증된 대비 계산을 깨뜨릴 위험이 있어, 재계산 없이 건드리지 않기로 함. **검증**: `tests/regression/test_css_says_what_it_does.py`(사이드바 대비 자동 검사)가 실제로 4건을 잡아냈다 — 전부 진짜 접근성 회귀는 아니었고(4.97~15.00, 전부 4.5 기준 통과) 주석에 박힌 옛 숫자가 낡은 것이었다, 재계산한 값으로 주석 갱신 후 재통과 확인. 배지 색(error/success/warning/info)도 새 기준색으로 직접 재계산해 전부 4.5 이상 확인(5.10~6.93). 로그인 화면 자체의 라이브 시각 확인은 **안 함**(다른 활성 세션과 쿠키를 공유해 로그아웃하면 동시 검증 중이던 다른 탭들이 끊긴다 — 그 정도 지장을 감수할 만큼 급하지 않다고 판단, 정직하게 남긴다). **남은 34개(합성 토큰)는 여전히 후속 배치 대상** |
 | DS-19 | Med | **`kit.css`가 `sx`와 동일 명시도(0,1,0)로 7요소에서 충돌** — 승자가 스타일 주입 순서에 달렸다(`.k-empty` flex vs grid, `.k-stat`, `.k-badge`, `.k-page-head`, `.k-field`, `.c-toolbar-card`, `.c-list-card`) | `ui/kit.css` | **구현완료**(MEGA CYCLE C) — 실제 충돌 6곳(`.k-empty`·`.k-stat`·`.k-page-head`·`.k-field`·`.c-toolbar-card`·`.k-badge`) 전부 CSS 쪽 중복 선언 제거(sx/theme가 이미 값을 갖고 있던 것만 지움, `justify-content` 하나는 CSS에만 있어 kit.jsx의 PageHeader sx로 먼저 옮긴 뒤 지움). **`.c-list-card`는 재검증 결과 sx 자체가 없어 애초에 충돌이 아니었다**(목록에서 제외) |
-| DS-20 | Low | **`screens.css` 240클래스 중 138(58%)이 미참조.** 죽은 계열: `.chat-*` 30 · `.game-*` 25 · `.devrep-*` 12 · `.board-*` 13 · `.doc-*` 10 | `styles/screens.css` | 재검증(개별 클래스 grep으로 직접 확인): 지목된 5계열 내에서 죽은 비율이 원 조사보다도 높다(~97%, 108개 중 105개). 단, **일괄 삭제는 위험하다는 것도 함께 확인** — `.devrep-*`는 15개 중 3개(`devrep`/`devrep-noprint`/`devrep-tablewrap`, 인쇄 규칙용)가 살아 있고, 인접한 `.noti-*` 계열도 절반은 살아 있다. `chat-*`/`game-*`/`board-*`/`doc-*` 4계열은 표본 전수 확인 결과 안전하게 일괄 삭제 가능하나, 이번 사이클엔 실행 안 함(Low 우선순위, 후속 배치로) |
+| DS-20 | Low | **`screens.css` 240클래스 중 138(58%)이 미참조.** 죽은 계열: `.chat-*` 30 · `.game-*` 25 · `.devrep-*` 12 · `.board-*` 13 · `.doc-*` 10 | `styles/screens.css` | **부분 구현완료**(MEGA CYCLE F) — `chat-*`/`game-*`/`board-*`/`doc-*` 4계열을 className 리터럴 기준으로 전수 재검증(word-boundary 정규식, id/data-testid/queryKey 등 className이 아닌 우연한 문자열 일치는 제외). 93개 후보 중 진짜 살아있는 건 `chat-conv-actions`/`chat-conv-time` 2개뿐(`ConversationSidebar.jsx`가 직접 적용) — 나머지 91개(그 자식 selector·연결된 dead keyframe 12종 포함)를 삭제, CSS 파일 622→약 470줄. 부산물로 `TicketBody.jsx`의 `PROSE_SX`(존재하지 않는 `.doc-h1` 등을 겨눈 5개 nested selector, 전부 죽음)와 `screens.css`의 `.tc-roomrow*`(9개, `--badge-neutral-bg` 유일한 소비자였으나 그 자체가 미적용 className)도 같은 조사에서 확인해 정리. **`.devrep-*`/`.noti-*`(DS-15에서 별도 처리)는 이번에도 손대지 않음** — 원 조사가 경고한 대로 계열 내 혼재라 개별 확인이 필요하다. 프런트 vitest 192파일/1283건 green, `npm run build` 통과(브레이스 균형·번들 크기 확인) |
 | DS-21 | Med | **`.c-screen`이 유령 클래스** — 39곳에 붙어 있는데 기본 규칙이 없고 자식 margin 2줄뿐. 9개 화면은 아예 안 붙어 있어 페이지 리듬이 다르다. **주목할 상관관계: 시각 QA 밖에 있던 `SystemOps`·`SetupWizard`·`NotionConsole`·`LlmConsole` 4화면이 전부 `c-screen` 0건이고 그중 3개는 `EmptyState`도 0건이다** — 아무도 안 본 화면이 규약에서 가장 멀리 떠내려갔다. 검사 공백과 품질 드리프트가 같은 자리에 있다 | `styles/screens.css:307-308`; 4화면 직접 대조 | **구현완료**(MEGA CYCLE E) — 9화면 전부에 `className="c-screen"` 추가: Search·Dashboard·SetupWizard(early-return 3곳 포함)·SystemOps·NotionConsole·LlmConsole·Diagnostics·Maintenance·DevReport(`"devrep c-screen"`으로 기존 클래스와 병기). **`Settings.jsx`는 재검증 결과 이미 갖고 있었다** — 원 목록이 재노출 shim 파일(`Settings.jsx`)을 grep해서 실제 구현(`settings/SettingsMain.jsx`)을 놓친 오탐, 손 안 댐. `Ops.jsx`도 같은 이유의 shim이라 실제로는 `Diagnostics.jsx`/`Maintenance.jsx` 2파일이 대상이었음 |
 | DS-22 | Low | **`ui/Pager.jsx`가 `Activity.jsx`에 복붙**됐고 동작이 갈라졌다(원본은 1페이지에서 `null`, 복사본은 항상 렌더) | `Activity.jsx:175-189` vs `ui/Pager.jsx:18-24` | **구현완료**(MEGA CYCLE E) — `Pager.jsx`에 `hasNext` prop 추가(`total`이 없을 때 폴백, `"{page}페이지"` 표시로 전환), `Activity.jsx`의 복붙 구현(17줄)을 `<Pager total={total} hasNext={items.length>=PAGE_SIZE} .../>` 한 줄로 교체. revert-to-verify — 처음엔 두 파일을 같이 되돌려 테스트가 통과해 버려(Activity의 옛 손코딩이 이미 정답이었으므로) 문제를 못 잡는다는 것을 발견, `Pager.jsx`만 따로 되돌려 실패를 직접 확인 |
 | DS-23 | Low | **관리자 표 안 링크가 브라우저 기본 파란/보라 밑줄** — `columnHelpers`가 맨 `<a>`/`<ul>`/`<div>`를 뱉고 `a{}` 규칙이 없다. `registry/shared.js:74-75`는 raw `style` 객체 | `data-screen/columnHelpers.jsx:17-23,66,75-86` | **구현완료**(MEGA CYCLE C) — `columnHelpers.jsx`의 `linkCol`·`previewField` 두 곳을 bare `<a>`에서 MUI `Link`(`underline="hover"`)로 교체(28개 registry 표 전부에 한 번에 적용). `registry/shared.js:74-75`의 raw `style` 객체도 `Typography`(`color="text.disabled"`)로 교체해 매직 opacity 숫자를 없앰 |
@@ -171,7 +176,7 @@
 | DS-29 | Med | **상단바 그라데이션이 사용자 accent를 무시**한다 — 청록을 골라도 상단바는 남색 고정. 실화면에서 라이트·다크가 **완전히 동일한 그라데이션**임을 확인했다(테마에도 반응하지 않는다). accent 설정이 버튼 색만 바꾸므로 "테마를 골랐는데 화면 상단은 그대로"가 된다 | `AppShell.jsx:496-498` + 라이트·다크 대조 | **구현완료**(MEGA CYCLE C) — 상단바 그라데이션의 마지막 정지점이 `DEFAULT_ACCENT`(#536CD6) 리터럴로 박혀 있던 것을 `theme.palette.brand.accent`(실제 사용자가 고른 강조색)로 교체(AppShell.jsx, sx를 테마 콜백 형태로 변경). 딥 인디고→미드 두 정지점은 브랜드 고정색 그대로 유지(사이드바와 같은 원칙) |
 | DS-30 | Med | **`PROJECT_TONE_COLORS`의 주황 `#F08C00`이 라이트 테마에서 대비 2.48:1**(비텍스트 기준 3:1 미달). 8색을 `surface`(라이트 `#FFFFFF`, 다크 `#11182D`)에 대고 직접 계산한 결과: **다크는 8색 전부 통과**(최저 3.11), **라이트에서 주황 1색만 실패**. ※ 이전 조사에서 "다크에서 2.4:1"이라는 보고가 있었으나 **재계산 결과 틀렸다** — 실제로 문제는 반대 테마다. 8색이 두 테마에 같은 값을 쓰는 구조 자체가 원인이다 | `chat-helpers.js:275-276`, 사용처 `chat/TicketCard.jsx:90`. 대비값 직접 계산(WCAG 상대휘도) | **구현완료**(MEGA CYCLE C) — `PROJECT_TONE_COLORS`의 주황을 `#F08C00`→`#C26A00`로 교체. WCAG 상대휘도 공식으로 라이트(#FFFFFF)·다크(#11182D) 양쪽 대비를 직접 재계산해 확인(라이트 3.921·다크 4.491, 둘 다 3:1 이상) |
 | DS-31 | Low | 다크에서 안 바뀌는 고정색: `Mascot` FAB `rgba(255,255,255,.96)` · `ImageLightbox` 배경 `rgba(10,16,38,.92)` · `TopSearch` `#fff` | `Mascot.jsx:254,264`, `ImageLightbox.jsx:49`, `TopSearch.jsx:35,38` | **다운그레이드·해소**(코드 변경 없음, MEGA CYCLE C 재검증) — 셋 다 실제로는 버그가 아님을 확인: Mascot FAB는 기준선 스펙이 명시한 고정 흰 배경판(마스코트가 밝은 배경을 전제로 그려짐), ImageLightbox는 주석에 의도가 명시된 고정 어두운 스크림(어느 테마든 "위에 떠 있다"는 느낌을 주려는 디자인), TopSearch의 흰 글자는 그걸 감싸는 상단바 자체가 두 테마 모두 항상 어두운 색(DS-29)이라 올바른 선택. 세 곳 다 코드 변경 안 함 |
-| DS-33 | Low(신규, MEGA CYCLE D 조사 중 발견) | **중립(neutral) 배지의 글자↔배경 대비가 라이트 테마에서 4.5:1에 살짝 못 미친다.** `app/static/css/tokens.css`(4.28)뿐 아니라 **`frontend/src/styles/tokens.css`(React 앱 실제 값)도 직접 재계산하니 4.43** — 두 파일이 같은 값을 갖고 있어 이 파일이 새로 만든 문제가 아니라 **제품 전체에 이미 있던 공유 결함**이다. success/warning/error 배지는 이미 전용 짙은 색으로 이 문제를 피해 가는데 neutral만 `var(--color-muted)`를 그대로 쓴다 | `app/static/css/tokens.css:115`(4.28), `frontend/src/styles/tokens.css:178` `var(--color-muted)` on `--color-surface-3`(#EEF2F8) = 4.43. WCAG 상대휘도 직접 계산 | 발견 — neutral 배지에도 success/warning/error처럼 전용 짙은 회색을 주는 안이 자연스러운 수정이나, 두 파일 다 건드리는 별도 작업이라 이번엔 구현 안 함. 코드가 새로 깬 게 아니라 기존 값을 그대로 옮기다 발견한 것이라 정직하게 기록만 함 |
+| DS-33 | Low(신규, MEGA CYCLE D 조사 중 발견) | **중립(neutral) 배지의 글자↔배경 대비가 라이트 테마에서 4.5:1에 살짝 못 미친다.** `app/static/css/tokens.css`(4.28)뿐 아니라 **`frontend/src/styles/tokens.css`(React 앱 실제 값)도 직접 재계산하니 4.43** — 두 파일이 같은 값을 갖고 있어 이 파일이 새로 만든 문제가 아니라 **제품 전체에 이미 있던 공유 결함**이다. success/warning/error 배지는 이미 전용 짙은 색으로 이 문제를 피해 가는데 neutral만 `var(--color-muted)`를 그대로 쓴다 | `app/static/css/tokens.css:115`(4.28), `frontend/src/styles/tokens.css:178` `var(--color-muted)` on `--color-surface-3`(#EEF2F8) = 4.43. WCAG 상대휘도 직접 계산 | **부분 구현완료, 정직한 단서 있음**(MEGA CYCLE F) — `frontend/src/styles/tokens.css`의 `--badge-neutral-fg`를 success/warning/error와 같은 패턴으로 전용 짙은 회색(`#4F5A69`, surface-3 위 6.23)으로 교체. **그런데 수정하며 소비처를 추적하니 이 토큰이 실제로는 어디서도 적용되지 않는다는 것을 발견했다** — `Badge` 컴포넌트(`kit.jsx`)는 neutral 톤에 `--badge-neutral-fg`가 아니라 MUI 기본 `color="default"`를 쓰고, 유일한 다른 소비처였던 `.tc-roomrow-tag`(`screens.css`)도 그 className 자체가 어느 JSX에도 적용되지 않는 죽은 규칙이었다(DS-20과 같은 조사에서 확인, 함께 삭제). 즉 **이 수정은 수치상 옳지만 화면에 보이는 효과가 없다** — 실서버 시각 확인은 의미가 없어 생략하고 이렇게 기록한다. `kit.css`의 `.k-badge--*`(9개, neutral 포함) 전부도 같은 이유(Badge가 톤 접미사 className을 더 이상 안 붙임)로 죽은 CSS임을 확인해 함께 삭제 |
 
 > **보존할 올바른 패턴**: `ui/charts/base.jsx:47-63` `resolveChartColor`가 다크에서 묻히는 고정
 > 회색을 `text.disabled`로 라우팅한다. 이것을 시스템 전체 규칙으로 승격한다(DECISIONS D-03).
@@ -2783,7 +2788,34 @@ ssh cloviradmin@10.100.64.71 "echo '<비밀번호>' | sudo -S sqlite3 -readonly 
 
 ---
 
-# 🔴 `OPS-01` (Critical, **실서버에서 지금 깨져 있음**) — 파일 첨부 업로드 불가
+# ✅ `OPS-01` (Critical → **소유권 복구 확인 2026-08-10**) — 파일 첨부 업로드 불가
+
+> ## 재확인 (2026-08-10, 실서버 직접 확인)
+>
+> **소유권은 이미 복구돼 있고, 서비스 사용자가 실제로 쓸 수 있다.** 아래 「실측 (2026-08-09)」은
+> 조치 **이전**의 기록이므로 그대로 둔다(이력).
+>
+> ```
+> drwxr-x--- 3 clovirone-web clovirone-web  /var/lib/clovirone-web-assistant/uploads
+> drwxr-x--- 3 clovirone-web clovirone-web  .../uploads/ticket
+> → 형제 디렉터리(exports·generated·locks·temp)와 동일
+>
+> runuser -u clovirone-web -- test -w .../uploads        → WRITABLE
+> runuser -u clovirone-web -- (파일 생성 후 삭제)          → WRITE_OK / CLEANUP_OK
+> ```
+>
+> **소유권만 보고 넘기지 않고 서비스 사용자로 실제 파일 생성·삭제까지 수행해 확인했다.**
+> `docs/SONNET_HANDOFF.md:13` 의 「사용자 완료」 기록과 일치한다 — 이 문서의 최상단 표가
+> 낡아 있었을 뿐이다.
+>
+> **⚠️ 아직 미검증 — 앱 층 첨부 E2E.** `uploads/ticket/` 의 파일은 **2026-08-05 09:23** 이
+> 마지막이다. 즉 권한 복구 이후 *웹을 통한* 업로드는 아직 한 번도 없었다. 파일시스템 층만
+> 확인됐고 앱 층은 확인되지 않았다. **웹에서 티켓에 파일 1개를 실제로 첨부해 봐야 완료다**
+> (업로드 실패는 감사 로그에 남지 않는다 — `OPS-04`. 로그로는 확인 불가, 눈으로 봐야 한다).
+>
+> **⚠️ 재발 가능성은 그대로 남아 있다 — `OPS-02` 는 닫히지 않았다.** installer 의
+> `install -d` 목록에 `$VAR_DIR/uploads` 가 **여전히 없다**. 현 서버는 디렉터리가 이미 존재해
+> 업그레이드로 깨지지 않지만, **새 서버에 설치하면 같은 문제가 재발한다.**
 
 ## 실측 (2026-08-09)
 
@@ -2822,7 +2854,7 @@ runuser -u clovirone-web -- test -w .../exports   →  쓰기 가능
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | **사용자 조치 필요** |
+| OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | ✅ **소유권 복구 확인**(2026-08-10) — `uploads`·`uploads/ticket` 모두 `clovirone-web:clovirone-web`, 서비스 사용자로 `test -w` + 실제 파일 생성/삭제 성공. **단 앱 층 첨부 E2E 는 미검증**(웹에서 1건 첨부 필요). 재발 방지(`OPS-02`)는 미조치 |
 | OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | 발견 |
 | OPS-03 | Med | **업로드 실패를 알리는 경로가 없다.** 8/5 이후 나흘째 깨져 있는데 `/diagnostics`·알림·헬스체크 어디에도 안 나온다. `readyz` 는 **쓰기 가능성을 확인하지 않는다** | 발견 |
 
@@ -2977,7 +3009,51 @@ ReferenceError: fmtDuration is not defined
 
 ---
 
-## `OPS-06` — **실서버 Claude CLI 가 로그인 상태가 아니다 (`n8n` 계정) → LLM 의존 AI 도우미 응답 전체가 대체 문구로 떨어진다**
+## ✅ `OPS-06` — ~~실서버 Claude CLI 가 로그인 상태가 아니다 (`n8n` 계정)~~ → **2026-08-10 재인증으로 해결**
+
+> ## 해결 (2026-08-10 11:00 KST, 사용자가 재로그인 → 내가 실호출로 확인)
+>
+> **사용자가 `sudo -iu n8n` → `claude` → `/login` 으로 재인증했고, 러너와 동일 조건으로 직접
+> 호출해 실제 응답이 오는 것을 확인했다.**
+>
+> ```
+> 조치 전: {"is_error":true, "result":"Not logged in · Please run /login",
+>           "output_tokens":0, "total_cost_usd":0}
+> 조치 후: {"result":"PROBE_OK", "stop_reason":"end_turn",
+>           "duration_api_ms":1471, "output_tokens":9, "total_cost_usd":0.0393,
+>           "model":"claude-opus-4-8[1m]"}
+> ```
+>
+> **껍데기만 도는 게 아니라 실제 API 를 타고 토큰이 소모됐다**(`output_tokens:9`, 과금 발생).
+> `.credentials.json` 메타도 정상화됐다 — `expiresAt: 0`(초기화됨) → `1786355995995`
+> (= 2026-08-10 18:59:55 KST), mtime 09:17:56 → 10:59:56. **토큰 값은 열지 않았다.**
+> 재인증 이후 `claude-work-assistant` 저널에 새 `claude_cli_failed` **0건**.
+>
+> **서비스 재시작은 불필요했다** — 러너가 요청마다 `claude` 프로세스를 새로 띄우므로 즉시 반영된다.
+>
+> **원인 확정** — `.credentials.json` 의 `expiresAt` 이 **`0` 으로 초기화**돼 있었다(값 미열람,
+> 필드 메타만 확인). 즉 CLI 가 refresh 토큰으로 갱신을 시도했다가 **거부당해 만료값을 지우고
+> 되쓴** 상태였다. 위 「배포와의 인과관계」 절의 추정 — *배포가 원인이 아니라 22시간 넘는 미사용
+> 뒤 첫 호출이 자연 만료를 드러냈다* — 와 정합적이고, 재로그인만으로 해결된 것이 이를 뒷받침한다.
+>
+> **환경 요인은 전부 배제했다**(조치 전 확인): `api.anthropic.com` 405 도달 정상 ·
+> NTP synchronized · 프록시 없음 · `runner.env` 에 `ANTHROPIC_*` 변수 없음(OAuth 전용 경로).
+>
+> **⚠️ 미검증 — 웹 AI 도우미 대화 E2E.** 확인한 것은 *CLI 층*까지다. 그 위의
+> `앱 → 러너(:8789) → CLI` 전체 경로는 러너 토큰이 필요해 확인하지 않았다(자격증명 취급 금지).
+> 웹에서 규칙에 안 걸리는 자유 질문을 던져 대체 문구가 아닌 실제 답변이 오는지 봐야 완료다.
+>
+> **📌 문서 오류 정정** — 아래 「내가 할 수 없는 조치」 절과 상태 표의 `claude /login` 은
+> **그대로 치면 안 되는 명령이다.** `/login` 은 REPL **안에서** 쓰는 명령이다. 올바른 절차:
+> ```
+> sudo -iu n8n     # 로그인 셸 (CWD 가 /home/n8n 이 된다)
+> claude           # 프롬프트에서  /login
+> ```
+> `cloviradmin` 홈에서 `sudo -u n8n … claude` 를 실행하면 CWD 가 `/home/cloviradmin`(750,
+> `n8n` 진입 불가)이라 **`settings.json` EACCES Settings Error 가 뜬다.** 인증과 무관한
+> CWD 문제이고, `Esc` 또는 `3. Continue without these settings` 로 넘기면 된다
+> (`1. Fix with Claude` 는 고르지 말 것 — 남의 홈 설정을 건드리려 든다).
+> 운영 서비스는 `WorkingDirectory` 가 없어 CWD 가 `/` 이므로 이 영향을 받지 않는다.
 
 **MEGA CYCLE A(AI 도우미 대화 엔진, RN-01~14 + AI-30) 배포 후 실 Chrome 검증 중 발견.** 규칙 기반
 라우팅(티켓 목록·상태 변경 등)은 실서버에서 정상 동작을 직접 확인했지만, 규칙에 안 걸려
@@ -3012,6 +3088,6 @@ End-to-End 재현 검증을 못 했다(규칙 기반 경로는 재현 검증 완
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| OPS-06 | **Critical** | **실서버 `n8n` 계정 Claude CLI 미인증** — LLM 의존 AI 도우미 응답 전체가 대체 문구로 떨어진다. 코드 결함 아님, 배포와 무관할 가능성이 더 높음(근거 위 서술). **사용자에게 알려야 할 항목** | **사용자 조치 필요** — 서버에서 `n8n` 계정으로 `claude /login` 재인증 필요 |
+| OPS-06 | **Critical** | **실서버 `n8n` 계정 Claude CLI 미인증** — LLM 의존 AI 도우미 응답 전체가 대체 문구로 떨어진다. 코드 결함 아님, 배포와 무관할 가능성이 더 높음(근거 위 서술). **사용자에게 알려야 할 항목** | ✅ **해결**(2026-08-10 11:00 KST) — 사용자가 `sudo -iu n8n` → `claude` → `/login` 재인증. 러너와 동일 조건 실호출로 `result:"PROBE_OK"` + 실제 토큰 소모 확인, `expiresAt` 정상화, 신규 `claude_cli_failed` 0건. **단 웹 AI 도우미 대화 E2E 는 미검증** |
 
 

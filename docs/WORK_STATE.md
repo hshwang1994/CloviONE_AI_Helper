@@ -12,17 +12,97 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE E 완료(Design System 후속 배치),
-다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게
-조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로
-유지. **MEGA CYCLE A**(AI Assistant, RN-01~14 + Critical AI-30)·**MEGA CYCLE B**(제품
-전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51)·**MEGA CYCLE C**(Design System,
-DS-01~32 전수 재검증)·**MEGA CYCLE D**(로그인 화면 정적 토큰 사본 핵심 색 부분 동기화)·
-**MEGA CYCLE E**(Design System 후속 배치, DS-07/21/22 구현)까지 전부 구현·테스트·배포·
-실환경검증까지 완료 — BACKLOG의 Critical 0건. 상세는 각 §MEGA CYCLE 섹션. MEGA CYCLE A
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE F 완료(Design System 후속 배치 2 +
+DS-33), 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역
+단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC
+22건)은 그대로 유지. **MEGA CYCLE A**(AI Assistant, RN-01~14 + Critical AI-30)·
+**MEGA CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51)·
+**MEGA CYCLE C**(Design System, DS-01~32 전수 재검증)·**MEGA CYCLE D**(로그인 화면 정적
+토큰 사본 핵심 색 부분 동기화)·**MEGA CYCLE E**(Design System 후속 배치, DS-07/21/22
+구현)·**MEGA CYCLE F**(Design System 후속 배치 2, DS-14/15/20 구현 + DS-33)까지 전부
+구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical 0건. 상세는 각 §MEGA CYCLE
+섹션. MEGA CYCLE A
 검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증
-(`OPS-06`, **사용자 조치 필요**, 아직 미해결). 진행률 실측치는
+(`OPS-06`) — **2026-08-10 사용자 재로그인으로 해결, 실호출로 확인 완료**(러너와 동일 조건에서
+`result:"PROBE_OK"` + 실제 토큰 소모). 같은 날 `OPS-01`(업로드 소유권)도 **이미 복구돼 있음을
+재확인**(BACKLOG 표가 낡았던 것). **둘 다 앱 층 E2E 만 미검증** — 웹에서 첨부 1건 · AI 도우미
+자유 질문 1건이 남아 있다. 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE F — Design System 후속 배치 2 (DS-14 · DS-15 · DS-20) + DS-33 완료 (2026-08-10)
+
+MEGA CYCLE E가 후속으로 남긴 마지막 3건(DS-14/15/20)을 구현하고, MEGA CYCLE D가 발견해
+둔 DS-33(neutral 배지 대비)도 같은 사이클에서 처리했다. 넷 다 "MUI 전환 이후 옛 CSS가
+죽었는데 아무도 확인 안 함"이라는 같은 뿌리를 공유한다 — 조사가 깊어질수록 원 추정보다
+죽은 범위가 더 넓다는 것이 계속 드러났다.
+
+- **`DS-14`+`DS-15`**: `kit.jsx`의 `EmptyState`/`ErrorState`에 `size="compact"` prop
+  추가 — 일러스트를 빼고 여백·글자를 줄여 팝오버·모달 하위목록·사이드바 같은 좁은
+  맥락에 맞춘다. 확정된 7곳(`NotificationBell.jsx`의 빈 상태+오류 상태, `ChatRooms.jsx`
+  2곳, `ChatRoomMembers.jsx`, `chat/ConversationSidebar.jsx`, `chat/ResultsRail.jsx`,
+  `game-room/ChatPanel.jsx`, `ChatPane.jsx`)의 지역 구현을 전부 이관.
+  `ResultsRail.jsx`의 기존 `MascotPose` 일러스트는 `EmptyState`의 `icon` 슬롯에 그대로
+  넣어 시각을 유지했다. `NotificationBell.jsx`가 `ErrorState`에 직접 `size="compact"`를
+  넘기게 되면서, 이를 CSS로 흉내 내던 `global.css`의 `.noti-pop-error .k-empty*`
+  특이도 전쟁 규칙 4줄과 `screens.css`의 `.noti-empty*`(빈 상태 지역 구현용 CSS) 4줄이
+  전부 죽어 함께 삭제했다. `kit.test.jsx`에 `size="compact"`가 일러스트를 실제로
+  빼는지 revert-to-verify로 확인하는 신규 테스트 2건 추가.
+- **`DS-20`**: `screens.css`의 `chat-*`/`game-*`/`board-*`/`doc-*` 4계열을 className
+  리터럴 기준으로 전수 재검증(id/data-testid/queryKey 등 className이 아닌 우연한
+  문자열 일치는 제외하는 word-boundary 정규식 스캔). 93개 후보 중 실제로 살아있는
+  건 `chat-conv-actions`/`chat-conv-time` 2개뿐 — 나머지 91개(연결된 `@keyframes`
+  12종 포함)를 삭제, `screens.css` 622→약 470줄. 조사 도중 `TicketBody.jsx`의
+  `PROSE_SX`(존재하지 않는 `.doc-h1` 등 5개 nested selector, MUI 전환 후 전부 죽음)와
+  `screens.css`의 `.tc-roomrow*`(9개, `--badge-neutral-bg`의 유일한 소비처였으나 그
+  className 자체가 어느 JSX에도 안 붙어 있었음)도 같은 자리에서 확인해 함께 정리.
+  `.devrep-*`/`.noti-*`는 원 조사가 경고한 대로 계열 내 생사 혼재라 이번에도 손대지
+  않음. **CSS 파서 함정**: 첫 두 번의 자동 치환 시도가 주석 안에 든 `{`/`}` 문자
+  (`to{opacity:1;transform:none}` 같은 설명 텍스트)에 브레이스 매칭이 속아 죽지 않은
+  규칙을 남기거나 살아있는 `@keyframes`를 건드릴 뻔했다 — 주석을 플레이스홀더로
+  통째로 빼낸 뒤 처리하고 원상 복구하는 방식으로 고쳐, 최종 결과의 브레이스 균형
+  (`{`/`}` 192개씩 일치)과 `npm run build` 통과로 구조 무결성을 확인했다.
+- **`DS-33`**: `frontend/src/styles/tokens.css`의 `--badge-neutral-fg`를
+  success/warning/error와 같은 패턴으로 전용 짙은 회색(`#4F5A69`, surface-3 위 6.23,
+  WCAG 상대휘도 직접 계산)으로 교체. **그런데 소비처를 추적하다 이 토큰이 실제로는
+  어디서도 적용되지 않는다는 것을 발견했다** — `Badge`(`kit.jsx`)는 neutral 톤에
+  `--badge-neutral-fg`가 아니라 MUI 기본 `color="default"`를 쓰고, 유일한 다른
+  소비처(`.tc-roomrow-tag`)도 DS-20 조사에서 이미 죽은 것으로 확인해 삭제했다. 즉
+  **이 수정은 수치상 옳지만 화면에 보이는 효과가 없다** — 실서버 시각 확인은 의미가
+  없어 생략하고 정직하게 기록만 한다. 같은 조사로 `kit.css`의 `.k-badge--*`(neutral
+  포함 9개, `Badge`가 톤 접미사 className을 더 이상 안 붙여 전부 죽음)도 함께 삭제.
+  `app/static/css/tokens.css`(로그인 화면 정적 사본) 쪽은 배경이 `color-mix()` 틴트라
+  합성 배경 위 대비 재계산이 별도로 필요해 이번에도 범위 밖으로 남긴다(MEGA CYCLE D와
+  같은 판단).
+
+**검증**: 프런트 vitest 192파일/1283건 green(1건 무관한 타임아웃 플레이키 재현·재시도로
+확인, `doc-create-form.test.jsx` — 단독 실행 시 2초에 통과, 전체 스위트 동시 실행 부하
+문제로 이번 변경과 무관). `size="compact"`는 revert-to-verify로 재현 확인. `game-room/
+gameroom-smoke.test.jsx`는 채팅 빈 상태 문구가 한 줄에서 제목+설명 두 줄로 갈라진 것에
+맞춰 어서션 갱신(그 자체가 회귀가 아니라 EmptyState 구조 변경의 정상적 결과임을 확인 후
+수정). 백엔드 pytest **2642개 전체 green**(변경 없음, 게이트로 재확인), `npm run build`
+통과(브레이스 균형·번들 크기 확인), `STATIC_CHECKS_OK`(번들 신선도 포함). 커밋은 이 문서
+갱신과 함께.
+
+**배포**: `build-bundle.sh` → scp → `sha256sum -c` 확인 → `upgrade-clovirone-web-assistant.sh`
+(DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71) → `UPGRADE_OK`(2026-08-10
+15:20 KST) → 서비스 3종 `active` → `/healthz`·`/readyz` 200(BIND_IP 경유 직접 curl 확인,
+127.0.0.1 loopback은 nginx가 IP-literal로 바인딩해 응답 안 함 — 기존에도 그랬던 정상 구성).
+서빙된 번들 해시(`index.DVCoIXcd.js`)가 로컬 빌드와 일치하는 것 확인.
+
+**실서버 실환경검증**: `/chat`(AI 도우미 사이드바)에서 존재하지 않는 검색어를 쳐 **컴팩트
+빈 상태("검색 결과가 없습니다")가 실제로 좁은 사이드바 폭에 맞게 렌더되는 것을 직접
+확인**(DS-14의 핵심 대상) — 콘솔 오류 0건. `/chat-rooms`(새 그룹 모달), `/team-docs`
+(목록+상세, 문서 종류 배지), `/my-tickets`(목록+티켓 상세, 상태·우선순위 배지) 전부
+Chrome으로 직접 열어 정상 렌더 + 콘솔 오류 0건 확인 — 특히 배지들이 여전히 올바른 색으로
+뜨는 것은 `kit.css`의 `.k-badge--*`(DS-33에서 삭제) 없이도 `Badge`(`kit.jsx`)의 MUI
+`color`/`sx` 경로가 이미 전담하고 있었다는 이번 조사 결론을 실측으로 재확인한 것이다.
+**정직하게 남기는 한계**: `NotificationBell.jsx`의 빈 상태/오류 상태, `ChatRooms.jsx`의
+초대 목록 빈 상태, `game-room/ChatPanel.jsx`의 빈 채팅 — 셋 다 이 서버엔 이미 실 데이터가
+있어(알림·초대 가능 사용자·게임방 전부 존재) 빈 상태 자체를 라이브로 재현하지 못했다
+(유닛 테스트 + revert-to-verify로만 검증). 게임방을 새로 만들어 강제로 재현하는 것은
+실 데이터에 부작용을 남기는 것이라 하지 않았다.
 
 ---
 
@@ -332,8 +412,12 @@ D-53 전환 후 첫 MEGA CYCLE. 조사 범위: `runner/claude-work-assistant/ass
   logged in · Please run /login"`). 내 코드를 거치지 않고 SSH로 직접 재현 확인, 시간대·
   자격증명 파일 터치 패턴 분석으로 **이번 배포가 원인일 가능성은 낮고 자연 세션 만료 쪽이
   더 유력**하다고 판단(100% 확정은 불가 — 자격증명 내용은 보안 불변규칙상 열람 안 함).
-  **`OPS-06`으로 BACKLOG에 기록, 사용자 조치 필요**(서버에서 `n8n` 계정 `claude /login`
-  재인증). 규칙 기반 경로에는 영향 없음.
+  **`OPS-06`으로 BACKLOG에 기록.** 규칙 기반 경로에는 영향 없음.
+  **→ 2026-08-10 11:00 KST 해결.** 사용자가 `sudo -iu n8n` → `claude` → `/login` 으로 재인증,
+  러너와 동일 조건 실호출로 `result:"PROBE_OK"` + 실제 토큰 소모(`output_tokens:9`) 확인.
+  원인은 `.credentials.json` 의 `expiresAt` 이 `0` 으로 초기화된 상태 — refresh 토큰 거부.
+  **위에서 「배포가 원인일 가능성은 낮다」고 한 판단이 재로그인만으로 해결된 것으로 뒷받침됐다.**
+  서비스 재시작 불필요(러너가 요청마다 `claude` 를 새로 띄움). ⚠️ 웹 AI 도우미 대화 E2E 는 미검증.
 
 ---
 
