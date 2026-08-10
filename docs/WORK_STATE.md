@@ -149,6 +149,28 @@ SSH/sudo 비밀번호를 제공하며 비대화형 자동 배포를 지시했으
 (NOPASSWD sudoers 구성 또는 직접 배포) 대기 중이다. 이 사이 다른 독립 작업은 계속한다 —
 이제는 D-57의 자율 Runner도 이 원칙을 그대로 이어받아 매 실행마다 같은 경계를 지킨다.
 
+**다음 작업 후보(2026-08-11 체크포인트에서 남김)**: FN-41/42/12는 여전히 재설계 필요로
+보류. 다음으로 착수할 만한 후보 둘을 조사했다:
+- **QA_COVERAGE.md 체계적 감사** — 배포된 실서버가 아니어도 **로컬 개발 서버(uvicorn +
+  프런트 dev server)로 Function/API/Data/Console-Network/RBAC/Responsive/Theme 축을
+  상당 부분 검증할 수 있다**(실서버 전용인 것은 배포 확인 자체뿐) — 배포 Blocker와
+  무관하게 바로 착수 가능. 73개 route × 7축 매트릭스 중 대부분이 MEGA CYCLE A 이후
+  갱신 안 됨.
+- **IA-04(사용자 콘솔 vs 관리자 콘솔 UX 통합)** — 이번 체크포인트에서 규모를 다시
+  확인했다: 관리자 화면 약 30개는 `DataScreen.jsx`(768줄) 한 벌의 선언적 registry로
+  돈다. 사용자 콘솔은 전부 수제 구현이고 규모가 크다 — `MyTickets.jsx` 1030줄,
+  `Users.jsx` 951줄, `BoardPost.jsx` 583줄, `TeamDocs.jsx` 582줄, `Board.jsx` 564줄,
+  `ChatPane.jsx` 546줄, `Sprint.jsx` 501줄, `Offboarding.jsx` 512줄. 각 화면이 리치텍스트
+  본문 편집·일괄 선택·실시간 채팅·드래그 등 서로 다른 고유 UX를 갖고 있어, 어느 화면이
+  범용 registry 패턴으로 옮길 수 있고 어느 화면이 구조적으로 못 옮기는지는 화면별로
+  실제 코드를 읽어야 판단할 수 있다 — **이번엔 그 판단까지 하지 않았다**(섣부른 분류가
+  틀리면 "일부만 옮기는 반쪽짜리 시도"로 이어져 CLAUDE.md의 "No half-finished
+  implementations"를 어기게 된다). 다음 착수 시 **화면별 조사 → 가장 안전한 파일럿 1개
+  선정 → 그 화면 하나를 처음부터 끝까지 완전히 마친 뒤에만 다음 화면** 순서를 지킨다.
+
+둘 다 배포 Blocker와 무관하게 바로 진행 가능하다 — 다음 세션(사람이든 D-57 자율 Runner든)은
+이 중 하나를 골라 조사부터 시작한다.
+
 ---
 
 ## 🟣 MEGA CYCLE H — AI 도우미, MEGA CYCLE A 후속 quick-fix 스윕 완료 (2026-08-10)
