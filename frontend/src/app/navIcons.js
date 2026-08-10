@@ -53,6 +53,7 @@ import Eye from "lucide-react/dist/esm/icons/eye.mjs";
 import Gauge from "lucide-react/dist/esm/icons/gauge.mjs";
 import Search from "lucide-react/dist/esm/icons/search.mjs";
 import FolderKanban from "lucide-react/dist/esm/icons/folder-kanban.mjs";
+import Mail from "lucide-react/dist/esm/icons/mail.mjs";
 
 /* 아이콘 키 → 컴포넌트. 없는 키를 쓰면 아무것도 그리지 않고 조용히 넘어간다 —
  * 메뉴 하나 추가하다 아이콘 키를 오타 내도 화면이 죽지는 않게. */
@@ -95,6 +96,7 @@ export const NAV_ICONS = {
   // 프로젝트는 '작업 묶음'이라 티켓(ticket)이나 리포트(report)와 다른 그림이어야 한다 —
   // 같은 아이콘을 돌려 쓰면 사이드바에서 두 항목이 한 덩어리로 보인다.
   project: FolderKanban,
+  mail: Mail,
 };
 
 export function navIcon(key) {

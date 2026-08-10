@@ -94,6 +94,10 @@ export const NAV = [
     { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"], icon: "maintenance" },
     { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], icon: "backup" },
     { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
+    // FN-01: GET /api/admin/mail/status(진단)·POST /test(시험 발송)는 처음부터 있었는데
+    // 띄우는 화면이 없어 SMTP 설정 오류(비밀번호 재설정 메일 등이 조용히 안 감)를 아무도
+    // 못 봤다 — CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)와 같은 role 집합.
+    { to: "/mail", label: "메일 발송", roles: ["operator", "admin", "system_admin", "auditor"], icon: "mail" },
   ] },
   { group: "거버넌스", icon: GavelOutlinedIcon, items: [
     { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },

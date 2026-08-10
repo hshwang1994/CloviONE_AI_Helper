@@ -32,6 +32,7 @@ const Settings = React.lazy(() => import("../screens/Settings.jsx").then((m) => 
 const Diagnostics = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Diagnostics })));
 const Maintenance = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Maintenance })));
 const SystemOps = React.lazy(() => import("../screens/SystemOps.jsx"));
+const MailStatus = React.lazy(() => import("../screens/MailStatus.jsx"));
 const NotionConsole = React.lazy(() => import("../screens/NotionConsole.jsx"));
 const LlmConsole = React.lazy(() => import("../screens/LlmConsole.jsx"));
 const SetupWizard = React.lazy(() => import("../screens/SetupWizard.jsx"));
@@ -111,6 +112,9 @@ function AdminRoutes() {
             역할인데, 여기서 바뀌는 것은 조직이 아니라 **서버 한 대 전체**라 범위라는 개념이
             없다. 서버 게이트는 app/sysops/router.py 가 같은 근거로 따로 건다. */}
         <Route path="/system" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><SystemOps /></RequireRole>} />
+        {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
+            navConfig.js의 /mail 항목과 같은 role 집합. */}
+        <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailStatus /></RequireRole>} />
         {/* Notion 관리(9-4)와 AI 관리(9-5). 시스템 설정과 같은 근거로 `system_admin` 만이다 -
             여기서 바뀌는 것은 **설치 한 벌 전체**가 어느 워크스페이스를 보고 어떤 실행 파일을
             띄우는가라 '부서 범위' 라는 개념이 없다. 서버 게이트는 각 라우터가 따로 건다. */}

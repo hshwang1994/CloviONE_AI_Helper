@@ -13,15 +13,17 @@ describe("사이드바 '운영' 그룹 분리 (IA-01)", () => {
     expect(NAV.find((g) => g.group === "운영")).toBeUndefined();
   });
 
-  it("운영 현황·시스템 인프라·거버넌스 세 그룹이 있고, 항목 14개가 그대로 어딘가에 남아 있다", () => {
+  it("운영 현황·시스템 인프라·거버넌스 세 그룹이 있고, 원래 14개가 그대로 어딘가에 남아 있다", () => {
     const opsToday = NAV.find((g) => g.group === "운영 현황");
     const infra = NAV.find((g) => g.group === "시스템 인프라");
     const governance = NAV.find((g) => g.group === "거버넌스");
     expect(opsToday).toBeTruthy();
     expect(infra).toBeTruthy();
     expect(governance).toBeTruthy();
+    // 14는 IA-01 분리 당시의 원래 항목 수다. 그 뒤 MEGA CYCLE I(FN-01)가 "시스템 인프라"에
+    // "메일 발송"을 새로 추가해 총합이 하나 늘었다 — 늘어난 이유가 있는 숫자이지 유실이 아니다.
     const total = opsToday.items.length + infra.items.length + governance.items.length;
-    expect(total).toBe(14);
+    expect(total).toBe(15);
   });
 
   it("각 항목의 라우트·역할·배지는 그대로다 — 어느 그룹에 속하는지만 바뀌었다", () => {
