@@ -30,8 +30,10 @@
 
 .pending-note { margin: 0 0 var(--space-lg, 16px); line-height: 1.55; }
 
-/* 목록 화면 툴바·검색·상세 키·값 */
-.c-toolbar-card { padding: var(--space-md, 12px) var(--space-lg, 16px); margin-bottom: var(--space-lg, 16px); }
+/* 목록 화면 툴바·검색·상세 키·값. .c-toolbar-card 자체의 padding/margin-bottom은 5개 호출부
+   전부 sx={{p:2, mb:2.5}}로 이미 다른 값을 직접 주고 있어 여기 다시 선언하면 이중 선언
+   충돌이었다(DS-19) — 클래스명은 §293 주석 대상 선택자(`.c-screen > ...`)용으로 남기고
+   자체 규칙은 뺐다. */
 .c-toolbar-row { display: flex; align-items: center; gap: var(--space-lg, 16px); flex-wrap: wrap; }
 
 /* 다중선택 — 좁은 체크박스 열, 헤더에 두는 깔끔한 일괄 동작, 제목 링크 버튼 */

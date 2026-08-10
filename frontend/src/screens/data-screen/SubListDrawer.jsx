@@ -6,7 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Callout, Button, DataTable, Drawer, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Callout, Button, DataTable, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
 
@@ -100,7 +100,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
       } }]
     : sl.columns;
   return (
-    <Drawer open onClose={onClose} title={sl.title || a.label}>
+    <Modal open onClose={onClose} title={sl.title || a.label}>
       {/* sl.hint, 이 하위 목록의 동작 중 암묵적 규칙(예: '비교'가 어느 두 버전을 비교하는지)이
        * 목록만 봐서는 드러나지 않을 때 짧은 안내를 붙인다(폼 필드 도움말과 동일한 스타일 재사용). */}
       {sl.hint ? <div className="k-field-help">{sl.hint}</div> : null}
@@ -169,6 +169,6 @@ export function SubListDrawer({ view, onClose, onActed }) {
           <JsonBlock>{subInfo.body}</JsonBlock>
         </Modal>
       ) : null}
-    </Drawer>
+    </Modal>
   );
 }

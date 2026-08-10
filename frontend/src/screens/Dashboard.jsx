@@ -9,117 +9,15 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
+import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
+import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
-import { SECTION_GAP } from "../ui/density.js";
 
 /* 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 에 있다.
  * 지표마다 (어느 질의에서 오는가 / 어떤 시점 기준인가 / 범위를 지나는가 / 0과 없음을
  * 구분하는가)를 적어 뒀다. 타일을 하나 더할 때 그 네 칸을 못 채우면 그 숫자는 아직
  * 화면에 올릴 준비가 안 된 것이다 — 기준을 설명할 수 없는 숫자는 결국 아무도 안 본다. */
-
-export const SERVICE_LABELS = {
-  web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러",
-  n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
-  "claude-ticket-runner": "티켓 러너", "claude-request-interpreter": "요청 해석기",
-  notion: "Notion",
-};
-// 연동(Integration)은 관리자가 자유 텍스트로 이름을 만들 수 있어(§ Integrations 화면) SERVICE_LABELS의
-// 고정 8종 밖의 이름은 항상 존재할 수 있다 — 그런 이름을 그냥 원문 그대로 보이면 코드 냄새가 난다.
-// kit.jsx의 statusText()와 같은 완화 규칙을 쓴다: 매핑에 없으면 raw passthrough 대신 snake/kebab을
-// 사람이 읽는 형태로 다듬는다(완전한 한국어 번역은 아니어도 원시 식별자보다는 낫다).
-export function serviceLabel(name) {
-  if (SERVICE_LABELS[name]) return SERVICE_LABELS[name];
-  const s = String(name || "");
-  if (/^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(s)) {
-    return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  return s;
-}
-
-/* 지표 타일 한 줄의 열 수 — 이 앱의 모든 StatCard 그리드가 이 한 값을 공유한다(Ops.jsx도 가져다 쓴다).
- * 예전 CSS는 repeat(auto-fill, minmax(210px,1fr))이었다. 210px는 고정값이라 3840px 화면에서
- * 타일이 18개까지 늘어나 한 줄이 얇은 띠가 됐고, 반대로 4K에서 루트 폰트가 커져 글자만 큰
- * 타일이 좁은 트랙에 갇혔다. 브레이크포인트로 못 박아 xs→sm→lg→xxl→uhd에서 1→2→4→5→6열로 간다.
- * (DataScreen.jsx의 요약 카드줄과 같은 값 — 두 화면의 타일 크기가 어긋나 보이지 않게 한다.) */
-export const STAT_GRID = {
-  xs: "1fr",
-  sm: "repeat(2, minmax(0,1fr))",
-  lg: "repeat(4, minmax(0,1fr))",
-  xxl: "repeat(5, minmax(0,1fr))",
-  uhd: "repeat(6, minmax(0,1fr))",
-};
-
-/* 머리 지표 줄만 다른 격자를 쓴다 — **개수가 고정(5개)이기 때문**이다.
- * `STAT_GRID` 는 개수가 변하는 목록(경보 0~N, 서비스 N개)을 담는 값이라 lg 에서 4열인데,
- * 거기에 다섯을 넣으면 마지막 하나가 혼자 다음 줄로 떨어진다(실제로 그렇게 나왔다).
- * 한 줄로 읽히는 것이 이 줄의 존재 이유이므로 lg 부터 다섯 열로 못 박는다.
- * 좁은 화면에서는 2열로 접히고, 그때는 5개가 세 줄이 되는 게 맞다(가로 스크롤보다 낫다). */
-export const HEADLINE_GRID = {
-  xs: "1fr",
-  sm: "repeat(2, minmax(0,1fr))",
-  lg: "repeat(5, minmax(0,1fr))",
-};
-
-/* 대시보드·진단이 공유하는 섹션 껍데기(제목 + 오른쪽 보조 링크).
- * 예전엔 .dash-section/.dash-h2/.dash-h2-row 세 클래스를 두 화면이 각자 손으로 붙였고,
- * 한쪽에만 h2-row를 빠뜨려 같은 성격의 섹션이 화면마다 다른 간격으로 보였다. */
-export function DashSection({ title, action, children }) {
-  return (
-    /* 섹션 사이 간격은 기준선 `.section`(24px)이다. 예전 값 `{ xs: 4, xxl: 5 }`(32px/40px)는
-       한 화면에 섹션이 대여섯 개인 대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
-    <Box component="section" sx={{ mb: SECTION_GAP }}>
-      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
-        {action}
-      </Box>
-      {children}
-    </Box>
-  );
-}
-
-/* 서비스/연동 상태 타일(이름 + 배지). 대시보드와 진단이 같은 사실을 같은 모양으로 보여야 한다 —
- * 예전엔 두 화면이 각자 .dash-svc 마크업을 손으로 복사해 뒀고, 한쪽만 hover 표시를 붙여
- * '누를 수 있는 카드'인지 아닌지가 화면마다 달라 보였다.
- * 이름 옆에 중첩 <button>을 두지 않는다 — role="button" 안의 포커스 가능한 자손은 WAI-ARIA 금지이고,
- * 실제로도 '이름을 누르면 다른 일이 일어난다'는 잘못된 기대를 만든다. 카드 하나만 클릭 대상이다. */
-export function StatusTile({ name, onClick, ariaLabel, children }) {
-  return (
-    <Card onClick={onClick}
-      sx={{
-        p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
-        cursor: onClick ? "pointer" : "default",
-        "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
-      }}
-      role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? ariaLabel : undefined}
-      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
-      <Typography
-        variant="body2" title={name}
-        sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-      >
-        {name}
-      </Typography>
-      {children}
-    </Card>
-  );
-}
-
-// 서비스/연동 카드 격자 — 타일이 작아 지표 타일(STAT_GRID)보다 촘촘하게 깐다.
-export const SERVICE_GRID = {
-  xs: "1fr", sm: "repeat(2, minmax(0,1fr))", md: "repeat(3, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))",
-};
-
-// 섹션 안의 부연(‘성공률 분모’ 설명 등). 예전 .pending-note를 대신한다 — 클래스 하나로
-// 문단·도움말·주석이 뒤섞여 있어서 한 곳을 고치면 엉뚱한 화면의 여백이 같이 움직였다.
-// id를 받는다 — 이 문단이 곧 입력의 설명(aria-describedby 대상)이 되는 자리가 있다(Ops의 점검 공지).
-export function Note({ children, sx, id }) {
-  return (
-    <Typography id={id} variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6, ...sx }}>
-      {children}
-    </Typography>
-  );
-}
 
 // 대상 화면별로 접근 가능한 역할(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
 // 볼 수 없는 화면으로 보내면 403 막다른 길이 되므로, 링크는 역할에 맞을 때만 활성화한다.
@@ -137,14 +35,6 @@ export function canGo(path, role) {
   return !allowed || (role != null && allowed.includes(role));
 }
 
-// 인증서 만료는 음수(이미 만료)일 수 있다. 숫자만 노출하면 '-5'가 쓰레기처럼 보인다(§14.1).
-// days===0은 아직 유효(자정 전까지 남음)하므로 "만료됨"이 아니라 "오늘 만료"로 구분한다.
-export function fmtCertDays(days) {
-  if (days == null) return "-";
-  if (days < 0) return "만료됨";
-  return days === 0 ? "오늘 만료" : "D-" + days;
-}
-
 // 대상 ID를 8자로 줄여 보여줄 때, 줄였다는 시각적 신호(…)를 남긴다 — 그냥 잘라내면 '이게 전체
 // 값'처럼 보여 그대로 다른 화면(감사 로그 필터 등)에 잘못 붙여넣기 쉽다.
 function shortId(id) {
@@ -154,41 +44,6 @@ function shortId(id) {
 function copyToClipboard(text) {
   if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
   return Promise.reject(new Error("copy unsupported"));
-}
-
-// 마지막 성공 백업 이후 이만큼 지나면 '오래됨' 경보를 띄운다, 성공/실패 이분법(마지막 백업 없음)만
-// 보면, 몇 주째 계속 실패 중인데도 예전의 마지막 성공 기록이 남아 있어 조용히 '정상'처럼 보인다.
-export const BACKUP_STALE_DAYS = 7;
-export function daysSince(iso) {
-  if (!iso) return null;
-  // 백엔드는 naive-UTC(오프셋 없는) ISO 문자열을 보낸다(CLAUDE.md §2.9), `new Date(iso)`에 그대로
-  // 넣으면 JS가 이를 '로컬 시각'으로 해석해, KST(UTC+9) 브라우저에선 실제 경과 시간보다 최대 9시간
-  // 어긋난다. lib/format.js의 다른 모든 날짜 파서와 같은 방식으로 오프셋이 없으면 'Z'를 붙인다.
-  const s = String(iso);
-  const isoZ = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
-  const t = new Date(isoZ).getTime();
-  if (Number.isNaN(t)) return null;
-  return (Date.now() - t) / 86400000;
-}
-// StatCard는 값을 크게(clamp 1.5~2.25rem) 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위
-// 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
-// export, Ops.jsx 진단 화면이 같은 dashboard 하위 필드(jobs_24h.*, disk.free_gb)를 그대로 보여주면서
-// 이 규칙을 다시 겪었다(§ Ops.jsx의 number-formatting 주석 참고), 같은 값이 화면마다 다른 표기로
-// 보이지 않도록 한 벌만 두고 공유한다.
-export function fmtNum(n) {
-  return typeof n === "number" ? n.toLocaleString("ko-KR") : n;
-}
-// 평균 처리 시간이 1분을 넘으면 '187초' 같은 raw seconds 대신 분, 초로 보여준다, 크고 굵은 KPI
-// 타일에서 큰 초 단위 값은 한눈에 스캔하기 어렵다(registry.js의 job 지연 표기와 같은 취지).
-export function fmtProcessingTime(sec) {
-  if (sec == null) return "-";
-  // 초/분을 각각 반올림(이중 반올림)하면 59.6초가 '60초'로, 119.6초가 '1분 60초'로 오버플로할 수
-  // 있다, 전체를 정수 초로 한 번만 반올림한 뒤 그 정수에서 분, 초를 나눈다.
-  const total = Math.round(sec);
-  if (total < 60) return total + "초";
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return s ? m + "분 " + s + "초" : m + "분";
 }
 
 /* 서비스 상태 맵(정상/중단/응답 없음/비활성화) → 도넛 조각.

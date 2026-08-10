@@ -10,7 +10,7 @@ import {
   BASELINE_CONTENT_FILLS, BASELINE_CONTENT_PADDING_PX, BASELINE_PX, BASELINE_TRACKS,
   CARD_PADDING, SECTION_GAP, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE,
 } from "./density.js";
-import { DashSection } from "../screens/Dashboard.jsx";
+import { DashSection } from "./adminKit.jsx";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
 import { DOC_DETAIL_GRID } from "../screens/TeamDoc.jsx";
 import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";

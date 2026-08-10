@@ -16,7 +16,7 @@ import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorSt
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
-import { STAT_GRID } from "./Dashboard.jsx";
+import { STAT_GRID } from "../ui/adminKit.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.

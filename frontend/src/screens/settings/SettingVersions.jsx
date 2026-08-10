@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { Card, Button, DataTable, Drawer, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Card, Button, DataTable, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { summarizeSetting, securityDowngradeWarning, displayValue } from "./settingsRegistry.js";
 
 /* 버전 기록 + 롤백 — 백엔드는 모든 설정 변경마다 이전 값 스냅샷을 config_versions에 남긴다.
@@ -72,7 +72,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
     </Box>
   );
   return (
-    <Drawer open onClose={onClose} title={label + ", 버전 기록"} size="lg" footer={footer}>
+    <Modal open onClose={onClose} title={label + ", 버전 기록"} size="lg" footer={footer}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
         각 버전은 그 시점으로 되돌릴 수 있는 값 스냅샷입니다. 롤백은 현재 값을 선택한 버전으로 되돌리며 새 변경으로 다시 기록됩니다.
       </Typography>
@@ -84,6 +84,6 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
         : vq.isError ? <ErrorState error={vq.error} onRetry={() => vq.refetch()} />
         : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
         : <Card><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}
-    </Drawer>
+    </Modal>
   );
 }

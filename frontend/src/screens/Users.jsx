@@ -14,7 +14,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, Badge, Button, DataTable, Drawer, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
@@ -861,7 +861,7 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
 
   return (
     <>
-    <Drawer open={!!user} onClose={onClose} title={d.display_name || d.email} footer={footer} size="lg">
+    <Modal open={!!user} onClose={onClose} title={d.display_name || d.email} footer={footer} size="lg">
       {/* detailStale이 모든 작업 버튼을 잠그지만(actionsDisabled), 그 이유를 아무 데도 보여주지
           않으면 관리자는 버튼이 왜 안 눌리는지 알 길이 없다, sessionsQ.isError와 같은 패턴으로
           여기서도 실패와 재시도 경로를 드러낸다. */}
@@ -942,7 +942,7 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
           </>
         ) : (sessionsQ.data ? <Typography variant="caption" color="text.secondary">활성 세션이 없습니다.</Typography> : null)}
       </Box>
-    </Drawer>
+    </Modal>
     <FormModal open={resetting} title="비밀번호 재설정"
       fields={[{ name: "password", label: "새 비밀번호(선택)", type: "password", help: pwHelp || "비우면 임시 비밀번호가 자동 생성되어 화면에 한 번만 표시됩니다." }]}
       submitLabel="재설정" onClose={() => setResetting(false)} onSubmit={submitReset} />

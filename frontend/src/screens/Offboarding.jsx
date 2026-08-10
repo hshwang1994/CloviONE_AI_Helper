@@ -11,7 +11,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import {
-  PageHeader, Card, Badge, Button, DataTable, Drawer, Skeleton,
+  PageHeader, Card, Badge, Button, DataTable, Modal, Skeleton,
   EmptyState, ErrorState, Callout, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
@@ -453,7 +453,7 @@ function RunHistory() {
         </Card>
       )}
 
-      <Drawer open={!!sel} onClose={() => setSel(null)} size="lg"
+      <Modal open={!!sel} onClose={() => setSel(null)} size="lg"
         title={sel ? (sel.user_name || "오프보딩") + " 실행 상세" : ""}
         footer={sel && !sel.undone_at ? (
           <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
@@ -485,7 +485,7 @@ function RunHistory() {
             ) : null}
           </>
         ) : null}
-      </Drawer>
+      </Modal>
     </Box>
   );
 }

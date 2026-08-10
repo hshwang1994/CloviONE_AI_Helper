@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { fmtCertDays, canGo } from "./Dashboard.jsx";
+import { canGo } from "./Dashboard.jsx";
+import { fmtCertDays } from "./ops/opsHelpers.js";
 
 describe("fmtCertDays", () => {
   it("returns em-dash for null/undefined", () => {

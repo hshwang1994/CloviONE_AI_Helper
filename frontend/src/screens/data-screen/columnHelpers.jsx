@@ -1,5 +1,6 @@
 import React from "react";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
 import { Badge } from "../../ui/kit.jsx";
 import { fmtDateTime } from "../../lib/format.js";
 import { JsonBlock, KeyValueRow } from "./JsonBlock.jsx";
@@ -18,7 +19,7 @@ export const linkCol = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];
   if (v == null || v === "") return "-";
   const s = String(v);
-  return /^https?:\/\//i.test(s) ? <a href={s} target="_blank" rel="noopener noreferrer">{s}</a> : s;
+  return /^https?:\/\//i.test(s) ? <Link href={s} target="_blank" rel="noopener noreferrer" underline="hover">{s}</Link> : s;
 } });
 // 긴 문자열을 목록에서 말줄임(…)으로 자르되, title 속성으로 전체 텍스트를 마우스 오버 시 볼 수
 // 있게 한다(예전엔 '길면 말줄임, title 속성으로 전체 확인'이라는 주석만 있고 실제 title이 없었다).
@@ -81,7 +82,7 @@ export const previewField = (key, label) => ({ key, label, render: (r) => {
       {p.body != null && p.body !== "" ? <JsonBlock>{String(p.body)}</JsonBlock> : null}
       {p.source_row_count != null ? <div>원본 행 수: {String(p.source_row_count)}</div> : null}
       {links.length ? <div>{links.map((l, i) => { const s = String(l); return /^https?:\/\//i.test(s)
-        ? <a key={i} href={s} target="_blank" rel="noopener noreferrer">{s} </a>
+        ? <Link key={i} href={s} target="_blank" rel="noopener noreferrer" underline="hover">{s} </Link>
         : <span key={i}>{s} </span>; })}</div> : null}
     </div>
   );

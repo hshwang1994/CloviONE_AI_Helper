@@ -5,7 +5,8 @@ import Typography from "@mui/material/Typography";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
 import { Card, StatCard } from "../../ui/kit.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
-import { fmtNum, fmtProcessingTime, DashSection, Note, STAT_GRID } from "../Dashboard.jsx";
+import { DashSection, Note, STAT_GRID } from "../../ui/adminKit.jsx";
+import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
 
 /* 진단 화면의 "작업 지표 (최근 24시간)" + "최근 작업 오류" — 둘 다 작업 큐 관련 신호라 한 패널로

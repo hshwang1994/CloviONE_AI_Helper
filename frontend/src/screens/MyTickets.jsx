@@ -27,7 +27,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { rowNameOf } from "../ui/rowName.js";
-import { FAB_CLEARANCE } from "../ui/theme.js";
+import { FAB_CLEARANCE, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
@@ -192,10 +192,6 @@ function groupByProject(rows) {
   });
 }
 
-// 좁은 화면(≤760px)에서 표를 카드 목록으로 바꾸는 기준 — kit.jsx의 DataTable과 같은 값을 쓴다.
-// 두 표가 같은 폭에서 같이 전환되지 않으면 한 화면 안에서 표와 카드가 섞여 보인다.
-const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
-
 // ctx: kit.jsx DataTable과 같은 규칙(cellValue) — 선택 체크박스처럼 셀 안에서 '자기 행이
 // 무엇인지' 알아야 하는 렌더러에 rowName을 건넨다. 이게 없으면 ctx가 항상 undefined라
 // selectionColumn의 render가 매 행 "이 항목 선택"으로 떨어진다(DataTable에서 이미 고친
@@ -223,7 +219,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   const cols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
-  const narrow = useMediaQuery(TABLE_CARD_BREAKPOINT);
+  const narrow = useMediaQuery(TABLE_CARD_QUERY);
 
   /* 빈 상태는 맨 글자가 아니라 kit `EmptyState` 로 그린다. 회색 한 줄은 **로딩 중인지,
    * 필터가 걸린 건지, 정말 없는 건지** 구분해 주지 않는다 — 같은 저장소의 다른 화면들은

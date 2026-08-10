@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { useAuth } from "../../app/auth.jsx";
-import { DashSection, Note } from "../Dashboard.jsx";
+import { DashSection, Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";

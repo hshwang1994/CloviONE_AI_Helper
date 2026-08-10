@@ -9,7 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, Drawer, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, StatCard, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
@@ -681,7 +681,7 @@ export function DataScreen({ config }) {
       )}
       {/* 상세는 넓은(lg) 폭 — 액션 버튼이 많은 화면(러너 등)에서 좁은(md) 폭이면 푸터 버튼이 3줄로
           접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다. */}
-      <Drawer open={!!sel} onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
+      <Modal open={!!sel} onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
         footer={(sel && (canEdit || visibleActions.length)) ? <>
           {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
           {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
@@ -706,7 +706,7 @@ export function DataScreen({ config }) {
             ))}
           </Box>
         ) : null}
-      </Drawer>
+      </Modal>
 
       {config.create ? (
         <FormDrawer open={creating} title={config.createLabel || (config.title + " 추가")} fields={withOptionsFrom(resolveFields(config.create.fields), null)}

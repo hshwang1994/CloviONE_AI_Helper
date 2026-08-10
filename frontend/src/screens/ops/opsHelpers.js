@@ -1,7 +1,8 @@
 /* Ops 화면(진단/유지보수) 공용 순수 함수 + 상수 — JSX 없음. Diagnostics.jsx와 Maintenance.jsx가
- * 함께 쓴다(둘 다 같은 판정 임계값·같은 한국어 어휘를 써야 두 화면이 같은 사실을 다르게 말하지 않는다). */
+ * 함께 쓴다(둘 다 같은 판정 임계값·같은 한국어 어휘를 써야 두 화면이 같은 사실을 다르게 말하지 않는다).
+ * Dashboard.jsx도 이 모듈에서 되가져다 쓴다(DS-17) — 원래는 여기 있던 게 오히려 Dashboard.jsx
+ * 쪽에 있어서, 이 파일이 화면 파일을 거꾸로 import하는 구조였다. */
 import { toUTCDate } from "../../lib/format.js";
-import { serviceLabel, daysSince, BACKUP_STALE_DAYS } from "../Dashboard.jsx";
 
 // 진단/유지보수 쓰기 권한(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
 export const WRITE_ROLES = ["admin", "system_admin"];
@@ -12,8 +13,60 @@ export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 
 // 진단 번들의 컴포넌트(하트비트) 키를 한국어로. '살아있는가'를 판단하는 핵심 신호.
 export const COMP_LABELS = { web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러" };
 
+export const SERVICE_LABELS = {
+  web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러",
+  n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
+  "claude-ticket-runner": "티켓 러너", "claude-request-interpreter": "요청 해석기",
+  notion: "Notion",
+};
+// 연동(Integration)은 관리자가 자유 텍스트로 이름을 만들 수 있어(§ Integrations 화면) SERVICE_LABELS의
+// 고정 8종 밖의 이름은 항상 존재할 수 있다 — 그런 이름을 그냥 원문 그대로 보이면 코드 냄새가 난다.
+// kit.jsx의 statusText()와 같은 완화 규칙을 쓴다: 매핑에 없으면 raw passthrough 대신 snake/kebab을
+// 사람이 읽는 형태로 다듬는다(완전한 한국어 번역은 아니어도 원시 식별자보다는 낫다).
+export function serviceLabel(name) {
+  if (SERVICE_LABELS[name]) return SERVICE_LABELS[name];
+  const s = String(name || "");
+  if (/^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(s)) {
+    return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return s;
+}
+
+// 마지막 성공 백업 이후 이만큼 지나면 '오래됨' 경보를 띄운다, 성공/실패 이분법(마지막 백업 없음)만
+// 보면, 몇 주째 계속 실패 중인데도 예전의 마지막 성공 기록이 남아 있어 조용히 '정상'처럼 보인다.
+export const BACKUP_STALE_DAYS = 7;
+export function daysSince(iso) {
+  if (!iso) return null;
+  // 백엔드는 naive-UTC(오프셋 없는) ISO 문자열을 보낸다(CLAUDE.md §2.9), `new Date(iso)`에 그대로
+  // 넣으면 JS가 이를 '로컬 시각'으로 해석해, KST(UTC+9) 브라우저에선 실제 경과 시간보다 최대 9시간
+  // 어긋난다. lib/format.js의 다른 모든 날짜 파서와 같은 방식으로 오프셋이 없으면 'Z'를 붙인다.
+  const s = String(iso);
+  const isoZ = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
+  const t = new Date(isoZ).getTime();
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / 86400000;
+}
+
+// StatCard는 값을 크게(clamp 1.5~2.25rem) 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위
+// 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
+export function fmtNum(n) {
+  return typeof n === "number" ? n.toLocaleString("ko-KR") : n;
+}
+// 평균 처리 시간이 1분을 넘으면 '187초' 같은 raw seconds 대신 분, 초로 보여준다, 크고 굵은 KPI
+// 타일에서 큰 초 단위 값은 한눈에 스캔하기 어렵다(registry.js의 job 지연 표기와 같은 취지).
+export function fmtProcessingTime(sec) {
+  if (sec == null) return "-";
+  // 초/분을 각각 반올림(이중 반올림)하면 59.6초가 '60초'로, 119.6초가 '1분 60초'로 오버플로할 수
+  // 있다, 전체를 정수 초로 한 번만 반올림한 뒤 그 정수에서 분, 초를 나눈다.
+  const total = Math.round(sec);
+  if (total < 60) return total + "초";
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return s ? m + "분 " + s + "초" : m + "분";
+}
+
 // 인증서 만료는 음수(이미 만료)일 수 있다, 숫자만 노출하지 않는다.
-// days===0은 아직 유효(자정 전까지 남음)하므로 "만료됨"이 아니라 "오늘 만료"로 구분한다(Dashboard.jsx와 동일 규칙).
+// days===0은 아직 유효(자정 전까지 남음)하므로 "만료됨"이 아니라 "오늘 만료"로 구분한다.
 export function fmtCertDays(days) {
   if (days == null) return "-";
   if (days < 0) return "만료됨";

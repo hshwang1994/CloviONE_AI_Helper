@@ -488,15 +488,18 @@ export function AppShell({
       <AppBar
         position="fixed"
         elevation={0}
-        sx={{
-          zIndex: (t) => t.zIndex.drawer + 1,
+        sx={(t) => ({
+          zIndex: t.zIndex.drawer + 1,
           /* 기준 파일의 최종 상단바. 예전 값(105deg, primary.dark → #327C98 → #765FC7)은
              초안 단계의 것이라 전체적으로 밝고 청록이 강했다. 최종안은 딥 인디고에서
-             브랜드 파랑으로 흐르고, 오른쪽 위 바깥에서 보라 빛무리가 내려앉는다. */
+             브랜드 파랑으로 흐르고, 오른쪽 위 바깥에서 보라 빛무리가 내려앉는다.
+             마지막 정지점은 예전에 DEFAULT_ACCENT(#536CD6)를 그대로 박아 둬서, 사용자가
+             강조색을 바꿔도(버튼 등 다른 곳은 다 따라가는데) 상단바만 늘 파란 기본값으로
+             남았다(DS-29) — 실제 팔레트 accent를 읽어 반영한다. */
           background:
-            "radial-gradient(circle at 78% -120%, rgba(142,117,225,.74), transparent 44%)," +
-            " linear-gradient(112deg, #17204D 0%, #293B8D 48%, #536CD6 100%)",
-        }}
+            `radial-gradient(circle at 78% -120%, ${alpha(t.palette.brand.purple, 0.74)}, transparent 44%),` +
+            ` linear-gradient(112deg, ${t.palette.brand.deep} 0%, ${t.palette.brand.mid} 48%, ${t.palette.brand.accent} 100%)`,
+        })}
       >
         {/* disableGutters — MUI Toolbar 기본 좌우 패딩(24px)이 남으면 로고 칸이
             사이드바 폭에서 그만큼 밀려 두 층의 경계가 어긋난다. `pl:0` 으로는

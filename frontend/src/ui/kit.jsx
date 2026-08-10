@@ -3,6 +3,7 @@ import MuiAlert from "@mui/material/Alert";
 import MuiButton from "@mui/material/Button";
 import MuiCard from "@mui/material/Card";
 import MuiChip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import MuiDialog from "@mui/material/Dialog";
 import MuiDialogActions from "@mui/material/DialogActions";
 import MuiDialogContent from "@mui/material/DialogContent";
@@ -31,7 +32,7 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { ART, SPOT } from "../lib/assets.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { KO_WORD_BREAK } from "./theme.js";
+import { KO_WORD_BREAK, TABLE_CARD_QUERY } from "./theme.js";
 import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -129,18 +130,31 @@ export function statusKind(v) {
 // 키트의 톤 어휘 → MUI 색 이름. 한 곳에서만 번역한다.
 const TONE_COLOR = { ok: "success", danger: "error", warn: "warning", info: "info", neutral: "default" };
 const TONE_SEVERITY = { danger: "error", warn: "warning", success: "success", info: "info" };
+// MUI Chip color 팔레트 밖의 톤(문서 종류·게시판 분류 등) — tokens.css의 --badge-*-bg/fg 변수를
+// 그대로 쓴다(다크모드 대응·대비 검증 이미 돼 있는 값). lib/badges.js가 이 네 톤을 배정하는데
+// 예전엔 여기 목록이 없어 전부 회색 필 칩으로 뭉개졌다(DS-09).
+const EXTRA_TONE_VARS = {
+  purple: { bg: "var(--badge-purple-bg)", fg: "var(--badge-purple-fg)" },
+  teal: { bg: "var(--badge-teal-bg)", fg: "var(--badge-teal-fg)" },
+  indigo: { bg: "var(--badge-indigo-bg)", fg: "var(--badge-indigo-fg)" },
+  pink: { bg: "var(--badge-pink-bg)", fg: "var(--badge-pink-fg)" },
+};
 
 export function Badge({ value, kind }) {
   const raw = String(value == null ? "" : value);
   const k = kind || STATUS_KIND[raw] || "neutral";
+  const extra = EXTRA_TONE_VARS[k];
   return (
     <MuiChip
       className="k-badge"
       size="small"
       label={statusText(value)}
-      color={TONE_COLOR[k] || "default"}
+      color={extra ? undefined : TONE_COLOR[k] || "default"}
       variant={k === "neutral" ? "outlined" : "filled"}
-      sx={{ height: 22, fontSize: "0.75rem", "& .MuiChip-label": { px: 1.25 } }}
+      sx={{
+        height: 22, fontSize: "0.75rem", "& .MuiChip-label": { px: 1.25 },
+        ...(extra && { backgroundColor: extra.bg, color: extra.fg }),
+      }}
     />
   );
 }
@@ -152,11 +166,31 @@ const BUTTON_VARIANT = {
   ghost: { variant: "text", color: "inherit" },
   default: { variant: "outlined", color: "inherit" },
 };
-export function Button({ variant = "default", size, children, ...rest }) {
+/* loading: 라벨을 "처리 중…"으로 바꿔치기하지 않는다(예전 DataScreen/ModalFooter 관행) —
+ * 텍스트만 바뀌면 스피너도 없고 버튼 폭도 라벨 길이 따라 흔들린다(DS-04). 라벨은 그대로 두고
+ * visibility만 숨겨 폭을 고정한 채 스피너를 겹쳐 그린다. */
+export function Button({ variant = "default", size, loading = false, disabled, children, sx, ...rest }) {
   const v = BUTTON_VARIANT[variant] || BUTTON_VARIANT.default;
+  const isSm = size === "sm";
   return (
-    <MuiButton type="button" size={size === "sm" ? "small" : "medium"} {...v} {...rest}>
-      {children}
+    <MuiButton
+      type="button"
+      size={isSm ? "small" : "medium"}
+      disabled={disabled || loading}
+      {...v}
+      {...rest}
+      sx={{ position: "relative", ...sx }}
+    >
+      <Box component="span" sx={{ visibility: loading ? "hidden" : "visible", display: "inline-flex", alignItems: "center" }}>
+        {children}
+      </Box>
+      {loading ? (
+        <CircularProgress
+          size={isSm ? 14 : 16}
+          color="inherit"
+          sx={{ position: "absolute", top: "50%", left: "50%", marginTop: isSm ? "-7px" : "-8px", marginLeft: isSm ? "-7px" : "-8px" }}
+        />
+      ) : null}
     </MuiButton>
   );
 }
@@ -413,7 +447,11 @@ function rowOpenLabel(columns, row) {
   if (v == null || v === "") return "상세 보기";
   return "상세 보기: " + String(v);
 }
-const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";
+/* 본문 셀은 열 폭을 안 정해 주면(`c.minWidth` 없음) `overflowWrap:"anywhere"`가 좁은
+ * 컨테이너에서 열 폭을 '한 글자'까지 줄여, 설명 같은 긴 텍스트가 세로로 한 자씩 흐른다
+ * (관리자 registry 표 28개 전부가 이 상태였다, DS-06). SettingsMain.jsx가 이미 겪어 실측
+ * 확인한 버그와 같은 것이다 — 개별 화면마다 minWidth를 채우는 대신 표 자신이 바닥값을 둔다. */
+const DEFAULT_COL_MIN_WIDTH = "4.5rem";
 
 /* 셀 렌더러에 넘기는 두 번째 인자(ctx)는 **그 행에 대한 표의 지식**이다. 지금은 rowName
  * 하나뿐이다: 선택 체크박스처럼 셀 안에 있으면서 '자기 행이 무엇인지' 알아야 하는 컨트롤이
@@ -432,7 +470,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   const safeRows = Array.isArray(rows) ? rows : [];
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
   const cols = onRow ? [...baseCols, { key: "__open", label: "", align: "right", open: true, width: "6rem" }] : baseCols;
-  const narrow = useMediaQuery(TABLE_CARD_BREAKPOINT);
+  const narrow = useMediaQuery(TABLE_CARD_QUERY);
 
   /* 이 저장소에서 **가장 많이 반복되는 버튼**이다 — 관리자 28화면 × 표의 모든 행.
      `MuiButton variant="outlined"` 를 그냥 쓰면 MUI 기본 색(primary)이 붙어 **혼자만
@@ -530,7 +568,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                       ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
                       : { overflowWrap: c.nowrap ? "normal" : "anywhere",
                          whiteSpace: c.nowrap ? "nowrap" : undefined,
-                         minWidth: c.minWidth }}
+                         minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH) }}
                   >
                     {c.open ? openButton(row) : cellValue(c, row, ctx)}
                   </TableCell>
@@ -592,7 +630,7 @@ export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancel
   return (
     <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
       {onCancel ? <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button> : null}
-      {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy}>{busy ? "처리 중…" : submitLabel}</Button> : null}
+      {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy} loading={busy}>{submitLabel}</Button> : null}
     </MuiDialogActions>
   );
 }
@@ -914,10 +952,13 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     </Modal>
   );
 }
-// 하위호환 별칭 — 기존 호출부(FormDrawer/FormDialog/Drawer/DialogFooter)는 그대로 두되 전부 중앙 모달로 동작.
+// 하위호환 별칭 — 기존 호출부(FormDrawer/FormDialog/DialogFooter)는 그대로 두되 전부 중앙 모달로 동작.
+// `Drawer = Modal`은 뺐다(DS-10) — 진짜 옆에서 밀려나오는 드로어(AppShell 사이드바,
+// AssistantDrawer)는 애초에 이 별칭을 안 쓰고 `@mui/material/Drawer`를 직접 쓴다. 이 이름은
+// 중앙 모달 6곳에서만 쓰이고 있었는데, 이름이 "드로어"라 실제 동작(가운데 다이얼로그)과
+// 어긋나 혼동을 줬다 — 호출부를 전부 `Modal`로 고쳐 부른다(동작은 그대로, 이름만 정확해짐).
 export const FormDrawer = FormModal;
 export const FormDialog = FormModal;
-export const Drawer = Modal;
 export const DialogFooter = ModalFooter;
 
 /* 스타일된 확인 대화상자(중앙 모달) — window.confirm 대체. useConfirm()이 async 함수를 준다. */
@@ -1026,7 +1067,7 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
   return (
     <Box
       className="k-page-head"
-      sx={{ position: "relative", display: "flex", alignItems: "flex-end", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: isSection ? 1.5 : 3 }}
+      sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: isSection ? 1.5 : 3 }}
     >
       {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
           61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.

@@ -1,7 +1,8 @@
 /* ClovirONE UI 키트 스타일 — 토큰만 참조, 인라인/CSS-in-JS 없음(CSP). */
 
-/* 배지: 톤(색)으로 구분하되 글자로도 읽힌다. .badge 토큰 재사용. */
-.k-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; }
+/* 배지 자체 모양(패딩·굵기·둥근모서리)은 kit.jsx의 Badge sx + theme.js의 MuiChip
+   styleOverrides가 이미 정한다 — 이 자리에 같은 값을 다시 선언해 두면 어느 쪽이 이기는지가
+   스타일 주입 순서에 달리게 된다(DS-19). 톤별 배경/글자색만 여기 남긴다. */
 /* 여러 배지를 한 셀에 묶는 그룹 — 좁은 화면 카드뷰(td flex space-between)에서 배지들이 흩어지지
    않고 붙어 오른쪽에 모이게 한다(라벨↔그룹만 양끝 정렬). */
 .k-badge-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -11,7 +12,7 @@
 .k-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 /* 인라인 라벨 + 컨트롤(필터 등) */
 .k-field-inline { display: inline-flex; align-items: center; gap: 8px; }
-.k-field-label { font-size: 13px; color: var(--color-muted); }
+.k-field-label { font-size: 0.8125rem; color: var(--color-muted); }
 .k-badge--ok { background: var(--badge-success-bg); color: var(--badge-success-fg); }
 .k-badge--warn { background: var(--badge-warning-bg); color: var(--badge-warning-fg); }
 .k-badge--danger { background: var(--badge-error-bg); color: var(--badge-error-fg); }
@@ -24,7 +25,7 @@
 
 /* 콜아웃(안내): 왼쪽 강조선(제품주가 거부한 Claude식 바)을 쓰지 않는다. 상태는
    옅은 배경 틴트 + 톤을 띤 '전체' 테두리 + 아이콘 글리프로 표현한다(§6). */
-.k-callout { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; padding: 12px 16px; font-size: 14px; background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
+.k-callout { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); border-radius: 12px; padding: 12px 16px; font-size: 0.875rem; background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
 /* 톤 라벨(안내/주의/오류/완료) — 클로드식 이모지 대신 짧은 텍스트로 톤을 알린다. 색은 톤을 따른다. */
 .k-callout-label { flex-shrink: 0; white-space: nowrap; color: var(--badge-info-fg); font-weight: var(--fw-semibold); }
 .k-callout-body { line-height: 1.55; }
@@ -35,29 +36,22 @@
 .k-callout code { background: var(--color-bg); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; }
 
 /* 상태 카드: 균등 그리드에서 쓰며 값은 톤 색, 클릭형은 필터 연동. */
-.k-stat { position: relative; text-align: left; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 18px 20px; width: 100%; }
+/* 안쪽 여백은 kit.jsx의 StatCard가 STAT_CARD_PADDING(17px 18px)으로 이미 sx에 준다 — 여기
+   padding을 다시 선언하면 18px 20px와 값 자체가 달라 이중 선언 충돌이 된다(DS-19). */
+.k-stat { position: relative; text-align: left; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); width: 100%; }
 /* 선택된(필터로 켜진) 카드 — 색 링으로 지금 어느 카드가 아래 목록을 필터하고 있는지 알린다. */
 @keyframes k-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 
-/* 빈 화면 / 오류 상태 — 제목 8 도움말, 도움말 16 버튼(스펙 리듬). */
-.k-empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); text-align: center; padding: var(--space-3xl) var(--space-xl); color: var(--color-muted); }
-.k-empty-icon { font-size: 36px; line-height: 1; opacity: 0.6; }
-.k-empty-title { font-size: 16px; font-weight: var(--fw-semibold); color: var(--color-text); }
-.k-empty-help { font-size: 13px; max-width: 440px; line-height: 1.55; }
-/* 선행 조건·기대 결과 — 라벨 + 본문 한 줄. 왼쪽 강조선 없이 옅은 틴트 카드로 구분. */
-.k-empty-note { max-width: 440px; font-size: 13px; line-height: 1.55; color: var(--color-text); background: color-mix(in srgb, var(--color-primary) 5%, transparent); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); text-align: left; }
-/* 다음에 할 일 — 번호 목록. 가운데 정렬 화면 안에서 목록은 왼쪽 정렬이 읽기 편하다. */
-.k-empty-steps { margin: 0; padding-left: 1.4em; max-width: 440px; text-align: left; font-size: 13px; line-height: 1.7; color: var(--color-text); }
-.k-empty-action { margin-top: var(--space-sm); }
-.k-empty-link { font-size: 13px; color: var(--color-primary); text-decoration: none; }
-.k-empty-link:hover { text-decoration: underline; }
-.k-empty-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.k-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* 빈 화면 / 오류 상태. 레이아웃(grid/gap/padding)은 kit.jsx의 EmptyState·ErrorState가
+   sx로 직접 준다 — 이 클래스는 그 둘의 outer Box에만 붙고 자식에는 className이 없어서(그래서
+   .k-empty-icon 등 하위 선택자는 죽은 CSS였다, 삭제함), 여기 남는 건 sx가 안 주는 색 하나뿐이다. */
+.k-empty { color: var(--color-muted); }
+.k-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 /* 숫자열 자릿수 정렬 — 표 전역에 tabular-nums(고정폭 숫자). devrep·감사로그와 동일 규범. */
 .k-table th, .k-table td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--color-line); font-variant-numeric: tabular-nums; }
-.k-table th { color: var(--color-muted); font-weight: 600; font-size: 13px; }
+.k-table th { color: var(--color-muted); font-weight: 600; font-size: 0.8125rem; }
 /* 행 상세 열기 버튼 — 행 전체를 role="button"으로 만들지 않고 실제 버튼으로 키보드·SR 접근을 준다. */
-.k-row-open { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 13px; font-weight: 600; padding: 4px 6px; border-radius: 6px; white-space: nowrap; }
+.k-row-open { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 0.8125rem; font-weight: 600; padding: 4px 6px; border-radius: 6px; white-space: nowrap; }
 .k-row-open:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .k-row-open:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
 @media (max-width: 760px) {
@@ -65,7 +59,7 @@
   .k-table, .k-table tbody, .k-table tr, .k-table td { display: block; width: 100%; }
   .k-table tr { border: 1px solid var(--color-border); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; }
   .k-table td { border: 0; padding: 5px 0; display: flex; justify-content: space-between; gap: 12px; }
-  .k-table td::before { content: attr(data-label); color: var(--color-muted); font-size: 12px; font-weight: 600; }
+  .k-table td::before { content: attr(data-label); color: var(--color-muted); font-size: 0.75rem; font-weight: 600; }
 }
 @keyframes k-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes k-pop { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
@@ -85,10 +79,11 @@
 @media (max-width: 640px) {
 }
 
-/* 페이지 헤더 — 스펙 리듬: 빵부스러기→제목 8, 제목→설명 4, 설명(헤더)→콘텐츠 16. */
-.k-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+/* 페이지 헤더 레이아웃(display/gap/여백)은 kit.jsx의 PageHeader가 sx로 직접 준다(DS-19) —
+   `& .k-page-head` 중첩 선택자로 개별 화면(OrgConsole 등)이 margin만 덮어쓰는 자리는 그대로
+   유효하다(그쪽은 이 클래스명을 targeting하는 더 높은 명시도 규칙이라 영향 없음). */
 /* 제목은 600까지만 — 700을 쓰지 않는다(전부 굵게 금지). */
-.k-page-title { margin: 0; font-size: 23px; font-weight: var(--fw-semibold); letter-spacing: -0.3px; color: var(--color-heading); }
+.k-page-title { margin: 0; font-size: 1.4375rem; font-weight: var(--fw-semibold); letter-spacing: -0.3px; color: var(--color-heading); }
 /* .k-page-desc(설명 문단)는 kit.jsx의 PageHeader description prop과 함께 지웠다 — 어떤
    화면도 실제로 그 prop을 넘긴 적이 없는 죽은 표면이었다(product-quality-audit AREA=D). */
 /* shrink:0인 액션(대시보드의 긴 KST 타임스탬프 + 새로고침 버튼 등)이 줄바꿈·줄임 없이 제목을
@@ -99,17 +94,17 @@
    .c-app의 overflow-x:clip에 잘려 나간다 — 줄바꿈으로 항상 눈에 보이게 한다. */
 .k-page-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); flex-shrink: 0; }
 @media (max-width: 640px) {
-  .k-page-head { flex-wrap: wrap; } .k-page-actions { flex-basis: 100%; }
+  .k-page-actions { flex-basis: 100%; }
 }
 
 /* 페이지 수준 안내문 — 헤더 아래 한두 줄 설명. 설명→툴바/콘텐츠 16. */
-.k-page-help { margin: 0 0 var(--space-lg); font-size: 14px; font-weight: var(--fw-normal); color: var(--color-muted); line-height: 1.6; max-width: 70ch; }
+.k-page-help { margin: 0 0 var(--space-lg); font-size: 0.875rem; font-weight: var(--fw-normal); color: var(--color-muted); line-height: 1.6; max-width: 70ch; }
 
-/* 폼 필드 */
-.k-field { margin-bottom: 14px; }
+/* 폼 필드. 바깥 간격(margin-bottom)은 세 호출부 전부 sx로 mb:2.5를 직접 준다 — 여기서
+   14px를 다시 선언하면 값 자체가 달라 이중 선언 충돌이었다(DS-19), 그래서 뺐다. */
 /* 필드 라벨은 500(medium) — 값/제목(600)보다 한 단계 낮춰 위계를 만든다. */
-.k-field-label { display: block; font-size: 13px; font-weight: var(--fw-medium); margin-bottom: 5px; color: var(--color-text); }
-.k-input { width: 100%; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--color-card); color: var(--color-text); }
+.k-field-label { display: block; font-size: 0.8125rem; font-weight: var(--fw-medium); margin-bottom: 5px; color: var(--color-text); }
+.k-input { width: 100%; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.875rem; font-family: inherit; background: var(--color-card); color: var(--color-text); }
 .k-input:focus-visible { outline: 2px solid var(--color-primary-soft); outline-offset: 0; border-color: var(--color-primary); }
 /* 검증 실패 필드 — 붉은 테두리 + 옅은 배경으로 어디가 문제인지 즉시 보인다. */
 /* 읽기 전용 필드(readOnly/조회 전용 역할) — 편집 가능한 필드와 배경·커서·포커스 링이
@@ -119,10 +114,10 @@
 .k-input[readonly] { background: color-mix(in srgb, var(--color-muted) 8%, var(--color-card)); cursor: default; }
 .k-input[readonly]:focus-visible { outline-color: var(--color-border); cursor: default; }
 textarea.k-input { resize: vertical; }
-.k-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.k-check { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; }
 /* 다중 선택(담당자 등) 체크박스 목록 — 스크롤되는 테두리 상자로 폼 안에서 높이를 제한한다. */
 .k-check-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow: auto; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-card); }
 /* 표 행 우측의 액션 버튼 묶음(편집·나에게 배정) — 우측 정렬, 줄바꿈 방지. */
 .k-row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; flex-wrap: nowrap; }
-.k-field-help { font-size: 12px; color: var(--color-muted); margin-top: 4px; line-height: 1.5; }
-.k-form-err { color: var(--color-error); font-size: 13px; margin-top: 8px; }
+.k-field-help { font-size: 0.75rem; color: var(--color-muted); margin-top: 4px; line-height: 1.5; }
+.k-form-err { color: var(--color-error); font-size: 0.8125rem; margin-top: 8px; }

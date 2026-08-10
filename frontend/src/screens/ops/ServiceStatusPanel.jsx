@@ -2,8 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import { Badge, StatCard, Callout, useToast } from "../../ui/kit.jsx";
-import { fmtNum, DashSection, StatusTile, STAT_GRID, SERVICE_GRID } from "../Dashboard.jsx";
-import { COMP_LABELS, fmtCertDays, copyText } from "./opsHelpers.js";
+import { DashSection, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
+import { fmtNum, COMP_LABELS, fmtCertDays, copyText } from "./opsHelpers.js";
 
 /* 진단 화면의 "시스템 리소스" + "서비스 상태" 카드 — 둘 다 '지금 이 순간' 스냅샷이라 한 패널로 묶는다.
  * 서비스가 중단·응답 없음이면 재시작 안내(journalctl 명령 + 복사)까지 이 패널이 책임진다 — 상태를

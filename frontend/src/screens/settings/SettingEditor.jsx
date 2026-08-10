@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
-import { Button, Callout, Drawer, useConfirm } from "../../ui/kit.jsx";
+import { Button, Callout, Modal, useConfirm } from "../../ui/kit.jsx";
 import { settingLabel, OBJECT_SCHEMA_HELP, STRUCTURED_OBJECT_KEYS, INT_BOUNDS, securityDowngradeWarning } from "./settingsRegistry.js";
 import { StructuredObjectFields } from "./StructuredObjectFields.jsx";
 import { SettingVersions } from "./SettingVersions.jsx";
@@ -179,7 +179,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
   );
   return (
     <>
-    <Drawer open={!!setting} onClose={requestClose} title={settingLabel(setting.key)} footer={footer}>
+    <Modal open={!!setting} onClose={requestClose} title={settingLabel(setting.key)} footer={footer}>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "변경됨"})</Typography>
       <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5, maxWidth: "70ch" }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
@@ -246,7 +246,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       {checked ? <Box role="status" sx={{ mt: 2 }}><Callout tone="success">{checked}</Callout></Box> : null}
       {/* 오류는 앱 공통 오류 색(error)으로 — 예전 .k-empty-help는 색이 없어 일반 텍스트로 보였다. */}
       {err ? <Typography color="error" variant="body2" id="setting-err" role="alert" sx={{ mt: 2 }}>{err}</Typography> : null}
-    </Drawer>
+    </Modal>
     {showVersions ? (
       // 롤백 후 부모 편집기를 닫을 때도 requestClose()(같은 미저장 변경 확인)를 거친다, onClose()를
       // 바로 부르면, 편집기에 아직 저장하지 않은 입력(dirty)이 있어도 확인 없이 조용히 버려졌다

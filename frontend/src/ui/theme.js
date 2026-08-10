@@ -37,6 +37,13 @@ export function normalizeAccent(value) {
  * 토큰이 아니라 리터럴로 적어 둔 값이다), 나머지 기본값은 md(12) 다. */
 export const RADIUS = { sm: 8, md: 12, lg: 18 };
 
+/* fontWeight 값이 파일 70개에 걸쳐 원시 숫자로 흩어져 있다(700이 최다, 그 외 750/800/600/
+ * 400/650/500/780 등 — DS-05). 여기서 한꺼번에 옮기지는 않는다(호출부 70여 곳을 한 번에
+ * 바꾸는 건 이 정리의 범위 밖) — 새로 쓰는 자리와 kit.jsx 자신이 우선 이 토큰을 쓰게 한다.
+ * h1~h6/button 자체의 굵기 배율(아래 typography 설정)은 건드리지 않는다 — 그건 베이스라인이
+ * 정한 값이라 별개다. */
+export const FONT_WEIGHT = { regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
+
 /* 기준선 --brand-*. --brand-accent 만 런타임 강조색으로 덮인다
  * (기준선 render(): documentElement.style.setProperty('--brand-accent', state.accent)). */
 const BRAND = { deep: "#17204D", mid: "#293B8D", purple: "#8E75E1", mint: "#62C7BD" };
@@ -147,6 +154,12 @@ const TOKENS = {
 export const NAV_BREAKPOINT = 860;
 
 export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2200, uhd: 3000 };
+
+/* 표가 카드 목록으로 접히는 지점 — kit.jsx의 DataTable과 MyTickets.jsx의 GroupedTickets가
+ * 각자 "(max-width:899.95px)" 리터럴을 따로 갖고 있었다(DS-11) — BREAKPOINTS.md(900)에서
+ * 값을 뽑아 한 곳만 고치면 둘 다 따라오게 한다. 899.95는 MUI가 `down("md")`에서 생성하는
+ * 정확한 값(0.05px 겹침 방지)과 같다. */
+export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 
 /* 표제는 화면 폭에 따라 유동적으로 키우되 상한을 둔다(4K에서 무한정 커지지 않게).
  * 본문 계열은 rem 그대로 두고 루트 폰트사이즈 레버에 맡긴다. */

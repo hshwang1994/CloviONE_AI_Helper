@@ -10,6 +10,7 @@
  * 네 개씩 늘면 화면을 옮길 때마다 그 네 줄을 다시 맞춰야 한다.
  */
 import React from "react";
+import Typography from "@mui/material/Typography";
 export { badgeCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, truncateCol } from "../DataScreen.jsx";
 export { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
@@ -71,8 +72,8 @@ export const personField = (idKey, label, nameKey, emailKey) => ({
     if (!name && !email) return React.createElement("span", null, String(id));
     return React.createElement("span", null,
       name || email,
-      email && name ? React.createElement("span", { style: { opacity: 0.7 } }, " " + email) : null,
-      id ? React.createElement("div", { style: { opacity: 0.6, fontSize: "0.75rem" } }, "ID " + id) : null,
+      email && name ? React.createElement("span", { style: { color: "var(--color-muted)" } }, " " + email) : null,
+      id ? React.createElement(Typography, { component: "div", variant: "caption", color: "text.disabled" }, "ID " + id) : null,
     );
   },
 });               // 상세 전용 평문 필드
