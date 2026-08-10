@@ -206,7 +206,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | `/api/admin/jobs` | 403 | 200 | **403** | 200 | ✅ `OPS`(auditor 제외 의도) |
 | `/api/admin/impersonation/sessions` | 403 | **403** | 200 | 200 | ✅ `SENSITIVE_READ` |
 | `/api/admin/backups`·`rbac-matrix`·`announcements`·`ai-quotas`·`feature-flags`·`integrations`·`schedules` | 403 | 200 | 200 | 200 | ✅ `CONSOLE_READ` |
-| `/api/admin/mail/status` | 403 | 200 | 200 | 200 | ⚠️ 권한은 맞으나 **부를 화면이 0개**(`FN-01`) |
+| `/api/admin/mail/status` | 403 | 200 | 200 | 200 | ✅ `CONSOLE_READ` — **2026-08-11 갱신**: `FN-01`이 `MailStatus.jsx` 신설로 닫혀, 이제 부를 화면도 있다 |
 | `/api/system/status` | 200 | 200 | 200 | 200 | 인증만 — 배너 알림용(의도) |
 
 ### 이 표가 드러낸 가장 중요한 것
@@ -217,6 +217,25 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 
 나머지는 전부 설계대로다 — `auditor`가 `jobs`에서 빠지고 `impersonation/sessions`에 들어가는
 비대칭까지 코드 의도와 일치한다. **RBAC 뼈대는 건강하고, 구멍은 위 두 개다.**
+
+## 6-2. RBAC 실측 — 이번 사이클 신규 UI (2026-08-11, 로컬 dev 서버, 3역할 실제 로그인)
+
+배포 Blocker와 무관하게 로컬 dev DB에 uvicorn을 띄우고 `user`/`operator`/`system_admin`
+3역할로 실제 로그인해 화면에서 직접 확인했다(자동화 하네스가 아니라 수동 Chrome 조작).
+대상은 이번 사이클(FN-03/05/06/09/11/14, SEC-04/05)이 새로 만든 UI 요소 중 role 게이트가
+있는 것들이다.
+
+| 화면 요소 | user | operator | system_admin | 판정 |
+|---|---|---|---|---|
+| 검색 화면 "지금 재색인" 버튼 (FN-03b) | 안 보임 | **보임** | 보임 | ✅ `OPS_ROLES` 게이트가 실제로 걸린다 |
+| `/ai-quotas`(AI 사용 상한) 화면 자체 | 접근 불가(홈으로 리다이렉트) | 미확인 | 보임(요약 카드 2개 포함, FN-05) | ✅ `CONSOLE_READ` 게이트 |
+| `/notifications` 화면 자체 | **보임**(소유권 기반이라 role 무관) | 미확인 | 보임 | ✅ 의도대로 role-free |
+
+**직접 확인 못 함(정직하게 남김)**: FN-03a(팀 티켓 배너)·FN-03c(알림 삭제 버튼 표시)·
+FN-14·FN-06·FN-09·SEC-05(위임 종료일)는 이 로컬 dev DB에 해당 상태 데이터가 없어(활성
+위임 없음, 알림 없음, 프로젝트 없음, 실패한 백업 없음, 휴지통 항목 없음) 화면에서 직접
+못 눌러봤다 — 프런트 vitest(일부 revert-to-verify)로만 검증됨. `operator`로 AI 상한/알림
+화면은 이번 라운드에서 안 열어봄(시간 배분상 검색 재색인의 operator 케이스만 확인).
 
 ## 7. 주요 End-to-End 흐름
 
@@ -229,7 +248,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | **AI: 채팅 → 실제 Notion 티켓 생성** | - | **한 번도 실물 검증된 적 없다**(BACKLOG AI-50) |
 | AI: 연속 대화·History·Context·오류·재시도·새로고침·페이지이동 | - | |
 | 백업 → 복구 리허설 → 복원 | - | |
-| 승인 → 위임 → 결재 → 알림 → 감사 | - | FN-11(위임자에게 버튼 없음)과 직결 |
+| 승인 → 위임 → 결재 → 알림 → 감사 | ~ | **2026-08-11 갱신**: `FN-11`(위임자에게 버튼 없음) 구현완료 — `can_decide` 서버 판정 + revert-to-verify 보안 테스트 2건. 위임→결재까지의 전체 흐름을 실 브라우저로 끝까지 밟아 보진 않음(로컬 dev DB에 활성 위임 데이터 없음) |
 | 스케줄 → 실행 → 작업큐 → 감사 | - | FN-13(역추적 불가)과 직결 |
 
 ---
