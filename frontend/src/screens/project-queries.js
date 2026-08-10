@@ -124,6 +124,16 @@ export function useUpdateProject(id) {
   });
 }
 
+// FN-04: 백엔드(DELETE /api/projects/{id})는 보관(soft delete)이고 화면엔 "보관됨" 배지·
+// "보관한 프로젝트 포함" 체크박스까지 있었는데, 그 상태로 보내는 버튼 자체가 없었다.
+export function useArchiveProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api("/api/projects/" + encodeURIComponent(id), { method: "DELETE" }),
+    onSuccess: (_data, id) => invalidateProject(qc, id),
+  });
+}
+
 /* 마일스톤 세 개는 경로만 다르고 무효화 대상이 같다. 마일스톤이 바뀌면 Health 판정("기한
  * 지난 마일스톤")과 요약의 '지연 마일스톤' 이 함께 달라지므로 프로젝트 캐시 전체를 턴다. */
 function milestonePath(projectId, milestoneId) {

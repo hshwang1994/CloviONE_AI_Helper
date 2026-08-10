@@ -706,6 +706,32 @@ describe("프로젝트 수정", () => {
   });
 });
 
+describe("프로젝트 보관 (FN-04)", () => {
+  beforeEach(() => { authRole = "admin"; });
+
+  it("🔴 '보관' 버튼이 확인 후 DELETE /api/projects/{id}를 부른다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    await user.click(screen.getByRole("button", { name: "보관" }));
+    // ConfirmProvider 다이얼로그의 확인 버튼은 confirmLabel("프로젝트 보관")을 쓴다 —
+    // 트리거 버튼("보관")과 라벨이 겹치지 않아야 어느 쪽을 눌렀는지 테스트가 분명히 안다.
+    await user.click(await screen.findByRole("button", { name: "프로젝트 보관" }));
+
+    await waitFor(() => expect(lastWrite("/api/projects/p-1", "DELETE")).not.toBeNull());
+  });
+
+  it("이미 보관된 프로젝트에는 '보관' 버튼이 다시 뜨지 않는다(되돌리는 API가 없다)", async () => {
+    detailProject = project({ archived_at: "2026-08-01T00:00:00" });
+    renderAt("/projects/p-1");
+    await screen.findByText("배포 자동화");
+
+    expect(screen.queryByRole("button", { name: "보관" })).toBeNull();
+    expect(screen.getByText("보관됨")).toBeInTheDocument();
+  });
+});
+
 describe("마일스톤 CRUD", () => {
   beforeEach(() => { authRole = "admin"; });
 

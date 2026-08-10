@@ -21,8 +21,8 @@ import {
   PROJECT_STATUS_KO, PROJECT_WRITE_ROLES, deptLabel, periodText,
 } from "./project-format.js";
 import {
-  useCreateMilestone, useDeleteMilestone, useDeptNames, useProject, useProjectHealth,
-  useProjectMilestones, useProjectProgress, useProjectWbs, useProjectWeekly,
+  useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames, useProject,
+  useProjectHealth, useProjectMilestones, useProjectProgress, useProjectWbs, useProjectWeekly,
   useUpdateMilestone, useUpdateProject,
 } from "./project-queries.js";
 
@@ -190,7 +190,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   );
 }
 
-function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, onEdit }) {
+function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, onEdit, onArchive, archiving }) {
   const p = project || {};
   const dept = deptLabel(p, deptNames);
   const progress = progressQuery.data || {};
@@ -201,6 +201,12 @@ function Overview({ project, deptNames, progressQuery, healthQuery, canWrite, on
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>개요</Typography>
           {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
+          {/* FN-04: 화면엔 "보관됨" 배지·"보관한 프로젝트 포함" 체크박스가 있는데 정작
+              그 상태로 보내는 버튼이 없었다 — 보관은 되돌릴 API가 없어(project-queries.js
+              주석 참조) 이미 보관된 프로젝트에는 버튼을 다시 안 그린다. */}
+          {canWrite && !p.archived_at ? (
+            <Button size="sm" variant="ghost" disabled={archiving} onClick={onArchive}>보관</Button>
+          ) : null}
         </Stack>
         <Box>
           <MetaRow label="상태">
@@ -254,6 +260,7 @@ export function Project() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const auth = useAuth();
   const [state, setState] = useQueryState(DETAIL_SPEC, DETAIL_RESET);
   // 주소를 손으로 고친 사람에게 오류 화면을 주지 않는다 - 모르는 값이면 개요를 보여 준다
@@ -269,6 +276,7 @@ export function Project() {
   const weeklyQuery = useProjectWeekly(id, state.week, tab === "weekly");
   const deptNames = useDeptNames();
   const update = useUpdateProject(id);
+  const archive = useArchiveProject();
 
   const role = (auth.data && auth.data.role) || "";
   const canWrite = PROJECT_WRITE_ROLES.includes(role);
@@ -303,6 +311,15 @@ export function Project() {
     await update.mutateAsync({ ...body, base_notion_version: project.notion_version });
     setEditing(false);
     toast("프로젝트를 저장했습니다.", "success");
+  }
+
+  async function handleArchive() {
+    if (!(await confirm(
+      "\"" + (project.name || "이 프로젝트") + "\"를 보관할까요? 되돌리는 기능은 없습니다.",
+      { danger: true, confirmLabel: "프로젝트 보관" }
+    ))) return;
+    await archive.mutateAsync(project.id);
+    toast("프로젝트를 보관했습니다.", "success");
   }
 
   return (
@@ -340,6 +357,7 @@ export function Project() {
           project={project} deptNames={deptNames}
           progressQuery={progressQuery} healthQuery={healthQuery}
           canWrite={canWrite} onEdit={() => setEditing(true)}
+          onArchive={handleArchive} archiving={archive.isPending}
         />
       ) : null}
 
