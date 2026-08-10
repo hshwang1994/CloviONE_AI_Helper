@@ -10,11 +10,20 @@
 > 진입점은 여전히 [WORK_STATE.md](WORK_STATE.md)다 — "지금 뭘 하고 있는가"는 거기,
 > "전체로 보면 어디쯤인가"는 이 문서.
 
-**마지막 갱신**: 2026-08-10 (MEGA CYCLE F 완료 직후, 대조 근거는 아래 §7)
+**마지막 갱신**: 2026-08-10 (MEGA CYCLE G 완료 직후, 대조 근거는 아래 §7)
 
 > **D-53 이후 방법론 전환**: 이 문서의 "손댄 항목 %"는 이제 개별 티켓 수가 아니라 MEGA
 > CYCLE 단위로 해석해야 한다 — 한 MEGA CYCLE이 여러 BACKLOG ID를 공통 원인으로 묶어 한 번에
 > 처리하므로, 사이클 수 대비 처리 건수의 증가 속도가 이전(Cycle 4 소배치)보다 빨라진다.
+>
+> **D-54(2026-08-10) — MEGA CYCLE 크기 재조정**: C/D/E/F처럼 같은 Product Area(Design
+> System)를 작은 MEGA CYCLE 여러 개로 쪼개고 매번 전체 회귀·배포·Chrome 검증을 반복하지
+> 않는다. 기준은 "몇 건 처리했나"가 아니라 "하나의 Product Area가 실질적으로 거의 끝났는가" —
+> 같은 영역의 후속 작업은 같은 사이클 안에서 계속하고, focused test는 자주, Full
+> backend+frontend+static+build 회귀와 배포·E2E는 그 영역이 배포 가능한 큰 단위로 완성됐을
+> 때 한 번 수행한다. 건수를 인위적으로 제한하지 않는다(20/50/100+ 다 허용). Critical/
+> Security/RBAC/DataLoss/Migration/Concurrency는 예외(그 자리에서 바로 검증). MEGA CYCLE G가
+> 이 기준의 첫 사이클이다.
 
 ---
 
@@ -23,7 +32,7 @@
 | 지표 | 근사치 | 근거 |
 |---|---|---|
 | BACKLOG 전체 항목 수 | **약 523건**(고유 ID 기준 약 505건) | `docs/BACKLOG.md`의 `\| XX-NN \|` 형식 행 정규식 카운트 |
-| 손댄 항목(구현완료+실환경검증완료+부분) | **약 95건 (약 18%)** | MEGA CYCLE B까지 약 63건 + MEGA CYCLE C(구현완료 12건 + 다운그레이드·정정 19건 + 재평가·범위확대 1건 DS-18) + MEGA CYCLE E(구현완료 3건 — DS-07/21/22) + MEGA CYCLE F(구현완료 4건 — DS-14/15/20/33, DS-33은 수치만 정정·화면 효과 없음을 확인) |
+| 손댄 항목(구현완료+실환경검증완료+부분) | **약 99건 (약 19%)** | MEGA CYCLE B까지 약 63건 + MEGA CYCLE C(구현완료 12건 + 다운그레이드·정정 19건 + 재평가·범위확대 1건 DS-18) + MEGA CYCLE E(구현완료 3건 — DS-07/21/22) + MEGA CYCLE F(구현완료 4건 — DS-14/15/20/33, DS-33은 수치만 정정·화면 효과 없음을 확인) + MEGA CYCLE G(구현완료 4건 — IA-01/02·FN-13·RG-11, IA-04는 재평가 후 의도적 보류) |
 | Critical 잔존 수 | **0건**(변동 없음) | MEGA CYCLE A·B가 이미 처리 — MEGA CYCLE C엔 Critical 항목 없음(DS-32만 확정 High) |
 | 미착수("발견"만 있음) | **약 260건대** | 정확한 재집계는 안 함(근사치 유지) — MEGA CYCLE C로 DS-* 상당수가 미착수/다운그레이드/설계확정 상태로 세분화됨 |
 | 기타 상태(의도적 보류/작업예정/작업중/사용자조치필요/다운그레이드 등) | **약 210건대** (`OPS-06` 는 2026-08-10 해소) | 아래 §5 참고 |
@@ -125,15 +134,32 @@ Badge가 톤 접미사 className을 더 이상 안 붙여 전부 죽음)도 함�
 Chrome으로 직접 확인(컴팩트 크기 정상 렌더, 콘솔 오류 0건). 상세는
 `docs/WORK_STATE.md`의 "MEGA CYCLE F" 섹션.
 
-**다음 MEGA CYCLE 미정** — D-53 지시에 따라 Master Plan 원래 축(디자인 시스템 후속·
-AI 도우미·관리자 IA·RBAC/조직·기능 E2E)을 다시 대조해 가장 영향도가 큰 다음 영역을
-골라야 한다 — 이 문서 갱신 직후 바로 선정. 후보: ① `DS-18` 남은 34개(합성 토큰, 시각
-회귀 확인 필요) ② 관리자 IA(`IA-*`, 아직 미착수) ③ QA_COVERAGE 73라우트 전수검증
-(F/A/D/C/R/L/V 7축이 사실상 비어 있음, MEGA CYCLE A~F 배포가 전혀 반영 안 됨) ④ Design
-System 전체 재감사(DS-01~33이 여러 번 다운그레이드·재평가된 만큼, 배지/카드 등 나머지
-컴포넌트군도 이번 사이클에서 드러난 "MUI 전환 후 죽은 CSS" 패턴이 더 있을 가능성 —
-`app/static/css/tokens.css`에 이미 `find_dead_css.py`/`prune_dead_css.py` 도구가
-서버에 존재하는 것을 배포 중 발견, 다음 사이클에서 이 도구의 출처·용도부터 확인).
+**MEGA CYCLE G(Admin IA 전체 스윕) — 완료. D-54(MEGA CYCLE 크기 재조정) 이후 첫 사이클.**
+"IA-01/02/04 세 항목 처리"가 아니라 "Admin IA(관리자 네비게이션·레지스트리 크로스링크)
+라는 Product Area를 실질적으로 끝낸다"를 기준으로, 조사(4-agent 병렬 Workflow)·구현(20건
+넘는 관련 변경)·검증을 전부 한 사이클 안에서 계속했다. `IA-01`: "운영" 그룹(14항목,
+product-ops/system-ops/governance가 평평하게 섞인 것)을 렌더러 무수정으로 "운영 현황"/
+"시스템 인프라"/"거버넌스" 3개로 분리 + `policy-usage` 사이드바 누락 수정. `IA-02`+`FN-13`:
+작업 큐 ↔ 스케줄/문서 실행 흐름의 양방향을 전부 고쳤다(순방향은 `detailFields` 링크,
+역방향은 `GET /api/admin/jobs`에 새 쿼리 필터 신설) — FN-13이 라운드 9 이후 처음 완전히
+닫혔다. `RG-11`(신규): `organization`/`feature_flag`(F15)와 같은 결함 부류가 4곳
+(`ai_quota`/`approval_delegation`/`announcement`/`offboarding_run`) 더 있어 함께 처리.
+`IA-04`(사용자 vs 관리자 콘솔 UX)는 재검증 결과 원 서술은 맞지만 risk tier가 다른(다사이클
+아키텍처 이관) 별개 작업이라 의도적으로 보류(half-finish 방지). 신규/확장 테스트 10벌 전부
+revert-to-verify, 마무리 시점에 전체 회귀 1회(프런트 196파일/1319건 green, 백엔드 1건
+실패는 이번 변경과 무관한 기존 스레드 타이밍 플레이키로 확인). 배포 후 사이드바 3그룹
+분리는 Chrome으로 직접 확인했으나, 확인 도중 브라우저 세션이 만료돼(배포와 무관, 정상
+만료 흐름 확인) 크로스링크 클릭 검증은 자동 테스트로만 남았다 — 정직하게 기록. 상세는
+`docs/WORK_STATE.md`의 "MEGA CYCLE G" 섹션.
+
+**다음 작업 미정** — D-53/D-54 지시에 따라 Master Plan 원래 축을 다시 대조해 가장 영향도가
+큰 다음 영역을 골라야 한다 — 이 문서 갱신 직후 바로 선정. 후보: ① `DS-18` 남은 34개(합성
+토큰, 시각 회귀 확인 필요) ② Admin IA 나머지(`IA-04`, 사용자 콘솔의 DataScreen화 — 전용
+다사이클 이니셔티브로 다뤄야 함) ③ QA_COVERAGE 73라우트 전수검증(F/A/D/C/R/L/V 7축이
+사실상 비어 있음, MEGA CYCLE A~G 배포가 전혀 반영 안 됨) ④ Design System 전체 재감사
+(`app/static/css/tokens.css`에 이미 `find_dead_css.py`/`prune_dead_css.py` 도구가 서버에
+존재하는 것을 배포 중 발견, 출처·용도부터 확인) ⑤ 브라우저 세션 재로그인 후 MEGA CYCLE
+G의 미검증 크로스링크(작업 큐/스케줄/문서/오프보딩/감사 로그)를 라이브로 확인.
 Critical이 0건이 됐다고 재조사를 멈추지 않는다 — §1 해석 참고.
 
 ---
@@ -266,6 +292,18 @@ CORE-01~10 대부분, UB-01~05, SEC-01 — 각 항목의 BACKLOG 행에 **왜** 
 
 ## 7. 최근 테스트 / 배포 상태 (근거 시각)
 
+- **MEGA CYCLE G**: D-54 이후 첫 사이클 — 매 변경마다 focused test만 반복하고 마무리
+  시점에 전체 회귀 1회. 프런트 vitest **196파일/1319건** green(신규 8/확장 2 테스트
+  파일 전부 revert-to-verify), 백엔드 pytest **1건 실패**(`test_claim_race.py`, 스레드
+  타이밍 경합 테스트 — 이번 사이클 변경과 무관, 단독 재실행 3/3 통과로 기존 플레이키
+  확인), `npm run build` 통과, `STATIC_CHECKS_OK`. 커밋 `b867f13` →
+  `UPGRADE_OK`(2026-08-10 17:05 KST) → 서비스 3종 `active` → `/healthz`·`/readyz` 200.
+  서빙된 번들 해시(`index.BPDxOLnv.js`)가 로컬 빌드와 일치 확인. 실서버 `/dashboard`에서
+  사이드바 3그룹 분리("운영 현황"/"시스템 인프라"/"거버넌스")를 Chrome으로 직접 확인
+  (콘솔 오류 0건) — 확인 도중 브라우저 세션이 만료돼(배포와 무관, 정상 만료 흐름 확인)
+  나머지 크로스링크(작업 큐 상세·스케줄 실행 이력·문서 생성·오프보딩·audit 필터)는
+  라이브 클릭 확인을 못 했다(자동 테스트로만 검증, 정직하게 기록 — §WORK_STATE.md
+  "MEGA CYCLE G" 참고).
 - **MEGA CYCLE F**: 프런트 vitest **192파일/1283건** green(`kit.test.jsx` compact 케이스
   2건 신규, `gameroom-smoke.test.jsx` 어서션 갱신 — 1건 무관 타임아웃 플레이키는 단독
   재실행으로 재현·확인), 백엔드 pytest **2642개 전체 green**, `npm run build` 통과,
@@ -327,12 +365,14 @@ CORE-01~10 대부분, UB-01~05, SEC-01 — 각 항목의 BACKLOG 행에 **왜** 
 
 ## 9. 다음 자동 진행 작업
 
-1. MEGA CYCLE F 문서 마감(WORK_STATE.md·BACKLOG.md·PROGRESS_STATUS.md 갱신 + 커밋) —
+1. MEGA CYCLE G 문서 마감(WORK_STATE.md·BACKLOG.md·PROGRESS_STATUS.md 갱신 + 커밋) —
    **이 갱신으로 완료**
-2. Master Plan 원래 축을 다시 대조해 다음 MEGA CYCLE을 선정하고 즉시 착수 — 사용자
-   확인을 기다리지 않는다(D-53 지시에 따름). 후보 목록은 §3 끝에 정리됨(`DS-18` 남은
-   34개(합성 토큰) · 관리자 IA · QA_COVERAGE 전수검증 · Design System 전체 재감사).
+2. Master Plan 원래 축을 다시 대조해 다음 작업을 선정하고 즉시 착수 — 사용자 확인을
+   기다리지 않는다(D-53/D-54 지시에 따름, D-54부터는 "몇 건"이 아니라 "그 Product
+   Area가 실질적으로 끝났는가"를 기준으로 사이클 크기를 정한다). 후보 목록은 §3 끝에
+   정리됨(`DS-18` 남은 34개 · 관리자 IA 나머지(`IA-04`) · QA_COVERAGE 전수검증 ·
+   Design System 전체 재감사 · MEGA CYCLE G 미검증 크로스링크의 재로그인 후 라이브 확인).
    BACKLOG의 Critical은 0건이지만, §1 해석이 명시하듯 이것이 "완료"를 뜻하지 않는다 —
-   Master Plan의 3단계(관리자 IA)는 아직 미착수이고, 축 1(디자인 시스템)도 DS-01~33이
-   여러 차례 다운그레이드·재평가된 것처럼 겉보기 진행률과 실제 남은 작업이 다를 수
-   있다.
+   Master Plan의 3단계(관리자 IA)는 IA-01/02가 끝났고 IA-04(사용자 콘솔 아키텍처
+   이관)가 남아 있으며, 축 1(디자인 시스템)도 DS-01~33이 여러 차례 다운그레이드·
+   재평가된 것처럼 겉보기 진행률과 실제 남은 작업이 다를 수 있다.

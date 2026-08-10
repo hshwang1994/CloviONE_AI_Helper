@@ -12,15 +12,26 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE F 완료(Design System 후속 배치 2 +
-DS-33), 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역
-단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC
-22건)은 그대로 유지. **MEGA CYCLE A**(AI Assistant, RN-01~14 + Critical AI-30)·
-**MEGA CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51)·
-**MEGA CYCLE C**(Design System, DS-01~32 전수 재검증)·**MEGA CYCLE D**(로그인 화면 정적
-토큰 사본 핵심 색 부분 동기화)·**MEGA CYCLE E**(Design System 후속 배치, DS-07/21/22
-구현)·**MEGA CYCLE F**(Design System 후속 배치 2, DS-14/15/20 구현 + DS-33)까지 전부
-구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical 0건. 상세는 각 §MEGA CYCLE
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE G 완료(Admin IA 전체 스윕), 다음
+작업 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게 조사·대량
+수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로 유지.
+**D-54(2026-08-10) — MEGA CYCLE 크기 재조정**: C/D/E/F처럼 같은 Product Area(Design
+System)를 여러 개의 작은 MEGA CYCLE로 쪼개고 매번 전체 회귀·배포·Chrome 검증을 반복하는
+방식을 그만둔다. 기준은 "몇 건을 처리했나"가 아니라 "하나의 Product Area/Subsystem이
+실질적으로 거의 끝났는가"다 — 같은 영역의 후속 작업은 같은 MEGA CYCLE 안에서 계속하고,
+구현 중에는 변경 영역과 직접 관련된 focused test만 반복하며, Full backend + Full frontend +
+static + build 같은 전체 회귀와 배포·Chrome E2E는 그 Product Area가 배포 가능한 큰 단위로
+충분히 완성됐을 때 한 번 수행한다. 건수(20/50/100+)를 인위적으로 제한하지 않는다.
+Critical/Security/RBAC/DataLoss/Migration/Concurrency 또는 즉시 실환경 확인이 필요한
+고위험 변경은 예외(그 자리에서 바로 검증). **MEGA CYCLE G가 이 새 기준으로 진행한 첫
+사이클**이다 — Admin IA(관리자 정보 구조) 하나를 20개 넘는 관련 변경으로 묶어 한 번에
+조사·구현·(거의) 한 번의 전체 회귀·한 번의 배포로 마쳤다. **MEGA CYCLE A**(AI Assistant,
+RN-01~14 + Critical AI-30)·**MEGA CYCLE B**(제품 전역 실패 처리, Critical `FAIL-01` +
+FAIL-02/03 + FN-51)·**MEGA CYCLE C**(Design System, DS-01~32 전수 재검증)·
+**MEGA CYCLE D**(로그인 화면 정적 토큰 사본 핵심 색 부분 동기화)·**MEGA CYCLE E**
+(Design System 후속 배치, DS-07/21/22 구현)·**MEGA CYCLE F**(Design System 후속 배치 2,
+DS-14/15/20 구현 + DS-33)·**MEGA CYCLE G**(Admin IA 전체 스윕, IA-01/02·FN-13·RG-11)
+까지 전부 구현·테스트·배포까지 완료 — BACKLOG의 Critical 0건. 상세는 각 §MEGA CYCLE
 섹션. MEGA CYCLE A
 검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증
 (`OPS-06`) — **2026-08-10 사용자 재로그인으로 해결, 실호출로 확인 완료**(러너와 동일 조건에서
@@ -28,6 +39,94 @@ DS-33), 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만
 재확인**(BACKLOG 표가 낡았던 것). **둘 다 앱 층 E2E 만 미검증** — 웹에서 첨부 1건 · AI 도우미
 자유 질문 1건이 남아 있다. 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE G — Admin IA 전체 스윕 (D-54 이후 첫 큰 사이클) 완료 (2026-08-10)
+
+D-54 지시 직후 착수한 첫 사이클. Master Plan 원래 축(디자인 시스템 후속 소진 → 관리자 IA)으로
+복귀하면서, "IA-01/02/04 세 항목을 처리한다"가 아니라 **Admin IA(관리자 네비게이션·레지스트리
+크로스링크) 라는 Product Area 하나를 실질적으로 끝낸다**를 기준으로 조사·구현·검증을 전부
+한 사이클 안에서 계속했다.
+
+**조사(넓게, Workflow 4-agent 병렬)**: `navConfig.js`/`registry/*.js` 전체를 훑어 (1) 등록된
+화면인데 사이드바 항목이 없는 것, (2) "운영" 그룹 재구조화의 실제 구현 리스크, (3) 백엔드가
+이미 참조 ID를 주는데 프런트가 안 그리는 크로스링크 결함, (4) FN-13(IA-02와 "같은 뿌리"로
+명시된 옛 항목)의 잔여 범위를 각각 전담 에이전트로 병렬 조사. 코디네이터가 각 주장을 실제
+소스로 개별 재검증(D-53 원칙) — `policy-usage` 누락, "운영" 그룹 재구조화가 렌더러 무수정으로
+가능함, `jobs`↔스케줄/문서 크로스링크 결함, `ai_quota`/`approval_delegation`/`announcement`/
+`offboarding_run` 4건의 감사 크로스링크 결함을 전부 파일·줄 번호로 확인 후 구현.
+
+- **`IA-01`(관리자 메뉴 26곳 재검증)**: "승인/승인위임 2"는 이미 인접해 있어 하향(재현 안 됨).
+  진짜 버그는 `policy-usage`(정책 사용 통계) — `registry/authoring.js`에 화면·역할 게이트가
+  다 있는데 사이드바 항목만 없었다(형제 `prompt-usage`의 `headerActions`로만 닿을 수 있었다).
+  "콘텐츠" 그룹에 1줄 추가. **"운영" 그룹(14항목, product-ops/system-ops/governance가 평평하게
+  섞인 것)도 재구조화** — 조사 결과 `AppShell.jsx`의 `SidebarNav`와 `CommandPalette.jsx` 둘 다
+  "배열 원소 하나 = 그룹 하나"로만 다뤄 최상위 그룹만 늘리면 렌더러 코드 수정이 전혀 필요
+  없음을 확인. "운영 현황"(대시보드·알림·작업 큐·설정)·"시스템 인프라"(진단·시스템 설정·
+  초기 설정·유지보수·백업·복구 리허설)·"거버넌스"(감사 로그·감사 이상 징후·기능 플래그·
+  공지 배너) 3개로 분리, 항목·role·배지는 전부 그대로.
+- **`IA-02`+`FN-13`(작업 큐 ↔ 스케줄/문서 실행 흐름)**: `IA-02`가 명시한 "서로 오갈 길이
+  없다"는 재검증 결과 세 방향(실행 달력→스케줄, 문서→스케줄, 스케줄 상세의 실행 이력)은
+  **이미 있었다**. 실제로 빠진 방향은 **작업 큐 → 스케줄/문서**(FN-13의 잔여 범위) — 백엔드
+  (`app/jobs/router.py::_link_ids`, round30 감사 E)는 `schedule_id`/`schedule_run_id`/
+  `generation_id`를 이미 응답에 내려주는데 프런트가 하나도 안 그려서 idempotency_key 문자열을
+  손으로 읽는 것 말고는 역추적 방법이 없었다. `jobs.detailFields`에 `schedule_id`(→
+  `#/schedules?id=`)·`generation_id`(→ `#/documents?id=`) 링크 추가, `schedule_run_id`는
+  여는 화면이 없어 참조값만(가짜 링크 안 만듦). **반대 방향(스케줄/문서→작업 큐)도 같은
+  사이클에서 마저 고쳤다** — `ScheduleRun`에 `job_id` 컬럼이 없어(마이그레이션 필요) 대신
+  `GET /api/admin/jobs`에 `schedule_id`/`schedule_run_id`/`generation_id` **쿼리 필터**를
+  신설(`json_extract`로 `payload_json` 조회 — 인덱스는 없지만 크로스링크 클릭 1회당 1쿼리라
+  감내 가능). 스케줄 "실행 이력" 하위 목록에 "작업 큐" 링크 열, 문서 생성 화면에 "작업 큐에서
+  보기" 액션, 실행 달력의 실행 상세 모달에 같은 버튼 추가 — 이걸로 FN-13이 완전히 닫혔다.
+- **`RG-11`(신규, 같은 결함 부류 4건 추가 발견)**: `organization`/`feature_flag`(F15)와 같은
+  결함이 `ai_quota`/`approval_delegation`/`announcement`/`offboarding_run` 4곳 더 있었다 —
+  백엔드는 이미 이 object_type들로 감사 기록을 남기고 각 화면도 forward "감사 로그에서 보기"
+  딥링크를 걸고 있었는데, `shared.js`의 `OBJ_ROUTE`에 없어 감사 로그 쪽에서 되돌아오는 버튼이
+  항상 숨겨졌다(`offboarding_run`은 hand-rolled 화면이라 forward 링크 자체도 없었다). 4곳
+  전부 `OBJ_ROUTE` 등록(+ `offboarding_run`만 `OBJ_ROUTE_ROLES`도 — 오프보딩 화면이 audit보다
+  role이 좁다), `governance.js`의 로컬 object_type 드롭다운에 4개 옵션 보강(F15와 같은 자리,
+  `shared.js`의 `OBJTYPE_OPTS` 자체는 손 안 댐), 3개 DataScreen에 forward 액션 추가,
+  hand-rolled `Offboarding.jsx`에 같은 링크 추가. 부산물로 `OBJECT_KO`/`VERB_KO`
+  (`lib/format.js`)도 이 4개 + 먼저 고쳐졌던 `organization`/`feature_flag`가 빠져 있어
+  감사 로그 '대상'/'작업' 칸에 영어 원문이 새는 것을 발견, 7개 항목 보강.
+- **`IA-04`(사용자 콘솔 vs 관리자 콘솔 UX)는 의도적으로 손 안 댐** — 재검증 결과 원 서술은
+  맞고 생각보다 크다(`DataScreen.jsx` 768줄짜리 범용 registry 패턴 vs `MyTickets.jsx` 혼자
+  1004줄의 완전 수제 구현). 나머지 IA-01/02/RG-11과 risk tier가 다른(nav/registry 배선
+  수정이 아니라 다사이클 아키텍처 이관) 별개 작업이라, 일부만 옮기는 반쪽짜리 시도는
+  CLAUDE.md의 "No half-finished implementations"를 정면으로 어긴다 — 전용 다사이클
+  이니셔티브로 남긴다.
+
+**검증**: 매 변경마다 focused vitest/pytest만 반복(D-54 원칙), 신규 테스트 파일 8개+확장
+2개(`nav-ops-group-split.test.js`·`nav-policy-usage.test.js`·
+`jobs-schedule-crosslink.test.jsx`·`scheduler-calendar.test.jsx` 확장·
+`audit-related-object-routes.test.jsx` 확장·`object-verb-ko.test.js`·
+`offboarding.test.jsx` 확장·백엔드 `test_jobs_api.py` 확장), 전부 revert-to-verify(되돌리면
+정확히 그 자리에서 실패하는 것 직접 확인). 마무리 시점에 **한 번의 전체 회귀**: 프런트 vitest
+**196파일/1319건** green, 백엔드 pytest **1건 실패**(`test_claim_race.py::
+test_two_people_claiming_at_once_do_not_both_win`, 티켓 클레임 스레드 경합 타이밍 테스트 —
+이번 사이클의 어떤 변경(jobs 라우터 필터, navConfig, audit 레지스트리)과도 무관한 파일이고,
+단독 재실행에서 3/3 통과 확인 — 전체 스위트 동시 실행 부하로 인한 기존 플레이키로 판단, 정직하게
+기록). `npm run build` 통과, `STATIC_CHECKS_OK`(번들 신선도 포함).
+
+**배포**: `build-bundle.sh` → scp → `sha256sum -c` 확인 → `upgrade-clovirone-web-assistant.sh`
+(DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71) → `UPGRADE_OK`(2026-08-10
+17:05 KST) → 서비스 3종 `active` → `/healthz`·`/readyz` 200(BIND_IP 직접 curl 확인). 서빙된
+번들 해시(`index.BPDxOLnv.js`)가 로컬 빌드와 일치 확인.
+
+**실서버 실환경검증 — 정직하게 한계를 남긴다**: 배포 직후 Chrome으로 `/dashboard`를 열어
+**사이드바 3그룹 분리("운영 현황"/"시스템 인프라"/"거버넌스")가 정확히 항목·순서대로 렌더되는
+것을 직접 확인**(콘솔 오류 0건, 스크린샷 확보). 그런데 이어서 다른 탭들을 새로고침하는 중에
+**이 브라우저의 로그인 세션이 만료됐다**(모든 탭이 같은 쿠키를 공유 — 배포와 무관, 세션
+TTL이 이 장시간 세션 도중 자연 만료된 것으로 판단: 만료 직전 모든 `/api/*` 호출이 200이었고,
+만료 후 하드 리로드하면 콘솔 오류 없이 깨끗하게 로그인 화면으로 떨어지는 것을 확인했다 —
+서버 쪽 500이 아니라 정상적인 세션 만료 흐름). 로그인 자격 증명이 없고 스스로 만들거나
+입력하지 않는다(보안 규칙) — 그래서 `jobs` 상세의 schedule_id/generation_id 링크, 스케줄
+실행 이력의 "작업 큐" 열, 문서 생성의 "작업 큐에서 보기", 오프보딩의 "감사 로그에서 보기",
+audit 화면의 object_type 드롭다운 4개 옵션은 **라이브 브라우저로 직접 클릭해 확인하지
+못했다** — 대신 위 신규/확장 테스트 10벌이 이 부분을 revert-to-verify로 이미 검증했다.
+**사용자가 브라우저에서 재로그인하면** 위 항목들을 직접 눌러 확인할 수 있다(그 전까지는
+이 문서의 "정당한 미검증"으로 남긴다).
 
 ---
 
