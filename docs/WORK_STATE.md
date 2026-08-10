@@ -12,17 +12,61 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE D 완료(로그인 화면 토큰 부분 동기화),
+**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE E 완료(Design System 후속 배치),
 다음 MEGA CYCLE 착수 준비**. Cycle 4의 소배치 방식을 그만두고(D-53) 제품 영역 단위로 넓게
 조사·대량 수정·영역 종료 시 1회 배포로 전환 — Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로
 유지. **MEGA CYCLE A**(AI Assistant, RN-01~14 + Critical AI-30)·**MEGA CYCLE B**(제품
 전역 실패 처리, Critical `FAIL-01` + FAIL-02/03 + FN-51)·**MEGA CYCLE C**(Design System,
-DS-01~32 전수 재검증) 전부 구현·테스트·배포·실환경검증까지 완료 — BACKLOG의 Critical
-0건. **MEGA CYCLE D**(MEGA CYCLE C가 발견한 `DS-18`의 후속 — 로그인 화면 정적 토큰
-사본의 핵심 색 부분 동기화)도 완료. 상세는 각 §MEGA CYCLE 섹션. MEGA CYCLE A 검증 중
-**배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증(`OPS-06`,
-**사용자 조치 필요**, 아직 미해결). 진행률 실측치는
+DS-01~32 전수 재검증)·**MEGA CYCLE D**(로그인 화면 정적 토큰 사본 핵심 색 부분 동기화)·
+**MEGA CYCLE E**(Design System 후속 배치, DS-07/21/22 구현)까지 전부 구현·테스트·배포·
+실환경검증까지 완료 — BACKLOG의 Critical 0건. 상세는 각 §MEGA CYCLE 섹션. MEGA CYCLE A
+검증 중 **배포와 무관한 실서버 인프라 문제 1건 발견**: `n8n` 계정 Claude CLI 미인증
+(`OPS-06`, **사용자 조치 필요**, 아직 미해결). 진행률 실측치는
 [docs/PROGRESS_STATUS.md](PROGRESS_STATUS.md) 참고 · **브랜치**: `ui/mui-migration`
+
+---
+
+## 🟣 MEGA CYCLE E — Design System 후속 배치 (DS-07 · DS-21 · DS-22) 완료 (2026-08-10)
+
+MEGA CYCLE C가 조사만 하고 구현을 미룬 6건(DS-07/14/15/20/21/22) 중 이미 설계가 확정돼
+있던 3건을 구현했다 — 새 조사 없이 바로 구현. 나머지(DS-14/15/20)는 설계는 나왔지만
+`EmptyState`/`ErrorState`에 `size="compact"`를 먼저 추가해야 하거나(DS-14/15) 클래스별
+개별 검토가 필요해(DS-20) 후속 배치로 남겼다.
+
+- **`DS-07`**: `kit.jsx`에 공용 `SectionTitle`(title/children 겸용, action·help 선택,
+  `component`/`sx`로 태그·여백 조정) 추가. `Home.jsx`(`CardHead` ×3곳)·`MyStats.jsx`
+  (`CardHead` ×2곳)·`Profile.jsx`(`SectionTitle` ×5곳, `component="h2" sx={{mb:2}}`로
+  원래 무게 유지)·`AssistantPanel.jsx`(인라인 1곳)의 로컬 구현을 전부 삭제하고 이관.
+  `Dashboard.jsx`의 `DashSection`(더 큰 페이지 섹션용, MEGA CYCLE C에서 이미 분리)은
+  별개로 유지.
+- **`DS-21`**: 9개 화면에 `className="c-screen"` 추가 — Search·Dashboard·SetupWizard
+  (early-return 3곳 포함, `<>`를 `<Box className="c-screen">`로 교체)·SystemOps·
+  NotionConsole·LlmConsole·Diagnostics·Maintenance·DevReport(`"devrep c-screen"`으로
+  기존 클래스와 병기). **재검증 중 발견**: 원 조사가 지목한 `Settings.jsx`/`Ops.jsx`는
+  둘 다 실제 구현이 아니라 재노출 shim 파일이라, 진짜 구현(`settings/SettingsMain.jsx`)은
+  이미 갖고 있었고 진짜 대상은 `ops/Diagnostics.jsx`·`ops/Maintenance.jsx` 2파일이었다.
+- **`DS-22`**: `Pager.jsx`에 `hasNext` prop 추가(`total`을 안 주는 API용 폴백 — `total`이
+  있으면 그쪽을 우선). `Activity.jsx`의 복붙 구현(17줄)을 `<Pager total={total}
+  hasNext={items.length>=PAGE_SIZE} .../>` 한 줄로 교체. **revert-to-verify 중 자체
+  발견**: 두 파일을 함께 되돌리면 테스트가 그대로 통과해 버렸다 — `Activity.jsx`의 예전
+  손코딩이 이미 이 경우를 올바르게 처리하고 있어서다(버그는 `Pager.jsx`라는 공용
+  컴포넌트 쪽에만 있었다). `Pager.jsx`만 따로 되돌려서야 실패를 직접 확인했다.
+
+**검증**: 프런트 vitest 192파일/1281건(신규 `activity.test.jsx` 페이지네이션 테스트 1건
+포함) green, 백엔드 pytest 전체 green(변경 없음, 게이트로 재확인), `STATIC_CHECKS_OK`,
+번들 재빌드. 커밋 `d7d22ca`.
+
+**배포**: `build-bundle.sh` → scp → 체크섬 확인 → `upgrade-clovirone-web-assistant.sh`
+→ `UPGRADE_OK`(2026-08-10 13:58 KST) → 서비스 3종 `active` → `/healthz` 200.
+
+**실서버 실환경검증**: `/me`(SectionTitle ×3)·`/my-stats`(SectionTitle+help)·`/profile`
+(SectionTitle h2 ×4곳 모두)·`/system`(SystemOps, c-screen)·`/activity`(Pager) 전부
+Chrome으로 직접 열어 정상 렌더 + 콘솔 오류 0건 확인. `/activity`는 실제로 "다음" 버튼을
+눌러 1페이지→2페이지 이동, "1/18, 총 352건"→"2/18, 총 352건"으로 갱신되고 새 항목이
+로드되는 것까지 라이브로 확인 — 이 서버의 `/api/me/activity`는 실제로 `total`을 주고
+있어(하네스 조사 당시 가정과 달리) `Pager`의 `total` 우선 경로가 라이브로 검증됐다.
+`hasNext` 폴백 경로 자체는 이 서버 데이터로는 재현 못 함(로컬 유닛 테스트로만 검증,
+정직하게 남긴다).
 
 ---
 
