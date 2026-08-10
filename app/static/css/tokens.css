@@ -11,7 +11,12 @@
 :root {
   /* -------- 브랜드 인디고 -------- */
   --color-primary: #536CD6;          /* 기본 동작. 버튼, 링크, 선택 상태 */
-  --color-primary-strong: #435CBE;   /* hover와 active. 히어로 그라디언트의 깊은 끝 */
+  /* 2026-08-10 DS-18: frontend/src/styles/tokens.css(React 앱이 실제로 쓰는 토큰)와
+   * 값 대조 후 핵심 브랜드/중립/상태 색만 동기화했다(로그인 화면이 앱과 다른 세대의
+   * 팔레트로 보이는 문제) — 상단바 그라디언트·사이드바·배지 글자색처럼 이 파일 자체에
+   * 개별 대비 계산이 딸린 합성 토큰은 **일부러 그대로 뒀다**(맹목적 값 치환이 그 계산을
+   * 무효화할 수 있어서, 재계산 없이는 손대지 않기로 함 — docs/BACKLOG.md DS-18 참고). */
+  --color-primary-strong: #465BB8;   /* hover와 active. 히어로 그라디언트의 깊은 끝 */
   --color-primary-soft: #758AE1;     /* 포커스 링과 장식 경계. 흰 배경 대비 3.2라 글자색으로 쓰지 않는다 */
   --color-ink: #141B34;              /* 브랜드 최심색. 사이드바와 히어로의 바탕 */
   /* primary 배경 위에 얹는 글자색. --color-card로 대신할 수 없다 — 다크에서 카드가 잉크색이 되어
@@ -20,20 +25,20 @@
   --color-on-primary: #FFFFFF;
 
   /* -------- 중립 — 브랜드는 푸른 기가 도는 쿨 캐스트다 -------- */
-  --color-bg: #F8FAFF;
+  --color-bg: #F5F7FC;
   --color-card: #FFFFFF;
-  --color-border: #DEE4F5;           /* 카드와 입력창 테두리 */
+  --color-border: #DFE4EF;           /* 카드와 입력창 테두리 */
   --color-line: #E9E9E9;             /* 표의 행 구분선 */
-  --color-text: #333333;
-  --color-muted: #636363;
+  --color-text: #20263A;
+  --color-muted: #667085;
   /* 제목·큰 숫자. 디자인 시스템은 본문(#333)과 다른 짙은 잉크빛을 쓴다(.page-title, .res .big).
    * 브랜드 잉크(#141B34)와 같은 계열이라 상단바·히어로와 이어진다. 배경 위 15.16. */
   --color-heading: #1B2235;
 
   /* -------- 상태 — 브랜드 팔레트에 없어 제품이 정한다. 흰 배경 대비 AA 통과 -------- */
-  --color-success: #15803D;
-  --color-warning: #B45309;
-  --color-error: #B91C1C;
+  --color-success: #16865C;
+  --color-warning: #B15B09;
+  --color-error: #C63D4E;
   /* 상태색을 꽉 채운 면 위에 얹는 글자색(토스트 등). 다크에서는 상태색이 밝아져 흰 글자가
    * 1.67까지 떨어진다. 잉크를 얹으면 6.14 이상으로 읽힌다. */
   --color-on-status: #FFFFFF;
@@ -93,13 +98,13 @@
    *          같은 토큰이라도 놓인 면이 다르면 대비가 다르다. 흰 면 위에서는 6.01이다.
    * 그래서 이 숫자들은 이제 사람이 관리하지 않는다 —
    * tests/regression/test_css_says_what_it_does.py가 색에서 직접 계산해 대조한다. */
-  --sidebar-text: var(--color-text);          /* 흰 면 위 12.63 */
-  --sidebar-muted: var(--color-muted);        /* 흰 면 위 6.01 */
+  --sidebar-text: var(--color-text);          /* 흰 면 위 15.00 (2026-08-10 DS-18 색 동기화로 재계산) */
+  --sidebar-muted: var(--color-muted);        /* 흰 면 위 4.97 (2026-08-10 DS-18 색 동기화로 재계산) */
   --sidebar-hover: rgba(228, 236, 255, 0.5);
   --sidebar-active-bg: #EAF0FF;
   /* 디자인 시스템은 활성 글자에 #758AE1을 쓰는데 이 배경 위에서 2.84다. 사이드바에서 가장
    * 중요한 글자(지금 어디에 있는지)가 가장 안 읽혔다. 같은 브랜드 계열의 짙은 쪽으로 내린다. */
-  --sidebar-active-fg: var(--color-primary-strong);  /* #EAF0FF 위 5.24 */
+  --sidebar-active-fg: var(--color-primary-strong);  /* #EAF0FF 위 5.34 (2026-08-10 DS-18 색 동기화로 재계산) */
   --sidebar-danger: #B91C1C;
 
   /* -------- 상태 배지 — 채팅과 관리자가 같은 톤 어휘를 쓴다 --------
@@ -119,9 +124,9 @@
   --badge-info-fg: var(--color-primary-strong);          /* 4.99 */
 
   /* -------- 모서리 — 브랜드는 10px가 기본이다 -------- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-pill: 100px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
 
   /* -------- 그림자 — 브랜드는 푸른 기가 도는 그림자를 쓴다 -------- */
   --shadow-card: 0 5px 10px rgba(59, 77, 191, 0.16);
@@ -143,25 +148,26 @@
 
 [data-theme="dark"] {
   /* 어두운 화면에서는 같은 인디고가 탁해 보인다. 브랜드의 밝은 쪽(500)을 올려 쓴다. */
-  --color-primary: #758AE1;
-  --color-primary-strong: #8E9BE8;
+  --color-primary: #8EA0F4;
+  --color-primary-strong: #AEBBF7;
   --color-primary-soft: #536CD6;
   --color-ink: #070B1A;
   /* 밝아진 primary 위에는 흰 글자가 3.24로 미달이다. 잉크를 얹으면 5.24로 읽힌다. */
   --color-on-primary: #141B34;
 
-  --color-bg: #0B1020;
-  --color-card: #141B34;             /* 브랜드 잉크를 카드로 올린다 */
-  --color-border: #2A3564;
+  --color-bg: #090E1D;
+  --color-card: #11182D;             /* 2026-08-10 DS-18: 프런트 기준선(--surface 다크)에 맞춤.
+                                         옛 값(#141B34, 브랜드 잉크)은 --color-ink와 겹쳤었다 */
+  --color-border: #2B3655;
   --color-line: #232C52;
-  --color-text: #E6E9F5;
-  --color-muted: #9AA3C4;
+  --color-text: #EEF1FB;
+  --color-muted: #A4AEC7;
   /* 라이트용 짙은 잉크(#1B2235)를 다크에 그대로 두면 제목이 배경에 묻힌다(1.20). 본문색으로 되돌린다. */
   --color-heading: var(--color-text);   /* 15.63 */
 
-  --color-success: #4ADE80;
-  --color-warning: #FBBF24;
-  --color-error: #F87171;
+  --color-success: #65D8A6;
+  --color-warning: #F6BD67;
+  --color-error: #FF8B9B;
   --color-on-status: #141B34;   /* 밝은 상태색 위에 흰 글자는 1.67. 잉크는 6.14 이상 */
 
   /* 사이드바는 다크에서 카드와 같은 잉크 면이 된다. 라이트용 활성 틴트(#EAF0FF)를 그대로 두면
@@ -174,7 +180,7 @@
    * 것이었다. 여기 틴트는 18%라 면이 더 밝고, 실제 대비는 4.97이다(AA 4.5는 넘는다).
    * 라이트 사이드바에서 5.09가 배지에서 복사돼 온 것과 같은 실수다 —
    * 대비는 색이 아니라 **색과 면의 쌍**에 붙는다. */
-  --sidebar-active-fg: var(--color-primary-strong);   /* #8E9BE8 — 18% 틴트 면 위 4.97 */
+  --sidebar-active-fg: var(--color-primary-strong);   /* #AEBBF7 — 18% 틴트 면 위 6.89 (2026-08-10 DS-18 색 동기화로 재계산) */
   --sidebar-danger: #FCA5A5;
 
   /* 배지 글자는 라이트에서 짙은 색을 쓰지만, 어두운 틴트 위에 그대로 두면 읽히지 않는다
