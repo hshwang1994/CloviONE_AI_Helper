@@ -27,12 +27,23 @@ from app.core.deps import (
     get_page_auth,
     require_csrf,
 )
-from app.core.errors import RateLimitedError
+from app.core.errors import NotFoundError, RateLimitedError
+from app.core.feature_flags import load_feature_flags
 from app.quotas import service as ai_quotas
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
 
 router = APIRouter(tags=["chat"])
+
+
+# AI-45: 다른 선택적 모듈(팀 채팅·게시판·팀 문서·놀이)은 테넌트별로 끌 수 있는데 AI 도우미
+# 채팅만 빠져 있었다. team_chat/router.py의 require_team_chat_enabled와 같은 패턴이지만,
+# 이 파일의 "/" 는 채팅 전용이 아니라 React 앱 전체의 진입점이라 여기 의존성에서 뺀다 —
+# 개별 API 엔드포인트에만 건다(아래).
+def require_chat_enabled(request: Request) -> None:
+    flags = load_feature_flags(request.app.state.settings.config_dir)
+    if not flags.get("chat_enabled", True):
+        raise NotFoundError("AI 도우미 채팅 기능이 비활성화되어 있습니다.")
 
 
 @router.get("/")
@@ -72,17 +83,30 @@ class MessageCreateRequest(BaseModel):
     screen_context: str | None = Field(default=None, max_length=100)
 
 
-@router.get("/api/conversations")
+@router.get("/api/conversations", dependencies=[Depends(require_chat_enabled)])
 def get_conversations(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     include_archived: bool = Query(default=False),
+    q: str | None = Query(default=None, max_length=200),
 ):
-    rows = list_conversations(db, user, include_archived=include_archived)
+    rows = list_conversations(db, user, include_archived=include_archived, q=q)
     return {"items": [conversation_view(c) for c in rows]}
 
 
-@router.post("/api/conversations", status_code=201, dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
+# AI-44: 남은 AI 쿼터가 백엔드는 이미 예약·차감하는데(post_message의 ai_quotas.reserve)
+# 화면 어디에도 안 보였다. 관리자 콘솔의 /api/ai-quotas*는 CONSOLE_READ_ROLES 전용이라
+# 일반 사용자가 자기 쿼터를 볼 방법이 없었다 — 본인 것만 보는 자기서비스 경로를 새로 연다.
+@router.get("/api/me/ai-quota", dependencies=[Depends(require_chat_enabled)])
+def get_my_ai_quota(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return ai_quotas.status(db, user_id=user.id, now=request.app.state.clock.now())
+
+
+@router.post("/api/conversations", status_code=201, dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)])
 def post_conversation(
     payload: ConversationCreateRequest,
     db: Session = Depends(get_db),
@@ -92,7 +116,7 @@ def post_conversation(
     return {"conversation": conversation_view(conversation)}
 
 
-@router.patch("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
+@router.patch("/api/conversations/{conversation_id}", dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)])
 def patch_conversation(
     conversation_id: str,
     payload: ConversationUpdateRequest,
@@ -107,7 +131,7 @@ def patch_conversation(
     return {"conversation": conversation_view(conversation)}
 
 
-@router.delete("/api/conversations/{conversation_id}", dependencies=[Depends(require_csrf), Depends(block_if_maintenance)])
+@router.delete("/api/conversations/{conversation_id}", dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)])
 def delete_conversation_endpoint(
     conversation_id: str,
     db: Session = Depends(get_db),
@@ -118,7 +142,7 @@ def delete_conversation_endpoint(
     return {"ok": True}
 
 
-@router.get("/api/conversations/{conversation_id}/messages")
+@router.get("/api/conversations/{conversation_id}/messages", dependencies=[Depends(require_chat_enabled)])
 def get_messages(
     conversation_id: str,
     db: Session = Depends(get_db),
@@ -136,7 +160,7 @@ def get_messages(
 @router.post(
     "/api/conversations/{conversation_id}/messages",
     status_code=202,
-    dependencies=[Depends(require_csrf), Depends(block_if_maintenance)],
+    dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)],
 )
 def post_message(
     request: Request,
@@ -186,7 +210,7 @@ def post_message(
 
 @router.post(
     "/api/messages/{message_db_id}/retry",
-    dependencies=[Depends(require_csrf), Depends(block_if_maintenance)],
+    dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)],
 )
 def retry(
     request: Request,

@@ -321,6 +321,7 @@ export function activeNavPath(pathname, paths, from) {
  * 여기서 감추는 이유는 '눌러 봐야 거절당하는 메뉴' 를 안 그리기 위해서다.
  */
 export const NAV_FEATURE_FLAG = {
+  "/chat": "chat_enabled",
   "/team-docs": "team_docs_enabled",
   "/team-docs/trash": "team_docs_enabled",
   "/chat-rooms": "team_chat_enabled",

@@ -69,6 +69,10 @@ FLAG_REGISTRY: dict[str, FlagSpec] = {
         FlagSpec("team_docs_enabled", True, OWNER_FILE, "팀 문서 모듈(§17)."),
         FlagSpec("games_enabled", True, OWNER_FILE, "팀 놀이 모듈(§23)."),
         FlagSpec("team_chat_enabled", True, OWNER_FILE, "팀 채팅 모듈."),
+        # AI-45: 다른 선택적 모듈(게시판·팀 채팅·팀 문서·놀이)은 전부 테넌트별로 끌 수 있는데
+        # AI 도우미 채팅만 빠져 있었다. 앱 셸(app/chat/router.py "/")은 이 플래그로 막지
+        # 않는다 — 그 경로는 채팅 전용이 아니라 React 앱 전체의 진입점이다.
+        FlagSpec("chat_enabled", True, OWNER_FILE, "AI 도우미 채팅(대화 CRUD, 메시지, 쿼터 조회)."),
         FlagSpec("game_ai_enabled", False, OWNER_FILE,
                  "AI 퀴즈 생성(§7-9). 러너/Claude 호출이라 기본 OFF(fail-closed)."),
         FlagSpec("assistant_narrative_enabled", False, OWNER_FILE,

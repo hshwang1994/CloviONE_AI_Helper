@@ -122,7 +122,10 @@ export function AssistantDrawer({ open, onClose }) {
         </Box>
         <IconButton
           aria-label="전체 화면으로 열기"
-          onClick={() => { onClose(); nav(chat.cid ? `/chat?c=${chat.cid}` : "/chat"); }}
+          // AI-67: '?c=' 는 Chat.jsx/useChat.js가 읽지 않는 죽은 코드였다 — 실제로 대화가
+          // 이어지는 이유는 useChat.js가 cid 변경마다 sessionStorage(CHAT_LAST_CONV_KEY)에
+          // 적기 때문이고, 같은 탭에서 여는 이 버튼은 그걸로 이미 충분하다.
+          onClick={() => { onClose(); nav("/chat"); }}
           size="small"
         >
           <OpenInFullRoundedIcon fontSize="small" />

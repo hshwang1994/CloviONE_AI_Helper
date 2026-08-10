@@ -480,15 +480,26 @@ def test_empty_2xx_payload_succeeds_with_a_generic_reply(
     structured 에 empty_response 로 표시해 나중에 셀 수 있게 한다.
     (2026-08-03 의도된 계약 변경 — 위 결함을 고치면서 이 테스트도 함께 갱신했다.)
 
+    AI-49(2026-08-10): 안내 말풍선만 고치고 **사용자 메시지 자체**는 여전히 PROC_DONE으로
+    끝나, 사용자가 복구할 방법이 '새 메시지를 다시 치는 것'뿐이었다. 이제 사용자 메시지를
+    PROC_FAILED로 남겨 '다시 시도' 버튼(retry_message)을 되살리고, 안내 말풍선도
+    error_notice로 표시해(MessageThread.jsx가 이 플래그로 '복사' 버튼을 숨긴다) 실패
+    안내와 같은 UI 취급을 받게 한다.
+
     한계 자체는 그대로다: 티켓이 실제로 생겼는지는 여전히 사람이 Notion 을 봐야 안다
     (파일 하단 체크리스트).
     """
     fake_http.on(N8N_URL, json_body={})
     assert chat_worker.run_once() is True
 
-    assistant = messages(client, ticket_chat["conversation_id"])[1]
+    conv_messages = messages(client, ticket_chat["conversation_id"])
+    user_msg, assistant = conv_messages[0], conv_messages[1]
     assert "답을 돌려주지 않았습니다" in assistant["content"]
-    assert assistant["structured"] == {"empty_response": True}
+    assert assistant["structured"] == {"empty_response": True, "error_notice": True}
+    assert user_msg["processing_status"] == "failed", user_msg
+    assert user_msg["error_code"] == "assistant_empty_response", user_msg
+    # 잡 자체는 정상 종료다 — n8n이 2xx를 줬고 핸들러가 예외 없이 끝났다. 재시도 가능 여부는
+    # message.processing_status가 결정하지, job.status가 아니다.
     assert only_job(db).status == "succeeded"
 
 

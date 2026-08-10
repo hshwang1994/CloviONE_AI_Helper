@@ -1,6 +1,9 @@
 import json
 
 import pytest
+from fastapi.testclient import TestClient
+
+from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT
 
 pytestmark = pytest.mark.integration
 
@@ -28,6 +31,50 @@ def test_create_and_list_conversations(client, user_csrf):
     r = client.get("/api/conversations")
     assert r.status_code == 200
     assert any(c["id"] == conv["id"] for c in r.json()["items"])
+
+
+def test_list_conversations_q_searches_title_and_body(client, user_csrf):
+    """AI-38: 제목 검색만으로는 "내가 만든 티켓 보여줘" 같은 흔한 제목 아래 묻힌 대화를
+    못 찾는다 — 사용자 메시지 본문도 함께 본다."""
+    named = _new_conversation(client, user_csrf)
+    client.patch(
+        f"/api/conversations/{named['id']}", json={"title": "분기 마감 정리"}, headers=_headers(user_csrf)
+    )
+    body_only = _new_conversation(client, user_csrf)
+    client.post(
+        f"/api/conversations/{body_only['id']}/messages",
+        json={"content": "포스코DX 프로젝트 진행률 알려줘", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    unrelated = _new_conversation(client, user_csrf)
+
+    by_title = client.get("/api/conversations", params={"q": "마감"}).json()["items"]
+    assert {c["id"] for c in by_title} == {named["id"]}
+
+    by_body = client.get("/api/conversations", params={"q": "포스코DX"}).json()["items"]
+    assert {c["id"] for c in by_body} == {body_only["id"]}
+
+    no_match = client.get("/api/conversations", params={"q": "존재하지않는검색어"}).json()["items"]
+    assert no_match == []
+
+    assert unrelated["id"] not in {c["id"] for c in by_title} | {c["id"] for c in by_body}
+
+
+def test_list_conversations_q_does_not_leak_other_users_messages(client, login_as, make_user):
+    """대화 소유권 필터(user_id) 밑에서 서브쿼리로 본문을 보므로, 다른 사용자의 메시지
+    내용이 검색어와 맞아도 이 사용자의 목록엔 나오면 안 된다(IDOR)."""
+    other = make_user("other@goodmit.co.kr")
+    other_csrf = login_as("user", email="other@goodmit.co.kr")
+    other_conv = _new_conversation(client, other_csrf)
+    client.post(
+        f"/api/conversations/{other_conv['id']}/messages",
+        json={"content": "비밀 프로젝트 알파 진행 상황", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(other_csrf),
+    )
+
+    my_csrf = login_as("user", email="user@goodmit.co.kr")
+    result = client.get("/api/conversations", params={"q": "비밀 프로젝트"}).json()["items"]
+    assert result == []
 
 
 def test_rename_and_delete_conversation(client, user_csrf):
@@ -105,6 +152,24 @@ def test_first_message_sets_conversation_title(client, user_csrf):
     )
     data = client.get(f"/api/conversations/{conv['id']}/messages").json()
     assert data["conversation"]["title"] == "이번 주 마감 티켓 알려줘"
+
+
+def test_long_first_message_title_is_truncated_with_an_ellipsis(client, user_csrf):
+    """AI-55: 예전엔 60자에서 잘리기만 하고 표시가 없어, 같은 문장으로 시작하는 대화
+    여러 개가 목록에서 글자 하나 안 틀리고 똑같아 보였다."""
+    long_msg = "이 메시지는 예순 글자를 넘겨서 자동 제목이 잘리는지 확인하기 위한 아주 긴 문장입니다 " * 2
+    conv = _new_conversation(client, user_csrf)
+    client.post(
+        f"/api/conversations/{conv['id']}/messages",
+        json={"content": long_msg, "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(user_csrf),
+    )
+    data = client.get(f"/api/conversations/{conv['id']}/messages").json()
+    title = data["conversation"]["title"]
+    assert title.endswith("…")
+    assert len(title) <= 60
+    assert title[:-1] == long_msg[:59].rstrip()
+    assert title[:-1] == long_msg[: len(title) - 1]
 
 
 def test_message_too_long_rejected_with_input_preserved_semantics(client, user_csrf, settings):
@@ -321,3 +386,50 @@ def test_retry_unknown_message_returns_404(client, user_csrf):
         "/api/messages/does-not-exist/retry", headers=_headers(user_csrf)
     )
     assert r.status_code == 404
+
+
+def test_feature_flag_off_hides_chat_api_but_not_the_app_shell(db_path, tmp_path, fake_clock, fake_http):
+    """AI-45: chat_enabled=False로 채팅 API는 막히지만, "/"(React 앱 전체의 진입점)는
+    채팅 전용 경로가 아니므로 계속 살아 있어야 한다 — 껐다고 앱 전체가 깨지면 안 된다."""
+    import shutil
+
+    from app.core.config import Settings
+    from app.main import create_app
+    from app.users.service import create_user
+
+    cfg = tmp_path / "config"
+    shutil.copytree(PROJECT_ROOT / "config", cfg)
+    (cfg / "feature-flags.json").write_text(
+        json.dumps({"chat_enabled": False}), encoding="utf-8"
+    )
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=f"sqlite:///{db_path.as_posix()}",
+        session_secret="test-session-secret",
+        cookie_secure=False,
+        config_dir=cfg,
+        secrets_dir=secrets_dir,
+        data_dir=tmp_path,
+    )
+    app = create_app(settings, clock=fake_clock, outbound_transport=fake_http.transport())
+    with app.state.session_factory() as s:
+        create_user(
+            s,
+            email="ff-chat@goodmit.co.kr",
+            display_name="FF",
+            password=DEFAULT_TEST_PASSWORD,
+            settings=settings,
+            actor_role="system_admin",
+            role="user",
+            active=True,
+            must_change_password=False,
+        )
+        s.commit()
+    with TestClient(app, raise_server_exceptions=False) as c:
+        c.post("/login", json={"email": "ff-chat@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
+        assert c.get("/api/conversations").status_code == 404
+        assert c.get("/api/me/ai-quota").status_code == 404
+        assert c.get("/").status_code == 200, "채팅을 껐다고 앱 셸(/) 전체가 깨지면 안 된다"

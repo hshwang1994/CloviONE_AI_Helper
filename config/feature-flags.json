@@ -8,5 +8,6 @@
   "games_enabled": true,
   "game_ai_enabled": false,
   "team_chat_enabled": true,
+  "chat_enabled": true,
   "assistant_narrative_enabled": false
 }

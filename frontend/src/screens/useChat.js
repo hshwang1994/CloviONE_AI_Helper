@@ -36,7 +36,7 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // 전송 대기 첨부(이미지)
   const [sideOpen, setSideOpen] = useState(false); // 좁은 화면 대화목록 드로어
-  const [convFilter, setConvFilter] = useState(""); // 대화 목록 제목 검색(클라이언트측 — 전체 목록은 이미 불러와 있음)
+  const [convFilter, setConvFilter] = useState(""); // 대화 목록 검색어(제목은 클라이언트측 즉시 필터, 본문은 아래 debouncedQ로 서버 검색)
   const [showArchived, setShowArchived] = useState(false); // 보관된 대화 보기
   const [composingNew, setComposingNew] = useState(false); // '새 대화' 클릭 후 첫 메시지 전까지 실제 생성을 미룸
   const [stick, setStick] = useState(true);
@@ -81,9 +81,30 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
   // 멈춰 버린다 — 대화를 바꿀 때마다 카운터를 새로 시작한다.
   useEffect(() => { pollFailRef.current = 0; }, [cid]);
 
+  // AI-38: 대화 본문 검색. 제목은 ConversationSidebar가 이미 불러온 목록에서 즉시(클라이언트
+  // 측) 거르지만, 본문은 서버만 안다 — 타이핑마다 왕복하지 않도록 300ms 지나서야 반영한다.
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(convFilter.trim()), 300);
+    return () => clearTimeout(t);
+  }, [convFilter]);
+
+  // AI-44: 백엔드는 이미 채팅마다 쿼터를 예약·차감하는데(post_message의 ai_quotas.reserve)
+  // 화면 어디에도 안 보였다 — 대화가 바뀌어도 오늘 남은 양은 그대로이므로 cid에 매지 않는다.
+  const aiQuota = useQuery({
+    queryKey: ["ai-quota-self"],
+    queryFn: () => api("/api/me/ai-quota"),
+    retry: false,
+    staleTime: 60_000,
+  });
+
   const convs = useQuery({
-    queryKey: ["conversations", showArchived],
-    queryFn: () => api("/api/conversations" + (showArchived ? "?include_archived=true" : "")),
+    queryKey: ["conversations", showArchived, debouncedQ],
+    queryFn: () => api(
+      "/api/conversations?"
+      + [showArchived ? "include_archived=true" : "", debouncedQ ? "q=" + encodeURIComponent(debouncedQ) : ""]
+        .filter(Boolean).join("&")
+    ),
     retry: false,
   });
   const thread = useQuery({
@@ -489,7 +510,7 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
 
   return {
     // 대화 선택·목록
-    cid, setCid, convs, convFilter, setConvFilter, showArchived, setShowArchived,
+    cid, setCid, convs, convFilter, setConvFilter, showArchived, setShowArchived, aiQuota,
     composingNew, setComposingNew, activeTitle,
     renameConv, archiveConv, deleteConv,
     // 스레드

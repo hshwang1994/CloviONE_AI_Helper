@@ -112,8 +112,15 @@ export function ConversationSidebar({
   cid, setCid, setComposingNew, clearDraft, textareaRef,
   renameConv, archiveConv, deleteConv, confirm,
 }) {
-  const q = convFilter.trim().toLowerCase();
-  const filtered = q ? convItems.filter((c) => (c.title || "새 대화").toLowerCase().includes(q)) : convItems;
+  // AI-38: 검색어가 있으면 convItems는 이미 서버가 제목·본문 기준으로 걸러 온 결과다
+  // (useChat.js의 debouncedQ) — 여기서 다시 거르지 않는다(다시 거르면 방금 debounce된
+  // 서버 결과 위에 아직 안 debounce된 글자로 한 번 더 잘라내 본문 일치 결과가 깜빡인다).
+  const filtered = convItems;
+
+  // AI-56: "새 대화" 그대로 방치된 항목(메시지 한 번도 안 보낸 시험용)이 쌓이면 목록
+  // 상단부를 영구히 차지한다 — 자동 보관은 하지 않지만(멋대로 지우면 사용자가 놀란다),
+  // 일괄 보관 버튼 하나는 둔다. 이미 보관된 것·활성 대화(cid)는 건드리지 않는다.
+  const emptyUnarchived = convItems.filter((c) => !c.archived && (c.title || "새 대화") === "새 대화" && c.id !== cid);
 
   return (
     <>
@@ -138,8 +145,23 @@ export function ConversationSidebar({
           <Box component="input" type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} sx={{ m: 0 }} />
           보관된 대화 보기
         </Box>
-        {/* 대화가 쌓일수록 스크롤만으로 찾기 어렵다 — 이미 불러온 전체 목록을 제목 부분일치로
-            클라이언트에서만 좁힌다(백엔드 변경 불필요). */}
+        {/* AI-56: 목록에 정리 수단이 없어 시험 삼아 만든 "새 대화"가 영구히 상단을 차지했다.
+            2개 이상일 때만 보인다 — 1개까지는 이 버튼이 오히려 소음이다. */}
+        {emptyUnarchived.length >= 2 ? (
+          <Button
+            size="sm" variant="ghost"
+            onClick={async () => {
+              if (!(await confirm(
+                `메시지를 한 번도 안 보낸 "새 대화" ${emptyUnarchived.length}개를 한꺼번에 보관할까요?`,
+                { confirmLabel: "일괄 보관" }
+              ))) return;
+              await Promise.all(emptyUnarchived.map((c) => archiveConv.mutateAsync({ id: c.id, archived: true })));
+            }}
+          >
+            빈 "새 대화" {emptyUnarchived.length}개 일괄 보관
+          </Button>
+        ) : null}
+        {/* 대화가 쌓일수록 스크롤만으로 찾기 어렵다 — 제목·본문 검색(AI-38, 서버가 거른다). */}
         {convItems.length > 0 ? (
           <Paper variant="outlined" sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.25, py: 0.25, borderRadius: 2 }}>
             <SearchRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", color: "text.secondary" }} />

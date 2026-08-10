@@ -87,8 +87,14 @@ export function Chat() {
     doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
     composerLocked, sending, inputDisabled,
     stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
-    bodyRef, fileRef, textareaRef, asideRef, sideToggleRef,
+    bodyRef, fileRef, textareaRef, asideRef, sideToggleRef, aiQuota,
   } = ch;
+
+  // AI-44: 하루 상한이 걸려 있을 때만 보인다 — 상한 행이 없는(fail-open) 설치에서는
+  // "0/None" 같은 의미 없는 숫자로 컴포저를 어지럽히지 않는다.
+  const aiQuotaDay = aiQuota.data && Array.isArray(aiQuota.data.periods)
+    ? aiQuota.data.periods.find((p) => p.period === "day")
+    : null;
 
   const convItems = (convs.data && convs.data.items) || [];
   const starting = send.isPending || createConv.isPending;
@@ -317,6 +323,11 @@ export function Chat() {
             {(busy || awaitingReply) && !composerLocked ? (
               <Typography role="status" sx={{ textAlign: "center", fontSize: "0.75rem", color: "text.secondary" }}>
                 답변을 기다리는 중입니다, 답변이 도착하면 다시 입력할 수 있습니다.
+              </Typography>
+            ) : null}
+            {aiQuotaDay && aiQuotaDay.limit != null ? (
+              <Typography sx={{ textAlign: "right", fontSize: "0.75rem", color: "text.secondary" }}>
+                오늘 AI 사용량 {aiQuotaDay.used}/{aiQuotaDay.limit}
               </Typography>
             ) : null}
             <Box component="footer" sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>

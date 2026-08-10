@@ -29,7 +29,11 @@ TIMEOUT_SECONDS = int(os.environ.get("ASSISTANT_TIMEOUT_SECONDS", "180"))
 QUIZ_TIMEOUT_SECONDS = int(os.environ.get("ASSISTANT_QUIZ_TIMEOUT_SECONDS", "45"))
 # 16MB: ticket/project payload (up to ~2MB) + up to 3 base64 images (~8MB) + margin.
 MAX_BODY_BYTES = int(os.environ.get("ASSISTANT_MAX_BODY_BYTES", str(16 * 1024 * 1024)))
-MAX_MESSAGE_CHARS = 12000
+# AI-03: 플랫폼(app/core/config.py settings.max_message_length)이 채팅 메시지를 이미 5,000자
+# 이하로 걸러 이 러너까지 도달시킨다(app/chat/service.py:159) — 이 값은 그와 어긋난 채
+# 12,000으로 남아 있던 방어선용 상수였다(정상 경로에선 도달 불가능). 실제로 강제되는 값과
+# 맞춘다. 플랫폼 쪽 상한을 올리면 이 값도 함께 올려야 한다.
+MAX_MESSAGE_CHARS = 5000
 MAX_CONTEXT_CHARS = 250000
 MAX_PROJECTS = 1000
 MAX_TICKETS = 10000
@@ -3165,7 +3169,22 @@ def selection_choices(names: list[str], limit: int = 6) -> list[dict[str, str]]:
     ]
 
 
+# AI-37: CREATE 흐름에 갇힌 사용자에게 그 자리에서 탈출어를 알려준다. CANCEL_COMMANDS와
+# 같은 단어를 쓴다 — 안내와 실제로 통하는 명령이 어긋나지 않게. 기존 스캔 가능한 다중 줄
+# 포맷(요약/빈 줄/번호 질문/들여쓰기 선택지)을 깨지 않도록 같은 줄에 붙이지 않고, 빈 줄로
+# 갈라 맨 끝에 별도 줄로 붙인다.
+_CREATE_STUCK_HINT = "('취소'라고 답하면 이 작업을 그만둘 수 있어요.)"
+
+
 def response(action: str, message: str, context: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    if (
+        action == "NEED_INPUT"
+        and isinstance(context, dict)
+        and context.get("mode") == "CREATE"
+        and message
+        and _CREATE_STUCK_HINT not in message
+    ):
+        message = message + "\n\n" + _CREATE_STUCK_HINT
     data = {"action": action, "response_text": message, "context": context}
     data.update(extra)
     return data
@@ -5089,10 +5108,23 @@ _NEGATION_RE = re.compile(
 # 이 답이 '쓰라는 지시'가 아니라 '묻는 말'인가. 물음이면 pending을 건드리지 않고 답만 한다 —
 # '1번 완료로 변경된 거 맞아?'가 값 토큰('완료로')만으로 재정의로 오인돼 확인 없이 direct write
 # 됐다(round16 F4). 조회 동사(보여/알려/목록…)와 의문 어미(맞아/까요/…)를 함께 본다.
+# AI-65: '완성형 종성+어미' 판정. 예전엔 조합 불가능한 호환 자모 ㄹ(U+3139)·ㄴ(U+3134)를
+# 그대로 정규식에 넣어서 "될까"·"할까"·"바꿀까"·"된 건지" 같은 흔한 말을 전부 놓쳤다 —
+# 완성형 한글(NFC)에는 이 낱자모가 단독으로 나오지 않는다. 종성이 ㄹ/ㄴ인 완성형 음절을
+# 유니코드 분해식(SBase+(L*V+V)*T+TIndex, TIndex 4=ㄴ·8=ㄹ)으로 계산해 문자 클래스로 넣는다.
+def _hangul_syllables_with_final(final_index: int) -> str:
+    return "".join(chr(code) for code in range(0xAC00, 0xD7A4) if (code - 0xAC00) % 28 == final_index)
+
+
+_RIEUL_FINAL_SYLLABLES = _hangul_syllables_with_final(8)  # 종성 ㄹ: 될·할·갈·볼·팔·바꿀 …
+_NIEUN_FINAL_SYLLABLES = _hangul_syllables_with_final(4)  # 종성 ㄴ: 된·한·간·본·건 …
+
 _READ_OR_QUESTION_RE = re.compile(
     r"보여|알려|목록|조회|현황|리스트|상세|검색|찾아|몇\s*개|몇\s*건"
-    r"|맞아|맞지|맞나|맞습|인가|일까|을까|ㄹ까|나요|까요|뭐|무엇|무슨|어때|어떤|어느|언제|누구|어디|왜|몇"
-    r"|있어\?|있나|있는지|되어\s*있|돼\s*있|된\s*거|된거|되었|는지|ㄴ지|은지|됐는지|했는지"
+    r"|맞아|맞지|맞나|맞습|인가|일까|을까|나요|까요|뭐|무엇|무슨|어때|어떤|어느|언제|누구|어디|왜|몇"
+    rf"|[{_RIEUL_FINAL_SYLLABLES}]까"
+    r"|있어\?|있나|있는지|되어\s*있|돼\s*있|된\s*거|된거|되었|는지|은지|됐는지|했는지"
+    rf"|[{_NIEUN_FINAL_SYLLABLES}]지"
 )
 # 'value로 진행/등록/반영해줘'처럼 승인동사로 값을 실은 재정의는 update_ticket의 값 추출기가
 # 변경동사('바꿔')를 요구해 못 집는다(round16 F3·F11). 승인동사를 변경동사로 바꿔 그 값이 대상에

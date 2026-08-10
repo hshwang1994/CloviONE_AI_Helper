@@ -194,6 +194,36 @@ def test_unsupported_response_shape_gets_default_text(
     assert "답을 돌려주지 않았습니다" in items[1]["content"], detail
 
 
+def test_empty_answer_message_is_retryable_and_retry_clears_the_stale_notice(
+    client, chat_worker, fake_http, fake_clock, posted_message
+):
+    """AI-49: 답 없는 2xx는 이제 사용자 메시지를 PROC_FAILED로 남겨 '다시 시도'를 되살린다
+    (test_user_retry_after_failure_succeeds와 같은 계약). on_failure의 안내 메시지처럼
+    '-fail-{job.id}' ID를 써서 retry_message의 옛 안내 삭제 로직을 그대로 재사용한다 —
+    재시도가 성공했는데 '답을 못 받았다' 안내가 새 답변 옆에 남는 걸 막는다."""
+    fake_http.on(N8N_URL, json_body={})
+    chat_worker.run_once()
+    failed = _messages(client, posted_message["conversation_id"])[0]
+    assert failed["processing_status"] == "failed"
+    assert failed["error_code"] == "assistant_empty_response"
+
+    fake_http.on(N8N_URL, json_body={"reply": "재시도 성공"})
+    r = client.post(
+        f"/api/messages/{failed['id']}/retry",
+        headers={"X-CSRF-Token": posted_message["csrf"]},
+    )
+    assert r.status_code == 200
+    fake_clock.advance(1)
+    chat_worker.run_once()
+
+    items = _messages(client, posted_message["conversation_id"])
+    assert items[0]["processing_status"] == "done"
+    assert [i["content"] for i in items].count(
+        "요청은 전달됐지만 도우미가 답을 돌려주지 않았습니다. 잠시 후 다시 시도하거나, 계속되면 관리자에게 알려 주세요."
+    ) == 0, items
+    assert items[-1]["content"] == "재시도 성공"
+
+
 def test_attachments_reach_n8n_then_get_stripped(client, chat_worker, fake_http, login_as, make_user, db):
     """#34 Phase 2: image bytes must be forwarded to n8n once, then purged from the
     stored job payload (서버 미보관) while keeping name markers."""

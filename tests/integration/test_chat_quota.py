@@ -113,6 +113,37 @@ def test_a_user_without_a_quota_row_is_not_capped(client, login_as, make_user):
     assert r.status_code == 202, f"상한 행이 없는데 막혔다: {r.status_code} {r.text}"
 
 
+def test_my_ai_quota_reports_this_users_own_usage(client, login_as, db, capped):
+    """AI-44: 관리자 콘솔의 /api/ai-quotas*는 CONSOLE_READ_ROLES 전용이라 일반 사용자가
+    자기 쿼터를 볼 방법이 없었다. 새 자기서비스 경로가 본인의 사용량·상한을 돌려준다."""
+    from app.observability.service import record_usage
+    from app.quotas.service import EVENT_AI_CALL
+
+    csrf = login_as("user", email="cap@goodmit.co.kr")
+    record_usage(
+        db, event=EVENT_AI_CALL, user_id=capped.id, org_id=None,
+        object_type="ai", object_id="chat_message", meta={"kind": "chat_message"},
+        now=datetime.now(),
+    )
+    db.commit()
+
+    r = client.get("/api/me/ai-quota", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    day = next(p for p in body["periods"] if p["period"] == "day")
+    assert day["limit"] == 1
+    assert day["used"] == 1
+
+
+def test_my_ai_quota_does_not_require_admin_role(client, login_as, make_user):
+    """관리자 전용 /api/ai-quotas*와 달리, 이 경로는 일반 user 역할도 접근 가능해야 한다
+    (그게 이 항목의 요지 — 자기 것만 보는 자기서비스)."""
+    make_user("nocap@goodmit.co.kr", role="user", display_name="무제한")
+    csrf = login_as("user", email="nocap@goodmit.co.kr")
+    r = client.get("/api/me/ai-quota", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+
+
 def test_the_admin_screen_says_chat_is_enforced(client, login_as):
     """화면이 "어디에 상한이 걸리는가" 를 스스로 지어내지 않게 서버가 말해 준다.
 

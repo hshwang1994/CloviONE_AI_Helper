@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -107,9 +108,12 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
           </Box>
         </CardRow>
       ) : null}
-      {url || (typeof index === "number" && onChoose) ? (
+      {url || (isTicket && t.id) || (typeof index === "number" && onChoose) ? (
         <Stack direction="row" flexWrap="wrap" alignItems="center" gap={1.5} sx={{ mt: 0.5 }}>
           {url ? (safeNotion(url) ? <NotionLink url={url} /> : <PlainUrl url={url} />) : null}
+          {/* AI-41: 결과 카드에서 Notion 외부 링크만 있고 앱 내 티켓 상세로 가는 길이 없었다
+              (AssistantPanel.jsx의 같은 카드는 이미 #/tickets/{id}로 간다) — 같은 패턴을 쓴다. */}
+          {isTicket && t.id ? <Link href={"#/tickets/" + t.id} underline="hover" sx={{ fontSize: "0.8125rem", fontWeight: 700 }}>앱에서 보기</Link> : null}
           {typeof index === "number" && onChoose ? (
             <Button size="sm" disabled={sending} onClick={() => onChoose(index + "번 상세 보여줘")}>상세</Button>
           ) : null}

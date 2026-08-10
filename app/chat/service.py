@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.conversations.models import (
@@ -27,6 +27,17 @@ from app.users.models import User
 
 _CLIENT_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 DEFAULT_TITLE = "새 대화"
+AUTO_TITLE_MAX_CHARS = 60
+
+
+def auto_title(content: str) -> str:
+    """AI-55: 첫 메시지를 그대로 60자에서 잘랐더니 잘렸다는 표시가 없어, 같은 문장으로
+    시작하는 대화 여러 개가 목록에서 글자 하나 안 틀리고 똑같아 보였다(사용자가 구분할
+    유일한 단서가 없어졌다). 잘렸을 때만 말줄임표를 붙인다 — 안 잘렸으면 그대로 둔다."""
+    text = content.strip()
+    if len(text) <= AUTO_TITLE_MAX_CHARS:
+        return text
+    return text[: AUTO_TITLE_MAX_CHARS - 1].rstrip() + "…"
 
 
 def create_conversation(db: Session, user: User, *, title: str | None = None) -> Conversation:
@@ -38,10 +49,25 @@ def create_conversation(db: Session, user: User, *, title: str | None = None) ->
     return conversation
 
 
-def list_conversations(db: Session, user: User, *, include_archived: bool = False):
+def list_conversations(
+    db: Session, user: User, *, include_archived: bool = False, q: str | None = None
+):
     stmt = select(Conversation).where(Conversation.user_id == user.id)
     if not include_archived:
         stmt = stmt.where(Conversation.archived.is_(False))
+    if q and q.strip():
+        # AI-38: 제목 부분일치만으로는 "내가 만든 티켓 보여줘" 같은 흔한 제목 아래 묻힌
+        # 대화를 못 찾는다. 본문(사용자 메시지) 부분일치도 함께 본다 — 대화 소유권은 위
+        # user_id 필터가 이미 보장하므로 서브쿼리에 따로 걸지 않는다.
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Conversation.title.ilike(like),
+                Conversation.id.in_(
+                    select(Message.conversation_id).where(Message.content.ilike(like))
+                ),
+            )
+        )
     return (
         db.execute(stmt.order_by(Conversation.updated_at.desc()).limit(100))
         .scalars()
@@ -190,7 +216,7 @@ def post_user_message(
 
     # Auto-title from the first message (spec §13.1).
     if conversation.title == DEFAULT_TITLE:
-        conversation.title = content[:60]
+        conversation.title = auto_title(content)
     conversation.updated_at = now
     db.flush()
 

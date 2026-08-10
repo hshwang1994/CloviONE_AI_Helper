@@ -236,20 +236,31 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         conversation.backend_conversation_id = backend_id
 
     text, answered = _extract_text(data)
-    # 답이 없는 2xx는 성공으로 뭉개지 않는다 — structured에 표시해 두면 화면이 다르게 그릴 수
-    # 있고, 나중에 '왜 티켓이 안 생겼나'를 로그에서 구분해 셀 수 있다.
-    stored = data if answered else {**data, "empty_response": True}
+    # AI-49: 답이 없는 2xx는 성공으로 뭉개지 않는다 — structured에 표시해 두면 화면이 다르게
+    # 그릴 수 있고, 나중에 '왜 티켓이 안 생겼나'를 로그에서 구분해 셀 수 있다. 안내 말풍선
+    # 자신은 정상 전달됐으니 PROC_DONE 그대로 두지만(on_failure의 guidance 메시지와 같은
+    # 규약), **사용자 메시지**는 PROC_FAILED로 남겨 '다시 시도' 버튼(retry_message는
+    # PROC_FAILED만 허용)을 되살린다 — 예전엔 PROC_DONE으로 끝나 사용자가 새 메시지를 다시
+    # 치는 것 말고는 복구할 방법이 없었다.
+    stored = data if answered else {**data, "empty_response": True, "error_notice": True}
+    # '-fail-{job.id}' ID는 on_failure의 안내 메시지와 같은 규약이다 — retry_message가 그
+    # 패턴으로 옛 안내를 지운다(재시도가 성공해도 '답을 못 받았다' 안내가 새 답변 옆에 그대로
+    # 남는 걸 막는다). answered일 때는 기존 ID 형식을 그대로 유지한다.
     assistant = Message(
         conversation_id=conversation.id,
-        message_id=f"a-{message.message_id}-{job.attempt_count}",
+        message_id=(
+            f"a-{message.message_id}-{job.attempt_count}"
+            if answered
+            else f"a-{message.message_id}-fail-{job.id}"
+        ),
         role=ROLE_ASSISTANT_MSG,
         content=text,
         structured_payload_json=json.dumps(stored, ensure_ascii=False),
         processing_status=PROC_DONE,
     )
     db.add(assistant)
-    message.processing_status = PROC_DONE
-    message.error_code = None
+    message.processing_status = PROC_DONE if answered else PROC_FAILED
+    message.error_code = None if answered else "assistant_empty_response"
     conversation.updated_at = ctx.clock.now()
 
     # 쿼터는 **성공한 호출만** 센다(assistant 쪽과 같은 규약). 큐에 넣을 때 세면 러너가

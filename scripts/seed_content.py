@@ -84,7 +84,10 @@ RUNNERS: list[dict] = [
         "description": "통합 업무 도우미 실행기 (claude-work-assistant)",
         "base_url": "http://127.0.0.1:8789",
         "capabilities": {
-            "actions": ["chat", "dispatch", "summarize", "compose_report"],
+            # AI-04: 실제로 러너가 받는 경로는 /v1/assistant/message·/context/sync·/quiz
+            # 셋뿐이다(assistant.py do_POST). 이전 값("dispatch"·"summarize"·"compose_report")은
+            # 시드된 적 없는 기능을 광고했다 — 실재하는 세 경로로 맞춘다.
+            "actions": ["send_message", "sync_context", "generate_quiz"],
             "domain": "assistant",
         },
         "tags": ["assistant", "claude", "local"],
