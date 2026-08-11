@@ -12,7 +12,48 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11 · **단계**: SHORT OVERRIDE 지시 아래 CORE-13 다음 배치 진행 중
+**마지막 갱신**: 2026-08-11 · **단계**: 전수 QA 하네스(QAH) 1회차 실행 + 결함 수정 완료,
+DGEN-01/USE-04/SCHD-02 배치 완료 — 아래 새 단락 참고. 이전 단계는 그 아래 그대로 유지:
+SHORT OVERRIDE 지시 아래 CORE-13 다음 배치 진행 중
+
+**QAH 배치(2026-08-11) — 전수 QA 하네스 1회차 실행 + 4개 축 결함 전부 수정.**
+`scripts/ui_qa/run.py`를 68라우트 × 라이트/다크 × 3뷰포트(408페이지) 로컬 dev 서버 대상
+전체 실행 — `QA_COVERAGE.md`가 오래전부터 "가장 큰 미검증 표면"으로 남겨 뒀던 항목.
+4개 축(`console_errors`·`vertical_text_collapse`·`contrast`·`tiny_text`)에서 실 결함 발견,
+나머지 17+1개 축은 전부 통과. 상세는 `BACKLOG.md` §QAH, `QA_COVERAGE.md` §12.
+- **QAH-01(High)**: `app/core/sessions.py::validate()`의 세 부수효과 커밋(last_seen_at
+  스로틀 갱신, idle/절대 만료 revoke)이 재시도 없이 `db.commit()`을 직접 불러 동시 요청과
+  SQLite 쓰기충돌 시 순수 조회 API(`/api/notifications/unread-count` 등)까지 500을 냈다.
+  기존 `is_write_conflict()` + SAVEPOINT 재시도 관용(D-59/CORE-13)을 재사용하되, 이 세
+  지점은 실패해도 예외를 안 올리는 `_commit_best_effort()`로 통일 — root cause는 D-59와
+  같은 부류지만 "커밋 실패 시 요청을 계속 실패시켜야 하는가"가 이 세 지점은 다르다(인증
+  판단 자체가 이미 메모리에서 끝나 있다).
+- **QAH-02/03(대비·세로붕괴)**: `MuiButton` 기본 text/outlined variant와 `kit.jsx::StatCard`
+  sev 배지가 CTR-01/04와 같은 이유(raw `palette.*.main`)로 WCAG AA 미달 — `primaryStrong`과
+  같은 배합의 `success`/`warning`/`error`.`strong`을 theme.js에 추가. 표본 519건 중 513건
+  (98.8%)을 이 세션에서 고쳤다(포크 병렬 조사 활용) — 남은 6건(`button.password-toggle`,
+  로그인 화면)은 승인된 디자인 베이스라인 고정 계약이라 의도적 보류. 조사 중 발견한 game-room
+  화면 7곳의 같은 패턴은 하네스 라우트 밖이라 QAH-05로 미착수 등록.
+- **QAH-04**: `Mascot.jsx` 사이드바 힌트의 절대 px 글자 크기(4K 레버 무력화) — DS-32 관용대로
+  rem 전환.
+- **DGEN-01(High)/USE-04/SCHD-02** — QAH와 별개로 이 배치에서 함께 처리(같은 세션, "다음
+  후보" 목록에 있던 자기완결 항목): 문서 생성 모달의 워크플로/템플릿 ID, 스케줄 대상 ID가
+  자유 텍스트 UUID 받아쓰기였던 것을 이름 select로 교체. `DataScreen.jsx`에 `config.refLists`
+  공용 훅 신설(다른 화면의 리소스를 select 옵션으로) — DGEN-03(필드 접기)은 blast radius가
+  커 범위 밖으로 명시 보류.
+
+**검증**: 항목마다 focused test + revert-to-verify(전부 확인함). 프런트 전체 회귀
+1469건 green(215파일). 백엔드 관련 스위트(세션·스케줄·문서·템플릿) green. **백엔드
+전체(integration+security+regression) 회귀 1회 별도 실행 — exit 0, 실패 0건 확인**(이
+배치 시작 시점에 백그라운드로 돌려 둠, 진행 중 별도 스위트 재확인들과 함께 교차 검증).
+커밋 9개(session 락 수정 1 · Mascot 1 · contrast 배치 2 · QAH 문서화 2 · DGEN/USE/SCHD
+기능 1 · 문서 2).
+
+**다음 후보(그대로 유효, 이번 배치가 손 안 댐)**: RG-05/06/07(승인 큐 필터·복구 리허설
+온보딩·raw UUID 표시) · APPR-02/03(알림 제목 내부 코드 노출·status=all 무검증) ·
+PERF-02(GET /api/tickets 405) · UB-25 나머지 2종(죽은 코드) · QAH-05(game-room contrast,
+하네스 라우트 편입 먼저 필요) · DGEN-03(보류 이유 위 참고).
+
 — KBD-01/02/03·FN-17·UB-21/22/40/41/23/19·UA-12/29/13/11/14/15/16 15건 구현+테스트+커밋
 완료(재검토로 결함 아님 정정 4건: FN-15/16/18, UB-20). 배치 종료 시점 전체 백엔드(2670+건)
 green 재확인(exit 0, F/E/x/s 0건). 상세는 §「SHORT OVERRIDE 이후 배치」 섹션. 배포는 여전히
