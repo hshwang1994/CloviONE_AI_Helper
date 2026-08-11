@@ -12,9 +12,10 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — AI-60(Critical)
-확답 오류 수정 + AI-61 부분해소 + ADM-03R 부분구현 + BACKLOG 문서 자기모순(ADM-01·NOTI-04/05·
-ADM-01R) 정정. 상세는 바로 아래. 그 앞 WF7-U축·K축·L01, PROJ-01·QAH-06, RG-05·UB-25,
+**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — 11건 구현완료
+(AI-60/AI-61·ADM-03R·SRCH-01·RSTR-03·SCHD-01·USE-02·UA-20R·ADM-06R·NOTI-03 확대 6건) +
+문서 정정 2건(BACKLOG 자기모순 4건, DOC-01 CSP 서술). 상세는 바로 아래. 백엔드 전체 회귀
+진행 중(§WF8 끝 참고). 그 앞 WF7-U축·K축·L01, PROJ-01·QAH-06, RG-05·UB-25,
 APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
 
 **새 세션 시작(2026-08-11) — 상태 복원 + Runner Supervisor 재확인.** 이전 대화 기억 없이
@@ -54,13 +55,85 @@ DECISIONS.md에 controlled test 증거(타임스탬프 로그, 두 인스턴스 
 "91% 갈 곳 없음"이 무효화, `NOTI-04R`이 이미 더 나은 방식으로 구현완료) · `ADM-01R`(같은 사유로
 철회, 하위 `ADM-03R`/`ADM-06R`은 독립 결함으로는 유효).
 
-**검증**: 관련 focused test 전부 green(러너 288건, `test_notifications`/`test_auth_login`/
-`test_admin_users`/`test_profile_self_service` 69건) — 전체 회귀는 이번 배치가 작아 보류,
-더 큰 배치가 쌓이면 수렴 후 실행.
+**WF8-4 — `SRCH-01`(High) 구현완료.** 명령 팔레트(Ctrl+K)가 사이드바와 같은 `nav`(현재
+콘솔 하나)만 검색해, 관리자군이 사용자 콘솔(`/me`)에 있는 동안엔 관리자 화면을 팔레트로
+못 찾았다(팔레트의 존재 이유를 정면으로 부정). `App.jsx`가 두 콘솔 전체를 합친 `paletteNav`
+prop을 추가로 넘기고, `AppShell.jsx`는 `filterNavByRole()` 공유 헬퍼로 사이드바(`groups`,
+현재 콘솔)와 팔레트(`paletteGroups`, `paletteNav||nav`)를 분리 — role 필터는 그대로 공유해
+RBAC는 그대로 적용된다. `command-palette-cross-console.test.jsx` 신규 3건 + 관련 8파일
+39건 green, revert-to-verify(AppShell/App.jsx stash 후 실패 재현 확인 후 복원).
 
-**다음 후보**: BACKLOG 154건 `발견` 재고 중 남은 High/Critical(SRCH-01 커맨드 팔레트 콘솔
-스코프 결함, RSTR-03 백업 무동작 무알림, SCHD-01 스케줄이 잘못된 워크플로를 겨눔 — Notion
-쓰기 위험 있어 신중 검토 필요, QA-02 실브라우저 E2E 0회, USE-01/USE-02 자동화 실행이력 0)
+**WF8-5 — `RSTR-03`(High) 구현완료.** 예약 백업이 20일째 안 도는데(기본값이 꺼짐) 아무도
+몰랐다 — `announce_backup_failure`는 백업을 "시도했다가 실패"할 때만 켜져, 애초에 안 도는
+것은 알림이 한 번도 안 났다. `app/backups/service.py`에 `backup_health_alert_reason()`
+(꺼짐/한번도성공못함/`BACKUP_STALE_ALERT_DAYS`=7일+정체) + `check_backup_health()` 신설,
+기존 10분 백업 틱(`worker_main.py`)에 배선. `runner_unavailable`이 쓰는 "나쁜 상태 전환 시
+1회" 원칙을 전용 상태 컬럼이 없어 "최근 24시간 안에 같은 유형 관리자 알림이 있으면 건너뜀"
+(Notification 테이블 자체를 정본으로)으로 구현. 신규 6건 + revert-to-verify, 관련 41건 green.
+
+**WF8-6 — `SCHD-01`(High) 구현완료.** 유일한 스케줄이 채팅 전용 웹훅(`CHAT_WORKFLOW_NAME`)을
+대상으로 삼고 있었다 — 활성화하면 실고객 Notion 워크스페이스에 의도치 않은 쓰기로 이어질
+위험(D-21). `app/schedules/router.py`에 `_assert_safe_workflow_target()` 신설(기존
+"승인필요 write 워크플로 거부" 검사와 통합) — create·update·**enable** 세 경로 전부에서
+차단(enable에도 넣은 이유: 이 검사가 생기기 전에 정의된 스케줄이 정의를 안 고치고 활성화만
+으로 새어나갈 수 있어서). **실서버에 이미 있을 수 있는 미스컨픽 행 자체는 D-21 경계상 이
+세션에서 직접 안 건드렸다** — 코드 예방책만 넣고 실데이터 정정은 배포 담당자 몫으로 남김
+(`DECISIONS.md` D-62). 신규 5건 + revert-to-verify, 관련 45건 green.
+
+**WF8-7 — `USE-02`(High) 재확인·부분해소.** "잡 2종만 돈다 + notion_mapping_sync가 등록
+안 된 job_type 오류 이력" — `build_handlers()`를 직접 읽어 확인하니 **지금은 정상 등록**돼
+있다(과거 배포 창의 이력으로 추정, 정확한 시점은 확정 못 함). 코드 결함이 없어 "고칠 것"은
+없지만, 이 결함 부류(잡을 큐에 넣는 코드와 핸들러 등록 코드가 다른 파일이라 한쪽만 고쳐도
+컴파일·기동은 성공하는 조용한 실패)가 재발하지 않게 `tests/regression/
+test_job_handler_registration_complete.py` 신설 — 실제 enqueue 7개 호출부의 job_type을
+원본 상수에서 가져와 `build_handlers()` 키 집합과 대조. revert-to-verify(등록 제거 시
+과거와 똑같은 증상 재현 확인 후 복원).
+
+**WF8-8 — `UA-20R`(High) 구현완료.** 부서 삭제 확인 문구("되돌릴 수 없습니다")가 하위 부서
+수를 안 말했다 — `parent_id`는 `ondelete="SET NULL"`이라 데이터 유실은 아니지만(자식은
+최상위로 승격), 3단 트리가 클릭 한 번에 평탄해지는 걸 사전에 몰랐다. 조직 정지 확인문과
+같은 원칙(차단하지 않고 영향받는 수를 명시)으로, `app/org/service.py`에
+`bulk_child_department_count()` 신설(부서 전용), `item_view()`가 `child_department_count`를
+실어 주고 프런트 `org.js` 삭제 confirm을 동적 함수로 교체. 신규 4건 + revert-to-verify,
+관련 63건 green. (참고: 이 동적 confirm 함수 자체를 누르는 UI 상호작용 시험은 조직 정지
+포함 이 저장소에 아직 없다는 기존 공백은 정직하게 남김.)
+
+**WF8-9 — `ADM-06R`(Low) 구현완료.** "지금 잠긴 사람만 보기" 필터가 `/users`에 없었다(배지·
+상세·잠금해제 버튼은 이미 다 있었음). `_filtered_users_stmt()`에 `locked`/`now` 매개변수
+추가 — `_user_row`가 이미 쓰는 판정식(`locked_until and locked_until > now`)과 통일해
+배지와 필터 결과가 어긋나지 않게 했다. `list_users`·`export_users_csv`가 같은 문장을
+공유하므로 CSV 내보내기도 자동으로 따라옴. 프런트 `Users.jsx`에 "잠김" select 필터 신설.
+신규 2건(실제 로그인 실패로 잠금 재현 + CSV) + revert-to-verify, 관련 23건 green.
+
+**WF8-10 — `NOTI-03`(Low) 재조사로 확대, 6건 구현완료.** 원 서술(`chat_invited`가 레지스트리에
+없다)은 낡았다 — 이미 등록돼 있었다. 재조사(실제 `type_=` 호출부 전수 대조)로 **같은 결함
+부류가 여섯 건 더** 있음을 새로 발견: `approval_delegated`·`approval_overdue`·
+`board_comment`·`document_comment`·`idea_status_changed`·`ticket_comment`가 실제로 알림을
+만드는데 `NOTIFICATION_TYPES`(뮤트 가능 레지스트리)에 없어 사용자가 절대 못 껐다(`parse_muted`
+가 "모르는 키"로 조용히 버림). 6종 등록 + `tests/unit/test_profile_prefs.py`에 **상시
+완결성 가드** 신설(app/ 전체 `type_="literal"` 정적 스캔, 상수 기반 호출부는 스캔 한계로
+못 잡는다는 것도 정직하게 주석에 남김). revert-to-verify(6종 전부 재현 확인 후 복원),
+관련 166건 green.
+
+**WF8-11 — `DOC-01`(Med) 구현완료(코드 변경 없음).** `CLAUDE.md`·`docs/SECURITY.md` 둘 다
+CSP를 예전 `script-src 'self'` 정책으로 서술하고 있었다(2026-08-04 사용자 지시로 완화된
+지 오래) — `SECURITY.md`는 "인라인 JS/CSS는 어디에도 없다"까지 지금은 틀린 문장이었다.
+둘 다 `app/core/middleware.py`의 `CSP_POLICY`를 정본으로 가리키게 정정, 실제 헤더값·잃은
+방어·유지하는 방어를 정직하게 적었다. 기존 `tests/regression/test_csp_policy.py`로 서술이
+실제 응답과 일치함을 재확인.
+
+**검증(WF8 전체)**: 매 항목 focused test + revert-to-verify 확인함(예외 없이 전부). 개별
+합계로 최소 러너 288건 + 백엔드 focused 400건대 + 프런트 focused 100여 건 green. **배치가
+10건을 넘어 커져 백엔드 전체 회귀 1회를 조기 실행 중**(UA-20R/ADM-06R/NOTI-03 이후
+착수, 진행 중 — 완료되는 대로 실패가 있으면 Root Cause grouping 후 일괄 수정, 없으면
+프런트 전체 회귀도 이어서 실행). 커밋은 항목마다 개별(구현 1 + docs 1 페어) — 총 22커밋.
+
+**다음 후보**: BACKLOG 나머지 `발견`/`정밀화` 재고 중 남은 High(QA-02 실브라우저 E2E 0회,
+USE-01 자동화 실행이력 0 — 이미 WF7-U축에서 상당 부분 처리됨, ADM-05 잠금 정책 설정 화면
+노출 — ADM-03R이 남긴 후속) + QA_COVERAGE L축(화면 간 반영) 전수 매트릭스 + 나머지
+Med/Low 항목 Root Cause 클러스터링(VIS-158R AI 응답 좁은화면 미노출은 라이브 확인 필요한
+디자인 판단이라 신중 검토, AI-31/AI-53/AI-05~29 등 AI 도우미 심화 아키텍처 항목은 여러
+사이클째 의도적 보류 — 스트리밍/중단/도구사용 등 전담 설계 필요).
 + QA_COVERAGE L축(화면 간 반영) 전수 매트릭스 + 나머지 발견 항목 Root Cause 클러스터링.
 
 **같은 세션 계속(2026-08-11) — WF7 whole-product 재감사 1회차.** RG-*/APPR-*/UB-25
