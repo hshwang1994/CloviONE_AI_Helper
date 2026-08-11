@@ -146,7 +146,7 @@ export function CsvTools({ exportQuery, onImported }) {
   );
 }
 
-function ImportModal({ onClose, onImported }) {
+export function ImportModal({ onClose, onImported }) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(null);
   // 불리언 하나가 아니라 '어느 작업이 진행 중인가'를 담는다("preview" | "create" | null) — 위
@@ -156,6 +156,7 @@ function ImportModal({ onClose, onImported }) {
   // 말하는 셈이었다.
   const [busyAction, setBusyAction] = useState(null);
   const toast = useToast();
+  const confirm = useConfirm();
 
   async function send(dryRun) {
     setBusyAction(dryRun ? "preview" : "create");
@@ -184,11 +185,20 @@ function ImportModal({ onClose, onImported }) {
     { key: "message", label: "설명" },
   ];
   const applied = preview && preview.dry_run === false;
+  // 붙여넣은 CSV가 있으면(아직 반영 전) Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다
+  // (VIS-88) — 이미 만들어졌으면(applied) 더 잃을 게 없어 그냥 닫는다.
+  const dirty = !applied && text.trim().length > 0;
+  async function requestClose() {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  }
 
   const footer = (
     <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
       <Box className="k-footer-main">
-        <Button onClick={onClose}>{applied ? "닫기" : "취소"}</Button>
+        <Button onClick={requestClose}>{applied ? "닫기" : "취소"}</Button>
         {!applied ? (
           <>
             <Button disabled={!!busyAction || !text.trim()} onClick={() => send(true)}>
@@ -205,7 +215,7 @@ function ImportModal({ onClose, onImported }) {
   );
 
   return (
-    <Modal open onClose={onClose} title="CSV로 사용자 가져오기" size="lg" footer={footer}>
+    <Modal open onClose={onClose} title="CSV로 사용자 가져오기" size="lg" dirty={dirty} footer={footer}>
       <Callout>
         <Box component="p" sx={{ m: 0 }}>
           <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할, 부서, 직책은 선택입니다(부서, 직책은 <em>이름</em>으로 씁니다).

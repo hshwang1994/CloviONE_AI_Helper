@@ -113,8 +113,9 @@ function DocSelect({ id, label, value, onChange, values, required }) {
   );
 }
 
-function DocCreateModal({ open, onClose, options, onCreated }) {
+export function DocCreateModal({ open, onClose, options, onCreated }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [f, setF] = useState(EMPTY_DOC);
   useEffect(() => { if (open) setF(EMPTY_DOC); }, [open]);
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
@@ -153,13 +154,26 @@ function DocCreateModal({ open, onClose, options, onCreated }) {
   // 필수(§9): 제목·문서 종류·업무 분야.
   const canSave = f.title.trim().length > 0 && !!f.doc_type && !!f.work_field && !create.isPending;
 
+  // 뭔가 입력했으면 Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다(VIS-88) — 이 폼은 필드가
+  // 많아(제목·종류·분야·프로젝트·태그·소유자·메모·본문) 실수로 닫으면 다시 채워야 할 양이 크다.
+  // `Modal`의 `dirty` prop은 Esc/바깥클릭/X만 지킨다 — 하단 '취소' 버튼은 onClose를 직접
+  // 불러 그 가드를 우회하므로(Games.jsx가 이미 겪은 문제) 여기서도 requestClose로 감싼다.
+  const dirty = JSON.stringify(f) !== JSON.stringify(EMPTY_DOC);
+  async function requestClose() {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  }
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="새 문서"
       size="lg"
-      footer={<ModalFooter onCancel={onClose} onSubmit={() => canSave && create.mutate()} submitLabel="생성" busy={create.isPending} />}
+      dirty={dirty}
+      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="생성" busy={create.isPending} />}
     >
       <TextField
         id="doc-title" size="small" fullWidth required label="제목"

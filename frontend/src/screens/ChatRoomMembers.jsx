@@ -188,6 +188,17 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   const candidates = ((dir.data && dir.data.users) || []).filter((u) => !memberIds.has(u.user_id));
   const chosen = Object.keys(picked).filter((k) => picked[k]);
   const busy = rename.isPending || invite.isPending || remove.isPending || handOver.isPending;
+  // 이름을 고쳐 썼거나(저장 안 함) 초대할 사람을 골랐으면(초대 안 보냄) Esc·바깥 클릭·X·'닫기'
+  // 전부에서 확인을 받는다(VIS-88) — 이 두 초안은 각자 자기 버튼(저장/초대)을 눌러야만 반영되고,
+  // `Modal`의 `dirty` prop은 Esc/바깥클릭/X만 지킨다 — 하단 '닫기' 버튼은 onClose를 직접 불러 그
+  // 가드를 우회하므로(Games.jsx가 이미 겪은 문제) 여기서도 requestClose로 감싼다.
+  const dirty = name.trim() !== (title || "").trim() || chosen.length > 0;
+  async function requestClose() {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  }
 
   const askRemove = async (m) => {
     const ok = await confirm(`${m.name || "이 참여자"}님을 내보냅니다. 이 방의 대화를 더는 볼 수 없게 됩니다.`,
@@ -202,7 +213,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" footer={<Button onClick={onClose}>닫기</Button>}>
+    <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
       <Box component="section" sx={{ mb: 3 }}>
         <Typography component="label" htmlFor="tc-rename" sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
           방 이름

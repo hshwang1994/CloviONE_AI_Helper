@@ -202,10 +202,32 @@ CORRECTION" 지시(작업 조각→종료→idle-tick 예약 패턴 금지, 다�
 - **검증**: 프런트 전체 회귀(208파일/1370건) green, `bash scripts/static_checks.sh` →
   `STATIC_CHECKS_OK`(번들 재빌드 포함).
 
-다음은 VIS-88(19개 `Modal` 호출부 중 18개가 `dirty` prop 누락 — Esc/배경 클릭/X로 조용히
-데이터 유실, `MyTickets.jsx` 티켓 수정 모달 포함 다수 화면)로 곧바로 이어간다 — 사용자
-확인 대기 없이, 완료 즉시 다음 후보(VIS-32/VIS-104/VIS-81/VIS-73·74/VIS-90/VIS-107 등)로
-계속한다.
+**VIS-88·VIS-89 구현완료 — 저수준 `Modal` 미저장 보호 전파**: 19개 `Modal` 호출부를 전부
+코드로 재확인해(원 목록을 그대로 믿지 않고) 실제로 잃을 입력이 있는 곳만 골라 고쳤다.
+- **고친 7곳**(+ dirty 판정 방식): `MyTickets`(티켓 편집 — `buildChanges()`의 diff를
+  그대로 재사용) · `TeamDocs`(새 문서 — `EMPTY_DOC`과 JSON 비교) · `Board`(글쓰기/수정 —
+  열 때의 값 스냅샷) · `ChatRooms`(그룹 방 만들기만 — 1:1 시작은 즉시 실행이라 제외) ·
+  `UsersBulk`(CSV 가져오기 — 이미 반영됐으면 dirty 아님) · `SavedViews`(뷰 저장) ·
+  덤으로 `ChatRoomMembers`(채팅방 관리 — 원 목록엔 없었지만 방 이름 수정/초대 선택이
+  같은 결함 부류). 화면마다 두 경로를 다 막았다 — `Modal`의 `dirty` prop(Esc·바깥클릭·X)
+  + footer의 '취소/닫기' 버튼용 별도 `requestClose`(Games.jsx가 이미 겪은 "footer 버튼은
+  Modal.onClose를 직접 불러 dirty 가드를 우회한다" 문제와 동일 패턴).
+- **재확인 결과 제외한 곳**(원 목록의 착오 포함): `SchedulerCalendar`(원 목록에 있었지만
+  재확인하니 읽기 전용 실행 상세 + 즉시 실행 버튼뿐, 잃을 입력 없음) · `DataScreen`/
+  `SubListDrawer`의 상세·안내 모달 · `Offboarding`/`Users`/`SettingVersions` 상세 ·
+  `Tour` · `ChatRooms`의 1:1 시작. `SettingEditor`는 이미 자기 `requestClose`가
+  `Modal.onClose` 자체를 감싸는 FormModal과 같은 패턴이라 원래부터 보호돼 있었다.
+- **미적용으로 남긴 것**: BACKLOG의 "고칠 방향"(opt-in→opt-out 전환 또는 정적 검사)은
+  손대지 않았다 — 지금 남은 호출부는 실제로 dirty=false가 맞아 당장 위험하지 않지만,
+  다음에 폼이 있는 새 `Modal` 호출부가 추가되면 같은 결함이 재발할 수 있다(후속 과제).
+- **검증**: 신규 시험 `modal-dirty-guard-vis88.test.jsx`(9건). revert-to-verify: 7개
+  화면 소스를 stash하면 7건 실패(나머지 2건은 "안 바꿨으면 그냥 닫힘" 케이스라 원래도
+  통과), 복원 후 재확인. `DocCreateModal`/`GroupModal`/`ImportModal`은 이 시험을 위해
+  `export` 추가(동작 변화 없음, `TicketEditModal`/`PostFormModal`/`ManageRoomModal`은
+  이미 export돼 있던 것과 통일). 프런트 전체 회귀는 커밋 직전 재확인.
+
+다음은 사용자 확인 대기 없이, 완료 즉시 다음 후보(VIS-32/VIS-104/VIS-81/VIS-73·74/VIS-90/
+VIS-107 등)로 계속한다.
 
 ---
 

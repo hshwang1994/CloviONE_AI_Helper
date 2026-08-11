@@ -159,9 +159,17 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
         onClose={() => setSaving(false)}
         title="현재 필터를 뷰로 저장"
         size="sm"
+        dirty={name.trim().length > 0}
         footer={
           <ModalFooter
-            onCancel={() => setSaving(false)}
+            onCancel={async () => {
+              // 이름을 이미 쳤으면 Esc/바깥클릭과 같은 확인을 거친다(VIS-88) — '취소' 버튼은
+              // setSaving(false)를 직접 불러 Modal의 dirty 가드를 우회하므로 여기서도 감싼다.
+              if (name.trim().length > 0 &&
+                  !(await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+                    { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" }))) return;
+              setSaving(false);
+            }}
             onSubmit={() => save.mutate({
               screen_key: screenKey, name, query, overwrite: conflict,
             })}

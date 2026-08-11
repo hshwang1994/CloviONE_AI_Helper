@@ -393,6 +393,7 @@ function withCurrentProject(projects, currentId) {
 export function TicketEditModal({ ticket, open, onClose }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const assigneesQ = useAssigneeOptions(open);
   const metaQ = useTicketMeta(open);
   const projectsQ = useTicketProjects(open);
@@ -459,13 +460,26 @@ export function TicketEditModal({ ticket, open, onClose }) {
     m.mutate(changes);
   }
 
-  const footer = <ModalFooter onCancel={onClose} onSubmit={submit} submitLabel="저장" busy={m.isPending} />;
+  // 바뀐 필드가 있으면(=buildChanges가 비어있지 않으면) Esc·바깥 클릭·X·'취소' 전부에서
+  // 확인을 받는다(VIS-88) — 이 모달은 담당자·마감일 등 여러 필드를 한 번에 고치는데,
+  // 실수로 닫으면 전부 다시 입력해야 했다. `Modal`의 `dirty` prop은 Esc/바깥클릭/X만
+  // 지킨다 — 하단 '취소' 버튼은 onClose를 직접 불러 그 가드를 우회하므로(Games.jsx가
+  // 같은 이유로 이미 겪은 문제) 여기서도 별도 requestClose로 감싼다.
+  const changes = buildChanges();
+  const dirty = Object.keys(changes).length > 0;
+  async function requestClose() {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  }
+  const footer = <ModalFooter onCancel={requestClose} onSubmit={submit} submitLabel="저장" busy={m.isPending} />;
   const statusOpts = withCurrent(meta.statuses, form.status);
   const prioOpts = withCurrent(meta.priorities, form.priority);
   const diffOpts = withCurrent(meta.difficulties, form.difficulty);
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
   return (
-    <Modal open={open} onClose={onClose} title={"티켓 편집" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer}>
+    <Modal open={open} onClose={onClose} title={"티켓 편집" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer} dirty={dirty}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}

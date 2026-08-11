@@ -8,7 +8,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useToast } from "../ui/kit.jsx";
+import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
@@ -90,10 +90,11 @@ const PICKER_SX = {
   border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
 };
 
-function GroupModal({ open, onClose }) {
+export function GroupModal({ open, onClose }) {
   const qc = useQueryClient();
   const nav = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const dir = useDirectory(open);
   const [title, setTitle] = React.useState("");
   const [picked, setPicked] = React.useState({});
@@ -110,14 +111,24 @@ function GroupModal({ open, onClose }) {
 
   const users = (dir.data && dir.data.users) || [];
   const canCreate = title.trim().length > 0 && !create.isPending;
+  // 방 이름을 쳤거나 초대할 사람을 골랐으면 Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다
+  // (VIS-88). `Modal`의 `dirty` prop은 Esc/바깥클릭/X만 지킨다 — 하단 '취소' 버튼은 onClose를
+  // 직접 불러 그 가드를 우회하므로(Games.jsx가 이미 겪은 문제) 여기서도 requestClose로 감싼다.
+  const dirty = title.trim().length > 0 || Object.values(picked).some(Boolean);
+  async function requestClose() {
+    if (!dirty) { onClose(); return; }
+    const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
+      { danger: true, title: "변경 사항 버리기", confirmLabel: "닫기" });
+    if (ok) onClose();
+  }
   const footer = (
     <>
-      <Button onClick={onClose}>취소</Button>
+      <Button onClick={requestClose}>취소</Button>
       <Button variant="primary" disabled={!canCreate} onClick={() => create.mutate()}>만들기</Button>
     </>
   );
   return (
-    <Modal open={open} onClose={onClose} title="새 그룹 채팅방" footer={footer}>
+    <Modal open={open} onClose={onClose} title="새 그룹 채팅방" dirty={dirty} footer={footer}>
       <Box sx={{ mb: 2.5 }}>
         <Typography component="label" htmlFor="tc-gtitle" sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
           방 이름<Box component="span" sx={{ color: "error.main" }}> *</Box>
