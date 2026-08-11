@@ -5392,6 +5392,25 @@ def is_query_intent(message: str, context: dict[str, Any]) -> bool:
     return bool(context.get("last_query")) and any(marker in n for marker in followup_markers)
 
 
+# AI-60(Critical)/AI-61(High): 이 러너는 Notion 티켓·프로젝트 데이터만 갖고 있다. "작업"이라는
+# 낱말 하나가 query_markers에 있다는 이유로 "지금 실패한 백그라운드 작업이 몇 건이야?"(플랫폼의
+# 잡 큐를 묻는 질문, 여기엔 데이터가 없다) 같은 질문까지 티켓 COUNT로 분류돼 무관한 티켓
+# 개수(예: 184건)를 확답처럼 냈다 — 목록이면 사용자가 눈으로 이상함을 알아채지만 숫자 하나는
+# 그럴 수 없어 더 나쁘다. query_markers 자체는 손대지 않는다(같은 함수를 직접 좁히려던 시도가
+# 이미 세 번 회귀했다 — AI-31 기록). 대신 이 러너가 데이터를 아예 갖지 않는 다른 플랫폼
+# 도메인(백그라운드 잡 큐, 채팅방 등 — AI-61이 예로 든 두 가지)을 가리키는 낱말이 있으면
+# 조회 분류보다 먼저 정직하게 "지원 범위 밖"이라고 답한다. 같은 문장에 "티켓"/"프로젝트"가
+# 명시되면(예: "채팅방에서 언급된 티켓 보여줘") 애매함을 억지로 풀지 않고 기존 분류에 맡긴다.
+_OUT_OF_DOMAIN_MARKERS = ("백그라운드", "채팅방", "잡큐", "작업큐", "job")
+
+
+def is_out_of_domain_query(message: str) -> bool:
+    n = norm(message)
+    if not any(marker in n for marker in _OUT_OF_DOMAIN_MARKERS):
+        return False
+    return not any(marker in n for marker in ("티켓", "프로젝트"))
+
+
 def diagnose(requester: dict[str, str], current_user: dict[str, str] | None, quality: str, projects: list[dict[str, Any]], tickets: list[dict[str, Any]], schema: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     status_map = actual_status_map(schema, tickets)
     my_tickets = current_user_tickets(tickets, current_user, requester)
@@ -5512,6 +5531,9 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             ]
             return response("PARTIALLY_SUPPORTED", "\n".join(lines), preserved, unsupported_reason=unsupported_reason), 0
         return unsupported_response(context, message, unsupported_reason), 0
+
+    if is_out_of_domain_query(message):
+        return unsupported_response(context, message, "이 러너가 데이터를 갖고 있지 않은 플랫폼 기능(예: 백그라운드 작업 큐, 채팅방) 조회"), 0
 
     # 지우려는 대상이 티켓 자체일 때만 막는다. '담당자 제거해줘', '마감일 지워줘'는
     # 티켓의 한 칸을 비우는 평범한 변경인데, 이 가드가 가로채 '삭제는 지원하지 않는다'는

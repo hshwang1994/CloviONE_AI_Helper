@@ -2796,6 +2796,49 @@ def test_a_question_about_comments_is_not_an_order_to_write_one():
     assert "요청자나 참여자" in data["response_text"]
 
 
+def test_out_of_domain_questions_get_an_honest_answer_not_a_ticket_count():
+    # AI-60(Critical) 회귀 고정: 이 러너는 Notion 티켓·프로젝트만 안다. "작업"이 query_markers에
+    # 있다는 이유만으로 플랫폼의 잡 큐(백그라운드 작업)를 묻는 질문까지 티켓 COUNT로 잘못 분류돼
+    # 무관한 티켓 개수를 확답처럼 냈었다 — 재현: 실제 버그 사례("지금 실패한 백그라운드 작업이
+    # 몇 건이야?" → 무관한 184건).
+    assert m.is_out_of_domain_query("지금 실패한 백그라운드 작업이 몇 건이야?")
+    # AI-61(High) 같은 뿌리: 채팅방 질문도 말없이 티켓으로 갈아 끼워졌다.
+    assert m.is_out_of_domain_query("채팅방 몇 개야?")
+    # 이 러너가 실제로 답할 수 있는 순수 티켓 질문은 그대로 통과해야 한다(회귀 방지) —
+    # query_markers/is_query_intent 자체는 건드리지 않았다.
+    for msg in ["내 작업 몇 건이야?", "진행 중인 작업 보여줘", "이번 주 마감인 작업 몇 개야"]:
+        assert not m.is_out_of_domain_query(msg), msg
+    # 문장에 "티켓"/"프로젝트"가 명시되면 애매함을 억지로 안 풀고 기존 티켓 분류에 맡긴다.
+    assert not m.is_out_of_domain_query("채팅방에서 언급된 티켓 보여줘")
+
+    data, _ = m.route_request({
+        "message": "지금 실패한 백그라운드 작업이 몇 건이야?",
+        "requester": {"email": "a@x", "name": "문의진"},
+        "projects": PROJECTS, "tickets": TICKETS, "work_schema": {},
+    })
+    assert data["action"] == "UNSUPPORTED", data["action"]
+    assert "184" not in data["response_text"]
+    assert "건입니다" not in data["response_text"]
+
+    data2, _ = m.route_request({
+        "message": "채팅방 몇 개야?",
+        "requester": {"email": "a@x", "name": "문의진"},
+        "projects": PROJECTS, "tickets": TICKETS, "work_schema": {},
+    })
+    assert data2["action"] == "UNSUPPORTED", data2["action"]
+
+    # 대기 중인 티켓 생성 초안이 있을 때도 잘못된 확답 대신 정직한 안내를 주고, 초안은 그대로
+    # 유지돼야 한다(remember_unhandled가 pending_action을 건드리지 않는지 확인).
+    pending_context = {"pending_action": {"kind": "CREATE"}, "ticket_draft": {"title": "임시"}}
+    data3, _ = m.route_request({
+        "message": "그런데 백그라운드 작업 몇 건이야?",
+        "requester": {"email": "a@x", "name": "문의진"},
+        "projects": PROJECTS, "tickets": TICKETS, "work_schema": {}, "context": pending_context,
+    })
+    assert data3["action"] == "UNSUPPORTED", data3["action"]
+    assert data3["context"].get("pending_action") == {"kind": "CREATE"}, "진행 중이던 생성 초안이 사라지면 안 된다"
+
+
 def test_that_ticket_is_not_my_ticket():
     # [HIGH·회귀] 지시관형사 '저'(that)를 1인칭 '저'(I)로 읽어 남의 티켓을 조용히 숨겼다.
     # 같은 파일 _CONTEXT_REF_RE는 '저'를 지시관형사로 등록해 두어, 두 판정이 같은 문장에서
