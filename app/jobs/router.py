@@ -253,8 +253,12 @@ def _terminalize_linked_record(db: Session, job: Job, now) -> None:
         from app.conversations.models import PROC_FAILED, Message
         from sqlalchemy import or_ as sa_or, select as _select
 
+        # UB-23: message_id는 대화 단위로만 유일하다(migration 0054) — conversation_id로 좁힌다.
         msg = db.execute(
-            _select(Message).where(Message.message_id == payload.get("message_id", ""))
+            _select(Message).where(
+                Message.conversation_id == job.conversation_id,
+                Message.message_id == payload.get("message_id", ""),
+            )
         ).scalar_one_or_none()
         if msg is not None and msg.processing_status in ("pending", "processing"):
             msg.processing_status = PROC_FAILED

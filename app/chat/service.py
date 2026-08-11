@@ -189,12 +189,17 @@ def post_user_message(
     if not _CLIENT_MESSAGE_ID.match(client_message_id or ""):
         raise ValidationAppError("client_message_id 형식이 올바르지 않습니다.")
 
+    # UB-23: 소유자(대화) 필터 없이 message_id만 봤었다 — 전역에서 "이 문자열이 이미
+    # 존재하는가"를 201/409로 알려 주는 존재-확인 오라클이었다(다른 사용자의 대화에 속한
+    # 메시지라도). 유일성 자체가 이제 (conversation_id, message_id) 복합키다(migration
+    # 0054) — 조회도 같은 범위로 좁힌다. 다른 대화에서 이미 쓰인 id와 겹쳐도 이 대화
+    # 안에서는 새 메시지일 뿐이라 "다른 대화에서 사용됨" 분기 자체가 더 이상 없다.
     existing = db.execute(
-        select(Message).where(Message.message_id == client_message_id)
+        select(Message).where(
+            Message.conversation_id == conversation.id, Message.message_id == client_message_id
+        )
     ).scalar_one_or_none()
     if existing is not None:
-        if existing.conversation_id != conversation.id:
-            raise ConflictError("이미 다른 대화에서 사용된 메시지 ID입니다.")
         # Duplicate submit (double-click / refresh) — return the original.
         job = jobs_repo.get_by_idempotency_key(db, f"chatmsg:{client_message_id}")
         return existing, job

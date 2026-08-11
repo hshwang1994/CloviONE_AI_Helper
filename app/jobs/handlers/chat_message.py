@@ -131,9 +131,14 @@ def strip_attachment_bytes(job: Job, payload: dict) -> None:
     job.payload_json = json.dumps(stripped, ensure_ascii=False)
 
 
-def _load_message(db: Session, payload: dict) -> Message:
+def _load_message(db: Session, job: Job, payload: dict) -> Message:
+    # UB-23: message_id는 대화 단위로만 유일하다(migration 0054) — conversation_id로
+    # 좁힌다(on_failure와 같은 이유).
     message = db.execute(
-        select(Message).where(Message.message_id == payload.get("message_id", ""))
+        select(Message).where(
+            Message.conversation_id == job.conversation_id,
+            Message.message_id == payload.get("message_id", ""),
+        )
     ).scalar_one_or_none()
     if message is None:
         raise PermanentJobError("대상 메시지가 존재하지 않습니다.")
@@ -146,7 +151,7 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     if not requester.get("email"):
         raise PermanentJobError("requester가 없는 payload: 위조 또는 손상")
 
-    message = _load_message(db, payload)
+    message = _load_message(db, job, payload)
     message.processing_status = PROC_PROCESSING
     db.flush()
     db.commit()
@@ -294,8 +299,13 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         payload = parse_payload(job)
     except PermanentJobError:
         return
+    # UB-23: message_id는 이제 대화 단위로만 유일하다(migration 0054) — job 자신이 이미
+    # conversation_id를 들고 있으니(enqueue 시점에 저장) 조회도 같은 범위로 좁힌다.
     message = db.execute(
-        select(Message).where(Message.message_id == payload.get("message_id", ""))
+        select(Message).where(
+            Message.conversation_id == job.conversation_id,
+            Message.message_id == payload.get("message_id", ""),
+        )
     ).scalar_one_or_none()
     if message is None:
         strip_attachment_bytes(job, payload)

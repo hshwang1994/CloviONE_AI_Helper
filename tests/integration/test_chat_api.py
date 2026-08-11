@@ -143,6 +143,36 @@ def test_duplicate_client_message_id_not_duplicated(client, user_csrf, db):
     assert db.query(Job).count() == 1
 
 
+def test_client_message_id_reuse_across_conversations_is_not_a_conflict(
+    client, user_csrf, login_as, make_user
+):
+    """UB-23: message_id는 예전엔 전역 UNIQUE였다(migration 0054 전) — 다른 사용자의
+    대화에 이미 그 client_message_id가 쓰였으면 409("이미 다른 대화에서 사용된 메시지
+    ID입니다")가 났다. 이건 소유자 필터 없는 존재-확인 오라클이었다: 아무 사용자나 임의의
+    id로 찔러 보면 201/409로 그 문자열이 시스템 어딘가(다른 사용자의 대화 포함)에 이미
+    있는지 알 수 있었다. 유일성이 이제 (conversation_id, message_id) 복합키라 다른
+    사용자·다른 대화에서의 재사용은 그냥 새 메시지다."""
+    other = make_user("other-msgid@goodmit.co.kr")
+    other_csrf = login_as("user", email="other-msgid@goodmit.co.kr")
+    other_conv = _new_conversation(client, other_csrf)
+    r = client.post(
+        f"/api/conversations/{other_conv['id']}/messages",
+        json={"content": "다른 사람 메시지", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(other_csrf),
+    )
+    assert r.status_code == 202
+
+    my_csrf = login_as("user", email="user@goodmit.co.kr")
+    my_conv = _new_conversation(client, my_csrf)
+    r2 = client.post(
+        f"/api/conversations/{my_conv['id']}/messages",
+        json={"content": "내 메시지, 같은 id", "client_message_id": CLIENT_MSG_ID},
+        headers=_headers(my_csrf),
+    )
+    assert r2.status_code == 202, r2.text
+    assert r2.json()["message"]["content"] == "내 메시지, 같은 id"
+
+
 def test_first_message_sets_conversation_title(client, user_csrf):
     conv = _new_conversation(client, user_csrf)
     client.post(
