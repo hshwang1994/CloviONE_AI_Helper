@@ -12,11 +12,56 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11 · **단계**: WF7 후속 — QA_COVERAGE §11 `K`축(그라디언트
-배경 위 텍스트 대비, 상단바 전체) 조사 완료 — `WF7-K01`(`UserMenu` 실결함, 구현+테스트+
-커밋) + 상단바 나머지 요소(`NotificationBell`/`TopBrand`/`TopSearch`) 점검 결과 결함
-아님 확인. 상세는 아래 새 단락. 그 앞 PROJ-01·QAH-06(WF7 1회차), RG-05·UB-25,
+**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — AI-60(Critical)
+확답 오류 수정 + AI-61 부분해소 + ADM-03R 부분구현 + BACKLOG 문서 자기모순(ADM-01·NOTI-04/05·
+ADM-01R) 정정. 상세는 바로 아래. 그 앞 WF7-U축·K축·L01, PROJ-01·QAH-06, RG-05·UB-25,
 APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
+
+**새 세션 시작(2026-08-11) — 상태 복원 + Runner Supervisor 재확인.** 이전 대화 기억 없이
+CLAUDE.md·WORK_STATE·BACKLOG·QA_COVERAGE·DECISIONS·Git을 교차 대조해 복원했다.
+`autonomous_runner.ps1`(D-60/D-61)은 이미 실제 코드로 stdin 리다이렉트 수정이 들어가 있고
+DECISIONS.md에 controlled test 증거(타임스탬프 로그, 두 인스턴스 동시 실행 방지, STOP 처리)가
+남아 있음을 코드 직접 재확인으로 검증함 — 재작업 불필요. 이 세션이 활성 상태이므로
+`var/runner/STOP`은 D-61 원칙대로 그대로 둔다(단일 인스턴스 보호, 두 Supervisor가 동시에
+같은 워킹트리를 건드리면 안 됨).
+
+**WF8-1 — `AI-60`(Critical)/`AI-61`(High) 구현완료.** BACKLOG 전체 unresolved inventory(154건
+`발견` 상태)를 훑어 Critical 1건(AI-60: "모르는 질문에 184건입니다라고 확답")을 최우선 처리.
+`runner/claude-work-assistant/assistant.py`의 `is_query_intent`/`query_markers`는 이미 3번
+회귀한 이력이 있어(AI-31 기록) 직접 손대지 않고, `route_request` 맨 앞단에 새 게이트
+`is_out_of_domain_query()`를 추가 — 이 러너가 데이터를 아예 갖지 않는 플랫폼 도메인(백그라운드
+작업 큐·채팅방, AI-61이 예로 든 두 가지)을 가리키는 낱말이 있고 "티켓"/"프로젝트"가 함께
+언급되지 않았으면 조회 분류 이전에 정직한 `unsupported_response()`로 답한다. 재현 시나리오
+("지금 실패한 백그라운드 작업이 몇 건이야?" → 수정 전 `TICKET_COUNT`, 수정 후 `UNSUPPORTED`)
++ pending CREATE 초안 보존까지 회귀 테스트 2건 신규, **revert-to-verify 2단계로 확인**(①
+함수 자체 제거 시 AttributeError ② wiring만 제거 시 실제로 `TICKET_COUNT`(184건 재현) 확인
+후 복원). 러너 전체 스위트 288건 green.
+
+**WF8-2 — `ADM-03R`(High) 부분구현.** "제품이 스스로 SSH 트래픽을 만든다"(계정 잠금 알림에
+자동 해제 사실이 없어 관리자가 매번 CLI로 풂) 중 ②(관리자 알림 본문)를 고쳤다 —
+`app/auth/router.py`의 `account_locked` 관리자 알림에 분 단위 자동 해제 ETA + "기다려도 된다"
+안내 추가. `test_account_lock_notifies_admins`에 회귀 검증 추가, revert-to-verify 확인.
+①(잠금 정책 2개를 설정 화면에 노출)은 `ADM-05`와 겹치는 별도 설계 판단(env 설정을 DB
+레지스트리로 옮길지 읽기전용 표시만 할지)이 필요해 이번 범위에서 뺐다 — BACKLOG에 사유 기록.
+
+**WF8-3 — BACKLOG 문서 자기모순 정정(코드 변경 없음).** `ADM-01`·`NOTI-04`·`NOTI-05`·`ADM-01R`
+네 행이 원래 있던 자리(§1457·1529-1530·1830)에는 "발견"만 있고, 같은 파일 뒤쪽 `WF3 재검증`
+절(§2687-2736, 2026-08-09 작성)에는 이미 이 넷이 철회/정정/구현완료로 처리돼 있었다 — 즉
+문서가 자기 자신과 모순된 상태로 방치돼 있었다(상단 경고 배너에는 나열돼 있었지만 각 행
+자체엔 정정 내용이 없어 배너를 못 보고 그 행만 검색하면 낡은 "발견"을 그대로 믿게 됨). 네 행에
+정정 내용을 인라인으로 채워 넣었다: `ADM-01`(결론 철회 — CLI 집계가 조사 자신의 QA 계정 생성
+흔적으로 오염돼 있었다) · `NOTI-04`(103건 중 3건→94/97로 정정, 철회) · `NOTI-05`(전제였던
+"91% 갈 곳 없음"이 무효화, `NOTI-04R`이 이미 더 나은 방식으로 구현완료) · `ADM-01R`(같은 사유로
+철회, 하위 `ADM-03R`/`ADM-06R`은 독립 결함으로는 유효).
+
+**검증**: 관련 focused test 전부 green(러너 288건, `test_notifications`/`test_auth_login`/
+`test_admin_users`/`test_profile_self_service` 69건) — 전체 회귀는 이번 배치가 작아 보류,
+더 큰 배치가 쌓이면 수렴 후 실행.
+
+**다음 후보**: BACKLOG 154건 `발견` 재고 중 남은 High/Critical(SRCH-01 커맨드 팔레트 콘솔
+스코프 결함, RSTR-03 백업 무동작 무알림, SCHD-01 스케줄이 잘못된 워크플로를 겨눔 — Notion
+쓰기 위험 있어 신중 검토 필요, QA-02 실브라우저 E2E 0회, USE-01/USE-02 자동화 실행이력 0)
++ QA_COVERAGE L축(화면 간 반영) 전수 매트릭스 + 나머지 발견 항목 Root Cause 클러스터링.
 
 **같은 세션 계속(2026-08-11) — WF7 whole-product 재감사 1회차.** RG-*/APPR-*/UB-25
 배치가 소진된 뒤 §8 지시대로 착수 — 배경 포크 3개(백엔드 RBAC/DB/API, 프런트
