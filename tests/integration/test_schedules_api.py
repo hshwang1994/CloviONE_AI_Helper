@@ -472,6 +472,92 @@ def test_write_workflow_with_approval_rejected_at_edit(client, admin_csrf, workf
     assert "승인" in r.json()["error"]["message"]
 
 
+# ── SCHD-01: 채팅 전용 워크플로를 스케줄 대상으로 삼을 수 없다 ─────────────────
+#
+# 실제 결함: 유일한 스케줄이 실시간 채팅 웹훅(app/jobs/handlers/chat_message.py의
+# CHAT_WORKFLOW_NAME)을 주간 리포트 생성기로 쓰고 있었다. 그 워크플로는 {message, requester,
+# context, ...} 모양의 채팅 페이로드만 받도록 만들어져 있어, 스케줄이 보내는 임의 payload는
+# 채팅 메시지 모양이 아니다 — n8n이 뭘 할지 알 수 없고, delivery:"notion" 같은 값이 있으면
+# 의도치 않은 Notion 쓰기로 이어질 수 있다(D-21, 실고객 워크스페이스).
+
+def _chat_workflow(client, csrf):
+    from app.jobs.handlers.chat_message import CHAT_WORKFLOW_NAME
+
+    return client.post(
+        "/api/admin/workflows",
+        json={
+            "name": CHAT_WORKFLOW_NAME,
+            "webhook_url": "http://127.0.0.1:5678/webhook/chat",
+            "operation_mode": "read",
+        },
+        headers=_headers(csrf),
+    ).json()["workflow"]
+
+
+def test_chat_workflow_rejected_at_create(client, admin_csrf):
+    wf = _chat_workflow(client, admin_csrf)
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(wf["id"], name="주간 리포트(잘못된 대상)",
+                                payload_template={"task": "weekly_report", "delivery": "notion"}),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+    assert "채팅" in r.json()["error"]["message"]
+
+
+def test_chat_workflow_rejected_at_edit(client, admin_csrf, workflow_id):
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="정상 스케줄2"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+
+    wf = _chat_workflow(client, admin_csrf)
+    r = client.put(
+        f"/api/admin/schedules/{created['id']}",
+        json=_schedule_payload(wf["id"], name="정상 스케줄2"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+    assert "채팅" in r.json()["error"]["message"]
+
+
+def test_chat_workflow_rejected_at_enable_even_for_a_pre_existing_row(client, admin_csrf, workflow_id, db):
+    """이 검사가 생기기 전에 만들어진 스케줄(정의를 다시 안 고치고 활성화만 누르는 경우)도
+    막아야 한다 — create/update만 막으면 이미 있던 위험한 행은 그대로 새어나간다."""
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="정상 스케줄3"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+
+    wf = _chat_workflow(client, admin_csrf)
+    # API를 거치지 않고 DB를 직접 바꿔 "검사가 생기기 전에 이미 잘못 설정된 행"을 재현한다.
+    from app.schedules.models import Schedule
+
+    row = db.get(Schedule, created["id"])
+    row.target_ref = wf["id"]
+    db.commit()
+
+    r = client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+    assert r.status_code == 422
+    assert "채팅" in r.json()["error"]["message"]
+
+
+def test_normal_workflow_still_enables_fine(client, admin_csrf, workflow_id):
+    """회귀 방지 — 이 검사가 정상 워크플로 대상 스케줄의 활성화까지 막으면 안 된다."""
+    created = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="정상 스케줄4"),
+        headers=_headers(admin_csrf),
+    ).json()["schedule"]
+
+    r = client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
+    assert r.status_code == 200
+    assert r.json()["schedule"]["enabled"] is True
+
+
 def test_schedule_rbac(client, login_as):
     login_as("user")
     assert client.get("/api/admin/schedules").status_code == 403

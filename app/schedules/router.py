@@ -222,6 +222,41 @@ def _require_execution_gate(row: Schedule) -> None:
         )
 
 
+def _assert_safe_workflow_target(db: Session, target_ref: str) -> Workflow:
+    """`target_type == TARGET_WORKFLOW`일 때 정의 시점(create/update)과 활성화 시점(enable)
+    양쪽에서 공유하는 안전 검사. 한쪽에만 두면(과거 실제로 그랬다) 이 검사가 생기기 **전에**
+    만들어진 스케줄이 재검증 없이 활성화만으로 위험한 상태에 들어간다."""
+    workflow = db.get(Workflow, target_ref)
+    if workflow is None:
+        raise ValidationAppError("target_ref에 해당하는 Workflow가 없습니다.")
+    # 스케줄(cron/once) 실행은 승인 응답을 채울 사람이 없어 payload.approved가 항상 False다.
+    # write + approval_required workflow를 대상으로 하면 app/jobs/handlers/schedule_run.py가
+    # 매번 PermanentJobError로 실패한다 — 절대 성공할 수 없는 조합이므로 정의 시점에 막는다.
+    if workflow.operation_mode == "write" and workflow.approval_required:
+        raise ValidationAppError(
+            "승인이 필요한 쓰기(write) Workflow는 스케줄로 자동 실행할 수 없습니다"
+            "(실행마다 승인이 필요해 예약 실행이 매번 실패합니다). 승인 필요 없음으로 설정하거나"
+            " 다른 워크플로를 선택하세요."
+        )
+    # SCHD-01(High): 이 워크플로 레지스트리 행은 실시간 채팅 웹훅 전용이다(app/jobs/handlers/
+    # chat_message.py가 CHAT_WORKFLOW_NAME으로 고정 참조) — n8n 쪽이 {message, requester,
+    # context, ...} 모양의 채팅 페이로드만 받게 만들어져 있다. 실제로 이 워크플로를 대상으로
+    # {"task":"weekly_report", ...} 같은 스케줄 페이로드가 만들어졌던 적이 있다 — 채팅
+    # 메시지 모양이 아니라 n8n이 뭘 할지 알 수 없고, delivery:"notion"이면 실고객 워크스페이스에
+    # 의도치 않은 Notion 쓰기로 이어질 수 있다(D-21). 스케줄이 이 워크플로를 대상으로 삼는
+    # 것 자체가 항상 잘못된 조합이므로 이름으로 못 박아 막는다 — 다른 자동화 워크플로는
+    # 그대로 스케줄 대상으로 쓸 수 있다.
+    from app.jobs.handlers.chat_message import CHAT_WORKFLOW_NAME
+
+    if workflow.name == CHAT_WORKFLOW_NAME:
+        raise ValidationAppError(
+            f"'{CHAT_WORKFLOW_NAME}'은(는) 실시간 채팅 전용 워크플로라 스케줄 대상으로 쓸 수 "
+            "없습니다(페이로드 모양이 달라 항상 실패하거나, 의도치 않은 동작으로 이어질 수 "
+            "있습니다). 스케줄용으로 별도 워크플로를 등록해 대상으로 선택하세요."
+        )
+    return workflow
+
+
 def _validate_and_normalize(db: Session, payload: ScheduleRequest, now: datetime) -> dict:
     cron.validate_timezone(payload.timezone)
     cron_expression = payload.cron_expression
@@ -252,18 +287,7 @@ def _validate_and_normalize(db: Session, payload: ScheduleRequest, now: datetime
         cron_expression = None
 
     if payload.target_type == TARGET_WORKFLOW:
-        workflow = db.get(Workflow, payload.target_ref)
-        if workflow is None:
-            raise ValidationAppError("target_ref에 해당하는 Workflow가 없습니다.")
-        # 스케줄(cron/once) 실행은 승인 응답을 채울 사람이 없어 payload.approved가 항상 False다.
-        # write + approval_required workflow를 대상으로 하면 app/jobs/handlers/schedule_run.py가
-        # 매번 PermanentJobError로 실패한다 — 절대 성공할 수 없는 조합이므로 정의 시점에 막는다.
-        if workflow.operation_mode == "write" and workflow.approval_required:
-            raise ValidationAppError(
-                "승인이 필요한 쓰기(write) Workflow는 스케줄로 자동 실행할 수 없습니다"
-                "(실행마다 승인이 필요해 예약 실행이 매번 실패합니다). 승인 필요 없음으로 설정하거나"
-                " 다른 워크플로를 선택하세요."
-            )
+        _assert_safe_workflow_target(db, payload.target_ref)
     else:
         if payload.target_ref not in SYSTEM_TARGETS:
             raise ValidationAppError(
@@ -536,6 +560,12 @@ def update_schedule(
 def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(get_db)):
     row = _get_or_404(db, schedule_id)
     now = request.app.state.clock.now()
+
+    # SCHD-01: create/update의 _assert_safe_workflow_target이 생기기 전에 정의된 스케줄은
+    # 재검증 없이 활성화만으로 위험한 조합(승인필요 write 워크플로, 채팅 전용 워크플로)에
+    # 들어갈 수 있었다 — 정의를 안 고쳐도 활성화 자체를 여기서 다시 막는다.
+    if row.target_type == TARGET_WORKFLOW:
+        _assert_safe_workflow_target(db, row.target_ref)
 
     # Spec §20: Schedule 활성화는 승인 대상 — system_admin만 즉시 적용.
     from app.approvals.service import approval_view, create_approval, needs_approval
