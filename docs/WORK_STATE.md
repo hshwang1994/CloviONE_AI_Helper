@@ -13,9 +13,10 @@
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
 **마지막 갱신**: 2026-08-11 · **단계**: SHORT OVERRIDE 지시 아래 CORE-13 다음 배치 진행 중
-— KBD-01/02/03·UB-21/22/40/41/23/19·UA-12/29/13/11 12건 구현+테스트+커밋 완료(재검토로
-결함 아님 정정 3건: FN-15/16/18, UB-20). 상세는 §「SHORT OVERRIDE 이후 배치」 섹션.
-배포는 여전히 Blocker로 대기(SSH/sudo 비밀번호 비사용 정책). 이전 단계는 아래 그대로 유지:
+— KBD-01/02/03·FN-17·UB-21/22/40/41/23/19·UA-12/29/13/11/14/15/16 15건 구현+테스트+커밋
+완료(재검토로 결함 아님 정정 4건: FN-15/16/18, UB-20). 배치 종료 시점 전체 백엔드(2670+건)
+green 재확인(exit 0, F/E/x/s 0건). 상세는 §「SHORT OVERRIDE 이후 배치」 섹션. 배포는 여전히
+Blocker로 대기(SSH/sudo 비밀번호 비사용 정책). 이전 단계는 아래 그대로 유지:
 **MEGA CYCLE I 구현+테스트 완료(기능·데이터·권한 E2E — FN-*/SEC-* quick-fix 스윕)**.
 Cycle 4의 소배치 방식을
 그만두고(D-53) 제품 영역 단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 전환 —
@@ -645,18 +646,38 @@ Source/Git/Tests 전체를 다시 대조해 다음 작업을 고르며, 완료 �
 - **UA-11**(Med) — 조직(테넌트) 생성이 `principal`조차 안 받아 스코프 게이트가 전혀 없음
   (role="admin"이면 통과 — role과 admin_scope는 다른 축). dept/org 범위 admin이 새 테넌트를
   만들 수 있었다. `principal.scope.is_global` 아니면 403. 커밋 `59951be`.
+- **UA-14**(Med) — 오프보딩 되돌리기가 부분 실패해도 `undone_at`을 찍어, `REVERTIBLE_MOVES`
+  가 이미 `revert_failed`를 재시도 대상으로 넣어 둔 설계(부분 실패를 재시도하게 하려던 의도)
+  와 정면으로 모순됐다 — Notion이 불안정해 12건 중 3건이 실패하면 그 3건은 후임자에게
+  영구히 남았다. `undone_at`/`undone_by_user_id`는 완전 성공(`failed==0`)일 때만 찍도록
+  고쳤다 — 프런트는 이미 그 필드 하나로만 되돌리기 버튼을 보여줘 백엔드만 고치면 됐다.
+- **UA-15**(Med) — `run_offboarding()`이 대상에게 이미 열린(안 되돌린) 실행이 있는지 확인
+  안 함. 느린 Notion 단계 전에 장부를 먼저 커밋하므로 더블클릭·새로고침이면 두 번째 실행의
+  `before_user_ids`가 첫 번째 실행이 넣은 후임을 "원래 담당자"로 기록해 되돌리기 계약이
+  깨진다. 빠른 경로(사전 확인, 409) + migration 0056(부분 유일 인덱스
+  `offboarding_runs(user_id) WHERE undone_at IS NULL`, approvals 0052/prompts 0053과 같은
+  관용)로 진짜 동시 요청까지 막음. `offboarding_runs` 프로덕션 0행이라 배포 전 정리 불필요.
+  UA-14+UA-15 커밋 `0b11a9f`.
+- **UA-16**(Med, 성능) — 부서·직책·조직 목록 3종이 N+1(행마다 `usage_count` 또는 조직이면
+  COUNT 2번) — 같은 파일의 `_org_names`·`tree.py`는 이미 그룹 질의로 고쳐져 있던 것과
+  대조적이었다. `bulk_usage_count`/`_bulk_org_counts` 신설, 목록만 그룹 질의로 전환(단건은
+  유지). `QueryCounter`(팀챗 방 목록과 같은 기법)로 행 2→10개 질의 증가량 실측 확인.
+  커밋 `d012114`.
 
-**검증**: 매 항목 focused test + revert-to-verify 확인함. 중간 지점에서 전체 백엔드
-(전체 마커, 2670+건) 1회 green(exit 0, F/E/x/s 0건) 확인 후 이어감 — 이후 각 항목은
-관련 영역 전체 스윕(`-k` 필터)으로 확인. 프런트 유닛 전체(212파일/1412테스트) green
-(UB-40/41 이후 1회). `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK` 매 커밋 전 확인.
-배포는 여전히 Blocker 대기(SSH/sudo 비밀번호 비사용 정책 불변).
+**검증**: 매 항목 focused test + revert-to-verify 확인함. 배치 중간·종료 시점 각 1회
+전체 백엔드(전체 마커, 2670+건) green(exit 0, F/E/x/s 0건) 확인 — 이후 각 항목은 관련
+영역 전체 스윕(`-k` 필터)으로도 확인. 프런트 유닛 전체(212파일/1412테스트) green(UB-40/41
+이후 1회). `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK` 매 커밋 전 확인. 배포는
+여전히 Blocker 대기(SSH/sudo 비밀번호 비사용 정책 불변). 이 배치에서 신설한 마이그레이션
+(0054 message_id 스코프·0055 announcement_dismissal FK·0056 offboarding 중복방지) 전부
+업/다운그레이드 왕복 확인함.
 
 다음 후보(재검토 없이 다음 세션이 코드로 재확인 후 고를 것 — 이 목록도 stale할 수 있음):
 CTR-01~05(다크/강조 대비 WCAG), DGEN-01/03·SCHD-02·USE-04(자유입력 UUID→picker),
-AI-33/34(마크다운 fence 상태 추적), BKP-01/02(백업이 첨부 제외), UB-40(완료)/UB-41(완료),
-UA-14/15(오프보딩 idempotency), UA-16(N+1), UB-14/29(참조 검증 공백), UB-17/27(자동 종료
-감사 공백), OPS-03/04(침묵 실패), FN-08/20·RG-05~07/10 등 Tier 3 소품 다수.
+AI-33/34(마크다운 fence 상태 추적), BKP-01/02(백업이 첨부 제외), UB-14/29(참조 검증 공백),
+UB-17/27(자동 종료 감사 공백), OPS-03/04(침묵 실패), UB-25(죽은 코드 5종 재검증 필요 —
+FN-15/16/18처럼 의도적 설계일 수 있음, 소스로 재확인할 것), FN-08/20·RG-05~07/10·
+APPR-02/03·NOTI-02·MAIL-02/03·BKP-04·PERF-02·SYS-09/10/11 등 Tier 3 소품 다수.
 
 ---
 
