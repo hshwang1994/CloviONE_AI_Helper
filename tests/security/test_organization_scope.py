@@ -132,3 +132,29 @@ def test_a_duplicate_inside_my_own_organization_is_still_rejected(
         headers={"X-CSRF-Token": csrf},
     )
     assert again.status_code == 409, f"같은 조직 안 중복이 통과했다: {again.status_code}"
+
+
+def test_org_scoped_admin_cannot_create_a_new_tenant(client, login_as, two):
+    """UA-11: 조직 생성은 새 테넌트를 여는 일이라 전역 관리자만 할 수 있어야 한다.
+    이 라우터는 `require_roles(*CONSOLE_WRITE_ROLES)`(role="admin"이면 통과)만 걸려
+    있었는데, role과 admin_scope는 서로 다른 축이라 자기 조직 하나로 좁혀진 admin도
+    role 검사는 그냥 통과한다 — 그래서 부서/직책과 달리 조직 자체를 만드는 이 경로에
+    scope 검사가 아예 없었다(principal조차 안 받았다)."""
+    csrf = login_as("admin", email="orgscope-boss@goodmit.co.kr")
+    r = client.post(
+        "/api/admin/organizations",
+        json={"name": "새 테넌트", "slug": "sneaky-tenant"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 403, r.text
+
+
+def test_global_admin_can_still_create_a_tenant(client, login_as):
+    """회귀 방지 — 포탈 운영자는 여전히 조직을 만들 수 있어야 한다."""
+    csrf = login_as("system_admin")
+    r = client.post(
+        "/api/admin/organizations",
+        json={"name": "새 테넌트", "slug": "legit-tenant"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 201, r.text

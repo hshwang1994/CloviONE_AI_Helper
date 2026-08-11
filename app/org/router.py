@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
@@ -310,7 +310,16 @@ def create_organization(
     request: Request,
     payload: OrganizationCreateRequest,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
+    # UA-11: 목록·단건·수정은 scope.org_id로 좁히는데(_visible_org_or_404) 생성만 무방비였다
+    # — 조직 자체를 만드는 것은 테넌트를 새로 여는 일이라 전역 관리자만 할 수 있어야 한다.
+    # dept/org 범위 admin도 CONSOLE_WRITE_ROLES(role="admin")는 통과하므로(role과 admin_scope는
+    # 서로 다른 축이다) 라우터 데코레이터의 require_roles만으로는 못 막는다 — quotas/router.py
+    # 의 _ensure_may_touch_global과 같은 이유로 403(그 행의 존재는 이미 화면에 드러나 있으니
+    # 문제는 존재가 아니라 권한이다).
+    if not principal.scope.is_global:
+        raise ForbiddenError("조직 생성은 전체 범위 관리자만 할 수 있습니다.")
     name = normalize_name(payload.name)
     slug = payload.slug.strip().lower()
     exists = db.execute(
