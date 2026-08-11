@@ -198,3 +198,41 @@ def test_the_guard_only_fires_for_an_existing_install():
     assert '[ -s "$DB_FILE" ]' in text or "[ -s \"$DB_FILE\" ]" in text, (
         "기존 설치인지 판정하지 않고 무조건 막는다 - 신규 설치가 불가능해진다"
     )
+
+
+def test_the_backup_captures_user_uploads():
+    """BKP-01: 백업이 DB만 담으면 복원 후 게시판·팀챗·티켓·프로필 사진이 가리키는 실제
+    파일이 없어 조용히 404가 난다."""
+    text = _text(BACKUP)
+    assert "uploads.tar.gz" in text and "VAR_DIR/uploads" in text, (
+        "백업이 uploads 디렉터리를 담지 않는다 - 복원해도 첨부 파일 자체가 없다"
+    )
+
+
+def test_the_rollback_restores_uploads():
+    """BKP-01: 복원 루프가 uploads.tar.gz를 풀고, OPS-01/OPS-02와 같은 소유권 드리프트가
+    재발하지 않도록 명시적으로 chown해야 한다."""
+    text = _text(ROLLBACK)
+    assert "uploads.tar.gz" in text, "롤백이 uploads 백업을 복원하지 않는다"
+    restore_section = text.split("uploads.tar.gz")[-1]
+    assert "chown" in restore_section and "clovirone-web:clovirone-web" in restore_section, (
+        "uploads 복원 뒤 소유권을 서비스 계정으로 명시하지 않는다 - OPS-01류 재발 위험"
+    )
+
+
+def test_the_backup_excludes_venv_and_the_rollback_recreates_it():
+    """BKP-04: venv는 requirements.txt + wheelhouse(또는 온라인 pip)만 있으면 그대로
+    재현되는데도 백업마다 수백MB를 그대로 반복해 담았다. 제외하는 쪽만 고치고 롤백이
+    다시 만들지 않으면, 복원 직후 서비스가 venv 자체가 없어 아예 못 뜬다 — 두 가지를
+    반드시 짝으로 확인한다."""
+    backup_text = _text(BACKUP)
+    assert "--exclude" in backup_text and "venv" in backup_text, (
+        "백업이 여전히 venv를 통째로 담는다"
+    )
+    rollback_text = _text(ROLLBACK)
+    assert "venv/bin/python" in rollback_text and "python3 -m venv" in rollback_text, (
+        "롤백이 app.tar.gz 복원 뒤 venv를 다시 만들지 않는다 - 서비스가 못 뜬다"
+    )
+    assert "requirements.txt" in rollback_text.split("python3 -m venv")[-1], (
+        "venv를 만들었는데 requirements.txt로 채우는 단계가 없다"
+    )

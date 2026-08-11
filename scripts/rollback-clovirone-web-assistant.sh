@@ -47,7 +47,36 @@ fi
 stop_services
 
 [ -f "$BACKUP_DIR/app.tar.gz" ] && { rm -rf "$APP_DIR"; tar xzf "$BACKUP_DIR/app.tar.gz" -C /opt; }
+# BKP-04: app.tar.gz(2026-08-11부터)는 venv를 담지 않는다(requirements.txt만 있으면 그대로
+# 재현 가능해 백업 크기만 키우던 것을 뺐다) — 복원 직후 여기서 다시 만들지 않으면 systemd
+# 유닛이 가리키는 $APP_DIR/venv/bin/python 자체가 없어 서비스가 아예 못 뜬다. 구버전
+# 백업(app.tar.gz가 venv를 이미 담고 있던 시절)이면 이 블록은 조용히 건너뛴다.
+if [ -f "$BACKUP_DIR/app.tar.gz" ] && [ ! -x "$APP_DIR/venv/bin/python" ]; then
+  echo "venv 재생성 중 (app.tar.gz는 2026-08-11부터 venv를 백업에 포함하지 않습니다)..."
+  python3 -m venv "$APP_DIR/venv"
+  WHEELS_DIR="${WHEELHOUSE:-}"
+  if [ -n "$WHEELS_DIR" ] && [ -d "$WHEELS_DIR" ] && [ -n "$(ls -A "$WHEELS_DIR" 2>/dev/null)" ]; then
+    echo "pip install (offline wheelhouse: $WHEELS_DIR)"
+    "$APP_DIR/venv/bin/pip" install --no-index --find-links "$WHEELS_DIR" --upgrade pip >/dev/null 2>&1 || true
+    "$APP_DIR/venv/bin/pip" install --no-index --find-links "$WHEELS_DIR" -r "$APP_DIR/requirements.txt" >/dev/null 2>&1
+  else
+    echo "wheelhouse 없음(WHEELHOUSE 환경변수로 지정 가능) — pip이 인터넷으로 나갑니다."
+    echo "  필요한 호스트: pypi.org, files.pythonhosted.org (HTTPS)"
+    "$APP_DIR/venv/bin/pip" install --upgrade pip >/dev/null 2>&1 || true
+    "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements.txt" >/dev/null 2>&1
+  fi
+  "$APP_DIR/venv/bin/python" -c "import fastapi, sqlalchemy, alembic, httpx, argon2, pydantic_settings, cronsim; print('imports ok')"
+fi
 [ -f "$BACKUP_DIR/etc.tar.gz" ] && { rm -rf "$ETC_DIR"; tar xzf "$BACKUP_DIR/etc.tar.gz" -C /etc; }
+# BKP-01: 첨부(게시판·팀챗·티켓·프로필 사진)도 되살린다 — DB 행이 가리키는 파일이 없으면
+# 그 행들은 조용히 404가 난다(BKP-02가 잡는 것과 같은 종류의 갭). OPS-01/OPS-02 실사고와
+# 같은 이유로 chown을 명시한다(이 디렉터리는 소유권이 어긋난 전례가 있다).
+if [ -f "$BACKUP_DIR/uploads.tar.gz" ]; then
+  install -d -o clovirone-web -g clovirone-web -m 0750 "$VAR_DIR"
+  rm -rf "$VAR_DIR/uploads"
+  tar xzf "$BACKUP_DIR/uploads.tar.gz" -C "$VAR_DIR"
+  chown -R clovirone-web:clovirone-web "$VAR_DIR/uploads"
+fi
 if [ -f "$BACKUP_DIR/web.sqlite3" ]; then
   install -d -o clovirone-web -g clovirone-web -m 0750 "$VAR_DIR"
   # Remove stale WAL/SHM sidecars first — copying a fresh DB over an old one

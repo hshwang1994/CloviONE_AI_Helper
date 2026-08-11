@@ -14,8 +14,17 @@ install -d -o root -g root -m 0700 "$BACKUP_DIR"
 echo "backup dir: $BACKUP_DIR"
 
 # Application + config (no secrets excluded here — this is a root-only local backup dir 0700)
-[ -d "$APP_DIR" ] && tar czf "$BACKUP_DIR/app.tar.gz" -C /opt clovirone-web-assistant 2>/dev/null || true
+# BKP-04: venv는 requirements.txt(app.tar.gz 안에 이미 포함)+오프라인 wheelhouse만 있으면
+# 그대로 재현 가능하다(설치 스크립트가 venv를 항상 새로 만든다) — 백업마다 수백MB를
+# 그대로 반복해 담을 이유가 없다. 제외한 만큼은 rollback-clovirone-web-assistant.sh가
+# 복원 직후 venv를 다시 만들어 채운다(한쪽만 바뀌면 롤백이 venv 없는 상태로 끝난다).
+[ -d "$APP_DIR" ] && tar czf "$BACKUP_DIR/app.tar.gz" --exclude='clovirone-web-assistant/venv' -C /opt clovirone-web-assistant 2>/dev/null || true
 [ -d "$ETC_DIR" ] && tar czf "$BACKUP_DIR/etc.tar.gz" -C /etc clovirone-web-assistant 2>/dev/null || true
+
+# BKP-01: 첨부(게시판 글·팀챗 이미지·티켓 첨부·프로필 사진)는 DB 밖의 실제 파일이다 — DB만
+# 백업하면 복구 후 그 행들이 가리키는 파일이 없어 404가 난다(OPS-01류 발견 이후 이 공백이
+# 문서에는 이미 적혀 있었는데 스크립트가 안 고쳐져 있었다).
+[ -d "$VAR_DIR/uploads" ] && tar czf "$BACKUP_DIR/uploads.tar.gz" -C "$VAR_DIR" uploads 2>/dev/null || true
 
 # systemd units + nginx vhost
 # DEPLOY-04: privhelper 도 함께 백업한다 - 안 하면 롤백이 web·worker 만 되살리고 관리 콘솔의
