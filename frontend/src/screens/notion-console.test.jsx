@@ -211,6 +211,72 @@ describe("화면", () => {
     expect(within(result).getByText(/공유하지 않았습니다/)).toBeInTheDocument();
   });
 
+  // SYS-11: 상태(설정됐는가)와 출처(어디서 왔는가)는 서로 다른 사실이다 — 같은 초록 칩으로
+  // 섞으면 "서버 환경변수"가 건강 판정처럼 읽힌다.
+  it("설정 여부 칩과 출처 칩을 따로 그린다", async () => {
+    apiMock.mockResolvedValue(overview());
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
+
+    const tasks = screen.getByTestId("notion-db-notion_tasks_database_id");
+    expect(within(tasks).getByText("설정됨")).toBeInTheDocument();
+    expect(within(tasks).getByText("화면에서 설정함")).toBeInTheDocument();
+
+    const docs = screen.getByTestId("notion-db-notion_documents_database_id");
+    expect(within(docs).getByText("설정 안 함")).toBeInTheDocument();
+    // 설정 안 된 항목은 출처를 말할 게 없다 - 출처 칩 자체가 없어야 한다.
+    expect(within(docs).queryByText("서버 환경변수")).toBeNull();
+  });
+
+  // SYS-10: 스프린트 DB 미설정 경고를 행 하나와 진단 카드 둘이서 각자 다른 문장으로
+  // 두 번 말하면 안 된다 - 행은 짧은 이정표만, 설명은 진단 카드에만.
+  it("스프린트 데이터베이스 미설정 경고를 행에서 반복하지 않는다", async () => {
+    apiMock.mockResolvedValue(
+      overview({
+        databases: [
+          {
+            key: "notion_sprint_database_id",
+            label: "스프린트 데이터베이스",
+            value: "",
+            source: "env",
+            configured: false,
+            creatable: false,
+            token_ref: "notion_report_token",
+            used_for: "진단에만 씁니다.",
+            when_unset: "포털과 팀이 서로 다른 것을 스프린트라고 부르는지 확인할 수 없습니다.",
+          },
+        ],
+      }),
+    );
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("스프린트 데이터베이스")).toBeInTheDocument());
+
+    const row = screen.getByTestId("notion-db-notion_sprint_database_id");
+    expect(within(row).queryByText(/포털과 팀이 서로 다른 것을 스프린트라고 부르는지/)).toBeNull();
+    expect(within(row).getByText(/스프린트 진단.*확인하세요/)).toBeInTheDocument();
+    // 아래 진단 카드가 그 유일한 설명 자리다.
+    expect(screen.getByText(/연결돼 있지 않습니다/)).toBeInTheDocument();
+  });
+
+  // SYS-10: 진단 카드의 "연결 테스트를 눌러 보세요" 언급이 실제로 그 버튼을 가리키는
+  // 클릭 가능한 링크여야 한다 - 그냥 프로즈 텍스트가 아니라.
+  it("스프린트 진단의 안내가 실제 연결 테스트 버튼으로 스크롤+포커스한다", async () => {
+    apiMock.mockResolvedValue(overview());
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
+
+    const link = screen.getByRole("link", { name: "연결 테스트 버튼으로 이동" });
+    const button = screen.getByRole("button", { name: "연결 테스트" });
+    // jsdom은 scrollIntoView를 구현하지 않는다 - 직접 스텁한 뒤 스파이를 건다.
+    button.scrollIntoView = vi.fn();
+    const scrollSpy = vi.spyOn(button, "scrollIntoView");
+    const focusSpy = vi.spyOn(button, "focus");
+
+    await userEvent.click(link);
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(focusSpy).toHaveBeenCalled();
+  });
+
   it("스프린트 진단이 응답을 읽는다", async () => {
     // 연결 안 된 세계
     apiMock.mockResolvedValue(overview());

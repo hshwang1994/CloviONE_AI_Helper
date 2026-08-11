@@ -56,6 +56,11 @@ const RESULT_LABEL = {
   failed: "알 수 없음",
 };
 
+// SYS-10: app/notion_console/service.py의 스프린트 스펙 key(:71)와 같은 문자열.
+const SPRINT_DB_KEY = "notion_sprint_database_id";
+// 아래 "연결 테스트" 버튼의 실제 DOM 앵커 — 스프린트 진단 카드가 이 id로 스크롤+포커스한다.
+const TEST_BUTTON_ID = "notion-test-button";
+
 export function resultLabel(result) {
   return RESULT_LABEL[result] || "알 수 없음";
 }
@@ -72,10 +77,17 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
     <Box data-testid={"notion-db-" + item.key} sx={{ py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
         <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
-        <Badge
-          value={item.configured ? (item.source === "settings" ? "화면에서 설정함" : "서버 환경변수") : "설정 안 함"}
-          kind={item.configured ? "ok" : "warn"}
-        />
+        {/* SYS-11: 예전엔 이 칩 하나가 "설정됐는가"(상태)와 "어디서 왔는가"(출처)를 같은
+            초록/주황 색으로 섞어서, 초록 "서버 환경변수"가 건강 판정처럼 잘못 읽혔다.
+            TokenSection(아래)이 이미 쓰는 상태 어휘(설정됨/설정 안 함, ok/warn)와 통일하고,
+            출처는 상태 의미가 없는 neutral(윤곽선) 칩으로 따로 낸다. */}
+        <Badge value={item.configured ? "설정됨" : "설정 안 함"} kind={item.configured ? "ok" : "warn"} />
+        {item.configured && (
+          <Badge
+            value={item.source === "settings" ? "화면에서 설정함" : "서버 환경변수"}
+            kind="neutral"
+          />
+        )}
         {testResult && (
           <Badge value={resultLabel(testResult.result)} kind={resultKind(testResult.result)} />
         )}
@@ -85,7 +97,12 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
       </Typography>
       {!item.configured && (
         <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
-          {item.when_unset}
+          {/* SYS-10: 스프린트 데이터베이스 미설정 경고는 이 줄과 아래 "스프린트 진단"
+              카드가 같은 내용을 각자 다른 문장으로 두 번 말했다 — 여기는 짧은 이정표만
+              남기고, 실제 설명은 진단 카드(더 나은 맥락을 가진 쪽) 한 곳에만 둔다. */}
+          {item.key === SPRINT_DB_KEY
+            ? "아래 “스프린트 진단” 카드를 확인하세요."
+            : item.when_unset}
         </Typography>
       )}
       {testResult && testResult.result !== "ok" && testResult.result !== "unset" && (
@@ -338,7 +355,7 @@ export function NotionConsole() {
           여기서 성공해도 다음 동기화가 반드시 성공한다는 뜻은 아닙니다.
         </Typography>
         <Box sx={{ mt: 1.5 }}>
-          <Button variant="primary" disabled={busy} onClick={() => runTest.mutate()}>
+          <Button id={TEST_BUTTON_ID} variant="primary" disabled={busy} onClick={() => runTest.mutate()}>
             {runTest.isPending ? "확인하는 중" : "연결 테스트"}
           </Button>
         </Box>
@@ -367,7 +384,25 @@ export function NotionConsole() {
           {data.sprint && data.sprint.finding}
         </Callout>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          {data.sprint && data.sprint.next_step}
+          {data.sprint && data.sprint.next_step}{" "}
+          {/* SYS-10: 예전엔 이 문구가 위 "연결 테스트" 버튼을 텍스트로만 가리켜서 실제로
+              누를 수 있는 대상이 아니었다 — 그 버튼으로 스크롤+포커스하는 링크로 바꾼다. */}
+          <Typography
+            component="a"
+            href={"#" + TEST_BUTTON_ID}
+            variant="body2"
+            sx={{ color: "primary.dark", textDecoration: "underline", cursor: "pointer" }}
+            onClick={(e) => {
+              e.preventDefault();
+              const el = document.getElementById(TEST_BUTTON_ID);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.focus();
+              }
+            }}
+          >
+            연결 테스트 버튼으로 이동
+          </Typography>
         </Typography>
       </Card>
     </Box>
