@@ -75,6 +75,10 @@ function Layout() {
       <LoginHandoff ready={!auth.isLoading} />
       <AppShell
         nav={navWithFeatures(useUserConsole ? USER_NAV : NAV, auth.data && auth.data.features)}
+        // SRCH-01: 명령 팔레트(Ctrl+K)는 "어디서든 어디로든"이 존재 이유라 현재 콘솔 하나로
+        // 좁히면 안 된다 — 두 콘솔 전체를 검색 대상으로 주고, role 필터(AppShell 안에서)가
+        // 지금 역할이 못 보는 화면은 그대로 걸러 낸다.
+        paletteNav={navWithFeatures([...NAV, ...USER_NAV], auth.data && auth.data.features)}
         ariaLabel={useUserConsole ? "사용자 메뉴" : "관리 메뉴"}
         navOpen={navOpen}
         onCloseNav={() => setNavOpen(false)}

@@ -173,6 +173,15 @@ function NavBadge({ count }) {
   );
 }
 
+/* role이 없는 항목(`roles` 미지정)은 전 역할 공개, 있으면 그 목록에 현재 role이 있어야 본다.
+ * SidebarNav의 현재 콘솔 메뉴와 CommandPalette의(잠재적으로 더 넓은) 검색 대상 메뉴가
+ * 이 규칙을 공유한다 — 규칙이 두 벌이 되면 한쪽만 고쳐지는 날이 온다. */
+function filterNavByRole(nav, role) {
+  return (nav || [])
+    .map((g) => ({ ...g, items: g.items.filter((it) => !it.roles || (role && it.roles.includes(role))) }))
+    .filter((g) => g.items.length);
+}
+
 function SidebarNav({ groups, activePath, onNavigate, userId }) {
   const badges = useNavBadges();
   const [collapsed, setCollapsed] = React.useState(() => getStoredCollapsed(userId));
@@ -350,7 +359,7 @@ function ThemeToggle({ userId }) {
 }
 
 export function AppShell({
-  nav, ariaLabel, navOpen, onCloseNav, onToggleNav,
+  nav, paletteNav, ariaLabel, navOpen, onCloseNav, onToggleNav,
   isUser, userSeg, minimal, showMenu, children,
 }) {
   const theme = useTheme();
@@ -376,12 +385,17 @@ export function AppShell({
   useClearBadgeOnEntry(loc.pathname, !!(auth.data && auth.data.id));
   useCommandPaletteHotkey(setPaletteOpen);
 
-  // 권한 없는 메뉴는 숨긴다. 팔레트도 같은 목록을 쓴다 — 검색 결과로 403에 빠지면 안 된다.
-  const groups = React.useMemo(
-    () => (nav || [])
-      .map((g) => ({ ...g, items: g.items.filter((it) => !it.roles || (role && it.roles.includes(role))) }))
-      .filter((g) => g.items.length),
-    [nav, role]
+  // 권한 없는 메뉴는 숨긴다 — 검색 결과로 403에 빠지면 안 된다.
+  const groups = React.useMemo(() => filterNavByRole(nav, role), [nav, role]);
+  // SRCH-01: 팔레트는 예전에 사이드바와 같은 `nav`(현재 콘솔 하나만)를 썼다 — 그래서
+  // system_admin이 사용자 콘솔(`/me`)에 있는 동안엔 Ctrl+K로 "사용자"·"백업" 같은 관리자
+  // 화면을 찾을 방법이 아예 없었다(메뉴 결과 0건, 사이드바가 바로 옆에 있는데도). 팔레트의
+  // 존재 이유가 "어디서든 어디로든"이므로, `paletteNav`(두 콘솔 전체, App.jsx가 넘겨줌)가
+  // 있으면 그걸 쓴다 — role 필터는 그대로라 지금 역할이 못 보는 화면은 여전히 안 뜬다.
+  // `paletteNav`를 안 넘기는 기존 호출부(테스트 등)는 예전처럼 `nav`만 검색한다.
+  const paletteGroups = React.useMemo(
+    () => filterNavByRole(paletteNav || nav, role),
+    [paletteNav, nav, role]
   );
   /* 상세 화면에는 자기 메뉴 항목이 없다(`/tickets/:id`·`/search`·`/profile`) — 예전에는
      그런 화면에서 **선택 표시가 통째로 사라졌다**(사용자 지적 #14). 어디서 왔는지가
@@ -651,7 +665,7 @@ export function AppShell({
         </Box>
       ) : null}
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={groups} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={paletteGroups} />
 
       {/* 클로비 AI 드로어(Q2) — 클로비를 누르면 보던 화면 위로 열린다. 예전에는 세 진입점이
           모두 `/chat` 으로 이동해서, 물어볼 대상이 화면에 있는데 그 화면을 떠나야 했다.
