@@ -281,6 +281,27 @@ describe("오프보딩 화면", () => {
     expect(within(drawer).getAllByText("알 수 없음").length).toBeGreaterThan(0);
   });
 
+  it("UB-40: 대상 고르기 목록이 page_size(20명)를 넘으면 잘렸음을 알린다", async () => {
+    // 이 화면은 "그 사람을 찾아 실행"이 목적인데, 대상 목록이 page_size=20으로 고정돼
+    // 조용히 잘렸었다 — 총건수도 잘림 경고도 없어 찾는 사람이 21번째 이후에 있으면
+    // 검색창을 쓰라는 단서조차 없었다. Search.jsx의 truncation 안내와 같은 관용.
+    const page1 = Array.from({ length: 20 }, (_, i) => ({ ...LEAVER, id: `u-${i}`, email: `u${i}@goodmit.co.kr`, display_name: `사용자${i}` }));
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: page1, total: 25, page_size: 20 });
+      return Promise.resolve({});
+    });
+    renderScreen();
+
+    await screen.findByText("사용자0");
+    expect(screen.getByText(/25명 중 20명을 보여 줍니다/)).toBeInTheDocument();
+  });
+
+  it("대상 고르기 목록이 잘리지 않았으면 안내를 보여주지 않는다", async () => {
+    renderScreen();  // 기본 mock: items:[LEAVER], total:1 — 잘리지 않음.
+    await screen.findByText(LEAVER.display_name);
+    expect(screen.queryByText(/명을 보여 줍니다/)).not.toBeInTheDocument();
+  });
+
   it("실행 이력이 20건을 넘으면 총 건수를 말하고 다음 페이지로 넘어갈 수 있다", async () => {
     // 25건 중 첫 페이지(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
     // 보여야 한다 — 감사 이력이 조용히 잘리면 5건은 아무도 다시 못 찾는다.

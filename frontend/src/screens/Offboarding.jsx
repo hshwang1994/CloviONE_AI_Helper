@@ -118,6 +118,7 @@ export function Offboarding() {
 /* 1단계 — 대상 고르기. */
 function TargetPicker({ q, setQ, query, onPick }) {
   const items = (query.data && query.data.items) || [];
+  const total = query.data && query.data.total;
   const columns = [
     { key: "display_name", label: "이름" },
     { key: "email", label: "이메일" },
@@ -151,6 +152,15 @@ function TargetPicker({ q, setQ, query, onPick }) {
       ) : (
         <Card>
           <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
+          {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
+              더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
+              없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
+              Search.jsx의 ResultGroup과 같은 관용을 재사용한다. */}
+          {total != null && total > items.length ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", p: 2, pt: 0 }}>
+              {total}명 중 {items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.
+            </Typography>
+          ) : null}
         </Card>
       )}
     </>

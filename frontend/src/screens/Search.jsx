@@ -147,7 +147,13 @@ export function Search() {
   const enabled = isSearchable(urlQuery);
   const q = useQuery({
     queryKey: ["search", urlQuery],
-    queryFn: () => searchApi(urlQuery, { limit: 20 }),
+    // UB-41: 서버는 유형별 최대 50건(app/search/service.py::MAX_PER_KIND)까지 낼 수 있는데
+    // 여기서 20으로 하드코딩해 뒀었다 - 결과가 20건을 넘으면 "26건 중 20건을 보여 줍니다.
+    // 검색어를 더 좁혀 보세요"라고 잘렸음을 알리기까지 하면서, 정작 서버가 이미 갖고 있는
+    // 나머지 결과에 닿을 더보기·페이지·정렬은 하나도 안 줬다(R4, 약속-이행 불일치). 전체
+    // 다단 페이지네이션은 이 화면의 범위를 넘는 재설계라 서버가 이미 지원하는 상한까지
+    // 요청 값을 올린다 - 잘림 자체가 훨씬 드물어진다.
+    queryFn: () => searchApi(urlQuery, { limit: 50 }),
     enabled,
     // 검색은 사용자가 방금 친 것에 대한 답이다. 화면을 떠났다 돌아왔을 때 옛 결과를
     // 잠깐 보여 주지 않도록 짧게 유지한다.

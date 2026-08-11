@@ -105,6 +105,14 @@ describe("통합 검색 결과 화면", () => {
     expect(new URLSearchParams(url.split("?")[1]).get("q")).toBe("린트 회");
   });
 
+  it("UB-41: limit을 서버가 지원하는 상한(50)까지 요청한다 — 20으로 하드코딩돼 있으면 잘림 경고만 있고 더 볼 방법이 없었다", async () => {
+    apiMock.mockResolvedValue(RESULT);
+    renderAt("/search?q=" + encodeURIComponent("린트 회"));
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+    const url = apiMock.mock.calls[0][0];
+    expect(new URLSearchParams(url.split("?")[1]).get("limit")).toBe("50");
+  });
+
   it("결과를 누르면 서버가 준 route 로 이동한다", async () => {
     apiMock.mockResolvedValue(RESULT);
     renderAt("/search?q=" + encodeURIComponent("회의록"));
