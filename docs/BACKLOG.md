@@ -3158,10 +3158,12 @@ End-to-End 재현 검증을 못 했다(규칙 기반 경로는 재현 검증 완
 RG-*/APPR-*/UB-25 배치 직후 착수. 각 포크에게 기존 BACKLOG를 먼저 훑어(재발견 방지) **새로운**
 Root Cause만 보고하게 지시. AI/Runner/Ops 포크는 4개 영역(잡·핸들러 완결성, AI 라우팅, 러너/
 워크플로 설정 검증, 관측성 죽은 코드 재확인)을 훑고 **새 발견 없음**으로 정직하게 보고 —
-이 도메인은 이미 수렴했다고 판단. 나머지 둘은 아래 2건.
+이 도메인은 이미 수렴했다고 판단. 포크 2건(PROJ-01, QAH-06) 뒤, 같은 배치에서 QA_COVERAGE
+§11의 `L`(화면 간 반영 전수) 공백을 이 세션이 직접 조사해 `WF7-L01` 1건 추가.
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
 | PROJ-01 | **High** | **프로젝트 코드 생성/수정의 동시 요청이 500이었다.** `app/projects/service.py::create_project`/`update_project` 둘 다 `ensure_code_is_free()`(사전 SELECT)로 **순차** 중복만 409로 막는다 — 두 요청이 같은 `(org_id, code)`로 동시에 도착하면 둘 다 그 SELECT를 통과할 수 있고, 진 쪽의 `db.flush()`가 처리되지 않은 예외로 500이 난다. `uq_projects_org_code`(migration 0044)에 대해 이 저장소가 이미 13곳 넘게 고친 것과 같은 클래스의 버그(SAVEPOINT 없는 check-then-insert)인데 `projects` 모듈만 그 관용이 빠져 있었다. `ensure_code_is_free`의 자체 docstring이 "제약에 맡기고 IntegrityError를 흘리면 사용자는 500을 본다"고 원인을 이미 알고 사전검사를 만들었지만, 사전검사는 순차 경합만 막는다는 것까지는 다루지 않았다 | ✅ **구현완료(2026-08-11)** — `profiles/service.py::create_view`와 같은 관용(`db.begin_nested()` + `is_write_conflict()` 재시도, 충돌 시 기존과 같은 메시지의 `ConflictError`로 수렴)을 create/update 둘 다에 적용. 신규 시험(`threading.Barrier(2)` + `before_cursor_execute`로 두 요청의 사전 SELECT를 결정적으로 겹치게 만듦, `test_prompt_create_new_version_race.py`와 동일 기법), revert-to-verify 확인함(되돌리면 정확히 같은 이유 — `sqlite3.OperationalError: database is locked` → 500 — 로 재현). 프로젝트 관련 전체 스위트 137건 green. whole-product 재감사(backend RBAC/DB/API 포크)로 발견 |
+| WF7-L01 | Med | **승인 실행이 대상 화면 캐시를 안 낡게 한다는 보장이 없었다.** 승인 실행기 5종(`app/approvals/service.py` `APPROVAL_EXECUTORS`)이 각각 users/integrations/runners/schedules/documents 중 하나를 실제로 바꾸는데, `data-screen/crossScreenKeys.js`(화면 간 반영 지도, X10)에 `approvals` 매핑이 없었다 — 승인 화면과 그 대상 화면이 다른 탭에 함께 열려 있으면(관리 콘솔에서 흔한 사용 패턴) 대상 화면은 자기 폴링/재마운트 전까지 옛 값을 계속 보여줬다. `jobs`→`dashboard`와 같은 부류의 결함. QA_COVERAGE §11의 `L`(화면 간 반영) 공백을 이 세션이 직접 조사해 발견 | ✅ **구현완료(2026-08-11)** — `approvals: [["users"], ["integrations"], ["runners"], ["schedules"], ["documents"]]` 추가. 어느 승인이 어느 화면을 바꿨는지 다시 안 가린다(`jobs`→`dashboard`와 같은 "거칠지만 안전한" 판단 — 무효화는 그 화면이 안 열려 있으면 아무 일도 안 하고, 거절·취소처럼 대상을 안 바꾸는 액션까지 걸려도 해가 없다). 신규 시험(`schedules-calendar-cross-invalidation.test.jsx`와 동일 기법), revert-to-verify 확인함. 프런트 전체 회귀 1488건 green |
 
 
