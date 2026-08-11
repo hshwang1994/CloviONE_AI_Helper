@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.audit import record_audit_from_request
+from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import (
@@ -612,12 +612,16 @@ def upload_ticket_attachment(
     상한보다 1바이트 더 읽는 이유: 정확히 상한인 파일과 넘는 파일을 구분해야 한다.
     """
     content = file.file.read(MAX_UPLOAD_BYTES + 1)
-    result = service.add_ticket_attachment(
-        db, request.app.state.outbound_client, request.app.state.settings, user,
-        page_id=page_id, data_dir=request.app.state.settings.data_dir,
-        filename=file.filename or "file", content=content,
-        now=request.app.state.clock.now(), repo=_repo(request),
-    )
+    with audit_failure_on_exception(
+        request, db, action="ticket.attachment.upload", object_type="ticket_attachment",
+        after={"ticket_page_id": page_id},
+    ):
+        result = service.add_ticket_attachment(
+            db, request.app.state.outbound_client, request.app.state.settings, user,
+            page_id=page_id, data_dir=request.app.state.settings.data_dir,
+            filename=file.filename or "file", content=content,
+            now=request.app.state.clock.now(), repo=_repo(request),
+        )
     record_audit_from_request(
         request, db, action="ticket.attachment.upload", object_type="ticket_attachment",
         object_id=result["attachment_id"], after={"ticket_page_id": page_id},

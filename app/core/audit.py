@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from contextlib import contextmanager
 from typing import Any
 
 from fastapi import Request
@@ -113,3 +114,37 @@ def record_audit_from_request(
         client_ip=client_ip_from_request(request),
         request_id=getattr(request.state, "request_id", None),
     )
+
+
+@contextmanager
+def audit_failure_on_exception(
+    request: Request,
+    db: Session,
+    *,
+    action: str,
+    object_type: str,
+    object_id: str | None = None,
+    after: dict | None = None,
+):
+    """OPS-04: 성공했을 때만 감사를 남기는 라우터가 실패를 완전히 놓치던 문제의 공통 수정.
+
+    `record_audit_from_request`를 시도 코드 **뒤**에만 부르면(이 저장소의 세 업로드
+    라우터 — tickets/board/profiles — 가 전부 이 모양이었다) 그 사이에서 던진 예외가
+    감사 기록 자체를 건너뛰고 그대로 빠져나간다. 이 컨텍스트 매니저로 감싼 코드가
+    예외를 던지면 `result="failure"` 감사 행을 남기고 **원래 예외를 그대로 다시 던진다**
+    (응답 코드·메시지는 안 바뀐다).
+
+    `db.commit()`을 명시적으로 부르는 이유: `get_db`(app/core/deps.py)의 자동 commit은
+    핸들러가 예외 없이 끝났을 때만 실행된다 — 예외가 나면 `db.rollback()` 경로를 타므로,
+    여기서 방금 쓴 실패 감사 행까지 함께 롤백된다. `app/auth/router.py`의 로그인 실패
+    경로가 이미 같은 이유로 명시적 `db.commit()`을 쓰고 있다(그 자리의 주석 참고).
+    """
+    try:
+        yield
+    except Exception:
+        record_audit_from_request(
+            request, db, action=action, object_type=object_type,
+            object_id=object_id, after=after, result="failure",
+        )
+        db.commit()
+        raise

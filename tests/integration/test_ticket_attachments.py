@@ -178,3 +178,28 @@ def test_others_cannot_remove_an_attachment_on_a_ticket_they_cannot_edit(client,
     r = client.delete(f"/api/tickets/attachments/{att['id']}",
                       headers={"X-CSRF-Token": other_csrf})
     assert r.status_code == 200, r.text
+
+
+# OPS-04: 업로드 실패도 감사에 남아야 한다 — 예전엔 record_audit_from_request가 성공
+# 경로 끝에만 있어서, save_upload가 던지는 예외(OSError→StorageUnavailableError, OPS-05)가
+# 그 호출 자체를 건너뛰고 빠져나가 감사 행이 하나도 안 남았다.
+def test_failed_upload_still_leaves_an_audit_trail(client, api, db, monkeypatch):
+    from pathlib import Path
+
+    from app.audit.models import AuditLog
+
+    def _boom(self, *a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_bytes", _boom)
+
+    csrf = api("audited-fail@goodmit.co.kr")
+    r = _upload(client, csrf, PAGE_ID)
+    assert r.status_code == 503, r.text
+
+    rows = db.execute(
+        select(AuditLog).where(AuditLog.action == "ticket.attachment.upload")
+    ).scalars().all()
+    assert rows, "실패한 업로드인데 ticket.attachment.upload 감사 기록이 없다"
+    assert rows[-1].result == "failure"
+    assert rows[-1].after_json is not None and "page-a001" in rows[-1].after_json

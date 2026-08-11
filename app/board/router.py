@@ -41,7 +41,7 @@ from app.board.schemas import (
     ReactionInput,
 )
 from app.core import people, uploads
-from app.core.audit import record_audit_from_request
+from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import ForbiddenError, NotFoundError
 from app.core.feature_flags import load_feature_flags
@@ -693,21 +693,25 @@ def upload_attachment(
     )
     # sync 핸들러에서는 UploadFile의 내부 파일 객체를 직접 읽는다(await 불필요, 불변 §1).
     content = file.file.read(uploads.MAX_UPLOAD_BYTES + 1)
-    stored_name, media_type, size, display_name = uploads.save_upload(
-        request.app.state.settings.data_dir,
-        post.id,
-        filename=file.filename or "file",
-        content=content,
-    )
-    att = service.register_attachment(
-        db,
-        post_id=post.id,
-        filename=display_name,
-        stored_name=stored_name,
-        media_type=media_type,
-        size_bytes=size,
-        now=request.app.state.clock.now(),
-    )
+    with audit_failure_on_exception(
+        request, db, action="board.attachment.upload", object_type="board_attachment",
+        after={"post_id": post.id},
+    ):
+        stored_name, media_type, size, display_name = uploads.save_upload(
+            request.app.state.settings.data_dir,
+            post.id,
+            filename=file.filename or "file",
+            content=content,
+        )
+        att = service.register_attachment(
+            db,
+            post_id=post.id,
+            filename=display_name,
+            stored_name=stored_name,
+            media_type=media_type,
+            size_bytes=size,
+            now=request.app.state.clock.now(),
+        )
     record_audit_from_request(
         request,
         db,

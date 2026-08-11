@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
 from app.core import uploads
-from app.core.audit import record_audit_from_request
+from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.core.deps import (
     AuthContext,
     get_current_auth,
@@ -285,15 +285,18 @@ def upload_avatar(
     """
     # sync 핸들러에서는 UploadFile 의 내부 파일 객체를 직접 읽는다(await 불필요, 불변 §1).
     content = file.file.read(uploads.MAX_UPLOAD_BYTES + 1)
-    stored_name, media_type, size, _display = uploads.save_upload(
-        request.app.state.settings.data_dir,
-        user.id,
-        filename=file.filename or "avatar",
-        content=content,
-        namespace=uploads.NS_AVATAR,
-        # 프로필 사진에 PDF 를 허용할 이유가 없다 — 좁은 쪽이 항상 옳다.
-        allowed_media_types=uploads.IMAGE_MEDIA_TYPES,
-    )
+    with audit_failure_on_exception(
+        request, db, action="profile.avatar.update", object_type="user", object_id=user.id,
+    ):
+        stored_name, media_type, size, _display = uploads.save_upload(
+            request.app.state.settings.data_dir,
+            user.id,
+            filename=file.filename or "avatar",
+            content=content,
+            namespace=uploads.NS_AVATAR,
+            # 프로필 사진에 PDF 를 허용할 이유가 없다 — 좁은 쪽이 항상 옳다.
+            allowed_media_types=uploads.IMAGE_MEDIA_TYPES,
+        )
     now = request.app.state.clock.now()
     pref = service.ensure_preference(db, user.id, now=now)
     old_name = pref.avatar_stored_name
