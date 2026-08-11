@@ -116,10 +116,17 @@ const TOKENS = {
     sidebarMuted: "#96A0C6",
     sidebarHover: "rgba(255,255,255,.08)",
     /* --primary-strong 은 라이트에서 --brand-deep 을 22% 섞고, 다크에서는 흰색을 28%
-     * 섞는다. 그래서 다크에서는 primary 보다 **밝다** - MUI 이름이 dark 라서 헷갈리지만
+     * 섞는다. 그래서 다크에서는 primary 보다 **밝다** - MUI 이름이 다크 라서 헷갈리지만
      * 기준선이 그 슬롯을 "읽히는 강조색"으로 쓴다(.btn.ghost, .tab.is-on, .link-button). */
     strongMix: [BRAND.deep, 0.78],
     softMix: 0.12,
+    /* 포커스 링 전용(KBD-01/02/03). tokens.css --color-primary-soft 와 동일한 리터럴이다 —
+     * 기준선의 `:focus-visible { outline: 3px solid color-mix(in srgb, primary 70%, white) }`
+     * 공식 그대로는 흰 배경 대비 2.76(3:1 미달)이라, tokens.css가 실측으로 검증해 둔 값
+     * (흰 배경 대비 3.2)을 그대로 가져온다 — 새로 계산하지 않는다(두 파일이 각자 계산하면
+     * 서로 다른 값이 나올 위험이 있다). palette.primary.soft(12% 배경 틴트, 대비 1.05)는
+     * 별개 용도이고 포커스 링에는 못 쓴다 — KBD-01 감사가 바로 그 틴트의 대비 미달을 지적했다. */
+    focusRing: "#758AE1",
   },
   dark: {
     surface: "#11182D",
@@ -146,6 +153,8 @@ const TOKENS = {
     sidebarHover: "rgba(255,255,255,.1)",
     strongMix: ["#FFFFFF", 0.72],
     softMix: 0.18,
+    /* tokens.css [data-theme="dark"] --color-primary-soft 와 동일 리터럴(포커스 링 전용). */
+    focusRing: "#536CD6",
   },
 };
 
@@ -309,6 +318,51 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           },
         },
       },
+      /* 키보드 포커스 링(KBD-01/02/03).
+       *
+       * MUI ButtonBase 의 기본 root 스타일은 `outline: 0` 을 **항상**(포커스 상태와 무관하게)
+       * 깐다 - 마우스 클릭 시 링이 뜨는 것을 막으려는 의도지만, 결과적으로 Button·IconButton·
+       * ListItemButton·MenuItem·Tab·Chip(clickable)·Fab·Checkbox/Radio/Switch 등 ButtonBase를
+       * 상속하는 모든 컴포넌트가 **키보드 포커스에서도** 링을 잃는다(감사: 정지점 45개 중
+       * 38~45개가 `outline:0`+`boxShadow:none`). 유일한 표시는 MUI 기본 action.focusOpacity
+       * (12% 배경 틴트, `palette.primary.soft`)인데 대비 1.05(라이트)/1.45(다크)로 WCAG
+       * 1.4.11 최소 3:1 의 1/3 수준이다.
+       *
+       * 고치는 법은 MUI 공식 패턴대로 `.Mui-focusVisible`(마우스 클릭은 안 걸리고 키보드 탭에만
+       * 걸리는 클래스)에만 별도 outline 을 준다 - hover 배경 틴트는 그대로 두므로 focus 와
+       * hover 가 저절로 구별된다(KBD-02). 색은 위 focusRing 토큰(tokens.css --color-primary-soft
+       * 와 동일 리터럴, 실측 대비 3.2:1) 을 쓴다 - 12% 틴트가 아니다.
+       *
+       * `MuiButtonBase` 하나에 거는 이유: 개별 컴포넌트(MuiButton/MuiIconButton/…)마다 따로
+       * 걸면 ButtonBase 를 상속하는 컴포넌트를 하나씩 찾아 빠짐없이 걸어야 한다 - 이미 여러
+       * 화면(BoardPost.jsx·ChatPane.jsx·ChatRooms.jsx·TicketAttachments.jsx 등)이 각자
+       * `sx={{ "&:focus-visible": {...} }}` 로 개별 처방해 둔 것이 바로 그 증거다(KBD-03,
+       * "MUI 컴포넌트는 그 목록에 없다"). 여기서 기본값을 주면 그 화면들의 개별 처방은 sx prop
+       * 특이도가 더 높아 그대로 우선 적용되고, 나머지 전부가 새 기본값을 받는다. */
+      MuiButtonBase: {
+        styleOverrides: {
+          root: {
+            "&.Mui-focusVisible": {
+              outline: `3px solid ${t.focusRing}`,
+              outlineOffset: 2,
+            },
+          },
+        },
+      },
+      /* MuiLink 는 ButtonBase 를 상속하지 않는다(Typography 기반 앵커) - 위 MuiButtonBase
+       * 규칙이 안 닿는다. 네이티브 `:focus-visible` 을 그대로 쓴다(MUI 가 outline 을 0 으로
+       * 깔지 않으므로 hasOutline 검사가 이미 통과할 수도 있지만, 색이 브라우저 기본 파란색이라
+       * 제품 팔레트와 안 맞고 대비도 검증 안 된 값이었다). */
+      MuiLink: {
+        styleOverrides: {
+          root: {
+            "&:focus-visible": {
+              outline: `3px solid ${t.focusRing}`,
+              outlineOffset: 2,
+            },
+          },
+        },
+      },
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: {
@@ -333,7 +387,19 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
          * "카드 위에서 입력칸을 알아볼 수 있어야 한다"는 요구가 기준선의 문자 그대로보다
          * 우선한다고 판단했다. */
         styleOverrides: {
-          root: { borderRadius: 10, background: t.surface2 },
+          root: {
+            borderRadius: 10,
+            background: t.surface2,
+            /* 입력칸도 KBD-01 감사 대상이다("MUI 컴포넌트(버튼·링크·입력)"). MUI 기본은 포커스
+             * 시 <fieldset> 테두리 색만 primary 로 바뀐다(`Mui-focused`) - 색 대비는 나지만
+             * outline/box-shadow 가 없어 실측 스크립트(scripts/ui_qa/keyboard.py 의 ACTIVE
+             * 평가식)가 "표시 없음"으로 잡는다. 테두리 변화는 그대로 두고 outline 을 더한다 -
+             * kit.css 의 `.k-input:focus-visible` 과 같은 처방(2px, offset 0, primary-soft). */
+            "&.Mui-focused": {
+              outline: `2px solid ${t.focusRing}`,
+              outlineOffset: 0,
+            },
+          },
         },
       },
       MuiCard: {

@@ -2031,9 +2031,9 @@ weird/admin_users  <td> 51px × 442px     «עברית RTL 🇰🇷 👨‍👩�
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| KBD-01 | **High** | **키보드 사용자가 지금 어디에 있는지 볼 수 없다.** 정지점 45개 중 38~45개가 `outline: 0px` + `boxShadow: none` 이고, 유일한 표시인 12% 배경 틴트는 실제 대비 **1.05(라이트) / 1.45(다크)** 로 WCAG 1.4.11 기준 3:1 의 **3분의 1**이다. WCAG 2.4.7(Focus Visible, AA) 실패 | 발견 |
-| KBD-02 | **High** | **포커스와 hover 가 같은 표시를 쓴다**(같은 12% 틴트). 마우스를 올려 둔 것과 키보드로 도착한 것을 구분할 수 없다 | 발견 |
-| KBD-03 | Med | **`:focus-visible` 규칙이 vanilla 클래스에만 있다.** `screens.css`·`global.css` 에 `.k-title-link`·`.c-linkbtn`·`.chat-conv-open`·`.game-card`·`.noti-item-main` 등 **12개 클래스**에 `outline: 2px solid` 가 정확히 붙어 있는데, **MUI 컴포넌트(버튼·링크·입력)는 그 목록에 없다.** MUI 로 옮긴 화면들이 링을 잃었다 — 마이그레이션 중 빠진 것으로 보인다 | 발견 |
+| KBD-01 | **High** | **키보드 사용자가 지금 어디에 있는지 볼 수 없다.** 정지점 45개 중 38~45개가 `outline: 0px` + `boxShadow: none` 이고, 유일한 표시인 12% 배경 틴트는 실제 대비 **1.05(라이트) / 1.45(다크)** 로 WCAG 1.4.11 기준 3:1 의 **3분의 1**이다. WCAG 2.4.7(Focus Visible, AA) 실패 | ✅ 구현완료 — `frontend/src/ui/theme.js` `MuiButtonBase`(`&.Mui-focusVisible`)에 3px 링 추가, 색은 tokens.css `--color-primary-soft`(실측 대비 3.2:1)와 동일 리터럴(라이트 #758AE1/다크 #536CD6) — `palette.primary.soft`(12% 틴트, 대비 1.05/1.45)는 재사용하지 않음. `theme-focus-visible.test.js` 신설(5 tests, revert-to-verify 확인함). Playwright 실측(`scripts/ui_qa/keyboard.py`)은 배포 후에만 가능 — **직접 확인 못 함(❌)** |
+| KBD-02 | **High** | **포커스와 hover 가 같은 표시를 쓴다**(같은 12% 틴트). 마우스를 올려 둔 것과 키보드로 도착한 것을 구분할 수 없다 | ✅ 구현완료 — KBD-01 수정이 `.Mui-focusVisible`(키보드 탭)에만 걸리고 hover 배경은 그대로 둬서 자동으로 구별됨. 실측 미확인(❌, KBD-01과 동일 사유) |
+| KBD-03 | Med | **`:focus-visible` 규칙이 vanilla 클래스에만 있다.** `screens.css`·`global.css` 에 `.k-title-link`·`.c-linkbtn`·`.chat-conv-open`·`.game-card`·`.noti-item-main` 등 **12개 클래스**에 `outline: 2px solid` 가 정확히 붙어 있는데, **MUI 컴포넌트(버튼·링크·입력)는 그 목록에 없다.** MUI 로 옮긴 화면들이 링을 잃었다 — 마이그레이션 중 빠진 것으로 보인다 | ✅ 구현완료 — `MuiButtonBase`(버튼·아이콘버튼·리스트아이템·메뉴·탭 등 ButtonBase 상속 전체) + `MuiLink`(네이티브 앵커) + `MuiOutlinedInput`(`&.Mui-focused`, 입력) 세 곳에 테마 기본값 추가. 화면별로 이미 개별 처방해 둔 곳(BoardPost.jsx 등)은 sx prop 특이도가 더 높아 그대로 우선 적용 |
 | KBD-04 | Low | 탭 **역순 점프**가 `/users`·`/chat` 에서 2회, `/new-ticket` 에서 1회 — 시각 순서와 탭 순서가 어긋나는 지점이 있다(정확한 위치는 `dist/keyboard/keyboard.json` 의 정지점 좌표로 추적 가능) | 발견 |
 | KBD-05 | Low | `/users` 에서 **본문에 닿는 탭 위치를 특정할 수 없었다**(내 판정 기준으로 `None`) — 상단바·사이드바 요소가 40개 넘게 이어진다. 「본문 바로가기」가 있으니 치명적이지 않지만, 그것을 모르는 사용자는 관리자 내비 37항목을 탭으로 지나야 한다 | 발견 |
 
