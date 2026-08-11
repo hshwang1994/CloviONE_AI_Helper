@@ -34,8 +34,10 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_write_conflict
 from app.core.errors import AppError, ConflictError, ValidationAppError
 from app.core.models_base import join_names, split_names, utcnow
 from app.core.scope import apply_user_scope
@@ -207,6 +209,18 @@ def run_offboarding(
     if not page_ids and not deactivate and not archive:
         raise ValidationAppError("옮길 티켓도, 계정에 적용할 변경도 없습니다.")
 
+    # UA-15: 이 대상에게 이미 열린(안 되돌린) 실행이 있으면 새로 시작하지 않는다 — 더블클릭·
+    # 새로고침으로 거의 동시에 두 번 실행되면, 아래에서 장부를 먼저 커밋한 뒤 시작하는 두
+    # 번째 요청의 OffboardingTicketMove.before_user_ids가 이미 첫 번째 실행이 넣은 후임을
+    # "원래 담당자"로 기록해 버려 되돌리기 계약이 깨진다(후임에게서 후임으로 되돌리는 꼴).
+    # 빠른 경로(사전 확인)만으로는 진짜 동시 요청을 못 막으므로, migration 0056의 부분 유일
+    # 인덱스(user_id, undone_at IS NULL) 위반도 같은 409로 잡는다(느린 경로, approvals의
+    # 0052/prompts의 0053과 같은 관용).
+    if _open_run_view(db, target.id) is not None:
+        raise ConflictError(
+            "이미 진행 중이거나 되돌리지 않은 오프보딩 실행이 있습니다. 먼저 처리해 주세요."
+        )
+
     run = OffboardingRun(
         user_id=target.id,
         actor_user_id=actor.id,
@@ -224,7 +238,15 @@ def run_offboarding(
     # 마지막 단계(계정 처리)에서 실패했을 때 **Notion 재배정은 남고 그 사실을 아는 행은
     # 전부 사라진다**. 되돌리기의 입력이 사라지므로 복구도 불가능하다.
     # (같은 논거가 `core/deps.py::_count_blocked_write` 에 이미 적혀 있다.)
-    db.commit()
+    try:
+        db.commit()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        db.rollback()
+        raise ConflictError(
+            "이미 진행 중이거나 되돌리지 않은 오프보딩 실행이 있습니다. 먼저 처리해 주세요."
+        ) from None
 
     moves = _move_tickets(
         db, outbound, settings, actor=actor, target=target, successor=successor,
@@ -427,8 +449,16 @@ def undo(
         move.updated_at = stamp
         db.commit()   # 실행과 같은 이유 — 되돌린 건은 되돌린 채로 남는다
 
-    run.undone_at = stamp
-    run.undone_by_user_id = actor.id
+    # UA-14: undone_at은 "완전히 되돌렸다"는 뜻으로만 쓴다 — 실패 여부와 무관하게 여기서
+    # 찍으면, 위 385행의 재시도 가드(`undone_at is not None`이면 409)가 부분 실패한 실행을
+    # 영영 재시도 못 하게 막는다. REVERTIBLE_MOVES가 이미 MOVE_REVERT_FAILED를 재시도
+    # 대상으로 넣어 둔 것(위 405행)과 정면으로 모순됐었다 — Notion이 불안정해 12건 중 3건이
+    # 실패하면 그 3건은 후임자에게 영구히 남았다. 부분 실패면 undone_at을 비워 둬서 같은
+    # run으로 다시 undo()를 부를 수 있게 한다(프런트는 `!sel.undone_at`로만 되돌리기 버튼을
+    # 보여준다 — Offboarding.jsx — 그래서 백엔드만 고치면 된다).
+    if not failed:
+        run.undone_at = stamp
+        run.undone_by_user_id = actor.id
     run.status = RUN_UNDO_PARTIAL if failed else RUN_UNDONE
     run.undo_error = (
         f"티켓 {failed}건을 되돌리지 못했습니다. 각 건의 사유를 확인하세요." if failed else None

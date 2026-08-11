@@ -273,6 +273,117 @@ def test_undo_twice_is_refused(client, admin, people):
     assert second.status_code == 409, second.text
 
 
+def test_partially_failed_undo_can_be_retried_until_it_fully_succeeds(
+    client, admin, people, notion
+):
+    """UA-14: undone_at은 실패 여부와 무관하게 찍혔었다 — REVERTIBLE_MOVES가
+    revert_failed를 재시도 대상으로 넣어 둔 것(되돌리기 재시도를 의도한 설계)과 모순돼,
+    Notion이 불안정해 일부가 실패하면 그 실패한 티켓은 후임자에게 영구히 남았다(같은
+    run으로 다시 undo()를 부르면 무조건 409 "이미 되돌린 실행입니다").
+
+    page-1을 Notion에서 일시적으로 사라지게 해 되돌리기 중 그 한 건만 실패하게 만든 뒤,
+    복구하고 같은 run으로 다시 되돌려 이번엔 끝까지 성공하는 것까지 확인한다.
+    """
+    run_id = _run(
+        client, admin, people["leaver"],
+        ticket_page_ids=["page-1", "page-2"],
+        successor_user_id=people["successor"], deactivate=False,
+    ).json()["run"]["id"]
+
+    # page-1을 Notion에서 지워 되돌리기 중 그 건만 실패하게 만든다.
+    removed = next(r for r in notion.rows if r.get("id") == "page-1")
+    notion.rows.remove(removed)
+
+    first = client.post(
+        f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin}
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["run"]["status"] == "undo_partial"
+    assert first.json()["revert_failed"] == 1
+    assert first.json()["run"]["undone_at"] is None, (
+        "부분 실패인데 undone_at이 찍혔다 — 이러면 재시도가 영구히 막힌다"
+    )
+    # page-2는 이미 되돌아왔어야 한다(부분 실패가 성공한 건까지 덮으면 안 된다).
+    assert _assignee_ids(notion, "page-2") == [LEAVER_NID]
+
+    # page-1을 복구하고 같은 run으로 다시 되돌린다 — 예전엔 여기서 409였다.
+    notion.rows.append(removed)
+    second = client.post(
+        f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin}
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["run"]["status"] == "undone"
+    assert second.json()["revert_failed"] == 0
+    assert second.json()["run"]["undone_at"] is not None
+    assert _assignee_ids(notion, "page-1") == [LEAVER_NID]
+
+    # 이제 정말로 완전히 되돌렸으니 세 번째 시도는 예전과 같이 거부돼야 한다.
+    third = client.post(
+        f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin}
+    )
+    assert third.status_code == 409, third.text
+
+
+def test_a_second_run_while_one_is_still_open_is_refused(client, admin, people, notion):
+    """UA-15: run_offboarding()은 대상에게 이미 열린(안 되돌린) 실행이 있는지 확인하지
+    않았다 — 더블클릭·새로고침으로 두 번 실행되면 두 번째 실행의 before_user_ids가 이미
+    첫 번째 실행이 넣은 후임을 "원래 담당자"로 기록해 되돌리기 계약이 깨진다."""
+    first = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+    assert first.status_code == 200, first.text
+
+    second = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-2"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+    assert second.status_code == 409, second.text
+
+
+def test_a_new_run_is_allowed_once_the_previous_one_is_undone(client, admin, people, notion):
+    """오탐 방지 — 이전 실행을 되돌렸으면 같은 대상을 다시 오프보딩할 수 있어야 한다."""
+    run_id = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=False,
+    ).json()["run"]["id"]
+    undo = client.post(
+        f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin}
+    )
+    assert undo.status_code == 200, undo.text
+
+    again = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-2"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+    assert again.status_code == 200, again.text
+
+
+def test_the_open_run_dedup_is_also_a_real_db_constraint(db, people):
+    """migration 0056의 부분 유일 인덱스 자체를 직접 확인한다 — 서비스 계층의 사전 확인은
+    거의 동시에 오는 두 요청을 못 잡을 수 있어서(빠른 경로), DB 제약이 최종 방어선이다."""
+    from datetime import datetime
+
+    from sqlalchemy.exc import IntegrityError
+
+    from app.offboarding.models import OffboardingRun
+
+    now = datetime(2026, 8, 11, 0, 0, 0)
+    db.add(OffboardingRun(
+        user_id=people["leaver"], actor_user_id=people["successor"],
+        created_at=now, updated_at=now,
+    ))
+    db.commit()
+
+    db.add(OffboardingRun(
+        user_id=people["leaver"], actor_user_id=people["successor"],
+        created_at=now, updated_at=now,
+    ))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+
 def test_the_move_rows_record_the_assignees_from_before_the_move(client, admin, people, db):
     """되돌리기의 입력이 되는 값이다 — 여기가 비면 되돌리기는 아무것도 복원하지 못한다."""
     _run(
