@@ -731,6 +731,12 @@ flaky했던 `test_10_concurrent_logins`은 지터 추가 후 연속 8/8 통과 �
 
 ## D-60 (2026-08-11) — 자율 Runner: Task Scheduler 의존 제거 + Start-Process 인자 전달 버그 수정
 
+> ⚠️ **SUPERSEDED/CORRECTED — [D-61](#d-61-2026-08-11--d-60-정정-primary-supervisor는-로컬-autonomous_runnerps1)이 이
+> "아키텍처 결정" 절을 뒤집었다.** 버그 재현·수정 내용(Start-Process 인자 전달, stdin
+> 리다이렉트)은 그대로 유효하다 — 틀린 부분은 "`/loop`+`ScheduleWakeup`이 1차, 로컬
+> Runner가 2차/백업"이라고 정한 판단 그 자체다. 기록은 삭제하지 않고 아래 그대로 둔다
+> (틀렸던 판단도 이력이다).
+
 **배경**: 사용자가 "WHOLE PRODUCT AUTONOMOUS COMPLETION" 지시에서 Windows 작업 스케줄러
 기반 실행 구조를 명시적으로 폐기하라고 지시했다(새 스케줄 task 생성 금지, 기존 것 삭제는
 사용자가 직접 함, 새 구조는 Task Scheduler에 의존하지 않을 것). 세션 시작 시 점검하니
@@ -775,3 +781,89 @@ push된 적이 없다 — 게다가 사내망(`10.100.64.71`)에도 클라우드
 이 대화형 세션(터미널)이 열려 있는 동안만 성립한다. 터미널이 닫히면 로컬 Runner(사용자가
 직접 시작해야 함, 이번 수정으로 정상 작동)만이 연속성을 이어받을 수 있다 — 이 한계는
 `scripts/runner/README.md`에도 반영한다.
+
+---
+
+## D-61 (2026-08-11) — D-60 정정: Primary Supervisor는 로컬 `autonomous_runner.ps1`
+
+**사용자가 D-60의 아키텍처 결정을 직접, 명시적으로 뒤집었다**: `/loop` dynamic mode +
+`ScheduleWakeup`은 **이 대화형 세션 내부의 보조 메커니즘일 뿐**, PROJECT continuity의
+근거(1차 Supervisor)로 쓰지 말라는 지시. 이유: 그 둘은 이 터미널 프로세스가 살아있는
+동안만 유효하고, "The loop is armed" 같은 자연어 상태 텍스트를 continuity가 확보됐다는
+근거로 쓰면 안 된다 — 실제로 이전 `ScheduleWakeup` 호출 1차 시도가 `noop is required
+when stop is not true` 파라미터 검증 오류로 실패했었다(원인: 첫 호출에서 필수 파라미터
+`noop`을 빠뜨림 — 스키마가 `stop:true`가 아닌 모든 호출에 `noop`을 요구하는데 누락했다.
+2차 호출에서 `noop: false`를 채워 성공했다). 이 실패 자체가 이 메커니즘이 "말로는 armed라고
+하지만 실제로 항상 확실하게 도는 것은 아니다"라는 사용자 우려를 뒷받침한다.
+
+**정정된 아키텍처**: Primary(1차) continuous execution 메커니즘은 로컬
+`scripts/runner/autonomous_runner.ps1`이다. Windows Task Scheduler에는 의존하지
+않는다(D-60의 이 부분은 그대로 유지) — 새 Task Scheduler task를 만들지 않고, 기존 것을
+삭제하지도 않는다(사용자가 직접 처리). 사용자가 `autonomous_runner.ps1`을 한 번 수동
+실행하면, 그 PowerShell 프로세스 자체가 `PROJECT_COMPLETE`가 생기거나 `STOP` 파일이
+생기거나 연속 실패 상한에 걸릴 때까지 while 루프 하나로 계속 살아서 Claude invocation을
+반복 관리한다. `/loop`+`ScheduleWakeup`은 **이 대화형 세션이 열려 있는 동안 부가적으로**
+계속 작업할 때만 쓰는 session-local 보조 기능이지, 그 자체가 "project가 계속된다"는
+근거가 아니다.
+
+**이번에 함께 고친 것(사용자 요청에 따른 controlled test 전제 조건)**:
+1. **`run.lock` 보유 중 조용한 `exit 0` 제거** — 이미 살아있는 루프가 있어 새 프로세스가
+   아무 것도 안 하고 종료할 때, 예전엔 로그를 전혀 안 남겼다(Task 스케줄러 15분
+   heartbeat의 "정상 상태"를 조용히 처리하려던 의도였는데, 그 대가로 **사용자가 직접
+   수동 실행했는데 아무 일도 안 일어나는 경우조차 설명이 없었다**). 이제 항상
+   `Write-RunnerLog`로 "이미 살아있는 루프(PID=...)가 있어 이 프로세스는 아무 것도 하지
+   않고 종료한다"를 남긴다.
+2. **`STOP` 파일이 있는 채로 새로 수동 실행하면** — while 루프의 첫 확인에서만 걸리던 것을,
+   잠금 획득 직후(더 이른 지점)에도 한 번 더 명시적으로 알리도록 추가했다. 재개 방법(STOP
+   삭제, 연속 실패로 인한 자동 STOP이면 `state.json`의 `consecutiveFailures`도 0으로)까지
+   메시지에 포함.
+3. Start-Process stdin 리다이렉트 프롬프트 전달 방식(D-60에서 고친 것)은 그대로 유지 — 되돌리지
+   않았다.
+
+**Controlled test — 실제로 돌려서 로그로 증명함(격리된 스크래치 디렉터리 + 별도 git
+저장소, 실제 프로젝트 저장소·이 세션과 완전히 분리 — 동시 편집 충돌 없음)**:
+- **exit → 즉시 다음 반복(핵심 요구사항)**: 3회 연속 반복의 `runner.log` 원본:
+  ```
+  [22:05:45.4118819] 반복 시작 #1
+  [22:05:54.4343466] 반복 종료 #1 exit=0 -> sleep 없이 즉시 다음 반복
+  [22:05:54.5430340] 반복 시작 #2         ← 종료 후 0.117초
+  [22:06:03.0372142] 반복 종료 #2 exit=0 -> sleep 없이 즉시 다음 반복
+  [22:06:03.1561561] 반복 시작 #3         ← 종료 후 0.119초
+  [22:06:12.5354841] 반복 종료 #3 exit=0
+  ```
+  세 반복 모두 `is_error:false`, `subtype:success`, 의도한 결과 문자열(stdin 리다이렉트가
+  안정적으로 동작함을 재확인 — 프롬프트 안에 버그 재현용 `git log --oneline` 문구를 일부러
+  넣었는데도 오작동 없음), stderr 빈 파일. **exit 0 뒤 sleep/idle-tick/ScheduleWakeup 없이
+  0.1초 남짓(로그 기록 + 프로세스 기동 오버헤드) 만에 다음 invocation이 시작됨을 타임스탬프로
+  직접 증명했다.**
+- **두 Supervisor 동시 실행 방지**: 한 인스턴스가 반복 중일 때 두 번째 인스턴스를 수동으로
+  시작 → 즉시 "이미 살아있는 루프(PID=20028)가 있어 이 프로세스는 아무 것도 하지 않고
+  종료한다"를 출력하고 종료, 첫 인스턴스는 방해 없이 남은 반복을 계속함(로그로 확인).
+- **STOP 파일이 있는 채 새로 수동 실행**: 반복을 하나도 안 하고 "STOP 파일이 이미 있어
+  이번 실행은 아무 반복도 하지 않고 즉시 끝난다"를 출력 후 종료 — 예전처럼 설명 없이
+  조용히 아무 일도 안 하지 않는다.
+- **Task Scheduler 없이 동작**: 이 controlled test는 Task Scheduler를 전혀 거치지 않고
+  스크립트를 직접 실행했다 — while 루프 자체가 스케줄러 없이 반복을 이어가는 것이
+  메커니즘의 핵심이라는 것과 일치.
+- **transient failure만 backoff**: 이번 controlled test는 3회 다 성공(exit=0)이라
+  rate-limit 백오프 분기 자체는 안 탔다 — 그 분기의 존재와 조건(정규식
+  `rate.?limit|overloaded|429|503|529` 매치 시에만)은 코드 재확인으로 확인, 실제 rate-limit을
+  인위로 재현하는 것은 이번 controlled test 범위 밖으로 남긴다(재현하려면 실제로 API
+  한도를 소진시켜야 하는데 그럴 이유가 없다).
+- **secret 비노출**: 이 스크립트는 SSH/sudo 자격증명을 아예 다루지 않는다(README에 이미
+  명시) — controlled test 프롬프트·로그에도 secret 문자열 없음(확인함, 전부 테스트용
+  더미 텍스트).
+
+**Claude Code CLI 플래그 재확인**: `claude --help`(현재 설치본)를 직접 읽어 `-p/--print`,
+`--output-format json`, `--permission-mode`, `--max-budget-usd`가 전부 유효한 옵션임을
+확인했다(과거 기억으로 하드코딩하지 않음). `-r/--resume`·`-c/--continue`는 존재하지만
+스크립트는 **의도적으로 안 쓴다** — 매 반복이 대화를 이어받지 않고 `docs/*.md` + git
+상태만으로 스스로 복구하게 하려는 기존 설계(스크립트 자체 docstring, "state는 파일에 있다"
+원칙)를 그대로 유지한다. 이번 지시는 이 설계를 바꾸라고 하지 않았다.
+
+**로컬 Runner를 "2차/백업"이라고 부른 것도 정정한다**: D-60에서 "대화형 세션이 활성인
+동안은 로컬 Runner를 재가동하지 않는다"고 한 부분(단일 인스턴스 보호)은 그대로 유지한다 —
+다만 그 이유는 "로컬 Runner가 부차적이라서"가 아니라 **두 Supervisor가 동시에 같은
+저장소를 건드리면 안 되기 때문**이다. 지금 이 대화형 세션이 활성 상태이므로
+`var/runner/STOP`은 그대로 둔다(로컬 Runner를 다시 켜지 않는다) — 이 세션이 끝나면
+사용자가 STOP을 지우고 `autonomous_runner.ps1`을 실행하는 것이 **주 경로**다.

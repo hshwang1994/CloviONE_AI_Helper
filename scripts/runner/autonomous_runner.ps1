@@ -97,10 +97,24 @@ if (Test-Path $LockFile) {
         $stillAlive = [bool](Get-Process -Id ([int]$oldPid) -ErrorAction SilentlyContinue)
     }
     if ($stillAlive) {
-        exit 0  # 이미 도는 루프가 있다 — 조용히 종료(로그 스팸 방지, 이건 정상 상태다)
+        # 2026-08-11: 예전엔 여기서 아무 로그도 안 남기고 조용히 exit 0 했다 — Task
+        # 스케줄러의 15분 heartbeat(대부분 이 경로)에는 맞지만, 사용자가 직접
+        # ".\autonomous_runner.ps1" 을 실행했는데 다른 루프가 이미 살아있어 아무 일도
+        # 안 일어나면 "왜 아무것도 안 되지?" 를 설명할 방법이 없었다. 이제 항상 한 줄
+        # 남긴다 — runner.log 에 15분마다 한 줄 느는 비용은 무시할 만하다.
+        Write-RunnerLog "이미 살아있는 루프(PID=$oldPid)가 있어 이 프로세스는 아무 것도 하지 않고 종료한다. 그 루프를 멈추려면: var\runner\STOP 파일을 만들거나(다음 반복 전 확인) 그 PID 를 직접 종료하세요."
+        exit 0
     } else {
         Write-RunnerLog "잠금 파일은 있지만 그 PID($oldPid)는 죽어 있음 — 이전 루프가 비정상 종료한 것으로 보고 새 루프를 시작."
     }
+}
+if (Test-Path $StopFile) {
+    # 2026-08-11: STOP 파일은 while 루프 안에서도 매 반복 확인하지만, 그건 "루프가 이미
+    # 돌기 시작한 뒤"의 얘기다. 사용자가 STOP 을 지우지 않은 채 새로 수동 실행하면 이 지점
+    # 이전엔(잠금 획득 직후) 아무 설명 없이 while 루프 첫 확인에서 곧장 끝나 버렸다 —
+    # 왜 즉시 끝났는지 실행 직후 한눈에 보이도록 여기서도 명시적으로 알린다(아래 while
+    # 루프의 확인은 그대로 남긴다 — 실행 도중 STOP 이 생기는 경우도 잡아야 한다).
+    Write-RunnerLog "STOP 파일이 이미 있어 이번 실행은 아무 반복도 하지 않고 즉시 끝난다: $StopFile . 재개하려면 이 파일을 지우고 다시 실행하세요(연속 실패 자동 STOP 이었다면 var\runner\state.json 의 consecutiveFailures 도 0으로 되돌리세요)."
 }
 Set-Content -Path $LockFile -Value $PID
 

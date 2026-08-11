@@ -1,12 +1,15 @@
-# 자율 완성 Runner — 세션이 끝나도 이어지는 로컬 CONTINUOUS 워커 (2차/백업)
+# 자율 완성 Runner — 세션이 끝나도 이어지는 로컬 CONTINUOUS 워커 (Primary Supervisor)
 
-> **2026-08-11 (D-60) 갱신**: 1차 연속 실행 메커니즘은 이제 하네스 내장 `/loop` dynamic
-> mode + `ScheduleWakeup`이다(대화형 세션 안에서 동작, Task Scheduler 불필요) — 상세는
-> `docs/DECISIONS.md` D-53·D-60. 이 문서가 설명하는 로컬 Runner는 **대화형 세션(터미널)이
-> 아예 닫혀 있을 때만 쓰는 백업**이다. 대화형 세션이 저장소를 수정하는 동안은 이 Runner를
-> 켜지 않는다(동시 수정 방지) — `var/runner/STOP`이 있으면 그런 뜻이다, 지우지 말 것.
-> 새 Task Scheduler 항목을 만들거나 기존 것을 삭제하는 것은 이 세션이 하지 않는다(사용자
-> 결정 사항).
+> **2026-08-11 (D-61, D-60 정정) 갱신**: 이 로컬 Runner가 **1차(Primary) 연속 실행
+> 메커니즘**이다. 하네스 내장 `/loop` dynamic mode + `ScheduleWakeup`은 지금 열려 있는
+> 대화형 세션 안에서 부가적으로만 쓰는 session-local 보조 기능이지, 그 자체가 project
+> continuity의 근거가 아니다(D-60이 한 번 반대로 정했다가 D-61이 사용자 지시로 뒤집었다) —
+> 상세·controlled test 증거는 `docs/DECISIONS.md` D-61. Windows Task Scheduler에는 여전히
+> 의존하지 않는다 — 새 항목을 만들지 않고, 기존 것을 삭제하는 것도 이 세션이 하지 않는다
+> (사용자 결정 사항). 지금 대화형 세션이 저장소를 수정하는 동안은 이 Runner를 켜지 않는다
+> (동시 수정 방지) — `var/runner/STOP`이 있으면 그런 뜻이다, 지우지 말 것. **이 세션이
+> 끝나면 사용자가 STOP을 지우고 아래 설치/실행 절차로 이 Runner를 시작하는 것이 연속성의
+> 주 경로다.**
 
 Claude Code 세션(터미널 창)을 닫아도, ClovirONE Web Assistant 프로젝트가 완료되지 않았다면
 이 컴퓨터에서 `autonomous_runner.ps1`이 **쉬지 않고 반복**해서 Claude Code를 이어 띄운다 —
@@ -100,6 +103,13 @@ cd scripts\runner
   (`claude -p`는 위치 인자 없이 호출하면 stdin에서 프롬프트를 읽는다 — 직접 확인함). 격리된
   스크래치 디렉터리에서 같은 버그 유발 문구를 포함한 프롬프트로 재현 테스트해 exit 0 +
   의도한 출력을 확인했다. 상세는 `docs/DECISIONS.md` D-60.
+- **2026-08-11 (D-61)**: `run.lock`을 이미 살아있는 루프가 쥐고 있어 새 프로세스가 조용히
+  `exit 0` 하던 것 — 사용자가 직접 수동 실행했는데 아무 일도 안 일어나면 이유를 알 수
+  없었다. 이제 항상 한 줄 로그를 남긴다. `STOP` 파일이 이미 있는 채로 새로 수동 실행하는
+  경우도 잠금 획득 직후 한 번 더 명시적으로 알리도록 추가(재개 방법 포함). 격리된 스크래치
+  저장소에서 실제로 controlled test를 돌려 (1) exit 0 뒤 sleep 없이 ~0.1초 만에 다음
+  반복이 시작되는 것, (2) 두 번째 인스턴스가 즉시 물러나는 것, (3) STOP이 있으면 새 실행이
+  이유를 출력하고 끝나는 것을 타임스탬프 로그로 확인했다. 상세는 `docs/DECISIONS.md` D-61.
 
 ## 알려진 한계 (정직하게 남긴다)
 
