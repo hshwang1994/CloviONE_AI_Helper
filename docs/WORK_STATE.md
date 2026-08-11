@@ -12,9 +12,41 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11 · **단계**: RG-05·UB-25 추가 구현+테스트+커밋 완료(같은
-세션 계속, /loop 세션 보조 진행). 상세는 아래 새 단락. 그 앞 APPR-02/03·RG-06/07,
-QAH/DGEN 배치, 이전
+**마지막 갱신**: 2026-08-11 · **단계**: WF7(whole-product 재감사 1회차) 완료 —
+PROJ-01·QAH-06 구현+테스트+커밋. 상세는 아래 새 단락. 그 앞 RG-05·UB-25,
+APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
+
+**같은 세션 계속(2026-08-11) — WF7 whole-product 재감사 1회차.** RG-*/APPR-*/UB-25
+배치가 소진된 뒤 §8 지시대로 착수 — 배경 포크 3개(백엔드 RBAC/DB/API, 프런트
+Design/UX, AI/Runner/Ops) 병렬 실행, 각각 기존 BACKLOG를 먼저 훑어 **새로운** Root
+Cause만 보고하게 지시.
+- **AI/Runner/Ops 포크**: 4개 영역(잡·핸들러 완결성, AI 라우팅, 러너/워크플로 설정
+  검증, 관측성 죽은 코드 재확인 — UB-25에서 잡은 "실측 없이 지우면 안 된다" 교훈을
+  방법론에 반영해 재적용)을 훑고 **새 발견 없음**으로 정직하게 보고. 이 도메인은
+  MEGA CYCLE A + 이번 세션 DGEN/USE/SCHD·UB-25 배치로 이미 수렴한 것으로 판단.
+- **PROJ-01(백엔드 포크 발견, High)**: `app/projects/service.py::create_project`/
+  `update_project`가 `uq_projects_org_code`에 대해 사전 SELECT(순차 중복만 409)만
+  두고 SAVEPOINT 재시도가 없었다 — 이 저장소가 이미 13곳 넘게 고친 것과 같은 클래스의
+  버그인데 `projects` 모듈(migration 0044)만 빠져 있었다. `profiles/service.py::
+  create_view`와 같은 관용으로 수정, `threading.Barrier(2)` 결정적 경합 재현 시험
+  신설, revert-to-verify 확인함.
+- **QAH-06(프런트 포크 발견, High)**: `/mail`(`MailStatus.jsx`, `AdminRoutes.jsx`에
+  실재하는 라우트)이 `scripts/ui_qa/routes.py`에 등록이 안 돼 있어 이번 QAH 68라우트
+  1회차를 포함해 한 번도 캡처되지 않았다 — `routes.py` 자체의 "2026-08-08 추가" 주석에
+  이미 기록된 것과 같은 결함 클래스가 세 번째로 반복된 사례. 등록 추가 + 같은 함정의
+  재발을 막는 상시 완전성 가드 시험(`AdminRoutes.jsx`의 실제 라우트 전부를 하네스
+  등록과 대조) 신설.
+
+**검증**: 둘 다 focused test + revert-to-verify 확인함. PROJ-01은 프로젝트 관련
+전체 스위트 137건 green. QAH-06은 관련 QA 하네스 시험 14건 green(프런트 소스 변경
+없음 — routes.py는 Python 하네스 코드라 프런트 전체 회귀 재실행 불필요로 판단).
+커밋 4개(구현 2 + docs 2).
+
+**남은 다음 후보**: PERF-02(낮은 우선순위, 보류) · DGEN-03(보류) · QA_COVERAGE의
+U(실사용 이력)·K(그라디언트 대비)·L(화면 간 반영 전수) 공백. WF7이 새 발견을 2건만
+(3개 포크 중 1개는 무결과)냈다는 것은 이 배치 규모에서는 제품이 상당히 수렴했다는
+신호 — 다음은 QA_COVERAGE 공백 착수, 또는 더 넓은/다른 각도의 재감사(예: 실제
+Chrome 기반 E2E, 이번 재감사가 못 본 영역) 후보.
 SHORT OVERRIDE 단계는 그 아래 그대로 유지
 
 **같은 세션 계속(2026-08-11) — APPR-02/03·RG-06/07 4건**: QAH+DGEN 배치 직후 "다음
