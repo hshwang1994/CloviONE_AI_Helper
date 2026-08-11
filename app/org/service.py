@@ -253,7 +253,13 @@ def create_item(
     if parent_id and model is Department:
         # 새 행이라 자기 자손이 있을 수 없다 — 존재와 **범위**만 확인하면 된다.
         parent = db.get(Department, parent_id)
-        if parent is None or not scope_allows_item(scope, parent):
+        # UA-13: scope_allows_item만으로는 전역 관리자가 다른 조직의 부서를 부모로 지정하는
+        # 것을 못 막는다(전역 관리자에게는 모든 행이 "범위 안"이다). 부모가 다른 조직이면
+        # department_subtree_ids(parent_id 만 따라가는 순수 그래프 순회, org 필터 없음)가
+        # 그 조직 부서를 dept 스코프 관리자의 서브트리에 끌어들여 권한이 조용히 넓어진다 —
+        # 부모는 반드시 이 행과 같은 조직이어야 한다. dup_org 가 이미 이 행이 실제로 저장될
+        # 조직(폴백 포함)과 같은 식이므로 그대로 쓴다.
+        if parent is None or not scope_allows_item(scope, parent) or parent.org_id != dup_org:
             # 범위 밖 상위 부서는 **없는 것과 똑같이** 답한다. 여기만 다른 오류를 주면
             # 남의 부서 id 를 찍어 보며 존재를 셀 수 있다(저장소 규칙: 범위 밖은 404).
             raise ValidationAppError("알 수 없는 상위 부서입니다.")

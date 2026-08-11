@@ -219,7 +219,11 @@ def validate_parent(
     if parent_id == row.id:
         raise ValidationAppError("부서를 자기 자신의 하위로 둘 수 없습니다.")
     parent = db.get(Department, parent_id)
-    if parent is None or not scope_allows_item(scope, parent):
+    # UA-13: scope_allows_item만으로는 전역 관리자가 다른 조직의 부서를 부모로 지정하는
+    # 것을 못 막는다 — department_subtree_ids(parent_id 만 따라가는 순수 그래프 순회,
+    # org 필터 없음)가 그 조직 부서를 dept 스코프 관리자의 서브트리에 끌어들여 권한이
+    # 조용히 넓어진다. 부모는 반드시 이 행(row)과 같은 조직이어야 한다.
+    if parent is None or not scope_allows_item(scope, parent) or parent.org_id != row.org_id:
         raise ValidationAppError("알 수 없는 상위 부서입니다.")
     # 자기 자손을 부모로 삼으면 트리가 고리가 되고, 그 순간 그 덩어리 전체가 조직도의 루트에서
     # 사라진다(위 build_rows 가 `cycle` 로 드러내지만, 애초에 들어오게 두지 않는다).
