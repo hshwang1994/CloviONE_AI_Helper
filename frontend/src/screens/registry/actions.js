@@ -150,10 +150,13 @@ export const reachResult = (res) => { const ok = res.status === "reachable"; ret
 // 실제로 백엔드(app/documents/service.py)가 읽는 키를 명명 입력으로 펼치고, 그 외 드문 키만 '고급(JSON)'
 // 하나로 남긴다. 제출 시 docConfigTransform이 이들을 다시 config dict로 조립한다(백엔드 계약 유지).
 export const DOC_GENERATE_FIELDS = [
-  { name: "workflow_id", label: "워크플로 ID", type: "text", required: true, help: "‘업무 자동화 흐름(워크플로)’ 화면에서 대상 워크플로의 ID를 확인해 입력하세요." },
+  // DGEN-01: 자유 텍스트 ID 받아쓰기 대신 이름으로 고른다 — documents 화면의 config.refLists
+  // (registry/automation.js)가 이 화면에 로드된 워크플로/템플릿 목록을 DataScreen.jsx의
+  // withOptionsFrom을 통해 select 옵션으로 준다.
+  { name: "workflow_id", label: "워크플로", type: "select", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름(워크플로)’ 화면에서 등록·활성화합니다." },
   { name: "period", label: "기간", type: "text", required: true, help: "예: 2026-07 또는 2026-W29 (문서가 다룰 기간)" },
   { name: "mode", label: "모드", type: "select", value: "preview_then_approve", options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]), help: "‘자동 발행’이라도 대상 워크플로/템플릿이 승인을 요구하면 미리보기 후 승인 흐름으로 전환됩니다." },
-  { name: "template_id", label: "템플릿 ID(선택)", type: "text", help: "‘템플릿’ 화면 상세의 ID. 넣으면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },
+  { name: "template_id", label: "템플릿(선택)", type: "select", optionsFromRefList: "templates", extraOptions: [{ value: "", label: "(템플릿 없음)" }], help: "고르면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },
   { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "문서에 담을 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름)." },
   { name: "output_format", label: "출력 형식", type: "select", value: "", options: opt([["", "(기본: 마크다운)"], ["markdown", "마크다운"], ["html", "HTML"]]) },
   { name: "title_rule", label: "제목 규칙(선택)", type: "text", help: "생성 문서 제목 규칙. 예: 주간 보고서 {week}" },

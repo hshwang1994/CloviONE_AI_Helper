@@ -100,6 +100,33 @@ def test_create_still_rejects_invalid_misfire_policy(client, admin_csrf, workflo
     assert r.status_code == 422
 
 
+def test_list_resolves_workflow_target_name(client, admin_csrf, workflow_id):
+    """USE-04/SCHD-02: 목록이 target_ref(워크플로 UUID) 옆에 이름도 준다 — 화면이 원시 UUID만
+    그리던 것을 고치려면 서버가 먼저 이름을 알아야 한다."""
+    client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, name="이름 확인용"),
+        headers=_headers(admin_csrf),
+    )
+    r = client.get("/api/admin/schedules")
+    assert r.status_code == 200
+    row = next(i for i in r.json()["items"] if i["name"] == "이름 확인용")
+    assert row["target_ref"] == workflow_id
+    assert row["target_name"] == "보고서 생성"
+
+
+def test_list_target_name_is_null_for_system_target(client, admin_csrf):
+    client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(None, name="시스템 대상", target_type="system", target_ref="noop"),
+        headers=_headers(admin_csrf),
+    )
+    r = client.get("/api/admin/schedules")
+    row = next(i for i in r.json()["items"] if i["name"] == "시스템 대상")
+    assert row["target_type"] == "system"
+    assert row["target_name"] is None
+
+
 def test_preset_expands_to_cron(client, admin_csrf, workflow_id):
     r = client.post(
         "/api/admin/schedules",

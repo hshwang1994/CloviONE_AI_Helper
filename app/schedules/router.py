@@ -132,18 +132,25 @@ def _parse_iso(value: str | None, field: str) -> datetime | None:
     return parsed
 
 
-def _view(row: Schedule, names: dict | None = None) -> dict:
+def _view(row: Schedule, names: dict | None = None, workflow_names: dict | None = None) -> dict:
     """`names` 는 {user_id: {display_name, email}} (app/core/people.py::name_map).
+    `workflow_names` 는 {workflow_id: name}(USE-04/SCHD-02 — target_ref가 워크플로 UUID 원문뿐이라
+    관리 화면이 그 UUID를 그대로 그렸다. 워크플로 화면은 이미 이름을 안다).
 
     소유자를 UUID 로만 주면 관리 화면은 그 UUID 를 그대로 그릴 수밖에 없다 — 운영자는
     "이 스케줄이 누구 것이냐" 를 알아내려고 사용자 화면을 따로 열어 id 를 검색해야 했다.
     id 자체는 계속 싣는다: 감사 로그 필터에 붙여 넣는 값이고, 이름이 겹칠 때 최종
     구분자이기도 하다. **이름을 더하는 것이지 id 를 감추는 것이 아니다.**
 
-    `names` 를 안 주면 이름은 None 이다(모르는 것을 지어내지 않는다) — 목록 경로만
-    배치로 해석하고, 단건 응답은 예전 모양 그대로 둔다.
+    `names`/`workflow_names` 를 안 주면 이름은 None 이다(모르는 것을 지어내지 않는다) — 목록
+    경로만 배치로 해석하고, 단건 응답은 예전 모양 그대로 둔다.
     """
     owner = (names or {}).get(row.owner_user_id) or {}
+    target_name = (
+        (workflow_names or {}).get(row.target_ref)
+        if row.target_type == TARGET_WORKFLOW
+        else None
+    )
     return {
         "id": row.id,
         "name": row.name,
@@ -156,6 +163,7 @@ def _view(row: Schedule, names: dict | None = None) -> dict:
         "owner_email": owner.get("email"),
         "target_type": row.target_type,
         "target_ref": row.target_ref,
+        "target_name": target_name,
         "payload_template": json.loads(row.payload_template_json),
         "retry_policy": json.loads(row.retry_policy_json),
         "misfire_policy": row.misfire_policy,
@@ -287,7 +295,11 @@ def list_schedules(db: Session = Depends(get_db)):
     rows = db.execute(select(Schedule).order_by(Schedule.name)).scalars().all()
     # 소유자 이름은 **한 번의 질의로** 모아 온다 — 행마다 조회하면 이 목록이 N+1 이 된다.
     names = people.name_map(db, [r.owner_user_id for r in rows])
-    return {"items": [_view(r, names) for r in rows]}
+    workflow_ids = [r.target_ref for r in rows if r.target_type == TARGET_WORKFLOW]
+    workflow_names = dict(
+        db.execute(select(Workflow.id, Workflow.name).where(Workflow.id.in_(workflow_ids))).all()
+    ) if workflow_ids else {}
+    return {"items": [_view(r, names, workflow_names) for r in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])

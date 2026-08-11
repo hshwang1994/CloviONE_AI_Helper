@@ -26,6 +26,8 @@ export const AUTOMATION_SCREENS = {
       ? { open: "select", id: p.id }
       : (p.workflow_id ? { open: "create", initial: { target_type: "workflow", target_ref: p.workflow_id } } : null),
     selectKey: "schedule",
+    // USE-04/SCHD-02: create/edit의 target_ref select가 쓴다(DataScreen.jsx의 refListOptions).
+    refLists: [{ key: "workflows", endpoint: "/api/admin/workflows" }],
     // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업·문서 화면과 동일 패턴).
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
       ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 만들어 워크플로를 자동 실행하세요."
@@ -48,7 +50,11 @@ export const AUTOMATION_SCREENS = {
       { key: "cron_expression", label: "실행 일정(Cron)", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
       mapCol("target_type", "대상 유형", { workflow: "워크플로", system: "시스템" }),
       // 워크플로 화면의 ?id= 딥링크(onQuery)로 그 워크플로 상세를 곧바로 연다(무필터 전체 목록 아님).
-      { key: "target_ref", label: "대상 ID", render: (r) => (r.target_ref && r.target_type === "workflow") ? React.createElement("a", { href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_ref) : (r.target_ref || "-") },
+      // USE-04: 서버가 target_name을 함께 준다(app/schedules/router.py _view) — 원시 UUID 대신
+      // 이름을 보여주고, id는 계속 옆에 남긴다(다른 이름-해석 열과 같은 관용, personField 참고).
+      { key: "target_ref", label: "대상", render: (r) => (r.target_ref && r.target_type === "workflow")
+        ? React.createElement("a", { href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_name || r.target_ref)
+        : (r.target_ref || "-") },
       badgeCol("enabled", "활성"),
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
       // 보여주면 '이 시각에 다시 실행될 것'처럼 읽힌다. 비활성 행은 활성 배지로 알 수 있으니 이 열은
@@ -78,7 +84,12 @@ export const AUTOMATION_SCREENS = {
       { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "예: 2026-08-01T09:00:00+09:00, 시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00을 붙이세요). (유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다.)" },
       { name: "timezone", label: "시간대", type: "text", value: "Asia/Seoul", help: "Cron 평가에 쓰이는 시간대(run_at에는 적용되지 않음)." },
       { name: "target_type", label: "대상 유형", type: "select", value: "workflow", options: SCHED_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "워크플로: '업무 자동화 흐름(워크플로)' 화면의 ID(승인 필요 없음으로 설정된 워크플로만 스케줄 대상 가능). 시스템: 유효한 값은 'noop' 뿐입니다." },
+      // USE-04/SCHD-02: 워크플로 UUID를 손으로 옮겨 적던 것을 이름으로 고르게 한다(refLists,
+      // 아래 참고). '대상 유형'을 '시스템'으로 바꿔도 고를 수 있게 유일한 시스템 값(noop)을
+      // 같은 목록 끝에 얹는다 — 두 필드를 서로 맞춰 조건부로 보여주는 것보다 단순하다.
+      { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",
+        extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
+        help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음으로 설정된 것만 실제 실행됩니다). 시스템이면 목록 끝의 ‘시스템 (noop)’을 고르세요." },
       { name: "payload_template", label: "실행 페이로드(JSON)", type: "json", help: "워크플로에 보낼 기본 페이로드. 비우면 빈 값으로 실행됩니다." },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3). app/schedules/scheduler.py가 이 값으로 재시도/백오프를 결정합니다.' },
       // 기본값을 명시하지 않으면 FormModal이 null을 보내 백엔드(non-Optional str)가 422로 거절한다
@@ -188,7 +199,9 @@ export const AUTOMATION_SCREENS = {
       { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다, 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "워크플로: 워크플로 화면의 ID(승인 필요 없음 워크플로만 가능). 시스템: 'noop'." },
+      { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",
+        extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
+        help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음인 것만). 시스템이면 ‘시스템 (noop)’을 고르세요." },
       { name: "payload_template", label: "실행 페이로드(JSON)", type: "json" },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3).' },
       { name: "misfire_policy", label: "누락 처리 정책", type: "select", options: MISFIRE_OPTS },
@@ -214,6 +227,13 @@ export const AUTOMATION_SCREENS = {
     emptySteps: ["‘+ 문서 생성’으로 대상 워크플로와 기간을 지정합니다.", "모드에 따라 미리보기/승인 대기/발행으로 진행됩니다.", "‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다."],
     emptyExpected: "요청한 문서 생성 건이 상태와 함께 이 목록에 남고, 발행되면 Notion 링크가 표시됩니다.",
     emptyRelatedLink: { href: "#/workflows", label: "먼저: 워크플로 등록으로 이동" },
+    // DGEN-01: '+ 문서 생성' 폼의 워크플로/템플릿 ID가 손으로 옮겨 적는 자유 텍스트였다 — 이
+    // 화면이 이미 아는 목록(워크플로/템플릿 이름)을 select로 보여준다(DataScreen.jsx의
+    // refListOptions/withOptionsFrom, DOC_GENERATE_FIELDS의 optionsFromRefList가 소비).
+    refLists: [
+      { key: "workflows", endpoint: "/api/admin/workflows" },
+      { key: "templates", endpoint: "/api/admin/templates" },
+    ],
     // 템플릿 화면의 '이 템플릿으로 문서 생성'에서 넘어온 해시 쿼리를 생성 폼에 프리필한다(DataScreen이 소비).
     // template_id는 config JSON 안으로 넣고, 워크플로 템플릿의 대상 ID를 workflow_id로 채운다.
     // ?id=는 다른 화면(승인의 '대상 보기' 등)이 특정 문서 생성 건으로 딥링크할 때 쓴다 — runners.onQuery와

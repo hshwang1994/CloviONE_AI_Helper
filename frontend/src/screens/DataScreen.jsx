@@ -115,7 +115,19 @@ export function DataScreen({ config }) {
   // 두 번째 인자(rows)는 지금 화면에 로드된 목록이다. '상위 부서'처럼 후보가 **같은 목록의 다른
   // 행들**인 필드에 필요하다(자기 자신은 후보에서 빠져야 하므로 row 도 함께 받는다).
   // items 는 아래(282줄)에서 선언되지만 이 함수는 렌더 시점에 호출되므로 그때는 이미 값이 있다.
-  const withOptionsFrom = (fields, row) => (fields || []).map((f) => f.optionsFrom ? { ...f, type: "select", options: f.optionsFrom(row, items) } : f);
+  // f.optionsFromRefList: "workflows" — 옵션이 **다른 화면의 리소스**(예: 워크플로 목록)인 select
+  // 필드(DGEN-01/USE-04/SCHD-02: 워크플로/템플릿 ID를 손으로 옮겨 적던 것). config.refLists로
+  // 선언한 목록을 아래(refListOptions)에서 미리 받아 두고 이름표를 붙인다. optionsFrom과 달리
+  // '지금 화면의 데이터'가 아니라 '전혀 다른 화면의 데이터'라 별도 훅이 필요하다. f.extraOptions로
+  // 고정 선택지(예: 스케줄의 '시스템(noop)')를 뒤에 덧붙일 수 있다.
+  const withOptionsFrom = (fields, row) => (fields || []).map((f) => {
+    if (f.optionsFrom) return { ...f, type: "select", options: f.optionsFrom(row, items) };
+    if (f.optionsFromRefList) {
+      const base = refListOptions[f.optionsFromRefList] || [];
+      return { ...f, type: "select", options: [...base, ...(f.extraOptions || [])] };
+    }
+    return f;
+  });
 
   // f.clientFilter:true — 이 필터는 백엔드가 쿼리 파라미터로 지원하지 않는 화면(예: 워크플로 목록은
   // page/검색 파라미터가 아예 없다)에서 이미 받아 온 전체 목록을 화면에서 직접 거른다. 서버로 보내면
@@ -178,6 +190,34 @@ export function DataScreen({ config }) {
     // (예전엔 목록만 4초마다 갱신되고 카운트 카드는 마운트 시점 값에 얼어 있었다).
     refetchInterval: (config.summary && config.summary.poll) ? 4000 : false,
   });
+  // 참조 목록(선택) — config.refLists: [{key, endpoint, valueKey="id", labelKey="name"}]로 선언한
+  // **다른 화면의 리소스**(예: 워크플로/템플릿)를 하나의 쿼리로 함께 받아 위 withOptionsFrom이
+  // 이름표 붙은 select로 바꾼다(DGEN-01/USE-04/SCHD-02). 선언한 화면만 켠다 — 대부분의 registry
+  // 화면은 필요 없다. 각 목록은 그 화면의 own 페이지네이션 없이 전체를 한 번에 받는다(워크플로/
+  // 템플릿 둘 다 list_workflows/list_templates가 이미 그렇게 준다 — 페이지네이션 없음).
+  const refListsQuery = useQuery({
+    queryKey: [...cacheRoot, "refLists", (config.refLists || []).map((r) => r.key).join(",")],
+    queryFn: async () => {
+      const pairs = await Promise.all(
+        (config.refLists || []).map(async (rl) => [rl.key, (await api(rl.endpoint))[rl.itemsKey || "items"] || []])
+      );
+      return Object.fromEntries(pairs);
+    },
+    enabled: !!(config.refLists && config.refLists.length),
+    retry: false,
+  });
+  const refListOptions = React.useMemo(() => {
+    const data = refListsQuery.data || {};
+    const out = {};
+    (config.refLists || []).forEach((rl) => {
+      out[rl.key] = (data[rl.key] || []).map((row) => ({
+        value: row[rl.valueKey || "id"],
+        label: row[rl.labelKey || "name"] + (row.enabled === false ? " (비활성)" : ""),
+      }));
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refListsQuery.data, config.refLists]);
   function setFilter(key, val) { setFilters((s) => ({ ...s, [key]: val })); setPage(1); }
   /* 화면 밖에서도 같은 값을 보여 주는 곳이 있으면 함께 갱신한다 (X10).
    *
@@ -743,7 +783,7 @@ export function DataScreen({ config }) {
       ) : null}
       {actionForm ? (
         <FormDrawer open={!!actionForm} title={actionForm.a.label}
-          fields={(actionForm.a.fields || []).map((f) => f.optionsFrom ? { ...f, type: "select", options: f.optionsFrom(actionForm.row) } : f)}
+          fields={withOptionsFrom(actionForm.a.fields, actionForm.row)}
           initial={actionForm.initial || {}}
           submitLabel={actionForm.a.label} onClose={() => setActionForm(null)}
           onSubmit={async (body) => {
