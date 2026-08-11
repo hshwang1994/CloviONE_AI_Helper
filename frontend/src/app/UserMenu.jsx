@@ -93,7 +93,19 @@ export function UserMenu({ name, userId, avatarUrl }) {
         aria-expanded={open}
         aria-label={label + " 메뉴"}
         color="inherit"
-        sx={{ minWidth: 0, gap: 1, px: 1, textTransform: "none" }}
+        sx={{
+          minWidth: 0, gap: 1, px: 1, py: 0.5, textTransform: "none", borderRadius: 999,
+          // WF7(K축, 2026-08-11 실측): 상단바 배경은 radial-gradient(circle at 78% -120%,
+          // brand.purple@0.74, ...) + linear-gradient(brand.deep→mid→accent)다(AppShell.jsx).
+          // 자동 대비 검사(scripts/ui_qa/contrast.py)는 그라디언트 배경을 판정 못 해 지금까지
+          // 아무도 못 쟀다 — 직접 계산해 보니 78% 부근(이 메뉴가 있는 자리)에서 보라 광원이
+          // 강조색과 겹치는 지점은 흰 글자 대비가 4종 강조색 전부에서 3.88~4.20으로 AA(4.5)
+          // 미달이었다("최종안"으로 확정된 그라디언트 자체는 그대로 두고, 그 위에 놓이는
+          // 실제 텍스트(계정 이름)만 보강한다 — 흰 글자에 옅은 검정 알약 배경을 얹으면 같은
+          // 최악 지점에서도 5.1 이상으로 여유 있게 통과한다, 4종 강조색 전부 계산 확인함).
+          bgcolor: "rgba(0,0,0,.15)",
+          "&:hover": { bgcolor: "rgba(0,0,0,.24)" },
+        }}
       >
         {/* 좁은 화면에서는 이름을 숨긴다. 버튼 자체에 aria-label이 있어 접근 가능한 이름은 유지된다
             — 예전엔 이름이 유일한 텍스트 자식이라 모바일에서 이름이 통째로 사라졌다. */}
