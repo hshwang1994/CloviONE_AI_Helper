@@ -193,6 +193,9 @@ export const RE_UNORDERED = /^-\s+(.*)$/;
 export const RE_SUBLINE = /^\s{2,}(\S.*)$/;
 // 키는 짧다. 콜론이 든 평범한 문장을 표로 오해하지 않으려는 상한이다.
 export const RE_KV = /^([^:\s][^:]{0,15}?)\s*:\s*(.*)$/;
+// AI-34: ``` 펜스 코드블록 시작/끝. 언어 태그(```python 등)는 lang으로 잡되, 그 뒤에는
+// 공백만 허용한다(코드 자체가 아니라 펜스 구분선으로만 본다).
+export const RE_FENCE = /^```(\S*)\s*$/;
 
 // 시각 표기 오탐 방지(step 10 #3, node로 재현 확인) — RE_KV는 첫 콜론만 보므로
 // "시" 부분이 키에, "분" 부분이 값 머리에 걸린다. 예전엔 키가 **순수 숫자뿐**일 때만
@@ -227,7 +230,26 @@ export function classifyLine(line) {
 export function parseBlocks(source) {
   const blocks = [];
   let cur = null;   // 열린 목록/문단/키-값 블록. 빈 줄이 닫는다.
+  // AI-34: 펜스 안 줄은 classifyLine에 절대 안 보낸다 — 예전엔 펜스 상태 자체가 없어서
+  // 펜스 안의 "- foo"가 불릿으로, "def f(x):"가 정의목록(kv) 행으로 오분류됐다(자유형
+  // LLM 응답에 코드 예시가 나올 때 실제로 겪는 경로 — claude_query()는 펜스를 막지 않는다).
+  let fence = null;  // { lang, lines } — 열린 펜스 동안 원본 줄을 그대로 모은다.
   String(source || "").split(/\r\n?|\n/).forEach((line) => {
+    if (fence) {
+      if (RE_FENCE.test(line)) {
+        blocks.push({ kind: "code", lang: fence.lang, text: fence.lines.join("\n") });
+        fence = null;
+      } else {
+        fence.lines.push(line);
+      }
+      return;
+    }
+    const openFence = RE_FENCE.exec(line);
+    if (openFence) {
+      cur = null;
+      fence = { lang: openFence[1] || "", lines: [] };
+      return;
+    }
     let c = classifyLine(line);
     if (c.kind === "blank") { cur = null; return; }
     if (c.kind === "head") { cur = null; blocks.push({ kind: "head", text: c.text, note: c.note }); return; }
@@ -248,6 +270,11 @@ export function parseBlocks(source) {
     if (!cur || cur.kind !== "para") { cur = { kind: "para", lines: [] }; blocks.push(cur); }
     cur.lines.push(c.text);
   });
+  // AI-34: 닫는 ``` 없이 입력이 끝나면(잘린 응답 등) 그때까지 모은 줄을 잃지 않고
+  // code 블록으로 낸다 — 침묵 손실보다 낫다.
+  if (fence) {
+    blocks.push({ kind: "code", lang: fence.lang, text: fence.lines.join("\n") });
+  }
   // "키: 값"처럼 생긴 줄 하나는 표가 아니라 문장이다("내 티켓: 총 25건"). 표는 2줄 이상일 때만.
   return blocks.map((b) => (b.kind === "kv" && b.rows.length < 2)
     ? { kind: "para", lines: b.rows.map((r) => r.raw) }

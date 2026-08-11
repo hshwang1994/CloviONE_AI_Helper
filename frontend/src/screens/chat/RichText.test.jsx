@@ -34,3 +34,29 @@ describe("RichText — 머리글 줄의 URL", () => {
     expect(getByText("요약", { exact: false })).toBeInTheDocument();
   });
 });
+
+// AI-34: 펜스 코드블록이 <pre><code>로 렌더되고, 원문이 linkifyText/블록 재분류를
+// 거치지 않고 그대로 보존된다.
+describe("RichText — 펜스 코드블록", () => {
+  it("```로 감싼 내용이 <pre><code>에 원문 그대로 렌더된다(불릿/URL로 오분류되지 않는다)", () => {
+    const { container } = render(
+      <RichText text={"```\ndef f(x):\n- https://example.com 아님\n```"} />,
+    );
+    const pre = container.querySelector("pre");
+    expect(pre).not.toBeNull();
+    const code = pre.querySelector("code");
+    expect(code).not.toBeNull();
+    expect(code.textContent).toBe("def f(x):\n- https://example.com 아님");
+    // 코드 안의 URL은 링크화되지 않는다 - 코드는 코드 그대로다.
+    expect(pre.querySelector("a")).toBeNull();
+  });
+
+  it("펜스 앞뒤의 일반 텍스트는 그대로 문단으로 렌더된다", () => {
+    const { getByText, container } = render(
+      <RichText text={"앞 문단\n```\ncode\n```\n뒤 문단"} />,
+    );
+    expect(getByText("앞 문단")).toBeInTheDocument();
+    expect(getByText("뒤 문단")).toBeInTheDocument();
+    expect(container.querySelector("pre code").textContent).toBe("code");
+  });
+});

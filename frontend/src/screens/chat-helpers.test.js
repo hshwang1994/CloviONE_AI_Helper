@@ -171,6 +171,28 @@ describe("parseBlocks", () => {
     const blocks = parseBlocks("■ 개요");
     expect(blocks).toEqual([{ kind: "head", text: "개요", note: "" }]);
   });
+
+  // AI-34: 펜스 안 줄은 classifyLine을 절대 안 거친다 — 불릿/kv/빈 줄처럼 생겼어도
+  // 코드 블록 텍스트로 그대로 보존돼야 한다.
+  it("keeps fenced content verbatim as a code block instead of misclassifying list/kv lines inside it", () => {
+    const blocks = parseBlocks("```python\ndef f(x):\n- 다른 목록\n상태: 값\n\n안녕\n```");
+    expect(blocks).toEqual([
+      { kind: "code", lang: "python", text: "def f(x):\n- 다른 목록\n상태: 값\n\n안녕" },
+    ]);
+  });
+
+  it("classifies content before and after a fenced block normally", () => {
+    const blocks = parseBlocks("- 목록1\n```\ncode line\n```\n상태: 진행\n담당: 김");
+    expect(blocks).toHaveLength(3);
+    expect(blocks[0]).toMatchObject({ kind: "list" });
+    expect(blocks[1]).toEqual({ kind: "code", lang: "", text: "code line" });
+    expect(blocks[2]).toMatchObject({ kind: "kv" });
+  });
+
+  it("still yields a code block for an unterminated fence at end of input", () => {
+    const blocks = parseBlocks("```\n- 안 닫힌 펜스\n마지막 줄");
+    expect(blocks).toEqual([{ kind: "code", lang: "", text: "- 안 닫힌 펜스\n마지막 줄" }]);
+  });
 });
 
 describe("pageNumberOrNull", () => {

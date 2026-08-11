@@ -51,6 +51,25 @@ export function RichText({ text }) {
             </Box>
           );
         }
+        if (b.kind === "code") {
+          // AI-34: 펜스 안 텍스트는 절대 linkifyText/블록 재분류를 거치지 않는다 — 원문
+          // 그대로 텍스트 노드로만 넣는다(innerHTML 금지, CLAUDE.md §2). 긴 줄은 이 앱의
+          // 다른 넓은 콘텐츠와 같은 관용(overflowX:auto)으로 가로 스크롤한다.
+          return (
+            <Box
+              key={bi} component="pre"
+              sx={{
+                m: 0, mt: bi === 0 ? 0 : 1, p: 1.25, borderRadius: 1.5,
+                bgcolor: "background.surface2", overflowX: "auto",
+                fontSize: "0.8125rem", lineHeight: 1.5,
+              }}
+            >
+              <Box component="code" sx={{ fontFamily: "monospace", whiteSpace: "pre" }}>
+                {b.text}
+              </Box>
+            </Box>
+          );
+        }
         if (b.kind === "kv") {
           return (
             <Box key={bi} component="dl" sx={{ m: 0, mt: bi === 0 ? 0 : 1, display: "grid", gap: 0.25 }}>
