@@ -660,3 +660,71 @@ Task 스케줄러의 역할도 "언제 일할지 정하는 페이서"에서 "루
 배포 자격증명 경계(D-53 이후 배너)상 이 스크립트를 지금 이 세션이 서버에서 직접 실행할 수도
 없다. 다음 배포 때 로그 마지막 줄이 `"worker active; web healthz OK"`로 바뀌었는지(예전엔
 `"web healthz OK; worker active"`) 확인하면 이 순서가 실제로 뒤집혔는지 알 수 있다.
+
+### D-59. SQLite 연결이 진짜 BEGIN 없이 돌고 있었다 — `isolation_level=None` + 명시 BEGIN으로 고친다 (Critical)
+
+UB-08(쿼터 `consume()`의 잠금 해제~커밋 사이 창) 회귀 테스트를 짜다가, 의도적으로 만든
+경합 시나리오가 예상과 다르게 동작해 더 깊이 파고든 결과 발견했다 — 이 세션에서 가장
+근본적이고 파급력이 큰 발견이다.
+
+**있었던 문제**: `app/core/db.py::make_engine()`이 pysqlite(Python 표준 `sqlite3` 모듈)의
+레거시 암묵적 트랜잭션 관리에 그대로 의존하고 있었다. SQLAlchemy는 `"begin"` 이벤트에서
+실제 `BEGIN` SQL을 내보내지 않았고(pysqlite가 알아서 낼 것이라 가정), pysqlite는 자기
+휴리스틱(INSERT/UPDATE/DELETE로 시작하는 문장만 인식)이 SAVEPOINT/RELEASE SAVEPOINT를
+인식하지 못해 아무 BEGIN도 내지 않았다. 그 결과 `db.begin_nested()`(SAVEPOINT — 이
+저장소 13곳 이상이 "실패한 쓰기만 되돌리고 세션의 다른 변경은 지킨다"는 목적으로 쓴다)가
+**진짜 BEGIN 없이** SAVEPOINT를 먼저 내보냈다. SQLite 자체 규칙상 활성 트랜잭션이 없을 때
+SAVEPOINT는 트랜잭션을 암묵적으로 열고, 그 SAVEPOINT를 RELEASE하면(그것이 트랜잭션을 연
+당사자이므로) **커밋과 동일하게 처리된다**.
+
+**직접 재현·확인**(`tests/integration/test_zz_scratch_isolation_probe*.py`, 검증 후 삭제):
+- `db.begin_nested()`로 감싼 커밋 안 한 쓰기가 **다른 커넥션에 즉시 보였다**.
+- 그 뒤 `session.rollback()`을 불러도 그 행이 **사라지지 않았다** — 세션 자기 자신도
+  마찬가지(`session.execute(...)`로 재확인).
+- `sqlite3.Connection.in_transaction`이 SAVEPOINT 직후에도 `False`를 보고했다(pysqlite
+  자신도 "트랜잭션 중"이라고 인식하지 못하고 있었다는 뜻).
+
+즉 `db.begin_nested()`로 "실패하면 이것만 되돌아간다"고 코드 13곳 이상이 믿고 있던 전제가
+실제로는 **롤백이 되지 않는 상태로 프로덕션에 배포돼 있었다** — SAVEPOINT 실패 시 부분
+롤백을 기대한 모든 재시도 로직이 사실은 무조건 커밋되는 것과 같았다는 뜻이다. 이 결함
+자체가 데이터 손상으로 이어진 구체적 사고는 (아직) 발견되지 않았지만, ACID 격리·원자성
+보장이 이 정도로 깨져 있었다는 사실 자체가 Critical이다.
+
+**고친 것**: `app/core/db.py::make_engine()`에 SQLAlchemy 공식 권고("Serializable
+isolation / Savepoints / Transactional DDL", pysqlite 다이얼렉트 문서)를 그대로 적용 —
+`connect` 이벤트에서 `dbapi_connection.isolation_level = None`으로 pysqlite의 암묵
+관리를 끄고, `"begin"` 이벤트에서 `conn.exec_driver_sql("BEGIN")`을 직접 낸다.
+
+**`BEGIN IMMEDIATE`를 먼저 시도했다가 되돌린 이유**: IMMEDIATE는 트랜잭션 시작 즉시 전역
+쓰기 예약을 잡는다 — SAVEPOINT 문제는 깨끗이 없어지지만, **읽기 전용 세션까지** 그 예약을
+잡아서 이 저장소의 테스트가 흔히 쓰는 "세션 하나를 테스트 내내 열어 두고 그 사이
+client/worker가 별도 세션으로 쓴다" 패턴과 정면충돌했다. 실측: DEFERRED에서 23건이던
+전체 회귀 적색이 IMMEDIATE에서 **84건으로 늘었다**. DEFERRED로 되돌리고 아래 재시도
+로직으로 해결했다 — `quota_lock.py`·`claim_lock.py`가 이미 전제하는 busy_timeout 기반
+모델과도 이쪽이 맞는다.
+
+**부작용과 정리(같은 근본원인, 한 커밋에 함께 처리 — `docs/BACKLOG.md` 새 항목
+`CORE-13`)**: 정확한 격리가 적용되자 예전엔 감춰져 있던 진짜 경합이 새로 드러났다.
+`app/core/db.py::is_write_conflict()`를 신설해 `IntegrityError`뿐 아니라
+`OperationalError`(SQLite 확장 코드, 예: 517=`SQLITE_BUSY_SNAPSHOT` — 하위 바이트로
+낮춰 `SQLITE_BUSY`/`SQLITE_LOCKED` 판정)도 "쓰기 충돌"로 인식하게 했고, `db.begin_nested()`
+재시도 코드 13곳에 적용했다. 스냅샷이 낡으면 **같은 트랜잭션 안에서 재조회해도 여전히
+낡은 값을 본다**는 점도 새로 확인해(`app/core/versioning.py::snapshot_config`가 최초
+사례), 재시도 전 `db.commit()`(다른 pending 변경을 잃지 않으려 rollback 대신) 또는
+`db.rollback()`(잃을 게 없는 곳)으로 스냅샷을 새로 뜨는 보강을 곁들였다. `/login`
+(`app/auth/router.py`)은 10-way 동시 로그인 스트레스 시험으로 실제 프로덕션 경로에서도
+이 경합이 재현됨을 확인해 재시도(10회)+지터를 추가했다. 테스트 픽스처 다수가 쓰던
+`db.expire_all()`도 스냅샷 자체는 안 바꾼다는 사실이 드러나 `db.commit()`을 먼저 하도록
+12개 파일을 고쳤다.
+
+**검증**: 전체 백엔드 회귀(2670+건) — 수정 전 exit 0(그러나 이 버그를 안고 있는 채),
+IMMEDIATE 실험 중 84건 적색, DEFERRED+보강 후 다시 exit 0·실패표시 0건. 가장 마지막까지
+flaky했던 `test_10_concurrent_logins`은 지터 추가 후 연속 8/8 통과 확인. 상세 커밋:
+`400503c`.
+
+**왜 지금까지 아무도 몰랐나**: 이 결함은 **테스트로도, 실사용으로도 거의 드러나지
+않는다** — 대부분의 요청은 SAVEPOINT가 실패하지 않고(경합이 실제로 안 일어나서), 실패해도
+결국 요청 끝에 `get_db`가 정상 커밋하므로 "저장은 됐다"는 결과만 보면 차이가 없다.
+차이는 오직 "SAVEPOINT가 실패한 뒤 그 세션이 계속 살아서 재시도/다른 로직을 타는" 좁은
+창에서만 관찰된다 — 정확히 이 세션이 UB-07/UB-18/UB-08을 고치며 그 창을 직접 겨눈 시험을
+새로 짜다가 우연히 걸려든 것이다.

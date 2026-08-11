@@ -502,7 +502,76 @@ chat_mention)은 전부 **사용자 콘솔 화면**이라 role 제한이 없어�
   (되돌리면 뒤집힌 창 3건 실패 확인 후 복원 — "정상 창 편집" 시험은 원래도 통과라 회귀
   신호가 없는 게 정상, 정직하게 확인함).
 - **검증**: `test_admin_backlog.py`(32건) + 공지 전체(33건) green. 백엔드 전체 회귀
-  (2670+건)는 배경 실행 중.
+  (2670+건) exit code 0·실패표시 0건 확인. 커밋 `890754d`.
+
+## 🔴 사용자 지시 전환 — FINAL EXECUTION DIRECTIVE (2026-08-11, D-60 성격의 방법론 변경)
+
+사용자가 "AREA/CYCLE/BACKLOG 몇 건 단위로 멈추지 말고 PROJECT 전체를 끝낼 때까지 계속하라,
+넓게 조사하고 크게 고치고 전체 회귀는 뒤에서 한 번에" 취지의 대형 지시를 내렸다(Ultracode
+사용 허가 포함). 이 시점부터 기존 "한 BACKLOG ID → 구현 → focused test → 전체 회귀 →
+커밋 → 다음" 루프를, "루트 코즈 클러스터 단위로 크게 조사·구현하고, 전체 회귀는 배치가
+수렴했을 때만" 방식으로 전환했다. `Workflow` 도구로 남은 오픈 BACKLOG(~190여 건, "발견"
+상태만)를 프리픽스별 5개 에이전트로 병렬 감사해 근본원인 클러스터·우선순위 큐를 뽑았다
+(전체 결과는 워크플로 저널에 있음 — 요지는 아래 "다음 착수 후보"에 옮겨 적는다).
+
+## 🔴 이 감사에서 시작한 UB-08 시험 작성 중 이 세션에서 가장 큰 발견 — SQLite 트랜잭션이
+## 진짜 BEGIN 없이 돌고 있었다 (Critical, CORE-13)
+
+UB-08(쿼터 `consume()`의 잠금 해제~커밋 사이 창) 회귀 테스트를 짜다가, 의도한 경합
+시나리오가 예상과 다르게(반대로) 동작하는 것을 보고 원인을 추적한 끝에 발견했다:
+`app/core/db.py`가 pysqlite의 레거시 암묵적 트랜잭션 관리에 의존해서, `db.begin_nested()`
+(SAVEPOINT — 이 저장소 13곳 이상이 "실패한 쓰기만 되돌리고 세션의 다른 변경은 지킨다"는
+목적으로 쓴다)가 **진짜 BEGIN 없이** SAVEPOINT를 먼저 내보냈다. SQLite는 그 SAVEPOINT
+자체가 트랜잭션을 암묵적으로 연 것으로 보고, 그 SAVEPOINT를 RELEASE하는 순간을 **커밋과
+동일하게** 처리했다 — 직접 재현·확인(임시 프로브 스크립트, 검증 뒤 삭제): 커밋 안 한
+SAVEPOINT 쓰기가 다른 커넥션에 즉시 보이고, 그 뒤 `session.rollback()`을 불러도 그 행이
+사라지지 않았다(세션 자기 자신도 마찬가지 — `sqlite3.Connection.in_transaction`이
+SAVEPOINT 직후에도 `False`). 즉 이 코드 13곳 이상이 믿고 있던 "SAVEPOINT 실패 시 그것만
+되돌아간다"는 전제가 **실제로는 롤백이 안 되는 채로 프로덕션에 배포돼 있었다** — 진짜
+ACID 위반. 왜 지금까지 안 드러났는지는 `docs/DECISIONS.md` D-59 참고("SAVEPOINT가
+실패한 뒤 그 세션이 계속 살아서 재시도/다른 로직을 타는" 좁은 창에서만 관찰되고, 대부분의
+요청은 애초에 경합이 안 일어나거나 결국 요청 끝에 정상 커밋되므로 "저장은 됐다"만 보면
+차이가 없다).
+
+**고친 것** — `app/core/db.py::make_engine()`: SQLAlchemy 공식 권고(pysqlite 다이얼렉트
+문서의 "Serializable isolation / Savepoints") 그대로 `isolation_level=None`(pysqlite의
+암묵 관리를 끔) + `"begin"` 이벤트에서 직접 `BEGIN` 발행. `BEGIN IMMEDIATE`를 먼저
+시도했다가 실측으로 되돌렸다 — 읽기 전용 세션까지 전역 쓰기 예약을 잡아, 이 저장소의
+"세션 하나를 테스트 내내 열어 두는" 픽스처 패턴과 부딪혀 전체 회귀 적색이 23건→**84건**
+으로 늘었다. DEFERRED(평범한 BEGIN)로 되돌리고 아래 재시도 로직으로 해결했다 —
+`quota_lock.py`·`claim_lock.py`가 이미 전제하던 busy_timeout 모델과도 이쪽이 맞는다.
+
+**부작용(정확한 격리가 드러낸 진짜 경합) — 같은 커밋에서 함께 정리**:
+- `is_write_conflict()` 신설(`app/core/db.py`) — `IntegrityError`뿐 아니라
+  `OperationalError`(SQLite 확장 결과 코드, 실측: 517=`SQLITE_BUSY_SNAPSHOT` — 하위
+  바이트로 낮춰 `SQLITE_BUSY`/`SQLITE_LOCKED` 판정)도 "쓰기 충돌"로 인식. `db.begin_nested()`
+  재시도 코드 13곳(announcements/approvals/board/games/integrations/profiles/prompts/
+  team_chat×3/team_docs×2/workflows/core.versioning)에 적용.
+- 스냅샷이 낡으면 **같은 트랜잭션 안에서 재조회해도 여전히 낡은 값을 본다**는 것도 새로
+  확인(`versioning.py::snapshot_config`가 최초 사례 — 재시도해도 매번 같은 버전 번호를
+  계산해 같은 충돌을 반복했다). 재시도 전 `db.commit()`(다른 pending 변경을 잃지 않으려
+  rollback 대신 — 이 함수 자체 docstring이 그 전제를 이미 적어 뒀었다) 또는
+  `db.rollback()`(잃을 게 없는 곳)으로 스냅샷을 새로 뜨는 보강. `approvals.create_approval`
+  은 8-way 실측 경합 후 재시도 횟수도 12회로 늘림, `games._cas_update_state`도 동일 패턴.
+- `prompts/service.py::transition()` — 옛 발행본을 archive로 내리는 UPDATE가 SAVEPOINT
+  **밖**에 있어 그 문장의 경합이 안 잡히고 새고 있었다 — 두 UPDATE를 하나의 SAVEPOINT로
+  묶었다.
+- `/login`(`app/auth/router.py`) — 성공 경로 쓰기(세션 생성·감사·사용통계)가 로그인
+  앞부분의 읽기로 이미 굳은 스냅샷 위에서 실행돼, 동시 로그인이 몰리면 무관한 다른
+  사용자의 커밋과도 부딪힐 수 있었다(10-way 동시 로그인 스트레스 시험으로 실측 재현 —
+  프로덕션에 실제로 영향을 줄 수 있는 경로라 중요). 재시도(최대 10회) + 지터(즉시 재시도만
+  하면 여러 스레드가 서로 계속 다시 부딪힌다 — 지터 없이는 5번 중 1번꼴로 여전히 실패) 추가,
+  연속 8/8 통과 확인.
+- 테스트 픽스처 12개 파일(project_sync/users_bulk_csv/collab_notifications/settings_api/
+  job_scope/project_scope/trash_scope/chat_ticket_routing_contract/health_snapshot_job/
+  project_api/project_milestones/team_chat_completion/review3_fixes) — `db.expire_all()`
+  만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다(ORM 캐시만 지운다)는 것도 이번에 드러나,
+  `client`로 다른 세션이 쓴 뒤 `db` 픽스처로 다시 읽는 자리마다 `db.commit()`을 먼저
+  하도록 고쳤다.
+
+**검증**: 전체 백엔드 회귀(2670+건) — DEFERRED+위 보강 적용 후 exit code 0·진행 표시에
+실패 표시(F/E/x/s) 0건. `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 커밋
+`400503c`. 상세 경위·트레이드오프는 `docs/DECISIONS.md` D-59, BACKLOG 항목은 `CORE-13`.
 
 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이 진행한다.
 
