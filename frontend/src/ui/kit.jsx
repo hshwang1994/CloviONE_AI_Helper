@@ -549,8 +549,11 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                    `overflowWrap: anywhere` 때문에 열의 최소 폭이 '한 글자'가 되어, 제목이
                    세로로 무너진다(24px 폭에 11줄 — QA의 vertical_text_collapse 검사가 잡는
                    상태). 폭이 모자라면 TableContainer가 스스로 가로 스크롤하므로 페이지에
-                   가로 스크롤이 생기지는 않는다. */
-                sx={{ width: c.width, minWidth: c.minWidth, whiteSpace: "nowrap" }}
+                   가로 스크롤이 생기지는 않는다.
+                   본문 셀엔 이미 이 바닥값이 있었는데(DS-06) 머리글 셀엔 없었다 — 폭 906~1366px
+                   구간에서 열이 많은 표(`/users` 9열 등)가 실측으로 무너진 게(VIS-73/RESP-01/
+                   RESP-02) 바로 이 비대칭이었다. 같은 바닥값을 여기도 준다. */
+                sx={{ width: c.width, minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH), whiteSpace: "nowrap" }}
               >
                 {/* 상세 열기 칸은 라벨이 비어 있어 스크린리더가 이름 없이 침묵으로 읽었다. */}
                 {c.open ? <span className="sr-only">동작</span> : c.label}
@@ -571,19 +574,34 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                 onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
                 sx={{ cursor: onRow ? "pointer" : "default" }}
               >
-                {cols.map((c) => (
-                  <TableCell
-                    key={c.key}
-                    align={c.align || "left"}
-                    sx={ellipsis && !c.open
-                      ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 }
-                      : { overflowWrap: c.nowrap ? "normal" : "anywhere",
-                         whiteSpace: c.nowrap ? "nowrap" : undefined,
-                         minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH) }}
-                  >
-                    {c.open ? openButton(row) : cellValue(c, row, ctx)}
-                  </TableCell>
-                ))}
+                {cols.map((c) => {
+                  /* HOST-01/HOST-02/VIS-73 — 열 폭이 순수하게 내용에서 파생되던 게 두 방향 모두에서
+                     문제였다: ① 값 하나가 길면 그 셀이 51px×2,353px까지 벌어지고 같은 행의 다른
+                     셀도 그 높이로 끌려간다(HOST-01, truncateCol이 있는 자리에만 부분 적용돼 있었다)
+                     ② 열이 많으면 `overflowWrap:anywhere`가 각 열을 '한 글자' 폭까지 짜부라뜨린다
+                     (VIS-73). `c.render`가 있는 열(배지·버튼·직접 JSX)은 이미 자기 폭을 스스로
+                     관리하므로 건드리지 않는다 — 값을 있는 그대로 보여주는 순수 텍스트 열만 기본을
+                     말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
+                     이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
+                     `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
+                  const truncate = !c.open && (ellipsis || !c.render);
+                  const raw = !c.open && !c.render ? cellValue(c, row, ctx) : null;
+                  return (
+                    <TableCell
+                      key={c.key}
+                      align={c.align || "left"}
+                      title={truncate && raw && raw !== "-" ? raw : undefined}
+                      sx={truncate
+                        ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0,
+                           minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH }
+                        : { overflowWrap: c.nowrap ? "normal" : "anywhere",
+                           whiteSpace: c.nowrap ? "nowrap" : undefined,
+                           minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH) }}
+                    >
+                      {c.open ? openButton(row) : raw != null ? raw : cellValue(c, row, ctx)}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             );
           })}

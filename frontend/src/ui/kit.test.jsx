@@ -175,6 +175,40 @@ describe("DataTable", () => {
     ui(<DataTable columns={undefined} rows={undefined} empty="항목 없음" />);
     expect(screen.getByText("항목 없음")).toBeInTheDocument();
   });
+
+  /* VIS-73/RESP-01/RESP-02/HOST-01/HOST-02 — 열 폭이 순수하게 내용에서 파생돼 ① 열이 많으면
+   * `overflowWrap:anywhere`가 열을 '한 글자' 폭까지 짜부라뜨리고(폭 1200 근처 vertical_text_collapse)
+   * ② 값 하나가 길면 그 셀이 통째로 벌어지는(51px×2,353px) 두 결함이 같은 뿌리였다. `render`가
+   * 없는 순수 텍스트 열은 이제 기본이 말줄임(ellipsis)이고, 머리글 셀도 본문과 같은 바닥 폭을 받는다. */
+  describe("긴 텍스트 열 보호 (VIS-73/HOST-01/HOST-02)", () => {
+    const longValue = "가".repeat(200);
+    it("render 없는 텍스트 열은 기본이 말줄임이고 title에 전체 값이 남는다", () => {
+      ui(<DataTable columns={[{ key: "name", label: "이름" }]} rows={[{ id: 1, name: longValue }]} rowKey={(r) => r.id} />);
+      const cell = screen.getByText(longValue);
+      expect(cell).toHaveAttribute("title", longValue);
+      expect(cell).toHaveStyle({ textOverflow: "ellipsis", whiteSpace: "nowrap" });
+    });
+
+    it("render가 있는 열(배지·버튼 등)은 말줄임을 강제하지 않는다 — 자기 폭을 스스로 관리한다", () => {
+      ui(<DataTable columns={[{ key: "status", label: "상태", render: (r) => <span>{r.status}</span> }]}
+        rows={[{ id: 1, status: "진행" }]} rowKey={(r) => r.id} />);
+      const cell = screen.getByText("진행");
+      expect(cell).not.toHaveAttribute("title");
+      expect(cell.closest("td")).not.toHaveStyle({ textOverflow: "ellipsis" });
+    });
+
+    it("값이 비어 '-'로 표시될 때는 의미 없는 title을 안 붙인다", () => {
+      ui(<DataTable columns={[{ key: "name", label: "이름" }]} rows={[{ id: 1, name: null }]} rowKey={(r) => r.id} />);
+      const cell = screen.getByText("-");
+      expect(cell).not.toHaveAttribute("title");
+    });
+
+    it("머리글 셀도 본문과 같은 바닥 폭(4.5rem)을 받는다 — 폭 지정 없는 열의 헤더/본문 비대칭 해소", () => {
+      ui(<DataTable columns={[{ key: "name", label: "이름" }]} rows={[{ id: 1, name: "홍길동" }]} rowKey={(r) => r.id} />);
+      const header = screen.getByRole("columnheader", { name: "이름" });
+      expect(header).toHaveStyle({ minWidth: "4.5rem" });
+    });
+  });
 });
 
 describe("Modal", () => {
