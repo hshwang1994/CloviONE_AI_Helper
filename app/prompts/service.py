@@ -120,6 +120,9 @@ def transition(
     return row
 
 
+_NEW_VERSION_RETRIES = 5
+
+
 def new_version_from(
     db: Session,
     row: VersionedModel,
@@ -128,28 +131,49 @@ def new_version_from(
     created_by: str | None,
 ) -> VersionedModel:
     model = type(row)
-    version = next_version(db, model, row.name)
-    if isinstance(row, Prompt):
-        copy = Prompt(
-            name=row.name,
-            purpose=row.purpose,
-            version=version,
-            content=content if content is not None else row.content,
-            status=STATUS_DRAFT,
-            runner_id=row.runner_id,
-            created_by=created_by,
-        )
-    else:
-        copy = Policy(
-            name=row.name,
-            version=version,
-            content_json=content if content is not None else row.content_json,
-            status=STATUS_DRAFT,
-            created_by=created_by,
-        )
-    db.add(copy)
-    db.flush()
-    return copy
+    name = row.name
+    is_prompt = isinstance(row, Prompt)
+    purpose = row.purpose if is_prompt else None
+    runner_id = row.runner_id if is_prompt else None
+    source_content = content if content is not None else _model_content(row)
+    # UB-21: 같은 이름에 "새 버전" 요청 두 개가 거의 동시에 오면(연타·재제출) 둘 다 같은
+    # next_version()을 읽어 같은 버전 번호로 삽입을 시도할 수 있다 - uq_{prompts,policies}
+    # _name_version 유일 제약이 진 쪽을 IntegrityError로 막는데, 여태 아무도 안 잡아서
+    # 그대로 500으로 샜다. approvals.create_approval과 같은 관용: SAVEPOINT 안에서
+    # 시도하고, 지면 커밋(스냅샷을 새로 뜬다 - CORE-13, "낡은 스냅샷은 SAVEPOINT
+    # 롤백으로도 안 새로고침된다")한 뒤 버전 번호를 다시 계산해 재시도한다. router.py의
+    # create()와 달리 이건 재시도만으로 실제로 풀리는 경합이라(다음 루프의 next_version()
+    # 이 다른 번호를 준다) 사용자에게 409를 보여줄 이유가 없다.
+    for attempt in range(_NEW_VERSION_RETRIES):
+        version = next_version(db, model, name)
+        if is_prompt:
+            copy = Prompt(
+                name=name,
+                purpose=purpose,
+                version=version,
+                content=source_content,
+                status=STATUS_DRAFT,
+                runner_id=runner_id,
+                created_by=created_by,
+            )
+        else:
+            copy = Policy(
+                name=name,
+                version=version,
+                content_json=source_content,
+                status=STATUS_DRAFT,
+                created_by=created_by,
+            )
+        try:
+            with db.begin_nested():
+                db.add(copy)
+                db.flush()
+            return copy
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc) or attempt == _NEW_VERSION_RETRIES - 1:
+                raise
+            db.commit()
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _diff_lines(row: VersionedModel) -> list[str]:

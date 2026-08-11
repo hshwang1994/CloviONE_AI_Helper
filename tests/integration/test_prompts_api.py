@@ -87,6 +87,28 @@ def test_content_editable_only_in_draft(client, admin_csrf):
     assert r.status_code == 409
 
 
+def test_patch_prompt_content_null_is_rejected_not_stored_as_braces(client, admin_csrf):
+    # UB-22: PromptContentUpdateRequest/PolicyContentUpdateRequest 분리 전에는 이 스키마가
+    # 하나(ContentUpdateRequest)였고, Policy용 "빈 JSON 입력란 → {}" 기본값 처리가 타입
+    # 게이트 없이 Prompt에도 적용됐다. content가 null이면 프롬프트(자유 텍스트) 본문에는
+    # 422 검증 오류가 나야 한다 — 문자열 리터럴 "{}"가 저장되면 안 된다.
+    item = _create_prompt(client, admin_csrf)
+    r = client.patch(
+        f"/api/admin/prompts/{item['id']}", json={"content": None}, headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 422, r.text
+
+    # 대조군: Policy는 여전히 null → {} 로 받아 줘야 한다(관리자 콘솔의 빈 JSON 입력란).
+    policy = client.post(
+        "/api/admin/policies", json={"name": "널 정책", "content": "{}"}, headers=_headers(admin_csrf)
+    ).json()["item"]
+    r = client.patch(
+        f"/api/admin/policies/{policy['id']}", json={"content": None}, headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["item"]["content"] == {}
+
+
 def test_publish_archives_previous_published(client, admin_csrf):
     v1 = _create_prompt(client, admin_csrf)
     for step in ["test", "review", "published"]:

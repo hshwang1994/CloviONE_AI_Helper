@@ -21,10 +21,12 @@ def _json_object_to_str(value: object) -> object:
         return "{}"
     return value
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
+from app.core.db import is_write_conflict
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, ValidationAppError
 from app.prompts.models import STATUS_DRAFT, STATUS_PUBLISHED, Policy, Prompt
@@ -54,13 +56,21 @@ class PolicyCreateRequest(BaseModel):
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
 
 
-class ContentUpdateRequest(BaseModel):
+# UB-22: 예전엔 이 하나(ContentUpdateRequest)를 prompts/policies 둘 다에 썼다.
+# `_json_object_to_str`의 `None → "{}"` 분기가 콘솔의 "빈 JSON 입력란"(Policy)을 위한
+# 것인데 타입 게이트가 없어, `PATCH prompts/{id} {"content": null}`(자유 텍스트여야
+# 하는 Prompt 본문)도 그대로 통과해 422 검증 오류 대신 **문자열 리터럴 "{}"가 본문에
+# 저장**됐다 - create() 이 이미 kind별로 스키마를 나눠 두고 있던 것(PromptCreateRequest/
+# PolicyCreateRequest)과 같은 모양으로 patch()도 나눈다.
+class PromptContentUpdateRequest(BaseModel):
     content: str = Field(max_length=100000)
     purpose: str | None = Field(default=None, max_length=2000)
     runner_id: str | None = None
 
-    # Policy 수정은 JSON 객체를 보낸다(관리자 콘솔). Prompt 수정은 자유 텍스트(문자열)를 보낸다.
-    # 아래 코어서는 객체만 문자열로 바꾸므로 프롬프트 본문에는 영향이 없다.
+
+class PolicyContentUpdateRequest(BaseModel):
+    content: str = Field(default="{}", max_length=100000)
+
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
 
 
@@ -131,7 +141,7 @@ def _resolve_creator_names(db: Session, ids) -> dict:
     return result
 
 
-def _build_router(kind: str, model, view, create_schema):
+def _build_router(kind: str, model, view, create_schema, content_update_schema):
     router = APIRouter(
         prefix=f"/api/admin/{kind}",
         tags=[f"admin-{kind}"],
@@ -203,8 +213,23 @@ def _build_router(kind: str, model, view, create_schema):
                 content=content, status=STATUS_DRAFT,
                 runner_id=payload.runner_id, created_by=request.state.user.id,
             )
-        db.add(row)
-        db.flush()
+        # UB-21: 위 존재 확인~삽입 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 같은
+        # 이름으로 두 생성 요청이 거의 동시에 오면(더블클릭) 둘 다 "기존 없음"을 보고
+        # 각자 version=1 삽입을 시도할 수 있다 - uq_{prompts,policies}_name_version
+        # 유일 제약이 진 쪽을 IntegrityError로 막는데, 여태 아무도 안 잡아서 그대로
+        # 500으로 샜다. 재시도는 안 한다 - 이건 approvals/new_version_from의 "재시도로
+        # 풀리는 경합"이 아니라 "이름이 이미 있다"는 실제 결론이 하나뿐인 경합이라,
+        # 위와 같은 메시지로 깨끗한 409를 준다.
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            raise ConflictError(
+                f"이미 존재하는 이름입니다: {payload.name}: new-version을 사용하세요."
+            ) from exc
         record_audit_from_request(
             # 같은 기능 안에서 create만 단수화(kind[:-1])해 'policies'→'policie.create'로 어긋났고,
             # 나머지 액션은 'policies.update_content'처럼 복수였다. object_type과 동일한 kind로
@@ -222,7 +247,7 @@ def _build_router(kind: str, model, view, create_schema):
     def patch(
         request: Request,
         row_id: str,
-        payload: ContentUpdateRequest,
+        payload: content_update_schema,
         db: Session = Depends(get_db),
     ):
         row = get_or_404(db, model, row_id)
@@ -370,5 +395,9 @@ def _build_router(kind: str, model, view, create_schema):
     return router
 
 
-prompts_router = _build_router("prompts", Prompt, _prompt_view, PromptCreateRequest)
-policies_router = _build_router("policies", Policy, _policy_view, PolicyCreateRequest)
+prompts_router = _build_router(
+    "prompts", Prompt, _prompt_view, PromptCreateRequest, PromptContentUpdateRequest
+)
+policies_router = _build_router(
+    "policies", Policy, _policy_view, PolicyCreateRequest, PolicyContentUpdateRequest
+)
