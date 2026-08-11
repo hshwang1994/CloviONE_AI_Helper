@@ -63,6 +63,15 @@ def record_usage(
 
     `db.commit()` 은 하지 않는다 — 부르는 쪽의 트랜잭션에 얹혀서, 본 작업이 롤백되면
     이 줄도 함께 사라지는 것이 맞다("실패한 티켓 생성"이 통계에 잡히면 안 된다).
+
+    UB-18: `db.flush()` 가 실패하면(예: 저장 계층 문제) SQLAlchemy 세션은
+    pending-rollback 상태가 된다 — `db.rollback()` 없이 그 세션으로 **다음 문장을 하나라도
+    더** 실행하면(호출자의 나머지 로직, 또는 `get_db` 의 요청-끝 `db.commit()`) 전부
+    `PendingRollbackError` 로 깨진다. "통계 한 줄 때문에 로그인·티켓 생성이 실패하면
+    안 된다"는 이 함수의 존재 이유가 정확히 반대로 작동했었다 — 로그 실패가 본 작업까지
+    끌고 내려갔다. `begin_nested()`(SAVEPOINT, `app/core/versioning.py` 등과 같은 패턴)로
+    감싸면 실패해도 이 SAVEPOINT 만 롤백되고 호출자가 이미 세션에 올려 둔 다른 변경은
+    그대로 남는다.
     """
     try:
         row = UsageEvent(
@@ -76,8 +85,9 @@ def record_usage(
             row.org_id = org_id
         if now is not None:
             row.created_at = now
-        db.add(row)
-        db.flush()
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
         return row
     except Exception:
         logger.exception("usage event 기록 실패 (무시하고 계속한다): %s", event)

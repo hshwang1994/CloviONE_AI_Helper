@@ -460,12 +460,31 @@ chat_mention)은 전부 **사용자 콘솔 화면**이라 role 제한이 없어�
   1회가 아니라 반복 확인함).
 - **검증**: 프런트 전체 회귀(211파일/1404건) + `STATIC_CHECKS_OK`(번들 재빌드 포함) +
   네 변경 전부에 대한 focused 시험(uploads·installer 회귀·drawer 컴포저·공지 경합 3회
-  반복) — 전부 green 확인함. 백엔드 전체 회귀(2670+건)는 이 배치 전체(OPS-05/OPS-02/
-  AI-27/UB-07)가 다 들어간 상태로 재실행했다 — 1차 실행(UB-07 반영 전)은 exit code 0·
-  실패표시 0건 확인, **UB-07까지 포함한 2차 전체 실행은 이 문단을 쓰는 시점에 아직 배경
-  실행 중**이다(커밋은 그 결과를 보고 나서 한다 — 미완료 상태로 green이라 적지 않는다).
-  실서버/브라우저 확인은
-  배포 Blocker로 여전히 불가(§D-54).
+  반복) — 전부 green 확인함. 백엔드 전체 회귀(2670+건)를 이 배치 전체(OPS-05/OPS-02/
+  AI-27/UB-07)가 다 들어간 상태로 재실행해 exit code 0·실패표시 0건 확인. 커밋 `a625f76`.
+  실서버/브라우저 확인은 배포 Blocker로 여전히 불가(§D-54).
+
+**계속(2026-08-11, 연속 실행) — UB-18 구현완료**: `a625f76` 커밋 직후 바로 다음 후보를
+코드로 재확인해 착수했다.
+- **UB-18**: `record_usage`(`app/observability/service.py`)가 `db.flush()` 실패를
+  `except Exception:`으로 삼키기만 하고 `db.rollback()`을 안 해 세션이 pending-rollback
+  상태로 남았다 — 그 세션으로 **다음 문장을 하나라도 더** 실행하면(호출자의 나머지
+  로직, 또는 `get_db`의 요청-끝 `db.commit()`) 전부 `PendingRollbackError`로 깨진다.
+  이 함수 자체 docstring이 약속한 "통계 한 줄 때문에 로그인·티켓 생성이 실패하면
+  안 된다"와 정확히 반대로, 통계 실패가 본 작업까지 끌고 내려가는 구조였다. `db.add(row);
+  db.flush()`를 `with db.begin_nested():`(SAVEPOINT)로 감쌌다 — `app/core/versioning.py`
+  의 `_create_version_with_retry`가 이미 쓰던 것과 같은 패턴("실패한 insert를 savepoint로
+  감싸 세션에 이미 올라와 있는 다른 변경까지 되돌리지 않는다"는 그 파일 자체 docstring이
+  UB-18에 그대로 들어맞는다). 신규 시험
+  `test_record_usage_failure_does_not_poison_other_pending_changes_in_the_session` —
+  다른 pending 변경(커밋 안 된 별도 `UsageEvent`)을 세션에 먼저 올려 두고, 실패하는
+  기록(`event=None`, NOT NULL 위반)을 호출한 뒤, **수동 rollback 없이** 정상 커밋까지
+  되는지 + 그 다른 변경이 실제로 저장됐는지 확인. revert-to-verify(되돌리면 잡히지 않은
+  `IntegrityError`로 즉시 실패 확인 후 복원). 호출부 4곳(auth 로그인·티켓 생성·문서
+  생성·quotas) 중 `quotas.consume()`은 이미 자체 `begin_nested()`를 쓰고 있어 중첩
+  SAVEPOINT가 되는데, 관련 시험 전부(quota TOCTOU 포함 18건) green으로 문제없음을 확인.
+- **검증**: `test_usage_events.py`(15건) + 로그인/티켓생성/문서생성/quota 관련 폭넓은
+  focused 시험 전부 green. 백엔드 전체 회귀(2670+건)는 배경 실행 중.
 
 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이 진행한다.
 

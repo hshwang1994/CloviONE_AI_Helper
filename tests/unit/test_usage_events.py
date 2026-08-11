@@ -92,6 +92,33 @@ def test_record_usage_never_raises(db):
     db.rollback()
 
 
+def test_record_usage_failure_does_not_poison_other_pending_changes_in_the_session(db):
+    """UB-18: `flush()` 실패가 SAVEPOINT 없이 그대로 세션을 pending-rollback 상태로
+    만들면, 호출자가 이미 같은 세션에 올려 둔(아직 커밋 안 된) **관련 없는 다른 변경**
+    까지 이후 아무 작업에서나 `PendingRollbackError`로 함께 끌고 내려간다 — "통계 한 줄
+    때문에 로그인·티켓 생성이 실패하면 안 된다"는 이 함수의 존재 이유와 정반대다.
+    """
+    # 호출자가 이미 세션에 올려 둔, 아직 커밋 안 된 다른 변경(본 작업의 일부를 흉내).
+    other = UsageEvent(event=EVENT_LOGIN, user_id="u-other")
+    db.add(other)
+    db.flush()
+
+    # 실패하는 기록 — event=None 은 NOT NULL 위반으로 flush 를 깨뜨린다(위 시험과 동일).
+    result = record_usage(db, event=None)  # type: ignore[arg-type]
+    assert result is None
+
+    # 고쳐지기 전이었다면 여기서(수동 rollback 없이) PendingRollbackError 가 났다 —
+    # 세션이 실패 이후에도 그대로 쓸 수 있어야 한다.
+    db.commit()
+
+    from sqlalchemy import select
+
+    saved = db.execute(select(UsageEvent)).scalars().all()
+    assert any(r.id == other.id for r in saved), (
+        "실패한 usage 기록이 같은 세션의 다른 pending 변경까지 함께 사라지게 했다"
+    )
+
+
 def test_event_names_come_from_one_place():
     """'auth.login' 과 'login' 이 같은 뜻으로 둘 다 쌓이면 집계가 조용히 반토막 난다."""
     assert EVENT_LOGIN in KNOWN_EVENTS
