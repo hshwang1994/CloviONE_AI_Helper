@@ -147,8 +147,12 @@ install -d -o root -g root -m 0755 "$APP_DIR"
 install -d -o root -g "$SVC_USER" -m 0750 "$ETC_DIR"
 install -d -o root -g root -m 0755 "$ETC_DIR/tls"
 install -d -o root -g "$SVC_USER" -m 0750 "$ETC_DIR/secrets"
+# uploads 는 app/core/uploads.py 가 첫 업로드 때 mkdir(parents=True, exist_ok=True)로도
+# 만들지만, 그건 이미 존재하는 상위 경로가 다른 소유자면 소용없다(OPS-01: 이 디렉터리가
+# root:750 로 어긋나 첨부가 영구히 막혔던 사고) — 형제 넷과 똑같이 매 install/upgrade마다
+# 여기서 소유권을 강제해 재발을 막는다.
 install -d -o "$SVC_USER" -g "$SVC_USER" -m 0750 "$VAR_DIR" \
-  "$VAR_DIR/exports" "$VAR_DIR/generated" "$VAR_DIR/temp" "$VAR_DIR/locks"
+  "$VAR_DIR/exports" "$VAR_DIR/generated" "$VAR_DIR/temp" "$VAR_DIR/locks" "$VAR_DIR/uploads"
 install -d -o root -g root -m 0700 /var/backups/clovirone-web-assistant
 
 # 4. Deploy source ----------------------------------------------------------

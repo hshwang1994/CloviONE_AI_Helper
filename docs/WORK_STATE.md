@@ -395,6 +395,80 @@ chat_mention)은 전부 **사용자 콘솔 화면**이라 role 제한이 없어�
 제외)뿐이다. 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이
 진행한다.
 
+**계속(2026-08-11, 연속 실행) — OPS-05·OPS-02·AI-27·UB-07 구현완료 + SEC-12R/SEC-13R
+문서 정정**: NOTI-04R 커밋 직후 포크로 다음 후보를 찾아 코드로 재확인한 뒤 순서대로
+처리했다.
+- **OPS-05 구현완료**: `save_upload`(`app/core/uploads.py:146-148`)의 `mkdir`/
+  `write_bytes`에 `OSError` 처리가 없어 디스크 풀·권한 드리프트 같은 파일시스템 오류가
+  그대로 전역 핸들러까지 올라가 한국어 UI에 영어 "Internal server error"가 뜨던 것을
+  고쳤다. `app/core/errors.py`에 `StorageUnavailableError`(503, `NotionNotConfiguredError`
+  와 같은 패턴) 신설 — 원인(OSError 원문·경로)은 `logger.exception`으로 서버 로그에만
+  남기고 사용자에게는 "파일을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."만 노출한다
+  (info-leak 방지). `test_uploads_namespace.py`에 신규 2건(`Path.mkdir`/`write_bytes`
+  몽키패치), revert-to-verify(되돌리면 import 에러로 즉시 실패 확인 후 복원).
+- **OPS-02 구현완료**: installer(`scripts/install-clovirone-web-assistant.sh`)의
+  `install -d` 소유권 목록에 형제 넷(`exports`·`generated`·`temp`·`locks`)은 있는데
+  `uploads`가 빠져 있던 것 — 한 번 어긋나면(OPS-01 실사고) 영구히 어긋난 채로 남고
+  재설치로도 안 고쳐지는 재발 경로였다. 한 줄 추가 + 신규 정적 회귀 시험
+  `tests/regression/test_installer_uploads_ownership.py`(형제 다섯 전부 존재 확인),
+  revert-to-verify. **직접 확인 못 함(❌)**: `bash -n` 문법 검사만 했다 — 실서버
+  설치·업그레이드 실행이 있어야 실제 `chown` 결과를 볼 수 있다.
+- **SEC-12R/SEC-13R 문서 정정(코드 변경 없음)**: BACKLOG.md가 "고칠 곳은
+  `home/readers.py` 두 함수에 viewer를 넘기는 것"이라고 미해결로 적어 뒀는데, 직접 코드를
+  읽으니 **이미 고쳐져 있었다** — `app/home/readers.py:69,116`의
+  `recent_documents(viewer=)`/`recent_board_posts(org_id=)`가 각각 `doc_in_scope`/
+  `list_posts`의 org 필터로 실제 스코프 필터링을 하고, `app/home/service.py:127-128`이
+  이미 `viewer=user`/`org_id=...`로 넘기고 있다(함수 자체의 `SEC-13:`/`SEC-12:` 인라인
+  주석이 이 판정을 명시). 실제로는 MEGA CYCLE I(2026-08-10, 이 문서 위 §66 부근)에서
+  SEC-12/SEC-13 본체가 이미 구현됐는데 그 정밀화 변형인 `-R` 표만 "발견"으로 방치돼
+  있었던 것 — 오래된 backlog 서술을 검증 없이 실행하지 않는다는 원칙이 여기서도
+  그대로 확인됐다. BACKLOG.md 두 행을 취소선+정정 메모로 갱신.
+- **AI-27 구현완료**: 드로어 컴포저(`AssistantDrawer.jsx`)가 MUI `InputBase` 단일행
+  (HTML `<input>`)이라 여러 줄을 못 쓰고, 폼 안의 `<input>`은 Enter를 누르면 IME 조합
+  여부와 무관하게 그대로 제출돼 한글이 조합 중 전송될 수 있었다 — 전체화면 `Chat.jsx`는
+  이미 네이티브 `<textarea>` + IME 가드(`isComposing`\|`keyCode===229`)로 이 문제가
+  없었다. `useChat()`이 이미 내주고 있던(그런데 드로어가 안 쓰고 있던) `textareaRef`
+  (자동 높이 `useLayoutEffect`, `useChat.js`)를 재사용해 같은 네이티브 textarea +
+  IME 가드를 이식 — 기계를 두 벌로 만들지 않는다는 이 파일 자체의 원칙을 그대로
+  따랐다. `textarea`는 Enter로 폼을 제출하지 않으므로(줄바꿈만 삽입) 전송은 버튼 클릭
+  또는 명시적 `onKeyDown`이 `doSend()`를 부를 때만 일어난다(`Chat.jsx`와 동일 패턴).
+  신규 시험 `assistant-drawer-composer.test.jsx`(3건: Shift+Enter는 줄바꿈만/Enter는
+  전송/`keyCode 229`인 Enter는 무시), revert-to-verify(되돌리면 "Enter가 보낸다" 시험이
+  실패 확인 후 복원 — 나머지 2건은 "보내지 않는다"는 원래 코드에도 우연히 참이라 그
+  자체는 회귀 신호가 약함, 정직하게 기록).
+- **UB-07 구현완료**: 공지 `dismiss()`(`app/announcements/service.py`)가 "이미
+  닫았는가"를 SELECT로 확인한 뒤 없으면 INSERT하는 check-then-insert라 탭 두 개(또는
+  더블클릭)가 거의 동시에 같은 공지를 닫으면 `uq_announcement_dismissal`(announcement_id,
+  user_id) UNIQUE 제약에 걸린 쪽이 잡히지 않은 `IntegrityError`로 500이 됐다 — 함수 자체
+  docstring이 약속한 "이미 닫았으면 False(멱등)"와 정반대. `db.flush()`를
+  `try/except IntegrityError`로 감싸 `db.rollback()` 후 `False`를 반환하도록 고쳤다
+  (rollback이 필요한 이유: flush 실패로 세션이 pending-rollback 상태가 되면 `get_db`의
+  요청-끝 commit까지 `PendingRollbackError`로 깨진다).
+  **시험 작성 중 겪은 것**: `tests/integration/test_quota_toctou.py`의 실스레드+`Barrier`
+  기법을 그대로 썼는데, 1차 시도(SELECT 시점에만 barrier 하나)는 매번 green이 나와
+  버그가 있는 원래 코드에서도 재현이 안 됐다 — 원인을 스레드별 타임스탬프로 직접 진단해
+  보니 `barrier.wait()`는 두 스레드가 "그 지점에 도달"하는 것만 맞출 뿐 그 다음
+  `real_execute()` 호출까지 동시에 실행되는 건 보장하지 않아서, 한쪽이 스케줄링에서
+  앞서가 INSERT+commit을 통째로 끝낸 뒤에야 다른 쪽이 자기 SELECT를 실행해(이미 커밋된
+  행을 그대로 보고) 조용히 `False`를 반환할 뿐 경합 자체가 전혀 안 걸렸다. `flush()`
+  시점에도 barrier를 하나 더 둬(두 스레드의 INSERT 시도를 실제로 겹치게) 3/3 재현으로
+  고쳤다 — 표면적으로 "테스트가 통과한다"는 신호를 그대로 믿지 않고 그 초록불이 실제로
+  버그를 걸고 있는지 직접 반증(수정 전 코드에 붙여 실패하는지)까지 해야 한다는 이
+  세션의 반복 원칙이 시험 코드 자체를 짤 때도 그대로 적용됐다.
+  `tests/regression/test_announcement_dismiss_race.py` 신규 1건, revert-to-verify(되돌려
+  3회 연속 `IntegrityError`로 실패 확인, 복원 후 3회 연속 통과 확인 — 스레드 타이밍 문제라
+  1회가 아니라 반복 확인함).
+- **검증**: 프런트 전체 회귀(211파일/1404건) + `STATIC_CHECKS_OK`(번들 재빌드 포함) +
+  네 변경 전부에 대한 focused 시험(uploads·installer 회귀·drawer 컴포저·공지 경합 3회
+  반복) — 전부 green 확인함. 백엔드 전체 회귀(2670+건)는 이 배치 전체(OPS-05/OPS-02/
+  AI-27/UB-07)가 다 들어간 상태로 재실행했다 — 1차 실행(UB-07 반영 전)은 exit code 0·
+  실패표시 0건 확인, **UB-07까지 포함한 2차 전체 실행은 이 문단을 쓰는 시점에 아직 배경
+  실행 중**이다(커밋은 그 결과를 보고 나서 한다 — 미완료 상태로 green이라 적지 않는다).
+  실서버/브라우저 확인은
+  배포 Blocker로 여전히 불가(§D-54).
+
+다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이 진행한다.
+
 ---
 
 ## 🟣 MEGA CYCLE H — AI 도우미, MEGA CYCLE A 후속 quick-fix 스윕 완료 (2026-08-10)

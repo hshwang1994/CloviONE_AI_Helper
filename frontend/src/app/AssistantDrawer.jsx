@@ -3,7 +3,6 @@ import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import InputBase from "@mui/material/InputBase";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -189,21 +188,33 @@ export function AssistantDrawer({ open, onClose }) {
         ) : null}
       </Box>
 
-      {/* 컴포저 */}
+      {/* 컴포저 — AI-27: 예전엔 MUI InputBase 단일행(HTML input)이라 (1) 여러 줄을 못 쓰고
+          (2) 폼 안의 input 은 Enter 를 누르면 조합 여부와 무관하게 그대로 제출된다. 전체화면
+          Chat.jsx 는 이미 네이티브 textarea + IME 가드로 이 문제가 없다 — 같은 useChat() 이
+          내주는 textareaRef(높이 자동조정 useLayoutEffect 포함, useChat.js)를 그대로 재사용해
+          기계를 두 벌로 만들지 않는다. textarea 는 Enter 로 폼을 제출하지 않으므로(줄바꿈만
+          삽입) 전송은 버튼 클릭 또는 아래 onKeyDown 이 명시적으로 doSend() 를 부를 때만
+          일어난다 — Chat.jsx:333-371 과 동일한 패턴. */}
       <Box
         component="form"
         onSubmit={(e) => { e.preventDefault(); chat.doSend(); }}
-        sx={{ display: "flex", gap: 1, alignItems: "center", p: 1.5, borderTop: 1, borderColor: "divider" }}
+        sx={{ display: "flex", gap: 1, alignItems: "flex-end", p: 1.5, borderTop: 1, borderColor: "divider" }}
       >
-        <InputBase
-          value={chat.text}
+        <Box
+          component="textarea" ref={chat.textareaRef} rows={1} value={chat.text} maxLength={5000}
+          aria-label="클로비에게 질문" disabled={chat.inputDisabled}
+          placeholder="클로비에게 질문하세요 (Enter 전송, Shift+Enter 줄바꿈)"
           onChange={(e) => chat.setText(e.target.value)}
-          placeholder="클로비에게 질문하세요"
-          inputProps={{ "aria-label": "클로비에게 질문" }}
-          disabled={chat.inputDisabled}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chat.doSend(); }
+          }}
           sx={{
-            flex: 1, px: 1.5, py: 0.75, borderRadius: 2,
-            border: 1, borderColor: "divider", bgcolor: "background.default",
+            flex: 1, minWidth: 0, resize: "none", minHeight: "2.75rem", maxHeight: "10rem", boxSizing: "border-box",
+            font: "inherit", fontSize: "0.875rem", lineHeight: 1.5, px: 1.5, py: 0.75,
+            border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
+            "&:focus": { outline: "none", borderColor: "primary.main" },
+            "&:disabled": { opacity: 0.6 },
           }}
         />
         <Button

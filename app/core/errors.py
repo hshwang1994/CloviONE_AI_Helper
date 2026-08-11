@@ -109,6 +109,19 @@ class NotionQueryError(AppError):
     default_message = "Notion 조회에 실패했습니다."
 
 
+class StorageUnavailableError(AppError):
+    """서버 로컬 파일시스템에 쓸 수 없을 때(디스크 풀, 권한 드리프트 등, OPS-05).
+
+    원인(OSError 원문·경로)은 절대 message 에 담지 않는다 — 호출부가
+    logger.exception 으로 서버 로그에만 남기고, 사용자에게는 이 기본 메시지만 간다
+    (app/core/errors.py 상단 정책: 스택트레이스·내부 경로 미노출).
+    """
+
+    status_code = 503
+    code = "storage_unavailable"
+    default_message = "파일을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."
+
+
 _HTTP_STATUS_CODES = {
     401: "unauthorized",
     403: "forbidden",

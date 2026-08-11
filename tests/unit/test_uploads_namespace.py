@@ -12,10 +12,12 @@ owner_id 는 **서버가 만든 UUID** 다. 새니타이즈가 hex 와 하이픈
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.core import uploads
-from app.core.errors import ValidationAppError
+from app.core.errors import StorageUnavailableError, ValidationAppError
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 PDF = b"%PDF-1.4\n" + b"\x00" * 32
@@ -138,3 +140,34 @@ def test_attachment_disposition_is_available_for_downloads():
 def test_empty_name_falls_back():
     header = content_disposition("")
     assert 'filename="file"' in header
+
+
+# ── 디스크 쓰기 실패 (OPS-05) ──────────────────────────────────────────────────
+# save_upload의 mkdir/write_bytes는 예전엔 try/except가 없어 디스크 풀·권한 드리프트
+# 같은 OSError가 그대로 안 잡힌 500(raw 스택트레이스 노출)으로 샜다. 이제
+# StorageUnavailableError(503, 원인 미노출 메시지)로 번역된다 — 실제 서버 없이도
+# Path.mkdir/write_bytes를 몽키패치해 검증할 수 있다.
+
+
+def test_mkdir_failure_becomes_storage_unavailable_error(tmp_path, monkeypatch):
+    def _boom(self, *a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "mkdir", _boom)
+    with pytest.raises(StorageUnavailableError) as exc_info:
+        uploads.save_upload(tmp_path, POST_ID, filename="a.png", content=PNG)
+    # 원인(OSError 원문·경로)이 사용자 메시지에 새지 않는다.
+    assert "disk full" not in exc_info.value.message
+    assert str(tmp_path) not in exc_info.value.message
+    assert exc_info.value.status_code == 503
+
+
+def test_write_bytes_failure_becomes_storage_unavailable_error(tmp_path, monkeypatch):
+    def _boom(self, *a, **k):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "write_bytes", _boom)
+    with pytest.raises(StorageUnavailableError) as exc_info:
+        uploads.save_upload(tmp_path, POST_ID, filename="a.png", content=PNG)
+    assert "permission denied" not in exc_info.value.message
+    assert exc_info.value.status_code == 503

@@ -17,12 +17,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from pathlib import Path
 from urllib.parse import quote
 
-from app.core.errors import ValidationAppError
+from app.core.errors import StorageUnavailableError, ValidationAppError
+
+logger = logging.getLogger("app.uploads")
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB
 MAX_ATTACHMENTS_PER_POST = 5
@@ -123,7 +126,9 @@ def save_upload(
     ``allowed_media_types`` 로 네임스페이스별 허용 형식을 좁힌다(채팅은 이미지 전용).
 
     반환: (stored_name, media_type, size_bytes, display_filename).
-    검증 실패는 ValidationAppError(422).
+    검증 실패는 ValidationAppError(422). 디스크 쓰기 실패(디스크 풀·권한 드리프트 등)는
+    StorageUnavailableError(503) — 원문 OSError·경로는 서버 로그에만 남고 사용자에게는
+    안 샌다(OPS-05, 예전엔 여기 try/except가 없어 raw OSError가 그대로 500으로 샜다).
     """
     size = len(content)
     if size == 0:
@@ -144,8 +149,14 @@ def save_upload(
 
     stored_name = f"{uuid.uuid4().hex}{_EXT_BY_MEDIA[media_type]}"
     target_dir = _owner_dir(data_dir, namespace, owner_id)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    (target_dir / stored_name).write_bytes(content)
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / stored_name).write_bytes(content)
+    except OSError:
+        logger.exception(
+            "upload write failed namespace=%s owner_id=%s", namespace, owner_id
+        )
+        raise StorageUnavailableError() from None
 
     return stored_name, media_type, size, sanitize_filename(filename)
 

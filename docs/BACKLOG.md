@@ -246,7 +246,7 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 |---|---|---|---|---|
 | AI-25 | High | **드로어가 리치 텍스트를 0으로 렌더**(`pre-wrap` 한 줄) — 티켓 카드·프로젝트 카드·Notion 링크·선택지 칩·실패 표시·재시도·복사·타임스탬프를 **전부 버린다** | `AssistantDrawer.jsx:165-167` | 발견 |
 | AI-26 | High | **드로어에 새 대화 버튼도 대화 목록도 없다.** 앱 로드 시 마지막 대화가 자동 복원돼 **한 스레드에 영구히 갇힌다**(빈 상태·제안 칩으로 돌아갈 길이 없음) | `useChat.js:300-309`, `AssistantDrawer.jsx:90,144,174` | 발견 |
-| AI-27 | High | **드로어 컴포저가 단일 행 `InputBase`** — 여러 줄 불가. **IME 가드가 없어 한글이 조합 중 전송된다**(전체화면엔 가드 있음) | `AssistantDrawer.jsx:189-193` vs `Chat.jsx:346` | 발견 |
+| AI-27 | High | **드로어 컴포저가 단일 행 `InputBase`** — 여러 줄 불가. **IME 가드가 없어 한글이 조합 중 전송된다**(전체화면엔 가드 있음) | `AssistantDrawer.jsx:189-193` vs `Chat.jsx:346` | ✅ **구현완료(2026-08-11)** — `InputBase`(단일행 `<input>`)를 네이티브 `<textarea>`로 교체하고 `useChat()`이 이미 내주던 `textareaRef`(자동 높이 `useLayoutEffect`)를 재사용, `Chat.jsx`와 동일한 `onKeyDown` IME 가드(`isComposing`\|`keyCode===229`) 이식. 신규 테스트(`assistant-drawer-composer.test.jsx`, 3건: Shift+Enter 줄바꿈만/Enter 전송/IME 조합중 Enter 무시), revert-to-verify 완료, 프런트 전체(211파일/1404건) + 정적검사 + 번들 재빌드 green |
 | AI-28 | Med | 드로어에 붙여넣은 이미지가 **보이지도 지워지지도 않고** 전송 버튼이 그것을 무시한다(텍스트 없이 이미지만 붙이면 갇힌다) | `AssistantDrawer.jsx:80,206` vs `Chat.jsx:357` | 발견 |
 | AI-29 | High | **429/503 한 번에 드로어 컴포저가 영구 잠김.** 안내와 해제 버튼이 전체화면에만 있고 `keepMounted`라 페이지 이동으로도 안 풀린다 — **새로고침만이 해법** | `useChat.js:473-475`, `AssistantDrawer.jsx:198,206` | 발견 |
 | AI-66 | Med | **"현재 문맥: X"가 거짓말.** 라우트 정보는 어디로도 전송되지 않는데 화면 3곳이 "지금 보고 있는 화면 기준으로 도와드려요"라고 약속한다 ‖ **부분구현(MEGA CYCLE A, 커밋 `5db9fbf`)**: `useChat.js`(`screenContext`) → `AssistantDrawer.jsx` → `POST /api/assistant/message`(`app/chat/router.py:72,178`·`service.py:146,201,218,234-235`) → 잡 페이로드(`app/jobs/handlers/chat_message.py:189-191`)까지 전 구간 배선 확인됨(2026-08-10 코드 재확인). **알려진 한계**: n8n 워크플로가 이 필드를 러너 프롬프트에 최종 반영하는 마지막 홉은 이 저장소 밖이라 미완 — 그때까지는 화면의 "지금 보고 있는 화면 기준" 문구가 여전히 부분적으로 거짓일 수 있다. 이 항목도 세 차례 조사의 중복 `AI-30` 중 하나였고, 2026-08-10 BACKLOG 정합성 점검에서 `AI-66`으로 재번호됐다(진짜 `AI-30` Critical과 분리) | `AssistantDrawer.jsx:69-72,118,148-150`, `ConversationSidebar.jsx:167-168` vs `useChat.js:167` | 부분구현 |
@@ -887,7 +887,7 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | UB-04 | Med/High | **"발행 버전 하나" 불변식이 경합에 깨지고, 깨지면 문서 생성이 500이 된다.** `prompts/service.py:83-91`이 잠금·제약 없는 read-then-write다(`UNIQUE(name, version)`만 있고 published 유일성 제약은 없음). 동시에 두 명이 발행하면 published 행이 둘 → 이후 그 이름의 모든 `transition`·`rollback`이 `scalar_one_or_none()`에서 `MultipleResultsFound` → **500**, 그리고 그 이름에 묶인 템플릿의 `POST /documents/generate`도 500 | | **구현완료(2026-08-10)** — 마이그레이션 0053이 `prompts`·`policies`에 부분 유일 인덱스(`name` WHERE `status='published'`) 추가(배포 전 기존 중복 자동 정리, approvals 0052와 같은 패턴). `transition()`이 `IntegrityError`를 409로 변환. 구현 중 자체 발견: 옛 발행본 archived 처리와 새 행 published 처리를 같은 flush에 섞으면 찰나에 "발행 둘"이 생겨 정상 발행 경로 자체가 걸릴 수 있었다 — 두 flush로 분리해 고침(기존 테스트가 실제로 이 결함을 잡아냄). `tests/integration/test_prompt_publish_race.py`(스레드 8개 동시 발행), 되돌려서 실패 확인. 배포 후 실서버에서 마이그레이션 적용(`alembic_version=0053`, 두 인덱스 존재)은 `sqlite3`로 직접 확인 — 진짜 동시 요청 재현은 시도하지 않음 |
 | UB-05 | Med | **PATCH가 저장된 `link_url`을 재검증해 옛 위험 배너를 끌 수 없다.** `router.py:184-190`이 `data.get("link_url", row.link_url)`을 검증에 넣는데, `core/safe_url.py:7-11`이 수정 이전 행에 안전하지 않은 값이 실제로 들어 있다고 적어 뒀다 → 화면의 원클릭 내리기(`{"active": false}`)가 **422**로 거부되고 배너는 그대로 떠 있다. `javascript:` 배너를 막으려고 만든 모듈이 그 배너를 못 내리게 하는 셈 | | **구현완료(2026-08-10)** — `link_url` 자체를 바꾸려는 요청일 때만(`"link_url" in data`) 검증하도록 좁힘. `tests/security/test_announcement_link_scheme.py`에 legacy 위험 링크 행을 흉내낸 회귀 테스트, 되돌려서 실패 확인. 실서버 검증은 legacy 위험 값을 인위적으로 DB에 넣어야 재현되는 종류라 시도하지 않음(CORE-11의 empty-link 케이스만 안전하게 실측함) |
 | UB-06 | Med | 공지에 **`starts_at < ends_at` 검증이 없다.** 뒤집어 넣으면 201 + "활성" 행이 생기고 **아무에게도 안 보인다**. 화면엔 경고가 없다 | | 발견 |
-| UB-07 | Med | 공지 `dismiss()`가 UNIQUE 제약을 상대로 **check-then-insert**(`service.py:104-118`) → 탭 두 개나 재시도에서 `IntegrityError` → **500**. docstring은 "이미 닫았으면 False(멱등)"라고 적었지만 원자적이지 않다 | | 발견 |
+| UB-07 | Med | 공지 `dismiss()`가 UNIQUE 제약을 상대로 **check-then-insert**(`service.py:104-118`) → 탭 두 개나 재시도에서 `IntegrityError` → **500**. docstring은 "이미 닫았으면 False(멱등)"라고 적었지만 원자적이지 않다 | | ✅ **구현완료(2026-08-11)** — `db.flush()`를 `try/except IntegrityError`로 감싸 `db.rollback()` 후 `False` 반환(원래 docstring이 약속한 멱등 그대로). 신규 시험 `test_announcement_dismiss_race.py` — 진짜 스레드 2개 + 이중 `Barrier`(SELECT 시점 1회, `flush()` 시점 1회 — 1차 시도는 barrier 하나만 썼더니 스케줄링이 한쪽을 앞서가게 둬 경합이 재현 안 됨을 발견, 원인 진단 후 두 번째 barrier 추가)로 진짜 경합을 3/3 재현. revert-to-verify(되돌리면 3/3 `IntegrityError`로 실패 확인, 복원 후 3/3 통과) |
 | UB-08 | Med | **`consume`이 커밋 전에 잠금을 놓는다**(`quotas/service.py:325-371`). `reserve`의 docstring이 "⚠️ 블록 안에서 커밋해야 한다. 잠금을 놓은 뒤에 커밋하면 그 사이 요청이 같은 한 칸을 또 가져간다"고 경고하는데 `consume`엔 그 경고도 커밋도 없다 → 9/10에서 두 요청이 통과해 11/10. 기존 TOCTOU 테스트는 Barrier가 **잠금 안**에 있어 이 창을 못 짚는다 | | 발견 |
 | UB-09 | Med | `pending()`이 `chat_message` 잡만 센다(`service.py:116-129`). 오늘은 맞지만 `enforce` 계약은 일반적으로 쓰여 있어, 다른 AI 잡이 큐에 들어가는 순간 예약이 안 보여 큐 깊이만큼 상한이 샌다 — 증상이 "청구서가 예상보다 크다"라 몇 달 뒤에 드러난다(모듈이 스스로 적은 경고) | | 발견 |
 | UB-10 | Med | `list_quotas`가 무제한 + N+1(행마다 COUNT 2회). 화면은 "받아 온 것이 곧 전부"라고 가정해 클라이언트 필터를 쓰는데 `capWarning`이 없어, 상한이 생기는 순간 필터가 조용히 결손된다 | | 발견 |
@@ -2533,13 +2533,18 @@ if [ -z "$DNS_NAME" ] || [ -z "$BIND_IP" ]; then echo "…지정해야 합니다
 
 | ID | 심각 | 정밀화 | 상태 |
 |---|---|---|---|
-| SEC-12R | Med (**설정 바뀌면 High**) | 홈 게시판 위젯이 조직 게이트 밖. 조직 1개라 지금은 무해, **테넌트가 늘면 즉시 유출** | 발견 |
-| SEC-13R | Med (**설정 바뀌면 High**) | 홈 문서 위젯이 부서 게이트 밖. **부서는 이미 2개**이므로 `admin_scope=dept` 를 **한 명이라도 주는 순간** 유출된다 | 발견 |
+| ~~SEC-12R~~ | Med (**설정 바뀌면 High**) | 홈 게시판 위젯이 조직 게이트 밖. 조직 1개라 지금은 무해, **테넌트가 늘면 즉시 유출** | ✅ **표 낡음(재확인) — 이미 코드에 있다** |
+| ~~SEC-13R~~ | Med (**설정 바뀌면 High**) | 홈 문서 위젯이 부서 게이트 밖. **부서는 이미 2개**이므로 `admin_scope=dept` 를 **한 명이라도 주는 순간** 유출된다 | ✅ **표 낡음(재확인) — 이미 코드에 있다** |
 
-> **이 두 건의 값어치는 "지금 터졌다"가 아니라 "안전망이 뚫린 것을 아무도 몰랐다"이다.**
-> 두 위젯은 각 도메인의 단일 판정 함수(`visible_posts` · `doc_in_scope`)를 **우회한다** —
-> 그 함수들의 존재 이유가 "판정을 한 곳에만 둔다"인데 홈이 두 번째 사본을 만들었다.
-> **고칠 곳은 `home/readers.py` 두 함수에 viewer 를 넘기는 것**이고, 그러면 규칙은 자동으로 따라온다.
+> **정정(재확인)**: 아래 문단이 "고칠 곳은 `home/readers.py` 두 함수에 viewer 를 넘기는 것"이라고
+> 적어 뒀던 그 수정이 **이미 코드에 들어가 있다** — `app/home/readers.py:69,116`의
+> `recent_documents(..., viewer=None)`·`recent_board_posts(..., org_id=None)`가 각각
+> `viewer`/`org_id`를 받으면 `doc_in_scope`(문서)·`list_posts`의 `org_id`(게시판)로 실제 스코프
+> 필터링을 하고(함수 자체의 `SEC-13:`/`SEC-12:` 인라인 주석이 이 판정을 명시), 호출부
+> `app/home/service.py:127-128`이 `viewer=user`, `org_id=getattr(user, "org_id", None)`로 이미
+> 그 인자를 넘긴다(직접 코드 읽어 확인, 2026-08-11). 두 판정 함수(`doc_in_scope`·`list_posts`의
+> org 필터)를 그대로 재사용하므로 "판정이 두 벌"이라는 원래 우려도 해소돼 있다 — 누군가 BACKLOG를
+> 안 고치고 코드만 고쳤을 뿐이다. 남은 것은 문서 정정뿐, 새 코드는 필요 없다.
 
 ### `WF2` 영역별 판정 — **구현 예산은 이 표로 배분한다**
 
@@ -2849,9 +2854,12 @@ ssh cloviradmin@10.100.64.71 "echo '<비밀번호>' | sudo -S sqlite3 -readonly 
 > 확인됐고 앱 층은 확인되지 않았다. **웹에서 티켓에 파일 1개를 실제로 첨부해 봐야 완료다**
 > (업로드 실패는 감사 로그에 남지 않는다 — `OPS-04`. 로그로는 확인 불가, 눈으로 봐야 한다).
 >
-> **⚠️ 재발 가능성은 그대로 남아 있다 — `OPS-02` 는 닫히지 않았다.** installer 의
-> `install -d` 목록에 `$VAR_DIR/uploads` 가 **여전히 없다**. 현 서버는 디렉터리가 이미 존재해
-> 업그레이드로 깨지지 않지만, **새 서버에 설치하면 같은 문제가 재발한다.**
+> **✅ `OPS-02` 조치 완료(코드, 2026-08-11)** — installer 의 `install -d` 목록(형제 넷:
+> `exports`·`generated`·`temp`·`locks`)에 `$VAR_DIR/uploads` 를 추가했다
+> (`scripts/install-clovirone-web-assistant.sh`). 정적 회귀 테스트
+> (`tests/regression/test_installer_uploads_ownership.py`)로 목록에서 빠지는 걸 고정했다.
+> **실서버 재확인은 미완**(다음 업그레이드/신규 설치 실행 때 `ls -la $VAR_DIR/uploads` 로
+> `clovirone-web:clovirone-web` 인지 확인 — `bash -n` 구문검사만 했고 실행은 못 했다).
 
 ## 실측 (2026-08-09)
 
@@ -2891,7 +2899,7 @@ runuser -u clovirone-web -- test -w .../exports   →  쓰기 가능
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
 | OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | ✅ **소유권 복구 확인**(2026-08-10) — `uploads`·`uploads/ticket` 모두 `clovirone-web:clovirone-web`, 서비스 사용자로 `test -w` + 실제 파일 생성/삭제 성공. **단 앱 층 첨부 E2E 는 미검증**(웹에서 1건 첨부 필요). 재발 방지(`OPS-02`)는 미조치 |
-| OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | 발견 |
+| OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | ✅ **구현완료(2026-08-11)** — `install -d` 목록에 `uploads` 추가 + 정적 회귀 테스트. `bash -n` 구문검사만(실서버 실행 미검증) |
 | OPS-03 | Med | **업로드 실패를 알리는 경로가 없다.** 8/5 이후 나흘째 깨져 있는데 `/diagnostics`·알림·헬스체크 어디에도 안 나온다. `readyz` 는 **쓰기 가능성을 확인하지 않는다** | 발견 |
 
 > **`BKP-01` 과 겹쳐서 더 나쁘다** — 업로드 디렉터리는 **쓸 수도 없고**(`OPS-01`)
@@ -2982,7 +2990,7 @@ service.py:98-111  create_user  →  role 이 ALL_ROLES 에 있는지만 검사
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
 | OPS-04 | High | **업로드 실패가 감사 로그에 남지 않는다**(감사가 성공 뒤에만 기록된다). 실패율·실패 시점을 사후에 알 방법이 없다 | 발견 |
-| OPS-05 | High | **파일시스템 오류가 그대로 500 이 된다.** `uploads.py:146-148` 의 `mkdir`/`write_bytes` 에 `OSError` 처리가 없어 전역 핸들러까지 올라가고 한국어 UI 에 **영어 "Internal server error"** 가 뜬다(재현 확인). 원인도, 조치도, 영구 실패라는 사실도 말하지 않는다 | 발견 |
+| OPS-05 | High | **파일시스템 오류가 그대로 500 이 된다.** `uploads.py:146-148` 의 `mkdir`/`write_bytes` 에 `OSError` 처리가 없어 전역 핸들러까지 올라가고 한국어 UI 에 **영어 "Internal server error"** 가 뜬다(재현 확인). 원인도, 조치도, 영구 실패라는 사실도 말하지 않는다 | ✅ **구현완료(2026-08-11)** — `save_upload`의 `mkdir`/`write_bytes`를 `try/except OSError`로 감싸 새 `StorageUnavailableError`(503, `app/core/errors.py`)로 번역. 원인(OSError 원문·경로)은 `logger.exception`으로 서버 로그에만, 사용자에게는 "파일을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."만 간다. 단위테스트(`Path.mkdir`/`write_bytes` 몽키패치)로 검증, revert-to-verify 완료. 실서버 디스크 장애 재현은 미검증(단위 수준에서만 확인) |
 
 ## WF5 — 잔여 미조사 6영역 (첨부위젯 · 게임 · CSV일괄 · lib기반 · 잡핸들러 · 동시성/마이그)
 
