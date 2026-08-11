@@ -114,6 +114,65 @@ def test_list_reports_user_count(client, admin_csrf):
     assert r.json()["items"][0]["user_count"] == 1
 
 
+# ── UA-20R: 삭제 확인이 하위 부서 수도 말해야 한다 ─────────────────────────────
+#
+# parent_id는 ondelete="SET NULL"이라(모델 주석) 부모를 지워도 자식은 안 지워지고
+# 최상위로 올라온다 — 데이터 유실은 아니지만, 3단 트리가 클릭 한 번에 평탄해지는 것을
+# 관리자가 지우기 전에 알아야 한다. 예전 확인 문구는 인원수만 말하고 자식 부서 수는
+# 전혀 말하지 않았다.
+
+def test_list_reports_child_department_count(client, admin_csrf):
+    parent_id = _mk_dept(client, admin_csrf, name="본부").json()["department"]["id"]
+    for name in ("개발팀", "운영팀"):
+        r = client.post(
+            "/api/admin/departments",
+            json={"name": name, "parent_id": parent_id},
+            headers=_headers(admin_csrf),
+        )
+        assert r.status_code == 201, r.text
+
+    r = client.get("/api/admin/departments", headers=_headers(admin_csrf))
+    by_name = {d["name"]: d for d in r.json()["items"]}
+    assert by_name["본부"]["child_department_count"] == 2
+    assert by_name["개발팀"]["child_department_count"] == 0, "자식이 없는 부서는 0이어야 한다"
+
+
+def test_get_single_department_reports_child_department_count(client, admin_csrf):
+    parent_id = _mk_dept(client, admin_csrf, name="본부2").json()["department"]["id"]
+    client.post(
+        "/api/admin/departments",
+        json={"name": "하위팀", "parent_id": parent_id},
+        headers=_headers(admin_csrf),
+    )
+    r = client.get(f"/api/admin/departments/{parent_id}", headers=_headers(admin_csrf))
+    assert r.json()["department"]["child_department_count"] == 1
+
+
+def test_job_titles_do_not_carry_child_department_count(client, admin_csrf):
+    """직책엔 트리가 없다 — 이 필드가 새는 것 자체가 '직책도 계층이 있나?' 하는 오해를 만든다."""
+    _mk_title(client, admin_csrf)
+    r = client.get("/api/admin/job-titles", headers=_headers(admin_csrf))
+    assert "child_department_count" not in r.json()["items"][0]
+
+
+def test_deleting_a_parent_department_promotes_children_not_orphans_them(client, admin_csrf):
+    """이 시험은 UA-20R이 고치는 확인 문구가 정확한 사실을 말하는지 검증한다 — 자식 부서는
+    실제로 지워지지 않고 parent_id만 비워진다(모델의 ondelete="SET NULL" 약속)."""
+    parent_id = _mk_dept(client, admin_csrf, name="본부3").json()["department"]["id"]
+    child_id = client.post(
+        "/api/admin/departments",
+        json={"name": "하위팀3", "parent_id": parent_id},
+        headers=_headers(admin_csrf),
+    ).json()["department"]["id"]
+
+    r = client.delete(f"/api/admin/departments/{parent_id}", headers=_headers(admin_csrf))
+    assert r.status_code == 200, r.text
+
+    r = client.get(f"/api/admin/departments/{child_id}", headers=_headers(admin_csrf))
+    assert r.status_code == 200, "자식 부서까지 함께 지워졌다 — 데이터 유실"
+    assert r.json()["department"]["parent_id"] is None, "부모가 지워졌는데 최상위로 안 올라왔다"
+
+
 def test_delete_unused_department_succeeds(client, admin_csrf):
     dept_id = _mk_dept(client, admin_csrf, name="없어질팀").json()["department"]["id"]
     r = client.delete(f"/api/admin/departments/{dept_id}", headers=_headers(admin_csrf))

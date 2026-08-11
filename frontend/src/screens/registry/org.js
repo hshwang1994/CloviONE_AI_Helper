@@ -98,7 +98,12 @@ export const ORG_SCREENS = {
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
     detailFields: [field("id", "부서 ID"), field("org_name", "조직"), field("org_id", "조직 ID"),
-      { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요." : "-" }],
+      field("child_department_count", "하위 부서"),
+      { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count
+        ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요."
+        : r.child_department_count
+          ? "삭제하면 하위 부서 " + r.child_department_count + "개가 최상위 부서로 올라갑니다(하위 부서 자체는 지워지지 않습니다)."
+          : "-" }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "부서 이름", type: "text", required: true, help: "사용자 폼의 '부서' 목록에 바로 나타납니다." },
       PARENT_DEPT_FIELD,
@@ -114,7 +119,15 @@ export const ORG_SCREENS = {
     actions: [
       ...activeToggle("/api/admin/departments"),
       // 사용 중(소속 인원>0)인 부서는 삭제가 항상 409 → 미사용일 때만 노출한다(대신 '비활성화').
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, when: (r) => !r.user_count, method: "DELETE", path: (r) => "/api/admin/departments/" + r.id, confirm: "이 부서를 지울까요? 되돌릴 수 없습니다." },
+      // UA-20R: 이전 확인 문구("되돌릴 수 없습니다")는 하위 부서가 있어도 아무 말이 없었다 —
+      // parent_id가 ondelete="SET NULL"이라 데이터가 지워지진 않지만(하위 부서는 최상위로
+      // 올라온다), 3단 트리가 클릭 한 번에 평탄해지는 것을 지우기 전에 알아야 한다. 조직
+      // '정지' 확인 문구(위 organizations.actions)와 같은 원칙 — 영향받는 수를 숫자로 말한다.
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, when: (r) => !r.user_count, method: "DELETE", path: (r) => "/api/admin/departments/" + r.id,
+        confirm: (r) => (r.child_department_count
+          ? "이 부서를 지우면 하위 부서 " + r.child_department_count + "개가 최상위 부서로 올라갑니다"
+            + "(하위 부서와 그 소속 인원은 지워지지 않습니다). 되돌릴 수 없습니다. 계속할까요?"
+          : "이 부서를 지울까요? 되돌릴 수 없습니다.") },
       // 사용자 상세의 '감사 로그에서 보기'(Users.jsx)와 동일한 딥링크 — department는 OBJTYPE_OPTS에
       // 이미 있고 감사 화면 onQuery가 object_type/object_id를 소비하므로 클릭 한 번으로 이 부서에
       // 일어난 변경 이력을 볼 수 있다.

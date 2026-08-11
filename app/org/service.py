@@ -221,6 +221,26 @@ def bulk_usage_count(db: Session, model: type, item_ids) -> dict[str, int]:
     return {row[0]: row[1] for row in rows}
 
 
+def bulk_child_department_count(db: Session, department_ids) -> dict[str, int]:
+    """{department_id: 그 부서를 parent_id로 삼는 자식 부서 수}. Department 전용(직책엔
+    트리가 없다) — `bulk_usage_count`와 같은 그룹 질의 패턴이다.
+
+    UA-20R: 부서 삭제 확인 문구가 "몇 명이 쓰는가"(`usage_count`, 직속 인원)만 말하고
+    "이 부서를 지우면 자식 부서가 어떻게 되는가"는 말하지 않았다. `parent_id`는
+    `ondelete="SET NULL"`이라(모델 주석: "부모가 지워지면 자식은 사라지지 않고 최상위로
+    올라온다") 데이터가 없어지진 않지만, 3단 트리가 클릭 한 번에 평탄해지는 것을 관리자가
+    지우기 전에 알아야 한다."""
+    ids = {i for i in department_ids if i}
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Department.parent_id, func.count())
+        .where(Department.parent_id.in_(ids))
+        .group_by(Department.parent_id)
+    ).all()
+    return {row[0]: row[1] for row in rows}
+
+
 def create_item(
     db: Session,
     model: type[OrgModel],
@@ -355,7 +375,8 @@ def delete_item(db: Session, row: OrgModel) -> None:
 
 
 def item_view(
-    row: OrgModel, *, user_count: int | None = None, org_name: str | None = None
+    row: OrgModel, *, user_count: int | None = None, org_name: str | None = None,
+    child_department_count: int | None = None,
 ) -> dict:
     view = {
         "id": row.id,
@@ -376,6 +397,9 @@ def item_view(
         # 세션을 가진 라우터가 한 번 조회해 넘긴다.
         view["org_id"] = row.org_id
         view["org_name"] = org_name
+        # UA-20R: 삭제 확인 문구가 인원수만 말하고 자식 부서 수는 말하지 않았다.
+        if child_department_count is not None:
+            view["child_department_count"] = child_department_count
     if user_count is not None:
         view["user_count"] = user_count
     return view

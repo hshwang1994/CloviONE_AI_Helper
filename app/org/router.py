@@ -31,6 +31,7 @@ from app.org.schemas import (
     OrgItemUpdateRequest,
 )
 from app.org.service import (
+    bulk_child_department_count,
     bulk_usage_count,
     create_item,
     delete_item,
@@ -96,6 +97,12 @@ def _make_org_router(
         # UA-16: 행마다 usage_count()를 부르면 목록 N건에 질의 N번이었다(_org_names 바로
         # 위 두 줄은 이미 그룹 질의였는데 이쪽만 안 고쳐져 있었다) — 한 번에 센다.
         counts = bulk_usage_count(db, model, [row.id for row in rows])
+        # UA-20R: 부서만 자식 수도 함께 준다(직책은 트리가 없다) — 목록 N건에 질의를 또
+        # 하나 늘리지 않도록 model is Department일 때만 그룹 질의 한 번을 더 한다.
+        child_counts = (
+            bulk_child_department_count(db, [row.id for row in rows])
+            if model is Department else {}
+        )
         # 몇 명이 쓰는지 보이지 않으면 관리자는 지워도 되는지 판단할 수 없다.
         return {
             "items": [
@@ -103,6 +110,7 @@ def _make_org_router(
                     row,
                     user_count=counts.get(row.id, 0),
                     org_name=names.get(getattr(row, "org_id", None)),
+                    child_department_count=child_counts.get(row.id, 0) if model is Department else None,
                 )
                 for row in rows
             ]
@@ -129,10 +137,15 @@ def _make_org_router(
         # 열 수 있게 단건 조회를 연다(다른 CRUD 화면과 동일한 딥링크 패턴, round30 감사 E).
         row = get_or_404(db, model, item_id, principal.scope)
         names = _org_names(db, [row])
+        child_count = (
+            bulk_child_department_count(db, [row.id]).get(row.id, 0)
+            if model is Department else None
+        )
         return {body_key: item_view(
             row,
             user_count=usage_count(db, model, row.id),
             org_name=names.get(getattr(row, "org_id", None)),
+            child_department_count=child_count,
         )}
 
     @router.post("", status_code=201)
