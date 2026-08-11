@@ -14,6 +14,23 @@
 import { NOTI_SCREEN } from "../../app/notification-keys.js";
 import { ADMIN_VIEW_ROLES, OBJ_ID_PARAM, OBJ_ROUTE, TYPE_KO, canReachObjRoute, col, dateCol, field, mapCol, objField, objRouteHref, opt, readCol } from "./shared.js";
 
+/* RG-02 — 서버가 계산한 목적지(related_route, app/notifications/destinations.py)가 있으면
+ * 그걸 최우선으로 쓴다. 아래 OBJ_ROUTE/OBJ_ID_PARAM(프런트의 로컬 표, 승인·작업 큐처럼
+ * 목록 화면뿐인 관리자 대상용)은 서버가 아직 모르는 유형의 폴백일 뿐이다 — 팀 문서 댓글
+ * (document)이 정확히 이 순서를 안 지켜서 겪은 문제였다: 서버는 `/team-docs/{id}`를
+ * 계산해 주는데 이 화면이 그걸 버리고 로컬 표로 `#/documents?id=<id>`(관리 콘솔의 "문서
+ * 생성" 화면, 전혀 다른 자원)를 만들어 404로 갔다. NotificationBell.jsx의 `serverRoute()`와
+ * 같은 검증(내부 상대 경로만, `//`로 시작하는 프로토콜 상대 URL 거부)이지만, 벨은 이 파일을
+ * import하지 않으므로(순환 의존 회피, 벨의 자체 주석 참고) 3줄을 그대로 여기 독립적으로 둔다. */
+function serverHref(r) {
+  const p = r && r.related_route;
+  return typeof p === "string" && p.startsWith("/") && !p.startsWith("//") ? "#" + p : null;
+}
+// 서버가 계산해 준 유형(document/ticket/board_post/chat_room/chat_mention)은 전부 사용자
+// 콘솔 화면이라 role 제한이 없다 — ADMIN_VIEW_ROLES로 가리면 안 된다(일반 사용자가 자기
+// 티켓·채팅 알림에서도 못 눌리게 된다). 그래서 이 게이트는 정적 roles:가 아니라 when() 안에서,
+// 서버 값이 없을 때(로컬 표의 관리자 전용 대상)만 적용한다.
+
 export const NOTIFICATIONS_SCREEN = {
   notifications: {
     key: "notifications",
@@ -63,8 +80,9 @@ export const NOTIFICATIONS_SCREEN = {
       // 이미 함께 무효화한다(다른 액션과 동일 배선, shared.js 참고).
       { label: "삭제", variant: "danger", method: "DELETE", path: (r) => "/api/notifications/" + r.id,
         confirm: "이 알림을 삭제할까요? 목록에서 완전히 사라지며 되돌릴 수 없습니다." },
-      // 관련 대상(승인·작업·스케줄 등)이 있으면 해당 관리 화면으로 이동한다(문서 화면 navigate 방식과 동일).
-      // 대상은 모두 관리자 콘솔 경로라 일반 사용자(role=user)에겐 숨긴다 — 누르면 채팅으로 튕겨 나가기 때문.
+      // 관련 대상(승인·작업·스케줄 등 로컬 표 대상)이 있으면 해당 관리 화면으로 이동한다.
+      // 로컬 표 대상은 전부 관리자 콘솔 경로라 일반 사용자(role=user)에겐 숨긴다(위 serverHref
+      // 주석 참고 — 서버가 계산해 준 사용자 콘솔 대상은 이 게이트를 안 탄다).
       // ADMIN_VIEW_ROLES 통과만으로는 부족하다 — 대상 화면 중 일부(사용자·부서·직책·작업 큐)는
       // auditor 등을 추가로 제외한다(App.jsx SCREEN_ROLES) — canReachObjRoute로 실제 도달 가능할 때만 노출.
       // schedule_run은 제외한다 — '#/schedules'로 보내도 특정 실행 행을 찾아 주지 못해(스케줄
@@ -72,16 +90,20 @@ export const NOTIFICATIONS_SCREEN = {
       // (NotificationBell.jsx의 동일한 제외와 맞춘다).
       // related_object_type이 OBJ_ID_PARAM에 있으면(감사 로그 액션과 동일한 기준) 그 화면이 ?id=
       // 딥링크를 지원하므로 목록이 아니라 그 항목 하나를 직접 연다 — 라벨도 실제 동작대로 구분한다.
-      { label: "관련 항목 보기", roles: ADMIN_VIEW_ROLES,
-        when: (r, ctx) => !!(r.related_object_type && OBJ_ROUTE[r.related_object_type] && OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) && canReachObjRoute(r.related_object_type, ctx && ctx.role),
-        navigate: (r) => objRouteHref(r.related_object_type, r.related_object_id) },
-      // 그 외(딥링크 미지원 대상 유형, 또는 related_object_id 없음)는 여전히 목록 전체로만 이동한다 —
-      // 라벨을 실제 동작대로 정직하게 알린다. schedule_run도 이제 여기 포함한다 — 예전엔 따로
-      // 빼서 이 알림 유형만 클릭할 게 아무것도 없었다(스케줄 화면에 실행 건별 딥링크가 없다는
-      // 이유였지만, 목록 전체로라도 보내는 게 아무 동작도 없는 것보다는 낫다 — schedule_run은
-      // OBJ_ROUTE에서 이미 '#/schedules'로 매핑돼 있다).
-      { label: "관련 목록 열기", roles: ADMIN_VIEW_ROLES,
-        when: (r, ctx) => !!(r.related_object_type && OBJ_ROUTE[r.related_object_type]) && !(OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) && canReachObjRoute(r.related_object_type, ctx && ctx.role),
+      { label: "관련 항목 보기",
+        when: (r, ctx) => !!serverHref(r) ||
+          (!!(r.related_object_type && OBJ_ROUTE[r.related_object_type] && OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) &&
+           ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(r.related_object_type, ctx && ctx.role)),
+        navigate: (r) => serverHref(r) || objRouteHref(r.related_object_type, r.related_object_id) },
+      // 그 외(서버·로컬 표 둘 다 단건 딥링크를 못 주는 대상 유형, 또는 related_object_id 없음)는
+      // 여전히 목록 전체로만 이동한다 — 라벨을 실제 동작대로 정직하게 알린다. schedule_run도
+      // 이제 여기 포함한다 — 예전엔 따로 빼서 이 알림 유형만 클릭할 게 아무것도 없었다(스케줄
+      // 화면에 실행 건별 딥링크가 없다는 이유였지만, 목록 전체로라도 보내는 게 아무 동작도 없는
+      // 것보다는 낫다 — schedule_run은 OBJ_ROUTE에서 이미 '#/schedules'로 매핑돼 있다).
+      { label: "관련 목록 열기",
+        when: (r, ctx) => !serverHref(r) &&
+          !!(r.related_object_type && OBJ_ROUTE[r.related_object_type]) && !(OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) &&
+          ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(r.related_object_type, ctx && ctx.role),
         navigate: (r) => OBJ_ROUTE[r.related_object_type] },
     ],
   },
