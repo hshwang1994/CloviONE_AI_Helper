@@ -251,11 +251,22 @@ def request_generation(
         else mode
     )
 
+    # UA-29: config는 자유형 dict(GenerateRequest.config, 타입 검증 없음)라
+    # template_version에 숫자로 안 바뀌는 값("v2" 등)이 오면 int()가 처리 안 된
+    # ValueError/TypeError로 500이 났다 — 사용자 입력 오류는 422여야 한다.
+    raw_template_version = config.get("template_version", 1)
+    try:
+        template_version = int(raw_template_version)
+    except (TypeError, ValueError):
+        raise ValidationAppError(
+            f"template_version은 정수여야 합니다: {raw_template_version!r}"
+        ) from None
+
     key = duplicate_key(
         schedule_id=config.get("schedule_id", "manual"),
         period=period,
         target_ref=config.get("target_parent_page") or config.get("target_database") or "?",
-        template_version=int(config.get("template_version", 1)),
+        template_version=template_version,
     )
     existing = db.execute(
         select(DocumentGeneration).where(DocumentGeneration.idempotency_key == key)

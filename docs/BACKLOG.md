@@ -957,7 +957,7 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | UA-26 | Low | 오프보딩 방 소유권 인계가 **비활성/보관 계정도 후보로 받는다**(`service.py:573-586`) → 이미 퇴사 처리된 계정이 방장이 되어 그 함수가 막으려던 상태가 된다 | | 발견 |
 | UA-27 | Low | 이상징후 `new_actor_action`의 `count`가 **이벤트 수가 아니라 액션 종류 수**인데 화면은 한 "건수" 열로 그린다 | | 발견 |
 | UA-28 | Low | `llm_console/service.py:143-151` `_source_of`가 `0`·bool 저장값을 `env`로 오분류. `provider.py:219-221`의 backend 오타는 화면에 "꺼짐"으로만 보여 "설정값이 잘못됨"과 구분 안 됨 | | 발견 |
-| UA-29 | Low | `documents/service.py:258` `int(config.get("template_version", 1))`이 자유형 dict 값이라 `"v2"` 같은 입력에 422가 아니라 **500** | | 발견 |
+| UA-29 | Low | `documents/service.py:258` `int(config.get("template_version", 1))`이 자유형 dict 값이라 `"v2"` 같은 입력에 422가 아니라 **500** | | ✅ 구현완료 — `try/except (TypeError, ValueError)` → `ValidationAppError`(422)로 변환. 신규 시험(`test_documents_api.py`), revert-to-verify 확인함(되돌리면 uncaught `ValueError` → 500) |
 
 > **확인된 것(결함 아님)**: `backups`의 보존 정책은 **정상**이다 — `apply_retention`은 실패 백업을
 > keep 창에 넣지 않는다(`service.py:170-175`). 이전 기록의 의심은 근거가 없다.

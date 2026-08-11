@@ -135,6 +135,23 @@ def test_duplicate_period_target_blocked(client, admin_csrf, workflow_id, doc_wo
     assert r2.status_code == 409  # same period+target+version
 
 
+def test_non_numeric_template_version_rejected_with_422_not_500(client, admin_csrf, workflow_id):
+    # UA-29: config는 자유형 dict라 template_version에 타입 검증이 없었다 - int(config
+    # .get("template_version", 1))이 처리 안 된 ValueError로 500이 났다. 사용자 입력
+    # 오류는 422여야 한다.
+    r = client.post(
+        "/api/admin/documents/generate",
+        json={
+            "workflow_id": workflow_id,
+            "mode": "preview_only",
+            "period": "2026-W31",
+            "config": {"target_parent_page": "page-123", "template_version": "v2"},
+        },
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422, r.text
+
+
 def test_preview_then_approve_creates_approval(client, admin_csrf, workflow_id, doc_worker, fake_http, db):
     fake_http.on(
         DOC_URL,
