@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
@@ -54,6 +54,11 @@ class AnnouncementDismissal(UUIDPrimaryKeyMixin, Base):
         UniqueConstraint("announcement_id", "user_id", name="uq_announcement_dismissal"),
     )
 
-    announcement_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    # UB-19: 예전엔 FK가 아니었다 - 공지를 삭제해도(퇴사와 달리 이건 진짜 하드 삭제,
+    # announcements/router.py::delete_announcement) 닫힘 기록이 고아로 남아 매 배너
+    # 폴링(service.py::for_user)의 "닫힘 집합" 읽기 비용만 무한히 늘렸다(migration 0055).
+    announcement_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("announcements.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     dismissed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
