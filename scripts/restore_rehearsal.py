@@ -40,6 +40,7 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -154,6 +155,51 @@ def boot_app_against(db: Path) -> None:
                 print(f"      - {b}", file=sys.stderr)
         else:
             ok(f"ORM 테이블 {len(Base.metadata.sorted_tables)}개 전부 조회 성공")
+
+
+# BKP-02: 이전까지 이 리허설의 7단계는 전부 DB 한 파일에 대한 것이었다 — 게시판·팀챗·
+# 티켓 첨부·프로필 사진은 별도 파일(data_dir/uploads/<네임스페이스>/<owner_id>/<저장명>)
+# 이라 DB만 복원해도 그 행들이 가리키는 실제 바이트가 없을 수 있다(BKP-01과 같은 근본
+# 원인). 네 자원이 각자 다른 (테이블, 네임스페이스, owner_id 컬럼, 저장명 컬럼) 모양이라
+# 하나로 못 묶는다.
+ATTACHMENT_CHECKS = (
+    # (테이블, 네임스페이스, owner_id 컬럼, 저장명 컬럼)
+    ("board_attachments", "board", "post_id", "stored_name"),
+    ("chat_message_images", "team_chat", "room_id", "stored_name"),
+    ("ticket_attachments", "ticket", "ticket_uid", "stored_name"),
+    ("user_preferences", "avatar", "user_id", "avatar_stored_name"),
+)
+
+
+def check_attachment_files(restored_db: Path, uploads_root: Path) -> list[str]:
+    """복원된 DB가 참조하는 첨부 파일이 실제로 `uploads_root` 아래에 있는지 확인한다.
+
+    반환값은 "무엇이 없다"를 사람이 읽을 수 있게 적은 문자열 목록(빈 목록 = 전부 있음).
+    테이블 자체가 없거나(구버전 스키마) 조회가 실패하면 그것도 보고 대상이다 — 조용히
+    건너뛰면 "확인했는데 문제없음"과 "애초에 확인을 못 함"이 구분 안 된다.
+    """
+    missing: list[str] = []
+    conn = sqlite3.connect(str(restored_db))
+    try:
+        for table, namespace, owner_col, stored_col in ATTACHMENT_CHECKS:
+            try:
+                rows = conn.execute(
+                    f'select "{owner_col}", "{stored_col}" from "{table}" '
+                    f'where "{stored_col}" is not null'
+                ).fetchall()
+            except sqlite3.Error as exc:
+                missing.append(f"{table}: 조회 실패({exc}) — 스키마 불일치일 수 있다")
+                continue
+            for owner_id, stored_name in rows:
+                path = uploads_root / namespace / str(owner_id) / str(stored_name)
+                if not path.is_file():
+                    missing.append(
+                        f"{table} owner={owner_id} stored_name={stored_name}: "
+                        f"파일 없음 ({path})"
+                    )
+    finally:
+        conn.close()
+    return missing
 
 
 def record_result(src: Path, *, started_at, finished_at, ok: bool, failures, summary) -> None:
@@ -272,6 +318,32 @@ def main() -> int:
         boot_app_against(restored)
     except Exception as exc:  # noqa: BLE001 - 부팅 실패 자체가 결과다
         bad(f"앱 부팅 중 예외: {type(exc).__name__}: {exc}")
+
+    step("8) 첨부 파일 존재 확인 (BKP-02, uploads.tar.gz가 있을 때만)")
+    # 이 스크립트의 1단계 백업(app.backups.sqlite_backup)은 DB만 만든다 — 첨부까지
+    # 검증하려면 scripts/backup-clovirone-web-assistant.sh가 만든 실제 백업 디렉터리를
+    # 가리켜야 한다(그 디렉터리는 web.sqlite3 옆에 uploads.tar.gz를 둔다, BKP-01).
+    # 기본 실행(var/web.sqlite3, 옆에 uploads.tar.gz가 없음)은 조용히 건너뛴다 — 못 한 것을
+    # 확인한 척하지 않고 SKIP이라고 분명히 말한다.
+    uploads_archive = src.parent / "uploads.tar.gz"
+    if uploads_archive.is_file():
+        uploads_extract_dir = work / "uploads_check"
+        try:
+            with tarfile.open(uploads_archive) as tf:
+                tf.extractall(uploads_extract_dir, filter="data")
+            missing = check_attachment_files(restored, uploads_extract_dir / "uploads")
+            if missing:
+                bad(f"첨부 파일 {len(missing)}개가 복원본 DB 참조와 맞지 않는다:")
+                for m in missing[:10]:
+                    print(f"      - {m}", file=sys.stderr)
+                if len(missing) > 10:
+                    print(f"      … 외 {len(missing) - 10}건 더", file=sys.stderr)
+            else:
+                ok("복원본 DB가 참조하는 첨부 파일이 uploads.tar.gz 안에 전부 있다")
+        except Exception as exc:  # noqa: BLE001 - 압축 해제 실패도 결과다
+            bad(f"uploads.tar.gz 처리 중 예외: {type(exc).__name__}: {exc}")
+    else:
+        print(f"  [SKIP] {uploads_archive} 없음 — 첨부 검증 생략(DB만 있는 원본을 가리켰다)")
 
     print("")
     finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
