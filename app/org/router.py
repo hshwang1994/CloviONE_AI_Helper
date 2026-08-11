@@ -31,6 +31,7 @@ from app.org.schemas import (
     OrgItemUpdateRequest,
 )
 from app.org.service import (
+    bulk_usage_count,
     create_item,
     delete_item,
     get_or_404,
@@ -92,12 +93,15 @@ def _make_org_router(
         # 어떤 단위로 하는지 드러난다.
         rows = list_items(db, model, active=active, scope=principal.scope)
         names = _org_names(db, rows)
+        # UA-16: 행마다 usage_count()를 부르면 목록 N건에 질의 N번이었다(_org_names 바로
+        # 위 두 줄은 이미 그룹 질의였는데 이쪽만 안 고쳐져 있었다) — 한 번에 센다.
+        counts = bulk_usage_count(db, model, [row.id for row in rows])
         # 몇 명이 쓰는지 보이지 않으면 관리자는 지워도 되는지 판단할 수 없다.
         return {
             "items": [
                 item_view(
                     row,
-                    user_count=usage_count(db, model, row.id),
+                    user_count=counts.get(row.id, 0),
                     org_name=names.get(getattr(row, "org_id", None)),
                 )
                 for row in rows
@@ -238,14 +242,44 @@ organizations_router = APIRouter(
 )
 
 
-def _org_view(db: Session, row: Organization) -> dict:
-    """조직 한 곳 + **그 안에 무엇이 들어 있는지**. 숫자가 곧 포함 관계의 요약이다."""
-    dept_count = db.execute(
-        select(func.count()).select_from(Department).where(Department.org_id == row.id)
-    ).scalar_one()
-    user_count = db.execute(
-        select(func.count()).select_from(User).where(User.org_id == row.id)
-    ).scalar_one()
+def _bulk_org_counts(db: Session, org_ids: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    """(부서 수, 인원 수) 그룹 질의 — UA-16: 목록에서 `_org_view`를 행마다 부르면 조직 하나당
+    COUNT 두 번, 목록 N건에 질의 2N번이었다. 안 쓰는 id는 딕셔너리에 없다(호출부가 `.get`)."""
+    ids = {i for i in org_ids if i}
+    if not ids:
+        return {}, {}
+    dept_rows = db.execute(
+        select(Department.org_id, func.count())
+        .where(Department.org_id.in_(ids)).group_by(Department.org_id)
+    ).all()
+    user_rows = db.execute(
+        select(User.org_id, func.count())
+        .where(User.org_id.in_(ids)).group_by(User.org_id)
+    ).all()
+    return {r[0]: r[1] for r in dept_rows}, {r[0]: r[1] for r in user_rows}
+
+
+def _org_view(
+    db: Session, row: Organization, *,
+    dept_counts: dict[str, int] | None = None, user_counts: dict[str, int] | None = None,
+) -> dict:
+    """조직 한 곳 + **그 안에 무엇이 들어 있는지**. 숫자가 곧 포함 관계의 요약이다.
+
+    `dept_counts`/`user_counts`를 주면(목록에서 `_bulk_org_counts`로 미리 구한 것) 그
+    딕셔너리를 쓴다 — 단건 조회(get/create/update)는 안 주므로 그때만 개별 COUNT를 한다.
+    """
+    dept_count = (
+        dept_counts.get(row.id, 0) if dept_counts is not None
+        else db.execute(
+            select(func.count()).select_from(Department).where(Department.org_id == row.id)
+        ).scalar_one()
+    )
+    user_count = (
+        user_counts.get(row.id, 0) if user_counts is not None
+        else db.execute(
+            select(func.count()).select_from(User).where(User.org_id == row.id)
+        ).scalar_one()
+    )
     return {
         "id": row.id,
         "slug": row.slug,
@@ -293,7 +327,13 @@ def list_organizations(
     if scope is not None and not getattr(scope, "is_global", True):
         stmt = stmt.where(Organization.id == getattr(scope, "org_id", None))
     rows = list(db.execute(stmt).scalars())
-    return {"items": [_org_view(db, r) for r in rows], "total": len(rows)}
+    dept_counts, user_counts = _bulk_org_counts(db, [r.id for r in rows])
+    return {
+        "items": [
+            _org_view(db, r, dept_counts=dept_counts, user_counts=user_counts) for r in rows
+        ],
+        "total": len(rows),
+    }
 
 
 @organizations_router.get("/{org_id}")

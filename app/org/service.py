@@ -205,6 +205,22 @@ def usage_count(db: Session, model: type, item_id: str) -> int:
     ).scalar_one()
 
 
+def bulk_usage_count(db: Session, model: type, item_ids) -> dict[str, int]:
+    """`usage_count`의 목록판 — 행마다 한 번씩 부르면(UA-16) 목록 N건에 질의 N번이 된다
+    (같은 파일의 `_org_names`·`tree.py`의 그룹 질의와 대조적이었다). 그룹 질의 한 번으로
+    {item_id: 사용자 수}를 만든다 — 안 쓰는 항목은 딕셔너리에 없다(호출부가 `.get(id, 0)`)."""
+    from app.users.models import User
+
+    ids = {i for i in item_ids if i}
+    if not ids:
+        return {}
+    column = _fk_column(model)
+    rows = db.execute(
+        select(column, func.count()).where(column.in_(ids)).group_by(column)
+    ).all()
+    return {row[0]: row[1] for row in rows}
+
+
 def create_item(
     db: Session,
     model: type[OrgModel],
