@@ -36,6 +36,24 @@ from app.users.models import ROLE_SYSTEM_ADMIN, User
 # request_type → executor(db, approval, app_state). Registered by modules below.
 APPROVAL_EXECUTORS: dict[str, Callable] = {}
 
+# APPR-02: 알림 제목·메일 제목이 request_type 코드 상수를 그대로 노출했다("승인 요청:
+# user.role_change") — 사람이 읽는 화면에 내부 식별자가 새는 것이다. 실제로 쓰이는 값은
+# request_type= 리터럴을 등록하는 5개 호출부(users/router.py, integrations/router.py,
+# runners/router.py, schedules/router.py, jobs/handlers/document_generate.py)뿐이다.
+_REQUEST_TYPE_KO = {
+    "user.role_change": "역할 변경",
+    "integration.change_config": "연동 설정 변경",
+    "runner.change_config": "러너 설정 변경",
+    "schedule.enable": "스케줄 활성화",
+    "document.publish": "문서 발행",
+}
+
+
+def _request_type_ko(request_type: str) -> str:
+    # 모르는 값을 지어내지 않는다 — 매핑에 없으면(새 요청 유형이 아직 안 올라온 경우)
+    # 원문 코드를 그대로 보여준다. 지금까지의 완전 노출보다 나빠지지 않는다.
+    return _REQUEST_TYPE_KO.get(request_type, request_type)
+
 
 def approval_view(
     row: Approval,
@@ -232,7 +250,7 @@ def create_approval(
     notify_approvers(
         db,
         type_="approval_requested",
-        title=f"승인 요청: {request_type}",
+        title=f"승인 요청: {_request_type_ko(request_type)}",
         body=f"{requested_by.display_name}님이 {object_type} 변경 승인을 요청했습니다.",
         related=("approval", row.id),
         now=now,
@@ -263,7 +281,7 @@ def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: date
             db,
             approver_user_ids(db, now=now),
             kind=KIND_APPROVAL_REQUESTED,
-            subject=f"[ClovirAssist] 승인 요청: {row.request_type}",
+            subject=f"[ClovirAssist] 승인 요청: {_request_type_ko(row.request_type)}",
             params={
                 "request_type": row.request_type,
                 "requested_by": requested_by.display_name,
@@ -412,7 +430,7 @@ def decide(
         db,
         row.requested_by,
         type_="approval_decided",
-        title=f"승인 {'완료' if approve else '거절'}: {row.request_type}",
+        title=f"승인 {'완료' if approve else '거절'}: {_request_type_ko(row.request_type)}",
         body=comment,
         related=("approval", row.id),
         now=now,

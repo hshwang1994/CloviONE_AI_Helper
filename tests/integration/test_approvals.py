@@ -205,6 +205,28 @@ def test_pending_past_expiry_lists_as_expired(client, login_as, workflow_id, fak
     assert match["status"] == "expired"
 
 
+def test_notification_title_uses_korean_label_not_raw_request_type(
+    client, login_as, workflow_id, db
+):
+    """APPR-02: 알림·메일 제목이 "승인 요청: user.role_change" 같은 내부 코드 상수를
+    그대로 노출했다 — 요청/결정 알림 둘 다 request_type을 사람이 읽는 한국어 라벨로
+    바꾼다."""
+    from app.notifications.models import Notification
+
+    csrf = login_as("admin", email="ko-title-requester@goodmit.co.kr")
+    schedule = _make_schedule(client, csrf, workflow_id, name="한글 제목 확인")
+    r = client.post(f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf))
+    assert r.status_code == 202
+
+    requested = (
+        db.query(Notification).filter(Notification.type == "approval_requested").all()
+    )
+    assert requested
+    for n in requested:
+        assert "schedule.enable" not in n.title, n.title
+        assert "스케줄 활성화" in n.title, n.title
+
+
 def test_list_rejects_unknown_status_instead_of_silently_returning_zero(client, login_as):
     """APPR-03: `status=all`(또는 다른 알 수 없는 값)이 조용히 0건을 주면 API를 직접
     두드리는 쪽(스크립트·연동)이 "승인이 하나도 없다"로 오해한다 — 422로 원인을 말한다.
