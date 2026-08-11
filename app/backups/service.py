@@ -328,6 +328,57 @@ def announce_backup_failure(db, *, reason: str, now, title: str = "예약 백업
         logger.exception("백업 실패 화면 알림을 남기지 못했다 (백업 기록은 남는다)")
 
 
+# RSTR-03: 예약 백업이 실패하면 announce_backup_failure가 알린다 — 하지만 이 설치의 실제
+# 문제는 실패가 아니라 **애초에 안 도는 것**이었다(기본값이 꺼짐, 마지막 성공 백업이 20일
+# 전). "백업이 실패했습니다" 알림은 실행 자체가 없으면 한 번도 안 나가므로, 아무도 그
+# 사실을 몰랐다 — /restore-drills 화면을 직접 열어야만 보이는데 아무도 그 화면을 안 봤다.
+BACKUP_STALE_ALERT_DAYS = 7
+# 이 틱은 10분마다 돈다(worker_main.py) — "꺼져 있음"·"오래 안 돎"은 다음 백업이 생기거나
+# 설정이 바뀌기 전까지 계속 참이라, 매 틱 알리면 관리자 알림함이 도배된다. runner_unavailable
+# (app/runners/service.py::record_runner_result)이 이미 쓰는 원칙과 같다 — "정상→나쁨 전환"
+# 에만 보낸다. 백업은 전환을 표시할 전용 상태 컬럼이 없으므로, 최근 이미 같은 유형의 관리자
+# 알림을 보냈는지(Notification 테이블 자체가 이미 갖고 있는 사실) 확인하는 것으로 대신한다 —
+# 새 상태를 하나 더 만들면 그 상태와 Notification 이 어긋나는 날이 온다.
+BACKUP_ALERT_COOLDOWN_HOURS = 24
+
+
+def backup_health_alert_reason(db: Session, config: dict, *, now: datetime) -> str | None:
+    """예약 백업이 꺼져 있거나, 켜져 있는데도 너무 오래 안 돌았으면 그 이유를 돌려준다.
+    문제 없으면 None."""
+    if not config.get("enabled"):
+        return "예약 백업이 꺼져 있어 자동 백업이 되고 있지 않습니다. 백업 화면에서 예약을 켜거나, 정기적으로 수동 백업을 만드세요."
+    last = last_successful_backup(db)
+    if last is None:
+        return "예약 백업이 켜져 있지만 아직 성공한 백업이 하나도 없습니다."
+    stale_days = (now - last.created_at).total_seconds() / 86400
+    if stale_days > BACKUP_STALE_ALERT_DAYS:
+        return f"마지막으로 성공한 백업이 {int(stale_days)}일 전입니다. 예약이 켜져 있는데도 이렇게 오래됐다면 워커나 스케줄 설정을 확인하세요."
+    return None
+
+
+def _recently_alerted_backup_health(db: Session, *, now: datetime) -> bool:
+    from app.notifications.models import AUDIENCE_ADMIN, Notification
+
+    cutoff = now - timedelta(hours=BACKUP_ALERT_COOLDOWN_HOURS)
+    return db.execute(
+        select(Notification.id)
+        .where(
+            Notification.type == "backup_failed",
+            Notification.audience == AUDIENCE_ADMIN,
+            Notification.created_at >= cutoff,
+        )
+        .limit(1)
+    ).scalar_one_or_none() is not None
+
+
+def check_backup_health(db: Session, config: dict, *, now: datetime) -> None:
+    """예약 백업이 꺼져 있거나 정체됐으면 하루에 최대 한 번 관리자에게 알린다."""
+    reason = backup_health_alert_reason(db, config, now=now)
+    if reason is None or _recently_alerted_backup_health(db, now=now):
+        return
+    announce_backup_failure(db, reason=reason, now=now, title="예약 백업 상태를 확인해 주세요")
+
+
 def run_scheduled_backup(db, settings, config: dict, *, now):
     """예약 백업 1회. 예외를 밖으로 내보내지 않는다(워커 루프를 죽이지 않는다).
 

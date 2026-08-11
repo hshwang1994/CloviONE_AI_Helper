@@ -461,6 +461,7 @@ def main() -> int:
     # 돌지 않고, 확인 주기가 실행 주기가 아니다.
     from app.backups.service import (
         backup_schedule_config,
+        check_backup_health,
         due_for_scheduled_backup,
         run_scheduled_backup,
     )
@@ -479,6 +480,9 @@ def main() -> int:
                     row = run_scheduled_backup(db, settings, config, now=now)
                     if row is not None:
                         logger.info("예약 백업 완료: %s (%s)", row.id, row.status)
+                # RSTR-03: 백업이 실패하면 위 run_scheduled_backup이 이미 알린다 — 이 검사는
+                # "실패"가 아니라 "꺼져 있음"·"너무 오래 안 돎"을 잡는다(하루 최대 1회).
+                check_backup_health(db, config, now=now)
                 db.commit()
         except Exception:
             logger.exception("backup schedule tick failed")

@@ -361,6 +361,107 @@ def test_a_successful_backup_says_nothing(app, settings, make_user):
     assert _rows(app, "backup_failed") == [], "성공한 백업이 실패 알림을 냈다"
 
 
+# ── 4-R. RSTR-03: 백업이 실패가 아니라 애초에 안 도는 것 ──────────────────────
+#
+# announce_backup_failure(위 두 시험)는 백업을 "시도했는데 실패했을 때"만 켜진다. 이
+# 설치의 실제 문제는 그게 아니었다 — 예약 백업이 기본값(꺼짐)인 채로 20일이 지났는데,
+# 시도 자체가 없으니 실패 알림도 한 번도 안 나갔다. /restore-drills 화면을 직접 열어야만
+# 보였고 아무도 그 화면을 안 봤다.
+
+def test_disabled_schedule_gets_a_reason(app):
+    import app.backups.service as backups_service
+
+    with app.state.session_factory() as session:
+        reason = backups_service.backup_health_alert_reason(
+            session, {"enabled": False}, now=app.state.clock.now()
+        )
+    assert reason is not None and "꺼져" in reason
+
+
+def test_enabled_but_never_run_gets_a_reason(app):
+    import app.backups.service as backups_service
+
+    with app.state.session_factory() as session:
+        reason = backups_service.backup_health_alert_reason(
+            session, {"enabled": True}, now=app.state.clock.now()
+        )
+    assert reason is not None and "없습니다" in reason
+
+
+def test_enabled_and_recent_backup_is_healthy(app):
+    import app.backups.service as backups_service
+    from app.backups.models import STATUS_VERIFIED, Backup
+
+    now = app.state.clock.now()
+    with app.state.session_factory() as session:
+        session.add(Backup(
+            backup_type="manual", path="/tmp/clv-recent.sqlite3",
+            status=STATUS_VERIFIED, created_at=now,
+        ))
+        session.commit()
+        reason = backups_service.backup_health_alert_reason(
+            session, {"enabled": True}, now=now
+        )
+    assert reason is None
+
+
+def test_enabled_but_stale_backup_gets_a_reason(app):
+    from datetime import timedelta
+
+    import app.backups.service as backups_service
+    from app.backups.models import STATUS_VERIFIED, Backup
+
+    now = app.state.clock.now()
+    with app.state.session_factory() as session:
+        session.add(Backup(
+            backup_type="manual", path="/tmp/clv-stale.sqlite3",
+            status=STATUS_VERIFIED,
+            created_at=now - timedelta(days=backups_service.BACKUP_STALE_ALERT_DAYS + 1),
+        ))
+        session.commit()
+        reason = backups_service.backup_health_alert_reason(
+            session, {"enabled": True}, now=now
+        )
+    assert reason is not None and "오래됐다면" in reason
+
+
+def test_a_disabled_schedule_reaches_the_admins_once_a_day_not_every_tick(app, make_user):
+    """runner_unavailable과 같은 원칙 — 나쁜 상태가 계속 참이어도 매 틱(10분)마다 알리면
+    관리자 알림함이 도배된다. 하루 한 번으로 눌러 둔다."""
+    import app.backups.service as backups_service
+
+    ops = make_user("ops-noti3@goodmit.co.kr", role="admin", display_name="운영자")
+    now = app.state.clock.now()
+    with app.state.session_factory() as session:
+        backups_service.check_backup_health(session, {"enabled": False}, now=now)
+        session.commit()
+    assert _count(app, ops.id, "backup_failed") == 1
+
+    with app.state.session_factory() as session:
+        # 같은 틱이 몇 번 더 돌아도(워커가 재시작하는 등) 쿨다운 안이면 추가로 안 보낸다.
+        backups_service.check_backup_health(session, {"enabled": False}, now=now)
+        backups_service.check_backup_health(session, {"enabled": False}, now=now)
+        session.commit()
+    assert _count(app, ops.id, "backup_failed") == 1, "쿨다운 안에서 알림함이 도배됐다"
+
+
+def test_a_healthy_schedule_says_nothing(app, make_user):
+    import app.backups.service as backups_service
+    from app.backups.models import STATUS_VERIFIED, Backup
+
+    ops = make_user("ops-noti4@goodmit.co.kr", role="admin", display_name="운영자")
+    now = app.state.clock.now()
+    with app.state.session_factory() as session:
+        session.add(Backup(
+            backup_type="manual", path="/tmp/clv-healthy.sqlite3",
+            status=STATUS_VERIFIED, created_at=now,
+        ))
+        session.commit()
+        backups_service.check_backup_health(session, {"enabled": True}, now=now)
+        session.commit()
+    assert _count(app, ops.id, "backup_failed") == 0
+
+
 def test_a_failed_manual_backup_reaches_the_admins_in_the_app(app, client, login_as, make_user):
     """FN-09 — 예약 백업은 실패를 알리는데, '지금 백업' 버튼(수동 경로)은 실패해도 누른
     사람 말고는 아무도 몰랐다(POST 응답으로만 봄). run_backup 자체는 두 경로가 공유하므로
