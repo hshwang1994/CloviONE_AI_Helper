@@ -193,9 +193,14 @@ export const RE_UNORDERED = /^-\s+(.*)$/;
 export const RE_SUBLINE = /^\s{2,}(\S.*)$/;
 // 키는 짧다. 콜론이 든 평범한 문장을 표로 오해하지 않으려는 상한이다.
 export const RE_KV = /^([^:\s][^:]{0,15}?)\s*:\s*(.*)$/;
-// AI-34: ``` 펜스 코드블록 시작/끝. 언어 태그(```python 등)는 lang으로 잡되, 그 뒤에는
-// 공백만 허용한다(코드 자체가 아니라 펜스 구분선으로만 본다).
-export const RE_FENCE = /^```(\S*)\s*$/;
+// AI-34: 백틱 3개짜리 펜스 코드블록 시작/끝. 언어 태그(백틱3개+python 등)는 lang으로
+// 잡되, 그 뒤에는 공백만 허용한다(코드 자체가 아니라 펜스 구분선으로만 본다).
+// 정규식 리터럴에 백틱 문자를 그대로 3개 연속으로 적으면 scripts/check_user_text.py의
+// 순수 문자 스캐너(따옴표 상태를 추적하되 정규식 리터럴은 모른다)가 백틱을 템플릿
+// 리터럴 시작으로 오인해, 그 뒤로 파일 끝까지(또는 다음 백틱까지) 주석 제거가 멈춰
+// 버린다(직접 겪음 — 아래쪽 무관한 주석들이 "사용자 문구"로 오탐됐다) — \x60(16진
+// 문자 코드)로 우회한다.
+export const RE_FENCE = /^\x60\x60\x60(\S*)\s*$/;
 
 // 시각 표기 오탐 방지(step 10 #3, node로 재현 확인) — RE_KV는 첫 콜론만 보므로
 // "시" 부분이 키에, "분" 부분이 값 머리에 걸린다. 예전엔 키가 **순수 숫자뿐**일 때만
@@ -270,8 +275,8 @@ export function parseBlocks(source) {
     if (!cur || cur.kind !== "para") { cur = { kind: "para", lines: [] }; blocks.push(cur); }
     cur.lines.push(c.text);
   });
-  // AI-34: 닫는 ``` 없이 입력이 끝나면(잘린 응답 등) 그때까지 모은 줄을 잃지 않고
-  // code 블록으로 낸다 — 침묵 손실보다 낫다.
+  // AI-34: 닫는 펜스(백틱 3개) 없이 입력이 끝나면(잘린 응답 등) 그때까지 모은 줄을
+  // 잃지 않고 code 블록으로 낸다. 침묵 손실보다 낫다.
   if (fence) {
     blocks.push({ kind: "code", lang: fence.lang, text: fence.lines.join("\n") });
   }
