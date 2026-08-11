@@ -12,9 +12,34 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11 · **단계**: 전수 QA 하네스(QAH) 1회차 실행 + 결함 수정 완료,
-DGEN-01/USE-04/SCHD-02 배치 완료 — 아래 새 단락 참고. 이전 단계는 그 아래 그대로 유지:
-SHORT OVERRIDE 지시 아래 CORE-13 다음 배치 진행 중
+**마지막 갱신**: 2026-08-11 · **단계**: QAH 배치에 이어 APPR-02/03·RG-06/07 4건 추가
+구현+테스트+커밋 완료(같은 세션 계속, /loop 세션 보조 진행). 로컬 uvicorn 개발 서버
+(QA 하네스용)는 더 안 써서 정지함. 상세는 아래 새 단락. 그 앞 QAH/DGEN 배치, 이전
+SHORT OVERRIDE 단계는 그 아래 그대로 유지
+
+**같은 세션 계속(2026-08-11) — APPR-02/03·RG-06/07 4건**: QAH+DGEN 배치 직후 "다음
+후보" 목록에서 자기완결 항목 4개를 이어서 구현.
+- **APPR-03**: `GET /api/admin/approvals?status=<모르는 값>`이 조용히 0건 → 알려진 5개
+  상태 밖이면 422(이 저장소의 다른 enum 검증과 같은 상태 코드).
+- **APPR-02**: 승인 알림/메일 제목이 `user.role_change` 같은 내부 코드를 그대로 노출 →
+  `_REQUEST_TYPE_KO` 매핑으로 3개 호출부(요청/결정 알림, 요청 메일) 전부 한국어화.
+- **RG-07**: `documents` 목록 요청자·`workflows` 버전 기록 변경자가 서버는 이미 이름을
+  주는데 화면이 raw UUID만 그림 → `personField`로 교체, `versionsAction()`에 opt-in
+  `namedCreator` 추가(연동·러너 `/versions`는 실제로 이름을 안 준다는 것 재확인 후 그대로 둠).
+- **RG-06**: 복구 리허설 첫 실행 안내 4종이 `canOnboard`(create/primary headerAction
+  전제) 게이트 때문에 어떤 역할에서도 안 그려짐 → `config.forceOnboarding` opt-in 신설.
+  같은 함정이 다른 registry 화면에도 있는지 전수 감사 시험(`onboarding-gate-coverage.
+  test.jsx`)을 새로 만들어 확인 — 이 화면이 유일한 사례, 이 시험이 앞으로 상시 가드로 남음.
+
+**검증**: 4건 전부 focused test + revert-to-verify 확인함. 백엔드 관련 스위트(approvals ·
+session · schedules · documents · templates · security 전체) 85건 green. 프런트 전체
+회귀 1484건 green(216파일). 커밋 8개(구현 4 + docs 4).
+
+**남은 다음 후보**: RG-05(승인 큐 서버 필터 미연결) · PERF-02(GET /api/tickets 405) ·
+UB-25 나머지 2종(죽은 코드) · QAH-05(game-room contrast, 하네스 라우트 편입 먼저 필요) ·
+DGEN-03(FormModal 전역 영향 커서 보류) · QA_COVERAGE의 U(실사용 이력)·K(그라디언트 대비)·
+L(화면 간 반영 전수) 공백.
+
 
 **QAH 배치(2026-08-11) — 전수 QA 하네스 1회차 실행 + 4개 축 결함 전부 수정.**
 `scripts/ui_qa/run.py`를 68라우트 × 라이트/다크 × 3뷰포트(408페이지) 로컬 dev 서버 대상
