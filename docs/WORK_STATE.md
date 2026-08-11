@@ -12,9 +12,9 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11 · **단계**: QAH 배치에 이어 APPR-02/03·RG-06/07 4건 추가
-구현+테스트+커밋 완료(같은 세션 계속, /loop 세션 보조 진행). 로컬 uvicorn 개발 서버
-(QA 하네스용)는 더 안 써서 정지함. 상세는 아래 새 단락. 그 앞 QAH/DGEN 배치, 이전
+**마지막 갱신**: 2026-08-11 · **단계**: RG-05·UB-25 추가 구현+테스트+커밋 완료(같은
+세션 계속, /loop 세션 보조 진행). 상세는 아래 새 단락. 그 앞 APPR-02/03·RG-06/07,
+QAH/DGEN 배치, 이전
 SHORT OVERRIDE 단계는 그 아래 그대로 유지
 
 **같은 세션 계속(2026-08-11) — APPR-02/03·RG-06/07 4건**: QAH+DGEN 배치 직후 "다음
@@ -35,10 +35,31 @@ SHORT OVERRIDE 단계는 그 아래 그대로 유지
 session · schedules · documents · templates · security 전체) 85건 green. 프런트 전체
 회귀 1484건 green(216파일). 커밋 8개(구현 4 + docs 4).
 
-**남은 다음 후보**: RG-05(승인 큐 서버 필터 미연결) · PERF-02(GET /api/tickets 405) ·
-UB-25 나머지 2종(죽은 코드) · QAH-05(game-room contrast, 하네스 라우트 편입 먼저 필요) ·
+**같은 세션 계속(2026-08-11) — RG-05·UB-25 2건**:
+- **RG-05**: 승인 큐(`governance.js`)에 `status` 서버 필터만 있고, 백엔드가 이미 받는
+  `request_type`/`requested_by`는 안 쓰고 있었다 — 추가(request_type은 select, 라벨은
+  `actionKo`로 만들어 목록 열과 항상 같은 말을 쓰게 함; requested_by는 impersonation
+  화면과 같은 자유 텍스트 ID 필터).
+- **UB-25**: 죽은 코드 후보 5개를 재검토. **하나는 전제가 틀렸다** — `body["components"]`를
+  실측 없이 지우려다 `test_admin_backlog.py::test_operators_get_component_detail`이
+  운영자 이상에게 이 필드를 이미 의도적으로 요구하는 것을 발견하고 되돌림("소비자 0"이
+  아니라 "프런트가 아직 안 읽는다"였다 — 이 세션이 이미 여러 번 강조한 "재검증 없이
+  지우지 않는다"가 여기서도 실제로 뭔가를 구했다). 나머지 4개는 실측대로 죽어 있었다:
+  `list_sync_status`·`SYNC_ERROR` import 삭제, `ROLE_SYSTEM_MSG` 삭제, `KNOWN_EVENTS`는
+  삭제 대신 실제로 강제하도록 고침(그 과정에서 `app/quotas/service.py`가 `EVENT_AI_CALL`을
+  별도 재정의해 "이벤트 이름은 한 곳에서만 만든다"는 모듈 규칙이 이미 깨져 있던 것도
+  함께 고침).
+
+**검증**: 둘 다 focused test + revert-to-verify 확인함. UB-25는 백엔드 전체 회귀
+2791건 green(28분, exit 0, 실측 로그 확인) — 큰 폭의 변경(4개 파일, import 구조
+변경 포함)이라 전체 회귀를 조기 실행. 프런트 전체 회귀 1487건 green(217파일).
+커밋 4개(구현 2 + docs 2).
+
+**남은 다음 후보**: PERF-02(GET /api/tickets 405, "정상 동작" 명시된 Low 항목 — 값이
+낮아 보류 판단) · QAH-05(game-room contrast, 하네스 라우트 편입 먼저 필요) ·
 DGEN-03(FormModal 전역 영향 커서 보류) · QA_COVERAGE의 U(실사용 이력)·K(그라디언트 대비)·
-L(화면 간 반영 전수) 공백.
+L(화면 간 반영 전수) 공백. **RG-*/APPR-*/UB-25 계열은 이번 배치로 사실상 소진** —
+다음은 whole-product 재감사(§8) 또는 QA_COVERAGE 공백 착수가 유력.
 
 
 **QAH 배치(2026-08-11) — 전수 QA 하네스 1회차 실행 + 4개 축 결함 전부 수정.**
