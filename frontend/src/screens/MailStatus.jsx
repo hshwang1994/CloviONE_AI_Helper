@@ -127,6 +127,17 @@ export function MailStatus() {
             설정 안 됨(발송 못 함) {counts.unconfigured || 0}건
           </Typography>
         </Box>
+        {/* MAIL-03: 이 건수는 SMTP를 나중에 고쳐도 저절로 줄지 않는다(queue_mail이
+            설정 문제를 만나면 애초에 재시도 잡 자체를 안 만든다) — 관리자가 "설정을
+            고치면 이 숫자가 빠지겠지"로 오해하기 쉬워 명시적으로 알린다. */}
+        {counts.unconfigured ? (
+          <Box sx={{ mt: 1.5 }}>
+            <Callout tone="warn">
+              이 건수는 SMTP 설정을 고쳐도 자동으로 재발송되지 않습니다. 설정을 고친
+              뒤 새로 발생하는 메일부터 정상 발송됩니다.
+            </Callout>
+          </Box>
+        ) : null}
       </Card>
 
       <Card sx={{ mt: 2, p: 0, overflow: "hidden" }}>

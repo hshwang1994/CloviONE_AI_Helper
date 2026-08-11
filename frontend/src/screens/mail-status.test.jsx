@@ -88,6 +88,33 @@ describe("메일 발송 상태 화면", () => {
     expect(screen.getByText("비밀번호 재설정")).toBeInTheDocument();
   });
 
+  // MAIL-03: "설정 안 됨" 건수는 SMTP를 나중에 고쳐도 저절로 재발송되지 않는다 —
+  // 화면이 그 사실을 명시적으로 알려야 관리자가 "고치면 빠지겠지"로 오해하지 않는다.
+  it("설정 안 됨 건수가 있으면 재발송 안 된다는 안내가 뜬다", async () => {
+    renderScreen();
+    await screen.findByText(/SMTP 서버 주소/);
+    expect(
+      screen.getByText(/SMTP 설정을 고쳐도 자동으로 재발송되지 않습니다/),
+    ).toBeInTheDocument();
+  });
+
+  it("설정 안 됨 건수가 0이면 재발송 안내가 안 뜬다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (String(path).startsWith("/api/admin/mail/status")) {
+        return Promise.resolve({
+          ...NOT_CONFIGURED,
+          counts: { ...NOT_CONFIGURED.counts, unconfigured: 0 },
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    await screen.findByText(/SMTP 서버 주소/);
+    expect(
+      screen.queryByText(/SMTP 설정을 고쳐도 자동으로 재발송되지 않습니다/),
+    ).not.toBeInTheDocument();
+  });
+
   it("🔴 '시험 메일 보내기'가 확인 후 실제로 POST /api/admin/mail/test를 부른다", async () => {
     const user = userEvent.setup();
     renderScreen();
