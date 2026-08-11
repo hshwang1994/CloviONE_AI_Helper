@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
@@ -82,7 +82,7 @@ def _notion_status_map(db: Session, user_ids: list[str]) -> dict[str, str]:
 
 
 def _filtered_users_stmt(
-    scope, *, q, role, active, department_id, title_id, archived,
+    scope, *, q, role, active, department_id, title_id, archived, locked=None, now=None,
 ):
     """목록과 CSV 내보내기가 **같은 문장**을 쓴다.
 
@@ -119,6 +119,13 @@ def _filtered_users_stmt(
         stmt = stmt.where(User.department_id == department_id)
     if title_id:
         stmt = stmt.where(User.title_id == title_id)
+    # ADM-06R: 화면·배지·잠금 해제 버튼은 이미 다 있는데 "지금 잠긴 사람만 보기"가 안 됐다
+    # — `_user_row`가 이미 같은 식(`locked_until and locked_until > now`)으로 `locked`를
+    # 계산해 목록에 싣고 있었으니 필터도 같은 식이어야 한다(두 벌이 되면 화면 배지와
+    # 필터 결과가 어긋나는 날이 온다).
+    if locked is not None:
+        is_locked = and_(User.locked_until.is_not(None), User.locked_until > now)
+        stmt = stmt.where(is_locked if locked else ~is_locked)
     return stmt
 
 
@@ -137,10 +144,16 @@ def list_users(
         default=False,
         description="true면 보관된 계정'만' 보여준다. 기본(false)은 보관된 계정을 숨긴다.",
     ),
+    locked: bool | None = Query(
+        default=None,
+        description="true면 지금 잠긴 계정만, false면 안 잠긴 계정만. 기본(생략)은 안 거른다.",
+    ),
 ):
+    now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
         principal.scope, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
+        locked=locked, now=now,
     )
 
     total = db.execute(
@@ -153,7 +166,6 @@ def list_users(
         .scalars()
         .all()
     )
-    now = request.app.state.clock.now()
     statuses = _notion_status_map(db, [u.id for u in rows])
     return {
         "items": [
@@ -213,18 +225,20 @@ def export_users_csv(
     department_id: str | None = Query(default=None, max_length=36),
     title_id: str | None = Query(default=None, max_length=36),
     archived: bool = Query(default=False),
+    locked: bool | None = Query(default=None),
 ):
     """지금 화면에 걸린 필터 **그대로** 내보낸다(같은 문장을 쓴다 — _filtered_users_stmt).
 
     범위(0024)가 그대로 적용되므로 부서 관리자는 자기 서브트리만 받는다. 비밀번호 해시는
     어떤 열에도 없다(app/users/bulk.py EXPORT_COLUMNS).
     """
+    now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
         principal.scope, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
+        locked=locked, now=now,
     )
     rows = db.execute(stmt.order_by(User.created_at.desc(), User.id.desc())).scalars().all()
-    now = request.app.state.clock.now()
     body = bulk.export_csv(list(rows), now=now)
     record_audit_from_request(
         request, db, action="user.export_csv", object_type="user",

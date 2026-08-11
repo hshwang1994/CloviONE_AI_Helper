@@ -219,6 +219,9 @@ export function Users() {
   const [q, setQ] = useState(() => searchParams.get("q") || "");
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
+  // ADM-06R: 화면·배지(잠김)·잠금 해제 버튼은 이미 다 있는데 "지금 잠긴 사람만 보기"가
+  // 안 됐다 — 활성 필터와 같은 모양으로 추가한다.
+  const [lockedFilter, setLockedFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   // 조직도·부서 관리에서 '소속 인원 보기'로 오면 `#/users?department_id=<id>` 다. 백엔드는
   // 이 필터를 이미 지원했지만 화면이 주소를 읽지 않아, 눌러도 필터 없는 전체 목록이 떴다.
@@ -261,7 +264,7 @@ export function Users() {
   }, [searchParams]);
   const [page, setPage] = useState(1);
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다
-  React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, showArchived, deptFilter]);
+  React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter]);
   // 대량 작업 선택 집합. 페이지·필터가 바뀌어도 유지된다 — 여러 페이지에 걸쳐 고른 뒤
   // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
   const selection = useRowSelection();
@@ -312,12 +315,13 @@ export function Users() {
     if (dq) p.push("q=" + encodeURIComponent(dq));
     if (roleFilter) p.push("role=" + encodeURIComponent(roleFilter));
     if (activeFilter) p.push("active=" + activeFilter);
+    if (lockedFilter) p.push("locked=" + lockedFilter);
     if (deptFilter) p.push("department_id=" + encodeURIComponent(deptFilter));
     if (showArchived) p.push("archived=true");
     return p.join("&");
   }
   const query = useQuery({
-    queryKey: ["users", dq, roleFilter, activeFilter, deptFilter, showArchived, page],
+    queryKey: ["users", dq, roleFilter, activeFilter, lockedFilter, deptFilter, showArchived, page],
     queryFn: () => api("/api/admin/users?" + filterParams(true)),
     // 이전 결과를 유지해 새 쿼리 로딩 중에도 표를 스켈레톤으로 갈아엎지 않는다(깜빡임/스크롤 유실 방지).
     placeholderData: keepPreviousData,
@@ -398,13 +402,13 @@ export function Users() {
   ];
 
   const items = (query.data && query.data.items) || [];
-  const hasFilter = !!(q || roleFilter || activeFilter || deptFilter || showArchived);
-  // 실제 '내용' 필터(검색·역할·활성·부서)만 — '보관된 계정 보기' 토글은 뷰 전환일 뿐 지울 필터가 아니다.
-  const hasContentFilter = !!(q || roleFilter || activeFilter || deptFilter);
-  function clearFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setDeptFilter(""); setShowArchived(false); }
+  const hasFilter = !!(q || roleFilter || activeFilter || lockedFilter || deptFilter || showArchived);
+  // 실제 '내용' 필터(검색·역할·활성·잠김·부서)만 — '보관된 계정 보기' 토글은 뷰 전환일 뿐 지울 필터가 아니다.
+  const hasContentFilter = !!(q || roleFilter || activeFilter || lockedFilter || deptFilter);
+  function clearFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setLockedFilter(""); setDeptFilter(""); setShowArchived(false); }
   // 내용 필터만 지운다(보관함 뷰는 유지) — 툴바의 '필터 지우기'가 clearFilters를 쓰면 보관함을
   // 보던 중에도 showArchived까지 조용히 꺼져 뷰가 바뀌었다(뷰 전환과 필터 지우기는 다른 조작이다).
-  function clearContentFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setDeptFilter(""); }
+  function clearContentFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setLockedFilter(""); setDeptFilter(""); }
   // 부서 딥링크로 들어온 상태를 이름으로 알려 준다 — id만 주소에 있으면 왜 목록이 좁아졌는지
   // 화면 어디에도 설명이 없다(필터 select에는 부서 항목이 없다).
   const deptFilterName = deptFilter
@@ -510,6 +514,11 @@ export function Users() {
             <MenuItem value="">활성: 전체</MenuItem>
             <MenuItem value="true">활성</MenuItem>
             <MenuItem value="false">비활성</MenuItem>
+          </TextField>
+          <TextField select size="small" label="잠김" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={lockedFilter} onChange={(e) => setLockedFilter(e.target.value)}>
+            <MenuItem value="">잠김: 전체</MenuItem>
+            <MenuItem value="true">지금 잠김</MenuItem>
+            <MenuItem value="false">잠기지 않음</MenuItem>
           </TextField>
           <FormControlLabel
             sx={{ m: 0 }}

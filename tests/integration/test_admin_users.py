@@ -128,6 +128,63 @@ def test_list_users_search_and_filters(client, admin_csrf):
     assert r.json()["total"] >= 3  # admin + 2 created
 
 
+# ── ADM-06R: "지금 잠긴 사람만 보기" ─────────────────────────────────────────
+#
+# 화면·배지("잠김")·잠금 해제 버튼은 이미 다 있었는데 필터가 없었다 — 관리자가 잠긴
+# 계정을 찾으려면 전체 목록을 눈으로 훑어야 했다.
+
+def test_locked_filter_finds_a_locked_account(client, admin_csrf, app, settings):
+    from fastapi.testclient import TestClient
+
+    created = _create(client, admin_csrf, email="locked-filter@goodmit.co.kr").json()
+    other = _create(client, admin_csrf, email="not-locked@goodmit.co.kr").json()
+
+    with TestClient(app, raise_server_exceptions=False) as attacker:
+        for _ in range(settings.login_max_failures):
+            attacker.post(
+                "/login", json={"email": "locked-filter@goodmit.co.kr", "password": "Wrong-1x!"}
+            )
+
+    r = client.get("/api/admin/users", params={"locked": "true"}, headers=_headers(admin_csrf))
+    assert r.status_code == 200, r.text
+    emails = [u["email"] for u in r.json()["items"]]
+    assert "locked-filter@goodmit.co.kr" in emails
+    assert "not-locked@goodmit.co.kr" not in emails
+    assert all(u["locked"] for u in r.json()["items"])
+
+    r = client.get("/api/admin/users", params={"locked": "false"}, headers=_headers(admin_csrf))
+    emails = [u["email"] for u in r.json()["items"]]
+    assert "not-locked@goodmit.co.kr" in emails
+    assert "locked-filter@goodmit.co.kr" not in emails
+
+    # 해제하면 잠김 필터에서 빠지고 안 잠김 필터로 옮겨간다.
+    client.post(
+        f"/api/admin/users/{created['user']['id']}/unlock", headers=_headers(admin_csrf)
+    )
+    r = client.get("/api/admin/users", params={"locked": "true"}, headers=_headers(admin_csrf))
+    assert "locked-filter@goodmit.co.kr" not in [u["email"] for u in r.json()["items"]]
+
+
+def test_locked_filter_also_applies_to_csv_export(client, admin_csrf, app, settings):
+    """목록·CSV가 다른 문장을 쓰면 화면엔 필터가 걸리는데 내보낸 파일엔 전원이 담긴다."""
+    from fastapi.testclient import TestClient
+
+    _create(client, admin_csrf, email="csv-locked@goodmit.co.kr")
+    _create(client, admin_csrf, email="csv-not-locked@goodmit.co.kr")
+    with TestClient(app, raise_server_exceptions=False) as attacker:
+        for _ in range(settings.login_max_failures):
+            attacker.post(
+                "/login", json={"email": "csv-locked@goodmit.co.kr", "password": "Wrong-1x!"}
+            )
+
+    r = client.get(
+        "/api/admin/users/export/csv", params={"locked": "true"}, headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200
+    assert "csv-locked@goodmit.co.kr" in r.text
+    assert "csv-not-locked@goodmit.co.kr" not in r.text
+
+
 def test_patch_user_updates_fields(client, admin_csrf):
     # 부서는 이제 자유 문자열이 아니라 명부(app/org)의 항목을 가리킨다.
     dept_id = client.post(
