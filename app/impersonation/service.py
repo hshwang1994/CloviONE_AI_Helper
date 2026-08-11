@@ -29,7 +29,9 @@ from app.auth.models import UserSession
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, RateLimitedError
 from app.core.scope import Scope, scope_allows_user
 from app.impersonation.models import (
+    END_EXPIRED,
     END_MANUAL,
+    END_TARGET_UNAVAILABLE,
     ImpersonationSession,
 )
 from app.users.models import ROLE_SYSTEM_ADMIN, User, role_rank
@@ -185,6 +187,55 @@ def end(
 
 def expired(row: ImpersonationSession, now: datetime) -> bool:
     return (now - row.started_at).total_seconds() > MAX_DURATION_SECONDS
+
+
+def sweep_expired(db: Session, *, now: datetime) -> int:
+    """UB-27: 30분 상한을 넘긴 임퍼소네이션을 요청 없이도 정리한다.
+
+    `_impersonated_auth`(app/core/deps.py)의 지연(lazy) 종료는 **보안 통제**로는 충분하다 —
+    다음 요청이 오는 순간 즉시 다시 판정되므로 아무도 30분을 넘겨 계속 읽을 수 없다. 하지만
+    관리자가 창을 닫고 다시는 그 세션으로 요청을 보내지 않으면(=다음 요청 자체가 없으면)
+    `ended_at`이 영원히 NULL로 남아, 감사 화면의 "진행 중" 목록이 실제로는 끝난 지 오래인
+    세션을 계속 진행 중이라고 보여준다 — approval_expiry_tick(app/worker_main.py)이 이미
+    푼 것과 같은 부류의 문제를 같은 방식(주기 스윕)으로 푼다.
+    """
+    from app.core.audit import record_audit
+
+    cutoff = now - timedelta(seconds=MAX_DURATION_SECONDS)
+    rows = (
+        db.execute(
+            select(ImpersonationSession).where(
+                ImpersonationSession.ended_at.is_(None),
+                ImpersonationSession.started_at < cutoff,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in rows:
+        session = db.execute(
+            select(UserSession).where(UserSession.impersonation_id == row.id)
+        ).scalar_one_or_none()
+        if session is not None:
+            session.impersonated_user_id = None
+            session.impersonation_id = None
+        row.ended_at = now
+        row.ended_reason = END_EXPIRED
+        record_audit(
+            db,
+            actor_id=row.actor_user_id,
+            action="impersonation.stop",
+            object_type="user",
+            object_id=row.target_user_id,
+            after={
+                "impersonation_id": row.id,
+                "ended_reason": row.ended_reason,
+                "duration_seconds": int((row.ended_at - row.started_at).total_seconds()),
+                "blocked_write_count": row.blocked_write_count,
+            },
+        )
+    db.flush()
+    return len(rows)
 
 
 def view(row: ImpersonationSession, names: dict[str, dict[str, str]] | None = None) -> dict:

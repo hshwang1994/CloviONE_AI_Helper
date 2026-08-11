@@ -23,6 +23,7 @@ from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
 END_MANUAL = "manual"
 END_LOGOUT = "logout"
 END_TARGET_UNAVAILABLE = "target_unavailable"
+END_EXPIRED = "expired"
 
 
 class ImpersonationSession(UUIDPrimaryKeyMixin, Base):

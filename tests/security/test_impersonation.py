@@ -327,6 +327,82 @@ def test_impersonation_auto_ends_after_max_duration(impersonating, client, db):
     assert me["role"] == "system_admin", "관리자 자신의 세션으로 안 돌아왔다"
 
 
+# UB-17: 자동 종료(만료·대상 소실)도 수동 종료·로그아웃 종료와 똑같이 감사에 남아야 한다.
+def test_auto_expiry_leaves_an_audit_trail(impersonating, client, db, login_as):
+    from app.impersonation.service import MAX_DURATION_SECONDS
+
+    client, _csrf, target_id = impersonating
+    _backdate_impersonation_start(db, target_id=target_id, seconds_ago=MAX_DURATION_SECONDS + 1)
+
+    # 이 호출이 자동 종료를 트리거한다 — 그 순간부터 /api/me는 다시 관리자 자신이다.
+    me = client.get("/api/me").json()["user"]
+    assert me["id"] != target_id, "시간이 지났는데도 여전히 대상의 눈으로 보인다"
+    admin_id = me["id"]
+
+    stops = client.get("/api/admin/audit?action=impersonation.stop").json()["items"]
+    assert stops, "자동(만료) 종료인데 impersonation.stop 감사 기록이 없다"
+    assert stops[0]["user_id"] == admin_id, "감사 행위자가 관리자가 아니다"
+    assert stops[0]["object_id"] == target_id
+    assert stops[0]["after"]["ended_reason"] == "expired"
+
+    sessions = client.get("/api/admin/impersonation/sessions").json()["items"]
+    row = next(s for s in sessions if s["target_user_id"] == target_id)
+    assert row["active"] is False
+    assert row["ended_reason"] == "expired"
+
+
+def test_target_unavailable_auto_end_leaves_an_audit_trail(impersonating, client, db):
+    client, _csrf, target_id = impersonating
+
+    from app.users.models import User
+
+    target = db.get(User, target_id)
+    target.active = False
+    db.commit()
+
+    # 이 호출이 자동 종료를 트리거한다 — 그 순간부터 /api/me는 다시 관리자 자신이다.
+    me = client.get("/api/me").json()["user"]
+    assert me["id"] != target_id, "대상이 비활성화됐는데도 여전히 그 눈으로 보인다"
+    admin_id = me["id"]
+
+    stops = client.get("/api/admin/audit?action=impersonation.stop").json()["items"]
+    assert stops, "자동(대상 소실) 종료인데 impersonation.stop 감사 기록이 없다"
+    assert stops[0]["user_id"] == admin_id
+    assert stops[0]["after"]["ended_reason"] == "target_unavailable"
+
+
+# UB-27: 요청이 다시 오지 않아도(관리자가 창을 닫아도) 만료된 임퍼소네이션은 정리돼야 한다 —
+# "진행 중" 목록이 실제로 끝난 세션을 영원히 진행 중이라고 보여주지 않게.
+def test_sweep_expired_ends_stale_impersonation_without_a_request(
+    impersonating, db, fake_clock
+):
+    from app.impersonation.service import MAX_DURATION_SECONDS, sweep_expired
+
+    _client, _csrf, target_id = impersonating
+    _backdate_impersonation_start(db, target_id=target_id, seconds_ago=MAX_DURATION_SECONDS + 1)
+
+    ended = sweep_expired(db, now=fake_clock.now())
+    db.commit()
+    assert ended == 1
+
+    from app.impersonation.models import ImpersonationSession
+
+    row = db.execute(
+        select(ImpersonationSession).where(
+            ImpersonationSession.target_user_id == target_id
+        )
+    ).scalar_one()
+    assert row.ended_at is not None
+    assert row.ended_reason == "expired"
+
+    from app.auth.models import UserSession
+
+    session_row = db.execute(
+        select(UserSession).where(UserSession.impersonation_id == row.id)
+    ).scalar_one_or_none()
+    assert session_row is None, "종료된 행이 여전히 UserSession에 연결돼 있다"
+
+
 def test_max_duration_still_applies_when_the_session_lost_track_of_the_row(
     impersonating, client, db
 ):

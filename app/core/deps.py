@@ -148,12 +148,37 @@ def _impersonated_auth(
         target is None or not target.active or target.archived_at is not None
     )
     if unavailable or (row is not None and imp_service.expired(row, now)):
-        imp_service.end(
+        # UB-17: 수동 종료(impersonation/router.py::stop_impersonation)·로그아웃 종료
+        # (auth/router.py::logout, UB-03)는 이미 감사에 남는데 이 자동 종료 경로만
+        # 빠져 있었다 — service.py 모듈 docstring 규칙 2("감사 필수")가 이 경로에도
+        # 그대로 적용된다. request.state.actor 는 아직 안 채워진 시점(_load_auth 가
+        # 이 함수를 부르는 도중)이라 record_audit_from_request 대신 이 함수의 실제
+        # actor 인자를 직접 쓴다.
+        from app.core.audit import record_audit
+
+        ended = imp_service.end(
             db,
             session=record,
             now=now,
-            reason=imp_service.END_TARGET_UNAVAILABLE if unavailable else "expired",
+            reason=imp_service.END_TARGET_UNAVAILABLE if unavailable else imp_service.END_EXPIRED,
         )
+        if ended is not None:
+            record_audit(
+                db,
+                actor_id=actor.id,
+                action="impersonation.stop",
+                object_type="user",
+                object_id=ended.target_user_id,
+                after={
+                    "impersonation_id": ended.id,
+                    "ended_reason": ended.ended_reason,
+                    "duration_seconds": int(
+                        (ended.ended_at - ended.started_at).total_seconds()
+                    ),
+                    "blocked_write_count": ended.blocked_write_count,
+                },
+                client_ip=client_ip_from_request(request),
+            )
         return AuthContext(user=actor, session=record)
     return AuthContext(user=target, session=record, actor=actor)
 

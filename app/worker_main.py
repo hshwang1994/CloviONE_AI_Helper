@@ -416,6 +416,27 @@ def main() -> int:
 
     worker.tick_callbacks.append(approval_expiry_tick)
 
+    # 임퍼소네이션 만료 스윕 (UB-27) — 1분 간격, approval_expiry_tick과 같은 이유(요청 없이
+    # 만료된 상태를 방치하면 "진행 중" 목록이 거짓말을 한다).
+    from app.impersonation.service import sweep_expired as sweep_expired_impersonations
+
+    _last_impersonation_sweep: list = [None]
+
+    def impersonation_expiry_tick(now):
+        if (
+            _last_impersonation_sweep[0] is None
+            or (now - _last_impersonation_sweep[0]).total_seconds() >= 60.0
+        ):
+            _last_impersonation_sweep[0] = now
+            try:
+                with session_factory() as db:
+                    sweep_expired_impersonations(db, now=now)
+                    db.commit()
+            except Exception:
+                logger.exception("impersonation expiry sweep failed")
+
+    worker.tick_callbacks.append(impersonation_expiry_tick)
+
     # 승인 SLA 스윕 (0033, PLAN Phase 6) — 5분 간격. 만료 스윕과 나눈 이유: 만료는 요청을
     # 죽이는 상태 변경이라 1분마다 돌아야 정확하고, 기한 초과 알림은 사람에게 보내는 것이라
     # 그렇게 자주 볼 필요가 없다(그리고 같은 틱에 묶으면 알림 폭주가 만료 처리를 지연시킨다).
