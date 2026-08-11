@@ -256,8 +256,8 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 ### AI 프런트 — 렌더링·기본 기능
 | ID | 심각 | 문제 | 근거 | 상태 |
 |---|---|---|---|---|
-| AI-33 | High | **마크다운이 아니라 정규식 5개짜리 줄 분류기.** 굵게·기울임·`#` 제목·표·인용·`[text](url)`·인라인 코드·이미지 **전부 미지원** | `chat-helpers.js:189-216` | 발견 |
-| AI-34 | High | **펜스 코드블록이 지원 안 되는 정도가 아니라 망가진다** — 파서에 fence 상태가 없어 `- foo`는 불릿이 되고 `def f(x):`는 정의목록 행이 된다. 문법 강조·코드 복사 버튼도 없다 | `chat-helpers.js:218-246` | 발견 |
+| AI-33 | High | **마크다운이 아니라 정규식 5개짜리 줄 분류기.** 굵게·기울임·`#` 제목·표·인용·`[text](url)`·인라인 코드·이미지 **전부 미지원** | `chat-helpers.js:189-216` | 재검증(2026-08-11): 진단 정확함(마크다운 링크는 미지원 정도가 아니라 RE_HEAD_BRACKET에 오분류돼 가짜 제목으로 렌더되는 것까지 확인) — 인라인 토크나이저 신설 또는 react-markdown 도입 중 택해야 하는 아키텍처 결정이라 이번 배치 범위 밖(AI-34부터 먼저 처리, 후속 planner/architect 패스 권장) |
+| AI-34 | High | **펜스 코드블록이 지원 안 되는 정도가 아니라 망가진다** — 파서에 fence 상태가 없어 `- foo`는 불릿이 되고 `def f(x):`는 정의목록 행이 된다. 문법 강조·코드 복사 버튼도 없다 | `chat-helpers.js:218-246` | 재검증(2026-08-11): 진단 정확함, AI-33과 달리 단일 패치로 닫을 수 있는 규모(parseBlocks에 inFence 상태 추가 + RichText.jsx에 code 블록 렌더) — 다음 착수 후보로 유효, 아직 미착수 |
 | AI-35 | Med | **Notion 외 링크는 클릭조차 안 된다** — `github.com`·사내 위키·Jira가 복사 버튼으로 격하 | `chat-helpers.js:385-389`, `chat/links.jsx:15-33` | 발견 |
 | AI-36 | Med | **재생성 없음**(재시도는 `failed`일 때만) · **내 메시지 수정 후 재전송 없음** · **메시지 삭제 없음** · **분기 없음** | `MessageThread.jsx:111`, `chat/service.py:240-241`, `conversations/models.py:33-47` | 발견 |
 | AI-68 | Med | **대화 내보내기/전체 복사 없음**(메시지 단위 복사만) · **공유 링크 없음** · **피드백(👍/👎) 없음** | `MessageThread.jsx:149-155` | 발견 |
@@ -304,7 +304,7 @@ n8n `:5678` webhook → 러너 `:8789/v1/assistant/message` → `claude -p` → 
 | FN-17 | Low | **`app/policies/`가 0바이트 빈 패키지** — 실제 기능은 `app/prompts/`에 있다. 혼동만 유발 | | ✅ 구현완료 — grep으로 재확인(`app.policies`를 import하는 코드 0개, `policies_router`는 `app/prompts/router.py`가 정의하고 `main.py`가 그걸 등록함, `models_registry.py`에도 참조 없음) 후 `app/policies/` 디렉터리 삭제 |
 | FN-18 | Low | `limited_service_actions_enabled` 플래그의 **소비자가 0**(레지스트리가 정직하게 `has_consumer:false`로 표시는 한다) | `core/feature_flags.py:76-82` | ⏸ 재검토 결과 결함 아님 — `feature_flags.py:81-83` 자체 주석이 "지우지 않는 이유는 운영 파일에 이미 들어가 있어서이고, 남겨 두는 대신 '효과 없음'을 여기에 못박는다"라고 **삭제하지 않기로 한 결정**을 이미 적어 뒀다. `has_consumer:false` 단언 테스트(`test_admin_backlog.py:560`)도 이 설계를 검증하는 것이지 실패가 아니다. 감사가 "소비자 0"을 결함으로 잘못 분류했다 |
 | FN-19 | Low | `restore_rehearsals`는 `scripts/restore_rehearsal.py`(cron/수동)만 쓴다 — 그게 안 걸려 있으면 "복구 리허설" 화면이 영구히 빈 화면인데 앱 안에 채울 방법이 없다 | `backups/router.py:89,116` | 발견 |
-| FN-20 | Low | 토너먼트 개별전 제출에 경합이 남아 있다(RPS/퀴즈는 CAS로 해결됨) | 라운드 12 커밋 | 발견 |
+| FN-20 | Low | 토너먼트 개별전 제출에 경합이 남아 있다(RPS/퀴즈는 CAS로 해결됨) | 라운드 12 커밋 | ✅ 구현완료(2026-08-11) — `_tournament_advance`를 순수 함수로 분리(room/db 쓰기 없음), `_tournament_submit`·`_finish_rps_tournament` 둘 다 `_cas_update_state`로 감쌈. 신규 시험 `test_concurrent_tournament_submits_do_not_clobber_each_other`(독립 세션 두 개로 재현), revert-to-verify(3회 반복 재현) 확인함 |
 
 ### FN-10 정정 (2026-08-10, 전수 재검증)
 
@@ -895,10 +895,10 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | UB-11 | Med | **`usage_stats`의 50개 상한이 프롬프트를 "쓰이지 않음"으로 오표기한다.** `sorted(ids)[:50]`은 UUID 사전순이라 임의 표본이다 → 버전 80개 중 63번이 실제 사용 중이어도 표본 밖이면 `document_runs: 0` → **"쓰이지 않음" 배지**. 그 배지가 이 화면의 존재 이유("정리 대상을 고를 때 씁니다")라 **운영 중인 프롬프트를 지우게 만든다** | | 발견 |
 | UB-12 | Med | `usage_stats`가 무제한 + N+1 + `LIKE '%uuid%'`(인덱스 불가) 전체 스캔을 이름마다 수행. 페이지네이션도 페이저도 없다 | | 발견 |
 | UB-13 | Med | **"이 프롬프트 버전 보기" 딥링크가 빈 목록을 연다.** `#/prompts?name=X`로 가는데 `DataScreen`이 필터를 키 단위로 병합해 화면 기본값 `status:"published"`가 살아남는다 → **발행 버전이 없는 프롬프트**(= 가장 유력한 정리 대상)를 클릭하면 0건이 떠서 관리자가 "없는 프롬프트"로 오해한다. `policy-usage`도 같다 | | 발견 |
-| UB-14 | Med | **템플릿 `enable`이 참조를 재검증하지 않는다**(생성·수정은 한다). 참조하던 워크플로가 삭제된 뒤 활성화하면 200 OK에 초록 배지가 뜨고, 실패는 **관리자의 조작 시점이 아니라 사용자의 문서 생성 시점**에 터진다 | | 발견 |
+| UB-14 | Med | **템플릿 `enable`이 참조를 재검증하지 않는다**(생성·수정은 한다). 참조하던 워크플로가 삭제된 뒤 활성화하면 200 OK에 초록 배지가 뜨고, 실패는 **관리자의 조작 시점이 아니라 사용자의 문서 생성 시점**에 터진다 | | ✅ 구현완료(2026-08-11) — 재검증 결과 "삭제된 뒤"는 재현 불가(이 저장소에 Workflow/Runner hard-delete 경로 없음, UB-20과 같은 부류) — 실제 트리거는 **비활성화**. `_validate_enable_target()` 신설, `enable_template()`에서 대상 존재(422)·enabled(409) 확인. 신규 시험 `test_enable_rejects_disabled_target_workflow`, revert-to-verify 확인함 |
 | UB-15 | Med | **`read_count`가 브라우징이 아니라 폴링을 센다.** `Banners.jsx`가 60초마다 `GET /state`를 모든 화면에서 부르는데 증가가 거기 붙어 있다 → 모델이 적어 둔 목적("0인데 30분 열려 있었다 같은 이상을 보기 위한 값")이 **구조적으로 불가능**해졌다. 화면 라벨은 "조회 횟수"라 감사자가 페이지뷰로 읽는다 | | 발견 |
 | UB-16 | Med | 그 증가가 **GET 안의 non-atomic read-modify-write**다: 탭 두 개면 증가가 유실되고, `require_csrf`가 안전 메서드를 통과시켜 `<img src>`로도 부풀릴 수 있으며(감사 필드에 공격자 잡음), 폴링마다 SQLite 쓰기 트랜잭션이 열린다 — `observability/service.py:11-14`가 금지한 바로 그 패턴 | SEC-03·UA-18과 같은 부류 | 발견 |
-| UB-17 | Med | **자동 종료가 감사 줄을 안 남긴다**(수동 종료는 남긴다). 가장 보안상 중요한 두 종료(30분 상한, 대상 계정 잠김)가 `start`만 있고 `stop`이 없다. `"expired"`도 상수가 아닌 문자열 리터럴이라 프런트와 두 곳에 흩어져 있다 | | 발견 |
+| UB-17 | Med | **자동 종료가 감사 줄을 안 남긴다**(수동 종료는 남긴다). 가장 보안상 중요한 두 종료(30분 상한, 대상 계정 잠김)가 `start`만 있고 `stop`이 없다. `"expired"`도 상수가 아닌 문자열 리터럴이라 프런트와 두 곳에 흩어져 있다 | | ✅ 구현완료(2026-08-11) — `_impersonated_auth`의 자동 종료 경로에 `record_audit` 직접 호출 추가(이 시점엔 `request.state.actor`가 아직 없어 `record_audit_from_request`는 못 씀). `"expired"` → `END_EXPIRED` 상수 승격. **부수 발견**: `service.py`가 `END_TARGET_UNAVAILABLE`을 애초에 import 안 해 대상 소실 경로가 항상 500이었다(같은 커밋에서 수정). 신규 시험 2건, revert-to-verify 확인함 |
 | UB-18 | Med | **`record_usage`가 `flush()` 실패를 삼켜 호출자의 세션을 오염시킨다**(`observability/service.py:67-84`). INSERT가 실패하면 세션이 rollback 필요 상태가 되고 **다음 문장**이 `PendingRollbackError`를 던진다 → "통계 한 줄 때문에 사용자의 로그인이나 티켓 생성이 실패하면 안 된다"는 계약이 정확히 반대로 작동한다. `quotas`에서 최악(그 직후 4개 질의를 더 던진다). `begin_nested()` SAVEPOINT가 필요 | | ✅ **구현완료(2026-08-11)** — `db.add(row); db.flush()`를 `with db.begin_nested():`로 감싸(`app/core/versioning.py`와 같은 기존 패턴) 실패해도 그 SAVEPOINT만 롤백되고 호출자가 이미 세션에 올려 둔 다른 변경은 살아남는다. 신규 시험 `test_record_usage_failure_does_not_poison_other_pending_changes_in_the_session`(다른 pending 변경을 먼저 올려 두고 실패하는 기록을 호출한 뒤 정상 커밋까지 확인), revert-to-verify(되돌리면 `IntegrityError`가 잡히지 않고 새는 것 확인 후 복원). 호출부 4곳(auth 로그인·티켓 생성·문서 생성·quotas — quotas는 이미 자체 `begin_nested()`를 쓰고 있어 중첩 SAVEPOINT가 되는데 문제없음을 관련 시험 전부(quota TOCTOU 포함) green으로 확인) |
 | UB-19 | Low/Med | 공지 삭제가 `AnnouncementDismissal`을 고아로 남긴다(FK·cascade 없음). 그 집합을 배너 폴링마다 전부 읽는다 | | ✅ 구현완료 — migration 0055로 `announcement_id`에 `ON DELETE CASCADE` FK. 배포 전 이미 고아인 행은 조건 없이 지움(되살릴 값이 없다 — 이미 없는 공지를 닫았었다는 사실 자체가 무의미). 신규 시험 2개(서비스 함수 레벨 + 실제 `DELETE /api/admin/announcements/{id}` 엔드포인트 레벨), revert-to-verify 확인함. 업/다운그레이드 왕복 확인함 |
 | UB-20 | Low/Med | 삭제된 사용자의 쿼터 행이 **영구히 못 지운다**(DELETE가 404). 목록엔 raw UUID로 남는다 | | ⏸ 재검토 결과 전제가 재현 안 됨 — 이 저장소에서 `User` 행은 **하드 삭제 경로가 없다**(`db.delete(user)`를 전체 grep, 유일한 자리는 `users/bulk.py`의 방금-만든-행 즉시 롤백뿐 — 쿼터가 붙을 시간이 없다). 퇴사 처리는 비활성화+보관이지 행 삭제가 아니다. `get_scoped_user_or_404`는 전역 관리자에게 `scope.is_global`로 항상 통과하고, `resolve_names`는 활성/보관 여부와 무관하게 조회한다 — 그래서 "삭제된 사용자"가 실제로 안 생기는 한 DELETE 404도 raw UUID 표시도 재현되지 않는다(코드는 확인함, `Offboarding.jsx`/`registry/platform.js`의 UUID 폴백은 방어적 코드일 뿐 도달 불가). CLAUDE.md 원칙(있을 수 없는 시나리오에 대비 코드를 만들지 않는다)에 따라 고치지 않는다 — UB-19와 달리 `Announcement`는 실제 하드 삭제 CRUD 대상이라 그 항목은 재현됐다는 점과 대비된다 |
@@ -908,9 +908,9 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | UB-24 | Low | 공지 화면의 검색 상자가 **설정돼 있는데 안 그려진다** — `DataScreen.jsx:467 showSearch = config.searchable \|\| !config.paginated`이고 공지는 `paginated:true`에 `searchable` 미설정 → `searchFields`·`searchPlaceholder`가 죽은 설정. 제목으로 배너를 찾을 방법이 없다(백엔드에도 `q`가 없다) | | 발견 |
 | UB-25 | Low | 죽은 것들: `observability`의 `body["components"]`(소비자 0, 관리자 폴링마다 생성) · `list_sync_status`(호출 0) · `SyncStatus.detail_json`(쓰기만 하고 읽지 않음) · `KNOWN_EVENTS`(검증에 안 쓰임 — 존재 이유가 오타 누적 방지인데 강제가 없음) · `ROLE_SYSTEM_MSG`(생산자·소비자 0) · ~~`GET /ai-quotas/usage`(호출 0, FN-05과 동일)~~ **FN-05가 구현완료로 닫으며 호출부가 생겼다(2026-08-10)** — 나머지 5개는 여전히 죽어 있다, 이 행은 부분 해결 | | 발견(부분) |
 | UB-26 | Low | 한 번도 성공한 적 없고 `error`도 아닌 미러는 **아무 안내도 안 낸다**(`router.py:69-78`) — 사용자가 빈 티켓 목록을 이유 없이 본다. 모듈 docstring이 깨겠다고 한 바로 그 상태이고, 판단에 쓸 `last_run_at`은 이미 로드돼 있는데 안 쓴다 | | 발견 |
-| UB-27 | Low | 임퍼소네이션 만료가 **다음 요청에서만** 평가된다(스윕 없음) → 브라우저를 닫으면 30분 상한을 넘겨도 "진행 중"으로 남는다. 온보딩 문구는 "최대 30분 뒤 자동 종료"라고 약속한다. UB-03과 겹쳐 "진행 중" 목록 전체를 신뢰할 수 없다 | | 발견 |
+| UB-27 | Low | 임퍼소네이션 만료가 **다음 요청에서만** 평가된다(스윕 없음) → 브라우저를 닫으면 30분 상한을 넘겨도 "진행 중"으로 남는다. 온보딩 문구는 "최대 30분 뒤 자동 종료"라고 약속한다. UB-03과 겹쳐 "진행 중" 목록 전체를 신뢰할 수 없다 | | ✅ 구현완료(2026-08-11) — `sweep_expired()` 신설(approval_expiry_tick과 같은 패턴), `worker_main.py`에 1분 주기 `impersonation_expiry_tick` 등록. 연결된 `UserSession`의 포인터 컬럼도 함께 정리, 스윕 종료도 UB-17과 같은 감사 기록 남김. 신규 시험(요청 없이 sweep_expired 직접 호출해 종료·감사 확인), revert-to-verify 확인함 |
 | UB-28 | Low | `visible_user_ids`를 `IN (…)`로 인라인(`impersonation/router.py:164-166`) → 문서화된 ~1000 사용자 규모에서 SQLite 변수 상한(999) 초과. UA-24와 같은 부류 | | 발견 |
-| UB-29 | Low | 템플릿: 목록 무제한·파라미터 없음(정책 화면이 "이 정책을 쓰는 템플릿"을 위해 **전 테이블을 끌어와** JS로 거른다) · `created_by`가 raw UUID(프롬프트·정책은 이름을 해석한다) · `prompt_id`가 draft·archived를 가리켜도 통과 · 삭제 수명주기 없음 | | 발견 |
+| UB-29 | Low | 템플릿: 목록 무제한·파라미터 없음(정책 화면이 "이 정책을 쓰는 템플릿"을 위해 **전 테이블을 끌어와** JS로 거른다) · `created_by`가 raw UUID(프롬프트·정책은 이름을 해석한다) · `prompt_id`가 draft·archived를 가리켜도 통과 · 삭제 수명주기 없음 | | ✅ 구현완료(2026-08-11) — 4개 하위 항목 전부 처리: (1) archived 검증(`_validate_references`가 status도 봄) (2) `list_templates`에 target_type/enabled/prompt_id/policy_id 서버 필터 추가(전체 목록 자체의 페이지네이션/상한은 범위 밖으로 남김 — 지금 규모에서 안전) (3) `created_by_name`/`created_by_email`(approvals.service.resolve_names 재사용, prompts/policies와 같은 계약) (4) `DELETE /api/admin/templates/{id}`(활성 상태면 409로 거부, DocumentGeneration.template_id는 FK 없는 bare 컬럼이라 안전 확인). 신규 시험 3건 추가(총 4건), revert-to-verify 전부 확인함. **프런트(authoring.js)는 아직 새 서버 필터/필드를 안 씀** — "이 정책을 쓰는 템플릿" subList가 여전히 clientFilter 방식, 다음 프런트 착수 후보로 남김 |
 | UB-30 | Low | `PATCH {"max_calls": null}`이 조용히 no-op(200 + 변화 없는 감사 행). `RollbackRequest.name`만 `max_length` 없음 | | 발견 |
 
 > **확인된 것(결함 아님)**: 쿼터의 KST 경계 계산은 **정확하다** — `period_start`/`period_end`의
@@ -1042,7 +1042,7 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 | QA-11 | Med | **구현완료(2026-08-08)** — `discover_detail_hash` 가 401/403 을 **"이 계정 권한으로는 조회할 수 없습니다"** 로 구분해 적고 상태 코드를 남긴다(`capture.py`). 회귀 테스트 `tests/regression/test_ui_qa_harness_honesty.py`. ‖ 원래 문제: **하네스가 권한 거부를 "데이터 없음"으로 잘못 보고한다.** `c1-auditor` 실행 메모: `admin_job-detail (작업 상세) 건너뜀 — 표시할 데이터가 없어 상세 id를 찾지 못했습니다 (/api/admin/jobs)`. 실제로는 `auditor`가 `CONSOLE_OPS_ROLES`(operator/admin/system_admin)에 없어 **403**이다(`app/jobs/router.py:24-31`, `app/core/authz.py:67`). 역할 매트릭스 실행에서 이 오분류는 "이 역할이 못 본다"와 "기능에 행이 없다"를 구분 불가능하게 만든다 — **역할 조사에서 가장 알고 싶은 차이가 바로 그것이다** | | 발견 |
 | QA-12 | Med | **구현완료(2026-08-08)** — `Route.visible_to(role)` 를 추가하고, 실행 계정이 볼 수 없는 라우트는 **찍지 않고** `권한부족(미검사)` 메모 + `results.json` 의 `run.routes_out_of_reach` 로 남긴다. `qa-admin`(admin) 실행에서 system_admin 전용 4개가 정확히 제외됨을 확인. ‖ 원래 문제: **역할 커버리지 없는 라우트 커버리지는 허수다.** `qa-admin`(role=admin)으로 돌린 실행에서 `system_admin` 전용 4화면은 전부 권한 거부 화면으로 찍혔는데 하네스는 `ok`로 집계했다 — 21개 검사 전부 그 거부 화면 기준으로 통과한다. 화면이 아니라 **거부 배너**를 검사한 것이다. `route_inventory`에 `min_role`/`allowed_roles`가 이미 있으므로, 실행 계정의 역할로 볼 수 없는 라우트는 `ok`가 아니라 **`권한부족(미검사)`**로 표시해야 한다 | `results.json`의 `route_inventory` | 발견 |
 | QA-13 | Low | `narrow_main`은 폭 `< 3840`에서 skip이라 3840 실행에서만 돈다(6/6 통과 확인). 게이트 자체는 의도대로지만 QA-10과 같은 요약표 착시를 만든다 — **skip과 pass가 요약에서 시각적으로 구분되지 않는다** | | 발견 |
-| RG-10 | Low | `auditor`는 감사 로그와 개발자 월간 리포트(`SENSITIVE_READ_ROLES`)를 전부 읽는데 **작업 큐 목록은 못 읽는다** — 라우터 전체가 `CONSOLE_OPS_ROLES`로 묶여 읽기까지 ops 게이트에 걸린다. `/backup`은 auditor를 허용한다(`navConfig.js:75`). 같은 성격의 읽기가 화면마다 다른 등급에 묶여 있다 | | 발견 |
+| RG-10 | Low | `auditor`는 감사 로그와 개발자 월간 리포트(`SENSITIVE_READ_ROLES`)를 전부 읽는데 **작업 큐 목록은 못 읽는다** — 라우터 전체가 `CONSOLE_OPS_ROLES`로 묶여 읽기까지 ops 게이트에 걸린다. `/backup`은 auditor를 허용한다(`navConfig.js:75`). 같은 성격의 읽기가 화면마다 다른 등급에 묶여 있다 | | 재검증(2026-08-11): 코드 진단은 정확하고 수정 자체도 작다(backups처럼 GET 3개만 `CONSOLE_READ_ROLES`로 분리) — **다만 이건 UI 배선 버그가 아니라 auditor의 읽기 범위를 잡 큐 payload(스케줄/생성 ID 등)까지 넓히는 RBAC 정책 변경**이다. 코드 diff는 작아도 "auditor가 무엇을 봐야 하는가"는 사람의 정책 판단이 필요해 이번 배치에서 의도적으로 구현 보류(명시적으로 플래그만 하고 넘어감, half-fix 방지) |
 | RG-11 | Med(신규, MEGA CYCLE G 조사 중 발견) | **RG-03/organization·feature_flag(F15)와 같은 결함 부류가 4곳 더 있었다** — 백엔드가 이미 `ai_quota`/`approval_delegation`/`announcement`/`offboarding_run` object_type으로 감사 기록을 남기고(`app/quotas`·`app/approvals`의 delegations_router·`app/announcements`·`app/offboarding`) 각 화면도 forward "감사 로그에서 보기" 딥링크를 걸고 있었는데, `shared.js`의 `OBJ_ROUTE`에 없어 감사 로그 쪽에서 되돌아오는 "관련 목록 열기" 버튼이 항상 숨겨졌다(`offboarding_run`은 hand-rolled 화면이라 forward 링크 자체도 없었다). 부산물로 `OBJECT_KO`/`VERB_KO`(`lib/format.js`)도 이 넷 + 먼저 고쳐졌던 `organization`/`feature_flag`가 빠져 있어 감사 로그 '대상'/'작업' 칸에 영어 원문이 새는 것을 발견 | `registry/shared.js` OBJ_ROUTE·OBJ_ROUTE_ROLES, `lib/format.js` OBJECT_KO·VERB_KO | **구현완료**(MEGA CYCLE G) — 4곳 전부 OBJ_ROUTE 등록(+ `offboarding_run`만 OBJ_ROUTE_ROLES 추가, 오프보딩 화면이 audit보다 role이 좁아서), `governance.js` audit 화면의 로컬 object_type 드롭다운에도 4개 옵션 보강(organization/feature_flag와 같은 자리, RG-03과 같은 이유로 shared.js의 OBJTYPE_OPTS 자체는 손 안 댐), `ai-quotas`/`announcements`/`approval-delegations`에 forward "감사 로그에서 보기" 액션 추가, `Offboarding.jsx`(hand-rolled) 실행 상세 모달에 같은 링크 추가, OBJECT_KO/VERB_KO 7개 항목 보강 |
 
 > **DS-32 정정 (범위가 훨씬 넓다).** 이전 기록은 "2곳"이었는데, 실측하니 그 2개가 **앱 셸에 있어
@@ -1412,7 +1412,7 @@ DB 에 `game_rooms` **15행**이 있는데 화면은 "열린 게임방이 없습
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
 | NOTI-01 | Med | **20종 중 15종이 한 번도 발생하지 않았다.** 대부분은 `USE-01`(그 기능 자체가 안 돌았다)로 설명되지만, 이 집계는 **알림이 실제로 도달하는지 검증된 적이 없다**는 뜻이기도 하다. 알림은 "실패가 조용히 묻히는" 문제(`VIS-108R`)의 유일한 해독제인데 그것이 미검증이다 | 발견 |
-| NOTI-02 | Med | **실제로 나는 알림의 92%가 두 종류다** — `account_locked` 56건 + `runner_unavailable` 39건 = 95/103. 그런데 `account_locked` 56건 중 **읽은 것은 23건**, `runner_unavailable` 39건 중 **15건**뿐이다. 같은 종류가 수십 번 반복되면 사람은 배지를 무시하기 시작한다 — **집계·억제(dedup) 없이 매번 새 행을 만든다** | 발견 |
+| NOTI-02 | Med | **실제로 나는 알림의 92%가 두 종류다** — `account_locked` 56건 + `runner_unavailable` 39건 = 95/103. 그런데 `account_locked` 56건 중 **읽은 것은 23건**, `runner_unavailable` 39건 중 **15건**뿐이다. 같은 종류가 수십 번 반복되면 사람은 배지를 무시하기 시작한다 — **집계·억제(dedup) 없이 매번 새 행을 만든다** | 재검증(2026-08-11): 원 서술이 "매번 새 행을 만든다"를 스팸으로 읽게 하는데, 실제로는 두 핫패스(account_locked/runner_unavailable) 모두 상태 전이에서만 발화하도록 이미 게이트돼 있다(연속 실패마다 재발화 안 함) — 진짜 문제는 장기간 두 유형이 볼륨을 독점해 배지가 무뎌지는 것. Notification 모델에 occurrence_count/last_occurred_at 추가 + find-or-update 로직 + 프런트 집계 렌더가 필요한 모델 변경이라 이번 배치 범위 밖(MAIL-02와 같은 팬아웃 계열, 같이 설계할 것) |
 | NOTI-03 | Low | **`chat_invited` 가 코드의 `type_=` 전수 목록에 없는데 프로덕션에 2건 있다.** 다른 호출 형태로 만들어지거나 옛 코드가 남긴 것이다 — 알림 종류가 한곳에 모여 있지 않다는 신호(상수 집합이 없다) | 발견 |
 
 > **결함이 아닌 것 (하마터면 잘못 적을 뻔했다)**: `ticket_comment` 가 0건인데 `ticket_comments`
@@ -1901,11 +1901,11 @@ const TABLE_CARD_BREAKPOINT = "(max-width:899.95px)";   // MUI md
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| CTR-01 | **High** | **다크 테마에서 인라인 링크 텍스트가 WCAG AA 미달이다**(3.76~4.11 < 4.5). 실측 8화면 전부. 링크는 "누를 수 있는 것"을 알리는 유일한 신호인데 그것이 가장 안 읽힌다 | 발견 |
-| CTR-02 | **High** | **사용자↔관리자 콘솔 전환 버튼이 다크에서 2.86:1** 로 가장 낮다. 앱 셸의 핵심 컨트롤이다 | 발견 |
-| CTR-03 | **High** | **고를 수 있는 강조색 4개가 다크에서 전부 미달이다**(정적 계산, 다크 표면 `#161C33` 기준): `기본 파랑` 3.59 · **`진한 파랑` 2.68** · `보라` 3.16 · `청록` 3.58. **"진한 파랑"이 다크에서 가장 나쁘다** — 사용자 직관과 반대다. 강조색 선택에 **대비 검증이 없다** | 발견 |
-| CTR-04 | Med | 라이트에서도 `#536CD6` 는 **4.37 로 4.5 에 미달**이다(`/dashboard`·`/diagnostics` 의 「전체 보기 →」 류). 아슬아슬하지만 기준 미달은 미달이다 | 발견 |
-| CTR-05 | Med | **대비 검사가 자동 검사 21종에 없다.** 이 축이 없으면 위 넷은 영원히 "전 페이지 통과"로 남는다. `scripts/ui_qa/contrast.py` 를 하네스에 정식 편입하고, **판정 불가(그라디언트) 개수도 함께 보고**해야 한다 | 발견 |
+| CTR-01 | **High** | **다크 테마에서 인라인 링크 텍스트가 WCAG AA 미달이다**(3.76~4.11 < 4.5). 실측 8화면 전부. 링크는 "누를 수 있는 것"을 알리는 유일한 신호인데 그것이 가장 안 읽힌다 | ✅ 구현완료(2026-08-11) — `MuiLink.styleOverrides.root.color`에 `primaryStrong`(다크 표면용 대비 보강 변수, MuiButton hover가 이미 씀) 배선 — 4.81~6.77로 전부 통과. 신규 시험 `theme-link-contrast.test.js`(mode×accent 전수), revert-to-verify 확인함 |
+| CTR-02 | **High** | **사용자↔관리자 콘솔 전환 버튼이 다크에서 2.86:1** 로 가장 낮다. 앱 셸의 핵심 컨트롤이다 | ✅ 구현완료(2026-08-11) — `ConsoleSwitch`(AppShell.jsx)의 활성 탭 글자색을 `primary.dark`(다크용으로 밝힌 변수, 배경은 항상 리터럴 흰색이라 부적합했다)에서 `primary.main`(두 모드 동일값)으로 교체 — 4.68 이상 전부 통과. revert-to-verify 확인함 |
+| CTR-03 | **High** | **고를 수 있는 강조색 4개가 다크에서 전부 미달이다**(정적 계산, 다크 표면 `#161C33` 기준): `기본 파랑` 3.59 · **`진한 파랑` 2.68** · `보라` 3.16 · `청록` 3.58. **"진한 파랑"이 다크에서 가장 나쁘다** — 사용자 직관과 반대다. 강조색 선택에 **대비 검증이 없다** | 재검증(2026-08-11): 텍스트 용도 실패는 CTR-01 수정으로 해소(모든 프리셋이 primaryStrong 경유 시 4.5 통과). 남은 것은 **재발 방지 게이트**(향후 프리셋 추가 시 검증 없이 다시 뚫릴 수 있음) — CTR-05와 함께 처리 예정, 아직 미착수 |
+| CTR-04 | Med | 라이트에서도 `#536CD6` 는 **4.37 로 4.5 에 미달**이다(`/dashboard`·`/diagnostics` 의 「전체 보기 →」 류). 아슬아슬하지만 기준 미달은 미달이다 | ✅ 구현완료(2026-08-11) — CTR-01과 같은 수정(MuiLink color → primaryStrong)으로 함께 해소, 같은 시험으로 검증됨 |
+| CTR-05 | Med | **대비 검사가 자동 검사 21종에 없다.** 이 축이 없으면 위 넷은 영원히 "전 페이지 통과"로 남는다. `scripts/ui_qa/contrast.py` 를 하네스에 정식 편입하고, **판정 불가(그라디언트) 개수도 함께 보고**해야 한다 | 발견(재검증: contrast.py는 완성된 160줄 스크립트지만 run.py가 여전히 안 부른다 — evaluate_contrast() 추출 + assertions.CLASSES 등록 + report.py 렌더 확장 필요, 아직 미착수) |
 
 > **제품은 이 문제를 이미 알고 있고, 한 곳에서는 풀었다.** `tokens.css` 에 대비 계산이 촘촘하다 —
 > `--topbar-pill-fg` **"흰 알약 위 4.68. `--color-primary`는 다크에서 밝아져 3.16"**(:124) ·
@@ -2627,8 +2627,8 @@ if [ -z "$DNS_NAME" ] || [ -z "$BIND_IP" ]; then echo "…지정해야 합니다
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
 | MAIL-01 | Med | **`unconfigured` 메일 14건이 있는데 그것을 보여 주는 화면이 하나도 없다.** `GET /api/admin/mail/status` 와 `POST /api/admin/mail/test` 가 **API 로는 있는데** 프런트에서 그 엔드포인트를 부르는 코드가 **0건**이다(설정 화면의 `smtp` 라벨만 존재). `mail/service.py:245` 가 상태별 집계까지 계산해 두고 **아무도 안 읽는다** — 기존 기록 "메일 UI 0개"의 정확한 실물 | 발견 |
-| MAIL-02 | Med | **승인 요청 1건 → 메일 14통.** `notify_approvers` 가 자격 있는 승인자 전원에게 보낸다. 사용자 18명 중 대부분이 admin 인 이 설치에서는 **역할 변경 한 번이 14통**이 된다. SMTP 를 켜는 순간 그대로 나간다. `NOTI-02`(계정 잠금 1건 → 관리자 알림 다수)와 같은 팬아웃 문제 | 발견 |
-| MAIL-03 | Low | **나중에 SMTP 를 켜도 이 14건은 안 나간다**(상태가 `unconfigured` 로 고정, 재시도 경로 없음). 그것 자체는 옳은 선택일 수 있으나 **아무도 그 사실을 모른다** — 화면이 없으므로(`MAIL-01`) 관리자는 "켰으니 이제 나가겠지"라고 생각한다. `purge_mail_history` 가 90일 뒤 지운다 | 발견 |
+| MAIL-02 | Med | **승인 요청 1건 → 메일 14통.** `notify_approvers` 가 자격 있는 승인자 전원에게 보낸다. 사용자 18명 중 대부분이 admin 인 이 설치에서는 **역할 변경 한 번이 14통**이 된다. SMTP 를 켜는 순간 그대로 나간다. `NOTI-02`(계정 잠금 1건 → 관리자 알림 다수)와 같은 팬아웃 문제 | 재검증(2026-08-11): **안전한 quick fix가 없다는 것까지 확인함** — 수신자를 좁히면 과거 실사고(X7, 위임자가 승인 메일을 못 받던 버그)가 그대로 재발한다(approver_user_ids의 자체 docstring이 이를 명시). muted_types로 억제하는 것도 그 기능의 기존 의미(배지만 숨김, 발송 자체는 억제 안 함)와 충돌. 디지털/배치 발송 또는 명시적 정책이 필요한 제품 결정이라 이번 배치 범위 밖 |
+| MAIL-03 | Low | **나중에 SMTP 를 켜도 이 14건은 안 나간다**(상태가 `unconfigured` 로 고정, 재시도 경로 없음). 그것 자체는 옳은 선택일 수 있으나 **아무도 그 사실을 모른다** — 화면이 없으므로(`MAIL-01`) 관리자는 "켰으니 이제 나가겠지"라고 생각한다. `purge_mail_history` 가 90일 뒤 지운다 | ✅ 구현완료(2026-08-11) — MAIL-01이 이미 화면을 만들어 뒀음을 재확인, "설정 안 됨" 건수 > 0일 때 재발송 안 됨을 명시하는 Callout 추가. 신규 시험 2건, revert-to-verify 확인함 |
 
 > **조사 부산물 정리 대상**: 내 승인 테스트가 만든 `mail_deliveries` 14행 + `approvals` 1행.
 > 실제 발송은 없었다(`unconfigured`). 지울 필요는 없으나 **`USE-01` 집계를 다시 낼 때
@@ -2738,10 +2738,10 @@ generated/                    ← 문서 생성 산출물. 백업에 없다
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| BKP-01 | **High** | **사용자 업로드 첨부가 어떤 백업에도 없다.** 스크립트는 `/var/lib/…` 에서 `web.sqlite3` 만 가져간다(`:27-30`). 복원하면 **DB 의 첨부 레코드는 살아나는데 파일이 없다** — 화면에 첨부가 있는데 열면 깨진다. 지금은 3파일 508K 라 피해가 작지만 **메커니즘은 이미 있고 데이터는 늘어난다** | 발견 |
-| BKP-02 | **High** | **`RESTORE_REHEARSAL_OK` 는 DB 복원만 증명한다.** `restore_rehearsal.py` 는 백업 → 복원 → integrity → 행 수 → alembic → 앱 부팅까지 7단계를 하는데 **전부 DB 한 파일**에 대한 것이다. 내가 `RSTR` 절에서 *"프로덕션 백업이 복원된다는 것을 처음 증명했다"* 고 쓴 것은 **DB 에 한해 사실**이고, 첨부·내보내기·생성물은 **증명 범위 밖**이었다. 리허설이 통과해도 복구되지 않는 것이 있다 | 발견 |
+| BKP-01 | **High** | **사용자 업로드 첨부가 어떤 백업에도 없다.** 스크립트는 `/var/lib/…` 에서 `web.sqlite3` 만 가져간다(`:27-30`). 복원하면 **DB 의 첨부 레코드는 살아나는데 파일이 없다** — 화면에 첨부가 있는데 열면 깨진다. 지금은 3파일 508K 라 피해가 작지만 **메커니즘은 이미 있고 데이터는 늘어난다** | ✅ 구현완료(2026-08-11) — 백업에 `uploads.tar.gz` 추가, 롤백이 복원+chown. 신규 계약 시험 2건(tests/unit/test_deploy_wiring.py), revert-to-verify 확인함. **실서버 확인은 배포 Blocker로 미완**(bash -n 문법 검사까지만) |
+| BKP-02 | **High** | **`RESTORE_REHEARSAL_OK` 는 DB 복원만 증명한다.** `restore_rehearsal.py` 는 백업 → 복원 → integrity → 행 수 → alembic → 앱 부팅까지 7단계를 하는데 **전부 DB 한 파일**에 대한 것이다. 내가 `RSTR` 절에서 *"프로덕션 백업이 복원된다는 것을 처음 증명했다"* 고 쓴 것은 **DB 에 한해 사실**이고, 첨부·내보내기·생성물은 **증명 범위 밖**이었다. 리허설이 통과해도 복구되지 않는 것이 있다 | 재확인(2026-08-11), 미착수로 유지 — BKP-01이 이제 uploads.tar.gz를 만들어 두므로, restore_rehearsal.py의 8번째 단계로 "복원된 uploads/ 트리에 4개 테이블(board_attachments·chat_message_images·ticket_attachments·user_preferences.avatar_stored_name)이 참조하는 stored_name이 전부 존재하는지" 교차검증을 추가하면 된다 — 4개의 서로 다른 (테이블, 네임스페이스, owner_id 컬럼) 매핑이 필요해 이번 배치 범위 밖으로 남김 |
 | BKP-03 | Med | **`privhelper.service` 가 백업에 없다** — 유닛 복사 루프가 `web`·`worker` 둘만 돈다(`:21-23`). `DEPLOY-04`(롤백이 privhelper 를 안 되살린다)와 **같은 뿌리**이고, 백업에도 없으므로 **복원해도 되살릴 원본이 없다** | 발견 |
-| BKP-04 | Med | **백업마다 venv 를 통째로 담는다** — `app.tar.gz` **140MB** 안에 `venv/` 파일이 **3,944개**다. `/var/backups` 총 **849MB · 21벌**. installer 가 venv 를 재생성할 수 있으므로(`requirements.txt` 버전 고정) 담을 이유가 약하다. 보존 14벌 정책에서 **디스크의 상당량이 재생성 가능한 것**이다 | 발견 |
+| BKP-04 | Med | **백업마다 venv 를 통째로 담는다** — `app.tar.gz` **140MB** 안에 `venv/` 파일이 **3,944개**다. `/var/backups` 총 **849MB · 21벌**. installer 가 venv 를 재생성할 수 있으므로(`requirements.txt` 버전 고정) 담을 이유가 약하다. 보존 14벌 정책에서 **디스크의 상당량이 재생성 가능한 것**이다 | ✅ 구현완료(2026-08-11) — `tar --exclude`로 venv 제외, 롤백이 app.tar.gz 복원 직후 venv 재생성(installer 5단계와 같은 로직, `WHEELHOUSE` 환경변수로 오프라인 wheelhouse 지정 가능). 두 가지를 반드시 짝으로 확인하는 계약 시험 신설, revert-to-verify 확인함. **실서버 확인은 배포 Blocker로 미완** |
 | BKP-05 | Low | 백업이 **원본과 같은 볼륨**(`/var/backups` ↔ `/var/lib`)에 있고 오프사이트 사본이 0이다. 디스크·볼륨 장애 하나에 원본과 백업이 함께 사라진다 | 발견 |
 
 > **잘 되어 있는 것**: `etc.tar.gz` 가 **시크릿 3종·TLS 키·allowlist 3종·feature-flags 를 전부**
@@ -2901,7 +2901,7 @@ runuser -u clovirone-web -- test -w .../exports   →  쓰기 가능
 |---|---|---|---|
 | OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | ✅ **소유권 복구 확인**(2026-08-10) — `uploads`·`uploads/ticket` 모두 `clovirone-web:clovirone-web`, 서비스 사용자로 `test -w` + 실제 파일 생성/삭제 성공. **단 앱 층 첨부 E2E 는 미검증**(웹에서 1건 첨부 필요). 재발 방지(`OPS-02`)는 미조치 |
 | OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | ✅ **구현완료(2026-08-11)** — `install -d` 목록에 `uploads` 추가 + 정적 회귀 테스트. `bash -n` 구문검사만(실서버 실행 미검증) |
-| OPS-03 | Med | **업로드 실패를 알리는 경로가 없다.** 8/5 이후 나흘째 깨져 있는데 `/diagnostics`·알림·헬스체크 어디에도 안 나온다. `readyz` 는 **쓰기 가능성을 확인하지 않는다** | 발견 |
+| OPS-03 | Med | **업로드 실패를 알리는 경로가 없다.** 8/5 이후 나흘째 깨져 있는데 `/diagnostics`·알림·헬스체크 어디에도 안 나온다. `readyz` 는 **쓰기 가능성을 확인하지 않는다** | ✅ 구현완료(2026-08-11) — `uploads_writable()` 신설(실제 마커 파일 생성·삭제로 확인), `/api/admin/dashboard`(지속 관측)·`/readyz`(배포 게이트, 503+reason)에 배선. 신규 시험 3건, revert-to-verify 확인함 |
 
 > **`BKP-01` 과 겹쳐서 더 나쁘다** — 업로드 디렉터리는 **쓸 수도 없고**(`OPS-01`)
 > **백업에도 없다**(`BKP-01`). 첨부는 이 제품에서 가장 취약한 데이터다.
@@ -2990,7 +2990,7 @@ service.py:98-111  create_user  →  role 이 ALL_ROLES 에 있는지만 검사
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| OPS-04 | High | **업로드 실패가 감사 로그에 남지 않는다**(감사가 성공 뒤에만 기록된다). 실패율·실패 시점을 사후에 알 방법이 없다 | 발견 |
+| OPS-04 | High | **업로드 실패가 감사 로그에 남지 않는다**(감사가 성공 뒤에만 기록된다). 실패율·실패 시점을 사후에 알 방법이 없다 | ✅ 구현완료(2026-08-11) — `audit_failure_on_exception` 컨텍스트 매니저 신설(app/core/audit.py), tickets/board/profiles 세 업로드 라우터에 배선. `db.commit()` 명시(auth 로그인 실패 경로와 같은 이유 — 안 하면 실패 감사 행이 롤백에 딸려 간다). 신규 시험(tickets), revert-to-verify 확인함. board/profiles는 기존 스위트 재실행으로 무회귀만 확인 |
 | OPS-05 | High | **파일시스템 오류가 그대로 500 이 된다.** `uploads.py:146-148` 의 `mkdir`/`write_bytes` 에 `OSError` 처리가 없어 전역 핸들러까지 올라가고 한국어 UI 에 **영어 "Internal server error"** 가 뜬다(재현 확인). 원인도, 조치도, 영구 실패라는 사실도 말하지 않는다 | ✅ **구현완료(2026-08-11)** — `save_upload`의 `mkdir`/`write_bytes`를 `try/except OSError`로 감싸 새 `StorageUnavailableError`(503, `app/core/errors.py`)로 번역. 원인(OSError 원문·경로)은 `logger.exception`으로 서버 로그에만, 사용자에게는 "파일을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."만 간다. 단위테스트(`Path.mkdir`/`write_bytes` 몽키패치)로 검증, revert-to-verify 완료. 실서버 디스크 장애 재현은 미검증(단위 수준에서만 확인) |
 
 ## WF5 — 잔여 미조사 6영역 (첨부위젯 · 게임 · CSV일괄 · lib기반 · 잡핸들러 · 동시성/마이그)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -72,7 +72,9 @@ class TemplateRequest(BaseModel):
         return v
 
 
-def _view(row: AutomationTemplate) -> dict:
+def _view(row: AutomationTemplate, names: dict | None = None) -> dict:
+    names = names or {}
+    creator = names.get(row.created_by or "")
     return {
         "id": row.id,
         "name": row.name,
@@ -88,6 +90,11 @@ def _view(row: AutomationTemplate) -> dict:
         # captures it on create (router.py create() below) but never serialized it,
         # so provenance ("who made this template") was silently unavailable here.
         "created_by": row.created_by,
+        # UB-29: 원시 UUID만 있으면 관리자가 "누가 만들었나"를 알 방법이 없다 — prompts/
+        # policies가 이미 하는 대로(app/approvals/service.py::resolve_names 재사용) 이름·
+        # 이메일을 함께 내려준다.
+        "created_by_name": creator.get("display_name") if creator else None,
+        "created_by_email": creator.get("email") if creator else None,
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
@@ -150,11 +157,32 @@ def _validate_enable_target(db: Session, row: AutomationTemplate) -> None:
 
 
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def list_templates(db: Session = Depends(get_db)):
-    rows = db.execute(
-        select(AutomationTemplate).order_by(AutomationTemplate.name)
-    ).scalars().all()
-    return {"items": [_view(r) for r in rows]}
+def list_templates(
+    db: Session = Depends(get_db),
+    target_type: str | None = Query(default=None, max_length=16),
+    enabled: bool | None = Query(default=None),
+    prompt_id: str | None = Query(default=None, max_length=64),
+    policy_id: str | None = Query(default=None, max_length=64),
+):
+    # UB-29: 예전엔 파라미터가 전혀 없어, "이 정책을 쓰는 템플릿" 같은 소비처가 전체
+    # 테이블을 끌어와 프런트에서 filterRows로 걸렀다(authoring.js). target_type/enabled는
+    # 화면 자체 필터가 이미 clientFilter:true로 하던 것을 서버로 옮긴 것뿐 — 목록 전체
+    # 크기 자체를 줄이지는 않는다(무제한 목록 자체의 페이지네이션은 이번 범위 밖으로
+    # 남긴다, BACKLOG 참고 — 지금은 무한정 안 자란다는 전제가 실측상 안전하다).
+    stmt = select(AutomationTemplate)
+    if target_type:
+        stmt = stmt.where(AutomationTemplate.target_type == target_type)
+    if enabled is not None:
+        stmt = stmt.where(AutomationTemplate.enabled == enabled)
+    if prompt_id:
+        stmt = stmt.where(AutomationTemplate.prompt_id == prompt_id)
+    if policy_id:
+        stmt = stmt.where(AutomationTemplate.policy_id == policy_id)
+    rows = db.execute(stmt.order_by(AutomationTemplate.name)).scalars().all()
+    from app.approvals.service import resolve_names
+
+    names = resolve_names(db, {r.created_by for r in rows})
+    return {"items": [_view(r, names) for r in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
@@ -182,12 +210,18 @@ def create_template(request: Request, payload: TemplateRequest, db: Session = De
         request, db, action="template.create", object_type="template",
         object_id=row.id, after={"name": row.name},
     )
-    return {"template": _view(row)}
+    creator = request.state.user
+    names = {creator.id: {"display_name": creator.display_name, "email": creator.email}}
+    return {"template": _view(row, names)}
 
 
 @router.get("/{template_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def get_template(template_id: str, db: Session = Depends(get_db)):
-    return {"template": _view(_get_or_404(db, template_id))}
+    row = _get_or_404(db, template_id)
+    from app.approvals.service import resolve_names
+
+    names = resolve_names(db, {row.created_by})
+    return {"template": _view(row, names)}
 
 
 @router.put("/{template_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
@@ -223,7 +257,10 @@ def update_template(
         request, db, action="template.update", object_type="template",
         object_id=row.id, before=before, after=_view(row),
     )
-    return {"template": _view(row)}
+    from app.approvals.service import resolve_names
+
+    names = resolve_names(db, {row.created_by})
+    return {"template": _view(row, names)}
 
 
 def _set_enabled(request: Request, db: Session, template_id: str, enabled: bool):
@@ -248,3 +285,26 @@ def enable_template(request: Request, template_id: str, db: Session = Depends(ge
 @router.post("/{template_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def disable_template(request: Request, template_id: str, db: Session = Depends(get_db)):
     return _set_enabled(request, db, template_id, False)
+
+
+@router.delete("/{template_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def delete_template(request: Request, template_id: str, db: Session = Depends(get_db)):
+    """UB-29: 템플릿에는 create/read/update/enable/disable만 있고 퇴역 경로가 없었다.
+
+    `enabled`일 때는 지울 수 없다(먼저 끄게 강제 — 활성 템플릿이 문서 생성에서 계속
+    쓰이는 도중 사라지는 것을 막는다, `_validate_enable_target`이 활성화 시점에 대상
+    생존을 강제하는 것과 같은 방향). `DocumentGeneration.template_id`는 FK 없는 bare
+    문자열 컬럼이라(app/documents/models.py) 지워도 과거 생성 이력이 깨지지 않는다 —
+    `generation_view`는 그 값을 그대로 echo만 한다.
+    """
+    row = _get_or_404(db, template_id)
+    if row.enabled:
+        raise ConflictError("활성 상태인 템플릿은 지울 수 없습니다. 먼저 비활성화하세요.")
+    before = _view(row)
+    db.delete(row)
+    db.flush()
+    record_audit_from_request(
+        request, db, action="template.delete", object_type="template",
+        object_id=template_id, before=before,
+    )
+    return {"ok": True}

@@ -118,6 +118,82 @@ def test_rename_to_existing_name_returns_409_not_500(client, admin_csrf, workflo
     assert r.status_code == 409, r.text
 
 
+# UB-29: 목록·상세·생성·수정 응답에 created_by_name/created_by_email이 없어 관리자가
+# "누가 만들었나"를 원시 UUID로만 봤다 — prompts/policies와 같은 계약으로 통일.
+def test_template_responses_include_creator_name(client, admin_csrf, workflow_id):
+    me = client.get("/api/me").json()["user"]
+    created = client.post(
+        "/api/admin/templates", json=_template_payload(workflow_id), headers=_headers(admin_csrf)
+    ).json()["template"]
+    assert created["created_by_name"] == me["display_name"]
+    assert created["created_by_email"] == me["email"]
+
+    fetched = client.get(f"/api/admin/templates/{created['id']}",
+                          headers=_headers(admin_csrf)).json()["template"]
+    assert fetched["created_by_name"] == me["display_name"]
+
+    listed = client.get("/api/admin/templates", headers=_headers(admin_csrf)).json()["items"]
+    row = next(t for t in listed if t["id"] == created["id"])
+    assert row["created_by_name"] == me["display_name"]
+
+
+# UB-29: list_templates가 파라미터를 전혀 안 받아, "이 정책을 쓰는 템플릿" 같은 소비처가
+# 전체 테이블을 끌어와 프런트에서 걸러야 했다 — 서버 필터를 추가.
+def test_list_templates_supports_server_side_filters(client, admin_csrf, workflow_id):
+    policy = client.post(
+        "/api/admin/policies", json={"name": "정책A", "content": "{}"}, headers=_headers(admin_csrf)
+    ).json()
+    policy_id = (policy.get("item") or policy)["id"]
+
+    a = client.post(
+        "/api/admin/templates",
+        json=_template_payload(workflow_id, name="정책 쓰는 템플릿", policy_id=policy_id),
+        headers=_headers(admin_csrf),
+    ).json()["template"]
+    client.post(
+        "/api/admin/templates", json=_template_payload(workflow_id, name="정책 안 쓰는 템플릿"),
+        headers=_headers(admin_csrf),
+    )
+
+    by_policy = client.get(f"/api/admin/templates?policy_id={policy_id}",
+                            headers=_headers(admin_csrf)).json()["items"]
+    assert [t["id"] for t in by_policy] == [a["id"]]
+
+    by_type = client.get("/api/admin/templates?target_type=workflow",
+                          headers=_headers(admin_csrf)).json()["items"]
+    assert len(by_type) >= 2
+    by_bad_type = client.get("/api/admin/templates?target_type=runner",
+                              headers=_headers(admin_csrf)).json()["items"]
+    assert a["id"] not in [t["id"] for t in by_bad_type]
+
+    by_enabled = client.get("/api/admin/templates?enabled=true",
+                             headers=_headers(admin_csrf)).json()["items"]
+    assert a["id"] not in [t["id"] for t in by_enabled]  # 생성 직후는 비활성
+
+
+# UB-29: create/read/update/enable/disable만 있고 퇴역 경로가 없었다.
+def test_delete_template_requires_disabled_first(client, admin_csrf, workflow_id):
+    created = client.post(
+        "/api/admin/templates", json=_template_payload(workflow_id), headers=_headers(admin_csrf)
+    ).json()["template"]
+    tid = created["id"]
+
+    client.post(f"/api/admin/templates/{tid}/enable", headers=_headers(admin_csrf))
+    still_there = client.delete(f"/api/admin/templates/{tid}", headers=_headers(admin_csrf))
+    assert still_there.status_code == 409, still_there.text
+
+    client.post(f"/api/admin/templates/{tid}/disable", headers=_headers(admin_csrf))
+    deleted = client.delete(f"/api/admin/templates/{tid}", headers=_headers(admin_csrf))
+    assert deleted.status_code == 200, deleted.text
+
+    gone = client.get(f"/api/admin/templates/{tid}", headers=_headers(admin_csrf))
+    assert gone.status_code == 404
+
+    logs = client.get("/api/admin/audit?action=template.delete",
+                       headers=_headers(admin_csrf)).json()["items"]
+    assert logs and logs[0]["object_id"] == tid
+
+
 # UB-14: 활성화 시점에 대상 Workflow가 여전히 살아 있는지 확인해야 한다 — 예전엔 비활성화된
 # 대상을 가리키는 템플릿도 무조건 200으로 활성화됐고, 문제는 나중에 사용자의 문서 생성
 # 요청에서야 터졌다.
