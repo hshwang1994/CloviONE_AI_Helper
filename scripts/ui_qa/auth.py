@@ -225,6 +225,33 @@ def _fetch_me(context, base_url: str) -> dict | None:
         return None
 
 
+def _dismiss_tour(context, base_url: str, log) -> None:
+    """VIS-32: `scripts/ui_qa/*.py` 전체에 `tour` 참조가 0건이었다 — QA 계정의
+    `tour_completed_at`이 영영 안 채워져 캡처마다 온보딩 모달이 홈을 덮었고, 그 뒤에
+    깔린 실제 화면은 하네스가 한 번도 검사하지 못했다(21종 기계 검사는 전부 통과했는데도).
+    `POST /api/me/tour`(app/profiles/router.py)는 멱등이라(재요청해도 그냥 같은 상태를
+    다시 쓴다) 캐시된 세션 재사용 경로에서도 매번 불러도 무해하다. CSRF 토큰은 이 호출
+    전용으로 `/api/me`에서 새로 받는다(`app/profiles/router.py::me`의 응답 최상위
+    `csrf_token` — `_fetch_me`가 돌려주는 `user` 서브트리 밖에 있어 따로 읽는다).
+    """
+    try:
+        me_response = context.request.get(f"{base_url.rstrip('/')}/api/me", timeout=LOGIN_TIMEOUT_MS)
+        csrf_token = me_response.json().get("csrf_token") if me_response.status == 200 else None
+        if not csrf_token:
+            log("[auth] 투어 해제 건너뜀(csrf_token을 못 읽음) — 캡처에 온보딩 모달이 남을 수 있음")
+            return
+        response = context.request.post(
+            f"{base_url.rstrip('/')}/api/me/tour",
+            data={"action": "complete"},
+            headers={"X-CSRF-Token": csrf_token},
+            timeout=LOGIN_TIMEOUT_MS,
+        )
+        if response.status != 200:
+            log(f"[auth] 투어 해제 실패(status={response.status}) — 캡처에 온보딩 모달이 남을 수 있음")
+    except Exception as exc:  # noqa: BLE001 — 캡처 자체를 막을 이유는 아니다, 경고만 남긴다
+        log(f"[auth] 투어 해제 요청 실패({exc}) — 캡처에 온보딩 모달이 남을 수 있음")
+
+
 # --------------------------------------------------------------------------- #
 # public entry point
 # --------------------------------------------------------------------------- #
@@ -247,6 +274,8 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
                                       ignore_https_errors=insecure)
         try:
             user = _fetch_me(context, base_url)
+            if user:
+                _dismiss_tour(context, base_url, log)
         finally:
             context.close()
         if user:
@@ -311,6 +340,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
                 raise AuthError("비밀번호는 바꿨는데 /api/me가 인증을 인정하지 않습니다.")
             if user.get("must_change_password"):
                 raise AuthError("비밀번호를 바꿨는데도 강제 변경 상태가 풀리지 않았습니다.")
+        _dismiss_tour(context, base_url, log)
         context.storage_state(path=str(state_path))
         session = QaSession(email=user["email"], user_id=user["id"], role=user["role"],
                             display_name=user.get("display_name") or "",
