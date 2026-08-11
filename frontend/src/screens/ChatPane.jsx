@@ -302,7 +302,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             빈 방인지 구분할 방법이 사용자에게 없었다. 실패에는 이유와 '다시 시도' 를 준다. */}
         {q.isPending ? <Box sx={{ px: 1 }}><Skeleton lines={compact ? 3 : 6} /></Box>
           : (q.isError && msgs.length === 0) ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          : msgs.length === 0 ? <EmptyState size="compact" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
+          // VIS-90 — 이 화면만 아이콘 없는 회색 한 줄이었다(같은 제품 안의 /games·/chat은
+          // 아이콘/마스코트+제목+안내를 갖췄다). game-room/ChatPanel.jsx의 같은 빈 상태와
+          // 짝을 맞춘다 — 문구·아이콘이 다르면 사용자는 "다른 채팅 기능"이라고 오해한다.
+          : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
           : msgs.map((m) => {
             if (m.kind === "system") {
               return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: "0.75rem", height: "1.5rem", maxWidth: "100%" }} />;

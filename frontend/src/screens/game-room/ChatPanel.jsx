@@ -25,7 +25,9 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
         maxHeight: { xs: "45rem", md: "none" }, flex: { md: "1 1 auto" },
       }}>
         {chatMsgs.length === 0 ? (
-          <EmptyState size="compact" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
+          // VIS-90 — ChatPane.jsx(팀 채팅)의 같은 빈 상태와 아이콘·문구를 맞춘다(둘이 다르면
+          // 사용자는 "다른 채팅 기능"이라고 오해한다).
+          <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
         ) : chatMsgs.map((e) => {
           if (e.kind === "system") {
             return (

@@ -56,6 +56,17 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+// ── 0. 빈 방 안내 (VIS-90) ────────────────────────────────────────────────
+
+describe("빈 방 안내", () => {
+  it("메시지가 없으면 아이콘 있는 안내를 보여준다(예전엔 아이콘 없는 회색 한 줄이었다)", async () => {
+    mount(messagesPayload({ messages: [] }));
+    await screen.findByText("아직 메시지가 없습니다");
+    expect(screen.getByText("💬")).toBeInTheDocument();
+    expect(screen.getByText("먼저 인사해 보세요.")).toBeInTheDocument();
+  });
+});
+
 // ── 1. 이모지 피커 ──────────────────────────────────────────────────────────
 
 describe("이모지 피커", () => {
