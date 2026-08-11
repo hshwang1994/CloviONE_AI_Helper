@@ -411,6 +411,18 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
         ignores=ignores, public=route.is_public,
     )
 
+    # CTR-05: 대비(WCAG) 측정을 이 캡처 루프에 얹는다 — 추가 네비게이션 없이 같은 페이지에서
+    # 한 번 더 evaluate만 돈다. contrast 모듈이 capture 모듈을 import하므로(순환 방지) 여기서는
+    # 지연 import한다.
+    try:
+        from .contrast import contrast_verdict, evaluate_contrast
+
+        record["assertions"]["contrast"] = contrast_verdict(evaluate_contrast(page))
+    except Exception as exc:  # noqa: BLE001 — 대비 측정 실패가 캡처 결과 전체를 버리게 하면 안 된다
+        record["assertions"]["contrast"] = {
+            "status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}",
+        }
+
     # 모달 검사는 맨 마지막이다 — 클릭이 화면을 바꾸므로 그 앞의 어떤 측정도 오염되면 안 된다.
     if interact_modals and not route.is_public:
         try:

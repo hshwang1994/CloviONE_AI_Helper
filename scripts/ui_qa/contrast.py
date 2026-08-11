@@ -107,6 +107,37 @@ PROBE = r"""() => {
 }"""
 
 
+def evaluate_contrast(page) -> dict:
+    """CTR-05: 이미 열려 있는 페이지에서 대비를 측정한다(추가 네비게이션 없음).
+
+    `main()`의 독립 실행 루프에서 뽑아냈다 — `scripts/ui_qa/run.py`의 기존 캡처 루프
+    (`capture.py::capture_route`)가 페이지당 한 번만 도는 자리에 얹기 위해서다. 반환값은
+    `{"items": [...위반...], "skipped": N}` — `PROBE`가 이미 내는 모양 그대로.
+    """
+    return page.evaluate(PROBE)
+
+
+def contrast_verdict(probe_result: dict, *, max_samples: int = 5) -> dict:
+    """`evaluate_contrast()`가 낸 원시 측정을 `assertions._verdict()`와 같은 모양으로 바꾼다.
+
+    Playwright 없이도(순수 dict만으로) 테스트할 수 있게 `evaluate_contrast`와 분리했다 —
+    실제 페이지 없이 이 변환 로직만 확인하려는 것이 CTR-05가 요구한 "reusable function"의
+    핵심이다. `note`에 판정불가(그라디언트 등) 건수를 항상 남긴다(CTR-05 요구사항 — 위반이
+    0건이어도 "이 페이지는 몇 건을 판정 못 했다"는 사실 자체가 정보다).
+    """
+    violations = probe_result.get("items") or []
+    skipped = probe_result.get("skipped", 0)
+    return {
+        "status": "fail" if violations else "pass",
+        "count": len(violations),
+        "samples": [
+            f"{v['tag']}.{v['cls']} 「{v['text']}」 ratio={v['ratio']} (기준 {v['need']})"
+            for v in violations[:max_samples]
+        ],
+        "note": f"판정불가(그라디언트 등) {skipped}건",
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--routes", nargs="*", default=[
@@ -137,7 +168,7 @@ def main() -> int:
                 page.goto(f"{BASE}{route.shell}#{route.hash_path}",
                           wait_until="domcontentloaded", timeout=45_000)
                 page.wait_for_timeout(2200)
-                res = page.evaluate(PROBE)
+                res = evaluate_contrast(page)
                 found, skipped = res["items"], res["skipped"]
                 report[f"{theme}/{rid}"] = {"violations": found, "undecidable": skipped}
                 for f in found:

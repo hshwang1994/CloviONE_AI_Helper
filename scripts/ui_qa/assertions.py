@@ -44,6 +44,9 @@ CLASSES = (
     # 여기 없으면 검사가 돌아도 리포트에 안 나온다(실제로 그래서 안 보였다).
     "modal_footer_outside_actions", "modal_full_width_buttons", "modal_offscreen",
     "modal_no_close", "modal_cannot_close", "modal_radius", "modal_width_spread",
+    # CTR-05: WCAG 텍스트 대비(scripts/ui_qa/contrast.py). 이 축이 없으면 CTR-01/02/04류
+    # 결함이 전 페이지 통과로 영원히 남는다 — 21개 검사 중 이것만 색을 본다.
+    "contrast",
 )
 
 # 사용자가 올린 이미지를 비율을 무시하고 잘라 보여주는 것을 잡는다.
