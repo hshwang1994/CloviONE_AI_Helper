@@ -66,6 +66,27 @@ Windows 작업 스케줄러가 3시간마다 이 저장소에서 새 Claude Code
 비추적)로 확인 가능. 배포 자격증명 경계(위 §D-54 배너)는 Runner의 매 실행 프롬프트에도
 동일하게 박혀 있다 — Runner도 이 경계를 스스로 어기지 않는다.
 
+**세션 재개(2026-08-11, D-60) — Runner 12시간 무동작 원인 수정 + 아키텍처 재확인**: 새
+대화형 세션이 사용자의 "WHOLE PRODUCT AUTONOMOUS COMPLETION" 지시로 시작해 상태를
+복원하다가, `var/runner/state.json`이 연속 실패 3회로 STOP돼 있고 마지막 반복이 전부
+09시경 즉시 `exit 1`이었음을 발견했다 — 원인은 `autonomous_runner.ps1`이 거대한 멀티라인
+프롬프트를 `Start-Process -ArgumentList` 배열 원소로 넘기던 것이 Windows 커맨드라인
+재조립 과정에서 깨진 것(`error: unknown option '--oneline'`, 프롬프트 안의 예시 문구가
+`claude.exe` 옵션으로 오인됨). 프롬프트를 파일 + `-RedirectStandardInput`으로 넘기는
+방식으로 고치고 격리된 스크래치 디렉터리에서 같은 버그 유발 문구로 재현 테스트해
+exit 0 확인. 상세는 `docs/DECISIONS.md` D-60. **아키텍처**: 1차 연속 실행은 하네스
+`/loop` dynamic mode + `ScheduleWakeup`(대화형 세션 안, D-53에서 이미 결정)이고
+`autonomous_runner.ps1`은 터미널이 닫혔을 때만 쓰는 2차/백업으로 재확인 — 이 세션이
+활성인 동안은 `var/runner/STOP`을 그대로 두어 동시 수정을 막는다. 새/기존 Task Scheduler
+항목은 건드리지 않는다(사용자 결정 사항). 커밋 전 우연히 발견: `CLAUDE.md`가 이전
+실행이 재작성해 두고 미커밋 상태로 남긴 것(§0 원본 상세 → `docs/ARCHITECTURE.md`/
+`docs/SECURITY.md`로 위임하는 더 짧은 최상위 실행 규칙 버전) — 내용을 대조해 정보
+손실이 없음을 확인하고 그대로 커밋했다. 이어서 §「다음 후보」(위 §「SHORT OVERRIDE
+이후 배치」 끝의 CTR-01~05·DGEN-01/03·SCHD-02·USE-04·AI-33/34·BKP-01/02/04·UB-14/29·
+UB-17/27·OPS-03/04·UB-25·FN-08/20·RG-05~07/10·APPR-02/03·NOTI-02·MAIL-02/03·PERF-02·
+SYS-09/10/11) 재검증을 배경 Workflow(읽기 전용 조사 전용, 파일 수정 없음 — 동시 편집
+충돌 방지)로 병렬 착수, 결과가 오는 대로 이 세션이 직접 순차 구현으로 이어간다.
+
 ---
 
 ## 🟣 MEGA CYCLE I — 기능·데이터·권한 E2E, FN-*/SEC-* quick-fix 스윕 (구현+테스트 완료, 배포 대기) (2026-08-10)

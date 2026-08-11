@@ -728,3 +728,50 @@ flaky했던 `test_10_concurrent_logins`은 지터 추가 후 연속 8/8 통과 �
 차이는 오직 "SAVEPOINT가 실패한 뒤 그 세션이 계속 살아서 재시도/다른 로직을 타는" 좁은
 창에서만 관찰된다 — 정확히 이 세션이 UB-07/UB-18/UB-08을 고치며 그 창을 직접 겨눈 시험을
 새로 짜다가 우연히 걸려든 것이다.
+
+## D-60 (2026-08-11) — 자율 Runner: Task Scheduler 의존 제거 + Start-Process 인자 전달 버그 수정
+
+**배경**: 사용자가 "WHOLE PRODUCT AUTONOMOUS COMPLETION" 지시에서 Windows 작업 스케줄러
+기반 실행 구조를 명시적으로 폐기하라고 지시했다(새 스케줄 task 생성 금지, 기존 것 삭제는
+사용자가 직접 함, 새 구조는 Task Scheduler에 의존하지 않을 것). 세션 시작 시 점검하니
+`var/runner/state.json`이 `consecutiveFailures: 3`으로 STOP 상태였고, 마지막 3회 반복이
+전부 즉시 `exit 1`로 실패해 **2026-08-11 09시경부터 이 세션 시작 시점(21시경)까지 약
+12시간 동안 Runner가 아무 작업도 못 하고 15분마다 조용히 no-op만 했다.**
+
+**Runner 버그 근본원인(재현·수정·검증 완료)**: `autonomous_runner.ps1`이 거대한 멀티라인
+프롬프트 문자열을 `Start-Process -ArgumentList` 배열의 원소로 넘겼는데, Windows에서
+`Start-Process`가 이를 단일 커맨드라인 문자열로 재조립하는 과정에서 문자열이 깨져 프롬프트
+안의 예시 텍스트(`git log --oneline -20`)의 일부가 `claude.exe` 자신의 옵션으로 오인됐다 —
+관측된 에러가 정확히 `error: unknown option '--oneline'`이었다. 고친 방법: 프롬프트를 임시
+파일에 쓰고 `-RedirectStandardInput`으로 표준입력을 리다이렉트하는 방식으로 전환(`claude -p`는
+위치 인자 없이 호출하면 stdin에서 프롬프트를 읽는다 — `claude --help`로 문서화된 동작이
+아니라 직접 stdin probe(`printf ... | claude -p`)로 실측 확인함). 격리된 스크래치 디렉터리에서
+버그를 그대로 재현하는 프롬프트(`git log --oneline` 문구 포함)로 수정 전/후를 실제로 실행해
+확인 — 수정 전 방식은 이 세션에서 재현하지 않았지만(실서버 프로세스를 새로 띄우는 대신
+이미 로그에 남은 실패로 원인을 특정), 수정 후 방식은 exit 0 + 의도한 결과 문자열로 통과함을
+직접 확인했다.
+
+**아키텍처 결정**: 이 세션부터는 하네스 내장 `/loop` dynamic mode + `ScheduleWakeup`을
+**1차** 연속 실행 메커니즘으로 쓴다(D-53에서 이미 이렇게 결정했었고 사이클 1~2에서 실측
+검증된 방식 — 오늘 지시가 그 결정을 재확인·강화한 것뿐이다). 로컬 Windows Runner
+(`autonomous_runner.ps1` + `install_task.ps1`)는 **2차/백업**으로 격하한다:
+- 새 Task Scheduler 항목을 만들지 않는다.
+- 기존 항목을 삭제하지 않는다(사용자가 직접 결정).
+- 이 세션(대화형)이 활성 상태로 저장소를 수정하는 동안은 로컬 Runner를 재가동하지 않는다 —
+  `var/runner/STOP` 파일을 그대로 둔다. 대화형 세션과 로컬 Runner가 동시에 같은 워킹트리를
+  건드리면 CLAUDE.md가 요구하는 single-instance 보장이 깨진다.
+- 로컬 Runner의 역할은 이제 "이 컴퓨터가 켜져 있고 아무도 대화형으로 안 쓰는 동안의 백업
+  연속 실행"으로 좁힌다 — 사용자가 원하면 `var/runner/STOP`을 지우고 `.\install_task.ps1`
+  그대로 둔 채(또는 수동으로 `autonomous_runner.ps1` 직접 실행) 계속 쓸 수 있다.
+
+**왜 클라우드 `/schedule`(RemoteTrigger)로 완전히 대체하지 못하는가(기존 결론 재확인)**:
+`scripts/runner/README.md`가 이미 문서화한 이유가 오늘도 유효하다 — 클라우드 루틴은
+격리된 샌드박스에서 GitHub `origin`을 새로 clone하는데, 이 저장소의 `origin`은 "secrets
+excluded" 압축 커밋 하나뿐이고 실제 개발 이력(`ui/mui-migration`, 사내 IP·도메인 포함)은
+push된 적이 없다 — 게다가 사내망(`10.100.64.71`)에도 클라우드 샌드박스는 닿지 못한다.
+그래서 로컬 파일과 사내망 모두에 닿아야 하는 이 작업은 로컬 실행(대화형 세션이든
+`autonomous_runner.ps1`이든)에 묶여 있다 — 이 제약은 Task Scheduler 사용 여부와 무관하게
+그대로 남는다. **정직하게 기록**: 즉 "Task Scheduler에 의존하지 않는 완전 자율 연속 실행"은
+이 대화형 세션(터미널)이 열려 있는 동안만 성립한다. 터미널이 닫히면 로컬 Runner(사용자가
+직접 시작해야 함, 이번 수정으로 정상 작동)만이 연속성을 이어받을 수 있다 — 이 한계는
+`scripts/runner/README.md`에도 반영한다.

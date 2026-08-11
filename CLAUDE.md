@@ -1,219 +1,146 @@
 # CLAUDE.md — ClovirONE Web Assistant
 
-> 이 파일은 Claude Code가 이 저장소에서 세션을 시작할 때 자동으로 읽는 **작업 지침·컨텍스트**다.
-> 향후 유지보수·수정을 하는 세션은 **먼저 이 파일을 읽고**, 필요한 세부는 `docs/`를 참조한다.
-> 코드를 고치기 전에 아래 **§2 불변 규칙**을 반드시 확인한다.
+> Claude Code가 이 저장소에서 세션을 시작할 때 읽는 **최상위 실행 규칙**이다.
+> 과거 작업 이력·진행률·긴 사고 기록은 여기 쌓지 않는다. 동적 상태는 `docs/`에서 복원한다.
+> 목표는 Area/Cycle/Batch 몇 개가 아니라 **제품 전체를 실제로 완료하는 것**이다.
 
-## 0. 작업 상태는 대화가 아니라 파일에 있다 (먼저 읽어라)
+## 0. 최우선 실행 원칙
+- **PROJECT 전체가 유일한 작업 단위다.** Product Area / Mega Cycle / Batch / Slice / Iteration은 조사·정리·병렬화용 라벨일 뿐 종료 단위가 아니다.
+- 정상 종료 조건은 `PROJECT_COMPLETE`뿐이다. 실행 가능한 일이 남아 있으면 즉시 다음 작업으로 계속한다.
+- commit, clean tree, focused test green, 문서 갱신, “iteration complete”, “next candidate”, recap/summary는 Stop Condition이 아니다.
+- 사용자 확인은 실제 MFA·외부 승인·접근 불가·상충 요구·되돌릴 수 없는 Production 결정처럼 사람이 필요한 경우에만 요청한다.
+- 한 blocker가 있어도 독립적으로 가능한 작업은 계속한다.
+- **Windows Task Scheduler 기반 실행은 폐기한다.** 새 scheduled task / idle tick / 시간 간격 재실행을 만들지 않는다. 기존 Task Scheduler 항목 삭제는 사용자가 직접 처리한다.
 
-**세션을 시작할 때 · Context가 압축됐을 때 · 오랜 작업 후 방향이 불확실할 때는
-[`docs/WORK_STATE.md`](docs/WORK_STATE.md)를 가장 먼저 읽는다.** 대화 History는 Source of Truth가
-아니다. 아래 6개 문서만으로 "현재 목표 / 발견한 문제 / 남은 작업 / 미검증 범위 / 우선순위 /
-중요한 설계 결정 / 최근 작업 위치 / 다음 작업"이 복원돼야 한다.
+## 1. 세션 시작 / Context 복구
+세션 시작, `/compact` 이후, 장시간 작업 후 방향이 불확실할 때 다음을 교차 대조한다.
+1. `docs/WORK_STATE.md` — 현재 위치 / resume pointer
+2. `docs/WORK_PLAN_INDEX.md` — MASTER PLAN / 전체 목표 / 완료 기준
+3. `docs/PROGRESS_STATUS.md` — 최신 전체 Snapshot
+4. `docs/BACKLOG.md` — **전체 unresolved 상태 inventory**
+5. `docs/QA_COVERAGE.md` — **전체 미검증 route/axis inventory**
+6. Git status / diff / 최근 커밋
+7. 실제 Source / Tests
+8. `docs/DECISIONS.md` — 현재 작업 관련 결정
+9. `docs/BUILD_LOG.md` — 과거 경위가 필요할 때만
 
-| 문서 | 역할 |
-|---|---|
-| [`docs/WORK_STATE.md`](docs/WORK_STATE.md) | **진입점.** 현재 사이클·위치·완료 범위·다음 작업·Blocker |
-| [`docs/WORK_PLAN_INDEX.md`](docs/WORK_PLAN_INDEX.md) | MASTER PLAN — 전체 목표·확정 계획·완료 기준 |
-| [`docs/BACKLOG.md`](docs/BACKLOG.md) | 발견한 모든 문제·개선사항 + 상태(발견→…→실환경검증완료) |
-| [`docs/QA_COVERAGE.md`](docs/QA_COVERAGE.md) | Route × 검증 7축 매트릭스 — 무엇이 아직 검증 안 됐는가 |
-| [`docs/DECISIONS.md`](docs/DECISIONS.md) | 이후 작업에 영향을 주는 결정과 그 이유 |
-| [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
+큰 MD를 매번 통째로 컨텍스트에 덤프할 필요는 없다. 검색/작은 파서로 전체 상태를 집계하고 필요한 구간을 읽는다. 단 **상단 몇 줄이나 “next candidate”만 보고 다음 작업을 정하지 않는다.**
+문서와 Source/Git/Test가 충돌하면 실제 코드와 검증 결과를 확인해 문서를 정정한다. 오래된 감사 결과는 구현 전에 재현/재검증한다.
+기능을 건드릴 때는 `docs/`의 관련 상세 문서(ARCHITECTURE, SECURITY, OPERATIONS, 기능별 문서 등)를 필요 시 읽는다.
 
-**"전에 했던 것 같다" / "아마 수정했을 것이다"라고 추측하지 않는다.** 기록이나 검증 상태가
-불확실하면 다시 확인한다. 코드를 고쳤다는 이유만으로 완료 처리하지 않는다 —
-`실환경검증완료`만 완료다.
+## 2. 프로젝트 핵심 구조
+- Python 3.12, FastAPI **sync**, SQLAlchemy 2.0 **sync**, Alembic, SQLite **WAL**
+- React 18 + Vite + HashRouter, 소스 `frontend/`, 산출물 `app/static/react/`
+- 런타임 외부 CDN/폰트 의존 금지, CSP `script-src 'self'`
+- n8n + Claude Runner + Notion 연동을 포함한 사내 업무 자동화 플랫폼
+- 주요 디렉터리: `app/`, `frontend/`, `runner/`, `alembic/`, `scripts/`, `deploy/`, `docs/`, `tests/`
+실제 저장소 구조가 문서와 다르면 Source를 정본으로 보고 문서를 갱신한다.
 
-갱신 시점: 새 문제 → BACKLOG · 새 Route/기능 검증 → QA_COVERAGE · 중요한 설계 판단 → DECISIONS ·
-사이클 종료 → WORK_STATE + BUILD_LOG. 작은 수정 하나마다 기록하지 않는다.
+## 3. 불변 규칙
+1. **Sync 일관성** — 임의의 FastAPI `async def` 핸들러나 `aiosqlite`를 추가하지 않는다.
+2. **Outbound HTTP 단일 관문** — 외부 호출은 `app/core/http_client.py`의 `OutboundClient`를 경유한다. 임의 `httpx` 직접 사용 금지.
+3. **Secret 비노출** — secret은 DB/응답/로그/감사에 평문 저장·노출하지 않는다.
+4. **Credential 비영구화** — 비밀번호/토큰을 Git, tracked docs, source, config, 명령행, 불필요한 로그에 남기지 않는다. 가능한 stdin/프롬프트/승인된 runtime secret 경로를 사용한다. `sshpass` 금지.
+5. **Session/RBAC** — opaque session + CSRF 규약 유지. 권한 판단은 서버가 정본이며 프런트 권한 표시는 보조일 뿐이다.
+6. **XSS/CSP** — 서버 데이터를 `innerHTML`로 주입하지 않는다. inline script / `onclick=` 금지.
+7. **UTC 저장** — Asia/Seoul은 표시·cron 평가에만 사용한다.
+8. **제품 기능 경계** — Runner 코드 웹 편집, 임의 shell 실행, secret 평문 표시, 범용 systemd 제어 기능을 제품 기능으로 추가하지 않는다.
+9. **공유 서비스 보호** — unrelated n8n / 기존 Claude Runner / 공유 nginx 설정을 ClovirONE 작업 때문에 임의 변경하지 않는다.
+10. **DB transaction 의미 보존** — `app/core/db.py`의 명시적 transaction/BEGIN 규약을 우회하거나 pysqlite implicit transaction 동작에 다시 의존하지 않는다. SAVEPOINT/`begin_nested()`는 실제 outer transaction 안에서 동작해야 한다.
+SQLite write conflict/busy/locked 판정은 기존 공용 classifier/retry 규약을 재사용한다. 다른 Session/Connection이 쓴 상태를 읽을 때 필요한 commit 경계를 확인한다. `:memory:` DB로 WAL/멀티커넥션 의미를 대체하지 않는다.
 
-## 1. 이 프로젝트가 무엇인가
+## 4. 작업 선택 / 구현 방식
+Backlog ID를 한 건씩 기계적으로 처리하지 않는다. 문제 하나를 보면 Repository 전체에서 같은 패턴과 Root Cause를 찾는다.
+- UI 문제 → shared component + 전체 소비처
+- RBAC 문제 → 같은 permission/scope/IDOR 경로 전체
+- API 오류 → 공통 client/error contract
+- DB race/transaction 문제 → 같은 transaction/retry 패턴 전체
+- Design 문제 → token/variant/shared component + 실제 화면 소비처
+우선순위는 대체로 **Critical/Security/DataLoss/RBAC/Integrity → 큰 Root Cause → High 사용자 영향 → 큰 QA 공백 → 나머지**다.
+독립적인 조사/수정은 subagent, background agent, worktree로 병렬화할 수 있다. Main Agent가 최종 diff, wiring, integration, permission impact, test evidence를 검토한다.
+주요 기능은 가능하면 `Screen → Action → API → Backend → DB/Data → Result → Related Screen → Reload/State → Permission/RBAC`까지 닫는다.
+UI-only, Backend-only, 프런트 role gate만 있는 권한 처리, 페이지가 열리기만 하는 검증은 완료로 보지 않는다.
 
-사내 업무 자동화 웹 플랫폼. 기존 ClovirONE AI 업무 도우미(n8n + Claude Runner + Notion)를
-**손상 없이 확장**한다.
+## 5. Frontend / Product UX도 필수
+Frontend와 실제 Product UX는 선택사항이 아니다. Backend/API/DB와 동일한 필수 완료 범위다.
+필요 시 Dashboard, Navigation/IA, User/Admin hierarchy, Page Header, Layout/max-width/density, Card/Table/Filter/Form, Modal/Drawer, Action hierarchy, Typography, Accessibility, Keyboard/Focus, FHD/QHD/4K, Responsive, Light/Dark까지 실제 화면 수준에서 개선한다.
+Token/CSS/shared primitive 정리만으로 “Design 완료”라고 하지 않는다. 가능하면 per-page 예외보다 shared token/variant/component를 우선하며 기존 shared infrastructure도 맹신하지 않는다.
 
-- **사용자 콘솔** (`/`) — React SPA. 로그인 신원을 세션에서 자동 식별(위조 불가). 좌측 그룹 네비:
-  - 내 업무(홈 대시보드=티켓 요약+내 게시판 활동), 내 티켓/미할당/새 티켓(설명 리치 본문 에디터)
-  - 도우미(AI 도우미 채팅, n8n/러너 연동)
-  - 문서(Notion "문서" DB 미러링+검색/필터+새 문서 생성, 장애 격리 캐시)
-  - 팀 공간: 놀이(폴링 실시간 게임 7종, 서버 확정, 승자 축포) + 자유게시판(글/댓글/반응/첨부)
-- **관리자 콘솔** (`/admin`) — 사용자/부서/직책/Notion 사용자 연결(RBAC 5역할), Integration/Runner/
-  Workflow Registry, Prompt/Policy/Template 버전 관리, Scheduler, 승인, 감사 로그, 백업, 유지보수 모드,
-  개발자 월간 리포트
-- **AI 퀴즈 생성**(§7-9, 다크런치) — 앱 → 러너 `/v1/assistant/quiz`(Claude CLI)로 퀴즈 문제 생성.
-  `game_ai_enabled` 플래그 기본 OFF
+## 6. 테스트 전략 — 작은 검증은 자주, 전체 검증은 수렴 후 크게
+구현 중에는 변경 영역과 직접 관련된 focused/subsystem test를 반복한다.
+- Backend: unit/integration/API/security
+- DB: transaction/integrity/concurrency/retry/migration
+- Frontend: component/route/helper/interaction
+- RBAC: allow/deny/scope/cross-org·cross-department negative case
+- AI/Runner: state/intent/job/conversation
+- Shared UI: component + 대표 소비자 regression
+회귀 결함은 가능하면 **수정 전 실패 → 수정 후 통과(revert-to-verify)** 를 확인한다. 모든 사소한 변경에 형식적 TDD를 강제하지 않는다.
+**작은 변경마다 전체 backend/frontend/runner/static/build를 돌리지 않는다.** 전체 구현이 충분히 수렴했을 때 Full Regression을 통합 실행한다.
+예외: auth/RBAC, transaction layer, migration, security, shared framework처럼 영향 반경이 큰 고위험 기반 변경은 Root Cause 묶음을 고친 뒤 전체 회귀를 조기에 한 번 돌릴 수 있다.
+Full Regression 실패 시 `실패 전체 수집 → Root Cause grouping → 대량 수정 → focused test → Full Regression 재실행` 순서로 처리한다.
 
-**기술 스택**: Python 3.12, FastAPI(**sync 핸들러**), SQLAlchemy 2.0(**sync**), Alembic,
-SQLite(**WAL**), Argon2id, **React 18 + Vite(HashRouter)** — 소스 `frontend/`, 빌드 산출물
-`app/static/react/`(index.html+assets)를 Jinja 셸로 서빙. **런타임 외부 CDN/폰트/네트워크 금지**
-(CSP `script-src 'self'`), npm은 빌드에만. 로그인/비밀번호변경만 `app/static/js`(login.js 등)에 남은
-소규모 바닐라 JS. Nginx, systemd. 유일한 바이너리 의존성은 `argon2-cffi`(전체는 `requirements.txt` 버전 고정).
+## 7. 상태 문서 / Checkpoint
+- 새 문제 → `BACKLOG.md`
+- 새 Route/기능 검증 → `QA_COVERAGE.md`
+- 중요한 설계 판단 → `DECISIONS.md`
+- 현재 위치/Blocker → `WORK_STATE.md`
+- 전체 Snapshot → `PROGRESS_STATUS.md`
+- 오래된 상세 이력 → `BUILD_LOG.md`
+완료 사실과 검증 근거는 보존하되 Active Context는 compact하게 유지한다. 의미 있는 Root Cause 묶음이나 복구 가치가 있는 시점에 checkpoint/commit한다. **문서 갱신이나 commit 직후 멈추지 말고 즉시 다음 runnable work로 계속한다.**
 
-**상태**: 프로덕션 배포 완료(서버 `10.100.64.71`, `https://clovirone-ai.gooddi.lab`). 테스트 4묶음 전부 green,
-7관점 검수 루프 6회 수렴(Critical/High 0). 상세 이력은 `docs/BUILD_LOG.md`(세션 인수인계의 출발점).
-테스트 개수는 여기 박지 않는다 — 이 줄이 이미 세 번 낡았고(예: 한때 458/122/131이라 적혀 있었는데
-어느 하나도 실제와 안 맞았다), 여러 갈래가 동시에 테스트를 추가해 매 세션 움직인다. 지금 세는 법:
-- 플랫폼: `.venv/Scripts/python -m pytest --collect-only | tail -1`
-- 러너: `cd runner/claude-work-assistant && ../../.venv/Scripts/python -m pytest --collect-only | tail -1`
-- 프런트(React) 유닛: `cd frontend && npm test`(vitest). 예전 vanilla `tests/js/*` 하네스는 vanilla→React
-  포팅으로 부팅 대상(app/static/js/chat.js)이 사라져 죽은 코드였다 — 삭제하고 vitest로 대체했다.
+## 8. Whole-product 재감사
+상당량 구현한 뒤 Repository 전체를 다시 감사한다: Routes, Screens, Components, API, Backend, DB, RBAC, AI/Runner, Admin/User workflow, Design/UX, Responsive/Theme, Integrations/Operations, Tests, QA Coverage.
+찾아야 할 것: half implementation, wiring 누락, dead path, stale docs, 이미 해결됐는데 미완료 표시, 잘못된 오래된 감사, duplicate logic, 새로운 shared Root Cause, unbounded list/pagination 누락, accessibility/focus/contrast 공통 문제.
+새로운 중대한 Root Cause 범주가 계속 나오면 아직 수렴하지 않은 것이다. 계속 수정한다.
 
-## 2. 불변 규칙 (Invariants — 깨면 안 됨)
+## 9. 승인된 TEST SERVER 배포
+승인된 TEST SERVER는 **`10.100.64.X` 대역**이다. 특정 마지막 octet을 과거 기억으로 하드코딩하지 않는다.
+실제 배포 대상 host/IP는 현재 Repository 설정, deployment scripts, runtime configuration 또는 사용자가 제공한 최신 값에서 확인한다. 이 대역을 Production으로 취급하지 않는다.
+사용자가 승인한 범위에서 Claude/Runner는 해당 TEST SERVER에 자동 deploy/modify/test할 수 있다. 필요한 SSH/sudo credential은 **runtime에서만** 사용하며 저장소나 문서에 기록하지 않는다. 이 권한을 다른 서버/향후 Production으로 자동 확장하지 않는다.
+작은 변경마다 배포하지 않는다. 기본 흐름은:
+`whole-product implementation convergence → Full Regression green → Build → 통합 Deploy → service/health/revision 확인 → Chrome Whole-product E2E`
+배포 환경에서 확인하지 않으면 다음 구현 자체가 불가능한 genuine blocker는 예외다.
 
-이 규칙들은 스펙과 검수 루프로 강제된다. 수정 시 반드시 유지한다. 여러 개는 **정적 검사
-(`scripts/static_checks.sh`)로 자동 감시**되니, 어기면 CI/커밋 전 검사에서 걸린다.
+## 10. Chrome Whole-product E2E — 최종 필수 Gate
+통합 배포 후 **실제 Chrome 기반 브라우저 E2E**를 수행한다. 몇 화면을 열어보는 smoke test로 끝내지 않는다.
+Route map + `QA_COVERAGE.md` + 주요 Workflow 기준으로 사용자 콘솔과 관리자 콘솔을 가능한 범위까지 순회한다.
+가능한 주요 Flow에서 `Screen → User Action → Network Request → API → Backend → DB/Data → UI Result → Related Screen → Reload → Permission/RBAC`까지 검증한다.
+Chrome/DevTools 기준으로 Console error/warning, Network failure/4xx/5xx, Empty/Loading/Error/Retry, role/permission denied, Long/Many data, Navigation/deep-link/refresh/state retention, Modal/Drawer/Form, Keyboard/Focus, Responsive, Light/Dark를 확인한다.
+Screenshot 존재, 페이지 오픈, health 200만으로 E2E 완료 처리하지 않는다.
+실환경 문제는 가능한 범위까지 먼저 수집한 뒤 `collect → Root Cause grouping → bulk fix → focused test → 필요한 Full Regression → integrated redeploy → Chrome re-E2E`로 처리한다.
+**Chrome Whole-product E2E가 충분히 끝나지 않으면 `PROJECT_COMPLETE=true`로 만들지 않는다.**
 
-1. **동기(sync) 일관성** — SQLAlchemy·FastAPI 핸들러 모두 sync. `async def` 핸들러/`aiosqlite`
-   추가 금지(worker/scheduler 결정론 테스트가 깨진다).
-2. **아웃바운드 HTTP는 단일 관문** — 외부 호출은 `app/core/http_client.py`의 `OutboundClient`
-   **한 곳으로만**. 다른 모듈에서 `import httpx` 금지(정적 검사가 차단). SSRF allowlist·redirect
-   금지·secret 주입이 여기에만 있다.
-3. **Secret은 절대 DB/응답/로그에 없다** — DB엔 `secret_ref`(이름)만. 실제 값은
-   `SECRETS_DIR/<name>` 파일 참조(`SecretValue.repr/str == "***"`). 응답·로그·감사엔 마스킹.
-4. **비밀번호·토큰은 명령행·파일·env·git에 남기지 않는다** — 오직 stdin/프롬프트로만. `sshpass`
-   금지. 임시 비밀번호는 콘솔 1회 표시 후 로그 미기록.
-5. **세션은 opaque 토큰** — 256-bit 랜덤, DB엔 SHA-256 해시만 저장. JWT 아님. CSRF는
-   `X-CSRF-Token` 헤더. RBAC는 서버측에서만 판단(프런트 신뢰 금지).
-6. **프런트 렌더는 textContent 전용** — 서버 데이터를 `innerHTML`에 넣지 않는다(XSS). CSP
-   `script-src 'self'` — 인라인 `<script>`·`onclick=` 금지. JS는 외부 파일에서만.
-7. **불변성(immutability)** — 객체를 제자리 수정하지 말고 새 객체를 만든다.
-8. **작은 파일 다수 > 큰 파일 소수** — 모듈은 feature별(`router`/`service`/`repository`/`schemas`/
-   `models`). 파일 200~400줄 권장, 800 최대.
-9. **UTC 저장, Asia/Seoul은 표시·cron 평가 때만.**
-10. **구현하지 않는 것**(스펙 §0.2): Runner 코드 웹 편집, 임의 shell 실행, secret 평문 표시,
-    임의 systemd 관리. 서비스 재시작 API는 501 + 안내만.
+## 11. Runner / Supervisor — Task Scheduler 없이 Continuous Worker
+Runner는 scheduled slice runner가 아니라 **PROJECT_COMPLETE까지 이어지는 continuous worker**다.
+- Windows Task Scheduler에 의존하지 않고 새 Task Scheduler task도 만들지 않는다.
+- fixed slice / N tasks per run / iteration-success / clean-tree / recap-summary를 정상 종료 조건으로 사용하지 않는다.
+- runnable work가 있으면 idle tick이나 scheduled wait로 빠지지 않는다.
+- Claude invocation이 종료돼도 `PROJECT_COMPLETE=false`이면 Supervisor가 즉시 resume/reinvoke해야 한다.
+- backoff는 rate limit, transient outage, 실제 외부 시간 의존성, human-only MFA/approval처럼 진짜 기다릴 이유가 있을 때만 허용한다.
+- 동시에 두 Supervisor가 같은 Repository를 수정하지 않도록 single-instance lock을 둔다.
+- 사용자가 Ctrl+C/stop flag로 안전하게 수동 중단할 수 있고 다음 실행에서 Git+docs로 복구 가능해야 한다.
+- 시작 시각, invocation 번호, Git SHA, exit code, retry 이유, last checkpoint, PROJECT_COMPLETE 상태를 기록하되 secret은 로그에 남기지 않는다.
+Claude Code CLI의 resume/continue/noninteractive/session 옵션은 과거 기억으로 하드코딩하지 않는다. **현재 설치 버전의 `claude --help`를 확인한 뒤** 지원되는 방식으로 Supervisor를 구현한다.
+개념적 정상 흐름:
+`lock → restore/cross-check → invoke/resume Claude → inspect result → persist checkpoint → PROJECT_COMPLETE? 종료 : transient? backoff : 즉시 재호출`
+Claude의 자연어 `"project complete"`, `"iteration complete"`, recap, exit code 0만으로 Supervisor가 종료하면 안 된다.
 
-## 3. 저장소 지도
+## 12. 대표 검증 명령
+현재 Repository의 실제 scripts/package 설정을 우선 확인한다. 아래는 기본값이다.
+- Backend focused: `.venv/Scripts/python -m pytest <path-or-nodeid>`
+- Backend full: `.venv/Scripts/python -m pytest`
+- Runner full: `cd runner/claude-work-assistant && ../../.venv/Scripts/python -m pytest`
+- Frontend: `cd frontend && npm test`
+- Static checks: `bash scripts/static_checks.sh`
+- Build bundle: `bash scripts/build-bundle.sh`
+테스트 개수나 과거 출력 숫자를 CLAUDE.md에 고정하지 않는다.
 
-```
-app/
-  main.py                 create_app(settings, clock, outbound_transport) — app factory
-  worker_main.py          단일 worker (job loop + scheduler tick), build_handlers() 잡 등록점
-  core/                   config, db(WAL/PRAGMA), http_client(OutboundClient), security(Argon2),
-                          sessions, secrets, errors, middleware(CSP), feature_flags,
-                          notion_blocks(markdown_to_blocks — 문서/티켓 본문→Notion 블록) … ← 인프라, 조심해서 수정
-  <feature>/              auth users org(부서·직책) integrations runners workflows prompts policies
-                          templates schedules approvals notifications documents notion_mapping chat
-                          conversations jobs backups audit settings profiles health reports(월간리포트)
-                          tickets team_docs(문서 탭) board(게시판) games(놀이 7종+AI 퀴즈)
-                          → 각 feature = router.py + service.py + repository.py + schemas.py + models.py
-                          (신규 모델은 models_registry.py 임포트 + main.py include_router 한 줄)
-  static/                 react/(Vite 빌드 산출물: index.html+assets, 메인 SPA) css/ img/
-                          js/(login.js·change_password.js·theme.js 만 남은 소규모 바닐라) — 외부 의존 0
-  templates_html/         Jinja2 셸(로그인·사용자 콘솔·admin 셸이 React 번들을 로드)
-frontend/                 React 18 + Vite 소스(src/app, src/screens, src/ui, src/lib). npm은 빌드에만
-alembic/                  마이그레이션 0001~0019 (script_location 상대경로 → 서버에선 cd APP_DIR 필요)
-config/                   allowlist JSON(services/runners/workflows) + feature-flags.json (개발용 사본)
-scripts/                  install/upgrade/rollback/backup/validate .sh + seed_admin.py + static_checks.sh + build-bundle.sh
-deploy/                   systemd/*.service, nginx/*.conf, web.env.example, 00-precheck.sh
-dist/                     build-bundle 산출물 + deploy-runner.sh(러너 안전 배포)
-docs/                     기능별 문서 (아래 §9 색인)
-tests/                    unit/integration/security/regression/smoke + fakes/
-```
+## 13. PROJECT_COMPLETE
+정상 종료 전 최소 다음을 만족해야 한다: MASTER PLAN 주요 목표, Critical/High 및 주요 Backlog, Frontend/Backend/API/DB wiring, RBAC/IDOR/Data scope, DB transaction/concurrency/integrity, AI/Runner 주요 flow, 실제 Product Design/UX, Admin/User 주요 workflow, Integrations/Operations, QA Coverage 주요 공백, Backend/Frontend/Runner Full Regression green, Static Checks + Build green, 승인된 TEST SERVER 통합 Deploy, 실제 배포 revision 확인, **Chrome Whole-product E2E**, Console/Network, Responsive/Theme/Accessibility, 실환경 발견 문제 수정/재검증, Final Whole-product Re-Audit 수렴.
+마지막 재감사에서 새로운 중대한 Root Cause 범주가 나오면 `PROJECT_COMPLETE=false`다.
+가능하면 Supervisor가 읽을 수 있는 엄격한 machine-readable completion state/marker를 사용하되 위 증거가 충족됐을 때만 설정한다.
 
-## 4. 로컬 개발·테스트
-
-```bash
-python -m venv .venv
-.venv/Scripts/pip install -r requirements-dev.txt      # Windows (Linux: .venv/bin/…)
-cp .env.example .env
-.venv/Scripts/python -m alembic upgrade head
-.venv/Scripts/python -m uvicorn "app.main:create_app" --factory --port 8080 --env-file .env
-```
-
-- **테스트**: `.venv/Scripts/python -m pytest`  (smoke 제외 전체 자동)  ·  마커: `-m security` 등
-- **정적 검사**: `bash scripts/static_checks.sh` → 마지막 줄 `STATIC_CHECKS_OK` 확인
-- **로컬 admin 계정 만들기**: `python -m app.cli.user_cli add --email me@goodmit.co.kr --name 이름 --role system_admin --password-stdin`
-  (또는 `scripts/seed_admin.py`). 비밀번호는 stdin으로만.
-- DB는 파일 기반 SQLite(`var/…`). `:memory:` 쓰지 말 것(WAL·멀티커넥션 테스트 필요).
-
-## 5. 변경 워크플로 (수정할 때마다)
-
-1. 관련 `docs/` 읽기 → §2 불변 규칙 확인
-2. **테스트 먼저**(TDD): 실패 테스트 추가 → 구현 → 통과. 회귀 결함은 `tests/regression/`에 핀.
-3. `.venv/Scripts/python -m pytest` **전체 green** + `bash scripts/static_checks.sh` **OK**
-4. JS 바꿨으면 `node --check <file>` (static_checks가 node 있으면 자동 수행)
-5. 커밋(conventional commits: `feat: / fix: / docs: …`). 커밋 전 §7 보안 체크리스트.
-6. 배포 필요 시 §6.
-
-## 6. 배포 & 프로덕션
-
-**서버**: `cloviradmin@10.100.64.71` (Ubuntu 24.04, `clovirone-ai.gooddi.lab`).
-SSH **키 인증**(비번 없음). **sudo는 비밀번호 필요**(임시 NOPASSWD는 제거됨 — root 작업은 사용자가
-직접 실행). 기존 서비스와 **공존**: n8n `:5678`, claude runner `:8787/:8788/:8789` — 절대 건드리지 않음.
-
-- 앱: `/opt/clovirone-web-assistant` (root:root). 설정: `/etc/clovirone-web-assistant/web.env`
-  (0640 root:clovirone-web, `SESSION_SECRET`는 서버 생성·비출력). 전용 사용자 `clovirone-web`(nologin).
-- 서비스: `clovirone-web-assistant.service`(web, `127.0.0.1:8080`), `clovirone-web-worker.service`(worker),
-  `nginx`(`:443` self-signed → HSTS off). 로그: `journalctl -u clovirone-web-assistant`.
-
-**정적 파일만 바꿨을 때(프런트 핫 업데이트)** — 서비스 재시작 불필요(StaticFiles가 디스크에서
-매 요청 서빙). 방법은 `docs/MAINTENANCE_PLAYBOOK.md` §1.
-**사용자에게 새로고침을 부탁하지 않는다** — `app/core/assets.py`가 파일의 mtime·크기로 지문을
-계산해 `/static/css/x.css?v=<지문>`으로 내보내므로, 파일이 바뀌면 주소가 바뀌고 브라우저가
-무조건 새로 받는다. HTML은 `no-store`라 항상 새 주소를 본다.
-
-**코드/DB/의존성 바뀐 전체 업그레이드** — `scripts/build-bundle.sh`로 번들 생성 → scp →
-`scripts/upgrade-clovirone-web-assistant.sh`(root): 백업 → 서비스 정지 → 멱등 installer 재실행
-(소스·deps·migrate·units·nginx·기동). 상세: `docs/MAINTENANCE_PLAYBOOK.md` §2, `docs/OPERATIONS.md`.
-
-**롤백** — `scripts/rollback-clovirone-web-assistant.sh <BACKUP_DIR>` (자사 파일만 복원). 백업은
-`/var/backups/clovirone-web-assistant/<ts>/`. 첫 설치 되돌리기는 `--uninstall`.
-
-## 7. 커밋 전 보안 체크리스트
-
-- [ ] 하드코딩 secret 없음(정적 검사 통과) · 입력 검증 있음 · SQL은 파라미터 바인딩
-- [ ] 새 외부 호출은 `OutboundClient` 경유 + allowlist 반영 · `import httpx` 추가 안 함
-- [ ] 새 엔드포인트에 RBAC 의존성 + 상태변경엔 CSRF · IDOR(객체 소유권) 확인
-- [ ] secret/비번/토큰이 응답·로그·감사·에러 메시지에 노출 안 됨
-- [ ] 권한 상승 경로 없음(특히 lifecycle 엔드포인트는 `ensure_can_manage_target`로 target 역할 확인)
-
-## 8. 함정(반드시 기억, BUILD_LOG 교훈)
-
-- **datetime 문자열은 Python과 SQLite의 strftime이 서로 다르다. 섞으면 데이터가 깨진다.**
-  - **Python**(`datetime.strftime`): `"%Y-%m-%d %H:%M:%S.%f"` — `%f`가 마이크로초 6자리다.
-    DB에 넣을 문자열은 이 형식이어야 ORM이 다시 읽는다.
-  - **SQLite**(`STRFTIME(...)`): **`%f`는 '초.밀리초'다**(`%S`가 아니라 `%S.%f` 전체에 해당).
-    그래서 `STRFTIME('%H:%M:%S.%f')`는 `'06:58:51.51.066'` — **초가 두 번 들어간다.**
-    SQLite에서 같은 모양을 만들려면 `STRFTIME('%Y-%m-%d %H:%M:%f')`다(`%S` 없이).
-  - 이 함정이 실제로 터졌다: 마이그레이션이 `STRFTIME('...%H:%M:%S.%f')`로 timestamp를 넣었고,
-    그 행을 ORM으로 읽는 순간 `ValueError: Invalid isoformat string`으로 **'부서 관리' 화면과
-    CLI가 통째로 크래시**했다. raw SQL로 `name`만 보던 테스트는 못 잡았다 — 프로덕션 데이터로
-    CLI를 직접 돌려서야 나왔다. **마이그레이션의 timestamp는 Python에서 만들어 파라미터로 넘겨라.**
-  원시 UPDATE 후 ORM 객체는 `db.refresh` 필요.
-- **라우터 팩토리 파일에 `from __future__ import annotations` 금지**(FastAPI 의존성 해석 깨짐).
-- **install/alembic는 `cd $APP_DIR` 먼저**(script_location·`python -m app`이 상대경로).
-  `runuser`는 `-l` 없으면 CWD 보존.
-- **`web.env`(0640)는 cloviradmin이 못 읽음** → grep은 `sudo bash -c`로 root가 수행.
-- **installer의 chmod/chown은 venv 제외**(`-path "$APP_DIR/venv" -prune -o …`) — 안 하면 venv exec 비트 손상.
-- **FastAPI StaticFiles = 디스크 직접 서빙** → 정적 파일 교체는 재시작 불필요.
-  단 `assets.py`의 지문을 **캐시하면 안 된다** — 한때 지문을 프로세스 수명 동안 고정했더니
-  이 절차대로 교체해도 옛 주소가 계속 나가 캐시 버스팅이 통째로 무효였다(사용자에겐 "바뀐 게
-  없다"로 보인다). 지금은 매 요청 stat한다. `tests/regression/test_asset_cache_busting.py`가 못 박음.
-- **nginx는 공유 자원** — IP-literal listen이 기존 wildcard vhost 트래픽을 가로챌 수 있음. vhost 추가만,
-  기존 무접촉. `default_server` 금지.
-
-## 9. 문서 색인 (`docs/`)
-
-| 문서 | 내용 |
-|---|---|
-| **WORK_STATE.md** | **새 세션은 여기부터** — 현재 사이클·위치·다음 작업·Blocker (§0 참조) |
-| **WORK_PLAN_INDEX.md** | MASTER PLAN — 전체 목표·사이클 순서·완료 기준 |
-| **BACKLOG.md** | 발견한 모든 문제 + 상태. `IDEAS_BACKLOG.md`(미확정 아이디어)와는 다른 목적 |
-| **QA_COVERAGE.md** | Route × 검증 7축 매트릭스 |
-| **DECISIONS.md** | 설계 결정과 이유 (불변규칙 자체는 §2가 정본) |
-| **BUILD_LOG.md** | 세션 인수인계 이력(HISTORY) |
-| **MAINTENANCE_PLAYBOOK.md** | 흔한 유지보수·수정 작업 레시피(단계별) + 배포/롤백 |
-| ARCHITECTURE.md | 시스템 설계·데이터 모델 |
-| SECURITY.md | 위협 모델·보안 통제 | OPERATIONS.md / RUNBOOK.md | 운영·장애 대응 |
-| INSTALLATION_REPORT.md | 배포 최종 보고(secret 미포함) | KNOWN_LIMITATIONS.md | 알려진 제한 |
-| EXTENSION_GUIDE.md | 확장 가이드(Postgres 전환 기준 등) | ADMIN_GUIDE.md / USER_GUIDE.md | 사용자 매뉴얼 |
-| USER_LIFECYCLE · RUNNER_MANAGEMENT · WORKFLOW_REGISTRY · PROMPT_POLICY_MANAGEMENT · SCHEDULER · NOTION_MAPPING · DOCUMENT_AUTOMATION · BACKUP_RESTORE · TEST_SCENARIOS | 기능별 상세 |
-
-**스펙 원본**: `C:\Users\hshwa\Downloads\ClovirONE_Web_Assistant_Final_Claude_Instructions.md` (v2.0).
-**승인된 계획**: `~/.claude/plans/c-users-hshwa-downloads-clovirone-web-as-indexed-quokka.md`.
-
-## 10. 조치 필요 (운영 전, 사용자)
-
-- 대화에 노출된 **관리자 임시 비밀번호**와 **SSH 비밀번호** 변경(스펙 §1).
-- 자체서명 인증서 → 사설 CA/사내 인증서로 교체 시 HSTS 활성 검토(`docs/SECURITY.md`).
+## 14. 마지막 규칙
+**AREA를 끝내지 마라. CYCLE을 끝내지 마라. ITERATION을 끝내지 마라. BACKLOG 몇 건을 끝내지 마라. 제품 전체를 끝내라.**
+조사는 넓게. 수정은 Root Cause 단위로 크게. Frontend/Backend/DB/RBAC/AI/UX/QA 모두 필수. 관련 테스트는 자주. 전체 테스트는 수렴 후 크게. 배포는 마지막에 통합해서. 실환경 검증은 Chrome 기반 제품 전체로.
+Checkpoint 후 멈추지 마라. Claude invocation이 끝나도 `PROJECT_COMPLETE=false`이면 즉시 이어가라.
