@@ -202,17 +202,26 @@ try {
 
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         $logFile = Join-Path $LogDir "$timestamp.log"
+        $promptFile = Join-Path $LogDir "$timestamp.prompt.txt"
         Write-RunnerLog "반복 시작 #$($iterationsThisLaunch + 1) (log=$logFile, budget=`$$MaxBudgetUsd, timeout=${MaxRuntimeMinutes}분)"
 
+        # 2026-08-11 버그 수정: 프롬프트를 -ArgumentList 배열 요소로 넘기면 Start-Process가
+        # Windows용 단일 커맨드라인 문자열로 재조립하는 과정에서 멀티라인·특수문자가 포함된
+        # 긴 문자열이 깨져(관측된 실패: "error: unknown option '--oneline'" — 프롬프트 안의
+        # 예시 텍스트가 claude.exe 자체의 옵션으로 오인됨) 3회 연속 실패 후 STOP이 걸렸다.
+        # 프롬프트를 파일로 써서 표준입력으로 리다이렉트하면(claude -p는 위치 인자가 없으면
+        # stdin에서 프롬프트를 읽는다 — 직접 확인함) 커맨드라인 조립 자체를 우회한다.
+        Set-Content -Path $promptFile -Value $prompt -Encoding utf8 -NoNewline
+
         $argList = @(
-            "-p", $prompt,
+            "-p",
             "--permission-mode", "auto",
             "--max-budget-usd", $MaxBudgetUsd,
             "--output-format", "json"
         )
 
         $proc = Start-Process -FilePath $ClaudeExe -ArgumentList $argList -WorkingDirectory $ProjectDir `
-            -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -PassThru -NoNewWindow
+            -RedirectStandardInput $promptFile -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -PassThru -NoNewWindow
 
         $finished = Wait-Process -Id $proc.Id -Timeout ($MaxRuntimeMinutes * 60) -ErrorAction SilentlyContinue -PassThru
         if (-not $finished) {

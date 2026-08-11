@@ -1,4 +1,12 @@
-# 자율 완성 Runner — 세션이 끝나도 이어지는 로컬 CONTINUOUS 워커
+# 자율 완성 Runner — 세션이 끝나도 이어지는 로컬 CONTINUOUS 워커 (2차/백업)
+
+> **2026-08-11 (D-60) 갱신**: 1차 연속 실행 메커니즘은 이제 하네스 내장 `/loop` dynamic
+> mode + `ScheduleWakeup`이다(대화형 세션 안에서 동작, Task Scheduler 불필요) — 상세는
+> `docs/DECISIONS.md` D-53·D-60. 이 문서가 설명하는 로컬 Runner는 **대화형 세션(터미널)이
+> 아예 닫혀 있을 때만 쓰는 백업**이다. 대화형 세션이 저장소를 수정하는 동안은 이 Runner를
+> 켜지 않는다(동시 수정 방지) — `var/runner/STOP`이 있으면 그런 뜻이다, 지우지 말 것.
+> 새 Task Scheduler 항목을 만들거나 기존 것을 삭제하는 것은 이 세션이 하지 않는다(사용자
+> 결정 사항).
 
 Claude Code 세션(터미널 창)을 닫아도, ClovirONE Web Assistant 프로젝트가 완료되지 않았다면
 이 컴퓨터에서 `autonomous_runner.ps1`이 **쉬지 않고 반복**해서 Claude Code를 이어 띄운다 —
@@ -81,6 +89,17 @@ cd scripts\runner
 | `$MaxIterationsPerLaunch = 300` | 런어웨이 하드 스톱 — 걸려도 다음 15분 heartbeat가 새 루프로 이어받는다(멈춤 아님) |
 | `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** — 이 세션이 실제로 쓰고 있는 것과 같은 모드로, 자동 분류기가 여전히 위험한 동작(대량 삭제 등)을 막는다 |
 | 프롬프트 안의 배포 자격증명 경계 | 채팅에 붙여넣어진 SSH/sudo 비밀번호를 어떤 서버 배포에도 쓰지 않는다는 규칙을 매 반복 프롬프트에 명시 — 10.100.64.71 배포는 사용자가 직접 하거나 NOPASSWD sudoers를 사용자가 직접 구성해야만 가능하다 |
+
+## 수정 이력
+
+- **2026-08-11**: `Start-Process -ArgumentList`에 거대한 멀티라인 프롬프트 문자열을 배열
+  원소로 직접 넘기던 방식이 Windows 커맨드라인 재조립 과정에서 깨져(`error: unknown
+  option '--oneline'` — 프롬프트 안의 예시 텍스트가 `claude.exe` 자신의 옵션으로 오인됨)
+  2026-08-11 09시경부터 3회 연속 실패 후 자동 STOP, 이후 약 12시간 no-op 상태였다. 프롬프트를
+  임시 파일에 써서 `-RedirectStandardInput`으로 표준입력 리다이렉트하는 방식으로 고쳤다
+  (`claude -p`는 위치 인자 없이 호출하면 stdin에서 프롬프트를 읽는다 — 직접 확인함). 격리된
+  스크래치 디렉터리에서 같은 버그 유발 문구를 포함한 프롬프트로 재현 테스트해 exit 0 +
+  의도한 출력을 확인했다. 상세는 `docs/DECISIONS.md` D-60.
 
 ## 알려진 한계 (정직하게 남긴다)
 
