@@ -1766,6 +1766,49 @@ enabled     : 0   ·  next_run_at: 없음  ·  last_run_at: 없음
 > [D-21](DECISIONS.md)(실고객 Notion 워크스페이스 보호)이 우선한다. 스케줄러 자체의 검증은
 > **안전한 대상**(예: 존재만 확인하는 헬스체크성 워크플로)을 새로 하나 만든 뒤에 한다.
 
+---
+
+## OFFB·ANN·QUOTA — `USE-01` 나머지 3종 실행 완료 (2026-08-11, WF7 후속 U축) — **셋 다 정상 동작**
+
+`USE-01`의 12개 중 아직 실행 이력이 없던 것은 오프보딩(`offboarding_runs`)·공지 배너
+(`announcements`)·AI 쿼터(`ai_quotas`) 셋이었다(문서 생성·스케줄은 D-21로 보류, 저장된 뷰·
+대리 보기·복구 리허설·승인·메일은 이미 실행됨). **원격 승인 TEST SERVER(`10.100.64.71`,
+CLAUDE.md §9)의 QA 캐시 세션이 전부 만료돼 있었고, 저장된 비밀번호도 재로그인이 안 됐다**
+(원격에서 재발급하려면 SSH가 필요한데 이 조사 하나 때문에 SSH 자격증명을 꺼내는 것은 범위
+밖이라 판단) — 로컬 dev 서버(이 저장소 자신의 `var/web.sqlite3`, `user_cli`로 자유롭게
+전용 QA 계정 생성 가능)로 전환해 실행했다. 도구: `scripts/ui_qa/use_axis_e2e.py`.
+
+**Notion 쓰기 위험 재확인**: 로컬 dev 서버도 `var/secrets/notion_docs_token`·
+`notion_report_token`이 실제로 있어 **같은 실고객 Notion 워크스페이스를 가리킨다** — 로컬
+실행이라고 D-21의 위험이 사라지지 않는다. 그래서 오프보딩은 `ticket_page_ids: []`(빈 목록)로만
+실행했다 — `offboarding/schemas.py`가 이미 "옮길 티켓을 서버가 고르지 않는다"고 밝혀 둔 대로,
+빈 목록을 보내면 `_move_tickets` 루프 자체가 안 돌아 **Notion 쓰기가 0건**이다(실행 결과
+`ticket_total/moved/failed` 전부 0으로 직접 확인). 공지 배너는 `active=false`로만 만들어
+**다른 실사용자 화면에 실제로 뜨는 일이 없게** 했다(만든 목적이 "배너가 보이는가"가 아니라
+"쓰기 경로가 실제로 동작하는가"라 `active=false`로도 같은 것을 확인할 수 있다 — 회사 전체에
+보이는 배너를 실제로 띄우는 것은 "다른 사람에게 보이는 콘텐츠 게시"에 해당해 이 세션 혼자
+결정할 일이 아니라고 판단했다). AI 쿼터는 새로 만든 QA 전용 계정(`qa-use-axis-target@…`)
+1인 범위로만 걸었다(전역 쿼터는 회사 전체 AI를 멈출 수 있어 대상에서 제외).
+
+| 기능 | 실행 결과 |
+|---|---|
+| **오프보딩** | `POST /run/{id}`(deactivate=true, ticket_page_ids=[]) → `status:"completed"`, 대상 계정 `active: true→false` 확인, `offboarding_runs` 목록에 즉시 노출 확인 → `POST /{run_id}/undo` → `status:"undone"`, 대상 계정 `active` **다시 true로 복구** 확인. 후임 알림(`_notify_handover`)·`offboarding_runs` 행 생성·감사 로그(`offboarding.run`+`offboarding.undo`) 전부 정상 |
+| **공지 배너** | `POST /api/admin/announcements`(active=false) → 201, 목록에 즉시 노출 확인 → `DELETE` → 목록에서 사라짐 확인. 감사 로그(`announcement.create`) 정상 |
+| **AI 쿼터** | `POST /api/admin/ai-quotas`(scope=user, qa 계정, max_calls=500) → 201, 목록에 `used` 필드와 함께 노출 확인, `/usage` 집계 엔드포인트 정상 응답 → `DELETE` → 목록에서 사라짐 확인. 감사 로그(`ai_quota.create`) 정상 |
+
+> **결함 아님(확인함) — 셋 다 처음부터 끝까지 정확히 설계대로 동작했다.** `USE-01`의 남은
+> 항목들도 저장된 뷰·대리 보기·복구 리허설·승인과 같은 패턴이었다 — "실행 이력 0"은 "고장"이
+> 아니라 "아무도 안 눌러 봤다"였다. 유일하게 눈에 띈 것은 `POST` 응답(방금 만든 행 자체)에
+> `user_name`/`successor_name`/`actor_name`이 `null`로 온다는 점인데, 코드를 확인하니
+> **의도된 비대칭**이다 — `list_offboarding_runs`/`list_quotas`는 각각 `_name_map`/
+> `resolve_names`로 이름을 채워 주고, 화면은 실행 직후 그 목록을 다시 불러오므로(이 저장소
+> 전역의 "액션 뒤 새로고침" 관용) 사용자가 실제로 보는 화면에는 이름이 있다 — 새 결함이 아니다.
+
+> **남은 것**: `document_generations`(워크플로 자체가 이 설치에 없다, `DGEN-02`)·
+> `schedule_runs`+`project_weekly_reports`(D-21로 보류)만 실행 이력 0으로 남는다 — 둘 다
+> 코드 결함이 아니라 **이 설치의 데이터/정책 문제**로 이미 원인이 규명돼 있다(`USE-01`의
+> "12개 전부 실행" 목표는 이 셋을 빼면 사실상 완료).
+
 #### `ADM-02` 정정 — 제품은 메일 부재를 **정직하게** 다룬다. 문제는 `/setup` 이 그 사실을 말하지 않는 것뿐이다.
 
 내가 "메일이 없어서 CLI 로 임시 비밀번호를 만드는 흐름이 굳어졌다"고 적었는데 **근거가 약했다.**
