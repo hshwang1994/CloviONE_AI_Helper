@@ -206,9 +206,15 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * 첫 정지점 리터럴 #758AE1 을 그대로 쓴다. */
       primary: { main: primary, dark: primaryStrong, light: "#758AE1", soft: primarySoft },
       secondary: { main: t.accent },
-      success: { main: t.success, bg: t.successBg },
-      warning: { main: t.warning, bg: t.warningBg },
-      error: { main: t.danger, bg: t.dangerBg },
+      /* `strong`: `.main`은 칩 배경(색 있는 면 위 흰 글자, 대비 문제 없음)엔 맞지만 작은
+       * 글자색으로 그대로 쓰면(예: StatCard의 「주의」/「위험」 배지) primaryStrong과 똑같은
+       * 이유로 근소 미달한다 — QAH-03(2026-08-11 하네스 실측): 라이트 warning `.main`이
+       * 표면에 따라 4.48~4.6로 WCAG AA 4.5 경계에 걸쳐 있었다. primaryStrong과 같은 배합
+       * (t.strongMix — 라이트는 brand-deep 22%, 다크는 흰색 28%)을 세 톤에도 그대로 적용해
+       * 라이트 5.7~6.7, 다크 9.2~12로 확실한 여유를 둔다. */
+      success: { main: t.success, bg: t.successBg, strong: mixSrgb(t.success, t.strongMix[0], t.strongMix[1]) },
+      warning: { main: t.warning, bg: t.warningBg, strong: mixSrgb(t.warning, t.strongMix[0], t.strongMix[1]) },
+      error: { main: t.danger, bg: t.dangerBg, strong: mixSrgb(t.danger, t.strongMix[0], t.strongMix[1]) },
       info: { main: t.info, bg: t.infoBg },
       cyan: t.cyan,
       /* 기준선은 표면이 셋이다. 카드(--surface)는 정말 흰색이고, 위계는 표 머리·칸반 열·
@@ -385,6 +391,14 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             boxShadow: "none",
             "&:hover": { background: primaryStrong, boxShadow: "none" },
           },
+          /* CTR-01/04와 같은 원인, 다른 컴포넌트: `variant`/`color`를 안 주면(기본값
+           * text+primary) MUI가 이 텍스트 색도 palette.primary.main 원본 accent로 렌더한다 —
+           * QAH-03(2026-08-11 하네스 실측)에서 68/68 라우트, 표본의 절반 이상(262/519)이
+           * 이 패턴(`a.MuiButtonBase-root`, href가 있는 Button은 <a>로 렌더된다)이었다.
+           * containedPrimary는 흰 글자라 무관 — 텍스트 자체가 accent 색인 text/outlined만
+           * MuiLink와 같은 primaryStrong으로 맞춘다. */
+          textPrimary: { color: primaryStrong },
+          outlinedPrimary: { color: primaryStrong },
         },
       },
       MuiOutlinedInput: {

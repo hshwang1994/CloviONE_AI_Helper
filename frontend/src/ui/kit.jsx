@@ -275,7 +275,12 @@ export function StatCard({ value, label, kind, onClick, active }) {
       <Typography component="div" variant="body2" color="text.secondary" sx={{ display: "flex", gap: 1, alignItems: "center" }}>
         {label}
         {sev ? (
-          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: 800, color: `${color}.main` }}>{sev}</Box>
+          /* QAH-02(2026-08-11 하네스 실측): label이 길면(예: "이번 주 마감") flex 행이
+           * 좁아지고, 한글은 라틴 문자와 달리 음절 사이 어디서나 줄바꿈이 허용돼(word-break
+           * 기본 규칙) white-space를 안 주면 "주의" 2글자짜리 배지가 세로 한 글자씩
+           * 쌓이며 너비가 12.6px까지 눌렸다(admin_dashboard, 라이트·다크 둘 다). 배지는
+           * 애초에 줄바꿈될 이유가 없는 고정 짧은 라벨이라 줄바꿈 자체를 막는다. */
+          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: 800, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
         ) : null}
       </Typography>
       {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이 없다. */}

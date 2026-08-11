@@ -103,3 +103,83 @@ describe("CTR-02 — ConsoleSwitch 활성 탭이 실제로 primary.main을 쓰�
     }
   }
 });
+
+describe("QAH-03(2026-08-11 하네스 실측) — MuiButton 기본(text/outlined + primary) 글자색이 AA를 만족한다", () => {
+  it("MuiButton styleOverrides가 textPrimary/outlinedPrimary에 실제로 primary.dark를 쓴다", () => {
+    // 하네스 표본 519건 중 262건(68/68 라우트)이 이 패턴이었다 — href가 있는 Button은
+    // <a>로 렌더되고(예: 「초기 설정 계속하기」), variant/color를 안 주면 MUI 기본값(text
+    // variant, primary color)이 palette.primary.main(원본 accent)을 그대로 쓴다.
+    const theme = createClovirTheme("light", "indigo");
+    expect(theme.components?.MuiButton?.styleOverrides?.textPrimary?.color).toBe(
+      theme.palette.primary.dark,
+    );
+    expect(theme.components?.MuiButton?.styleOverrides?.outlinedPrimary?.color).toBe(
+      theme.palette.primary.dark,
+    );
+  });
+
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — primary.dark(=버튼 텍스트색) vs 표면`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const color = theme.components.MuiButton.styleOverrides.textPrimary.color;
+        for (const surface of [theme.palette.background.paper, theme.palette.background.default]) {
+          const ratio = contrastRatio(color, surface);
+          expect(
+            ratio,
+            `mode=${mode} accent=${accent} color=${color} surface=${surface} ratio=${ratio.toFixed(2)}`,
+          ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        }
+      });
+    }
+  }
+});
+
+describe("QAH-03 — StatCard 「주의」/「위험」 배지가 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
+  const kitSrc = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
+    "utf-8",
+  );
+
+  it("StatCard의 sev Box가 실제로 `${color}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
+    const start = kitSrc.indexOf("export function StatCard");
+    expect(start, "StatCard 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = kitSrc.slice(start, start + 3500);
+    expect(block).toMatch(/color:\s*`\$\{color\}\.strong`/);
+    expect(block).not.toMatch(/color:\s*`\$\{color\}\.main`\}\}\s*>\{sev\}/);
+  });
+
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — warning.strong/error.strong vs 표면`, () => {
+        const theme = createClovirTheme(mode, accent);
+        for (const tone of ["warning", "error"]) {
+          const color = theme.palette[tone].strong;
+          expect(color, `palette.${tone}.strong이 없다`).toBeTruthy();
+          for (const surface of [theme.palette.background.paper, theme.palette.background.default]) {
+            const ratio = contrastRatio(color, surface);
+            expect(
+              ratio,
+              `mode=${mode} accent=${accent} tone=${tone} color=${color} surface=${surface} ratio=${ratio.toFixed(2)}`,
+            ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+          }
+        }
+      });
+    }
+  }
+});
+
+describe("QAH-02(2026-08-11 하네스 실측) — StatCard 배지가 좁은 칸에서 세로로 안 무너진다", () => {
+  it("sev Box에 whiteSpace:nowrap과 flexShrink:0이 있다(한글은 word-break 기본값이 음절 사이 어디서나 끊는다)", () => {
+    const kitSrcHere = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
+      "utf-8",
+    );
+    const start = kitSrcHere.indexOf("export function StatCard");
+    const block = kitSrcHere.slice(start, start + 3500);
+    const sevLine = /\{sev \? \([\s\S]{0,600}?<\/Box>/.exec(block);
+    expect(sevLine, "sev Box 블록을 못 찾았다").not.toBeNull();
+    expect(sevLine[0]).toMatch(/whiteSpace:\s*"nowrap"/);
+    expect(sevLine[0]).toMatch(/flexShrink:\s*0/);
+  });
+});
