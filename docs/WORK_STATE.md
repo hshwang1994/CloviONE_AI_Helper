@@ -12,8 +12,12 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-10 · **단계**: **MEGA CYCLE I 구현+테스트 완료(기능·데이터·권한
-E2E — FN-*/SEC-* quick-fix 스윕), 배포는 Blocker로 대기**. Cycle 4의 소배치 방식을
+**마지막 갱신**: 2026-08-11 · **단계**: SHORT OVERRIDE 지시 아래 CORE-13 다음 배치 진행 중
+— KBD-01/02/03·UB-21/22/40/41/23/19·UA-12/29/13/11 12건 구현+테스트+커밋 완료(재검토로
+결함 아님 정정 3건: FN-15/16/18, UB-20). 상세는 §「SHORT OVERRIDE 이후 배치」 섹션.
+배포는 여전히 Blocker로 대기(SSH/sudo 비밀번호 비사용 정책). 이전 단계는 아래 그대로 유지:
+**MEGA CYCLE I 구현+테스트 완료(기능·데이터·권한 E2E — FN-*/SEC-* quick-fix 스윕)**.
+Cycle 4의 소배치 방식을
 그만두고(D-53) 제품 영역 단위로 넓게 조사·대량 수정·영역 종료 시 1회 배포로 전환 —
 Cycle 4 배치 1~6(UA/CORE/SEC 22건)은 그대로 유지.
 **D-54(2026-08-10) — MEGA CYCLE 크기 재조정**: C/D/E/F처럼 같은 Product Area(Design
@@ -574,6 +578,85 @@ ACID 위반. 왜 지금까지 안 드러났는지는 `docs/DECISIONS.md` D-59 �
 `400503c`. 상세 경위·트레이드오프는 `docs/DECISIONS.md` D-59, BACKLOG 항목은 `CORE-13`.
 
 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이 진행한다.
+
+---
+
+## 🔴 SHORT OVERRIDE 이후 배치 — CORE-13 다음 12건 구현 + 재검토 3건 (2026-08-11)
+
+CORE-13 커밋 뒤 "AREA/CYCLE/건수를 정지 단위로 쓰지 말고, 매 사이클 BACKLOG/QA_COVERAGE/
+Source/Git/Tests 전체를 다시 대조해 다음 작업을 고르며, 완료 즉시 다음으로 넘어가고
+요약·"다음 착수"·유휴를 두지 말라"는 SHORT OVERRIDE 지시를 받아 그대로 적용했다. 매 항목:
+(1) BACKLOG 서술을 그대로 믿지 않고 현재 소스로 재확인 (2) 구현 (3) 신규 focused test
+작성 후 **revert-to-verify**(고치기 전 코드로 되돌려 새 테스트가 그 실패 양식대로 죽는 것
+직접 확인, 복원) (4) 관련 영역 스윕 green 확인 (5) BACKLOG.md 갱신 (6) 커밋 — 순서로
+끊지 않고 이어갔다. 커밋 순서대로:
+
+- **KBD-01/02/03**(High/High/Med) — MUI 마이그레이션이 지운 키보드 포커스 링.
+  `MuiButtonBase`(`&.Mui-focusVisible`)·`MuiLink`·`MuiOutlinedInput`(`&.Mui-focused`)에
+  3px/2px outline 신설, 색은 tokens.css `--color-primary-soft`(실측 대비 3.2:1) 재사용 —
+  12% 배경 틴트(`palette.primary.soft`, 대비 1.05/1.45)는 안 씀. `theme-focus-visible.test.js`
+  신설. 커밋 `7c5bfb0`.
+- **FN-17**(Low) — `app/policies/`(빈 패키지) 삭제 확인·삭제. **FN-15/16/18은 재검토 결과
+  결함 아님으로 정정** — 셋 다 코드 자체 주석이 "의도적으로 비워 둔 문"이라고 명시한다
+  (ProjectMember의 N+1 방지 설계, ticket_cache.scope_dept_id의 "문만 연다", feature_flags.py의
+  "지우지 않는 이유" 주석) — 감사가 "소비자 없음"을 자동으로 결함 취급한 오분류. 프런트
+  번들 재빌드 동봉(직전 커밋이 `npm run build` 를 누락해 BUNDLE_FRESH 가 깨져 있었음).
+  커밋 `49e4bc6`.
+- **UB-21**(Low/Med) — 프롬프트/정책 생성·새버전 경합이 500으로 새던 것. `create()`는
+  `begin_nested()`+같은 409(재시도 안 함 — "이름 존재"는 재시도로 안 풀림), `new_version_from()`
+  은 `approvals.create_approval`과 같은 SAVEPOINT 재시도(재시도하면 실제로 성공하므로 409
+  대신 성공). HTTP 레벨 실스레드 시험 2개 — `create` 쪽은 8-way 순수 타이밍으로는 위양성
+  (로그인 자체 경합이 스레드를 흩어 놔서 안 겹침)이라 `before_cursor_execute`로 SELECT
+  둘을 `threading.Barrier(2)`에 세워 결정적으로 겹치게 함(UB-08 시험 때와 같은 실수를
+  또 잡고 바로잡음).
+- **UB-22**(Low/Med) — 같은 파일에서 발견: prompts/policies PATCH가 `ContentUpdateRequest`
+  하나를 공유해 Policy용 "null→{}" 기본값이 Prompt 자유 텍스트에도 적용됐다
+  (`PATCH prompts/{id} {"content":null}`이 422 대신 문자열 "{}" 저장). `create()`처럼
+  kind별 스키마(`PromptContentUpdateRequest`/`PolicyContentUpdateRequest`)로 분리.
+  UB-21+UB-22 커밋 `af951e7`.
+- **UB-40**(High) — 오프보딩 "대상 고르기"가 `page_size=20`으로 조용히 잘렸다(총건수·
+  잘림 경고 없음). `TargetPicker`에 Search.jsx의 `ResultGroup`과 같은 잘림 안내 관용 추가.
+- **UB-41**(Med) — `/search` 요청 limit이 20 하드코딩(서버 상한 50). 상한까지 올림 —
+  전체 페이지네이션 재설계는 범위 밖으로 판단해 안 함. UB-40+UB-41 커밋 `96924dd`.
+- **UB-23**(Low/Med) — `messages.message_id`가 전역 UNIQUE + 소유자 필터 없는 존재
+  확인 = 아무 사용자나 임의 id로 다른 사용자 대화의 메시지 존재를 201/409로 알아낼 수
+  있는 오라클. migration 0054로 `UNIQUE(conversation_id, message_id)`로 좁힘(기존 전역
+  유일이 이미 이 약한 제약을 만족해 배포 전 dedup 불필요). 같은 패턴의 조회 4곳(post_user_
+  message·jobs/handlers/chat_message.py의 `_load_message`/`on_failure`·jobs/router.py
+  cancel)을 grep으로 전부 찾아 conversation_id로 스코프. 커밋 `d4ba79d`.
+- **UB-19**(Low/Med) — 공지 삭제가 `AnnouncementDismissal`을 고아로 남김(FK 없음, 매
+  배너 폴링이 그 무한히 자라는 집합을 전부 읽음). migration 0055로 `ON DELETE CASCADE` FK
+  + 배포 전 기존 고아 무조건 삭제(되살릴 값 없음). **UB-20은 재검토 결과 전제가 재현 안
+  됨으로 정정** — 이 저장소에서 `User` 행은 하드 삭제 경로가 없다(퇴사=비활성화+보관).
+  커밋 `514f106`.
+- **UA-12**(Med) — `JobTitle`(전역 유니크, 모델 docstring이 명시) 중복검사가 Department의
+  `(org_id,name)` 스코프를 그대로 써서 다른 org 동명 직책 생성이 사전검사를 통과해 INSERT의
+  전역 UNIQUE에서 처리 안 된 IntegrityError→500. 반대로 전역 admin이 org_id 없이 부서를
+  만들면 사전검사가 실제 저장 조직(DEFAULT_ORG_ID 폴백)을 몰라 관계없는 다른 org와 충돌해
+  잘못된 409. `create_item`/`update_item` 검사 범위를 모델별 실제 제약에 맞춤. 커밋 `97246ec`.
+- **UA-29**(Low) — `documents/service.py`의 `int(config.get("template_version",1))`이
+  자유형 dict 값(`"v2"` 등)에 처리 안 된 ValueError→500. `ValidationAppError`(422)로 변환.
+  커밋 `e2212a1`.
+- **UA-13**(Med, 테넌트 격리) — 부서 부모 지정이 `scope_allows_item`만 봐서(전역 admin
+  에게는 모든 행이 "범위 안") 다른 조직 부서를 부모로 지정 가능. `department_subtree_ids`
+  (순수 parent_id 그래프 순회, org 필터 없음)가 그 조직 부서를 dept-scope 관리자의
+  서브트리에 끌어들여 권한이 조용히 넓어짐 — 실제 테넌트 격리 붕괴. `create_item`+
+  `tree.py::validate_parent` 둘 다 `parent.org_id` 일치 검사 추가. 커밋 `d3229f0`.
+- **UA-11**(Med) — 조직(테넌트) 생성이 `principal`조차 안 받아 스코프 게이트가 전혀 없음
+  (role="admin"이면 통과 — role과 admin_scope는 다른 축). dept/org 범위 admin이 새 테넌트를
+  만들 수 있었다. `principal.scope.is_global` 아니면 403. 커밋 `59951be`.
+
+**검증**: 매 항목 focused test + revert-to-verify 확인함. 중간 지점에서 전체 백엔드
+(전체 마커, 2670+건) 1회 green(exit 0, F/E/x/s 0건) 확인 후 이어감 — 이후 각 항목은
+관련 영역 전체 스윕(`-k` 필터)으로 확인. 프런트 유닛 전체(212파일/1412테스트) green
+(UB-40/41 이후 1회). `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK` 매 커밋 전 확인.
+배포는 여전히 Blocker 대기(SSH/sudo 비밀번호 비사용 정책 불변).
+
+다음 후보(재검토 없이 다음 세션이 코드로 재확인 후 고를 것 — 이 목록도 stale할 수 있음):
+CTR-01~05(다크/강조 대비 WCAG), DGEN-01/03·SCHD-02·USE-04(자유입력 UUID→picker),
+AI-33/34(마크다운 fence 상태 추적), BKP-01/02(백업이 첨부 제외), UB-40(완료)/UB-41(완료),
+UA-14/15(오프보딩 idempotency), UA-16(N+1), UB-14/29(참조 검증 공백), UB-17/27(자동 종료
+감사 공백), OPS-03/04(침묵 실패), FN-08/20·RG-05~07/10 등 Tier 3 소품 다수.
 
 ---
 
