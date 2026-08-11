@@ -103,6 +103,72 @@ continuity의 근거가 아니라는 지시. `run.lock`/`STOP` 파일이 조용�
 500이었다**)를 구현+테스트 완료(revert-to-verify 확인) — 커밋은 이 문서 갱신과 함께
 진행.
 
+**같은 세션 계속(2026-08-11) — 재검증 배치 11건 구현완료**: 위 배경 Workflow(10개
+클러스터, 읽기 전용 조사)의 결과를 받아 순차로 직접 구현. Security/Audit/Integrity 우선
+순서(CLAUDE.md §4)를 따랐다. 커밋 순서대로:
+- **UB-17·UB-27**(임퍼소네이션 자동종료 감사 누락 + 만료 스윕 부재) — 위 D-61 문단 참고.
+- **OPS-04**(업로드 실패 감사 누락, tickets/board/profiles 3곳 공통): `audit_failure_on_exception`
+  컨텍스트 매니저 신설(app/core/audit.py), 세 라우터에 배선. `db.commit()` 명시 필요(auth
+  로그인 실패 경로와 같은 이유 — 안 하면 실패 감사 행이 롤백에 딸려 감).
+- **OPS-03**(uploads 쓰기 불가가 관측 안 됨, OPS-01 재발 방지): `uploads_writable()` 신설,
+  대시보드(지속 관측)·`/readyz`(배포 게이트, 503+reason) 배선.
+- **UB-14·UB-29 일부**(템플릿 활성화가 대상 생존 안 봄 + archived Prompt/Policy 새 바인딩
+  허용): `_validate_enable_target()` 신설(존재 422·비활성 409), `_validate_references()`에
+  status 검사 추가. UB-29 나머지 3개 하위 항목(페이지네이션·creator_name·DELETE)은 범위
+  밖으로 보류, BACKLOG에 기록.
+- **FN-20**(토너먼트 대진 제출 CAS 없이 덮어씀, 데이터 유실): `_tournament_advance`를 순수
+  함수로 분리(room/db 쓰기 없음, 재시도 안전), `_tournament_submit`·`_finish_rps_tournament`
+  둘 다 `_cas_update_state`로 감쌈 — submit_number·단판 submit_rps가 이미 쓰던 패턴과 통일.
+- **BKP-01·BKP-04**(백업이 첨부 누락 + venv 통째로 포함): 백업에 `uploads.tar.gz` 추가,
+  `app.tar.gz`에서 venv 제외 + 롤백이 복원 직후 재생성(installer 로직과 동일, WHEELHOUSE
+  환경변수 지원). BKP-02(복구 리허설이 첨부 존재까지 교차검증)는 4개 다른 스키마 매핑이
+  필요해 범위 밖으로 보류.
+- **CTR-01·CTR-02·CTR-04**(WCAG AA 미달 — 다크 링크 3.5~4.1, 콘솔전환 다크 2.86, 라이트
+  링크 4.37): MuiLink에 `primaryStrong` 배선, ConsoleSwitch를 `primary.dark`→`primary.main`
+  으로 교체. **1차 작성한 시험이 팔레트 값을 독립적으로 재계산해 배선 누락 회귀를 못
+  잡는 것을 스스로 발견·수정**(되돌려도 통과해서 직접 확인함 — 실제 적용값을 읽도록 고침).
+  CTR-03·CTR-05는 재검증 결과 CTR-01로 부분 해소되거나(텍스트 실사용) 별도 게이트 작업이라
+  범위 밖.
+- **MAIL-03**(설정 안 됨 건수가 재발송 안 된다는 안내 없음): MailStatus.jsx에 Callout 추가.
+
+**의도적으로 구현 보류(재검증했지만 이번 배치에서 안 함, 이유 BACKLOG에 기록)**:
+`AI-33`(마크다운 인라인 토크나이저, 아키텍처 결정 필요 — AI-34부터 먼저), `NOTI-02`/
+`MAIL-02`(알림·메일 팬아웃, Notification 모델 변경 필요), `RG-10`(auditor 읽기 범위
+확장 — RBAC 정책 결정 필요, 코드 diff는 작지만 사람 판단 필요).
+
+**검증**: 매 항목 focused test + revert-to-verify(CTR-01/02/04는 1차 실수를 잡고
+재작성 후 재확인). 프런트 전체 회귀 213파일/1429건 green(MAIL-03 직전 실행, 그 항목은
+focused만). 백엔드 전체 회귀는 이 체크포인트 시점 진행 중 — 완료되는 대로 실패가 있으면
+Root Cause grouping 후 일괄 수정.
+
+**다음 후보(2026-08-11 체크포인트에서 남김, 재검증까지 끝났지만 미구현)**: AI-34(코드펜스
+파싱, 단일 파일 패치 규모) · RG-05/06/07(승인 큐 필터·복구 리허설 온보딩·raw UUID 표시) ·
+APPR-02/03(알림 제목 내부 코드 노출·status=all 무검증) · SYS-09/10/11(NotionConsole.jsx
+저장 패턴 불일치·중복 경고·배지 의미 혼동, 셋 다 같은 파일) · FN-08(퀴즈/내레이션이 러너
+레지스트리 우회) · PERF-02(GET /api/tickets 405, 매우 낮은 우선순위) · DGEN-01/03·SCHD-02·
+USE-04(자유입력 UUID→picker, DataScreen.jsx 공유 aux-list 메커니즘 하나로 4건 해소 가능) ·
+UB-25(죽은 코드 5종 중 3종은 진짜 삭제 대상, 2종은 backend-complete-미UI라 삭제 아님) ·
+CTR-03/05(강조색 검증 게이트) · BKP-02 · UB-29 나머지 3개. QA_COVERAGE 73라우트 전수검증도
+여전히 미착수(가장 큰 미검증 표면).
+
+**같은 세션 계속(2026-08-11) — 위 13건 배치 뒤 백엔드 전체 회귀 1회, SYS-10/11·AI-34 2건
+추가(총 15건) + CTR-03/05 미착수로 재확인**. 전체 백엔드(수집 전체) 회귀 결과: **1건
+실패** — `tests/integration/test_prompt_create_new_version_race.py::
+test_concurrent_new_version_all_succeed_with_distinct_versions`(`sqlite3.OperationalError:
+database is locked`가 `_NEW_VERSION_RETRIES=5` 재시도 상한을 넘겨 500). 이 세션의 변경
+파일 목록에 `app/prompts/service.py`·`app/prompts/router.py`·`app/core/db.py`가 전혀
+없음을 확인했고, **단독 재실행 3/3 통과**로 이번 배치와 무관한 기존 플레이키 확인
+(`test_claim_race.py`와 같은 부류 — 8-way 실스레드 타이밍 경합 시험이 이 특정 실행에서
+동시에 돌던 다른 무거운 작업(프런트 vitest 전체 회귀·여러 git stash 조작)으로 시스템
+부하가 커져 재시도 상한을 넘긴 것으로 추정, 정직하게 기록). **회귀는 사실상 green** —
+2670+건 중 이 무관한 1건 외 전부 통과.
+
+**이 배치의 다음 우선순위(재검증 완료, 다음 착수 후보)**: 위 목록 그대로 유효. 특히
+BKP-02(4개 스키마 매핑)·UB-29 나머지 3개(pagination/creator_name/DELETE, 이미 배선
+패턴 확정됨)·CTR-05(contrast.py 하네스 편입)가 각각 자기완결적이고 조사가 이미 끝나
+바로 구현 가능하다. QA_COVERAGE 73라우트 전수검증은 여전히 이 세션이 손 안 댄 가장 큰
+단일 미검증 표면으로 남아 있다 — 다음 큰 착수 후보.
+
 ---
 
 ## 🟣 MEGA CYCLE I — 기능·데이터·권한 E2E, FN-*/SEC-* quick-fix 스윕 (구현+테스트 완료, 배포 대기) (2026-08-10)
