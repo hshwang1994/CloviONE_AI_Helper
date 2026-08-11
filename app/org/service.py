@@ -11,7 +11,7 @@ from typing import TypeVar
 from sqlalchemy import and_ as sa_and, func, or_ as sa_or, select
 from sqlalchemy.orm import Session
 
-from app.org.constants import ORG_SUSPENDED
+from app.org.constants import DEFAULT_ORG_ID, ORG_SUSPENDED
 from app.core.errors import (
     ConflictError,
     ForbiddenError,
@@ -221,10 +221,22 @@ def create_item(
     목록에는 안 보이는 유령 행이 남았다(만든 사람도 지울 수 없다 - 단건이 404 다).
     """
     clean = normalize_name(name)
-    # 중복 검사는 **만들려는 조직 안에서만** 한다(유니크 제약이 `(org_id, name)` 이다).
-    # 전역으로 보면 남의 조직 이름을 409 로 확인할 수 있다.
-    # 아래에서 실제로 정하는 조직과 **같은 식**을 쓴다(두 벌이 되면 검사와 저장이 어긋난다).
-    dup_org = org_id or getattr(scope, "org_id", None)
+    # 중복 검사 범위는 **그 모델의 실제 유니크 제약과 같아야 한다**(UA-12). Department 는
+    # `(org_id, name)` — 조직 안에서만 본다. JobTitle 은 모델 docstring 이 명시하듯 이름
+    # 유니크가 **전역**이다("팀장은 조직이 늘어도 같은 이름을 쓰는 게 자연스럽다") — 여기를
+    # org_id 로 좁히면 남의 조직에 같은 이름이 있을 때 사전검사를 통과해 버리고 실제
+    # INSERT 의 전역 UNIQUE 에서 잡히지 않은 IntegrityError → 500 이 났다.
+    #
+    # Department 의 org_id 폴백에 DEFAULT_ORG_ID 를 넣는 이유: 전역 관리자가 org_id 를
+    # 안 보내면(scope 도 없다) 아래 `target_org` 가 falsy 라 `row.org_id` 를 명시적으로
+    # 안 정하고 컬럼 기본값(DEFAULT_ORG_ID)에 맡긴다 — 그런데 이 사전검사가 그 기본값을
+    # 모르고 `org_id=None`(전역)으로 봤다. 실제로는 DEFAULT_ORG_ID 안에서만 겹치면
+    # 안 되는데, 전역으로 보면 **관계없는 다른 조직**의 같은 이름과도 충돌해 잘못된
+    # 409 가 났다 - 아래에서 실제로 정하는 조직과 같은 식을 써야 검사와 저장이 안 어긋난다.
+    dup_org = (
+        (org_id or getattr(scope, "org_id", None) or DEFAULT_ORG_ID) if model is Department
+        else None
+    )
     if find_by_name(db, model, clean, org_id=dup_org) is not None:
         raise ConflictError(f"이미 있는 {label_for(model)}입니다: {clean}")
     row = model(name=clean, active=True)
@@ -277,8 +289,11 @@ def update_item(
         if name is None:
             raise ValidationAppError("이름을 비워둘 수 없습니다.")
         clean = normalize_name(name)
-        # 수정도 같은 조직 안에서만 본다 — 생성과 규칙이 갈리면 한쪽으로 이름이 샌다.
-        existing = find_by_name(db, type(row), clean, org_id=row.org_id)
+        # UA-12: create_item과 같은 이유로 모델별 실제 제약 범위를 따른다 — Department만
+        # 조직 안에서 본다(JobTitle은 전역 유니크라 org_id로 좁히면 안 된다).
+        existing = find_by_name(
+            db, type(row), clean, org_id=row.org_id if isinstance(row, Department) else None
+        )
         if existing is not None and existing.id != row.id:
             raise ConflictError(f"이미 있는 {label_for(type(row))}입니다: {clean}")
         row.name = clean
