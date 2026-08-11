@@ -94,6 +94,21 @@ describe("머리 지표", () => {
     expect(empty.find((x) => x.key === "disk").value).toBe("-");
   });
 
+  /* VIS-107R — failed_open_oldest_at 이 나이를 덧붙인다. 절대 날짜를 박으면 작성 다음 날부터
+   * 썩는다(바로 위 ops-service-status.test.jsx 의 RECENT_BACKUP_AT 주석과 같은 함정) — 기준일을
+   * 지금으로부터 상대로 잰다. */
+  it("failed_open_oldest_at이 있으면 라벨에 나이를 덧붙인다", () => {
+    const oldAt = new Date(Date.now() - 21 * 86400000).toISOString().replace(/\.\d+Z$/, "");
+    const withAge = { ...ARGS, jobs: { success_rate_pct: 72, failed_open: 2, failed_open_oldest_at: oldAt } };
+    const label = headlineStats(withAge).find((x) => x.key === "failed").label;
+    expect(label).toContain("21일 전");
+  });
+
+  it("failed_open_oldest_at이 없으면(서버가 아직 안 주는 옛 응답 포함) 나이를 안 붙인다", () => {
+    const label = headlineStats(ARGS).find((x) => x.key === "failed").label;
+    expect(label).toBe("미해결 실패 작업");
+  });
+
   it("다섯 개 전부 어디로 갈지(또는 갈 곳 없음)를 분명히 정한다", () => {
     const t = headlineStats(ARGS);
     expect(t).toHaveLength(5);

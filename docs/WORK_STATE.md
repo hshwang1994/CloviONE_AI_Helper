@@ -296,6 +296,34 @@ CORRECTION" 지시(작업 조각→종료→idle-tick 예약 패턴 금지, 다�
 `chatpane.test.jsx` 신규 시험 1건, revert-to-verify(되돌리면 실패 확인 후 복원). 프런트
 전체 회귀는 커밋 직전 재확인.
 
+**VIS-107R 구현완료 — 미해결 실패 카운터에 시간축 추가**: `build_dashboard`가
+`failed_open_oldest_at`(가장 오래된 미해결 실패의 생성 시각, 없으면 `null`)을 새로
+내려준다. `Dashboard.jsx`의 경보 타일·KPI 타일·현재 큐 상태 StatCard 3곳 전부
+`failedOpenAgeLabel()`(`opsHelpers.js`, 하루 미만은 "오늘")로 나이를 덧붙인다. 백엔드
+`test_dashboard_failed_open_age.py` 3건 + 프런트 `dashboard-helpers.test.js` 2건,
+둘 다 revert-to-verify.
+
+**VIS-108R — 이번 배치에서 범위 밖으로 남김**: 알림 발송(스케줄러+새 알림 유형)·일괄
+재시도 액션·"이미 해결된 원인" 표시까지 묶인 별도 기능 추가라 VIS-107R(순수 표시 개선)과
+규모가 다르다. 서두르면 half-finished 알림 워크플로가 남는다 — CLAUDE.md의 "No
+half-finished implementations" 원칙에 따라 다음 사이클에서 전용 판단으로 다룬다.
+
+**VIS-109R 구현완료(확인됨 — 실제로 이 버그가 있었다) — 배포 재기동 순서 뒤집음**:
+`install-clovirone-web-assistant.sh:369-377`을 직접 읽으니 "잡을 넣는 코드가 먼저
+올라가고 처리하는 워커가 나중에 올라가면 영구 실패한다"는 VIS-109R의 가설이 정확히
+사실이었다 — nginx reload 직후 web을 먼저 재시작+최대 30초 health-gate 대기, 그 뒤에야
+worker 재시작. 그 구간엔 새 web이 이미 트래픽을 받는데 옛 worker가 아직 큐를 돌고 있어,
+그 사이 들어온 새 job_type의 잡이 영구 실패했다 — `VIS-107R`/`VIS-108R`이 실측한 "3주
+방치된 미해결 실패 4건"과 지문이 같다. 순서를 뒤집었다(worker 먼저 재시작+active 확인 →
+web 재시작+healthz 게이트). `upgrade-clovirone-web-assistant.sh`·`update-from-git.sh`
+둘 다 이 installer를 그대로 호출해 한 곳만 고치면 두 배포 경로 다 고쳐진다. 상세 경위는
+`docs/DECISIONS.md` D-58. **직접 확인 못 함(❌)**: systemd·root·실서버가 있어야 실행되는
+스크립트라 `bash -n`(문법 검사)까지만 했다 — 다음 배포 때 로그 마지막 줄이 `"worker
+active; web healthz OK"`로 바뀌었는지 사용자가 확인할 수 있다.
+
+다음은 VIS-108R을 미룬 자리를 채울 다른 후보를 다시 코드로 재확인해 고른다 — 사용자 확인
+대기 없이 진행한다.
+
 ---
 
 ## 🟣 MEGA CYCLE H — AI 도우미, MEGA CYCLE A 후속 quick-fix 스윕 완료 (2026-08-10)

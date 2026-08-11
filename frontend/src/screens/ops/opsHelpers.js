@@ -47,6 +47,20 @@ export function daysSince(iso) {
   return (Date.now() - t) / 86400000;
 }
 
+// VIS-107R — failed_open은 "미해결 실패 4건"처럼 개수만 말해서, 오늘 막 생긴 것인지
+// 3주 전부터 방치된 것인지 화면만 봐서는 구분이 안 됐다(옆의 failed_24h는 24시간 창이라도
+// 있는데 이 지표만 시간축이 없었다). 서버가 새로 주는 failed_open_oldest_at(가장 오래된
+// 미해결 실패의 생성 시각, app/health/service.py)로 나이를 덧붙인다. 하루 미만이면
+// "오늘"이라고 정직하게 말한다 — "0일 전"은 "방금"과 "그럭저럭 하루 지남"을 뭉갠다.
+export function failedOpenAgeLabel(jobs) {
+  const oldest = jobs && jobs.failed_open_oldest_at;
+  if (!oldest) return "";
+  const age = daysSince(oldest);
+  if (age == null) return "";
+  const days = Math.floor(age);
+  return ", 가장 오래된 것 " + (days < 1 ? "오늘" : days + "일 전");
+}
+
 // StatCard는 값을 크게(clamp 1.5~2.25rem) 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위
 // 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
 export function fmtNum(n) {

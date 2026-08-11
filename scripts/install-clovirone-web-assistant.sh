@@ -365,17 +365,28 @@ else
 fi
 
 # 12. Start services + health gate -----------------------------------------
+# VIS-109R — worker starts *before* web now. The old order (web, then a
+# health-gate wait of up to 30s, then worker) left a real window where nginx
+# had already reloaded the new vhost (§11 above) and the new web process was
+# answering requests — able to enqueue jobs with job_types the new code just
+# registered — while the OLD worker process was still the one draining the
+# queue. That worker doesn't know the new job_type, so the job fails
+# permanently with "등록되지 않은 job_type" (a real, observed error pattern —
+# see docs/BACKLOG.md VIS-107R/108R/109R). Starting the worker first, and
+# confirming it's active before web can accept any traffic, closes that
+# window: by the time web can possibly enqueue anything, the worker already
+# understands every job_type the new code can produce.
 log "start services"
+systemctl restart clovirone-web-worker.service
+sleep 2
+systemctl is-active clovirone-web-worker.service >>"$LOG" 2>&1 || { log "worker not active"; journalctl -u clovirone-web-worker -n 50 --no-pager >>"$LOG" 2>&1; exit 20; }
 systemctl restart clovirone-web-assistant.service
 for i in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1; then break; fi
   sleep 1
 done
 curl -fsS http://127.0.0.1:8080/healthz >>"$LOG" 2>&1 || { log "web healthz FAILED"; journalctl -u clovirone-web-assistant -n 50 --no-pager >>"$LOG" 2>&1; exit 20; }
-systemctl restart clovirone-web-worker.service
-sleep 2
-systemctl is-active clovirone-web-worker.service >>"$LOG" 2>&1 || { log "worker not active"; journalctl -u clovirone-web-worker -n 50 --no-pager >>"$LOG" 2>&1; exit 20; }
 
-log "web healthz OK; worker active"
+log "worker active; web healthz OK"
 log "=== install complete ==="
 echo "INSTALL_OK"

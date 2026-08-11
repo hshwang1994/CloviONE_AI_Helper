@@ -220,6 +220,15 @@ def build_dashboard(
     failed_open = db.execute(
         select(func.count()).select_from(Job).where(Job.status == STATUS_FAILED)
     ).scalar_one()
+    # VIS-107R — failed_open was a bare count with no time axis, so "미해결 실패 4건" reads
+    # the same whether all four just failed or have sat there for three weeks (the exact gap
+    # a Chrome-driven audit surfaced: 4 open failures untouched for 21+ days). The sibling
+    # failed_24h metric already has a time window; this one had none. Surface the oldest
+    # still-open failure's created_at so the UI can show an age instead of a bare count —
+    # None when there are none open (failed_open == 0).
+    failed_open_oldest_at = db.execute(
+        select(func.min(Job.created_at)).select_from(Job).where(Job.status == STATUS_FAILED)
+    ).scalar_one()
     queued = db.execute(
         select(func.count()).select_from(Job).where(Job.status == STATUS_QUEUED)
     ).scalar_one()
@@ -311,6 +320,9 @@ def build_dashboard(
             "avg_processing_seconds": avg_seconds,
             "queued": queued,
             "failed_open": failed_open,
+            "failed_open_oldest_at": (
+                failed_open_oldest_at.isoformat() if failed_open_oldest_at is not None else None
+            ),
         },
         "recent_critical_audit": [
             {"action": a.action, "object_type": a.object_type, "object_id": a.object_id,

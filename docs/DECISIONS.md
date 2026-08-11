@@ -630,3 +630,33 @@ Task 스케줄러의 역할도 "언제 일할지 정하는 페이서"에서 "루
 라는 이 세션 자체의(대화형) 사고방식을 그대로 옮겼다 — 대화형 세션에서는 사용자가 다음 턴을
 직접 트리거하니 "한 번 하고 끝"이 자연스러웠지만, 무인 Runner에는 다음 턴을 트리거해 줄
 사람이 없다. 이 구분을 놓친 것이 근본 원인이었다.
+
+---
+
+### D-58. 배포 재기동 순서를 web→worker에서 worker→web으로 뒤집는다 (VIS-109R)
+
+`VIS-107R`(대시보드의 `failed_open`이 시간 정보 없이 개수만 준다) 작업을 마치고 이어서
+`VIS-109R`("등록되지 않은 job_type" 오류는 배포 순서 문제의 지문일 수 있다는 가설)을
+조사하다가 실제 버그를 찾았다.
+
+**있었던 문제**: `install-clovirone-web-assistant.sh`(§12, 두 배포 경로
+`upgrade-clovirone-web-assistant.sh`·`update-from-git.sh`가 전부 이 스크립트를 그대로
+호출한다)가 nginx reload 직후 **web을 먼저 재시작**하고 `/healthz`가 성공할 때까지 최대
+30초를 기다린 **뒤에야** worker를 재시작했다. 그 30초 구간 동안 nginx는 이미 새 vhost로
+요청을 새 web 프로세스에 넘기고 있는데, **worker는 아직 옛 프로세스**다 — 그 사이 들어온
+요청이 새 코드가 막 추가한 job_type의 잡을 큐에 넣으면, 그 잡을 뽑아 가는 것은 옛 worker이고
+옛 worker는 그 job_type을 모른다. 결과: 그 잡은 "등록되지 않은 job_type" 오류로 **영구
+실패**한다 — 재시도해도 worker가 이미 새 코드로 바뀐 뒤라 재현되지 않고, 그래서 원인 규명이
+어려웠다(정확히 `docs/BACKLOG.md`의 `VIS-107R`/`VIS-108R`이 실측한 "3주 넘게 방치된 미해결
+실패 4건" 중 하나와 지문이 같다).
+
+**고친 것**: `install-clovirone-web-assistant.sh` §12의 순서를 뒤집었다 — worker를 먼저
+재시작하고 `systemctl is-active`로 확인한 **뒤에** web을 재시작하고 `/healthz` 게이트를
+건다. worker가 새 job_type을 전부 이해하게 된 다음에야 web이 트래픽을 받으므로, 그 창
+자체가 없어진다.
+
+**검증의 한계(정직하게 남긴다)**: 이 스크립트는 systemd·root·실서버가 있어야 실제로 실행할
+수 있다 — `bash -n`(문법 검사)만 했고, 실제 재기동 순서를 라이브로 재현해 확인하지 못했다.
+배포 자격증명 경계(D-53 이후 배너)상 이 스크립트를 지금 이 세션이 서버에서 직접 실행할 수도
+없다. 다음 배포 때 로그 마지막 줄이 `"worker active; web healthz OK"`로 바뀌었는지(예전엔
+`"web healthz OK; worker active"`) 확인하면 이 순서가 실제로 뒤집혔는지 알 수 있다.

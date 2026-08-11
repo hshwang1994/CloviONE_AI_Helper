@@ -10,7 +10,7 @@ import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
 import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
-import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays } from "./ops/opsHelpers.js";
+import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 
@@ -107,7 +107,7 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
     {
       key: "failed",
       value: fmtNum(jobs.failed_open != null ? jobs.failed_open : 0),
-      label: "미해결 실패 작업" + jobsNote,
+      label: "미해결 실패 작업" + failedOpenAgeLabel(jobs) + jobsNote,
       kind: (jobs.failed_open || 0) > 0 ? "warn" : undefined,
       to: "/jobs",
     },
@@ -424,7 +424,7 @@ function DashboardBody({ d, nav, role, stale }) {
   // 띄웠다. 운영자는 그 배너를 보고 사용자 신고("저장이 안 돼요")를 장애로 오해한다.
   // 맨 앞에 넣는다: 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
   if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "켜짐", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
-  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
+  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
   if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
   // 단위(%)는 라벨 괄호가 아니라 값에 붙인다(자원 타일과 동일한 표기), '성공률 낮음(%)' 위 '45'는 어색했다.
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다, 아직 끝나지 않은
@@ -618,7 +618,9 @@ function DashboardBody({ d, nav, role, stale }) {
 
       <DashSection title="현재 큐 상태">
         {/* queued/failed_open은 24시간 창이 아니라 '지금'의 큐 깊이, 미해결 실패다(서버가 시간 필터 없이 계산).
-            24시간 지표와 섞으면 며칠 전 실패가 최근 것처럼 읽혀 오해를 부른다, 별도 '현재 큐' 묶음으로 분리한다. */}
+            24시간 지표와 섞으면 며칠 전 실패가 최근 것처럼 읽혀 오해를 부른다, 별도 '현재 큐' 묶음으로 분리한다.
+            failed_open 자체엔 여전히 시간축이 없었다(VIS-107R) — "미해결 실패 4건"이 방금 생긴 것인지
+            3주 방치된 것인지 구분이 안 됐다. failedOpenAgeLabel이 가장 오래된 것의 나이를 덧붙인다. */}
         <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
           <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
             {/* 대기·실패 작업 수는 0이어도 항상 노출해 '큐 비었음/실패 없음'을 확인할 수 있게 한다(스펙 §14.1). */}
@@ -628,7 +630,7 @@ function DashboardBody({ d, nav, role, stale }) {
             {/* 위 '확인이 필요한 항목' 경보 타일과 같은 이유 안내(jobsNote)를 붙인다, 안 그러면 이
                 쌍둥이 수치가 이 섹션에서만 아무 설명 없이 클릭 불가 카드로 보인다(예: auditor 역할). */}
             <StatCard value={fmtNum(jobs.queued != null ? jobs.queued : 0)} label={"대기 작업" + jobsNote} onClick={goto("/jobs")} />
-            <StatCard value={fmtNum(jobs.failed_open != null ? jobs.failed_open : 0)} label={"미해결 실패 작업" + jobsNote} onClick={goto("/jobs")} />
+            <StatCard value={fmtNum(jobs.failed_open != null ? jobs.failed_open : 0)} label={"미해결 실패 작업" + failedOpenAgeLabel(jobs) + jobsNote} onClick={goto("/jobs")} />
           </Box>
           {/* 두 수치의 '비율'은 숫자 두 개만 봐서는 안 잡힌다 — 대기 1,200건 옆의 실패 3건과
               대기 3건 옆의 실패 12건은 대응이 완전히 다른데 타일만 보면 똑같이 보인다. */}
