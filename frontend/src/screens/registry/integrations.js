@@ -359,7 +359,9 @@ export const INTEGRATION_SCREENS = {
           const base = "버전 " + sub.version + "(으)로 롤백할까요? 현재 설정을 이 버전으로 되돌립니다.";
           const note = parent && RESERVED_WORKFLOW_NOTES[parent.name];
           return note ? note + "\n\n" + base : base;
-        }),
+        },
+        // RG-07: 워크플로의 /versions만 created_by_name/_email을 실제로 준다(연동·러너는 안 준다).
+        true),
       // operator는 워크플로 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
       // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=workflow&object_id=" + r.id },

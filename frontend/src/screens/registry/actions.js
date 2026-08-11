@@ -8,7 +8,7 @@
  * 그 경계를 넘기 시작하면 registry 가 다시 한 덩어리가 된다.
  */
 import React from "react";
-import { WRITE_ROLES, badgeCol, col, dateCol, opt } from "./shared.js";
+import { WRITE_ROLES, badgeCol, col, dateCol, opt, personField } from "./shared.js";
 // enable/disable 공통 액션(활성 값에 따라 노출) — enable/disable는 쓰기 권한 필요.
 // disableConfirm을 넘기면 행별로 다른 확인 문구를 쓴다(예: 워크플로의 예약 행 — 비활성화가 실제
 // 서비스를 멈추는 경우 일반 "비활성화하시겠습니까?"보다 강한 경고가 필요하다).
@@ -69,12 +69,17 @@ export const snapCol = (key, label, map) => ({ key: "snap_" + key, label, render
 // confirmFn(sub, parent) — 기본 확인 문구를 행별로 강화해야 하는 리소스(예: 워크플로의 예약 행)를
 // 위한 선택적 오버라이드. DataScreen.jsx의 SubListDrawer.act()가 confirm을 (하위 행, 부모 행) 두
 // 인자로 호출하므로 parent(부모 행)를 읽어 경고 문구를 만들 수 있다.
-export const versionsAction = (base, extraCols, confirmFn) => ({
+// namedCreator — RG-07: 셋 다 "변경자"를 쓰지만 이름을 실제로 주는 건 워크플로뿐이다(연동·러너의
+// /versions는 정말 이름을 안 준다, app/{integrations,runners}/router.py 확인함) — 그래서
+// personField를 기본으로 못 켠다. 이름을 주는 쪽만 true로 켠다.
+export const versionsAction = (base, extraCols, confirmFn, namedCreator) => ({
   label: "버전 기록",
   subList: {
     title: "버전 기록",
     endpoint: (r) => base + "/" + r.id + "/versions",
-    columns: [col("version", "버전"), col("created_by", "변경자 ID"), dateCol("created_at", "시각"), ...(extraCols || [])],
+    columns: [col("version", "버전"),
+      namedCreator ? personField("created_by", "변경자", "created_by_name", "created_by_email") : col("created_by", "변경자 ID"),
+      dateCol("created_at", "시각"), ...(extraCols || [])],
     emptyTitle: "버전 기록이 없습니다",
     rowAction: {
       label: "이 버전으로 롤백", variant: "danger", roles: WRITE_ROLES,

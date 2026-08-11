@@ -71,6 +71,35 @@ describe("사람 자리에 남은 원시 UUID", () => {
   });
 });
 
+describe("RG-07 — 서버가 이름을 이미 주는데 화면만 raw UUID를 그리던 곳", () => {
+  it("문서 생성 목록의 요청자가 이름으로 읽힌다", () => {
+    const requester = REGISTRY.documents.columns.find((f) => f.key === "requested_by");
+    expect(requester, "documents 목록에 requested_by 열이 없다").toBeTruthy();
+    expect(typeof requester.render).toBe("function");
+    const { container } = renderField(requester, {
+      requested_by: UUID, requested_by_name: "정요청", requested_by_email: "rq@goodmit.co.kr",
+    });
+    expect(container.textContent).toContain("정요청");
+  });
+
+  it("워크플로 버전 기록의 변경자가 이름으로 읽힌다(연동·러너는 서버가 이름을 안 줘서 그대로 둔다)", () => {
+    const versionsOf = (key) => {
+      const action = REGISTRY[key].actions.find((a) => a.label === "버전 기록");
+      return action.subList.columns.find((c) => c.key === "created_by");
+    };
+    const workflowCreator = versionsOf("workflows");
+    expect(typeof workflowCreator.render, "워크플로 버전 기록의 변경자에 render가 없다").toBe("function");
+    const { container } = renderField(workflowCreator, {
+      created_by: UUID, created_by_name: "최변경", created_by_email: "ch@goodmit.co.kr",
+    });
+    expect(container.textContent).toContain("최변경");
+
+    // 대조군 — 서버가 정말 이름을 안 주는 두 화면은 raw id 그대로다(위 render 없음이 곧 그 뜻).
+    expect(versionsOf("integrations").render).toBeUndefined();
+    expect(versionsOf("runners").render).toBeUndefined();
+  });
+});
+
 describe("일부러 남긴 식별자", () => {
   it("작업 큐의 요청자는 id 로 남는다 — 서버가 이름을 일부러 안 싣는다", () => {
     // app/jobs/router.py `_job_view` 가 요청자 이메일/이름을 응답에서 뺀다(큐 화면이

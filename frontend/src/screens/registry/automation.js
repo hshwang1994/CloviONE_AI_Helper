@@ -273,7 +273,9 @@ export const AUTOMATION_SCREENS = {
       col("period", "기간"), mapCol("mode", "모드", DOC_MODE), badgeCol("status", "상태"),
       // generation_view가 requested_by를 최상위로 이미 돌려주는데 목록엔 없어 각 행을 요청한 사람을
       // 보려면 상세를 하나씩 열어야 했다(승인 화면은 이미 목록에서 요청자를 바로 보여준다).
-      col("requested_by", "요청자"),
+      // RG-07: 서버(app/documents/router.py)가 requested_by_name/_email을 이미 매 페이지
+      // 계산해 주는데 화면이 raw UUID만 그렸다 — approvals/audit와 같은 personField로 맞춘다.
+      personField("requested_by", "요청자", "requested_by_name", "requested_by_email"),
       linkCol("published_ref", "발행 링크"), dateCol("created_at", "생성")],
     // 미리보기 본문·품질 문제·오류를 상세에서 읽는다(미리보기만/품질미달 결과 확인).
     // requested_by는 generation_view가 최상위로 준다 — 누가 요청했는지 상세에서 바로 본다(원시 UUID라 'ID'로 라벨링).
