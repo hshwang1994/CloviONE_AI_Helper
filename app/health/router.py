@@ -45,6 +45,16 @@ def readyz(request: Request):
     except Exception:
         logger.exception("readiness check failed")
         return JSONResponse(status_code=503, content={"status": "unready"})
+    # OPS-03: 배포 스크립트가 이 엔드포인트를 1회성 게이트로만 curl한다(systemd Restart=에
+    # 물려 있지 않다 — OPS-10처럼 재시작 루프를 만들 위험이 없다). 디스크 용량과 별개로
+    # uploads 디렉터리 소유권/권한 드리프트(OPS-01 실사고)를 배포 직후 바로 잡아낸다.
+    from app.core.uploads import uploads_writable
+
+    if not uploads_writable(request.app.state.settings.data_dir):
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unready", "reason": "uploads_not_writable"},
+        )
     return {"status": "ready"}
 
 

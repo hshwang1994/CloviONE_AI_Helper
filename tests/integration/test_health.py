@@ -40,6 +40,41 @@ def test_readyz_with_working_db(client):
     assert r.json() == {"status": "ready"}
 
 
+# OPS-03: uploads 디렉터리가 쓰기 불가(소유권/권한 드리프트, OPS-01 실사고와 같은 유형)여도
+# 예전엔 이를 관측할 방법이 전혀 없었다 — 디스크 용량 확인(_disk_usage)만으로는 안 보인다.
+def test_readyz_reports_unready_when_uploads_not_writable(client, monkeypatch):
+    from pathlib import Path
+
+    def _boom(self, *a, **k):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _boom)
+    r = client.get("/readyz")
+    assert r.status_code == 503
+    assert r.json() == {"status": "unready", "reason": "uploads_not_writable"}
+
+
+def test_dashboard_reports_uploads_writable(client, login_as):
+    csrf = login_as("system_admin")
+    r = client.get("/api/admin/dashboard", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    assert r.json()["uploads_writable"] is True
+
+
+def test_dashboard_reports_uploads_not_writable(client, login_as, monkeypatch):
+    from pathlib import Path
+
+    csrf = login_as("system_admin")
+
+    def _boom(self, *a, **k):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", _boom)
+    r = client.get("/api/admin/dashboard", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    assert r.json()["uploads_writable"] is False
+
+
 def test_readyz_reports_unready_when_db_is_broken(settings):
     from fastapi.testclient import TestClient
 

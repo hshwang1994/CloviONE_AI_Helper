@@ -111,6 +111,27 @@ def _owner_dir(data_dir: Path, namespace: str, owner_id: str) -> Path:
     return _namespace_root(data_dir, namespace) / safe_owner
 
 
+def uploads_writable(data_dir: Path) -> bool:
+    """OPS-03: 실제로 파일을 만들어 봐서 uploads 루트가 쓰기 가능한지 확인한다.
+
+    디스크 용량 확인(`app/health/service.py::_disk_usage`)과는 다른 결함을 잡는다 —
+    용량은 남아 있는데 소유권/권한이 드리프트된 경우(`OPS-01` 실사고가 정확히 이
+    유형이었다: `root:clovirone-web 750`이라 서비스 계정에 쓰기 비트가 없었다)는
+    디스크 용량만으로는 안 보인다. 네임스페이스 각각이 아니라 루트(`uploads/`) 하나만
+    본다 — 이 종류의 드리프트는 루트에서 한 번에 나서 모든 네임스페이스를 같이 막으므로,
+    하나만 확인해도 충분하고 매 반복(대시보드 폴링 등)마다 여러 번 도는 비용을 줄인다.
+    """
+    root = Path(data_dir) / "uploads"
+    marker = root / ".write_probe"
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        marker.write_bytes(b"")
+        marker.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def save_upload(
     data_dir: Path,
     owner_id: str,

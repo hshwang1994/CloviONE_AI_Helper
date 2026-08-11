@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.audit.actions import with_cli_variants
 from app.audit.models import AuditLog
 from app.backups.service import last_successful_backup
+from app.core import uploads
 from app.core.config import Settings
 from app.health.models import Heartbeat
 from app.integrations.models import Integration
@@ -339,6 +340,10 @@ def build_dashboard(
             for a in recent_critical
         ],
         "disk": _disk_usage(str(settings.data_dir)),
+        # OPS-03: 디스크 용량과 별개로, 실제 쓰기 가능 여부를 매 대시보드 조회마다 보여준다
+        # — OPS-01처럼 용량은 멀쩡한데 소유권 드리프트로 못 쓰는 경우를 며칠씩 아무도
+        # 모르고 지나가지 않게 한다.
+        "uploads_writable": uploads.uploads_writable(settings.data_dir),
         "memory": _memory_usage(),
         "cert_days_remaining": _cert_days_remaining(settings, now),
         "last_backup_at": last_backup.created_at.isoformat() if last_backup else None,
