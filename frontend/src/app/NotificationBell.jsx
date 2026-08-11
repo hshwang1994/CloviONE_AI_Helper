@@ -35,9 +35,9 @@ const OBJ_ROUTE = {
 };
 // related_object_id로 그 행 하나를 바로 여는 대상 화면만(?파라미터=id 딥링크를 실제로 소비하는
 // onQuery가 있는 화면) — registry.js의 OBJ_ID_PARAM과 같은 값이지만, 벨은 registry.js를 import하지
-// 않으므로(순환 의존 방지) 여기 필요한 것만 로컬로 둔다. user는 아직 뺀다 — Users.jsx에 id 딥링크
-// (onQuery)가 없어 ?id=를 붙여도 조용히 무시되고 그냥 전체 목록이 열린다(product-quality-audit AREA=D).
-const OBJ_ID_PARAM = { approval: "id", job: "job_id", schedule: "id", runner: "id" };
+// 않으므로(순환 의존 방지) 여기 필요한 것만 로컬로 둔다. user도 이제 포함한다 — Users.jsx가
+// NOTI-04R로 ?id= 딥링크(onQuery와 같은 계약)를 갖췄다.
+const OBJ_ID_PARAM = { approval: "id", job: "job_id", schedule: "id", runner: "id", user: "id" };
 function objRouteHref(objType, objId) {
   const base = OBJ_ROUTE[objType];
   const param = OBJ_ID_PARAM[objType];
@@ -54,12 +54,17 @@ function serverRoute(n) {
   const r = n && n.related_route;
   return typeof r === "string" && r.startsWith("/") && !r.startsWith("//") ? r : null;
 }
-// 대상 라우트의 접근 역할 — App.jsx의 SCREEN_ROLES와 같은 값을 유지한다(어긋나면 벨에선
-// 클릭 가능한데 이동한 화면은 '권한이 없습니다'로 막다른 링크가 된다). 여기 없는 라우트
-// (/approvals, /schedules)는 라우트 자체에 역할 제한이 없다(일반 사용자는 위 isUser로 이미 제외).
+// 대상 라우트의 접근 역할 — 화면 자체(App.jsx SCREEN_ROLES)가 열려 있어도, 그 화면이 부르는
+// API가 더 좁게 막으면(app/core/authz.py CONSOLE_READ_ROLES 등) 눌러도 그 자리에서 403이
+// 뜬다 — 이 표는 "실제로 읽을 수 있는가"를 백엔드 라우터 기준으로 맞춘다.
+// /approvals·/schedules·/runners는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)를,
+// /jobs는 그보다 좁은 별도 게이트(auditor 제외, app/jobs/router.py)를 쓴다.
 const ROUTE_ROLES = {
   "/users": ["admin", "system_admin"],
   "/jobs": ["operator", "admin", "system_admin"],
+  "/approvals": ["operator", "admin", "system_admin", "auditor"],
+  "/schedules": ["operator", "admin", "system_admin", "auditor"],
+  "/runners": ["operator", "admin", "system_admin", "auditor"],
 };
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -503,13 +508,19 @@ export function NotificationBell({ isUser }) {
                 // '일반 사용자가 아니다'만으로는 부족하다, 예: auditor는 job_failed/user 알림을
                 // 받을 수 있지만 /jobs, /users 라우트 접근 권한이 없어 누르면 '권한이 없습니다'로
                 // 막힌다. 대상 라우트가 역할 제한을 두면 뷰어 역할이 포함될 때만 누를 수 있게 한다.
-                // 서버가 목적지를 준 유형(채팅 초대 등)은 일반 사용자도 눌러서 갈 수 있어야 한다 —
-                // 아래 isUser 게이트는 '관리자 화면으로만 가는 폴백 표'를 위한 것이지 딥링크 일반
-                // 금지가 아니다. 채팅방은 모든 역할이 접근할 수 있는 사용자 세그먼트 화면이다.
+                //
+                // routeAllows는 **서버가 준 경로든 로컬 표 폴백이든 똑같이** 적용한다 — 서버가
+                // 목적지를 계산해 줬다고 그 화면의 실제 접근 권한이 달라지는 게 아니다. 예:
+                // job_failed는 그 작업을 만든 사람(어떤 role이든)에게 가는데 /jobs는 operator+
+                // 전용이라, srvRoute만 보고 무조건 통과시키면 일반 사용자에게 늘 403인 클릭 가능한
+                // 링크가 생긴다(approval_decided의 요청자, schedule_failed의 소유자도 같은 이유).
+                // targetRoute(OBJ_ROUTE)에 아예 없는 유형(document/ticket/board_post/chat_room/
+                // chat_mention — 전부 사용자 콘솔 화면이라 role 제한이 없다)은 ROUTE_ROLES에도
+                // 없으므로 이 게이트를 그냥 통과한다 — 채팅방은 모든 역할이 접근할 수 있다.
                 const srvRoute = serverRoute(n);
                 const targetRoute = OBJ_ROUTE[n.related_object_type];
                 const routeAllows = !ROUTE_ROLES[targetRoute] || (role && ROUTE_ROLES[targetRoute].includes(role));
-                const navigable = !!srvRoute || (!isUser && !!targetRoute && routeAllows);
+                const navigable = !!(srvRoute || targetRoute) && routeAllows;
                 // related_object_id + OBJ_ID_PARAM이 있으면 그 행 하나를 여는 실제 딥링크다 -
                 // 없으면 여전히 대상 화면의 일반 목록만 연다. 안내 문구(title/aria-label)를
                 // 실제 동작과 맞춘다(product-quality-audit AREA=D, 예전엔 항상 "목록"이라고만

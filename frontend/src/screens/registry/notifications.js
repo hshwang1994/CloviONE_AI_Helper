@@ -26,10 +26,23 @@ function serverHref(r) {
   const p = r && r.related_route;
   return typeof p === "string" && p.startsWith("/") && !p.startsWith("//") ? "#" + p : null;
 }
-// 서버가 계산해 준 유형(document/ticket/board_post/chat_room/chat_mention)은 전부 사용자
-// 콘솔 화면이라 role 제한이 없다 — ADMIN_VIEW_ROLES로 가리면 안 된다(일반 사용자가 자기
-// 티켓·채팅 알림에서도 못 눌리게 된다). 그래서 이 게이트는 정적 roles:가 아니라 when() 안에서,
-// 서버 값이 없을 때(로컬 표의 관리자 전용 대상)만 적용한다.
+// 서버가 계산해 준 경로라고 그 화면의 실제 접근 권한이 달라지는 게 아니다 — 예: job_failed는
+// 그 작업을 만든 사람(어떤 role이든)에게 가는데 /jobs는 operator+ 전용이라, serverHref만 보고
+// 무조건 통과시키면 일반 사용자에게 늘 403인 클릭 가능한 링크가 생긴다(approval_decided의
+// 요청자·schedule_failed의 소유자·job_failed의 소유자가 전부 이 경로를 탈 수 있다).
+//
+// 이 다섯 유형만 명시적으로 나열한다 — "OBJ_ROUTE에 등록됐는가"로 판정하면 안 된다:
+// notifications의 related_object_type="document"(팀 문서 댓글, 사용자 콘솔, role 제한 없음)와
+// 감사 로그가 쓰는 OBJ_ROUTE.document(관리 콘솔 "문서 생성" 화면의 별칭, role 제한 있음)가
+// 같은 문자열의 서로 다른 자원이라 — 실제로 이 혼동으로 team-docs 댓글 딥링크가 한 번
+// 회귀했었다(고쳐서 아래 시험에 고정). 나머지(document/ticket/board_post/chat_room/
+// chat_mention)는 전부 사용자 콘솔 화면이라 role 제한이 없어 그냥 통과한다.
+const ADMIN_CONSOLE_RELATED_TYPES = new Set(["approval", "schedule", "job", "runner", "user"]);
+function reachableAdminTarget(r, ctx) {
+  const t = r && r.related_object_type;
+  if (!t || !ADMIN_CONSOLE_RELATED_TYPES.has(t)) return true;
+  return ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(t, ctx && ctx.role);
+}
 
 export const NOTIFICATIONS_SCREEN = {
   notifications: {
@@ -81,19 +94,15 @@ export const NOTIFICATIONS_SCREEN = {
       { label: "삭제", variant: "danger", method: "DELETE", path: (r) => "/api/notifications/" + r.id,
         confirm: "이 알림을 삭제할까요? 목록에서 완전히 사라지며 되돌릴 수 없습니다." },
       // 관련 대상(승인·작업·스케줄 등 로컬 표 대상)이 있으면 해당 관리 화면으로 이동한다.
-      // 로컬 표 대상은 전부 관리자 콘솔 경로라 일반 사용자(role=user)에겐 숨긴다(위 serverHref
-      // 주석 참고 — 서버가 계산해 준 사용자 콘솔 대상은 이 게이트를 안 탄다).
-      // ADMIN_VIEW_ROLES 통과만으로는 부족하다 — 대상 화면 중 일부(사용자·부서·직책·작업 큐)는
-      // auditor 등을 추가로 제외한다(App.jsx SCREEN_ROLES) — canReachObjRoute로 실제 도달 가능할 때만 노출.
+      // 로컬 표 대상은 전부 관리자 콘솔 경로라 reachableAdminTarget이 role을 가린다(위 주석).
       // schedule_run은 제외한다 — '#/schedules'로 보내도 특정 실행 행을 찾아 주지 못해(스케줄
       // 화면에 그런 딥링크가 없다) 클릭해도 실제로는 아무것도 못 찾는 겉보기 기능이었다
       // (NotificationBell.jsx의 동일한 제외와 맞춘다).
       // related_object_type이 OBJ_ID_PARAM에 있으면(감사 로그 액션과 동일한 기준) 그 화면이 ?id=
       // 딥링크를 지원하므로 목록이 아니라 그 항목 하나를 직접 연다 — 라벨도 실제 동작대로 구분한다.
       { label: "관련 항목 보기",
-        when: (r, ctx) => !!serverHref(r) ||
-          (!!(r.related_object_type && OBJ_ROUTE[r.related_object_type] && OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) &&
-           ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(r.related_object_type, ctx && ctx.role)),
+        when: (r, ctx) => reachableAdminTarget(r, ctx) &&
+          (!!serverHref(r) || !!(r.related_object_type && OBJ_ROUTE[r.related_object_type] && OBJ_ID_PARAM[r.related_object_type] && r.related_object_id)),
         navigate: (r) => serverHref(r) || objRouteHref(r.related_object_type, r.related_object_id) },
       // 그 외(서버·로컬 표 둘 다 단건 딥링크를 못 주는 대상 유형, 또는 related_object_id 없음)는
       // 여전히 목록 전체로만 이동한다 — 라벨을 실제 동작대로 정직하게 알린다. schedule_run도
@@ -101,9 +110,8 @@ export const NOTIFICATIONS_SCREEN = {
       // 화면에 실행 건별 딥링크가 없다는 이유였지만, 목록 전체로라도 보내는 게 아무 동작도 없는
       // 것보다는 낫다 — schedule_run은 OBJ_ROUTE에서 이미 '#/schedules'로 매핑돼 있다).
       { label: "관련 목록 열기",
-        when: (r, ctx) => !serverHref(r) &&
-          !!(r.related_object_type && OBJ_ROUTE[r.related_object_type]) && !(OBJ_ID_PARAM[r.related_object_type] && r.related_object_id) &&
-          ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(r.related_object_type, ctx && ctx.role),
+        when: (r, ctx) => reachableAdminTarget(r, ctx) && !serverHref(r) &&
+          !!(r.related_object_type && OBJ_ROUTE[r.related_object_type]) && !(OBJ_ID_PARAM[r.related_object_type] && r.related_object_id),
         navigate: (r) => OBJ_ROUTE[r.related_object_type] },
     ],
   },

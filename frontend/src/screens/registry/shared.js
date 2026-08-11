@@ -188,7 +188,11 @@ export const OBJ_ID_PARAM = { runner: "id", job: "job_id", user_notion_mapping: 
   // prompts/policies는 이름 기준 버전 관리 화면이지만 각 버전 행의 id로도 상세를 곧바로 연다
   // (onQuery: { open: 'select', id }가 GET /{id}로 단건 조회 — nameVersionsAction과 별개 경로).
   // 감사/알림의 '관련 항목 보기'가 이 두 object_type만 빠져 있어 늘 '관련 목록 열기'로 격하됐었다.
-  prompts: "id", policies: "id" };
+  prompts: "id", policies: "id",
+  // user — Users.jsx가 NOTI-04R로 ?id= 딥링크(onQuery와 같은 계약: 단건 GET, 목록에 없어도
+  // 열림, 실패 시 이유를 알림)를 갖췄다. OBJ_ROUTE_ROLES.user(WRITE_ROLES)가 이미 admin+만
+  // 이 경로를 볼 수 있게 막아 둔다.
+  user: "id" };
 export const objRouteHref = (objType, objId) => {
   const base = OBJ_ROUTE[objType];
   const param = OBJ_ID_PARAM[objType];

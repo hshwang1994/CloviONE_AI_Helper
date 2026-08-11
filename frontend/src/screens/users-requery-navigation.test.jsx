@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { ToastProvider } from "../ui/kit.jsx";
 
 /* 회귀: 통합 검색(Ctrl+K)에서 사용자 결과를 고르면 `#/users?q=<이름>`으로 온다(Users.jsx
  * 상단 주석). 이미 /users 화면이 열려 있는 상태에서(예: 방금 다른 사람을 봤다가 팔레트를
@@ -68,6 +69,62 @@ function renderHarness() {
     </QueryClientProvider>,
   );
 }
+
+/* NOTI-04R — 알림 벨/목록, 감사 로그 등 다른 화면이 `?id=`로 특정 사용자를 곧바로 상세로
+ * 열 수 있게 한다(registry 화면들의 onQuery: {open:"select", id} 패턴과 같은 계약). 이
+ * 화면은 registry 기반이 아닌 수제라 그 배선을 직접 만들었다 — 단건 GET(목록에 없어도/다른
+ * 페이지여도 열림), 실패 시 이유 안내, 한 번 연 뒤 주소에서 id 제거까지 같은 계약을 지킨다. */
+describe("Users 화면 — ?id= 딥링크로 특정 사용자 상세를 곧바로 연다 (NOTI-04R)", () => {
+  const CAROL = { id: "u-carol", email: "carol@example.com", display_name: "Carol", role: "user", active: true };
+
+  it("?id=가 있으면 단건 GET으로 그 사용자를 받아 상세를 연다(목록 페이지에 없어도)", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === "/api/admin/users/u-carol") return Promise.resolve(CAROL);
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [ALICE, BOB], total: 2, page_size: 20 });
+      if (path === "/api/admin/departments") return Promise.resolve({ items: [] });
+      if (path === "/api/admin/job-titles") return Promise.resolve({ items: [] });
+      if (path === "/api/admin/settings") {
+        return Promise.resolve({ settings: { password_policy: { value: { min_length: 12, min_classes: 3 } } } });
+      }
+      return Promise.resolve({});
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={["/users?id=u-carol"]}>
+          <Routes><Route path="/users" element={<Users />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    // Carol은 목록 응답(items)에 없다 — 그런데도 단건 GET으로 상세가 열려야 한다.
+    await waitFor(() => expect(apiMock.mock.calls.some((c) => c[0] === "/api/admin/users/u-carol")).toBe(true));
+    await screen.findByText("carol@example.com");
+  });
+
+  it("대상을 못 찾으면(404 등) 이유를 알린다 — 조용히 실패하지 않는다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === "/api/admin/users/u-missing") return Promise.reject(new Error("not found"));
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [ALICE, BOB], total: 2, page_size: 20 });
+      if (path === "/api/admin/departments") return Promise.resolve({ items: [] });
+      if (path === "/api/admin/job-titles") return Promise.resolve({ items: [] });
+      if (path === "/api/admin/settings") {
+        return Promise.resolve({ settings: { password_policy: { value: { min_length: 12, min_classes: 3 } } } });
+      }
+      return Promise.resolve({});
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={["/users?id=u-missing"]}>
+            <Routes><Route path="/users" element={<Users />} /></Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText(/연결된 사용자를 열지 못했습니다/);
+  });
+});
 
 describe("Users 화면 — 이미 열린 채로 통합 검색 딥링크를 다시 받는 경우", () => {
   it("q=Alice로 처음 들어오면 검색창에 Alice가 채워진다", async () => {

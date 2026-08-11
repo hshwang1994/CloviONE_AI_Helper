@@ -215,7 +215,7 @@ function TempPasswordModal({ data, onClose }) {
 export function Users() {
   // 통합 검색(Ctrl+K)에서 사람을 고르면 `#/users?q=<이름>` 으로 온다. 초기값을 주소에서
   // 받지 않으면 결과를 눌렀는데 필터 없는 전체 목록이 뜬다 — 아무 일도 안 한 것처럼 보인다.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState(() => searchParams.get("q") || "");
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
@@ -231,13 +231,33 @@ export function Users() {
   // "결과를 눌렀는데 아무 일도 안 한 것처럼 보인다"는 증상을 '최초 진입'이 아닌 경로에서는
   // 그대로 겪는다. 내비게이션으로 주소 문자열 자체가 바뀔 때만(사용자가 화면 안에서 검색어를
   // 직접 지우거나 바꾸는 것은 주소를 바꾸지 않는다) 다시 읽어 반영한다.
-  const appliedSearchRef = React.useRef(searchParams.toString());
+  // null(주소 문자열로는 절대 안 나오는 값)로 시작한다 — q/deptFilter는 최초 마운트를 자기
+  // useState 초기화 함수로 이미 처리하니 이 효과가 처음엔 건너뛰어도 되지만, id(NOTI-04R,
+  // 아래)는 그런 초기화 함수가 없는 "한 번 실행할 동작"이라 최초 마운트에도 반드시 이 효과가
+  // 돌아야 한다 — 처음엔 searchParams.toString()으로 시작했더니 첫 렌더의 key와 곧바로
+  // 같아져 최초 진입에서 이 효과 전체(따라서 id 처리도)가 조용히 건너뛰어졌었다.
+  const appliedSearchRef = React.useRef(null);
   React.useEffect(() => {
     const key = searchParams.toString();
     if (key === appliedSearchRef.current) return;
     appliedSearchRef.current = key;
     setQ(searchParams.get("q") || "");
     setDeptFilter(searchParams.get("department_id") || "");
+    // NOTI-04R — 다른 화면(알림 벨/목록, 조직도, 감사 로그)이 `?id=`로 특정 사용자를 곧바로
+    // 상세로 열 수 있게 한다. 이 화면은 registry 기반이 아니라 수제라 다른 화면들이 쓰는
+    // DataScreen.jsx의 `onQuery: {open:"select", id}` 배선을 그대로 못 쓴다 — 같은 계약
+    // (단건 GET, 목록에 없어도/다른 페이지여도 열림, 실패 시 이유를 알림)을 여기서 직접 만든다.
+    // sel/toast는 이 컴포넌트 아래쪽에서 선언되지만 이 효과의 콜백은 렌더가 끝난 뒤(그
+    // 선언들이 이미 실행된 뒤)에만 실행되므로 참조해도 안전하다.
+    const id = searchParams.get("id");
+    if (id) {
+      api("/api/admin/users/" + id)
+        .then((item) => { if (item) setSel(item); })
+        .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", "error"));
+      // 한 번 연 뒤에는 주소에서 지운다 — 안 지우면 드로어를 닫고 새로고침할 때마다 같은
+      // 사용자가 다시 열린다(DataScreen.jsx가 해시 쿼리를 지우는 것과 같은 이유).
+      setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("id"); return next; }, { replace: true });
+    }
   }, [searchParams]);
   const [page, setPage] = useState(1);
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다

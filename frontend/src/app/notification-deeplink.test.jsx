@@ -122,3 +122,34 @@ describe("채팅 초대 알림 딥링크", () => {
     expect(screen.queryByText("채팅방 화면")).toBeNull();
   });
 });
+
+/* APPR-01 회귀 방지 — 서버가 related_route를 계산해 준다고 그 화면의 실제 접근 권한이
+ * 달라지는 게 아니다. job_failed는 그 작업을 만든 사람(이 파일 전체가 고정한 role="user"
+ * 포함)에게 가는데 /jobs는 operator+ 전용이라, srvRoute만 보고 무조건 눌리게 하면 일반
+ * 사용자에게 늘 403인 클릭 가능한 링크가 생긴다 — RG-02 커밋 직후 발견해 같은 커밋에서
+ * 고쳤다(NotificationBell.jsx의 ROUTE_ROLES를 서버 경로에도 적용). */
+describe("관리 콘솔 대상 알림 — 서버 값이 있어도 role이 안 맞으면 눌리지 않는다 (APPR-01 회귀 방지)", () => {
+  it("job_failed(일반 사용자에게 감) — 서버가 related_route를 줘도 이동 버튼이 안 뜬다", async () => {
+    const user = userEvent.setup();
+    mount([noti({
+      id: "n3", type: "job_failed", title: "요청 처리에 실패했습니다",
+      related_object_type: "job", related_object_id: "j-1", related_route: "/jobs?job_id=j-1",
+    })]);
+    await openBell(user);
+    // 항목 자체는 여전히 보인다(정적으로) — 이동 가능한 항목이라면 아래 버튼 쿼리가 잡는
+    // <button title="관련 항목 보기">로 그려졌을 것이다(role="user"에겐 눌러도 403일 뿐이다).
+    await screen.findByText("요청 처리에 실패했습니다");
+    expect(screen.queryByRole("button", { name: /작업 실패/ })).toBeNull();
+  });
+
+  it("account_locked(user 유형, 관리자 전용) — 일반 사용자에겐 여전히 정적 항목이다", async () => {
+    const user = userEvent.setup();
+    mount([noti({
+      id: "n4", type: "account_locked", title: "계정 잠금 발생: someone@goodmit.co.kr",
+      related_object_type: "user", related_object_id: "u-9", related_route: "/users?id=u-9",
+    })]);
+    await openBell(user);
+    await screen.findByText("계정 잠금 발생: someone@goodmit.co.kr");
+    expect(screen.queryByRole("button", { name: /계정 잠금/ })).toBeNull();
+  });
+});

@@ -80,6 +80,11 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # runners.id, `/runners`(registry/integrations.js)가
     # `onQuery: p.id ? {open:"select", id:p.id} : ...`.
     "runner": "/runners?id={id}",
+    # 사용자(account_locked 등, app/auth/router.py) — id는 users.id. Users.jsx는 registry
+    # 기반이 아니라 수제 화면이라 다른 화면들의 onQuery 배선을 그대로 못 쓰는데, NOTI-04R로
+    # 같은 계약(단건 GET, `?id=` 쿼리, 실패 시 이유 안내)을 직접 만들었다 — 그 전까지는
+    # Users.jsx 자체에 id 딥링크가 없어서 이 표에 넣어도 무의미했다(아래 참고에서 옮겨옴).
+    "user": "/users?id={id}",
 }
 
 # 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라
@@ -90,15 +95,19 @@ RELATED_DESTINATIONS: dict[str, str] = {
 # (related_object_type 은 "document_generation" 이라 위 team_docs 의 "document" 와 겹치지
 # 않는다 — app/jobs/handlers/document_generate.py 참고.)
 
-# 아직 표에 없는 관련 유형(schedule_run / user)은 **일부러** 비워 둔다.
-# schedule_run — '#/schedules'로 보내도 특정 실행 한 건을 찾아 주는 딥링크가 없다(스케줄
-# 자체와 달리 실행 이력에는 onQuery가 없다).
-# user(account_locked 등) — NotificationBell.jsx의 자체 주석대로 Users.jsx는 목록 화면이고
-# id 딥링크(onQuery)가 아예 없다 — 만들려면 이 표가 아니라 그 화면에 먼저 배선이 필요하다.
-# 둘 다 위 docstring의 첫 번째 규칙("그 화면이 실제로 그 id를 소비해야 한다")에 걸린다 —
-# 보내 봐야 목록만 열리고 사용자는 대상을 눈으로 다시 찾아야 한다. 그 화면들이 단건
-# 딥링크를 갖게 되는 날 여기 한 줄씩 추가하면 프런트는 손대지 않는다(approval/schedule/
-# job/runner가 방금 그 경로를 그대로 밟았다).
+# 아직 표에 없는 관련 유형(schedule_run)은 **일부러** 비워 둔다. '#/schedules'로 보내도
+# 특정 실행 한 건을 찾아 주는 딥링크가 없다(스케줄 자체와 달리 실행 이력에는 onQuery가 없다)
+# — 위 docstring의 첫 번째 규칙("그 화면이 실제로 그 id를 소비해야 한다")에 걸린다. 그 화면이
+# 단건 딥링크를 갖게 되는 날 여기 한 줄 추가하면 프런트는 손대지 않는다(approval/schedule/
+# job/runner/user가 방금 그 경로를 그대로 밟았다).
+#
+# ⚠️ 이 표에 유형을 추가할 때 role도 함께 확인한다 — 대상 화면이 role 제한이 있으면(예:
+# /jobs·/approvals·/users는 CONSOLE_READ_ROLES 이상만) 그 알림의 실제 수신자가 항상 그
+# role 이상인지 확인해야 한다. job_failed(작업 소유자, 어떤 role이든 가능)·approval_decided
+# (요청자, notify_approvers 문서에 위임받은 일반 사용자도 포함될 수 있다고 적혀 있다)처럼
+# 수신자가 낮은 role일 수 있는 유형은 프런트가 role 게이트를 따로 건다(NotificationBell.jsx의
+# ROUTE_ROLES, registry/notifications.js의 reachableAdminTarget) — 이 서버 표 자체는
+# "경로는 권한과 무관하다"(위 docstring)는 원칙대로 role을 안 따진다.
 
 
 def destination_for(related_object_type: str | None, related_object_id: str | None) -> str | None:

@@ -349,11 +349,51 @@ VIS-159에 재현 방법과 함께 기록.
 revert-to-verify(되돌리면 새 4건 실패 확인 후 복원). 프런트 변경 없음(이미 준비된 로컬
 표가 서버 값을 우선하도록 이미 배선돼 있음, 기존 프런트 시험 재확인으로 무충돌 확인).
 
-**남겨진 관련 항목 — `NOTI-04R`**: `user` 유형 알림(`account_locked` 등) 52건이 여전히
-대상 한 명이 아니라 `/users` 전체 목록으로 간다 — `Users.jsx`가 registry 기반이 아닌
-수제 화면이라 `onQuery`(id 딥링크) 자체가 없다(VIS-81 재조사 때 이미 확인한 사실과 동일).
-APPR-01과 달리 이건 **화면에 새 기능을 만드는 것**(Users.jsx에 `?id=` 소비 로직 추가)이라
-"표만 채우면 되는" 규모가 아니다 — 다음 후보로 고려할 만하지만 별도 판단 필요.
+**APPR-01 커밋 직후 자체 재검토로 발견·수정한 회귀 — role 게이트 없이 서버 경로를 무조건
+통과시켰다**: APPR-01을 커밋하고 바로 이어서 NOTI-04R(아래)을 구현하려고 코드를 다시
+읽다가, RG-02의 "serverHref만 있으면 role 검사 없이 통과" 로직을 그대로 재사용한 게
+틀렸다는 것을 직접 확인했다 — RG-02의 원래 대상(document/ticket/board_post/chat_room/
+chat_mention)은 전부 **사용자 콘솔 화면**이라 role 제한이 없어서 안전했지만, APPR-01이
+새로 추가한 approval/schedule/job/runner는 **관리 콘솔 화면**이다. 특히 `job_failed`는
+그 작업을 만든 사람(어떤 role이든)에게, `approval_decided`는 요청자(위임받은 일반
+사용자가 포함될 수 있다고 `notify_approvers`의 자체 docstring이 명시)에게 가는데
+`/jobs`·`/approvals`는 `CONSOLE_READ_ROLES`(operator+) 전용이다 — 서버가 `related_route`
+를 계산해 준다고 role 검사를 건너뛰면 **일반 사용자에게 늘 403인 클릭 가능한 링크**가
+생긴다. 실제 배포 전(커밋 전) 자체 재검토로 잡아 같은 배치에서 함께 고쳤다:
+- `NotificationBell.jsx`: `ROUTE_ROLES`(`/users`·`/jobs`는 기존, `/approvals`·
+  `/schedules`·`/runners`를 `CONSOLE_READ_ROLES`로 새로 추가)를 서버가 준 경로에도
+  적용하도록 `navigable` 계산을 통합(`!!srvRoute || (!isUser && ...)` → 경로 출처와
+  무관하게 같은 `routeAllows` 검사).
+- `registry/notifications.js`: `reachableAdminTarget(r, ctx)` 헬퍼 신설 — **처음엔
+  "OBJ_ROUTE에 등록됐는가"로 관리 콘솔 대상을 판정**했는데, 시험을 돌리자마자 `document`
+  (알림에서는 team_docs 댓글, role 제한 없음)가 감사 로그의 `OBJ_ROUTE.document`(관리
+  콘솔 "문서 생성" 화면의 별칭, role 제한 있음)와 **같은 문자열의 다른 자원**이라 오탐되는
+  것을 시험이 그 자리에서 잡아냈다 — 판정 기준을 "OBJ_ROUTE 멤버십"에서 다섯 유형
+  (`approval`/`schedule`/`job`/`runner`/`user`)을 직접 나열하는 방식으로 바꿔 해결했다.
+- 신규 시험: `notification-server-route.test.jsx` 5건(job_failed·approval_decided·
+  account_locked가 role="user"에게 숨는지, operator+에게는 열리는지, 사용자 콘솔 대상은
+  게이트가 아예 없는지), `notification-deeplink.test.jsx` 2건(렌더 레벨 — 정적 항목으로
+  남는지). 둘 다 revert-to-verify(되돌리면 실패 확인 후 복원).
+
+**NOTI-04R 구현완료 — 사용자 알림 딥링크**: `user` 유형 알림(`account_locked` 등)이
+`/users` 전체 목록이 아니라 그 사용자 상세로 바로 가게 했다. `Users.jsx`가 registry
+기반이 아닌 수제 화면이라 다른 화면들의 `onQuery` 배선을 그대로 못 쓴다 — 같은 계약
+(단건 `GET /api/admin/users/{id}`, 목록에 없어도/다른 페이지여도 열림, 실패 시 이유
+안내, 연 뒤 주소에서 `id` 제거)을 직접 만들었다. 프런트 두 표(`NotificationBell.jsx`
+로컬 `OBJ_ID_PARAM`, `registry/shared.js` `OBJ_ID_PARAM`)와 백엔드
+`destinations.py`에 `user`를 추가해 APPR-01과 같은 경로로 완결했다.
+**구현 중 잡은 두 번째 버그**: `?id=` 처리를 "이미 열린 화면에 같은 라우트로 다시
+딥링크가 온 경우"만 다시 읽는 기존 효과(`appliedSearchRef`)에 얹었는데, 그 ref가
+**최초 마운트 시의 주소값으로 초기화**돼 있어 최초 진입 자체에서 이 효과 전체(따라서
+`id` 처리도)가 곧바로 건너뛰어졌다 — 신규 시험이 처음부터 실패로 잡아냈다. ref 초기값을
+`null`로 바꿔 최초 마운트에도 반드시 처리되게 고쳤다. `users-requery-navigation.test.jsx`
+신규 2건, revert-to-verify(되돌리면 실패 확인 후 복원). 프런트·백엔드 전체 회귀는 커밋
+직전 재확인.
+
+이것으로 알림 딥링크 계열(RG-02/APPR-01/NOTI-04R)이 서버(`destinations.py`)를 단일
+출처로 완결됐다 — 남은 것은 `schedule_run`(대상 화면에 실행 건별 onQuery가 없음, 의도적
+제외)뿐이다. 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이
+진행한다.
 
 ---
 
