@@ -186,6 +186,59 @@ def test_a_duplicate_code_in_the_same_org_is_409_not_500(client, login_as, world
     assert second.status_code == 409, f"중복 코드가 409 가 아니다: {second.status_code}"
 
 
+def test_concurrent_create_same_code_never_500s(app, login_as, world):
+    """PROJ-01: 순차 요청은 `ensure_code_is_free`(사전 SELECT)로 409를 준다 — 그런데 두
+    요청이 같은 (org_id, code)로 동시에 도착하면 둘 다 그 SELECT를 통과할 수 있다. 결정적으로
+    겹치게 만들려고 그 SELECT를 `threading.Barrier(2)`에 세운다(test_prompt_create_new_
+    version_race.py와 동일 기법) — 둘 다 "없음"을 본 다음에야 동시에 INSERT로 넘어가게 한다.
+    """
+    import threading
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import event
+
+    from tests.conftest import DEFAULT_TEST_PASSWORD
+
+    login_as("admin", email=BOSS_EMAIL)  # 관리자 계정을 미리 만들어 둔다.
+    engine = app.state.engine
+    barrier = threading.Barrier(2)
+    hits = 0
+    hits_lock = threading.Lock()
+
+    def _pause_before_insert_races(conn, cursor, statement, parameters, context, executemany):
+        nonlocal hits
+        if "FROM projects" not in statement or "race-code" not in str(parameters):
+            return
+        with hits_lock:
+            hits += 1
+            should_wait = hits <= 2
+        if should_wait:
+            barrier.wait(timeout=5)
+
+    def attempt(i):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            r = c.post("/login", json={"email": BOSS_EMAIL, "password": DEFAULT_TEST_PASSWORD})
+            assert r.status_code == 200, r.text
+            token = r.json()["csrf_token"]
+            resp = c.post(
+                "/api/projects", json={"name": f"동시생성{i}", "code": "race-code"},
+                headers={"X-CSRF-Token": token},
+            )
+            return resp.status_code
+
+    event.listen(engine, "before_cursor_execute", _pause_before_insert_races)
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            codes = list(pool.map(attempt, range(2)))
+    finally:
+        event.remove(engine, "before_cursor_execute", _pause_before_insert_races)
+
+    assert codes.count(200) == 1, f"정확히 하나만 성공해야 한다: {codes}"
+    assert all(c in (200, 409) for c in codes), f"500이 섞였다(처리 안 된 경합): {codes}"
+
+
 def test_projects_without_a_code_do_not_collide(client, login_as, world):
     """코드는 없을 수 있다. NULL 끼리는 충돌하지 않는다(그래서 빈 문자열로 안 채운다)."""
     hdr = _hdr(login_as)

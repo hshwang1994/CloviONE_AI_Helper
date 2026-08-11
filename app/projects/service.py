@@ -19,7 +19,9 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import split_names
 from app.core.scope import Principal
@@ -177,8 +179,18 @@ def create_project(
         created_at=now,
         updated_at=now,
     )
-    db.add(project)
-    db.flush()
+    try:
+        # PROJ-01: 위 ensure_code_is_free는 순차 요청에서만 409를 준다 — 두 요청이 같은
+        # (org_id, code)로 동시에 도착하면 둘 다 그 사전검사를 통과할 수 있다. SAVEPOINT로
+        # 감싸 진 쪽의 uq_projects_org_code 위반이 세션 전체를 망가뜨리지 않게 하고, 같은
+        # 메시지의 409로 두 경로를 수렴시킨다(profiles/service.py::create_view와 같은 관용).
+        with db.begin_nested():
+            db.add(project)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
     return project
 
 
@@ -212,7 +224,15 @@ def update_project(
             raise ValidationAppError(f"{field} 값은 비울 수 없습니다.")
         setattr(project, field, value)
     project.updated_at = now
-    db.flush()
+    try:
+        # PROJ-01: create_project와 같은 이유 — code를 동시에 같은 값으로 바꾸는 두 요청이
+        # 위 ensure_code_is_free를 둘 다 통과할 수 있다.
+        with db.begin_nested():
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
     return project
 
 
