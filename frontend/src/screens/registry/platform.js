@@ -95,6 +95,11 @@ export const PLATFORM_SCREENS = {
     key: "restore-drills", area: "운영", title: "복구 리허설",
     endpoint: "/api/admin/backups/rehearsals",
     help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다. 목록에는 최근 20건까지만 표시됩니다.",
+    // RG-06: 이 화면은 create도 primary headerAction도 없다(리허설은 웹 버튼이 아니라 서버
+    // CLI로 돈다, 아래 emptySteps 참고) — DataScreen.jsx의 canOnboard 게이트가 그 둘만 보므로
+    // 그대로 두면 situation/prerequisite/steps/expected 4종이 어떤 역할에서도 안 그려진다.
+    // 화면 접근 자체는 이미 라우트 role 게이트로 걸려 있으니 안전하게 우회한다.
+    forceOnboarding: true,
     emptyTitle: "복구 리허설 기록이 없습니다",
     emptyHelp: "아직 한 번도 복원을 시험하지 않았습니다. 아래 순서로 실행하면 결과가 이 목록에 남습니다.",
     emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",

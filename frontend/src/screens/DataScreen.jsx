@@ -547,7 +547,11 @@ export function DataScreen({ config }) {
   // 온보딩 안내(situation/steps 등)는 실제로 '생성' 성격 CTA를 볼 수 있는 역할에만 보여준다 -
   // create.roles(canCreate)뿐 아니라 primary 헤더 작업('+ 백업 실행', '+ 문서 생성', '자동 동기화')을
   // CTA로 쓰는 화면도 포함한다(그렇지 않으면 create 없는 화면의 온보딩 단계가 영영 렌더되지 않았다).
-  const canOnboard = canCreate || !!primaryHeaderAction;
+  // RG-06: 이 게이트는 "안내가 가리키는 버튼을 이 역할이 볼 수 있는가"를 묻는데, 안내 자체가
+  // 웹 버튼이 아니라 **서버 CLI 단계**를 설명하는 화면(복구 리허설)은 create도 primary
+  // headerAction도 없어 canOnboard가 항상 거짓이었다 — 화면 접근 자체가 이미 역할로 걸려 있으니
+  // (App.jsx SCREEN_ROLES) 그런 화면은 config.forceOnboarding으로 이 게이트를 우회한다.
+  const canOnboard = config.forceOnboarding || canCreate || !!primaryHeaderAction;
   // 페이저는 목록 카드와, clientFilter로 현재 페이지가 통째로 걸러진 빈 상태 두 곳에서 함께 쓴다
   // (paginated+clientFilter 화면에서 현재 페이지가 필터로 비어도 다른 페이지로 넘어갈 수 있게).
   const pager = config.paginated ? (
