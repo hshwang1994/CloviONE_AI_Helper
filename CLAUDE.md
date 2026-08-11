@@ -28,7 +28,7 @@
 ## 2. 프로젝트 핵심 구조
 - Python 3.12, FastAPI **sync**, SQLAlchemy 2.0 **sync**, Alembic, SQLite **WAL**
 - React 18 + Vite + HashRouter, 소스 `frontend/`, 산출물 `app/static/react/`
-- 런타임 외부 CDN/폰트 의존 금지, CSP `script-src 'self'`
+- CSP는 2026-08-04 사용자 지시로 완화됐다 — 외부 CDN/웹폰트/라이브러리는 UI 품질에 도움이 되면 자유롭게 쓴다(`script-src 'self' 'unsafe-inline' 'unsafe-eval' https:` 등, `connect-src`는 유출 경로라 `'self'`로 유지). 실제 정책과 근거는 `app/core/middleware.py`의 `CSP_POLICY` 주석이 정본이다
 - n8n + Claude Runner + Notion 연동을 포함한 사내 업무 자동화 플랫폼
 - 주요 디렉터리: `app/`, `frontend/`, `runner/`, `alembic/`, `scripts/`, `deploy/`, `docs/`, `tests/`
 실제 저장소 구조가 문서와 다르면 Source를 정본으로 보고 문서를 갱신한다.

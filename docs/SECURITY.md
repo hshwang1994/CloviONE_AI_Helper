@@ -77,19 +77,27 @@ games와 team_docs는 기능 플래그(`require_games_enabled` / `require_team_d
   `OutboundClient`(allowlist=runners)가 주입한다. DB나 코드에 평문이 없다
 - CLI는 비밀번호를 인자로 받지 않음 — stdin/getpass 전용
 
-## CSP 및 응답 헤더 (spec §25.6)
+## CSP 및 응답 헤더 (spec §25.6, **2026-08-04 사용자 지시로 완화됨**)
 
-`RequestContextMiddleware`가 모든 응답에 부여:
+**DOC-01**: 아래는 예전(도입 당시) 정책이 아니라 **현재 실제로 나가는 값**이다 — `default-src
+'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self'
+'unsafe-inline' https:; ...`. 사용자가 "CDN·웹폰트·외부 라이브러리를 UI 품질에 도움이 되면
+자유롭게 쓰라"고 지시해 `script-src`/`style-src`/`font-src`/`img-src`/`frame-src`를 열었다.
+**`connect-src`는 `'self'`로 유지한다**(2026-08-05 되돌림) — 저장소 전체에 외부
+fetch/XHR/WebSocket 호출이 없어 여는 이유가 없고, XSS가 나면 `/api/me`·감사 CSV를 임의
+호스트로 실어 보낼 유출 경로만 열기 때문이다. 정책 원문·근거는 `app/core/middleware.py`의
+`CSP_POLICY`가 정본이다(문서를 다시 베끼지 않는다 — 두 벌이 되면 한쪽만 갱신된다).
 
-```
-Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
-  img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none';
-  base-uri 'self'; frame-ancestors 'none'; form-action 'self'
-X-Content-Type-Options: nosniff / X-Frame-Options: DENY / Referrer-Policy: same-origin
-Cache-Control: no-store (정적 자원 제외)
-```
+`RequestContextMiddleware`가 모든 응답에 이 헤더를 부여한다.
 
-인라인 JS/CSS는 어디에도 없다(모두 `/static` 파일). 요청 본문은 256KB 제한
+**무엇을 잃었는가(정직하게)**: `script-src 'self'`가 예전엔 XSS 방어의 축이었다 — 지금은
+없다. 대신 계속 지키는 것: ①서버 데이터를 `innerHTML`에 안 넣는다(React 이스케이프/
+`textContent` 전용) ②사용자 입력을 스크립트·스타일 문자열에 이어 붙이지 않는다 ③href/src
+스킴 검사(`app/core/safe_url.py` + `frontend/src/lib/safeUrl.js`) — `'unsafe-inline'` 아래
+에서는 `javascript:` URI가 실행되므로 이게 없으면 링크 하나가 곧 XSS다.
+
+`X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` / `Referrer-Policy: same-origin`
+/ `Cache-Control: no-store`(정적 자원 제외)는 그대로 유지. 요청 본문은 256KB 제한
 (nginx `client_max_body_size 256k`와 이중 방어). 에러는 표준 envelope로만 —
 스택 트레이스 비노출 (spec §25.2).
 

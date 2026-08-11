@@ -971,7 +971,7 @@ Playwright가 못 하는 것 — 콘솔·네트워크·실제 세션 — 을 직
 
 | ID | 심각 | 문제 | 근거 | 상태 |
 |---|---|---|---|---|
-| DOC-01 | Med | **`CLAUDE.md` §2-6이 CSP를 `script-src 'self'`라고 적고 있으나 실제는 2026-08-04 사용자 지시로 `'unsafe-inline' 'unsafe-eval' https:`까지 완화됐다.** 되돌리지 말고 **문서를 정정**해야 한다 | `app/core/middleware.py:20-55` vs `CLAUDE.md` §2-6 | 발견 |
+| DOC-01 | Med | **`CLAUDE.md` §2-6이 CSP를 `script-src 'self'`라고 적고 있으나 실제는 2026-08-04 사용자 지시로 `'unsafe-inline' 'unsafe-eval' https:`까지 완화됐다.** 되돌리지 말고 **문서를 정정**해야 한다 | `app/core/middleware.py:20-55` vs `CLAUDE.md` §2-6 ‖ **구현완료(2026-08-11)**: `CLAUDE.md` §2(현재 판에서는 §2-6이 아니라 §2 넷째 줄, 과거 CLAUDE.md 재구성으로 번호가 바뀌었다)의 "런타임 외부 CDN/폰트 의존 금지, CSP `script-src 'self'`"를 실제 정책 요약 + `app/core/middleware.py`의 `CSP_POLICY`를 정본으로 가리키는 문장으로 교체. 같은 결함이 `docs/SECURITY.md`의 "CSP 및 응답 헤더" 절에도 있었다(예전 정책 그대로 + "인라인 JS/CSS는 어디에도 없다"까지 지금은 틀린 문장) — 함께 정정, 실제 헤더값·잃은 방어·유지하는 방어를 정직하게 적었다. `tests/regression/test_csp_policy.py`(기존, 실제 헤더값을 검증)로 문서가 서술하는 값이 실제 응답과 같음을 재확인함 — 코드 변경 없음, 문서만 | 구현완료 |
 | DOC-02 | Med | **`BUILD_LOG.md`에 라운드 8~14가 통째로 빠졌다**(최신 항목 2026-08-07). 가장 최근이자 가장 침습적인 작업의 인수인계가 커밋 본문에만 있다 | | 작업예정 |
 | DOC-03 | Low | `OPERATIONS.md:36`이 "웹에는 서비스 재시작 API가 없다"고 하는데 `KNOWN_LIMITATIONS.md` §6은 `#/system`에서 privhelper로 5개 유닛을 재시작할 수 있다고 정정했다 | | 발견 |
 | DOC-04 | Low | `NEXT_SESSION_PLAN.md`(2026-07-29)의 A·E 항목은 이미 배송됐다 | | 발견 |
