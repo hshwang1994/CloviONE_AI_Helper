@@ -164,7 +164,10 @@ export function Diagnostics() {
                         <Box component="ul" sx={{ listStyle: "none", m: 0, mt: 0.75, p: 0, display: "grid", gap: 0.25 }}>
                           {hv.problems.map((p, i) => (
                             <Box component="li" key={i}
-                              sx={{ display: "flex", alignItems: "baseline", gap: 0.75, color: p.tone === "danger" ? "error.main" : "warning.main" }}>
+                              /* QAH-03(2026-08-11 하네스 실측): warning.main 글자색이
+                                 4.48:1로 AA(4.5) 근소 미달이었다 — StatCard 배지와 같은
+                                 원인이라 같은 수정(palette.{error,warning}.strong)을 쓴다. */
+                              sx={{ display: "flex", alignItems: "baseline", gap: 0.75, color: p.tone === "danger" ? "error.strong" : "warning.strong" }}>
                               {/* 심각도를 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은 글자 라벨을 함께 둔다. */}
                               <Box component="span" sx={{ flexShrink: 0, fontWeight: 800, fontSize: "0.75rem" }}>
                                 {p.tone === "danger" ? "위험" : "주의"}

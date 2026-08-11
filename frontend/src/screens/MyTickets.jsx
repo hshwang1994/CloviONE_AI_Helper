@@ -100,7 +100,11 @@ function TitleCell({ t, onOpen }) {
         type="button"
         underline="hover"
         onClick={() => onOpen(t)}
-        sx={{ font: "inherit", fontWeight: 650, textAlign: "left", color: "primary.main" }}
+        // QAH-03(2026-08-11 하네스 실측): color="primary.main"을 sx로 직접 주면 MuiLink의
+        // 공유 styleOverrides(primary.dark=primaryStrong, 대비 보강)를 inline sx가 덮어써
+        // 버린다 — 다크 표면에서 3.76:1로 AA(4.5) 미달이었다. 강조색으로 그리려는 의도는
+        // 그대로 두고 값만 대비가 검증된 alias로 바꾼다.
+        sx={{ font: "inherit", fontWeight: 650, textAlign: "left", color: "primary.dark" }}
       >
         {t.title || "제목 없음"}
       </Link>

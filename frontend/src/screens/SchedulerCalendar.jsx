@@ -98,7 +98,12 @@ function EventDot({ event, onClick }) {
         display: "block", width: "100%", textAlign: "start",
         border: planned ? "1px dashed" : "1px solid",
         borderColor: failed ? "error.main" : planned ? "divider" : "primary.main",
-        bgcolor: planned ? "transparent" : failed ? "error.light" : "primary.light",
+        /* QAH-03(2026-08-11 하네스 실측): `.light` 배경 + `.contrastText` 글자색은 짝이
+         * 안 맞는다 — MUI의 contrastText는 `.main`을 기준으로 계산되지 `.light`를 보고
+         * 계산되지 않는다. `.light`(라이트 accent에서 #758AE1)는 `.main`보다 밝아서 흰
+         * contrastText를 얹으면 3.24~3.66:1로 AA(4.5) 미달이었다. `.main`은 이미
+         * contrastText와 짝이 맞게 검증돼 있으므로(4.68+) 배경을 `.main`으로 맞춘다. */
+        bgcolor: planned ? "transparent" : failed ? "error.main" : "primary.main",
         color: planned ? "text.secondary" : failed ? "error.contrastText" : "primary.contrastText",
         borderRadius: 1, px: 0.75, py: 0.25, mb: 0.25, cursor: "pointer",
         fontSize: "0.6875rem", lineHeight: 1.4,
@@ -360,7 +365,10 @@ export function SchedulerCalendar() {
                         <Typography
                           sx={{
                             fontSize: "0.75rem", fontWeight: isToday ? 800 : 600, mb: 0.5,
-                            color: isToday ? "primary.main" : "text.secondary",
+                            // QAH-03(2026-08-11 하네스 실측): 다크 표면에서 primary.main
+                            // 글자색이 3.76:1로 AA 미달이었다 — primary.dark(=primaryStrong,
+                            // 대비 보강 alias)로 바꾼다.
+                            color: isToday ? "primary.dark" : "text.secondary",
                           }}
                         >
                           {Number(cell.key.slice(8, 10))}

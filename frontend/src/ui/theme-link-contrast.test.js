@@ -183,3 +183,51 @@ describe("QAH-02(2026-08-11 하네스 실측) — StatCard 배지가 좁은 칸�
     expect(sevLine[0]).toMatch(/flexShrink:\s*0/);
   });
 });
+
+describe("QAH-03 — MyTickets TitleCell 링크가 inline sx로 대비 보강 색을 덮어쓰지 않는다", () => {
+  it("TitleCell이 실제로 primary.dark를 쓴다(원래 버그는 primary.main을 inline sx로 직접 박아 MuiLink의 공유 대비 보강을 덮어썼다)", () => {
+    const src = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens", "MyTickets.jsx"),
+      "utf-8",
+    );
+    const start = src.indexOf("function TitleCell");
+    expect(start, "TitleCell 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = src.slice(start, start + 1400);
+    expect(block).toMatch(/color:\s*"primary\.dark"/);
+    expect(block).not.toMatch(/color:\s*"primary\.main"/);
+  });
+});
+
+describe("QAH-03 — SchedulerCalendar가 짝이 안 맞는 .light 배경 + .contrastText 조합을 안 쓴다", () => {
+  const src = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens", "SchedulerCalendar.jsx"),
+    "utf-8",
+  );
+
+  it("EventDot의 bgcolor가 .light가 아니라 .main이다(contrastText는 .main 기준으로 계산된다)", () => {
+    const start = src.indexOf("function EventDot");
+    expect(start, "EventDot 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = src.slice(start, start + 1200);
+    expect(block).toMatch(/bgcolor:\s*planned \? "transparent" : failed \? "error\.main" : "primary\.main"/);
+  });
+
+  it("오늘 날짜 숫자가 primary.dark를 쓴다(다크 표면에서 primary.main은 AA 미달이었다)", () => {
+    const anchor = src.indexOf('isToday ? ", 오늘"');
+    expect(anchor, "오늘 표시를 못 찾았다").toBeGreaterThan(-1);
+    const block = src.slice(Math.max(0, anchor - 400), anchor);
+    expect(block).toMatch(/color:\s*isToday \? "primary\.dark" : "text\.secondary"/);
+  });
+});
+
+describe("QAH-03 — Diagnostics 진단 문제 목록이 palette.{error,warning}.strong을 쓴다", () => {
+  it("li 항목의 color가 .main이 아니라 .strong이다", () => {
+    const src = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens", "ops", "Diagnostics.jsx"),
+      "utf-8",
+    );
+    const idx = src.indexOf('component="li"');
+    expect(idx, "component=\"li\" 항목을 못 찾았다").toBeGreaterThan(-1);
+    const block = src.slice(idx, idx + 550);
+    expect(block).toMatch(/color:\s*p\.tone === "danger" \? "error\.strong" : "warning\.strong"/);
+  });
+});
