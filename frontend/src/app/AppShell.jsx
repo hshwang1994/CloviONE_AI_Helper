@@ -316,7 +316,11 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           aria-current={seg.on ? "page" : undefined}
           sx={{
             flex: 1, minHeight: 32, borderRadius: "999px", textTransform: "none", fontWeight: 750,
-            color: seg.on ? "primary.dark" : "rgba(237,240,255,.78)",
+            // CTR-02: 배경은 다크모드 여부와 무관하게 항상 리터럴 흰색이다 — 다크 표면용으로
+            // 밝힌 primary.dark(strongMix)와 짝지으면 다크 모드에서 흰색 배경에 거의
+            // 흰색인 글자(대비 2.84~3.43:1, WCAG AA 4.5:1 미달, 실측 확인)가 된다.
+            // primary.main은 두 모드에서 같은 원본 accent라 흰 배경 위에서 항상 4.68 이상.
+            color: seg.on ? "primary.main" : "rgba(237,240,255,.78)",
             bgcolor: seg.on ? "common.white" : "transparent",
             "&:hover": { bgcolor: seg.on ? "common.white" : "rgba(255,255,255,.12)" },
           }}

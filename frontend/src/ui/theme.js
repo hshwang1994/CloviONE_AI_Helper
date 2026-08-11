@@ -356,6 +356,13 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiLink: {
         styleOverrides: {
           root: {
+            /* CTR-01/CTR-04: color를 안 주면 MUI가 자기 기본값(color="primary" →
+             * palette.primary.main, 즉 사용자가 고른 원본 accent hex)으로 렌더한다 — 다크
+             * 카드/표면 위에서 3.52~3.76:1, 라이트 배경 위에서도 4.37:1로 WCAG AA 4.5:1
+             * 미달(실측 확인). primaryStrong은 각 모드에서 명시적으로 대비를 올려 섞은
+             * 변수(라이트: 어둡게, 다크: 밝게 — 위 strongMix 계산)라 4.81~6.77로 통과한다.
+             * MuiButton의 containedPrimary hover가 이미 같은 토큰을 대비 개선 용도로 쓴다. */
+            color: primaryStrong,
             "&:focus-visible": {
               outline: `3px solid ${t.focusRing}`,
               outlineOffset: 2,
