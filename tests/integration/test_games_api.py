@@ -722,6 +722,54 @@ def test_concurrent_votes_do_not_clobber_each_other(app, client, login_as, make_
     assert st["votes"] == {host_id: 0, p2_id: 1}  # 둘 다 살아 있어야 한다(유실 없음)
 
 
+# FN-20: 단판 가위바위보(submit_rps)·숫자 눈치(submit_number)는 이미 _cas_update_state를
+# 쓰는데 토너먼트 제출(_tournament_submit)만 무조건 덮어쓰기였다 — 같은 결함을 같은 방식으로
+# 고쳤다는 것을 위 test_concurrent_votes_do_not_clobber_each_other와 같은 기법으로 고정한다.
+def test_concurrent_tournament_submits_do_not_clobber_each_other(app, client, login_as, make_user):
+    """서로 다른 대진 두 곳의 제출이 거의 동시에 커밋되면, 나중에 커밋되는 쪽이 앞서 커밋된
+    다른 대진의 선택을 지우면 안 된다(4인 토너먼트 1라운드 = 대진 2개)."""
+    from app.games import service as game_service
+    from app.games.models import GameRoom
+    from app.users.models import User
+
+    import json as _json
+
+    csrf = login_as("user", email="tourrace-h@goodmit.co.kr")
+    rid = _create(client, csrf, title="토너먼트 경합", game_type="rps",
+                  config={"mode": "tournament", "timer_seconds": 0})["id"]
+    for e in ("tourrace-p2@goodmit.co.kr", "tourrace-p3@goodmit.co.kr", "tourrace-p4@goodmit.co.kr"):
+        make_user(e)
+        c, cs = _login_other(app, e)
+        with c:
+            c.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+
+    with app.state.session_factory() as peek:
+        raw_matches = _json.loads(peek.get(GameRoom, rid).state_json)["matches"]
+    assert len(raw_matches) == 2  # 4명 → 대진 2개
+    uid_match0 = raw_matches[0]["a"]
+    uid_match1 = raw_matches[1]["a"]
+
+    now = app.state.clock.now()
+    factory = app.state.session_factory
+    # 두 세션이 제출 전(둘 다 미제출) state를 각자 읽는다 — 실제 동시 요청이 같은 옛
+    # state_json을 읽는 상황을 그대로 재현한다.
+    sa, sb = factory(), factory()
+    room_a, room_b = sa.get(GameRoom, rid), sb.get(GameRoom, rid)
+    game_service.submit_rps(sa, room_a, sa.get(User, uid_match0), choice=0, now=now)
+    sa.commit()
+    game_service.submit_rps(sb, room_b, sb.get(User, uid_match1), choice=1, now=now)
+    sb.commit()
+
+    with app.state.session_factory() as peek:
+        after_matches = _json.loads(peek.get(GameRoom, rid).state_json)["matches"]
+    # 두 대진 각각 정확히 한 슬롯(자기 자신)이 제출됐어야 한다 — 유실 없음.
+    submitted = sum(
+        1 for m in after_matches for k in ("a_choice", "b_choice") if m.get(k) is not None
+    )
+    assert submitted == 2, f"두 대진 중 하나의 제출이 유실됐다(lost update): {after_matches}"
+
+
 def test_quiz_generate_flag_off_and_csrf(client, login_as):
     csrf = login_as("user", email="qgen@goodmit.co.kr")
     # CSRF 없음 → 403(require_csrf 먼저). 있으면 플래그 OFF(기본)라 404.

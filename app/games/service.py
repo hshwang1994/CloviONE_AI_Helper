@@ -500,7 +500,7 @@ def maybe_autoresolve(db: Session, room: GameRoom, *, now: datetime) -> None:
         _finish_number(db, room, _SYSTEM_ACTOR, now=now)
     elif gt == GAME_RPS:
         if state.get("mode") == "tournament":
-            _finish_rps_tournament(db, room, _SYSTEM_ACTOR, state, now=now)
+            _finish_rps_tournament(db, room, _SYSTEM_ACTOR, now=now)
         else:
             _finish_rps(db, room, _SYSTEM_ACTOR, now=now)
     elif gt == GAME_QUIZ:
@@ -520,19 +520,28 @@ def finish_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Ga
     if room.game_type == GAME_RPS:
         state = json.loads(room.state_json or "{}")
         if state.get("mode") == "tournament":
-            return _finish_rps_tournament(db, room, user, state, now=now)
+            return _finish_rps_tournament(db, room, user, now=now)
         return _finish_rps(db, room, user, now=now)
     raise ValidationAppError("종료할 게임이 없습니다.")
 
 
-def _finish_rps_tournament(db, room, user, state, *, now) -> GameRoom:
-    """방장/타임아웃이 현재 라운드를 마감 → 미결 대진은 서버가 무작위로 채우고 다음 라운드/챔피언."""
-    _tournament_advance(db, room, state, now=now, force=True)
-    if room.status == ROOM_PLAYING:  # 챔피언이 아직 안 나옴 → 다음 라운드로 넘어감
-        room.state_json = json.dumps(state, ensure_ascii=False)
+def _finish_rps_tournament(db, room, user, *, now) -> GameRoom:
+    """방장/타임아웃이 현재 라운드를 마감 → 미결 대진은 서버가 무작위로 채우고 다음 라운드/챔피언.
+
+    FN-20: 방장의 수동 마감과 `maybe_autoresolve`(마감시각이 지난 뒤 room_state를 폴링하는
+    여러 요청이 거의 동시에 부를 수 있다)가 겹칠 수 있어 `_cas_update_state`로 감싼다."""
+    def _apply(current_state: dict) -> dict:
+        return _tournament_advance(db, room, current_state, now=now, force=True)
+
+    new_state = _cas_update_state(db, room, _apply)
+    if "result" in new_state:
+        room.status = ROOM_FINISHED
         db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=None,
+                      payload={"champion": new_state["result"]["champion"]}, now=now)
+    else:  # 챔피언이 아직 안 나옴 → 다음 라운드로 넘어감
         _append_event(db, room, EV_SYSTEM, actor_id=user.id,
-                      payload={"tournament": "round_advanced", "round": state.get("round_idx")}, now=now)
+                      payload={"tournament": "round_advanced", "round": new_state.get("round_idx")}, now=now)
     return room
 
 
@@ -664,7 +673,7 @@ def submit_rps(db: Session, room: GameRoom, user: User, *, choice: int, now: dat
         raise ValidationAppError("가위/바위/보 중에서 내세요.")
     state = json.loads(room.state_json or "{}")
     if state.get("mode") == "tournament":
-        _tournament_submit(db, room, user, state, choice=choice, now=now)
+        _tournament_submit(db, room, user, choice=choice, now=now)
         return
 
     def _apply(state: dict) -> dict:
@@ -738,29 +747,53 @@ def _resolve_match(m: dict) -> None:
     m["done"] = True
 
 
-def _tournament_submit(db, room, user, state, *, choice, now) -> None:
-    for m in state.get("matches", []):
-        if m.get("done"):
-            continue
-        if m["a"] == user.id:
-            m["a_choice"] = choice
-        elif m.get("b") == user.id:
-            m["b_choice"] = choice
-        else:
-            continue
-        _resolve_match(m)
-        _tournament_advance(db, room, state, now=now, force=False)
-        # 챔피언이 나오면 advance가 이미 result를 room.state_json에 썼다 — 덮어쓰지 않는다.
-        if room.status == ROOM_PLAYING:
-            room.state_json = json.dumps(state, ensure_ascii=False)
+def _tournament_submit(db, room, user, *, choice, now) -> None:
+    """FN-20: 대진 둘 이상이 같은 라운드에서 거의 동시에 제출되면(서로 다른 스레드가 독립
+    세션으로 같은 옛 state_json을 읽어) 예전엔 무조건 덮어쓰기라 나중에 커밋되는 쪽이 앞서
+    커밋된 다른 대진의 선택을 통째로 지웠다 — submit_number/단판 submit_rps가 이미 쓰는
+    `_cas_update_state`(낙관적 동시성 제어)와 똑같은 결함 부류다. mutate 클로저는 CAS가
+    매 시도 새로 읽은 최신 state에서 동작해야 하므로, 호출부가 미리 파싱해 둔 state를
+    쓰지 않고 클로저 인자로 받은 것만 쓴다."""
+    def _apply(current_state: dict) -> dict:
+        found = False
+        for m in current_state.get("matches", []):
+            if m.get("done"):
+                continue
+            if m["a"] == user.id:
+                m["a_choice"] = choice
+            elif m.get("b") == user.id:
+                m["b_choice"] = choice
+            else:
+                continue
+            found = True
+            _resolve_match(m)
+            break
+        if not found:
+            raise ForbiddenError("이번 라운드 대진에 없습니다(이미 탈락했거나 관전 중).")
+        return _tournament_advance(db, room, current_state, now=now, force=False)
+
+    new_state = _cas_update_state(db, room, _apply)
+    if "result" in new_state:
+        # 챔피언이 나왔다 — room.status는 CAS가 안 건드리므로 여기서 직접 확정한다.
+        # 이 지점에 도달하는 것은 CAS를 실제로 이긴 시도 하나뿐이라 중복 전이 위험이 없다.
+        room.status = ROOM_FINISHED
         db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=None,
+                      payload={"champion": new_state["result"]["champion"]}, now=now)
+    else:
         _append_event(db, room, EV_PICK, actor_id=user.id, payload={"name": user.display_name}, now=now)
-        return
-    raise ForbiddenError("이번 라운드 대진에 없습니다(이미 탈락했거나 관전 중).")
 
 
-def _tournament_advance(db, room, state, *, now, force: bool) -> None:
-    """라운드가 끝났으면 다음 라운드를 짜거나 챔피언을 확정한다. force면 미결 대진을 서버가 마감."""
+def _tournament_advance(db, room, state: dict, *, now, force: bool) -> dict:
+    """라운드가 끝났으면 다음 라운드를 짜거나 챔피언을 확정한다. force면 미결 대진을 서버가 마감.
+
+    FN-20: `room`/`db`는 **읽기 전용**으로만 쓴다(`repository.get_member`로 나간 참여자를
+    거르는 용도) — `room.status`/`room.state_json`을 여기서 직접 쓰지 않는다. 이 함수는
+    `_cas_update_state`의 mutate 인자로 그대로 넘어가 재시도 시 여러 번 불릴 수 있으므로,
+    쓰기(감사 이벤트 포함)를 여기 두면 재시도마다 중복 발생한다. 챔피언이 결정되면 진행
+    중 모양(matches/round_idx 등)이 아니라 `_finish_vote`/`_finish_number`와 같은
+    `{"result": ...}` 모양을 돌려준다 — 호출부가 그 모양을 보고 `room.status`를 확정하고
+    감사 이벤트를 (승리한 시도 한 번만) 남긴다."""
     matches = state.get("matches", [])
     rng = secrets.SystemRandom()
     if force:
@@ -785,7 +818,7 @@ def _tournament_advance(db, room, state, *, now, force: bool) -> None:
             m["winner"] = rng.choice([m["a"], m["b"]]) if ac == bc else (m["a"] if _RPS_BEATS[ac] == bc else m["b"])
             m["done"] = True
     if not matches or not all(m.get("done") for m in matches):
-        return  # 아직 진행 중
+        return state  # 아직 진행 중
 
     def _wname(m):  # 승자 이름은 대진에 저장된 이름에서 — 참여자가 중간에 나가도 이름이 남는다
         w = m.get("winner")
@@ -810,11 +843,7 @@ def _tournament_advance(db, room, state, *, now, force: bool) -> None:
                 break
         state["champion"] = {"user_id": champ, "name": champ_name} if champ else None
         result = {"mode": "tournament", "champion": state["champion"], "rounds": state["rounds"]}
-        room.status = ROOM_FINISHED
-        room.state_json = json.dumps({"result": result}, ensure_ascii=False)
-        db.flush()
-        _append_event(db, room, EV_RESULT, actor_id=None, payload={"champion": state["champion"]}, now=now)
-        return
+        return {"result": result}
     name_by_uid: dict[str, str] = {}
     for m in matches:
         if m.get("a"):
@@ -830,6 +859,7 @@ def _tournament_advance(db, room, state, *, now, force: bool) -> None:
         state["deadline"] = (now + timedelta(seconds=timer)).isoformat()
     else:
         state.pop("deadline", None)
+    return state
 
 
 def _rps_tournament_public(state: dict, user_id: str) -> dict:
