@@ -205,6 +205,22 @@ def test_pending_past_expiry_lists_as_expired(client, login_as, workflow_id, fak
     assert match["status"] == "expired"
 
 
+def test_list_rejects_unknown_status_instead_of_silently_returning_zero(client, login_as):
+    """APPR-03: `status=all`(또는 다른 알 수 없는 값)이 조용히 0건을 주면 API를 직접
+    두드리는 쪽(스크립트·연동)이 "승인이 하나도 없다"로 오해한다 — 422로 원인을 말한다.
+    화면 자체는 안전하다(필터 기본값 pending, 선택지 5개 실제 상태뿐이라 'all'을 안 보낸다)."""
+    csrf = login_as("admin", email="unknown-status@goodmit.co.kr")
+    r = client.get("/api/admin/approvals?status=all", headers=_headers(csrf))
+    assert r.status_code == 422
+
+
+def test_list_accepts_all_five_known_statuses(client, login_as):
+    csrf = login_as("admin", email="known-status@goodmit.co.kr")
+    for status in ["pending", "approved", "rejected", "expired", "cancelled"]:
+        r = client.get(f"/api/admin/approvals?status={status}", headers=_headers(csrf))
+        assert r.status_code == 200, (status, r.text)
+
+
 def test_runner_endpoint_change_gated_for_admin(client, login_as):
     sys_csrf = login_as("system_admin", email="runner-owner@goodmit.co.kr")
     runner = client.post(

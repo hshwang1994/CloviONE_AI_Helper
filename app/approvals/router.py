@@ -11,8 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.approvals import delegation as delegation_service
 from app.approvals.models import (
+    APPROVAL_APPROVED,
+    APPROVAL_CANCELLED,
     APPROVAL_EXPIRED,
     APPROVAL_PENDING,
+    APPROVAL_REJECTED,
     Approval,
     ApprovalDelegation,
 )
@@ -28,6 +31,14 @@ from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.scope import Principal, visible_user_ids
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
+from app.core.errors import ValidationAppError
+
+# APPR-03: 화면 필터는 이 5개뿐이라(status=all은 아예 보내지 않는다) 실제로 걸릴 일이
+# 없었지만, API를 직접 두드리는 쪽(스크립트·연동)은 알 수 없는 값을 "승인이 하나도
+# 없다"(빈 목록)로 오해했다 — 조용히 0건 대신 400으로 원인을 말한다.
+_KNOWN_STATUSES = frozenset(
+    {APPROVAL_PENDING, APPROVAL_APPROVED, APPROVAL_REJECTED, APPROVAL_EXPIRED, APPROVAL_CANCELLED}
+)
 from app.core.errors import NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
@@ -96,6 +107,10 @@ def list_approvals(
     if requested_by:
         stmt = stmt.where(Approval.requested_by == requested_by)
     if status:
+        if status not in _KNOWN_STATUSES:
+            raise ValidationAppError(
+                "status는 " + ", ".join(sorted(_KNOWN_STATUSES)) + " 중 하나여야 합니다."
+            )
         # 목록 배지는 '유효 상태'를 보여준다: 만료시각이 지난 pending은 sweep이 반영하기
         # 전에도 expired로 표시된다(approval_view). 필터도 같은 유효 상태로 골라야
         # 라벨과 결과가 어긋나지 않는다 — 저장된 컬럼만 보면 '만료'가 그런 행을 놓치고
