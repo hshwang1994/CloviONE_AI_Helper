@@ -55,6 +55,31 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # ticket/document 항목이 추가될 때 이 자리만 표에서 빠져 related_route 가 늘 null
     # 이었다 — ticket_comment·document_comment 가 겪었던 것과 같은 결함이다.
     "board_post": "/board/{id}",
+    # 승인/스케줄/작업 큐/러너 — 넷 다 같은 모양의 결함이었다: 화면은 이미 `?id=`(작업 큐만
+    # `?job_id=`) 딥링크(`onQuery`)를 지원하고 백엔드도 그 id를 실어 `related=(...)`로
+    # 이미 보내고 있는데(각 서비스 코드에서 직접 확인), 이 표에만 칸이 없어 `related_route`가
+    # 항상 null이었다 — 예전에 이 표를 처음 만들 때 "목록 화면이라 id 자리가 없다"고 적어
+    # 둔 전제가, 그 뒤 각 화면이 onQuery를 갖추면서 낡아 버렸다(ticket/document/board_post가
+    # 겪었던 것과 같은 부류: 화면은 준비됐는데 서버 쪽 표만 안 따라온 경우). 넷 다 프런트의
+    # 로컬 표(NotificationBell.jsx의 자체 OBJ_ROUTE/OBJ_ID_PARAM, registry/shared.js)에는
+    # 이미 등록돼 있어 그 경로로는 동작해 왔다 — 이 표를 채우는 것은 새 기능이 아니라, 이
+    # 모듈의 docstring이 약속하는 대로("서버가 계산해서 응답에 실어 준다") 서버를 단일
+    # 출처로 되돌리는 정리다.
+    #
+    # 승인(approval_requested, approval_decided) — id는 approvals.id, `/approvals`
+    # (registry/governance.js)가 `onQuery: p.id ? {open:"select", id:p.id} : ...`.
+    "approval": "/approvals?id={id}",
+    # 스케줄(schedule_disabled 등) — id는 schedules.id, `/schedules`(registry/automation.js)가
+    # `onQuery: p.id ? {open:"select", id:p.id} : ...`. schedule_run(개별 실행)은 그런 화면이
+    # 없어 여전히 뺀다(아래 참고) — schedule 본체와는 다른 object_type이다.
+    "schedule": "/schedules?id={id}",
+    # 작업 큐(job_failed 등, app/jobs/worker.py) — id는 jobs.id인데 화면의 파라미터 이름은
+    # `job_id`다(다른 셋과 다름, registry/automation.js의 jobs.onQuery: `p.job_id ? ... : ...`).
+    "job": "/jobs?job_id={id}",
+    # 러너(runner_unavailable, app/runners/service.py 서킷브레이커 degraded) — id는
+    # runners.id, `/runners`(registry/integrations.js)가
+    # `onQuery: p.id ? {open:"select", id:p.id} : ...`.
+    "runner": "/runners?id={id}",
 }
 
 # 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라
@@ -65,10 +90,15 @@ RELATED_DESTINATIONS: dict[str, str] = {
 # (related_object_type 은 "document_generation" 이라 위 team_docs 의 "document" 와 겹치지
 # 않는다 — app/jobs/handlers/document_generate.py 참고.)
 
-# 아직 표에 없는 관련 유형(approval / schedule / job / runner / user)은 **일부러** 비워 둔다.
-# 그 화면들은 전부 목록 화면(DataScreen)이라 경로에 id 자리가 없다 — 보내 봐야 목록만 열리고
-# 사용자는 대상을 눈으로 다시 찾아야 한다. 위 docstring 의 첫 번째 규칙이 그것이다.
-# 그 화면들이 단건 라우트를 갖게 되는 날 여기 한 줄씩 추가하면 프런트는 손대지 않는다.
+# 아직 표에 없는 관련 유형(schedule_run / user)은 **일부러** 비워 둔다.
+# schedule_run — '#/schedules'로 보내도 특정 실행 한 건을 찾아 주는 딥링크가 없다(스케줄
+# 자체와 달리 실행 이력에는 onQuery가 없다).
+# user(account_locked 등) — NotificationBell.jsx의 자체 주석대로 Users.jsx는 목록 화면이고
+# id 딥링크(onQuery)가 아예 없다 — 만들려면 이 표가 아니라 그 화면에 먼저 배선이 필요하다.
+# 둘 다 위 docstring의 첫 번째 규칙("그 화면이 실제로 그 id를 소비해야 한다")에 걸린다 —
+# 보내 봐야 목록만 열리고 사용자는 대상을 눈으로 다시 찾아야 한다. 그 화면들이 단건
+# 딥링크를 갖게 되는 날 여기 한 줄씩 추가하면 프런트는 손대지 않는다(approval/schedule/
+# job/runner가 방금 그 경로를 그대로 밟았다).
 
 
 def destination_for(related_object_type: str | None, related_object_id: str | None) -> str | None:

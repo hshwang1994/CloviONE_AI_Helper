@@ -1723,7 +1723,7 @@ RESTORE_REHEARSAL_OK
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| APPR-01 | **High** | **승인 알림에 갈 곳이 없다.** `approval_requested`·`approval_decided` 둘 다 `related_route: null` — 눌러도 아무 데도 안 간다(`NOTI-04` 의 가장 나쁜 사례다. 승인은 **행동이 반드시 필요한** 유일한 알림 유형인데 그 알림이 승인 화면으로 못 간다). `destinations.py:68-71` 이 `approval` 을 "목록 화면이라" 뺐는데, **같은 화면의 「감사 로그에서 보기」는 `?object_type=&object_id=` 질의 딥링크를 이미 쓴다** — 같은 방식이면 승인도 된다 | 발견 |
+| APPR-01 | **High** | **승인 알림에 갈 곳이 없다.** `approval_requested`·`approval_decided` 둘 다 `related_route: null` — 눌러도 아무 데도 안 간다(`NOTI-04` 의 가장 나쁜 사례다. 승인은 **행동이 반드시 필요한** 유일한 알림 유형인데 그 알림이 승인 화면으로 못 간다). `destinations.py:68-71` 이 `approval` 을 "목록 화면이라" 뺐는데, **같은 화면의 「감사 로그에서 보기」는 `?object_type=&object_id=` 질의 딥링크를 이미 쓴다** — 같은 방식이면 승인도 된다 ‖ **구현완료**: 아래 재확인 절(§2687)이 지적한 대로 프런트 로컬 표(`OBJ_ROUTE`/`OBJ_ID_PARAM`, `NotificationBell.jsx`+`shared.js`)엔 이미 `approval`이 있어 폴백으로 어느 정도 동작했을 수 있지만, `destinations.py` 자체가 여전히 `null`을 주는 것은 이 모듈의 docstring이 약속하는 "서버가 계산해서 준다"는 단일 출처 원칙을 어기는 상태였다. 직접 코드를 재확인하니 **같은 결함이 approval 하나가 아니라 넷**이었다 — `schedule`·`job`(파라미터 이름이 `job_id`로 다름)·`runner`도 전부 각 화면에 이미 `onQuery`(id 딥링크)가 있고 백엔드도 이미 `related=(...)`로 그 id를 보내는데 표에서만 빠져 있었다(`app/approvals/service.py`·`app/jobs/handlers/schedule_run.py`·`app/jobs/worker.py`·`app/runners/service.py`에서 각각 확인). 네 줄 추가 + docstring 갱신. `tests/unit/test_notification_destinations.py` 38건(순수 함수 단위 시험, DB 불필요), revert-to-verify(되돌리면 새 4건 실패 확인 후 복원). `schedule_run`·`user`는 대상 화면에 여전히 id 딥링크가 없어 그대로 제외(`user`는 `NOTI-04R` 참고 — 별도 작업) |
 | APPR-02 | Med | **알림 제목이 내부 식별자를 그대로 보여 준다** — «승인 요청: **`user.role_change`**» / «승인 완료: **`user.role_change`**». 사람이 읽는 화면에 코드 상수가 나온다. 화면 쪽은 이미 사람 말로 옮길 재료를 갖고 있다(요청자 이름·대상·이전 역할→요청 역할이 payload 에 있다) | 발견 |
 | APPR-03 | Low | **`GET /api/admin/approvals?status=all` 이 조용히 0건을 준다.** `all` 을 리터럴 상태값으로 취급해 아무것도 매칭되지 않는다. ‖ **화면은 안전하다** — 필터 기본값이 `pending` 이고 선택지가 5개 실제 상태뿐이라 `all` 을 보내지 않는다. 그러나 API 를 직접 쓰는 쪽(스크립트·연동)은 **"승인이 하나도 없다"로 읽는다.** 알 수 없는 `status` 값은 400 이어야 한다 | 발견 |
 
@@ -2684,7 +2684,7 @@ account_locked     → /users                 (목록만 열린다)
 |---|---|
 | ~~`NOTI-04`(103건 중 3건)~~ | **철회** |
 | `NOTI-04R` (Med) | **`user` 유형 알림 52건이 대상 한 명이 아니라 목록으로 간다.** `OBJ_ID_PARAM` 에 `user` 를 넣고 `Users.jsx` 에 `id` 질의를 소비시키면 끝 |
-| `APPR-01`(승인 알림에 갈 곳 없음) | **재확인 필요** — `OBJ_ROUTE` 에 `approval` 이 있으므로 폴백이 동작할 수 있다 |
+| `APPR-01`(승인 알림에 갈 곳 없음) | **재확인 완료·구현완료** — 지적대로 프런트 폴백은 있었지만, `destinations.py`(서버) 자체가 `null`을 주는 것 자체가 이 모듈의 "서버가 단일 출처" 설계를 어기는 상태라 그대로 고쳤다. 조사 중 같은 결함이 `schedule`/`job`/`runner` 셋에도 있음을 추가로 확인해 함께 고쳤다 |
 
 ## ③ `HOST-01` — 숫자는 진짜인데 **일어날 수 없는 입력으로 만든 숫자**다
 

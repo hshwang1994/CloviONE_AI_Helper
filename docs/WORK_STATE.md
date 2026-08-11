@@ -324,6 +324,37 @@ active; web healthz OK"`로 바뀌었는지 사용자가 확인할 수 있다.
 다음은 VIS-108R을 미룬 자리를 채울 다른 후보를 다시 코드로 재확인해 고른다 — 사용자 확인
 대기 없이 진행한다.
 
+**VIS-159 기록만(구현 안 함)**: 채팅 링크 다듬기(`trimUrlTail`, `chat-text.js`)가 자기
+주석의 예시("...(https://a.b/c)에서")를 실제로는 못 고친다 — node로 직접 돌려 확인함. 닫는
+괄호 뒤에 공백 없이 조사가 바로 붙으면 마지막 글자가 문장부호/닫는 괄호가 아니라 다듬기
+반복문이 첫 바퀴에 멈춘다. 팀 채팅·AI 채팅 둘 다 같은 함수를 써서 같은 결함을 물려받는다.
+**안 고친 이유**: 이 앱은 임의 외부 URL도 링크화하고 실제 Notion URL은 한글 슬러그를 그대로
+담을 수 있어("URL에서 한글 배제" 같은 손쉬운 수정은 정상 슬러그까지 자를 위험) 전용 경계
+판정 로직 설계가 필요한 별도 작업이다 — 서두르면 반쪽짜리 정규식이 남는다. `docs/BACKLOG.md`
+VIS-159에 재현 방법과 함께 기록.
+
+**APPR-01 구현완료 — 승인/스케줄/작업 큐/러너 알림 딥링크 넷 다 같은 결함**: `RG-02`(팀
+문서 댓글)를 고칠 때 발견한 것과 정확히 같은 부류의 결함이 조사 중 4건 더 발견됐다. 각
+화면(`/approvals`·`/schedules`·`/jobs`·`/runners`)은 전부 이미 `onQuery`로 `?id=`(작업
+큐만 `?job_id=`) 딥링크를 지원하고, 백엔드도 이미 `related=("approval"/"schedule"/"job"/
+"runner", id)`로 그 id를 알림에 싣고 있는데, `app/notifications/destinations.py`의
+`RELATED_DESTINATIONS`표에만 네 유형이 전부 빠져 있어 `related_route`가 항상 `null`이었다
+— 이 표를 처음 만들 때 "그 화면들은 목록 화면이라 id 자리가 없다"고 적어 둔 전제가 각
+화면이 onQuery를 갖추면서 낡아 있었다. 프런트 로컬 표(`NotificationBell.jsx` 자체
+`OBJ_ROUTE`/`OBJ_ID_PARAM`, `registry/shared.js`)엔 이미 네 유형이 다 있어 어느 정도
+폴백으로 동작했겠지만, 서버 표가 `null`을 주는 것 자체가 이 모듈의 "서버가 단일 출처"
+설계 원칙(모듈 자체 docstring)을 어기는 상태였다. 네 줄 추가 + docstring 갱신(스케줄
+실행 이력의 `schedule_run`과 `user`는 여전히 대상 화면에 id 딥링크가 없어 제외).
+`tests/unit/test_notification_destinations.py` 38건(순수 함수 단위 시험, DB 불필요),
+revert-to-verify(되돌리면 새 4건 실패 확인 후 복원). 프런트 변경 없음(이미 준비된 로컬
+표가 서버 값을 우선하도록 이미 배선돼 있음, 기존 프런트 시험 재확인으로 무충돌 확인).
+
+**남겨진 관련 항목 — `NOTI-04R`**: `user` 유형 알림(`account_locked` 등) 52건이 여전히
+대상 한 명이 아니라 `/users` 전체 목록으로 간다 — `Users.jsx`가 registry 기반이 아닌
+수제 화면이라 `onQuery`(id 딥링크) 자체가 없다(VIS-81 재조사 때 이미 확인한 사실과 동일).
+APPR-01과 달리 이건 **화면에 새 기능을 만드는 것**(Users.jsx에 `?id=` 소비 로직 추가)이라
+"표만 채우면 되는" 규모가 아니다 — 다음 후보로 고려할 만하지만 별도 판단 필요.
+
 ---
 
 ## 🟣 MEGA CYCLE H — AI 도우미, MEGA CYCLE A 후속 quick-fix 스윕 완료 (2026-08-10)
