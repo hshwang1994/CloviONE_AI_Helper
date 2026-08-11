@@ -134,3 +134,48 @@ def test_catalog_covers_every_mutable_type():
     catalog = prefs.notification_type_catalog()
     assert {row["key"] for row in catalog} == set(prefs.NOTIFICATION_TYPES)
     assert all(row["label"] and row["help"] for row in catalog)
+
+
+# NOTI-03: chat_invited가 이 레지스트리(NOTIFICATION_TYPES)에 없는데 프로덕션에는 실제로
+# 발생했다는 기록이 있었다 — 재조사하니 chat_invited 자체는 이미 등록돼 있었지만(오래전
+# 정정, 이 낡은 기록만 안 갱신됨), 같은 클래스의 결함이 실제로 여섯 건 더 있었다:
+# approval_delegated/approval_overdue/board_comment/document_comment/idea_status_changed/
+# ticket_comment가 실제로 알림을 만드는데 레지스트리엔 없어 사용자가 절대 끌 수 없었다.
+# 한 번 고치고 끝나는 게 아니라 **재발을 막아야** 한다 — 실제 `notify_user`/`notify_admins`/
+# `notify_approvers` 호출부의 `type_=`을 전부 스캔해 NOTIFICATION_TYPES(뮤트 가능) ∪
+# UNMUTABLE_TYPES(의도적으로 뮤트 불가) 밖에 있는 유형이 있으면 잡는다.
+def _all_notify_type_call_sites() -> set[str]:
+    """app/ 전체에서 실제로 쓰이는 `type_="literal"` 값을 정적으로 모은다.
+
+    `notifications/service.py` 자신의 `type_=type_`(내부 전달 매개변수)은 새 유형이
+    아니므로 제외한다 — 호출부가 넘기는 실제 리터럴만 센다.
+
+    **한계, 정직하게 남긴다**: 정규식이 문자열 리터럴만 잡는다 — `type_=SOME_CONSTANT`처럼
+    상수로 넘기는 호출부(현재 chat_invited/chat_mentioned 두 곳, `app/team_chat/service.py`)는
+    이 스캔에 안 잡힌다. 지금은 둘 다 이미 등록돼 있어 새는 곳이 없지만, 상수 기반 호출부가
+    늘면 이 가드가 그것까지 잡지는 못한다 — 완전한 정적 분석(AST + import 해석)이 필요하면
+    그때 넓힌다.
+    """
+    import re
+    from pathlib import Path
+
+    app_dir = Path(prefs.__file__).resolve().parents[1]
+    pattern = re.compile(r'type_="([a-z_]+)"')
+    found: set[str] = set()
+    for path in app_dir.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        found.update(pattern.findall(text))
+    return found
+
+
+def test_every_notify_call_site_type_is_registered_somewhere():
+    all_types = _all_notify_type_call_sites()
+    assert all_types, "스캔이 아무것도 못 찾았다 — 정규식이나 경로가 깨졌을 수 있다"
+    known = set(prefs.NOTIFICATION_TYPES) | prefs.UNMUTABLE_TYPES
+    missing = all_types - known
+    assert not missing, (
+        f"이 유형들은 실제로 알림을 만드는데 NOTIFICATION_TYPES/UNMUTABLE_TYPES 어디에도 "
+        f"없다 — 사용자가 절대 끌 수 없다: {missing}"
+    )
