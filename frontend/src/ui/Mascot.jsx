@@ -355,13 +355,19 @@ export function MascotSidebarCard({ onClick }) {
       <MascotMini mode="listening" size={48} plateRadius={13} plateOpacity={0.94}
         label="클로비가 질문을 기다리는 모습" />
       <Box minWidth={0}>
-        <Typography color="common.white" fontSize="12px" fontWeight={800}>
+        {/* QA-하네스: 4K(>=3840px)에서 tiny_text 검사가 절대 px 글자 크기는 잡는다 — 루트
+            글자 크기 레버(16→18→20px)가 커져도 px로 박힌 크기는 그대로다. DS-32가 같은
+            원인의 다른 자리(TopSearch.jsx·kit.css)를 고치며 세운 관례(px→rem, 12px
+            하한 밑이면 0.75rem으로 올림)를 그대로 따른다 — 이 자리는 그 스윕에서 빠져
+            있었다(실측: 3840×2160에서 사용자 콘솔 66개 화면 전부 실패, 하나의 공용
+            컴포넌트라 한 곳만 고치면 전부 해소된다). */}
+        <Typography color="common.white" fontSize="0.8125rem" fontWeight={800}>
           클로비에게 물어보기
         </Typography>
         {/* wordBreak:"keep-all" — 한글 기본값은 아무 데서나 끊어서 "도와드/려요"처럼 단어
             중간에 줄이 바뀐다. 좁은 사이드바에서는 반드시 두 줄이 되므로 띄어쓰기에서만
             끊기게 한다(한국어 조판의 기본 설정이다). */}
-        <Typography color="sidebar.muted" fontSize="10px" lineHeight={1.35} mt="3px"
+        <Typography color="sidebar.muted" fontSize="0.75rem" lineHeight={1.35} mt="3px"
           sx={KO_WORD_BREAK}>
           현재 화면을 기준으로 도와드려요
         </Typography>
