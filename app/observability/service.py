@@ -31,7 +31,6 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.observability.models import (
-    SYNC_ERROR,
     SYNC_OK,
     SyncStatus,
     UsageEvent,
@@ -44,8 +43,14 @@ logger = logging.getLogger("app.observability")
 EVENT_LOGIN = "auth.login"
 EVENT_TICKET_CREATE = "ticket.create"
 EVENT_DOCUMENT_GENERATE = "document.generate"
+# app/quotas/service.py가 쓴다 — "여기서만 만든다"는 위 규칙대로 정본은 여기 하나다.
+EVENT_AI_CALL = "ai.call"
 
-KNOWN_EVENTS = frozenset({EVENT_LOGIN, EVENT_TICKET_CREATE, EVENT_DOCUMENT_GENERATE})
+# UB-25: 예전엔 이 집합이 어디서도 안 쓰여 "오타 누적 방지"라는 존재 이유가 이름뿐이었다
+# (실제로 EVENT_AI_CALL이 quotas/service.py에 따로 정의돼 있었고 여기 목록엔 없었다 — 이
+# 집합이 정말 강제됐다면 그 드리프트가 그 자리에서 바로 드러났을 것이다). record_usage()
+# 안에서 검사한다.
+KNOWN_EVENTS = frozenset({EVENT_LOGIN, EVENT_TICKET_CREATE, EVENT_DOCUMENT_GENERATE, EVENT_AI_CALL})
 
 
 def record_usage(
@@ -74,6 +79,12 @@ def record_usage(
     그대로 남는다.
     """
     try:
+        # UB-25: event 이름은 이 파일에서만 만든다는 규칙(위 모듈 docstring)을 이제 실제로
+        # 강제한다 — 이 검사도 함수 전체를 감싸는 바깥 except에 잡히므로("실패해도 예외를
+        # 밖으로 내보내지 않는다") 오타 하나가 호출자의 로그인·티켓 생성까지 끌고 내려가지
+        # 않는다. 대신 로그에 남아 집계가 조용히 반토막 나는 것을 막는다.
+        if event not in KNOWN_EVENTS:
+            raise ValueError(f"알 수 없는 usage event: {event!r} (KNOWN_EVENTS에 없음)")
         row = UsageEvent(
             event=event,
             user_id=user_id,
@@ -139,7 +150,13 @@ def upsert_sync_status(
 
 
 def sync_status_view(row: SyncStatus) -> dict:
-    """화면(관리자 대시보드·상태 배너)이 그대로 쓰는 모양."""
+    """운영자 이상에게 붙는 컴포넌트별 진단(app/observability/router.py::system_status).
+
+    UB-25: `list_sync_status`(호출부 0, 삭제함)와 달리 이 함수는 실제로 쓰인다 —
+    tests/integration/test_admin_backlog.py::test_operators_get_component_detail이
+    운영자 이상 응답에 이 모양을 요구한다. `detail_json`은 의도적으로 안 뺀다(문제
+    진단용 원시 상세라 일반 요약과 섞으면 오히려 읽기 어렵다 — 필요해지면 그때 추가).
+    """
     return {
         "component": row.component,
         "status": row.status,
@@ -153,8 +170,3 @@ def sync_status_view(row: SyncStatus) -> dict:
     }
 
 
-def list_sync_status(db: Session) -> list[dict]:
-    from sqlalchemy import select
-
-    rows = db.execute(select(SyncStatus).order_by(SyncStatus.component)).scalars().all()
-    return [sync_status_view(r) for r in rows]

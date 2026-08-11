@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import RateLimitedError, ValidationAppError
 from app.observability.models import UsageEvent
+from app.observability.service import EVENT_AI_CALL
 from app.quotas import quota_lock
 from app.quotas.models import (
     ALL_PERIODS,
@@ -32,9 +33,11 @@ logger = logging.getLogger("app.quotas")
 
 _KST = ZoneInfo("Asia/Seoul")
 
-# 쿼터가 세는 이벤트. `app/observability/service.py` 의 이벤트 이름들과 달리 이건 'AI 호출'
-# 이라는 **비용 축**이라 별도 이름을 쓴다 — meta.kind 로 어느 기능인지 구분한다.
-EVENT_AI_CALL = "ai.call"
+# 쿼터가 세는 이벤트. 'AI 호출'이라는 **비용 축**이라 다른 감사성 이벤트(로그인·티켓 생성 등)와
+# 뜻이 다르지만(meta.kind로 어느 기능인지 구분한다), 값 자체는 여전히 observability/service.py
+# 하나에서만 만든다(UB-25) — 예전엔 여기서 별도로 "ai.call"을 다시 정의해서, 그 파일의
+# KNOWN_EVENTS(오타 누적 방지용 집합)가 이 이벤트를 몰랐다. 문자열이 같아도 정의가 둘이면
+# 결국 갈라진다.
 
 KIND_ASSISTANT_NARRATIVE = "assistant_narrative"
 KIND_DOCUMENT_GENERATE = "document_generate"

@@ -171,8 +171,12 @@ def system_status(
         # 부하를 줄이려 할 때 배포가 두 번 필요하다.
         "poll_seconds": 120,
     }
-    # 운영자 이상에게만 원인을 붙인다. 일반 사용자에게 컴포넌트 이름과 예외를 보여 주는
-    # 것은 도움이 안 되면서 내부 구조만 알려 주는 일이다.
+    # UB-25 재검토: 처음엔 이 필드를 죽은 코드로 보고 지우려 했다 — 지금 프런트 배너
+    # (frontend/src/app/Banners.jsx)는 실제로 notices/poll_seconds만 읽는다. 그런데
+    # tests/integration/test_admin_backlog.py::test_operators_get_component_detail이
+    # 운영자 이상에게 이 필드가 실제 내용과 함께 오는 것을 이미 의도적으로 검증하고
+    # 있었다 — "소비자가 없다"가 아니라 "프런트가 아직 안 쓴다"였다. 되돌린다(BACKLOG
+    # 재정정, 실측 없이 지웠으면 이미 있는 테스트를 깨뜨릴 뻔했다).
     if user.role in CONSOLE_READ_ROLES:
         from app.observability.service import sync_status_view
 

@@ -9,7 +9,6 @@ from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 ROLE_USER_MSG = "user"
 ROLE_ASSISTANT_MSG = "assistant"
-ROLE_SYSTEM_MSG = "system"
 
 PROC_PENDING = "pending"
 PROC_PROCESSING = "processing"

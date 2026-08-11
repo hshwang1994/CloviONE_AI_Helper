@@ -16,6 +16,7 @@ import pytest
 
 from app.observability.models import UsageEvent
 from app.observability.service import (
+    EVENT_AI_CALL,
     EVENT_LOGIN,
     EVENT_TICKET_CREATE,
     KNOWN_EVENTS,
@@ -126,6 +127,32 @@ def test_event_names_come_from_one_place():
     assert all(name.count(".") == 1 for name in KNOWN_EVENTS), (
         f"이벤트 이름은 '<도메인>.<행동>' 형태여야 한다: {sorted(KNOWN_EVENTS)}"
     )
+
+
+def test_ai_call_event_is_known():
+    """UB-25: EVENT_AI_CALL이 예전엔 app/quotas/service.py에 따로 정의돼 있어 이
+    KNOWN_EVENTS 집합엔 없었다 — "여기서만 만든다"는 규칙이 실제로는 안 지켜지고 있었다."""
+    assert EVENT_AI_CALL in KNOWN_EVENTS
+
+
+def test_quotas_imports_the_same_event_constant_not_a_duplicate():
+    """정본이 하나임을 값이 아니라 **정의가 하나**임으로 확인한다 — 문자열만 같으면
+    두 곳에서 각자 정의해도 우연히 통과하지만, 그러면 한쪽만 고쳐도 다시 갈라진다."""
+    from app.quotas import service as quotas_service
+
+    assert quotas_service.EVENT_AI_CALL is EVENT_AI_CALL
+
+
+def test_record_usage_rejects_unknown_event_names(db):
+    """UB-25: KNOWN_EVENTS 검사를 실제로 강제한다 — 그래도 예외는 밖으로 안 샌다
+    (test_record_usage_never_raises와 같은 계약), 로그로만 남는다."""
+    from sqlalchemy import select
+
+    result = record_usage(db, event="totally.unknown.event")
+    assert result is None, "모르는 이벤트 이름이 조용히 저장됐다"
+    db.rollback()
+    saved = db.execute(select(UsageEvent)).scalars().all()
+    assert saved == [], "모르는 이벤트 이름이 usage_events에 그대로 남았다"
 
 
 def test_login_records_a_usage_event(client, login_as):
