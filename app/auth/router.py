@@ -400,9 +400,20 @@ def login(
                         body="잠금 시간이 지나면 자동 해제됩니다. 즉시 해제는 관리자에게 문의하세요.",
                         now=now,
                     )
+                    # ADM-03R: 이 알림에 자동 해제 사실이 없어 관리자가 "즉시 해제가 필요한
+                    # 사고"로 오인하고 매번 CLI로 풀었다(15분이면 스스로 풀리는 상태인데도) —
+                    # 그 결과가 이 제품이 스스로 만들어 내는 불필요한 SSH 트래픽이다. 사용자
+                    # 본인에게 보내는 알림(위)은 이미 "자동 해제됩니다"를 담고 있으니, 관리자
+                    # 알림에도 같은 사실 + 언제 풀리는지 + 기다려도 된다는 것을 명시한다.
+                    _lock_minutes = max(1, -(-settings.login_lock_seconds // 60))  # ceil division
                     notify_admins(
                         db, type_="account_locked",
                         title=f"계정 잠금 발생: {user.email}",
+                        body=(
+                            f"약 {_lock_minutes}분 후 자동으로 해제됩니다. 사용자가 즉시 접속해야 "
+                            "하는 경우가 아니라면 별도 조치 없이 기다려도 됩니다. 즉시 해제가 "
+                            "필요하면 사용자 상세에서 잠금 해제할 수 있습니다."
+                        ),
                         related=("user", user.id), now=now,
                     )
             # get_db의 자동 commit은 이 함수가 끝에서 항상 예외를 던지므로 절대 실행되지

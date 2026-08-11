@@ -114,7 +114,17 @@ def test_account_lock_notifies_admins(client, make_user, login_as, settings, db)
         )
 
     # 관리자 알림 존재 (본인 알림 + 관리자 알림).
-    from app.notifications.models import Notification
+    from app.notifications.models import AUDIENCE_ADMIN, Notification
 
     notes = db.query(Notification).filter(Notification.type == "account_locked").all()
     assert len(notes) >= 2
+
+    # ADM-03R 회귀 고정: 관리자 알림에 "자동 해제된다"는 사실 + 분 단위 ETA가 없으면
+    # 관리자가 항상 즉시 조치(CLI 잠금 해제)로 오인해 이 제품 스스로 불필요한 SSH
+    # 트래픽을 만들어 냈다.
+    admin_notes = [n for n in notes if n.audience == AUDIENCE_ADMIN]
+    assert admin_notes, "관리자 대상 계정 잠금 알림이 있어야 한다"
+    for note in admin_notes:
+        assert note.body, "관리자 알림에 본문이 없으면 자동 해제 여부를 알 길이 없다"
+        assert "분" in note.body and "자동" in note.body, note.body
+        assert "기다려도" in note.body or "별도 조치" in note.body, note.body
