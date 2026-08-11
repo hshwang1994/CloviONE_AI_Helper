@@ -13,7 +13,7 @@ from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
-from app.prompts.models import Policy, Prompt
+from app.prompts.models import STATUS_ARCHIVED, Policy, Prompt
 from app.runners.models import Runner
 from app.templates.models import TARGET_RUNNER, TARGET_WORKFLOW, AutomationTemplate
 from app.workflows.models import Workflow
@@ -107,10 +107,46 @@ def _validate_references(db: Session, payload: TemplateRequest) -> None:
     else:
         if db.get(Runner, payload.target_ref) is None:
             raise ValidationAppError("target_ref에 해당하는 Runner가 없습니다.")
-    if payload.prompt_id and db.get(Prompt, payload.prompt_id) is None:
-        raise ValidationAppError("prompt_id에 해당하는 Prompt가 없습니다.")
-    if payload.policy_id and db.get(Policy, payload.policy_id) is None:
-        raise ValidationAppError("policy_id에 해당하는 Policy가 없습니다.")
+    if payload.prompt_id:
+        prompt = db.get(Prompt, payload.prompt_id)
+        if prompt is None:
+            raise ValidationAppError("prompt_id에 해당하는 Prompt가 없습니다.")
+        # UB-29: archived는 "다시는 안 쓴다"는 의도적 퇴역 표시다(prompts/policies 상태
+        # 전이표, models.py — archived에서는 어디로도 못 나간다). 그런데 템플릿 생성/수정은
+        # 그 표시를 무시하고 새로 바인딩할 수 있었다 — draft/test/review는 여전히 허용한다
+        # (documents/service.py::_resolve_published_binding이 발행본이 없으면 그 pinned
+        # 값으로 폴백하는 의도적 fail-safe라, 여기서 더 엄격하게 막으면 그 설계와 충돌한다).
+        if prompt.status == STATUS_ARCHIVED:
+            raise ValidationAppError("보관(archived)된 Prompt는 템플릿에 새로 연결할 수 없습니다.")
+    if payload.policy_id:
+        policy = db.get(Policy, payload.policy_id)
+        if policy is None:
+            raise ValidationAppError("policy_id에 해당하는 Policy가 없습니다.")
+        if policy.status == STATUS_ARCHIVED:
+            raise ValidationAppError("보관(archived)된 Policy는 템플릿에 새로 연결할 수 없습니다.")
+
+
+def _validate_enable_target(db: Session, row: AutomationTemplate) -> None:
+    """UB-14: 활성화 시점에 대상이 여전히 살아 있는지 확인한다.
+
+    `_validate_references`는 생성·수정 시 "존재하는가"만 본다 — 활성화 이후 대상
+    Workflow/Runner가 **비활성화**돼도(삭제 경로는 이 저장소에 아예 없다 — Workflow/
+    Runner 둘 다 hard-delete route가 없다, "삭제된 뒤"라는 원 서술은 재확인 결과
+    재현 불가로 판정, `docs/BACKLOG.md` 참고) 템플릿은 계속 `enabled=True`로 남아 있었다.
+    그 어긋남은 관리자가 활성화를 누르는 순간이 아니라, 한참 뒤 다른 사용자가 문서 생성을
+    누르는 순간에야(`app/documents/service.py::request_generation`) 터졌다 — 활성화
+    시점에 미리 막아 그 지연을 없앤다.
+    """
+    if row.target_type == TARGET_WORKFLOW:
+        target = db.get(Workflow, row.target_ref)
+        label = "Workflow"
+    else:
+        target = db.get(Runner, row.target_ref)
+        label = "Runner"
+    if target is None:
+        raise ValidationAppError(f"대상 {label}을(를) 찾을 수 없어 활성화할 수 없습니다.")
+    if not target.enabled:
+        raise ConflictError(f"대상 {label}이(가) 비활성화 상태라 템플릿을 활성화할 수 없습니다.")
 
 
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
@@ -204,6 +240,8 @@ def _set_enabled(request: Request, db: Session, template_id: str, enabled: bool)
 
 @router.post("/{template_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def enable_template(request: Request, template_id: str, db: Session = Depends(get_db)):
+    row = _get_or_404(db, template_id)
+    _validate_enable_target(db, row)
     return _set_enabled(request, db, template_id, True)
 
 

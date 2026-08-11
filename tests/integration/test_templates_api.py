@@ -116,3 +116,55 @@ def test_rename_to_existing_name_returns_409_not_500(client, admin_csrf, workflo
                    json=_template_payload(workflow_id, name="템플릿 B"),
                    headers=_headers(admin_csrf))
     assert r.status_code == 409, r.text
+
+
+# UB-14: 활성화 시점에 대상 Workflow가 여전히 살아 있는지 확인해야 한다 — 예전엔 비활성화된
+# 대상을 가리키는 템플릿도 무조건 200으로 활성화됐고, 문제는 나중에 사용자의 문서 생성
+# 요청에서야 터졌다.
+def test_enable_rejects_disabled_target_workflow(client, admin_csrf, workflow_id):
+    created = client.post(
+        "/api/admin/templates", json=_template_payload(workflow_id), headers=_headers(admin_csrf)
+    ).json()["template"]
+
+    disable = client.post(
+        f"/api/admin/workflows/{workflow_id}/disable", headers=_headers(admin_csrf)
+    )
+    assert disable.status_code == 200, disable.text
+
+    r = client.post(
+        f"/api/admin/templates/{created['id']}/enable", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 409, r.text
+
+    # 대상을 다시 켜면 정상적으로 활성화된다 — 게이트가 존재 자체가 아니라 살아있는지만
+    # 본다는 것을 함께 고정한다.
+    client.post(f"/api/admin/workflows/{workflow_id}/enable", headers=_headers(admin_csrf))
+    r2 = client.post(
+        f"/api/admin/templates/{created['id']}/enable", headers=_headers(admin_csrf)
+    )
+    assert r2.status_code == 200, r2.text
+
+
+# UB-29: archived 상태(다시는 안 쓴다는 의도적 퇴역 표시)의 Prompt/Policy를 새 템플릿에
+# 바인딩할 수 있었다 — draft/test/review는 여전히 허용한다(발행본 없을 때 pinned 값으로
+# 폴백하는 documents/service.py의 의도적 fail-safe와 충돌하지 않도록).
+def test_create_rejects_archived_prompt(client, admin_csrf, workflow_id):
+    prompt = client.post(
+        "/api/admin/prompts",
+        json={"name": "보관될 프롬프트", "content": "안녕하세요"},
+        headers=_headers(admin_csrf),
+    ).json()
+    prompt_id = (prompt.get("item") or prompt)["id"]
+    transition = client.post(
+        f"/api/admin/prompts/{prompt_id}/transition",
+        json={"status": "archived"},
+        headers=_headers(admin_csrf),
+    )
+    assert transition.status_code == 200, transition.text
+
+    r = client.post(
+        "/api/admin/templates",
+        json=_template_payload(workflow_id, prompt_id=prompt_id, name="보관 프롬프트 템플릿"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422, r.text
