@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 from sqlalchemy import Select, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.approvals.models import (
@@ -27,9 +27,10 @@ from app.approvals.models import (
     DEFAULT_SLA_HOURS,
     Approval,
 )
+from app.core.authz import CONSOLE_WRITE_ROLES
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.notifications.service import notify_approvers, notify_user
-from app.core.authz import CONSOLE_WRITE_ROLES
 from app.users.models import ROLE_SYSTEM_ADMIN, User
 
 # request_type → executor(db, approval, app_state). Registered by modules below.
@@ -123,6 +124,12 @@ def needs_approval(actor: User) -> bool:
     return actor.role != ROLE_SYSTEM_ADMIN
 
 
+# 동시에 여러 요청이 같은 (request_type, object_id, payload)로 경합할 때(실측: 8-way)
+# 한 번의 실패-재조회로 안 끝날 수 있다 — `app/team_chat/service.py`의 `_SEQ_RETRIES`와
+# 같은 관용.
+_CREATE_RETRIES = 12
+
+
 def create_approval(
     db: Session,
     *,
@@ -166,47 +173,62 @@ def create_approval(
     )
     if existing is not None and json.loads(existing.request_payload_json) == payload:
         return existing
-    row = Approval(
-        request_type=request_type,
-        object_type=object_type,
-        object_id=object_id,
-        requested_by=requested_by.id,
-        status=APPROVAL_PENDING,
-        request_payload_json=json.dumps(payload, ensure_ascii=False),
-        requested_at=now,
-        expires_at=now + timedelta(hours=expiry_hours),
-        # 기한(SLA)은 만료보다 짧다 — 만료와 같으면 '기한 초과' 표시가 요청이 죽는 순간에야
-        # 뜨고, 그때는 알려 봐야 아무 소용이 없다(app/approvals/models.py 주석).
-        due_at=now + timedelta(hours=sla_hours),
-    )
     # 위 조회~삽입 사이에는 아직 커밋이 없다(`get_db`가 요청 끝에 한 번만 커밋한다) — 그
     # 동안 똑같은 요청이 다시 들어오면(더블클릭, 폼 재제출) 둘 다 "기존 pending 없음"을
     # 보고 각자 삽입을 시도할 수 있다. DB의 부분 유일 인덱스(migration 0052,
     # `ux_approvals_pending_dedup`)가 그 경합의 승자를 하나로 정해 주므로, 진 쪽은
     # `IntegrityError`를 받고 승자가 만든 행을 그대로 돌려준다 — `jobs/repository.py::enqueue`
     # 와 같은 패턴이다.
-    try:
-        with db.begin_nested():
-            db.add(row)
-            db.flush()
-    except IntegrityError:
-        winner = (
-            db.execute(
-                select(Approval)
-                .where(
-                    Approval.request_type == request_type,
-                    Approval.object_id == object_id,
-                    Approval.status == APPROVAL_PENDING,
-                    Approval.request_payload_json == row.request_payload_json,
-                )
-                .order_by(Approval.requested_at.desc())
-            )
-            .scalars()
-            .first()
+    #
+    # 여러 요청이 한꺼번에 경합하면(실측: 8-way) 한 번의 "실패→승자 재조회"로 안 끝날 수
+    # 있다 — 이 세션의 스냅샷이 낡아 재조회 시점에도 아직 아무도 커밋 안 한 것처럼 보이면
+    # (`app/core/versioning.py::snapshot_config`와 같은 이유) 승자가 없다. 그러면 이
+    # 세션도 다시 시도해 본다 — 재시도 자체가 스스로 승자가 될 수도, 이번엔 진짜 승자를
+    # 볼 수도 있다. `games/service.py::_append_event`의 `_SEQ_RETRIES`와 같은 관용.
+    for _attempt in range(_CREATE_RETRIES):
+        row = Approval(
+            request_type=request_type,
+            object_type=object_type,
+            object_id=object_id,
+            requested_by=requested_by.id,
+            status=APPROVAL_PENDING,
+            request_payload_json=json.dumps(payload, ensure_ascii=False),
+            requested_at=now,
+            expires_at=now + timedelta(hours=expiry_hours),
+            # 기한(SLA)은 만료보다 짧다 — 만료와 같으면 '기한 초과' 표시가 요청이 죽는
+            # 순간에야 뜨고, 그때는 알려 봐야 아무 소용이 없다(app/approvals/models.py 주석).
+            due_at=now + timedelta(hours=sla_hours),
         )
-        if winner is not None:
-            return winner
-        raise
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+            break
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            db.commit()  # 스냅샷을 새로 뜬다 — 실패한 삽입은 이미 SAVEPOINT로 걷혔다.
+            winner = (
+                db.execute(
+                    select(Approval)
+                    .where(
+                        Approval.request_type == request_type,
+                        Approval.object_id == object_id,
+                        Approval.status == APPROVAL_PENDING,
+                        Approval.request_payload_json == row.request_payload_json,
+                    )
+                    .order_by(Approval.requested_at.desc())
+                )
+                .scalars()
+                .first()
+            )
+            if winner is not None:
+                return winner
+            if _attempt == _CREATE_RETRIES - 1:
+                raise
+            # 아직 아무도 안 이겼다(내 스냅샷이 낡아 그렇게 보일 뿐) — 다시 시도한다.
+    else:
+        raise AssertionError("unreachable")  # pragma: no cover
     notify_approvers(
         db,
         type_="approval_requested",

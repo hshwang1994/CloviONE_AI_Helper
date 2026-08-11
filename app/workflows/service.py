@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.allowlist import AllowlistRegistry
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError
 from app.core.versioning import get_version, load_snapshot, snapshot_config
 from app.workflows.models import Workflow
@@ -109,8 +110,10 @@ def create_workflow(
         with db.begin_nested():
             db.add(row)
             db.flush()
-    except IntegrityError:
-        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}")
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}") from exc
     snapshot_config(
         db, object_type=OBJECT_TYPE, object_id=row.id,
         snapshot=workflow_snapshot(row), created_by=created_by,
@@ -134,8 +137,10 @@ def apply_workflow_config(
     try:
         with db.begin_nested():
             db.flush()
-    except IntegrityError:
-        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}")
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}") from exc
     snapshot_config(
         db, object_type=OBJECT_TYPE, object_id=row.id,
         snapshot=workflow_snapshot(row), created_by=updated_by,

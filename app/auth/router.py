@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import functools
+import random
+import time
 from datetime import timedelta, timezone
 from urllib.parse import quote as _urlquote
 from zoneinfo import ZoneInfo
@@ -10,10 +12,11 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit, record_audit_from_request
-from app.observability.service import EVENT_LOGIN, record_usage
+from app.core.db import is_write_conflict
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -35,6 +38,7 @@ from app.core.security import (
 )
 from app.core.sessions import clear_session_cookie, set_session_cookie
 from app.core.urls import safe_next_path
+from app.observability.service import EVENT_LOGIN, record_usage
 from app.users.service import get_user_by_email, normalize_email
 
 router = APIRouter(tags=["auth"])
@@ -430,26 +434,47 @@ def login(
     if is_blocked_by_org_suspension(db, user):
         raise OrganizationSuspendedError()
 
-    user.failed_login_count = 0
-    user.locked_until = None
-    user.last_login_at = now
-    record, token = session_service.create(
-        db,
-        user,
-        client_ip=client_ip,
-        user_agent=request.headers.get("user-agent"),
-    )
-    record_audit(
-        db, actor_id=user.id, action="user.login", object_type="user",
-        object_id=user.id, client_ip=client_ip,
-        request_id=getattr(request.state, "request_id", None),
-    )
-    # 사용 통계(0026). 로그인은 세션당 한 번뿐인 전형적인 저빈도 지점이다 —
-    # 채팅 전송·폴링 경로에는 절대 걸지 않는다(app/observability/service.py 규칙).
-    # 감사 로그와 목적이 다르다: 감사는 '누가 무엇을 바꿨나', 이건 '얼마나 쓰이나'다.
-    record_usage(db, event=EVENT_LOGIN, user_id=user.id,
-                 org_id=getattr(user, "org_id", None), now=now)
-    db.commit()
+    # 로그인 성공 경로의 쓰기 4~5개(사용자 행 갱신·세션 생성·감사·사용 통계)는 이 함수
+    # 맨 위 `get_user_by_email` 읽기로 이미 스냅샷이 굳어 있다. 사람이 몰리는 시간대에
+    # 여러 사람이 동시에 로그인하면, 나와 무관한 다른 사용자의 커밋이라도 같은
+    # 테이블(users/sessions/audit_logs)의 겹치는 페이지를 건드리면 내 쓰기가
+    # `SQLITE_BUSY_SNAPSHOT`("database is locked")로 거부될 수 있다 — 정확한 트랜잭션
+    # 격리(app/core/db.py)의 부작용이며 `busy_timeout`으로는 못 구한다(실측:
+    # `test_10_concurrent_logins`, 10-way 동시 로그인에서 재현). `db.rollback()`으로
+    # 스냅샷을 새로 뜨고 이 블록만 다시 시도한다 — `session_service.create()`는 매번
+    # 새 토큰을 만들 뿐이라(부작용 없음) 재시도가 안전하다.
+    _LOGIN_WRITE_RETRIES = 10  # 실측(10-way 동시 로그인 스트레스 시험)으로 정한 값 — 3은 부족했다.
+    for _attempt in range(_LOGIN_WRITE_RETRIES):
+        try:
+            user.failed_login_count = 0
+            user.locked_until = None
+            user.last_login_at = now
+            record, token = session_service.create(
+                db,
+                user,
+                client_ip=client_ip,
+                user_agent=request.headers.get("user-agent"),
+            )
+            record_audit(
+                db, actor_id=user.id, action="user.login", object_type="user",
+                object_id=user.id, client_ip=client_ip,
+                request_id=getattr(request.state, "request_id", None),
+            )
+            # 사용 통계(0026). 로그인은 세션당 한 번뿐인 전형적인 저빈도 지점이다 —
+            # 채팅 전송·폴링 경로에는 절대 걸지 않는다(app/observability/service.py 규칙).
+            # 감사 로그와 목적이 다르다: 감사는 '누가 무엇을 바꿨나', 이건 '얼마나 쓰이나'다.
+            record_usage(db, event=EVENT_LOGIN, user_id=user.id,
+                         org_id=getattr(user, "org_id", None), now=now)
+            db.commit()
+            break
+        except OperationalError as exc:
+            if not is_write_conflict(exc) or _attempt == _LOGIN_WRITE_RETRIES - 1:
+                raise
+            db.rollback()
+            # 지터를 준다 — 여러 스레드가 즉시 재시도만 하면 서로 계속 다시 부딪힌다
+            # (실측: 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다).
+            time.sleep(random.uniform(0.01, 0.05) * (_attempt + 1))
+            user = get_user_by_email(db, email)  # 롤백으로 만료됨 — 다시 확실히 가져온다
 
     if _is_json_request(request):
         # login.js does NOT read csrf_token/user from this body before navigating away

@@ -142,6 +142,10 @@ def generate(request: Request, payload: GenerateRequest, db: Session = Depends(g
             now=request.app.state.clock.now(),
         )
         slot.record()
+        # UB-08: 잠금이 풀리기 전에 커밋해야 한다 — 안 그러면 잠금이 풀린 뒤(이 with 블록이
+        # 끝난 뒤) 같은 사용자의 다른 요청이 아직 안 보이는(커밋 전) 이 사용량을 못 보고
+        # 상한을 통과할 수 있다(app/quotas/service.py의 consume 문서 참조).
+        db.commit()
     return {"generation": generation_view(gen)}
 
 

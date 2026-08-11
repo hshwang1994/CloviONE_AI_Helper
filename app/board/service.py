@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.board import repository
@@ -30,10 +30,11 @@ from app.board.models import (
     Reaction,
 )
 from app.board.schemas import CommentUpdate, PostUpdate
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 # 운영자군 = operator/admin/system_admin (계층 operator 이상). 게시판 중재 권한.
 # 정의는 app/core/authz.py 한 곳뿐이다 — 화면마다 다른 '운영자'가 생기지 않게.
 from app.core.authz import MODERATOR_ROLES
+from app.core.db import is_write_conflict
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.users.models import User
 
 logger = logging.getLogger("app.board")
@@ -440,7 +441,9 @@ def add_reaction(
             db.add(row)
             db.flush()
         return row
-    except IntegrityError:
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
         # 경쟁에서 진 쪽 — 상대가 먼저 넣은 행을 다시 읽어 돌려준다.
         return repository.find_reaction(
             db, target_type=target_type, target_id=target_id, user_id=user_id, emoji=emoji

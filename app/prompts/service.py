@@ -7,9 +7,10 @@ import json
 from datetime import datetime
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.prompts.models import (
     STATUS_ARCHIVED,
@@ -81,32 +82,38 @@ def transition(
     allowed = VALID_TRANSITIONS.get(row.status)
     if allowed is None or new_status not in allowed:
         raise ConflictError(f"{row.status} → {new_status} 전환은 허용되지 않습니다.")
-    if new_status == STATUS_PUBLISHED:
-        # Only one published version per name — the previous one is archived,
-        # never overwritten (spec §17.1).
-        current = get_published(db, type(row), row.name)
-        if current is not None and current.id != row.id:
-            current.status = STATUS_ARCHIVED
-            # 이 행을 먼저(별도로) 내보낸다 — 옛 발행본을 archived로 내리는 UPDATE와
-            # 새 행을 published로 올리는 UPDATE가 **같은 flush**에 섞이면, SQLAlchemy가
-            # 두 문장을 내보내는 순서에 따라 "새 행 published" 쪽이 먼저 실행될 수 있고,
-            # 그 순간 아직 archived가 안 된 옛 발행본과 함께 **같은 이름에 published가
-            # 둘**인 상태가 찰나라도 생겨 부분 유일 인덱스(아래)가 우리 자신의 정상 경로를
-            # 오탐으로 막는다(`test_publish_archives_previous_published`가 실제로 이렇게
-            # 깨졌다 — 고치면서 재현·확인함). 옛 발행본을 먼저 내려 그 겹침 자체를 없앤다.
-            db.flush()
-        row.published_at = now
-    row.status = new_status
     # UB-04: 이 읽기~쓰기 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 두 관리자가 같은
     # 이름의 서로 다른 버전을 거의 동시에 발행하면 둘 다 "기존 발행본 없음/다름"을 보고
     # 각자 자기 행을 published로 만들 수 있다 — 그러면 이후 그 이름의 모든 조회가
     # `MultipleResultsFound` → 500이 된다. DB의 부분 유일 인덱스(migration 0053,
     # `ux_{prompts,policies}_published_dedup`)가 경합의 승자를 하나로 정해 주므로,
     # 진 쪽은 `IntegrityError`를 받고 깨끗한 409로 알린다 — approvals의 0052와 같은 패턴.
+    # (예전엔 archived로 내리는 UPDATE만 SAVEPOINT 밖에 있어 그 문장에서 난 경합이
+    # 잡히지 않은 채 500으로 샜다 — 두 UPDATE를 하나의 SAVEPOINT로 함께 묶는다.)
     try:
         with db.begin_nested():
+            if new_status == STATUS_PUBLISHED:
+                # Only one published version per name — the previous one is
+                # archived, never overwritten (spec §17.1).
+                current = get_published(db, type(row), row.name)
+                if current is not None and current.id != row.id:
+                    current.status = STATUS_ARCHIVED
+                    # 이 행을 먼저(별도로) 내보낸다 — 옛 발행본을 archived로 내리는
+                    # UPDATE와 새 행을 published로 올리는 UPDATE가 **같은 flush**에
+                    # 섞이면, SQLAlchemy가 두 문장을 내보내는 순서에 따라 "새 행
+                    # published" 쪽이 먼저 실행될 수 있고, 그 순간 아직 archived가 안
+                    # 된 옛 발행본과 함께 **같은 이름에 published가 둘**인 상태가
+                    # 찰나라도 생겨 부분 유일 인덱스(아래)가 우리 자신의 정상 경로를
+                    # 오탐으로 막는다(`test_publish_archives_previous_published`가
+                    # 실제로 이렇게 깨졌다 — 고치면서 재현·확인함). 옛 발행본을 먼저
+                    # 내려 그 겹침 자체를 없앤다.
+                    db.flush()
+                row.published_at = now
+            row.status = new_status
             db.flush()
-    except IntegrityError:
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
         raise ConflictError(
             "다른 버전이 거의 동시에 발행돼 충돌했습니다. 최신 상태를 다시 불러오세요."
         ) from None

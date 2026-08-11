@@ -10,9 +10,10 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_write_conflict
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import comments as doc_comments
 from app.team_docs import repository
@@ -258,7 +259,9 @@ def toggle_favorite(db: Session, *, user_id: str, page_id: str, on: bool, now: d
             with db.begin_nested():
                 db.add(row)
                 db.flush()
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
             pass  # 동시 요청이 먼저 추가 — 멱등
         return True
     if existing is not None:
@@ -281,7 +284,9 @@ def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> No
         with db.begin_nested():
             db.add(row)
             db.flush()
-    except IntegrityError:
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
         # 경쟁에서 진 쪽 — 이미 생긴 행의 시각을 갱신.
         again = repository.find_recent(db, user_id, page_id)
         if again is not None:

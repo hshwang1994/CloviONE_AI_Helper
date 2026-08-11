@@ -521,6 +521,7 @@ def test_what_the_portal_pushed_survives_the_next_sync(
     clock.advance(600)
     _sync(db, settings, outbound, clock)
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     row = db.get(Project, portal["id"])
     assert row.name == "포털이 정한 이름", "다음 동기화가 포털의 저장을 되돌렸다"
@@ -553,6 +554,7 @@ def test_a_second_saver_is_stopped_instead_of_overwriting_the_first(
         f"앞사람 변경을 조용히 덮어썼다: {second.status_code} {second.text}"
     )
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, portal["id"]).name == "앞사람이 저장한 이름"
     assert len(notion.patched) == calls_after_first, (
@@ -576,6 +578,7 @@ def test_a_fresh_version_lets_the_second_save_through(client, db, notion, portal
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert second.status_code == 200, second.text
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, portal["id"]).name == "새로고침 뒤 저장"
 
@@ -618,6 +621,7 @@ def test_a_push_failure_does_not_roll_back_what_the_user_typed(
     assert body["name"] == "노션이 죽은 동안 고친 이름"
     assert body["notion_sync_error"], "반영 실패를 화면이 말할 방법이 없다"
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     row = db.get(Project, portal["id"])
     assert row.name == "노션이 죽은 동안 고친 이름", "Notion 장애 때문에 사용자 입력이 사라졌다"
@@ -651,6 +655,7 @@ def test_editing_only_app_fields_does_not_call_notion(client, db, notion, portal
     assert r.status_code == 200, r.text
     assert len(notion.patched) == before
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, portal["id"]).goal == "노션에는 없는 앱 전용 목표"
 

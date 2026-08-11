@@ -19,9 +19,10 @@ import json
 from datetime import datetime
 
 from sqlalchemy import DateTime, Index, Integer, String, Text, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from app.core.db import is_write_conflict
 from app.core.errors import NotFoundError
 from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
 
@@ -69,6 +70,16 @@ def snapshot_config(
     설정 행 갱신)이 이미 flush 된 뒤에 불리는 호출부가 있으므로(app/settings/service.py 등),
     실패한 insert 를 savepoint(``begin_nested``)로 감싸 그 세션에 이미 올라와 있는 다른
     변경까지 되돌리지 않는다.
+
+    정확한 트랜잭션 격리(``app/core/db.py``)에서는 재시도가 한 가지를 더 요구한다:
+    이 세션이 attempt 0 의 첫 SELECT 에서 이미 스냅샷을 확정했으므로, ``begin_nested()``
+    실패 뒤 **같은 트랜잭션 안에서** ``current_max`` 를 다시 읽어도 여전히 낡은 값을
+    본다(SAVEPOINT 롤백은 SAVEPOINT 만 되돌리지 바깥 트랜잭션의 스냅샷은 안 바꾼다) —
+    두 번째 시도도 같은 버전 번호를 계산해 같은 충돌을 반복한다(실측 확인함). 그래서
+    재시도 전에 ``db.commit()`` 으로 스냅샷을 새로 뜬다 — ``rollback()`` 이 아니라
+    ``commit()`` 인 이유가 바로 위 문단이다: 이 함수 호출 전에 이미 flush 된 다른 변경을
+    "되돌리지 않는다"는 약속을 지키려면 **잃지 않고 커밋해 보존**해야 한다(잃는 쪽인
+    rollback 은 그 약속과 반대다).
     """
     for attempt in range(2):
         current_max = db.execute(
@@ -88,9 +99,12 @@ def snapshot_config(
             with db.begin_nested():
                 db.add(row)
                 db.flush()
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
             if attempt == 1:
                 raise
+            db.commit()  # 스냅샷을 새로 뜬다 — 다른 이미 flush 된 변경은 보존(커밋)한다.
             continue
         return row
     raise AssertionError("unreachable")  # pragma: no cover

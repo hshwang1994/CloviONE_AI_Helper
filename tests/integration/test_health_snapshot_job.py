@@ -157,6 +157,7 @@ def test_a_project_with_nothing_to_measure_is_skipped_not_scored_zero(db, settin
     )
     assert result.skipped == 1, f"건너뛴 것을 안 세고 있다: {result.as_dict()}"
     assert result.recorded == 1, f"점수를 낼 수 있는 프로젝트까지 빠뜨렸다: {result.as_dict()}"
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, blank.id).health_score is None, (
         "점수를 낼 수 없는데 캐시 열에 값을 써 넣었다"
@@ -224,6 +225,7 @@ def test_a_half_written_failure_is_not_committed_with_everyone_else(
 
     result = service.record_health_snapshots(db, today=KST_TODAY, now=NOW)
     db.commit()
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
 
     assert result.failed == 1
@@ -280,12 +282,14 @@ def test_the_sweep_leaves_updated_at_alone_when_the_score_did_not_move(db, setti
 
     record_health_snapshots(db, today=KST_TODAY, now=NOW)
     db.commit()
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     after_first = db.get(Project, alpha.id).updated_at
 
     later = datetime(2026, 8, 3, 23, 30, 0)
     record_health_snapshots(db, today=KST_TODAY, now=later)
     db.commit()
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
 
     assert db.get(Project, alpha.id).updated_at == after_first, (
@@ -339,6 +343,7 @@ def test_the_worker_tick_records_history_and_respects_its_interval(
     tick = worker.tick_callbacks[0]
 
     tick(fake_clock.now())
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     rows = _snapshots(db, alpha.id)
     assert len(rows) == 1, f"주기 실행이 이력을 안 만들었다: {rows}"
@@ -349,6 +354,7 @@ def test_the_worker_tick_records_history_and_respects_its_interval(
     tick(fake_clock.now())
     fake_clock.advance(5)
     tick(fake_clock.now())
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert len(_snapshots(db, alpha.id)) == 1, "재실행이 행을 쌓았다"
 
@@ -378,6 +384,7 @@ def test_the_worker_tick_records_the_run_where_a_human_can_see_it(
 
     run_health_snapshot_sweep(app.state.session_factory, settings, fake_clock.now())
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     row = db.get(SyncStatus, COMPONENT_PROJECT_HEALTH)
     assert row is not None, "돌고도 아무 자국을 안 남겼다 - 사람이 확인할 방법이 없다"
@@ -400,6 +407,7 @@ def test_the_worker_tick_records_the_run_where_a_human_can_see_it(
     fake_clock.advance(3600)
     run_health_snapshot_sweep(app.state.session_factory, settings, fake_clock.now())
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     row = db.get(SyncStatus, COMPONENT_PROJECT_HEALTH)
     assert row.status == SYNC_ERROR, "실패했는데 화면에는 정상으로 보인다"
@@ -427,6 +435,7 @@ def test_a_run_that_dies_outright_still_leaves_a_mark(
 
     # 먼저 정상 회차 한 번 - 이 건수가 살아남아야 한다.
     run_health_snapshot_sweep(app.state.session_factory, settings, fake_clock.now())
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(SyncStatus, COMPONENT_PROJECT_HEALTH).item_count == 1
 
@@ -439,6 +448,7 @@ def test_a_run_that_dies_outright_still_leaves_a_mark(
         app.state.session_factory, settings, fake_clock.now()
     ) is None
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     row = db.get(SyncStatus, COMPONENT_PROJECT_HEALTH)
     assert row.status == SYNC_ERROR, "통째로 죽었는데 화면에는 정상으로 남아 있다"

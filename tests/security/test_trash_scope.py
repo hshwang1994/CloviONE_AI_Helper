@@ -215,4 +215,5 @@ def test_the_scoped_moderator_can_still_manage_their_own_teams_item(
 
     r = client.post(f"/api/trash/{item_id}/restore", headers=hdr)
     assert r.status_code == 200, f"자기 팀 항목을 복원할 수 없다: {r.status_code} {r.text}"
+    db.commit()  # 스냅샷을 새로 뜬다 — 위 SELECT가 이미 연 트랜잭션은 restore 이전 상태를 본다
     assert not _still_there(db, "p-ok"), "복원했는데 휴지통에 남아 있다"

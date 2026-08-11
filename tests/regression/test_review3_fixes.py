@@ -524,6 +524,7 @@ def test_deleted_conversation_text_does_not_survive_in_job_queue(client, login_a
     r = client.delete(f"/api/conversations/{conv['id']}", headers=_headers(csrf))
     assert r.status_code == 200, r.text
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     job = db.query(Job).one()
     assert SECRET_TEXT not in job.payload_json
@@ -554,6 +555,7 @@ def test_retention_expiry_also_purges_job_payloads(client, login_as, db, fake_cl
     db.commit()
     assert purged == 1
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert SECRET_TEXT not in db.query(Job).one().payload_json
 

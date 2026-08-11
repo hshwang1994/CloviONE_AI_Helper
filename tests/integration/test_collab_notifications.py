@@ -70,6 +70,8 @@ def test_a_reply_also_notifies_the_parent_comment_author(
     db.add(Post(title="글", body="b", category="자유", author_user_id=owner.id))
     db.commit()
     post_id = db.query(Post).filter(Post.author_user_id == owner.id).one().id
+    db.commit()  # 스냅샷을 새로 뜬다 — 안 그러면 아래 login_as(→create_user)가 이 세션으로
+    # 쓸 때 그 사이 client.post()가 커밋한 것들과 스냅샷이 어긋나 "database is locked"
 
     csrf = login_as("user", email="bn-c2@goodmit.co.kr")
     r1 = client.post(f"/api/board/posts/{post_id}/comments", json={"body": "첫 댓글"},

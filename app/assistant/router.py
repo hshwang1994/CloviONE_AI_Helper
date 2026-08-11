@@ -81,6 +81,8 @@ def _with_narrative(
         # 러너가 죽은 날 사용자가 아무것도 못 받고 상한만 잃으면 안 된다.
         if (narrative or {}).get("text") and not (narrative or {}).get("error"):
             slot.record()
+            # UB-08: 잠금이 풀리기 전에 커밋한다(app/quotas/service.py의 consume 문서 참조).
+            db.commit()
     return {**body, "narrative": narrative}
 
 

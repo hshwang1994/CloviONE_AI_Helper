@@ -125,6 +125,7 @@ def test_another_teams_milestone_id_does_not_work_in_my_own_project_path(
         f"남의 팀 마일스톤을 지울 수 있다: {removed.status_code} {removed.text}"
     )
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     survivor = db.get(ProjectMilestone, world["their_milestone"])
     assert survivor is not None, "404 를 돌려주고도 남의 팀 마일스톤이 실제로 지워졌다"
@@ -149,6 +150,7 @@ def test_another_teams_project_path_is_404_for_every_milestone_verb(
         f"/api/projects/{world['theirs']}/wbs", headers=hdr
     ).status_code == 404, "남의 팀 작업 계층이 열린다"
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     planted = db.query(ProjectMilestone).filter(
         ProjectMilestone.name == "심기"
@@ -264,6 +266,7 @@ def test_the_snapshot_caches_the_score_on_the_project_row(client, login_as, db, 
     hdr = _hdr(login_as)
     _create(client, hdr, world["mine"], due_on="2000-01-01")
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, world["mine"]).health_score is None, (
         "계산 전에는 NULL 이어야 한다 - 0 은 '셌는데 0점' 이라는 뜻이다"
@@ -273,5 +276,6 @@ def test_the_snapshot_caches_the_score_on_the_project_row(client, login_as, db, 
         f"/api/projects/{world['mine']}/health/snapshot", headers=hdr
     ).json()
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, world["mine"]).health_score == result["score"]

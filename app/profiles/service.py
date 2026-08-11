@@ -9,10 +9,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.profiles import prefs
 from app.profiles.models import SavedView, UserPreference
@@ -394,8 +395,10 @@ def create_view(
         with db.begin_nested():
             db.add(row)
             db.flush()
-    except IntegrityError:
-        raise ConflictError("같은 이름의 뷰가 이미 있습니다. 덮어쓸까요?")
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError("같은 이름의 뷰가 이미 있습니다. 덮어쓸까요?") from exc
     return row
 
 

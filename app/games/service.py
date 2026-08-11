@@ -12,11 +12,12 @@ import secrets
 from datetime import datetime, timedelta
 
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.presence import should_touch
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, ForbiddenError, ValidationAppError
+from app.core.presence import should_touch
 from app.games import repository
 from app.games.models import (
     EV_CHAT,
@@ -81,7 +82,9 @@ def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: 
             room.event_seq = seq
             db.flush()
             return ev
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
             db.refresh(room)  # 다른 요청이 먼저 붙였다 — 순번 다시 계산
     raise ConflictError("이벤트를 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
@@ -101,16 +104,30 @@ def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
     다시 적용해 재시도한다(최대 5회, 유실 없이 §13.1 서버 확정 유지).
 
     mutate(state: dict) -> dict 는 현재 state를 받아 새 state를 돌려주는 순수 함수다. 검증 실패
-    (ValidationAppError 등)는 그대로 위로 올라간다 — 재시도 대상은 '쓰기 충돌'뿐이다."""
+    (ValidationAppError 등)는 그대로 위로 올라간다 — 재시도 대상은 '쓰기 충돌'뿐이다.
+
+    ``rowcount == 0``(다른 요청이 먼저 썼다) 뿐 아니라, 정확한 트랜잭션 격리 아래서는 이
+    UPDATE 자체가 `OperationalError`("database is locked")로 거부될 수도 있다 — 이
+    세션이 먼저 읽은 스냅샷이 그 사이 다른 세션의 커밋보다 낡으면 WHERE 절 비교까지
+    가지도 못한다(`app/core/db.py::is_write_conflict` 참고). 이 함수는 이 UPDATE 가
+    자기 요청의 **첫 쓰기**인 호출부에서만 쓰므로(투표 등, `_append_event` 는 항상 이
+    함수 뒤에 온다) `db.rollback()` 으로 스냅샷을 새로 떠도 잃을 다른 변경이 없다."""
     for _ in range(5):
         old_json = room.state_json or "{}"
         new_state = mutate(json.loads(old_json))
         new_json = json.dumps(new_state, ensure_ascii=False)
-        result = db.execute(
-            update(GameRoom)
-            .where(GameRoom.id == room.id, GameRoom.state_json == old_json)
-            .values(state_json=new_json)
-        )
+        try:
+            result = db.execute(
+                update(GameRoom)
+                .where(GameRoom.id == room.id, GameRoom.state_json == old_json)
+                .values(state_json=new_json)
+            )
+        except OperationalError as exc:
+            if not is_write_conflict(exc):
+                raise
+            db.rollback()
+            db.refresh(room)
+            continue
         # 성공/실패 모두 refresh — 성공했으면 커밋 전이라도 우리 세션엔 이미 반영된 값이고,
         # 실패했으면(0행) 다른 요청이 먼저 쓴 최신 값을 가져와야 다음 시도의 mutate가 그
         # 위에서 다시 계산된다. room.state_json을 직접 대입하지 않는 이유: 그러면 SQLAlchemy가

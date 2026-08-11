@@ -131,6 +131,7 @@ def test_rollback_to_maintenance_true_notifies_active_users(client, admin_csrf, 
     # version 1: False -> True (direct PUT notifies — sanity check baseline).
     r = client.put(f"/api/admin/settings/{key}", json={"value": True}, headers=_headers(admin_csrf))
     assert r.status_code == 200
+    db.commit()  # 스냅샷을 새로 뜬다 — client 호출은 이 세션과 다른 세션에서 커밋한다
     count_after_first_on = (
         db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
     )
@@ -139,6 +140,7 @@ def test_rollback_to_maintenance_true_notifies_active_users(client, admin_csrf, 
     # version 2: True -> False (turning off must NOT notify again).
     r = client.put(f"/api/admin/settings/{key}", json={"value": False}, headers=_headers(admin_csrf))
     assert r.status_code == 200
+    db.commit()
     count_after_off = (
         db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
     )
@@ -156,6 +158,7 @@ def test_rollback_to_maintenance_true_notifies_active_users(client, admin_csrf, 
     assert r.json()["after"] is True
     assert client.get("/api/admin/settings").json()["settings"][key]["value"] is True
 
+    db.commit()  # 스냅샷을 새로 뜬다
     count_after_rollback = (
         db.query(Notification).filter(Notification.type == "maintenance_announcement").count()
     )

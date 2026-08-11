@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import people
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.presence import PRESENCE_THROTTLE_SECONDS, should_touch
 from app.notifications.service import notify_user
@@ -77,7 +78,9 @@ def _append_message(db: Session, room: ChatRoom, *, kind: str, sender_id: str | 
             room.updated_at = now
             db.flush()
             return msg
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
             db.refresh(room)  # 다른 요청이 먼저 seq를 붙였다 — 다시 계산
     raise ConflictError("메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
@@ -115,7 +118,9 @@ def ensure_team_room(db: Session, user: User, *, now: datetime) -> ChatRoom | No
             with db.begin_nested():
                 db.add(room)
                 db.flush()
-        except IntegrityError:
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
             room = repository.get_team_room(db, dept_id)
             if room is None:
                 return None
@@ -318,7 +323,9 @@ def create_or_get_direct(db: Session, user: User, *, other_user_id: str, now: da
         with db.begin_nested():
             db.add(room)
             db.flush()
-    except IntegrityError:
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
         # 동시 생성 경쟁에서 졌다 — 먼저 만들어진 방을 돌려준다.
         won = repository.get_direct_by_key(db, key)
         if won is not None:

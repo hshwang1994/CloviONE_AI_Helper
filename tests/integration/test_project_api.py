@@ -171,6 +171,7 @@ def test_recompute_caches_the_percent_on_the_row(client, login_as, db, world):
     )
     assert r.status_code == 200, r.text
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, world["linked"]).progress_pct == 25.0
 

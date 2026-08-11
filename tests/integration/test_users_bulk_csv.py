@@ -67,6 +67,7 @@ def test_bulk_disable_applies_to_every_selected_user(client, admin, crowd, db):
     body = response.json()
     assert len(body["applied"]) == 3 and body["failed"] == []
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert [db.get(User, uid).active for uid in crowd] == [False, False, False]
 
@@ -86,6 +87,7 @@ def test_a_blocked_user_does_not_stop_the_rest(client, admin, crowd, db):
 
     assert len(body["applied"]) == 3
     assert [f["id"] for f in body["failed"]] == [me.id]
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(User, crowd[0]).active is False
 
@@ -95,6 +97,7 @@ def test_bulk_set_department_moves_everyone(client, admin, crowd, org, db):
         client, admin, user_ids=crowd, action="set_department", value=org["dept"]
     )
     assert response.status_code == 200, response.text
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert {db.get(User, uid).department_id for uid in crowd} == {org["dept"]}
 
@@ -103,6 +106,7 @@ def test_unknown_action_is_rejected_before_anything_happens(client, admin, crowd
     response = _bulk(client, admin, user_ids=crowd, action="delete_everything")
     # ValidationAppError = 422 (app/core/errors.py) — 이 저장소의 검증 실패 규약.
     assert response.status_code == 422, response.text
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(User, crowd[0]).active is True
 
@@ -200,6 +204,7 @@ def test_existing_emails_are_skipped_not_overwritten(client, admin, org, db, mak
 
     statuses = {r["email"]: r["status"] for r in body["results"]}
     assert statuses["new1@goodmit.co.kr"] == "skipped"
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.execute(
         select(User).where(User.email == "new1@goodmit.co.kr")

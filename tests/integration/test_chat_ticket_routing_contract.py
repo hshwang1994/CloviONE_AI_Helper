@@ -198,6 +198,7 @@ def messages(client, conversation_id: str) -> list[dict]:
 
 
 def jobs_for(db, message_id: str) -> list[Job]:
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     return list(
         db.execute(
@@ -288,6 +289,7 @@ def test_requester_identity_comes_from_the_session_never_from_the_client(
     fake_http.on(N8N_URL, json_body=preview_response(ticket_chat["conversation_id"]))
     assert chat_worker.run_once() is True
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     user = get_user_by_email(db, USER_EMAIL)
     assert sent_body(fake_http)["requester"] == {
@@ -440,6 +442,7 @@ def test_created_response_becomes_reply_ticket_card_and_backend_context(
 
     from app.conversations.models import Conversation
 
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     conversation = db.get(Conversation, ticket_chat["conversation_id"])
     assert conversation.backend_conversation_id == ticket_chat["conversation_id"]

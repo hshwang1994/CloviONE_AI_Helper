@@ -69,6 +69,10 @@ def _hdr(login_as):
 def _project(db, project_id):
     from app.projects.models import Project
 
+    # 스냅샷을 새로 뜬다 — expire_all()만으로는 이 세션이 이미 연 트랜잭션의 스냅샷이
+    # 안 바뀐다(다른 세션의 client 호출로 그 사이 바뀐 값을 못 본다). 매 호출 이 함수
+    # 하나로 고치면 이 파일의 모든 호출부가 한 번에 고쳐진다.
+    db.commit()
     db.expire_all()
     return db.get(Project, project_id)
 

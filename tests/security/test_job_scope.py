@@ -91,6 +91,9 @@ def _hdr(login_as):
 def _status(db, job_id):
     from app.jobs.models import Job
 
+    # 스냅샷을 새로 뜬다 — expire_all()만으로는 이 세션이 이미 연 트랜잭션의 스냅샷이
+    # 안 바뀐다(다른 세션의 client 호출로 그 사이 바뀐 값을 못 본다).
+    db.commit()
     db.expire_all()
     return db.get(Job, job_id).status
 

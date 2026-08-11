@@ -351,10 +351,20 @@ class consume:
             result = call_the_ai()
             if succeeded(result):
                 slot.record()
+                db.commit()   # 기록이 다른 요청에 보여야 뜻이 있다
 
     **`record()` 를 부르지 않으면 세지 않는다.** 성공한 호출만 센다는 기존 규약 그대로다
     (러너가 죽은 날 사용자가 답을 못 받고 상한만 잃으면 안 된다). 잠금은 블록을 나갈 때
     풀리므로, 호출이 오래 걸리는 동안 같은 사람의 다른 요청은 기다린다.
+
+    ⚠️ **`record()` 뒤에는(그리고 블록이 끝나기 전에) 반드시 `db.commit()` 해야 한다** —
+    `reserve` 와 정확히 같은 이유(UB-08)다. SQLite 는 커밋 전 쓰기를 다른 커넥션에 보여
+    주지 않는다. `record()`(→ `record_call`)는 `flush()` 만 하고 커밋은 이 블록을 부른
+    라우터가 요청 맨 끝(`get_db`)에서야 한다 — 그 사이(잠금이 풀린 뒤부터 실제 커밋까지)
+    같은 사용자의 다른 요청이 잠금을 얻어 `enforce()` 를 돌리면, 방금 쓴(아직 커밋 안 된)
+    사용량을 못 보고 상한을 통과할 수 있다. 잠금을 걸어 놓고 그 목적을 못 지키는 것과
+    같다 — `reserve` 의 docstring 이 이미 이 원칙을 못박아 뒀는데 `consume` 의 두 호출부
+    (`documents/router.py`, `assistant/router.py`)만 안 지키고 있었다.
     """
 
     def __init__(

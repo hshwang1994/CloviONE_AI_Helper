@@ -188,6 +188,165 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
     assert recorded == 1, f"상한 1회인데 {recorded}회가 기록됐다"
 
 
+# ── 3) UB-08: 잠금 해제 ~ 커밋 사이의 창 ──────────────────────────────────────
+#
+# 위 test_two_concurrent_calls_cannot_both_take_the_last_slot 은 "같은 숫자를 읽는 순간"
+# (enforce 안의 used() 호출)을 barrier 로 맞춘다 — consume.__enter__ 가 잠금을 먼저 잡고
+# enforce() 를 나중에 부르므로, 그 barrier 는 사실상 "잠금이 풀린 뒤"에만 두 스레드가
+# 함께 도달한다. 그런데 그 barrier 의 0.5초 timeout 이 우연히 "첫 스레드가 커밋을 끝내기에
+# 충분한 시간"이 돼 버려서, consume() 을 호출하는 쪽이 with 블록 **밖**(요청 맨 끝)에서
+# 커밋해도 이 시험은 우연히 통과한다 — 실제 취약점(documents/router.py·assistant/router.py
+# 가 고치기 전에 정확히 이 패턴이었다)을 못 잡는다. 아래 두 시험은 그 창을 스레드
+# 스케줄링에 기대지 않고 이벤트로 못박아 직접 겨눈다.
+#
+# **이 시험을 만드는 과정에서 더 근본적인 결함을 하나 더 찾았다**: `app/core/db.py` 가
+# SQLite 연결마다 진짜 `BEGIN` 을 발행하지 않고 있었다 — pysqlite 의 레거시 암묵적
+# 트랜잭션 관리에 맡겨 뒀는데, 그 결과 `db.begin_nested()`(SAVEPOINT, 이 프로젝트
+# 5곳 이상이 "실패한 쓰기만 되돌리고 세션의 다른 변경은 지킨다"는 목적으로 쓴다)가
+# 트랜잭션을 실제로 시작하지 않은 채 SAVEPOINT 를 먼저 내보냈다 — SQLite 는 그 SAVEPOINT
+# 자체가 트랜잭션을 암묵적으로 연 것으로 보고, 그 SAVEPOINT 를 RELEASE 하는 순간을
+# **커밋과 동일하게** 처리했다. 실측: 커밋 안 한 SAVEPOINT 쓰기가 다른 커넥션에 즉시
+# 보였고, 그 뒤 `session.rollback()` 을 불러도 사라지지 않았다(같은 세션 자신도 마찬가지).
+# `app/core/db.py` 에 SQLAlchemy 공식 권고 수정(pysqlite 의 암묵 관리를 끄고 `"begin"`
+# 이벤트에서 직접 `BEGIN` 발행)을 적용해 고쳤다 — 그 수정이 있어야만 아래 시험이
+# 실제로 취약점을 재현한다(수정 전에는 SAVEPOINT 의 이 버그가 UB-08 자체를 우연히 가려
+# 시험이 항상 초록불이었다).
+
+
+def test_committing_after_the_with_block_lets_a_second_request_slip_through(app, capped):
+    """UB-08 취약점 자체를 증명한다 — consume() 을 부르는 쪽이 with 블록 **밖**에서
+    커밋하면(고치기 전 두 라우터가 실제로 했던 방식), 잠금이 풀린 직후 ~ 커밋 사이에
+    들어온 같은 사용자의 다른 요청이 아직 안 보이는 사용량을 못 보고 상한(1회)을
+    통과해 **둘 다 성공**할 수 있다.
+
+    이 시험은 `app/core/db.py`의 SQLite 트랜잭션 수정(연결마다 진짜 `BEGIN`을 명시
+    발행)이 함께 있어야 의미가 있다 — 그 수정 전에는 커밋 안 한 SAVEPOINT 쓰기가
+    이미(우연히) 다른 커넥션에 즉시 보였으므로 이 시험이 취약점을 못 잡았다(둘 다
+    실제 SQL 로그로 직접 확인한 사실이다).
+    """
+    from app.quotas import service as quotas
+
+    lock_released = threading.Event()
+    second_done = threading.Event()
+    outcomes: list[tuple[str, str]] = []
+    lock = threading.Lock()
+
+    def first():
+        session = app.state.session_factory()
+        try:
+            with quotas.consume(
+                session, user_id=capped.id, org_id=None,
+                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+            ) as slot:
+                slot.record()
+            # 옛 방식: with 블록이 끝난(=잠금이 풀린) 뒤에야 커밋한다.
+            lock_released.set()
+            second_done.wait(timeout=5)
+            session.commit()
+            outcome = "ok"
+        except Exception:
+            session.rollback()
+            outcome = "error"
+        finally:
+            session.close()
+        with lock:
+            outcomes.append(("first", outcome))
+
+    def second():
+        lock_released.wait(timeout=5)
+        session = app.state.session_factory()
+        try:
+            with quotas.consume(
+                session, user_id=capped.id, org_id=None,
+                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+            ) as slot:
+                slot.record()
+            session.commit()
+            outcome = "ok"
+        except Exception:
+            session.rollback()
+            outcome = "429(정상)"
+        finally:
+            second_done.set()
+            session.close()
+        with lock:
+            outcomes.append(("second", outcome))
+
+    t1 = threading.Thread(target=first)
+    t2 = threading.Thread(target=second)
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    oks = [name for name, o in outcomes if o == "ok"]
+    assert len(oks) == 2, (
+        f"이 시험은 취약점(둘 다 통과)을 증명해야 한다 — with 블록 밖 커밋이 실제로는 "
+        f"안전하다면 이 assert 가 실패해야 정상이다: {outcomes}"
+    )
+
+
+def test_committing_inside_the_with_block_closes_the_gap(app, capped):
+    """UB-08 고친 뒤 — `slot.record()` 직후, with 블록이 끝나기 **전에** 커밋하면
+    (documents/router.py·assistant/router.py 가 실제로 고친 방식) 잠금이 풀릴 때는 이미
+    커밋이 끝나 있어 두 번째 요청이 정확히 429 를 받는다."""
+    from app.core.errors import RateLimitedError
+    from app.quotas import service as quotas
+
+    lock_released = threading.Event()
+    outcomes: list[tuple[str, str]] = []
+    lock = threading.Lock()
+
+    def first():
+        session = app.state.session_factory()
+        try:
+            with quotas.consume(
+                session, user_id=capped.id, org_id=None,
+                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+            ) as slot:
+                slot.record()
+                session.commit()  # 고친 방식: 잠금이 풀리기 전에 커밋
+            outcome = "ok"
+        except Exception:
+            session.rollback()
+            outcome = "error"
+        finally:
+            lock_released.set()
+            session.close()
+        with lock:
+            outcomes.append(("first", outcome))
+
+    def second():
+        lock_released.wait(timeout=5)
+        session = app.state.session_factory()
+        try:
+            with quotas.consume(
+                session, user_id=capped.id, org_id=None,
+                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+            ) as slot:
+                slot.record()
+                session.commit()
+            outcome = "ok"
+        except RateLimitedError:
+            session.rollback()
+            outcome = "429"
+        finally:
+            session.close()
+        with lock:
+            outcomes.append(("second", outcome))
+
+    t1 = threading.Thread(target=first)
+    t2 = threading.Thread(target=second)
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    assert sorted(o for _, o in outcomes) == ["429", "ok"], (
+        f"블록 안 커밋으로 고쳤으면 정확히 하나만 통과해야 한다: {outcomes}"
+    )
+
+
 def test_a_failed_call_does_not_burn_the_slot(app, db, capped):
     """기록은 성공했을 때만 한다 — 러너가 죽은 날 상한까지 잃으면 안 된다."""
     from app.quotas import service as quotas
