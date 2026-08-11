@@ -42,6 +42,17 @@ def validate(level: str, audience: str, link_url: str | None = None) -> None:
         raise ValidationAppError("링크는 http:// 또는 https:// 로 시작해야 합니다.")
 
 
+def validate_window(starts_at: datetime | None, ends_at: datetime | None) -> None:
+    """UB-06: 뒤집힌 창(starts_at >= ends_at)을 만들면 201/200은 나는데 `in_window()`
+    (아래)가 그 공지를 **영원히 아무에게도** 보여 주지 않는다 — 화면엔 아무 경고도 없어
+    관리자는 "왜 아무도 배너를 못 보는지" 감사 로그나 DB를 직접 봐야만 알 수 있다.
+    둘 다 naive UTC 로 정규화된 뒤(`_naive()`, app/announcements/router.py) 이미
+    비교 가능한 상태로 넘어와야 한다.
+    """
+    if starts_at is not None and ends_at is not None and starts_at >= ends_at:
+        raise ValidationAppError("시작 시각은 종료 시각보다 앞서야 합니다.")
+
+
 def in_window(row: Announcement, now: datetime) -> bool:
     if row.starts_at is not None and now < row.starts_at:
         return False

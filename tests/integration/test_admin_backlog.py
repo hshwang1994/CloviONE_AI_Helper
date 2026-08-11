@@ -67,6 +67,88 @@ def test_announcement_window_and_audience(client, login_as):
     assert "관리자 전용" in titles
 
 
+# UB-06: starts_at >= ends_at 인 창은 in_window()가 항상 False를 내는(=영원히 아무도
+# 못 보는) 죽은 공지를 만든다. 서버가 만들 때/고칠 때 둘 다 막아야 한다.
+
+
+def test_creating_an_announcement_with_a_reversed_window_is_rejected(client, login_as):
+    csrf = login_as("system_admin")
+    now = datetime.now(timezone.utc)
+    starts = now + timedelta(days=2)
+    ends = now + timedelta(days=1)  # 시작보다 앞선 종료 — 뒤집힌 창
+    r = client.post(
+        "/api/admin/announcements",
+        json={
+            "title": "뒤집힌 창", "starts_at": starts.isoformat(), "ends_at": ends.isoformat(),
+        },
+        headers=_h(csrf),
+    )
+    assert r.status_code == 422, f"뒤집힌 창이 그대로 통과했다: {r.text}"
+
+
+def test_equal_starts_and_ends_is_also_rejected(client, login_as):
+    """starts_at == ends_at 도 폭이 0인 창이라 in_window()가 항상 False다."""
+    csrf = login_as("system_admin")
+    same = datetime.now(timezone.utc).isoformat()
+    r = client.post(
+        "/api/admin/announcements",
+        json={"title": "폭 0인 창", "starts_at": same, "ends_at": same},
+        headers=_h(csrf),
+    )
+    assert r.status_code == 422, f"폭 0인 창이 그대로 통과했다: {r.text}"
+
+
+def test_patching_only_ends_at_past_the_existing_starts_at_is_rejected(client, login_as):
+    """한쪽만 고쳐도 이미 저장된 다른 쪽과 뒤집힐 수 있다 — PATCH도 결과 창을 봐야 한다."""
+    csrf = login_as("system_admin")
+    now = datetime.now(timezone.utc)
+    created = client.post(
+        "/api/admin/announcements",
+        json={
+            "title": "정상 창",
+            "starts_at": (now + timedelta(days=1)).isoformat(),
+            "ends_at": (now + timedelta(days=5)).isoformat(),
+        },
+        headers=_h(csrf),
+    )
+    assert created.status_code == 201, created.text
+    row_id = created.json()["id"]
+
+    r = client.patch(
+        f"/api/admin/announcements/{row_id}",
+        json={"ends_at": now.isoformat()},  # starts_at(now+1일)보다 앞선 값
+        headers=_h(csrf),
+    )
+    assert r.status_code == 422, f"PATCH가 결과 창이 뒤집히는데도 통과했다: {r.text}"
+    # 거부됐으니 저장값은 원래 그대로여야 한다.
+    unchanged = client.get("/api/admin/announcements").json()
+    row = next(a for a in unchanged["items"] if a["id"] == row_id)
+    assert row["ends_at"] is not None and row["ends_at"] != now.isoformat()
+
+
+def test_a_valid_window_edit_still_works(client, login_as):
+    """검증을 추가했다고 정상 창까지 막히면 안 된다."""
+    csrf = login_as("system_admin")
+    now = datetime.now(timezone.utc)
+    created = client.post(
+        "/api/admin/announcements",
+        json={
+            "title": "정상 창 2",
+            "starts_at": (now + timedelta(days=1)).isoformat(),
+            "ends_at": (now + timedelta(days=5)).isoformat(),
+        },
+        headers=_h(csrf),
+    )
+    row_id = created.json()["id"]
+
+    r = client.patch(
+        f"/api/admin/announcements/{row_id}",
+        json={"ends_at": (now + timedelta(days=10)).isoformat()},
+        headers=_h(csrf),
+    )
+    assert r.status_code == 200, f"정상적인 창 연장이 거부됐다: {r.text}"
+
+
 def test_non_dismissible_announcement_refuses_dismiss(client, login_as):
     csrf = login_as("system_admin")
     row = client.post(

@@ -161,14 +161,17 @@ def create_announcement(
 ) -> dict:
     _ensure_may_touch_announcements(principal)
     service.validate(payload.level, payload.audience, payload.link_url)
+    starts_at = _naive(payload.starts_at)
+    ends_at = _naive(payload.ends_at)
+    service.validate_window(starts_at, ends_at)
     now = request.app.state.clock.now()
     row = Announcement(
         title=payload.title.strip(),
         body=payload.body or "",
         level=payload.level,
         audience=payload.audience,
-        starts_at=_naive(payload.starts_at),
-        ends_at=_naive(payload.ends_at),
+        starts_at=starts_at,
+        ends_at=ends_at,
         active=payload.active,
         dismissible=payload.dismissible,
         # CORE-11: 검증한 형태(정규화된 값)를 그대로 저장한다 — 원문을 저장하면 검증이
@@ -224,13 +227,20 @@ def update_announcement(
         # 요청만 검증한다.
         data["link_url"] if "link_url" in data else None,
     )
+    # UB-06: 결과로 남을 창(patch 대상이면 새 값, 아니면 기존 저장값)을 검증한다 — 한쪽만
+    # 고쳐도 이미 저장된 다른 쪽과 뒤집힐 수 있다(예: ends_at만 과거로 당기면 기존
+    # starts_at보다 앞서게 된다).
+    new_starts_at = _naive(data["starts_at"]) if "starts_at" in data else row.starts_at
+    new_ends_at = _naive(data["ends_at"]) if "ends_at" in data else row.ends_at
+    service.validate_window(new_starts_at, new_ends_at)
     for key in ("title", "body", "level", "audience", "active", "dismissible", "link_url", "link_label"):
         if key in data:
             # CORE-11: 저장 형태를 검증한 형태와 맞춘다(생성 경로와 동일한 이유).
             setattr(row, key, normalize_external_url(data[key]) if key == "link_url" else data[key])
-    for key in ("starts_at", "ends_at"):
-        if key in data:
-            setattr(row, key, _naive(data[key]))
+    if "starts_at" in data:
+        row.starts_at = new_starts_at
+    if "ends_at" in data:
+        row.ends_at = new_ends_at
     row.updated_at = request.app.state.clock.now()
     db.flush()
     record_audit_from_request(

@@ -484,7 +484,25 @@ chat_mention)은 전부 **사용자 콘솔 화면**이라 role 제한이 없어�
   생성·quotas) 중 `quotas.consume()`은 이미 자체 `begin_nested()`를 쓰고 있어 중첩
   SAVEPOINT가 되는데, 관련 시험 전부(quota TOCTOU 포함 18건) green으로 문제없음을 확인.
 - **검증**: `test_usage_events.py`(15건) + 로그인/티켓생성/문서생성/quota 관련 폭넓은
-  focused 시험 전부 green. 백엔드 전체 회귀(2670+건)는 배경 실행 중.
+  focused 시험 전부 green. 백엔드 전체 회귀(2670+건) exit code 0·실패표시 0건. 커밋 `5db84f5`.
+
+**계속(2026-08-11, 연속 실행) — UB-06 구현완료**: `5db84f5` 커밋 직후 바로 다음 후보를
+코드로 재확인해 착수했다.
+- **UB-06**: 공지 생성·수정(`app/announcements/router.py`)에 `starts_at < ends_at`
+  검증이 아예 없었다 — 뒤집어 넣으면(또는 폭이 0이면) 201/200이 그대로 나고 "활성" 행이
+  생기지만, `service.in_window()`(`now < starts_at` 이면 제외, `now >= ends_at` 이면
+  제외)의 두 조건이 뒤집힌 창에서는 **항상 동시에 걸려** 그 공지를 아무도 영원히 못 본다
+  — 화면엔 아무 경고도 없어 관리자는 DB나 감사 로그를 직접 봐야만 원인을 안다.
+  `service.validate_window(starts_at, ends_at)` 신설(`starts_at >= ends_at`이면 422,
+  `>=`라서 폭 0도 함께 막는다) — POST는 그대로 페이로드 값으로, **PATCH는 결과로 남을
+  값**(patch 대상이면 새 값, 아니면 기존 저장값)으로 검증한다: 한쪽만 고쳐도 이미 저장된
+  다른 쪽과 뒤집힐 수 있기 때문이다(예: `ends_at`만 과거로 당기면 기존 `starts_at`보다
+  앞서게 된다). 신규 시험 4건(`tests/integration/test_admin_backlog.py`) — 뒤집힌 창
+  생성 거부·폭 0 거부·PATCH로 뒤집기 거부·정상적인 창 연장은 그대로 통과. revert-to-verify
+  (되돌리면 뒤집힌 창 3건 실패 확인 후 복원 — "정상 창 편집" 시험은 원래도 통과라 회귀
+  신호가 없는 게 정상, 정직하게 확인함).
+- **검증**: `test_admin_backlog.py`(32건) + 공지 전체(33건) green. 백엔드 전체 회귀
+  (2670+건)는 배경 실행 중.
 
 다음은 새 후보를 다시 코드로 재확인해 고른다 — 사용자 확인 대기 없이 진행한다.
 
