@@ -12,7 +12,15 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF29(`invocation=2`) —
+**마지막 갱신**: 2026-08-12 · **단계**: WF30(`invocation=2`) —
+stale `RN-01~14`(러너 `assistant.py` 전수조사 사이클 0) 섹션 행
+정정, 코드 변경 없음. 2026-08-10 `5db9fbf`("MEGA CYCLE A")가
+5개 공유 Root Cause로 이미 13건(RN-08만 명시적 예외)을 해결했는데
+표에는 해결 표시가 없었다 — 커밋 메시지 확인에 그치지 않고
+실제 소스에서 `grep`으로 직접 재검증(TTL 상수·정리 함수의 실제
+호출부·질문·부정 가드가 라우터 여러 지점에서 쓰이는 것 확인) 후
+13개 행에 `✅ 구현완료` 표시, RN-08은 그 커밋이 스스로 밝힌
+미해결 이유를 그대로 옮겨 계속 열어 둠. 그 직전 WF29 —
 `GM-10`+`GM-11`(게임 동시성) 구현완료. `maybe_autoresolve`(폴링마다
 불림)가 부르는 `_finish_number`·`_finish_vote`·단판 `_finish_rps`·
 `_reveal_quiz`(조사 중 추가 발견 — BACKLOG 원문엔 없었다) 넷 다
@@ -25,7 +33,7 @@ read-then-write 가드 하나뿐이라 동시 요청이 각자 계산한 결과�
 난수 고정 검증), `tests/ -k game` 60건 green, revert-to-verify
 전부 확인(GM-10 하나는 되돌리니 assertion 실패 대신
 `sqlite3.OperationalError: database is locked`로 죽어 더 강하게
-확인됨). 그 직전 WF28 —
+확인됨). 그 앞 WF28 —
 `CONC-01`+`CONC-02`(관리 콘솔 공유 편집 폼의 동시성 결함) 구현완료.
 `DataScreen.jsx`의 공용 수정 폼(등록 화면 27개 공유)이 매번 전체
 필드를 재전송해 두 관리자가 같은 행을 열면 나중 저장이 앞사람
@@ -3648,6 +3656,33 @@ database is locked`로 죽어(CAS의 재시도 없이는 쓰기 경합 자체를
 60건(신규 4건 포함) green. 백엔드 전용 변경이라 프런트 재빌드
 불필요, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
 
-이 배치(`GM-10`+`GM-11`) 커밋 예정. **다음 후보**: stale
-`RN-01~14` 섹션 행 정정(2026-08-10 `5db9fbf`로 이미 구현됨,
-Explore가 WF28에서 발견), 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.
+이 배치(`GM-10`+`GM-11`) 커밋 완료(`8bbbb34`).
+
+**WF30(같은 invocation 계속) — stale `RN-01~14` 섹션(러너
+`assistant.py` 전수조사, 사이클 0) 행 정정, 코드 변경 없음.**
+WF28의 Explore 발견을 직접 재확인: `git show --stat 5db9fbf`로
+"MEGA CYCLE A"가 5개 공유 Root Cause(A~E)로 AI-30 Critical +
+RN-01~14 중 13건(RN-08만 명시적 예외)을 해결했다고 밝힌 커밋
+메시지를 확인하고, 실제 소스에서 `grep`으로 직접 재검증(단순
+신뢰 아님): `CONTEXT_MODE_TTL_SECONDS`·`cleanup_stale_
+conversation_state`(실제 sweep 루프 호출부 있음, 6133행)·
+`_READ_OR_QUESTION_RE`/`_NEGATION_RE`가 pending 분기 안쪽만이
+아니라 라우터의 여러 지점(5646·5670·5711·5729·5763·5773·5857행)
+에서 쓰이는 것을 확인 — RN-01/RN-02가 "최상위 라우터엔 가드가
+없다"고 지적했던 바로 그 자리들이다.
+
+RN-01~07·RN-09~14(13건)에 `✅ 구현완료(5db9fbf, Root Cause X)`를
+표시하고, RN-08은 커밋이 스스로 "n8n 쪽 write-outcome 신호가 이
+파일 어디에도 없고, 재시도 즉시 재전송은 다른 교착을 막던 기존
+의도적 동작이라 그대로 고치면 그 교착이 되살아난다"고 남긴
+이유를 그대로 옮겨 적어 계속 미해결로 남긴다(n8n 쪽 협조 필요).
+섹션 머리말에도 정정 근거를 한 번에 요약. RN-15~20은 그 커밋의
+범위 밖(코드 자체가 다른 관심사)이라 손대지 않았다 — 여전히
+미착수 상태 그대로.
+
+코드/테스트 변경 없음(순수 문서 정정) — 빌드·정적 검사 불필요.
+
+이 배치(`RN-01~14` 행 정정) 커밋 예정. **다음 후보**: BACKLOG/
+QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정(RN-15~20,
+남은 `RESP-04`/`VIS-122` 등 기존 보류 목록은 여전히 전담 세션
+필요).
