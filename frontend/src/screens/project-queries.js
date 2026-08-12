@@ -103,11 +103,18 @@ export function useProjectWeekly(id, week, enabled) {
  *
  * `refetchType: "all"` 인 이유: 기본값은 지금 화면에 붙어 있는 질의만 다시 부른다. 상세에서
  * 고치고 목록으로 돌아가면 목록 질의는 그때 비활성이라 옛 값이 그대로 남는다.
+ *
+ * `["home"]` 도 튼다 — `ticket-views.js::TICKET_VIEW_KEYS`는 이미 `"projects"`를 포함해
+ * 티켓 편집이 프로젝트 캐시에 닿는데, 반대 방향(프로젝트·마일스톤 수정 → 홈)이 빠져 있었다.
+ * `Dashboard.jsx::WorkSection`이 `["home","work-dashboard"]`(staleTime 60초)에서 "차질
+ * 프로젝트"/"지연 마일스톤"을 그리므로, 안 건드리면 마일스톤을 고쳐도 대시보드가 최소
+ * 60초(탭을 안 벗어나면 그 이상) 동안 옛 값을 보여준다.
  */
 function invalidateProject(qc, id) {
   qc.invalidateQueries({ queryKey: ["projects", "list"], refetchType: "all" });
   qc.invalidateQueries({ queryKey: ["projects", "dashboard"], refetchType: "all" });
   if (id) qc.invalidateQueries({ queryKey: ["projects", "one", id], refetchType: "all" });
+  qc.invalidateQueries({ queryKey: ["home"], refetchType: "all" });
 }
 
 export function useCreateProject() {

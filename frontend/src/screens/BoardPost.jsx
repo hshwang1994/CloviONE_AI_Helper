@@ -114,6 +114,7 @@ function AttachmentList({ attachments }) {
 
 function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const [body, setBody] = useState("");
   const submit = useMutation({
     mutationFn: () =>
@@ -121,7 +122,17 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
         method: "POST",
         body: { body, parent_comment_id: parentId || null },
       }),
-    onSuccess: () => { setBody(""); onDone && onDone(); },
+    onSuccess: () => {
+      setBody("");
+      onDone && onDone();
+      // 댓글 수는 이 상세 화면 밖에서도 보인다 — Board.jsx 목록의 comment_count 열,
+      // Home.jsx 「최근 글」 위젯(recent.board[].comment_count), 글쓴이 자신의 「받은
+      // 댓글」(board-mine). onDone은 이 상세 화면만 다시 부르므로(L축 재감사) 셋 다
+      // 명시적으로 무효화한다.
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
+      qc.invalidateQueries({ queryKey: ["board-mine"] });
+    },
     onError: (e) => toast((e && e.message) || "댓글을 남기지 못했습니다.", "error"),
   });
   return (
@@ -177,6 +188,7 @@ function CommentTombstone({ comment, isReply }) {
  * 하는데, 이 컴포넌트가 스스로 <li>를 그리면 최상위 댓글이 <li> 안의 <li>가 되어 무효 마크업이 된다. */
 function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   const toast = useToast();
+  const qc = useQueryClient();
   if (comment.deleted) return <CommentTombstone comment={comment} isReply={isReply} />;
   // CommentThread.jsx(티켓·문서 공용 댓글)와 같은 판정 — 수정된 댓글에는 "(수정됨)" 표시.
   const edited = comment.updated_at && comment.updated_at !== comment.created_at;
@@ -185,6 +197,8 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   const [replying, setReplying] = useState(false);
   const [text, setText] = useState(comment.body);
 
+  // 수정은 본문만 바꾼다 — comment_count 등 다른 화면이 보는 집계는 안 바뀌므로
+  // onChanged(상세 재조회)만으로 충분하다(remove와 달리 폭넓은 무효화가 필요 없다).
   const saveEdit = useMutation({
     mutationFn: () =>
       api("/api/board/comments/" + comment.id, { method: "PATCH", body: { body: text } }),
@@ -193,7 +207,13 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/comments/" + comment.id, { method: "DELETE" }),
-    onSuccess: () => onChanged && onChanged(),
+    onSuccess: () => {
+      onChanged && onChanged();
+      // 댓글 작성과 대칭 — 삭제도 comment_count를 바꾼다(CommentComposer.submit 주석 참고).
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
+      qc.invalidateQueries({ queryKey: ["board-mine"] });
+    },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
@@ -292,6 +312,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
 function IdeaStatusBar({ post, onChanged }) {
   const statuses = post.next_statuses || [];
   const toast = useToast();
+  const qc = useQueryClient();
   /* 앱은 해시 라우터다(app/App.jsx) — `window.open("/tickets/…")` 로 보내면 해시가 빠진
      주소로 나가 티켓이 아니라 앱 바깥으로 떨어진다. 이동은 라우터에게 시킨다. */
   const nav = useNavigate();
@@ -314,6 +335,9 @@ function IdeaStatusBar({ post, onChanged }) {
       setProjectId("");
       toast("제안 상태를 바꿨습니다.", "success");
       onChanged && onChanged();
+      // 상태 배지는 Board.jsx 목록에도 나온다(idea_status 열) — onChanged는 이 상세
+      // 화면만 다시 부르므로(L축 재감사, 댓글·반응과 같은 결함) 목록도 무효화한다.
+      qc.invalidateQueries({ queryKey: ["board"] });
     },
     onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다.", "error"),
   });
@@ -405,6 +429,9 @@ export function BoardPost() {
       // home의 「최근 글」 위젯도 함께 무효화 — 안 하면 지운 글이 홈 탭엔 그대로 남는다(L축 재감사).
       qc.invalidateQueries({ queryKey: ["board"] });
       qc.invalidateQueries({ queryKey: ["home"] });
+      // 삭제도 글쓴이의 「내 글」(board-mine)을 바꾼다 — 이 키는 지금까지 어디서도
+      // 무효화된 적이 없었다(Board.jsx save mutation과 같은 이유, L축 재감사).
+      qc.invalidateQueries({ queryKey: ["board-mine"] });
       toast("게시글을 삭제했습니다.", "success"); nav("/board");
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),

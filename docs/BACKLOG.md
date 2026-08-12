@@ -2374,14 +2374,11 @@ bespoke 화면 위주)로 확정. 전체 근거는 `QA_COVERAGE.md`의 해당 �
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| `CACHE-01` | Med | `BoardPost.jsx`의 댓글 작성/수정/삭제·반응 토글·아이디어 상태 변경이 `invalidateQueries` 없이 로컬 refetch만 해, `Board.jsx` 목록의 `comment_count`/`idea_status`/`like_count`(정렬 기준)와 `Home.jsx` "최근 글" 위젯이 갱신 안 된다. `Home.jsx`의 `MyBoardStats`(`["board-mine"]`)는 더 넓게 **어떤** 게시글/댓글 mutation에도 무효화 안 됨 | 미해결 |
-| `CACHE-02` | Med | `project-queries.js::invalidateProject()`가 `["home"]`을 안 건드려 `Dashboard.jsx`의 "차질 프로젝트"/"지연 마일스톤"(`work-dashboard`, staleTime 60s)이 마일스톤·프로젝트 수정 후 최소 60초+ stale | 미해결 |
+| `CACHE-01` | Med | ~~`BoardPost.jsx`의 댓글 작성/수정/삭제·반응 토글·아이디어 상태 변경이 `invalidateQueries` 없이 로컬 refetch만 해, `Board.jsx` 목록의 `comment_count`/`idea_status`/`like_count`(정렬 기준)와 `Home.jsx` "최근 글" 위젯이 갱신 안 된다. `Home.jsx`의 `MyBoardStats`(`["board-mine"]`)는 더 넓게 **어떤** 게시글/댓글 mutation에도 무효화 안 됨~~ ‖ **구현완료(2026-08-13)**: 댓글 작성(`CommentComposer.submit`)·삭제(`CommentItem.remove`)에 `["board"]`+`["home"]`+`["board-mine"]` 무효화 추가(둘 다 `comment_count`를 바꾼다). 댓글 **수정**(`saveEdit`)은 의도적으로 그대로 뒀다 — 본문만 바뀌고 어떤 목록 집계도 안 바뀐다. 반응 토글(`Reactions.toggle`, `Board.jsx`의 공유 컴포넌트 — 게시글·댓글 반응 둘 다 씀)에 `["board"]` 추가(`like_count` 열). 제안 상태 변경(`IdeaStatusBar.move`)에 `["board"]` 추가(`idea_status` 열). `["board-mine"]`은 지금까지 **어디서도** 무효화된 적이 없던 키라, 위 댓글 두 곳 외에 게시글 작성(`Board.jsx::PostFormModal.save`)·삭제(`BoardPost.jsx::remove`)에도 함께 추가(`post_count`). 신규 시험 8건(`board-post-cross-invalidation.test.jsx` 6건 — 댓글 등록/삭제/수정(대조군)·반응·상태변경·게시글삭제, `board-create-invalidation.test.jsx` 1건). 프런트 전체 회귀(241파일/1596건) green | 구현완료 |
+| `CACHE-02` | Med | ~~`project-queries.js::invalidateProject()`가 `["home"]`을 안 건드려 `Dashboard.jsx`의 "차질 프로젝트"/"지연 마일스톤"(`work-dashboard`, staleTime 60s)이 마일스톤·프로젝트 수정 후 최소 60초+ stale~~ ‖ **구현완료(2026-08-13)**: `invalidateProject()`에 `qc.invalidateQueries({queryKey:["home"], refetchType:"all"})` 한 줄 추가 — 모든 프로젝트/마일스톤 쓰기 훅이 공유하는 함수라 한 곳만 고치면 전부 닫힌다(`ticket-views.js::TICKET_VIEW_KEYS`가 이미 `"projects"`를 포함해 반대 방향은 되던 것과 대칭). 신규 시험 1건(`project-dashboard-invalidation.test.jsx`, `useUpdateMilestone`으로 대표 확인) | 구현완료 |
 | `CACHE-03` | Low | 부서/직책 개명이 `["tickets","assignees"]`(staleTime 60s)를 무효화 안 해, 다른 탭에 열린 티켓 생성/수정 모달의 담당자 후보 이름이 최대 60초 stale. 영향 좁음(감사 로그·티켓 상세는 서버 조인이라 매 요청 최신) | 미해결 |
 
-**다음 후보**: `CACHE-01`(공통 원인 3개 mutation 계열 — 게시글 mutation 훅이 이미 쓰는
-`invalidateQueries(["board"])`/`["home"]` 패턴을 댓글·반응·상태 변경 세 곳에도 적용하고
-`["board-mine"]`을 그 무효화 목록에 추가하면 한 번에 닫힌다), `CACHE-02`(`invalidateProject()`에
-`["home"]` 한 줄 추가) 순으로 착수 권장. `CACHE-03`은 우선순위 낮음.
+**다음 후보**: `CACHE-03`(우선순위 낮음 — `Users.jsx::refresh()`에 `["tickets"]` 한 줄 추가로 닫힘).
 
 ### `WF1` 후속 검증 — **임박한 것 하나** (내가 직접 확인)
 

@@ -12,10 +12,12 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF44(`invocation=3`) — 파일
-끝(WF35~44)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF44는 `admin_policies` purpose
-컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료 — 상세는 파일 끝.
+**마지막 갱신**: 2026-08-13 · **단계**: WF45(`invocation=3`) — 파일
+끝(WF35~45)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF45는 `CACHE-01`(Board/Ideas 댓글·
+반응·상태 무효화, Med)+`CACHE-02`(Projects→Dashboard, Med) 구현완료
+— 상세는 파일 끝. 그 앞 WF44는 `admin_policies` purpose 컬럼(WF1
+단독 결함, Med) + 배너 톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
@@ -4458,9 +4460,48 @@ green. 재빌드 완료, `bash scripts/static_checks.sh` →
 60초+ 무한정 stale), Users(부서 개명이 `["tickets","assignees"]`
 60초 캐시를 안 건드림, 영향 작음) 3건의 진짜 공백을 확정하고
 Settings/Feature-flags/Announcements/Offboarding은 이미 잘 배선돼
-있음을 확인. 이 배치(purpose 컬럼+배너 톤) 커밋 예정. **다음 후보**:
-위 캐시 무효화 3건(Board/Ideas가 가장 큼 — 댓글·반응·상태 3개
-mutation 계열이 공통 원인) 착수, 또는 대시보드 정보 위계(`VIS-24`/
-`25`) 실브라우저 판단. 그 외 후보는 위 WF43 단락과 동일(`RN-15`·
-`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·`RESP-04`/`VIS-122`·
-`user_team-doc-detail` URL 미링크화).
+있음을 확인. 이 배치(purpose 컬럼+배너 톤) 커밋 완료(`663058f`).
+
+**WF45(같은 invocation 계속) — `CACHE-01`+`CACHE-02`(WF44 배경 조사가
+확정한 캐시 무효화 공백 3건 중 2건, Med) 구현완료.**
+
+**`CACHE-01`(Board/Ideas)**: `BoardPost.jsx` 댓글 작성(`CommentComposer.
+submit`)·삭제(`CommentItem.remove`)에 `["board"]`+`["home"]`+
+`["board-mine"]` 무효화 추가 — 둘 다 `comment_count`(목록 열·home
+「최근 글」·board-mine "받은 댓글")를 바꾼다. 댓글 **수정**(`saveEdit`)
+은 의도적으로 그대로 뒀다 — 본문만 바뀌고 어떤 집계도 안 바뀐다(대조군
+시험으로 고정). `Board.jsx`의 `Reactions.toggle`(게시글·댓글 반응 공유
+컴포넌트)에 `["board"]` 추가(`like_count` 열, 제안 게시판 기본 정렬
+기준). `IdeaStatusBar.move`에 `["board"]` 추가(`idea_status` 열).
+`["board-mine"]`은 지금까지 **어디서도** 무효화된 적이 없던 키라 —
+위 댓글 두 곳 외에 `Board.jsx::PostFormModal.save`(작성)·
+`BoardPost.jsx::remove`(게시글 삭제)에도 추가(`post_count`).
+
+**`CACHE-02`(Projects→Dashboard)**: `project-queries.js::
+invalidateProject()`에 `qc.invalidateQueries({queryKey:["home"],
+refetchType:"all"})` 한 줄 — 모든 프로젝트/마일스톤 쓰기 훅이 공유하는
+함수라 한 곳만 고치면 `useCreateProject`/`useUpdateProject`/
+`useArchiveProject`/`useCreateMilestone`/`useUpdateMilestone`/
+`useDeleteMilestone`/`useRecomputeProgress`/`useSnapshotHealth` 전부
+닫힌다(`ticket-views.js::TICKET_VIEW_KEYS`가 이미 `"projects"`를
+포함해 티켓→프로젝트 방향은 되던 것과 대칭 — 반대 방향만 빠졌었다).
+
+**시험**: `board-post-cross-invalidation.test.jsx` 신규 6건(댓글
+등록/삭제/수정[대조군]·반응·상태변경·게시글삭제 — 게시글 자신의
+"삭제" 버튼과 댓글의 "삭제" 버튼이 접근성 이름이 같아, 시나리오마다
+`can_delete`/댓글 유무를 분리한 fixture로 모호성 제거), `board-create-
+invalidation.test.jsx` 신규 1건(`PostFormModal` 작성→board-mine),
+`project-dashboard-invalidation.test.jsx` 신규 1건(`useUpdateMilestone`
+→home, `renderHook` 패턴). 관련 회귀 10파일/33건 + `DataScreen.jsx`
+급은 아니지만 `Board.jsx`/`project-queries.js`가 여러 화면이 공유하는
+파일이라 프런트 전체 회귀(241파일/1596건) green. 재빌드 완료,
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 `CACHE-01`/`CACHE-02` 행을 구현완료로,
+`docs/QA_COVERAGE.md` §11 `L`축 요약과 "남은 큰 공백" 3번 항목을
+갱신. `CACHE-03`(Users→티켓 담당자 후보, Low, `Users.jsx::refresh()`에
+`["tickets"]` 한 줄이면 닫힘)만 남기고 커밋 예정. **다음 후보**:
+`CACHE-03` 또는 대시보드 정보 위계(`VIS-24`/`25`) 실브라우저 판단.
+그 외 후보는 위 WF43 단락과 동일(`RN-15`·`RN-17` 잔여 노출·
+`RN-18~20`·`VIS-80`·`RESP-04`/`VIS-122`·`user_team-doc-detail` URL
+미링크화).

@@ -183,6 +183,10 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       // home의 「최근 글」 위젯(Home.jsx recent.board)도 같은 자료를 보여준다 — 문서판과
       // 같은 결함 부류(L축 재감사, document-views.js 참고).
       qc.invalidateQueries({ queryKey: ["home"] });
+      // 글 작성자 자신의 「내 글」(board-mine, Home.jsx MyBoardStats)도 새 글에서 바뀐다 —
+      // 이 키는 지금까지 어떤 게시판 mutation에서도 무효화된 적이 없었다(L축 재감사).
+      // 수정은 post_count를 안 바꾸지만, mode로 분기하는 비용보다 여기 한 줄이 더 싸다.
+      qc.invalidateQueries({ queryKey: ["board-mine"] });
       if (failed && failed.length) {
         toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", "), "error");
       } else {
@@ -285,6 +289,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
 /* 이모지 반응 바 — 대상(게시글/댓글)에 팔레트 이모지를 토글한다. mine이면 DELETE, 아니면 POST. */
 export function Reactions({ targetType, targetId, reactions, palette, onChanged }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const byEmoji = reactionMap(reactions);
   const toggle = useMutation({
     mutationFn: async (emoji) => {
@@ -294,7 +299,14 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
         body: { target_type: targetType, target_id: targetId, emoji },
       });
     },
-    onSuccess: () => onChanged && onChanged(),
+    onSuccess: () => {
+      onChanged && onChanged();
+      // 게시글 반응은 Board.jsx 목록의 like_count 열(제안 게시판 기본 정렬 기준)에도
+      // 나온다 — onChanged는 상세 화면 자신만 다시 부르므로(L축 재감사, 댓글/상태
+      // 변경과 같은 결함), 목록도 함께 무효화한다. 댓글 반응은 목록에 안 나오는
+      // 값이라 사실 필요 없지만, 대상 종류를 분기하는 비용보다 여기 한 줄이 더 싸다.
+      qc.invalidateQueries({ queryKey: ["board"] });
+    },
     onError: (e) => toast((e && e.message) || "반응을 저장하지 못했습니다.", "error"),
   });
   return (
