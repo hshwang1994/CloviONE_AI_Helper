@@ -12,9 +12,27 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) 완료 → WF9-1
-(`SEC-10` 부분 구현) 완료 → BACKLOG 재개 중. WF8(12건 구현완료 + 전체 회귀 green)는 그대로
-유효, 아래 그 상세 앞에 이번 보정들을 기록한다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) → WF9-1
+(`SEC-10` 부분 구현) → WF9-2(`ADM-02R` 구현완료) 순서로 완료, BACKLOG 재개 중. WF8(12건
+구현완료 + 전체 회귀 green)는 그대로 유효, 아래 그 상세 앞에 이번 보정들을 기록한다.
+
+**WF9-2(2026-08-12) — `ADM-02R`(Med) 구현완료: `/setup` 체크리스트에 메일 항목 추가.**
+`ADM-02`(High, "메일이 없어서 CLI로 임시 비밀번호를 전달하는 흐름이 굳어졌다")는 §1812
+"ADM-02 정정"에서 이미 근거가 약함이 밝혀져 있었다 — 관리자 재설정은 메일과 무관하게
+화면만으로 완결되고, 자가 재설정은 `mail_is_sendable()`로 스스로 확인해 안 되는 버튼을
+숨긴다(제품이 메일 부재를 이미 정직하게 다룸). 살아남은 유일한 문제(`ADM-02R`, Med)만
+구현: `app/setup/steps.py`에 `mail` 항목(`admin_account` 다음, `user_visible=False`) +
+`app/setup/probes.py::probe_mail`이 비밀번호 재설정 화면이 이미 쓰는
+`app/mail/config.py::configuration_problems`를 그대로 재사용(새 판정 안 만듦, 모듈
+docstring 원칙 준수). `SetupWizard.jsx`에 설정 화면 딥링크 추가.
+
+신규 테스트 5건 + `EXPECTED_ORDER` 갱신 + 기존 2건을 새 순서(`mail`이 이제
+`organization`보다 앞)에 맞게 수정, revert-to-verify(`PROBES`에서 등록 제거 →
+35건 연쇄 실패로 실제 wiring 확인 후 복원). 관련 스위트(`test_mail_delivery`·
+`test_password_reset`·`test_admin_backlog`) + 프런트 `setup-wizard.test.jsx`(12건) green,
+`STATIC_CHECKS_OK`(도중 새 텍스트의 가운뎃점 위반 1건 발견해 정리), 번들 재빌드 반영.
+BACKLOG의 `ADM-02` 원 행도 "정정"으로 인라인 갱신(원래 High가 근거 약해 철회된 사실을
+그 행 자체에도 남김 — WF8의 ADM-01류 자기모순 정정과 같은 이유).
 
 **WF9-1(2026-08-12) — `SEC-10`(High) 부분 구현완료: 문서 단위 열람 제한.** BACKLOG 전체
 재고에서 아직 남은 High 중 유일한 **Security/DataLoss급**(Notion 문서 1건의 평문 자격증명을
