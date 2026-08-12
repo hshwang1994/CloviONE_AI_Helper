@@ -12,10 +12,48 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF11(제품 BACKLOG 재개 — SEC-12/13 문서 정정 +
-`USE-01` 휴지통 왕복 + `QA-02` smoke 스위트 신설로 종결) 완료. 그 앞의 WF10-0(Continuity Bootstrap, D-64) →
-WF10-1(Supervisor runtime contract 확정, D-65)와 WF9-0(D-63) → WF9-1(`SEC-10` 부분) →
-WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF11 계속 — Stop hook 정정 이후 새 invocation에서
+`FN-02` 정정에 이어 `WF11-L01`(문서·게시판→home 위젯 cross-invalidation) 신규 발견·구현완료.
+그 앞의 WF11(SEC-12/13 문서 정정 + `USE-01` 휴지통 왕복 + `QA-02` smoke 스위트), WF10-0
+(Continuity Bootstrap, D-64) → WF10-1(Supervisor runtime contract 확정, D-65)와
+WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체
+회귀 green)은 그대로 유효하다.
+
+**WF11-L01(2026-08-12, 새 invocation) — `QA_COVERAGE.md` `L`축(화면 간 반영) 재감사로
+신규 Root Cause 발견·구현완료.** 이전 invocation이 예산 임계치로 멈췄다가 Stop hook에
+정정당한 뒤 다시 시작한 이 invocation에서, "다음 후보"에 적어 둔 L축 전수 매트릭스 착수
+대신(전수는 범위가 너무 크다고 판단) **먼저 값싸게 구조를 훑어 강한 후보를 찾는** 전략을
+썼다 — `CROSS_SCREEN_KEYS`(`data-screen/crossScreenKeys.js`)를 읽어 이 저장소가 이미
+"화면 A를 고치면 화면 B도 낡는다"는 결함을 5번(알림→벨, jobs→dashboard, org→org-tree,
+announcements→배너, approvals→5화면) 발견·고친 전례가 있음을 확인한 뒤, **같은 결함이
+6번째로 남아 있는지**를 좁혀서 찾았다. `Home.jsx`(`/me`)가 `["home","today"]`로 문서·
+게시판 최근 글을 보여주는데(`recent.documents`/`recent.board`), 정작 `TeamDocs.jsx`·
+`TeamDoc.jsx`·`Trash.jsx`·`Board.jsx`·`BoardPost.jsx` 어디도 `["home"]`을 무효화하지
+않았다 — 결정적 증거: **티켓은 이미 `ticket-views.js::TICKET_VIEW_KEYS`에 `["home"]`이
+들어 있어 같은 문제를 해결해 뒀는데**, 나중에 생긴 문서·게시판 위젯에는 그 관용이
+전파되지 않았다(이 저장소가 반복해서 찾아낸 "패턴은 있는데 새 화면이 안 따른다" 결함
+계열). `main.jsx`의 전역 `refetchOnWindowFocus:false` + `staleTime:30s` 때문에 저장/삭제
+직후 30초 안에 홈으로 이동하면 옛 값이 보인다 — ticket-views.js가 스스로 적어 둔 원 버그
+증상("저장했습니다 토스트는 뜨는데 목록은 옛것")과 정확히 같은 모양.
+
+**구현**: `ticket-views.js`를 본떠 `frontend/src/screens/document-views.js` 신설
+(`DOCUMENT_VIEW_KEYS`+`invalidateDocumentViews`), `TeamDocs.jsx`(일괄삭제·동기화·생성)·
+`TeamDoc.jsx`(단건삭제·열람제한)·`Trash.jsx`(복원·영구삭제, 티켓·문서 겸용)를 이 헬퍼로
+교체 — 부수 효과로 `TeamDocs.jsx`/`Trash.jsx`가 지운 문서마다 손으로 순회하던
+`["team-doc", id]` 개별 무효화도 `["team-doc"]`(접두어, id 없이) 하나로 단순화됐다
+(react-query 무효화는 접두사 일치라는 이 저장소의 기존 규칙 그대로). 게시판은 호출부가
+3곳뿐이라 새 모듈 없이 `Board.jsx`·`BoardPost.jsx`에 `["home"]`을 직접 추가(과잉 추상화
+방지).
+
+**검증**: `teamdocs-bulk-trash-invalidation.test.jsx`에 신규 시험 추가, revert-to-verify
+(`DOCUMENT_VIEW_KEYS`에서 `["home"]` 제거 → 그 시험만 정확히 그 증상으로 실패 확인 후
+복원). 영향받는 5개 화면의 관련 스위트 전부(teamdoc·teamdocs-view·
+teamdocs-bulk-trash-invalidation·teamdocs-failure-retry·teamdoc-edit·trash·
+trash-doc-detail-invalidation[FN-14 회귀 포함]·board·board-post-*·board-comment-*·
+board-identity) 65건 green — 특히 FN-14 시험이 green으로 남아 `["team-doc"]` 접두어
+단순화가 기존 동작을 깨지 않았음을 실측 확인했다. `npm run build` 통과, 번들 재빌드 +
+`check_bundle_fresh.py --write`, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+`app/`(백엔드)는 이 변경과 무관해 백엔드 회귀는 재실행하지 않았다(프런트 전용 변경).
 
 **WF11(2026-08-12) — 제품 BACKLOG 재개, WF9-3 "다음 후보" 중 자기완결 2건 종결.**
 비대화형 무인 실행 재개 시작 시 예산이 제한적(세션 USD 예산)이라 값비싼 다중 에이전트
