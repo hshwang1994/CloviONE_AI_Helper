@@ -206,7 +206,9 @@ export function useDeleteMilestone(projectId) {
  *
  * 이름을 모르는 사람에게는 부서 자리를 아예 안 그린다(project-format.js::deptLabel).
  */
-const DEPT_ROLES = ["admin", "system_admin"];
+// VIS-02: Project.jsx도 이 목록으로 부서 지정 컨트롤을 게이트한다 — 목록이 두 벌이 되면
+// "여기선 되는데 저기선 빈 선택기"가 다시 생긴다(project-format.js:65-67의 그 이유).
+export const DEPT_ROLES = ["admin", "system_admin"];
 
 export function useDeptNames() {
   const auth = useAuth();

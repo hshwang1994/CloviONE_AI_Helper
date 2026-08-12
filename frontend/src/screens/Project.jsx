@@ -1,9 +1,11 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
@@ -21,10 +23,10 @@ import {
   PROJECT_STATUS_KO, PROJECT_WRITE_ROLES, deptLabel, periodText,
 } from "./project-format.js";
 import {
-  useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames, useProject,
-  useProjectHealth, useProjectHealthHistory, useProjectMilestones, useProjectProgress,
-  useProjectWbs, useProjectWeekly, useRecomputeProgress, useSnapshotHealth,
-  useUpdateMilestone, useUpdateProject,
+  DEPT_ROLES, useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames,
+  useProject, useProjectHealth, useProjectHealthHistory, useProjectMilestones,
+  useProjectProgress, useProjectWbs, useProjectWeekly, useRecomputeProgress,
+  useSnapshotHealth, useUpdateMilestone, useUpdateProject,
 } from "./project-queries.js";
 
 /* 프로젝트 상세 — 개요, WBS 트리, 마일스톤, 티켓, 주간 리포트.
@@ -194,6 +196,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
 function Overview({
   project, deptNames, progressQuery, healthQuery, healthHistoryQuery, canWrite, onEdit,
   onArchive, archiving, onRecomputeProgress, recomputingProgress, onSnapshotHealth, snapshottingHealth,
+  canAssignDept, onAssignDept, assigningDept,
 }) {
   const p = project || {};
   const dept = deptLabel(p, deptNames);
@@ -221,7 +224,39 @@ function Overview({
             </Stack>
           </MetaRow>
           {p.code ? <MetaRow label="코드">{p.code}</MetaRow> : null}
-          {dept ? <MetaRow label="부서">{dept}</MetaRow> : null}
+          {/* VIS-02: dept가 없으면(대부분의 Notion 동기화 신규 프로젝트가 그렇다 — sync.py의
+              "부서 지정은 사람의 판단이다" 주석 참고) 이 행 자체가 안 그려져 "부서 미지정"
+              이라는 사실도, 지정할 방법이 있다는 것도 안 보였다. 부서 스코프 관리자에게는
+              dept_id가 없는 프로젝트가 통째로 안 보이므로(app/projects/repository.py) 이건
+              장식이 아니라 그 프로젝트를 다시 보이게 할 유일한 화면이다. 항상 그리고,
+              지정 권한이 있는 역할(DEPT_ROLES, useDeptNames와 같은 목록)에게는 그 자리에서
+              바로 고칠 수 있게 한다 — 운영자에게는 빈 선택기를 보여주지 않는다(project-format.js
+              의 같은 경고). */}
+          <MetaRow label="부서">
+            {canAssignDept ? (
+              <TextField
+                select size="small" sx={{ minWidth: "12rem" }}
+                disabled={assigningDept}
+                value={p.dept_id || ""}
+                onChange={(e) => onAssignDept(e.target.value || null)}
+                SelectProps={{ displayEmpty: true }}
+                inputProps={{ "aria-label": "부서" }}
+              >
+                <MenuItem value="">부서 미지정</MenuItem>
+                {Object.entries(deptNames || {}).map(([id, name]) => (
+                  <MenuItem key={id} value={id}>{name}</MenuItem>
+                ))}
+                {/* 지금 지정된 부서가 이 목록에 없을 수 있다(예: 부서 스코프 관리자가 보는
+                    프로젝트가 자기 범위 밖 부서에 있는 경우) — 그때도 select의 value가 어느
+                    MenuItem과도 안 맞으면 MUI가 콘솔 경고를 내고 화면은 빈 값처럼 보인다.
+                    이름을 모르면 id라도 보여준다(§불변 6과 같은 "모르는 것을 지어내지
+                    않는다" 정신 — id를 아예 숨기지도 않는다). */}
+                {p.dept_id && !(deptNames || {})[p.dept_id] ? (
+                  <MenuItem value={p.dept_id}>{p.dept_id}</MenuItem>
+                ) : null}
+              </TextField>
+            ) : (dept || "부서 미지정")}
+          </MetaRow>
           <MetaRow label="기간">{periodText(p.starts_on, p.ends_on)}</MetaRow>
           {p.biz_type ? <MetaRow label="사업 유형">{p.biz_type}</MetaRow> : null}
           {p.product ? <MetaRow label="제품">{p.product}</MetaRow> : null}
@@ -338,6 +373,18 @@ export function Project() {
     toast("프로젝트를 저장했습니다.", "success");
   }
 
+  // VIS-02: dept_id 하나만 바꾸는 별도 경로 — PROJECT_FORM_FIELDS(생성 폼과 공유)에 넣지
+  // 않는다. 그 목록에 넣으면 운영자에게도 뜨는데 useDeptNames는 admin/system_admin만
+  // 응답을 받아(DEPT_ROLES) 운영자에게는 빈 선택기가 된다(project-format.js의 경고 그대로).
+  async function handleAssignDept(deptId) {
+    try {
+      await update.mutateAsync({ dept_id: deptId, base_notion_version: project.notion_version });
+      toast(deptId ? "부서를 지정했습니다." : "부서 지정을 해제했습니다.", "success");
+    } catch (e) {
+      toast((e && e.message) || "부서를 저장하지 못했습니다.", "error");
+    }
+  }
+
   async function handleArchive() {
     if (!(await confirm(
       "\"" + (project.name || "이 프로젝트") + "\"를 보관할까요? 되돌리는 기능은 없습니다.",
@@ -408,6 +455,8 @@ export function Project() {
           onArchive={handleArchive} archiving={archive.isPending}
           onRecomputeProgress={handleRecomputeProgress} recomputingProgress={recomputeProgress.isPending}
           onSnapshotHealth={handleSnapshotHealth} snapshottingHealth={snapshotHealth.isPending}
+          canAssignDept={DEPT_ROLES.includes(role)} onAssignDept={handleAssignDept}
+          assigningDept={update.isPending}
         />
       ) : null}
 

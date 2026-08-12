@@ -706,6 +706,62 @@ describe("프로젝트 수정", () => {
   });
 });
 
+describe("프로젝트 상세 — 부서 지정 (VIS-02)", () => {
+  /* dept_id가 없는 프로젝트는 부서 스코프 관리자에게 통째로 안 보인다
+     (app/projects/repository.py) — "부서 지정은 사람의 판단"(sync.py 주석)이라는데 지정할
+     화면이 없었다. 이 행이 항상 보이는지, 지정 권한이 있는 역할에게만 select가 뜨는지를 본다. */
+
+  it("부서 미지정 프로젝트도 '부서' 행 자체는 항상 보인다(예전엔 dept가 없으면 행이 안 그려졌다)", async () => {
+    detailProject = project({ dept_id: null });
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    expect(screen.getByText("부서")).toBeInTheDocument();
+    expect(screen.getByText("부서 미지정")).toBeInTheDocument();
+  });
+
+  it("admin/system_admin에게는 그 자리에서 바로 고칠 수 있는 select가 뜨고, 고르면 PATCH를 부른다", async () => {
+    authRole = "admin";
+    apiMock.mockImplementation((path) => {
+      const p = String(path);
+      if (p.startsWith("/api/admin/departments")) {
+        return Promise.resolve({ items: [{ id: "d-1", name: "개발팀" }, { id: "d-2", name: "운영팀" }] });
+      }
+      if (p.startsWith("/api/projects/p-1/progress")) return Promise.resolve(progressPayload);
+      if (p.startsWith("/api/projects/p-1/health")) return Promise.resolve(healthPayload);
+      if (p.startsWith("/api/projects/p-1")) return Promise.resolve({ project: detailProject });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    const select = screen.getByLabelText("부서");
+    expect(select).toHaveTextContent("개발팀");
+
+    await user.click(select);
+    await user.click(await screen.findByRole("option", { name: "운영팀" }));
+
+    await waitFor(() => expect(lastWrite("/api/projects/p-1", "PATCH")).not.toBeNull());
+    const sent = lastWrite("/api/projects/p-1", "PATCH");
+    expect(sent.body.dept_id).toBe("d-2");
+    // 편집 폼과 같은 낙관적 잠금 지문을 쓴다 — 새 경로라고 그 규약을 빼먹지 않는다.
+    expect(sent.body.base_notion_version).toBe("v1");
+  });
+
+  it("일반 사용자에게는 select가 아니라 읽기 전용 글자다 — 빈 선택기를 보여주지 않는다", async () => {
+    authRole = "user";
+    detailProject = project({ dept_id: "d-1" });
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    expect(screen.queryByLabelText("부서")).toBeNull();
+    // useDeptNames가 user 역할에는 이름을 안 주므로(DEPT_ROLES) "부서 미지정"으로 보인다 —
+    // 이름 없는 raw id를 그리지 않는다는 이 화면의 기존 규칙과 같은 이유.
+    expect(screen.getByText("부서 미지정")).toBeInTheDocument();
+  });
+});
+
 describe("프로젝트 보관 (FN-04)", () => {
   beforeEach(() => { authRole = "admin"; });
 

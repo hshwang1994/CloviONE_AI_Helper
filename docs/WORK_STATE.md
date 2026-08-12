@@ -12,10 +12,15 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF22 — `/setup`·`/llm-console`
+**마지막 갱신**: 2026-08-12 · **단계**: WF23 — `/projects` 클러스터
+(`VIS-01~06`) — `VIS-02`("부서" 열이 늘 비어 있다)가 표시 문제가 아니라
+RBAC 가시성 결함(부서 스코프 관리자에게 신규 동기화 프로젝트가 통째로
+안 보이는데 지정할 UI가 없었다)이었음을 확인하고 구현완료. 나머지
+5건은 데이터 우연/이미 무너진 전제/기존 발견과 같은 뿌리로 재정리.
+그 직전 WF22 — `/setup`·`/llm-console`
 클러스터(`SYS-04~09` 6건) — SYS-05(자체서명 인증서 오판정)·SYS-06(setup
 링크가 엉뚱한 화면으로 감)·SYS-07(select 빈 상자) 구현완료, SYS-04/08/09는
-각각 배포 필요/설계 필요로 명시적 보류. 그 직전 WF21 — Stop hook이 조기
+각각 배포 필요/설계 필요로 명시적 보류. 그 앞 WF21 — Stop hook이 조기
 종료 시도를 정정, BACKLOG 전체 재스캔 후 `VIS-113`(사이드바 활성 항목
 스크롤) 구현완료. 그 앞 WF20 — `/jobs` 작업 큐 클러스터
 (`VIS-117~123` 7건, "같은 화면 Root Cause 묶음" 첫 적용) — `VIS-117` 절반
@@ -3202,4 +3207,64 @@ tls`의 새 문구에서 em dash 1건을 실제로 잡아 즉시 정정. 백엔�
 QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · AI-* 아키텍처 클러스터
 14건(전담 설계 세션 필요) · BACKLOG Med/Low 클러스터 계속 스캔 ·
 PHASE 1 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명
+
+**WF23(2026-08-12, 같은 invocation 계속) — `/projects` 클러스터
+`VIS-01~06`, 그중 `VIS-02`가 사소한 표시 문제가 아니라 RBAC 가시성
+결함이었다.** 배경에서 전체 백엔드 회귀(`pytest -q`, 2512개 전체 —
+이번 세션 8개 배치가 건드린 표면이 넓어 수렴 확인 차 실행, 아직
+진행 중이라 결과는 다음 체크포인트에 기록)를 돌리는 동안 병행 조사.
+
+`VIS-01`(KPI "전체"="진행" 중복)·`VIS-03`("상세" 버튼이 무겁다, `DS-01`/
+`DS-03` 근거)은 재확인 결과 각각 **데이터 우연**과 **이미 무너진 전제**
+(인용한 두 항목이 이미 정정돼 있었다)였다. `VIS-05`("보관 토글은 영원히
+켤 이유가 없다")는 `FN-04`가 이미 구현완료(보관 버튼 존재)라 그 전제도
+무너졌다 — 레이아웃 밀도 지적만 남기고 부분 오탐 정정. `VIS-06`은
+`VIS-122`와 완전히 같은 뿌리(클로비가 상세 버튼을 가림)라 같은 완화
+사실(행 전체 클릭 가능)이 그대로 적용되고, 같은 전담 세션으로 이월.
+`VIS-04`(Health 점수 무색상)는 재확인 결과 여전히 진짜 결함이지만
+색 규칙 설계가 필요해 범위 밖.
+
+**`VIS-02`("상태"·"부서" 열이 전 행 동일값")를 코드로 파고든 결과가
+이번 배치의 핵심이다.** "상태" 쪽은 데이터 우연이지만, "부서" 쪽은
+**구조적으로 항상 비어 있을 수밖에 없었다** — 프로젝트 생성 폼에도
+상세 화면에도 `dept_id`를 지정하는 UI가 어디에도 없었다. 이게 단순
+표시 문제가 아니라는 것은 `app/projects/sync.py`의 기존 주석이 이미
+경고해 뒀다: `dept_id IS NULL`인 프로젝트는 부서 스코프 관리자에게
+**통째로 안 보이고**, "누군가 부서를 지정해 줄 때까지" 그 상태가
+계속된다 — 그런데 그 "누군가 지정"할 화면이 아예 없었다. 즉 Notion
+에서 새로 동기화되는 모든 프로젝트가 전역 관리자 말고는 영원히
+못 보는 상태로 굳어 있었다. 백엔드(`ProjectUpdate.dept_id`,
+`ensure_dept_in_scope`— 범위 밖 부서 차단·없는 부서 차단·None은
+항상 허용까지 이미 완비)는 전부 준비돼 있었다 — 배관의 프런트 쪽
+끝만 없었다.
+
+**구현**: `Project.jsx` 개요의 "부서" 행을 (a) `dept_id`가 없어도
+항상 그리게(예전엔 행 자체가 안 그려졌다), (b) `DEPT_ROLES`(`admin`/
+`system_admin`, `project-queries.js`에서 export해 `useDeptNames`와
+같은 목록을 공유)에게는 인라인 select로 그 자리에서 바로 재지정할
+수 있게 고쳤다. 새 mutation을 만들지 않고 기존 `useUpdateProject`를
+재사용해(편집 폼과 같은 `base_notion_version` 낙관적 잠금 지문을
+함께 보냄) 배관을 하나로 유지. 선택 목록에 없는(범위 밖) 현재
+부서도 합성 MenuItem으로 id를 보여준다(MUI "out-of-range value"
+콘솔 경고를 실제로 잡아 고침 — "모르는 것을 지어내지 않는다"
+원칙과 "id조차 숨기지 않는다"의 절충).
+
+**검증**: 신규 시험 3건(`projects.test.jsx`) — 부서 행 상시 표시,
+admin의 select 표시+변경 시 PATCH(`dept_id`+`base_notion_version`
+둘 다 확인), 일반 사용자에겐 select 대신 읽기 전용 텍스트.
+`canAssignDept`를 강제로 꺼서 관련 시험이 실제로 실패하는 것을
+확인한 뒤 복원(revert-to-verify). `project-queries.js`가 여러
+프로젝트 화면(`Projects`·`Project`·`ProjectTickets`·`ProjectWbs`
+등)이 공유하는 파일이라 프런트 전체(222파일/1519건) 재실행 green.
+`npm run build`+`check_bundle_fresh.py --write`+`bash scripts/
+static_checks.sh` → `STATIC_CHECKS_OK`.
+
+이 배치(`/projects` 클러스터, `VIS-01~06`) 커밋 완료. **다음 후보**:
+RESP-04 축소 레일 사이드바 · `VIS-122`/`VIS-06` 본 수정(전담,
+`DataTable`+클로비 위치 공유 컴포넌트) · KPI 그리드 클러스터
+(`VIS-01`/`VIS-119/120/121`) · `VIS-04`(Health 점수 색 규칙) ·
+`VIS-114`/`VIS-115`(관리자 IA 재편) · SYS-08/09 · SYS-04(배포
+후) · QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · AI-* 아키텍처
+클러스터 14건 · BACKLOG Med/Low 클러스터 계속 스캔 · PHASE 1
+Product Audit Handoff 대기 · TEST SERVER 배포(자격증명
 Blocker 여전).
