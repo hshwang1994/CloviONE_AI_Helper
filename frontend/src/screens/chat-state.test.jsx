@@ -4,16 +4,16 @@ import { render, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   mascotMode, MASCOT_PHASE_TEXT, pollDelayMs, structuredCards,
-  POLL_BASE_MS, POLL_MAX_MS, POLL_MAX_FAILURES,
+  POLL_BASE_MS, POLL_MAX_MS, POLL_MAX_FAILURES, POLL_RECOVERY_MS,
 } from "./chat-helpers.js";
 
 /* 채팅 화면의 '상태' 쪽 테스트.
  *
  * chat-helpers.test.js가 순수 파서·포맷터를 지킨다면 이 파일은 두 가지를 지킨다:
  *   1) 마스코트가 **앱이 실제로 있는 상태만** 연기하는가(mascotMode).
- *   2) 느린 러너를 상대로 폴링이 백오프하고 결국 포기하는가 — 가짜 타이머로 진짜 훅을 돌린다.
- *      이 화면의 값어치 대부분이 여기 있는데, 예전엔 refetchInterval 콜백 안에 인라인 산술로만
- *      존재해 아무도 검증할 수 없었다.
+ *   2) 느린 러너를 상대로 폴링이 백오프하고, 완전히 포기하는 대신 느리게 계속 회복을 확인하는가
+ *      (AI-11) — 가짜 타이머로 진짜 훅을 돌린다. 이 화면의 값어치 대부분이 여기 있는데, 예전엔
+ *      refetchInterval 콜백 안에 인라인 산술로만 존재해 아무도 검증할 수 없었다.
  */
 
 // ── 1. 마스코트 단계 매핑 ───────────────────────────────────────────────────
@@ -95,9 +95,9 @@ describe("pollDelayMs", () => {
     expect(pollDelayMs(3)).toBe(POLL_MAX_MS);
     expect(pollDelayMs(4)).toBe(POLL_MAX_MS);
   });
-  it("연속 실패가 한도에 닿으면 자동 폴링을 포기한다", () => {
-    expect(pollDelayMs(POLL_MAX_FAILURES)).toBe(false);
-    expect(pollDelayMs(POLL_MAX_FAILURES + 3)).toBe(false);
+  it("연속 실패가 한도에 닿으면 완전히 멈추는 대신 느린 회복 확인 간격으로 내려간다 (AI-11)", () => {
+    expect(pollDelayMs(POLL_MAX_FAILURES)).toBe(POLL_RECOVERY_MS);
+    expect(pollDelayMs(POLL_MAX_FAILURES + 3)).toBe(POLL_RECOVERY_MS);
   });
 });
 
@@ -159,7 +159,7 @@ function Harness() {
   return null;
 }
 
-describe("스레드 폴링 — 백오프하고 결국 포기한다", () => {
+describe("스레드 폴링 — 백오프하고, 완전히 포기하는 대신 느리게 계속 확인한다 (AI-11)", () => {
   const T0 = Date.parse("2026-01-01T00:00:00Z");
   let messageCallTimes;
 
@@ -177,13 +177,13 @@ describe("스레드 폴링 — 백오프하고 결국 포기한다", () => {
     vi.unstubAllGlobals();
   });
 
-  function mountWith({ failAfterFirstMessageFetch }) {
+  function mountWith({ failAfterFirstMessageFetch, recoverAtFetch = Infinity }) {
     let messageFetches = 0;
     apiMock.mockImplementation((url) => {
       if (url.startsWith("/api/conversations/") && url.endsWith("/messages")) {
         messageFetches += 1;
         messageCallTimes.push(Date.now());
-        if (failAfterFirstMessageFetch && messageFetches > 1) {
+        if (failAfterFirstMessageFetch && messageFetches > 1 && messageFetches < recoverAtFetch) {
           return Promise.reject(Object.assign(new Error("boom"), { status: 500 }));
         }
         return Promise.resolve({
@@ -211,22 +211,47 @@ describe("스레드 폴링 — 백오프하고 결국 포기한다", () => {
     view.unmount();
   });
 
-  it("실패가 쌓이면 간격을 2배씩 늘리고(상한 5초) 5회째에 자동 폴링을 멈춘다", async () => {
+  it("실패가 쌓이면 간격을 2배씩 늘리고(상한 5초), 5회 넘으면 완전히 멈추는 대신 20초 회복 확인으로 내려간다 (AI-11)", async () => {
     const view = mountWith({ failAfterFirstMessageFetch: true });
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     // 1.5s + 3s + 5s + 5s + 5s = 19.5s 안에 실패 5회가 모두 일어난다.
-    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(19500); });
 
     const gaps = messageCallTimes.slice(1).map((t, i) => t - messageCallTimes[i]);
     // 첫 성공 이후: 1500 → 3000 → 5000(6000이 상한에 잘림) → 5000 → 5000
     expect(gaps.slice(0, 3)).toEqual([POLL_BASE_MS, 3000, POLL_MAX_MS]);
-    // 성공 1회 + 실패 5회 = 6회에서 멈춘다.
+    // 성공 1회 + 실패 5회 = 6회.
     expect(messageCallTimes).toHaveLength(1 + POLL_MAX_FAILURES);
 
-    // 죽은 서버를 상대로 영원히 재시도하지 않는다 — 한참 더 흘려보내도 호출이 늘지 않는다.
-    const settled = messageCallTimes.length;
-    await act(async () => { await vi.advanceTimersByTimeAsync(120000); });
-    expect(messageCallTimes).toHaveLength(settled);
+    // AI-11: 예전엔 여기서 완전히 멈췄다(그 뒤로 몇 분을 흘려보내도 호출 0). 이제 죽은 서버를
+    // 촘촘히 두드리지는 않지만(POLL_RECOVERY_MS=20초 간격), 완전히 사라지지도 않는다 — 계속
+    // 흘려보내면 20초마다 한 번씩 계속 조용히 확인한다.
+    const beforeRecoveryProbes = messageCallTimes.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_RECOVERY_MS * 3); });
+    const probes = messageCallTimes.slice(beforeRecoveryProbes);
+    expect(probes).toHaveLength(3);
+    const probeGaps = probes.map((t, i) => t - (i === 0 ? messageCallTimes[beforeRecoveryProbes - 1] : probes[i - 1]));
+    probeGaps.forEach((g) => expect(g).toBe(POLL_RECOVERY_MS));
+    view.unmount();
+  });
+
+  it("회복 확인이 성공하면 사람이 아무것도 안 눌러도 기본 간격으로 저절로 돌아온다 (AI-11)", async () => {
+    // 2~6번째 호출(실패 5회로 포기 상태 진입)까지는 위 시험과 같고, 7번째부터 서버가 살아난다.
+    const view = mountWith({ failAfterFirstMessageFetch: true, recoverAtFetch: 7 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(19500); });
+    expect(messageCallTimes).toHaveLength(1 + POLL_MAX_FAILURES); // 6, 포기 상태
+
+    // 20초 뒤 회복 확인(7번째 호출)이 이번엔 성공한다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_RECOVERY_MS); });
+    expect(messageCallTimes).toHaveLength(7);
+    expect(messageCallTimes[6] - messageCallTimes[5]).toBe(POLL_RECOVERY_MS);
+
+    // 성공했으니 pollFailRef가 0으로 리셋되고, 다음 간격은 기본값(1.5초)으로 저절로 돌아온다 —
+    // "새로고침" 버튼을 누르는 사람의 개입이 전혀 없었다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_BASE_MS + 100); });
+    expect(messageCallTimes).toHaveLength(8);
+    expect(messageCallTimes[7] - messageCallTimes[6]).toBe(POLL_BASE_MS);
     view.unmount();
   });
 });

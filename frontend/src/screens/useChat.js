@@ -86,10 +86,10 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }, [text]);
-  const pollFailRef = useRef(0); // 스레드 폴링 연속 실패 횟수(백오프·중단 판단용)
+  const pollFailRef = useRef(0); // 스레드 폴링 연속 실패 횟수(백오프·회복 확인 간격 판단용)
   // 이전 대화(A)에서 쌓인 연속 실패 횟수가 새로 연 대화(B)로 그대로 넘어오면, B의 첫 폴링이 단
-  // 한 번만 실패해도(일시적 blip) 이미 5 이상인 카운터 때문에 refetchInterval이 즉시 자동 폴링을
-  // 멈춰 버린다 — 대화를 바꿀 때마다 카운터를 새로 시작한다.
+  // 한 번만 실패해도(일시적 blip) 이미 5 이상인 카운터 때문에 refetchInterval이 즉시 20초짜리
+  // 회복 확인 간격(POLL_RECOVERY_MS)으로 확 늦춰져 버린다 — 대화를 바꿀 때마다 카운터를 새로 시작한다.
   useEffect(() => { pollFailRef.current = 0; }, [cid]);
 
   // AI-38: 대화 본문 검색. 제목은 ConversationSidebar가 이미 불러온 목록에서 즉시(클라이언트
@@ -142,8 +142,10 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const thread = useQuery({
     queryKey: ["messages", cid],
     // 연속 폴링 실패 횟수를 추적한다(성공하면 0으로 리셋) — 아래 refetchInterval이 이 값으로
-    // 백오프하거나 완전히 멈춘다. 워커/네트워크가 살아 있는 정상 실패(간헐적 5xx 등)와, 죽은
-    // 서버에 무한히 재시도하는 것을 구분한다(바닐라 chat.js의 POLL_MAX_FAILURES와 같은 취지).
+    // 백오프하다가 POLL_MAX_FAILURES를 넘으면 느린 회복 확인 간격(POLL_RECOVERY_MS)으로
+    // 내려간다(AI-11: 예전엔 여기서 완전히 멈춰 사람이 새로고침을 눌러야만 재개됐다). 워커/
+    // 네트워크가 살아 있는 정상 실패(간헐적 5xx 등)와, 죽은 서버를 촘촘히 두드리는 것을
+    // 구분한다(바닐라 chat.js의 POLL_MAX_FAILURES와 같은 취지).
     queryFn: async () => {
       try {
         const res = await api("/api/conversations/" + cid + "/messages");

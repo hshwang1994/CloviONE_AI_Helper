@@ -94,17 +94,22 @@ export function msgAgeMs(m, sinceMs) {
   return Date.now() - base;
 }
 
-// 스레드 폴링 스케줄 — 연속 실패 횟수(fails)만 보고 다음 간격(ms)을 정한다. false면 자동 폴링 중단.
-// 5회 연속 실패하면(약 20초, 백오프 포함) 자동 재시도를 멈춘다 — 배너의 '새로고침' 버튼으로
-// 수동 재개할 수 있다. 실패가 쌓일수록 간격을 늘려(최대 5초) 죽은 서버를 촘촘히 두드리지 않는다.
-// 이 계산을 함수로 뽑아 둔 이유는 하나다: 백오프와 포기 지점은 이 화면의 핵심 방어선인데
+// 스레드 폴링 스케줄 — 연속 실패 횟수(fails)만 보고 다음 간격(ms)을 정한다.
+// 실패가 쌓일수록 간격을 늘려(최대 5초) 죽은 서버를 촘촘히 두드리지 않는다.
+// AI-11: 5회 연속 실패하면(약 20초, 백오프 포함) 예전엔 자동 재시도를 아예 멈췄다 — 배너의
+// '새로고침' 버튼을 사람이 직접 눌러야만 재개됐다(서버가 그사이 돌아왔어도 화면은 영영
+// 모른다). 완전히 멈추는 대신 POLL_RECOVERY_MS(20초)마다 조용히 한 번씩 다시 찔러본다 —
+// 죽은 서버를 촘촘히 두드리지는 않으면서도, 살아나면 사람이 아무것도 안 눌러도 그 다음
+// 확인에서 성공→pollFailRef 리셋→기본 간격으로 저절로 복귀한다.
+// 이 계산을 함수로 뽑아 둔 이유는 하나다: 백오프와 회복 확인 지점은 이 화면의 핵심 방어선인데
 // refetchInterval 콜백 안에 인라인으로 있으면 테스트가 가짜 타이머로 검증할 수가 없었다.
 export const POLL_BASE_MS = 1500;
 export const POLL_MAX_MS = 5000;
 export const POLL_MAX_FAILURES = 5;
+export const POLL_RECOVERY_MS = 20000;
 export function pollDelayMs(fails) {
   const n = typeof fails === "number" && fails > 0 ? fails : 0;
-  if (n >= POLL_MAX_FAILURES) return false;
+  if (n >= POLL_MAX_FAILURES) return POLL_RECOVERY_MS;
   return n > 0 ? Math.min(POLL_BASE_MS * Math.pow(2, n), POLL_MAX_MS) : POLL_BASE_MS;
 }
 
