@@ -1191,3 +1191,35 @@ stop_hook_active)를 추가해 5.1·7 양쪽에서 34/34 통과를 확인했다.
 
 **한계**: 완료 Gate는 **형식과 정합성**을 검증하지 Audit/구현의 실제 깊이를 검증하지 못한다.
 그리고 stub으로는 실제 Claude의 판단 품질을 검증할 수 없다 — 프로세스 경계 계약만 증명된다.
+
+---
+
+## D-67 (2026-08-12) — invocation당 예산 상한 제거: 그것은 지출 가드가 아니라 "일을 자르는" 장치였다
+
+**사용자 지시**: "두 파일 전부 일을 자르는 부작용을 없애라. 계속 돌도록 해도 된다."
+(CLI 구독이라 `total_cost_usd`는 실제 청구가 아니라는 점도 함께 확인됨.)
+
+**근거(실측)**: 실제 invocation들이 `$13.83`/`$13.27`에서 `terminal_reason=completed`로 끝났다 —
+일을 마쳐서가 아니라 `--max-budget-usd 15` 상한에 닿아서다. 그런데 invocation 횟수는 무제한이라
+총액은 애초에 안 막힌다. 즉 이 값은 지출을 지켜 주지 않으면서, 잘릴 때마다 다음 invocation이
+CLAUDE.md · WORK_STATE(2,792줄) · BACKLOG(3,238줄) · QA_COVERAGE · DECISIONS를 다시 읽는
+재오리엔테이션 비용을 새로 내게 만들었다. 작게 잡을수록 같은 조사에 더 많이 쓴다.
+
+**결정**:
+1. `MaxBudgetUsd` 기본값 20/15 → **0(무제한)**. 0이면 `--max-budget-usd` 플래그를 **argv에 아예
+   붙이지 않는다** — CLI가 `0`을 "무제한"으로 해석한다는 근거가 없어(오히려 "$0 예산"으로 즉시
+   중단될 수 있다) 그 해석에 의존하지 않기 위함이다. 양수를 주면 예전 동작 그대로.
+2. `MaxRuntimeMinutes` 180/150 → **240**, `0`=무제한도 지원. 예산 상한을 없애면 실질 절단점이
+   timeout으로 옮겨오므로 함께 올렸다. 다만 **hang 보호는 남긴다** — 멈춘 프로세스를 밤새
+   방치하는 것이 productive invocation을 자르는 것보다 나쁘다.
+3. `MaxConsecutiveRateLimitHits` 8 → **20**. 구독 사용량 한도는 몇 시간 대기가 정상인데, 8회
+   (백오프 누적 ≈2시간)에서 일반 실패로 전환돼 밤중에 AUTO_STOP 되는 구조였다. **대기 한도만**
+   늘렸고 진짜 실패는 여전히 별도 분류되어 `MaxConsecutiveFailures`(3)에서 멈춘다.
+
+**검증**: controlled test T45 추가 — `MaxBudgetUsd=0`이면 stub의 `args.log`에 `--max-budget-usd`가
+**실제로 없고**, 양수면 그대로 전달되며, Audit Runner도 같은 규칙임을 argv 수준에서 확인.
+전체 35케이스가 Windows PowerShell 5.1 · PowerShell 7.6.3 양쪽에서 통과.
+
+**남은 위험(정직하게)**: 이제 누적 지출/사용량 상한이 **하나도 없다.** 실질 경계는
+`MaxRuntimeMinutes`(hang 보호)뿐이다. 필요하면 각 invocation JSON의 `total_cost_usd`를 Supervisor가
+누적해 총액 상한에서 멈추는 장치를 추가해야 한다 — 필드가 실재함은 확인했으나 아직 구현하지 않았다.

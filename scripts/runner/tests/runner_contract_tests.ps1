@@ -838,6 +838,31 @@ Test-Case "T42" "종료 코드로 상태를 구분한다: 정상/STOP/AUTO_STOP/
     Assert ((Get-StubCount $repo) -eq 0) "BLOCKED 상태에서는 Worker 를 띄우면 안 된다"
 }
 
+Test-Case "T45" "MaxBudgetUsd=0 이면 --max-budget-usd 를 argv 에 붙이지 않는다(일을 자르지 않음)" {
+    param($repo)
+    # 예산 상한은 지출 가드가 아니라 실질적으로 '일을 문장 중간에서 자르는' 장치였다.
+    # 0 = 무제한이 argv 수준에서 실제로 관철되는지 stub 의 args.log 로 확인한다.
+    # 0 을 CLI 에 그대로 넘기면 "$0 예산"으로 해석될 수 있으므로 **플래그 자체가 없어야** 한다.
+    Set-Scenario $repo @("success")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxBudgetUsd = 0 })
+    $a = Read-TextOrEmpty (Join-Path $repo "var\stub\args.log")
+    Assert-NoMatch $a '--max-budget-usd' "0 이면 플래그가 아예 없어야 한다. 실제 argv: $a"
+    Assert-Match $a '\-p .*--output-format json' "나머지 인자는 그대로여야 한다"
+
+    # 양수를 주면 예전처럼 상한이 걸린다(선택지가 사라지지 않았음을 고정한다)
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxBudgetUsd = 7 })
+    $a2 = Read-TextOrEmpty (Join-Path $repo "var\stub\args.log")
+    Assert-Match $a2 '--max-budget-usd 7' "양수는 그대로 전달돼야 한다"
+
+    # Audit Runner 도 같은 규칙
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Remove-Item (Join-Path $repo "var\stub\args.log") -Force -ErrorAction SilentlyContinue
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1; MaxBudgetUsd = 0 } $null)
+    $a3 = Read-TextOrEmpty (Join-Path $repo "var\stub\args.log")
+    Assert-NoMatch $a3 '--max-budget-usd' "Audit Runner 도 0 이면 플래그가 없어야 한다. 실제: $a3"
+}
+
 Test-Case "T43" "Supervisor 가 호출한 셸의 CLOVIR_* 환경을 오염시키지 않는다" {
     param($repo)
     # 사용자의 실제 상황을 그대로 재현한다: 같은 PowerShell 창에서 Runner 를 돌리고(같은 프로세스),

@@ -449,8 +449,15 @@ function Invoke-ClaudeWorker {
 
     # Wait-Process -PassThru 는 기다림이 실패해도 객체를 돌려주므로 timeout 판정에 쓸 수 없다
     # (2026-08-12 실제로 강제 종료 분기 전체가 죽은 코드였다). WaitForExit(ms) 는 bool 을 준다.
-    $waitMs = [int][Math]::Max(1000, [Math]::Min([int]::MaxValue, $TimeoutMinutes * 60 * 1000))
-    $exited = $proc.WaitForExit($waitMs)
+    if ($TimeoutMinutes -le 0) {
+        # 0 = 무제한. hang 보호가 사라진다는 뜻이므로 기본값으로 쓰지 마라 — 멈춘 프로세스를
+        # 밤새 방치하는 것이 productive invocation 을 자르는 것보다 나쁘다.
+        $proc.WaitForExit()
+        $exited = $true
+    } else {
+        $waitMs = [int][Math]::Max(1000, [Math]::Min([int]::MaxValue, $TimeoutMinutes * 60 * 1000))
+        $exited = $proc.WaitForExit($waitMs)
+    }
 
     if (-not $exited) {
         if ($LogPath) { Write-LogLine $LogPath "invocation 이 ${TimeoutMinutes}분 안에 끝나지 않아 프로세스 트리를 강제 종료한다(PID=$($outcome.Pid))." }

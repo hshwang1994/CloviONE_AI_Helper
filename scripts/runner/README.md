@@ -122,7 +122,8 @@ Product Auditor가 tracked 파일 중 건드려도 되는 곳은 `docs/product-a
 | rate-limit 판정 축소 + 연속 상한 | 로그 속 "429" 같은 숫자를 rate-limit으로 오인해 실패 카운터를 우회하고 무한 백오프로 도는 것 |
 | session 회전 | 오염된 Worker Session이 결정적으로 계속 실패하는 것(실패 카운터는 그대로 두어 AUTO_STOP은 예정대로 도달) |
 | dirty 워킹트리 대기 + 상한 | 사람의 대화형 세션과 충돌 방지 + 유령 dirty로 인한 무한 대기 방지 |
-| `--max-budget-usd` | invocation당 API 지출 상한. **PROJECT work unit이 아니다** — 예산으로 한 Worker가 끝나도 곧바로 다음 invocation이 같은 세션을 resume한다 |
+| `MaxRuntimeMinutes` 240분 | 멈춘 invocation만 강제 종료(프로세스 트리째). **hang 보호이지 작업 상한이 아니다** — `0`을 주면 무제한이지만 그러면 멈춘 프로세스를 밤새 방치하게 된다 |
+| `MaxConsecutiveRateLimitHits` 20 | 구독 사용량 한도는 몇 시간 대기가 정상이다. 예전 값(8)이면 약 2시간 만에 일반 실패로 전환돼 밤중에 AUTO_STOP 됐다. 대기 한도만 늘린 것이고 진짜 실패는 여전히 3회에 멈춘다 |
 | `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** |
 | Stop hook(`stop_guard.py`) | 완료 marker 없이 끝내려는 Worker를 invocation당 한 번 되돌린다(보조 장치, fail-open) |
 | `CLOVIR_SUPERVISOR_PID` 생존 확인 | Supervisor가 자기 프로세스 환경에 넣은 `CLOVIR_SUPERVISED=1`은 **그 창에 그대로 남는다.** Ctrl+C로 멈춘 뒤 같은 창에서 시작한 사람의 대화형 Claude 세션이 Stop hook에 붙잡히던 문제(실제 발생). Supervisor는 종료 시 환경을 원래대로 되돌리고, hook은 PID가 실제로 살아 있을 때만 제동한다 |
@@ -148,9 +149,12 @@ pwsh       -NoProfile -File scripts\runner\tests\runner_contract_tests.ps1   # P
   (상태는 git과 `docs/`에서 복원된다).
 - 실제 배포(승인된 TEST SERVER 대역)는 이 Runner가 자동으로 못 한다(비밀번호 경계) — 사용자가
   NOPASSWD sudoers를 구성하기 전까지는 구현·테스트·문서화까지만 자동으로 진행된다.
-- 연속 실행이 API 지출을 빠르게 누적시킨다(invocation당 상한은 있지만 **횟수 상한은 없다**).
-  `--max-budget-usd`는 invocation 단위 상한이지 일일/누적 상한이 아니다. 이것은 의도된 설계다
-  (횟수 때문에 프로젝트가 중간에 멈추지 않게 하려는 것). 지출이 걱정되면 `runner.log`의
-  `totalRuns`를 보고 필요할 때 `STOP` 파일을 만든다.
+- **누적 지출/사용량 상한이 없다.** `MaxBudgetUsd` 기본값은 이제 `0`(무제한)이다 — 그 값은
+  지출을 막지 못하면서(invocation 횟수가 무제한이므로) 작업만 문장 중간에서 잘랐고, 잘릴 때마다
+  다음 invocation이 상태 문서 전체를 다시 읽는 비용을 새로 냈다. 실측: 실제 invocation들이
+  `$13.83`/`$13.27`에서 `terminal_reason=completed`로 끝났다 — 일을 마쳐서가 아니라 상한에
+  닿아서다. 지금 실질 경계는 `MaxRuntimeMinutes`(hang 보호)뿐이다. 총량을 제한하려면
+  `runner.log`의 `totalRuns`를 보고 `STOP` 파일을 만들거나, 각 invocation JSON의
+  `total_cost_usd`를 누적하는 상한을 추가해야 한다(아직 없다).
 - 완료 Gate는 **형식과 정합성**을 검증하지 실제 Audit/구현 품질을 검증하지 못한다. 문서가
   형식을 갖췄다고 조사가 깊다는 뜻은 아니다.

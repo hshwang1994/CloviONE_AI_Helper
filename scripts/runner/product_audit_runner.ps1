@@ -61,11 +61,24 @@ param(
     # 0 = 무제한(production 기본). invocation 횟수는 Audit 완료 단위가 아니다.
     [int]$MaxIterationsPerLaunch = 0,
     [int]$MaxConsecutiveFailures = 3,
-    [int]$MaxConsecutiveRateLimitHits = 8,     # 무한 백오프 방지 상한(넘으면 일반 실패로 센다)
+    # 구독(CLI) 사용량 한도에 걸리면 몇 시간을 기다려야 하는 것이 정상이다. 예전 값(8)이면
+    # 약 2시간 만에 일반 실패로 전환돼 밤중에 AUTO_STOP 됐다. 대기 한도만 늘린 것이고 진짜
+    # 실패는 여전히 별도로 분류되어 MaxConsecutiveFailures 에서 멈춘다.
+    [int]$MaxConsecutiveRateLimitHits = 20,
     [int]$MaxCompletionGateRejections = 5,     # 잘못된 AUDIT_COMPLETE 반복 생성 방지
-    [int]$MaxBudgetUsd = 20,
+
+    # ★ 0 = 무제한(기본). 이 값은 "지출 가드"가 아니었다 — invocation 횟수가 무제한이라 총액을
+    #   막지 못하면서, 실질적으로는 **일을 문장 중간에서 자르는** 장치로만 동작했다.
+    #   실측 근거: 실제 invocation 들이 $13.83 / $13.27 에서 terminal_reason=completed 로 끝났다
+    #   — 일을 마쳐서가 아니라 상한에 닿아서다. 자를 때마다 다음 invocation 이 CLAUDE.md ·
+    #   WORK_STATE(2,792줄) · BACKLOG(3,238줄) · QA_COVERAGE · DECISIONS 를 다시 읽는
+    #   재오리엔테이션 비용을 새로 낸다. 양수를 주면 예전처럼 invocation 당 상한이 걸린다.
+    [int]$MaxBudgetUsd = 0,
+
     # double 인 이유는 controlled test 가 timeout 경로를 몇 초로 실제 실행해 보기 위함이다.
-    [double]$MaxRuntimeMinutes = 180,
+    # 예산 상한을 없애면 실질 절단점이 이쪽으로 옮겨오므로 함께 넉넉히 잡는다. 다만 hang 보호는
+    # 남긴다 — 멈춘 프로세스를 밤새 방치하는 것이 더 나쁘다. 0 = 무제한(hang 보호 없음).
+    [double]$MaxRuntimeMinutes = 240,
     [int]$DirtyRetrySeconds = 120,
     [int]$MaxDirtyWaits = 5,
     # 노출 이유는 위와 같다(test seam). production 기본값은 그대로다.
@@ -1192,17 +1205,22 @@ try {
         $argList = @(
             "-p",
             "--permission-mode", "auto",
-            "--max-budget-usd", "$MaxBudgetUsd",
             "--output-format", "json"
         )
+        # 0 이면 플래그 자체를 붙이지 않는다. CLI 가 `--max-budget-usd 0` 을 "무제한"으로
+        # 해석한다는 근거가 없다(오히려 "$0 예산"으로 즉시 중단될 수 있다) — 넘기지 않으면
+        # 그 해석에 의존할 필요가 없다.
+        if ($MaxBudgetUsd -gt 0) { $argList += @("--max-budget-usd", "$MaxBudgetUsd") }
         if ($isNewSession) { $argList += @("--session-id", $sessionId) }
         else               { $argList += @("--resume", $sessionId) }
         if ($Model)  { $argList += @("--model", $Model) }
         if ($Effort) { $argList += @("--effort", $Effort) }
 
+        $budgetLabel = if ($MaxBudgetUsd -gt 0) { "`$$MaxBudgetUsd" } else { "무제한" }
+        $timeoutLabel = if ($MaxRuntimeMinutes -gt 0) { "${MaxRuntimeMinutes}분" } else { "무제한" }
         $headBefore   = Get-GitHeadSha -RepoDir $ProjectDir
         $branchBefore = Get-GitBranch  -RepoDir $ProjectDir
-        Write-AuditLog "Audit Worker invocation 시작 #$($iterationsThisLaunch + 1) budget=`$$MaxBudgetUsd timeout=${MaxRuntimeMinutes}분 headBefore=$headBefore branch=$branchBefore"
+        Write-AuditLog "Audit Worker invocation 시작 #$($iterationsThisLaunch + 1) budget=$budgetLabel timeout=$timeoutLabel headBefore=$headBefore branch=$branchBefore"
 
         $outcome = Invoke-ClaudeWorker -ClaudeExe $ClaudeExe -ArgList $argList -WorkingDirectory $ProjectDir `
             -PromptFile $invocationPromptFile -StdOutFile $logFile -StdErrFile $errFile `

@@ -44,7 +44,8 @@
     - var\runner\AUTO_STOP   — 스크립트의 자동 정지 흔적. 수동 재시작을 확인으로 보고 정리한다.
     - var\runner\PROJECT_COMPLETE — 내용이 있어야 하고 기계 Gate 를 통과해야 유효하다.
     - var\runner\run.lock    — 배타 파일 핸들. product_audit_runner.ps1 과 **공유**한다.
-    - --max-budget-usd       — invocation 당 지출 상한. PROJECT work unit 이 **아니다**.
+    - --max-budget-usd       — **기본 0(무제한)**. 양수를 주면 invocation 당 상한이 걸리지만,
+                               그건 지출 가드가 아니라 일을 문장 중간에서 자르는 장치였다.
     - Process.WaitForExit(ms)— 멈춘 invocation 만 죽인다(루프는 안 죽는다).
     - --permission-mode auto — `--dangerously-skip-permissions`/`bypassPermissions` 는 절대 안 씀.
     - Stop hook(stop_guard.py) — 보조 제동. Supervisor 를 대체하지 않는다.
@@ -69,11 +70,23 @@ param(
     # 0 = 무제한(production 기본). invocation 횟수는 Supervisor 종료 조건이 **아니다**.
     [int]$MaxIterationsPerLaunch = 0,
     [int]$MaxConsecutiveFailures = 3,
-    [int]$MaxConsecutiveRateLimitHits = 8,   # 무한 백오프 방지 상한
+    # 구독(CLI) 사용량 한도에 걸리면 몇 시간 대기가 정상이다. 예전 값(8)이면 약 2시간 만에
+    # 일반 실패로 전환돼 밤중에 AUTO_STOP 됐다. 대기 한도만 늘린 것이고, 진짜 실패는 여전히
+    # 별도로 분류되어 MaxConsecutiveFailures 에서 멈춘다.
+    [int]$MaxConsecutiveRateLimitHits = 20,
     [int]$MaxCompletionRejections = 5,       # premature PROJECT_COMPLETE 반복 생성 방지
-    [int]$MaxBudgetUsd = 15,
+
+    # ★ 0 = 무제한(기본). 이 값은 "지출 가드"가 아니었다 — invocation 횟수가 무제한이라 총액을
+    #   막지 못하면서 실질적으로는 **일을 문장 중간에서 자르는** 장치로만 동작했다(실측: 실제
+    #   invocation 들이 $13.83 / $13.27 에서 terminal_reason=completed — 상한에 닿아서 종료).
+    #   잘릴 때마다 다음 invocation 이 상태 문서 전체를 다시 읽는 비용을 새로 낸다.
+    #   양수를 주면 예전처럼 invocation 당 상한이 걸린다.
+    [int]$MaxBudgetUsd = 0,
+
     # double 인 이유는 controlled test 가 timeout 경로를 몇 초로 실제 실행해 보기 위함이다.
-    [double]$MaxRuntimeMinutes = 150,
+    # 예산 상한을 없애면 실질 절단점이 이쪽으로 옮겨오므로 함께 넉넉히 잡는다. hang 보호는
+    # 남긴다 — 멈춘 프로세스를 밤새 방치하는 것이 더 나쁘다. 0 = 무제한(hang 보호 없음).
+    [double]$MaxRuntimeMinutes = 240,
     [int]$DirtyRetrySeconds = 120,
     [int]$MaxUnchangedDirtyWaits = 5,
     # 노출 이유는 위와 같다(test seam). production 기본값은 그대로다.
@@ -481,7 +494,9 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
         $logFile = Join-Path $LogDir "$timestamp.log"
         $errFile = "$logFile.err"
         $invocationPromptFile = Join-Path $LogDir "$timestamp.prompt.txt"
-        Write-RunnerLog "Worker invocation 시작 #$($iterationsThisLaunch + 1) requestedModel=$Model requestedEffort=$Effort (log=$logFile, budget=`$$MaxBudgetUsd, timeout=${MaxRuntimeMinutes}분)"
+        $budgetLabel  = if ($MaxBudgetUsd -gt 0) { "`$$MaxBudgetUsd" } else { "무제한" }
+        $timeoutLabel = if ($MaxRuntimeMinutes -gt 0) { "${MaxRuntimeMinutes}분" } else { "무제한" }
+        Write-RunnerLog "Worker invocation 시작 #$($iterationsThisLaunch + 1) requestedModel=$Model requestedEffort=$Effort (log=$logFile, budget=$budgetLabel, timeout=$timeoutLabel)"
 
         # 프롬프트는 반드시 파일 → stdin 리다이렉트로 넘긴다(2026-08-11 장애: -ArgumentList 로
         # 넘긴 멀티라인 프롬프트가 커맨드라인 재조립에서 깨져 "unknown option '--oneline'").
@@ -543,9 +558,10 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
         $argList = @(
             "-p",
             "--permission-mode", "auto",
-            "--max-budget-usd", "$MaxBudgetUsd",
             "--output-format", "json"
         )
+        # 0 이면 플래그 자체를 붙이지 않는다(CLI 가 0 을 "무제한"으로 해석한다는 근거가 없다).
+        if ($MaxBudgetUsd -gt 0) { $argList += @("--max-budget-usd", "$MaxBudgetUsd") }
         if ($isNewSession) { $argList += @("--session-id", $sessionId) }
         else               { $argList += @("--resume", $sessionId) }
         if ($Model)  { $argList += @("--model", $Model) }
