@@ -301,7 +301,13 @@ export function TeamDoc() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="" area="문서" title="문서" actions={actions} />
+      {/* SEM-03 재확인(2026-08-13) — 2026-08-12 "구현완료" 기록은 grep -c 'component="h1"'로
+          이 파일 자체의 리터럴만 셌다(1개, 아래 문서 제목 하나) — PageHeader가 kit.jsx 안에서
+          내부적으로 만드는 h1("문서")은 다른 파일 소스라 그 grep에 안 걸려, 실제로는 h1이
+          둘이었던 것을 놓쳤다(실제 렌더 검사로 재확인). PageHeader에 진짜 제목을 넘기고
+          아래 중복 Typography는 없앤다(같은 글자를 화면 맨 위와 카드 맨 위에서 두 번 읽지
+          않게). */}
+      <PageHeader crumbRoot="" area="문서" title={doc.title || "제목 없음"} actions={actions} />
 
       {/* 1열: 제목 + 본문. 2열: 메타 + 댓글 레일. lg부터 갈라진다.
           사용자 지시: "댓글 기능은 본문이 아니라 오른쪽에 배치." 두 Box 모두 order를
@@ -313,14 +319,11 @@ export function TeamDoc() {
       <Box sx={DOC_DETAIL_GRID}>
         <Box data-testid="doc-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
-            <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+            <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
               {doc.status ? <Badge value={doc.status} /> : null}
               {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
               {doc.restricted ? <Badge value="🔒 열람 제한" kind="warn" /> : null}
             </Stack>
-            <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
-              {doc.title || "제목 없음"}
-            </Typography>
             {doc.restricted ? (
               <Box sx={{ mb: 2.5 }}>
                 <Callout tone="warn">

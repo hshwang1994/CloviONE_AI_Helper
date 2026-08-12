@@ -163,6 +163,10 @@ export function Ticket() {
   );
 
   const meta = [
+    // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
+    // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
+    // 되므로 메타로 옮긴다.
+    ["티켓 번호", ticketId(t)],
     t.project ? ["프로젝트", t.project] : null,
     (t.assignee_names || []).length ? ["담당자", t.assignee_names.join(", ")] : null,
     t.difficulty ? ["난이도", t.difficulty] : null,
@@ -173,7 +177,12 @@ export function Ticket() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="티켓" title={ticketId(t)} actions={actions} />
+      {/* SEM-03 재확인(2026-08-13) — 예전엔 여기 title이 ticketId(t)(예: "GIT-57")였다
+          (VIS-133과 같은 원인 — PageHeader가 ID를 h1으로 차지해 화면이 진짜 제목을 넣을
+          자리가 없어 카드 안에 h1을 하나 더 만들었다). PageHeader가 실제 제목을 h1로
+          보여주게 하고, 아래 카드의 중복 h1은 없앤다. ticketId는 사라지지 않고 위 meta의
+          '티켓 번호'로 옮겨 계속 보인다. */}
+      <PageHeader crumbRoot="내 업무" area="티켓" title={t.title || ticketId(t)} actions={actions} />
       <Box sx={DETAIL_GRID}>
         {/* 본문 열 — 첨부는 본문 **바로 아래**다(무엇에 대한 파일인지 먼저 보여야 한다).
             댓글은 더 이상 여기 없다 — 사용자 지시대로 속성 레일로 옮겼다(아래 우측 컬럼).
@@ -182,13 +191,12 @@ export function Ticket() {
             2열에 놓인다 — CSS 트릭 없이 두 목표(레일 배치·좁은 화면 순서)가 같이 풀린다. */}
         <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
-            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
+            {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
+                또 반복하지 않는다(배지 아래 여백은 유지). */}
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 2 }}>
               {t.status ? <Badge value={t.status} /> : null}
               {t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : null}
             </Stack>
-            <Typography component="h1" variant="h4" sx={{ maxWidth: PROSE_MAX_WIDTH, mb: 2 }}>
-              {t.title || "제목 없음"}
-            </Typography>
             <TicketBody
               ticketId={id}
               blocks={data.blocks}

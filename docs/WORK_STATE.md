@@ -4237,19 +4237,91 @@ reindex.test.jsx`(이미 역할별 mock 인프라가 있는 파일)에 역할별
 재빌드 완료, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
 `docs/BACKLOG.md`의 WF1 단독 결함 조밀 인덱스 표 2행 정정.
 
-이 배치(WF1 단독 결함 재검증) 커밋 예정. **다음 후보**: WF1
-단독 결함 나머지 — `admin_policies`의 purpose 컬럼 부재(Policy
-모델에 스키마 자체가 없다, DB 마이그레이션 필요 — 순수 화면
-수정으로 안 끝남), `user_team-doc-detail`의 h1 중복(`PageHeader`
-+`TeamDoc.jsx`가 둘 다 `component="h1"`)과 본문 URL 미링크화
-(자격증명 노출 자체는 SEC-10으로 이미 부분 구현완료, 이 둘은
-그와 별개인 접근성/사용성 결함). R2(문자열 경계) 나머지 — 지금
-확인한 feature-flags 설명 외에도 job-detail의 콜론/em대시 불일치,
-integration-detail의 슬러그 제목·내부 메모 노출 등 여러 건이
-DB/시드 값 정정 또는 스키마 작업을 필요로 해 이번 세션의 "순수
-프런트" 기준을 벗어난다 — 개별 재검증 필요. R3(용어 사전)·R6
-(폭 예산)·R7(버튼 variant)은 WF1 스스로 "개별 화면 수정으로
-접근하면 안 되는 제품 전반 디자인 결정"이라 명시했으므로 이
-세션에서 단독 착수하지 않는다. 그 외 `RN-15`·`RN-17` 잔여
-노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도 후보 목록에
-있다.
+이 배치(WF1 단독 결함 재검증) 커밋 완료(`203c558`).
+
+**WF42(같은 invocation 계속) — `SEM-03`(`h1` 중복 4화면) 재검증
+결과 "구현완료" 기록이 틀렸음을 발견, 4화면 전부 실제 구현완료.**
+`user_team-doc-detail`의 h1 중복(원래 다음 후보로 적어 뒀던 항목)을
+조사하다가, 그 결함의 근본 원인으로 이미 기록돼 있던 `SEM-03`
+(2026-08-12 "재확인·구현완료" 마킹, `BoardPost`·`TeamDoc`·`Ticket`·
+`Chat` 4화면)을 다시 열게 됐다.
+
+**틀렸던 검증 방법**: 2026-08-12 기록의 근거는 `grep -c
+'component="h1"'`로 **각 파일 자체의 리터럴만** 센 것 — `PageHeader`
+(`kit.jsx`)가 내부적으로 만드는 h1은 다른 파일 소스라 그 grep에
+안 걸린다. 4화면 전부 실제 React 렌더 + `getAllByRole("heading",
+{level:1})`로 재확인한 결과 **전부 h1이 2개였다**:
+- `TeamDoc.jsx`: `PageHeader title="문서"`(고정) + 카드 안 `doc.title`
+- `BoardPost.jsx`: `PageHeader title="게시글"`(고정) + 카드 안 `post.title`
+- `Ticket.jsx`: `PageHeader title={ticketId(t)}`(예: "GIT-57" —
+  `VIS-133`이 지목한 바로 그 값) + 카드 안 `t.title`
+- `Chat.jsx`: `PageHeader title="AI 도우미"`(고정) + 대화 제목 막대
+
+**구현**: SEM-03 자신의 근본 원인 진단("PageHeader에 제목을 넘길
+수 있게 하면 세 결함이 한 번에 사라진다")대로 고쳤다 —
+`PageHeader`에 각 화면의 실제 제목을 넘기고, 카드 안 중복 요소는
+`TeamDoc`/`BoardPost`/`Ticket` 3화면은 완전히 없앴다(같은 글자를
+화면 맨 위와 카드 맨 위에서 두 번 읽지 않는다). `Chat.jsx`만
+다르게 처리 — 좁은 화면에서 대화 목록 서랍이 닫혀 있어도 "지금
+보는 대화가 뭔지" 신호가 필요하다는 기존 주석이 있어 완전 제거
+대신 h2로 격하(같은 텍스트가 h1/h2로 중복 표시되지만 구조적
+문제는 해소). `Ticket.jsx`에서 PageHeader 자리를 잃는 `ticketId`
+(GIT-57, 지원 문의 등에서 여전히 참조되는 값)는 메타 행 '티켓
+번호'로 옮겨 화면에서 사라지지 않게 했다.
+
+**시험 작성 중 내 손으로 만든 버그를 하나 잡음**: `TeamDoc.jsx`
+첫 시도에서 카드 안 요소를 h1→h2로 "격하"만 하고 텍스트는 그대로
+뒀더니, PageHeader와 카드 양쪽에 **똑같은 문자열**이 뜨는 상태가
+됐다 — 기존 시험 8건이 `getByRole("heading",{name:...})`(레벨
+미지정)로 그 텍스트를 찾다가 "요소가 2개 발견됨"으로 무더기
+실패했다. 격하가 아니라 완전 제거가 맞는 방향이라는 것을 시험이
+직접 알려준 사례.
+
+**시험**: `teamdoc.test.jsx`·`board-post-kind-crumb.test.jsx`·
+`ticket-detail.test.jsx`에 h1 개수 확인 시험 추가, `chat-page-
+heading.test.jsx`(신규 파일)도 추가 — `Chat.jsx`는 이 시험이
+생기기 전까지 **전체 렌더 시험이 하나도 없었다**(파일 자신의
+주석이 이미 "격자 상태 기계는 테스트가 없다"고 인정하고 있었다).
+새 시험 작성 중 `window.matchMedia`가 jsdom에 없어 `useChat()`
+내부에서 죽는 문제를 만나, `assistant-drawer-composer.test.jsx`가
+이미 쓰는 stub 패턴을 그대로 재사용해 해결. revert-to-verify:
+4화면 전부 되돌려 정확한 이유로 실패 확인(h1 2개, 또는 텍스트
+불일치) 후 복원. 관련 화면 전체 회귀(15개 시험 파일, 77건) green.
+**PageHeader가 4개 핵심 화면에 걸쳐 있어 이번엔 프런트 전체
+회귀를 돌림 — 235파일/1575건 green.** 재빌드 완료, `bash
+scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+**부수 발견(구현하지 않음, 새 항목으로만 기록)**: `VIS-133`을
+"H1과 브라우저 탭 제목 둘 다 고쳤다"고 적으려다 재확인 — `app/
+documentTitle.js::useDocumentTitle`은 `pathname`만 보고 정적
+표(`EXTRA_LABELS["/tickets"]="티켓"`)에서 라벨을 고르고
+`AppShell.jsx`가 전역에서 한 번만 호출한다. 개별 화면이 override
+하는 경로가 아예 없다 — 즉 실제 브라우저 탭은 "GIT-57"이 아니라
+**모든 티켓에서 항상 "티켓 | ClovirAssist"** 였다(TeamDoc/
+BoardPost/Chat도 각각 "문서"/"자유게시판"/"AI 도우미"로 전부
+고정, 마찬가지로 무엇을 열었는지 탭만 봐서는 구별 안 됨).
+`VIS-133` 원문의 "GIT-57" 진단 자체가 이제 부정확하지만, 근본
+불만(탭으로 구별 안 됨)은 여전히 유효 — H1만 고치고 이 부분은
+손대지 않았다고 정직하게 기록. 고칠 방법은 이미 코드에 선례가
+있다 — `brandOverride`/`setBrand()`와 같은 모듈 전역 오버라이드
+패턴을 화면별 동적 제목에도 적용.
+
+`docs/BACKLOG.md`의 `SEM-03` 행을 "구현완료였다"에서 실제 상태로
+전면 재작성, `VIS-133` 행도 부분 구현완료로 갱신(위 탭 제목 공백
+명시).
+
+이 배치(`SEM-03` 4화면) 커밋 예정. **다음 후보**: 방금 발견한
+브라우저 탭 제목 동적화(4화면 공통, `brandOverride` 패턴 재사용
+— 작지만 SEM-03과 바로 이어지는 자연스러운 다음 단위). `admin_
+policies`의 purpose 컬럼 부재(DB 마이그레이션 필요), `user_team-
+doc-detail`의 본문 URL 미링크화(원래 목적이던 항목, h1 중복은
+이번에 해소됨). R2(문자열 경계) 나머지 — DB/시드 값 정정 또는
+스키마 작업 필요해 "순수 프런트" 기준을 벗어남, 개별 재검증
+필요. R3(용어 사전)·R6(폭 예산)·R7(버튼 variant)은 WF1 스스로
+"개별 화면 수정으로 접근하면 안 되는 제품 전반 디자인 결정"이라
+명시했으므로 이 세션에서 단독 착수하지 않는다. 그 외 `RN-15`·
+`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도
+후보 목록에 있다. **이번 재검증 자체가 남기는 교훈**: "구현완료"
+기록을 볼 때 grep 기반 검증은 다른 파일에 걸친 렌더 효과(공용
+컴포넌트가 만드는 DOM 등)를 놓칠 수 있다 — 의심되면 실제 렌더
++ role 쿼리로 다시 확인한다.

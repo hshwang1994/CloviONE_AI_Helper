@@ -109,6 +109,19 @@ describe("게시글 상세의 빵부스러기는 글의 종류를 따른다", ()
     expect(await screen.findByText(/팀 공간.*기능 개선 제안/)).toBeInTheDocument();
   });
 
+  /* SEM-03 재검증(2026-08-13) — 2026-08-12 "구현완료" 기록이 이 화면도 h1 정확히 1개라고
+   * 했지만, 그 확인은 이 파일 소스에 리터럴로 적힌 component="h1"만 grep으로 셌다 —
+   * PageHeader(kit.jsx)가 내부적으로 만드는 h1은 다른 파일이라 그 grep에 안 잡혀, 실제로는
+   * PageHeader의 "게시글"과 카드 안 진짜 제목까지 h1이 둘이었다(실제 렌더로 재확인). */
+  it("h1이 하나뿐이다 — PageHeader가 이제 진짜 제목을 보여준다", async () => {
+    mockPost("free");
+    wrap(["/board/p1"]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("제목");
+  });
+
   it("조회가 실패해도 '자유게시판'이라 단정하지 않는다", async () => {
     apiMock.mockImplementation((url) => {
       const u = String(url);

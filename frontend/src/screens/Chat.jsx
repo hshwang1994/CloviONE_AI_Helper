@@ -131,7 +131,9 @@ export function Chat() {
    * 지금 고치려는 것은 '어떻게 담기는가' 이지 '어떻게 동작하는가' 가 아니다. */
   return (
     <Box className="c-screen">
-      <PageHeader crumbRoot="도우미" area="AI 도우미" title="AI 도우미" />
+      {/* SEM-03 재확인(2026-08-13) — PageHeader에 실제(동적) 대화 제목을 넘긴다. 예전엔
+          여기가 항상 "AI 도우미"라 아래 대화 제목 막대가 별도 h1을 또 만들어야 했다. */}
+      <PageHeader crumbRoot="도우미" area="AI 도우미" title={cid ? activeTitle : "채팅"} />
       <Card
         sx={{
           p: 0, overflow: "hidden",
@@ -182,9 +184,12 @@ export function Chat() {
           >
             {sideOpen ? <CloseRoundedIcon aria-hidden="true" /> : <MenuRoundedIcon aria-hidden="true" />}
           </IconButton>
-          {/* cid가 없어도(첫 방문, 새 대화 시작 직후) 빈 막대 대신 화면 이름을 보여준다. */}
+          {/* cid가 없어도(첫 방문, 새 대화 시작 직후) 빈 막대 대신 화면 이름을 보여준다.
+              SEM-03 재확인 — 같은 값을 위 PageHeader가 이제 h1로 이미 보여준다(특히 좁은
+              폭에서 서랍이 닫혀 있어도 여전히 이 막대가 필요해 h2로 남긴다 — 완전히
+              없애면 그 상황에서 "지금 보는 대화가 뭔지" 신호가 사라진다). */}
           <Typography
-            component="h1"
+            component="h2"
             sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: 750, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
             {cid ? activeTitle : "채팅"}

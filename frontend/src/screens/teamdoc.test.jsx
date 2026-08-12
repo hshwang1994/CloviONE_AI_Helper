@@ -58,6 +58,15 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+describe("페이지에 h1이 하나뿐이다 (SEM-03 재검증)", () => {
+  it("PageHeader의 h1과 문서 제목의 h1이 중복되지 않는다", async () => {
+    apiMock.mockResolvedValue({ document: DOC, blocks: [] });
+    wrap(<TeamDoc />);
+    await screen.findByText("네트워크 설계서");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
 describe("본문이 없거나 실패해도 메타는 남는다", () => {
   it("blocks가 비어 있으면 제목·메타는 그대로 두고 본문 자리에만 안내를 넣는다", async () => {
     apiMock.mockResolvedValue({ document: DOC, blocks: [] });

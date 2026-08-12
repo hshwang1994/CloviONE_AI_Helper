@@ -83,6 +83,26 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+/* SEM-03 재검증(2026-08-13) — 2026-08-12 "구현완료" 기록은 이 파일 소스의 리터럴
+ * component="h1"만 grep으로 셌다(1개) — PageHeader(kit.jsx)가 내부적으로 만드는 h1은
+ * 다른 파일이라 안 잡혀, 실제로는 PageHeader의 옛 title(ticketId, 예: "GIT-42")과 카드
+ * 안 진짜 제목까지 h1이 둘이었다(VIS-133과 같은 원인 — 실제 렌더로 재확인). */
+describe("페이지에 h1이 하나뿐이다 (SEM-03 재검증)", () => {
+  it("PageHeader가 진짜 제목을 h1으로 보여주고, 티켓 번호는 사라지지 않고 메타로 남는다", async () => {
+    apiMock.mockImplementation((p) => route(p, [
+      ["/api/tickets/page-1/comments", { items: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ]));
+    wrap();
+    await screen.findByText("배경");
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("샘플 티켓");
+    // GIT-42(ticketId)는 더 이상 h1이 아니지만 화면에서 완전히 사라지지 않는다 — 메타로 남는다.
+    expect(screen.getByText("GIT-42")).toBeInTheDocument();
+  });
+});
+
 // ── 본문 편집 ────────────────────────────────────────────────────────────────
 
 describe("본문 편집", () => {

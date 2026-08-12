@@ -472,7 +472,9 @@ export function BoardPost() {
     <div className="c-screen">
       {/* 목록(Board.jsx)은 spot="board" 를 주는데 상세 세 상태는 전부 안 줘서, 목록에서
           글을 열면 일러스트가 사라졌다 — 같은 화면군인데 장식이 들쭉날쭉했다. */}
-      <PageHeader crumbRoot="팀 공간" area={boardArea} title="게시글" actions={actions} spot="board" />
+      {/* SEM-03 재확인(2026-08-13) — PageHeader에 실제 제목을 넘긴다(예전엔 "게시글"만
+          보여줘 화면 안에 h1이 하나 더 필요했다). */}
+      <PageHeader crumbRoot="팀 공간" area={boardArea} title={post.title} actions={actions} spot="board" />
 
       {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
           본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}
@@ -487,7 +489,8 @@ export function BoardPost() {
               <Badge value={post.idea_status} kind={ideaStatusKind(post.idea_status)} />
             ) : null}
           </Stack>
-          <Typography variant="h4" component="h1" sx={{ mt: 1, overflowWrap: "anywhere" }}>{post.title}</Typography>
+          {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 카드 안에서 같은
+              글자를 또 한 번 반복하지 않는다. */}
           <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center" sx={{ mt: 1 }}>
             {/* 글쓴이가 누구인지 — 이름 옆에 소속과 사진(사용자 지시 #13/#8). */}
             <Typography variant="body2" color="text.secondary" component="div">
