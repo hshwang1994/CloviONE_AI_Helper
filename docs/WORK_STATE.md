@@ -2828,3 +2828,24 @@ IMPLEMENTATION_REQUIRED`도 없다**(RUN CONTEXT의 `implementation_required=fal
 러너 상태 표시, HOST-03 이상 문자 렌더, AI-57/63) · PHASE 1 Product Audit가
 Handoff를 완성하면 그것을 최우선 입력으로 전환 · QA_COVERAGE L축 나머지 ·
 TEST SERVER 배포(자격증명 Blocker 여전).
+
+**WF15 계속(같은 invocation) — USE-03/USE-08 처리, 진짜 기능 구현 1건 포함.**
+`USE-03`은 재확인 결과 **오탐**이었다 — "빈 상태 표시가 없다"고 했지만
+`SavedViews.jsx`의 빈 상태 안내는 `git blame` 확인 결과 이 컴포넌트가 **최초
+생성된 커밋(`780b62c`, 2026-08-03)부터** 있었다. `USE-08`(발견성 문제, 저장된
+뷰 실사용 이력 0)은 진짜였고, 이번에 **실제로 구현**했다: 지금 필터가 저장된
+뷰 어디와도 안 겹치면 버튼에 점 배지 + 접근성 이름 갱신으로 즉시(호버 없이)
+"저장할 수 있어요"를 알린다. 구현 도중 실제 버그 하나를 잡고 고쳤다 —
+`kit.jsx`의 `Button`은 `forwardRef`가 아니라서 `Tooltip`으로 감싸면 ref를
+못 받아 기존 회귀 테스트가 깨졌다(처음 시도했던 방식). 배지+aria-label
+방식으로 바꿔 해결, revert-to-verify로 신규 시험 3건이 실제로 그 기능을
+잡는지 확인. 정적 검사가 도중 em-dash 위반 1건(내가 새로 만든 문구)도 잡아냈다.
+
+**검증**: `saved-views.test.jsx`(11건, 신규 3건 포함)+`saved-views-delete.test.jsx`
+(3건) green. DataScreen 소비 화면 대표 7파일 34건(감사·임퍼소네이션·프롬프트
+딥링크·잡-스케줄 크로스링크 등) green — SavedViews가 여러 레지스트리 화면에
+공유되므로 폭넓게 확인. `STATIC_CHECKS_OK`, 번들 재빌드 반영.
+
+이 배치 전체(BKP-03·MAIL-01·SEM-03·RESP-03·RESP-04·USE-03·USE-08) 커밋 완료.
+계속 진행 중 — 다음은 SRCH-03(검색 결과 불일치)·RN-10/11(러너 상태 표시)·
+HOST-03(이상 문자 렌더) 순으로 "구조 먼저" 스캔을 이어간다.
