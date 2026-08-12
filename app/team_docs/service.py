@@ -90,6 +90,22 @@ def ensure_can_delete_doc(doc: DocumentCache, user: User, db: Session | None = N
     raise ForbiddenError("이 문서를 삭제할 권한이 없습니다(작성자 또는 운영자만 가능).")
 
 
+def _is_doc_author(db: Session, doc, viewer: User) -> bool:
+    """`ensure_can_delete_doc` 의 작성자 판정과 같은 규칙(id 우선, id 없으면 이름 폴백) —
+    거기서 새 함수로 뽑아 `doc_in_scope` 의 제한 문서 판정과 함께 쓴다(판정 두 벌 방지)."""
+    author_ids = [a for a in split_names(doc.author_notion_ids or "") if a]
+    if author_ids:
+        from app.tickets.service import my_notion_id
+
+        mine = my_notion_id(db, viewer)
+        if mine and mine in author_ids:
+            return True
+        return False
+    name = (viewer.display_name or "").strip()
+    authors = {a.strip() for a in split_names(doc.author_names or "")}
+    return bool(name) and (name in authors or name == (doc.owner or "").strip())
+
+
 def doc_in_scope(db: Session, doc, viewer) -> bool:
     """이 문서가 그 사람 범위 안인가 (1순위 유출 #5).
 
@@ -111,9 +127,18 @@ def doc_in_scope(db: Session, doc, viewer) -> bool:
 
     휴지통 이동·즐겨찾기가 `page_id` 를 그대로 받던 시절이 있었다. 판정을 두 벌로 적지
     않으려고, 그 경로들은 `get_doc_in_scope` 를 거쳐 **이 함수 하나**로 모인다.
+
+    ## `restricted` 는 부서 범위보다 먼저, 더 좁게 본다 (SEC-10)
+
+    부서 범위(아래)를 통과해도 `restricted` 문서는 **운영자군 또는 작성자 본인**만 본다 —
+    같은 부서 동료라도 예외 없다(원본에 평문 자격증명이 있는 문서처럼, "같은 팀"이 곧
+    "봐도 되는 사람"은 아니다). `viewer is None`(내부 호출 무관)은 그대로 통과시킨다.
     """
     if viewer is None:
         return True
+    if getattr(doc, "restricted", False):
+        if viewer.role not in MODERATOR_ROLES and not _is_doc_author(db, doc, viewer):
+            return False
     from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
     from app.tickets.service import _verified_id_to_user
 
@@ -182,6 +207,24 @@ def trash_documents_bulk(db: Session, *, user: User, page_ids: list[str], now: d
         except AppError as exc:
             failed.append({"id": pid, "error": exc.message})
     return {"trashed": trashed, "failed": failed}
+
+
+def set_doc_restricted(db: Session, *, user: User, page_id: str, restricted: bool) -> DocumentCache:
+    """문서 열람 제한을 켜고 끈다(SEC-10) — **범위 안**에서, 운영자군만.
+
+    `trash_document` 와 같은 순서다: 범위를 **먼저** 본다(다른 부서 운영자가 목록에 안 보이는
+    문서를 id 로 건드리는 구멍을 다시 만들지 않으려고 — `ensure_can_delete_doc` docstring 참고).
+    범위 밖은 없는 문서와 **똑같은 404**. 범위 안인데 운영자가 아니면 403 — 이 조작은 삭제와
+    달리 작성자 본인에게도 안 준다(제한을 스스로 풀 수 있으면 제한의 의미가 없다).
+    """
+    doc = get_doc_in_scope(db, page_id, user)
+    if doc is None:
+        raise NotFoundError("문서를 찾을 수 없습니다.")
+    if user.role not in MODERATOR_ROLES:
+        raise ForbiddenError("문서 열람 제한은 운영자만 변경할 수 있습니다.")
+    doc.restricted = bool(restricted)
+    db.flush()
+    return doc
 
 
 def filter_options(db: Session, viewer: User) -> dict:
@@ -329,13 +372,20 @@ def cache_created_document(
     return row
 
 
-def recent_documents(db: Session, user_id: str, *, limit: int = 10) -> list:
-    """최근 열람 순으로 캐시 문서를 돌려준다(캐시에 없는 오래된 항목은 건너뛴다)."""
+def recent_documents(db: Session, user_id: str, *, limit: int = 10, viewer: User | None = None) -> list:
+    """최근 열람 순으로 캐시 문서를 돌려준다(캐시에 없는 오래된 항목은 건너뛴다).
+
+    `viewer` 로 범위 판정을 지난다(`doc_in_scope`) — 이 함수를 만들 때는 빠져 있었다. 목록은
+    범위 밖 문서를 걸러도, "최근 열람"은 **본인이 예전에 본** 문서를 그대로 다시 보여 주는
+    별도 경로라 같이 안 막으면 새는 문이 하나 더 생긴다: 부서가 바뀌었거나(범위 밖이 됨)
+    문서가 나중에 `restricted` 로 바뀌어도, 예전에 한 번 열어 본 사람에게는 이 목록을 통해
+    계속 보인다 — SEC-10 제한 기능 자체를 우회하는 구멍이라 여기서 함께 닫는다.
+    """
     views = repository.recent_views(db, user_id, limit=limit)
     out = []
     for v in views:
         doc = repository.get_by_page_id(db, v.notion_page_id)
-        if doc is not None:
+        if doc is not None and doc_in_scope(db, doc, viewer):
             out.append(doc)
     return out
 

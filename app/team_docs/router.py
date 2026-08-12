@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.authz import MODERATOR_ROLES
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.core.feature_flags import load_feature_flags
@@ -51,7 +52,7 @@ def _repo(request: Request):
     return request.app.state.repositories.documents
 
 
-def _doc_view(row, *, is_favorite: bool) -> dict:
+def _doc_view(row, *, is_favorite: bool, can_restrict: bool = False) -> dict:
     return {
         "id": row.notion_page_id,
         "title": row.title,
@@ -70,6 +71,10 @@ def _doc_view(row, *, is_favorite: bool) -> dict:
         "source_url": row.source_url,
         "has_files": row.has_files,
         "is_favorite": is_favorite,
+        # SEC-10: 이 문서가 이미 나온 이상(범위 판정을 지났다는 뜻) restricted 값 자체를 보여줘도
+        # 안전하다 — 제한된 문서를 볼 수 있는 사람은 이미 운영자군이거나 작성자 본인뿐이다.
+        "restricted": bool(row.restricted),
+        "can_restrict": can_restrict,
         "synced_at": row.synced_at.isoformat() if row.synced_at else None,
     }
 
@@ -125,8 +130,9 @@ def list_documents(
     total = total - (len(rows) - len(visible))
     rows = visible
     state = get_or_create_state(db)
+    can_restrict = me.role in MODERATOR_ROLES
     return {
-        "items": [_doc_view(r, is_favorite=r.notion_page_id in favs) for r in rows],
+        "items": [_doc_view(r, is_favorite=r.notion_page_id in favs, can_restrict=can_restrict) for r in rows],
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
@@ -169,7 +175,7 @@ def create_document(
         request, db, action="team_docs.create", object_type="notion_document",
         object_id=row.notion_page_id, after={"title": payload.title},
     )
-    return {"document": _doc_view(row, is_favorite=False)}
+    return {"document": _doc_view(row, is_favorite=False, can_restrict=me.role in MODERATOR_ROLES)}
 
 
 @router.get("/filters")
@@ -184,10 +190,11 @@ def get_filters(
     인자가 없던 시절이 정확히 그 결함 상태였다.
     """
     favs = repository.favorite_page_ids(db, me.id)
-    recent = service.recent_documents(db, me.id, limit=8)
+    recent = service.recent_documents(db, me.id, limit=8, viewer=me)
+    can_restrict = me.role in MODERATOR_ROLES
     return {
         **service.filter_options(db, me),
-        "recent": [_doc_view(r, is_favorite=r.notion_page_id in favs) for r in recent],
+        "recent": [_doc_view(r, is_favorite=r.notion_page_id in favs, can_restrict=can_restrict) for r in recent],
     }
 
 
@@ -333,7 +340,7 @@ def get_document(
     # 최근 열람 기록(본인).
     service.record_view(db, user_id=me.id, page_id=page_id, now=request.app.state.clock.now())
     return {
-        "document": _doc_view(row, is_favorite=is_fav),
+        "document": _doc_view(row, is_favorite=is_fav, can_restrict=me.role in MODERATOR_ROLES),
         "blocks": blocks,
         "blocks_error": blocks_error,
         # 편집기를 여는 데 쓰는 마크다운과 그 지문(사용자 지적 #9). 이걸 안 주면 프런트가
@@ -411,6 +418,25 @@ def toggle_favorite(
         db, user_id=me.id, page_id=page_id, on=on, now=request.app.state.clock.now()
     )
     return {"ok": True, "is_favorite": is_fav}
+
+
+@router.post("/{page_id}/restrict", dependencies=[Depends(require_csrf)])
+def set_restricted(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+    on: bool = Query(default=True),
+):
+    """문서 열람 제한 토글(SEC-10) — 운영자만. 켜면 운영자군/작성자 본인 외에는 목록·상세
+    어디서도 이 문서가 보이지 않는다(`service.doc_in_scope`). 원본 Notion 콘텐츠는 그대로다 —
+    이 앱이 할 수 있는 것은 열람 범위 축소뿐이라는 SEC-10 기록과 일치한다."""
+    doc = service.set_doc_restricted(db, user=me, page_id=page_id, restricted=on)
+    record_audit_from_request(
+        request, db, action="team_docs.restrict", object_type="notion_document",
+        object_id=page_id, after={"restricted": doc.restricted},
+    )
+    return {"ok": True, "restricted": doc.restricted}
 
 
 @router.post("/sync", dependencies=[Depends(require_csrf)])

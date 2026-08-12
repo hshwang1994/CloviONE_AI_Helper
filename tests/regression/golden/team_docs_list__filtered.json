@@ -5,6 +5,7 @@
       "author_names": [
         "개발자 이"
       ],
+      "can_restrict": true,
       "doc_date": "2026-07-08",
       "document_type": "회의록",
       "has_files": false,
@@ -17,6 +18,7 @@
       "projects": [
         "베타 프로젝트"
       ],
+      "restricted": false,
       "source_url": null,
       "status": "진행",
       "synced_at": "2026-07-14T08:00:00",

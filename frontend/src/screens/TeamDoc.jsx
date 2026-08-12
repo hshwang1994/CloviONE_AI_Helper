@@ -228,6 +228,18 @@ export function TeamDoc() {
     onError: (e) => toast((e && e.message) || "즐겨찾기를 바꾸지 못했습니다.", "error"),
   });
 
+  // 문서 열람 제한 토글(SEC-10) — 운영자만 보인다(doc.can_restrict). 켜면 이후로는 운영자군·
+  // 작성자 본인 외에는 이 문서가 목록·상세 어디에도 안 보인다(app/team_docs/service.py
+  // doc_in_scope). 목록도 함께 무효화한다 — 안 하면 방금 제한한 문서가 목록에 그대로 남는다.
+  const restrict = useMutation({
+    mutationFn: (on) => api("/api/team-docs/" + id + "/restrict?on=" + (on ? "true" : "false"), { method: "POST" }),
+    onSuccess: () => {
+      detail.refetch();
+      qc.invalidateQueries({ queryKey: ["team-docs"] });
+    },
+    onError: (e) => toast((e && e.message) || "열람 제한을 바꾸지 못했습니다.", "error"),
+  });
+
   if (detail.isError) {
     return (
       <div className="c-screen">
@@ -259,6 +271,24 @@ export function TeamDoc() {
           원본 열기
         </Button>
       ) : null}
+      {doc.can_restrict ? (
+        <Button
+          variant={doc.restricted ? "danger" : "default"}
+          disabled={restrict.isPending}
+          onClick={async () => {
+            const next = !doc.restricted;
+            const ok = await confirm(
+              next
+                ? "이 문서를 열람 제한합니다. 이후로는 운영자와 작성자 본인만 볼 수 있고, 그 외에는 목록에서도 사라집니다. 원본 Notion 콘텐츠는 바뀌지 않습니다."
+                : "이 문서의 열람 제한을 해제합니다. 범위 안(부서 등)의 모든 사용자가 다시 볼 수 있습니다.",
+              { title: next ? "문서 열람 제한" : "열람 제한 해제", danger: next, confirmLabel: next ? "제한" : "해제" },
+            );
+            if (ok) restrict.mutate(next);
+          }}
+        >
+          {doc.restricted ? "🔒 제한 해제" : "열람 제한"}
+        </Button>
+      ) : null}
       <Button variant="danger" disabled={trash.isPending}
         onClick={async () => {
           const ok = await confirm("이 문서를 휴지통으로 옮깁니다. 보관기간이 지나면 원본이 삭제됩니다. 계속할까요?",
@@ -285,10 +315,19 @@ export function TeamDoc() {
             <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
               {doc.status ? <Badge value={doc.status} /> : null}
               {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
+              {doc.restricted ? <Badge value="🔒 열람 제한" kind="warn" /> : null}
             </Stack>
             <Typography variant="h4" component="h1" sx={{ mt: 1, mb: 3, overflowWrap: "anywhere" }}>
               {doc.title || "제목 없음"}
             </Typography>
+            {doc.restricted ? (
+              <Box sx={{ mb: 2.5 }}>
+                <Callout tone="warn">
+                  이 문서는 열람이 제한되어 있습니다. 운영자와 작성자 본인만 볼 수 있고, 다른
+                  사용자에게는 목록에서도 보이지 않습니다.
+                </Callout>
+              </Box>
+            ) : null}
             {/* 읽기와 편집을 한 패널이 맡는다(사용자 지적 #9). 티켓 본문과 **같은 컴포넌트**라
                 "저장은 됐지만 원본과 어긋남" 같은 상태를 두 화면이 똑같이 다룬다.
                 소스 본문 렌더러는 여기서 넘긴다 — 폭 상한은 화면이 정할 일이고, 그래야

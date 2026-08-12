@@ -201,6 +201,45 @@ describe("레이아웃 — 댓글은 메타 레일에", () => {
   });
 });
 
+describe("열람 제한 토글(SEC-10)", () => {
+  it("운영자가 아니면 제한 버튼 자체가 없다", async () => {
+    apiMock.mockResolvedValue({ document: { ...DOC, can_restrict: false, restricted: false }, blocks: [] });
+    wrap(<TeamDoc />);
+    await screen.findByRole("heading", { name: "네트워크 설계서" });
+    expect(screen.queryByRole("button", { name: "열람 제한" })).toBeNull();
+  });
+
+  it("제한된 문서는 배지·안내와 함께 '제한 해제' 버튼을 보여준다", async () => {
+    apiMock.mockResolvedValue({ document: { ...DOC, can_restrict: true, restricted: true }, blocks: [] });
+    wrap(<TeamDoc />);
+    await screen.findByRole("heading", { name: "네트워크 설계서" });
+    expect(screen.getByText("🔒 열람 제한")).toBeInTheDocument();
+    expect(screen.getByText(/운영자와 작성자 본인만 볼 수 있고/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "🔒 제한 해제" })).toBeInTheDocument();
+  });
+
+  it("운영자가 제한 버튼을 누르면 확인 뒤 restrict API를 부르고 화면을 새로고침한다", async () => {
+    const user = userEvent.setup();
+    let restricted = false;
+    apiMock.mockImplementation((path, opts) => {
+      if (path.indexOf("/restrict") >= 0) {
+        expect(path).toBe("/api/team-docs/d1/restrict?on=true");
+        restricted = true;
+        return Promise.resolve({ ok: true, restricted: true });
+      }
+      return Promise.resolve({ document: { ...DOC, can_restrict: true, restricted }, blocks: [] });
+    });
+    wrap(<TeamDoc />);
+    await screen.findByRole("heading", { name: "네트워크 설계서" });
+
+    await user.click(screen.getByRole("button", { name: "열람 제한" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "제한" }));
+
+    await screen.findByRole("button", { name: "🔒 제한 해제" });
+  });
+});
+
 describe("safeExternal", () => {
   it("http(s)만 통과시킨다", () => {
     expect(safeExternal("https://notion.so/a")).toBe("https://notion.so/a");

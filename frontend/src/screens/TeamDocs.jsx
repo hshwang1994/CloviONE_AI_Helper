@@ -347,6 +347,9 @@ export function TeamDocs() {
           }}
         >
           {d.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main", flexShrink: 0 }}>★</Box> : null}
+          {/* SEC-10: 목록에서도 제한된 문서를 한눈에 구별한다 — 이 목록에 뜬다는 것 자체가
+              이미 운영자/작성자 범위를 지났다는 뜻이므로(doc_in_scope) 값을 보여줘도 안전하다. */}
+          {d.restricted ? <Box component="span" aria-label="열람 제한" title="열람 제한" sx={{ flexShrink: 0 }}>🔒</Box> : null}
           <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>{d.title || "제목 없음"}</Box>
         </Link>
       ),
@@ -573,6 +576,7 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
         }}
       >
         {doc.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main" }}>★</Box> : null}
+        {doc.restricted ? <Box component="span" aria-label="열람 제한" title="열람 제한">🔒</Box> : null}
         <Box component="span">{doc.title || "제목 없음"}</Box>
       </Link>
       <Typography

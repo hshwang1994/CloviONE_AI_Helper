@@ -65,6 +65,12 @@ class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     work_field: Mapped[str | None] = mapped_column(String(32), index=True)
     tech_tags: Mapped[str] = mapped_column(Text, nullable=False, default="")
     classification_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 문서 단위 열람 제한(SEC-10). Notion 원본에 대응 필드가 없는 **순수 앱 측 플래그**라
+    # classification_manual과 같은 이유로 sync._upsert가 절대 건드리지 않는다(건드리면 매
+    # 재동기화마다 관리자가 건 제한이 조용히 풀린다 — 이 앱에서 이미 한 번 겪은 실수의 같은
+    # 모양). True면 doc_in_scope가 운영자군/작성자 외에는 목록·상세 어디서도 이 문서를
+    # 통과시키지 않는다(원본 Notion 콘텐츠 자체는 건드리지 않는 항목 단위 접근 통제).
+    restricted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     author_names: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # 작성자의 **소스 id**(0040 / X2). 이름 문자열로 권한을 판정하면 개명하면 자기 문서를
     # 못 지우고 동명이인은 남의 문서를 지운다 — `display_name` 에 유일 제약이 없기 때문이다.

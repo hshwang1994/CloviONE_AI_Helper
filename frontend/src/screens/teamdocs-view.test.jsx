@@ -84,3 +84,25 @@ describe("문서 목록 보기", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /선택 삭제/ })).toBeTruthy());
   });
 });
+
+describe("열람 제한 배지(SEC-10)", () => {
+  it("제한된 문서는 카드·표 양쪽에서 자물쇠로 표시된다", async () => {
+    api.mockImplementation((path) => {
+      if (path.startsWith("/api/team-docs/filters")) {
+        return Promise.resolve({ doc_types: [], work_fields: [], tech_tags: [], projects: [] });
+      }
+      return Promise.resolve({
+        items: [{ ...DOCS[0], restricted: true }, DOCS[1]],
+        page: 1, page_size: 20, total: 2,
+        sync: { last_success_at: "2026-08-03T00:00:00Z" }, can_sync: true,
+      });
+    });
+    renderScreen();
+    await screen.findByText("인프라 운영 계획");
+    expect(screen.getAllByLabelText("열람 제한")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "표" }));
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "문서 종류" })).toBeTruthy());
+    expect(screen.getAllByLabelText("열람 제한")).toHaveLength(1);
+  });
+});
