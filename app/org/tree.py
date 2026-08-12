@@ -56,21 +56,54 @@ def _children_map(rows: list[Department]) -> dict[str | None, list[Department]]:
     return children
 
 
+def _is_in_cycle(row_id: str, by_id: dict[str, Department]) -> bool:
+    """UA-21: `row_id`에서 `parent_id`를 따라 올라가며 **실제로 자기 자신에게 돌아오는지**만
+    본다 — 깊이 상한(아래 `_emit`의 `depth < MAX_DEPARTMENT_DEPTH`)과는 완전히 무관한
+    독립 판정이다. 그 상한 때문에 루트에서 못 닿은 행은 진짜 사이클과 "그냥 32단보다
+    깊을 뿐인 정상 트리"가 섞여 있었는데, 둘 다 같은 `cycle: true`로 보고돼 사이클이
+    없는 부서에도 "상위 관계 오류" 배지가 뜨고 관리자가 멀쩡한 부모를 고치라고 안내받았다.
+    """
+    visited: set[str] = set()
+    current: str | None = row_id
+    while current is not None:
+        if current in visited:
+            return True
+        visited.add(current)
+        row = by_id.get(current)
+        if row is None:
+            return False
+        current = row.parent_id
+    return False
+
+
 def build_rows(db: Session, rows: list[Department]) -> list[dict]:
     """깊이 우선 평탄화 + 서브트리 인원 합계.
 
     사이클이 있으면(부모가 서로를 가리키는 상태) 그 덩어리는 루트에서 닿지 않는다 —
     빠뜨리지 않고 맨 뒤에 `cycle: true` 로 붙여 **눈에 보이게** 한다. 조용히 감추면
     "부서가 목록에서 사라졌다"는 신고만 남고 원인은 영영 안 보인다.
+
+    루트에서 못 닿은 행이 전부 사이클은 아니다 — 깊이 상한(`MAX_DEPARTMENT_DEPTH`)에
+    걸려 못 닿았을 수도 있다(UA-21). `_is_in_cycle`로 실제 사이클만 `cycle: true`로
+    표시하고, 그냥 깊을 뿐인 행은 `cycle: false`로 둔다(잘못된 "부모를 고치라"는
+    안내를 없앤다) — 다만 화면에 평평하게 펴는 depth 자체는 상한을 넘는 실제 깊이를
+    표현할 방법이 없어 여전히 0부터 다시 매긴다(이 한계는 그대로 남는다).
     """
     by_id = {row.id: row for row in rows}
     children = _children_map(rows)
     direct = _direct_user_counts(db)
+    # UA-21: 순환 여부를 모든 행에 대해 **미리 한 번에** 계산해 둔다. 순환에 갇힌 덩어리를
+    # 처음 만나는 행 하나만 사이클로 표시하고 나머지는 그 행의 "자식"으로 재귀되며(
+    # `_children_map`은 순환을 모르고 parent→children만 뒤집으므로 재귀가 그 안까지
+    # 따라 들어간다) `_emit`의 기본값 `False`로 덮이면, 같은 순환의 다른 쪽 절반만
+    # "정상"으로 보이는 절반짜리 수정이 된다 — 실제로 처음 이 방식대로 짰다가 2행짜리
+    # 순환(a↔b)에서 a만 cycle:true, b는 cycle:false로 나오는 것을 시험이 잡아냈다.
+    in_cycle = {row.id: _is_in_cycle(row.id, by_id) for row in rows}
 
     out: list[dict] = []
     seen: set[str] = set()
 
-    def _emit(row: Department, depth: int, path: list[str], *, cycle: bool = False) -> int:
+    def _emit(row: Department, depth: int, path: list[str]) -> int:
         """이 부서와 그 아래를 순서대로 out 에 넣고 **서브트리 인원 합**을 돌려준다."""
         seen.add(row.id)
         here = path + [row.name]
@@ -88,7 +121,7 @@ def build_rows(db: Session, rows: list[Department]) -> list[dict]:
             "active": row.active,
             "user_count": direct.get(row.id, 0),
             "child_count": len(kids),
-            "cycle": cycle,
+            "cycle": in_cycle.get(row.id, False),
             "created_at": row.created_at.isoformat(),
         })
         total = direct.get(row.id, 0)
@@ -101,10 +134,11 @@ def build_rows(db: Session, rows: list[Department]) -> list[dict]:
 
     for root in children.get(None, []):
         _emit(root, 0, [])
-    # 루트에서 닿지 않은 것들 = 사이클에 갇힌 덩어리.
+    # 루트에서 닿지 않은 것들 — 사이클에 갇혔거나, 깊이 상한 때문에 그 아래로 못 내려간
+    # 정상 트리다(위에서 미리 계산한 in_cycle이 어느 쪽인지 정확히 가른다).
     for row in rows:
         if row.id not in seen:
-            _emit(row, 0, [], cycle=True)
+            _emit(row, 0, [])
     return out
 
 
