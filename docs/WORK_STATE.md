@@ -71,10 +71,20 @@ QA 도구·pytest smoke 인프라만 추가) 기존 회귀 스위트를 다시 �
 로컬 dev 서버는 이 배치가 끝날 때까지 계속 띄워 둔다(다음 작업에서도 재사용 가능하면
 그대로 씀 — CLAUDE.md 지시).
 
-**이 invocation은 세션 USD 예산 소진(약 70% 소비, 자세한 값은 harness system-reminder
-참고)으로 여기서 멈춘다 — PROJECT는 끝나지 않았다.** §0 원칙대로 이것은 정지 사유가
-아니다: 다음 invocation(로컬 Supervisor가 즉시 이어받거나, 사람이 다시 시작)은 아래를
-바로 실행하면 된다.
+**추가(Stop hook 제동 이후 계속) — `FN-02` 자기모순 행도 정정.** 위 세 항목을 마친 뒤
+"예산이 줄어드는 중"이라는 이유만으로 멈추려다 Stop hook에 정정당했다(정당한 제동 —
+그때 예산은 아직 30% 가까이 남아 있었고 runnable 독립 작업이 분명히 더 있었다). 같은
+"이미 코드는 고쳐졌는데 BACKLOG 행만 안 갱신됨" 패턴이 더 있는지 값싸게(grep만, 서버·
+테스트 재실행 없이) 훑어 `FN-02`(High, "SSRF allowlist에 api.anthropic.com:443 없음")를
+찾았다 — `git log -S"api.anthropic.com"`으로 커밋 `b563eec`(MEGA CYCLE I)가 이미
+고쳤음을 확인, `tests/security/test_llm_api_backend_allowlisted.py` 재실행 green. 같은
+배치의 나머지(`SEC-02`·`SEC-03`·`FN-07`·`SEC-31`)는 직접 확인 결과 이미 정확히
+기록돼 있어 `FN-02`만 스트래글러였다 — 이 자기모순 패턴 자체는 이제 훑을 만큼 훑었다고
+판단(추가로 훑어도 수익 체감 예상).
+
+**이 invocation은 이제 세션 USD 예산이 실제로 임계치(약 83% 소비)라 여기서 멈춘다 —
+PROJECT는 끝나지 않았다.** §0 원칙대로 이것은 정지 사유가 아니다: 다음 invocation
+(로컬 Supervisor가 즉시 이어받거나, 사람이 다시 시작)은 아래를 바로 실행하면 된다.
 - **로컬 dev 서버가 이미 떠 있다** — uvicorn `http://127.0.0.1:8099`(`--factory
   app.main:create_app`, `.env` 기준 `var/web.sqlite3`). `curl -s localhost:8099/readyz`로
   살아있는지 먼저 확인하고, 살아있으면 재기동하지 말고 그대로 쓴다. QA 계정
