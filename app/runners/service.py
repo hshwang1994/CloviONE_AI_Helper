@@ -259,7 +259,10 @@ def run_runner_health_check(
         else:
             raise
     row.last_health_status = status
-    row.last_health_at = now
+    # RN-12: 여러 러너를 한 스윕에서 점검하면 바닥 now를 그대로 쓸 때 전부 초 단위까지
+    # 같은 시각이 찍혀 "이 러너가 실제로 언제 응답했는가"를 개별로 알 수 없었다. 이미
+    # 위에서 잰 latency_ms를 그대로 더해 각 응답이 실제로 도착한 순간을 반영한다.
+    row.last_health_at = now + timedelta(milliseconds=latency_ms)
     record_runner_result(db, row, success=(status == "up"), now=now)
     return {"status": status, "latency_ms": round(latency_ms, 1), "detail": detail, "checked_url": url}
 
@@ -287,6 +290,7 @@ def run_all_runner_health_checks(db: Session, *, outbound: OutboundClient, now: 
         if not url:
             continue
         checked += 1
+        started = time.perf_counter()
         try:
             resp = outbound.get(
                 url, allowlist=ALLOWLIST, timeout=10.0,
@@ -298,7 +302,10 @@ def run_all_runner_health_checks(db: Session, *, outbound: OutboundClient, now: 
             _ = is_timeout_error(exc) or is_transport_error(exc)
             reachable = False
         row.last_health_status = "up" if reachable else "down"
-        row.last_health_at = now
+        # RN-12: 러너마다 바닥 now를 그대로 쓰면 스윕에 든 러너 전부가 초 단위까지 같은
+        # 시각으로 찍혀 "이 러너가 실제로 언제 응답했는가"를 개별로 알 수 없었다 — 이
+        # 러너까지 걸린 시간을 더해 각 응답이 실제로 도착한 순간을 반영한다.
+        row.last_health_at = now + timedelta(milliseconds=(time.perf_counter() - started) * 1000)
         record_runner_result(db, row, success=reachable, now=now)
         if reachable:
             up += 1

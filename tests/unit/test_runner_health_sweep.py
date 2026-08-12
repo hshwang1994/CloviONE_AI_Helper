@@ -5,6 +5,9 @@
 막지 않는다. Notion 대신 fake outbound(.get)로 HTTP 를 대체한다.
 """
 
+from datetime import timedelta
+from unittest.mock import patch
+
 import pytest
 
 from app.runners.schemas import RunnerConfig
@@ -52,7 +55,27 @@ def test_reachable_marks_up_unreachable_down(db, app, fake_clock):
     assert summary == {"checked": 2, "up": 1, "down": 1}
     assert r1.last_health_status == "up"
     assert r2.last_health_status == "down"
-    assert r1.last_health_at == fake_clock.now()
+    # RN-12: last_health_at은 now에 실제 왕복 시간(latency)을 더한 값이라 now보다 늦거나
+    # 같다(즉시 응답하는 fake outbound라도 perf_counter 측정 자체가 0은 아니다) — 결코
+    # 이르지 않고, 정상적인 fake 호출이라면 1초를 넘지 않는다.
+    assert fake_clock.now() <= r1.last_health_at < fake_clock.now() + timedelta(seconds=1)
+
+
+def test_different_latencies_produce_different_timestamps(db, app, fake_clock):
+    """RN-12: 스윕 안의 여러 러너가 서로 다른 응답 시간을 가지면 last_health_at도 갈라져야
+    한다 — 예전엔 스윕 바닥 now를 그대로 써서 전부 초 단위까지 같은 시각이 찍혔다."""
+    r1 = _mk(db, app, "r-fast", "http://127.0.0.1:8787")
+    r2 = _mk(db, app, "r-slow", "http://127.0.0.1:8788")
+    ob = _FakeOutbound(code_by_url={
+        "http://127.0.0.1:8787": 200,
+        "http://127.0.0.1:8788": 200,
+    })
+    # perf_counter 호출 순서: r1 시작·r1 끝(50ms 경과)·r2 시작·r2 끝(150ms 경과).
+    with patch("app.runners.service.time.perf_counter", side_effect=[100.0, 100.05, 200.0, 200.15]):
+        run_all_runner_health_checks(db, outbound=ob, now=fake_clock.now())
+    assert r1.last_health_at == fake_clock.now() + timedelta(milliseconds=50)
+    assert r2.last_health_at == fake_clock.now() + timedelta(milliseconds=150)
+    assert r1.last_health_at != r2.last_health_at
 
 
 def test_404_without_health_url_is_up(db, app, fake_clock):

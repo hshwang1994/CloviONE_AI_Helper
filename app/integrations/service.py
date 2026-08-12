@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -216,7 +217,10 @@ def run_health_check(
             raise
 
     row.last_health_status = status
-    row.last_health_at = now
+    # RN-12: 여러 연동을 한 스윕에서 점검하면 바닥 now를 그대로 쓸 때 전부 초 단위까지
+    # 같은 시각이 찍혀 "이 연동이 실제로 언제 응답했는가"를 개별로 알 수 없었다. 이미
+    # 위에서 잰 latency_ms를 그대로 더해 각 응답이 실제로 도착한 순간을 반영한다.
+    row.last_health_at = now + timedelta(milliseconds=latency_ms)
     db.flush()
     return {
         "status": status,
