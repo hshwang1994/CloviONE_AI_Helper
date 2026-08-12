@@ -66,15 +66,30 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           throw new Error(`${f.name} 은(는) 10MB를 넘습니다.`);
         }
       }
-      let last = null;
+      // ATT-01: 파일별로 실패를 감싼다 — 안 그러면 N번째 업로드가 실패했을 때 이미 서버에
+      // 저장된 앞의 N-1개가 있는데도 mutation 전체가 reject돼 onSuccess(→refresh)가 안 돌아
+      // 화면 목록이 그대로다. "안 올라갔나 보다"로 같은 파일을 다시 고르면 중복 업로드되고
+      // 10칸 상한만 스스로 소모한다(Board.jsx가 같은 사고를 겪고 이미 이 방식으로 고쳤다).
+      const failed = [];
       for (const f of picked) {
-        const fd = new FormData();
-        fd.append("file", f);
-        last = await api(`/api/tickets/${ticketId}/attachments`, { method: "POST", body: fd });
+        try {
+          const fd = new FormData();
+          fd.append("file", f);
+          await api(`/api/tickets/${ticketId}/attachments`, { method: "POST", body: fd });
+        } catch (e) {
+          failed.push(f.name);
+        }
       }
-      return last;
+      return { failed };
     },
-    onSuccess: () => { toast("파일을 첨부했습니다.", "success"); refresh(); },
+    onSuccess: ({ failed }) => {
+      refresh();
+      if (failed.length) {
+        toast(`첨부 ${failed.length}개를 올리지 못했습니다: ${failed.join(", ")}`, "error");
+      } else {
+        toast("파일을 첨부했습니다.", "success");
+      }
+    },
     onError: (e) => toast((e && e.message) || "첨부하지 못했습니다.", "error"),
   });
 

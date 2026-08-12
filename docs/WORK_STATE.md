@@ -12,7 +12,20 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF30(`invocation=2`) —
+**마지막 갱신**: 2026-08-12 · **단계**: WF31(`invocation=2`) —
+`ATT-01`(첨부 부분 실패가 화면에 안 나타남, High) 구현완료 +
+`RN-17` 부분 정정. `Board.jsx`가 이미 파일별 try/catch → `failed[]`
+패턴으로 고쳐 뒀던 것과 같은 결함이 `TicketAttachments.jsx`(티켓
+첨부)에 그대로 남아 있었다 — N번째 파일 실패가 mutation 전체를
+reject시켜 `refresh()`가 안 돌고, 이미 성공한 N-1개가 화면에
+안 보여 재업로드·중복이 생겼다. `FormData`를 쓰는 화면 전부를
+먼저 실사해 `ChatPane.jsx`/`Profile.jsx`는 단일 파일이라 대상이
+아님을 확인 후 `TicketAttachments.jsx`에만 `Board.jsx` 패턴을
+이식. 신규 시험 1건(두 장 중 하나 실패 → 나머지 반영 + 실패
+파일명 안내), revert-to-verify 확인. `RN-17`은 그 노출 경로 중
+"RN-05 때문에 실수로 도달한다"는 전제가 RN-05의 최근 수정으로
+막혔음을 확인해 취소선 정정(근본 노출 자체는 남음, 코드 변경
+없음). 그 직전 WF30 —
 stale `RN-01~14`(러너 `assistant.py` 전수조사 사이클 0) 섹션 행
 정정, 코드 변경 없음. 2026-08-10 `5db9fbf`("MEGA CYCLE A")가
 5개 공유 Root Cause로 이미 13건(RN-08만 명시적 예외)을 해결했는데
@@ -20,7 +33,7 @@ stale `RN-01~14`(러너 `assistant.py` 전수조사 사이클 0) 섹션 행
 실제 소스에서 `grep`으로 직접 재검증(TTL 상수·정리 함수의 실제
 호출부·질문·부정 가드가 라우터 여러 지점에서 쓰이는 것 확인) 후
 13개 행에 `✅ 구현완료` 표시, RN-08은 그 커밋이 스스로 밝힌
-미해결 이유를 그대로 옮겨 계속 열어 둠. 그 직전 WF29 —
+미해결 이유를 그대로 옮겨 계속 열어 둠. 그 앞 WF29 —
 `GM-10`+`GM-11`(게임 동시성) 구현완료. `maybe_autoresolve`(폴링마다
 불림)가 부르는 `_finish_number`·`_finish_vote`·단판 `_finish_rps`·
 `_reveal_quiz`(조사 중 추가 발견 — BACKLOG 원문엔 없었다) 넷 다
@@ -3682,7 +3695,53 @@ RN-01~07·RN-09~14(13건)에 `✅ 구현완료(5db9fbf, Root Cause X)`를
 
 코드/테스트 변경 없음(순수 문서 정정) — 빌드·정적 검사 불필요.
 
-이 배치(`RN-01~14` 행 정정) 커밋 예정. **다음 후보**: BACKLOG/
-QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정(RN-15~20,
+이 배치(`RN-01~14` 행 정정) 커밋 완료(`902a4a3`).
+
+**WF31(같은 invocation 계속) — `RN-17` 부분 정정(코드 변경 없음) +
+`ATT-01`(High) 구현완료.** WF28 Explore가 남긴 "기타 열려 있는
+Critical/High" 목록을 이어서 처리. 먼저 `RN-16`/`RN-17`을
+재확인: `RN-16`(비ASCII Authorization 헤더 크래시)은 `RN-05`와
+무관해 그대로 열어 둠. `RN-17`(diagnose가 동명이인 Notion
+정보·서버 경로를 노출)은 "RN-05 때문에 평범한 요청에서 실수로
+도달한다"는 전제가 걸려 있었는데, RN-05는 방금 `5db9fbf`로 이미
+고쳐졌음을 확인했으므로(WF30) 그 "실수로" 경로는 막혔다 — 다만
+`diagnose` 자체가 여전히 의도적으로는 일반 채팅 사용자에게 열려
+있어 근본 노출은 안 사라졌다. 행을 취소선 + 정정 메모로 갱신,
+새로운 코드 작업은 없음(그 자체가 별도 판단이 필요한 남은 항목).
+
+`ATT-01`: **첨부 부분 실패가 화면에 안 나타난다** — 순차 업로드 중
+N번째가 실패하면 이미 저장된 N-1개가 있는데 `mutationFn`이
+try/catch 없이 실패를 전파해 mutation 전체가 reject, `onSuccess`
+(→`refresh()`)가 안 돌아 목록이 그대로다. 같은 파일을 다시 고르면
+중복 업로드되고 10칸 상한만 스스로 소모한다. `Board.jsx`가 이미
+같은 사고를 겪고 파일별 try/catch → `failed[]` 패턴으로 고쳐 뒀다
+— **정답을 이식만 하면 되는 사례.**
+
+**실사 먼저**: `FormData`를 쓰는 화면 전부(`Board.jsx`·
+`ChatPane.jsx`·`Profile.jsx`·`TicketAttachments.jsx`)를 확인해
+루프 기반 다중 파일 업로드가 이 결함군의 진짜 대상임을 좁혔다 —
+`ChatPane.jsx`(붙여넣은 이미지)와 `Profile.jsx`(아바타)는 둘 다
+단일 파일이라 "N-1개는 이미 성공"이라는 전제 자체가 성립하지
+않는다(대상 아님). `TicketAttachments.jsx`(티켓 첨부)만 `Board.jsx`
+와 같은 순차 루프였고 실제로 파일별 보호가 없었다 — 진짜 살아
+있는 인스턴스.
+
+**구현**: `Board.jsx`와 동일한 모양으로 `mutationFn`을 고쳐 파일별
+try/catch로 `failed[]`를 모으고, `onSuccess`에서 항상 `refresh()`
+한 뒤 `failed.length`에 따라 "첨부 N개를 올리지 못했습니다: <이름>"
+또는 성공 토스트를 고른다.
+
+**시험**: 기존 `ticket-attachments.test.jsx`(12건)에 신규 1건 추가
+— 두 장 중 하나만 실패하도록 `apiMock`을 조건부로 만들어, (1) 실패한
+파일도 시도는 되는지(두 번째 POST가 실제로 나가는지) (2) 실패가
+섞여도 `refresh()`(→`onChanged`)가 도는지 (3) "N개를 올리지
+못했습니다: bad.png" 안내가 뜨고 전체-성공 문구와 안 섞이는지 확인.
+revert-to-verify: 되돌린 코드가 정확히 `onChanged` 미호출(2단계
+`waitFor`)로 실패하는 것 확인 후 `Edit`으로 복원. 파일 전체(13건) +
+연관 `ticket-detail.test.jsx`(14건) green. `npm run build` →
+`STATIC_CHECKS_OK`.
+
+이 배치(`ATT-01`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
+전체 재스캔으로 다음 Root Cause 선정(`RN-15~20`, `VIS-158R`,
 남은 `RESP-04`/`VIS-122` 등 기존 보류 목록은 여전히 전담 세션
 필요).

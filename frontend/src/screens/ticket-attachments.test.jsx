@@ -123,6 +123,31 @@ describe("파일 추가 버튼", () => {
     expect(sent).toEqual(["one.png", "two.png"]);
   });
 
+  /* ATT-01: N번째 파일이 실패해도 앞서 성공한 N-1개는 이미 서버에 저장돼 있다 — mutation
+   * 전체를 reject시켜 목록 새로고침이 안 돌면, 사용자는 "안 올라갔나 보다"로 같은 파일을
+   * 다시 골라 중복 업로드하고 10칸 상한만 스스로 소모한다(Board.jsx가 겪은 것과 같은 사고). */
+  it("두 장 중 하나가 실패해도 성공한 나머지는 목록에 반영되고, 실패한 파일명을 말한다", async () => {
+    const onChanged = vi.fn();
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/tickets/page-1/attachments" && opts && opts.method === "POST") {
+        const name = opts.body.get("file").name;
+        return name === "bad.png" ? Promise.reject(new Error("서버 오류")) : Promise.resolve({ ok: true });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const { container } = wrap({ attachments: [], canEdit: true, onChanged });
+
+    pickFilesLikeBrowser(fileInput(container), makeFiles(["good.png", "bad.png"]));
+
+    // 실패한 파일도 시도는 된다 — 첫 파일 실패로 두 번째 시도 자체가 막히면 안 된다.
+    await waitFor(() => expect(uploadCalls()).toHaveLength(2));
+    // mutation이 통째로 reject되지 않았다는 증거 — 실패가 섞여도 refresh(→onChanged)가 돈다.
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(await screen.findByText(/첨부 1개를 올리지 못했습니다: bad\.png/)).toBeInTheDocument();
+    // "첨부했습니다"(전부 성공) 문구와는 섞이지 않는다 — 실패를 성공으로 덮으면 안 된다.
+    expect(screen.queryByText("파일을 첨부했습니다.")).toBeNull();
+  });
+
   it("한 장도 못 올렸으면 '첨부했습니다'라고 말하지 않는다", async () => {
     const { container } = wrap({ attachments: [], canEdit: true });
 
