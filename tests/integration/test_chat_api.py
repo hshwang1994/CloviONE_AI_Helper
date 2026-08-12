@@ -77,6 +77,26 @@ def test_list_conversations_q_does_not_leak_other_users_messages(client, login_a
     assert result == []
 
 
+def test_list_conversations_reports_total_and_respects_limit(client, user_csrf):
+    """AI-18: 대화 목록이 100개로 고정 상한이었고 그 이상은 total도 offset도 없어 화면에서
+    영영 볼 방법이 없었다. limit이 실제로 자르고, total이 (limit과 무관하게) 실제 전체
+    개수를 알려줘야 화면이 "더 보기"를 보여줄지 판단할 수 있다."""
+    ids = [_new_conversation(client, user_csrf)["id"] for _ in range(3)]
+
+    capped = client.get("/api/conversations", params={"limit": 2}).json()
+    assert len(capped["items"]) == 2
+    assert capped["total"] == 3
+
+    full = client.get("/api/conversations", params={"limit": 100}).json()
+    assert {c["id"] for c in full["items"]} == set(ids)
+    assert full["total"] == 3
+
+    # 서버가 정한 상한(MAX_CONVERSATION_LIST_LIMIT)을 넘는 요청은 그대로 받지 않는다 —
+    # 클라이언트가 임의로 큰 값을 넣어 한 번에 전체 테이블을 긁어가지 못하게 막는다.
+    too_big = client.get("/api/conversations", params={"limit": 5000})
+    assert too_big.status_code == 422
+
+
 def test_rename_and_delete_conversation(client, user_csrf):
     conv = _new_conversation(client, user_csrf)
     # rename

@@ -111,6 +111,7 @@ export function ConversationSidebar({
   convs, convItems, convFilter, setConvFilter, showArchived, setShowArchived,
   cid, setCid, setComposingNew, clearDraft, textareaRef,
   renameConv, archiveConv, deleteConv, confirm,
+  hasMoreConvs, loadMoreConvs,
 }) {
   // AI-38: 검색어가 있으면 convItems는 이미 서버가 제목·본문 기준으로 걸러 온 결과다
   // (useChat.js의 debouncedQ) — 여기서 다시 거르지 않는다(다시 거르면 방금 debounce된
@@ -188,13 +189,28 @@ export function ConversationSidebar({
                       help="대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다." />
                   : <EmptyState title="아직 대화가 없습니다"
                       help="위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다." />)
-              : (filtered.length ? filtered.map((c) => (
-                  <ConvItem key={c.id} c={c} active={c.id === cid}
-                    onOpen={() => { if (c.id !== cid) clearDraft(); setCid(c.id); setComposingNew(false); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}
-                    onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
-                    onArchive={(archived) => archiveConv.mutate({ id: c.id, archived })}
-                    onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
-                )) : <EmptyState size="compact" title="검색 결과가 없습니다" />)}
+              : (filtered.length ? (
+                  <>
+                    {filtered.map((c) => (
+                      <ConvItem key={c.id} c={c} active={c.id === cid}
+                        onOpen={() => { if (c.id !== cid) clearDraft(); setCid(c.id); setComposingNew(false); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}
+                        onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
+                        onArchive={(archived) => archiveConv.mutate({ id: c.id, archived })}
+                        onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
+                    ))}
+                    {/* AI-18: 대화가 상한(기본 100개)보다 많을 때만 보인다 — 그 이하인 절대다수
+                        사용자에게는 아무것도 안 보이던 예전 그대로다. */}
+                    {hasMoreConvs ? (
+                      <Button
+                        size="sm" variant="ghost" disabled={convs.isFetching}
+                        onClick={loadMoreConvs}
+                        sx={{ alignSelf: "center", mt: 0.5, flexShrink: 0 }}
+                      >
+                        {convs.isFetching ? "불러오는 중…" : "대화 더 보기"}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : <EmptyState size="compact" title="검색 결과가 없습니다" />)}
         </Box>
       </Box>
       {sideOpen && listIsDrawer ? (

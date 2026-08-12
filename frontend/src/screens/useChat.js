@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { useToast } from "../ui/kit.jsx";
 import {
@@ -18,6 +18,9 @@ import {
  * 계약: 훅은 JSX를 모른다. DOM 참조(textarea/스크롤 컨테이너 등)는 훅이 만들고 화면이 붙인다 —
  * 포커스 이동·스크롤 고정·자동 높이가 전부 상태 전이의 일부라서, 화면 쪽에 두면 두 곳으로 쪼개진다.
  */
+
+// AI-18: 서버 기본 상한과 같은 값 — 대화가 이 이하인 절대다수는 지금처럼 한 번에 다 받는다.
+const CONV_PAGE_SIZE = 100;
 
 /**
  * @param {{pasteEnabled?: boolean, dataEnabled?: boolean}} [options]
@@ -45,6 +48,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const [sideOpen, setSideOpen] = useState(false); // 좁은 화면 대화목록 드로어
   const [convFilter, setConvFilter] = useState(""); // 대화 목록 검색어(제목은 클라이언트측 즉시 필터, 본문은 아래 debouncedQ로 서버 검색)
   const [showArchived, setShowArchived] = useState(false); // 보관된 대화 보기
+  const [convLimit, setConvLimit] = useState(CONV_PAGE_SIZE); // AI-18: "더 보기"를 누르면 이만큼씩 늘어난다
   const [composingNew, setComposingNew] = useState(false); // '새 대화' 클릭 후 첫 메시지 전까지 실제 생성을 미룸
   const [stick, setStick] = useState(true);
   const [resumedAt, setResumedAt] = useState(0); // 스톨 복구 '새로고침'이 눌린 시각(폴링 재시작 기준선)
@@ -95,6 +99,9 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     const t = setTimeout(() => setDebouncedQ(convFilter.trim()), 300);
     return () => clearTimeout(t);
   }, [convFilter]);
+  // AI-18: 필터·보관 토글이 바뀌면 이전 "더 보기"로 늘려둔 상한을 새 맥락까지 끌고 가지
+  // 않는다 — 새 검색/필터는 항상 첫 페이지부터 다시 본다.
+  useEffect(() => { setConvLimit(CONV_PAGE_SIZE); }, [showArchived, debouncedQ]);
 
   // AI-44: 백엔드는 이미 채팅마다 쿼터를 예약·차감하는데(post_message의 ai_quotas.reserve)
   // 화면 어디에도 안 보였다 — 대화가 바뀌어도 오늘 남은 양은 그대로이므로 cid에 매지 않는다.
@@ -107,15 +114,31 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   });
 
   const convs = useQuery({
-    queryKey: ["conversations", showArchived, debouncedQ],
+    queryKey: ["conversations", showArchived, debouncedQ, convLimit],
     queryFn: () => api(
       "/api/conversations?"
-      + [showArchived ? "include_archived=true" : "", debouncedQ ? "q=" + encodeURIComponent(debouncedQ) : ""]
-        .filter(Boolean).join("&")
+      + [
+          showArchived ? "include_archived=true" : "",
+          debouncedQ ? "q=" + encodeURIComponent(debouncedQ) : "",
+          "limit=" + convLimit,
+        ].filter(Boolean).join("&")
     ),
     retry: false,
     enabled: dataEnabled,
+    // AI-18: "더 보기"는 convLimit을 바꿔 새 쿼리 키로 다시 받는다(위 주석) — keepPreviousData가
+    // 없으면 그 순간 data가 비어 isLoading이 다시 true가 되고, 목록 전체가 스켈레톤으로
+    // 깜빡이며 스크롤 위치를 잃는다. 이전 목록을 그대로 보여준 채 새 응답이 오면 교체한다
+    // (DataScreen.jsx 등 다른 화면의 페이지네이션과 같은 관용).
+    placeholderData: keepPreviousData,
   });
+  // AI-18: 100개 상한 너머에 더 있으면(total이 지금 받은 개수보다 크면) "더 보기"가 상한을
+  // 100개씩 늘려 같은 목록을 처음부터 다시 받는다. 오프셋을 이어붙이지 않는 이유는 router의
+  // get_conversations 주석과 같다 — 그사이 다른 대화가 새로 생기거나 updated_at 정렬이
+  // 바뀌면 이어붙이기가 항목을 중복시키거나 빠뜨릴 수 있다.
+  const convTotal = (convs.data && convs.data.total) || 0;
+  const convItemCount = (convs.data && convs.data.items && convs.data.items.length) || 0;
+  const hasMoreConvs = convItemCount < convTotal;
+  const loadMoreConvs = () => setConvLimit((n) => n + CONV_PAGE_SIZE);
   const thread = useQuery({
     queryKey: ["messages", cid],
     // 연속 폴링 실패 횟수를 추적한다(성공하면 0으로 리셋) — 아래 refetchInterval이 이 값으로
@@ -230,13 +253,20 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     mutationFn: ({ id, archived }) => api("/api/conversations/" + id, { method: "PATCH", body: { archived } }),
     // 현재 목록 캐시에서 즉시 반영한다. 그렇지 않으면 방금 보관한 대화가 stale 캐시에 남아
     // 자동 선택 이펙트가 그것을 다시 열어(보이지 않는 대화에 입력하는) 막다른 길이 된다.
+    // AI-69: 키가 ["conversations", showArchived]뿐이라 실제 쿼리 키(debouncedQ·convLimit도
+    // 포함)와 한 번도 정확히 일치한 적이 없었다 — setQueryData는 정확히 일치하는 키만 찾으므로
+    // 이 낙관 갱신은 캐시 어디에도 안 닿는 채로 아무 효과 없이 실패해 왔고, 실제로는 아래
+    // invalidateQueries(비동기 재조회)만 반영을 담당했다. 그사이 자동 선택 이펙트가 옛(방금
+    // 보관된 항목이 아직 남은) 데이터로 먼저 돌면 정확히 위 주석이 막으려던 상황이 재현된다.
     onSuccess: (_d, vars) => {
       // 지금 열려 있던 대화가 보관되면 그 대화용 초안(글+첨부)도 함께 비운다 — 안 그러면 뒤이어
       // 자동 선택된 다른 대화(또는 빈 화면)에 이 대화의 초안이 그대로 남아 엉뚱한 곳에 전송될 수 있다.
       if (vars.archived && vars.id === cid) { setCid(null); clearDraft(); }
-      qc.setQueryData(["conversations", showArchived], (old) => {
+      qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) => {
         if (!old || !Array.isArray(old.items)) return old;
-        if (!showArchived && vars.archived) return { ...old, items: old.items.filter((c) => c.id !== vars.id) };
+        if (!showArchived && vars.archived) {
+          return { ...old, items: old.items.filter((c) => c.id !== vars.id), total: Math.max(0, (old.total || 0) - 1) };
+        }
         return { ...old, items: old.items.map((c) => (c.id === vars.id ? { ...c, archived: vars.archived } : c)) };
       });
       qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -247,11 +277,14 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     mutationFn: (id) => api("/api/conversations/" + id, { method: "DELETE", body: {} }),
     // 삭제한 행을 캐시에서 곧바로 제거한다(단순 invalidate만 하면 refetch 전까지 stale 목록이
     // 남아 자동 선택 이펙트가 방금 삭제한 대화를 다시 열어 404 '대화를 찾을 수 없습니다'로 갇힌다).
+    // AI-69: archiveConv와 같은 이유로 실제 쿼리 키(debouncedQ·convLimit 포함)를 그대로 쓴다.
     onSuccess: (_d, id) => {
       // 삭제한 대화가 지금 열려 있던 대화면 그 초안도 함께 비운다(보관과 동일한 이유 — 위 archiveConv 참고).
       if (id === cid) { setCid(null); clearDraft(); }
-      qc.setQueryData(["conversations", showArchived], (old) =>
-        old && Array.isArray(old.items) ? { ...old, items: old.items.filter((c) => c.id !== id) } : old);
+      qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) =>
+        old && Array.isArray(old.items)
+          ? { ...old, items: old.items.filter((c) => c.id !== id), total: Math.max(0, (old.total || 0) - 1) }
+          : old);
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (e) => toast(e.message || "삭제하지 못했습니다.", "error"),
@@ -485,11 +518,14 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       // 첫 전송(대화를 방금 만든 경우)이 실패하면 메시지 0개짜리 '새 대화'가 목록에 남아 어지럽힌다 —
       // 조용히 정리한다(초안은 아래에서 컴포저에 복구하므로 같은 내용으로 곧바로 다시 보낼 수 있다).
       // deleteConv 뮤테이션은 쓰지 않는다 — 그 onSuccess가 clearDraft()로 방금 복구한 초안을 지운다.
+      // AI-69: archiveConv와 같은 이유로 실제 쿼리 키(debouncedQ·convLimit 포함)를 그대로 쓴다.
       if (createdId) {
         const orphan = createdId;
         setCid(null);
-        qc.setQueryData(["conversations", showArchived], (old) =>
-          old && Array.isArray(old.items) ? { ...old, items: old.items.filter((c) => c.id !== orphan) } : old);
+        qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) =>
+          old && Array.isArray(old.items)
+            ? { ...old, items: old.items.filter((c) => c.id !== orphan), total: Math.max(0, (old.total || 0) - 1) }
+            : old);
         api("/api/conversations/" + orphan, { method: "DELETE", body: {} }).then(
           () => qc.invalidateQueries({ queryKey: ["conversations"] }), () => {});
       }
@@ -522,6 +558,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     cid, setCid, convs, convFilter, setConvFilter, showArchived, setShowArchived, aiQuota,
     composingNew, setComposingNew, activeTitle,
     renameConv, archiveConv, deleteConv,
+    hasMoreConvs, loadMoreConvs,
     // 스레드
     thread, items, busy, awaitingReply, stalled, answered, justAnswered, answerAnnounce, lastMsg,
     resumedAt, setResumedAt,

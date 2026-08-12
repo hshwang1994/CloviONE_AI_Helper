@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.conversations.models import (
@@ -28,6 +28,12 @@ from app.users.models import User
 _CLIENT_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 DEFAULT_TITLE = "새 대화"
 AUTO_TITLE_MAX_CHARS = 60
+# AI-18: 예전엔 100개로 고정 상한이었고 그 이상은 화면에서 영영 볼 방법이 없었다(스크롤도,
+# "더 보기"도 없음). 기본값은 그대로 100 — 대화가 100개 이하인 절대다수 사용자는 지금과
+# 똑같이 한 번에 다 받는다. 그 이상 필요할 때만 화면이 이 값을 키워 같은 목록을 처음부터
+# 다시 요청한다(오프셋을 이어붙이지 않는 이유는 router의 get_conversations 주석 참고).
+DEFAULT_CONVERSATION_LIST_LIMIT = 100
+MAX_CONVERSATION_LIST_LIMIT = 1000
 
 
 def auto_title(content: str) -> str:
@@ -50,8 +56,13 @@ def create_conversation(db: Session, user: User, *, title: str | None = None) ->
 
 
 def list_conversations(
-    db: Session, user: User, *, include_archived: bool = False, q: str | None = None
-):
+    db: Session,
+    user: User,
+    *,
+    include_archived: bool = False,
+    q: str | None = None,
+    limit: int = DEFAULT_CONVERSATION_LIST_LIMIT,
+) -> tuple[list[Conversation], int]:
     stmt = select(Conversation).where(Conversation.user_id == user.id)
     if not include_archived:
         stmt = stmt.where(Conversation.archived.is_(False))
@@ -68,11 +79,15 @@ def list_conversations(
                 ),
             )
         )
-    return (
-        db.execute(stmt.order_by(Conversation.updated_at.desc()).limit(100))
+    # AI-18: total은 limit과 무관하게 "이 필터에 맞는 전체 개수" — 화면이 이걸로 상한
+    # 너머에 더 있는지 판단해 "더 보기"를 보여줄지 정한다.
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    rows = (
+        db.execute(stmt.order_by(Conversation.updated_at.desc()).limit(limit))
         .scalars()
         .all()
     )
+    return rows, total
 
 
 def get_owned_conversation(db: Session, user: User, conversation_id: str) -> Conversation:

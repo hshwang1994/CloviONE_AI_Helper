@@ -80,6 +80,7 @@ export function Chat() {
   const {
     cid, setCid, convs, convFilter, setConvFilter, showArchived, setShowArchived,
     setComposingNew, activeTitle, renameConv, archiveConv, deleteConv,
+    hasMoreConvs, loadMoreConvs,
     thread, items, busy, awaitingReply, stalled, justAnswered, answerAnnounce, lastMsg, setResumedAt,
     text, setText, pending, setPending, composerFocused, setComposerFocused,
     maintenanceNotice, setMaintenanceNotice, rateLimitNotice, setRateLimitNotice,
@@ -154,6 +155,7 @@ export function Chat() {
         closeSideDrawer={closeSideDrawer} setSideOpen={setSideOpen}
         convs={convs} convItems={convItems} convFilter={convFilter} setConvFilter={setConvFilter}
         showArchived={showArchived} setShowArchived={setShowArchived}
+        hasMoreConvs={hasMoreConvs} loadMoreConvs={loadMoreConvs}
         cid={cid} setCid={setCid} setComposingNew={setComposingNew} clearDraft={clearDraft}
         textareaRef={textareaRef}
         renameConv={renameConv} archiveConv={archiveConv} deleteConv={deleteConv} confirm={confirm}

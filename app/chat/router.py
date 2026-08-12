@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.chat.service import (
+    DEFAULT_CONVERSATION_LIST_LIMIT,
+    MAX_CONVERSATION_LIST_LIMIT,
     conversation_view,
     create_conversation,
     delete_conversation,
@@ -89,9 +91,14 @@ def get_conversations(
     user: User = Depends(get_current_user),
     include_archived: bool = Query(default=False),
     q: str | None = Query(default=None, max_length=200),
+    # AI-18: 예전엔 100개 고정 상한이라 그 이상은 화면에서 영영 안 보였다. 화면은 이제
+    # "더 보기"를 누르면 offset을 이어붙이는 대신 limit을 키워 같은 목록을 처음부터 다시
+    # 받는다 — 이어붙이면 그사이 새 대화가 생기거나 updated_at 정렬이 바뀔 때 항목이
+    # 중복되거나 빠질 수 있는데, 매번 "상위 N개 전부"를 다시 받으면 그 문제 자체가 없다.
+    limit: int = Query(default=DEFAULT_CONVERSATION_LIST_LIMIT, ge=1, le=MAX_CONVERSATION_LIST_LIMIT),
 ):
-    rows = list_conversations(db, user, include_archived=include_archived, q=q)
-    return {"items": [conversation_view(c) for c in rows]}
+    rows, total = list_conversations(db, user, include_archived=include_archived, q=q, limit=limit)
+    return {"items": [conversation_view(c) for c in rows], "total": total}
 
 
 # AI-44: 남은 AI 쿼터가 백엔드는 이미 예약·차감하는데(post_message의 ai_quotas.reserve)
