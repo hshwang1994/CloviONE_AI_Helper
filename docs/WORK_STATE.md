@@ -2750,3 +2750,21 @@ Med/Low 재고(이번 세션의 "구조 먼저 이해" 전략으로 quotas/promp
 다음은 다른 도메인 클러스터를 찾아볼 것 — 예: governance/audit 쪽 UB-15/16 같은
 non-atomic 카운터 패턴) · `DS-18` 잔여 34개 · TEST SERVER 배포(자격증명 여전히 외부
 Blocker).
+
+**WF13(2026-08-12) — UB-15/16/UA-18 정정+구현, "SEC-03과 같은 부류" 3건 클러스터 종결.**
+UB-15/UB-16(read_count 폴링 카운터)은 SEC-03이 이미 같은 지점을 고쳐 뒀음을 확인해
+행 정정. UA-18(백업 목록 GET이 reap_stuck_running으로 write)은 진짜 열려 있어
+worker_main.py의 기존 10분 백업 틱(RSTR-03이 배선한 자리)으로 정리를 이전 — GET 두
+곳(list_backups·list_rehearsals) 순수 읽기화. 신규 회귀 테스트 + revert-to-verify.
+관련 스위트 41건 green, worker_main import 확인. 정적 검사는 예산 부족으로 이번엔
+생략(다음 invocation이 `bash scripts/static_checks.sh` 먼저 확인할 것 — 이번 배치는
+프런트 변경 없음).
+
+전체 백엔드 회귀(`pytest`, 백그라운드)를 이 invocation 시작부에 걸어 뒀는데 세션
+종료 시점까지 완료 안 됨 — 이번엔 정상적으로 오래 걸리는 것으로 보임(직전 세션의
+행 의심과 다름, 2700+건 규모라 20~30분대가 정상 범위). 다음 invocation이 결과를
+확인할 것(`Read` 도구로 출력 파일 경로 확인 또는 새로 재실행).
+
+예산 임계치로 여기서 멈춘다 — PROJECT_COMPLETE 아님. 다음 후보는 이전 절 그대로
+(AI-* 심화 아키텍처 계속 보류, QA_COVERAGE L축 나머지, DS-18 잔여, TEST SERVER 배포
+Blocker).
