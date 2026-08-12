@@ -67,7 +67,18 @@ export async function api(path, options = {}) {
     /* 서버가 문구를 안 줬을 때의 대비책 (E10). 예전에는 `"요청 실패 (500)"` 을 그대로 띄웠다 —
        **사용자가 HTTP 상태 코드를 읽는다.** 무엇이 잘못됐는지도, 무엇을 하면 되는지도 말하지
        않는 문자열이다. 상태별로 사람의 말을 준다(문구는 여기 한 곳에만 있다). */
-    const msg = (body && body.error && body.error.message) || fallbackMessage(r.status);
+    const envelopeMsg = (body && body.error && body.error.message) || fallbackMessage(r.status);
+    /* UX-40: 검증 실패의 진짜 사유는 `error.message`가 아니라 `error.details`(필드별
+       {loc,msg} 배열)에만 있는데, 이걸 읽는 곳은 관리 콘솔 FormModal(kit.jsx) 한 곳뿐이었다
+       — `e.message`만 보는 나머지 130여 호출부는 전부 영어 상수 "Invalid request data"만
+       봤다. 여기 한 곳에서 합쳐 두면 `e.message`를 읽는 모든 곳이 공짜로 고쳐진다(kit.jsx가
+       이미 같은 방식으로 조합해 왔다 — 그 로직을 여기로 옮기고 거기는 지운다). details가
+       없거나 빈 배열이면 봉투 문구 그대로라 동작이 안 바뀐다. */
+    const details = body && body.error && Array.isArray(body.error.details) ? body.error.details : null;
+    const detailTexts = (details || [])
+      .map((d) => (d && typeof d === "object" ? d.msg || JSON.stringify(d) : d))
+      .filter(Boolean);
+    const msg = [envelopeMsg, ...detailTexts].join(" ");
     const err = new Error(msg);
     err.status = r.status;
     err.body = body;

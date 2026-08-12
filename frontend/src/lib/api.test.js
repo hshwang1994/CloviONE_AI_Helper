@@ -62,3 +62,40 @@ describe("api() — 200 + 비JSON 본문", () => {
     await expect(api("/api/my-tickets")).rejects.toMatchObject({ status: 500 });
   });
 });
+
+describe("api() — 422 검증 실패의 details (UX-40)", () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it("error.details가 있으면 그 사유가 message에 실제로 실린다 — 예전엔 130여 호출부가 영어 상수만 봤다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(422, {
+      error: {
+        code: "validation_error",
+        message: "Invalid request data",
+        details: [
+          { loc: ["body", "timezone"], msg: "Input should be a valid string" },
+          { loc: ["body", "timeout_seconds"], msg: "Input should be a valid integer" },
+        ],
+      },
+    }));
+    await expect(api("/api/admin/schedules", { method: "POST", body: {} })).rejects.toMatchObject({
+      message: "Invalid request data Input should be a valid string Input should be a valid integer",
+    });
+  });
+
+  it("details가 객체 배열이어도 [object Object]가 새지 않는다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(422, {
+      error: { code: "validation_error", message: "Invalid request data", details: [{ weird: "shape" }] },
+    }));
+    const err = await api("/api/x", { method: "POST", body: {} }).catch((e) => e);
+    expect(err.message).not.toContain("[object Object]");
+  });
+
+  it("details가 없으면 봉투 문구 그대로다(동작 변화 없음)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(409, {
+      error: { code: "conflict", message: "이미 존재합니다." },
+    }));
+    await expect(api("/api/x", { method: "POST", body: {} })).rejects.toMatchObject({
+      message: "이미 존재합니다.",
+    });
+  });
+});

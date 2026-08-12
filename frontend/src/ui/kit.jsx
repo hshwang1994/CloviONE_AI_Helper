@@ -959,12 +959,10 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         window.setTimeout(() => { window.location.href = "/login"; }, 1200);
         return; // busy=true로 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
       }
-      // 백엔드가 검증 실패 사유를 details로 함께 보낼 때가 있다(예: 비밀번호 정책 위반).
-      // details가 {loc,msg} 객체 배열일 수도 있어 그대로 join하면 "[object Object]"가 샌다.
-      const details = e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;
-      const detailTexts = (details || []).map((d) => (d && typeof d === "object" ? (d.msg || JSON.stringify(d)) : d));
-      const msg = [e.message || "저장하지 못했습니다.", ...detailTexts].filter(Boolean).join(" ");
-      setErr(msg); setBusy(false); return;
+      // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의
+      // api()로 옮겼다 — e.message가 이제 이미 합쳐진 문구다(모든 호출부가 공짜로 받는다).
+      // 여기서 다시 합치면 details가 중복으로 붙는다.
+      setErr(e.message || "저장하지 못했습니다."); setBusy(false); return;
     }
     setBusy(false);
   }

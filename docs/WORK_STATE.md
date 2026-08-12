@@ -12,8 +12,10 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF18 — `VIS-160`(홈 `refetchInterval` 누락)
-구현완료, 요청 예산 시험(PF1) 상한도 의도적 증가분만큼 함께 갱신. 그 직전 WF17 —
+**마지막 갱신**: 2026-08-12 · **단계**: WF19 — `UX-40`(422 사유가 `e.message`에
+안 실리던 문제, `lib/api.js`+`kit.jsx` 공용 계층 한 곳만 고쳐 131개 호출부 전부
+해결) 구현완료. 그 직전 WF18 — `VIS-160`(홈 `refetchInterval` 누락)
+구현완료, 요청 예산 시험(PF1) 상한도 의도적 증가분만큼 함께 갱신. 그 앞 WF17 —
 `UX-41`(스케줄·러너 폼의 null 코어싱 누락 2곳) 구현완료. 그 앞 WF16 —
 `HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
 5건을 사용자 지시("잘게 쪼개지 마라")에 따라 묶음 단위(조사→구현 5건 전체 → 테스트·
@@ -2998,3 +3000,36 @@ Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).
 전담 리팩터 후보) · RESP-04 축소 레일 사이드바(전담 UI 구현 세션 필요) ·
 QA_COVERAGE L축 나머지 · BACKLOG 남은 Med/Low 클러스터 계속 스캔 · PHASE 1
 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).
+
+**WF19(2026-08-12, 같은 흐름 계속) — `UX-40`, "131개 호출부 리팩터"로
+적어 뒀던 것이 실제로는 1곳 root cause였다.** "다음 후보" 메모에 큰
+리팩터로 분류해 뒀지만, 막상 코드를 읽어 보니 그 131개 호출부는 전부
+`e.message`(공용 `lib/api.js::api()`가 만드는 `Error` 객체) 하나를 읽는
+동일한 지점을 거친다는 것을 확인 — 낱개 화면이 아니라 **그 생성 지점
+한 곳**이 진짜 자리였다. 이미 존재하던 두 조각의 증거를 근거로 삼았다:
+(1) `kit.jsx`의 FormModal이 이미 `error.details`({loc,msg} 배열)를 꺼내
+`e.message`와 이어붙이는 로직을 갖고 있었다(유일한 소비처), (2) 별도로
+관리되는 레거시 vanilla-JS `change_password.js`도 독립적으로 같은
+"details를 사람이 읽는 문장으로 펼친다" 결론에 도달해 있었다 — 서로 다른
+두 코드가 수렴한 패턴이라 신뢰도가 높았다.
+
+**구현**: FormModal의 조합 로직을 `lib/api.js::api()`의 오류 생성 지점
+(`if (!r.ok)` 분기)으로 옮겨 `err.message` 자체가 details를 포함하게
+했다. `kit.jsx`는 이제 중복 조합을 지우고 `e.message`를 그대로 쓴다(안
+지우면 details가 두 번 붙는다). `details`가 없거나 빈 배열이면 예전
+봉투 문구 그대로라 다른 화면 동작은 안 바뀐다.
+
+**검증**: 신규 시험 3건(`api.test.js`) — details 포함, 객체 배열이어도
+`[object Object]` 안 새는지, details 없을 때 무변화. `git stash`로 수정을
+잠깐 빼고 새 시험이 실제로 "Invalid request data"만 받는 것으로 실패하는
+것을 확인한 뒤 복원(revert-to-verify). `lib/api.js`+`kit.jsx`가 이
+저장소에서 가장 넓게 공유되는 계층이라(모든 API 호출 + 거의 모든 관리
+화면의 폼) 프런트 **전체** 스위트(221파일/1510건)를 재실행해 green 확인
+— 이번 배치만 부분 스위트로 끝내지 않은 이유.
+
+이 배치(`UX-40`) 커밋 완료. **다음 후보**: RESP-04 축소 레일 사이드바(전담
+UI 구현 세션 필요) · QA_COVERAGE L축 나머지 · BACKLOG 남은 Med/Low 클러스터
+계속 스캔(이번 세 배치처럼 "리팩터로 보이지만 실제론 root cause 1곳"인
+항목이 더 있을 수 있다 — 크기로 지레짐작하지 말고 코드부터 읽을 것) ·
+PHASE 1 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker
+여전).
