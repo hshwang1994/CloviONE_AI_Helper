@@ -12,7 +12,17 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF31(`invocation=2`) —
+**마지막 갱신**: 2026-08-13 · **단계**: WF32(`invocation=2`) —
+`VIS-158R`(AI 채팅 결과가 2200px 미만은 카드 대신 텍스트라던 High
+주장) 오탐 정정, 등급 Med로 하향. `Chat.jsx`/`MessageThread.jsx`를
+직접 읽고 `Message`를 `hideCards=false`(xxl 미만에서 실제로 전달되는
+값)로 렌더링해 재확인 — 좁은 화면도 말풍선 **안에** 레일과 똑같은
+`CardStack`(제목·상태·담당자·마감 카드)을 그대로 그린다, "텍스트
+목록"이 아니다. 신규 시험 2건으로 hideCards=false/true 양쪽 다
+확인. 완전한 오탐은 아니라 실제로 남는 차이(≥xxl은 마지막 카드가
+스크롤과 무관하게 오른쪽에 계속 남음, 미만은 스크롤을 되돌려야
+함 — 접근성이 아니라 편의성)를 정확히 적어 등급만 낮췄다. 프런트
+소스 변경 없음(시험 파일만 추가). 그 직전 WF31 —
 `ATT-01`(첨부 부분 실패가 화면에 안 나타남, High) 구현완료 +
 `RN-17` 부분 정정. `Board.jsx`가 이미 파일별 try/catch → `failed[]`
 패턴으로 고쳐 뒀던 것과 같은 결함이 `TicketAttachments.jsx`(티켓
@@ -25,7 +35,7 @@ reject시켜 `refresh()`가 안 돌고, 이미 성공한 N-1개가 화면에
 파일명 안내), revert-to-verify 확인. `RN-17`은 그 노출 경로 중
 "RN-05 때문에 실수로 도달한다"는 전제가 RN-05의 최근 수정으로
 막혔음을 확인해 취소선 정정(근본 노출 자체는 남음, 코드 변경
-없음). 그 직전 WF30 —
+없음). 그 앞 WF30 —
 stale `RN-01~14`(러너 `assistant.py` 전수조사 사이클 0) 섹션 행
 정정, 코드 변경 없음. 2026-08-10 `5db9fbf`("MEGA CYCLE A")가
 5개 공유 Root Cause로 이미 13건(RN-08만 명시적 예외)을 해결했는데
@@ -3741,7 +3751,38 @@ revert-to-verify: 되돌린 코드가 정확히 `onChanged` 미호출(2단계
 연관 `ticket-detail.test.jsx`(14건) green. `npm run build` →
 `STATIC_CHECKS_OK`.
 
-이 배치(`ATT-01`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
-전체 재스캔으로 다음 Root Cause 선정(`RN-15~20`, `VIS-158R`,
+이 배치(`ATT-01`) 커밋 완료(`be29cf1`), 뒤이어 `docs: PROGRESS_STATUS`
+스냅샷 갱신 커밋(`9efe143`).
+
+**WF32(같은 invocation 계속) — `VIS-158R`(High) 오탐 정정, 프런트
+코드 변경 없음(신규 시험 1건만 추가).** "화면 폭 2200px 미만은
+구조화된 카드 대신 말풍선 안 텍스트 목록만 받는다"는 원 주장을
+`Chat.jsx`·`chat/MessageThread.jsx` 직접 읽기로 재확인하다 핵심
+전제가 틀렸음을 발견: `hideCards`는 `!!railMsg && railMsg.id ===
+m.id`로만 계산되고, `railMsg`는 `railOpen`(`useMediaQuery(xxl 이상)`)
+이 거짓이면 항상 `null`이다 — 즉 xxl(2200px) 미만에서는 **모든**
+메시지의 `hideCards`가 항상 false라 `Message`가 말풍선 **안에**
+`CardStack`(레일과 완전히 같은 컴포넌트 — 제목·상태 배지·담당자·
+마감)을 그대로 그린다. "텍스트 목록"이 아니라 **같은 카드가 위치만
+다르다.**
+
+소스 읽기로 끝내지 않고 직접 검증: `Message`를 `hideCards=false`
+(=xxl 미만에서 실제로 전달되는 값)로 렌더링해 카드 제목·상태
+배지·담당자가 실제로 보이는 것을, `hideCards=true`(≥xxl에서 레일이
+대신 보여주는 그 메시지일 때만)로는 중복 방지로 안 보이는 것을
+둘 다 확인(`chat/message-thread-inline-cards.test.jsx`, 신규 2건).
+
+**완전한 오탐은 아니다** — 등급을 High→Med로 낮추고 실제로 남는
+차이를 정확히 적었다: ≥xxl은 마지막 카드가 스크롤 위치와 무관하게
+오른쪽에 계속 남아 있지만(다음 메시지를 치면서 티켓 번호를 계속
+참고할 수 있다), xxl 미만은 다음 메시지를 치기 전에 그 카드가 있는
+자리로 스크롤을 되돌려야 한다 — 접근성 문제가 아니라 편의성 문제.
+
+`tests/screens/chat` 전체(26파일/226건) green. 프런트 소스 변경이
+없어(시험 파일만 추가) 재빌드 불필요, `bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`(테스트 파일도 배너 문자 검사 대상이라 함께 확인).
+
+이 배치(`VIS-158R` 오탐 정정) 커밋 예정. **다음 후보**: BACKLOG/
+QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정(`RN-15~20`,
 남은 `RESP-04`/`VIS-122` 등 기존 보류 목록은 여전히 전담 세션
 필요).
