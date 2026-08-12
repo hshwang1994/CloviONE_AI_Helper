@@ -3087,6 +3087,11 @@ def claude_query(
                 pending_note = f"'{title}' 변경이 확인 대기 중입니다. '변경해줘'라고 하면 진행됩니다."
             else:
                 pending_note = f"'{title}' 변경이 직전에 실패해 재시도할 수 있습니다. '재시도'라고 하면 다시 반영합니다."
+    # AI-62(High): 800건 넘게 잘렸을 때 그 사실을 시스템 프롬프트가 모델에게 지시해도(아래
+    # QUERY_PROMPT 근처 "tickets_truncated가 true면..." 문구), 모델이 실제로 그 지시를
+    # 답변에 반영하는지는 매번 다르다 — 사용자는 모델이 스스로 밝혀 줄 때만 안다. 아래에서
+    # 업무 질문이면 모델의 순응 여부와 무관하게 결정적으로 한 줄을 덧붙인다.
+    tickets_truncated = len(tickets) > 800
     payload = {
         "question": message,
         "today": now_kst().date().isoformat(),
@@ -3103,7 +3108,7 @@ def claude_query(
         "image_notes": safe_list(context.get("image_notes"))[-MAX_IMAGE_NOTES:],
         "tickets": [_slim_ticket_for_query(t) for t in tickets[:800]],
         "projects": [_slim_project_for_query(p) for p in projects[:300]],
-        "tickets_truncated": len(tickets) > 800,
+        "tickets_truncated": tickets_truncated,
         "projects_truncated": len(projects) > 300,
     }
     result, error, ai_ms = _run_claude(
@@ -3121,6 +3126,16 @@ def claude_query(
     if bool(result.get("needs_clarification")) and text(result.get("clarify_question")):
         return response("NEED_INPUT", text(result.get("clarify_question")), context, ai_ms=ai_ms)
     answer = text(result.get("answer")) or "관련 정보를 찾지 못했습니다."
+    # AI-62: 업무 질문이고 실제로 티켓이 잘렸으면, 모델이 알아서 밝혔는지와 무관하게 항상
+    # 붙인다 — 잡담(is_query_intent=False)에는 안 붙여 매 메시지마다 불필요한 안내가 끼지
+    # 않게 한다. 진행률·개수 질문은 ticket_ids가 비어 있을 수 있어(특정 티켓을 안 짚으므로)
+    # ref_tickets 유무가 아니라 is_query_intent로 판단한다.
+    # AI-62: 업무 질문이고 실제로 티켓이 잘렸으면, 모델이 알아서 밝혔는지와 무관하게 항상
+    # 붙인다 — 잡담(is_query_intent=False)에는 안 붙여 매 메시지마다 불필요한 안내가 끼지
+    # 않게 한다. 진행률·개수 질문은 ticket_ids가 비어 있을 수 있어(특정 티켓을 안 짚으므로)
+    # ref_tickets 유무가 아니라 is_query_intent로 판단한다.
+    if tickets_truncated and is_query_intent(message, context):
+        answer += "\n\n(참고: 티켓이 많아 최근 800건만 보고 답했습니다. 정확한 전체 개수가 필요하면 개수 조회를 요청해 주세요.)"
     tmap = {text(t.get("id")): t for t in tickets}
     pmap = {text(p.get("id")): p for p in projects}
     ref_tickets = [_slim_ticket_for_query(tmap[i]) for i in safe_list(result.get("ticket_ids"))[:20] if text(i) in tmap]

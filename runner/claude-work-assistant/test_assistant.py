@@ -139,6 +139,43 @@ def test_claude_query_falls_back_to_rule_engine_on_cli_failure():
     assert isinstance(data, dict) and data.get("action")
 
 
+# AI-62(High): 진행률 질문에 모델이 스스로 "일부만 봤다"고 밝힐 때만 사용자가 그 사실을
+# 안다 — 시스템 프롬프트 지시는 순응을 보장하지 않는다. tickets_truncated일 때 업무 질문이면
+# 모델이 언급했는지와 무관하게 결정적으로 한 줄이 붙어야 한다.
+_MANY_TICKETS = TICKETS * 401  # 802건 > 800건 컷
+
+
+def test_a_truncated_work_answer_always_discloses_it_even_if_the_model_did_not():
+    structured = {"answer": "진행 중인 티켓은 총 2건입니다.", "ticket_ids": [], "project_ids": [],
+                  "needs_clarification": False, "clarify_question": ""}
+    with mock.patch.object(m.subprocess, "run", return_value=_fake_cli(structured)):
+        data = m.claude_query("지금 진행 중인 티켓이 몇 개야?", {}, {"email": "a@x", "name": "문의진"},
+                              {"id": "u1"}, PROJECTS, _MANY_TICKETS, {})
+    assert "800건만 보고" in data["response_text"], (
+        "모델이 잘림을 언급하지 않아도 결정적으로 안내해야 한다"
+    )
+
+
+def test_an_untruncated_answer_says_nothing_about_truncation():
+    structured = {"answer": "진행 중인 티켓은 총 2건입니다.", "ticket_ids": [], "project_ids": [],
+                  "needs_clarification": False, "clarify_question": ""}
+    with mock.patch.object(m.subprocess, "run", return_value=_fake_cli(structured)):
+        data = m.claude_query("지금 진행 중인 티켓이 몇 개야?", {}, {"email": "a@x", "name": "문의진"},
+                              {"id": "u1"}, PROJECTS, TICKETS, {})
+    assert "800건" not in data["response_text"], "안 잘렸는데 잘렸다고 말한다"
+
+
+def test_truncation_disclosure_does_not_spam_casual_chat():
+    """잡담(is_query_intent=False)까지 매번 "800건만 보고" 를 붙이면 워크스페이스가 큰
+    설치에서는 모든 대화가 안내문으로 오염된다 — 업무 질문일 때만 붙는다."""
+    structured = {"answer": "저도 반가워요!", "ticket_ids": [], "project_ids": [],
+                  "needs_clarification": False, "clarify_question": ""}
+    with mock.patch.object(m.subprocess, "run", return_value=_fake_cli(structured)):
+        data = m.claude_query("안녕!", {}, {"email": "a@x", "name": "문의진"},
+                              {"id": "u1"}, PROJECTS, _MANY_TICKETS, {})
+    assert "800건" not in data["response_text"]
+
+
 # --- #34 phase 2: 생성(create) LLM 에이전트화 -------------------------------
 def _draft_cli(ready=True, fields=None, draft=None, questions=None, conflicts=None):
     structured = {
