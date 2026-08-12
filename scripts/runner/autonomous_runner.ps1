@@ -67,6 +67,11 @@
     - Process.WaitForExit(ms) — 한 invocation 이 멈춰 버리면 $MaxRuntimeMinutes 뒤 강제 종료
       (그 invocation 만 실패로 센다 — 루프 자체는 안 죽는다). `Wait-Process -PassThru` 로는
       타임아웃을 판정할 수 없다(실패해도 객체를 돌려준다) — 2026-08-12 수정.
+    - Windows PowerShell 5.1에서 `Start-Process -PassThru -NoNewWindow` child의 ExitCode가
+      정상 종료 뒤에도 `$null`로 보이는 경우가 실제 관측됐다. timeout이 아닌 정상 종료에서만
+      Claude `--output-format json` 결과를 엄격한 fallback 증거로 사용한다:
+      subtype=success + is_error=false + terminal_reason=completed 세 조건이 모두 맞을 때만
+      exit=0으로 복구하고, 판정 불가면 기존처럼 125로 실패 처리한다(2026-08-12 수정).
     - $MaxIterationsPerLaunch — **production 기본값은 0(무제한)이다**. invocation 횟수는
       Supervisor 종료 조건이 아니다(2026-08-12 사용자 지시). 양수 값은 controlled test 에서만
       쓰는 override 다.
@@ -219,6 +224,94 @@ function Get-ActualModel([string]$jsonLogPath) {
         if ($names.Count -eq 0) { return "unknown" }
         return ($names -join ',')
     } catch { return "unknown" }
+}
+
+# Windows PowerShell 5.1에서는 Start-Process -PassThru -NoNewWindow 조합에서 실제 child가
+# 정상 종료했는데도 Process.ExitCode가 $null로 보이는 경우가 있다. Claude CLI는 이미
+# --output-format json 으로 stdout에 최종 결과를 남기므로, OS exit code를 못 읽은 경우에만
+# 이 JSON을 보조 증거로 사용한다.
+#
+# 안전 원칙:
+#   - OS exit code가 있으면 그것이 최우선이다.
+#   - timeout(124)에는 이 fallback을 절대 적용하지 않는다.
+#   - success는 세 조건(subtype=success, is_error=false, terminal_reason=completed)이 모두
+#     명시적으로 확인될 때만 인정한다.
+#   - 명시적 is_error=true 또는 subtype=error 계열이면 failure(1)로 판정한다.
+#   - JSON 부재/손상/불완전/알 수 없는 형태는 unresolved로 남겨 호출부가 125를 사용한다.
+function Get-ClaudeJsonExitResolution([string]$jsonLogPath) {
+    $unresolved = [pscustomobject]@{
+        Resolved       = $false
+        ExitCode       = $null
+        Source         = "unresolved"
+        Subtype        = $null
+        IsError        = $null
+        TerminalReason = $null
+    }
+
+    try {
+        if (-not (Test-Path $jsonLogPath)) { return $unresolved }
+
+        $raw = Get-Content $jsonLogPath -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $unresolved }
+
+        $result = $raw | ConvertFrom-Json -ErrorAction Stop
+
+        $subtype = $null
+        $isError = $null
+        $terminalReason = $null
+
+        if ($result.PSObject.Properties.Name -contains "subtype") {
+            $subtype = [string]$result.subtype
+        }
+        if ($result.PSObject.Properties.Name -contains "is_error") {
+            $isError = $result.is_error
+        }
+        if ($result.PSObject.Properties.Name -contains "terminal_reason") {
+            $terminalReason = [string]$result.terminal_reason
+        }
+
+        if (
+            $subtype -eq "success" -and
+            $isError -eq $false -and
+            $terminalReason -eq "completed"
+        ) {
+            return [pscustomobject]@{
+                Resolved       = $true
+                ExitCode       = 0
+                Source         = "claude-json-fallback"
+                Subtype        = $subtype
+                IsError        = $isError
+                TerminalReason = $terminalReason
+            }
+        }
+
+        # Claude가 명시적으로 오류라고 말한 경우만 failure로 확정한다. 그 외 애매한 종료 사유는
+        # 성공/실패를 추측하지 않고 unresolved(최종 125)로 둔다.
+        if (
+            $isError -eq $true -or
+            $subtype -match '^(?i:error|failed|failure)'
+        ) {
+            return [pscustomobject]@{
+                Resolved       = $true
+                ExitCode       = 1
+                Source         = "claude-json-fallback"
+                Subtype        = $subtype
+                IsError        = $isError
+                TerminalReason = $terminalReason
+            }
+        }
+
+        return [pscustomobject]@{
+            Resolved       = $false
+            ExitCode       = $null
+            Source         = "unresolved"
+            Subtype        = $subtype
+            IsError        = $isError
+            TerminalReason = $terminalReason
+        }
+    } catch {
+        return $unresolved
+    }
 }
 
 # 실행할 수 없는 이유는 로그 한 줄이 아니라 눈에 띄게 출력한다(사용자 지시 §9 — 조용한 no-op 금지).
@@ -509,17 +602,43 @@ try {
         # invocation 을 띄워 **같은 세션에 두 프로세스가 붙는** 상태가 됐다.
         # .NET 의 WaitForExit(ms) 는 timeout 여부를 bool 로 정확히 알려 준다.
         $exited = $proc.WaitForExit($MaxRuntimeMinutes * 60 * 1000)
+        $exitSource = "os"
+        $claudeJsonResolution = $null
+
         if (-not $exited) {
             Write-RunnerLog "이 invocation 이 ${MaxRuntimeMinutes}분 안에 안 끝나 강제 종료함(멈춰 버린 것으로 판단)."
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
             try { [void]$proc.WaitForExit(10000) } catch {}
             $exitCode = 124  # 관례적 timeout 코드
+            $exitSource = "timeout"
         } else {
-            $exitCode = $proc.ExitCode
+            # RedirectStandardOutput/Error를 사용한 Process에서는 timed WaitForExit가 true를 반환한 뒤에도
+            # 비동기 리다이렉션 마무리와 Process 상태 갱신을 한 번 더 기다리는 편이 안전하다.
+            # 특히 Windows PowerShell 5.1에서 ExitCode가 $null로 보이는 실제 사례가 있으므로
+            # parameterless WaitForExit + Refresh를 먼저 시도하고, 그래도 null일 때만 Claude JSON
+            # fallback을 쓴다.
+            try { [void]$proc.WaitForExit() } catch {}
+            try { $proc.Refresh() } catch {}
+
+            try {
+                $exitCode = $proc.ExitCode
+            } catch {
+                $exitCode = $null
+            }
+
             if ($null -eq $exitCode) {
-                # 정상 종료했는데 exit code 를 못 읽는 경우 — 성공으로 오인하지 않는다.
-                Write-RunnerLog "경고: 프로세스가 종료했지만 exit code 를 읽지 못함 — 실패로 간주한다."
-                $exitCode = 125
+                $claudeJsonResolution = Get-ClaudeJsonExitResolution $logFile
+
+                if ($claudeJsonResolution.Resolved) {
+                    $exitCode = [int]$claudeJsonResolution.ExitCode
+                    $exitSource = [string]$claudeJsonResolution.Source
+                    Write-RunnerLog "OS exit code를 읽지 못했지만 Claude JSON으로 종료 상태 복구: exit=$exitCode source=$exitSource subtype=$($claudeJsonResolution.Subtype) isError=$($claudeJsonResolution.IsError) terminalReason=$($claudeJsonResolution.TerminalReason)"
+                } else {
+                    # 성공을 추측하지 않는다. JSON도 엄격한 success/error 판정을 못 하면 기존처럼 125.
+                    $exitCode = 125
+                    $exitSource = "unresolved"
+                    Write-RunnerLog "경고: OS exit code와 Claude JSON 모두 종료 상태를 확정하지 못함 — exit=125로 실패 처리. subtype=$($claudeJsonResolution.Subtype) isError=$($claudeJsonResolution.IsError) terminalReason=$($claudeJsonResolution.TerminalReason)"
+                }
             }
         }
 
@@ -571,7 +690,7 @@ try {
         $headSha = (git -C $ProjectDir rev-parse --short HEAD 2>$null)
         $isComplete = Test-ProjectComplete
         $actualModel = Get-ActualModel $logFile
-        Write-RunnerLog "Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode session=$sessionId requestedModel=$Model requestedEffort=$Effort actualModel=$actualModel rateLimit=$isRateLimit resumeFailure=$isResumeFailure consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns) headSha=$headSha PROJECT_COMPLETE=$isComplete"
+        Write-RunnerLog "Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode exitSource=$exitSource session=$sessionId requestedModel=$Model requestedEffort=$Effort actualModel=$actualModel rateLimit=$isRateLimit resumeFailure=$isResumeFailure consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns) headSha=$headSha PROJECT_COMPLETE=$isComplete"
         if (-not $isComplete) {
             Write-RunnerLog "PROJECT_COMPLETE=false — 대기 없이 곧바로 다음 Worker invocation 을 시작한다(exit=$exitCode 는 종료 조건이 아니다)."
         }
