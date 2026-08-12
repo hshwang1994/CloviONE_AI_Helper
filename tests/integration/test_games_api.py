@@ -312,6 +312,7 @@ def test_cleanup_closes_idle_rooms(db, make_user):
     from datetime import datetime, timedelta
 
     from app.games import repository, service
+    from app.games.models import ROOM_FINISHED, GameRoom
 
     host = make_user(email="idle@goodmit.co.kr", display_name="유휴호스트")
     t0 = datetime(2026, 7, 29, 2, 0, 0)
@@ -322,6 +323,11 @@ def test_cleanup_closes_idle_rooms(db, make_user):
     assert repository.get_room(db, room.id) is not None
     assert service.cleanup_idle_rooms(db, now=t0 + timedelta(seconds=200)) == 1
     assert repository.get_room(db, room.id) is None
+    # GM-01: closed_at만 찍고 status는 그대로 두면 status='playing'/'waiting'인데
+    # 이미 닫힌 유령 행이 남는다(status로 세는 미래 질의가 그 유령을 영원히 센다) —
+    # get_room은 closed_at 필터라 닫힌 방을 못 보므로 원시 조회로 status까지 함께 본다.
+    raw = db.get(GameRoom, room.id)
+    assert raw.status == ROOM_FINISHED
 
 
 def test_host_disband_removes_room(app, client, login_as, make_user):

@@ -256,13 +256,22 @@ def _present_players(db: Session, room: GameRoom, now: datetime) -> list[GameRoo
 
 
 def cleanup_idle_rooms(db: Session, *, now: datetime) -> int:
-    """폴링이 끊긴 지 오래된 열린 방을 닫는다(목록에 유령 방이 남는 걸 막는다). 닫은 방 수 반환."""
+    """폴링이 끊긴 지 오래된 열린 방을 닫는다(목록에 유령 방이 남는 걸 막는다). 닫은 방 수 반환.
+
+    GM-01: 예전엔 여기서 `closed_at`만 찍고 `status`는 그대로 뒀다 — 명시적 파방
+    (`disband_room`)은 둘 다 바꾸는데 이 경로만 안 바꿔서 `status='playing'`인데
+    몇 달 전에 이미 닫힌 방이 실측에서 나왔다. `status`로 세는 질의는 이런 유령을
+    영원히 센다. `disband_room`과 같은 종결 상태(`ROOM_FINISHED`)로 맞춘다 — 이
+    경로만의 별도 상태(예: "idle로 닫힘")는 지금 이 저장소에 그런 구분이 필요하다는
+    근거가 없어 새로 만들지 않는다.
+    """
     cutoff = now - timedelta(seconds=IDLE_ROOM_SECONDS)
     last_seen = repository.last_seen_by_room(db)
     closed = 0
     for room in repository.list_open_rooms(db):
         last = last_seen.get(room.id)
         if last is None or last < cutoff:
+            room.status = ROOM_FINISHED
             room.closed_at = now
             closed += 1
     if closed:
