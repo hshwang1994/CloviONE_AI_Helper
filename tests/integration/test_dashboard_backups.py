@@ -87,6 +87,28 @@ def test_verify_downgrades_status_on_failure(db, settings, fake_clock):
     assert row.status == STATUS_FAILED
 
 
+def test_verify_refuses_a_still_running_backup(client, login_as, db, fake_clock):
+    """UA-19: reap_stuck_running()의 문서화된 계약("검증도 running을 제외한다")을 이
+    엔드포인트 자체가 어기고 있었다. running 행을 체크섬 검증하면 아직 다 안 쓰인 파일을
+    보고 판단해, 실제로는 정상적으로 진행 중인 백업을 failed로 격하시킬 수 있다."""
+    from app.backups.models import STATUS_RUNNING, Backup
+
+    row = Backup(backup_type="manual", path="/tmp/clv-still-running.sqlite3",
+                 status=STATUS_RUNNING, created_at=fake_clock.now())
+    db.add(row)
+    db.commit()
+    backup_id = row.id
+
+    csrf = login_as("system_admin")
+    r = client.post(f"/api/admin/backups/{backup_id}/verify", headers=_headers(csrf))
+    assert r.status_code == 409, f"진행 중인 백업을 검증할 수 있다: {r.status_code} {r.text}"
+
+    db.expire_all()
+    assert db.get(Backup, backup_id).status == STATUS_RUNNING, (
+        "차단됐어야 할 검증이 실제로는 상태를 건드렸다"
+    )
+
+
 def test_retention_spares_running_and_latest_failed(db, fake_clock):
     from app.backups.models import STATUS_FAILED, STATUS_RUNNING, Backup
     from app.backups.service import apply_retention

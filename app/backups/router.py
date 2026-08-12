@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.backups.models import Backup, RestoreRehearsal, STATUS_FAILED
+from app.backups.models import Backup, RestoreRehearsal, STATUS_FAILED, STATUS_RUNNING
 from app.backups.service import (
     announce_backup_failure,
     apply_retention,
@@ -28,7 +28,7 @@ from app.core import people
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, SYSTEM_ADMIN_ONLY
 from app.core.deps import get_db, require_csrf, require_roles
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 
 router = APIRouter(
     prefix="/api/admin/backups",
@@ -141,6 +141,14 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     row = db.get(Backup, backup_id)
     if row is None:
         raise NotFoundError("백업을 찾을 수 없습니다.")
+    # UA-19: reap_stuck_running()의 문서화된 계약("유일한 행 액션인 '검증'도 running을
+    # 제외한다")이 여기서는 지켜지지 않았다 — 프런트는 이미 running 행에서 검증 버튼을
+    # 숨기지만(registry/platform.js), 그건 힌트일 뿐 서버가 독립적으로 다시 확인해야 하는
+    # 경계다. running 상태는 파일이 아직 쓰이는 중일 수 있어, 그 파일을 체크섬 검증하면
+    # 우연히 그 순간의 불완전한 파일만 보고 **진행 중인 정상 백업을 failed로 격하시킬 수
+    # 있다**(verify_existing이 실패 시 status를 failed로 낮춘다).
+    if row.status == STATUS_RUNNING:
+        raise ConflictError("아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요.")
     result = verify_existing(db, row, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="backup.verify", object_type="backup", object_id=row.id,
