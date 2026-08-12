@@ -8,25 +8,16 @@ admin-editable retention settings have a real effect.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
 
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.conversations.models import Conversation, Message
+from app.core.db import batched
 from app.notifications.models import Notification
 
 logger = logging.getLogger(__name__)
-
-# SQLite caps host variables (default ~32766); an `id IN (...)` clause inlines
-# one variable per id, so a huge backlog would blow the limit. Chunk deletes.
-_ID_BATCH_SIZE = 500
-
-
-def _batched(items: Sequence[str], size: int = _ID_BATCH_SIZE) -> Iterator[Sequence[str]]:
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
 
 
 def purge_old_conversations(db: Session, *, now: datetime, retention_days: int) -> int:
@@ -42,7 +33,7 @@ def purge_old_conversations(db: Session, *, now: datetime, retention_days: int) 
     # 보존기간 만료도 삭제다 — 대화 원문이 Job 큐에 남으면 만료가 아니다.
     from app.chat.service import purge_conversation_job_payloads
 
-    for batch in _batched(old_ids):
+    for batch in batched(old_ids):
         batch = list(batch)
         purge_conversation_job_payloads(db, batch)
         db.execute(delete(Message).where(Message.conversation_id.in_(batch)))

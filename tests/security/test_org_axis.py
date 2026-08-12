@@ -387,6 +387,47 @@ def test_the_impersonation_history_stays_inside_the_scope(client, login_as, two_
     assert two_orgs.user_a.id not in targets, "다른 조직의 대리 보기 이력이 보인다"
 
 
+def test_the_impersonation_history_stays_scoped_when_visible_users_exceed_one_sql_batch(
+    client, login_as, two_orgs, db, app
+):
+    """UB-28: `visible_user_ids()`를 통째로 한 SQL IN(...)에 박으면 이 표의 문서화된
+    목표 규모(scope.py::visible_user_ids 의 "~1000명" 주석)에서 SQLite 호스트 변수
+    상한(빌드에 따라 999~32766)을 넘겨 이 조회가 처리 안 된 500이 될 수 있다. 조직 범위
+    관리자가 보는 조직에 사람이 그만큼 있으면 재현된다 — `ID_BATCH_SIZE`를 넘는 인원을
+    같은 조직에 두고도 스코프가 그대로 지켜지는지 확인한다."""
+    from app.core.db import ID_BATCH_SIZE
+    from app.impersonation.models import ImpersonationSession
+    from app.users.models import ROLE_USER, User
+
+    bulk_count = ID_BATCH_SIZE + 50
+    with app.state.session_factory() as s:
+        s.add_all([
+            User(
+                email=f"orgb-bulk-{i}@goodmit.co.kr", display_name=f"B팀원{i}",
+                password_hash="not-a-real-hash", role=ROLE_USER, active=True,
+                org_id=two_orgs.org_b_id,
+            )
+            for i in range(bulk_count)
+        ])
+        s.add_all([
+            ImpersonationSession(session_id="s-a-scale", actor_user_id="x",
+                                 target_user_id=two_orgs.user_a.id, reason="A조직 조사"),
+            ImpersonationSession(session_id="s-b-scale", actor_user_id="x",
+                                 target_user_id=two_orgs.user_b.id, reason="B조직 조사"),
+        ])
+        s.commit()
+
+    _scope_boss_to_org_b(client, login_as, two_orgs, db)
+    # 예전 코드라면 여기서 sqlite3.OperationalError("too many SQL variables")가 처리 안
+    # 된 채 그대로 새서 200 대신 500이 났다.
+    r = client.get("/api/admin/impersonation/sessions")
+    assert r.status_code == 200, f"visible 집합이 커지자 조회 자체가 깨졌다: {r.status_code} {r.text}"
+    targets = {row.get("target_user_id") for row in r.json()["items"]}
+
+    assert two_orgs.user_b.id in targets, "자기 조직 이력이 청크 경계를 넘는 규모에서 안 보인다"
+    assert two_orgs.user_a.id not in targets, "다른 조직의 대리 보기 이력이 새어 나왔다"
+
+
 # UA-02: `_visible_ids`(sprints)와 `drop_out_of_scope_dtos`(tickets) 둘 다 예전엔
 # `scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 무제한(None)이었다. 이 세계의
 # `two_orgs`는 org 범위(부서가 아니라)이므로 그 구멍을 정확히 재현한다.

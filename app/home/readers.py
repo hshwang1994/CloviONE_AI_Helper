@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.board import repository as board_repo
 from app.board.models import Post
+from app.core.db import batched
 from app.core.feature_flags import load_feature_flags
 from app.notifications.service import unread_count
 from app.team_docs.models import DocumentCache
@@ -92,8 +93,13 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> 
     )
     # 휴지통이 크지 않은 정상 범위에서는 SQL NOT IN 으로 거른다 -- 파이썬에서 한 번 더 페이지
     # 만큼만 읽어서는 거른 뒤 limit 아래로 줄어들 수 있다(트래시 항목이 상위 몇 건에 몰린 경우).
-    if trashed:
-        stmt = stmt.where(DocumentCache.notion_page_id.notin_(trashed))
+    # UA-24: `trashed`를 통째로 한 NOT IN에 박으면 SQLite 호스트 변수 상한(빌드에 따라
+    # 999~32766)을 넘는 순간 이 쿼리가, 곧 홈 전체가 처리 안 된 500이 된다 — 오래 쓴
+    # 설치일수록 휴지통은 계속 쌓이기만 하므로 "지금 안 넘는다"가 안전을 보장하지 않는다.
+    # NOT IN 여러 개를 이어 붙이면(.where()를 반복 호출하면 AND로 묶인다) 의미가 그대로
+    # 보존된다 — `x NOT IN A AND x NOT IN B` ≡ `x NOT IN (A ∪ B)`.
+    for batch in batched(list(trashed)):
+        stmt = stmt.where(DocumentCache.notion_page_id.notin_(batch))
     fetch_limit = limit * 4 if viewer is not None else limit
     rows = db.execute(stmt.limit(fetch_limit)).scalars().all()
     if viewer is not None:

@@ -16,6 +16,7 @@ busy_timeout)으로 잠금 경합을 재현할 방법이 없었다. 이제 인�
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import create_engine, event
@@ -176,3 +177,18 @@ def is_write_conflict(exc: BaseException) -> bool:
         return (code & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
     message = str(orig).lower()
     return any(m in message for m in _SQLITE_WRITE_CONFLICT_MESSAGES)
+
+
+# SQLite caps host variables (default ~32766, older builds 999); an `id IN (...)`/
+# `NOT IN (...)` clause inlines one variable per id, so a large enough id set blows
+# the limit and raises an unhandled OperationalError. app/core/retention.py had its
+# own private copy of this same chunking helper before other call sites needed it
+# too (UA-24/UB-28) — promoted here so nobody has to re-invent it a third time.
+ID_BATCH_SIZE = 500
+
+
+def batched(items: Sequence[str], size: int = ID_BATCH_SIZE) -> Iterator[Sequence[str]]:
+    """Yield ``items`` in chunks of at most ``size`` — use before any SQL
+    ``IN``/``NOT IN`` clause built from a caller-controlled id list."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]

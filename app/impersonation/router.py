@@ -12,11 +12,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_WRITE_ROLES, SENSITIVE_READ_ROLES
+from app.core.db import batched
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -166,7 +167,21 @@ def list_sessions(
     # **대상 기준**으로 좁힌다: 보호받아야 하는 쪽은 대리 보기를 당한 사람이다.
     visible = visible_user_ids(db, principal.scope)
     if visible is not None:
-        stmt = stmt.where(ImpersonationSession.target_user_id.in_(list(visible)))
+        # UB-28: 이 표의 문서화된 목표 규모(scope.py::visible_user_ids 참고, ~1000명)에서도
+        # 부서/조직 범위 관리자의 visible 집합이 SQLite 호스트 변수 상한(빌드에 따라
+        # 999~32766)에 가까워질 수 있다 — 그 순간 이 조회가 처리 안 된 500이 된다. IN은
+        # NOT IN과 달리 청크를 AND로 못 잇는다(그러면 교집합이 비어 아무 것도 안 남는다) —
+        # OR로 이어 붙여야 원래의 "합집합 중 하나에 있으면" 의미가 보존된다.
+        # visible이 빈 집합이면(범위 안에 아무도 없음) `.in_([])`는 늘 거짓이라 원래 아무 행도
+        # 안 돌려줬다 — `or_()`를 인자 없이 부르면 WHERE 절 자체가 빠져 정반대(전체 노출)가
+        # 되므로 그 경우를 먼저 걸러 명시적으로 "아무 것도 없음"을 판정한다.
+        ids = list(visible)
+        if not ids:
+            stmt = stmt.where(False)
+        else:
+            stmt = stmt.where(
+                or_(*(ImpersonationSession.target_user_id.in_(batch) for batch in batched(ids)))
+            )
     if actor_user_id:
         stmt = stmt.where(ImpersonationSession.actor_user_id == actor_user_id)
     if target_user_id:
