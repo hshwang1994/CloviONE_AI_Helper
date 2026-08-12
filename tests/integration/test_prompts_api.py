@@ -109,6 +109,50 @@ def test_patch_prompt_content_null_is_rejected_not_stored_as_braces(client, admi
     assert r.json()["item"]["content"] == {}
 
 
+def _create_policy(client, csrf, name="휴가 승인 정책", content='{"days": 3}', purpose=None):
+    body = {"name": name, "content": content}
+    if purpose is not None:
+        body["purpose"] = purpose
+    r = client.post("/api/admin/policies", json=body, headers=_headers(csrf))
+    assert r.status_code == 201, r.text
+    return r.json()["item"]
+
+
+# WF1 단독 결함 — Policy에 Prompt와 같은 purpose 필드가 없어 "이 정책이 무엇을 강제하는가"를
+# 목록에서 말할 방법이 없었다(app/prompts/models.py::Policy, 마이그레이션 0058). Prompt가
+# 이미 갖고 있던 계약(생성 시 저장, PATCH로 변경, new-version에 이어짐)을 그대로 따르는지 고정한다.
+def test_policy_purpose_is_stored_and_returned(client, admin_csrf):
+    item = _create_policy(client, admin_csrf, purpose="3일 이상 휴가는 팀장 승인이 필요합니다.")
+    assert item["purpose"] == "3일 이상 휴가는 팀장 승인이 필요합니다."
+
+
+def test_policy_purpose_defaults_to_null_not_empty_string(client, admin_csrf):
+    # purpose를 아예 안 보내면 빈 문자열이 아니라 null이어야 한다 — "미기재"와 "빈 설명"은
+    # 다른 사실이고, 빈 문자열로 채우면 화면이 그 둘을 구분할 방법이 없어진다.
+    item = _create_policy(client, admin_csrf)
+    assert item["purpose"] is None
+
+
+def test_policy_purpose_editable_via_patch(client, admin_csrf):
+    item = _create_policy(client, admin_csrf, purpose="처음 용도")
+    r = client.patch(
+        f"/api/admin/policies/{item['id']}",
+        json={"content": item["content"] if isinstance(item["content"], str) else '{"days": 3}', "purpose": "바뀐 용도"},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["item"]["purpose"] == "바뀐 용도"
+
+
+def test_policy_purpose_carries_to_new_version(client, admin_csrf):
+    v1 = _create_policy(client, admin_csrf, purpose="원본 용도")
+    r = client.post(f"/api/admin/policies/{v1['id']}/new-version", headers=_headers(admin_csrf))
+    assert r.status_code in (200, 201), r.text
+    v2 = r.json()["item"]
+    assert v2["version"] == 2
+    assert v2["purpose"] == "원본 용도"
+
+
 def test_publish_archives_previous_published(client, admin_csrf):
     v1 = _create_prompt(client, admin_csrf)
     for step in ["test", "review", "published"]:

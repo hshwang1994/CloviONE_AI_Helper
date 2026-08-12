@@ -12,8 +12,11 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF34(`invocation=2`) —
-`RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
+**마지막 갱신**: 2026-08-13 · **단계**: WF44(`invocation=3`) — 파일
+끝(WF35~44)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF44는 `admin_policies` purpose
+컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료 — 상세는 파일 끝.
+그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
 비ASCII 바이트가 섞이면(원격에서 인증 없이 유발 가능) `TypeError`
@@ -4392,3 +4395,72 @@ static_checks.sh` → `STATIC_CHECKS_OK`.
 `VIS-80`·남은 `RESP-04`/`VIS-122`·`admin_policies` purpose 컬럼
 (스키마 필요)·`user_team-doc-detail` URL 미링크화도 후보 목록에
 있다.
+
+**WF44(`invocation=3`, 새 invocation) — `admin_policies` 단독 결함
+2건(WF1 `Med`+`Low`) 구현완료.**
+
+**1) purpose 컬럼 부재(Med)**: 정책 목록에 "무엇을 강제하는 규칙인가"를
+말하는 열이 없고 넣을 수도 없었다 — `Policy` 모델에 자매 엔티티
+`Prompt.purpose`에 대응하는 필드 자체가 없는 스키마 비대칭(화면만
+고쳐선 해결 안 됨). `Prompt.purpose`가 이미 통과한 전 계층(모델→
+스키마→라우터→서비스→화면)을 그대로 따라갔다:
+- 마이그레이션 `0058_policy_purpose.py`(nullable `Text`, 컬럼
+  존재 확인 후 추가하는 idempotent 패턴, `0057`과 동일 스타일).
+- `app/prompts/models.py::Policy.purpose` 필드 추가.
+- `app/prompts/router.py`: `PolicyCreateRequest`/
+  `PolicyContentUpdateRequest`에 `purpose` 추가, `_policy_view()`가
+  반환, `create()`가 저장. `patch()`는 원래 `purpose` 갱신이
+  `if model is Prompt:` 블록 **안**에 있었는데(구조상 Policy엔
+  아예 못 미쳤다) 그 갱신 줄만 블록 밖으로 꺼내 두 타입 모두
+  적용되게 했다 — `runner_id` 갱신은 여전히 Prompt 전용 블록에
+  남긴다(Policy엔 실행 대상 러너 개념이 없다).
+- `app/prompts/service.py::new_version_from`: `purpose = row.purpose
+  if is_prompt else None` 게이트를 없애 `purpose = row.purpose`로
+  통일(두 타입 다 새 버전에 이어감), `runner_id`는 그대로
+  `is_prompt` 게이트 유지.
+- `frontend/src/screens/registry/authoring.js`의 `policies`:
+  프롬프트와 동일 패턴으로 목록 열(`truncateCol("purpose","용도",60)`)
+  + create/edit textarea 필드 추가. 목록 열이라 상세 드로어에서는
+  중복 노출 안 함(프롬프트와 같은 판단).
+
+**2) 배너 톤 불일치(Low)**: 정책 화면 자신의 상시 안내 문구가
+"프롬프트보다 실제 파급력이 큽니다"라고 스스로 경고하면서도, 그
+배너(`config.help`)는 `DataScreen.jsx`에서 항상 기본(info) 톤
+`Callout`으로만 그려졌다 — `capWarning` 등 같은 컴포넌트의 다른
+Callout은 이미 `tone="warn"`을 쓰는데 이 배너에는 안 쓰였을 뿐이었다
+(능력은 있고 안 쓰인 경우). `config.helpTone`(기본값 `"info"`, 값이
+없으면 기존 15개+ 화면 전부 그대로) 신설해 `DataScreen.jsx:594`의
+`<Callout>`이 이를 읽게 하고, `policies`에 `helpTone: "warn"` 배선.
+`Callout`은 색만이 아니라 라벨 텍스트로도 톤을 구분한다(WCAG 1.4.1,
+`kit.jsx` 기존 주석 — "주의" vs "안내").
+
+**시험**: 백엔드 `tests/integration/test_prompts_api.py`에 신규 4건
+(purpose 저장/반환, 미기재 시 빈 문자열이 아니라 null, PATCH로
+편집, `/new-version`으로 이어짐) — 이 저장소 테스트 DB는 실제
+`alembic upgrade head`로 만들어지므로(`tests/conftest.py`) `0058`도
+실제로 검증됨. 프런트 `registry-policy-purpose.test.jsx` 신규 5건
+(열 렌더·null→"-"·60자 초과 말줄임+title·create/edit 필드 존재),
+`datascreen-help-tone.test.jsx` 신규 4건(`helpTone` 없으면 "안내",
+`"warn"`이면 "주의", `REGISTRY.policies.helpTone`이 실제로 `"warn"`,
+`REGISTRY.prompts.helpTone`은 그대로 falsy — 다른 화면 무회귀 확인).
+`DataScreen.jsx`가 관리자 화면 16개+ 공유 컴포넌트라 프런트 전체
+회귀(238파일/1588건) green. 백엔드는 관련 4개 파일(prompts API·
+admin console JSON 계약·templates API·secret exposure sweep) 39건
+green. 재빌드 완료, `bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`(`BUNDLE_FRESH_OK` 포함).
+
+부수 산출물: 백그라운드 Explore 에이전트가 QA_COVERAGE §11 `L`축
+(화면 간 캐시 무효화) 잔여 범위를 조사 — Board/Ideas(댓글·반응·
+아이디어 상태 변경이 `["board"]`/`["home"]`을 무효화 안 함,
+`["board-mine"]` 키는 어디서도 무효화 안 됨), Projects(마일스톤/
+프로젝트 mutation이 `invalidateProject()`만 부르고 `["home"]`을
+안 건드려 Dashboard "차질 프로젝트"/"지연 마일스톤" 위젯이 최대
+60초+ 무한정 stale), Users(부서 개명이 `["tickets","assignees"]`
+60초 캐시를 안 건드림, 영향 작음) 3건의 진짜 공백을 확정하고
+Settings/Feature-flags/Announcements/Offboarding은 이미 잘 배선돼
+있음을 확인. 이 배치(purpose 컬럼+배너 톤) 커밋 예정. **다음 후보**:
+위 캐시 무효화 3건(Board/Ideas가 가장 큼 — 댓글·반응·상태 3개
+mutation 계열이 공통 원인) 착수, 또는 대시보드 정보 위계(`VIS-24`/
+`25`) 실브라우저 판단. 그 외 후보는 위 WF43 단락과 동일(`RN-15`·
+`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·`RESP-04`/`VIS-122`·
+`user_team-doc-detail` URL 미링크화).

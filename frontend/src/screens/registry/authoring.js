@@ -115,6 +115,10 @@ export const AUTHORING_SCREENS = {
     // 버전의 JSON을 그대로 n8n 페이로드에 inline한다(문서 생성이 다시 일어날 때마다). '테스트로'·
     // '검토로'·'발행'·'보관'은 상태만 바꿀 뿐 JSON 내용을 검증하지 않는다(프롬프트와 동일).
     help: "업무 규칙(정책)을 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’, ‘보관’은 상태만 바꿀 뿐, 내용(JSON)을 검증하지 않습니다, 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 정책 이름을 참조하는 모든 템플릿이 그 즉시(다음 문서 생성부터) 새 버전의 JSON을 그대로 사용하게 됩니다, 프롬프트보다 실제 파급력이 큽니다.",
+    // WF1 단독 결함 — 위 문장이 스스로 "프롬프트보다 실제 파급력이 크다"고 말하면서도, 배너
+    // 자체는 프롬프트 화면의 일반 안내와 똑같은 기본(info) 톤이었다(DataScreen.jsx의 capWarning
+    // 등 다른 배너는 이미 tone="warn"을 쓴다 — 능력은 있고 이 배너에는 안 쓰였다). warn으로 맞춘다.
+    helpTone: "warn",
     emptyTitle: "등록된 정책이 없습니다",
     // 정책도 프롬프트와 동일하게 4단계 생명주기(초안→테스트→검토→발행)를 강제한다 — '등록하고
     // 발행하세요'는 마치 한 단계로 끝나는 것처럼 읽혀, 새 관리자가 초안 행에서 비활성 '발행' 버튼을
@@ -141,12 +145,17 @@ export const AUTHORING_SCREENS = {
     // 수 있게, 이미 불러온 현재 페이지에서 뽑은 이름으로 자동완성 제안(datalist)을 준다.
     filters: [{ key: "name", type: "text", label: "이름(정확히)", datalistFrom: (items) => items.map((r) => r.name) },
       { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["test", "테스트"], ["review", "검토"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
-    columns: [col("name", "이름"), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성")],
+    // WF1 단독 결함 — purpose는 이제 Policy에도 있다(app/prompts/models.py::Policy.purpose,
+    // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
+    // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
+    // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
+    columns: [col("name", "이름"), truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성")],
     // id는 템플릿의 policy_id 입력에 쓰이므로 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의
     // '프롬프트 ID'와 맞춰 어느 화면 상세를 보고 있는지 분명히 한다 — 템플릿의 policy_id 도움말이
     // '정책 화면 상세의 ID를 입력'이라 안내한다).
     // created_by는 _policy_view가 감사 로그의 actor_name과 동일한 패턴으로 created_by_name/
     // created_by_email을 이미 계산해 돌려준다 — 원시 UUID 대신 그 이름을 보여준다(프롬프트 상세와 동일 패턴).
+    // purpose는 이제 목록 열이라 상세에서 중복 제거(프롬프트 registry.js:63과 동일 판단).
     detailFields: [field("id", "정책 ID"),
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — 이유를 밝히지 않으면 이 화면을
@@ -155,12 +164,16 @@ export const AUTHORING_SCREENS = {
       dateCol("published_at", "발행 시각"), jsonField("content", "규칙(JSON)")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text", required: true },
+      // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은
+      // 좁아서 textarea로(프롬프트 registry.js:70-71과 동일 대우).
+      { name: "purpose", label: "용도", type: "textarea" },
       // 서버 기본값("{}")과 맞춘다(app/prompts/router.py PolicyCreateRequest.content) — 값 없이는
       // 다른 registry create 필드처럼 즉시 제출 가능해야 한다(예전엔 최소 "{}"라도 직접 타이핑해야 했다).
       { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '이 정책 이름을 참조하는 템플릿이 문서를 만들 때 n8n 페이로드에 그대로 실립니다. 업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다, 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
     ] },
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "규칙(JSON)", type: "json", required: true, help: '예: {"required_fields":["title"]}' },
+      { name: "purpose", label: "용도", type: "textarea" },
     ] },
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용(JSON)이 검증되지는 않습니다." },

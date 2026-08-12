@@ -46,6 +46,9 @@ class Policy(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (UniqueConstraint("name", "version", name="uq_policies_name_version"),)
 
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    # WF1 단독 결함 — 자매 엔티티 Prompt에는 있는데 Policy에는 없어 "이 정책이 무엇을
+    # 강제하는가"를 목록에서 말할 방법이 없었다(마이그레이션 0058).
+    purpose: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     content_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_DRAFT)

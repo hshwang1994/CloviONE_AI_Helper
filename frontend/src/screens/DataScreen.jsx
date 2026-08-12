@@ -590,8 +590,12 @@ export function DataScreen({ config }) {
         actions={hasHeaderActions ? headerActions : null} />
       {/* config.help는 고정 문자열 또는 (role)=>문자열 함수, emptyHelp와 동일한 role-aware 패턴.
        * 화면이 역할별로 다른 컨트롤을 노출할 때(예: 러너의 '수정'에서만 가능한 점검 상태 전환) 그
-       * 컨트롤이 없는 역할에게까지 그 안내를 그대로 보여주지 않을 수 있게 한다. */}
-      {config.help ? <Callout>{typeof config.help === "function" ? config.help(role) : config.help}</Callout> : null}
+       * 컨트롤이 없는 역할에게까지 그 안내를 그대로 보여주지 않을 수 있게 한다.
+       * WF1 단독 결함(admin_policies) — 이 배너는 항상 기본(info) 톤이었다. 아래 capWarning 등
+       * 다른 Callout은 이미 tone="warn"을 쓰는데, 위험도가 다른 화면(예: 정책의 "발행하면 즉시
+       * 실사용된다")이 프롬프트의 일반 안내와 똑같은 파란 상자로 보였다 — config.helpTone으로
+       * 화면별 위험도를 반영할 수 있게 한다(기본값 info라 기존 화면은 전부 그대로). */}
+      {config.help ? <Callout tone={config.helpTone || "info"}>{typeof config.help === "function" ? config.help(role) : config.help}</Callout> : null}
       {/* 서버가 개수 제한(예: 500건)만 걸고 total/페이지네이션을 주지 않는 목록에서, 항목 수가 그
        * 한도에 닿으면 '더 있을 수 있음'을 알린다(자를 뿐 안 알리면 데이터가 조용히 사라진 것처럼 보인다).
        * paginated:true + 서버가 실제 total을 주는 화면(프롬프트/정책 등)은 페이저가 이미 '총 N건'을

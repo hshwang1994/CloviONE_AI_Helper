@@ -51,6 +51,8 @@ class PromptCreateRequest(BaseModel):
 
 class PolicyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    # WF1 단독 결함 — Prompt와 대칭. app/prompts/models.py::Policy.purpose(0058) 참고.
+    purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="{}", max_length=100000)
 
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
@@ -69,6 +71,7 @@ class PromptContentUpdateRequest(BaseModel):
 
 
 class PolicyContentUpdateRequest(BaseModel):
+    purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="{}", max_length=100000)
 
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
@@ -118,6 +121,7 @@ def _policy_view(row: Policy, names: dict | None = None) -> dict:
     return {
         "id": row.id,
         "name": row.name,
+        "purpose": row.purpose,
         "version": row.version,
         "content": json.loads(row.content_json),
         "status": row.status,
@@ -204,7 +208,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         if model is Policy:
             validate_policy_content(content)
             row = Policy(
-                name=payload.name, version=1, content_json=content,
+                name=payload.name, purpose=payload.purpose, version=1, content_json=content,
                 status=STATUS_DRAFT, created_by=request.state.user.id,
             )
         else:
@@ -254,9 +258,11 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         if model is Policy:
             validate_policy_content(payload.content)
         update_content(db, row, payload.content)
+        # WF1 단독 결함 — purpose는 이제 Prompt/Policy 둘 다 있다(runner_id는 여전히
+        # Prompt 전용, Policy에는 실행 대상 러너 개념이 없다).
+        if payload.purpose is not None:
+            row.purpose = payload.purpose
         if model is Prompt:
-            if payload.purpose is not None:
-                row.purpose = payload.purpose
             if payload.runner_id is not None:
                 row.runner_id = payload.runner_id or None
         record_audit_from_request(

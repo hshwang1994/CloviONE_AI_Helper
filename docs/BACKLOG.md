@@ -2348,7 +2348,7 @@ BoardPost.jsx:462   TeamDoc.jsx:289   Ticket.jsx:189   Chat.jsx:181
 | `admin_notion-mapping` | 1 | 설정이 'headline 액션'이라고 선언한 버튼이 헤더에서는 보조 스타일로 그려진다 — 코드의 의도와 렌더 |
 | `admin_offboarding` | 1 | 대상 고르기 목록이 총건수·페이지네이션·상태 필터 없이 20건에서 조용히 잘린다 |
 | `admin_organizations` | 2 | 같은 화면의 트리와 표가 같은 라벨 '부서'로 서로 다른 수를 말한다(직속 최상위 부서 vs 전체 부서) · 같은 '사용 여부'를 형제 화면들이 서로 다른 세 규칙으로 그리고, 조직 화면만 코드에 적힌 집안 규칙을 어 |
-| `admin_policies` | 2 | 정책 목록에 '무엇을 강제하는 규칙인가'를 말하는 열이 없고, 넣을 수도 없다 — Policy 모델에 pur · 위험도가 다른 두 화면이 완전히 같은 톤의 배너를 쓴다 |
+| `admin_policies` | 2 | ~~정책 목록에 '무엇을 강제하는 규칙인가'를 말하는 열이 없고, 넣을 수도 없다 — Policy 모델에 purpose/description 컬럼이 아예 없다~~ ‖ **구현완료(2026-08-13)**: 자매 엔티티 Prompt와 같은 스키마 비대칭이었다(`app/prompts/models.py::Prompt.purpose` vs `Policy`에 대응 필드 부재) — 화면만 고쳐선 해결 안 돼 전체 계층을 Prompt.purpose와 동일하게 배선했다. 마이그레이션 `0058`(nullable Text, idempotent), `Policy.purpose` 모델 필드, `PolicyCreateRequest`/`PolicyContentUpdateRequest`에 `purpose` 추가, `_policy_view()`가 반환, `create()`/`patch()` 배선(`patch()`는 이제 purpose 갱신이 Prompt 전용 블록 밖으로 나가 두 타입 모두 적용), `new_version_from()`이 `is_prompt` 게이트 없이 두 타입 모두 새 버전에 이어감. `frontend/src/screens/registry/authoring.js`의 policies에 목록 열(`truncateCol`)+create/edit textarea 필드 추가(prompts와 동일 패턴), 상세에서는 목록 열과 중복이라 뺐다. 백엔드 `tests/integration/test_prompts_api.py`에 신규 4건(저장/반환, null 기본값, PATCH 편집, new-version 이어짐) — 마이그레이션이 진짜 alembic upgrade head로 실행되는 테스트 DB 전략(`tests/conftest.py`)이라 `0058`도 실제로 검증됐다. 프런트 `registry-policy-purpose.test.jsx` 신규 5건(열 렌더·null·말줄임·create/edit 필드). 관련 backend 39건 + 프런트 전체 회귀(238파일/1588건) green · ~~위험도가 다른 두 화면이 완전히 같은 톤의 배너를 쓴다~~ ‖ **구현완료(2026-08-13)**: `DataScreen.jsx`의 상시 안내 배너(`config.help`)는 항상 기본(info) `Callout`이었다(capWarning 등 다른 Callout은 이미 `tone="warn"`을 쓰는데 이 배너에는 안 쓰였다) — `config.helpTone`(기본값 `"info"`, 기존 화면 전부 그대로)을 신설하고 policies에 `helpTone: "warn"`을 배선(정책 화면 자신의 문구가 "프롬프트보다 실제 파급력이 크다"고 이미 경고하던 것과 실제 톤을 맞춘다). `Callout`은 색만이 아니라 라벨 텍스트로도 톤을 알린다(WCAG 1.4.1, kit.jsx 기존 주석) — `datascreen-help-tone.test.jsx` 신규 4건이 "주의"/"안내" 라벨 텍스트로 확인 |
 | `admin_prompt-usage` | 1 | 3행짜리 표가 본문 폭에 열을 균등 분산해, 한 행 안에서 이름과 상태 배지 사이가 240px 넘게 벌어진다 |
 | `admin_runner-detail` | 4 | 모달 하단에 7개 버튼이 구분선·간격 차이 없이 같은 크기로 한 줄에 늘어서 있어 위계가 없다 · 서로 다른 세 개념이 거의 같은 이름으로 연속 배치되고, 같은 필드가 화면마다 다른 이름으로 불린다 · 모달이 뷰포트 높이의 94%를 쓰면서 값 없는 행에 자리를 내주고, 정작 필드 4개는 화면 밖으로 잘려 스크 · (외 1건) |
 | `admin_runners` | 1 | 상태 계열 열이 3개(활성/상태/상태 확인) 나란히 있는데 셋의 차이를 설명하는 것이 없고, 같은 필드를 필 |
@@ -2366,6 +2366,22 @@ BoardPost.jsx:462   TeamDoc.jsx:289   Ticket.jsx:189   Chat.jsx:181
 | `user_team-docs-trash` | 3 | 같은 보관 정책 설명이 한 화면에 두 번, 거의 같은 문장으로 반복된다 · 휴지통 빈 상태에만 다음 행동이 하나도 없다 — 같은 컴포넌트를 쓰는 다른 화면들은 모두 액션을 준다 · 상단 안내문이 한국어 어절 중간에서 줄바꿈된다 — 저장소가 이 문제를 고치려고 만들어 둔 토큰이 이 문단에만 |
 | `user_team-tickets` | 1 | 동일한 미할당 티켓이 화면에 따라 행 액션이 다르다 — 여기서는 「편집」만, /unassigned 에서는 「 |
 | `user_unassigned` | 2 | 이 화면 성격상 구조적으로 비어 있는 두 열(우선순위·난이도)이 상시 폭을 점유한다 — 미할당=미분류 티켓이 · 「대분류」는 후보 목록이 없는 자유 입력 필터인데 placeholder·힌트가 없고 서버는 완전일치로 거른다 |
+
+### 세션 내 신규 발견 — 화면 간 캐시 무효화 잔여 공백 (WF44 배경 조사, 2026-08-13)
+
+`QA_COVERAGE.md` §11 `L`축의 "남은 큰 공백" 재조사(배경 Explore 에이전트, WF1/WF2 범위 밖
+bespoke 화면 위주)로 확정. 전체 근거는 `QA_COVERAGE.md`의 해당 절에 있다 — 여기는 추적용 ID만.
+
+| ID | 심각 | 문제 | 상태 |
+|---|---|---|---|
+| `CACHE-01` | Med | `BoardPost.jsx`의 댓글 작성/수정/삭제·반응 토글·아이디어 상태 변경이 `invalidateQueries` 없이 로컬 refetch만 해, `Board.jsx` 목록의 `comment_count`/`idea_status`/`like_count`(정렬 기준)와 `Home.jsx` "최근 글" 위젯이 갱신 안 된다. `Home.jsx`의 `MyBoardStats`(`["board-mine"]`)는 더 넓게 **어떤** 게시글/댓글 mutation에도 무효화 안 됨 | 미해결 |
+| `CACHE-02` | Med | `project-queries.js::invalidateProject()`가 `["home"]`을 안 건드려 `Dashboard.jsx`의 "차질 프로젝트"/"지연 마일스톤"(`work-dashboard`, staleTime 60s)이 마일스톤·프로젝트 수정 후 최소 60초+ stale | 미해결 |
+| `CACHE-03` | Low | 부서/직책 개명이 `["tickets","assignees"]`(staleTime 60s)를 무효화 안 해, 다른 탭에 열린 티켓 생성/수정 모달의 담당자 후보 이름이 최대 60초 stale. 영향 좁음(감사 로그·티켓 상세는 서버 조인이라 매 요청 최신) | 미해결 |
+
+**다음 후보**: `CACHE-01`(공통 원인 3개 mutation 계열 — 게시글 mutation 훅이 이미 쓰는
+`invalidateQueries(["board"])`/`["home"]` 패턴을 댓글·반응·상태 변경 세 곳에도 적용하고
+`["board-mine"]`을 그 무효화 목록에 추가하면 한 번에 닫힌다), `CACHE-02`(`invalidateProject()`에
+`["home"]` 한 줄 추가) 순으로 착수 권장. `CACHE-03`은 우선순위 낮음.
 
 ### `WF1` 후속 검증 — **임박한 것 하나** (내가 직접 확인)
 

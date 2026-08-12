@@ -133,7 +133,10 @@ def new_version_from(
     model = type(row)
     name = row.name
     is_prompt = isinstance(row, Prompt)
-    purpose = row.purpose if is_prompt else None
+    # WF1 단독 결함 — purpose는 이제 Prompt/Policy 둘 다 있어(app/prompts/models.py::
+    # Policy.purpose, 마이그레이션 0058) 새 버전에도 그대로 이어간다. runner_id는
+    # 여전히 Prompt 전용이다.
+    purpose = row.purpose
     runner_id = row.runner_id if is_prompt else None
     source_content = content if content is not None else _model_content(row)
     # UB-21: 같은 이름에 "새 버전" 요청 두 개가 거의 동시에 오면(연타·재제출) 둘 다 같은
@@ -159,6 +162,7 @@ def new_version_from(
         else:
             copy = Policy(
                 name=name,
+                purpose=purpose,
                 version=version,
                 content_json=source_content,
                 status=STATUS_DRAFT,

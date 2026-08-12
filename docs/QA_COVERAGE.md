@@ -502,7 +502,7 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
 | DB·데이터 흐름 | `D` | **O** | 프로덕션 74표 집계 · 승인/리허설/저장된뷰 왕복 확인 |
 | Console·Network | `C` | **O** | 정상 경로 0건 확인 + **실패 경로에서 화면당 최대 5건**(`FAIL-05`) |
 | RBAC | `R` | **O**(화면 게이팅) | 4역할 197페이지, 거부 화면 0 · 역할 표가 앱과 일치 |
-| 화면 간 반영 | `L` | **~** | 복구 리허설 3단계 확인 + `WF2` 무효화 8건 조사 + `WF7-L01`(승인→users/integrations/runners/schedules/documents 5화면 무효화, 2026-08-11) + `WF11-L01`(문서·게시판 편집→home 「최근 문서/글」 위젯 무효화, `document-views.js` 신설, 2026-08-12). 전수는 아직 아님 — `CROSS_SCREEN_KEYS`(DataScreen registry용)·`ticket-views.js`(티켓용)·`document-views.js`(문서용)는 이제 셋 다 있지만, 그 세 지도 자체가 전체 화면 쌍을 놓쳤을 가능성은 남아 있다(다음 후보: 알림·게시판·게임방 등 나머지 bespoke 화면의 cross-invalidation 재고) |
+| 화면 간 반영 | `L` | **~** | 복구 리허설 3단계 확인 + `WF2` 무효화 8건 조사 + `WF7-L01`(승인→users/integrations/runners/schedules/documents 5화면 무효화, 2026-08-11) + `WF11-L01`(문서·게시판 편집→home 「최근 문서/글」 위젯 무효화, `document-views.js` 신설, 2026-08-12) + WF44 배경 조사(2026-08-13, 아래 "남은 큰 공백 3개"의 3번 항목)로 Board/Ideas·Projects 진짜 공백 2건 확정, Settings/Feature-flags/Announcements/Offboarding은 무결함 재확인. 전수는 아직 아님 — 확정된 공백 2건이 다음 후보 |
 | 반응형·Theme | `V` | **O** | 768/1024/1200/1366/1920/3840 × 라이트·다크 |
 | **실사용 이력** | `U` | **~** | 12기능 중 9 확인(전부 정상 — 저장된 뷰·대리 보기·복구 리허설·승인·메일·오프보딩·공지 배너·AI 쿼터·**휴지통**[2026-08-12, 합성 문서로 안전하게 왕복]). 남은 3기능(문서 생성·스케줄·주간 리포트)은 D-21/DGEN-02로 실행 보류(원인 규명됨) — `U`축은 이 셋을 빼면 사실상 완료 |
 | **텍스트 대비** | `K` | **O** | 8화면(자동, 비-그라디언트 34~50요소/화면) + 상단바 그라디언트 전체(수동 실측, WF7-K01) |
@@ -532,7 +532,34 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
    가 `unread`/`list`/`screen` 전부 `["noti", ...]` 한 뿌리로 두고 `invalidateNotifications()`
    하나로 셋 다 갱신하며, `notification-keys.test.js`(4건, 그중 하나는 "네 번째 네임스페이스가
    생기지 않는다"는 정적 회귀 가드)가 이미 이 계약을 고정해 뒀다 — 재확인만 하고 코드 변경
-   없음. 다음 후보는 전수 매트릭스 자체(표본 8+1건을 넘는 화면 쌍 전체 점검)만 남았다.
+   없음. **2026-08-13(WF44 배경 조사)**: 남은 bespoke 화면(Board/Ideas·Projects·Users·
+   Settings류·Offboarding)을 배경 Explore 에이전트로 마저 훑어 진짜 공백 2건을 확정했다 —
+   - **Board/Ideas(진짜 공백)**: 게시글 CRUD·핀·삭제는 `["board"]`+`["home"]`을 정상
+     무효화하지만, `BoardPost.jsx`의 댓글 작성/수정/삭제(`CommentComposer`·`CommentItem`)와
+     `Board.jsx`의 반응 토글(`Reactions`)·아이디어 상태 변경(`IdeaStatusBar`) 셋은
+     `invalidateQueries` 없이 상세 화면 자체의 로컬 refetch만 한다 — 목록의 `comment_count`/
+     `idea_status`/`like_count`(아이디어 보드 기본 정렬 기준) 열과 `Home.jsx` "최근 글"
+     위젯의 댓글 수가 반영 안 된다. 별도로 `Home.jsx`의 `MyBoardStats`(`["board-mine"]`,
+     "받은 댓글" 등)는 게시글 생성/수정/핀/삭제를 포함해 **어떤 mutation도 무효화하지
+     않는** 더 넓은 공백.
+   - **Projects → Dashboard(진짜 공백)**: `project-queries.js::invalidateProject()`(모든
+     프로젝트/마일스톤 쓰기 훅이 공유)가 `["projects",...]`만 무효화하고 `["home"]`을 안
+     건드려, `Dashboard.jsx`의 `WorkSection`(`["home","work-dashboard"]`, `staleTime:
+     60000`)이 그리는 "차질 프로젝트"/"지연 마일스톤"이 최대 60초+(탭을 안 벗어나면
+     그 이상) stale해진다. 반대 방향(`ticket-views.js`의 `TICKET_VIEW_KEYS`가 이미
+     `"projects"`를 포함해 티켓 변경은 프로젝트 캐시에 닿음)은 이미 돼 있어 이 한
+     방향만 빠졌다.
+   - **Users → 티켓 담당자 후보(사소한 공백)**: 부서/직책/조직 개명은 이미 `Users.jsx::
+     refresh()`로 무효화되지만 `["tickets"]`는 빠져 있어, `ticket-options.js::
+     useAssigneeOptions`(`["tickets","assignees"]`, `staleTime: 60000`)가 다른 탭에
+     열린 티켓 생성/수정 모달에서 최대 60초간 옛 이름을 보여줄 수 있다 — 영향이 좁아
+     (감사 로그·티켓 상세 자체는 서버 조인이라 매 요청 최신) 우선순위 낮음.
+   - **무결함 재확인**: Settings/Feature-flags/Announcements 소비처는 전부 리터럴
+     `["settings"]` 한 키를 공유해 저장 시 함께 갱신되고(Feature-flags는 애초에
+     클라이언트 캐시가 없다), Offboarding은 실행·취소 둘 다 `invalidateTicketViews(qc,
+     {refetchType:"all"})`로 이미 광범위하게 무효화한다.
+   다음 후보는 위 Board/Ideas(3개 mutation 계열, 공통 원인이라 한 번에 묶임)·Projects
+   2건 구현, 그다음 전수 매트릭스 자체(표본을 넘는 화면 쌍 전체 점검).
 
 ---
 
