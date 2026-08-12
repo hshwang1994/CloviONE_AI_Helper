@@ -12,7 +12,20 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF28(`invocation=2`) —
+**마지막 갱신**: 2026-08-12 · **단계**: WF29(`invocation=2`) —
+`GM-10`+`GM-11`(게임 동시성) 구현완료. `maybe_autoresolve`(폴링마다
+불림)가 부르는 `_finish_number`·`_finish_vote`·단판 `_finish_rps`·
+`_reveal_quiz`(조사 중 추가 발견 — BACKLOG 원문엔 없었다) 넷 다
+read-then-write 가드 하나뿐이라 동시 요청이 각자 계산한 결과를
+각자 응답에 실었다 — `_finish_rps_tournament`(FN-20에서 이미 고침)
+와 같은 `_cas_update_state` 패턴으로 통일, 재시도 시 재계산 안
+하게 멱등화. GM-11은 가위바위보 토너먼트 시딩·강제마감만 나머지
+6개 경로보다 약한 유령 필터를 썼던 것을 `_present_players`로
+통일. 신규 시험 4건(동시 DB 세션 재현 1건 + 유령 배제 2건 + 코인플립
+난수 고정 검증), `tests/ -k game` 60건 green, revert-to-verify
+전부 확인(GM-10 하나는 되돌리니 assertion 실패 대신
+`sqlite3.OperationalError: database is locked`로 죽어 더 강하게
+확인됨). 그 직전 WF28 —
 `CONC-01`+`CONC-02`(관리 콘솔 공유 편집 폼의 동시성 결함) 구현완료.
 `DataScreen.jsx`의 공용 수정 폼(등록 화면 27개 공유)이 매번 전체
 필드를 재전송해 두 관리자가 같은 행을 열면 나중 저장이 앞사람
@@ -24,7 +37,7 @@
 인스턴스(러너 `maintenance_state` — 서킷 브레이커와 사람이 같은
 필드를 씀)는 diff만으로 못 막는 진짜 충돌이 남아 일반 편집 폼에서
 빼고 확인 문구 있는 전용 액션으로 분리. 신규 시험 3파일 13건,
-프런트 전체 회귀 228/1541 green. 그 직전 WF27 —
+프런트 전체 회귀 228/1541 green. 그 앞 WF27 —
 `SEM-01`("상세 보기" 버튼 접근 이름 중복) 조사 중 원 발견(`/jobs`·
 `/users` 2개 표본)보다 훨씬 큰 Root Cause 발견 — 관리자 등록 화면
 28개 전체에 `rowName`/`openLabel` 표식이 단 한 곳도 없어서, 첫
@@ -3581,6 +3594,60 @@ data-screen-edit-diff.test.jsx`(신규, 2건 — `departments` 화면
 전체 회귀 228 파일/1541건(신규 3파일/13건 포함) green. `bash
 scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 재빌드 완료.
 
-이 배치(`CONC-01`+`CONC-02`) 커밋 예정. **다음 후보**: `GM-10`/
-`GM-11`(게임 동시성, 조건부 UPDATE 패턴 재적용), 그 뒤 stale
-`RN-01~14` 섹션 행 정정, 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.
+이 배치(`CONC-01`+`CONC-02`) 커밋 완료(`ed3e327`).
+
+**WF29(같은 invocation 계속) — `GM-10`+`GM-11`(게임 동시성) 구현완료,
+조사 중 GM-10과 같은 뿌리의 여섯 번째 인스턴스를 추가로 찾아 함께
+닫음.** `app/games/service.py::maybe_autoresolve`는 폴링(room_state)
+마다 불려 동시 요청이 겹칠 수 있는데, `_finish_number`·`_finish_vote`·
+단판 `_finish_rps`는 read-then-write 가드 하나뿐이라 겹친 두 요청이
+각자 계산한 결과를 각자 응답에 실었다(클라이언트마다 다른 승자) —
+`_finish_rps_tournament`는 FN-20에서 이미 `_cas_update_state`로
+고쳐져 있었다(BACKLOG가 "disband_room도 이미 그 패턴을 쓴다"고
+인용한 부분은 재확인 결과 부정확 — `disband_room`은 평범한 ORM
+대입이었다. 진짜 근거는 `_finish_rps_tournament`/FN-20와
+`jobs/repository.py::cancel_queued`였다).
+
+**구현**: 세 함수를 `_finish_rps_tournament`와 같은 모양으로 리팩터
+— 결과 계산을 `_apply(state)` 순수 함수로 분리해 `_cas_update_state`
+에 넘기고, `if "result" in state: return state`로 재시도 시
+재계산하지 않게(멱등) 했다. `_cas_update_state`가 이미 SQLite
+쓰기 충돌(`is_write_conflict`)을 재시도로 흡수하므로 이 세 함수도
+그 안전망을 공짜로 얻는다.
+
+**조사 중 발견한 추가 인스턴스**: `maybe_autoresolve`가 부르는 네
+번째 경로 `_reveal_quiz`(퀴즈 채점 공개)도 완전히 무방비였다 —
+바로 옆 `submit_quiz_answer`(답 제출)는 이미 `_cas_update_state`를
+쓰는데 정작 채점만 안 썼다(같은 파일, 같은 뿌리, 원 BACKLOG 발견이
+언급 안 한 부분). 같은 패턴으로 고치되, 기존 "이미 공개된
+문제입니다" 오류 계약은 그대로 유지했다(mutate 안에서 여전히
+raise) — 호스트가 직접 두 번 누르면 오류를 보여야 하는 기존 사양은
+안 바꾸고, `maybe_autoresolve`(자동 폴링 경로)만 그 오류를 조용히
+삼키게 호출부에서 분리했다.
+
+**GM-11**: 가위바위보 토너먼트만 시딩(`_open_rps_tournament`)과
+강제 마감(`_tournament_advance`의 `force` 분기)이 나머지 6개 서버
+확정 경로와 다른(더 약한) 기준을 썼다 — 시딩은 `m.active`(이
+저장소 어디서도 False가 안 됨, 사실상 항상 참)만, 강제 마감은
+"멤버 row가 존재하는가"(나가기를 눌렀는가)만 봐서, 탭만 닫고
+나가기는 안 누른 유령이 계속 "있다"로 잡혔다. 둘 다
+`_present_players`(활성 + 최근 폴링 90초 + 비관전)로 통일.
+
+**시험**: `test_concurrent_autoresolve_does_not_recompute_a_different_
+winner`(GM-10, 실제 동시 DB 세션 2개로 재현 — 기존
+`test_concurrent_votes_do_not_clobber_each_other`/`test_concurrent_
+tournament_submits_do_not_clobber_each_other`와 같은 기법).
+`test_tournament_seeding_excludes_stale_ghost`·`test_tournament_
+force_finish_excludes_stale_ghost`(GM-11 — 후자는 코인플립 분기의
+난수를 monkeypatch로 고정해 revert 시 우연히 통과하지 않고 항상
+결정적으로 실패하게 만듦, 안 그러면 반반 확률이라 회귀 시험 자체가
+가끔 거짓 통과할 뻔했다). 넷 다 revert-to-verify 확인 — GM-10은
+되돌린 코드가 assertion 실패가 아니라 `sqlite3.OperationalError:
+database is locked`로 죽어(CAS의 재시도 없이는 쓰기 경합 자체를
+못 버틴다는 추가 증거) 오히려 더 강한 확인이 됐다. `tests/ -k game`
+60건(신규 4건 포함) green. 백엔드 전용 변경이라 프런트 재빌드
+불필요, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+이 배치(`GM-10`+`GM-11`) 커밋 예정. **다음 후보**: stale
+`RN-01~14` 섹션 행 정정(2026-08-10 `5db9fbf`로 이미 구현됨,
+Explore가 WF28에서 발견), 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.

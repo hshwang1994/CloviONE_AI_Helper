@@ -514,7 +514,10 @@ def maybe_autoresolve(db: Session, room: GameRoom, *, now: datetime) -> None:
             _finish_rps(db, room, _SYSTEM_ACTOR, now=now)
     elif gt == GAME_QUIZ:
         if state.get("phase") == QUIZ_ANSWERING:
-            _reveal_quiz(db, room, None, now=now)  # 답변 마감 → 채점 공개(다음 문제는 방장이 진행)
+            try:
+                _reveal_quiz(db, room, None, now=now)  # 답변 마감 → 채점 공개(다음 문제는 방장이 진행)
+            except ConflictError:
+                pass  # GM-10: 동시 폴링 중 다른 요청(또는 방장의 수동 공개)이 먼저 처리했다.
 
 
 def finish_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
@@ -555,21 +558,26 @@ def _finish_rps_tournament(db, room, user, *, now) -> GameRoom:
 
 
 def _finish_vote(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    state = json.loads(room.state_json or "{}")
-    options = state.get("options", [])
-    votes = state.get("votes", {})
-    counts = [0] * len(options)
-    for idx in votes.values():
-        if isinstance(idx, int) and 0 <= idx < len(options):
-            counts[idx] += 1
-    top = max(counts) if counts else 0
-    winners = [options[i] for i, c in enumerate(counts) if c == top and top > 0]  # 서버가 확정(동점이면 공동)
-    result = {"question": state.get("question", ""), "options": options,
-              "counts": counts, "winners": winners, "total": sum(counts)}
-    room.status = ROOM_FINISHED
-    room.state_json = json.dumps({"result": result}, ensure_ascii=False)
-    db.flush()
-    _append_event(db, room, EV_RESULT, actor_id=user.id, payload=result, now=now)
+    """GM-10: `_finish_number`와 같은 이유(동시 폴링 겹침)로 `_cas_update_state`로 감싼다."""
+    def _apply(state: dict) -> dict:
+        if "result" in state:
+            return state  # 이미 확정됨 — 재시도 때 다시 계산하지 않는다(멱등).
+        options = state.get("options", [])
+        votes = state.get("votes", {})
+        counts = [0] * len(options)
+        for idx in votes.values():
+            if isinstance(idx, int) and 0 <= idx < len(options):
+                counts[idx] += 1
+        top = max(counts) if counts else 0
+        winners = [options[i] for i, c in enumerate(counts) if c == top and top > 0]  # 서버가 확정(동점이면 공동)
+        return {"result": {"question": state.get("question", ""), "options": options,
+                            "counts": counts, "winners": winners, "total": sum(counts)}}
+
+    new_state = _cas_update_state(db, room, _apply)
+    if room.status != ROOM_FINISHED:
+        room.status = ROOM_FINISHED
+        db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=user.id, payload=new_state["result"], now=now)
     return room
 
 
@@ -617,32 +625,43 @@ def submit_number(db: Session, room: GameRoom, user: User, *, value: int, now: d
 
 
 def _finish_number(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    state = json.loads(room.state_json or "{}")
-    # 지금 방에 있는 참여자만 집계 — 나갔거나 관전자로 재입장한 사람의 옛 숫자로 '유령'이 이기는 걸 막는다.
-    members = _present_players(db, room, now)
-    names = {m.user_id: m.display_name for m in members}
-    picks = {uid: v for uid, v in state.get("picks", {}).items() if uid in names}
-    # 숫자별 제출자 목록.
-    by_number: dict[int, list[str]] = {}
-    for uid, val in picks.items():
-        if isinstance(val, int):
-            by_number.setdefault(val, []).append(uid)
-    # '가장 낮은 유일 숫자'(정확히 한 명이 낸 숫자 중 최소)를 낸 사람이 승리.
-    winner = None
-    for num in sorted(by_number):
-        if len(by_number[num]) == 1:
-            uid = by_number[num][0]
-            winner = {"user_id": uid, "name": names.get(uid, ""), "number": num}
-            break
-    picks_view = sorted(
-        [{"user_id": uid, "name": names.get(uid, ""), "number": val} for uid, val in picks.items() if isinstance(val, int)],
-        key=lambda p: p["number"],
-    )
-    result = {"picks": picks_view, "winner": winner, "min": state.get("min"), "max": state.get("max")}
-    room.status = ROOM_FINISHED
-    room.state_json = json.dumps({"result": result}, ensure_ascii=False)
-    db.flush()
-    _append_event(db, room, EV_RESULT, actor_id=user.id, payload=result, now=now)
+    """GM-10: `maybe_autoresolve`는 폴링(room_state)마다 불려 거의 동시에 여러 요청이 겹칠 수
+    있다. 예전엔 이 함수가 곧장 `room.state_json`을 대입해 덮어써, 겹친 두 요청이 각자
+    계산한(서로 다를 수 있다 — `_present_players`가 `now`로 90초 경계를 재는데 요청마다 `now`가
+    미세하게 달라 경계의 유령 참여자 포함 여부가 갈릴 수 있다) 결과를 각자 자기 응답에 실어
+    클라이언트마다 다른 승자를 보여줬다. `_cas_update_state`(FN-20이 토너먼트 마감에 쓴 것과
+    같은 이유)로 감싸 결과 계산을 한 번만 확정한다 — 진 시도는 이미 확정된 result를 그대로
+    돌려받는다."""
+    def _apply(state: dict) -> dict:
+        if "result" in state:
+            return state  # 이미 확정됨 — 재시도 때 다시 계산하지 않는다(멱등).
+        # 지금 방에 있는 참여자만 집계 — 나갔거나 관전자로 재입장한 사람의 옛 숫자로 '유령'이 이기는 걸 막는다.
+        members = _present_players(db, room, now)
+        names = {m.user_id: m.display_name for m in members}
+        picks = {uid: v for uid, v in state.get("picks", {}).items() if uid in names}
+        # 숫자별 제출자 목록.
+        by_number: dict[int, list[str]] = {}
+        for uid, val in picks.items():
+            if isinstance(val, int):
+                by_number.setdefault(val, []).append(uid)
+        # '가장 낮은 유일 숫자'(정확히 한 명이 낸 숫자 중 최소)를 낸 사람이 승리.
+        winner = None
+        for num in sorted(by_number):
+            if len(by_number[num]) == 1:
+                uid = by_number[num][0]
+                winner = {"user_id": uid, "name": names.get(uid, ""), "number": num}
+                break
+        picks_view = sorted(
+            [{"user_id": uid, "name": names.get(uid, ""), "number": val} for uid, val in picks.items() if isinstance(val, int)],
+            key=lambda p: p["number"],
+        )
+        return {"result": {"picks": picks_view, "winner": winner, "min": state.get("min"), "max": state.get("max")}}
+
+    new_state = _cas_update_state(db, room, _apply)
+    if room.status != ROOM_FINISHED:
+        room.status = ROOM_FINISHED
+        db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=user.id, payload=new_state["result"], now=now)
     return room
 
 
@@ -723,7 +742,11 @@ def _pair_round(entrants: list[tuple[str, str]]) -> list[dict]:
 
 
 def _open_rps_tournament(db, room, user, *, timer, deadline, now) -> GameRoom:
-    players = [m for m in repository.members(db, room.id) if m.active and m.role != ROLE_SPECTATOR]
+    # GM-11: 나머지 6개 서버 확정 경로(추첨·팀나누기·사다리·투표·숫자 눈치·단판 가위바위보)와
+    # 같은 기준(_present_players)으로 시딩한다 — `m.active`는 저장소 어디서도 False가 되지
+    # 않으므로 그 조건은 사실상 항상 참이고, 탭만 닫고 나가기를 안 누른 유령까지 대진에
+    # 들어갔다(대진 강제 마감의 같은 결함은 위 _tournament_advance에서 함께 고침).
+    players = _present_players(db, room, now)
     if len(players) < 2:
         raise ConflictError("토너먼트는 참여자가 2명 이상이어야 합니다.")
     entrants = [(m.user_id, m.display_name) for m in players]
@@ -806,15 +829,17 @@ def _tournament_advance(db, room, state: dict, *, now, force: bool) -> dict:
     matches = state.get("matches", [])
     rng = secrets.SystemRandom()
     if force:
+        # GM-11: "방을 나갔는가"(멤버 row 존재 여부)만 보던 것을 나머지 6개 경로와 같은 기준
+        # (_present_players — 활성 + 최근 폴링 90초 + 비관전)으로 통일한다. row 존재 여부만
+        # 보면 탭만 닫고 '나가기'는 안 누른 유령(row는 남아 있다 — active는 저장소 어디서도
+        # False가 되지 않는다)이 계속 "있다"로 잡혀 무작위 대전을 계속 받았다(§13.1 공정성 —
+        # 나머지 6개 경로가 이미 막고 있는 것과 같은 종류의 결함, 시딩도 같은 이유로 아래에서 고침).
+        present_ids = {m.user_id for m in _present_players(db, room, now)}
         for m in matches:
             if m.get("done"):
                 continue
-            # 대진 상대가 이미 방을 나갔으면(멤버 row가 사라짐) 무작위 채우기·코인플립을 타지
-            # 않고 남아 있는 쪽이 곧바로 이긴다 — 안 그러면 나간 사람이 무작위로 챔피언까지
-            # 올라갈 수 있었다(§13.1 공정성). 숫자 눈치·가위바위보 단판은 _present_players로
-            # 종료 집계에서 나간 사람을 거르는데, 토너먼트 강제 마감엔 그 대응 필터가 없었다.
-            a_present = repository.get_member(db, room.id, m["a"]) is not None
-            b_present = m.get("b") is not None and repository.get_member(db, room.id, m["b"]) is not None
+            a_present = m["a"] in present_ids
+            b_present = m.get("b") is not None and m["b"] in present_ids
             if a_present != b_present:
                 m["winner"] = m["a"] if a_present else m["b"]
                 m["done"] = True
@@ -908,40 +933,48 @@ def _rps_tournament_public(state: dict, user_id: str) -> dict:
 
 
 def _finish_rps(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
-    state = json.loads(room.state_json or "{}")
-    # 지금 방에 있는 참여자만 — 나갔거나 관전자로 재입장한 사람의 옛 선택(유령 승자·빈 이름)을 배제.
-    members = _present_players(db, room, now)
-    names = {m.user_id: m.display_name for m in members}
-    raw = {uid: c for uid, c in state.get("choices", {}).items()
-           if isinstance(c, int) and c in (0, 1, 2) and uid in names}
-    # 시간 안에 안 낸 참여자는 서버가 무작위로 채운다 — 대기로 게임이 막히지 않게(§13.1 서버 확정).
-    rng = secrets.SystemRandom()
-    auto_ids: set[str] = set()
-    for m in members:
-        if m.user_id not in raw:
-            raw[m.user_id] = rng.randint(0, 2)
-            auto_ids.add(m.user_id)
-    choices = raw
-    present = set(choices.values())
-    winners: list[dict] = []
-    win_label = None
-    outcome = "draw"
-    if len(present) == 2:
-        a, b = list(present)
-        win_choice = a if _RPS_BEATS[a] == b else b
-        win_label = _RPS_LABELS[win_choice]
-        outcome = "win"
-        winners = [{"user_id": uid, "name": names.get(uid, "")} for uid, c in choices.items() if c == win_choice]
-    reveal = sorted(
-        [{"user_id": uid, "name": names.get(uid, ""), "choice": _RPS_LABELS[c], "auto": uid in auto_ids}
-         for uid, c in choices.items()],
-        key=lambda x: x["name"],
-    )
-    result = {"outcome": outcome, "winners": winners, "win_choice": win_label, "reveal": reveal}
-    room.status = ROOM_FINISHED
-    room.state_json = json.dumps({"result": result}, ensure_ascii=False)
-    db.flush()
-    _append_event(db, room, EV_RESULT, actor_id=user.id, payload=result, now=now)
+    """GM-10: `_finish_number`와 같은 이유(동시 폴링 겹침)로 `_cas_update_state`로 감싼다.
+    시간 안에 못 낸 참여자를 채우는 무작위 선택(rng)도 이 안에서 한다 — 재시도로 다시
+    불려도 이미 result가 있으면 위에서 곧장 돌려주므로, 처음 커밋에 성공한 시도의 무작위
+    값만 실제로 쓰인다(두 번째 시도가 다른 무작위 값으로 승패를 다시 굴리지 않는다)."""
+    def _apply(state: dict) -> dict:
+        if "result" in state:
+            return state  # 이미 확정됨 — 재시도 때 다시 계산(재추첨 포함)하지 않는다(멱등).
+        # 지금 방에 있는 참여자만 — 나갔거나 관전자로 재입장한 사람의 옛 선택(유령 승자·빈 이름)을 배제.
+        members = _present_players(db, room, now)
+        names = {m.user_id: m.display_name for m in members}
+        raw = {uid: c for uid, c in state.get("choices", {}).items()
+               if isinstance(c, int) and c in (0, 1, 2) and uid in names}
+        # 시간 안에 안 낸 참여자는 서버가 무작위로 채운다 — 대기로 게임이 막히지 않게(§13.1 서버 확정).
+        rng = secrets.SystemRandom()
+        auto_ids: set[str] = set()
+        for m in members:
+            if m.user_id not in raw:
+                raw[m.user_id] = rng.randint(0, 2)
+                auto_ids.add(m.user_id)
+        choices = raw
+        present = set(choices.values())
+        winners: list[dict] = []
+        win_label = None
+        outcome = "draw"
+        if len(present) == 2:
+            a, b = list(present)
+            win_choice = a if _RPS_BEATS[a] == b else b
+            win_label = _RPS_LABELS[win_choice]
+            outcome = "win"
+            winners = [{"user_id": uid, "name": names.get(uid, "")} for uid, c in choices.items() if c == win_choice]
+        reveal = sorted(
+            [{"user_id": uid, "name": names.get(uid, ""), "choice": _RPS_LABELS[c], "auto": uid in auto_ids}
+             for uid, c in choices.items()],
+            key=lambda x: x["name"],
+        )
+        return {"result": {"outcome": outcome, "winners": winners, "win_choice": win_label, "reveal": reveal}}
+
+    new_state = _cas_update_state(db, room, _apply)
+    if room.status != ROOM_FINISHED:
+        room.status = ROOM_FINISHED
+        db.flush()
+        _append_event(db, room, EV_RESULT, actor_id=user.id, payload=new_state["result"], now=now)
     return room
 
 
@@ -1007,24 +1040,34 @@ def reveal_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Ga
 
 
 def _reveal_quiz(db: Session, room: GameRoom, actor_id, *, now: datetime) -> GameRoom:
+    """GM-10: 채점(state.scores 갱신)을 `room.state_json` 직접 대입으로 하면 동시 폴링 두 건이
+    같은 라운드를 각자 채점해, 나중에 커밋한 쪽이 먼저 커밋한 채점을 그대로 덮어써 유실한다
+    (`submit_quiz_answer`가 겪던 것과 같은 '동시 쓰기 유실' — `_cas_update_state` docstring
+    참고). "이미 공개된 문제입니다" 오류는 그대로 유지한다 — mutate 안에서 그 조건에 여전히
+    raise하므로, 방장이 직접 두 번 누른 경우(사양대로 오류를 봐야 한다)와 폴링이 우연히
+    겹친 경우(호출부 `maybe_autoresolve`가 그 오류를 조용히 삼킨다)를 구분한다."""
     if room.game_type != GAME_QUIZ or room.status != ROOM_PLAYING:
         raise ConflictError("공개할 퀴즈가 없습니다.")
-    state = json.loads(room.state_json or "{}")
-    if state.get("phase") != QUIZ_ANSWERING:
-        raise ConflictError("이미 공개된 문제입니다.")
-    questions = state.get("questions", [])
-    rnd = int(state.get("round", 0))
-    correct = int(questions[rnd].get("answer", 0)) if 0 <= rnd < len(questions) else 0
-    answers = state.get("answers", {})
-    scores = dict(state.get("scores", {}))
-    for uid, ans in answers.items():
-        if isinstance(ans, int) and ans == correct:
-            scores[uid] = int(scores.get(uid, 0)) + 1  # 서버가 채점(§13.1)
-    state["scores"] = scores
-    state["phase"] = QUIZ_REVEALED
-    room.state_json = json.dumps(state, ensure_ascii=False)
-    db.flush()
-    _append_event(db, room, EV_SYSTEM, actor_id=actor_id, payload={"quiz": "revealed", "round": rnd}, now=now)
+
+    def _apply(state: dict) -> dict:
+        if state.get("phase") != QUIZ_ANSWERING:
+            raise ConflictError("이미 공개된 문제입니다.")
+        questions = state.get("questions", [])
+        rnd = int(state.get("round", 0))
+        correct = int(questions[rnd].get("answer", 0)) if 0 <= rnd < len(questions) else 0
+        answers = state.get("answers", {})
+        scores = dict(state.get("scores", {}))
+        for uid, ans in answers.items():
+            if isinstance(ans, int) and ans == correct:
+                scores[uid] = int(scores.get(uid, 0)) + 1  # 서버가 채점(§13.1)
+        state = dict(state)
+        state["scores"] = scores
+        state["phase"] = QUIZ_REVEALED
+        return state
+
+    new_state = _cas_update_state(db, room, _apply)
+    _append_event(db, room, EV_SYSTEM, actor_id=actor_id,
+                  payload={"quiz": "revealed", "round": new_state.get("round", 0)}, now=now)
     return room
 
 

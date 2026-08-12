@@ -330,6 +330,86 @@ def test_cleanup_closes_idle_rooms(db, make_user):
     assert raw.status == ROOM_FINISHED
 
 
+def test_tournament_seeding_excludes_stale_ghost(db, make_user):
+    """GM-11: 가위바위보 토너먼트 시딩(_open_rps_tournament)이 나머지 6개 서버 확정 경로와
+    같은 기준(_present_players — 활성 + 최근 폴링 90초 + 비관전)을 쓰는지 확인한다. 예전
+    시딩 조건(m.active and role != spectator)은 탭만 닫고 '나가기'는 안 누른 사람을 걸러내지
+    못했다 — 이 저장소에서 active는 어디서도 False가 되지 않아, row가 남아 있으면(last_seen
+    만 오래됐어도) 그 조건은 사실상 항상 참이었다."""
+    import json as _json
+    from datetime import datetime, timedelta
+
+    from app.games import service
+    from app.games.models import GAME_RPS
+
+    host = make_user(email="seed-h@goodmit.co.kr", display_name="호스트")
+    fresh = make_user(email="seed-f@goodmit.co.kr", display_name="참여자")
+    ghost = make_user(email="seed-g@goodmit.co.kr", display_name="유령")
+    t0 = datetime(2026, 7, 29, 2, 0, 0)
+    room = service.create_room(db, host=host, title="토너", game_type=GAME_RPS,
+                               max_players=8, allow_spectators=True, config={"mode": "tournament"}, now=t0)
+    db.flush()
+    service.join_room(db, room, fresh, spectate=False, now=t0)
+    ghost_member = service.join_room(db, room, ghost, spectate=False, now=t0)
+    # 유령은 90초보다 훨씬 오래 조용하다 — 탭을 닫았을 뿐 '나가기'는 안 눌러 row는 남아 있다.
+    ghost_member.last_seen = t0 - timedelta(seconds=200)
+    db.flush()
+
+    result = service.start_game(db, room, host, now=t0)
+    state = _json.loads(result.state_json)
+    entrants = {p for m in state["matches"] for p in (m.get("a"), m.get("b")) if p}
+    assert ghost.id not in entrants, f"last_seen이 오래된 유령이 시딩에 들어갔다(GM-11): {state['matches']}"
+    assert host.id in entrants and fresh.id in entrants
+
+
+def test_tournament_force_finish_excludes_stale_ghost(db, make_user, monkeypatch):
+    """GM-11: 강제 마감(_tournament_advance force=True)의 present 판정도 시딩과 같은 기준
+    (_present_players)을 쓰는지 확인한다. 상대가 '나가기'는 안 눌러 row는 남아 있지만
+    last_seen이 오래된 유령이면, 예전 기준(get_member(...) is not None — row 존재 여부만)
+    으로는 "있다"로 잡혀(row가 지워지지 않았으니) 둘 다 '있다'가 되고 무작위 코인플립으로
+    떨어졌다 — 실제로 남아 있는 쪽이 곧바로, 결정적으로 이겨야 한다.
+
+    난수를 고정한다: 코인플립(rng.choice)이 실제로 걸리면 일부러 유령이 이기게(seq[-1])
+    만들어, 예전 코드로 되돌렸을 때 이 검증이 우연히 통과하지 않고 반드시 실패하게 한다
+    (patch 없이는 예전 코드도 반반 확률로 우연히 host가 이겨 회귀가 새는 것을 놓칠 수 있다)."""
+    from datetime import datetime, timedelta
+
+    from app.games import service
+
+    class _AlwaysLast:
+        def randint(self, a, b):
+            return a
+
+        def choice(self, seq):
+            return seq[-1]
+
+    monkeypatch.setattr(service.secrets, "SystemRandom", lambda: _AlwaysLast())
+
+    host = make_user(email="fadv-h@goodmit.co.kr", display_name="호스트")
+    ghost = make_user(email="fadv-g@goodmit.co.kr", display_name="유령")
+    t0 = datetime(2026, 7, 29, 2, 0, 0)
+    room = service.create_room(db, host=host, title="토너", game_type="rps",
+                               max_players=8, allow_spectators=True, config={"mode": "tournament"}, now=t0)
+    db.flush()
+    ghost_member = service.join_room(db, room, ghost, spectate=False, now=t0)
+    # 유령이 됨(row는 남아 있지만 조용히 사라진 지 오래) — 아무도 대전을 안 냈다.
+    ghost_member.last_seen = t0 - timedelta(seconds=200)
+    db.flush()
+    # 대진은 손으로 짜서(호스트=a, 유령=b) 시딩 셔플의 비결정성과 무관하게 강제 마감
+    # 로직만 정확히 겨냥한다.
+    match_state = {
+        "mode": "tournament", "round_idx": 0, "champion": None, "rounds": [],
+        "matches": [{"a": host.id, "b": ghost.id, "a_name": "호스트", "b_name": "유령",
+                     "a_choice": None, "b_choice": None, "winner": None, "done": False,
+                     "bye": False, "replayed": 0}],
+    }
+
+    new_state = service._tournament_advance(db, room, match_state, now=t0, force=True)
+    assert new_state["result"]["champion"]["user_id"] == host.id, (
+        f"떠난 지 오래된 유령이 코인플립 대상이 됐다(GM-11): {new_state}"
+    )
+
+
 def test_host_disband_removes_room(app, client, login_as, make_user):
     """방장이 방을 파하면 방이 목록·조회에서 사라지고, 다른 참여자는 404를 받는다. 방장만 가능."""
     csrf = login_as("user", email="disbh@goodmit.co.kr")
@@ -774,6 +854,56 @@ def test_concurrent_tournament_submits_do_not_clobber_each_other(app, client, lo
         1 for m in after_matches for k in ("a_choice", "b_choice") if m.get(k) is not None
     )
     assert submitted == 2, f"두 대진 중 하나의 제출이 유실됐다(lost update): {after_matches}"
+
+
+def test_concurrent_autoresolve_does_not_recompute_a_different_winner(app, client, login_as, make_user):
+    """GM-10: 마감이 지난 방에 폴링(room_state) 두 요청이 거의 동시에 도착하면(각자 독립된 DB
+    세션이 '아직 result 없음'인 같은 state를 읽는다), 예전 코드는 방어 없이(read-then-write
+    가드 하나뿐) 둘 다 결과를 계산해 무조건 덮어썼다 — 나중에 커밋되는 쪽이 그 사이 바뀐
+    입력(예: 다른 참여자가 나감)으로 다시 계산하면, 이미 첫 번째 요청이 계산해 응답으로
+    돌려준 값과 실제로 저장되는 값이 달라진다(클라이언트마다 다른 승자).
+
+    호스트·참여자2가 같은 숫자(3)를 내 무승부(유일 숫자 없음)로 확정돼야 하는 상황을 만든다.
+    첫 세션이 그 무승부를 계산·커밋한 *뒤에* 참여자2가 방을 나가면, 예전 코드로 두 번째
+    세션이 다시 계산할 경우 참여자2가 사라져 호스트의 3이 유일해져 "호스트 승리"로 뒤집힌다
+    — 무승부라는 이미 확정된 사실이 나중 요청 때문에 조용히 바뀌면 안 된다."""
+    from datetime import timedelta
+
+    from app.games import service as game_service
+    from app.games.models import GameRoom
+
+    csrf = login_as("user", email="racenum-h@goodmit.co.kr")
+    rid = _create(client, csrf, title="숫자경합", game_type="number",
+                  config={"min": 1, "max": 9, "timer_seconds": 1})["id"]
+    make_user("racenum-p2@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "racenum-p2@goodmit.co.kr")
+    c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": cs2})
+    client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf})
+    # 둘 다 3을 낸다 — 유일 숫자가 없어 무승부로 확정돼야 한다.
+    client.post(f"/api/games/rooms/{rid}/pick", json={"value": 3}, headers={"X-CSRF-Token": csrf})
+    c2.post(f"/api/games/rooms/{rid}/pick", json={"value": 3}, headers={"X-CSRF-Token": cs2})
+
+    later = app.state.clock.now() + timedelta(seconds=5)  # 마감을 지난 시각
+    factory = app.state.session_factory
+    # 두 세션이 확정 전(아직 result 없음) state를 각자 읽는다 — 실제 동시 폴링 요청이 같은
+    # 옛 state를 읽는 상황을 그대로 재현한다.
+    sa, sb = factory(), factory()
+    room_a, room_b = sa.get(GameRoom, rid), sb.get(GameRoom, rid)
+    game_service.maybe_autoresolve(sa, room_a, now=later)
+    sa.commit()
+
+    # 첫 세션이 무승부를 커밋한 *뒤에* 참여자2가 나간다 — 두 번째 세션이 다시 계산하면
+    # (예전 코드) 입력이 달라져 있다.
+    c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": cs2})
+    c2.close()
+
+    game_service.maybe_autoresolve(sb, room_b, now=later)
+    sb.commit()
+
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]
+    assert st["result"]["winner"] is None, (
+        f"이미 확정된 무승부가 나중 요청 때문에 뒤집혔다(유령우승): {st['result']}"
+    )
 
 
 def test_quiz_generate_flag_off_and_csrf(client, login_as):
