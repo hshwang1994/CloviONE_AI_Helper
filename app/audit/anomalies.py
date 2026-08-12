@@ -208,7 +208,14 @@ def detect(
                     "new_actor_action", SEVERITY_LOW, actor_id,
                     "이 계정이 처음 하는 동작입니다",
                     "최근 30일 동안 이 계정이 한 적 없던 설정, 권한 관련 동작입니다.",
-                    count=len(sensitive_fresh), threshold=1,
+                    # UA-27: sensitive_fresh는 **동작 종류**(집합, 중복 제거)라 count에 그 길이를
+                    # 쓰면 실제 발생 건수가 아니라 종류 수가 된다 — 같은 새 동작을 5번 해도
+                    # 화면의 "건수" 열엔 1이 뜬다. 형제 소견 4종은 전부 원시 이벤트 목록의
+                    # 길이를 쓰므로(failures/entries/night/critical), 여기만 다른 축을 쓰면
+                    # 같은 "건수" 열이 소견 종류마다 다른 것을 센다 — 실제 이벤트 목록인
+                    # matching으로 맞춘다(evidence는 여전히 "어떤 새 동작들이었는가"를 보여줘야
+                    # 하므로 종류 목록 그대로 둔다).
+                    count=len(matching), threshold=1,
                     evidence=sensitive_fresh,
                     first_at=matching[0].created_at if matching else None,
                     last_at=matching[-1].created_at if matching else None,
