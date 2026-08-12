@@ -215,9 +215,14 @@ export const AUTOMATION_SCREENS = {
     key: "documents", area: "자동화", title: "문서 자동 생성", endpoint: "/api/admin/documents",
     help: "Notion 문서를 자동으로 만듭니다. ‘+ 문서 생성’으로 워크플로와 기간을 지정하면 생성 결과가 아래 기록에 남고, ‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다.",
     emptyTitle: "생성된 문서가 없습니다",
-    // 읽기 전용 역할(operator/auditor)에는 없는 버튼('+ 문서 생성')을 누르라고 안내하지 않는다.
+    // WF1 R5 — 쓰기 역할(admin/system_admin)에게는 emptyHelp가 위 help 배너 및 아래
+    // emptySteps[0]와 거의 같은 문장("'+ 문서 생성'으로 워크플로와 기간을 지정하면...")을
+    // 세 번째로 또 반복했다(DataScreen.jsx가 canOnboard일 때만 situation/prerequisite/
+    // steps/expected를 함께 보여준다 — 그 구조가 이미 "무엇을 할지"를 충분히 말한다).
+    // 읽기 전용 역할(operator/auditor)에는 그 4단 구조 자체가 안 보이므로(canOnboard=false)
+    // emptyHelp가 유일한 안내다 — 그쪽만 남긴다.
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "‘+ 문서 생성’으로 워크플로와 기간을 지정하면 Notion 문서를 자동으로 만들고 그 기록이 여기에 남습니다."
+      ? null
       : "문서 생성 권한이 있는 관리자가 생성하면 여기에 기록이 남습니다.",
     // 연동/러너 화면처럼 단계별 온보딩 안내를 준다(canOnboard가 primary 헤더 작업 '+ 문서 생성'을 근거로
     // 쓰기 역할에만 보여준다). 문서 자동화가 설정에서 꺼져 있으면 '+ 문서 생성'이 409로 실패하므로

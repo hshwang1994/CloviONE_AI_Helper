@@ -132,6 +132,21 @@ describe("권한과 빈 상태", () => {
     // 요약 카드도 표도 그리지 않는다(0만 늘어놓는 카드 줄은 정보가 아니다).
     expect(screen.queryByText("보관 중")).toBeNull();
   });
+
+  /* WF1 R5 — 빈 상태 안내가 바로 위 상시 안내문("삭제한 티켓과 문서를 7일 동안 보관합니다...")
+   * 과 거의 같은 문장을 또 말했다("삭제한 티켓과 문서가 7일 동안 여기 보관됩니다..."). 상시
+   * 안내문은 빈 상태여도 사라지지 않으므로(항상 렌더) 같은 사실을 두 번 읽게 됐다. */
+  it("빈 상태 안내가 바로 위 상시 안내문과 같은 사실(보관 일수)을 반복하지 않는다", async () => {
+    mockList([]);
+    renderTrash();
+    await screen.findByRole("heading", { name: "휴지통이 비어 있습니다" });
+    // 상시 안내문(보관 일수 포함)은 여전히 있다 — 빈 상태에서도 사라지지 않는다.
+    expect(screen.getByText(/삭제한 티켓과 문서를 7일 동안 보관합니다/)).toBeInTheDocument();
+    // 빈 상태 자체의 문구는 그 사실을 다시 말하지 않는다.
+    expect(screen.queryByText(/7일 동안 여기 보관됩니다/)).not.toBeInTheDocument();
+    // 그래도 되돌릴 수 있다는 재확인(이 화면의 핵심 안심 메시지)은 남아 있다.
+    expect(screen.getByText(/이 화면에서 되돌릴 수 있습니다/)).toBeInTheDocument();
+  });
 });
 
 describe("urgentCount", () => {

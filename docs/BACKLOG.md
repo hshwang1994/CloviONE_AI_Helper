@@ -2284,7 +2284,8 @@ High 1건이 사라진다. 실패가 **조용해서** 안 보였고, 이번 판�
 |---|---|---|
 | R3 | **같은 값을 화면마다 다르게 부르고, 같은 라벨이 다른 값을 가리킨다**(10) | 「결재/승인」이 한 화면에서만 갈림 · 「버전」이 화면마다 다른 필드(`VIS-145`) |
 | R4 | **화면이 약속한 것 ≠ 할 수 있는 것**(9, High 2) | `ai-quotas` 배너가 **존재하지 않는 목록**을 지목 · `offboarding` 이 없는 온보딩을 약속 · `integration-detail` 이 25일 전 값을 현재로 |
-| R5 | **0건·미설정·부분결과 상태 규칙 없음**(8) | `my-stats` 배너와 빈 상태가 **다른 원인**을 말함 |
+| R5 | **0건·미설정·부분결과 상태 규칙 없음**(8) | `my-stats` 배너와 빈 상태가 **다른 원인**을 말함(WF40 구현완료) |
+| ↳ 재검증(2026-08-13) | "중복 서술"로 지목된 4화면(`admin_documents`·`admin_ai-quotas`·`admin_approval-delegations`·`user_team-docs-trash`)을 현재 소스로 재확인 — **2건만 재현**(`ai-quotas`·`approval-delegations`의 `help`/`emptyHelp`는 이미 서로 다른 문장이라 결함 재현 안 됨, WF1 조사 이후 다른 변경으로 이미 갈라졌을 가능성). 재현된 2건 **구현완료**: `admin_documents`는 쓰기 역할에게 같은 "'+ 문서 생성'…" 문장이 상시 배너+`emptyHelp`+`emptySteps[0]` **세 번** 나왔다(`DataScreen.jsx`가 `canOnboard`일 때만 situation/prerequisite/steps/expected를 함께 보여준다는 것을 처음 확인 — 그 4단 구조가 이미 "무엇을 할지"를 다 말하므로 `emptyHelp`를 쓰기 역할에서만 `null`로 비움, 읽기 전용 역할은 그 4단 구조 자체가 안 보여 `emptyHelp`가 유일한 안내라 그대로 둠). `user_team-docs-trash`(`Trash.jsx`)는 상시 안내문과 빈 상태가 "N일 동안 보관" 사실을 반복해 그 문장만 빈 상태에서 뺐다. 새 시험 4건(`registry-documents-empty-help.test.js` 신규, `trash.test.jsx`에 추가), revert-to-verify 확인 |
 | R6 | **넓은 뷰포트의 폭 예산 없음**(13) | 3행 표에서 이름과 배지 사이 **246px 공백**(픽셀 스캔 실측) — `HOST-01`·`RESP-02` 와 같은 뿌리 |
 | R7 | **버튼 variant → 의미 매핑이 임의**(6) | `VIS-132`(티켓 상세에서 「원본 열기」·「삭제」가 가장 큼)와 같은 부류 |
 

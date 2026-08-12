@@ -4310,18 +4310,85 @@ BoardPost/Chat도 각각 "문서"/"자유게시판"/"AI 도우미"로 전부
 전면 재작성, `VIS-133` 행도 부분 구현완료로 갱신(위 탭 제목 공백
 명시).
 
-이 배치(`SEM-03` 4화면) 커밋 예정. **다음 후보**: 방금 발견한
-브라우저 탭 제목 동적화(4화면 공통, `brandOverride` 패턴 재사용
-— 작지만 SEM-03과 바로 이어지는 자연스러운 다음 단위). `admin_
-policies`의 purpose 컬럼 부재(DB 마이그레이션 필요), `user_team-
-doc-detail`의 본문 URL 미링크화(원래 목적이던 항목, h1 중복은
-이번에 해소됨). R2(문자열 경계) 나머지 — DB/시드 값 정정 또는
-스키마 작업 필요해 "순수 프런트" 기준을 벗어남, 개별 재검증
-필요. R3(용어 사전)·R6(폭 예산)·R7(버튼 variant)은 WF1 스스로
-"개별 화면 수정으로 접근하면 안 되는 제품 전반 디자인 결정"이라
-명시했으므로 이 세션에서 단독 착수하지 않는다. 그 외 `RN-15`·
-`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도
-후보 목록에 있다. **이번 재검증 자체가 남기는 교훈**: "구현완료"
-기록을 볼 때 grep 기반 검증은 다른 파일에 걸친 렌더 효과(공용
-컴포넌트가 만드는 DOM 등)를 놓칠 수 있다 — 의심되면 실제 렌더
-+ role 쿼리로 다시 확인한다.
+이 배치(`SEM-03` 4화면) 커밋 완료(`e784f9a`). **이번 재검증 자체가
+남기는 교훈**: "구현완료" 기록을 볼 때 grep 기반 검증은 다른
+파일에 걸친 렌더 효과(공용 컴포넌트가 만드는 DOM 등)를 놓칠 수
+있다 — 의심되면 실제 렌더 + role 쿼리로 다시 확인한다.
+
+WF1을 오래(여러 invocation) 단독 스레드로 팠기 때문에, 다음
+Root Cause를 고르기 전에 BACKLOG.md/QA_COVERAGE.md 전체를 다시
+훑는 Explore 재조사를 위임(WF1 안의 "다음 후보"만 보고 정하지
+않기 위해 — CLAUDE.md §0/§1 원칙). 결과 요약(우선순위순):
+
+1. **`SEC-20`(Critical, 자격증명 노출)** — 이미 "사용자 조치 필요"
+   로 정확히 기록돼 있음(회전은 사람만 가능) — 재확인만, 코드
+   조치 없음.
+2. **RBAC scope 격리 실서버 재검증(`UA-01`/`UA-02`)** — 재확인
+   결과 오해 소지 있는 상태였다: 코드 로직 자체는 `tests/security/
+   test_org_axis.py`의 **합성 two-org 세계로 이미 확실히 검증**
+   돼 있다("전혀 미검증"이 아니다). 남은 공백은 순수하게 **실제
+   배포된 TEST SERVER 검증**뿐이고, 그 서버가 조직 1개·부모-자식
+   부서 하나뿐이라(고립된 인구 집단 없음) 그 서버 데이터로는
+   증명 자체가 불가능 — 별도 조직/부서를 그 서버에 시드하고 실제
+   HTTP로 교차 확인해야 하는데, 이는 CLAUDE.md §9의 통합 배포·
+   E2E 단계에 속하는 작업이라 지금 단독으로 배포하지 않는다(작은
+   변경마다 배포 금지 원칙). **전체 수렴 후 통합 배포+Chrome
+   E2E 단계로 이월**.
+3. **WF1 `R5` 클러스터(8건 중 미해결분)** — 착수, 아래 참고.
+4. `admin_job-detail`의 DB에 남은 옛 오류 문자열(콜론→em대시) —
+   코드는 이미 콜론으로 고쳐져 있고 **특정 과거 job 행 하나에만**
+   남은 데이터 값이라 코드 수정으로 안 없어짐. 영향(과거 실패
+   작업 1건의 상세 열람)에 비해 DB 직접 수정의 위험이 커서 이번엔
+   보류 — 새 job 실행부터는 이미 정상.
+5. QA_COVERAGE §11 `L`축(화면 간 캐시 무효화 전수 매트릭스) —
+   큰 구조적 공백, 다음 후보로 남김.
+6-9. 대시보드 정보 위계(`VIS-24`/`25`), 밀집 표 2개(스프린트·
+   감사 로그) 무한 스크롤(`VIS-64`/`58`), role 배지 색상 오배치
+   (`VIS-39`) — 전부 High지만 R6(폭 예산)류 제품 전반 디자인
+   결정과 겹쳐 이번 세션의 "개별 화면 수정으로 안 건드림" 경계에
+   걸림, 개별 재검토 필요.
+
+**WF43(같은 invocation 계속) — WF1 `R5` 클러스터 재검증 + 구현
+완료.** "중복 서술"로 지목된 4화면(`admin_documents`·`admin_
+ai-quotas`·`admin_approval-delegations`·`user_team-docs-trash`)을
+현재 소스로 재확인한 결과 **2건만 재현됐다** — `ai-quotas`와
+`approval-delegations`의 `help`/`emptyHelp`는 이미 서로 다른
+문장이라(WF1 조사 이후 다른 변경으로 갈라졌을 가능성) 결함이
+재현되지 않아 손대지 않았다.
+
+- **`admin_documents`**: 쓰기 역할(admin/system_admin)에게 같은
+  "'+ 문서 생성'으로 워크플로와 기간을 지정하면..." 문장이 상시
+  배너(`help`)+`emptyHelp`+`emptySteps[0]` **세 번** 나왔다. 조사
+  중 `DataScreen.jsx`가 `canOnboard`(대략 "이 사람이 실제로 만들기
+  버튼을 쓸 수 있는가")일 때만 situation/prerequisite/steps/
+  expected 4단 구조를 함께 보여준다는 것을 처음 확인 — 그 구조
+  자체가 이미 "무엇을 할지"를 충분히 말하므로, 쓰기 역할에서는
+  `emptyHelp`를 `null`로 비웠다(정보 손실 없음, steps[0]가 이미
+  같은 안내를 한다). 읽기 전용 역할(operator/auditor)은 `canOnboard`
+  가 거짓이라 그 4단 구조 자체가 안 보이므로 `emptyHelp`가
+  **유일한** 안내다 — 그쪽은 그대로 뒀다.
+- **`user_team-docs-trash`(`Trash.jsx`)**: 상시 안내문("N일 동안
+  보관합니다...")과 빈 상태가 같은 "N일 동안" 사실을 반복했다 —
+  빈 상태 쪽에서 그 절만 빼고 "실수로 지웠다면 되돌릴 수 있다"는
+  재확인만 남겼다.
+
+**시험**: `registry-documents-empty-help.test.js`(신규 3건 —
+쓰기/읽기 역할 분기, 정보가 다른 자리에 남아 있는지 확인),
+`trash.test.jsx`에 1건 추가. revert-to-verify: 둘 다 되돌려 정확한
+이유로 실패 확인(옛 문장 그대로 반환, 옛 반복 문장이 여전히 DOM에
+있음) 후 복원. 관련 회귀(`registry-documents-empty-help`·`trash`·
+`documents-retry-endpoint`·`admin-uiux`·`approvals-cross-
+invalidation`·`data-screen-ref-list-options`·`registry-identifiers`·
+`registry-row-name`, 58건) green. 재빌드 완료, `bash scripts/
+static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 R5 요약 행에 재검증 결과(2/4만 재현, 재현분
+구현완료) 추가.
+
+이 배치(WF1 `R5` 2건) 커밋 예정. **다음 후보**: QA_COVERAGE §11
+`L`축(캐시 무효화 매트릭스, 큰 구조적 공백) 또는 대시보드 정보
+위계(`VIS-24`/`25`) 중 하나 착수. RBAC scope 실서버 검증은 통합
+배포 단계로 이월 확정. 그 외 `RN-15`·`RN-17` 잔여 노출·`RN-18~20`·
+`VIS-80`·남은 `RESP-04`/`VIS-122`·`admin_policies` purpose 컬럼
+(스키마 필요)·`user_team-doc-detail` URL 미링크화도 후보 목록에
+있다.
