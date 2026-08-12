@@ -44,6 +44,16 @@ KIND_DOCUMENT_GENERATE = "document_generate"
 # AI 도우미 채팅 — **가장 큰 비용 축인데 상한 밖에 있었다**(X11).
 KIND_CHAT_MESSAGE = "chat_message"
 
+# `pending()`이 "아직 record_call이 안 불렸지만 이미 큐에 들어간" 것으로 셀 잡 유형(UB-09).
+# `ai_quotas.reserve()`(확인→큐 적재를 한 덩어리로 묶는 예약형 경로 — consume()과 달리
+# 기록을 워커가 나중에 한다)를 쓰는 잡 유형만 여기 속한다. 새 AI 잡 유형이 reserve()로
+# 전환되면 이 집합에도 추가해야 한다 — 안 하면 pending()이 그 잡의 예약을 조용히 놓친다.
+# `tests/regression/test_pending_job_types_cover_every_record_call_handler.py`가
+# `record_call`을 부르는 잡 핸들러 전부가 이 집합에 있는지 상시 대조한다.
+from app.jobs.models import JOB_TYPE_CHAT_MESSAGE  # noqa: E402 — 상수 재수출 목적, 순환 없음
+
+PENDING_JOB_TYPES = frozenset({JOB_TYPE_CHAT_MESSAGE})
+
 
 def validate(scope_type: str, period: str, max_calls: int) -> None:
     if scope_type not in ALL_SCOPES:
@@ -90,6 +100,36 @@ def used(db: Session, *, user_id: str, period: str, now: datetime) -> int:
     )
 
 
+def used_batch(db: Session, *, pairs: set[tuple[str, str]], now: datetime) -> dict[tuple[str, str], int]:
+    """여러 (user_id, period) 쌍의 `used()`를 한 번에 (UB-10).
+
+    `list_quotas`는 사용자 전용 쿼터 행마다 `used()`를 따로 불러 N+1이었다 — 행 수만큼
+    질의가 늘었다. 기간은 `ALL_PERIODS`(하루/한 달) 둘뿐이므로, 기간별로 묶어 **최대
+    2개** 질의로 전부 답한다. 값이 없는 (user_id, period) 조합은 0이다 — 호출부가
+    `.get((uid, period), 0)`로 읽는다.
+    """
+    if not pairs:
+        return {}
+    by_period: dict[str, set[str]] = {}
+    for user_id, period in pairs:
+        by_period.setdefault(period, set()).add(user_id)
+    out: dict[tuple[str, str], int] = {}
+    for period, user_ids in by_period.items():
+        rows = db.execute(
+            select(UsageEvent.user_id, func.count())
+            .select_from(UsageEvent)
+            .where(
+                UsageEvent.event == EVENT_AI_CALL,
+                UsageEvent.user_id.in_(user_ids),
+                UsageEvent.created_at >= period_start(period, now),
+            )
+            .group_by(UsageEvent.user_id)
+        ).all()
+        for user_id, count in rows:
+            out[(user_id, period)] = int(count)
+    return out
+
+
 def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
     """아직 세어지지 않았지만 **이미 쓰기로 확정된** AI 호출 수 (Z15).
 
@@ -115,15 +155,27 @@ def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
 
     `status()` 의 `used` 는 **실제로 쓴 수**여야 한다. 예약은 몇 초 뒤 사라지는 값이라
     거기 섞으면 새로고침할 때마다 숫자가 오르내린다. 상한 판정만 이 값을 함께 본다.
+
+    ## 왜 `job_type` 이 하드코딩 하나가 아니라 집합인가 (UB-09)
+
+    이 함수는 "`record_call`을 나중에 부르는 잡 유형 전부"를 세어야 하는데, 예전엔
+    `chat_message` 하나만 봤다. **오늘은 맞다** — `record_call`을 부르는 잡 핸들러는
+    `app/jobs/handlers/chat_message.py` 뿐이다(`tests/regression/
+    test_pending_job_types_cover_every_record_call_handler.py`가 이 사실 자체를
+    상시 검증한다). 하지만 하드코딩 하나로는 다음 AI 잡 유형이 같은 예약→기록 패턴
+    (`ai_quotas.reserve`)을 새로 쓰기 시작해도 이 함수가 **조용히** 그걸 놓친다 —
+    증상은 "청구서가 예상보다 크다"로 몇 달 뒤에야 드러난다(모듈이 스스로 적어 둔
+    경고). `PENDING_JOB_TYPES`를 한 곳에 모아 두면 새 잡 유형을 추가하는 사람이
+    적어도 검색으로 이 자리를 찾을 수 있고, 위 완결성 시험이 추가를 깜빡한 경우를 잡는다.
     """
-    from app.jobs.models import JOB_TYPE_CHAT_MESSAGE, STATUS_QUEUED, STATUS_RUNNING, Job
+    from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
 
     return int(
         db.execute(
             select(func.count())
             .select_from(Job)
             .where(
-                Job.job_type == JOB_TYPE_CHAT_MESSAGE,
+                Job.job_type.in_(PENDING_JOB_TYPES),
                 Job.user_id == user_id,
                 Job.status.in_((STATUS_QUEUED, STATUS_RUNNING)),
                 Job.created_at >= period_start(period, now),
