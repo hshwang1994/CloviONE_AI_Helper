@@ -12,11 +12,14 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — 11건 구현완료
-(AI-60/AI-61·ADM-03R·SRCH-01·RSTR-03·SCHD-01·USE-02·UA-20R·ADM-06R·NOTI-03 확대 6건) +
-문서 정정 2건(BACKLOG 자기모순 4건, DOC-01 CSP 서술). 상세는 바로 아래. 백엔드 전체 회귀
-진행 중(§WF8 끝 참고). 그 앞 WF7-U축·K축·L01, PROJ-01·QAH-06, RG-05·UB-25,
-APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
+**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — 12건 구현완료
+(AI-60/AI-61·ADM-03R·SRCH-01·RSTR-03·SCHD-01·USE-02·UA-20R·ADM-06R·NOTI-03 확대 6건·
+ADM-05) + 문서 정정 2건(BACKLOG 자기모순 4건, DOC-01 CSP 서술) + 정적 검사 회귀 수정 2건.
+**배치 마무리 전체 검증 green**: 백엔드 전체 회귀 2회(각각 2791+건, exit 0) · 프런트 전체
+회귀(220파일/1494건, exit 0) · 러너 전체(288건, exit 0) · `STATIC_CHECKS_OK` · 프런트
+번들 재빌드 반영. 상세는 바로 아래. 배포는 Blocker 대기(TEST SERVER 자격증명이 이
+세션에 없음 — 사용자 직접 배포 또는 승인된 접근 필요). 그 앞 WF7-U축·K축·L01,
+PROJ-01·QAH-06, RG-05·UB-25, APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
 
 **새 세션 시작(2026-08-11) — 상태 복원 + Runner Supervisor 재확인.** 이전 대화 기억 없이
 CLAUDE.md·WORK_STATE·BACKLOG·QA_COVERAGE·DECISIONS·Git을 교차 대조해 복원했다.
@@ -122,15 +125,40 @@ CSP를 예전 `script-src 'self'` 정책으로 서술하고 있었다(2026-08-04
 방어·유지하는 방어를 정직하게 적었다. 기존 `tests/regression/test_csp_policy.py`로 서술이
 실제 응답과 일치함을 재확인.
 
-**검증(WF8 전체)**: 매 항목 focused test + revert-to-verify 확인함(예외 없이 전부). 개별
-합계로 최소 러너 288건 + 백엔드 focused 400건대 + 프런트 focused 100여 건 green. **배치가
-10건을 넘어 커져 백엔드 전체 회귀 1회를 조기 실행 중**(UA-20R/ADM-06R/NOTI-03 이후
-착수, 진행 중 — 완료되는 대로 실패가 있으면 Root Cause grouping 후 일괄 수정, 없으면
-프런트 전체 회귀도 이어서 실행). 커밋은 항목마다 개별(구현 1 + docs 1 페어) — 총 22커밋.
+**WF8-12 — `ADM-05`(Med) 구현완료, `ADM-03R`이 미룬 나머지 절반.** 잠금 정책
+(`login_max_failures`/`login_lock_seconds`)이 env 전용이라 화면에서 볼 수도 바꿀 수도
+없었다. `app/core/sessions.py::SessionService`가 이미 쓰는 "env 기본값 + DB override"
+모양(`session_policy`와 같은 패턴)을 그대로 따라 `lockout_policy` 설정 신설 —
+`app/settings/registry.py`에 `SettingSpec`+검증기, `app/auth/router.py`에
+`_effective_lockout_policy()` 리졸버(다음 로그인 시도부터 즉시 적용). 설정 화면에
+구조화 편집기(분 단위 잠금시간 + 실패 임계값, `session_policy`와 같은 UX) + 완화 시
+보안 경고. 신규 3건(설정값이 실제 로그인 잠금에 즉시 반영 + 미설정 시 env 폴백 + 범위
+검증) + revert-to-verify, 관련 49건 green.
+
+**정적 검사 회귀 2건 수정(코드 아님, 문구).** 배치 마무리 전 `bash scripts/static_checks.sh`를
+돌리자 `USER_TEXT_FAILED`(화면 문구 금지 문자 가운뎃점 ·) 2건이 잡혔다 — 하나는 이번 배치가
+새로 만든 것(`lockout_policy` 설명), 하나는 **이 세션과 무관한 기존 커밋(RG-07,
+`frontend/src/screens/registry/actions.js`)이 이미 갖고 있던 위반**인데 그 뒤로 정적 검사를
+안 돌려 아무도 못 잡았던 것 — 둘 다 다른 표현으로 정리. `BUNDLE_FRESH_OK`도 실패(프런트
+소스가 커밋된 번들보다 새로움, 이 배치의 프런트 변경 다수가 재빌드 전이었다) — `npm run
+build` + `check_bundle_fresh.py --write`로 해소.
+
+**검증(WF8 전체, 최종)**: 매 항목 focused test + revert-to-verify 확인함(예외 없이 전부).
+**배치 마무리 전체 검증**: 백엔드 전체 회귀 **2회**(1회차는 SRCH-01 직후 시작~UA-20R 이전
+스냅샷, 2회차는 배치 전체 최종 스냅샷 — 둘 다 2791+건 **exit 0, 실패 0건**) · 프런트 전체
+회귀(**220파일/1494건, exit 0**) · 러너 전체(**288건, exit 0**) · `bash
+scripts/static_checks.sh` → **`STATIC_CHECKS_OK`**(번들 신선도 포함) · `npm run build` 통과.
+커밋은 항목마다 개별(구현 1 + docs 1 페어 기본) — 이 배치 전체 **총 26커밋**.
+
+**배포 — Blocker(외부, 사용자 조치 필요).** 승인된 TEST SERVER(`10.100.64.X` 대역) 배포
+자격증명이 이 세션에 없다(CLAUDE.md §4 불변규칙: credential은 runtime에서만, 대화/문서에
+남기지 않는다 — 채팅으로 전달받는 것 자체가 이미 노출이라 받지 않는다). 실서버 배포·Chrome
+Whole-product E2E는 사용자가 직접 배포하거나 승인된 접근 경로가 마련된 뒤 가능하다. 이
+Blocker와 무관하게 다른 독립 작업(BACKLOG 나머지 항목·QA_COVERAGE 공백)은 계속 진행 가능.
 
 **다음 후보**: BACKLOG 나머지 `발견`/`정밀화` 재고 중 남은 High(QA-02 실브라우저 E2E 0회,
-USE-01 자동화 실행이력 0 — 이미 WF7-U축에서 상당 부분 처리됨, ADM-05 잠금 정책 설정 화면
-노출 — ADM-03R이 남긴 후속) + QA_COVERAGE L축(화면 간 반영) 전수 매트릭스 + 나머지
+USE-01 자동화 실행이력 0 — 이미 WF7-U축에서 상당 부분 처리됨) + QA_COVERAGE L축(화면 간 반영)
+전수 매트릭스 + 나머지
 Med/Low 항목 Root Cause 클러스터링(VIS-158R AI 응답 좁은화면 미노출은 라이브 확인 필요한
 디자인 판단이라 신중 검토, AI-31/AI-53/AI-05~29 등 AI 도우미 심화 아키텍처 항목은 여러
 사이클째 의도적 보류 — 스트리밍/중단/도구사용 등 전담 설계 필요).
