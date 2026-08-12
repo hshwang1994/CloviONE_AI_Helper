@@ -869,11 +869,20 @@ def transfer_owned_rooms(db: Session, *, target: User, successor: User | None = 
 
     moved = 0
     for mine in owned:
+        # UA-26: 로그인 못 하는 계정(비활성·보관)에게 넘기면 이 함수가 막으려는 바로 그
+        # 상태(아무도 관리 못 하는 방)가 새 방장 이름으로 다시 생긴다 — 예전엔 room_id/
+        # user_id만 보고 대상 계정 자체의 active/archived_at은 안 봐서, "가장 오래된
+        # 다른 멤버"가 진작 퇴사한 사람이면 그 사람에게 넘어갔다. User와 조인해 로그인
+        # 가능한 사람만 후보로 남긴다 — successor가 비활성이어도 같은 필터로 자동
+        # 제외되고(별도 검사 불필요) 그다음으로 오래된 활성 멤버로 넘어간다.
         candidates = db.execute(
             select(ChatRoomMember)
+            .join(User, User.id == ChatRoomMember.user_id)
             .where(
                 ChatRoomMember.room_id == mine.room_id,
                 ChatRoomMember.user_id != target.id,
+                User.active.is_(True),
+                User.archived_at.is_(None),
             )
             .order_by(ChatRoomMember.joined_at.asc(), ChatRoomMember.id.asc())
         ).scalars().all()

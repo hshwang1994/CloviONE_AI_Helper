@@ -122,6 +122,40 @@ def test_membership_is_kept_so_past_messages_still_have_a_sender(db, cast):
     assert _role_of(db, room, leaver) is not None, "퇴사자를 방에서 통째로 빼 버렸다"
 
 
+def test_an_inactive_oldest_member_is_skipped_for_the_next_active_one(db, cast, make_user):
+    """UA-26: 이 함수는 "로그인 못 하는 계정이 방장으로 남으면 아무도 관리 못 한다"는
+    바로 그 문제를 막으려고 있다 — 넘겨받는 사람 자체가 로그인 못 하면 같은 문제가
+    새 이름으로 재발한다. 가장 오래된 멤버가 이미 비활성이면 건너뛰고 그다음으로
+    오래된 활성 멤버에게 넘어가야 한다."""
+    leaver, successor, mate = cast
+    ghost = make_user("ob-ghost@goodmit.co.kr", role="user", display_name="퇴사한동료",
+                      active=False)
+    db.commit()
+    room = _room(db, name="유령방")
+    _member(db, room, leaver, role="owner")
+    _member(db, room, ghost, joined_at=datetime(2026, 1, 2))  # 가장 오래됐지만 비활성
+    _member(db, room, mate, joined_at=datetime(2026, 3, 1))   # 그다음으로 오래됨, 활성
+
+    assert _transfer(db, leaver, successor) == 1
+    assert _role_of(db, room, mate) == "owner", "활성 멤버를 두고 비활성 계정에 넘어갔다"
+    assert _role_of(db, room, ghost) != "owner", "비활성 계정이 방장이 됐다"
+
+
+def test_a_room_where_the_only_other_member_is_inactive_is_left_alone(db, cast, make_user):
+    """받을 사람이 전부 로그인 못 하면 "받을 사람이 아무도 없다"와 같은 결론이어야
+    한다 — 받을 사람 없이 방장을 비우면 되살릴 방법이 없다."""
+    leaver, successor, _mate = cast
+    ghost = make_user("ob-ghost2@goodmit.co.kr", role="user", display_name="퇴사한동료2",
+                      active=False)
+    db.commit()
+    room = _room(db, name="유령전용방")
+    _member(db, room, leaver, role="owner")
+    _member(db, room, ghost, joined_at=datetime(2026, 1, 2))
+
+    assert _transfer(db, leaver, successor) == 0
+    assert _role_of(db, room, leaver) == "owner", "받을 활성 계정이 없는데 방장을 비웠다"
+
+
 def test_dm_and_global_rooms_are_untouched(db, cast):
     """방장 개념이 뜻을 갖지 않는 방이다."""
     leaver, successor, mate = cast
