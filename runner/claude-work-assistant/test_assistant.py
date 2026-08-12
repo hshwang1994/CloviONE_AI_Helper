@@ -783,6 +783,29 @@ def test_timeout_after_vision_still_persists_the_already_done_vision_work(tmp_pa
     assert persisted["image_notes"][0]["ocr_text"] == "TypeError: x is null"
 
 
+def test_persist_context_truncates_history_instead_of_dropping_it_when_over_budget(tmp_path, monkeypatch):
+    """AI-15 재확인(2026-08-13): 문맥이 MAX_CONTEXT_CHARS(250,000자)를 넘으면
+    conversation_history를 통째로 지운다는 옛 기록과 달리, 지금은 먼저 최근 10턴만
+    남기는 완만한 절삭(1단계)이 먼저 돈다 — 통째로 비우는 것(2단계)은 절삭 뒤에도
+    여전히 넘칠 때만 쓰는 최후 수단이다. 그런데 이 1단계 동작 자체엔 시험이 하나도
+    없었다(실제로 동작하는지는 코드를 읽어야만 알 수 있었다) — 여기서 못박는다."""
+    monkeypatch.setattr(m, "STATE_DB_PATH", tmp_path / "state.sqlite3")
+    requester = {"email": "big@goodmit.co.kr", "name": "긴대화"}
+    # 각 턴 약 3,050자 × 100턴 ≈ 305,000자 > 250,000(1단계 절삭 유발). 절삭 뒤
+    # 최근 10턴 ≈ 30,500자로 다시 250,000자 밑이라 2단계(통째 삭제)까지는 안 간다.
+    big_turn = {"role": "user", "content": "x" * 3000}
+    context = {"conversation_history": [dict(big_turn, seq=i) for i in range(100)]}
+
+    saved, ok = m.persist_context_result(requester, "cv-big", context)
+
+    assert ok, "저장 자체가 실패했다"
+    assert saved["conversation_history"], "1단계 완만한 절삭이어야 하는데 통째로 사라졌다"
+    assert len(saved["conversation_history"]) == 10
+    assert saved["conversation_history"][-1]["seq"] == 99, "최신 턴이 남아야 한다(꼬리 보존)"
+    persisted = m.load_persisted_context(requester, "cv-big")
+    assert len(persisted["conversation_history"]) == 10
+
+
 def test_image_with_explicit_update_still_reaches_write_flow(tmp_path, monkeypatch):
     # "…으로 바꿔줘" + image must go to update_ticket (direct write), not claude_query.
     monkeypatch.setattr(m, "IMAGE_DIR", str(tmp_path))
