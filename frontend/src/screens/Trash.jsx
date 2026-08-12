@@ -11,6 +11,7 @@ import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { invalidateDocumentViews } from "./document-views.js";
 
 /* 휴지통 — 삭제한 티켓/문서를 보관기간 동안 잡아둔다. 복원하면 원래 목록으로 돌아가고, 보관기간이
  * 지나면 백그라운드가 노션 원본을 보관처리하고 여기서 사라진다. 지금 바로 영구 삭제도 가능(권한 필요).
@@ -49,15 +50,9 @@ export function Trash() {
     qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
     // 복원한 티켓은 홈·스프린트에도 다시 나타나야 한다 — 그 키 목록은 ticket-views.js 가 안다.
     invalidateTicketViews(qc, { refetchType: "all" });
-    qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
-    // FN-14 — ["team-docs"] 무효화는 목록만 다시 받는다. 문서 상세 캐시는 키가
-    // ["team-doc", notion_page_id]로 달라(TeamDoc.jsx) prefix가 안 겹쳐 안 씻긴다
-    // (TeamDocs.jsx의 bulkTrash가 이미 같은 이유로 이렇게 한다).
-    for (const it of changed) {
-      if (it.item_type === "document" && it.notion_page_id) {
-        qc.invalidateQueries({ queryKey: ["team-doc", it.notion_page_id], refetchType: "all" });
-      }
-    }
+    // 문서 쪽도 마찬가지 — document-views.js의 ["team-doc"] 접두어(id 없이)가 상세 캐시
+    // 전부를 한 번에 잡는다(예전엔 FN-14 수정 때 notion_page_id별로 손으로 순회했다).
+    invalidateDocumentViews(qc, { refetchType: "all" });
     sel.clear();
   };
   const bulkRestore = useMutation({
@@ -71,36 +66,29 @@ export function Trash() {
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 
-  // FN-14 — id가 아니라 행 전체(row)를 넘긴다. 목록 응답(_item_view, app/trash/router.py)이
-  // 이제 notion_page_id를 실어 주므로, 그 값을 mutate의 variables로 받아 onSuccess에서
-  // 문서 상세 캐시([ "team-doc", notion_page_id ])까지 무효화한다 — 단일 restore/purge
-  // 엔드포인트는 {"ok":true}만 돌려줘서(대칭 확장은 안 함) 응답이 아니라 행 데이터가 근거다.
+  // FN-14 — id가 아니라 행 전체(row)를 넘긴다(mutationFn이 row.id를 쓴다). onSuccess는 더는
+  // row 데이터가 필요 없다 — document-views.js의 ["team-doc"] 접두어(id 없이)가 상세 캐시
+  // 전부를 한 번에 잡는다(예전엔 notion_page_id별로 손으로 순회했다).
   const restore = useMutation({
     mutationFn: (row) => api("/api/trash/" + row.id + "/restore", { method: "POST" }),
-    onSuccess: (res, row) => {
+    onSuccess: () => {
       toast("복원했습니다. 원래 목록에서 다시 볼 수 있습니다.", "success");
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       invalidateTicketViews(qc, { refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
-      if (row.item_type === "document" && row.notion_page_id) {
-        qc.invalidateQueries({ queryKey: ["team-doc", row.notion_page_id], refetchType: "all" });
-      }
+      invalidateDocumentViews(qc, { refetchType: "all" });
     },
     onError: (e) => toast((e && e.message) || "복원하지 못했습니다.", "error"),
   });
   const purge = useMutation({
     mutationFn: (row) => api("/api/trash/" + row.id + "/purge", { method: "POST" }),
-    onSuccess: (res, row) => {
+    onSuccess: () => {
       toast("영구 삭제했습니다. 원본이 보관처리됐습니다.", "success");
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       // restore와 대칭을 맞춘다 — 예전엔 purge만 이 둘이 빠져 있어 티켓/문서 목록이 영구
       // 삭제 뒤에도 최대 staleTime 동안 그 항목을 계속 보여줄 수 있었다(FN-14와 같은 자리에서
       // 함께 고친다).
       invalidateTicketViews(qc, { refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
-      if (row.item_type === "document" && row.notion_page_id) {
-        qc.invalidateQueries({ queryKey: ["team-doc", row.notion_page_id], refetchType: "all" });
-      }
+      invalidateDocumentViews(qc, { refetchType: "all" });
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });

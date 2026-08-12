@@ -8,6 +8,10 @@
  * 티켓 쪽은 이 자리를 `ticket-views.js::invalidateTicketViews`의 `["ticket"]` 접두어로 이미
  * 잡아 놨다(Trash.jsx가 티켓을 복원/영구삭제할 때도 그 표를 통째로 부른다) — 문서 목록의
  * 선택 삭제만 자기 상세 캐시를 부르지 않고 있었다.
+ *
+ * 같은 조사(L축 재감사, 2026-08-12)에서 발견한 두 번째 구멍도 여기서 같이 잡는다: home의
+ * 「최근 문서」 위젯(Home.jsx `["home","today"]`)도 지운 문서가 사라져야 하는 화면인데
+ * `document-views.js`가 생기기 전에는 아무도 `["home"]`을 무효화하지 않았다.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -73,6 +77,27 @@ describe("문서 목록 선택 삭제 → 상세 캐시 무효화", () => {
 
     await waitFor(() => {
       expect(qc.getQueryState(["team-doc", "d1"]).isInvalidated, "문서 상세 캐시").toBe(true);
+    });
+  });
+
+  it("삭제한 문서가 home의 「최근 문서」 위젯 캐시까지 무효화한다", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // 홈 탭이 이미 값을 들고 있는 상태를 흉내낸다 — 캐시가 없으면 '무효화됐다'가 아무
+    // 뜻도 없다.
+    qc.setQueryData(["home", "today"], { recent: { documents: [{ id: "d1", title: "인프라 운영 계획" }], board: [] } });
+    expect(qc.getQueryState(["home", "today"]).isInvalidated).toBe(false);
+
+    renderScreen(qc);
+    await screen.findByText("인프라 운영 계획");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "인프라 운영 계획 선택" }));
+    fireEvent.click(await screen.findByRole("button", { name: /선택 삭제/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "1건 삭제" }));
+
+    await waitFor(() => {
+      expect(qc.getQueryState(["home", "today"]).isInvalidated, "home 「최근 문서」 위젯").toBe(true);
     });
   });
 });

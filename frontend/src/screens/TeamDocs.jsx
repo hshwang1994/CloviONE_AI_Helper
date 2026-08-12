@@ -25,6 +25,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
+import { invalidateDocumentViews } from "./document-views.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
@@ -301,15 +302,10 @@ export function TeamDocs() {
       const n = (res.trashed || []).length;
       const f = (res.failed || []).length;
       toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
-      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
-      // 방금 지운 문서의 상세 캐시(["team-doc", id])도 각각 무효화한다 — 목록만 갱신하면
-      // 그 문서의 상세를 먼저 열어 본 적이 있는 탭에서 뒤로가기·딥링크로 다시 열었을 때
-      // staleTime(30초) 동안 "이미 지운 문서가 아직 멀쩡하게" 뜬다(티켓은 invalidateTicketViews의
-      // ["ticket"] 접두어가 이미 이걸 잡는다 — 문서 목록만 빠져 있었다).
-      for (const it of res.trashed || []) {
-        qc.invalidateQueries({ queryKey: ["team-doc", it.id], refetchType: "all" });
-      }
+      // document-views.js의 ["team-doc"] 접두어(id 없이)가 방금 지운 문서 각각의 상세 캐시를
+      // 한 번에 잡는다 — 예전엔 이걸 몰라 매번 손으로 순회했다. home의 「최근 문서」 위젯도
+      // 같이 무효화한다(L축 재감사 — 문서를 지워도 홈 탭은 안 바뀌던 것과 같은 결함 부류).
+      invalidateDocumentViews(qc, { refetchType: "all" });
       sel.clear();
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
@@ -318,7 +314,7 @@ export function TeamDocs() {
   const sync = useMutation({
     mutationFn: () => api("/api/team-docs/sync", { method: "POST" }),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["team-docs"] });
+      invalidateDocumentViews(qc);
       qc.invalidateQueries({ queryKey: ["team-docs-filters"] });
       const st = res && res.sync;
       if (st && st.status === "error") toast("동기화 실패: " + (st.error || "Notion 연결 확인 필요"), "error");
@@ -527,7 +523,7 @@ export function TeamDocs() {
         options={filters.data}
         onCreated={(doc) => {
           setComposing(false);
-          qc.invalidateQueries({ queryKey: ["team-docs"] });
+          invalidateDocumentViews(qc);
           qc.invalidateQueries({ queryKey: ["team-docs-filters"] });
           if (doc && doc.id) nav("/team-docs/" + doc.id);
         }}

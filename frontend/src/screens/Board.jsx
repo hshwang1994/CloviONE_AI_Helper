@@ -180,6 +180,9 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
     onSuccess: ({ target, failed }) => {
       // 목록 캐시 무효화 — 없으면 30초 staleTime 안에 방금 만든/고친 글이 빠진 목록을 본다.
       qc.invalidateQueries({ queryKey: ["board"] });
+      // home의 「최근 글」 위젯(Home.jsx recent.board)도 같은 자료를 보여준다 — 문서판과
+      // 같은 결함 부류(L축 재감사, document-views.js 참고).
+      qc.invalidateQueries({ queryKey: ["home"] });
       if (failed && failed.length) {
         toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", "), "error");
       } else {

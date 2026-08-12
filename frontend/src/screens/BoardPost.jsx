@@ -396,12 +396,17 @@ export function BoardPost() {
   const pin = useMutation({
     mutationFn: (pinned) =>
       api("/api/board/posts/" + id + "/pin?pinned=" + (pinned ? "true" : "false"), { method: "POST" }),
-    onSuccess: () => { refetch(); qc.invalidateQueries({ queryKey: ["board"] }); },
+    onSuccess: () => { refetch(); qc.invalidateQueries({ queryKey: ["board"] }); qc.invalidateQueries({ queryKey: ["home"] }); },
     onError: (e) => toast((e && e.message) || "고정 상태를 바꾸지 못했습니다.", "error"),
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/posts/" + id, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["board"] }); toast("게시글을 삭제했습니다.", "success"); nav("/board"); },
+    onSuccess: () => {
+      // home의 「최근 글」 위젯도 함께 무효화 — 안 하면 지운 글이 홈 탭엔 그대로 남는다(L축 재감사).
+      qc.invalidateQueries({ queryKey: ["board"] });
+      qc.invalidateQueries({ queryKey: ["home"] });
+      toast("게시글을 삭제했습니다.", "success"); nav("/board");
+    },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
   });
 

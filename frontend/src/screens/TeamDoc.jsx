@@ -25,6 +25,7 @@ import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { EditableBody } from "../ui/EditableBody.jsx";
 import { DocComments } from "./DocComments.jsx";
+import { invalidateDocumentViews } from "./document-views.js";
 
 /* 팀 공간 > 문서 상세 (§17). 메타는 캐시에서, 본문 블록은 실시간(Notion). 본문을 못 불러와도
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
@@ -211,12 +212,11 @@ export function TeamDoc() {
     mutationFn: () => api("/api/team-docs/" + id + "/trash", { method: "POST" }),
     onSuccess: () => {
       toast("문서를 휴지통으로 옮겼습니다.", "success");
-      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
-      // 이 상세 자신의 캐시도 무효화한다 — 목록으로 이동은 하지만, 사용자가 브라우저
-      // 뒤로가기로 이 상세에 돌아오면 staleTime(30초) 동안 방금 지운 문서가 그대로
-      // 보였다(TeamDocs.jsx 선택 삭제와 같은 이유).
-      qc.invalidateQueries({ queryKey: ["team-doc", id], refetchType: "all" });
+      // ["team-doc"] 접두어가 이 상세 자신의 캐시(id 포함)도 함께 잡는다 — 목록으로 이동은
+      // 하지만, 사용자가 브라우저 뒤로가기로 이 상세에 돌아오면 staleTime(30초) 동안 방금
+      // 지운 문서가 그대로 보였다(TeamDocs.jsx 선택 삭제와 같은 이유). home의 「최근 문서」도
+      // 함께 무효화(L축 재감사).
+      invalidateDocumentViews(qc, { refetchType: "all" });
       nav("/team-docs");
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
@@ -235,7 +235,8 @@ export function TeamDoc() {
     mutationFn: (on) => api("/api/team-docs/" + id + "/restrict?on=" + (on ? "true" : "false"), { method: "POST" }),
     onSuccess: () => {
       detail.refetch();
-      qc.invalidateQueries({ queryKey: ["team-docs"] });
+      // 제한을 켜면 이 문서가 home의 「최근 문서」에서도 사라져야 한다(L축 재감사).
+      invalidateDocumentViews(qc);
     },
     onError: (e) => toast((e && e.message) || "열람 제한을 바꾸지 못했습니다.", "error"),
   });
