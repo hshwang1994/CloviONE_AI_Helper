@@ -463,6 +463,7 @@ def main() -> int:
         backup_schedule_config,
         check_backup_health,
         due_for_scheduled_backup,
+        reap_stuck_running,
         run_scheduled_backup,
     )
 
@@ -483,6 +484,12 @@ def main() -> int:
                 # RSTR-03: 백업이 실패하면 위 run_scheduled_backup이 이미 알린다 — 이 검사는
                 # "실패"가 아니라 "꺼져 있음"·"너무 오래 안 돎"을 잡는다(하루 최대 1회).
                 check_backup_health(db, config, now=now)
+                # UA-18: 예전엔 이 정리가 GET /api/admin/backups 를 열 때만 돌아서, 아무도
+                # 화면을 안 보면 죽은 채 'running'으로 멈춘 백업이 계속 남았다(그 GET 은
+                # require_csrf 가 안전 메서드로 통과시켜 CSRF 로부터도 무방비였다). 여기
+                # 10분 틱으로 옮겨 "사람이 봐야만 청소된다"를 없앤다 — 목록 화면은 더는
+                # 이 정리를 트리거하지 않고 순수 읽기가 된다(router.py 쪽 호출 제거).
+                reap_stuck_running(db, now=now)
                 db.commit()
         except Exception:
             logger.exception("backup schedule tick failed")

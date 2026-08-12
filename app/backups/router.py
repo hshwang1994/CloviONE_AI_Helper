@@ -20,7 +20,6 @@ from app.backups.service import (
     backup_schedule_config,
     backup_view,
     last_successful_backup,
-    reap_stuck_running,
     rehearsal_view,
     run_backup,
     verify_existing,
@@ -41,10 +40,10 @@ router = APIRouter(
 
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_backups(request: Request, db: Session = Depends(get_db)):
-    # 목록을 열 때마다 오래 running으로 멈춘 행을 정리한다 — 그래야 프로세스가 죽어
-    # 상태 확정 없이 멈춘 백업이 영원히 '실행 중'으로 보이며 아무 조작도 못 하게
-    # 남는 일이 없다(reap_stuck_running 참조).
-    reap_stuck_running(db, now=request.app.state.clock.now())
+    # UA-18: 오래 running으로 멈춘 행 정리는 이제 순수 읽기인 이 GET이 아니라
+    # worker_main.py의 10분 백업 틱이 한다 — "화면을 열 때만 청소되고 require_csrf가
+    # 안전 메서드로 통과시켜 CSRF에도 무방비"였던 write-in-GET을 없앴다(그 자리에
+    # 있던 reap_stuck_running(db, now=...) 호출 제거, 정리 자체는 그대로 계속 돈다).
     rows = (
         db.execute(select(Backup).order_by(Backup.created_at.desc()).limit(50))
         .scalars()
