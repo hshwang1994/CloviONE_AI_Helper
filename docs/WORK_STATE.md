@@ -12,12 +12,14 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF46(`invocation=3`) — 파일
-끝(WF35~46)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF46은 `CACHE-03`(Users/부서/직책/
-조직→티켓 담당자 후보, Low) 구현완료로 WF44 배경 조사의 캐시 무효화
-공백 3건(`CACHE-01`/`02`/`03`)이 전부 닫혔다 — 상세는 파일 끝. 그
-앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+
+**마지막 갱신**: 2026-08-13 · **단계**: WF47(`invocation=3`) — 파일
+끝(WF35~47)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF47은 러너 `RN-15`/`RN-17`~`RN-20`
+클러스터(비전 분석 유실·동명이인 개인정보 노출·Notion 원문 노출·
+죽은 코드/퀴즈 결함 4건·README 정정) 전부 구현완료 — 상세는 파일
+끝. 그 앞 WF46은 `CACHE-03`(Users/부서/직책/조직→티켓 담당자 후보,
+Low) 구현완료로 WF44 배경 조사의 캐시 무효화 공백 3건이 전부 닫혔다.
+그 앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+
 `CACHE-02`(Projects→Dashboard, Med) 구현완료. 그 앞 WF44는
 `admin_policies` purpose 컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
@@ -4532,8 +4534,73 @@ invalidation`·`registry/*`·`users-*`, 30건) + 프런트 전체 회귀
 
 `docs/BACKLOG.md`의 `CACHE-03` 행 구현완료(WF44 캐시 무효화 공백
 3건 전부 닫힘), `docs/QA_COVERAGE.md` §11 `L`축 요약·"남은 큰 공백"
-3번 항목 최종 갱신. 이 배치 커밋 예정. **다음 후보**: 대시보드 정보
-위계(`VIS-24`/`25`) 실브라우저 판단, 또는 `L`축 전수 매트릭스(표본을
-넘는 화면 쌍 전체 점검, 이제 유일하게 남은 큰 공백). 그 외 후보는
-위 WF43 단락과 동일(`RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
-`RESP-04`/`VIS-122`·`user_team-doc-detail` URL 미링크화).
+3번 항목 최종 갱신. 이 배치 커밋 완료(`945c4a3`).
+
+**WF47(같은 invocation 계속) — 러너 `assistant.py` RN 클러스터
+5건(`RN-15`·`RN-17`·`RN-18`·`RN-19`·`RN-20`) 구현완료.**
+
+착수 전 배경 Explore 에이전트로 6151줄짜리 `assistant.py`에서 다섯
+항목의 정확한 현재 위치·재현 여부를 먼저 지도화(오래된 감사의 줄
+번호는 이미 변한 상태라 신뢰하지 않음) — 다섯 다 재현됨을 코드로
+직접 확인.
+
+- **`RN-17`(보안, 최우선)**: `diagnose()`가 "진단"이라는 말 한 마디로
+  권한 게이트 없이 누구나 닿는데, 동명이인의 Notion id·이메일을
+  그대로 보여줬다(다른 사람의 개인정보). 이 파일 전체에 role/권한
+  개념이 원래 없어(`authorized()`는 n8n/플랫폼 공용 토큰만 봄) 새
+  권한 체계를 만드는 대신, 응답 자체에서 남의 정보를 뺐다 — 요청자
+  본인(`cur_id`와 일치)의 항목만 전체를 보여주고 나머지는 건수만.
+  Notion 스키마 내부(담당자 속성 타입)·서버 파일 경로 리터럴도 제거
+  (일반 사용자가 알아도 할 수 있는 게 없는 순수 내부 정보).
+- **`RN-18`**: `last_action.error`(n8n이 실제 Notion 쓰기 실패를
+  보고한 원문)를 채팅 응답에 그대로 넣던 것을, 이 파일의 다른 모든
+  실패 처리와 같은 원칙(원문은 서버 로그에만, 사용자에겐 고정된
+  안전한 문장)으로 맞췄다. n8n에게 가는 구조화 데이터의 원문은
+  그대로 둔다 — n8n 자신이 쓴 값이라 새로 드러나는 정보가 아니다.
+- **`RN-19`(4개 하위 결함, 1개는 재검증으로 정정)**: 죽은 함수
+  `resolve_statuses`(자기 docstring이 "callers 유지용"이라 주장했지만
+  실제로는 거짓)·`infer_project_keyword` 삭제. **`clear_persisted_
+  context`는 안 지웠다** — `docs/DECISIONS.md` D-15가 이 함수의
+  "호출 0회"를 대화 이력 소유권을 플랫폼으로 옮기는 아직 안 끝난
+  아키텍처 결정의 증거로 명시적으로 인용하고 있어, 오래된 감사의
+  "죽은 코드니 지워라"가 더 새롭고 권위 있는 기록과 충돌함을 확인—
+  손대지 않는 것 자체가 이번 검증의 성과. `_sanitize_quiz`가
+  하드코딩 `6` 대신 실제 `num_options`를 쓰게 배선. 퀴즈 504가
+  `TIMEOUT_SECONDS`(180) 대신 실제 예산 `QUIZ_TIMEOUT_SECONDS`(45)를
+  보고하게 수정. `generate_quiz()`가 `(questions, ai_ms, ok)` 3-튜플로
+  "CLI 실패"와 "성공했지만 문제 0개"를 구별 — 실패는 `/context/sync`
+  와 같은 원칙(HTTP 200, 본문 `ok:false`)으로 응답.
+- **`RN-20`**: `runner/README.md`가 `/context/sync`의 옛 동작("저장
+  실패해도 200 ok:true")을 그대로 서술 — 코드는 이미 고쳐져 있어
+  (기존 시험이 고정) 문서만 정정, `/healthz`도 엔드포인트 목록에 추가.
+- **`RN-15`(가장 복잡)**: CLI 타임아웃 자체를 재시도 대상으로 넓히지는
+  않았다 — deadline-aware 루프가 이미 남은 예산이 없으면 재시도 자체를
+  건너뛰므로 실익이 적고, 이 결함의 핵심과는 별개 판단이라 범위를
+  좁혔다. 대신 핵심 증상(비전 분석 유실)을 정확히 고쳤다: `process_
+  request()`가 이미지 분석 성공 뒤 `route_request()`의 CLI 호출이
+  타임아웃나면, 그 성공 결과(`new_context`, 이미지 중복 방지 키 포함)
+  가 함수 지역 변수인 채로 예외와 함께 사라져 do_POST가 저장할 것
+  자체를 몰랐다 — `try/except subprocess.TimeoutExpired`로 감싸 예외
+  전에 `persist_context_result()`로 먼저 저장하고, 예외는 그대로 다시
+  올려(`raise`) 기존 504 계약은 안 바꿨다.
+
+**시험**: 신규 8건(`test_diagnose_hides_other_same_named_persons_id_
+and_email`·`test_diagnose_does_not_leak_schema_internals_or_server_
+path`·`test_pending_action_status_hides_raw_notion_error_from_user`·
+`test_sanitize_quiz_respects_requested_num_options`·`test_quiz_
+endpoint_cli_failure_reports_ok_false_not_success`·`test_quiz_
+endpoint_timeout_reports_quiz_timeout_not_message_timeout`·`test_
+timeout_after_vision_still_persists_the_already_done_vision_work`,
+그리고 기존 quiz 테스트 3곳의 2-튜플→3-튜플 언패킹 갱신). 보안
+관련 2건(`RN-17`)·`RN-18`·`RN-15`는 revert-to-verify 전부 확인(각각
+되돌려 실패 재현 후 복원). 러너 전체 회귀 270건 green. 정적 검사
+(`bash scripts/static_checks.sh`) green.
+
+`docs/BACKLOG.md`의 `RN-15`·`RN-17`~`RN-20` 5개 행 구현완료로 갱신
+(RN-19는 `clear_persisted_context` 재검증 결과도 함께 기록). 이
+배치 커밋 예정. **다음 후보**: 대시보드 정보 위계(`VIS-24`/`25`)
+실브라우저 판단, `L`축 전수 매트릭스(표본을 넘는 화면 쌍 전체
+점검), `VIS-80`(어시스턴트 되묻기 반복 — 확정 근거 없이 열어 둔
+상태 재조사), `RESP-04`/`VIS-122`, `user_team-doc-detail` URL
+미링크화, R2 잔여(admin_integration-detail의 슬러그-제목·내부
+메모 설명 — 스키마 작업 필요).

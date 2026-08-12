@@ -748,6 +748,41 @@ def test_vision_not_rerun_for_same_message_id(tmp_path, monkeypatch):
     assert ctx is prior
 
 
+def test_timeout_after_vision_still_persists_the_already_done_vision_work(tmp_path, monkeypatch):
+    """RN-15 — 비전 분석은 성공(CLI 1차 호출)했는데 그 뒤 route_request가 부르는 CLI
+    (예: 대화형 질의)가 타임아웃나면, 이 함수의 새 context(image_notes — 이미지 중복
+    방지 키 포함)는 process_request 지역 변수에만 있다가 예외와 함께 통째로 사라졌다.
+    그러면 do_POST는 저장할 것 자체를 모르고, 클라이언트의 재시도(같은 message_id)는
+    이미 끝난 비전 분석·이미지 저장을 처음부터 다시 한다. 타임아웃 자체(504)는 그대로
+    올라가야 한다 — 여기서 확인하는 것은 "부분 진행이 먼저 저장되는가"뿐이다."""
+    monkeypatch.setattr(m, "IMAGE_DIR", str(tmp_path))
+    monkeypatch.setattr(m, "STATE_DB_PATH", tmp_path / "state.sqlite3")
+
+    requester = {"email": "a@goodmit.co.kr", "name": "황형섭"}
+    raised = False
+    # side_effect 리스트의 원소가 예외 "인스턴스"면 mock이 그 자리에서 직접 raise한다
+    # (함수를 넣으면 호출되지 않고 함수 객체 자체가 반환값이 돼 버린다 — 처음에 이 실수로
+    # completed.returncode가 AttributeError를 냈다).
+    with mock.patch.object(
+        m.subprocess, "run",
+        side_effect=[_vision_cli(), m.subprocess.TimeoutExpired(cmd="claude", timeout=60)],
+    ):
+        try:
+            m.process_request({
+                "message": "이 스크린샷 봐줘", "message_id": "mi-timeout", "conversation_id": "cv-timeout",
+                "requester": requester,
+                "projects": [], "tickets": [], "work_schema": {}, "context": {},
+                "attachments": [{"filename": "e.png", "media_type": "image/png", "data": PNG_1PX}],
+            })
+        except m.subprocess.TimeoutExpired:
+            raised = True
+    assert raised, "타임아웃은 삼켜지면 안 된다 — do_POST가 여전히 504로 응답해야 한다"
+
+    persisted = m.load_persisted_context(requester, "cv-timeout")
+    assert persisted.get("image_notes"), f"비전 분석 결과가 저장되지 않았다: {persisted}"
+    assert persisted["image_notes"][0]["ocr_text"] == "TypeError: x is null"
+
+
 def test_image_with_explicit_update_still_reaches_write_flow(tmp_path, monkeypatch):
     # "…으로 바꿔줘" + image must go to update_ticket (direct write), not claude_query.
     monkeypatch.setattr(m, "IMAGE_DIR", str(tmp_path))
@@ -4046,13 +4081,14 @@ def test_generate_quiz_maps_answer_text_to_index():
         {"q": "하늘색?", "options": ["빨강", "파랑"], "answer": "파랑"},
     ]
     with mock.patch.object(m.subprocess, "run", return_value=_quiz_cli(qs)) as run:
-        out, ai_ms = m.generate_quiz("상식", 2, 3)
+        out, ai_ms, ok = m.generate_quiz("상식", 2, 3)
     assert run.called
     assert out == [
         {"q": "1+1?", "options": ["1", "2", "3"], "answer": 1},
         {"q": "하늘색?", "options": ["빨강", "파랑"], "answer": 1},
     ]
     assert ai_ms >= 0
+    assert ok is True
 
 
 def test_generate_quiz_drops_bad_items():
@@ -4063,8 +4099,9 @@ def test_generate_quiz_drops_bad_items():
         {"q": "정상", "options": ["a", "b", "b"], "answer": "b"},              # 중복 보기 정리 → [a,b], answer=1
     ]
     with mock.patch.object(m.subprocess, "run", return_value=_quiz_cli(qs)):
-        out, _ = m.generate_quiz("t", 5, 4)
+        out, _, ok = m.generate_quiz("t", 5, 4)
     assert out == [{"q": "정상", "options": ["a", "b"], "answer": 1}]
+    assert ok is True  # CLI 자체는 정상 실행됐다 — 일부 문제만 검증에서 걸러졌을 뿐
 
 
 def test_generate_quiz_cli_failure_returns_empty_not_raise():
@@ -4073,8 +4110,11 @@ def test_generate_quiz_cli_failure_returns_empty_not_raise():
         stdout = ""
         stderr = "boom"
     with mock.patch.object(m.subprocess, "run", return_value=Fail()), mock.patch.object(m.time, "sleep"):
-        out, _ = m.generate_quiz("t", 3, 4)
+        out, _, ok = m.generate_quiz("t", 3, 4)
     assert out == []  # 실패는 빈 목록으로 — 예외를 던지지 않는다
+    # RN-19 — ok=False로 "CLI가 실패했다"와 "정상인데 문제 0개"를 구별한다(방금 위
+    # 테스트가 후자, 이 테스트가 전자).
+    assert ok is False
 
 
 def test_sanitize_quiz_ignores_non_list_and_caps():
@@ -4082,6 +4122,93 @@ def test_sanitize_quiz_ignores_non_list_and_caps():
     assert m._sanitize_quiz("nope", 4) == []
     big = [{"q": f"q{i}", "options": ["a", "b"], "answer": "a"} for i in range(30)]
     assert len(m._sanitize_quiz(big, 4)) == 20  # 최대 20문항
+
+
+def test_sanitize_quiz_respects_requested_num_options():
+    # RN-19 — num_options 인자가 실제로는 무시되고 항상 6개 상한이었다. 여기서는 보기가
+    # 6개보다 많은데(8개) num_options=3을 요청 — 예전엔 6개까지 살아남았지만 이제는 3개.
+    many_opts = [{"q": "질문", "options": ["a", "b", "c", "d", "e", "f", "g", "h"], "answer": "a"}]
+    out = m._sanitize_quiz(many_opts, 3)
+    assert out == [{"q": "질문", "options": ["a", "b", "c"], "answer": 0}]
+
+
+def test_quiz_endpoint_cli_failure_reports_ok_false_not_success():
+    # RN-19 — CLI가 실패했는데도 HTTP 200 {ok:true, quiz:[]}로 응답해, 클라이언트가
+    # "정상인데 문제가 0개"와 "생성 자체가 실패했다"를 구별할 수 없었다.
+    class Fail:
+        returncode = 1
+        stdout = ""
+        stderr = "boom"
+    with mock.patch.object(m.subprocess, "run", return_value=Fail()), mock.patch.object(m.time, "sleep"):
+        status, data = _post("/v1/assistant/quiz", {"topic": "상식", "count": 3, "num_options": 4})
+    assert status == 200  # /context/sync와 같은 원칙 — HTTP 상태는 유지, 실패는 본문으로
+    assert data["ok"] is False
+    assert data["error"] == "quiz_generation_failed"
+    assert data["data"]["quiz"] == []
+
+
+def test_quiz_endpoint_timeout_reports_quiz_timeout_not_message_timeout():
+    # RN-19 — 퀴즈 전용 예산(QUIZ_TIMEOUT_SECONDS=45)으로 도는데 타임아웃 응답은 메시지
+    # 엔드포인트의 예산(TIMEOUT_SECONDS=180)을 그대로 복사해 보고했다 — 실제로 기다린
+    # 시간과 응답이 말하는 시간이 달랐다.
+    def boom(*a, **kw):
+        raise m.subprocess.TimeoutExpired(cmd="claude", timeout=45)
+    with mock.patch.object(m.subprocess, "run", side_effect=boom):
+        status, data = _post("/v1/assistant/quiz", {"topic": "상식", "count": 3, "num_options": 4})
+    assert status == 504
+    assert data["timeout_seconds"] == m.QUIZ_TIMEOUT_SECONDS
+
+
+# --- diagnose(): 권한 게이트 없는 자리는 남의 개인정보를 보여주면 안 된다 (RN-17) -------
+
+_DIAG_SCHEMA = {"properties": {"티켓 담당자": {"type": "people"}}}
+
+
+def _diag_ticket(assignee_id, assignee_name, assignee_email, status="진행"):
+    return {"status": status, "assignees": [{"id": assignee_id, "name": assignee_name, "email": assignee_email}]}
+
+
+def test_diagnose_hides_other_same_named_persons_id_and_email():
+    # 요청자와 이름이 같은 다른 사람(u2, 다른 email)이 워크스페이스에 있다 — "진단"이라고만
+    # 치면 누구나 닿는 이 함수가 그 사람의 Notion id/email을 그대로 보여주면 안 된다.
+    tickets = [
+        _diag_ticket("u1", "황형섭", "a@goodmit.co.kr"),          # 요청자 본인
+        _diag_ticket("u9", "황형섭", "imposter@other.co.kr"),      # 동명이인, 다른 사람
+    ]
+    out = m.diagnose(CREATE_REQUESTER, CREATE_CURRENT_USER, "OK", [], tickets, _DIAG_SCHEMA, {})
+    text_out = out["response_text"]
+    assert "imposter@other.co.kr" not in text_out, "동명이인의 이메일이 그대로 노출됐다"
+    assert "u9" not in text_out, "동명이인의 Notion id가 그대로 노출됐다"
+    assert "(다른 동명이인 후보)" in text_out
+    # 요청자 본인의 항목은 그대로 남는다 — 자기 자신의 정보는 새로 드러나는 게 아니다.
+    assert "u1" in text_out and "a@goodmit.co.kr" in text_out
+
+
+def test_pending_action_status_hides_raw_notion_error_from_user():
+    # RN-18 — last_action.error는 n8n이 실제 Notion 쓰기를 하고 되돌려 준 원문(예: Notion
+    # API 오류 메시지)이다. 이 파일의 다른 실패 처리는 전부 원문을 로그에만 남기고 사용자
+    # 에게는 고정된 안전한 문장을 주는데, 여기만 예외로 원문을 그대로 채팅에 보여줬다.
+    raw = "Notion API error: object_not_found (block xyz123 not found in workspace 9f8e...)"
+    context = {"last_action": {"success": False, "ticket_title": "결제 모듈 개선", "error": raw}}
+    out = m.pending_action_status_response(context)
+    assert raw not in out["response_text"], "Notion 원문 오류가 그대로 노출됐다"
+    assert "결제 모듈 개선" in out["response_text"]  # 티켓 제목 등 안전한 맥락은 유지
+    # n8n에게는 새로 드러나는 정보가 아니므로 구조화 데이터(last_action)의 원문은 그대로
+    # 둔다 — 바뀌는 것은 사람이 읽는 response_text뿐이다.
+    assert out["last_action"]["error"] == raw
+
+
+def test_diagnose_does_not_leak_schema_internals_or_server_path():
+    # RN-17 — 담당자 속성 타입(Notion 스키마 내부)과 서버 파일 경로는 일반 채팅 사용자가
+    # 알아도 할 수 있는 게 없는 순수 내부 정보라 응답에서 뺀다.
+    # 주의: "people" 이라는 낱말 자체는 조치 안내문("People 속성에서...")에 정상적으로도
+    # 나온다 — 여기서 막는 것은 스키마의 실제 type 값이 "속성 타입: X" 줄로 그대로
+    # 반향되는 것이다.
+    out = m.diagnose(CREATE_REQUESTER, None, "NOT_FOUND", [], [], _DIAG_SCHEMA, {})
+    text_out = out["response_text"]
+    assert "속성 타입" not in text_out, "Notion 스키마 속성 타입 줄이 그대로 노출됐다"
+    assert "/etc/" not in text_out, "서버 파일 경로가 그대로 노출됐다"
+    assert str(m.MANUAL_MAP_PATH) not in text_out
 
 
 def test_query_prompt_knows_the_products_own_feature_names():

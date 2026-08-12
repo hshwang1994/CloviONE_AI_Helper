@@ -7,9 +7,13 @@ Notion 티켓 조회/생성/변경 결정을 내린다. Claude Code CLI(`/usr/bi
 ## 엔드포인트
 - `/v1/assistant/message` — 메인 진입점. `route_request()`가 발화 의도를 라우팅한다. 조회뿐 아니라
   생성/수정(mutate)까지 지원.
-- `/v1/assistant/context/sync` — 컨텍스트 영속 동기화(저장이 터져도 200 ok:true로 격리).
+- `/v1/assistant/context/sync` — 컨텍스트 영속 동기화. HTTP는 항상 200이지만 저장이 실패하면
+  본문이 `{"ok": false, "error": "state_save_failed", ...}`를 돌려준다(성공을 실패로 가리지
+  않는다 — `persist_context_result`, `test_a_failed_state_save_is_not_reported_as_ok`).
 - `/v1/assistant/quiz` — 팀 놀이용 객관식 퀴즈 생성 전용. `QUIZ_SCHEMA`/`QUIZ_PROMPT`,
   타임아웃 45초(`ASSISTANT_QUIZ_TIMEOUT_SECONDS`).
+- `/healthz`(GET) — 헬스체크. `{"status": "ok", "version", "model", "time"}`를 돌려준다.
+  배포 스크립트(`dist/deploy-runner.sh`)가 이 버전 값으로 배포 성공을 게이트한다.
 
 ## 처리 방식 (하이브리드 rule + claude_query)
 - `_run_claude()` — CLI 호출 단일 관문

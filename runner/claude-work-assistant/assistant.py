@@ -1086,16 +1086,6 @@ def wants_terminal_statuses(statuses: list[str], completed_only: bool, include_c
     return completed_only or include_completed or any(norm(s) in terminal for s in safe_list(statuses))
 
 
-def resolve_statuses(message: str, status_map: dict[str, str]) -> tuple[list[str], bool, bool, bool]:
-    """Compatibility wrapper retained for callers and external tests."""
-    intent = resolve_status_intent(message, status_map)
-    return (
-        safe_list(intent.get("selected")),
-        bool(intent.get("exclude_completed")),
-        bool(intent.get("include_completed")),
-        bool(intent.get("mentioned")),
-    )
-
 def week_range(today: date, offset_weeks: int = 0) -> tuple[date, date]:
     """A week runs Monday..Sunday — one definition for every week expression.
 
@@ -1364,11 +1354,6 @@ def resolve_project(message: str, projects: list[dict[str, Any]], context: dict[
         selected = next((p for p in projects if p["id"] == context_project_id), None)
         return selected, [selected] if selected else [], False
     return None, [], False
-
-
-def infer_project_keyword(message: str) -> str:
-    cleaned = re.sub(r"(티켓|작업|프로젝트|리스트|목록|보여줘|보여주세요|조회|계획된|진행중인|완료된|마감|다음주|이번주|모두|전체)", " ", message, flags=re.I)
-    return " ".join(cleaned.split())[:120]
 
 
 def ticket_active(ticket: dict[str, Any]) -> bool:
@@ -2832,7 +2817,9 @@ def _sanitize_quiz(raw: Any, num_options: int) -> list[dict[str, Any]]:
         if not q or not isinstance(opts_raw, list):
             continue
         options: list[str] = []
-        for o in opts_raw[:6]:
+        # RN-19 — num_options는 이전에 여기까지 안 넘어와 실제로는 항상 6개 상한이었다
+        # (LLM이 요청받은 지선다 수만큼 안 만들면 요청과 다른 문제가 조용히 나갔다).
+        for o in opts_raw[:num_options]:
             s = text(o).strip()[:80]
             if s and s not in options:
                 options.append(s)
@@ -2845,9 +2832,14 @@ def _sanitize_quiz(raw: Any, num_options: int) -> list[dict[str, Any]]:
     return out
 
 
-def generate_quiz(topic: str, count: int, num_options: int) -> tuple[list[dict[str, Any]], int]:
-    """주제로 객관식 퀴즈 문제를 생성한다. 실패(_run_claude None)면 빈 목록을 돌려 앱이 안내한다
-    (절대 예외를 던지지 않는다 — do_POST의 except가 500을 내지 않도록)."""
+def generate_quiz(topic: str, count: int, num_options: int) -> tuple[list[dict[str, Any]], int, bool]:
+    """주제로 객관식 퀴즈 문제를 생성한다. 실패(_run_claude가 dict를 못 주면)해도 빈 목록을
+    돌려 앱이 안내한다(절대 예외를 던지지 않는다 — do_POST의 except가 500을 내지 않도록).
+
+    RN-19 — 세 번째 반환값(ok)은 "CLI가 정상 실행됐는가"다. `questions == []`만으로는 두 가지가
+    구별되지 않았다: (a) CLI가 실패/타임아웃했다 (b) CLI는 정상 실행됐는데 LLM이 낸 문제가
+    전부 검증(_sanitize_quiz)에서 걸러졌다. 호출부(quiz HTTP 핸들러)가 실패를 성공처럼
+    `200 {ok:true}`로 보내던 것을 여기서 구별할 수 있게 한다."""
     topic = (topic or "").strip()
     count = max(1, min(int(count or 5), 20))
     num_options = max(2, min(int(num_options or 4), 6))
@@ -2856,8 +2848,8 @@ def generate_quiz(topic: str, count: int, num_options: int) -> tuple[list[dict[s
     # 퀴즈 전용 예산으로 제한(공용 permit을 오래 쥐지 않도록). deadline과 이 값 중 작은 쪽이 적용된다.
     result, _err, ai_ms = _run_claude(QUIZ_SCHEMA, QUIZ_PROMPT, payload, instruction, timeout=QUIZ_TIMEOUT_SECONDS)
     if not isinstance(result, dict):
-        return [], ai_ms
-    return _sanitize_quiz(result.get("questions"), num_options), ai_ms
+        return [], ai_ms, False
+    return _sanitize_quiz(result.get("questions"), num_options), ai_ms, True
 
 
 def _slim_ticket_for_query(t: dict[str, Any]) -> dict[str, Any]:
@@ -5219,10 +5211,21 @@ def pending_action_status_response(context: dict[str, Any]) -> dict[str, Any]:
     # in pending_action. Otherwise the assistant incorrectly says "approval pending".
     if last_action and last_action.get("success") is False:
         title = text(last_action.get("ticket_title")) or "티켓"
-        detail = text(last_action.get("error")) or "Notion 쓰기 요청이 실패했습니다."
-        msg = f"'{title}' 티켓 변경은 Notion에 반영되지 않았습니다.\n오류: {detail}"
+        # RN-18 — 이 error는 이 프로세스가 만든 게 아니라 n8n이 실제 Notion 쓰기를 하고
+        # /context/sync로 되돌려 준 원문(Notion API 오류 메시지 그대로일 수 있다)이다. 이
+        # 파일의 다른 실패 처리는 전부 원문을 서버 로그에만 남기고 사용자에게는 고정된
+        # 안전한 문장을 준다(_run_claude·persist_context_result와 동일 원칙) — 여기만
+        # 예외였다. last_action(extra kwarg)의 raw error는 그대로 둔다 — n8n 자신이 쓴
+        # 값이라 n8n에게는 새로 드러나는 정보가 아니다, 바뀌는 것은 사용자에게 보이는
+        # response_text뿐이다.
+        raw_detail = text(last_action.get("error"))
+        if raw_detail:
+            print(json.dumps({"event": "notion_write_failed", "ticket_title": title, "detail": raw_detail}, ensure_ascii=False), flush=True)
+        msg = f"'{title}' 티켓 변경은 Notion에 반영되지 않았습니다."
         if pending:
             msg += "\n변경 내용은 유지했습니다. '재시도'라고 입력하면 다시 반영합니다."
+        else:
+            msg += "\n같은 내용으로 다시 시도해 주세요. 계속 실패하면 관리자에게 문의해주세요."
         return response("ACTION_STATUS_ERROR", msg, context, last_action=last_action)
 
     if pending:
@@ -5437,15 +5440,17 @@ def diagnose(requester: dict[str, str], current_user: dict[str, str] | None, qua
     status_map = actual_status_map(schema, tickets)
     my_tickets = current_user_tickets(tickets, current_user, requester)
     my_projects = current_user_projects(projects, current_user, requester)
-    props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
-    assignee_prop = props.get("티켓 담당자") or {}
+    # RN-17 — 이 진단은 "진단"이라는 말 한 마디로 누구나 닿는다(권한 게이트가 없다,
+    # authorized()는 n8n/플랫폼 공용 토큰만 본다). 그래서 요청자 본인 정보(자기 이메일·
+    # 이름·자기 Notion id)까지는 새로 드러나는 게 아니라 괜찮지만, Notion 스키마 내부
+    # 값(담당자 속성 타입)과 서버 파일 경로는 일반 채팅 사용자가 알아도 할 수 있는 게
+    # 없는 순수 내부 정보라 뺀다.
     lines = [
         "ClovirONE AI 업무 도우미 진단",
         f"- 요청자 이메일: {requester.get('email') or '없음'}",
         f"- 요청자 이름: {requester.get('name') or '없음'}",
         f"- Notion 사용자 매핑: {quality}",
         f"- Notion 사용자 ID: {current_user.get('id') if current_user else '찾지 못함'}",
-        f"- 티켓 담당자 속성 타입: {assignee_prop.get('type') or '확인 불가'}",
         f"- 실제 상태값: {', '.join(unique(status_map.values())) or '확인 불가'}",
         f"- 내 이름/ID가 포함된 티켓: {len(my_tickets)}건",
         f"- 담당자 정/부로 포함된 프로젝트: {len(my_projects)}건",
@@ -5467,10 +5472,16 @@ def diagnose(requester: dict[str, str], current_user: dict[str, str] | None, qua
     id_strict = sum(1 for t in tickets if person_matches(t.get("assignees"), current_user))
     lines.append(f"- 이름='{requester.get('name')}' 담당자의 서로 다른 표현: {len(same_name)}개 / stable-id 일치 티켓: {id_strict}건")
     for (pid, email), cnt in sorted(same_name.items(), key=lambda x: -x[1])[:8]:
-        mark = " ← 현재 매핑" if pid == cur_id else ""
-        lines.append(f"    · id={pid[:16]} email={email or '없음'} 티켓 {cnt}건{mark}")
+        if pid == cur_id:
+            # 요청자 본인의 매핑이다 — 자기 자신의 id/email이라 새로 드러나는 정보가 아니다.
+            lines.append(f"    · id={pid[:16]} email={email or '없음'} 티켓 {cnt}건 ← 현재 매핑")
+        else:
+            # RN-17 — 동명이인의 Notion id·이메일은 다른 사람의 개인정보다. 권한 게이트가
+            # 없는 이 자리에서 그대로 보여주면 누구든 "진단"이라고만 쳐서 동명이인의
+            # 식별값을 알아낼 수 있었다 — 건수만 남기고 식별값은 감춘다.
+            lines.append(f"    · (다른 동명이인 후보) 티켓 {cnt}건")
     if not current_user:
-        lines.append("- 조치: People 속성에서 동일 이메일 사용자를 찾지 못했습니다. /etc/claude-work-assistant/user-map.json에 수동 매핑을 추가하거나 Notion People 속성에 사용자를 한 번 지정하세요.")
+        lines.append("- 조치: People 속성에서 동일 이메일 사용자를 찾지 못했습니다. 관리자에게 문의해 사용자 매핑을 추가하거나 Notion People 속성에 사용자를 한 번 지정하세요.")
     return response("DIAGNOSTIC", "\n".join(lines), context)
 
 
@@ -5479,6 +5490,7 @@ def process_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
     image_notes), then route. Vision time is included in the reported ai_ms."""
     vision_ms = 0
     attachments = body.get("attachments")
+    new_context = None
     if isinstance(attachments, list) and attachments:
         context = body.get("context") if isinstance(body.get("context"), dict) else {}
         new_context, vision_ms = ingest_image_attachments(
@@ -5492,7 +5504,27 @@ def process_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
         # attachment must not hijack the routing toward the conversational path.
         if new_context is not context:
             body = {**body, "context": new_context, "_has_new_images": True}
-    data, ai_ms = route_request(body)
+        else:
+            new_context = None  # nothing new to persist on a failed route below
+    try:
+        data, ai_ms = route_request(body)
+    except subprocess.TimeoutExpired:
+        # RN-15 — 이미 성공한 비전 분석(new_context, image_notes에 이미지 중복 방지 키
+        # 포함)은 route_request의 CLI 호출이 타임아웃나도 사라지면 안 된다. 여기서 안
+        # 붙잡으면 이 함수의 로컬 body/new_context가 스택과 함께 사라져 do_POST는 무엇을
+        # 저장할지조차 모른다 — 그러면 재시도(같은 message_id)가 이미지 분석·저장을
+        # 처음부터 다시 한다. 타임아웃 자체는 그대로 올려 504(do_POST의 기존 처리)로
+        # 응답한다 — 여기서 하는 일은 부분 진행만 구하는 것이다.
+        if new_context is not None:
+            requester_raw = body.get("requester") if isinstance(body.get("requester"), dict) else {}
+            requester = {
+                "email": clean_email(requester_raw.get("email")),
+                "name": text(requester_raw.get("name")),
+                "teams_user_id": text(requester_raw.get("teams_user_id")),
+            }
+            conversation_id = text(body.get("conversation_id"))
+            persist_context_result(requester, conversation_id, new_context)
+        raise
     return data, ai_ms + vision_ms
 
 
@@ -5986,11 +6018,18 @@ class Handler(BaseHTTPRequestHandler):
                 # 티켓/채팅의 180s가 아니라 퀴즈 전용 예산(45s)으로 deadline을 잡는다 — 앱이
                 # 50s에 포기해도 러너가 그 전에 permit을 놓도록.
                 _REQUEST_DEADLINE.value = time.monotonic() + QUIZ_TIMEOUT_SECONDS
-                questions, ai_ms = generate_quiz(topic, count, num_options)
-                self.send_json(200, {"ok": True, "data": {"quiz": questions},
-                                     "meta": {"ai_ms": ai_ms, "ai_used": ai_ms > 0}})
+                questions, ai_ms, ok = generate_quiz(topic, count, num_options)
+                if ok:
+                    self.send_json(200, {"ok": True, "data": {"quiz": questions},
+                                         "meta": {"ai_ms": ai_ms, "ai_used": ai_ms > 0}})
+                else:
+                    # RN-19 — CLI 실패(퀴즈 없음)를 "정상, 문제 0개"와 구별한다. 실패를
+                    # 성공이라 말하지 않는다는 원칙은 /context/sync가 이미 쓴다(HTTP는
+                    # 200 유지, 실패는 본문의 ok:false로 말한다) — 같은 원칙을 여기도 적용.
+                    self._safe_send(200, {"ok": False, "error": "quiz_generation_failed",
+                                          "data": {"quiz": []}, "meta": {"ai_ms": ai_ms}})
             except subprocess.TimeoutExpired:
-                self._safe_send(504, {"error": "claude_timeout", "timeout_seconds": TIMEOUT_SECONDS})
+                self._safe_send(504, {"error": "claude_timeout", "timeout_seconds": QUIZ_TIMEOUT_SECONDS})
             except Exception:
                 import traceback
                 print(json.dumps({"event": "quiz_error", "detail": traceback.format_exc()[-2000:]},
