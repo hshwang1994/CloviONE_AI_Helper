@@ -12,12 +12,20 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF25 — `GM-01`(게임방 유휴 정리가
+**마지막 갱신**: 2026-08-12 · **단계**: WF26(`invocation=2`) —
+`RET-01R`("`sessions`가 보존 대상에서 빠졌다") 재검증 후 구현완료.
+"`UserSession` 정리 코드 0건" 전제 자체는 이미 stale(CORE-02가
+`purge_old_sessions`를 만들어 `run_retention`에 연결해 뒀음)했지만,
+그 함수가 `revoked_at IS NOT NULL` 행만 지워 **만료 후 아무도 안
+돌아온(재로그인만 하고 예전 탭은 버린) 세션은 영원히 안 지워지는**
+진짜 결함이 남아 있었다 — `revoked_at IS NULL AND expires_at <
+cutoff` 분기 추가로 수정, 이 결함을 정상으로 고정하던 오탐 테스트도
+함께 정정. 그 직전 WF25 — `GM-01`(게임방 유휴 정리가
 `status`를 안 고쳐 유령 행을 만듦) 구현완료 — 한 줄 수정. `FN-08`/
 `NOTI-02`/`SCHD-03`은 이미 2026-08-11에 스키마 변경 필요로 정확히
 보류돼 있어 그대로 유지. revert-to-verify 도중 `sed` 전역 치환이 같은
 대입문이 반복되는 다른 함수 10곳까지 잘못 건드린 사고 — 커밋 전이라
-`git checkout`으로 되돌리고 `Edit`으로 재작업(교훈 기록). 그 직전
+`git checkout`으로 되돌리고 `Edit`으로 재작업(교훈 기록). 그 앞
 WF24 — `RG-03`(알림 화면 액션
 없음) 구현완료 — 재확인 결과 3개 중 2개(이동 액션·삭제 액션)는
 `RG-02`/`FN-03`이 이미 닫아 뒀고 `muted` 열 하나만 진짜로 남아 있었다.
@@ -3362,3 +3370,64 @@ rooms`/`get_room`은 `status`가 아니라 `closed_at IS NULL`로 거르므로
 TEST SERVER 배포 후 실측에서 남아 있으면 그때 직접 보정.
 
 이 배치(`GM-01`) 커밋 완료. **다음 후보**: 변화 없음 — 위 목록 그대로.
+
+**WF26(새 invocation, `invocation=2`) — `RET-01R`("`sessions`가 보존
+대상에서 빠졌다", Med) 재검증 후 구현완료.** 1단계 State restoration
+정석대로 CLAUDE.md·WORK_STATE·BACKLOG·QA_COVERAGE·git status/log를
+교차 대조하는 중 이 행이 이전 배치들과 같은 "self-contradiction" 패턴
+후보로 보여 먼저 재확인했다.
+
+**재확인 결과**: 이 행의 핵심 전제("`UserSession` 정리 코드 0건")는
+**작성 시점에 이미 틀렸다** — `app/core/retention.py::purge_old_
+sessions()`(CORE-02 커밋)가 이미 존재했고 `run_retention()`에도
+`"sessions": purge_old_sessions(db, now=now)`로 연결돼 있었다(그냥
+정의만 되고 안 불리는 죽은 함수가 아님, 251행에서 직접 확인).
+
+**하지만 완전한 오탐도 아니었다** — 실제로 파고들 진짜 결함이 하나
+남아 있었다. `purge_old_sessions`는 `revoked_at IS NOT NULL`인 행만
+지웠는데, `app/core/sessions.py::validate()`의 만료 판정은 **그
+세션 토큰이 다시 제시될 때만** 실행되는 지연(lazy) 판정이다. 즉
+사용자가 만료된 세션으로 돌아오지 않고 그냥 새로 로그인해 새 세션을
+만들면(실무에서 훨씬 흔한 경로), 예전 세션 행은 `expires_at`이
+한참 지나도 `revoked_at`이 영원히 안 찍혀 `purge_old_sessions`의
+필터에 절대 안 걸린다. 원 발견의 "만료 353 · 폐기 266"(합이 378을
+넘음 — 중복 카운트)도 이 사실과 정확히 들어맞는다: "만료" 카운트
+상당수가 `revoked_at IS NULL`인 채로 잡혔을 것이다.
+
+더 결정적으로, 기존 테스트 `test_purge_old_sessions_keeps_active_
+sessions_forever`가 이 결함을 이름과 반대로 **고정(lock-in)하고
+있었다** — "active"라는 이름과 달리 실제로는 `expires_at=now -
+timedelta(days=200)`(200일 전에 이미 만료)인 행을 만들어 놓고
+"안 지워짐"을 정상으로 단언하는 테스트였다. 만료된 지 200일 된
+세션은 "살아 있는" 세션이 아니라 이 버그 그 자체의 표본이었다.
+
+**구현**: `purge_old_sessions`의 DELETE 조건에 `OR` 분기 추가 —
+① 기존 `revoked_at IS NOT NULL AND revoked_at < cutoff` ② 신규
+`revoked_at IS NULL AND expires_at < cutoff`. 두 경우 다 "끝난
+시각" 기준으로 `retention_days` 유예를 그대로 적용해 `profiles`의
+"최근 종료된 세션" 표시 요구는 그대로 보존. `sqlalchemy`에서
+`and_`/`or_` 추가 임포트. 아직 살아 있는(=`expires_at`이 미래인)
+세션은 어느 분기에도 안 걸려 여전히 무기한 보존됨을 별도 시험으로
+확인.
+
+**시험**: 오탐이던 `test_purge_old_sessions_keeps_active_sessions_
+forever`를 `expires_at=now + timedelta(days=1)`로 정정하고
+`test_purge_old_sessions_keeps_unexpired_sessions_forever`로 개명
+(진짜 불변조건 — "미만료 세션은 무기한 보존" — 을 검증하도록).
+신규 `test_purge_old_sessions_removes_aged_expired_never_revoked`
+추가. revert-to-verify: 쿼리를 임시로 구 버전(① 분기만)으로 되돌려
+신규 테스트가 `assert 0 == 1`로 정확히 실패하는 것을 확인한 뒤
+`Edit`으로 복원(`sed` 안 씀, GM-01 교훈 반영). `tests/integration/
+test_retention_purge.py` 8건 + `test_retention_lock.py` +
+`test_mail_delivery.py` + `test_orphan_upload_sweep.py` 전체 green.
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 백엔드 전용
+변경이라 프런트 재빌드 불필요.
+
+`docs/BACKLOG.md`의 RET-01R 행을 "✅ 구현완료(행 정정 + 실제 결함
+수정)"으로 갱신, 재확인 근거와 실제 수정 내용을 함께 기록(전제
+오류와 실제 결함을 둘 다 남겨 향후 세션이 다시 헷갈리지 않게).
+
+이 배치(`RET-01R`) 커밋 예정. **다음 후보**: `SEM-01`(`/jobs`·
+`/users` "상세 보기" 중복 accessible name — `kit.jsx`의 `openLabel`
+override로 `DataTable`에 `openLabel(row)` 전달, 수정 방식 이미
+확인됨), 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.

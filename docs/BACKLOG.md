@@ -2402,7 +2402,7 @@ job_attachments(24시간) · missing_tickets · orphan_uploads
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| RET-01R | Med | **`sessions` 만 보존 대상에서 빠져 있다.** `retention.py` 의 10개 정리 대상에 세션이 없다(파일 전체에서 `UserSession` 정리 코드 0건 — `Session` 은 전부 SQLAlchemy 타입). 서버 실측 **378행**(만료 353 · 폐기 266 · 가장 오래된 것 설치일 2026-07-14). 용량 문제는 아니고 **만료·폐기된 세션의 토큰 해시와 접속 메타데이터가 무기한 남는다**. 나머지 10개 표는 다 정리되는데 이것만 안 되는 것이라 **누락으로 보인다** | 발견 |
+| RET-01R | Med | ✅ 구현완료(행 정정 + 실제 결함 수정) — 이 행의 "`UserSession` 정리 코드 0건" 전제는 **작성 시점에 이미 stale** 했다: `retention.py::purge_old_sessions()`(CORE-02)가 이미 있었고 `run_retention()`에도 연결돼 있었다(`"sessions": purge_old_sessions(...)`). 다만 그 함수는 `revoked_at IS NOT NULL` 행만 지웠는데, `sessions.py::validate()`의 만료 판정은 **그 토큰이 다시 제시될 때만** 도는 지연 판정이라 만료 후 아무도 다시 찾지 않은 세션(재로그인해 새 세션을 만들고 예전 탭은 버리는 흔한 경우)은 `revoked_at`이 영원히 안 찍혀 정리 대상에서 빠졌다 — "만료 353"과 "폐기 266"이 합이 378을 넘는 것(중복 카운트)도 이 사실과 일치한다. `purge_old_sessions`가 `revoked_at IS NULL AND expires_at < cutoff`도 함께 지우도록 수정, 새 테스트 `test_purge_old_sessions_removes_aged_expired_never_revoked` 추가(수정 전 실패 → 수정 후 통과 확인). 기존 `test_purge_old_sessions_keeps_active_sessions_forever`는 이름과 달리 `expires_at`이 200일 지난(=이미 죽은) 세션을 "안 지워짐"으로 고정하던 오탐 테스트였음을 확인, `expires_at`을 미래로 바꿔 `test_purge_old_sessions_keeps_unexpired_sessions_forever`로 정정 | 발견 |
 | RET-03 | Low | `game_rooms`·`game_events` 도 보존 대상에 없다(`retention.py` 에 `game` 0건). 다만 `disband_room` 주석이 **"히스토리를 남기지 않는다(§16.1)"** 라고 의도를 밝히므로 세션과 성격이 다르다 — 정책이 "안 남긴다"인데 행은 남는 불일치다(`GM-04`) | 발견 |
 | UA-10 확증 | Med | **`/api/trash` 폴링 15초 간격을 실측했다** — 40초 동안 3회, 간격 정확히 `15.0`·`15.0`. 응답 키는 `items`·`retention_days` 뿐이고 **`total` 도 페이지 필드도 없다.** `?limit=1`·`?page=1&page_size=1` 을 줘도 **무시**한다(둘 다 같은 응답). 기존 `UA-10`(무제한 + 15초 폴링) **확인 완료** | 발견 |
 

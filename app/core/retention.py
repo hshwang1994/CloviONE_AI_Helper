@@ -11,7 +11,7 @@ import logging
 from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.conversations.models import Conversation, Message
@@ -99,19 +99,28 @@ def purge_old_schedule_runs(db: Session, *, now: datetime, retention_days: int =
 def purge_old_sessions(db: Session, *, now: datetime, retention_days: int = 60) -> int:
     """만료·폐기된 세션 행을 정리한다 (CORE-02, `purge_old_jobs`와 같은 판단).
 
-    **아직 살아 있는 세션은 나이와 무관하게 절대 안 지운다** — `revoked_at IS NOT NULL`인
-    행(로그아웃·만료·강제 종료로 이미 끝난 것)만 대상이고, 그중에서도 끝난 지
-    `retention_days`가 지난 것만 지운다(당장은 `profiles`의 "최근 종료된 세션" 목록이
-    잠시 보여야 하므로 즉시 지우지 않는다). 이 표는 지금까지 어디서도 정리하지 않아
-    무한히 자라고 있었다 — `sessions.py::validate()`가 `revoked_at`을 실제로 커밋하게
-    고친 뒤(위 CORE-02 본 수정)에도 이 표는 그 자체로는 안 줄어든다.
+    **아직 살아 있는 세션은 나이와 무관하게 절대 안 지운다.** 지울 수 있는 행은 둘 중
+    하나다:
+      ① `revoked_at IS NOT NULL` — 로그아웃·강제 종료·`validate()`가 이미 만료를
+         감지해 처리한 것.
+      ② `revoked_at IS NULL` 이지만 `expires_at` 이 지난 것(RET-01R) — `validate()`의
+         만료 감지는 **그 토큰이 다시 제시될 때만** 도는 지연 판정이라, 만료된 뒤
+         아무도 그 세션으로 다시 접근하지 않으면(재로그인해 새 세션을 만들고 예전
+         탭은 버리는 흔한 경우) `revoked_at` 이 영원히 안 찍혀 ①만으로는 절대
+         정리되지 않는다.
+    어느 쪽이든 "끝난 시각"(`revoked_at` 또는 `expires_at`) 기준으로 `retention_days`가
+    지난 것만 지운다(당장은 `profiles`의 "최근 종료된 세션" 목록이 잠시 보여야 하므로
+    즉시 지우지 않는다).
     """
     from app.auth.models import UserSession
 
     cutoff = now - timedelta(days=retention_days)
     result = db.execute(
         delete(UserSession).where(
-            UserSession.revoked_at.is_not(None), UserSession.revoked_at < cutoff
+            or_(
+                and_(UserSession.revoked_at.is_not(None), UserSession.revoked_at < cutoff),
+                and_(UserSession.revoked_at.is_(None), UserSession.expires_at < cutoff),
+            )
         )
     )
     db.flush()

@@ -123,12 +123,12 @@ def _make_session(db, *, user_id, revoked_at=None, expires_at) -> UserSession:
     return row
 
 
-def test_purge_old_sessions_keeps_active_sessions_forever(db, fake_clock, make_user):
-    """CORE-02: 살아 있는 세션은 나이와 무관하게 절대 안 지운다."""
+def test_purge_old_sessions_keeps_unexpired_sessions_forever(db, fake_clock, make_user):
+    """CORE-02: 아직 만료되지 않은(=살아 있는) 세션은 나이와 무관하게 절대 안 지운다."""
     now = fake_clock.now()
     u = make_user("retention-active@goodmit.co.kr")
     still_active = _make_session(
-        db, user_id=u.id, revoked_at=None, expires_at=now - timedelta(days=200)
+        db, user_id=u.id, revoked_at=None, expires_at=now + timedelta(days=1)
     )
     db.commit()
 
@@ -156,6 +156,28 @@ def test_purge_old_sessions_removes_aged_revoked_only(db, fake_clock, make_user)
     assert deleted == 1
     assert db.get(UserSession, aged_revoked.id) is None
     assert db.get(UserSession, kept_recent_revoked.id) is not None
+
+
+def test_purge_old_sessions_removes_aged_expired_never_revoked(db, fake_clock, make_user):
+    """RET-01R: 만료됐지만 아무도 다시 찾지 않아 revoked_at이 끝내 안 찍힌 세션도
+    expires_at 기준으로 유예 기간이 지나면 지운다(revoked_at IS NOT NULL 조건에만
+    의존하면 이런 행은 영원히 안 지워졌다)."""
+    now = fake_clock.now()
+    u = make_user("retention-abandoned@goodmit.co.kr")
+    abandoned_expired = _make_session(
+        db, user_id=u.id, revoked_at=None, expires_at=now - timedelta(days=61)
+    )
+    kept_recently_expired = _make_session(
+        db, user_id=u.id, revoked_at=None, expires_at=now - timedelta(days=2)
+    )
+    db.commit()
+
+    deleted = purge_old_sessions(db, now=now, retention_days=60)
+    db.commit()
+
+    assert deleted == 1
+    assert db.get(UserSession, abandoned_expired.id) is None
+    assert db.get(UserSession, kept_recently_expired.id) is not None
 
 
 def test_purge_old_conversations_chunks_large_backlog(db, fake_clock, make_user):
