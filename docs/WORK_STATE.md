@@ -12,8 +12,10 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF17 — `UX-41`(스케줄·러너 폼의 null 코어싱
-누락 2곳) 구현완료. 그 직전 WF16 — `HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
+**마지막 갱신**: 2026-08-12 · **단계**: WF18 — `VIS-160`(홈 `refetchInterval` 누락)
+구현완료, 요청 예산 시험(PF1) 상한도 의도적 증가분만큼 함께 갱신. 그 직전 WF17 —
+`UX-41`(스케줄·러너 폼의 null 코어싱 누락 2곳) 구현완료. 그 앞 WF16 —
+`HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
 5건을 사용자 지시("잘게 쪼개지 마라")에 따라 묶음 단위(조사→구현 5건 전체 → 테스트·
 정적 검사·문서·커밋 각 1회)로 처리. 상세는 파일 맨 아래 `WF16`/`WF17` 항목. 이
 포인터 문단이 한동안 `WF11-L01`에서 갱신이 안 됐었다(실제 이력은 파일 뒤쪽에
@@ -2963,4 +2965,36 @@ severity 미해결 항목을 훑다가 발견 — BACKLOG 원문이 이미 정�
 `refetchInterval` 없이 절대 재조회 안 됨, 프런트 단독) · `UX-40`(422 사유가
 `error.details`에만 있고 SPA 131개 호출부는 영어 상수만 봄 — 큰 리팩터
 후보) · RESP-04 축소 레일 사이드바 · QA_COVERAGE L축 나머지 · PHASE 1
+Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).
+
+**WF18(2026-08-12, 같은 흐름 계속) — `VIS-160` 단일 Root Cause, 프런트 단독.**
+`Home.jsx::useToday()`에 `staleTime: 30000`만 있고 `refetchInterval`이 없어
+자기 주석("30초면 알림·채팅 배지가 충분히 따라온다")과 실제 동작이 어긋나
+있었다 — `staleTime`은 다음 트리거(재마운트·`refetchOnWindowFocus`) 시점의
+캐시 신선도만 정하지, 그 자체로 주기 재조회를 만들지 않는다. `Dashboard.jsx`
+가 이미 같은 목적으로 쓰는 맨값 `refetchInterval: 30 * 1000` 패턴을 그대로
+가져왔다(숨은 탭은 react-query 기본값 `refetchIntervalInBackground=false`가
+저절로 멈춘다 — `polling-visibility.test.js`가 저장소 전체를 스캔해 이
+기본값을 지킨다).
+
+**부작용을 놓치지 않은 과정이 이번 항목의 핵심이다**: 이 저장소엔 홈 화면의
+분당 요청 수 예산을 지키는 `home-request-budget.test.jsx`(PF1)가 이미 있다
+— "폴링 하나만 새로 붙여도 아무도 모르게 두 배가 된다"는 자기 취지 그대로,
+내 수정을 넣자마자 그 시험이 **정확히 예상대로** 분당 8 → 10요청으로
+실패했다(`/api/home/today`가 60초 측정 구간에서 0 → 2회). 우연한 회귀가
+아니라 의도한 변화임을 확인한 뒤 예산 상한 자체를 10으로 함께 갱신하고,
+왜 늘었는지 테스트 주석에 근거를 남겼다 — 조용히 숫자만 올리지 않았다.
+
+**검증**: 신규 시험 1건(`/api/home/today`가 실제로 다시 불리는지 직접 단언)
+추가, revert-to-verify로 고치기 전엔 그 시험이 "분당 0회"로 정확히 그 증상
+그대로 실패하는 것을 확인 후 복원. `home-request-budget.test.jsx`(4건)+
+`home.test.jsx`(8건) green, 영향 반경 확인을 위해 프런트 `src/app/`+
+`src/screens/`(188파일/1152건) 전체 재실행 green. `npm run build`+
+`check_bundle_fresh.py --write`+`bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`.
+
+이 배치(`VIS-160`) 커밋 완료. **다음 후보**: `UX-40`(422 사유가
+`error.details`에만 있고 SPA 131개 호출부는 영어 상수만 봄 — 범위가 커서
+전담 리팩터 후보) · RESP-04 축소 레일 사이드바(전담 UI 구현 세션 필요) ·
+QA_COVERAGE L축 나머지 · BACKLOG 남은 Med/Low 클러스터 계속 스캔 · PHASE 1
 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).

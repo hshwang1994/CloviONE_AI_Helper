@@ -277,7 +277,12 @@ function useToday() {
     queryFn: () => api("/api/home/today"),
     retry: false,
     // 홈은 탭을 열어 둔 채로 오래 머문다 — 30초면 알림·채팅 배지가 충분히 따라온다.
+    // VIS-160: staleTime만으로는 재조회가 안 일어난다(다음 mount/refetchOnWindowFocus를
+    // 기다려야 한다) — 화면이 떠 있는 동안 실제로 30초마다 갱신하려면 refetchInterval이
+    // 따로 필요하다(Dashboard.jsx의 같은 패턴). 숨은 탭에서는 react-query
+    // 기본값(refetchIntervalInBackground=false)이 저절로 멈춘다(polling-visibility.test.js).
     staleTime: 30000,
+    refetchInterval: 30000,
   });
 }
 

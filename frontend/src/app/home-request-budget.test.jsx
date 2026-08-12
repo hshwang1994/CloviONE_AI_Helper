@@ -115,16 +115,29 @@ afterEach(() => {
 });
 
 describe("홈 화면 요청 예산 (PF1)", () => {
-  it("가만히 둔 홈은 분당 8요청을 넘지 않는다", async () => {
+  it("가만히 둔 홈은 분당 10요청을 넘지 않는다", async () => {
+    // VIS-160(2026-08-12): 예산이 8 → 10으로 올랐다 — 늘어난 2가 우연한 회귀가 아니라
+    // /api/home/today의 refetchInterval(Home.jsx)이다. staleTime만으로는 화면이 떠 있는
+    // 동안 절대 재조회가 안 일어나는 버그를 고치며 의도적으로 늘었다(30초마다 1회 ×
+    // 60초 측정 구간 = 2). 다음에 이 숫자가 또 뛰면 이번처럼 "무엇이 늘었는지"부터 본다.
     const { total, byPath } = await requestsPerMinute();
     // 실패했을 때 어디가 범인인지 바로 보이게 내역을 메시지에 싣는다.
-    expect(total, `분당 ${total}요청, 내역: ${JSON.stringify(byPath)}`).toBeLessThanOrEqual(8);
+    expect(total, `분당 ${total}요청, 내역: ${JSON.stringify(byPath)}`).toBeLessThanOrEqual(10);
   });
 
   it("가장 뜨거운 경로(팀 채팅 메시지 폴링)가 분당 6회를 넘지 않는다", async () => {
     const { byPath } = await requestsPerMinute();
     const msgs = byPath["/api/team-chat/rooms/gr/messages"] || 0;
     expect(msgs, `메시지 폴링 분당 ${msgs}회`).toBeLessThanOrEqual(6);
+  });
+
+  it("VIS-160: 홈을 띄워 둔 채로 있으면 /api/home/today가 실제로 다시 불린다", async () => {
+    // staleTime만 있고 refetchInterval이 없으면 이 경로는 초기 로드 이후 0회로 남는다
+    // (다음 mount나 refetchOnWindowFocus를 기다려야 하는데, 홈은 탭을 오래 열어 두는
+    // 화면이라 둘 다 한참 뒤에나 온다) — 그 상태가 이 버그였다.
+    const { byPath } = await requestsPerMinute();
+    const today = byPath["/api/home/today"] || 0;
+    expect(today, `/api/home/today 분당 ${today}회`).toBeGreaterThan(0);
   });
 
   it("세는 장치가 실제로 요청을 본다", async () => {
