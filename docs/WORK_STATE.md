@@ -12,7 +12,19 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF27(`invocation=2`) —
+**마지막 갱신**: 2026-08-12 · **단계**: WF28(`invocation=2`) —
+`CONC-01`+`CONC-02`(관리 콘솔 공유 편집 폼의 동시성 결함) 구현완료.
+`DataScreen.jsx`의 공용 수정 폼(등록 화면 27개 공유)이 매번 전체
+필드를 재전송해 두 관리자가 같은 행을 열면 나중 저장이 앞사람
+변경을 되돌리던 문제 — `Users.jsx`에만 있던 로컬 `diffFields`를
+`lib/diffFields.js`로 옮겨 공용 경로에 적용(옮기며 객체 필드
+비교가 `String(obj)`로 뭉개져 내용이 달라도 "같음"으로 오판하던
+잠재 결함도 JSON 비교로 고침). PUT 방식 2개 화면(`schedules`·
+`templates`)은 진짜 REST PUT이라 의도적으로 제외. 가장 위험한
+인스턴스(러너 `maintenance_state` — 서킷 브레이커와 사람이 같은
+필드를 씀)는 diff만으로 못 막는 진짜 충돌이 남아 일반 편집 폼에서
+빼고 확인 문구 있는 전용 액션으로 분리. 신규 시험 3파일 13건,
+프런트 전체 회귀 228/1541 green. 그 직전 WF27 —
 `SEM-01`("상세 보기" 버튼 접근 이름 중복) 조사 중 원 발견(`/jobs`·
 `/users` 2개 표본)보다 훨씬 큰 Root Cause 발견 — 관리자 등록 화면
 28개 전체에 `rowName`/`openLabel` 표식이 단 한 곳도 없어서, 첫
@@ -23,7 +35,7 @@ org.js 1) + registry 밖 2개(`Users.jsx`·`Offboarding.jsx`), 총
 신규 시험 2파일 13건 + 기존 `offboarding.test.jsx` 3건 정정(옛
 결함을 정상으로 못박은 주석·단정이었다), 프런트 전체 회귀
 225/1534 green. 분리자로 쓴 가운뎃점이 정적 검사(`USER_TEXT_OK`,
-사용자 지시 §8)에 걸려 `/`로 교체. 그 직전 WF26 —
+사용자 지시 §8)에 걸려 `/`로 교체. 그 앞 WF26 —
 `RET-01R`("`sessions`가 보존 대상에서 빠졌다") 재검증 후 구현완료.
 "`UserSession` 정리 코드 0건" 전제 자체는 이미 stale(CORE-02가
 `purge_old_sessions`를 만들어 `run_retention`에 연결해 뒀음)했지만,
@@ -3504,5 +3516,71 @@ revert-to-verify: `jobs`의 `rowName`을 임시로 지워 새 시험이
 등)를 따라 `/`로 교체(테스트 기댓값 1곳도 함께 수정). 재빌드 →
 `STATIC_CHECKS_OK`.
 
-이 배치(`SEM-01`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
-전체 재스캔으로 다음 Root Cause 선정.
+이 배치(`SEM-01`) 커밋 완료(`2d90d67`).
+
+**WF28(같은 invocation 계속) — BACKLOG 전체 재스캔(Explore 위임) 후
+`CONC-01`+`CONC-02`(관리 콘솔 공유 편집 폼의 동시성 결함, 둘 다
+High) 구현완료.** Explore 결과 상위 후보 2건 — 나머지 하나
+(`GM-10`/`GM-11` 게임 동시성, 이미 3번 고친 조건부 UPDATE 패턴 재적용
+필요) 는 다음 후보로 남긴다. Explore가 곁다리로 찾은 stale 발견도
+기록: `RN-01~14` 전수조사 섹션 13행이 전부 2026-08-10 `5db9fbf`
+(MEGA CYCLE A)로 이미 구현된 채 미표기 상태였다 — 이번 배치 범위
+밖이라 행 정정은 다음 세션으로 미룸(놓치지 않게 여기 남김).
+
+**`CONC-01` 원인**: `DataScreen.jsx`의 공용 수정 폼(등록 화면 27개가
+공유)이 화면에 보이는 모든 필드를 매번 재전송하고, 서버는
+`payload.model_dump(exclude_unset=True)`라 보낸 건 전부 '명시적
+설정'으로 받는다 — 두 관리자가 같은 행을 열면 나중 저장이 앞사람
+변경을 조용히 되돌린다. `Users.jsx`만 로컬 `diffFields`로 이미
+피하고 있었다.
+
+**구현**: `diffFields`를 `frontend/src/lib/diffFields.js`로 옮겨
+`Users.jsx`·`DataScreen.jsx` 둘 다 거기서 가져다 쓰게 했다. 옮기며
+값 비교를 `String(before)===String(after)`(객체는 전부
+`"[object Object]"`로 뭉개져 **내용이 달라도 항상 "같음"으로
+오판**하던 잠재 결함 — Users.jsx는 필드가 원시값뿐이라 안
+드러났었다)에서 JSON 직렬화 비교로 고쳤다. `DataScreen.jsx`의 edit
+`onSubmit`은 `toApiBody` 변환 **뒤**의 값으로 diff한다 — 변환 전
+(폼 필드 이름)으로 비교하면 여러 폼 필드가 객체 하나로 합쳐지는
+화면(예: 템플릿의 승인 정책 체크박스→`{required:bool}`)에서 무관한
+필드만 바뀌어도 diff가 그 객체 전체를 "바뀜"으로 오판할 수 있었다.
+diff가 빈 경우 서버 왕복 없이 "변경된 내용이 없습니다." 안내로
+닫는다(Users.jsx와 동일 UX).
+
+**범위를 의도적으로 좁힌 지점**: `editMethod`가 PUT인 화면
+(`schedules`·`templates`, 등록 화면 27개 중 2개)은 diff 대상에서
+뺐다 — `app/schedules/router.py`를 직접 확인하니 `ScheduleRequest`가
+부분 스키마가 아니라 진짜 REST PUT(전체 표현 기대)이었다. 부분
+body를 보내면 "나머지는 그대로"가 아니라 검증 실패나 기본값
+초기화로 이어질 수 있어 그대로 전체 재전송(기존 동작 그대로) —
+이 둘은 CONC-01의 남은 범위로 BACKLOG에 명시.
+
+**`CONC-02`**(러너 `maintenance_state`, CONC-01과 같은 근본 원인의
+가장 위험한 인스턴스): 서킷 브레이커가 자동으로 쓰는 필드(연속 실패
+→ degraded, 성공 → normal)인데 동시에 일반 편집 폼 필드였다 —
+diffFields로 "무관한 필드만 고쳐도 되돌아가는" 문제는 막히지만,
+사람이 이 필드를 "의도적으로" 바꾼 값과 자동 판정이 그 사이 다시
+바꾼 값이 겹치는 진짜 충돌까지는 diff만으로 못 막는다. 일반
+`edit.fields`에서 빼고 `activeToggle`(actions.js)과 같은 "단일 필드
+전용 PATCH" 패턴의 새 액션 "점검 상태 변경"을 추가 — 값이 셋(정상/
+성능 저하/점검)이라 `activeToggle`의 고정 body 대신 작은 select
+입력 폼 하나, `confirm`이 현재 상태를 문장으로 말하고 폼보다 먼저
+뜬다(`DataScreen.jsx runAction`이 이미 그 순서를 보장 — "확인은
+입력 폼보다 먼저 묻는다" 주석 확인함). 도움말 문구("‘수정’에서
+점검 상태를 바꾸세요")도 새 액션을 가리키게 정정.
+
+**시험**: `lib/diffFields.test.js`(신규, 9건 — 기존 Users.jsx 전용
+시험 6건 이전 + 객체/배열 필드 회귀 시험 3건 추가), `screens/
+data-screen-edit-diff.test.jsx`(신규, 2건 — `departments` 화면
+실제 렌더링으로 "이름만 고치면 이름만 PATCH", "무변경이면 요청
+자체가 안 나감" 확인), `screens/runner-maintenance-action.test.jsx`
+(신규, 2건 — 수정 폼에 점검 상태가 없음 + 확인→폼→PATCH 전 과정
+실제 렌더링). 셋 다 revert-to-verify: diff 로직을 임시로 되돌려
+정확한 이유로 실패하는 것 확인(전자는 PATCH body 불일치·무변경
+안내 누락, 후자는 필드가 여전히 존재함)한 뒤 `Edit`으로 복원. 프런트
+전체 회귀 228 파일/1541건(신규 3파일/13건 포함) green. `bash
+scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 재빌드 완료.
+
+이 배치(`CONC-01`+`CONC-02`) 커밋 예정. **다음 후보**: `GM-10`/
+`GM-11`(게임 동시성, 조건부 UPDATE 패턴 재적용), 그 뒤 stale
+`RN-01~14` 섹션 행 정정, 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.

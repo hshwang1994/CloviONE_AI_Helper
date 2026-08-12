@@ -113,7 +113,7 @@ export const INTEGRATION_SCREENS = {
     // 사실만 말하고, 실제 처리가 어디로 가는지는 그 화면으로 안내한다(app/setup/probes.py::probe_llm
     // 의 같은 정정과 짝).
     help: (role) => "등록, 헬스체크, 수동 테스트 대상 레지스트리입니다(실제 채팅, 문서 생성 처리는 ‘외부 연동’의 n8n 경로가 맡습니다). 상태 확인 후 켜세요. 성능 저하, 차단된 러너는 헬스 체크가 한 번 성공하면 자동 복구됩니다."
-      + ((role === "admin" || role === "system_admin") ? " 강제로 멈추려면 ‘수정’에서 점검 상태를 ‘점검’으로 바꾸세요." : ""),
+      + ((role === "admin" || role === "system_admin") ? " 강제로 멈추려면 ‘점검 상태 변경’을 누르세요." : ""),
     emptyTitle: "등록된 러너가 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 러너 추가’로 실행기를 등록하고 상태 확인 후 켜세요(등록, 헬스체크 대상입니다).", "러너는 관리자가 등록합니다. 등록되면 여기에 표시됩니다."),
     // 첫 화면 진입 시 단계별 안내(§9) — 연동→러너→워크플로 체인의 두 번째 단계.
@@ -180,9 +180,16 @@ export const INTEGRATION_SCREENS = {
       { name: "owner", label: "담당자(선택)", type: "text" },
       { name: "description", label: "설명", type: "textarea" },
     ] },
-    // 점검 상태(maintenance_state)·담당자까지 편집 가능하게 명시적 edit 폼(PATCH)을 둔다.
+    // 담당자까지 편집 가능하게 명시적 edit 폼(PATCH)을 둔다.
     // (capabilities/tags/retry_policy 는 런타임에 아무 영향이 없는 메타데이터라 폼에서 제거 — 러너
     //  호출 경로엔 재시도 로직이 없고 기능/태그로 결정되는 동작도 없다. 혼란만 주던 JSON 입력을 없앤다.)
+    // CONC-02: maintenance_state는 여기 없다 — 서킷 브레이커가 연속 실패/성공에 따라 같은 필드를
+    // 자동으로 쓴다(정상↔성능 저하). 이 일반 편집 폼에 남겨 두면 diffFields(CONC-01)로도 못 막는
+    // 충돌이 남는다: 관리자가 이 필드를 "의도적으로" 바꾼 값과 그 사이 자동 판정이 다시 바꾼 값이
+    // 겹치면 여전히 나중에 저장한 쪽이 이긴다(예: 관리자가 '점검'으로 내려 배분을 멈췄는데, 낡은
+    // 폼을 아직 열어 둔 다른 관리자가 무관한 필드만 고쳐 저장해도 diff엔 안 걸리지만, 그 관리자가
+    // *이 필드도* 만졌다가 되돌리면 자동 판정과 정면으로 충돌한다). 아래 전용 액션으로 분리해
+    // 매번 명시적 확인을 받는다.
     editMethod: "PATCH", edit: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text" },
       { name: "base_url", label: "서버 주소(Base URL)", type: "text" },
@@ -191,13 +198,18 @@ export const INTEGRATION_SCREENS = {
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "timeout_seconds", label: "타임아웃(초)", type: "number" },
       { name: "concurrency_limit", label: "동시 실행 수", type: "number" },
-      { name: "maintenance_state", label: "점검 상태", type: "select", options: RUNNER_MAINT_OPTS, help: "‘점검’이면 새 작업 배분이 멈춥니다." },
       { name: "owner", label: "담당자", type: "text" },
       { name: "version", label: "러너 버전", type: "text" },
       { name: "description", label: "설명", type: "textarea" },
     ] },
     actions: [
       ...onoff("/api/admin/runners"),
+      // CONC-02: 점검 상태 전용 액션 — 위 edit.fields 주석 참고. activeToggle(actions.js)과 같은
+      // "단일 필드 전용 PATCH" 패턴이지만 값이 셋(정상/성능 저하/점검)이라 고정 body 대신 작은
+      // 입력 폼(fields) 하나로 고른다. confirm은 fields보다 먼저 뜬다(DataScreen.jsx runAction).
+      { label: "점검 상태 변경", roles: WRITE_ROLES, method: "PATCH", path: (r) => "/api/admin/runners/" + r.id,
+        confirm: (r) => "현재 점검 상태는 ‘" + ((RUNNER_MAINT_OPTS.find((o) => o.value === r.maintenance_state) || {}).label || r.maintenance_state) + "’입니다. ‘점검’으로 바꾸면 새 작업 배분이 즉시 멈추고, ‘정상’으로 바꾸면 성능 저하 여부와 무관하게 새 작업을 다시 받습니다. 바꿀까요?",
+        fields: [{ name: "maintenance_state", label: "점검 상태", type: "select", options: RUNNER_MAINT_OPTS, required: true }] },
       { label: "헬스", roles: OPS_ROLES, path: (r) => "/api/admin/runners/" + r.id + "/health", result: healthResult },
       { label: "테스트", roles: OPS_ROLES, path: (r) => "/api/admin/runners/" + r.id + "/test", result: testResult },
       // 복제는 원본의 auth_type/secret_ref를 물려받는다. secret이 걸린 러너 복제는 system_admin만 허용(백엔드 가드)

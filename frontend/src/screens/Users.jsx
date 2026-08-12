@@ -12,6 +12,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
+import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
@@ -45,22 +46,7 @@ function shortUA(ua) {
   return s.length > 60 ? s.slice(0, 60) + "…" : s;
 }
 
-// 수정 폼이 전체 스냅샷을 다시 보내지 않고 실제로 바뀐 필드만 PATCH하게 한다 — 그대로 전부
-// 재전송하면 그 사이 다른 관리자가 바꾼 필드(예: 역할 승인·부서 변경)를 조용히 덮어쓸 수 있다.
-export function diffFields(body, initial) {
-  const out = {};
-  for (const k of Object.keys(body || {})) {
-    const before = initial ? initial[k] : undefined;
-    const after = body[k];
-    const same = typeof before === "boolean" || typeof after === "boolean"
-      ? !!before === !!after
-      : String(before == null ? "" : before) === String(after == null ? "" : after);
-    if (!same) out[k] = after;
-  }
-  return out;
-}
-
-const ROLE_KO = { user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
+const ROLE_KO ={ user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
 
 /* 관리 범위 — `app/users/models.py` 의 `ALL_ADMIN_SCOPES` 와 같은 세 값이다.

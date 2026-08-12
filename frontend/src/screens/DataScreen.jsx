@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api.js";
+import { diffFields } from "../lib/diffFields.js";
 import { kstLocalToApi } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
@@ -796,8 +797,29 @@ export function DataScreen({ config }) {
           initial={editing ? (config.fromRow ? config.fromRow(editing) : editing) : {}} submitLabel="저장" onClose={() => setEditing(null)}
           onSubmit={async (body) => {
             const prev = editing;
-            const apiBody = config.toApiBody ? config.toApiBody(body) : body;
-            const res = await api(config.endpoint + "/" + editing.id, { method: config.editMethod || "PATCH", body: apiBody });
+            const editMethod = config.editMethod || "PATCH";
+            const initialFormValues = editing ? (config.fromRow ? config.fromRow(editing) : editing) : {};
+            const fullApiBody = config.toApiBody ? config.toApiBody(body) : body;
+            // CONC-01: PATCH 화면은 전체 스냅샷이 아니라 실제로 바뀐 필드만 보낸다(diffFields,
+            // Users.jsx의 수정 폼과 같은 방식을 등록 화면 전체로 확장) — 안 그러면 이 폼이 열려
+            // 있는 사이 다른 관리자가 바꾼 필드(예: 서킷 브레이커가 자동으로 내린
+            // maintenance_state)를 조용히 원래 값으로 되돌려 버릴 수 있다. toApiBody 변환 **뒤**의
+            // 값으로 비교한다 — 그 전 값(폼 필드 이름)으로 비교하면 여러 폼 필드가 객체 하나로
+            // 합쳐지는 화면(예: 승인 정책 체크박스 → {required:bool})에서 무관한 필드만 바뀌어도
+            // diff가 그 객체 전체를 "바뀜"으로 잘못 잡을 수 있다.
+            // editMethod가 PUT인 화면(schedules·templates)은 백엔드가 전체 표현을 요구하는 진짜
+            // REST PUT이다(app/schedules/router.py의 ScheduleRequest는 부분 스키마가 아니다) —
+            // 부분 body를 보내면 "나머지는 그대로"가 아니라 검증 실패나 기본값 초기화로 이어질 수
+            // 있어 그대로 전체를 보낸다(이 화면들은 CONC-01의 남은 범위로 문서에 남긴다).
+            const apiBody = editMethod === "PATCH"
+              ? diffFields(fullApiBody, config.toApiBody ? config.toApiBody(initialFormValues) : initialFormValues)
+              : fullApiBody;
+            if (editMethod === "PATCH" && Object.keys(apiBody).length === 0) {
+              setEditing(null); setSel(null);
+              toast("변경된 내용이 없습니다.", "info");
+              return;
+            }
+            const res = await api(config.endpoint + "/" + editing.id, { method: editMethod, body: apiBody });
             setEditing(null); setSel(null); refresh();
             // 저장 후 훅(예: 스케줄 정의 변경으로 자동 비활성화됨)이 경고를 직접 알린 경우 기본 성공 토스트는 생략한다.
             const handled = config.onSaved ? config.onSaved(res, { toast, prev }) : false;

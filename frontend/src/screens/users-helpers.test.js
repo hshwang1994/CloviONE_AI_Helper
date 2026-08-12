@@ -1,29 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { diffFields, roleOptionsFor } from "./Users.jsx";
+import { roleOptionsFor } from "./Users.jsx";
 
 const ALL_OPTS = ["user", "operator", "admin", "auditor", "system_admin"].map((v) => ({ value: v, label: v }));
 const values = (opts) => opts.map((o) => o.value);
-
-describe("diffFields", () => {
-  it("omits unchanged fields", () => {
-    expect(diffFields({ a: 1, b: 2 }, { a: 1, b: 3 })).toEqual({ b: 2 });
-  });
-  it("returns empty object when nothing changed", () => {
-    expect(diffFields({ a: 1, b: "x" }, { a: 1, b: "x" })).toEqual({});
-  });
-  it("coerces booleans (true vs truthy 1 is unchanged)", () => {
-    expect(diffFields({ active: true }, { active: 1 })).toEqual({});
-  });
-  it("detects a real boolean change", () => {
-    expect(diffFields({ active: false }, { active: true })).toEqual({ active: false });
-  });
-  it("treats null and empty-string as equal (no spurious diff)", () => {
-    expect(diffFields({ x: null }, { x: "" })).toEqual({});
-  });
-  it("treats a missing initial value as a change", () => {
-    expect(diffFields({ a: 1 }, undefined)).toEqual({ a: 1 });
-  });
-});
 
 describe("roleOptionsFor", () => {
   it("gives system_admin every option", () => {
