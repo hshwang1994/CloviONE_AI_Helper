@@ -11,8 +11,9 @@
  *
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
+import React from "react";
 import { NOTI_SCREEN } from "../../app/notification-keys.js";
-import { ADMIN_VIEW_ROLES, OBJ_ID_PARAM, OBJ_ROUTE, TYPE_KO, canReachObjRoute, col, dateCol, field, mapCol, objField, objRouteHref, opt, readCol } from "./shared.js";
+import { ADMIN_VIEW_ROLES, Badge, OBJ_ID_PARAM, OBJ_ROUTE, TYPE_KO, canReachObjRoute, col, dateCol, field, mapCol, objField, objRouteHref, opt, readCol } from "./shared.js";
 
 /* RG-02 — 서버가 계산한 목적지(related_route, app/notifications/destinations.py)가 있으면
  * 그걸 최우선으로 쓴다. 아래 OBJ_ROUTE/OBJ_ID_PARAM(프런트의 로컬 표, 승인·작업 큐처럼
@@ -65,7 +66,14 @@ export const NOTIFICATIONS_SCREEN = {
     // 제목을 첫 열로 둔다 — DataScreen의 상세 드로어 제목(detailTitle)은 columns[0]을 쓰는데, 예전엔
     // 그게 mapCol('type')이라 같은 유형('승인 요청' 등)의 알림이 모두 같은 제목으로 열려 어느 알림을
     // 보고 있는지 구분이 안 됐다 — 각 알림의 실제 제목이 드로어 제목으로도 보이게 한다.
-    columns: [col("title", "제목"), mapCol("type", "유형", TYPE_KO), readCol("read_at", "읽음"), dateCol("created_at", "시각")],
+    // RG-03: 서버는 이 유형을 사용자가 뮤트했는지(muted) 이미 내려주고 있었다(app/notifications/
+    // router.py::_view — "목록에서 빼지 않고 표시만 한다"는 그 필드의 존재 이유 자체가 화면에
+    // 보여야 성립하는 계약인데, 열이 없어 뮤트해 놓고도 왜 계속 오는지 알 길이 없었다.
+    columns: [col("title", "제목"), mapCol("type", "유형", TYPE_KO), readCol("read_at", "읽음"), dateCol("created_at", "시각"),
+      // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
+      // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
+      { key: "muted", label: "뮤트 유형", render: (r) => r.muted
+        ? React.createElement(Badge, { value: "뮤트된 유형", kind: "neutral" }) : "-" }],
     // related_object_id는 원래 상세에서 원시 UUID로만 보여줬다 — 바로 옆 '관련 항목 보기'/'관련
     // 목록 열기' 액션 버튼이 이미 같은 id를 실제로 이동 가능한 링크로 해석해 주므로, 클릭도
     // 복사도 안 되는 평문 UUID 한 줄은 정보 없이 자리만 차지했다(drop).

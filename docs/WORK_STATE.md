@@ -12,12 +12,17 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF23 — `/projects` 클러스터
-(`VIS-01~06`) — `VIS-02`("부서" 열이 늘 비어 있다)가 표시 문제가 아니라
-RBAC 가시성 결함(부서 스코프 관리자에게 신규 동기화 프로젝트가 통째로
-안 보이는데 지정할 UI가 없었다)이었음을 확인하고 구현완료. 나머지
-5건은 데이터 우연/이미 무너진 전제/기존 발견과 같은 뿌리로 재정리.
-그 직전 WF22 — `/setup`·`/llm-console`
+**마지막 갱신**: 2026-08-12 · **단계**: WF24 — `RG-03`(알림 화면 액션
+없음) 구현완료 — 재확인 결과 3개 중 2개(이동 액션·삭제 액션)는
+`RG-02`/`FN-03`이 이미 닫아 뒀고 `muted` 열 하나만 진짜로 남아 있었다.
+같은 invocation에서 배경으로 돌린 전체 백엔드 회귀(2512개)는 1건
+실패했으나 격리 재실행으로 내 코드 문제가 아니라 동시 진행 중이던
+프런트 빌드와의 자기 유발 flake임을 확인. 그 직전 WF23 — `/projects`
+클러스터(`VIS-01~06`) — `VIS-02`("부서" 열이 늘 비어 있다)가 표시
+문제가 아니라 RBAC 가시성 결함(부서 스코프 관리자에게 신규 동기화
+프로젝트가 통째로 안 보이는데 지정할 UI가 없었다)이었음을 확인하고
+구현완료. 나머지 5건은 데이터 우연/이미 무너진 전제/기존 발견과 같은
+뿌리로 재정리. 그 앞 WF22 — `/setup`·`/llm-console`
 클러스터(`SYS-04~09` 6건) — SYS-05(자체서명 인증서 오판정)·SYS-06(setup
 링크가 엉뚱한 화면으로 감)·SYS-07(select 빈 상자) 구현완료, SYS-04/08/09는
 각각 배포 필요/설계 필요로 명시적 보류. 그 앞 WF21 — Stop hook이 조기
@@ -3268,3 +3273,47 @@ RESP-04 축소 레일 사이드바 · `VIS-122`/`VIS-06` 본 수정(전담,
 클러스터 14건 · BACKLOG Med/Low 클러스터 계속 스캔 · PHASE 1
 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명
 Blocker 여전).
+
+**배경 전체 백엔드 회귀 결과(같은 invocation, WF23 시작 시 백그라운드로
+띄워 둔 것) — 2512개 중 실패 1건, 재확인 결과 내 코드 문제가 아니었다.**
+`test_stage_static_update.py::test_no_hard_refresh_instruction`이
+`app/static/react/BUILD_STAMP.json`을 못 읽었다고 실패했는데, 그 시각에
+내가 다른 배치(SYS-04~09, VIS-01~06)에서 `npm run build`+
+`check_bundle_fresh.py --write`를 여러 번 돌리고 있었다 — 그 파일이
+빌드 중 잠깐 없어지는 순간과 겹친 것으로 보고 격리 재실행했더니
+82.55초 만에 단독으로 green(1 passed). **교훈**: 전체 배포산출물
+(`app/static/react/**`)을 읽는 회귀 스위트를 프런트 재빌드와 동시에
+돌리면 이런 자기 유발 flake가 생긴다 — 다음에 전체 회귀를 돌릴 때는
+그 시간 동안 번들 재빌드를 피하거나, 최소한 실패가 나오면 먼저
+"내가 그 사이에 뭘 건드리고 있었나"부터 확인할 것.
+
+**WF24(같은 invocation 계속) — `RG-03`(알림 화면에 사용자용 액션이
+없다), 재확인 결과 3개 중 2개는 이미 다른 항목에서 닫혀 있었다.**
+전체 회귀가 배경에서 도는 동안 BACKLOG를 계속 스캔하다 발견 — 이동
+액션(`chat_room`/`chat_mention`/`ticket`/`board_post`)은 `RG-02`가
+`related_route` 우선 처리로 이미 해결했고(그 항목 설명에 이 네 유형이
+명시돼 있었다), 삭제 액션은 `FN-03`이 이미 구현(소유권 기반 "삭제"
+버튼, `notification-delete.test.jsx`로 확인). 남은 것은 `muted` 열
+하나 — 서버(`app/notifications/router.py::_view`)는 이미 `muted`
+불리언을 내려주고 있었는데("목록에서 빼지 않고 표시만 한다"는 그
+필드 자체의 존재 이유) 프런트 목록 열이 없었다.
+
+**구현**: `registry/notifications.js`의 `columns`에 `muted` 배지 열
+추가(뮤트면 "뮤트된 유형", 아니면 "-"). 이 파일은 `.js`라 JSX 대신
+`React.createElement`를 직접 쓴다(`integrations.js`와 같은 이유) —
+`React`/`Badge` import 추가.
+
+**검증**: 신규 시험 2건(`notification-muted-column.test.jsx`),
+revert-to-verify로 열을 죽이면 정확히 그 시험이 실패하는 것을 확인
+후 복원. `notification-delete.test.jsx`(2건)+`notification-server-
+route.test.jsx`(11건)도 함께 재확인 green. `registry/notifications.js`
+가 관리자·사용자 콘솔 공용 파일이라 프런트 전체(223파일/1521건)
+재실행 green. `npm run build`+`check_bundle_fresh.py --write`+
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+이 배치(`RG-03`) 커밋 완료. **다음 후보**: 위 목록과 동일(변화 없음) —
+RESP-04 · `VIS-122`/`VIS-06` 본 수정 · KPI 그리드 클러스터 ·
+`VIS-04`/`VIS-114`/`VIS-115` · SYS-08/09 · SYS-04(배포 후) ·
+QA_COVERAGE L축·알림 3원 확인 · AI-* 클러스터 14건 · BACKLOG
+Med/Low 계속 스캔 · PHASE 1 Handoff 대기 · TEST SERVER 배포
+(자격증명 Blocker 여전).
