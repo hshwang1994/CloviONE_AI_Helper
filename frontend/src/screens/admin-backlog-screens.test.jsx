@@ -207,7 +207,9 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
       window_hours: 24, thresholds: { failure_burst: 5 },
     }));
     renderScreen("audit-anomalies");
-    const row = await screen.findByText("실패가 몰려 있습니다");
+    // WF1 R1: 요약 열이 title만 쓰던 시절엔 kind별 고정 문자열이라 같은 kind의 다른 행위자와
+    // 안 구별됐다 — 이제 행위자를 붙인다(registry/governance.js audit-anomalies).
+    const row = await screen.findByText("실패가 몰려 있습니다 / 홍길동");
     await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
     const drawer = await screen.findByRole("dialog");
     expect(drawer).toHaveTextContent("user.update (failure)");

@@ -41,12 +41,27 @@ describe("SEM-01 — 등록 화면 목록의 행별 접근 이름", () => {
     expect(a).not.toBe(b);
   });
 
-  it("감사 이상 징후(audit-anomalies): 서버가 만든 요약(title)을 그대로 쓴다", () => {
+  /* WF1 R1 재검증(2026-08-13) 중 정정 — title은 실제로는 app/audit/anomalies.py의 _finding이
+   * 만드는 **kind별 고정 문자열**이라("실패가 몰려 있습니다" 등, 행위자·건수와 무관하게 항상
+   * 같다) 이 시험이 원래 쓰던 가짜 값(title 자체가 이미 행마다 다름)은 실제로는 벌어지지
+   * 않는 모양이었다 — 그래서 title만으로는 같은 kind의 두 행이 같은 이름이 되는 문제를 이
+   * 시험이 가려 왔다. 실제 서버 모양(같은 kind는 title도 같다)으로 고치고, 행위자로 보강한
+   * 결과를 확인한다. */
+  it("감사 이상 징후(audit-anomalies): 같은 유형이라도 행위자로 구별된다", () => {
     const cols = REGISTRY["audit-anomalies"].columns;
-    const a = declaredRowName(cols, { title: "실패 급증: 홍길동" });
-    const b = declaredRowName(cols, { title: "동작 급증: 이몽룡" });
-    expect(a).toBe("실패 급증: 홍길동");
-    expect(b).toBe("동작 급증: 이몽룡");
+    const a = declaredRowName(cols, { title: "실패가 몰려 있습니다", actor_name: "홍길동" });
+    const b = declaredRowName(cols, { title: "실패가 몰려 있습니다", actor_name: "이몽룡" });
+    expect(a).toBe("실패가 몰려 있습니다 / 홍길동");
+    expect(b).toBe("실패가 몰려 있습니다 / 이몽룡");
+    expect(a).not.toBe(b);
+  });
+
+  it("감사 이상 징후: 목록의 '요약' 열도(rowName뿐 아니라) 행위자로 구별된 값을 보여준다", () => {
+    const titleCol = REGISTRY["audit-anomalies"].columns.find((c) => c.key === "title");
+    expect(titleCol.render({ title: "실패가 몰려 있습니다", actor_name: "홍길동" })).toBe("실패가 몰려 있습니다 / 홍길동");
+    // 행위자 이름이 없으면(퇴사·시스템 동작 등) id, 그마저 없으면 "시스템"으로 — 빈 값이 새지 않는다.
+    expect(titleCol.render({ title: "실패가 몰려 있습니다", actor_id: "u-9" })).toBe("실패가 몰려 있습니다 / u-9");
+    expect(titleCol.render({ title: "실패가 몰려 있습니다" })).toBe("실패가 몰려 있습니다 / 시스템");
   });
 
   it("임퍼소네이션(impersonation): 관리자 → 대상으로 구별된다", () => {

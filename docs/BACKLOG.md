@@ -2212,9 +2212,9 @@ High 1건이 사라진다. 실패가 **조용해서** 안 보였고, 이번 판�
 
 | 화면 | 문제 |
 |---|---|
-| `admin_departments`·`admin_org-tree` | 이 두 라우트에서 **좌측 내비 활성 표시가 통째로 사라진다**(같은 세트의 다른 5화면은 정상) |
+| `admin_departments`·`admin_org-tree` | 이 두 라우트에서 **좌측 내비 활성 표시가 통째로 사라진다**(같은 세트의 다른 5화면은 정상) ‖ **구현완료(2026-08-13)** — `R1` 상세표의 `ROUTE_OWNER` 행 참고 |
 | `admin_offboarding` | 제목·내비가 **온보딩을 약속하는데 화면에 온보딩 기능이 없다**(`Offboarding.jsx` 503줄에 온보딩 경로 0건) |
-| `admin_audit-anomalies` | 가장 넓은 `요약` 열이 `유형` 열과 **같은 말을 반복**해 정보량 0 — 행을 구별하는 값은 상세에만 있다 |
+| `admin_audit-anomalies` | 가장 넓은 `요약` 열이 `유형` 열과 **같은 말을 반복**해 정보량 0 — 행을 구별하는 값은 상세에만 있다 ‖ **구현완료(2026-08-13, 근본 원인 재정의)**: 재조사 결과 `요약`(title)이 `app/audit/anomalies.py::_finding`이 만드는 **kind별 고정 문자열**이라는 것을 확인 — "정보량 0"보다 심각했다, 같은 kind로 두 사람이 함께 걸리면(흔함) `rowName`도 완전히 같아져 **SEM-01의 행별 접근 이름 구별이 이 화면에서는 실질적으로 안 됐다.** `registry/governance.js`의 `title` 열을 `(title) + " / " + (행위자)`로 바꿔 `render`·`rowName` 둘 다 고침 — 화면에 이미 있는 행위자 열로 보강해 새 정보 노출 없이 두 문제(요약↔유형 중복, rowName 미구별)를 함께 없앰. `registry-row-name.test.jsx` 갱신(가짜였던 기존 시험이 실제 서버 모양—같은 kind는 title도 같음—을 반영 안 해 이 결함을 가리고 있었다) + 열 render 검증 추가, `detailFields.test.js`·`admin-backlog-screens.test.jsx`의 관련 fixture/기대값도 함께 정정(그 두 시험도 실제로는 이 변경으로 깨졌다 — 광범위 grep으로 이 화면을 참조하는 시험 4개 전부 확인). revert-to-verify 확인 |
 | `admin_job-detail` | `오류` 열에 개발자 원문·내부 상수 노출(`등록되지 않은 job_type: …`). **소스는 콜론인데 화면은 em 대시** — DB 값과 코드가 다르다 |
 | `admin_integration-detail` | **25일 전 점검 결과를 초록 「정상」으로 현재처럼 표시**. 연동·러너 헬스 스윕이 워커 주기 작업에 없다(버튼으로만 돈다) |
 | `user_my-stats` | 상단 경고("Notion 미연결")와 빈 상태("담당 티켓이 없어서")가 **서로 다른 원인**을 말하고, 빈 상태 CTA 는 실제 원인을 못 고친다 |

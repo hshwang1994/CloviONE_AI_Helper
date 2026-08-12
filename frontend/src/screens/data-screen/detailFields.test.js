@@ -12,10 +12,12 @@ import { REGISTRY } from "../registry.js";
  * enum "high"/"medium"/"low", 또는 같은 날 여러 건이면 서로 구별 안 되는 시각)이었다.
  */
 describe("detailTitle — 선언된 rowName을 columns[0] 폴백보다 먼저 쓴다", () => {
-  it("감사 이상 징후: 제목이 배지 원시값('high')이 아니라 서버 요약(title)이다", () => {
+  it("감사 이상 징후: 제목이 배지 원시값('high')이 아니라 서버 요약(title)+행위자다", () => {
     const cols = REGISTRY["audit-anomalies"].columns;
-    const row = { severity: "high", title: "실패 급증: 홍길동" };
-    expect(detailTitle(row, cols)).toBe("실패 급증: 홍길동");
+    // title은 kind별 고정 문자열이다(app/audit/anomalies.py) — actor_name까지 있어야 실제
+    // 서버 응답 모양과 같다(registry-row-name.test.jsx 참고).
+    const row = { severity: "high", title: "실패가 몰려 있습니다", actor_name: "홍길동" };
+    expect(detailTitle(row, cols)).toBe("실패가 몰려 있습니다 / 홍길동");
     expect(detailTitle(row, cols)).not.toBe("high");
   });
 

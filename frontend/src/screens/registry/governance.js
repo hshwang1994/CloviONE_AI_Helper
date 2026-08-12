@@ -378,9 +378,16 @@ export const GOVERNANCE_SCREENS = {
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
       }),
       { key: "actor_name", label: "행위자", render: (r) => r.actor_name || r.actor_id || "시스템" },
-      // SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 서버가 이미
-      // 만들어 주는 요약 문장(title)이 행마다 다른 가장 자연스러운 식별자다.
-      { ...col("title", "요약"), rowName: (r) => r.title || "이상 징후" },
+      /* SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 처음엔 서버가
+       * 만들어 주는 요약 문장(title)을 그대로 rowName으로 썼는데(app/audit/anomalies.py의
+       * _finding), 그 title이 실제로는 **kind별 고정 문자열**이라는 것을 WF1 R1 재검증 중
+       * 발견했다("실패가 몰려 있습니다" 등, 행위자·건수와 무관하게 항상 같다) — 같은 kind로
+       * 두 사람이 함께 걸리면(흔한 일이다, 예: 같은 날 두 관리자가 각자 실패 급증) 두 행의
+       * rowName이 완전히 같아져 SEM-01이 이 화면에서는 실제로 안 고쳐진 것과 같았다. 화면에
+       * 이미 있는 행위자로 보강해 행마다 실제로 구별되게 한다 — 동시에 요약 열이 유형 열과
+       * 같은 말만 반복하던 것(WF1 High 발견)도 함께 없어진다. */
+      { key: "title", label: "요약", render: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템"),
+        rowName: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템") },
       { key: "count", label: "건수", align: "right" },
       dateCol("last_at", "마지막"),
     ],

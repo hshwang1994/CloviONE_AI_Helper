@@ -4033,11 +4033,67 @@ jsx` 관련 전체 회귀(8파일/32건) green. **`EmptyState`가 31개
 `docs/BACKLOG.md`의 WF1 `R1` 상세표 8행 전부 정정(6건 구현완료·
 1건 재확인 결과 기존 해결·1건 보류 사유 명시) — R1 클러스터 수렴.
 
-이 배치(WF1 `R1` 나머지 6건) 커밋 예정. **다음 후보**: WF1 High
-나머지(`admin_offboarding`이 온보딩 기능을 약속하지만 실제
-경로 0건, `admin_audit-anomalies`의 `anomalies.py:208-209` 중복
-컬럼, 연동에 러너와 달리 주기적 헬스 정체 스윕/배지가 없음),
-WF1 R2~R7(문자열 경계·라벨 일관성·약속-능력 불일치·빈 상태
-규칙·넓은 뷰포트 폭 예산·버튼 variant 매핑) 나머지 상세도 아직
-안 읽었다. 그 외 `RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
-남은 `RESP-04`/`VIS-122`도 후보 목록에 있다.
+이 배치(WF1 `R1` 나머지 6건) 커밋 완료(`058eaea`).
+
+**WF38(같은 invocation 계속) — WF1 High `admin_audit-anomalies`
+("요약 열이 유형 열과 같은 말 반복") 재조사, 근본 원인 재정의 +
+구현완료.** `anomalies.py:208-209`(직전 pending 메모가 이 줄을
+"중복 컬럼"이라 지목했다)를 직접 읽었으나 그런 결함이 없었다 —
+`_finding()` 호출 한 곳일 뿐이고, `docs/BACKLOG.md` 어디에도 이
+줄 인용이 실제로 없었다(grep 확인). 그 pending 메모 자체가
+부정확했다고 판단하고, 실제 WF1 High 원문("요약 열이 유형 열과
+같은 말 반복")으로 다시 조사.
+
+`app/audit/anomalies.py`의 5개 규칙 전부에서 `_finding()`의
+`title` 인자를 대조한 결과, `title`이 **kind별 완전 고정 문자열**
+이라는 것을 확인("실패가 몰려 있습니다"는 어떤 행위자·건수든
+항상 이 문장) — WF1이 지적한 "정보량 0"은 정확했을 뿐 아니라
+그 이상이었다: `registry/governance.js`의 audit-anomalies
+`rowName`이 정확히 이 `title`만 읽고 있어서, **같은 kind로 두
+사람이 함께 걸리면(흔한 일 — 예: 같은 날 두 관리자가 각자
+실패 급증) 두 행의 rowName이 완전히 같아졌다.** SEM-01(이
+세션 앞부분에 완료 처리)이 이 화면에서는 실질적으로 안 고쳐진
+상태였던 것 — WF35의 detailTitle 건과 같은 "부분 수정 뒤 숨은
+소비처" 패턴이 이번엔 SEM-01 **원 구현 자체**에서 나왔다.
+
+**구현**: `title` 열을 `render`/`rowName` 둘 다 `(title) + " / " +
+(actor_name||actor_id||"시스템")`으로 바꿈 — 화면에 이미 있는
+행위자 정보로 보강했을 뿐 새 데이터 노출 없음. 이걸로 목록의
+요약 열(유형과 중복 안 함)과 rowName(행마다 실제로 구별됨)
+둘 다 한 번에 고쳐진다.
+
+**시험과 연쇄 정정**: `registry-row-name.test.jsx`의 기존
+audit-anomalies 시험이 **가짜 fixture**(title 자체가 이미
+"실패 급증: 홍길동"처럼 행마다 다르게 꾸며져 있었다 — 실제
+서버는 절대 이런 값을 안 준다)를 썼던 것도 발견 — 그래서 이
+결함이 이 시험을 통과한 채로 숨어 있었다. 실제 서버 모양(같은
+kind는 title도 같음)으로 fixture를 고치고 행위자로 구별되는지
+확인하는 시험으로 교체 + 열 `render()` 자체를 검증하는 시험
+추가. 이 화면을 참조하는 시험 전체를 grep으로 찾아(4개 파일)
+전부 실행한 결과 `detailFields.test.js`(WF35에서 쓴 fixture도
+비현실적이었다)와 `admin-backlog-screens.test.jsx`(실제 API
+mock은 이미 `actor_name` 포함 — 가장 현실적인 fixture였다, 단순히
+assertion 문자열만 옛 포맷)가 실제로 깨지는 것을 확인, 둘 다
+새 동작에 맞게 정정. revert-to-verify: 되돌리니 신규 시험 2건이
+정확히 그 이유로 실패(같은 kind 두 행이 같은 rowName, `render`가
+함수가 아님) 확인 후 복원. 관련 회귀(registry-row-name·registry-
+identifiers·detailFields·admin-backlog-screens·audit-result-filter,
+27+17건) green. 재빌드 완료, `bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 WF1 High-7 표 2행(`admin_departments`·
+`admin_org-tree`=WF36, `admin_audit-anomalies`=이번) 구현완료로
+정정.
+
+이 배치(`admin_audit-anomalies` 근본 원인 재정의) 커밋 예정.
+**다음 후보**: WF1 High 나머지 2건 확인 필요 — `admin_offboarding`
+이 온보딩 기능을 약속하지만 실제 경로가 있는지(`Offboarding.jsx`
+직접 재확인 필요, WF1은 2026-08-08 조사라 그새 바뀌었을 수 있다),
+`admin_integration-detail`의 헬스 스윕이 워커 주기 작업에 아직도
+없는지(연동에 러너와 달리 주기적 정체 감지가 없다는 주장,
+`app/health/service.py`·워커 등록 확인 필요). WF1 R2~R7(문자열
+경계·라벨 일관성·약속-능력 불일치·빈 상태 규칙·넓은 뷰포트 폭
+예산·버튼 variant 매핑) 나머지 상세도 아직 안 읽었다 — `docs/
+wf1_synthesis.md`/`wf1_findings.json` 재확인 필요. 그 외 `RN-15`·
+`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도
+후보 목록에 있다.
