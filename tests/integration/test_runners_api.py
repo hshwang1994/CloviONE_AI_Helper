@@ -31,6 +31,17 @@ def test_new_runner_created_disabled_regardless_of_request(client, admin_csrf):
     assert r.json()["runner"]["enabled"] is False  # spec §15.5
 
 
+def test_create_accepts_null_timeout_seconds_and_concurrency_limit(client, admin_csrf):
+    """UX-41: 관리 콘솔 폼이 지워진 숫자 칸을 명시적 null로 보내면 스키마 기본값
+    (60초, 동시 실행 1) 대신 422가 났다 — 스케줄 화면의 misfire_policy/concurrency_policy
+    와 같은 패턴, 이 화면만 빠져 있었다."""
+    r = _create(client, admin_csrf, timeout_seconds=None, concurrency_limit=None)
+    assert r.status_code == 201, r.text
+    runner = r.json()["runner"]
+    assert runner["timeout_seconds"] == 60
+    assert runner["concurrency_limit"] == 1
+
+
 def test_runner_url_allowlist_enforced(client, admin_csrf):
     r = _create(client, admin_csrf, name="evil", base_url="http://8.8.8.8:80")
     assert r.status_code == 400

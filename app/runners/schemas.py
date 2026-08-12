@@ -32,6 +32,19 @@ class RunnerConfig(BaseModel):
     tags: list[str] = Field(default_factory=list)
     integration_id: str | None = None
 
+    # UX-41: 관리 콘솔 폼이 지워진 숫자 칸을 명시적 null로 보낼 수 있다(스케줄 화면의
+    # misfire_policy/concurrency_policy와 같은 이유, app/schedules/router.py의 동일 패턴) —
+    # 필드에 이미 기본값이 있으므로 null은 그 기본값으로 본다.
+    @field_validator("timeout_seconds", mode="before")
+    @classmethod
+    def _timeout_default(cls, v):
+        return 60 if v is None else v
+
+    @field_validator("concurrency_limit", mode="before")
+    @classmethod
+    def _concurrency_default(cls, v):
+        return 1 if v is None else v
+
     @field_validator("provider_type")
     @classmethod
     def _provider_known(cls, v: str) -> str:

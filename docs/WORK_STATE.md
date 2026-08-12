@@ -12,11 +12,13 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF16 — `HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
+**마지막 갱신**: 2026-08-12 · **단계**: WF17 — `UX-41`(스케줄·러너 폼의 null 코어싱
+누락 2곳) 구현완료. 그 직전 WF16 — `HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
 5건을 사용자 지시("잘게 쪼개지 마라")에 따라 묶음 단위(조사→구현 5건 전체 → 테스트·
-정적 검사·문서·커밋 각 1회)로 처리. 상세는 파일 맨 아래 `WF16` 항목. 이 포인터
-문단이 한동안 `WF11-L01`에서 갱신이 안 됐었다(실제 이력은 파일 뒤쪽에 WF12~15로
-계속 쌓이고 있었다) — 이번에 정정. 그 사이 실제로 있었던 것: WF12(`UB-08~13`/`RG-08`
+정적 검사·문서·커밋 각 1회)로 처리. 상세는 파일 맨 아래 `WF16`/`WF17` 항목. 이
+포인터 문단이 한동안 `WF11-L01`에서 갱신이 안 됐었다(실제 이력은 파일 뒤쪽에
+WF12~15로 계속 쌓이고 있었다) — WF16에서 정정, 앞으로는 매 배치 끝마다 갱신한다.
+그 사이 실제로 있었던 것: WF12(`UB-08~13`/`RG-08`
 정정+구현, `UB-09/10` 구현), WF13(`UB-15/16`/`UA-18`), WF14(`RG-04`/`SYS-03`/`ADM-03`/
 `RSTR-01`), WF15(PHASE 1 Product Audit 병행 발견 기록 + `BKP-03`/`MAIL-01`/`SEM-03`/
 `RESP-03`/`RESP-04`/`USE-03`/`USE-08` + 별도 커밋으로 `SRCH-03`). 그 앞의 WF11
@@ -2926,3 +2928,39 @@ WF11-L01에서 멈춰 있었다(실제로는 WF12~15가 파일 뒤쪽에 이미 
 BACKLOG 남은 Med/Low 클러스터 계속 스캔 · PHASE 1 Product Audit가 Handoff를
 완성하면 그것을 최우선 입력으로 전환 · TEST SERVER 배포(자격증명 Blocker
 여전).
+
+**WF17(2026-08-12, 같은 흐름 계속) — `UX-41` 단일 Root Cause, 서로 다른 두
+화면(스케줄·러너)에 인스턴스 2개.** RN-10/11 배치를 마친 뒤 남은 High
+severity 미해결 항목을 훑다가 발견 — BACKLOG 원문이 이미 정확히 짚어 둔
+패턴이라 조사는 빨랐다: 관리 콘솔 폼이 지워진 「선택」류 숫자/문자열 칸을
+명시적 `null`로 보내는데, `ScheduleRequest`(`app/schedules/router.py`)는
+`misfire_policy`/`concurrency_policy` 두 필드에만 `mode="before"` null
+코어서(빈 값 → 스키마 기본값)가 있고 같은 폼의 `timezone`/`timeout_seconds`
+두 필드는 빠져 있었다. `RunnerConfig`(`app/runners/schemas.py`)는 이 패턴
+자체가 하나도 없어 `timeout_seconds`/`concurrency_limit` 둘 다 같은 증상.
+버그 수정이라 신규 시험을 먼저 쓰고 실제로 422로 실패하는 것을 확인한 뒤
+고쳤다(정식 revert-to-verify는 생략 — 애초에 "고치기 전 실패"를 직접
+관찰했으므로 이미 같은 증거).
+
+**구현**: 스케줄에는 기존 두 코어서와 나란히 `timezone`(기본
+`Asia/Seoul`)·`timeout_seconds`(기본 180) 코어서 추가. 러너에는 같은 모양의
+코어서를 `timeout_seconds`(기본 60)·`concurrency_limit`(기본 1)에 신규
+추가. 두 라우터 모두 PATCH/PUT이 같은 Pydantic 모델로 재검증되는 구조라
+생성·수정 경로 양쪽에 자동으로 적용된다(러너는 `RunnerUpdateRequest` →
+`{**before, **주어진값}` → `RunnerConfig` 재검증 merge 패턴, 스케줄은 PUT이
+`ScheduleRequest`를 그대로 재사용 — 둘 다 이미 있던 기존 배선이라 새로
+안 건드림).
+
+**검증**: 신규 시험 2건(`test_create_accepts_null_timezone_and_timeout_seconds`,
+`test_create_accepts_null_timeout_seconds_and_concurrency_limit`) 포함
+`test_schedules_api.py`(24건)·`test_schedules_hardening.py`·
+`test_schedule_zombie_sweep.py`·`test_runners_api.py`(12건)·
+`test_scheduler_tick.py` 전부 green. 프런트 변경 없음(백엔드 검증 계층만) —
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`(번들 재빌드 불필요,
+`BUNDLE_FRESH_OK`가 이미 직전 배치 상태 그대로 통과).
+
+이 배치(`UX-41`) 커밋 완료. **다음 후보**: `VIS-160`(`/me` 홈이 떠 있는 동안
+`refetchInterval` 없이 절대 재조회 안 됨, 프런트 단독) · `UX-40`(422 사유가
+`error.details`에만 있고 SPA 131개 호출부는 영어 상수만 봄 — 큰 리팩터
+후보) · RESP-04 축소 레일 사이드바 · QA_COVERAGE L축 나머지 · PHASE 1
+Product Audit Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).

@@ -91,6 +91,21 @@ def test_create_accepts_null_misfire_and_concurrency_policy(
     assert body["concurrency_policy"] == "skip"
 
 
+def test_create_accepts_null_timezone_and_timeout_seconds(client, admin_csrf, workflow_id):
+    """UX-41: misfire_policy/concurrency_policy는 이미 null 코어싱이 있는데(위 시험),
+    같은 폼의 timezone/timeout_seconds 두 칸은 빠져 있었다 — 콘솔이 지워진 선택 칸을
+    명시적 null로 보내면 스키마 기본값(Asia/Seoul, 180초) 대신 422가 났다."""
+    r = client.post(
+        "/api/admin/schedules",
+        json=_schedule_payload(workflow_id, timezone=None, timeout_seconds=None),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()["schedule"]
+    assert body["timezone"] == "Asia/Seoul"
+    assert body["timeout_seconds"] == 180
+
+
 def test_create_still_rejects_invalid_misfire_policy(client, admin_csrf, workflow_id):
     r = client.post(
         "/api/admin/schedules",

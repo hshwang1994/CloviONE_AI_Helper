@@ -74,6 +74,19 @@ class ScheduleRequest(BaseModel):
             raise ValueError("schedule_type은 cron 또는 once여야 합니다.")
         return v
 
+    # UX-41: misfire_policy/concurrency_policy는 이미 이 null 코어싱을 받고 있었는데
+    # (아래), 같은 폼의 timezone/timeout_seconds 두 칸만 빠져 있었다 — 콘솔이 지워진
+    # 선택 칸을 명시적 null로 보내면 스키마 기본값 대신 422가 났다(같은 패턴, 같은 이유).
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def _timezone_default(cls, v):
+        return "Asia/Seoul" if v is None else v
+
+    @field_validator("timeout_seconds", mode="before")
+    @classmethod
+    def _timeout_default(cls, v):
+        return 180 if v is None else v
+
     @field_validator("misfire_policy", mode="before")
     @classmethod
     def _misfire_default(cls, v):
