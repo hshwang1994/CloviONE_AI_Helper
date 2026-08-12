@@ -71,6 +71,27 @@ QA 도구·pytest smoke 인프라만 추가) 기존 회귀 스위트를 다시 �
 로컬 dev 서버는 이 배치가 끝날 때까지 계속 띄워 둔다(다음 작업에서도 재사용 가능하면
 그대로 씀 — CLAUDE.md 지시).
 
+**이 invocation은 세션 USD 예산 소진(약 70% 소비, 자세한 값은 harness system-reminder
+참고)으로 여기서 멈춘다 — PROJECT는 끝나지 않았다.** §0 원칙대로 이것은 정지 사유가
+아니다: 다음 invocation(로컬 Supervisor가 즉시 이어받거나, 사람이 다시 시작)은 아래를
+바로 실행하면 된다.
+- **로컬 dev 서버가 이미 떠 있다** — uvicorn `http://127.0.0.1:8099`(`--factory
+  app.main:create_app`, `.env` 기준 `var/web.sqlite3`). `curl -s localhost:8099/readyz`로
+  살아있는지 먼저 확인하고, 살아있으면 재기동하지 말고 그대로 쓴다. QA 계정
+  `qa-use-axis-admin@goodmit.co.kr`(system_admin)의 로컬 비밀번호를 이번에
+  `LocalQaTrash-2026-08!`로 재설정했다(다음 세션이 원하면 이 값으로 바로 로그인 가능 —
+  로컬 전용 계정이라 credential 규정 §3-4 대상 아님, 실서버·실 사용자 계정과 무관).
+- **다음 후보(WF9-3 목록에서 남은 것 + 이번에 새로 확인된 것)**: `QA_COVERAGE.md`
+  `L`축(화면 간 반영) 전수 매트릭스 — 아직 `CROSS_SCREEN_KEYS` 6개 매핑만 시험이 있고
+  전체 화면 쌍을 훑은 적은 없다(§11 표) · BACKLOG 나머지 Med/Low 항목 Root Cause
+  클러스터링(이번에 "SEC-12/13류 자기모순 재검증" 패턴을 훑었지만 그 외 새 후보는 못
+  찾음 — 다음 세션은 다른 각도로, 예를 들어 "구현완료인데 실서버 미배포로 남은 항목"
+  재고를 시도해볼 만하다) · `DS-18` 남은 34개 합성 토큰(시각 회귀 확인 필요) ·
+  Admin IA 나머지(`IA-04`, 전용 다사이클 이니셔티브, 이번 범위 아님) · 승인된 TEST
+  SERVER(`10.100.64.X`) 배포 — 자격증명 없음이 여전히 외부 Blocker다(CLAUDE.md §4).
+  `AI-01/02/05~29` 등 AI 심화 아키텍처는 계속 의도적 보류(전담 설계 세션 필요, quick
+  patch로 건드리지 않는다).
+
 **WF10-0(2026-08-12) — Continuity Bootstrap 완료(D-64). 제품 구현은 하지 않은 세션이다.**
 증상은 제품 품질이 아니라 실행 구조였다: `PROJECT_COMPLETE=false`인데 Worker가 Summary를 내고
 끝났고, 그 뒤 다음 invocation이 이어지지 않았다. 이번에 넣은 것:
