@@ -373,7 +373,7 @@ SettingSpec 추가(기본값은 "삭제 안 함" 쪽에 가깝게, 컴플라이�
 | ID | 심각 | 문제 | 근거 | 상태 |
 |---|---|---|---|---|
 | QA-01 | High | **테스트 서버가 HEAD가 아니다** — 라운드 9~14 미배포. 조사 신뢰도 0 | 해시 비교(직접 확인) | 작업예정 |
-| QA-02 | High | **실브라우저 E2E가 수행된 적 없다.** `tests/smoke/`는 **빈 디렉터리**라 `pytest.ini`의 `-m "not smoke"`가 아무것도 거르지 않는다 | `KNOWN_LIMITATIONS.md` §7 | 발견 |
+| QA-02 | High | **실브라우저 E2E가 수행된 적 없다.** `tests/smoke/`는 **빈 디렉터리**라 `pytest.ini`의 `-m "not smoke"`가 아무것도 거르지 않는다 | `KNOWN_LIMITATIONS.md` §7 | ✅ **구현완료(2026-08-12, WF11 후속)** — `tests/smoke/conftest.py`+`test_golden_path.py` 신설(3건: 사용자 콘솔 홈·관리자 콘솔 대시보드·문서 목록, 전부 실제 Chromium+실 로그인+콘솔 오류/4xx·5xx 네트워크 응답 수집). 로컬 dev(`:8099`) 대상 `pytest -m smoke`로 3건 green 확인 + 서버 미기동 시 3건 전부 skip(에러 아님) 확인 + 기본 `pytest`(마커 미지정)는 여전히 3건 deselect 확인 — `pytest.ini`의 `-m "not smoke"` 계약이 이제 실제로 거를 대상이 생겼다. `scripts/ui_qa/run.py`(70라우트 전수 매트릭스)를 대체하지 않는다 — 이건 그 반대 극단(초 단위 골든 패스 게이트) |
 | QA-03 | Med | **QA 하네스가 자체서명 HTTPS를 못 탄다**(`urlopen` + `new_context()`에 TLS 예외 없음) → 서버를 직접 못 겨눔. SSH 터널로 우회 | `scripts/ui_qa/run.py:52` | 작업예정 |
 | QA-04 | Med | **QA 하네스에 라우트 7개가 빠졌다** — `/projects`, `/projects/:id`, `/ideas`, `/notion-console`, `/llm-console`, `/system`, `/setup`. **화면 코드 약 2,600줄이 시각 검사 밖** | `scripts/ui_qa/routes.py` vs 실제 라우트 | 작업예정 |
 | QA-05 | Med | **QA 하네스가 역할 1종(system_admin)으로만 돈다** — 역할별 메뉴 노출·데이터 범위·403 막다른 길을 실물에서 못 본다 | `scripts/ui_qa/auth.py:44` | 작업예정 |

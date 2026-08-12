@@ -13,7 +13,7 @@
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
 **마지막 갱신**: 2026-08-12 · **단계**: WF11(제품 BACKLOG 재개 — SEC-12/13 문서 정정 +
-`USE-01` 휴지통 왕복으로 종결) 완료. 그 앞의 WF10-0(Continuity Bootstrap, D-64) →
+`USE-01` 휴지통 왕복 + `QA-02` smoke 스위트 신설로 종결) 완료. 그 앞의 WF10-0(Continuity Bootstrap, D-64) →
 WF10-1(Supervisor runtime contract 확정, D-65)와 WF9-0(D-63) → WF9-1(`SEC-10` 부분) →
 WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
 
@@ -48,13 +48,28 @@ QA_COVERAGE·DECISIONS·git log) 재확인 후 WF9-3이 남긴 후보 중 값싸
   DB 조회로**(스크립트 자기 보고가 아니라) `document_cache`/`trash_items` 양쪽에 잔여
   없음을 재확인. `USE-01`의 12개 중 9개가 이제 실행 확인 완료 — 남은 3개(문서 생성·
   스케줄·주간 리포트)는 `DGEN-02`/D-21로 원인이 이미 규명된 의도적 보류뿐이다.
+- **`QA-02`(High) 구현완료**: `tests/smoke/`가 저장소 생성 이래 **한 번도 내용이 없던**
+  빈 디렉터리라(`git log`로 확인) `pytest.ini`의 `-m "not smoke"`가 애초에 거를 대상이
+  없었다 — "실브라우저 E2E가 수행된 적 없다"는 지적이 문자 그대로 맞았다(다만 §12
+  QAH 하네스·`scripts/ui_qa/*` 전수 스크립트들은 이미 실브라우저 E2E를 폭넓게 해 왔다는
+  점과는 구분해야 한다 — 그 도구들은 pytest 마커 체계 밖의 별도 도구다). `tests/smoke/
+  conftest.py`(살아있는 서버 확인 후 skip/browser/qa_session fixture) +
+  `test_golden_path.py`(3건: 사용자 콘솔 홈·관리자 콘솔 대시보드·문서 목록, 콘솔 오류·
+  4xx/5xx 네트워크 응답 실측 수집) 신설. 로컬 dev(`:8099`) 대상 3건 green, 서버 미기동
+  대상 3건 전부 skip(에러 아님) 확인, 기본 `pytest`(마커 미지정)는 여전히 3건 deselect
+  확인 — 구현 도중 실제 버그 하나를 잡았다: 테스트 함수 안에서 `sync_playwright()`를
+  또 열면(conftest의 세션 fixture가 이미 하나 열어 둔 상태라) "Sync API inside the
+  asyncio loop"로 죽는다 — 세션 fixture가 준 `browser`를 재사용하도록 고쳐 해결.
+  `README.md`에 실행 예시 추가, `KNOWN_LIMITATIONS.md` §7 갱신.
 
-**검증**: `tests/security/test_home_widget_org_dept_scope.py`(5건) green. 휴지통은 전용
-E2E 스크립트로 실제 서버 대상 검증(`dist/trash-axis-e2e/trash_axis.json`), 유닛 테스트
-스위트 변경 없음(기존 코드 경로만 실행). 코드 변경은 `scripts/ui_qa/trash_axis_e2e.py`
-신설 하나뿐 — `app/` 자체는 두 항목 다 손대지 않아 기존 회귀 스위트 전체를 다시 돌릴
-필요는 없다고 판단(정적 검사만 재확인 예정). 로컬 dev 서버는 이 배치가 끝날 때까지 계속
-띄워 둔다(다음 작업에서도 재사용 가능하면 그대로 씀 — CLAUDE.md 지시).
+**검증**: `tests/security/test_home_widget_org_dept_scope.py`(5건) green. 휴지통·smoke는
+전용 도구로 실제 로컬 서버 대상 검증(`dist/trash-axis-e2e/trash_axis.json` +
+`pytest tests/smoke -m smoke` 3건 green + skip 경로 확인). `bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`, `pytest --collect-only`로 전체 스위트가 smoke 3건을 정상
+deselect하며 깨짐 없이 수집됨을 확인. `app/` 자체는 이번 배치에서 손대지 않아(문서·
+QA 도구·pytest smoke 인프라만 추가) 기존 회귀 스위트를 다시 돌릴 필요는 없다고 판단.
+로컬 dev 서버는 이 배치가 끝날 때까지 계속 띄워 둔다(다음 작업에서도 재사용 가능하면
+그대로 씀 — CLAUDE.md 지시).
 
 **WF10-0(2026-08-12) — Continuity Bootstrap 완료(D-64). 제품 구현은 하지 않은 세션이다.**
 증상은 제품 품질이 아니라 실행 구조였다: `PROJECT_COMPLETE=false`인데 Worker가 Summary를 내고
