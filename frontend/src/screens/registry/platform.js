@@ -310,9 +310,17 @@ export const PLATFORM_SCREENS = {
     searchFields: ["name", "description"],
     searchPlaceholder: "플래그 이름으로 검색",
     filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 변경)"], ["db", "설정 화면"]]) }],
+    // WF1 R4(단독 결함) — API가 이미 default를 매 행에 내려주는데(app/admin/feature_flags.py
+    // _items) 화면은 상세 드로어에서만 썼다 — 목록만 훑어서는 "지금 값이 안전한 기본값과
+    // 같은가"를 알 수 없었다(실사례: game_ai_enabled가 설명상 "기본 OFF(fail-closed)"인데
+    // 켜져 있어도 목록에서는 다른 플래그와 똑같이 중립으로 보였다). '기본값' 열을 목록에도
+    // 추가하고, '현재' 열이 기본값과 어긋나면(위험 신호) warn 톤으로 눈에 띄게 한다 —
+    // 어긋남 자체가 잘못은 아니다(의도적으로 바꿨을 수 있다), 그래도 훑어보다 놓치면 안 되는
+    // 상태라는 점은 다른 warn 톤 사용처(activeCol 등)와 같은 이유다.
     columns: [
       col("name", "플래그"),
-      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "켜짐" : "꺼짐", kind: r.value ? "ok" : "neutral" }) },
+      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "켜짐" : "꺼짐", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
+      { key: "default", label: "기본값", render: (r) => React.createElement(Badge, { value: r.default ? "켜짐" : "꺼짐", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
       { key: "has_consumer", label: "실제 효과", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),

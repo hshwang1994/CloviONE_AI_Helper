@@ -4205,13 +4205,51 @@ reindex.test.jsx`(이미 역할별 mock 인프라가 있는 파일)에 역할별
 나머지는 `search-results`의 폭 예산/더보기(R6과 겹침) 등 제품
 전반 디자인 결정이 필요한 항목.
 
-이 배치(연동 헬스 스윕+my-stats+search-results) 커밋 예정.
-**다음 후보**: WF1 단독 결함 6건(`admin_departments`의 0인원
-삭제 게이트, `admin_policies`의 purpose 컬럼 부재, `admin_
-feature-flags`의 기본값 열 부재, `user_team-doc-detail`의 h1
-중복·URL 미링크화 — 자격증명 노출 자체는 SEC-10으로 이미 부분
-구현완료). R3(용어 사전)·R6(폭 예산)·R7(버튼 variant)은 WF1
-스스로 "개별 화면 수정으로 접근하면 안 되는 제품 전반 디자인
-결정"이라 명시했으므로 이 세션에서 단독 착수하지 않는다. 그 외
-`RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/
-`VIS-122`도 후보 목록에 있다.
+이 배치(연동 헬스 스윕+my-stats+search-results) 커밋 완료(`215d16c`).
+
+**WF41(같은 invocation 계속) — WF1 단독 결함 표 재검증, 1건
+이미 해결 확인(문서 정정) + 1건 구현완료.**
+
+- **`admin_departments`(하위 부서 있는데 인원 0으로 보여 삭제
+  버튼이 뜸)**: 재확인 결과 **이미 해결돼 있었다** — `registry/
+  org.js`의 삭제 액션 `confirm`이 `child_department_count`를 보고
+  "하위 부서 N개가 최상위 부서로 올라갑니다(하위 부서와 소속
+  인원은 지워지지 않습니다)"를 이미 명시적으로 경고하고 있었다
+  (커밋 이력상 `UA-20R`). 서버 `bulk_child_department_count`도
+  실제로 채워 보낸다 — grep으로 직접 확인. 코드 변경 없음, 문서만
+  정정.
+- **`admin_feature-flags`(위험 플래그가 기본값과 반대로 켜져
+  있어도 목록에서 안 보임) 구현완료**: `app/admin/feature_flags.
+  py::_items`가 이미 매 행에 `default`를 내려주는데(list 응답,
+  detail 전용이 아니었다) `platform.js`는 상세 드로어에서만
+  썼다. '기본값' 열을 목록에 추가하고, '현재' 열의 배지 톤을
+  `value===default`가 아니면 warn으로 바꿨다(어긋남 자체가 잘못은
+  아니지만 훑어보다 놓치면 안 되는 신호). `feature-flags-default-
+  column.test.jsx` 신규 3건, revert-to-verify 확인. 관련 회귀
+  (`admin-backlog-screens`·`admin-uiux`·`audit-related-object-
+  routes`·`feature-flags-detail-description`·`registry-
+  identifiers`, 55건) green. **같은 셀의 다른 발견("설명 열이
+  백엔드 개발 레지스트리 문자열을 그대로 되쓴다")은 R2(개발자
+  문자열/사용자 문구 경계 없음) 범주라 스키마 변경(`admin_
+  description` 신설 등)이 필요 — 이번엔 손대지 않고 미해결로
+  남김.**
+
+재빌드 완료, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+`docs/BACKLOG.md`의 WF1 단독 결함 조밀 인덱스 표 2행 정정.
+
+이 배치(WF1 단독 결함 재검증) 커밋 예정. **다음 후보**: WF1
+단독 결함 나머지 — `admin_policies`의 purpose 컬럼 부재(Policy
+모델에 스키마 자체가 없다, DB 마이그레이션 필요 — 순수 화면
+수정으로 안 끝남), `user_team-doc-detail`의 h1 중복(`PageHeader`
++`TeamDoc.jsx`가 둘 다 `component="h1"`)과 본문 URL 미링크화
+(자격증명 노출 자체는 SEC-10으로 이미 부분 구현완료, 이 둘은
+그와 별개인 접근성/사용성 결함). R2(문자열 경계) 나머지 — 지금
+확인한 feature-flags 설명 외에도 job-detail의 콜론/em대시 불일치,
+integration-detail의 슬러그 제목·내부 메모 노출 등 여러 건이
+DB/시드 값 정정 또는 스키마 작업을 필요로 해 이번 세션의 "순수
+프런트" 기준을 벗어난다 — 개별 재검증 필요. R3(용어 사전)·R6
+(폭 예산)·R7(버튼 variant)은 WF1 스스로 "개별 화면 수정으로
+접근하면 안 되는 제품 전반 디자인 결정"이라 명시했으므로 이
+세션에서 단독 착수하지 않는다. 그 외 `RN-15`·`RN-17` 잔여
+노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도 후보 목록에
+있다.
