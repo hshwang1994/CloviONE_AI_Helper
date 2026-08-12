@@ -24,6 +24,7 @@ import { docTypeKind } from "../lib/badges.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { EditableBody } from "../ui/EditableBody.jsx";
+import { linkifyText } from "./chat/links.jsx";
 import { DocComments } from "./DocComments.jsx";
 import { invalidateDocumentViews } from "./document-views.js";
 
@@ -49,8 +50,14 @@ export const DOC_DETAIL_GRID = {
   gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
 };
 
-function DocBlock({ block, onImage }) {
+function DocBlock({ block, index, onImage }) {
   const t = block.text || "";
+  // 본문 안 URL이 평문이라 클릭할 수 없었다(user_team-doc-detail 재확인) — 팀 채팅
+  // 말풍선(chat/RichText.jsx)이 이미 쓰는 linkifyText를 그대로 재사용한다(허용 도메인은
+  // 실제 링크, 그 외는 복사 버튼 폴백 — 텍스트 노드만 쓴다, innerHTML 아님). code는 원문
+  // 그대로 둔다(RichText.jsx의 같은 판단과 동일 — 코드 안 문자열을 링크로 오인하면 안 됨).
+  // unsupported는 "[블록 종류] 원본에서 확인" 같은 서버가 만든 안내문이라 URL이 없다.
+  const lt = linkifyText(t, "b" + index);
   switch (block.kind) {
     case "image":
       /* 사용자 지시 §4 — 티켓·문서에 붙은 이미지를 화면에서 바로 보고, 눌러서 크게 본다.
@@ -60,23 +67,23 @@ function DocBlock({ block, onImage }) {
           <ClickableImage src={block.url} alt={t || "본문 이미지"} onOpen={() => onImage && onImage(block)}
             sx={{ border: 1, borderColor: "divider" }} />
           {t ? (
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{t}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{lt}</Typography>
           ) : null}
         </Box>
       );
     case "heading_1":
-      return <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 1 }}>{t}</Typography>;
+      return <Typography variant="h5" component="h2" sx={{ mt: 4, mb: 1 }}>{lt}</Typography>;
     case "heading_2":
-      return <Typography variant="h6" component="h3" sx={{ mt: 3, mb: 1 }}>{t}</Typography>;
+      return <Typography variant="h6" component="h3" sx={{ mt: 3, mb: 1 }}>{lt}</Typography>;
     case "heading_3":
-      return <Typography component="h4" sx={{ mt: 2.5, mb: 0.5, fontWeight: 720, fontSize: "1rem" }}>{t}</Typography>;
+      return <Typography component="h4" sx={{ mt: 2.5, mb: 0.5, fontWeight: 720, fontSize: "1rem" }}>{lt}</Typography>;
     case "bulleted":
     case "numbered":
-      return <Box component="li" sx={{ mb: 0.5 }}>{t}</Box>;
+      return <Box component="li" sx={{ mb: 0.5 }}>{lt}</Box>;
     case "todo":
       return (
         <Typography component="div" sx={{ my: 0.5 }}>
-          <Box component="span" aria-hidden="true" sx={{ mr: 1 }}>{block.checked ? "☑" : "☐"}</Box>{t}
+          <Box component="span" aria-hidden="true" sx={{ mr: 1 }}>{block.checked ? "☑" : "☐"}</Box>{lt}
         </Typography>
       );
     case "quote":
@@ -84,17 +91,17 @@ function DocBlock({ block, onImage }) {
         <Box component="blockquote" sx={{
           my: 2, ml: 0, pl: 2, borderLeft: 3, borderColor: "primary.light",
           color: "text.secondary", fontStyle: "italic",
-        }}>{t}</Box>
+        }}>{lt}</Box>
       );
     case "callout":
       return (
         <Box sx={{
           my: 2, p: 2, borderRadius: 2, border: 1, borderColor: "divider",
           bgcolor: "action.hover",
-        }}>{t}</Box>
+        }}>{lt}</Box>
       );
     case "toggle":
-      return <Typography component="div" sx={{ my: 1, fontWeight: 600 }}>{t}</Typography>;
+      return <Typography component="div" sx={{ my: 1, fontWeight: 600 }}>{lt}</Typography>;
     case "code":
       // 긴 한 줄이 페이지 전체 가로 스크롤을 만들지 않게 코드 상자 안에서만 스크롤한다.
       return (
@@ -109,7 +116,7 @@ function DocBlock({ block, onImage }) {
     case "unsupported":
       return <Typography variant="body2" color="text.secondary" sx={{ my: 1 }}>{t}</Typography>;
     default:
-      return t ? <Typography component="p" sx={{ my: 1.5, lineHeight: 1.75 }}>{t}</Typography> : null;
+      return t ? <Typography component="p" sx={{ my: 1.5, lineHeight: 1.75 }}>{lt}</Typography> : null;
   }
 }
 
@@ -147,10 +154,10 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
     if (b.kind === "bulleted" || b.kind === "numbered") {
       if (run && run.kind !== b.kind) flush();
       if (!run) run = { kind: b.kind, items: [] };
-      run.items.push(<DocBlock key={i} block={b} />);
+      run.items.push(<DocBlock key={i} index={i} block={b} />);
     } else {
       flush();
-      out.push(<DocBlock key={i} block={b} onImage={openImage} />);
+      out.push(<DocBlock key={i} index={i} block={b} onImage={openImage} />);
     }
   });
   flush();

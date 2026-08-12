@@ -12,19 +12,22 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF48(`invocation=3`) — 파일
-끝(WF35~48)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF48은 `VIS-80`(어시스턴트 되묻기
-반복) 재조사+구현완료 — `RN-03`과 뿌리가 다름을 확인(추정 정정),
-프로젝트 되묻기에 `pending_question` 배선 — 상세는 파일 끝. 그 앞
-WF47은 러너 `RN-15`/`RN-17`~`RN-20` 클러스터(비전 분석 유실·동명이인
-개인정보 노출·Notion 원문 노출·죽은 코드/퀴즈 결함 4건·README 정정)
-전부 구현완료. 그 앞 WF46은 `CACHE-03`(Users/부서/직책/조직→티켓
-담당자 후보, Low) 구현완료로 WF44 배경 조사의 캐시 무효화 공백 3건이
-전부 닫혔다. 그 앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태
-무효화, Med)+`CACHE-02`(Projects→Dashboard, Med) 구현완료. 그 앞
-WF44는 `admin_policies` purpose 컬럼(WF1 단독 결함, Med) + 배너
-톤(Low) 구현완료.
+**마지막 갱신**: 2026-08-13 · **단계**: WF49(`invocation=3`) — 파일
+끝(WF35~49)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF49는 `user_team-doc-detail`의
+본문 URL 미링크화 구현완료(`TicketBody.jsx`가 `DocBody`를 재사용해
+티켓 상세도 함께 고쳐짐) + `Callout tone="warn"`(R1) 행의 stale
+"보류" 정정(WF44가 이미 소비처를 만들었었다) — 상세는 파일 끝. 그
+앞 WF48은 `VIS-80`(어시스턴트 되묻기 반복) 재조사+구현완료 —
+`RN-03`과 뿌리가 다름을 확인(추정 정정), 프로젝트 되묻기에
+`pending_question` 배선. 그 앞 WF47은 러너 `RN-15`/`RN-17`~`RN-20`
+클러스터(비전 분석 유실·동명이인 개인정보 노출·Notion 원문 노출·
+죽은 코드/퀴즈 결함 4건·README 정정) 전부 구현완료. 그 앞 WF46은
+`CACHE-03`(Users/부서/직책/조직→티켓 담당자 후보, Low) 구현완료로
+WF44 배경 조사의 캐시 무효화 공백 3건이 전부 닫혔다. 그 앞 WF45는
+`CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+`CACHE-02`
+(Projects→Dashboard, Med) 구현완료. 그 앞 WF44는 `admin_policies`
+purpose 컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
@@ -4650,10 +4653,57 @@ ai_assistant.py`·`test_mega_cycle_h_ai_assistant.py` 등) green. 정적
 검사 green.
 
 `docs/BACKLOG.md`의 `VIS-80` 행 구현완료로 갱신(추정이 틀렸던 부분
-—`RN-03`과 동일 뿌리— 도 함께 정정 기록). 이 배치 커밋 예정.
-**다음 후보**: 대시보드 정보 위계(`VIS-24`/`25`) 실브라우저 판단,
-`L`축 전수 매트릭스(표본을 넘는 화면 쌍 전체 점검), `RESP-04`/
-`VIS-122`, `user_team-doc-detail` URL 미링크화, R2 잔여
+—`RN-03`과 동일 뿌리— 도 함께 정정 기록). 이 배치 커밋 완료(`cb5e410`).
+
+**WF49(같은 invocation 계속) — `user_team-doc-detail` 남은 3건 중
+1건(본문 URL 미링크화) 구현완료 + 문서 정정 1건.**
+
+**구현**: `TeamDoc.jsx::DocBlock`이 `block.text`를 모든 kind에서
+`{t}`로 그대로 꽂아 URL이 평문이었다. 팀 채팅 말풍선이 이미 쓰는
+`linkifyText`(`chat/links.jsx` — 허용 도메인[Notion]은 실제 `<a>`,
+그 외는 클릭 시 주소를 복사하는 버튼 폴백, `URL_RE.split`+텍스트
+노드만 써 `innerHTML` 아님)를 그대로 재사용 — 문단뿐 아니라 헤딩
+1/2/3·목록(글머리/번호)·인용·콜아웃·토글·이미지 캡션까지 텍스트를
+그리는 모든 자리에 적용했다(문서 안 URL이 문단에만 있으리라는
+보장이 없다). 코드 블록과 `unsupported`(서버가 만든 "[유형] 원본에서
+확인" 안내문, URL이 있을 수 없음)는 원문 그대로 둔다(코드 블록은
+`chat/RichText.jsx`의 같은 판단과 동일 — 코드 안 문자열을 링크로
+오인하면 안 된다). `linkifyText`가 각 조각의 React key로 쓸
+`keyBase`가 필요해 `DocBlock`에 `index` prop을 추가(호출부의 기존
+`key={i}`와 대칭으로 `index={i}`도 넘긴다).
+
+**부수 발견**: `DocBody`는 `TicketBody.jsx`가 그대로 재사용하는
+공용 렌더러다(`TicketBody.jsx:5`의 `import { DocBody } from
+"./TeamDoc.jsx"`) — `DocBlock`을 고치면 **티켓 상세 본문도 같은
+수정으로 자동으로 함께 고쳐진다**(한 곳 수정, 두 화면 해결. 이
+사실은 이미 파일 상단 주석 "DocBody/safeExternal은 티켓 상세도
+함께 쓰므로"가 예고해 두고 있었다).
+
+**시험**: `teamdoc.test.jsx`에 신규 4건(Notion URL이 실제 `<a href>`가
+되는지, 비허용 도메인은 복사 버튼으로 폴백하는지[접근성 이름이
+Tooltip 안내문이라 `getByRole` 쿼리를 그 이름으로 맞춤], 코드 블록
+안 URL은 링크로 안 바뀌는지, 목록 항목 텍스트에도 적용되는지). 관련
+회귀(`teamdoc`·`ticket-detail`) + `DocBody`가 관리자 화면 급은 아니지만
+두 화면(문서·티켓)이 공유하는 컴포넌트라 프런트 전체 회귀(241파일/
+1601건) green. 재빌드 완료, `bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`.
+
+**문서 정정(코드 변경 없음)**: `docs/BACKLOG.md`의 R1 상세표
+`Callout tone="warn"` 행이 "2026-08-13 재확인 — 구체적 소비처
+없음, 보류"로 남아 있었는데, **그 재확인이 쓰인 바로 그날(WF44)**
+`admin_policies` 배너에 정확히 그 소비처(경고인데 info 톤)가 생겨
+`config.helpTone`으로 이미 구현됐다 — WF44 작업 당시 이 R1 행을
+안 챙겨 서로 다른 두 기록이 같은 날짜로 모순되게 남아 있던 것을
+발견해 정정.
+
+`docs/BACKLOG.md`의 `user_team-doc-detail` 행(3건 중 1건)과
+`Callout tone="warn"` 행 갱신. 이 배치 커밋 예정. **다음 후보**:
+대시보드 정보 위계(`VIS-24`/`25`) 실브라우저 판단, `L`축 전수
+매트릭스(표본을 넘는 화면 쌍 전체 점검), `RESP-04`(사이드바 축소
+레일 — 새 컴포넌트 변형 설계 필요, 전담 세션 권장)/`VIS-122`
+(DataTable 공유 컴포넌트 또는 클로비 위치 — 28개 관리 화면에 걸리는
+시각 회귀 위험, 전담 세션 권장), `user_team-doc-detail` 남은 2건
+(파괴적 동작 버튼 위계, 페이지 헤더 제목 중복), R2 잔여
 (admin_integration-detail의 슬러그-제목·내부 메모 설명 — 스키마
 작업 필요), R3/R6/R7(제품 전반 디자인 결정 — 화면별로 쪼개서
 착수하지 않음, 별도 세션에서 한 번에 판단 필요).

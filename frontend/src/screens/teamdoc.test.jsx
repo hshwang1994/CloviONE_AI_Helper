@@ -119,6 +119,53 @@ describe("DocBody 공용 렌더러(티켓 상세와 공유)", () => {
     expect(container.querySelectorAll("ul > li")).toHaveLength(2);
     expect(container.querySelectorAll("ol > li")).toHaveLength(2);
   });
+
+  // user_team-doc-detail 재확인 — 본문 안 URL이 본문과 같은 색·굵기의 평문이라 클릭할 수
+  // 없었다. 팀 채팅 말풍선이 이미 쓰는 linkifyText(chat/links.jsx)를 재사용해 고쳤다 —
+  // 허용 도메인(Notion)은 실제 링크로, 그 외는 복사 버튼 폴백으로(임의 외부 링크를
+  // 한 클릭으로 열게 하지 않는 기존 보안 판단은 그대로 유지).
+  it("본문 문단 안 Notion URL이 실제 링크가 된다", () => {
+    render(
+      <DocBody blocks={[
+        { kind: "paragraph", text: "회의록은 https://www.notion.so/team/meeting-abc123 에서 확인하세요." },
+      ]} />
+    );
+    const link = screen.getByRole("link", { name: /notion\.so\/team\/meeting-abc123/ });
+    expect(link).toHaveAttribute("href", "https://www.notion.so/team/meeting-abc123");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("허용 도메인이 아닌 외부 URL은 실제 링크 대신 복사 버튼으로 뜬다(임의 외부 링크 미허용)", () => {
+    render(
+      <DocBody blocks={[
+        { kind: "paragraph", text: "접속 주소: https://internal.example.com/vpn 입니다." },
+      ]} />
+    );
+    expect(screen.queryByRole("link", { name: /internal\.example\.com/ })).toBeNull();
+    // 이 버튼의 접근성 이름은 Tooltip 안내문("외부 링크는...")이다 — URL 자체는 눈에
+    // 보이는 자식 텍스트일 뿐 이름이 아니다.
+    const copyBtn = screen.getByRole("button", { name: "외부 링크는 열 수 없습니다, 눌러서 주소를 복사합니다." });
+    expect(copyBtn).toHaveTextContent("https://internal.example.com/vpn");
+  });
+
+  it("코드 블록 안의 URL은 링크로 바뀌지 않는다(원문 그대로)", () => {
+    const { container } = render(
+      <DocBody blocks={[
+        { kind: "code", text: "curl https://www.notion.so/api/x" },
+      ]} />
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("pre")).toHaveTextContent("curl https://www.notion.so/api/x");
+  });
+
+  it("목록 항목 안 URL도 링크가 된다(문단뿐 아니라 모든 텍스트 자리)", () => {
+    render(
+      <DocBody blocks={[
+        { kind: "bulleted", text: "원본: https://www.notion.so/team/source-1" },
+      ]} />
+    );
+    expect(screen.getByRole("link", { name: /notion\.so\/team\/source-1/ })).toBeInTheDocument();
+  });
 });
 
 describe("문서 댓글 (사용자 지적 #9)", () => {
