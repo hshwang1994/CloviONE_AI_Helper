@@ -13,7 +13,7 @@ import json
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError, RateLimitedError
 from app.core.feature_flags import load_feature_flags
@@ -119,10 +119,15 @@ def create_room(request: Request, payload: RoomCreate, db: Session = Depends(get
 def room_state(
     request: Request, room_id: str, since: int = Query(default=0, ge=0),
     db: Session = Depends(get_db), me: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_current_auth),
 ):
     room = _get_room_or_404(db, room_id)
     now = request.app.state.clock.now()
-    service.touch_presence(db, room, me, now=now)
+    # GET 이라 공용 임퍼소네이션 쓰기 차단을 안 지난다 — 여기서 안 막으면 관리자의 폴링이
+    # 대상 사용자를 '접속 중'으로 켜고, 실제 접속 여부와 무관하게 추첨 대상 풀에도 들어간다
+    # (app/core/presence.py 의 놀이 전용 경고 — last_seen 이 표시가 아니라 추첨 풀을 가른다).
+    if not auth.impersonating:
+        service.touch_presence(db, room, me, now=now)
     service.maybe_autoresolve(db, room, now=now)  # 마감 지난 타이머 게임을 서버가 자동 확정(방장 비의존)
     mem = repository.get_member(db, room.id, me.id)
     active_members = [m for m in repository.members(db, room.id) if m.active]

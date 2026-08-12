@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core import people, uploads
 from app.core.audit import record_audit_from_request
-from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError
 from app.core.etag import etag_json_response
 from app.core.feature_flags import load_feature_flags
@@ -244,7 +244,8 @@ def _msg_view(m, names, images=None, *, me=None) -> dict:
 @router.get("/rooms/{room_id}/messages")
 def room_messages(request: Request, room_id: str, since: int = Query(default=0, ge=0),
                   idle: bool = Query(default=False),
-                  db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+                  db: Session = Depends(get_db), me: User = Depends(get_current_user),
+                  auth: AuthContext = Depends(get_current_auth)):
     """`idle` 은 브라우저가 붙이는 신호다 (X12).
 
     참이면 폴링은 여전히 오지만 **접속 표시를 갱신하지 않는다** — 모니터만 끄고 간 사람의
@@ -257,7 +258,10 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     room = _get_room_or_404(db, room_id)
     member = service.ensure_access(db, room, me)  # 멤버 아니면 403(전체 채팅만 예외)
     now = request.app.state.clock.now()
-    service.touch_presence(db, room, me, now=now, idle=idle)
+    # GET 이라 공용 임퍼소네이션 쓰기 차단을 안 지난다 — 여기서 안 막으면 관리자의 폴링이
+    # 대상 사용자를 '접속 중'으로 켠다(team_docs record_view 와 같은 종류의 새는 구멍).
+    if not auth.impersonating:
+        service.touch_presence(db, room, me, now=now, idle=idle)
     msgs = repository.messages_since(db, room.id, since)
     mem = repository.members(db, room.id)
     names = repository.users_by_ids(db, list({m.sender_user_id for m in msgs if m.sender_user_id} | {m.user_id for m in mem}))

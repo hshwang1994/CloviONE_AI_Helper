@@ -143,10 +143,10 @@ def weekly_digest_facts(
         "team": team,
         "top_contributors": contributors,
         "documents_changed": readers.documents_changed_between(
-            db, since_iso, until_iso, limit=DIGEST_LIMIT
+            db, since_iso, until_iso, limit=DIGEST_LIMIT, viewer=user
         ),
         "board": readers.board_posts_between(
-            db, since_utc, until_utc, limit=DIGEST_LIMIT
+            db, since_utc, until_utc, limit=DIGEST_LIMIT, org_id=getattr(user, "org_id", None)
         ),
     }
 
@@ -178,7 +178,7 @@ def triage_facts(
         return {**base, "configured": True, "ok": False, "error": exc.message}
 
     load = aggregate.assignee_load(team)
-    candidates = readers.assignee_candidates(db)
+    candidates = readers.assignee_candidates(db, org_id=getattr(user, "org_id", None))
     ordered = aggregate.triage_order(unassigned, today=today)
     suggested = aggregate.suggest_assignees(candidates, load)
     return {

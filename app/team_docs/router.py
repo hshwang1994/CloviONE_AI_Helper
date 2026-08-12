@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import MODERATOR_ROLES
-from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
@@ -316,6 +316,7 @@ def get_document(
     page_id: str,
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_current_auth),
 ):
     # 휴지통 문서는 상세로도 없는 것으로 본다(H2, 티켓과 같은 규칙 —
     # service.ensure_doc_not_trashed 주석 참고). 목록만 걸러 두면 지운 문서가 계속
@@ -337,8 +338,11 @@ def get_document(
         blocks_error = exc.message
     except Exception:
         blocks_error = "본문을 불러오지 못했습니다."
-    # 최근 열람 기록(본인).
-    service.record_view(db, user_id=me.id, page_id=page_id, now=request.app.state.clock.now())
+    # 최근 열람 기록(본인). 임퍼소네이션 중에는 쓰지 않는다 — GET 이라 공용 쓰기 차단
+    # (core/deps.py::_guard_impersonation_write)을 안 지난다. 여기서 안 막으면 관리자가
+    # 읽기 전용으로 열어본 문서가 대상 사용자의 "최근 열람"에 조용히, 감사 로그도 없이 남는다.
+    if not auth.impersonating:
+        service.record_view(db, user_id=me.id, page_id=page_id, now=request.app.state.clock.now())
     return {
         "document": _doc_view(row, is_favorite=is_fav, can_restrict=me.role in MODERATOR_ROLES),
         "blocks": blocks,

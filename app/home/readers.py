@@ -139,7 +139,7 @@ def recent_board_posts(db: Session, *, limit: int = RECENT_LIMIT, org_id: str | 
 
 
 def documents_changed_between(
-    db: Session, since_iso: str, until_iso: str, *, limit: int = RECENT_LIMIT
+    db: Session, since_iso: str, until_iso: str, *, limit: int = RECENT_LIMIT, viewer=None
 ) -> dict:
     """주간 다이제스트용 — 창 안에 **수정된** 문서 {count, items}.
 
@@ -162,7 +162,19 @@ def documents_changed_between(
     UA-09: `archived`만 보고 휴지통은 안 걸렀다 — `recent_documents`가 정확히 같은 이유로
     이미 고쳐진 자리인데(주석 참조), 여기는 형제 함수라 안 옮겨졌다. 휴지통에 있는 문서가
     "이번 주 바뀐 문서"로 과다 집계되고, `AssistantPanel.jsx`가 그 항목을 클릭 가능한
-    링크로 그려서 누르면 404였다.
+    링크로 그려서 누르면 404였다. 그 UA-09 수정이 트래시만 옮기고 **똑같이 형제 관계인
+    다른 결함(아래)은 안 옮겼다** — 나중에 재감사로 다시 확인됨.
+
+    whole-product 재감사(2026-08-13): `recent_documents`가 이미 막은 SEC-13(부서 범위
+    밖 문서 유출)·SEC-10(`restricted` 문서 유출) 판정(`doc_in_scope`)이 이 형제 함수에는
+    여전히 없었다 — `GET /api/assistant/weekly-digest`(role 게이트 없음, 로그인만 요구)로
+    누구나 회사 전체 이번 주 변경 문서(제한 문서 포함, 타 부서 포함)의 제목·유형·소유자·
+    수정 시각을 봤다. `viewer`를 받아 같은 판정을 적용한다.
+
+    `count`는 "상위 N건 미리보기"가 아니라 다이제스트가 그대로 보여주는 **정확한 총
+    건수**라, `recent_documents`처럼 넉넉히 오버페치해 자르는 방식은 못 쓴다(스코프
+    필터 뒤 표본이 모자라면 count가 틀린다) — 주간 창 안의 변경 건수는 일반적으로
+    작으므로, scope 판정 전 전량을 읽어 정확히 세고 그 뒤에 limit로 자른다.
     """
     from app.trash import repository as trash_repo
     from app.trash.models import TRASH_DOCUMENT
@@ -175,17 +187,19 @@ def documents_changed_between(
     )
     if trashed:
         base = (*base, DocumentCache.notion_page_id.notin_(trashed))
-    total = db.execute(
-        select(func.count()).select_from(DocumentCache).where(*base)
-    ).scalar_one()
     rows = db.execute(
         select(DocumentCache)
         .where(*base)
         .order_by(DocumentCache.last_edited.desc(), DocumentCache.title.asc())
-        .limit(limit)
     ).scalars().all()
+    if viewer is not None:
+        from app.team_docs.service import doc_in_scope
+
+        rows = [r for r in rows if doc_in_scope(db, r, viewer)]
+    total = len(rows)
+    rows = rows[:limit]
     return {
-        "count": int(total),
+        "count": total,
         "items": [
             {"id": r.notion_page_id, "title": r.title or "(제목 없음)",
              "document_type": r.document_type, "owner": r.owner or "",
@@ -196,21 +210,26 @@ def documents_changed_between(
 
 
 def board_posts_between(
-    db: Session, since_utc, until_utc, *, limit: int = RECENT_LIMIT
+    db: Session, since_utc, until_utc, *, limit: int = RECENT_LIMIT, org_id: str | None = None
 ) -> dict:
     """주간 다이제스트용 — 창 안에 **작성된** 게시글 {count, items}.
 
     경계는 naive UTC 로 받는다(created_at 이 그 형식이다). KST↔UTC 변환은 호출측
     home.service.window_utc_bounds 한 곳에서만 한다.
+
+    whole-product 재감사(2026-08-13): 이 함수는 `Post`를 직접 `select`해
+    `board_repo.visible_posts`(게시글 가시성 판정이 모이는 단 하나의 자리 — 그 docstring이
+    "판정이 두 벌이 되면 한쪽만 고쳐지고... 실제로 그랬다(3순위 IDOR)"고 스스로 경고한다)를
+    완전히 건너뛰고 있었다 — `org_id`를 받지도 않았다. `GET /api/assistant/weekly-digest`
+    (role 게이트 없음, 로그인만 요구)로 누구나 회사 밖 게시글까지 "이번 주 작성된 글"로
+    그대로 봤다(형제 함수 `recent_board_posts`는 SEC-12로 이미 `org_id`를 받는다). 조건을
+    다시 적지 않고 `visible_posts(org_id)`를 그대로 기반으로 쓴다.
     """
-    base = (
-        Post.deleted_at.is_(None),
-        Post.created_at >= since_utc,
-        Post.created_at < until_utc,
-    )
-    total = db.execute(select(func.count()).select_from(Post).where(*base)).scalar_one()
+    time_window = (Post.created_at >= since_utc, Post.created_at < until_utc)
+    scoped = board_repo.visible_posts(org_id).where(*time_window)
+    total = db.execute(select(func.count()).select_from(scoped.subquery())).scalar_one()
     rows = db.execute(
-        select(Post).where(*base).order_by(Post.created_at.desc(), Post.id.desc()).limit(limit)
+        scoped.order_by(Post.created_at.desc(), Post.id.desc()).limit(limit)
     ).scalars().all()
     names = board_repo.author_names(db, {p.author_user_id for p in rows})
     return {
@@ -224,12 +243,19 @@ def board_posts_between(
     }
 
 
-def assignee_candidates(db: Session) -> list[dict]:
+def assignee_candidates(db: Session, *, org_id: str | None = None) -> list[dict]:
     """배정 후보 [{user_id, display_name}] — /api/tickets/assignees 와 같은 조건.
 
     트리아지 '제안'이 쓰는 후보 집합이다. raw Notion id 는 싣지 않는다(§12.3).
     tickets.service.list_assignees 를 그대로 쓰지 않는 이유는 없다 — 그대로 쓴다.
+
+    whole-product 재감사(2026-08-13): `list_assignees`의 `org_id` 인자는 optional
+    (`if org_id:`)이라 여기서 안 넘기면 조용히 전체 조직이 다 나온다 — 실제 배정
+    엔드포인트(`/api/tickets/assignees`, `tickets/router.py`)는 이미
+    `org_id=getattr(user,"org_id",None)`을 넘기는데 이 형제 소비처(`GET /api/assistant/
+    triage`, role 게이트 없음)는 안 넘겨서, 트리아지 제안이 타 조직 실제 재직자 이름/id를
+    그대로 후보로 냈다. 호출측(`assistant/facts.py::triage_facts`)에서 넘긴다.
     """
     from app.tickets.service import list_assignees
 
-    return list_assignees(db)
+    return list_assignees(db, org_id=org_id)

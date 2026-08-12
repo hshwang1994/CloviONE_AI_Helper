@@ -3075,6 +3075,15 @@ service.py:98-111  create_user  →  role 이 ALL_ROLES 에 있는지만 검사
 
 ---
 
+## `SEC-32`/`SEC-33` — Whole-product 재감사(invocation=3) 발견, 상세는 `WORK_STATE.md`
+
+| ID | 심각 | 문제 | 상태 |
+|---|---|---|---|
+| SEC-32 | High | **주간 다이제스트·트리아지 위젯이 SEC-12/13과 같은 형제-함수-누락 패턴으로 다시 샌다.** `app/home/readers.py::documents_changed_between()`이 `doc_in_scope`를 안 거쳐 제한 문서·타 부서 문서가 `GET /api/assistant/weekly-digest`(역할 게이트 없음)로 새고, `assignee_candidates()`가 `list_assignees(db)`를 `org_id` 없이 불러 `GET /api/assistant/triage`가 타 조직 인원을 유출한다 ‖ 조사 중 감사가 안 짚은 **3번째 누출을 자체 발견**: 같은 파일 `board_posts_between()`도 `board_repo.visible_posts()` 초크포인트를 안 거치고 `select(Post)`를 직접 짬(org 스코프 없음) — 같은 사이클에서 함께 고침 | ✅ **구현완료** — `documents_changed_between(viewer=...)`(전량 조회 후 Python 필터, 목록 `count` 정확성 보존) · `assignee_candidates(org_id=...)` · `board_posts_between(org_id=...)`, 호출부(`app/assistant/facts.py`) 갱신. `tests/security/test_home_widget_org_dept_scope.py` 신규 6건 + 기존 5건 = 11/11. Revert-to-verify 완료(readers.py만 stash → 6건 실패 확인 → 복구 → 11/11 재확인) |
+| SEC-33 | Med | **대행(impersonation) 중 GET 라우트가 대상 명의로 조용히 쓴다 — 감사도 없다.** `app/core/deps.py::_guard_impersonation_write`가 HTTP 메서드로만 판정(GET은 무조건 통과)하는데, `team_docs`(`record_view` — "최근 열람"), `team_chat`(`touch_presence` — 접속 표시), `games`(`touch_presence` — 접속 표시 **+ 추첨 대상 풀**) 세 GET 라우트가 그 틈에서 대상 명의로 DB를 쓴다. 기존 `test_every_write_route_is_blocked_while_impersonating`은 라우트의 HTTP 메서드만 보므로 구조적으로 못 잡는 결함 | ✅ **구현완료** — 3곳 모두 기존 검증된 관례(`auth: AuthContext = Depends(get_current_auth)` + `if auth.impersonating: skip`, `auth/router.py::logout`·`impersonation/router.py` 선례 재사용, `get_current_user`와 같은 `get_current_auth`를 공유해 FastAPI 캐시로 추가 쿼리 없음)로 해당 부수효과만 건너뜀. `games`의 `maybe_autoresolve`(시간 마감 기반 자동 확정)는 대상 개인 명의 쓰기가 아니라 방 전체 서버-시계 트리거라 의도적으로 그대로 둠. `tests/security/test_impersonation.py` 신규 3건, 23/23. Revert-to-verify 완료(라우터 3개만 stash → 3건 실패, 게임 쪽은 `last_seen`이 실제로 갱신되는 것 확인 → 복구 → 23/23 재확인) |
+
+---
+
 ## ⚠️ `OPS-01` 추론 정정 — **"아무도 시도하지 않았다"는 근거가 약하다**
 
 내가 *"8/5 이후 업로드 시도가 감사 로그에 없다 → 아무도 시도하지 않아서 아무도 모른다"* 고 적었다.

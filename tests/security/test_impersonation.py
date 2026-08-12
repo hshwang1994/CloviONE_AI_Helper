@@ -131,6 +131,113 @@ def test_state_read_count_increments_once_not_per_poll(impersonating, db):
     assert row.read_count == 1, "반복된 GET이 계속 write를 내고 있다"
 
 
+# 아래 세 테스트: 쓰기 차단(_guard_impersonation_write)은 HTTP 메서드로만 판정한다
+# (SAFE_METHODS 는 통과). GET 라우트가 그 안에서 자기도 모르게 DB를 쓰면 이 가드를 아예
+# 지나지 않는다 — 대상 이름으로 남는 감사 없는 쓰기라는 점은 위의 read_count 결함과 같은
+# 종류다. team_docs·team_chat·games 세 곳에서 독립적으로 같은 패턴이 발견됐다.
+def test_document_view_does_not_record_recent_view_while_impersonating(impersonating, db):
+    """GET /api/team-docs/{page_id} 가 부르는 record_view 는 SAFE_METHOD 뒤에 숨어 있어
+    임퍼소네이션 중에도 대상의 '최근 열람'을 조용히 만들었다(app/team_docs/router.py)."""
+    from app.core.models_base import utcnow
+    from app.team_docs.models import DocumentCache, DocumentRecentView
+
+    client, _csrf, target_id = impersonating
+    db.add(DocumentCache(notion_page_id="imp-doc-1", title="문서", synced_at=utcnow()))
+    db.commit()
+
+    resp = client.get("/api/team-docs/imp-doc-1")
+    assert resp.status_code == 200, resp.text
+
+    db.expire_all()
+    seen = db.execute(
+        select(DocumentRecentView).filter_by(user_id=target_id, notion_page_id="imp-doc-1")
+    ).scalar_one_or_none()
+    assert seen is None, "임퍼소네이션 중 GET이 대상의 최근 열람 기록을 만들었다"
+
+
+def test_chat_polling_does_not_mark_target_present_while_impersonating(
+    client, login_as, make_user, db
+):
+    """GET .../messages 폴링이 부르는 touch_presence 는 last_seen 을 써 접속 점을 켠다
+    (app/core/presence.py). SAFE_METHOD 뒤에 숨어 있어, 관리자가 대상을 임퍼소네이션해
+    폴링만 해도 실제로는 없는 대상이 '접속 중'으로 보였다(app/team_chat/router.py)."""
+    from app.team_chat.models import ChatRoomMember
+
+    target = make_user(email="imp-chat-target@goodmit.co.kr", display_name="채팅 대상")
+    peer_csrf = login_as("user", email="imp-chat-peer@goodmit.co.kr")
+    rid = client.post(
+        "/api/team-chat/rooms/direct", json={"user_id": target.id},
+        headers={"X-CSRF-Token": peer_csrf},
+    ).json()["room"]["id"]
+    # 방금 만든 방이라 대상의 last_seen 은 아직 None — 스로틀과 무관하게 첫 폴링은 항상
+    # 쓰려고 시도한다(app/core/presence.py::should_touch 의 "처음 보는 멤버" 분기).
+
+    admin_csrf = login_as("system_admin", email="imp-chat-admin@goodmit.co.kr")
+    started = client.post(
+        "/api/admin/impersonation/start",
+        json={"user_id": target.id, "reason": "지원 문의 확인"},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert started.status_code == 200, started.text
+
+    resp = client.get(f"/api/team-chat/rooms/{rid}/messages?since=0")
+    assert resp.status_code == 200, resp.text
+
+    db.expire_all()
+    member = db.execute(
+        select(ChatRoomMember).filter_by(room_id=rid, user_id=target.id)
+    ).scalar_one()
+    assert member.last_seen is None, "임퍼소네이션 중 폴링이 대상을 '접속 중'으로 켰다"
+
+
+def test_game_polling_does_not_refresh_target_presence_while_impersonating(
+    client, login_as, make_user, db, fake_clock
+):
+    """GET .../state 폴링이 부르는 touch_presence 는 게임에서 '표시'가 아니라
+    **추첨 대상 풀**을 가른다(app/core/presence.py 의 놀이 전용 경고). 임퍼소네이션 중
+    관리자의 폴링으로 last_seen 이 갱신되면, 실제로는 자리를 비운 대상이 계속 추첨
+    후보로 남는다(app/games/router.py)."""
+    from app.games.models import GameRoomMember
+
+    host_csrf = login_as("user", email="imp-game-host@goodmit.co.kr")
+    room = client.post(
+        "/api/games/rooms",
+        json={"title": "점심 추첨", "game_type": "random_draw", "max_players": 8},
+        headers={"X-CSRF-Token": host_csrf},
+    ).json()["room"]
+    rid = room["id"]
+
+    target = make_user(email="imp-game-target@goodmit.co.kr", display_name="놀이 대상")
+    target_csrf = login_as("user", email="imp-game-target@goodmit.co.kr")
+    joined = client.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": target_csrf})
+    assert joined.status_code == 200, joined.text
+
+    db.expire_all()
+    joined_seen = db.execute(
+        select(GameRoomMember).filter_by(room_id=rid, user_id=target.id)
+    ).scalar_one().last_seen
+    # 입장 자체가 last_seen 을 막 찍어 뒀다 — 스로틀(30초) 안에서 다시 폴링하면 기존 값이
+    # 안 바뀐 것이 가드 때문인지 스로틀 때문인지 구별이 안 된다. 시계를 밀어 스로틀을 지운다.
+    fake_clock.advance(31)
+
+    admin_csrf = login_as("system_admin", email="imp-game-admin@goodmit.co.kr")
+    started = client.post(
+        "/api/admin/impersonation/start",
+        json={"user_id": target.id, "reason": "지원 문의 확인"},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert started.status_code == 200, started.text
+
+    resp = client.get(f"/api/games/rooms/{rid}/state?since=0")
+    assert resp.status_code == 200, resp.text
+
+    db.expire_all()
+    member = db.execute(
+        select(GameRoomMember).filter_by(room_id=rid, user_id=target.id)
+    ).scalar_one()
+    assert member.last_seen == joined_seen, "임퍼소네이션 중 폴링이 대상의 last_seen 을 갱신했다"
+
+
 def test_stop_is_allowed_and_restores_the_actor(impersonating, client):
     client, csrf, _ = impersonating
     stopped = client.post("/api/admin/impersonation/stop", headers={"X-CSRF-Token": csrf})

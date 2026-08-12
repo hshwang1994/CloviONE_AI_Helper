@@ -144,3 +144,139 @@ def test_home_recent_documents_still_returns_up_to_limit_after_scope_filtering(d
     docs = readers.recent_documents(db, limit=2, viewer=two_depts.me)
     assert len(docs) == 2, docs
     assert all(d["title"].startswith("우리팀") for d in docs)
+
+
+# ── whole-product 재감사(2026-08-13) — 형제 함수 3개도 같은 판정을 안 지났다 ──────
+#
+# recent_documents/recent_board_posts는 위에서 이미 SEC-12/SEC-13으로 닫혔는데, 같은
+# app/home/readers.py 안의 형제 함수 셋(주간 다이제스트가 쓰는 documents_changed_between·
+# board_posts_between, 트리아지가 쓰는 assignee_candidates)은 이번 재감사 전까지 같은
+# 판정을 하나도 안 지나고 있었다 — GET /api/assistant/weekly-digest·GET /api/assistant/
+# triage 둘 다 role 게이트가 없어(전 사용자용 개인 다이제스트/제안이라는 설계) 아무나
+# 회사 밖·타 부서 데이터를 그대로 봤다.
+
+SINCE = "2026-08-02T15:00:00"
+UNTIL = "2026-08-09T15:00:00"
+
+
+def test_home_documents_changed_between_only_shows_the_viewers_department(db, two_depts):
+    """SEC-13과 같은 뿌리 — 주간 다이제스트의 '이번 주 변경 문서'도 부서 범위를 지나야 한다."""
+    from app.home import readers
+    from app.team_docs.models import DocumentCache
+
+    db.add_all([
+        DocumentCache(notion_page_id="dc-mine", title="우리팀 주간 회의록",
+                      author_notion_ids="hw-nid-me", last_edited="2026-08-04T02:00:00.000Z"),
+        DocumentCache(notion_page_id="dc-theirs", title="남의팀 주간 계약서",
+                      author_notion_ids="hw-nid-other", last_edited="2026-08-05T02:00:00.000Z"),
+    ])
+    db.commit()
+
+    result = readers.documents_changed_between(db, SINCE, UNTIL, viewer=two_depts.me)
+    titles = {d["title"] for d in result["items"]}
+    assert "우리팀 주간 회의록" in titles
+    assert "남의팀 주간 계약서" not in titles, "다른 부서 문서가 주간 다이제스트로 샜다"
+    assert result["count"] == 1, "count도 스코프 필터 뒤 값이어야 한다(미리보기 개수가 아니라)"
+
+
+def test_home_documents_changed_between_without_viewer_is_unfiltered_baseline(db, two_depts):
+    """viewer를 안 주면(예: 배경 집계) 이전처럼 전체를 본다 — 회귀 방지용 대조."""
+    from app.home import readers
+    from app.team_docs.models import DocumentCache
+
+    db.add_all([
+        DocumentCache(notion_page_id="dc-mine2", title="우리팀 주간 회의록2",
+                      author_notion_ids="hw-nid-me", last_edited="2026-08-04T02:00:00.000Z"),
+        DocumentCache(notion_page_id="dc-theirs2", title="남의팀 주간 계약서2",
+                      author_notion_ids="hw-nid-other", last_edited="2026-08-05T02:00:00.000Z"),
+    ])
+    db.commit()
+
+    result = readers.documents_changed_between(db, SINCE, UNTIL, viewer=None)
+    titles = {d["title"] for d in result["items"]}
+    assert {"우리팀 주간 회의록2", "남의팀 주간 계약서2"} <= titles
+    assert result["count"] == 2
+
+
+def test_home_board_posts_between_only_shows_the_viewers_org(db, two_orgs):
+    """SEC-12와 같은 뿌리 — 주간 다이제스트의 '이번 주 작성된 글'도 조직 범위를 지나야 한다."""
+    from datetime import datetime
+
+    from app.board.models import Post
+    from app.home import readers
+
+    db.add_all([
+        Post(id="pb-mine", author_user_id=two_orgs.user_a.id, category="자유",
+             title="우리 조직 주간 공지", org_id=two_orgs.org_a_id,
+             created_at=datetime(2026, 8, 4, 2, 0, 0)),
+        Post(id="pb-theirs", author_user_id=two_orgs.user_b.id, category="자유",
+             title="다른 조직 주간 공지", org_id=two_orgs.org_b_id,
+             created_at=datetime(2026, 8, 5, 2, 0, 0)),
+    ])
+    db.commit()
+
+    since_utc = datetime(2026, 8, 2, 15, 0, 0)
+    until_utc = datetime(2026, 8, 9, 15, 0, 0)
+    result = readers.board_posts_between(db, since_utc, until_utc, org_id=two_orgs.org_a_id)
+    titles = {p["title"] for p in result["items"]}
+    assert "우리 조직 주간 공지" in titles
+    assert "다른 조직 주간 공지" not in titles, "다른 조직 게시글이 주간 다이제스트로 샜다"
+    assert result["count"] == 1
+
+
+def test_home_board_posts_between_without_org_id_is_unfiltered_baseline(db, two_orgs):
+    """org_id를 안 주면 이전처럼 전체를 본다 — 회귀 방지용 대조."""
+    from datetime import datetime
+
+    from app.board.models import Post
+    from app.home import readers
+
+    db.add_all([
+        Post(id="pb-mine2", author_user_id=two_orgs.user_a.id, category="자유",
+             title="우리 조직 주간 공지2", org_id=two_orgs.org_a_id,
+             created_at=datetime(2026, 8, 4, 2, 0, 0)),
+        Post(id="pb-theirs2", author_user_id=two_orgs.user_b.id, category="자유",
+             title="다른 조직 주간 공지2", org_id=two_orgs.org_b_id,
+             created_at=datetime(2026, 8, 5, 2, 0, 0)),
+    ])
+    db.commit()
+
+    since_utc = datetime(2026, 8, 2, 15, 0, 0)
+    until_utc = datetime(2026, 8, 9, 15, 0, 0)
+    result = readers.board_posts_between(db, since_utc, until_utc, org_id=None)
+    titles = {p["title"] for p in result["items"]}
+    assert {"우리 조직 주간 공지2", "다른 조직 주간 공지2"} <= titles
+    assert result["count"] == 2
+
+
+def test_home_assignee_candidates_only_shows_the_viewers_org(db, two_orgs):
+    """1순위 유출 #7과 같은 뿌리 — 트리아지 담당자 제안도 조직 범위를 지나야 한다."""
+    from app.home import readers
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+
+    db.add(UserNotionMapping(user_id=two_orgs.user_a.id, notion_user_id="tri-n-a",
+                             status=STATUS_VERIFIED))
+    db.add(UserNotionMapping(user_id=two_orgs.user_b.id, notion_user_id="tri-n-b",
+                             status=STATUS_VERIFIED))
+    db.commit()
+
+    candidates = readers.assignee_candidates(db, org_id=two_orgs.org_a_id)
+    names = {c["display_name"] for c in candidates}
+    assert "A사람" in names
+    assert "B사람" not in names, "다른 조직 사람이 트리아지 담당자 후보로 나온다"
+
+
+def test_home_assignee_candidates_without_org_id_is_unfiltered_baseline(db, two_orgs):
+    """org_id를 안 주면 이전처럼 전체를 본다 — 회귀 방지용 대조."""
+    from app.home import readers
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+
+    db.add(UserNotionMapping(user_id=two_orgs.user_a.id, notion_user_id="tri-n-a2",
+                             status=STATUS_VERIFIED))
+    db.add(UserNotionMapping(user_id=two_orgs.user_b.id, notion_user_id="tri-n-b2",
+                             status=STATUS_VERIFIED))
+    db.commit()
+
+    candidates = readers.assignee_candidates(db, org_id=None)
+    names = {c["display_name"] for c in candidates}
+    assert {"A사람", "B사람"} <= names

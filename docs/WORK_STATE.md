@@ -4848,7 +4848,7 @@ DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
 
 ### 확정된 새 Root Cause (처리 전, 우선순위순 — 처리 상태는 아래에서 갱신)
 
-1. **[미처리] 주간 다이제스트가 제한 문서·타 부서 문서를 유출한다(High, RBAC/보안)**
+1. **[처리 완료] 주간 다이제스트가 제한 문서·타 부서 문서를 유출한다(High, RBAC/보안)**
    — `app/home/readers.py:141-186`의 `documents_changed_between()`이
    `doc_in_scope()`를 전혀 안 거친다. 같은 파일의 형제 함수
    `recent_documents()`는 SEC-10(제한 문서)·부서 스코프 둘 다 이미
@@ -4858,7 +4858,7 @@ DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
    요구)로 아무 직원이나 회사 전체 이번 주 변경 문서(제한 문서 포함)
    제목·유형·소유자·수정 시각을 본다. 시험 없음(`documents_changed`
    grep 결과 건수·휴지통 제외 시험뿐).
-2. **[미처리] 담당자 추천이 타 조직 인원을 유출한다(Med, RBAC)**
+2. **[처리 완료] 담당자 추천이 타 조직 인원을 유출한다(Med, RBAC)**
    — `app/home/readers.py:227-235`의 `assignee_candidates()`가
    `list_assignees(db)`를 `org_id` 없이 부른다.
    `app/tickets/service.py::list_assignees`의 `org_id` 필터는
@@ -4868,7 +4868,7 @@ DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
    이 형제 소비처(`GET /api/assistant/triage`, 역할 게이트 없음)는
    안 넘긴다. 응답은 `{user_id, display_name, active_tickets}`로
    좁긴 하지만 타 조직 실제 재직자 이름/ID를 그대로 열람 가능.
-3. **[미처리] 대행(impersonation) 중 GET이 몰래 쓰기를 한다(Med, RBAC/감사)**
+3. **[처리 완료] 대행(impersonation) 중 GET이 몰래 쓰기를 한다(Med, RBAC/감사)**
    — `app/core/deps.py:206-220`의 대행 쓰기 차단이 HTTP 메서드
    기준(`GET`은 무조건 통과)이라, `app/team_docs/service.py::
    record_view()`(문서 상세 GET마다 호출, "최근 열람" upsert)가
@@ -4920,3 +4920,53 @@ High, 2·3·5가 Med~High)으로 번들 지어 구현 — 1(문서 스코프)과
 알림)는 독립, 5(DB 동시성 3건)는 같은 `begin_nested`+`is_write_conflict`
 패턴이라 함께 처리 가능. 6·7(QA_COVERAGE 문서 정정)은 지금 바로
 같이 처리.
+
+### 처리 로그
+
+**1+2 처리 완료.** `app/home/readers.py`: `documents_changed_between()`에
+`viewer` 파라미터 추가 — 전량 조회 후 `doc_in_scope()`로 Python
+필터(목록 미리보기와 달리 화면에 노출되는 `count` 숫자의 정확성을
+지켜야 해서 상한-후-근사 방식을 안 씀). `assignee_candidates()`에
+`org_id` 파라미터 추가해 `list_assignees(db, org_id=org_id)`로 위임.
+**조사 중 감사가 안 짚은 3번째 누출을 자체 발견**: 같은 파일의
+`board_posts_between()`도 `board_repo.visible_posts()` 초크포인트를
+안 거치고 `select(Post)`를 직접 짜고 있었다(org 스코프 없음) — 같은
+수정 사이클에서 함께 고쳤다(`org_id` 파라미터 추가,
+`board_repo.visible_posts(org_id)`로 위임). 세 함수의 호출부
+`app/assistant/facts.py::weekly_digest_facts/triage_facts`도 함께
+갱신(`viewer=user`, `org_id=getattr(user,"org_id",None)`).
+`tests/security/test_home_widget_org_dept_scope.py`에 6개 신규
+시험 추가(`two_orgs`/`two_depts` 픽스처 재사용) — 11/11 통과.
+**Revert-to-verify 완료**: `app/home/readers.py`만 stash 했더니
+신규 6개가 전부 실패(4개는 데이터 유출 어서션 실패, 2개는
+`TypeError: unexpected keyword argument` — 함수 시그니처 자체가
+없어졌다는 것도 유효한 "수정 전 실패" 증거), 나머지 5개(기존
+`recent_documents`/`recent_board_posts`)는 그대로 통과 — stash pop
+으로 복구 후 11/11 재확인. 커밋 `<이 항목을 커밋할 때 SHA 채움>`.
+
+**3 처리 완료.** `_guard_impersonation_write`(HTTP 메서드 기준)는
+그대로 두고, 감사가 지적한 `team_docs`뿐 아니라 **같은 패턴을
+저장소 전체에서 찾아 3곳 모두** 고쳤다(CLAUDE.md §4의 "RBAC 문제 →
+같은 permission/scope 경로 전체" 지시대로): `app/team_docs/router.py
+::get_document()`의 `record_view()`, `app/team_chat/router.py
+::room_messages()`의 `touch_presence()`, `app/games/router.py
+::room_state()`의 `touch_presence()` — 셋 다 GET 라우트가 SAFE_METHOD
+뒤에 숨어 대행 중에도 대상 명의로 조용히 DB를 썼다(전자는 "최근
+열람", 후두 개는 "접속 중" 표시 — 놀이 쪽은 표시가 아니라 추첨
+대상 풀도 가른다). 기존에 이미 검증된 관례(`auth: AuthContext =
+Depends(get_current_auth)` + `if auth.impersonating:`, `auth/router.py`
+::logout·`impersonation/router.py`에 선례)를 그대로 재사용 —
+`get_current_user`가 이미 같은 `get_current_auth`에 의존하므로
+FastAPI 의존성 캐시 덕에 추가 쿼리 없음. `games/router.py`의
+`maybe_autoresolve()`(시간 마감 기반 자동 확정)는 대상 개인 명의의
+쓰기가 아니라 방 전체에 걸친 서버 시계 트리거라 **의도적으로
+그대로 둠**(같은 결함군 아님 — 관리자가 막힌 게임을 들여다보려고
+대행하는 상황에서 마감 처리까지 막으면 오히려 회귀).
+`tests/security/test_impersonation.py`에 신규 시험 3개 추가 — 게임
+쪽은 입장 자체가 `last_seen`을 이미 찍어 두므로 30초 스로틀과
+가드를 구별하려고 `fake_clock.advance(31)`을 씀. 23/23 통과.
+**Revert-to-verify 완료**: 라우터 3개 파일만 stash 하니 신규 3개
+전부 실패(게임 쪽은 `last_seen`이 `:00`→`:31`로 실제 갱신되는 것을
+확인), stash pop 복구 후 23/23 재확인. team_docs/team_chat/games
+전체 focused 회귀도 재확인(전부 통과). 커밋
+`<이 항목을 커밋할 때 SHA 채움>`.
