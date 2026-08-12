@@ -560,16 +560,28 @@ export function DataScreen({ config }) {
   const canOnboard = config.forceOnboarding || canCreate || !!primaryHeaderAction;
   // 페이저는 목록 카드와, clientFilter로 현재 페이지가 통째로 걸러진 빈 상태 두 곳에서 함께 쓴다
   // (paginated+clientFilter 화면에서 현재 페이지가 필터로 비어도 다른 페이지로 넘어갈 수 있게).
-  const pager = config.paginated ? (
-    <Box component="nav" aria-label="페이지 이동"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }}>
+  const renderPager = (edge) => (
+    <Box component="nav" aria-label={edge === "top" ? "페이지 이동(목록 위)" : "페이지 이동"}
+      sx={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
+        ...(edge === "top"
+          ? { pb: 2, mb: 1, borderBottom: 1, borderColor: "divider" }
+          : { pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }),
+      }}>
       <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
       <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
         {totalPages != null ? `${page} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${page}페이지`}
       </Typography>
       <Button size="sm" disabled={totalPages != null ? page >= totalPages : items.length < pageSize} onClick={() => setPage((p) => p + 1)}>다음</Button>
     </Box>
-  ) : null;
+  );
+  const pager = config.paginated ? renderPager("bottom") : null;
+  // VIS-117: 100행짜리 화면(예: /jobs, 6,186px)에서 페이지 이동이 맨 아래에만 있으면 다음 페이지로
+  // 넘기려고 매번 화면 끝까지 스크롤해야 한다 — 목록 위에도 같은 컨트롤을 하나 더 둔다(총
+  // 페이지가 2 이상일 때만, 1페이지짜리 화면에 안 쓰는 컨트롤을 얹지 않는다). 버튼 하나로
+  // 로직을 공유하므로 동작은 항상 아래 페이저와 같다.
+  const topPager = config.paginated && (totalPages != null ? totalPages > 1 : items.length >= pageSize)
+    ? renderPager("top") : null;
 
   return (
     <div className="c-screen">
@@ -729,6 +741,7 @@ export function DataScreen({ config }) {
         </>
       ) : (
         <Card className="c-list-card">
+          {topPager}
           <DataTable columns={columns} rows={filtered} rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))} onRow={setSel} />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행
