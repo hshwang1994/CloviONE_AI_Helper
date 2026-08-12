@@ -55,6 +55,20 @@ board-identity) 65건 green — 특히 FN-14 시험이 green으로 남아 `["tea
 `check_bundle_fresh.py --write`, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
 `app/`(백엔드)는 이 변경과 무관해 백엔드 회귀는 재실행하지 않았다(프런트 전용 변경).
 
+**이 invocation도 세션 예산 임계치(약 80% 소비)로 여기서 멈춘다 — PROJECT는 끝나지
+않았다.** 이번엔 진짜로 낮다(직전 invocation처럼 "줄어드는 중"이 아니라 다음 한 사이클
+[조사→구현→테스트→문서]을 안전하게 못 끝낼 수준). `WF11-L01`을 완결하고(구현+테스트
+65건 green+정적검사+문서 커밋까지 전부 끝냄) 딱 그 경계에서 멈췄다 — 반쪽 구현을
+남기지 않았다. **다음 invocation 시작 지점**: 로컬 dev 서버(`:8099`, uvicorn)가 여전히
+떠 있는지 먼저 `curl localhost:8099/readyz`로 확인 후 재사용. 후보는 여전히 아래와
+동일하다 — QA_COVERAGE `L`축 나머지(알림·게임방·채팅방 등 다른 bespoke 화면의
+cross-invalidation 재고), BACKLOG Med/Low 클러스터링, `DS-18` 잔여 34개, 승인된 TEST
+SERVER 배포(자격증명 여전히 외부 Blocker). `SEC-12/13`·`FN-02`류 "이미 고쳐졌는데
+행만 안 갱신" 패턴은 이번 세션에서 찾을 만큼 찾았다고 판단 — 다음 세션이 또 그 각도로
+훑는 것보다는 `WF11-L01`처럼 **구조를 먼저 이해하고 반복되는 결함 계열을 좁혀 찾는**
+전략이 더 잘 통했다(이번 회차의 핵심 교훈, `DECISIONS.md`에 별도로 안 남김 — 이미 이
+문단이 그 역할을 한다).
+
 **WF11(2026-08-12) — 제품 BACKLOG 재개, WF9-3 "다음 후보" 중 자기완결 2건 종결.**
 비대화형 무인 실행 재개 시작 시 예산이 제한적(세션 USD 예산)이라 값비싼 다중 에이전트
 Workflow 대신 직접 조사·구현으로 진행 — 저장소 상태(CLAUDE.md·WORK_STATE·BACKLOG·
