@@ -166,6 +166,64 @@ def test_reject_does_not_apply(app, client, login_as, workflow_id, db):
         assert detail["enabled"] is False
 
 
+def test_admin_cancelling_someone_elses_request_notifies_the_requester(
+    app, client, login_as, workflow_id, db
+):
+    """decide()·expire_pending()은 이미 요청자에게 알리는데 cancel()만 빠져 있었다 —
+    admin이 남의 대기 요청을 대신 취소하면 요청자는 벨도 /notifications도 신호가 없었다."""
+    from fastapi.testclient import TestClient
+
+    requester_csrf = login_as("admin", email="cancel-target@goodmit.co.kr")
+    schedule = _make_schedule(client, requester_csrf, workflow_id, name="취소 알림 케이스")
+    approval = client.post(
+        f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(requester_csrf)
+    ).json()["approval"]
+
+    from app.users.service import create_user
+
+    create_user(
+        db, email="canceller@goodmit.co.kr", display_name="취소자",
+        password=DEFAULT_TEST_PASSWORD, settings=app.state.settings, actor_role="system_admin",
+        role="admin", must_change_password=False,
+    )
+    db.commit()
+    with TestClient(app, raise_server_exceptions=False) as canceller:
+        csrf = canceller.post(
+            "/login",
+            json={"email": "canceller@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+        ).json()["csrf_token"]
+        r = canceller.post(
+            f"/api/admin/approvals/{approval['id']}/cancel", headers=_headers(csrf)
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["approval"]["status"] == "cancelled"
+
+    from app.notifications.models import Notification
+    from app.users.service import get_user_by_email
+
+    requester = get_user_by_email(db, "cancel-target@goodmit.co.kr")
+    cancelled = db.query(Notification).filter(
+        Notification.type == "approval_cancelled", Notification.user_id == requester.id
+    ).all()
+    assert cancelled, "남이 취소했는데 요청자에게 approval_cancelled 알림이 안 갔다"
+
+
+def test_self_cancel_does_not_notify_self(client, login_as, workflow_id, db):
+    """본인이 취소했으면 이미 알고 있다 — 자기 자신에게 알림을 만들지 않는다."""
+    csrf = login_as("admin", email="self-canceller@goodmit.co.kr")
+    schedule = _make_schedule(client, csrf, workflow_id, name="자기 취소 케이스")
+    approval = client.post(
+        f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf)
+    ).json()["approval"]
+
+    r = client.post(f"/api/admin/approvals/{approval['id']}/cancel", headers=_headers(csrf))
+    assert r.status_code == 200, r.text
+
+    from app.notifications.models import Notification
+
+    assert not db.query(Notification).filter(Notification.type == "approval_cancelled").all()
+
+
 def test_expiry_sweep(db, app, client, login_as, workflow_id, fake_clock):
     csrf = login_as("admin", email="expiring@goodmit.co.kr")
     schedule = _make_schedule(client, csrf, workflow_id, name="만료 케이스")

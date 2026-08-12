@@ -4878,7 +4878,7 @@ DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
    안 쓰는 경로라 감사 로그에도 안 남는다. 기존 시험
    (`test_every_write_route_is_blocked_while_impersonating`)은 라우트의
    HTTP 메서드만 보므로 구조적으로 이 결함을 못 잡는다.
-4. **[미처리] 승인 취소가 요청자에게 통보되지 않는다(High, 워크플로)**
+4. **[처리 완료] 승인 취소가 요청자에게 통보되지 않는다(High, 워크플로)**
    — `app/approvals/service.py::cancel()`(442-449)만 같은 파일의
    형제 종결 함수 `decide()`(승인/거절)·`expire_pending()`(만료)과
    달리 `notify_user()`를 안 부른다. 취소는 요청자 본인이 아니라
@@ -4942,7 +4942,7 @@ High, 2·3·5가 Med~High)으로 번들 지어 구현 — 1(문서 스코프)과
 `TypeError: unexpected keyword argument` — 함수 시그니처 자체가
 없어졌다는 것도 유효한 "수정 전 실패" 증거), 나머지 5개(기존
 `recent_documents`/`recent_board_posts`)는 그대로 통과 — stash pop
-으로 복구 후 11/11 재확인. 커밋 `<이 항목을 커밋할 때 SHA 채움>`.
+으로 복구 후 11/11 재확인. 커밋 `3f25860`.
 
 **3 처리 완료.** `_guard_impersonation_write`(HTTP 메서드 기준)는
 그대로 두고, 감사가 지적한 `team_docs`뿐 아니라 **같은 패턴을
@@ -4969,4 +4969,34 @@ FastAPI 의존성 캐시 덕에 추가 쿼리 없음. `games/router.py`의
 전부 실패(게임 쪽은 `last_seen`이 `:00`→`:31`로 실제 갱신되는 것을
 확인), stash pop 복구 후 23/23 재확인. team_docs/team_chat/games
 전체 focused 회귀도 재확인(전부 통과). 커밋
-`<이 항목을 커밋할 때 SHA 채움>`.
+`3f25860`(1+2와 같은 커밋 — 문서가 겹쳐 쓰여 분리하지 않고 함께 묶음).
+
+**4 처리 완료.** `app/approvals/service.py::cancel()`에 형제 함수
+(`decide()`/`expire_pending()`)와 같은 자리에 `notify_user(type_=
+"approval_cancelled", related=("approval", row.id))` 추가. **다만
+그대로 복사하지 않고 조건을 하나 더 넣었다**: `decide()`는 자기
+승인이 금지돼 있어 호출자가 요청자 자신인 경우가 실질적으로 없지만,
+`cancel()`은 요청자 본인이 취소하는 것이 오히려 흔한 경로다(서비스
+검사 자체가 `row.requested_by == actor.id`를 첫 번째로 허용) — 그대로
+복사하면 "내가 취소했는데 나에게 알림"이라는 낭비가 생긴다. 그래서
+`actor.id != row.requested_by`(감사가 지적한 바로 그 경우 — admin/
+system_admin이 남의 대기 요청을 대신 끝냈을 때)일 때만 보낸다. 알림
+어휘 배관: `app/profiles/prefs.py::NOTIFICATION_TYPES`(뮤트 설정
+화면에 노출) + `frontend/src/lib/format.js::TYPE_KO`(벨/목록 표시)에
+`approval_cancelled` 추가. `related_object_type="approval"`은 기존과
+동일해 딥링크 라우팅(`app/notifications/destinations.py`)·프런트
+role 게이트(`registry/notifications.js`의 `ADMIN_CONSOLE_RELATED_TYPES`)
+둘 다 `related_object_type` 기준이라 **추가 배선 없이 자동으로 적용됨**
+(직접 코드 확인). `tests/integration/test_approvals.py`에 신규 시험
+2개: 남이 취소 → 알림 생성 확인, 본인이 취소 → 알림 미생성 확인(과잉
+알림 회귀 방지용 — 이건 수정 전에도 통과하는 게 정상이라 revert-to-verify
+비교 대상이 아니다). `test_profile_prefs.py`의 기존 전수 스캔 가드
+(`test_every_notify_call_site_type_is_registered_somewhere`)가 등록
+누락도 자동으로 잡아 준다는 것을 재확인(23/23 그대로 통과).
+**Revert-to-verify 완료**: `app/approvals/service.py`만 stash 하니
+"남이 취소" 시험만 기대대로 실패(`assert []`)하고 "본인 취소" 시험은
+그대로 통과(두 상태 모두에서 참이어야 하는 불변식이므로 정상) —
+stash pop 복구 후 `test_approvals.py`(16)+`test_profile_prefs.py`(23)+
+`test_approval_scope.py`(9) = 48/48 재확인. 프런트
+`format.js`/`NotificationBell`/딥링크 관련 시험 7파일 33건도 재확인
+(전부 통과, 코드는 추가만 했으므로 회귀 없음이 기대대로).

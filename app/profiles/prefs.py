@@ -42,6 +42,7 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "approval_requested": ("승인 요청", "내가 승인해야 할 건이 생겼을 때"),
     "approval_decided": ("승인 결과", "내가 올린 건이 승인/반려되었을 때"),
     "approval_expired": ("승인 만료", "승인 대기 건이 기한을 넘겼을 때"),
+    "approval_cancelled": ("승인 취소", "내가 올린 요청이 다른 사람에 의해 취소되었을 때"),
     "job_failed": ("작업 실패", "자동화 작업이 실패했을 때"),
     "schedule_failed": ("일정 실행 실패", "예약된 실행이 실패했을 때"),
     "runner_unavailable": ("러너 이상", "자동화 실행기가 응답하지 않을 때"),

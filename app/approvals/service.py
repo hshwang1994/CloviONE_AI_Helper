@@ -445,6 +445,19 @@ def cancel(db: Session, row: Approval, actor: User, *, now: datetime) -> Approva
         raise ForbiddenError("본인의 승인 요청만 취소할 수 있습니다.")
     row.status = APPROVAL_CANCELLED
     row.decided_at = now
+    # 본인이 취소했으면 이미 알고 있다 — 자기 자신에게 알림을 보내지 않는다. 통보가 필요한
+    # 경우는 admin/system_admin이 남의 대기 요청을 대신 끝냈을 때뿐이다(위 검사가 허용하는
+    # 두 번째 경로). 그때 요청자는 벨도 /notifications도 신호가 없었다 — decide()·
+    # expire_pending() 형제 함수는 이미 notify_user를 부르는데 이 함수만 빠져 있었다.
+    if actor.id != row.requested_by:
+        notify_user(
+            db,
+            row.requested_by,
+            type_="approval_cancelled",
+            title=f"승인 요청 취소됨: {_request_type_ko(row.request_type)}",
+            related=("approval", row.id),
+            now=now,
+        )
     db.flush()
     return row
 
