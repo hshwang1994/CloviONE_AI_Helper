@@ -4,12 +4,12 @@
 > 메커니즘**이다. 하네스 내장 `/loop` dynamic mode + `ScheduleWakeup`은 지금 열려 있는
 > 대화형 세션 안에서 부가적으로만 쓰는 session-local 보조 기능이지, 그 자체가 project
 > continuity의 근거가 아니다(D-60이 한 번 반대로 정했다가 D-61이 사용자 지시로 뒤집었다) —
-> 상세·controlled test 증거는 `docs/DECISIONS.md` D-61. Windows Task Scheduler에는 여전히
-> 의존하지 않는다 — 새 항목을 만들지 않고, 기존 것을 삭제하는 것도 이 세션이 하지 않는다
-> (사용자 결정 사항). 지금 대화형 세션이 저장소를 수정하는 동안은 이 Runner를 켜지 않는다
-> (동시 수정 방지) — `var/runner/STOP`이 있으면 그런 뜻이다, 지우지 말 것. **이 세션이
-> 끝나면 사용자가 STOP을 지우고 아래 설치/실행 절차로 이 Runner를 시작하는 것이 연속성의
-> 주 경로다.**
+> 상세·controlled test 증거는 `docs/DECISIONS.md` D-61, 그리고 **D-64**(Stop hook 보조 제동 +
+> Supervisor 계약 정정). Windows Task Scheduler에는 의존하지 않는다 — 새 항목을 만들지 않고,
+> 기존 것을 삭제하는 것도 사용자 몫이다. 대화형 세션이 저장소를 수정하는 동안은 이 Runner를
+> 켜지 않는다(동시 수정 방지 — `run.lock` 배타 핸들이 두 Supervisor는 막지만, 사람의 대화형
+> 세션까지 막아 주지는 않는다). **대화형 세션이 끝나면 사용자가 아래 한 줄로 이 Runner를
+> 시작하는 것이 연속성의 주 경로다.**
 
 Claude Code 세션(터미널 창)을 닫아도, ClovirONE Web Assistant 프로젝트가 완료되지 않았다면
 이 컴퓨터에서 `autonomous_runner.ps1`이 **쉬지 않고 반복**해서 Claude Code를 이어 띄운다 —
@@ -52,49 +52,72 @@ MEGA LOOP 원칙("cycle 끝났다고 멈추지 않는다")을 감싸는 스크�
 
 ## 설치
 
+**시작 방법은 이 한 줄이다**(2026-08-12, D-64 — Task Scheduler 의존은 폐기됐다):
+
 ```powershell
-cd scripts\runner
-.\install_task.ps1
+cd C:\Users\hshwa\clovirone-web-assistant
+.\scripts\runner\autonomous_runner.ps1
 ```
 
-15분마다, **로그온 중일 때만** 확인하도록 등록된다(Windows 계정 비밀번호를 스케줄러에 저장하지
-않는 것이 더 안전하다는 판단 — 대신 로그아웃/재부팅 중에는 루프가 멈춘다는 뜻이다). 정상
-상태에서는 이 15분 확인이 잠금 파일을 보고 즉시 종료하는 공짜 no-op이다 — 루프가 죽었을
-때만(크래시·재부팅) 실제로 새 루프가 시작된다.
-
-즉시 루프 시작(등록만으로는 다음 heartbeat까지 최대 15분 걸릴 수 있다):
-`schtasks /Run /TN ClovirAssistAutonomousRunner`, 그 뒤 `var\runner\runner.log` 확인.
+이 PowerShell 프로세스 자체가 `PROJECT_COMPLETE`까지 살아 있으면서 Worker invocation을 계속
+관리한다. 창을 닫거나 Ctrl+C 하면 멈춘다(다음에 다시 같은 명령으로 재개 — 상태는 git과
+`docs/`에서 복원된다). `install_task.ps1`은 남겨 두었지만 **더 이상 이 구조의 일부가 아니다** —
+등록하지 않아도 되고, 등록된 항목의 삭제는 사용자가 직접 한다(CLAUDE.md §0).
 
 ## 멈추는 방법
 
-- **임시**(지금 반복이 끝나는 대로 루프 종료, 다시 등록 없이 재개 가능): `var\runner\STOP`
-  파일을 만든다(빈 파일이어도 됨). 지우면 다음 heartbeat 때 재개된다.
-- **즉시+영구**(돌고 있는 루프도 바로 멈추고, 다시 등록하기 전까지 아예 안 뜨게):
-  `.\install_task.ps1 -Uninstall`
-- 연속 3회 실패하면 스크립트가 **스스로** STOP 파일을 만들고 멈춘다 — `var\runner\runner.log`로
-  원인을 본 뒤, STOP 파일을 지우고 `var\runner\state.json`의 `consecutiveFailures`를 0으로
-  되돌려야 재개된다(무한 오동작 방지).
-- 프로젝트가 실제로 끝나면(모든 완성 기준 충족) Claude 스스로 `PROJECT_COMPLETE`를 만들어
-  루프를 정상 종료한다 — 이것이 유일한 "정상적으로 할 일이 없어서 멈춘" 경우다.
+- **사용자가 명시적으로 멈추기**: `var\runner\STOP` 파일을 만든다(빈 파일이어도 됨). 돌고 있는
+  루프는 다음 invocation 전에 이 파일을 보고 끝나고, 이 파일이 있는 동안은 새로 시작해도
+  이유를 크게 출력하고 exit 3으로 끝난다. 지우면 다시 시작할 수 있다.
+  **이 파일은 오직 사람만 만든다** — 스크립트는 절대 여기에 쓰지 않는다.
+- **연속 3회 실패 시**: 스크립트가 `var\runner\AUTO_STOP`(STOP이 아니다)을 만들고 멈춘다.
+  `var\runner\logs\`로 원인을 본 뒤 **그냥 다시 실행하면 된다** — 수동 재시작 자체를 그 실패에
+  대한 확인으로 보고, AUTO_STOP을 크게 알린 뒤 정리하고 `consecutiveFailures`를 0으로 되돌린다.
+  (예전엔 이 경우에도 STOP을 만들어서, 원인을 고치고 재시작해도 조용히 아무 일도 안 일어났다.)
+- 프로젝트가 실제로 끝나면(모든 완성 기준 충족) Claude 스스로 `PROJECT_COMPLETE`를 **내용과 함께**
+  만들어 루프를 정상 종료한다 — 이것이 유일한 "정상적으로 할 일이 없어서 멈춘" 경우다.
+  빈 파일은 완료로 인정되지 않는다(Supervisor와 Stop hook이 같은 규칙을 쓴다).
+
+## Stop hook (보조 제동)
+
+`.claude/settings.json`이 `scripts/runner/stop_guard.py`를 Stop hook으로 걸어 둔다. Supervisor가
+띄운 Worker에서만(`CLOVIR_SUPERVISED=1`) 동작하며, `PROJECT_COMPLETE`가 유효하지 않은데 Claude가
+끝내려 하면 **invocation당 한 번** 되돌린다. 그 제동으로 이어진 continuation에서 다시 멈추려
+하면 통과시킨다(무한 루프 방지). **사람이 직접 쓰는 대화형 세션에는 이 환경변수가 없어 아무
+영향이 없다.** 어떤 오류에서도 정지를 허용한다(fail-open) — 보조 장치가 Worker를 영구히 붙잡는
+것이 더 나쁘기 때문이다. process 경계를 넘는 연속성의 1차 책임은 어디까지나 이 Supervisor다.
 
 ## 안전장치 요약
 
 | 장치 | 막는 것 |
 |---|---|
-| `STOP` 파일 | 다음 반복 전에 확인 — 사용자가 원할 때 멈추는 확실한 수단 |
-| `PROJECT_COMPLETE` 파일 | Claude 스스로 전체 완성을 검증했을 때만 — 유일한 정상 종료 |
-| `run.lock` | 이미 살아있는 루프가 있으면 새 프로세스가 겹쳐 안 돈다 |
-| 연속 실패 3회 → 자동 STOP | 같은 원인으로 무한 재시도하지 않는다 |
+| `STOP` 파일 (사용자 전용) | 다음 invocation 전에 확인 — 사용자가 원할 때 멈추는 확실한 수단. 있으면 새 시작도 이유를 크게 출력하고 exit 3 |
+| `PROJECT_COMPLETE` 파일 | Claude 스스로 전체 완성을 검증했을 때만(**내용 필수**) — 유일한 정상 종료 |
+| `run.lock` (배타 파일 핸들) | 두 Supervisor가 같은 워킹트리를 동시에 고치지 않는다. 크래시해도 OS가 핸들을 회수하므로 stale lock이 다음 시작을 막지 않는다 |
+| 연속 실패 3회 → `AUTO_STOP` | 같은 원인으로 무한 재시도하지 않는다. 수동 재시작 시 크게 알리고 자동 정리 |
 | rate-limit/overload 감지 시에만 지수 백오프 | 진짜 기다릴 이유가 있는 경우만 대기(60초~30분) — 일반 실패는 즉시 재시도 |
-| 저장소 dirty 시 2분 뒤 재확인 | 대화형 세션과 충돌 방지, 3시간이 아니라 2분 단위로 빠르게 이어받음 |
-| `--max-budget-usd 15` | 반복당 API 지출 상한(Claude Code 자체 기능) |
-| `Wait-Process -Timeout 150분` | 한 반복이 멈춰 버리면 강제 종료(그 반복만 실패로 셈, 루프는 안 죽음) |
-| `$MaxIterationsPerLaunch = 300` | 런어웨이 하드 스톱 — 걸려도 다음 15분 heartbeat가 새 루프로 이어받는다(멈춤 아님) |
+| 저장소 dirty 시 2분 뒤 재확인 (내용 안 변하면 5회 후 진행) | 대화형 세션과 충돌 방지 + **무한 대기 방지**(유령 dirty 상태로 영원히 멈추지 않는다) |
+| `--max-budget-usd 15` | invocation당 API 지출 상한(Claude Code 자체 기능) |
+| `Process.WaitForExit(150분)` | 멈춰 버린 invocation을 실제로 강제 종료(그 invocation만 실패로 셈, 루프는 안 죽음) |
+| `$MaxIterationsPerLaunch = 300` | 런어웨이 하드 스톱 — 걸리면 크게 알리고 종료한다. **자동으로 이어받는 장치는 없다**(수동 재시작 필요) |
+| Stop hook (`stop_guard.py`) | 완료 마커 없이 끝내려는 Worker를 invocation당 한 번 되돌린다(보조 장치, fail-open) |
 | `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** — 이 세션이 실제로 쓰고 있는 것과 같은 모드로, 자동 분류기가 여전히 위험한 동작(대량 삭제 등)을 막는다 |
 | 프롬프트 안의 배포 자격증명 경계 | 채팅에 붙여넣어진 SSH/sudo 비밀번호를 어떤 서버 배포에도 쓰지 않는다는 규칙을 매 반복 프롬프트에 명시 — 10.100.64.71 배포는 사용자가 직접 하거나 NOPASSWD sudoers를 사용자가 직접 구성해야만 가능하다 |
 
 ## 수정 이력
 
+- **2026-08-12 (D-64, Continuity Bootstrap)**: Stop hook(`stop_guard.py`) 추가 —
+  Supervisor가 띄운 Worker에서만 동작하며 완료 마커 없이 끝내려 할 때 invocation당 한 번
+  되돌린다. `STOP`(사용자 전용)과 `AUTO_STOP`(자동 실패 흔적)을 분리해, 원인을 고친 뒤
+  수동 재시작하면 조용히 무력화되지 않게 했다. 이번에 실제로 발견해 고친 결함:
+  ① `app/worker_main.py`가 CRLF/LF 정규화 때문에 내용 차이가 0인데도 영원히 `git status`에
+  modified로 보여, Supervisor가 dirty 대기 루프에서 Claude를 **한 번도 못 띄우던** 문제
+  (파일 정규화 + 대기 상한 추가), ② `Wait-Process -Timeout -PassThru`로는 timeout이 절대
+  감지되지 않아 강제 종료 분기가 죽은 코드였던 문제(`Process.WaitForExit(ms)`로 교체 —
+  실측: 상한을 넘긴 프로세스가 죽지 않고 같은 세션에 두 프로세스가 붙었다), ③ 런어웨이
+  상한에서 "스케줄러가 이어받는다"는 거짓 안내, ④ 같은 초에 시작된 두 invocation의 로그
+  파일 덮어쓰기. 단일 Writer 잠금은 PID 비교 → 배타 파일 핸들로 교체. 격리 scratch 저장소에서
+  **실제 스크립트**로 controlled test A~H 통과(근거는 `docs/DECISIONS.md` D-64).
 - **2026-08-11**: `Start-Process -ArgumentList`에 거대한 멀티라인 프롬프트 문자열을 배열
   원소로 직접 넘기던 방식이 Windows 커맨드라인 재조립 과정에서 깨져(`error: unknown
   option '--oneline'` — 프롬프트 안의 예시 텍스트가 `claude.exe` 자신의 옵션으로 오인됨)
@@ -113,8 +136,9 @@ cd scripts\runner
 
 ## 알려진 한계 (정직하게 남긴다)
 
-- 로그온 중일 때만 돈다. 컴퓨터가 꺼져 있거나 로그아웃 상태면 루프가 멈춘다(재로그온 시
-  다음 15분 heartbeat 안에 자동 재개).
+- 이 PowerShell 프로세스가 살아 있는 동안만 돈다. 창을 닫거나 로그아웃·재부팅하면 멈춘다 —
+  **자동으로 되살리는 장치는 없다**(Task Scheduler 의존 폐기). 다시 시작하려면 사용자가
+  `.\scripts\runner\autonomous_runner.ps1`을 한 번 더 실행하면 된다(상태는 git과 `docs/`에서 복원).
 - 실제 배포(`10.100.64.71`)는 이 Runner가 자동으로 못 한다(비밀번호 경계) — 사용자가
   NOPASSWD sudoers를 구성하기 전까지는 구현·테스트·문서화까지만 자동으로 진행된다.
 - 연속 반복이 API 지출을 빠르게 누적시킬 수 있다(반복당 최대 $15, 반복 사이 지연 없음) —

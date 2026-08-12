@@ -975,3 +975,77 @@ test는 전부 `--tools ""` 또는 격리된 스크래치 디렉터리에서 실
 **Task Scheduler**: 기존 watchdog task(`install_task.ps1`, 죽은 루프만 재기동, 15분 heartbeat)는
 이번에도 건드리지 않았다 — CLAUDE.md §0: 새 scheduled task를 만들지 않고, 기존 항목 삭제는
 사용자 몫이라는 규칙 그대로.
+
+---
+
+## D-64 (2026-08-12) — Continuity stack: Stop hook 보조 제동 + Supervisor 계약 정정
+
+**배경**: D-63으로 Persistent Worker Session은 갖췄지만 실제 증상은 남아 있었다 —
+`PROJECT_COMPLETE=false`인데 Claude가 몇 건 처리하고 Summary를 낸 뒤 invocation을 끝냈고,
+그 뒤 다음 invocation이 실제로 이어지지 않았다. 프롬프트를 더 세게 쓰는 것으로는 이미 여러 번
+실패했으므로, 이번에는 **실행 구조**로 막았다.
+
+**결정 1 — Stop hook을 보조 제동으로 추가**(`scripts/runner/stop_guard.py`,
+`.claude/settings.json`). Supervisor가 띄운 Worker에서만(`CLOVIR_SUPERVISED=1`) 동작하고,
+`PROJECT_COMPLETE`가 유효하지 않으면 **invocation당 정확히 한 번** `decision:"block"`으로
+되돌린다. 그 제동으로 이어진 continuation(`stop_hook_active=true`)에서 다시 멈추려 하면 통과시킨다 —
+무한 block 루프를 만들지 않고, 그 뒤는 Supervisor가 책임진다. 사람이 쓰는 대화형 세션에는
+`CLOVIR_SUPERVISED`가 없어 hook이 즉시 통과한다. 어떤 예외에서도 **정지를 허용**한다(fail-open):
+보조 장치가 Worker를 영구히 붙잡는 것이 block 실패보다 나쁘다.
+**Primary continuity는 여전히 로컬 PowerShell Supervisor다**(CLAUDE.md §11). Windows Task
+Scheduler에는 의존하지 않는다(현재 해당 task는 등록되어 있지 않음을 확인).
+
+**결정 2 — 완료 Gate를 machine-readable로 통일**. `PROJECT_COMPLETE`는 "존재"만으로는 부족하고
+**내용이 있어야** 유효하다. Supervisor(`Test-ProjectComplete`)와 Stop hook(`project_complete()`)이
+같은 규칙을 쓴다. 자연어 "project complete" 선언만으로는 아무 것도 끝나지 않는다.
+
+**결정 3 — `STOP`(사용자)과 `AUTO_STOP`(자동 실패 흔적)을 분리**. 예전엔 연속 실패 상한에 걸리면
+스크립트가 스스로 `STOP`을 만들어, 사용자의 명시적 중단과 구분이 불가능했다 — 원인을 고치고
+수동 재시작해도 stale STOP 때문에 조용히 아무 일도 안 일어났다(2026-08-11에 실제로 12시간 넘게
+그 상태였다, `var/runner/runner.log`). 이제 자동 정지는 `AUTO_STOP`에 쓰고, **사람이 직접 다시
+시작한 것 자체**를 그 실패의 확인으로 보아 크게 알린 뒤 정리하고 카운터를 되돌리고 진행한다.
+`STOP`은 오직 사용자만 만들며, 있으면 크게 이유를 출력하고 exit 3으로 끝낸다(조용한 no-op 금지).
+
+**이번에 실제로 발견해 고친 continuity 결함 4건**(전부 재현 후 수정):
+1. **dirty 워킹트리 무한 대기** — `app/worker_main.py`가 CRLF/LF 정규화 때문에 내용 차이가 0인데도
+   `git status`에는 영원히 modified로 보였고(index `lf` / worktree `crlf`, attr `eol=lf`),
+   Supervisor는 2분마다 무한히 재확인만 하며 Claude를 **한 번도 띄우지 못했다**. 파일을 정규화해
+   원인을 없애고, 워킹트리 내용이 변하지 않은 채 N회 반복되면 "사람이 편집 중이 아니다"로 보고
+   진행하도록 상한을 뒀다.
+2. **invocation timeout이 죽은 코드였다** — `Wait-Process -Timeout ... -PassThru`는 기다림이
+   실패해도 프로세스 객체를 돌려주므로 timeout 분기가 한 번도 실행되지 않았다. 실제 증상:
+   상한을 넘긴 invocation이 죽지 않은 채 로그엔 `exit=`(빈 값)만 남고, Supervisor가 다음
+   invocation을 띄워 **같은 세션에 두 프로세스가 붙었다**. `Process.WaitForExit(ms)`의 bool로 교체.
+3. **런어웨이 상한의 거짓 안내** — "작업 스케줄러 heartbeat가 이어받는다"고 안내했지만 그 의존은
+   폐기됐다 — 실제로는 아무도 이어받지 않는다. 사실대로 알리도록 정정.
+4. **로그 파일 이름 충돌** — 같은 초에 시작된 두 invocation이 같은 로그 파일을 덮어썼다(2026-08-11
+   로그에 실제로 존재). 순번을 붙여 분리.
+
+**단일 Writer 잠금**을 PID 비교에서 **배타 파일 핸들**로 바꿨다 — 확인/기록 사이의 경쟁 구간이
+없고, 크래시 시 OS가 핸들을 회수하므로 stale lock이 남지 않는다(남은 lock *파일*은 다음 시작을
+막지 않는다 — 실측 확인).
+
+**Controlled test(실 저장소가 아니라 격리된 scratch 저장소를 대상으로, 사본이 아닌 실제
+`autonomous_runner.ps1`을 실행)**. Claude 호출은 프로세스 경계 계약만 볼 때는 stub으로,
+세션 의미가 필요한 곳에서는 실제 `claude.exe`로 했다. 설치 버전 2.1.228에서 직접 확인한 것:
+- **A**: `CLOVIR_SUPERVISED=1` + PROJECT_COMPLETE 없음 → Stop hook이 실제로 block하고 대화가
+  이어짐(`num_turns` 1 → 2). `-p` 비대화형에서도 hook이 뜨고, project `.claude/settings.json`이
+  기본 로드되며, Supervisor 환경변수가 hook 프로세스까지 상속되는 것도 같이 확인.
+- **B**: `CLOVIR_SUPERVISED` 없음 → hook이 정상 정지를 전혀 방해하지 않음(로그조차 남기지 않음).
+- **C/E**: exit 0인데 `PROJECT_COMPLETE=false` → Supervisor가 종료하지 않고 **sleep 없이**
+  다음 invocation 시작(실측 간격 0.12~0.52초). exit 0/1/7/124 모두 종료 조건이 아님.
+- **D**: 같은 Worker Session을 `--resume`으로 이어받아, 2번째 프로세스가 1번째 프로세스의 대화를
+  실제로 기억함(같은 질문을 몇 번 봤는지 묻자 `SEEN=3` — 새 세션이면 `SEEN=1`이어야 한다).
+  Stop hook 로그도 invocation당 `block` 1회 → `allow`(stop_hook_active) 1회 패턴 그대로.
+- **F**: 존재하지 않는 session id → resume 실패를 감지해 `consecutiveFailures`를 **소비하지 않고**
+  session id를 지운 뒤, 다음 invocation을 `--session-id`(새 세션)로 지연 없이 시작.
+- **G**: 두 번째 Supervisor는 잠금 때문에 Worker를 하나도 띄우지 못하고 이유를 크게 출력하고 종료.
+  강제 종료로 남은 stale lock 파일은 다음 수동 시작을 막지 않음.
+- **H**: 사용자 `STOP` → 크게 출력 + exit 3 + Worker 0회. stale `AUTO_STOP` → 크게 출력 + 정리 +
+  카운터 0 복원 + 계속 진행(조용한 no-op 없음).
+- Stop hook 판단 매트릭스(무감독/감독/`stop_hook_active`/깨진 stdin/빈 stdin/빈 마커/유효 마커)
+  7종을 오프라인으로 전수 확인 — 판단 불가 상황은 전부 fail-open.
+
+**남은 한계**(정직하게 기록): 이 bootstrap 세션 자체가 실 저장소의 활성 Writer이므로, 실
+저장소를 대상으로 Supervisor를 기동해 보지는 않았다(단일 Writer 원칙). 실 저장소에 대해서는
+hook 배선이 실제로 해석·동작하는 것까지만 확인했다(`$CLAUDE_PROJECT_DIR` 해석 + 감독/무감독 분기).

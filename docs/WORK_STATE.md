@@ -12,10 +12,32 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) → WF9-1
-(`SEC-10` 부분 구현) → WF9-2(`ADM-02R` 구현완료) → WF9-3(`AI-62` 구현완료) 순서로 완료,
-BACKLOG 재개 중. WF8(12건 구현완료 + 전체 회귀 green)는 그대로 유효, 아래 그 상세 앞에
-이번 보정들을 기록한다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF10-0(Continuity Bootstrap, D-64) 완료 →
+제품 BACKLOG 재개 대기. 그 앞의 WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) →
+WF9-3(`AI-62`)와 WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
+
+**WF10-0(2026-08-12) — Continuity Bootstrap 완료(D-64). 제품 구현은 하지 않은 세션이다.**
+증상은 제품 품질이 아니라 실행 구조였다: `PROJECT_COMPLETE=false`인데 Worker가 Summary를 내고
+끝났고, 그 뒤 다음 invocation이 이어지지 않았다. 이번에 넣은 것:
+- **Stop hook 보조 제동** — `scripts/runner/stop_guard.py` + `.claude/settings.json`.
+  Supervisor가 띄운 Worker에서만(`CLOVIR_SUPERVISED=1`) 동작하고, 완료 마커가 유효하지 않으면
+  invocation당 **한 번** block한다. `stop_hook_active`면 통과시켜 무한 루프를 만들지 않는다.
+  사람의 대화형 세션에는 영향이 없다(실측 확인). 어떤 예외에서도 정지를 허용한다(fail-open).
+- **Primary continuity는 여전히 로컬 PowerShell Supervisor**(`autonomous_runner.ps1`).
+  Stop hook은 보조 장치일 뿐이다. **Windows Task Scheduler 의존 없음**(현재 해당 task 미등록 확인).
+- **Persistent Worker Session**(`--resume`)을 실제 프로세스 경계에서 재검증 — 2번째 프로세스가
+  1번째의 대화를 기억함(`SEEN=3`).
+- **실제로 발견해 고친 continuity 결함**: ① `app/worker_main.py`의 CRLF/LF 유령 dirty 상태 때문에
+  Supervisor가 Claude를 한 번도 못 띄우고 무한 대기하던 문제(파일 정규화 + dirty 대기 상한),
+  ② `Wait-Process -PassThru`로는 timeout이 절대 감지되지 않아 강제 종료 분기가 죽은 코드였던 문제,
+  ③ 런어웨이 상한에서 "스케줄러가 이어받는다"는 거짓 안내, ④ 같은 초 로그 파일 덮어쓰기.
+- **`STOP`(사용자 전용)과 `AUTO_STOP`(자동 실패 흔적) 분리** — stale 흔적이 수동 재시작을 조용히
+  무력화하던 문제 제거. 단일 Writer 잠금은 배타 파일 핸들 방식으로 교체.
+- Controlled test A~H를 격리 scratch 저장소에서 **실제 스크립트**로 실행해 통과(근거는 D-64).
+
+**다음**: 사용자가 로컬 PowerShell에서 `scripts\runner\autonomous_runner.ps1`을 한 번 시작하면,
+그 Supervisor가 `PROJECT_COMPLETE`까지 Worker invocation을 계속 관리한다. 제품 작업 재개 지점은
+아래 "다음 후보(WF9 시점 갱신)" 그대로다.
 
 **WF9-3(2026-08-12) — `AI-62`(High) 구현완료: 티켓이 잘려도 모델이 안 밝히면 사용자는
 몰랐다.** 시스템 프롬프트가 `tickets_truncated`일 때 총계를 단정하지 말라고 이미 모델에게

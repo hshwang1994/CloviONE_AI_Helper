@@ -119,7 +119,8 @@ Screenshot 존재, 페이지 오픈, health 200만으로 E2E 완료 처리하지
 - Claude 세션 내부 `/loop`/ScheduleWakeup은 필요하면 보조 기능으로만 사용할 수 있으며 project continuity의 근거로 삼지 않는다.
 - 동시에 두 Supervisor가 같은 Repository를 수정하지 않도록 single-instance lock을 둔다.
 - 사용자가 Ctrl+C/명시적 stop signal로 안전하게 수동 중단할 수 있어야 하고 다음 수동 시작에서 Git+docs로 복구 가능해야 한다.
-- stale STOP/lock이 새 수동 시작을 조용히 무력화하지 않게 한다. 시작 불가 상태면 이유를 명확히 출력하고 종료한다.
+- stale STOP/lock이 새 수동 시작을 조용히 무력화하지 않게 한다. 시작 불가 상태면 이유를 명확히 출력하고 종료한다. `var/runner/STOP`은 **사용자만** 만든다 — 스크립트의 자동 정지는 `var/runner/AUTO_STOP`에 쓰고, 수동 재시작 시 크게 알린 뒤 정리한다(D-64).
+- 보조 장치로 project-scoped Stop hook(`.claude/settings.json` → `scripts/runner/stop_guard.py`)이 있다. Supervisor가 띄운 Worker(`CLOVIR_SUPERVISED=1`)에서만 동작하며, 유효한 `PROJECT_COMPLETE`가 없는데 끝내려 하면 **invocation당 한 번** 되돌린다(`stop_hook_active`면 통과 — 무한 루프 금지). 사람의 대화형 세션에는 영향이 없고, 어떤 오류에서도 정지를 허용한다(fail-open). 이것은 Supervisor를 대체하지 않는다(D-64).
 - 시작 시각, invocation 번호, Git SHA, exit code, retry 이유, last checkpoint, `PROJECT_COMPLETE` 상태를 기록하되 secret은 로그에 남기지 않는다.
 - Windows Task Scheduler 항목의 생성/수정/삭제에 의존하지 않는다. 기존 Scheduler 삭제는 사용자가 직접 한다.
 Claude Code CLI의 resume/continue/noninteractive/session 옵션은 과거 기억으로 하드코딩하지 않는다. **현재 설치 버전의 `claude --help`를 확인한 뒤** 실제 지원되는 방식으로 구현한다.
