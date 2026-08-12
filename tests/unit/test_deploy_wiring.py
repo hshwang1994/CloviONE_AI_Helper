@@ -91,8 +91,19 @@ def test_the_installer_actually_installs_the_helper():
 
 
 def test_the_installer_prepares_the_certificate_directory():
-    """인증서 교체 액션이 쓰는 자리를 설치가 만들어 두지 않으면 첫 교체가 실패한다."""
-    assert "/etc/ssl/clovirone" in _text(INSTALL), "인증서 디렉터리를 만들지 않는다"
+    """인증서 교체 액션이 쓰는 자리를 설치가 만들어 두지 않으면 첫 교체가 실패한다.
+
+    `SYS-03`: 예전엔 `/etc/ssl/clovirone`만 확인해서, **nginx가 실제로 읽는 자리**
+    (`$ETC_DIR/tls`, `deploy/nginx/clovirone-web-assistant.conf`)가 설치 스크립트에
+    있는지는 아무도 안 지켰다 — SYS-01이 실서버에서 재현한 "조용한 무동작"이 바로 그
+    갭이었다. `/etc/ssl/clovirone`는 여전히 확인한다 — `TLS_CERT_PATH`가 없는 설치
+    (dev/test)의 폴백 경로로 `app/sysops/actions_service.py::_resolve_tls_paths_for`가
+    아직 쓰므로 지우면 그 경로에서도 폴백이 없다는 거짓 안전감이 된다. 두 경로를 **함께**
+    확인해야 "인증서 디렉터리가 준비됐다"는 이 시험의 이름이 실제로 뜻하는 바를 지킨다.
+    """
+    text = _text(INSTALL)
+    assert "/etc/ssl/clovirone" in text, "TLS_CERT_PATH 없는 설치의 폴백 디렉터리를 안 만든다"
+    assert '"$ETC_DIR/tls"' in text, "nginx가 실제로 읽는 인증서 디렉터리($ETC_DIR/tls)를 안 만든다"
 
 
 def test_uninstall_removes_the_helper_too():
