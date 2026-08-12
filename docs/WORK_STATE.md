@@ -4085,15 +4085,78 @@ identifiers·detailFields·admin-backlog-screens·audit-result-filter,
 `admin_org-tree`=WF36, `admin_audit-anomalies`=이번) 구현완료로
 정정.
 
-이 배치(`admin_audit-anomalies` 근본 원인 재정의) 커밋 예정.
-**다음 후보**: WF1 High 나머지 2건 확인 필요 — `admin_offboarding`
-이 온보딩 기능을 약속하지만 실제 경로가 있는지(`Offboarding.jsx`
-직접 재확인 필요, WF1은 2026-08-08 조사라 그새 바뀌었을 수 있다),
-`admin_integration-detail`의 헬스 스윕이 워커 주기 작업에 아직도
-없는지(연동에 러너와 달리 주기적 정체 감지가 없다는 주장,
-`app/health/service.py`·워커 등록 확인 필요). WF1 R2~R7(문자열
-경계·라벨 일관성·약속-능력 불일치·빈 상태 규칙·넓은 뷰포트 폭
-예산·버튼 variant 매핑) 나머지 상세도 아직 안 읽었다 — `docs/
-wf1_synthesis.md`/`wf1_findings.json` 재확인 필요. 그 외 `RN-15`·
-`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도
-후보 목록에 있다.
+이 배치(`admin_audit-anomalies` 근본 원인 재정의) 커밋 완료(`02c8b10`).
+
+`docs/wf1_synthesis.md`를 처음부터 끝까지 읽음(R1~R7 전체 +
+"잘 됨" 본보기 10개 + 단독 결함 6건 + "가장 먼저 고칠 것 3개").
+WF1이 스스로 매긴 우선순위: ① `user_team-doc-detail` 자격증명
+노출(이미 SEC-10으로 부분 구현완료) ② R1(이번 세션에서 수렴) ③
+R4(약속-이행 불일치, 9건·High 2건) — 착수 순서까지 명시:
+"ai-quotas 배너 삭제 → TopSearch placeholder '채팅' 제거 →
+offboarding 제목 정정 → my-stats 빈 상태 연결 → integration-detail
+staleness 표시 → search-results 0건 그룹 명시". 이 순서 그대로
+착수. `admin_integration-detail`(WF1이 `anomalies.py:208-209`로
+잘못 인용됐던 그 항목이 아니라 별개)·`admin_offboarding`
+재검증은 독립 Explore 에이전트 둘을 병렬로 띄워 위임.
+
+**WF39(같은 invocation 계속) — R4 "약속-이행 불일치" 저비용
+3건(ai-quotas 배너·TopSearch 채팅·offboarding 제목) 구현완료.**
+
+- **`ai-quotas` help**: "상한이 걸리는 곳은 아래 표 위의 '상한이
+  걸리는 곳' 목록에 서버가 직접 알려 줍니다" 문장 — 그런 목록을
+  그리는 코드가 없다(재확인). 실제로 표 위에 뜨는 `config.summary`
+  (FN-05, `/api/admin/ai-quotas/usage`)는 "오늘/이번 달 전체 AI
+  호출" 합계일 뿐 **어느 대상이 상한에 걸렸는지는 안 말한다.**
+  존재하지 않는 기능을 광고하던 문장만 삭제 — 나머지 문장이 이미
+  카드/표의 실제 의미를 정확히 설명해 대체 문구가 필요 없었다.
+- **`TopSearch` placeholder**: "티켓, 문서, **채팅**, 사용자, 메뉴
+  검색" — `app/search/models.py`의 `SEARCH_KINDS`는 채팅을
+  **의도적으로, 보안상 타협 없이** 뺀다(1:1 DM이 공용 검색
+  인덱스에 들어가면 방 멤버십 확인 코드 한 줄만 틀려도 유출,
+  `tests/security/test_search_no_chat.py`가 못박음) —
+  `CommandPalette.jsx` 자신의 주석은 이미 이 사실을 정확히 알고
+  있었다("채팅은 서버가 아예 인덱싱하지 않는다"), `TopSearch.jsx`
+  기본 placeholder만 안 맞았다. 실제 4종(`KIND_LABELS`: 티켓/문서/
+  게시판/사용자)에 맞춰 "채팅"→"게시판"으로 교체.
+- **`admin_offboarding` 제목**: Explore 에이전트 조사(26 tool
+  calls) 결과 **순수 명칭 오류**로 확정 — 진짜 신규 계정 생성(온
+  보딩)은 이미 `/users`의 "+ 사용자 추가"로 완전히 존재하고
+  배선돼 있다(`registry/org.js:141-146`이 이미 `/users`를 "온보딩
+  체인의 종착점"으로 문서화하고 있었다). `DataScreen.jsx`의
+  `canOnboard`/`forceOnboarding`는 **완전히 다른 개념**(빈 화면
+  첫 액션 유도 UX 용어)이라 혼동 없음을 확인. 사이드바 라벨
+  "온보딩과 오프보딩"→"오프보딩", 화면 제목 "온보딩, 오프보딩"→
+  "오프보딩", 파일 헤더 주석도 함께 정정. 새 온보딩 기능은
+  만들지 않음(이미 다른 곳에 있으므로 불필요).
+
+**시험**: `registry-ai-quotas-help.test.js`(신규 2건),
+`topbar-baseline.test.jsx`에 1건, `offboarding.test.jsx`에 1건
+추가. revert-to-verify: 3건 모두 되돌려 정확한 이유로 실패 확인
+(옛 문장 그대로 포함, "채팅" 그대로 포함, "오프보딩" heading
+못 찾음) 후 복원. 관련 회귀(offboarding·topbar-baseline·registry-
+ai-quotas-help·nav-org-menu·nav-active, 40건) green. 재빌드 완료,
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 WF1 High-7 표 `admin_offboarding` 행 구현완료로
+정정.
+
+이 배치(R4 저비용 3건) 커밋 예정. **다음 후보**: 두 번째 Explore
+에이전트가 확정한 `admin_integration-detail` 헬스 스윕 결과 처리
+— **WF1의 원 주장은 절반만 맞았다**: 러너 헬스 스윕은 이미
+`worker_main.py`의 `runner_health_tick`(90초)으로 존재한다(감사
+시점 이후 이미 고쳐짐, 문서만 미반영). **연동(integration) 헬스
+스윕은 실제로 없다** — `run_health_check()`(`app/integrations/
+service.py:183-227`)의 유일한 호출자가 수동 "헬스체크" 버튼뿐이고
+워커 틱에 없음(grep으로 `worker_main.py`에 "integration" 매칭
+0건 확인). RSTR-03(`backup_health_alert_reason`+`check_backup_health`
+패턴)을 그대로 본떠 `integration_health_alert_reason()`
++ 워커 틱 배선 + (선택) staleness 배지가 최소 구현 — 새 BACKLOG
+ID 필요(기존 ID 없음, 확인됨). 이어서 R4 나머지(my-stats 빈 상태
+연결, search-results 0건 그룹 명시)와 WF1 단독 결함 6건(`admin_
+departments`의 0인원 삭제 게이트, `admin_policies`의 purpose 컬럼
+부재, `admin_feature-flags`의 기본값 열 부재 등)도 후보. R3(용어
+사전)·R6(폭 예산)·R7(버튼 variant)은 WF1 스스로 "개별 화면
+수정으로 접근하면 안 되는 제품 전반 디자인 결정"이라 명시했으므로
+이 세션에서 단독 착수하지 않는다. 그 외 `RN-15`·`RN-17` 잔여
+노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도 후보 목록에
+있다.

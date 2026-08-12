@@ -137,6 +137,19 @@ describe("상단 검색", () => {
     expect(toPx(getComputedStyle(label).fontSize))
       .toBe(px(".top-search-placeholder", "font-size"));
   });
+
+  /* WF1 R4 — 안내 문구가 실제로 검색되지 않는 "채팅"을 검색 대상으로 광고했다.
+   * app/search/models.py의 SEARCH_KINDS는 채팅을 의도적으로, 보안상 타협 없이 뺀다(1:1 DM이
+   * 공용 인덱스에 들어가면 방 멤버십 확인 코드 한 줄만 틀려도 유출이 된다) — CommandPalette.jsx
+   * 자신의 주석도 이미 "채팅은 서버가 아예 인덱싱하지 않는다"라고 정확히 안다. 안내 문구만
+   * 어긋나 있었다. */
+  it("안내 문구가 실제로 검색되지 않는 '채팅'을 광고하지 않는다", () => {
+    mount(<TopSearch onOpen={() => {}} />);
+    const label = screen.getByTestId("top-search-placeholder");
+    expect(label.textContent).not.toContain("채팅");
+    // 실제 검색 유형(app/search/models.py KIND_LABELS: 티켓/문서/게시판/사용자)과 맞춘다.
+    expect(label.textContent).toBe("티켓, 문서, 게시판, 사용자, 메뉴 검색");
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════

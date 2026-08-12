@@ -17,10 +17,17 @@ import {
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 
-/* 온보딩 · 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
+/* 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
  *
  * 계획서: *"퇴사자 보유 티켓 재배정 — ticket_cache+RBAC가 둘 다 필요한 유일한 항목이자 현재
- * 실제 운영 공백"*. 두 조각이 다 들어와 여기서 잇는다.
+ * 실제 운영 공백"*. ticket_cache+RBAC 두 조각이 다 들어와 여기서 잇는다.
+ *
+ * WF1 R4 — 예전엔 제목·내비가 "온보딩, 오프보딩"이었지만 이 화면은 퇴사자 재배정 마법사뿐이다
+ * (읽기 전용 계정 준비도 체크리스트—부서/직책/Notion 연결/첫 로그인—는 아래 미리보기에
+ * 남지만, app/offboarding/service.py::_onboarding_checklist가 명시하듯 "이 계정이 일할
+ * 준비가 됐는가"를 뒤집어 오프보딩 점검에도 쓰는 것뿐, 신규 입사자를 만드는 능동적 온보딩
+ * 워크플로가 아니다). 실제 신규 계정 생성은 "사용자" 화면의 "+ 사용자 추가"다. 없는 기능을
+ * 약속하던 제목을 정정한다.
  *
  * **왜 DataScreen이 아닌가.** 이 화면은 목록이 아니라 마법사다: 사람을 고르고 → 그 사람이 든
  * 티켓을 **미리 보고** → 누구에게 옮길지 정한 뒤 → 실행하고 → 부분 실패를 확인한다. registry.js
@@ -75,7 +82,7 @@ export function Offboarding() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="사용자" title="온보딩, 오프보딩"
+      <PageHeader area="사용자" title="오프보딩"
         actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null} />
       <Callout>
         <Box component="p" sx={{ m: 0 }}>

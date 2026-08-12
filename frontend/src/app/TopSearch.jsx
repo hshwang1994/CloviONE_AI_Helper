@@ -19,7 +19,11 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 const HIDE_KBD_BELOW = "@media (max-width:960px)";
 const HIDE_BELOW = "@media (max-width:720px)";
 
-export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 채팅, 사용자, 메뉴 검색" }) {
+/* WF1 R4 — 예전엔 "채팅"이 들어 있었다. app/search/models.py(SEARCH_KINDS)는 채팅을 **의도적으로,
+ * 타협 없이** 뺀다(1:1 DM이 공용 검색 인덱스에 들어가는 순간 방 멤버십 확인 코드 한 줄만
+ * 틀려도 남의 DM이 유출된다 — tests/security/test_search_no_chat.py가 그 경계를 못박는다).
+ * 검색되지 않는 것을 검색된다고 광고하고 있었다. 실제 4종(KIND_LABELS와 맞춘다) + 메뉴로 교체. */
+export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 게시판, 사용자, 메뉴 검색" }) {
   return (
     <Box
       component="button"

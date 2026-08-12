@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 온보딩·오프보딩 화면 (PLAN Phase 6).
+/* 오프보딩 화면 (PLAN Phase 6).
  *
  * 여기서 못박는 것은 "화면이 그려진다"가 아니라 **되돌릴 수 있고 거짓말하지 않는다**이다:
  *   1) 실행 전에 보유 티켓을 **먼저 보여 준다**(조용한 일괄 실행 금지).
@@ -126,6 +126,14 @@ async function pickLeaverAndRun(user) {
 }
 
 describe("오프보딩 화면", () => {
+  /* WF1 R4 — 제목·내비가 "온보딩, 오프보딩"이라 신규 입사자 온보딩을 이 화면에서 할 수 있는
+   * 것처럼 약속했지만, 실제로는 퇴사자 재배정 마법사뿐이다(신규 계정 생성은 /users). */
+  it("제목이 하지 않는 일(온보딩)을 더 이상 약속하지 않는다", async () => {
+    renderScreen();
+    expect(await screen.findByRole("heading", { level: 1, name: "오프보딩" })).toBeInTheDocument();
+    expect(screen.queryByText(/온보딩/)).not.toBeInTheDocument();
+  });
+
   it("실행 요청에는 화면에서 확인한 티켓 목록이 그대로 실린다", async () => {
     const user = userEvent.setup();
     renderScreen();

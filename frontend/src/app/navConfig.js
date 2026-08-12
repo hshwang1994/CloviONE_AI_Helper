@@ -107,7 +107,10 @@ export const NAV = [
   ] },
   { group: "사용자", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
-    { to: "/offboarding", label: "온보딩과 오프보딩", roles: ["admin", "system_admin"], icon: "users" },
+    // WF1 R4 — "온보딩과 오프보딩"이라고 약속했지만 이 화면(Offboarding.jsx)은 퇴사자 티켓
+    // 재배정 마법사뿐이다. 신규 입사자 계정을 만드는 실제 온보딩은 위 "/users"의 "+ 사용자
+    // 추가"다 — 이 라벨이 온보딩도 여기서 한다고 오해하게 만들었다.
+    { to: "/offboarding", label: "오프보딩", roles: ["admin", "system_admin"], icon: "users" },
     // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다
     // (트리는 왼쪽 1/3, 관리 패널은 오른쪽 2/3 — OrgConsole.jsx 참조). 그런데 사이드바
     // 메뉴가 예전처럼 3개로 남아 있으면 클릭할 때마다 '다른 메뉴'가 활성화되며 OrgConsole
