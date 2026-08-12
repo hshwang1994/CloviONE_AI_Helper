@@ -12,17 +12,42 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: `invocation=4` — WF51 커밋 뒤
-whole-product 재감사(CLAUDE.md §8)로 확정한 5건의 새 Root Cause
-(문서 스코프 유출 High 1건·조직 간 인원 조회 유출 Med 1건·대행 감사
-공백 Med 1건·승인 취소 알림 누락 High 1건·DB 동시성 미보호 3건)
-**전부 구현완료 + 커밋 완료**(SEC-32/33, APPR-04, DBTX-01 — 커밋
-`3f25860`·`bfde5bf`·`573d58c`). 파일 끝 "Whole-product 재감사" 절에
-각 항목의 상세 처리 로그가 있다. **다음 작업**: 이 재감사 목록이
-소진됐으므로 `docs/BACKLOG.md` 전체(현재 `발견` 태그 96건)를
-재조사해 다음 Root Cause 묶음을 고른다 — 이전 배경 조사 에이전트
-2개(Full Regression 재실행, BACKLOG 발견 96건 분류)가 invocation
-경계에 끊겨 재시작 필요(아래 참고).
+**마지막 갱신**: 2026-08-13 · **단계**: `invocation=4` 진행 중.
+
+WF51 커밋 뒤 whole-product 재감사(CLAUDE.md §8)로 확정한 5건
+(SEC-32/33, APPR-04, DBTX-01) 전부 구현완료 후, 배경 조사 에이전트로
+`docs/BACKLOG.md`의 `발견` 태그 96건을 전수 분류(QUICK 38·
+LARGE-ARCHITECTURAL 27·STALE-OR-SUSPECT 12·NOT-ACTUALLY-A-BUG 13·
+NEEDS-LIVE-VERIFICATION 6)한 뒤, 그 결과를 근거로 이번 invocation
+안에서 다음을 전부 구현완료 + 커밋했다(각 커밋에 신규 회귀 시험 +
+revert-to-verify 포함, 문서 자기모순 정정은 코드 재확인만):
+
+- **RN-12**(러너·연동 헬스 스윕이 여러 건을 전부 같은 시각으로 찍음) — `1d10e71`
+- **문서 자기모순 태그 정정 8건**(QA-10/11/12·AI-62·SEM-01·RET-01R·
+  ADM-02R·UA-20이 이미 구현완료였는데 태그만 안 바뀜, SYS-10/11도
+  별도 커밋 `b8d04bd`) — `1530958`
+- **AI-15 재확인**(문맥 초과 시 통째 삭제가 아니라 2단계 완만한
+  강등이었음, 신규 시험으로 1단계 절삭 자체를 처음 검증) — `595f133`
+- **UA-24 + UB-28**(홈 위젯·임퍼소네이션 이력이 SQLite 호스트 변수
+  상한을 넘는 대규모 설치에서 500) — `64b6053`
+- **UA-26**(오프보딩 방 소유권 인계가 비활성 계정에게도 넘어감) — `671d2a6`
+- **AI-35 재분류**(Notion 외 링크 미클릭은 버그가 아니라 의도된
+  보안 경계 — 코드 변경 없음, 문서만) — `2159b83`
+- **AI-32**(AI 드로어가 한 번도 안 열려도 페이지마다 ai-quota·
+  conversations API를 불렀음) — `f9d9bcf`
+- **UA-19**(백업 검증이 진행 중인 백업을 failed로 격하시킬 수 있었음) — `ed5849b`
+- **UB-30**(쿼터 PATCH null 무시 + 프롬프트 롤백 name 길이 미검증) — `88114b1`
+- **UA-27**(이상징후 count가 이벤트 수 대신 액션 종류 수를 셈) — `ea9b75d`
+
+**다음 작업**: 위 QUICK 38건 중 아직 안 건드린 나머지(UA-21·UB-26·
+UB-24·AI-11·AI-08·RET-03 등)를 계속 처리하거나, 이 정도로 수렴됐다고
+판단되면 CLAUDE.md §6 예외에 따라 백엔드/프런트 **통합** Full
+Regression + 정적 검사 + 빌드를 한 번에 돌려 지금까지의 누적 변경을
+한꺼번에 검증한다 — 각 커밋은 focused 회귀만 거쳤고, 이번 invocation
+전체를 아우르는 통합 회귀는 아직 없다(백그라운드로 여러 번 시도했으나
+invocation 경계에 매번 끊김, 아래 참고). LARGE-ARCHITECTURAL 27건·
+NEEDS-LIVE-VERIFICATION 6건은 각각 전용 세션·Chrome E2E 단계로
+의도적으로 미룸(§13 완료 기준 자체가 그 순서를 요구).
 아래 이어지는 단락은 WF34까지의 압축 서술이라 지금은 그 뒤 이력이다.
 WF51은 `VIS-86`(이모지 버튼 aria-label이 이모지 자체를 되읽음)
 구현완료 + 같은 뿌리인 팀 채팅 이모지 피커(60종)도 함께 고침. 그
