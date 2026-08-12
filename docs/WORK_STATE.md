@@ -2708,3 +2708,11 @@ vitest 172파일 · 번들 신선도 OK · playwright 1.62.0 + chromium 설치�
 - 새 Route/기능 검증 → [QA_COVERAGE.md](QA_COVERAGE.md)
 - 중요한 설계 판단 → [DECISIONS.md](DECISIONS.md)
 - 사이클 종료 → 이 문서 + [BUILD_LOG.md](BUILD_LOG.md)
+
+**추가 확인(같은 invocation, Stop hook 재제동 이후) — 채팅방/게임방은 L축 대상 아님.**
+`Chat*.jsx`에 `home` 참조 0건 확인(grep) — `Home.jsx`가애초에 채팅·게임을 「최근」
+위젯에 안 보여주므로(문서·게시판만 보여줌) cross-invalidation 대상 자체가 아니다,
+결함 아님. **이 지점에서 세션 예산이 실제로 바닥(약 85%+ 소비)이라 안전하게 마무리
+가능한 마지막 지점에서 멈춘다** — 다음 invocation은 위 "다음 invocation 시작 지점"
+문단 그대로 유효하다(로컬 dev 서버 재사용 확인 후 QA_COVERAGE L축 나머지 검토는
+알림/게임방 제외coz 하고 다른 각도 필요).
