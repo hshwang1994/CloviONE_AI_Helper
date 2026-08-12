@@ -104,6 +104,13 @@ def list_quotas(
     from app.impersonation.service import resolve_names
 
     names = resolve_names(db, [r.user_id for r in rows if r.user_id])
+    # UB-10: 행마다 used()를 따로 부르면 N+1이다 — 사용자 전용 행의 (user_id, period)
+    # 쌍을 모아 한 번에 묻는다(전역 행은 max_user_used가 이미 기간별로만 도니 그대로 둠).
+    used_pairs = {
+        (row.user_id, row.period) for row in rows if row.scope_type != SCOPE_GLOBAL and row.user_id
+    }
+    used_by_pair = service.used_batch(db, pairs=used_pairs, now=now)
+    max_user_used_by_period: dict[str, int] = {}
     items = []
     for row in rows:
         item = service.view(row, names)
@@ -111,11 +118,14 @@ def list_quotas(
         # 축(개인별 최댓값)을 보여줘야 "X / 상한"이 실제로 누군가를 막는 숫자가 된다.
         # 예전의 `used_all`(전 사용자 합계)은 아무도 안 막힌 상황에서도 상한 도달을
         # 알리는 화면을 만들었다.
-        item["used"] = (
-            service.max_user_used(db, period=row.period, now=now)
-            if row.scope_type == SCOPE_GLOBAL
-            else service.used(db, user_id=row.user_id, period=row.period, now=now)
-        )
+        if row.scope_type == SCOPE_GLOBAL:
+            if row.period not in max_user_used_by_period:
+                max_user_used_by_period[row.period] = service.max_user_used(
+                    db, period=row.period, now=now
+                )
+            item["used"] = max_user_used_by_period[row.period]
+        else:
+            item["used"] = used_by_pair.get((row.user_id, row.period), 0)
         item["resets_at"] = service.period_end(row.period, now).isoformat()
         items.append(item)
     return {
