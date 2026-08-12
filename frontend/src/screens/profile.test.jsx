@@ -175,4 +175,29 @@ describe("내 프로필", () => {
     expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /다시 시도/ })).toBeInTheDocument();
   });
+
+  /* WF1 R1 — Users.jsx(관리자의 다른 사용자 세션 목록)는 진작 shortUA+Tooltip으로 UA를 60자로
+   * 잘라 보여줬는데, 같은 모양의 데이터를 그리는 이 화면(내 기기 목록)만 원문을 그대로 냈다.
+   * 실제 브라우저 UA 문자열은 흔히 100자를 넘어 카드 폭을 밀어냈다. */
+  it("긴 user-agent 는 60자로 잘려 보이고 전체 문구는 title(Tooltip)로 남는다", async () => {
+    const longUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    apiMock.mockImplementation((path) => {
+      if (path === "/api/me/sessions") {
+        return Promise.resolve({ items: [
+          { id: "s-current", current: true, created_at: "2026-08-03T00:00:00", last_seen_at: "2026-08-03T01:00:00", expires_at: "2026-08-03T08:00:00", client_ip: "10.0.0.1", user_agent: longUA },
+        ] });
+      }
+      return route(path);
+    });
+    renderProfile();
+    await screen.findByText("지금 이 창");
+    expect(screen.queryByText(longUA)).not.toBeInTheDocument();
+    const shown = screen.getByText(longUA.slice(0, 60) + "…");
+    expect(shown).toBeInTheDocument();
+
+    // 화면엔 잘린 문구뿐이지만, 전체 문구는 hover 시 Tooltip으로 여전히 확인할 수 있다(사라진 게
+    // 아니라 기본으로 숨겨졌을 뿐이다).
+    await userEvent.hover(shown);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(longUA);
+  });
 });

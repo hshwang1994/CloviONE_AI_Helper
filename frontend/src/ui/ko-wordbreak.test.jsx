@@ -1,9 +1,9 @@
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { Callout } from "./kit.jsx";
+import { Callout, EmptyState } from "./kit.jsx";
 import { KO_WORD_BREAK } from "./theme.js";
 
 /* 한국어 도움말이 **단어 중간에서** 줄바꿈되지 않는다 (사용자 지적 #11).
@@ -43,5 +43,24 @@ describe("한국어 줄바꿈", () => {
     );
     const message = container.querySelector(".MuiAlert-message");
     expect(getComputedStyle(message).overflowWrap).toBe("break-word");
+  });
+
+  /* WF1 R1 — Callout(위)엔 이미 있었는데, 정작 **31개 파일**이 빈 상태 안내문을 그리는 데
+   * 쓰는 EmptyState 에는 토큰이 안 걸려 있었다. 등록을 잊은 한 곳이 조용히 재발한 사례라
+   * title·help·steps 세 자리를 모두 잠근다(help 만 잠그면 title·steps 는 다음에 또 샌다). */
+  it("EmptyState 의 제목·도움말·단계 목록에도 적용된다", () => {
+    const { container } = render(
+      <EmptyState
+        title="등록된 항목이없습니다"
+        help="여기에서새 항목을 추가하세요"
+        steps={["오른쪽위 버튼을 누르세요", "필요한값을 입력하세요"]}
+      />,
+    );
+    const heading = container.querySelector('[role="heading"]');
+    const help = screen.getByText("여기에서새 항목을 추가하세요");
+    const steps = container.querySelector("ol");
+    expect(getComputedStyle(heading).wordBreak).toBe("keep-all");
+    expect(getComputedStyle(help).wordBreak).toBe("keep-all");
+    expect(getComputedStyle(steps).wordBreak).toBe("keep-all");
   });
 });

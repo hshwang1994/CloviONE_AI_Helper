@@ -2240,14 +2240,18 @@ High 1건이 사라진다. 실패가 **조용해서** 안 보였고, 이번 판�
 
 | 있는 능력 | 정의 위치 | **안 걸린 곳** | 영향 |
 |---|---|---|---|
-| `KO_WORD_BREAK` | `theme.js` (주석: "사용자 지적 #11") | **`EmptyState`**(`kit.jsx:295-311` — `maxWidth:"60ch"` 뿐, 토큰 없음). `Project.jsx`·`ProjectMetrics.jsx` 는 쓴다 | **31개 파일**이 `EmptyState` 사용 → 한글이 단어 중간에서 잘림. 이번 판독에서 3화면 재발 |
+| `KO_WORD_BREAK` | `theme.js` (주석: "사용자 지적 #11") | **`EmptyState`**(`kit.jsx:295-311` — `maxWidth:"60ch"` 뿐, 토큰 없음). `Project.jsx`·`ProjectMetrics.jsx` 는 쓴다 | **31개 파일**이 `EmptyState` 사용 → 한글이 단어 중간에서 잘림. 이번 판독에서 3화면 재발 ‖ **구현완료(2026-08-13)**: `EmptyState`의 제목(`role="heading"`)·`bodySx`(situation/help/prerequisite/expected 공용)·`stepList` 세 자리 전부에 `KO_WORD_BREAK`를 추가 — help만 고치면 title·steps는 다음에 또 새는 재발 패턴이라 컴포넌트의 Korean 산문 자리 전부를 잠갔다. `ko-wordbreak.test.jsx`에 EmptyState 렌더 시험 추가, revert-to-verify 확인 |
 | `ROUTE_OWNER`·`activeNavPath` | `navConfig.js:240-265` | **`/departments`·`/org-tree` 미등록**(grep 확인) | 그 두 화면에서 좌측 내비 활성 표시가 **통째로 사라진다**(High) ‖ **구현완료(2026-08-13)**: `ROUTE_OWNER`에 `"/departments"→"/organizations"`, `"/org-tree"→"/organizations"` 2줄 추가(조직 메뉴 통합으로 두 라우트가 자기 메뉴 항목을 잃은 뒤, `registry/org.js`의 hash 직접 대입 액션·`Users.jsx`의 새 탭 링크 등 `location.state.from` 없이 도달하는 경로 전부가 영향받고 있었다). `nav-active.test.js`의 기존 "ROUTE_OWNER 목적지는 실제로 존재하는 메뉴다" 불변검사는 사용자 콘솔 NAV만 봐서 관리자 전용 목적지를 못 걸렀다는 것도 같이 드러나 관리자 NAV까지 포함하게 넓힘, `nav-org-menu.test.js`에 회귀 시험 추가. revert-to-verify 확인 |
-| `primary:true` 헤더 액션 | DataScreen | `DataScreen.jsx:486-489` 가 `showCreate` 만 primary | `admin_notion-mapping` 주요 동작이 안 두드러짐 |
-| `Callout tone="warn"` | 같은 파일에서 이미 씀 | `DataScreen.jsx:524` 가 `config.help` 를 **무조건 info** | 경고가 안내처럼 보임 |
-| `activeCol`(warn 톤) | `columnHelpers.jsx:11-15` | `admin_templates` 는 `badgeCol` | 비활성이 회색 중립 — "전부 적용 안 됨" 경고와 톤 불일치 |
-| `shortUA` + Tooltip | `Users.jsx:42,:633` | `Profile.jsx:383-386` | UA 원문 그대로 노출 |
+| `primary:true` 헤더 액션 | DataScreen | `DataScreen.jsx:486-489` 가 `showCreate` 만 primary | `admin_notion-mapping` 주요 동작이 안 두드러짐 ‖ **재확인(2026-08-13) — 이미 해결돼 있었다.** 현재 소스(`DataScreen.jsx:531-538`)는 `showCreate` 없으면 `visibleHeaderActions.find(a=>a.primary)`도 CTA로 승격한다. `registry/org.js`의 notion-mapping "자동 동기화" 액션도 이미 `primary:true`(주석: "백업·문서 화면과 동일하게")가 붙어 있다 — WF1 감사(2026-08-08) 이후 다른 세션이 먼저 고쳤고 이 표만 갱신이 안 됐던 사례. 코드 변경 없음 |
+| `Callout tone="warn"` | 같은 파일에서 이미 씀 | `DataScreen.jsx:524` 가 `config.help` 를 **무조건 info** | 경고가 안내처럼 보임 ‖ **재확인(2026-08-13) — 구체적 소비처 없음, 보류.** registry 전체에서 `help` 텍스트가 실제로 경고(주의/위험/되돌릴 수 없음 등)로 읽히면서 info 톤 때문에 오해를 사는 화면을 못 찾았다(가장 근접한 `approvals.help`도 정책 설명이지 경고문이 아니다). 이 상태로 `config.helpTone` 같은 새 필드를 만드는 것은 확인된 문제 없이 설계 표면만 늘리는 것이라 보류 — 구체적 소비처가 나오면 그때 착수 |
+| `activeCol`(warn 톤) | `columnHelpers.jsx:11-15` | `admin_templates` 는 `badgeCol` | 비활성이 회색 중립 — "전부 적용 안 됨" 경고와 톤 불일치 ‖ **구현완료(2026-08-13)**: `activeCol`은 `key:"active"`로 고정이라 이 화면의 실제 필드명(`enabled`)엔 그대로 재사용할 수 없었고, 그 라벨("사용 중"/"미사용")도 이 화면 자신의 필터("활성"/"비활성")와 어긋나 공유 헬퍼를 고치는 대신 인라인 `Badge` render로 이 화면의 기존 어휘 + warn 톤을 맞췄다. 이전엔 원시 불리언이 `statusText`를 타 "예"/"아니오"로 떴다는 것도 확인. `registry-active-badge.test.jsx` 신규, revert-to-verify 확인 |
+| `shortUA` + Tooltip | `Users.jsx:42,:633` | `Profile.jsx:383-386` | UA 원문 그대로 노출 ‖ **구현완료(2026-08-13)**: `shortUA`가 `Users.jsx`에 갇힌 지역 함수였던 것을 `diffFields`와 같은 이유로 `lib/format.js`로 옮기고 양쪽이 그걸 참조. `Profile.jsx`에 `Tooltip`+`shortUA` 배선. `profile.test.jsx`에 hover→`role="tooltip"` 전체 문구 확인 시험 추가, Users.jsx 전체 회귀(8파일/32건) green, revert-to-verify 확인 |
 | `rowName: true` | `rowName.js:14-16` | `detailFields.js:18-29` 가 `detailTitle` 을 무조건 `columns[0]` | 상세 제목이 사람 이름이 아님 ‖ **구현완료(2026-08-13, SEM-01 두 번째 소비처)**: `detailTitle()`이 `columns[0]` 폴백보다 `declaredRowName(columns,row)`을 먼저 보게 수정 — SEM-01이 이미 11개 registry 화면에 채운 선언을 재사용. `detailFields.test.js` 신규 5건, revert-to-verify 확인. 상세는 `docs/BACKLOG.md` SEM-01 행 참고 |
-| 수치 열 `align:"right"` | `governance.js:341` 등 | `platform.js:67` 백업 크기 열 | 숫자 비교가 어려움 |
+| 수치 열 `align:"right"` | `governance.js:341` 등 | `platform.js:67` 백업 크기 열 | 숫자 비교가 어려움 ‖ **구현완료(2026-08-13)**: `size_bytes` 열에 `align:"right"` 추가. 이 기회에 `align` 배선 자체(8곳이 이미 씀)를 직접 검증하는 시험이 저장소에 하나도 없었다는 것도 확인해 `registry-active-badge.test.jsx`에 실제 `DataTable` 렌더 시험 추가, revert-to-verify 확인 |
+
+> **R1 8건 중 6건 구현완료, 1건 재확인 결과 이미 해결(문서만 정정), 1건(`Callout tone="warn"`)은
+> 구체적 소비처가 없어 보류** — WF1 감사가 짚은 "이미 만든 공용 규칙이 옵트인이라 조용히
+> 빠진다" 근본 원인 클러스터가 수렴했다.
 
 **대표 근거**: `ko-wordbreak.test.jsx:25-37` 이 **`Callout` 에 도달하는지만** 검증한다.
 정작 31개 파일이 쓰는 `EmptyState` 에는 안 걸려 있고, 그래서 같은 증상이 세 화면에서 재발했다.

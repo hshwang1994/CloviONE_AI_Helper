@@ -88,6 +88,15 @@ export function fmtRelative(v) {
   return fmtDateTime(v);
 }
 
+// 짧은 기기/브라우저 표기 — user-agent 원문은 너무 길어 표·카드를 망가뜨린다. Users.jsx(관리자의
+// 다른 사용자 세션 목록)에만 있었다가 Profile.jsx(내 기기 목록)로도 쓰이며 공용으로 옮겼다 —
+// 후자는 원문을 자르지도, 전체 문구를 Tooltip으로 보존하지도 않아 긴 UA가 카드 레이아웃을 밀어냈다.
+export function shortUA(ua) {
+  if (!ua) return "-";
+  const s = String(ua);
+  return s.length > 60 ? s.slice(0, 60) + "…" : s;
+}
+
 // 감사/승인 enum 한국어화 — "대상.동작" 꼴을 대상/동작으로 나눠 번역(감사 로그·대시보드·승인 공용).
 export const OBJECT_KO = {
   user: "사용자", integration: "외부 연동", runner: "러너", workflow: "워크플로", prompt: "프롬프트",

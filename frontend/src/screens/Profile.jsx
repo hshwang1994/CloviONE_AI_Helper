@@ -5,10 +5,11 @@ import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import DevicesOtherRoundedIcon from "@mui/icons-material/DevicesOtherRounded";
 import { api } from "../lib/api.js";
-import { fmtDateTime, fmtRelative } from "../lib/format.js";
+import { fmtDateTime, fmtRelative, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
@@ -371,9 +372,14 @@ function SessionsCard() {
                   {s.client_ip || "IP 미상"}, 최근 활동 {fmtRelative(s.last_seen_at)}
                 </Typography>
                 {s.user_agent ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>
-                    {s.user_agent}
-                  </Typography>
+                  // Users.jsx(관리자의 다른 사용자 세션 목록)와 같은 이유로 원문 대신 60자로
+                  // 자른 표기 + Tooltip으로 전체 문구를 보존한다 — 원문 그대로 두면 긴 UA
+                  // 문자열이 이 카드의 폭을 밀어냈다.
+                  <Tooltip title={s.user_agent}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>
+                      {shortUA(s.user_agent)}
+                    </Typography>
+                  </Tooltip>
                 ) : null}
                 {/* 버튼을 행의 **왼쪽 글 블록 안**에 둔다. 오른쪽 끝에 두면 우하단에 고정된
                     마스코트 버튼(94×94)이 그 자리에 겹쳐 눌리지 않는다 — 긴 목록이라 어느

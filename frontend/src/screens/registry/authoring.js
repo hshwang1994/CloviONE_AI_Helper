@@ -235,7 +235,13 @@ export const AUTHORING_SCREENS = {
         if (r.target_type === "runner") return React.createElement("a", { href: "#/runners?id=" + encodeURIComponent(r.target_ref) }, r.target_ref);
         return r.target_ref;
       } },
-      badgeCol("enabled", "활성"), dateCol("created_at", "생성")],
+      // badgeCol("enabled", ...)이던 시절엔 원시 불리언이 statusText를 타 "예"/"아니오"로
+      // 떴다 — 바로 위 filters의 '활성'/'비활성' 어휘와 어긋났고, 비활성(생성 직후 기본값 —
+      // 이 상태면 프롬프트·정책·입력값 바인딩·승인 정책이 전부 적용되지 않는다, 위 help 참고)이
+      // 중립(회색) 톤이라 훑어보다 놓치기 쉬웠다. org-tree의 activeCol과 같은 이유로 이 화면의
+      // 필터와 같은 어휘 + 비활성=주의 톤을 쓴다.
+      { key: "enabled", label: "활성", render: (r) => React.createElement(Badge, { value: r.enabled ? "활성" : "비활성", kind: r.enabled ? "ok" : "warn" }) },
+      dateCol("created_at", "생성")],
     // id는 문서 생성 폼의 config template_id 입력에 쓰이므로 상세에서 확인·복사할 수 있게 노출.
     // target_ref는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     // created_by는 프롬프트·정책과 동일한 이유로(_view가 이미 돌려준다) 노출한다 — 이 템플릿을

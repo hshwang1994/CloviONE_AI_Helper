@@ -13,7 +13,7 @@ import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { diffFields } from "../lib/diffFields.js";
-import { fmtDateTime } from "../lib/format.js";
+import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
@@ -37,13 +37,6 @@ function useDebounced(value, delay) {
     return () => clearTimeout(t);
   }, [value, delay]);
   return v;
-}
-
-// 짧은 기기/브라우저 표기 — user-agent 원문은 너무 길어 표를 망가뜨린다.
-function shortUA(ua) {
-  if (!ua) return "-";
-  const s = String(ua);
-  return s.length > 60 ? s.slice(0, 60) + "…" : s;
 }
 
 const ROLE_KO ={ user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };

@@ -323,7 +323,9 @@ export function EmptyState({
   const compact = size === "compact";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
-  const bodySx = { maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined };
+  // KO_WORD_BREAK: Callout·Mascot는 이미 쓰는데(사용자 지적 #11) 정작 이 컴포넌트가 31개 파일
+  // 전체의 빈 상태 안내문을 그리면서 빠져 있었다 — 좁은 화면에서 한글이 단어 중간에서 잘렸다.
+  const bodySx = { maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined, ...KO_WORD_BREAK };
   // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
   return (
     <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
@@ -335,7 +337,7 @@ export function EmptyState({
       ) : icon ? (
         <Box aria-hidden="true" sx={{ fontSize: compact ? 20 : 32, color: "text.disabled" }}>{icon}</Box>
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem" }}>{title}</Typography>
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem", ...KO_WORD_BREAK }}>{title}</Typography>
       {situation ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{situation}</Typography> : null}
       {help ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{help}</Typography> : null}
       {prerequisite ? (
@@ -344,7 +346,7 @@ export function EmptyState({
         </Typography>
       ) : null}
       {stepList && stepList.length ? (
-        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? "0.8125rem" : "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch" }}>
+        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? "0.8125rem" : "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch", ...KO_WORD_BREAK }}>
           {stepList.map((s, i) => <li key={i}>{s}</li>)}
         </Box>
       ) : null}

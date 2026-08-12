@@ -72,7 +72,7 @@ export const PLATFORM_SCREENS = {
       const s = String(p);
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
-    } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", render: (r) => fmtBytes(r.size_bytes) },
+    } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", align: "right", render: (r) => fmtBytes(r.size_bytes) },
       { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx

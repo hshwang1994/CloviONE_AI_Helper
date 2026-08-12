@@ -3971,19 +3971,73 @@ scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
 `docs/BACKLOG.md`의 WF1 `R1` 상세표 두 행(`ROUTE_OWNER`
 항목·`rowName: true` 항목=WF35) 구현완료로 정정.
 
-이 배치(`ROUTE_OWNER` 미등록) 커밋 예정. **다음 후보**: 같은 WF1
-`R1` 상세표(2237-2250행)에 같은 "옵트인 규칙 미등록" 근본
-원인으로 묶인 나머지 6건이 바로 이어지는 자연스러운 다음
-번들이다 — `KO_WORD_BREAK`가 `EmptyState`(`kit.jsx:295-311`)에
-안 걸려 31개 파일 영향, `primary:true` 헤더 액션이 `DataScreen.jsx
-:486-489`에서 `showCreate`에만 적용, `Callout tone="warn"`이
-`DataScreen.jsx:524`에서 `config.help`에 무조건 info로 적용,
-`activeCol`(warn 톤) 대신 `admin_templates`가 `badgeCol` 사용,
-`shortUA`+Tooltip이 `Profile.jsx:383-386`에 없음, 수치 열
-`align:"right"`이 `platform.js:67` 백업 크기 열에 없음. 각 항목을
-먼저 현재 소스에서 재검증(WF1은 2026-08-08 시점 조사라 그새 바뀐
-것이 있을 수 있다)한 뒤 착수. 그 외 WF1 High 나머지
-(`admin_offboarding` 온보딩 기능 미구현 약속, `admin_audit-
-anomalies`의 `anomalies.py:208-209` 중복 컬럼, 연동 헬스 정체
-스윕/배지 부재), `RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
+이 배치(`ROUTE_OWNER` 미등록) 커밋 완료(`69a2283`).
+
+**WF37(같은 invocation 계속) — WF1 `R1` 클러스터 나머지 6건
+재검증 + 구현(High 없음, 8건 중 6건 구현완료) 완료.** 같은 근본
+원인("이미 만든 공용 규칙이 옵트인이라 조용히 빠진다")으로 묶인
+나머지 항목을 하나씩 현재 소스로 재검증(WF1은 2026-08-08 조사라
+그새 바뀐 게 있을 수 있다는 전제)한 뒤 처리:
+
+- **`KO_WORD_BREAK`↔`EmptyState`**: 재확인 결과 여전히 안 걸려
+  있었다. `kit.jsx`의 `bodySx`(situation/help/prerequisite/
+  expected 공용)·제목(`role="heading"`)·`stepList` 세 자리 전부에
+  적용 — help만 고치면 title·steps가 다음에 또 새는, 이 세션
+  반복 확인한 "부분 수정 재발" 패턴이라 컴포넌트의 한국어 산문
+  자리 전부를 잠갔다.
+- **`primary:true` 헤더 액션**: **이미 해결돼 있었다.**
+  `DataScreen.jsx:531-538`이 이미 `primary` 헤더 액션을 CTA로
+  승격하고, `registry/org.js`의 notion-mapping "자동 동기화"도
+  이미 `primary:true`다(주석: "백업·문서 화면과 동일하게"). WF1
+  이후 다른 세션이 먼저 고쳤는데 이 표만 안 갱신된 사례 — 코드
+  변경 없이 문서만 정정.
+- **`Callout tone="warn"`↔`config.help`**: registry 전체를
+  훑었지만 `help` 텍스트가 실제로 경고문인데 info 톤이라 오해를
+  사는 구체적 소비처를 못 찾았다(가장 근접한 `approvals.help`도
+  정책 설명이지 경고문이 아니다). 확인된 문제 없이 `config.
+  helpTone` 같은 새 필드를 만드는 것은 설계 표면만 늘리는
+  것이라 **보류** — 구체적 소비처가 나오면 착수.
+- **`activeCol`(warn 톤)↔`admin_templates`**: 재확인 결과 실제
+  필드명이 `active`가 아니라 `enabled`라 `activeCol`(key 고정)을
+  그대로 재사용할 수 없고, 그 라벨("사용 중"/"미사용")도 이
+  화면 자신의 필터("활성"/"비활성")와 어긋난다는 것까지 확인 —
+  공유 헬퍼는 안 건드리고 인라인 `Badge` render로 이 화면의
+  기존 어휘 + warn 톤을 맞췄다. 이전엔 원시 불리언이 `statusText`
+  를 타 "예"/"아니오"로 떴던 것도 확인.
+- **`shortUA`+Tooltip↔`Profile.jsx`**: 재확인 결과 여전히 원문
+  그대로였다. `shortUA`가 `Users.jsx`에 갇힌 지역 함수였던 것을
+  이번 세션의 `diffFields`(`lib/diffFields.js`)와 같은 이유로
+  `lib/format.js`로 옮기고 양쪽이 그걸 참조하게 했다. `Profile.
+  jsx`에 `Tooltip`+`shortUA` 배선.
+- **수치 열 `align:"right"`↔`platform.js` 백업 크기**: 재확인
+  결과 여전히 없었다. 추가하면서, `align` 배선 자체(governance/
+  authoring/platform 8곳이 이미 씀)를 직접 렌더로 검증하는
+  시험이 저장소에 하나도 없었다는 것도 발견해 같이 채웠다.
+
+**시험**: `ko-wordbreak.test.jsx`에 EmptyState 렌더 시험 추가,
+`registry-active-badge.test.jsx`(신규, 3건 — templates 배지 어휘/
+톤 2건 + backup 정렬 1건, 후자는 실제 `DataTable` 렌더로 확인),
+`profile.test.jsx`에 긴 UA 트렁케이션+hover 시 `role="tooltip"`
+전체 문구 확인 시험 추가(이 저장소에 MUI Tooltip 호버 시험 선례가
+없어 `userEvent.hover`+`findByRole("tooltip")`로 새로 확립).
+revert-to-verify: 4개 수정(EmptyState 3자리·templates 배지·
+Profile Tooltip·backup align)을 한 번에 되돌려 새 시험 5건이
+정확히 그 이유로 실패하는 것을 확인(원시 "예"/"아니오", 배지
+`MuiChip-colorWarning` 없음, `align` undefined, 잘리지 않은 원문
+UA가 DOM에 그대로 있음, `wordBreak` 빈 문자열) 후 전부 복원. `Users.
+jsx` 관련 전체 회귀(8파일/32건) green. **`EmptyState`가 31개
+파일의 공유 컴포넌트라 이번엔 전체 프런트 회귀를 돌림 — 232
+파일/1560건 green.** 재빌드 완료, `bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 WF1 `R1` 상세표 8행 전부 정정(6건 구현완료·
+1건 재확인 결과 기존 해결·1건 보류 사유 명시) — R1 클러스터 수렴.
+
+이 배치(WF1 `R1` 나머지 6건) 커밋 예정. **다음 후보**: WF1 High
+나머지(`admin_offboarding`이 온보딩 기능을 약속하지만 실제
+경로 0건, `admin_audit-anomalies`의 `anomalies.py:208-209` 중복
+컬럼, 연동에 러너와 달리 주기적 헬스 정체 스윕/배지가 없음),
+WF1 R2~R7(문자열 경계·라벨 일관성·약속-능력 불일치·빈 상태
+규칙·넓은 뷰포트 폭 예산·버튼 variant 매핑) 나머지 상세도 아직
+안 읽었다. 그 외 `RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
 남은 `RESP-04`/`VIS-122`도 후보 목록에 있다.
