@@ -12,9 +12,49 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF10-0(Continuity Bootstrap, D-64) →
-WF10-1(Supervisor runtime contract 확정, D-65) 완료 → 제품 BACKLOG 재개 대기. 그 앞의 WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) →
-WF9-3(`AI-62`)와 WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF11(제품 BACKLOG 재개 — SEC-12/13 문서 정정 +
+`USE-01` 휴지통 왕복으로 종결) 완료. 그 앞의 WF10-0(Continuity Bootstrap, D-64) →
+WF10-1(Supervisor runtime contract 확정, D-65)와 WF9-0(D-63) → WF9-1(`SEC-10` 부분) →
+WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
+
+**WF11(2026-08-12) — 제품 BACKLOG 재개, WF9-3 "다음 후보" 중 자기완결 2건 종결.**
+비대화형 무인 실행 재개 시작 시 예산이 제한적(세션 USD 예산)이라 값비싼 다중 에이전트
+Workflow 대신 직접 조사·구현으로 진행 — 저장소 상태(CLAUDE.md·WORK_STATE·BACKLOG·
+QA_COVERAGE·DECISIONS·git log) 재확인 후 WF9-3이 남긴 후보 중 값싸고 확실한 것부터.
+
+- **`SEC-12`/`SEC-13`(문서 자기모순 정정, 코드 변경 없음)**: BACKLOG 원 행(§2542-2543)은
+  아직 "발견"인데, 같은 파일 뒤쪽 "정밀화" 절(§2556-2591, 2026-08-11 작성)은 이미 코드
+  확인까지 마치고 "표 낡음 — 이미 코드에 있다"고 적어 뒀다 — WF8-3이 잡았던 것과 같은
+  자기모순 패턴이 한 번 더 있었다. 문서만 보고 믿지 않고 `app/home/readers.py`
+  (`recent_documents(viewer=...)`→`doc_in_scope`, `recent_board_posts(org_id=...)`→
+  `list_posts`)와 `app/home/service.py:127-128`(실제 호출부가 `viewer=user`/`org_id`를
+  넘기는지)를 직접 읽어 실제로 배선돼 있음을 재확인하고, 전용 회귀 시험
+  `tests/security/test_home_widget_org_dept_scope.py`(5건: 조직 필터링·대조군·부서
+  필터링·대조군·limit 뒤 필터링) 재실행으로 green 확인. 두 행을 "구현완료(행 정정)"로
+  갱신 — 새 코드는 필요 없었다.
+- **`USE-01` 마지막 항목(휴지통 실제 왕복) 구현완료**: 2026-08-11 WF7 후속이 "새 문서
+  생성은 Notion 쓰기 위험, 기존 실문서를 잠시 trash하는 것도 실고객 화면에 순간 영향"
+  이라며 보류해 둔 항목. `app/trash/service.py`를 직접 읽어 `move_to_trash`/`restore`가
+  **Notion을 전혀 호출하지 않음**(docstring부터 "노션은 손대지 않는다", archive 호출은
+  `purge`에만 있음)을 재확인해 세 번째 선택지를 찾았다 — 완전히 합성된 문서 1행
+  (`notion_page_id="qa-trash-axis-e2e-doc-1"`, 실동기화를 거치지 않은 가짜 행)을 로컬
+  dev `document_cache`에 직접 심어 실고객 데이터·다른 사람 화면과 완전히 무관하게
+  왕복시켰다. 로컬 dev 서버(`var/web.sqlite3`, uvicorn `:8099`) 기동 + 기존 QA 계정
+  (`qa-use-axis-admin`) 비밀번호 재설정 후 신규 도구 `scripts/ui_qa/trash_axis_e2e.py`
+  실행 — 실제 HTTP 응답으로 확인: `GET 상세` 200 → `POST /trash` 200/ok → `GET 상세`
+  **404**(H2 규칙) → `GET /api/trash` 목록에 등장 → `POST /restore` 200/ok → `GET 상세`
+  다시 200(제목 원문 그대로) → 목록에서 사라짐 → 감사 로그 `team_docs.trash`/
+  `trash.restore` 둘 다 이 문서의 `object_id`로 기록됨. 종료 후 합성 행을 지우고 **별도
+  DB 조회로**(스크립트 자기 보고가 아니라) `document_cache`/`trash_items` 양쪽에 잔여
+  없음을 재확인. `USE-01`의 12개 중 9개가 이제 실행 확인 완료 — 남은 3개(문서 생성·
+  스케줄·주간 리포트)는 `DGEN-02`/D-21로 원인이 이미 규명된 의도적 보류뿐이다.
+
+**검증**: `tests/security/test_home_widget_org_dept_scope.py`(5건) green. 휴지통은 전용
+E2E 스크립트로 실제 서버 대상 검증(`dist/trash-axis-e2e/trash_axis.json`), 유닛 테스트
+스위트 변경 없음(기존 코드 경로만 실행). 코드 변경은 `scripts/ui_qa/trash_axis_e2e.py`
+신설 하나뿐 — `app/` 자체는 두 항목 다 손대지 않아 기존 회귀 스위트 전체를 다시 돌릴
+필요는 없다고 판단(정적 검사만 재확인 예정). 로컬 dev 서버는 이 배치가 끝날 때까지 계속
+띄워 둔다(다음 작업에서도 재사용 가능하면 그대로 씀 — CLAUDE.md 지시).
 
 **WF10-0(2026-08-12) — Continuity Bootstrap 완료(D-64). 제품 구현은 하지 않은 세션이다.**
 증상은 제품 품질이 아니라 실행 구조였다: `PROJECT_COMPLETE=false`인데 Worker가 Summary를 내고
