@@ -13,11 +13,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 # 운영자 이상은 누가 버린 항목이든 복원/영구삭제할 수 있다(감사·정리 권한).
 # 역할 이름을 여기 문자열로 다시 적지 않는다 — authz 한 곳이 정본이다.
 from app.core.authz import MODERATOR_ROLES
+from app.core.db import is_write_conflict
 from app.core.errors import NotFoundError, ConflictError, ForbiddenError
 from app.core.scope import build_scope
 from app.trash import repository
@@ -74,8 +76,17 @@ def move_to_trash(
         deleted_by_user_id=user.id, deleted_by_name=(user.display_name or "")[:200],
         deleted_at=now,
     )
-    db.add(item)
-    db.flush()
+    # uq_trash_item UNIQUE(item_type, notion_page_id) — 더블클릭이나 같은 항목의 동시
+    # 삭제가 위 조회 사이를 비집고 들어오면 둘 다 "아직 없음"을 보고 삽입을 시도할 수
+    # 있다(app/prompts/service.py::transition과 같은 관용). 위와 같은 409 문구로 알린다.
+    try:
+        with db.begin_nested():
+            db.add(item)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError("이미 휴지통에 있습니다.") from None
     return item
 
 

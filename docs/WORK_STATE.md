@@ -4888,7 +4888,7 @@ DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
    없다. 알림 어휘 자체(`approval_cancelled`)가
    `app/profiles/prefs.py`·`frontend/src/lib/format.js::TYPE_KO`
    어디에도 없어 배관 자체가 안 깔려 있다.
-5. **[미처리] DB 동시 쓰기 경합 3곳이 정리된 409 대신 원시 500을 낸다(Med~High, 무결성)**
+5. **[처리 완료] DB 동시 쓰기 경합 3곳이 정리된 409 대신 원시 500을 낸다(Med~High, 무결성)**
    — 전부 "먼저 조회해 있으면 409, 없으면 생성"인데 `begin_nested`
    +`is_write_conflict` 재사용 관례(`app/prompts/service.py` 등이
    이미 쓰는 패턴) 없이 조회~쓰기 사이가 안 잠긴다:
@@ -4999,4 +4999,67 @@ role 게이트(`registry/notifications.js`의 `ADMIN_CONSOLE_RELATED_TYPES`)
 stash pop 복구 후 `test_approvals.py`(16)+`test_profile_prefs.py`(23)+
 `test_approval_scope.py`(9) = 48/48 재확인. 프런트
 `format.js`/`NotificationBell`/딥링크 관련 시험 7파일 33건도 재확인
-(전부 통과, 코드는 추가만 했으므로 회귀 없음이 기대대로).
+(전부 통과, 코드는 추가만 했으므로 회귀 없음이 기대대로). 커밋 `bfde5bf`.
+
+**5 처리 완료.** 세 함수 모두 `app/prompts/service.py::transition()`의
+`begin_nested()`+`is_write_conflict()` 관례로 감쌌다.
+- `app/notion_mapping/service.py::get_or_create_mapping()` — get-or-create
+  계약이라 409 대신 승자의 행을 돌려준다(`create_approval`과 같은 관용).
+  **처음 짠 버전은 실패 뒤 단순 재조회(`scalar_one()`)만 했는데, 직접 쓴
+  8-way 스트레스 시험이 그 자리에서 바로 `NoResultFound`를 냈다** — 진
+  세션의 스냅샷이 낡아 재조회 시점에도 승자의 커밋이 아직 안 보일 수
+  있다(SAVEPOINT 롤백은 스냅샷을 새로 뜨지 않는다, CORE-13). 실패한 시험을
+  보고 `create_approval()`의 실제 코드를 다시 읽어 그 함수가 이미
+  **`db.commit()`으로 스냅샷을 새로 뜨고 재시도 루프를 도는** 것까지
+  하고 있다는 것을 확인, 같은 모양으로 다시 짰다 — 단순 재조회가 아니라
+  이 재시도 루프가 진짜 관례였다.
+- `app/quotas/router.py::create_quota()` — 명시적 "새로 만들기" 요청이라
+  진 쪽에 남의 값을 조용히 돌려주지 않고, 순차 경로와 같은 409 문구로
+  알린다(재조회 없음, 그래서 위 스냅샷 문제 자체가 없다).
+- `app/trash/service.py::move_to_trash()` — 같은 이유로 같은 모양(재조회
+  없이 순차 경로와 같은 409 문구).
+
+**신규 회귀 시험 3개, 전부 이 저장소의 기존 관례를 그대로 재사용**:
+`get_or_create_mapping`/`move_to_trash`는 서비스 함수라 스레드마다 별도
+엔진/세션으로 직접 호출하는 8-way `ThreadPoolExecutor`(`test_approval_
+create_race.py`와 같은 기법). `create_quota()`는 라우터에 박혀 있어(HTTP
+경유 필요) 순수 타이밍 경주가 신뢰 못 한다는 것이 이 저장소 자체 교훈
+(`test_prompt_create_new_version_race.py` 독스트링 — 로그인 자체의
+재시도+지터가 스레드 타이밍을 흩어 놓아 실제로 8/8 성공으로 위양성이
+났던 사례) — 그래서 "기존 쿼터?" SELECT를 `threading.Barrier(2)`에 세워
+두 요청이 반드시 "없음"을 함께 본 뒤에야 INSERT로 넘어가게 강제하는
+`test_project_api.py`/`test_prompt_create_new_version_race.py`와 같은
+결정적 기법을 그대로 썼다. 세 시험 모두 5회 반복 실행으로 안정성 확인.
+**Revert-to-verify 완료**: 세 파일(`notion_mapping/service.py`,
+`quotas/router.py`, `trash/service.py`)만 stash 하니 신규 3개 전부
+예상대로 실패(`sqlite3.OperationalError: database is locked`가 처리
+안 된 채 그대로 샘 — 감사가 예측한 정확히 그 raw 500 증상), stash pop
+복구 후 3/3 재확인. `notion_mapping`/`quota`/`trash` 전체 focused 회귀
+재확인(전부 통과). DB 트랜잭션/동시성 공유 패턴 변경이라 CLAUDE.md
+§6 예외에 따라 Full Regression을 조기에 돌리려 했으나, **invocation
+경계에 두 번 연속 끊겼다**(테스트 실패가 아니라 프로세스 자체가
+끝남 — `pytest tests/ -q`가 600s 타임아웃으로 백그라운드로 넘어간
+뒤 이 세션의 Claude 프로세스가 종료되면서 백그라운드 프로세스도
+함께 죽음, `b6fpmwl71`/`b6lmn55e1` 둘 다 각각 40%/그 이하까지
+진행된 상태에서 실패 0건으로 끊긴 것만 확인). 이 커밋은 그 전체
+회귀 없이, 다음 근거만으로 진행한다: (1) 위 focused 회귀(3개
+서브시스템 전체) 100% 통과, (2) 세 함수 각각의 결정적 동시성
+스트레스 테스트 5회 반복 통과, (3) revert-to-verify로 수정 전
+정확한 실패 재현, (4) 세 함수 모두 시그니처 불변·성공 경로 무변경
+(예외 경로만 새로 처리) — 다른 호출부에 영향을 줄 수 있는 변경이
+아님. 백그라운드로 넘어간 두 번째 시도(`b6lmn55e1`)는 계속 두고,
+끝나면(또는 다음 invocation에서) 결과를 확인해 문제가 있으면
+별도로 처리한다.
+
+**발견했지만 이번 범위 밖으로 남긴 것**: `get_or_create_mapping`을 고치며
+`app/team_docs/service.py::record_view()`(Finding 3에서 이미 손댄 파일)와
+`app/team_chat|games/service.py::touch_presence()`가 재조회는 하지만 위
+`db.commit()`+재시도 루프 없이 **단순 재조회 한 번**만 하는 것을 확인했다
+— 이론적으로 같은 낡은-스냅샷 창이 있을 수 있다. 다만 이 셋은 이미
+`begin_nested`+`is_write_conflict` 보호가 있어(원시 500이 아니라 "보호가
+있는데 극단적 동시성에서 이론적으로 좁은 틈") Finding 5가 지적한
+"보호 자체가 0"인 세 함수와는 다른 부류이고, 그 틈을 실제로 열려면 방금
+겪은 것과 같은 인위적인 스트레스 수준의 동시 쓰기가 필요하다(요청마다
+한 번씩만 도는 실사용 패턴에서는 사실상 안 열림). 별도 확인 없이 이번에
+같이 고치는 것은 범위 밖 확장이라 보류 — 필요하면 다음 감사에서
+전용 스트레스 시험으로 재현부터 확인한다.

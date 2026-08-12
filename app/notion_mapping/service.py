@@ -13,8 +13,10 @@ import re
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.notion_mapping.models import (
     SOURCE_MANUAL,
@@ -34,15 +36,37 @@ MAPPING_WORKFLOW_NAME = "notion-user-mapping"
 _NOTION_USER_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
 
+_GET_OR_CREATE_RETRIES = 5
+
+
 def get_or_create_mapping(db: Session, user_id: str) -> UserNotionMapping:
-    row = db.execute(
-        select(UserNotionMapping).where(UserNotionMapping.user_id == user_id)
-    ).scalar_one_or_none()
-    if row is None:
+    # user_id는 UNIQUE — 사람이 누른 "검증"과 신규 사용자를 훑는 대량 동기화 잡이 같은
+    # user_id를 거의 동시에 처음 보면 둘 다 아래 조회에서 "없음"을 보고 삽입을 시도할 수
+    # 있다. get_or_create 계약상 진 쪽도 실패가 아니라 "그 행을 돌려준다"가 맞으므로
+    # 409로 알리지 않고 승자의 행을 돌려준다(app/approvals/service.py::create_approval과
+    # 같은 관용) — **단순 재조회로는 부족하다**: 이 세션의 스냅샷이 낡아 재조회 시점에도
+    # 아직 승자의 커밋이 안 보일 수 있다(SAVEPOINT 롤백은 스냅샷을 새로 뜨지 않는다,
+    # CORE-13). 그래서 실패 뒤 `db.commit()`으로 스냅샷을 새로 뜨고(진 삽입은 이미
+    # SAVEPOINT로 걷혔으니 커밋해도 잃을 게 없다), 그래도 아직 안 보이면 다시 시도한다.
+    for attempt in range(_GET_OR_CREATE_RETRIES):
+        row = db.execute(
+            select(UserNotionMapping).where(UserNotionMapping.user_id == user_id)
+        ).scalar_one_or_none()
+        if row is not None:
+            return row
         row = UserNotionMapping(user_id=user_id, status=STATUS_UNMAPPED)
-        db.add(row)
-        db.flush()
-    return row
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+            return row
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            db.commit()
+            if attempt == _GET_OR_CREATE_RETRIES - 1:
+                raise
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def mapping_status(db: Session, user_id: str) -> str:

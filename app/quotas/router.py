@@ -9,11 +9,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
+from app.core.db import is_write_conflict
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.quotas import service
@@ -212,8 +214,19 @@ def create_quota(
         created_at=now,
         updated_at=now,
     )
-    db.add(row)
-    db.flush()
+    # uq_ai_quota_scope UNIQUE(scope_type, user_id, period) — 이중 클릭이나 두 관리자의
+    # 동시 생성이 위 조회 사이를 비집고 들어오면 둘 다 "기존 없음"을 보고 삽입을 시도할
+    # 수 있다(app/prompts/service.py::transition과 같은 관용). 이건 get_or_create가
+    # 아니라 명시적 "새로 만들기" 요청이라 진 쪽에 남의 값을 조용히 돌려주지 않고, 위와
+    # 똑같은 409 문구로 알린다.
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc):
+            raise
+        raise ConflictError("같은 범위, 기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.") from None
     record_audit_from_request(
         request, db, action="ai_quota.create", object_type="ai_quota",
         object_id=row.id, after=service.view(row),
