@@ -12,6 +12,7 @@
 import React from "react";
 import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, col, dateCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
 import { healthResult, onoff, reachResult, snapCol, testResult, versionsAction } from "./actions.js";
+import { serviceLabel } from "../ops/opsHelpers.js";
 
 export const INTEGRATION_SCREENS = {
   integrations: {
@@ -45,7 +46,17 @@ export const INTEGRATION_SCREENS = {
     // base_url은 SSRF allowlist상 항상 서버-로컬(127.0.0.1 등) 주소다 — 클릭 가능한 링크로 보이면
     // 관리자 자신의 브라우저에서 그 루프백 주소를 열게 되어 항상 실패한다(워크플로의 webhook_url과
     // 동일한 이유로 평문으로만 보여준다).
-    columns: [col("name", "이름"), mapCol("provider_type", "유형", PROVIDER), badgeCol("enabled", "활성"),
+    columns: [
+      // WF1 R2 재검증(admin_integration-detail) — name은 discovery.py의 idempotency 조회 키
+      // 겸 systemd 유닛 이름이라(예: "claude-request-interpreter") 슬러그 그대로 저장된다 —
+      // 저장된 값 자체는 안 바꾼다(다른 로직이 그 값으로 조회한다). ops 화면(Diagnostics.jsx 등,
+      // ops/opsHelpers.js::serviceLabel)은 이미 알려진 4종 슬러그를 전부 사람이 읽는 이름으로
+      // 바꿔 보여주는데(SERVICE_LABELS), 이 화면만 그 규칙을 안 썼다 — 목록과 상세 드로어 제목
+      // (declaredRowName이 이 rowName을 그대로 쓴다) 모두에 원시 슬러그가 그대로 샜다.
+      // 관리자가 직접 등록한(§4종 밖) 연동 이름은 serviceLabel의 kebab/snake 자동 정리
+      // 폴백만 타므로 자유 텍스트를 훼손하지 않는다.
+      { key: "name", label: "이름", render: (r) => serviceLabel(r.name), rowName: (r) => serviceLabel(r.name) },
+      mapCol("provider_type", "유형", PROVIDER), badgeCol("enabled", "활성"),
       badgeCol("last_health_status", "상태 확인"), truncateCol("base_url", "서버 주소", 60), col("config_version", "버전")],
     // admin은 auth_type='none'인 연동만 새로 만들 수 있다(백엔드 _guard_secret_binding_create가 그 외
     // 값을 403). 예전엔 옵션을 그대로 다 보여주고 help 문구만으로 고르지 말라고 부탁했다 — 골라도

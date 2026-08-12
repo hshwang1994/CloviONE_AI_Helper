@@ -12,22 +12,27 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF49(`invocation=3`) — 파일
-끝(WF35~49)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF49는 `user_team-doc-detail`의
-본문 URL 미링크화 구현완료(`TicketBody.jsx`가 `DocBody`를 재사용해
-티켓 상세도 함께 고쳐짐) + `Callout tone="warn"`(R1) 행의 stale
-"보류" 정정(WF44가 이미 소비처를 만들었었다) — 상세는 파일 끝. 그
-앞 WF48은 `VIS-80`(어시스턴트 되묻기 반복) 재조사+구현완료 —
-`RN-03`과 뿌리가 다름을 확인(추정 정정), 프로젝트 되묻기에
-`pending_question` 배선. 그 앞 WF47은 러너 `RN-15`/`RN-17`~`RN-20`
-클러스터(비전 분석 유실·동명이인 개인정보 노출·Notion 원문 노출·
-죽은 코드/퀴즈 결함 4건·README 정정) 전부 구현완료. 그 앞 WF46은
-`CACHE-03`(Users/부서/직책/조직→티켓 담당자 후보, Low) 구현완료로
-WF44 배경 조사의 캐시 무효화 공백 3건이 전부 닫혔다. 그 앞 WF45는
-`CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+`CACHE-02`
-(Projects→Dashboard, Med) 구현완료. 그 앞 WF44는 `admin_policies`
-purpose 컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료.
+**마지막 갱신**: 2026-08-13 · **단계**: WF50(`invocation=3`) — 파일
+끝(WF35~50)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF50은 `admin_integration-detail`
+R2 잔여 3건 중 1건(슬러그 표시) 구현완료, 2건은 각각 데이터 문제·
+R3 범주로 재분류 — "스키마 작업 필요"라는 이전 평가가 틀렸음을
+확인(표시 계층만 고치면 됐다) — 상세는 파일 끝. 그 앞 WF49는
+`user_team-doc-detail`의 본문 URL 미링크화 구현완료(`TicketBody.jsx`
+가 `DocBody`를 재사용해 티켓 상세도 함께 고쳐짐) + `Callout
+tone="warn"`(R1) 행의 stale "보류" 정정(WF44가 이미 소비처를
+만들었었다), 그 뒤 이어서 `user_team-doc-detail` 나머지 2건도
+재확인(1건 이미 해결, 1건 화면 전반 관례로 재분류). 그 앞 WF48은
+`VIS-80`(어시스턴트 되묻기 반복) 재조사+구현완료 — `RN-03`과 뿌리가
+다름을 확인(추정 정정), 프로젝트 되묻기에 `pending_question` 배선.
+그 앞 WF47은 러너 `RN-15`/`RN-17`~`RN-20` 클러스터(비전 분석 유실·
+동명이인 개인정보 노출·Notion 원문 노출·죽은 코드/퀴즈 결함 4건·
+README 정정) 전부 구현완료. 그 앞 WF46은 `CACHE-03`(Users/부서/
+직책/조직→티켓 담당자 후보, Low) 구현완료로 WF44 배경 조사의 캐시
+무효화 공백 3건이 전부 닫혔다. 그 앞 WF45는 `CACHE-01`(Board/Ideas
+댓글·반응·상태 무효화, Med)+`CACHE-02`(Projects→Dashboard, Med)
+구현완료. 그 앞 WF44는 `admin_policies` purpose 컬럼(WF1 단독
+결함, Med) + 배너 톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
@@ -4732,3 +4737,65 @@ Tooltip 안내문이라 `getByRole` 쿼리를 그 이름으로 맞춤], 코드 �
 작업 필요), R3/R6/R7(제품 전반 디자인 결정 — 화면별로 쪼개서
 착수하지 않음, 별도 세션에서 한 번에 판단 필요, `user_team-doc-
 detail`의 파괴적 버튼 위계도 이 부류로 재분류됨).
+
+**WF50(같은 invocation 계속) — `admin_integration-detail`의 `R2`
+잔여 3건 재확인, 1건 구현완료 + 2건 원인 재분류(스키마 작업
+필요라던 이전 평가가 틀렸음을 확인).**
+
+착수 전 이전 평가("스키마 작업 필요")를 그대로 안 믿고 `discovery.py`
+(연동 시드)·`ops/opsHelpers.js`(ops 화면 공용 헬퍼)·`wf1_findings.json`
+(원 감사의 상세 evidence/note)를 직접 다시 읽었다 — 세 곳을 교차
+대조한 결과가 아래 세 갈래로 갈린다:
+
+1. **슬러그 노출(구현완료)**: `name`은 `discovery.py`의 idempotency
+   조회 키 겸 systemd 유닛 이름이라(`n8n`·`clovirone-work-assistant`·
+   `claude-ticket-runner`·`claude-request-interpreter` 4종 전부 이
+   패턴) 슬러그 그대로 저장된다 — 저장값 자체는 못 바꾼다(재설치
+   idempotency·헬스체크 URL 매칭 등이 그 값을 그대로 참조). 그런데
+   `ops/opsHelpers.js::serviceLabel()`(Diagnostics.jsx 등이 이미
+   쓰는 슬러그→한국어 이름 매핑, 알려진 4종 밖은 kebab/snake 자동
+   정리로 폴백)가 **정확히 이 화면을 위해 설계된 것처럼** 이미
+   존재했다(자기 주석: "연동은 관리자가 자유 텍스트로 이름을 만들
+   수 있어 SERVICE_LABELS 밖의 이름은 항상 존재할 수 있다") — 그런데
+   `registry/integrations.js`의 "이름" 열만 이 헬퍼를 안 쓰고 있었다.
+   `render`+`rowName`으로 배선 — 목록도, `declaredRowName`이 쓰는
+   상세 드로어 제목도 이제 "요청 해석기" 등 사람이 읽는 이름을
+   보인다. **"스키마 작업 필요"였다는 이전 판단은 틀렸다** — 표시
+   계층 배선 하나로 끝났다(이미 만든 공용 규칙이 옵트인이라 조용히
+   빠진 R1 클러스터와 같은 뿌리).
+2. **"제목이 첫 행과 반복"은 여전히 남음(구조적, 이 화면만의 문제
+   아님)**: `mergeDetailFields`(`data-screen/detailFields.js`)가
+   모든 `columns`를 상세 드로어 필드로도 무조건 합치는 구조라(열
+   단위로 "상세엔 숨김" 옵션이 없다), `rowName`으로 지정한 열은
+   제목**과** 필드 둘 다에 나온다 — `admin_job-detail`도 원 감사
+   노트가 "같은 원인"이라 적어 둔 대로 같은 구조적 결과를 보인다.
+   이건 `rowName` 패턴을 쓰는 다른 화면들도 공유하는 아키텍처
+   특성이지 이 화면만의 결함이 아니라, 새 열 옵션을 신설하는 더 큰
+   범위 없이는 이번에 안 건드림(값 자체는 이제 안 흉하다 — 슬러그가
+   아니라 친절한 이름이 두 번 보이는 정도로 완화됨).
+3. **'설명' 내부 메모(데이터 문제, 스키마 아님)**: `description`은
+   이미 자유 입력 필드(`integrations.js`의 `edit`/`create` 폼에
+   있다 — 관리자가 지금 바로 고칠 수 있다). 현재 값은
+   `discovery.py`가 설치 시 남긴 내부 메모("존재 여부 사전조사로
+   확인" 등)다. 올바른 운영자용 설명 문구는 이 서비스가 실제로
+   무엇을 하는지에 대한 도메인 판단이라 임의로 지어내지 않는다.
+4. **버튼 라벨 불일치(`R3` 범주로 재분류)**: 재확인해 보니 정확히
+   4개 지점이 같은 `/health` 계열을 각각 다른 말로 부른다 —
+   `integrations.js` 헤더 액션 "헬스체크", 러너 상세 액션
+   "헬스"/"테스트"(2개), 필드 라벨 "상태 확인", 도움말 문구
+   "헬스 체크"(띄어쓰기 다름). 연동·러너 두 화면 이상에 걸치고,
+   표준 용어를 하나 정해 전체를 통일하는 것은 `R3`(제품 전반 용어
+   사전)이 이미 "화면별로 쪼개 착수하지 않는다"고 못박은 범주와
+   정확히 같은 성격이라 이번엔 안 건드림.
+
+**시험**: 신규 4건(`registry-integration-name-label.test.js` — 알려진
+4종은 한국어 이름, 자유 텍스트는 그대로, 알려진 4종 밖 kebab-case는
+Title Case로 정리, 상세 드로어 제목도 같은 이름 사용). 관련 회귀
+(`admin-uiux`·`admin-backlog-screens`) + 프런트 전체 회귀(242파일/
+1605건) green. 재빌드 완료, `bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 `admin_integration-detail` 행(3건 중 1건
+구현완료, 2건 재분류)과 `R2` 상세 절 갱신. 이 배치 커밋 예정.
+**다음 후보**: 위 목록과 동일(대시보드 정보 위계·`L`축 전수
+매트릭스·`RESP-04`/`VIS-122`·R3/R6/R7 제품 전반 디자인 결정).
