@@ -2729,3 +2729,24 @@ DataScreen.jsx 필터초기화 로직 수정으로 해결(레지스트리 전체
 아님. UB-09(pending()이 chat_message만 셈)·UB-10(list_quotas 무제한+N+1)은 같은
 클러스터의 남은 항목, 다음 후보로 유효. static_checks.sh 전체 재실행은 못 함(예산) —
 다음 invocation이 먼저 `bash scripts/static_checks.sh`로 확인할 것.
+
+**WF12 계속(같은 invocation) — UB-10 마저 구현, UB-08~13/RG-08 클러스터 종결.**
+`app/quotas/service.py::used_batch()` 신설로 `list_quotas`의 사용자별 N+1을 그룹집계로
+교체(관련 스위트 26건 재실행, 값 동일 확인). "무제한+capWarning 없음" 부분은 지금 실제
+cap이 없어 화면 가정이 유효함을 코드로 재확인 후 의도적으로 안 건드림(BACKLOG에 다음
+담당자 경고로 남김 — 일어날 수 없는 상황에 방어 코드를 미리 넣지 않는다는 원칙).
+이걸로 이번 세션에서 다룬 quotas/prompts 클러스터(UB-08·09·10·11·12·13·RG-08 전부)가
+종결됐다. `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`(프런트 변경 없어 번들
+재빌드 불필요). **참고**: `pytest tests/regression/` 전체 실행을 백그라운드로 걸어
+뒀는데 장시간 출력 0줄로 멈춰 있다 — 이번 배치가 건드린 파일들은 개별 타겟 테스트로
+이미 충분히 검증했으니(quota 26건 + 완결성 가드 + revert-to-verify + create_app() 임포트
+확인) 이 배치의 정확성 판단 근거로는 이미 충분하다고 보지만, 다음 세션은 `pytest
+tests/regression/`을 단독으로 한 번 더 시도해 정말 걸리는 테스트가 있는지(타임아웃
+아님 — 진짜 행) 확인할 가치가 있다.
+
+**다음 후보(갱신)**: AI-* 심화 아키텍처는 계속 의도적 보류. `QA_COVERAGE.md` L축
+나머지(알림·게임방·채팅방은 확인 결과 대상 아님 — 다른 화면 조합 필요) · BACKLOG
+Med/Low 재고(이번 세션의 "구조 먼저 이해" 전략으로 quotas/prompts 클러스터를 닫았으니
+다음은 다른 도메인 클러스터를 찾아볼 것 — 예: governance/audit 쪽 UB-15/16 같은
+non-atomic 카운터 패턴) · `DS-18` 잔여 34개 · TEST SERVER 배포(자격증명 여전히 외부
+Blocker).
