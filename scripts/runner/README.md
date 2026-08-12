@@ -97,15 +97,24 @@ cd C:\Users\hshwa\clovirone-web-assistant
 | 연속 실패 3회 → `AUTO_STOP` | 같은 원인으로 무한 재시도하지 않는다. 수동 재시작 시 크게 알리고 자동 정리 |
 | rate-limit/overload 감지 시에만 지수 백오프 | 진짜 기다릴 이유가 있는 경우만 대기(60초~30분) — 일반 실패는 즉시 재시도 |
 | 저장소 dirty 시 2분 뒤 재확인 (내용 안 변하면 5회 후 진행) | 대화형 세션과 충돌 방지 + **무한 대기 방지**(유령 dirty 상태로 영원히 멈추지 않는다) |
-| `--max-budget-usd 15` | invocation당 API 지출 상한(Claude Code 자체 기능) |
+| `--max-budget-usd 15` | invocation당 API 지출 상한(Claude Code 자체 기능). **PROJECT work unit이 아니다** — 예산으로 한 Worker가 끝나도 곧바로 다음 invocation이 같은 세션을 resume한다 |
 | `Process.WaitForExit(150분)` | 멈춰 버린 invocation을 실제로 강제 종료(그 invocation만 실패로 셈, 루프는 안 죽음) |
-| `$MaxIterationsPerLaunch = 300` | 런어웨이 하드 스톱 — 걸리면 크게 알리고 종료한다. **자동으로 이어받는 장치는 없다**(수동 재시작 필요) |
+| `$MaxIterationsPerLaunch = 0` | **무제한(production 기본)**. invocation 횟수는 Supervisor 종료 조건이 아니다. 양수는 controlled test 전용 override |
+| `--model sonnet --effort max` | Worker 품질을 매 invocation에 명시 고정(새 세션·`--resume` 모두). 이전 세션의 `/model`, 사용자 global setting, 과거 세션에 저장된 model, 우연한 default에 좌우되지 않는다 |
 | Stop hook (`stop_guard.py`) | 완료 마커 없이 끝내려는 Worker를 invocation당 한 번 되돌린다(보조 장치, fail-open) |
 | `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** — 이 세션이 실제로 쓰고 있는 것과 같은 모드로, 자동 분류기가 여전히 위험한 동작(대량 삭제 등)을 막는다 |
 | 프롬프트 안의 배포 자격증명 경계 | 채팅에 붙여넣어진 SSH/sudo 비밀번호를 어떤 서버 배포에도 쓰지 않는다는 규칙을 매 반복 프롬프트에 명시 — 10.100.64.71 배포는 사용자가 직접 하거나 NOPASSWD sudoers를 사용자가 직접 구성해야만 가능하다 |
 
 ## 수정 이력
 
+- **2026-08-12 (D-65, Runtime contract 확정)**: Worker 품질을 `--model sonnet --effort max`로
+  매 invocation에 명시 고정(새 세션·`--resume` 모두). 실측 근거: `--effort`를 안 넘기면
+  Worker 안의 effort가 사용자 `settings.json`의 `effortLevel: high`를 그대로 따라갔고,
+  `--effort max`를 넘기면 `max`로 확정됐다(Stop hook 입력의 `effort.level`로 직접 관측,
+  주변에 `CLAUDE_EFFORT=high`가 있어도 동일). `--model sonnet`은 응답 JSON의
+  `canonicalModel=claude-sonnet-5`로 확인. `$MaxIterationsPerLaunch` 기본값을 300 → **0(무제한)**
+  으로 바꿔 invocation 횟수가 Supervisor 종료 조건이 되지 않게 했다(양수는 test override).
+  requested/actual model·effort를 `runner.log`에 남긴다. `--max-budget-usd`는 15 그대로.
 - **2026-08-12 (D-64, Continuity Bootstrap)**: Stop hook(`stop_guard.py`) 추가 —
   Supervisor가 띄운 Worker에서만 동작하며 완료 마커 없이 끝내려 할 때 invocation당 한 번
   되돌린다. `STOP`(사용자 전용)과 `AUTO_STOP`(자동 실패 흔적)을 분리해, 원인을 고친 뒤
@@ -141,6 +150,8 @@ cd C:\Users\hshwa\clovirone-web-assistant
   `.\scripts\runner\autonomous_runner.ps1`을 한 번 더 실행하면 된다(상태는 git과 `docs/`에서 복원).
 - 실제 배포(`10.100.64.71`)는 이 Runner가 자동으로 못 한다(비밀번호 경계) — 사용자가
   NOPASSWD sudoers를 구성하기 전까지는 구현·테스트·문서화까지만 자동으로 진행된다.
-- 연속 반복이 API 지출을 빠르게 누적시킬 수 있다(반복당 최대 $15, 반복 사이 지연 없음) —
-  `--max-budget-usd`가 반복 단위 상한이지 일일/누적 상한은 아니다. 지출이 걱정되면
-  `var\runner\runner.log`의 `totalRuns`로 누적 반복 수를 확인하고 필요시 STOP.
+- 연속 실행이 API 지출을 빠르게 누적시킬 수 있다(invocation당 최대 $15, 사이에 지연 없음,
+  **invocation 횟수 상한 없음**) — `--max-budget-usd`는 invocation 단위 상한이지 일일/누적
+  상한이 아니다. 이것은 의도된 설계다(횟수 때문에 프로젝트가 중간에 멈추지 않게 하려는 것).
+  지출이 걱정되면 `var\runner\runner.log`의 `totalRuns`로 누적 invocation 수를 확인하고
+  필요할 때 `var\runner\STOP`을 만들어 멈춘다.

@@ -1049,3 +1049,52 @@ Scheduler에는 의존하지 않는다(현재 해당 task는 등록되어 있지
 **남은 한계**(정직하게 기록): 이 bootstrap 세션 자체가 실 저장소의 활성 Writer이므로, 실
 저장소를 대상으로 Supervisor를 기동해 보지는 않았다(단일 Writer 원칙). 실 저장소에 대해서는
 hook 배선이 실제로 해석·동작하는 것까지만 확인했다(`$CLAUDE_PROJECT_DIR` 해석 + 감독/무감독 분기).
+
+---
+
+## D-65 (2026-08-12) — Supervisor runtime contract 확정: Worker 품질 고정 + invocation 횟수 무제한
+
+**배경**: D-64로 continuity 구조는 섰지만, 실제 장기 실행을 시작하기 전에 Worker의 **품질**과
+**종료 조건**이 우연에 좌우되는 구멍이 두 개 남아 있었다.
+
+**결정 1 — Worker 모델/effort를 매 invocation에 명시 고정한다**: `--model sonnet --effort max`를
+새 세션(`--session-id`)이든 이어받기(`--resume`)든 **항상** 넘긴다. 그러지 않으면 Worker 품질이
+이전 대화형 세션의 `/model`, 사용자 global setting, 세션에 저장된 과거 model, 실행 당시의 우연한
+default에 좌우된다 — 추측이 아니라 실측이다:
+- `--effort` 없이 부르면 Worker 안에서 관측된 effort가 `high`였다(사용자 `~/.claude/settings.json`의
+  `effortLevel: high`가 그대로 적용됨). `--effort max`를 넘기면 `max`로 확정됐고, 주변 환경에
+  `CLAUDE_EFFORT=high`가 떠 있는 최악 조건에서도 `max`가 이겼다. 관측 방법은 추정이 아니라
+  **Stop hook 입력의 `effort.level`** 이다(hook이 Worker 프로세스 안에서 실행되므로 실제 적용값이다).
+- `--model sonnet`은 응답 JSON의 `canonicalModel`이 `claude-sonnet-5`로 나오는 것으로 확인했다.
+설치된 CLI(2.1.228)가 실제로 허용하는 effort 값은 `low|medium|high|xhigh|max`뿐이다 —
+`ultracode`/`ultrathink`는 **effort 값이 아니다**(파라미터에 `ValidateSet`을 걸어 오입력을 막았다).
+`ultrathink`를 쓰고 싶다면 그것은 Worker prompt 안의 사고 유도어이지 CLI argument가 아니다.
+requested 값과 함께 응답 JSON에서 읽은 `actualModel`도 `runner.log`에 남긴다 — 읽을 수 없으면
+추측하지 않고 `unknown`으로 남긴다(stub 실행에서 실제로 `unknown`이 찍히는 것 확인).
+
+**결정 2 — invocation 횟수는 Supervisor 종료 조건이 아니다**: `$MaxIterationsPerLaunch` 기본값을
+300 → **0(무제한)** 으로 바꿨다. 예전 구조는 300회에 닿으면 `PROJECT_COMPLETE=false`인데도
+Supervisor가 끝나고 사람이 다시 실행해야 했다 — Task Scheduler 의존이 폐기된 지금 이것은 그냥
+조용한 정지다. 양수 값은 controlled test 전용 override로만 남긴다. 정상 종료 조건은 유효한
+`PROJECT_COMPLETE`, 사용자의 명시적 STOP/Ctrl+C, 그리고 계속할 수 없는 명확한 unrecoverable
+condition(연속 실패 상한 → AUTO_STOP)뿐이다. exit code 0, Summary, commit, clean tree,
+Full Regression green, build green, budget 도달은 전부 종료 조건이 아니다.
+`--max-budget-usd`는 사용자 요청 없이 바꾸지 않았다(15 유지) — 그것은 invocation 단위 safety
+limit이지 PROJECT work unit이 아니며, 예산으로 Worker가 끝나도 같은 세션이 즉시 resume된다.
+
+**Worker prompt**: 작업 크기를 invocation에 묶는 문구를 제거하고, Backlog ID는 inventory/evidence이지
+실행 단위가 아니며 같은 Root Cause를 공유하는 항목을 묶어 처리하라는 지시를 넣었다.
+`autonomous_runner.ps1`에 남아 있던 "Task Scheduler heartbeat가 이어받는다"는 서술도 정리했다.
+
+**Controlled test(실제 CLI + 실제 스크립트, 격리 scratch 저장소)**:
+- 새 세션과 `--resume` **양쪽 모두** 실제 argv에 `--model sonnet --effort max`가 들어감을 확인.
+- `runner.log`에 `requestedModel=sonnet requestedEffort=max actualModel=claude-sonnet-5` 기록 확인
+  (`--resume` invocation에서도 동일).
+- Worker 안에서 관측된 `effort=max`, `permission_mode=auto`를 Stop hook 로그로 확인.
+- 세션 연속성: 같은 질문을 몇 번 봤는지 묻자 invocation #1이 `SEEN=1`, #2가 `SEEN=2` — 새 세션이면
+  둘 다 `SEEN=1`이어야 하므로 프로세스 경계를 넘어 대화가 이어진 것이 확정된다.
+- Stop hook은 invocation당 `block` 1회 → `allow`(stop_hook_active) 1회 패턴 유지.
+- 무제한 검증: `-MaxIterationsPerLaunch`를 주지 않은 production 기본으로 기동해 12초 만에 22회,
+  최종 23회 invocation을 상한 없이 돌렸고(전부 exit 0), 외부에서 STOP을 만들었을 때만 종료했다 —
+  로그에 "invocation 상한" 기록 없음, "STOP 파일 발견" 기록 있음.
+- D-64의 기존 harness(A~H, exit code 정확도, timeout 강제 종료)도 최종 코드로 다시 전부 통과.

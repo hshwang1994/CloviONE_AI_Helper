@@ -12,8 +12,8 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF10-0(Continuity Bootstrap, D-64) 완료 →
-제품 BACKLOG 재개 대기. 그 앞의 WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) →
+**마지막 갱신**: 2026-08-12 · **단계**: WF10-0(Continuity Bootstrap, D-64) →
+WF10-1(Supervisor runtime contract 확정, D-65) 완료 → 제품 BACKLOG 재개 대기. 그 앞의 WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) →
 WF9-3(`AI-62`)와 WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
 
 **WF10-0(2026-08-12) — Continuity Bootstrap 완료(D-64). 제품 구현은 하지 않은 세션이다.**
@@ -34,6 +34,18 @@ WF9-3(`AI-62`)와 WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
 - **`STOP`(사용자 전용)과 `AUTO_STOP`(자동 실패 흔적) 분리** — stale 흔적이 수동 재시작을 조용히
   무력화하던 문제 제거. 단일 Writer 잠금은 배타 파일 핸들 방식으로 교체.
 - Controlled test A~H를 격리 scratch 저장소에서 **실제 스크립트**로 실행해 통과(근거는 D-64).
+
+**WF10-1(2026-08-12) — Supervisor runtime contract 확정(D-65). 역시 제품 구현은 없다.**
+장기 실행 시작 직전에 Worker 품질과 종료 조건이 우연에 좌우되던 구멍 둘을 닫았다.
+- **Worker 품질 고정**: 매 invocation에 `--model sonnet --effort max`를 명시한다(새 세션·`--resume`
+  모두). 안 넘기면 사용자 `settings.json`의 `effortLevel: high`가 그대로 적용되는 것을 실측했고,
+  넘기면 `max`로 확정되는 것을 Stop hook 입력의 `effort.level`로 직접 관측했다. 모델은 응답
+  JSON의 `canonicalModel=claude-sonnet-5`로 확인. `runner.log`에 requested/actual을 남긴다.
+  설치 CLI가 허용하는 effort는 `low|medium|high|xhigh|max`뿐 — `ultracode`/`ultrathink`는 effort가
+  아니며 `ValidateSet`으로 오입력을 막았다.
+- **invocation 횟수는 종료 조건이 아니다**: `$MaxIterationsPerLaunch` 기본값 300 → **0(무제한)**.
+  양수는 controlled test 전용. 무제한 기동으로 23회 연속 invocation(전부 exit 0) 후 외부 STOP으로만
+  종료되는 것을 실측했다. `--max-budget-usd`는 15 그대로(요청 없이 바꾸지 않음).
 
 **다음**: 사용자가 로컬 PowerShell에서 `scripts\runner\autonomous_runner.ps1`을 한 번 시작하면,
 그 Supervisor가 `PROJECT_COMPLETE`까지 Worker invocation을 계속 관리한다. 제품 작업 재개 지점은
