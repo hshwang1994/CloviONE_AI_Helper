@@ -674,5 +674,7 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
 } finally {
     Restore-EnvSnapshot $script:EnvSnapshot
     Close-ExclusiveLock -Lock $lock -LockFile $LockFile
-    Write-RunnerLog "Supervisor 종료 PID=$PID (invocations=$iterationsThisLaunch) exit=$script:FinalExit"
+    # Ctrl+C 로 중단해도 여기까지 오고 exit 코드는 0 이다 — 로그만 보고 "완료"로 오해하지 않도록
+    # 완료 marker 유효 여부를 같은 줄에 남긴다.
+    Write-RunnerLog "Supervisor 종료 PID=$PID (invocations=$iterationsThisLaunch) exit=$script:FinalExit PROJECT_COMPLETE=$(Test-MarkerValid $CompleteFile)"
 }

@@ -902,6 +902,30 @@ Test-Case "T48" "run_all.ps1 이 Audit 완료 뒤 구현 단계로 자동으로 
     Assert ($code -eq 0) "전체 완료는 exit 0 이어야 한다(실제 $code)"
 }
 
+Test-Case "T49" "run_all: exit 0 이어도 완료 marker 가 없으면 다음 Phase 로 넘어가지 않는다" {
+    param($repo)
+    # Ctrl+C 로 중단해도 exit 0 이 나온다(실제 로그로 확인됨). 종료 코드만 믿으면 사용자가
+    # Audit 을 잠깐 멈춘 것뿐인데 구현 단계가 조용히 시작된다.
+    # 여기서는 test override 상한(exit 0, marker 없음)으로 같은 상황을 만든다.
+    Set-Scenario $repo @("success")
+    $probe = Join-Path $repo "var\runall_probe2.ps1"
+    $body = @"
+& '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
+    -MaxRestarts 0 ``
+    -AuditArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1','-MaxDirtyWaits','2') ``
+    -ImplementArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1')
+"EXITCODE=`$LASTEXITCODE"
+"@
+    [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
+    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
+    $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
+
+    Assert-Match $out '완료가 아니라 중단입니다' "marker 없는 exit 0 은 중단으로 판정해야 한다"
+    Assert ($code -eq 10) "중단은 exit 10 이어야 한다(실제 $code)"
+    Assert (-not (Test-Path (Join-Path $repo "var\runner\PROJECT_COMPLETE"))) "구현 단계로 넘어가면 안 된다"
+    Assert-NoMatch $out 'PHASE 2' "PHASE 2 를 시작하면 안 된다"
+}
+
 Test-Case "T45" "MaxBudgetUsd=0 이면 --max-budget-usd 를 argv 에 붙이지 않는다(일을 자르지 않음)" {
     param($repo)
     # 예산 상한은 지출 가드가 아니라 실질적으로 '일을 문장 중간에서 자르는' 장치였다.

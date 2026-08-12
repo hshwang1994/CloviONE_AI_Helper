@@ -98,9 +98,27 @@ function Invoke-PhaseWithRestarts([string]$name, [string]$script, [string[]]$ext
 
 Write-ChainLog "run_all 시작 PID=$PID auditOnly=$AuditOnly implementOnly=$ImplementOnly maxRestarts=$MaxRestarts"
 
+$AuditCompleteFile   = Join-Path $ProjectDir "var\product-audit\AUDIT_COMPLETE"
+$ProjectCompleteFile = Join-Path $ProjectDir "var\runner\PROJECT_COMPLETE"
+
 $auditCode = 0
 if (-not $ImplementOnly) {
     $auditCode = Invoke-PhaseWithRestarts "PHASE 1 (Product Audit)" $AuditScript $AuditArgs
+
+    # ★ exit 0 만 보고 다음 Phase 로 넘어가면 안 된다. **Ctrl+C 로 중단해도 exit 0 이 나온다**
+    #   (2026-08-12 실제 로그: 사용자가 Ctrl+C 한 두 번 모두 "Supervisor 종료 exit=0" 으로 남았다).
+    #   그대로 믿으면 사용자가 Audit 을 잠깐 멈춘 것뿐인데 구현 단계가 조용히 시작된다.
+    #   종료 코드가 아니라 **완료 marker 자체**를 확인한다.
+    if ($auditCode -eq 0 -and -not (Test-MarkerValid $AuditCompleteFile)) {
+        Write-Banner @(
+            "PHASE 1 이 exit=0 으로 끝났지만 AUDIT_COMPLETE 가 없습니다 — 완료가 아니라 중단입니다.",
+            "  (Ctrl+C 로 멈췄거나 test override 상한에 도달한 경우입니다)",
+            "구현 단계로 넘어가지 않습니다. 이어서 하려면 같은 명령을 다시 실행하세요."
+        )
+        Write-ChainLog "run_all 종료: PHASE 1 exit=0 이지만 AUDIT_COMPLETE 없음 — 중단으로 판정."
+        exit 10
+    }
+
     if ($auditCode -ne 0) {
         Write-Banner @(
             "PHASE 1 이 exit=$auditCode 로 끝나 여기서 멈춥니다(사람이 봐야 하는 상태).",
@@ -119,6 +137,15 @@ if ($AuditOnly) {
 }
 
 $implCode = Invoke-PhaseWithRestarts "PHASE 2 (구현)" $AutonomousScript $ImplementArgs
+if ($implCode -eq 0 -and -not (Test-MarkerValid $ProjectCompleteFile)) {
+    # PHASE 1 과 같은 이유 — Ctrl+C 도 exit 0 이다.
+    Write-Banner @(
+        "PHASE 2 가 exit=0 으로 끝났지만 PROJECT_COMPLETE 가 없습니다 — 완료가 아니라 중단입니다.",
+        "이어서 하려면 같은 명령을 다시 실행하세요."
+    )
+    Write-ChainLog "run_all 종료: PHASE 2 exit=0 이지만 PROJECT_COMPLETE 없음 — 중단으로 판정."
+    exit 10
+}
 if ($implCode -eq 0) {
     Write-Banner @(
         "PHASE 2 완료 — PROJECT_COMPLETE 가 기계 Gate 를 통과했습니다.",

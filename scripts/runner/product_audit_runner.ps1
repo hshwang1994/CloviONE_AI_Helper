@@ -1393,5 +1393,7 @@ try {
 } finally {
     Restore-EnvSnapshot $script:EnvSnapshot
     Close-ExclusiveLock -Lock $lock -LockFile $SharedLockFile
-    Write-AuditLog "Product Audit Supervisor 종료 PID=$PID exit=$script:FinalExit"
+    # Ctrl+C 로 중단해도 여기까지 오고 exit 코드는 0 이다 — 로그만 보고 "완료"로 오해하지 않도록
+    # 완료 marker 유효 여부를 같은 줄에 남긴다.
+    Write-AuditLog "Product Audit Supervisor 종료 PID=$PID exit=$script:FinalExit AUDIT_COMPLETE=$(Test-MarkerValid $AuditCompleteFile)"
 }
