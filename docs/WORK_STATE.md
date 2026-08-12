@@ -12,7 +12,18 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF32(`invocation=2`) —
+**마지막 갱신**: 2026-08-13 · **단계**: WF33(`invocation=2`) —
+`AI-25`+`AI-26`+`AI-28`+`AI-29`(AI 드로어 스텁, High 3건+Med 1건)
+구현완료. `AssistantDrawer.jsx`가 전체화면 `Chat.jsx`의 표현층을
+재사용 안 하고 자기 것을 새로 만들어 리치 텍스트·새 대화·이미지
+미리보기·잠금 해제 넷이 빠져 있었다 — `AI-27`(2026-08-11 기존
+완료)이 증명한 "같은 `useChat()` 상태를 표현층에 연결한다" 패턴을
+나머지 네 군데에 적용. 핵심은 말풍선을 `Chat.jsx`가 쓰는
+`Message`(`chat/MessageThread.jsx`) 컴포넌트로 통째로 교체한 것 —
+카드·재시도·복사·타임스탬프가 공짜로 따라오고 번들 크기도
+오히려 줄었다(중복 대신 공유). 신규 시험 5건, revert-to-verify는
+`git stash`로 파일만 되돌려 확인(커밋 전이라 안전). `VIS-76~79`
+확인 행도 함께 정정. 프런트 전체 230파일/1549건 green. 그 직전 WF32 —
 `VIS-158R`(AI 채팅 결과가 2200px 미만은 카드 대신 텍스트라던 High
 주장) 오탐 정정, 등급 Med로 하향. `Chat.jsx`/`MessageThread.jsx`를
 직접 읽고 `Message`를 `hideCards=false`(xxl 미만에서 실제로 전달되는
@@ -22,7 +33,7 @@
 확인. 완전한 오탐은 아니라 실제로 남는 차이(≥xxl은 마지막 카드가
 스크롤과 무관하게 오른쪽에 계속 남음, 미만은 스크롤을 되돌려야
 함 — 접근성이 아니라 편의성)를 정확히 적어 등급만 낮췄다. 프런트
-소스 변경 없음(시험 파일만 추가). 그 직전 WF31 —
+소스 변경 없음(시험 파일만 추가). 그 앞 WF31 —
 `ATT-01`(첨부 부분 실패가 화면에 안 나타남, High) 구현완료 +
 `RN-17` 부분 정정. `Board.jsx`가 이미 파일별 try/catch → `failed[]`
 패턴으로 고쳐 뒀던 것과 같은 결함이 `TicketAttachments.jsx`(티켓
@@ -3782,7 +3793,64 @@ m.id`로만 계산되고, `railMsg`는 `railOpen`(`useMediaQuery(xxl 이상)`)
 없어(시험 파일만 추가) 재빌드 불필요, `bash scripts/static_checks.sh`
 → `STATIC_CHECKS_OK`(테스트 파일도 배너 문자 검사 대상이라 함께 확인).
 
-이 배치(`VIS-158R` 오탐 정정) 커밋 예정. **다음 후보**: BACKLOG/
-QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정(`RN-15~20`,
-남은 `RESP-04`/`VIS-122` 등 기존 보류 목록은 여전히 전담 세션
-필요).
+이 배치(`VIS-158R` 오탐 정정) 커밋 완료(`6c72794`).
+
+**WF33(같은 invocation 계속) — `AI-25`+`AI-26`+`AI-28`+`AI-29`(AI
+드로어 스텁 — 클로비 버튼 3개 중 2개가 여기로 감, High 3건+Med 1건)
+구현완료.** BACKLOG 전체 재스캔(Explore 위임) 결과 최상위 후보로
+확정: `AssistantDrawer.jsx`가 전체화면 `Chat.jsx`의 표현층을
+재사용하지 않고 자기 것을 새로 만들어, `Chat.jsx`가 이미 가진
+기능 넷이 드로어에만 빠져 있었다. `AI-27`(컴포저 textarea+IME
+가드, 2026-08-11 기존 완료)이 이미 증명한 "같은 `useChat()` 상태를
+드로어 표현층에 마저 연결한다"는 정확히 같은 패턴을 나머지 네
+군데에 적용.
+
+**AI-25**(리치 텍스트 0 렌더): 드로어가 말풍선을 직접 그리던 것을
+버리고 `Chat.jsx`가 쓰는 `Message`(`chat/MessageThread.jsx`)를
+그대로 재사용 — 카드·선택지 칩·재시도·복사·타임스탬프가 전부
+공짜로 따라온다. `hideCards`는 드로어에 xxl 결과 레일 개념이 없어
+항상 `false`.
+
+**AI-26**(새 대화 버튼 없음): 헤더에 '새 대화' 버튼 추가(대화가
+있을 때만) — `ConversationSidebar.jsx`의 버튼과 같은 세 호출
+(`clearDraft`·`setComposingNew(true)`·`setCid(null)`)을 재사용.
+전체 대화 목록은 드로어 폭(460px)에 안 들어가 새로 안 만들었다 —
+'전체 화면으로 열기'가 이미 그 목록으로 가는 1클릭 경로라는
+점에서 의도적으로 범위를 좁혔다.
+
+**AI-28**(붙여넣은 이미지 안 보임): 미리보기 칩(썸네일+파일명+
+이름 붙은 제거 버튼) 추가, 전송 버튼 조건을 `!text.trim() &&
+!pending.length`로 고쳐 이미지만 있어도 보낼 수 있게 함.
+
+**AI-29**(429/503 영구 잠김): `maintenanceNotice`/`rateLimitNotice`
+배너+해제 버튼을 드로어 자체에 추가 — `keepMounted`라 페이지
+이동으로는 전체화면의 `useChat` 인스턴스와 안 이어져(서로 별도
+인스턴스) 드로어 안에 있어야만 새로고침 없이 풀린다.
+
+**시험**: `assistant-drawer-parity.test.jsx`(신규, 5건 — 기존
+`assistant-drawer-composer.test.jsx`(AI-27)와 같은 `AppShell` 전체
+렌더링 하네스). AI-28 시험은 `downscaleImage`가 실제 `<canvas>`/
+`Image()` 디코딩을 쓰는데 jsdom엔 진짜 이미지 코덱이 없어 가짜
+바이트가 `img.onerror`로 죽는 문제를 만나, `chat-helpers.js`를
+`vi.importActual`로 부분 모킹(그 함수만 가짜, 나머지 크기 검사·
+`pending` 갱신 로직은 실제 코드로 검증)해 해결. revert-to-verify:
+`git stash`로 `AssistantDrawer.jsx`만 되돌려(파일이 아직 커밋 전이라
+안전) 신규 시험 5건이 각각 정확한 이유로 실패하는 것을 확인한 뒤
+`git stash pop`으로 복원. 프런트 전체 회귀 230파일/1549건 green.
+재빌드 결과 번들이 오히려 줄었다(`UserRoutes` -2.24kB) — 말풍선
+렌더 로직이 중복 대신 공유로 바뀐 증거.
+
+`docs/BACKLOG.md`의 `VIS-76~79`(같은 버그를 실제 저장된 대화로
+확인한 행)도 함께 정정 — `AI-25`/`AI-26`/`AI-27`(기존 완료)로 이미
+해결됐음을 표시, `VIS-79`(`AI-30`으로 불렀던 시절의 행 — 이후
+`AI-66`으로 재번호)는 `AI-66`의 현재 부분구현 상태를 그대로
+가리키게 정정. `VIS-80`(같은 되묻기 반복, `RN-03`과 같은 뿌리로
+추정)은 확정적 근거 없이 닫으면 안 되는 별개 발견이라 손대지
+않음.
+
+`bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 재빌드 완료.
+
+이 배치(`AI-25`+`AI-26`+`AI-28`+`AI-29`) 커밋 예정. **다음 후보**:
+BACKLOG/QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정
+(`RN-15~20`, `VIS-80`, 남은 `RESP-04`/`VIS-122` 등 기존 보류
+목록은 여전히 전담 세션 필요).

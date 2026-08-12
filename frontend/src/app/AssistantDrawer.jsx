@@ -1,10 +1,15 @@
 import React from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
@@ -12,6 +17,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Skeleton } from "../ui/kit.jsx";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
+import { Message } from "../screens/chat/MessageThread.jsx";
 
 /* 클로비 AI 드로어 — 사용자 지적 Q2.
  *
@@ -119,6 +125,28 @@ export function AssistantDrawer({ open, onClose }) {
             {chat.busy ? "답변을 정리하고 있어요" : "현재 화면을 기준으로 도와드려요"}
           </Typography>
         </Box>
+        {/* AI-26: 예전엔 이 드로어에 '새 대화' 로 돌아갈 방법이 전혀 없었다 — 앱 로드 시
+            마지막 대화가 자동 복원돼(useChat.js) 빈 상태·제안 칩을 다시 볼 길 없이 그
+            스레드에 영구히 갇혔다. ConversationSidebar.jsx의 '새 대화' 버튼과 같은 세
+            호출(clearDraft·setComposingNew(true)·setCid(null))을 그대로 재사용한다 —
+            실제 생성은 첫 메시지를 보낼 때까지 미뤄지므로(composingNew), 눌러만 보고 아무
+            말도 안 하면 빈 대화가 쌓이지 않는다. */}
+        {hasThread ? (
+          <Tooltip title="새 대화">
+            <IconButton
+              aria-label="새 대화"
+              onClick={() => {
+                chat.clearDraft();
+                chat.setComposingNew(true);
+                chat.setCid(null);
+                chat.textareaRef.current && chat.textareaRef.current.focus();
+              }}
+              size="small"
+            >
+              <AddRoundedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
         <IconButton
           aria-label="전체 화면으로 열기"
           // AI-67: '?c=' 는 Chat.jsx/useChat.js가 읽지 않는 죽은 코드였다 — 실제로 대화가
@@ -153,23 +181,16 @@ export function AssistantDrawer({ open, onClose }) {
               지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다.
             </Typography>
           </Box>
-        ) : chat.items.map((m) => (
-          <Box
-            key={m.id}
-            sx={{
-              justifySelf: m.role === "user" ? "end" : "start",
-              maxWidth: "88%", px: 1.75, py: 1.25, borderRadius: 2,
-              bgcolor: (t) => (m.role === "user"
-                ? alpha(t.palette.primary.main, 0.12)
-                : t.palette.action.hover),
-            }}
-          >
-            {/* 본문은 텍스트로만 그린다(React 자동 이스케이프). 팀 채팅의 `ChatBubbleText` 는
-                멘션·읽음 표시를 다루는 다른 계약이라 여기서는 쓰지 않는다. */}
-            <Typography sx={{ fontSize: "0.875rem", lineHeight: 1.65, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-              {m.content || ""}
-            </Typography>
-          </Box>
+        ) : chat.items.map((m, i) => (
+          /* AI-25: 예전엔 여기서 m.content를 그냥 pre-wrap 텍스트로만 그려 리치 텍스트·티켓
+             카드·프로젝트 카드·Notion 링크·선택지 칩·재시도·복사·타임스탬프를 전부 버렸다.
+             전체화면 Chat.jsx가 이미 쓰는 Message(chat/MessageThread.jsx)를 그대로 재사용한다
+             — 말풍선 렌더를 두 벌로 만들면 한쪽만 고쳐지는 순간 다시 어긋난다. hideCards는
+             항상 false다: 이 드로어에는 xxl 결과 레일 개념 자체가 없어 카드가 중복될 자리가
+             없다(Chat.jsx의 hideCards는 레일과의 중복 방지 전용). */
+          <Message key={m.id} m={m} onChoose={chat.doSend} onRetry={chat.doRetry}
+            sending={chat.sending} retrying={chat.retryingRef.current === m.id}
+            isLast={i === chat.items.length - 1} hideCards={false} />
         ))}
         {chat.busy ? <Box sx={{ justifySelf: "start", width: "60%" }}><Skeleton lines={2} /></Box> : null}
 
@@ -195,35 +216,76 @@ export function AssistantDrawer({ open, onClose }) {
           기계를 두 벌로 만들지 않는다. textarea 는 Enter 로 폼을 제출하지 않으므로(줄바꿈만
           삽입) 전송은 버튼 클릭 또는 아래 onKeyDown 이 명시적으로 doSend() 를 부를 때만
           일어난다 — Chat.jsx:333-371 과 동일한 패턴. */}
-      <Box
-        component="form"
-        onSubmit={(e) => { e.preventDefault(); chat.doSend(); }}
-        sx={{ display: "flex", gap: 1, alignItems: "flex-end", p: 1.5, borderTop: 1, borderColor: "divider" }}
-      >
+      <Box sx={{ borderTop: 1, borderColor: "divider", p: 1.5, display: "grid", gap: 1 }}>
+        {/* AI-28: 붙여넣은 이미지가(pasteEnabled로 이미 useChat이 받아 chat.pending에 쌓는다)
+            드로어에는 미리보기도 제거 버튼도 없었다 — 뭘 붙였는지 안 보이고 뗄 수도 없었다.
+            Chat.jsx의 칩과 같은 모양(썸네일 + 파일명 + 이름 붙은 제거 버튼 — MUI Chip의
+            onDelete는 아이콘이 tabIndex=-1이라 키보드로 못 뗀다, 그래서 직접 버튼을 둔다). */}
+        {chat.pending.length ? (
+          <Stack direction="row" flexWrap="wrap" gap={0.75}>
+            {chat.pending.map((a, i) => (
+              <Paper key={i} variant="outlined"
+                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: "999px", maxWidth: "100%" }}>
+                <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
+                  sx={{ width: "1.5rem", height: "1.5rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
+                <Typography sx={{ fontSize: "0.75rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
+                <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
+                  onClick={() => chat.setPending((p) => p.filter((_, j) => j !== i))}
+                  sx={{ minWidth: "1.5rem", minHeight: "1.5rem", flexShrink: 0 }}>
+                  <CloseRoundedIcon sx={{ fontSize: "0.875rem" }} />
+                </IconButton>
+              </Paper>
+            ))}
+          </Stack>
+        ) : null}
+        {/* AI-29: 429/503로 잠기면 예전엔 안내도 해제 버튼도 전체화면(Chat.jsx)에만 있었다 —
+            드로어는 keepMounted라 페이지를 옮겨도 useChat 인스턴스가 안 바뀌어(같은 값을
+            공유하는 게 아니라 각자 별도 인스턴스라 서로 안 풀린다) 새로고침 말고는 풀 방법이
+            없었다. 같은 배너 + 해제 버튼을 드로어에도 그대로 둔다. */}
+        {chat.maintenanceNotice ? (
+          <Alert severity="warning" role="status" sx={{ fontSize: "0.75rem", py: 0 }}
+            action={<Button size="sm" variant="ghost" onClick={() => chat.setMaintenanceNotice(null)}>다시 시도</Button>}>
+            {chat.maintenanceNotice}
+          </Alert>
+        ) : null}
+        {chat.rateLimitNotice ? (
+          <Alert severity="warning" role="status" sx={{ fontSize: "0.75rem", py: 0 }}
+            action={<Button size="sm" variant="ghost" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
+            {chat.rateLimitNotice}
+          </Alert>
+        ) : null}
         <Box
-          component="textarea" ref={chat.textareaRef} rows={1} value={chat.text} maxLength={5000}
-          aria-label="클로비에게 질문" disabled={chat.inputDisabled}
-          placeholder="클로비에게 질문하세요 (Enter 전송, Shift+Enter 줄바꿈)"
-          onChange={(e) => chat.setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chat.doSend(); }
-          }}
-          sx={{
-            flex: 1, minWidth: 0, resize: "none", minHeight: "2.75rem", maxHeight: "10rem", boxSizing: "border-box",
-            font: "inherit", fontSize: "0.875rem", lineHeight: 1.5, px: 1.5, py: 0.75,
-            border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
-            "&:focus": { outline: "none", borderColor: "primary.main" },
-            "&:disabled": { opacity: 0.6 },
-          }}
-        />
-        <Button
-          type="submit" variant="primary"
-          disabled={chat.inputDisabled || !chat.text.trim()}
-          aria-label="질문 전송"
+          component="form"
+          onSubmit={(e) => { e.preventDefault(); chat.doSend(); }}
+          sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}
         >
-          <SendRoundedIcon fontSize="small" />
-        </Button>
+          <Box
+            component="textarea" ref={chat.textareaRef} rows={1} value={chat.text} maxLength={5000}
+            aria-label="클로비에게 질문" disabled={chat.inputDisabled}
+            placeholder="클로비에게 질문하세요 (Enter 전송, Shift+Enter 줄바꿈)"
+            onChange={(e) => chat.setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chat.doSend(); }
+            }}
+            sx={{
+              flex: 1, minWidth: 0, resize: "none", minHeight: "2.75rem", maxHeight: "10rem", boxSizing: "border-box",
+              font: "inherit", fontSize: "0.875rem", lineHeight: 1.5, px: 1.5, py: 0.75,
+              border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
+              "&:focus": { outline: "none", borderColor: "primary.main" },
+              "&:disabled": { opacity: 0.6 },
+            }}
+          />
+          <Button
+            type="submit" variant="primary"
+            // AI-28: 이미지만 붙이고 글자는 안 쳤을 때(!text.trim())도 보낼 수 있어야 한다 —
+            // 예전엔 텍스트가 없으면 무조건 잠겨 "텍스트 없이 이미지만 붙이면 갇힌다"였다.
+            disabled={chat.inputDisabled || (!chat.text.trim() && !chat.pending.length)}
+            aria-label="질문 전송"
+          >
+            <SendRoundedIcon fontSize="small" />
+          </Button>
+        </Box>
       </Box>
     </Drawer>
   );
