@@ -2292,7 +2292,7 @@ BoardPost.jsx:462   TeamDoc.jsx:289   Ticket.jsx:189   Chat.jsx:181
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| SEM-03 | Med | `h1` 중복 4화면(`BoardPost`·`TeamDoc`·`Ticket`·`Chat`). `VIS-133`·`SEM`(h1=2)과 동일 원인 | 발견 |
+| SEM-03 | Med | `h1` 중복 4화면(`BoardPost`·`TeamDoc`·`Ticket`·`Chat`). `VIS-133`·`SEM`(h1=2)과 동일 원인 | ✅ **재확인·구현완료(2026-08-12)** — 4파일 전부 직접 확인: `component="h1"`가 정확히 1개씩뿐(`grep -c` 실측), 공용 레이아웃(`AppShell.jsx`·`kit.jsx`)이나 각 화면이 쓰는 하위 컴포넌트(`DocComments.jsx` 등)에도 별도 `h1` 없음 — 원인이었던 `VIS-133`/`SEM`(h1=2) 계열 결함과 같은 시기에 이미 정리된 것으로 보인다. 중복 재현 안 됨 |
 
 #### `UA-20R` — 부서 삭제 버튼의 **노출 조건 자체가 틀렸다** (기존 `UA-20` 보강)
 
