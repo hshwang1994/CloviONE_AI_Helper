@@ -502,7 +502,7 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
 | DB·데이터 흐름 | `D` | **O** | 프로덕션 74표 집계 · 승인/리허설/저장된뷰 왕복 확인 |
 | Console·Network | `C` | **O** | 정상 경로 0건 확인 + **실패 경로에서 화면당 최대 5건**(`FAIL-05`) |
 | RBAC | `R` | **O**(화면 게이팅) | 4역할 197페이지, 거부 화면 0 · 역할 표가 앱과 일치 |
-| 화면 간 반영 | `L` | **~** | 복구 리허설 3단계 확인 + `WF2` 무효화 8건 조사 + `WF7-L01`(승인→users/integrations/runners/schedules/documents 5화면 무효화, 2026-08-11) + `WF11-L01`(문서·게시판 편집→home 「최근 문서/글」 위젯 무효화, `document-views.js` 신설, 2026-08-12) + WF44(2026-08-13, 아래 "남은 큰 공백 3개"의 3번 항목) — Board/Ideas 댓글·반응·상태변경 3계열 + `board-mine` 최초 배선, Projects→Dashboard(`invalidateProject()`+home) 구현완료. Settings/Feature-flags/Announcements/Offboarding은 무결함 재확인. 전수는 아직 아님 — 남은 것은 `CACHE-03`(Users→티켓 담당자, Low) 하나뿐 |
+| 화면 간 반영 | `L` | **~** | 복구 리허설 3단계 확인 + `WF2` 무효화 8건 조사 + `WF7-L01`(승인→users/integrations/runners/schedules/documents 5화면 무효화, 2026-08-11) + `WF11-L01`(문서·게시판 편집→home 「최근 문서/글」 위젯 무효화, `document-views.js` 신설, 2026-08-12) + WF44(2026-08-13, 아래 "남은 큰 공백 3개"의 3번 항목) — Board/Ideas 댓글·반응·상태변경 3계열 + `board-mine` 최초 배선, Projects→Dashboard(`invalidateProject()`+home), Users/부서/직책/조직→티켓 담당자 후보(`crossScreenKeys.js`) 구현완료(`CACHE-01`/`02`/`03` 전부). Settings/Feature-flags/Announcements/Offboarding은 무결함 재확인. 전수는 아직 아님 — 남은 표본 8+3건을 넘는 전체 화면 쌍 점검만 남음 |
 | 반응형·Theme | `V` | **O** | 768/1024/1200/1366/1920/3840 × 라이트·다크 |
 | **실사용 이력** | `U` | **~** | 12기능 중 9 확인(전부 정상 — 저장된 뷰·대리 보기·복구 리허설·승인·메일·오프보딩·공지 배너·AI 쿼터·**휴지통**[2026-08-12, 합성 문서로 안전하게 왕복]). 남은 3기능(문서 생성·스케줄·주간 리포트)은 D-21/DGEN-02로 실행 보류(원인 규명됨) — `U`축은 이 셋을 빼면 사실상 완료 |
 | **텍스트 대비** | `K` | **O** | 8화면(자동, 비-그라디언트 34~50요소/화면) + 상단바 그라디언트 전체(수동 실측, WF7-K01) |
@@ -558,14 +558,17 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
      `["settings"]` 한 키를 공유해 저장 시 함께 갱신되고(Feature-flags는 애초에
      클라이언트 캐시가 없다), Offboarding은 실행·취소 둘 다 `invalidateTicketViews(qc,
      {refetchType:"all"})`로 이미 광범위하게 무효화한다.
-   **같은 날(WF44) 구현완료**: Board/Ideas — 댓글 작성/삭제(`comment_count` 변화)에
-   `["board"]`+`["home"]`+`["board-mine"]`, 반응 토글에 `["board"]`(`like_count`), 상태
-   변경에 `["board"]`(`idea_status`) 추가. 댓글 수정은 집계가 안 바뀌어 의도적으로 그대로
-   둠. `["board-mine"]`은 게시글 작성·삭제(`post_count`)에도 추가 — 이 키는 이제 처음으로
-   무효화되는 mutation을 갖는다. Projects → Dashboard — `invalidateProject()`에 `["home"]`
-   한 줄(`BACKLOG.md`의 `CACHE-01`/`CACHE-02` 참고, 신규 시험 9건, 프런트 전체 회귀
-   green). `CACHE-03`(Users → 티켓 담당자 후보)은 우선순위 낮아 미해결로 남김. 다음
-   후보는 `CACHE-03` 또는 전수 매트릭스 자체(표본을 넘는 화면 쌍 전체 점검).
+   **같은 날(WF44) 구현완료(3건 전부)**: Board/Ideas — 댓글 작성/삭제(`comment_count`
+   변화)에 `["board"]`+`["home"]`+`["board-mine"]`, 반응 토글에 `["board"]`(`like_count`),
+   상태 변경에 `["board"]`(`idea_status`) 추가. 댓글 수정은 집계가 안 바뀌어 의도적으로
+   그대로 둠. `["board-mine"]`은 게시글 작성·삭제(`post_count`)에도 추가 — 이 키는 이제
+   처음으로 무효화되는 mutation을 갖는다. Projects → Dashboard — `invalidateProject()`에
+   `["home"]` 한 줄. Users/부서/직책/조직 → 티켓 담당자 후보 — `crossScreenKeys.js`의
+   `departments`/`organizations`에 `["tickets"]` 추가, `job-titles`는 항목 자체가 없어
+   신설(`app/tickets/service.py::list_assignees`가 담당자 후보에 부서·직책·조직을 함께
+   싣는다, 사용자 지시 2026-08-04). `BACKLOG.md`의 `CACHE-01`/`02`/`03` 참고, 신규 시험
+   10건, 프런트 전체 회귀(241파일/1597건) green. 다음 후보는 전수 매트릭스 자체(표본을
+   넘는 화면 쌍 전체 점검) 하나만 남았다.
 
 ---
 

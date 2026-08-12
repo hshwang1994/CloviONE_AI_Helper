@@ -13,8 +13,14 @@ export const CROSS_SCREEN_KEYS = {
   // (OrgConsole.jsx)이 둘을 한 화면에 나란히 놓은 뒤로는 그 어긋남이 곧바로 눈에 보인다 —
   // 오른쪽에서 부서를 추가·이름 변경·비활성화했는데 왼쪽 트리가 옛 모습 그대로면 사용자는
   // "추가했는데 조직도에 없다"로 읽는다. 조직 이름·정지 상태도 트리 맨 윗줄에 실려 있다.
-  organizations: [["org-tree"]],
-  departments: [["org-tree"]],
+  // WF44 배경 조사(L축) — 티켓 담당자 배정 드롭다운(ticket-options.js::useAssigneeOptions,
+  // `["tickets","assignees"]`, staleTime 60초)이 이름과 함께 부서·직책·조직을 그대로
+  // 싣는다(app/tickets/service.py::list_assignees 주석 "사용자 지시 2026-08-04"). 세 화면
+  // 중 어느 하나에서 이름을 바꿔도 안 무효화하면, 다른 탭에 열린 티켓 생성/수정 모달의
+  // 담당자 후보가 최대 60초간 옛 이름을 보여준다.
+  organizations: [["org-tree"], ["tickets"]],
+  departments: [["org-tree"], ["tickets"]],
+  "job-titles": [["tickets"]],
   // 대시보드의 "실패 작업"/"미해결 실패 작업" 타일은 이 화면과 같은 사실(jobs.failed_open,
   // app/health/service.py)을 보여준다. 재시도·취소로 그 작업이 failed/queued 상태를
   // 벗어나면 서버 값은 그 자리에서 바뀌지만, 대시보드는 별도 queryKey(["dashboard"])를

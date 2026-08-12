@@ -12,12 +12,14 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF45(`invocation=3`) — 파일
-끝(WF35~45)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF45는 `CACHE-01`(Board/Ideas 댓글·
-반응·상태 무효화, Med)+`CACHE-02`(Projects→Dashboard, Med) 구현완료
-— 상세는 파일 끝. 그 앞 WF44는 `admin_policies` purpose 컬럼(WF1
-단독 결함, Med) + 배너 톤(Low) 구현완료.
+**마지막 갱신**: 2026-08-13 · **단계**: WF46(`invocation=3`) — 파일
+끝(WF35~46)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF46은 `CACHE-03`(Users/부서/직책/
+조직→티켓 담당자 후보, Low) 구현완료로 WF44 배경 조사의 캐시 무효화
+공백 3건(`CACHE-01`/`02`/`03`)이 전부 닫혔다 — 상세는 파일 끝. 그
+앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+
+`CACHE-02`(Projects→Dashboard, Med) 구현완료. 그 앞 WF44는
+`admin_policies` purpose 컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
@@ -4499,9 +4501,39 @@ invalidation.test.jsx` 신규 1건(`PostFormModal` 작성→board-mine),
 
 `docs/BACKLOG.md`의 `CACHE-01`/`CACHE-02` 행을 구현완료로,
 `docs/QA_COVERAGE.md` §11 `L`축 요약과 "남은 큰 공백" 3번 항목을
-갱신. `CACHE-03`(Users→티켓 담당자 후보, Low, `Users.jsx::refresh()`에
-`["tickets"]` 한 줄이면 닫힘)만 남기고 커밋 예정. **다음 후보**:
-`CACHE-03` 또는 대시보드 정보 위계(`VIS-24`/`25`) 실브라우저 판단.
-그 외 후보는 위 WF43 단락과 동일(`RN-15`·`RN-17` 잔여 노출·
-`RN-18~20`·`VIS-80`·`RESP-04`/`VIS-122`·`user_team-doc-detail` URL
-미링크화).
+갱신. `CACHE-03`(Users→티켓 담당자 후보, Low)만 남기고 커밋 완료
+(`f2bee83`).
+
+**WF46(같은 invocation 계속) — `CACHE-03`(Users/부서/직책/조직 개명
+→ 티켓 담당자 후보, Low) 구현완료.**
+
+착수 전 `Users.jsx::refresh()`(사용자 자신을 만들거나 고칠 때 부름)가
+아니라, 부서·직책·조직 **이름 자체**를 바꾸는 `registry/org.js`의
+DataScreen 제네릭 편집(`departments`/`job-titles`/`organizations`)이
+진짜 트리거라는 것을 먼저 확인했다 — `Users.jsx::refresh()`는 사용자
+생성/수정(그 사람의 소속 배정이 바뀔 때)만 부른다. 실제 무효화
+지도는 `data-screen/crossScreenKeys.js::CROSS_SCREEN_KEYS`(DataScreen
+전체가 공유, X10)다. `app/tickets/service.py::list_assignees`가
+담당자 후보에 이름과 함께 부서·직책·조직을 그대로 싣는다(사용자
+지시 2026-08-04) — 셋 중 어느 하나만 개명해도 대상이다.
+
+`CROSS_SCREEN_KEYS.departments`/`.organizations`에 `["tickets"]`
+추가(기존 `["org-tree"]`와 병기), `job-titles`는 이 지도에 항목
+자체가 없어 신설. 신규 시험 1건(`cross-screen-invalidation.test.jsx`
+— 기존 알림/작업큐/공지 3건과 같은 파일, 같은 스타일로 넷째 시나리오
+추가). 처음 실행에서 실패 — 편집 폼을 열고 값을 안 바꾼 채 곧바로
+'저장'을 누르면 `DataScreen.jsx`의 PATCH 경로(diffFields, CONC-01)가
+"바뀐 것 없음"으로 판정해 `api()` 자체를 안 부르고 조용히 끝난다(이
+자체가 그 기존 결함 방지 로직이 의도대로 동작한다는 증거이기도 하다)
+— 필드 값을 실제로 바꾸도록 고쳐 재확인. 관련 회귀(`cross-screen-
+invalidation`·`registry/*`·`users-*`, 30건) + 프런트 전체 회귀
+(241파일/1597건) green. 재빌드 완료, `bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 `CACHE-03` 행 구현완료(WF44 캐시 무효화 공백
+3건 전부 닫힘), `docs/QA_COVERAGE.md` §11 `L`축 요약·"남은 큰 공백"
+3번 항목 최종 갱신. 이 배치 커밋 예정. **다음 후보**: 대시보드 정보
+위계(`VIS-24`/`25`) 실브라우저 판단, 또는 `L`축 전수 매트릭스(표본을
+넘는 화면 쌍 전체 점검, 이제 유일하게 남은 큰 공백). 그 외 후보는
+위 WF43 단락과 동일(`RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
+`RESP-04`/`VIS-122`·`user_team-doc-detail` URL 미링크화).

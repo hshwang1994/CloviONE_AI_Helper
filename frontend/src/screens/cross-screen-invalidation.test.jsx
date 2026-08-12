@@ -13,7 +13,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -163,6 +163,52 @@ describe("화면 밖 값 갱신", () => {
 
     await waitFor(() => {
       expect(qc.getQueryState(["announcements-active"]).isInvalidated, "배너").toBe(true);
+    }, { timeout: 3000 });
+  });
+
+  /* WF44 배경 조사(L축) — 티켓 담당자 배정 드롭다운(ticket-options.js::useAssigneeOptions,
+   * `["tickets","assignees"]`)은 이름과 함께 부서·직책·조직을 그대로 싣는다(사용자 지시
+   * 2026-08-04, app/tickets/service.py::list_assignees). 부서 이름을 바꿔도 CROSS_SCREEN_KEYS
+   * 에 매핑이 없으면, 다른 탭에 열린 티켓 생성/수정 모달의 담당자 후보가 staleTime(60초) 동안
+   * 옛 부서 이름을 계속 보여준다. */
+  it("부서 이름 수정이 티켓 담당자 후보 캐시까지 무효화한다", async () => {
+    const departmentsConfig = {
+      key: "departments",
+      title: "부서 관리",
+      endpoint: "/api/admin/departments",
+      paginated: false,
+      columns: [{ key: "name", label: "부서 이름" }],
+      detailFields: [],
+      edit: { roles: ["admin", "system_admin"], fields: [{ name: "name", label: "부서 이름", type: "text", required: true }] },
+    };
+    apiMock.mockResolvedValue({ items: [{ id: "d-1", name: "인프라팀" }] });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // 티켓 담당자 후보 캐시가 이미 값을 들고 있는 상태를 만든다.
+    qc.setQueryData(["tickets", "assignees"], { assignees: [{ user_id: "u1", department: "인프라팀" }] });
+    expect(qc.getQueryState(["tickets", "assignees"]).isInvalidated).toBe(false);
+
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter><DataScreen config={departmentsConfig} /></MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText("인프라팀");
+    apiMock.mockResolvedValueOnce({ item: { id: "d-1", name: "플랫폼팀" } });
+
+    fireEvent.click(screen.getByText("인프라팀"));
+    fireEvent.click(await screen.findByRole("button", { name: "수정" }));
+    const dialog = await screen.findByRole("dialog");
+    // 값을 실제로 바꿔야 한다 — DataScreen의 PATCH 경로는 diffFields로 바뀐 필드만 보내고,
+    // 아무것도 안 바뀌었으면 api()조차 부르지 않고 "변경된 내용이 없습니다"로 조용히
+    // 끝난다(CONC-01).
+    fireEvent.change(within(dialog).getByLabelText(/^부서 이름/), { target: { value: "플랫폼팀" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(qc.getQueryState(["tickets", "assignees"]).isInvalidated, "티켓 담당자 후보").toBe(true);
     }, { timeout: 3000 });
   });
 });
