@@ -3890,7 +3890,51 @@ supported`가 `socketserver`의 `handle_one_request`까지 새어(스택
 scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 러너 전용 변경이라
 프런트 재빌드 불필요.
 
-이 배치(`RN-16`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
-전체 재스캔으로 다음 Root Cause 선정(`RN-15`, `RN-17`의 근본
-노출·`RN-18~20`, `VIS-80`, 남은 `RESP-04`/`VIS-122` 등 기존 보류
-목록은 여전히 전담 세션 필요).
+이 배치(`RN-16`) 커밋 완료(`b70bede`).
+
+**WF35(같은 invocation 계속) — `SEM-01` 두 번째 소비처: 상세
+모달/수정 드로어 제목이 `declaredRowName`을 모르던 문제
+구현완료.** Stop hook 재개 직후 띄운 두 번째 Explore 재스캔의
+최상위 후보. `kit.jsx::rowOpenLabel()`(행의 "상세 보기" 버튼·선택
+체크박스)은 SEM-01로 `declaredRowName()`을 먼저 보게 고쳤지만,
+같은 행을 여는 상세 모달·수정 드로어의 **제목**을 만드는
+`data-screen/detailFields.js::detailTitle()`(`DataScreen.jsx:755,
+794` 2곳에서 소비 — 등록 화면 28개 전부의 상세 모달+수정 드로어)은
+그 기준을 몰라 여전히 `columns[0]` 원시값만 봤다. 첫 열이
+`render()`인 화면에서 제목이: `audit-anomalies`는 중요도 배지의
+raw enum("high"/"medium"/"low"), `jobs`는 같은 날 여러 건이면
+전부 같은 시각(유형 구분 없이)으로 샜다 — 행 버튼은 SEM-01로
+이미 구별되는데 같은 화면의 드로어 제목만 안 고쳐진, 같은 Root
+Cause의 또 다른 배선 누락.
+
+**구현**: `detailTitle()`이 `columns[0]` 폴백보다
+`declaredRowName(columns,row)`을 먼저 본다 — SEM-01이 이미 11개
+registry 화면에 채워 둔 `rowName` 선언을 그대로 재사용하므로 새
+정보 노출도 새 선언 작업도 없음.
+
+**시험**: `data-screen/detailFields.test.js`(신규 5건) —
+`audit-anomalies`(배지 누출 재현)·`jobs`(날짜만으로 안 구별되던
+문제 재현)·`org-tree`(들여쓰기 트리 대신 "부서 <이름>") 3화면+
+`notifications`(무표식 화면은 폴백 그대로 유지, 회귀 없음 확인)+
+빈 columns 경계. revert-to-verify: `declaredRowName` 호출을
+Edit로 잠시 제거해 신규 5건 중 정확히 3건(위 3화면)이 기대한
+이유로 실패하고 나머지 2건(폴백 회귀 가드)은 그대로 통과함을
+확인 후 복원. DataScreen 계열 대표 소비자 회귀
+(`datascreen.test.jsx`·`datascreen-search.test.jsx`·
+`datascreen-view.test.js`·`data-screen-edit-diff.test.jsx`·
+`data-screen-ref-list-options.test.jsx`, 33건)+SEM-01 관련 시험
+(`registry-row-name`·`registry-identifiers`·`users-row-open-label`,
+28건) green. 재빌드 완료(`python scripts/check_bundle_fresh.py
+--write`로 `BUILD_STAMP.json` 갱신). `bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`.
+
+이 배치(`SEM-01` 두 번째 소비처) 커밋 예정. **다음 후보**: 같은
+재스캔이 2순위로 짚은 `ROUTE_OWNER` 누락(`frontend/src/app/
+navConfig.js` — `/departments`·`/org-tree`) 확인 후 착수, 이어서
+WF1 미채번 발견 묶음(`docs/BACKLOG.md` ~2188-2392줄 나머지 약
+67건 중 High 7건 — `admin_offboarding` 온보딩 기능 미구현 약속,
+`admin_audit-anomalies`의 `anomalies.py:208-209` 중복 컬럼,
+러너에는 있는 주기적 헬스 정체 스윕/배지가 연동(integrations)엔
+없는 문제 등). 그 외 `RN-15`(CLI 타임아웃 미포함, 이미지 dedup
+키 영속성)·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은
+`RESP-04`/`VIS-122`도 여전히 후보 목록에 있다.
