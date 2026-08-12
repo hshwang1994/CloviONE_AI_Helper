@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit, record_audit_from_request
+from app.core.config import Settings
 from app.core.db import is_write_conflict
 from app.core.deps import (
     AuthContext,
@@ -157,6 +158,23 @@ def _password_matches(user, password: str) -> bool:
         verify_password(_dummy_password_hash(), password)
         return False
     return verify_password(user.password_hash, password)
+
+
+def _effective_lockout_policy(request: Request, settings: Settings) -> tuple[int, int]:
+    """(max_failures, lock_seconds). ADM-05: `app/core/sessions.py::SessionService`가 이미
+    쓰는 "DB override, 없거나 값이 이상하면 env 기본값" 모양을 그대로 따른다 — session_policy
+    와 같은 이유(관리자가 서버 파일을 안 고치고 화면에서 조정할 수 있어야 한다)."""
+    cache = getattr(request.app.state, "settings_cache", None)
+    if cache is not None:
+        policy = cache.current_value("lockout_policy") or {}
+        max_failures = policy.get("max_failures")
+        lock_seconds = policy.get("lock_seconds")
+        if (
+            isinstance(max_failures, int) and not isinstance(max_failures, bool) and 1 <= max_failures <= 20
+            and isinstance(lock_seconds, int) and not isinstance(lock_seconds, bool) and 60 <= lock_seconds <= 86400
+        ):
+            return max_failures, lock_seconds
+    return settings.login_max_failures, settings.login_lock_seconds
 
 
 # 서버 렌더 no-JS 폴백(_is_login_form_fallback, app/core/errors.py)이 /login?error=<code>로
@@ -388,8 +406,9 @@ def login(
             )
             if not locked:
                 user.failed_login_count += 1
-                if user.failed_login_count >= settings.login_max_failures:
-                    user.locked_until = now + timedelta(seconds=settings.login_lock_seconds)
+                max_failures, lock_seconds = _effective_lockout_policy(request, settings)
+                if user.failed_login_count >= max_failures:
+                    user.locked_until = now + timedelta(seconds=lock_seconds)
                     user.failed_login_count = 0
                     # 계정 잠금 알림 (spec §13.5) — 본인 + 관리자.
                     from app.notifications.service import notify_admins, notify_user
@@ -405,7 +424,7 @@ def login(
                     # 그 결과가 이 제품이 스스로 만들어 내는 불필요한 SSH 트래픽이다. 사용자
                     # 본인에게 보내는 알림(위)은 이미 "자동 해제됩니다"를 담고 있으니, 관리자
                     # 알림에도 같은 사실 + 언제 풀리는지 + 기다려도 된다는 것을 명시한다.
-                    _lock_minutes = max(1, -(-settings.login_lock_seconds // 60))  # ceil division
+                    _lock_minutes = max(1, -(-lock_seconds // 60))  # ceil division
                     notify_admins(
                         db, type_="account_locked",
                         title=f"계정 잠금 발생: {user.email}",

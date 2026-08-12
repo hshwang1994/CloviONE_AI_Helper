@@ -117,6 +117,29 @@ def test_session_policy_object_validation(client, admin_csrf):
     assert r.status_code == 200
 
 
+def test_lockout_policy_object_validation(client, admin_csrf):
+    r = client.put(
+        "/api/admin/settings/lockout_policy",
+        json={"value": {"max_failures": 0, "lock_seconds": 900}},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422  # max_failures < 1
+
+    r = client.put(
+        "/api/admin/settings/lockout_policy",
+        json={"value": {"max_failures": 5, "lock_seconds": 30}},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422  # lock_seconds < 60
+
+    r = client.put(
+        "/api/admin/settings/lockout_policy",
+        json={"value": {"max_failures": 5, "lock_seconds": 900}},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200
+
+
 def test_rollback_to_maintenance_true_notifies_active_users(client, admin_csrf, db):
     """A rollback that flips maintenance_mode False→True must send the same
     'maintenance_announcement' notify as a direct PUT does — both are the same

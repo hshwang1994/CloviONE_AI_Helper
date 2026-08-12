@@ -11,6 +11,7 @@ export const SETTING_LABELS = {
   maintenance_message: "점검 공지",
   password_policy: "비밀번호 정책",
   session_policy: "세션 정책",
+  lockout_policy: "계정 잠금 정책",
   // N7: "로그인 허용" 이라 적혀 있었는데 실제로는 **생성 시에만** 검사한다
   // (`app/users/service.py`). 도메인을 좁혀도 기존 계정은 그대로 들어온다 —
   // 운영자가 이 값으로 접근을 끊을 수 있다고 믿으면 그게 보안 사고가 된다.
@@ -37,6 +38,7 @@ export const settingLabel = (k) => SETTING_LABELS[k] || k;
 export const OBJECT_SCHEMA_HELP = {
   password_policy: 'JSON 예: {"min_length": 12, "min_classes": 3}, min_length(최소 글자 수), min_classes(문자 종류 수, 1~4).',
   session_policy: 'JSON 예: {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, 값은 초 단위입니다(30분=1800, 8시간=28800).',
+  lockout_policy: 'JSON 예: {"max_failures": 5, "lock_seconds": 900}, max_failures(연속 로그인 실패 몇 회 만에 잠글지, 1~20), lock_seconds(잠금 유지 시간, 초 단위, 60~86400).',
   // 백엔드(_email_domains)는 빈 목록([])을 '도메인 제한 없음'으로 허용한다(round10 감사 C 반영).
   allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 만들 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
   ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
@@ -73,7 +75,7 @@ export const MAINTENANCE_READ_ROLES = ["operator", "admin", "system_admin", "aud
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).
-export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "allowed_email_domains", "ui_branding"];
+export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
 export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };
@@ -116,6 +118,12 @@ export function summarizeSetting(key, v) {
     const parts = [];
     if (v.idle_timeout_seconds != null) parts.push("유휴 " + fmtDuration(v.idle_timeout_seconds));
     if (v.absolute_timeout_seconds != null) parts.push("최대 " + fmtDuration(v.absolute_timeout_seconds));
+    return parts.length ? parts.join(", ") : null;
+  }
+  if (key === "lockout_policy") {
+    const parts = [];
+    if (v.max_failures != null) parts.push(v.max_failures + "회 실패 시 잠금");
+    if (v.lock_seconds != null) parts.push(fmtDuration(v.lock_seconds) + " 동안 잠김");
     return parts.length ? parts.join(", ") : null;
   }
   if (key === "allowed_email_domains") {
@@ -194,6 +202,19 @@ export function securityDowngradeWarning(setting, value) {
         + " 로 줄입니다. 신규 세션부터가 아니라 저장 즉시 이미 로그인된 모든 세션에 적용되어, "
         + "유휴 상태인 사용자는(나 자신 포함) 그 자리에서 로그아웃될 수 있습니다. 계속할까요?";
     }
+    return null;
+  }
+  // 임계값을 늘리거나(더 많은 실패를 허용) 잠금 시간을 줄이면(공격자가 더 빨리 재시도) 둘 다
+  // 무차별 대입 방어를 약화한다 — password_policy/session_policy와 같은 확인 게이트.
+  if (setting.key === "lockout_policy") {
+    const cur = setting.value || {};
+    const reasons = [];
+    if (value && cur.max_failures != null && value.max_failures != null && value.max_failures > cur.max_failures)
+      reasons.push("실패 허용 횟수 " + cur.max_failures + "회 → " + value.max_failures + "회");
+    if (value && cur.lock_seconds != null && value.lock_seconds != null && value.lock_seconds < cur.lock_seconds)
+      reasons.push("잠금 시간 " + fmtDuration(cur.lock_seconds) + " → " + fmtDuration(value.lock_seconds));
+    if (reasons.length)
+      return "계정 잠금 정책을 완화합니다(" + reasons.join(", ") + "). 무차별 대입(브루트포스) 공격에 더 취약해집니다, 계속할까요?";
     return null;
   }
   return null;

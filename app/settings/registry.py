@@ -63,6 +63,20 @@ def _session_policy(value: Any) -> None:
             raise ValidationAppError(f"{k}는 60 이상 정수여야 합니다.")
 
 
+def _lockout_policy(value: Any) -> None:
+    """ADM-05: 계정 잠금 정책(로그인 실패 임계값·잠금 시간)이 예전엔 env 전용이라 화면에서
+    보지도 바꾸지도 못했다 — session_policy가 이미 쓰는 "env 기본값 + DB override" 모양을
+    그대로 따른다(app/auth/router.py::_effective_lockout_policy)."""
+    if not isinstance(value, dict):
+        raise ValidationAppError("객체여야 합니다.")
+    max_failures = value.get("max_failures")
+    if not isinstance(max_failures, int) or isinstance(max_failures, bool) or not (1 <= max_failures <= 20):
+        raise ValidationAppError("max_failures는 1~20 정수여야 합니다.")
+    lock_seconds = value.get("lock_seconds")
+    if not isinstance(lock_seconds, int) or isinstance(lock_seconds, bool) or not (60 <= lock_seconds <= 86400):
+        raise ValidationAppError("lock_seconds는 60~86400(24시간) 정수여야 합니다.")
+
+
 def _email_domains(value: Any) -> None:
     # 빈 목록([])은 '도메인 제한 없음'을 뜻한다 — Settings 화면 안내('빈 배열이면 제한
     # 없음')와 create_user의 소비 로직이 이 뜻으로 일치한다(round10 감사 C). 값이 있으면
@@ -257,6 +271,15 @@ REGISTRY: dict[str, SettingSpec] = {
                     {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, False,
                     "세션 정책: 유휴 제한은 저장 즉시(이미 열린 세션 포함), 최대 세션 길이는 신규 세션부터 적용",
                     _session_policy),
+        # ADM-05: 예전엔 env(app/core/config.py의 login_max_failures/login_lock_seconds)
+        # 전용이라 화면에서 볼 수도 바꿀 수도 없었다 - 조정하려면 서버 파일을 고치고
+        # 재시작해야 했다. session_policy와 같은 "env 기본값 + DB override" 모양으로 신설.
+        # 기본값은 기존 env 기본값(5회/900초)과 같게 둬서, 아무도 저장하지 않은 설치는
+        # 지금과 똑같이 동작한다. 다음 로그인 시도부터 즉시 적용(별도 굳는 지점 없음).
+        SettingSpec("lockout_policy", "object",
+                    {"max_failures": 5, "lock_seconds": 900}, False,
+                    "계정 잠금 정책: 로그인 실패 임계값·잠금 시간. 다음 로그인 시도부터 즉시 적용",
+                    _lockout_policy),
         # 기본값이 비어 있다(= 제한 없음). 설치처마다 다른 값이라 여기에 한 회사의 도메인을
         # 박아 두면 다른 고객사 설치에서도 그 회사 도메인으로만 계정을 만들 수 있게 된다.
         # env 기본값(app/core/config.py)만 비우고 여기를 두면 첫 부팅에서 레지스트리

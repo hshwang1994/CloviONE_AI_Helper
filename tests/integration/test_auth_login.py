@@ -79,6 +79,57 @@ def test_account_lockout_after_max_failures_and_unlock_after_window(
     assert r.status_code == 200
 
 
+# ADM-05: 잠금 정책이 env 전용이라 관리자가 화면에서 조정할 수 없었다 — session_policy와
+# 같은 "DB override, 없으면 env 기본값" 모양으로 신설했다. 이 시험은 저장한 값이 실제
+# 로그인 잠금 동작에 즉시 반영되는지(다음 로그인 시도부터, 별도로 굳는 지점 없음) 끝까지
+# 확인한다 — 설정 화면에 값만 보이고 실제 판정은 여전히 env를 쓰는 반쪽 배선을 잡기 위해서다.
+def test_lockout_policy_override_applies_immediately(client, make_user, fake_clock, login_as):
+    make_user("override-lock@goodmit.co.kr")
+    admin_csrf = login_as("admin", email="lockout-policy-admin@goodmit.co.kr")
+
+    r = client.put(
+        "/api/admin/settings/lockout_policy",
+        json={"value": {"max_failures": 2, "lock_seconds": 120}},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert r.status_code == 200, r.text
+
+    # env 기본값(5회)이 아니라 저장한 값(2회)만에 잠긴다.
+    for _ in range(2):
+        client.post(
+            "/login", json={"email": "override-lock@goodmit.co.kr", "password": "Bad-Pass-123"}
+        )
+    r = client.post(
+        "/login",
+        json={"email": "override-lock@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+    )
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "account_locked"
+
+    # env 기본값(900초)이 아니라 저장한 값(120초)이 지나면 풀린다.
+    fake_clock.advance(121)
+    r = client.post(
+        "/login",
+        json={"email": "override-lock@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_lockout_policy_falls_back_to_env_default_when_unset(client, make_user, settings):
+    """아무도 이 설정을 저장하지 않은 설치는 예전(env)과 똑같이 동작해야 한다."""
+    make_user("no-override-lock@goodmit.co.kr")
+    for _ in range(settings.login_max_failures):
+        client.post(
+            "/login", json={"email": "no-override-lock@goodmit.co.kr", "password": "Bad-Pass-123"}
+        )
+    r = client.post(
+        "/login",
+        json={"email": "no-override-lock@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+    )
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "account_locked"
+
+
 def test_inactive_user_cannot_login(client, make_user):
     make_user("gone@goodmit.co.kr", active=False)
     r = client.post(

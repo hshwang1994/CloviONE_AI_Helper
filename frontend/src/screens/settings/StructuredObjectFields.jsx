@@ -148,6 +148,34 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       </Box>
     );
   }
+  if (settingKey === "lockout_policy") {
+    // ADM-05: 예전엔 env 전용이라 화면에서 볼 수도 바꿀 수도 없었다 — session_policy와 같은
+    // 이유로 분 단위 입력 + 초 단위 저장(잠금 시간)을 쓴다. 실패 임계값은 그대로 정수.
+    const lockMin = safe.lock_seconds != null ? Math.round(safe.lock_seconds / 60) : "";
+    const maxId = fieldId("max_failures");
+    const lockId = fieldId("lock_minutes");
+    return (
+      <Box sx={pairGrid}>
+        <TextField
+          id={maxId} label="로그인 실패 임계값(1~20회)" type="number" size="small" fullWidth disabled={!canWrite}
+          error={!!invalid}
+          inputProps={{ min: 1, max: 20, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+          value={safe.max_failures != null ? safe.max_failures : ""}
+          onChange={(e) => patch({ max_failures: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+        <Box>
+          <TextField
+            id={lockId} label="잠금 시간(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid}
+            inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={lockMin}
+            onChange={(e) => patch({ lock_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+          />
+          {safe.lock_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.lock_seconds)}</Typography> : null}
+        </Box>
+      </Box>
+    );
+  }
   if (settingKey === "ui_branding") {
     const nameId = fieldId("product_name");
     const emailId = fieldId("support_email");
