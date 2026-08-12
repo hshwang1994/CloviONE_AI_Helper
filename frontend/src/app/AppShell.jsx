@@ -39,6 +39,7 @@ import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { NOTI_UNREAD, invalidateNotifications } from "./notification-keys.js";
 import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
@@ -207,6 +208,22 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
     });
   }, [activeGroup, collapsed, userId]);
 
+  /* VIS-113: 37항목 5그룹이 1080 높이에 다 안 들어가 목록 자체가 스크롤된다. 활성 그룹은
+   * 강제로 펼치지만(위 effect), 펼친 뒤 그 활성 항목이 스크롤 영역 밖에 있으면(예: /llm-console·
+   * /notion-console처럼 아래쪽 그룹) "내가 어디 있는지"를 보여주는 아무 표시도 화면에 없다 —
+   * 하이라이트 자체는 이미 있는데(selected/aria-current) 스크롤이 안 따라가 안 보일 뿐이다.
+   * 경로가 바뀔 때마다 활성 항목을 목록 안으로 스크롤한다(포커스는 옮기지 않는다 — 라우트
+   * 전환 포커스는 이미 route-change-focus가 본문으로 보낸다, 여기서 또 가져가면 그것과 싸운다).
+   * block:"nearest"라 이미 보이는 항목은 건드리지 않는다(불필요한 점프 방지). */
+  const activeItemRef = React.useRef(null);
+  React.useEffect(() => {
+    const el = activeItemRef.current;
+    if (!el) return;
+    try {
+      el.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    } catch (e) { /* ignore */ }
+  }, [activePath]);
+
   return (
     <List component="nav" sx={{ px: 1.5, py: 1, flex: 1, overflowY: "auto" }}>
       {groups.map((g) => {
@@ -247,6 +264,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
                   return (
                     <ListItemButton
                       key={it.to}
+                      ref={active ? activeItemRef : undefined}
                       component={Link}
                       to={it.to}
                       onClick={onNavigate}

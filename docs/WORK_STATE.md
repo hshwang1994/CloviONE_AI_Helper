@@ -12,11 +12,13 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF20 — `/jobs` 작업 큐 클러스터
+**마지막 갱신**: 2026-08-12 · **단계**: WF21 — Stop hook이 조기 종료 시도를
+정정, BACKLOG 전체 재스캔 후 `VIS-113`(사이드바 활성 항목 스크롤) 구현완료.
+그 직전 WF20 — `/jobs` 작업 큐 클러스터
 (`VIS-117~123` 7건, "같은 화면 Root Cause 묶음" 첫 적용) — `VIS-117` 절반
 구현(목록 위 페이저 추가, `DataScreen.jsx` 공유), `VIS-118` 오탐 정정
 (이미 2026-08-07에 고쳐져 있었다), `VIS-122` 완화 사실 발견 후 전담
-세션으로 이월, 나머지 3건 제품 판단 필요로 재확인만. 그 직전 WF19 —
+세션으로 이월, 나머지 3건 제품 판단 필요로 재확인만. 그 앞 WF19 —
 `UX-40`(422 사유가 `e.message`에 안 실리던 문제, `lib/api.js`+`kit.jsx`
 공용 계층 한 곳만 고쳐 131개 호출부 전부 해결) 구현완료. 그 앞 WF18 —
 `VIS-160`(홈 `refetchInterval` 누락) 구현완료, 요청 예산 시험(PF1) 상한도
@@ -3112,10 +3114,41 @@ Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).
 목록 3원이 실제로 같은 뿌리 키를 쓰는지"로 좁힘).
 
 오늘 배치 다섯 개(HOST-03/AI-57/AI-63/RN-10/RN-11 → UX-41 → VIS-160 →
-UX-40 → `/jobs` 클러스터) + 이 확인 전부 커밋 완료, 작업 트리 clean.
-**다음 세션 시작점**: 위 "다음 후보" 목록 그대로 유효 — RESP-04(전담
-UI 세션) · VIS-122 본 수정(전담, `DataTable` 공유) · KPI 그리드
-클러스터 · QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · BACKLOG
-Med/Low 클러스터 "구조 먼저" 스캔 계속 · PHASE 1 Product Audit Handoff
-대기(아직 `IMPLEMENTATION_REQUIRED` 없음) · TEST SERVER 배포(자격증명
-Blocker 여전, 사용자가 NOPASSWD sudoers 설정 전까지 스킵).
+UX-40 → `/jobs` 클러스터) + 이 확인 전부 커밋 완료. Stop hook이 여기서
+정지 시도를 정정했다 — PROJECT 전체가 유일한 work unit이므로 같은
+invocation 안에서 계속한다(아래 `WF21`).
+
+**WF21(2026-08-12, 같은 invocation 계속) — `VIS-113`(관리자 내비 5그룹
+37항목, 활성 위치 표시 없음) 부분 구현.** Stop hook 정정 이후 "다음
+후보" 목록만 보지 말고 BACKLOG 전체를 다시 훑으라는 지시에 따라 남은
+High severity 19건을 전부 재조사(`DS-01`/`DS-02`는 내 스캐너의 오탐 —
+"해소" 문구를 못 잡는 키워드 목록 문제였을 뿐 실제로는 이미 닫혀 있었다,
+AI-* 14건은 기존 판단대로 전담 설계 세션 필요, `QA-01`은 TEST SERVER
+Blocker, `VIS-108R`은 이미 범위 밖으로 남겨 둔 결정 유지). 새로 손댈
+만한 것은 `VIS-113`이었다 — "37항목이 1080에 안 들어간다"(그룹 재편,
+`WORK_PLAN_INDEX.md` §3의 "관리자 IA" 사이클로 이미 큰 별도 작업으로
+분류돼 있다)와 "활성 항목이 화면 밖일 때 표시가 없다"(작고 안전한
+스크롤 추가) 두 부분으로 갈라, 후자만 이번에 구현했다.
+
+**구현**: `AppShell.jsx::SidebarNav`에 활성 항목 ref + `useEffect([
+activePath])`를 추가해 라우트가 바뀔 때마다 `scrollIntoView({block:
+"nearest", behavior: prefersReducedMotion()?"auto":"smooth"})`를
+호출 — `kit.jsx`의 폼 검증 스크롤과 같은 기존 패턴을 그대로 재사용.
+하이라이트(`aria-current`/`selected`) 자체는 이미 있었다.
+
+**검증**: 신규 시험 2건(`sidebar-active-item-scroll.test.jsx`,
+`Element.prototype.scrollIntoView` 목 + `kit-scroll-reduced-motion.
+test.jsx`와 같은 기존 목 패턴), revert-to-verify로 ref를 빼면 두 시험
+모두 정확히 "호출 안 됨"으로 실패하는 것을 먼저 확인. `AppShell.jsx`가
+앱 전체 셸이라 프런트 전체(222파일/1514건) 재실행 green. `npm run
+build`+`check_bundle_fresh.py --write`+`bash scripts/static_checks.sh`
+→ `STATIC_CHECKS_OK`.
+
+이 배치(`VIS-113`) 커밋 완료. **다음 후보**(전부 재확인됨, 상단 몇 줄만
+보지 않고 BACKLOG 전체 재스캔 결과): RESP-04 축소 레일 사이드바 ·
+VIS-122 본 수정 · KPI 그리드 클러스터(`VIS-119/120/121`) · `VIS-114`/
+`VIS-115`(관리자 IA 재편, `VIS-113` 나머지 절반과 같은 클러스터) ·
+QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · AI-* 아키텍처 클러스터
+14건(전담 설계 세션 필요, 여전히 보류) · BACKLOG Med/Low 클러스터
+계속 스캔 · PHASE 1 Product Audit Handoff 대기 · TEST SERVER 배포
+(자격증명 Blocker 여전).
