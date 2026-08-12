@@ -748,3 +748,31 @@ def test_prompt_usage_stats_marks_unused(client, login_as):
     assert row["template_refs"] == 0 and row["schedule_refs"] == 0
     assert row["document_runs"] == 0
     assert row["unused"] is True
+
+
+def test_prompt_usage_stats_counts_beyond_the_old_50_sample_cap(client, login_as, db):
+    """UB-11/UB-12: 이름당 버전이 50개를 넘으면 예전엔 `sorted(ids)[:50]`(UUID 사전순 —
+    임의 표본)만 세었다. 실제로 쓰이는 버전의 id가 그 표본 밖이면(여기서는 사전순 맨 뒤가
+    되도록 일부러 구성) 운영 중인 프롬프트가 '쓰이지 않음'으로 잘못 표시됐다 — 이 화면의
+    존재 이유(정리 대상을 고른다)를 정면으로 배신하는 오탐이었다."""
+    from app.documents.models import STATUS_PENDING, DocumentGeneration
+    from app.prompts.models import Prompt
+
+    name = "51개 버전 프롬프트"
+    used_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"  # 사전순 항상 맨 뒤 — 옛 50개 표본 밖
+    for v in range(1, 51):
+        db.add(Prompt(id=f"00000000-0000-0000-0000-{v:012d}", name=name, version=v, content="x"))
+    db.add(Prompt(id=used_id, name=name, version=51, content="x"))
+    db.add(DocumentGeneration(
+        template_id=None, workflow_id="wf-1", mode="manual",
+        idempotency_key="ub11-regression-key", status=STATUS_PENDING,
+        config_json=json.dumps({"prompt_id": used_id}),
+    ))
+    db.commit()
+
+    login_as("system_admin")
+    stats = client.get("/api/admin/prompts/usage/stats").json()["items"]
+    row = [i for i in stats if i["name"] == name][0]
+    assert row["versions"] == 51
+    assert row["document_runs"] == 1, "사전순 맨 뒤 버전의 실제 사용이 안 잡혔다"
+    assert row["unused"] is False, "실제로 쓰이는 프롬프트가 '쓰이지 않음'으로 오탐됐다"

@@ -303,9 +303,20 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
 
         추측하지 않는다: 참조가 0이면 0으로 보여 준다. "쓰이지 않는 프롬프트"를 알아보는
         것이 이 화면의 목적이므로, 애매하게 감추면 목적이 사라진다.
-        """
-        from sqlalchemy import or_ as _or
 
+        ## `doc_runs` 는 정확한 값이어야 한다 (UB-11/UB-12)
+
+        예전엔 이름당 버전 id를 `sorted(ids)[:50]`으로 잘라(UUID 사전순 — **임의 표본**)
+        그것들만 `config_json LIKE '%id%'`로 찾았다. 버전이 50개를 넘는 이름에서 실제로
+        쓰이는 버전의 id가 하필 그 50개 밖이면 `doc_runs=0`이 나와 **운영 중인 프롬프트가
+        "쓰이지 않음"으로 잘못 표시됐다** — 이 화면의 존재 이유(정리 대상을 고른다)를
+        정면으로 배신하는 오탐이었다. 게다가 이름마다 쿼리를 하나씩 날려(N+1) 이름 수만큼
+        LIKE 스캔(인덱스 불가)을 반복했다. `config_json`은 `documents/service.py`가
+        `prompt_id`/`policy_id` 키로 정확한 버전 id를 저장하므로(`_resolve_published_binding`
+        결과), LIKE 대신 `json_extract`로 그 키를 **정확히** 뽑아 **한 번**의 질의로 전체
+        집계를 만든다(`jobs/router.py`가 이미 쓰는 것과 같은 `func.json_extract` 패턴).
+        표본이 아니라 전수이므로 상한(50)도, 이름당 반복 질의도 사라진다.
+        """
         from app.documents.models import DocumentGeneration
         from app.schedules.models import Schedule
         from app.templates.models import AutomationTemplate as Template
@@ -328,6 +339,15 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             if kind == "prompts"
             else []
         )
+        extracted_id = func.json_extract(DocumentGeneration.config_json, "$." + id_field)
+        doc_run_counts: dict[str, int] = dict(
+            db.execute(
+                select(extracted_id, func.count())
+                .select_from(DocumentGeneration)
+                .where(extracted_id.is_not(None))
+                .group_by(extracted_id)
+            ).all()
+        )
 
         items = []
         for name, versions in by_name.items():
@@ -335,18 +355,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             published = [v for v in versions if v.status == STATUS_PUBLISHED]
             templates_using = sorted({n for vid, n in template_refs if vid in ids})
             schedules_using = sorted({n for vid, n in schedule_refs if vid in ids})
-            # UUID 를 LIKE 로 찾는다 — config_json 안에 들어 있어 컬럼으로는 못 건다.
-            # id 가 UUID 라 오탐이 사실상 불가능하고, 버전 수만큼만 절이 붙는다.
-            capped = sorted(ids)[:50]
-            doc_runs = 0
-            if capped:
-                doc_runs = int(
-                    db.execute(
-                        select(func.count())
-                        .select_from(DocumentGeneration)
-                        .where(_or(*[DocumentGeneration.config_json.like(f"%{i}%") for i in capped]))
-                    ).scalar_one()
-                )
+            doc_runs = sum(doc_run_counts.get(vid, 0) for vid in ids)
             items.append({
                 "name": name,
                 "versions": len(versions),

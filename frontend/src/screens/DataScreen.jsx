@@ -74,10 +74,16 @@ export function DataScreen({ config }) {
   // (지정 안 하면 draft/test/review/published/archived가 첫 방문부터 뒤섞여 보였다). 여전히
   // 사용자가 '전체'로 바꿀 수 있다(select의 빈 옵션이 그대로 남아 있음).
   const [filters, setFilters] = useState(() => {
+    // 주소에 필터가 하나라도 실려 있으면(딥링크) 그 의도를 화면 기본값 **전체**보다 우선한다
+    // (UB-13/RG-08) — 예전엔 키 단위로만 병합해서, "이 이름 버전 보기" 딥링크가 `name`만
+    // 실어도 지정 안 한 `status` 기본값(`published`)이 살아남았다. 발행 버전이 없는(=이
+    // 화면이 정리 대상으로 드러내려는) 이름을 누르면 "검색 결과 없음"이 뜬 이유가 그것이다.
+    // 정말 아무 필터도 안 실린 첫 방문(주소창 직접 입력, 사이드바 메뉴 클릭)일 때만 화면
+    // 기본값을 채운다 — `buildViewQuery`가 기본값을 주소에 안 싣는 것과 대칭이다.
+    if (Object.keys(initialView.filters).length > 0) return { ...initialView.filters };
     const d = {};
     (config.filters || []).forEach((f) => { if (f.value != null && f.value !== "") d[f.key] = f.value; });
-    // 주소에 실린 값이 config 기본값을 이긴다 — 링크를 준 사람의 의도가 화면 기본값보다 우선이다.
-    return { ...d, ...initialView.filters };
+    return d;
   });          // 서버측 필터(감사·사용자 등)
   // 액션 실행 중(중복 클릭·느린 동기 호출 방지) — 어떤 특정 액션이 실행 중인지 key로 구분한다.
   // 예전엔 단순 boolean이라 하나를 누르면 이 화면의 모든 헤더/상세 드로어 버튼이 동시에 '처리
