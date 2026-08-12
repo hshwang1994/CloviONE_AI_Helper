@@ -14,10 +14,40 @@
   루프 프로세스가 죽어 있을 때만(재부팅·크래시) 다시 띄우는 **감시자**다(§install_task.ps1,
   15분마다 확인). 루프가 살아있으면 잠금 파일 때문에 즉시 종료하는 무료 no-op이다.
 
-  각 반복은 Claude Code CLI를 매번 **새 비대화형(-p) 프로세스**로 띄운다. 대화를 이어받지
-  않는다 — 이 프로젝트 자체의 규칙(CLAUDE.md §0: "작업 상태는 대화가 아니라 파일에 있다")과
-  같은 이유다: 매 반복이 docs/*.md + git 상태만 보고 스스로 복구해야, 대화가 무한히 길어지며
-  컨텍스트가 터지는 일이 없다.
+  2026-08-12 재설계(사용자 지시: "Persistent Worker Session — 매 반복마다 새 세션을 만들지
+  마라, 하나의 Worker Session을 계속 이어가라"): 이전 판은 매 반복을 완전히 새 비대화형(-p)
+  세션으로 띄우고 docs/*.md + git만으로 복구했다. 그 이유(컨텍스트 무한 증가 방지)는 여전히
+  유효한 우려지만, Claude Code CLI는 세션을 서버 측에 유지하며 자동 압축(auto-compact)하므로
+  **하나의 세션을 --resume으로 계속 이어가면서도** 그 문제를 겪지 않는다 — 실제로 확인함
+  (아래 참고). 이제 각 반복은:
+    - var\runner\session_id.txt 에 저장된 session_id가 있으면 `--resume <id>` 로 그 대화를
+      이어받는다 — Claude는 이전 반복의 대화 기억을 그대로 갖고 시작한다.
+    - 없으면(최초 실행, 또는 resume 실패로 지워진 뒤) 새 GUID를 만들어 `--session-id <id>`
+      로 새 Worker Session을 시작하고 즉시 파일에 저장한다(호출 전에 저장 — 프로세스가
+      죽어도 다음 반복이 무엇을 시도했는지 안다).
+    - resume가 실패하면(저장된 session_id가 더 이상 유효하지 않음) exit code != 0 이고
+      stderr에 정확히 "No conversation found with session ID: <id>" 가 찍힌다 — 2026-08-12
+      실제 CLI 호출로 이 시그니처를 확인함(견본: `claude -p --resume <가짜 UUID>
+      --output-format json --tools ""` → exit=1, stdout 비어있음, stderr에 위 문구).
+      이 경우 consecutiveFailures를 올리지 않고(작업 실패가 아니라 세션 인프라 문제)
+      session_id.txt를 지운 뒤 sleep 없이 즉시 다음 반복에서 새 세션으로 재시작한다.
+    - 그래도 CLAUDE.md §0("작업 상태는 대화가 아니라 파일에 있다")은 프롬프트에 그대로
+      남긴다 — 대화 기억이 있어도 그것보다 저장소의 실제 상태(docs/git/source)를 우선
+      신뢰하라고 매 반복 다시 지시한다. 대화가 길게 이어지며 사람이 저장소를 직접 건드렸을
+      가능성, 또는 이전 반복의 판단이 틀렸을 가능성을 매번 재확인하기 위함이다.
+
+  검증(2026-08-12, 실제 API 호출로 확인 — var/runner를 건드리지 않는 격리된 호출):
+    1) `--session-id <신규 UUID>` 로 세션 시작 → 응답 JSON의 session_id가 요청한 UUID와
+       일치, "코드워드를 기억해라"라고 지시.
+    2) 같은 UUID로 `--resume <UUID>` 재호출(새 프로세스) → 실제로 그 코드워드를 정확히
+       그대로 답함(result="PINEAPPLE42") — 대화가 프로세스 경계를 넘어 실제로 이어짐을
+       증명. cache_read_input_tokens가 1차 호출의 cache_creation_input_tokens와 일치.
+    3) 존재하지 않는 UUID로 `--resume` → exit=1, stderr="No conversation found with
+       session ID: ...", stdout 비어있음 — 위 실패 감지 로직의 근거.
+
+  각 반복은 Claude Code CLI를 매번 **새 비대화형(-p) 프로세스**로 띄우지만(OS 프로세스는
+  매번 새로 뜬다), `--resume`으로 같은 대화(Worker Session)를 이어받는다 — OS 프로세스
+  재시작과 대화 연속성은 별개다.
 
   안전장치(무한 오동작 방지 — 유지):
     - var\runner\STOP 파일 — 다음 반복 시작 전에 확인. 있으면 루프 자체를 끝낸다(사용자 강제 중지).
@@ -56,6 +86,7 @@ $CompleteFile = Join-Path $RunnerDir "PROJECT_COMPLETE"
 $LockFile   = Join-Path $RunnerDir "run.lock"
 $StateFile  = Join-Path $RunnerDir "state.json"
 $RunnerLog  = Join-Path $RunnerDir "runner.log"
+$SessionIdFile = Join-Path $RunnerDir "session_id.txt"  # secret 아님(불투명 UUID) — git엔 안 올라감(var/ 전체 gitignore)
 
 $MaxConsecutiveFailures = 3
 $MaxBudgetUsd = 15
@@ -85,6 +116,24 @@ function Load-State {
 
 function Save-State($state) {
     $state | ConvertTo-Json | Set-Content $StateFile -Encoding utf8
+}
+
+# ── Persistent Worker Session id ──────────────────────────────────────────────
+function Load-SessionId {
+    if (-not (Test-Path $SessionIdFile)) { return $null }
+    $v = (Get-Content $SessionIdFile -Raw -ErrorAction SilentlyContinue)
+    if ($null -eq $v) { return $null }
+    $v = $v.Trim()
+    if ($v -match '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') { return $v }
+    return $null  # 손상/빈 파일 — 새 세션으로 취급(영구 정지 방지)
+}
+
+function Save-SessionId([string]$id) {
+    Set-Content -Path $SessionIdFile -Value $id -Encoding utf8 -NoNewline
+}
+
+function Clear-SessionId {
+    Remove-Item -Path $SessionIdFile -Force -ErrorAction SilentlyContinue
 }
 
 # ── 겹쳐 돌지 않기 ────────────────────────────────────────────────────────────
@@ -120,11 +169,15 @@ Set-Content -Path $LockFile -Value $PID
 
 $prompt = @'
 당신은 ClovirONE Web Assistant 프로젝트의 자율 완성 루프를 이어받는다. 이것은 사람이 실시간으로
-지켜보지 않는, 비대화형·무인 실행이다. 지금 이전 대화 기억은 없다 — 그것이 정상이다. 이 실행이
-끝나면 **곧바로, 아무 지연 없이** 다음 실행이 같은 프롬프트로 다시 시작된다(연속 실패나 STOP
+지켜보지 않는, 비대화형·무인 실행이다. 이 실행은 이전 반복과 같은 Worker Session을 이어받은
+것일 수도(대화 기억 있음), 방금 새로 시작된 것일 수도 있다(대화 기억 없음 — 정상, 이전 세션이
+resume 불가능해졌을 때 자동으로 새로 시작된다). 어느 쪽이든 아래 1단계부터 실제로 다시 확인하고
+시작하라 — 대화 기억이 있어도 그것을 저장소의 실제 현재 상태보다 우선 신뢰하지 마라(사람이 그
+사이 저장소를 직접 건드렸을 수 있고, 이전 반복의 판단이 틀렸을 수도 있다). 이 실행이 끝나면
+**곧바로, 아무 지연 없이** 같은 Worker Session이 이어서 다음 실행으로 재개된다(연속 실패나 STOP
 파일, 완료 마커가 없는 한) — 그러니 "이번 턴에 할 만큼 했다"는 이유로 일찍 끝내지 않는다.
 
-## 1단계 — 상태 복원
+## 1단계 — 상태 복원(대화 기억이 있어도 매 반복 실제로 다시 확인)
 다음을 순서대로 읽어라: CLAUDE.md, docs/WORK_STATE.md, docs/BACKLOG.md, docs/QA_COVERAGE.md,
 docs/DECISIONS.md, docs/PROGRESS_STATUS.md, docs/WORK_PLAN_INDEX.md, 그리고 현재 `git status`·
 `git log --oneline -20`. 대화 기억이 아니라 이 파일들과 git만 진실이다. WORK_STATE.md의
@@ -227,12 +280,31 @@ try {
         # stdin에서 프롬프트를 읽는다 — 직접 확인함) 커맨드라인 조립 자체를 우회한다.
         Set-Content -Path $promptFile -Value $prompt -Encoding utf8 -NoNewline
 
+        # Persistent Worker Session: 저장된 session_id가 있으면 이어받고(--resume), 없으면
+        # 새로 시작하며 즉시 저장한다(프로세스가 죽어도 다음 반복이 무엇을 시도했는지 안다).
+        $sessionId = Load-SessionId
+        $isNewSession = $false
+        if ($null -eq $sessionId) {
+            $sessionId = [guid]::NewGuid().ToString()
+            $isNewSession = $true
+            Save-SessionId $sessionId
+            Write-RunnerLog "저장된 Worker Session이 없음 — 새 session_id=$sessionId 로 시작."
+        } else {
+            Write-RunnerLog "기존 Worker Session을 이어받음(--resume) session_id=$sessionId"
+        }
+        $sessionArgs = if ($isNewSession) { @("--session-id", $sessionId) } else { @("--resume", $sessionId) }
+
+        # 주의: 이 배열에 빈 문자열("") 요소를 넣지 마라(예: 과거 --tools "" 실험). Windows에서
+        # Start-Process -ArgumentList가 배열을 커맨드라인 문자열로 재조립할 때 빈 문자열 요소를
+        # 누락시켜 뒤따르는 모든 인자가 한 칸씩 밀리는 것을 2026-08-12 실제로 재현/확인함(그
+        # 결과 --session-id/--resume가 전혀 다른 값으로 오인되어 엉뚱한 세션에 붙는 것까지
+        # 확인) — 이전 "--oneline 오인식" 버그와 같은 계열의 함정이다.
         $argList = @(
             "-p",
             "--permission-mode", "auto",
             "--max-budget-usd", $MaxBudgetUsd,
             "--output-format", "json"
-        )
+        ) + $sessionArgs
 
         $proc = Start-Process -FilePath $ClaudeExe -ArgumentList $argList -WorkingDirectory $ProjectDir `
             -RedirectStandardInput $promptFile -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -PassThru -NoNewWindow
@@ -246,16 +318,26 @@ try {
             $exitCode = $proc.ExitCode
         }
 
-        # rate-limit/overload로 보이는 실패만 따로 잡는다 — 그 외 일반 실패는 즉시 재시도하고
-        # 연속 3회 상한이 최종 안전망이다(사용자 지시 §3 — 일반 작업엔 idle timer를 안 쓴다).
+        # rate-limit/overload, 그리고 session resume 실패만 따로 잡는다 — 그 외 일반 실패는
+        # 즉시 재시도하고 연속 3회 상한이 최종 안전망이다(사용자 지시 §3 — 일반 작업엔 idle
+        # timer를 안 쓴다). resume 실패 시그니처는 2026-08-12 실제 CLI 호출로 확인함:
+        # exit != 0, stdout 비어있음, stderr == "No conversation found with session ID: <id>".
         $isRateLimit = $false
+        $isResumeFailure = $false
         if ($exitCode -ne 0) {
             $errText = ""
             if (Test-Path "$logFile.err") { $errText += Get-Content "$logFile.err" -Raw -ErrorAction SilentlyContinue }
             if (Test-Path $logFile) { $errText += Get-Content $logFile -Raw -ErrorAction SilentlyContinue }
-            if ($errText -match '(?i)rate.?limit|overloaded|429|503|529') {
+            if ((-not $isNewSession) -and ($errText -match '(?i)No conversation found with session ID')) {
+                $isResumeFailure = $true
+            } elseif ($errText -match '(?i)rate.?limit|overloaded|429|503|529') {
                 $isRateLimit = $true
             }
+        }
+
+        if ($isResumeFailure) {
+            Write-RunnerLog "저장된 session_id=$sessionId 를 더 이상 resume할 수 없음(세션 인프라 문제 — 작업 실패 아님) — 지우고 다음 반복에서 새 Worker Session으로 즉시 재시작."
+            Clear-SessionId
         }
 
         $iterationsThisLaunch += 1
@@ -263,6 +345,10 @@ try {
         if ($exitCode -eq 0) {
             $state.consecutiveFailures = 0
             $state.consecutiveRateLimitHits = 0
+        } elseif ($isResumeFailure) {
+            # consecutiveFailures도 rate-limit 카운터도 안 올린다 — session resume 인프라
+            # 문제는 "이 작업이 틀렸다"는 신호가 아니고, 새 세션으로 즉시 재시도하면 되므로
+            # 반복 상한을 소모시킬 이유가 없다(단, $iterationsThisLaunch 런어웨이 상한은 그대로 적용).
         } elseif ($isRateLimit) {
             $state.consecutiveRateLimitHits = [int]$state.consecutiveRateLimitHits + 1
             # consecutiveFailures는 안 올린다 — rate-limit은 "이 작업이 틀렸다"는 신호가 아니다.
@@ -275,14 +361,14 @@ try {
         $state.totalIterationsThisLaunch = $iterationsThisLaunch
         Save-State $state
 
-        Write-RunnerLog "반복 종료 exit=$exitCode rateLimit=$isRateLimit consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns)"
+        Write-RunnerLog "반복 종료 exit=$exitCode rateLimit=$isRateLimit resumeFailure=$isResumeFailure consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns)"
 
         if ($isRateLimit) {
             $backoff = [Math]::Min($RateLimitBaseBackoffSeconds * [Math]::Pow(2, [int]$state.consecutiveRateLimitHits - 1), $RateLimitMaxBackoffSeconds)
             Write-RunnerLog "rate-limit/overload로 보임 — ${backoff}초 대기 후 재시도(진짜 기다릴 이유가 있는 경우만 백오프, 사용자 지시 §3)."
             Start-Sleep -Seconds $backoff
         }
-        # 성공했거나(exit=0) 일반 실패면 sleep 없이 곧장 다음 반복으로 — 이것이 이 재설계의 핵심이다.
+        # 성공했거나(exit=0) 일반 실패/resume 실패면 sleep 없이 곧장 다음 반복으로 — 이것이 이 재설계의 핵심이다.
     }
 } finally {
     Remove-Item -Path $LockFile -Force -ErrorAction SilentlyContinue

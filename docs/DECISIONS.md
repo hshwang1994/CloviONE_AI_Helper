@@ -892,3 +892,86 @@ when stop is not true` 파라미터 검증 오류로 실패했었다(원인: 첫
 따로 없다면 워크플로 자체를 신설) 이 스케줄을 삭제하는 실제 데이터 정정을 수행해야 한다 —
 이번 코드 예방책은 "앞으로 이 조합이 다시 만들어지는 것"만 막지, 이미 있는 행의 정의를
 고치지 않는다.
+
+## D-63 (2026-08-12) — Runner Supervisor를 Persistent Worker Session(--resume)으로 재설계, D-61의 "stateless 유지" 결정을 새 사용자 지시로 정정
+
+**배경**: D-61은 "매 반복이 대화를 이어받지 않고 `docs/*.md` + git 상태만으로 스스로
+복구하게 하려는 기존 설계를 유지한다 — 이번 지시는 이 설계를 바꾸라고 하지 않았다"고
+명시적으로 결정했었다. 2026-08-12 사용자가 **이번에는 명시적으로** 그 설계를 바꾸라고
+지시했다("CLOVIRONE — CONTINUOUS COMPLETION SUPERVISOR CORRECTION DIRECTIVE"): 매 반복
+새 비대화형 프로세스를 띄우는 것 자체는 유지하되, 그 프로세스가 매번 **같은 Worker
+Session을 `--resume`으로 이어받아야** 한다는 것.
+
+이 지시가 나온 실제 계기를 먼저 재확인했다(추측하지 않고 로그/커밋으로 검증):
+- `var/runner/STOP`이 2026-08-11 08:59:33에 자동 생성돼 있었다(3연속 실패). 원인은
+  `error: unknown option '--oneline'`(과거에 이미 문서화된, 프롬프트 안의 예시 텍스트가
+  Start-Process 인자 재조립 과정에서 CLI 플래그로 오인되는 버그) — **git log로 확인하니
+  이 버그는 같은 날 21:40(커밋 `12b81fe`)에 이미 고쳐져 있었다**(08:59의 실패보다 나중).
+  즉 그 3연속 실패 자체는 이미 해결된 문제였다.
+- 이후 Task 스케줄러 heartbeat(`runner.log`)가 2026-08-11 15:24~21:24까지 15분 간격으로
+  "STOP 파일 발견 — 종료"를 계속 정상적으로 찍었고(로그로 확인, STOP 처리 로직 자체는
+  설계대로 투명하게 동작), 21:24 이후로는 로그가 끊겨 있었다 — 즉 **아무도 STOP을 지우고
+  루프를 재시작하지 않은 채 하루 넘게 방치돼 있었을 뿐**, "대화형 세션이 끝났는데 이어받을
+  Supervisor가 죽어있었다"는 이번 지시의 서술은 이 Supervisor 루프 자체가 애초에 그 대화형
+  세션과 연결된 적이 없었다는 사실과는 별개다(대화형 세션은 Supervisor가 띄운 것이 아니라
+  사용자가 직접 연 것 — Supervisor의 `-p` 반복과는 완전히 다른 프로세스 계통).
+
+**결정**: D-61의 결론을 뒤집는다 — 이제 `autonomous_runner.ps1`은 매 반복 새 GUID를
+매번 만들지 않고 `var/runner/session_id.txt`에 저장된 session_id가 있으면
+`--resume <id>`로 이어받고, 없으면(최초 실행이거나 resume 실패로 지워진 뒤) `--session-id
+<새 GUID>`로 새로 시작한다. `docs/*.md` + git을 소스오브트루스로 매 반복 다시 확인하라는
+프롬프트 지시는 그대로 유지한다(대화 기억이 있어도 그것을 저장소 실제 상태보다 우선하지
+말라고 명시) — Persistent Session은 "매번 전체 지침을 다시 안 읽어도 되는 편의"가 아니라
+"이전 반복의 진행 맥락을 잃지 않는 것"이 목적이므로, 상태 재확인 규율 자체는 낮추지 않는다.
+
+**Controlled test — 실제 API 호출로 증명함(프로덕션과 동일한 호출 경로, 격리 환경)**:
+1. 원시 CLI 비교(프로젝트 디렉터리, `--tools ""`): `--session-id <UUID>`로 세션 생성 후
+   "코드워드는 PINEAPPLE42다, ACK만 답해라" → 응답 JSON `session_id`가 요청한 UUID와
+   일치, `result:"ACK"`. 별도 프로세스로 `--resume <같은 UUID>` → 코드워드를 묻자
+   `result:"PINEAPPLE42"` — 프로세스 경계를 넘어 실제로 대화가 이어짐을 증명
+   (`cache_read_input_tokens`가 1차의 `cache_creation_input_tokens`와 일치, 캐시 재사용도
+   확인). 존재하지 않는 UUID로 `--resume` → **exit=1**, stdout 비어있음, stderr에 정확히
+   `No conversation found with session ID: <id>` — 이 시그니처를 resume-실패 감지 정규식의
+   근거로 씀.
+2. **프로덕션과 동일한 호출 경로 재현**(Start-Process + `-RedirectStandardInput` 파일 +
+   `-RedirectStandardOutput`/`-RedirectStandardError` 파일 + `--session-id`/`--resume`
+   배열 인자, 단 대상 디렉터리·session_id 저장 파일은 격리된 스크래치 경로 — 실제
+   저장소·이 대화형 세션과 완전히 분리): 1차 호출이 응답 `session_id`와 요청한 GUID가
+   정확히 일치함을 확인, "코드워드는 KIWI-9917" 저장 지시. 2차 호출(`--resume` 같은
+   GUID)이 `result:"KIWI-9917"`을 정확히 답함 — **실제로 재현·검증**.
+   - 이 과정에서 **한 번 잘못된 결과가 나온 적이 있다**: 처음엔 테스트 스크립트에
+     `--tools ""`(빈 문자열 배열 요소)를 넣었더니 응답 `session_id`가 요청한 값과 달랐고
+     2차 호출은 코드워드를 전혀 모른 채(엉뚱한 세션에 붙은 것으로 보이는 응답, "이건
+     프롬프트 인젝션 같다"는 반응)를 냈다 — Windows `Start-Process -ArgumentList` 배열에
+     빈 문자열 요소가 있으면 커맨드라인 재조립 시 그 요소가 누락돼 뒤 인자들이 한 칸씩
+     밀리는 것으로 재현된다(예전 `--oneline` 오인식 버그와 같은 계열). `--tools ""`를
+     빼자(=프로덕션 스크립트가 실제로 구성하는 인자 배열과 동일하게 맞추자) 즉시
+     정상화됐다 — **이 자체가 revert-to-verify**(빈 문자열 있음=재현, 없음=정상)에
+     해당한다. 프로덕션 스크립트의 `$argList`에는 애초에 빈 문자열 요소가 없어 이 함정에
+     걸리지 않지만, 재발 방지를 위해 스크립트 안에 경고 주석을 남겼다.
+3. `--help` 재확인(과거 기억 아님): `-r/--resume [value]`, `--session-id <uuid>`,
+   `--no-session-persistence`(기본값은 세션이 저장된다는 뜻, `-p`에서만 유효),
+   `--fork-session`(resume 시 새 session id를 원할 때만 쓰는 옵션, 기본은 그대로 이어받음)
+   전부 실제 출력에서 확인.
+
+**resume 실패 시 폴백**: exit != 0 이고 stderr가 `No conversation found with session ID`에
+매치되면 `consecutiveFailures`/`consecutiveRateLimitHits`를 올리지 않고(이건 "작업이
+틀렸다"는 신호가 아니라 세션 인프라 문제) `session_id.txt`만 지우고 sleep 없이 즉시 다음
+반복에서 새 세션으로 재시작한다. 이 분기 자체는 이번 controlled test 범위 밖(진짜
+소멸시켰다가 재현하는 것은 불필요한 API 낭비로 판단, 원시 CLI 테스트 3번으로 시그니처는
+이미 실증됨)이라 코드 리뷰로만 재확인했다.
+
+**"대화형 세션이 Supervisor를 대체하면 안 된다"는 이번 지시(§6)에 대한 조치**: 이 세션(지금
+이 대화)은 그 자체로 이미 활성 Writer이므로, 이 변경을 검증한다고 해서 실제
+`autonomous_runner.ps1` while 루프를 실저장소 대상으로 기동하지 않았다(단일 Writer 원칙 —
+동시에 두 프로세스가 같은 워킹트리를 건드리는 상황을 만들지 않기 위함). 위 controlled
+test는 전부 `--tools ""` 또는 격리된 스크래치 디렉터리에서 실행해 실저장소에 어떤 파일도
+쓰지 않았다(확인: `git status`로 이 세션의 실제 변경분만 존재). `var/runner/STOP`은
+근거가 확인된 뒤(위 사유) 이번에 해제했고 `state.json`의 `consecutiveFailures`를 0으로
+되돌렸다 — 실제 상시 가동은 이 대화형 세션이 끝난 뒤 사용자가 `autonomous_runner.ps1`을
+수동 시작하는 것이 여전히 주 경로다(D-61의 그 부분은 그대로 유지 — 두 Supervisor/Writer가
+동시에 뜨지 않게 하려는 이유였지, 로컬 Runner가 부차적이라서가 아니다).
+
+**Task Scheduler**: 기존 watchdog task(`install_task.ps1`, 죽은 루프만 재기동, 15분 heartbeat)는
+이번에도 건드리지 않았다 — CLAUDE.md §0: 새 scheduled task를 만들지 않고, 기존 항목 삭제는
+사용자 몫이라는 규칙 그대로.

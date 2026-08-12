@@ -12,14 +12,51 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-11(새 세션, 클린 컨텍스트 재개) · **단계**: WF8 — 12건 구현완료
-(AI-60/AI-61·ADM-03R·SRCH-01·RSTR-03·SCHD-01·USE-02·UA-20R·ADM-06R·NOTI-03 확대 6건·
-ADM-05) + 문서 정정 2건(BACKLOG 자기모순 4건, DOC-01 CSP 서술) + 정적 검사 회귀 수정 2건.
-**배치 마무리 전체 검증 green**: 백엔드 전체 회귀 2회(각각 2791+건, exit 0) · 프런트 전체
-회귀(220파일/1494건, exit 0) · 러너 전체(288건, exit 0) · `STATIC_CHECKS_OK` · 프런트
-번들 재빌드 반영. 상세는 바로 아래. 배포는 Blocker 대기(TEST SERVER 자격증명이 이
-세션에 없음 — 사용자 직접 배포 또는 승인된 접근 필요). 그 앞 WF7-U축·K축·L01,
-PROJ-01·QAH-06, RG-05·UB-25, APPR-02/03·RG-06/07, QAH/DGEN 배치, 이전
+**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) 완료 →
+BACKLOG 재개. WF8(12건 구현완료 + 전체 회귀 green)는 그대로 유효, 아래 그 상세 앞에
+이번 보정을 기록한다.
+
+**WF9-0(2026-08-12) — Runner Supervisor를 Persistent Worker Session으로 재설계(D-63).**
+사용자가 "직전 실행이 Session Summary만 남기고 끝났는데 다음 invocation이 이어받지 않았다"고
+지적하며 `autonomous_runner.ps1`을 매 반복 새 세션이 아니라 **같은 Worker Session을
+`--resume`으로 계속 이어받도록** 재설계하라고 명시적으로 지시(D-61이 "이번 지시는 이 설계를
+바꾸라고 하지 않았다"며 유지했던 그 설계를 이번엔 명시적으로 바꾸라는 지시).
+
+먼저 실제 원인을 추측 없이 로그/커밋으로 재구성했다: `var/runner/STOP`이 2026-08-11
+08:59에 3연속 실패로 자동 생성돼 있었고, 원인(`--oneline` 오인식, Start-Process 인자
+재조립 버그)은 **같은 날 21:40 커밋 `12b81fe`로 이미 고쳐진 뒤**였다 — 즉 그 STOP은 이미
+해결된 버그의 흔적일 뿐이었는데, 아무도 지우고 재시작하지 않아 15분 heartbeat가
+2026-08-11 21:24까지 "STOP 발견 — 종료"만 계속 찍다가 그 뒤로 방치돼 있었다(하루 넘게
+아무 Supervisor도 안 돈 상태 — 이번 지적의 "연속 실행 안 됨"은 로직 결함이 아니라
+아무도 재시작하지 않은 방치였다는 뜻).
+
+**구현**: `scripts/runner/autonomous_runner.ps1`에 `var/runner/session_id.txt` 저장
+session_id를 도입 — 있으면 `--resume <id>`, 없으면(최초/이전 resume 실패) `--session-id
+<새 GUID>`로 시작하고 즉시 파일에 저장. resume 실패(exit!=0 + stderr에 `No conversation
+found with session ID`)는 연속실패 카운터를 안 올리고 즉시 새 세션으로 넘어간다.
+`docs/*.md`+git을 매 반복 다시 확인하라는 프롬프트 지시는 유지(대화 기억보다 저장소
+실제 상태 우선).
+
+**Controlled test(실제 API 호출, 프로덕션과 동일한 Start-Process 호출 경로, 격리 환경 —
+실저장소·이 대화형 세션과 분리)**: (1) 원시 CLI로 `--session-id`→`--resume` 왕복 시
+코드워드가 실제로 이어짐을 증명(`result:"PINEAPPLE42"`). (2) 없는 세션 ID로 `--resume`
+시 시그니처 확인(exit=1, stderr=`No conversation found with session ID: ...`). (3)
+프로덕션과 동일한 Start-Process+파일 리다이렉트 경로로 재현 — 이 과정에서 테스트
+스크립트 자체에 `--tools ""`(빈 문자열 배열 요소)를 넣었을 때 세션이 엉뚱하게 붙는
+오류를 실제로 재현했고(Windows Start-Process 인자 재조립 함정, `--oneline` 버그와 같은
+계열), 제거하자 정상화됨을 확인(`result:"KIWI-9917"` 정확히 일치) — 이 자체가
+revert-to-verify. 근거는 `docs/DECISIONS.md` D-63에 로그 원문과 함께 기록.
+
+근거가 확인된 뒤 `var/runner/STOP`을 해제하고 `state.json.consecutiveFailures`를 0으로
+되돌렸다(사유를 `runner.log`에 남김). **이 대화형 세션이 여전히 활성 Writer이므로 실제
+`autonomous_runner.ps1` while 루프는 기동하지 않았다** — 단일 Writer 원칙(이번 지시 §6/§8)
+때문에, 검증은 격리된 스크래치 환경에서만 했다. 상시 가동은 이 세션이 끝난 뒤 사용자가
+`autonomous_runner.ps1`을 수동 시작하는 것이 여전히 주 경로(D-61 원칙 유지, 이유는
+"두 Writer 동시 실행 방지"이지 로컬 Runner가 부차적이라서가 아님). 기존 Task Scheduler
+watchdog(`install_task.ps1`)은 건드리지 않았다(신규 생성 금지, 기존 삭제는 사용자 몫).
+
+이 보정 자체는 완료 조건이 아니다 — 곧바로 아래 WF8 이후 남은 BACKLOG/QA_COVERAGE
+작업으로 계속한다.
 
 **새 세션 시작(2026-08-11) — 상태 복원 + Runner Supervisor 재확인.** 이전 대화 기억 없이
 CLAUDE.md·WORK_STATE·BACKLOG·QA_COVERAGE·DECISIONS·Git을 교차 대조해 복원했다.
