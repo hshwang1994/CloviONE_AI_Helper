@@ -247,6 +247,13 @@ describe("링크", () => {
     const anchor = within(runners).getByRole("link");
     expect(anchor.getAttribute("href")).toBe(SETUP_LINKS.llm.href);
   });
+
+  it("SYS-06: llm 항목은 러너 화면으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {
+    // app/setup/probes.py::probe_llm의 세 안내(등록·활성화·헬스체크)가 전부 "관리 콘솔의
+    // 러너 화면에서"라고 말한다 — 링크가 AI 관리(/llm-console)로 가면 그 문구를 따라도
+    // 이 항목을 고칠 수 있는 화면에 도달하지 못한다.
+    expect(SETUP_LINKS.llm.href).toBe("#/runners");
+  });
 });
 
 // ── 권한 ─────────────────────────────────────────────────────────────────────

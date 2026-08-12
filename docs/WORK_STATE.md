@@ -12,9 +12,12 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF21 — Stop hook이 조기 종료 시도를
-정정, BACKLOG 전체 재스캔 후 `VIS-113`(사이드바 활성 항목 스크롤) 구현완료.
-그 직전 WF20 — `/jobs` 작업 큐 클러스터
+**마지막 갱신**: 2026-08-12 · **단계**: WF22 — `/setup`·`/llm-console`
+클러스터(`SYS-04~09` 6건) — SYS-05(자체서명 인증서 오판정)·SYS-06(setup
+링크가 엉뚱한 화면으로 감)·SYS-07(select 빈 상자) 구현완료, SYS-04/08/09는
+각각 배포 필요/설계 필요로 명시적 보류. 그 직전 WF21 — Stop hook이 조기
+종료 시도를 정정, BACKLOG 전체 재스캔 후 `VIS-113`(사이드바 활성 항목
+스크롤) 구현완료. 그 앞 WF20 — `/jobs` 작업 큐 클러스터
 (`VIS-117~123` 7건, "같은 화면 Root Cause 묶음" 첫 적용) — `VIS-117` 절반
 구현(목록 위 페이저 추가, `DataScreen.jsx` 공유), `VIS-118` 오탐 정정
 (이미 2026-08-07에 고쳐져 있었다), `VIS-122` 완화 사실 발견 후 전담
@@ -3152,3 +3155,51 @@ QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · AI-* 아키텍처 �
 14건(전담 설계 세션 필요, 여전히 보류) · BACKLOG Med/Low 클러스터
 계속 스캔 · PHASE 1 Product Audit Handoff 대기 · TEST SERVER 배포
 (자격증명 Blocker 여전).
+
+**WF22(2026-08-12, 같은 invocation 계속) — `/setup`·`/llm-console`
+클러스터, `SYS-04~09` 6건.** High 소진 후 Med 122건을 스캐너로 훑다가
+연속 ID(SYS-04~09, 같은 화면군 `/setup`·`/llm-console`)를 발견해 함께
+조사. 실제로 손댈 만한 3건(SYS-05/06/07)과, 코드로는 못 고치는/더 큰
+설계가 필요한 3건(SYS-04/08/09)이 갈렸다:
+
+- `SYS-05`(자체서명 인증서를 초록 "됨"으로 표시): `app/health/service.py`
+  에 `is_self_signed_cert()`(issuer==subject, `_cert_days_remaining`과
+  같은 "모르면 None" 규약) 신설. `probe_tls`가 자체서명이면 만료 전이어도
+  `_done` 대신 `_unknown`(운영 전엔 정상일 수 있어 `_todo`의 강한 빨강은
+  과하다는 판단, CLAUDE.md §10과 같은 결).
+- `SYS-06`(setup의 AI 러너 항목이 러너 화면을 안내하면서 링크는
+  `/llm-console`로 감): 이번 배치 전에 있었던 `RN-10`/`RN-11` 조사가
+  결정적 근거가 됐다 — `/llm-console`이 설정하는 것(`app/llm/service.py`
+  CLI 백엔드)과 `probe_llm`이 재는 것(`Runner` 레지스트리)이 애초에
+  무관한 별개 시스템이라는 것을 그 조사에서 이미 확인해 뒀다. `SETUP_
+  LINKS.llm`을 `#/runners`로 정정.
+- `SYS-07`(`/llm-console`의 사용 여부·백엔드 select가 빈 상자로 보임):
+  `DataScreen.jsx` 필터 select가 이미 겪고 고친 것과 **같은 MUI 함정**
+  (`value=""`엔 `SelectProps={{displayEmpty:true}}` 없으면 라벨이 있는
+  MenuItem이어도 안 그린다) — 이 화면만 그 패턴을 안 받았었다.
+- `SYS-04`(argv 정확성 검증 불가): 코드로 못 고친다 — 실서버 대조 검사가
+  필요한데 TEST SERVER 배포 Blocker와 같은 제약. 배포 가능해지면 실행할
+  일로 남김.
+- `SYS-08`/`SYS-09`(두 설정 화면의 필드 규약·저장 모델 불일치): 둘 다
+  폼 상태 관리 자체를 다시 짜야 해(`SYS-09`는 `llm-console.test.jsx`의
+  기존 저장 계약과 정면으로 얽힌다) 빠른 배치로는 절반만 고치고 남길
+  위험 — 다음 사이클의 "관리자 설정 화면 일관성" 후보로 명시적으로 남김.
+
+**검증**: 신규 시험 6건(`is_self_signed_cert` 참/거짓/None 2가지 —
+`test_health_worker_hardening.py`, `probe_tls` 자체서명/CA서명 분리
+— `test_setup_checklist.py`, setup 링크 정정 — `setup-wizard.test.jsx`,
+select 라벨 표시 — `llm-console.test.jsx`), 둘 다(TLS·select) revert-
+to-verify로 수정 전 정확히 그 증상으로 실패 확인. 정적 검사가 `probe_
+tls`의 새 문구에서 em dash 1건을 실제로 잡아 즉시 정정. 백엔드 관련
+스위트(56건)+프런트 전체(222파일/1516건) green. `npm run build`+
+`check_bundle_fresh.py --write`+`bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`.
+
+이 배치(`SYS-04~09`) 커밋 완료. **다음 후보**: RESP-04 축소 레일
+사이드바 · VIS-122 본 수정 · KPI 그리드 클러스터(`VIS-119/120/121`) ·
+`VIS-114`/`VIS-115`(관리자 IA 재편) · SYS-08/09(관리자 설정 화면
+일관성) · SYS-04(TEST SERVER 배포 가능해지면 argv 대조 실행) ·
+QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · AI-* 아키텍처 클러스터
+14건(전담 설계 세션 필요) · BACKLOG Med/Low 클러스터 계속 스캔 ·
+PHASE 1 Product Audit Handoff 대기 · TEST SERVER 배포(자격증명
+Blocker 여전).

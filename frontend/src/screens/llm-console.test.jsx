@@ -155,6 +155,18 @@ describe("화면", () => {
     expect(screen.getByText("백엔드: cli")).toBeInTheDocument();
   });
 
+  it("SYS-07: '사용 여부'·'백엔드' 상자는 안 고른 상태에서도 빈 상자가 아니라 라벨을 보여준다", async () => {
+    // value=""는 MUI가 "아직 안 고름"으로 보고 라벨을 안 그리는 게 기본값이다
+    // (SelectProps displayEmpty:true 가 없으면 여기서 실패한다) — 빈 상자만 보면
+    // "서버 값을 따름"(정상)과 "안 불러와짐"(오류)을 구분할 수 없었다.
+    mockApi({ view: overview() });
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
+
+    expect(screen.getByLabelText("사용 여부")).toHaveTextContent("서버 환경변수를 따름");
+    expect(screen.getByLabelText("백엔드")).toHaveTextContent("서버 환경변수를 따름");
+  });
+
   it("사용 여부에 '환경변수를 따름' 이 따로 있다", async () => {
     // 끄기와 안 정하기를 합치면 환경변수로 켜 둔 설치가 이 화면을 처음 여는 순간 꺼진다.
     mockApi({ view: overview() });

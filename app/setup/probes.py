@@ -379,7 +379,7 @@ def _health_outcome(statuses: list[str], *, noun: str, fix: str, ask: str) -> Ou
 
 
 def probe_tls(ctx: ProbeContext) -> Outcome:
-    from app.health.service import cert_days_remaining
+    from app.health.service import cert_days_remaining, is_self_signed_cert
 
     cert_path = getattr(ctx.settings, "tls_cert_path", None)
     if not cert_path:
@@ -402,6 +402,15 @@ def probe_tls(ctx: ProbeContext) -> Outcome:
         )
     if days < 0:
         return _todo("인증서가 이미 만료됐습니다.", "새 인증서로 교체하세요.")
+    # SYS-05: 만료 전이라도 자체서명이면 브라우저는 오늘 이미 경고를 띄운다 — "됨"으로
+    # 뭉개면 이 화면의 다른 문구("만료되면 브라우저가 경고를 띄우고 사용자는 접속을
+    # 포기합니다")와 정면으로 어긋난다. 운영 전 설치에서는 자체서명이 정상일 수 있어
+    # (CLAUDE.md §10) todo(빨강, "당장 하세요")가 아니라 unknown(사람이 판단할 일)으로 둔다.
+    if is_self_signed_cert(ctx.settings):
+        return _unknown(
+            f"인증서 만료까지 {days}일 남았지만 자체서명 인증서입니다(브라우저가 지금도 경고를 띄웁니다).",
+            "운영 전 내부 설치라면 그대로 둬도 됩니다. 실제 사용자에게 이 주소를 노출한다면 신뢰된 CA(사설 CA 포함)로 교체하세요.",
+        )
     return _done(f"인증서 만료까지 {days}일 남았습니다.")
 
 

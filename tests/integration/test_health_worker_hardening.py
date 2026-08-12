@@ -18,7 +18,7 @@ import pytest
 
 from app.core.db import make_engine, make_session_factory
 from app.health.models import Heartbeat
-from app.health.service import _cert_days_remaining, _component_status
+from app.health.service import _cert_days_remaining, _component_status, is_self_signed_cert
 from app.worker_main import (
     LIVENESS_COMPONENTS,
     beat_liveness,
@@ -103,6 +103,46 @@ def test_cert_days_remaining_parses_real_cert(tmp_path):
     )
     expected = (expiry - datetime.now(timezone.utc)).days
     assert days == expected
+
+
+def test_is_self_signed_cert_true_for_the_real_self_signed_test_cert(tmp_path):
+    """SYS-05: `_TEST_CERT_PEM`은 자체서명(issuer==subject, 위 주석에 명시)이다 —
+    `is_self_signed_cert`가 실제 파싱으로 그것을 그대로 확인한다."""
+    from app.health.service import is_self_signed_cert
+
+    cert = tmp_path / "cert.pem"
+    cert.write_text(_TEST_CERT_PEM)
+    settings = SimpleNamespace(tls_cert_path=str(cert))
+
+    assert is_self_signed_cert(settings) is True
+
+
+def test_is_self_signed_cert_false_when_issuer_differs_from_subject(tmp_path, monkeypatch):
+    """진짜 CA 서명 인증서 체인을 새로 만들지 않고, ssl 파싱 결과(issuer != subject)만
+    흉내 낸다 — 비교 로직 자체를 잠근다(subject==issuer가 아니면 자체서명이 아니다)."""
+    import app.health.service as health_service
+
+    cert = tmp_path / "cert.pem"
+    cert.write_text("placeholder, 아래 monkeypatch가 실제 파싱을 대신한다", encoding="utf-8")
+    settings = SimpleNamespace(tls_cert_path=str(cert))
+
+    fake_cert = {
+        "subject": ((("commonName", "clovirone-ai.gooddi.lab"),),),
+        "issuer": ((("commonName", "Some Trusted CA"),),),
+    }
+    monkeypatch.setattr(health_service.ssl._ssl, "_test_decode_cert", lambda path: fake_cert)
+
+    assert health_service.is_self_signed_cert(settings) is False
+
+
+def test_is_self_signed_cert_none_when_no_path():
+    assert is_self_signed_cert(SimpleNamespace(tls_cert_path=None)) is None
+
+
+def test_is_self_signed_cert_none_when_file_missing(tmp_path):
+    assert is_self_signed_cert(
+        SimpleNamespace(tls_cert_path=str(tmp_path / "missing.crt"))
+    ) is None
 
 
 # --------------------------------------------------------------------------- #

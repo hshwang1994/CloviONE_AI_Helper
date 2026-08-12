@@ -226,9 +226,15 @@ export function LlmConsole() {
         <Typography variant="h6">설정</Typography>
 
         <Box data-testid="llm-settings-grid" sx={SETTINGS_GRID}>
+        {/* SYS-07: value=""는 MUI Select가 "아직 아무것도 안 고름"으로 보고, 그 값의
+            MenuItem이 있어도 라벨을 안 그린다(닫힌 상자가 빈 채로 보인다) — DataScreen.jsx
+            필터 select와 같은 이유·같은 고침(SelectProps displayEmpty:true). 안 그러면
+            "서버 값을 따름"(정상 상태)과 "아직 안 불러옴"·"불러오기 실패"가 전부 똑같이
+            빈 상자로 보인다. */}
         <Field label="사용 여부" help="비워 두면 서버 환경변수(LLM_ENABLED)를 따릅니다.">
           <TextField
             select size="small" fullWidth sx={{ mt: 0.5 }}
+            SelectProps={{ displayEmpty: true }}
             value={value("llm_enabled", "")}
             onChange={(e) => setValue("llm_enabled", e.target.value)}
             inputProps={{ "aria-label": "사용 여부" }}
@@ -242,6 +248,7 @@ export function LlmConsole() {
         <Field label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
           <TextField
             select size="small" fullWidth sx={{ mt: 0.5 }}
+            SelectProps={{ displayEmpty: true }}
             value={value("llm_backend", "")}
             onChange={(e) => setValue("llm_backend", e.target.value)}
             inputProps={{ "aria-label": "백엔드" }}

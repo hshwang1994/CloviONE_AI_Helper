@@ -43,15 +43,21 @@ const TONE_COLOR = { success: "success.main", warn: "warning.main", info: "info.
  * Notion 데이터베이스 id 와 토큰은 **이제 화면에서 바꾼다**(9-4, #/notion-console).
  * 예전에는 서버 파일을 고치고 재시작해야 해서 '고치는 화면' 대신 진단으로 보냈고, 이 주석이
  * 그 사실을 적어 두고 있었다. 화면이 생겼으니 고치는 자리로 곧장 보낸다.
- * AI 도 마찬가지다(9-5, #/llm-console). 러너는 별개의 것이라 그쪽으로 보내면 안내가
- * 엉뚱한 화면을 가리킨다 - 러너 화면에는 AI 백엔드 설정이 없다. */
+ * SYS-06: `llm` 항목은 예전엔 여기가 `#/llm-console`(AI 관리)을 가리켰다 — "러너는 별개라
+ * 그쪽으로 보내면 엉뚱하다"는 근거였다. 그런데 `probe_llm`(app/setup/probes.py)이 실제로
+ * 재는 것은 `app.runners.models.Runner` 행이고, 그 프로브 자신의 안내 문구도 전부 "관리
+ * 콘솔의 러너 화면에서 …"라고 말한다(등록·활성화·헬스체크 전부) — 안내는 러너 화면을
+ * 가리키는데 링크만 AI 관리로 갔다. `/llm-console`은 이 항목이 재는 것(Runner 레지스트리)
+ * 과 무관한 별개 백엔드(app/llm/service.py, CLI 기반)를 설정하는 화면이라 눌러도 이 항목이
+ * 빨간 이유(러너 미등록/비활성/헬스 실패)를 고칠 수 없었다(RN-10/RN-11 조사에서 확인된 그
+ * 분리와 같은 뿌리). */
 export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
   mail: { href: "#/settings", label: "설정 화면 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
   notion: { href: "#/notion-console", label: "Notion 관리 화면 열기" },
   user_mapping: { href: "#/notion-mapping", label: "Notion 연결 화면 열기" },
-  llm: { href: "#/llm-console", label: "AI 관리 화면 열기" },
+  llm: { href: "#/runners", label: "러너 화면 열기" },
   integrations: { href: "#/integrations", label: "외부 연동 화면 열기" },
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };

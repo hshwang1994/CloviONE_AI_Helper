@@ -173,6 +173,29 @@ def cert_days_remaining(settings: Settings, now: datetime | None = None) -> int 
     return _cert_days_remaining(settings, now)
 
 
+def is_self_signed_cert(settings: Settings) -> bool | None:
+    """SYS-05: 인증서의 issuer == subject 인지(자체서명 여부).
+
+    `probe_tls`(app/setup/probes.py)가 "만료일까지 며칠 남았다"만 보고 초록으로
+    판정하면, 자체서명 인증서는 만료 전이어도 **오늘 이미** 브라우저 경고를 띄우고
+    있는데 화면은 "됨"이라고 말한다 — 측정하는 것(만료)과 실제 해악(신뢰 안 됨)이
+    다르다. 파일이 없거나 파싱 실패하면 None(모른다) — `_cert_days_remaining`과 같은
+    "모르면 거짓으로 단정하지 않는다" 규약.
+    """
+    cert_path = getattr(settings, "tls_cert_path", None)
+    if not cert_path or not Path(cert_path).exists():
+        return None
+    try:
+        cert = ssl._ssl._test_decode_cert(str(cert_path))  # type: ignore[attr-defined]
+        subject, issuer = cert.get("subject"), cert.get("issuer")
+        if not subject or not issuer:
+            return None
+        return subject == issuer
+    except Exception as exc:  # pragma: no cover - defensive: never break the checklist
+        logger.warning("cert self-signed check failed for %s: %s", cert_path, exc)
+        return None
+
+
 def build_dashboard(
     db: Session,
     settings: Settings,

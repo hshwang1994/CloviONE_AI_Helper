@@ -628,12 +628,38 @@ def test_a_configured_cert_path_with_no_file_is_a_persons_problem(
     assert tls["action"]
 
 
-def test_a_valid_cert_is_done_and_says_how_long_it_has(client, tmp_path, sysadmin):
+def test_a_self_signed_cert_is_unknown_not_done(client, tmp_path, sysadmin):
+    """SYS-05: 만료 전이라도 자체서명이면 "됨"이 아니다 — 브라우저는 오늘 이미 경고를
+    띄우는데 초록으로 뭉개면 이 화면의 다른 문구(만료 시 경고를 띄운다는 안내)와
+    정면으로 어긋난다. `_TEST_CERT_PEM`은 자체서명(issuer==subject)이다."""
     from tests.integration.test_health_worker_hardening import _TEST_CERT_PEM
 
     cert = tmp_path / "server.crt"
     cert.write_text(_TEST_CERT_PEM, encoding="utf-8")
     client.app.state.settings.tls_cert_path = str(cert)
+    tls = _by_key(_items(client))["tls"]
+    assert tls["state"] == STATE_UNKNOWN
+    assert "자체서명" in tls["detail"]
+    assert "일" in tls["detail"]  # 남은 날짜 자체는 여전히 말해 준다
+
+
+def test_a_ca_signed_cert_is_still_done(client, tmp_path, sysadmin, monkeypatch):
+    """자체서명이 아니면(issuer != subject) 예전처럼 그대로 "됨"이다 — 이번 정정이
+    자체서명 케이스만 좁혀 잡았는지, 일반 CA 서명 인증서까지 덩달아 unknown으로
+    끌고 가지 않았는지를 확인한다."""
+    import app.health.service as health_service
+    from tests.integration.test_health_worker_hardening import _TEST_CERT_PEM
+
+    cert = tmp_path / "server.crt"
+    cert.write_text(_TEST_CERT_PEM, encoding="utf-8")
+    client.app.state.settings.tls_cert_path = str(cert)
+
+    # notAfter는 실제 파싱 결과를 그대로 쓰되(cert_days_remaining이 계속 정상 동작하도록),
+    # subject/issuer만 CA 서명처럼 다르게 흉내 낸다.
+    real = health_service.ssl._ssl._test_decode_cert(str(cert))
+    fake = {**real, "issuer": ((("commonName", "Some Trusted CA"),),)}
+    monkeypatch.setattr(health_service.ssl._ssl, "_test_decode_cert", lambda path: fake)
+
     tls = _by_key(_items(client))["tls"]
     assert tls["state"] == STATE_DONE
     assert "일" in tls["detail"]
