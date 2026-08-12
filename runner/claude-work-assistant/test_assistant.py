@@ -1086,6 +1086,44 @@ def test_create_project_ambiguity_no_project_continues_create():
     assert d["action"] != "TICKET_LIST"
 
 
+def test_create_project_ask_varies_on_repeat_and_keeps_original_request():
+    """VIS-80 — 실제 대화에서 재현된 결함. 프로젝트를 언급하지 않고 티켓을 만들어 달라고
+    하면 "프로젝트를 알려주세요"라고 묻는데, 그 뒤 "??"처럼 프로젝트로도 '프로젝트 없음'
+    선언으로도 해석되지 않는 대답이 오면 pending_question이 없어 create_ticket이 매번
+    처음부터 다시 계산해 완전히 같은 문장을 몇 번이고 반복했다(어시스턴트가 자기가 이미
+    물었다는 것을 몰랐다). 여기서는 (1) 두 번째 물음이 첫 번째와 달라지는지, (2) 원본
+    요청 내용이 되묻기 루프를 거치며 사라지지 않는지 확인한다."""
+    requester = {"email": "a@goodmit.co.kr", "name": "황형섭", "teams_user_id": "t1"}
+    msg1 = "이번주 완료된 작업 정리해서 티켓 하나 만들어줘"
+    data1, _ = m.create_ticket(msg1, {}, requester, None, [], CREATE_PROJECTS, {})
+    assert data1["action"] == "NEED_INPUT", data1["action"]
+    assert "프로젝트를 알려주세요" in data1["response_text"]
+    assert data1["context"]["pending_question"] == "create_project"
+
+    data2, _ = m.create_ticket("??", data1["context"], requester, None, [], CREATE_PROJECTS, {})
+    assert data2["action"] == "NEED_INPUT", data2["action"]
+    # 핵심 회귀 — 두 번째 물음이 첫 번째와 글자 그대로 같으면 안 된다(자기가 이미
+    # 물었다는 것을 알아본 티가 나야 한다).
+    assert data2["response_text"] != data1["response_text"], "같은 되묻기를 그대로 반복했다"
+    assert data2["context"]["pending_question"] == "create_project"
+    # 원본 요청이 "??" 한 번으로 지워지면 안 된다 — 다음 턴에 실제 프로젝트를 말했을 때
+    # 이 문맥으로 초안을 만들 것이므로, 여기서 사라지면 그 초안이 원본 내용을 놓친다.
+    assert "이번주 완료된 작업" in data2["context"]["pending_original_message"]
+
+    # 세 번째도 여전히 애매하면 무한히 다른 문장을 새로 만들 필요는 없다 — 두 번째와
+    # 같은(반복 인식) 문구를 유지하는 것으로 충분하다. 중요한 것은 첫 번째로 되돌아가
+    # 무한 반복하지 않는 것이다.
+    data3, _ = m.create_ticket("??", data2["context"], requester, None, [], CREATE_PROJECTS, {})
+    assert data3["response_text"] == data2["response_text"]
+    assert data3["response_text"] != data1["response_text"]
+
+    # 마침내 답하면(프로젝트 없음) 정상적으로 다음 단계로 넘어가고 pending_question이 걷힌다.
+    fields = {"priority": "", "difficulty": 0, "due_date": "", "assignee_names": [], "unassigned": False}
+    with mock.patch.object(m.subprocess, "run", return_value=_draft_cli(ready=False, fields=fields, questions=["담당자를 알려주세요"])):
+        data4, _ = m.create_ticket("프로젝트 없음", data3["context"], requester, None, [], CREATE_PROJECTS, {})
+    assert data4["context"].get("pending_question") != "create_project"
+
+
 def test_comment_preview_pivot_to_update_reaches_write():
     # round4 확정(MED): COMMENT 미리보기 대기 중 무관한 수정으로 피벗하면 대화로 새 유실됐다.
     # CREATE·UPDATE 분기처럼 피벗이 update로 도달해야 한다.

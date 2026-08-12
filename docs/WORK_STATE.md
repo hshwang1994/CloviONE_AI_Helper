@@ -12,16 +12,19 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF47(`invocation=3`) — 파일
-끝(WF35~47)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF47은 러너 `RN-15`/`RN-17`~`RN-20`
-클러스터(비전 분석 유실·동명이인 개인정보 노출·Notion 원문 노출·
-죽은 코드/퀴즈 결함 4건·README 정정) 전부 구현완료 — 상세는 파일
-끝. 그 앞 WF46은 `CACHE-03`(Users/부서/직책/조직→티켓 담당자 후보,
-Low) 구현완료로 WF44 배경 조사의 캐시 무효화 공백 3건이 전부 닫혔다.
-그 앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태 무효화, Med)+
-`CACHE-02`(Projects→Dashboard, Med) 구현완료. 그 앞 WF44는
-`admin_policies` purpose 컬럼(WF1 단독 결함, Med) + 배너 톤(Low) 구현완료.
+**마지막 갱신**: 2026-08-13 · **단계**: WF48(`invocation=3`) — 파일
+끝(WF35~48)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF48은 `VIS-80`(어시스턴트 되묻기
+반복) 재조사+구현완료 — `RN-03`과 뿌리가 다름을 확인(추정 정정),
+프로젝트 되묻기에 `pending_question` 배선 — 상세는 파일 끝. 그 앞
+WF47은 러너 `RN-15`/`RN-17`~`RN-20` 클러스터(비전 분석 유실·동명이인
+개인정보 노출·Notion 원문 노출·죽은 코드/퀴즈 결함 4건·README 정정)
+전부 구현완료. 그 앞 WF46은 `CACHE-03`(Users/부서/직책/조직→티켓
+담당자 후보, Low) 구현완료로 WF44 배경 조사의 캐시 무효화 공백 3건이
+전부 닫혔다. 그 앞 WF45는 `CACHE-01`(Board/Ideas 댓글·반응·상태
+무효화, Med)+`CACHE-02`(Projects→Dashboard, Med) 구현완료. 그 앞
+WF44는 `admin_policies` purpose 컬럼(WF1 단독 결함, Med) + 배너
+톤(Low) 구현완료.
 그 앞 WF34 — `RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
 Med) 구현완료. `assistant.py::Handler.authorized()`의
 `hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
@@ -4598,9 +4601,59 @@ timeout_after_vision_still_persists_the_already_done_vision_work`,
 
 `docs/BACKLOG.md`의 `RN-15`·`RN-17`~`RN-20` 5개 행 구현완료로 갱신
 (RN-19는 `clear_persisted_context` 재검증 결과도 함께 기록). 이
-배치 커밋 예정. **다음 후보**: 대시보드 정보 위계(`VIS-24`/`25`)
-실브라우저 판단, `L`축 전수 매트릭스(표본을 넘는 화면 쌍 전체
-점검), `VIS-80`(어시스턴트 되묻기 반복 — 확정 근거 없이 열어 둔
-상태 재조사), `RESP-04`/`VIS-122`, `user_team-doc-detail` URL
-미링크화, R2 잔여(admin_integration-detail의 슬러그-제목·내부
-메모 설명 — 스키마 작업 필요).
+배치 커밋 완료(`bc96f3a`).
+
+**WF48(같은 invocation 계속) — `VIS-80`(어시스턴트가 같은 되묻기를
+반복함, Med) 재조사+구현완료.**
+
+착수 전 배경 Explore 에이전트로 정확한 재현 여부·근본 원인·`RN-03`과의
+실제 관계를 먼저 확정(추정만으로 손대지 않음). 결과: **`RN-03`과
+뿌리가 다르다** — `RN-03`은 `update_ticket()`의 "느슨한 키워드 일치가
+무관한 답을 정답으로 잘못 채택"(오채택 문제)이고, VIS-80은
+`create_ticket()`의 프로젝트 미언급 되묻기 경로가 애초에
+`pending_question`을 안 남겨(같은 함수 바로 위 "후보 다수" 경로는
+이미 `pending_question: "project_selection"`을 남기는 것과 비대칭)
+다음 턴이 "지금 이 질문에 답하는 중"인지 스스로 알 방법이 없던
+문제(무기억)다. `git blame`으로 해당 블록이 `RN-03`의 수정 커밋
+(`5db9fbf`)에 전혀 닿지 않은 원본 그대로임도 확인 — 실 코드로
+직접 재현(모듈을 실제로 불러 `route_request` 두 턴을 연속 호출,
+`subprocess.run`을 예외로 막아 LLM이 전혀 관여하지 않는 순수 결정론적
+버그임까지 확인 — "??"·"몰라" 등 어떤 비해석 대답에도 걸리고, 두
+번으로 끝나지 않고 계속 반복됨, `"???"`(물음표 3개)만 우연히 다른
+가드에 걸려 빠져나감).
+
+`create_ticket()`의 프로젝트 미언급 되묻기에 `pending_question:
+"create_project"`를 남기고, 재진입 시(`already_asked`) 문구를
+"프로젝트를 이해하지 못했어요..."로 바꿔 최소한 "몇 번째 물음인지
+모르는" 상태는 없앴다(반복 자체를 영구히 막을 수는 없다 — 세 번째
+대답도 여전히 애매할 수 있다, 그때는 두 번째와 같은 문구를 유지하는
+것으로 충분하다고 판단 — 매번 새 문구를 만드는 것은 과한 설계).
+프로젝트가 실제로 정해지거나 '프로젝트 없음'이 확정되면
+`pending_question`을 정리(위 `project_selection`이 이미 하는 것과
+대칭). 조사 중 함께 확인한 부수 결함도 같은 자리에서 수정: 되묻는
+문맥의 `pending_original_message`를 그 턴의 원문(`message`, 예:
+"??")이 아니라 `semantic_message`(원본+지금까지의 대답이 누적된 값)
+로 넘겨, 되묻기 루프가 길어져도 원래 티켓 요청 내용이 사라지지
+않게 했다(실측: 예전 코드는 두 바퀴 만에 원본이 지워짐 — "??"가
+유일한 `pending_original_message`가 되어 그다음 턴부터 원본 요청
+"이번주 완료된 작업..."이 완전히 사라짐). `resolve_project()` 자체는
+손대지 않음(이번 조사 범위 밖 — 이미 올바르게 "??"를 미해석으로
+판정하고 있었다).
+
+**시험**: 신규 1건(`test_create_project_ask_varies_on_repeat_and_keeps_
+original_request` — 두 번째 물음이 첫 번째와 달라지는지, 원본 요청이
+보존되는지, 세 번째도 무한 재문구 없이 안정적인지, 최종 응답 후
+`pending_question`이 정리되는지 모두 확인), revert-to-verify 확인
+(되돌리니 두 되묻기 문구가 글자 그대로 같은 것 재현). 러너 전체
+회귀 301건(디렉터리 전체 — `test_assistant.py`·`test_mega_cycle_
+ai_assistant.py`·`test_mega_cycle_h_ai_assistant.py` 등) green. 정적
+검사 green.
+
+`docs/BACKLOG.md`의 `VIS-80` 행 구현완료로 갱신(추정이 틀렸던 부분
+—`RN-03`과 동일 뿌리— 도 함께 정정 기록). 이 배치 커밋 예정.
+**다음 후보**: 대시보드 정보 위계(`VIS-24`/`25`) 실브라우저 판단,
+`L`축 전수 매트릭스(표본을 넘는 화면 쌍 전체 점검), `RESP-04`/
+`VIS-122`, `user_team-doc-detail` URL 미링크화, R2 잔여
+(admin_integration-detail의 슬러그-제목·내부 메모 설명 — 스키마
+작업 필요), R3/R6/R7(제품 전반 디자인 결정 — 화면별로 쪼개서
+착수하지 않음, 별도 세션에서 한 번에 판단 필요).

@@ -4676,19 +4676,38 @@ def create_ticket(
                         choices=selection_choices([p["name"] for p in candidates])), 0
     if selected_project:
         previous.pop("create_no_project", None)
+        previous.pop("pending_question", None)
     else:
         if not (previous.get("create_no_project") or declines_project(n)):
+            # VIS-80 — 예전엔 이 되묻기가 pending_question을 안 남겨(위 프로젝트 후보 다수
+            # 경로와 다르게) 다음 턴이 "지금 이 질문에 답하는 중"인지 스스로 알 방법이 없었다.
+            # "??"처럼 프로젝트로도 해석 안 되고 declines_project도 아닌 대답이 오면
+            # create_ticket이 매번 처음부터 다시 계산해 완전히 같은 문장을 몇 번이고
+            # 반복했다(실제 대화에서 재현·확인). pending_question으로 재진입을 알아보고
+            # 문구를 바꾼다 — 반복 자체를 막을 수는 없어도(다음 대답도 여전히 애매할 수
+            # 있다) 최소한 "몇 번째 물음인지 모르는" 상태는 없앤다.
+            already_asked = previous.get("pending_question") == "create_project"
+            ask_text = (
+                "프로젝트를 이해하지 못했어요. 프로젝트 이름을 말씀해 주시거나, "
+                "해당 프로젝트가 없으면 '프로젝트 없음'이라고 답해 주세요."
+                if already_asked else
+                "티켓을 생성할 프로젝트를 알려주세요. 특정 프로젝트에 속하지 않는 작업이면 '프로젝트 없음'이라고 알려주세요."
+            )
             return response(
                 "NEED_INPUT",
-                "티켓을 생성할 프로젝트를 알려주세요. 특정 프로젝트에 속하지 않는 작업이면 '프로젝트 없음'이라고 알려주세요.",
-                # 프로젝트 후보 다수 경로(위)와 대칭으로 원본을 접어 둔다. 안 그러면 다음 턴에
-                # 프로젝트 이름만 남아 마감·우선순위 등 규칙 추출 필드와 '원본 요청'이 유실된다.
+                ask_text,
+                # 프로젝트 후보 다수 경로(위)와 대칭으로 원본을 접어 둔다 — 단 message가 아니라
+                # semantic_message(이번 턴까지 접힌 원본+대답들)를 넘긴다. message만 넘기면
+                # "??"처럼 내용 없는 대답이 다음 턴의 유일한 pending_original_message가 되어
+                # 진짜 원본 요청("이번주 완료된 작업 정리해서...")이 재질문 루프 두 바퀴 만에
+                # 사라진다(VIS-80 재현 중 함께 확인한 부수 결함).
                 {**previous, "creator": creator, "conversation_history": history[-10:], "mode": "CREATE",
-                 "pending_original_message": message},
+                 "pending_question": "create_project", "pending_original_message": semantic_message},
                 choices=[{"label": "프로젝트 없이 생성", "send": "프로젝트 없음"}],
             ), 0
         # Carried forward so the following turns don't ask the same question again.
         previous["create_no_project"] = True
+        previous.pop("pending_question", None)
         selected_project = dict(NO_PROJECT)
 
     due = text(previous.get("due_date"))
