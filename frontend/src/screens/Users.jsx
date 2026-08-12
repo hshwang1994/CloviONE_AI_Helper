@@ -351,7 +351,10 @@ export function Users() {
   const columns = [
     // 대량 작업의 선택 열. 체크박스 클릭은 행 클릭(상세 열기)으로 번지지 않는다(bulkSelect.jsx).
     selectionColumn(selection, (query.data && query.data.items || []).map((r) => r.id)),
-    { key: "email", label: "이메일" },
+    // SEM-01: 선택 체크박스가 첫 열이라(rowName:false로 스스로 제외됨) 표식 없이는 이 표의
+    // "상세 보기" 버튼과 체크박스 라벨(selectLabel, bulkSelect.jsx) 둘 다 모든 행이
+    // 동일했다 — 이미 화면에 보이는 이메일로 실제로 구별되는 이름을 만든다.
+    { key: "email", label: "이메일", rowName: (r) => r.display_name || r.email },
     { key: "display_name", label: "이름" },
     {
       // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'·'Notion'과

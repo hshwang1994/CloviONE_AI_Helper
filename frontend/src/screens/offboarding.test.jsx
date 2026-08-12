@@ -222,9 +222,9 @@ describe("오프보딩 화면", () => {
     runs = [RUN_ROW];
     const user = userEvent.setup();
     renderScreen();
-    // 대상 고르기 표의 첫 열은 render가 없어 라벨이 '상세 보기: 퇴사자'가 되고, 이력 표의 첫
-    // 열은 render(날짜 포맷)가 있어 라벨이 정확히 '상세 보기'다(kit.jsx rowOpenLabel) — 정확 일치로 고른다.
-    const openRun = await screen.findByRole("button", { name: "상세 보기" });
+    // 이력 표의 첫 열(실행 시각)은 render(날짜 포맷)가 있지만 rowName으로 "대상 · 시각"을
+    // 명시했다(SEM-01) — 대상 고르기 표('상세 보기: 퇴사자')와 정규식으로 구별해 고른다.
+    const openRun = await screen.findByRole("button", { name: /상세 보기: 퇴사자/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).getByRole("button", { name: "되돌리기" })).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("오프보딩 화면", () => {
     });
     const user = userEvent.setup();
     renderScreen();
-    const openRun = await screen.findByRole("button", { name: "상세 보기" });
+    const openRun = await screen.findByRole("button", { name: /상세 보기: 퇴사자/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     const link = within(drawer).getByRole("link", { name: "감사 로그에서 보기" });
@@ -273,7 +273,9 @@ describe("오프보딩 화면", () => {
     const user = userEvent.setup();
     renderScreen();
 
-    const openRun = await screen.findByRole("button", { name: "상세 보기" });
+    // user_name이 null이라 rowName(SEM-01)도 같은 "알 수 없음" 폴백으로 떨어진다 — raw UUID는
+    // 여기서도(버튼 접근 이름에서도) 새면 안 된다.
+    const openRun = await screen.findByRole("button", { name: /상세 보기: 알 수 없음/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).queryByText(/1{8}-1{4}-1{4}-1{4}-1{12}/)).not.toBeInTheDocument();

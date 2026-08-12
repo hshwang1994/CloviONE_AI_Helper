@@ -64,7 +64,15 @@ export const PLATFORM_SCREENS = {
         result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업 완료" : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
     ],
     // 경로는 파일명만 목록에 보이고(내부 배포 경로 노출·너비 낭비 방지), 전체 경로는 상세에서 본다.
-    columns: [dateCol("created_at", "생성"), badgeCol("status", "상태"), { key: "size_bytes", label: "크기", render: (r) => fmtBytes(r.size_bytes) },
+    // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 전부 "상세 보기"였다 —
+    // 파일명(아래 "파일" 열과 동일한 추출 로직)으로 실제로 구별되는 이름을 만든다.
+    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => {
+      const p = r.path;
+      if (!p) return "백업 / " + fmtDateTime(r.created_at);
+      const s = String(p);
+      const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
+      return i >= 0 ? s.slice(i + 1) : s;
+    } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", render: (r) => fmtBytes(r.size_bytes) },
       { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx
@@ -141,7 +149,9 @@ export const PLATFORM_SCREENS = {
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "_rows", label: "행 수", align: "right", render: (r) => (r.summary && r.summary.rows != null) ? String(r.summary.rows) : "-" },
       { key: "_head", label: "스키마", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
-      truncateCol("source_label", "원본", 50),
+      // SEM-01: 첫 열(결과 배지)이 render라 표식 없이는 전부 "상세 보기"였다 — 원본 백업
+      // 이름(검색 대상과 동일한 필드) + 시작 시각으로 실제로 구별되는 이름을 만든다.
+      { ...truncateCol("source_label", "원본", 50), rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTime(r.started_at) },
     ],
     detailFields: [
       field("id", "기록 ID"),
@@ -256,7 +266,9 @@ export const PLATFORM_SCREENS = {
     },
     columns: [
       mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
-      { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-") },
+      // SEM-01: 첫 열(범위)이 mapCol(render 있음)이라 표식 없이는 같은 범위(대부분 "사용자")끼리
+      // 전부 "상세 보기"로 동일했다 — 대상 + 기간을 합쳐 실제로 구별되는 이름을 만든다.
+      { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-"), rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
       { key: "max_calls", label: "상한", align: "right" },
       { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },

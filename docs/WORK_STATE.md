@@ -12,7 +12,18 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF26(`invocation=2`) —
+**마지막 갱신**: 2026-08-12 · **단계**: WF27(`invocation=2`) —
+`SEM-01`("상세 보기" 버튼 접근 이름 중복) 조사 중 원 발견(`/jobs`·
+`/users` 2개 표본)보다 훨씬 큰 Root Cause 발견 — 관리자 등록 화면
+28개 전체에 `rowName`/`openLabel` 표식이 단 한 곳도 없어서, 첫
+열이 `render()`인 화면은 전부 같은 결함을 안고 있었다. 실사해서
+찾은 11개 등록 화면(governance.js 5·platform.js 3·automation.js 2·
+org.js 1) + registry 밖 2개(`Users.jsx`·`Offboarding.jsx`), 총
+13개 화면에 각각 이미 보이는 값으로 `rowName`을 채워 한 번에 고침.
+신규 시험 2파일 13건 + 기존 `offboarding.test.jsx` 3건 정정(옛
+결함을 정상으로 못박은 주석·단정이었다), 프런트 전체 회귀
+225/1534 green. 분리자로 쓴 가운뎃점이 정적 검사(`USER_TEXT_OK`,
+사용자 지시 §8)에 걸려 `/`로 교체. 그 직전 WF26 —
 `RET-01R`("`sessions`가 보존 대상에서 빠졌다") 재검증 후 구현완료.
 "`UserSession` 정리 코드 0건" 전제 자체는 이미 stale(CORE-02가
 `purge_old_sessions`를 만들어 `run_retention`에 연결해 뒀음)했지만,
@@ -20,7 +31,7 @@
 돌아온(재로그인만 하고 예전 탭은 버린) 세션은 영원히 안 지워지는**
 진짜 결함이 남아 있었다 — `revoked_at IS NULL AND expires_at <
 cutoff` 분기 추가로 수정, 이 결함을 정상으로 고정하던 오탐 테스트도
-함께 정정. 그 직전 WF25 — `GM-01`(게임방 유휴 정리가
+함께 정정. 그 앞 WF25 — `GM-01`(게임방 유휴 정리가
 `status`를 안 고쳐 유령 행을 만듦) 구현완료 — 한 줄 수정. `FN-08`/
 `NOTI-02`/`SCHD-03`은 이미 2026-08-11에 스키마 변경 필요로 정확히
 보류돼 있어 그대로 유지. revert-to-verify 도중 `sed` 전역 치환이 같은
@@ -3427,7 +3438,71 @@ test_retention_purge.py` 8건 + `test_retention_lock.py` +
 수정)"으로 갱신, 재확인 근거와 실제 수정 내용을 함께 기록(전제
 오류와 실제 결함을 둘 다 남겨 향후 세션이 다시 헷갈리지 않게).
 
-이 배치(`RET-01R`) 커밋 예정. **다음 후보**: `SEM-01`(`/jobs`·
-`/users` "상세 보기" 중복 accessible name — `kit.jsx`의 `openLabel`
-override로 `DataTable`에 `openLabel(row)` 전달, 수정 방식 이미
-확인됨), 이어서 BACKLOG/QA_COVERAGE 전체 재스캔.
+이 배치(`RET-01R`) 커밋 완료(`491b805`).
+
+**WF27(같은 invocation 계속) — `SEM-01`(등록 화면 "상세 보기" 버튼
+접근 이름 중복) 조사 중 원 발견보다 훨씬 큰 Root Cause를 찾아
+13개 화면을 한 번에 고쳤다.** 원 발견은 `/jobs`(100개)·`/users`
+(18개) 표본만 들었다. `kit.jsx:rowOpenLabel()`을 다시 읽어 보니
+BACKLOG가 인용한 `openLabel` 탈출구보다 **먼저** 확인하는 `rowName`
+(`ui/rowName.js`, 열 정의 아무 곳에나 `rowName: true|fn` 표식,
+위치 무관)이 이미 있고, `Board`/`Trash`/`TeamDocs`/`MyTickets`/
+`Projects.jsx`가 이미 그 방식으로 고쳐져 있었다 — 그런데
+`frontend/src/screens/registry/*.js`(관리자 등록 화면 28개의 실제
+설정)에는 `rowName`도 `openLabel`도 **단 한 곳도 없었다.**
+`DataScreen.jsx`가 `onRow`를 모든 등록 화면에 예외 없이 붙이므로
+(1개 예외도 없이 확인), 첫 열이 `render()`를 쓰는 등록 화면은
+전부 같은 결함을 안고 있다는 뜻이었다 — `/jobs`·`/users`는 우연히
+뽑힌 표본 2개였을 뿐이었다.
+
+**실사**: governance.js/platform.js/automation.js/org.js/
+authoring.js/integrations.js/notifications.js 전체(등록 화면 28개)의
+`columns:` 첫 항목을 전수 확인. `col()`(render 없음)로 시작하는
+화면은 옛 폴백만으로 이미 정상이라 그대로 뒀다. `subList:`(하위
+목록, `SubListDrawer`가 `onRow` 없이 렌더 — 상세 버튼 자체가 없다)
+안의 `columns:`는 애초에 이 결함 대상이 아니라 제외했다. `rbac`은
+`columnsFrom`의 첫 열이 `col("capability",...)`라 원래 정상이었다.
+남은 진짜 결함 11개(governance.js 5개: `approvals`·
+`approval-delegations`·`audit`·`audit-anomalies`·`impersonation`,
+platform.js 3개: `backup`·`restore-drills`·`ai-quotas`, automation.js
+2개: `documents`·`jobs`, org.js 1개: `org-tree`) + registry 밖에서
+같은 패턴 2개 추가 발견(`Users.jsx` — 선택 체크박스 라벨도 같은
+열이 출처라 동시에 고쳐짐, `Offboarding.jsx`의 "실행 이력" 표).
+총 13개 화면.
+
+**구현**: 각 화면에 이미 화면에 보이는 값(요청자/행위자/대상/
+파일명/제목 등)만 조합해 `rowName`을 채웠다 — 새 정보를 노출하지
+않는다. 예외: `jobs`는 요청자 이름/이메일이 서버가 일부러 감추는
+값이라(`app/jobs/router.py _job_view`, 큐 화면이 대화 열람 우회로가
+안 되게) 후보에서 제외하고 유형+생성 시각을 썼다. `approval-
+delegations`/`impersonation`은 "A → B"(위임한 사람→대리 승인자,
+관리자→대상)로, `jobs`는 필터로 한 유형만 좁혀 봐도 여전히
+구별되도록 유형+시각을 함께 조합했다(유형 하나만 쓰면 필터링한
+순간 도로 전부 같아진다는 것을 테스트로 실제 확인).
+
+**시험**: `registry-row-name.test.jsx`(신규, 11건 — `REGISTRY`의
+실제 config를 직접 검증, 렌더링 없이 `declaredRowName()` 호출,
+`registry-identifiers.test.jsx`와 같은 방식) + `users-row-open-
+label.test.jsx`(신규, 2건 — 2행 실제 렌더링으로 "상세 보기" 버튼과
+선택 체크박스 접근 이름이 서로 다른지 확인, 단일 행뿐인 기존
+`users-detail.test.jsx`는 이 결함을 애초에 드러낼 수 없었다).
+`offboarding.test.jsx`의 기존 3건은 "이력 표의 첫 열은 render가
+있어 라벨이 정확히 '상세 보기'다" — 옛 결함을 정상으로 못박은
+주석·정확 일치 단정이었다(SEM-01과 정확히 같은 결함을 이미 알고
+있었는데 버그가 아니라 사양으로 오인했다) — 정규식 매치로 정정.
+revert-to-verify: `jobs`의 `rowName`을 임시로 지워 새 시험이
+`expected '' to contain '채팅 메시지'`로 정확히 실패하는 것을 확인
+후 복원. 프런트 전체 회귀 225 파일/1534건(신규 2파일/13건 포함)
+전부 green.
+
+**정적 검사에서 실제 결함 하나 더 잡음**: 처음엔 `rowName` 분리자로
+가운뎃점(`·`)을 썼는데 `static_checks.sh`의 `USER_TEXT_OK`가
+7곳(governance.js 2·platform.js 3·automation.js 1·Offboarding.jsx 1)
+을 잡아냈다 — 이 문자열은 실제로 스크린리더가 읽는 사용자 노출
+텍스트라 사용자 지시(§8)의 금지 문자 규칙이 그대로 적용된다. 이미
+같은 파일들에 있던 관례(`attempt_count + " / " + max_attempts`
+등)를 따라 `/`로 교체(테스트 기댓값 1곳도 함께 수정). 재빌드 →
+`STATIC_CHECKS_OK`.
+
+이 배치(`SEM-01`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
+전체 재스캔으로 다음 Root Cause 선정.

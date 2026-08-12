@@ -414,7 +414,9 @@ function RunHistory() {
   }
 
   const columns = [
-    { key: "created_at", label: "실행", render: (r) => fmtDateTime(r.created_at) },
+    // SEM-01: 첫 열(실행 시각)이 render라 표식 없이는 이 실행 이력 전부가 "상세 보기"로
+    // 동일했다 — 대상 + 실행 시각으로 실제로 구별되는 이름을 만든다.
+    { key: "created_at", label: "실행", render: (r) => fmtDateTime(r.created_at), rowName: (r) => (r.user_name || "알 수 없음") + " / " + fmtDateTime(r.created_at) },
     // 서버가 이름을 못 주면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출).
     { key: "user_name", label: "대상", render: (r) => r.user_name || "알 수 없음" },
     { key: "successor_name", label: "후임", render: (r) => r.successor_name || "(없음)" },

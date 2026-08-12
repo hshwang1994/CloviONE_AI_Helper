@@ -269,7 +269,14 @@ export const AUTOMATION_SCREENS = {
       // 문제와 같은 이유 — 목록을 훑을 때 UUID만으로는 어느 행인지 구분할 수 없었다).
       const st = { pending: "대기", preview_ready: "미리보기 완료", quality_failed: "품질 미달", awaiting_approval: "승인 대기", published: "발행됨", failed: "실패" }[r.status] || r.status || "?";
       return "기간 " + (r.period || "?") + " 문서 (" + st + ")" + idSuffix;
-    } },
+    },
+      // SEM-01: 이 열이 render라 표식 없이는 전부 "상세 보기"였다 — 위 render와 같은 값(단
+      // 낭독 시 장황한 UUID는 뺀다)을 rowName으로 노출해 행마다 실제로 다른 이름을 만든다.
+      rowName: (r) => {
+        if (r.preview && r.preview.title) return String(r.preview.title);
+        const st = { pending: "대기", preview_ready: "미리보기 완료", quality_failed: "품질 미달", awaiting_approval: "승인 대기", published: "발행됨", failed: "실패" }[r.status] || r.status || "?";
+        return "기간 " + (r.period || "?") + " 문서 (" + st + ")";
+      } },
       col("period", "기간"), mapCol("mode", "모드", DOC_MODE), badgeCol("status", "상태"),
       // generation_view가 requested_by를 최상위로 이미 돌려주는데 목록엔 없어 각 행을 요청한 사람을
       // 보려면 상세를 하나씩 열어야 했다(승인 화면은 이미 목록에서 요청자를 바로 보여준다).
@@ -392,7 +399,11 @@ export const AUTOMATION_SCREENS = {
       { key: "schedule_run_id", type: "text", label: "실행 건 ID" },
       { key: "generation_id", type: "text", label: "연결된 문서 생성 ID" },
     ],
-    columns: [dateCol("created_at", "생성"), mapCol("job_type", "유형", JOB_TYPE), badgeCol("status", "상태"),
+    // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 100건이 전부 "상세
+    // 보기"였다. job_type 필터로 좁혀 보는 게 흔한 사용 패턴이라 유형만으로는 부족해
+    // (필터링하면 보이는 행 전부가 같은 유형이 된다) 생성 시각까지 합친다 — 요청자 이름/
+    // 이메일은 이 화면이 일부러 감추는 값이라(아래 detailFields 주석) 후보에서 제외한다.
+    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTime(r.created_at) }, mapCol("job_type", "유형", JOB_TYPE), badgeCol("status", "상태"),
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
       { key: "available_at", label: "대기", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";

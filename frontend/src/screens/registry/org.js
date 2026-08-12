@@ -197,7 +197,10 @@ export const ORG_SCREENS = {
         },
         (r.kind === "organization" ? "" : "└ ")
           + r.name + (r.cycle ? " (상위 관계 오류)" : ""),
-      ) },
+      ),
+      // SEM-01: 이 열이 render(들여쓰기 트리)라 표식 없이는 전부 "상세 보기"였다 — 조직/
+      // 부서 구분 + 이름으로 실제로 구별되는 이름을 만든다.
+      rowName: (r) => (r.kind === "organization" ? "조직 " : "부서 ") + r.name },
       { key: "kind", label: "구분", render: (r) => (r.kind === "organization" ? "조직" : "부서") },
       activeCol("사용"),
       col("user_count", "소속 인원(보관 포함)"),

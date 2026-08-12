@@ -70,7 +70,10 @@ export const GOVERNANCE_SCREENS = {
     // 만료 시각은 대기(pending)일 때만 의미가 있다 — 종료된 행은 원래 만료 시각을 계속 보여주면 오해를 낳으므로 '-'.
     // 요청자 열 — router.py가 배치로 requester_name/requester_email을 미리 붙여 주므로(누가 요청했는지
     // 목록에서 바로 보이게), 각 행을 열어보지 않고도 트리아지할 수 있게 노출한다.
-    columns: [actionCol("request_type", "유형"), objCol("object_type", "대상"),
+    // SEM-01: 이 화면 첫 열(유형)이 actionCol(render 있음)이라 표식 없이는 100건이 전부
+    // "상세 보기"로 읽혔다 — 요청자까지 합쳐 행마다 실제로 다른 이름을 만든다(둘 다 이미
+    // 목록에 보이는 값). requester_name 폴백은 바로 아래 요청자 열과 동일한 우선순위.
+    columns: [{ ...actionCol("request_type", "유형"), rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
       // 예약/시스템이 자동 생성한 document.publish 승인은 requested_by="system"이다(사람이 아니므로
       // resolve_names가 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
       { key: "requester_name", label: "요청자", render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
@@ -187,7 +190,9 @@ export const GOVERNANCE_SCREENS = {
     searchPlaceholder: "이름으로 검색",
     filters: [{ key: "state", type: "select", label: "상태", options: opt([["active", "진행 중"], ["scheduled", "예정"], ["ended", "종료"], ["revoked", "거둠"]]) }],
     columns: [
-      { key: "delegator_name", label: "위임한 사람", render: (r) => r.delegator_name || r.delegator_user_id },
+      // SEM-01: 첫 열이 render라 표식 없이는 모든 위임이 "상세 보기"로 동일했다 — 위임한
+      // 사람→대리 승인자를 합쳐 실제로 구별되는 이름을 만든다.
+      { key: "delegator_name", label: "위임한 사람", render: (r) => r.delegator_name || r.delegator_user_id, rowName: (r) => (r.delegator_name || r.delegator_user_id) + " → " + (r.delegate_name || r.delegate_user_id) },
       { key: "delegate_name", label: "대리 승인자", render: (r) => r.delegate_name || r.delegate_user_id },
       { key: "state", label: "상태", render: (r) => React.createElement(Badge, {
         value: ({ active: "진행 중", scheduled: "예정", ended: "종료", revoked: "거둠" })[r.state] || r.state,
@@ -301,7 +306,10 @@ export const GOVERNANCE_SCREENS = {
       { key: "until", type: "datetime-local", label: "종료 시각(KST)" },
     ],
     // 행위자는 이름 → 이메일 → (UUID) 순으로 표시하고, user_id가 없으면 시스템/CLI 동작이므로 '시스템'.
-    columns: [dateCol("created_at", "시각"), actionCol("action", "작업"), objCol("object_type", "대상"),
+    // SEM-01: 첫 열(시각)이 dateCol(render 있음)이라 표식 없이는 페이지 100건이 전부 "상세
+    // 보기"였다 — 작업·행위자·시각을 합쳐 실제로 구별되는 이름을 만든다(마지막 요소인
+    // 행위자 판정은 바로 아래 '행위자' 열과 동일한 우선순위: 이름 → 이메일 → 시스템).
+    columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTime(r.created_at) }, actionCol("action", "작업"), objCol("object_type", "대상"),
       // object_type/action/actor로만 필터해도(대상 ID로 좁히지 않으면) 같은 유형·같은 작업·같은
       // 행위자의 여러 행이 목록에서 서로 구별되지 않았다 — 대상 ID를 목록에 바로 노출한다.
       truncateCol("object_id", "대상 ID", 24),
@@ -370,7 +378,9 @@ export const GOVERNANCE_SCREENS = {
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
       }),
       { key: "actor_name", label: "행위자", render: (r) => r.actor_name || r.actor_id || "시스템" },
-      col("title", "요약"),
+      // SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 서버가 이미
+      // 만들어 주는 요약 문장(title)이 행마다 다른 가장 자연스러운 식별자다.
+      { ...col("title", "요약"), rowName: (r) => r.title || "이상 징후" },
       { key: "count", label: "건수", align: "right" },
       dateCol("last_at", "마지막"),
     ],
@@ -471,7 +481,9 @@ export const GOVERNANCE_SCREENS = {
       { key: "target_user_id", type: "text", label: "대상 사용자 ID" },
     ],
     columns: [
-      { key: "actor_name", label: "관리자", render: (r) => r.actor_name || r.actor_user_id },
+      // SEM-01: 첫 열이 render라 표식 없이는 모든 기록이 "상세 보기"로 동일했다 — 관리자→
+      // 대상을 합쳐 실제로 구별되는 이름을 만든다(delegations와 동일한 패턴).
+      { key: "actor_name", label: "관리자", render: (r) => r.actor_name || r.actor_user_id, rowName: (r) => (r.actor_name || r.actor_user_id) + " → " + (r.target_name || r.target_user_id) },
       { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },
       dateCol("started_at", "시작"), dateCol("ended_at", "종료"),
       { key: "active", label: "상태", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },
