@@ -125,6 +125,8 @@ Product Auditor가 tracked 파일 중 건드려도 되는 곳은 `docs/product-a
 | `--max-budget-usd` | invocation당 API 지출 상한. **PROJECT work unit이 아니다** — 예산으로 한 Worker가 끝나도 곧바로 다음 invocation이 같은 세션을 resume한다 |
 | `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** |
 | Stop hook(`stop_guard.py`) | 완료 marker 없이 끝내려는 Worker를 invocation당 한 번 되돌린다(보조 장치, fail-open) |
+| `CLOVIR_SUPERVISOR_PID` 생존 확인 | Supervisor가 자기 프로세스 환경에 넣은 `CLOVIR_SUPERVISED=1`은 **그 창에 그대로 남는다.** Ctrl+C로 멈춘 뒤 같은 창에서 시작한 사람의 대화형 Claude 세션이 Stop hook에 붙잡히던 문제(실제 발생). Supervisor는 종료 시 환경을 원래대로 되돌리고, hook은 PID가 실제로 살아 있을 때만 제동한다 |
+| stdin BOM 제거 | `stop_guard.py`가 stdin의 UTF-8 BOM으로 JSON 파싱에 실패해 **조용히 fail-open**하던 경로(제동 장치가 아무도 모르게 무력화됨) |
 
 ## 스크립트를 고칠 때
 

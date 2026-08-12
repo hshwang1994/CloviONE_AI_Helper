@@ -838,6 +838,83 @@ Test-Case "T42" "종료 코드로 상태를 구분한다: 정상/STOP/AUTO_STOP/
     Assert ((Get-StubCount $repo) -eq 0) "BLOCKED 상태에서는 Worker 를 띄우면 안 된다"
 }
 
+Test-Case "T43" "Supervisor 가 호출한 셸의 CLOVIR_* 환경을 오염시키지 않는다" {
+    param($repo)
+    # 사용자의 실제 상황을 그대로 재현한다: 같은 PowerShell 창에서 Runner 를 돌리고(같은 프로세스),
+    # Ctrl+C/종료 뒤 그 창에서 대화형 Claude 를 시작한다. Runner 가 자기 프로세스 환경에 넣은
+    # CLOVIR_SUPERVISED 가 남아 있으면 그 대화형 세션이 supervised worker 로 오인되어 Stop hook 이
+    # 사람의 작업을 막는다 — 2026-08-12 검수 세션이 실제로 그 상태였다.
+    Set-Scenario $repo @("success")
+    $probe = Join-Path $repo "var\env_probe.ps1"
+    $body = @"
+`$ErrorActionPreference = 'Continue'
+# 깨끗한 사용자 셸을 시뮬레이션한다. 이 harness 자체가 오염된 셸에서 돌 수 있으므로
+# (검수 세션이 실제로 그랬다) 명시적으로 지우지 않으면 단언이 무의미해진다.
+Remove-Item Env:CLOVIR_SUPERVISED -ErrorAction SilentlyContinue
+Remove-Item Env:CLOVIR_PRODUCT_AUDIT -ErrorAction SilentlyContinue
+Remove-Item Env:CLOVIR_SUPERVISOR_PID -ErrorAction SilentlyContinue
+& '$AutonomousScript' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
+    -PromptOverrideFile '$repo\var\prompt_override.txt' -MaxIterationsPerLaunch 1 ``
+    -MaxRuntimeMinutes 1 -DirtyRetrySeconds 1 | Out-Null
+'AFTER_IMPL supervised=[' + `$env:CLOVIR_SUPERVISED + '] audit=[' + `$env:CLOVIR_PRODUCT_AUDIT + ']'
+& '$AuditScript' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
+    -PromptOverrideFile '$repo\var\prompt_override.txt' -MaxIterationsPerLaunch 1 ``
+    -MaxRuntimeMinutes 1 -DirtyRetrySeconds 1 -MaxDirtyWaits 2 | Out-Null
+'AFTER_AUDIT supervised=[' + `$env:CLOVIR_SUPERVISED + '] audit=[' + `$env:CLOVIR_PRODUCT_AUDIT + ']'
+"@
+    [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
+    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
+
+    Assert-Match $out 'AFTER_IMPL supervised=\[\] audit=\[\]' `
+        "구현 Runner 가 끝난 뒤 호출한 셸에 CLOVIR_SUPERVISED 가 남으면 안 된다. 실제: $out"
+    Assert-Match $out 'AFTER_AUDIT supervised=\[\] audit=\[\]' `
+        "Audit Runner 가 끝난 뒤 호출한 셸에 CLOVIR_PRODUCT_AUDIT 가 남으면 안 된다. 실제: $out"
+}
+
+Test-Case "T44" "Stop hook: 죽은 Supervisor 가 남긴 환경 표시로 사람 세션을 붙잡지 않는다" {
+    param($repo)
+    # 환경 복원(T43)은 Ctrl+C 경로에서 보장되지 않는다. 그래서 hook 자체가 "표시 + 그 PID 가
+    # 실제로 살아 있는가"를 함께 본다. 이 저장소의 실제 stop_guard.py 를 그대로 호출해 판정한다.
+    $guard = Join-Path (Split-Path -Parent $RunnerDir) "runner\stop_guard.py"
+    if (-not (Test-Path $guard)) { $guard = Join-Path $RunnerDir "stop_guard.py" }
+    Assert (Test-Path $guard) "stop_guard.py 를 찾을 수 없다: $guard"
+
+    function Invoke-Guard([hashtable]$envs, [string]$stdinJson) {
+        $prev = @{}
+        foreach ($k in @("CLOVIR_SUPERVISED", "CLOVIR_SUPERVISOR_PID")) {
+            $prev[$k] = [Environment]::GetEnvironmentVariable($k, 'Process')
+            Remove-Item -LiteralPath ("Env:" + $k) -ErrorAction SilentlyContinue
+        }
+        foreach ($k in $envs.Keys) { Set-Item -LiteralPath ("Env:" + $k) -Value $envs[$k] }
+        try { $o = ($stdinJson | & python $guard 2>&1 | Out-String) } catch { $o = "EXC:$($_.Exception.Message)" }
+        foreach ($k in @($prev.Keys)) {
+            if ($null -eq $prev[$k]) { Remove-Item -LiteralPath ("Env:" + $k) -ErrorAction SilentlyContinue }
+            else { Set-Item -LiteralPath ("Env:" + $k) -Value $prev[$k] }
+        }
+        return $o
+    }
+    $payload = '{"stop_hook_active": false}'
+
+    # (a) 표시 없음 = 사람 세션 → 통과
+    Assert-NoMatch (Invoke-Guard @{} $payload) 'decision' "표시가 없으면 아무 것도 하지 않아야 한다"
+
+    # (b) 표시는 있는데 PID 가 없음(예전 Supervisor 가 셸에 남긴 흔적) → 통과
+    Assert-NoMatch (Invoke-Guard @{ CLOVIR_SUPERVISED = "1" } $payload) 'decision' `
+        "PID 가 없는 stale 표시로 사람 세션을 막으면 안 된다"
+
+    # (c) 표시 + 죽은 PID → 통과
+    Assert-NoMatch (Invoke-Guard @{ CLOVIR_SUPERVISED = "1"; CLOVIR_SUPERVISOR_PID = "999999" } $payload) 'decision' `
+        "죽은 Supervisor PID 로 사람 세션을 막으면 안 된다"
+
+    # (d) 표시 + 살아있는 PID + PROJECT_COMPLETE 없음 → 제동 1회
+    Assert-Match (Invoke-Guard @{ CLOVIR_SUPERVISED = "1"; CLOVIR_SUPERVISOR_PID = "$PID" } $payload) '"decision"\s*:\s*"block"' `
+        "살아있는 Supervisor 의 Worker 는 완료 marker 없이 끝내려 하면 제동해야 한다"
+
+    # (e) 표시 + 살아있는 PID + stop_hook_active=true → 통과(무한 block 금지)
+    Assert-NoMatch (Invoke-Guard @{ CLOVIR_SUPERVISED = "1"; CLOVIR_SUPERVISOR_PID = "$PID" } '{"stop_hook_active": true}') 'decision' `
+        "이미 제동한 continuation 은 통과시켜야 한다"
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 Write-Host ""
 Write-Host "───────────────────────────────────────────────────────────────" -ForegroundColor Cyan

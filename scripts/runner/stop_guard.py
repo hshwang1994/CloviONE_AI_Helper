@@ -70,6 +70,53 @@ def log(message: str) -> None:
         pass
 
 
+def _process_alive(pid: int) -> bool:
+    """해당 PID의 프로세스가 지금 살아 있는가 (Windows, 의존성 없이).
+
+    `os.kill(pid, 0)`은 **Windows에서 쓰면 안 된다** — 신호 0을 지원하지 않고 TerminateProcess로
+    빠지는 경로가 있다. OpenProcess + GetExitCodeProcess로 확인한다.
+    판단이 불가능하면 True(살아 있다고 가정)를 돌려준다 — 이 함수의 실패가 hook을 무력화하지
+    않게 하기 위함이다(무력화 방향은 아래 supervisor_alive()가 별도로 관리한다).
+    """
+    try:
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return code.value == STILL_ACTIVE
+            return True
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return True
+
+
+def supervisor_alive() -> bool:
+    """`CLOVIR_SUPERVISED=1`이 **지금 살아 있는 Supervisor**에서 온 것인가.
+
+    왜 필요한가(2026-08-12 실제로 발생): Supervisor는 자식 claude.exe에 표시를 물려주려고
+    자기 프로세스 환경에 `CLOVIR_SUPERVISED=1`을 넣는다. 그런데 그 값은 **Supervisor를 시작한
+    사용자의 PowerShell 창에도 그대로 남는다**. 사용자가 Ctrl+C로 Supervisor를 멈춘 뒤 같은
+    창에서 대화형 Claude 세션을 시작하면, 그 세션이 supervised worker로 오인되어 이 hook이
+    사람의 작업을 막는다 — 이 파일이 위에서 "대화형 세션에는 영향이 없다"고 약속한 것과 정반대다.
+    Ctrl+C 경로에서는 Supervisor의 finally 정리도 보장되지 않으므로, 환경 복원만으로는 부족하다.
+
+    그래서 Supervisor는 `CLOVIR_SUPERVISOR_PID`를 함께 넘긴다. 그 PID가 살아 있지 않으면
+    (또는 아예 없으면) 이 표시는 죽은 Supervisor가 남긴 흔적이므로 사람 세션으로 보고 통과한다.
+    """
+    raw = os.environ.get("CLOVIR_SUPERVISOR_PID", "").strip()
+    if not raw.isdigit():
+        return False
+    return _process_alive(int(raw))
+
+
 def project_complete() -> bool:
     """완료 마커 gate — `autonomous_runner.ps1`의 판정과 **같은 규칙**이어야 한다.
 
@@ -103,8 +150,24 @@ def main() -> None:
     if os.environ.get("CLOVIR_SUPERVISED") != "1":
         sys.exit(0)
 
+    # 1-A) 표시는 있는데 그 Supervisor가 이미 죽었으면, 사용자의 셸에 남은 흔적이다 —
+    #      사람 세션으로 보고 통과한다(안 그러면 그 창에서 시작한 모든 세션이 계속 막힌다).
+    if not supervisor_alive():
+        allow(
+            "CLOVIR_SUPERVISED=1 이지만 살아있는 Supervisor가 아니다"
+            f"(CLOVIR_SUPERVISOR_PID={os.environ.get('CLOVIR_SUPERVISOR_PID', '<없음>')}) "
+            "— 사용자 셸에 남은 흔적으로 보고 통과"
+        )
+        return
+
     try:
         raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        # 앞의 BOM을 벗긴다. 호출자에 따라 stdin에 UTF-8 BOM이 붙는다 — 2026-08-12 실측:
+        # Windows PowerShell 5.1에서 문자열을 native 명령에 파이프하면 실제로
+        # b'\xef\xbb\xbf{...}' 가 들어온다. 그러면 json.loads가 실패하고 이 hook은 **조용히
+        # fail-open** 한다. 제동 장치가 아무도 모르게 무력화되는 경로라 반드시 막는다.
+        # (PowerShell 쪽 파일 읽기도 같은 규칙으로 BOM을 벗긴다 — runner_common.ps1)
+        raw = raw.lstrip("﻿")
         if not raw.strip():
             # 입력이 비어 있으면 stop_hook_active를 알 수 없다 → 제동하면 무한 block 위험.
             allow("stdin 비어 있음 — stop_hook_active를 알 수 없어 fail-open")

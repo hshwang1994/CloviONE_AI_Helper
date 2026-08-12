@@ -244,8 +244,15 @@ try {
     # Supervisor 가 띄운 Worker 임을 표시한다 — Stop hook(stop_guard.py)이 이 표시를 보고만
     # 동작한다. 이 프로세스 환경에 넣어 두면 Start-Process 로 띄우는 child 가 그대로 상속한다.
     # Audit Runner 가 남겼을 수 있는 표시는 지운다(역할 혼동 방지).
+    # 끝날 때 finally 에서 원래 값으로 되돌린다 — 안 그러면 이 값이 **호출한 셸에 남아**,
+    # 같은 창에서 시작한 사람의 대화형 Claude 세션까지 Stop hook 이 붙잡는다(실제로 발생).
+    # CLOVIR_SUPERVISOR_PID 를 함께 넘기는 이유: Ctrl+C 로 멈추면 아래 finally 의 환경 복원이
+    # 보장되지 않는다. Stop hook 이 "표시 + 그 PID 가 실제로 살아 있는가"를 함께 보게 해서,
+    # 죽은 Supervisor 가 셸에 남긴 흔적이 사람의 대화형 세션을 붙잡지 못하게 한다.
+    $script:EnvSnapshot = Save-EnvSnapshot @("CLOVIR_SUPERVISED", "CLOVIR_PRODUCT_AUDIT", "CLOVIR_SUPERVISOR_PID")
     Remove-Item Env:CLOVIR_PRODUCT_AUDIT -ErrorAction SilentlyContinue
     $env:CLOVIR_SUPERVISED = "1"
+    $env:CLOVIR_SUPERVISOR_PID = "$PID"
 
     $prompt = @'
 당신은 ClovirONE Web Assistant 프로젝트를 **끝까지 완성**하는 작업을 이어받는다. 이것은 사람이
@@ -625,6 +632,7 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
     }
     exit $script:FinalExit
 } finally {
+    Restore-EnvSnapshot $script:EnvSnapshot
     Close-ExclusiveLock -Lock $lock -LockFile $LockFile
     Write-RunnerLog "Supervisor 종료 PID=$PID (invocations=$iterationsThisLaunch) exit=$script:FinalExit"
 }

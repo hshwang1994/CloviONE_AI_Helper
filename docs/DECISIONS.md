@@ -1169,5 +1169,25 @@ session_id · 유령 dirty · 두 Runner 동시 실행 차단 · Audit allowlist
 marker 거부 · 사전 dirty 허용 · premature `PROJECT_COMPLETE` 차단 · CONSUMED 후 정상 완료 ·
 Handoff 인지 · Handoff 부재 계약 오류 · 반복 거부 AUTO_STOP · 전제조건 실패 · 종료 코드 구분.
 
+**추가 결함(검수 중 이 세션이 직접 당해서 발견)**: Supervisor는 자식에게 표시를 물려주려고
+자기 프로세스 환경에 `CLOVIR_SUPERVISED=1`을 넣는데, 그 값이 **Supervisor를 시작한 사용자의
+PowerShell 창에도 남는다**. 사용자가 Ctrl+C로 멈춘 뒤 같은 창에서 대화형 Claude 세션을 시작하면
+그 세션이 supervised worker로 오인되어 Stop hook이 사람의 작업을 막는다 — `stop_guard.py`가
+문서로 약속한 "대화형 세션에는 영향이 없다"의 정반대다. 이 검수 세션이 실제로 그 상태였고
+`var/runner/stop_guard.log`에 사람 세션 block 기록이 남아 있다. 실측으로 확인: `& script.ps1`로
+부른 스크립트의 `$env:` 변경은 호출자 프로세스에 그대로 남는다(5.1/7 공통).
+수정은 두 겹이다 — ① Supervisor가 시작 시 환경을 snapshot하고 `finally`에서 정확히 되돌린다,
+② Ctrl+C에서는 `finally`가 보장되지 않으므로 Supervisor가 `CLOVIR_SUPERVISOR_PID`를 함께 넘기고
+`stop_guard.py`가 **그 PID가 실제로 살아 있는지** 확인한다(Windows에서 `os.kill(pid,0)`은 쓰면
+안 되므로 `OpenProcess`+`GetExitCodeProcess`). 죽은 Supervisor의 흔적이면 사람 세션으로 보고
+통과시킨다. 이미 오염된 셸도 이 검사로 즉시 정상화된다.
+
+**또 하나(조용한 무력화)**: `stop_guard.py`가 stdin의 UTF-8 BOM 때문에 `json.loads`에 실패하면
+설계대로 fail-open 하는데, 그 결과 **제동 장치가 아무도 모르게 무력화된다**. 실측: PS 5.1에서
+문자열을 native 명령에 파이프하면 stdin에 `b'ï»¿'`가 실제로 붙는다. 파싱 전에 BOM을
+벗기도록 고쳤다(PowerShell 쪽 파일 읽기와 같은 규칙).
+controlled test T43(환경 오염 없음)·T44(hook 판정 5종: 표시없음/PID없음/죽은PID/살아있는PID+제동/
+stop_hook_active)를 추가해 5.1·7 양쪽에서 34/34 통과를 확인했다.
+
 **한계**: 완료 Gate는 **형식과 정합성**을 검증하지 Audit/구현의 실제 깊이를 검증하지 못한다.
 그리고 stub으로는 실제 Claude의 판단 품질을 검증할 수 없다 — 프로세스 경계 계약만 증명된다.

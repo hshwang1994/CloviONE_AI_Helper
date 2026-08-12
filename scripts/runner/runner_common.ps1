@@ -603,6 +603,32 @@ function Move-MarkerToQuarantine {
     } catch { return "" }
 }
 
+# ── 호출한 셸의 환경을 더럽히지 않기 ──────────────────────────────────────────
+# Supervisor 는 자식(claude.exe)에게 표시를 물려주려고 **자기 프로세스 환경**에 변수를 넣는다
+# (5.1 에는 Start-Process -Environment 가 없다). 문제는 그 값이 **호출한 셸에도 그대로 남는다**는
+# 것이다: 사용자가 같은 PowerShell 창에서 Ctrl+C 로 Supervisor 를 멈춘 뒤 대화형 Claude 세션을
+# 시작하면, 그 세션이 supervised worker 로 오인되어 Stop hook 이 사람의 작업을 막는다.
+# 2026-08-12 검수 세션이 실제로 그 상태였다(stop_guard.log 에 사람 세션 block 기록). 끝날 때
+# 원래 값으로 정확히 되돌린다 — 원래 없었으면 없는 상태로.
+function Save-EnvSnapshot {
+    param([string[]]$Names)
+    $snap = @{}
+    foreach ($n in $Names) { $snap[$n] = [Environment]::GetEnvironmentVariable($n, 'Process') }
+    return $snap
+}
+
+function Restore-EnvSnapshot {
+    param($Snapshot)
+    if ($null -eq $Snapshot) { return }
+    foreach ($n in @($Snapshot.Keys)) {
+        try {
+            $v = $Snapshot[$n]
+            if ($null -eq $v) { Remove-Item -LiteralPath ("Env:" + $n) -Force -ErrorAction SilentlyContinue }
+            else { Set-Item -LiteralPath ("Env:" + $n) -Value $v }
+        } catch { }
+    }
+}
+
 function Test-RunnerPrerequisites {
     <#  시작하자마자 확인할 수 있는 전제조건. 실패하면 3회 헛돌다 AUTO_STOP 하는 대신
         **왜 못 도는지** 를 크게 알리고 즉시 끝낸다(조용한 no-op 금지). #>
