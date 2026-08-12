@@ -10,9 +10,10 @@
   (연속 실패 상한·STOP 파일·완료 마커에 걸리지 않는 한) 매 반복 사이에 sleep 없이 곧장
   다음 Claude Code 호출로 넘어간다.
 
-  Task 스케줄러의 역할도 바뀐다 — 더 이상 "언제 일할지"를 정하는 페이서가 아니라, 이 while
-  루프 프로세스가 죽어 있을 때만(재부팅·크래시) 다시 띄우는 **감시자**다(§install_task.ps1,
-  15분마다 확인). 루프가 살아있으면 잠금 파일 때문에 즉시 종료하는 무료 no-op이다.
+  Windows Task Scheduler 의존은 그 뒤 완전히 폐기됐다(CLAUDE.md §0). 이 스크립트를 되살려 주는
+  scheduled task 도, heartbeat 도, fallback continuity 도 **없다** — 사용자가 PowerShell 에서
+  한 번 시작한 이 프로세스 자체가 Primary Continuous Supervisor 다. `install_task.ps1` 은 과거
+  유물로 남아 있을 뿐 이 구조의 일부가 아니며, 기존 scheduler 항목의 삭제는 사용자 몫이다.
 
   2026-08-12 재설계(사용자 지시: "Persistent Worker Session — 매 반복마다 새 세션을 만들지
   마라, 하나의 Worker Session을 계속 이어가라"): 이전 판은 매 반복을 완전히 새 비대화형(-p)
@@ -50,22 +51,25 @@
   재시작과 대화 연속성은 별개다.
 
   안전장치(무한 오동작 방지 — 유지):
-    - var\runner\STOP 파일 — 다음 반복 시작 전에 확인. 있으면 루프 자체를 끝낸다(사용자 강제 중지).
+    - var\runner\STOP 파일 — 다음 invocation 시작 전에 확인. 있으면 루프를 끝낸다(사용자 전용).
     - var\runner\PROJECT_COMPLETE 파일 — Claude 스스로 전체 완성 기준을 확인했을 때만 만든다.
-      있으면 루프를 정상 종료한다(이것이 유일한 "성공적 종료" 조건 — 사용자 지시 §8).
-    - var\runner\run.lock — 겹쳐 도는 것을 막는다. 다른 while 루프가 이미 살아있으면(PID 확인)
-      이 프로세스는 즉시 종료(Task 스케줄러 heartbeat가 이 경로를 자주 밟는다).
-    - var\runner\state.json — 연속 실패 횟수. $MaxConsecutiveFailures 넘으면 STOP 파일을
-      스스로 만들고 멈춘다 — 사람이 원인을 보고 STOP을 지우고 카운터를 0으로 되돌려야 재개.
-    - 저장소가 dirty(대화형 세션이 작업 중)면 반복을 건너뛰되, 3시간이 아니라 **2분** 뒤
-      다시 확인한다(같은 루프 안에서) — 사람이 손을 뗀 순간 빠르게 이어받는다.
-    - --max-budget-usd — Claude Code 자체의 지출 상한(반복당).
+      **내용이 있어야** 유효하다. 이것이 유일한 "성공적 종료" 조건이다.
+    - var\runner\run.lock — 배타 파일 핸들. 다른 Supervisor 가 이미 잡고 있으면 이 프로세스는
+      이유를 출력하고 종료한다(두 Writer 방지).
+    - var\runner\state.json — 연속 실패 횟수. $MaxConsecutiveFailures 넘으면 AUTO_STOP 을
+      만들고 멈춘다 — 사람이 원인을 보고 그냥 다시 실행하면 자동으로 정리되고 재개된다.
+    - 저장소가 dirty(대화형 세션이 작업 중)면 invocation 을 건너뛰고 $DirtyRetrySeconds 뒤
+      다시 확인한다. 단 내용이 안 변한 채 $MaxUnchangedDirtyWaits 회 반복되면 그대로 진행한다
+      (유령 dirty 상태로 영원히 멈추지 않기 위함).
+    - --max-budget-usd — Claude Code 자체의 지출 상한(invocation 당). **PROJECT work unit 이
+      아니다** — 예산 때문에 한 Worker 가 끝나도 PROJECT_COMPLETE=false 면 곧바로 다음
+      invocation 이 같은 세션을 resume 한다.
     - Process.WaitForExit(ms) — 한 invocation 이 멈춰 버리면 $MaxRuntimeMinutes 뒤 강제 종료
       (그 invocation 만 실패로 센다 — 루프 자체는 안 죽는다). `Wait-Process -PassThru` 로는
       타임아웃을 판정할 수 없다(실패해도 객체를 돌려준다) — 2026-08-12 수정.
-    - $MaxIterationsPerLaunch — 정말 예외적인 경우를 위한 관대한 상한(런어웨이 하드 스톱).
-      이 상한에 걸리면 프로세스가 깨끗이 종료되고, 다음 Task 스케줄러 heartbeat(최대 15분
-      이내)가 자동으로 새 루프를 띄운다 — "멈춤"이 아니라 "이 프로세스 인스턴스만 교체".
+    - $MaxIterationsPerLaunch — **production 기본값은 0(무제한)이다**. invocation 횟수는
+      Supervisor 종료 조건이 아니다(2026-08-12 사용자 지시). 양수 값은 controlled test 에서만
+      쓰는 override 다.
     - --permission-mode auto — 이 세션이 실제로 쓰고 있는 것과 같은 모드(자동 분류기가 위험한
       동작은 여전히 막는다). --dangerously-skip-permissions/--bypassPermissions는 **절대 안 씀**.
     - Rate-limit/overload로 보이는 실패만 지수 백오프(진짜 기다릴 이유가 있는 경우 — 사용자
@@ -105,13 +109,29 @@
 param(
     [string]$ProjectDir = "C:\Users\hshwa\clovirone-web-assistant",
     [string]$ClaudeExe  = "C:\Users\hshwa\.local\bin\claude.exe",
-    # 아래 둘은 controlled test용 seam — 평소 실행에서는 비워 둔다(내장 프롬프트/기본 모델 사용).
+    # PromptOverrideFile 은 controlled test용 seam — 평소엔 비워 둔다(내장 프롬프트 사용).
     # 이름 주의: PowerShell 변수는 대소문자를 구분하지 않는다. 루프 안의 per-invocation 변수
     # `$promptFile` 과 같은 이름을 쓰면 파라미터가 조용히 덮어써진다(2026-08-12 실제로 당함 —
     # 테스트 프롬프트 대신 내장 프롬프트가 나갔고, 로그만 봐서는 알 수 없었다).
     [string]$PromptOverrideFile = "",
-    [string]$Model              = "",
-    [int]$MaxIterationsPerLaunch = 300,   # 런어웨이 하드 스톱(정상 경로에서 걸릴 일 없는 상한)
+
+    # ── Worker 품질 계약(2026-08-12 사용자 지시) ────────────────────────────────
+    # 매 invocation 에 **명시적으로** 넘긴다. 새 세션이든 --resume 이든 항상 넘긴다.
+    # 이렇게 하지 않으면 Worker 품질이 이전 대화형 세션의 /model, 사용자 global setting,
+    # 세션에 저장된 과거 model, 실행 당시의 우연한 default 에 좌우된다 — 실제로 그렇다는 것을
+    # 2026-08-12 실측했다: `--effort` 를 안 주면 Worker 안의 effort 가 사용자 settings 의
+    # `effortLevel: high` 를 그대로 따라갔고, `--effort max` 를 주면 `max` 로 확정됐다
+    # (Stop hook 입력의 effort.level 로 직접 관측). `--model sonnet` 은 claude-sonnet-5 로
+    # 해석되는 것을 응답 JSON 의 canonicalModel 로 확인했다.
+    # 설치된 CLI(2.1.228)가 실제로 허용하는 effort 값: low | medium | high | xhigh | max.
+    # "ultracode"/"ultrathink" 는 effort 값이 아니다 — 넣지 마라.
+    [string]$Model  = "sonnet",
+    [ValidateSet("low", "medium", "high", "xhigh", "max")]
+    [string]$Effort = "max",
+
+    # 0 = 무제한(production 기본). invocation 횟수는 Supervisor 종료 조건이 **아니다**.
+    # 양수는 controlled test 전용 override.
+    [int]$MaxIterationsPerLaunch = 0,
     [int]$MaxConsecutiveFailures = 3,
     [int]$MaxBudgetUsd = 15,
     [int]$MaxRuntimeMinutes = 150,        # 한 invocation의 상한 — 멈춰 버린 프로세스만 죽인다
@@ -181,6 +201,24 @@ function Test-ProjectComplete {
     if (-not (Test-Path $CompleteFile)) { return $false }
     $content = Get-Content $CompleteFile -Raw -ErrorAction SilentlyContinue
     return -not [string]::IsNullOrWhiteSpace($content)
+}
+
+# 응답 JSON 에서 **실제로 쓰인** 모델을 읽는다. 요청값(--model sonnet)과 별개로 기록해 두면,
+# 나중에 "정말 Sonnet 으로 돌았나"를 로그만으로 확인할 수 있다. 구조가 없거나 파싱이 안 되면
+# 추측하지 않고 "unknown" 을 남긴다(사용자 지시 §10 TEST C).
+function Get-ActualModel([string]$jsonLogPath) {
+    try {
+        if (-not (Test-Path $jsonLogPath)) { return "unknown" }
+        $raw = Get-Content $jsonLogPath -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($raw)) { return "unknown" }
+        $usage = ($raw | ConvertFrom-Json).modelUsage
+        if (-not $usage) { return "unknown" }
+        $names = @($usage.PSObject.Properties | ForEach-Object { $_.Value.canonicalModel } |
+                   Where-Object { $_ } | Sort-Object -Unique)
+        if ($names.Count -eq 0) { $names = @($usage.PSObject.Properties.Name) }
+        if ($names.Count -eq 0) { return "unknown" }
+        return ($names -join ',')
+    } catch { return "unknown" }
 }
 
 # 실행할 수 없는 이유는 로그 한 줄이 아니라 눈에 띄게 출력한다(사용자 지시 §9 — 조용한 no-op 금지).
@@ -285,10 +323,15 @@ docs/DECISIONS.md, docs/PROGRESS_STATUS.md, docs/WORK_PLAN_INDEX.md, 그리고 �
 전체를 기준으로 판단한다.
 
 ## 2단계 — 남은 작업 판단과 즉시 실행
-제품 전체 기준으로 남은 작업 중 우선순위가 가장 높은 것을 스스로 고르고 **묻지 않고 즉시
-시작**한다(Critical/High, Master Plan 의존관계, 큰 미검증 영역, Root Cause 레버리지, 현재
-작업과의 locality 순으로 스스로 판단). 하나를 끝내면 멈추지 말고 곧바로 다음 후보로 넘어간다 —
-"다음 호출에서 하겠다"는 선택지는 없다.
+제품 전체 기준으로 영향도가 가장 높은 Root Cause를 스스로 고르고 **묻지 않고 즉시 시작**한다
+(Critical/High, Master Plan 의존관계, 큰 미검증 영역, Root Cause 레버리지, 현재 작업과의
+locality 순으로 스스로 판단). 하나를 닫으면 멈추지 말고 context/budget/tool 상황이 허용하는
+동안 곧바로 다음 영향도 높은 Root Cause로 넘어간다 — "다음 호출에서 하겠다"는 선택지는 없다.
+
+Backlog ID는 **inventory/evidence이지 실행 단위가 아니다.** ID를 한 건씩 기계적으로 처리하지
+말고, 같은 Root Cause를 공유하는 항목들을 묶어서 저장소 전체에서 함께 조사하고 함께 고친다
+(UI → shared component + 전체 소비처, RBAC → 같은 permission/scope 경로 전체, DB → 같은
+transaction/retry 패턴 전체). "N건 처리"는 진척 단위가 아니다.
 
 ## 3단계 — 구현
 남은 작업을 Root Cause 단위로 크게 묶어 구현한다. 작업 중에는 관련된 focused/subsystem 테스트만
@@ -354,16 +397,17 @@ try {
             Write-RunnerLog "PROJECT_COMPLETE 유효 — 루프를 정상 종료합니다. 내용: $(Get-Content $CompleteFile -Raw)"
             break
         }
-        if ($iterationsThisLaunch -ge $MaxIterationsPerLaunch) {
-            # 2026-08-12 정정: 예전 메시지는 "작업 스케줄러 heartbeat 가 새 루프를 이어받는다"고
-            # 했지만 Task Scheduler 의존은 폐기됐다(CLAUDE.md §0) — 여기서 끊기면 실제로는
-            # 아무도 이어받지 않는다. 거짓 안심을 주지 말고 사실대로 알린다.
+        # invocation 횟수는 **production 에서 종료 조건이 아니다**($MaxIterationsPerLaunch=0).
+        # 양수는 controlled test 전용 override 다 — 그 경우에만 여기서 끊는다. 예전엔 기본값이
+        # 300 이었고 "작업 스케줄러 heartbeat 가 새 루프를 이어받는다"고 안내했지만, Task
+        # Scheduler 의존은 폐기됐으므로 실제로는 아무도 이어받지 않는다(2026-08-12 정정).
+        if ($MaxIterationsPerLaunch -gt 0 -and $iterationsThisLaunch -ge $MaxIterationsPerLaunch) {
             Write-Banner @(
-                "이번 실행에서 Worker invocation $MaxIterationsPerLaunch 회 상한에 도달해 종료합니다(런어웨이 방지).",
+                "Worker invocation $MaxIterationsPerLaunch 회 상한에 도달해 종료합니다(test override).",
                 "이것은 PROJECT_COMPLETE 가 아닙니다 — 프로젝트는 끝나지 않았습니다.",
-                "자동으로 이어받는 장치는 없습니다(Task Scheduler 의존 폐기). 계속하려면 이 스크립트를 다시 실행하세요."
+                "production 기본값은 무제한(0)입니다. 자동으로 이어받는 장치는 없으니 계속하려면 다시 실행하세요."
             )
-            Write-RunnerLog "invocation 상한 $MaxIterationsPerLaunch 도달 — 종료(PROJECT_COMPLETE 아님, 수동 재시작 필요)."
+            Write-RunnerLog "invocation 상한 $MaxIterationsPerLaunch 도달(test override) — 종료(PROJECT_COMPLETE 아님)."
             break
         }
 
@@ -410,7 +454,7 @@ try {
         $timestamp = "{0}-{1:d3}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), ($iterationsThisLaunch + 1)
         $logFile = Join-Path $LogDir "$timestamp.log"
         $promptFile = Join-Path $LogDir "$timestamp.prompt.txt"
-        Write-RunnerLog "Worker invocation 시작 #$($iterationsThisLaunch + 1) (log=$logFile, budget=`$$MaxBudgetUsd, timeout=${MaxRuntimeMinutes}분)"
+        Write-RunnerLog "Worker invocation 시작 #$($iterationsThisLaunch + 1) requestedModel=$Model requestedEffort=$Effort (log=$logFile, budget=`$$MaxBudgetUsd, timeout=${MaxRuntimeMinutes}분)"
 
         # 2026-08-11 버그 수정: 프롬프트를 -ArgumentList 배열 요소로 넘기면 Start-Process가
         # Windows용 단일 커맨드라인 문자열로 재조립하는 과정에서 멀티라인·특수문자가 포함된
@@ -450,7 +494,9 @@ try {
             "--max-budget-usd", $MaxBudgetUsd,
             "--output-format", "json"
         ) + $sessionArgs
-        if ($Model) { $argList += @("--model", $Model) }   # controlled test seam
+        # 품질 계약은 새 세션이든 --resume 이든 **매번** 명시한다(위 param 주석의 실측 근거 참고).
+        if ($Model)  { $argList += @("--model", $Model) }
+        if ($Effort) { $argList += @("--effort", $Effort) }
 
         $proc = Start-Process -FilePath $ClaudeExe -ArgumentList $argList -WorkingDirectory $ProjectDir `
             -RedirectStandardInput $promptFile -RedirectStandardOutput $logFile -RedirectStandardError "$logFile.err" -PassThru -NoNewWindow
@@ -524,7 +570,8 @@ try {
         # Git SHA·PROJECT_COMPLETE 상태. secret 은 남기지 않는다(session_id 는 불투명 UUID).
         $headSha = (git -C $ProjectDir rev-parse --short HEAD 2>$null)
         $isComplete = Test-ProjectComplete
-        Write-RunnerLog "Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode session=$sessionId rateLimit=$isRateLimit resumeFailure=$isResumeFailure consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns) headSha=$headSha PROJECT_COMPLETE=$isComplete"
+        $actualModel = Get-ActualModel $logFile
+        Write-RunnerLog "Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode session=$sessionId requestedModel=$Model requestedEffort=$Effort actualModel=$actualModel rateLimit=$isRateLimit resumeFailure=$isResumeFailure consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns) headSha=$headSha PROJECT_COMPLETE=$isComplete"
         if (-not $isComplete) {
             Write-RunnerLog "PROJECT_COMPLETE=false — 대기 없이 곧바로 다음 Worker invocation 을 시작한다(exit=$exitCode 는 종료 조건이 아니다)."
         }

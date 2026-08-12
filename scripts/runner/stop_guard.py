@@ -117,6 +117,13 @@ def main() -> None:
         allow(f"stdin 파싱 실패({exc.__class__.__name__}) — fail-open")
         return
 
+    # Worker 안에서 **실제로** 적용된 effort를 남긴다 — Supervisor가 `--effort max`를 넘겼는데
+    # 사용자 settings의 effortLevel이나 환경변수에 밀리지 않았는지를 로그만으로 확인할 수 있다
+    # (2026-08-12 실측: `--effort` 없이 부르면 여기 `high`가, `--effort max`면 `max`가 찍힌다).
+    effort = (payload.get("effort") or {}).get("level")
+    log(f"관측  — effort={effort} permission_mode={payload.get('permission_mode')} "
+        f"stop_hook_active={payload.get('stop_hook_active')}")
+
     # 2) 이 hook이 이미 한 번 제동해서 이어진 continuation이면 보내 준다.
     #    (무한 block 루프 방지 — Supervisor를 대체하는 장치가 되면 안 된다.)
     if payload.get("stop_hook_active") is True:
