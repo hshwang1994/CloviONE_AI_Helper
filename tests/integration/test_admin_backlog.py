@@ -49,6 +49,32 @@ def test_announcement_lifecycle_and_dismissal(client, login_as, make_user):
     assert again.status_code == 200 and again.json()["dismissed"] is False
 
 
+def test_announcement_search_matches_title_or_body(client, login_as):
+    """UB-24: 화면 설정에 searchFields/searchPlaceholder가 이미 있었는데 searchable이
+    빠져 있어(그래서 백엔드도 q를 몰랐다) 검색창 자체가 안 그려졌다 — 제목으로 배너를
+    찾을 방법이 없었다."""
+    csrf = login_as("system_admin")
+    client.post(
+        "/api/admin/announcements",
+        json={"title": "정기 점검 안내", "body": "토요일 새벽에 점검합니다", "level": "info"},
+        headers=_h(csrf),
+    )
+    client.post(
+        "/api/admin/announcements",
+        json={"title": "신규 기능 안내", "body": "게시판 검색이 추가됐습니다", "level": "info"},
+        headers=_h(csrf),
+    )
+
+    by_title = client.get("/api/admin/announcements?q=점검").json()
+    assert [a["title"] for a in by_title["items"]] == ["정기 점검 안내"]
+
+    by_body = client.get("/api/admin/announcements?q=게시판").json()
+    assert [a["title"] for a in by_body["items"]] == ["신규 기능 안내"]
+
+    no_match = client.get("/api/admin/announcements?q=존재하지않는단어").json()
+    assert no_match["items"] == []
+
+
 def test_announcement_window_and_audience(client, login_as):
     csrf = login_as("system_admin")
     future = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()

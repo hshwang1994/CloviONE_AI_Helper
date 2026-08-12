@@ -173,7 +173,7 @@ export const PLATFORM_SCREENS = {
     emptySteps: ["‘+ 공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 끌 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
     emptyExpected: "활성 공지는 모든 화면 위쪽에 띠로 뜨고, 사용자가 닫으면 그 계정에는 다시 뜨지 않습니다.",
     createLabel: "+ 공지 추가",
-    paginated: true,
+    paginated: true, searchable: true,
     searchFields: ["title", "body"],
     searchPlaceholder: "제목, 내용으로 검색",
     filters: [

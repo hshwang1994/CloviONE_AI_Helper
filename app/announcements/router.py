@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.announcements import service
@@ -127,12 +127,22 @@ def list_announcements(
     page: PageParams = Depends(),
     active: bool | None = None,
     level: str | None = None,
+    q: str | None = Query(default=None, max_length=200),
 ) -> dict:
     stmt = select(Announcement)
     if active is not None:
         stmt = stmt.where(Announcement.active.is_(active))
     if level:
         stmt = stmt.where(Announcement.level == level)
+    # UB-24: 화면 설정(registry/platform.js)에 searchFields/searchPlaceholder가 이미
+    # 있었는데 searchable이 빠져 있어 DataScreen.jsx가 검색창 자체를 안 그렸다 — 죽은
+    # 설정이었다. notion_mapping/router.py::list_mappings의 q 처리와 같은 모양으로
+    # 제목·본문을 대소문자 무시 부분일치로 검색한다.
+    if q:
+        needle = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            or_(func.lower(Announcement.title).like(needle), func.lower(Announcement.body).like(needle))
+        )
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
