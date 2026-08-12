@@ -222,6 +222,49 @@ def purge_mail_history(db: Session, *, now: datetime, retention_days: int = 90) 
     return result.rowcount or 0
 
 
+GAME_ROOM_RETENTION_DAYS = 7
+
+
+def purge_old_game_rooms(db: Session, *, now: datetime, retention_days: int = GAME_ROOM_RETENTION_DAYS) -> int:
+    """끝난 게임방과 그 멤버·이벤트 행을 정리한다 (RET-03/GM-04).
+
+    `app/games/models.py` 모듈 docstring이 만들어질 때부터 이미 명시했다 — "게임 히스토리는
+    남기지 않는다(§16.1): 방이 끝나고 정리 시간이 지나면 방·이벤트를 지운다(retention에서
+    처리, 여기선 스키마만)." 하지만 retention.py에는 그 처리가 실제로 없었다 — `game_rooms`·
+    `game_room_members`·`game_events` 세 표가 무기한 쌓이기만 했다(실측 15행, `closed_at`
+    전부 채워짐 = 남아 있을 이유가 없는 행들).
+
+    `closed_at IS NOT NULL`(끝난 방)만 대상이다 — 아직 열려 있는 방은 나이와 무관하게 절대
+    안 지운다(`purge_old_sessions`와 같은 판단). GM-01이 고친 `cleanup_idle_rooms`가 유휴
+    방을 이미 `closed_at`으로 닫아 두므로, 여기 못 미치는 "영원히 열린 채 방치된 방"은 없다.
+    `disband_room`/`list_open_rooms`가 이미 `closed_at`을 "끝났다"의 유일한 근거로 쓴다
+    (`status`가 아니라) — 여기서도 같은 근거를 쓴다.
+
+    FK에 `ON DELETE CASCADE`가 없다(0019 마이그레이션은 순수 FK만 건다) — 자식(멤버·이벤트)을
+    먼저 지운다(`purge_old_conversations`와 같은 순서).
+    """
+    from app.games.models import GameEvent, GameRoom, GameRoomMember
+
+    cutoff = now - timedelta(days=retention_days)
+    old_ids = [
+        row[0]
+        for row in db.execute(
+            select(GameRoom.id).where(
+                GameRoom.closed_at.is_not(None), GameRoom.closed_at < cutoff
+            )
+        ).all()
+    ]
+    if not old_ids:
+        return 0
+    for batch in batched(old_ids):
+        batch = list(batch)
+        db.execute(delete(GameEvent).where(GameEvent.room_id.in_(batch)))
+        db.execute(delete(GameRoomMember).where(GameRoomMember.room_id.in_(batch)))
+        db.execute(delete(GameRoom).where(GameRoom.id.in_(batch)))
+    db.flush()
+    return len(old_ids)
+
+
 def purge_used_reset_tokens(db: Session, *, now: datetime) -> int:
     """다 쓴 비밀번호 재설정 토큰을 정리한다 (9-9 P4).
 
@@ -239,10 +282,13 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
     notif_days = int(values.get("notification_retention_days", 90))
     job_days = int(values.get("job_retention_days", 60))
     run_days = int(values.get("schedule_run_retention_days", 60))
+    game_room_days = int(values.get("game_room_retention_days", GAME_ROOM_RETENTION_DAYS))
     result = {
         "conversations": purge_old_conversations(db, now=now, retention_days=conv_days),
         "notifications": purge_old_notifications(db, now=now, retention_days=notif_days),
         "job_attachments": strip_stale_job_attachments(db, now=now),
+        # RET-03/GM-04: 끝난 게임방은 §16.1이 "히스토리를 남기지 않는다"고 이미 약속했다.
+        "game_rooms": purge_old_game_rooms(db, now=now, retention_days=game_room_days),
         # Notion 에서 사라진 티켓의 캐시 행 — **유예를 넘긴 것만** 지운다(0043).
         # 동기화가 즉시 지우던 것을 여기로 옮겼다.
         "missing_tickets": purge_missing_tickets(db, now=now),
