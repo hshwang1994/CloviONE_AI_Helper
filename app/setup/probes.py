@@ -105,6 +105,29 @@ def probe_admin_account(ctx: ProbeContext) -> Outcome:
     return _done(f"시스템 관리자 {len(rows)}명이 있습니다.")
 
 
+# ── 메일(SMTP) 발송 ──────────────────────────────────────────────────────────
+
+
+def probe_mail(ctx: ProbeContext) -> Outcome:
+    """ADM-02R: 메일이 안 되면 화면은 안 비지만(자가 재설정 버튼이 스스로 숨는다), 초대·
+    백업 실패·승인 요청 메일이 전부 조용히 사라진다 — 설치 자체는 "완료"로 보인다.
+
+    판정을 새로 만들지 않는다(모듈 docstring) — `app/auth/reset_router.py::mail_is_sendable`
+    이 이미 쓰는 `app/mail/config.py::configuration_problems`를 그대로 부른다.
+    """
+    from app.mail.config import config_from_db, configuration_problems
+
+    config = config_from_db(ctx.db)
+    problems = configuration_problems(config, ctx.secrets)
+    if problems:
+        detail = problems[0] if len(problems) == 1 else f"{len(problems)}가지가 비어 있습니다: " + " / ".join(problems)
+        return _todo(
+            detail,
+            "관리 콘솔의 설정 화면에서 메일(SMTP) 발송 설정을 채우세요.",
+        )
+    return _done(f"메일 발송이 설정돼 있습니다({config.host}:{config.port}).")
+
+
 # ── 조직과 부서 ──────────────────────────────────────────────────────────────
 
 
@@ -376,6 +399,7 @@ def probe_tls(ctx: ProbeContext) -> Outcome:
 
 PROBES = {
     "admin_account": probe_admin_account,
+    "mail": probe_mail,
     "organization": probe_organization,
     "notion": probe_notion,
     "user_mapping": probe_user_mapping,

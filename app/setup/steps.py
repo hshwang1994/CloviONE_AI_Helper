@@ -53,6 +53,18 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
         ),
     ),
     SetupStep(
+        key="mail",
+        label="메일(SMTP) 발송",
+        why=(
+            "메일이 설정되지 않으면 사용자 자가 비밀번호 재설정이 꺼지고(전원이 관리자에게 "
+            "요청해야 합니다), 초대 메일과 백업 실패, 승인 요청 메일이 전혀 나가지 않습니다. "
+            "화면이 비지는 않으므로(ADM-02R) 사용자 배너에는 쓰지 않지만, 그냥 두면 그 사실을 "
+            "아무도 알려 주지 않습니다."
+        ),
+        # 관리자 계정 화면과 같은 선: 화면이 비는 이유가 아니라 사용자가 할 수 있는 일도
+        # 아니므로 user_visible=False (steps.py 클래스 docstring 참조).
+    ),
+    SetupStep(
         key="organization",
         label="조직과 부서",
         why=(

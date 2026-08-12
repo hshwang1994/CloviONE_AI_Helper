@@ -39,6 +39,7 @@ CHECKLIST = "/api/admin/setup/checklist"
 # 안내 순서 = 의존 순서. 이 목록의 순서가 곧 계약이다.
 EXPECTED_ORDER = [
     "admin_account",
+    "mail",
     "organization",
     "notion",
     "user_mapping",
@@ -99,6 +100,9 @@ def test_every_prerequisite_appears_before_the_item_that_needs_it(client, sysadm
 
 def test_a_blocked_item_says_what_blocks_it(client, sysadmin):
     """앞이 안 됐는데 뒤를 물으면 사용자는 막힌 이유를 모른다."""
+    from tests.integration.test_password_reset import configure_smtp
+
+    configure_smtp(client.app)  # mail은 organization과 독립이라 이 검사의 관심사가 아니다.
     items = _by_key(_items(client))
     # 갓 설치한 상태: 부서가 하나도 없어서 조직이 '안 됨' 이다.
     assert items["organization"]["state"] == STATE_TODO
@@ -114,7 +118,9 @@ def test_the_next_step_moves_forward_only_when_the_one_before_it_is_done(
 ):
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
+    from tests.integration.test_password_reset import configure_smtp
 
+    configure_smtp(client.app)  # mail은 organization과 독립이라 이 검사의 관심사가 아니다.
     assert _items(client)["next_key"] == "organization"
 
     db.add(Department(name="개발팀", org_id=DEFAULT_ORG_ID))
@@ -543,6 +549,50 @@ def test_an_admin_who_never_changed_the_temp_password_is_not_done(app, db, make_
     admin = {i["key"]: i for i in checklist["items"]}["admin_account"]
     assert admin["state"] == STATE_TODO
     assert "비밀번호" in admin["action"]
+
+
+def test_mail_unconfigured_is_a_persons_problem(client, sysadmin):
+    """ADM-02R: 메일 항목이 아예 없었다 — 이제 있고, 기본 설치에서는 '안 됨'이다."""
+    mail = _by_key(_items(client))["mail"]
+    assert mail["state"] == STATE_TODO
+    assert mail["action"]
+    assert mail["question"] is None
+
+
+def test_mail_configured_is_done(client, sysadmin):
+    from tests.integration.test_password_reset import configure_smtp
+
+    configure_smtp(client.app)
+    mail = _by_key(_items(client))["mail"]
+    assert mail["state"] == STATE_DONE
+    assert "smtp.internal" in mail["detail"]
+
+
+def test_mail_with_a_username_but_no_password_secret_is_still_todo(client, sysadmin):
+    """`app/mail/config.py::configuration_problems`를 그대로 부른다는 것을 실제로 본다 —
+    새 판정을 만들지 않는다는 모듈 docstring의 약속이 실제로 지켜지는지."""
+    from tests.integration.test_password_reset import configure_smtp
+
+    configure_smtp(client.app, username="mailer", password_ref="")
+    mail = _by_key(_items(client))["mail"]
+    assert mail["state"] == STATE_TODO
+    assert "비밀번호" in mail["detail"]
+
+
+def test_mail_is_not_counted_as_user_visible(client, login_as, setup_complete):
+    """메일이 안 돼도 화면이 비지는 않는다 — 일반 사용자 배너의 이유가 아니다.
+
+    `setup_complete`는 의도적으로 메일을 설정하지 않는다(conftest 주석). 그런데도 배너가
+    조용해야 이 성질이 실제로 지켜지는 것이다.
+    """
+    from app.setup.checklist import USER_NOTICE_ID
+
+    login_as("system_admin")
+    assert _by_key(_items(client))["mail"]["state"] == STATE_TODO  # 전제 확인
+
+    login_as("user")
+    notices = client.get("/api/system/status").json()["notices"]
+    assert [n for n in notices if n["id"] == USER_NOTICE_ID] == []
 
 
 def test_a_configured_cert_path_with_no_file_is_a_persons_problem(

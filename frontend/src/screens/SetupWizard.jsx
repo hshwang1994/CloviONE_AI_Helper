@@ -47,6 +47,7 @@ const TONE_COLOR = { success: "success.main", warn: "warning.main", info: "info.
  * 엉뚱한 화면을 가리킨다 - 러너 화면에는 AI 백엔드 설정이 없다. */
 export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
+  mail: { href: "#/settings", label: "설정 화면 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
   notion: { href: "#/notion-console", label: "Notion 관리 화면 열기" },
   user_mapping: { href: "#/notion-mapping", label: "Notion 연결 화면 열기" },
