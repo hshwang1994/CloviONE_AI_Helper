@@ -3097,3 +3097,25 @@ RESP-04 축소 레일 사이드바 · VIS-122 본 수정(전담 세션, `DataTab
 공유 컴포넌트) · KPI 그리드 클러스터(`VIS-119/120/121`) · QA_COVERAGE
 L축 나머지 · BACKLOG 남은 클러스터 계속 스캔 · PHASE 1 Product Audit
 Handoff 대기 · TEST SERVER 배포(자격증명 Blocker 여전).
+
+**WF20 이어서 — QA_COVERAGE L축 "다음 후보"(팀 채팅·게임방) 확인, 결함
+아님으로 종결.** `QA_COVERAGE.md`가 다음 L축 후보로 적어 둔 팀 채팅·
+게임방을 조사 — `AppShell.jsx::useNavBadges`의 사이드바 배지와
+`Home.jsx`의 채팅 안 읽음 위젯 둘 다 명시적 캐시 무효화가 아니라 **여러
+화면이 같은 queryKey를 공유 폴링**하는 의도된 설계였다(react-query가
+옵저버 중 가장 짧은 간격을 쓰는 특성을 활용 — 채팅방을 보고 있으면 5초,
+아니면 60초). 게다가 이번 배치 앞쪽에서 고친 `VIS-160`(`Home.jsx`
+`refetchInterval` 추가)이 이 경로를 한 번 더 보강해 둔 상태였다 —
+30~60초 안에 스스로 새로고침되므로 "무효화가 빠졌다"가 아니라 애초에
+그 방식을 안 쓰기로 한 설계다. 코드 변경 없음, `QA_COVERAGE.md`의 L축
+공백 설명만 갱신(다음 후보를 "전수 매트릭스 자체"와 "알림 팝오버/벨/
+목록 3원이 실제로 같은 뿌리 키를 쓰는지"로 좁힘).
+
+오늘 배치 다섯 개(HOST-03/AI-57/AI-63/RN-10/RN-11 → UX-41 → VIS-160 →
+UX-40 → `/jobs` 클러스터) + 이 확인 전부 커밋 완료, 작업 트리 clean.
+**다음 세션 시작점**: 위 "다음 후보" 목록 그대로 유효 — RESP-04(전담
+UI 세션) · VIS-122 본 수정(전담, `DataTable` 공유) · KPI 그리드
+클러스터 · QA_COVERAGE L축 전수 매트릭스·알림 3원 확인 · BACKLOG
+Med/Low 클러스터 "구조 먼저" 스캔 계속 · PHASE 1 Product Audit Handoff
+대기(아직 `IMPLEMENTATION_REQUIRED` 없음) · TEST SERVER 배포(자격증명
+Blocker 여전, 사용자가 NOPASSWD sudoers 설정 전까지 스킵).
