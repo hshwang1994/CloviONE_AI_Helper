@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  EMOJI_GROUPS, MAX_IMAGE_BYTES, PASTE_IMAGE_TYPES,
+  EMOJI_GROUPS, EMOJI_LABELS, MAX_IMAGE_BYTES, PASTE_IMAGE_TYPES,
   imageFromClipboard, imageRejectReason, insertAtCursor,
 } from "./chat-compose.js";
 
@@ -28,6 +28,26 @@ describe("EMOJI_GROUPS", () => {
   it("같은 이모지를 두 번 싣지 않는다", () => {
     const all = EMOJI_GROUPS.flatMap((g) => g.emojis);
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+// VIS-86과 같은 뿌리 — 피커 버튼이 aria-label 없이 이모지 자체를 자식으로만 그려
+// 스크린리더 사용자에게 그 버튼이 무엇을 고르는 버튼인지 전달하지 못했다. EMOJI_GROUPS에
+// 새 이모지가 추가되고 EMOJI_LABELS가 안 따라가면(옵트인이라 조용히 빠지는 이 저장소의
+// 반복되는 결함 패턴) ChatPane.jsx는 다시 이모지 자체로 조용히 폴백한다 — 그 간극을 여기서 고정한다.
+describe("EMOJI_LABELS", () => {
+  it("EMOJI_GROUPS의 모든 이모지가 사람이 읽는 이름을 갖는다", () => {
+    const all = EMOJI_GROUPS.flatMap((g) => g.emojis);
+    for (const e of all) {
+      expect(EMOJI_LABELS[e], `${e} 에 이름표가 없다`).toBeTruthy();
+      expect(typeof EMOJI_LABELS[e]).toBe("string");
+    }
+  });
+
+  it("이름표에 이모지 자신이 그대로 반복되지 않는다(VIS-86 재발 방지)", () => {
+    for (const [emoji, label] of Object.entries(EMOJI_LABELS)) {
+      expect(label).not.toContain(emoji);
+    }
   });
 });
 

@@ -76,7 +76,9 @@ describe("이모지 피커", () => {
     await screen.findByLabelText("메시지 입력");
 
     await user.click(screen.getByLabelText("이모지 넣기"));
-    const first = await screen.findByLabelText("이모지 👍");
+    // VIS-86 — 개별 이모지 버튼의 aria-label은 이제 이모지 자체가 아니라 뜻을 말한다
+    // (chat-compose.js::EMOJI_LABELS, "👍" → "엄지척").
+    const first = await screen.findByLabelText("엄지척");
     await user.click(first);
 
     const input = screen.getByLabelText("메시지 입력");
@@ -92,7 +94,8 @@ describe("이모지 피커", () => {
     await user.type(input, "확인했습니다");
 
     await user.click(screen.getByLabelText("이모지 넣기"));
-    await user.click(await screen.findByLabelText("이모지 ✅"));
+    // VIS-86 — "✅" → "완료 체크"(chat-compose.js::EMOJI_LABELS).
+    await user.click(await screen.findByLabelText("완료 체크"));
     await waitFor(() => expect(input).toHaveValue("확인했습니다✅"));
   });
 });

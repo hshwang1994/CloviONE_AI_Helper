@@ -99,7 +99,8 @@ describe("작성 도움 툴바 — 버튼이 카드 배경과 구별되는 배�
 
   it("이모지 버튼에도 배경색이 선언돼 있다", () => {
     const { getByRole } = renderEditor();
-    const btn = getByRole("button", { name: "이모지 ✅" });
+    // VIS-86 — aria-label이 "이모지 ✅"에서 뜻을 말하는 "완료 표시 넣기"로 바뀌었다.
+    const btn = getByRole("button", { name: "완료 표시 넣기" });
     expect(hasOwnBackground(btn)).toBe(true);
   });
 });

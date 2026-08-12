@@ -15,7 +15,18 @@ import { alpha } from "@mui/material/styles";
  * 기대고 있었는데, 이 편집기는 MUI 폼 필드들 사이에 끼어 있어 혼자만 옛 모양으로 남아 있었다.
  * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
 
-const BODY_EMOJIS = ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "💡"];
+// VIS-86 — aria-label이 이모지 자체를 그대로 되읽어("이모지 ✅") 스크린리더 사용자에게
+// 그 버튼이 무엇을 하는지 아무 정보도 주지 않았다. 각 버튼의 실제 뜻(삽입될 내용)을 말한다.
+const BODY_EMOJIS = [
+  { emoji: "✅", label: "완료 표시 넣기" },
+  { emoji: "📌", label: "고정 표시 넣기" },
+  { emoji: "⚠️", label: "주의 표시 넣기" },
+  { emoji: "🔹", label: "강조 표시 넣기" },
+  { emoji: "👉", label: "가리킴 표시 넣기" },
+  { emoji: "🎯", label: "목표 표시 넣기" },
+  { emoji: "🎉", label: "축하 표시 넣기" },
+  { emoji: "💡", label: "아이디어 표시 넣기" },
+];
 /* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
  * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
 export const BODY_MAX_LINES = 100;
@@ -127,13 +138,13 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
         {BODY_EMOJIS.map((em) => (
           <IconButton
-            key={em}
+            key={em.emoji}
             size="small"
-            aria-label={"이모지 " + em}
-            onClick={() => insertAtCursor(em + " ")}
+            aria-label={em.label}
+            onClick={() => insertAtCursor(em.emoji + " ")}
             sx={emojiBtn}
           >
-            {em}
+            {em.emoji}
           </IconButton>
         ))}
       </Box>

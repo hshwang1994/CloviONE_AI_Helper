@@ -16,7 +16,7 @@ import { api } from "../lib/api.js";
 import { fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
 import { Button, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { EMOJI_GROUPS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
+import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
 import { idlePollDelayMs } from "./teamchat-poll.js";
@@ -505,7 +505,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 0.25 }}>
               {g.emojis.map((emoji) => (
                 <Box
-                  key={emoji} component="button" type="button" aria-label={"이모지 " + emoji}
+                  key={emoji} component="button" type="button" aria-label={EMOJI_LABELS[emoji] || emoji}
                   onClick={() => insertEmoji(emoji)}
                   sx={{
                     border: 0, background: "none", cursor: "pointer", p: 0.25, borderRadius: 1,

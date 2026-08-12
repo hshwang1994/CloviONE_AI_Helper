@@ -12,12 +12,20 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF50(`invocation=3`) — 파일
-끝(WF35~50)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
-서술이라 지금은 그 뒤 이력이다. WF50은 `admin_integration-detail`
-R2 잔여 3건 중 1건(슬러그 표시) 구현완료, 2건은 각각 데이터 문제·
+**마지막 갱신**: 2026-08-13 · **단계**: WF51(`invocation=3`) — 파일
+끝(WF35~51)이 최신이다, 아래 이어지는 단락은 WF34까지의 압축
+서술이라 지금은 그 뒤 이력이다. WF51은 `VIS-86`(이모지 버튼
+aria-label이 이모지 자체를 되읽음) 구현완료 + 같은 뿌리인 팀 채팅
+이모지 피커(60종)도 함께 고침. **이 배치를 커밋한 직후 whole-product
+재감사(CLAUDE.md §8)로 배경 Explore 에이전트 3개(RBAC/권한 경계,
+Admin·User 워크플로 완결성, DB 트랜잭션 무결성+QA_COVERAGE 신뢰성)
+를 병렬 실행 — 5건의 새 Root Cause(문서 스코프 유출 High 1건·
+조직 간 인원 조회 유출 Med 1건·대행 감사 공백 Med 1건·승인 취소
+알림 누락 High 1건·DB 동시성 미보호 3건)를 확정했다, 상세와 처리는
+파일 끝에 이어짐.** 그 앞 WF50은 `admin_integration-detail` R2
+잔여 3건 중 1건(슬러그 표시) 구현완료, 2건은 각각 데이터 문제·
 R3 범주로 재분류 — "스키마 작업 필요"라는 이전 평가가 틀렸음을
-확인(표시 계층만 고치면 됐다) — 상세는 파일 끝. 그 앞 WF49는
+확인(표시 계층만 고치면 됐다). 그 앞 WF49는
 `user_team-doc-detail`의 본문 URL 미링크화 구현완료(`TicketBody.jsx`
 가 `DocBody`를 재사용해 티켓 상세도 함께 고쳐짐) + `Callout
 tone="warn"`(R1) 행의 stale "보류" 정정(WF44가 이미 소비처를
@@ -4796,6 +4804,119 @@ Title Case로 정리, 상세 드로어 제목도 같은 이름 사용). 관련 �
 `STATIC_CHECKS_OK`.
 
 `docs/BACKLOG.md`의 `admin_integration-detail` 행(3건 중 1건
-구현완료, 2건 재분류)과 `R2` 상세 절 갱신. 이 배치 커밋 예정.
-**다음 후보**: 위 목록과 동일(대시보드 정보 위계·`L`축 전수
-매트릭스·`RESP-04`/`VIS-122`·R3/R6/R7 제품 전반 디자인 결정).
+구현완료, 2건 재분류)과 `R2` 상세 절 갱신. 커밋 완료(`2cf93d6`).
+
+**WF51(같은 invocation 계속) — `VIS-86`(이모지 버튼 aria-label이
+이모지를 그대로 되읽음, Low) 구현완료 + 같은 뿌리 전체 소비처 확장.**
+
+`ui/BodyEditor.jsx`의 `BODY_EMOJIS`(문서·티켓 본문 서식 도구, 8종)를
+`{emoji,label}` 쌍으로 바꿔 각 버튼이 실제로 삽입할 내용의 뜻을
+말하게 했다("완료 표시 넣기" 등). 같은 되읽기 패턴을 저장소 전체에서
+찾아 팀 채팅 이모지 피커(`ChatPane.jsx`, `chat-compose.js::
+EMOJI_GROUPS` 3그룹 60종)도 함께 고쳤다 — 이쪽은 `EMOJI_GROUPS`의
+"유니코드 문자만 담는다" 계약을 기존 시험(`chat-compose.test.js`)이
+고정하고 있어 데이터 모양은 안 바꾸고, 별도 `EMOJI_LABELS`(emoji→
+표준 한국어 명칭, CLDR 스타일 — 문맥적 의미가 아니라 그림 자체의
+이름. `BODY_EMOJIS`와 다르게 이 피커는 범용 반응/표현 선택기라
+고정된 하나의 용도가 없어 "넣을 내용의 뜻"이 아니라 "이 그림이
+무엇인가"로 지었다) 맵을 신설해 조회하게 했다.
+
+**시험**: 신규 4건(`ui/body-editor-emoji-label.test.jsx` — 이모지
+버튼 8개가 옛 aria-label 패턴이 아니라 뜻을 말하는지, `chat-compose.
+test.js`에 `EMOJI_LABELS` 시험 2건 추가 — 모든 이모지가 이름표를
+갖는지 + 이름표에 이모지 자신이 반복되지 않는지, 새 이모지가
+추가되고 이름표가 안 따라가면 잡히도록). 회귀 중 기존 시험 3곳
+(`chatpane.test.jsx` 2건, `body-editor-toolbar-contrast.test.jsx`
+1건)이 옛 `aria-label="이모지 X"` 문자열로 버튼을 찾고 있어 깨짐 —
+새 이름표로 갱신(의도된 동작 변경을 정확히 반영, 결함을 가리는
+수정이 아니다). 프런트 전체 회귀(243파일/1608건) green. 재빌드
+완료, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 `VIS-86` 행 갱신. 이 배치 커밋 예정.
+
+---
+
+## Whole-product 재감사(CLAUDE.md §8) — WF51 커밋 직후, invocation=3
+
+WF44~WF51로 8개 배치를 커밋한 뒤, "다음 후보" 목록이 실브라우저
+필요(`VIS-24`/`25`)·전담 세션 필요(`RESP-04`/`VIS-122`)·제품 전반
+결정이라 손 못 댐(R3/R6/R7)으로만 남아 사실상 소진됨 — CLAUDE.md
+§8의 "상당량 구현한 뒤 전체 재감사" 시점으로 판단, 이번 세션이
+아직 안 건드린 영역(RBAC/권한 경계, Admin·User 워크플로 완결성,
+DB 트랜잭션 무결성, QA_COVERAGE 신뢰성) 3갈래로 배경 Explore
+에이전트를 병렬 실행.
+
+### 확정된 새 Root Cause (처리 전, 우선순위순 — 처리 상태는 아래에서 갱신)
+
+1. **[미처리] 주간 다이제스트가 제한 문서·타 부서 문서를 유출한다(High, RBAC/보안)**
+   — `app/home/readers.py:141-186`의 `documents_changed_between()`이
+   `doc_in_scope()`를 전혀 안 거친다. 같은 파일의 형제 함수
+   `recent_documents()`는 SEC-10(제한 문서)·부서 스코프 둘 다 이미
+   막아 뒀는데(그 커밋 자체가 "형제 함수가 같이 옮겨지지 않았다"는
+   후속 코멘트까지 남겼다, UA-09), 이 함수는 그 정리에서 빠졌다.
+   `GET /api/assistant/weekly-digest`(역할 게이트 없음, 로그인만
+   요구)로 아무 직원이나 회사 전체 이번 주 변경 문서(제한 문서 포함)
+   제목·유형·소유자·수정 시각을 본다. 시험 없음(`documents_changed`
+   grep 결과 건수·휴지통 제외 시험뿐).
+2. **[미처리] 담당자 추천이 타 조직 인원을 유출한다(Med, RBAC)**
+   — `app/home/readers.py:227-235`의 `assignee_candidates()`가
+   `list_assignees(db)`를 `org_id` 없이 부른다.
+   `app/tickets/service.py::list_assignees`의 `org_id` 필터는
+   optional(`if org_id:`)이고, 정확히 이 형태의 결함을 막으려고
+   실제 담당자 배정 엔드포인트(`/api/tickets/assignees`)는 이미
+   `org_id`를 넘기는데(그 사실이 `test_org_axis.py`에 남아 있다)
+   이 형제 소비처(`GET /api/assistant/triage`, 역할 게이트 없음)는
+   안 넘긴다. 응답은 `{user_id, display_name, active_tickets}`로
+   좁긴 하지만 타 조직 실제 재직자 이름/ID를 그대로 열람 가능.
+3. **[미처리] 대행(impersonation) 중 GET이 몰래 쓰기를 한다(Med, RBAC/감사)**
+   — `app/core/deps.py:206-220`의 대행 쓰기 차단이 HTTP 메서드
+   기준(`GET`은 무조건 통과)이라, `app/team_docs/service.py::
+   record_view()`(문서 상세 GET마다 호출, "최근 열람" upsert)가
+   그대로 새어 나간다. `system_admin`이 사용자 X를 대행("어떤 상태도
+   못 바꾼다"고 서비스 자체 문서화)하며 문서 상세를 열기만 해도
+   X 명의로 "최근 열람" 기록이 바뀌고, `record_audit_from_request`를
+   안 쓰는 경로라 감사 로그에도 안 남는다. 기존 시험
+   (`test_every_write_route_is_blocked_while_impersonating`)은 라우트의
+   HTTP 메서드만 보므로 구조적으로 이 결함을 못 잡는다.
+4. **[미처리] 승인 취소가 요청자에게 통보되지 않는다(High, 워크플로)**
+   — `app/approvals/service.py::cancel()`(442-449)만 같은 파일의
+   형제 종결 함수 `decide()`(승인/거절)·`expire_pending()`(만료)과
+   달리 `notify_user()`를 안 부른다. 취소는 요청자 본인이 아니라
+   admin/system_admin도 남의 대기 요청을 끝낼 수 있는 경로인데
+   (`registry/governance.js:151`이 그렇게 게이트한다 — 의도된
+   권한이다), 그 경우 요청자는 벨도 `/notifications`도 아무 신호가
+   없다. 알림 어휘 자체(`approval_cancelled`)가
+   `app/profiles/prefs.py`·`frontend/src/lib/format.js::TYPE_KO`
+   어디에도 없어 배관 자체가 안 깔려 있다.
+5. **[미처리] DB 동시 쓰기 경합 3곳이 정리된 409 대신 원시 500을 낸다(Med~High, 무결성)**
+   — 전부 "먼저 조회해 있으면 409, 없으면 생성"인데 `begin_nested`
+   +`is_write_conflict` 재사용 관례(`app/prompts/service.py` 등이
+   이미 쓰는 패턴) 없이 조회~쓰기 사이가 안 잠긴다:
+   - `app/notion_mapping/service.py:37-45` `get_or_create_mapping()`
+     — `user_id` UNIQUE. 사람이 누른 "검증"과 동시에 도는 대량 동기화
+     잡(`notion_mapping_sync` 잡 핸들러, 사용자마다 개별 flush)이
+     같은 신규 사용자를 동시에 잡으면 경합.
+   - `app/quotas/router.py:194-216` `create_quota()` —
+     `uq_ai_quota_scope` UNIQUE. 이중 클릭·동시 생성이 경합.
+   - `app/trash/service.py:59-79` `move_to_trash()` —
+     `uq_trash_item` UNIQUE. 같은 항목 동시 삭제가 경합.
+6. **[처리 완료, 문서만] `QA_COVERAGE.md`의 대비(K축) 행이 낙관적으로 stale함**
+   — `QAH-03`(대비 부분완료) 관련 항목이 이미 `docs/BACKLOG.md`
+   자신에게 있는 `QAH-05`(게임방 라운드 UI 7곳 실제 대비 위반,
+   `Board.jsx`·`GameStage.jsx`·`LadderBoard.jsx`·`MembersList.jsx`·
+   `Scoreboard.jsx`·`StageShared.jsx`의 `primary.main`, 게임방이
+   비어 있어 캡처 하네스 표본 자체에 안 걸림)을 언급 안 함 — 아래
+   조치 완료.
+7. **[처리 완료, 문서만] `QA_COVERAGE.md`의 `/forgot-password` 행이 비관적으로 stale함**
+   — "FN-01(메일 UI 없음)과 직결"이라 검증 불가라고 적혀 있는데
+   FN-01은 2026-08-11에 이미 닫혔다(`MailStatus.jsx` 존재 확인) —
+   아래 조치 완료.
+
+각 항목의 처리 시점·방식은 이 항목들을 실제로 고칠 때 이 문서
+아래에 계속 이어 적는다. **다음 작업**: 위 1~5를 심각도순(1·4가
+High, 2·3·5가 Med~High)으로 번들 지어 구현 — 1(문서 스코프)과
+2(담당자 스코프)는 같은 형제-함수-누락 패턴이라 `app/home/readers.py`
+한 파일에서 함께 처리 가능, 3(대행 GET 쓰기)은 독립, 4(승인 취소
+알림)는 독립, 5(DB 동시성 3건)는 같은 `begin_nested`+`is_write_conflict`
+패턴이라 함께 처리 가능. 6·7(QA_COVERAGE 문서 정정)은 지금 바로
+같이 처리.
