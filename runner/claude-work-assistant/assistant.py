@@ -5927,7 +5927,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def authorized(self) -> bool:
         supplied = self.headers.get("Authorization", "")
-        return hmac.compare_digest(supplied, f"Bearer {TOKEN}")
+        try:
+            return hmac.compare_digest(supplied, f"Bearer {TOKEN}")
+        except TypeError:
+            # RN-16: http.server는 헤더를 latin-1로 디코드한다 — 비ASCII 바이트가 섞이면
+            # compare_digest가 TypeError를 던진다(CPython hmac의 알려진 동작: 비교 문자열은
+            # 둘 다 ASCII여야 한다). 이 예외가 그대로 새면 socketserver.handle_error까지 올라가
+            # 401 대신 연결이 끊기고 서비스 로그에 전체 트레이스백이 찍힌다 — 인증 없이
+            # 원격에서 유발 가능한 로그 폭주 벡터였다. 비ASCII 헤더는 애초에 올바른 토큰일 수
+            # 없으므로 그냥 미인증으로 처리한다(보안 완화 아님 — 더 정확한 거부).
+            return False
 
     def do_GET(self) -> None:
         if self.path == "/healthz":

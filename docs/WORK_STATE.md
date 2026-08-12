@@ -12,7 +12,17 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: WF33(`invocation=2`) —
+**마지막 갱신**: 2026-08-13 · **단계**: WF34(`invocation=2`) —
+`RN-16`(비ASCII `Authorization` 헤더가 미처리 `TypeError`를 냄,
+Med) 구현완료. `assistant.py::Handler.authorized()`의
+`hmac.compare_digest`가 `try` 밖이라, latin-1로 디코드된 헤더에
+비ASCII 바이트가 섞이면(원격에서 인증 없이 유발 가능) `TypeError`
+가 `socketserver`까지 새어 401 대신 연결이 끊기고 로그에 트레이스백이
+찍혔다 — `try/except TypeError: return False`로 조용한 401로
+정정(보안 완화 아님, 더 정확한 거부). 신규 시험 1건(실제
+`HTTPServer`를 띄워 진짜 비ASCII 헤더 요청), revert-to-verify로
+정확히 신고된 증상(`RemoteDisconnected`)을 재현 확인. 러너 전체
+264건 green. 그 직전 WF33 —
 `AI-25`+`AI-26`+`AI-28`+`AI-29`(AI 드로어 스텁, High 3건+Med 1건)
 구현완료. `AssistantDrawer.jsx`가 전체화면 `Chat.jsx`의 표현층을
 재사용 안 하고 자기 것을 새로 만들어 리치 텍스트·새 대화·이미지
@@ -23,7 +33,7 @@
 카드·재시도·복사·타임스탬프가 공짜로 따라오고 번들 크기도
 오히려 줄었다(중복 대신 공유). 신규 시험 5건, revert-to-verify는
 `git stash`로 파일만 되돌려 확인(커밋 전이라 안전). `VIS-76~79`
-확인 행도 함께 정정. 프런트 전체 230파일/1549건 green. 그 직전 WF32 —
+확인 행도 함께 정정. 프런트 전체 230파일/1549건 green. 그 앞 WF32 —
 `VIS-158R`(AI 채팅 결과가 2200px 미만은 카드 대신 텍스트라던 High
 주장) 오탐 정정, 등급 Med로 하향. `Chat.jsx`/`MessageThread.jsx`를
 직접 읽고 `Message`를 `hideCards=false`(xxl 미만에서 실제로 전달되는
@@ -3850,7 +3860,37 @@ m.id`로만 계산되고, `railMsg`는 `railOpen`(`useMediaQuery(xxl 이상)`)
 
 `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 재빌드 완료.
 
-이 배치(`AI-25`+`AI-26`+`AI-28`+`AI-29`) 커밋 예정. **다음 후보**:
-BACKLOG/QA_COVERAGE 전체 재스캔으로 다음 Root Cause 선정
-(`RN-15~20`, `VIS-80`, 남은 `RESP-04`/`VIS-122` 등 기존 보류
+이 배치(`AI-25`+`AI-26`+`AI-28`+`AI-29`) 커밋 완료(`597b418`),
+뒤이어 `docs: PROGRESS_STATUS` 스냅샷 갱신(`cf42d17`).
+
+**WF34(같은 invocation 계속) — `RN-16`(비ASCII `Authorization`
+헤더가 처리 안 된 `TypeError`를 냄, Med) 구현완료.**
+`assistant.py::Handler.authorized()`가 `hmac.compare_digest(supplied,
+f"Bearer {TOKEN}")`를 `try` 밖에서 그대로 호출했다 — `http.server`는
+헤더를 latin-1로 디코드하므로 비ASCII 바이트가 섞인 헤더가 오면
+`supplied`가 비ASCII `str`이 되고, CPython `hmac`은 비교 문자열이
+둘 다 ASCII여야 한다는 제약 때문에 `TypeError`를 던진다. 이
+예외가 `authorized()` 밖으로 새면 `do_POST` → `socketserver`
+까지 올라가 401 대신 연결이 끊기고 서비스 로그에 전체 트레이스백이
+찍힌다 — 인증 없이 원격에서 유발 가능한 로그 폭주 벡터.
+
+**구현**: `try/except TypeError: return False` — 비ASCII 헤더는
+애초에 올바른 토큰일 수 없으므로 미인증으로 처리(보안 완화가
+아니라 더 정확한 거부).
+
+**시험**: `test_non_ascii_authorization_header_is_a_clean_401_not_a_
+crash`(신규) — 기존 `_post` 헬퍼와 같은 방식(실제 `HTTPServer`를
+띄워 `http.client`로 진짜 요청)으로 비ASCII `Authorization` 헤더를
+보내 401 응답을 직접 확인. revert-to-verify: 되돌리니 정확히
+`TypeError: comparing strings with non-ASCII characters is not
+supported`가 `socketserver`의 `handle_one_request`까지 새어(스택
+트레이스로 확인) 클라이언트가 `http.client.RemoteDisconnected`를
+받는 것을 재현 — 신고된 증상("연결이 끊긴다")과 정확히 일치.
+러너 전체 스위트(264건, 기존 263 + 신규 1) green. `bash
+scripts/static_checks.sh` → `STATIC_CHECKS_OK`. 러너 전용 변경이라
+프런트 재빌드 불필요.
+
+이 배치(`RN-16`) 커밋 예정. **다음 후보**: BACKLOG/QA_COVERAGE
+전체 재스캔으로 다음 Root Cause 선정(`RN-15`, `RN-17`의 근본
+노출·`RN-18~20`, `VIS-80`, 남은 `RESP-04`/`VIS-122` 등 기존 보류
 목록은 여전히 전담 세션 필요).

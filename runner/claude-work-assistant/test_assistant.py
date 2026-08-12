@@ -3420,6 +3420,36 @@ def _post(path, payload):
         srv.server_close()
 
 
+def test_non_ascii_authorization_header_is_a_clean_401_not_a_crash():
+    """RN-16: http.server는 헤더를 latin-1로 디코드한다 — 비ASCII 바이트가 섞인
+    Authorization 헤더는 authorized()의 hmac.compare_digest에 비ASCII str을 넘기는데,
+    CPython hmac은 그 조합을 TypeError로 거부한다(둘 다 ASCII여야 한다). 예전엔 이 예외가
+    authorized() 밖으로 그대로 새 401 대신 연결이 끊기고 서비스 로그에 트레이스백이
+    찍혔다 — 인증 없이 원격에서 유발 가능한 로그 폭주 벡터였다. 이제는 조용히 401을
+    돌려줘야 한다(연결이 끊기거나 서버가 죽으면 안 된다)."""
+    import http.client
+    import threading as _threading
+    from http.server import HTTPServer
+
+    srv = HTTPServer(("127.0.0.1", 0), m.Handler)
+    t = _threading.Thread(target=srv.handle_request, daemon=True)
+    t.start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", srv.server_port, timeout=10)
+        # 헤더 값 자체에 비ASCII 문자를 넣는다 — http.client가 wire로 보낼 때 latin-1로
+        # 인코딩하고, 서버의 email.message 기반 헤더 파서가 같은 latin-1로 다시 str로
+        # 디코드해 authorized()가 실제로 비ASCII str을 받는 그 경로를 그대로 재현한다.
+        conn.request("POST", "/v1/assistant/message", json.dumps({}).encode("utf-8"),
+                     {"Authorization": "Bearer ééé", "Content-Type": "application/json"})
+        res = conn.getresponse()
+        assert res.status == 401
+        assert json.loads(res.read().decode("utf-8")) == {"error": "unauthorized"}
+        conn.close()
+    finally:
+        t.join(timeout=5)
+        srv.server_close()
+
+
 _SYNC_BODY = {"requester": {"email": "a@goodmit.co.kr", "name": "황형섭"},
               "conversation_id": "cv-sync", "context": {"mode": "CREATE"}}
 
