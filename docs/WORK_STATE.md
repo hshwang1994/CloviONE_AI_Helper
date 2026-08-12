@@ -12,9 +12,41 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) 완료 →
-BACKLOG 재개. WF8(12건 구현완료 + 전체 회귀 green)는 그대로 유효, 아래 그 상세 앞에
-이번 보정을 기록한다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF9-0(Supervisor Continuity 보정, D-63) 완료 → WF9-1
+(`SEC-10` 부분 구현) 완료 → BACKLOG 재개 중. WF8(12건 구현완료 + 전체 회귀 green)는 그대로
+유효, 아래 그 상세 앞에 이번 보정들을 기록한다.
+
+**WF9-1(2026-08-12) — `SEC-10`(High) 부분 구현완료: 문서 단위 열람 제한.** BACKLOG 전체
+재고에서 아직 남은 High 중 유일한 **Security/DataLoss급**(Notion 문서 1건의 평문 자격증명을
+인증된 사용자 전원이 볼 수 있음)을 최우선 처리. 원본(실고객 워크스페이스)은 여러 handoff
+문서(`SONNET_HANDOFF.md` 등)에 걸쳐 이미 "사용자에게 알려야 할 항목"으로 반복 기록돼 있어
+다시 적지 않고, 앱이 실제로 할 수 있는 ①(문서 단위 열람 범위)을 구현했다: `document_cache.
+restricted`(마이그레이션 `0057`, `classification_manual`과 같은 이유로 `sync._upsert`가
+건드리지 않아 재동기화로 안 풀림) + `doc_in_scope`가 부서 범위 판정보다 **먼저** 보는 게이트
+(운영자군/작성자 본인 외에는 같은 부서 동료라도 예외 없이 차단) + `POST /api/team-docs/
+{id}/restrict`(운영자만, `get_doc_in_scope` 선통과라 범위 밖은 404) + `TeamDoc.jsx`
+배지·Callout·토글 버튼 + `TeamDocs.jsx` 카드/표 🔒 표시.
+
+조사 중 부수 발견 하나를 같이 닫았다: `service.recent_documents()`("최근 열람")가 처음부터
+`doc_in_scope`를 전혀 안 거쳐, 부서가 바뀌거나 문서가 나중에 restricted가 돼도 **예전에
+한 번 연 사람에게는 계속 보이는** 별도 유출 경로였다 — SEC-10 제한 기능 자체를 무의미하게
+만들 수 있는 구멍이라 `viewer` 인자를 추가해 같이 막았다.
+
+신규 테스트 `tests/security/test_document_restricted_scope.py`(11건, 같은 부서 차단·작성자/
+운영자 예외·토글 권한 3-way·범위 밖 404·최근 열람 우회 포함) + `teamdoc.test.jsx`/
+`teamdocs-view.test.jsx` 확장(4건) + revert-to-verify(제한 게이트를 임시로 빼서 3건이 정확히
+그 증상으로 실패하는 것을 확인 후 복원). 관련 스위트(`test_document_scope`·
+`test_team_docs_write_scope`·`test_team_docs_filter_scope`·`test_document_author_identity`·
+`test_team_docs_api`·`test_document_comments`·`test_document_edit`·`test_team_docs_sync`·
+`test_document_comment_survives_resync`, 총 104건) + 프런트 전체(220파일/1498건) green,
+번들 재빌드 반영.
+
+**부분 구현인 이유**: ②(원본에서 제거·회전)는 여전히 사용자가 실제 Notion 워크스페이스에서
+직접 해야 한다 — 미확인 상태로 남는다. 이 기능은 어느 문서가 새는지 자동으로 찾아내지
+않는다(본문 스캔은 범위 밖) — 관리자가 문서를 특정한 뒤 상세 화면에서 수동으로 제한을 켜야
+한다. **사용자 확인 필요**: 예전에 특정된 그 1건(`document_cache` 107건 중 1건, 접속 URL·
+계정·비밀번호 포함)을 실제로 열어 지금 당장 `열람 제한`을 켜고, Notion 원본에서 자격증명을
+제거·회전해야 한다.
 
 **WF9-0(2026-08-12) — Runner Supervisor를 Persistent Worker Session으로 재설계(D-63).**
 사용자가 "직전 실행이 Session Summary만 남기고 끝났는데 다음 invocation이 이어받지 않았다"고
