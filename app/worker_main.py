@@ -534,6 +534,27 @@ def main() -> int:
 
     worker.tick_callbacks.append(runner_health_tick)
 
+    # 연동(Integration) 헬스 자동 점검 — 러너와 같은 이유·같은 90초 간격(WF1 감사: 수동
+    # POST /{id}/health만 있어 25일 전 점검 결과가 지금 상태처럼 초록 「정상」으로 보였다).
+    # 러너 스윕과 별도 tick으로 두는 이유: 한쪽이 느려지거나 실패해도(outbound 호출이라
+    # 잠깐 걸릴 수 있다) 다른 쪽 스윕 주기에 영향을 주지 않는다.
+    from app.integrations.service import run_all_integration_health_checks
+
+    _last_integration_health: list = [None]
+    INTEGRATION_HEALTH_INTERVAL_SECONDS = 90.0
+
+    def integration_health_tick(now):
+        if _last_integration_health[0] is None or (now - _last_integration_health[0]).total_seconds() >= INTEGRATION_HEALTH_INTERVAL_SECONDS:
+            _last_integration_health[0] = now
+            try:
+                with session_factory() as db:
+                    run_all_integration_health_checks(db, outbound=outbound, now=now)
+                    db.commit()
+            except Exception:
+                logger.exception("integration health sweep failed")
+
+    worker.tick_callbacks.append(integration_health_tick)
+
     # 문서 캐시 주기 동기화 (spec §17.2/§17.4) — notion_docs_sync_interval_seconds 간격.
     # 첫 tick 즉시 실행 → 워커 기동 직후 문서 목록이 채워진다. Notion 장애/미설정이면 sync
     # 상태에만 기록되고 캐시(마지막 정상 동기화)는 유지된다 — sync_documents 내부에서 예외를

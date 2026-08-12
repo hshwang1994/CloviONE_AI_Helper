@@ -224,3 +224,44 @@ def run_health_check(
         "detail": detail,
         "checked_url": url,
     }
+
+
+def run_all_integration_health_checks(
+    db: Session, *, outbound: OutboundClient, now
+) -> dict:
+    """활성 연동의 상태를 한 번에 점검한다(워커가 주기적으로 호출).
+
+    수동 `POST /{id}/health`만 있으면 아무도 안 눌러 `last_health_status`가 오래된 값에
+    멈춰 있다 — 연동 상세가 25일 전 점검 결과를 지금 상태처럼 초록 「정상」으로 보여준
+    것이 실제로 확인됐다(WF1 감사). `run_all_runner_health_checks`(app/runners/
+    service.py)와 같은 이유·같은 모양의 자동 스윕이지만, 판정 기준을 별도로 복제하지
+    않고 기존 단건 함수 `run_health_check()`를 그대로 호출한다 — 러너 쪽은 스윕 전용
+    회로차단기 기록(`record_runner_result`)이 있어 완전히 같은 함수를 못 쓰지만
+    (그래서 두 판정 기준이 갈라져 round36 감사에서 실제 오탐 사고가 났다), 연동은 그런
+    스윕 전용 부수효과가 없어 애초에 기준이 갈라질 위험이 없다 — 같은 함수를 재사용하는
+    쪽이 더 안전하다.
+
+    한 연동의 예외가 스윕 전체를 멈추지 않게 각 연동을 격리한다(비timeout/전송 오류는
+    `run_health_check` 내부에서 다시 던져지므로 여기서 받아 down으로 기록한다).
+    """
+    rows = db.execute(select(Integration)).scalars().all()
+    checked = up = down = 0
+    for row in rows:
+        if not row.enabled:
+            continue  # 비활성 연동은 점검 대상이 아니다(UI가 '비활성'으로 구분 표시)
+        if not (row.health_url or row.base_url):
+            continue
+        checked += 1
+        try:
+            result = run_health_check(db, row, outbound=outbound, now=now)
+        except Exception:
+            row.last_health_status = HEALTH_DOWN
+            row.last_health_at = now
+            db.flush()
+            down += 1
+            continue
+        if result["status"] == HEALTH_UP:
+            up += 1
+        else:
+            down += 1
+    return {"checked": checked, "up": up, "down": down}

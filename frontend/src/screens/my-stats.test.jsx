@@ -115,6 +115,25 @@ describe("내 업무량 · 완료 통계", () => {
     expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
   });
 
+  /* WF1 R4 — 위 시험은 totals를 안 바꿔 항상 6건이라, 연결이 없는 계정이 실제로도
+   * 거의 항상 함께 겪는 "담당 티켓 0건" 조합을 재현하지 않았다(그래서 이 결함을
+   * 가리고 있었다). 그 조합에서는 배너("계정 연결을 요청하세요")와 빈 상태("담당
+   * 티켓이 하나도 없어서" + "내 티켓으로")가 서로 다른 원인을 말했고, CTA가 데려가는
+   * /my-tickets도 같은 이유(연결 안 됨)로 똑같이 비어 있는 막다른 길이었다. */
+  it("연결이 없고 0건이면, 빈 상태가 배너와 같은 원인을 말하고 막다른 CTA를 안 준다", async () => {
+    apiMock.mockResolvedValue(stats({
+      source: { configured: true, ok: true, mapped: false },
+      totals: { all: 0, active: 0, done: 0, cancelled: 0, overdue: 0, due_today: 0, due_soon: 0, blocked: 0, no_due: 0, completion_rate: null },
+    }));
+    renderStats();
+    expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
+    expect(await screen.findByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
+    // 옛 문구("담당인 티켓이 하나도 없어서")와 그 CTA("내 티켓으로")는 이 조합에서 안 보인다 —
+    // 배너가 이미 말한 원인(연결 안 됨)을 빈 상태가 반복하거나, 못 고치는 CTA를 주지 않는다.
+    expect(screen.queryByText(/담당인 티켓이 하나도 없어서/)).not.toBeInTheDocument();
+    expect(screen.queryByText("내 티켓으로")).not.toBeInTheDocument();
+  });
+
   it("소스가 미설정이면 그 사실을 말한다", async () => {
     apiMock.mockResolvedValue(stats({
       source: { configured: false, ok: false, mapped: true, message: "Notion 연동이 설정되지 않았습니다." },

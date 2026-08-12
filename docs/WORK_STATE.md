@@ -4140,23 +4140,78 @@ ai-quotas-help·nav-org-menu·nav-active, 40건) green. 재빌드 완료,
 `docs/BACKLOG.md`의 WF1 High-7 표 `admin_offboarding` 행 구현완료로
 정정.
 
-이 배치(R4 저비용 3건) 커밋 예정. **다음 후보**: 두 번째 Explore
-에이전트가 확정한 `admin_integration-detail` 헬스 스윕 결과 처리
-— **WF1의 원 주장은 절반만 맞았다**: 러너 헬스 스윕은 이미
-`worker_main.py`의 `runner_health_tick`(90초)으로 존재한다(감사
-시점 이후 이미 고쳐짐, 문서만 미반영). **연동(integration) 헬스
-스윕은 실제로 없다** — `run_health_check()`(`app/integrations/
-service.py:183-227`)의 유일한 호출자가 수동 "헬스체크" 버튼뿐이고
-워커 틱에 없음(grep으로 `worker_main.py`에 "integration" 매칭
-0건 확인). RSTR-03(`backup_health_alert_reason`+`check_backup_health`
-패턴)을 그대로 본떠 `integration_health_alert_reason()`
-+ 워커 틱 배선 + (선택) staleness 배지가 최소 구현 — 새 BACKLOG
-ID 필요(기존 ID 없음, 확인됨). 이어서 R4 나머지(my-stats 빈 상태
-연결, search-results 0건 그룹 명시)와 WF1 단독 결함 6건(`admin_
-departments`의 0인원 삭제 게이트, `admin_policies`의 purpose 컬럼
-부재, `admin_feature-flags`의 기본값 열 부재 등)도 후보. R3(용어
-사전)·R6(폭 예산)·R7(버튼 variant)은 WF1 스스로 "개별 화면
-수정으로 접근하면 안 되는 제품 전반 디자인 결정"이라 명시했으므로
-이 세션에서 단독 착수하지 않는다. 그 외 `RN-15`·`RN-17` 잔여
-노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/`VIS-122`도 후보 목록에
-있다.
+이 배치(R4 저비용 3건) 커밋 완료(`ef1e48c`).
+
+**WF40(같은 invocation 계속) — R4 나머지 3건(연동 헬스 스윕·
+my-stats 빈 상태·search-results 안내) 구현완료.** 두 Explore
+에이전트(offboarding·integration-health)를 병렬로 띄운 결과를
+받은 뒤 처리.
+
+**연동(Integration) 헬스 스윕 신설** — WF1의 원 주장은 절반만
+맞았다: 러너 헬스 스윕은 이미 `worker_main.py`의
+`runner_health_tick`(90초)으로 존재했다(감사 이후 이미 고쳐졌고
+BACKLOG만 미반영). **연동 헬스 스윕은 실제로 없었다** —
+`run_health_check()`(`app/integrations/service.py`)의 유일한
+호출자가 수동 "헬스체크" 버튼뿐이었다(grep으로 `worker_main.py`에
+"integration" 매칭 0건 확인). `run_all_integration_health_checks()`
+신설 + `worker_main.py`에 90초 틱으로 배선(러너와 같은 간격, 별도
+틱 — 한쪽이 느려져도 다른 쪽 주기에 영향 없음). 러너 스윕은 스윕
+전용 회로차단기 기록이 있어 판정 기준을 자체 복제했고 그 복제가
+갈라져 실제 오탐 사고(round36 감사)가 났었다는 선례가 있어 —
+연동은 그런 스윕 전용 부수효과가 없으므로 **판정 기준을 복제하지
+않고 기존 단건 함수를 그대로 재사용**해 애초에 갈라질 위험을
+구조적으로 없앴다. `tests/unit/test_integration_health_sweep.py`
+신규 5건(도달 가능/불가능, 엄격 2xx, health_url 우선, 비활성
+건너뜀, 예외 격리 — `test_runner_health_sweep.py`와 대칭), revert-
+to-verify 확인. 관련 회귀: `test_integrations_api.py`(14건)·
+`test_workflows_integrations_audit_fixes.py`(9건)·`tests/unit/`
+전체(수백 건)·`tests/integration/` 전체(수백 건, `-k integration`
+전체 스윕) 전부 green.
+
+**`MyStats.jsx` 빈 상태/배너 불일치** — 계정이 Notion과 안
+연결된 사람은 상단 배너("관리자에게 계정 연결을 요청하세요")와
+아래 EmptyState("담당 티켓이 하나도 없어서" + "내 티켓으로" CTA)
+가 **서로 다른 원인**을 말했다 — 그 CTA가 데려가는 `/my-tickets`
+도 같은 이유로 똑같이 비어 있는 막다른 길이었다. `source.mapped
+===false`일 때 배너와 같은 원인을 말하는 EmptyState로 분기하고
+막다른 CTA는 주지 않는다(연결됨+0건 조합은 기존 문구 그대로).
+`my-stats.test.jsx`의 기존 "연결 없음" 시험은 `totals`를 안 바꿔
+6건 그대로라 이 조합(연결 없음 **그리고** 0건 — 실제로는 둘이
+거의 항상 함께 온다)을 재현하지 못하고 있었다 — 신규 시험으로
+그 조합을 재현. revert-to-verify 확인.
+
+**`Search.jsx` 검색 범위 안내가 역할과 무관** — "티켓, 문서,
+게시판, 사용자를 한 번에 찾습니다"를 모든 역할에 늘 보여줬다.
+`app/search/service.py`의 `KIND_ROLE_GATE`는 '사용자' 검색을
+`CONSOLE_WRITE_ROLES`(admin/system_admin)에게만 주므로, 이 콘솔
+대부분(일반 사용자·운영자·감사자)은 '사용자' 결과를 이 화면에서
+영원히 못 보면서도 안내는 항상 4종이었다. `WRITE_ROLES`(프런트의
+같은 role 집합)로 역할별 분기 — 이미 재색인 버튼(FN-03)에 쓰던
+`role` 값을 재사용. **시험 작성 중 실제 버그를 하나 잡음**: 처음엔
+`"게시판" + "를 한 번에 찾습니다"`로 접미사를 이어붙였는데, "사용자"
+(모음 받침 없음→를)와 달리 "게시판"(자음 받침 있음→을)은 조사가
+달라 "게시판를"이라는 비문이 됐다 — 시험이 정확히 그 문자열을
+확인하다 실패해서 발견, 완전한 문장 두 개로 분리해 수정. `search-
+reindex.test.jsx`(이미 역할별 mock 인프라가 있는 파일)에 역할별
+안내 시험 2건 추가, revert-to-verify 확인. 관련 회귀(`search`·
+`search-reindex`·`datascreen-search`, 19건) green.
+
+재빌드 완료, `bash scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 WF1 High-7 표 2행(`admin_integration-detail`·
+`user_my-stats`) 구현완료로 정정. 이걸로 WF1 R4(9건·High 2건) 중
+`ai-quotas`·`TopSearch`·`offboarding`·`integration-detail`·
+`my-stats`·`search-results`(안내 role 분기분) 6건 구현완료 —
+나머지는 `search-results`의 폭 예산/더보기(R6과 겹침) 등 제품
+전반 디자인 결정이 필요한 항목.
+
+이 배치(연동 헬스 스윕+my-stats+search-results) 커밋 예정.
+**다음 후보**: WF1 단독 결함 6건(`admin_departments`의 0인원
+삭제 게이트, `admin_policies`의 purpose 컬럼 부재, `admin_
+feature-flags`의 기본값 열 부재, `user_team-doc-detail`의 h1
+중복·URL 미링크화 — 자격증명 노출 자체는 SEC-10으로 이미 부분
+구현완료). R3(용어 사전)·R6(폭 예산)·R7(버튼 variant)은 WF1
+스스로 "개별 화면 수정으로 접근하면 안 되는 제품 전반 디자인
+결정"이라 명시했으므로 이 세션에서 단독 착수하지 않는다. 그 외
+`RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은 `RESP-04`/
+`VIS-122`도 후보 목록에 있다.

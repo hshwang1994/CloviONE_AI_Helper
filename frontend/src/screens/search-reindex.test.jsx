@@ -102,3 +102,27 @@ describe("통합 검색 — 재색인 버튼 (FN-03)", () => {
     expect(await screen.findByText(/재색인 실패: 인덱스 잠김/)).toBeInTheDocument();
   });
 });
+
+/* WF1 R4 — "티켓, 문서, 게시판, 사용자를 한 번에 찾습니다" 안내가 역할과 무관하게 늘 4종을
+ * 약속했다. 그런데 app/search/service.py의 KIND_ROLE_GATE는 '사용자' 검색을
+ * CONSOLE_WRITE_ROLES(admin/system_admin — 프런트 WRITE_ROLES와 같은 집합)에게만 준다.
+ * 그 외 역할(운영자·감사자·일반 사용자, 이 콘솔 대부분)은 이 화면에서 '사용자' 결과를 영원히
+ * 못 보는데 안내는 항상 4종이었다. */
+describe("통합 검색 — 안내 문구가 역할별 검색 가능 유형과 맞는다 (WF1 R4)", () => {
+  it("'사용자' 검색 권한이 없는 역할(operator)에게는 3종만 약속한다", async () => {
+    authRole = "operator";
+    renderSearch("");
+    expect(await screen.findByText("무엇을 찾을까요?")).toBeInTheDocument();
+    expect(screen.getByText("티켓, 문서, 게시판을 한 번에 찾습니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/사용자를 한 번에 찾습니다/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("티켓, 문서, 게시판 검색")).toBeInTheDocument();
+  });
+
+  it("'사용자' 검색 권한이 있는 역할(admin)에게는 4종을 약속한다", async () => {
+    authRole = "admin";
+    renderSearch("");
+    expect(await screen.findByText("무엇을 찾을까요?")).toBeInTheDocument();
+    expect(screen.getByText("티켓, 문서, 게시판, 사용자를 한 번에 찾습니다.")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("티켓, 문서, 게시판, 사용자 검색")).toBeInTheDocument();
+  });
+});

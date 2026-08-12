@@ -17,7 +17,7 @@ import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm,
 import { FAB_CLEARANCE } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
 import { useAuth } from "../app/auth.jsx";
-import { OPS_ROLES } from "./registry/shared.js";
+import { OPS_ROLES, WRITE_ROLES } from "./registry/shared.js";
 
 /* 통합 검색 결과 화면 (계획서 Phase 5).
  *
@@ -64,7 +64,7 @@ const GROUP_GRID = {
   "& > *": { breakInside: "avoid", mb: 2.5 },
 };
 
-function SearchField({ value, onChange, onSubmit }) {
+function SearchField({ value, onChange, onSubmit, placeholder }) {
   return (
     <Paper
       component="form"
@@ -81,7 +81,7 @@ function SearchField({ value, onChange, onSubmit }) {
         fullWidth
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="티켓, 문서, 게시판, 사용자 검색"
+        placeholder={placeholder}
         inputProps={{ "aria-label": "통합 검색어" }}
         sx={{ fontSize: "1rem" }}
       />
@@ -177,6 +177,16 @@ export function Search() {
   const auth = useAuth();
   const role = auth.data && auth.data.role;
   const canReindex = role != null && OPS_ROLES.includes(role);
+  /* WF1 R4 — "티켓, 문서, 게시판, 사용자를 한 번에 찾습니다"를 역할과 무관하게 늘 보여줬다.
+   * 그런데 app/search/service.py의 KIND_ROLE_GATE는 '사용자' 검색을 CONSOLE_WRITE_ROLES
+   * (admin/system_admin, 프런트의 WRITE_ROLES와 같은 집합)에게만 준다 — 나머지 역할(일반
+   * 사용자 등 대부분)은 이 화면에서 '사용자' 결과를 영원히 못 본다. 4종을 늘 약속하면서
+   * 실제로는 역할에 따라 3종만 되는 상태를 화면이 말하지 않고 있었다. */
+  const canSearchUsers = role != null && WRITE_ROLES.includes(role);
+  // 조사(을/를)가 마지막 낱말에 따라 달라져("사용자를" vs "게시판을") 접미사를 이어붙이지
+  // 않고 문장 전체를 따로 둔다 — 이어붙이면 "게시판를"처럼 어색해진다.
+  const searchKindsPlaceholder = canSearchUsers ? "티켓, 문서, 게시판, 사용자 검색" : "티켓, 문서, 게시판 검색";
+  const searchKindsSituation = canSearchUsers ? "티켓, 문서, 게시판, 사용자를 한 번에 찾습니다." : "티켓, 문서, 게시판을 한 번에 찾습니다.";
   const confirm = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
@@ -213,7 +223,7 @@ export function Search() {
           </Button>
         ) : null}
       />
-      <SearchField value={draft} onChange={setDraft} onSubmit={submit} />
+      <SearchField value={draft} onChange={setDraft} onSubmit={submit} placeholder={searchKindsPlaceholder} />
 
       {!enabled ? (
         /* '아직 안 쳤다' — 결과가 없는 것이 아니라 아직 묻지 않은 상태다.
@@ -221,7 +231,7 @@ export function Search() {
         <Card>
           <EmptyState
             title="무엇을 찾을까요?"
-            situation="티켓, 문서, 게시판, 사용자를 한 번에 찾습니다."
+            situation={searchKindsSituation}
             help="한 글자만 쳐도 찾습니다. Ctrl+K 로 어느 화면에서든 이 검색을 열 수 있습니다."
             art="search"
           />
