@@ -84,6 +84,10 @@ param(
     # 노출 이유는 위와 같다(test seam). production 기본값은 그대로다.
     [int]$RateLimitBaseBackoffSeconds = 60,
     [int]$RateLimitMaxBackoffSeconds = 1800,
+    # 일반 실패(진척 없음)의 재시도 간격. 예전엔 0이라 순간적 네트워크 장애 하나로
+    # 3연속 실패가 몇 초 만에 쌓여 AUTO_STOP 됐다.
+    [int]$FailureBaseBackoffSeconds = 60,
+    [int]$FailureMaxBackoffSeconds = 600,
 
     # 완료된 Audit을 새 Cycle로 다시 시작할 때 사용한다.
     [switch]$ResetAudit,
@@ -535,6 +539,11 @@ rebase로 이력을 다시 써도 탐지된다. 위반이 감지되면 Audit은 
 
 명령 실행 때문에 tracked 파일이 우연히 변할 수 있는 작업(빌드, 번들 재생성, 스냅샷 갱신,
 마이그레이션)은 **아예 하지 마라**. 읽기 전용 검증과 기존 테스트 실행만 한다.
+
+그럼에도 tracked 파일이 우연히 변했다면, 이 invocation 을 끝내기 **전에** `git status` 로 확인하고
+**네가 만든 그 변경만** `git checkout -- <경로>` 로 되돌려라. Audit 시작 전부터 있던 사용자의
+변경(RUN CONTEXT 의 pre_existing_dirty_paths)은 **절대 건드리지 마라.** 되돌리지 않고 끝내면
+Supervisor 가 위반으로 판정해 AUDIT_BLOCKED 로 밤샘 실행 전체를 중단시킨다.
 
 ======================================================================
 1. 작업 단위와 Continuity
@@ -1293,6 +1302,13 @@ try {
                 $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
                 Write-AuditLog "연속 rate-limit 판정이 $hits 회로 상한($MaxConsecutiveRateLimitHits)을 넘어 일반 실패로 계산한다(무한 백오프 방지)."
             }
+        } elseif ($headAfter -ne $headBefore -and -not [string]::IsNullOrWhiteSpace($headAfter)) {
+            # ★ AUTO_STOP 의 의미는 "종료 코드가 0이 아니다"가 아니라 **"진척이 없다"** 여야 한다.
+            #   이 invocation 이 실제로 Audit 문서를 커밋했다면 컨텍스트/네트워크로 끝났더라도
+            #   일은 된 것이다. 상한을 늘리는 게 아니라 판정을 정확히 하는 것이다.
+            $state.consecutiveFailures = 0
+            $state.sessionRotatedForStreak = $false
+            Write-AuditLog "exit=$exitCode 이지만 이 invocation 이 커밋을 남겼다($headBefore -> $headAfter) — 진척이 있으므로 연속 실패로 세지 않는다."
         } else {
             $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
             # 같은 세션이 결정적으로 계속 실패하면(오염된 세션) 상한 도달 전에 한 번 회전시킨다.
@@ -1363,8 +1379,15 @@ try {
                 -BaseSeconds $RateLimitBaseBackoffSeconds -MaxSeconds $RateLimitMaxBackoffSeconds
             Write-AuditLog "rate-limit/overload 로 판단 — ${backoff}초 대기 후 재시도(진짜 기다릴 이유가 있는 경우만 백오프)."
             Start-Sleep -Seconds $backoff
+        } elseif ((Get-IntOr $state.consecutiveFailures) -gt 0) {
+            # ★ 예전엔 일반 실패에 대기가 **전혀 없었다.** 네트워크가 10초만 끊겨도 즉시 재시도 →
+            #   즉시 실패가 3연속으로 쌓여 몇 초 만에 AUTO_STOP 되고 밤샘 Audit 이 끝났다.
+            $backoff = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveFailures) `
+                -BaseSeconds $FailureBaseBackoffSeconds -MaxSeconds $FailureMaxBackoffSeconds
+            Write-AuditLog "일반 실패 $($state.consecutiveFailures)회 연속(진척 없음) — ${backoff}초 대기 후 재시도."
+            Start-Sleep -Seconds $backoff
         }
-        # 그 외에는 대기 없이 곧장 다음 invocation 으로 이어간다.
+        # 성공했거나 진척이 있었으면 대기 없이 곧장 다음 invocation 으로 이어간다.
     }
     exit $script:FinalExit
 } finally {

@@ -361,6 +361,7 @@ function Invoke-Autonomous([string]$repo, [hashtable]$extra) {
     $defaults = [ordered]@{
         MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; DirtyRetrySeconds = 1
         RateLimitBaseBackoffSeconds = 1; RateLimitMaxBackoffSeconds = 2
+        FailureBaseBackoffSeconds = 1; FailureMaxBackoffSeconds = 2
     }
     $a = Build-Args $AutonomousScript $repo $defaults $extra $null
     $out = & $PsHost @a 2>&1 | Out-String
@@ -370,6 +371,7 @@ function Invoke-Audit([string]$repo, [hashtable]$extra, [string[]]$switches) {
     $defaults = [ordered]@{
         MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; DirtyRetrySeconds = 1; MaxDirtyWaits = 2
         RateLimitBaseBackoffSeconds = 1; RateLimitMaxBackoffSeconds = 2
+        FailureBaseBackoffSeconds = 1; FailureMaxBackoffSeconds = 2
     }
     $a = Build-Args $AuditScript $repo $defaults $extra $switches
     $out = & $PsHost @a 2>&1 | Out-String
@@ -836,6 +838,68 @@ Test-Case "T42" "종료 코드로 상태를 구분한다: 정상/STOP/AUTO_STOP/
     $rb = Invoke-Audit $repo $null $null
     Assert ($rb.ExitCode -eq 5) "BLOCKED 상태의 재실행도 exit 5"
     Assert ((Get-StubCount $repo) -eq 0) "BLOCKED 상태에서는 Worker 를 띄우면 안 된다"
+}
+
+Test-Case "T46" "진척(커밋)이 있으면 exit!=0 이어도 연속 실패로 세지 않는다" {
+    param($repo)
+    # AUTO_STOP 의 의미는 "종료 코드가 0이 아니다"가 아니라 "진척이 없다"여야 한다.
+    # 시나리오: 허용 경로에 커밋을 남기고 exit 2 로 끝나는 Worker.
+    Set-Content -Path (Join-Path $repo "var\stub\scenario.txt") -Value "audit-good-then-fail" -Encoding ascii
+    $stub = Join-Path $repo "var\stub\claude_stub.ps1"
+    $t = [System.IO.File]::ReadAllText($stub, [System.Text.Encoding]::UTF8)
+    $t = $t.Replace("    '^audit-good$' {", @"
+    '^audit-good-then-fail$' {
+        Set-Content -Path (Join-Path `$repo "docs\product-audit\PRODUCT_AUDIT_STATE.md") -Value "# state`n" -Encoding utf8
+        Git-Q add "docs/product-audit/PRODUCT_AUDIT_STATE.md"
+        Git-Q commit -q -m "audit: progress then fail"
+        [Console]::Error.Write("network blip"); exit 2
+    }
+    '^audit-good$' {
+"@)
+    [System.IO.File]::WriteAllText($stub, $t, (New-Object System.Text.UTF8Encoding($true)))
+
+    # 1회만 돈다: 같은 시나리오가 두 번째로 돌면 커밋할 내용이 없어 진척이 안 생기고,
+    # 그건 이 테스트가 보려는 것이 아니다.
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1; FailureBaseBackoffSeconds = 1; FailureMaxBackoffSeconds = 1 } $null)
+    $log = Get-RunnerLog $repo "audit"
+    Assert-Match $log '진척이 있으므로 연속 실패로 세지 않는다' "커밋을 남긴 invocation 은 실패 사슬을 끊어야 한다"
+    $st = Get-NormalizedState -Path (Join-Path $repo "var\product-audit\state.json") -Defaults ([ordered]@{ consecutiveFailures = 9 })
+    Assert ($st.consecutiveFailures -eq 0) "진척이 있었으므로 연속 실패는 0이어야 한다(실제 $($st.consecutiveFailures))"
+    Assert (-not (Test-Path (Join-Path $repo "var\product-audit\AUTO_STOP"))) "진척이 있는 한 AUTO_STOP 되면 안 된다"
+}
+
+Test-Case "T47" "진척 없는 일반 실패는 즉시 재시도하지 않고 간격을 둔다" {
+    param($repo)
+    # 예전엔 대기가 0이라 네트워크가 잠깐 끊기면 몇 초 만에 3연속 실패 → AUTO_STOP 이었다.
+    Set-Scenario $repo @("fail")
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 3; FailureBaseBackoffSeconds = 2; FailureMaxBackoffSeconds = 4 })
+    $sw.Stop()
+    $log = Get-RunnerLog $repo "impl"
+    Assert-Match $log '초 대기 후 재시도\(순간 장애를 넘기기 위한 간격\)' "일반 실패에도 재시도 간격이 있어야 한다"
+    Assert ($sw.Elapsed.TotalSeconds -ge 4) "실제로 대기해야 한다(경과 $([int]$sw.Elapsed.TotalSeconds)초)"
+}
+
+Test-Case "T48" "run_all.ps1 이 Audit 완료 뒤 구현 단계로 자동으로 이어진다" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete", "impl-consume-complete")
+    # 배열 인자는 argv 로 넘기면 앞의 '-' 때문에 파라미터로 오인된다 — probe 스크립트 안에서
+    # 진짜 PowerShell 배열로 넘긴다. 상한을 반드시 준다: 기본값(무제한)으로 두면 Gate 가 한 번만
+    # 어긋나도 테스트가 영원히 돈다(실제로 스위트를 10분 타임아웃시켰다).
+    $probe = Join-Path $repo "var\runall_probe.ps1"
+    $body = @"
+& '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
+    -MaxRestarts 0 ``
+    -AuditArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1','-MaxDirtyWaits','2') ``
+    -ImplementArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1')
+"EXITCODE=`$LASTEXITCODE"
+"@
+    [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
+    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
+    $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
+    Assert-Match $out 'PHASE 1 \(Product Audit\) 완료' "Audit 완료 후 넘어간다는 것을 알려야 한다"
+    Assert (Test-MarkerValid (Join-Path $repo "var\runner\PROJECT_COMPLETE")) "구현 단계까지 자동으로 이어져 완료돼야 한다. 출력: $out"
+    Assert ($code -eq 0) "전체 완료는 exit 0 이어야 한다(실제 $code)"
 }
 
 Test-Case "T45" "MaxBudgetUsd=0 이면 --max-budget-usd 를 argv 에 붙이지 않는다(일을 자르지 않음)" {

@@ -1,4 +1,4 @@
-# 무인 Supervisor 두 단계 — Product Audit → 구현 완성
+﻿# 무인 Supervisor 두 단계 — Product Audit → 구현 완성
 
 > 사용자가 자는 동안 사람 개입 없이 제품을 끝까지 밀고 가기 위한 로컬 실행 구조다.
 > **이 PowerShell 프로세스 자체가 Primary Continuous Supervisor**다 — Windows Task Scheduler
@@ -22,6 +22,7 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 |---|---|
 | `product_audit_runner.ps1` | PHASE 1. 전수조사 Supervisor. 제품 코드를 고치지 않는다 |
 | `autonomous_runner.ps1` | PHASE 2. 구현 Supervisor(Primary Continuous Worker) |
+| `run_all.ps1` | **바깥 루프.** PHASE 1 완료 → PHASE 2 자동 연결 + `AUTO_STOP` 제한적 자동 재시작. 한 번 시작해 두면 두 Phase 경계에서 사람을 기다리지 않는다 |
 | `runner_common.ps1` | 두 Supervisor가 **똑같이 틀리면 안 되는** 원시 계층(종료 상태 판정, git 호출, state 정규화, 잠금, marker 격리) |
 | `stop_guard.py` | Stop hook 보조 제동. Supervisor를 대체하지 않는다 |
 | `tests/runner_contract_tests.ps1` | 격리된 scratch 저장소에 **실제 스크립트를 그대로** 돌리는 상태 전이 controlled test |
@@ -34,14 +35,18 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 ## 실행
 
 ```powershell
-cd C:\Users\hshwa\clovirone-web-assistant
+# 권장 — 한 번만 시작하면 Audit → 구현까지 이어진다
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\run_all.ps1
 
-# PHASE 1 — 제품 전체 전수조사 (기본 opus / effort max / invocation당 $20)
-.\scripts\runner\product_audit_runner.ps1
-
-# 완료(AUDIT_COMPLETE Gate 통과) 후 PHASE 2 — 구현 (기본 sonnet / effort max / invocation당 $15)
-.\scripts\runner\autonomous_runner.ps1
+# 단계별로 직접 돌리고 싶으면
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\product_audit_runner.ps1   # PHASE 1 (opus)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\autonomous_runner.ps1      # PHASE 2 (sonnet)
 ```
+
+> **`-ExecutionPolicy Bypass` 가 필요한 이유**: Windows PowerShell 5.1과 PowerShell 7은 실행 정책
+> 레지스트리 키가 **서로 다르다.** 이 PC는 7이 `RemoteSigned`, 5.1이 `Undefined`(=Restricted)라
+> 5.1 창에서 `.\스크립트`로 바로 실행하면 차단된다. 영구히 풀려면
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`(관리자 권한 불필요).
 
 Audit을 처음부터 새 Cycle로 다시 하려면 `-ResetAudit`, `AUDIT_BLOCKED` 원인을 사람이 해결한 뒤
 이어가려면 `-ResumeBlocked`.

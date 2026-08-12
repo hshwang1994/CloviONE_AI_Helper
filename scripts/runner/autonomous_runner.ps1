@@ -91,7 +91,11 @@ param(
     [int]$MaxUnchangedDirtyWaits = 5,
     # 노출 이유는 위와 같다(test seam). production 기본값은 그대로다.
     [int]$RateLimitBaseBackoffSeconds = 60,
-    [int]$RateLimitMaxBackoffSeconds = 1800
+    [int]$RateLimitMaxBackoffSeconds = 1800,
+    # 일반 실패(진척 없음)의 재시도 간격. 예전엔 0이라 순간적 네트워크 장애 하나로
+    # 3연속 실패가 몇 초 만에 쌓여 AUTO_STOP 됐다.
+    [int]$FailureBaseBackoffSeconds = 60,
+    [int]$FailureMaxBackoffSeconds = 600
 )
 
 $ErrorActionPreference = "Stop"
@@ -494,6 +498,7 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
         $logFile = Join-Path $LogDir "$timestamp.log"
         $errFile = "$logFile.err"
         $invocationPromptFile = Join-Path $LogDir "$timestamp.prompt.txt"
+        $headBefore   = Get-GitHeadSha -RepoDir $ProjectDir
         $budgetLabel  = if ($MaxBudgetUsd -gt 0) { "`$$MaxBudgetUsd" } else { "무제한" }
         $timeoutLabel = if ($MaxRuntimeMinutes -gt 0) { "${MaxRuntimeMinutes}분" } else { "무제한" }
         Write-RunnerLog "Worker invocation 시작 #$($iterationsThisLaunch + 1) requestedModel=$Model requestedEffort=$Effort (log=$logFile, budget=$budgetLabel, timeout=$timeoutLabel)"
@@ -572,8 +577,11 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
             -TimeoutMinutes $MaxRuntimeMinutes -LogPath $RunnerLog
         $exitCode = $outcome.ExitCode
 
-        # rate-limit/overload 와 session resume 실패만 따로 잡는다 — 그 외 일반 실패는 즉시
-        # 재시도하고 연속 상한이 최종 안전망이다(일반 작업엔 idle timer 를 쓰지 않는다).
+        # 이 invocation 이 실제로 무언가를 남겼는가(=진척). 아래 실패 계산의 축이다.
+        $headAfter  = Get-GitHeadSha -RepoDir $ProjectDir
+        $progressed = ($headBefore -ne $headAfter) -and (-not [string]::IsNullOrWhiteSpace($headAfter))
+
+        # rate-limit/overload 와 session resume 실패만 따로 잡는다.
         $isRateLimit = $false
         $isResumeFailure = $false
         if ($exitCode -ne 0) {
@@ -608,6 +616,14 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
                 $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
                 Write-RunnerLog "연속 rate-limit 판정이 $hits 회로 상한($MaxConsecutiveRateLimitHits)을 넘어 일반 실패로 계산한다(무한 백오프 방지)."
             }
+        } elseif ($progressed) {
+            # ★ AUTO_STOP 의 의미는 "종료 코드가 0이 아니다"가 아니라 **"진척이 없다"** 여야 한다.
+            #   이 invocation 이 실제로 커밋을 남겼다면 예산/컨텍스트/네트워크로 끝났더라도
+            #   일은 된 것이다. 연속 실패 사슬을 끊는다 — 상한을 늘리는 게 아니라 판정을
+            #   정확히 하는 것이므로 안전장치가 느슨해지지 않는다(진척이 없으면 그대로 센다).
+            $state.consecutiveFailures = 0
+            $state.sessionRotatedForStreak = $false
+            Write-RunnerLog "exit=$exitCode 이지만 이 invocation 이 커밋을 남겼다($headBefore -> $headAfter) — 진척이 있으므로 연속 실패로 세지 않는다."
         } else {
             $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
             # 같은 세션이 결정적으로 계속 실패하면(오염된 세션) 상한 도달 전에 한 번만 회전시킨다.
@@ -643,8 +659,16 @@ Supervisor는 PROJECT_COMPLETE를 그대로 믿지 않는다. 내용 유무와 P
                 -BaseSeconds $RateLimitBaseBackoffSeconds -MaxSeconds $RateLimitMaxBackoffSeconds
             Write-RunnerLog "rate-limit/overload 로 보임 — ${backoff}초 대기 후 재시도(진짜 기다릴 이유가 있는 경우만 백오프)."
             Start-Sleep -Seconds $backoff
+        } elseif ((Get-IntOr $state.consecutiveFailures) -gt 0) {
+            # ★ 예전엔 일반 실패에 대기가 **전혀 없었다.** 네트워크가 10초만 끊겨도 즉시 재시도 →
+            #   즉시 실패가 3연속으로 쌓여 **3초 만에 AUTO_STOP** 되고 밤샘 실행이 끝났다.
+            #   상한을 늘리지 않고, 재시도 간격만 벌려 순간적 장애를 넘긴다.
+            $backoff = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveFailures) `
+                -BaseSeconds $FailureBaseBackoffSeconds -MaxSeconds $FailureMaxBackoffSeconds
+            Write-RunnerLog "일반 실패 $($state.consecutiveFailures)회 연속(진척 없음) — ${backoff}초 대기 후 재시도(순간 장애를 넘기기 위한 간격)."
+            Start-Sleep -Seconds $backoff
         }
-        # 성공했거나(exit=0) 일반 실패/resume 실패면 sleep 없이 곧장 다음 반복으로 — 이것이 핵심이다.
+        # 성공했거나 진척이 있었으면 sleep 없이 곧장 다음 반복으로 — 이것이 이 설계의 핵심이다.
     }
     exit $script:FinalExit
 } finally {
