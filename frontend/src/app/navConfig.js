@@ -302,6 +302,15 @@ export const ROUTE_OWNER = {
    * `/my-projects` 같은 것으로 옮기면 상세에서 선택 표시가 소리 없이 사라진다. 여기 적어
    * 두면 그때 위의 "목적지는 실제로 존재하는 메뉴다" 검사가 **먼저 실패한다**(nav-active.test.js). */
   "/projects": "/projects",
+  /* 조직 관리·부서 관리·조직도가 사이드바 항목 하나(`/organizations`)로 합쳐진 뒤(사이드바
+   * 조직 메뉴 통합, nav-org-menu.test.js) `/departments`·`/org-tree`는 **자기 메뉴 항목이
+   * 없는 화면**이 됐다 — `/tickets/:id`·`/search`와 같은 부류다. 그런데 이 둘은 라우팅만
+   * 유지됐을 뿐 여기(ROUTE_OWNER)에 등록되지 않아, `location.state.from` 없이 도달하면
+   * (registry/org.js의 "조직도에서 보기"/"부서 관리로 이동" 액션은 `window.location.hash`
+   * 직접 대입이라 state가 없다, Users.jsx의 부서 안내 링크는 새 탭이라 애초에 history state가
+   * 없다, 북마크·주소창 직접 입력도 마찬가지) 사이드바 선택 표시가 통째로 사라졌다. */
+  "/departments": "/organizations",
+  "/org-tree": "/organizations",
 };
 // (`/profile`·`/my-stats`·`/activity` 는 **자기 메뉴 항목이 있다** — 여기 넣으면 안 된다.
 //  넣으면 그 화면에서 자기 메뉴 대신 홈이 켜진다. `nav-active.test.js` 가 그걸 못박는다.)

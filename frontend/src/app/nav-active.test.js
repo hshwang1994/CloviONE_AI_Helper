@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { activeNavPath, bestNavMatch, ROUTE_OWNER, USER_NAV } from "./navConfig.js";
+import { activeNavPath, bestNavMatch, ROUTE_OWNER, NAV, USER_NAV } from "./navConfig.js";
 
 /* 상세 화면에서도 **선택된 메뉴가 남아 있다** (사용자 지적 #14).
  *
@@ -47,9 +47,13 @@ describe("사이드바 선택 유지", () => {
   });
 
   it("ROUTE_OWNER 의 목적지는 실제로 존재하는 메뉴다", () => {
-    /* 오타 하나면 그 화면에서 영원히 표시가 안 켜지는데, 증상이 조용해서 안 보인다. */
+    /* 오타 하나면 그 화면에서 영원히 표시가 안 켜지는데, 증상이 조용해서 안 보인다.
+     * ROUTE_OWNER는 두 콘솔(관리자 NAV·사용자 USER_NAV)이 함께 쓰는 한 표라 — /departments·
+     * /org-tree처럼 목적지가 관리자 전용 메뉴인 항목도 있다. PATHS(사용자 콘솔)만으로 검사하면
+     * 그 항목들은 항상 "목적지가 메뉴에 없다"로 걸려 이 시험 자체가 못 미덥게 된다. */
+    const ALL_PATHS = [...PATHS, ...NAV.flatMap((g) => g.items || []).map((i) => i.to)];
     for (const [from, to] of Object.entries(ROUTE_OWNER)) {
-      expect(PATHS, `${from} → ${to} 의 목적지가 메뉴에 없다`).toContain(to);
+      expect(ALL_PATHS, `${from} → ${to} 의 목적지가 메뉴에 없다`).toContain(to);
     }
   });
 });

@@ -3928,13 +3928,62 @@ Edit로 잠시 제거해 신규 5건 중 정확히 3건(위 3화면)이 기대�
 --write`로 `BUILD_STAMP.json` 갱신). `bash scripts/static_checks.sh`
 → `STATIC_CHECKS_OK`.
 
-이 배치(`SEM-01` 두 번째 소비처) 커밋 예정. **다음 후보**: 같은
-재스캔이 2순위로 짚은 `ROUTE_OWNER` 누락(`frontend/src/app/
-navConfig.js` — `/departments`·`/org-tree`) 확인 후 착수, 이어서
-WF1 미채번 발견 묶음(`docs/BACKLOG.md` ~2188-2392줄 나머지 약
-67건 중 High 7건 — `admin_offboarding` 온보딩 기능 미구현 약속,
-`admin_audit-anomalies`의 `anomalies.py:208-209` 중복 컬럼,
-러너에는 있는 주기적 헬스 정체 스윕/배지가 연동(integrations)엔
-없는 문제 등). 그 외 `RN-15`(CLI 타임아웃 미포함, 이미지 dedup
-키 영속성)·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·남은
-`RESP-04`/`VIS-122`도 여전히 후보 목록에 있다.
+이 배치(`SEM-01` 두 번째 소비처) 커밋 완료(`e4e27ff`).
+
+**WF36(같은 invocation 계속) — `ROUTE_OWNER` 미등록: `/departments`·
+`/org-tree` 좌측 내비 활성 표시 소실(WF1 R1, High) 구현완료.**
+같은 재스캔의 2순위 후보이자, `docs/BACKLOG.md`의 WF1 `R1`
+상세표(2244행)가 이미 정확히 짚어 둔 항목 — grep으로 재확인:
+조직 관리·부서 관리·조직도가 사이드바 항목 하나(`/organizations`)로
+합쳐지며(기존 완료) `/departments`·`/org-tree`는 `/tickets/:id`·
+`/search`와 같은 "자기 메뉴 항목 없는 화면"이 됐는데, 그 둘만
+`ROUTE_OWNER`에 등록이 안 됐다. `location.state.from` 없이
+도달하는 실제 경로 다수 확인: `registry/org.js`의 "조직도에서
+보기"·"부서 관리로 이동" 액션(`DataScreen.jsx`가 `window.location.
+hash = a.navigate(row)`로 직접 대입 — history state 없음),
+`Users.jsx`의 부서 안내 링크(새 탭, `target="_blank"`), `SetupWizard.
+jsx`, 북마크/주소창 직접 입력. 도달하면 사이드바 어느 항목도
+활성 표시가 없는 상태가 됐다 — `/tickets/:id`가 예전에 겪던 것과
+정확히 같은 결함군인데 그 수정(`ROUTE_OWNER`) 메커니즘 자체에
+이 둘만 빠져 있었다.
+
+**구현**: `navConfig.js`의 `ROUTE_OWNER`에 `"/departments" →
+"/organizations"`, `"/org-tree" → "/organizations"` 2행 추가.
+
+**부수 발견**: `nav-active.test.js`의 기존 불변검사("ROUTE_OWNER
+목적지는 실제로 존재하는 메뉴다")가 `USER_NAV` 경로만으로
+검사하고 있어, 관리자 전용 목적지(`/organizations`)를 추가하면
+그 자체가 거짓양성으로 깨진다는 것을 발견 — `ROUTE_OWNER`는
+두 콘솔이 공유하는 한 표인데 검사망은 한쪽만 봤다. 검사 대상을
+`USER_NAV`+`NAV` 합집합으로 넓혀 실제 불변식에 맞춤.
+
+**시험**: `nav-org-menu.test.js`에 신규 1건(`activeNavPath(
+"/departments", adminPaths)`·`activeNavPath("/org-tree",
+adminPaths)`가 `"/organizations"`로 해석됨) 추가. revert-to-verify:
+`ROUTE_OWNER` 2행을 Edit로 제거하니 신규 시험이 `expected null to
+be '/organizations'`로 정확히 실패, 복원 후 통과 확인. 관련
+회귀(`nav-active`·`nav-org-menu`·`user-segment-routes`·
+`org-console`, 35건) + 전체 `AppShell` 렌더 하네스 대표 소비자
+(`sidebar-active-item-scroll`·`sidebar-group-sticky-open`·
+`scope-bar-route-awareness`, 5건) green. 재빌드 완료, `bash
+scripts/static_checks.sh` → `STATIC_CHECKS_OK`.
+
+`docs/BACKLOG.md`의 WF1 `R1` 상세표 두 행(`ROUTE_OWNER`
+항목·`rowName: true` 항목=WF35) 구현완료로 정정.
+
+이 배치(`ROUTE_OWNER` 미등록) 커밋 예정. **다음 후보**: 같은 WF1
+`R1` 상세표(2237-2250행)에 같은 "옵트인 규칙 미등록" 근본
+원인으로 묶인 나머지 6건이 바로 이어지는 자연스러운 다음
+번들이다 — `KO_WORD_BREAK`가 `EmptyState`(`kit.jsx:295-311`)에
+안 걸려 31개 파일 영향, `primary:true` 헤더 액션이 `DataScreen.jsx
+:486-489`에서 `showCreate`에만 적용, `Callout tone="warn"`이
+`DataScreen.jsx:524`에서 `config.help`에 무조건 info로 적용,
+`activeCol`(warn 톤) 대신 `admin_templates`가 `badgeCol` 사용,
+`shortUA`+Tooltip이 `Profile.jsx:383-386`에 없음, 수치 열
+`align:"right"`이 `platform.js:67` 백업 크기 열에 없음. 각 항목을
+먼저 현재 소스에서 재검증(WF1은 2026-08-08 시점 조사라 그새 바뀐
+것이 있을 수 있다)한 뒤 착수. 그 외 WF1 High 나머지
+(`admin_offboarding` 온보딩 기능 미구현 약속, `admin_audit-
+anomalies`의 `anomalies.py:208-209` 중복 컬럼, 연동 헬스 정체
+스윕/배지 부재), `RN-15`·`RN-17` 잔여 노출·`RN-18~20`·`VIS-80`·
+남은 `RESP-04`/`VIS-122`도 후보 목록에 있다.

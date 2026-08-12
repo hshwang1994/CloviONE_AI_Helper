@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { NAV, SCREEN_ROLES } from "./navConfig.js";
+import { NAV, SCREEN_ROLES, activeNavPath } from "./navConfig.js";
 
 /* 조직관리·부서관리·조직도가 사이드바에 별도 항목 3개로 남아 있던 버그(사용자 신고: "사이드바에
  * 3개 항목으로 남아있어서 3개 페이지처럼 보임").
@@ -33,5 +33,16 @@ describe("사이드바 조직 메뉴 통합", () => {
     // 메뉴는 하나로 줄이되, AdminRoutes.jsx 가 참조하는 SCREEN_ROLES 표는 셋 다 유지한다.
     expect(SCREEN_ROLES.departments).toEqual(["admin", "system_admin"]);
     expect(SCREEN_ROLES["org-tree"]).toEqual(["admin", "system_admin"]);
+  });
+
+  /* 메뉴 통합의 결과로 /departments·/org-tree는 자기 메뉴 항목이 없는 화면이 됐다(위 시험이
+   * 못박은 그대로) — 그런데 ROUTE_OWNER에 등록되지 않아 registry/org.js의 "조직도에서 보기"/
+   * "부서 관리로 이동" 액션(hash 직접 대입이라 location.state.from이 없다)이나 새 탭으로 여는
+   * Users.jsx의 부서 안내 링크로 들어가면 사이드바 선택 표시가 통째로 사라졌다 — /tickets/:id가
+   * 예전에 그랬던 것과 같은 부류(nav-active.test.js). */
+  it("/departments, /org-tree 로 state 없이 들어가도 대표 메뉴(/organizations)가 켜진다", () => {
+    const adminPaths = NAV.flatMap((g) => g.items || []).map((i) => i.to);
+    expect(activeNavPath("/departments", adminPaths)).toBe("/organizations");
+    expect(activeNavPath("/org-tree", adminPaths)).toBe("/organizations");
   });
 });
