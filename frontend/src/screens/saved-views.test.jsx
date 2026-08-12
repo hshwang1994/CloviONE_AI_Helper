@@ -114,6 +114,37 @@ describe("주소로 뷰 복원", () => {
   });
 });
 
+describe("저장된 뷰 — 발견성 힌트 (USE-08)", () => {
+  it("필터를 걸었는데 저장된 뷰에 없으면 '저장 가능' 힌트가 붙는다", async () => {
+    window.location.hash = "#/audit?result=failure";
+    apiMock.mockImplementation(routeApi());
+    renderScreen();
+    await screen.findByText("감사 로그");
+
+    await screen.findByRole("button", { name: /지금 걸어 둔 필터를 저장할 수 있습니다/ });
+  });
+
+  it("필터가 없으면(빈 화면) 힌트가 안 붙는다", async () => {
+    window.location.hash = "#/audit";
+    apiMock.mockImplementation(routeApi());
+    renderScreen();
+    await screen.findByText("감사 로그");
+
+    const btn = await screen.findByRole("button", { name: /저장된 뷰/ });
+    expect(btn.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("지금 필터가 이미 저장된 뷰와 같으면 힌트가 안 붙는다", async () => {
+    window.location.hash = "#/audit?result=failure";
+    apiMock.mockImplementation(routeApi({ views: [{ id: "v-1", name: "실패만", query: "result=failure" }] }));
+    renderScreen();
+    await screen.findByText("감사 로그");
+
+    const btn = await screen.findByRole("button", { name: /저장된 뷰 \(1\)/ });
+    expect(btn.getAttribute("aria-label")).toBeNull();
+  });
+});
+
 describe("저장된 뷰", () => {
   it("저장 시 지금 주소의 쿼리 문자열을 그대로 보낸다", async () => {
     window.location.hash = "#/audit?result=failure";

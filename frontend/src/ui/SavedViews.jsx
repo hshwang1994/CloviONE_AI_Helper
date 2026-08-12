@@ -1,4 +1,5 @@
 import React from "react";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
@@ -45,6 +46,12 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
     retry: false,
   });
   const views = (list.data && list.data.items) || [];
+  // USE-08: 저장된 뷰는 잘 만들어져 있는데 진입점이 필터 카드 안 작은 텍스트 하나뿐이라
+  // 아무도 발견하지 못했다(실사용 이력 0건). 필터를 걸어 둔 채인데 그 조합을 저장한 적이
+  // 없으면(=지금 이 화면이 "저장할 만한" 상태) 버튼에 점 배지를 띄운다 — 모달·토스트처럼
+  // 끼어들지 않으면서 "이 필터, 저장할 수 있어요"를 그 순간에 알린다.
+  const hasActiveFilter = !!(query && query.trim());
+  const isUnsavedFilter = hasActiveFilter && !views.some((v) => v.query === query);
 
   const save = useMutation({
     mutationFn: (body) => api("/api/me/views", { method: "POST", body }),
@@ -96,13 +103,22 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
   return (
     <>
       <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+        {/* kit.jsx의 Button은 forwardRef가 아니라서 Tooltip으로 감싸면 ref를 못 받아
+            깨진다(MUI Tooltip 요구사항) — 배지 + 텍스트 힌트만으로 알린다(호버 없이도
+            바로 보이므로 접근성 면에서도 툴팁보다 낫다). */}
         <Button
           variant="ghost"
           onClick={(e) => setAnchor(e.currentTarget)}
           aria-haspopup="menu"
           aria-expanded={Boolean(anchor)}
+          aria-label={isUnsavedFilter
+            ? `저장된 뷰${views.length ? ` (${views.length})` : ""}, 지금 걸어 둔 필터를 저장할 수 있습니다`
+            : undefined}
         >
-          <BookmarkBorderRoundedIcon fontSize="small" aria-hidden="true" />
+          <Badge variant="dot" color="primary" invisible={!isUnsavedFilter}
+            sx={{ "& .MuiBadge-dot": { top: 2, right: 2 } }}>
+            <BookmarkBorderRoundedIcon fontSize="small" aria-hidden="true" />
+          </Badge>
           <Box component="span" sx={{ ml: 0.75 }}>
             저장된 뷰{views.length ? ` (${views.length})` : ""}
           </Box>
