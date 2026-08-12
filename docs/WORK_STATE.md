@@ -2716,3 +2716,16 @@ vitest 172파일 · 번들 신선도 OK · playwright 1.62.0 + chromium 설치�
 가능한 마지막 지점에서 멈춘다** — 다음 invocation은 위 "다음 invocation 시작 지점"
 문단 그대로 유효하다(로컬 dev 서버 재사용 확인 후 QA_COVERAGE L축 나머지 검토는
 알림/게임방 제외coz 하고 다른 각도 필요).
+
+**WF12(2026-08-12, 새 invocation) — UB-08/UB-11/UB-12/UB-13/RG-08 정정+구현.**
+"구조 먼저" 전략으로 quotas/service.py의 UB-08 docstring(잠금 규약 미준수 경고)이
+이미 두 호출부에서 지켜지고 있음을 발견(자기모순 행 정정). 같은 클러스터의 UB-09~13
+을 조사해 UB-11(usage_stats 50개 표본이 사전순이라 운영 중 프롬프트를 "쓰이지 않음"
+으로 오탐 가능 — 실제 리스크 있는 버그)·UB-12(N+1+LIKE전체스캔)를 json_extract 전수
+집계로 재작성해 해결, UB-13/RG-08(딥링크 status 기본값 잔존으로 빈 목록)을
+DataScreen.jsx 필터초기화 로직 수정으로 해결(레지스트리 전체에서 영향받는 비기본
+필터 사용처는 prompts/policies뿐 확인, approvals 딥링크는 무관). 각각 신규 회귀
+테스트 + revert-to-verify 확인. 세션 예산 임계치로 여기서 멈춘다 — PROJECT_COMPLETE
+아님. UB-09(pending()이 chat_message만 셈)·UB-10(list_quotas 무제한+N+1)은 같은
+클러스터의 남은 항목, 다음 후보로 유효. static_checks.sh 전체 재실행은 못 함(예산) —
+다음 invocation이 먼저 `bash scripts/static_checks.sh`로 확인할 것.
