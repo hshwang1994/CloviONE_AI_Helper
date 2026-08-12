@@ -527,6 +527,25 @@ def test_ai_quota_rejects_duplicates_and_unknown_user(client, login_as):
     assert missing.status_code == 404
 
 
+def test_ai_quota_patch_rejects_explicit_null_instead_of_silently_ignoring_it(client, login_as):
+    """UB-30: max_calls는 DB에서 NOT NULL이고 null로 둘 수 있는 상태가 없다(0="차단",
+    무제한을 원하면 행을 지운다). `{"max_calls": null}`을 조용히 무시하면 보낸 사람은
+    상한이 바뀐 줄 안다 — 명시적으로 거부해야 한다."""
+    csrf = login_as("system_admin")
+    created = client.post(
+        "/api/admin/ai-quotas",
+        json={"scope_type": "global", "period": "day", "max_calls": 100},
+        headers=_h(csrf),
+    ).json()["id"]
+
+    r = client.patch(f"/api/admin/ai-quotas/{created}", json={"max_calls": None}, headers=_h(csrf))
+    assert r.status_code != 200, f"max_calls: null이 조용히 성공했다: {r.status_code} {r.text}"
+
+    unchanged = client.get("/api/admin/ai-quotas").json()["items"]
+    row = next(i for i in unchanged if i["id"] == created)
+    assert row["max_calls"] == 100, "거부됐어야 할 요청이 실제로는 값을 건드렸다"
+
+
 # ── 기능 플래그 UI ───────────────────────────────────────────────────────────
 
 

@@ -82,7 +82,9 @@ class TransitionRequest(BaseModel):
 
 
 class RollbackRequest(BaseModel):
-    name: str
+    # UB-30: 형제 엔드포인트 diff()의 name 쿼리 파라미터는 이미 max_length=120(Prompt/
+    # Policy.name의 DB 컬럼 String(120)과 같은 값)을 걸어 두는데 여기만 무제한이었다.
+    name: str = Field(max_length=120)
     version: int
 
 

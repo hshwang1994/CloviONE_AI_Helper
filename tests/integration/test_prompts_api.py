@@ -222,6 +222,17 @@ def test_rollback_republishes_old_content_as_new_version(client, admin_csrf):
     assert v3["content"] == "v1 내용"
 
 
+def test_rollback_name_has_the_same_length_limit_as_its_sibling_diff_endpoint(client, admin_csrf):
+    """UB-30: 형제 엔드포인트 GET /diff/view의 name 쿼리 파라미터는 이미 max_length=120
+    (Prompt.name의 DB 컬럼과 같은 값)을 거는데 rollback의 name 본문 필드만 무제한이었다."""
+    r = client.post(
+        "/api/admin/prompts/rollback",
+        json={"name": "가" * 121, "version": 1},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422, f"120자 넘는 name이 검증을 통과했다: {r.status_code} {r.text}"
+
+
 def test_policy_content_must_be_json_object(client, admin_csrf):
     r = client.post(
         "/api/admin/policies",

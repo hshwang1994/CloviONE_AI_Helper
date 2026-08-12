@@ -242,7 +242,13 @@ def update_quota(
     row = _get_or_404(db, row_id, principal)
     before = service.view(row)
     data = payload.model_dump(exclude_unset=True)
-    if "max_calls" in data and data["max_calls"] is not None:
+    # UB-30: max_calls는 DB에서 NOT NULL이고(0="차단", 무제한을 원하면 행을 지운다 — 모델
+    # 주석), null로 둘 수 있는 상태 자체가 없다. 예전엔 `data["max_calls"] is not None`만
+    # 보고 넘어가 `{"max_calls": null}`이 200 + 변화 없는 감사 행으로 조용히 no-op됐다 —
+    # 보낸 사람은 상한이 바뀐 줄 안다. 명시적으로 거부한다(아래 note는 nullable이라 그대로 둠).
+    if "max_calls" in data:
+        if data["max_calls"] is None:
+            raise ValidationAppError("max_calls는 비울 수 없습니다. 쿼터를 없애려면 삭제하세요.")
         service.validate(row.scope_type, row.period, data["max_calls"])
         row.max_calls = data["max_calls"]
     if "note" in data:
