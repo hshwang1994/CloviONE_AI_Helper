@@ -595,14 +595,15 @@ PRODUCT_AUDIT_COVERAGE.md의 Skill 절에 그대로 적는다.
 ui-ux-pro-max / impeccable / redesign-existing-projects / ux-writing /
 humanize-korean 계열(im-not-ai) / frontend-design / a11y-debugging / chrome-devtools
 
-참고 — 2026-08-12 검수 시점에 이 저장소에서 **실제로 확인된** 설치 위치다. 이것을 사실로
-가정하지 말고 매번 다시 확인하라(사용자가 지웠거나 옮겼을 수 있다).
-  .claude/skills/ui-ux-pro-max/
-  .claude/skills/impeccable/                        (+ .claude/settings.local.json 의 hook)
-  .agents/skills/redesign-existing-projects/        (Leonxlnx/taste-skill)
-  .agents/skills/ux-writing/                        (content-designer/ux-writing-skill)
+참고 — 2026-08-12 18시 시점에 **실제로 확인된** 설치 위치다. 이것을 사실로 가정하지 말고 매번
+다시 확인하라(사용자가 지웠거나 옮겼을 수 있다 — 실제로 이 목록은 같은 날 한 번 바뀌었다).
+  .claude/skills/ui-ux-pro-max/                             (프로젝트 scope)
+  .claude/skills/impeccable/                                (프로젝트 scope, + settings.local.json hook)
+  ~/.claude/skills/redesign-existing-projects/              (사용자 전역, Taste 계열)
+  ~/.claude/skills/ux-writing/                              (사용자 전역, 참고 리소스 9개 포함)
   ~/.claude/plugins/cache/im-not-ai/humanize-korean/2.1.0/  (.claude/settings.json 에서 활성화)
-설치 목록은 skills-lock.json 에도 있다. `.agents/skills/` 도 설치된 CLI(2.1.228)가 읽는다.
+다섯 개 모두 설치되어 있으므로 UI/UX · UX Writing · 한국어 축에서 **skill_gap 을 쓸 이유가 없다.**
+그런데도 못 쓰겠다면 그 이유를 구체적으로 적어라(추측으로 "미설치"라고 쓰지 마라).
 
 **Skill이 없다고 해서 Audit을 멈추지 마라.** Skill은 가속기이고, 축(axis) 자체가 필수다.
 없으면 이 프롬프트의 내장 rubric으로 그 축을 수행하고, COVERAGE에 다음을 남긴다.

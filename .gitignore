@@ -28,8 +28,10 @@ frontend/.vite/
 .claude/*
 !.claude/settings.json
 
-# 로컬에 설치한 Agent Skill 트리와 그 lock. 저장소 산출물이 아니라 도구 설치물이고(외부 repo
-# 통째 clone + 미디어 파일 포함), 추적하면 두 Supervisor 의 dirty guard 를 계속 건드린다.
+# Agent Skill 설치물이 저장소 안에 떨어지는 것을 막는 방어선. 2026-08-12에 한 번 실제로
+# 생겼다가(.agents/skills/{redesign-existing-projects,ux-writing} + lock, 외부 repo 통째 clone에
+# 미디어 파일까지 포함) ~/.claude/skills/ 사용자 전역으로 옮겨져 지금은 없다. 다시 생기면
+# 두 Supervisor의 dirty guard를 계속 건드리므로 규칙만 남겨 둔다.
 .agents/
 skills-lock.json
 *.bak
