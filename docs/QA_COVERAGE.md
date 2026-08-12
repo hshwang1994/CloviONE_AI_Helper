@@ -75,7 +75,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | `/login` | Jinja | - | - | - | - | - | - | - | - | ui_qa에 포함(`public_login`) |
 | `/change-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함 |
-| `/forgot-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함. **FN-01(메일 UI 없음)과 직결** |
+| `/forgot-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함. ~~**FN-01(메일 UI 없음)과 직결**~~ — **2026-08-13 정정**: `FN-01`은 2026-08-11에 이미 닫혔다(`MailStatus.jsx` 신설, `frontend/src/screens/MailStatus.jsx` 존재 확인) — 이 행이 그 정정을 안 반영하고 있었다. 재설정 메일 발송 자체를 검증할 도구(`/mail` 화면의 "시험 메일 보내기")는 이제 있다, 다만 이 라우트 자체(`/forgot-password` 화면)의 ui_qa 캡처는 여전히 미포함 |
 | `/reset-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함 |
 
 ## 2. 사용자 콘솔 (26)
@@ -584,7 +584,7 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
 |---|---|---|
 | `console_errors` | 408페이지 중 2건(1페이지, `admin_offboarding` 다크 1366×768)만 fail | ✅ [QAH-01](BACKLOG.md)로 원인 확정(세션 부수효과 커밋의 SQLite 쓰기충돌) + 수정 완료 |
 | `vertical_text_collapse` | 408페이지 중 2건(admin_dashboard 라이트·다크) | ✅ [QAH-02](BACKLOG.md) 수정 완료 |
-| `contrast`(WCAG AA) | 408페이지 중 343개(**68/68 라우트**)가 최소 1건 fail. 표본 519건 | 🟡 [QAH-03](BACKLOG.md) 부분 완료 — 표본 90%(466/519)를 차지하는 두 지배적 패턴(`a.MuiButtonBase-root`·`span.MuiBox-root`)은 공유 theme 수준에서 수정. 나머지 소수 패턴(53/519) 조사 중, `button.password-toggle`(로그인 화면, 6건)은 승인된 디자인 베이스라인 고정 계약으로 의도적 보류 |
+| `contrast`(WCAG AA) | 408페이지 중 343개(**68/68 라우트**)가 최소 1건 fail. 표본 519건 | 🟡 [QAH-03](BACKLOG.md) 부분 완료 — 표본 90%(466/519)를 차지하는 두 지배적 패턴(`a.MuiButtonBase-root`·`span.MuiBox-root`)은 공유 theme 수준에서 수정. 나머지 소수 패턴(53/519)도 수정 완료, `button.password-toggle`(로그인 화면, 6건)은 승인된 디자인 베이스라인 고정 계약으로 의도적 보류. **2026-08-13 정정 — 이 표본(라우트당 5건 상한, 408페이지)이 놓친 진짜 공백이 하나 더 있다**: [QAH-05](BACKLOG.md)(Low, 미착수) — 같은 raw `primary.main` 직접 사용 패턴이 `Board.jsx`·게임방 5개 파일(`GameStage`·`LadderBoard`·`MembersList`·`Scoreboard`·`StageShared`) 총 7곳에 더 있다. 게임방은 하네스 라우트 목록에 없고(라운드가 비어 있으면 캡처가 그 UI를 못 찍는다, `GM-01`) 실측 대비값도 아직 없다 |
 | `tiny_text`(3840×2160) | 사용자 콘솔 66/66 화면 fail(같은 원인 1개, `Mascot.jsx` 사이드바 힌트) | ✅ [QAH-04](BACKLOG.md) 수정 완료 |
 | 나머지 17+1개 축 | 전부 통과(0 fail) | 재확인 불필요 |
 
