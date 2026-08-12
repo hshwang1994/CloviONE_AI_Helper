@@ -22,7 +22,11 @@ frontend/dist/
 frontend/.vite/
 
 # Claude Code scratch/worktrees/plans (may contain secrets)
-.claude/
+# 예외: settings.json 은 이 저장소의 Stop hook 배선(scripts/runner/stop_guard.py)이라 추적한다.
+# `.claude/` 가 아니라 `.claude/*` 로 써야 negation 이 동작한다 — 디렉터리 자체를 무시하면
+# git 이 그 안으로 내려가지 않아 `!` 규칙이 평가되지 않는다.
+.claude/*
+!.claude/settings.json
 *.bak
 *.bak-*
 

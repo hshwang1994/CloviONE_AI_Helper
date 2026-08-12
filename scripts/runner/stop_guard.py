@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Stop hook — Supervised Worker가 "요약 쓰고 끝"으로 빠지는 것을 한 번 제동한다.
+
+이것은 **보조 안전장치**다. Project continuity의 1차 책임은 여전히 로컬 PowerShell
+Supervisor(`autonomous_runner.ps1`)에 있다(CLAUDE.md §11). Stop hook이 하는 일은 딱 하나 —
+`PROJECT_COMPLETE=false`인데 Claude가 Summary/recap을 내고 invocation을 끝내려 할 때
+**한 번** block해서 "아직 남은 일을 계속하라"고 되돌리는 것이다. 그 뒤 프로세스가 실제로
+끝나면 다음 invocation은 Supervisor가 책임진다.
+
+왜 "한 번"인가: block을 무한 반복하면 Claude Code의 Stop-hook 재진입 방어에 걸리고, 무엇보다
+Supervisor를 대체하는 장치가 되어 버린다. 그래서 이 hook이 유발한 continuation 안에서
+(`stop_hook_active=true`) 다시 멈추려 하면 그냥 보내 준다 — invocation당 제동 1회.
+
+설치 위치는 `.claude/settings.json`(project scope)이고, **Supervisor가 띄운 Worker에서만**
+활성화된다(`CLOVIR_SUPERVISED=1`). 사람이 직접 쓰는 대화형 세션에는 이 환경변수가 없으므로
+hook은 즉시 통과한다 — 평소 작업을 방해하지 않는다.
+
+--- 이 파일이 의존하는 계약 (2026-08-12, 설치된 claude 2.1.228에서 실제 호출로 확인) ---
+  * `-p`(비대화형) 모드에서도 Stop hook은 실행된다.
+  * project `.claude/settings.json`의 hooks는 `-p`에서 기본으로 로드된다.
+  * Supervisor 프로세스의 환경변수는 claude.exe를 거쳐 hook 프로세스까지 상속된다.
+  * stdin JSON에 `stop_hook_active`(bool)가 실제로 들어온다 — 정상 정지 시 false,
+    이 hook이 block해서 이어진 continuation에서는 true.
+  * exit 0 + stdout `{"decision":"block","reason":...}` → 정지가 취소되고 대화가 이어진다
+    (실측: num_turns 1 → 2).
+근거·재현 절차는 docs/DECISIONS.md D-64.
+
+실패 시 방향(중요): 이 hook이 무슨 이유로든 깨지면 **정지를 허용한다**(fail-open). 보조
+장치가 Worker를 영구히 붙잡아 두는 것이 block에 실패하는 것보다 훨씬 나쁘다 — 어차피
+Supervisor가 다음 invocation을 띄운다.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# scripts/runner/stop_guard.py → parents[2] == 저장소 루트
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+RUNNER_DIR = PROJECT_DIR / "var" / "runner"
+COMPLETE_FILE = RUNNER_DIR / "PROJECT_COMPLETE"
+GUARD_LOG = RUNNER_DIR / "stop_guard.log"
+
+BLOCK_REASON = (
+    "PROJECT_COMPLETE=false 다. Summary·recap·commit·clean tree·Full Regression green·"
+    "현재 batch 완료·\"다음에 이어서\"는 전부 종료 조건이 아니다(CLAUDE.md §0/§13).\n"
+    "invocation은 work unit이 아니다 — PROJECT 전체가 유일한 work unit이다. 지금 곧바로 "
+    "가장 영향도 높은 runnable whole-product work를 계속하라. 하나의 Root Cause를 닫았으면 "
+    "같은 invocation 안에서 다음 Root Cause로 넘어가라.\n"
+    "docs/WORK_STATE.md·BACKLOG.md·QA_COVERAGE.md 전체와 대조해 남은 일을 다시 고르되, "
+    "상단 몇 줄이나 \"다음 후보\"만 보고 정하지 마라.\n"
+    "외부 blocker(사람만 풀 수 있는 것)를 만났으면 docs/WORK_STATE.md에 기록하고 그것과 "
+    "독립적으로 가능한 작업을 계속하라.\n"
+    "완료 기준(CLAUDE.md §13)을 실제로 검증해 충족했다면, 그 근거와 타임스탬프를 "
+    "var/runner/PROJECT_COMPLETE 에 적어라 — 그때만 정지가 허용된다."
+)
+
+
+def log(message: str) -> None:
+    """진단용 append-only 로그. 실패해도 hook 판단에는 영향을 주지 않는다."""
+    try:
+        RUNNER_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).astimezone().isoformat()
+        with GUARD_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(f"[{stamp}] {message}\n")
+    except Exception:
+        pass
+
+
+def project_complete() -> bool:
+    """완료 마커 gate — `autonomous_runner.ps1`의 판정과 **같은 규칙**이어야 한다.
+
+    존재만으로는 부족하고 내용이 있어야 한다(빈 파일이 실수로 생겨 프로젝트가 조용히
+    끝나는 것을 막는다). Claude는 무엇을 근거로 완료라 판단했는지 적게 되어 있다.
+    """
+    try:
+        if not COMPLETE_FILE.is_file():
+            return False
+        return bool(COMPLETE_FILE.read_text(encoding="utf-8", errors="replace").strip())
+    except Exception:
+        return False
+
+
+def allow(reason: str) -> None:
+    log(f"allow  — {reason}")
+    sys.exit(0)
+
+
+def block() -> None:
+    payload = {"decision": "block", "reason": BLOCK_REASON}
+    # ensure_ascii=True: Windows 콘솔 인코딩(cp949)에 상관없이 안전한 순수 ASCII JSON.
+    sys.stdout.buffer.write(json.dumps(payload, ensure_ascii=True).encode("ascii"))
+    sys.stdout.buffer.flush()
+    log("block  — PROJECT_COMPLETE 없음, 이 invocation에서 제동 1회")
+    sys.exit(0)
+
+
+def main() -> None:
+    # 1) Supervisor가 띄운 Worker가 아니면 아무 것도 하지 않는다 — 사람의 대화형 세션 보호.
+    if os.environ.get("CLOVIR_SUPERVISED") != "1":
+        sys.exit(0)
+
+    try:
+        raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        if not raw.strip():
+            # 입력이 비어 있으면 stop_hook_active를 알 수 없다 → 제동하면 무한 block 위험.
+            allow("stdin 비어 있음 — stop_hook_active를 알 수 없어 fail-open")
+            return
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            allow(f"stdin이 object가 아님({type(payload).__name__}) — fail-open")
+            return
+    except Exception as exc:  # 입력을 못 읽으면 판단할 근거가 없다 → 통과
+        allow(f"stdin 파싱 실패({exc.__class__.__name__}) — fail-open")
+        return
+
+    # 2) 이 hook이 이미 한 번 제동해서 이어진 continuation이면 보내 준다.
+    #    (무한 block 루프 방지 — Supervisor를 대체하는 장치가 되면 안 된다.)
+    if payload.get("stop_hook_active") is True:
+        allow("stop_hook_active=true — 이 invocation에서는 이미 제동함, Supervisor에게 넘긴다")
+        return
+
+    # 3) 진짜 완료면 정지 허용.
+    if project_complete():
+        allow(f"PROJECT_COMPLETE 유효 — {COMPLETE_FILE}")
+        return
+
+    # 4) 그 외에는 한 번 제동한다.
+    block()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as exc:  # 어떤 예외도 Worker를 붙잡아 두지 않는다
+        log(f"allow  — 예상치 못한 예외({exc.__class__.__name__}: {exc}) — fail-open")
+        sys.exit(0)

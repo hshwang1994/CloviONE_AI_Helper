@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/runner/stop_guard.py\"",
+            "timeout": 30,
+            "statusMessage": "PROJECT_COMPLETE 확인 중"
+          }
+        ]
+      }
+    ]
+  }
+}
