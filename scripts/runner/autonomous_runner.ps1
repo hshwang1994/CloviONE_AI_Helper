@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   ClovirAssist 자율 완성 루프 — 세션이 끝나도 이어지는 로컬 CONTINUOUS Runner.
 
