@@ -409,6 +409,18 @@ export function structuredCards(m) {
   };
 }
 
+// AI-08: 러너가 응답마다 structured.timing.{total_ms,ai_ms,...}을 돌려주고 플랫폼이 그대로
+// 저장하는데(app/jobs/handlers/chat_message.py), 화면 어디서도 안 읽어 조용히 버려졌다.
+// total_ms(요청 전체 처리 시간 — 사용자가 실제로 기다린 시간에 가장 가깝다)를 우선하고,
+// 없으면 ai_ms(Claude 호출만의 시간)로 대신한다.
+export function responseTimeLabel(m) {
+  const timing = m && m.structured && m.structured.timing;
+  const ms = timing && typeof timing.total_ms === "number" ? timing.total_ms
+    : (timing && typeof timing.ai_ms === "number" ? timing.ai_ms : null);
+  if (ms == null || ms < 0) return null;
+  return (ms / 1000).toFixed(1) + "초";
+}
+
 // ── 전송·오류 ───────────────────────────────────────────────────────────────
 
 // 서버가 요구하는 client_message_id(8~64자, 멱등키). 보안 컨텍스트면 UUID, 아니면 난수 폴백.

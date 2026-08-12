@@ -4,6 +4,7 @@ import {
   priorityKo,
   priorityKind,
   msgAgeMs,
+  responseTimeLabel,
   classifyLine,
   parseBlocks,
   pageNumberOrNull,
@@ -96,6 +97,25 @@ describe("msgAgeMs", () => {
     vi.spyOn(Date, "now").mockReturnValue(t + 100000);
     // sinceMs is later than created_at -> baseline is sinceMs
     expect(msgAgeMs({ created_at: "2026-01-01T00:00:00Z" }, t + 10000)).toBe(90000);
+  });
+});
+
+describe("responseTimeLabel (AI-08)", () => {
+  it("prefers timing.total_ms when present", () => {
+    expect(responseTimeLabel({ structured: { timing: { total_ms: 3200, ai_ms: 900 } } })).toBe("3.2초");
+  });
+  it("falls back to timing.ai_ms when total_ms is missing", () => {
+    expect(responseTimeLabel({ structured: { timing: { ai_ms: 900 } } })).toBe("0.9초");
+  });
+  it("returns null when there is no timing data at all", () => {
+    expect(responseTimeLabel({ structured: { error_notice: true } })).toBeNull();
+    expect(responseTimeLabel({ structured: {} })).toBeNull();
+    expect(responseTimeLabel({})).toBeNull();
+    expect(responseTimeLabel(null)).toBeNull();
+  });
+  it("ignores a negative or non-numeric value instead of showing garbage", () => {
+    expect(responseTimeLabel({ structured: { timing: { total_ms: -5 } } })).toBeNull();
+    expect(responseTimeLabel({ structured: { timing: { total_ms: "812" } } })).toBeNull();
   });
 });
 

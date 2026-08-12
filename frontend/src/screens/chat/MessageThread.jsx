@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
@@ -9,7 +9,8 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import { Button } from "../../ui/kit.jsx";
 import {
-  copyText, fmtDateSep, fmtTime, structuredCards, stripDuplicatedTicketLines, ticketPageStart,
+  copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
+  stripDuplicatedTicketLines, ticketPageStart,
 } from "../chat-helpers.js";
 import { BUBBLE_MAX } from "./layout.js";
 import { RichText } from "./RichText.jsx";
@@ -45,6 +46,8 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
   // 올라가 옛 목록의 '상세'를 누르면 'N번 상세'가 지금 맥락의 엉뚱한 티켓을 가리킨다(오작동).
   const cardChoose = isLast ? onChoose : undefined;
   const attachCaveat = "전송 후 이미지 원본은 저장되지 않습니다, 파일 이름만 남습니다.";
+  // AI-08: 러너가 돌려주는 실제 처리 시간(structured.timing) — 있을 때만(정상 응답에만 실린다).
+  const responseTime = isAssistant ? responseTimeLabel(m) : null;
 
   return (
     <Box
@@ -157,6 +160,13 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
             <span className="sr-only" role="status" aria-live="polite">{copied}</span>
           </>
         ) : null}
+        {/* AI-08: 러너가 이미 계산해 저장까지 해 둔 실제 처리 시간을 화면이 그냥 버리고 있었다. */}
+        {responseTime ? (
+          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
+            title="답변 처리 시간">
+            {responseTime}
+          </Typography>
+        ) : null}
         {/* 시각 라벨은 말풍선, 액션(선택 버튼, 복사) 뭉치 뒤 맨 끝에 둔다, 예전엔 말풍선과 선택 버튼
             사이에 끼어 있어 복사 버튼이 메시지에서 멀찍이 떨어지고, 시각이 버블→액션 묶음을 갈랐다. */}
         {m.created_at ? (
@@ -168,8 +178,20 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
 }
 
 /* 답변 대기 타이핑 말풍선 — 마스코트가 '생각 중' 포즈를 잡는 동안 스레드에도 같은 사실을 둔다.
- * 마스코트는 상단바에 있어 스레드 맨 아래를 보고 있는 눈에는 안 들어온다. */
-export function TypingBubble() {
+ * 마스코트는 상단바에 있어 스레드 맨 아래를 보고 있는 눈에는 안 들어온다.
+ *
+ * AI-08: 점 3개가 무한 반복되는 애니메이션 하나뿐이라 1초를 기다리나 1분을 기다리나 화면이
+ * 똑같아 보였다("진행 표시가 가짜"). since(대기를 시작한 사용자 메시지의 created_at)가
+ * 있으면 1초마다 다시 그려 실제 경과 시간을 함께 보여준다 — 진행률이 아니라 "아직 살아
+ * 있다 + 지금까지 이만큼 걸렸다"는 정직한 사실이다(응답이 몇 초 걸릴지는 예측하지 않는다). */
+export function TypingBubble({ since }) {
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!since) return undefined;
+    const t = window.setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [since]);
+  const elapsedSec = since ? Math.floor(msgAgeMs({ created_at: since }) / 1000) : null;
   return (
     <Paper
       elevation={0}
@@ -178,22 +200,31 @@ export function TypingBubble() {
         bgcolor: "background.paper", border: 1, borderColor: "divider",
       }}
     >
+      {/* 초 단위 경과는 매초 바뀌지만 aria-live로 반복 낭독하지 않는다 — 폴링 낭독 과잉(위
+          Chat.jsx 주석)과 같은 실수를 여기서 반복하지 않는다, 처음 나타날 때 한 번만 전해진다. */}
       <span className="sr-only">도우미: 답변을 작성하고 있습니다.</span>
-      <Box aria-hidden="true" sx={{ display: "inline-flex", gap: 0.625, alignItems: "center" }}>
-        {[0, 1, 2].map((i) => (
-          <Box
-            key={i}
-            sx={{
-              width: "0.4375rem", height: "0.4375rem", borderRadius: "50%", bgcolor: "primary.main",
-              animation: "chat-bounce 1.3s ease-in-out infinite both",
-              animationDelay: i * 0.16 + "s",
-              "@keyframes chat-bounce": {
-                "0%, 70%, 100%": { transform: "translateY(0)", opacity: 0.45 },
-                "35%": { transform: "translateY(-0.375rem)", opacity: 1 },
-              },
-            }}
-          />
-        ))}
+      <Box aria-hidden="true" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ display: "inline-flex", gap: 0.625, alignItems: "center" }}>
+          {[0, 1, 2].map((i) => (
+            <Box
+              key={i}
+              sx={{
+                width: "0.4375rem", height: "0.4375rem", borderRadius: "50%", bgcolor: "primary.main",
+                animation: "chat-bounce 1.3s ease-in-out infinite both",
+                animationDelay: i * 0.16 + "s",
+                "@keyframes chat-bounce": {
+                  "0%, 70%, 100%": { transform: "translateY(0)", opacity: 0.45 },
+                  "35%": { transform: "translateY(-0.375rem)", opacity: 1 },
+                },
+              }}
+            />
+          ))}
+        </Box>
+        {elapsedSec != null ? (
+          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+            {elapsedSec}초
+          </Typography>
+        ) : null}
       </Box>
     </Paper>
   );

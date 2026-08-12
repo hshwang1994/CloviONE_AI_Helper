@@ -250,7 +250,7 @@ export function Chat() {
                   })}
                   {/* 답변 대기 중이면 왼쪽에 어시스턴트 타이핑 말풍선(사용자 말풍선 안이 아니라). awaitingReply
                       자체가 이미 stalled를 제외하므로 별도 조건이 필요 없다. */}
-                  {awaitingReply ? <TypingBubble /> : null}
+                  {awaitingReply ? <TypingBubble since={lastMsg && lastMsg.created_at} /> : null}
                   {/* 응답이 임계 시간을 넘겨 지연되면 무한 대기 대신 수동 새로고침을 제공한다. 새로고침은 단순
                       재조회가 아니라 폴링 재시작 기준선(resumedAt)도 지금 시각으로 옮긴다, 안 그러면 created_at이
                       그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
