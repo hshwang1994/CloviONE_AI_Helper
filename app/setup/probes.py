@@ -313,12 +313,20 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
             f"러너 {len(rows)}개가 등록됐지만 전부 비활성 상태입니다.",
             "관리 콘솔의 러너 화면에서 사용할 러너를 활성화하세요.",
         )
-    return _health_outcome(
+    outcome = _health_outcome(
         [row.last_health_status for row in enabled],
         noun="러너",
         fix="러너 서비스가 실행 중인지, 주소와 토큰이 맞는지 확인하세요.",
         ask="관리 콘솔의 러너 화면에서 헬스체크를 한 번 실행해 주세요.",
     )
+    if outcome.state != STATE_DONE:
+        return outcome
+    # RN-10: "정상"은 여기서 딱 헬스체크 응답 하나만 뜻한다. 채팅·문서 생성 같은 실제 업무
+    # 처리는 이 러너 레지스트리가 아니라 외부 연동(n8n) 경로로 나간다(app/jobs/handlers/의
+    # 어떤 핸들러도 RunnerHttpProvider.invoke를 부르지 않는다 — 부르는 곳은 관리 콘솔의
+    # 수동 '테스트' 버튼뿐이다). 이 구분 없이 "모두 정상"만 보이면 관리자는 등록된 러너
+    # 수만큼 실제로 일이 나뉘어 처리되는 것으로 읽는다(그런 경로가 아직 없다).
+    return _done(f"{outcome.detail} (헬스체크 응답 기준이며, 실제 업무 처리 여부와는 별개입니다)")
 
 
 # ── 외부 연동 ────────────────────────────────────────────────────────────────

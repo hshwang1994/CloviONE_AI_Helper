@@ -238,6 +238,29 @@ def test_registering_a_runner_flips_only_the_llm_item(client, db, sysadmin):
     assert changed == {"llm"}, f"러너 하나를 등록했는데 {changed} 가 함께 변했다"
 
 
+def test_healthy_runner_detail_does_not_imply_real_dispatch(client, db, sysadmin):
+    """RN-10: "모두 정상"은 헬스체크 응답일 뿐이다. 이 레지스트리는 지금 실제 업무 처리
+    경로에 연결돼 있지 않으므로(app/jobs/handlers/의 어떤 핸들러도 러너를 부르지 않는다),
+    상태 문구가 그 사실과 무관하다는 것을 밝혀야 관리자가 등록 개수만큼 실제로 일이
+    나뉘어 처리된다고 오해하지 않는다."""
+    from app.runners.models import Runner
+
+    db.add(
+        Runner(
+            name="claude-ticket-runner",
+            provider_type="http_service",
+            base_url="http://127.0.0.1:8787",
+            enabled=True,
+            last_health_status="up",
+        )
+    )
+    db.commit()
+
+    item = _by_key(_items(client))["llm"]
+    assert item["state"] == STATE_DONE
+    assert "실제 업무 처리 여부와는 별개" in item["detail"]
+
+
 def test_a_registered_but_never_health_checked_runner_is_unknown(client, db, sysadmin):
     """등록됐다는 사실과 살아 있다는 사실은 다르다."""
     from app.runners.models import Runner

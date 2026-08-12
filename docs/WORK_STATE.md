@@ -12,12 +12,20 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-12 · **단계**: WF11 계속 — Stop hook 정정 이후 새 invocation에서
-`FN-02` 정정에 이어 `WF11-L01`(문서·게시판→home 위젯 cross-invalidation) 신규 발견·구현완료.
-그 앞의 WF11(SEC-12/13 문서 정정 + `USE-01` 휴지통 왕복 + `QA-02` smoke 스위트), WF10-0
-(Continuity Bootstrap, D-64) → WF10-1(Supervisor runtime contract 확정, D-65)와
-WF9-0(D-63) → WF9-1(`SEC-10` 부분) → WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체
-회귀 green)은 그대로 유효하다.
+**마지막 갱신**: 2026-08-12 · **단계**: WF16 — `HOST-03`/`AI-57`/`AI-63`/`RN-10`/`RN-11`
+5건을 사용자 지시("잘게 쪼개지 마라")에 따라 묶음 단위(조사→구현 5건 전체 → 테스트·
+정적 검사·문서·커밋 각 1회)로 처리. 상세는 파일 맨 아래 `WF16` 항목. 이 포인터
+문단이 한동안 `WF11-L01`에서 갱신이 안 됐었다(실제 이력은 파일 뒤쪽에 WF12~15로
+계속 쌓이고 있었다) — 이번에 정정. 그 사이 실제로 있었던 것: WF12(`UB-08~13`/`RG-08`
+정정+구현, `UB-09/10` 구현), WF13(`UB-15/16`/`UA-18`), WF14(`RG-04`/`SYS-03`/`ADM-03`/
+`RSTR-01`), WF15(PHASE 1 Product Audit 병행 발견 기록 + `BKP-03`/`MAIL-01`/`SEM-03`/
+`RESP-03`/`RESP-04`/`USE-03`/`USE-08` + 별도 커밋으로 `SRCH-03`). 그 앞의 WF11
+(SEC-12/13 문서 정정 + `USE-01` 휴지통 왕복 + `QA-02` smoke 스위트 + `WF11-L01`
+문서·게시판→home 위젯 cross-invalidation), WF10-0(Continuity Bootstrap, D-64) →
+WF10-1(Supervisor runtime contract 확정, D-65)와 WF9-0(D-63) → WF9-1(`SEC-10` 부분)
+→ WF9-2(`ADM-02R`) → WF9-3(`AI-62`), WF8(12건 + 전체 회귀 green)은 그대로 유효하다.
+**교훈**: 이 포인터 문단은 매 배치 끝에 반드시 갱신할 것 — 안 그러면 다음 세션이
+읽자마자 몇 사이클 뒤처진 상태에서 시작하게 된다(문서 자기모순 계열과 같은 실수).
 
 **WF11-L01(2026-08-12, 새 invocation) — `QA_COVERAGE.md` `L`축(화면 간 반영) 재감사로
 신규 Root Cause 발견·구현완료.** 이전 invocation이 예산 임계치로 멈췄다가 Stop hook에
@@ -2849,3 +2857,72 @@ TEST SERVER 배포(자격증명 Blocker 여전).
 이 배치 전체(BKP-03·MAIL-01·SEM-03·RESP-03·RESP-04·USE-03·USE-08) 커밋 완료.
 계속 진행 중 — 다음은 SRCH-03(검색 결과 불일치)·RN-10/11(러너 상태 표시)·
 HOST-03(이상 문자 렌더) 순으로 "구조 먼저" 스캔을 이어간다.
+
+**WF16(2026-08-12, 같은 흐름 계속) — HOST-03/AI-57/AI-63/RN-10/RN-11 5건,
+사용자 지시("잘게 쪼개지 마라")로 묶음 단위 처리 첫 적용.** 조사→구현을 5건
+모두 먼저 끝내고, 테스트·정적 검사·문서 갱신·커밋을 각 1회로 묶었다(이전
+WF11~15는 항목별로 이 네 단계를 반복했다 — 이번이 새 방식 첫 적용).
+(SRCH-03은 이 배치 시작 전 별도 커밋 `1cd111e`로 이미 닫혀 있었다 — WF15
+"다음 후보" 3개 중 하나 소비, 이번 배치는 나머지 두 후보.)
+
+- `HOST-03`(자기모순, 문서 정정만) — `HOST-01`/`HOST-02`/`VIS-73` 배치가
+  `DataTable`(`kit.jsx:582-608`) 자체를 이미 고쳐 `render` 없는 텍스트 열은
+  기본이 말줄임이 됐다. 이상 문자 442px 행 증상의 근본 원인이 이미 닫혀
+  있었다.
+- `AI-57`(부분 오탐 정정 + 실제 구현) — "진입점 3개" 중 대화 패널 마스코트는
+  클릭형이 아니라 상태 표시(`MascotStatus`)였다(오탐). 진짜 문제(상단바
+  클로비 버튼이 `/chat`에서도 뜨는 것 — FAB는 같은 이유로 이미 숨는데 이
+  버튼만 안 따라감)는 `AppShell.jsx`에 `!onAssistant` 조건을 추가해 FAB와
+  통일. `topbar-baseline.test.jsx` 신규 2건, revert-to-verify 확인.
+- `AI-63`(실제 구현) — `assistant.py::QUERY_PROMPT`에 제품 자체 기능 이름
+  (자유게시판·팀 문서·알림·승인·일정) 소개 문단 추가 — 추측 대신 정직하게
+  "세부 내용은 답 못 한다"고 안내하도록 지시. `test_assistant.py` 신규 1건,
+  `is_out_of_domain_query`(AI-60/61) 마커와 안 겹침을 직접 확인.
+- `RN-10`/`RN-11`(실제 구현, 이번 배치에서 가장 깊은 조사) — 2026-08-08 감사가
+  이미 "러너 레지스트리를 부르는 코드가 없다"는 것까지는 밝혀 놨었다. 이번에
+  `RunnerHttpProvider.invoke`의 실제 호출자를 끝까지 추적해 **유일한 호출자가
+  관리 콘솔의 수동 테스트 버튼뿐**임을 확정했고, 감사가 못 본 세 번째 증거를
+  찾았다: `AutomationTemplate.target_type="runner"`가 생성·활성화 검증은
+  통과하면서 유일한 실소비처(`apply_template_bindings`,
+  `app/documents/service.py:154`)는 `target_type==workflow`일 때만 대상을
+  재해석해 **저장은 되는데 아무 효과가 없는 반쪽짜리 설정**이 만들어질 수
+  있었다. 프런트(`registry/shared.js TARGET_OPTS`)는 이미 신규 생성에서
+  `runner`를 빼 뒀는데 백엔드 API(`TemplateRequest._target_known`)는 여전히
+  받아 주는, UI만 막고 서버는 안 막은 상태였다(비교: `Prompt.runner_id`는
+  이미 예전에 "참고용 메타데이터, 이 값만으로 실행 안 됨"으로 정직하게
+  라벨링돼 있어 이번 범위에서 제외).
+
+**구현**: (1) `app/templates/router.py`의 `TemplateRequest._target_known`이
+`workflow`만 허용 — 프런트가 이미 걸어 둔 규칙을 서버에도 걸어 API 직접
+호출로 반쪽짜리 템플릿을 만드는 경로를 막음. (2)
+`app/setup/probes.py::probe_llm`의 "정상" happy path에 "헬스체크 응답
+기준이며, 실제 업무 처리 여부와는 별개입니다" 덧붙임(`_health_outcome`
+공용 헬퍼 자체는 안 건드림 — `probe_integrations`엔 이 문구가 안 맞다,
+n8n은 실제로 불린다). (3) `/runners` 화면(`registry/integrations.js`)의
+`help`/`emptyHelp`/`emptySituation`/`emptySteps`/`emptyExpected`에서
+"실제 업무(티켓 처리, 요청 해석)를 수행"·"작업 배분을 시작"·"프롬프트/
+템플릿에서 지정 가능" 문구를 걷어내고 실제 배선(n8n 경로)을 안내.
+
+**검증**: 신규 시험 2건
+(`test_template_runner_target_no_longer_creatable`,
+`test_healthy_runner_detail_does_not_imply_real_dispatch`) 포함
+`test_templates_api.py`+`test_setup_checklist.py` 55건, 프런트
+`src/app/`(37파일/148건)+`src/screens/`(151파일/1003건)+
+`registry-identifiers.test.jsx`(10건) 전부 green. `npm run build` +
+`check_bundle_fresh.py --write` + `bash scripts/static_checks.sh` →
+`STATIC_CHECKS_OK`(`USER_TEXT_OK` 502개 파일 포함).
+
+**문서 메모**: `BACKLOG.md`에 `RN-10`/`RN-11` ID가 이 러너 섹션과
+`### 승인·재시도 프로토콜`/`### 동시성·상태 저장`(assistant.py 멱등 캐시·
+`_CONV_LOCKS` 건, `:408`·`:413`) 두 곳에서 중복 사용 중임을 발견 — 서로
+무관한 별개 발견이니 혼동 주의. ID 재부여는 과거 참조를 깨뜨릴 위험이
+있어 보류, 기록만 남김(신규 `RN-` 채번 시 전체를 먼저 스캔할 것). 이
+자리에서 함께 발견한 것: WORK_STATE.md 최상단 "마지막 갱신" 포인터가
+WF11-L01에서 멈춰 있었다(실제로는 WF12~15가 파일 뒤쪽에 이미 있었다) —
+이번에 같이 정정.
+
+이 배치(HOST-03·AI-57·AI-63·RN-10·RN-11) 커밋 완료. **다음 후보**: RESP-04의
+축소 레일 사이드바(전담 UI 구현 세션 필요) · QA_COVERAGE L축 나머지 ·
+BACKLOG 남은 Med/Low 클러스터 계속 스캔 · PHASE 1 Product Audit가 Handoff를
+완성하면 그것을 최우선 입력으로 전환 · TEST SERVER 배포(자격증명 Blocker
+여전).

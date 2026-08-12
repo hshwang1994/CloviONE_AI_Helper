@@ -15,7 +15,7 @@ from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.prompts.models import STATUS_ARCHIVED, Policy, Prompt
 from app.runners.models import Runner
-from app.templates.models import TARGET_RUNNER, TARGET_WORKFLOW, AutomationTemplate
+from app.templates.models import TARGET_WORKFLOW, AutomationTemplate
 from app.workflows.models import Workflow
 
 router = APIRouter(
@@ -39,8 +39,19 @@ class TemplateRequest(BaseModel):
     @field_validator("target_type")
     @classmethod
     def _target_known(cls, v: str) -> str:
-        if v not in {TARGET_WORKFLOW, TARGET_RUNNER}:
-            raise ValueError("target_type은 workflow 또는 runner여야 합니다.")
+        # RN-10/RN-11: target_type=runner는 신규로 만들 수 없다. apply_template_bindings
+        # (app/documents/service.py)는 target_type==workflow일 때만 대상을 재해석하므로,
+        # runner를 새로 만들면 '워크플로 재지정 안 됨'이라는, 저장은 되지만 문서 생성 버튼도
+        # 못 쓰는 반쪽짜리 행이 생긴다. 프런트는 이미 신규 생성 옵션에서 runner를 뺐다
+        # (registry/shared.js TARGET_OPTS) — 여기서도 같은 규칙을 걸어 API를 직접 호출해도
+        # 그 반쪽짜리 행을 못 만들게 막는다. 기존에 이미 만들어진 target_type=runner 행은
+        # (프롬프트/정책 바인딩은 여전히 정상 적용되므로) 계속 유효하다 — 이 검증은 신규
+        # 요청 바디에만 적용되고 기존 행을 읽거나 지우지 않는다.
+        if v != TARGET_WORKFLOW:
+            raise ValueError(
+                "target_type은 workflow여야 합니다. 러너(runner)를 대상 워크플로로 직접 "
+                "지정하는 문서 생성은 아직 지원하지 않습니다."
+            )
         return v
 
     @field_validator("input_schema", "approval_policy", mode="before")

@@ -4052,3 +4052,13 @@ def test_sanitize_quiz_ignores_non_list_and_caps():
     assert m._sanitize_quiz("nope", 4) == []
     big = [{"q": f"q{i}", "options": ["a", "b"], "answer": "a"} for i in range(30)]
     assert len(m._sanitize_quiz(big, 4)) == 20  # 최대 20문항
+
+
+def test_query_prompt_knows_the_products_own_feature_names():
+    """AI-63: "자유게시판" 같은 실제 메뉴 이름을 물으면 "어떤 프로젝트/시스템의
+    게시판인가요" 처럼 남의 것으로 되묻던 문제 — 시스템 프롬프트가 이 제품의 주요
+    기능 이름을 미리 알려주는지 확인한다."""
+    for word in ("자유게시판", "팀 문서", "알림", "승인", "일정"):
+        assert word in m.QUERY_PROMPT, f"{word!r}가 시스템 프롬프트에 없다"
+    # 데이터가 없는 영역은 정직하게 안내하라는 지시도 같이 있어야 한다(추측 금지 원칙과 일관).
+    assert "정직하게" in m.QUERY_PROMPT

@@ -571,8 +571,12 @@ export function AppShell({
               {/* 상단바 우측 클로비(기준 파일의 .top-clovi-btn). 사용자가 "오른쪽 상단의 웃는
                   클로비를 유지"라고 했는데 그 자리에는 실제로 MUI 의 일반 로봇 아이콘이 있었다.
                   좁은 화면에서만 보이던 것도 항상 보이게 바꾼다 — 우하단 FAB 은 md 미만에서
-                  숨는데, 그 아래 폭에서 AI 도우미로 가는 길이 아이콘 하나뿐이었다. */}
-              <MascotTopButton onClick={() => setAssistantOpen(true)} />
+                  숨는데, 그 아래 폭에서 AI 도우미로 가는 길이 아이콘 하나뿐이었다.
+                  AI-57: /chat 에서는 이 버튼도 우하단 FAB(§661)과 같은 이유로 안 띄운다 —
+                  이미 전체화면 채팅이 열려 있는데 누르면 그 위에 같은 대화를 다시 보여주는
+                  드로어가 겹쳐 뜬다. "동작하지 않는(=의미 없는) 컨트롤을 띄워 두지 않는다"는
+                  이 저장소 원칙과 같은 방향. */}
+              {!onAssistant ? <MascotTopButton onClick={() => setAssistantOpen(true)} /> : null}
               <ThemeToggle userId={userId} />
             </>
           ) : null}

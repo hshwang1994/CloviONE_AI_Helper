@@ -211,10 +211,10 @@ import { AppShell } from "./AppShell.jsx";
 import { USER_NAV } from "./navConfig.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 
-function renderShell() {
+function renderShell(path = "/me") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={["/me"]}>
+    <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={qc}>
         <ThemeModeProvider>
           <ToastProvider>
@@ -262,5 +262,24 @@ describe("셸의 상단바", () => {
 
     const search = screen.getByLabelText("통합 검색과 명령 열기");
     expect(toPx(getComputedStyle(search).height)).toBe(px(".top-search", "height"));
+  });
+
+  // "클로비 AI 도우미 열기" aria-label은 상단바 버튼과 우하단 FAB(MascotButton)이
+  // 공유한다(별개 결함 — 이번 배치 범위 밖) — getAllByLabelText로 개수를 센다.
+  it("AI-57: /chat 에서는 상단바 클로비 버튼을 안 그린다 — 이미 전체화면 채팅이 열려 있다(FAB도 같은 이유로 이미 숨는다)", async () => {
+    renderShell("/chat");
+    await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
+
+    expect(screen.queryAllByLabelText("클로비 AI 도우미 열기")).toHaveLength(0);
+  });
+
+  it("/chat 이 아닌 화면에서는 상단바 클로비 버튼을 그대로 그린다(회귀 방지)", async () => {
+    renderShell("/me");
+    await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
+
+    // 상단바 버튼 + 우하단 FAB, 둘 다 그려진다.
+    expect(screen.getAllByLabelText("클로비 AI 도우미 열기").length).toBeGreaterThanOrEqual(1);
+    const bar = document.querySelector(".MuiAppBar-root");
+    expect(bar.querySelector('[aria-label="클로비 AI 도우미 열기"]'), "상단바 안에 클로비 버튼이 없다").toBeTruthy();
   });
 });

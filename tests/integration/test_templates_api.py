@@ -66,6 +66,21 @@ def test_template_bad_target_type(client, admin_csrf, workflow_id):
     assert r.status_code == 422
 
 
+def test_template_runner_target_no_longer_creatable(client, admin_csrf, workflow_id):
+    """RN-10/RN-11: target_type=runner used to validate and save, but
+    apply_template_bindings (app/documents/service.py) only re-targets the
+    workflow when target_type==workflow — a runner-targeted template saved
+    successfully yet the "이 템플릿으로 문서 생성" button never appears (frontend
+    already stopped offering "runner" as a new-creation choice, registry/shared.js
+    TARGET_OPTS). The API must reject it too, not just hide it in the UI."""
+    r = client.post(
+        "/api/admin/templates",
+        json=_template_payload(workflow_id, target_type="runner", name="러너 대상 시도"),
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 422
+
+
 def test_template_bad_policy_id_rejected(client, admin_csrf, workflow_id):
     # Regression: policy_id was accepted and stored without existence validation.
     r = client.post(
