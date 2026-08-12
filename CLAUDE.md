@@ -1,13 +1,13 @@
 # CLAUDE.md — ClovirONE Web Assistant
 > Claude Code가 이 저장소에서 세션을 시작할 때 읽는 **최상위 실행 규칙**이다.
-> 과거 작업 이력·진행률·긴 사고 기록은 여기에 쌓지 않는다. 동적 상태는 `docs/`에서 복원한다.
+> 과거 작업 이력 / 진행률 / 긴 사고 기록은 여기에 쌓지 않는다. 동적 상태는 `docs/`에서 복원한다.
 > 목표는 Area/Cycle/Batch 몇 개가 아니라 **제품 전체를 실제로 완료하는 것**이다.
 
 ## 0. 최우선 실행 원칙
-- **PROJECT 전체가 유일한 작업 단위다.** Product Area / Mega Cycle / Batch / Slice / Iteration은 조사·정리·병렬화용 라벨일 뿐 종료 단위가 아니다.
+- **PROJECT 전체가 유일한 작업 단위다.** Product Area / Mega Cycle / Batch / Slice / Iteration은 조사 / 정리 / 병렬화용 라벨일 뿐 종료 단위가 아니다.
 - 정상 종료 조건은 `PROJECT_COMPLETE`뿐이다. 실행 가능한 일이 남아 있으면 즉시 다음 작업으로 계속한다.
 - commit, clean working tree, focused test green, 문서 갱신, “iteration complete”, “next candidate”, recap/summary는 Stop Condition이 아니다.
-- 사용자 확인은 실제 MFA·외부 승인·접근 불가·상충 요구·되돌릴 수 없는 Production 결정처럼 사람이 필요한 경우에만 요청한다.
+- 사용자 확인은 실제 MFA / 외부 승인 / 접근 불가 / 상충 요구 / 되돌릴 수 없는 Production 결정처럼 사람이 필요한 경우에만 요청한다.
 - 한 blocker가 있어도 독립적으로 가능한 작업은 계속한다.
 - **Windows Task Scheduler 기반 실행은 폐기한다.** 새 scheduled task / idle tick / 시간 간격 재실행을 만들지 않는다. 기존 Task Scheduler 항목 삭제는 사용자가 직접 처리한다.
 
@@ -22,6 +22,8 @@
 7. 실제 Source / Tests
 8. `docs/DECISIONS.md` — 현재 작업 관련 결정
 9. `docs/BUILD_LOG.md` — 과거 경위가 필요할 때만
+10. `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md` — 존재하면 Product Audit에서 구현으로 넘긴 Root Cause 계약. 매번 전체를 읽지 말고 Index와 현재 선택한 `PA-RC-*` 상세를 읽는다.
+11. `docs/product-audit/PRODUCT_AUDIT_REPORT.md`, `PRODUCT_AUDIT_FINDINGS.md`, `PRODUCT_AUDIT_FEATURE_CONTRACTS.md` — Handoff가 참조하거나 원본 근거가 필요할 때만 해당 구간을 추적한다.
 큰 MD를 매번 통째로 컨텍스트에 덤프할 필요는 없다. 검색/작은 파서로 전체 상태를 집계하고 필요한 구간을 읽는다. 단 **상단 몇 줄이나 “next candidate”만 보고 다음 작업을 정하지 않는다.**
 문서와 Source/Git/Test가 충돌하면 실제 코드와 검증 결과를 확인해 문서를 정정한다. 오래된 감사 결과는 구현 전에 재현/재검증한다.
 
@@ -36,11 +38,11 @@
 ## 3. 불변 규칙
 1. **Sync 일관성** — 임의의 FastAPI `async def` 핸들러나 `aiosqlite`를 추가하지 않는다.
 2. **Outbound HTTP 단일 관문** — 외부 호출은 `app/core/http_client.py`의 `OutboundClient`를 경유한다. 임의 `httpx` 직접 사용 금지.
-3. **Secret 비노출** — secret은 DB/응답/로그/감사에 평문 저장·노출하지 않는다.
+3. **Secret 비노출** — secret은 DB/응답/로그/감사에 평문 저장 / 노출하지 않는다.
 4. **Credential 비영구화** — 비밀번호/토큰을 Git, tracked docs, source, config, 명령행, 불필요한 로그에 남기지 않는다. 가능한 stdin/프롬프트/승인된 runtime secret 경로를 사용한다. `sshpass` 금지.
 5. **Session/RBAC** — opaque session + CSRF 규약 유지. 권한 판단은 서버가 정본이며 프런트 권한 표시는 보조일 뿐이다.
 6. **XSS/CSP** — 서버 데이터를 `innerHTML`로 주입하지 않는다. inline script / `onclick=` 금지.
-7. **UTC 저장** — Asia/Seoul은 표시·cron 평가에만 사용한다.
+7. **UTC 저장** — Asia/Seoul은 표시 / cron 평가에만 사용한다.
 8. **제품 기능 경계** — Runner 코드 웹 편집, 임의 shell 실행, secret 평문 표시, 범용 systemd 제어 기능을 제품 기능으로 추가하지 않는다.
 9. **공유 서비스 보호** — unrelated n8n / 기존 Claude Runner / 공유 nginx 설정을 ClovirONE 작업 때문에 임의 변경하지 않는다.
 10. **DB transaction 의미 보존** — `app/core/db.py`의 명시적 transaction/BEGIN 규약을 우회하거나 pysqlite implicit transaction 동작에 다시 의존하지 않는다. SAVEPOINT/`begin_nested()`는 실제 outer transaction 안에서 동작해야 한다.
@@ -58,6 +60,14 @@ Backlog ID를 한 건씩 기계적으로 처리하지 않는다. 문제 하나�
 주요 기능은 가능하면 `Screen → Action → API → Backend → DB/Data → Result → Related Screen → Reload/State → Permission/RBAC`까지 닫는다.
 UI-only, Backend-only, 프런트 role gate만 있는 권한 처리, 페이지가 열리기만 하는 검증은 완료로 보지 않는다.
 
+### Product Audit Handoff 계약
+- `var/product-audit/IMPLEMENTATION_REQUIRED`가 유효하거나 `BACKLOG.md`의 항목이 `PA-RC-*`를 참조하면 `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`를 구현 입력으로 반드시 사용한다. Backlog 한 줄만 보고 구현하지 않는다.
+- 선택한 `PA-RC-*`의 Handoff 상세에서 문제 정의, Expected/Actual, 영향 범위, 구현 제약, Acceptance Criteria, 회귀 범위를 읽고, 참조된 Finding/Feature Contract/QA 근거가 필요하면 해당 구간만 추적한다.
+- Product Audit 문서는 감사 시점의 증거 Snapshot이다. 구현 결과에 맞추려고 Findings/Contracts를 임의로 삭제하거나 사실을 다시 쓰지 않는다. 해결 상태는 `BACKLOG.md`, `QA_COVERAGE.md`, `WORK_STATE.md`와 실제 테스트 증거에 기록한다.
+- Handoff도 오래될 수 있으므로 실제 Source/Git/Test를 다시 확인한다. Handoff와 현재 구현이 충돌하면 충돌 자체를 조사하고 근거를 남긴다.
+- `IMPLEMENTATION_REQUIRED`가 있는데 Handoff가 없거나 비어 있으면 marker를 임의로 지우지 않는다. Audit 계약 오류로 기록하고, 독립적으로 가능한 다른 작업을 계속한다.
+- 현재 Handoff의 모든 actionable Root Cause가 해결 또는 근거 있게 정리되고 각 Acceptance Criteria가 검증된 뒤에만 `var/product-audit/IMPLEMENTATION_REQUIRED`를 제거한다. 동시에 `var/product-audit/IMPLEMENTATION_CONSUMED`에 consumed_at, Handoff cycle_id, 최종 구현 commit SHA, 검증 요약을 남긴다. 유효한 REQUIRED marker가 남아 있으면 `PROJECT_COMPLETE`를 만들 수 없다.
+
 ## 5. Frontend / Product UX도 필수
 Frontend와 실제 Product UX는 선택사항이 아니다. Backend/API/DB와 동일한 필수 완료 범위다.
 필요 시 Dashboard, Navigation/IA, User/Admin hierarchy, Page Header, Layout/max-width/density, Card/Table/Filter/Form, Modal/Drawer, Action hierarchy, Typography, Accessibility, Keyboard/Focus, FHD/QHD/4K, Responsive, Light/Dark까지 실제 화면 수준에서 개선한다.
@@ -68,7 +78,7 @@ Token/CSS/shared primitive 정리만으로 “Design 완료”라고 하지 않�
 - Backend: unit/integration/API/security
 - DB: transaction/integrity/concurrency/retry/migration
 - Frontend: component/route/helper/interaction
-- RBAC: allow/deny/scope/cross-org·cross-department negative case
+- RBAC: allow/deny/scope/cross-org / cross-department negative case
 - AI/Runner: state/intent/job/conversation
 - Shared UI: component + 대표 소비자 regression
 회귀 결함은 가능하면 **수정 전 실패 → 수정 후 통과(revert-to-verify)** 를 확인한다.
@@ -83,6 +93,7 @@ Full Regression 실패 시 `실패 전체 수집 → Root Cause grouping → 대
 - 현재 위치/Blocker → `WORK_STATE.md`
 - 전체 Snapshot → `PROGRESS_STATUS.md`
 - 오래된 상세 이력 → `BUILD_LOG.md`
+- Product Audit 원본 증거 → `docs/product-audit/` 아래 Audit 문서. 구현 중에는 Handoff가 참조하는 구간만 읽고, 해결 상태는 기존 운영 상태 문서에 기록한다.
 완료 사실과 검증 근거는 보존하되 Active Context는 compact하게 유지한다. 의미 있는 Root Cause 묶음이나 복구 가치가 있는 시점에 checkpoint/commit한다. **문서 갱신이나 commit 직후 멈추지 말고 즉시 다음 runnable work로 계속한다.**
 
 ## 8. Whole-product 재감사
@@ -121,6 +132,7 @@ Screenshot 존재, 페이지 오픈, health 200만으로 E2E 완료 처리하지
 - 사용자가 Ctrl+C/명시적 stop signal로 안전하게 수동 중단할 수 있어야 하고 다음 수동 시작에서 Git+docs로 복구 가능해야 한다.
 - stale STOP/lock이 새 수동 시작을 조용히 무력화하지 않게 한다. 시작 불가 상태면 이유를 명확히 출력하고 종료한다. `var/runner/STOP`은 **사용자만** 만든다 — 스크립트의 자동 정지는 `var/runner/AUTO_STOP`에 쓰고, 수동 재시작 시 크게 알린 뒤 정리한다(D-64).
 - 보조 장치로 project-scoped Stop hook(`.claude/settings.json` → `scripts/runner/stop_guard.py`)이 있다. Supervisor가 띄운 Worker(`CLOVIR_SUPERVISED=1`)에서만 동작하며, 유효한 `PROJECT_COMPLETE`가 없는데 끝내려 하면 **invocation당 한 번** 되돌린다(`stop_hook_active`면 통과 — 무한 루프 금지). 사람의 대화형 세션에는 영향이 없고, 어떤 오류에서도 정지를 허용한다(fail-open). 이것은 Supervisor를 대체하지 않는다(D-64).
+- Product Audit의 `IMPLEMENTATION_REQUIRED`는 `PROJECT_COMPLETE`보다 추가로 앞서는 완료 Gate다. Stop hook이 이 marker를 직접 모르더라도 `autonomous_runner.ps1`이 pending marker가 있는 동안 `PROJECT_COMPLETE`를 인정하지 않고, 그 사이 잘못 만들어진 premature marker도 제거한다.
 - 시작 시각, invocation 번호, Git SHA, exit code, retry 이유, last checkpoint, `PROJECT_COMPLETE` 상태를 기록하되 secret은 로그에 남기지 않는다.
 - Windows Task Scheduler 항목의 생성/수정/삭제에 의존하지 않는다. 기존 Scheduler 삭제는 사용자가 직접 한다.
 Claude Code CLI의 resume/continue/noninteractive/session 옵션은 과거 기억으로 하드코딩하지 않는다. **현재 설치 버전의 `claude --help`를 확인한 뒤** 실제 지원되는 방식으로 구현한다.
@@ -128,6 +140,17 @@ Claude Code CLI의 resume/continue/noninteractive/session 옵션은 과거 기�
 Supervisor 변경 시 controlled test로 최소 다음을 실제 증명한다:
 `Claude invocation 종료 → PROJECT_COMPLETE=false → Supervisor가 즉시 다음 Claude invocation 실행`
 Claude의 자연어 `"project complete"`만으로 종료하지 않는다. 가능한 한 아래 완료 Gate를 근거로 엄격한 machine-readable state/marker를 사용한다.
+
+### 11-1. 두 단계 Supervisor 구조 (PHASE 1 Audit → PHASE 2 구현)
+Supervisor는 둘이고 역할이 다르다. **동시에 실행하지 않는다** — `var/runner/run.lock`을 공유하며, 두 번째 프로세스는 이유를 출력하고 물러난다.
+- **PHASE 1 `scripts/runner/product_audit_runner.ps1`** — 제품 전체를 Root Cause 기준으로 전수조사하고 근거를 남긴다. **제품 코드를 고치지 않는다.** tracked write는 `docs/product-audit/**`, `docs/BACKLOG.md`, `docs/QA_COVERAGE.md`, `docs/DECISIONS.md`로만 제한되고, Supervisor가 invocation 전후 워킹트리 해시 + 구간의 **모든 커밋** + 이력 무결성(브랜치 전환/rewrite/reflog)으로 위반을 감지한다. 위반 시 자동 revert하지 않고 증거를 남긴 뒤 `AUDIT_BLOCKED`로 멈춘다.
+- **PHASE 2 `scripts/runner/autonomous_runner.ps1`** — Audit이 넘긴 Handoff를 입력으로 실제 구현/검증/배포/E2E를 수행한다.
+- 공통 원시 계층은 `scripts/runner/runner_common.ps1`이다. 두 Supervisor가 같은 판정을 서로 다르게 구현해 갈라지는 것을 막는 것이 목적이므로, 종료 상태 판정·git 호출·state 정규화·잠금·marker 격리는 여기에만 둔다.
+- **Audit Cycle 격리**: 각 Audit은 `cycle_id` + baseline SHA를 가진다(`var/product-audit/cycle.json`). 과거 Cycle의 완료 marker·Blind Re-Audit PASS는 새 Cycle의 완료 근거가 되지 못한다. `-ResetAudit`은 runtime 상태만 새 Cycle로 초기화하고 과거 증거 문서는 지우지 않는다.
+- **완료 marker는 기계적으로 검증한다.** `AUDIT_COMPLETE`/`PROJECT_COMPLETE`가 존재하고 내용이 있다는 것만으로 종료하지 않는다. 필수 문서의 존재·분량·commit 여부, cycle_id/baseline 일치, Handoff의 Root Cause 필수 필드, Coverage 요약의 자기모순, Blind Re-Audit 연속 수렴, marker 정합성을 Supervisor가 확인한다. 통과하지 못한 marker는 **삭제가 아니라 격리**하고, 거부 사유를 다음 invocation 프롬프트에 되먹여 작업을 계속시킨다. 반복 거부는 무한 루프 대신 상한에서 `AUTO_STOP`/`AUDIT_BLOCKED`로 수렴한다.
+- 종료 코드로 결과를 구분한다: `0` 정상 완료 · `3` 사용자 STOP · `4` 다른 Supervisor가 잠금 보유 · `5` `AUDIT_BLOCKED` · `6` `AUTO_STOP` · `7` 전제조건 실패.
+- Supervisor를 고칠 때는 `scripts/runner/tests/runner_contract_tests.ps1`을 **Windows PowerShell 5.1과 PowerShell 7 양쪽에서** 돌려 상태 전이를 실제로 증명한다. 실 저장소가 아니라 격리된 scratch 저장소에 실제 스크립트를 그대로 실행하는 harness다.
+- 이 스크립트들은 한글 주석을 담고 있으므로 **UTF-8 BOM으로 저장한다**. BOM이 없으면 Windows PowerShell 5.1이 ANSI로 오독해 파싱 자체가 깨진다(실제 운영 호스트가 5.1이다).
 
 ## 12. 대표 검증 명령
 현재 Repository의 실제 scripts/package 설정을 우선 확인한다.
@@ -137,11 +160,13 @@ Claude의 자연어 `"project complete"`만으로 종료하지 않는다. 가능
 - Frontend: `cd frontend && npm test`
 - Static checks: `bash scripts/static_checks.sh`
 - Build bundle: `bash scripts/build-bundle.sh`
+- Runner 상태 전이(두 Supervisor): `powershell -NoProfile -File scripts\runner\tests\runner_contract_tests.ps1` (PS 7은 `pwsh`로도 한 번 더)
 테스트 개수나 과거 출력 숫자를 CLAUDE.md에 고정하지 않는다.
 
 ## 13. PROJECT_COMPLETE
 정상 종료 전 최소 다음을 만족해야 한다:
 MASTER PLAN 주요 목표, Critical/High 및 주요 Backlog, Frontend/Backend/API/DB wiring, RBAC/IDOR/Data scope, DB transaction/concurrency/integrity, AI/Runner 주요 flow, 실제 Product Design/UX, Admin/User 주요 workflow, Integrations/Operations, QA Coverage 주요 공백, Backend/Frontend/Runner Full Regression green, Static Checks + Build green, 승인된 TEST SERVER 통합 Deploy, 실제 배포 revision 확인, **Chrome Whole-product E2E**, Console/Network, Responsive/Theme/Accessibility, 실환경 발견 문제 수정/재검증, Final Whole-product Re-Audit 수렴.
+`var/product-audit/IMPLEMENTATION_REQUIRED`가 유효하면 `PROJECT_COMPLETE=false`다. 현재 Product Audit Handoff의 actionable Root Cause와 Acceptance Criteria를 모두 닫고 검증한 뒤 REQUIRED를 제거하고 `IMPLEMENTATION_CONSUMED`를 남겨야 한다.
 마지막 재감사에서 새로운 중대한 Root Cause 범주가 나오면 `PROJECT_COMPLETE=false`다.
 
 ## 14. 마지막 규칙

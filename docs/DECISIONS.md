@@ -1098,3 +1098,76 @@ limit이지 PROJECT work unit이 아니며, 예산으로 Worker가 끝나도 같
   최종 23회 invocation을 상한 없이 돌렸고(전부 exit 0), 외부에서 STOP을 만들었을 때만 종료했다 —
   로그에 "invocation 상한" 기록 없음, "STOP 파일 발견" 기록 있음.
 - D-64의 기존 harness(A~H, exit code 정확도, timeout 강제 종료)도 최종 코드로 다시 전부 통과.
+
+---
+
+## D-66 (2026-08-12) — 두 단계 무인 Supervisor 확정: Audit(PHASE 1) → 구현(PHASE 2), 완료 marker를 기계 Gate로 검증
+
+**배경**: 사용자가 "자는 동안 사람 개입 없이 Product Audit이 끝까지 돌고, 그 결과가 구현 단계로
+정확히 전달되는 두 단계 무인 구조"를 요구했다. 심층 검수 결과 두 Runner 모두 그 수준이 아니었다.
+
+**실측으로 확인한 플랫폼 사실(이 결정의 근거)**:
+1. `Start-Process -PassThru` 자식의 `ExitCode`가 **Windows PowerShell 5.1에서만** `$null`이 되는
+   근본 원인은 프로세스 핸들 미캐시다. 시작 직후 `$proc.Handle`을 한 번 읽으면 5.1에서도 정확한
+   exit code가 나온다(핸들 미접근 `<null>` / 접근 `7`). PS 7.6.3은 양쪽 다 정상.
+   운영 로그의 **모든** invocation이 exit code를 못 읽고 있었고, JSON fallback 도입 전에는 그
+   때문에 정상 종료가 연속 3회 실패로 집계돼 AUTO_STOP까지 갔다.
+2. PS 5.1에서 `$ErrorActionPreference='Stop'` + native 명령 + stderr 리다이렉트는 **terminating
+   error**다. `git rev-parse HEAD 2>$null` 한 줄로 Supervisor가 통째로 죽는다(없는 경로, 잘못된
+   rev 범위, dubious-ownership 경고 등 git이 stderr에 한 줄만 써도 발생). PS 7은 안 죽는다.
+3. `[pscustomobject]`는 **없는 속성에 대입하면 throw**한다 → state.json 스키마가 바뀌면 죽는다.
+4. `"false" -eq $false`는 **참**이다(왼쪽 피연산자 타입으로 변환) → `is_error`가 문자열 `"false"`로
+   오면 가짜 성공 fallback이 통과한다.
+5. 한글 주석이 있는 `.ps1`은 **UTF-8 BOM**이 없으면 5.1이 ANSI로 오독해 파싱 자체가 깨진다.
+6. 실제 운영 호스트는 5.1이다(`var/runner/state.json`·`session_id.txt`의 BOM이 그 증거).
+
+**결정 1 — 공통 원시 계층을 분리한다**: `scripts/runner/runner_common.ps1`. 두 Runner에 같은 로직이
+복사돼 있었고 **이미 갈라져 있었다**(`Load-State`의 try/catch가 Audit 쪽에만 있어, 손상된
+state.json 하나로 한쪽만 죽는 상태였다). 종료 상태 판정·git 호출·state 정규화·잠금·marker 격리는
+여기에만 둔다.
+
+**결정 2 — 완료 marker를 기계적으로 검증한다**: Claude가 marker를 만들었다는 이유로 종료하지
+않는다. `AUDIT_COMPLETE`는 필수 문서 7종의 존재·분량·commit 여부, cycle_id/baseline 일치,
+final_commit 도달 가능성, Coverage 요약의 자기모순, Blind Re-Audit 2회 연속 수렴, HANDOFF의
+PA-RC 블록 26개 필수 필드까지 확인한다. `PROJECT_COMPLETE`는 `IMPLEMENTATION_REQUIRED`가 유효한
+동안 인정하지 않는다(이 규칙은 CLAUDE.md에 적혀 있었지만 **코드에는 없었다**). 통과 못 한 marker는
+삭제가 아니라 격리하고 거부 사유를 다음 invocation 프롬프트에 되먹인다. 반복 거부는 상한에서
+`AUTO_STOP`/`AUDIT_BLOCKED`로 수렴시켜 무한 루프를 막는다.
+
+**결정 3 — Audit write guard를 순 변화가 아니라 경로별로 본다**: 예전 판정은
+`git diff before..after` 하나여서 금지 경로를 고쳐 커밋한 뒤 되돌려 커밋하면 순 변화 0이라
+탐지되지 않았다. 이제 구간의 **모든 커밋**을 하나씩 검사하고, 워킹트리는 경로별 해시로 비교하며,
+브랜치 전환·history rewrite·reflog 흔적까지 본다. 위반 시 자동 revert하지 않고 증거를 남긴 뒤
+`AUDIT_BLOCKED`로 멈춘다(사용자 변경 보호).
+
+**결정 4 — Audit Cycle을 격리한다**: `cycle_id` + baseline SHA를 `var/product-audit/cycle.json`에
+고정한다. 과거 Cycle의 완료 marker나 Blind PASS는 새 Cycle의 근거가 되지 못한다. `-ResetAudit`은
+runtime 상태만 초기화하고 과거 증거 문서는 지우지 않는다.
+
+**결정 5 — Skill 부재는 Audit을 하드 블록하지 않는다**: 예전 프롬프트는 필수 Skill 5종을 완료
+게이트로 걸어 두어, 하나만 없어도 밤샘 실행이 통째로 `AUDIT_BLOCKED`로 끝나는 구조였다. Skill은
+가속기이고 **축(axis) 자체가 필수**다 — 없으면 내장 rubric으로 수행하고 `skill_gap`으로 기록한다.
+축을 어떤 방법으로도 못 덮을 때만 BLOCKED. Skill 이름/경로는 런타임에 파일 시스템으로 확인하고
+추측 기록을 금지한다.
+
+**결정 6 — UI/UX 축은 현재 UI 보존이 목표가 아니다(사용자 지시)**: 현재 구현은 기준점일 뿐이고,
+2026년 Enterprise SaaS/AI Product 수준에서 IA·Layout·Navigation·Page 구조·Component·Typography·
+Color·Density·Interaction·Motion·Empty/Loading/Feedback·Form·Table·Dashboard·Chat UI를 다시
+평가해 **재설계 후보**를 낸다. 예전 프롬프트의 "기존 Enterprise Portal 정보 구조 보존",
+"Taste는 Scan/Diagnose로만"은 삭제했다. 절대 금지선은 그대로다 — 기능 정확성·데이터 구조·RBAC·
+업무 정책·권한·실제 Workflow를 망가뜨리면서 시각만 화려하게 만드는 제안은 금지.
+
+**Controlled test**: `scripts/runner/tests/runner_contract_tests.ps1` — 격리된 scratch git 저장소에
+**실제 스크립트를 사본이 아니라 그대로** 실행하고, Claude 호출은 시나리오 구동 stub 프로세스로
+대체한다. 32개 케이스가 **Windows PowerShell 5.1과 PowerShell 7.6.3 양쪽에서 전부 통과**한다:
+JSON 종료 판정 6종(문자열 `"false"` 위조 포함) · state 손상/스키마 누락 복구 · PS 5.1 git
+terminating error 회피 · BOM 유지 · exit 0 무지연 연속 · RUN CONTEXT 주입 · timeout(124) + 트리
+강제 종료 · rate limit · resume 실패 · 연속 실패 AUTO_STOP과 수동 재시작 복구 · STOP · 손상된
+session_id · 유령 dirty · 두 Runner 동시 실행 차단 · Audit allowlist 정상 write · 워킹트리 무단
+변경 · **touch-and-revert 커밋** · history rewrite · premature `AUDIT_COMPLETE` 격리와 사유
+되먹임 · 유효 `AUDIT_COMPLETE` 통과 · 과거 PROJECT_COMPLETE archive · `-ResetAudit` · 과거 Cycle
+marker 거부 · 사전 dirty 허용 · premature `PROJECT_COMPLETE` 차단 · CONSUMED 후 정상 완료 ·
+Handoff 인지 · Handoff 부재 계약 오류 · 반복 거부 AUTO_STOP · 전제조건 실패 · 종료 코드 구분.
+
+**한계**: 완료 Gate는 **형식과 정합성**을 검증하지 Audit/구현의 실제 깊이를 검증하지 못한다.
+그리고 stub으로는 실제 Claude의 판단 품질을 검증할 수 없다 — 프로세스 경계 계약만 증명된다.

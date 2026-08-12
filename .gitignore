@@ -27,6 +27,11 @@ frontend/.vite/
 # git 이 그 안으로 내려가지 않아 `!` 규칙이 평가되지 않는다.
 .claude/*
 !.claude/settings.json
+
+# 로컬에 설치한 Agent Skill 트리와 그 lock. 저장소 산출물이 아니라 도구 설치물이고(외부 repo
+# 통째 clone + 미디어 파일 포함), 추적하면 두 Supervisor 의 dirty guard 를 계속 건드린다.
+.agents/
+skills-lock.json
 *.bak
 *.bak-*
 

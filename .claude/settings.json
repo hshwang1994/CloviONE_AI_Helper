@@ -12,5 +12,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "humanize-korean@im-not-ai": true
   }
 }
