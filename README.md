@@ -112,6 +112,7 @@ python scripts/check_bundle_fresh.py --write
 ```bash
 .venv/Scripts/python -m pytest                 # 백엔드 전체(smoke 제외)
 .venv/Scripts/python -m pytest -m security     # 마커별
+SMOKE_BASE_URL=http://127.0.0.1:8099 .venv/Scripts/python -m pytest -m smoke  # 실브라우저 골든 패스(살아있는 서버 필요, 없으면 skip)
 cd frontend && npm test                        # 프런트(vitest)
 cd runner/claude-work-assistant && RUNNER_TOKEN=test ../../.venv/Scripts/python -m pytest   # 러너
 bash scripts/static_checks.sh                  # 정적 불변 검사(STATIC_CHECKS_OK)
