@@ -2790,3 +2790,41 @@ Blocker).
 계속하되(RN-*·VIS-*·SRCH-* 같은 아직 안 훑은 접두어) 이번 세션에서 손 안 댄
 prefix로 확장 · QA_COVERAGE L축 나머지 · DS-18 잔여 34개 · TEST SERVER 배포
 (자격증명 Blocker 여전).
+
+**WF15(2026-08-12) — 새 invocation, PHASE 1 Product Audit 발견 + 5건 정정/구현.**
+git log에서 이 세션 밖의 새 커밋 7개를 발견 — 사용자가 PHASE 1 Product Audit
+Supervisor(`scripts/runner/product_audit_runner.ps1`, CLAUDE.md §11-1)를 실제로
+가동했다: `audit(PA-0)` 골격 + `audit(PA-1)` 첫 Root Cause 2건(타입 스케일 소비
+경로 부재, UX Writing 규칙 부재) + runner 인프라 정비 여러 건. **아직
+`docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`가 없고 `var/product-audit/
+IMPLEMENTATION_REQUIRED`도 없다**(RUN CONTEXT의 `implementation_required=false`와
+일치) — PHASE 1이 아직 Handoff를 완성하지 않은 중간 상태로 판단, 이번 invocation은
+기존 BACKLOG 작업을 계속했다(1-A단계 조건 미충족).
+
+"구조 먼저" 스캔을 계속해 5건 처리:
+- `BKP-03`(자기모순) — `DEPLOY-04`(커밋 `df24d25`, **이 세션이 시작하기도 전**)가
+  이미 백업 스크립트에 privhelper 유닛을 포함시켜 놨다.
+- `MAIL-01`(자기모순) — `FN-01`(2026-08-11)이 `MailStatus.jsx`로 이미 닫았다.
+- `SEM-03`(재확인) — 4화면(`BoardPost`·`TeamDoc`·`Ticket`·`Chat`) 전부 `h1`
+  정확히 1개씩 직접 확인, 중복 재현 안 됨.
+- `RESP-03`(재확인, **실측**) — 로컬 dev 서버에 실제 Playwright로 768px 뷰포트
+  측정: 클로비 버튼 89×44px 정상 렌더(원 서술의 10.4px 붕괴 없음). `Mascot.jsx::
+  MascotTopButton`이 이 세션 이전에 이미 기준선 기반으로 재설계돼 있었다.
+- `RESP-04`(재확인, **실측, 부분 해결 아님을 정직히 기록**) — 같은 실측으로
+  1024px에서 사이드바가 **264px(25.8%)**로 여전히 상시 확장(원 서술 180px/18%와
+  다른 값이지만 현상은 동일). `AppShell.jsx`의 사이드바가 permanent/temporary
+  이분법뿐이라 단순 브레이크포인트 조정은 1024 같은 폭에서 내비게이션을 완전히
+  숨기는 **더 나쁜 회귀**가 된다 — 진짜 필요한 것은 아이콘 전용 축소 레일(세
+  번째 상태)인데 이 저장소에 그 컴포넌트 변형이 없다. **새 컴포넌트 설계·구현이
+  필요한 항목**으로 분리 기록, 이번 invocation에서 강행하지 않음(범위가 커
+  절반만 구현하고 남기는 것을 피함).
+
+**검증**: 각 항목 focused test 또는 실측(Playwright) 재실행 확인. 코드 변경 없음
+(전부 문서 정정 — `app/`·`frontend/` 소스는 이번 배치에서 안 건드림, 정적 검사·
+번들 재빌드 불필요).
+
+**다음 후보**: RESP-04의 축소 레일 사이드바(전담 UI 구현 세션 필요) · 남은 Med
+스캔 계속(USE-03/USE-08 저장된 뷰 발견성, SRCH-03 검색 결과 불일치, RN-10/11
+러너 상태 표시, HOST-03 이상 문자 렌더, AI-57/63) · PHASE 1 Product Audit가
+Handoff를 완성하면 그것을 최우선 입력으로 전환 · QA_COVERAGE L축 나머지 ·
+TEST SERVER 배포(자격증명 Blocker 여전).
