@@ -85,7 +85,15 @@ export function AssistantDrawer({ open, onClose }) {
      Ctrl+V 를 삼켜, 팀 채팅에 보낸 스샷이 열지도 않은 AI 대화의 첨부로 함께 담긴다. */
   // AI-30: "현재 문맥: X" 줄과 "지금 화면 기준으로 도와드려요"라는 문구가 실제로는 아무 데도
   // 전달되지 않는 장식이었다 — useChat에 넘겨 진짜로 서버까지 가게 한다.
-  const chat = useChat({ pasteEnabled: !!open, screenContext: context });
+  // AI-32: 같은 "항상 마운트" 사실이 useChat의 쿼리에도 번져, 드로어를 한 번도 안 연
+  // 사용자도 로그인만 하면 페이지마다 ai-quota·conversations 호출이 붙었다. 처음 열릴
+  // 때까지 그 두 쿼리를 미루고, 한 번 열리면(대화를 유지해야 하므로) 계속 켜 둔다 — 이후
+  // 닫아도 다시 꺼지지 않는다(그래야 닫았다 열어도 예전처럼 즉시 보인다).
+  const [everOpened, setEverOpened] = React.useState(!!open);
+  React.useEffect(() => { if (open) setEverOpened(true); }, [open]);
+  const chat = useChat({
+    pasteEnabled: !!open, screenContext: context, dataEnabled: everOpened,
+  });
   const bodyRef = React.useRef(null);
 
   // 새 답이 오면 아래로 붙인다. 드로어는 좁아서 스크롤이 금방 생긴다.

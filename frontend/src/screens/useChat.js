@@ -20,7 +20,7 @@ import {
  */
 
 /**
- * @param {{pasteEnabled?: boolean}} [options]
+ * @param {{pasteEnabled?: boolean, dataEnabled?: boolean}} [options]
  *   `pasteEnabled` — 이 대화가 지금 **화면에 보이는 컴포저**인가. 문서 전역 붙여넣기
  *   리스너를 걸지 말지를 정한다. 기본은 true(전체 화면 `/chat` 처럼 항상 보이는 경우).
  *
@@ -28,8 +28,15 @@ import {
  *   있어야 하므로 `keepMounted`). 그래서 이 훅도 모든 화면에서 돌고, 문서에 건 붙여넣기
  *   리스너가 **앱 전체의 Ctrl+V 를 가로챘다.** 팀 채팅 컴포저는 `preventDefault` 만 하고
  *   전파를 막지 않으므로, 방에 보낸 스샷이 동시에 열지도 않은 AI 대화의 첨부로 담겼다.
+ *
+ *   `dataEnabled` — AI-32: 같은 "셸이 항상 마운트한다" 사실이 붙여넣기 말고 쿼리에도
+ *   번진다. 기본 true(`/chat`처럼 열자마자 실제로 쓰는 화면)이지만, `AssistantDrawer`는
+ *   한 번도 열어 본 적 없는 사용자에게도 이 훅이 마운트되는 순간 `/api/me/ai-quota`·
+ *   `/api/conversations`가 나갔다 — 드로어를 한 번도 안 눌러도 로그인만 하면 페이지마다
+ *   AI 관련 호출이 붙는 셈이다. 드로어는 처음 열릴 때 `false`를 넘겨 그 전까지 두 쿼리를
+ *   미루고, 한 번이라도 열리면(그 뒤로는 대화를 유지해야 하므로) 계속 `true`를 유지한다.
  */
-export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
+export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled = true } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const [cid, setCid] = useState(null);
@@ -96,6 +103,7 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
     queryFn: () => api("/api/me/ai-quota"),
     retry: false,
     staleTime: 60_000,
+    enabled: dataEnabled,
   });
 
   const convs = useQuery({
@@ -106,6 +114,7 @@ export function useChat({ pasteEnabled = true, screenContext = null } = {}) {
         .filter(Boolean).join("&")
     ),
     retry: false,
+    enabled: dataEnabled,
   });
   const thread = useQuery({
     queryKey: ["messages", cid],
