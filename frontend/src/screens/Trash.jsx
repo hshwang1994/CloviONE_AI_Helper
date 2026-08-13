@@ -1,5 +1,5 @@
-import React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
@@ -24,6 +24,10 @@ import { invalidateDocumentViews } from "./document-views.js";
 function typeKind(t) { return t === "ticket" ? "info" : "purple"; }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// UA-10 확증 — 예전엔 상한도 total도 없어 "더 보기" 자체가 불가능했다. useChat.js의 대화
+// 목록(AI-18)과 같은 값·같은 관용(더 보기는 상한을 늘려 처음부터 다시 받는다 — 그 사이 항목이
+// 복원/영구삭제돼도 오프셋 이어붙이기처럼 중복·누락이 안 생긴다).
+const TRASH_PAGE_SIZE = 100;
 
 /* 24시간 안에 영구 삭제될 항목 수 — '보관기간이 지나면 사라진다'는 설명만으로는 언제가 그 순간인지
  * 알 수 없어서, 지금 손을 써야 하는 건수를 숫자로 앞에 내놓는다. */
@@ -39,7 +43,15 @@ export function Trash() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["trash"], queryFn: () => api("/api/trash"), refetchInterval: 15000 });
+  const [limit, setLimit] = useState(TRASH_PAGE_SIZE);
+  const q = useQuery({
+    queryKey: ["trash", limit],
+    queryFn: () => api("/api/trash?limit=" + limit),
+    refetchInterval: 15000,
+    // AI-18과 같은 이유 — "더 보기"가 상한을 늘려 새 쿼리 키로 다시 받는 동안 이전 목록을
+    // 그대로 보여준다(없으면 15초 폴링과 무관하게 매번 스켈레톤이 깜빡인다).
+    placeholderData: keepPreviousData,
+  });
   const sel = useRowSelection();
 
   const bulkMsg = (res, verb) => {
@@ -95,6 +107,10 @@ export function Trash() {
 
   const days = (q.data && q.data.retention_days) || 7;
   const items = (q.data && q.data.items) || [];
+  // UA-10 확증 — total이 지금 받은 개수보다 크면 상한(TRASH_PAGE_SIZE) 너머에 더 있다는 뜻.
+  const total = (q.data && q.data.total) || 0;
+  const hasMore = items.length < total;
+  const loadMore = () => setLimit((n) => n + TRASH_PAGE_SIZE);
   const manageable = new Set(items.filter((i) => i.can_manage).map((i) => i.id));
   // 선택 열에도 폭을 준다 — table-layout:fixed에서 폭 없는 열은 남는 공간을 균등 분배받아,
   // 체크박스 한 칸이 제목과 같은 폭을 먹고 제목이 곧바로 잘렸다.
@@ -183,6 +199,15 @@ export function Trash() {
             <Card className="c-list-card">
               <DataTable columns={columns} rows={items} rowKey={(r) => r.id} fixed ellipsis
                 empty="휴지통이 비어 있습니다." />
+              {/* UA-10 확증 — 상한(기본 100개)보다 많을 때만 보인다. 대부분은 그 이하라 아무것도
+                  안 보이던 예전 그대로다(ConversationSidebar의 "대화 더 보기"와 같은 관용). */}
+              {hasMore ? (
+                <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
+                  <Button size="sm" variant="ghost" disabled={q.isFetching} onClick={loadMore}>
+                    {q.isFetching ? "불러오는 중…" : "휴지통 더 보기"}
+                  </Button>
+                </Box>
+              ) : null}
             </Card>
           </>
         )}

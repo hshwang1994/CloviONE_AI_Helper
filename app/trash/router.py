@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
@@ -59,16 +59,22 @@ def _item_view(item, *, retention_days: int, me: User) -> dict:
 
 
 @router.get("")
-def list_trash(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+def list_trash(
+    request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user),
+    # UA-10 확증 — 예전에는 이 값이 아예 없어 응답이 무제한이었고 total도 안 실려서
+    # "더 보기" 자체가 불가능했다(?limit=1을 줘도 조용히 무시됐다).
+    limit: int = Query(default=repository.DEFAULT_TRASH_LIST_LIMIT, ge=1, le=repository.MAX_TRASH_LIST_LIMIT),
+):
     days = _retention_days(request)
     # 범위를 건다 — 예전에는 조건이 하나도 없어 남의 팀이 지운 것까지 보였다.
     from app.core.scope import build_scope
 
-    items = repository.list_visible(db, build_scope(db, me))
+    items, total = repository.list_visible(db, build_scope(db, me), limit=limit)
     # 휴지통은 15초마다 폴링되는데 실제로는 며칠에 한 번 바뀐다 — 전형적인 304 대상이다.
     return etag_json_response(request, {
         "items": [_item_view(i, retention_days=days, me=me) for i in items],
         "retention_days": days,
+        "total": total,
     })
 
 

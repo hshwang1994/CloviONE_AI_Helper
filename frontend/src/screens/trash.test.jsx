@@ -51,7 +51,9 @@ const ITEM = {
 
 function mockList(items) {
   apiMock.mockImplementation((url, opts) => {
-    if (url === "/api/trash" && !opts) return Promise.resolve({ items, retention_days: 7 });
+    // UA-10 확증 — 목록 조회는 이제 ?limit=을 붙여 나간다(그 값 자체는 이 계약 테스트의
+    // 관심사가 아니라 접두어만 본다).
+    if (url.startsWith("/api/trash?") && !opts) return Promise.resolve({ items, retention_days: 7, total: items.length });
     return Promise.resolve({ ok: true });
   });
 }

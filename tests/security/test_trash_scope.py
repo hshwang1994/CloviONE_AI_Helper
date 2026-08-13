@@ -93,6 +93,28 @@ def test_what_an_offboarded_person_deleted_is_still_visible(
     assert "퇴사자가 지운 것" in titles, "퇴사자가 지운 것이 사라졌다 — 아무도 되돌릴 수 없다"
 
 
+def test_the_visible_total_does_not_count_another_teams_hidden_items(
+    client, login_as, make_user, db, depts
+):
+    """UA-10 확증으로 생긴 total도 범위를 지켜야 한다 — 안 그러면 항목 자체는 가려도
+    "남의 팀이 몇 건 지웠는지"가 숫자로 새는 또 다른 경로가 된다."""
+    mine, theirs = depts
+    me = make_user("trash-total-me@goodmit.co.kr", role="user", display_name="나")
+    other = make_user("trash-total-other@goodmit.co.kr", role="user", display_name="남")
+    me.department_id = mine.id
+    other.department_id = theirs.id
+    db.commit()
+
+    _trash(db, title="우리팀 것", by=me, page="p-total-mine")
+    _trash(db, title="남의팀 것1", by=other, page="p-total-other-1")
+    _trash(db, title="남의팀 것2", by=other, page="p-total-other-2")
+
+    login_as("user", email="trash-total-me@goodmit.co.kr")
+    body = client.get("/api/trash").json()
+    assert len(body["items"]) == 1
+    assert body["total"] == 1, f"안 보이는 남의 팀 개수가 total로 샜다: {body['total']}"
+
+
 def test_a_global_admin_still_sees_everything(client, login_as, make_user, db, depts):
     mine, theirs = depts
     other = make_user("trash-far@goodmit.co.kr", role="user", display_name="남")

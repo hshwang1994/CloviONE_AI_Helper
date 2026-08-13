@@ -151,3 +151,51 @@ def test_trash_restore_requires_permission(app, db, make_user):
     with c:
         # 남이 버린 항목은 일반 사용자가 복원 못 한다(403).
         assert c.post(f"/api/trash/{item.id}/restore", headers={"X-CSRF-Token": csrf}).status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# UA-10 확증 — 목록에 상한도 total도 없었다. ?limit=1·?page=1&page_size=1을 줘도
+# 조용히 무시됐다(항상 전체를 실었다). AI-18(대화 목록)과 같은 모양의 결함.
+# ---------------------------------------------------------------------------
+
+
+def test_list_visible_cuts_at_the_limit_but_reports_the_full_count(db, make_user):
+    """repository 레벨 — 상한만큼만 돌려주되 총 개수는 자르기 전 값이어야 '더 보기' 판단이 된다."""
+    from app.core.scope import build_scope
+
+    u = make_user(email="pg-repo@goodmit.co.kr", display_name="목록repo")
+    for i in range(5):
+        service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id=f"pg-repo-{i}",
+                              title=f"티켓{i}", url=None, user=u, now=datetime(2026, 7, 29))
+    db.commit()
+
+    items, total = repository.list_visible(db, build_scope(db, u), limit=2)
+    assert len(items) == 2
+    assert total == 5
+
+
+def test_trash_list_api_respects_limit_and_reports_total(app, db, make_user):
+    """API: ?limit=이 실제로 개수를 자르고, total은 응답에 실린 개수와 무관하게 전체를 말한다."""
+    u = make_user(email="pg-api@goodmit.co.kr", display_name="목록API")
+    for i in range(3):
+        service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id=f"pg-api-{i}",
+                              title=f"API티켓{i}", url=None, user=u, now=datetime(2026, 7, 29))
+    db.commit()
+    c, _ = _login(app, "pg-api@goodmit.co.kr")
+    with c:
+        body = c.get("/api/trash?limit=1").json()
+        assert len(body["items"]) == 1, "limit=1을 줬는데 무시됐다"
+        assert body["total"] == 3, "total이 없거나 잘린 개수를 그대로 반영했다"
+
+
+def test_trash_list_api_default_limit_reports_total_matching_items_when_under_it(app, db, make_user):
+    """상한 아래(절대다수 상황)에서는 total이 items 길이와 같아야 '더 보기'가 안 뜬다."""
+    u = make_user(email="pg-def@goodmit.co.kr", display_name="기본상한")
+    service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id="pg-def",
+                          title="기본", url=None, user=u, now=datetime(2026, 7, 29))
+    db.commit()
+    c, _ = _login(app, "pg-def@goodmit.co.kr")
+    with c:
+        body = c.get("/api/trash").json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1

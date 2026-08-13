@@ -39,7 +39,7 @@ beforeEach(() => {
 describe("휴지통 — 문서 상세 캐시 무효화 (FN-14)", () => {
   it("단일 복원이 그 문서의 team-doc 상세 캐시를 무효화한다", async () => {
     api.mockImplementation((path, opts) => {
-      if (path === "/api/trash") return Promise.resolve({ items: [DOC_ROW], retention_days: 7 });
+      if (path.startsWith("/api/trash?")) return Promise.resolve({ items: [DOC_ROW], retention_days: 7, total: 1 });
       if (path === "/api/trash/trash-1/restore") return Promise.resolve({ ok: true });
       return Promise.resolve({});
     });
@@ -60,7 +60,7 @@ describe("휴지통 — 문서 상세 캐시 무효화 (FN-14)", () => {
 
   it("단일 영구삭제(확인 포함)도 그 문서의 상세 캐시를 무효화한다", async () => {
     api.mockImplementation((path, opts) => {
-      if (path === "/api/trash") return Promise.resolve({ items: [DOC_ROW], retention_days: 7 });
+      if (path.startsWith("/api/trash?")) return Promise.resolve({ items: [DOC_ROW], retention_days: 7, total: 1 });
       if (path === "/api/trash/trash-1/purge") return Promise.resolve({ ok: true });
       return Promise.resolve({});
     });
@@ -82,7 +82,7 @@ describe("휴지통 — 문서 상세 캐시 무효화 (FN-14)", () => {
 
   it("선택 복원(bulk)도 복원된 문서들의 상세 캐시를 무효화한다", async () => {
     api.mockImplementation((path, opts) => {
-      if (path === "/api/trash") return Promise.resolve({ items: [DOC_ROW], retention_days: 7 });
+      if (path.startsWith("/api/trash?")) return Promise.resolve({ items: [DOC_ROW], retention_days: 7, total: 1 });
       if (path === "/api/trash/restore-bulk") {
         return Promise.resolve({ restored: [{ id: "trash-1", title: "인프라 운영 계획", item_type: "document", notion_page_id: "np-1" }], failed: [] });
       }

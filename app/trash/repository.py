@@ -7,6 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.trash.models import TrashItem
 
+# UA-10 확증 — 화면은 15초마다 폴링되는데 이 상한도 total도 없었다("더 보기" 클릭도 조용히
+# 무시됐다). app/chat/service.py의 대화 목록(AI-18)과 같은 값 — 그 화면과 같은 이유로 정한
+# 상한이다(대부분 이 아래고, 늘려도 한 응답이 과하게 커지지 않는다).
+DEFAULT_TRASH_LIST_LIMIT = 100
+MAX_TRASH_LIST_LIMIT = 1000
+
 
 def list_items(db: Session) -> list[TrashItem]:
     """휴지통 전체를 최근 삭제 순으로. **범위를 걸지 않는다** — 보존 정리(worker)가 쓴다.
@@ -19,8 +25,15 @@ def list_items(db: Session) -> list[TrashItem]:
     )
 
 
-def list_visible(db: Session, scope) -> list[TrashItem]:
+def list_visible(
+    db: Session, scope, *, limit: int = DEFAULT_TRASH_LIST_LIMIT
+) -> tuple[list[TrashItem], int]:
     """그 사람이 볼 수 있는 휴지통 항목만 (1순위 유출 #6 / Z15).
+
+    반환은 `(상한까지 자른 목록, 범위 안 전체 개수)` 쌍이다(UA-10 확증) — 범위 판정을
+    **먼저** 끝낸 뒤에 자른다. 순서를 바꿔 SQL 단계에서 먼저 자르면, 그 뒤 파이썬에서
+    범위 밖 행을 걸러내는 이 함수의 방식과 맞물려 실제로는 더 있는데도 상한보다 적게
+    돌려주는 조용한 손실이 생긴다.
 
     `GET /api/trash` 에는 조건이 **하나도 없었다** — 로그인만 하면 남의 팀이 지운 티켓·문서의
     제목과 URL 이 그대로 보였다. 목록 화면에서 가려 둔 것이 휴지통에서 새는 경로다.
@@ -42,13 +55,12 @@ def list_visible(db: Session, scope) -> list[TrashItem]:
     from app.core.scope import visible_user_ids
 
     rows = list_items(db)
-    if not getattr(scope, "is_dept", False):
-        return rows
-
-    visible = visible_user_ids(db, scope)
-    # 이 범위 밖 **활성** 사용자들. 이 사람들이 지운 것만 가린다.
-    hidden = _active_user_ids(db) - set(visible)
-    return [r for r in rows if r.deleted_by_user_id not in hidden]
+    if getattr(scope, "is_dept", False):
+        visible = visible_user_ids(db, scope)
+        # 이 범위 밖 **활성** 사용자들. 이 사람들이 지운 것만 가린다.
+        hidden = _active_user_ids(db) - set(visible)
+        rows = [r for r in rows if r.deleted_by_user_id not in hidden]
+    return rows[:limit], len(rows)
 
 
 def _active_user_ids(db: Session) -> set[str]:
