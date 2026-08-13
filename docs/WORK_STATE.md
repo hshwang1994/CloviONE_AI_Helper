@@ -61,24 +61,31 @@ revert-to-verify 포함, 문서 자기모순 정정은 코드 재확인만):
   보이는 문제) — `765401b`
 - **DGEN-02**(문서 생성 빈 상태가 이미 등록된 다른 워크플로와 헷갈리게
   만들던 문제 — 문구로 명확화) — `86066a7`
+- **UA-17**(감사 이상징후 탐지가 30일 창 전체를 `before_json`/
+  `after_json`까지 통째로 적재 — 다섯 규칙이 실제 읽는 6컬럼만
+  `select`하도록 축소, SQL 문자열 자체로 확인) — `6dd5a07`
+- **UA-10 + UA-10 확증**(`/api/trash` 무제한 — 배치6이 반쪽짜리 구현
+  위험으로 보류했던 것을 백엔드 `limit`/`total` + 프런트 "더 보기"로
+  한 배치에 배선, AI-18과 같은 패턴) — `b11529b`
+- **UA-25**(휴지통 일괄 실패 토스트가 실제 사유 대신 항상 "권한이
+  없어" — 백엔드는 이미 건별 실제 사유를 주고 있었음, 같은 하드코딩이
+  `MyTickets.jsx`·`TeamDocs.jsx`에도 글자 하나까지 동일하게 있어 공유
+  헬퍼로 셋 다 교체) — `4b22370`
 
-이번 invocation 안에서 **누적 24건 root cause**(위 20건 + 이전 재감사
-5건 SEC-32/33·APPR-04·DBTX-01·RN-12) 구현완료 + 커밋, 각 건 focused
-회귀·revert-to-verify·`docs/BACKLOG.md` 근거 기록 완료. 2026-08-13
-consolidated 통합 회귀 1회 완주(백엔드 `2887 passed, 3 deselected` /
-프런트 `247 files, 1626 tests` 전부 green, UA-23 커밋 이전 시점 기준 —
-그 뒤 QAH-05/UA-23/UA-28/DGEN-02는 각각 focused 회귀만 거침, 다음
-수렴 지점에서 한 번 더 통합 회귀 필요).
+이번 invocation 안에서 **누적 27건 root cause**(위 23건 + 이전 재감사
+5건 SEC-32/33·APPR-04·DBTX-01·RN-12, 중복 제외) 구현완료 + 커밋, 각 건
+focused 회귀·revert-to-verify·`docs/BACKLOG.md` 근거 기록 완료.
+2026-08-13 consolidated 통합 회귀 1회 완주(백엔드 `2887 passed,
+3 deselected` / 프런트 `247 files, 1626 tests` 전부 green, UA-23 커밋
+이전 시점 기준 — 그 뒤 QAH-05/UA-23/UA-28/DGEN-02/UA-17/UA-10/UA-25는
+각각 focused 회귀만 거침).
 
 **다음 작업**: 배경 조사 에이전트가 재확인한 QUICK 후보 18건(UA-17·
 UA-22·UA-23·UA-25·UA-28·QA-13·SRCH-02·SRCH-04·SRCH-05·DGEN-02·
 `UA-10 확증`·VIS-162·AI-10·AI-40·FN-19·QA-08·DOC-03·DOC-04) 중
-UA-23·UA-28·DGEN-02·DOC-03/04·UA-22·SRCH-02·FN-19는 이미 처리했다
-(위 목록). 남은 것: `UA-17`(감사 이상징후 쿼리 무제한 — UA-24/UB-28과
-같은 "제한 없는 질의" 계열, 후속 기준선 질의도 같이 봐야 함)·
-`UA-25`(휴지통 일괄 실패 원인이 전부 "권한 없음"으로 뭉개짐 — API
-계약 변경 필요)·`UA-10 확증`(`/api/trash` 페이지네이션 없음 — AI-18과
-같은 패턴, API 계약 변경 필요)·`SRCH-04`(팔레트 최근·자주 없음 —
+UA-17·UA-23·UA-25·UA-28·DGEN-02·DOC-03/04·UA-22·SRCH-02·FN-19·
+`UA-10 확증`은 전부 처리했다(위 목록) — QA-13은 아직 미확인. 남은
+것(의도적으로 더 큰 스코프라 미룸): `SRCH-04`(팔레트 최근·자주 없음 —
 기능 추가)·`SRCH-05`(검색 대상에 workflow/설정류 없음 — 공유 검색
 백엔드)·`VIS-162`(중첩 모달이 드로어를 완전히 덮음 — 호출부 size 조정
 추정, 미검증)·`AI-10`(러너 동시성 상한 — 공유 프로세스, 신중히)·
@@ -88,10 +95,12 @@ UA-23·UA-28·DGEN-02·DOC-03/04·UA-22·SRCH-02·FN-19는 이미 처리했다
 game-room/Board 밖 최소 15개 파일에 더 있음 — 상당수는 QAH-03의
 519표본 하네스에 이미 포함됐을 공유 컴포넌트라 실제 미달 여부
 불확실, 파일별로 QAH-05와 같은 방식 재확인 필요).
-이 정도로 QUICK 후보가 수렴됐다고 판단되면 CLAUDE.md §6 예외에 따라
-백엔드/프런트 **통합** Full Regression + 정적 검사 + 빌드를 한 번에
-돌려 지금까지의 누적 변경을 한꺼번에 검증한다. LARGE-ARCHITECTURAL
-27건·NEEDS-LIVE-VERIFICATION 6건은 각각 전용 세션·Chrome E2E 단계로
+QUICK 후보가 이 정도로 수렴돼 CLAUDE.md §6 예외에 따라 백엔드/프런트
+**통합** Full Regression + 정적 검사 + 빌드를 지금 한 번에 돌려
+지금까지의 누적 변경을 한꺼번에 검증한다(진행 중 — 아래 결과 추가
+예정). 그 뒤 QA-13 확인과 남은 큰 항목(SRCH-04/05·VIS-162·AI-10·
+AI-40·QA-08·QAH-07)으로 계속한다. LARGE-ARCHITECTURAL 27건·
+NEEDS-LIVE-VERIFICATION 6건은 각각 전용 세션·Chrome E2E 단계로
 의도적으로 미룸(§13 완료 기준 자체가 그 순서를 요구).
 아래 이어지는 단락은 WF34까지의 압축 서술이라 지금은 그 뒤 이력이다.
 WF51은 `VIS-86`(이모지 버튼 aria-label이 이모지 자체를 되읽음)
