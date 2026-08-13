@@ -43,6 +43,23 @@ function contrastRatio(hexA, hexB) {
 
 const AA_NORMAL_TEXT = 4.5;
 
+// QAH-05: 일부 자리는 배경 자체가 alpha(color, opacity) 워시라 theme.palette에 없다(렌더
+// 시점에 브라우저가 합성한다) — 실제 sx의 alpha 값과 같은 값으로 여기서도 합성해야
+// "그 자리가 실제로 보이는 배경"과 대비를 잰다(순수 표면색과만 비교하면 워시가 만드는
+// 진짜 문제를 놓친다).
+function compositeOver(fgHex, bgHex, alpha) {
+  const fm = /^#?([0-9a-f]{6})$/i.exec(fgHex);
+  const bm = /^#?([0-9a-f]{6})$/i.exec(bgHex);
+  if (!fm || !bm) throw new Error(`not a hex color: ${fgHex} / ${bgHex}`);
+  const fi = parseInt(fm[1], 16), bi = parseInt(bm[1], 16);
+  const mix = (shift) => {
+    const f = (fi >> shift) & 255, b = (bi >> shift) & 255;
+    return Math.round(f * alpha + b * (1 - alpha));
+  };
+  const out = [mix(16), mix(8), mix(0)];
+  return "#" + out.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
 describe("CTR-01/CTR-04 — MuiLink이 실제로 primary.dark(대비 보강 변수)를 쓰고, 그 값이 AA를 만족한다", () => {
   for (const mode of ["light", "dark"]) {
     for (const accent of ACCENT_PRESETS) {
@@ -230,4 +247,136 @@ describe("QAH-03 — Diagnostics 진단 문제 목록이 palette.{error,warning}
     const block = src.slice(idx, idx + 550);
     expect(block).toMatch(/color:\s*p\.tone === "danger" \? "error\.strong" : "warning\.strong"/);
   });
+});
+
+/* QAH-05: QAH-03 조사가 하네스 표본(라우트당 5건 상한)에 안 걸려 놓친 같은 패턴 —
+ * Board.jsx + 게임방 화면 5개 파일에 작은 글자 raw primary.main이 7곳 더 있었다(신설
+ * BACKLOG 행이 "손대기 전에 먼저... 수동으로 대비를 재야 함"이라고 명시적으로 요구했다).
+ * 조사 중 같은 파일들에서 2곳을 추가로 더 찾았다(GameStage.jsx의 success.main 정답 표시,
+ * StageShared.jsx Countdown의 urgent 삼항이 error.main도 같이 씀) — 9곳 전부 여기서 잰다.
+ *
+ * 이 9곳 중 다수는 배경 자체가 alpha(...) 워시다(Paper/Card 없이 바로 background.default
+ * 위에 뜨는 배지·라벨류) — compositeOver로 실제 렌더 배경을 재구성해서 잰다. */
+describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스트가 대비 보강 색을 쓴다", () => {
+  const screensDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens");
+  const gameRoomDir = path.join(screensDir, "game-room");
+
+  function readSite(...segments) {
+    return readFileSync(path.join(...segments), "utf-8");
+  }
+
+  it("Board.jsx 댓글 수 배지가 primary.dark를 쓴다", () => {
+    const src = readSite(screensDir, "Board.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*700,\s*fontSize:\s*"0\.8125rem"/);
+    expect(src).not.toMatch(/color:\s*"primary\.main",\s*fontWeight:\s*700,\s*fontSize:\s*"0\.8125rem"/);
+  });
+
+  it("GameStage.jsx 사다리 결과 폴백 목록이 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "GameStage.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark"\s*}}>{a\.outcome}/);
+  });
+
+  it("GameStage.jsx 실시간 투표 수가 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "GameStage.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontVariantNumeric:\s*"tabular-nums"\s*}}>\s*{liveCounts\[i\]}/);
+  });
+
+  it("GameStage.jsx 퀴즈 '정답' 표시가 success.strong을 쓴다", () => {
+    const src = readSite(gameRoomDir, "GameStage.jsx");
+    expect(src).toMatch(/color:\s*"success\.strong"\s*}}>정답/);
+  });
+
+  it("LadderBoard.jsx 확정된 결과가 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "LadderBoard.jsx");
+    expect(src).toMatch(/component="b" sx={{ color: "primary\.dark" }}/);
+  });
+
+  it("MembersList.jsx 직책 라벨이 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "MembersList.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*600/);
+  });
+
+  it("Scoreboard.jsx 점수 값이 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "Scoreboard.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontVariantNumeric:\s*"tabular-nums"\s*}}>{s\.value}/);
+  });
+
+  it("StageShared.jsx 결과 라벨이 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "StageShared.jsx");
+    expect(src).toMatch(/letterSpacing:\s*"0\.06em",\s*color:\s*"primary\.dark"\s*}}>{label}/);
+  });
+
+  it("StageShared.jsx Countdown이 error.strong/primary.dark를 쓴다(urgent 삼항 양쪽 다)", () => {
+    const src = readSite(gameRoomDir, "StageShared.jsx");
+    expect(src).toMatch(/color:\s*urgent\s*\?\s*"error\.strong"\s*:\s*"primary\.dark"/);
+  });
+
+  // ── 계산된 대비: 각 자리의 실제 배경(순수 표면 또는 alpha 워시)과 비교 ──────────────
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — 순수 표면 위 6곳(Board·GameStage:70·LadderBoard·MembersList 비-isMe·Scoreboard)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        for (const surface of [theme.palette.background.paper, theme.palette.background.default]) {
+          const ratio = contrastRatio(theme.palette.primary.dark, surface);
+          expect(
+            ratio,
+            `mode=${mode} accent=${accent} color=${theme.palette.primary.dark} surface=${surface} ratio=${ratio.toFixed(2)}`,
+          ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        }
+      });
+
+      it(`${mode} 모드, accent=${accent} — GameStage.jsx:132 내 투표(선택됨, alpha(primary.main,0.12) on background.default)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const washed = compositeOver(theme.palette.primary.main, theme.palette.background.default, 0.12);
+        const ratio = contrastRatio(theme.palette.primary.dark, washed);
+        expect(ratio, `mode=${mode} accent=${accent} washed=${washed} ratio=${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+
+      it(`${mode} 모드, accent=${accent} — MembersList.jsx 내 자신 행(alpha(primary.main,0.1) on background.paper)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const washed = compositeOver(theme.palette.primary.main, theme.palette.background.paper, 0.1);
+        const ratio = contrastRatio(theme.palette.primary.dark, washed);
+        expect(ratio, `mode=${mode} accent=${accent} washed=${washed} ratio=${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+
+      it(`${mode} 모드, accent=${accent} — StageShared.jsx 결과 라벨(celebrating, alpha(primary.main,0.08) on background.default)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const washed = compositeOver(theme.palette.primary.main, theme.palette.background.default, 0.08);
+        const ratio = contrastRatio(theme.palette.primary.dark, washed);
+        expect(ratio, `mode=${mode} accent=${accent} washed=${washed} ratio=${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+
+      it(`${mode} 모드, accent=${accent} — StageShared.jsx Countdown 평시(alpha(primary.main,0.14), primary.dark)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        // 확실한 조상 배경을 못 밝혀 둘 중 더 낮게 나오는 쪽(paper)을 기준으로 삼는다 — 보수적 판정.
+        for (const base of [theme.palette.background.paper, theme.palette.background.default]) {
+          const washed = compositeOver(theme.palette.primary.main, base, 0.14);
+          const ratio = contrastRatio(theme.palette.primary.dark, washed);
+          expect(ratio, `mode=${mode} accent=${accent} base=${base} washed=${washed} ratio=${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        }
+      });
+
+      it(`${mode} 모드, accent=${accent} — StageShared.jsx Countdown 긴급(alpha(error.main,0.14), error.strong)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        for (const base of [theme.palette.background.paper, theme.palette.background.default]) {
+          const washed = compositeOver(theme.palette.error.main, base, 0.14);
+          const ratio = contrastRatio(theme.palette.error.strong, washed);
+          expect(ratio, `mode=${mode} accent=${accent} base=${base} washed=${washed} ratio=${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        }
+      });
+
+      it(`${mode} 모드, accent=${accent} — GameStage.jsx:303 퀴즈 정답(alpha(success.main,0.12) on background.default)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const washed = compositeOver(theme.palette.success.main, theme.palette.background.default, 0.12);
+        const ratio = contrastRatio(theme.palette.success.strong, washed);
+        expect(ratio, `mode=${mode} accent=${accent} washed=${washed} ratio=${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+    }
+  }
 });

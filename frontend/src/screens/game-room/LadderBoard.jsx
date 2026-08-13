@@ -87,7 +87,7 @@ export function LadderBoard({ result, highlightUserId }) {
       {sel != null && selPath ? (
         <Typography sx={{ textAlign: "center" }}>
           {cols[sel].name} <Box component="span" aria-hidden="true">→</Box>{" "}
-          <Box component="b" sx={{ color: "primary.main" }}>{outcomes[selPath.end]}</Box>
+          <Box component="b" sx={{ color: "primary.dark" }}>{outcomes[selPath.end]}</Box>
         </Typography>
       ) : (
         <StageHint>이름을 누르면 사다리 경로가 보입니다.</StageHint>

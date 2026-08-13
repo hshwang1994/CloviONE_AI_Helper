@@ -33,8 +33,13 @@ sudo systemctl start clovirone-web-assistant && sudo systemctl start clovirone-w
 sudo systemctl restart clovirone-web-assistant clovirone-web-worker
 ```
 
-웹에는 서비스 재시작 API가 **없다**. 재시작이 필요한 설정 변경은 API 응답의
-`restart_required` 플래그로 안내만 되고, 실제 재시작은 SSH에서 위 명령으로 수행한다.
+**DOC-03 정정(2026-08-13)**: 위는 다섯 유닛(`clovirone-web-assistant`·`clovirone-web-worker`·
+`nginx`·`systemd-timesyncd`·`systemd-resolved`) 밖의 서비스나 SSH 직접 접속이 필요할 때 쓰는
+경로다. 그 다섯 개만은 **웹에서도 재시작할 수 있다** — 관리자 콘솔의 **시스템 설정**(`#/system`,
+system_admin 전용)이 root로 도는 특권 헬퍼(`clovirone-privhelper.service`, `app/sysops/`)에
+유닉스 소켓으로 요청해 미리 정해진 동작만 수행한다(상세는 `KNOWN_LIMITATIONS.md` §6). 웹 프로세스
+자신이 `systemctl`을 직접 부르는 것은 여전히 막혀 있다. 설정 변경 API는 `restart_required`
+플래그로 안내만 할 뿐 스스로 재시작하지 않는다 — 위 화면에서 사람이 눌러 재시작한다.
 
 ## 로그
 

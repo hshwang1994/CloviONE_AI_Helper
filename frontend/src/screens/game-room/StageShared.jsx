@@ -20,7 +20,7 @@ export function Countdown({ remaining }) {
       sx={{
         display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: "999px",
         bgcolor: (t) => alpha(urgent ? t.palette.error.main : t.palette.primary.main, 0.14),
-        color: urgent ? "error.main" : "primary.main",
+        color: urgent ? "error.strong" : "primary.dark",
         animation: urgent ? `${pulse} .8s ease-in-out infinite` : "none",
       }}
     >
@@ -83,7 +83,7 @@ export function ResultStage({ mood = "win", label, children }) {
       </Stack>
       <Box sx={{ display: "grid", gap: 1.5, justifyItems: { xs: "center", md: "start" }, minWidth: 0, textAlign: { xs: "center", md: "left" } }}>
         {label ? (
-          <Typography variant="body2" sx={{ fontWeight: 700, letterSpacing: "0.06em", color: "primary.main" }}>{label}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, letterSpacing: "0.06em", color: "primary.dark" }}>{label}</Typography>
         ) : null}
         {children}
       </Box>

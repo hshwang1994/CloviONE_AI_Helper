@@ -423,7 +423,7 @@ function BoardScreen({ kind = "free" }) {
           {p.is_pinned ? <Badge value="고정" kind="info" /> : null}
           <Box component="span" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</Box>
           {p.comment_count > 0 ? (
-            <Box component="span" sx={{ color: "primary.main", fontWeight: 700, fontSize: "0.8125rem", flexShrink: 0 }}>
+            <Box component="span" sx={{ color: "primary.dark", fontWeight: 700, fontSize: "0.8125rem", flexShrink: 0 }}>
               [{p.comment_count}]
             </Box>
           ) : null}

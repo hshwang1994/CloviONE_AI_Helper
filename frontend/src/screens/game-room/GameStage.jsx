@@ -67,7 +67,7 @@ export function GameStage({ c }) {
                   }}>
                     <Box component="span" sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{a.name}</Box>
                     <Box component="span" aria-hidden="true" sx={{ color: "text.secondary" }}>→</Box>
-                    <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>{a.outcome}</Box>
+                    <Box component="span" sx={{ fontWeight: 700, color: "primary.dark" }}>{a.outcome}</Box>
                   </Paper>
                 ))}
               </Box>
@@ -129,7 +129,7 @@ export function GameStage({ c }) {
                         aria-pressed={myVote === i}
                         disabled={!canVote || vote.isPending} onClick={() => canVote && vote.mutate(i)}>
                         <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
-                        <Box component="span" sx={{ flexShrink: 0, minWidth: "1.75rem", textAlign: "center", fontWeight: 700, color: "primary.main", fontVariantNumeric: "tabular-nums" }}>
+                        <Box component="span" sx={{ flexShrink: 0, minWidth: "1.75rem", textAlign: "center", fontWeight: 700, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>
                           {liveCounts[i]}
                         </Box>
                       </Box>
@@ -300,7 +300,7 @@ export function GameStage({ c }) {
                             onClick={() => canQuizAnswer && quizAnswer.mutate(i)}>
                             <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
                             {isAnswer ? (
-                              <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "success.main" }}>정답</Box>
+                              <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "success.strong" }}>정답</Box>
                             ) : null}
                           </Box>
                         </li>

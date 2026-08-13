@@ -20,7 +20,7 @@ export function Scoreboard({ rows }) {
           },
         }}>
           <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</Box>
-          <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "primary.main", fontVariantNumeric: "tabular-nums" }}>{s.value}</Box>
+          <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>{s.value}</Box>
         </Paper>
       ))}
     </Box>

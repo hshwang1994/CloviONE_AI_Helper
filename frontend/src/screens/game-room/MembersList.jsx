@@ -44,7 +44,7 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
                     {m.dept ? <Box component="span">{m.dept}</Box> : null}
-                    {m.title ? <Box component="span" sx={{ color: "primary.main", fontWeight: 600 }}>{m.title}</Box> : null}
+                    {m.title ? <Box component="span" sx={{ color: "primary.dark", fontWeight: 600 }}>{m.title}</Box> : null}
                   </Box>
                 ) : null}
               </Box>
