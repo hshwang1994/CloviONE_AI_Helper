@@ -755,8 +755,16 @@ export function DataScreen({ config }) {
         </Card>
       )}
       {/* 상세는 넓은(lg) 폭 — 액션 버튼이 많은 화면(러너 등)에서 좁은(md) 폭이면 푸터 버튼이 3줄로
-          접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다. */}
-      <Modal open={!!sel} onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
+          접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다.
+
+          VIS-162 — 상세 안에서 여는 수정/액션 폼(FormDrawer)이 필드 6개 이상이면 똑같이 lg(992px)
+          라 상세를 픽셀 하나 안 남기고 완전히 덮었다(제목은 겹치니 남지만 방금 보던 값들은
+          사라진다). sel은 그대로 두고(취소하면 이 값으로 되돌아온다 — 아래 각 onClose가 sel을
+          안 건드리는 이유) 화면에서만 잠깐 숨긴다. navigate 액션(위 runAction)이 이미 하던
+          setSel(null)과 같은 발상을 나머지 중첩 오버레이 셋(actionForm/subView/infoView)에도
+          일관되게 적용한다. */}
+      <Modal open={!!sel && !editing && !actionForm && !subView && !infoView}
+        onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
         footer={(sel && (canEdit || visibleActions.length)) ? <>
           {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
           {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
