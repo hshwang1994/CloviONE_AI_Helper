@@ -119,13 +119,24 @@ def detect(
     """
     window_hours = max(1, min(int(window_hours), MAX_WINDOW_HOURS))
     since = now - timedelta(hours=window_hours)
+    # UA-17: `select(AuditLog)`는 전체 컬럼(특히 `before_json`/`after_json` — 설정·사용자
+    # 변경 diff를 통째로 담는 무제한 Text)을 30일치까지 ORM 객체로 그대로 적재했다. 아래
+    # 다섯 규칙 전부 이 함수가 실제로 읽는 컬럼은 user_id/action/result/created_at/
+    # object_type/object_id 여섯 개뿐이다(diff 본문은 한 번도 안 읽는다) — 그 컬럼만
+    # 골라 선택한다. `Row`도 `AuditLog` 인스턴스와 똑같이 `.user_id`/`.action`처럼 속성
+    # 접근이 되므로(SQLAlchemy 2.0 네임드터플형 Row) 아래 다섯 규칙의 `e.xxx` 코드는
+    # 한 줄도 안 바뀐다 — 창 안 전체 행을 보는 판정 범위(기간을 자르지 않는다)는 그대로
+    # 유지하면서 행마다 실어 나르는 바이트만 줄인다.
     rows = (
         db.execute(
             apply_scope(
-                select(AuditLog).where(AuditLog.created_at >= since), actor_ids
+                select(
+                    AuditLog.user_id, AuditLog.action, AuditLog.result,
+                    AuditLog.created_at, AuditLog.object_type, AuditLog.object_id,
+                ).where(AuditLog.created_at >= since),
+                actor_ids,
             ).order_by(AuditLog.created_at)
         )
-        .scalars()
         .all()
     )
 
