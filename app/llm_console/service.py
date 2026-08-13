@@ -141,13 +141,21 @@ def login_guide(config: provider.LlmConfig, *, service_user: str = "clovirone-we
 
 
 def _source_of(settings, effective: dict, key: str) -> str:
-    """지금 적용 중인 값이 어디서 왔는가. 화면이 '무엇을 고쳐야 하는가' 를 말하려면 필요하다."""
+    """지금 적용 중인 값이 어디서 왔는가. 화면이 '무엇을 고쳐야 하는가' 를 말하려면 필요하다.
+
+    UA-28: 예전엔 저장된 값의 타입/참값으로 짐작했다(문자열이 비어있지 않은가 · bool이
+    아닌 정수이면서 0이 아닌가) — `llm_enabled`처럼 bool로 저장한 값(예: 사용 여부를
+    명시적으로 끔)과 정수 0을 저장한 값이 전부 "settings"가 아니라 "env"로 잘못
+    분류됐다. `effective_settings()`가 이미 이 물음("저장 행이 있고 그 값이 레지스트리
+    기본값과 다른가")에 정확히 답하는 `is_default`를 계산해 두므로 그걸 그대로 쓴다
+    (`SettingEditor.jsx` 등 다른 설정 화면이 이미 같은 신호를 쓴다 — 판정 방식을 두
+    벌로 만들지 않는다). `llm_timeout_seconds`의 "0=env를 따름" 센티널 규약
+    (`tenant_config.py::_override_is_set`)과도 저절로 맞아떨어진다 — 그 값 자체가
+    레지스트리 기본값이라 `is_default`가 이미 참이 되고, 따로 처리할 필요가 없다.
+    """
     raw = effective.get(key)
-    saved = raw.get("value") if isinstance(raw, dict) and "value" in raw else raw
-    if isinstance(saved, str) and saved.strip():
-        return "settings"
-    if isinstance(saved, int) and not isinstance(saved, bool) and saved:
-        return "settings"
+    if isinstance(raw, dict) and "is_default" in raw:
+        return "env" if raw["is_default"] else "settings"
     return "env"
 
 
@@ -182,6 +190,11 @@ def overview(settings, effective: dict) -> dict:
                 1, min(MAX_CONCURRENCY, int(getattr(settings, "llm_max_concurrency", 1) or 1))
             ),
         },
+        # UA-28: backend가 cli/api 둘 다 아니면 resolve_config가 enabled를 강제로 꺼서
+        # 돌려준다(오타를 조용히 cli로 읽지 않으려는 안전장치, provider.py 주석 참고) —
+        # 그런데 화면은 그 결과만 보고 "꺼짐" 배지를 그려, 사용 여부를 직접 껐다고 착각하게
+        # 만든다. 진짜 원인(백엔드 값이 잘못됨)을 화면이 따로 말할 수 있게 신호를 싣는다.
+        "backend_invalid": config.backend not in {provider.BACKEND_CLI, provider.BACKEND_API},
         "limits": {
             "min_timeout_seconds": cli_backend.MIN_TIMEOUT_SECONDS,
             "max_timeout_seconds": cli_backend.MAX_TIMEOUT_SECONDS,

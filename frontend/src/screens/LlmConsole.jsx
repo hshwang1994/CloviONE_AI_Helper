@@ -204,6 +204,17 @@ export function LlmConsole() {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           {data.verified_note}
         </Typography>
+        {/* UA-28: 백엔드 값이 cli/api 둘 다 아니면 서버가 안전하게 사용 여부를 강제로
+            끈다 — 위 배지만 보면 "사용 여부를 껐다"로 읽히지만 실제 원인은 아래 백엔드
+            값이다. 켬/끔을 오가며 헛수고하지 않도록 진짜 원인을 바로 옆에서 말한다. */}
+        {data.backend_invalid ? (
+          <Box sx={{ mt: 1 }}>
+            <Callout tone="warn">
+              백엔드 값("{config.backend}")이 올바르지 않아 사용 여부와 무관하게 꺼진
+              상태입니다. 아래 백엔드를 cli 또는 api 중 하나로 바로잡으세요.
+            </Callout>
+          </Box>
+        ) : null}
         {/* 값 옆에 **어디서 온 값인지**를 붙인다. 이게 없으면 "저장했는데 왜 안 바뀌지" 의
             답이 화면에 없다 - 아직 저장한 적이 없어 서버 환경변수 값이 쓰이는 중일 수 있다. */}
         <Box data-testid="llm-effective" sx={{ mt: 1, display: "grid", gap: 0.25 }}>

@@ -129,6 +129,56 @@ def test_saved_settings_win_over_the_environment(client, login_as):
     assert sources["llm_backend"] == "env"
 
 
+def test_untouched_max_concurrency_is_reported_as_env_not_settings(client, login_as):
+    """UA-28: `llm_max_concurrency`의 레지스트리 기본값(1)은 0이 아닌 **참인 정수**다.
+
+    `_source_of`가 예전처럼 "저장값이 bool 아닌 정수이고 0이 아니면 settings"로 판정하면,
+    아무도 손대지 않은 새 설치에서도 기본값 1이 그 조건을 통과해 **항상** "settings"로
+    잘못 나온다 — 실제로는 DB에 행이 하나도 없는데도 "저장했다"고 화면이 거짓말하는
+    것이다. `is_default`(저장 행이 있고 그 값이 레지스트리 기본값과 다른가) 기준으로
+    바꾸면 이 새 설치 표본에서 정확히 "env"가 나와야 한다."""
+    csrf = login_as("system_admin")
+    sources = client.get("/api/admin/llm").json()["sources"]
+    assert sources["llm_max_concurrency"] == "env"
+
+    _save(client, csrf, "llm_max_concurrency", 3)
+    sources_after = client.get("/api/admin/llm").json()["sources"]
+    assert sources_after["llm_max_concurrency"] == "settings"
+
+
+def test_saving_ai_off_is_reported_as_settings(client, login_as):
+    """UA-28: 사용 여부를 명시적으로 "끔"으로 저장해도(레지스트리 기본값도 빈 문자열이라
+    "off" 자체는 이미 참 문자열이라 예전 코드에서도 우연히 맞았지만) `is_default` 기준으로
+    바꾼 뒤에도 여전히 "settings"로 나오는지 고정한다 — 화면이 "사용 여부를 직접
+    껐다"와 "아무것도 안 정했다(환경변수를 따름)"를 구분해 보여줘야 한다는 모듈 자체의
+    설계 목표(빈 값은 끔이 아니라 안 정함)와 직결된다."""
+    csrf = login_as("system_admin")
+    _save(client, csrf, "llm_enabled", "off")
+    data = client.get("/api/admin/llm").json()
+    assert data["config"]["enabled"] is False
+    assert data["sources"]["llm_enabled"] == "settings"
+
+
+def test_invalid_backend_value_is_flagged_distinctly(settings):
+    """UA-28: `llm_backend`는 저장 API(`_llm_backend` 검증기)를 거치면 cli/api 둘 중
+    하나만 통과하므로, 오타는 **환경변수**(`LLM_BACKEND`, 이 앱이 검증하지 않는 값)를
+    통해서만 실제로 들어올 수 있다. 그 상태에서 `resolve_config`는 안전하게
+    `enabled=False`로 접는데(오타를 조용히 cli로 읽지 않으려는 의도, provider.py 주석),
+    화면은 그 결과만 보면 "사용 여부를 껐다"와 구분이 안 된다 — `overview()`가 진짜
+    원인을 별도 신호로 내야 한다."""
+    settings.llm_backend = "clii"  # 오타 — 검증된 저장 경로로는 못 만들지만 env로는 가능
+    data = console.overview(settings, {})
+    assert data["config"]["backend"] == "clii"
+    assert data["config"]["enabled"] is False
+    assert data["backend_invalid"] is True
+
+
+def test_valid_backend_value_is_not_flagged(settings):
+    settings.llm_backend = provider.BACKEND_API
+    data = console.overview(settings, {})
+    assert data["backend_invalid"] is False
+
+
 def test_clearing_a_value_returns_to_the_default(client, login_as):
     """비우기 = '안 정함'. 지운 값이 남아 있으면 화면이 거짓말을 하게 된다."""
     csrf = login_as("system_admin")

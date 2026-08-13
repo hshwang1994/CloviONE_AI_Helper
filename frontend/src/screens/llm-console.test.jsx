@@ -125,6 +125,27 @@ describe("화면", () => {
     expect(screen.getByText(/연결 테스트를 눌러야/)).toBeInTheDocument();
   });
 
+  it("UA-28: 백엔드 값이 잘못되면 '꺼짐' 배지만이 아니라 진짜 원인을 따로 말한다", async () => {
+    mockApi({
+      view: overview({
+        config: { ...overview().config, enabled: false, backend: "clii" },
+        backend_invalid: true,
+      }),
+    });
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("꺼짐")).toBeInTheDocument());
+
+    expect(screen.getByText(/백엔드 값\("clii"\)이 올바르지 않아/)).toBeInTheDocument();
+  });
+
+  it("백엔드 값이 정상이면(단지 꺼져 있을 뿐이면) 그 경고를 안 보여준다", async () => {
+    mockApi({ view: overview({ backend_invalid: false }) });
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("꺼짐")).toBeInTheDocument());
+
+    expect(screen.queryByText(/올바르지 않아/)).toBeNull();
+  });
+
   it("지금 적용 중인 값을 응답에서 읽는다", async () => {
     // 값이 달라지는 표본: 두 응답으로 두 번 그려 화면이 상수를 그리지 않음을 보인다.
     mockApi({ view: overview() });
