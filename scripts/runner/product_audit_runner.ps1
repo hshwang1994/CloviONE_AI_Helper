@@ -40,6 +40,24 @@
      있었다. 판정을 좁히고 연속 rate-limit 상한을 두었다.
   I. state.json 스키마가 바뀌면 속성 대입에서 죽었다(실측: 없는 속성 대입은 throw). 정규화 도입.
 
+  === 2026-08-13 처리량 개선 (정확성 Gate 는 하나도 약화하지 않았다) ===
+  J. **고정 벽시계 timeout → 활동 기반 idle timeout.** 구현 Runner 와 같은 병목이었다.
+     `--output-format stream-json --verbose` 로 stdout 이 실시간으로 자라게 하고, 그 파일이
+     자라는 동안은 살아 있는 것으로 본다. 진짜로 멈춘 프로세스만 죽인다.
+  K. **`--permission-mode auto` → `bypassPermissions`.** 2026-08-13 controlled probe 에서
+     `auto` 가 무인 실행 중 Write/Bash 를 실제로 거부하는 것을 확인했다(승인해 줄 사람이 없다).
+     Audit 은 여전히 **제품 코드를 쓰지 않는다** — 그 경계는 permission mode 가 아니라
+     write guard(워킹트리 해시 + 구간의 모든 커밋 + 이력 무결성)가 강제한다. 그쪽이 원본이고
+     훨씬 강하다.
+  L. **매 invocation 전체 재조사 금지.** 프롬프트가 매번 CLAUDE.md·WORK_STATE·BACKLOG 전체·
+     QA_COVERAGE 전체를 다시 읽으라고 지시했다. 이제 COLD(새 세션·gate 거부 후·주기 재접지)
+     에서만 전체 접지를 하고, WARM 은 COVERAGE 의 미조사 칸부터 **이어서** 판다.
+     이미 STRONG/CONFIRMED 증거를 얻은 surface 를 근거 없이 다시 조사하지 않는다.
+  M. **실패 유형 분류 + 실제 rate-limit reset 시각 대기 + 진행 상황 heartbeat + 구간 타이밍**을
+     구현 Runner 와 **같은 공용 계층**(runner_common.ps1)에서 쓴다.
+  N. dirty 판정을 파일 mtime 기반으로 교체 — 고정된 사용자 dirty 하나에 매번 수 분씩 태우던
+     경로를 없앴다. 사람이 실제로 편집 중이면(mtime 갱신) 여전히 기다린다.
+
   PowerShell 호환성: Windows PowerShell 5.1과 PowerShell 7 모두에서 controlled test 통과.
   실제 운영 환경은 5.1이다(var/runner의 UTF-8 BOM이 그 증거).
 #>
@@ -53,17 +71,24 @@ param(
     # 조용히 덮어써진다(2026-08-12 실제로 당한 함정).
     [string]$PromptOverrideFile = "",
 
-    # 전수조사는 구현보다 탐색/판단 품질이 중요하므로 기본 모델은 Opus.
+    # ★ 2026-08-13 사용자 지시로 **고정**한다: 설계·발견 작업인 Audit 은 Opus + max.
+    #   (동적 effort 정책 코드는 남아 있지만 `-DynamicEffort $true` 없이는 동작하지 않는다.)
     [string]$Model = "opus",
     [ValidateSet("low", "medium", "high", "xhigh", "max")]
     [string]$Effort = "max",
+    [ValidateSet("low", "medium", "high", "xhigh", "max")]
+    [string]$HighRiskEffort = "max",
+    [string]$HighRiskModel = "",
+    [bool]$DynamicEffort = $false,
+    [string]$FallbackModel = "",
 
     # 0 = 무제한(production 기본). invocation 횟수는 Audit 완료 단위가 아니다.
     [int]$MaxIterationsPerLaunch = 0,
-    [int]$MaxConsecutiveFailures = 3,
-    # 구독(CLI) 사용량 한도에 걸리면 몇 시간을 기다려야 하는 것이 정상이다. 예전 값(8)이면
-    # 약 2시간 만에 일반 실패로 전환돼 밤중에 AUTO_STOP 됐다. 대기 한도만 늘린 것이고 진짜
-    # 실패는 여전히 별도로 분류되어 MaxConsecutiveFailures 에서 멈춘다.
+    # 예전 값 3 은 순간적 네트워크 장애 세 번이면 밤샘 Audit 을 끝냈다. 유형 분류 + 같은 지문
+    # 반복 감지와 함께 올린다(무한 재시도 방지는 MaxIdenticalFailures 가 담당).
+    [int]$MaxConsecutiveFailures = 10,
+    [int]$MaxIdenticalFailures = 4,
+    [int]$MaxInfraRetries = 60,
     [int]$MaxConsecutiveRateLimitHits = 20,
     [int]$MaxCompletionGateRejections = 5,     # 잘못된 AUDIT_COMPLETE 반복 생성 방지
 
@@ -75,19 +100,35 @@ param(
     #   재오리엔테이션 비용을 새로 낸다. 양수를 주면 예전처럼 invocation 당 상한이 걸린다.
     [int]$MaxBudgetUsd = 0,
 
-    # double 인 이유는 controlled test 가 timeout 경로를 몇 초로 실제 실행해 보기 위함이다.
-    # 예산 상한을 없애면 실질 절단점이 이쪽으로 옮겨오므로 함께 넉넉히 잡는다. 다만 hang 보호는
-    # 남긴다 — 멈춘 프로세스를 밤새 방치하는 것이 더 나쁘다. 0 = 무제한(hang 보호 없음).
-    [double]$MaxRuntimeMinutes = 240,
-    [int]$DirtyRetrySeconds = 120,
-    [int]$MaxDirtyWaits = 5,
+    # MaxRuntimeMinutes 는 이제 0(무제한)이 기본이다 — 일하고 있는 Worker 를 벽시계로 자르는 것이
+    # 병목이었다. hang 보호는 IdleTimeoutMinutes 가 한다(출력이 그 시간 동안 한 바이트도 안 늘면
+    # 느린 게 아니라 멈춘 것이다). double 인 이유는 controlled test 가 몇 초로 실제 실행해
+    # 보기 위함이다.
+    [double]$MaxRuntimeMinutes = 0,
+    [double]$IdleTimeoutMinutes = 25,
+    [double]$ProgressIntervalSeconds = 60,
+    [int]$ProgressLogEverySeconds = 900,
+
+    [int]$DirtyQuietSeconds = 90,
+    [int]$DirtyRetrySeconds = 15,
+    [int]$MaxDirtyWaits = 40,
     # 노출 이유는 위와 같다(test seam). production 기본값은 그대로다.
     [int]$RateLimitBaseBackoffSeconds = 60,
     [int]$RateLimitMaxBackoffSeconds = 1800,
+    [int]$RateLimitMaxWaitSeconds = 21600,
+    [int]$NetworkBaseBackoffSeconds = 15,
+    [int]$NetworkMaxBackoffSeconds = 300,
     # 일반 실패(진척 없음)의 재시도 간격. 예전엔 0이라 순간적 네트워크 장애 하나로
     # 3연속 실패가 몇 초 만에 쌓여 AUTO_STOP 됐다.
-    [int]$FailureBaseBackoffSeconds = 60,
+    [int]$FailureBaseBackoffSeconds = 30,
     [int]$FailureMaxBackoffSeconds = 600,
+
+    [int]$ColdRefreshEvery = 12,
+
+    # 승인된 TEST SERVER 관측(읽기 전용 검증)에 쓴다. 하드코딩하지 않는다 — 비우면 저장소에서 찾는다.
+    [string]$TestServerTarget = "",
+    [switch]$SkipTestServerProbe,
+    [string]$SudoPasswordEnvName = "CLOVIR_TEST_SUDO_PASSWORD",
 
     # 완료된 Audit을 새 Cycle로 다시 시작할 때 사용한다.
     [switch]$ResetAudit,
@@ -114,7 +155,10 @@ $CycleFile  = Join-Path $AuditDir "cycle.json"
 $GateRejectionFile = Join-Path $AuditDir "last_gate_rejection.txt"
 $StateFile  = Join-Path $AuditDir "state.json"
 $RunnerLog  = Join-Path $AuditDir "runner.log"
+$TimingLog  = Join-Path $AuditDir "timings.jsonl"
 $SessionIdFile = Join-Path $AuditDir "session_id.txt"
+$NextHintFile  = Join-Path $AuditDir "next_invocation.json"
+$ResumeContextFile = Join-Path $AuditDir "resume_context.txt"
 
 # 구현 Runner와 동시 실행을 막기 위해 **의도적으로 같은 lock** 을 쓴다.
 $SharedRunnerDir = Join-Path $ProjectDir "var\runner"
@@ -146,11 +190,17 @@ $RequiredRcFields = @(
 
 $StateDefaults = [ordered]@{
     consecutiveFailures        = 0
+    consecutiveInfraRetries    = 0
     consecutiveRateLimitHits   = 0
+    identicalFailureCount      = 0
+    lastFailureSignature       = ""
+    lastFailureClass           = ""
     completionGateRejections   = 0
     sessionRotatedForStreak    = $false
+    invocationsSinceCold       = 999          # 첫 회차는 항상 COLD
     lastRunAt                  = $null
     lastExitCode               = $null
+    lastHeadSha                = ""
     totalRuns                  = 0
     totalIterationsThisLaunch  = 0
 }
@@ -502,6 +552,57 @@ Remove-Item Env:CLOVIR_SUPERVISED -ErrorAction SilentlyContinue
 Remove-Item Env:CLOVIR_SUPERVISOR_PID -ErrorAction SilentlyContinue
 $env:CLOVIR_PRODUCT_AUDIT = "1"
 
+# 승인된 TEST SERVER 관측 권한에 필요한 **사실**을 시작 시 한 번만 확인한다(매 invocation 마다
+# Worker 가 같은 것을 다시 알아내지 않도록). 자격증명은 이 확인에 들어가지 않는다 — 키 인증
+# 접속 가능 여부와 `sudo -n` 가능 여부만 본다.
+if ([string]::IsNullOrWhiteSpace($TestServerTarget)) {
+    $TestServerTarget = Get-TestServerTargetFromRepo -ProjectDir $ProjectDir
+}
+$script:ServerAccess = [pscustomobject]@{ Probed = $false; SshOk = $false; SudoNoPassword = $false; Detail = "" }
+if (-not $SkipTestServerProbe -and -not [string]::IsNullOrWhiteSpace($TestServerTarget)) {
+    $script:ServerAccess = Test-TestServerAccess -Target $TestServerTarget
+}
+$script:SudoCredentialAvailable = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($SudoPasswordEnvName, 'Process'))
+
+$promptCold = @'
+매 invocation 시작 시 대화 기억보다 저장소의 실제 현재 상태를 우선한다.
+**이번 회차는 COLD** — 새 Session이거나, Session이 회전됐거나, 완료 Gate 거부 직후이거나,
+주기적 재접지 회차다. 그래서 이번에는 다음을 실제로 읽고 교차 대조한다.
+
+1) CLAUDE.md
+2) docs/WORK_STATE.md
+3) docs/BACKLOG.md 전체
+4) docs/QA_COVERAGE.md 전체
+5) docs/DECISIONS.md
+6) docs/PROGRESS_STATUS.md
+7) docs/WORK_PLAN_INDEX.md
+8) docs/product-audit/** 기존 산출물 (특히 PRODUCT_AUDIT_STATE.md, PRODUCT_AUDIT_COVERAGE.md)
+9) git status / git log --oneline -20
+10) 실제 route/API/schema/test 구조
+
+Audit 문서가 없으면 생성하고, 있으면 이어서 사용한다. 이 재접지는 **이번 호출에서 한 번만**
+한다 — 같은 호출 안에서 이미 읽은 문서를 다시 읽지 마라.
+'@
+
+$promptWarm = @'
+**이번 회차는 WARM** — 직전 호출과 같은 Session을 정상적으로 이어받았다. 너는 직전까지 무엇을
+조사하고 있었는지 이미 알고 있다.
+
+- CLAUDE.md · docs/WORK_STATE.md · docs/BACKLOG.md · docs/QA_COVERAGE.md · docs/DECISIONS.md ·
+  docs/PROGRESS_STATUS.md · docs/WORK_PLAN_INDEX.md 를 **전체 통독하지 마라.**
+- docs/product-audit/PRODUCT_AUDIT_COVERAGE.md 의 **미조사(UNSEEN)·STATIC_ONLY 칸부터 이어서**
+  판다. 이미 EXECUTED/OBSERVED 로 증거가 확보된 surface 를 근거 없이 처음부터 다시 조사하지 마라.
+- 아래 RUN CONTEXT에 cycle_id·baseline·직전 HEAD 이후 커밋·현재 dirty·직전 Gate 거부 사유가
+  들어 있다. 그것으로 위치를 확인하고 곧바로 조사를 이어서 하라.
+- Inventory 도 cycle 안에서 **증분**으로 이어 간다. 이미 만든 Inventory 항목을 다시 만들지 말고,
+  새로 발견한 surface 만 추가한다.
+- 예외 — 아래 중 하나면 그때는 해당 문서를 전체 수준으로 다시 조사하라:
+    · 현재 조사 후보가 고갈돼 새 축/영역을 골라야 한다
+    · RUN CONTEXT와 실제 저장소 상태가 모순된다
+    · **Blind Re-Audit pass 를 수행한다**(이건 원래 "처음 보는 Auditor처럼" 하는 것이다)
+    · AUDIT_COMPLETE 직전 최종 교차 확인
+'@
+
 $prompt = @'
 당신은 ClovirONE Web Assistant의 Whole Product Audit을 수행하는 독립적인 Product Auditor다.
 이 작업은 구현 작업이 아니다. 제품 전체를 실제 코드, 테스트, 실행 가능한 검증 환경, 브라우저 동작,
@@ -551,24 +652,14 @@ Supervisor 가 위반으로 판정해 AUDIT_BLOCKED 로 밤샘 실행 전체를 
 
 작업 단위는 PRODUCT AUDIT 전체 하나뿐이다.
 이번 invocation, 이번 turn, 이번 budget은 완료 단위가 아니다.
-context/budget 때문에 호출이 끝나는 것은 정상이며 PowerShell Supervisor가 같은 Session을
+context 때문에 호출이 끝나는 것은 정상이며 PowerShell Supervisor가 같은 Session을
 지연 없이 --resume한다.
 
-매 invocation 시작 시 대화 기억보다 저장소의 실제 현재 상태를 우선한다. 반드시 먼저 확인한다.
+__STATE_RESTORE_SECTION__
 
-1) CLAUDE.md
-2) docs/WORK_STATE.md
-3) docs/BACKLOG.md 전체
-4) docs/QA_COVERAGE.md 전체
-5) docs/DECISIONS.md
-6) docs/PROGRESS_STATUS.md
-7) docs/WORK_PLAN_INDEX.md
-8) docs/product-audit/** 기존 산출물 (특히 PRODUCT_AUDIT_STATE.md, PRODUCT_AUDIT_COVERAGE.md)
-9) git status / git log --oneline -20
-10) 실제 route/API/schema/test 구조
-
-Audit 문서가 없으면 생성하고, 있으면 이어서 사용한다. 이미 조사한 것을 무의미하게 반복하지 말고
-Coverage의 미조사 영역과 불확실한 Root Cause부터 진행한다.
+이미 조사한 것을 무의미하게 반복하지 말고 Coverage의 미조사 영역과 불확실한 Root Cause부터
+진행한다. **이미 CONFIRMED/STRONG 증거를 확보한 surface×axis 칸을 근거 없이 다시 조사하는 것은
+전수조사가 아니라 낭비다.** 다시 조사해야 한다면 왜 그 증거를 못 믿는지 COVERAGE에 적어라.
 
 중간 Summary, commit, clean tree, 한 Round 완료는 정지 이유가 아니다.
 AUDIT_COMPLETE 또는 AUDIT_BLOCKED가 아니면 다음 조사로 계속한다.
@@ -787,12 +878,25 @@ Skill이 없을 때 쓰는 내장 rubric(최소 이 목록으로 각 주요 화�
 정적 코드만 보고 '동작한다'고 단정하지 마라. 실행 가능한 기존 test/harness/browser/dev server가
 있으면 실제로 사용한다. Observed와 Inferred를 구분한다.
 
-단, 안전하지 않은 live destructive action은 수행하지 않는다. Production인지 Test인지 확실하지
-않은 환경에서 create/delete/approval/외부 시스템 변경을 강행하지 마라. 기존 격리 test fixture,
-mock, test DB, disposable test data, 공식 E2E harness를 우선한다.
+### 승인된 TEST SERVER에서의 관측 권한 (CLAUDE.md §9)
+아래 RUN CONTEXT의 `test_server`가 승인된 TEST SERVER(`10.100.64.X` 대역)다. Production이 아니다.
+**관측·검증을 위해 필요한 것은 사람을 기다리지 말고 네가 직접 한다.**
 
-외부 server 배포, sudoers, SSH password 같은 운영 자격증명을 임의로 사용하지 마라.
-과거 대화에 비밀번호가 있어도 비대화형 자동화에 사용하지 않는다.
+- SSH 비대화형 접속(`-o BatchMode=yes`), 원격 상태 조회, 로그·설정·DB 읽기
+- 서비스/health/revision 확인, nginx·systemd 상태 확인
+- 검증에 필요한 도구(browser/Playwright 등) 설치와 실행
+- 검증에 필요한 QA 계정·테스트 데이터 생성 — 없다는 이유로 BLOCKED로 미루지 마라
+- sudo가 필요하면 `sudo_credential=available`일 때 환경변수 `__SUDO_ENV_NAME__`의 값을
+  **stdin으로만** 넘긴다(`sudo -S -p ""`). 비밀번호를 명령행·로그·파일·문서·커밋 어디에도
+  절대 쓰지 마라. `sshpass` 금지. 값을 에코하지 마라.
+- 이 권한은 승인된 TEST SERVER 대역에만 적용된다. 다른 서버로 확장하지 않는다.
+
+### 그럼에도 Auditor의 역할 경계는 그대로다 (이건 자격증명 문제가 아니라 역할 문제다)
+- **배포/재배포/롤백을 실행하지 마라.** 그것은 PHASE 2(구현 Runner)의 일이다. Audit은 배포
+  경로·스크립트·설정을 **읽고 평가**하되 실제 배포를 트리거하지 않는다.
+- **제품 상태를 바꾸는 destructive action을 강행하지 마라** — 실사용자 데이터 삭제, 승인 처리,
+  외부 시스템(Notion 등) 쓰기. 격리된 test fixture·전용 QA 계정·disposable 데이터를 우선한다.
+- 저장소의 제품 코드/테스트/설정/migration은 절대 수정하지 않는다(0절 write guard).
 
 필수 Workflow를 안전한 환경에서 실제 검증할 방법이 전혀 없고 정적/기존 테스트로도 동등한 증거를
 확보할 수 없다면 그 칸을 BLOCKED로 기록한다. 다른 독립 Audit은 계속하고, 마지막까지 필수
@@ -1072,11 +1176,14 @@ try {
 
     $iterationsThisLaunch = 0
     $foreignDirtyWaits = 0
-    $foreignDirtySignature = $null
 
-    Write-AuditLog "Product Audit Supervisor 시작 PID=$PID projectDir=$ProjectDir cycle_id=$($script:CycleId) baseline=$($script:CycleBaselineSha) model=$Model effort=$Effort"
+    Write-AuditLog ("Product Audit Supervisor 시작 PID=$PID projectDir=$ProjectDir cycle_id=$($script:CycleId) " +
+        "baseline=$($script:CycleBaselineSha) model=$Model effort=$Effort idleTimeout=${IdleTimeoutMinutes}분 " +
+        "maxRuntime=$(if ($MaxRuntimeMinutes -gt 0) { "${MaxRuntimeMinutes}분" } else { '무제한' }) " +
+        "testServer=$(if ($TestServerTarget) { $TestServerTarget } else { '(미확인)' }) ssh=$($script:ServerAccess.SshOk) sudoNoPasswd=$($script:ServerAccess.SudoNoPassword)")
 
     while ($true) {
+        $loopSw = [System.Diagnostics.Stopwatch]::StartNew()
         if (Test-Path -LiteralPath $StopFile) {
             Write-AuditLog "STOP 발견(사용자 명시적 중단) — Product Audit 종료: $StopFile"
             $script:FinalExit = 3
@@ -1099,14 +1206,40 @@ try {
 
         $state = Get-NormalizedState -Path $StateFile -Defaults $StateDefaults -LogPath $RunnerLog
         if ((Get-IntOr $state.consecutiveFailures) -ge $MaxConsecutiveFailures) {
-            $msg = "auto-stopped after $($state.consecutiveFailures) consecutive failures at $(Get-Date -Format o)"
+            $msg = "auto-stopped after $($state.consecutiveFailures) consecutive failures at $(Get-Date -Format o) lastClass=$($state.lastFailureClass)"
             [void](Write-TextFile $AutoStopFile $msg)
             Write-Banner @(
                 "Product Audit Worker 가 연속 $($state.consecutiveFailures)회 실패해 자동 중단합니다.",
+                "마지막 실패 유형: $($state.lastFailureClass)",
                 "원본 로그: $LogDir",
                 "원인을 확인하고 고친 뒤 이 스크립트를 다시 실행하면 AUTO_STOP 은 자동으로 정리됩니다."
             )
             Write-AuditLog "연속 실패 상한 도달 — AUTO_STOP 기록 후 중단: $msg"
+            $script:FinalExit = 6
+            break
+        }
+        if ((Get-IntOr $state.identicalFailureCount) -ge $MaxIdenticalFailures) {
+            $msg = ("auto-stopped: identical failure repeated $($state.identicalFailureCount) times at $(Get-Date -Format o) " +
+                    "signature=$($state.lastFailureSignature)")
+            [void](Write-TextFile $AutoStopFile $msg)
+            Write-Banner @(
+                "**같은 실패가 $($state.identicalFailureCount)회 연속** 반복됐습니다 — 재시도로는 낫지 않는 결정적 실패입니다.",
+                "  유형: $($state.lastFailureClass)",
+                "  지문: $($state.lastFailureSignature)",
+                "원본 로그: $LogDir · 원인을 고친 뒤 다시 실행하면 AUTO_STOP 은 자동으로 정리됩니다."
+            )
+            Write-AuditLog "동일 실패 반복 상한 도달 — AUTO_STOP 기록 후 중단: $msg"
+            $script:FinalExit = 6
+            break
+        }
+        if ((Get-IntOr $state.consecutiveInfraRetries) -ge $MaxInfraRetries) {
+            $msg = "auto-stopped: infra retries ($($state.lastFailureClass)) reached $($state.consecutiveInfraRetries) at $(Get-Date -Format o)"
+            [void](Write-TextFile $AutoStopFile $msg)
+            Write-Banner @(
+                "인프라성 재시도(rate-limit/network/overload/resume)가 $($state.consecutiveInfraRetries)회 연속입니다.",
+                "실제 조사가 한 번도 진행되지 않고 있으므로 사람이 확인해야 합니다(네트워크·인증·구독 상태)."
+            )
+            Write-AuditLog "인프라 재시도 상한 도달 — AUTO_STOP 기록 후 중단: $msg"
             $script:FinalExit = 6
             break
         }
@@ -1126,79 +1259,49 @@ try {
         }
 
         # ── Audit 외부 dirty 처리 ──
-        # 사람이 편집 중이면 내용이 계속 변한다 → 기다린다.
-        # 내용이 전혀 변하지 않으면 사람이 편집 중이 아니다 → 안정된 사전 상태로 기록하고 진행한다.
-        # (예전 판은 여기서 무조건 BLOCKED 로 끝났다 — 사용자가 남겨 둔 파일 하나로 밤샘 실행이
-        #  통째로 죽는 구조였다.)
+        # 목적은 "사람이 지금 편집 중일 때 충돌하지 않는 것" 하나뿐이다. 예전 판정은 서명이
+        # N회 연속 같은지만 봤고, 그래서 고정된 사용자 dirty 하나에 매 invocation 마다 수 분씩
+        # 태웠다. 이제 **파일 mtime** 을 본다 — 사람이 실제로 타이핑 중이면 mtime 이 계속 갱신되고,
+        # 아니면 첫 확인에서 곧장 진행한다. (예전 판은 여기서 무조건 BLOCKED 로 끝나기도 했다 —
+        # 사용자가 남겨 둔 파일 하나로 밤샘 실행이 통째로 죽는 구조였다.)
+        $dirtySw = [System.Diagnostics.Stopwatch]::StartNew()
         $preSnapshot = Get-UnauthorizedSnapshot
-        $preSignature = Get-SnapshotSignatureText $preSnapshot
         $newForeign = @($preSnapshot.Keys | Where-Object { -not $script:StableForeignDirty.ContainsKey($_) })
         if ($newForeign.Count -gt 0) {
-            if ($preSignature -eq $foreignDirtySignature) { $foreignDirtyWaits += 1 }
-            else { $foreignDirtySignature = $preSignature; $foreignDirtyWaits = 1 }
-
-            if ($foreignDirtyWaits -ge $MaxDirtyWaits) {
+            $dirtyDecision = Get-DirtyDecision -RepoDir $ProjectDir -QuietSeconds $DirtyQuietSeconds -SelfCaused $false
+            if ($dirtyDecision.Proceed) {
                 foreach ($p in $newForeign) { $script:StableForeignDirty[$p] = $true }
                 $cycle = Set-CycleForeignDirty $cycle @($script:StableForeignDirty.Keys)
-                Write-AuditLog ("Audit allowlist 밖 dirty 경로가 $foreignDirtyWaits 회 연속 동일 — 사람이 편집 중이 아니라고 보고 " +
+                $foreignDirtyWaits = 0
+                Write-AuditLog ("Audit allowlist 밖 dirty 경로가 최근 $($dirtyDecision.NewestAgeSeconds)초 동안 변하지 않았다 — 사람이 편집 중이 아니라고 보고 " +
                     "'안정된 사전 상태'로 기록하고 진행한다(이후 이 경로가 변하면 위반으로 판정). 경로: $($newForeign -join ', ')")
             } else {
-                $wait = [Math]::Min($DirtyRetrySeconds, 30 * [Math]::Pow(2, $foreignDirtyWaits - 1))
-                Write-AuditLog "Audit allowlist 밖 dirty 경로가 있어 $([int]$wait)초 뒤 재확인 ($foreignDirtyWaits/$MaxDirtyWaits): $($newForeign -join ', ')"
-                Start-Sleep -Seconds ([int]$wait)
-                continue
+                $foreignDirtyWaits += 1
+                if ($foreignDirtyWaits -ge $MaxDirtyWaits) {
+                    foreach ($p in $newForeign) { $script:StableForeignDirty[$p] = $true }
+                    $cycle = Set-CycleForeignDirty $cycle @($script:StableForeignDirty.Keys)
+                    Write-AuditLog ("dirty 경로가 계속 변하지만 약 $([int]($foreignDirtyWaits * $DirtyRetrySeconds / 60))분을 기다렸으므로 사전 상태로 기록하고 진행한다(무한 대기 방지): " +
+                        $dirtyDecision.Detail)
+                } else {
+                    Write-AuditLog "사람이 편집 중으로 보임 — ${DirtyRetrySeconds}초 뒤 재확인 ($foreignDirtyWaits/$MaxDirtyWaits): $($dirtyDecision.Detail)"
+                    if (-not (Start-InterruptibleSleep -Seconds $DirtyRetrySeconds -StopFile $StopFile -LogPath $RunnerLog -Reason "dirty 워킹트리")) {
+                        $script:FinalExit = 3; break
+                    }
+                    continue
+                }
             }
+            $preSnapshot = Get-UnauthorizedSnapshot     # 대기 뒤 상태로 다시 스냅샷을 잡는다
         } else {
             $foreignDirtyWaits = 0
-            $foreignDirtySignature = $null
         }
+        $dirtySw.Stop()
 
         # ── invocation 준비 ──
+        $prepSw = [System.Diagnostics.Stopwatch]::StartNew()
         $timestamp = "{0}-{1:d3}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), ($iterationsThisLaunch + 1)
         $logFile = Join-Path $LogDir "$timestamp.log"
         $errFile = "$logFile.err"
         $invocationPromptFile = Join-Path $LogDir "$timestamp.prompt.txt"
-
-        $promptBody = $prompt
-        if ($PromptOverrideFile -and (Test-Path -LiteralPath $PromptOverrideFile)) {
-            $promptBody = Read-TextOrEmpty $PromptOverrideFile
-        }
-
-        # 런타임 컨텍스트를 프롬프트 뒤에 붙인다 — Worker 가 cycle_id / baseline / 직전 Gate
-        # 거부 사유를 알아야 정확한 marker 를 만들 수 있다.
-        $lastRejection = Read-TextOrEmpty $GateRejectionFile
-        $ctx = New-Object System.Collections.Generic.List[string]
-        $ctx.Add("")
-        $ctx.Add("======================================================================")
-        $ctx.Add("RUN CONTEXT (Supervisor 가 매 invocation 에 주입한다 — 이 값을 그대로 써라)")
-        $ctx.Add("======================================================================")
-        $ctx.Add("runner=product_audit_runner.ps1")
-        $ctx.Add("invocation=$($iterationsThisLaunch + 1)")
-        $ctx.Add("started_at=$(Get-Date -Format o)")
-        $ctx.Add("cycle_id=$($script:CycleId)")
-        $ctx.Add("baseline_sha=$($script:CycleBaselineSha)")
-        $ctx.Add("baseline_branch=$($cycle.baselineBranch)")
-        $ctx.Add("audit_docs_dir=$AuditDocsRel")
-        $ctx.Add("handoff_path=$AuditDocsRel/PRODUCT_AUDIT_HANDOFF.md")
-        if ($script:StableForeignDirty.Count -gt 0) {
-            $ctx.Add("pre_existing_dirty_paths=$(($script:StableForeignDirty.Keys | Sort-Object) -join ', ')")
-            $ctx.Add("note=위 경로는 Audit 시작 전부터 사용자가 남겨 둔 변경이다. 건드리지 말고, Audit 한계로 REPORT 에 기록하라.")
-        }
-        if (-not [string]::IsNullOrWhiteSpace($lastRejection)) {
-            $ctx.Add("")
-            $ctx.Add("--- 직전 AUDIT_COMPLETE 가 기계 Gate 에서 거부된 사유(반드시 먼저 해소하라) ---")
-            $ctx.Add($lastRejection.Trim())
-        }
-        $ctx.Add("======================================================================")
-        $promptBody = $promptBody + [Environment]::NewLine + ($ctx -join [Environment]::NewLine) + [Environment]::NewLine
-
-        if (-not (Write-TextFile $invocationPromptFile $promptBody)) {
-            Write-AuditLog "프롬프트 파일을 쓰지 못했다($invocationPromptFile) — 이 invocation 을 실패로 세고 재시도한다."
-            $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
-            [void](Save-StateFile $StateFile $state)
-            $iterationsThisLaunch += 1
-            continue
-        }
 
         # Persistent Worker Session
         $sessionId = Read-SessionId $SessionIdFile
@@ -1212,10 +1315,110 @@ try {
             Write-AuditLog "기존 Product Audit Worker Session 이어받음(--resume) session_id=$sessionId"
         }
 
+        # ── COLD / WARM 판정 ──
+        # WARM = "같은 Session 을 정상 resume 했고 직전 회차가 정상적으로 끝났다".
+        # 그 밖에는 COLD 로 다시 접지한다(표류 방지). 주기적으로도 한 번 COLD 로 돌아간다.
+        $sinceCold = Get-IntOr $state.invocationsSinceCold 999
+        $coldReasons = New-Object System.Collections.Generic.List[string]
+        if ($isNewSession) { $coldReasons.Add("new-session") }
+        if ($sinceCold -ge $ColdRefreshEvery) { $coldReasons.Add("periodic-refresh(${sinceCold}/${ColdRefreshEvery})") }
+        if ($state.lastFailureClass -eq "idle-timeout" -or $state.lastFailureClass -eq "hard-timeout") { $coldReasons.Add("previous-invocation-killed") }
+        if (-not [string]::IsNullOrWhiteSpace((Read-TextOrEmpty $GateRejectionFile))) { $coldReasons.Add("gate-rejected") }
+        $isCold = ($coldReasons.Count -gt 0)
+        $mode = if ($isCold) { "COLD" } else { "WARM" }
+
+        # model/effort: 사용자 지시로 opus/max 고정. -DynamicEffort $true 일 때만 조정된다.
+        $useModel  = $Model
+        $useEffort = $Effort
+        $effortSource = "fixed"
+        if ($DynamicEffort) {
+            $hint = Read-NextInvocationHint -Path $NextHintFile -LogPath $RunnerLog
+            if ($isCold) {
+                $useEffort = $HighRiskEffort
+                if ($HighRiskModel) { $useModel = $HighRiskModel }
+                $effortSource = "cold"
+            }
+            if ($hint.Found) {
+                if ($hint.Effort) { $useEffort = $hint.Effort }
+                if ($hint.Model)  { $useModel  = $hint.Model }
+                $effortSource = "worker-hint"
+                Write-AuditLog "Worker 힌트 적용: effort=$($hint.Effort) model=$($hint.Model) reason=$($hint.Reason)"
+            }
+        }
+
+        $promptBody = $prompt.Replace("__STATE_RESTORE_SECTION__", $(if ($isCold) { $promptCold } else { $promptWarm }))
+        $promptBody = $promptBody.Replace("__SUDO_ENV_NAME__", $SudoPasswordEnvName)
+        if ($PromptOverrideFile -and (Test-Path -LiteralPath $PromptOverrideFile)) {
+            $promptBody = Read-TextOrEmpty $PromptOverrideFile
+        }
+
+        $headBefore   = Get-GitHeadSha -RepoDir $ProjectDir
+        $branchBefore = Get-GitBranch  -RepoDir $ProjectDir
+        $prevHead     = [string]$state.lastHeadSha
+        if ([string]::IsNullOrWhiteSpace($prevHead)) { $prevHead = $headBefore }
+
+        # 런타임 컨텍스트를 프롬프트 뒤에 붙인다 — Worker 가 cycle_id / baseline / 직전 Gate
+        # 거부 사유를 알아야 정확한 marker 를 만들 수 있다.
+        $lastRejection = Read-TextOrEmpty $GateRejectionFile
+        $ctx = New-Object System.Collections.Generic.List[string]
+        $ctx.Add("")
+        $ctx.Add("======================================================================")
+        $ctx.Add("RUN CONTEXT (Supervisor 가 매 invocation 에 주입한다 — 이 값을 그대로 써라)")
+        $ctx.Add("======================================================================")
+        $ctx.Add("runner=product_audit_runner.ps1")
+        $ctx.Add("invocation=$($iterationsThisLaunch + 1)")
+        $ctx.Add("started_at=$(Get-Date -Format o)")
+        $ctx.Add("resume_mode=$mode$(if ($isCold) { ' (' + ($coldReasons -join ',') + ')' } else { ' (같은 Session 정상 이어받음 — 대형 문서 재독 금지, COVERAGE 미조사 칸부터 이어서)' })")
+        $ctx.Add("model=$useModel effort=$useEffort")
+        $ctx.Add("cycle_id=$($script:CycleId)")
+        $ctx.Add("baseline_sha=$($script:CycleBaselineSha)")
+        $ctx.Add("baseline_branch=$($cycle.baselineBranch)")
+        $ctx.Add("head=$headBefore")
+        $ctx.Add("previous_invocation_head=$prevHead")
+        $commitsSince = @()
+        if ($prevHead -and $headBefore -and $prevHead -ne $headBefore) {
+            $commitsSince = @(Get-GitCommitSubjects -RepoDir $ProjectDir -Count 20 -Range "$prevHead..$headBefore")
+        }
+        $ctx.Add("commits_since_previous_invocation=$($commitsSince.Count)")
+        foreach ($c in $commitsSince) { $ctx.Add("  + $c") }
+        $ctx.Add("audit_docs_dir=$AuditDocsRel")
+        $ctx.Add("handoff_path=$AuditDocsRel/PRODUCT_AUDIT_HANDOFF.md")
+        $ctx.Add("test_server=$(if ($TestServerTarget) { $TestServerTarget } else { '(저장소 설정에서 찾지 못함)' })")
+        $ctx.Add("test_server_ssh=$(if (-not $script:ServerAccess.Probed) { 'unprobed' } elseif ($script:ServerAccess.SshOk) { 'ok' } else { 'unreachable' })")
+        $ctx.Add("sudo_nopasswd=$(if ($script:ServerAccess.SudoNoPassword) { 'true' } else { 'false' })")
+        $ctx.Add("sudo_credential=$(if ($script:SudoCredentialAvailable) { "available (환경변수 $SudoPasswordEnvName — stdin 으로만 사용, 절대 출력 금지)" } else { 'absent' })")
+        if ($script:StableForeignDirty.Count -gt 0) {
+            $ctx.Add("pre_existing_dirty_paths=$(($script:StableForeignDirty.Keys | Sort-Object) -join ', ')")
+            $ctx.Add("note=위 경로는 Audit 시작 전부터 사용자가 남겨 둔 변경이다. 건드리지 말고, Audit 한계로 REPORT 에 기록하라.")
+        }
+        if (-not [string]::IsNullOrWhiteSpace($lastRejection)) {
+            $ctx.Add("")
+            $ctx.Add("--- 직전 AUDIT_COMPLETE 가 기계 Gate 에서 거부된 사유(반드시 먼저 해소하라) ---")
+            $ctx.Add($lastRejection.Trim())
+        }
+        $ctx.Add("======================================================================")
+        $ctxText = ($ctx -join [Environment]::NewLine)
+        $promptBody = $promptBody + [Environment]::NewLine + $ctxText + [Environment]::NewLine
+        [void](Write-TextFile $ResumeContextFile $ctxText)
+
+        if (-not (Write-TextFile $invocationPromptFile $promptBody)) {
+            Write-AuditLog "프롬프트 파일을 쓰지 못했다($invocationPromptFile) — 이 invocation 을 실패로 세고 재시도한다."
+            $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
+            [void](Save-StateFile $StateFile $state)
+            $iterationsThisLaunch += 1
+            continue
+        }
+
+        # --permission-mode bypassPermissions: 2026-08-13 controlled probe 로 `auto` 가 무인
+        #   실행에서 Write/Bash 를 실제로 거부하는 것을 확인했다. 승인해 줄 사람이 없는
+        #   Supervisor 에서 그 거부는 그대로 조사 실패다. Auditor 의 쓰기 경계는 permission
+        #   mode 가 아니라 write guard(워킹트리 해시 + 구간의 모든 커밋 + 이력 무결성)가 강제한다.
+        # --output-format stream-json --verbose: 활동 신호·진행 표시·rate limit reset 시각용.
         $argList = @(
             "-p",
-            "--permission-mode", "auto",
-            "--output-format", "json"
+            "--permission-mode", "bypassPermissions",
+            "--output-format", "stream-json",
+            "--verbose"
         )
         # 0 이면 플래그 자체를 붙이지 않는다. CLI 가 `--max-budget-usd 0` 을 "무제한"으로
         # 해석한다는 근거가 없다(오히려 "$0 예산"으로 즉시 중단될 수 있다) — 넘기지 않으면
@@ -1223,18 +1426,37 @@ try {
         if ($MaxBudgetUsd -gt 0) { $argList += @("--max-budget-usd", "$MaxBudgetUsd") }
         if ($isNewSession) { $argList += @("--session-id", $sessionId) }
         else               { $argList += @("--resume", $sessionId) }
-        if ($Model)  { $argList += @("--model", $Model) }
-        if ($Effort) { $argList += @("--effort", $Effort) }
+        if ($useModel)      { $argList += @("--model", $useModel) }
+        if ($useEffort)     { $argList += @("--effort", $useEffort) }
+        if ($FallbackModel) { $argList += @("--fallback-model", $FallbackModel) }
 
+        $prepSw.Stop()
         $budgetLabel = if ($MaxBudgetUsd -gt 0) { "`$$MaxBudgetUsd" } else { "무제한" }
-        $timeoutLabel = if ($MaxRuntimeMinutes -gt 0) { "${MaxRuntimeMinutes}분" } else { "무제한" }
-        $headBefore   = Get-GitHeadSha -RepoDir $ProjectDir
-        $branchBefore = Get-GitBranch  -RepoDir $ProjectDir
-        Write-AuditLog "Audit Worker invocation 시작 #$($iterationsThisLaunch + 1) budget=$budgetLabel timeout=$timeoutLabel headBefore=$headBefore branch=$branchBefore"
+        $timeoutLabel = if ($MaxRuntimeMinutes -gt 0) { "hard ${MaxRuntimeMinutes}분" } else { "hard 없음" }
+        Write-AuditLog ("Audit Worker invocation 시작 #$($iterationsThisLaunch + 1) mode=$mode model=$useModel effort=$useEffort " +
+            "budget=$budgetLabel timeout=$timeoutLabel idle=${IdleTimeoutMinutes}분 headBefore=$headBefore branch=$branchBefore")
 
+        $script:LastProgressLoggedAt = Get-Date
+        $progress = {
+            param($snap)
+            $line = ("  ▶ audit #{0} {1}/{2} · 경과 {3} · 이벤트 {4} · 도구 {5}회{6} · 출력 {7} · 마지막 활동 {8}초 전 · PID {9}" -f `
+                ($iterationsThisLaunch + 1), $useModel, $useEffort,
+                (Format-Duration $snap.ElapsedSeconds), $snap.Events, $snap.ToolUses,
+                $(if ($snap.LastTool) { " (최근 $($snap.LastTool))" } else { "" }),
+                (Format-Bytes $snap.OutBytes), [int]$snap.IdleSeconds, $snap.Pid)
+            Write-ConsoleLine $line
+            if (((Get-Date) - $script:LastProgressLoggedAt).TotalSeconds -ge $ProgressLogEverySeconds) {
+                $script:LastProgressLoggedAt = Get-Date
+                Write-LogLine $RunnerLog ("진행 중" + $line)
+            }
+        }
+
+        $workerSw = [System.Diagnostics.Stopwatch]::StartNew()
         $outcome = Invoke-ClaudeWorker -ClaudeExe $ClaudeExe -ArgList $argList -WorkingDirectory $ProjectDir `
             -PromptFile $invocationPromptFile -StdOutFile $logFile -StdErrFile $errFile `
-            -TimeoutMinutes $MaxRuntimeMinutes -LogPath $RunnerLog
+            -MaxRuntimeMinutes $MaxRuntimeMinutes -IdleTimeoutMinutes $IdleTimeoutMinutes `
+            -ProgressIntervalSeconds $ProgressIntervalSeconds -ProgressCallback $progress -LogPath $RunnerLog
+        $workerSw.Stop()
         $exitCode = $outcome.ExitCode
 
         # ── write guard: 워킹트리 + 구간의 모든 커밋 + 이력 무결성 ──
@@ -1268,20 +1490,19 @@ try {
             break
         }
 
-        # ── 실패 분류 ──
-        $isRateLimit = $false
-        $isResumeFailure = $false
+        # ── 실패 분류(유형별) ──
+        $progressed = ($headAfter -ne $headBefore) -and (-not [string]::IsNullOrWhiteSpace($headAfter))
+        $errText = (Read-TextOrEmpty $errFile)
+        $outTail = ""
         if ($exitCode -ne 0) {
-            $errText = (Read-TextOrEmpty $errFile)
-            $outText = (Read-TextOrEmpty $logFile)
-            if ((-not $isNewSession) -and (Test-IsResumeFailure ($errText + "`n" + $outText))) {
-                $isResumeFailure = $true
-            } elseif (Test-IsRateLimitFailure ($errText + "`n" + $outText)) {
-                $isRateLimit = $true
-            }
+            # stdout 은 수십 MB 가 될 수 있다 — 분류에는 꼬리만 본다.
+            $outAll = Read-TextOrEmpty $logFile
+            if ($outAll.Length -gt 20000) { $outTail = $outAll.Substring($outAll.Length - 20000) } else { $outTail = $outAll }
         }
+        $fc = Get-InvocationFailureClass -ExitCode $exitCode -Progressed $progressed -IsNewSession $isNewSession `
+            -TimeoutKind $outcome.TimeoutKind -Source $outcome.Source -StdErrText $errText -StdOutText $outTail
 
-        if ($isResumeFailure) {
+        if ($fc.Class -eq "resume-failure") {
             Write-AuditLog "저장된 session_id=$sessionId 를 더 이상 resume 할 수 없다(세션 인프라 문제 — 작업 실패 아님) — 지우고 다음 반복에서 새 Session 으로 즉시 재시작."
             Remove-Item -LiteralPath $SessionIdFile -Force -ErrorAction SilentlyContinue
         }
@@ -1289,49 +1510,64 @@ try {
         $iterationsThisLaunch += 1
         $state = Get-NormalizedState -Path $StateFile -Defaults $StateDefaults -LogPath $RunnerLog
 
-        if ($exitCode -eq 0) {
+        if ($fc.Class -eq "ok" -or $fc.Class -eq "progress") {
             $state.consecutiveFailures = 0
+            $state.consecutiveInfraRetries = 0
             $state.consecutiveRateLimitHits = 0
+            $state.identicalFailureCount = 0
+            $state.lastFailureSignature = ""
             $state.sessionRotatedForStreak = $false
-        } elseif ($isResumeFailure) {
-            # 작업 실패가 아니므로 실패 카운터를 올리지 않는다.
-        } elseif ($isRateLimit) {
-            $hits = (Get-IntOr $state.consecutiveRateLimitHits) + 1
-            $state.consecutiveRateLimitHits = $hits
-            if ($hits -gt $MaxConsecutiveRateLimitHits) {
-                # 무한 백오프 방지: rate-limit 처럼 보이는 실패가 계속되면 결국 실패로 센다.
-                $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
-                Write-AuditLog "연속 rate-limit 판정이 $hits 회로 상한($MaxConsecutiveRateLimitHits)을 넘어 일반 실패로 계산한다(무한 백오프 방지)."
+            if ($fc.Class -eq "progress") {
+                # ★ AUTO_STOP 의 의미는 "종료 코드가 0이 아니다"가 아니라 **"진척이 없다"** 여야 한다.
+                Write-AuditLog "exit=$exitCode 이지만 이 invocation 이 커밋을 남겼다($headBefore -> $headAfter) — 진척이 있으므로 연속 실패로 세지 않는다."
             }
-        } elseif ($headAfter -ne $headBefore -and -not [string]::IsNullOrWhiteSpace($headAfter)) {
-            # ★ AUTO_STOP 의 의미는 "종료 코드가 0이 아니다"가 아니라 **"진척이 없다"** 여야 한다.
-            #   이 invocation 이 실제로 Audit 문서를 커밋했다면 컨텍스트/네트워크로 끝났더라도
-            #   일은 된 것이다. 상한을 늘리는 게 아니라 판정을 정확히 하는 것이다.
-            $state.consecutiveFailures = 0
-            $state.sessionRotatedForStreak = $false
-            Write-AuditLog "exit=$exitCode 이지만 이 invocation 이 커밋을 남겼다($headBefore -> $headAfter) — 진척이 있으므로 연속 실패로 세지 않는다."
         } else {
-            $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
-            # 같은 세션이 결정적으로 계속 실패하면(오염된 세션) 상한 도달 전에 한 번 회전시킨다.
-            if ((Get-IntOr $state.consecutiveFailures) -ge ($MaxConsecutiveFailures - 1) -and
-                (-not $state.sessionRotatedForStreak) -and (-not $isNewSession)) {
-                Remove-Item -LiteralPath $SessionIdFile -Force -ErrorAction SilentlyContinue
-                $state.sessionRotatedForStreak = $true
-                Write-AuditLog "같은 Worker Session 에서 연속 실패가 이어져 session_id 를 한 번 회전한다(오염된 세션 복구 시도). 실패 카운터는 그대로 유지한다."
+            $signature = Get-FailureSignature -Class $fc.Class -Text ($errText + " " + $outTail)
+            if ($signature -eq [string]$state.lastFailureSignature) {
+                $state.identicalFailureCount = (Get-IntOr $state.identicalFailureCount) + 1
+            } else {
+                $state.identicalFailureCount = 1
+            }
+            $state.lastFailureSignature = $signature
+
+            if ($fc.IsInfra) {
+                $state.consecutiveInfraRetries = (Get-IntOr $state.consecutiveInfraRetries) + 1
+                if ($fc.Class -eq "rate-limit" -or $fc.Class -eq "overload") {
+                    $state.consecutiveRateLimitHits = (Get-IntOr $state.consecutiveRateLimitHits) + 1
+                }
+            }
+            if ($fc.CountsAsFailure) {
+                $state.consecutiveFailures = (Get-IntOr $state.consecutiveFailures) + 1
+                # 같은 세션이 결정적으로 계속 실패하면(오염된 세션) 상한 도달 전에 한 번 회전시킨다.
+                if ((Get-IntOr $state.consecutiveFailures) -ge 2 -and
+                    (-not $state.sessionRotatedForStreak) -and (-not $isNewSession)) {
+                    Remove-Item -LiteralPath $SessionIdFile -Force -ErrorAction SilentlyContinue
+                    $state.sessionRotatedForStreak = $true
+                    Write-AuditLog "같은 Worker Session 에서 연속 실패가 이어져 session_id 를 한 번 회전한다(오염된 세션 복구 시도). 실패 카운터는 그대로 유지한다."
+                }
             }
         }
 
+        $state.lastFailureClass = $fc.Class
         $state.lastRunAt = (Get-Date -Format o)
         $state.lastExitCode = $exitCode
+        $state.lastHeadSha = $headAfter
         $state.totalRuns = (Get-IntOr $state.totalRuns) + 1
         $state.totalIterationsThisLaunch = $iterationsThisLaunch
+        if ($isCold) { $state.invocationsSinceCold = 1 } else { $state.invocationsSinceCold = (Get-IntOr $state.invocationsSinceCold) + 1 }
         [void](Save-StateFile $StateFile $state)
 
         $actualModel = Get-ActualModel $logFile
-        Write-AuditLog ("Audit Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode exitSource=$($outcome.Source) " +
-            "handleCached=$($outcome.HandleCached) session=$sessionId requestedModel=$Model requestedEffort=$Effort " +
-            "actualModel=$actualModel rateLimit=$isRateLimit resumeFailure=$isResumeFailure " +
-            "consecutiveFailures=$($state.consecutiveFailures) totalRuns=$($state.totalRuns) headAfter=$headAfter cycle_id=$($script:CycleId)")
+        $stats = Get-ClaudeResultStats $logFile
+        Write-AuditLog ("Audit Worker invocation 종료 #$iterationsThisLaunch exit=$exitCode class=$($fc.Class) exitSource=$($outcome.Source) " +
+            "mode=$mode handleCached=$($outcome.HandleCached) session=$sessionId requestedModel=$useModel requestedEffort=$useEffort " +
+            "actualModel=$actualModel turns=$($stats.NumTurns) denials=$($stats.PermissionDenials) tools=$($outcome.ToolUses) " +
+            "duration=$(Format-Duration ($outcome.DurationMs / 1000)) consecutiveFailures=$($state.consecutiveFailures) " +
+            "infraRetries=$($state.consecutiveInfraRetries) identical=$($state.identicalFailureCount) " +
+            "totalRuns=$($state.totalRuns) headAfter=$headAfter cycle_id=$($script:CycleId)")
+        if ($stats.PermissionDenials -gt 0) {
+            Write-AuditLog "경고: 이 invocation 에서 도구 권한 거부가 $($stats.PermissionDenials)건 있었다 — 무인 실행에서는 그대로 조사 손실이다."
+        }
 
         # ── AUDIT_COMPLETE 기계 Gate ──
         if (Test-Path -LiteralPath $AuditCompleteFile) {
@@ -1375,19 +1611,75 @@ try {
             break
         }
 
-        if ($isRateLimit) {
-            $backoff = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveRateLimitHits) `
-                -BaseSeconds $RateLimitBaseBackoffSeconds -MaxSeconds $RateLimitMaxBackoffSeconds
-            Write-AuditLog "rate-limit/overload 로 판단 — ${backoff}초 대기 후 재시도(진짜 기다릴 이유가 있는 경우만 백오프)."
-            Start-Sleep -Seconds $backoff
+        # ── 백오프: 유형별로 다르게 기다린다 ──
+        $backoffSw = [System.Diagnostics.Stopwatch]::StartNew()
+        $waited = 0
+        if ($fc.Class -eq "rate-limit" -or $fc.Class -eq "overload") {
+            # 실제 reset 시각을 알면 지수 백오프 대신 그 시각까지 기다린다(구독 한도는 몇 시간이다).
+            $rl = Get-RateLimitInfoFromLog $logFile
+            $resetAt = 0
+            if ($rl.Found -and $rl.ResetsAt -gt 0) { $resetAt = $rl.ResetsAt }
+            if ($resetAt -le 0) { $resetAt = Get-RateLimitResetFromText ($errText + " " + $outTail) }
+            $now = Get-UnixNow
+            if ($resetAt -gt $now) {
+                $waited = [int][Math]::Min($RateLimitMaxWaitSeconds, ($resetAt - $now) + 20)
+                Write-AuditLog ("사용량 한도 — CLI 가 알려준 reset 시각까지 기다린다: type=$($rl.Type) utilization=$($rl.Utilization) " +
+                    "resetsAt=$resetAt → $(Format-Duration $waited) 대기")
+            } else {
+                $waited = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveRateLimitHits) `
+                    -BaseSeconds $RateLimitBaseBackoffSeconds -MaxSeconds $RateLimitMaxBackoffSeconds
+                Write-AuditLog "rate-limit/overload 로 보이지만 reset 시각을 알 수 없다 — $(Format-Duration $waited) 지수 백오프."
+            }
+        } elseif ($fc.Class -eq "network") {
+            $waited = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveInfraRetries) `
+                -BaseSeconds $NetworkBaseBackoffSeconds -MaxSeconds $NetworkMaxBackoffSeconds
+            Write-AuditLog "일시적 네트워크 장애 — $(Format-Duration $waited) 뒤 같은 조사를 그대로 재시도한다."
+        } elseif ($fc.Class -eq "resume-failure") {
+            $waited = 0
+        } elseif ($fc.Class -eq "auth") {
+            Write-Banner @(
+                "인증/자격증명 문제로 Audit Worker 가 실패했습니다 — 기다려도 저절로 낫지 않습니다.",
+                "  $($errText.Trim() -replace '\s+', ' ')",
+                "`claude auth` 상태를 확인하세요. 같은 실패가 $MaxIdenticalFailures 회 반복되면 자동 중단합니다."
+            )
+            $waited = 60
         } elseif ((Get-IntOr $state.consecutiveFailures) -gt 0) {
             # ★ 예전엔 일반 실패에 대기가 **전혀 없었다.** 네트워크가 10초만 끊겨도 즉시 재시도 →
             #   즉시 실패가 3연속으로 쌓여 몇 초 만에 AUTO_STOP 되고 밤샘 Audit 이 끝났다.
-            $backoff = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveFailures) `
+            $waited = Get-BackoffSeconds -Hits (Get-IntOr $state.consecutiveFailures) `
                 -BaseSeconds $FailureBaseBackoffSeconds -MaxSeconds $FailureMaxBackoffSeconds
-            Write-AuditLog "일반 실패 $($state.consecutiveFailures)회 연속(진척 없음) — ${backoff}초 대기 후 재시도."
-            Start-Sleep -Seconds $backoff
+            Write-AuditLog "일반 실패 $($state.consecutiveFailures)회 연속(진척 없음, class=$($fc.Class)) — $(Format-Duration $waited) 대기 후 재시도."
         }
+        if ($waited -gt 0) {
+            if (-not (Start-InterruptibleSleep -Seconds $waited -StopFile $StopFile -LogPath $RunnerLog -Reason $fc.Class)) {
+                $script:FinalExit = 3
+                $backoffSw.Stop(); $loopSw.Stop()
+                break
+            }
+        }
+        $backoffSw.Stop()
+        $loopSw.Stop()
+
+        [void](Write-TimingRecord -Path $TimingLog -Fields ([ordered]@{
+            at              = (Get-Date -Format o)
+            runner          = "product-audit"
+            invocation      = $iterationsThisLaunch
+            mode            = $mode
+            model           = $useModel
+            effort          = $useEffort
+            exitCode        = $exitCode
+            failureClass    = $fc.Class
+            progressed      = $progressed
+            turns           = $stats.NumTurns
+            costUsd         = $stats.CostUsd
+            toolUses        = $outcome.ToolUses
+            dirtyCheckMs    = [int]$dirtySw.ElapsedMilliseconds
+            promptPrepMs    = [int]$prepSw.ElapsedMilliseconds
+            workerStartupMs = $outcome.FirstOutputMs
+            workerRunMs     = [int]$workerSw.ElapsedMilliseconds
+            backoffMs       = [int]$backoffSw.ElapsedMilliseconds
+            totalMs         = [int]$loopSw.ElapsedMilliseconds
+        }))
         # 성공했거나 진척이 있었으면 대기 없이 곧장 다음 invocation 으로 이어간다.
     }
     exit $script:FinalExit

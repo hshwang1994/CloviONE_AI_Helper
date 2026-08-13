@@ -23,7 +23,7 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 | `product_audit_runner.ps1` | PHASE 1. 전수조사 Supervisor. 제품 코드를 고치지 않는다 |
 | `autonomous_runner.ps1` | PHASE 2. 구현 Supervisor(Primary Continuous Worker) |
 | `run_all.ps1` | **바깥 루프.** PHASE 1 완료 → PHASE 2 자동 연결 + `AUTO_STOP` 제한적 자동 재시작. 한 번 시작해 두면 두 Phase 경계에서 사람을 기다리지 않는다 |
-| `runner_common.ps1` | 두 Supervisor가 **똑같이 틀리면 안 되는** 원시 계층(종료 상태 판정, git 호출, state 정규화, 잠금, marker 격리) |
+| `runner_common.ps1` | 두 Supervisor가 **똑같이 틀리면 안 되는** 원시 계층(종료 상태 판정, git 호출, dirty 판정, stream 증분 파싱, 실패 유형 분류, rate-limit reset 파싱, state 정규화, 잠금, marker 격리, resume context cache) |
 | `stop_guard.py` | Stop hook 보조 제동. Supervisor를 대체하지 않는다 |
 | `tests/runner_contract_tests.ps1` | 격리된 scratch 저장소에 **실제 스크립트를 그대로** 돌리는 상태 전이 controlled test |
 | `install_task.ps1` | 과거 유물. 이 구조의 일부가 아니다 |
@@ -31,6 +31,19 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 런타임 산출물(전부 git 추적 안 됨):
 `var/runner/` — 구현 Runner의 logs·runner.log·state.json·session_id.txt·STOP·AUTO_STOP·PROJECT_COMPLETE·run.lock·quarantine
 `var/product-audit/` — Audit의 logs·runner.log·state.json·session_id.txt·cycle.json·STOP·AUTO_STOP·AUDIT_COMPLETE·AUDIT_BLOCKED·IMPLEMENTATION_REQUIRED·IMPLEMENTATION_CONSUMED·quarantine
+
+**cache/index (Source of Truth 아님 — 원본 문서에서 언제든 재생성된다):**
+
+| 파일 | 무엇 |
+|---|---|
+| `var/runner/active_state.json` | HEAD·branch·dirty·최근 커밋·문서별 줄 수와 수정 시각·미해결 수 |
+| `var/runner/unresolved_index.json` | `docs/BACKLOG.md`에서 기계 추출한 **미해결 항목만** (실측 86건 / 26 ms) |
+| `var/runner/resume_context.txt` | 직전 invocation에 실제로 주입된 RUN CONTEXT 전문 |
+| `var/runner/timings.jsonl` | invocation별 구간 소요 시간·turns·costUsd |
+
+> 이 파일들 때문에 **원본 문서를 지우거나 축약하지 않는다.** 역사 증거는 그대로 두고,
+> "매번 읽지는 않는다"로 해결한다. 실측: cache 40 KB vs 예전 프롬프트가 매 회차 강제로
+> 읽히던 문서 1.34 MB — **3.0%**.
 
 ## 실행
 
@@ -126,10 +139,13 @@ Product Auditor가 tracked 파일 중 건드려도 되는 곳은 `docs/product-a
 | 프로세스 트리 강제 종료 | timeout 시 claude의 자식 프로세스가 살아남아 저장소를 계속 건드리는 것 |
 | rate-limit 판정 축소 + 연속 상한 | 로그 속 "429" 같은 숫자를 rate-limit으로 오인해 실패 카운터를 우회하고 무한 백오프로 도는 것 |
 | session 회전 | 오염된 Worker Session이 결정적으로 계속 실패하는 것(실패 카운터는 그대로 두어 AUTO_STOP은 예정대로 도달) |
-| dirty 워킹트리 대기 + 상한 | 사람의 대화형 세션과 충돌 방지 + 유령 dirty로 인한 무한 대기 방지 |
-| `MaxRuntimeMinutes` 240분 | 멈춘 invocation만 강제 종료(프로세스 트리째). **hang 보호이지 작업 상한이 아니다** — `0`을 주면 무제한이지만 그러면 멈춘 프로세스를 밤새 방치하게 된다 |
-| `MaxConsecutiveRateLimitHits` 20 | 구독 사용량 한도는 몇 시간 대기가 정상이다. 예전 값(8)이면 약 2시간 만에 일반 실패로 전환돼 밤중에 AUTO_STOP 됐다. 대기 한도만 늘린 것이고 진짜 실패는 여전히 3회에 멈춘다 |
-| `--permission-mode auto` | `--dangerously-skip-permissions`/`bypassPermissions`는 **절대 쓰지 않는다** |
+| dirty 워킹트리 대기(**파일 mtime 기준**) | 사람의 대화형 세션과 충돌 방지. 최근 수정이 `DirtyQuietSeconds`(90초)보다 오래됐거나 **직전 invocation이 스스로 만든 dirty**면 기다리지 않는다. 사람이 실제로 타이핑 중이면 mtime이 계속 갱신돼 계속 기다린다(상한 10분) |
+| **idle timeout**(`IdleTimeoutMinutes` 25분) | **출력이 그 시간 동안 한 바이트도 안 늘어난** invocation만 강제 종료(프로세스 트리째). `MaxRuntimeMinutes`는 기본 `0`(무제한) — 벽시계로 자르면 일하는 Worker를 자른다 |
+| 실패 유형 분류 | `rate-limit`/`overload`/`network`/`resume-failure`는 AUTO_STOP 카운터를 소모하지 않는다(순간 장애로 밤샘 실행이 죽지 않게). 대신 `MaxInfraRetries`(60)와 `MaxIdenticalFailures`(4)가 무한 재시도를 막는다 |
+| rate-limit reset 시각 대기 | 지수 백오프로는 몇 시간짜리 구독 한도를 못 맞춘다. stream의 `rate_limit_event.resetsAt`(unix epoch)을 읽어 **그 시각까지** 기다린다(상한 6시간) |
+| rate-limit 판정에서 **JSON 키 이름 제외** | 정상 스트림에도 `rate_limit_event`/`rate_limit_info`/`rateLimitType`이 섞여 온다. 키 이름에 걸려 무관한 실패가 rate-limit으로 오분류되면 진짜 실패가 영원히 숨는다 |
+| `--permission-mode bypassPermissions` | 무인 실행에는 승인해 줄 사람이 없다. 2026-08-13 실측: 같은 프롬프트로 `auto`는 Write/Bash를 각각 거부(`permission_denials` 2건, 파일 0개 생성), `bypassPermissions`는 거부 0건으로 둘 다 성공. Auditor의 쓰기 경계는 permission mode가 아니라 **write guard**가 강제한다 |
+| `--output-format stream-json --verbose` | 활동 신호(idle timeout)·진행 heartbeat·rate-limit reset 시각을 얻는다. 마지막 줄은 여전히 `type=result`라 종료 판정·actualModel 파싱은 그대로 동작한다. `--verbose`는 CLI가 함께 요구한다 |
 | Stop hook(`stop_guard.py`) | 완료 marker 없이 끝내려는 Worker를 invocation당 한 번 되돌린다(보조 장치, fail-open) |
 | `CLOVIR_SUPERVISOR_PID` 생존 확인 | Supervisor가 자기 프로세스 환경에 넣은 `CLOVIR_SUPERVISED=1`은 **그 창에 그대로 남는다.** Ctrl+C로 멈춘 뒤 같은 창에서 시작한 사람의 대화형 Claude 세션이 Stop hook에 붙잡히던 문제(실제 발생). Supervisor는 종료 시 환경을 원래대로 되돌리고, hook은 PID가 실제로 살아 있을 때만 제동한다 |
 | stdin BOM 제거 | `stop_guard.py`가 stdin의 UTF-8 BOM으로 JSON 파싱에 실패해 **조용히 fail-open**하던 경로(제동 장치가 아무도 모르게 무력화됨) |
@@ -152,14 +168,55 @@ pwsh       -NoProfile -File scripts\runner\tests\runner_contract_tests.ps1   # P
 - 이 PowerShell 프로세스가 살아 있는 동안만 돈다. 창을 닫거나 로그아웃·재부팅하면 멈춘다 —
   **자동으로 되살리는 장치는 없다.** 다시 시작하려면 사용자가 같은 명령을 한 번 더 실행한다
   (상태는 git과 `docs/`에서 복원된다).
-- 실제 배포(승인된 TEST SERVER 대역)는 이 Runner가 자동으로 못 한다(비밀번호 경계) — 사용자가
-  NOPASSWD sudoers를 구성하기 전까지는 구현·테스트·문서화까지만 자동으로 진행된다.
+- **승인된 TEST SERVER(CLAUDE.md §9)에서는 Worker가 직접 SSH·sudo·package 설치·systemd/nginx·
+  DB·n8n/Runner·배포·E2E를 수행한다.** 예전의 "배포 자격증명 경계"(배포를 건너뛰고 blocker로만
+  남기라던 프롬프트 절)는 CLAUDE.md §9와 정면으로 충돌해서 제거했다.
+  단 **sudo 비밀번호는 runtime에만 존재한다.** 실측(2026-08-13): SSH는 키 인증으로 비대화형
+  접속이 되지만(`BatchMode=yes`, 2초) `sudo -n`은 비밀번호를 요구한다. 그래서 Supervisor는
+  시작 전에 환경변수로 받은 값을 자식 프로세스에 물려주기만 하고, 저장소·문서·argv·로그
+  어디에도 남기지 않는다(계약 테스트 T57이 이걸 고정한다).
+
+  ```powershell
+  $env:CLOVIR_TEST_SUDO_PASSWORD = '<비밀번호>'      # 또는 -PromptForSudoPassword
+  .\scripts\runner\run_all.ps1
+  ```
+
+  값이 없으면 sudo가 필요한 작업만 못 하고 나머지는 그대로 진행한다(그 blocker 때문에 다른
+  작업까지 멈추지 않는다). 접속 대상 host는 하드코딩하지 않고 저장소 설정에서 찾는다
+  (`Get-TestServerTargetFromRepo`, 승인 대역 `10.100.64.X` 밖은 절대 반환하지 않는다).
 - **누적 지출/사용량 상한이 없다.** `MaxBudgetUsd` 기본값은 이제 `0`(무제한)이다 — 그 값은
   지출을 막지 못하면서(invocation 횟수가 무제한이므로) 작업만 문장 중간에서 잘랐고, 잘릴 때마다
   다음 invocation이 상태 문서 전체를 다시 읽는 비용을 새로 냈다. 실측: 실제 invocation들이
   `$13.83`/`$13.27`에서 `terminal_reason=completed`로 끝났다 — 일을 마쳐서가 아니라 상한에
   닿아서다. 지금 실질 경계는 `MaxRuntimeMinutes`(hang 보호)뿐이다. 총량을 제한하려면
   `runner.log`의 `totalRuns`를 보고 `STOP` 파일을 만들거나, 각 invocation JSON의
-  `total_cost_usd`를 누적하는 상한을 추가해야 한다(아직 없다).
+  `total_cost_usd`를 누적하는 상한을 추가해야 한다(아직 없다). 이제 invocation마다
+  `var/runner/timings.jsonl`에 `costUsd`가 남으므로 집계 자체는 가능하다.
 - 완료 Gate는 **형식과 정합성**을 검증하지 실제 Audit/구현 품질을 검증하지 못한다. 문서가
   형식을 갖췄다고 조사가 깊다는 뜻은 아니다.
+- 두 Supervisor는 여전히 `run.lock`을 공유해 **동시에 돌지 않는다.** 메인 워킹트리에 Writer를
+  하나로 유지하는 것이 목적이고, 그 계약은 유지했다. "구현 중에 다음 Root Cause를 별도
+  worktree에서 read-only로 미리 조사한다"는 겹치기 실행은 안전하게 가능하지만(Audit Worker가
+  `git worktree` 사본에서 읽기만 하면 된다) marker/cycle/state 파일이 전부 `var/` 단일 경로를
+  가정하고 있어 그 경로 분리까지 함께 해야 한다 — 이번 변경에서는 넣지 않았다. 대신 구현
+  Worker가 **자기 invocation 안에서** subagent/background agent/별도 worktree로 독립 조사를
+  병렬화하도록 프롬프트에 명시했다(메인 통합 writer는 여전히 하나).
+
+## 진행 상황 보기 / 성능 측정
+
+Worker의 stdout은 여전히 `var/runner/logs/<타임스탬프>.log`로 redirect된다(안정성 유지). 대신
+Supervisor가 그 파일의 증가분만 증분 파싱해 콘솔에 짧은 heartbeat를 찍는다 — Claude JSON을
+콘솔에 덤프하지 않는다.
+
+```
+  ▶ #1 sonnet/max · 경과 12.4분 · 이벤트 843 · 도구 61회 (최근 Edit) · 출력 4.2MB · 마지막 활동 3초 전 · PID 20636
+```
+
+"마지막 활동 N초 전"이 **느림**과 **hang**을 구분하는 축이다. 그 값이 `IdleTimeoutMinutes`에
+도달하면 그때만 죽인다.
+
+`var/runner/timings.jsonl`에는 invocation마다 구간별 소요 시간이 한 줄 JSON으로 남는다
+(`dirtyCheckMs`/`contextBuildMs`/`promptPrepMs`/`workerStartupMs`/`workerRunMs`/`postCheckMs`/
+`backoffMs`/`totalMs`/`turns`/`costUsd`). 2026-08-13 실측(실제 CLI, 실제 저장소):
+Supervisor orchestration 총합은 invocation당 **약 1.2초**이고 나머지는 전부 Claude 실행이다 —
+"PowerShell이 느리다"는 가설은 수치로 기각됐다.

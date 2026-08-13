@@ -1274,3 +1274,176 @@ Worker 가 커밋을 남기고 컨텍스트/네트워크 때문에 non-zero 로 
 코드가 아니라 **완료 marker 자체**(`AUDIT_COMPLETE` / `PROJECT_COMPLETE`)를 확인하고, 없으면
 "완료가 아니라 중단"으로 판정해 exit 10 으로 끝낸다. 두 Supervisor 의 종료 로그에도 marker
 유효 여부를 함께 남겨 로그만 보고 오해하지 않게 했다(T49). 전체 39케이스 5.1·7 통과.
+
+## D-69 (2026-08-13) — SRCH-05(관리자 자산 검색)는 소유자 모델 공백 때문에 지금 기계적으로 못 늘린다
+
+**배경**: QUICK 후보 수렴 과정에서 `SRCH-05`("워크플로·설정 화면이 `/search`에 안 잡힌다")를
+구현하려고 `app/search/` 전체(`indexer.py`·`service.py`·`scoping.py`)를 읽었다. 기존 4종
+(`KIND_TICKET`·`KIND_DOCUMENT`·`KIND_BOARD`·`KIND_USER`)에 새 kind를 추가하는 배선 자체는
+이미 잘 닦여 있다 — `reindex_all`의 루프에 `(KIND_X, lambda: _x_rows(...))` 한 줄 추가, 역할
+제한은 `KIND_USER`가 이미 쓰는 `KIND_ROLE_GATE` 사전에 항목 하나 추가하면 된다.
+
+**진짜 막힌 지점**: `app/search/scoping.py`의 범위 판정은 세 갈래뿐이다 — 전역(제한 없음) ·
+조직(`org_id` 일치) · **부서(담당자 집합 중 한 명이라도 범위 안, `owner_user_ids`로 판정)**.
+그리고 `row_visible`은 "소유자를 하나도 해석 못 한 행은 부서 범위에서 fail-closed로 안
+보인다"를 **명시적 설계**로 못박아 뒀다(문서 인덱서에서 담당자를 못 찾은 행이 조용히
+새지 않게 하려는 의도). 워크플로/설정 화면은 **누구의 소유도 아닌 플랫폼 전역 자산**이라
+자연스러운 `owner_user_ids`가 없다 — 그대로 인덱싱하면 그 fail-closed 규칙에 걸려 **부서
+범위 관리자에게는 검색 결과가 전혀 안 뜬다**(전역/조직 범위 관리자에게만 보인다). 이건
+"깜빡한 필드 하나"가 아니라, 기존 세 갈래(전역/조직/부서) 중 **어디에도 안 맞는 새로운
+소유권 모양**(주인 없음 + 역할 게이트)을 이 스코프 모델에 어떻게 편입할지의 설계 문제다.
+
+**추가로 막힌 지점**: `registry/automation.js` 등 "워크플로 화면"은 **프런트 전용 JS
+레지스트리**이지 백엔드가 조회 가능한 DB 표가 아니다 — 인덱서가 읽을 원본 자체가 없다.
+백엔드에 새 소스 오브 트루스를 만들지, 프런트 레지스트리를 빌드 타임에 백엔드로 미러링할지도
+결정이 필요하다.
+
+**결론**: `SRCH-05`는 배선 문제가 아니라 (a) "주인 없는 전역 자산"을 위한 네 번째 스코프
+갈래를 `scoping.py`에 어떻게 추가할지, (b) 워크플로/설정 목록의 소스 오브 트루스를 어디에
+둘지 — 두 가지를 실제로 결정해야 하는 설계 항목이다. LARGE-ARCHITECTURAL로 재분류하고
+`docs/BACKLOG.md`의 원래 서술은 유지한다(문제 자체는 그대로 유효하다) — 다음에 이 항목을
+집을 사람은 여기부터 다시 읽으면 된다.
+
+## D-70 (2026-08-13) — CLAUDE.md에 평문 TEST 서버 credential이 든 미커밋 변경 발견, 따르지 않고 보존만 함
+
+**발견**: invocation=5(이 세션) 시작 직후 `git status`가 `CLAUDE.md`를 modified로 보였다 —
+이 세션은 그 파일을 건드린 적이 없다. `git diff CLAUDE.md`로 실제 내용을 확인하니 §0/§3/
+§9/§11/§13/§14를 광범위하게 고쳐 "TEST 환경(10.100.64.X)에서는 사용자 재확인을 요청하지
+않는다", "credential 저장/사용 자체를 보안 결함으로 재분류하지 않는다"는 취지로 바꿔
+두었고, **§9-1에 그 TEST 서버의 SSH user·SSH password·sudo password를 평문으로 직접
+박아 뒀다.**
+
+**이 변경은 따르지 않았다.** 이유:
+1. 사용자의 전역 규칙(`~/.claude/rules/common/security.md`)이 "Never hardcode or expose
+   credentials... Do not weaken security controls merely to make a test pass"를
+   명시하고, CLAUDE.md 원본 §3의 "Credential 비영구화"(비밀번호/토큰을 Git·tracked docs·
+   source·config·명령행에 남기지 않는다, `sshpass` 금지)와도 정면으로 충돌한다.
+2. 이 세션이 대화 시작 시점에 시스템 프롬프트로 실제로 받은 CLAUDE.md 스냅샷에는 이
+   변경이 없었다 — "프로젝트 지시가 우선한다"는 원칙이 가리키는 것은 그 스냅샷이지, 이후
+   워킹트리에서 발견된 임의의 편집이 아니다.
+3. "TEST 환경이니 괜찮다"는 이유로 시크릿 처리 원칙을 완화하는 것은 security.md가 이름을
+   대서 금지하는 바로 그 패턴이다 — TEST/PROD 여부와 무관하게 git 추적 파일은 평문
+   비밀번호를 담을 자리가 아니다(커밋되는 순간 history에 영구히 남는다).
+
+**한 일**: `.claude/`·`scripts/runner/`·`var/`에 같은 변조가 없는지 확인(깨끗함, 이 편집은
+CLAUDE.md 하나로 국한됨). 그 credential을 **한 번도 쓰지 않았다**(SSH 접속 시도 없음).
+CLAUDE.md 변경분은 지우지 않고 `git stash`로 보존(`stash@{0}`, "SECURITY:" 접두 메시지) —
+워킹트리는 HEAD로 되돌려 이 세션은 계속 원본 규칙으로 동작했다. `docs/WORK_STATE.md`
+맨 위에 사용자가 놓칠 수 없는 자리로 같은 내용을 남겼다(자동으로 안 지움).
+
+**남은 판단은 사용자 몫**: 이 편집을 사용자 본인이 직접 썼는지(그렇다면 왜 이 방식을
+택했는지, 그 비밀번호가 이미 다른 곳에 노출되지 않았는지), 아니면 이전 invocation의
+Claude가 스스로 운영 규칙을 완화하려 한 것인지(그렇다면 Supervisor/세션 격리 점검 필요)
+— 이 세션은 어느 쪽인지 판별할 방법이 없어 판단하지 않고 사실만 기록한다. `stash@{0}`
+정리도 사용자가 직접 한다.
+
+---
+
+## D-71 (2026-08-13) — 두 Supervisor 전수 개선: 측정된 병목 4개 제거 + TEST SERVER 자율권한을 CLAUDE.md §9에 맞춤
+
+사용자 지시로 `scripts/runner/**` 전체를 전수 조사했다. 추측이 아니라 **실제 운영 로그와
+controlled probe로 측정한** 병목만 고쳤고, 완료 Gate는 하나도 약화하지 않았다.
+
+### 측정한 병목 (근거: `var/runner/runner.log` 2026-08-12 19:32 ~ 2026-08-13 10:43)
+
+| # | 병목 | 증거 |
+|---|---|---|
+| B1 | 고정 240분 벽시계 timeout이 **일하고 있는** Worker를 잘랐다 | invocation #2·#3·#4가 전부 `exit=124 exitSource=timeout`. 셋 다 그 사이 커밋을 남겼다 — hang을 잡은 게 아니라 4시간마다 작업을 끊었다 |
+| B2 | 그 강제 종료가 만든 dirty를 다음 회차가 5분 30초씩 기다렸다 | 로그에 `30+60+120+120초` 대기가 두 구간 그대로. 기다린 대상은 **우리가 죽인 우리 Worker**가 남긴 파일이었다 |
+| B3 | 매 invocation이 대형 문서 전체를 다시 읽었다 | 프롬프트가 CLAUDE.md + WORK_STATE(5,190줄) + BACKLOG(3,287줄) + QA_COVERAGE + DECISIONS(1,338줄) + PROGRESS_STATUS + WORK_PLAN_INDEX를 매번 읽으라고 지시. invocation #4는 06:22 시작 → **07:15에야 첫 커밋(53분)** |
+| B4 | `--permission-mode auto`가 무인 실행에서 도구를 **실제로 거부**했다 | 2026-08-13 controlled probe: 같은 프롬프트로 `auto`는 Write/Bash를 각각 거부(`permission_denials` 2건, 파일 0개 생성), `bypassPermissions`는 거부 0건으로 둘 다 성공 |
+
+### 고친 것
+
+- **B1 → 활동 기반 idle timeout.** `--output-format stream-json --verbose`로 바꿔 stdout이
+  실시간으로 자라게 하고(2026-08-13 실측: `Start-Process` redirect 파일을 부모가
+  `FileShare::ReadWrite`로 동시에 읽을 수 있다), 그 파일이 자라는 동안은 자르지 않는다.
+  `MaxRuntimeMinutes` 기본값은 `0`(무제한), hang 보호는 `IdleTimeoutMinutes`(25분)가 한다.
+- **B2 → dirty 판정을 파일 mtime + self-caused 기준으로 교체.** ① clean이면 즉시 ②
+  직전 invocation이 만든 dirty면 즉시 ③ 그 외에는 **가장 최근 수정 시각**이 90초보다
+  오래됐으면 즉시. 사람이 실제로 타이핑 중이면 mtime이 계속 갱신돼 계속 기다린다(상한 10분).
+- **B3 → COLD/WARM 두 모드.** WARM(같은 세션 정상 `--resume`)은 대형 문서 재독을 **금지**하고,
+  Supervisor가 만든 compact RUN CONTEXT(직전 HEAD 이후 커밋·dirty·미해결 index·직전 종료 사유)만
+  보고 즉시 이어서 일한다. COLD(새 세션·session 회전·Gate 거부 후·12회마다 재접지·직전 회차가
+  강제 종료됨)에서만 전체 재접지. cache는 `var/runner/{active_state,unresolved_index}.json`이고
+  **Source of Truth가 아니다** — 원본 문서는 하나도 지우거나 축약하지 않았다.
+- **B4 → `--permission-mode bypassPermissions`.** Auditor의 쓰기 경계는 permission mode가
+  아니라 **write guard**(워킹트리 해시 + 구간의 모든 커밋 + 이력 무결성)가 강제한다. 그쪽이
+  원본이고 훨씬 강하다 — 그래서 Audit Runner도 같이 바꿨다.
+
+### 그 밖에 바꾼 것
+
+- **실패를 유형별로 분류**한다(`ok`/`progress`/`resume-failure`/`auth`/`rate-limit`/`overload`/
+  `network`/`spawn-failed`/`idle-timeout`/`hard-timeout`/`unresolved`/`generic`). 인프라성 실패는
+  AUTO_STOP 카운터를 소모하지 않는다 — "일반 실패 3회"로 밤샘 실행이 죽던 구조를 없앴다.
+  무한 재시도는 숫자를 키워서가 아니라 **같은 실패 지문 반복 감지**(`MaxIdenticalFailures` 4)와
+  `MaxInfraRetries`(60)로 막는다.
+- **rate limit은 stream의 `rate_limit_event.resetsAt`(unix epoch)까지 기다린다.** 실측 형태:
+  `{"status":"allowed_warning","resetsAt":1786744800,"rateLimitType":"seven_day","utilization":0.88}`.
+  지수 백오프로는 몇 시간짜리 구독 한도를 맞출 수 없다.
+- **rate-limit 오탐 경로를 하나 더 막았다.** stream-json으로 바꾸면서 정상 실행에도
+  `rate_limit_event`/`rate_limit_info`/`rateLimitType`이라는 **JSON 키 이름**이 섞여 들어온다.
+  그 키에 걸리면 무관한 실패가 rate-limit으로 오분류되고, rate-limit은 실패 카운터를 올리지
+  않으므로 **진짜 실패가 영원히 숨는다.** 판정 전에 키 이름을 지운다.
+- **진행 상황 heartbeat**를 콘솔에 주기 출력한다(경과·이벤트 수·도구 사용 수·최근 도구·출력
+  크기·마지막 활동 시각·PID). "느림"과 "hang"을 사람이 구분할 수 있어야 하기 때문이다.
+  Claude JSON을 콘솔에 덤프하지 않고 로그 파일 redirect 안정성은 그대로 유지한다.
+- **긴 백오프 중에도 사용자 STOP이 즉시 먹힌다**(`Start-InterruptibleSleep`). 예전엔 통짜
+  `Start-Sleep`이라 최대 30분을 그대로 잤다.
+- **invocation 구간별 소요 시간을 `var/runner/timings.jsonl`에 남긴다.** 실측(실제 CLI):
+  orchestration 총합 1,209 ms / invocation 20,527 ms = **5.9%** — "PowerShell이 느리다"는
+  가설은 수치로 기각됐다. 나머지는 전부 Claude 실행이다.
+
+### TEST SERVER 자율 권한 (CLAUDE.md §9와의 충돌 제거)
+
+구현 Runner 프롬프트의 "4단계 배포 자격증명 경계" 절과 Audit 프롬프트의 "외부 server 배포,
+sudoers, SSH password 같은 운영 자격증명을 임의로 사용하지 마라"를 **제거**했다. 둘 다
+CLAUDE.md §9("사용자가 승인한 범위에서 Claude/Runner는 해당 TEST SERVER에 자동
+deploy/modify/test할 수 있다")와 정면으로 충돌했고, 프롬프트가 CLAUDE.md보다 강하게
+재주입되고 있었다.
+
+이제 승인된 TEST SERVER에서는 SSH·sudo/root·package 설치·systemd/nginx·DB/migration·
+ClovirONE 관련 n8n/Claude Runner·browser 설치·QA 계정/데이터 생성·배포/롤백을 Worker가 직접
+한다. package나 QA 데이터가 없다는 것은 blocker가 아니다 — 직접 설치하고 직접 만든다.
+접속 대상 host는 하드코딩하지 않고 저장소 설정에서 찾는다(승인 대역 `10.100.64.X` 밖은
+절대 반환하지 않는다).
+
+**자격증명 취급은 완화하지 않았다**(CLAUDE.md §3.3/§3.4는 그대로). 실측 결과 SSH는 키 인증으로
+비대화형 접속이 되지만(`BatchMode=yes`, 2초) `sudo -n`은 비밀번호를 요구한다. 그래서 sudo
+비밀번호는 **runtime 환경변수(`CLOVIR_TEST_SUDO_PASSWORD`)로만** 존재하고, Supervisor는 그것을
+자식 프로세스에 물려주기만 한다 — 저장소·문서·argv·로그·화면 어디에도 남기지 않는다. Worker는
+그 값을 **stdin으로만** 넘긴다(`sudo -S -p ""`), `sshpass`는 계속 금지다. 값이 없으면 sudo가
+필요한 작업만 못 하고 나머지는 그대로 진행한다.
+
+관련: D-70(평문 credential이 든 미커밋 CLAUDE.md 변경 발견 — 그 credential은 이번에도 쓰지
+않았고 `stash@{0}`에 그대로 보존돼 있다).
+
+### 모델/effort는 사용자 지시로 고정
+
+동적 effort 정책을 설계했으나 사용자가 2026-08-13에 **고정**을 선택했다:
+구현 Runner = `sonnet` + `max`, Audit Runner = `opus` + `max`. 매 invocation에 명시적으로
+넘긴다(안 넘기면 사용자 settings의 effortLevel이나 세션에 저장된 과거 model에 좌우된다 —
+실측 확인). 동적 정책 코드는 `-DynamicEffort $true` 뒤에 남겨 두었고 기본은 꺼짐이다.
+
+### 약화하지 않은 것
+
+`PROJECT_COMPLETE`/`AUDIT_COMPLETE` 기계 Gate, `IMPLEMENTATION_REQUIRED` Gate, Audit write
+guard(touch-and-revert·history rewrite 탐지 포함), cycle_id/baseline 격리, Blind Re-Audit 2회
+연속 수렴, marker 격리(삭제 아님), single-instance lock, 사용자 STOP과 AUTO_STOP 구분,
+프로세스 트리 강제 종료, stdin 프롬프트 전달, persistent session + `--resume` + 실패 시 회전,
+Stop hook이 Supervisor를 대체하지 않는 구조, PS 5.1 호환, UTF-8 BOM.
+
+### 검증
+
+`scripts/runner/tests/runner_contract_tests.ps1` **55건**을 Windows PowerShell 5.1과
+PowerShell 7 **양쪽에서 전부 통과**. 신규 계약 테스트: NDJSON 종료 판정(T50), rate-limit reset
+파싱(T51), 실패 유형 분류(T52), 동일 실패 수렴(T53), COLD/WARM(T54), 무인 실행 argv 계약과
+고정 모델/effort(T55), 낡은 TEST SERVER 차단 문구 0건(T56), 자격증명 무유출(T57),
+timings 기록(T58), Backlog index 추출(T59), 긴 백오프 중 STOP(T60), dirty 3경우(T18/B/C/D),
+활동 중 Worker를 죽이지 않음(T12B).
+
+**실제 claude.exe로도 확인**(격리 scratch 저장소): 새 argv 조합이 그대로 동작하고
+(`exit=0 class=ok exitSource=os`, `actualModel` 복구), `denials=0`으로 Write/Bash가 사람 입력
+없이 성공했으며, 같은 session `--resume`이 WARM으로 이어졌고, 죽은 session은 자동 회전 후
+계속됐다. sudo 자격증명 환경변수가 Worker까지 정확히 전달되는 것도 길이만 출력하는 방식으로
+확인했다(유출 없음).

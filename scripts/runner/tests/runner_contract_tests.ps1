@@ -125,11 +125,21 @@ if (Test-Path $counterFile) { $n = [int](Get-Content $counterFile -Raw).Trim() }
 $n = $n + 1
 Set-Content -Path $counterFile -Value $n -Encoding ascii
 
-Add-Content -Path (Join-Path $stubDir "args.log") -Value ("#{0} {1}" -f $n, ($args -join ' ')) -Encoding utf8
-try { $stdin = [Console]::In.ReadToEnd() } catch { $stdin = "" }
-Set-Content -Path (Join-Path $stubDir "last_prompt.txt") -Value $stdin -Encoding utf8
-Add-Content -Path (Join-Path $stubDir "prompts.log") -Value ("=== #{0} ===" -f $n) -Encoding utf8
-Add-Content -Path (Join-Path $stubDir "prompts.log") -Value $stdin -Encoding utf8
+# ★ stdin 은 **반드시 UTF-8 로 명시 디코딩**한다. `[Console]::In` 은 콘솔 입력 인코딩(이 호스트는
+#   cp949)으로 디코딩해서 한글 프롬프트가 통째로 깨진다 — 그러면 "프롬프트에 이 지시가 들어갔는가"
+#   를 검증하는 테스트가 **런너 결함이 아니라 harness 결함으로** 실패한다. 실제 claude.exe 는
+#   UTF-8 로 읽으므로(운영에서 한글 프롬프트가 정상 동작) 이쪽이 현실에 맞는 구현이다.
+#   같은 이유로 기록도 BOM 없는 UTF-8 로 직접 쓴다(Add-Content -Encoding utf8 은 5.1에서 BOM을 넣는다).
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$stdin = ""
+try {
+    $reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), $utf8NoBom)
+    $stdin = $reader.ReadToEnd()
+    $reader.Close()
+} catch { $stdin = "" }
+[System.IO.File]::AppendAllText((Join-Path $stubDir "args.log"), ("#{0} {1}`r`n" -f $n, ($args -join ' ')), $utf8NoBom)
+[System.IO.File]::WriteAllText((Join-Path $stubDir "last_prompt.txt"), $stdin, $utf8NoBom)
+[System.IO.File]::AppendAllText((Join-Path $stubDir "prompts.log"), ("=== #{0} ===`r`n{1}`r`n" -f $n, $stdin), $utf8NoBom)
 
 $scenarioFile = Join-Path $stubDir "scenario.txt"
 $scenario = "success"
@@ -140,11 +150,15 @@ if (Test-Path $scenarioFile) {
     }
 }
 
+# 실제 Runner 는 --output-format stream-json 을 쓴다 → stub 도 NDJSON 으로 낸다.
+# (마지막 유효 줄이 type=result 객체라는 계약을 end-to-end 로 검증하기 위함이다.)
+function Emit-Line([string]$line) { [Console]::Out.WriteLine($line); [Console]::Out.Flush() }
 function Emit-Json([string]$subtype, [string]$isError, [string]$reason) {
-    $json = '{"type":"result","subtype":"' + $subtype + '","is_error":' + $isError +
-            ',"terminal_reason":"' + $reason + '","result":"stub",' +
-            '"modelUsage":{"m":{"canonicalModel":"claude-stub-1"}}}'
-    [Console]::Out.Write($json)
+    Emit-Line '{"type":"system","subtype":"init","permissionMode":"bypassPermissions"}'
+    Emit-Line '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}'
+    Emit-Line ('{"type":"result","subtype":"' + $subtype + '","is_error":' + $isError +
+               ',"terminal_reason":"' + $reason + '","result":"stub","num_turns":3,"permission_denials":[],' +
+               '"modelUsage":{"m":{"canonicalModel":"claude-stub-1"}}}')
 }
 function Git-Q { & git -C $repo @args 2>&1 | Out-Null }
 
@@ -155,7 +169,24 @@ switch -Regex ($scenario) {
     '^malformed$' { [Console]::Out.Write("{not json at all"); exit 0 }
     '^empty$'     { exit 0 }
     '^hang$'      { Start-Sleep -Seconds 600; exit 0 }
+    # 출력을 꾸준히 내면서 오래 도는 Worker — 활동 기반 idle timeout 이 이것을 죽이면 안 된다.
+    # (실제 운영에서 240분 벽시계 timeout 이 일하는 Worker 를 자르던 병목의 회귀 테스트)
+    '^slow-working$' {
+        Emit-Line '{"type":"system","subtype":"init"}'
+        for ($i = 0; $i -lt 10; $i++) {
+            Emit-Line ('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit"}]},"i":' + $i + '}')
+            Start-Sleep -Milliseconds 900
+        }
+        Emit-Json "success" "false" "completed"; exit 0
+    }
+    # 워킹트리를 더럽힌 채 끝나는 Worker — 다음 회차가 "사람이 편집 중일지도" 라며 기다리면 안 된다.
+    '^dirty-then-success$' {
+        Add-Content -Path (Join-Path $repo "app\main.py") -Value "# worker left this uncommitted" -Encoding utf8
+        Emit-Json "success" "false" "completed"; exit 0
+    }
     '^ratelimit$' { [Console]::Error.Write("API Error: 429 Too Many Requests (rate_limit_error)"); exit 1 }
+    '^network$'   { [Console]::Error.Write("fetch failed: ECONNRESET"); exit 1 }
+    '^authfail$'  { [Console]::Error.Write("Authentication failed: invalid api key"); exit 1 }
     '^resumefail$'{ [Console]::Error.Write("No conversation found with session ID: 00000000-0000-0000-0000-000000000000"); exit 1 }
 
     '^audit-good$' {
@@ -357,23 +388,38 @@ function Build-Args([string]$script, [string]$repo, [System.Collections.IDiction
     return $a
 }
 
+# 테스트 기본값 주의:
+#  - MaxConsecutiveFailures 를 3 으로 낮춘다. production 기본값(10)은 밤샘 실행이 순간적
+#    네트워크 장애로 죽지 않게 하려는 값이고, 상태 전이 자체를 확인하는 테스트에는 3 이 낫다.
+#    production 기본값이 실제로 높다는 것은 T52 가 따로 고정한다.
+#  - DirtyQuietSeconds=0: 테스트가 방금 만든 dirty 파일도 "조용함"으로 보게 한다. dirty 대기
+#    동작 자체는 T18/T18B/T18C 가 명시적인 값으로 검증한다.
+#  - SkipTestServerProbe: controlled test 에서 실제 사내망 SSH 를 건드리지 않는다.
 function Invoke-Autonomous([string]$repo, [hashtable]$extra) {
     $defaults = [ordered]@{
-        MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; DirtyRetrySeconds = 1
+        MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; IdleTimeoutMinutes = 1
+        ProgressIntervalSeconds = 1; DirtyPollSeconds = 1; DirtyQuietSeconds = 0; MaxDirtyWaits = 2
+        MaxConsecutiveFailures = 3
         RateLimitBaseBackoffSeconds = 1; RateLimitMaxBackoffSeconds = 2
+        NetworkBaseBackoffSeconds = 1; NetworkMaxBackoffSeconds = 2
         FailureBaseBackoffSeconds = 1; FailureMaxBackoffSeconds = 2
     }
-    $a = Build-Args $AutonomousScript $repo $defaults $extra $null
+    $a = Build-Args $AutonomousScript $repo $defaults $extra @("SkipTestServerProbe")
     $out = & $PsHost @a 2>&1 | Out-String
     return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
 }
 function Invoke-Audit([string]$repo, [hashtable]$extra, [string[]]$switches) {
     $defaults = [ordered]@{
-        MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; DirtyRetrySeconds = 1; MaxDirtyWaits = 2
+        MaxIterationsPerLaunch = 2; MaxRuntimeMinutes = 1; IdleTimeoutMinutes = 1
+        ProgressIntervalSeconds = 1; DirtyRetrySeconds = 1; DirtyQuietSeconds = 0; MaxDirtyWaits = 2
+        MaxConsecutiveFailures = 3
         RateLimitBaseBackoffSeconds = 1; RateLimitMaxBackoffSeconds = 2
+        NetworkBaseBackoffSeconds = 1; NetworkMaxBackoffSeconds = 2
         FailureBaseBackoffSeconds = 1; FailureMaxBackoffSeconds = 2
     }
-    $a = Build-Args $AuditScript $repo $defaults $extra $switches
+    $sw = @("SkipTestServerProbe")
+    if ($switches) { $sw += $switches }
+    $a = Build-Args $AuditScript $repo $defaults $extra $sw
     $out = & $PsHost @a 2>&1 | Out-String
     return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
 }
@@ -470,10 +516,12 @@ Test-Case "T10" "정상 exit=0 → 종료하지 않고 다음 invocation 을 즉
     $r = Invoke-Autonomous $repo $null
     $log = Get-RunnerLog $repo "impl"
     Assert ((Get-StubCount $repo) -eq 2) "MaxIterations=2 이므로 Worker 가 두 번 떠야 한다(실제 $(Get-StubCount $repo))"
-    Assert-Match $log 'exit=0 exitSource=os' "OS exit code 를 직접 읽어야 한다(.Handle 캐시 효과)"
+    Assert-Match $log 'exit=0 class=ok exitSource=os' "OS exit code 를 직접 읽어야 한다(.Handle 캐시 효과)"
     Assert-Match $log 'handleCached=True' "프로세스 핸들이 캐시돼야 한다"
     Assert-Match $log 'PROJECT_COMPLETE 없음 — 대기 없이' "exit=0 은 종료 조건이 아니어야 한다"
     Assert-NoMatch $log 'exit=125' "정상 종료가 125(판정불가)로 떨어지면 안 된다"
+    # NDJSON(stream-json) 마지막 줄에서 result 를 읽어 실제 모델까지 복구해야 한다
+    Assert-Match $log 'actualModel=claude-stub-1' "stream-json 마지막 result 줄에서 modelUsage 를 읽어야 한다"
 }
 
 Test-Case "T11" "RUN CONTEXT 가 프롬프트에 주입된다" {
@@ -484,18 +532,43 @@ Test-Case "T11" "RUN CONTEXT 가 프롬프트에 주입된다" {
     Assert-Match $p 'TEST PROMPT' "프롬프트 override 본문이 전달돼야 한다"
     Assert-Match $p 'runner=autonomous_runner\.ps1' "RUN CONTEXT 가 붙어야 한다"
     Assert-Match $p 'implementation_required=false' "Audit 계약 상태가 전달돼야 한다"
+    Assert-Match $p 'resume_mode=COLD' "첫 회차는 COLD 로 접지해야 한다"
+    Assert-Match $p 'test_server_authority=full' "TEST SERVER 자율 권한이 매 회차 전달돼야 한다"
+    Assert-Match $p 'unresolved_backlog_index=\d+' "대형 문서 대신 쓸 compact index 가 전달돼야 한다"
+    Assert (Test-Path (Join-Path $repo "var\runner\active_state.json")) "active state cache 가 만들어져야 한다"
+    Assert (Test-Path (Join-Path $repo "var\runner\unresolved_index.json")) "unresolved index cache 가 만들어져야 한다"
 }
 
-Test-Case "T12" "timeout → exit=124, 프로세스 트리 강제 종료, JSON fallback 미적용" {
+Test-Case "T12" "hang(출력 없음) → idle timeout 으로 exit=124, 프로세스 트리 강제 종료, JSON fallback 미적용" {
     param($repo)
     Set-Scenario $repo @("hang")
-    $r = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxRuntimeMinutes = 0.05 }
+    $r = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxRuntimeMinutes = 0; IdleTimeoutMinutes = 0.05 }
     $log = Get-RunnerLog $repo "impl"
-    Assert-Match $log 'exit=124 exitSource=timeout' "timeout 은 124/timeout 으로 기록돼야 한다"
+    Assert-Match $log 'exit=124 class=idle-timeout exitSource=timeout' "출력이 전혀 없는 hang 은 idle-timeout 으로 분류돼야 한다"
     Assert-Match $log '프로세스 트리를 강제 종료' "트리 강제 종료 경로를 타야 한다"
     Assert-NoMatch $log 'claude-json-fallback' "timeout 에는 JSON fallback 을 적용하면 안 된다"
     $st = Get-NormalizedState -Path (Join-Path $repo "var\runner\state.json") -Defaults ([ordered]@{ consecutiveFailures = 0 })
-    Assert ($st.consecutiveFailures -eq 1) "timeout 은 일반 실패로 1회 계산돼야 한다"
+    Assert ($st.consecutiveFailures -eq 1) "hang 은 일반 실패로 1회 계산돼야 한다"
+}
+
+Test-Case "T12B" "출력이 계속 나오는 긴 invocation 은 idle timeout 이 죽이지 않는다 (B1 회귀)" {
+    param($repo)
+    # 실제 운영에서 240분 벽시계 timeout 이 **커밋을 남기고 있던** Worker 를 세 번 연속 잘랐다.
+    # idle timeout(3초)보다 훨씬 오래(약 9초) 도는 Worker 가 출력만 계속 내면 살아남아야 한다.
+    Set-Scenario $repo @("slow-working")
+    $r = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxRuntimeMinutes = 0; IdleTimeoutMinutes = 0.05 }
+    $log = Get-RunnerLog $repo "impl"
+    Assert-Match $log 'exit=0 class=ok' "출력이 계속 나오는 동안에는 자르면 안 된다: $log"
+    Assert-NoMatch $log 'exit=124' "활동 중인 Worker 를 timeout 으로 죽이면 안 된다"
+    Assert-Match $log 'tools=\d+' "stream 이벤트에서 도구 사용 횟수를 관측해야 한다"
+
+    # 진행 상황 heartbeat — "작업이 느림"과 "프로세스가 hang"을 사람이 구분할 수 있어야 한다.
+    Assert-Match $r.Output '▶ #1' "진행 heartbeat 가 콘솔에 나와야 한다"
+    Assert-Match $r.Output '경과 .*이벤트 \d+.*도구 \d+회' "heartbeat 에 경과/이벤트/도구 수가 있어야 한다"
+    Assert-Match $r.Output '최근 Edit' "지금 무슨 도구를 쓰고 있는지 보여야 한다"
+    Assert-Match $r.Output '마지막 활동 \d+초 전' "마지막 활동 시각이 보여야 hang 을 구분할 수 있다"
+    # Claude JSON 전체를 콘솔에 덤프하지 않는다(로그 파일 redirect 안정성 유지)
+    Assert-NoMatch $r.Output '"type":"assistant"' "stream 원본 JSON 을 콘솔에 덤프하면 안 된다"
 }
 
 Test-Case "T13" "rate limit → 실패 카운터를 올리지 않고 백오프" {
@@ -503,11 +576,30 @@ Test-Case "T13" "rate limit → 실패 카운터를 올리지 않고 백오프" 
     Set-Scenario $repo @("ratelimit")
     [void](Invoke-Autonomous $repo $null)
     $log = Get-RunnerLog $repo "impl"
-    Assert-Match $log 'rateLimit=True' "rate-limit 으로 분류돼야 한다"
-    Assert-Match $log '대기 후 재시도' "백오프가 적용돼야 한다"
-    $st = Get-NormalizedState -Path (Join-Path $repo "var\runner\state.json") -Defaults ([ordered]@{ consecutiveFailures = 0; consecutiveRateLimitHits = 0 })
+    Assert-Match $log 'class=rate-limit' "rate-limit 으로 분류돼야 한다"
+    Assert-Match $log '백오프|기다린다' "백오프가 적용돼야 한다"
+    $st = Get-NormalizedState -Path (Join-Path $repo "var\runner\state.json") -Defaults ([ordered]@{ consecutiveFailures = 0; consecutiveRateLimitHits = 0; consecutiveInfraRetries = 0 })
     Assert ($st.consecutiveFailures -eq 0) "rate-limit 은 consecutiveFailures 를 올리면 안 된다"
     Assert ($st.consecutiveRateLimitHits -ge 2) "rate-limit 카운터는 올라가야 한다"
+    Assert ($st.consecutiveInfraRetries -ge 2) "인프라 재시도 카운터로도 상한이 걸려야 한다(무한 백오프 방지)"
+}
+
+Test-Case "T13B" "network/auth 는 rate-limit·일반 실패와 각각 다르게 분류된다" {
+    param($repo)
+    Set-Scenario $repo @("network")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 })
+    $log = Get-RunnerLog $repo "impl"
+    Assert-Match $log 'class=network' "일시적 네트워크 장애는 network 로 분류돼야 한다"
+    $st = Get-NormalizedState -Path (Join-Path $repo "var\runner\state.json") -Defaults ([ordered]@{ consecutiveFailures = 0; consecutiveInfraRetries = 0 })
+    Assert ($st.consecutiveFailures -eq 0) "네트워크 장애로 AUTO_STOP 카운터를 소모하면 안 된다(실제 밤샘 실행이 이걸로 죽었다)"
+    Assert ($st.consecutiveInfraRetries -eq 1) "대신 인프라 카운터로 상한을 건다"
+
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("authfail")
+    $r2 = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 }
+    $log2 = Get-RunnerLog $repo "impl"
+    Assert-Match $log2 'class=auth' "인증 실패는 auth 로 분류돼야 한다"
+    Assert-Match $r2.Output '인증/자격증명' "사람이 봐야 하는 문제는 크게 알려야 한다"
 }
 
 Test-Case "T14" "resume 실패 → 실패로 세지 않고 session_id 를 지우고 새 세션으로 즉시 재시작" {
@@ -516,7 +608,7 @@ Test-Case "T14" "resume 실패 → 실패로 세지 않고 session_id 를 지우
     Set-Scenario $repo @("resumefail", "success")
     [void](Invoke-Autonomous $repo $null)
     $log = Get-RunnerLog $repo "impl"
-    Assert-Match $log 'resumeFailure=True' "resume 실패를 감지해야 한다"
+    Assert-Match $log 'class=resume-failure' "resume 실패를 감지해야 한다"
     Assert-Match $log '새 Worker Session 으로 즉시 재시작|저장된 Worker Session 이 없음' "세션을 새로 시작해야 한다"
     $args = Read-TextOrEmpty (Join-Path $repo "var\stub\args.log")
     Assert-Match $args '#1 .*--resume' "1회차는 --resume 이어야 한다"
@@ -559,14 +651,61 @@ Test-Case "T17" "손상된 session_id 파일 → 새 세션으로 취급(영구 
     Assert-NoMatch $args '--resume' "손상된 값으로 resume 하면 안 된다"
 }
 
-Test-Case "T18" "dirty 워킹트리 → 내용이 변하지 않으면 상한 뒤 진행(무한 대기 없음)" {
+Test-Case "T18" "dirty: clean → 즉시 진행" {
     param($repo)
-    Add-Content -Path (Join-Path $repo "app\main.py") -Value "# uncommitted" -Encoding utf8
     Set-Scenario $repo @("success")
-    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxUnchangedDirtyWaits = 2 })
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; DirtyQuietSeconds = 3600; DirtyPollSeconds = 5 })
+    $sw.Stop()
+    Assert ((Get-StubCount $repo) -eq 1) "clean 이면 Worker 가 떠야 한다"
     $log = Get-RunnerLog $repo "impl"
-    Assert-Match $log '내용이 전혀 변하지 않음' "유령 dirty 에서 빠져나와야 한다"
-    Assert ((Get-StubCount $repo) -eq 1) "결국 Worker 가 떠야 한다"
+    Assert-NoMatch $log '사람이 편집 중으로 보임' "clean 인데 기다리면 안 된다"
+}
+
+Test-Case "T18B" "dirty: 고정된(오래된) dirty → 기다리지 않고 곧장 진행 (B2 회귀)" {
+    param($repo)
+    # 예전 판정은 서명이 N회 연속 같은지만 봤고, 그래서 고정 dirty 하나에 매 invocation 마다
+    # 30+60+120+120=330초를 태웠다(실제 운영 로그에 두 구간 그대로 남아 있다).
+    # 이제는 파일 mtime 이 오래됐으면 첫 확인에서 곧장 진행해야 한다.
+    Add-Content -Path (Join-Path $repo "app\main.py") -Value "# stale uncommitted" -Encoding utf8
+    $f = Get-Item (Join-Path $repo "app\main.py")
+    $f.LastWriteTimeUtc = [DateTime]::UtcNow.AddHours(-2)     # 2시간 전에 마지막으로 편집됨
+    Set-Scenario $repo @("success")
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; DirtyQuietSeconds = 90; DirtyPollSeconds = 30; MaxDirtyWaits = 10 })
+    $sw.Stop()
+    Assert ((Get-StubCount $repo) -eq 1) "고정 dirty 에서도 Worker 가 떠야 한다"
+    Assert ($sw.Elapsed.TotalSeconds -lt 25) "고정 dirty 때문에 기다리면 안 된다(경과 $([int]$sw.Elapsed.TotalSeconds)초)"
+    $log = Get-RunnerLog $repo "impl"
+    Assert-NoMatch $log '사람이 편집 중으로 보임' "mtime 이 오래된 dirty 를 사람 편집으로 오판하면 안 된다"
+}
+
+Test-Case "T18C" "dirty: 방금 수정된 파일 → 사람 편집으로 보고 기다린다(충돌 방지)" {
+    param($repo)
+    Add-Content -Path (Join-Path $repo "app\main.py") -Value "# being edited right now" -Encoding utf8
+    Set-Scenario $repo @("success")
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; DirtyQuietSeconds = 3600; DirtyPollSeconds = 2; MaxDirtyWaits = 3 })
+    $sw.Stop()
+    $log = Get-RunnerLog $repo "impl"
+    Assert-Match $log '사람이 편집 중으로 보임' "방금 수정된 파일이 있으면 기다려야 한다"
+    Assert ($sw.Elapsed.TotalSeconds -ge 4) "실제로 기다려야 한다(경과 $([int]$sw.Elapsed.TotalSeconds)초)"
+    Assert-Match $log '무한 대기 방지' "그래도 상한에서는 진행해야 한다"
+    Assert ((Get-StubCount $repo) -eq 1) "상한 뒤에는 결국 Worker 가 떠야 한다"
+}
+
+Test-Case "T18D" "dirty: 우리 Worker 가 남긴 dirty 는 다음 회차가 기다리지 않는다 (B2 핵심)" {
+    param($repo)
+    # 실제 운영에서 낭비된 5분 30초 x 2구간이 정확히 이 경우였다 — 우리가 죽인 우리 Worker 가
+    # 남긴 파일을 다음 회차가 "사람이 편집 중일지도 모른다"며 기다렸다.
+    Set-Scenario $repo @("dirty-then-success", "success")
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 2; DirtyQuietSeconds = 3600; DirtyPollSeconds = 20; MaxDirtyWaits = 10 })
+    $sw.Stop()
+    Assert ((Get-StubCount $repo) -eq 2) "두 번째 invocation 이 떠야 한다(실제 $(Get-StubCount $repo))"
+    Assert ($sw.Elapsed.TotalSeconds -lt 25) "우리가 만든 dirty 를 기다리면 안 된다(경과 $([int]$sw.Elapsed.TotalSeconds)초)"
+    $log = Get-RunnerLog $repo "impl"
+    Assert-NoMatch $log '사람이 편집 중으로 보임' "self-caused dirty 를 사람 편집으로 오판하면 안 된다"
 }
 
 Test-Case "T19" "두 Runner 동시 실행 차단(같은 lock 공유)" {
@@ -890,8 +1029,8 @@ Test-Case "T48" "run_all.ps1 이 Audit 완료 뒤 구현 단계로 자동으로 
     $body = @"
 & '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
     -MaxRestarts 0 ``
-    -AuditArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1','-MaxDirtyWaits','2') ``
-    -ImplementArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1')
+    -AuditArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyRetrySeconds','1','-DirtyQuietSeconds','0','-MaxDirtyWaits','2','-SkipTestServerProbe') ``
+    -ImplementArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyPollSeconds','1','-DirtyQuietSeconds','0','-SkipTestServerProbe')
 "EXITCODE=`$LASTEXITCODE"
 "@
     [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
@@ -912,8 +1051,8 @@ Test-Case "T49" "run_all: exit 0 이어도 완료 marker 가 없으면 다음 Ph
     $body = @"
 & '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
     -MaxRestarts 0 ``
-    -AuditArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1','-MaxDirtyWaits','2') ``
-    -ImplementArgs @('-MaxIterationsPerLaunch','1','-MaxRuntimeMinutes','1','-DirtyRetrySeconds','1')
+    -AuditArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyRetrySeconds','1','-DirtyQuietSeconds','0','-MaxDirtyWaits','2','-SkipTestServerProbe') ``
+    -ImplementArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyPollSeconds','1','-DirtyQuietSeconds','0','-SkipTestServerProbe')
 "EXITCODE=`$LASTEXITCODE"
 "@
     [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
@@ -935,7 +1074,7 @@ Test-Case "T45" "MaxBudgetUsd=0 이면 --max-budget-usd 를 argv 에 붙이지 �
     [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1; MaxBudgetUsd = 0 })
     $a = Read-TextOrEmpty (Join-Path $repo "var\stub\args.log")
     Assert-NoMatch $a '--max-budget-usd' "0 이면 플래그가 아예 없어야 한다. 실제 argv: $a"
-    Assert-Match $a '\-p .*--output-format json' "나머지 인자는 그대로여야 한다"
+    Assert-Match $a '\-p .*--output-format stream-json --verbose' "나머지 인자는 그대로여야 한다"
 
     # 양수를 주면 예전처럼 상한이 걸린다(선택지가 사라지지 않았음을 고정한다)
     Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
@@ -968,11 +1107,11 @@ Remove-Item Env:CLOVIR_PRODUCT_AUDIT -ErrorAction SilentlyContinue
 Remove-Item Env:CLOVIR_SUPERVISOR_PID -ErrorAction SilentlyContinue
 & '$AutonomousScript' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
     -PromptOverrideFile '$repo\var\prompt_override.txt' -MaxIterationsPerLaunch 1 ``
-    -MaxRuntimeMinutes 1 -DirtyRetrySeconds 1 | Out-Null
+    -IdleTimeoutMinutes 1 -DirtyPollSeconds 1 -DirtyQuietSeconds 0 -SkipTestServerProbe | Out-Null
 'AFTER_IMPL supervised=[' + `$env:CLOVIR_SUPERVISED + '] audit=[' + `$env:CLOVIR_PRODUCT_AUDIT + ']'
 & '$AuditScript' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
     -PromptOverrideFile '$repo\var\prompt_override.txt' -MaxIterationsPerLaunch 1 ``
-    -MaxRuntimeMinutes 1 -DirtyRetrySeconds 1 -MaxDirtyWaits 2 | Out-Null
+    -IdleTimeoutMinutes 1 -DirtyRetrySeconds 1 -DirtyQuietSeconds 0 -MaxDirtyWaits 2 -SkipTestServerProbe | Out-Null
 'AFTER_AUDIT supervised=[' + `$env:CLOVIR_SUPERVISED + '] audit=[' + `$env:CLOVIR_PRODUCT_AUDIT + ']'
 "@
     [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
@@ -1026,6 +1165,294 @@ Test-Case "T44" "Stop hook: 죽은 Supervisor 가 남긴 환경 표시로 사람
     # (e) 표시 + 살아있는 PID + stop_hook_active=true → 통과(무한 block 금지)
     Assert-NoMatch (Invoke-Guard @{ CLOVIR_SUPERVISED = "1"; CLOVIR_SUPERVISOR_PID = "$PID" } '{"stop_hook_active": true}') 'decision' `
         "이미 제동한 continuation 은 통과시켜야 한다"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 6) 2026-08-13 처리량 개선의 계약 — 여기가 회귀하면 밤샘 실행이 다시 느려지거나 죽는다
+# ══════════════════════════════════════════════════════════════════════════════
+
+function Get-ScriptParamDefault([string]$path, [string]$name) {
+    $errors = $null; $tokens = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+    $p = $ast.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq $name }
+    if (-not $p) { return $null }
+    if ($null -eq $p.DefaultValue) { return $null }
+    return $p.DefaultValue.Extent.Text
+}
+
+Test-Case "T50" "stream-json(NDJSON) 출력에서도 종료 판정·모델·통계를 정확히 읽는다" {
+    param($repo)
+    $tmp = Join-Path $repo "var\nd"
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    function W2([string]$n, [string]$c) { $p = Join-Path $tmp $n; [void](Write-TextFile $p $c); return $p }
+
+    $nd = @(
+        '{"type":"system","subtype":"init","permissionMode":"bypassPermissions"}'
+        '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit"}]}}'
+        '{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","num_turns":42,"total_cost_usd":1.25,"permission_denials":[],"modelUsage":{"a":{"canonicalModel":"claude-sonnet-5"}}}'
+    ) -join "`n"
+    $p = W2 "ok.ndjson" $nd
+    $r = Get-ClaudeJsonExitResolution $p
+    Assert ($r.Resolved -and $r.ExitCode -eq 0) "NDJSON 마지막 result 줄로 success 를 확정해야 한다"
+    Assert ((Get-ActualModel $p) -eq "claude-sonnet-5") "NDJSON 에서도 실제 모델을 읽어야 한다"
+    $s = Get-ClaudeResultStats $p
+    Assert ($s.NumTurns -eq 42) "turn 수를 읽어야 한다(실제 $($s.NumTurns))"
+
+    # 중간 줄에 "success" 문자열이 있어도 마지막 result 가 error 면 실패로 확정한다
+    $nd2 = @(
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"success!"}]}}'
+        '{"type":"result","subtype":"error_during_execution","is_error":true,"terminal_reason":"error"}'
+    ) -join "`n"
+    $r2 = Get-ClaudeJsonExitResolution (W2 "err.ndjson" $nd2)
+    Assert ($r2.Resolved -and $r2.ExitCode -eq 1) "마지막 result 줄이 판정 기준이어야 한다"
+
+    # 잘린 NDJSON(강제 종료로 마지막 줄이 불완전) → 성공을 추측하면 안 된다
+    $r3 = Get-ClaudeJsonExitResolution (W2 "cut.ndjson" ('{"type":"assistant"}' + "`n" + '{"type":"resu'))
+    Assert (-not $r3.Resolved) "잘린 스트림에서 성공을 추측하면 안 된다"
+
+    # 단일 JSON(구 --output-format json) 도 그대로 읽혀야 한다(하위 호환)
+    $r4 = Get-ClaudeJsonExitResolution (W2 "single.json" '{"subtype":"success","is_error":false,"terminal_reason":"completed"}')
+    Assert ($r4.Resolved -and $r4.ExitCode -eq 0) "구 단일 JSON 형식도 계속 읽혀야 한다"
+}
+
+Test-Case "T51" "rate limit 은 추측 백오프가 아니라 CLI 가 준 실제 reset 시각을 쓴다" {
+    param($repo)
+    $tmp = Join-Path $repo "var\rl"
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    $future = (Get-UnixNow) + 3600
+    $nd = @(
+        '{"type":"system","subtype":"init"}'
+        ('{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":' + $future +
+         ',"rateLimitType":"seven_day","utilization":1.0}}')
+        '{"type":"result","subtype":"error","is_error":true,"terminal_reason":"error"}'
+    ) -join "`n"
+    $p = Join-Path $tmp "rl.ndjson"
+    [void](Write-TextFile $p $nd)
+
+    $info = Get-RateLimitInfoFromLog $p
+    Assert ($info.Found) "rate_limit_event 를 찾아야 한다"
+    Assert ($info.ResetsAt -eq $future) "resetsAt(unix epoch)을 그대로 읽어야 한다(실제 $($info.ResetsAt))"
+    Assert ($info.Type -eq "seven_day") "한도 종류를 읽어야 한다"
+
+    # 이벤트가 없으면 0(모름)이어야 한다 — 추측하지 않는다
+    $p2 = Join-Path $tmp "none.ndjson"
+    [void](Write-TextFile $p2 '{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed"}')
+    Assert (-not (Get-RateLimitInfoFromLog $p2).Found) "이벤트가 없으면 못 찾았다고 해야 한다"
+    Assert ((Get-RateLimitResetFromText "그냥 실패 메시지") -eq 0) "텍스트에 근거가 없으면 시각을 지어내면 안 된다"
+}
+
+Test-Case "T52" "실패 유형 분류 — 인프라성 실패가 AUTO_STOP 카운터를 소모하지 않는다" {
+    param($repo)
+    $cases = @(
+        @{ exit = 0;  prog = $false; err = "";                                    want = "ok";             counts = $false }
+        @{ exit = 2;  prog = $true;  err = "network blip";                        want = "progress";       counts = $false }
+        @{ exit = 1;  prog = $false; err = "API Error: 429 Too Many Requests";    want = "rate-limit";     counts = $false }
+        @{ exit = 1;  prog = $false; err = "Error: overloaded_error 529";         want = "overload";       counts = $false }
+        @{ exit = 1;  prog = $false; err = "fetch failed: ECONNRESET";            want = "network";        counts = $false }
+        @{ exit = 1;  prog = $false; err = "Authentication failed: invalid token"; want = "auth";          counts = $true  }
+        @{ exit = 2;  prog = $false; err = "some unexpected failure";             want = "generic";        counts = $true  }
+    )
+    foreach ($c in $cases) {
+        $fc = Get-InvocationFailureClass -ExitCode $c.exit -Progressed $c.prog -IsNewSession $false `
+            -TimeoutKind "" -Source "os" -StdErrText $c.err -StdOutText ""
+        Assert ($fc.Class -eq $c.want) "'$($c.err)' 은 $($c.want) 로 분류돼야 한다(실제 $($fc.Class))"
+        Assert ($fc.CountsAsFailure -eq $c.counts) "$($c.want) 의 AUTO_STOP 카운터 반영은 $($c.counts) 여야 한다"
+    }
+    # ★ 실측 기반 회귀: 정상 스트림에도 rate_limit_event(status=allowed_warning)가 섞여 온다.
+    #   그 **JSON 키 이름** 때문에 무관한 실패가 rate-limit 으로 오분류되면, 실패 카운터가
+    #   영원히 안 올라가고 백오프만 반복한다(= 진짜 실패를 숨긴다).
+    $benignStream = '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning",' +
+                    '"resetsAt":1786744800,"rateLimitType":"seven_day","utilization":0.88}}'
+    Assert (-not (Test-IsRateLimitFailure $benignStream)) "정상 rate_limit_event 를 rate-limit 실패로 보면 안 된다"
+    $fcBenign = Get-InvocationFailureClass -ExitCode 2 -Progressed $false -IsNewSession $false -TimeoutKind "" `
+        -Source "os" -StdErrText "TypeError: cannot read property" -StdOutText $benignStream
+    Assert ($fcBenign.Class -eq "generic") "스트림에 rate_limit_event 가 있어도 무관한 실패는 generic 이어야 한다(실제 $($fcBenign.Class))"
+    Assert ($fcBenign.CountsAsFailure) "그래야 진짜 실패가 숨지 않는다"
+    # 반대로 진짜 차단 신호는 놓치지 않는다
+    Assert (Test-IsRateLimitFailure '{"rate_limit_info":{"status":"rejected"}}') "실제 차단 status 는 잡아야 한다"
+    Assert (Test-IsRateLimitFailure 'Claude usage limit reached') "사람이 읽는 한도 문구도 잡아야 한다"
+
+    # resume 실패는 새 세션일 때는 resume 실패가 아니다(첫 호출에서 오분류 금지)
+    $fcNew = Get-InvocationFailureClass -ExitCode 1 -Progressed $false -IsNewSession $true -TimeoutKind "" `
+        -Source "os" -StdErrText "No conversation found with session ID: x" -StdOutText ""
+    Assert ($fcNew.Class -ne "resume-failure") "새 세션에서는 resume 실패로 분류하면 안 된다"
+    # hang 은 진짜 실패다
+    $fcHang = Get-InvocationFailureClass -ExitCode 124 -Progressed $false -IsNewSession $false -TimeoutKind "idle" `
+        -Source "timeout" -StdErrText "" -StdOutText ""
+    Assert ($fcHang.Class -eq "idle-timeout" -and $fcHang.CountsAsFailure) "출력이 멈춘 hang 은 실패로 세야 한다"
+}
+
+Test-Case "T53" "같은 실패가 결정적으로 반복되면 무한 재시도 대신 증거를 남기고 수렴한다" {
+    param($repo)
+    # 인프라 유형은 AUTO_STOP 카운터를 안 쓰지만, **같은 지문**이 반복되면 결국 멈춰야 한다.
+    Set-Scenario $repo @("network")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 10; MaxIdenticalFailures = 3; MaxConsecutiveFailures = 99 })
+    $auto = Read-TextOrEmpty (Join-Path $repo "var\runner\AUTO_STOP")
+    Assert ($auto -ne "") "결정적 반복은 결국 AUTO_STOP 으로 수렴해야 한다"
+    Assert-Match $auto 'identical failure repeated' "무엇이 반복됐는지 증거가 남아야 한다"
+    $log = Get-RunnerLog $repo "impl"
+    Assert-Match $log '동일 실패 반복 상한 도달' "로그에도 남아야 한다"
+    Assert (-not (Test-Path (Join-Path $repo "var\runner\STOP"))) "스크립트는 절대 STOP 을 만들면 안 된다(사용자 전용)"
+}
+
+Test-Case "T54" "COLD 는 전체 재접지, WARM 은 대형 문서 재독 금지 (B3 회귀)" {
+    param($repo)
+    Set-Scenario $repo @("success", "success")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 2 })
+    $prompts = Read-TextOrEmpty (Join-Path $repo "var\stub\prompts.log")
+    Assert-Match $prompts 'resume_mode=COLD' "첫 회차는 COLD 여야 한다"
+    Assert-Match $prompts 'resume_mode=WARM' "같은 세션을 정상 resume 한 두 번째 회차는 WARM 이어야 한다"
+    Assert-Match $prompts '대형 문서 재독 금지' "WARM 회차에 재독 금지를 명시해야 한다"
+
+    # 내장 프롬프트(override 없이 실제로 나가는 본문)에 두 모드가 모두 정의돼 있어야 한다
+    $src = Read-TextOrEmpty $AutonomousScript
+    Assert-Match $src '\$promptCold\s*=\s*@' "COLD 프롬프트가 정의돼야 한다"
+    Assert-Match $src '\$promptWarm\s*=\s*@' "WARM 프롬프트가 정의돼야 한다"
+    Assert-Match $src '전체 통독하지 마라' "WARM 프롬프트가 대형 문서 통독을 금지해야 한다"
+    Assert-Match $src '__STATE_RESTORE_SECTION__' "모드별 섹션이 프롬프트에 주입돼야 한다"
+    $asrc = Read-TextOrEmpty $AuditScript
+    Assert-Match $asrc '__STATE_RESTORE_SECTION__' "Audit 프롬프트도 모드별 섹션을 주입해야 한다"
+    Assert-Match $asrc '미조사\(UNSEEN\)·STATIC_ONLY 칸부터 이어서' "Audit WARM 은 증분으로 이어져야 한다"
+}
+
+Test-Case "T55" "무인 실행 계약: bypassPermissions · stream-json · 벽시계 상한 없음 · 모델/effort 고정" {
+    param($repo)
+    foreach ($s in @($AutonomousScript, $AuditScript)) {
+        $src = Read-TextOrEmpty $s
+        Assert-Match $src '"--permission-mode", "bypassPermissions"' `
+            "무인 실행에서 auto 는 실제로 도구를 거부한다(2026-08-13 실측) — bypassPermissions 여야 한다: $s"
+        Assert-NoMatch $src '"--permission-mode", "auto"' "auto 가 남아 있으면 안 된다: $s"
+        Assert-Match $src '"--output-format", "stream-json"' "활동 신호·진행 표시를 위해 stream-json 이어야 한다: $s"
+        Assert-Match $src '"--verbose"' "CLI 가 stream-json 과 함께 --verbose 를 요구한다: $s"
+    }
+    # 사용자가 지정한 고정 정책
+    Assert ((Get-ScriptParamDefault $AutonomousScript "Model")  -eq '"sonnet"') "구현 Runner 기본 모델은 sonnet 고정"
+    Assert ((Get-ScriptParamDefault $AutonomousScript "Effort") -eq '"max"')    "구현 Runner 기본 effort 는 max 고정"
+    Assert ((Get-ScriptParamDefault $AuditScript "Model")  -eq '"opus"') "Audit Runner 기본 모델은 opus 고정"
+    Assert ((Get-ScriptParamDefault $AuditScript "Effort") -eq '"max"')  "Audit Runner 기본 effort 는 max 고정"
+    Assert ((Get-ScriptParamDefault $AutonomousScript "DynamicEffort") -eq '$false') "동적 effort 는 기본 꺼짐이어야 한다"
+    Assert ((Get-ScriptParamDefault $AuditScript "DynamicEffort") -eq '$false') "동적 effort 는 기본 꺼짐이어야 한다"
+    # 일하는 Worker 를 벽시계로 자르지 않는다
+    Assert ((Get-ScriptParamDefault $AutonomousScript "MaxRuntimeMinutes") -eq '0') "hard timeout 기본값은 0(무제한)이어야 한다"
+    Assert ((Get-ScriptParamDefault $AuditScript "MaxRuntimeMinutes") -eq '0') "hard timeout 기본값은 0(무제한)이어야 한다"
+    Assert ([int](Get-ScriptParamDefault $AutonomousScript "MaxConsecutiveFailures") -ge 10) "일반 실패 3회로 밤샘 실행이 죽으면 안 된다"
+    Assert ([int](Get-ScriptParamDefault $AuditScript "MaxConsecutiveFailures") -ge 10) "일반 실패 3회로 밤샘 Audit 이 죽으면 안 된다"
+}
+
+Test-Case "T56" "TEST SERVER 자율 권한: 낡은 차단 문구가 하나도 남아 있지 않다" {
+    param($repo)
+    $legacy = @(
+        '배포 자격증명 경계',
+        '배포는 건너뛰고',
+        '채팅에 붙여넣어진 SSH/sudo 비밀번호',
+        'NOPASSWD sudoers',
+        '운영 자격증명을 임의로 사용하지 마라',
+        '사용자가 직접 실행하거나'
+    )
+    foreach ($s in @($AutonomousScript, $AuditScript)) {
+        $src = Read-TextOrEmpty $s
+        foreach ($l in $legacy) {
+            Assert-NoMatch $src ([regex]::Escape($l)) "CLAUDE.md §9 와 충돌하는 낡은 문구가 남아 있다('$l'): $s"
+        }
+    }
+    $src = Read-TextOrEmpty $AutonomousScript
+    Assert-Match $src '완전 자율 실행 권한' "TEST SERVER 자율 권한 절이 있어야 한다"
+    Assert-Match $src '직접 설치하고 계속한다' "package 부재를 blocker 로 만들면 안 된다"
+    Assert-Match $src '직접 만들고 계속한다' "QA 계정/데이터 부재를 blocker 로 만들면 안 된다"
+    Assert-Match $src 'stdin으로만' "sudo 비밀번호는 stdin 으로만 넘겨야 한다"
+    Assert-Match $src 'sshpass. 금지|sshpass` 금지' "sshpass 금지는 유지돼야 한다(CLAUDE.md §3.4)"
+
+    # RUN CONTEXT 로 실제 권한 사실이 전달되는지
+    Set-Scenario $repo @("success")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 })
+    $p = Read-TextOrEmpty (Join-Path $repo "var\stub\last_prompt.txt")
+    Assert-Match $p 'test_server_authority=full' "자율 권한이 RUN CONTEXT 에 있어야 한다"
+    Assert-Match $p 'sudo_credential=' "자격증명 가용 여부가 사실로 전달돼야 한다"
+}
+
+Test-Case "T57" "sudo 자격증명은 로그·프롬프트·argv 어디에도 남지 않는다" {
+    param($repo)
+    $sentinel = "S3nt1nel-DoNotLeak-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+    $prev = [Environment]::GetEnvironmentVariable("CLOVIR_TEST_SUDO_PASSWORD", 'Process')
+    $env:CLOVIR_TEST_SUDO_PASSWORD = $sentinel
+    try {
+        Set-Scenario $repo @("success")
+        $r = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 }
+        foreach ($f in @(
+            (Join-Path $repo "var\runner\runner.log"),
+            (Join-Path $repo "var\stub\args.log"),
+            (Join-Path $repo "var\stub\last_prompt.txt"),
+            (Join-Path $repo "var\runner\resume_context.txt"),
+            (Join-Path $repo "var\runner\active_state.json")
+        )) {
+            Assert-NoMatch (Read-TextOrEmpty $f) ([regex]::Escape($sentinel)) "자격증명이 파일에 유출됐다: $f"
+        }
+        Assert-NoMatch $r.Output ([regex]::Escape($sentinel)) "자격증명이 콘솔 출력에 유출됐다"
+        $log = Get-RunnerLog $repo "impl"
+        Assert-Match $log 'sudo credential 환경변수.*존재=True' "존재 여부만 로그에 남겨야 한다"
+    } finally {
+        if ($null -eq $prev) { Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue }
+        else { $env:CLOVIR_TEST_SUDO_PASSWORD = $prev }
+    }
+}
+
+Test-Case "T58" "invocation 구간별 소요 시간이 timings.jsonl 에 남는다(추측 대신 측정)" {
+    param($repo)
+    Set-Scenario $repo @("success")
+    [void](Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 })
+    $t = Read-TextOrEmpty (Join-Path $repo "var\runner\timings.jsonl")
+    Assert ($t -ne "") "timings.jsonl 이 있어야 한다"
+    $rec = ($t -split "`n" | Where-Object { $_.Trim() } | Select-Object -First 1) | ConvertFrom-Json
+    foreach ($k in @("dirtyCheckMs", "contextBuildMs", "promptPrepMs", "workerRunMs", "postCheckMs", "backoffMs", "totalMs")) {
+        Assert ($rec.PSObject.Properties.Name -contains $k) "구간 '$k' 가 기록돼야 한다"
+    }
+    Assert ($rec.mode -eq "COLD") "모드도 함께 남아야 한다"
+    Assert ($rec.failureClass -eq "ok") "실패 유형도 함께 남아야 한다"
+}
+
+Test-Case "T59" "미해결 Backlog index 를 BACKLOG.md 에서 기계 추출한다(원본은 그대로 둔다)" {
+    param($repo)
+    $body = @"
+# BACKLOG
+
+| ID | 문제 | 상태 |
+|---|---|---|
+| ``AA-01`` | 아직 안 고친 것 | 작업예정 |
+| ``AA-02`` | ~~이미 끝난 것~~ | ✅ 실환경검증완료 |
+| ``BB-77`` | Critical 인 것 | 발견 |
+"@
+    [void](Write-TextFile (Join-Path $repo "docs\BACKLOG.md") $body)
+    $items = @(Get-UnresolvedBacklogIndex (Join-Path $repo "docs\BACKLOG.md"))
+    $ids = @($items | ForEach-Object { $_.id })
+    Assert ($ids -contains "AA-01") "미해결 항목은 index 에 있어야 한다"
+    Assert ($ids -contains "BB-77") "미해결 항목은 index 에 있어야 한다"
+    Assert ($ids -notcontains "AA-02") "완료 항목은 index 에서 빠져야 한다"
+    Assert (@($items | Where-Object { $_.id -eq "BB-77" })[0].severity -eq "Critical") "심각도를 추출해야 한다"
+
+    # cache 는 Source of Truth 가 아니다 — 원본은 손대지 않는다
+    $before = Read-TextOrEmpty (Join-Path $repo "docs\BACKLOG.md")
+    [void](New-RunnerContextCache -ProjectDir $repo -OutDir (Join-Path $repo "var\runner") -Extra $null)
+    Assert ((Read-TextOrEmpty (Join-Path $repo "docs\BACKLOG.md")) -eq $before) "index 생성이 원본 문서를 바꾸면 안 된다"
+}
+
+Test-Case "T60" "긴 백오프 중에도 사용자 STOP 이 즉시 먹힌다" {
+    param($repo)
+    # 예전엔 통짜 Start-Sleep 이라 사용량 한도 대기(최대 몇 시간) 중에 STOP 을 만들어도
+    # 다음 확인까지 그대로 잤다. 이제는 짧게 쪼개 자면서 STOP 을 본다.
+    $stop = Join-Path $repo "var\runner\STOP"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stop) | Out-Null
+    $job = Start-Job -ScriptBlock {
+        param($p)
+        Start-Sleep -Seconds 3
+        [System.IO.File]::WriteAllText($p, "사용자 중단")
+    } -ArgumentList $stop
+    try {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $ok = Start-InterruptibleSleep -Seconds 60 -StopFile $stop -Reason "테스트"
+        $sw.Stop()
+        Assert (-not $ok) "STOP 을 감지하면 $false 를 돌려줘야 한다"
+        Assert ($sw.Elapsed.TotalSeconds -lt 20) "60초를 다 자면 안 된다(실제 $([int]$sw.Elapsed.TotalSeconds)초)"
+    } finally { Remove-Job $job -Force -ErrorAction SilentlyContinue }
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
