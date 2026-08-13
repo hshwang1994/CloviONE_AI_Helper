@@ -1389,7 +1389,53 @@ Test-Case "T57" "sudo 자격증명은 로그·프롬프트·argv 어디에도 �
         }
         Assert-NoMatch $r.Output ([regex]::Escape($sentinel)) "자격증명이 콘솔 출력에 유출됐다"
         $log = Get-RunnerLog $repo "impl"
-        Assert-Match $log 'sudo credential 환경변수.*존재=True' "존재 여부만 로그에 남겨야 한다"
+        Assert-Match $log 'sudo credential 확보=True 출처=env:' "존재 여부와 출처만 로그에 남겨야 한다"
+    } finally {
+        if ($null -eq $prev) { Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue }
+        else { $env:CLOVIR_TEST_SUDO_PASSWORD = $prev }
+    }
+}
+
+Test-Case "T57B" "sudo 자격증명을 gitignore 되는 runtime 파일에서도 받는다(매번 환경변수 안 넣어도 무인 실행)" {
+    param($repo)
+    $sentinel = "FileCred-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
+    $credFile = Join-Path $repo "var\runner\test_server_sudo"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $credFile) | Out-Null
+    # 개행이 붙어도 그대로 살아야 한다(에디터가 붙인다). 단 Trim() 은 쓰지 않는다 — 비밀번호에
+    # 공백이 들어갈 수 있다.
+    [void](Write-TextFile $credFile ($sentinel + "`r`n"))
+
+    $prev = [Environment]::GetEnvironmentVariable("CLOVIR_TEST_SUDO_PASSWORD", 'Process')
+    Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue
+    try {
+        $r = Resolve-SudoCredential -EnvName "CLOVIR_TEST_SUDO_PASSWORD" -FilePath $credFile
+        Assert ($r.Available) "runtime 파일에서 자격증명을 확보해야 한다"
+        Assert ($r.Source -like "file:*") "출처가 파일이어야 한다(실제 $($r.Source))"
+        Assert ($env:CLOVIR_TEST_SUDO_PASSWORD -eq $sentinel) "개행만 벗기고 값은 그대로여야 한다"
+        Assert ($r.PSObject.Properties.Name -notcontains "Value") "함수가 값 자체를 돌려주면 안 된다(로그 유출 경로 차단)"
+
+        # 환경변수가 이미 있으면 그쪽이 우선이고 파일을 읽지 않는다
+        $env:CLOVIR_TEST_SUDO_PASSWORD = "from-env"
+        $r2 = Resolve-SudoCredential -EnvName "CLOVIR_TEST_SUDO_PASSWORD" -FilePath $credFile
+        Assert ($r2.Source -like "env:*") "환경변수가 우선이어야 한다(실제 $($r2.Source))"
+        Assert ($env:CLOVIR_TEST_SUDO_PASSWORD -eq "from-env") "기존 값을 덮어쓰면 안 된다"
+
+        # 없으면 없다고 정직하게 말한다
+        Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue
+        $r3 = Resolve-SudoCredential -EnvName "CLOVIR_TEST_SUDO_PASSWORD" -FilePath (Join-Path $repo "var\runner\no_such_file")
+        Assert (-not $r3.Available) "없으면 없다고 해야 한다"
+        Assert ($r3.Source -eq "none") "출처도 none 이어야 한다"
+
+        # 그리고 그 값이 Supervisor 산출물 어디에도 새지 않아야 한다
+        Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue
+        Set-Scenario $repo @("success")
+        $run = Invoke-Autonomous $repo @{ MaxIterationsPerLaunch = 1 }
+        foreach ($f in @((Join-Path $repo "var\runner\runner.log"), (Join-Path $repo "var\stub\args.log"),
+                         (Join-Path $repo "var\stub\last_prompt.txt"), (Join-Path $repo "var\runner\resume_context.txt"))) {
+            Assert-NoMatch (Read-TextOrEmpty $f) ([regex]::Escape($sentinel)) "파일 출처 자격증명이 유출됐다: $f"
+        }
+        Assert-NoMatch $run.Output ([regex]::Escape($sentinel)) "자격증명이 콘솔에 유출됐다"
+        Assert-Match (Get-RunnerLog $repo "impl") 'sudo credential 확보=True 출처=file:' "출처만 로그에 남겨야 한다"
     } finally {
         if ($null -eq $prev) { Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue }
         else { $env:CLOVIR_TEST_SUDO_PASSWORD = $prev }

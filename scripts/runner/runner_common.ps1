@@ -1293,6 +1293,40 @@ function Get-TestServerTargetFromRepo {
     return ""
 }
 
+function Resolve-SudoCredential {
+    <#  TEST SERVER sudo 비밀번호를 **runtime 경로에서만** 확보한다.
+
+        우선순위:
+          1) 이미 설정된 환경변수 (사용자가 셸에서 넣었거나 -PromptForSudoPassword 로 입력)
+          2) `var/runner/test_server_sudo` — **gitignore 되는 로컬 runtime 파일**
+
+        왜 (2)를 두는가: 매 실행마다 사람이 환경변수를 넣어 줘야 하면 그게 곧 "무인 실행이
+        아니다"라는 뜻이다. 그렇다고 git 추적 파일에 평문을 두면 커밋되는 순간 history 에
+        영구히 남는다(CLAUDE.md §3.4). `var/` 는 .gitignore 대상이라 둘 다 피할 수 있고,
+        이 저장소는 이미 같은 방식(`var/secrets/*`)으로 다른 토큰을 다룬다.
+
+        값은 **절대 돌려주지 않는다** — 프로세스 환경에 넣고 출처만 알려 준다. 호출부가
+        실수로 로그에 찍는 경로 자체를 없애기 위함이다. #>
+    param([string]$EnvName, [string]$FilePath)
+    $out = [pscustomobject]@{ Available = $false; Source = "none" }
+    if ([string]::IsNullOrEmpty($EnvName)) { return $out }
+
+    if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($EnvName, 'Process'))) {
+        $out.Available = $true; $out.Source = "env:$EnvName"
+        return $out
+    }
+    $body = Read-TextOrEmpty $FilePath
+    # 마지막 개행만 벗긴다 — 비밀번호에 공백이 들어갈 수 있으므로 Trim() 을 쓰지 않는다.
+    $body = $body -replace '(\r?\n)+$', ''
+    if (-not [string]::IsNullOrEmpty($body)) {
+        try {
+            Set-Item -LiteralPath ("Env:" + $EnvName) -Value $body
+            $out.Available = $true; $out.Source = "file:$(Split-Path -Leaf $FilePath)"
+        } catch { }
+    }
+    return $out
+}
+
 function Test-TestServerAccess {
     <#  승인된 TEST SERVER(CLAUDE.md §9)에 **비대화형으로** 닿는지, sudo 가 비밀번호 없이
         되는지를 시작 시 한 번만 확인해 RUN CONTEXT 에 넣는다.

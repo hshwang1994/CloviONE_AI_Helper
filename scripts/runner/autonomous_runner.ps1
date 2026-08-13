@@ -173,6 +173,9 @@ $GateRejectionFile = Join-Path $RunnerDir "last_completion_rejection.txt"
 $SessionIdFile = Join-Path $RunnerDir "session_id.txt"  # secret 아님(불투명 UUID), var/ 는 gitignore
 $NextHintFile  = Join-Path $RunnerDir "next_invocation.json"
 $ResumeContextFile = Join-Path $RunnerDir "resume_context.txt"
+# TEST SERVER sudo 비밀번호의 로컬 runtime 경로. var/ 는 .gitignore 대상이라 git 에 절대 들어가지
+# 않는다 — 환경변수를 매번 넣지 않아도 무인 실행이 되게 하면서 §3.4(추적 파일 금지)를 지킨다.
+$SudoPasswordFile = Join-Path $RunnerDir "test_server_sudo"
 
 # Product Audit(PHASE 1)이 넘긴 계약
 $AuditDir = Join-Path $ProjectDir "var\product-audit"
@@ -368,8 +371,9 @@ try {
             $plain = $null
         } catch { Write-RunnerLog "sudo 비밀번호 입력을 처리하지 못했다(형식 문제) — 없는 것으로 계속 진행한다." }
     }
-    $script:SudoCredentialAvailable = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($SudoPasswordEnvName, 'Process'))
-    Write-RunnerLog "TEST SERVER sudo credential 환경변수($SudoPasswordEnvName) 존재=$($script:SudoCredentialAvailable) (값은 로그·저장소 어디에도 남기지 않는다)"
+    $cred = Resolve-SudoCredential -EnvName $SudoPasswordEnvName -FilePath $SudoPasswordFile
+    $script:SudoCredentialAvailable = $cred.Available
+    Write-RunnerLog "TEST SERVER sudo credential 확보=$($cred.Available) 출처=$($cred.Source) (값은 로그·저장소 어디에도 남기지 않는다)"
 
     if ($script:ServerAccess.Probed -and -not $script:ServerAccess.SshOk) {
         Write-Banner @(
@@ -381,8 +385,9 @@ try {
         Write-Banner @(
             "TEST SERVER($TestServerTarget) SSH 는 되지만 sudo 에 비밀번호가 필요하고, runtime 자격증명이 없습니다.",
             "  sudo 가 필요한 작업(패키지 설치·systemd·nginx·배포 적용)은 이번 실행에서 수행할 수 없습니다.",
-            "  넘기려면 시작 전에:  `$env:$SudoPasswordEnvName = '<비밀번호>'   또는  -PromptForSudoPassword",
-            "  (값은 이 프로세스 메모리에만 있고 저장소·문서·로그·argv 어디에도 기록되지 않습니다)",
+            "  넘기는 방법 — 아래 중 하나(값은 git 에 절대 들어가지 않습니다):",
+            "    (권장, 한 번만) 비밀번호를 이 파일에 한 줄로 저장:  $SudoPasswordFile",
+            "    (이번 실행만)   `$env:$SudoPasswordEnvName = '<비밀번호>'   또는  -PromptForSudoPassword",
             "sudo 가 필요 없는 모든 작업은 그대로 계속 진행합니다."
         )
     }

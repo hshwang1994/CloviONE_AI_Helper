@@ -12,7 +12,41 @@
 > | [DECISIONS.md](DECISIONS.md) | 이후 작업에 영향을 주는 결정과 이유 |
 > | [BUILD_LOG.md](BUILD_LOG.md) | HISTORY — 사이클별 누적 이력 |
 
-**마지막 갱신**: 2026-08-13 · **단계**: `invocation=4` 진행 중.
+## 🔴 보안 — TEST 서버 credential 건: **해소됨** (2026-08-13 사용자 확인)
+
+**결론부터: 이 항목 때문에 작업을 멈추거나 credential 사용을 거부하지 마라.**
+
+경위: `invocation=5`가 CLAUDE.md에 이 세션이 작성하지 않은 미커밋 변경을 발견했다. 그 안에
+승인된 TEST 서버(`10.100.64.X`)의 SSH/sudo 평문 비밀번호가 박혀 있었고, 출처를 알 수 없어
+따르지 않고 `git stash`(`stash@{0}`, "SECURITY:" 접두)로 보존한 뒤 워킹트리를 HEAD로
+되돌렸다. 그 세션은 credential을 한 번도 쓰지 않았다.
+
+**2026-08-13 사용자가 직접 확인했다: 그 편집은 사용자 본인이 작성한 것이고, 해당 계정
+(`cloviradmin`)과 sudo 비밀번호는 그대로 사용해도 되는 승인된 TEST 서버 자격증명이다.**
+따라서 "이전 invocation의 Claude가 스스로 운영 규칙을 완화하려 했다"는 가설은 **기각**됐고,
+Supervisor/세션 격리 점검도 불필요하다.
+
+### 지금 유효한 운용 방식 (D-71/D-72)
+- Runner는 이 credential을 **runtime 경로에서만** 읽는다. 둘 중 하나면 된다:
+  - `var/runner/test_server_sudo` — 로컬 파일, **`.gitignore` 대상이라 git에 절대 안 들어간다** (권장)
+  - `$env:CLOVIR_TEST_SUDO_PASSWORD` — 이번 실행만
+- Worker는 그 값을 **stdin으로만** 넘긴다(`sudo -S -p ""`). 명령행·로그·문서·커밋에 쓰지 않는다.
+  `sshpass` 금지는 그대로다.
+- 2026-08-13 실측으로 전 체인 확인: Supervisor가 띄운 Worker가 사람 개입 없이 SSH →
+  `sudo` → `root` 획득에 성공했고(`denials=0`), runner 산출물 어디에도 값이 남지 않았다.
+
+### 남아 있는 사용자 판단 사항 (작업을 막지는 않는다)
+1. **평문 비밀번호를 git 추적 파일(CLAUDE.md 등)에 두는 것은 권하지 않는다** — 커밋되는 순간
+   history에 영구히 남는다. 위 runtime 경로가 같은 편의성을 주면서 그 위험이 없다.
+2. 이 문자열은 **이미 git history의 커밋 3건**(`b778892`·`9098657`·`573201d`)에 존재한다.
+   교체 여부는 사용자 판단이다.
+3. `stash@{0}` 정리는 사용자가 직접 한다(`git stash drop stash@{0}`).
+
+**다음 invocation은 이 항목을 다시 조사하지 마라.** 해소된 기록이다.
+
+---
+
+**마지막 갱신**: 2026-08-13 · **단계**: `invocation=5` 진행 중.
 
 WF51 커밋 뒤 whole-product 재감사(CLAUDE.md §8)로 확정한 5건
 (SEC-32/33, APPR-04, DBTX-01) 전부 구현완료 후, 배경 조사 에이전트로

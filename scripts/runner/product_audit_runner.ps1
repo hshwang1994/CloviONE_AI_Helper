@@ -547,7 +547,8 @@ if (-not $lock.Acquired) {
 # Audit Worker 는 PROJECT_COMPLETE 규칙의 대상이 아니다(별도 marker를 쓴다).
 # 끝날 때 finally 에서 원래 값으로 되돌린다 — 이 프로세스 환경 변경은 **호출한 셸에도 남기** 때문에,
 # 되돌리지 않으면 같은 창에서 시작한 사람의 대화형 Claude 세션에까지 영향을 준다(실제로 발생).
-$script:EnvSnapshot = Save-EnvSnapshot @("CLOVIR_SUPERVISED", "CLOVIR_PRODUCT_AUDIT", "CLOVIR_SUPERVISOR_PID")
+$script:EnvSnapshot = Save-EnvSnapshot @("CLOVIR_SUPERVISED", "CLOVIR_PRODUCT_AUDIT",
+                                        "CLOVIR_SUPERVISOR_PID", $SudoPasswordEnvName)
 Remove-Item Env:CLOVIR_SUPERVISED -ErrorAction SilentlyContinue
 Remove-Item Env:CLOVIR_SUPERVISOR_PID -ErrorAction SilentlyContinue
 $env:CLOVIR_PRODUCT_AUDIT = "1"
@@ -562,7 +563,11 @@ $script:ServerAccess = [pscustomobject]@{ Probed = $false; SshOk = $false; SudoN
 if (-not $SkipTestServerProbe -and -not [string]::IsNullOrWhiteSpace($TestServerTarget)) {
     $script:ServerAccess = Test-TestServerAccess -Target $TestServerTarget
 }
-$script:SudoCredentialAvailable = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($SudoPasswordEnvName, 'Process'))
+# sudo 비밀번호는 환경변수 또는 gitignore 되는 로컬 runtime 파일(var/runner/test_server_sudo)에서만
+# 온다 — 구현 Runner 와 같은 경로를 공유한다. 값은 어디에도 기록하지 않고 출처만 남긴다.
+$script:SudoCred = Resolve-SudoCredential -EnvName $SudoPasswordEnvName `
+    -FilePath (Join-Path $SharedRunnerDir "test_server_sudo")
+$script:SudoCredentialAvailable = $script:SudoCred.Available
 
 $promptCold = @'
 매 invocation 시작 시 대화 기억보다 저장소의 실제 현재 상태를 우선한다.

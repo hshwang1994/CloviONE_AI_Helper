@@ -1447,3 +1447,49 @@ timings 기록(T58), Backlog index 추출(T59), 긴 백오프 중 STOP(T60), dir
 없이 성공했으며, 같은 session `--resume`이 WARM으로 이어졌고, 죽은 session은 자동 회전 후
 계속됐다. sudo 자격증명 환경변수가 Worker까지 정확히 전달되는 것도 길이만 출력하는 방식으로
 확인했다(유출 없음).
+
+---
+
+## D-72 (2026-08-13) — D-70 해소: TEST 서버 credential은 사용자 본인 것이며 runtime 경로로 사용한다
+
+D-70은 "CLAUDE.md에 평문 TEST 서버 credential이 든 미커밋 변경을 발견했고, 출처를 알 수 없어
+따르지 않고 `stash@{0}`에 보존만 했다"고 기록했고, 두 가지 가능성을 열어 뒀다 — (a) 사용자
+본인이 쓴 것 (b) 이전 invocation의 Claude가 스스로 운영 규칙을 완화하려 한 것.
+
+**2026-08-13 사용자가 직접 확인했다: (a)다.** `cloviradmin` 계정과 동일한 sudo 비밀번호는
+승인된 TEST 서버(`10.100.64.X`, CLAUDE.md §9)의 정상 자격증명이며 그대로 사용해도 된다.
+(b)는 기각 — Supervisor/세션 격리 점검은 불필요하다.
+
+### 결정: 사용은 허용, 저장 위치만 runtime 경로로 고정한다
+
+"쓴다"와 "git 추적 파일에 평문으로 둔다"는 별개다. 전자는 사용자가 승인했고, 후자는 커밋되는
+순간 history에 영구히 남는다. 둘 다 만족하는 경로를 Runner에 넣었다.
+
+- `var/runner/test_server_sudo` — 한 줄 파일. **`var/`는 `.gitignore` 대상이라 git에 절대 들어가지
+  않는다.** 한 번 두면 이후 모든 무인 실행이 자동으로 쓴다(매번 환경변수를 넣을 필요가 없다 —
+  그게 필요하면 그건 무인 실행이 아니다). 이 저장소는 이미 `var/secrets/*`로 다른 토큰을 같은
+  방식으로 다룬다.
+- `$env:CLOVIR_TEST_SUDO_PASSWORD` 또는 `-PromptForSudoPassword` — 이번 실행만.
+- 환경변수가 우선이고, 없으면 파일을 읽는다. `Resolve-SudoCredential`은 **값을 반환하지 않는다**
+  — 프로세스 환경에 넣고 출처(`env:` / `file:` / `none`)만 알려 준다. 호출부가 실수로 로그에
+  찍는 경로 자체를 없앴다.
+- Worker는 **stdin으로만** 넘긴다(`sudo -S -p ""`). 명령행·로그·문서·커밋 금지, `sshpass` 금지.
+
+### 검증 (2026-08-13 실측)
+
+| | 결과 |
+|---|---|
+| SSH 비대화형(`BatchMode=yes`) | `cloviradmin@10.100.64.71` → `ai-n8n-svr`, 1~2초 |
+| `sudo -S` stdin | **`root` 획득, exit 0, 1초** |
+| 실제 privileged 작업 | `systemctl is-active nginx`=active, ClovirONE 서비스=active, `nginx -t` ok |
+| Supervisor→Worker 전 체인 | 사람 개입 0으로 `SUDO_USER=root`, `permission_denials=[]` |
+| 유출 | runner.log·프롬프트·argv·resume_context·active_state 전부 무유출(T57/T57B가 고정) |
+
+### 부수 조치
+
+- `docs/WORK_STATE.md`의 보안 항목을 **해소됨**으로 다시 썼다. 그대로 두면 다음 invocation이
+  그 경고를 읽고 credential 사용을 계속 거부한다 — 무인 실행을 막는 stale 지시가 된다.
+  같은 작업에서 그 문서에 두 번 들어 있던 평문 비밀번호를 제거했다(기록은 보존, 값만 제거).
+- 그 문자열은 **이미 git history의 커밋 3건**(`b778892`·`9098657`·`573201d`)에 존재한다.
+  교체 여부는 사용자 판단으로 남긴다 — 작업을 막지 않는다.
+- `stash@{0}` 정리는 사용자가 직접 한다.
