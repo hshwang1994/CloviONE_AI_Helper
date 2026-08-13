@@ -24,7 +24,7 @@ import {
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
-import { fmtDateTime } from "../lib/format.js";
+import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { invalidateDocumentViews } from "./document-views.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
@@ -300,8 +300,9 @@ export function TeamDocs() {
     mutationFn: (ids) => api("/api/team-docs/trash-bulk", { method: "POST", body: { page_ids: ids } }),
     onSuccess: (res) => {
       const n = (res.trashed || []).length;
-      const f = (res.failed || []).length;
-      toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
+      const failed = res.failed || [];
+      // UA-25 — Trash.jsx와 같은 이유로 실제 사유를 보여준다(전엔 항상 "권한이 없어"였다).
+      toast(`${n}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed), failed.length ? "info" : "success");
       // document-views.js의 ["team-doc"] 접두어(id 없이)가 방금 지운 문서 각각의 상세 캐시를
       // 한 번에 잡는다 — 예전엔 이걸 몰라 매번 손으로 순회했다. home의 「최근 문서」 위젯도
       // 같이 무효화한다(L축 재감사 — 문서를 지워도 홈 탭은 안 바뀌던 것과 같은 결함 부류).

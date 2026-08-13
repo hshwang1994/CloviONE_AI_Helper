@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard, useConfirm, useToast } from "../ui/kit.jsx";
-import { fmtDateTime, toUTCDate } from "../lib/format.js";
+import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
@@ -57,8 +57,11 @@ export function Trash() {
   const bulkMsg = (res, verb) => {
     const changed = (res.restored || res.purged) || [];
     const n = changed.length;
-    const f = (res.failed || []).length;
-    toast(f ? `${n}건을 ${verb}했습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 ${verb}했습니다.`, f ? "info" : "success");
+    const failed = res.failed || [];
+    // UA-25 — 실패 사유를 "권한이 없어"로 뭉개지 않는다. 실제로는 이미 처리됨·권한·Notion
+    // 보관 실패 3종이 섞일 수 있고, Notion 장애일 때 이 문구 때문에 관리자가 다른 계정으로
+    // 헛되이 재시도했다.
+    toast(`${n}건을 ${verb}했습니다.` + bulkFailureNote(failed), failed.length ? "info" : "success");
     qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
     // 복원한 티켓은 홈·스프린트에도 다시 나타나야 한다 — 그 키 목록은 ticket-views.js 가 안다.
     invalidateTicketViews(qc, { refetchType: "all" });

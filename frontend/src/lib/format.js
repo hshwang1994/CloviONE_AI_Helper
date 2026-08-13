@@ -242,5 +242,21 @@ export function affiliationOf(person, { withOrg = false } = {}) {
   return parts.join(" ");
 }
 
+/* 일괄 작업 부분 실패 토스트의 꼬리 문장 (UA-25).
+ *
+ * 휴지통·티켓·문서의 일괄 이동/복원/영구삭제는 모두 건별로 실패 사유를 이미
+ * `{id, error}`로 돌려주는데(예: 이미 처리됨·권한 없음·Notion 보관 실패), 화면 쪽이
+ * 그 사유를 안 보고 "권한이 없어"로 뭉개 놨었다 — Notion 장애로 실패해도 권한 문제로
+ * 보여 관리자가 계정을 바꿔 재시도하는 헛수고를 시켰다. 사유가 여러 종류로 섞여도
+ * 첫 번째만 보여준다(UsersBulk.jsx의 기존 관용과 같다: 실패를 성공 토스트로 덮지
+ * 않되 전체 사유 분해까지는 안 한다).
+ */
+export function bulkFailureNote(failed) {
+  const list = failed || [];
+  if (!list.length) return "";
+  const reason = (list[0] && list[0].error) || "권한이 없습니다.";
+  return ` ${list.length}건은 건너뛰었습니다: ${reason}`;
+}
+
 /* 보관된(퇴사한) 계정임을 화면이 말한다 (N3). */
 export const ARCHIVED_SUFFIX = "(보관됨)";

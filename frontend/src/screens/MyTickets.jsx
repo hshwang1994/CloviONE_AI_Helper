@@ -35,7 +35,7 @@ import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
-import { fmtDateTime } from "../lib/format.js";
+import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
@@ -49,8 +49,9 @@ function useBulkTrash(path, qc, toast, onDone) {
     mutationFn: (ids) => api(path, { method: "POST", body: { page_ids: ids } }),
     onSuccess: (res) => {
       const n = (res.trashed || []).length;
-      const f = (res.failed || []).length;
-      toast(f ? `${n}건을 휴지통으로 옮겼습니다. ${f}건은 권한이 없어 건너뛰었습니다.` : `${n}건을 휴지통으로 옮겼습니다.`, f ? "info" : "success");
+      const failed = res.failed || [];
+      // UA-25 — Trash.jsx와 같은 이유로 실제 사유를 보여준다(전엔 항상 "권한이 없어"였다).
+      toast(`${n}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed), failed.length ? "info" : "success");
       // refetchType:"all" — 지금 화면에 없는(비활성) 목록까지 즉시 다시 불러와, 삭제 후 어느 페이지로
       // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
       // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다(홈·스프린트가 여기서 빠져 있었다).
