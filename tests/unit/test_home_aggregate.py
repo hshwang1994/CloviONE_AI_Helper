@@ -99,6 +99,20 @@ def test_sprint_progress_excludes_cancelled_from_completion_denominator():
     assert p["completion_rate"] == 100        # 취소를 '못 한 일'로 세지 않는다
 
 
+def test_sprint_progress_excludes_cancelled_est_wd_from_total():
+    """UA-23: est_wd_total도 취소된 티켓의 견적을 빼야 한다 — 이 제외를
+    `t not in cancelled`(cancelled 목록 선형 탐색 + dict 전체 비교, O(n²))에서
+    `status != 취소`(그 목록을 애초에 만든 것과 같은 조건의 부정, O(n))로 바꾼
+    리팩터가 결과는 그대로 보존하는지 고정한다."""
+    rows = [
+        t(1, due=WEEK_START, status="완료", est=1),
+        t(2, due="2026-08-05", status="취소", est=99),  # 취소 — est_wd_total에서 빠져야 한다
+        t(3, due="2026-08-06", status="진행", est=2),
+    ]
+    p = aggregate.sprint_progress(rows, start=WEEK_START, end=WEEK_END, today=TODAY)
+    assert p["est_wd_total"] == 3.0  # 1 + 2, 취소된 99는 제외
+
+
 def test_sprint_progress_completion_rate_is_none_when_nothing_countable():
     p = aggregate.sprint_progress([], start=WEEK_START, end=WEEK_END, today=TODAY)
     assert p["assigned"] == 0 and p["completion_rate"] is None

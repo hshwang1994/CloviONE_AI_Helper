@@ -123,7 +123,13 @@ def sprint_progress(tickets: list[dict], *, start: str, end: str, today: str) ->
         "cancelled": len(cancelled),
         "overdue": len(overdue),
         "completion_rate": round(100 * len(done) / net) if net > 0 else None,
-        "est_wd_total": _round1(sum(t.get("est_wd") or 0 for t in in_window if t not in cancelled)),
+        # UA-23: `t not in cancelled`는 cancelled(list[dict])를 매번 선형 탐색하며 각
+        # 항목을 dict 전체 비교로 검사했다(500티켓·50취소 규모에서 최대 2.5만 회 깊은
+        # 비교) — cancelled 자체가 이미 "status == 취소"로 걸러 만든 목록이니 그 부정은
+        # 그냥 같은 조건을 뒤집으면 된다(별도 집합을 만들 필요조차 없다).
+        "est_wd_total": _round1(sum(
+            t.get("est_wd") or 0 for t in in_window if (t.get("status") or "") != STATUS_CANCELLED
+        )),
         "est_wd_done": _round1(sum(t.get("est_wd") or 0 for t in done)),
     }
 
