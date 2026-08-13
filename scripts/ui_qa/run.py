@@ -42,6 +42,27 @@ def _split_csv(values: list[str] | None) -> list[str]:
     return out
 
 
+def check_marker(passed: int, failed: int, skipped: int) -> tuple[str, str]:
+    """요약표 한 줄의 비고 문구와 소속 버킷 — 통과/건너뜀을 눈으로 구분시킨다.
+
+    `통과 0 / 실패 0 / 건너뜀 N`은 요약만 보면 "문제 없음"으로 읽힌다. 실제로는
+    **이 검사가 한 번도 돌지 않았다**는 뜻이다 — `tiny_text`가 폭 2200 미만에서 전부
+    skip이라 1920 캡처의 요약이 늘 그렇게 나왔고, 3840으로 다시 돌리자 6/6 실패였다
+    (BACKLOG `QA-10`).
+
+    한 번도 안 돈 것만 문제가 아니다 — `narrow_main`(3840 이상에서만 돈다)처럼 **일부만**
+    돈 검사는 `통과 6 / 실패 0 / 건너뜀 60`으로 나와 `never_ran` 조건(통과·실패 둘 다 0)에
+    안 걸린다. 그래도 "통과 6"만 보면 이번 실행 대부분을 확인한 것처럼 보이는데, 실제로는
+    건너뜀이 통과·실패를 합친 것보다 많다 — 이 실행이 본 것보다 못 본 것이 더 많다는 뜻이다
+    (BACKLOG `QA-13`, `never_ran`과 같은 착시의 옅은 버전이라 다른 마커로 구분한다).
+    """
+    if passed == 0 and failed == 0 and skipped:
+        return "  ← 한 번도 돌지 않음", "never_ran"
+    if skipped and skipped > passed + failed:
+        return "  ← 대부분 건너뜀", "mostly_skipped"
+    return "", ""
+
+
 def _probe_server(base_url: str, insecure: bool = False) -> tuple[bool, str]:
     """Fail fast (and loudly) if the real server is not there.
 
@@ -309,24 +330,28 @@ def main(argv: list[str] | None = None) -> int:
     _log(f"검사 요약 ({len(pages)} 페이지, {elapsed:.1f}s)")
     _log(f"{'검사 항목':<24} {'통과':>6} {'실패':>6} {'건너뜀':>7}   비고")
     never_ran: list[str] = []
+    mostly_skipped: list[str] = []
     for name in assertions.CLASSES:
         counts = summary.get(name, {})
         passed, failed, skipped = (counts.get('pass', 0), counts.get('fail', 0),
                                    counts.get('skip', 0))
-        # 🔴 `통과 0 / 실패 0 / 건너뜀 N` 은 요약만 보면 "문제 없음"으로 읽힌다.
-        # 실제로는 **이 검사가 한 번도 돌지 않았다**는 뜻이다 — `tiny_text` 가 폭 2200
-        # 미만에서 전부 skip 이라 1920 캡처의 요약이 늘 그렇게 나왔고, 3840 으로 다시
-        # 돌리자 6/6 실패였다(BACKLOG `QA-10`). skip 과 pass 를 눈으로 구분시킨다.
-        mark = ""
-        if passed == 0 and failed == 0 and skipped:
-            mark = "  ← 한 번도 돌지 않음"
+        mark, bucket = check_marker(passed, failed, skipped)
+        if bucket == "never_ran":
             never_ran.append(name)
+        elif bucket == "mostly_skipped":
+            mostly_skipped.append(name)
         _log(f"{name:<24} {passed:>6} {failed:>6} {skipped:>7}{mark}")
     if never_ran:
         _log("")
         _log(f"[주의] 이 실행에서 **한 번도 돌지 않은 검사 {len(never_ran)}개**: "
              + ", ".join(never_ran))
         _log("       통과가 아니라 미실행이다. 게이트 조건(뷰포트·모달 등)을 맞춰 다시 돌려야 한다.")
+    if mostly_skipped:
+        _log("")
+        _log(f"[주의] 이 실행에서 **건너뜀이 우세한 검사 {len(mostly_skipped)}개**: "
+             + ", ".join(mostly_skipped))
+        _log("       통과 수만 보면 널리 확인된 것처럼 보이지만, 실제로는 이번 실행 대부분에서 건너뛰었다"
+             "(예: narrow_main은 3840 이상에서만 돈다 — QA-13).")
     if notes:
         _log("")
         _log("메모:")

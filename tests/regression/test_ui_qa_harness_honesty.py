@@ -9,6 +9,9 @@
   적었다. 역할 매트릭스에서 "이 역할이 못 본다"와 "행이 없다"는 정반대의 사실이다.
 * `QA-10` `tiny_text` 는 폭 2200 미만에서 skip 이라 1920 캡처 요약이 늘
   `통과 0 / 실패 0 / 건너뜀 N` 이었고 그것이 "문제 없음"으로 읽혔다. 3840 으로 돌리자 6/6 실패.
+* `QA-13` `narrow_main` 은 3840 이상에서만 돈다. 일부(6)만 돌면 `통과 6 / 실패 0 / 건너뜀 60`
+  으로 나와 `QA-10`이 고친 "전부 skip" 조건에는 안 걸린다 — "통과 6"만 보면 이번 실행 대부분을
+  확인한 것 같지만, 실제로는 본 것보다 못 본 것(건너뜀)이 더 많다.
 
 여기서 검사하는 것은 제품이 아니라 **조사 도구의 정직성**이다. 도구가 거짓을 말하면
 그 위에 쌓은 결론이 전부 거짓이 된다.
@@ -20,6 +23,7 @@ import pytest
 
 from scripts.ui_qa.capture import discover_detail_hash
 from scripts.ui_qa.routes import BY_ID, Route
+from scripts.ui_qa.run import check_marker
 
 
 class _Resp:
@@ -95,6 +99,40 @@ def test_ordinary_routes_stay_visible():
     assert BY_ID["admin_users"].visible_to("admin")
     assert BY_ID["user_my-tickets"].visible_to("user")
     assert BY_ID["public_login"].visible_to("user"), "공개 화면은 역할과 무관하다"
+
+
+# ── QA-13: 통과가 있어도 건너뜀이 우세하면 그 사실을 감추지 않는다 ────────────
+
+
+def test_never_ran_when_all_skipped():
+    mark, bucket = check_marker(0, 0, 67)
+    assert bucket == "never_ran"
+    assert "한 번도 돌지 않음" in mark
+
+
+def test_no_marker_when_nothing_skipped():
+    mark, bucket = check_marker(40, 2, 0)
+    assert bucket == "" and mark == ""
+
+
+def test_no_marker_when_skip_is_a_minority():
+    """건너뜀이 있어도 통과·실패가 더 많으면(대부분 실제로 돌았으면) 조용하다."""
+    mark, bucket = check_marker(40, 2, 10)
+    assert bucket == "" and mark == ""
+
+
+def test_mostly_skipped_when_skip_outweighs_actual_verdicts():
+    """narrow_main처럼 일부(6)만 돌고 나머지(60)는 건너뛰면 통과 수만으로는 안 드러난다."""
+    mark, bucket = check_marker(6, 0, 60)
+    assert bucket == "mostly_skipped"
+    assert "대부분 건너뜀" in mark
+
+
+def test_never_ran_takes_priority_over_mostly_skipped():
+    """전부 skip인 경우는 두 조건을 다 만족하지만 더 정확한 '한 번도 안 돎'이 이겨야 한다."""
+    mark, bucket = check_marker(0, 0, 5)
+    assert bucket == "never_ran"
+    assert "한 번도 돌지 않음" in mark
 
 
 def test_visible_to_uses_allowed_roles_when_present():
