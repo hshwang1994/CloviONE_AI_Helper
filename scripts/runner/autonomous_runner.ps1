@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  ClovirONE Web Assistant 자율 완성 루프 — PHASE 2 구현 Supervisor(Primary Continuous Worker).
+  ClovirAssist 자율 완성 루프 — PHASE 2 구현 Supervisor(Primary Continuous Worker).
 
 .DESCRIPTION
   사용자가 PowerShell 에서 한 번 시작한 **이 프로세스 자체**가 Primary Continuous Supervisor 다.
@@ -434,7 +434,7 @@ BACKLOG.md · QA_COVERAGE.md 전체와 대조해 실제로 남은 작업 전체�
 '@
 
     $promptCore = @'
-당신은 ClovirONE Web Assistant 프로젝트를 **끝까지 완성**하는 작업을 이어받는다. 이것은 사람이
+당신은 ClovirAssist 프로젝트를 **끝까지 완성**하는 작업을 이어받는다. 이것은 사람이
 실시간으로 지켜보지 않는, 비대화형·무인 실행이다.
 
 **작업 단위는 PROJECT 전체 하나뿐이다.** 지금 이 프로세스 호출(invocation)은 work unit이 아니다 —
@@ -490,7 +490,31 @@ Backlog ID는 **inventory/evidence이지 실행 단위가 아니다.** ID를 한
 transaction/retry 패턴 전체). "N건 처리"는 진척 단위가 아니다.
 
 ## 3단계 — 구현: 크게 묶어서, 빠르게
-남은 작업을 Root Cause 단위로 크게 묶어 구현한다. CLAUDE.md §3의 불변 규칙은 전부 지킨다.
+
+### 절대 어기면 안 되는 것 (CLAUDE.md §3 불변 규칙 — 요약본을 매 호출에 함께 보낸다)
+WARM 회차는 CLAUDE.md를 다시 읽지 않고, 긴 세션은 context가 압축되기도 한다. 그래서 **참조가
+아니라 내용**을 여기 둔다. 애매하면 CLAUDE.md 원문 §3이 정본이다.
+
+1. **Sync 일관성** — FastAPI `async def` 핸들러나 `aiosqlite`를 새로 추가하지 않는다.
+2. **Outbound HTTP 단일 관문** — 외부 호출은 `app/core/http_client.py`의 `OutboundClient`를
+   경유한다. 임의 `httpx` 직접 사용 금지.
+3. **Secret 비노출** — secret을 DB·응답·로그·감사에 평문으로 저장하거나 노출하지 않는다.
+4. **Credential 비영구화** — 비밀번호/토큰을 Git·추적 문서·source·config·명령행·불필요한 로그에
+   남기지 않는다. stdin/승인된 runtime 경로만 쓴다. `sshpass` 금지.
+5. **Session/RBAC** — opaque session + CSRF 규약 유지. 권한 판단은 **서버가 정본**이고 프런트
+   권한 표시는 보조일 뿐이다. 버튼을 숨기는 것은 authorization이 아니다.
+6. **XSS/CSP** — 서버 데이터를 `innerHTML`로 주입하지 않는다. inline script / `onclick=` 금지.
+7. **UTC 저장** — Asia/Seoul은 표시와 cron 평가에만 쓴다.
+8. **제품 기능 경계** — Runner 코드 웹 편집, 임의 shell 실행, secret 평문 표시, 범용 systemd
+   제어를 제품 기능으로 추가하지 않는다.
+9. **공유 서비스 보호** — ClovirAssist과 **무관한** n8n/서비스/공유 nginx 설정을 이 작업 때문에
+   임의로 바꾸지 않는다(ClovirAssist 관련 것은 4단계 권한 범위 안이다).
+10. **DB transaction 의미 보존** — `app/core/db.py`의 명시적 transaction/BEGIN 규약을 우회하거나
+    pysqlite implicit transaction 동작에 다시 의존하지 않는다. SAVEPOINT/`begin_nested()`는 실제
+    outer transaction 안에서 동작해야 한다. SQLite busy/locked 판정은 기존 공용 classifier/retry를
+    재사용하고, `:memory:` DB로 WAL/멀티커넥션 의미를 대체하지 않는다.
+
+남은 작업을 Root Cause 단위로 크게 묶어 구현한다.
 dev server/브라우저가 이미 떠 있고 다음 작업에도 쓸 만하면 그대로 재사용한다 — 매번 기계적으로
 껐다 켜지 않는다.
 **Full Regression green은 정지 신호가 아니다** — green을 확인했으면 곧바로 다음 구현으로 돌아간다.
@@ -528,6 +552,52 @@ dev server/브라우저가 이미 떠 있고 다음 작업에도 쓸 만하면 �
 - WARM 회차에서 대형 상태 문서를 통독하기 → RUN CONTEXT 로 충분하다
 - "다음 호출에서 하겠다"고 미루기 → 지금 같은 호출 안에서 계속한다
 
+### Skill 사용 계약 — 지금 하는 작업에 맞는 Skill이 있으면 **하기 전에** 부른다
+`Skill` 도구로 쓸 수 있는 Skill이 100개 넘게 있다. 전부 쓰라는 게 아니고, **지금 손대는 작업
+종류에 해당하는 게 있으면 그걸 먼저 읽고 그 기준으로 만들라**는 뜻이다. 다 만든 뒤에 검사하는
+용도가 아니라, 무엇을 어떻게 만들지 정할 때 쓰는 자다.
+
+- **이름을 기억으로 추측하지 마라.** `Skill` 도구 목록이 정본이다. 없으면 없는 대로 진행한다 —
+  Skill 부재는 blocker가 아니다(가속기다).
+- 이 저장소 스택(Python 3.12 · FastAPI sync · SQLAlchemy sync · Alembic · SQLite WAL /
+  React 18 · Vite)에 실제로 걸리는 것들. **이 표가 전부가 아니다** — 목록을 보고 맞는 걸 골라라.
+
+  | 지금 하는 작업 | 부를 것 |
+  |---|---|
+  | 화면/레이아웃/정보위계/컴포넌트 설계 | `ui-ux-pro-max` |
+  | 기존 화면 재설계(진단 → 후보) | `redesign-existing-projects` |
+  | 디자인 규칙 위반 탐지 | `impeccable` (PostToolUse hook으로 자동도 돌지만 직접도 부른다) |
+  | 버튼·라벨·오류·빈 상태·확인·알림 문구 | `ux-writing` |
+  | 한국어 문구 다듬기 | `humanize-korean` (UX Writing **다음**) |
+  | React 컴포넌트/상태/성능 | `frontend-patterns`, `coding-standards` |
+  | Python 코드/관용구 | `python-patterns` |
+  | pytest 작성·수정 | `python-testing` |
+  | REST 엔드포인트 설계 | `api-design`, `backend-patterns` |
+  | Alembic migration | `database-migrations` |
+  | auth/RBAC/입력 처리/시크릿 | `security-review` |
+  | 브라우저 E2E | `e2e-testing` |
+  | 버그 원인 추적 | `superpowers:systematic-debugging` |
+  | 재현 테스트 먼저 쓰기 | `superpowers:test-driven-development` |
+  | 완료 주장 전 검증 | `superpowers:verification-before-completion`, `verification-loop` |
+  | 중복/난잡함 정리 | `simplify` |
+  | 배포/컨테이너 | `deployment-patterns`, `docker-patterns` |
+  | AI/Runner 연동 | `claude-api`, `mcp-server-patterns` |
+
+- **스택이 다른 Skill을 억지로 적용하지 마라.** 목록에는 `django-*`·`laravel-*`·`springboot-*`·
+  `kotlin-*`·`rust-*`·`golang-*`·`jpa-patterns`·`postgres-patterns` 같은 것도 있다. 이 제품은
+  FastAPI + SQLite다 — Django 보안 패턴이나 Postgres 인덱스 조언을 여기에 갖다 붙이면 틀린다.
+- **Audit이 쓴 자를 그대로 써라.** 각 PA-RC 블록의 `quality_rubric` 필드가 그 Root Cause를 판정할
+  때 쓴 기준이다. 그걸 안 읽고 만들면 acceptance_criteria의 글자는 만족시키면서 Audit이 재던
+  품질 기준은 빗나간다 — 설계 의도는 맞는데 결과물이 안 맞는 경로가 정확히 여기다.
+  **찾을 때만 쓰고 만들 때 안 쓰면 그 Root Cause는 반쯤만 닫힌 것이다.**
+- 적용 우선순위는 **Audit과 같은 순서**를 쓴다(두 Phase가 다른 자를 쓰면 Handoff가 무의미해진다):
+  사용자 업무 성공 > 기능 정확성 > 데이터/RBAC/보안 경계 > 명확한 UX > 일관성/접근성 >
+  UX Writing > 한국어 자연스러움 > 시각적 완성도
+- UX Writing을 먼저 적용하고 한국어 humanization은 그 뒤에 적용한다. humanization은 기술 용어·
+  제품명·상태값·API/필드명·수치의 의미를 바꾸면 안 된다. 짧은 버튼명을 억지로 문학적으로 바꾸지 마라.
+- **실제로 적용한 Skill의 이름을 커밋 메시지나 WORK_STATE 체크포인트에 한 줄로 남겨라.**
+  쓰지 않은 Skill을 "적용했다"고 적으면 그것은 조작이다. 절대 하지 마라.
+
 UI/UX 관련 Root Cause를 구현할 때는 현재 UI를 보존하는 것이 목표가 아니다. 2026년 기준
 Enterprise SaaS/AI Product 수준을 목표로 단순 CSS/spacing 보정에 머물지 말고 필요하면
 Page/Component/Navigation 구조까지 바꿔라. 단, 기능 정확성·데이터 구조·RBAC·업무 정책·
@@ -549,8 +619,8 @@ Page/Component/Navigation 구조까지 바꿔라. 단, 기능 정확성·데이�
 - `sudo`/root 작업, package 설치, 서비스 재시작
 - systemd unit · nginx 설정 확인/수정/reload
 - DB 확인·migration 실행·데이터 조사·복구 리허설
-- ClovirONE 관련 n8n workflow와 Claude Runner의 조사·수정·재시작·검증
-  (ClovirONE과 **무관한** 다른 팀의 n8n/서비스는 건드리지 않는다 — CLAUDE.md §3.9)
+- ClovirAssist 관련 n8n workflow와 Claude Runner의 조사·수정·재시작·검증
+  (ClovirAssist과 **무관한** 다른 팀의 n8n/서비스는 건드리지 않는다 — CLAUDE.md §3.9)
 - 배포·재배포·롤백, 배포 후 revision/health 확인
 - browser/Chrome/Playwright 등 E2E에 필요한 도구 설치와 실행
 - 필요한 QA 계정·조직·테스트 데이터 직접 생성
@@ -573,14 +643,45 @@ Page/Component/Navigation 구조까지 바꿔라. 단, 기능 정확성·데이�
 - 이 권한은 **승인된 TEST SERVER 대역에만** 적용된다. 다른 서버나 향후 Production으로
   자동 확장하지 않는다.
 
-## 5단계 — 체크포인트는 멈추는 이유가 아니다
+## 5단계 — 화면 품질 축과 실제 브라우저 검증
+
+### 매번 함께 보는 축 (완료 기준에만 있는 게 아니라 구현할 때 본다)
+UI를 건드리는 Root Cause는 다음을 **구현하면서** 확인한다. 나중에 몰아서 하면 다시 뜯어야 한다.
+- **Responsive** — FHD/QHD/4K, Windows 125%/150%/175% 배율, 좁은 폭에서 정보가 사라지거나 겹치는가
+- **Light/Dark** — 두 테마 각각에서 대비·상태색·그림자·아이콘이 성립하는가
+- **Accessibility** — keyboard/tab order/focus 표시/modal focus trap/aria/오류-입력 연결/대비
+- 확인한 축은 `docs/QA_COVERAGE.md`에 반영한다. "화면을 열어 봤다"는 검증이 아니다.
+
+### 브라우저 E2E — 이 무인 실행에는 브라우저 MCP 도구가 **없다**
+`-p` 비대화형 모드에는 Chrome MCP 도구가 붙어 있지 않다. 그것을 찾지 말고 **저장소의 하네스**를
+써라. 이미 있고, 목적에 맞게 만들어져 있다.
+
+- `scripts/ui_qa/` — Playwright 기반 시각·기하 QA 하네스. 실제 서버에 로그인한 상태로
+  **모든 화면 × 라이트/다크 × 뷰포트 행렬**을 돌며 스크린샷·레이아웃·콘솔·접근성 검사를 하고
+  HTML 리포트를 만든다. `scripts/ui_qa/README.md`가 사용법의 정본이다. 산출물은 `dist/`(gitignore).
+  `contrast.py`·`keyboard.py`·`failure_states.py`·`hostile_data.py`·`fab_occlusion.py` 등
+  축별 모듈이 이미 있으니 새로 만들지 말고 **그것을 확장**하라.
+- Playwright는 설치돼 있다. 브라우저 바이너리나 의존성이 없으면 **직접 설치하고 계속한다**
+  (4단계 권한). 도구 부재는 blocker가 아니다.
+- CLAUDE.md §10의 Chrome Whole-product E2E는 이 하네스 + 필요한 수동 시나리오로 만족시킨다.
+  스크린샷이 존재한다는 사실·페이지가 열린다는 사실·health 200만으로 E2E 완료 처리하지 마라.
+
+### 배포 흐름은 이 순서다 (CLAUDE.md §9)
+`whole-product 구현 수렴 → Full Regression green → Static Checks → Build →
+통합 Deploy → service/health/revision 확인 → Chrome Whole-product E2E`
+작은 변경마다 배포하지 마라. 배포 환경에서 확인하지 않으면 다음 구현 자체가 불가능한 genuine
+blocker만 예외다. 실환경에서 문제를 찾으면
+`수집 → Root Cause grouping → 일괄 수정 → focused test → 필요한 Full Regression →
+통합 재배포 → Chrome 재E2E` 순서로 처리한다.
+
+## 6단계 — 체크포인트는 멈추는 이유가 아니다
 묶음 하나가 끝났을 때 무엇을 바꿨고 다음에 무엇을 할지 docs/WORK_STATE.md(필요하면
 BACKLOG.md·PROGRESS_STATUS.md·QA_COVERAGE.md도 함께)에 적고 git commit 한다. 항목마다가
 아니다. 이 파일 기반 체크포인트는 **복구용**이지 종료 신호가 아니다 — working tree가
 깨끗해졌다는 것 자체는 멈출 이유가 안 된다. 커밋하고 상태 문서를 갱신한 **즉시** 다음
 작업으로 넘어간다.
 
-## 6단계 — 멈춰도 되는 유일한 기준
+## 7단계 — 멈춰도 되는 유일한 기준
 Summary·recap·commit·clean tree·Full Regression green·build green·"현재 할 일 목록이 비었다"·
 "체크포인트에 도달했다"는 전부 종료 사유가 아니다. 멈추는 것이 정당한 경우는 둘뿐이다:
   (a) 지금 당장 실행 가능한 남은 작업이 정말로 하나도 없다 — 모든 후보가 진짜 외부 요인

@@ -75,6 +75,12 @@ function Assert-Match([string]$text, [string]$pattern, [string]$msg) {
 function Assert-NoMatch([string]$text, [string]$pattern, [string]$msg) {
     if ($text -match $pattern) { throw "$msg (패턴 '$pattern' 이 있으면 안 된다)" }
 }
+# PowerShell 의 -match 는 **대소문자를 구분하지 않는다.** 제품명(ClovirONE)과 경로 식별자
+# (clovirone-web-assistant)를 구분하려면 반드시 -cnotmatch 여야 한다 — 안 그러면 정상적으로
+# 남아 있어야 할 배포 경로가 "옛 제품명 잔존"으로 잘못 잡힌다.
+function Assert-NoMatchCase([string]$text, [string]$pattern, [string]$msg) {
+    if ($text -cmatch $pattern) { throw "$msg (대소문자 구분 패턴 '$pattern' 이 있으면 안 된다)" }
+}
 
 # ── scratch 저장소 ────────────────────────────────────────────────────────────
 function New-ScratchRepo([string]$id) {
@@ -323,6 +329,7 @@ regression_risk: 낮음
 acceptance_criteria: 조건 1
 required_tests: test_x
 qa_gaps: QA-1
+quality_rubric: ui-ux-pro-max — 정보 위계 3단계
 evidence_refs: FINDINGS#F-001
 <!-- PA-RC-END -->
 "@
@@ -1394,6 +1401,121 @@ Test-Case "T57" "sudo 자격증명은 로그·프롬프트·argv 어디에도 �
         if ($null -eq $prev) { Remove-Item Env:CLOVIR_TEST_SUDO_PASSWORD -ErrorAction SilentlyContinue }
         else { $env:CLOVIR_TEST_SUDO_PASSWORD = $prev }
     }
+}
+
+Test-Case "T61" "품질 rubric이 Audit → 구현으로 실제로 넘어간다(두 Phase가 같은 자를 쓴다)" {
+    param($repo)
+    # 발견된 공백: Audit 프롬프트는 Skill 을 22곳에서 지시하는데 구현 프롬프트는 0곳이었고,
+    # Handoff 에도 "무슨 기준으로 판정했는가"를 넘기는 필드가 없었다. 그러면 구현이
+    # acceptance_criteria 의 글자만 만족시키고 Audit 이 재던 품질 기준은 빗나간다.
+
+    # (1) Handoff 계약이 rubric 을 필수로 요구한다
+    $asrc = Read-TextOrEmpty $AuditScript
+    Assert-Match $asrc '"qa_gaps", "quality_rubric", "evidence_refs"' "quality_rubric 이 PA-RC 필수 필드여야 한다"
+    Assert-Match $asrc 'quality_rubric: 이 Root Cause를 판정할 때' "Handoff 템플릿에 필드 설명이 있어야 한다"
+    Assert-Match $asrc '설치되지 않은 Skill 이름을 적으면 그것은 조작이다' "미설치 Skill 을 적는 것을 금지해야 한다"
+
+    # (2) 구현 프롬프트가 그 rubric 을 **만들기 전에** 적용하라고 지시한다
+    $isrc = Read-TextOrEmpty $AutonomousScript
+    Assert-Match $isrc 'Skill 사용 계약' "구현 프롬프트에 Skill 계약 절이 있어야 한다"
+    # 줄바꿈이 끼어도 통과해야 한다(프롬프트는 사람이 읽기 좋게 줄을 나눠 쓴다)
+    Assert-Match $isrc '(?s)`quality_rubric` 필드가 그 Root Cause를 판정할\s+때 쓴 기준이다' "Handoff 필드를 입력으로 쓰라고 해야 한다"
+    Assert-Match $isrc '\*\*하기 전에\*\* 부른다' "사후 검사가 아니라 설계 단계 기준으로 쓰라고 해야 한다"
+    Assert-Match $isrc '다 만든 뒤에 검사하는' "왜 먼저 부르는지 근거가 있어야 한다"
+    Assert-Match $isrc '이름을 기억으로 추측하지 마라' "이름 추측 금지가 두 Phase 모두에 있어야 한다"
+    Assert-Match $isrc 'PostToolUse hook으로 자동도 돌지만' "자동 hook 이 rubric 을 대신하지 않는다고 명시해야 한다"
+    # 두 Phase 의 우선순위 문장이 **같아야** 한다 — 다르면 Handoff 가 무의미해진다
+    $order = '사용자 업무 성공 > 기능 정확성 > 데이터/RBAC/보안 경계 > 명확한 UX >'
+    Assert-Match $asrc ([regex]::Escape($order)) "Audit 의 우선순위 문장"
+    Assert-Match $isrc ([regex]::Escape($order)) "구현도 **같은** 우선순위를 써야 한다"
+
+    # (4) 핵심 다섯 Skill 이 **양쪽 프롬프트에 이름으로** 있어야 한다.
+    #     "설치돼 있으니 알아서 쓰겠지"는 648턴 무인 실행에서 성립하지 않는다.
+    foreach ($sk in @('ui-ux-pro-max', 'redesign-existing-projects', 'impeccable', 'ux-writing', 'humanize-korean')) {
+        Assert-Match $asrc ([regex]::Escape($sk)) "Audit 프롬프트에 $sk 가 이름으로 있어야 한다"
+        Assert-Match $isrc ([regex]::Escape($sk)) "구현 프롬프트에도 $sk 가 이름으로 있어야 한다(여기가 비어 있었다)"
+    }
+    Assert-Match $asrc '`Skill` 도구다' "Skill 확인은 파일시스템 추측이 아니라 도구 목록이어야 한다"
+    Assert-Match $isrc '`Skill` 도구 목록이 정본이다' "구현도 런타임 확인을 해야 한다"
+
+    # (5) 저 다섯 개**만** 쓰라는 게 아니다 — 지금 하는 작업에 맞는 걸 고르라는 일반 계약이어야 한다.
+    foreach ($sk in @('python-patterns', 'python-testing', 'api-design', 'security-review',
+                      'database-migrations', 'frontend-patterns', 'e2e-testing',
+                      'superpowers:systematic-debugging')) {
+        Assert-Match $isrc ([regex]::Escape($sk)) "스택에 맞는 $sk 도 구현 프롬프트에 있어야 한다"
+    }
+    Assert-Match $isrc '이 표가 전부가 아니다' "표를 닫힌 목록으로 오해하게 두면 안 된다"
+    Assert-Match $asrc '이 다섯이 전부가 아니다' "Audit 도 마찬가지"
+
+    # (6) 스택이 다른 Skill 오적용 경고 — django/postgres 조언을 FastAPI+SQLite 에 붙이면 틀린다
+    foreach ($src2 in @($isrc, $asrc)) {
+        Assert-Match $src2 '스택이 다른 Skill을 억지로 적용하지 마라' "오적용 경고가 있어야 한다"
+        Assert-Match $src2 'FastAPI \+ SQLite' "이 제품의 실제 스택을 명시해야 한다"
+    }
+
+    # (7) 제품명은 ClovirAssist 다. 단 배포 경로 식별자 `clovirone-web-assistant` 는 **그대로
+    #     둔다** — systemd unit·nginx conf·/opt 경로가 그 이름이라 바꾸면 실서버가 깨진다.
+    Assert-Match $isrc 'ClovirAssist' "제품명은 ClovirAssist 다"
+    Assert-NoMatchCase $isrc 'ClovirONE' "옛 제품명이 남아 있으면 안 된다"
+    Assert-NoMatchCase $asrc 'ClovirONE' "옛 제품명이 남아 있으면 안 된다"
+    Assert-Match $isrc 'clovirone-web-assistant' "경로 식별자는 유지돼야 한다(실서버가 이 이름을 쓴다)"
+
+    # (3) rubric 이 빠진 Handoff 는 완료 Gate 가 거부한다
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    Assert (Test-MarkerValid (Join-Path $repo "var\product-audit\AUDIT_COMPLETE")) "정상 Handoff 는 통과해야 한다"
+
+    $handoff = Join-Path $repo "docs\product-audit\PRODUCT_AUDIT_HANDOFF.md"
+    $body = Read-TextOrEmpty $handoff
+    [void](Write-TextFile $handoff ($body -replace '(?m)^quality_rubric:.*$', ''))
+    [void](Invoke-Git -RepoDir $repo "add" "docs/product-audit/PRODUCT_AUDIT_HANDOFF.md")
+    [void](Invoke-Git -RepoDir $repo "commit" "-q" "-m" "drop quality_rubric")
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("success")
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1 } $null)
+    $rej = Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt")
+    Assert-Match $rej "필수 필드 'quality_rubric'" "rubric 이 빠지면 Gate 가 거부해야 한다. 실제: $rej"
+}
+
+Test-Case "T62" "WARM이 CLAUDE.md를 다시 안 읽어도 불변 규칙이 매 호출에 함께 간다" {
+    param($repo)
+    # COLD/WARM 분리의 부작용: WARM 회차는 CLAUDE.md를 다시 읽지 않고, 긴 세션은 context가
+    # 압축된다. 참조("CLAUDE.md §3을 지켜라")만 남기면 규칙 **내용**이 사라질 수 있다.
+    # 그래서 요약본을 항상 보내는 core 프롬프트에 인라인한다.
+    $src = Read-TextOrEmpty $AutonomousScript
+    Assert-Match $src '절대 어기면 안 되는 것' "불변 규칙 절이 core 프롬프트에 있어야 한다"
+    foreach ($rule in @('Sync 일관성', 'OutboundClient', 'Secret 비노출', 'Credential 비영구화',
+                        'opaque session', 'innerHTML', 'UTC 저장', '제품 기능 경계',
+                        '공유 서비스 보호', 'DB transaction 의미 보존')) {
+        Assert-Match $src ([regex]::Escape($rule)) "불변 규칙 '$rule' 내용이 프롬프트에 있어야 한다"
+    }
+    Assert-Match $src '(?s)\*\*참조가\s*\r?\n?아니라 내용\*\*' "왜 인라인하는지 근거가 있어야 한다"
+
+    # WARM 회차 프롬프트에도 실제로 실려 나가는지 (override 없이 본문이 나가는 경로를 고정)
+    Assert-Match $src '\$promptCore\s*=\s*@' "core 프롬프트가 존재해야 한다"
+    $coreStart = $src.IndexOf('$promptCore')
+    $warnStart = $src.IndexOf('절대 어기면 안 되는 것')
+    Assert ($warnStart -gt $coreStart) "불변 규칙은 COLD 전용이 아니라 core(항상 전송)에 있어야 한다"
+}
+
+Test-Case "T63" "브라우저 MCP가 없는 무인 실행에서 E2E를 어떻게 하는지 지시가 있다" {
+    param($repo)
+    # 실측: `-p` 비대화형 세션에는 Chrome/browser MCP 도구가 하나도 붙지 않는다.
+    # 그런데 CLAUDE.md §10은 Chrome Whole-product E2E를 필수 완료 Gate로 요구한다.
+    # 저장소에는 Playwright 기반 scripts/ui_qa 하네스가 이미 있는데 프롬프트가 안 가리켰다.
+    $src = Read-TextOrEmpty $AutonomousScript
+    Assert-Match $src '브라우저 MCP 도구가 \*\*없다\*\*' "도구가 없다는 사실을 알려야 한다(찾아 헤매지 않게)"
+    Assert-Match $src 'scripts/ui_qa/' "실제 하네스를 가리켜야 한다"
+    Assert-Match $src 'scripts/ui_qa/README\.md' "사용법 정본을 가리켜야 한다"
+    Assert-Match $src '새로 만들지 말고 \*\*그것을 확장\*\*' "기존 축별 모듈을 재사용하라고 해야 한다"
+    Assert-Match $src '스크린샷이 존재한다는 사실' "스크린샷 존재만으로 E2E 완료 처리 금지"
+    # 화면 품질 축이 완료 기준에만 있는 게 아니라 구현 지시로 있어야 한다
+    foreach ($axis in @('Responsive', 'Light/Dark', 'Accessibility')) {
+        Assert-Match $src ([regex]::Escape($axis)) "$axis 축이 구현 지시에 있어야 한다"
+    }
+    Assert-Match $src 'QA_COVERAGE\.md.*반영|반영한다' "검증한 축을 QA_COVERAGE에 반영하라고 해야 한다"
+    # 배포 순서(CLAUDE.md §9)
+    Assert-Match $src 'Full Regression green.*Static Checks.*Build' "배포 흐름 순서가 있어야 한다"
 }
 
 Test-Case "T57B" "sudo 자격증명을 gitignore 되는 runtime 파일에서도 받는다(매번 환경변수 안 넣어도 무인 실행)" {

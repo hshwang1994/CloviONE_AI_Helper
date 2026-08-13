@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  ClovirONE Web Assistant Whole Product Audit — PHASE 1 무인 Supervisor.
+  ClovirAssist Whole Product Audit — PHASE 1 무인 Supervisor.
 
 .DESCRIPTION
   이 스크립트는 제품을 구현하거나 수정하는 Runner가 **아니다**. 제품 전체를 반복 조사해서
@@ -180,12 +180,16 @@ $RequiredAuditDocs = @(
 $MinDocChars = 400
 
 # 각 PA-RC 블록이 반드시 담아야 하는 기계 필드(사용자가 지정한 Handoff 최소 정보와 1:1).
+# ★ quality_rubric 은 2026-08-13에 추가했다. Audit 은 설치된 Skill 의 rubric 으로 문제를
+#   판정하는데, **그 자를 구현 Phase 로 넘기는 필드가 하나도 없었다.** 그러면 구현 Worker 는
+#   acceptance_criteria 의 글자는 만족시키면서 Audit 이 재던 품질 기준은 빗나간다 — 설계 의도는
+#   맞는데 결과물 품질이 안 맞는 경로다. 필수 필드라서 비어 있으면 완료 Gate 가 거부한다.
 $RequiredRcFields = @(
     "rc_id", "severity", "priority", "confidence", "problem", "expected", "actual",
     "intent_evidence", "findings", "feature_contracts", "routes", "frontend", "api",
     "backend", "data", "rbac", "integration", "state_transition", "user_impact",
     "implementation_direction", "constraints", "regression_risk", "acceptance_criteria",
-    "required_tests", "qa_gaps", "evidence_refs"
+    "required_tests", "qa_gaps", "quality_rubric", "evidence_refs"
 )
 
 $StateDefaults = [ordered]@{
@@ -609,7 +613,7 @@ $promptWarm = @'
 '@
 
 $prompt = @'
-당신은 ClovirONE Web Assistant의 Whole Product Audit을 수행하는 독립적인 Product Auditor다.
+당신은 ClovirAssist의 Whole Product Audit을 수행하는 독립적인 Product Auditor다.
 이 작업은 구현 작업이 아니다. 제품 전체를 실제 코드, 테스트, 실행 가능한 검증 환경, 브라우저 동작,
 API/DB/RBAC/통합 경로, 사용자 문구까지 근거 기반으로 전수조사해서 현재 Backlog에 없는 문제,
 놓친 UX, 의도와 다른 동작, 미완성 기능, 검증 공백을 Root Cause 기준으로 찾아내는 것이 목적이다.
@@ -674,32 +678,37 @@ AUDIT_COMPLETE 또는 AUDIT_BLOCKED가 아니면 다음 조사로 계속한다.
 2. Skill 사용 계약 — 이름을 추측하지 마라
 ======================================================================
 
-전수조사에 도움이 되는 Skill이 **실제로 설치되어 있는지 런타임에 확인**한다. 확인 방법은
-파일 시스템이다. 최소 다음 위치를 직접 본다.
+전수조사에 도움이 되는 Skill이 **실제로 사용 가능한지 런타임에 확인**한다. 확인 방법은
+`Skill` 도구다(그 목록이 정본이다). 파일 시스템 경로를 추측해 뒤지지 마라 — 프로젝트 scope,
+사용자 전역, 플러그인 세 군데에 흩어져 있어서 경로로 판단하면 틀린다.
 
-- 프로젝트: .claude/skills/*/SKILL.md
-- 프로젝트: .agents/skills/*/SKILL.md
-- 사용자: ~/.claude/skills/*/SKILL.md
-- 플러그인: ~/.claude/plugins/cache/*/*/*/.claude/skills/*/SKILL.md 및 */skills/*/SKILL.md
-- 활성화 여부: ~/.claude/settings.json, .claude/settings.json 의 enabledPlugins
+각 Skill의 **실제 이름**(도구 목록에 나오는 그대로)을 PRODUCT_AUDIT_COVERAGE.md의 Skill 절에
+적는다. 설치되지 않은 Skill을 "적용했다"고 기록하면 그것은 조작이다. 절대 하지 마라.
 
-각 Skill의 **실제 이름(SKILL.md frontmatter의 name), 실제 경로, 버전(있으면)** 을
-PRODUCT_AUDIT_COVERAGE.md의 Skill 절에 그대로 적는다.
-설치되지 않은 Skill을 "적용했다"고 기록하면 그것은 조작이다. 절대 하지 마라.
+이 제품의 품질을 실제로 좌우하는 **핵심 다섯**(2026-08-13 실측으로 전부 사용 가능 확인):
 
-관심 대상(있으면 쓰고, 없으면 없다고 적는다):
-ui-ux-pro-max / impeccable / redesign-existing-projects / ux-writing /
-humanize-korean 계열(im-not-ai) / frontend-design / a11y-debugging / chrome-devtools
+  | Skill | 이 Audit에서 쓰는 자리 |
+  |---|---|
+  | `ui-ux-pro-max`              | L축 — 화면/레이아웃/정보위계/컴포넌트 판정 |
+  | `redesign-existing-projects` | L축 — 기존 화면 진단 + 재설계 후보 도출 |
+  | `impeccable`                 | L축 — 디자인 규칙 위반 탐지 |
+  | `ux-writing`                 | P축 — 버튼·라벨·오류·빈 상태·확인·알림 문구 |
+  | `humanize-korean`            | R축 — 번역투/AI 문체(UX Writing **다음**에 적용) |
 
-참고 — 2026-08-12 18시 시점에 **실제로 확인된** 설치 위치다. 이것을 사실로 가정하지 말고 매번
-다시 확인하라(사용자가 지웠거나 옮겼을 수 있다 — 실제로 이 목록은 같은 날 한 번 바뀌었다).
-  .claude/skills/ui-ux-pro-max/                             (프로젝트 scope)
-  .claude/skills/impeccable/                                (프로젝트 scope, + settings.local.json hook)
-  ~/.claude/skills/redesign-existing-projects/              (사용자 전역, Taste 계열)
-  ~/.claude/skills/ux-writing/                              (사용자 전역, 참고 리소스 9개 포함)
-  ~/.claude/plugins/cache/im-not-ai/humanize-korean/2.1.0/  (.claude/settings.json 에서 활성화)
-다섯 개 모두 설치되어 있으므로 UI/UX · UX Writing · 한국어 축에서 **skill_gap 을 쓸 이유가 없다.**
+다섯 개가 사용 가능하므로 UI/UX · UX Writing · 한국어 축에서 **skill_gap 을 쓸 이유가 없다.**
 그런데도 못 쓰겠다면 그 이유를 구체적으로 적어라(추측으로 "미설치"라고 쓰지 마라).
+
+**이 다섯이 전부가 아니다.** 100개 넘게 있고, 지금 조사하는 축에 해당하는 게 있으면 그걸 쓴다:
+`security-review`(U축) · `api-design`·`backend-patterns`(E축) · `database-migrations`(V축) ·
+`python-patterns`·`python-testing`·`e2e-testing`(Y축) · `frontend-patterns`(C·L축) ·
+`superpowers:systematic-debugging`(재현 추적) 등. 목록을 보고 골라라.
+
+**스택이 다른 Skill을 억지로 적용하지 마라.** `django-*`·`laravel-*`·`springboot-*`·`kotlin-*`·
+`jpa-patterns`·`postgres-patterns` 같은 것도 목록에 있다. 이 제품은 FastAPI + SQLite다 —
+다른 스택의 기준으로 판정하면 그 Finding 자체가 틀린다.
+
+**여기서 쓴 자를 Handoff의 `quality_rubric`에 그대로 적어라.** 구현 Phase가 같은 자로 만들어야
+Root Cause가 실제로 닫힌다 — 찾을 때만 쓰고 만들 때 안 쓰면 절반만 닫힌 것이다.
 
 **Skill이 없다고 해서 Audit을 멈추지 마라.** Skill은 가속기이고, 축(axis) 자체가 필수다.
 없으면 이 프롬프트의 내장 rubric으로 그 축을 수행하고, COVERAGE에 다음을 남긴다.
@@ -983,6 +992,13 @@ regression_risk: 회귀 위험과 그 범위
 acceptance_criteria: 구현 완료로 인정하기 위한 검증 가능한 조건(항목별로)
 required_tests: 반드시 추가/실행해야 하는 테스트
 qa_gaps: 관련 QA_COVERAGE 공백
+quality_rubric: 이 Root Cause를 판정할 때 **실제로 사용한 기준**. 적용한 Skill의 실제 이름과
+                구체 항목을 적는다(예: `ui-ux-pro-max — 정보 위계 3단계`, `ux-writing — 오류
+                문구 패턴`, `humanize-korean — 번역투`). Skill 없이 6절 내장 rubric으로
+                판정했으면 그 항목 번호를 적는다(예: `내장 rubric 3),4),9)`).
+                기능/데이터/RBAC 계열이라 품질 rubric이 무관하면 "해당 없음 — <이유>".
+                **설치되지 않은 Skill 이름을 적으면 그것은 조작이다.** 이 필드는 구현 Phase가
+                같은 자로 만들게 하려고 있다 — 여기가 비면 구현이 다른 기준으로 만든다.
 evidence_refs: 원본 증거 위치(FINDINGS/CONTRACTS/COVERAGE의 절, 파일:줄)
 <!-- PA-RC-END -->
 

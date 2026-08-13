@@ -1493,3 +1493,56 @@ D-70은 "CLAUDE.md에 평문 TEST 서버 credential이 든 미커밋 변경을 �
 - 그 문자열은 **이미 git history의 커밋 3건**(`b778892`·`9098657`·`573201d`)에 존재한다.
   교체 여부는 사용자 판단으로 남긴다 — 작업을 막지 않는다.
 - `stash@{0}` 정리는 사용자가 직접 한다.
+
+---
+
+## D-73 (2026-08-13) — Skill을 "찾을 때만" 쓰던 비대칭 제거 + 무인 실행의 나머지 공백 4개
+
+사용자 지적: "Audit은 skill로 문제를 찾는데 구현은 그걸 다시 안 읽으면 설계 의도는 맞아도
+품질이 안 맞지 않나?" — 맞다. 실측으로 확인한 비대칭이었다.
+
+| | PHASE 1 (Audit) | PHASE 2 (구현) |
+|---|---|---|
+| 프롬프트의 Skill 언급 | 22곳 | **0곳** |
+| Handoff에 "무슨 기준으로 판정했나" | 필드 없음 | 받을 방법 없음 |
+| Worker가 실제로 볼 수 있는 Skill | 144개 | **동일하게 보이지만 쓰라는 지시가 없음** |
+
+도구는 있는데 아무도 쓰라고 말하지 않는 상태였다. 648턴 무인 실행에서 지시 없이 알아서 부를
+가능성은 낮다.
+
+### 고친 것
+
+1. **`quality_rubric`을 PA-RC 필수 필드로 추가.** Audit이 그 Root Cause를 판정할 때 실제로 쓴
+   자(적용한 Skill의 실제 이름 + 구체 항목)를 적고, 구현 Phase가 **같은 자로 만든다.** 비어
+   있으면 완료 Gate가 거부한다. 이 필드가 없으면 구현은 acceptance_criteria의 글자만 만족시키고
+   Audit이 재던 품질 기준은 빗나간다 — "찾을 때만 쓰고 만들 때 안 쓰면 반쯤만 닫힌 것"이다.
+2. **구현 프롬프트에 Skill 사용 계약 추가.** 다섯 개만 쓰라는 게 아니라 **지금 하는 작업 종류에
+   해당하는 게 있으면 만들기 전에 부르라**는 일반 계약이다. 이 스택(FastAPI+SQLite / React+Vite)에
+   실제로 걸리는 것들을 작업 종류별 표로 주되 "이 표가 전부가 아니다"를 명시했다.
+   `django-*`·`laravel-*`·`springboot-*`·`postgres-patterns` 같은 **다른 스택 Skill을 억지로
+   적용하지 말라**는 경고도 넣었다 — Django 보안 패턴을 FastAPI에 갖다 붙이면 그 판정 자체가 틀린다.
+   Audit 쪽도 같은 방향으로 일반화하고, Skill 확인을 파일시스템 경로 추측에서 `Skill` 도구
+   목록으로 바꿨다(경로는 프로젝트/사용자/플러그인 세 군데에 흩어져 있어 추측하면 틀린다).
+3. **CLAUDE.md §3 불변 규칙 10개를 core 프롬프트에 인라인.** COLD/WARM 분리(D-71)의 부작용이다 —
+   WARM은 CLAUDE.md를 다시 읽지 않고 긴 세션은 context가 압축되므로, 참조만 남기면 규칙 **내용**이
+   사라질 수 있었다. 내가 만든 구조가 만든 공백이라 같이 막았다.
+4. **브라우저 E2E 경로 명시.** 실측: `-p` 비대화형 세션에는 Chrome/browser MCP 도구가 **하나도
+   붙지 않는다.** 그런데 CLAUDE.md §10은 Chrome Whole-product E2E를 필수 완료 Gate로 요구한다.
+   저장소에는 Playwright 기반 `scripts/ui_qa/` 하네스(화면 × 라이트/다크 × 뷰포트 행렬,
+   contrast·keyboard·failure_states·hostile_data 등 축별 모듈)가 이미 있는데 프롬프트가 한 번도
+   가리키지 않았다. 이제 "MCP 도구를 찾지 마라, 이 하네스를 확장해서 써라"로 명시한다.
+5. **Responsive / Light-Dark / Accessibility를 구현 지시로 승격.** 완료 기준 목록에만 있어서
+   "나중에 몰아서" 하게 돼 있었다. 확인한 축은 QA_COVERAGE에 반영하도록 했다.
+6. **배포 순서(CLAUDE.md §9)를 프롬프트에 명시.** WARM이 CLAUDE.md를 안 읽으므로 3번과 같은 이유다.
+
+### 제품명
+
+이 제품의 이름은 **ClovirAssist**다(사용자 확인). 두 Runner 프롬프트의 표기를 정정했다.
+**배포 경로 식별자 `clovirone-web-assistant`는 그대로 둔다** — systemd unit·nginx conf·`/opt`
+경로가 그 이름이라 바꾸면 실서버가 깨진다. 저장소 전체 rename은 별개의 위험한 작업이고 하지 않았다.
+(계약 테스트는 `-cmatch`로 대소문자를 구분해 둘을 갈라 본다 — PowerShell `-match`는 기본이
+대소문자 무시라 경로가 제품명 잔존으로 잘못 잡힌다.)
+
+검증: contract test **59건**이 Windows PowerShell 5.1 / PowerShell 7 양쪽에서 통과.
+신규 T61(rubric 인계 + Skill 계약 + 스택 오적용 경고 + 제품명) · T62(WARM 불변 규칙 인라인) ·
+T63(브라우저 도구 부재 시 E2E 경로).
