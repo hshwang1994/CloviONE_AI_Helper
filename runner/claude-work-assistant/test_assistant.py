@@ -4280,3 +4280,36 @@ def test_query_prompt_knows_the_products_own_feature_names():
         assert word in m.QUERY_PROMPT, f"{word!r}가 시스템 프롬프트에 없다"
     # 데이터가 없는 영역은 정직하게 안내하라는 지시도 같이 있어야 한다(추측 금지 원칙과 일관).
     assert "정직하게" in m.QUERY_PROMPT
+
+
+# ── AI-10: 세마포어 429가 관측 가능하고, 순간적인 연결 폭주가 OS 단계에서 조용히 거부되지 않는다 ──
+
+
+def test_busy_response_logs_a_structured_event_operators_can_count(capsys):
+    """예전엔 3번째 동시 요청이 429를 받아도 어디에도 흔적이 안 남아, 운영자가
+    ASSISTANT_MAX_CONCURRENCY(기본 2, 퀴즈·티켓 자동화 공유)를 올려야 할 때인지 판단할
+    근거가 없었다. assistant_complete/quiz_error와 같은 관례(print(json.dumps(...)))로
+    세었는지 확인한다."""
+    body = m._busy_response("quiz")
+    assert body == {"error": "assistant_busy_try_again"}
+
+    logged = json.loads(capsys.readouterr().out.strip())
+    assert logged == {"event": "assistant_busy", "endpoint": "quiz"}
+
+
+def test_busy_response_distinguishes_the_two_endpoints_that_share_the_semaphore(capsys):
+    """퀴즈발 429와 티켓/채팅발 429를 구분 못 하면, 운영자가 "퀴즈가 자동화를 굶기는지"
+    "자동화 자체가 상한을 넘는지"를 로그만 보고 가를 수 없다."""
+    m._busy_response("assistant")
+    logged = json.loads(capsys.readouterr().out.strip())
+    assert logged["endpoint"] == "assistant"
+
+
+def test_assistant_server_backlog_is_larger_than_the_stdlib_default():
+    """stdlib ThreadingHTTPServer 기본 백로그(5)를 그대로 뒀을 때, 순간적으로 여섯 번째
+    TCP 연결이 몰리면 REQUEST_SEMAPHORE에 닿지도 못하고 OS 단계에서 조용히 거부됐다
+    (n8n 쪽엔 원인 불명 연결 오류로만 보인다, assistant_busy 로그도 안 남는다) — 실제
+    동시 처리량은 여전히 REQUEST_SEMAPHORE가 정하므로 백로그만 넉넉히 늘렸다."""
+    import http.server
+
+    assert m._AssistantServer.request_queue_size > http.server.HTTPServer.request_queue_size

@@ -5961,6 +5961,19 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
     return claude_query(message, context, requester, current_user, projects, tickets, status_map), 0
 
 
+def _busy_response(endpoint: str) -> dict:
+    """세마포어가 꽉 찼을 때 보낼 429 본문 + 구조화 로그(AI-10).
+
+    `REQUEST_SEMAPHORE`는 퀴즈·티켓 자동화가 공유하는 2칸짜리 상한이고, 3번째 동시
+    요청은 큐잉 없이 바로 이 응답을 받는다. 그 자체는 의도한 백프레셔지만(Claude CLI를
+    무제한으로 겹쳐 부르지 않으려는 판단), 예전엔 이 사실이 어디에도 안 남아 운영자가
+    `ASSISTANT_MAX_CONCURRENCY`를 올려야 할 때인지 판단할 근거가 없었다 — 다른 이벤트들
+    (`assistant_complete`·`quiz_error`·`internal_error`)과 같은 구조화 로그 관례를 따른다.
+    """
+    print(json.dumps({"event": "assistant_busy", "endpoint": endpoint}, ensure_ascii=False), flush=True)
+    return {"error": "assistant_busy_try_again"}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"ClovirONEWorkAssistant/{APP_VERSION}"
 
@@ -6030,7 +6043,7 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 count, num_options = 5, 4
             if not REQUEST_SEMAPHORE.acquire(blocking=False):
-                self.send_json(429, {"error": "assistant_busy_try_again"})
+                self.send_json(429, _busy_response("quiz"))
                 return
             # acquire와 try 사이에 아무것도 실행하지 않는다 — 예외가 새면 permit이 샌다.
             try:
@@ -6111,7 +6124,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(413, {"error": "too_many_tickets"})
             return
         if not REQUEST_SEMAPHORE.acquire(blocking=False):
-            self.send_json(429, {"error": "assistant_busy_try_again"})
+            self.send_json(429, _busy_response("assistant"))
             return
         # NOTHING may run between acquire and this try — a single uncaught exception
         # outside the finally would leak the permit and (twice) freeze the service at 429.
@@ -6202,8 +6215,18 @@ def _sweep_loop() -> None:
             pass
 
 
+class _AssistantServer(ThreadingHTTPServer):
+    """stdlib 기본 백로그(5)는 순간적으로 여섯 번째 TCP 연결이 몰리면 OS 단계에서 그냥
+    거부한다(AI-10) — REQUEST_SEMAPHORE까지 닿지도 못해 n8n 쪽엔 원인을 알 수 없는 연결
+    오류로만 보이고, `assistant_busy`처럼 구조화 로그도 안 남는다. 실제 동시 처리량은
+    여전히 REQUEST_SEMAPHORE(기본 2)가 정한다 — 여기서 백로그만 늘리면 순간적으로 밀려든
+    연결을 조금 더 받아 뒀다가 accept 뒤 깨끗한 429로 답할 여유가 생길 뿐, 동시에 실제로
+    처리되는 요청 수는 그대로다."""
+    request_queue_size = 32
+
+
 if __name__ == "__main__":
     threading.Thread(target=_sweep_loop, daemon=True).start()
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server = _AssistantServer((HOST, PORT), Handler)
     print(f"ClovirONE Work Assistant listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()
