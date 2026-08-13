@@ -52,9 +52,13 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\run_all.ps1
 
 # 단계별로 직접 돌리고 싶으면
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\product_audit_runner.ps1   # PHASE 1 (opus)
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\autonomous_runner.ps1      # PHASE 2 (sonnet)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\product_audit_runner.ps1   # PHASE 1 (opus/max)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\runner\autonomous_runner.ps1      # PHASE 2 (sonnet/max)
 ```
+
+모델/effort는 사용자 지시(2026-08-13)로 **고정**이다 — Audit=`opus`/`max`, 구현=`sonnet`/`max`.
+매 invocation에 명시적으로 넘긴다(안 넘기면 사용자 settings의 effortLevel이나 세션에 저장된 과거
+model에 좌우된다). 동적 정책 코드는 `-DynamicEffort $true` 뒤에 있고 기본은 꺼짐이다.
 
 > **`-ExecutionPolicy Bypass` 가 필요한 이유**: Windows PowerShell 5.1과 PowerShell 7은 실행 정책
 > 레지스트리 키가 **서로 다르다.** 이 PC는 7이 `RemoteSigned`, 5.1이 `Undefined`(=Restricted)라
@@ -201,6 +205,47 @@ pwsh       -NoProfile -File scripts\runner\tests\runner_contract_tests.ps1   # P
   가정하고 있어 그 경로 분리까지 함께 해야 한다 — 이번 변경에서는 넣지 않았다. 대신 구현
   Worker가 **자기 invocation 안에서** subagent/background agent/별도 worktree로 독립 조사를
   병렬화하도록 프롬프트에 명시했다(메인 통합 writer는 여전히 하나).
+
+## 품질 계약 — 두 Phase가 같은 자를 쓴다 (D-73)
+
+Audit이 Skill의 rubric으로 문제를 **찾고**, 구현이 그 rubric을 안 읽고 **만들면** 설계 의도는
+맞아도 결과물 품질이 빗나간다. 그 비대칭이 실제로 있었다(Audit 프롬프트의 Skill 언급 22곳,
+구현 0곳). 두 지점으로 막는다.
+
+| 지점 | 무엇 |
+|---|---|
+| Handoff의 `quality_rubric` 필드 | Audit이 그 Root Cause를 판정할 때 **실제로 쓴 자**(Skill 실제 이름 + 구체 항목). PA-RC 필수 필드라 비면 완료 Gate가 거부한다 |
+| 구현 프롬프트의 Skill 사용 계약 | 지금 하는 작업에 해당하는 Skill이 있으면 **만들기 전에** 부른다. 다 만든 뒤 검사가 아니다 |
+
+- 다섯 개만 쓰라는 계약이 **아니다.** `Skill` 도구 목록(실측 144개)이 정본이고, 작업 종류별로
+  이 스택(FastAPI+SQLite / React+Vite)에 걸리는 것을 고른다 — UI/UX·문구 축의
+  `ui-ux-pro-max`·`redesign-existing-projects`·`impeccable`·`ux-writing`·`humanize-korean`,
+  그리고 `python-patterns`·`python-testing`·`api-design`·`backend-patterns`·
+  `database-migrations`·`security-review`·`frontend-patterns`·`e2e-testing`·
+  `superpowers:systematic-debugging` 등.
+- **다른 스택 Skill을 억지로 적용하지 않는다** — 목록에는 `django-*`·`laravel-*`·`springboot-*`·
+  `postgres-patterns`도 있다. 이 제품은 FastAPI + SQLite다.
+- Skill 확인은 **파일시스템 경로 추측이 아니라 `Skill` 도구 목록**이다(경로가 프로젝트/사용자/
+  플러그인 세 군데에 흩어져 있어 추측하면 틀린다).
+- 우선순위는 두 Phase가 같은 문장을 쓴다: 사용자 업무 성공 > 기능 정확성 > 데이터/RBAC/보안 경계
+  > 명확한 UX > 일관성/접근성 > UX Writing > 한국어 자연스러움 > 시각적 완성도.
+
+### 무인 실행에는 브라우저 MCP 도구가 없다
+
+실측: `-p` 비대화형 세션에는 Chrome/browser MCP가 **하나도 붙지 않는다.** 그런데 CLAUDE.md §10은
+Chrome Whole-product E2E를 필수 완료 Gate로 요구한다. 저장소의 Playwright 하네스를 쓴다.
+
+- `scripts/ui_qa/` — 화면 × 라이트/다크 × 뷰포트 행렬을 실제 로그인 상태로 순회하며 스크린샷·
+  레이아웃·콘솔·접근성을 검사하고 HTML 리포트를 만든다. `contrast.py`·`keyboard.py`·
+  `failure_states.py`·`hostile_data.py`·`fab_occlusion.py` 등 축별 모듈이 이미 있다.
+  사용법 정본은 `scripts/ui_qa/README.md`, 산출물은 `dist/`(gitignore).
+- 새로 만들지 말고 **확장**한다. 브라우저 바이너리가 없으면 직접 설치하고 계속한다(§9 권한).
+
+### WARM 회차를 위해 프롬프트에 인라인된 것
+
+WARM은 CLAUDE.md를 다시 읽지 않고 긴 세션은 context가 압축된다. 참조만 남기면 규칙 **내용**이
+사라지므로, 항상 전송되는 core 프롬프트에 다음을 인라인한다: CLAUDE.md §3 불변 규칙 10개 요약,
+배포 흐름 순서(§9), Responsive/Light-Dark/Accessibility 축. 애매하면 CLAUDE.md 원문이 정본이다.
 
 ## 진행 상황 보기 / 성능 측정
 
