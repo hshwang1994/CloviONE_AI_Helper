@@ -573,7 +573,7 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
         component="button" type="button" underline="hover" color="inherit" onClick={onOpen}
         sx={{
           display: "flex", alignItems: "flex-start", gap: 0.75, font: "inherit",
-          fontWeight: FONT_WEIGHT.bold, fontSize: "1rem", lineHeight: 1.4, textAlign: "left",
+          fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, lineHeight: 1.4, textAlign: "left",
           // QAH-07 — 위 테이블뷰 제목 링크와 같은 결함(dark 모드 대비 미달, 최저 2.81).
           "&:hover": { color: "primary.dark" },
         }}

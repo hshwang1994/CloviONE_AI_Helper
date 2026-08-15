@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import { Badge, Button, Callout, Card, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
 
 /* 주간 리포트 탭.
@@ -189,7 +189,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1.5 }}>이번 주 작업</Typography>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>이번 주 작업</Typography>
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
           {SECTIONS.map(([key, title]) => (
             <Bucket key={key} title={title} bucket={data[key]} onOpen={openTicket} />
@@ -198,7 +198,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1.5 }}>마일스톤</Typography>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>마일스톤</Typography>
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
           {MILESTONE_BUCKETS.map(([key, title]) => (
             <MilestoneBucket key={key} title={title} bucket={milestones[key]} />
@@ -208,7 +208,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
 
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>요약</Typography>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>요약</Typography>
           {canWrite ? (
             <Button variant="primary" size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
               이 주 리포트 저장

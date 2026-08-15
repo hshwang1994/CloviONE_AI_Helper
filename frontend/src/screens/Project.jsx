@@ -150,7 +150,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
     <>
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>마일스톤</Typography>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>마일스톤</Typography>
           {addButton}
         </Stack>
         <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
@@ -206,7 +206,7 @@ function Overview({
     <Stack gap={2.5}>
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>개요</Typography>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>개요</Typography>
           {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
           {/* FN-04: 화면엔 "보관됨" 배지·"보관한 프로젝트 포함" 체크박스가 있는데 정작
               그 상태로 보내는 버튼이 없었다 — 보관은 되돌릴 API가 없어(project-queries.js
@@ -276,7 +276,7 @@ function Overview({
 
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>진행률</Typography>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
           {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
               주석 참조) — 이 버튼은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친
               사람이 다음 스윕까지 기다리지 않게 하는 수동 트리거다. */}
@@ -297,7 +297,7 @@ function Overview({
 
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>Health</Typography>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>Health</Typography>
           {canWrite ? (
             <Button size="sm" disabled={snapshottingHealth} onClick={onSnapshotHealth}>
               {snapshottingHealth ? "계산하는 중" : "다시 계산"}

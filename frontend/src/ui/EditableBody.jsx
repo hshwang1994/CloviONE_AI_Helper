@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { BodyEditor, BodyPreview, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
 import { Button, Callout, useConfirm, useToast } from "./kit.jsx";
-import { PROSE_MAX_WIDTH } from "./theme.js";
+import { FONT_SIZE, PROSE_MAX_WIDTH } from "./theme.js";
 
 /* 편집 중인 표면(제목 행 + 안내문 + BodyEditor)의 컨테이너 질의 이름. 이 화면 전용 지역
  * 값이라 상수로 뽑는다 — editorSurfaceWidthSx 가 만드는 `@container` 규칙과
@@ -141,7 +141,7 @@ export function EditableBody({
       <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
         <Box sx={editorSurfaceWidthSx(EDIT_SURFACE_CONTAINER)}>
           <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 수정</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading} 수정</Typography>
             <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
             <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
               onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
@@ -203,7 +203,7 @@ export function EditableBody({
   return (
     <Box>
       <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading}</Typography>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading}</Typography>
         <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
       </Stack>
       {!canEdit ? (

@@ -241,7 +241,7 @@ export function Ticket() {
             댓글)를 그대로 따른다. */}
         <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>속성</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>속성</Typography>
             {meta.length ? (
               <Box sx={META_GRID}>
                 {meta.map(([label, value]) => <MetaRow key={label} label={label}>{value}</MetaRow>)}

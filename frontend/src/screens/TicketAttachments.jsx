@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
 import { Button, Callout, Card, useConfirm, useToast } from "../ui/kit.jsx";
+import { FONT_SIZE } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 티켓 첨부 — 지시서 §4 "티켓에 연결된 이미지가 있다면 현재 화면과 티켓 상세에서 바로 확인할 수
@@ -131,7 +132,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
   return (
     <Card>
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1.5, gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem" }}>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>
           첨부 {list.length > 0 ? `(${list.length})` : ""}
         </Typography>
         {canEdit ? (

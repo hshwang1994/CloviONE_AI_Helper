@@ -77,7 +77,7 @@ function DocBlock({ block, index, onImage }) {
     case "heading_2":
       return <Typography variant="h6" component="h3" sx={{ mt: 3, mb: 1 }}>{lt}</Typography>;
     case "heading_3":
-      return <Typography component="h4" sx={{ mt: 2.5, mb: 0.5, fontWeight: FONT_WEIGHT.bold, fontSize: "1rem" }}>{lt}</Typography>;
+      return <Typography component="h4" sx={{ mt: 2.5, mb: 0.5, fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>{lt}</Typography>;
     case "bulleted":
     case "numbered":
       return <Box component="li" sx={{ mb: 0.5 }}>{lt}</Box>;

@@ -38,7 +38,7 @@ export function TeamChatWidget() {
   const header = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, minWidth: 0 }}>
       <ForumRoundedIcon aria-hidden="true" sx={{ fontSize: FONT_SIZE.pageTitle, color: "primary.main" }} />
-      <Typography component="h3" sx={{ flex: 1, minWidth: 0, fontSize: "1rem", fontWeight: FONT_WEIGHT.bold }}>팀 채팅</Typography>
+      <Typography component="h3" sx={{ flex: 1, minWidth: 0, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold }}>팀 채팅</Typography>
       <Link href="#/chat-rooms" underline="hover" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, flexShrink: 0 }}>
         채팅방 전체 보기
       </Link>

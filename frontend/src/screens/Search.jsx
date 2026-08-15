@@ -99,7 +99,7 @@ function ResultGroup({ group, onOpen }) {
   return (
     <Card>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 1 }}>
-        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: "1rem" }}>
+        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.sectionTitle }}>
           {group.label}
         </Typography>
         <Chip size="small" label={group.total} />

@@ -106,7 +106,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
   return (
     <Stack gap={2.5}>
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>트리 전체 진행률</Typography>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>트리 전체 진행률</Typography>
         {/* 머리글 숫자는 개요 탭과 **같은 함수, 같은 표본**이다(서버가 그렇게 만든다).
             그 사실이 화면에서도 보이도록 같은 근거 표를 그린다. */}
         <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold }}>
@@ -125,7 +125,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
 
       {unplaced.length ? (
         <Card>
-          <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>
+          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>
             {"트리에 넣지 못한 작업 " + unplaced.length + "건"}
           </Typography>
           <Callout tone="warn">

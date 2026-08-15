@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { AuthorLine } from "./Board.jsx";
 
 /* 댓글 타래 (티켓 · 문서 공용).
@@ -139,7 +139,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
        건다. 카드 자체를 78ch로 줄이면 바로 위 본문 카드보다 좁아 보여 두 카드가 어긋난다
        (xl 미만에서 열이 열 전체 폭을 쓰기 때문). */
     <Card component="section" aria-label="댓글" sx={{ minWidth: 0 }}>
-      <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1, maxWidth: PROSE_MAX_WIDTH }}>
+      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1, maxWidth: PROSE_MAX_WIDTH }}>
         댓글 {liveCount > 0 ? liveCount : ""}
       </Typography>
 
