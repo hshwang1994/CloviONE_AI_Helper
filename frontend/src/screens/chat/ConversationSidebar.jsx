@@ -114,11 +114,6 @@ export function ConversationSidebar({
   renameConv, archiveConv, deleteConv, confirm,
   hasMoreConvs, loadMoreConvs,
 }) {
-  // AI-38: 검색어가 있으면 convItems는 이미 서버가 제목·본문 기준으로 걸러 온 결과다
-  // (useChat.js의 debouncedQ) — 여기서 다시 거르지 않는다(다시 거르면 방금 debounce된
-  // 서버 결과 위에 아직 안 debounce된 글자로 한 번 더 잘라내 본문 일치 결과가 깜빡인다).
-  const filtered = convItems;
-
   // AI-56: "새 대화" 그대로 방치된 항목(메시지 한 번도 안 보낸 시험용)이 쌓이면 목록
   // 상단부를 영구히 차지한다 — 자동 보관은 하지 않지만(멋대로 지우면 사용자가 놀란다),
   // 일괄 보관 버튼 하나는 둔다. 이미 보관된 것·활성 대화(cid)는 건드리지 않는다.
@@ -184,15 +179,23 @@ export function ConversationSidebar({
               /* 빈 상태는 kit `EmptyState` 로. 회색 한 줄은 로딩 중인지·보관 필터 때문인지·
                  정말 없는 건지 구분해 주지 않는다(E계열 지적, `GroupedTickets` 와 같은 수정).
                  `.k-empty` + `role="status"` 가 따라오는 것도 이득이다 — 낭독되고, 기준 대조
-                 도구가 "데이터가 없어 카드가 0" 인 화면을 디자인 불일치로 세지 않게 된다. */
-              ? (showArchived
-                  ? <EmptyState title="보관된 대화가 없습니다"
-                      help="대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다." />
-                  : <EmptyState title="아직 대화가 없습니다"
-                      help="위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다." />)
-              : (filtered.length ? (
+                 도구가 "데이터가 없어 카드가 0" 인 화면을 디자인 불일치로 세지 않게 된다.
+                 AI-70: 검색어가 있으면(AI-38 — convItems는 이미 서버가 걸러 온 결과다) "대화가
+                 아예 없다"가 아니라 "이 검색에 해당하는 결과가 없다"고 말한다 — 먼저 확인하는
+                 이유는 검색 중엔 보관 필터보다 "방금 한 행동"이 더 구체적인 원인이라서다. 예전엔
+                 검색 결과 0건도 여기 안 걸리고 항상 "아직 대화가 없습니다"로 떨어졌다(convItems
+                 별칭 filtered가 이 분기 안에서는 늘 참이라, 아래 있던 "검색 결과가 없습니다"
+                 분기 자체가 도달 불가능한 죽은 코드였다). */
+              ? (convFilter.trim()
+                  ? <EmptyState size="compact" title="검색 결과가 없습니다" />
+                  : showArchived
+                    ? <EmptyState title="보관된 대화가 없습니다"
+                        help="대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다." />
+                    : <EmptyState title="아직 대화가 없습니다"
+                        help="위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다." />)
+              : (
                   <>
-                    {filtered.map((c) => (
+                    {convItems.map((c) => (
                       <ConvItem key={c.id} c={c} active={c.id === cid}
                         onOpen={() => { if (c.id !== cid) clearDraft(); setCid(c.id); setComposingNew(false); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}
                         onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
@@ -211,7 +214,7 @@ export function ConversationSidebar({
                       </Button>
                     ) : null}
                   </>
-                ) : <EmptyState size="compact" title="검색 결과가 없습니다" />)}
+                )}
         </Box>
       </Box>
       {sideOpen && listIsDrawer ? (
