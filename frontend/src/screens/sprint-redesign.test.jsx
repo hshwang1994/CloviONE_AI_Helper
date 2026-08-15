@@ -98,13 +98,16 @@ describe("스프린트 회의 재설계", () => {
   });
 
   it("담당자별로 그 주의 티켓 목록이 그려진다(티켓 없는 팀원은 빈 그룹을 만들지 않는다)", async () => {
+    const user = userEvent.setup();
     const section = await findAssigneeSection();
     // 섹션 제목이 담당자 수(1명)를 알려준다 — 홍길동은 이번 주 티켓이 없어 포함되지 않는다.
     expect(screen.getByRole("heading", { name: /담당자별 티켓/ })).toHaveTextContent("담당자별 티켓 (1명)");
-    // 그룹 머리행에 담당자 이름과 건수가 있다.
+    // 그룹 머리행에 담당자 이름과 건수가 있다 — 접혀 있어도 보인다(VIS-64).
     expect(within(section).getByText("서윤경")).toBeInTheDocument();
     expect(within(section).getByText("2건")).toBeInTheDocument();
     expect(within(section).queryByText("홍길동")).toBeNull();
+    // VIS-64: 그룹이 접힌 채 시작하므로 펼쳐야 티켓 행이 보인다.
+    await user.click(within(section).getByRole("button", { name: /서윤경/ }));
     // 각 티켓 제목과 티켓 번호가 실제로 목록에 있다.
     expect(within(section).getByText("배포 스크립트 정리")).toBeInTheDocument();
     expect(within(section).getByText("GIT-12")).toBeInTheDocument();
@@ -114,13 +117,16 @@ describe("스프린트 회의 재설계", () => {
   it("제목을 누르면 그 티켓의 /tickets/:id 상세로 이동한다", async () => {
     const user = userEvent.setup();
     const section = await findAssigneeSection();
+    await user.click(within(section).getByRole("button", { name: /서윤경/ })); // VIS-64: 접힌 그룹을 편다
     const title = within(section).getByRole("button", { name: "로그인 오류 수정" });
     await user.click(title);
     expect(await screen.findByText("티켓 상세 라우트: p-12")).toBeInTheDocument();
   });
 
   it("앱 id를 알 수 없는 티켓은 죽은 링크 대신 일반 텍스트로 그린다", async () => {
+    const user = userEvent.setup();
     const section = await findAssigneeSection();
+    await user.click(within(section).getByRole("button", { name: /서윤경/ })); // VIS-64: 접힌 그룹을 편다
     // tid 34 는 planned/unassigned 어디에도 없어 id를 붙일 수 없다 → 링크(button)로 만들지 않는다.
     expect(within(section).getByText("배포 스크립트 정리")).toBeInTheDocument();
     expect(within(section).queryByRole("button", { name: "배포 스크립트 정리" })).toBeNull();
@@ -375,8 +381,11 @@ describe("스프린트 회의 5단계 재설계", () => {
   it("카드를 누르면 그 사람 티켓만 남고, 그 조건이 주소에 남는다", async () => {
     const user = userEvent.setup();
     renderWeekly();
-    await personGrid();
-    await user.click(screen.getByRole("button", { name: /김철수/ }));
+    const { cards } = await personGrid();
+    // VIS-64로 "담당자별 티켓" 목록에도 담당자 이름을 담은 버튼(그룹 펼치기)이 생겨,
+    // 화면 전체를 뒤지는 이름 정규식으로는 카드와 겹친다 — 카드 격자로 좁힌 cards에서 찾는다.
+    const johnCard = cards.find((c) => within(c).queryByText("김철수"));
+    await user.click(johnCard);
 
     await waitFor(() => expect(addr()).toContain("assignee_user_id=u-2"));
     const list = screen.getByRole("region", { name: /담당자별 티켓/ });
@@ -395,6 +404,7 @@ describe("스프린트 회의 5단계 재설계", () => {
 
     await waitFor(() => expect(addr()).toContain("project_id=p-a"));
     const list = screen.getByRole("region", { name: /담당자별 티켓/ });
+    await user.click(within(list).getByRole("button", { name: /서윤경/ })); // VIS-64: 접힌 그룹을 편다
     expect(within(list).getByText("로그인 오류 수정")).toBeInTheDocument();
     expect(within(list).queryByText("배포 스크립트 정리")).toBeNull();
   });

@@ -439,6 +439,11 @@ export function Sprint() {
                     rows={rows}
                     columns={cols}
                     groupBy={groupByAssignee}
+                    // VIS-64: 담당자가 몇 명만 넘어도 이 표가 11,000px를 넘어 페이지네이션 없이
+                    // 한 화면에 다 들어갔다. 담당자 카드(위)를 눌러 한 사람만 볼 수도 있지만,
+                    // 회의 초반엔 전원을 보며 한 사람씩 순서대로 넘어가는 쓰임도 있다 — 그때를
+                    // 위해 그룹을 접어서 시작하고 펼쳐 가는 흐름을 준다.
+                    collapsible
                     emptyState={
                       <TicketEmptyState
                         filtered={filtered} onClear={clearFilters}

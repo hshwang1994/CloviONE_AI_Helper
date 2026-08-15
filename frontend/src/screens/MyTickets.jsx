@@ -20,6 +20,7 @@ import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -221,11 +222,26 @@ function groupedRowKey(t, i) {
  * MUI Table로 옮겼지만 그룹 머리행은 <tbody>를 그룹마다 하나씩 두는 기존 구조를 그대로 유지한다 —
  * colgroup 스코프 헤더라 스크린리더가 "이 아래 행들은 이 그룹" 이라고 읽을 수 있고, 열 폭은 하나의
  * <table>이 공유하므로 그룹 간에 어긋나지 않는다. */
-export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy }) {
+export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible }) {
   const cols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
+
+  /* VIS-64: 담당자가 많으면(스프린트 회의) 이 표 하나가 11,000px를 넘어 페이지네이션도
+   * 없이 한 화면에 다 들어간다. `collapsible`이면 그룹을 접어서 시작해, 회의에서 한 사람씩
+   * 펼쳐 가는 흐름(Sprint.jsx의 담당자 카드 클릭→필터와 같은 정신)과 맞춘다. 기본값은
+   * false — 나머지 세 소비처(내 티켓·미할당·팀 티켓)는 그룹이 몇 개 안 돼 접을 이유가
+   * 없고 기존 동작을 그대로 지킨다. "열린 그룹"만 추적하는 이유: 그룹 이름 전체 목록을
+   * state 초기화 시점에 몰라도 되고(로딩 뒤 rows가 바뀌어도 새 그룹은 자동으로 닫힌
+   * 상태로 시작한다), collapsible=false일 때 `isOpen`이 항상 참이라 분기가 단순하다. */
+  const [openGroups, setOpenGroups] = React.useState(() => new Set());
+  const isGroupOpen = (name) => !collapsible || openGroups.has(name);
+  const toggleGroup = (name) => setOpenGroups((s) => {
+    const next = new Set(s);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    return next;
+  });
 
   /* 빈 상태는 맨 글자가 아니라 kit `EmptyState` 로 그린다. 회색 한 줄은 **로딩 중인지,
    * 필터가 걸린 건지, 정말 없는 건지** 구분해 주지 않는다 — 같은 저장소의 다른 화면들은
@@ -243,42 +259,66 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   }
 
   const groups = grouper(safeRows);
-  const groupHeading = (name, count) => (
+  const groupHeading = (name, count, open) => (
     <>
+      {collapsible ? (
+        <ExpandMoreRoundedIcon
+          fontSize="small" aria-hidden="true"
+          sx={{ verticalAlign: "middle", mr: 0.5, transform: open ? "none" : "rotate(-90deg)", transition: "transform .15s" }}
+        />
+      ) : null}
       <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>{name}</Box>
       <Box component="span" sx={{ ml: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm }}>{count}건</Box>
     </>
   );
+  // collapsible일 때만 진짜 <button>으로 감싼다 — <h3>/<th scope=colgroup> 의미는 그대로 두고
+  // (스크린리더 개요·표 탐색용) 그 안에 버튼을 얹는다(SidebarNav 그룹 토글과 같은 원칙).
+  // sx로 기본 버튼 크롬(테두리·배경·글꼴)을 지워 원래 텍스트처럼 보이게 한다.
+  const groupToggleSx = {
+    all: "unset", display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+    "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
+  };
 
   /* 좁은 화면에서는 가로 스크롤 표 대신 카드 목록으로 바꾼다 — 열 이름이 화면 밖으로 나가면
    * 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다(kit DataTable과 같은 규칙). */
   if (narrow) {
     return (
       <Stack gap={2.5}>
-        {groups.map(([groupName, items]) => (
-          <Box key={groupName}>
-            <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, mb: 1 }}>{groupHeading(groupName, items.length)}</Typography>
-            <Stack gap={1.5}>
-              {items.map((t, i) => {
-                // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙.
-                const ctx = { rowName: rowNameOf(cols, t) };
-                return (
-                  <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
-                    {cols.map((c) => c.label ? (
-                      <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                        <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                        <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
-                      </Box>
-                    ) : (
-                      // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
-                      <Box key={c.key} sx={{ minWidth: 0 }}>{groupedCell(c, t, ctx)}</Box>
-                    ))}
-                  </Paper>
-                );
-              })}
-            </Stack>
-          </Box>
-        ))}
+        {groups.map(([groupName, items]) => {
+          const open = isGroupOpen(groupName);
+          return (
+            <Box key={groupName}>
+              <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, mb: 1 }}>
+                {collapsible ? (
+                  <Box component="button" type="button" aria-expanded={open} onClick={() => toggleGroup(groupName)} sx={groupToggleSx}>
+                    {groupHeading(groupName, items.length, open)}
+                  </Box>
+                ) : groupHeading(groupName, items.length, open)}
+              </Typography>
+              {open ? (
+                <Stack gap={1.5}>
+                  {items.map((t, i) => {
+                    // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙.
+                    const ctx = { rowName: rowNameOf(cols, t) };
+                    return (
+                      <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
+                        {cols.map((c) => c.label ? (
+                          <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
+                            <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                            <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
+                          </Box>
+                        ) : (
+                          // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
+                          <Box key={c.key} sx={{ minWidth: 0 }}>{groupedCell(c, t, ctx)}</Box>
+                        ))}
+                      </Paper>
+                    );
+                  })}
+                </Stack>
+              ) : null}
+            </Box>
+          );
+        })}
       </Stack>
     );
   }
@@ -295,39 +335,48 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
             ))}
           </TableRow>
         </TableHead>
-        {groups.map(([groupName, items]) => (
-          <TableBody key={groupName}>
-            <TableRow>
-              <TableCell
-                component="th"
-                scope="colgroup"
-                colSpan={cols.length}
-                sx={{
-                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
-                  fontSize: FONT_SIZE.bodySm,
-                  color: "text.primary",
-                  borderTop: 1, borderColor: "divider",
-                }}
-              >
-                {groupHeading(groupName, items.length)}
-              </TableCell>
-            </TableRow>
-            {items.map((t, i) => {
-              // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙(셀마다 다시 구하면 열 수만큼 반복한다).
-              const ctx = { rowName: rowNameOf(cols, t) };
-              return (
-                <TableRow key={groupedRowKey(t, i)} hover>
-                  {cols.map((c) => (
-                    <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
-                                minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
-                      {groupedCell(c, t, ctx)}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        ))}
+        {groups.map(([groupName, items]) => {
+          const open = isGroupOpen(groupName);
+          return (
+            <TableBody key={groupName}>
+              <TableRow>
+                <TableCell
+                  component="th"
+                  scope="colgroup"
+                  colSpan={cols.length}
+                  sx={{
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
+                    fontSize: FONT_SIZE.bodySm,
+                    color: "text.primary",
+                    borderTop: 1, borderColor: "divider",
+                    ...(collapsible ? { p: 0 } : null),
+                  }}
+                >
+                  {collapsible ? (
+                    <Box component="button" type="button" aria-expanded={open} onClick={() => toggleGroup(groupName)}
+                      sx={{ ...groupToggleSx, px: 2, py: "6px" }}>
+                      {groupHeading(groupName, items.length, open)}
+                    </Box>
+                  ) : groupHeading(groupName, items.length, open)}
+                </TableCell>
+              </TableRow>
+              {open ? items.map((t, i) => {
+                // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙(셀마다 다시 구하면 열 수만큼 반복한다).
+                const ctx = { rowName: rowNameOf(cols, t) };
+                return (
+                  <TableRow key={groupedRowKey(t, i)} hover>
+                    {cols.map((c) => (
+                      <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
+                                  minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
+                        {groupedCell(c, t, ctx)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              }) : null}
+            </TableBody>
+          );
+        })}
       </Table>
     </TableContainer>
   );
