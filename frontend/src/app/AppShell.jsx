@@ -232,8 +232,42 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
     } catch (e) { /* ignore */ }
   }, [activePath]);
 
+  /* VIS-104: 이 목록이 VIS-113처럼 스크롤되는데(37항목 5그룹은 1080 높이에 다 안 들어간다),
+   * 바로 아래 항상 보이는 마스코트 카드가 붙어 있어 "메뉴가 여기서 끝난다"로 착시된다 —
+   * 실제로는 스크롤하면 항목이 더 있다(1920×1080 실측: `내 업무량`·`내 활동`이 이렇게
+   * 가려졌다, 1305 높이에서는 셋 다 보임). 스크롤 가능 여부를 재서 아래쪽 경계에 그림자를
+   * 얹어 "더 있다"는 신호를 준다. ResizeObserver는 안 쓴다 — jsdom(테스트 환경)에 없어
+   * 이 컴포넌트를 렌더하는 다른 테스트들이 전부 깨진다. 뷰포트 높이 차(1080 vs 1305)는
+   * window resize로도 잡힌다. */
+  const listRef = React.useRef(null);
+  const [hasMoreBelow, setHasMoreBelow] = React.useState(false);
+  React.useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const update = () => {
+      // 1px 여유 — scrollHeight/clientHeight/scrollTop 반올림 오차로 스크롤 끝에서도
+      // 차이가 0이 아니라 0.x로 남아 그림자가 안 사라지는 경우를 막는다.
+      setHasMoreBelow(el.scrollHeight - el.clientHeight - el.scrollTop > 1);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [groups, collapsed]);
+
   return (
-    <List component="nav" sx={{ px: 1.5, py: 1, flex: 1, overflowY: "auto" }}>
+    <List
+      component="nav"
+      ref={listRef}
+      sx={{
+        px: 1.5, py: 1, flex: 1, overflowY: "auto",
+        boxShadow: hasMoreBelow ? "inset 0 -16px 12px -12px rgba(0,0,0,.5)" : "none",
+        transition: "box-shadow .15s",
+      }}
+    >
       {groups.map((g) => {
         const groupActive = g.items.some((it) => it.to === activePath);
         // 현재 위치가 든 그룹은 사용자가 접어 뒀어도 항상 펼친다 — 알림 딥링크나 직접 해시로
