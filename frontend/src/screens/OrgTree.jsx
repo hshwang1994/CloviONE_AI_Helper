@@ -135,6 +135,23 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle }) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onSelect(row); }
         else if (e.key === "ArrowRight" && hasKids && !open) { e.stopPropagation(); onToggle(row.id); }
         else if (e.key === "ArrowLeft" && hasKids && open) { e.stopPropagation(); onToggle(row.id); }
+        else if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
+          // 위/아래/Home/End로 "보이는" treeitem 사이를 옮긴다(WAI-ARIA treeview 패턴) — 접힌
+          // 자식은 DOM에 아예 없으므로(위 open ? ... : null) querySelectorAll이 자동으로
+          // 걸러 준다. 재귀 컴포넌트라 "다음 형제"가 부모가 다른 노드의 첫 자식일 수도 있어
+          // prop으로 형제 목록을 끌고 다니는 것보다 DOM에서 직접 찾는 쪽이 더 단순하다.
+          e.preventDefault(); e.stopPropagation();
+          const root = e.currentTarget.closest('[role="tree"]');
+          if (!root) return;
+          const items = Array.from(root.querySelectorAll('[role="treeitem"]'));
+          const idx = items.indexOf(e.currentTarget);
+          if (idx < 0) return;
+          const next = e.key === "ArrowDown" ? items[idx + 1]
+            : e.key === "ArrowUp" ? items[idx - 1]
+            : e.key === "Home" ? items[0]
+            : items[items.length - 1];
+          if (next) next.focus();
+        }
       }}
       sx={{
         listStyle: "none",

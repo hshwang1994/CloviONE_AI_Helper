@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { Button } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtDuration } from "./settingsRegistry.js";
 
 // 스키마가 정해진 object 설정을 타입에 맞는 입력으로 편집한다. 값의 참(source of truth)은 여전히
@@ -49,18 +52,21 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     const domainDescribedBy = [describedBy, domainErr ? domainErrId : null].filter(Boolean).join(" ") || undefined;
     return (
       <Box sx={{ mb: 2.5 }}>
-        <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>허용 이메일 도메인</Typography>
+        <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>허용 이메일 도메인</Typography>
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
           {domains.length ? domains.map((d) => (
-            <Chip
-              key={d}
-              label={d}
-              size="small"
-              variant="outlined"
-              onDelete={canWrite ? () => removeDomain(d) : undefined}
-              // MUI 기본 삭제 아이콘의 접근 가능한 이름은 비어 있다 — 어떤 칩을 지우는지 읽히게 한다.
-              deleteIcon={canWrite ? <Box component="span" aria-label={d + " 제거"} role="button" sx={{ px: 0.5, cursor: "pointer", fontSize: "0.75rem" }}>✕</Box> : undefined}
-            />
+            // MUI Chip의 onDelete 아이콘은 tabIndex=-1이라 키보드로 못 뗀다(AssistantDrawer.jsx의
+            // 첨부 제거 버튼과 같은 이유로 이미 이 저장소에 적힌 함정) — 칩 옆에 독립적으로
+            // 포커스되는 IconButton을 따로 둔다.
+            <Box key={d} sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}>
+              <Chip label={d} size="small" variant="outlined" />
+              {canWrite ? (
+                <IconButton size="small" aria-label={d + " 제거"} onClick={() => removeDomain(d)}
+                  sx={{ p: 0.25 }}>
+                  <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
+                </IconButton>
+              ) : null}
+            </Box>
           )) : <Typography variant="body2" color="text.secondary">제한 없음(모든 이메일 도메인 허용)</Typography>}
         </Box>
         {canWrite ? (
