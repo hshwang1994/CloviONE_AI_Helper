@@ -6,7 +6,7 @@
  * "Z를 붙여 UTC로 파싱해야 브라우저가 로컬(KST)로 오해하지 않는다 ... 빼먹으면 마감이
  * 9시간 과거로 계산돼 카운트다운이 즉시 0이 되고 가위바위보가 바로 자동 처리되는 버그".
  * 그 규칙을 여기서 직접 고정한다. */
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { toDate, fmtTime } from "./timeUtils.js";
 
 describe("toDate — 타임존 표기 없는 백엔드 isoformat을 UTC로 파싱한다", () => {
@@ -54,6 +54,25 @@ describe("fmtTime — 채팅 시각 표시, 파싱 실패 시 빈 문자열", ()
     const out = fmtTime("2026-07-29T05:30:00");
     expect(out).toMatch(/\d{1,2}:\d{2}/);
   });
+
+  it("항상 KST(UTC+9)로 표시한다 — 실행 환경의 로컬 시간대와 무관하다 (whole-product 재감사, " +
+     "2026-08-15: timeZone을 안 준 toLocaleTimeString이 브라우저/실행기 로컬로 새던 결함)", () => {
+    // 개발 서버·CI 실행기가 우연히 KST면(이 저장소가 그렇다) "로컬로 새도 어차피 KST라 값이
+    // 같다"는 이유로 결함이 안 보인다 — 그래서 실행기 시간대를 KST가 아닌 값으로 강제 고정해
+    // 놓고도 KST가 나오는지를 직접 본다. Intl.DateTimeFormat의 명시적 timeZone 옵션은 process.env.TZ
+    // 보다 항상 우선하므로(코드가 실제로 그 옵션을 주고 있다면), 이 확인은 우연이 아니라 코드
+    // 자체의 보장을 시험한다.
+    vi.stubEnv("TZ", "America/Los_Angeles");
+    // UTC 05:30 == KST(UTC+9) 14:30 == 오후 2:30(ko-KR 기본 12시간제).
+    const out = fmtTime("2026-07-29T05:30:00");
+    expect(out).toMatch(/오후\s*0?2:30/);
+    // LA는 UTC-7(2026-07 기준 DST) — timeZone을 안 주면 이 시각이었을 것과는 달라야 한다.
+    const misparsedAsLA = new Date("2026-07-29T05:30:00Z")
+      .toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    expect(out).not.toBe(misparsedAsLA);
+  });
+
+  afterEach(() => { vi.unstubAllEnvs(); });
 
   it("null/빈 값/파싱 불가 문자열은 빈 문자열(예외를 던지지 않음)", () => {
     expect(fmtTime(null)).toBe("");

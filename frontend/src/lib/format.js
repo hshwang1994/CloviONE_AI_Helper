@@ -4,6 +4,14 @@ const KST = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short",
 });
 
+// 시:분만(채팅 말풍선용) — timeZone을 안 주면 브라우저 로컬 시간대로 나간다(발견: 2026-08-15
+// whole-product 재감사, 다른 두 곳이 KST를 안 박고 있었다). KST 없는 로컬이 어긋나는 사람은
+// 실제로 있다(VPN·해외 출장·시계를 안 맞춘 PC) — 그 사람에게만 팀 채팅 말풍선 시각이 몇 시간
+// 밀려 보인다.
+const KST_TIME_ONLY = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit",
+});
+
 export function fmtDateTime(v) {
   if (v == null || v === "") return "-";
   const s = String(v);
@@ -65,7 +73,7 @@ export function apiToKstLocal(v) {
 export function fmtTimeShort(v) {
   const d = toUTCDate(v);
   if (!d) return "";
-  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  return KST_TIME_ONLY.format(d);
 }
 
 // 상대 시간(방금/N분 전/N시간 전/N일 전) — 좁은 알림 팝오버처럼 훑어보는 피드용.

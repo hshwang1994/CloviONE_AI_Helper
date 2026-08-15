@@ -12,11 +12,17 @@ export function toDate(iso) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// 채팅 시각(HH:MM). created_at는 UTC — UTC로 파싱한 뒤 브라우저 로컬 시간으로 표시.
+// 채팅 시각(HH:MM). created_at는 UTC — UTC로 파싱한 뒤 KST로 표시한다(불변규칙 §3-7).
+// timeZone을 안 주면 브라우저 로컬 시간대로 나간다(whole-product 재감사에서 발견, 2026-08-15)
+// — lib/format.js::fmtTimeShort와 같은 결함이었다. KST와 로컬이 다른 사람(VPN·해외 출장·
+// 시계를 안 맞춘 PC)에게만 게임방 채팅 시각이 몇 시간 밀려 보였다.
+const KST_TIME_ONLY = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit",
+});
 export function fmtTime(iso) {
   const d = toDate(iso);
   if (!d) return "";
-  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  return KST_TIME_ONLY.format(d);
 }
 
 // 서버가 준 마감(UTC ISO)까지 남은 초. 없으면 null. 0.25초마다 다시 계산해 부드럽게 줄어든다.
