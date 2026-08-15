@@ -14,6 +14,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Button, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
 import { dayKeyKST, mascotMode, structuredCards } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
@@ -226,7 +227,7 @@ export function Chat() {
               : (<>
                   {/* 폴링이 일시 실패해도 읽던 메시지를 지우지 않는다, 작은 안내만 띄우고 스레드는 유지. */}
                   {thread.isError ? (
-                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "center", fontSize: "0.8125rem", py: 0 }}
+                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "center", fontSize: FONT_SIZE.bodySm, py: 0 }}
                       action={<Button size="sm" variant="ghost" onClick={() => thread.refetch()}>새로고침</Button>}>
                       연결이 잠시 끊겼습니다.
                     </Alert>
@@ -255,7 +256,7 @@ export function Chat() {
                       재조회가 아니라 폴링 재시작 기준선(resumedAt)도 지금 시각으로 옮긴다, 안 그러면 created_at이
                       그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
                   {stalled ? (
-                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "flex-start", fontSize: "0.8125rem" }}
+                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "flex-start", fontSize: FONT_SIZE.bodySm }}
                       action={<Button size="sm" variant="ghost" onClick={() => { setResumedAt(Date.now()); thread.refetch(); }}>새로고침</Button>}>
                       응답이 지연되고 있습니다.
                     </Alert>
@@ -290,7 +291,7 @@ export function Chat() {
                       {/* 보낼 이미지를 텍스트 칩이 아니라 실제 썸네일로 확인시킨다(로컬 data URL). */}
                       <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                         sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: "0.75rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
+                      <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
                       <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
                         onClick={() => setPending((p) => p.filter((_, j) => j !== i))}
                         sx={{ minWidth: "1.75rem", minHeight: "1.75rem", flexShrink: 0 }}>
@@ -300,7 +301,7 @@ export function Chat() {
                   ))}
                 </Stack>
                 {/* hover-only 툴팁은 모바일/터치에서 아예 안 보인다, 전송 전에 눈에 보이는 문장으로도 알린다. */}
-                <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>전송 후에는 이미지 원본이 저장되지 않습니다. 파일 이름만 남습니다.</Typography>
+                <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>전송 후에는 이미지 원본이 저장되지 않습니다. 파일 이름만 남습니다.</Typography>
               </>
             ) : null}
             {/* 글자 수는 입력이 있으면 늘 옅게 보여준다 — 상한이 갑자기 닥치지 않게(바닐라도 항상 표시).
@@ -308,18 +309,18 @@ export function Chat() {
                 Array.from(코드 포인트) 기준 길이는 실제 입력 가능 한도보다 작게 세어져 두 숫자가 어긋난다 —
                 text.length(코드 유닛)로 맞춘다. */}
             {text.length > 0 ? (
-              <Typography sx={{ textAlign: "right", fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{text.length}/5000</Typography>
+              <Typography sx={{ textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{text.length}/5000</Typography>
             ) : null}
             {/* 유지보수 모드 차단 안내 — 폴링 경고와 같은 지속 배너 패턴(사라지는 토스트 하나에만
                 기대지 않는다). '다시 시도'를 눌러야 컴포저 잠금이 풀린다. */}
             {maintenanceNotice ? (
-              <Alert severity="warning" role="status" sx={{ fontSize: "0.8125rem" }}
+              <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.bodySm }}
                 action={<Button size="sm" variant="ghost" onClick={() => setMaintenanceNotice(null)}>다시 시도</Button>}>
                 {maintenanceNotice}
               </Alert>
             ) : null}
             {rateLimitNotice ? (
-              <Alert severity="warning" role="status" sx={{ fontSize: "0.8125rem" }}
+              <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.bodySm }}
                 action={<Button size="sm" variant="ghost" onClick={() => setRateLimitNotice(null)}>닫기</Button>}>
                 {rateLimitNotice}
               </Alert>
@@ -328,12 +329,12 @@ export function Chat() {
                 막혔다는 신호가 없어, Enter를 쳐도 사라지는 토스트로만 알렸다, 유지보수·속도제한 배너처럼
                 지속되는 수동 힌트를 컴포저 위에 둔다. */}
             {(busy || awaitingReply) && !composerLocked ? (
-              <Typography role="status" sx={{ textAlign: "center", fontSize: "0.75rem", color: "text.secondary" }}>
+              <Typography role="status" sx={{ textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
                 답변을 기다리는 중입니다. 답변이 도착하면 다시 입력할 수 있습니다.
               </Typography>
             ) : null}
             {aiQuotaDay && aiQuotaDay.limit != null ? (
-              <Typography sx={{ textAlign: "right", fontSize: "0.75rem", color: "text.secondary" }}>
+              <Typography sx={{ textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
                 오늘 AI 사용량 {aiQuotaDay.used}/{aiQuotaDay.limit}
               </Typography>
             ) : null}
@@ -347,7 +348,7 @@ export function Chat() {
                   <IconButton aria-label="이미지 첨부" disabled={inputDisabled}
                     onClick={() => fileRef.current && fileRef.current.click()}
                     sx={{ border: 1, borderColor: "divider", borderRadius: 2.5, width: "2.75rem", height: "2.75rem", minWidth: "2.75rem", minHeight: "2.75rem" }}>
-                    <AttachFileRoundedIcon sx={{ fontSize: "1.25rem" }} />
+                    <AttachFileRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
                   </IconButton>
                 </Box>
               </Tooltip>

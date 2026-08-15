@@ -11,7 +11,7 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
   Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
@@ -61,7 +61,7 @@ function MetaRow({ label, children }) {
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "6rem minmax(0,1fr)" }, gap: 1, py: 1, borderBottom: 1, borderColor: "divider" }}>
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, fontSize: "0.875rem", ...KO_WORD_BREAK }}>{children}</Box>
+      <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{children}</Box>
     </Box>
   );
 }
@@ -162,7 +162,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
               <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
                 {m.due_on || "기한 없음"}
               </Typography>
-              <Typography sx={{ fontWeight: 700, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
+              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
                 {m.name}
               </Typography>
               <Badge value={MILESTONE_STATUS_KO[m.status] || m.status} />

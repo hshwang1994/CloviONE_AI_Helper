@@ -16,6 +16,7 @@ import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
@@ -176,7 +177,7 @@ function TempPasswordModal({ data, onClose }) {
         sx={{
           mt: 1.5, p: 1.5, border: 1, borderColor: "divider", borderRadius: 2,
           bgcolor: "action.hover", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-          fontSize: "1rem", fontWeight: 700, letterSpacing: "0.03em",
+          fontSize: "1rem", fontWeight: FONT_WEIGHT.bold, letterSpacing: "0.03em",
           userSelect: "all", overflowWrap: "anywhere", textAlign: "center",
         }}
       >
@@ -887,7 +888,7 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
         <Row label="이메일">{d.email}</Row>
         <Row label="ID">
           {/* user-select:all — id는 하이픈이 섞인 UUID라 더블클릭만으로는 한 토막만 선택된다. */}
-          <Box component="span" tabIndex={0} sx={{ userSelect: "all", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.8125rem", overflowWrap: "anywhere" }}>{d.id}</Box>
+          <Box component="span" tabIndex={0} sx={{ userSelect: "all", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: FONT_SIZE.bodySm, overflowWrap: "anywhere" }}>{d.id}</Box>
           {" "}
           <LinkButton onClick={copyId}>{copiedId || "복사"}</LinkButton>
         </Row>

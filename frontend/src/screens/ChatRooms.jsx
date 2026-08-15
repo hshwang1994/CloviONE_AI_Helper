@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
@@ -45,24 +46,24 @@ function RoomRow({ room, onOpen, active }) {
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, flex: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.9375rem" }}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.9375rem" }}>
             {room.title}
           </Typography>
-          <Chip size="small" label={tag} sx={{ flexShrink: 0, height: "1.375rem", fontSize: "0.75rem" }} />
+          <Chip size="small" label={tag} sx={{ flexShrink: 0, height: "1.375rem", fontSize: FONT_SIZE.caption }} />
         </Box>
-        <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.bodySm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {room.last_preview || "새 채팅방"}
         </Typography>
       </Box>
       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5, flexShrink: 0 }}>
-        {room.last_at ? <Typography sx={{ color: "text.secondary", fontSize: "0.75rem" }}>{fmtRelative(room.last_at)}</Typography> : null}
+        {room.last_at ? <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.caption }}>{fmtRelative(room.last_at)}</Typography> : null}
         {room.unread > 0 ? (
           <Box
             component="span"
             sx={{
               minWidth: "1.375rem", textAlign: "center", px: 0.75, py: "0.0625rem", borderRadius: "999px",
               bgcolor: "primary.main", color: "primary.contrastText",
-              fontSize: "0.75rem", fontWeight: 750, fontVariantNumeric: "tabular-nums",
+              fontSize: FONT_SIZE.caption, fontWeight: 750, fontVariantNumeric: "tabular-nums",
             }}
           >
             {room.unread > 99 ? "99+" : room.unread}
@@ -130,7 +131,7 @@ export function GroupModal({ open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="새 그룹 채팅방" dirty={dirty} footer={footer}>
       <Box sx={{ mb: 2.5 }}>
-        <Typography component="label" htmlFor="tc-gtitle" sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
+        <Typography component="label" htmlFor="tc-gtitle" sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
           방 이름<Box component="span" sx={{ color: "error.main" }}> *</Box>
         </Typography>
         {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
@@ -139,14 +140,14 @@ export function GroupModal({ open, onClose }) {
           component="input" id="tc-gtitle" maxLength={200} value={title} placeholder="예: 프로젝트 A 팀"
           onChange={(e) => setTitle(e.target.value)}
           sx={{
-            width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: "0.875rem",
+            width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: FONT_SIZE.body,
             border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
             "&:focus": { outline: "none", borderColor: "primary.main" },
           }}
         />
       </Box>
       <Box>
-        <Typography sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>초대할 사람 (선택)</Typography>
+        <Typography sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>초대할 사람 (선택)</Typography>
         {dir.isPending ? <Skeleton lines={4} />
           : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
           : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
@@ -156,7 +157,7 @@ export function GroupModal({ open, onClose }) {
                 <Box
                   key={u.user_id} component="label"
                   sx={{
-                    display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderRadius: 1.5, cursor: "pointer", fontSize: "0.875rem",
+                    display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderRadius: 1.5, cursor: "pointer", fontSize: FONT_SIZE.body,
                     "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
                     "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
                   }}
@@ -198,7 +199,7 @@ function DirectModal({ open, onClose }) {
                 sx={{
                   display: "block", width: "100%", textAlign: "left", px: 1.5, py: 1,
                   border: 0, borderRadius: 1.5, background: "none", color: "text.primary",
-                  font: "inherit", fontSize: "0.875rem", cursor: "pointer",
+                  font: "inherit", fontSize: FONT_SIZE.body, cursor: "pointer",
                   "&:hover:not(:disabled)": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
                   "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
                   "&:disabled": { opacity: 0.6, cursor: "default" },
@@ -275,10 +276,10 @@ export function ChatRooms() {
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
         px: 2, py: 1.75, borderBottom: 1, borderColor: "divider",
       }}>
-        <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>대화</Typography>
+        <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle }}>대화</Typography>
         {unreadTotal > 0 ? (
           <Chip size="small" color="primary" label={unreadTotal > 99 ? "99+" : unreadTotal}
-            sx={{ height: "1.375rem", fontSize: "0.75rem", fontWeight: 700 }} />
+            sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold }} />
         ) : null}
         <Box sx={{ flex: 1 }} />
         <Button size="small" onClick={() => setDirectOpen(true)}>1:1</Button>

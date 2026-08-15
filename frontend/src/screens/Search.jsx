@@ -14,7 +14,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { api } from "../lib/api.js";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FAB_CLEARANCE } from "../ui/theme.js";
+import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES, WRITE_ROLES } from "./registry/shared.js";
@@ -99,7 +99,7 @@ function ResultGroup({ group, onOpen }) {
   return (
     <Card>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 1 }}>
-        <Typography component="h2" sx={{ fontWeight: 800, fontSize: "1rem" }}>
+        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: "1rem" }}>
           {group.label}
         </Typography>
         <Chip size="small" label={group.total} />
@@ -115,7 +115,7 @@ function ResultGroup({ group, onOpen }) {
               primary={item.title}
               secondary={item.subtitle || null}
               primaryTypographyProps={{ sx: { fontWeight: 650 } }}
-              secondaryTypographyProps={{ sx: { fontSize: "0.8125rem" } }}
+              secondaryTypographyProps={{ sx: { fontSize: FONT_SIZE.bodySm } }}
             />
             {item.url ? (
               <OpenInNewRoundedIcon

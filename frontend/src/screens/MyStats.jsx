@@ -9,6 +9,7 @@ import { fmtDateTime } from "../lib/format.js";
 import {
   Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, StatCard,
 } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
@@ -264,7 +265,7 @@ export function MyStats() {
                     ].map(([label, value]) => (
                       <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 2, py: 0.75, borderBottom: 1, borderColor: "divider" }}>
                         <Typography variant="body2" color="text.secondary">{label}</Typography>
-                        <Typography sx={{ fontWeight: 700 }}>{value} WD</Typography>
+                        <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{value} WD</Typography>
                       </Box>
                     ))}
                   </Box>

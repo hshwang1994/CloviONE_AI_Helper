@@ -1,6 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material/styles";
+import { FONT_WEIGHT } from "./theme.js";
 
 /* 브랜드 로고 — 인라인 SVG다. <img src>로 넣지 않는다.
  *
@@ -272,7 +273,7 @@ export default function BrandLogo({
               // 크기는 바깥 상자의 BRAND_UNIT 그대로다 — 이 글자가 락업의 기준 단위다.
               fontSize: "1em",
               lineHeight: SUBTITLE_LINE_HEIGHT,
-              fontWeight: 600,
+              fontWeight: FONT_WEIGHT.semibold,
               letterSpacing: SUBTITLE_TRACKING,
               textAlign: "center",
               color: inverse ? INVERSE_INK.subtitle : "currentColor",

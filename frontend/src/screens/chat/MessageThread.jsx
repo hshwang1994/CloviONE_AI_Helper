@@ -8,6 +8,7 @@ import { alpha } from "@mui/material/styles";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import { Button } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
   stripDuplicatedTicketLines, ticketPageStart,
@@ -90,12 +91,12 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
               {attachments.map((name, i) => (
                 <Chip key={i} size="small" variant="outlined" title={attachCaveat}
                   label={typeof name === "string" ? name : (name && name.filename) || "첨부"}
-                  sx={{ height: "1.5rem", fontSize: "0.75rem", maxWidth: "15rem", color: "inherit", borderColor: "currentColor" }} />
+                  sx={{ height: "1.5rem", fontSize: FONT_SIZE.caption, maxWidth: "15rem", color: "inherit", borderColor: "currentColor" }} />
               ))}
             </Stack>
             {/* title 툴팁은 hover 전용이라 모바일/터치에선 아예 안 뜬다, 전송 전 미리보기와
                 같은 이유로, 보낸 메시지에도 항상 보이는 캡션을 둔다. */}
-            <Typography sx={{ mt: 0.5, fontSize: "0.75rem", opacity: 0.75, lineHeight: 1.5 }}>{attachCaveat}</Typography>
+            <Typography sx={{ mt: 0.5, fontSize: FONT_SIZE.caption, opacity: 0.75, lineHeight: 1.5 }}>{attachCaveat}</Typography>
           </>
         ) : null}
         {/* 카드는 폭이 남으면(≥xxl) 오른쪽 레일이 진다 — 그때 여기서 한 번 더 그리면 같은 티켓이
@@ -112,7 +113,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
             (app/jobs/handlers/chat_message.py on_failure), assistant_timeout/assistant_error와 같은
             '눌러볼 만한' 링크로 보이면, 이미 안 될 걸 아는데도 계속 누르게 만든다. */}
         {failed ? (
-          <Typography sx={{ mt: 1, fontSize: "0.8125rem", color: isUser ? "inherit" : "error.main" }}>
+          <Typography sx={{ mt: 1, fontSize: FONT_SIZE.bodySm, color: isUser ? "inherit" : "error.main" }}>
             {m.error_code === "assistant_rejected"
               ? "처리하지 못했습니다. 다시 시도해도 같은 결과가 나올 가능성이 높습니다. 질문을 다르게 표현해 새로 물어보세요."
               : (
@@ -136,7 +137,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
           {(showAllChoices ? choices : choices.slice(0, 6)).map((c, i) => c && c.send ? (
             <Chip key={i} clickable color="primary" variant="outlined" disabled={sending}
               label={c.label || c.send} onClick={() => onChoose(c.send)}
-              sx={{ fontSize: "0.8125rem", fontWeight: 700, height: "2rem" }} />
+              sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, height: "2rem" }} />
           ) : null)}
           {/* 7개 이상은 예전엔 조용히 잘려 나갔다 — '더 있다'는 사실만 알리고 실제로 꺼내 볼 방법은
               없었다. 이제 눌러서 나머지를 펼칠 수 있다. */}
@@ -162,7 +163,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
         ) : null}
         {/* AI-08: 러너가 이미 계산해 저장까지 해 둔 실제 처리 시간을 화면이 그냥 버리고 있었다. */}
         {responseTime ? (
-          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
             title="답변 처리 시간">
             {responseTime}
           </Typography>
@@ -170,7 +171,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
         {/* 시각 라벨은 말풍선, 액션(선택 버튼, 복사) 뭉치 뒤 맨 끝에 둔다, 예전엔 말풍선과 선택 버튼
             사이에 끼어 있어 복사 버튼이 메시지에서 멀찍이 떨어지고, 시각이 버블→액션 묶음을 갈랐다. */}
         {m.created_at ? (
-          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{fmtTime(m.created_at)}</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{fmtTime(m.created_at)}</Typography>
         ) : null}
       </Stack>
     </Box>
@@ -221,7 +222,7 @@ export function TypingBubble({ since }) {
           ))}
         </Box>
         {elapsedSec != null ? (
-          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
             {elapsedSec}초
           </Typography>
         ) : null}
@@ -237,7 +238,7 @@ export function DaySeparator({ at }) {
   return (
     <Box role="separator" aria-label={label} sx={{ display: "flex", alignItems: "center", gap: 1.5, alignSelf: "stretch", my: 0.5 }}>
       <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
-      <Chip size="small" label={label} sx={{ fontSize: "0.75rem", height: "1.5rem" }} />
+      <Chip size="small" label={label} sx={{ fontSize: FONT_SIZE.caption, height: "1.5rem" }} />
       <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
     </Box>
   );

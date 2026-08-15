@@ -6,6 +6,7 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Button, ErrorState, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
+import { FONT_SIZE } from "../ui/theme.js";
 import { ChatPane } from "./ChatPane.jsx";
 import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
 
@@ -87,7 +88,7 @@ export function RoomDetailPanel({ id }) {
     : room.is_global ? "전체" : room.department_id ? "내 팀" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
   const actions = (
     <>
-      {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: "0.75rem", alignSelf: "center" }} /> : null}
+      {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: FONT_SIZE.caption, alignSelf: "center" }} /> : null}
       {/* 관리(이름 변경·초대·내보내기·방장 넘기기)는 서버가 준 한 플래그로만 판단한다.
           네 동작의 조건이 모두 같으므로 버튼도 하나다 — 여기서 규칙을 다시 쓰면 어긋난다. */}
       {you.can_manage ? <Button onClick={() => setManageOpen(true)}>관리</Button> : null}
@@ -133,7 +134,7 @@ export function RoomDetailPanel({ id }) {
           display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
           px: 2.5, py: 1.75, minWidth: 0,
         }}>
-          <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem", minWidth: 0,
+          <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle, minWidth: 0,
                                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {meta.isPending ? "채팅방" : (room.title || "채팅방")}
           </Typography>

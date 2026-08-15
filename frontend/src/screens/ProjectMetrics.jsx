@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Skeleton } from "../ui/kit.jsx";
 import {
   NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE,
@@ -38,7 +38,7 @@ function Metric({ label, value, dim }) {
       <Typography
         sx={{
           fontSize: dim ? "0.9375rem" : "clamp(1.25rem, 1rem + .8vw, 1.75rem)",
-          fontWeight: dim ? 500 : 800, lineHeight: 1.2, ...KO_WORD_BREAK,
+          fontWeight: dim ? FONT_WEIGHT.medium : FONT_WEIGHT.extrabold, lineHeight: 1.2, ...KO_WORD_BREAK,
         }}
         color={dim ? "text.secondary" : "text.primary"}
       >
@@ -94,13 +94,13 @@ export function HealthBlock({ score, reasons, unknown }) {
     <Box>
       {score == null ? (
         <>
-          <Typography sx={{ fontSize: "1.0625rem", fontWeight: 750 }}>{NO_HEALTH_SCORE}</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: 750 }}>{NO_HEALTH_SCORE}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, ...KO_WORD_BREAK }}>
             판정할 수 있는 지표가 하나도 없었습니다. 0점과는 다른 상태입니다.
           </Typography>
         </>
       ) : (
-        <Typography sx={{ fontSize: "clamp(1.5rem, 1.2rem + .6vw, 2rem)", fontWeight: 800, lineHeight: 1.1 }}>
+        <Typography sx={{ fontSize: "clamp(1.5rem, 1.2rem + .6vw, 2rem)", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>
           {score + "점"}
         </Typography>
       )}
@@ -113,10 +113,10 @@ export function HealthBlock({ score, reasons, unknown }) {
           {list.map((r) => (
             <Box component="li" key={r.rule} sx={{ display: "grid", gap: 0.25 }}>
               <Box sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-                <Typography component="span" sx={{ fontWeight: 700, fontSize: "0.9375rem" }}>
+                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
                   {r.label}
                 </Typography>
-                <Typography component="span" color="error.main" sx={{ fontWeight: 800, fontSize: "0.875rem" }}>
+                <Typography component="span" color="error.main" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.body }}>
                   {"-" + r.penalty + "점"}
                 </Typography>
               </Box>
@@ -138,7 +138,7 @@ export function HealthBlock({ score, reasons, unknown }) {
           <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1 }}>
             {unsure.map((u) => (
               <Box component="li" key={u.rule} sx={{ display: "grid", gap: 0.25 }}>
-                <Typography component="span" sx={{ fontWeight: 700, fontSize: "0.9375rem" }}>
+                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
                   {u.label}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{u.why}</Typography>
@@ -173,7 +173,7 @@ export function HealthHistory({ query }) {
         {items.map((it) => (
           <Box component="li" key={it.week_of} sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6rem" }}>{it.week_of}</Typography>
-            <Typography sx={{ fontWeight: 700 }}>{it.score + "점"}</Typography>
+            <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{it.score + "점"}</Typography>
           </Box>
         ))}
       </Box>

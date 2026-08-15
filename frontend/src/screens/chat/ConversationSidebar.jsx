@@ -13,6 +13,7 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
 import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtShort } from "../chat-helpers.js";
 
 // ── 대화 목록 항목 ──────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { setEditing(false); setVal(c.title || ""); } }}
           onBlur={commit}
-          sx={{ px: 1, py: 0.5, fontSize: "0.875rem", border: 1, borderColor: "primary.main", borderRadius: 1.5, bgcolor: "background.paper" }}
+          sx={{ px: 1, py: 0.5, fontSize: FONT_SIZE.body, border: 1, borderColor: "primary.main", borderRadius: 1.5, bgcolor: "background.paper" }}
         />
       </Box>
     );
@@ -68,8 +69,8 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
         component="button" type="button" onClick={onOpen}
         sx={{
           flex: 1, minWidth: 0, textAlign: "left", border: 0, background: "none", cursor: "pointer",
-          px: 1.5, py: 1, borderRadius: 2, font: "inherit", fontSize: "0.875rem",
-          fontWeight: active ? 700 : 400,
+          px: 1.5, py: 1, borderRadius: 2, font: "inherit", fontSize: FONT_SIZE.body,
+          fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
           color: active ? "primary.main" : "text.primary",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}
@@ -142,7 +143,7 @@ export function ConversationSidebar({
         <Button variant="primary" onClick={() => { clearDraft(); setComposingNew(true); setCid(null); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}>
           <AddRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />새 대화
         </Button>
-        <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "0.8125rem", color: "text.secondary", cursor: "pointer" }}>
+        <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary", cursor: "pointer" }}>
           <Box component="input" type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} sx={{ m: 0 }} />
           보관된 대화 보기
         </Box>
@@ -170,7 +171,7 @@ export function ConversationSidebar({
               type="search" fullWidth placeholder="대화 제목 검색" value={convFilter}
               onChange={(e) => setConvFilter(e.target.value)}
               inputProps={{ "aria-label": "대화 목록 검색" }}
-              sx={{ fontSize: "0.875rem" }}
+              sx={{ fontSize: FONT_SIZE.body }}
             />
           </Paper>
         ) : null}

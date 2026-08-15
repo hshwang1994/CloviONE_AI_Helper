@@ -19,6 +19,7 @@ import {
   hasTicketFilter, matchesTicketFilters, ticketFilterSpec,
 } from "./TicketFilterBar.jsx";
 import { BASELINE_TRACKS, TILE_GRID_GAP, TILE_PADDING } from "../ui/density.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 도우미 > 주간 스프린트 회의. 한 화면에서 (1) 그 주의 담당자별 티켓, (2) 계획 티켓을 본다.
  * 편집은 회의 중 바로 — 기존 티켓 API 재사용. 데이터는 조회 전용.
@@ -231,7 +232,7 @@ function PersonCard({ person, active, onPick }) {
             <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{c.label}</Typography>
             <Typography
               component="div"
-              sx={{ fontWeight: 700, fontSize: "0.9375rem" }}
+              sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}
               color={c.warn ? "warning.main" : "text.primary"}
             >
               {c.value}
@@ -346,7 +347,7 @@ export function Sprint() {
                 sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0,1fr))" } }}
               >
                 <Card>
-                  <Typography component="h2" id="sprint-flow" variant="h6" sx={{ fontSize: "1.0625rem", mb: 0.5 }}>
+                  <Typography component="h2" id="sprint-flow" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                     번다운
                   </Typography>
                   {/* 그림이 무엇을 말하고 **무엇을 말하지 않는지**를 그림 옆에 쓴다. 완료 시각이
@@ -365,7 +366,7 @@ export function Sprint() {
                   })()}
                 </Card>
                 <Card>
-                  <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem", mb: 0.5 }}>
+                  <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                     담당자별 업무량(WD)
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "60ch" }}>
@@ -391,7 +392,7 @@ export function Sprint() {
                   `alignItems: "stretch"` 다 — `start` 로 두면 카드마다 제 내용 높이를 가져
                   줄 바닥이 들쭉날쭉해진다(사용자가 지적한 Q5 "카드 크기가 제각각"). */}
               <Box component="section" aria-labelledby="sprint-people" sx={{ mb: 2.5 }}>
-                <Typography component="h2" id="sprint-people" variant="h6" sx={{ fontSize: "1.0625rem", mb: 0.5 }}>
+                <Typography component="h2" id="sprint-people" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                   담당자 현황 ({busy.length}명)
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "70ch" }}>
@@ -427,7 +428,7 @@ export function Sprint() {
               {/* aria-labelledby로 두 섹션에 이름을 준다 — 이름 없는 <section>은 스크린리더에서
                   랜드마크로 잡히지 않아, 같은 모양의 표 두 개 사이를 건너뛸 방법이 없었다. */}
               <Box component="section" aria-labelledby="sprint-by-assignee" sx={{ mb: 4 }}>
-                <Typography component="h2" id="sprint-by-assignee" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>
+                <Typography component="h2" id="sprint-by-assignee" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
                   담당자별 티켓 ({people}명)
                 </Typography>
                 <Card>
@@ -459,7 +460,7 @@ export function Sprint() {
                   무엇을 배정했는지 추적이 안 된다(이것이 '티켓 배분' 섹션을 지운 이유다).
                   대신 몇 건인지 말하고, 배정할 수 있는 화면으로 보낸다. */}
               <Box component="section" aria-labelledby="sprint-unassigned" sx={{ mb: 4 }}>
-                <Typography component="h2" id="sprint-unassigned" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>
+                <Typography component="h2" id="sprint-unassigned" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
                   미할당 티켓 (배분 대상 {unassignedCount}건)
                 </Typography>
                 <Card>
@@ -475,7 +476,7 @@ export function Sprint() {
               </Box>
 
               <Box component="section" aria-labelledby="sprint-planned" sx={{ mb: 4 }}>
-                <Typography component="h2" id="sprint-planned" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>
+                <Typography component="h2" id="sprint-planned" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
                   계획 논의 (계획 {planned.length}건)
                 </Typography>
                 <Card>

@@ -10,7 +10,7 @@ import {
   PageHeader, Skeleton, StatCard, useToast,
 } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
@@ -130,7 +130,7 @@ function columns(deptNames) {
       rowName: (p) => p.name,
       render: (p) => (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: "0.875rem", ...KO_WORD_BREAK }}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
             {p.name || "이름 없음"}
           </Typography>
           {p.code ? (

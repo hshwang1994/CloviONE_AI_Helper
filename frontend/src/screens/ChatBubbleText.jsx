@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import { LINK_REL, LINK_TARGET, tokenizeMessage } from "./chat-text.js";
+import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* 말풍선 본문 렌더러 — 조각 배열(chat-text.js)을 React 노드로만 그린다.
  *
@@ -37,7 +38,7 @@ export function ChatBubbleText({ body, names, mine }) {
                 color: mine ? "inherit" : "primary.main",
                 textDecorationColor: "currentColor",
                 wordBreak: "break-all",
-                fontWeight: mine ? 700 : 600,
+                fontWeight: mine ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold,
               }}
             >
               {t.text}
@@ -50,7 +51,7 @@ export function ChatBubbleText({ body, names, mine }) {
               key={i}
               component="span"
               sx={{
-                px: 0.5, borderRadius: 1, fontWeight: 700,
+                px: 0.5, borderRadius: 1, fontWeight: FONT_WEIGHT.bold,
                 bgcolor: mine ? "rgba(255,255,255,0.22)" : "action.selected",
                 color: "inherit",
               }}

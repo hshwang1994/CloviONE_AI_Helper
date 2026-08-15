@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { draw } from "./constants.js";
 import { StageHint } from "./StageShared.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 
 /* GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다. */
 /* 사다리(아미다쿠지) 시각화. 서버가 확정한 세로줄·가로줄·도착지를 정직하게 그리고,
@@ -41,7 +42,7 @@ export function LadderBoard({ result, highlightUserId }) {
     border: 1, borderColor: on ? "primary.main" : "divider",
     bgcolor: on ? "primary.main" : (outcome ? "action.hover" : "background.paper"),
     color: on ? "primary.contrastText" : "text.primary",
-    font: "inherit", fontSize: "0.8125rem", fontWeight: 600, minWidth: 0,
+    font: "inherit", fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, minWidth: 0,
     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
     cursor: outcome ? "default" : "pointer",
     "&:hover": outcome ? undefined : { borderColor: "primary.main" },

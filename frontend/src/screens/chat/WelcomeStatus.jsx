@@ -4,6 +4,7 @@ import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
+import { FONT_SIZE } from "../../ui/theme.js";
 import { MASCOT_PHASE_TEXT, QUICK_PROMPTS } from "../chat-helpers.js";
 
 /* 시작 예시 칩, 누르면 그 문장을 컴포저에 채운다(빈 화면 막다른 길 방지). */
@@ -15,7 +16,7 @@ export function QuickPrompts({ onPick, busy }) {
           // QAH-07 — 이 칩은 Chat.jsx의 background.default 위에 뜬다(Card의 background.paper가
           // 아니다) — light 모드도 accent 4개 중 2개가 미달(4.37/4.38), dark는 전량 미달(최저
           // 3.07) 실측. borderColor는 텍스트가 아니라 손대지 않고 color만 primary.dark로 교체.
-          sx={{ fontSize: "0.8125rem", height: "2rem", "&:hover": { borderColor: "primary.main", color: "primary.dark" } }} />
+          sx={{ fontSize: FONT_SIZE.bodySm, height: "2rem", "&:hover": { borderColor: "primary.main", color: "primary.dark" } }} />
       ))}
     </Stack>
   );
@@ -48,7 +49,7 @@ export function MascotStatus({ mode }) {
       <MascotPose mode={mode} size="2.5rem" />
       <Typography
         role="status" aria-live="polite"
-        sx={{ display: { xs: "none", lg: "block" }, fontSize: "0.8125rem", color: "text.secondary", whiteSpace: "nowrap" }}
+        sx={{ display: { xs: "none", lg: "block" }, fontSize: FONT_SIZE.bodySm, color: "text.secondary", whiteSpace: "nowrap" }}
       >
         {MASCOT_PHASE_TEXT[mode]}
       </Typography>

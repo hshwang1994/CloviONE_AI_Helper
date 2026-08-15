@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import { api } from "../lib/api.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { ChatPane } from "./ChatPane.jsx";
 
 /* 홈 하단 실시간 팀 채팅 위젯 — 전체 채팅 방을 작게 띄운다. 방 목록에서 전체 채팅 id 만 얻어
@@ -36,9 +37,9 @@ export function TeamChatWidget() {
   // "어느 카드가 실패한 것인가" 를 알 수 없다.
   const header = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, minWidth: 0 }}>
-      <ForumRoundedIcon aria-hidden="true" sx={{ fontSize: "1.25rem", color: "primary.main" }} />
+      <ForumRoundedIcon aria-hidden="true" sx={{ fontSize: FONT_SIZE.pageTitle, color: "primary.main" }} />
       <Typography component="h3" sx={{ flex: 1, minWidth: 0, fontSize: "1rem", fontWeight: 750 }}>팀 채팅</Typography>
-      <Link href="#/chat-rooms" underline="hover" sx={{ fontSize: "0.8125rem", fontWeight: 700, flexShrink: 0 }}>
+      <Link href="#/chat-rooms" underline="hover" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, flexShrink: 0 }}>
         채팅방 전체 보기
       </Link>
     </Box>

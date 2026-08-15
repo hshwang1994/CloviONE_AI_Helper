@@ -4,6 +4,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { Badge } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { RPS_LABELS, RPS_EMOJI, bracketListSx, rise } from "./constants.js";
 import { ResultStage, StageHint, WinnerName } from "./StageShared.jsx";
 
@@ -39,7 +40,7 @@ export function RpsChoices({ labels, emojis, chosen, disabled, onPick }) {
           }}
         >
           <Box component="span" aria-hidden="true" sx={{ fontSize: "2.125rem", lineHeight: 1 }}>{emojis[i]}</Box>
-          <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>{label}</Box>
+          <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>{label}</Box>
         </Box>
       ))}
     </Stack>
@@ -62,7 +63,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
             <Stack direction="row" gap={0.75} alignItems="center" minWidth={0}>
               <Box component="span" sx={{
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                fontWeight: m.done && m.winner_name === m.a_name ? 700 : 400,
+                fontWeight: m.done && m.winner_name === m.a_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
                 color: m.done && m.winner_name === m.a_name ? "primary.main" : "inherit",
               }}>{m.a_name}</Box>
               <MatchTag done={m.done} winner={m.winner_name === m.a_name} submitted={m.a_submitted} />
@@ -71,7 +72,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
             <Stack direction="row" gap={0.75} alignItems="center" minWidth={0} justifyContent="flex-end">
               <Box component="span" sx={{
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                fontWeight: m.done && m.winner_name === m.b_name ? 700 : 400,
+                fontWeight: m.done && m.winner_name === m.b_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
                 color: m.done && m.winner_name === m.b_name ? "primary.main" : "inherit",
               }}>{m.b_name || "-"}</Box>
               {!m.bye ? <MatchTag done={m.done} winner={m.winner_name === m.b_name} submitted={m.b_submitted} /> : null}
@@ -81,7 +82,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
       </Box>
       {ym ? (
         <Box sx={{ display: "grid", gap: 1, justifyItems: "center", width: "100%", pt: 1, borderTop: 1, borderStyle: "dashed", borderColor: "divider" }}>
-          <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem" }}>내 상대: {ym.opponent}</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>내 상대: {ym.opponent}</Typography>
           {canPlay ? (
             <RpsChoices labels={RPS_LABELS} emojis={RPS_EMOJI} chosen={ym.your_choice} disabled={pending} onPick={onPick} />
           ) : null}
@@ -110,7 +111,7 @@ export function RpsTournamentResult({ result }) {
       <Box sx={{ display: "grid", gap: 1.5, width: "100%", maxWidth: "30rem" }}>
         {(result.rounds || []).map((rnd, ri) => (
           <Box key={ri} sx={{ display: "grid", gap: 0.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>라운드 {ri + 1}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>라운드 {ri + 1}</Typography>
             <Box component="ul" sx={bracketListSx}>
               {rnd.map((m, i) => (
                 <Paper component="li" key={i} variant="outlined" sx={{
@@ -119,13 +120,13 @@ export function RpsTournamentResult({ result }) {
                 }}>
                   <Box component="span" sx={{
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    fontWeight: m.winner_name === m.a_name ? 700 : 400,
+                    fontWeight: m.winner_name === m.a_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
                     color: m.winner_name === m.a_name ? "primary.main" : "inherit",
                   }}>{m.a_name}</Box>
                   <Typography variant="caption" color="text.secondary">{m.b_name ? "vs" : "부전승"}</Typography>
                   <Box component="span" sx={{
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right",
-                    fontWeight: m.winner_name === m.b_name ? 700 : 400,
+                    fontWeight: m.winner_name === m.b_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
                     color: m.winner_name === m.b_name ? "primary.main" : "inherit",
                   }}>{m.b_name || "-"}</Box>
                 </Paper>

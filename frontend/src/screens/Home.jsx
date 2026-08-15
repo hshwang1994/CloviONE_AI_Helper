@@ -14,6 +14,7 @@ import {
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { GRID_GAP } from "../ui/density.js";
+import { FONT_WEIGHT } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
 import { TeamChatWidget } from "./TeamChatWidget.jsx";
@@ -197,7 +198,7 @@ function MyBoardStats() {
   const s = q.data.summary || { post_count: 0, comment_count_received: 0, view_count_total: 0 };
   const stat = (num, label) => (
     <Box sx={{ display: "grid", gap: 0.25 }}>
-      <Typography component="span" sx={{ fontSize: "1.125rem", fontWeight: 800, lineHeight: 1.1 }}>{num}</Typography>
+      <Typography component="span" sx={{ fontSize: "1.125rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{num}</Typography>
       <Typography component="span" variant="caption" color="text.secondary">{label}</Typography>
     </Box>
   );

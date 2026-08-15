@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { Button, Callout, Modal, useConfirm } from "../../ui/kit.jsx";
+import { FONT_SIZE } from "../../ui/theme.js";
 import { settingLabel, OBJECT_SCHEMA_HELP, STRUCTURED_OBJECT_KEYS, INT_BOUNDS, securityDowngradeWarning } from "./settingsRegistry.js";
 import { StructuredObjectFields } from "./StructuredObjectFields.jsx";
 import { SettingVersions } from "./SettingVersions.jsx";
@@ -212,7 +213,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
             error={!!err} disabled={!canWrite || save.isPending}
             inputProps={{ "aria-label": "값(JSON)", "aria-invalid": !!err, "aria-describedby": describedBy, spellCheck: false }}
             /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
-            InputProps={{ sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.8125rem" } }}
+            InputProps={{ sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: FONT_SIZE.bodySm } }}
           />
         )
       ) : (

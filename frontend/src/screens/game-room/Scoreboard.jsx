@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { rise } from "./constants.js";
 
 /* 순위표(퀴즈). 번호는 CSS 카운터로 — 마크업에 순번 텍스트를 넣지 않는다.
@@ -16,11 +17,11 @@ export function Scoreboard({ rows }) {
           animation: `${rise} .38s ease both`,
           "&::before": {
             counterIncrement: "rank", content: "counter(rank)", flexShrink: 0, width: "1.75rem",
-            color: "text.secondary", fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem",
+            color: "text.secondary", fontVariantNumeric: "tabular-nums", fontSize: FONT_SIZE.bodySm,
           },
         }}>
           <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</Box>
-          <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>{s.value}</Box>
+          <Box component="span" sx={{ flexShrink: 0, fontWeight: FONT_WEIGHT.bold, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>{s.value}</Box>
         </Paper>
       ))}
     </Box>

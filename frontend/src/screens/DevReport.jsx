@@ -13,6 +13,7 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, StatCard } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
@@ -200,7 +201,7 @@ export function DevReport() {
           </Box>
 
           <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>개발자별 상세 ({data.period})</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>개발자별 상세 ({data.period})</Typography>
             {devs.length === 0 ? (
               <Card>
                 <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
@@ -230,9 +231,9 @@ export function DevReport() {
                   <TableBody>
                     {devs.map((d) => (
                       <TableRow key={d.name}>
-                        <TableCell sx={{ fontWeight: d.has_tickets ? 700 : 400, color: d.has_tickets ? "text.primary" : "text.secondary", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</TableCell>
+                        <TableCell sx={{ fontWeight: d.has_tickets ? FONT_WEIGHT.bold : FONT_WEIGHT.regular, color: d.has_tickets ? "text.primary" : "text.secondary", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</TableCell>
                         <TableCell><StatusBar d={d} /></TableCell>
-                        <TableCell align="right" sx={{ color: "success.main", fontWeight: 700 }}>{d.done}</TableCell>
+                        <TableCell align="right" sx={{ color: "success.main", fontWeight: FONT_WEIGHT.bold }}>{d.done}</TableCell>
                         <TableCell align="right">{zed(d.prog)}</TableCell>
                         <TableCell align="right">{zed(d.verify)}</TableCell>
                         <TableCell align="right">{zed(d.plan)}</TableCell>
@@ -256,7 +257,7 @@ export function DevReport() {
           </Box>
 
           <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>업무량 분석 (완료 업무량 기준)</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>업무량 분석 (완료 업무량 기준)</Typography>
             <Card sx={{ p: 2.5, mb: 2 }}>
               <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>담당자별 완료 업무량</Typography>
               {/* 막대는 '가장 많이 한 사람'을 100%로 잡은 상대 비교다. 값(인일)은 항상 오른쪽에
@@ -280,10 +281,10 @@ export function DevReport() {
               <TableBody>
                 {devs.map((d) => (
                   <TableRow key={d.name}>
-                    <TableCell sx={{ fontWeight: d.has_tickets ? 700 : 400, color: d.has_tickets ? "text.primary" : "text.secondary" }}>{d.name}</TableCell>
+                    <TableCell sx={{ fontWeight: d.has_tickets ? FONT_WEIGHT.bold : FONT_WEIGHT.regular, color: d.has_tickets ? "text.primary" : "text.secondary" }}>{d.name}</TableCell>
                     <TableCell align="right">{zed(d.done)}</TableCell>
                     <TableCell align="right">{zed(d.prog + d.verify)}</TableCell>
-                    <TableCell align="right" sx={{ color: "success.main", fontWeight: 700 }}>{d.est_done}</TableCell>
+                    <TableCell align="right" sx={{ color: "success.main", fontWeight: FONT_WEIGHT.bold }}>{d.est_done}</TableCell>
                     <TableCell align="right">{d.est_all}</TableCell>
                     <TableCell align="right">{d.act_done ? d.act_done : <Zed>-</Zed>}</TableCell>
                     <TableCell align="right">{d.done && d.act_done ? (d.act_done / d.done).toFixed(1) : <Zed>-</Zed>}</TableCell>
@@ -302,7 +303,7 @@ export function DevReport() {
           </Box>
 
           <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem", mb: 1.5 }}>담당자별 상세 티켓</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>담당자별 상세 티켓</Typography>
             {withTickets.length === 0 ? (
               <Card>
                 <EmptyState art="tickets" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
@@ -334,7 +335,7 @@ export function DevReport() {
                           borderTop: 1, borderColor: "divider",
                         }}>
                         {d.name}
-                        <Box component="span" sx={{ ml: 1.5, fontWeight: 400, color: "text.secondary", fontSize: "0.8125rem" }}>
+                        <Box component="span" sx={{ ml: 1.5, fontWeight: FONT_WEIGHT.regular, color: "text.secondary", fontSize: FONT_SIZE.bodySm }}>
                           완료 {d.done}건, 진행 중 {d.prog + d.verify}건, 완료 예상 WD {d.est_done}인일
                         </Box>
                       </TableCell>
@@ -372,7 +373,7 @@ function KpiLabel({ main, note }) {
   return (
     <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
       <Box component="span">{main}</Box>
-      <Box component="span" sx={{ fontSize: "0.75rem", color: "text.disabled" }}>{note}</Box>
+      <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.disabled" }}>{note}</Box>
     </Box>
   );
 }

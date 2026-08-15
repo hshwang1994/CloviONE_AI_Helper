@@ -7,6 +7,7 @@ import {
   Badge, Button, Callout, Card, DataTable, ErrorState, PageHeader, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 
 /* 메일 발송 상태 (FN-01).
@@ -32,7 +33,7 @@ function ProblemsList({ problems }) {
   }
   return (
     <Callout tone="warn">
-      <Typography sx={{ fontWeight: 700, mb: 0.5 }}>메일이 나가지 않는 이유</Typography>
+      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.5 }}>메일이 나가지 않는 이유</Typography>
       <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
         {problems.map((p, i) => <li key={i}><Typography variant="body2">{p}</Typography></li>)}
       </Box>

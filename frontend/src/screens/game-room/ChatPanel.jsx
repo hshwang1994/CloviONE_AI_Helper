@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtTime } from "./timeUtils.js";
 
 /* 오른쪽 레일 아래쪽 — 채팅. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다.
@@ -18,7 +19,7 @@ import { fmtTime } from "./timeUtils.js";
 export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat, chatPending }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
-      <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>채팅</Typography>
+      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>채팅</Typography>
       <Box ref={chatLogRef} data-testid="game-chat-log" sx={{
         display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", px: 0.5, py: 1, mb: 1.25,
         height: { xs: "45vh", md: "auto" }, minHeight: { xs: "16rem", md: 0 },
@@ -32,7 +33,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
           if (e.kind === "system") {
             return (
               <Chip key={e.seq} size="small" label={e.payload.text}
-                sx={{ alignSelf: "center", fontSize: "0.75rem", height: "1.5rem", maxWidth: "100%" }} />
+                sx={{ alignSelf: "center", fontSize: FONT_SIZE.caption, height: "1.5rem", maxWidth: "100%" }} />
             );
           }
           const mine = e.actor_user_id === you.user_id;
@@ -42,19 +43,19 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
               alignSelf: mine ? "flex-end" : "flex-start", alignItems: mine ? "flex-end" : "flex-start",
             }}>
               {!mine ? (
-                <Box component="span" sx={{ fontSize: "0.75rem", color: "text.secondary", fontWeight: 600, px: 0.5 }}>
+                <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontWeight: FONT_WEIGHT.semibold, px: 0.5 }}>
                   {e.payload.name}
                 </Box>
               ) : null}
               <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, flexDirection: mine ? "row-reverse" : "row" }}>
                 <Box component="span" sx={{
-                  px: 1.5, py: 1, borderRadius: 3.5, fontSize: "0.875rem", lineHeight: 1.45,
+                  px: 1.5, py: 1, borderRadius: 3.5, fontSize: FONT_SIZE.body, lineHeight: 1.45,
                   wordBreak: "break-word",
                   border: 1, borderColor: mine ? "transparent" : "divider",
                   bgcolor: mine ? "primary.main" : "action.hover",
                   color: mine ? "primary.contrastText" : "text.primary",
                 }}>{e.payload.text}</Box>
-                <Box component="span" sx={{ flexShrink: 0, fontSize: "0.75rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                <Box component="span" sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
                   {fmtTime(e.created_at)}
                 </Box>
               </Box>

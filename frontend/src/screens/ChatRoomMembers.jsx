@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, EmptyState, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
 
@@ -55,13 +56,13 @@ function MemberRow({ member, meId, actions }) {
           **만들어진 방의 참여자 목록은 이름만** 보여 줘서, 같은 이름 두 사람을 초대하면
           누가 누구인지 구분할 수 없었다(사용자 지시 2026-08-04). */}
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.875rem", lineHeight: 1.35, fontWeight: member.user_id === meId ? 700 : 400 }}>
+        <Typography sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: FONT_SIZE.body, lineHeight: 1.35, fontWeight: member.user_id === meId ? FONT_WEIGHT.bold : FONT_WEIGHT.regular }}>
           {member.name || "알 수 없음"}{member.user_id === meId ? " (나)" : ""}
           {/* 떠난 사람이면 그렇다고 말한다 — 안 하면 답이 안 오는 대화를 며칠 기다린다(N3).
               같은 방의 말풍선(ChatPane.jsx)은 이미 이 표시를 한다 — 참여자 목록만 빠져 있으면
               같은 사람이 화면 위쪽(말풍선)과 이 관리 목록에서 다른 말을 하게 된다. */}
           {member.archived ? (
-            <Box component="span" sx={{ fontWeight: 400, opacity: 0.6 }}> {ARCHIVED_SUFFIX}</Box>
+            <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, opacity: 0.6 }}> {ARCHIVED_SUFFIX}</Box>
           ) : null}
         </Typography>
         {affiliation(member) ? (
@@ -73,7 +74,7 @@ function MemberRow({ member, meId, actions }) {
       {member.role === "owner" ? (
         <Chip size="small" label="방장" sx={{ flexShrink: 0, height: "1.25rem", fontSize: "0.6875rem" }} />
       ) : null}
-      <Typography sx={{ flexShrink: 0, ml: "auto", fontSize: "0.75rem", color: "text.secondary" }}>
+      <Typography sx={{ flexShrink: 0, ml: "auto", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
         {member.online ? "이 대화 보는 중" : "자리 비움"}
       </Typography>
       {actions}
@@ -99,7 +100,7 @@ export function MemberStrip({ members }) {
   const rest = rows.length - shown.length;
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5, px: 0.5 }}>
-      <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>
+      <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
         참여자 {rows.length}명, 보는 중 {online}명
       </Typography>
       {/* 한 줄 요약이라 소속을 늘 붙이면 줄이 넘친다. **이름이 겹칠 때만** 붙인다 —
@@ -107,20 +108,20 @@ export function MemberStrip({ members }) {
       {shown.map((m) => (
         <Box key={m.user_id} sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
           <Dot online={m.online} />
-          <Typography sx={{ fontSize: "0.8125rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Typography sx={{ fontSize: FONT_SIZE.bodySm, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {dupNames && affiliation(m) ? personLabel(m) : (m.name || "알 수 없음")}
           </Typography>
         </Box>
       ))}
       {rest > 0 ? (
-        <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>외 {rest}명</Typography>
+        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>외 {rest}명</Typography>
       ) : null}
     </Box>
   );
 }
 
 const INPUT_SX = {
-  width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: "0.875rem",
+  width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: FONT_SIZE.body,
   border: 1, borderColor: "divider", borderRadius: 2,
   bgcolor: "background.default", color: "text.primary",
   "&:focus": { outline: "none", borderColor: "primary.main" },
@@ -215,7 +216,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   return (
     <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
       <Box component="section" sx={{ mb: 3 }}>
-        <Typography component="label" htmlFor="tc-rename" sx={{ display: "block", mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
+        <Typography component="label" htmlFor="tc-rename" sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
           방 이름
         </Typography>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -229,7 +230,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
       </Box>
 
       <Box component="section" sx={{ mb: 3 }}>
-        <Typography component="h3" sx={{ mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>
+        <Typography component="h3" sx={{ mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
           참여자 {rows.length}명
         </Typography>
         <Box sx={PICKER_SX}>
@@ -247,13 +248,13 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
         </Box>
         {/* 방장이 스스로 빠지는 길은 '방장 넘기기'와 '나가기' 둘뿐이다 — 스스로 내보내기는
             서버가 409로 막는다(주인 없는 방이 생기기 때문). 그래서 내 줄에는 버튼이 없다. */}
-        <Typography sx={{ mt: 0.75, fontSize: "0.75rem", color: "text.secondary" }}>
+        <Typography sx={{ mt: 0.75, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
           방장은 스스로 내보낼 수 없습니다. 빠지려면 방장을 넘기거나 방을 나가세요(마지막 한 명이 나가면 방이 사라집니다).
         </Typography>
       </Box>
 
       <Box component="section">
-        <Typography component="h3" sx={{ mb: 0.75, fontSize: "0.8125rem", fontWeight: 700 }}>초대하기</Typography>
+        <Typography component="h3" sx={{ mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>초대하기</Typography>
         {dir.isPending ? <Skeleton lines={3} />
           : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
           : candidates.length === 0 ? (
@@ -265,7 +266,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
                   <Box key={u.user_id} component="label"
                     sx={{
                       display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.75, borderRadius: 1.5,
-                      cursor: "pointer", fontSize: "0.875rem",
+                      cursor: "pointer", fontSize: FONT_SIZE.body,
                       "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
                       "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
                     }}>

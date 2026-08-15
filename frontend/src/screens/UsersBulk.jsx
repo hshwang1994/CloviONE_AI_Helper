@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* 사용자 대량 작업 + CSV 가져오기/내보내기 (PLAN Phase 6)
  *
@@ -87,7 +88,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   return (
     <Card sx={{ p: 2, mb: 2.5 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{ids.length}명 선택</Typography>
+        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{ids.length}명 선택</Typography>
         {BULK_ACTIONS.map((a) => (
           <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
             onClick={() => apply(a.value, null, a.confirm, a.danger)}>

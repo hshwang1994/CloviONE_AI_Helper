@@ -27,7 +27,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { rowNameOf } from "../ui/rowName.js";
-import { FAB_CLEARANCE, TABLE_CARD_QUERY } from "../ui/theme.js";
+import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
@@ -246,7 +246,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   const groupHeading = (name, count) => (
     <>
       <Box component="span" sx={{ fontWeight: 750 }}>{name}</Box>
-      <Box component="span" sx={{ ml: 1, color: "text.secondary", fontWeight: 500, fontSize: "0.8125rem" }}>{count}건</Box>
+      <Box component="span" sx={{ ml: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm }}>{count}건</Box>
     </>
   );
 
@@ -267,7 +267,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                     {cols.map((c) => c.label ? (
                       <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
                         <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                        <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
+                        <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
                       </Box>
                     ) : (
                       // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
@@ -304,7 +304,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 colSpan={cols.length}
                 sx={{
                   bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
-                  fontSize: "0.8125rem",
+                  fontSize: FONT_SIZE.bodySm,
                   color: "text.primary",
                   borderTop: 1, borderColor: "divider",
                 }}
@@ -492,7 +492,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
           value={form.title} onChange={(e) => set("title", e.target.value)}
           inputProps={{ maxLength: 200 }} />
         <Box sx={{ mb: 2.5 }}>
-          <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
+          <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
           <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} />
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
             선택한 사람으로 담당자를 설정합니다. 앱에 연결되지 않은 기존 담당자는 그대로 유지됩니다.
@@ -795,7 +795,7 @@ const TICKET_SECTIONS = [
 function WritingAid({ description, onInsert }) {
   return (
     <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
-      <Typography component="h2" sx={{ fontWeight: 750, fontSize: "1.0625rem" }}>작성 도움</Typography>
+      <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
       <Typography variant="body2" color="text.secondary">
         좋은 티켓은 <strong>무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
       </Typography>
@@ -821,7 +821,7 @@ function WritingAid({ description, onInsert }) {
                 "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
               }}
             >
-              <Typography component="span" sx={{ fontWeight: 700, fontSize: "0.9375rem" }}>
+              <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
                 {sec.title}{already ? " ✓" : ""}
               </Typography>
               <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
@@ -998,7 +998,7 @@ export function NewTicket() {
               </Box>
             </Box>
             <Box sx={{ mb: 2.5 }}>
-              <Typography component="span" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>담당자</Typography>
+              <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
               <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} myId={myId} maxHeight="none" />
             </Box>
             {/* 폭: 예전에는 이 블록만 maxWidth:"60rem" 을 손으로 박아 뒀다 — 바로 위 필드
@@ -1010,7 +1010,7 @@ export function NewTicket() {
                 한 번 더 멈춘다. */}
             <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
               <Box sx={editorSurfaceWidthSx("nt-desc-surface")}>
-                <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: 700, display: "block", mb: 1 }}>설명</Typography>
+                <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>설명</Typography>
                 <BodyEditor
                   id="nt-desc"
                   value={form.description}

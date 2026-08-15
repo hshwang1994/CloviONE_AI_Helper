@@ -8,6 +8,7 @@ import { api } from "../lib/api.js";
 import {
   Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* AI(LLM) 관리 (9-5).
  *
@@ -77,7 +78,7 @@ const SETTINGS_GRID = {
 function Field({ label, help, children }) {
   return (
     <Box sx={{ mt: 2, minWidth: 0 }}>
-      <Typography sx={{ fontWeight: 700 }}>{label}</Typography>
+      <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{label}</Typography>
       {children}
       {help && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>

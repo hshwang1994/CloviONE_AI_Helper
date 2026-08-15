@@ -9,6 +9,7 @@ import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, EmptyState, ErrorState, SectionTitle, Skeleton } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 
 /* AI 도우미 — 오늘 브리핑 / 스탠드업 초안 / 주간 다이제스트 / 미할당 트리아지.
@@ -46,7 +47,7 @@ function TicketLines({ label, block, empty }) {
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>
-        {label} <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>{count}건</Box>
+        {label} <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.medium }}>{count}건</Box>
       </Typography>
       {items.length === 0 ? (
         <Typography variant="body2" color="text.secondary">{empty}</Typography>
@@ -156,7 +157,7 @@ function WeeklyDigest({ data }) {
           <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, mt: 0.75, p: 0 }}>
             {(docs.items || []).map((d) => (
               <Box component="li" key={d.id} sx={{ minWidth: 0 }}>
-                <Link href={"#/team-docs/" + d.id} underline="hover" sx={{ fontSize: "0.875rem" }}>{d.title}</Link>
+                <Link href={"#/team-docs/" + d.id} underline="hover" sx={{ fontSize: FONT_SIZE.body }}>{d.title}</Link>
               </Box>
             ))}
           </Stack>
@@ -186,7 +187,7 @@ function Triage({ data }) {
   return (
     <Stack gap={2}>
       <Alert severity="info" icon={false} sx={{ alignItems: "flex-start" }}>
-        <Box component="span" sx={{ fontWeight: 800, mr: 1.5 }}>안내</Box>
+        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1.5 }}>안내</Box>
         아래는 <b>제안</b>입니다. 이 화면은 아무것도 배정하지 않습니다. 배정은
         {" "}<Link href="#/unassigned" underline="hover">미할당 티켓</Link> 화면에서 사람이 확인하고 누릅니다.
       </Alert>
@@ -231,7 +232,7 @@ function Narrative({ narrative }) {
   if (narrative.text) {
     return (
       <Alert severity="success" icon={false} sx={{ mt: 2, alignItems: "flex-start" }}>
-        <Box component="span" sx={{ fontWeight: 800, mr: 1.5 }}>요약</Box>
+        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1.5 }}>요약</Box>
         <Box component="span" sx={{ whiteSpace: "pre-line" }}>{narrative.text}</Box>
       </Alert>
     );

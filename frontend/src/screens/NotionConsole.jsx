@@ -7,6 +7,7 @@ import { api } from "../lib/api.js";
 import {
   Badge, Button, Callout, Card, ErrorState, FormModal, PageHeader, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* Notion 관리 (9-4).
  *
@@ -76,7 +77,7 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
   return (
     <Box data-testid={"notion-db-" + item.key} sx={{ py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>
+        <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{item.label}</Typography>
         {/* SYS-11: 예전엔 이 칩 하나가 "설정됐는가"(상태)와 "어디서 왔는가"(출처)를 같은
             초록/주황 색으로 섞어서, 초록 "서버 환경변수"가 건강 판정처럼 잘못 읽혔다.
             TokenSection(아래)이 이미 쓰는 상태 어휘(설정됨/설정 안 함, ok/warn)와 통일하고,

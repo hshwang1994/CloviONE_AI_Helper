@@ -4,7 +4,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Callout, Card, EmptyState } from "../ui/kit.jsx";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
@@ -58,7 +58,7 @@ function WbsRow({ node }) {
             {"GIT-" + node.ticket_number}
           </Typography>
         ) : null}
-        <Typography sx={{ fontWeight: 700, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
+        <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
           {node.title || "제목 없음"}
         </Typography>
         {node.status ? <Badge value={node.status} /> : null}
@@ -70,7 +70,7 @@ function WbsRow({ node }) {
         <Box sx={{ flex: 1 }} />
         <NodeProgress progress={node.progress} />
         {url ? (
-          <Link href={url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontSize: "0.8125rem" }}>
+          <Link href={url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontSize: FONT_SIZE.bodySm }}>
             원본
           </Link>
         ) : null}
@@ -109,7 +109,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
         <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", mb: 1 }}>트리 전체 진행률</Typography>
         {/* 머리글 숫자는 개요 탭과 **같은 함수, 같은 표본**이다(서버가 그렇게 만든다).
             그 사실이 화면에서도 보이도록 같은 근거 표를 그린다. */}
-        <Typography sx={{ fontSize: "1.5rem", fontWeight: 800 }}>
+        <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold }}>
           {percentText(d.progress && d.progress.percent) || "작업이 아직 없습니다"}
         </Typography>
         <ProgressBasis basis={d.progress && d.progress.basis} />
@@ -134,7 +134,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
           <Box component="ul" sx={{ m: 0, mt: 1.5, p: 0, display: "grid", gap: 1 }}>
             {unplaced.map((u) => (
               <Box component="li" key={u.key} sx={{ listStyle: "none", display: "grid", gap: 0.25 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: "0.9375rem", ...KO_WORD_BREAK }}>
+                <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", ...KO_WORD_BREAK }}>
                   {u.title || "제목 없음"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>

@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Card } from "../../ui/kit.jsx";
-import { ACCENT_PRESETS, normalizeAccent } from "../../ui/theme.js";
+import { ACCENT_PRESETS, FONT_SIZE, FONT_WEIGHT, normalizeAccent } from "../../ui/theme.js";
 import { useThemeMode } from "../../ui/ThemeModeProvider.jsx";
 import { ACCENT_NAMES } from "./settingsRegistry.js";
 
@@ -16,7 +16,7 @@ export function AccentPicker() {
   const current = normalizeAccent(accent);
   return (
     <Card sx={{ mb: 2.5 }}>
-      <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>화면 강조색</Typography>
+      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>화면 강조색</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2, maxWidth: "70ch" }}>
         버튼, 링크, 선택 표시에 쓰는 색입니다. 밝게/어둡게 설정과 마찬가지로 <strong>지금 쓰는 브라우저에만</strong> 저장되는 개인 설정이라,
         다른 사람이 보는 화면은 바뀌지 않습니다(위 표의 시스템 설정과 다릅니다).
@@ -47,9 +47,9 @@ export function AccentPicker() {
                    (색 견본이 사라지면 이 선택기는 글자만 남아 의미의 절반을 잃는다). */
                 sx={{ width: "1.25rem", minWidth: "1.25rem", height: "1.25rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
               />
-              <Box component="span" sx={{ fontSize: "0.875rem", fontWeight: selected ? 780 : 550 }}>{name}</Box>
+              <Box component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: selected ? 780 : 550 }}>{name}</Box>
               {/* QAH-07 — dark 모드 대비 미달(최저 2.81) 실측, primary.dark로 교체. */}
-              {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: 800, color: "primary.dark" }}>✓</Box> : null}
+              {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: FONT_WEIGHT.extrabold, color: "primary.dark" }}>✓</Box> : null}
               {selected ? <span className="sr-only">(현재 색)</span> : null}
             </Box>
           );

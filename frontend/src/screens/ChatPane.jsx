@@ -22,6 +22,7 @@ import { mentionNames } from "./chat-text.js";
 import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -308,7 +309,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
           : msgs.map((m) => {
             if (m.kind === "system") {
-              return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: "0.75rem", height: "1.5rem", maxWidth: "100%" }} />;
+              return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: FONT_SIZE.caption, height: "1.5rem", maxWidth: "100%" }} />;
             }
             const mine = m.sender_user_id === you.user_id;
             // 읽음 표시는 1:1에서 내가 마지막으로 보낸 말 한 줄에만(위 주석 참고).
@@ -327,7 +328,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                 {!mine ? (
                   <Typography
                     component="div"
-                    sx={{ fontWeight: 600, color: "text.secondary", fontSize: "0.75rem", px: 0.5,
+                    sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", fontSize: FONT_SIZE.caption, px: 0.5,
                           display: "flex", alignItems: "center", gap: 0.625 }}
                   >
                     {/* 프로필 사진이 **자기 우상단에만** 보이던 것(X13). 서빙 경로는 이미
@@ -345,14 +346,14 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                     {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
                         아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}
                     {affiliationOf(people[m.sender_user_id]) ? (
-                      <Box component="span" sx={{ fontWeight: 400, ml: 0.5, opacity: 0.75 }}>
+                      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, ml: 0.5, opacity: 0.75 }}>
                         {affiliationOf(people[m.sender_user_id])}
                       </Box>
                     ) : null}
                     {/* 보관된 계정이면 그렇다고 말한다(N3) — 안 하면 답이 안 오는 대화를
                         며칠 기다린다. */}
                     {people[m.sender_user_id]?.archived ? (
-                      <Box component="span" sx={{ fontWeight: 400, ml: 0.5, opacity: 0.6 }}>
+                      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, ml: 0.5, opacity: 0.6 }}>
                         {ARCHIVED_SUFFIX}
                       </Box>
                     ) : null}
@@ -363,7 +364,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                     elevation={0}
                     sx={{
                       px: 1.5, py: 1, borderRadius: 2.5, minWidth: 0,
-                      fontSize: "0.875rem", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                      fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
                       ...(mine
                         ? {
                             bgcolor: "primary.main", color: "primary.contrastText",
@@ -411,7 +412,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                   <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", gap: 0.25 }}>
                     {receipt ? (
                       /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체. */
-                      <Typography sx={{ fontSize: "0.625rem", fontWeight: 700, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
+                      <Typography sx={{ fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
                         {receipt}
                       </Typography>
                     ) : null}
@@ -441,7 +442,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           것처럼 보였다. 대화는 그대로 두고, 낡았다는 사실만 한 줄로 알린다. */}
       {q.isError && msgs.length > 0 ? (
         <Box role="alert" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.75, px: 0.5 }}>
-          <Typography sx={{ fontSize: "0.75rem", color: "error.main" }}>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "error.main" }}>
             새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
           </Typography>
           <Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>
@@ -451,7 +452,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       {sendImage.isPending || composerError ? (
         <Typography
           role={composerError ? "alert" : undefined}
-          sx={{ mb: 0.75, px: 0.5, fontSize: "0.75rem", color: composerError ? "error.main" : "text.secondary" }}
+          sx={{ mb: 0.75, px: 0.5, fontSize: FONT_SIZE.caption, color: composerError ? "error.main" : "text.secondary" }}
         >
           {composerError || "이미지를 보내는 중…"}
         </Typography>
@@ -465,7 +466,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           onClick={(e) => setEmojiAnchor(e.currentTarget)}
           sx={{ flexShrink: 0, color: "text.secondary" }}
         >
-          <MoodRoundedIcon sx={{ fontSize: "1.25rem" }} />
+          <MoodRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
         </IconButton>
         {/* 멘션 고르기 — 자동완성 대신 목록에서 고른다. 이름은 **정확히** 맞아야 알림이 가는데
             (부분 일치를 허용하면 엉뚱한 사람에게 간다) 사람이 손으로 정확히 치기는 어렵다.
@@ -477,7 +478,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             onClick={(e) => setMentionAnchor(e.currentTarget)}
             sx={{ flexShrink: 0, color: "text.secondary" }}
           >
-            <AlternateEmailRoundedIcon sx={{ fontSize: "1.25rem" }} />
+            <AlternateEmailRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
           </IconButton>
         ) : null}
         <InputBase
@@ -487,10 +488,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           onChange={(e) => setDraft(e.target.value)}
           onPaste={onPaste}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); doSend(); } }}
-          sx={{ fontSize: "0.875rem" }}
+          sx={{ fontSize: FONT_SIZE.body }}
         />
         <IconButton color="primary" aria-label="보내기" onClick={doSend} disabled={send.isPending || !draft.trim()} sx={{ flexShrink: 0 }}>
-          <SendRoundedIcon sx={{ fontSize: "1.25rem" }} />
+          <SendRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
         </IconButton>
       </Paper>
       <Popover
@@ -501,7 +502,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       >
         {EMOJI_GROUPS.map((g) => (
           <Box key={g.label} sx={{ mb: 1, "&:last-of-type": { mb: 0 } }}>
-            <Typography sx={{ mb: 0.5, fontSize: "0.6875rem", fontWeight: 700, color: "text.secondary" }}>{g.label}</Typography>
+            <Typography sx={{ mb: 0.5, fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.bold, color: "text.secondary" }}>{g.label}</Typography>
             {/* MUI Grid 대신 Box + sx 그리드 — 프로젝트 규약. */}
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 0.25 }}>
               {g.emojis.map((emoji) => (
@@ -533,7 +534,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             <Box
               key={name} component="button" type="button" onClick={() => insertMention(name)}
               sx={{
-                border: 0, background: "none", color: "inherit", font: "inherit", fontSize: "0.875rem",
+                border: 0, background: "none", color: "inherit", font: "inherit", fontSize: FONT_SIZE.body,
                 textAlign: "left", px: 1, py: 0.75, borderRadius: 1, cursor: "pointer",
                 "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.12) },
                 "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },

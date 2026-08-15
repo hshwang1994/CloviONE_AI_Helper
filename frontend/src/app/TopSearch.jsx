@@ -1,6 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import { FONT_SIZE } from "../ui/theme.js";
 
 /* 상단바 검색 — 기준선의 `.top-search`.
  *
@@ -57,7 +58,7 @@ export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 게�
         sx={{
           flex: 1, minWidth: 0,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          color: "rgba(255,255,255,.82)", fontSize: "0.8125rem",
+          color: "rgba(255,255,255,.82)", fontSize: FONT_SIZE.bodySm,
         }}
       >
         {placeholder}
@@ -69,7 +70,7 @@ export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 게�
           flexShrink: 0, ml: "12px",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           border: "1px solid currentColor", borderRadius: "6px", px: "6px", py: "1px",
-          fontSize: "0.75rem", fontFamily: "inherit", opacity: 0.8,
+          fontSize: FONT_SIZE.caption, fontFamily: "inherit", opacity: 0.8,
           [HIDE_KBD_BELOW]: { display: "none" },
         }}
       >

@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartEmpty, resolveChartColor, useTrackColor } from "./base.jsx";
+import { FONT_WEIGHT } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
  *
@@ -62,7 +63,7 @@ export function Donut({
         </Box>
         {/* 가운데 합계 — 도넛의 구멍은 비워 두면 아깝고, 구성비만 있고 모수가 없으면 해석이 안 된다. */}
         <Box sx={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", textAlign: "center" }}>
-          <Typography sx={{ fontSize: "1.5rem", fontWeight: 800, lineHeight: 1.1 }}>
+          <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>
             {total}{unit}
           </Typography>
           {centerLabel ? (
@@ -79,7 +80,7 @@ export function Donut({
               sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: arcs[i].color }}
             />
             <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-              {s.label} <Box component="span" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{s.value}{unit}</Box>
+              {s.label} <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{s.value}{unit}</Box>
               <Box component="span" sx={{ color: "text.secondary" }}> ({Math.round((s.value / total) * 100)}%)</Box>
             </Typography>
           </Box>

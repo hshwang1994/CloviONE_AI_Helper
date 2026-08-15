@@ -4,6 +4,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Button, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { GAME_LABELS } from "./Games.jsx";
 import { STATUS_LABELS, STATUS_KIND } from "./game-room/constants.js";
@@ -73,12 +74,12 @@ export function GameRoom() {
               <Countdown remaining={remaining} />
               {submissionActive ? (
                 <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, fontVariantNumeric: "tabular-nums" }}>
                     제출 {submittedCount}/{activePlayers.length}
                   </Typography>
                   {waitingNames.length > 0
                     ? <Typography variant="body2" color="text.secondary">대기 {waitingNames.join(", ")}</Typography>
-                    : <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>모두 제출했습니다</Typography>}
+                    : <Typography variant="body2" color="success.main" sx={{ fontWeight: FONT_WEIGHT.semibold }}>모두 제출했습니다</Typography>}
                 </Stack>
               ) : null}
             </Paper>

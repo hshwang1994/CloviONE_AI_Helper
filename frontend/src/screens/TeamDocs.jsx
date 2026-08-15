@@ -26,7 +26,7 @@ import {
 } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { invalidateDocumentViews } from "./document-views.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
@@ -339,7 +339,7 @@ export function TeamDocs() {
           onClick={() => nav("/team-docs/" + d.id)}
           sx={{
             display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0, maxWidth: "100%",
-            font: "inherit", fontWeight: 600, textAlign: "left",
+            font: "inherit", fontWeight: FONT_WEIGHT.semibold, textAlign: "left",
             // QAH-07 — dark 모드 4개 accent 전부 대비 미달(최저 2.81) 실측, primary.dark로 교체(QAH-03/05와 같은 대비 보강 토큰).
             "&:hover": { color: "primary.dark" },
           }}
@@ -569,7 +569,7 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
         component="button" type="button" underline="hover" color="inherit" onClick={onOpen}
         sx={{
           display: "flex", alignItems: "flex-start", gap: 0.75, font: "inherit",
-          fontWeight: 700, fontSize: "1rem", lineHeight: 1.4, textAlign: "left",
+          fontWeight: FONT_WEIGHT.bold, fontSize: "1rem", lineHeight: 1.4, textAlign: "left",
           // QAH-07 — 위 테이블뷰 제목 링크와 같은 결함(dark 모드 대비 미달, 최저 2.81).
           "&:hover": { color: "primary.dark" },
         }}
@@ -587,7 +587,7 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
       <Box sx={{
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
         pt: 1, borderTop: 1, borderColor: "divider",
-        fontSize: "0.8125rem", color: "text.secondary",
+        fontSize: FONT_SIZE.bodySm, color: "text.secondary",
       }}>
         <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {author || "작성자 없음"}

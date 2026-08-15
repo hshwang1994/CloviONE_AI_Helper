@@ -22,7 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -81,18 +81,18 @@ export function AuthorLine({ name, person, bold = false }) {
           sx={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         />
       ) : null}
-      <Box component="span" sx={{ fontWeight: bold ? 700 : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+      <Box component="span" sx={{ fontWeight: bold ? FONT_WEIGHT.bold : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
         {name || "알 수 없음"}
       </Box>
       {/* 소속이 없으면 아무것도 그리지 않는다 — 빈 괄호가 붙으면 그게 더 어수선하다. */}
       {affiliation ? (
-        <Box component="span" sx={{ fontWeight: 400, opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
           {affiliation}
         </Box>
       ) : null}
       {/* 떠난 사람이면 그렇다고 말한다 — 안 하면 답이 안 오는 글에 답글을 단다(N3). */}
       {person?.archived ? (
-        <Box component="span" sx={{ fontWeight: 400, opacity: 0.6, flexShrink: 0 }}>{ARCHIVED_SUFFIX}</Box>
+        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, opacity: 0.6, flexShrink: 0 }}>{ARCHIVED_SUFFIX}</Box>
       ) : null}
     </Box>
   );
@@ -328,7 +328,7 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
             color={mine ? "primary" : "default"}
             variant={mine ? "filled" : "outlined"}
             label={count > 0 ? `${emoji} ${count}` : emoji}
-            sx={{ fontSize: "0.875rem" }}
+            sx={{ fontSize: FONT_SIZE.body }}
           />
         );
       })}
@@ -421,9 +421,9 @@ function BoardScreen({ kind = "free" }) {
       render: (p) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
           {p.is_pinned ? <Badge value="고정" kind="info" /> : null}
-          <Box component="span" sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</Box>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</Box>
           {p.comment_count > 0 ? (
-            <Box component="span" sx={{ color: "primary.dark", fontWeight: 700, fontSize: "0.8125rem", flexShrink: 0 }}>
+            <Box component="span" sx={{ color: "primary.dark", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm, flexShrink: 0 }}>
               [{p.comment_count}]
             </Box>
           ) : null}

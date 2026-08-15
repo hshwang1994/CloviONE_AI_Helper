@@ -5,6 +5,7 @@ import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { safeExternal } from "../lib/safeUrl.js";
@@ -97,15 +98,15 @@ function ImpersonationBanner() {
       role="status"
       sx={{ borderRadius: 0, alignItems: "center" }}
       action={
-        <Button color="inherit" size="small" onClick={stop} disabled={busy} sx={{ fontWeight: 800 }}>
+        <Button color="inherit" size="small" onClick={stop} disabled={busy} sx={{ fontWeight: FONT_WEIGHT.extrabold }}>
           {busy ? "종료 중…" : "대리 보기 종료"}
         </Button>
       }
     >
-      <AlertTitle sx={{ fontWeight: 800, mb: 0 }}>
+      <AlertTitle sx={{ fontWeight: FONT_WEIGHT.extrabold, mb: 0 }}>
         {data.target_name || data.target_email}님의 화면을 보는 중입니다 (읽기 전용)
       </AlertTitle>
-      <Box component="span" sx={{ fontSize: "0.8125rem" }}>
+      <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm }}>
         {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
         {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
       </Box>
@@ -128,7 +129,7 @@ function SystemStatusBanner() {
         >
           {notice.message}
           {notice.since ? (
-            <Box component="span" sx={{ ml: 1, opacity: 0.8, fontSize: "0.8125rem" }}>
+            <Box component="span" sx={{ ml: 1, opacity: 0.8, fontSize: FONT_SIZE.bodySm }}>
               (마지막 정상: {fmtDateTime(notice.since)})
             </Box>
           ) : null}
@@ -138,7 +139,7 @@ function SystemStatusBanner() {
               안 된다(공지의 safeExternal과 같은 이유, 여기서는 더 좁게 본다). */}
           {typeof notice.href === "string" && notice.href.startsWith("#/") ? (
             <Box sx={{ mt: 0.5 }}>
-              <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: 700 }}>
+              <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
                 초기 설정 계속하기
               </Button>
             </Box>
@@ -176,11 +177,11 @@ function AnnouncementBanner() {
           sx={{ borderRadius: 0 }}
           onClose={item.dismissible && !dismissing[item.id] ? () => dismiss(item.id) : undefined}
         >
-          <AlertTitle sx={{ fontWeight: 800, mb: item.body ? 0.5 : 0 }}>{item.title}</AlertTitle>
-          {item.body ? <Box component="span" sx={{ fontSize: "0.875rem" }}>{item.body}</Box> : null}
+          <AlertTitle sx={{ fontWeight: FONT_WEIGHT.extrabold, mb: item.body ? 0.5 : 0 }}>{item.title}</AlertTitle>
+          {item.body ? <Box component="span" sx={{ fontSize: FONT_SIZE.body }}>{item.body}</Box> : null}
           {safeExternal(item.link_url) ? (
             <Box sx={{ mt: 0.5 }}>
-              <Button size="small" href={safeExternal(item.link_url)} sx={{ px: 0, fontWeight: 700 }}>
+              <Button size="small" href={safeExternal(item.link_url)} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
                 {item.link_label || "자세히 보기"}
               </Button>
             </Box>

@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Card } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
+import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 
 /* 관리자 화면(Dashboard·진단·유지보수·작업 큐·개발자 리포트)이 함께 쓰는 껍데기·격자.
  * 예전엔 전부 Dashboard.jsx 안에 있어서, 그 화면 하나가 사실상 '관리자 전용 디자인 시스템'
@@ -48,7 +49,7 @@ export function DashSection({ title, action, children }) {
        한 화면에 섹션이 대여섯 개인 대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
     <Box component="section" sx={{ mb: SECTION_GAP }}>
       <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: "1.0625rem" }}>{title}</Typography>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
         {action}
       </Box>
       {children}
@@ -74,7 +75,7 @@ export function StatusTile({ name, onClick, ariaLabel, children }) {
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
       <Typography
         variant="body2" title={name}
-        sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
       >
         {name}
       </Typography>

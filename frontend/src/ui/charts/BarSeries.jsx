@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartEmpty, resolveChartColor, useTrackColor } from "./base.jsx";
+import { FONT_WEIGHT } from "../theme.js";
 
 /* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등).
  *
@@ -56,13 +57,13 @@ export function BarSeries({
                 전체 이름은 title로 남긴다. */}
             <Typography
               variant="body2" title={r.label}
-              sx={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             >
               {r.label}
             </Typography>
             <Typography
               variant="body2"
-              sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}
+              sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}
             >
               {fmt(r.value)}{unit}
             </Typography>

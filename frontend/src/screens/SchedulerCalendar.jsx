@@ -10,6 +10,7 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { api } from "../lib/api.js";
 import { toUTCDate } from "../lib/format.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES } from "./registry/shared.js";
 import {
@@ -259,7 +260,7 @@ export function SchedulerCalendar() {
 
       <Card sx={{ mt: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
         <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>
-        <Typography component="h2" sx={{ fontWeight: 800, fontSize: "1.125rem", minWidth: "8ch" }}>
+        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: "1.125rem", minWidth: "8ch" }}>
           {monthLabel}
         </Typography>
         <IconButton onClick={() => move(1)} aria-label="다음 달"><ChevronRightRoundedIcon /></IconButton>
@@ -314,7 +315,7 @@ export function SchedulerCalendar() {
       ) : (
         <>
           <Card sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
-            <Typography sx={{ fontSize: "0.875rem" }}>
+            <Typography sx={{ fontSize: FONT_SIZE.body }}>
               이 구간 실행 <strong>{counts.run}</strong>건, 예정 <strong>{counts.planned}</strong>건
             </Typography>
             {counts.failed ? <Badge value={`실패 ${counts.failed}건`} kind="danger" /> : null}
@@ -335,7 +336,7 @@ export function SchedulerCalendar() {
                     key={d}
                     role="columnheader"
                     sx={{
-                      textAlign: "center", py: 0.75, fontWeight: 800, fontSize: "0.8125rem",
+                      textAlign: "center", py: 0.75, fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.bodySm,
                       color: i === 0 ? "error.main" : i === 6 ? "primary.main" : "text.secondary",
                     }}
                   >
@@ -364,7 +365,7 @@ export function SchedulerCalendar() {
                       >
                         <Typography
                           sx={{
-                            fontSize: "0.75rem", fontWeight: isToday ? 800 : 600, mb: 0.5,
+                            fontSize: FONT_SIZE.caption, fontWeight: isToday ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, mb: 0.5,
                             // QAH-03(2026-08-11 하네스 실측): 다크 표면에서 primary.main
                             // 글자색이 3.76:1로 AA 미달이었다 — primary.dark(=primaryStrong,
                             // 대비 보강 alias)로 바꾼다.

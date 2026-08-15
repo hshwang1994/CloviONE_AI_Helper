@@ -6,6 +6,7 @@ import MuiButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 
 /* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선/이모지)과
  * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
@@ -111,7 +112,7 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
    * color="inherit"` 라 배경이 투명이었고, 이모지 IconButton 은 배경 자체가 없어 흰 Card
    * 위에서 버튼 경계가 잘 안 보인다는 지적이 있었다. */
   const fmtBtn = {
-    minWidth: 0, px: 1.5, minHeight: 32, fontSize: "0.8125rem",
+    minWidth: 0, px: 1.5, minHeight: 32, fontSize: FONT_SIZE.bodySm,
     bgcolor: "background.surface2",
     borderColor: "divider",
     "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08), borderColor: "divider" },
@@ -162,7 +163,7 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
            아예 안 읽힌다. 이름은 label 로만 준다. */
         slotProps={{ htmlInput: label ? { "aria-label": label } : {} }}
       />
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: 700 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: FONT_WEIGHT.bold }}>
         미리보기
       </Typography>
       <BodyPreview text={value} wide />
@@ -215,7 +216,7 @@ export function BodyPreview({ text, wide = false }) {
 
   if (blocks.length === 0) {
     return (
-      <Box sx={{ ...shell, color: "text.secondary", fontSize: "0.875rem" }}>
+      <Box sx={{ ...shell, color: "text.secondary", fontSize: FONT_SIZE.body }}>
         본문을 입력하면 실제 모양이 여기에 보입니다.
       </Box>
     );
@@ -227,7 +228,7 @@ export function BodyPreview({ text, wide = false }) {
         if (b.type === "hr") return <Divider key={i} sx={{ my: 1 }} />;
         if (b.type === "h1") return <Typography key={i} variant="h6" sx={{ mt: 1 }}>{b.text}</Typography>;
         if (b.type === "h2") return <Typography key={i} sx={{ fontWeight: 780, fontSize: "1rem", mt: 1 }}>{b.text}</Typography>;
-        if (b.type === "h3") return <Typography key={i} sx={{ fontWeight: 700, fontSize: "0.9375rem", mt: 0.5 }}>{b.text}</Typography>;
+        if (b.type === "h3") return <Typography key={i} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", mt: 0.5 }}>{b.text}</Typography>;
         if (b.type === "ul") return <Box component="ul" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
         if (b.type === "ol") return <Box component="ol" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
         return <Typography key={i} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{b.text}</Typography>;

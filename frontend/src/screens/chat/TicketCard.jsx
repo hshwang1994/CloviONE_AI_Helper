@@ -6,6 +6,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Button } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   fmtDue, peopleText, priorityKind, priorityKo, projectToneColor, safeNotion,
 } from "../chat-helpers.js";
@@ -24,8 +25,8 @@ import { NotionLink, PlainUrl } from "./links.jsx";
 
 function CardRow({ label, children }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1, alignItems: "center", justifyItems: "start", fontSize: "0.8125rem" }}>
-      <Typography component="span" sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>{label}</Typography>
+    <Box sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1, alignItems: "center", justifyItems: "start", fontSize: FONT_SIZE.bodySm }}>
+      <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{label}</Typography>
       <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
     </Box>
   );
@@ -92,7 +93,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
                     {String(p)}
                   </Box>
                 }
-                sx={{ height: "1.375rem", fontSize: "0.75rem", maxWidth: "100%" }}
+                sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, maxWidth: "100%" }}
               />
             ))}
             {/* 예전엔 4개 이상이면 나머지가 아무 표시 없이 조용히 잘렸다 — choices의 '+N개 더 보기'와
@@ -102,7 +103,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
                 size="small" variant="outlined" clickable color="primary"
                 label={"+" + (projects.length - 3)}
                 onClick={() => setShowAllProjects(true)}
-                sx={{ height: "1.375rem", fontSize: "0.75rem", fontWeight: 750 }}
+                sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, fontWeight: 750 }}
               />
             ) : null}
           </Box>
@@ -113,7 +114,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
           {url ? (safeNotion(url) ? <NotionLink url={url} /> : <PlainUrl url={url} />) : null}
           {/* AI-41: 결과 카드에서 Notion 외부 링크만 있고 앱 내 티켓 상세로 가는 길이 없었다
               (AssistantPanel.jsx의 같은 카드는 이미 #/tickets/{id}로 간다) — 같은 패턴을 쓴다. */}
-          {isTicket && t.id ? <Link href={"#/tickets/" + t.id} underline="hover" sx={{ fontSize: "0.8125rem", fontWeight: 700 }}>앱에서 보기</Link> : null}
+          {isTicket && t.id ? <Link href={"#/tickets/" + t.id} underline="hover" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>앱에서 보기</Link> : null}
           {typeof index === "number" && onChoose ? (
             <Button size="sm" disabled={sending} onClick={() => onChoose(index + "번 상세 보여줘")}>상세</Button>
           ) : null}

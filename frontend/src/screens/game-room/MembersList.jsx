@@ -4,6 +4,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { Badge } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { ROLE_LABELS } from "./constants.js";
 
 /* 오른쪽 레일 위쪽 — 참여자 목록. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로
@@ -11,7 +12,7 @@ import { ROLE_LABELS } from "./constants.js";
 export function MembersList({ members, room, you, submissionActive, submittedSet }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, flexShrink: 0 }}>
-      <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>참여자 {members.length}명</Typography>
+      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>참여자 {members.length}명</Typography>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5, maxHeight: "13rem", overflowY: "auto" }}>
         {members.map((m) => {
           // 부서를 직책보다 먼저 그린다 — lib/people.js::affiliation / lib/format.js::affiliationOf /
@@ -28,23 +29,23 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
             }}>
               <Box component="span" aria-hidden="true" sx={{
                 flexShrink: 0, width: "2.25rem", height: "2.25rem", borderRadius: "50%",
-                display: "grid", placeItems: "center", fontWeight: 700, fontSize: "0.875rem",
+                display: "grid", placeItems: "center", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body,
                 bgcolor: isHostRow ? "primary.main" : "action.hover",
                 color: isHostRow ? "primary.contrastText" : "text.primary",
               }}>
                 {(m.name || "?").slice(0, 1)}
               </Box>
               <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>
-                  {m.name}{isMe ? <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, fontSize: "0.8125rem" }}> (나)</Box> : null}
+                <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: FONT_WEIGHT.semibold }}>
+                  {m.name}{isMe ? <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, fontSize: FONT_SIZE.bodySm }}> (나)</Box> : null}
                 </Box>
                 {sub.length ? (
                   <Box component="span" sx={{
-                    display: "flex", gap: 1, fontSize: "0.75rem", color: "text.secondary",
+                    display: "flex", gap: 1, fontSize: FONT_SIZE.caption, color: "text.secondary",
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
                     {m.dept ? <Box component="span">{m.dept}</Box> : null}
-                    {m.title ? <Box component="span" sx={{ color: "primary.dark", fontWeight: 600 }}>{m.title}</Box> : null}
+                    {m.title ? <Box component="span" sx={{ color: "primary.dark", fontWeight: FONT_WEIGHT.semibold }}>{m.title}</Box> : null}
                   </Box>
                 ) : null}
               </Box>

@@ -1,6 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import { FONT_SIZE } from "../../ui/theme.js";
 
 /* 상세 패널의 원문 블록과 키/값 줄 — 예전에는 <JsonBlock> 과
  * .c-kv/.c-kv-k/.c-kv-v 를 열다섯 곳에 손으로 흩어 두었다. 규칙이 CSS 파일에만 있어서
@@ -11,7 +12,7 @@ export function JsonBlock({ children }) {
     <Box component="pre" sx={{
       m: 0, p: 1.5, borderRadius: 1.5, border: 1, borderColor: "divider",
       bgcolor: "background.default", overflowX: "auto", whiteSpace: "pre-wrap",
-      overflowWrap: "anywhere", fontSize: "0.8125rem", lineHeight: 1.6,
+      overflowWrap: "anywhere", fontSize: FONT_SIZE.bodySm, lineHeight: 1.6,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     }}>{children}</Box>
   );
@@ -24,7 +25,7 @@ export function KeyValueRow({ label, children }) {
       gap: { xs: 0.25, sm: 1.5 }, py: 0.75, borderBottom: 1, borderColor: "divider", minWidth: 0,
     }}>
       <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>{label}</Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{children}</Box>
+      <Box sx={{ minWidth: 0, overflowWrap: "anywhere", fontSize: FONT_SIZE.body }}>{children}</Box>
     </Box>
   );
 }

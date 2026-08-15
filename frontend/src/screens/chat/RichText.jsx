@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { parseBlocks } from "../chat-helpers.js";
 import { linkifyText } from "./links.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 
 /* 리치 텍스트 — parseBlocks 결과를 머리글/목록/키-값/문단으로 렌더한다(텍스트 노드 전용).
  * 머리글은 본문(0.9375rem)보다 커야 '머리글'로 읽힌다. 크기는 전부 rem이라 4K에서 함께 커진다. */
@@ -17,7 +18,7 @@ export function RichText({ text }) {
               sx={{ mt: bi === 0 ? 0 : 1.5, mb: 0.5, fontSize: "1rem", fontWeight: 750, color: "text.primary", lineHeight: 1.4 }}
             >
               {linkifyText(b.text, "h" + bi)}
-              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: 500, fontSize: "0.8125rem", color: "text.secondary" }}>{linkifyText(b.note, "hn" + bi)}</Box> : null}
+              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{linkifyText(b.note, "hn" + bi)}</Box> : null}
             </Typography>
           );
         }
@@ -41,7 +42,7 @@ export function RichText({ text }) {
                   {it.subs.map((s, si) => (
                     <Box
                       key={si} component="span"
-                      sx={{ gridColumn: it.marker ? 2 : 1, fontSize: "0.8125rem", color: "text.secondary", overflowWrap: "anywhere" }}
+                      sx={{ gridColumn: it.marker ? 2 : 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary", overflowWrap: "anywhere" }}
                     >
                       {linkifyText(s, "li" + bi + "-" + ii + "-s" + si)}
                     </Box>
@@ -61,7 +62,7 @@ export function RichText({ text }) {
               sx={{
                 m: 0, mt: bi === 0 ? 0 : 1, p: 1.25, borderRadius: 1.5,
                 bgcolor: "background.surface2", overflowX: "auto",
-                fontSize: "0.8125rem", lineHeight: 1.5,
+                fontSize: FONT_SIZE.bodySm, lineHeight: 1.5,
               }}
             >
               <Box component="code" sx={{ fontFamily: "monospace", whiteSpace: "pre" }}>
@@ -74,7 +75,7 @@ export function RichText({ text }) {
           return (
             <Box key={bi} component="dl" sx={{ m: 0, mt: bi === 0 ? 0 : 1, display: "grid", gap: 0.25 }}>
               {b.rows.map((r, ri) => (
-                <Box key={ri} sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1.25, fontSize: "0.875rem" }}>
+                <Box key={ri} sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1.25, fontSize: FONT_SIZE.body }}>
                   <Box component="dt" sx={{ color: "text.secondary" }}>{r.key}</Box>
                   <Box component="dd" sx={{ m: 0, overflowWrap: "anywhere" }}>{linkifyText(r.text, "kv" + bi + "-" + ri)}</Box>
                 </Box>

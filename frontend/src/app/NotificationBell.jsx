@@ -12,6 +12,7 @@ import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneR
 import { api } from "../lib/api.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
 import { Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "./auth.jsx";
 import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey } from "./notification-keys.js";
 
@@ -449,7 +450,7 @@ export function NotificationBell({ isUser }) {
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
             px: 2, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0,
           }}>
-            <Typography component="span" sx={{ fontWeight: 750, fontSize: "0.875rem" }}>
+            <Typography component="span" sx={{ fontWeight: 750, fontSize: FONT_SIZE.body }}>
               알림{count && !listError ? ", 안 읽음 " + count : ""}
             </Typography>
             {/* 몸통이 오류면 헤더 숫자, '모두 읽음'을 감춰 한 팝오버 안에서 상반된 메시지를 없앤다.
@@ -463,7 +464,7 @@ export function NotificationBell({ isUser }) {
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
           {!list.isPending && !list.isError && items.length > 0 && items.length < count ? (
             <Typography className="noti-pop-hint" sx={{
-              px: 2, py: 0.75, fontSize: "0.75rem", color: "text.secondary",
+              px: 2, py: 0.75, fontSize: FONT_SIZE.caption, color: "text.secondary",
               bgcolor: "action.hover", flexShrink: 0,
             }}>{items.length}건 표시 중, 전체 보기에서 나머지 확인</Typography>
           ) : null}
@@ -553,7 +554,7 @@ export function NotificationBell({ isUser }) {
                       role="separator"
                       aria-label={groupHeader + " 알림"}
                       sx={{
-                        px: 2, py: 0.5, fontSize: "0.6875rem", fontWeight: 700,
+                        px: 2, py: 0.5, fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.bold,
                         letterSpacing: "0.02em", color: "text.secondary", bgcolor: "action.hover",
                         borderBottom: 1, borderColor: "divider",
                       }}

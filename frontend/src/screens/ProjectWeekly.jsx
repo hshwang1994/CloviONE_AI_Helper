@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import { Badge, Button, Callout, Card, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
 
 /* 주간 리포트 탭.
@@ -103,7 +103,7 @@ function MilestoneBucket({ title, bucket }) {
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.5 }}>
           {items.map((m) => (
             <Box component="li" key={m.id} sx={{ listStyle: "none", display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-              <Typography variant="body2" sx={{ fontWeight: 700, ...KO_WORD_BREAK }}>{m.name}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>{m.name}</Typography>
               <Typography variant="body2" color="text.secondary">
                 {(m.due_on ? "기한 " + m.due_on : "기한 없음")
                   + ", " + (MILESTONE_STATUS_KO[m.status] || m.status)}

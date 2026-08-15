@@ -9,6 +9,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
@@ -258,7 +259,7 @@ export function WorkSection() {
           renderItem={(p) => (
             <>
               <Link component="button" type="button" variant="body2" underline="hover"
-                sx={{ textAlign: "left", fontWeight: 700 }}
+                sx={{ textAlign: "left", fontWeight: FONT_WEIGHT.bold }}
                 onClick={() => nav("/projects/" + p.project_id)}>
                 {p.name}
               </Link>
@@ -276,7 +277,7 @@ export function WorkSection() {
           renderItem={(m) => (
             <>
               <Link component="button" type="button" variant="body2" underline="hover"
-                sx={{ textAlign: "left", fontWeight: 700 }}
+                sx={{ textAlign: "left", fontWeight: FONT_WEIGHT.bold }}
                 onClick={() => nav("/projects/" + m.project_id)}>
                 {m.name}
               </Link>

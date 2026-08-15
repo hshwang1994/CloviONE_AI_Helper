@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
 import { EmptyState } from "../../ui/kit.jsx";
+import { FONT_SIZE } from "../../ui/theme.js";
 import { fmtTime, ticketPageStart } from "../chat-helpers.js";
 import { CardStack } from "./TicketCard.jsx";
 
@@ -21,7 +22,7 @@ export function ResultsRail({ railOpen, railMsg, railPayload, railIsLast, doSend
       <Box sx={{ px: 3, py: 1.25, borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
         <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: 750 }}>결과</Typography>
         {railMsg && railMsg.created_at ? (
-          <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>{fmtTime(railMsg.created_at)}</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>{fmtTime(railMsg.created_at)}</Typography>
         ) : null}
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 3 }}>
@@ -32,7 +33,7 @@ export function ResultsRail({ railOpen, railMsg, railPayload, railIsLast, doSend
             <CardStack payload={railPayload} startNo={ticketPageStart(railMsg.structured, railMsg.content || "")}
               onChoose={railIsLast ? doSend : undefined} sending={sending} gap={1.5} />
             {!railIsLast ? (
-              <Typography sx={{ mt: 2, fontSize: "0.75rem", color: "text.secondary" }}>
+              <Typography sx={{ mt: 2, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
                 대화가 이어져 이 결과는 지난 답변의 것입니다. 새 결과를 받으면 여기가 바뀝니다.
               </Typography>
             ) : null}

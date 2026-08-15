@@ -18,7 +18,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { docTypeKind } from "../lib/badges.js";
 import { safeExternal } from "../lib/safeUrl.js";
@@ -101,14 +101,14 @@ function DocBlock({ block, index, onImage }) {
         }}>{lt}</Box>
       );
     case "toggle":
-      return <Typography component="div" sx={{ my: 1, fontWeight: 600 }}>{lt}</Typography>;
+      return <Typography component="div" sx={{ my: 1, fontWeight: FONT_WEIGHT.semibold }}>{lt}</Typography>;
     case "code":
       // 긴 한 줄이 페이지 전체 가로 스크롤을 만들지 않게 코드 상자 안에서만 스크롤한다.
       return (
         <Box component="pre" sx={{
           my: 2, p: 2, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: "action.hover",
           overflowX: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontSize: "0.8125rem", lineHeight: 1.6,
+          fontSize: FONT_SIZE.bodySm, lineHeight: 1.6,
         }}>{t}</Box>
       );
     case "divider":
@@ -194,8 +194,8 @@ function DocMeta({ doc }) {
             display: "grid", gridTemplateColumns: "6.5rem minmax(0,1fr)", gap: 1,
             py: 1, borderBottom: 1, borderColor: "divider", minWidth: 0,
           }}>
-            <Box component="dt" sx={{ color: "text.secondary", fontSize: "0.875rem" }}>{label}</Box>
-            <Box component="dd" sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere", fontSize: "0.875rem" }}>{value}</Box>
+            <Box component="dt" sx={{ color: "text.secondary", fontSize: FONT_SIZE.body }}>{label}</Box>
+            <Box component="dd" sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere", fontSize: FONT_SIZE.body }}>{value}</Box>
           </Box>
         ))}
       </Box>

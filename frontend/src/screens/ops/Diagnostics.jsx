@@ -9,6 +9,7 @@ import { fmtDateTime, actionKo, objKo } from "../../lib/format.js";
 import { DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
 import { PageHeader, Card, Badge, Button, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { Donut } from "../../ui/charts/Donut.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, errorBuckets, healthVerdict, integrationMix, shortId, copyText, bundleStamp } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
 import { ServiceStatusPanel } from "./ServiceStatusPanel.jsx";
@@ -169,7 +170,7 @@ export function Diagnostics() {
                                  원인이라 같은 수정(palette.{error,warning}.strong)을 쓴다. */
                               sx={{ display: "flex", alignItems: "baseline", gap: 0.75, color: p.tone === "danger" ? "error.strong" : "warning.strong" }}>
                               {/* 심각도를 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은 글자 라벨을 함께 둔다. */}
-                              <Box component="span" sx={{ flexShrink: 0, fontWeight: 800, fontSize: "0.75rem" }}>
+                              <Box component="span" sx={{ flexShrink: 0, fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.caption }}>
                                 {p.tone === "danger" ? "위험" : "주의"}
                               </Box>
                               {p.msg}
@@ -326,11 +327,11 @@ export function Diagnostics() {
                   이 페이지에서만 미완성처럼 보이던 문제를 없앤다. */}
               <Card>
                 <details>
-                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: 700, fontSize: "0.9375rem" }}>원본(JSON) 보기</Box>
+                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>원본(JSON) 보기</Box>
                   <Box component="pre" aria-label="진단 번들 원본 JSON"
                     sx={{
                       m: 0, mt: 2, p: 2, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.75rem", lineHeight: 1.5,
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.caption, lineHeight: 1.5,
                       maxHeight: "60vh", overflow: "auto", bgcolor: "background.default", borderRadius: 2,
                     }}>
                     {text}
