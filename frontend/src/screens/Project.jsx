@@ -162,7 +162,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
               <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
                 {m.due_on || "기한 없음"}
               </Typography>
-              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
+              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>
                 {m.name}
               </Typography>
               <Badge value={MILESTONE_STATUS_KO[m.status] || m.status} />

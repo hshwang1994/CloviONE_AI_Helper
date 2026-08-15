@@ -113,7 +113,7 @@ export function HealthBlock({ score, reasons, unknown }) {
           {list.map((r) => (
             <Box component="li" key={r.rule} sx={{ display: "grid", gap: 0.25 }}>
               <Box sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
+                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
                   {r.label}
                 </Typography>
                 <Typography component="span" color="error.main" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.body }}>
@@ -138,7 +138,7 @@ export function HealthBlock({ score, reasons, unknown }) {
           <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1 }}>
             {unsure.map((u) => (
               <Box component="li" key={u.rule} sx={{ display: "grid", gap: 0.25 }}>
-                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
+                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
                   {u.label}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{u.why}</Typography>

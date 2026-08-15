@@ -56,7 +56,7 @@ function Bucket({ title, bucket, onOpen }) {
   const items = Array.isArray(b.items) ? b.items : [];
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography component="h3" sx={{ fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.bold }}>
+      <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold }}>
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
@@ -94,7 +94,7 @@ function MilestoneBucket({ title, bucket }) {
   const items = Array.isArray(b.items) ? b.items : [];
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography component="h3" sx={{ fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.bold }}>
+      <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold }}>
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (

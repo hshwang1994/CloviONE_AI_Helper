@@ -46,7 +46,7 @@ function RoomRow({ room, onOpen, active }) {
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, flex: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.9375rem" }}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: FONT_SIZE.body }}>
             {room.title}
           </Typography>
           <Chip size="small" label={tag} sx={{ flexShrink: 0, height: "1.375rem", fontSize: FONT_SIZE.caption }} />

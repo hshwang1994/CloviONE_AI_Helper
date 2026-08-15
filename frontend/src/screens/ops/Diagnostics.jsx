@@ -327,7 +327,7 @@ export function Diagnostics() {
                   이 페이지에서만 미완성처럼 보이던 문제를 없앤다. */}
               <Card>
                 <details>
-                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>원본(JSON) 보기</Box>
+                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>원본(JSON) 보기</Box>
                   <Box component="pre" aria-label="진단 번들 원본 JSON"
                     sx={{
                       m: 0, mt: 2, p: 2, whiteSpace: "pre-wrap", wordBreak: "break-word",

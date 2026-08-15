@@ -232,7 +232,7 @@ function PersonCard({ person, active, onPick }) {
             <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{c.label}</Typography>
             <Typography
               component="div"
-              sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}
+              sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}
               color={c.warn ? "warning.main" : "text.primary"}
             >
               {c.value}

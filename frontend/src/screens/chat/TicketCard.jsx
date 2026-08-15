@@ -69,7 +69,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
         "&:hover": { boxShadow: 1 },
       }}
     >
-      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", lineHeight: 1.4, overflowWrap: "anywhere" }}>
+      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, lineHeight: 1.4, overflowWrap: "anywhere" }}>
         {prefix}{title}
       </Typography>
       {t.status ? <CardRow label="상태"><Badge value={t.status} /></CardRow> : null}
@@ -145,7 +145,7 @@ export function CardStack({ payload, startNo, onChoose, sending, gap = 1 }) {
       {results.map((t, i) => <TicketCard key={"r" + i} t={t} isTicket={false} sending={sending} />)}
       {!hasCards && (notionUrl || notionUnsafe) ? (
         <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, bgcolor: "background.default", display: "grid", gap: 0.75 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>관련 문서</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>관련 문서</Typography>
           {notionUrl ? <NotionLink url={notionUrl} /> : <PlainUrl url={notionUnsafe} />}
         </Paper>
       ) : null}

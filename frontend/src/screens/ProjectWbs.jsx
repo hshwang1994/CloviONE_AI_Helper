@@ -58,7 +58,7 @@ function WbsRow({ node }) {
             {"GIT-" + node.ticket_number}
           </Typography>
         ) : null}
-        <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", minWidth: 0, ...KO_WORD_BREAK }}>
+        <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>
           {node.title || "제목 없음"}
         </Typography>
         {node.status ? <Badge value={node.status} /> : null}
@@ -134,7 +134,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
           <Box component="ul" sx={{ m: 0, mt: 1.5, p: 0, display: "grid", gap: 1 }}>
             {unplaced.map((u) => (
               <Box component="li" key={u.key} sx={{ listStyle: "none", display: "grid", gap: 0.25 }}>
-                <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem", ...KO_WORD_BREAK }}>
+                <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
                   {u.title || "제목 없음"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>

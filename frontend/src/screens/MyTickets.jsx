@@ -257,7 +257,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
       <Stack gap={2.5}>
         {groups.map(([groupName, items]) => (
           <Box key={groupName}>
-            <Typography component="h3" sx={{ fontSize: "0.9375rem", mb: 1 }}>{groupHeading(groupName, items.length)}</Typography>
+            <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, mb: 1 }}>{groupHeading(groupName, items.length)}</Typography>
             <Stack gap={1.5}>
               {items.map((t, i) => {
                 // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙.
@@ -826,7 +826,7 @@ function WritingAid({ description, onInsert }) {
                 "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
               }}
             >
-              <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "0.9375rem" }}>
+              <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
                 {sec.title}{already ? " ✓" : ""}
               </Typography>
               <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
