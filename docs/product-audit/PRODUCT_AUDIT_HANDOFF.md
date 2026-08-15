@@ -190,30 +190,30 @@ evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0008 절(PA-F-018~021) · `app/
 
 <!-- PA-RC-BEGIN PA-RC-0009 -->
 rc_id: PA-RC-0009
-severity: High
-priority: P1
+severity: Medium
+priority: P2
 confidence: Confirmed
-problem: `CLAUDE.md` §13이 `PROJECT_COMPLETE`의 조건으로 요구하는 **"Backend Full Regression green"이 한 번도 실증된 적이 없다.** 백엔드 전체는 2,903건이고 그중 `tests/integration` 1,313건(45%)이 완주된 기록이 저장소 어디에도 없다. 이번 Cycle에서도 두 번 시도해 각각 27%·49%에서 세션 경계로 잘렸다. 게다가 완주하더라도 신뢰할 수 없다 — 비결정적 테스트가 최소 2개 확인됐다(`PA-RC-0008`의 race 테스트가 약 40% 실패, 그리고 `test_cli_passwd_temp_resets`가 전체 실행에서는 실패하고 격리 실행에서는 3/3 통과).
-expected: `CLAUDE.md` §12가 `.venv/Scripts/python -m pytest`를 "Backend full"로 정의하고 `pytest.ini`의 `testpaths = tests`가 그것을 2,903건으로 확정한다. §13은 그 green을 완료 Gate로 요구한다. 따라서 "완주 가능하고, 반복해도 같은 결과가 나오는" 상태여야 한다.
-actual: 완주 자체가 안 되고(45분+, 백그라운드 실행이 세션 경계를 못 넘김), 실행된 구간 안에도 비결정적 실패가 있다. 실행 완료가 확인된 것은 `tests/regression` 331건과 `tests/security` 498건, 합계 829건(전체의 29%)뿐이다. `tests/unit` 761건은 이번 Cycle에서 시도조차 하지 않았다.
-intent_evidence: ② `CLAUDE.md` §12(대표 검증 명령 — "Backend full: `.venv/Scripts/python -m pytest`") · ② `CLAUDE.md` §13(`PROJECT_COMPLETE` 조건에 "Backend/Frontend/Runner Full Regression green" 명시) · ③ `pytest.ini`의 `testpaths = tests`가 "full"의 범위를 기계적으로 확정한다 · ⑥ `docs/WORK_STATE.md` WF12·WF13·WF14가 전부 "전체 회귀 완료 못 함"을 기록(원인은 오진 — `PA-RC-0006`)
+problem: 백엔드 전체 회귀(2,903건)는 **실제로 전부 통과한다** — 이 Audit이 청크 분할 전경 실행으로 확인했다(`regression` 331 · `security` 498 · `unit` 761 · `integration` 1,313을 4청크로, 5회 실행 모두 `EXIT=0`). 문제는 결과가 아니라 **실행 수단**이다. 단일 호출로는 45분+가 걸려 세션/호출 경계를 못 넘고(두 번 시도해 27%·49%에서 잘림), 그 결과 `docs/WORK_STATE.md`가 세 사이클 동안 이것을 "진짜 행(hang)"으로 잘못 기록해 아무도 전체 회귀를 돌리지 않았다. 여기에 flaky 1건(`PA-RC-0008`의 race 테스트, 약 40% 실패)이 겹쳐 **1회 green을 완료 근거로 쓸 수 없는** 상태다.
+expected: `CLAUDE.md` §12가 `.venv/Scripts/python -m pytest`를 "Backend full"로 정의하고 §13이 그 green을 `PROJECT_COMPLETE` 조건으로 요구한다. 따라서 **완주 가능하고 반복해도 같은 결과가 나오는** 실행 절차가 있어야 한다.
+actual: 결과는 green이지만 그것을 얻는 절차가 문서화돼 있지 않다. 단일 호출은 완주하지 못하고, 어떤 문서도 "청크로 나눠 돌린다"거나 "45분 걸린다"고 적지 않는다. 그래서 세 사이클(WF12·WF13·WF14) 동안 "행"으로 오진된 채 미검증으로 남았다.
+intent_evidence: ② `CLAUDE.md` §12(대표 검증 명령)·§13(완료 Gate) · ③ `pytest.ini`의 `testpaths = tests`가 "full"의 범위를 2,903건으로 기계적으로 확정한다 · ⑥ `docs/WORK_STATE.md` WF12·WF13·WF14의 "완료 못 함" 기록(원인 오진 — `PA-RC-0006`)
 findings: PA-F-022, PA-F-023
-feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 검증 체계 전체에 걸린다. 다만 FC-03(프롬프트 수명주기)은 `PA-RC-0008`의 race 테스트를 통해 이 RC와 직접 맞닿는다.
-routes: 해당 없음 — 사용자에게 노출되는 화면이 아니라 CI/검증 절차의 문제다.
-frontend: 해당 없음 — 프런트는 예외적으로 건강하다. `npm test -- --run`이 **111초에 253파일/1,718건 전부 통과**하며 완주·재현이 모두 확인됐다. 이 RC는 백엔드 스위트만의 문제다.
+feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 검증 절차의 문제다. 다만 FC-03(프롬프트 수명주기)이 `PA-RC-0008`의 race 테스트를 통해 이 RC와 맞닿는다.
+routes: 해당 없음 — 사용자 화면이 아니라 검증 절차다.
+frontend: 해당 없음 — 프런트는 이미 건강하다. `npm test -- --run`이 111초에 253파일/1,718건 완주·전부 통과로 실증됐다. 이 RC는 백엔드 스위트 전용이다.
 api: 해당 없음 — API 계약과 무관하다.
-backend: `tests/integration/**`(1,313건, 미완주) · `tests/unit/**`(761건, 미실행) · `tests/integration/test_cli_user.py:14-29`(`run_cli`가 `subprocess.run(..., timeout=60)`로 CLI를 별도 프로세스로 띄운다 — 부하 의존 후보) · `tests/integration/test_prompt_create_new_version_race.py`(`PA-RC-0008`) · `pytest.ini`
-data: 해당 없음 — 제품 데이터와 무관하다. 단 통합 테스트가 쓰는 임시 SQLite 파일의 잠금·정리가 order 의존의 후보이므로 조사 시 그 경로를 볼 것.
+backend: `pytest.ini` · `tests/integration/**`(1,313건, 단일 호출로 완주 불가) · `tests/integration/test_prompt_create_new_version_race.py`(flaky, `PA-RC-0008`) · `tests/integration/test_cli_user.py:14-29`(`subprocess.run(timeout=60)` — 부하 의존 후보, 재현 안 됨)
+data: 해당 없음 — 제품 데이터와 무관하다.
 rbac: 해당 없음 — 권한 규칙과 무관하다.
 integration: 해당 없음 — 외부 연동과 무관하다.
 state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
-user_impact: 최종 사용자에게 직접 영향은 없다. 영향은 **완료 판정의 신뢰성**이다 — 실증되지 않은 "Full Regression green"을 근거로 `PROJECT_COMPLETE`를 만들면 그 판정이 무효다. `PA-RC-0007`(배포본 131커밋 뒤처짐)과 합치면 §13의 완료 Gate 세 개 중 **둘이 현재 검증 불가** 상태다.
-implementation_direction: (1) **완주 가능한 실행 방식을 먼저 확정한다** — 전경 실행 + 넉넉한 타임아웃, 또는 디렉터리별 분할 실행 후 결과 합산. 백그라운드 단일 실행은 이 환경에서 두 번 실패했고, 반대로 `tests/regression`·`tests/security`는 전경 실행으로 실제 완주했다(방법은 이미 증명됐다). (2) **비결정적 테스트를 먼저 잡는다** — `PA-RC-0008`(race)과 `test_cli_passwd_temp_resets`. 후자는 원인 규명이 먼저다: 순서 의존이면 테스트 간 상태 누수, 부하 의존이면 subprocess 콜드 스타트/타임아웃이다. **원인을 모른 채 타임아웃 숫자만 늘리지 말 것** — 그건 증상을 숨기고 다음 사람에게 넘기는 것이다. (3) 그 두 가지가 끝난 뒤에야 "Full Regression green"을 완료 근거로 쓴다. (4) race·subprocess 계열은 **반복 실행**으로 판정한다(1회 green 금지).
-constraints: **Auditor는 테스트 코드를 수정하지 않았다**(프롬프트 0절) — 원인 규명과 수정은 구현 Phase의 일이다 · 비결정적 테스트를 `skip`/`xfail`로 덮어 green을 만들지 말 것(그러면 이 RC가 문서상으로만 닫힌다) · `pytest.ini`의 `testpaths`를 좁혀 "full"의 정의를 축소하는 방식으로 해결하지 말 것 — §12·§13의 계약을 바꾸는 것이므로 그렇게 하려면 `docs/DECISIONS.md`에 근거를 남기고 명시적으로 결정해야 한다 · CLAUDE.md §3-10(`:memory:` DB로 WAL/멀티커넥션 의미를 대체하지 않는다)을 우회해 통합 테스트를 빠르게 만들지 말 것
-regression_risk: 실행 방식 변경 자체는 제품 회귀 위험이 없다. 위험은 반대 방향이다 — 비결정적 테스트를 "고쳤다"고 판단했는데 실제로는 확률만 낮춘 경우, 다음 사람이 1회 green을 보고 닫힌 것으로 오인한다. 그래서 acceptance_criteria가 반복 실행을 요구한다. 또한 통합 테스트의 상태 누수를 고치다 보면 공용 fixture(`tests/conftest.py`)를 건드리게 되는데, 그 범위는 통합·보안·회귀 전체다.
-acceptance_criteria: (1) `.venv/Scripts/python -m pytest`(= 2,903건)가 **완주**하고 그 결과가 로그로 남는다. (2) 그 완주가 **연속 3회** 재현되며 매번 실패 0건이다(1회 green은 근거로 인정하지 않는다 — 이 RC의 핵심이 비결정성이다). (3) `test_prompt_create_new_version_race`가 20회 반복에서 실패 0건(`PA-RC-0008`과 공유하는 조건). (4) `test_cli_passwd_temp_resets`의 실패 원인이 **규명되어 기록**돼 있고(순서 의존인지 부하 의존인지), 그 원인에 맞는 수정이 들어갔다. (5) 어떤 테스트도 이 RC 때문에 `skip`/`xfail` 처리되지 않았다. (6) 완주 소요 시간이 측정돼 문서에 남아 있다(다음 사람이 "행"으로 오진하지 않도록 — `PA-RC-0006`의 재발 방지).
-required_tests: 이 RC는 **기존 테스트를 실제로 돌리는 것 자체**가 요구사항이다 — `tests/integration`(1,313) · `tests/unit`(761) · `tests/security`(498) · `tests/regression`(331) 전부. 추가로 **신규**: 비결정성 회귀를 막는 장치(race/subprocess 계열을 N회 반복 실행하는 스위트 또는 스크립트)가 있어야 하고, 그 장치가 실제로 비결정성을 잡는지 revert-to-verify로 증명할 것.
-qa_gaps: `docs/QA_COVERAGE.md`에 **"전체 회귀가 완주됐는가"와 "반복 실행에서도 같은 결과인가"를 보는 축이 없다.** 현재 QA는 개별 기능 축만 보고 스위트 자체의 건강을 보지 않는다. 그래서 45%가 한 번도 안 돌아간 상태로 세 사이클이 지나갔다. 두 축을 추가할 것: `Full Regression 완주 기록(소요 시간 포함)` · `비결정 테스트 목록과 반복 검증 결과`.
-quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① `pytest --collect-only`의 기계적 집계(2,903건, 디렉터리별 분포) ② 실제 실행 로그의 진행률과 실패 위치를 엄격 파싱한 결과(느슨한 계수 395와 엄격 계수 683이 **같은 실패 인덱스 334**를 가리켜 교차 확인) ③ 격리 실행 3/3 통과라는 대조 실험 ④ `CLAUDE.md` §12·§13과 `pytest.ini`라는 명시적 계약이다. 미적 판단이 개입하지 않는다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0009 절(PA-F-022, PA-F-023) · `var/product-audit/pytest_integration.log`(중단된 전체 실행, 683건 진행 후 잘림, 334번째 F) · `var/product-audit/collect_integration.txt`·`collect_all.txt`(수집 집계) · `tests/integration/test_cli_user.py:14-29,81-85` · `pytest.ini` · `CLAUDE.md` §12·§13 · `docs/WORK_STATE.md` WF12·WF13·WF14
+user_impact: 최종 사용자 영향 없음. 영향은 완료 판정의 신뢰성이다 — 절차가 없으면 다음 사람도 같은 오진을 반복하고, flaky 1건 때문에 1회 green이 근거가 되지 못한다.
+implementation_direction: (1) **청크 분할 전경 실행을 절차로 고정한다** — 이 Audit이 쓴 방법이 그대로 답이다(`tests/regression`·`tests/security`·`tests/unit` 각각 단독, `tests/integration`은 4청크). 스크립트 한 개로 만들고 각 청크의 exit code를 합산한다. (2) **소요 시간을 문서에 적는다**(약 45분) — `PA-RC-0006`의 "행" 오진이 재발하지 않도록. (3) `PA-RC-0008`의 flaky race를 고친다. (4) `test_cli_passwd_temp_resets`는 **우선순위를 낮게** 둔다 — 격리 3/3, 직전 파일 동반 실행, 그리고 같은 앞 334건을 담은 chunk1 실행에서 모두 통과했다. 실패한 그 한 번은 Auditor가 다른 명령을 동시에 돌리던 중이었으므로 **실험 조건 오염일 가능성이 높다.** 부하 높은 CI 러너에서 재현되면 그때 `subprocess` 타임아웃/직렬화를 본다. **재현 없이 타임아웃 숫자만 늘리지 말 것.**
+constraints: **Auditor는 테스트 코드를 수정하지 않았다**(프롬프트 0절) · 비결정 테스트를 `skip`/`xfail`로 덮어 green을 만들지 말 것 · `pytest.ini`의 `testpaths`를 좁혀 "full"의 정의를 축소하지 말 것 — §12·§13의 계약을 바꾸는 일이므로 그렇게 하려면 `docs/DECISIONS.md`에 근거를 남길 것 · CLAUDE.md §3-10(`:memory:` DB로 WAL/멀티커넥션 의미 대체 금지)을 우회해 통합 테스트를 빠르게 만들지 말 것
+regression_risk: 실행 절차 변경 자체는 제품 회귀 위험이 없다. 위험은 청크 분할이 **테스트 간 순서 의존을 가릴 수 있다**는 것이다 — 실제로 이번에 전체 실행에서만 난 실패가 청크에서는 안 났다. 그래서 절차에 "가끔은 단일 호출 완주도 시도한다"를 남기거나, 청크 경계를 고정해 재현 가능하게 할 것.
+acceptance_criteria: (1) 백엔드 2,903건 전부를 실행하는 **절차(스크립트)** 가 저장소에 있고, 각 청크 exit code를 합산해 하나의 결과를 낸다. (2) 그 절차를 **연속 3회** 돌려 매번 실패 0건이다(1회 green 불가 — 이 RC의 핵심이 비결정성이다). (3) `test_prompt_create_new_version_race`가 20회 반복에서 실패 0건(`PA-RC-0008`과 공유). (4) 소요 시간이 문서에 기록돼 있다. (5) 어떤 테스트도 이 RC 때문에 `skip`/`xfail` 되지 않았다. (6) `docs/WORK_STATE.md`의 "행(hang)" 서술이 정정돼 있다(`PA-RC-0006`과 공유).
+required_tests: 기존 테스트를 **실제로 완주시키는 것 자체**가 요구사항이다 — `tests/integration`(1,313)·`tests/unit`(761)·`tests/security`(498)·`tests/regression`(331). 추가로 **신규**: race/subprocess 계열을 N회 반복 실행하는 장치와, 그 장치가 실제로 비결정성을 잡는지 revert-to-verify.
+qa_gaps: `docs/QA_COVERAGE.md`에 **스위트 자체의 건강을 보는 축이 없다** — 완주 여부·소요 시간·비결정 테스트 목록. 그래서 "45분 걸린다"가 "행이다"로 세 사이클 동안 잘못 기록됐다. 두 축을 추가할 것: `Full Regression 완주 기록(소요 시간 포함)` · `비결정 테스트 목록과 반복 검증 결과`.
+quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① `pytest --collect-only`의 기계적 집계 ② 5회 청크 실행의 exit code ③ 실패 인덱스 역추적의 교차 확인(느슨한 계수 395와 엄격 계수 683이 같은 334를 지목) ④ 격리·동반·청크 3가지 재현 시도라는 대조 실험 ⑤ `CLAUDE.md` §12·§13과 `pytest.ini`라는 명시적 계약이다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0009 절(PA-F-022, PA-F-023 — 정정 경위 포함) · `var/product-audit/pytest_int_c1..c4.log`(4청크 전부 EXIT=0) · `var/product-audit/pytest_unit.log`(EXIT=0) · `var/product-audit/pytest_integration.log`(중단된 단일 실행, 334번째 F) · `var/product-audit/collect_all.txt`(2,903건 집계) · `tests/integration/test_cli_user.py:14-29` · `pytest.ini` · `CLAUDE.md` §12·§13
 <!-- PA-RC-END -->
