@@ -88,16 +88,41 @@ LARGE-ARCHITECTURAL로 재분류(`DECISIONS.md` D-69 — 스코프 모델에 "�
 | 6 | PA-RC-0002 | High/P1 | 크다(167+ 오류 문구, 4,919회 문자열 전수) — 심각도는 높지만 범위가 가장 넓어 뒤에 배치 |
 | 7 | PA-RC-0007 | Medium/P1 | 배포 드리프트 — CLAUDE.md §9 순서상 "구현 수렴 뒤"에나 의미가 있다, 지금 배포해 봐야 또 뒤처진다 |
 
-**다음 작업**: PA-RC-0008(`app/prompts/service.py::new_version_from` 등 7개 호출부의
-SQLite 쓰기 경합 재시도 통일 — 공용 헬퍼 신설, `auth/router.py`의 실측값 기준 채택,
-예산 소진 시 500 대신 409)부터 시작한다. 배경에서 백엔드 전체 회귀(`.venv/Scripts/python
--m pytest`, 단일 호출)를 재확인 중이나 PA-RC-0009 자체가 "단일 호출은 45분+ 걸려 세션
-경계를 못 넘을 수 있다"고 이미 경고했으므로, 끝까지 못 가도 그 자체가 실패 신호는
-아니다 — PA-RC-0009를 고칠 때 청크 스크립트로 교체한다.
+**진행 갱신(같은 날, 이어서)**: PA-RC-0008·PA-RC-0005·PA-RC-0010 세 건 구현완료+커밋.
+
+- **PA-RC-0008**(커밋 `ce48749`): `app/core/db.py`에 공용 재시도 헬퍼(`DEFAULT_WRITE_CONFLICT_RETRIES=10`,
+  `write_conflict_backoff`) 신설, 7개 호출부 통일, 예산 소진 시 500→409(3곳), race 계열
+  6개 파일 20회 반복 실패 0건, 신규 `scripts/run_full_regression.sh`(청크 스크립트,
+  PA-RC-0009와 공유)로 전체 회귀 1회 통과(28분) 확인.
+- **PA-RC-0005**(커밋 `e3f9873`): `app/core/field_limits.py`(Pydantic 스키마 introspection,
+  손으로 값 안 옮김) + `scripts/generate_field_limits.py`/`check_field_limits_fresh.py`
+  (빌드 시 생성 + static_checks.sh 드리프트 검사) + `kit.jsx::FormField`(maxLength 렌더 +
+  남은 글자 수 + 붙여넣기 초과 토스트). 등록 화면 6/13(`prompts`·`policies`·`templates`·
+  `departments`·`job-titles`·`organizations`) 매핑 완료, 나머지는 `FORM_SCHEMAS`에 한 줄
+  추가만 필요. 부수로 `DGEN-02`(2026-08-13 커밋)의 em-dash 문구 위반 발견해 정정.
+- **PA-RC-0010**(커밋 `9f1628a`): 착수 전 실측으로 Handoff의 "4화면 전부 같은 문제" 가정이
+  틀렸음을 확인(`docs/DECISIONS.md` D-74) — `change-password`는 이미 `theme.js`로 다크
+  지원 중(감사가 정적 grep라 런타임 JS를 놓침), `login`은 `login.css`+
+  `test_theme_on_all_authed_pages.py`로 **의도적** 라이트 고정(그대로 둠), 진짜 공백은
+  `forgot-password`/`reset-password` 둘뿐이었다. `tokens.css`에 `@media
+  (prefers-color-scheme: dark)` 블록 추가로 해결, Playwright 실측 확인.
+
+**백그라운드**: PA-RC-0009의 요구사항(청크 스크립트 3회 연속 통과)을 검증하려고
+`scripts/run_full_regression.sh`를 3회 연속 백그라운드 실행 중 — 1회차는 이미
+`EXIT=0`(28분) 확인, 2·3회차 진행 중. 전부 끝나면 PA-RC-0009 자체를 구현완료로 닫고
+(`docs/BACKLOG.md` PA-06, `docs/QA_COVERAGE.md` T8, 소요 시간 문서화, `WORK_STATE.md`의
+낡은 "행(hang)" 서술 정정 — PA-RC-0006과 공유) 커밋한다. 이 백그라운드 실행 자체가
+"단일 호출은 세션 경계를 못 넘을 수 있다"는 PA-RC-0009의 경고와 무관하게 진행 중이므로,
+끝까지 못 가도 그 자체가 새 실패 신호는 아니다 — 그때는 원인을 조사한다.
+
+**다음 작업**(PA-RC-0009 마무리 확인 후, 또는 그와 별개로 계속): 우선순위 표대로
+PA-RC-0001(278곳 `fontSize` 리터럴 토큰화, `DS-05`와 같은 배치) → PA-RC-0002(167+ 오류
+문구, `docs/UX_WRITING.md` 신설 선행) → PA-RC-0007(배포 드리프트, 구현 수렴 뒤).
+PA-RC-0003은 여전히 AI 구현 대상 아님(skip).
 
 ---
 
-**마지막 갱신**: 2026-08-15 · **단계**: 신규 Handoff 인계, PA-RC-0008 착수.
+**마지막 갱신**: 2026-08-15 · **단계**: PA-RC-0008/0005/0010 구현완료, PA-RC-0009 3회 검증 진행 중.
 
 WF51 커밋 뒤 whole-product 재감사(CLAUDE.md §8)로 확정한 5건
 (SEC-32/33, APPR-04, DBTX-01) 전부 구현완료 후, 배경 조사 에이전트로
