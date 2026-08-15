@@ -62,10 +62,20 @@ def _login_org_b_moderator(client, login_as, two_orgs, db):
     평사원으로 확인하면 쓰기 경로가 소유권 검사(403)에 먼저 걸려 **조직 판정이 있는지
     없는지 구별되지 않는다.** 운영자군은 남의 글도 고칠 수 있으므로, 여기서 막는 것은
     오직 조직 판정뿐이다.
+
+    `admin_scope`를 `"org"`로 명시한다 — RBAC 재감사(2026-08-16)로 발견: 이 컬럼의
+    모델 기본값이 `global`(0024 마이그레이션이 그렇게 정함, 관리 화면이 조용히
+    비지 않도록 하는 의도된 선택)이라, `role`만 바꾸고 `admin_scope`를 그대로 두면
+    **의도와 다르게 전역 범위 운영자**가 된다 — 이 시험이 실제로 그 상태였다(조직
+    판정 자체를 테스트하지 못하고 있었다, `_viewer_org_id`가 예전엔 `admin_scope`를
+    아예 안 봐서 우연히 통과해 온 것뿐). 현실적인 "조직 B 소속 운영자"를 나타내려면
+    범위도 함께 좁혀야 한다.
     """
     from app.core.authz import ROLE_OPERATOR
 
     two_orgs.user_b.role = ROLE_OPERATOR
+    two_orgs.user_b.admin_scope = "org"
+    two_orgs.user_b.scope_org_id = two_orgs.org_b_id
     db.commit()
     return login_as("user", email="orgb@goodmit.co.kr")
 
@@ -274,3 +284,62 @@ def test_the_owner_still_sees_their_own_post(client, login_as, two_orgs):
     seeded = _seed_org_a_post(client, login_as)
     r = client.get(f"/api/board/posts/{seeded['post_id']}")
     assert r.status_code == 200, f"작성자 본인이 자기 글을 못 연다: {r.text[:200]}"
+
+
+# RBAC 재감사(2026-08-16)로 발견한 진짜 근본 원인: `create_post`(app/board/service.py)가
+# `org_id`를 아예 안 채워서 **모든 새 글이 작성자와 무관하게 컬럼 기본값(기본 조직)으로
+# 저장됐다.** 위의 모든 격리 시험은 우연히 org A 사람이 만든 글로만 확인해서(기본값과
+# org A가 같은 값이라) 이 결함을 그동안 못 잡았다 — org B 사람의 글로 직접 확인해야
+# 드러난다.
+def test_a_non_default_organizations_post_is_stamped_with_its_authors_organization(
+    client, login_as, two_orgs, db
+):
+    from app.board.models import Post
+
+    csrf_b = login_as("user", email="orgb@goodmit.co.kr")
+    r = client.post(
+        "/api/board/posts",
+        json={"category": "공지", "title": "B조직이 쓴 글", "body": "x"},
+        headers={"X-CSRF-Token": csrf_b},
+    )
+    assert r.status_code == 200, r.text
+    post_id = r.json()["post"]["id"]
+
+    stored = db.get(Post, post_id)
+    assert stored.org_id == two_orgs.org_b_id, (
+        f"B조직 사람이 쓴 글이 다른 조직({stored.org_id})으로 저장됐다 — "
+        f"기대값은 {two_orgs.org_b_id}"
+    )
+
+    # 저장이 맞아야 조회도 맞다 — 작성자 본인이 자기 글을 본다.
+    detail = client.get(f"/api/board/posts/{post_id}")
+    assert detail.status_code == 200, "B조직 작성자가 방금 쓴 자기 글을 못 연다"
+
+    # org A 사람에게는 안 보여야 한다(반대 방향 유출 확인, 위 시험들과 같은 결).
+    login_as("user", email="orga@goodmit.co.kr")
+    titles = {p["title"] for p in client.get("/api/board/posts").json()["items"]}
+    assert "B조직이 쓴 글" not in titles, "org A 사람에게 org B 글이 보인다"
+
+
+# RBAC 재감사(2026-08-16, SEC-34와 같은 자리에서 발견): `_viewer_org_id`가 `User.org_id`
+# (OrgScopedMixin의 default=DEFAULT_ORG_ID로 전역 관리자에게도 항상 채워져 있다)를
+# 무조건 썼다 — 전역 관리자조차 자기 기본 조직으로 좁혀져 **다른 조직의 정당한 공지를
+# 못 봤다.** 위 시험들과 반대 방향(유출이 아니라 과도한 차단)이지만 여전히 잘못된
+# 판정이다.
+def test_a_global_admin_sees_posts_from_every_organization(client, login_as, two_orgs, db):
+    seeded_a = _seed_org_a_post(client, login_as)
+    csrf_b = login_as("user", email="orgb@goodmit.co.kr")
+    post_b = client.post(
+        "/api/board/posts",
+        json={"category": "공지", "title": "B조직 내부 공지", "body": "B회사만 볼 내용"},
+        headers={"X-CSRF-Token": csrf_b},
+    )
+    assert post_b.status_code == 200, post_b.text
+
+    login_as("system_admin")
+    titles = {p["title"] for p in client.get("/api/board/posts").json()["items"]}
+    assert "A조직 내부 공지" in titles, "전역 관리자가 A조직 글을 못 본다"
+    assert "B조직 내부 공지" in titles, "전역 관리자가 B조직 글을 못 본다"
+
+    detail = client.get(f"/api/board/posts/{seeded_a['post_id']}")
+    assert detail.status_code == 200, f"전역 관리자가 다른 조직 글 상세를 못 연다: {detail.status_code}"

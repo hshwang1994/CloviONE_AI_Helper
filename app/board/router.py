@@ -255,13 +255,24 @@ def _post_detail(db: Session, post: Post, me: User) -> dict:
     }
 
 
-def _viewer_org_id(me: User) -> str | None:
+def _viewer_org_id(db: Session, me: User) -> str | None:
     """이 사람이 볼 수 있는 게시판의 축 — **조직 하나뿐**이다.
 
     부서로는 좁히지 않는다: 자유게시판은 **사내** 공지판이라 부서로 나누면 그 성격이
     사라진다(사내 공지가 자기 팀에만 보이면 공지판이 아니다). 목록이 내리는 판정과
     글자 그대로 같아야 해서 여기 한 줄로 두고, 아래 모든 단건 경로가 이것을 쓴다.
+
+    RBAC 재감사(2026-08-16, SEC-34와 같은 자리에서 발견)로 정정: 전역(global) 관리자도
+    `User.org_id`가 `OrgScopedMixin`의 `default=DEFAULT_ORG_ID`로 항상 채워져 있어,
+    예전엔 `getattr(me, "org_id", None)`을 그대로 써 **전역 관리자조차 자기 기본
+    조직으로 좁혀졌다**(다른 조직 공지가 안 보임 — 유출과 반대 방향이지만 여전히
+    잘못된 판정). `core/scope.py::build_scope`가 이미 역할·admin_scope를 올바르게
+    해석하므로 그걸 그대로 쓴다 — 여기서 새 판정을 만들지 않는다.
     """
+    from app.core.scope import build_scope
+
+    if build_scope(db, me).is_global:
+        return None
     return getattr(me, "org_id", None)
 
 
@@ -271,7 +282,7 @@ def _get_post_or_404(db: Session, post_id: str, me: User) -> Post:
     목록만 조직을 가려서는 아무 의미가 없다 — 이 경로들은 id 를 직접 받는다. 범위 밖은
     **404**: 403 은 그 글이 존재한다는 사실을 알려 준다(저장소 규칙).
     """
-    post = repository.get_post(db, post_id, org_id=_viewer_org_id(me))
+    post = repository.get_post(db, post_id, org_id=_viewer_org_id(db, me))
     if post is None:
         raise NotFoundError("게시글을 찾을 수 없습니다.")
     return post
@@ -286,7 +297,7 @@ def _get_comment_or_404(db: Session, comment_id: str, me: User) -> Comment:
     """
     comment = repository.get_comment(db, comment_id)
     if comment is None or repository.get_post(
-        db, comment.post_id, org_id=_viewer_org_id(me)
+        db, comment.post_id, org_id=_viewer_org_id(db, me)
     ) is None:
         raise NotFoundError("댓글을 찾을 수 없습니다.")
     return comment
@@ -365,8 +376,9 @@ def list_posts(
         # 자기 조직 글만 (1순위 유출 #4). 부서로는 좁히지 않는다 - 자유게시판은 **사내**
         # 공지판이라 부서로 나누면 그 성격이 사라진다. 맞는 축은 조직이다.
         # 아이디어 게시판도 **같은 축**이다: 사내 제안이라 부서로 나눌 이유가 없고, 새
-        # 게이트를 만들면 판정이 두 벌이 된다.
-        org_id=getattr(me, "org_id", None),
+        # 게이트를 만들면 판정이 두 벌이 된다. 전역 관리자는 `_viewer_org_id`가
+        # `None`(무제한)을 준다 — SEC-34와 같은 자리에서 발견한 정정, 위 함수 참고.
+        org_id=_viewer_org_id(db, me),
         kind=resolved_kind,
         idea_status=idea_status,
     )
@@ -738,7 +750,7 @@ def serve_attachment(
     # 예전엔 글은 404여도 첨부 URL을 쥔 사람은 계속 받을 수 있었다(삭제가 접근을 못 막음).
     # 조직도 같은 자리에서 본다: 상세를 막아도 여기가 열려 있으면 사내 자료 바이트가
     # 그대로 나간다(첨부 URL 은 상세 응답에 실려 나가므로 id 는 쉽게 새 나간다).
-    if repository.get_post(db, att.post_id, org_id=_viewer_org_id(me)) is None:
+    if repository.get_post(db, att.post_id, org_id=_viewer_org_id(db, me)) is None:
         raise NotFoundError("첨부를 찾을 수 없습니다.")
     path = uploads.attachment_path(
         request.app.state.settings.data_dir, att.post_id, att.stored_name
