@@ -128,22 +128,22 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | · | · | · |
-| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
-| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · |
+| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | S | · | S | · | · | · |
+| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
+| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | · | · |
 
 ## UNSEEN / BLOCKED / NOT_APPLICABLE 사유
 
@@ -272,9 +272,9 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1789
+unseen=1757
 unseen_without_reason=0
-static_only=477
+static_only=509
 observed=0
 executed=74
 blocked=0

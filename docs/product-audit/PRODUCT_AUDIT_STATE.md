@@ -62,6 +62,17 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 요약 블록이 표와 어긋나면 Supervisor의 완료 Gate가 거부하는데, 손으로 관리하면 반드시
 어긋나기 때문이다.
 
+## 2-1. Round 진행 현황 (2026-08-15 회차에 추가된 것)
+
+| Round | 축 | 결과 |
+|---|---|---|
+| 재접지 | 저장소 위생 | **`PA-RC-0003` (Critical)** — `stash@{0}` 평문 자격증명 |
+| 2 | P (UX Writing) | `ux-writing` Skill 적용 → **`PA-F-011`**, `PA-RC-0002`를 High로 재분류 |
+| 3 | Y (회귀 공백) | **프런트 전체 회귀 실행** — 253파일/1,718건 green. Y축 74칸 EXECUTED. 백엔드 `pytest tests/regression`은 이 회차에 완료 못 함 |
+| 4 | L·M | `redesign-existing-projects` Skill 적용 → 해당 항목 대부분 통과, **`PA-RC-0004`(Low)** 신규 |
+| 5 | W (타임존/스케줄) | **위반 0건** — 시계 주입 186회, 우회 0회, KST는 전부 허용 용도 |
+| 5 | T (관측성) | **끊김 없음** — `request_id`가 응답 헤더·액세스 로그·감사 기록을 잇는다 |
+
 ## 3. 다음 조사 후보 (우선순위 순)
 
 1. **Round 1 · L축 진입점**: `ui/theme.js`(520줄) + `styles/tokens.css`(366줄) +
