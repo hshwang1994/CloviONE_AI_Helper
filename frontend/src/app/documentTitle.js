@@ -72,8 +72,32 @@ export function labelForPath(pathname) {
   return (best ? ROUTE_LABELS[best] || EXTRA_LABELS[best] : "") || "";
 }
 
+// VIS-133: 나브 라벨만으로는 상세 화면 탭이 전부 같은 이름이다("티켓 | ClovirAssist"가
+// 티켓 100장 전부의 탭 제목) — 여러 탭을 열어 두면 구분이 안 된다. 화면이 자기 데이터를
+// 읽은 뒤 더 구체적인 제목(실제 티켓/문서/글 제목)을 여기 등록하면 탭에 그게 대신 쓰인다.
+// setBrand()와 같은 모듈 전역 + 구독자 패턴이다 — 이유도 같다: pathname 이 그대로면
+// useDocumentTitle 의 effect 가 다시 안 돈다.
+let itemTitle = "";
+let itemTitlePath = null;
+const itemTitleListeners = new Set();
+
+/** pathname 이 지금 화면과 안 맞으면 조용히 무시한다 — 사용자가 이미 다른 화면으로 옮긴
+ * 뒤에 이전 화면의 지연 응답(예: 느린 API)이 도착해도 새 화면의 제목을 덮지 않는다. */
+export function setItemTitle(pathname, text) {
+  const next = (text || "").trim();
+  if (itemTitlePath === pathname && itemTitle === next) return;
+  itemTitlePath = pathname;
+  itemTitle = next;
+  itemTitleListeners.forEach((fn) => fn());
+}
+
+function itemTitleFor(pathname) {
+  return itemTitlePath === pathname ? itemTitle : "";
+}
+
 export function titleForPath(pathname) {
-  const label = labelForPath(pathname);
+  const specific = itemTitleFor(pathname);
+  const label = specific || labelForPath(pathname);
   const b = brand();
   return label ? `${label} | ${b}` : b;
 }
@@ -86,9 +110,10 @@ export function titleForPath(pathname) {
 export function useDocumentTitle(pathname) {
   const [brandTick, setBrandTick] = React.useState(0);
   React.useEffect(() => {
-    const onBrandChange = () => setBrandTick((n) => n + 1);
-    brandListeners.add(onBrandChange);
-    return () => { brandListeners.delete(onBrandChange); };
+    const onChange = () => setBrandTick((n) => n + 1);
+    brandListeners.add(onChange);
+    itemTitleListeners.add(onChange);
+    return () => { brandListeners.delete(onChange); itemTitleListeners.delete(onChange); };
   }, []);
   React.useEffect(() => {
     document.title = titleForPath(pathname);

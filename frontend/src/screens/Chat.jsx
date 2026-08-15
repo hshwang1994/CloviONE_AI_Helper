@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
@@ -22,6 +23,7 @@ import { ConversationSidebar } from "./chat/ConversationSidebar.jsx";
 import { DaySeparator, Message, TypingBubble } from "./chat/MessageThread.jsx";
 import { MascotStatus, Welcome } from "./chat/WelcomeStatus.jsx";
 import { ResultsRail } from "./chat/ResultsRail.jsx";
+import { setItemTitle } from "../app/documentTitle.js";
 
 /* AI 채팅(§6.5) — 대화 목록 + 메시지 스레드 + 입력창 + (초광폭에서) 결과 레일.
  *
@@ -73,6 +75,7 @@ export { TicketCard } from "./chat/TicketCard.jsx";
 
 export function Chat() {
   const confirm = useConfirm();
+  const loc = useLocation();
   const theme = useTheme();
   // 세 번째 열(결과 레일)은 폭이 실제로 남을 때만 존재한다. 같은 판정을 CSS와 JS 두 곳에서 하면
   // 반드시 어긋나므로(카드가 두 벌 뜨거나 아예 사라진다) 여기 한 곳에서만 정한다.
@@ -91,6 +94,12 @@ export function Chat() {
     stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
     bodyRef, fileRef, textareaRef, asideRef, sideToggleRef, aiQuota,
   } = ch;
+
+  // VIS-133: 탭 제목을 실제 대화 제목으로(Ticket.jsx 등과 같은 이유·같은 패턴) — PageHeader가
+  // 이미 같은 조건(cid가 있을 때만 activeTitle, 없으면 "채팅")으로 그리고 있어 그대로 맞춘다.
+  React.useEffect(() => {
+    setItemTitle(loc.pathname, cid ? activeTitle : "");
+  }, [loc.pathname, cid, activeTitle]);
 
   // AI-44: 하루 상한이 걸려 있을 때만 보인다 — 상한 행이 없는(fail-open) 설치에서는
   // "0/None" 같은 의미 없는 숫자로 컴포저를 어지럽히지 않는다.

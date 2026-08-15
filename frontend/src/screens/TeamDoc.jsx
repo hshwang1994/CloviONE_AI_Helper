@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
@@ -27,6 +27,7 @@ import { EditableBody } from "../ui/EditableBody.jsx";
 import { linkifyText } from "./chat/links.jsx";
 import { DocComments } from "./DocComments.jsx";
 import { invalidateDocumentViews } from "./document-views.js";
+import { setItemTitle } from "../app/documentTitle.js";
 
 /* 팀 공간 > 문서 상세 (§17). 메타는 캐시에서, 본문 블록은 실시간(Notion). 본문을 못 불러와도
  * 메타·원본 링크는 보여준다(장애 격리). 모든 텍스트는 {값}으로만 렌더(React 자동 이스케이프 —
@@ -206,6 +207,7 @@ function DocMeta({ doc }) {
 export function TeamDoc() {
   const { id } = useParams();
   const nav = useNavigate();
+  const loc = useLocation();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -214,6 +216,12 @@ export function TeamDoc() {
     queryKey: ["team-doc", id],
     queryFn: () => api("/api/team-docs/" + id),
   });
+
+  // VIS-133: 탭 제목을 실제 문서 제목으로(Ticket.jsx와 같은 이유·같은 패턴).
+  const docTitle = detail.data && detail.data.document ? detail.data.document.title : "";
+  React.useEffect(() => {
+    setItemTitle(loc.pathname, docTitle);
+  }, [loc.pathname, docTitle]);
 
   const trash = useMutation({
     mutationFn: () => api("/api/team-docs/" + id + "/trash", { method: "POST" }),

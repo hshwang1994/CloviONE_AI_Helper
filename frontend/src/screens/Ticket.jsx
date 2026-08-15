@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -15,6 +15,7 @@ import { TicketBody } from "./TicketBody.jsx";
 import { TicketComments } from "./TicketComments.jsx";
 import { TicketAttachments } from "./TicketAttachments.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
+import { setItemTitle } from "../app/documentTitle.js";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
@@ -76,6 +77,7 @@ function MetaRow({ label, children }) {
 export function Ticket() {
   const { id } = useParams();
   const nav = useNavigate();
+  const loc = useLocation();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -86,6 +88,14 @@ export function Ticket() {
     queryFn: () => api("/api/tickets/" + id),
     retry: false,
   });
+
+  // VIS-133: 탭 제목을 나브 라벨("티켓")이 아니라 실제 티켓 제목으로 — 여러 티켓 탭을
+  // 열어 두면 구분이 안 됐다. 데이터가 아직 없으면(로딩/오류) 빈 문자열이라 documentTitle.js가
+  // 자동으로 나브 라벨로 되돌아간다.
+  const ticketTitle = detail.data && detail.data.ticket ? detail.data.ticket.title : "";
+  React.useEffect(() => {
+    setItemTitle(loc.pathname, ticketTitle);
+  }, [loc.pathname, ticketTitle]);
 
   const trash = useMutation({
     mutationFn: () => api("/api/tickets/" + id + "/trash", { method: "POST" }),

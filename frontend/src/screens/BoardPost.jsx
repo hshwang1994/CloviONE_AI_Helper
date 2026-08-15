@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
@@ -34,6 +34,7 @@ import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { useTicketProjects } from "./ticket-options.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
+import { setItemTitle } from "../app/documentTitle.js";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
@@ -394,6 +395,7 @@ function IdeaStatusBar({ post, onChanged }) {
 export function BoardPost() {
   const { id } = useParams();
   const nav = useNavigate();
+  const loc = useLocation();
   const toast = useToast();
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
@@ -404,6 +406,12 @@ export function BoardPost() {
     queryKey: ["board-post", id],
     queryFn: () => api("/api/board/posts/" + id),
   });
+
+  // VIS-133: 탭 제목을 실제 글 제목으로(Ticket.jsx·TeamDoc.jsx와 같은 이유·같은 패턴).
+  const postTitle = detail.data && detail.data.post ? detail.data.post.title : "";
+  useEffect(() => {
+    setItemTitle(loc.pathname, postTitle);
+  }, [loc.pathname, postTitle]);
 
   // 진입 시 한 번만 조회수를 올린다(GET은 더 이상 올리지 않는다 — 반응·댓글 refetch로
   // 조회수가 부풀던 문제 해결). 실패는 무시(집계는 부가 정보).
