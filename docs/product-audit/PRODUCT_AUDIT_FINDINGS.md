@@ -271,6 +271,60 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0004 — 없는 경로가 조용히 홈으로 삼켜진다 (알림 없음)
+
+**Severity: Low · Confidence: Confirmed · Type: ux-gap**
+
+### PA-F-012 · 두 콘솔 모두 catch-all이 무음 리다이렉트다
+
+- **Actual**: `frontend/src/app/UserRoutes.jsx:91` → `<Route path="*" element={<Navigate to="/me" replace />} />`,
+  `frontend/src/app/AdminRoutes.jsx:166` → `<Navigate to="/dashboard" replace />`.
+  잘못된/낡은 주소로 들어오면 **아무 설명 없이** 홈으로 튕기고, `replace` 라서 뒤로 가기로
+  돌아갈 수도 없다.
+- **Expected**: `redesign-existing-projects` Skill의 "Strategic Omissions — No custom 404 page"
+  항목. 사용자는 자기가 **틀린 주소로 왔다는 사실**을 알아야 원인(오래된 북마크·잘못 복사한
+  링크·삭제된 리소스)을 판단할 수 있다.
+- **왜 이 제품에서 특히 문제인가**: 이 콘솔은 딥링크를 적극적으로 쓴다 — 알림 딥링크
+  (`notification-deeplink.test.jsx`), 커맨드 팔레트 이동, 화면 간 교차 링크(`IA-02`가 배선한
+  스케줄↔달력↔작업 큐↔문서 자동생성). **삭제된 리소스로 가는 딥링크가 가장 흔한 실패 경로**인데,
+  그때 사용자가 보는 것은 "그 티켓은 삭제됐습니다"가 아니라 **말없이 바뀐 홈 화면**이다.
+- **Impact**: Low — 데이터 손실이나 권한 문제는 없다. 다만 사용자가 "내가 뭘 잘못 눌렀나"를
+  알 수 없고, 삭제/권한 없음/오타를 구분하지 못한다.
+- **구현 방향**: 전용 "찾을 수 없음" 화면 하나 + 원래 주소 표시 + 홈으로/뒤로 두 경로.
+  `replace`를 떼서 뒤로 가기를 살릴지는 별도 판단(현재는 무한 루프 방지 목적일 수 있다 —
+  구현 전에 그 의도를 먼저 확인할 것).
+- **기존 Backlog 대조**: `IA-*`·`VIS-*`·`FN-*` 어디에도 catch-all 처리에 대한 항목이 없다. **신규.**
+- **Handoff 승격**: 하지 않는다(Low). `PRODUCT_AUDIT_FINDINGS.md`에만 남기고, 구현 Phase가
+  UX 배치 작업을 할 때 함께 처리할 후보로 둔다.
+
+---
+
+## L·M축 — `redesign-existing-projects` / 내장 rubric 적용 결과 (대부분 통과)
+
+`redesign-existing-projects` Skill의 audit 목록 중 **이 스택에 해당하는 항목만** 실제로 검사했다
+(마케팅 페이지용 항목 — hero 이미지, 후기 캐러셀, 가격표 3단 — 은 이 제품에 해당 없음).
+
+| Skill 감사 항목 | 이 제품 실측 | 판정 |
+|---|---|---|
+| "Numbers in proportional font" — 데이터 중심 UI는 tabular figures | `tabular-nums` **58건** | **통과** (표 28개·타일 20개짜리 콘솔로서 적절) |
+| "No 'skip to content' link" | 3건 존재 | **통과** |
+| "Missing alt text on images" | `component="img"` **14곳 전부 `alt` 있음**, 장식 이미지는 `alt="" aria-hidden="true"` 로 올바르게 표시 | **통과** |
+| "Missing focus ring" | `theme-focus-visible.test.js` 가 계약으로 고정 | **통과** |
+| "No loading states / skeleton" | `Skeleton` + 로딩 표시 45/50 화면 | **통과** |
+| "No empty states" | `EmptyState` 사용, `DS-14`가 잔여 지역 구현을 이미 추적 중 | **기존 항목 있음** |
+| "Do not use `window.alert()`" | 네이티브 alert/confirm/prompt **0건** | **통과** |
+| "Exclamation marks in success messages" | 느낌표 **2건**(4,919개 문구 중) | **통과** |
+| "Arbitrary z-index like 9999" | 16선언/12종, `9999` 없음. MUI 토큰(`t.zIndex.drawer + 1`)과 원시 숫자(1·2·3·5·15·20)가 섞임 | **경미** — RC로 올리지 않음 |
+| "No custom 404 page" | 두 콘솔 모두 무음 리다이렉트 | **PA-RC-0004** |
+| 접근성 보조 (내장 rubric M축) | `aria-live` 43 · `role="status"` 31 · `role="alert"` 9 · `aria-label` 160 · `aria-describedby` 29 | **통과** — 비동기 알림 낭독 배선이 실제로 있다 |
+
+> **결론**: 이 제품의 L/M축 약점은 "빠뜨린 것"이 아니라 **"토큰과 규칙이 있는데 소비되지
+> 않는 것"** (PA-RC-0001·0002)이다. 위 표가 그 판단의 근거다 — 접근성·상태·아이콘·정렬 같은
+> 개별 항목은 이미 잘 되어 있어서, 남은 문제는 개별 결함이 아니라 **일관성을 강제하는 장치의
+> 부재**로 좁혀진다.
+
+---
+
 ## 음성 결과 (이것도 증거다)
 
 Round 0에서 **찾았는데 없었던 것들.** 다음 Auditor가 같은 각도를 반복하지 않도록 남긴다.
@@ -301,6 +355,12 @@ Round 0에서 **찾았는데 없었던 것들.** 다음 Auditor가 같은 각도
   리터럴이 안 나오는 것이었다(예: `/api/assistant/*` 4개는 `AssistantPanel.jsx:36`의
   `` `/api/assistant/${tab.path}` `` 로 전부 배선돼 있다). X축은
   **`screens/registry/actions.js`의 액션 정의를 파싱하는 방식**으로 다시 해야 한다.
+- **이 저장소는 주석 밀도가 매우 높아서, 주석을 걷어내지 않은 정규식 스캔은 신뢰할 수 없다.**
+  `<img>` 태그 5건이 "alt 없음"으로 잡혔는데 **5건 전부 주석 안의 예시**였다(`BrandLogo.jsx:5`
+  "`<img src>`로 넣지 않는다", `ImageLightbox.jsx:22` 사용법 예시). 실제 이미지 요소는
+  `component="img"` 14곳이고 **전부 `alt`가 있다**. `dangerouslySetInnerHTML` 오탐도 같은 원인이었다.
+  → **스캐너는 반드시 블록/라인 주석을 먼저 제거할 것**(`scan_copy.py`는 제거하고, 초기
+  `scan_redesign.py`는 안 해서 걸렸다).
 - **모듈 이름 기반 휴리스틱은 이 저장소에서 계속 과소집계된다.** `app/chat`을 "테스트 언급 5회
   미만인 얕은 모듈"로 보고했는데, 실제로는 전용 테스트 파일이 7개(`test_chat_api.py`,
   `test_chat_quota.py`, `test_chat_ticket_routing_contract.py` 등)이고 chat을 언급하는 테스트
