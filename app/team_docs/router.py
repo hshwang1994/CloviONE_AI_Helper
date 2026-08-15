@@ -42,6 +42,12 @@ router = APIRouter(
     dependencies=[Depends(require_team_docs_enabled), Depends(block_if_maintenance)],
 )
 
+# FN-41: 목록에서 부서 범위 필터링을 페이지 자르기 **전에** 하려면 검색/타입 등으로 이미
+# 좁혀진 결과 전체를 한 번에 봐야 한다. 사고 방지용 상한 — 실제 문서 수(수백~두 자릿수
+# 천 단위)를 넉넉히 웃돈다. 이 상한에 걸리면(사실상 발생 안 함) total/rows가 그 상한
+# 이후 문서를 못 보는 근사가 되지만, 지금의 "일부 페이지만 보는 근사"보다는 훨씬 낫다.
+_SCOPE_FILTER_FETCH_CAP = 5000
+
 
 def _repo(request: Request):
     """앱 기동 때 배선된 문서 저장소(app.state.repositories.documents).
@@ -107,7 +113,15 @@ def list_documents(
     from app.trash.models import TRASH_DOCUMENT
 
     favs = repository.favorite_page_ids(db, me.id)
-    rows, total = _repo(request).list_documents(
+    # FN-41: 예전엔 search/type/... 필터까지만 SQL에서 페이지를 자르고 부서 범위는 **그
+    # 페이지 결과에만** 사후 적용했다 — 페이지 안에서 범위 밖 문서가 걸리면 total은 "이번
+    # 페이지에서 걸러진 수"로만 보정되고(다른 페이지의 손실은 못 잡음), 화면은 "총 N건"
+    # 페이저와 그보다 적은 항목을 동시에 보여줬다. 부서 범위를 SQL로 못 옮기는 이유는
+    # author_notion_ids가 정규화된 조인 테이블이 아니라 구분자 문자열이라서다(스키마 변경
+    # 없이는 안전한 SQL WHERE로 못 씀) — 대신 범위 필터링 **전체를 페이지 자르기 전에** 하도록
+    # 순서를 뒤집는다. 이 회사 규모의 문서 수(수백~두 자릿수 천 단위, USE 집계 참고)에서
+    # 한 번의 무제한 조회는 무리가 아니다 — 상한만 사고 방지용으로 넉넉히 둔다.
+    all_matching, _raw_total = _repo(request).list_documents(
         db,
         search=q,
         doc_type_f=doc_type,
@@ -117,18 +131,19 @@ def list_documents(
         favorite_page_ids=favs,
         favorites_only=favorites,
         sort=sort if sort in {"recent", "title"} else "recent",
-        offset=page.offset,
-        limit=page.page_size,
+        offset=0,
+        limit=_SCOPE_FILTER_FETCH_CAP,
         exclude_page_ids=trash_repo.trashed_page_ids(db, TRASH_DOCUMENT),  # 휴지통 문서는 숨김
     )
     # 범위 밖 문서를 뺀다 (1순위 유출 #5). 판정은 티켓과 **같은 규칙**(작성자 집합)이고
     # 작성자를 해석할 수 없는 문서는 남긴다 — `service.doc_in_scope` 에 이유가 있다.
-    #
-    # `total` 은 **거른 뒤의 수**로 고쳐 준다. 안 고치면 "총 104건" 이라 해 놓고 20건만
-    # 보여 주는 화면이 되고, 사용자는 페이지를 넘기며 없는 것을 찾는다.
-    visible = [r for r in rows if service.doc_in_scope(db, r, me)]
-    total = total - (len(rows) - len(visible))
-    rows = visible
+    # id_to_user를 한 번만 구해 문서마다 넘긴다(N+1 제거, service.doc_in_scope 참고).
+    from app.tickets.service import _verified_id_to_user
+
+    id_to_user = _verified_id_to_user(db)
+    visible = [r for r in all_matching if service.doc_in_scope(db, r, me, id_to_user=id_to_user)]
+    total = len(visible)  # 이제 필터링 뒤의 **진짜** 전체 개수다(일부 페이지 근사가 아니다).
+    rows = visible[page.offset : page.offset + page.page_size]
     state = get_or_create_state(db)
     can_restrict = me.role in MODERATOR_ROLES
     return {

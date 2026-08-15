@@ -107,7 +107,7 @@ def _is_doc_author(db: Session, doc, viewer: User) -> bool:
     return bool(name) and (name in authors or name == (doc.owner or "").strip())
 
 
-def doc_in_scope(db: Session, doc, viewer) -> bool:
+def doc_in_scope(db: Session, doc, viewer, *, id_to_user: dict[str, str] | None = None) -> bool:
     """이 문서가 그 사람 범위 안인가 (1순위 유출 #5).
 
     `GET /api/team-docs` 와 상세는 **문서 캐시 전량 + 본문 블록**을 로그인만 하면 내줬다.
@@ -154,7 +154,12 @@ def doc_in_scope(db: Session, doc, viewer) -> bool:
     nids = [n for n in split_names(getattr(doc, "author_notion_ids", "") or "") if n]
     if not nids:
         return True
-    id_to_user = _verified_id_to_user(db)
+    # FN-41: 목록이 문서마다 이 함수를 부르는데, 예전엔 매번 _verified_id_to_user(db)로 같은
+    # 매핑을 다시 질의했다(N+1 — 문서 20개짜리 페이지 하나에 동일 쿼리 20번). 호출부(목록)가
+    # 한 번 구한 매핑을 넘기면 그걸 쓰고, 안 넘기면(단건 조회 등 기존 호출부) 그대로 직접
+    # 구한다 — 기존 계약을 안 깬다.
+    if id_to_user is None:
+        id_to_user = _verified_id_to_user(db)
     owners = [id_to_user.get(n) for n in nids]
     if not any(owners):
         return True   # 아무도 해석되지 않으면 어느 팀의 것도 아니다
