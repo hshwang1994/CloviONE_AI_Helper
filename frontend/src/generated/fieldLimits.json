@@ -1,0 +1,65 @@
+{
+  "departments": {
+    "create": {
+      "name": 120,
+      "org_id": 36,
+      "parent_id": 36
+    },
+    "edit": {
+      "name": 120,
+      "parent_id": 36
+    }
+  },
+  "job-titles": {
+    "create": {
+      "name": 120
+    },
+    "edit": {
+      "name": 120
+    }
+  },
+  "organizations": {
+    "create": {
+      "name": 200,
+      "slug": 80
+    },
+    "edit": {
+      "name": 200,
+      "status": 16
+    }
+  },
+  "policies": {
+    "create": {
+      "content": 100000,
+      "name": 120,
+      "purpose": 2000
+    },
+    "edit": {
+      "content": 100000,
+      "purpose": 2000
+    }
+  },
+  "prompts": {
+    "create": {
+      "content": 100000,
+      "name": 120,
+      "purpose": 2000
+    },
+    "edit": {
+      "content": 100000,
+      "purpose": 2000
+    }
+  },
+  "templates": {
+    "create": {
+      "description": 2000,
+      "name": 120,
+      "target_ref": 64
+    },
+    "edit": {
+      "description": 2000,
+      "name": 120,
+      "target_ref": 64
+    }
+  }
+}

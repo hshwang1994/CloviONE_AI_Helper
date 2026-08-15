@@ -238,6 +238,54 @@ describe("FormField", () => {
     ui(<FormField field={{ name: "email", label: "이메일", type: "email", help: "사내 주소만" }} value="" onChange={() => {}} />);
     expect(screen.getByLabelText(/이메일/)).toHaveAccessibleDescription("사내 주소만");
   });
+
+  // PA-RC-0005 — maxLength는 lib/fieldLimits.js가 백엔드 Pydantic 스키마에서 유도한 값을
+  // FormModal이 내려보낸다(kit.test.jsx는 FormField 단위 계약만 본다 — screenKey 조회는
+  // field-limits.test.jsx가 본다).
+  describe("maxLength (PA-RC-0005)", () => {
+    it("주어지면 네이티브 maxLength 속성으로 실제로 렌더한다", () => {
+      ui(<FormField field={{ name: "name", label: "이름", type: "text" }} value="" onChange={() => {}} maxLength={120} />);
+      expect(screen.getByLabelText(/이름/)).toHaveAttribute("maxlength", "120");
+    });
+
+    it("안 주어지면 maxLength 속성을 넣지 않는다(무제한 필드까지 임의로 막지 않는다)", () => {
+      ui(<FormField field={{ name: "runner_id", label: "러너 ID", type: "text" }} value="" onChange={() => {}} />);
+      expect(screen.getByLabelText(/러너 ID/)).not.toHaveAttribute("maxlength");
+    });
+
+    it("긴 텍스트(textarea)는 남은 글자 수를 도움말에 함께 보여준다", () => {
+      ui(<FormField field={{ name: "purpose", label: "용도", type: "textarea" }} value="안녕" onChange={() => {}} maxLength={2000} />);
+      expect(screen.getByLabelText(/용도/)).toHaveAccessibleDescription("2/2000자");
+    });
+
+    it("도움말이 있으면 글자 수를 이어 붙인다(도움말을 지우지 않는다)", () => {
+      ui(<FormField field={{ name: "purpose", label: "용도", type: "textarea", help: "선택 입력" }} value="ab" onChange={() => {}} maxLength={10} />);
+      expect(screen.getByLabelText(/용도/)).toHaveAccessibleDescription("선택 입력 (2/10자)");
+    });
+
+    it("한 줄 text는 글자 수를 따로 보여주지 않는다(네이티브 maxLength로 이미 막힌다)", () => {
+      ui(<FormField field={{ name: "name", label: "이름", type: "text" }} value="ab" onChange={() => {}} maxLength={120} />);
+      expect(screen.getByLabelText(/이름/)).not.toHaveAccessibleDescription(/\/120자/);
+    });
+
+    it("🔴 붙여넣기로 상한을 넘기면 조용히 자르지 않고 토스트로 알린다", async () => {
+      const user = userEvent.setup();
+      ui(<FormField field={{ name: "purpose", label: "용도", type: "textarea" }} value="" onChange={() => {}} maxLength={5} />);
+      const el = screen.getByLabelText(/용도/);
+      await user.click(el);
+      await user.paste("이 문장은 다섯 글자를 훌쩍 넘는다");
+      expect(await screen.findByText(/최대 5자까지만 저장됩니다/)).toBeInTheDocument();
+    });
+
+    it("상한을 넘기지 않는 붙여넣기는 토스트를 띄우지 않는다", async () => {
+      const user = userEvent.setup();
+      ui(<FormField field={{ name: "purpose", label: "용도", type: "textarea" }} value="" onChange={() => {}} maxLength={50} />);
+      const el = screen.getByLabelText(/용도/);
+      await user.click(el);
+      await user.paste("짧은 문장");
+      expect(screen.queryByText(/최대.*자까지만 저장됩니다/)).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("PageHeader", () => {

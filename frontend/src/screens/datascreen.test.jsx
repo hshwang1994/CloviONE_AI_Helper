@@ -277,3 +277,40 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
     expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
   });
 });
+
+// PA-RC-0005 — kit.test.jsx는 FormField가 maxLength prop을 받으면 렌더하는지만 본다. 여기서는
+// 그 prop이 실제 등록 화면(config.key)에서 fieldLimits.json까지 끊기지 않고 이어지는지 본다 —
+// DataScreen이 FormDrawer에 screenKey를 안 넘기거나 kit.jsx가 그 이름을 놓치면 이 화면
+// 하나만으로는 안 잡히고 실제 관리자 화면에서만 드러난다.
+describe("등록 화면 maxLength가 fieldLimits.json까지 실제로 이어진다 (PA-RC-0005)", () => {
+  it("create 폼을 열면 백엔드 스키마 상한이 그대로 maxLength로 걸린다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    const user = userEvent.setup();
+    renderScreen({
+      ...BASE_CONFIG,
+      key: "prompts",
+      create: { roles: ["system_admin"], fields: [{ name: "name", label: "이름", type: "text", required: true }] },
+    });
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+
+    // 빈 화면이면 헤더/빈 상태 두 군데에 '+ 추가'가 함께 뜰 수 있다(페이지네이션의 '다음'/'이전'과
+    // 같은 이유) — 아무 쪽이나 같은 동작이라 첫 번째로 충분하다.
+    await user.click((await screen.findAllByRole("button", { name: "+ 추가" }))[0]);
+    // app/prompts/router.py PromptCreateRequest.name = Field(min_length=1, max_length=120).
+    expect(await screen.findByLabelText(/이름/)).toHaveAttribute("maxlength", "120");
+  });
+
+  it("fieldLimits.json에 없는 화면 키는 maxLength를 걸지 않는다(있지도 않은 상한을 지어내지 않는다)", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    const user = userEvent.setup();
+    renderScreen({
+      ...BASE_CONFIG,
+      key: "무매핑-화면",
+      create: { roles: ["system_admin"], fields: [{ name: "name", label: "이름", type: "text", required: true }] },
+    });
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+
+    await user.click((await screen.findAllByRole("button", { name: "+ 추가" }))[0]);
+    expect(await screen.findByLabelText(/이름/)).not.toHaveAttribute("maxlength");
+  });
+});

@@ -30,6 +30,7 @@ import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { ART, SPOT } from "../lib/assets.js";
+import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { KO_WORD_BREAK, TABLE_CARD_QUERY } from "./theme.js";
@@ -746,13 +747,32 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
 }
 
 /* 공통 입력 필드 — 라벨/필수(*)/도움말/오류를 한곳에서. 라벨은 htmlFor/id로 입력과 연결해
- * 스크린리더가 이름을 읽게 한다(체크박스는 라벨이 입력을 감싸 이미 연결됨). */
-export function FormField({ field: f, value, onChange, invalid }) {
+ * 스크린리더가 이름을 읽게 한다(체크박스는 라벨이 입력을 감싸 이미 연결됨).
+ *
+ * maxLength(PA-RC-0005) — lib/fieldLimits.js가 백엔드 Pydantic 스키마에서 유도한 값이다(손으로
+ * 옮기지 않는다). 붙여넣기로 상한을 넘기면 브라우저가 조용히 자르기만 하는데, 그러면 사용자는
+ * 잘린 줄 모른다 — onPaste에서 미리 계산해 잘릴 상황이면 토스트로 알린다(막지는 않는다, 자르고
+ * 알린다). 긴 텍스트(textarea/json)는 helperText에 남은 글자 수도 함께 보여준다. */
+export function FormField({ field: f, value, onChange, invalid, maxLength }) {
   const id = "ff-" + f.name;
-  const helpId = f.help ? id + "-helper-text" : undefined;
   const required = !!f.required;
   const isJson = f.type === "json";
   const multiline = f.type === "textarea" || isJson;
+  const toast = useToast();
+  const handlePasteOverflowWarning = maxLength ? (e) => {
+    const pasted = e.clipboardData ? e.clipboardData.getData("text") : "";
+    if (!pasted) return;
+    const el = e.target;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const nextLength = el.value.length - (end - start) + pasted.length;
+    if (nextLength > maxLength) {
+      toast(`최대 ${maxLength}자까지만 저장됩니다, 붙여넣은 내용 중 일부가 잘렸습니다.`, "warn");
+    }
+  } : undefined;
+  const charCount = (multiline && maxLength) ? `${(value || "").length}/${maxLength}자` : null;
+  const helpText = charCount ? (f.help ? `${f.help} (${charCount})` : charCount) : (f.help || undefined);
+  const helpId = helpText ? id + "-helper-text" : undefined;
 
   if (f.type === "checkbox") {
     return (
@@ -794,7 +814,7 @@ export function FormField({ field: f, value, onChange, invalid }) {
     error: !!invalid,
     required,
     label: f.label,
-    helperText: f.help || undefined,
+    helperText: helpText,
     value: value != null ? value : "",
     onChange: (e) => onChange(e.target.value),
     sx: { mb: 2.5 },
@@ -827,7 +847,11 @@ export function FormField({ field: f, value, onChange, invalid }) {
           : "text"
       }
       InputLabelProps={f.type === "date" || f.type === "datetime-local" ? { shrink: true } : undefined}
-      inputProps={f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : undefined}
+      onPaste={handlePasteOverflowWarning}
+      inputProps={{
+        ...(f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : null),
+        ...(maxLength ? { maxLength } : null),
+      }}
       /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
       InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8125rem" } } : undefined}
     />
@@ -837,7 +861,7 @@ export function FormField({ field: f, value, onChange, invalid }) {
 /* 설정 주도 폼 — 항상 중앙 모달. 항목이 많으면(>5) 큰 모달(lg).
  * 제출 로직은 한 줄도 바꾸지 않았다: 숫자 변환, hadValue→null, JSON 객체 검증, 401 처리,
  * details 평탄화, 더티 닫기 확인. 이 15개 이상 화면이 공유하는 유일한 저장 표면이다. */
-export function FormModal({ open, title, fields, initial, submitLabel, onSubmit, onClose, size }) {
+export function FormModal({ open, title, fields, initial, submitLabel, onSubmit, onClose, size, screenKey, formKind }) {
   const [values, setValues] = React.useState({});
   const [err, setErr] = React.useState("");
   const [errField, setErrField] = React.useState(null);
@@ -977,7 +1001,9 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
           위해 기본 Enter 동작 유지). */}
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {err ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
-        {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name} onChange={(val) => set(f.name, val)} />)}
+        {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name}
+          onChange={(val) => set(f.name, val)}
+          maxLength={screenKey ? maxLengthFor(screenKey, formKind, f.name) : null} />)}
         {/* 화면에 보이지 않는 제출 버튼 — 실제 저장 버튼은 Dialog footer(별도 DOM 트리)에 있어
             이 <form> 안에 없다. type="submit"이 하나도 없으면 브라우저에 따라 단일 텍스트
             입력에서 Enter가 폼을 제출하지 않는다. */}

@@ -200,6 +200,15 @@ else
   echo "$SPENC"; fail "subprocess 텍스트 모드에 encoding 이 없다"
 fi
 
+step "fieldLimits.json matches backend Pydantic schemas (PA-RC-0005)"
+# 관리자 폼 maxLength의 정본은 Pydantic 스키마다 - 생성기를 다시 안 돌리면 화면이 조용히
+# 낡은 상한을 계속 보여준다(check_bundle_fresh.py와 같은 관용).
+if FLIM="$("$PY" scripts/check_field_limits_fresh.py 2>&1)"; then
+  ok "$(echo "$FLIM" | tail -1)"
+else
+  echo "$FLIM"; fail "fieldLimits.json이 지금의 백엔드 스키마와 다르다"
+fi
+
 step "Committed frontend bundle matches the sources"
 # 이 저장소는 빌드 산출물을 git 에 커밋한다(서버에 Node 불필요). 대신 소스만 고치고 번들을
 # 안 만들면 git 으로 설치한 서버가 **조용히 옛 UI 를 돌린다** - 로그에도 화면에도 흔적이 없다.

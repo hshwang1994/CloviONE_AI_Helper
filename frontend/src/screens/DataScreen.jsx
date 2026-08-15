@@ -793,6 +793,7 @@ export function DataScreen({ config }) {
 
       {config.create ? (
         <FormDrawer open={creating} title={config.createLabel || (config.title + " 추가")} fields={withOptionsFrom(resolveFields(config.create.fields), null)}
+          screenKey={config.key} formKind="create"
           initial={createInitial || {}} submitLabel="만들기" onClose={() => { setCreating(false); setCreateInitial(null); }}
           onSubmit={async (body) => {
             // toApiBody — 폼이 보여주는 필드 이름(예: 체크박스 하나)과 백엔드가 받는 계약 형태(예:
@@ -804,6 +805,7 @@ export function DataScreen({ config }) {
       ) : null}
       {editFields ? (
         <FormDrawer open={!!editing} title={(editing ? detailTitle(editing, columns) : "") + " 수정"} fields={withOptionsFrom(editFields, editing)}
+          screenKey={config.key} formKind="edit"
           // fromRow — 서버가 돌려주는 행 모양(예: {approval_policy:{required:bool}})을 폼 필드 이름
           // (예: 체크박스 하나)으로 되돌려 편집 폼을 올바른 초기값으로 연다.
           initial={editing ? (config.fromRow ? config.fromRow(editing) : editing) : {}} submitLabel="저장" onClose={() => setEditing(null)}
