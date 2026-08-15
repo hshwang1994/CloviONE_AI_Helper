@@ -491,9 +491,16 @@ export function AppShell({
           {/* 세로가 짧은 화면(노트북 1366x768 에 관리자 메뉴 전개)에서 이 카드가 눌리지 않게
               한다. 목록은 이미 자기 안에서 스크롤되므로(SidebarNav overflowY:auto) 카드가
               자리를 먼저 가져가도 메뉴를 못 보게 되지 않는다. */}
-          <Box sx={{ pb: 3, flexShrink: 0 }}>
-            <MascotSidebarCard onClick={() => { onCloseNav(); setAssistantOpen(true); }} />
-          </Box>
+          {/* VIS-116/VIS-156: 상단바 버튼·플로팅 FAB은 이미 `!onAssistant`로 /chat 에서
+              숨긴다(바로 아래·690행 — "그 화면에서는 아무 일도 하지 않으면서" 자리만
+              차지한다는 같은 이유). 이 카드만 그 게이트가 빠져 있었다 - 이미 AI 도우미
+              화면 안인데 "클로비에게 물어보기"가 그 위에 또 다른 대화창(드로어)을 여는
+              막다른 진입점으로 남아 있었다. 같은 조건으로 맞춘다. */}
+          {!onAssistant ? (
+            <Box sx={{ pb: 3, flexShrink: 0 }}>
+              <MascotSidebarCard onClick={() => { onCloseNav(); setAssistantOpen(true); }} />
+            </Box>
+          ) : null}
         </>
       )}
     </Box>
