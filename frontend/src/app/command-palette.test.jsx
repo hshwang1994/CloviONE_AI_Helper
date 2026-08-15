@@ -65,13 +65,39 @@ function renderPalette() {
 beforeEach(() => {
   apiMock.mockReset();
   apiMock.mockResolvedValue(SERVER_RESULT);
+  window.localStorage.clear();
 });
 
 describe("명령 팔레트", () => {
-  it("입력 전에는 서버에 묻지 않고 메뉴만 보여 준다", async () => {
+  it("입력 전에는 서버에 묻지 않는다", async () => {
     renderPalette();
-    expect(screen.getByText("내 티켓")).toBeInTheDocument();
     expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SRCH-04 — 예전엔 빈 검색어로 팔레트를 열면 지금 콘솔의 메뉴 전부(사이드바와 같은 목록)를
+  // 그대로 나열했다 — 사이드바가 바로 옆에 열려 있는데 같은 걸 모달로 한 번 더 보여 주는
+  // 셈이었다. 이제는 실제로 다녀간 경로("최근 방문")만, 그것도 없으면 아예 없다.
+  it("최근 방문이 없으면 빈 검색어에서 메뉴를 나열하지 않는다(사이드바 복제 금지)", async () => {
+    renderPalette();
+    expect(screen.queryByText("내 티켓")).not.toBeInTheDocument();
+    expect(screen.getByText("메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요.")).toBeInTheDocument();
+  });
+
+  it("빈 검색어에서는 실제로 다녀간 메뉴만 '최근 방문'으로 보여준다", async () => {
+    window.localStorage.setItem("cv.recentNav.v1", JSON.stringify(["/team-docs"]));
+    renderPalette();
+    expect(screen.getByText("최근 방문")).toBeInTheDocument();
+    expect(screen.getByText("문서")).toBeInTheDocument();
+    // 다녀간 적 없는 메뉴("내 티켓")는 여전히 안 보인다 — 사이드바 전체 복제가 아니다.
+    expect(screen.queryByText("내 티켓")).not.toBeInTheDocument();
+  });
+
+  it("역할이 바뀌어 더는 못 보는 메뉴는 최근 방문에 남아 있어도 안 보인다", async () => {
+    // 실제로는 없어진 경로 — groups(현재 역할이 볼 수 있는 메뉴)에 없으면 자연히 걸러진다.
+    window.localStorage.setItem("cv.recentNav.v1", JSON.stringify(["/admin/system", "/team-docs"]));
+    renderPalette();
+    expect(await screen.findByText("문서")).toBeInTheDocument();
+    expect(screen.queryByText("/admin/system")).not.toBeInTheDocument();
   });
 
   // 사용자 지적: 빈 검색어로 팔레트를 열면 사이드바 그룹 이름("운영" 등)이 그대로 나열돼
@@ -79,10 +105,10 @@ describe("명령 팔레트", () => {
   // 라벨(예: "티켓")과 구분되게 "메뉴 › "로 시작하게 한다. 가운뎃점(·)이 아니라 "›"인
   // 이유: 가운뎃점은 화면 문구 금지 문자(scripts/check_user_text.py) — PageHeader의
   // breadcrumb("관리자 › 운영")이 이미 쓰는 구분자와 통일한다.
-  it("메뉴 그룹 라벨은 '메뉴 › '로 시작해 서버 검색 결과 그룹과 구분된다", async () => {
+  it("검색어를 치면 메뉴 그룹 라벨이 '메뉴 › '로 시작해 서버 검색 결과 그룹과 구분된다", async () => {
     renderPalette();
-    expect(screen.getByText("메뉴 › 내 업무")).toBeInTheDocument();
-    expect(screen.getByText("메뉴 › 문서")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "내");
+    expect(await screen.findByText("메뉴 › 내 업무")).toBeInTheDocument();
   });
 
   it("메뉴 검색은 서버 없이 즉시 걸러진다", async () => {

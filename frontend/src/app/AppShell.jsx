@@ -37,6 +37,7 @@ import TopSearch from "./TopSearch.jsx";
 import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
+import { recordNavVisit } from "../lib/recentNav.js";
 import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
@@ -389,6 +390,9 @@ export function AppShell({
   /* 화면이 바뀌면 포커스를 본문으로 옮기고 그 사실을 한 줄 알린다 (Z14).
      무엇을 언제 알릴지와 그 이유는 routeAnnounce.js 에 적어 뒀다. */
   const routeMessage = useRouteAnnounce(loc.pathname);
+  // SRCH-04 — 팔레트(Ctrl+K)의 빈 질의 상태가 최근 방문을 보여주려면 어디를 다녀갔는지
+  // 알아야 한다. 서버 왕복 없이 즉시 반응해야 하는 자리라 localStorage에만 남긴다.
+  React.useEffect(() => { recordNavVisit(loc.pathname); }, [loc.pathname]);
   const role = auth.data && auth.data.role;
   const userId = auth.data && auth.data.id;
   const name = (auth.data && auth.data.display_name) || "";

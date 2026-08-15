@@ -11,8 +11,9 @@ import ListSubheader from "@mui/material/ListSubheader";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
+import { readRecentNav } from "../lib/recentNav.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
  *
@@ -29,6 +30,10 @@ import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } f
  *
  * 서버 왕복은 **디바운스**한다. 팔레트는 글자마다 다시 그리는 화면이라, 디바운스가 없으면
  * 한국어 조합 입력 한 번에 요청이 여러 번 나간다.
+ *
+ * 빈 질의(SRCH-04)는 지금 콘솔 메뉴 전부를 다시 나열하지 않는다 — 사이드바가 바로 옆에
+ * 열려 있는데 같은 목록을 모달로 한 번 더 보여 주는 셈이었다. 대신 실제로 다녀간 경로를
+ * `lib/recentNav.js`(localStorage, 서버 없음)에서 읽어 "최근 방문"만 보여준다.
  */
 
 const DEBOUNCE_MS = 220;
@@ -50,6 +55,7 @@ export function useDebounced(value, delay = DEBOUNCE_MS) {
 export function CommandPalette({ open, onClose, groups }) {
   const [q, setQ] = React.useState("");
   const navigate = useNavigate();
+  const loc = useLocation();
   const inputRef = React.useRef(null);
   const debounced = useDebounced(q);
 
@@ -58,13 +64,29 @@ export function CommandPalette({ open, onClose, groups }) {
   // 메뉴(로컬) — 즉시.
   const navResults = React.useMemo(() => {
     const needle = normalize(q);
+    if (!needle) {
+      // SRCH-04 — 빈 질의에서 지금 콘솔의 메뉴 전부를 다시 나열하지 않는다(사이드바가
+      // 바로 옆에 열려 있는데 같은 목록을 모달로 한 번 더 보여 주는 셈이었다). 실제로
+      // 다녀간 경로만, 지금 이 역할에서도 여전히 유효한 것만, 지금 보고 있는 화면은
+      // 빼고 보여준다 — 역할이 바뀌어 더는 못 보는 메뉴나 detail 경로(예: /tickets/:id)는
+      // groups에 없으니 자연히 걸러진다.
+      const byPath = new Map();
+      for (const g of groups || []) {
+        for (const it of g.items) byPath.set(it.to, it);
+      }
+      const items = readRecentNav()
+        .filter((path) => path !== loc.pathname)
+        .map((path) => byPath.get(path))
+        .filter(Boolean);
+      return items.length ? [{ group: "최근 방문", items, recent: true }] : [];
+    }
     return (groups || [])
       .map((g) => ({
         group: g.group,
-        items: g.items.filter((it) => !needle || normalize(it.label).includes(needle) || normalize(g.group).includes(needle)),
+        items: g.items.filter((it) => normalize(it.label).includes(needle) || normalize(g.group).includes(needle)),
       }))
       .filter((g) => g.items.length);
-  }, [groups, q]);
+  }, [groups, q, loc.pathname]);
 
   // 콘텐츠(서버) — 디바운스 후. 팔레트가 닫혀 있으면 요청하지 않는다.
   const searchable = isSearchable(debounced);
@@ -76,13 +98,15 @@ export function CommandPalette({ open, onClose, groups }) {
   });
 
   const sections = React.useMemo(() => {
-    // 라벨 앞에 "메뉴 ·"를 붙인다 — 사용자 지적: 빈 검색어로 팔레트를 열면 '운영' 등 사이드바
+    // 라벨 앞에 "메뉴 ·"를 붙인다 — 사용자 지적: 검색어를 쳤을 때 '운영' 등 사이드바
     // 그룹 이름이 그대로 목록에 나열돼, 이게 검색 결과인지 메뉴 이동인지 구분이 안 됐다
     // ("운영 밑에 있는것들이 페이지 이전인건가??"). 아래 서버 검색 그룹(티켓/문서/게시판 등)과
-    // 같은 ListSubheader 모양을 쓰므로, 이름 자체로 종류를 밝힌다.
+    // 같은 ListSubheader 모양을 쓰므로, 이름 자체로 종류를 밝힌다. "최근 방문"(빈 질의,
+    // SRCH-04)은 애초에 메뉴 그룹이 아니라 접두어를 안 붙인다 — 서버 결과와 헷갈릴 여지가
+    // 없다(빈 질의에서는 서버 검색 자체가 안 돈다).
     const out = navResults.map((g) => ({
-      key: "nav:" + g.group,
-      label: "메뉴 › " + g.group,
+      key: g.recent ? "recent" : "nav:" + g.group,
+      label: g.recent ? g.group : "메뉴 › " + g.group,
       items: g.items.map((it) => ({ key: "nav:" + it.to, label: it.label, hint: it.to, to: it.to })),
     }));
     const serverGroups = (search.data && search.data.groups) || [];
