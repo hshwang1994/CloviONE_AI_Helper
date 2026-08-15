@@ -5859,3 +5859,86 @@ QA_COVERAGE.md 정리를 맡겼던 배경 Agent가 지목한, **BACKLOG.md 전�
 관리자 화면 시각 판독은 이제 45/45로 완주했으므로 목록에서 뺀다.
 `admin_mail` 표 폭 실측(다음 Chrome E2E 때 같이)과 `docs/BACKLOG.md`의
 나머지 Medium/Low unresolved 스캔이 다음 후보.
+
+### 체크포인트 — High 미해결 스캔 + Product Audit Handoff 3건 전부 실질 진행(2026-08-16)
+
+**High 미해결 재스캔 결과 정리**: 리비전 마커 필터로 21건 중 대부분이 이미
+해소돼 있었다 — `DS-01`/`DS-03`(재검증 결과 다운그레이드/오탐, ✅ 누락만
+보정)·`USE-01`/`USE-02`(이미 해소, ✅ 누락만 보정)·`QA-01`(`PA-05`와 중복인
+낡은 기록, 중복 판정)·`AI-34`(2026-08-11 이미 구현완료였는데 BACKLOG
+갱신만 누락)를 문서만 정정. **`AI-53`(코드 예시 요청이 `query_markers`의
+"보여"에 걸려 LLM 도달 못 함)은 실제 버그** — `is_code_example_request`
+가드 신설(`AI-31` 교훈대로 `query_markers` 자체는 안 건드림), 러너 전체
+회귀 291건 green, `APP_VERSION` 3.57.0→3.58.0 올려 TEST 서버 배포 확인.
+`AI-07`(단일 워커 직렬화)은 조사 결과 실제지만 워커 동시성 모델을 건드려야
+해 `AI-05`/`AI-06`과 같은 축으로 다음 사이클行. `SEC-21`은 잔존 자격증명
+노출 없음 확인(git 이력·`var/` 로그 전수 스캔).
+
+**VIS-11 root cause**: registry 화면 13곳이 `DS-23`(공용 헬퍼는 이미
+MUI Link로 고침) 수정을 비껴가 손으로 쓴 `React.createElement("a",...)`로
+브라우저 기본 스타일 링크를 그리고 있었다 — 전부 MUI `Link`로 교체.
+**PA-16**: `MailStatus.jsx`의 `last_error` 열이 `cellValue` 기본 폴백과
+동일한 값을 만드는 무의미한 `render`를 달아 `DataTable`의 공용 말줄임에서
+빠져 있었다(긴 오류 문장이 표 폭을 다 먹어 옆 "발생" 열이 잘림) — 같은
+패턴 3곳(`Offboarding.jsx`) 포함 전부 수정. 이 배치는 프런트 번들
+재빌드+통합 배포(`UPGRADE_OK`)로 TEST 서버에 반영, 타겟 E2E(admin_mail
+포함 8라우트×2테마) 전부 clean.
+
+**Product Audit Handoff(`PA-20260812-171558-56c5befa`) 남은 3건 — 전부 실질
+진행**(마지막 checkpoint 이후 새로 발견: `e27bba4`가 세 Runner의 Human
+Gate를 전부 제거해 완전 자율 상태 머신으로 재작성했고, `43a3206`이 그
+직후 재감사에서 8건 중 4건 닫힘·1건 철회로 3건까지 좁혀 뒀었다):
+
+- **`PA-RC-0003`(Critical) — 탐지 공백은 닫힘, 회전은 사람 몫.** `stash@{0}`에
+  TEST 서버 SSH/sudo 비밀번호가 평문으로 있다는 것 자체는 기존 `SEC-20`이
+  이미 추적 중이었다 — 이번 Root Cause는 "그런데 어떤 자동 검사도 stash/
+  reflog/dangling 객체를 안 본다"는 검사 공백이었다. `scripts/
+  check_git_secrets.py` 신설(값은 한 글자도 안 찍고 객체·파일·줄·분류명만
+  보고), `static_checks.sh` 필수 단계 배선. **첫 버전이 실제로 값을 유출한
+  사고**가 있었다 — "줄 앞 30자"만 보여주는 방식이 "SSH password: `실값`"
+  처럼 값이 줄 앞쪽에 오는 실제 사고 문장에서 그대로 값을 노출해 내 터미널
+  출력(및 이 대화 기록)에 실제 비밀번호가 찍혔다. 즉시 줄 내용을 아예 안
+  돌려주는 설계로 교체(줄 번호+분류명만). 격리된 임시 저장소에서만 stash를
+  만들고 지우는 revert-to-verify 회귀 4건. 조사 중 stash 외에 reflog-only
+  커밋(`f0efc52af4ec`, 옛 초기 임포트)에서 Notion 토큰 형태 값도 발견했으나
+  현재 HEAD의 같은 파일은 이미 `os.environ.get()`으로 안전함을 직접 대조
+  확인 — `SEC-20`에 추가 사실로 기록. 회전 자체는 저장소 밖 운영 행위라
+  AI 권한 밖(`DECISIONS.md` D-76).
+- **`PA-RC-0002`(High) — 62건 전수 재검증, 14%→96~100%.** 3차 확장까지의
+  63건은 텍스트 리터럴만 본 결과였다 — 62건을 `file:line`이 아니라 실제
+  소스 문맥으로 낱개 대조하니 스캐너가 문자열 연결(+)·형제 Button/Link·
+  `ErrorState`/`EmptyState` 공용 컴포넌트를 못 보고 있었다. 52건은 이미
+  충족이거나 실패 서술 자체가 아니었고, 진짜 신규 수정은 `SystemOps.jsx`·
+  `useChat.js` 2곳뿐(신규 회귀 2건, revert-to-verify). 남은 8건은 재시도
+  무의미/자동 재시도 중이라는 구체적 사유로 예외 등재. `scan_errcopy.py`
+  v3로 판정 전부를 코드 고정(gitignore 대상이라 근거는 BACKLOG.md PA-02
+  5차 확장에 영구 기록). static_checks.sh 린트는 의도적으로 안 걺(오탐률
+  실측 84%, 이유는 BACKLOG.md에 기록).
+- **`PA-RC-0001`(High) — `0.6875rem` 13곳 낱개 재검증(11곳 이전) + 장꼬리
+  8종 판정.** "위험 신호"(`kit.jsx` StatCard) 하나로 클러스터 전체를
+  미착수 뒀던 것을 13곳 전부 문맥 대조 — 11곳은 폭 제약 없는 평문 라벨이라
+  형제 패턴 증거로 이전, `kit.jsx`/`theme.js` 2곳은 실측/기준선 근거가
+  이미 있어 유지. `0.9375rem`/`1rem`(22곳)도 전수 재확인해 전부 이미 정당한
+  예외(아이콘/서체본문/입력창/워드마크/자격증명표시)임을 확인(코드 변경
+  없음). `scan_design.py`(표현식 단위 집계 — 삼항연산자 안 리터럴도 잡음)로
+  남은 장꼬리 8종까지 확인해 아이콘/이모지/아바타 6곳은 대상 밖, 텍스트
+  7곳은 각각 의도된 예외 주석을 남겼다. 그 과정에서 `OrgTree.jsx`가
+  삼항연산자 안에 `fontWeight`/`fontSize` raw 리터럴을 숨기고 있던 것을
+  발견(이전 fontWeight 전수 정리가 놓친 사각지대) — 값이 기존 토큰과
+  정확히 같아 시각 변화 없이 교체. 신규 회귀 `typography-scale-
+  migration.test.js`. **정직하게 남은 것**: 장꼬리 7곳(18px/22px/24px×3/
+  10px)의 "전용 토큰 신설 vs 예외 유지" 최종 설계 결정은 제품 판단이라
+  이번에 내리지 않았다 — acceptance_criteria(3)(≤8단계)·(5)(린트)는 그
+  결정 이후에나 채울 수 있어 다음 세션 대상으로 정직하게 남긴다.
+
+프런트 전체 `npm test`(267파일·1,808건) 이 구간 동안 계속 green.
+`check_user_text.py`(배너 금지 glyph) 매 커밋 전 확인. 커밋 9개로 분리
+(PA-16/AI-53/VIS-11/SEC-21/PA-RC-0003/PA-RC-0002/PA-RC-0001×2/번들 stamp).
+
+**다음(갱신)**: Handoff 3건 모두 "실질 진행" 상태이지 "전부 닫힘"이 아니다
+— `var/product-audit/IMPLEMENTATION_REQUIRED`를 지우지 않는다. 정직하게
+남은 것: ⓐ `PA-RC-0001`의 장꼬리 토큰 설계 결정 ⓑ `SEC-20`의 자격증명
+회전(사람만) ⓒ `AI-05`/`AI-06`/`AI-07`/`AI-54`(채팅 응답성 아키텍처
+묶음, 다음 사이클) ⓓ `docs/BACKLOG.md`의 나머지 Medium/Low unresolved
+스캔. 다음 작업은 ⓓ부터 계속하거나, 새 Audit Cycle이 있으면 그 Handoff를
+먼저 확인한다.
