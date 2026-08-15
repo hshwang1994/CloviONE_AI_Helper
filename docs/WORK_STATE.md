@@ -5412,3 +5412,57 @@ root 권한 + `systemd-run --unit=clovir-ui-qa4
 E2E가 실패/중단된 채로 발견되면 성공을 가정하지 말고 `journalctl -u
 clovir-ui-qa4`로 먼저 원인 확인 — 이번 세션 전체에서 일관되게 적용한
 "주장 전에 근거 확인" 원칙을 여기서도 유지한다.
+
+### 부수 발견 — `.claude/worktrees/` 88개 (조사만 함, 손대지 않음)
+
+과거 세션들의 `isolation:"worktree"` Agent/Workflow 실행이 남긴 것으로 보이는
+worktree가 88개 있다(`git worktree list` 기준, 이번 세션이 만든 것은 0개). 전수
+`git merge-base --is-ancestor <branch> HEAD` 확인 결과 **88개 전부**가 현재
+브랜치(`ui/mui-migration`)의 조상이 아니다 — 즉 전부 merge 안 된 커밋을 갖고 있을
+가능성이 있다(단순히 오래된 base에서 갈라져 나갔을 뿐일 수도 있어 이 사실만으로는
+"가치 있는 미병합 작업"과 "이미 버려진 실험"을 구분 못 한다). 디스크 사용량도
+안 쟀다(`du`가 30초 넘게 걸려 중단함 — Windows 파일시스템에서 88개 풀체크아웃은
+느릴 수 있다).
+
+**손대지 않은 이유**: 대량 삭제는 되돌리기 어렵고(사용자 안전 수칙 — 사용자의
+진행 중 작업일 수 있는 것은 지우기 전에 조사), 88개를 개별 확인하는 것은 이번
+세션의 실제 작업(E2E 발견 수정)과 무관한 큰 곁가지라 지금 하지 않았다. 필요하면
+다음에: 각 worktree의 `git log <base>..<branch>`로 실제 diff가 있는지, 있다면
+이미 다른 곳에 반영됐는지(같은 diff가 main 히스토리에 있는지) 확인 후 정리.
+
+### 진행 중 — 백그라운드 에이전트 1개 (다음 invocation이 이 conversation과
+### 다르면 알림을 못 받을 수 있다 — 그래서 여기 명시적으로 남긴다)
+
+PA-RC-0002 동사표(§3, 표준 동사표) 정렬 작업을 general-purpose 에이전트
+1개에게 배경 실행으로 맡겨 놓은 상태다(커밋은 하지 말라고 지시함 — 내가
+diff 검토 후 직접 커밋 예정). 이 노트를 쓰는 시점까지 완료 알림을 못 받음
+(`running` 상태 재확인 완료, 2026-08-15 18시대).
+
+**이미 건드리기 시작한 것으로 확인된 파일**(`git status`로 확인, 전부 아직
+uncommitted): `frontend/src/lib/format.js`(`VERB_KO.create: "생성"→"추가"`
+이미 반영됨), `frontend/src/screens/DataScreen.jsx`,
+`frontend/src/screens/admin-uiux.test.jsx`,
+`frontend/src/screens/announcement-window-kst.test.jsx`,
+`frontend/src/screens/org-console.test.jsx`,
+`frontend/src/screens/registry/actions.js`,
+`frontend/src/screens/registry/org.js`,
+`frontend/src/screens/teamdoc-edit.test.jsx`,
+`frontend/src/screens/ticket-detail.test.jsx`,
+`frontend/src/ui/EditableBody.jsx`,
+`frontend/src/ui/body-editor-name.test.jsx`,
+`frontend/src/ui/editable-body-edit-width.test.jsx`,
+`frontend/src/ui/editable-body-identity-reset.test.jsx`,
+`frontend/src/ui/editable-body-stale-base-version.test.jsx`. 이 목록은
+에이전트가 계속 작업 중이므로 최종 목록이 아니다 — **다음 invocation은
+`git status`로 최신 목록을 다시 확인할 것.**
+
+**다른 세션/invocation이 이 상태를 만나면**: 알림이 이미 왔는데 못 봤을
+수도 있고, 에이전트가 여전히 도는 중일 수도 있다. 확실히 하려면 이
+conversation에서 에이전트 ID `a4b252696a6de42fd`로 `SendMessage`(또는 이
+harness의 동등한 재개 수단)를 다시 확인하거나, 위 파일들의 `git diff`가
+안정적인지(마지막 확인 이후 더 안 바뀌는지) 재확인해서 완료 여부를
+간접 판단한다. 완료로 보이면: UX_WRITING.md §3 표와 대조해 diff 검토 →
+`cd frontend && npx vitest run` → green이면 커밋(PA-RC-0002 "4차 확장"으로
+`docs/BACKLOG.md` PA-02에 이어 기록) → 그 다음에야(동사표+이번 E2E 발견
+3건이 합쳐진 상태로) 프런트 재빌드 → 통합 재배포 → Chrome 재E2E를
+한 번에 돌린다(작은 변경마다 배포하지 않는다는 CLAUDE.md §9 원칙).
