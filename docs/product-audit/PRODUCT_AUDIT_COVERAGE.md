@@ -70,7 +70,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SYSTEM` 시스템 설정 | `/system` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
@@ -92,9 +92,9 @@
 | `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-APPROVALS` 승인 | `/approvals` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-APPROVALS` 승인 | `/approvals` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
@@ -323,9 +323,9 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1542
+unseen=1533
 unseen_without_reason=0
-static_only=637
+static_only=646
 observed=3
 executed=158
 blocked=0

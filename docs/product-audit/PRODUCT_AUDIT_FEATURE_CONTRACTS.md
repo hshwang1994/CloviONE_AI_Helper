@@ -19,6 +19,8 @@
 | FC-04 | AI 어시스턴트 4탭(결정적 집계 + 선택적 문장) | 로그인 사용자 | ③⑤⑥ | Strong |
 | FC-05 | 화면 역할 게이트 (사이드바 ↔ 라우트 ↔ 백엔드) | 전 역할 | ②⑤⑥ | Strong |
 | FC-06 | AI 사용 상한(쿼터) 소비 | 로그인 사용자 | ⑥ + 부분 ③ | **Probable** |
+| FC-07 | 오프보딩 실행 → 부분 실패 → 되돌리기 | admin+ | ③⑤⑥ | Strong |
+| FC-08 | 문서 자동 생성 → 승인 대기 → 발행 | 관리자 | ③⑤⑥ | Strong |
 
 ---
 
@@ -116,6 +118,37 @@
 
 ---
 
+<a id="fc-07"></a>
+## FC-07 · 오프보딩 실행 → 부분 실패 → 되돌리기 (D축 추적 완료)
+
+| 항목 | 내용 |
+|---|---|
+| **Actor/Role** | `CONSOLE_WRITE_ROLES`(admin, system_admin) — 라우터 전체가 `require_roles(*CONSOLE_WRITE_ROLES)` + `require_csrf` |
+| **목적** | 퇴사자의 티켓·계정·세션을 후임에게 한 번에 넘기되, **되돌릴 수 있게** 한다 |
+| **Entry point** | `/offboarding` → 미리보기(`GET /preview/{user_id}`) → 실행(`POST /run/{user_id}`) |
+| **Allowed state (실행)** | `running`(끝까지 못 감) · `completed` · `partial`(부분 실패) · `undone` · `undo_partial` |
+| **Allowed state (티켓 1건)** | `pending`(소스 호출 직전 표시) · `moved` · `skipped` · `failed` · `reverted` · `revert_failed` |
+| **되돌리기 대상** | `REVERTIBLE_MOVES = {moved, revert_failed}` — **`revert_failed`가 포함돼 재시도가 가능하다**(`service.py:454` 주석이 "영영 재시도 못 하게 막지 않는다"고 명시). `pending`은 제외 — 직전 담당자를 모르므로 되돌릴 수 없다 |
+| **Expected effect** | 되돌리기는 **계정을 먼저 살리고 그다음 티켓**을 원래 구성으로. 결과 상태는 실패가 있으면 `undo_partial`, 없으면 `undone` |
+| **Failure/recovery** | 부분 실패를 `completed`로 뭉개지 않는다. 화면이 `pending`을 **"확인 필요"(warn 톤)** 로 보여 주고, 되돌리기 실패 시 *"N건을 되돌리지 못했습니다. 상세에서 사유를 확인하세요."* 로 **다음 행동을 말한다** |
+| **Forbidden** | 부분 실패를 성공으로 기록하는 것 · FK로 `ticket_uid`를 묶는 것(prune이 이력을 지우거나 티켓 미러 전체를 멈춘다) |
+| **Intent evidence** | ③ `app/offboarding/models.py:39-58`의 상태 상수 · ⑥ 같은 파일 1-21행 docstring이 **왜 별도 표가 필요한가**(감사 로그는 되돌리기의 입력이 될 수 없다)와 **왜 FK를 안 거는가**를 명시 · ⑤ FE `Offboarding.jsx:49-59`가 11개 상태 전부에 라벨+톤을 부여해 BE 상태집합과 1:1로 맞는다 |
+| **Confidence** | **Strong** |
+| **D축 판정** | **흐름이 닫혀 있다.** 되돌리기 버튼이 실행 이력 표 안에 있고(`Offboarding.jsx:480-482`), 상세 드로어가 티켓별 이동 사유 표를 보여 주며, 미리보기가 *"아직 되돌리지 않은 실행이 있습니다 … 아래 '실행 이력'에서 먼저 확인하세요"* 로 앞선 실행과 연결된다. 코드 주석이 그 이유를 스스로 적는다 — *"되돌릴 방법이 화면 안에 없으면 아무도 실행 버튼을 못 쓴다"*(`Offboarding.jsx:369`, models.py docstring과 같은 문장) |
+
+<a id="fc-08"></a>
+## FC-08 · 문서 자동 생성 → 승인 대기 → 발행 (D축 추적 완료)
+
+| 항목 | 내용 |
+|---|---|
+| **Actor/Role** | 관리자 콘솔(`/documents`), 발행은 `/approvals` |
+| **Allowed state** | `pending` · `preview_ready` · `quality_failed` · `awaiting_approval` · `published` · `failed` (6종) |
+| **핵심 계약** | **`awaiting_approval` 문서는 이 화면에서 발행할 수 없다** — 백엔드에 문서별 발행 API가 없고, 발행은 승인 워크플로를 지난다 |
+| **Expected navigation** | 그래서 화면이 **막다른 길을 만들지 않는다**: `awaiting_approval` 행에만 나타나는 액션 `"승인 대기 목록으로"` → `#/approvals?status=pending` (`registry/automation.js:322`) |
+| **Intent evidence** | ③ `app/documents/models.py:17-22` 상태 6종 · ⑤ FE 필터·렌더가 6종 전부를 같은 어휘로 매핑(`automation.js:265,280,287`) · ⑥ `automation.js:312` 주석이 *"'승인 대기' 문서는 여기서 발행할 수 없다(백엔드에 문서별 발행 API 없음) — 승인 화면으로 안내한다"* 라고 **부재를 의도로 명시** |
+| **Confidence** | **Strong** |
+| **D축 판정** | **흐름이 닫혀 있다.** 빈 상태(`emptySteps`)가 3단계 절차를 글로 안내하고, 상태별 다음 행동이 화면 안에 있다. `IA-02`(스케줄↔달력↔작업 큐↔문서 생성 상호 이동)가 고친 계열과 같은 배선이 여기서도 성립한다 |
+
 ## 아직 Contract를 세우지 못한 주요 Workflow (정직한 UNKNOWN)
 
 아래는 **의도 근거를 아직 확보하지 못한** 것이다. "코드가 이러니 이게 의도"라고 적지 않는다.
@@ -123,11 +156,13 @@
 | Workflow | 왜 아직 UNKNOWN인가 | 다음 조사 |
 |---|---|---|
 | 티켓 생성 → 배정 → 완료 | Notion 캐시(`ticket_cache` 1077행)가 정본인지 이 제품이 정본인지에 대한 정책 근거를 아직 못 찾음 | `docs/NOTION_MAPPING.md` + `app/tickets` 동기화 방향 확인 |
-| 오프보딩 실행 → undo | `undo` 가 **어디까지** 되돌리는지(티켓 이동·권한·메일) 계약이 코드에만 있음. `offboarding_runs` 0행이라 실측 사례도 없음 | `app/offboarding/service.py` + `docs/USER_LIFECYCLE.md` 대조 |
 | 백업 → 복구 리허설 | `docs/BACKUP_RESTORE.md`(분기 1회)가 주기는 정하지만 **성공 판정 기준**이 없음 | 리허설 결과 스키마 확인 |
-| 문서 자동 생성 → 승인 → 재시도 | `document_generations` 0행. `STATUS_AWAITING_APPROVAL → STATUS_FAILED` 경로만 코드로 확인 | `app/documents/models.py` 상태 전수 |
 | n8n / Claude Runner 실패 전파 | 외부 시스템 경계의 **기대 동작**이 문서화된 곳을 못 찾음 | `docs/WORKFLOW_REGISTRY.md` + `app/runners` |
 
+> **2026-08-15 갱신**: 위 UNKNOWN 5건 중 **2건을 닫았다** — 오프보딩(→ FC-07)과 문서 자동
+> 생성(→ FC-08). 둘 다 D축 추적 결과 **흐름이 닫혀 있었고**, 의도 근거도 데이터 모델 + FE/BE
+> 일치 + 상세 주석으로 Strong까지 올라갔다. 남은 3건은 아래 그대로다.
+>
 > **이 표 자체가 산출물이다.** 이 제품에서 명시적 스펙 조항을 근거로 댈 수 있는 계약은
 > FC-03(프롬프트 §17.1) 하나뿐이고, 나머지는 코드 주석·테스트·FE/BE 일치로 역산한 것이다.
 > 이것은 결함이 아니라 **위험**이다 — 주석을 지우거나 리팩터링하면 의도의 유일한 기록이 사라진다.
