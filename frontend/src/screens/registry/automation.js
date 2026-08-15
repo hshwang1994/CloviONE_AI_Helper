@@ -10,6 +10,7 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
+import Link from "@mui/material/Link";
 import { CONCURRENCY_OPTS, DOC_MODE, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, field, fmtDateTime, jsonField, linkCol, listField, mapCol, opt, personField, previewField, schedSkipReasonText } from "./shared.js";
 import { DOC_GENERATE_FIELDS, docConfigInitial, docConfigTransform, docGenerateResult, onoff } from "./actions.js";
 
@@ -53,7 +54,7 @@ export const AUTOMATION_SCREENS = {
       // USE-04: 서버가 target_name을 함께 준다(app/schedules/router.py _view) — 원시 UUID 대신
       // 이름을 보여주고, id는 계속 옆에 남긴다(다른 이름-해석 열과 같은 관용, personField 참고).
       { key: "target_ref", label: "대상", render: (r) => (r.target_ref && r.target_type === "workflow")
-        ? React.createElement("a", { href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_name || r.target_ref)
+        ? React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_name || r.target_ref)
         : (r.target_ref || "-") },
       badgeCol("enabled", "활성"),
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
@@ -156,7 +157,7 @@ export const AUTOMATION_SCREENS = {
           // 실패 원인을 더 깊이 보려면(시도 횟수·워커 last_error·소요 시간) 작업 큐에서 이
           // schedule_run_id를 손으로 찾는 것 말고는 길이 없었다. SubListDrawer의 rowActions는
           // navigate를 지원하지 않아(act()가 path()를 호출하는 mutation 전용) 컬럼 링크로 둔다.
-          { key: "job_link", label: "작업 큐", render: (r) => React.createElement("a", { href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
+          { key: "job_link", label: "작업 큐", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
         emptyTitle: "실행 이력이 없습니다", emptyHelp: "아직 이 일정이 실행된 적이 없습니다(또는 이 필터에 해당하는 기록이 없습니다).",
         rowActions: [
           // 목록 열은 진단 핵심 두 값(보낸 페이로드/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이
@@ -303,10 +304,10 @@ export const AUTOMATION_SCREENS = {
     // 이유로 원시 텍스트 대신 그 화면으로 바로 이동하는 링크로 보여준다.
     detailFields: [
       // 워크플로 화면의 ?id= 딥링크(onQuery)로 그 워크플로 상세를 곧바로 연다(무필터 전체 목록 아님).
-      { key: "workflow_id", label: "워크플로 ID", render: (r) => r.workflow_id ? React.createElement("a", { href: "#/workflows?id=" + encodeURIComponent(r.workflow_id) }, r.workflow_id) : "-" },
+      { key: "workflow_id", label: "워크플로 ID", render: (r) => r.workflow_id ? React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.workflow_id) }, r.workflow_id) : "-" },
       // 템플릿 화면이 이제 ?id=로 특정 템플릿 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 — 무필터
       // 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 템플릿으로 데려간다.
-      { key: "template_id", label: "템플릿 ID", render: (r) => r.template_id ? React.createElement("a", { href: "#/templates?id=" + encodeURIComponent(r.template_id) }, r.template_id) : "-" },
+      { key: "template_id", label: "템플릿 ID", render: (r) => r.template_id ? React.createElement(Link, { underline: "hover", href: "#/templates?id=" + encodeURIComponent(r.template_id) }, r.template_id) : "-" },
       // requested_by는 이제 목록 열(요청자)이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
       jsonField("config", "요청 설정"), previewField("preview", "미리보기"), listField("quality_problems", "품질 문제"), field("error_message", "오류"), dateCol("updated_at", "수정")],
     // '승인 대기' 문서는 여기서 발행할 수 없다(백엔드에 문서별 발행 API 없음) — 승인 화면으로 안내한다.
@@ -443,10 +444,10 @@ export const AUTOMATION_SCREENS = {
       // 개별 실행 건을 여는 화면이 따로 없어(스케줄 상세의 '실행 이력' 하위 목록만 있다)
       // 링크 대신 참조값으로만 보여준다 — 없는 화면으로 가짜 링크를 걸지 않는다.
       { key: "schedule_id", label: "연결된 스케줄", render: (r) => r.schedule_id
-        ? React.createElement("a", { href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
+        ? React.createElement(Link, { underline: "hover", href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
       { key: "schedule_run_id", label: "실행 건 ID", render: (r) => r.schedule_run_id || "-" },
       { key: "generation_id", label: "연결된 문서 생성", render: (r) => r.generation_id
-        ? React.createElement("a", { href: "#/documents?id=" + encodeURIComponent(r.generation_id) }, r.generation_id) : "-" },
+        ? React.createElement(Link, { underline: "hover", href: "#/documents?id=" + encodeURIComponent(r.generation_id) }, r.generation_id) : "-" },
       { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTime(r.available_at) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "duration_ms", label: "소요 시간", render: (r) => r.duration_ms != null ? (Math.round(r.duration_ms / 100) / 10) + "초" : "-" }, // 백엔드 오류 문자열(f"{type(exc).__name__}: {exc}", worker.py)은 pydantic ValidationError 등에서

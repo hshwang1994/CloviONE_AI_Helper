@@ -10,6 +10,7 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
+import Link from "@mui/material/Link";
 import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, col, dateCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
 import { healthResult, onoff, reachResult, snapCol, testResult, versionsAction } from "./actions.js";
 import { serviceLabel } from "../ops/opsHelpers.js";
@@ -278,7 +279,7 @@ export const INTEGRATION_SCREENS = {
       // 변환을 적용하므로).
       // 연동 화면이 이제 ?id=로 특정 연동 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 — 무필터
       // 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 연동으로 데려간다.
-      { key: "integration_id", label: "연동 ID", render: (r) => r.integration_id ? React.createElement("a", { href: "#/integrations?id=" + encodeURIComponent(r.integration_id) }, r.integration_id) : "-" },
+      { key: "integration_id", label: "연동 ID", render: (r) => r.integration_id ? React.createElement(Link, { underline: "hover", href: "#/integrations?id=" + encodeURIComponent(r.integration_id) }, r.integration_id) : "-" },
       dateCol("last_health_at", "마지막 상태 확인"), dateCol("circuit_open_until", "회로 차단 해제"), dateCol("created_at", "추가"), dateCol("updated_at", "수정"), field("description", "설명")],
   },
   workflows: {

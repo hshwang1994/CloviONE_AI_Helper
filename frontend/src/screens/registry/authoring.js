@@ -10,6 +10,7 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
+import Link from "@mui/material/Link";
 import { Badge, OBJTYPE_OPTS, TEMPLATE_TARGET_OPTS, WRITE_ROLES, badgeCol, col, dateCol, field, jsonField, mapCol, opt, truncateCol, writerEmptyHelp } from "./shared.js";
 import { TEMPLATE_SCHEMA_FIELDS, assembleInputSchema, disassembleInputSchema, nameVersionsAction, onoff } from "./actions.js";
 
@@ -57,7 +58,7 @@ export const AUTHORING_SCREENS = {
     // runner_id는 이제 링크로 보여준다 — 러너 화면이 ?id= 기반 딥링크(onQuery)를 지원하게 되어,
     // 클릭하면 그 러너의 상세 드로어가 곧바로 열린다(러너 상세의 integration_id와 동일한 패턴).
     columns: [col("name", "이름"), truncateCol("purpose", "용도", 60),
-      { key: "runner_id", label: "러너 ID", render: (r) => r.runner_id ? React.createElement("a", { href: "#/runners?id=" + encodeURIComponent(r.runner_id) }, r.runner_id) : "-" },
+      { key: "runner_id", label: "러너 ID", render: (r) => r.runner_id ? React.createElement(Link, { underline: "hover", href: "#/runners?id=" + encodeURIComponent(r.runner_id) }, r.runner_id) : "-" },
       col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
     // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
     // purpose·runner_id는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
@@ -242,10 +243,10 @@ export const AUTHORING_SCREENS = {
       { key: "target_ref", label: "대상 ID", render: (r) => {
         if (!r.target_ref) return "-";
         // 워크플로 화면은 이제 ?id=로 특정 워크플로 상세를 곧바로 여는 딥링크(onQuery)를 지원한다.
-        if (r.target_type === "workflow") return React.createElement("a", { href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_ref);
+        if (r.target_type === "workflow") return React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_ref);
         // 러너 화면은 이제 ?id=로 특정 러너 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 — 무필터
         // 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 러너로 데려간다.
-        if (r.target_type === "runner") return React.createElement("a", { href: "#/runners?id=" + encodeURIComponent(r.target_ref) }, r.target_ref);
+        if (r.target_type === "runner") return React.createElement(Link, { underline: "hover", href: "#/runners?id=" + encodeURIComponent(r.target_ref) }, r.target_ref);
         return r.target_ref;
       } },
       // badgeCol("enabled", ...)이던 시절엔 원시 불리언이 statusText를 타 "예"/"아니오"로
@@ -271,8 +272,8 @@ export const AUTHORING_SCREENS = {
         : "-" },
       // 프롬프트/정책 화면이 이제 ?id=로 특정 행 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 —
       // 무필터 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 프롬프트/정책으로 데려간다.
-      { key: "prompt_id", label: "프롬프트 ID", render: (r) => r.prompt_id ? React.createElement("a", { href: "#/prompts?id=" + encodeURIComponent(r.prompt_id) }, r.prompt_id) : "-" },
-      { key: "policy_id", label: "정책 ID", render: (r) => r.policy_id ? React.createElement("a", { href: "#/policies?id=" + encodeURIComponent(r.policy_id) }, r.policy_id) : "-" },
+      { key: "prompt_id", label: "프롬프트 ID", render: (r) => r.prompt_id ? React.createElement(Link, { underline: "hover", href: "#/prompts?id=" + encodeURIComponent(r.prompt_id) }, r.prompt_id) : "-" },
+      { key: "policy_id", label: "정책 ID", render: (r) => r.policy_id ? React.createElement(Link, { underline: "hover", href: "#/policies?id=" + encodeURIComponent(r.policy_id) }, r.policy_id) : "-" },
       // 비활성 템플릿은 '이 템플릿으로 문서 생성' CTA가 숨겨진다(enabled && workflow일 때만) — 왜
       // 그 버튼이 없는지 상세에서 바로 설명한다(RESERVED_WORKFLOW_NOTES와 동일한 '혼란 지점 안내' 패턴).
       { key: "_inactive_note", label: "[주의] 활성 상태", render: (r) => r.enabled ? "-" : "이 템플릿은 비활성 상태입니다. 활성화해야 문서 생성에 사용되고 프롬프트, 정책, 입력 스키마, 승인 정책 바인딩이 적용됩니다." },

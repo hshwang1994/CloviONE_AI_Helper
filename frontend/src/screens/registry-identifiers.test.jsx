@@ -100,6 +100,32 @@ describe("RG-07 — 서버가 이름을 이미 주는데 화면만 raw UUID를 �
   });
 });
 
+describe("VIS-11/DS-23 — 화면 간 참조 ID 링크가 브라우저 기본 스타일로 새고 있었다", () => {
+  // DS-23이 columnHelpers.jsx의 공용 헬퍼(linkCol 등)는 이미 MUI Link로 고쳤지만, registry
+  // 화면 자신의 render에서 손으로 React.createElement("a", ...)를 쓰던 13곳(automation.js·
+  // authoring.js·integrations.js)은 그 수정이 안 닿았다 — 대상 이름보다 raw ID가 브라우저
+  // 기본 파란/보라 밑줄로 더 강조되는 것이 VIS-11이 지목한 증상이었다. 여기서는 그중 대표로
+  // 템플릿 상세의 prompt_id/policy_id 딥링크가 실제로 MUI Link(밑줄은 hover 시에만, 새 탭
+  // 안 열림 — 앱 안 이동이므로 target="_blank" 는 오히려 잘못된 동작이다)로 렌더되는지 확인한다.
+  it("템플릿 상세의 prompt_id 링크가 MUI Link로 렌더된다(밑줄 hover, 새 탭 아님)", () => {
+    const field = REGISTRY.templates.detailFields.find((f) => f.key === "prompt_id");
+    expect(typeof field.render).toBe("function");
+    renderField(field, { prompt_id: "pr-123" });
+    const link = screen.getByRole("link", { name: "pr-123" });
+    expect(link).toHaveAttribute("href", "#/prompts?id=pr-123");
+    expect(link).not.toHaveAttribute("target");
+    expect(link.className).toMatch(/MuiLink/);
+  });
+
+  it("템플릿 상세의 policy_id 링크도 같다", () => {
+    const field = REGISTRY.templates.detailFields.find((f) => f.key === "policy_id");
+    renderField(field, { policy_id: "pol-9" });
+    const link = screen.getByRole("link", { name: "pol-9" });
+    expect(link).toHaveAttribute("href", "#/policies?id=pol-9");
+    expect(link.className).toMatch(/MuiLink/);
+  });
+});
+
 describe("일부러 남긴 식별자", () => {
   it("작업 큐의 요청자는 id 로 남는다 — 서버가 이름을 일부러 안 싣는다", () => {
     // app/jobs/router.py `_job_view` 가 요청자 이메일/이름을 응답에서 뺀다(큐 화면이
