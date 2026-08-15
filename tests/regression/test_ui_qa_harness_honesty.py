@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.ui_qa import assertions
 from scripts.ui_qa.capture import discover_detail_hash
 from scripts.ui_qa.routes import BY_ID, Route
 from scripts.ui_qa.run import check_marker
@@ -133,6 +134,21 @@ def test_never_ran_takes_priority_over_mostly_skipped():
     mark, bucket = check_marker(0, 0, 5)
     assert bucket == "never_ran"
     assert "한 번도 돌지 않음" in mark
+
+
+# ── content_clipped: inert 오프스크린 자손이 조상을 오탐시키지 않는다 ─────────
+# (QA-15, 2026-08-15) 닫힌 모바일 드로어(position:absolute + translateX(-100%) +
+# inert)는 시각적으로만 화면 밖으로 옮겨진다 — transform은 조상의 scrollWidth
+# 계산에서 자손 상자를 빼지 않는다. 그 결과 실제로는 안 보이고 닿을 수도 없는
+# (inert) 드로어의 폭이 화면에 멀쩡히 보이는 조상 Paper의 "잘림"으로 오검출됐다
+# (실측: /chat 390px, 조상 onscreen=true·화면 정상인데 overX=79가 정확히 닫힌
+# 사이드바 폭이었다). PROBE_JS는 실브라우저 없이 실행할 수 없으므로(다른 검사들과
+# 같은 이유로 이 파일이 여기서 멈추듯) 회귀 방지 대상인 제외 조건이 소스에서
+# 조용히 사라지지 않았는지만 고정한다.
+
+
+def test_probe_js_excludes_inert_descendants_from_clipped_detection():
+    assert "el.querySelector('[inert]')" in assertions.PROBE_JS
 
 
 def test_visible_to_uses_allowed_roles_when_present():

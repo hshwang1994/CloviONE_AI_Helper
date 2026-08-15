@@ -263,7 +263,10 @@ function Freshness({ sync }) {
   return (
     <Typography
       variant="caption"
-      color={stale ? "warning.main" : "text.secondary"}
+      // warning.main은 badge/tint 배경 위 전용이다 — 이 텍스트는 page background.default
+      // 위에 바로 얹혀 4.48:1로 WCAG AA 4.5 미달이었다(Chrome E2E contrast 실측).
+      // warning.strong이 이미 이 정확한 경계 문제(theme.js QAH-03)를 위해 만들어져 있었다.
+      color={stale ? "warning.strong" : "text.secondary"}
       sx={{ display: "block", mb: 1.5 }}
     >
       티켓 동기화 {sync.status === "ok" ? "정상" : "확인 필요"}, 마지막 성공 {fmtRelative(sync.last_success_at)}

@@ -250,6 +250,13 @@ PROBE_JS = r"""
       const hideY = cs.overflowY === 'hidden' || cs.overflowY === 'clip';
       const hideX = cs.overflowX === 'hidden' || cs.overflowX === 'clip';
       if (!hideY && !hideX) continue;
+      // 닫힌 모바일 드로어(예: 대화 목록 사이드바)는 position:absolute + translateX(-100%) +
+      // inert 로 화면 밖에 둔다. transform 은 시각적으로만 옮길 뿐이라, 조상의 scrollWidth
+      // 계산에는 여전히 잡혀 이 조상이 "안 보이는데 잘렸다"고 오검출된다 — 실제로는
+      // inert(포커스도 스크린리더도 못 닿는다) 라 사용자가 볼 방법 자체가 없다. 오탐이라
+      // Chrome E2E 실측(2026-08-15)으로 확인했다: 조상 자체는 onscreen=true·화면은 멀쩡한데
+      // scrollWidth 초과분이 정확히 이 inert 자식의 폭이었다.
+      if (el.querySelector('[inert]')) continue;
       const overY = hideY ? el.scrollHeight - el.clientHeight : 0;
       const overX = hideX ? el.scrollWidth - el.clientWidth : 0;
       if (overY < MIN_CLIP && overX < MIN_CLIP) continue;

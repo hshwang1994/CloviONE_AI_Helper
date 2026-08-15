@@ -297,7 +297,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * 1,600px 부근에서 상한에 닿는다 — 기준의 곡선과 거의 겹친다. */
       h4: display(1.5, 0.9, 2.125, 740, "-0.02em"),
       h5: { fontWeight: 720, letterSpacing: "-0.015em" },
-      h6: { fontWeight: 700 },
+      h6: { fontWeight: FONT_WEIGHT.bold },
       /* 본문 14px. MUI 기본은 body1 = 1rem(16px) 이지만 기준 목업은 `body { font-size:14px }`
        * 다 — 대조에서 34/34 화면이 어긋났다. 업무용 밀도가 높은 화면이라 기준이 맞다.
        *
@@ -307,8 +307,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * 한 단 더 내려 위계를 유지한다. */
       /* 자간은 기준선의 `body { letter-spacing: -.012em }` 이다. MUI 기본은 +0.00938em 이라
        * 반대 방향으로 벌어져 있었다. 한글은 자간이 벌어지면 눈에 띄게 헐거워 보인다. */
-      body1: { fontSize: "0.875rem", lineHeight: 1.5, letterSpacing: "-0.012em" },
-      body2: { fontSize: "0.8125rem", lineHeight: 1.5, letterSpacing: "-0.012em" },
+      body1: { fontSize: FONT_SIZE.body, lineHeight: 1.5, letterSpacing: "-0.012em" },
+      body2: { fontSize: FONT_SIZE.bodySm, lineHeight: 1.5, letterSpacing: "-0.012em" },
       button: { textTransform: "none", fontWeight: 750, letterSpacing: "-0.012em" },
       /* PA-RC-0001(RD-1) — 기존 MUI variant에 대응이 없던 두 단계. `variant="sectionTitle"`/
        * `variant="statValue"`로 쓴다. FONT_SIZE 위 주석 참고. */
@@ -492,7 +492,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           }),
         },
       },
-      MuiChip: { styleOverrides: { root: { borderRadius: 999, fontWeight: 700 } } },
+      MuiChip: { styleOverrides: { root: { borderRadius: RADIUS.full, fontWeight: FONT_WEIGHT.bold } } },
       MuiDrawer: { styleOverrides: { paper: { backgroundImage: "none" } } },
       MuiTableCell: {
         styleOverrides: {
@@ -502,7 +502,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           head: ({ theme }) => ({
             color: theme.palette.text.secondary,
             fontSize: "0.6875rem",
-            fontWeight: 700,
+            fontWeight: FONT_WEIGHT.bold,
             letterSpacing: "0.02em",
             background: theme.palette.background.surface2,
           }),

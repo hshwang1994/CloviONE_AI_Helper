@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
 import { MASCOT } from "../lib/assets.js";
-import { KO_WORD_BREAK } from "./theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "./theme.js";
 
 /* 마스코트 '클로비'.
  *
@@ -311,7 +311,7 @@ export function MascotTopButton({ onClick, mode = "listening", label = "AI 도�
         }}
       >
         <MascotMini mode={mode} size={36} plateRadius={10} ringInset={-2} ringRadius={12} />
-        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: "12px", fontWeight: 750 }}>
+        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: FONT_SIZE.caption, fontWeight: 750 }}>
           클로비
         </Box>
       </ButtonBase>

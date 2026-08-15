@@ -281,7 +281,10 @@ form { display: grid; gap: 0; margin-top: 0; }
 .input-wrap > svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .input-wrap input { min-width: 0; height: 52px; padding: 0; color: var(--ink); border: 0; outline: 0; background: transparent; font-size: 15px; }
 .input-wrap input::placeholder { color: #64708F; opacity: 1; }
-.password-toggle { align-self: stretch; padding: 0; color: var(--primary); border: 0; background: transparent; cursor: pointer; font-size: 12px; font-weight: 750; }
+/* --primary(4.449)는 --surface-soft 배경 위에서 WCAG AA 4.5 문턱을 근소하게 못 채운다
+   (Chrome E2E contrast 검사 실측). 승인된 로그인 원본 팔레트 자체는 안 건드리고, 같은 팔레트
+   안에서 이미 :hover에 쓰던 --primary-dark(5.679)를 기본색으로 올린다. */
+.password-toggle { align-self: stretch; padding: 0; color: var(--primary-dark); border: 0; background: transparent; cursor: pointer; font-size: 12px; font-weight: 750; }
 .password-toggle:hover { color: var(--primary-dark); }
 .password-toggle:disabled { color: #9AA3BD; cursor: wait; }
 .password-toggle:focus-visible, .login-button:focus-visible, a:focus-visible { outline: 3px solid rgba(83,108,214,.25); outline-offset: 2px; }

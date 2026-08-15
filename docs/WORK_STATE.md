@@ -5294,3 +5294,121 @@ create_race.py`와 같은 기법). `create_quota()`는 라우터에 박혀 있�
 한 번씩만 도는 실사용 패턴에서는 사실상 안 열림). 별도 확인 없이 이번에
 같이 고치는 것은 범위 밖 확장이라 보류 — 필요하면 다음 감사에서
 전용 스트레스 시험으로 재현부터 확인한다.
+
+## PA-RC-0002/0001/0009 마무리 + PA-08~11 신규 발견 + 배포·Chrome E2E 착수 (2026-08-15)
+
+PA-RC-0002(comma-splice + dead-end 메시지)와 PA-RC-0001(디자인 토큰
+exact-match 이관) 마무리, whole-product 재감사 2회전에서 PA-08~11 발견·수정,
+PA-RC-0009(Full Regression 3연속 green) 공식 종료. 이어서 프런트엔드
+프로덕션 번들 재빌드 → TEST SERVER 통합 배포 → Chrome Whole-product
+E2E(690페이지) 착수까지 진행. 이 구간 전체가 하나의 연속 invocation
+체인이라 커밋 단위로 나눠 기록한다.
+
+### 처리 완료
+
+1. **PA-RC-0002 comma-splice** — `kit.jsx` 2곳에서 시작해 저장소 전체
+   26곳 동일 패턴(사용자 대상 문구에서 두 독립 문장을 쉼표로 이었음,
+   `docs/UX_WRITING.md` 위반) 확인, 전부 수정(`533404d`). 회귀 방지
+   이중화: `frontend/src/ui/ux-writing-punctuation.test.js`(vitest 정적
+   소스 정규식 스캔) + `scripts/static_checks.sh` 신규 스텝(같은 정규식
+   bash grep 미러) — static_checks.sh가 `npm test`를 호출하지 않으므로
+   둘 다 필요. revert-to-verify로 `kit.jsx:774` 재발 시 정확히 잡히는 것
+   확인.
+2. **PA-RC-0002 dead-end 메시지** — `var/product-audit/scan_errcopy.py`
+   스캐너 기준 141→63건으로 축소(`a6d015c`). 5개 병렬 에이전트 + 직접
+   반복 수렴(141→69→65→63, 새 파일 안 나올 때까지). 남은 63건은 대부분
+   스캐너 오탐(구조화 컴포넌트의 title-only 매칭 — 실제로는 별도 액션
+   버튼이 "무엇을 할지"를 담당, 확인 대화상자 질문문, 비즈니스 규칙
+   서술, 성공 메시지가 실패 패턴과 문자열 겹침으로 오매칭) — 근거는
+   `docs/BACKLOG.md` PA-02 / `docs/QA_COVERAGE.md` T2.
+3. **PA-08(High, RBAC/동시성, 신규 발견)** — `app/org/service.py::
+   create_item`, `app/org/router.py::create_organization`에 표준
+   write-conflict retry 루프가 없어 부서/직급/조직 동시 생성 시 유니크
+   제약 경쟁에서 500이 사용자에게 그대로 샐 수 있었다. 기존
+   `is_write_conflict`/`write_conflict_backoff`/
+   `DEFAULT_WRITE_CONFLICT_RETRIES`(`app/core/db.py`) 패턴으로
+   수정(`e4de646`), 8-way `ThreadPoolExecutor` 동시성 테스트 신규
+   (`tests/integration/test_org_create_race.py`). **부수 발견(의도적
+   미수정, `docs/DECISIONS.md` D-75)**: `app/core/deps.py::get_db`의
+   request-scope outer commit(`yield db; db.commit()`)에 재시도가
+   전혀 없음 — 이번 2곳보다 훨씬 넓은 범위(사실상 모든 write 경로)이고,
+   naive commit-retry는 이미 flush된 row를 `rollback()`으로 조용히
+   버리면서 거짓 성공을 보고할 위험이 있어 제대로 고치려면 요청 로직
+   전체 재실행이 필요 — 범위 밖으로 명시적으로 남김.
+4. **PA-09(Med, a11y, 신규 발견)** — `OrgTree.jsx` 키보드 트리 내비게이션에
+   ArrowDown/Up/Home/End가 없었음(ArrowLeft/Right 펼침·접기만 있었음).
+   WAI-ARIA treeview 패턴대로 `[role="treeitem"]` DOM 순서 기반으로 추가.
+5. **PA-10(Med, a11y, 신규 발견)** — `StructuredObjectFields.jsx`의
+   `Chip deleteIcon`이 `tabIndex=-1`이라 키보드로 삭제 불가 — AssistantDrawer.jsx/
+   Chat.jsx에서 이미 같은 이유로 고쳤던 것과 동일 패턴. 독립적으로 포커스
+   가능한 `IconButton` 형제로 교체.
+6. **PA-11(High, 표시 결함, 신규 발견)** — `frontend/src/lib/format.js::
+   fmtTimeShort`, `frontend/src/screens/game-room/timeUtils.js::fmtTime`이
+   `Intl.DateTimeFormat`에 timeZone 옵션 없이 브라우저(실행 환경) 로컬
+   시간대로 시각을 표시하고 있었다 — KST가 아닌 위치의 실사용자에게는
+   실제로 틀린 시각이 보였을 결함. `timeZone:"Asia/Seoul"` 명시한 공용
+   formatter로 수정. **테스트 함정**: 실행 환경이 이미 KST라 "로컬
+   시간대와 비교"하는 첫 버전 테스트는 재발을 못 잡았음(되돌려도
+   테스트가 그대로 통과하는 것으로 확인) — `vi.stubEnv("TZ",
+   "America/Los_Angeles")`로 강제 비-KST 환경에서 검증하는 버전으로
+   교체 후에야 revert-to-verify 통과 확인.
+   (커밋: a11y `51ddc7e`, 시간대 `07f4f35`, 문서 `335f28d`)
+7. **PA-RC-0009 공식 종료** — Full Regression 3연속 green 확인
+   (30m26s/30m2s/32m7s, 06:32:51Z~08:05:26Z, 전부 exit=0),
+   `docs/BACKLOG.md` PA-06 / `docs/QA_COVERAGE.md` T8 갱신(`38c867e`).
+8. **PA-RC-0001 exact-match 토큰 이관** — RD-1 `FONT_SIZE`/`FONT_WEIGHT`
+   스케일과 계산값이 정확히 일치하는 리터럴만(시각적 위험 0, 계산된 CSS
+   출력이 동일) 5개 병렬 에이전트로 58개 파일 이관(`c732484`) +
+   `borderRadius:"999px"` → `RADIUS.full` 10개 파일(`f1d7505`,
+   `c82e82a` — 999는 단위 모호성과 무관하게 항상 "완전히 둥글게"
+   렌더되므로 예외적으로 안전). 이관 도중 기존 테스트 3건 깨짐 발견·수정
+   (`theme-link-contrast.test.js`의 정규식이 리터럴 `700`/`600`/`800`을
+   찾다가 토큰 참조 `FONT_WEIGHT.bold` 등으로 바뀌어 실패 — 전체 스위트
+   실행에서만 드러남), 125/125 확인 후 커밋. `docs/BACKLOG.md`
+   PA-01(`ffd2594`)에 완료 범위와 이관 안 한 in-between 값(~90 fontSize +
+   ~57 fontWeight, 시각적 판단 필요) 구분 기록.
+
+### 배포 + Chrome E2E — 진행 중, 다음 invocation이 이어받는다
+
+프런트엔드 프로덕션 번들 재빌드(`npm run build`, 53개 자산 해시 변경,
+`BUILD_STAMP.json` 갱신) → 커밋 `01e9687`. TEST SERVER(`10.100.64.71`)에
+`scripts/upgrade-clovirone-web-assistant.sh`로 통합 배포 — 이 서버가
+git 저장소가 아님을 먼저 확인(`git remote -v` → `fatal: not a git
+repository`)하고 `update-from-git.sh`(다른 설치 방식용) 대신 올바른
+번들 방식 스크립트를 선택. backup→중지→재설치→migrate→검증 전부 성공,
+healthz/readyz + `BUILD_STAMP.json` 해시 + 실서빙 자산(`index.CETw8jl4.js`)
+해시 3중 확인. `docs/BACKLOG.md` PA-05(`1652725`).
+
+이어서 `scripts/ui_qa/` Playwright 하네스로 Chrome Whole-product E2E
+착수 — 71 라우트 × 2 테마 × 5 뷰포트(390x844/1366x768/1920x1080/
+3840x2160/1920x1080@2x) = 690페이지, label `post_20260815`,
+`--fail-on horizontal_overflow,console_errors,page_errors,auth_ok,
+theme_applied`. 서버에 playwright==1.62.0 설치 후 5번의 launch 실패
+(SSH 세션 경계에서 nohup 프로세스 유실 → sudo -v 캐시가 세션 간
+미공유 → EnvironmentFile 없이는 DB 접근 불가 → non-root 사용자는
+root의 playwright 브라우저 캐시 미접근 → `COOKIE_SECURE=true`인데
+8080 포트 직접 접근이라 Secure 쿠키 미전송)를 거쳐 6번째 시도로 성공:
+root 권한 + `systemd-run --unit=clovir-ui-qa4
+--property=EnvironmentFile=/etc/clovirone-web-assistant/web.env` +
+`--base-url https://clovirone-ai.gooddi.lab --insecure`. 출력 경로
+`/opt/clovirone-web-assistant/dist/ui-qa/post_20260815/`(서버 로컬,
+저장소 미추적).
+
+**다음 invocation이 확인할 것, 순서대로**:
+1. E2E 실행 완료 확인(`systemctl status clovir-ui-qa4` / journalctl —
+   진행 중 331/690까지는 확인함, 실패 시그니처 없었음).
+2. `results.json`/`report.html`을 scp로 회수.
+3. 690페이지 전체 findings를 Root Cause 단위로 그룹핑 — 초기 로그
+   스트림에서 얼핏 본 `public_login`/`user_me` contrast 실패,
+   `user_chat` content_clipped는 확인했지만(스크린샷 육안으로는
+   `public_login`에서 뚜렷한 문제 안 보임 — 특정 요소/색상 조합일 가능성,
+   정확한 위반 element/ratio는 `results.json`에만 있음) 그게 전부가
+   아닐 가능성이 높으므로 반드시 전체 결과를 봐야 한다.
+4. 대량 수정 → focused test → (프런트엔드 변경 시) 재빌드/재배포 →
+   Chrome 재E2E.
+5. PA-RC-0001의 in-between 토큰 값(fontSize/fontWeight 재양자화)도
+   이번에 캡처되는 스크린샷을 시각 판단 근거로 활용 가능.
+
+E2E가 실패/중단된 채로 발견되면 성공을 가정하지 말고 `journalctl -u
+clovir-ui-qa4`로 먼저 원인 확인 — 이번 세션 전체에서 일관되게 적용한
+"주장 전에 근거 확인" 원칙을 여기서도 유지한다.
