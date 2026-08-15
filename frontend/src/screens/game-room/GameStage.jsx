@@ -170,7 +170,9 @@ export function GameStage({ c }) {
                               같은 값+굵기 조합이라 우연이 아니라 이미 자리 잡은 관용으로 보인다.
                               statValue(30px)·pageTitle(20px) 사이 어느 쪽에도 억지로 안 맞춘다 —
                               세 곳이 이미 서로를 증거로 세우고 있어 임의로 바꾸면 그 일치가
-                              깨진다(의도된 예외, 전용 토큰 신설은 다음 세션 판단). */}
+                              깨진다. 전용 토큰 신설은 2026-08-16에 검토했으나 theme-baseline.
+                              test.js가 FONT_SIZE를 정확히 6단계로 못박은 회귀 테스트라 보류
+                              (DECISIONS.md D-78) — 이 값은 raw literal 예외로 유지한다. */}
                           <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{p.number}</Box>
                           <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{p.name}</Box>
                         </Paper>

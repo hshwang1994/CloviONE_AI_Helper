@@ -64,7 +64,7 @@ export function Donut({
         {/* 가운데 합계 — 도넛의 구멍은 비워 두면 아깝고, 구성비만 있고 모수가 없으면 해석이 안 된다. */}
         <Box sx={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", textAlign: "center" }}>
           {/* PA-RC-0001: 24px — ProjectWbs.jsx·game-room/GameStage.jsx와 같은 값+굵기(의도된
-              예외, 세부 사유는 GameStage.jsx 참고). */}
+              예외, 세부 사유는 GameStage.jsx 참고 — 전용 토큰 신설은 검토 후 보류함, D-78). */}
           <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>
             {total}{unit}
           </Typography>
