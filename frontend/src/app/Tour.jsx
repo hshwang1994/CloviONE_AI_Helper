@@ -7,6 +7,7 @@ import { api } from "../lib/api.js";
 import { useAuth } from "./auth.jsx";
 import { Button, Modal, ModalFooter } from "../ui/kit.jsx";
 import { MASCOT, MISC, SPOT } from "../lib/assets.js";
+import { RADIUS } from "../ui/theme.js";
 
 /* 첫 로그인 둘러보기 (계획서 Phase 6 사용자).
  *
@@ -77,7 +78,7 @@ function Dots({ index, total }) {
         <Box
           key={i}
           sx={{
-            width: i === index ? "1.25rem" : "0.5rem", height: "0.5rem", borderRadius: "999px",
+            width: i === index ? "1.25rem" : "0.5rem", height: "0.5rem", borderRadius: RADIUS.full,
             bgcolor: i === index ? "primary.main" : "action.disabled",
             transition: "width .2s",
           }}

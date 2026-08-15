@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { MascotPose } from "../../ui/Mascot.jsx";
 import { MISC } from "../../lib/assets.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
 import { pop, pulse } from "./constants.js";
 
 /* 무대 공용 프레젠테이션 컴포넌트(카운트다운/안내문/승자 이름표/결과 무대) —
@@ -18,16 +19,16 @@ export function Countdown({ remaining }) {
     <Box
       aria-live="polite"
       sx={{
-        display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: "999px",
+        display: "flex", alignItems: "baseline", gap: 0.5, px: 1.5, py: 0.25, borderRadius: RADIUS.full,
         bgcolor: (t) => alpha(urgent ? t.palette.error.main : t.palette.primary.main, 0.14),
         color: urgent ? "error.strong" : "primary.dark",
         animation: urgent ? `${pulse} .8s ease-in-out infinite` : "none",
       }}
     >
-      <Box component="span" sx={{ fontSize: "1.25rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", minWidth: "1.5rem", textAlign: "center" }}>
+      <Box component="span" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums", minWidth: "1.5rem", textAlign: "center" }}>
         {remaining}
       </Box>
-      <Box component="span" sx={{ fontSize: "0.75rem" }}>초</Box>
+      <Box component="span" sx={{ fontSize: FONT_SIZE.caption }}>초</Box>
     </Box>
   );
 }
@@ -48,8 +49,8 @@ export function StageHint({ children }) {
 export function WinnerName({ children }) {
   return (
     <Box component="span" sx={{
-      px: 2, py: 0.75, borderRadius: "999px", bgcolor: "primary.main", color: "primary.contrastText",
-      fontSize: "1.0625rem", fontWeight: 750, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
+      px: 2, py: 0.75, borderRadius: RADIUS.full, bgcolor: "primary.main", color: "primary.contrastText",
+      fontSize: FONT_SIZE.sectionTitle, fontWeight: 750, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
     }}>
       {children}
     </Box>
@@ -83,7 +84,7 @@ export function ResultStage({ mood = "win", label, children }) {
       </Stack>
       <Box sx={{ display: "grid", gap: 1.5, justifyItems: { xs: "center", md: "start" }, minWidth: 0, textAlign: { xs: "center", md: "left" } }}>
         {label ? (
-          <Typography variant="body2" sx={{ fontWeight: 700, letterSpacing: "0.06em", color: "primary.dark" }}>{label}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, letterSpacing: "0.06em", color: "primary.dark" }}>{label}</Typography>
         ) : null}
         {children}
       </Box>

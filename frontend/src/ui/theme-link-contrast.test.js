@@ -267,8 +267,11 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
 
   it("Board.jsx 댓글 수 배지가 primary.dark를 쓴다", () => {
     const src = readSite(screensDir, "Board.jsx");
-    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*700,\s*fontSize:\s*"0\.8125rem"/);
-    expect(src).not.toMatch(/color:\s*"primary\.main",\s*fontWeight:\s*700,\s*fontSize:\s*"0\.8125rem"/);
+    // PA-RC-0001이 fontWeight:700/fontSize:"0.8125rem" 리터럴을 FONT_WEIGHT.bold/FONT_SIZE.bodySm
+    // 토큰 참조로 옮겼다(같은 계산값, revert-to-verify로 무변경 확인됨) — 이 시험이 확인하려는
+    // 것은 리터럴 철자가 아니라 primary.dark 대비색이 여전히 그 자리에 있는지다.
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*FONT_WEIGHT\.bold,\s*fontSize:\s*FONT_SIZE\.bodySm/);
+    expect(src).not.toMatch(/color:\s*"primary\.main",\s*fontWeight:\s*FONT_WEIGHT\.bold,\s*fontSize:\s*FONT_SIZE\.bodySm/);
   });
 
   it("GameStage.jsx 사다리 결과 폴백 목록이 primary.dark를 쓴다", () => {
@@ -293,7 +296,8 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
 
   it("MembersList.jsx 직책 라벨이 primary.dark를 쓴다", () => {
     const src = readSite(gameRoomDir, "MembersList.jsx");
-    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*600/);
+    // PA-RC-0001이 fontWeight:600 리터럴을 FONT_WEIGHT.semibold 토큰 참조로 옮겼다(같은 계산값).
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontWeight:\s*FONT_WEIGHT\.semibold/);
   });
 
   it("Scoreboard.jsx 점수 값이 primary.dark를 쓴다", () => {
@@ -408,7 +412,8 @@ describe("QAH-07 — TeamDocs·ChatPane·AccentPicker·WelcomeStatus의 raw .mai
 
   it("settings/AccentPicker.jsx 선택 체크가 primary.dark를 쓴다", () => {
     const src = readSite(screensDir, "settings", "AccentPicker.jsx");
-    expect(src).toMatch(/fontWeight:\s*800,\s*color:\s*"primary\.dark"\s*}}>✓/);
+    // PA-RC-0001이 fontWeight:800 리터럴을 FONT_WEIGHT.extrabold 토큰 참조로 옮겼다(같은 계산값).
+    expect(src).toMatch(/fontWeight:\s*FONT_WEIGHT\.extrabold,\s*color:\s*"primary\.dark"\s*}}>✓/);
   });
 
   it("chat/WelcomeStatus.jsx QuickPrompts hover색이 primary.dark를 쓴다(테두리는 그대로 primary.main)", () => {

@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { Button } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
 import { rise, stageColumnSx, RPS_LABELS, RPS_EMOJI, rpsEmoji } from "./constants.js";
 import { ResultStage, StageHint, WinnerName } from "./StageShared.jsx";
 import { LadderBoard } from "./LadderBoard.jsx";
@@ -41,8 +42,8 @@ export function GameStage({ c }) {
             <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fit, minmax(14rem, 1fr))" } }}>
               {teams.map((team, ti) => (
                 <Paper key={ti} variant="outlined" sx={{ p: 2, animation: `${rise} .38s ease both` }}>
-                  <Typography sx={{ fontWeight: 700, mb: 1 }}>
-                    {ti + 1}팀 <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, fontSize: "0.8125rem" }}>{team.length}명</Box>
+                  <Typography sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>
+                    {ti + 1}팀 <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, fontSize: FONT_SIZE.bodySm }}>{team.length}명</Box>
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
                     {team.map((m) => <li key={m.user_id}>{m.name}</li>)}
@@ -67,7 +68,7 @@ export function GameStage({ c }) {
                   }}>
                     <Box component="span" sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{a.name}</Box>
                     <Box component="span" aria-hidden="true" sx={{ color: "text.secondary" }}>→</Box>
-                    <Box component="span" sx={{ fontWeight: 700, color: "primary.dark" }}>{a.outcome}</Box>
+                    <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, color: "primary.dark" }}>{a.outcome}</Box>
                   </Paper>
                 ))}
               </Box>
@@ -80,7 +81,7 @@ export function GameStage({ c }) {
             </StageHint>
           ) : isVote ? (
             <Box sx={{ display: "grid", gap: 2 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>
+              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, textAlign: "center" }}>
                 {voteResult?.question || gstate.question || room.title}
               </Typography>
               {room.status === "finished" && voteResult ? (
@@ -96,14 +97,14 @@ export function GameStage({ c }) {
                         }}>
                           <Box component="span" sx={{
                             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            fontWeight: win ? 700 : 400,
+                            fontWeight: win ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
                           }}>{opt}</Box>
                           <Box sx={{
-                            display: { xs: "none", sm: "block" }, height: "0.875rem", borderRadius: "999px",
+                            display: { xs: "none", sm: "block" }, height: "0.875rem", borderRadius: RADIUS.full,
                             bgcolor: "action.hover", overflow: "hidden",
                           }}>
                             <Box sx={{
-                              display: "block", height: "100%", borderRadius: "999px",
+                              display: "block", height: "100%", borderRadius: RADIUS.full,
                               bgcolor: win ? "primary.main" : "primary.light",
                               width: (maxCount ? (c / maxCount) * 100 : 0) + "%",
                             }} />
@@ -129,7 +130,7 @@ export function GameStage({ c }) {
                         aria-pressed={myVote === i}
                         disabled={!canVote || vote.isPending} onClick={() => canVote && vote.mutate(i)}>
                         <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
-                        <Box component="span" sx={{ flexShrink: 0, minWidth: "1.75rem", textAlign: "center", fontWeight: 700, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>
+                        <Box component="span" sx={{ flexShrink: 0, minWidth: "1.75rem", textAlign: "center", fontWeight: FONT_WEIGHT.bold, color: "primary.dark", fontVariantNumeric: "tabular-nums" }}>
                           {liveCounts[i]}
                         </Box>
                       </Box>
@@ -165,8 +166,8 @@ export function GameStage({ c }) {
                           borderColor: win ? "primary.main" : "divider",
                           bgcolor: (t) => (win ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
                         }}>
-                          <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{p.number}</Box>
-                          <Box component="span" sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>{p.name}</Box>
+                          <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{p.number}</Box>
+                          <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{p.name}</Box>
                         </Paper>
                       );
                     })}
@@ -174,7 +175,7 @@ export function GameStage({ c }) {
                 </>
               ) : room.status === "playing" ? (
                 <>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>
+                  <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, textAlign: "center" }}>
                     {gstate.min || 1} ~ {gstate.max || 10} 중 하나를 몰래 내세요
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
@@ -237,8 +238,8 @@ export function GameStage({ c }) {
                           bgcolor: (t) => (win ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
                         }}>
                           <Box component="span" aria-hidden="true" sx={{ fontSize: "2.75rem", lineHeight: 1 }}>{rpsEmoji(p.choice)}</Box>
-                          <Box component="span" sx={{ fontSize: "0.8125rem", fontWeight: 700 }}>{p.choice}</Box>
-                          <Box component="span" sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>{p.name}</Box>
+                          <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>{p.choice}</Box>
+                          <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{p.name}</Box>
                         </Paper>
                       );
                     })}
@@ -246,7 +247,7 @@ export function GameStage({ c }) {
                 </>
               ) : room.status === "playing" ? (
                 <>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>가위, 바위, 보 중 하나를 몰래 내세요</Typography>
+                  <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, textAlign: "center" }}>가위, 바위, 보 중 하나를 몰래 내세요</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
                     방장이 공개하면 판정합니다. 지금 {gstate.submitted_count || 0}명 제출.
                   </Typography>
@@ -287,7 +288,7 @@ export function GameStage({ c }) {
                   <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
                     문제 {(quizPlaying.round || 0) + 1} / {quizPlaying.total}
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", textAlign: "center" }}>{quizPlaying.question}</Typography>
+                  <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, textAlign: "center" }}>{quizPlaying.question}</Typography>
                   <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1, width: "100%", maxWidth: "30rem" }}>
                     {(quizPlaying.options || []).map((opt, i) => {
                       const mine = quizPlaying.your_answer === i;
@@ -300,7 +301,7 @@ export function GameStage({ c }) {
                             onClick={() => canQuizAnswer && quizAnswer.mutate(i)}>
                             <Box component="span" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt}</Box>
                             {isAnswer ? (
-                              <Box component="span" sx={{ flexShrink: 0, fontWeight: 700, color: "success.strong" }}>정답</Box>
+                              <Box component="span" sx={{ flexShrink: 0, fontWeight: FONT_WEIGHT.bold, color: "success.strong" }}>정답</Box>
                             ) : null}
                           </Box>
                         </li>

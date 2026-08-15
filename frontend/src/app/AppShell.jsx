@@ -43,7 +43,7 @@ import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { NOTI_UNREAD, invalidateNotifications } from "./notification-keys.js";
-import { CONTENT_MAX_WIDTH } from "../ui/theme.js";
+import { CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
 
@@ -166,7 +166,7 @@ function NavBadge({ count }) {
         ml: 1, px: 0.75, minWidth: "1.25rem", height: "1.25rem",
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         borderRadius: "0.625rem", flexShrink: 0,
-        fontSize: "0.6875rem", fontWeight: 800, lineHeight: 1,
+        fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1,
         bgcolor: "error.main", color: "common.white",
       }}
     >
@@ -247,7 +247,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
               ) : null}
               <ListItemText
                 primary={g.group}
-                primaryTypographyProps={{ fontSize: "0.75rem", fontWeight: 800, letterSpacing: ".04em" }}
+                primaryTypographyProps={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, letterSpacing: ".04em" }}
               />
               <ExpandMoreRoundedIcon
                 fontSize="small"
@@ -296,7 +296,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
                       ) : null}
                       <ListItemText
                         primary={it.label}
-                        primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: active ? 750 : 600 }}
+                        primaryTypographyProps={{ fontSize: FONT_SIZE.body, fontWeight: active ? 750 : FONT_WEIGHT.semibold }}
                       />
                       {it.badge ? <NavBadge count={badges[it.badge]} /> : null}
                     </ListItemButton>
@@ -333,7 +333,7 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
       aria-label="화면 전환"
       sx={{
         display: "flex", mx: 1.5, mt: 1.5, mb: 0.5, p: 0.5,
-        bgcolor: "rgba(255,255,255,.08)", borderRadius: "999px",
+        bgcolor: "rgba(255,255,255,.08)", borderRadius: RADIUS.full,
       }}
     >
       {[{ label: "사용자", on: userSeg, to: "/me" }, { label: "관리자", on: !userSeg, to: "/dashboard" }].map((seg) => (
@@ -343,7 +343,7 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           onClick={() => onNavigate(seg.to)}
           aria-current={seg.on ? "page" : undefined}
           sx={{
-            flex: 1, minHeight: 32, borderRadius: "999px", textTransform: "none", fontWeight: 750,
+            flex: 1, minHeight: 32, borderRadius: RADIUS.full, textTransform: "none", fontWeight: 750,
             // CTR-02: 배경은 다크모드 여부와 무관하게 항상 리터럴 흰색이다 — 다크 표면용으로
             // 밝힌 primary.dark(strongMix)와 짝지으면 다크 모드에서 흰색 배경에 거의
             // 흰색인 글자(대비 2.84~3.43:1, WCAG AA 4.5:1 미달, 실측 확인)가 된다.
@@ -457,8 +457,8 @@ export function AppShell({
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5, justifyContent: "center", position: "relative" }}>
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: "0.9375rem", fontWeight: 800, lineHeight: 1.1 }}>{brand()}</Typography>
-          <Typography sx={{ fontSize: "0.75rem", color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
+          <Typography sx={{ fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{brand()}</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
           <IconButton
@@ -516,7 +516,7 @@ export function AppShell({
           sx={{
             position: "fixed", top: 8, left: 8, zIndex: (t) => t.zIndex.tooltip + 1,
             px: 2, py: 1, borderRadius: 2, bgcolor: "primary.main", color: "primary.contrastText",
-            fontWeight: 700, textDecoration: "none",
+            fontWeight: FONT_WEIGHT.bold, textDecoration: "none",
             transform: "translateY(-200%)", transition: "transform .15s",
             "&:focus": { transform: "none" },
           }}

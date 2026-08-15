@@ -15,6 +15,7 @@ import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Skeleton } from "../ui/kit.jsx";
+import { FONT_SIZE, RADIUS } from "../ui/theme.js";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
 import { Message } from "../screens/chat/MessageThread.jsx";
@@ -129,7 +130,7 @@ export function AssistantDrawer({ open, onClose }) {
         <MascotPose mode={chat.busy ? "thinking" : "listening"} size="2.25rem" decorative />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 750, lineHeight: 1.2 }}>클로비</Typography>
-          <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary" }}>
+          <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
             {chat.busy ? "답변을 정리하고 있어요" : "현재 화면을 기준으로 도와드려요"}
           </Typography>
         </Box>
@@ -172,7 +173,7 @@ export function AssistantDrawer({ open, onClose }) {
 
       {/* 문맥 줄 — 이 드로어의 존재 이유다. 어느 화면을 두고 묻는지 사람과 클로비가 같이 본다. */}
       <Box sx={{
-        px: 2, py: 1, fontSize: "0.8125rem",
+        px: 2, py: 1, fontSize: FONT_SIZE.bodySm,
         bgcolor: (t) => alpha(t.palette.primary.main, 0.06),
         borderBottom: 1, borderColor: "divider",
       }}>
@@ -185,7 +186,7 @@ export function AssistantDrawer({ open, onClose }) {
           <Box sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1, py: 2 }}>
             <MascotPose mode="listening" size="4rem" decorative />
             <Typography sx={{ fontWeight: 750 }}>무엇을 도와드릴까요?</Typography>
-            <Typography sx={{ fontSize: "0.8125rem", color: "text.secondary", maxWidth: "20rem", lineHeight: 1.6 }}>
+            <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", maxWidth: "20rem", lineHeight: 1.6 }}>
               지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다.
             </Typography>
           </Box>
@@ -210,7 +211,7 @@ export function AssistantDrawer({ open, onClose }) {
               <Chip
                 key={s} label={s} size="small" variant="outlined" clickable
                 onClick={() => chat.prefillFromPrompt(s)}
-                sx={{ fontSize: "0.75rem" }}
+                sx={{ fontSize: FONT_SIZE.caption }}
               />
             ))}
           </Box>
@@ -233,14 +234,14 @@ export function AssistantDrawer({ open, onClose }) {
           <Stack direction="row" flexWrap="wrap" gap={0.75}>
             {chat.pending.map((a, i) => (
               <Paper key={i} variant="outlined"
-                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: "999px", maxWidth: "100%" }}>
+                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "100%" }}>
                 <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                   sx={{ width: "1.5rem", height: "1.5rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
-                <Typography sx={{ fontSize: "0.75rem", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
+                <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
                 <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
                   onClick={() => chat.setPending((p) => p.filter((_, j) => j !== i))}
                   sx={{ minWidth: "1.5rem", minHeight: "1.5rem", flexShrink: 0 }}>
-                  <CloseRoundedIcon sx={{ fontSize: "0.875rem" }} />
+                  <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
                 </IconButton>
               </Paper>
             ))}
@@ -251,13 +252,13 @@ export function AssistantDrawer({ open, onClose }) {
             공유하는 게 아니라 각자 별도 인스턴스라 서로 안 풀린다) 새로고침 말고는 풀 방법이
             없었다. 같은 배너 + 해제 버튼을 드로어에도 그대로 둔다. */}
         {chat.maintenanceNotice ? (
-          <Alert severity="warning" role="status" sx={{ fontSize: "0.75rem", py: 0 }}
+          <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.caption, py: 0 }}
             action={<Button size="sm" variant="ghost" onClick={() => chat.setMaintenanceNotice(null)}>다시 시도</Button>}>
             {chat.maintenanceNotice}
           </Alert>
         ) : null}
         {chat.rateLimitNotice ? (
-          <Alert severity="warning" role="status" sx={{ fontSize: "0.75rem", py: 0 }}
+          <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.caption, py: 0 }}
             action={<Button size="sm" variant="ghost" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
             {chat.rateLimitNotice}
           </Alert>
@@ -278,7 +279,7 @@ export function AssistantDrawer({ open, onClose }) {
             }}
             sx={{
               flex: 1, minWidth: 0, resize: "none", minHeight: "2.75rem", maxHeight: "10rem", boxSizing: "border-box",
-              font: "inherit", fontSize: "0.875rem", lineHeight: 1.5, px: 1.5, py: 0.75,
+              font: "inherit", fontSize: FONT_SIZE.body, lineHeight: 1.5, px: 1.5, py: 0.75,
               border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
               "&:focus": { outline: "none", borderColor: "primary.main" },
               "&:disabled": { opacity: 0.6 },

@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Button, Callout, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 
 /* 최초 실행 셋업 마법사 (9-3, P3).
  *
@@ -68,7 +69,7 @@ function StateTag({ state }) {
     <Box
       component="span"
       sx={{
-        px: 1, py: 0.25, borderRadius: "999px", fontSize: "0.75rem", fontWeight: 800,
+        px: 1, py: 0.25, borderRadius: RADIUS.full, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold,
         border: "1px solid", borderColor: TONE_COLOR[STATE_TONE[state]] || "divider",
         color: TONE_COLOR[STATE_TONE[state]] || "text.secondary", whiteSpace: "nowrap",
       }}
@@ -101,8 +102,8 @@ function SetupItem({ item, isNext }) {
           <Box
             component="span"
             sx={{
-              px: 1, py: 0.25, borderRadius: "999px", fontSize: "0.75rem",
-              fontWeight: 800, bgcolor: "primary.main", color: "primary.contrastText",
+              px: 1, py: 0.25, borderRadius: RADIUS.full, fontSize: FONT_SIZE.caption,
+              fontWeight: FONT_WEIGHT.extrabold, bgcolor: "primary.main", color: "primary.contrastText",
             }}
           >
             지금 할 차례
@@ -111,25 +112,25 @@ function SetupItem({ item, isNext }) {
       </Box>
       <Typography variant="body2" color="text.secondary">{item.detail}</Typography>
       {blocked ? (
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>
           {item.blocked_by_label}를 먼저 끝내야 이 항목을 진행할 수 있습니다.
           {item.requires_why ? " " + item.requires_why : ""}
         </Typography>
       ) : item.action ? (
         <Typography variant="body2">
-          <Box component="span" sx={{ fontWeight: 800, mr: 1 }}>할 일</Box>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1 }}>할 일</Box>
           {item.action}
         </Typography>
       ) : item.question ? (
         <Typography variant="body2">
-          <Box component="span" sx={{ fontWeight: 800, mr: 1 }}>확인할 것</Box>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1 }}>확인할 것</Box>
           {item.question}
         </Typography>
       ) : null}
       <Typography variant="caption" color="text.secondary">{item.why}</Typography>
       {link ? (
         <Box>
-          <Link href={link.href} underline="hover" sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
+          <Link href={link.href} underline="hover" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold }}>
             {link.label}
           </Link>
         </Box>

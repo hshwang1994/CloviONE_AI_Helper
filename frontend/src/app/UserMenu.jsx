@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useToast } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
 
@@ -94,7 +95,7 @@ export function UserMenu({ name, userId, avatarUrl }) {
         aria-label={label + " 메뉴"}
         color="inherit"
         sx={{
-          minWidth: 0, gap: 1, px: 1, py: 0.5, textTransform: "none", borderRadius: 999,
+          minWidth: 0, gap: 1, px: 1, py: 0.5, textTransform: "none", borderRadius: RADIUS.full,
           // WF7(K축, 2026-08-11 실측): 상단바 배경은 radial-gradient(circle at 78% -120%,
           // brand.purple@0.74, ...) + linear-gradient(brand.deep→mid→accent)다(AppShell.jsx).
           // 자동 대비 검사(scripts/ui_qa/contrast.py)는 그라디언트 배경을 판정 못 해 지금까지
@@ -109,12 +110,12 @@ export function UserMenu({ name, userId, avatarUrl }) {
       >
         {/* 좁은 화면에서는 이름을 숨긴다. 버튼 자체에 aria-label이 있어 접근 가능한 이름은 유지된다
             — 예전엔 이름이 유일한 텍스트 자식이라 모바일에서 이름이 통째로 사라졌다. */}
-        <Box component="span" sx={{ display: { xs: "none", md: "inline" }, fontWeight: 700 }} aria-hidden="true">{label}</Box>
+        <Box component="span" sx={{ display: { xs: "none", md: "inline" }, fontWeight: FONT_WEIGHT.bold }} aria-hidden="true">{label}</Box>
         {/* 프로필 사진이 있으면 그것을, 없으면 이니셜을. src 가 없거나 로드에 실패하면
             MUI Avatar 가 자식(이니셜)으로 자동 폴백하므로 깨진 이미지가 뜨지 않는다. */}
         <Avatar
           src={avatarUrl || undefined}
-          sx={{ width: 30, height: 30, fontSize: "0.8125rem", bgcolor: "rgba(255,255,255,.22)" }}
+          sx={{ width: 30, height: 30, fontSize: FONT_SIZE.bodySm, bgcolor: "rgba(255,255,255,.22)" }}
           aria-hidden="true"
         >
           {label[0]}
