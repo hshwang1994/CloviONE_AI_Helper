@@ -431,7 +431,7 @@ function BoardScreen({ kind = "free" }) {
       ),
     },
     { key: "category", label: "카테고리", width: "8rem", render: (p) => <Badge value={p.category} kind={boardCategoryKind(p.category)} /> },
-    /* 🔴 상태·공감 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
+    /* 🔴 상태 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
        "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
        (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라
        **종류**로 가른다 — 값으로 가르면 잘못 실려 온 값이 그대로 통과한다. */
@@ -444,15 +444,19 @@ function BoardScreen({ kind = "free" }) {
             render: (p) =>
               p.idea_status ? <Badge value={p.idea_status} kind={ideaStatusKind(p.idea_status)} /> : null,
           },
-          {
-            key: "like_count",
-            label: "공감",
-            align: "right",
-            width: "6rem",
-            render: (p) => "👍 " + (p.like_count || 0),
-          },
         ]
       : []),
+    /* VIS-141: `like_count`는 아이디어 전용 값이 아니다 — `list_posts`(app/board/router.py)가
+       두 종류 모두에 `repository.like_counts()`로 채워 준다(위 Reactions 컴포넌트 onSuccess의
+       주석 참고). 그런데 이 열은 `isIdea`일 때만 그려져, 자유게시판은 댓글 수([N] 배지)는
+       보이는데 반응 수는 화면 어디서도 못 봤다 — "볼 만한 글" 신호가 절반만 있었다. */
+    {
+      key: "like_count",
+      label: "공감",
+      align: "right",
+      width: "6rem",
+      render: (p) => "👍 " + (p.like_count || 0),
+    },
     {
       key: "author_name",
       label: "작성자",

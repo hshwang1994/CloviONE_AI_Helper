@@ -172,4 +172,19 @@ describe("목록 표시", () => {
     // 첫 열이 render()를 써도 행 열기 버튼이 이름을 갖는다(openLabel).
     expect(screen.getByRole("button", { name: "상세 보기: 사내 보안 공지" })).toBeInTheDocument();
   });
+
+  // VIS-141: like_count는 아이디어 전용 값이 아니다(서버가 두 종류 모두에 채워 준다) —
+  // 자유게시판도 댓글 수처럼 반응 수를 볼 수 있어야 "볼 만한 글"을 고를 신호가 갖춰진다.
+  it("자유게시판도 반응(공감) 수를 보여준다(아이디어 전용이 아니다)", async () => {
+    mockApi(() => ({
+      items: [
+        { id: "p1", title: "사내 보안 공지", category: "공지", author_name: "김운영", view_count: 12, comment_count: 3, like_count: 7, is_pinned: true, created_at: "2026-08-01T01:00:00" },
+      ],
+    }));
+    renderBoard();
+
+    expect(await screen.findByText("사내 보안 공지")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "공감" })).toBeInTheDocument();
+    expect(screen.getByText("👍 7")).toBeInTheDocument();
+  });
 });
