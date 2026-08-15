@@ -89,6 +89,19 @@ describe("내 업무량 · 완료 통계", () => {
     expect(screen.getByText("20%")).toBeInTheDocument();
   });
 
+  it("SEM-02: 단독 라우트라 PageHeader가 h1이고, 5개 구역 제목이 그 바로 아래 h2다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    await screen.findByText("남은 일");
+
+    expect(screen.getByRole("heading", { level: 1, name: "내 업무량, 완료 통계" })).toBeInTheDocument();
+    const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    for (const title of ["달별 완료 추이", "앞으로의 부하(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
+      expect(level2Names).toContain(title);
+    }
+    expect(level2Names).toHaveLength(5);
+  });
+
   it("배정이 0건인 달의 완료율은 '-' 다 — 0% 가 아니다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();

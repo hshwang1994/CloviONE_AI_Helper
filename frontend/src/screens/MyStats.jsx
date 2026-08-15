@@ -168,7 +168,10 @@ export function MyStats() {
             <Box sx={BODY_GRID}>
               <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
                 <Card>
+                  {/* SEM-02: MyStats는 단독 라우트(/my-stats)라 PageHeader가 h1이고, 이 화면의
+                      SectionTitle 5개가 전부 그 h1 바로 아래다 — h2를 명시한다. */}
                   <SectionTitle
+                    component="h2"
                     title="달별 완료 추이"
                     help="마감일이 그 달인 티켓 기준입니다. 완료율의 분모에서 취소는 뺍니다."
                   />
@@ -214,6 +217,7 @@ export function MyStats() {
 
                 <Card>
                   <SectionTitle
+                    component="h2"
                     title="앞으로의 부하(주별)"
                     help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
                   />
@@ -234,7 +238,7 @@ export function MyStats() {
 
               <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
                 <Card>
-                  <SectionTitle title="상태 구성" />
+                  <SectionTitle component="h2" title="상태 구성" />
                   <Donut
                     segments={load.by_status.map((s) => ({
                       label: s.name,
@@ -247,7 +251,7 @@ export function MyStats() {
                   />
                 </Card>
                 <Card>
-                  <SectionTitle title="남은 일의 우선순위" />
+                  <SectionTitle component="h2" title="남은 일의 우선순위" />
                   <BarSeries
                     items={load.by_priority.map((p) => ({ label: p.name, value: p.count }))}
                     unit="건"
@@ -255,7 +259,7 @@ export function MyStats() {
                   />
                 </Card>
                 <Card>
-                  <SectionTitle title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
+                  <SectionTitle component="h2" title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
                   <Box sx={{ display: "grid", gap: 1 }}>
                     {[
                       ["남은 예상 공수", load.est_wd_active],

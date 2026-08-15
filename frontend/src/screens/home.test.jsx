@@ -171,6 +171,25 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.queryByText(/해당하는 티켓이 없습니다/)).toBeNull();
   });
 
+  it("SEM-02: 최상위 6개 구역이 h1 바로 아래 h2다(예전엔 h3로 건너뛰어 h2가 아예 없었다)", async () => {
+    routeApi();
+    renderHome();
+    await screen.findByText("안 읽은 알림");
+
+    expect(screen.getByRole("heading", { level: 1, name: "오늘" })).toBeInTheDocument();
+    // AssistantPanel("AI 도우미")·TeamChatWidget("팀 채팅")도 이 화면 안에서만 쓰여
+    // 같은 무게의 최상위 구역이다 — h2여야 한다.
+    const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    for (const fixed of ["이번 주 내 진척", "최근 문서", "게시판", "AI 도우미", "팀 채팅"]) {
+      expect(level2Names).toContain(fixed);
+    }
+    // 티켓 칸 제목은 "진행 중 (4건)"처럼 고른 칸에 따라 바뀐다 — 값이 아니라 모양만 확인한다.
+    expect(level2Names.some((t) => /\(\d+건\)$/.test(t))).toBe(true);
+    expect(level2Names).toHaveLength(6);
+    // AssistantPanel 내부 소제목(내 몫 등)이 h3로 낮아졌는지는 assistant-panel.test.jsx가
+    // 그 화면 자신의 데이터 모양으로 직접 확인한다.
+  });
+
   it("채팅이 꺼진 설치(chat_unread=null)에서는 그 자리를 '막힘' 카드가 채운다", async () => {
     routeApi({ today: { ...TODAY_OK, inbox: { notifications_unread: 0, chat_unread: null } } });
     renderHome();

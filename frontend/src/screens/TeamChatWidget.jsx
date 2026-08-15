@@ -38,7 +38,9 @@ export function TeamChatWidget() {
   const header = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, minWidth: 0 }}>
       <ForumRoundedIcon aria-hidden="true" sx={{ fontSize: FONT_SIZE.pageTitle, color: "primary.main" }} />
-      <Typography component="h3" sx={{ flex: 1, minWidth: 0, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold }}>팀 채팅</Typography>
+      {/* SEM-02: 이 위젯은 항상 Home.jsx(/me) 안에 박혀 있어(단독 라우트 없음) 그 화면의
+          다른 최상위 구역과 같은 무게다 — h2. */}
+      <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold }}>팀 채팅</Typography>
       <Link href="#/chat-rooms" underline="hover" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, flexShrink: 0 }}>
         채팅방 전체 보기
       </Link>

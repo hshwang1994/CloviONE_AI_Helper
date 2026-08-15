@@ -240,15 +240,15 @@ function SideRail({ data }) {
   return (
     <Stack gap={2.5}>
       <Card>
-        <SectionTitle title="이번 주 내 진척" action={<Link href="#/sprint" underline="hover">스프린트 회의</Link>} />
+        <SectionTitle component="h2" title="이번 주 내 진척" action={<Link href="#/sprint" underline="hover">스프린트 회의</Link>} />
         <SprintProgress sprint={data.sprint} />
       </Card>
       <Card>
-        <SectionTitle title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
+        <SectionTitle component="h2" title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
         <RecentDocuments items={recent.documents || []} />
       </Card>
       <Card>
-        <SectionTitle title="게시판" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
+        <SectionTitle component="h2" title="게시판" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
         <MyBoardStats />
         <RecentBoard items={recent.board || []} />
       </Card>
@@ -376,7 +376,12 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
       <Box sx={BODY_GRID}>
         <Stack gap={2.5} sx={{ minWidth: 0 }}>
           <Card>
+            {/* SEM-02: /me는 h1(PageHeader "오늘") 하나 아래 h3 다섯 개(이 카드+AssistantPanel의
+                "AI 도우미"+TeamChatWidget의 "팀 채팅"+SideRail 셋)가 직결돼 h2가 아예 없었다.
+                SectionTitle 기본값(h3)은 그대로 두고(다른 소비처가 이미 올바르게 h2 아래 h3로
+                쓴다 — kit.jsx 주석 참고) 여기서만 명시적으로 h2를 준다. */}
             <SectionTitle
+              component="h2"
               title={`${view.label} (${total}건)`}
               action={<Link href="#/my-tickets" underline="hover">내 티켓 전체</Link>}
             />

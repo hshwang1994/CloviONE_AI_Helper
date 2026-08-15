@@ -166,4 +166,20 @@ describe("AI 도우미 패널", () => {
     await userEvent.click(screen.getByRole("tab", { name: "미할당 트리아지" }));
     expect(await screen.findByText("담당자 없는 티켓이 없습니다")).toBeInTheDocument();
   });
+
+  it("SEM-02: 패널 제목은 h2, 안의 소제목(TicketLines)은 h3다", async () => {
+    // 이 컴포넌트는 항상 Home.jsx(/me) 안에 박혀 있어 그 화면의 다른 최상위 구역과
+    // 같은 무게(h2)를 받는다 — 그 아래 TicketLines 소제목은 h4에서 h3로 함께 낮췄다
+    // (h2 → h4로 건너뛰지 않게).
+    routeApi();
+    renderPanel();
+    await screen.findByText(/오늘 마감 2건/);
+    expect(screen.getByRole("heading", { level: 2, name: "AI 도우미" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "스탠드업 초안" }));
+    await screen.findByText("오늘 처리할 티켓");
+    expect(screen.getByRole("heading", { level: 3, name: /최근 끝낸 일/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /오늘 할 일/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /막힌 것/ })).toBeInTheDocument();
+  });
 });
