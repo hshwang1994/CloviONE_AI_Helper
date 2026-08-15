@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
@@ -61,7 +61,7 @@ function RoomRow({ room, onOpen, active }) {
           <Box
             component="span"
             sx={{
-              minWidth: "1.375rem", textAlign: "center", px: 0.75, py: "0.0625rem", borderRadius: "999px",
+              minWidth: "1.375rem", textAlign: "center", px: 0.75, py: "0.0625rem", borderRadius: RADIUS.full,
               bgcolor: "primary.main", color: "primary.contrastText",
               fontSize: FONT_SIZE.caption, fontWeight: 750, fontVariantNumeric: "tabular-nums",
             }}

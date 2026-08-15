@@ -14,7 +14,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Button, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
 import { dayKeyKST, mascotMode, structuredCards } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
@@ -267,7 +267,7 @@ export function Chat() {
                 스크롤 영역에 붙이면 컴포저 높이와 무관하게 항상 그 위에 뜬다. */}
             {!stick ? (
               <Box sx={{ position: "sticky", bottom: 0, alignSelf: "flex-end", mt: "auto", pt: 1, zIndex: 5 }}>
-                <Button variant="primary" size="sm" onClick={() => setStick(true)} sx={{ borderRadius: "999px", boxShadow: 6 }}>
+                <Button variant="primary" size="sm" onClick={() => setStick(true)} sx={{ borderRadius: RADIUS.full, boxShadow: 6 }}>
                   <ArrowDownwardRoundedIcon aria-hidden="true" sx={{ fontSize: "1rem", mr: 0.5 }} />맨 아래로
                 </Button>
               </Box>
@@ -287,7 +287,7 @@ export function Chat() {
                 <Stack direction="row" flexWrap="wrap" gap={0.75}>
                   {pending.map((a, i) => (
                     <Paper key={i} variant="outlined"
-                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: "999px", maxWidth: "18rem" }}>
+                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "18rem" }}>
                       {/* 보낼 이미지를 텍스트 칩이 아니라 실제 썸네일로 확인시킨다(로컬 data URL). */}
                       <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                         sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />

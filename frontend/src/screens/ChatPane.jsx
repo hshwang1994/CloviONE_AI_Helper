@@ -22,7 +22,7 @@ import { mentionNames } from "./chat-text.js";
 import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -459,7 +459,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       ) : null}
       <Paper
         variant="outlined"
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: "999px" }}
+        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: RADIUS.full }}
       >
         <IconButton
           aria-label="이모지 넣기" aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
