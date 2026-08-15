@@ -2433,3 +2433,182 @@ raw 500 대신 깔끔한 재시도 가능 응답으로 바꾸는 자체 완화 �
 - 백엔드 Full Regression은 이 변경 이후 별도로 돌려 확인한다(수렴 지점 — §6).
 
 상세: `docs/BACKLOG.md` DBTX-02.
+
+## D-86 (2026-08-16) — SEC-38(Critical): `admin_scope`를 한 번도 안 건드린 운영자/감사자가 전역 범위였다 — `build_scope()` 자체의 결함
+
+### 배경
+
+DBTX-02 수정 뒤 신뢰할 수 있는 백엔드 Full Regression을 다시 돌리는 과정에서(첫 시도는
+`| tail -N` 파이프가 pytest의 실제 종료 코드를 가려 거짓 초록을 보고했다 — 아래 별도
+기록), `tests/integration/test_idea_board.py::
+test_another_organization_neither_sees_nor_moves_an_idea`가 격리 실행에서도 결정적으로
+실패하는 것을 발견했다: 조직 B의 "운영자"(`ROLE_OPERATOR`) 역할 사용자가 조직 A가 쓴
+아이디어 게시글을 `GET /api/board/posts?kind=idea`로 그대로 봤다.
+
+### 근본 원인
+
+`app/core/scope.py::build_scope()`는 `role == ROLE_USER`인 경우만 따로 부서 기반 범위를
+계산하고, **그 외 모든 역할**(operator/auditor/admin/system_admin)은 전부 `user.admin_scope`
+컬럼으로 판정한다. 그런데:
+
+1. `admin_scope` 컬럼의 기본값은 `global`이다(0024 마이그레이션의 **의도된** 선택 —
+   좁은 값을 기본으로 깔면 마이그레이션 하나로 기존 관리자 화면이 조용히 빈다).
+2. 관리자가 사용자를 `role=operator`(운영자) 또는 `role=auditor`(감사자)로 바꿀 때,
+   "관리 범위"(`admin_scope`)를 **함께** 좁히는 것은 강제되지 않는 **선택**이다
+   (`app/users/service.py::update_user`에서 `role`과 `admin_scope`는 독립 파라미터).
+3. `Users.jsx`의 "관리 범위" 필드는 `role !== "user"`일 때 나타나 편집은 가능하지만,
+   도움말 문구가 "관리자가 **관리 화면**에서 볼 수 있는 범위"라고 admin 콘솔에 한정해
+   설명한다 — 실제로는 게시판·문서·티켓·휴지통 등 **일반 제품 화면**까지 이 값으로
+   걸린다는 사실이 문구에 없다.
+4. 모델 주석 자체가 "`admin_scope`는 **관리자 역할일 때만** 의미가 있다"고 명시하는데
+   (`app/users/models.py:78`), `build_scope()`의 실제 코드는 이 구분을 안 지키고
+   operator/auditor(관리 콘솔 접근권이 없는, "관리자"가 아닌 역할)까지 admin과 같은
+   분기로 묶어 왔다.
+
+그 결과: 관리자가 어떤 직원을 "운영자"로 승격시키기만 하고(예: 게시판 모더레이션
+권한을 주려고) "관리 범위"는 만지지 않으면, 그 운영자는 **의도와 무관하게 전역
+범위**가 되어 다른 모든 조직의 게시판·아이디어·팀 문서·티켓·휴지통까지 본다
+(`build_scope()`가 `app/team_docs`·`app/tickets`·`app/trash`·`app/board` 전체의
+공용 판정 함수라는 사실은 이미 SEC-34에서 확인된 것과 같다).
+
+### 이미 알려져 있었다 — 다만 테스트만 고쳐지고 제품은 안 고쳐졌다
+
+`tests/security/test_board_scope.py::_login_org_b_moderator`(RBAC 재감사 2026-08-16,
+SEC-34/35/36과 같은 조사)의 주석이 이 정확한 함정을 **이미 문서로 남겨 뒀다**:
+"`role`만 바꾸고 `admin_scope`를 그대로 두면 **의도와 다르게 전역 범위 운영자**가
+된다" — 그리고 그 대응은 그 파일의 테스트 헬퍼가 `admin_scope="org"`를 명시적으로
+같이 대입하는 것이었다. **원인은 정확히 짚었지만 고친 자리는 테스트 픽스처였고, 근본
+원인(`build_scope()`의 기본값 처리)은 그대로 남았다** — 그래서 같은 헬퍼를 쓰지 않는
+다른 테스트(`test_idea_board.py`)가 같은 증상으로 다시 걸렸다. 실제 제품에서도
+마찬가지다: 관리 콘솔에서 관리자가 그 사실(운영자도 "관리 범위"를 명시적으로 좁혀야
+한다는 것)을 몰랐다면 그 계정은 지금도 전역 범위로 살아 있을 수 있다.
+
+### 결정 — `build_scope()`에서 고친다, 명시적으로 좁힌 설정은 그대로 존중한다
+
+`app/core/scope.py::build_scope()`에 분기를 추가했다: `admin_scope`가 아직 `global`이고
+역할이 `operator`/`auditor`면 **자기 조직**(`org_id=user.org_id`)으로 좁힌다. `org`/`dept`로
+**명시적으로** 좁힌 operator/auditor는 그대로 존중한다(관리 콘솔이 실제로 그 값을 고를 수
+있게 해 주므로, 그 선택을 무시하면 기능 자체가 무의미해진다) — 막는 것은 오직 "아직
+`global`"인 경우뿐이다.
+
+**컬럼만 봐서는 "한 번도 안 건드림"과 "일부러 global을 골랐음"을 구분할 수 없다** — 스키마가
+`admin_scope`를 `nullable=False`로 두어 이 둘을 구분할 방법이 없다(NULL을 "미설정"으로 쓰는
+스키마 변경은 이번 수정 범위 밖의 더 큰 결정이라 하지 않았다). 강한 권한(전역 범위)은
+애매하면 좁게 실패한다는 이 함수 자체의 기존 원칙(모듈 docstring: "설정이 불완전하면
+넓히는 쪽이 아니라 좁히는 쪽으로 실패한다")과 같은 판단으로, "구분 불가능하면 좁은 쪽으로
+처리"를 선택했다. **`admin`/`system_admin`은 건드리지 않았다** — 그 두 역할은 진짜
+관리 콘솔 사용자이고 0024의 원래 근거(기존 관리자 화면이 조용히 비면 안 된다)가 정확히
+그들을 위한 것이므로, 전역 기본값을 그대로 둔다.
+
+### 회귀 확인
+
+- **revert-to-verify 완료**: `git stash push -- app/core/scope.py` → 원인이 된
+  `test_idea_board.py::test_another_organization_neither_sees_nor_moves_an_idea`가
+  정확히 같은 증상(다른 조직 아이디어가 목록에 그대로 보임)으로 재현·실패 →
+  `git stash pop`으로 복구 → 재확인 green.
+- 신규 단위 시험 6건(`tests/unit/test_scope_operator_auditor_default.py`,
+  API/화면 없이 `build_scope()`를 직접 호출): operator/auditor가 `admin_scope` 미설정
+  시 자기 조직으로 좁혀지는지, org/dept로 명시적으로 좁힌 설정이 그대로 존중되는지,
+  `admin_scope='global'`을 명시적으로 다시 대입해도(구분 불가능하므로) 여전히 org로
+  좁혀지는지, `admin`/`system_admin`은 예전과 똑같이 전역 기본값을 유지하는지 각각 확인.
+- 회귀 없음 확인: `test_idea_board.py`(14건)·`test_board_scope.py`·`test_trash_api.py`·
+  `test_project_scope.py`·`test_regular_user_scope.py`·`test_document_scope.py`·
+  `test_ticket_detail_scope.py`·`test_trash_scope.py` 전체 green(SEC-34가 만든
+  org/dept 스코프 시험 포함, 전부 명시적으로 `admin_scope`를 설정하는 시험들이라
+  이 수정과 충돌하지 않음을 직접 확인). `tests/security/`+`tests/unit/` 전체 재확인 진행 중.
+
+### 배포 영향(사람이 알아야 할 것 — 차단 사유는 아님)
+
+TEST SERVER에 이미 `role=operator` 또는 `role=auditor`이면서 `admin_scope`를 한 번도
+명시적으로 안 좁힌 계정이 있다면, 이 수정 배포 뒤 그 계정이 보는 범위가 "전역"에서
+"자기 조직"으로 **좁아진다**(의도한 보안 강화 방향이지만, 실제로 전역 범위를 의도적으로
+쓰고 있었던 계정이 있다면 그 계정 사용자에게는 화면이 갑자기 좁아진 것으로 보일 수 있다).
+현재 이 저장소가 아는 한 그런 의도적 사용 사례는 없다(코드 전체에 `ROLE_AUDITOR`의
+제품 로직 자체가 아직 없고, `ROLE_OPERATOR`도 게시판 모더레이션 외 별다른 전역 기능이
+없다) — 다만 실제 TEST SERVER 계정 상태는 배포 전 `SELECT role, admin_scope FROM users
+WHERE role IN ('operator','auditor')`로 직접 확인할 가치가 있다.
+
+상세: `docs/BACKLOG.md` SEC-38.
+
+## D-87 (2026-08-16) — DBTX-02 확장: job 핸들러 밖 웹 요청 경로 전수 조사 + 8곳 추가 수정
+
+### 배경
+
+D-85(DBTX-02)가 job 핸들러 5곳을 고친 뒤, 같은 메커니즘(`get_db`의 요청-종료 시점 커밋이
+그 앞의 느린 아웃바운드 호출 때문에 스냅샷 노후화로 거부될 수 있다)이 **웹 요청 경로**에도
+있는지 배경 조사 에이전트로 전수 확인했다. `outbound_client.request`/`provider.invoke`를
+직접 부르는 9개 파일을 라우터 진입점부터 아웃바운드 호출, 호출 뒤 커밋까지 전부 추적한
+결과 — `app/chat/service.py::delete_conversation`(이미 D-85에서 발견·수정)를 빼고 7곳을
+추가로 확인, `app/documents/router.py`(문서 생성 큐잉 — 실제로는 동기 아웃바운드 호출이
+없어 조사 뒤 **해당 없음으로 확인**)도 같은 조사 계열에서 함께 점검했다.
+
+### 고친 자리
+
+- `app/tickets/repository_notion.py` — `create()`/`update()`(각각 함수 맨 앞, Notion 호출
+  묶음 전체를 보호) · `save_body()`(정본 저장을 `flush`가 아니라 `commit`으로 — 안 그러면
+  이 함수 자신의 docstring이 약속한 "Notion push가 실패해도 우리 DB에는 이미 들어가
+  있다"가 스냅샷 노후화 경로에서만 깨진다) · `ensure_local()`(첫 저장 시 SAVEPOINT 안
+  쓰기가 `IntegrityError`만 잡고 있어 `OperationalError`는 새어 나갈 수 있었다 — 이 저장소
+  트래픽에서 **가장 빈도 높은 노출**이라고 조사 에이전트가 짚은 지점).
+- `app/team_docs/repository_notion.py` — `create()`(맨 앞) · `save_body()`(같은 이유로
+  `flush`→`commit`, 티켓 쪽과 동일한 판단).
+- `app/workflows/provider_n8n.py::N8nWorkflowProvider.test` — 관리 콘솔 "연결 테스트"
+  버튼, 호출 직전 커밋.
+- `app/notion_mapping/service.py::verify_mapping` — 관리자 단건 "검증" 버튼(두 라우터
+  진입점이 공유), 호출 직전 커밋.
+- `app/notion_console/router.py` — `notion_connection_test`(연결 테스트) ·
+  `create_notion_database`(DB 생성, `guard_create`의 읽기 뒤·호출 앞).
+- `app/assistant/router.py::_with_narrative`(`ai_quotas.consume` 블록 안) — **주의 깊게
+  확인**: 이 블록의 잠금(Z15, 동시 소비 경합 방지)은 `quota_lock.quota_guard`라는 **순수
+  프로세스 내 뮤텍스**이지 DB 트랜잭션이 아니다(`app/quotas/service.py::consume.__init__`
+  확인) — 그래서 블록 안에서 커밋해도 그 잠금의 보호 범위를 조금도 줄이지 않는다. 이
+  전제를 코드로 직접 확인한 뒤에만 커밋을 넣었다. 같은 `consume` 블록을 쓰는
+  `app/documents/router.py::generate`는 내부에서 동기 아웃바운드 호출을 전혀 안 해(문서
+  생성 자체가 잡 큐를 거치는 비동기 경로) 이 결함이 없음을 확인만 하고 손대지 않았다.
+
+### 검증
+
+관련 스위트 202건(`test_ticket_body_edit.py`·`test_ticket_edit.py`·`test_ticket_sync.py`·
+`test_body_optimistic_lock.py`·`test_ticket_comments.py`·`test_ticket_filters.py`·
+`test_ticket_sync_trigger.py`·`test_ticket_attachments.py`·`test_assignment_notification.py`·
+`test_trashed_is_gone.py`·`test_unmapped_assignee_bucket.py`·`test_maintenance_mode.py`·
+`test_team_docs_api.py`·`test_date_validation.py`·`test_comment_survives_resync.py`·
+`test_search_reindex_trigger.py`) + 76건(`test_assistant_api.py`·`test_notion_console.py`·
+`test_notion_mapping.py`·`test_notion_mapping_get_or_create_race.py`·
+`test_notion_mapping_sync_job.py`·`test_workflows_api.py`·
+`test_notion_mapping_workflow_is_seeded.py`) 전부 green — 파이프(`| tail`)로 종료 코드를
+가리지 않고 파일로 리다이렉트한 뒤 확인(D-85 조사 중 겪은 거짓 초록의 교훈, 아래 별도
+기록 참고).
+
+전용 재현 시험은 이번 확장분에는 추가하지 않았다 — 메커니즘 자체는 D-85가 이미
+결정적으로 증명했고, 이번 변경들은 전부 "이미 예정된 커밋을 아웃바운드 호출 앞으로
+당기거나 flush를 commit으로 바꾸는" 같은 모양의 저위험 변경이라 새 회귀 시험보다 기존
+스위트의 광범위한 green이 더 실질적인 근거라고 판단했다.
+
+상세: `docs/BACKLOG.md` DBTX-02(같은 항목에 통합 기록).
+
+## D-88 (2026-08-16) — `pytest ... | tail -N`이 종료 코드를 가려 거짓 초록을 보고했다
+
+### 무엇이 있었는가
+
+Full Regression을 백그라운드로 돌리며 `.venv/Scripts/python -m pytest -q 2>&1 | tail -N`
+형태로 실행했다. 이 파이프의 종료 코드는 **`tail`의 종료 코드**이지 `pytest`의 것이
+아니다(bash 파이프는 기본적으로 마지막 명령의 종료 코드를 쓴다, `pipefail` 미설정) —
+그 결과 실제로는 `test_idea_board.py`가 실패하고 있었는데도 작업 알림이 "완료(exit
+code 0)"로 보고했고, 파일 내용도 `tail`이 자른 마지막 수십 줄만 남아 pytest 고유의
+최종 요약 줄("N passed, M failed in Ss")조차 남지 않은 채 끊겨 있었다.
+
+### 어떻게 잡았는가
+
+exit code만 보지 않고 **파일 안의 실제 `FAILED`/`ERROR` 줄을 직접 grep**해 이 불일치를
+발견했다 — 그 결과가 SEC-38(Critical RBAC 결함) 발견으로 이어졌다. 그 뒤로는
+`pytest ... > file.log 2>&1; echo EXIT=$?`처럼 **리다이렉트로 완전한 로그를 파일에 남기고
+파이프 없이 직접 종료 코드를 잡는 방식**으로 바꿨다(이 문서의 다른 회귀 확인 전부가
+이 방식이다).
+
+### 교훈
+
+**"exited with code 0" 같은 도구/하네스가 보고하는 종료 코드도 그 자체로는 증거가 아니다**
+— 파이프의 어느 쪽 명령의 코드인지 확인해야 한다. `docs/rules`의 검증 원칙("커밋·클린
+트리·exit 0는 그 자체로 완료 근거가 아니다")이 사람의 작업 흐름뿐 아니라 **셸 파이프
+구성 자체**에도 적용된다는 구체적 사례로 남긴다.

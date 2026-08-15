@@ -35,6 +35,8 @@ from sqlalchemy.orm import Session
 
 from app.users.models import (
     ADMIN_SCOPE_DEPT,
+    ROLE_AUDITOR,
+    ROLE_OPERATOR,
     ROLE_USER,
     ADMIN_SCOPE_GLOBAL,
     ADMIN_SCOPE_ORG,
@@ -154,6 +156,27 @@ def build_scope(db: Session, user: User) -> Scope:
         )
 
     kind = getattr(user, "admin_scope", ADMIN_SCOPE_GLOBAL) or ADMIN_SCOPE_GLOBAL
+
+    # 운영자(operator)·감사자(auditor)는 관리 콘솔 사용자가 아니다 — `admin_scope`는
+    # 위 컬럼 주석이 스스로 말하듯 "관리자 역할일 때만 의미가 있다." 그런데 이 함수는
+    # 그동안 role==user 만 따로 보고 나머지는 전부(operator/auditor 포함) 이 컬럼으로
+    # 판정해 왔다. 그 컬럼의 기본값은 `global`(0024 마이그레이션의 의도된 선택 — 관리
+    # 화면이 조용히 비지 않게 하려는 것) 이고, 관리자가 사용자를 운영자/감사자로 바꿀 때
+    # "관리 범위"를 함께 좁히는 것은 **선택**이라 강제되지 않는다 — RBAC 재감사
+    # (2026-08-16)로 발견: `admin_scope`를 한 번도 명시적으로 좁힌 적 없는 운영자는 그
+    # 사실만으로 전역 범위가 되어 다른 조직의 게시판·아이디어까지 보였다(실측,
+    # `tests/integration/test_idea_board.py::
+    # test_another_organization_neither_sees_nor_moves_an_idea`).
+    #
+    # org/dept로 **명시적으로** 좁힌 운영자·감사자는 그대로 존중한다(관리 콘솔이 실제로
+    # 그 값을 고를 수 있게 해 준다, `Users.jsx`의 `admin_scope` 필드 `showIf: role !==
+    # "user"`) — 아래에서 막는 것은 오직 "아직 global"인 경우뿐이다. 컬럼만 봐서는
+    # "한 번도 안 건드림"과 "일부러 global을 골랐음"을 구분할 수 없으므로, 강한 권한
+    # (전역 범위)은 명시적 선택 쪽으로만 좁힌다 — 애매하면 좁게 실패한다는 이 함수 자체의
+    # 원칙(모듈 docstring)과 같다.
+    if kind == ADMIN_SCOPE_GLOBAL and getattr(user, "role", None) in (ROLE_OPERATOR, ROLE_AUDITOR):
+        return Scope(kind=ADMIN_SCOPE_ORG, org_id=getattr(user, "org_id", None))
+
     if kind == ADMIN_SCOPE_GLOBAL:
         return GLOBAL_SCOPE
     if kind == ADMIN_SCOPE_ORG:
