@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-APP_VERSION = "3.58.1"
+APP_VERSION = "3.59.0"
 HOST = os.environ.get("ASSISTANT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ASSISTANT_PORT", "8789"))
 TOKEN = os.environ.get("RUNNER_TOKEN", "").strip()
