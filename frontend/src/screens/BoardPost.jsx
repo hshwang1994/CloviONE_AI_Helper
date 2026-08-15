@@ -133,7 +133,7 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
       qc.invalidateQueries({ queryKey: ["home"] });
       qc.invalidateQueries({ queryKey: ["board-mine"] });
     },
-    onError: (e) => toast((e && e.message) || "댓글을 남기지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "댓글을 남기지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   return (
     <Box sx={{ mt: 1.5 }}>
@@ -203,7 +203,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
     mutationFn: () =>
       api("/api/board/comments/" + comment.id, { method: "PATCH", body: { body: text } }),
     onSuccess: () => { setEditing(false); onChanged && onChanged(); },
-    onError: (e) => toast((e && e.message) || "수정하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "수정하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/comments/" + comment.id, { method: "DELETE" }),
@@ -214,7 +214,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
       qc.invalidateQueries({ queryKey: ["home"] });
       qc.invalidateQueries({ queryKey: ["board-mine"] });
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const askDelete = async () => {
@@ -339,7 +339,7 @@ function IdeaStatusBar({ post, onChanged }) {
       // 화면만 다시 부르므로(L축 재감사, 댓글·반응과 같은 결함) 목록도 무효화한다.
       qc.invalidateQueries({ queryKey: ["board"] });
     },
-    onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const canMove = !!target && !move.isPending && (!goingToProgress || !!projectId);
@@ -374,7 +374,7 @@ function IdeaStatusBar({ post, onChanged }) {
                 select size="small" value={projectId} sx={{ minWidth: "12rem" }}
                 onChange={(e) => setProjectId(e.target.value)}
                 inputProps={{ "aria-label": "티켓 프로젝트" }}
-                helperText={projects.isError ? "프로젝트 목록을 불러오지 못했습니다." : "티켓이 들어갈 프로젝트"}
+                helperText={projects.isError ? "프로젝트 목록을 불러오지 못했습니다. 다시 시도해 주세요." : "티켓이 들어갈 프로젝트"}
                 {...EMPTYABLE_SELECT}
               >
                 <MenuItem value="">프로젝트 선택</MenuItem>
@@ -421,7 +421,7 @@ export function BoardPost() {
     mutationFn: (pinned) =>
       api("/api/board/posts/" + id + "/pin?pinned=" + (pinned ? "true" : "false"), { method: "POST" }),
     onSuccess: () => { refetch(); qc.invalidateQueries({ queryKey: ["board"] }); qc.invalidateQueries({ queryKey: ["home"] }); },
-    onError: (e) => toast((e && e.message) || "고정 상태를 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "고정 상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/posts/" + id, { method: "DELETE" }),
@@ -434,7 +434,7 @@ export function BoardPost() {
       qc.invalidateQueries({ queryKey: ["board-mine"] });
       toast("게시글을 삭제했습니다.", "success"); nav("/board");
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // 로딩·오류 상태에서는 아직 post.kind를 모른다(주소만으로는 자유/제안을 가를 수 없다 —

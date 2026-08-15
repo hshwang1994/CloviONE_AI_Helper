@@ -992,7 +992,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의
       // api()로 옮겼다 — e.message가 이제 이미 합쳐진 문구다(모든 호출부가 공짜로 받는다).
       // 여기서 다시 합치면 details가 중복으로 붙는다.
-      setErr(e.message || "저장하지 못했습니다."); setBusy(false); return;
+      setErr(e.message || "저장하지 못했습니다. 다시 시도해 주세요."); setBusy(false); return;
     }
     setBusy(false);
   }

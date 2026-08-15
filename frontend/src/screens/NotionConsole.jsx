@@ -237,7 +237,7 @@ export function NotionConsole() {
       invalidate();
       toast("저장했습니다. " + (state.data ? state.data.apply_note : ""), "success");
     },
-    onError: (err) => toast((err && err.message) || "저장하지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   const saveToken = useMutation({
@@ -248,7 +248,7 @@ export function NotionConsole() {
       setTest(null);
       toast("토큰을 저장했습니다. 연결 테스트로 확인해 주세요.", "success");
     },
-    onError: (err) => toast((err && err.message) || "토큰을 저장하지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "토큰을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   const runTest = useMutation({
@@ -260,7 +260,7 @@ export function NotionConsole() {
         result.ok ? "success" : "error"
       );
     },
-    onError: (err) => toast((err && err.message) || "연결 테스트를 하지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "연결 테스트를 하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   const createDb = useMutation({
@@ -269,7 +269,7 @@ export function NotionConsole() {
       invalidate();
       toast(result.message || "", result.created ? "success" : "error");
     },
-    onError: (err) => toast((err && err.message) || "만들지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "만들지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   if (state.isLoading) return <Skeleton lines={8} />;

@@ -106,7 +106,7 @@ export function GroupModal({ open, onClose }) {
       body: { title: title.trim(), member_user_ids: Object.keys(picked).filter((k) => picked[k]) },
     }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); onClose(); nav(`/chat-rooms/${r.room.id}`); },
-    onError: (e) => toast((e && e.message) || "방을 만들지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "방을 만들지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const users = (dir.data && dir.data.users) || [];
@@ -181,7 +181,7 @@ function DirectModal({ open, onClose }) {
   const start = useMutation({
     mutationFn: (userId) => api("/api/team-chat/rooms/direct", { method: "POST", body: { user_id: userId } }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); onClose(); nav(`/chat-rooms/${r.room.id}`); },
-    onError: (e) => toast((e && e.message) || "대화를 시작하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "대화를 시작하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const users = (dir.data && dir.data.users) || [];
   return (

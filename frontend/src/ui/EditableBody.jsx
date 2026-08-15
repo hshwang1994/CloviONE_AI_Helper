@@ -118,7 +118,7 @@ export function EditableBody({
       }
       if (onSaved) onSaved();
     },
-    onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const startEditing = () => { setDraft(bodyMarkdown || ""); setEditBaseVersion(bodyVersion); setEditing(true); };

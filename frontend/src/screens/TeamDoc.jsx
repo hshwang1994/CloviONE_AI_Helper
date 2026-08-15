@@ -226,13 +226,13 @@ export function TeamDoc() {
       invalidateDocumentViews(qc, { refetchType: "all" });
       nav("/team-docs");
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const fav = useMutation({
     mutationFn: (on) => api("/api/team-docs/" + id + "/favorite?on=" + (on ? "true" : "false"), { method: "POST" }),
     onSuccess: () => { detail.refetch(); qc.invalidateQueries({ queryKey: ["team-docs"] }); },
-    onError: (e) => toast((e && e.message) || "즐겨찾기를 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "즐겨찾기를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // 문서 열람 제한 토글(SEC-10) — 운영자만 보인다(doc.can_restrict). 켜면 이후로는 운영자군·
@@ -245,7 +245,7 @@ export function TeamDoc() {
       // 제한을 켜면 이 문서가 home의 「최근 문서」에서도 사라져야 한다(L축 재감사).
       invalidateDocumentViews(qc);
     },
-    onError: (e) => toast((e && e.message) || "열람 제한을 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "열람 제한을 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   if (detail.isError) {

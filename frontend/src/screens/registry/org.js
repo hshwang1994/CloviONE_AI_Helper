@@ -313,7 +313,7 @@ export const ORG_SCREENS = {
         // 갱신됩니다'는 지키지 못할 약속이었다 — 새로고침이 필요하다고 정직하게 안내한다.
         pollJob: { getId: (res) => res && res.job_id, interval: 2000, maxTries: 20,
           doneMsg: "자동 동기화가 완료되었습니다. 목록을 갱신했습니다.",
-          failMsg: "자동 동기화 작업이 실패했습니다",
+          failMsg: "자동 동기화 작업이 실패했습니다. 다시 시도해 주세요.",
           timeoutMsg: "동기화가 아직 진행 중입니다. 이 화면은 자동으로 갱신되지 않을 수 있으니, 잠시 후 새로고침해 확인하세요." } },
     ],
     // 검증·수동 연결·충돌 해결·연결 해제는 모두 상태 변경(쓰기) — 백엔드 RBAC와 일치시켜 쓰기 역할만 노출.
@@ -339,7 +339,7 @@ export const ORG_SCREENS = {
           // error_message 유무로 갈라선 안 된다(그렇게 하면 이 정보 분기가 죽고 정상 결과가 빨간 오류로 뜬다).
           if (m.status === "unmapped") return { ok: false, kind: "info", msg: (m.error_message || "연결된 Notion 사용자를 찾지 못했습니다") + " 필요하면 ‘수동 연결’로 지정하세요." };
           // 예상 밖 상태(verified/conflict/unmapped 외)만 진짜 실패로 표시한다.
-          return { ok: false, msg: "검증 실패: " + (m.error_message || m.status || "일치하는 Notion 사용자를 찾지 못했습니다") };
+          return { ok: false, msg: "검증 실패: " + (m.error_message || m.status || "일치하는 Notion 사용자를 찾지 못했습니다. 다시 시도해 주세요.") };
         } },
       { label: "수동 연결", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/map", fields: [
         { name: "notion_user_id", label: "Notion 사용자 ID", type: "text", required: true, help: "Notion 워크스페이스의 사용자 ID(8~64자, 영문, 숫자, 하이픈)." },

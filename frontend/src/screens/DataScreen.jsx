@@ -259,7 +259,7 @@ export function DataScreen({ config }) {
       if (job && terminal.includes(job.status)) {
         refresh();
         if (job.status === "succeeded") toast(opts.doneMsg || "완료되었습니다.", "success");
-        else toast((opts.failMsg || "작업이 실패했습니다") + (job.last_error ? ": " + job.last_error : ""), "error");
+        else toast((opts.failMsg || "작업이 실패했습니다. 잠시 후 다시 시도해 주세요.") + (job.last_error ? ": " + job.last_error : ""), "error");
         return;
       }
     }
@@ -631,7 +631,7 @@ export function DataScreen({ config }) {
           ) : summaryQuery.error && (summaryQuery.error.status === 403 || summaryQuery.error.status === 404) ? (
             // 403/404도 401과 같은 이유로 재시도해도 회복되지 않는다(ErrorState의 판단과 동일) -
             // 영원히 실패할 '다시 시도' 버튼 대신 이유만 알린다(거짓 희망 방지).
-            <Callout tone="warn">{"요약 통계를 불러오지 못했습니다(" + (summaryQuery.error.status === 403 ? "권한이 없습니다" : "찾을 수 없습니다") + ")."}</Callout>
+            <Callout tone="warn">{"요약 통계를 불러오지 못했습니다(" + (summaryQuery.error.status === 403 ? "권한이 없습니다" : "찾을 수 없습니다") + ")." + (summaryQuery.error.status === 403 ? " 관리자에게 문의하세요." : " 이미 삭제되었거나 이동했을 수 있습니다.")}</Callout>
           ) : (
             <Callout tone="warn">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )

@@ -57,7 +57,7 @@ export function Diagnostics() {
           // 자동 폴링(manual=false)이 계속 실패하는 동안엔(장애 지속) 매 60초마다 같은 배너를 반복
           // 토스트하지 않는다 — 오류 스트릭 진입 순간과, 사용자가 수동으로 다시 시도한 순간에만 알린다.
           if (wasManual || !wasErrorRef.current) toast("진단 갱신에 실패했습니다. 아래 값은 이전에 수집한 자료입니다.", "error");
-        } else if (wasManual) toast("진단 수집에 실패했습니다.", "error");
+        } else if (wasManual) toast("진단 수집에 실패했습니다. 잠시 후 다시 시도해 주세요.", "error");
         // 자동 수집(manual=false)이고 이전 번들도 없으면 전체화면 ErrorState가 이미 실패를 알리므로 토스트를 겹치지 않는다.
         wasErrorRef.current = true;
       } else {
@@ -107,7 +107,7 @@ export function Diagnostics() {
       URL.revokeObjectURL(url);
       // 복사와 대칭으로 성공도 알린다 — 브라우저가 조용히 내려받는 경우 확인 신호가 없었다.
       toast("진단 번들을 내려받았습니다.", "success");
-    } catch (e) { toast("다운로드에 실패했습니다.", "error"); }
+    } catch (e) { toast("다운로드에 실패했습니다. 다시 시도해 주세요.", "error"); }
   }
 
   const dash = (bundle && bundle.dashboard) || {};
@@ -310,7 +310,7 @@ export function Diagnostics() {
                         {a.object_id ? (
                           <Link component="button" type="button" variant="body2" underline="hover" color="text.secondary" title={a.object_id}
                             aria-label={objKo(a.object_type) + " 전체 ID 복사: " + a.object_id}
-                            onClick={() => copyText(a.object_id).then((ok) => toast(ok ? "ID를 복사했습니다." : "복사에 실패했습니다.", ok ? "success" : "error"))}
+                            onClick={() => copyText(a.object_id).then((ok) => toast(ok ? "ID를 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}
                             sx={{ textAlign: "left" }}>
                             {objKo(a.object_type)}, {shortId(a.object_id)}
                           </Link>

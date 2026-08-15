@@ -235,7 +235,7 @@ export function Users() {
     if (id) {
       api("/api/admin/users/" + id)
         .then((item) => { if (item) setSel(item); })
-        .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", "error"));
+        .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다). 목록에서 다시 확인해 주세요.", "error"));
       // 한 번 연 뒤에는 주소에서 지운다 — 안 지우면 드로어를 닫고 새로고침할 때마다 같은
       // 사용자가 다시 열린다(DataScreen.jsx가 해시 쿼리를 지우는 것과 같은 이유).
       setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("id"); return next; }, { replace: true });

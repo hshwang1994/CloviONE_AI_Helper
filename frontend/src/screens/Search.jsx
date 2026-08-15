@@ -198,7 +198,7 @@ export function Search() {
       if (r && r.status === "error") toast("재색인 실패: " + (r.error || "확인이 필요합니다"), "error");
       else toast("검색 색인을 다시 만들었습니다" + (r ? " (" + r.item_count + "건)" : "") + ".", "success");
     },
-    onError: (e) => toast((e && e.message) || "재색인하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "재색인하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   async function doReindex() {
     const ok = await confirm(

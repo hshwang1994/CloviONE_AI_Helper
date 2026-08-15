@@ -249,7 +249,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const renameConv = useMutation({
     mutationFn: ({ id, title }) => api("/api/conversations/" + id, { method: "PATCH", body: { title } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["conversations"] }),
-    onError: (e) => toast(e.message || "이름을 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast(e.message || "이름을 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const archiveConv = useMutation({
     mutationFn: ({ id, archived }) => api("/api/conversations/" + id, { method: "PATCH", body: { archived } }),
@@ -273,7 +273,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       });
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
-    onError: (e) => toast(e.message || "보관 상태를 바꾸지 못했습니다.", "error"),
+    onError: (e) => toast(e.message || "보관 상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const deleteConv = useMutation({
     mutationFn: (id) => api("/api/conversations/" + id, { method: "DELETE", body: {} }),
@@ -542,7 +542,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       } else if (e && e.status === 429) {
         setRateLimitNotice(rateLimitNoticeText(e));
       } else {
-        toast(e.message || "메시지를 보내지 못했습니다.", "error");
+        toast(e.message || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error");
       }
     } finally {
       sendingRef.current = false;

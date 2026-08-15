@@ -69,8 +69,8 @@ describe("시스템 설정 — 작업 결과 토스트", () => {
     await user.click(within(dialog).getByRole("button", { name: "확인" }));
 
     // STATE에는 result.ok가 없으므로 onSuccess는 "error" 분기(outcomeText가 반환하는
-    // "적용하지 못했습니다.")를 토스트로 띄워야 한다. toast.error(...)가 실제로는
-    // undefined 호출이라 죽는 버그가 있으면 이 문구는 결코 화면에 나타나지 않는다.
-    expect(await screen.findByText("적용하지 못했습니다.")).toBeInTheDocument();
+    // "적용하지 못했습니다. 잠시 후 다시 시도해 주세요.")를 토스트로 띄워야 한다. toast.error(...)가
+    // 실제로는 undefined 호출이라 죽는 버그가 있으면 이 문구는 결코 화면에 나타나지 않는다.
+    expect(await screen.findByText("적용하지 못했습니다. 잠시 후 다시 시도해 주세요.")).toBeInTheDocument();
   });
 });

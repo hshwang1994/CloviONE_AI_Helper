@@ -93,7 +93,7 @@ function Briefing({ data }) {
       </Typography>
       <Typography variant="body2" color="text.secondary">
         {s ? `이번 주 내 몫 ${s.assigned}건 중 ${s.done}건 완료${s.completion_rate == null ? "" : ` (${s.completion_rate}%)`}`
-           : "티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다."}
+           : "티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다. 관리자에게 문의하세요."}
       </Typography>
       <Typography variant="caption" color="text.secondary">
         위 숫자는 이 화면이 계산한 값입니다. ‘문장 요약 만들기’를 누르면 같은 숫자를 문장으로 옮겨 줍니다.
@@ -130,7 +130,7 @@ function WeeklyDigest({ data }) {
               담당 {mine.assigned}건, 완료 {mine.done}건, 남음 {mine.remaining}건
               {mine.overdue ? `, 지연 ${mine.overdue}건` : ""}
             </Typography>
-          ) : <Typography variant="body2" color="text.secondary">계산할 수 없습니다.</Typography>}
+          ) : <Typography variant="body2" color="text.secondary">계산할 수 없습니다. 관리자에게 문의하세요.</Typography>}
         </Box>
         <Box>
           <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>팀 전체</Typography>
@@ -146,7 +146,7 @@ function WeeklyDigest({ data }) {
               max={team.total || undefined}
               emptyLabel="이번 주 티켓 없음"
             />
-          ) : <Typography variant="body2" color="text.secondary">연동이 설정되지 않았습니다.</Typography>}
+          ) : <Typography variant="body2" color="text.secondary">연동이 설정되지 않았습니다. 관리자에게 문의하세요.</Typography>}
         </Box>
         <Box>
           <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>바뀐 것</Typography>
@@ -173,7 +173,7 @@ function WeeklyDigest({ data }) {
 function Triage({ data }) {
   if (data.ok === false) {
     return (
-      <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다"
+      <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다. 관리자에게 문의하세요."
         help={data.message || data.error} />
     );
   }
@@ -238,7 +238,7 @@ function Narrative({ narrative }) {
   }
   return (
     <Alert severity="info" icon={false} sx={{ mt: 2 }} role="status">
-      {narrative.error || "요약 문장을 만들지 못했습니다."}
+      {narrative.error || "요약 문장을 만들지 못했습니다. 다시 시도해 주세요."}
     </Alert>
   );
 }

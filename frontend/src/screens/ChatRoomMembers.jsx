@@ -160,7 +160,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   const rename = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${roomId}/rename`, { method: "POST", body: { title: name.trim() } }),
     onSuccess: () => { refresh(); toast("방 이름을 바꿨습니다.", "success"); },
-    onError: (e) => fail(e, "이름을 바꾸지 못했습니다."),
+    onError: (e) => fail(e, "이름을 바꾸지 못했습니다. 다시 시도해 주세요."),
   });
   const invite = useMutation({
     mutationFn: (ids) => api(`/api/team-chat/rooms/${roomId}/members/add`, { method: "POST", body: { user_ids: ids } }),
@@ -170,17 +170,17 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
       // 서버는 '실제로 새로 들어온 수'를 돌려준다 — 이미 있던 사람은 조용히 건너뛴다.
       toast(r && r.added ? `${r.added}명을 초대했습니다.` : "이미 모두 참여 중입니다.", "success");
     },
-    onError: (e) => fail(e, "초대하지 못했습니다."),
+    onError: (e) => fail(e, "초대하지 못했습니다. 다시 시도해 주세요."),
   });
   const remove = useMutation({
     mutationFn: (userId) => api(`/api/team-chat/rooms/${roomId}/members/remove`, { method: "POST", body: { user_id: userId } }),
     onSuccess: () => { refresh(); toast("참여자를 내보냈습니다.", "success"); },
-    onError: (e) => fail(e, "내보내지 못했습니다."),
+    onError: (e) => fail(e, "내보내지 못했습니다. 다시 시도해 주세요."),
   });
   const handOver = useMutation({
     mutationFn: (userId) => api(`/api/team-chat/rooms/${roomId}/owner`, { method: "POST", body: { user_id: userId } }),
     onSuccess: () => { refresh(); onClose(); toast("방장을 넘겼습니다. 이제 이 방을 관리할 수 없습니다.", "info"); },
-    onError: (e) => fail(e, "방장을 넘기지 못했습니다."),
+    onError: (e) => fail(e, "방장을 넘기지 못했습니다. 다시 시도해 주세요."),
   });
 
   const rows = members || [];

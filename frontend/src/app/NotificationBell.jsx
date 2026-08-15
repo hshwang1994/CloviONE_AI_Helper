@@ -222,7 +222,7 @@ export function NotificationBell({ isUser }) {
         const cur = qc.getQueryData(NOTI_UNREAD);
         if (cur && typeof cur.unread === "number") qc.setQueryData(NOTI_UNREAD, shiftUnread(cur, 1));
       }
-      toast(e.message || "읽음 처리하지 못했습니다.", "error");
+      toast(e.message || "읽음 처리하지 못했습니다. 다시 시도해 주세요.", "error");
     },
     onSettled: invalidateNoti,
   });
@@ -288,7 +288,7 @@ export function NotificationBell({ isUser }) {
           qc.setQueryData(NOTI_UNREAD, { ...cur, unread: ctx.prevUnreadCount != null ? ctx.prevUnreadCount : cur.unread + ctx.changedIds.size });
         }
       }
-      toast(e.message || "모두 읽음 처리하지 못했습니다.", "error");
+      toast(e.message || "모두 읽음 처리하지 못했습니다. 다시 시도해 주세요.", "error");
     },
     // 백엔드가 실제 처리 건수(read_count)를 준다 — 전체 목록 화면과 문구를 맞춘다.
     onSuccess: (res) => { const n = res && typeof res.read_count === "number" ? res.read_count : null; toast(n != null ? n + "건을 읽음 처리했습니다." : "모든 알림을 읽음 처리했습니다.", "success"); },

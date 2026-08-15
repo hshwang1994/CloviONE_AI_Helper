@@ -134,7 +134,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     /* 실패를 말한다 (E3). 예전에는 `onError` 가 아예 없어서, 보내기를 눌러도 **아무 일도
        일어나지 않고** 입력한 글자만 그대로 남았다 — 느린 네트워크와 구분이 안 된다.
        입력을 지우지 않는 것은 맞다(다시 보낼 수 있어야 한다). 다만 왜 안 갔는지는 말해야 한다. */
-    onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const read = useMutation({
     mutationFn: (seq) => api(`/api/team-chat/rooms/${roomId}/read`, { method: "POST", body: { seq } }),
@@ -156,14 +156,14 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       return api(`/api/team-chat/rooms/${roomId}/images`, { method: "POST", body: fd });
     },
     onSuccess: () => { setComposerError(""); q.refetch(); },
-    onError: (e) => setComposerError((e && e.message) || "이미지를 보내지 못했습니다."),
+    onError: (e) => setComposerError((e && e.message) || "이미지를 보내지 못했습니다. 다시 시도해 주세요."),
   });
   // 내 메시지 지우기. 서버가 툼스톤 시스템 메시지로 event_seq 를 올리므로, 같은 방을 열어 둔
   // 다른 사람의 폴링도 다음 주기에 변경을 받는다(그냥 행만 지우면 그 사람 화면엔 그대로 남는다).
   const del = useMutation({
     mutationFn: (msgSeq) => api(`/api/team-chat/rooms/${roomId}/messages/${msgSeq}/delete`, { method: "POST" }),
     onSuccess: () => { q.refetch(); qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); },
-    onError: (e) => setComposerError((e && e.message) || "메시지를 지우지 못했습니다."),
+    onError: (e) => setComposerError((e && e.message) || "메시지를 지우지 못했습니다. 다시 시도해 주세요."),
   });
 
   const data = q.data || {};

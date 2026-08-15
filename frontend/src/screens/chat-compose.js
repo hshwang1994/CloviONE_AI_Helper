@@ -84,7 +84,7 @@ export function imageFromClipboard(clipboardData) {
 
 /** 붙여넣은 이미지의 사전 검증. 통과하면 null, 아니면 사용자에게 보일 한국어 사유. */
 export function imageRejectReason(file) {
-  if (!file) return "이미지를 읽지 못했습니다.";
+  if (!file) return "이미지를 읽지 못했습니다. 다시 시도해 주세요.";
   if (!file.size) return "빈 파일은 보낼 수 없습니다.";
   if (file.size > MAX_IMAGE_BYTES) {
     return `이미지가 너무 큽니다. 최대 ${MAX_IMAGE_BYTES / (1024 * 1024)}MB까지 보낼 수 있습니다.`;

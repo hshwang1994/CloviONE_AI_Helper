@@ -188,13 +188,13 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       // 수정은 post_count를 안 바꾸지만, mode로 분기하는 비용보다 여기 한 줄이 더 싸다.
       qc.invalidateQueries({ queryKey: ["board-mine"] });
       if (failed && failed.length) {
-        toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", "), "error");
+        toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", ") + ". 다시 시도해 주세요.", "error");
       } else {
         toast(mode === "edit" ? "게시글을 수정했습니다." : "게시글을 등록했습니다.", "success");
       }
       onSaved && onSaved(target);
     },
-    onError: (e) => toast((e && e.message) || "저장에 실패했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "저장에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const canSave = title.trim().length > 0 && !save.isPending;
@@ -307,7 +307,7 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
       // 값이라 사실 필요 없지만, 대상 종류를 분기하는 비용보다 여기 한 줄이 더 싸다.
       qc.invalidateQueries({ queryKey: ["board"] });
     },
-    onError: (e) => toast((e && e.message) || "반응을 저장하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "반응을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   return (
     <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>

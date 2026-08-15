@@ -100,17 +100,17 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
   const create = useMutation({
     mutationFn: (body) => api(listUrl, { method: "POST", body: { body } }),
     onSuccess: (res) => { applyList(res); setDraft(""); },
-    onError: fail("댓글을 등록하지 못했습니다."),
+    onError: fail("댓글을 등록하지 못했습니다. 다시 시도해 주세요."),
   });
   const update = useMutation({
     mutationFn: ({ id, body }) => api(itemUrl(id), { method: "PATCH", body: { body } }),
     onSuccess: (res) => { applyList(res); setEditingId(null); setEditDraft(""); },
-    onError: fail("댓글을 수정하지 못했습니다."),
+    onError: fail("댓글을 수정하지 못했습니다. 다시 시도해 주세요."),
   });
   const remove = useMutation({
     mutationFn: (id) => api(itemUrl(id), { method: "DELETE" }),
     onSuccess: (res) => { applyList(res); toast("댓글을 삭제했습니다.", "success"); },
-    onError: fail("댓글을 삭제하지 못했습니다."),
+    onError: fail("댓글을 삭제하지 못했습니다. 다시 시도해 주세요."),
   });
 
   const busy = create.isPending || update.isPending || remove.isPending;

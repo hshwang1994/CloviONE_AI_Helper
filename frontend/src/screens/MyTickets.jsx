@@ -60,7 +60,7 @@ function useBulkTrash(path, qc, toast, onDone) {
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       onDone && onDone();
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 }
 
@@ -425,7 +425,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
      * 여기서 정하면 안 된다 — 얹히는 화면이 늘 때마다 빠뜨린다(실제로 홈·스프린트가 빠져 있었다).
      * 티켓을 그리는 질의 키는 ticket-views.js 가 한 곳에서 안다. */
     onSuccess: () => { toast("티켓을 저장했습니다.", "success"); invalidateTicketViews(qc); onClose(); },
-    onError: (e) => { toast((e && e.message) || "저장하지 못했습니다.", "error"); },
+    onError: (e) => { toast((e && e.message) || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
   if (!open || !ticket || !form) return null;
 
@@ -545,7 +545,7 @@ export function useClaim() {
   return useMutation({
     mutationFn: (id) => api(`/api/tickets/${id}/claim`, { method: "POST" }),
     onSuccess: () => { toast("나에게 배정했습니다.", "success"); invalidateTicketViews(qc); },
-    onError: (e) => { toast((e && e.message) || "배정하지 못했습니다.", "error"); }, });
+    onError: (e) => { toast((e && e.message) || "배정하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); }, });
 }
 
 // configured=false(토큰 미설정) / mapped=false(내 Notion 계정 미연결) 공통 안내.
@@ -923,7 +923,7 @@ export function NewTicket() {
   const create = useMutation({
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
     onSuccess: () => { toast("티켓을 생성했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = "#/my-tickets"; },
-    onError: (e) => { toast((e && e.message) || "생성하지 못했습니다.", "error"); },
+    onError: (e) => { toast((e && e.message) || "생성하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
 
   const meta = metaQ.data || {};

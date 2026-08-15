@@ -74,7 +74,7 @@ function SourceNotice({ source }) {
   if (source.ok === false) {
     return (
       <Callout tone="warn">
-        {source.error || "티켓을 불러오지 못했습니다. 아래 숫자는 비어 있을 수 있습니다."}
+        {source.error || "티켓을 불러오지 못했습니다. 아래 숫자는 비어 있을 수 있습니다. 새로고침해 보세요."}
       </Callout>
     );
   }

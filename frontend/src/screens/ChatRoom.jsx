@@ -61,17 +61,17 @@ export function RoomDetailPanel({ id }) {
   const leave = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/leave`, { method: "POST" }),
     onSuccess: () => backToList("채팅방을 나갔습니다."),
-    onError: (e) => toast((e && e.message) || "나가지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "나가지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const disband = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/disband`, { method: "POST" }),
     onSuccess: () => backToList("채팅방을 파했습니다."),
-    onError: (e) => toast((e && e.message) || "채팅방을 파하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "채팅방을 파하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const hide = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/hide`, { method: "POST" }),
     onSuccess: () => backToList("내 목록에서 숨겼습니다. 새 메시지가 오면 다시 나타납니다."),
-    onError: (e) => toast((e && e.message) || "숨기지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "숨기지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   if (meta.isError) {

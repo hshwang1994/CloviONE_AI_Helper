@@ -312,7 +312,7 @@ describe("저장 — 필드를 순서대로 저장하고, 실패한 필드만 �
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     // 실패 1건을 하나로 모은 요약 토스트만 뜬다 — 필드마다 중복으로 뜨던 예전 성공/실패 토스트의 회귀 확인.
-    expect(await screen.findByText("1개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("1개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다. 다시 시도해 주세요.")).toBeInTheDocument();
 
     // 실패한 필드(모델)의 편집 값은 사라지지 않는다 — 성공한 다른 필드(백엔드)의 onSuccess가
     // 초안 전체를 지워버리던 예전 버그의 핵심 회귀 확인.

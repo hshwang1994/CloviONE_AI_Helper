@@ -281,7 +281,7 @@ export function Projects() {
             {items.filter((p) => p.notion_sync_error).map((p) => (
               <Box key={p.id} sx={{ mt: 1.5 }}>
                 <Callout tone="warn">
-                  {p.name + ": 노션에 반영하지 못했습니다. " + p.notion_sync_error}
+                  {p.name + ": 노션에 반영하지 못했습니다. " + p.notion_sync_error + " 관리자에게 문의하세요."}
                 </Callout>
               </Box>
             ))}

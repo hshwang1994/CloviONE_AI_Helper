@@ -90,14 +90,14 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
         toast("파일을 첨부했습니다.", "success");
       }
     },
-    onError: (e) => toast((e && e.message) || "첨부하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "첨부하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const remove = useMutation({
     mutationFn: (attachmentId) =>
       api(`/api/tickets/attachments/${attachmentId}`, { method: "DELETE" }),
     onSuccess: () => { toast("첨부를 뗐습니다.", "success"); refresh(); },
-    onError: (e) => toast((e && e.message) || "떼지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "떼지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   /* 파일이 들어오는 문은 여기 하나다 — 버튼으로 고르든 끌어다 놓든 같은 판정을 지난다.

@@ -147,7 +147,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었어요. 검토하고 수정한 뒤 방을 만드세요.`, "success"); }
       else toast("생성된 문제가 없습니다. 주제를 더 구체적으로 적어 보세요.", "error");
     },
-    onError: (e) => toast((e && e.message) || "AI 생성에 실패했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "AI 생성에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const setOption = (i, v) => setOptions((prev) => prev.map((o, idx) => (idx === i ? v : o)));
@@ -190,7 +190,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       body: { title, game_type: gameType, max_players: Number(maxPlayers) || 8, allow_spectators: spectators, config },
     }),
     onSuccess: (res) => { toast("게임방을 만들었습니다.", "success"); onCreated && onCreated(res.room); },
-    onError: (e) => toast((e && e.message) || "게임방을 만들지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "게임방을 만들지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && !create.isPending;
 

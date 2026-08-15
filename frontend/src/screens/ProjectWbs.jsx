@@ -138,7 +138,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
                   {u.title || "제목 없음"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  {WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다."}
+                  {WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다. 노션에서 작업 구조를 확인해 주세요."}
                 </Typography>
               </Box>
             ))}

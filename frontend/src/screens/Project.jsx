@@ -105,7 +105,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
       await remove.mutateAsync(m.id);
       toast("마일스톤을 삭제했습니다.", "success");
     } catch (e) {
-      toast((e && e.message) || "마일스톤을 삭제하지 못했습니다.", "error");
+      toast((e && e.message) || "마일스톤을 삭제하지 못했습니다. 다시 시도해 주세요.", "error");
     }
   }
 
@@ -381,7 +381,7 @@ export function Project() {
       await update.mutateAsync({ dept_id: deptId, base_notion_version: project.notion_version });
       toast(deptId ? "부서를 지정했습니다." : "부서 지정을 해제했습니다.", "success");
     } catch (e) {
-      toast((e && e.message) || "부서를 저장하지 못했습니다.", "error");
+      toast((e && e.message) || "부서를 저장하지 못했습니다. 다시 시도해 주세요.", "error");
     }
   }
 
@@ -423,7 +423,7 @@ export function Project() {
 
       {project.notion_sync_error ? (
         <Box sx={{ mb: 2 }}>
-          <Callout tone="warn">{"노션에 반영하지 못했습니다. " + project.notion_sync_error}</Callout>
+          <Callout tone="warn">{"노션에 반영하지 못했습니다. " + project.notion_sync_error + " 관리자에게 문의하세요."}</Callout>
         </Box>
       ) : null}
       {project.notion_missing_at ? (

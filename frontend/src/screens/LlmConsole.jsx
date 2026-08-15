@@ -156,7 +156,7 @@ export function LlmConsole() {
     setSaving(false);
     setDraft(Object.keys(remaining).length ? remaining : null);
     if (failCount) {
-      toast(failCount + "개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다.", "error");
+      toast(failCount + "개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다. 다시 시도해 주세요.", "error");
     } else {
       toast("저장했습니다. " + ((state.data && state.data.apply_note) || ""), "success");
     }
@@ -168,7 +168,7 @@ export function LlmConsole() {
       setJobId(result.job_id);
       toast("연결 테스트를 작업 큐에 맡겼습니다.", "success");
     },
-    onError: (err) => toast((err && err.message) || "연결 테스트를 시작하지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "연결 테스트를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   if (state.isLoading) return <Skeleton lines={8} />;

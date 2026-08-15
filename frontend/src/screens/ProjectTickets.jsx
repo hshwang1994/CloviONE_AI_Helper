@@ -64,7 +64,7 @@ function ProjectTicketList({ pageId, page, onPage }) {
   const conn = ticketConnState(data);
   if (conn) return conn;
   if (data.ok === false) {
-    return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다."}</Callout>;
+    return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
   }
 
   const rows = ticketRows(data);

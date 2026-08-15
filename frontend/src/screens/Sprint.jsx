@@ -299,7 +299,7 @@ export function Sprint() {
           // 연동 미설정 안내는 다른 티켓 화면과 같은 함수를 쓴다(문구가 화면마다 갈라지지 않게).
           const conn = ticketConnState(d);
           if (conn) return conn;
-          if (d.ok === false) return <Callout tone="danger">{d.error || "불러오지 못했습니다."}</Callout>;
+          if (d.ok === false) return <Callout tone="danger">{d.error || "불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
           const team = d.team || {};
           const unassignedCount = (d.unassigned || []).length;
           const fields = sprintFields(d);

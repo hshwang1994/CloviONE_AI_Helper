@@ -306,7 +306,7 @@ export const PLATFORM_SCREENS = {
     key: "feature-flags", area: "운영", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
     help: "모듈을 켜고 끄는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 반영됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
-    emptyTitle: "플래그 정의를 불러오지 못했습니다",
+    emptyTitle: "플래그 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",
     searchFields: ["name", "description"],
     searchPlaceholder: "플래그 이름으로 검색",
     filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 변경)"], ["db", "설정 화면"]]) }],

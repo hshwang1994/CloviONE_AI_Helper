@@ -124,7 +124,7 @@ function SprintProgress({ sprint }) {
   if (!sprint) {
     return (
       <Typography variant="body2" color="text.secondary">
-        티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다.
+        티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다. 관리자에게 문의하세요.
       </Typography>
     );
   }

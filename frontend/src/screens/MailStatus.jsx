@@ -69,9 +69,9 @@ export function MailStatus() {
       qc.invalidateQueries({ queryKey: ["mail-status"] });
       const d = data && data.delivery;
       if (d && d.status === "sent") toast("시험 메일을 보냈습니다. 받은 편지함을 확인하세요.", "success");
-      else toast("시험 메일을 보내지 못했습니다" + (d && d.last_error ? ": " + d.last_error : "") + ".", "error");
+      else toast("시험 메일을 보내지 못했습니다" + (d && d.last_error ? ": " + d.last_error : "") + ". 위 설정을 확인하세요.", "error");
     },
-    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   if (query.isLoading) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" /><Skeleton lines={6} /></Box>;

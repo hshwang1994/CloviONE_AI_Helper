@@ -135,7 +135,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       toast("주간 리포트를 저장했습니다.", "success");
       qc.invalidateQueries({ queryKey: ["projects", "one", projectId], refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "주간 리포트를 저장하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "주간 리포트를 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   /* AI 요약 생성(§L). 여기서 결과를 기다리지 않는다 — CLI 왕복이 수십 초 걸릴 수 있어
@@ -150,7 +150,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       { method: "POST" },
     ),
     onSuccess: () => toast("AI 요약 생성을 요청했습니다. 잠시 후 새로고침해서 확인하세요.", "success"),
-    onError: (e) => toast((e && e.message) || "AI 요약 생성을 요청하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "AI 요약 생성을 요청하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   if (query.isPending) return <Card><Skeleton lines={8} /></Card>;

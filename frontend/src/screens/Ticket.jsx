@@ -96,7 +96,7 @@ export function Ticket() {
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       nav("/my-tickets");
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   if (detail.isError) {
@@ -139,7 +139,7 @@ export function Ticket() {
     return (
       <div className="c-screen">
         <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav("/my-tickets")}>목록</Button>} />
-        <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다."}</Callout>
+        <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>
       </div>
     );
   }

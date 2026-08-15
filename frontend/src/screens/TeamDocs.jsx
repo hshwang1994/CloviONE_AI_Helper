@@ -149,7 +149,7 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
       },
     }),
     onSuccess: (res) => { toast("문서를 생성했습니다.", "success"); onCreated && onCreated(res.document); },
-    onError: (e) => toast((e && e.message) || "문서 생성에 실패했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "문서 생성에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // 필수(§9): 제목·문서 종류·업무 분야.
@@ -309,7 +309,7 @@ export function TeamDocs() {
       invalidateDocumentViews(qc, { refetchType: "all" });
       sel.clear();
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const sync = useMutation({
@@ -321,7 +321,7 @@ export function TeamDocs() {
       if (st && st.status === "error") toast("동기화 실패: " + (st.error || "Notion 연결 확인 필요"), "error");
       else toast("동기화했습니다. 문서 " + (st ? st.doc_count : 0) + "개.", "success");
     },
-    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const opts = filters.data || { doc_types: [], work_fields: [], tech_tags: [], projects: [] };

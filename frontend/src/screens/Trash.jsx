@@ -73,12 +73,12 @@ export function Trash() {
   const bulkRestore = useMutation({
     mutationFn: (ids) => api("/api/trash/restore-bulk", { method: "POST", body: { ids } }),
     onSuccess: (res) => bulkMsg(res, "복원"),
-    onError: (e) => toast((e && e.message) || "복원하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "복원하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const bulkPurge = useMutation({
     mutationFn: (ids) => api("/api/trash/purge-bulk", { method: "POST", body: { ids } }),
     onSuccess: (res) => bulkMsg(res, "영구 삭제"),
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // FN-14 — id가 아니라 행 전체(row)를 넘긴다(mutationFn이 row.id를 쓴다). onSuccess는 더는
@@ -92,7 +92,7 @@ export function Trash() {
       invalidateTicketViews(qc, { refetchType: "all" });
       invalidateDocumentViews(qc, { refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "복원하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "복원하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const purge = useMutation({
     mutationFn: (row) => api("/api/trash/" + row.id + "/purge", { method: "POST" }),
@@ -105,7 +105,7 @@ export function Trash() {
       invalidateTicketViews(qc, { refetchType: "all" });
       invalidateDocumentViews(qc, { refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const days = (q.data && q.data.retention_days) || 7;

@@ -73,7 +73,7 @@ export function TeamTickets() {
       if (st && st.status === "error") toast("동기화 실패: " + (st.error || "Notion 연결 확인 필요"), "error");
       else toast("동기화했습니다. 티켓 " + (st ? st.ticket_count : 0) + "개.", "success");
     },
-    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   // 완료·취소까지 볼지는 필터 줄 안에 둔다 — 조건과 떨어져 있으면 목록이 왜 이만큼인지 보이지 않는다.
@@ -104,7 +104,7 @@ export function TeamTickets() {
           // 연동 미설정/실패 안내는 내 티켓 화면과 같은 함수를 쓴다(문구가 화면마다 갈라지지 않게).
           const conn = ticketConnState(data);
           if (conn) return conn;
-          if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다."}</Callout>;
+          if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
           const rows = ticketRows(data);
           const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (

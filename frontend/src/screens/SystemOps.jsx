@@ -128,7 +128,7 @@ export function outcomeText(result) {
   if (result.rolled_back) {
     return (result.detail || "적용하지 못했습니다.") + " 원래 설정으로 되돌렸습니다.";
   }
-  return result.detail || "적용하지 못했습니다.";
+  return result.detail || "적용하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
 function UnitRow({ unit, state, onControl, disabled }) {
@@ -256,7 +256,7 @@ export function SystemOps() {
           ))
         ) : (
           <Typography color="text.secondary">
-            {usable ? "서비스 상태를 읽지 못했습니다." : "도우미가 없어 읽지 못했습니다."}
+            {usable ? "서비스 상태를 읽지 못했습니다. 새로고침한 뒤 다시 시도해 주세요." : "도우미가 없어 읽지 못했습니다."}
           </Typography>
         )}
       </Card>

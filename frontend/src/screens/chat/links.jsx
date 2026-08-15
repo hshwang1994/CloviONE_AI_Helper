@@ -20,7 +20,7 @@ export function PlainUrl({ url }) {
       <Box
         component="button"
         type="button"
-        onClick={() => copyText(url).then((ok) => toast(ok ? "주소를 복사했습니다." : "복사에 실패했습니다.", ok ? "success" : "error"))}
+        onClick={() => copyText(url).then((ok) => toast(ok ? "주소를 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}
         sx={{
           font: "inherit", fontSize: "0.8125rem", border: 0, background: "none", p: 0, m: 0,
           textAlign: "left", cursor: "pointer", color: "text.secondary", overflowWrap: "anywhere",
