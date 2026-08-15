@@ -92,7 +92,7 @@ export const NAV = [
     // GET /api/admin/settings(유지보수 모드가 담긴 응답)는 READ_ROLES까지 허용하는데 이 화면만
     // admin/system_admin으로 막혀 있었다 — 쓰기는 Ops.jsx의 canWrite가 따로 가드한다.
     { to: "/maintenance", label: "유지보수", roles: ["operator", "admin", "system_admin", "auditor"], icon: "maintenance" },
-    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], icon: "backup" },
+    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], badge: "backupFailed", icon: "backup" },
     { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
     // FN-01: GET /api/admin/mail/status(진단)·POST /test(시험 발송)는 처음부터 있었는데
     // 띄우는 화면이 없어 SMTP 설정 오류(비밀번호 재설정 메일 등이 조용히 안 감)를 아무도

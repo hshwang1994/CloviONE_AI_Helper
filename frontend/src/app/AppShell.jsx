@@ -87,11 +87,17 @@ const BADGE_TYPES = {
   jobFailed: ["job_failed"],
   // 위임받았다는 알림도 여기다 — 그 사람이 가야 할 곳이 승인 화면이다(X7).
   approvalPending: ["approval_overdue", "approval_requested", "approval_delegated"],
+  // RSTR-03: 백업이 꺼졌거나/실패했거나/오래 정체됐을 때 전부 이 유형 하나로 온다
+  // (app/backups/service.py::announce_backup_failure). 알림함·메일은 이미 나가지만
+  // 사이드바 배지가 없어 그 화면을 안 열면 계속 안 보였다 — jobFailed/approvalPending과
+  // 같은 이유로 여기 추가한다.
+  backupFailed: ["backup_failed"],
 };
 
 const BADGE_ROUTES = {
   "/jobs": "jobFailed",
   "/approvals": "approvalPending",
+  "/backup": "backupFailed",
 };
 
 function useNavBadges() {
@@ -126,6 +132,7 @@ function useNavBadges() {
     notifUnread: (notif.data && notif.data.badge) || 0,
     jobFailed: sum(BADGE_TYPES.jobFailed),
     approvalPending: sum(BADGE_TYPES.approvalPending),
+    backupFailed: sum(BADGE_TYPES.backupFailed),
   };
 }
 
