@@ -246,14 +246,14 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 
 | Skill 실제 이름 | 실제 경로 | 버전 | 이번 Cycle 적용 |
 |---|---|---|---|
-| `ux-writing` | `Skill 도구 목록의 `ux-writing`` | - | **실제 적용함(Round 2)** — 오류 메시지 3요소 패턴과 'Dead ends' 금지 조항을 자로 삼아 PA-F-011 도출. 적용 전에는 PA-RC-0002를 Medium 일관성 문제로 잘못 보고 있었고, 적용 후 High로 재분류했다. |
-| `ui-ux-pro-max` | `Skill 도구 목록의 `ui-ux-pro-max`` | - | **아직 미적용** — L축 판정이 지금까지는 전부 정량 스캔(토큰 소비 0건, fontSize 31종/278회)이라 미적 판단이 필요 없었다. 재양자화 단계 수를 정하는 Round에서 적용 예정. 미설치가 아니라 순서상 아직 안 쓴 것이다. |
-| `impeccable` | `Skill 도구 목록의 `impeccable`` | - | **아직 미적용** — 화면별 L축 rubric 적용 Round에서 쓸 예정. |
-| `redesign-existing-projects` | `Skill 도구 목록의 `redesign-existing-projects`` | - | **아직 미적용** — 재설계 후보 도출 Round에서 쓸 예정. |
-| `humanize-korean:humanize-korean` | `Skill 도구 목록의 `humanize-korean:humanize-korean`` | - | **의도적으로 보류** — 이 Audit 프롬프트 2절이 'UX Writing을 먼저, humanization은 그 뒤'로 순서를 못박는다. PA-RC-0002의 규칙이 확정되기 전에 R축을 돌리면 곧 바뀔 문구를 다듬게 된다. |
+| `ux-writing` | `Skill 도구 목록의 `ux-writing`` | - | **적용함** — 오류 메시지 3요소 패턴과 'Dead ends' 금지 조항으로 `PA-F-011` 도출. 적용 전에는 `PA-RC-0002`를 Medium 일관성 문제로 잘못 보고 있었고 적용 후 High로 재분류. |
+| `redesign-existing-projects` | `Skill 도구 목록의 `redesign-existing-projects`` | - | **적용함** — 감사 항목표 중 이 스택에 해당하는 것만 검사(마케팅 페이지 항목 제외). `PA-RC-0004`(무음 404)와 `PA-RC-0010`(로그인 다크)의 판정 근거. |
+| `ui-ux-pro-max` | `Skill 도구 목록의 `ui-ux-pro-max`` | - | **적용함** — 도메인 `ux` 검색으로 *'Font Size Scale: 일관된 modular scale, 임의 글자 크기 금지'* · *'Line Height 1.5~1.75'* · *'Line Length 65~75자'* 확보. 이것으로 `RD-1`~`RD-3`의 **단계 수를 확정**했다(15종→6단계, 10종→4단계, 10종→4슬롯). |
+| `impeccable` | `Skill 도구 목록의 `impeccable`` | 4.0.4 | **적용함 — 내 제안에 대한 적대적 교차 검증으로.** ⓐ 이 콘솔이 `Operate` 표면(스캔 용이성·일관성이 표현보다 우선)임을 확정해 `RD-1`이 62px 워드마크에 준 면제를 재검토하게 함. ⓑ 그 결과 대시보드의 진짜 문제가 '섹션 13개'가 아니라 **'통계 수치 20개가 전부 30px/800으로 동일해 우선순위가 없다'** 임을 찾아내 `RD-5`의 진단을 교체했다. |
+| `humanize-korean:humanize-korean` | `Skill 도구 목록의 `humanize-korean:humanize-korean`` | 2.1.0 | **의도적으로 보류(미적용).** 이 Audit 프롬프트 2절이 'UX Writing을 먼저, humanization은 그 뒤'로 순서를 못박는다. `PA-RC-0002`의 문구 규칙이 아직 확정되지 않았으므로, 지금 R축을 돌리면 곧 바뀔 문구를 다듬게 된다. **미설치가 아니라 순서상 보류다.** |
 
-    skill_gap: chrome-devtools — Skill 목록에 없다(브라우저 자동화 Skill 자체가 없음). 대체 방법=로컬 dev 서버(:8099) HTTP 응답 관찰 + vitest/jsdom 렌더 실행. 승인된 TEST 서버에서 브라우저를 설치해 실제 렌더를 관찰하는 경로는 이 Audit 프롬프트 7절이 허용하므로 **BLOCKED가 아니라 미수행**이다 — 다음 Round 후보. 신뢰도 영향=그때까지 N/O/M축 결론은 코드 근거까지다.
-    skill_gap: a11y-debugging — Skill 목록에 없다. 대체 방법=내장 rubric + aria/role/focus 정적 점검 + 기존 a11y 계열 vitest(theme-focus-visible·route-change-focus·toast-announce) 실행. 신뢰도 영향=실제 스크린리더 낭독 순서는 확인 못 한다.
+    skill_gap: a11y-debugging — Skill 목록에 없다. 대체 방법=Playwright + Chromium 151로 **실제 측정**했다 (키보드 Tab 순서·`:focus-visible`·`aria`·랜드마크·제목 계층, 그리고 렌더 픽셀 기반 WCAG 대비 227요소). 신뢰도 영향=**거의 없음** — 오히려 정적 점검보다 강한 증거를 얻었다.
+    skill_gap: chrome-devtools — Skill 목록에 없다. 대체 방법=Playwright + Chromium 151 직접 구동. 콘솔·네트워크·계산 스타일·스크린샷 픽셀을 전부 실측했다. 신뢰도 영향=**해소됨**.
 
 ## 이번 Cycle에서 각 상태가 실제로 뜻하는 것
 
