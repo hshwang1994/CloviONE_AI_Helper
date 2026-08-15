@@ -208,6 +208,13 @@ def delete_conversation(
     db.delete(conversation)
     db.flush()
     if outbound is not None and settings is not None and user is not None:
+        # DBTX: 러너 알림(느린 아웃바운드 호출) 앞에서 커밋해 위 삭제를 먼저 확정한다.
+        # 커밋 없이 호출을 통과하면, 이 요청의 db 세션이 앞서 읽은 스냅샷이 그 사이
+        # 다른 세션의 커밋으로 낡을 수 있고 — 그러면 요청 종료 시 get_db()의 커밋이
+        # "database is locked"로 거부되며 방금 한 삭제까지 롤백된다. 그러면 위 docstring이
+        # 약속한 "플랫폼 삭제는 이 알림과 무관하게 항상 진행된다"가 깨진다(app/core/db.py의
+        # "begin" 이벤트 주석, app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+        db.commit()
         notify_runner_conversation_deleted(outbound, settings, user=user, conversation=conversation)
 
 
