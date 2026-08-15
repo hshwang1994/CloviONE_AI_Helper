@@ -1,4 +1,40 @@
 {
+  "ai-quotas": {
+    "create": {
+      "note": 200,
+      "period": 16,
+      "scope_type": 16,
+      "user_id": 36
+    },
+    "edit": {
+      "note": 200
+    }
+  },
+  "announcements": {
+    "create": {
+      "audience": 16,
+      "body": 4000,
+      "level": 16,
+      "link_label": 80,
+      "link_url": 500,
+      "title": 200
+    },
+    "edit": {
+      "audience": 16,
+      "body": 4000,
+      "level": 16,
+      "link_label": 80,
+      "link_url": 500,
+      "title": 200
+    }
+  },
+  "approval-delegations": {
+    "create": {
+      "delegate_user_id": 36,
+      "delegator_user_id": 36,
+      "reason": 500
+    }
+  },
   "departments": {
     "create": {
       "name": 120,
@@ -8,6 +44,22 @@
     "edit": {
       "name": 120,
       "parent_id": 36
+    }
+  },
+  "integrations": {
+    "create": {
+      "base_url": 500,
+      "description": 2000,
+      "health_url": 500,
+      "name": 120,
+      "secret_ref": 128
+    },
+    "edit": {
+      "base_url": 500,
+      "description": 2000,
+      "health_url": 500,
+      "name": 120,
+      "secret_ref": 128
     }
   },
   "job-titles": {
@@ -50,6 +102,39 @@
       "purpose": 2000
     }
   },
+  "runners": {
+    "create": {
+      "base_url": 500,
+      "description": 2000,
+      "health_url": 500,
+      "name": 120,
+      "owner": 120,
+      "secret_ref": 128,
+      "version": 64
+    },
+    "edit": {
+      "base_url": 500,
+      "health_url": 500,
+      "name": 120,
+      "owner": 120,
+      "secret_ref": 128,
+      "version": 64
+    }
+  },
+  "schedules": {
+    "create": {
+      "cron_expression": 120,
+      "description": 2000,
+      "name": 120,
+      "target_ref": 64
+    },
+    "edit": {
+      "cron_expression": 120,
+      "description": 2000,
+      "name": 120,
+      "target_ref": 64
+    }
+  },
   "templates": {
     "create": {
       "description": 2000,
@@ -60,6 +145,19 @@
       "description": 2000,
       "name": 120,
       "target_ref": 64
+    }
+  },
+  "workflows": {
+    "create": {
+      "name": 120,
+      "owner": 120,
+      "purpose": 2000,
+      "webhook_url": 500
+    },
+    "edit": {
+      "name": 120,
+      "owner": 120,
+      "webhook_url": 500
     }
   }
 }

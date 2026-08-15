@@ -24,6 +24,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.announcements.router import AnnouncementPatch, AnnouncementRequest
+from app.approvals.router import DelegationRequest
+from app.integrations.schemas import IntegrationConfig, IntegrationUpdateRequest
 from app.org.schemas import (
     DepartmentCreateRequest,
     DepartmentUpdateRequest,
@@ -38,7 +41,11 @@ from app.prompts.router import (
     PromptContentUpdateRequest,
     PromptCreateRequest,
 )
+from app.quotas.router import QuotaPatch, QuotaRequest
+from app.runners.schemas import RunnerConfig, RunnerUpdateRequest
+from app.schedules.router import ScheduleRequest
 from app.templates.router import TemplateRequest
+from app.workflows.schemas import WorkflowConfig, WorkflowUpdateRequest
 
 
 def _extract_max_length(prop: dict) -> int | None:
@@ -76,6 +83,14 @@ FORM_SCHEMAS: dict[str, dict[str, type[BaseModel]]] = {
     "departments": {"create": DepartmentCreateRequest, "edit": DepartmentUpdateRequest},
     "job-titles": {"create": OrgItemCreateRequest, "edit": OrgItemUpdateRequest},
     "organizations": {"create": OrganizationCreateRequest, "edit": OrganizationUpdateRequest},
+    "schedules": {"create": ScheduleRequest, "edit": ScheduleRequest},
+    # 위임(delegation)은 생성 후 편집 폼이 없다(회수만 가능 — governance.js) — "edit" 키 자체가 없다.
+    "approval-delegations": {"create": DelegationRequest},
+    "integrations": {"create": IntegrationConfig, "edit": IntegrationUpdateRequest},
+    "runners": {"create": RunnerConfig, "edit": RunnerUpdateRequest},
+    "workflows": {"create": WorkflowConfig, "edit": WorkflowUpdateRequest},
+    "announcements": {"create": AnnouncementRequest, "edit": AnnouncementPatch},
+    "ai-quotas": {"create": QuotaRequest, "edit": QuotaPatch},
 }
 
 

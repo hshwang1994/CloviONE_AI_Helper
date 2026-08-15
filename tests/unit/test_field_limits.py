@@ -59,3 +59,63 @@ def test_runner_id_has_no_pydantic_limit_and_is_correctly_absent():
     (없는데 있다고 하면 화면이 서버가 안 지키는 약속을 강제하게 된다)."""
     limits = all_field_limits()
     assert "runner_id" not in limits["prompts"]["create"]
+
+
+def test_schedules_limits_match_the_schema_declaration():
+    """create/edit이 같은 스키마(ScheduleRequest)를 쓴다 — templates와 동일 패턴."""
+    limits = all_field_limits()
+    expected = {"name": 120, "description": 2000, "cron_expression": 120, "target_ref": 64}
+    assert limits["schedules"]["create"] == expected
+    assert limits["schedules"]["edit"] == expected
+
+
+def test_approval_delegations_has_create_only_no_edit_key():
+    """위임은 회수만 가능하고 편집 폼이 없다(governance.js) — "edit" 키 자체가 없어야 한다
+    (있는데 빈 dict인 것과 아예 없는 것은 다르다 — FORM_SCHEMAS에 실수로 넣지 않았는지 못박는다)."""
+    limits = all_field_limits()
+    assert limits["approval-delegations"]["create"] == {
+        "delegator_user_id": 36, "delegate_user_id": 36, "reason": 500,
+    }
+    assert "edit" not in limits["approval-delegations"]
+
+
+def test_integrations_and_runners_and_workflows_limits_match_the_schema_declarations():
+    """세 화면 다 create/edit 스키마 이름이 다르다(Config/UpdateRequest) — runners.description과
+    workflows.purpose는 edit 스키마에 Field(max_length=)가 없어(RunnerUpdateRequest.description
+    등은 그냥 str | None = None) create에만 있고 edit에는 없어야 한다(비대칭이 실제로 반영됨)."""
+    limits = all_field_limits()
+    assert limits["integrations"]["create"] == {
+        "name": 120, "description": 2000, "base_url": 500, "health_url": 500, "secret_ref": 128,
+    }
+    assert limits["integrations"]["edit"] == limits["integrations"]["create"]  # 이 셋은 우연히 대칭이다
+
+    assert limits["runners"]["create"] == {
+        "name": 120, "description": 2000, "base_url": 500, "health_url": 500,
+        "version": 64, "secret_ref": 128, "owner": 120,
+    }
+    assert "description" not in limits["runners"]["edit"], (
+        "RunnerUpdateRequest.description은 max_length가 없다 — 있다고 나오면 서버가 안 지키는 "
+        "상한을 화면이 강제하게 된다"
+    )
+
+    assert limits["workflows"]["create"] == {
+        "name": 120, "purpose": 2000, "webhook_url": 500, "owner": 120,
+    }
+    assert "purpose" not in limits["workflows"]["edit"], (
+        "WorkflowUpdateRequest.purpose도 max_length가 없다 — 위와 같은 이유"
+    )
+
+
+def test_announcements_and_ai_quotas_limits_match_the_schema_declarations():
+    limits = all_field_limits()
+    expected_announce = {
+        "title": 200, "body": 4000, "level": 16, "audience": 16,
+        "link_url": 500, "link_label": 80,
+    }
+    assert limits["announcements"]["create"] == expected_announce
+    assert limits["announcements"]["edit"] == expected_announce
+
+    assert limits["ai-quotas"]["create"] == {
+        "scope_type": 16, "user_id": 36, "period": 16, "note": 200,
+    }
+    assert limits["ai-quotas"]["edit"] == {"note": 200}
