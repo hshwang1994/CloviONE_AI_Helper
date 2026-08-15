@@ -8,14 +8,17 @@
 한쪽에만 CSRF나 감사가 빠지는 식으로 갈라진다.
 """
 
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
@@ -358,6 +361,14 @@ def get_organization(
     return {"organization": _org_view(db, _visible_org_or_404(db, org_id, principal))}
 
 
+# 후속 재감사(2026-08-15)에서 발견: 아래 slug 중복 사전 검사와 db.add/flush 사이에
+# SAVEPOINT/재시도가 없었다 — Organization.slug가 실제 UNIQUE라, 동시에 같은 slug로
+# 두 번 POST하면 사전 검사를 둘 다 통과하고 나중 flush()가 처리되지 않은
+# IntegrityError/OperationalError("database is locked")로 500을 냈다 — PA-RC-0008이
+# 승격한 패턴인데 이 호출부만 빠져 있었다(app/org/service.py::create_item과 같은 발견).
+_CREATE_ORG_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
+
+
 @organizations_router.post("", status_code=201)
 def create_organization(
     request: Request,
@@ -381,8 +392,27 @@ def create_organization(
     if exists is not None:
         raise ValidationAppError(f"이미 있는 식별자입니다: {slug}")
     row = Organization(slug=slug, name=name, status=ORG_ACTIVE)
-    db.add(row)
-    db.flush()
+    for attempt in range(_CREATE_ORG_RETRIES):
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+            break
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            if attempt == _CREATE_ORG_RETRIES - 1:
+                # 예산 소진 — 사전 검사가 잡았을 때와 같은 오류로 통일한다.
+                raise ValidationAppError(f"이미 있는 식별자입니다: {slug}") from None
+            try:
+                # app/org/service.py::create_item과 같은 이유 — 스냅샷을 새로 뜨는 이
+                # commit 자체도 심한 경합에서 거부될 수 있다.
+                db.commit()
+            except (IntegrityError, OperationalError) as commit_exc:
+                if not is_write_conflict(commit_exc):
+                    raise
+                db.rollback()
+            time.sleep(write_conflict_backoff(attempt))
     record_audit_from_request(
         request, db, action="organization.create", object_type="organization",
         object_id=row.id, after={"slug": slug, "name": name},

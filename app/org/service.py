@@ -6,11 +6,14 @@
 
 from __future__ import annotations
 
+import time
 from typing import TypeVar
 
 from sqlalchemy import and_ as sa_and, func, or_ as sa_or, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.org.constants import DEFAULT_ORG_ID, ORG_SUSPENDED
 from app.core.errors import (
     ConflictError,
@@ -27,6 +30,14 @@ OrgModel = TypeVar("OrgModel", Department, JobTitle)
 LABELS: dict[type, str] = {Department: "부서", JobTitle: "직책"}
 
 MAX_NAME_LENGTH = 120
+
+# 후속 재감사(2026-08-15)에서 발견: create_item의 사전 중복 검사(find_by_name)와
+# db.add/flush 사이에 SAVEPOINT/재시도가 없었다 — Department.(org_id,name)과
+# JobTitle.name(전역)이 실제 UNIQUE 제약이므로, 동시에 같은 이름으로 두 번 POST하면
+# 사전 검사를 둘 다 통과하고 나중 flush()가 처리되지 않은 IntegrityError/
+# OperationalError("database is locked")로 500을 냈다 — PA-RC-0008이 승격한
+# 바로 그 패턴(app/projects/service.py의 PROJ-01과 동일 계열)인데 이 호출부만 빠져 있었다.
+_CREATE_ITEM_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
 
 # PATCH 바디에서 필드를 아예 안 보낸 것("바꾸지 않음")과 명시적으로 null을 보낸 것
 # ("지워라")을 구분하기 위한 표식. name=None 기본값 하나만 쓰면 두 경우가 똑같이
@@ -300,8 +311,31 @@ def create_item(
             # 남의 부서 id 를 찍어 보며 존재를 셀 수 있다(저장소 규칙: 범위 밖은 404).
             raise ValidationAppError("알 수 없는 상위 부서입니다.")
         row.parent_id = parent_id
-    db.add(row)
-    db.flush()
+    for attempt in range(_CREATE_ITEM_RETRIES):
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+            break
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            if attempt == _CREATE_ITEM_RETRIES - 1:
+                # 예산 소진 — 진짜 동시 중복이든 낡은 스냅샷 재시도든, 사전 검사가
+                # 잡았을 때와 같은 오류로 통일한다(클라이언트가 조금 늦게 요청했어도
+                # 같은 응답을 받아야 한다).
+                raise ConflictError(f"이미 있는 {label_for(model)}입니다: {clean}") from None
+            try:
+                # 스냅샷을 새로 뜨는 이 commit 자체도 8-way 이상의 경합에서 같은 이유로
+                # 거부될 수 있다(실측: 새 race 시험에서 재현) — 처리 안 하면 그 자리에서
+                # 예산이 남았는데도 raw OperationalError가 새 나간다. rollback으로 세션을
+                # 정리하고 다음 반복에서 begin_nested()를 새로 연다.
+                db.commit()
+            except (IntegrityError, OperationalError) as commit_exc:
+                if not is_write_conflict(commit_exc):
+                    raise
+                db.rollback()
+            time.sleep(write_conflict_backoff(attempt))
     # 목록·단건이 쓰는 **그 판정**을 만들어진 행에 그대로 건다. payload 가 아니라 행에 대고
     # 하는 이유는 `app/users/router.py::create_user_endpoint` 와 같다: 기본값 같은 세부가
     # 바뀌어도 세 경로가 갈라지지 않는다. 여기서 예외가 나면 `get_db` 가 롤백하므로 행은
