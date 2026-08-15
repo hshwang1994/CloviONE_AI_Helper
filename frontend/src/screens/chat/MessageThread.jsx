@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import ThumbDownOutlinedIcon from "@mui/icons-material/ThumbDownOutlined";
+import ThumbDownRoundedIcon from "@mui/icons-material/ThumbDownRounded";
+import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
+import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
 import { Button } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
@@ -19,7 +27,10 @@ import { CardStack } from "./TicketCard.jsx";
 
 // ── 메시지 ──────────────────────────────────────────────────────────────────
 
-export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideCards }) {
+export function Message({
+  m, onChoose, onRetry, sending, retrying, isLast, hideCards,
+  onRegenerate, regenerating, onDelete, onFeedback,
+}) {
   const st = m.structured || {};
   const payload = structuredCards(m);
   const choices = Array.isArray(st.choices) ? st.choices : [];
@@ -147,7 +158,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
         </Stack>
       ) : null}
 
-      <Stack direction="row" alignItems="center" gap={1}>
+      <Stack direction="row" alignItems="center" gap={0.25}>
         {isAssistant && m.content && !processing && !errorNotice ? (
           <>
             <Button size="sm" variant="ghost"
@@ -161,6 +172,38 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
             <span className="sr-only" role="status" aria-live="polite">{copied}</span>
           </>
         ) : null}
+        {/* AI-36: 재생성은 대화의 마지막 답변에서만 — 중간 턴을 바꾸면 그 뒤 맥락과 어긋난다
+            (백엔드 _is_last_turn과 대칭인 isLast 게이트, app/chat/service.py 참고). */}
+        {isAssistant && isLast && m.content && !processing && !errorNotice && onRegenerate ? (
+          <Tooltip title="다시 생성">
+            <span>
+              <IconButton size="small" aria-label="답변 다시 생성" disabled={!!regenerating} onClick={onRegenerate}>
+                <RefreshRoundedIcon sx={{ fontSize: "1rem" }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        ) : null}
+        {/* AI-68: 피드백 — 같은 값을 다시 누르면 취소한다(doFeedback의 toggle 판정). */}
+        {isAssistant && m.content && !processing && !errorNotice && onFeedback ? (
+          <>
+            <Tooltip title={m.feedback === "up" ? "좋은 답변 표시 취소" : "좋은 답변이에요"}>
+              <IconButton size="small" aria-label="좋은 답변" aria-pressed={m.feedback === "up"}
+                onClick={() => onFeedback(m, "up")}>
+                {m.feedback === "up"
+                  ? <ThumbUpRoundedIcon sx={{ fontSize: "1rem", color: "primary.main" }} />
+                  : <ThumbUpOutlinedIcon sx={{ fontSize: "1rem" }} />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={m.feedback === "down" ? "아쉬운 답변 표시 취소" : "아쉬운 답변이에요"}>
+              <IconButton size="small" aria-label="아쉬운 답변" aria-pressed={m.feedback === "down"}
+                onClick={() => onFeedback(m, "down")}>
+                {m.feedback === "down"
+                  ? <ThumbDownRoundedIcon sx={{ fontSize: "1rem", color: "error.main" }} />
+                  : <ThumbDownOutlinedIcon sx={{ fontSize: "1rem" }} />}
+              </IconButton>
+            </Tooltip>
+          </>
+        ) : null}
         {/* AI-08: 러너가 이미 계산해 저장까지 해 둔 실제 처리 시간을 화면이 그냥 버리고 있었다. */}
         {responseTime ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
@@ -172,6 +215,14 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
             사이에 끼어 있어 복사 버튼이 메시지에서 멀찍이 떨어지고, 시각이 버블→액션 묶음을 갈랐다. */}
         {m.created_at ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{fmtTime(m.created_at)}</Typography>
+        ) : null}
+        {/* AI-36: 삭제 — 내 대화 안이면 화자와 무관하게 지울 수 있다(소유권은 대화 단위). */}
+        {onDelete && !processing && !errorNotice ? (
+          <Tooltip title="메시지 삭제">
+            <IconButton size="small" aria-label="메시지 삭제" onClick={() => onDelete(m)}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: "1rem" }} />
+            </IconButton>
+          </Tooltip>
         ) : null}
       </Stack>
     </Box>

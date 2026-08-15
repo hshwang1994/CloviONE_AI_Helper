@@ -12,12 +12,13 @@ import { alpha, useTheme } from "@mui/material/styles";
 import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Button, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
-import { dayKeyKST, mascotMode, structuredCards } from "./chat-helpers.js";
+import { copyText, dayKeyKST, formatConversationText, mascotMode, structuredCards } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
 import { ConversationSidebar } from "./chat/ConversationSidebar.jsx";
 import { DaySeparator, Message, TypingBubble } from "./chat/MessageThread.jsx";
@@ -91,6 +92,7 @@ export function Chat() {
     send, createConv, retryingRef,
     doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
     composerLocked, sending, inputDisabled,
+    doRegenerate, regenerating, doDeleteMessage, doFeedback,
     stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
     bodyRef, fileRef, textareaRef, asideRef, sideToggleRef, aiQuota,
   } = ch;
@@ -109,6 +111,15 @@ export function Chat() {
 
   const convItems = (convs.data && convs.data.items) || [];
   const starting = send.isPending || createConv.isPending;
+  // AI-68: 대화 전체 복사 — MessageThread.jsx의 메시지 단위 복사와 같은 가벼운 패턴
+  // (useToast 없이 로컬 상태 + sr-only 라이브 영역).
+  const [convCopied, setConvCopied] = React.useState("");
+  function copyWholeConversation() {
+    copyText(formatConversationText(items)).then((ok) => {
+      setConvCopied(ok ? "대화가 복사됐습니다" : "복사 실패");
+      setTimeout(() => setConvCopied(""), 1500);
+    });
+  }
 
   /* 레일이 지는 것은 '마지막으로 결과를 들고 온 어시스턴트 메시지' 하나다. 스레드를 거슬러
    * 올라가며 처음 만나는 것을 쓴다 — 대화가 이어지면 사용자가 마지막으로 요청한 결과가
@@ -206,6 +217,15 @@ export function Chat() {
           >
             {cid ? activeTitle : "채팅"}
           </Typography>
+          {/* AI-68: 대화 전체 복사 — 메시지가 있을 때만(빈 대화를 복사할 이유가 없다). */}
+          {cid && items.length ? (
+            <Tooltip title="대화 전체 복사">
+              <IconButton aria-label="대화 전체 복사" onClick={copyWholeConversation} sx={{ flexShrink: 0 }}>
+                <ContentCopyRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem" }} />
+              </IconButton>
+            </Tooltip>
+          ) : null}
+          <span className="sr-only" role="status" aria-live="polite">{convCopied}</span>
           <MascotStatus mode={mascot} />
         </Paper>
 
@@ -254,7 +274,9 @@ export function Chat() {
                             sending은 선택 버튼·카드 '상세'를 눌러도 되는지다(useChat이 한 값으로 계산). */}
                         <Message m={m} onChoose={doSend} onRetry={doRetry} sending={sending}
                           retrying={retryingRef.current === m.id} isLast={i === items.length - 1}
-                          hideCards={!!railMsg && railMsg.id === m.id} />
+                          hideCards={!!railMsg && railMsg.id === m.id}
+                          onRegenerate={doRegenerate} regenerating={regenerating}
+                          onDelete={doDeleteMessage} onFeedback={doFeedback} />
                       </React.Fragment>
                     );
                   })}

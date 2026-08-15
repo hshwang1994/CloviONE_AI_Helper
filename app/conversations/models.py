@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -48,6 +50,16 @@ class Message(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(16), nullable=False, default=PROC_DONE
     )
     error_code: Mapped[str | None] = mapped_column(String(64))
+    # AI-36/AI-68: soft-delete — 사용자가 자기 대화에서 메시지를 지우거나(delete_message),
+    # 재생성이 이전 답변을 대체할 때(regenerate_message) 쓴다. list_messages가
+    # deleted_at IS NULL로 거른다. useChat.js의 폴링은 매번 대화 전체를 다시 받아 오므로
+    # (team_chat과 달리 커서 기반 증분 동기화가 아니다) 이 필드만으로 다음 폴링에 곧바로
+    # 반영된다 — team_chat/models.py::ChatMessage.deleted_at처럼 seq를 올리는 툼스톤이
+    # 필요 없다(그 모듈은 `after=` 커서 폴링이라 다르다).
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    # AI-68: 어시스턴트 메시지에만 의미가 있다("up"/"down"/None) — set_message_feedback이
+    # role을 검증한다.
+    feedback: Mapped[str | None] = mapped_column(String(16))
 
     __table_args__ = (
         UniqueConstraint(

@@ -455,6 +455,17 @@ export function copyText(text) {
   catch (e) { return Promise.resolve(false); }
 }
 
+// AI-68: 대화 전체 복사 — 메시지 단위 복사(위 copyText)만 있고 대화 통째 내보내기가 없던
+// 것 중 가장 값싼 조각(내보내기 파일 형식·공유 링크는 더 큰 설계가 필요해 범위 밖으로
+// 남긴다, docs/BACKLOG.md AI-68 참고). 구조화 카드(티켓 등)는 본문에 이미 목록으로도
+// 나온 텍스트라 굳이 다시 펼치지 않는다 — 순수 대화 텍스트만 담는다.
+export function formatConversationText(items) {
+  return (items || [])
+    .filter((m) => m.content)
+    .map((m) => (m.role === "user" ? "나" : "도우미") + ": " + m.content)
+    .join("\n\n");
+}
+
 // ── 마스코트 단계 매핑 ──────────────────────────────────────────────────────
 
 /* 대화 단계 → 마스코트 포즈(ui/Mascot.jsx의 MascotPose mode).

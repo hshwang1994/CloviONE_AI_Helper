@@ -13,8 +13,10 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.conversations.models import (
+    PROC_DONE,
     PROC_FAILED,
     PROC_PENDING,
+    ROLE_ASSISTANT_MSG,
     ROLE_USER_MSG,
     Conversation,
     Message,
@@ -22,7 +24,7 @@ from app.conversations.models import (
 from app.core.config import Settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.jobs import repository as jobs_repo
-from app.jobs.models import JOB_TYPE_CHAT_MESSAGE
+from app.jobs.models import JOB_TYPE_CHAT_MESSAGE, Job
 from app.users.models import User
 
 _CLIENT_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
@@ -162,7 +164,13 @@ def list_messages(db: Session, conversation: Conversation, *, after: str | None 
     # repository layer isolates this.)
     from sqlalchemy import literal_column
 
-    stmt = select(Message).where(Message.conversation_id == conversation.id)
+    # AI-36: soft-deleted messages (user delete, or replaced by regenerate) never
+    # come back. useChat.js refetches the whole list every poll (no `after=` cursor
+    # client-side), so this filter alone is enough for the next poll to drop them —
+    # unlike team_chat's ChatMessage.deleted_at, no seq-bumping tombstone is needed.
+    stmt = select(Message).where(
+        Message.conversation_id == conversation.id, Message.deleted_at.is_(None)
+    )
     rows = list(db.execute(stmt.order_by(literal_column("rowid"))).scalars().all())
     if after:
         index = next((i for i, m in enumerate(rows) if m.id == after), None)
@@ -282,6 +290,30 @@ def _build_job_payload(
     return payload
 
 
+def _reenqueue(
+    db: Session, user: User, conversation: Conversation, message: Message,
+    *, tag: str, now: datetime,
+) -> Job:
+    """retry/regenerate가 공유하는 꼬리 — 메시지를 PENDING으로 되돌리고 새 잡을 큐에
+    넣는다. 첨부는 원래 잡에서 회수한다(성공 종료 시에만 바이트가 지워지므로, 아직 안
+    지워진 최신 payload에 남아 있다). 멱등키의 `tag`(retry/regen)만 호출부마다 다르다."""
+    message.processing_status = PROC_PENDING
+    message.error_code = None
+    db.flush()
+
+    attachments = _recover_attachments_for_retry(db, message.message_id)
+    return jobs_repo.enqueue(
+        db,
+        job_type=JOB_TYPE_CHAT_MESSAGE,
+        payload=_build_job_payload(user, conversation, message, attachments=attachments),
+        now=now,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        message_id=message.message_id,
+        idempotency_key=f"chatmsg:{message.message_id}:{tag}:{now.strftime('%Y%m%d%H%M%S%f')}",
+    )
+
+
 def retry_message(
     db: Session, user: User, message_db_id: str, *, settings: Settings, now: datetime
 ):
@@ -292,8 +324,6 @@ def retry_message(
     if message.role != ROLE_USER_MSG or message.processing_status != PROC_FAILED:
         raise ConflictError("실패한 요청만 다시 시도할 수 있습니다.")
 
-    message.processing_status = PROC_PENDING
-    message.error_code = None
     # 이전 실패 안내(error_notice)는 재시도로 무효가 된다. 지우지 않으면 재시도가 성공해도
     # '연결에 문제가 있어 완료하지 못했습니다'가 성공 답변과 함께 남아 사실과 반대되는 상태를
     # 보여준다(round16 제품 스윕에서 확정). 이 사용자 메시지에 달렸던 실패 안내를 걷어낸다.
@@ -306,24 +336,86 @@ def retry_message(
         db.delete(notice)
     db.flush()
 
-    # Recover image attachments from the failed job so a retry doesn't silently
-    # lose them (bytes are only stripped from TERMINAL-success payloads; the
-    # newest non-stripped payload for this message still holds them). The donor
-    # is stripped right after copying — bytes live in exactly one queued job.
-    attachments = _recover_attachments_for_retry(db, message.message_id)
-
-    # New idempotency key per retry attempt — the original is spent.
-    job = jobs_repo.enqueue(
-        db,
-        job_type=JOB_TYPE_CHAT_MESSAGE,
-        payload=_build_job_payload(user, conversation, message, attachments=attachments),
-        now=now,
-        user_id=user.id,
-        conversation_id=conversation.id,
-        message_id=message.message_id,
-        idempotency_key=f"chatmsg:{message.message_id}:retry:{now.strftime('%Y%m%d%H%M%S%f')}",
-    )
+    job = _reenqueue(db, user, conversation, message, tag="retry", now=now)
     return message, job
+
+
+def _is_last_turn(db: Session, conversation: Conversation, message: Message) -> bool:
+    """이 사용자 메시지 뒤에 자기 자신의 답변 말고 다른 메시지가 없는가 — 재생성은 대화가
+    이미 그 뒤로 이어졌으면 막는다(중간 턴을 바꾸면 그 뒤 맥락과 어긋난다, 분기(branch)는
+    이 항목의 범위 밖이라 AI-36 묶음에서 함께 다음 설계 사이클로 미뤘다)."""
+    rows = list_messages(db, conversation)
+    idx = next((i for i, m in enumerate(rows) if m.id == message.id), None)
+    if idx is None:
+        return False
+    prefix = f"a-{message.message_id}-"
+    return all(m.message_id.startswith(prefix) for m in rows[idx + 1 :])
+
+
+def regenerate_message(
+    db: Session, user: User, message_db_id: str, *, settings: Settings, now: datetime
+):
+    """AI-36: 성공한 답변을 다시 만든다 — 이전 답변(들)은 지우고(soft-delete) 같은 요청을
+    새 잡으로 다시 큐에 넣는다. `retry_message`와 재사용 경로(`_reenqueue`)는 같지만
+    전제조건이 다르다: 실패가 아니라 **완료된, 그리고 대화의 마지막 턴인** 요청만 대상이다
+    (분기 없이 재생성하면서 그 사이 새 메시지가 왔으면 어느 시점 기준인지 모호해진다)."""
+    message = db.get(Message, message_db_id)
+    if message is None:
+        raise NotFoundError("메시지를 찾을 수 없습니다.")
+    conversation = get_owned_conversation(db, user, message.conversation_id)
+    if message.role != ROLE_USER_MSG or message.processing_status != PROC_DONE:
+        raise ConflictError("답변이 완료된 요청만 다시 생성할 수 있습니다.")
+    if not _is_last_turn(db, conversation, message):
+        raise ConflictError("이후 대화가 이어진 요청은 다시 생성할 수 없습니다.")
+
+    prefix = f"a-{message.message_id}-"
+    for reply in db.execute(
+        select(Message).where(
+            Message.conversation_id == conversation.id,
+            Message.message_id.like(f"{prefix}%"),
+            Message.deleted_at.is_(None),
+        )
+    ).scalars().all():
+        reply.deleted_at = now
+    db.flush()
+
+    job = _reenqueue(db, user, conversation, message, tag="regen", now=now)
+    return message, job
+
+
+def delete_message(db: Session, user: User, message_db_id: str, *, now: datetime) -> Message:
+    """AI-36: 내 대화 안의 메시지 하나를 지운다(soft-delete, 멱등) — 소유권은 대화 단위로
+    이미 검증되므로(`get_owned_conversation`) role과 무관하게(내 메시지든 어시스턴트
+    답변이든) 지울 수 있다. 짝이 되는 메시지를 자동으로 함께 지우지는 않는다 — 턴 전체
+    삭제가 필요하면 사용자가 둘 다 누른다(간단하고 예측 가능한 쪽을 골랐다)."""
+    message = db.get(Message, message_db_id)
+    if message is None:
+        raise NotFoundError("메시지를 찾을 수 없습니다.")
+    get_owned_conversation(db, user, message.conversation_id)
+    if message.deleted_at is None:
+        message.deleted_at = now
+        db.flush()
+    return message
+
+
+VALID_FEEDBACK = frozenset({"up", "down"})
+
+
+def set_message_feedback(
+    db: Session, user: User, message_db_id: str, feedback: str | None
+) -> Message:
+    """AI-68: 어시스턴트 답변에 👍/👎. `feedback=None`은 취소(토글 off)."""
+    if feedback is not None and feedback not in VALID_FEEDBACK:
+        raise ValidationAppError("feedback은 'up'/'down'/null만 허용합니다.")
+    message = db.get(Message, message_db_id)
+    if message is None:
+        raise NotFoundError("메시지를 찾을 수 없습니다.")
+    get_owned_conversation(db, user, message.conversation_id)
+    if message.role != ROLE_ASSISTANT_MSG:
+        raise ConflictError("도우미 답변에만 피드백을 남길 수 있습니다.")
+    message.feedback = feedback
+    db.flush()
+    return message
 
 
 def _recover_attachments_for_retry(db: Session, message_id: str) -> list[dict] | None:
@@ -375,6 +467,7 @@ def message_view(message: Message) -> dict:
         ),
         "processing_status": message.processing_status,
         "error_code": message.error_code,
+        "feedback": message.feedback,
         "created_at": message.created_at.isoformat(),
         "updated_at": message.updated_at.isoformat(),
     }

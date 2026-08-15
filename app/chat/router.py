@@ -13,14 +13,17 @@ from app.chat.service import (
     conversation_view,
     create_conversation,
     delete_conversation,
+    delete_message,
     get_owned_conversation,
     list_conversations,
     list_messages,
     message_view,
     post_user_message,
+    regenerate_message,
     rename_conversation,
     retry_message,
     set_conversation_archived,
+    set_message_feedback,
 )
 from app.core.deps import (
     AuthContext,
@@ -253,3 +256,67 @@ def retry(
         )
         db.commit()
     return {"message": message_view(message), "job_id": job.id}
+
+
+@router.post(
+    "/api/messages/{message_db_id}/regenerate",
+    dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)],
+)
+def regenerate(
+    request: Request,
+    message_db_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # AI-36: 재생성도 새 n8n 호출을 만드는 잡이라 retry/전송과 같은 두 문지기(버스트 차단·
+    # AI 쿼터)를 지난다 — 한쪽만 묶으면 '다시 생성'으로 우회한다(retry 엔드포인트의 같은 주석 참고).
+    chat_limit_key = f"chat:{user.id}"
+    if not request.app.state.chat_ratelimiter.allow(chat_limit_key):
+        raise RateLimitedError(
+            "메시지를 너무 빠르게 보냈습니다. 잠시 후 다시 시도하세요.",
+            retry_after_seconds=request.app.state.chat_ratelimiter.retry_after_seconds(
+                chat_limit_key
+            ),
+        )
+    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+        message, job = regenerate_message(
+            db,
+            user,
+            message_db_id,
+            settings=request.app.state.settings,
+            now=request.app.state.clock.now(),
+        )
+        db.commit()
+    return {"message": message_view(message), "job_id": job.id}
+
+
+@router.delete(
+    "/api/messages/{message_db_id}",
+    dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)],
+)
+def delete_message_endpoint(
+    message_db_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    message = delete_message(db, user, message_db_id, now=request.app.state.clock.now())
+    return {"message": message_view(message)}
+
+
+class MessageFeedbackRequest(BaseModel):
+    feedback: str | None = Field(default=None, max_length=16)
+
+
+@router.patch(
+    "/api/messages/{message_db_id}/feedback",
+    dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)],
+)
+def patch_message_feedback(
+    message_db_id: str,
+    payload: MessageFeedbackRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    message = set_message_feedback(db, user, message_db_id, payload.feedback)
+    return {"message": message_view(message)}

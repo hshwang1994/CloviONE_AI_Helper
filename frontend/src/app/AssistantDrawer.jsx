@@ -199,7 +199,9 @@ export function AssistantDrawer({ open, onClose }) {
              없다(Chat.jsx의 hideCards는 레일과의 중복 방지 전용). */
           <Message key={m.id} m={m} onChoose={chat.doSend} onRetry={chat.doRetry}
             sending={chat.sending} retrying={chat.retryingRef.current === m.id}
-            isLast={i === chat.items.length - 1} hideCards={false} />
+            isLast={i === chat.items.length - 1} hideCards={false}
+            onRegenerate={chat.doRegenerate} regenerating={chat.regenerating}
+            onDelete={chat.doDeleteMessage} onFeedback={chat.doFeedback} />
         ))}
         {chat.busy ? <Box sx={{ justifySelf: "start", width: "60%" }}><Skeleton lines={2} /></Box> : null}
 

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
-import { useToast } from "../ui/kit.jsx";
+import { useConfirm, useToast } from "../ui/kit.jsx";
 import {
   STALL_MS, CHAT_LAST_CONV_KEY, LIST_DRAWER_MEDIA,
   MAX_ATTACH_BYTES, MAX_TOTAL_ATTACH_BYTES, MAX_ATTACH_COUNT, ALLOWED_IMAGE_TYPES,
@@ -42,6 +42,7 @@ const CONV_PAGE_SIZE = 100;
 export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled = true } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [cid, setCid] = useState(null);
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // 전송 대기 첨부(이미지)
@@ -75,6 +76,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const pickFilesRef = useRef(null); // 붙여넣기 리스너가 항상 최신 pickFiles를 부르도록
   const draftMsgIdRef = useRef(null); // 작성 중인 초안의 멱등키 — 전송 실패 후 재전송에 같은 키를 재사용
   const retryingRef = useRef(null); // 재시도 이중 클릭 방지 — retry.isPending은 다음 렌더까지 반영이 늦어(비동기), 그 사이 두 번 클릭하면 중복 요청이 나간다
+  const regeneratingRef = useRef(null); // 재생성도 잡을 새로 만든다 — retryingRef와 같은 이유로 이중 클릭 방지
   const cidRef = useRef(null); // pickFiles의 비동기 인코딩이 끝난 시점의 '지금' cid를 읽기 위한 라이브 참조
   useEffect(() => { cidRef.current = cid; }, [cid]);
   // 컴포저 textarea 자동 높이 — text가 바뀔 때마다(첫 글자·붙여넣기·초안 복구·전송 후 비움 포함)
@@ -356,6 +358,52 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     retryingRef.current = m.id;
     retry.mutate({ messageId: m.id, conversationId: cid });
   }
+  // AI-36: 재생성 — retry와 같은 재큐잉 경로를 쓰지만 대상은 "대화의 마지막 사용자 질문"
+  // 하나뿐이라 어떤 메시지를 눌렀든 항상 이 질문을 다시 보낸다(백엔드 _is_last_turn과 대칭).
+  const lastUserMsg = [...items].reverse().find((m) => m.role === "user") || null;
+  const regenerate = useMutation({
+    mutationFn: ({ messageId }) => api("/api/messages/" + messageId + "/regenerate", { method: "POST", body: {} }),
+    onSuccess: (_d, vars) => { qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }); qc.invalidateQueries({ queryKey: ["conversations"] }); },
+    onError: (e) => {
+      if (e && e.status === 401) { window.location.href = "/login"; return; }
+      if (e && e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode") {
+        setMaintenanceNotice((e.body.error && e.body.error.message) || "시스템 점검 중에는 새 요청이 차단됩니다. 잠시 후 다시 시도하세요.");
+        return;
+      }
+      if (e && e.status === 429) { setRateLimitNotice(rateLimitNoticeText(e)); return; }
+      // 409(대화가 이어짐/미완료)는 화면이 이미 isLast로 버튼을 감추므로 평소엔 안 나지만,
+      // 폴링 사이의 경합(다른 탭에서 방금 새 메시지를 보냄 등)으로는 여전히 날 수 있다.
+      toast(e && e.status === 409 ? "그 사이 대화가 이어져 다시 생성할 수 없습니다." : (e.message || "다시 생성하지 못했습니다."), "error");
+    },
+    onSettled: () => { regeneratingRef.current = null; },
+  });
+  function doRegenerate() {
+    if (!lastUserMsg || regeneratingRef.current) return;
+    regeneratingRef.current = lastUserMsg.id;
+    regenerate.mutate({ messageId: lastUserMsg.id, conversationId: cid });
+  }
+  // AI-36: 메시지 삭제 — 낙관적 업데이트 없이 서버 확정 뒤 재조회한다(폴링이 어차피 곧
+  // 다시 돌기도 하고, 삭제는 자주 누르는 동작이 아니라 체감 지연이 문제되지 않는다).
+  const deleteMsg = useMutation({
+    mutationFn: ({ messageId }) => api("/api/messages/" + messageId, { method: "DELETE" }),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }),
+    onError: (e) => toast(e.message || "메시지를 지우지 못했습니다.", "error"),
+  });
+  // team_chat의 같은 기능(ChatPane.jsx)과 같은 이유로 확인을 받는다 — 되돌릴 수 없다.
+  async function doDeleteMessage(m) {
+    const ok = await confirm("이 메시지를 지울까요? 되돌릴 수 없습니다.",
+      { danger: true, title: "메시지 삭제", confirmLabel: "삭제" });
+    if (ok) deleteMsg.mutate({ messageId: m.id, conversationId: cid });
+  }
+  // AI-68: 피드백(👍/👎) — 같은 값을 다시 누르면 취소(null)한다(화면이 toggle 판정).
+  const feedbackMut = useMutation({
+    mutationFn: ({ messageId, feedback }) => api("/api/messages/" + messageId + "/feedback", { method: "PATCH", body: { feedback } }),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }),
+    onError: (e) => toast(e.message || "피드백을 저장하지 못했습니다.", "error"),
+  });
+  function doFeedback(m, feedback) {
+    feedbackMut.mutate({ messageId: m.id, feedback: m.feedback === feedback ? null : feedback, conversationId: cid });
+  }
   const createConv = useMutation({
     mutationFn: () => api("/api/conversations", { method: "POST", body: {} }),
     onSuccess: (d) => { const id = d.conversation ? d.conversation.id : d.id; setCid(id); qc.invalidateQueries({ queryKey: ["conversations"] }); },
@@ -570,6 +618,9 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     send, createConv, retry, retryingRef,
     doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
     composerLocked, sending, inputDisabled,
+    // 재생성·삭제·피드백(AI-36/AI-68)
+    doRegenerate, regenerating: !!regeneratingRef.current, lastUserMsgId: lastUserMsg && lastUserMsg.id,
+    doDeleteMessage, doFeedback,
     // 레이아웃·스크롤·드로어
     stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
     // DOM 참조(화면이 붙인다)
