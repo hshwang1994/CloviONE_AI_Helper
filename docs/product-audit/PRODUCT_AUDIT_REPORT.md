@@ -22,11 +22,33 @@ MUI 마이그레이션도 화면 층위에서 잔여가 없으며, 사이드바�
 | RC | Severity | Priority | Confidence | Type | 사람 조치 필요 |
 |---|---|---|---|---|---|
 | `PA-RC-0003` | **Critical** | P0 | Confirmed | blocker(보안) | **예 — AI 구현 대상 아님** |
+| `PA-RC-0008` | High | P1 | Confirmed | defect (J·I축) | 아니오 — **재현되는 실패가 있다** |
 | `PA-RC-0002` | High | P1 | Confirmed | content / ux-gap | 아니오 |
 | `PA-RC-0001` | High | P2 | Confirmed | redesign / tech-debt | 아니오 |
+| `PA-RC-0007` | Medium | P1 | Confirmed | blocker(검증 인프라) | 아니오 — PHASE 2가 재배포 |
+| `PA-RC-0005` | Medium | P2 | Confirmed | defect / ux-gap (E축) | 아니오 |
+| `PA-RC-0006` | Low | — | Confirmed | content(문서 드리프트) | 아니오 |
+| `PA-RC-0004` | Low | — | Confirmed | ux-gap | 아니오 |
 
-Critical 1 · High 2 · Medium 0 · Low 0. **Probable 이하는 Handoff로 승격하지 않았다**
-(FC-06 AI 쿼터 정책은 Probable이라 `FEATURE_CONTRACTS`에만 남겼다).
+Critical 1 · High 3 · Medium 2 · Low 2. **HANDOFF에 승격한 것은 6건**(`0004`·`0006`은 Low라 제외).
+**Probable 이하는 승격하지 않았다** (FC-06 AI 쿼터 정책은 Probable이라 `FEATURE_CONTRACTS`에만 남겼다).
+
+### 이 RC들을 관통하는 하나의 모양
+
+`PA-RC-0001`(타입 토큰) · `PA-RC-0002`(문구) · `PA-RC-0008`(재시도 예산)은 **증상이 다를 뿐
+같은 병**이다 — **좋은 것이 이미 저장소 안 한 곳에 있는데, 그것을 강제하는 장치가 없어서
+옆으로 전파되지 않는다.**
+
+| RC | 이미 있는 좋은 것 | 전파를 강제하는 장치 |
+|---|---|---|
+| `0001` | `--font-size-*` 6단계 토큰, `RADIUS` | **없음** (간격은 MUI `p:2`라는 일급 API가 있어서 96% 준수) |
+| `0002` | 회복 경로를 갖춘 문구 24건 | **없음** (같은 `api.js` 안에서 16행과 54행이 다르다) |
+| `0008` | `auth/router.py`의 실측된 jitter + 예산 10 | **없음** (분류기는 공용, 재시도 루프는 아님) |
+| *(대조군)* | 외부 HTTP 실패 분류 | **있음** — 게이트웨이 하나 + 9개 모듈이 같은 분류기 사용 → **갈라지지 않았다** |
+
+마지막 줄이 처방을 말해 준다. 이 팀은 중앙화할 줄 안다. 그러니 필요한 것은 규율을 더 요구하는
+것이 아니라 **각 영역에 "가장 쉬운 길이 곧 올바른 길"이 되는 일급 장치를 놓는 것**이다.
+세 RC의 `implementation_direction`이 전부 그 형태로 쓰여 있다.
 
 ## 3. 가장 중요한 것: PA-RC-0003
 
