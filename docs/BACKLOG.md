@@ -3005,8 +3005,8 @@ runuser -u clovirone-web -- test -w .../exports   →  쓰기 가능
 
 | ID | 심각 | 문제 | 상태 |
 |---|---|---|---|
-| OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | ✅ **소유권 복구 확인**(2026-08-10) — `uploads`·`uploads/ticket` 모두 `clovirone-web:clovirone-web`, 서비스 사용자로 `test -w` + 실제 파일 생성/삭제 성공. **단 앱 층 첨부 E2E 는 미검증**(웹에서 1건 첨부 필요). 재발 방지(`OPS-02`)는 미조치 |
-| OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | ✅ **구현완료(2026-08-11)** — `install -d` 목록에 `uploads` 추가 + 정적 회귀 테스트. `bash -n` 구문검사만(실서버 실행 미검증) |
+| OPS-01 | **Critical** | **실서버에서 파일 첨부 업로드가 2026-08-07 부터 불가능하다.** `uploads/` 만 root:750. 업그레이드로 안 고쳐진다(installer 의 `install -d` 목록에 없다). **사용자에게 알려야 할 항목** | ✅ **검증완료(2026-08-15)** — 소유권 복구는 2026-08-10에 이미 확인됨. 이번에 마지막 남은 갭(앱 층 첨부 E2E 미검증)을 실제로 닫음: Playwright로 실QA계정 세션 + 실브라우저 `<input type=file>`을 통해 진짜 PNG를 실티켓에 첨부 — multipart POST 200, 응답에 정확한 `attachment_id`/`filename`/`size_bytes`, DOM에 즉시 표시, 콘솔/페이지 오류 0건, 이어서 같은 UI 경로(제거 아이콘 → 확인 대화상자)로 삭제까지 확인(DOM에서 사라짐). 디렉터리 권한 확인이 아니라 **사용자가 실제로 겪는 전체 경로**(파일 선택 → CSRF 헤더 부착 → 디스크 쓰기 → DB 행 → 화면 반영 → 삭제)를 처음부터 끝까지 실증했다 |
+| OPS-02 | High | **installer 가 `$VAR_DIR/uploads` 를 소유권 관리 대상에 넣지 않는다** — 한 번 어긋나면 영구히 어긋난 채로 남는다. 형제 4개(`exports`·`generated`·`locks`·`temp`)는 목록에 있다 | ✅ **구현완료(2026-08-11)**, **실서버 검증완료(2026-08-15)** — `install -d` 목록에 `uploads` 추가 + 정적 회귀 테스트. 코드 자체의 실서버 실행 검증은 못 했었지만, OPS-01의 2026-08-15 재확인이 간접 증거다: TEST 서버가 그 사이 `upgrade-clovirone-web-assistant.sh`로 최소 2회(`docs/BACKLOG.md` PA-05 참고) 재설치됐는데도 `uploads` 소유권이 계속 올바르게 유지되고 있다 — installer가 실제로 그 디렉터리를 소유권 목록에서 계속 챙기고 있다는 뜻이다 |
 | OPS-03 | Med | **업로드 실패를 알리는 경로가 없다.** 8/5 이후 나흘째 깨져 있는데 `/diagnostics`·알림·헬스체크 어디에도 안 나온다. `readyz` 는 **쓰기 가능성을 확인하지 않는다** | ✅ 구현완료(2026-08-11) — `uploads_writable()` 신설(실제 마커 파일 생성·삭제로 확인), `/api/admin/dashboard`(지속 관측)·`/readyz`(배포 게이트, 503+reason)에 배선. 신규 시험 3건, revert-to-verify 확인함 |
 
 > **`BKP-01` 과 겹쳐서 더 나쁘다** — 업로드 디렉터리는 **쓸 수도 없고**(`OPS-01`)
