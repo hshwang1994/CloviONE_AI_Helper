@@ -15,7 +15,9 @@ function fallbackMessage(status) {
   if (status === 413) return "보내려는 내용이 너무 큽니다.";
   if (status === 429) return "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.";
   if (status >= 500) return "서버에서 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.";
-  return "요청을 처리하지 못했습니다.";
+  // PA-RC-0002: 그 외(알 수 없는 상태 코드)는 원인을 모르니 가장 일반적인 회복 절을
+  // 준다 — docs/UX_WRITING.md "회복 절을 고르는 법"의 마지막 줄과 같은 이유다.
+  return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
 export async function api(path, options = {}) {
@@ -34,7 +36,9 @@ export async function api(path, options = {}) {
   try {
     r = await fetch(path, opts);
   } catch (e) {
-    const err = new Error("서버에 연결할 수 없습니다.");
+    // PA-RC-0002: 연결 자체가 안 된 경우라 "다시 시도해 주세요"보다 "확인 후" 쪽이
+    // 더 구체적인 회복 절이다(네트워크 문제는 정말 사용자 쪽에서 확인할 수 있다).
+    const err = new Error("서버에 연결할 수 없습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
     err.kind = "network";
     throw err;
   }

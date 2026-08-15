@@ -99,3 +99,31 @@ describe("api() — 422 검증 실패의 details (UX-40)", () => {
     });
   });
 });
+
+/* PA-RC-0002 — docs/UX_WRITING.md "회복 절을 고르는 법". 서버가 봉투 문구를 안 준
+ * 대비책(fallbackMessage)과 네트워크 자체 실패는 각각 이 파일 한 곳에서만 만들어진다 —
+ * 여기서 막다른 길이면 그 문구를 보는 화면 전부가 막다른 길이다(공용 진입점).
+ * "다시 시도"·"확인"처럼 사용자가 지금 할 수 있는 행동이 문구 안에 있는지만 본다 —
+ * 정확한 단어를 강제하면 docs/UX_WRITING.md를 고칠 때마다 이 테스트도 갈아엎어야 한다. */
+describe("api() — 오류 문구에 회복 절이 있다 (PA-RC-0002)", () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it("🔴 서버가 문구를 안 준 알 수 없는 상태 코드도 막다른 길이 아니다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(451, {}));
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.message).toMatch(/다시 시도|확인/);
+  });
+
+  it("🔴 네트워크 자체가 끊겨도 막다른 길이 아니다", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.kind).toBe("network");
+    expect(err.message).toMatch(/다시 시도|확인/);
+  });
+
+  it("알려진 상태 코드(429)는 이미 회복 절이 있다(회귀 확인)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429, {}));
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.message).toMatch(/다시 시도/);
+  });
+});
