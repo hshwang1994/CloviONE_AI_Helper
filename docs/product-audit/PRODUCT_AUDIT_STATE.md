@@ -233,6 +233,28 @@ pass 1과 **역할도 workflow도 다르게** 잡았다 — 이 Cycle에서 한 
 `/#/dashboard`로 전환된다. `App.jsx:46`의 `isUser = role === "user"` 조건상 `auditor`는
 당연히 탭을 받는다. **결함 아님.**
 
+## 완료 Gate A~G 평가 (2026-08-15, AUDIT_COMPLETE 직전)
+
+프롬프트 12절의 Gate를 하나씩 근거와 함께 판정한다. *"문서 많이 씀"* 은 근거가 아니다.
+
+| Gate | 요구 | 판정 | 근거 |
+|---|---|---|---|
+| **A** Inventory | 주요 Surface가 전부 inventory에 있고 **이유 없는 UNSEEN이 없다** | ✅ | 90표면 × 26축 = 2,340칸. `gen_coverage.py` 재생성 결과 `unseen_without_reason=0`. Inventory는 소스에서 기계 생성(`gen_inventory.py`) |
+| **B** Intent | 주요 Feature가 Intent 근거와 confidence를 가진 Contract를 갖고, 모르는 것은 정직하게 UNKNOWN | ✅ | `FC-01`~`FC-08` 전부 confidence 기재. **UNKNOWN 3건은 지우지 않고 남겼다**(티켓 정본 정책 · 복구 리허설 성공 판정 기준 · n8n/Runner 실패 전파). 이 Cycle에 2건(오프보딩·문서생성)을 D축 추적으로 닫아 `FC-07`·`FC-08`이 됐다 |
+| **C** Axis | 5절 A~Z 축이 전부 Coverage에 반영 | ✅ | 26축 전부. 마지막까지 비어 있던 `C`(기능 조작)·`S`(성능)를 Round 14·15에서 닫았다 |
+| **D** Evidence | 정적 추정과 실행 증거가 **구분**되고, Confirmed/Strong에 재현/trace가 있으며, Finding이 Root Cause로 병합 | ✅ | Coverage가 `STATIC_ONLY`/`OBSERVED`/`EXECUTED`를 셀 단위로 구분한다. Handoff 8건의 근거: `0008` race 테스트 **실제 40% 실패 재현** · `0009` 2,903건 **실행** · `0007` 원격 mtime+asset 해시 **실측** · `0010`·`0001` **브라우저 실측** · `0003` stash 직접 확인 · `0002`·`0005` 소스 전수 스캔(주장 자체가 소스에 대한 것) |
+| **E** Skill | 사용 가능한 Skill을 **실제로** 적용하고, 미설치는 skill_gap + 대체 방법 | ✅ | 핵심 5개 전부 적용(`ux-writing`→`PA-F-011` / `ui-ux-pro-max`→`RD-1`~`3` / `impeccable`→`RD-5` 진단 교체 / `redesign-existing-projects`→L·M축 / `humanize-korean`→`PA-F-039`). 순서(UX Writing → 한국어) 준수. 미설치 2건(`chrome-devtools`·`a11y-debugging`)은 `skill_gap`으로 기록하고 Playwright+Chromium 151 실측으로 대체 — 각 Handoff 블록의 `quality_rubric`에 쓴 자를 그대로 남겼다 |
+| **F** Blind Re-Audit | 서로 다른 진입점으로 **2회 연속**, 둘 다 새 Critical/High 범주 0 | ✅ | pass 1 *"신규 입사자 첫날"* 0건 · pass 2 *"감사자 분기 점검"* 0건. pass 2는 `auditor` 역할로 **F축을 행동 검증**(화면·직접 URL·직접 API 세 계층이 같은 답) |
+| **G** Handoff | REPORT 존재 · Confirmed/Strong이 BACKLOG에 **중복 없이** 반영 · PA-RC 블록 완전 · QA gap 반영 · marker 정확 | ✅ | commit `703f253`. 기존 552행 전체 대조 후 신규 7행 + 기존 6행 갱신. `PA-RC-0003`은 `SEC-20`과 같은 자격증명이라 **중복 행을 만들지 않고** 그 행을 확장. PA-RC 블록 8건 × 필수 27필드 자기검사 PASS. QA gap은 `QA_COVERAGE.md` §13 새 축 `T1`~`T9` |
+
+**BLOCKED 없음.** `AUDIT_BLOCKED` 사유(사람/환경 때문에 끝내 막힌 필수 Coverage)에 해당하는 항목이 없다.
+
+> **이 Gate 표가 숨기지 않는 것**: Coverage 2,340칸 중 **1,336칸(57%)이 여전히 UNSEEN**이다.
+> Gate A가 요구하는 것은 *"UNSEEN이 없다"* 가 아니라 *"이유 없는 UNSEEN이 없다"* 이고 그것은 만족했지만,
+> 이 Audit이 제품 전체를 실행으로 훑었다는 뜻은 아니다. 브라우저로 실제로 본 화면은 **12/90 표면**이다.
+> 수렴의 근거는 Coverage 비율이 아니라 **Gate F** — 서로 다른 진입점의 blind pass 2회가
+> 새 Critical/High를 하나도 못 찾았다는 사실이다.
+
 ## Gate F 상태: **2 / 2 연속 clean** — 두 pass 모두 새 Critical/High 0건.
 ## 6. 2026-08-15 COLD 재접지에서 확인한 것
 
