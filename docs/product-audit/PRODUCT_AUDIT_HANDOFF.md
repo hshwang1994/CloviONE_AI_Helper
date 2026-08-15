@@ -217,3 +217,33 @@ qa_gaps: `docs/QA_COVERAGE.md`에 **스위트 자체의 건강을 보는 축이 
 quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① `pytest --collect-only`의 기계적 집계 ② 5회 청크 실행의 exit code ③ 실패 인덱스 역추적의 교차 확인(느슨한 계수 395와 엄격 계수 683이 같은 334를 지목) ④ 격리·동반·청크 3가지 재현 시도라는 대조 실험 ⑤ `CLAUDE.md` §12·§13과 `pytest.ini`라는 명시적 계약이다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0009 절(PA-F-022, PA-F-023 — 정정 경위 포함) · `var/product-audit/pytest_int_c1..c4.log`(4청크 전부 EXIT=0) · `var/product-audit/pytest_unit.log`(EXIT=0) · `var/product-audit/pytest_integration.log`(중단된 단일 실행, 334번째 F) · `var/product-audit/collect_all.txt`(2,903건 집계) · `tests/integration/test_cli_user.py:14-29` · `pytest.ini` · `CLAUDE.md` §12·§13
 <!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0010 -->
+rc_id: PA-RC-0010
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 서버 렌더 로그인 화면이 **다크 모드를 전혀 따르지 않는다.** 실제 Chromium 151로 `prefers-color-scheme: dark` 컨텍스트를 주고 측정했더니 `body` 배경(`rgb(243,246,255)`)과 글자색(`rgb(51,59,85)`)이 light와 **완전히 동일**했고 `<html data-theme>`는 `null`이었다. 원인은 값이 아니라 **활성화 경로의 부재**다 — 이 화면이 읽는 `app/static/css/tokens.css`에는 `:154`에 `[data-theme="dark"]` 블록이 실제로 존재하는데, `app/templates_html/**` 전체에 `data-theme`·`prefers-color-scheme`가 **0건**이라 그 블록을 켜는 주체가 없다. SPA는 JS로 그 속성을 세팅하지만 로그인 페이지에는 그 JS가 없다.
+expected: 제품이 라이트/다크를 지원하면 **앱을 여는 첫 화면**도 그 설정을 따라야 한다. `app/static/css/tokens.css`가 다크 토큰을 정의해 둔 것 자체가 그 의도의 근거다 — 정의만 하고 켜지지 않는 토큰은 의도가 미완성이라는 뜻이다.
+actual: 다크 사용자가 흰 로그인 화면을 보고, 로그인 성공 후 SPA가 다크로 바뀌면서 화면이 눈에 띄게 튄다. 그 파일의 다크 토큰 20여 개는 자신을 읽는 유일한 화면에서 영원히 활성화되지 않는다.
+intent_evidence: ③ `app/static/css/tokens.css:154`의 `[data-theme="dark"]` 블록이 존재한다는 사실 자체 · ⑤ React SPA는 `frontend/src/ui/ThemeModeProvider.jsx`/`theme-store.js`로 라이트·다크를 완전히 지원한다(제품 의도가 다크 지원임을 보여 준다) · ⑥ 기존 Backlog `DS-18`이 이 정적 사본을 "한 세대 전 팔레트"로 지목하며 동기화를 진행해 왔다(값은 맞춰 왔으나 활성화는 다루지 않았다)
+findings: PA-F-024, PA-F-025
+feature_contracts: 해당 없음 — 로그인 자체의 기능 계약(인증)은 바뀌지 않는다. 표현 계층만 대상이다.
+routes: `/login` · `/forgot-password` · `/reset-password` · `/change-password` — `app/templates_html`이 그리는 서버 렌더 페이지 전부(같은 정적 CSS를 읽으므로 같은 문제를 공유할 가능성이 높다. **다만 이번에 실측한 것은 `/login` 하나다** — 나머지는 미확인)
+frontend: 해당 없음(React 번들 밖이다) — 이 RC의 대상은 서버 렌더 템플릿과 정적 CSS다. 단 SPA의 테마 저장 방식(`frontend/src/ui/theme-store.js`)과 **초기 테마를 어떻게 공유할지**는 함께 설계해야 한다(로그인 직후 튐을 없애려면).
+api: 해당 없음 — API 계약과 무관하다.
+backend: `app/templates_html/**`(로그인·비밀번호 재설정 등 서버 렌더 템플릿) · `app/static/css/tokens.css`(`:154` 다크 블록) · `app/static/css/base.css` · `app/auth/router.py`(템플릿 렌더 지점)
+data: 해당 없음 — 데이터 구조와 무관하다.
+rbac: 해당 없음 — 권한과 무관하다.
+integration: 해당 없음 — 외부 연동과 무관하다.
+state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
+user_impact: 다크 모드 사용자가 **앱을 여는 첫 화면**에서 밝은 화면을 맞고, 로그인 후 어두워지며 튄다. 야간·저조도 환경에서 눈부심이 실제 불편이고, 제품이 테마를 지원한다는 인상을 첫 화면에서 스스로 깎는다. 기능 실패는 없다.
+implementation_direction: (1) **`prefers-color-scheme` 미디어쿼리 방식을 우선 검토한다** — `app/static/css/tokens.css`의 기존 `[data-theme="dark"]` 블록을 `@media (prefers-color-scheme: dark)`로도 적용되게 하면 JS 없이 켜진다. **CLAUDE.md §3-6이 inline script를 금지하므로 `<html>`에 초기 테마를 심는 인라인 스크립트 방식은 그 제약과 충돌한다** — 이 판단을 구현 착수 전에 확인할 것. (2) 사용자가 SPA에서 고른 테마(`theme-store.js`)와 OS 설정이 다를 때 어느 쪽을 따를지 정한다. 쿠키로 서버에 전달하면 튐 없이 일치시킬 수 있으나 그 결정을 `docs/DECISIONS.md`에 남길 것. (3) `/login` 외 나머지 서버 렌더 페이지도 **같은 문제인지 먼저 실측**하고 한 번에 고친다(이번 Audit은 `/login`만 확인했다). (4) `DS-18`(정적 사본 값 동기화)과 **같은 배치로** 처리한다 — 값을 맞춰도 켜지지 않으면 무의미하고, 켜기만 하고 값이 낡으면 이상하게 보인다.
+constraints: **CLAUDE.md §3-6** — 서버 데이터를 `innerHTML`로 주입 금지, **inline script / `onclick=` 금지**. 이것이 초기 테마 주입 방식을 제약하는 핵심이다 · CSP는 완화돼 있으나(`app/core/middleware.py`의 `CSP_POLICY`가 정본) `connect-src 'self'`는 유지 · `DS-18`이 정적 사본의 일부 합성 토큰을 **의도적으로 안 건드렸다**(개별 WCAG 대비 계산이 딸려 있어서) — 다크를 켜면 그 토큰들이 처음으로 실제 렌더되므로 **대비를 재계산할 것** · 값을 눈대중으로 고르지 말 것(`theme.js` 상단 경고와 같은 원칙)
+regression_risk: 다크를 켜는 순간 **여태 한 번도 렌더된 적 없는 다크 토큰들이 처음 화면에 나온다.** 즉 이 변경의 진짜 위험은 "다크가 안 켜지는 것"이 아니라 "켜졌는데 대비가 깨져 있는 것"이다. `tests/regression/test_css_says_what_it_does.py`(사이드바 대비 자동 검사)가 이미 존재하므로 그 계열을 다크 경로로 확장할 것. 범위는 서버 렌더 페이지에 한정되며 React 번들·백엔드 로직 회귀는 없다.
+acceptance_criteria: (1) `prefers-color-scheme: dark`에서 `/login`의 `body` 배경·글자색이 light와 **다르다**(실제 브라우저로 측정 — 이 Audit이 쓴 `var/product-audit/probe_login2.py`를 그대로 재사용할 수 있다). (2) 다크에서 렌더되는 모든 텍스트/배경 쌍의 대비가 WCAG AA(4.5:1, 비텍스트 3:1)를 만족한다(계산으로 증명). (3) `/login` 외 서버 렌더 페이지도 같은 기준을 통과한다. (4) 로그인 성공 후 SPA로 넘어갈 때 테마가 튀지 않는다. (5) inline script를 쓰지 않았다(§3-6). (6) 대비 회귀 검사가 다크 경로를 덮는다.
+required_tests: **신규**: `prefers-color-scheme: dark`에서 서버 렌더 페이지의 계산 색이 light와 다름을 검증하는 브라우저 테스트 · **신규**: 다크 토큰 조합의 WCAG 대비 계산 검증(기존 `tests/regression/test_css_says_what_it_does.py` 확장) · 기존: `frontend/src/styles/tokens-baseline.test.js`·`frontend/src/ui/theme-baseline.test.js`(SPA 쪽 값이 안 깨졌는지) · 기존 인증 플로우 테스트(템플릿을 건드리므로 렌더 자체가 안 깨졌는지)
+qa_gaps: `docs/QA_COVERAGE.md`에 **서버 렌더 페이지(로그인·비밀번호 재설정)를 위한 테마 축이 없다.** 화면 축이 React 라우트 중심이라 SPA 밖 페이지가 통째로 빠져 있고, 그래서 "다크가 아예 안 켜진다"가 QA를 그대로 통과했다. `서버 렌더 페이지 × 라이트/다크` 칸을 추가할 것.
+quality_rubric: `redesign-existing-projects` — *"Random dark sections in a light mode page (or vice versa) … Either commit to a full dark mode or keep a consistent background tone"* 항목(여기서는 반대 방향: 제품은 다크를 지원하는데 진입 화면만 아니다). 추가로 이 Audit 프롬프트 6절 **내장 rubric 11)**(Light/Dark 각각에서 대비와 상태색이 성립하는가). 판정은 미적 인상이 아니라 **실제 브라우저 계산값 비교**로 했다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0010 절(PA-F-024, PA-F-025) · `var/product-audit/probe_login2.py`·`probe_login2.json`(light/dark 두 컨텍스트 실측) · `var/product-audit/probe_login.json` · `app/static/css/tokens.css:154` · `PRODUCT_AUDIT_COVERAGE.md` "브라우저 관측 환경 (왜 로컬인가)" 절
+<!-- PA-RC-END -->
