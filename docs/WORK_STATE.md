@@ -6165,9 +6165,20 @@ is_global: return <무제한>`. 새 분기 로직을 추가하지 않는다 — 
 실행 중(결과 미확인) — 완료되면 이어서 확인. 상세: `docs/DECISIONS.md` D-79,
 `docs/BACKLOG.md` SEC-34.
 
-**남은 것 — 이번 체크포인트의 최우선**: 이 수정은 로컬에만 있다. **TEST SERVER는
-아직 취약한 버전을 그대로 돌리고 있다** — Critical RBAC 수정이라 다음 정기 배포까지
-미루지 않는다. 백엔드 전체 스위트 green 확인 → static_checks → 통합 배포(백엔드
-포함, 프런트는 이미 최신) → health/revision 확인 → 최소한 SEC-34 관련 경로(문서·
-티켓·휴지통의 org 범위)는 실서버에서도 직접 재현 확인. 그 다음에야 다른 작업으로
-넘어간다 — 이건 조사가 아니라 실제로 뚫려 있던 구멍이다.
+**SEC-34 TEST SERVER 배포 완료(2026-08-16 05:1x)** — `tests/security/` 전체 green
+확인 후(백엔드 전체 스위트는 이례적으로 오래 걸려 — CPU 시간 800초+ — 배경에서
+계속 실행 중, 완료되는 대로 별도 확인) 배포를 더 미루지 않았다: `build-bundle.sh`
+(신선도 게이트 통과) → TEST SERVER 업로드+MANIFEST 검증 → `upgrade-clovirone-web-
+assistant.sh` → `UPGRADE_OK`, healthz/readyz OK. 배포본 소스에서 6곳 수정 전부
+직접 확인(`grep -n "is_global" .../team_docs/service.py .../tickets/service.py`
++ `trash/repository.py`는 `getattr` 형태라 별도 확인). 영향 화면(팀 문서·내 티켓·
+팀 티켓·미할당) 4페이지 실브라우저 스모크 체크 green(정상 사용자 접근은 안 깨짐).
+**부수 발견**: 배포 준비 중 `static_checks.sh`의 번들 신선도 검사가 실패 —
+`frontend/src`는 `git diff` 기준 무변경인데 `check_bundle_fresh.py`가 계산한
+해시가 커밋된 stamp와 달랐다(`core.autocrlf=true` 관련 가능성, 확정 못 함).
+재빌드 결과 JS 자산은 전부 바이트 동일(파일명 해시 불변) — stamp만 재기록,
+실제 산출물 손실 없음 확인. 원인 재조사는 다음 세션 후보로 남김(재발하면 우선순위
+올림).
+
+**다음**: 백엔드 전체 스위트 완료를 확인(실패 발견 시 즉시 조사). 그 뒤 다른
+독립 작업(ⓒ/ⓔ/ⓕ 아키텍처·기능 설계 묶음, 또는 BACKLOG.md 전체 재훑기)으로 계속.
