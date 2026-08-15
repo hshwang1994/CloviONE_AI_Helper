@@ -27,10 +27,16 @@ MUI 마이그레이션도 화면 층위에서 잔여가 없으며, 사이드바�
 | `PA-RC-0001` | High | P2 | Confirmed | redesign / tech-debt | 아니오 |
 | `PA-RC-0007` | Medium | P1 | Confirmed | blocker(검증 인프라) | 아니오 — PHASE 2가 재배포 |
 | `PA-RC-0005` | Medium | P2 | Confirmed | defect / ux-gap (E축) | 아니오 |
+| `PA-RC-0009` | Medium | P2 | Confirmed | test-gap | 아니오 |
 | `PA-RC-0006` | Low | — | Confirmed | content(문서 드리프트) | 아니오 |
 | `PA-RC-0004` | Low | — | Confirmed | ux-gap | 아니오 |
 
-Critical 1 · High 3 · Medium 2 · Low 2. **HANDOFF에 승격한 것은 6건**(`0004`·`0006`은 Low라 제외).
+Critical 1 · High 3 · Medium 3 · Low 2. **HANDOFF에 승격한 것은 7건**(`0004`·`0006`은 Low라 제외).
+
+> **`PA-RC-0009`는 처음 High로 썼다가 실측으로 뒤집어 Medium으로 낮췄다.**
+> 처음 결론은 *"Full Regression green이 성립한 적 없다"* 였는데, 스스로 제시한 처방(청크 분할
+> 전경 실행)을 직접 돌려 보니 **백엔드 2,903건이 전부 통과했다.** 원문과 정정 경위를 지우지
+> 않고 `FINDINGS`에 남겼다 — 그대로 뒀다면 구현 Phase가 있지도 않은 회귀 실패를 쫓았을 것이다.
 **Probable 이하는 승격하지 않았다** (FC-06 AI 쿼터 정책은 Probable이라 `FEATURE_CONTRACTS`에만 남겼다).
 
 ### 이 RC들을 관통하는 하나의 모양
@@ -63,6 +69,16 @@ Critical 1 · High 3 · Medium 2 · Low 2. **HANDOFF에 승격한 것은 6건**(
 
 기존 보안 검사는 **워킹트리와 커밋만 보고 stash/reflog를 보지 않는다.** 이번 건이 정확히 그
 사각지대로 들어왔다 — 재발 방지 검사를 권한다.
+
+## 3-0. 완료 Gate 세 개 중 지금 성립하는 것과 아닌 것 (§13 기준)
+
+| `CLAUDE.md` §13이 요구하는 Gate | 현재 |
+|---|---|
+| Backend/Frontend Full Regression green | **성립한다** — 백엔드 2,903건 + 프런트 1,718건 전부 통과를 이 Audit이 실행으로 확인했다(백엔드는 청크 분할 필요, `PA-RC-0009`). 단 flaky 1건이 남아 **1회 green은 근거가 못 된다**(`PA-RC-0008`) |
+| 승인된 TEST SERVER 통합 Deploy + revision 확인 | **성립하지 않는다** — 배포본이 131커밋 뒤처짐(`PA-RC-0007`) |
+| Chrome Whole-product E2E | **지금 하면 무의미하다** — 위 배포본을 검증하게 된다(`PA-RC-0007`) |
+
+즉 `PROJECT_COMPLETE`로 가는 길에서 **막힌 것은 회귀가 아니라 배포**다. 재배포가 선행 조건이다.
 
 ## 3-1. 구현 Phase가 **가장 먼저** 알아야 할 것: 회귀 스위트는 멈추지 않는다
 
