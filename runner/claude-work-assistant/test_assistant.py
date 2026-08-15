@@ -139,6 +139,40 @@ def test_claude_query_falls_back_to_rule_engine_on_cli_failure():
     assert isinstance(data, dict) and data.get("action")
 
 
+# AI-17 재조사(2026-08-16): 인용된 "계약 테스트 주석"을 현재 코드에서 못 찾아 처음부터
+# 다시 조사했다. 걱정: "러너 상태가 유실되면 승인 턴이 아무 티켓도 안 만드는데 플랫폼은
+# 그것을 알 방법이 없다." 플랫폼은 context를 러너에 절대 재전송하지 않는다(확인:
+# chat_message.py 전수 grep, "context" 0건) — 그래서 러너 자신의 영속 상태가 사라지면
+# choose_context(persisted={})가 진짜 빈 context를 만든다. 이 시험은 그 최악의 경우
+# (상태 완전 유실 + LLM CLI도 실패)에서 실제로 무엇이 나오는지를 본다.
+def test_lost_state_degrades_to_honest_clarify_not_silent_action():
+    class Fail:
+        returncode = 1
+        stdout = ""
+        stderr = "cli unavailable"
+    body = {"message": "등록해줘", "message_id": "lost1", "conversation_id": "cv-lost",
+            "requester": {"email": "a@x", "name": "황형섭"}, "projects": [], "tickets": [],
+            "work_schema": {}, "context": {}}
+    with mock.patch.object(m.subprocess, "run", return_value=Fail()):
+        data, _ = m.route_request(body)
+    # 조용히 실패(아무 신호 없이 아무 일도 안 함)도 아니고, 티켓을 잘못 만들지도 않는다 —
+    # 승인 대기 없이 정직하게 되묻는다. 플랫폼이 "이건 유실 복구다"를 몰라도 안전하다.
+    assert data["action"] in {"QUERY", "NEED_INPUT"}, data["action"]
+    assert data["context"].get("pending_action") is None
+    assert data["context"].get("mode") is None
+    assert data.get("write_request") is None
+
+
+def test_bare_yes_with_lost_state_asks_instead_of_guessing():
+    body = {"message": "네", "message_id": "lost2", "conversation_id": "cv-lost2",
+            "requester": {"email": "a@x", "name": "황형섭"}, "projects": [], "tickets": [],
+            "work_schema": {}, "context": {}}
+    data, _ = m.route_request(body)
+    assert data["action"] == "NEED_INPUT", data["action"]
+    assert data["context"].get("pending_action") is None
+    assert data.get("write_request") is None
+
+
 # AI-62(High): 진행률 질문에 모델이 스스로 "일부만 봤다"고 밝힐 때만 사용자가 그 사실을
 # 안다 — 시스템 프롬프트 지시는 순응을 보장하지 않는다. tickets_truncated일 때 업무 질문이면
 # 모델이 언급했는지와 무관하게 결정적으로 한 줄이 붙어야 한다.
