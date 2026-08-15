@@ -404,7 +404,7 @@ export function Users() {
   }, [items.length, page, query.isLoading, query.isError]);
 
   const createFields = [
-    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 만들 수 있습니다." : "관리자, 시스템 관리자 계정 생성은 시스템 관리자만 가능합니다." }, { name: "department_id", label: "부서", type: "select", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "끄면 비활성 상태로 생성됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "변경 요구" }, ];
+    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다." }, { name: "department_id", label: "부서", type: "select", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "변경 요구" }, ];
   const editFields = [
     // required: 빈 이름으로 제출하면 서버는 display_name=null을 '변경 없음'으로 취급해 조용히
     // 아무것도 안 바꾼다(update_user는 not None일 때만 반영), 클라이언트에서 먼저 막아 저장됐다는
@@ -574,7 +574,7 @@ export function Users() {
         onTempPw={(res) => maybeShowTempPw(res)} pwHelp={pwHelp} dept={dept} title={title}
         onChanged={() => { refresh(); }} />
 
-      <FormModal open={creating} title="사용자 추가" fields={createFields} submitLabel="만들기"
+      <FormModal open={creating} title="사용자 추가" fields={createFields} submitLabel="추가"
         onClose={() => setCreating(false)}
         onSubmit={async (body) => {
           // 흔한 오타는 서버 왕복(영문 검증 오류) 전에 한국어로 잡는다. 서버(_EMAIL_SHAPE_RE)는 도메인에
@@ -612,7 +612,7 @@ export function Users() {
           const diff = diffFields(body, editing);
           // 실제로 바뀐 필드가 없으면 서버 왕복 없이 그냥 닫는다 — 서버는 빈 PATCH를 '변경 없음'으로
           // 조용히 받아주므로, 그대로 보내고 성공 토스트를 띄우면 뭔가 저장된 것처럼 오신호를 준다.
-          if (Object.keys(diff).length === 0) { setEditing(null); toast("변경된 내용이 없습니다.", "info"); return; }
+          if (Object.keys(diff).length === 0) { setEditing(null); toast("수정된 내용이 없습니다.", "info"); return; }
           const res = await api("/api/admin/users/" + editing.id, { method: "PATCH", body: diff });
           setEditing(null); refresh(); qc.invalidateQueries({ queryKey: ["user"] }); qc.invalidateQueries({ queryKey: ["user-sessions"] }); announce(res, "사용자 정보를 저장했습니다.");
         }} />
@@ -927,7 +927,7 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
         <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
         <Row label="비밀번호 변경 요구"><Badge value={!!d.must_change_password} /></Row>
         <Row label="최근 로그인">{fmtDateTime(d.last_login_at)}</Row>
-        <Row label="생성일">{fmtDateTime(d.created_at)}</Row>
+        <Row label="추가일">{fmtDateTime(d.created_at)}</Row>
         {d.archived_at ? <Row label="보관 시각">{fmtDateTime(d.archived_at)}</Row> : null}
         {/* 로딩 중(em-dash)과 권한 없음(em-dash)이 예전엔 같은 표시라 구분이 안 됐다, 각각 다른 문구로 밝힌다. */}
         <Row label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</Row>

@@ -81,14 +81,14 @@ async function openEditing() {
       sourceView={<div>원래 본문</div>}
     />,
   );
-  await userEvent.click(screen.getByRole("button", { name: "본문 편집" }));
-  const heading = screen.getByRole("heading", { name: "본문 편집" });
+  await userEvent.click(screen.getByRole("button", { name: "본문 수정" }));
+  const heading = screen.getByRole("heading", { name: "본문 수정" });
   const widthBox = heading.parentElement.parentElement; // heading -> Stack -> 편집 폭 Box
   const container = widthBox.parentElement;
   return { widthBox, container };
 }
 
-describe("본문 편집 — 편집 중 표면 폭", () => {
+describe("본문 수정 — 편집 중 표면 폭", () => {
   it("편집 표면을 감싸는 조상에 컨테이너가 선언돼 있다", async () => {
     const { container } = await openEditing();
     const containerRule = rulesFor(container).find((r) => r.cond === "");

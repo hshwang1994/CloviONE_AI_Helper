@@ -794,7 +794,7 @@ export function DataScreen({ config }) {
       {config.create ? (
         <FormDrawer open={creating} title={config.createLabel || (config.title + " 추가")} fields={withOptionsFrom(resolveFields(config.create.fields), null)}
           screenKey={config.key} formKind="create"
-          initial={createInitial || {}} submitLabel="만들기" onClose={() => { setCreating(false); setCreateInitial(null); }}
+          initial={createInitial || {}} submitLabel="추가" onClose={() => { setCreating(false); setCreateInitial(null); }}
           onSubmit={async (body) => {
             // toApiBody — 폼이 보여주는 필드 이름(예: 체크박스 하나)과 백엔드가 받는 계약 형태(예:
             // {approval_policy:{required:bool}})가 다를 때 전송 직전에 변환한다(템플릿의 승인 정책 등).

@@ -231,7 +231,7 @@ describe("CSV", () => {
     ).toBe("/api/admin/users/export/csv?q=" + encodeURIComponent("사람2")));
   });
 
-  it("미리 보기 전에는 만들기 버튼이 눌리지 않는다", async () => {
+  it("미리 보기 전에는 추가 버튼이 눌리지 않는다", async () => {
     const user = userEvent.setup();
     renderUsers();
     await user.click(await screen.findByRole("button", { name: "CSV 가져오기" }));
@@ -244,8 +244,8 @@ describe("CSV", () => {
     expect(gate).toBeDisabled();
 
     await user.click(within(dialog).getByRole("button", { name: "미리 보기" }));
-    expect(await within(dialog).findByText(/생성 예정 1/)).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "1명 만들기" })).toBeEnabled();
+    expect(await within(dialog).findByText(/추가 예정 1/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "1명 추가" })).toBeEnabled();
   });
 
   // 회귀: ImportModal의 '미리 보기'/'만들기' 두 버튼이 busy 불리언 하나를 공유했다.
@@ -253,7 +253,7 @@ describe("CSV", () => {
   // 구분하는데, ImportModal만 이 관례를 따르지 않아 '만들기'를 누르면 정작 실행 중이지 않은
   // '미리 보기' 버튼이 "확인 중…"으로 바뀌고, 실제로 요청이 나가는 '만들기' 버튼에는 아무
   // 진행 표시도 없었다 — 사용자에게 엉뚱한 동작이 진행 중이라고 말하는 셈이었다.
-  it("'만들기' 요청 중에는 '만들기' 버튼에 진행 표시가 뜨고, '미리 보기' 버튼이 엉뚱하게 바뀌지 않는다", async () => {
+  it("'추가' 요청 중에는 '추가' 버튼에 진행 표시가 뜨고, '미리 보기' 버튼이 엉뚱하게 바뀌지 않는다", async () => {
     const user = userEvent.setup();
     let resolveCreate;
     apiMock.mockImplementation((path, opts) => {
@@ -281,9 +281,9 @@ describe("CSV", () => {
     const csv = within(dialog).getByLabelText("CSV 내용");
     await user.type(csv, "email,display_name{enter}new@goodmit.co.kr,신입");
     await user.click(within(dialog).getByRole("button", { name: "미리 보기" }));
-    await within(dialog).findByText(/생성 예정 1/);
+    await within(dialog).findByText(/추가 예정 1/);
 
-    await user.click(within(dialog).getByRole("button", { name: "1명 만들기" }));
+    await user.click(within(dialog).getByRole("button", { name: "1명 추가" }));
 
     expect(within(dialog).queryByText("확인 중…")).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "미리 보기" })).toBeInTheDocument();

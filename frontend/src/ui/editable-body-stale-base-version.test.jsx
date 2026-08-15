@@ -64,7 +64,7 @@ describe("본문 편집 — 저장 지문(base_version)은 편집 시작 시점 
       </QueryClientProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "본문 편집" }));
+    await user.click(screen.getByRole("button", { name: "본문 수정" }));
 
     // 편집 중 다른 동작(예: 같은 티켓의 첨부 변경)이 상세 재조회를 불러, 그 사이 다른 사람이
     // 먼저 저장한 새 지문이 prop으로 도착한다. 이 컴포넌트는 리마운트되지 않는다(같은 자리).

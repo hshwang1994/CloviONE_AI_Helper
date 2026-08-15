@@ -73,7 +73,7 @@ export function Settings() {
     { key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> },
     { key: "value", label: "값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
     // '변경됨'은 기본값과 다를 뿐 문제 상태가 아니다 — warn(주황)은 이상으로 오독되므로 info로 표시한다.
-    { key: "is_default", label: "상태", render: (r) => <Badge value={r.is_default ? "기본값" : "변경됨"} kind={r.is_default ? "neutral" : "info"} /> },
+    { key: "is_default", label: "상태", render: (r) => <Badge value={r.is_default ? "기본값" : "수정됨"} kind={r.is_default ? "neutral" : "info"} /> },
     { key: "description", label: "설명" },
   ];
 
@@ -90,7 +90,7 @@ export function Settings() {
           {/* 버전 기록은 읽기 전용 역할(operator, auditor)도 편집기의 '버전 기록' 버튼으로 열람할 수
               있다(롤백만 canWrite), 예전엔 canWrite일 때만 언급해, 읽기 역할은 이력의 존재조차 몰랐다. */}
           <p>시스템 동작 값을 관리합니다. 항목을 클릭하면 편집기가 열립니다. 저장 시 유효성 검증 후 반영되며, 적용 시점은 항목마다 다를 수 있습니다(각 항목의 ‘설명’ 참고).{canWrite ? " 각 항목의 ‘버전 기록’에서 이전 값으로 되돌릴 수 있습니다." : " 각 항목의 ‘버전 기록’에서 이전 변경 이력을 볼 수 있습니다."}</p>
-          {!canWrite ? <p>설정 값은 열람만 가능합니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</p> : null}
+          {!canWrite ? <p>설정 값은 열람만 가능합니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다.</p> : null}
           {/* maintenance_mode, maintenance_message는 이 표에서 의도적으로 숨겨진다(위 MAINTENANCE_KEYS) -
               숨긴 이유만 있고 어디로 갔는지 안내가 없으면 관리자가 '유지보수 스위치가 없어졌다'고 오인한다.
               /maintenance는 operator, admin, system_admin, auditor가 조회할 수 있다(App.jsx RequireRole/NAV) -

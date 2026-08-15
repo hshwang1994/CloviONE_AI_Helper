@@ -100,7 +100,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
   const create = useMutation({
     mutationFn: (body) => api(listUrl, { method: "POST", body: { body } }),
     onSuccess: (res) => { applyList(res); setDraft(""); },
-    onError: fail("댓글을 등록하지 못했습니다. 다시 시도해 주세요."),
+    onError: fail("댓글을 추가하지 못했습니다. 다시 시도해 주세요."),
   });
   const update = useMutation({
     mutationFn: ({ id, body }) => api(itemUrl(id), { method: "PATCH", body: { body } }),
@@ -196,7 +196,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
             {draft.length}/{MAX_COMMENT_CHARS}
           </Typography>
           <Button variant="primary" size="sm" disabled={busy || !draft.trim()} onClick={submit}>
-            {create.isPending ? "등록 중…" : "댓글 등록"}
+            {create.isPending ? "추가 중…" : "댓글 추가"}
           </Button>
         </Stack>
       </Box>

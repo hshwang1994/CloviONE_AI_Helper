@@ -35,7 +35,7 @@ function wrap(node) {
 }
 
 describe("본문 편집기 이름", () => {
-  it("편집을 열면 입력 상자가 무엇을 편집하는지 낭독한다", async () => {
+  it("수정을 열면 입력 상자가 무엇을 수정하는지 낭독한다", async () => {
     wrap(
       <EditableBody
         editorId="ticket-body-1"
@@ -46,8 +46,8 @@ describe("본문 편집기 이름", () => {
         sourceView={<div>원래 본문</div>}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "본문 편집" }));
-    expect(screen.getByRole("textbox", { name: "본문 편집" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "본문 수정" }));
+    expect(screen.getByRole("textbox", { name: "본문 수정" })).toBeInTheDocument();
   });
 
   it("heading 을 바꾸면 입력 상자 이름도 따라간다", async () => {
@@ -62,8 +62,8 @@ describe("본문 편집기 이름", () => {
         sourceView={<div>원래 본문</div>}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "문서 본문 편집" }));
-    expect(screen.getByRole("textbox", { name: "문서 본문 편집" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "문서 본문 수정" }));
+    expect(screen.getByRole("textbox", { name: "문서 본문 수정" })).toBeInTheDocument();
   });
 
   it("바깥에서 <label>로 이름을 준 자리는 그 이름을 덮어쓰지 않는다", () => {

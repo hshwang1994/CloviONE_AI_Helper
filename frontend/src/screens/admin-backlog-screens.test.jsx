@@ -71,7 +71,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     }
   });
 
-  it("기능 플래그: 끄기 버튼이 PUT 으로 enabled=false 를 보낸다", async () => {
+  it("기능 플래그: 비활성화 버튼이 PUT 으로 enabled=false 를 보낸다", async () => {
     let sent = null;
     apiMock.mockImplementation((path, opts) => {
       if (opts && opts.method) { sent = { path, ...opts }; return Promise.resolve({ name: "games_enabled", value: false }); }
@@ -88,17 +88,17 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     const row = await screen.findByText("games_enabled");
     await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
     const drawer = await screen.findByRole("dialog");
-    await userEvent.click(within(drawer).getByRole("button", { name: "끄기" }));
+    await userEvent.click(within(drawer).getByRole("button", { name: "비활성화" }));
     // 확인 대화상자
-    const confirmDialog = await screen.findByRole("dialog", { name: /확인|끌까요/ });
-    await userEvent.click(within(confirmDialog).getByRole("button", { name: /확인|끄기|계속/ }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /확인|비활성화할까요/ });
+    await userEvent.click(within(confirmDialog).getByRole("button", { name: /확인|비활성화|계속/ }));
     await waitFor(() => expect(sent).not.toBeNull());
     expect(sent.method).toBe("PUT");
     expect(sent.path).toBe("/api/admin/feature-flags/games_enabled");
     expect(sent.body).toEqual({ enabled: false });
   });
 
-  it("기능 플래그: 설정 소유 플래그에는 켜기/끄기가 아예 없다", async () => {
+  it("기능 플래그: 설정 소유 플래그에는 활성화/비활성화가 아예 없다", async () => {
     apiMock.mockImplementation(() => Promise.resolve({
       items: [{
         name: "maintenance_mode", value: false, default: false, owner: "db",
@@ -110,8 +110,8 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     const row = await screen.findByText("maintenance_mode");
     await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
     const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).queryByRole("button", { name: "켜기" })).not.toBeInTheDocument();
-    expect(within(drawer).queryByRole("button", { name: "끄기" })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: "활성화" })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole("button", { name: "비활성화" })).not.toBeInTheDocument();
     expect(within(drawer).getByRole("button", { name: "설정 화면에서 열기" })).toBeInTheDocument();
   });
 

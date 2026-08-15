@@ -99,7 +99,7 @@ function renderHome(qc) {
 }
 
 async function editTitleTo(user, next) {
-  await user.click(await screen.findByRole("button", { name: "편집: " + OLD_TITLE }));
+  await user.click(await screen.findByRole("button", { name: "수정: " + OLD_TITLE }));
   // 표 머리글에도 '제목'이 있다 — 편집 모달의 입력은 id 로 집는다(MyTickets.jsx te-title).
   await waitFor(() => expect(document.getElementById("te-title")).toBeTruthy());
   const title = document.getElementById("te-title");

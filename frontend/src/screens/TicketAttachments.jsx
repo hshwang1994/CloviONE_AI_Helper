@@ -124,7 +124,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
 
   const askRemove = async (att) => {
     const ok = await confirm(`${att.filename} 을(를) 이 티켓에서 뗍니다. 계속할까요?`,
-      { title: "첨부 제거", confirmLabel: "떼기", danger: true });
+      { title: "첨부 삭제", confirmLabel: "떼기", danger: true });
     if (ok) remove.mutate(att.id);
   };
 
@@ -160,7 +160,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
       {!canEdit ? (
         <Callout tone="info">
           이 티켓의 담당자가 아니라 첨부를 올리거나 뗄 수 없습니다. 담당자이거나 담당자가 아직
-          없는 티켓만 편집할 수 있습니다. 파일을 붙이고 떼는 것도 티켓을 고치는 일입니다.
+          없는 티켓만 수정할 수 있습니다. 파일을 붙이고 떼는 것도 티켓을 고치는 일입니다.
         </Callout>
       ) : null}
 

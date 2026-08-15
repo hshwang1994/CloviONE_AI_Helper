@@ -306,18 +306,18 @@ describe("화면", () => {
     expect(screen.queryByText(/연결돼 있지 않습니다/)).toBeNull();
   });
 
-  it("이미 설정된 데이터베이스에는 만들기 버튼을 그리지 않는다", async () => {
+  it("이미 설정된 데이터베이스에는 추가 버튼을 그리지 않는다", async () => {
     apiMock.mockResolvedValue(overview());
     renderConsole();
     await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
 
     const tasks = screen.getByTestId("notion-db-notion_tasks_database_id");
-    expect(within(tasks).queryByRole("button", { name: "새로 만들기" })).toBeNull();
+    expect(within(tasks).queryByRole("button", { name: "새로 추가" })).toBeNull();
     const docs = screen.getByTestId("notion-db-notion_documents_database_id");
-    expect(within(docs).getByRole("button", { name: "새로 만들기" })).toBeInTheDocument();
+    expect(within(docs).getByRole("button", { name: "새로 추가" })).toBeInTheDocument();
   });
 
-  it("설정 안 됐지만 만들 수도 없는 데이터베이스(스프린트류)는 이유를 말한다 - 버튼이 조용히 없는 게 아니다", async () => {
+  it("설정 안 됐지만 추가할 수도 없는 데이터베이스(스프린트류)는 이유를 말한다 - 버튼이 조용히 없는 게 아니다", async () => {
     // 사용자 지적: "노션관리에서... 새로운 DB 를 만들어주는 기능도있음?? ... 왜 다사라짐?"
     // 실측: 스프린트 DB 는 creatable:false(포털이 안 읽어 만들어 줘도 아무도 안 쓴다, 의도된
     // 설계, app/notion_console/service.py:74)라 버튼이 없는 게 맞다 - 하지만 화면은 그 이유를
@@ -343,11 +343,11 @@ describe("화면", () => {
     await waitFor(() => expect(screen.getByText("스프린트 데이터베이스")).toBeInTheDocument());
 
     const row = screen.getByTestId("notion-db-notion_sprint_database_id");
-    expect(within(row).queryByRole("button", { name: "새로 만들기" })).toBeNull();
-    expect(within(row).getByText(/화면에서 자동으로 만들 수 없습니다/)).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "새로 추가" })).toBeNull();
+    expect(within(row).getByText(/화면에서 자동으로 추가할 수 없습니다/)).toBeInTheDocument();
   });
 
-  it("새로 만들기는 스타일 없는 브라우저 팝업(window.prompt) 대신 테마 다이얼로그로 부모 페이지 id 를 받는다", async () => {
+  it("새로 추가는 스타일 없는 브라우저 팝업(window.prompt) 대신 테마 다이얼로그로 부모 페이지 id 를 받는다", async () => {
     // 예전에는 window.prompt() 로 부모 페이지 id 를 받고, 바로 다음 줄에서 앱의 confirm() 을
     // 썼다 - 스타일 없는 네이티브 팝업과 테마 다이얼로그가 한 흐름에 섞여 튀어 보였다.
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("page-123");
@@ -356,7 +356,7 @@ describe("화면", () => {
     await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
 
     const docs = screen.getByTestId("notion-db-notion_documents_database_id");
-    await userEvent.click(within(docs).getByRole("button", { name: "새로 만들기" }));
+    await userEvent.click(within(docs).getByRole("button", { name: "새로 추가" }));
 
     // 네이티브 팝업은 절대 불리지 않는다.
     expect(promptSpy).not.toHaveBeenCalled();
@@ -366,7 +366,7 @@ describe("화면", () => {
     promptSpy.mockRestore();
   });
 
-  it("부모 페이지 id 를 넣고 확인하면 만들기 요청을 보낸다", async () => {
+  it("부모 페이지 id 를 넣고 확인하면 추가 요청을 보낸다", async () => {
     apiMock.mockImplementation((path, opts) => {
       if (path === "/api/admin/notion" && (!opts || !opts.method)) {
         return Promise.resolve(overview());
@@ -380,7 +380,7 @@ describe("화면", () => {
     await waitFor(() => expect(screen.getByText("작업 데이터베이스")).toBeInTheDocument());
 
     const docs = screen.getByTestId("notion-db-notion_documents_database_id");
-    await userEvent.click(within(docs).getByRole("button", { name: "새로 만들기" }));
+    await userEvent.click(within(docs).getByRole("button", { name: "새로 추가" }));
 
     const input = await screen.findByLabelText(/부모 페이지 id/);
     await userEvent.type(input, "page-123");
@@ -389,7 +389,7 @@ describe("화면", () => {
     // 정말 만드는지 다시 한번 테마 확인 대화상자로 묻는다(되돌릴 수 없다는 경고 포함).
     const confirmDialog = await screen.findByText(/되돌리려면 노션에서 직접 지워야 합니다/);
     expect(confirmDialog).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "만들기" }));
+    await userEvent.click(screen.getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const call = apiMock.mock.calls.find((c) => c[0] === "/api/admin/notion/databases");

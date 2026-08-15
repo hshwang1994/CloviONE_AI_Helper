@@ -223,7 +223,7 @@ export function Diagnostics() {
                 // 그래서 integrations가 비어 있으면 그 부분집합도 항상 비어 있다. '등록된 연동은 없지만
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
                 <Card>
-                  <EmptyState title="등록된 외부 연동이 없습니다" help="‘외부 연동’ 관리 화면에서 서비스를 등록하면 여기에 상태가 표시됩니다."
+                  <EmptyState title="추가된 외부 연동이 없습니다" help="‘외부 연동’ 관리 화면에서 서비스를 추가하면 여기에 상태가 표시됩니다."
                     art="search"
                     relatedLink={{ href: "#/integrations", label: "외부 연동으로 이동" }} />
                 </Card>
@@ -271,7 +271,7 @@ export function Diagnostics() {
                       역할별 canGo 분기가 필요 없다). */}
                   <StatCard value={fmtNum(counts.active_workflows)} label="활성 워크플로" onClick={() => nav("/workflows")} />
                   <StatCard value={fmtNum(counts.active_schedules)} label="활성 스케줄" onClick={() => nav("/schedules")} />
-                  <StatCard value={fmtNum(counts.runners)} label="등록된 러너" onClick={() => nav("/runners")} />
+                  <StatCard value={fmtNum(counts.runners)} label="추가된 러너" onClick={() => nav("/runners")} />
                 </Box>
               </DashSection>
             ) : null}

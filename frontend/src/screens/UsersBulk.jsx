@@ -28,8 +28,8 @@ const BULK_ACTIONS = [
 ];
 
 const IMPORT_STATUS = {
-  ready: { label: "생성 예정", kind: "ok" },
-  created: { label: "생성됨", kind: "ok" },
+  ready: { label: "추가 예정", kind: "ok" },
+  created: { label: "추가됨", kind: "ok" },
   skipped: { label: "건너뜀", kind: "neutral" },
   failed: { label: "실패", kind: "danger" },
 };
@@ -167,7 +167,7 @@ export function ImportModal({ onClose, onImported }) {
       });
       setPreview(res);
       if (!dryRun) {
-        toast(`${res.created}명을 만들었습니다(건너뜀 ${res.skipped}, 실패 ${res.failed}).`,
+        toast(`${res.created}명을 추가했습니다(건너뜀 ${res.skipped}, 실패 ${res.failed}).`,
           res.failed ? "error" : "success");
         onImported();
       }
@@ -207,7 +207,7 @@ export function ImportModal({ onClose, onImported }) {
             </Button>
             <Button variant="primary" disabled={!!busyAction || !preview || !preview.created}
               onClick={() => send(false)}>
-              {busyAction === "create" ? "만드는 중…" : preview ? `${preview.created}명 만들기` : "미리 보기를 먼저 하세요"}
+              {busyAction === "create" ? "추가하는 중…" : preview ? `${preview.created}명 추가` : "미리 보기를 먼저 하세요"}
             </Button>
           </>
         ) : null}
@@ -222,10 +222,10 @@ export function ImportModal({ onClose, onImported }) {
           <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할, 부서, 직책은 선택입니다(부서, 직책은 <em>이름</em>으로 씁니다).
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.75 }}>
-          가져오기는 <strong>새 계정만 만듭니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
+          가져오기는 <strong>새 계정만 추가합니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.75 }}>
-          만들어진 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
+          추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
         </Box>
       </Callout>
       <TextField
@@ -238,7 +238,7 @@ export function ImportModal({ onClose, onImported }) {
         <Box sx={{ mt: 2 }}>
           <Callout tone={preview.failed ? "warn" : "info"}>
             {preview.dry_run ? "미리 보기: " : "적용 결과: "}
-            총 {preview.total}행, {preview.dry_run ? "생성 예정" : "생성"} {preview.created}
+            총 {preview.total}행, {preview.dry_run ? "추가 예정" : "추가"} {preview.created}
             {", 건너뜀 "}{preview.skipped}{", 실패 "}{preview.failed}
           </Callout>
           <Box sx={{ mt: 1.5 }}>

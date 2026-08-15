@@ -205,7 +205,7 @@ export function DevReport() {
             {devs.length === 0 ? (
               <Card>
                 <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
-                  help="선택한 달에 마감일이 있는 티켓이 없거나, 앱에 활성 사용자가 등록되어 있지 않습니다."
+                  help="선택한 달에 마감일이 있는 티켓이 없거나, 앱에 활성 사용자가 추가되어 있지 않습니다."
                   situation="기간을 바꾸거나, 사용자 화면에서 담당자 계정이 활성 상태인지 확인하세요." />
               </Card>
             ) : (

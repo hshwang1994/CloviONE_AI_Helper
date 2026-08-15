@@ -69,21 +69,21 @@ beforeEach(() => {
 });
 
 describe("유지보수 모드 전환 — 확인 대화상자", () => {
-  it("켤까요? 확인 후 승인하면 PUT이 나가고, 배너·버튼 라벨이 켜짐으로 바뀐다", async () => {
+  it("활성화할까요? 확인 후 승인하면 PUT이 나가고, 배너·버튼 라벨이 활성으로 바뀐다", async () => {
     const user = userEvent.setup();
     renderMaintenance();
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 켜기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     await user.click(toggleBtn);
 
     const dialog = await screen.findByRole("dialog", { name: "확인" });
-    expect(dialog).toHaveTextContent(/유지보수 모드를 켤까요\?/);
-    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 켜기" }));
+    expect(dialog).toHaveTextContent(/유지보수 모드를 활성화할까요\?/);
+    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 활성화" }));
 
-    expect(await screen.findByText("유지보수 모드를 변경했습니다.")).toBeInTheDocument();
-    // 낙관적으로 먼저 바뀌지 않는다 — 서버 값(무효화 후 재조회)을 따라 배너/버튼이 뒤늦게 켜짐으로 바뀐다.
-    expect(await screen.findByRole("button", { name: "유지보수 모드 끄기" })).toBeInTheDocument();
-    expect(screen.getByText(/현재 유지보수 모드가 켜져 있습니다/)).toBeInTheDocument();
+    expect(await screen.findByText("유지보수 모드를 전환했습니다.")).toBeInTheDocument();
+    // 낙관적으로 먼저 바뀌지 않는다 — 서버 값(무효화 후 재조회)을 따라 배너/버튼이 뒤늦게 활성으로 바뀐다.
+    expect(await screen.findByRole("button", { name: "유지보수 모드 비활성화" })).toBeInTheDocument();
+    expect(screen.getByText(/현재 유지보수 모드가 활성화되어 있습니다/)).toBeInTheDocument();
 
     const putCall = apiMock.mock.calls.find(([p, o]) => p === "/api/admin/settings/maintenance_mode" && o && o.method === "PUT");
     expect(putCall[1].body).toEqual({ value: true });
@@ -93,31 +93,31 @@ describe("유지보수 모드 전환 — 확인 대화상자", () => {
     const user = userEvent.setup();
     renderMaintenance();
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 켜기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     await user.click(toggleBtn);
 
     const dialog = await screen.findByRole("dialog", { name: "확인" });
     await user.click(within(dialog).getByRole("button", { name: "취소" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "확인" })).toBeNull());
-    expect(screen.getByRole("button", { name: "유지보수 모드 켜기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "유지보수 모드 활성화" })).toBeInTheDocument();
     const putCall = apiMock.mock.calls.find(([p, o]) => p === "/api/admin/settings/maintenance_mode" && o && o.method === "PUT");
     expect(putCall).toBeUndefined();
   });
 
-  it("이미 켜진 상태에서는 끄는 문구로 확인한다", async () => {
+  it("이미 활성화된 상태에서는 비활성화하는 문구로 확인한다", async () => {
     mmValue = true;
     const user = userEvent.setup();
     renderMaintenance();
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 끄기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 비활성화" });
     await user.click(toggleBtn);
 
     const dialog = await screen.findByRole("dialog", { name: "확인" });
-    expect(dialog).toHaveTextContent("유지보수 모드를 끌까요?");
-    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 끄기" }));
+    expect(dialog).toHaveTextContent("유지보수 모드를 비활성화할까요?");
+    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 비활성화" }));
 
-    expect(await screen.findByRole("button", { name: "유지보수 모드 켜기" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "유지보수 모드 활성화" })).toBeInTheDocument();
     const putCall = apiMock.mock.calls.find(([p, o]) => p === "/api/admin/settings/maintenance_mode" && o && o.method === "PUT");
     expect(putCall[1].body).toEqual({ value: false });
   });

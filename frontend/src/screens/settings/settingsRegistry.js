@@ -15,7 +15,7 @@ export const SETTING_LABELS = {
   // N7: "로그인 허용" 이라 적혀 있었는데 실제로는 **생성 시에만** 검사한다
   // (`app/users/service.py`). 도메인을 좁혀도 기존 계정은 그대로 들어온다 —
   // 운영자가 이 값으로 접근을 끊을 수 있다고 믿으면 그게 보안 사고가 된다.
-  allowed_email_domains: "계정 생성 허용 도메인",
+  allowed_email_domains: "계정 추가 허용 도메인",
   document_automation_enabled: "문서 자동화",
   // N6: 이 키가 세 맵에 **전부** 빠져 있어 관리자가 raw 영문 키 + raw JSON 으로 편집했다.
   // 이 파일이 그 드리프트를 예견해 경고까지 심어 놨는데 `import.meta.env.DEV` 게이트라
@@ -40,7 +40,7 @@ export const OBJECT_SCHEMA_HELP = {
   session_policy: 'JSON 예: {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, 값은 초 단위입니다(30분=1800, 8시간=28800).',
   lockout_policy: 'JSON 예: {"max_failures": 5, "lock_seconds": 900}, max_failures(연속 로그인 실패 몇 회 만에 잠글지, 1~20), lock_seconds(잠금 유지 시간, 초 단위, 60~86400).',
   // 백엔드(_email_domains)는 빈 목록([])을 '도메인 제한 없음'으로 허용한다(round10 감사 C 반영).
-  allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 만들 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
+  allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 추가할 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
   ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
   // 비밀번호를 이 JSON 에 넣으면 설정 화면·감사·버전 스냅샷에 평문으로 남는다. 그래서
   // 서버는 **파일 이름**(password_ref)만 받는다 - 그 사실을 여기서 분명히 말한다.
@@ -133,8 +133,8 @@ export function summarizeSetting(key, v) {
   if (key === "backup_schedule") {
     /* 백업은 **복원이 필요해진 날**에야 안 도는 것을 알게 되는 부류다 — 요약이 켜짐/꺼짐과
        주기를 한 줄로 말해 주지 않으면 관리자가 raw JSON 을 눈으로 파싱해야 한다. */
-    if (!v.enabled) return "꺼짐";
-    const parts = ["켜짐"];
+    if (!v.enabled) return "비활성";
+    const parts = ["활성"];
     if (v.cron) parts.push(String(v.cron) + " (" + String(v.timezone || "Asia/Seoul") + ")");
     if (v.keep != null) parts.push(v.keep + "개 보관");
     return parts.join(", ");
@@ -150,8 +150,8 @@ export function summarizeSetting(key, v) {
     // displayValue()의 잘린 raw JSON({"enabled":false,"host":"",...)으로 새어 나갔다 -
     // 다른 object 설정과 같은 "켜짐/꺼짐 + 핵심 정보" 관례로 맞춘다. 비밀번호는
     // password_ref(파일 이름)일 뿐이라 여기 보여도 값 노출이 아니다.
-    if (!v.enabled) return "꺼짐";
-    const parts = ["켜짐"];
+    if (!v.enabled) return "비활성";
+    const parts = ["활성"];
     if (v.host) parts.push(String(v.host) + ":" + (v.port != null ? v.port : "?"));
     if (v.security) parts.push(String(v.security));
     if (v.from_address) parts.push("발신: " + String(v.from_address));
@@ -223,6 +223,6 @@ export function securityDowngradeWarning(setting, value) {
 export function displayValue(v) {
   if (v == null || v === "") return "-";
   if (typeof v === "object") { const s = JSON.stringify(v); return s.length > 72 ? s.slice(0, 72) + "…" : s; }
-  if (typeof v === "boolean") return v ? "켜짐" : "꺼짐";
+  if (typeof v === "boolean") return v ? "활성" : "비활성";
   return String(v);
 }

@@ -30,8 +30,8 @@ export const AUTOMATION_SCREENS = {
     refLists: [{ key: "workflows", endpoint: "/api/admin/workflows" }],
     // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업·문서 화면과 동일 패턴).
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 만들어 워크플로를 자동 실행하세요."
-      : "실행 일정은 관리자가 등록합니다. 등록되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
+      ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 워크플로를 자동 실행하세요."
+      : "실행 일정은 관리자가 추가합니다. 추가되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
     createLabel: "+ 스케줄 추가",
     // list_schedules(app/schedules/router.py)는 쿼리 파라미터를 전혀 받지 않는다(항상 전체 목록) —
     // clientFilter:true로 이미 받아 온 목록을 화면에서 직접 거른다(workflows.filters와 동일 패턴).
@@ -109,7 +109,7 @@ export const AUTOMATION_SCREENS = {
     // 소유자는 서버가 이름을 함께 준다(app/schedules/router.py `_view`) — UUID 대신 그 이름을 쓴다.
     detailFields: [field("id", "스케줄 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
       { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTime(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
-      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "타임아웃(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "생성"), jsonField("payload_template", "실행 페이로드"), jsonField("retry_policy", "재시도 정책")],
+      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "타임아웃(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "추가"), jsonField("payload_template", "실행 페이로드"), jsonField("retry_policy", "재시도 정책")],
     actions: [
       // once형은 백엔드 enable이 실행 시각이 이미 지났으면 항상 409('실행 시각이 이미 지났습니다')로
       // 거절한다 — 눌러도 항상 실패하는 '활성화'를 숨긴다. next_run_at이 아예 없거나(이미 실행됨),
@@ -233,10 +233,10 @@ export const AUTOMATION_SCREENS = {
     // 헤맬 수 있다 — 문서 생성은 그 워크플로들과 무관한 별도 워크플로가 필요하다는 사실
     // 자체를 이 문구가 말하지 않았다(실측: 설치 하나에 등록 워크플로 2개, 둘 다 문서
     // 생성용이 아니었는데 빈 상태는 그 사실을 말하지 않고 그냥 "등록해라"라고만 했다).
-    emptyPrerequisite: "대상 워크플로가 먼저 등록, 활성화돼 있어야 하고, 설정에서 ‘문서 자동화’가 켜져 있어야 합니다(꺼져 있으면 생성이 409로 거절됩니다, #/settings에서 확인). 이 워크플로는 채팅(AI 업무 도우미)이나 Notion 매핑용 워크플로와는 별개입니다. 이 설치에 문서 생성 전용 워크플로가 등록돼 있는지 아래 링크에서 먼저 확인하세요.",
+    emptyPrerequisite: "대상 워크플로가 먼저 추가, 활성화돼 있어야 하고, 설정에서 ‘문서 자동화’가 활성화되어 있어야 합니다(비활성화되어 있으면 생성이 409로 거절됩니다, #/settings에서 확인). 이 워크플로는 채팅(AI 업무 도우미)이나 Notion 매핑용 워크플로와는 별개입니다. 이 설치에 문서 생성 전용 워크플로가 추가되어 있는지 아래 링크에서 먼저 확인하세요.",
     emptySteps: ["‘+ 문서 생성’으로 대상 워크플로와 기간을 지정합니다.", "모드에 따라 미리보기/승인 대기/발행으로 진행됩니다.", "‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다."],
     emptyExpected: "요청한 문서 생성 건이 상태와 함께 이 목록에 남고, 발행되면 Notion 링크가 표시됩니다.",
-    emptyRelatedLink: { href: "#/workflows", label: "먼저: 워크플로 등록으로 이동" },
+    emptyRelatedLink: { href: "#/workflows", label: "먼저: 워크플로 추가로 이동" },
     // DGEN-01: '+ 문서 생성' 폼의 워크플로/템플릿 ID가 손으로 옮겨 적는 자유 텍스트였다 — 이
     // 화면이 이미 아는 목록(워크플로/템플릿 이름)을 select로 보여준다(DataScreen.jsx의
     // refListOptions/withOptionsFrom, DOC_GENERATE_FIELDS의 optionsFromRefList가 소비).

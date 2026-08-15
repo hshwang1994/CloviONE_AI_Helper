@@ -102,7 +102,7 @@ describe("게시글 상세 — 댓글/반응/상태 변경이 목록·홈·내 �
 
     expect(await screen.findByText("제안 글")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "댓글 입력" }), "새 댓글");
-    await user.click(screen.getByRole("button", { name: "댓글 등록" }));
+    await user.click(screen.getByRole("button", { name: "댓글 추가" }));
 
     await waitFor(() => {
       expect(qc.getQueryState(["board"]).isInvalidated, "board").toBe(true);

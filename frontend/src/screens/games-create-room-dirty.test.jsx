@@ -53,8 +53,8 @@ function renderGames() {
 
 async function openModal() {
   renderGames();
-  await userEvent.click(await screen.findByRole("button", { name: "게임방 만들기" }));
-  await screen.findByRole("heading", { name: "게임방 만들기" });
+  await userEvent.click(await screen.findByRole("button", { name: "게임방 추가" }));
+  await screen.findByRole("heading", { name: "게임방 추가" });
 }
 
 beforeEach(() => {

@@ -267,8 +267,8 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
   const insertMention = (name) => insertText("@" + name + " ", () => setMentionAnchor(null));
 
   const askDelete = async (msgSeq) => {
-    const ok = await confirm("이 메시지를 지웁니다. 대화에는 ‘메시지를 삭제했습니다’ 기록이 남고 되돌릴 수 없습니다.",
-      { title: "메시지 지우기", confirmLabel: "지우기", danger: true });
+    const ok = await confirm("이 메시지를 삭제합니다. 대화에는 ‘메시지를 삭제했습니다’ 기록이 남고 되돌릴 수 없습니다.",
+      { title: "메시지 삭제", confirmLabel: "삭제", danger: true });
     if (ok) del.mutate(msgSeq);
   };
 
@@ -423,7 +423,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                   {/* 지우기는 내 말에만. 서버가 소유권을 다시 검사하므로 이 게이팅은 UX 일 뿐이다. */}
                   {mine ? (
                     <IconButton
-                      size="small" aria-label={`메시지 지우기 (${fmtTimeShort(m.created_at)})`}
+                      size="small" aria-label={`메시지 삭제 (${fmtTimeShort(m.created_at)})`}
                       disabled={del.isPending}
                       onClick={() => askDelete(m.seq)}
                       sx={{ flexShrink: 0, color: "text.disabled", "&:hover": { color: "error.main" } }}

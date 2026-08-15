@@ -270,7 +270,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     // 프로젝트는 후보가 있으면 필수다 — 고르지 않으면 제출이 막힌다(그 검증도 함께 지킨다).
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
-    await user.click(screen.getByRole("button", { name: "티켓 만들기" }));
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith("/api/tickets", expect.objectContaining({
         method: "POST",

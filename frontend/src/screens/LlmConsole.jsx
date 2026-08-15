@@ -34,8 +34,8 @@ import { FONT_WEIGHT } from "../ui/theme.js";
 // 사용 여부 세 상태. 값은 서버 레지스트리(_llm_enabled)가 받는 문자열 그대로다.
 const ENABLED_CHOICES = [
   { value: "", label: "서버 환경변수를 따름" },
-  { value: "on", label: "켬" },
-  { value: "off", label: "끔" },
+  { value: "on", label: "활성화" },
+  { value: "off", label: "비활성화" },
 ];
 
 const BACKEND_CHOICES = [
@@ -199,7 +199,7 @@ export function LlmConsole() {
       <Card sx={{ mt: 2, p: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
           <Typography variant="h6">지금 적용 중인 값</Typography>
-          <Badge value={config.enabled ? "켜짐" : "꺼짐"} kind={config.enabled ? "ok" : "muted"} />
+          <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
           <Badge value="확인 안 함" kind="warn" />
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -211,7 +211,7 @@ export function LlmConsole() {
         {data.backend_invalid ? (
           <Box sx={{ mt: 1 }}>
             <Callout tone="warn">
-              백엔드 값("{config.backend}")이 올바르지 않아 사용 여부와 무관하게 꺼진
+              백엔드 값("{config.backend}")이 올바르지 않아 사용 여부와 무관하게 비활성
               상태입니다. 아래 백엔드를 cli 또는 api 중 하나로 바로잡으세요.
             </Callout>
           </Box>

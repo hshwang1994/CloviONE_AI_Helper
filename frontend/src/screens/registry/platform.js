@@ -137,7 +137,7 @@ export const PLATFORM_SCREENS = {
         const last = data && data.last_backup;
         const drill = data && data.last_rehearsal;
         return [
-          { value: s.enabled ? s.cron : "꺼짐", label: s.enabled ? "자동 백업 (" + (s.timezone || "Asia/Seoul") + ")" : "자동 백업", kind: s.enabled ? "ok" : "warn" },
+          { value: s.enabled ? s.cron : "비활성", label: s.enabled ? "자동 백업 (" + (s.timezone || "Asia/Seoul") + ")" : "자동 백업", kind: s.enabled ? "ok" : "warn" },
           { value: last ? fmtDateTime(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
           { value: drill ? (drill.ok ? "통과" : "실패") : "한 번도 안 함", label: "마지막 리허설", kind: drill ? (drill.ok ? "ok" : "danger") : "warn" },
           { value: s.keep == null ? "-" : String(s.keep), label: "보관 개수" },
@@ -167,10 +167,10 @@ export const PLATFORM_SCREENS = {
     key: "announcements", area: "운영", title: "공지 배너",
     endpoint: "/api/admin/announcements",
     help: "모든 화면 위쪽에 띠로 뜨는 공지입니다. 사용자가 닫으면 그 사람에게는 다시 뜨지 않습니다(브라우저가 아니라 계정에 기록되므로 다른 PC에서도 닫힌 상태가 유지됩니다).",
-    emptyTitle: "등록된 공지가 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 공지 추가’로 점검 예고나 안내를 띄우세요.", "공지는 관리자가 등록합니다."),
+    emptyTitle: "추가된 공지가 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 공지 추가’로 점검 예고나 안내를 띄우세요.", "공지는 관리자가 추가합니다."),
     emptySituation: "점검이나 장애를 알릴 곳이 알림 벨밖에 없었습니다(놓치기 쉽습니다).",
-    emptySteps: ["‘+ 공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 끌 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
+    emptySteps: ["‘+ 공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 ‘사용 안 함’으로 바꿀 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
     emptyExpected: "활성 공지는 모든 화면 위쪽에 띠로 뜨고, 사용자가 닫으면 그 계정에는 다시 뜨지 않습니다.",
     createLabel: "+ 공지 추가",
     paginated: true, searchable: true,
@@ -192,7 +192,7 @@ export const PLATFORM_SCREENS = {
     ],
     detailFields: [field("id", "공지 ID"), field("body", "내용"),
       { key: "dismissible", label: "닫기 허용", render: (r) => r.dismissible ? "닫을 수 있음" : "닫을 수 없음(기간이 끝나야 사라짐)" },
-      field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "등록")],
+      field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "추가")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "title", label: "제목", type: "text", required: true },
       { name: "body", label: "내용", type: "textarea" },
@@ -200,7 +200,7 @@ export const PLATFORM_SCREENS = {
       { name: "audience", label: "대상", type: "select", value: "all", options: opt([["all", "모든 사용자"], ["admin", "관리자군에게만(운영자 이상)"]]) },
       { name: "starts_at", label: "노출 시작(선택)", type: "datetime-local", help: "비우면 즉시 노출됩니다." },
       { name: "ends_at", label: "노출 종료(선택)", type: "datetime-local", help: "비우면 ‘사용 안 함’으로 바꿀 때까지 계속 노출됩니다." },
-      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "끄면 닫기 버튼이 없습니다. 그런 공지는 반드시 종료 시각을 정하세요." },
+      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "비활성화하면 닫기 버튼이 없습니다. 그런 공지는 반드시 종료 시각을 정하세요." },
       { name: "link_url", label: "링크 주소(선택)", type: "text" },
       { name: "link_label", label: "링크 문구(선택)", type: "text" },
       { name: "active", label: "사용", type: "checkbox", value: true, checkLabel: "지금 사용" },
@@ -281,7 +281,7 @@ export const PLATFORM_SCREENS = {
       dateCol("resets_at", "초기화"),
     ],
     detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
-      dateCol("created_at", "등록"), dateCol("updated_at", "수정"),
+      dateCol("created_at", "추가"), dateCol("updated_at", "수정"),
       { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
@@ -305,11 +305,11 @@ export const PLATFORM_SCREENS = {
   "feature-flags": {
     key: "feature-flags", area: "운영", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
-    help: "모듈을 켜고 끄는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 반영됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
+    help: "모듈을 활성화하고 비활성화하는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 적용됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
     emptyTitle: "플래그 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",
     searchFields: ["name", "description"],
     searchPlaceholder: "플래그 이름으로 검색",
-    filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 변경)"], ["db", "설정 화면"]]) }],
+    filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 수정)"], ["db", "설정 화면"]]) }],
     // WF1 R4(단독 결함) — API가 이미 default를 매 행에 내려주는데(app/admin/feature_flags.py
     // _items) 화면은 상세 드로어에서만 썼다 — 목록만 훑어서는 "지금 값이 안전한 기본값과
     // 같은가"를 알 수 없었다(실사례: game_ai_enabled가 설명상 "기본 OFF(fail-closed)"인데
@@ -319,8 +319,8 @@ export const PLATFORM_SCREENS = {
     // 상태라는 점은 다른 warn 톤 사용처(activeCol 등)와 같은 이유다.
     columns: [
       col("name", "플래그"),
-      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "켜짐" : "꺼짐", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
-      { key: "default", label: "기본값", render: (r) => React.createElement(Badge, { value: r.default ? "켜짐" : "꺼짐", kind: "neutral" }) },
+      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
+      { key: "default", label: "기본값", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
       { key: "has_consumer", label: "실제 효과", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),
@@ -330,17 +330,17 @@ export const PLATFORM_SCREENS = {
     // 조용히 버려져(상세 드로어의 원래 목적인 '전체 설명 확인'이 실제로는 절대 렌더되지 않는다) —
     // audit 화면의 object_id_full/backup 화면의 path_full과 동일한 패턴으로 별도 key를 쓴다.
     detailFields: [
-      { key: "description_full", label: "설명", render: (r) => r.description || "-" }, field("edit_hint", "변경 안내"),
-      { key: "default", label: "기본값", render: (r) => r.default ? "켜짐" : "꺼짐" },
-      { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다. 켜거나 꺼도 동작이 달라지지 않습니다." },
+      { key: "description_full", label: "설명", render: (r) => r.description || "-" }, field("edit_hint", "수정 안내"),
+      { key: "default", label: "기본값", render: (r) => r.default ? "활성" : "비활성" },
+      { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다. 활성화하거나 비활성화해도 동작이 달라지지 않습니다." },
     ],
     actions: [
-      { label: "켜기", variant: "primary", roles: WRITE_ROLES, when: (r) => r.editable_here && !r.value,
+      { label: "활성화", variant: "primary", roles: WRITE_ROLES, when: (r) => r.editable_here && !r.value,
         method: "PUT", path: (r) => "/api/admin/feature-flags/" + encodeURIComponent(r.name), body: { enabled: true },
-        confirm: (r) => r.name + " 플래그를 켤까요? 재시작 없이 즉시 반영됩니다." },
-      { label: "끄기", variant: "danger", roles: WRITE_ROLES, when: (r) => r.editable_here && r.value,
+        confirm: (r) => r.name + " 플래그를 활성화할까요? 재시작 없이 즉시 적용됩니다." },
+      { label: "비활성화", variant: "danger", roles: WRITE_ROLES, when: (r) => r.editable_here && r.value,
         method: "PUT", path: (r) => "/api/admin/feature-flags/" + encodeURIComponent(r.name), body: { enabled: false },
-        confirm: (r) => r.name + " 플래그를 끌까요? 이 기능을 쓰는 화면이 즉시 사라지거나 요청이 거절됩니다." },
+        confirm: (r) => r.name + " 플래그를 비활성화할까요? 이 기능을 쓰는 화면이 즉시 사라지거나 요청이 거절됩니다." },
       { label: "설정 화면에서 열기", when: (r) => !r.editable_here, navigate: () => "#/settings" },
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=feature_flag&object_id=" + encodeURIComponent(r.name) },
     ],

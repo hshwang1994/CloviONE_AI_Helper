@@ -37,7 +37,7 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
     return (
       <Box sx={{ px: 0.5, py: 0.5 }}>
         <InputBase
-          fullWidth autoFocus value={val} inputProps={{ maxLength: 200, "aria-label": "이름 변경: " + label }}
+          fullWidth autoFocus value={val} inputProps={{ maxLength: 200, "aria-label": "이름 수정: " + label }}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { setEditing(false); setVal(c.title || ""); } }}
           onBlur={commit}
@@ -87,7 +87,7 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
       {/* 목록에 같은 버튼이 대화 수만큼 있어서, '삭제'만으로는 스크린리더 사용자가 어느 대화의
           삭제 버튼인지 알 수 없다, 대화 제목을 라벨에 포함한다. */}
       <Box className="chat-conv-actions" sx={{ display: "none", flexShrink: 0, pr: 0.5 }}>
-        {act("이름 변경", "이름 변경: " + label, <EditRoundedIcon sx={{ fontSize: "1rem" }} />, () => { setVal(c.title || ""); setEditing(true); })}
+        {act("이름 수정", "이름 수정: " + label, <EditRoundedIcon sx={{ fontSize: "1rem" }} />, () => { setVal(c.title || ""); setEditing(true); })}
         {act(c.archived ? "보관 해제" : "보관", (c.archived ? "보관 해제: " : "보관: ") + label,
           c.archived ? <UnarchiveOutlinedIcon sx={{ fontSize: "1rem" }} /> : <Inventory2OutlinedIcon sx={{ fontSize: "1rem" }} />,
           () => onArchive(!c.archived))}

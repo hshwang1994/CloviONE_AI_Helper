@@ -125,7 +125,7 @@ export const OBJECT_KO = {
   offboarding_run: "오프보딩",
 };
 export const VERB_KO = {
-  create: "생성", update: "수정", delete: "삭제", enable: "활성화", disable: "비활성화",
+  create: "추가", update: "수정", delete: "삭제", enable: "활성화", disable: "비활성화",
   archive: "보관", unarchive: "복구", approve: "승인", reject: "거절", cancel: "취소",
   transition: "상태 변경", rollback: "롤백", grant: "부여", revoke: "회수", map: "연결",
   manual_map: "수동 연결", unmap: "연결 해제", sync: "동기화", run: "실행", undo: "되돌리기", verify: "검증",

@@ -17,16 +17,16 @@ import { serviceLabel } from "../ops/opsHelpers.js";
 export const INTEGRATION_SCREENS = {
   integrations: {
     key: "integrations", area: "연동", title: "외부 연동", endpoint: "/api/admin/integrations",
-    help: "이 시스템이 불러다 쓰는 외부 서비스(n8n, Claude 러너 등)를 등록하고 점검합니다. 활성/비활성화는 이 연동을 참조하는 러너의 실제 호출을 막습니다(러너 화면에서 이 연동을 선택한 경우에 한함).",
-    emptyTitle: "등록된 외부 연동이 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 외부 연동 추가’로 n8n, 러너 등 외부 서비스를 등록하고 상태를 점검하세요.", "외부 연동은 관리자가 등록합니다. 등록되면 여기에 상태와 함께 표시됩니다."),
+    help: "이 시스템이 불러다 쓰는 외부 서비스(n8n, Claude 러너 등)를 추가하고 점검합니다. 활성/비활성화는 이 연동을 참조하는 러너의 실제 호출을 막습니다(러너 화면에서 이 연동을 선택한 경우에 한함).",
+    emptyTitle: "추가된 외부 연동이 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 외부 연동 추가’로 n8n, 러너 등 외부 서비스를 추가하고 상태를 점검하세요.", "외부 연동은 관리자가 추가합니다. 추가되면 여기에 상태와 함께 표시됩니다."),
     // 첫 화면 진입 시 단계별 안내(§9) — 연동→러너→워크플로 체인의 첫 단계라 다음 화면으로 가는
     // relatedLink도 함께 준다.
     emptySituation: "이 관리 콘솔이 아직 n8n, 러너 같은 외부 서비스를 하나도 모릅니다.",
-    emptyPrerequisite: "등록할 서비스의 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다).",
+    emptyPrerequisite: "추가할 서비스의 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다).",
     emptySteps: ["‘+ 외부 연동 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스체크’로 연결을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
-    emptyExpected: "등록한 연동은 목록에 상태와 함께 표시되고, ‘자동화 작업 실행기(러너)’ 화면에서 이 연동을 선택할 수 있습니다.",
-    emptyRelatedLink: { href: "#/runners", label: "다음: 러너 등록으로 이동" },
+    emptyExpected: "추가한 연동은 목록에 상태와 함께 표시되고, ‘자동화 작업 실행기(러너)’ 화면에서 이 연동을 선택할 수 있습니다.",
+    emptyRelatedLink: { href: "#/runners", label: "다음: 러너 추가로 이동" },
     createLabel: "+ 외부 연동 추가",
     // 다른 화면(러너 상세의 integration_id)이 ?id=로 넘겨주는 딥링크를 소비해 그 연동의 상세
     // 드로어를 곧바로 연다(단건 GET — runners.onQuery와 동일한 패턴).
@@ -72,7 +72,7 @@ export const INTEGRATION_SCREENS = {
         help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 연동만 새로 만들 수 있습니다, Bearer, API 키가 필요한 연동은 system_admin에게 요청하세요." },
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "서버 secrets 파일 이름(값 아님). ‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "description", label: "설명", type: "textarea" },
-      { name: "enabled", label: "활성", type: "checkbox", value: false, checkLabel: "활성(끄면 등록만 하고 헬스체크 후 켤 수 있음)" },
+      { name: "enabled", label: "활성", type: "checkbox", value: false, checkLabel: "활성(비활성 상태로 추가만 하고 헬스체크 후 활성화할 수 있음)" },
     ] },
     // 등록 후 값을 고칠 수 있게 명시적 PATCH 편집 폼(기능·인증·설명 포함).
     editMethod: "PATCH", edit: { roles: WRITE_ROLES, fields: [
@@ -111,7 +111,7 @@ export const INTEGRATION_SCREENS = {
       // auth_type이 '없음'이면 secret_status는 null이다(원래 정상) — 일반 Badge는 null을 '알 수 없음'으로
       // 오해하게 표시하므로, 인증 자체가 필요 없는 경우엔 '해당 없음'으로 구분한다(그 외엔 기존 배지 재사용).
       { key: "secret_status", label: "인증 정보 상태", render: (r) => r.auth_type === "none" ? "해당 없음" : badgeCol("secret_status", "인증 정보 상태").render(r) },
-      field("description", "설명"), dateCol("last_health_at", "마지막 점검"), dateCol("created_at", "생성"), dateCol("updated_at", "수정")],
+      field("description", "설명"), dateCol("last_health_at", "마지막 점검"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
   },
   runners: {
     key: "runners", area: "연동", title: "자동화 작업 실행기(러너)", endpoint: "/api/admin/runners",
@@ -123,24 +123,24 @@ export const INTEGRATION_SCREENS = {
     // '외부 연동' 화면의 n8n 경로(업무 자동화 흐름/워크플로)로 나간다. 등록·헬스체크 레지스트리라는
     // 사실만 말하고, 실제 처리가 어디로 가는지는 그 화면으로 안내한다(app/setup/probes.py::probe_llm
     // 의 같은 정정과 짝).
-    help: (role) => "등록, 헬스체크, 수동 테스트 대상 레지스트리입니다(실제 채팅, 문서 생성 처리는 ‘외부 연동’의 n8n 경로가 맡습니다). 상태 확인 후 켜세요. 성능 저하, 차단된 러너는 헬스 체크가 한 번 성공하면 자동 복구됩니다."
+    help: (role) => "추가, 헬스체크, 수동 테스트 대상 레지스트리입니다(실제 채팅, 문서 생성 처리는 ‘외부 연동’의 n8n 경로가 맡습니다). 상태 확인 후 활성화하세요. 성능 저하, 차단된 러너는 헬스 체크가 한 번 성공하면 자동 복구됩니다."
       + ((role === "admin" || role === "system_admin") ? " 강제로 멈추려면 ‘점검 상태 변경’을 누르세요." : ""),
-    emptyTitle: "등록된 러너가 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 러너 추가’로 실행기를 등록하고 상태 확인 후 켜세요(등록, 헬스체크 대상입니다).", "러너는 관리자가 등록합니다. 등록되면 여기에 표시됩니다."),
+    emptyTitle: "추가된 러너가 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 러너 추가’로 실행기를 추가하고 상태 확인 후 활성화하세요(추가, 헬스체크 대상입니다).", "러너는 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
     // 첫 화면 진입 시 단계별 안내(§9) — 연동→러너→워크플로 체인의 두 번째 단계.
-    emptySituation: "등록된 러너가 아직 하나도 없습니다.",
-    emptyPrerequisite: "이 러너가 사용할 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다). 외부 연동과 묶을 계획이면 그 연동을 먼저 등록해 두세요.",
-    emptySteps: ["‘+ 러너 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스’, ‘테스트’로 연결을 확인합니다.", "정상이면 ‘활성화’로 등록을 마칩니다."],
+    emptySituation: "추가된 러너가 아직 하나도 없습니다.",
+    emptyPrerequisite: "이 러너가 사용할 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다). 외부 연동과 묶을 계획이면 그 연동을 먼저 추가해 두세요.",
+    emptySteps: ["‘+ 러너 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스’, ‘테스트’로 연결을 확인합니다.", "정상이면 ‘활성화’로 추가를 마칩니다."],
     // 프롬프트의 '러너 ID'는 이미 참고용 메타데이터로만 안내되고(authoring.js: "이 값만으로
     // 실행되지는 않습니다"), 템플릿도 신규로는 러너를 대상 워크플로로 지정할 수 없다(registry/
     // shared.js TARGET_OPTS, app/templates/router.py의 동일 검증) — 여기서 "지정할 수 있다"고
     // 안내하면 두 화면 모두와 어긋난다.
-    emptyExpected: "등록한 러너는 목록에 상태, 점검 상태와 함께 표시됩니다.",
+    emptyExpected: "추가한 러너는 목록에 상태, 점검 상태와 함께 표시됩니다.",
     // 연동→러너→워크플로 체인의 두 번째 단계 — integrations는 이미 runners로의 다음 단계 링크를
     // 갖고 있었지만(반대 방향), runners 자신은 다음 단계(workflows)로의 링크가 없어 체인이 절반만
     // 이어졌다. EmptyState는 링크를 하나만 표시할 수 있어(kit.jsx), 이 화면은 '다음' 방향을 준다
     // (integrations→runners 역방향은 integrations.emptyRelatedLink가 이미 담당).
-    emptyRelatedLink: { href: "#/workflows", label: "다음: 워크플로 등록으로 이동" },
+    emptyRelatedLink: { href: "#/workflows", label: "다음: 워크플로 추가로 이동" },
     createLabel: "+ 러너 추가",
     // 다른 화면(템플릿의 target_ref, 프롬프트의 runner_id)이 ?id=로 넘겨주는 딥링크를 소비해 그
     // 러너의 상세 드로어를 곧바로 연다(단건 GET — jobs.onQuery와 동일한 패턴).
@@ -179,7 +179,7 @@ export const INTEGRATION_SCREENS = {
       { name: "health_url", label: "상태 확인 주소(Health URL)", type: "text", help: "비우면 Base URL로 헬스체크" },
       { name: "auth_type", label: "인증", type: "select", value: "none",
         options: role === "system_admin" ? AUTH_OPTS : AUTH_OPTS.filter((o) => o.value === "none"),
-        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 러너만 새로 만들 수 있습니다, Bearer, API 키가 필요한 러너는 system_admin에게 요청하세요." },
+        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 러너만 새로 추가할 수 있습니다, Bearer, API 키가 필요한 러너는 system_admin에게 요청하세요." },
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "서버 secrets 디렉터리 파일 이름(값 아님). ‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "timeout_seconds", label: "타임아웃(초)", type: "number", value: 60 },
       { name: "concurrency_limit", label: "동시 실행 수", type: "number", value: 1 },
@@ -187,7 +187,7 @@ export const INTEGRATION_SCREENS = {
       // integration_id는 생성 시에만 지정할 수 있고 수정 폼에는 없다(백엔드 RunnerUpdateRequest에
       // 필드가 없음). 러너 삭제(DELETE) 엔드포인트도 없어, 오타가 나면 이 화면에서는 되돌릴 방법이
       // 없다(비활성화만 가능) — 그래서 제출 전에 ID가 맞는지 미리 확인하라고 안내한다.
-      { name: "integration_id", label: "연동 ID(선택)", type: "text", help: "이 러너를 연결할 외부 연동의 ID(‘외부 연동’ 화면에서 확인). 생성 후에는 이 화면에서 다시 바꿀 수 없으니(수정 폼에 없고 러너 삭제 경로도 없습니다), 제출 전에 ID가 맞는지 다시 확인하세요." },
+      { name: "integration_id", label: "연동 ID(선택)", type: "text", help: "이 러너를 연결할 외부 연동의 ID(‘외부 연동’ 화면에서 확인). 추가 후에는 이 화면에서 다시 바꿀 수 없으니(수정 폼에 없고 러너 삭제 경로도 없습니다), 제출 전에 ID가 맞는지 다시 확인하세요." },
       { name: "owner", label: "담당자(선택)", type: "text" },
       { name: "description", label: "설명", type: "textarea" },
     ] },
@@ -276,21 +276,21 @@ export const INTEGRATION_SCREENS = {
       // 연동 화면이 이제 ?id=로 특정 연동 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 — 무필터
       // 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 연동으로 데려간다.
       { key: "integration_id", label: "연동 ID", render: (r) => r.integration_id ? React.createElement("a", { href: "#/integrations?id=" + encodeURIComponent(r.integration_id) }, r.integration_id) : "-" },
-      dateCol("last_health_at", "마지막 상태 확인"), dateCol("circuit_open_until", "회로 차단 해제"), dateCol("created_at", "생성"), dateCol("updated_at", "수정"), field("description", "설명")],
+      dateCol("last_health_at", "마지막 상태 확인"), dateCol("circuit_open_until", "회로 차단 해제"), dateCol("created_at", "추가"), dateCol("updated_at", "수정"), field("description", "설명")],
   },
   workflows: {
     key: "workflows", area: "연동", title: "업무 자동화 흐름(워크플로)", endpoint: "/api/admin/workflows",
-    help: "n8n 워크플로를 등록해 관리합니다. 읽기/쓰기, 승인 필요 여부를 표시합니다. ‘테스트’는 수신 주소의 도달 가능성(GET 연결)만 확인하며, 실제 실행을 보장하지 않습니다.",
-    emptyTitle: "등록된 워크플로가 없습니다",
+    help: "n8n 워크플로를 추가해 관리합니다. 읽기/쓰기, 승인 필요 여부를 표시합니다. ‘테스트’는 수신 주소의 도달 가능성(GET 연결)만 확인하며, 실제 실행을 보장하지 않습니다.",
+    emptyTitle: "추가된 워크플로가 없습니다",
     // 워크플로는 READ_ROLES(operator/auditor 포함)가 읽을 수 있지만 생성은 WRITE_ROLES 전용이다
     // (nav 항목엔 role 게이트가 없어 읽기 전용 역할도 이 화면에 닿는다) → 없는 버튼을 누르라고 안내하지 않는다.
-    emptyHelp: writerEmptyHelp("‘+ 워크플로 추가’로 n8n 워크플로의 수신 주소(Webhook)를 등록해 관리하세요.", "워크플로는 관리자가 등록합니다. 등록되면 여기에 상태와 함께 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 워크플로 추가’로 n8n 워크플로의 수신 주소(Webhook)를 추가해 관리하세요.", "워크플로는 관리자가 추가합니다. 추가되면 여기에 상태와 함께 표시됩니다."),
     // 연동→러너→워크플로 체인의 세 번째(마지막) 단계 — 앞의 두 화면(integrations/runners)과 동일한
     // 단계별 안내(§9)를 준다(예전엔 워크플로만 emptyTitle/emptyHelp뿐이었다).
     emptySituation: "이 관리 콘솔이 아직 n8n 워크플로를 하나도 모릅니다.",
-    emptyPrerequisite: "등록할 워크플로의 수신 주소(Webhook)가 allowlist에 있는지 확인하세요(config/allowed-workflows.json).",
+    emptyPrerequisite: "추가할 워크플로의 수신 주소(Webhook)가 allowlist에 있는지 확인하세요(config/allowed-workflows.json).",
     emptySteps: ["‘+ 워크플로 추가’로 이름과 수신 주소(Webhook)를 입력합니다.", "저장 후 ‘테스트’로 수신 주소 도달을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
-    emptyExpected: "등록한 워크플로는 목록에 상태와 함께 표시되고, 템플릿, 스케줄, 문서 자동 생성 화면에서 이 워크플로를 대상으로 지정할 수 있습니다.",
+    emptyExpected: "추가한 워크플로는 목록에 상태와 함께 표시되고, 템플릿, 스케줄, 문서 자동 생성 화면에서 이 워크플로를 대상으로 지정할 수 있습니다.",
     emptyRelatedLink: { href: "#/runners", label: "이전: 러너 목록 보기" },
     createLabel: "+ 워크플로 추가",
     // 다른 화면(템플릿의 target_ref, 스케줄의 target_ref, 문서의 workflow_id)이 ?id=로 넘겨주는
@@ -342,7 +342,7 @@ export const INTEGRATION_SCREENS = {
       // purpose·owner는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
       field("http_method", "HTTP 메서드"),
       { key: "tags", label: "태그", render: (r) => (r.tags && r.tags.length) ? r.tags.join(", ") : "-" },
-      dateCol("last_test_at", "마지막 테스트"), dateCol("created_at", "생성"), dateCol("updated_at", "수정")],
+      dateCol("last_test_at", "마지막 테스트"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text", required: true },
       { name: "webhook_url", label: "수신 주소(Webhook URL)", type: "text", required: true, help: "n8n 워크플로의 웹훅 주소 (예: http://127.0.0.1:5678/webhook/my-flow, allowlist에 있어야 함)" },
@@ -351,8 +351,8 @@ export const INTEGRATION_SCREENS = {
       { name: "operation_mode", label: "모드", type: "select", value: "read", options: WFMODE_OPTS, help: "쓰기는 데이터를 변경합니다." },
       { name: "owner", label: "담당자", type: "text" },
       { name: "tags", label: "태그(JSON 배열)", type: "json", help: '예: ["report","weekly"]' },
-      { name: "approval_required", label: "승인 필요", type: "checkbox", value: false, checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 읽기 워크플로는 예약 실행 시 승인 없이 실행됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 켜진 모든 워크플로/템플릿에 적용됩니다(app/documents/service.py: publish_approval_required)." },
-      { name: "enabled", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "먼저 ‘테스트’로 수신 주소 도달을 확인한 뒤 켜는 것을 권장합니다." },
+      { name: "approval_required", label: "승인 필요", type: "checkbox", value: false, checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 읽기 워크플로는 예약 실행 시 승인 없이 실행됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 활성화된 모든 워크플로/템플릿에 적용됩니다(app/documents/service.py: publish_approval_required)." },
+      { name: "enabled", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "먼저 ‘테스트’로 수신 주소 도달을 확인한 뒤 활성화하는 것을 권장합니다." },
     ] },
     // 편집은 PATCH(부분 갱신) — 예약 워크플로 행에서는 name 필드를 아예 빼서 계약 이름이 바뀌지
     // 않게 잠근다(PATCH라 보내지 않으면 그대로 유지된다). 그 외 행은 name 포함 전 필드 편집 가능.
@@ -364,7 +364,7 @@ export const INTEGRATION_SCREENS = {
       { name: "operation_mode", label: "모드", type: "select", options: WFMODE_OPTS, help: "쓰기는 데이터를 변경합니다." },
       { name: "owner", label: "담당자", type: "text" },
       { name: "tags", label: "태그(JSON 배열)", type: "json" },
-      { name: "approval_required", label: "승인 필요", type: "checkbox", checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 켜진 모든 워크플로/템플릿에 적용됩니다." },
+      { name: "approval_required", label: "승인 필요", type: "checkbox", checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 활성화된 모든 워크플로/템플릿에 적용됩니다." },
     ].filter((f) => !(f.name === "name" && row && RESERVED_WORKFLOW_NOTES[row.name])) },
     actions: [
       ...onoff("/api/admin/workflows", reservedDisableConfirm),

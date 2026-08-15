@@ -198,7 +198,7 @@ export function GameStage({ c }) {
                     </Stack>
                   ) : null}
                   {canPick && gstate.you_submitted ? (
-                    <Typography variant="body2" color="text.secondary">내가 낸 숫자: {gstate.your_pick} (다시 내면 변경됩니다)</Typography>
+                    <Typography variant="body2" color="text.secondary">내가 낸 숫자: {gstate.your_pick} (다시 내면 수정됩니다)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
                     <StageHint>관전 중: 참여자만 숫자를 낼 수 있습니다.</StageHint>
@@ -256,7 +256,7 @@ export function GameStage({ c }) {
                       disabled={rps.isPending} onPick={(i) => rps.mutate(i)} />
                   ) : null}
                   {canRps && gstate.you_submitted ? (
-                    <Typography variant="body2" color="text.secondary">낸 것: {RPS_LABELS[gstate.your_choice]} (다시 누르면 변경)</Typography>
+                    <Typography variant="body2" color="text.secondary">낸 것: {RPS_LABELS[gstate.your_choice]} (다시 누르면 수정)</Typography>
                   ) : null}
                   {you.role === "spectator" ? (
                     <StageHint>관전 중: 참여자만 낼 수 있습니다.</StageHint>

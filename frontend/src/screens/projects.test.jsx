@@ -630,7 +630,7 @@ describe("프로젝트 생성", () => {
     await user.click(screen.getByRole("button", { name: "+ 새 프로젝트" }));
     await fill(user, "이름", "새 사업");
     await fill(user, "시작일", "2026-09-01");
-    await user.click(screen.getByRole("button", { name: "만들기" }));
+    await user.click(screen.getByRole("button", { name: "추가" }));
 
     await waitFor(() => expect(lastWrite("/api/projects", "POST")).not.toBeNull());
     const sent = lastWrite("/api/projects", "POST");

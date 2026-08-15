@@ -111,7 +111,7 @@ export function MailStatus() {
         <Box sx={{ display: "grid", gap: 0.5 }}>
           {/* Badge(Chip→div)를 Typography 기본 태그(p)의 자식으로 두면 DOM 중첩이 깨진다
               (div는 p 안에 못 들어간다) — component="div"로 바꾼다. */}
-          <Typography component="div">사용: <Badge value={server.enabled ? "켜짐" : "꺼짐"} kind={server.enabled ? "ok" : "warn"} /></Typography>
+          <Typography component="div">사용: <Badge value={server.enabled ? "활성" : "비활성"} kind={server.enabled ? "ok" : "warn"} /></Typography>
           <Typography>주소: {server.host ? server.host + ":" + server.port : "설정 안 됨"}</Typography>
           <Typography>보안: {server.security || "설정 안 됨"}</Typography>
           <Typography>보내는 사람: {server.from_address || "설정 안 됨"}{server.from_name ? " (" + server.from_name + ")" : ""}</Typography>

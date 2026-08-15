@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* 말풍선의 새 동작 — 내 메시지 지우기 · 1:1 읽음 표시 · 링크/멘션 렌더 (PLAN Phase 3 §F).
+/* 말풍선의 새 동작 — 내 메시지 삭제 · 1:1 읽음 표시 · 링크/멘션 렌더 (PLAN Phase 3 §F).
  *
  * 여기서 지키는 것 넷:
  *  1. 지우기는 **내 말에만** 보인다(서버가 다시 검사하지만 남의 말에 지우기 버튼이 보이면
@@ -71,9 +71,9 @@ const posted = (prefix) => apiMock.mock.calls.filter(
 
 beforeEach(() => { apiMock.mockReset(); });
 
-// ── 1. 내 메시지 지우기 ─────────────────────────────────────────────────────
+// ── 1. 내 메시지 삭제 ─────────────────────────────────────────────────────
 
-describe("메시지 지우기", () => {
+describe("메시지 삭제", () => {
   it("내 말에만 지우기 버튼이 있다", async () => {
     mount(payload({
       seq: 2,
@@ -81,26 +81,26 @@ describe("메시지 지우기", () => {
                  msg({ seq: 2, sender_user_id: PEER, sender_name: "상대", body: "남의 말" })],
     }));
     await screen.findByText("내 말");
-    expect(screen.getAllByRole("button", { name: /메시지 지우기/ })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /메시지 삭제/ })).toHaveLength(1);
   });
 
   it("확인을 받은 뒤에만 삭제 요청이 나간다", async () => {
     const user = userEvent.setup();
     mount(payload());
-    await user.click(await screen.findByRole("button", { name: /메시지 지우기/ }));
+    await user.click(await screen.findByRole("button", { name: /메시지 삭제/ }));
     // 확인 창에서 취소하면 아무 요청도 나가지 않는다.
     await user.click(await screen.findByRole("button", { name: "취소" }));
     expect(posted("/api/team-chat/rooms/r1/messages/1/delete")).toHaveLength(0);
 
-    await user.click(screen.getByRole("button", { name: /메시지 지우기/ }));
-    await user.click(await screen.findByRole("button", { name: "지우기" }));
+    await user.click(screen.getByRole("button", { name: /메시지 삭제/ }));
+    await user.click(await screen.findByRole("button", { name: "삭제" }));
     await waitFor(() => expect(posted("/api/team-chat/rooms/r1/messages/1/delete")).toHaveLength(1));
   });
 
   it("시스템 메시지에는 지우기 버튼이 없다 — 서버도 409로 막는 동작이다", async () => {
     mount(payload({ messages: [msg({ kind: "system", sender_user_id: null, body: "방을 만들었습니다." })] }));
     await screen.findByText("방을 만들었습니다.");
-    expect(screen.queryByRole("button", { name: /메시지 지우기/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /메시지 삭제/ })).toBeNull();
   });
 });
 

@@ -98,7 +98,7 @@ describe("문서 본문 편집", () => {
     });
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
     const box = screen.getByPlaceholderText(/본문을 입력하세요/);
     await user.clear(box);
@@ -113,7 +113,7 @@ describe("문서 본문 편집", () => {
     expect(saves[0].body.base_version).toBe("v1");
 
     // 두 번째 저장은 **새 지문**으로 나가야 한다. 옛 지문을 쓰면 서버가 409 로 막는다.
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(saves).toHaveLength(2));
     expect(saves[1].body.base_version).toBe("v2");
@@ -134,7 +134,7 @@ describe("문서 본문 편집", () => {
     });
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(await screen.findByText(/원본\(Notion\) 반영에 실패/)).toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("문서 본문 편집", () => {
     });
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(await screen.findByText(/다른 사람이 먼저 저장했습니다/)).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("문서 본문 편집", () => {
     }))));
 
     wrap();
-    expect(await screen.findByRole("button", { name: "본문 편집" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "본문 수정" })).toBeDisabled();
   });
 
   it("원본에서 되읽은 근사치를 고칠 때만 서식 손실을 경고한다", async () => {
@@ -176,7 +176,7 @@ describe("문서 본문 편집", () => {
     ));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     expect(screen.getByText(/인라인\s*서식은 사라지고/)).toBeInTheDocument();
   });
 
@@ -185,7 +185,7 @@ describe("문서 본문 편집", () => {
     apiMock.mockImplementation((path) => Promise.resolve(route(path, detailPayload())));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     expect(screen.queryByText(/인라인\s*서식은 사라지고/)).toBeNull();
   });
 });

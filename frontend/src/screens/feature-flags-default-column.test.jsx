@@ -24,9 +24,9 @@ describe("기능 플래그 목록 — '기본값' 열과 어긋남 신호 (WF1 R
     const col = findCol("default");
     expect(col).toBeTruthy();
     const { container: onC } = renderCol(col, { default: true });
-    expect(onC).toHaveTextContent("켜짐");
+    expect(onC).toHaveTextContent("활성");
     const { container: offC } = renderCol(col, { default: false });
-    expect(offC).toHaveTextContent("꺼짐");
+    expect(offC).toHaveTextContent("비활성");
   });
 
   it("현재 값이 기본값과 같으면 '현재' 배지가 warn이 아니다", () => {

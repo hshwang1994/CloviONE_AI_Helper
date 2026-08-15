@@ -145,7 +145,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
     // 성공 토스트)가 이미 닫힌 화면 뒤에서 실행되는 혼란스러운 상태가 된다.
     if (save.isPending) return;
     if (dirty) {
-      const ok = await confirm("변경한 내용이 저장되지 않았습니다. 닫을까요?", { danger: true, confirmLabel: "닫기" });
+      const ok = await confirm("수정한 내용이 저장되지 않았습니다. 닫을까요?", { danger: true, confirmLabel: "닫기" });
       if (!ok) return;
     }
     onClose();
@@ -181,10 +181,10 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
   return (
     <>
     <Modal open={!!setting} onClose={requestClose} title={settingLabel(setting.key)} footer={footer}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "변경됨"})</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "수정됨"})</Typography>
       <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5, maxWidth: "70ch" }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
-      {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다. 값은 변경할 수 없습니다. 변경은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
+      {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다. 값은 수정할 수 없습니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
       {/* bool select, document_automation_enabled(SETTING_LABELS에 라벨 추가됨, MAINTENANCE_KEYS로
           걸러지지 않음)가 이 표에 노출되는 실제 bool 설정이라 이 분기는 지금 실사용된다. 입력은
           FormField와 동일하게 aria-invalid, aria-describedby로 오류/도움말과 프로그래매틱하게 연결한다.
@@ -199,8 +199,8 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
           error={!!err} disabled={!canWrite || save.isPending}
           inputProps={{ "aria-label": "값", "aria-invalid": !!err, "aria-describedby": describedBy }}
         >
-          <option value="true">켜기</option>
-          <option value="false">끄기</option>
+          <option value="true">활성화</option>
+          <option value="false">비활성화</option>
         </TextField>
       ) : isObjectSetting(setting) ? (
         STRUCTURED_OBJECT_KEYS.includes(setting.key) && !advanced ? (
@@ -236,7 +236,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       {isObjectSetting(setting) && STRUCTURED_OBJECT_KEYS.includes(setting.key) ? (
         <Box sx={{ mt: 1.5 }}>
           <Button variant="ghost" size="sm" disabled={advanced && !advancedJsonValid}
-            onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 편집(고급)"}</Button>
+            onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 수정(고급)"}</Button>
         </Box>
       ) : null}
       {advanced && !advancedJsonValid ? <Typography color="error" variant="body2" role="alert" sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Typography> : null}

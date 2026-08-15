@@ -160,10 +160,10 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact }
           {onEdit ? (
             compact
               /* 좁은 열에서는 글자 대신 아이콘. aria-label 로 이름은 그대로 남는다. */
-              ? <IconButton size="small" aria-label={"편집: " + (t.title || "제목 없음")} onClick={() => onEdit(t)}>
+              ? <IconButton size="small" aria-label={"수정: " + (t.title || "제목 없음")} onClick={() => onEdit(t)}>
                   <EditOutlinedIcon fontSize="small" />
                 </IconButton>
-              : <Button size="sm" onClick={() => onEdit(t)}>편집</Button>
+              : <Button size="sm" onClick={() => onEdit(t)}>수정</Button>
           ) : null}
         </Stack>
       ),
@@ -461,7 +461,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
     if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
     if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { toast("실제 WD에는 숫자를 입력하세요.", "error"); return; }
     const changes = buildChanges();
-    if (Object.keys(changes).length === 0) { toast("변경한 내용이 없습니다.", "info"); return; }
+    if (Object.keys(changes).length === 0) { toast("수정한 내용이 없습니다.", "info"); return; }
     m.mutate(changes);
   }
 
@@ -484,7 +484,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
   const diffOpts = withCurrent(meta.difficulties, form.difficulty);
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
   return (
-    <Modal open={open} onClose={onClose} title={"티켓 편집" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer} dirty={dirty}>
+    <Modal open={open} onClose={onClose} title={"티켓 수정" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer} dirty={dirty}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}
@@ -563,9 +563,9 @@ export function ticketConnState(data) {
       <EmptyState
         art="tickets"
         title="Notion 연동이 아직 설정되지 않았습니다"
-        situation="티켓 데이터는 Notion 작업 DB에서 옵니다. 아직 연동 토큰이 등록되지 않아 목록을 불러올 수 없습니다."
+        situation="티켓 데이터는 Notion 작업 DB에서 옵니다. 아직 연동 토큰이 추가되지 않아 목록을 불러올 수 없습니다."
         prerequisite="관리자 권한과 Notion 통합 토큰"
-        steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 등록되면 이 화면을 새로고침하세요."]}
+        steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 추가되면 이 화면을 새로고침하세요."]}
         expected="연동이 끝나면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
       />
     );
@@ -746,7 +746,7 @@ export function Unassigned() {
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-                  담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘편집’에서 하세요.
+                  담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘수정’에서 하세요.
                 </Typography>
                 <GroupedTickets
                   rows={rows} columns={cols}
@@ -922,8 +922,8 @@ export function NewTicket() {
 
   const create = useMutation({
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
-    onSuccess: () => { toast("티켓을 생성했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = "#/my-tickets"; },
-    onError: (e) => { toast((e && e.message) || "생성하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
+    onSuccess: () => { toast("티켓을 추가했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = "#/my-tickets"; },
+    onError: (e) => { toast((e && e.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
 
   const meta = metaQ.data || {};
@@ -1026,7 +1026,7 @@ export function NewTicket() {
                 FAB 밑으로 들어가 눌리지 않는다. 같은 함정을 이 저장소가 이미 두 번 밟았다
                 (놀이방 '보내기', AI 채팅 '전송'). FAB 이 뜨는 폭에서만 오른쪽을 비운다. */}
             <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ pr: { xs: 0, md: FAB_CLEARANCE } }}>
-              <Button variant="primary" type="submit" disabled={create.isPending}>{create.isPending ? "생성 중…" : "티켓 만들기"}</Button>
+              <Button variant="primary" type="submit" disabled={create.isPending}>{create.isPending ? "추가 중…" : "티켓 추가"}</Button>
             </Stack>
           </Box>
         </Card>

@@ -80,10 +80,10 @@ describe("유지보수 — 버전 기록 캐시 무효화", () => {
     const user = userEvent.setup();
     renderMaintenance(qc);
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 켜기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     await user.click(toggleBtn);
     const dialog = await screen.findByRole("dialog", { name: "확인" });
-    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 켜기" }));
+    await user.click(within(dialog).getByRole("button", { name: "유지보수 모드 활성화" }));
 
     await waitFor(() => {
       expect(qc.getQueryState(["settings", "maintenance_mode", "versions"]).isInvalidated, "모드 변경 기록").toBe(true);

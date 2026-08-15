@@ -214,7 +214,7 @@ function DndCard({ prefs, save, saving }) {
 
   return (
     <Card>
-      <SectionTitle component="h2" sx={{ mb: 2 }} help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 끄면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
+      <SectionTitle component="h2" sx={{ mb: 2 }} help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
         방해금지
       </SectionTitle>
 

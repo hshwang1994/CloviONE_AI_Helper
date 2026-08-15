@@ -158,7 +158,7 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
           disabled={!body.trim() || submit.isPending}
           onClick={() => body.trim() && submit.mutate()}
         >
-          {parentId ? "답글 등록" : "댓글 등록"}
+          {parentId ? "답글 추가" : "댓글 추가"}
         </Button>
       </Stack>
     </Box>

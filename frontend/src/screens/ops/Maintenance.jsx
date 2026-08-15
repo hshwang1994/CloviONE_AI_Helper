@@ -67,7 +67,7 @@ export function Maintenance() {
       // 별도 캐시(["settings","maintenance_mode","versions"])를 쓴다. 여기서 함께 무효화하지
       // 않으면 방금 켜고/끈 기록이 기본 staleTime(30초) 안에 열어도 빠져 있다.
       qc.invalidateQueries({ queryKey: ["settings", "maintenance_mode", "versions"] });
-      toast("유지보수 모드를 변경했습니다.", "success");
+      toast("유지보수 모드를 전환했습니다.", "success");
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -110,13 +110,13 @@ export function Maintenance() {
     // refetch()는 실패해도 throw하지 않고 { isError: true, data: undefined }로 조용히 해결된다 -
     // 이 확인을 건너뛰면(예전 코드) 네트워크 blip 때 fresh.data가 undefined가 돼 freshOn이 클로저의
     // 낡은 on으로 폴백하면서도 사용자에게는 "최신 상태 확인"이 성공한 것처럼 그대로 진행됐다.
-    if (fresh.isError) { toast("현재 상태를 확인하지 못해 변경을 취소했습니다. 다시 시도하세요.", "error"); return; }
+    if (fresh.isError) { toast("현재 상태를 확인하지 못해 전환을 취소했습니다. 다시 시도하세요.", "error"); return; }
     const freshMm = fresh.data && fresh.data.settings && fresh.data.settings.maintenance_mode;
     const freshOn = freshMm ? (freshMm.value === true || freshMm.value === "true") : on;
-    const ok = await confirm(freshOn ? "유지보수 모드를 끌까요?" : "유지보수 모드를 켤까요? 일반 사용자의 쓰기가 차단됩니다. 운영자 이상은 계속 쓸 수 있습니다.",
+    const ok = await confirm(freshOn ? "유지보수 모드를 비활성화할까요?" : "유지보수 모드를 활성화할까요? 일반 사용자의 쓰기가 차단됩니다. 운영자 이상은 계속 쓸 수 있습니다.",
       // 확정 버튼이 무엇을 하는지 말한다 (E7). 예전에는 이것도 "확인" 한 단어였다 —
       // **전 사용자의 쓰기를 막는 일**인데 빨간색 말고는 단서가 없었다.
-      { danger: !freshOn, confirmLabel: freshOn ? "유지보수 모드 끄기" : "유지보수 모드 켜기" });
+      { danger: !freshOn, confirmLabel: freshOn ? "유지보수 모드 비활성화" : "유지보수 모드 활성화" });
     if (!ok) return;
     toggle.mutate(!freshOn);
   }
@@ -160,18 +160,18 @@ export function Maintenance() {
             ) : null}
             {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
                 (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
-            {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 켜져 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 꺼 주세요.</Callout></Box> : null}
+            {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
             <Card sx={{ p: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, flexWrap: "wrap", mb: 4 }}>
               <Box sx={{ minWidth: 0, flex: "1 1 20rem" }}>
                 <Typography component="div" sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 750, mb: 1 }}>
                   현재 상태 <Badge value={on ? "maintenance" : "up"} />
                 </Typography>
-                <Note sx={{ mt: 0 }}>유지보수 모드를 켜면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 끄세요.</Note>
+                <Note sx={{ mt: 0 }}>유지보수 모드를 활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 비활성화하세요.</Note>
                 {/* 쓰기 권한이 없어 비활성인 이유 — 이 한 줄이 아래 두 버튼(모드 전환·공지 저장 계열)의
                     aria-describedby 대상이다. 버튼을 숨기는 대신 이유를 보여 준다. */}
                 {!canWrite ? (
                   <Typography id="maint-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                    유지보수 모드 변경은 {NO_WRITE_REASON}
+                    유지보수 모드 전환은 {NO_WRITE_REASON}
                   </Typography>
                 ) : null}
                 {/* 점검 공지에는 '버전 기록'이 있는데 정작 더 위험한(앱 전체 쓰기를 막는) 유지보수 모드
@@ -183,13 +183,13 @@ export function Maintenance() {
               </Box>
               <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} onClick={onToggle}
                 aria-describedby={lockedDescribedBy}>
-                {toggle.isPending ? "변경 중…" : on ? "유지보수 모드 끄기" : "유지보수 모드 켜기"}
+                {toggle.isPending ? "전환 중…" : on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
               </Button>
             </Card>
 
             <DashSection title="점검 공지 (사용자에게 표시되는 안내)">
               <Card>
-                <Note sx={{ mt: 0 }} id="maint-msg-desc">유지보수 모드가 켜져 있을 때 사용자가 보게 되는 안내 문구입니다.</Note>
+                <Note sx={{ mt: 0 }} id="maint-msg-desc">유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.</Note>
                 {/* 위쪽 유지보수 모드 토글 카드에만 '관리자, 시스템 관리자만' 안내가 붙어 있어, 이 섹션만
                     보는(특히 스크린리더) 사용자는 입력이 왜 잠겨 있는지 알 방법이 없었다, 여기도 남긴다. */}
                 {!canWrite ? (

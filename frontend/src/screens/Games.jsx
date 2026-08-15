@@ -144,7 +144,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     mutationFn: () => api("/api/games/quiz/generate", { method: "POST", body: { topic: aiTopic.trim(), count: Number(aiCount) || 5 } }),
     onSuccess: (res) => {
       const qs = (res.questions || []).map((q) => ({ q: q.q, options: q.options, answer: q.answer }));
-      if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었어요. 검토하고 수정한 뒤 방을 만드세요.`, "success"); }
+      if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었어요. 검토하고 수정한 뒤 방을 추가하세요.`, "success"); }
       else toast("생성된 문제가 없습니다. 주제를 더 구체적으로 적어 보세요.", "error");
     },
     onError: (e) => toast((e && e.message) || "AI 생성에 실패했습니다. 다시 시도해 주세요.", "error"),
@@ -230,8 +230,8 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="게임방 만들기" size="md" dirty={dirty}
-      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="만들기" busy={create.isPending} />}>
+    <Modal open={open} onClose={onClose} title="게임방 추가" size="md" dirty={dirty}
+      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="추가" busy={create.isPending} />}>
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <TextField
           id="gr-game" select size="small" fullWidth label="게임"
@@ -377,7 +377,7 @@ export function Games() {
   const [composing, setComposing] = useState(false);
   const list = useQuery({ queryKey: ["games-rooms"], queryFn: () => api("/api/games/rooms"), refetchInterval: 3000 });
 
-  const createBtn = <Button variant="primary" onClick={() => setComposing(true)}>게임방 만들기</Button>;
+  const createBtn = <Button variant="primary" onClick={() => setComposing(true)}>게임방 추가</Button>;
 
   return (
     <div className="c-screen">
@@ -394,7 +394,7 @@ export function Games() {
         <EmptyState
           icon="🎲"
           title="열린 게임방이 없습니다"
-          help="위 ‘게임방 만들기’로 첫 방을 열어 팀원과 함께 시작해 보세요."
+          help="위 ‘게임방 추가’로 첫 방을 열어 팀원과 함께 시작해 보세요."
           action={createBtn}
         />
       ) : (

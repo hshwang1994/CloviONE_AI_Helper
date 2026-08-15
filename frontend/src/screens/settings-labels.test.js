@@ -59,7 +59,7 @@ describe("설정 라벨 드리프트", () => {
     expect(
       summarizeSetting("backup_schedule",
         { enabled: true, cron: "0 3 * * *", timezone: "Asia/Seoul", keep: 14 }),
-    ).toBe("켜짐, 0 3 * * * (Asia/Seoul), 14개 보관");
-    expect(summarizeSetting("backup_schedule", { enabled: false })).toBe("꺼짐");
+    ).toBe("활성, 0 3 * * * (Asia/Seoul), 14개 보관");
+    expect(summarizeSetting("backup_schedule", { enabled: false })).toBe("비활성");
   });
 });

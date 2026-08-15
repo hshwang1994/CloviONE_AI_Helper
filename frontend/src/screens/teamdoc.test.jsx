@@ -221,7 +221,7 @@ describe("문서 댓글 (사용자 지적 #9)", () => {
     await screen.findByText("이 설계 근거가 궁금합니다.");
     const box = within(screen.getByRole("region", { name: "댓글" }));
     await user.type(box.getByLabelText("댓글 입력"), "새 댓글");
-    await user.click(box.getByRole("button", { name: "댓글 등록" }));
+    await user.click(box.getByRole("button", { name: "댓글 추가" }));
 
     expect(await screen.findByText("새 댓글")).toBeInTheDocument();
   });

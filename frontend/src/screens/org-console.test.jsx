@@ -246,12 +246,12 @@ describe("트리 구조", () => {
 /* ── 4. 합치면서 잃은 것이 없는가(회귀) ─────────────────────────────────── */
 
 describe("기존 기능 회귀", () => {
-  it("조직의 상태 필터가 그대로 동작한다(정지만 남는다)", async () => {
+  it("조직의 상태 필터가 그대로 동작한다(미사용만 남는다)", async () => {
     mockApi();
     renderConsole();
     expect(await within(panel()).findByText("묵은회사", {}, WAIT)).toBeInTheDocument();
     await userEvent.click(within(panel()).getByRole("combobox", { name: /상태/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "정지" }, WAIT));
+    await userEvent.click(await screen.findByRole("option", { name: "미사용" }, WAIT));
     await waitFor(() => expect(within(panel()).queryByText("클로비원")).toBeNull(), WAIT);
     expect(within(panel()).getByText("묵은회사")).toBeInTheDocument();
   });
@@ -287,7 +287,7 @@ describe("기존 기능 회귀", () => {
     await userEvent.click(within(panel()).getByRole("button", { name: "+ 부서 추가" }));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
-    await userEvent.click(within(dlg).getByRole("button", { name: "만들기" }));
+    await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
 
     // 트리와 목록은 캐시 주소가 다르다 — 목록만 갱신하면 방금 만든 부서가 왼쪽에 안 나타나고,
     // 사용자는 "추가했는데 조직도에 없다"로 읽는다(한 화면에 둘을 나란히 놓아 더 잘 보인다).

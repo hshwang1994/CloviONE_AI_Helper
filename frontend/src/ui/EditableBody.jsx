@@ -124,7 +124,7 @@ export function EditableBody({
   const startEditing = () => { setDraft(bodyMarkdown || ""); setEditBaseVersion(bodyVersion); setEditing(true); };
   const cancel = async () => {
     if (draft !== (bodyMarkdown || "")) {
-      const ok = await confirm("편집한 내용을 버립니다. 계속할까요?", { title: "편집 취소", confirmLabel: "버리기", danger: true });
+      const ok = await confirm("수정한 내용을 버립니다. 계속할까요?", { title: "수정 취소", confirmLabel: "버리기", danger: true });
       if (!ok) return;
     }
     setEditing(false);
@@ -141,7 +141,7 @@ export function EditableBody({
       <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
         <Box sx={editorSurfaceWidthSx(EDIT_SURFACE_CONTAINER)}>
           <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 편집</Typography>
+            <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading} 수정</Typography>
             <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
             <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
               onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
@@ -158,7 +158,7 @@ export function EditableBody({
             <Box sx={{ mb: 1.5 }}>
               <Callout tone="warn">
                 이 본문은 원본(Notion)에서 읽어온 것입니다. 여기서 저장하면 굵게, 링크 같은 인라인
-                서식은 사라지고 글자만 남습니다. 서식을 지키려면 ‘원본 열기’에서 편집하세요.
+                서식은 사라지고 글자만 남습니다. 서식을 지키려면 ‘원본 열기’에서 수정하세요.
               </Callout>
             </Box>
           ) : null}
@@ -177,7 +177,7 @@ export function EditableBody({
                 있습니다. 이 편집기에는 그 안쪽 내용까지는 실리지 않아, 저장해도 그 블록은
                 지우지 않고 그대로 둡니다. 다만 여기서 같은 줄을 고쳐 저장하면 원본에는
                 고치기 전 원래 블록과 고친 내용이 둘 다 남아 겹쳐 보일 수 있습니다. 온전히
-                편집하려면 ‘원본 열기’를 이용하세요.
+                수정하려면 ‘원본 열기’를 이용하세요.
               </Callout>
             </Box>
           ) : null}
@@ -193,7 +193,7 @@ export function EditableBody({
               없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
               본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
           <BodyEditor id={editorId} value={draft} onChange={setDraft} rows={14}
-            label={heading + " 편집"}
+            label={heading + " 수정"}
             placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
         </Box>
       </Box>
@@ -204,13 +204,13 @@ export function EditableBody({
     <Box>
       <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
         <Typography component="h2" variant="h6" sx={{ fontSize: "1rem", flex: 1 }}>{heading}</Typography>
-        <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 편집</Button>
+        <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
       </Stack>
       {!canEdit ? (
         <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
           <Callout tone="warn">
-            본문을 불러오지 못해 편집할 수 없습니다. 지금 저장하면 원본 본문을 지우게 되므로
-            편집을 막았습니다. 새로고침하거나 ‘원본 열기’에서 편집하세요.
+            본문을 불러오지 못해 수정할 수 없습니다. 지금 저장하면 원본 본문을 지우게 되므로
+            수정을 막았습니다. 새로고침하거나 ‘원본 열기’에서 수정하세요.
           </Callout>
         </Box>
       ) : null}

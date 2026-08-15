@@ -40,7 +40,7 @@ const UNIT_LABELS = {
 // 헬퍼가 모르는 동작은 서버가 404 로 거절하므로, 여기 목록이 낡아도 조용히 통하지 않는다.
 const FORMS = {
   "timezone.set": {
-    title: "타임존 변경",
+    title: "타임존 수정",
     fields: [{ name: "timezone", label: "타임존", required: true,
                help: "예: Asia/Seoul. 서버가 아는 이름만 받습니다." }],
   },
@@ -48,7 +48,7 @@ const FORMS = {
     title: "시각 동기화(NTP) 서버",
     fields: [
       { name: "enabled", label: "사용", type: "checkbox",
-        help: "끄면 지정을 해제하고 배포판 기본값으로 돌아갑니다." },
+        help: "비활성화하면 지정을 해제하고 배포판 기본값으로 돌아갑니다." },
       { name: "servers", label: "서버 (쉼표로 구분)",
         help: "예: kr.pool.ntp.org, 10.0.0.5", showIf: (v) => !!v.enabled },
     ],
@@ -64,7 +64,7 @@ const FORMS = {
     title: "DNS 서버",
     fields: [
       { name: "enabled", label: "사용", type: "checkbox",
-        help: "끄면 지정을 해제합니다." },
+        help: "비활성화하면 지정을 해제합니다." },
       { name: "servers", label: "서버 주소 (쉼표로 구분)",
         help: "이름이 아니라 IP 주소만 받습니다. DNS 를 설정하는 중이라 이름을 풀 방법이 없습니다.",
         showIf: (v) => !!v.enabled },

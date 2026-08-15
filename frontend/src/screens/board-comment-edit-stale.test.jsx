@@ -96,7 +96,7 @@ describe("댓글 수정 버튼은 지금 내용으로 편집창을 채운다", (
     // 댓글 대상 댓글이 아니라 이 세션의 다른 동작(맨 아래 댓글 작성)이 상세 재조회를 부른다 —
     // 이 사용자는 아직 "수정"을 한 번도 누르지 않았다.
     await user.type(screen.getByLabelText("댓글 입력"), "새 댓글");
-    await user.click(screen.getByRole("button", { name: "댓글 등록" }));
+    await user.click(screen.getByRole("button", { name: "댓글 추가" }));
 
     // 재조회가 반영되어 화면(비편집 상태)의 본문은 이미 새 내용을 보인다.
     expect(await screen.findByText("다른 세션이 먼저 고친 댓글")).toBeInTheDocument();

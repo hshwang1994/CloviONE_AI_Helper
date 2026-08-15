@@ -123,7 +123,7 @@ describe("본문 편집", () => {
     });
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     // 토스트가 실패를 말하고,
@@ -146,7 +146,7 @@ describe("본문 편집", () => {
     });
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     expect(await screen.findByText("본문을 저장했습니다.")).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe("본문 편집", () => {
 
     wrap();
 
-    expect(await screen.findByRole("button", { name: "본문 편집" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "본문 수정" })).toBeDisabled();
     expect(screen.getByText(/지금 저장하면 원본 본문을 지우게 되므로/)).toBeInTheDocument();
   });
 
@@ -175,12 +175,12 @@ describe("본문 편집", () => {
     ])));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
     /* 예전에는 `{ name: "" }` 으로 골랐다 — 편집기에 접근 이름이 **없다는 사실**을 검사가
        거꾸로 고정하고 있었다(접근성 감사 2). 지금은 위 heading 과 같은 이름을 가지므로
        그 이름으로 고른다. 이름으로 고를 수 있다는 것 자체가 스크린리더로 찾을 수 있다는 뜻이다. */
-    expect(screen.getByRole("textbox", { name: "본문 편집" }).value)
+    expect(screen.getByRole("textbox", { name: "본문 수정" }).value)
       .toBe("## 배경\n본문 한 줄.");
   });
 
@@ -198,7 +198,7 @@ describe("본문 편집", () => {
     ])));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
     expect(screen.getByText(/그 블록은 지워지지 않습니다/)).toBeInTheDocument();
   });
@@ -211,7 +211,7 @@ describe("본문 편집", () => {
     ])));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
     expect(screen.getByText(/굵게, 링크 같은 인라인\s*서식은 사라지고/)).toBeInTheDocument();
   });
@@ -224,7 +224,7 @@ describe("본문 편집", () => {
     ])));
 
     wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 편집" }));
+    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
     expect(screen.queryByText(/서식은 사라지고/)).toBeNull();
   });
@@ -310,7 +310,7 @@ describe("댓글", () => {
     wrap();
     await screen.findByText("확인했습니다.");
     await user.type(screen.getByLabelText("댓글 입력"), "새 댓글");
-    await user.click(screen.getByRole("button", { name: "댓글 등록" }));
+    await user.click(screen.getByRole("button", { name: "댓글 추가" }));
 
     expect(await screen.findByText("새 댓글")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("댓글 입력").value).toBe(""));
@@ -324,7 +324,7 @@ describe("댓글", () => {
 
     wrap();
 
-    expect(await screen.findByRole("button", { name: "댓글 등록" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "댓글 추가" })).toBeDisabled();
   });
 });
 

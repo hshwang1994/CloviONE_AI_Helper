@@ -119,8 +119,8 @@ describe("화면", () => {
     renderConsole();
     await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
 
-    expect(screen.getByText("켜짐")).toBeInTheDocument();
-    // 🔴 켜져 있다는 것과 통한다는 것은 다른 사실이다.
+    expect(screen.getByText("활성")).toBeInTheDocument();
+    // 🔴 활성 상태라는 것과 통한다는 것은 다른 사실이다.
     expect(screen.getByText("확인 안 함")).toBeInTheDocument();
     expect(screen.getByText(/연결 테스트를 눌러야/)).toBeInTheDocument();
   });
@@ -133,7 +133,7 @@ describe("화면", () => {
       }),
     });
     renderConsole();
-    await waitFor(() => expect(screen.getByText("꺼짐")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("비활성")).toBeInTheDocument());
 
     expect(screen.getByText(/백엔드 값\("clii"\)이 올바르지 않아/)).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe("화면", () => {
   it("백엔드 값이 정상이면(단지 꺼져 있을 뿐이면) 그 경고를 안 보여준다", async () => {
     mockApi({ view: overview({ backend_invalid: false }) });
     renderConsole();
-    await waitFor(() => expect(screen.getByText("꺼짐")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("비활성")).toBeInTheDocument());
 
     expect(screen.queryByText(/올바르지 않아/)).toBeNull();
   });
@@ -198,8 +198,8 @@ describe("화면", () => {
     const options = await screen.findAllByRole("option");
     const labels = options.map((o) => o.textContent);
     expect(labels).toContain("서버 환경변수를 따름");
-    expect(labels).toContain("켬");
-    expect(labels).toContain("끔");
+    expect(labels).toContain("활성화");
+    expect(labels).toContain("비활성화");
   });
 
   it("큐에 있는 동안 결과를 지어내지 않는다", async () => {

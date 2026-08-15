@@ -190,7 +190,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       if (failed && failed.length) {
         toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", ") + ". 다시 시도해 주세요.", "error");
       } else {
-        toast(mode === "edit" ? "게시글을 수정했습니다." : "게시글을 등록했습니다.", "success");
+        toast(mode === "edit" ? "게시글을 수정했습니다." : "게시글을 추가했습니다.", "success");
       }
       onSaved && onSaved(target);
     },
@@ -223,7 +223,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
         <ModalFooter
           onCancel={requestClose}
           onSubmit={() => canSave && save.mutate()}
-          submitLabel={mode === "edit" ? "수정" : "등록"}
+          submitLabel={mode === "edit" ? "수정" : "추가"}
           busy={save.isPending}
         />
       }

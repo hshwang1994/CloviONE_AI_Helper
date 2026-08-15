@@ -94,7 +94,7 @@ describe("공지 노출 기간은 KST 로 읽고 쓴다", () => {
     // 걸린다 - 뒤에 쉼표 없이 공백이나 끝이 오는 경우만(폼의 "제목"/"제목 *")로 좁힌다.
     await user.type(await screen.findByLabelText(/^제목(?:\s|$)/), "점검 예고");
     await user.type(screen.getByLabelText(/노출 시작/), KST_WALL);
-    await user.click(screen.getByRole("button", { name: "만들기" }));
+    await user.click(screen.getByRole("button", { name: "추가" }));
 
     await waitFor(() => expect(sentBody("/api/admin/announcements")).toBeTruthy());
     const body = sentBody("/api/admin/announcements");

@@ -65,7 +65,7 @@ describe("새 문서 폼", () => {
     // 지적 대상: 이 칸이 없으면 아래 getByLabelText가 실패해 여기서 즉시 RED가 된다.
     await user.type(within(dialog).getByLabelText(/^소유자/), "김소유");
 
-    await user.click(within(dialog).getByRole("button", { name: "생성" }));
+    await user.click(within(dialog).getByRole("button", { name: "추가" }));
 
     const postCall = api.mock.calls.find((c) => c[0] === "/api/team-docs" && c[1] && c[1].method === "POST");
     expect(postCall).toBeTruthy();

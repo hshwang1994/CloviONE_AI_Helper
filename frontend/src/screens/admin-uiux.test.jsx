@@ -172,7 +172,7 @@ describe("위험 액션 확인", () => {
     expect(dlg).toHaveTextContent("본문 내용");
   });
 
-  it("조직 '정지': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {
+  it("조직 '비활성화': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {
     apiMock.mockImplementation(() => Promise.resolve({
       items: [{
         id: "o1", slug: "goodmit", name: "굿밋", status: "active",
@@ -183,10 +183,10 @@ describe("위험 액션 확인", () => {
     }));
     renderScreen("organizations");
     const drawer = await openRow("굿밋");
-    await userEvent.click(within(drawer).getByRole("button", { name: "정지" }));
+    await userEvent.click(within(drawer).getByRole("button", { name: "비활성화" }));
 
     const dlg = await confirmDialog();
-    // 정지는 _revoke_org_sessions 로 전원을 즉시 내보내고 재로그인까지 막는다.
+    // 비활성화는 _revoke_org_sessions 로 전원을 즉시 내보내고 재로그인까지 막는다.
     // '기존 사용자와 부서는 그대로 남습니다'만 말하면 아무 일도 없는 것처럼 읽힌다.
     expect(dlg).toHaveTextContent("37");
     expect(dlg).toHaveTextContent(/로그아웃/);
@@ -200,7 +200,7 @@ describe("위험 액션 확인", () => {
       (REGISTRY[key].actions || []).find((a) => a.label === label && a.confirm);
     expect(confirmOf("prompts", "보관")).toBeTruthy();
     expect(confirmOf("policies", "보관")).toBeTruthy();
-    expect(confirmOf("feature-flags", "끄기")).toBeTruthy();
+    expect(confirmOf("feature-flags", "비활성화")).toBeTruthy();
   });
 });
 
@@ -274,12 +274,12 @@ describe("좁혀 볼 수단", () => {
   it("조직 '상태' 필터를 골라도 요청은 그대로다(서버가 안 받는 파라미터를 지어내지 않는다)", async () => {
     apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0 }));
     renderScreen("organizations");
-    await findText("등록된 조직이 없습니다");
+    await findText("추가된 조직이 없습니다");
     const before = apiMock.mock.calls.length;
     await userEvent.click(screen.getByRole("combobox", { name: /상태/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "정지" }, WAIT));
+    await userEvent.click(await screen.findByRole("option", { name: "미사용" }, WAIT));
     // clientFilter 는 같은 데이터를 다시 받지 않는다(queryKey 에 안 들어간다).
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /상태/ })).toHaveTextContent("정지"), WAIT);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /상태/ })).toHaveTextContent("미사용"), WAIT);
     expect(apiMock.mock.calls.length).toBe(before);
     expect(apiMock.mock.calls.every(([p]) => !String(p).includes("status="))).toBe(true);
   });

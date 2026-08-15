@@ -19,13 +19,13 @@ export const AUTHORING_SCREENS = {
     // 워크플로 화면의 '테스트'가 실제 실행이 아니라 도달성만 확인한다고 밝히듯, 여기도 상태 전이
     // 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일 뿐 — app/prompts/service.py).
     help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
-    emptyTitle: "등록된 프롬프트가 없습니다",
+    emptyTitle: "추가된 프롬프트가 없습니다",
     // 읽기 전용 역할(operator/auditor)에는 렌더되지 않는 '+ 추가' 버튼을 누르라고 안내하지 않는다.
     // 안내 문구의 생명주기는 실제 강제되는 전이(draft→test→review→published)에 맞춘다('테스트' 단계 포함).
-    emptyHelp: writerEmptyHelp("‘+ 프롬프트 추가’로 AI에게 줄 지시문을 만들어 초안→테스트→검토→발행 순으로 버전 관리하세요.", "프롬프트는 관리자가 등록합니다. 등록되면 버전이 여기에 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 프롬프트 추가’로 AI에게 줄 지시문을 추가해 초안→테스트→검토→발행 순으로 버전 관리하세요.", "프롬프트는 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     // 다른 온보딩 화면(연동/러너)처럼 단계별 안내를 준다(생명주기: 초안→테스트→검토→발행).
     emptySituation: "AI에게 줄 지시문(프롬프트)이 아직 하나도 없습니다.",
-    emptySteps: ["‘+ 프롬프트 추가’로 초안을 만듭니다.", "‘테스트로 → 검토로’ 순으로 상태를 올립니다.", "‘발행’하면 이 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용합니다."],
+    emptySteps: ["‘+ 프롬프트 추가’로 초안을 추가합니다.", "‘테스트로 → 검토로’ 순으로 상태를 올립니다.", "‘발행’하면 이 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용합니다."],
     emptyExpected: "발행된 버전이 실제 사용되며, 같은 이름의 이전 발행본은 자동으로 보관됩니다.",
     createLabel: "+ 프롬프트 추가",
     // 템플릿 화면의 '프롬프트 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 프롬프트의 상세 드로어를
@@ -58,14 +58,14 @@ export const AUTHORING_SCREENS = {
     // 클릭하면 그 러너의 상세 드로어가 곧바로 열린다(러너 상세의 integration_id와 동일한 패턴).
     columns: [col("name", "이름"), truncateCol("purpose", "용도", 60),
       { key: "runner_id", label: "러너 ID", render: (r) => r.runner_id ? React.createElement("a", { href: "#/runners?id=" + encodeURIComponent(r.runner_id) }, r.runner_id) : "-" },
-      col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성")],
+      col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
     // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
     // purpose·runner_id는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     detailFields: [field("id", "프롬프트 ID"),
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — policies와 동일한 이유로 편집
       // 안내를 남긴다(registry.js policies의 _edit_note와 동일 패턴).
-      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다. 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
+      { key: "_edit_note", label: "수정 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. 아래 ‘새 버전’으로 수정 가능한 초안을 추가하세요." : "-" },
       dateCol("published_at", "발행 시각"), jsonField("content", "프롬프트 내용")],
     // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은 좁아서
     // textarea로(워크플로의 purpose 필드와 동일한 대우).
@@ -92,7 +92,7 @@ export const AUTHORING_SCREENS = {
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
       { label: "검토로", roles: WRITE_ROLES, when: (r) => r.status === "test", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용이 검증되지는 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 편집할까요?" },
+      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
       { label: "발행", variant: "primary", roles: WRITE_ROLES, when: (r) => r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
       // 새 버전은 백엔드가 어떤 상태에서든 새 초안으로 분기한다(발행본에만 국한하지 않음).
       // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로, 드로어를 닫고 목록으로
@@ -119,11 +119,11 @@ export const AUTHORING_SCREENS = {
     // 자체는 프롬프트 화면의 일반 안내와 똑같은 기본(info) 톤이었다(DataScreen.jsx의 capWarning
     // 등 다른 배너는 이미 tone="warn"을 쓴다 — 능력은 있고 이 배너에는 안 쓰였다). warn으로 맞춘다.
     helpTone: "warn",
-    emptyTitle: "등록된 정책이 없습니다",
+    emptyTitle: "추가된 정책이 없습니다",
     // 정책도 프롬프트와 동일하게 4단계 생명주기(초안→테스트→검토→발행)를 강제한다 — '등록하고
     // 발행하세요'는 마치 한 단계로 끝나는 것처럼 읽혀, 새 관리자가 초안 행에서 비활성 '발행' 버튼을
     // 만나고 이유를 못 찾았다(프롬프트 registry.js:404와 동일 문구로 맞춘다).
-    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 만들어 초안→테스트→검토→발행 순으로 버전 관리하세요.", "정책은 관리자가 등록합니다. 등록되면 버전이 여기에 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 추가해 초안→테스트→검토→발행 순으로 버전 관리하세요.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     createLabel: "+ 정책 추가",
     // 템플릿 화면의 '정책 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 정책의 상세 드로어를 곧바로
     // 연다(runners.onQuery와 동일한 패턴). 이 라우터의 GET /{row_id}는 {"item":...} 모양으로
@@ -149,7 +149,7 @@ export const AUTHORING_SCREENS = {
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
     // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
     // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
-    columns: [col("name", "이름"), truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성")],
+    columns: [col("name", "이름"), truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
     // id는 템플릿의 policy_id 입력에 쓰이므로 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의
     // '프롬프트 ID'와 맞춰 어느 화면 상세를 보고 있는지 분명히 한다 — 템플릿의 policy_id 도움말이
     // '정책 화면 상세의 ID를 입력'이라 안내한다).
@@ -160,7 +160,7 @@ export const AUTHORING_SCREENS = {
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — 이유를 밝히지 않으면 이 화면을
       // 처음 보는 관리자는 왜 버튼이 없는지 알 방법이 없다. '새 버전'이 실제 대안이라고 안내한다.
-      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다. 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
+      { key: "_edit_note", label: "수정 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. 아래 ‘새 버전’으로 수정 가능한 초안을 추가하세요." : "-" },
       dateCol("published_at", "발행 시각"), jsonField("content", "규칙(JSON)")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text", required: true },
@@ -178,7 +178,7 @@ export const AUTHORING_SCREENS = {
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용(JSON)이 검증되지는 않습니다." },
       { label: "검토로", roles: WRITE_ROLES, when: (r) => r.status === "test", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용(JSON)은 검증되지 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 편집할까요?" },
+      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
       { label: "발행", variant: "primary", roles: WRITE_ROLES, when: (r) => r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
       // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로(내용은 초안일 때만 편집
       // 가능), 프롬프트의 '새 버전'과 동일하게 드로어를 닫지 않고 새 초안으로 갱신한다.
@@ -208,9 +208,9 @@ export const AUTHORING_SCREENS = {
   },
   templates: {
     key: "templates", area: "콘텐츠", title: "템플릿", endpoint: "/api/admin/templates",
-    help: "자주 하는 자동화를 템플릿으로 저장합니다. 생성 직후에는 비활성 상태이며, 비활성 템플릿은 프롬프트, 정책, 입력값 바인딩과 승인 정책이 모두 적용되지 않습니다(승인 정책만이 아닙니다), 활성화해야 전부 적용됩니다.",
-    emptyTitle: "등록된 템플릿이 없습니다",
-    emptyHelp: writerEmptyHelp("자주 쓰는 자동화를 템플릿으로 저장하려면 ‘+ 템플릿 추가’를 누르세요. 대상 워크플로/러너와 연결됩니다. 생성 직후에는 비활성 상태이므로 활성화해야 적용됩니다.", "템플릿은 관리자가 등록합니다. 등록되면 여기에 표시됩니다."),
+    help: "자주 하는 자동화를 템플릿으로 저장합니다. 추가 직후에는 비활성 상태이며, 비활성 템플릿은 프롬프트, 정책, 입력값 바인딩과 승인 정책이 모두 적용되지 않습니다(승인 정책만이 아닙니다), 활성화해야 전부 적용됩니다.",
+    emptyTitle: "추가된 템플릿이 없습니다",
+    emptyHelp: writerEmptyHelp("자주 쓰는 자동화를 템플릿으로 저장하려면 ‘+ 템플릿 추가’를 누르세요. 대상 워크플로/러너와 연결됩니다. 추가 직후에는 비활성 상태이므로 활성화해야 적용됩니다.", "템플릿은 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
     createLabel: "+ 템플릿 추가",
     // 문서 화면의 '템플릿 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 템플릿의 상세 드로어를
     // 곧바로 연다(runners.onQuery와 동일한 패턴). 이 라우터의 GET /{template_id}는 {"template":...}
@@ -254,7 +254,7 @@ export const AUTHORING_SCREENS = {
       // 중립(회색) 톤이라 훑어보다 놓치기 쉬웠다. org-tree의 activeCol과 같은 이유로 이 화면의
       // 필터와 같은 어휘 + 비활성=주의 톤을 쓴다.
       { key: "enabled", label: "활성", render: (r) => React.createElement(Badge, { value: r.enabled ? "활성" : "비활성", kind: r.enabled ? "ok" : "warn" }) },
-      dateCol("created_at", "생성")],
+      dateCol("created_at", "추가")],
     // id는 문서 생성 폼의 config template_id 입력에 쓰이므로 상세에서 확인·복사할 수 있게 노출.
     // target_ref는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     // created_by는 프롬프트·정책과 동일한 이유로(_view가 이미 돌려준다) 노출한다 — 이 템플릿을
@@ -343,8 +343,8 @@ export const AUTHORING_SCREENS = {
     key: "prompt-usage", area: "콘텐츠", title: "프롬프트 사용 통계",
     endpoint: "/api/admin/prompts/usage/stats",
     help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 템플릿, 스케줄이 없고 문서 생성에도 쓰인 적이 없다는 뜻입니다. 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
-    emptyTitle: "등록된 프롬프트가 없습니다",
-    emptyHelp: "‘프롬프트’ 화면에서 프롬프트를 만들면 여기에 사용 현황이 표시됩니다.",
+    emptyTitle: "추가된 프롬프트가 없습니다",
+    emptyHelp: "‘프롬프트’ 화면에서 프롬프트를 추가하면 여기에 사용 현황이 표시됩니다.",
     emptyRelatedLink: { href: "#/prompts", label: "프롬프트 화면으로 이동" },
     searchFields: ["name"],
     searchPlaceholder: "프롬프트 이름으로 검색",
@@ -381,8 +381,8 @@ export const AUTHORING_SCREENS = {
     key: "policy-usage", area: "콘텐츠", title: "정책 사용 통계",
     endpoint: "/api/admin/policies/usage/stats",
     help: "정책이 실제로 쓰이고 있는지 이름별로 봅니다. 정책은 발행하는 순간 그 이름을 참조하는 모든 템플릿이 다음 문서 생성부터 새 내용을 쓰므로, 어디서 쓰이는지를 먼저 확인하고 발행하세요.",
-    emptyTitle: "등록된 정책이 없습니다",
-    emptyHelp: "‘정책’ 화면에서 정책을 만들면 여기에 사용 현황이 표시됩니다.",
+    emptyTitle: "추가된 정책이 없습니다",
+    emptyHelp: "‘정책’ 화면에서 정책을 추가하면 여기에 사용 현황이 표시됩니다.",
     emptyRelatedLink: { href: "#/policies", label: "정책 화면으로 이동" },
     searchFields: ["name"],
     searchPlaceholder: "정책 이름으로 검색",

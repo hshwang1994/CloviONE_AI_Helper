@@ -126,7 +126,7 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
         </Button>
         {item.creatable && !item.configured && (
           <Button disabled={busy} onClick={() => onCreate(item)}>
-            새로 만들기
+            새로 추가
           </Button>
         )}
       </Box>
@@ -136,7 +136,7 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
         // 설계상(app/notion_console/service.py 의 kind="") 자동 생성 대상이 아니라는 것을
         // 말로 남긴다.
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
-          이 데이터베이스는 화면에서 자동으로 만들 수 없습니다. 기존 Notion 데이터베이스의 id를 위 칸에 직접 입력해 연결하세요.
+          이 데이터베이스는 화면에서 자동으로 추가할 수 없습니다. 기존 Notion 데이터베이스의 id를 위 칸에 직접 입력해 연결하세요.
         </Typography>
       )}
     </Box>
@@ -270,7 +270,7 @@ export function NotionConsole() {
       invalidate();
       toast(result.message || "", result.created ? "success" : "error");
     },
-    onError: (err) => toast((err && err.message) || "만들지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
+    onError: (err) => toast((err && err.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   if (state.isLoading) return <Skeleton lines={8} />;
@@ -289,7 +289,7 @@ export function NotionConsole() {
     const item = creatingItem;
     const ok = await confirm(
       "노션에 실제로 데이터베이스가 생깁니다. 되돌리려면 노션에서 직접 지워야 합니다.",
-      { title: item.label + " 를 새로 만들까요?", confirmLabel: "만들기" },
+      { title: item.label + " 를 새로 추가할까요?", confirmLabel: "추가" },
     );
     if (!ok) return;
     try {
@@ -328,7 +328,7 @@ export function NotionConsole() {
 
       <FormModal
         open={!!creatingItem}
-        title={(creatingItem ? creatingItem.label : "") + " 새로 만들기"}
+        title={(creatingItem ? creatingItem.label : "") + " 새로 추가"}
         fields={[
           {
             name: "parent_page_id",

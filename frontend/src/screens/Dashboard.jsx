@@ -424,7 +424,7 @@ function DashboardBody({ d, nav, role, stale }) {
   // 않았다 — 그래서 점검 중에도 이 화면은 초록색 "지금 조치가 필요한 문제가 없습니다."를
   // 띄웠다. 운영자는 그 배너를 보고 사용자 신고("저장이 안 돼요")를 장애로 오해한다.
   // 맨 앞에 넣는다: 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
-  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "켜짐", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
+  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
   if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
   if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
   // 단위(%)는 라벨 괄호가 아니라 값에 붙인다(자원 타일과 동일한 표기), '성공률 낮음(%)' 위 '45'는 어색했다.
@@ -655,7 +655,7 @@ function DashboardBody({ d, nav, role, stale }) {
           {/* 자원 수 타일도 큐 타일처럼 해당 레지스트리로 드릴다운한다(볼 수 있는 역할에게만 클릭 가능). */}
           <StatCard value={fmtNum((d.counts || {}).active_workflows)} label="활성 워크플로" onClick={goto("/workflows")} />
           <StatCard value={fmtNum((d.counts || {}).active_schedules)} label="활성 스케줄" onClick={goto("/schedules")} />
-          <StatCard value={fmtNum((d.counts || {}).runners)} label="등록된 러너" onClick={goto("/runners")} />
+          <StatCard value={fmtNum((d.counts || {}).runners)} label="추가된 러너" onClick={goto("/runners")} />
         </Box>
       </DashSection>
 

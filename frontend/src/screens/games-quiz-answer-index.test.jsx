@@ -50,8 +50,8 @@ function renderGames() {
 
 async function openQuizEditor() {
   renderGames();
-  await userEvent.click(await screen.findByRole("button", { name: "게임방 만들기" }));
-  await screen.findByRole("heading", { name: "게임방 만들기" });
+  await userEvent.click(await screen.findByRole("button", { name: "게임방 추가" }));
+  await screen.findByRole("heading", { name: "게임방 추가" });
   await userEvent.click(screen.getByRole("combobox", { name: "게임" }));
   await userEvent.click(await screen.findByRole("option", { name: "실시간 퀴즈" }));
   await screen.findByText("문제 1");

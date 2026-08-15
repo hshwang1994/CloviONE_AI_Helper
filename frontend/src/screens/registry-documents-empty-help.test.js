@@ -43,6 +43,6 @@ describe("문서 자동 생성 — 빈 상태가 '워크플로는 있는데 왜 
   });
 
   it("워크플로 목록으로 이동하는 링크가 여전히 있다(별개라는 사실을 안 뒤 바로 확인할 수 있게)", () => {
-    expect(config.emptyRelatedLink).toEqual({ href: "#/workflows", label: "먼저: 워크플로 등록으로 이동" });
+    expect(config.emptyRelatedLink).toEqual({ href: "#/workflows", label: "먼저: 워크플로 추가로 이동" });
   });
 });

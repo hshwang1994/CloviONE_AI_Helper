@@ -255,7 +255,7 @@ export function SchedulerCalendar() {
       <Callout>
         예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
         <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.
-        예정은 Cron 식을 펼쳐 계산한 값이라, 일정을 껐다 켜면 다시 계산됩니다.
+        예정은 Cron 식을 펼쳐 계산한 값이라, 일정을 비활성화했다 활성화하면 다시 계산됩니다.
       </Callout>
 
       <Card sx={{ mt: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
@@ -285,7 +285,7 @@ export function SchedulerCalendar() {
         >
           <MenuItem value="">일정: 전체</MenuItem>
           {schedules.map((s) => (
-            <MenuItem key={s.id} value={s.id}>{s.name}{s.enabled ? "" : " (꺼짐)"}</MenuItem>
+            <MenuItem key={s.id} value={s.id}>{s.name}{s.enabled ? "" : " (비활성)"}</MenuItem>
           ))}
         </TextField>
       </Card>
@@ -307,8 +307,8 @@ export function SchedulerCalendar() {
         <Box sx={{ mt: 2 }}>
           <EmptyState
             art="search"
-            title="등록된 실행 일정이 없습니다"
-            help="‘실행 일정(스케줄)’ 화면에서 일정을 만들고 활성화하면 이 달력에 표시됩니다."
+            title="추가된 실행 일정이 없습니다"
+            help="‘실행 일정(스케줄)’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
             relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
           />
         </Box>

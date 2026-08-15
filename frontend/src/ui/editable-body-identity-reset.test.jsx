@@ -65,8 +65,8 @@ describe("본문 편집 — 다른 문서로 자리가 바뀌면 남은 초안�
       ),
     );
 
-    await user.click(screen.getByRole("button", { name: "본문 편집" }));
-    const textbox = screen.getByRole("textbox", { name: "본문 편집" });
+    await user.click(screen.getByRole("button", { name: "본문 수정" }));
+    const textbox = screen.getByRole("textbox", { name: "본문 수정" });
     await user.clear(textbox);
     await user.type(textbox, "저장 안 한 티켓1 초안");
 

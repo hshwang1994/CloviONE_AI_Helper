@@ -41,7 +41,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         setDomainErr("도메인 형식이 아닙니다(예: example.com), 점(.)을 포함해야 합니다.");
         return;
       }
-      if (domains.includes(d)) { setDomainErr("이미 등록된 도메인입니다."); return; }
+      if (domains.includes(d)) { setDomainErr("이미 추가된 도메인입니다."); return; }
       setDomainErr("");
       onChange(JSON.stringify([...domains, d], null, 2));
       setDraft("");

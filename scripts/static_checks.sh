@@ -115,6 +115,28 @@ SPLICE="$(grep -rnE '(습니다|입니다|합니다|됩니다|세요|까요),\s*
   --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' || true)"
 if [ -z "$SPLICE" ]; then ok "no comma-spliced sentences in user-facing text"; else echo "$SPLICE"; fail "쉼표로 이어붙인 문장(마침표여야 함)"; fi
 
+step "User-facing text uses the standard verb table (PA-RC-0002 §3)"
+# docs/UX_WRITING.md §3: 같은 개념(새로 만든다/고친다/없앤다/막는다/다시 쓰게 한다)에
+# 생성·등록·만들다/편집·변경/제거·지우다/끄기·중지·정지/켜기 같은 동의어가 섞여 있었다.
+# JSX 텍스트 자식(`>...텍스트...<`)만 본다 — registry/*.js처럼 문구를 객체 속성으로 정의하고
+# 다른 컴포넌트가 나중에 렌더링하는 간접 정의는 정적 grep으로 못 따라간다(의도적 범위 제한,
+# frontend/src/ui/ux-writing-verb-table.test.js 상단 주석 참고 — 그 파일에 "문서 생성"처럼
+# 정당한 도메인 용어와 부딪혀 범위를 넓히길 포기한 이유가 적혀 있다). 6번째 축(반영/적용→저장)
+# 은 예외가 너무 다양해 여기도 안 건다. 허용 문구는 위 vitest 파일의 allow 목록과 반드시
+# 같게 유지한다 — 둘이 갈라지면 이 게이트만 통과하고 npm test는 실패하거나 그 반대가 된다.
+#
+# grep은 한 줄씩만 보므로(-z 등 없이는 여러 줄에 안 걸친다) vitest 버전과 달리 폭 제한이
+# 필요 없다 — 애초에 JS 비교연산자 `>`가 몇 줄 뒤 `<`와 잘못 짝지어질 수가 없다. 다만 grep
+# -E(POSIX ERE)는 부정 전방탐색이 없어 "편집기"(동사 아닌 컴포넌트 고유명사, 편집 뒤 "기")를
+# 정규식 안에서 못 뺀다 — 별도 grep -v 단계로 그 줄만 다시 뺀다. 주석은 안 지운다(한 줄
+# 기준이라 vitest만큼 오탐 위험이 크지 않고, 주석 스트리핑을 bash에서 안전하게 하기 어렵다) —
+# 그래서 코멘트에서 우연히 걸리면 아래 허용 목록에 추가한다(계속 인간이 감시).
+VERB_HITS="$(grep -rnE '>[^<]*(생성|등록|만들기|만들다|편집|변경|제거|지우기|지우다|끄기|중지|정지|켜기)[^<]*<' \
+  frontend/src --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' | grep -v '편집기' || true)"
+VERB_VIOLATIONS="$(echo "$VERB_HITS" | grep -vE \
+  '(AI로 문제 생성|생성 중…|주제를 적고 생성하면|문장 요약 만들기|요약 만드는 중|AI 요약 생성|등록된 부서|등록된 직책|등록된 조직|임시 비밀번호는 생성|예: 서버 등록 IP|역할 변경|비밀번호 변경|시 변경을 요구|변경 이력|변경 기록|새 변경으로 다시 기록|적용 시점은 항목마다|이전 변경 이력을 볼|어떤 변경도 저장되지|차단된 변경 시도|>변경<|필터 지우기|검색어 지우기|카테고리 지우기)' || true)"
+if [ -z "$VERB_VIOLATIONS" ]; then ok "no banned verb synonyms in user-facing text"; else echo "$VERB_VIOLATIONS"; fail "표준 동사표(UX_WRITING.md §3) 위반 — 금지된 동의어가 화면 텍스트에 있다"; fi
+
 step "No external origins fetched by frontend"
 # 사내 LAN 전용이라 CDN·외부 폰트·외부 이미지를 런타임에 '받아오면' 오프라인에서 깨지고,
 # CSP(default-src 'self')에도 걸린다. 사용자가 눌러서 여는 링크(Notion 문서 등)는 문제가

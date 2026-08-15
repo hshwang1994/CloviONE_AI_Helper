@@ -23,8 +23,8 @@ export const ORG_SCREENS = {
     endpoint: "/api/admin/organizations",
     help: "회사(테넌트)를 관리합니다. 부서와 사용자는 모두 조직 하나에 속하며, 그 포함 관계는 ‘조직도’에서 한눈에 볼 수 있습니다.",
     createLabel: "+ 조직 추가",
-    emptyTitle: "등록된 조직이 없습니다",
-    emptyHelp: "‘+ 조직 추가’로 조직을 만들면 부서와 사용자를 그 아래에 둘 수 있습니다.",
+    emptyTitle: "추가된 조직이 없습니다",
+    emptyHelp: "‘+ 조직 추가’로 조직을 추가하면 부서와 사용자를 그 아래에 둘 수 있습니다.",
     searchFields: ["name", "slug"],
     searchPlaceholder: "조직 이름 또는 식별자로 검색",
     // 상태 필터가 아예 없어서, 조직이 늘어나면 '정지된 곳만' 훑을 방법이 없었다.
@@ -32,14 +32,14 @@ export const ORG_SCREENS = {
     // list_organizations) **페이지네이션도 하지 않는다** — 응답이 곧 전체 목록이다. 그래서
     // clientFilter로 걸러도 숨는 행이 없다(paginated 화면에서 clientFilter를 쓰면 다른 페이지의
     // 일치 항목이 사라지는데, 여기는 다른 페이지 자체가 없다).
-    filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용"], ["suspended", "정지"]]) }],
+    filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용 중"], ["suspended", "미사용"]]) }],
     columns: [
       col("name", "조직 이름"),
       col("slug", "식별자"),
-      { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용" : "정지") },
+      { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용 중" : "미사용") },
       col("department_count", "부서"),
       col("user_count", "사용자"),
-      dateCol("created_at", "생성"),
+      dateCol("created_at", "추가"),
     ],
     detailFields: [
       field("id", "조직 ID"),
@@ -47,7 +47,7 @@ export const ORG_SCREENS = {
       { key: "_contains", label: "포함 관계", render: (r) =>
         "부서 " + (r.department_count || 0) + "개, 사용자 " + (r.user_count || 0) + "명" },
       { key: "_delete_note", label: "삭제 안내", render: () =>
-        "조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이 끊깁니다, 대신 ‘정지’로 새 사용을 막으세요." },
+        "조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이 끊깁니다, 대신 ‘비활성화’로 새 사용을 막으세요." },
     ],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "조직 이름", type: "text", required: true, help: "화면에 보이는 이름입니다." },
@@ -65,12 +65,12 @@ export const ORG_SCREENS = {
       // (is_blocked_by_org_suspension을 auth/router.py와 core/deps.py가 함께 본다).
       // 몇 명이 끊기는지는 이미 같은 행에 실려 있다(user_count) — 부서/직책 비활성화가 인원수를
       // 확인 문구에 넣는 것과 같은 이유로, 0명과 200명이 같은 경고를 받지 않게 한다.
-      { label: "정지", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "active",
+      { label: "비활성화", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "active",
         method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "suspended" },
-        confirm: (r) => "이 조직을 정지하면 소속 사용자 " + (r.user_count || 0)
+        confirm: (r) => "이 조직을 비활성화하면 소속 사용자 " + (r.user_count || 0)
           + "명이 지금 즉시 로그아웃되고, 다시 로그인할 수 없게 됩니다(시스템 관리자는 제외). "
-          + "사용자와 부서 데이터 자체는 지워지지 않으며 ‘사용’으로 되돌릴 수 있습니다. 계속 정지할까요?" },
-      { label: "사용", roles: WRITE_ROLES, when: (r) => r.status !== "active",
+          + "사용자와 부서 데이터 자체는 지워지지 않으며 ‘활성화’로 되돌릴 수 있습니다. 계속 비활성화할까요?" },
+      { label: "활성화", roles: WRITE_ROLES, when: (r) => r.status !== "active",
         method: "PATCH", path: (r) => "/api/admin/organizations/" + r.id, body: { status: "active" } },
       { label: "조직도에서 보기", roles: WRITE_ROLES, navigate: () => "#/org-tree" },
       { label: "감사 로그에서 보기", navigate: (r) => "#/audit?object_type=organization&object_id=" + r.id },
@@ -79,7 +79,7 @@ export const ORG_SCREENS = {
   departments: {
     key: "departments", area: "사용자", title: "부서 관리", endpoint: "/api/admin/departments",
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "+ 부서 추가",
-    emptyTitle: "등록된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 만들면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
+    emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이
     // JSON.stringify(row) 전체(원시 UUID·boolean·UTC-ISO created_at)를 훑어 화면에 보이는 값과 무관하게
     // 매칭했다(예: KST 생성일을 그대로 쳐도 자정 경계 근처에서 못 찾음) — 이름만 검색 대상으로 좁힌다(직책 화면과 동일).
@@ -93,7 +93,7 @@ export const ORG_SCREENS = {
     // 서버가 이제 부서 응답에 org_id/org_name 을 싣는다. 연결을 만들어 놓고 화면에 안 보이면
     // 같은 말을 다시 듣는다. 조직이 하나뿐인 지금도 "이 부서가 어느 조직 것인지" 가 보인다.
     columns: [col("name", "부서 이름"), col("org_name", "조직"), activeCol("사용"),
-      col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "생성")],
+      col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "추가")],
     // id는 감사 로그의 object_id와 대조할 때 쓰이므로 상세에서 노출한다.
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
@@ -137,13 +137,13 @@ export const ORG_SCREENS = {
   "job-titles": {
     key: "job-titles", area: "사용자", title: "직책 관리", endpoint: "/api/admin/job-titles",
     help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "+ 직책 추가",
-    emptyTitle: "등록된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 만들면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
+    emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
     // 체인처럼 다음 단계(사용자)로 이어 준다. 단계별 안내는 canOnboard가 쓰기 역할에만 보여준다.
     emptySituation: "부서, 직책, 사용자 온보딩 체인의 한 단계입니다. 아직 직책이 하나도 없습니다.",
-    emptySteps: ["‘+ 직책 추가’로 필요한 직책을 만듭니다.", "사용할 직책을 모두 등록합니다.", "사용자 화면에서 계정을 만들 때 이 직책을 배정합니다."],
-    emptyExpected: "등록한 직책은 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
-    emptyRelatedLink: { href: "#/users", label: "다음: 사용자 등록으로 이동" },
+    emptySteps: ["‘+ 직책 추가’로 필요한 직책을 추가합니다.", "사용할 직책을 모두 추가합니다.", "사용자 화면에서 계정을 추가할 때 이 직책을 배정합니다."],
+    emptyExpected: "추가한 직책은 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
+    emptyRelatedLink: { href: "#/users", label: "다음: 사용자 추가로 이동" },
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, 기본 검색은 JSON.stringify(row)
     // 전체(원시 UUID·ISO created_at 포함)를 훑는다 — 화면에 보이는 '생성' 열은 KST로 포맷된 값인데
     // 검색은 원시 UTC ISO 문자열을 매칭해, 화면에 보이는 그대로 타이핑해도 자정 경계 근처에서
@@ -153,7 +153,7 @@ export const ORG_SCREENS = {
     filters: ACTIVE_FILTER,
     // usage_count(보유 인원)는 보관(soft-delete)된 사용자도 센다(부서와 동일한 계산 — app/org/service.py).
     // 라벨은 부서 화면과 다르게 '보유'를 쓴다 — 직책은 사람이 '보유'하는 것이지 '소속'되는 게 아니다.
-    columns: [col("name", "직책 이름"), activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "생성")],
+    columns: [col("name", "직책 이름"), activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "추가")],
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(부서와 동일한 이유) — 상세에 이유를 남긴다.
     detailFields: [field("id", "직책 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요." : "-" }],
@@ -174,8 +174,8 @@ export const ORG_SCREENS = {
   "org-tree": {
     key: "org-tree", area: "사용자", title: "조직도", endpoint: "/api/admin/departments/tree",
     help: "조직 > 부서 > 사용자 순서로 소속 관계를 봅니다. 맨 윗줄이 조직이고 그 아래 들여쓴 줄이 부서입니다. 부서 줄의 ‘소속 인원’을 누르면 그 자리에서 사람 이름까지 펼쳐 볼 수 있습니다.",
-    emptyTitle: "등록된 부서가 없습니다",
-    emptyHelp: "‘부서 관리’에서 부서를 만들고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
+    emptyTitle: "추가된 부서가 없습니다",
+    emptyHelp: "‘부서 관리’에서 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
     emptyRelatedLink: { href: "#/departments", label: "부서 관리로 이동" },
     searchFields: ["name", "path"],
     searchPlaceholder: "조직 또는 부서 이름으로 검색",
@@ -242,7 +242,7 @@ export const ORG_SCREENS = {
   },
   "notion-mapping": {
     key: "notion-mapping", area: "사용자", title: "Notion 사용자 연결", endpoint: "/api/admin/notion-mapping",
-    help: "직원 계정과 Notion 사용자를 연결합니다. 자동 매칭되며 수동 지정도 가능합니다. (‘notion-user-mapping’ 워크플로가 등록, 활성화되어 있어야 자동 동기화, 검증이 동작합니다.)",
+    help: "직원 계정과 Notion 사용자를 연결합니다. 자동 매칭되며 수동 지정도 가능합니다. (‘notion-user-mapping’ 워크플로가 추가, 활성화되어 있어야 자동 동기화, 검증이 동작합니다.)",
     // 사용자 화면(Users.jsx)의 'Notion 연결 확인' 링크가 ?user_id=를 붙여 이 화면으로 온다 — 다른
     // 9개 id 딥링크 화면(runners.onQuery 등)과 동일하게 GET /{user_id}({"mapping":...} 응답,
     // app/notion_mapping/router.py get_mapping)로 그 사용자의 상세 드로어를 곧바로 연다(예전엔 필터만

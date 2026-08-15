@@ -88,7 +88,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
           ) : null}
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
             {ym.you_submitted
-              ? `낸 것 ${RPS_LABELS[ym.your_choice]} (다시 누르면 변경). 상대가 내면 바로 판정됩니다.`
+              ? `낸 것 ${RPS_LABELS[ym.your_choice]} (다시 누르면 수정). 상대가 내면 바로 판정됩니다.`
               : "가위, 바위, 보 중 하나를 내세요."}
           </Typography>
         </Box>

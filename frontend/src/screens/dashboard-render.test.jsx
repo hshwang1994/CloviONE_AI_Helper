@@ -130,7 +130,7 @@ describe("대시보드 — 유지보수 모드", () => {
     renderDashboard();
 
     expect(await screen.findByText("유지보수 모드")).toBeInTheDocument();
-    expect(screen.getByText("켜짐")).toBeInTheDocument();
+    expect(screen.getByText("활성")).toBeInTheDocument();
     expect(screen.queryByText("지금 조치가 필요한 문제가 없습니다.")).not.toBeInTheDocument();
   });
 

@@ -42,11 +42,11 @@ describe("summarizeSetting", () => {
     expect(summarizeSetting("ui_branding", { product_name: "ClovirONE", support_email: "help@goodmit.co.kr" })).toBe("제품명: ClovirONE, 지원: help@goodmit.co.kr");
   });
   it("summarizes smtp (VIS-54 - 예전엔 요약이 없어 잘린 raw JSON 으로 샜다)", () => {
-    expect(summarizeSetting("smtp", { enabled: false })).toBe("꺼짐");
+    expect(summarizeSetting("smtp", { enabled: false })).toBe("비활성");
     expect(summarizeSetting("smtp", {
       enabled: true, host: "smtp.example.com", port: 587, security: "starttls",
       from_address: "portal@example.com",
-    })).toBe("켜짐, smtp.example.com:587, starttls, 발신: portal@example.com");
+    })).toBe("활성, smtp.example.com:587, starttls, 발신: portal@example.com");
     // 비밀번호(password_ref)는 파일 이름일 뿐이지만, 그래도 요약에 넣지 않는다 - 화면
     // 관례가 아니고 값 자체를 보여줄 이유가 없다.
     expect(summarizeSetting("smtp", { enabled: true, host: "x", port: 25, password_ref: "smtp_pw" }))

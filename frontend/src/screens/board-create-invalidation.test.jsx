@@ -55,7 +55,7 @@ describe("게시글 작성 → board-mine 캐시 무효화 (WF44 L축)", () => {
 
     wrap(qc);
     await user.type(screen.getByLabelText(/^제목/), "새 글");
-    await user.click(screen.getByRole("button", { name: "등록" }));
+    await user.click(screen.getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       expect(qc.getQueryState(["board-mine"]).isInvalidated, "board-mine").toBe(true);

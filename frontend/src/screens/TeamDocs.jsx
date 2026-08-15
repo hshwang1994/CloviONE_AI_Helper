@@ -148,8 +148,8 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
         body: f.body,
       },
     }),
-    onSuccess: (res) => { toast("문서를 생성했습니다.", "success"); onCreated && onCreated(res.document); },
-    onError: (e) => toast((e && e.message) || "문서 생성에 실패했습니다. 다시 시도해 주세요.", "error"),
+    onSuccess: (res) => { toast("문서를 추가했습니다.", "success"); onCreated && onCreated(res.document); },
+    onError: (e) => toast((e && e.message) || "문서 추가에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // 필수(§9): 제목·문서 종류·업무 분야.
@@ -174,7 +174,7 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
       title="새 문서"
       size="lg"
       dirty={dirty}
-      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="생성" busy={create.isPending} />}
+      footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="추가" busy={create.isPending} />}
     >
       <TextField
         id="doc-title" size="small" fullWidth required label="제목"
@@ -474,7 +474,7 @@ export function TeamDocs() {
           <EmptyState
             art="docs"
             title="문서가 없습니다"
-            help="위 ‘새 문서’로 첫 문서를 만들면 Notion 팀 문서에 함께 반영됩니다."
+            help="위 ‘새 문서’로 첫 문서를 추가하면 Notion 팀 문서에 함께 반영됩니다."
             action={<Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>}
           />
         )

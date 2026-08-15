@@ -297,7 +297,7 @@ export function Projects() {
         title="새 프로젝트"
         fields={PROJECT_FORM_FIELDS}
         initial={{ status: "active" }}
-        submitLabel="만들기"
+        submitLabel="추가"
         onSubmit={submitCreate}
         onClose={() => setCreating(false)}
       />

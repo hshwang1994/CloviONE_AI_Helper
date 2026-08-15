@@ -68,7 +68,7 @@ describe("유지보수 — 쓰기 권한이 없는 역할", () => {
     mockRole = "operator";
     renderMaintenance();
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 켜기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     expect(toggleBtn).toBeInTheDocument();
     expect(toggleBtn).toBeDisabled();
 
@@ -97,7 +97,7 @@ describe("유지보수 — 쓰기 권한이 없는 역할", () => {
     mockRole = "admin";
     renderMaintenance();
 
-    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 켜기" });
+    const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     expect(toggleBtn).toBeEnabled();
     expect(screen.getByRole("button", { name: "미리 검증" })).toBeEnabled();
     expect(screen.queryByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toBeNull();

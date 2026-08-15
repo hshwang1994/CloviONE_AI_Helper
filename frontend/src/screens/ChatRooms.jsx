@@ -107,7 +107,7 @@ export function GroupModal({ open, onClose }) {
       body: { title: title.trim(), member_user_ids: Object.keys(picked).filter((k) => picked[k]) },
     }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); onClose(); nav(`/chat-rooms/${r.room.id}`); },
-    onError: (e) => toast((e && e.message) || "방을 만들지 못했습니다. 다시 시도해 주세요.", "error"),
+    onError: (e) => toast((e && e.message) || "방을 추가하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const users = (dir.data && dir.data.users) || [];
@@ -125,7 +125,7 @@ export function GroupModal({ open, onClose }) {
   const footer = (
     <>
       <Button onClick={requestClose}>취소</Button>
-      <Button variant="primary" disabled={!canCreate} onClick={() => create.mutate()}>만들기</Button>
+      <Button variant="primary" disabled={!canCreate} onClick={() => create.mutate()}>추가</Button>
     </>
   );
   return (

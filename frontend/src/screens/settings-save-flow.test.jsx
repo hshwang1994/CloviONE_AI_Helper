@@ -124,7 +124,7 @@ describe("보안 완화 확인 — 허용 이메일 도메인 비우기", () => 
     mockDomainsApi();
     const user = userEvent.setup();
     renderSettings();
-    await openEditor(user, "계정 생성 허용 도메인");
+    await openEditor(user, "계정 추가 허용 도메인");
     await user.click(await screen.findByRole("button", { name: "example.com 제거" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
@@ -143,7 +143,7 @@ describe("보안 완화 확인 — 허용 이메일 도메인 비우기", () => 
     mockDomainsApi();
     const user = userEvent.setup();
     renderSettings();
-    await openEditor(user, "계정 생성 허용 도메인");
+    await openEditor(user, "계정 추가 허용 도메인");
     await user.click(await screen.findByRole("button", { name: "example.com 제거" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
@@ -164,7 +164,7 @@ describe("유효성 검사 — 도메인 추가 입력", () => {
     });
     const user = userEvent.setup();
     renderSettings();
-    await openEditor(user, "계정 생성 허용 도메인");
+    await openEditor(user, "계정 추가 허용 도메인");
     const domainInput = await screen.findByLabelText("도메인 추가");
     await user.type(domainInput, "invalid");
     await user.click(screen.getByRole("button", { name: "추가" }));
@@ -223,7 +223,7 @@ describe("미저장 변경 보호", () => {
     await user.click(screen.getByRole("button", { name: "취소" }));
 
     const dialog = await screen.findByRole("dialog", { name: "확인" });
-    expect(dialog).toHaveTextContent(/변경한 내용이 저장되지 않았습니다/);
+    expect(dialog).toHaveTextContent(/수정한 내용이 저장되지 않았습니다/);
     await user.click(within(dialog).getByRole("button", { name: "취소" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "확인" })).toBeNull());
     expect(screen.getByLabelText("값")).toBeInTheDocument();

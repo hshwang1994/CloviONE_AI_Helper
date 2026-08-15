@@ -152,7 +152,7 @@ describe("실행 달력", () => {
   it("일정이 하나도 없으면 만들라고 안내한다", async () => {
     mockApi(() => Promise.resolve(body({ schedules: [] })));
     renderCalendar();
-    expect(await screen.findByText("등록된 실행 일정이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("추가된 실행 일정이 없습니다")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
 });
