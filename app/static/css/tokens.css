@@ -29,7 +29,8 @@
   --color-card: #FFFFFF;
   --color-border: #DFE4EF;           /* 카드와 입력창 테두리 */
   --color-line: #E9E9E9;             /* 표의 행 구분선 */
-  --color-text: #20263A;
+  --color-text: #20263A;             /* --color-bg 위 14.00 (PA-RC-0010 — 이제 forgot/reset
+                                         password가 실제로 이 조합을 그린다) */
   --color-muted: #667085;
   /* 제목·큰 숫자. 디자인 시스템은 본문(#333)과 다른 짙은 잉크빛을 쓴다(.page-title, .res .big).
    * 브랜드 잉크(#141B34)와 같은 계열이라 상단바·히어로와 이어진다. 배경 위 15.16. */
@@ -165,7 +166,7 @@
                                          옛 값(#141B34, 브랜드 잉크)은 --color-ink와 겹쳤었다 */
   --color-border: #2B3655;
   --color-line: #232C52;
-  --color-text: #EEF1FB;
+  --color-text: #EEF1FB;             /* --color-bg 위 17.04 (PA-RC-0010) */
   --color-muted: #A4AEC7;
   /* 라이트용 짙은 잉크(#1B2235)를 다크에 그대로 두면 제목이 배경에 묻힌다(1.20). 본문색으로 되돌린다. */
   --color-heading: var(--color-text);   /* 15.63 */
@@ -203,4 +204,61 @@
    * rgba(20,27,52,.30)를 다크에 그대로 두면 그림자색이 가림막보다 밝아서 그림자가 아니라
    * 옅은 빛무리가 된다(모달 대 가림막 대비 1.14). 검정으로 내려야 경계가 산다. */
   --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.65);
+}
+
+/* PA-RC-0010 — 서버 렌더 페이지(로그인 등, app/templates_html/**)는 SPA와 달리 JS로
+ * data-theme를 세팅할 주체가 없어 위 블록이 영원히 켜지지 않았다. `:root:not([data-theme])`로
+ * 묶어 "이 문서 어디에도 명시적 테마 선택이 없을 때만" 켠다 — SPA가 부팅 시 동기적으로
+ * (첫 페인트 전, theme-store.js::applyBootTheme) data-theme="light"|"dark"를 **항상** 세팅하므로
+ * (§3-6이 인라인 스크립트를 막아 모듈 스코프 동기 실행으로 우회한 이유가 바로 이것이다), SPA
+ * 쪽에서는 이 블록이 절대 매치되지 않고 기존 명시적 전환만 그대로 동작한다 — 이 블록은 순수하게
+ * "JS가 아직 실행되지 않았거나 애초에 없는" 서버 렌더 표면만을 위한 것이다.
+ *
+ * 값은 위 [data-theme="dark"]와 일부러 그대로 복제한다 — CSS 커스텀 프로퍼티에는 "다른 선택자의
+ * 선언을 참조"하는 수단이 없어(전처리기 없이) 매체 질의와 속성 선택자를 하나로 합칠 방법이
+ * 없다. 대신 두 블록이 어긋나면 tests/regression/test_css_says_what_it_does.py가 잡는다.
+ *
+ * OS 선호와 SPA에서 고른 테마가 다를 때(사용자가 명시적으로 라이트를 골랐는데 OS는 다크인 경우
+ * 등) 로그인 성공 후 SPA로 넘어가며 테마가 튀는 문제는 이 커밋의 범위 밖이다 — 그 경로를
+ * 튀지 않게 하려면 SPA의 테마 선택을 쿠키로도 내보내 서버가 렌더 시점에 읽어야 하는데, 그건
+ * 별도 설계 결정(docs/DECISIONS.md)이 필요한 더 큰 변경이다. 지금 이 블록은 "다크 OS에서
+ * 로그인 화면이 무조건 하얗다"는, 더 흔하고 더 눈에 띄는 결함만 없앤다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-primary: #8EA0F4;
+    --color-primary-strong: #AEBBF7;
+    --color-primary-soft: #536CD6;
+    --color-ink: #070B1A;
+    --color-on-primary: #141B34;
+
+    --color-bg: #090E1D;
+    --color-card: #11182D;
+    --color-border: #2B3655;
+    --color-line: #232C52;
+    --color-text: #EEF1FB;
+    --color-muted: #A4AEC7;
+    --color-heading: var(--color-text);
+
+    --color-success: #65D8A6;
+    --color-warning: #F6BD67;
+    --color-error: #FF8B9B;
+    --color-on-status: #141B34;
+
+    --sidebar-bg: var(--color-card);
+    --sidebar-shadow: 3px 0 10px rgba(0, 0, 0, 0.4);
+    --sidebar-hover: rgba(117, 138, 225, 0.10);
+    --sidebar-active-bg: color-mix(in srgb, var(--color-primary) 18%, transparent);
+    --sidebar-active-fg: var(--color-primary-strong);
+    --sidebar-danger: #FCA5A5;
+
+    --badge-success-fg: var(--color-success);
+    --badge-warning-fg: var(--color-warning);
+    --badge-error-fg: var(--color-error);
+    --badge-info-fg: var(--color-primary-strong);
+
+    --shadow-card: 0 5px 10px rgba(0, 0, 0, 0.45);
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-modal: 0 10px 40px rgba(0, 0, 0, 0.65);
+  }
 }

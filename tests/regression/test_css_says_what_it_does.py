@@ -82,7 +82,9 @@ def _blocks() -> dict:
     src = TOKENS.read_text(encoding="utf-8")
     # 구조 검사 — 정규식만 믿으면 깨진 CSS도 통과한다.
     assert src.count("{") == src.count("}"), "tokens.css 중괄호가 안 맞는다"
-    assert src.count("{") == 2, f"tokens.css 최상위 블록이 2개가 아니다: {src.count('{')}"
+    # :root{ · [data-theme="dark"]{ · @media(...){ · 그 안의 :root:not([data-theme]){ = 4
+    # (PA-RC-0010 — 서버 렌더 페이지용 OS-선호 매체 질의 블록 추가로 2에서 늘었다).
+    assert src.count("{") == 4, f"tokens.css 블록 수가 예상과 다르다(4여야 한다): {src.count('{')}"
     out = {}
     for theme, rx in _BLOCK_RE.items():
         m = rx.search(src)
@@ -128,6 +130,10 @@ CASES = [
     ("light", "--sidebar-muted", "--sidebar-bg", None),
     ("light", "--sidebar-active-fg", "--sidebar-active-bg", None),
     ("dark", "--sidebar-active-fg", "--sidebar-active-bg", "--sidebar-bg"),
+    # PA-RC-0010 — 서버 렌더 페이지(forgot/reset-password)의 본문 글자/배경. 로그인 성공
+    # 전에는 다른 어떤 화면도 이 조합을 그린 적이 없었다(다크가 아예 안 켜졌으므로).
+    ("light", "--color-text", "--color-bg", None),
+    ("dark", "--color-text", "--color-bg", None),
 ]
 
 
@@ -154,6 +160,27 @@ def test_contrast_comment_matches_the_colors(theme, fg_tok, bg_tok, base_tok):
         f"[{theme}] {fg_tok} on {bg_tok}: 주석은 {claimed}라고 하는데 실제로는 {computed:.2f}다.\n"
         f"  글자 rgb{tuple(round(c) for c in fg)} / 면 rgb{tuple(round(c, 1) for c in bg)}\n"
         f"  주석의 숫자를 {computed:.2f}로 고쳐라(색을 바꾸지 말고)."
+    )
+
+
+def test_dark_media_query_block_matches_the_data_theme_dark_block_exactly():
+    """PA-RC-0010 — 서버 렌더 페이지(OS 선호 매체 질의)와 SPA(`[data-theme="dark"]`, JS)가
+    같은 다크 값을 써야 한다. CSS 커스텀 프로퍼티는 선택자 간 참조가 안 돼(전처리기 없이) 두
+    블록이 값을 나란히 손으로 들고 있다 — 하나만 고치면 여기서 잡힌다."""
+    src = TOKENS.read_text(encoding="utf-8")
+    attr_decls = {k: v[0] for k, v in _decls(_blocks()["dark"]).items()}
+
+    media = _media_block(src, "@media (prefers-color-scheme: dark)")
+    m = re.search(r":root:not\(\[data-theme\]\)\s*\{(.*)\}\s*$", media, re.S)
+    assert m, "다크 media 블록 안에서 :root:not([data-theme])를 못 찾았다"
+    media_decls = {k: v[0] for k, v in _decls(m.group(1)).items()}
+
+    assert media_decls == attr_decls, (
+        "@media (prefers-color-scheme: dark)와 [data-theme=\"dark\"]가 어긋났다 — 한쪽만 "
+        "고쳤다.\n"
+        f"  media에만 있음: {sorted(set(media_decls) - set(attr_decls))}\n"
+        f"  속성 선택자에만 있음: {sorted(set(attr_decls) - set(media_decls))}\n"
+        f"  값이 다른 키: {sorted(k for k in media_decls.keys() & attr_decls.keys() if media_decls[k] != attr_decls[k])}"
     )
 
 

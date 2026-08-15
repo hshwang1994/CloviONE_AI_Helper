@@ -1546,3 +1546,51 @@ D-70은 "CLAUDE.md에 평문 TEST 서버 credential이 든 미커밋 변경을 �
 검증: contract test **59건**이 Windows PowerShell 5.1 / PowerShell 7 양쪽에서 통과.
 신규 T61(rubric 인계 + Skill 계약 + 스택 오적용 경고 + 제품명) · T62(WARM 불변 규칙 인라인) ·
 T63(브라우저 도구 부재 시 E2E 경로).
+
+## D-74 (2026-08-15) — PA-RC-0010: 로그인 화면은 다크 대상에서 계속 뺀다(감사 실측 범위 재확인)
+
+`PA-RC-0010`(Product Audit)은 "서버 렌더 로그인 화면이 다크를 전혀 안 따른다"를 결함으로
+등록하며 "`/login`·`/forgot-password`·`/reset-password`·`/change-password` 전부(같은 정적
+CSS를 읽으므로) 같은 문제를 공유할 가능성이 높다"고 적었다 — 단 그 문서 자신도 "이번에
+실측한 것은 `/login` 하나다, 나머지는 미확인"이라고 명시했다. 구현 착수 전 나머지 3개를
+실제로 확인하니 그 가정이 **부분적으로 틀렸다**:
+
+- **`/change-password`는 이미 다크를 지원한다.** `theme.js`(SPA의 `theme-store.js`와 같은
+  메커니즘 — localStorage 저장값을 읽고 없으면 OS `prefers-color-scheme`를 따라 `data-theme`를
+  세팅)를 로드한다. 감사는 `data-theme`/`prefers-color-scheme` 문자열을 정적 grep했는데,
+  JS가 런타임에 세팅하는 속성이라 grep에 안 걸렸을 뿐이다(`tests/regression/
+  test_theme_on_all_authed_pages.py::test_change_password_page_applies_the_stored_theme`가
+  이미 이 계약을 못박고 있었다).
+- **`/login`은 의도적으로 라이트 고정이다.** `app/static/css/login.css`의 `:root { color-scheme:
+  light; }` 및 그 파일 자체의 주석: *"로그인은 인증 전 화면이라 라이트 고정이다(히어로가 그
+  전제로 설계돼 있다)."* `test_theme_on_all_authed_pages.py::test_login_page_does_not_theme_itself`
+  가 "로그인 화면에 `theme.js`가 없어야 한다"를 이미 못박고 있다 — 이건 빠뜨린 기능이 아니라
+  **기존에 내려진, 테스트로 고정된 제품 결정**이다. 히어로의 그라디언트·장식 요소는 라이트
+  전제로 만들어져 있어, 강제로 다크를 씌우면 재설계 없이는 대비·톤이 깨질 가능성이 높다.
+- **`/forgot-password`·`/reset-password`는 진짜 공백이었다.** `login.css`도 `theme.js`도 없이
+  `base.html`이 주는 `tokens.css`+`base.css`만 그대로 받는다 — 실측 결과 라이트/다크에서
+  `body` 배경·글자색이 완전히 동일했다(다크가 전혀 안 켜짐). Playwright로 두 화면 다 확인함.
+
+### 구현
+
+`app/static/css/tokens.css`에 `@media (prefers-color-scheme: dark) { :root:not([data-theme]) {
+... } }` 블록을 추가했다 — `[data-theme="dark"]`(SPA·`theme.js`가 세팅)와 값은 동일하게
+두 벌(전처리기 없이 선택자 간 참조 불가) 유지하되, `tests/regression/
+test_css_says_what_it_does.py::test_dark_media_query_block_matches_the_data_theme_dark_block_exactly`
+가 두 블록의 어긋남을 잡는다(revert-to-verify 확인). `:not([data-theme])` 가드 덕분에 SPA·
+`change-password`(둘 다 JS로 `data-theme`를 명시적으로 세팅)에는 전혀 관여하지 않고,
+`login.css`가 이미 더 구체적인 선택자로 `body` 배경을 덮어써 `/login`도 그대로 라이트다 —
+셋 다 실측(Playwright)으로 확인함.
+
+### 남긴 것 (이 커밋 범위 밖)
+
+acceptance_criteria (4)("로그인 성공 후 SPA로 넘어갈 때 테마가 튀지 않는다")의 원래 취지는
+"SPA에서 고른 테마와 서버 렌더 페이지가 다르면 전환 순간 튄다"는 것이었다. 위 재확인으로
+`/login`은 애초에 다크 대상이 아니므로 그 전환(라이트 로그인 → 사용자 테마 SPA)은 **의도된
+동작**이지 결함이 아니다. `change-password`도 이미 같은 저장값을 읽으므로 튀지 않는다.
+남는 이론적 사각지대는 `/forgot-password`·`/reset-password`에서 OS 선호와 사용자가 SPA에서
+명시적으로 고른 테마가 다를 때뿐이다(예: OS는 라이트인데 SPA에서 다크를 골랐고, 그 상태로
+비밀번호 재설정 이메일 링크를 열면 그 페이지는 OS 기준 라이트로 뜬다) — 이 경로를 완전히
+없애려면 SPA의 테마 선택을 쿠키로도 내보내 서버가 읽어야 하는데, 그 흐름 자체가 드물고
+(이메일 링크로 접근, 로그인 세션이 있는 상태로 여는 경우가 거의 없다) 더 큰 변경이라 이번
+범위에서는 뺀다. 필요해지면 새 Backlog 항목으로 다룬다.
