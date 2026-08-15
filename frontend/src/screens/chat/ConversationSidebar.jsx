@@ -80,7 +80,7 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
       {/* 보관됨은 호버 아이콘만으로는 쉼 상태에서 구분되지 않는다, 항상 보이는 태그로 표시한다. */}
       {c.archived ? <Badge value="archived" /> : null}
       {c.updated_at ? (
-        <Typography className="chat-conv-time" sx={{ flexShrink: 0, ml: "auto", pr: 1, fontSize: "0.6875rem", color: "text.secondary", whiteSpace: "nowrap" }}>
+        <Typography className="chat-conv-time" sx={{ flexShrink: 0, ml: "auto", pr: 1, fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
           {fmtShort(c.updated_at)}
         </Typography>
       ) : null}

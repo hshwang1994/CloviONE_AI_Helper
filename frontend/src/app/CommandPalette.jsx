@@ -14,7 +14,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
  *
@@ -195,7 +195,7 @@ export function CommandPalette({ open, onClose, groups }) {
           inputProps={{ "aria-label": "통합 검색" }}
           sx={{ fontSize: "1rem" }}
         />
-        <Box component="kbd" sx={{ fontSize: "0.6875rem", color: "text.secondary", border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.25 }}>
+        <Box component="kbd" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.25 }}>
           Esc
         </Box>
       </Box>
@@ -222,7 +222,7 @@ export function CommandPalette({ open, onClose, groups }) {
             {sections.map((section) => (
               <li key={section.key}>
                 <ul style={{ padding: 0, margin: 0, listStyle: "none" }}>
-                  <ListSubheader disableSticky sx={{ bgcolor: "transparent", fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, letterSpacing: ".04em" }}>
+                  <ListSubheader disableSticky sx={{ bgcolor: "transparent", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, letterSpacing: ".04em" }}>
                     {section.label}
                   </ListSubheader>
                   {section.items.map((it) => {

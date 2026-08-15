@@ -66,13 +66,13 @@ function MemberRow({ member, meId, actions }) {
           ) : null}
         </Typography>
         {affiliation(member) ? (
-          <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {affiliation(member)}
           </Typography>
         ) : null}
       </Box>
       {member.role === "owner" ? (
-        <Chip size="small" label="방장" sx={{ flexShrink: 0, height: "1.25rem", fontSize: "0.6875rem" }} />
+        <Chip size="small" label="방장" sx={{ flexShrink: 0, height: "1.25rem", fontSize: FONT_SIZE.caption }} />
       ) : null}
       <Typography sx={{ flexShrink: 0, ml: "auto", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
         {member.online ? "이 대화 보는 중" : "자리 비움"}

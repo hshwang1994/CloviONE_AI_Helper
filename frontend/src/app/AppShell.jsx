@@ -173,7 +173,7 @@ function NavBadge({ count }) {
         ml: 1, px: 0.75, minWidth: "1.25rem", height: "1.25rem",
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         borderRadius: "0.625rem", flexShrink: 0,
-        fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1,
+        fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1,
         bgcolor: "error.main", color: "common.white",
       }}
     >

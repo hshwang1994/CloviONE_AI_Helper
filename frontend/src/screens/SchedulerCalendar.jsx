@@ -107,7 +107,7 @@ function EventDot({ event, onClick }) {
         bgcolor: planned ? "transparent" : failed ? "error.main" : "primary.main",
         color: planned ? "text.secondary" : failed ? "error.contrastText" : "primary.contrastText",
         borderRadius: 1, px: 0.75, py: 0.25, mb: 0.25, cursor: "pointer",
-        fontSize: "0.6875rem", lineHeight: 1.4,
+        fontSize: FONT_SIZE.caption, lineHeight: 1.4,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         "&:hover": { filter: "brightness(0.95)" },
         "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
@@ -380,7 +380,7 @@ export function SchedulerCalendar() {
                         ))}
                         {events.length > 4 ? (
                           <Tooltip title={`${events.length - 4}건 더 있습니다`}>
-                            <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary" }}>
+                            <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
                               +{events.length - 4}건
                             </Typography>
                           </Tooltip>

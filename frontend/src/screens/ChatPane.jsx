@@ -416,7 +416,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                         {receipt}
                       </Typography>
                     ) : null}
-                    <Typography sx={{ fontSize: "0.6875rem", color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                    <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
                       {fmtTimeShort(m.created_at)}
                     </Typography>
                   </Box>
@@ -502,7 +502,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       >
         {EMOJI_GROUPS.map((g) => (
           <Box key={g.label} sx={{ mb: 1, "&:last-of-type": { mb: 0 } }}>
-            <Typography sx={{ mb: 0.5, fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.bold, color: "text.secondary" }}>{g.label}</Typography>
+            <Typography sx={{ mb: 0.5, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, color: "text.secondary" }}>{g.label}</Typography>
             {/* MUI Grid 대신 Box + sx 그리드 — 프로젝트 규약. */}
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 0.25 }}>
               {g.emojis.map((emoji) => (

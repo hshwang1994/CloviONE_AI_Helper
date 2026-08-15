@@ -554,7 +554,7 @@ export function NotificationBell({ isUser }) {
                       role="separator"
                       aria-label={groupHeader + " 알림"}
                       sx={{
-                        px: 2, py: 0.5, fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.bold,
+                        px: 2, py: 0.5, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold,
                         letterSpacing: "0.02em", color: "text.secondary", bgcolor: "action.hover",
                         borderBottom: 1, borderColor: "divider",
                       }}
