@@ -77,19 +77,25 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 
 | 항목 | 값 |
 |---|---|
-| Root Cause | **6건** — Critical 1(`PA-RC-0003`) · High 2(`0001`,`0002`) · Med 1(`0005`) · Low 2(`0004`,`0006`) |
-| Finding | PA-F-001 ~ PA-F-015 |
-| HANDOFF의 PA-RC 블록 | **4건**(`0001`,`0002`,`0003`,`0005`). `0004`·`0006`은 Low라 승격 안 함 |
-| Coverage | 2340칸 중 EXECUTED 156 · STATIC_ONLY 589 · UNSEEN 1595(**전부 사유 있음**) |
-| 실행 증거 | 프런트 1,718건 · 백엔드 회귀 331건 · 보안 498건, 전부 green |
+| Root Cause | **8건** — Critical 1(`0003`) · High 3(`0001`,`0002`,`0008`) · Med 2(`0005`,`0007`) · Low 2(`0004`,`0006`) |
+| Finding | PA-F-001 ~ PA-F-021 |
+| HANDOFF의 PA-RC 블록 | **6건**(`0001`,`0002`,`0003`,`0005`,`0007`,`0008`). `0004`·`0006`은 Low라 승격 안 함 |
+| Coverage | 2340칸 중 EXECUTED 158 · OBSERVED 3 · STATIC_ONLY 637 · UNSEEN 1542(**전부 사유 있음**) |
+| 실행 증거 | 프런트 1,718건 green · 백엔드 회귀 331건 green · 보안 498건 green · **race 계열은 실패 재현**(`PA-RC-0008`) · `tests/integration` 전체는 실행 중 |
 | Blind Re-Audit | **0 / 2** — 아직 시작 안 함 |
 | Backlog 승격 | **아직 안 함**(§11대로 수렴 후에 한다) |
 | `IMPLEMENTATION_REQUIRED` | **아직 안 만듦** |
 
 ### AUDIT_COMPLETE까지 남은 일 (순서대로)
 
-1. 미조사 축 진행 — **C · D · G · J · K · N · O · R · S · V** 가 거의 UNSEEN이다.
-   특히 **D(업무 흐름 end-to-end)** 와 **K(AI/Runner/Job 수명주기)** 가 위험 대비 미조사다.
+0. **`tests/integration` 전체 실행 결과를 반드시 확인할 것** — 이번 회차에 걸어 두었고
+   (`var/product-audit/pytest_integration.log`) 그 디렉터리는 앞선 실행 묶음
+   (`tests/regression`·`tests/security`)에 **포함되지 않는다.** 착수 즉시 거기서 High 하나
+   (`PA-RC-0008`)가 나왔으므로 나머지에도 더 있을 수 있다.
+1. 미조사 축 진행 — **C · D · N · O · R** 가 아직 거의 UNSEEN이다
+   (G·J·K·S·T·W는 이번 회차에 최소 STATIC_ONLY로 덮었다).
+   특히 **D(업무 흐름 end-to-end)** 가 위험 대비 미조사로 남아 있다.
+1-1. **S축 잔여** — 무제한 목록 후보 15건 중 1건만 검증했다. 나머지 14건 확인.
 2. `humanize-korean` 적용(R축) — 단 `PA-RC-0002`의 문구 규칙이 확정된 뒤가 순서다.
 3. 실제 브라우저 관측(N/O/M축) — 승인된 TEST 서버에서 가능하다(Blocker 아님).
 4. **Blind Re-Audit 2회 연속** — 기존 Finding 목록을 다시 읽는 것은 Blind Pass가 아니다.

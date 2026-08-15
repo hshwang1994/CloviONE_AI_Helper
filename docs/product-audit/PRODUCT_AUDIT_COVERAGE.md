@@ -128,22 +128,22 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | · | · | · | S | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
-| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | · | · | · | S | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
-| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | · | · | · | E | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | · | · | S | S | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | · | · | · | E | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | S | S | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | O | S | O | S | · | E | · |
-| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | · |
+| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | · |
+| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | O | S | O | S | · | E | · |
+| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
 
 ## UNSEEN / BLOCKED / NOT_APPLICABLE 사유
 
@@ -203,7 +203,7 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `P-RBAC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `P-RUNNER` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `P-SCHED` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
-| `P-SEARCH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `P-SEARCH` | S축은 부분 조사다 — 무제한 목록 후보 15건 중 1건(team_chat messages)만 검증했고 나머지 14건은 미확인. FINDINGS 'S축 — 미결로 남긴다' 절 참조. |
 | `P-UPLOAD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-ASSIST` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-BANNER` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
@@ -307,9 +307,9 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1574
+unseen=1542
 unseen_without_reason=0
-static_only=605
+static_only=637
 observed=3
 executed=158
 blocked=0
