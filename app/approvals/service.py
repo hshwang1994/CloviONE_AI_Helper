@@ -227,7 +227,15 @@ def create_approval(
         except (IntegrityError, OperationalError) as exc:
             if not is_write_conflict(exc):
                 raise
-            db.commit()  # 스냅샷을 새로 뜬다 — 실패한 삽입은 이미 SAVEPOINT로 걷혔다.
+            # 스냅샷을 새로 뜨는 이 commit 자체도 경합에서 같은 이유로 거부될 수 있다
+            # (org/service.py::create_item과 같은 자리, D-75/PA-08과 같은 패턴) —
+            # 처리 안 하면 예산이 남았는데도 raw OperationalError가 새 나간다.
+            try:
+                db.commit()
+            except (IntegrityError, OperationalError) as commit_exc:
+                if not is_write_conflict(commit_exc):
+                    raise
+                db.rollback()
             winner = (
                 db.execute(
                     select(Approval)

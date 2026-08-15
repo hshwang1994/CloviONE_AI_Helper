@@ -185,7 +185,15 @@ def new_version_from(
                 raise ConflictError(
                     "다른 새 버전 요청과 계속 겹쳐 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
                 ) from None
-            db.commit()
+            # 스냅샷을 새로 뜨는 이 commit 자체도 경합에서 같은 이유로 거부될 수 있다
+            # (org/service.py::create_item과 같은 자리, D-75/PA-08과 같은 패턴) —
+            # 처리 안 하면 예산이 남았는데도 raw OperationalError가 새 나간다.
+            try:
+                db.commit()
+            except (IntegrityError, OperationalError) as commit_exc:
+                if not is_write_conflict(commit_exc):
+                    raise
+                db.rollback()
             time.sleep(write_conflict_backoff(attempt))
     raise AssertionError("unreachable")  # pragma: no cover
 
