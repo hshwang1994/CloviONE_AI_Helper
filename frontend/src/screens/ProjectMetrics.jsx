@@ -94,7 +94,7 @@ export function HealthBlock({ score, reasons, unknown }) {
     <Box>
       {score == null ? (
         <>
-          <Typography sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: 750 }}>{NO_HEALTH_SCORE}</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold }}>{NO_HEALTH_SCORE}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, ...KO_WORD_BREAK }}>
             판정할 수 있는 지표가 하나도 없었습니다. 0점과는 다른 상태입니다.
           </Typography>
@@ -105,7 +105,7 @@ export function HealthBlock({ score, reasons, unknown }) {
         </Typography>
       )}
 
-      <Typography component="h3" variant="body2" sx={{ fontWeight: 750, mt: 2 }}>
+      <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>
         점수를 깎은 이유
       </Typography>
       {list.length ? (
@@ -132,7 +132,7 @@ export function HealthBlock({ score, reasons, unknown }) {
 
       {unsure.length ? (
         <>
-          <Typography component="h3" variant="body2" sx={{ fontWeight: 750, mt: 2 }}>
+          <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>
             판정하지 못한 항목
           </Typography>
           <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1 }}>
@@ -168,7 +168,7 @@ export function HealthHistory({ query }) {
   }
   return (
     <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-      <Typography component="h3" variant="body2" sx={{ fontWeight: 750, mb: 1 }}>주간 추세</Typography>
+      <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>주간 추세</Typography>
       <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none", display: "grid", gap: 0.75 }}>
         {items.map((it) => (
           <Box component="li" key={it.week_of} sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>

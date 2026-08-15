@@ -202,7 +202,7 @@ export function Chat() {
               없애면 그 상황에서 "지금 보는 대화가 뭔지" 신호가 사라진다). */}
           <Typography
             component="h2"
-            sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: 750, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.bold, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
             {cid ? activeTitle : "채팅"}
           </Typography>

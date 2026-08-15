@@ -63,7 +63,7 @@ function RoomRow({ room, onOpen, active }) {
             sx={{
               minWidth: "1.375rem", textAlign: "center", px: 0.75, py: "0.0625rem", borderRadius: RADIUS.full,
               bgcolor: "primary.main", color: "primary.contrastText",
-              fontSize: FONT_SIZE.caption, fontWeight: 750, fontVariantNumeric: "tabular-nums",
+              fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, fontVariantNumeric: "tabular-nums",
             }}
           >
             {room.unread > 99 ? "99+" : room.unread}
@@ -276,7 +276,7 @@ export function ChatRooms() {
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
         px: 2, py: 1.75, borderBottom: 1, borderColor: "divider",
       }}>
-        <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle }}>대화</Typography>
+        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>대화</Typography>
         {unreadTotal > 0 ? (
           <Chip size="small" color="primary" label={unreadTotal > 99 ? "99+" : unreadTotal}
             sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold }} />

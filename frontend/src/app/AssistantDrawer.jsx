@@ -15,7 +15,7 @@ import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Skeleton } from "../ui/kit.jsx";
-import { FONT_SIZE, RADIUS } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
 import { Message } from "../screens/chat/MessageThread.jsx";
@@ -129,7 +129,7 @@ export function AssistantDrawer({ open, onClose }) {
       }}>
         <MascotPose mode={chat.busy ? "thinking" : "listening"} size="2.25rem" decorative />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 750, lineHeight: 1.2 }}>클로비</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, lineHeight: 1.2 }}>클로비</Typography>
           <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
             {chat.busy ? "답변을 정리하고 있어요" : "현재 화면을 기준으로 도와드려요"}
           </Typography>
@@ -177,7 +177,7 @@ export function AssistantDrawer({ open, onClose }) {
         bgcolor: (t) => alpha(t.palette.primary.main, 0.06),
         borderBottom: 1, borderColor: "divider",
       }}>
-        현재 문맥: <Box component="strong" sx={{ fontWeight: 750 }}>{context}</Box>
+        현재 문맥: <Box component="strong" sx={{ fontWeight: FONT_WEIGHT.bold }}>{context}</Box>
       </Box>
 
       {/* 대화 */}
@@ -185,7 +185,7 @@ export function AssistantDrawer({ open, onClose }) {
         {!hasThread ? (
           <Box sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1, py: 2 }}>
             <MascotPose mode="listening" size="4rem" decorative />
-            <Typography sx={{ fontWeight: 750 }}>무엇을 도와드릴까요?</Typography>
+            <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>무엇을 도와드릴까요?</Typography>
             <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", maxWidth: "20rem", lineHeight: 1.6 }}>
               지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다.
             </Typography>

@@ -105,13 +105,13 @@ function TitleCell({ t, onOpen }) {
         // 공유 styleOverrides(primary.dark=primaryStrong, 대비 보강)를 inline sx가 덮어써
         // 버린다 — 다크 표면에서 3.76:1로 AA(4.5) 미달이었다. 강조색으로 그리려는 의도는
         // 그대로 두고 값만 대비가 검증된 alias로 바꾼다.
-        sx={{ font: "inherit", fontWeight: 650, textAlign: "left", color: "primary.dark" }}
+        sx={{ font: "inherit", fontWeight: FONT_WEIGHT.semibold, textAlign: "left", color: "primary.dark" }}
       >
         {t.title || "제목 없음"}
       </Link>
     );
   }
-  return <Box component="span" sx={{ fontWeight: 620 }}>{t.title || "제목 없음"}</Box>;
+  return <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{t.title || "제목 없음"}</Box>;
 }
 
 // 목록 표 — 티켓/제목/상태/우선순위/난이도/예상WD/마감. 숫자·날짜는 우측 정렬.
@@ -245,7 +245,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   const groups = grouper(safeRows);
   const groupHeading = (name, count) => (
     <>
-      <Box component="span" sx={{ fontWeight: 750 }}>{name}</Box>
+      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>{name}</Box>
       <Box component="span" sx={{ ml: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm }}>{count}건</Box>
     </>
   );
@@ -800,7 +800,7 @@ const TICKET_SECTIONS = [
 function WritingAid({ description, onInsert }) {
   return (
     <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
-      <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
+      <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
       <Typography variant="body2" color="text.secondary">
         좋은 티켓은 <strong>무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
       </Typography>

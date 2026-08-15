@@ -6,7 +6,7 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Button, ErrorState, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
-import { FONT_SIZE } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { ChatPane } from "./ChatPane.jsx";
 import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
 
@@ -134,7 +134,7 @@ export function RoomDetailPanel({ id }) {
           display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
           px: 2.5, py: 1.75, minWidth: 0,
         }}>
-          <Typography component="h2" sx={{ fontWeight: 750, fontSize: FONT_SIZE.sectionTitle, minWidth: 0,
+          <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, minWidth: 0,
                                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {meta.isPending ? "채팅방" : (room.title || "채팅방")}
           </Typography>

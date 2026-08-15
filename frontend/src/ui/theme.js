@@ -296,7 +296,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * `display()` 는 최소값에 vw 를 더하는 모양이라 계수를 0.9 로 잡아야
        * 1,600px 부근에서 상한에 닿는다 — 기준의 곡선과 거의 겹친다. */
       h4: display(1.5, 0.9, 2.125, 740, "-0.02em"),
-      h5: { fontWeight: 720, letterSpacing: "-0.015em" },
+      h5: { fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.015em" },
       h6: { fontWeight: FONT_WEIGHT.bold },
       /* 본문 14px. MUI 기본은 body1 = 1rem(16px) 이지만 기준 목업은 `body { font-size:14px }`
        * 다 — 대조에서 34/34 화면이 어긋났다. 업무용 밀도가 높은 화면이라 기준이 맞다.
@@ -309,7 +309,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * 반대 방향으로 벌어져 있었다. 한글은 자간이 벌어지면 눈에 띄게 헐거워 보인다. */
       body1: { fontSize: FONT_SIZE.body, lineHeight: 1.5, letterSpacing: "-0.012em" },
       body2: { fontSize: FONT_SIZE.bodySm, lineHeight: 1.5, letterSpacing: "-0.012em" },
-      button: { textTransform: "none", fontWeight: 750, letterSpacing: "-0.012em" },
+      button: { textTransform: "none", fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.012em" },
       /* PA-RC-0001(RD-1) — 기존 MUI variant에 대응이 없던 두 단계. `variant="sectionTitle"`/
        * `variant="statValue"`로 쓴다. FONT_SIZE 위 주석 참고. */
       sectionTitle: { fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.012em" },

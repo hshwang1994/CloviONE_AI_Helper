@@ -296,7 +296,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
                       ) : null}
                       <ListItemText
                         primary={it.label}
-                        primaryTypographyProps={{ fontSize: FONT_SIZE.body, fontWeight: active ? 750 : FONT_WEIGHT.semibold }}
+                        primaryTypographyProps={{ fontSize: FONT_SIZE.body, fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold }}
                       />
                       {it.badge ? <NavBadge count={badges[it.badge]} /> : null}
                     </ListItemButton>
@@ -343,7 +343,7 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           onClick={() => onNavigate(seg.to)}
           aria-current={seg.on ? "page" : undefined}
           sx={{
-            flex: 1, minHeight: 32, borderRadius: RADIUS.full, textTransform: "none", fontWeight: 750,
+            flex: 1, minHeight: 32, borderRadius: RADIUS.full, textTransform: "none", fontWeight: FONT_WEIGHT.bold,
             // CTR-02: 배경은 다크모드 여부와 무관하게 항상 리터럴 흰색이다 — 다크 표면용으로
             // 밝힌 primary.dark(strongMix)와 짝지으면 다크 모드에서 흰색 배경에 거의
             // 흰색인 글자(대비 2.84~3.43:1, WCAG AA 4.5:1 미달, 실측 확인)가 된다.

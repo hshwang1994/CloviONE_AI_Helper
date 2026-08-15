@@ -114,7 +114,7 @@ function ResultGroup({ group, onOpen }) {
             <ListItemText
               primary={item.title}
               secondary={item.subtitle || null}
-              primaryTypographyProps={{ sx: { fontWeight: 650 } }}
+              primaryTypographyProps={{ sx: { fontWeight: FONT_WEIGHT.semibold } }}
               secondaryTypographyProps={{ sx: { fontSize: FONT_SIZE.bodySm } }}
             />
             {item.url ? (

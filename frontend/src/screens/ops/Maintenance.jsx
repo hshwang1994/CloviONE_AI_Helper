@@ -10,6 +10,7 @@ import { useAuth } from "../../app/auth.jsx";
 import { DashSection, Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { FONT_WEIGHT } from "../../ui/theme.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
 
 /* 유지보수 — 유지보수 모드(maintenance_mode 설정)를 켜고 끈다. 켜면 일반 사용자의 내용 쓰기가 차단된다.
@@ -163,7 +164,7 @@ export function Maintenance() {
             {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
             <Card sx={{ p: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, flexWrap: "wrap", mb: 4 }}>
               <Box sx={{ minWidth: 0, flex: "1 1 20rem" }}>
-                <Typography component="div" sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 750, mb: 1 }}>
+                <Typography component="div" sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: FONT_WEIGHT.bold, mb: 1 }}>
                   현재 상태 <Badge value={on ? "maintenance" : "up"} />
                 </Typography>
                 <Note sx={{ mt: 0 }}>유지보수 모드를 활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 비활성화하세요.</Note>

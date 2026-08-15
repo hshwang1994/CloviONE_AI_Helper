@@ -17,6 +17,7 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* 내 프로필 — 아바타 · 알림 설정 · 방해금지 · 내 기기(세션) (계획서 Phase 6 사용자).
  *
@@ -183,7 +184,7 @@ function NotificationCard({ prefs, save, saving }) {
         {prefs.notifications.catalog.map((row) => (
           <Box component="li" key={row.key} sx={{ display: "flex", alignItems: "center", gap: 2, py: 0.75, borderBottom: 1, borderColor: "divider" }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 650 }}>{row.label}</Typography>
+              <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>{row.label}</Typography>
               <Typography variant="body2" color="text.secondary">{row.help}</Typography>
             </Box>
             {/* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
@@ -363,7 +364,7 @@ function SessionsCard() {
               <DevicesOtherRoundedIcon fontSize="small" aria-hidden="true" color={s.current ? "primary" : "disabled"} sx={{ mt: 0.5 }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                  <Typography sx={{ fontWeight: 650 }}>
+                  <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>
                     {s.current ? "지금 이 창" : "다른 기기"}
                   </Typography>
                   {s.current ? <Badge value="현재" kind="ok" /> : null}

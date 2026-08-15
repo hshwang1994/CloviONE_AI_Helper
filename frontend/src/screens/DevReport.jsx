@@ -246,7 +246,7 @@ export function DevReport() {
                   </TableBody>
                 </TableWrap>
                 <Card sx={{ p: 2.5 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>팀 상태 구성</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>팀 상태 구성</Typography>
                   <Donut segments={teamSegs} unit="건" centerLabel="티켓" emptyLabel="이 달에 집계된 티켓이 없습니다" />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
                     팀 합계는 티켓 단위로 셉니다. 담당자별 합계는 담당자가 둘인 티켓을 양쪽에 각각 세므로 이 합과 다를 수 있습니다.
@@ -259,7 +259,7 @@ export function DevReport() {
           <Box component="section" sx={{ mb: 4 }}>
             <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>업무량 분석 (완료 업무량 기준)</Typography>
             <Card sx={{ p: 2.5, mb: 2 }}>
-              <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>담당자별 완료 업무량</Typography>
+              <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>담당자별 완료 업무량</Typography>
               {/* 막대는 '가장 많이 한 사람'을 100%로 잡은 상대 비교다. 값(인일)은 항상 오른쪽에
                   숫자로 함께 나가므로 막대를 못 봐도 정보는 그대로다. */}
               <BarSeries items={wdRows} unit="인일" emptyLabel="이 달에 완료한 업무량이 없습니다" />
@@ -331,7 +331,7 @@ export function DevReport() {
                     <TableRow key={d.name + "::group"}>
                       <TableCell colSpan={9}
                         sx={{
-                          bgcolor: (t) => t.palette.action.hover, fontWeight: 750,
+                          bgcolor: (t) => t.palette.action.hover, fontWeight: FONT_WEIGHT.bold,
                           borderTop: 1, borderColor: "divider",
                         }}>
                         {d.name}

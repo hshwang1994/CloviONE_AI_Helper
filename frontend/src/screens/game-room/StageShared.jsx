@@ -50,7 +50,7 @@ export function WinnerName({ children }) {
   return (
     <Box component="span" sx={{
       px: 2, py: 0.75, borderRadius: RADIUS.full, bgcolor: "primary.main", color: "primary.contrastText",
-      fontSize: FONT_SIZE.sectionTitle, fontWeight: 750, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
+      fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold, animation: `${pop} .5s cubic-bezier(.34,1.56,.64,1) both`,
     }}>
       {children}
     </Box>

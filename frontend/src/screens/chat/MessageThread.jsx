@@ -121,7 +121,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
                   처리하지 못했습니다.{" "}
                   <Box component="button" type="button" disabled={retrying}
                     onClick={() => { if (!retrying) onRetry(m); }}
-                    sx={{ font: "inherit", fontWeight: 750, border: 0, background: "none", p: 0, cursor: "pointer", color: "inherit", textDecoration: "underline" }}>
+                    sx={{ font: "inherit", fontWeight: FONT_WEIGHT.bold, border: 0, background: "none", p: 0, cursor: "pointer", color: "inherit", textDecoration: "underline" }}>
                     {retrying ? "재시도 중…" : "다시 시도"}
                   </Box>
                 </>

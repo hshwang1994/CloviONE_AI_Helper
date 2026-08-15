@@ -46,7 +46,7 @@ function TicketLines({ label, block, empty }) {
   const count = (block && block.count) || 0;
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>
+      <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>
         {label} <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.medium }}>{count}건</Box>
       </Typography>
       {items.length === 0 ? (
@@ -125,7 +125,7 @@ function WeeklyDigest({ data }) {
       </Typography>
       <Box sx={SECTION_GRID}>
         <Box>
-          <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>내 몫</Typography>
+          <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>내 몫</Typography>
           {mine ? (
             <Typography variant="body2" color="text.secondary">
               담당 {mine.assigned}건, 완료 {mine.done}건, 남음 {mine.remaining}건
@@ -134,7 +134,7 @@ function WeeklyDigest({ data }) {
           ) : <Typography variant="body2" color="text.secondary">계산할 수 없습니다. 관리자에게 문의하세요.</Typography>}
         </Box>
         <Box>
-          <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>팀 전체</Typography>
+          <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>팀 전체</Typography>
           {team ? (
             <BarSeries
               items={[
@@ -150,7 +150,7 @@ function WeeklyDigest({ data }) {
           ) : <Typography variant="body2" color="text.secondary">연동이 설정되지 않았습니다. 관리자에게 문의하세요.</Typography>}
         </Box>
         <Box>
-          <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>바뀐 것</Typography>
+          <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>바뀐 것</Typography>
           <Typography variant="body2" color="text.secondary">
             문서 {docs.count || 0}건, 새 글 {board.count || 0}건
           </Typography>
@@ -205,7 +205,7 @@ function Triage({ data }) {
           ))}
         </Stack>
         <Box>
-          <Typography component="h4" variant="body2" sx={{ fontWeight: 750, mb: 0.75 }}>여유 있는 담당자</Typography>
+          <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>여유 있는 담당자</Typography>
           {(data.candidates || []).length === 0 ? (
             <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion 연결된 사용자 없음).</Typography>
           ) : (

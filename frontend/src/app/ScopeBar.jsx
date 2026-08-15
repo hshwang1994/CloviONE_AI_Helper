@@ -5,7 +5,7 @@ import { alpha } from "@mui/material/styles";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import { isScopeEnforcedRoute } from "./navConfig.js";
-import { FONT_SIZE } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 스코프 바 — **지금 보고 있는 범위를 화면에 적는다** (S4 / A8, 기준 목업의 `관리 범위` 줄).
  *
@@ -74,7 +74,7 @@ export function ScopeBar() {
         fontSize: FONT_SIZE.bodySm,
       }}
     >
-      <Typography component="span" sx={{ fontWeight: 750, fontSize: FONT_SIZE.caption, color: "primary.dark" }}>
+      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.caption, color: "primary.dark" }}>
         {summary.label}
       </Typography>
       <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm }}>{summary.detail}</Typography>

@@ -169,7 +169,7 @@ function WorkList({ title, bucket, empty, renderItem }) {
   const count = (bucket && bucket.count) || 0;
   return (
     <Card sx={{ p: 2.5 }}>
-      <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>{title}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>{title}</Typography>
       {items.length ? (
         <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
           {items.map((item) => (
@@ -296,7 +296,7 @@ export function WorkSection() {
       {trend ? (
         <Box sx={{ mt: 2 }}>
           <Card sx={{ p: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>최근 완료 추이</Typography>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>최근 완료 추이</Typography>
             {/* 막대는 aria-hidden 이고 값은 항상 숫자로 함께 나간다(charts/base.jsx 규칙) —
                 그림을 못 보는 사람도 같은 정보를 얻는다. */}
             <BarSeries
@@ -590,7 +590,7 @@ function DashboardBody({ d, nav, role, stale }) {
             })}
           </Box>
           <Card sx={{ p: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>상태 구성</Typography>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>상태 구성</Typography>
             <Donut segments={serviceMix(services)} unit="개" centerLabel="서비스" emptyLabel="서비스 정보 없음" />
           </Card>
         </Box>
@@ -641,7 +641,7 @@ function DashboardBody({ d, nav, role, stale }) {
           {/* 두 수치의 '비율'은 숫자 두 개만 봐서는 안 잡힌다 — 대기 1,200건 옆의 실패 3건과
               대기 3건 옆의 실패 12건은 대응이 완전히 다른데 타일만 보면 똑같이 보인다. */}
           <Card sx={{ p: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>미처리 작업 구성</Typography>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>미처리 작업 구성</Typography>
             <BarSeries
               items={[
                 { label: "대기", value: jobs.queued != null ? jobs.queued : 0, color: jobs.queued ? "warn" : "neutral" },

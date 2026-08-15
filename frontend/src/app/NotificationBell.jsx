@@ -450,7 +450,7 @@ export function NotificationBell({ isUser }) {
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
             px: 2, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0,
           }}>
-            <Typography component="span" sx={{ fontWeight: 750, fontSize: FONT_SIZE.body }}>
+            <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
               알림{count && !listError ? ", 안 읽음 " + count : ""}
             </Typography>
             {/* 몸통이 오류면 헤더 숫자, '모두 읽음'을 감춰 한 팝오버 안에서 상반된 메시지를 없앤다.

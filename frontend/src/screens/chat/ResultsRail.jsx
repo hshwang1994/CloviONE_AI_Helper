@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
 import { EmptyState } from "../../ui/kit.jsx";
-import { FONT_SIZE } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtTime, ticketPageStart } from "../chat-helpers.js";
 import { CardStack } from "./TicketCard.jsx";
 
@@ -20,7 +20,7 @@ export function ResultsRail({ railOpen, railMsg, railPayload, railIsLast, doSend
       sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, borderLeft: 1, borderColor: "divider", bgcolor: "background.paper" }}
     >
       <Box sx={{ px: 3, py: 1.25, borderBottom: 1, borderColor: "divider", display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-        <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: 750 }}>결과</Typography>
+        <Typography component="h2" sx={{ flex: 1, minWidth: 0, fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.bold }}>결과</Typography>
         {railMsg && railMsg.created_at ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>{fmtTime(railMsg.created_at)}</Typography>
         ) : null}

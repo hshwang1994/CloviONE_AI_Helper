@@ -223,7 +223,7 @@ function PersonCard({ person, active, onPick }) {
         "&:hover": onPick ? { borderColor: "primary.main" } : undefined,
       }}
     >
-      <Typography component="div" sx={{ fontWeight: 750, fontSize: "1rem", overflowWrap: "anywhere" }}>
+      <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "1rem", overflowWrap: "anywhere" }}>
         {person.name}
       </Typography>
       <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>

@@ -213,7 +213,7 @@ export function Diagnostics() {
                   </Box>
                   {/* 연동이 열 개를 넘는 배포에서는 카드를 하나씩 세는 것보다 구성비가 빠르다. */}
                   <Card sx={{ p: 2.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 750, mb: 1.5 }}>연동 상태 구성</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>연동 상태 구성</Typography>
                     <Donut segments={integrationMix(integrations)} unit="개" centerLabel="연동" emptyLabel="연동 정보 없음" />
                   </Card>
                 </Box>

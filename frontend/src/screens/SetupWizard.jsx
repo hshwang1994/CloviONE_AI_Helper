@@ -94,7 +94,7 @@ function SetupItem({ item, isNext }) {
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h3" sx={{ fontWeight: 750, fontSize: "1rem" }}>
+        <Typography component="h3" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: "1rem" }}>
           {item.label}
         </Typography>
         <StateTag state={item.state} />
