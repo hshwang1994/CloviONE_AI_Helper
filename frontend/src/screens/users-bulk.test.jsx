@@ -96,6 +96,26 @@ async function selectAll(user) {
   return screen.findByText("3명 선택");
 }
 
+describe("제목 계층 — 필터·일괄 작업·목록 구획 (SEM-02, PA-F-031)", () => {
+  it("아무것도 안 골랐으면 h2가 필터·목록 둘뿐이다 - 일괄 작업 카드 자체가 없다", async () => {
+    renderUsers();
+    await screen.findByText("사람1");
+
+    expect(screen.getByRole("heading", { level: 1, name: "사용자" })).toBeInTheDocument();
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "목록"]);
+  });
+
+  it("선택하면 필터·일괄 작업·목록 순으로 h2 셋이 된다", async () => {
+    const user = userEvent.setup();
+    renderUsers();
+    await selectAll(user);
+
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "일괄 작업", "목록"]);
+  });
+});
+
 describe("사용자 대량 작업", () => {
   it("선택한 id 목록이 그대로 요청에 실린다", async () => {
     const user = userEvent.setup();

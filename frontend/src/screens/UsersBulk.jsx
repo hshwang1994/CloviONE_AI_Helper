@@ -87,6 +87,11 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
     : `선택한 계정의 직책을 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`;
   return (
     <Card sx={{ p: 2, mb: 2.5 }}>
+      {/* SEM-02(PA-F-031): 필터·목록 사이의 이 카드는 그 둘과 달리 선택이 있을 때만 나타나는
+          독립된 블록이라(위 두 곳처럼 항상 있는 구역이 아니다) MyTickets/TeamDocs의 헤더
+          내장형 BulkActions(role=toolbar)와는 다르게 실제 카드 하나를 통째로 차지한다 -
+          h2로 구획한다. 시각은 그대로(.sr-only). */}
+      <Typography component="h2" className="sr-only">일괄 작업</Typography>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
         <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{ids.length}명 선택</Typography>
         {BULK_ACTIONS.map((a) => (

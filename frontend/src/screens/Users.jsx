@@ -483,7 +483,10 @@ export function Users() {
         </Callout>
       </Box>
       {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
-          늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다). */}
+          늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다).
+          SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
+          덩어리였다. 시각은 그대로(.sr-only), 다른 목록 화면과 같은 패턴. */}
+      <Typography component="h2" className="sr-only">필터</Typography>
       <Card sx={{ p: 2, mb: 2.5 }}>
         <FilterBarGrid>
           <TextField
@@ -532,6 +535,7 @@ export function Users() {
       <BulkBar selection={selection} onDone={refresh}
         deptOptions={dept.options} titleOptions={title.options} />
 
+      <Typography component="h2" className="sr-only">목록</Typography>
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (

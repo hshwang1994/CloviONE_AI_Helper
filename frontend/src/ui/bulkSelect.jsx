@@ -62,10 +62,14 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
 }
 
 // 선택된 개수 + 동작 버튼(들)을 헤더 액션에 놓기 위한 래퍼. children 은 <Button>들.
+// SEM-02(PA-F-031): PageHeader의 h1과 같은 줄에 나타났다 사라지는 임시 툴바라 h2로
+// 구획하기는 어색하다(제목 계층이 아니라 상태에 따라 나타나는 컨트롤 묶음이다) - 대신
+// role="toolbar"+aria-label로 스크린리더가 이 묶음을 "일괄 작업"으로 식별하고 건너뛸 수
+// 있게 한다. 시각 스타일은 그대로다(k-bulkactions 클래스 유지).
 export function BulkActions({ count, onClear, children }) {
   if (!count) return null;
   return (
-    <span className="k-bulkactions">
+    <span className="k-bulkactions" role="toolbar" aria-label="일괄 작업">
       <span className="k-bulkactions-count">{count}개 선택</span>
       {children}
       <Button size="sm" variant="ghost" onClick={onClear}>해제</Button>

@@ -644,8 +644,13 @@ export function DataScreen({ config }) {
       {showToolbar ? (
         /* 필터 바 — 감사 로그처럼 필터가 6개 넘게 붙는 화면이 있어서 한 줄에 밀어 넣지 않고
          * 자동 줄바꿈 그리드로 둔다(TicketFilterBar 와 같은 트랙, ui/FilterBar.jsx 공유).
-         * 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */
+         * 화면이 넓어지면 열이 늘어 한 줄에 담긴다.
+         * SEM-02(PA-F-031): DataScreen이 registry.js 기반 목록 화면(/jobs·/audit·/prompts·
+         * /notifications 등) 다수가 공유하는 셸이라, 여기 한 번 h2를 더하면 그 전부가
+         * 한꺼번에 해결된다. 시각은 그대로(.sr-only) — PageHeader가 compact(h2)로 쓰이는
+         * 자리에선 한 단계 낮춰 h3을 쓴다(같은 화면에 h2가 둘 나란히 있는 것처럼 안 보이게). */
         <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
+          <Typography component={config.compact ? "h3" : "h2"} className="sr-only">필터</Typography>
           <FilterBarGrid>
             {showSearch ? (
               <SearchBox
@@ -718,6 +723,9 @@ export function DataScreen({ config }) {
           </Box>
         </Card>
       ) : null}
+      {/* SEM-02: 로딩·오류·빈 상태·정상 목록 네 갈래 전부를 아우르는 자리에 한 번만 둔다
+          (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
+      <Typography component={config.compact ? "h3" : "h2"} className="sr-only">목록</Typography>
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (

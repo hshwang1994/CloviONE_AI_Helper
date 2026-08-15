@@ -404,7 +404,10 @@ export function TeamDocs() {
       />
 
       {/* 필터가 일곱 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(DataScreen과 같은 규칙).
-       * 화면이 넓어지면 열이 늘어 한 줄에 담긴다 — 4K에서 필터 바가 세 줄로 접히지 않게. */}
+       * 화면이 넓어지면 열이 늘어 한 줄에 담긴다 — 4K에서 필터 바가 세 줄로 접히지 않게.
+       * SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
+       * 한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx와 같은 패턴. */}
+      <Typography component="h2" className="sr-only">필터</Typography>
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
         <FilterBarGrid>
           <SearchBox
@@ -450,6 +453,7 @@ export function TeamDocs() {
         </Box>
       </Card>
 
+      <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
       ) : list.isPending ? (

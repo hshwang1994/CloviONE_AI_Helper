@@ -47,6 +47,17 @@ beforeEach(() => {
   });
 });
 
+describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
+  it("h1 하나뿐이던 화면에 필터·목록 h2가 있다", async () => {
+    renderScreen();
+    await screen.findByText("인프라 운영 계획");
+
+    expect(screen.getByRole("heading", { level: 1, name: "문서" })).toBeInTheDocument();
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "목록"]);
+  });
+});
+
 describe("문서 목록 보기", () => {
   it("기본은 카드 격자다 — 기준 목업이 카드이고 문서는 훑어보며 고르는 화면이다", async () => {
     renderScreen();

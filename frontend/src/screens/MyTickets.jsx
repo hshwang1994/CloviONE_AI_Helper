@@ -673,7 +673,12 @@ export function MyTickets() {
             ...ticketColumns({ showAssignee: true, onEdit: setEditing, onOpen: openTicket(nav, "/my-tickets") })];
           return (
             <>
+              {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
+                  탐색에서 구획 없는 한 덩어리였다. 시각 디자인은 그대로 두고(.sr-only)
+                  마크업에만 h2 두 개를 더한다. */}
+              <Typography component="h2" className="sr-only">필터</Typography>
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
+              <Typography component="h2" className="sr-only">목록</Typography>
               <Card>
                 <GroupedTickets
                   rows={rows} columns={cols}

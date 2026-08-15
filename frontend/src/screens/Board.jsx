@@ -479,6 +479,9 @@ function BoardScreen({ kind = "free" }) {
         {copy.lead}
       </Typography>
 
+      {/* SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
+          한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx/TeamDocs.jsx와 같은 패턴. */}
+      <Typography component="h2" className="sr-only">필터</Typography>
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
         <Box sx={{
           display: "grid", gap: 1.5, alignItems: "center",
@@ -547,6 +550,7 @@ function BoardScreen({ kind = "free" }) {
         ) : null}
       </Card>
 
+      <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
       ) : list.isPending ? (

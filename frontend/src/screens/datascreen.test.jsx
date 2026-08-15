@@ -60,6 +60,11 @@ const BASE_CONFIG = {
 
 beforeEach(() => {
   apiMock.mockReset();
+  // DataScreen은 딥링크(#/audit?action=...) 지원을 위해 마운트 시 window.location.hash를
+  // **MemoryRouter를 거치지 않고 직접** 읽는다(DataScreen.jsx:50). 어느 시험이든 실제
+  // hash를 남기면 다음 시험이 그 값을 "초기 필터"로 그대로 물려받는다 - 실제로 재현된
+  // 순서 의존 실패였다(SEM-02 새 시험 추가 중 발견). 시험마다 깨끗하게 시작한다.
+  window.location.hash = "";
 });
 
 describe("필터가 서버로 가는 형태", () => {
@@ -275,6 +280,31 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
     expect(await screen.findByRole("heading", { name: "검색 결과가 없습니다" })).toBeInTheDocument();
     // 빈 상태 안의 CTA. 툴바에도 '필터 지우기'가 함께 떠 있으므로 이름을 정확히 지정한다.
     expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
+  });
+});
+
+describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
+  // 빈 목록으로 재면 EmptyState 자신의 제목도 h2(role=heading aria-level=2, kit.jsx)라 셋이
+  // 섞인다 - 그건 별개의 기존 규약이라, 행이 있는 상태로 필터/목록 h2 둘만 본다.
+  it("h1 하나뿐이던 화면에 필터·목록 h2가 있다(28개 registry 화면이 공유하는 셸이라 여기 한 곳)", async () => {
+    apiMock.mockResolvedValue({ items: [{ id: "1", action: "login", actor: "a" }], total: 1 });
+    renderScreen(BASE_CONFIG);
+    await screen.findByText("login");
+
+    expect(screen.getByRole("heading", { level: 1, name: "감사 로그" })).toBeInTheDocument();
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "목록"]);
+  });
+
+  it("config.compact(하위 패널)에서는 h2 대신 h3으로 한 단계 낮춘다 - PageHeader 자체가 h2다", async () => {
+    apiMock.mockResolvedValue({ items: [{ id: "1", action: "login", actor: "a" }], total: 1 });
+    renderScreen({ ...BASE_CONFIG, compact: true });
+    await screen.findByText("login");
+
+    expect(screen.getByRole("heading", { level: 2, name: "감사 로그" })).toBeInTheDocument();
+    const h3s = screen.getAllByRole("heading", { level: 3 }).map((el) => el.textContent);
+    expect(h3s).toEqual(["필터", "목록"]);
+    expect(screen.queryAllByRole("heading", { level: 2 })).toHaveLength(1);
   });
 });
 

@@ -112,6 +112,15 @@ describe("내 티켓 — 목록", () => {
     expect(screen.getByText("총 2건")).toBeInTheDocument();
   });
 
+  it("SEM-02: h1 하나뿐이던 화면에 필터·목록 구획용 h2가 있다(시각적으로는 안 보임)", async () => {
+    renderMyTickets();
+    await screen.findByText("서버 등록 IP 중복 방지");
+
+    expect(screen.getByRole("heading", { level: 1, name: "내 티켓" })).toBeInTheDocument();
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "목록"]);
+  });
+
   it("상태를 고르면 그 값이 서버 질의로 나가고, 서버가 준 결과만 남는다", async () => {
     const user = userEvent.setup();
     renderMyTickets();

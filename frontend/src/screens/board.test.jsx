@@ -84,6 +84,23 @@ describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구�
   });
 });
 
+describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
+  it("h1 하나뿐이던 화면에 필터·목록 h2가 있다", async () => {
+    // 빈 목록으로 재면 EmptyState 자신의 제목도 h2(role=heading aria-level=2, kit.jsx)라
+    // 셋이 섞인다 - 그건 별개의 기존 규약이라, 글이 있는 상태로 필터/목록 h2 둘만 본다.
+    mockApi(() => ({
+      items: [{ id: "p1", title: "사내 보안 공지", category: "공지", author_name: "김운영",
+        view_count: 12, comment_count: 3, is_pinned: true, created_at: "2026-08-01T01:00:00" }],
+    }));
+    renderBoard();
+    await screen.findByText("사내 보안 공지");
+
+    expect(screen.getByRole("heading", { level: 1, name: "자유게시판" })).toBeInTheDocument();
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
+    expect(h2s).toEqual(["필터", "목록"]);
+  });
+});
+
 describe("카테고리 칩은 서버 쿼리에 반영된다", () => {
   it("칩을 누르면 category= 파라미터가 붙은 요청이 나간다", async () => {
     mockApi(() => ({ items: [] }));
