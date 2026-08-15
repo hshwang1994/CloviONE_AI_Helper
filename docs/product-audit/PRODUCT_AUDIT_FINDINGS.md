@@ -285,6 +285,13 @@ Round 0에서 **찾았는데 없었던 것들.** 다음 Auditor가 같은 각도
 | `console.log/debug` · `TODO/FIXME/HACK` · bare `except:` | **각 0건** | |
 | MUI 마이그레이션 잔여(브랜치명이 `ui/mui-migration`) | **잔여 없음** | 화면 모듈 115개 중 MUI/kit 밖에 남은 렌더 표면 0개. 나머지 33개는 전부 helper/config |
 | 빈/오류/로딩 상태 미처리 화면 | **거의 없음** | 150줄 초과 화면 50개 중 `ErrorState` 40 · 로딩 45 · `EmptyState` 29 사용 |
+| 사이드바↔라우트↔백엔드 역할 게이트 불일치 (F축) | **0건** | `scan_nav.py` 3계층 기계 대조. 메뉴만 있고 라우트 없는 항목 0, 라우트만 있고 메뉴 없는 항목은 전부 의도된 것(통합·Ctrl+K 진입·상세) |
+| 테스트가 이름조차 안 부르는 **API 모듈** (Y축) | **0건 / 42개 중** | 백엔드 테스트 파일 325개 |
+| 테스트가 이름을 안 부르는 **화면 컴포넌트** (Y축) | 81개 중 12개, 그중 120줄 초과는 **2개**뿐 | `ProjectMetrics.jsx`(183줄) · `game-room/RpsViews.jsx`(140줄). 나머지 10개는 소형 조각 |
+
+> **Y축 주의**: 위 수치는 "테스트가 그 모듈을 **다루는가**"이지 "계약을 **제대로 검증하는가**"가
+> 아니다. 후자는 실행 증거가 있어야 판단할 수 있다(현재 진행 중). 프롬프트 5절 Y축이 요구하는
+> 것은 후자이므로 **이 칸은 아직 닫히지 않았다.**
 
 ## 조사 방법의 한계 (다음 Auditor에게)
 
@@ -294,5 +301,13 @@ Round 0에서 **찾았는데 없었던 것들.** 다음 Auditor가 같은 각도
   리터럴이 안 나오는 것이었다(예: `/api/assistant/*` 4개는 `AssistantPanel.jsx:36`의
   `` `/api/assistant/${tab.path}` `` 로 전부 배선돼 있다). X축은
   **`screens/registry/actions.js`의 액션 정의를 파싱하는 방식**으로 다시 해야 한다.
-- 자작 스캐너의 첫 결과는 표본 검증 전까지 Finding이 아니다. 이번 Cycle에서만 오탐 3건
-  (alert/confirm 57건, dangerouslySetInnerHTML 2건, orphan API 107건 중 다수)을 폐기했다.
+- **모듈 이름 기반 휴리스틱은 이 저장소에서 계속 과소집계된다.** `app/chat`을 "테스트 언급 5회
+  미만인 얕은 모듈"로 보고했는데, 실제로는 전용 테스트 파일이 7개(`test_chat_api.py`,
+  `test_chat_quota.py`, `test_chat_ticket_routing_contract.py` 등)이고 chat을 언급하는 테스트
+  파일이 62개다. 원인은 이 코드베이스가 어디서나 간접 참조를 쓰기 때문이다(registry 조립,
+  TestClient 경로, 템플릿 리터럴). **"얕은 모듈 5건" 결과는 폐기했다.**
+- 자작 스캐너의 첫 결과는 표본 검증 전까지 Finding이 아니다. 이번 Cycle에서 폐기한 오탐:
+  ① `alert/confirm` 57건 → 전부 앱의 `useConfirm()` ② `dangerouslySetInnerHTML` 2건 → 둘 다 주석
+  ③ orphan API 107건 → 대부분 registry 조립 ④ 오류 문구 막다른 길 90% → 라벨·빈 상태 혼입,
+  재측정 85% ⑤ 얕은 테스트 모듈 5건 → 위 항목. **5건 중 4건이 "코드가 간접적이라 스캐너가 못
+  본 것"이었다** — 이 저장소에서는 정규식 결과를 항상 반대 방향(과소집계)으로도 의심해야 한다.

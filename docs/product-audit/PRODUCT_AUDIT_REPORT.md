@@ -50,6 +50,19 @@ Critical 1 · High 2 · Medium 0 · Low 0. **Probable 이하는 Handoff로 승�
    순서를 뒤집으면(문구부터 고치면) 다음 화면에서 다시 갈라진다.
 3. **PA-RC-0001** — `DS-05`(굵기)와 **같은 배치로**. 둘은 같은 소비 경로 문제의 두 얼굴이다.
 
+## 4-1. 프런트 전체 회귀가 green이라는 사실을 어떻게 읽어야 하는가
+
+프런트 테스트 **1,718건이 전부 통과**한다(실패 0). 이것은 이 Audit의 결론을 **반증하지 않는다.**
+
+PA-RC-0001(토큰이 소비되지 않는다)과 PA-RC-0002(오류 문구에 회복 경로가 없다)는
+**어떤 테스트도 검사하지 않는 성질**이다. 그래서 통과한다. 즉 이 green은 두 RC에 대한
+반증이 아니라 **회귀 공백 그 자체의 증거**다 — 두 결함이 지금보다 두 배 심해져도 스위트는
+여전히 green일 것이다.
+
+이것이 각 RC의 `acceptance_criteria`에 **기계 검사(`static_checks.sh` 확장)를 넣고 그 검사
+자체를 revert-to-verify로 증명하라**고 적은 이유다. 테스트가 없는 성질은 규칙 문서만으로
+지켜지지 않는다.
+
 ## 5. 이번 Audit이 확인한 "문제 없음" (음성 결과도 산출물이다)
 
 다음 Auditor가 같은 각도를 반복하지 않도록 남긴다. 상세는 `PRODUCT_AUDIT_FINDINGS.md` 말미.
@@ -66,7 +79,7 @@ Critical 1 · High 2 · Medium 0 · Low 0. **Probable 이하는 Handoff로 승�
 | 한계 | 상태 |
 |---|---|
 | **실제 Chrome 렌더·콘솔·네트워크 관찰을 아직 안 했다** | N/O/M축 결론은 현재 **코드 근거까지**다. 승인된 TEST 서버(`10.100.64.71`)에서 브라우저를 설치해 관찰하는 경로는 이 Audit 프롬프트 7절이 허용하므로 **BLOCKED가 아니라 미수행**이다 — 다음 Round 후보 |
-| **실행 증거(EXECUTED)가 0칸이다** | 현재 Coverage는 전부 `STATIC_ONLY`. 기존 pytest/vitest 스위트를 실행해 Y축(회귀 공백)을 실측하는 것이 다음 우선순위. 이번 회차에 `pytest tests/regression` 을 걸었으나 세션 경계에서 중단돼 결과를 얻지 못했다 |
+| **실행 증거는 프런트에만 있다** | `npm test -- --run` 실행: **테스트 파일 253개 / 테스트 1,718건 전부 통과, 실패 0, 111초**(`var/product-audit/vitest.log`) → Y축 74칸이 `EXECUTED`. 백엔드 `pytest tests/regression` 은 실행 중이며 이 회차에 결과를 얻지 못했다 |
 | **Coverage 1,948칸이 아직 UNSEEN** | 전 칸에 사유가 등록돼 있다(`unseen_without_reason=0`). Round 계획은 `PRODUCT_AUDIT_STATE.md` §3 |
 | **Blind Re-Audit 0회** | 완료 Gate F는 2회 연속 clean을 요구한다. 아직 시작도 안 했다 |
 | **Skill 5개 중 1개만 실제 적용** | `ux-writing`만 적용했다(그 결과가 PA-F-011이다). `ui-ux-pro-max`·`impeccable`·`redesign-existing-projects`는 **미설치가 아니라 순서상 미적용**이고, `humanize-korean`은 프롬프트 2절에 따라 UX Writing 확정 후로 **의도적으로 보류**했다 |
