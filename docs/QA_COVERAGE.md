@@ -19,9 +19,18 @@
 
 **표기**: `-` 미검증 · `~` 부분 · `O` 완료
 
-**마지막 갱신**: 2026-08-15 — **§13 신설**: Product Audit Cycle `PA-20260812`이 드러낸 **축 자체의 공백 9개**
-(`T1`~`T9`). 기존 12축이 전부 런타임 관찰 축이라 *"코드·저장소가 스스로 지켜야 하는 규약"* 과
-*"배포본이 검증 대상과 같은가"* 를 보는 칸이 없었다. 그 전 갱신: 2026-08-11 (§12 QAH 하네스 1회차) · 2026-08-08 (사이클 0)
+**마지막 갱신**: 2026-08-15 — **§15 신설 + §0~§4 라우트별 `C`/`S`(판독)/`V` 갱신**: 같은 날
+§14(T6 배포 확인 직후 690페이지 E2E) 이후에 돈 4회 추가 E2E(`converge-vis104-64-badge` ·
+`converge-pa15-recheck` · `converge-pa15-4k` · `converge-sem02-remainder`, 71라우트 × 라이트/다크,
+1920×1080 3회 + 3840×2160 1회 = 페이지 552장)를 근거로 `C`(Console·Network)를 69라우트(전체
+71 중 시드 데이터 없어 건너뛴 2개 제외) 전부 `O`로 채웠다(`user_team-doc-detail` 1곳은 처음엔
+`~`였으나 같은 날 `PA-15`로 근본 원인을 확정·수정하고 이후 3회 E2E 재확인해 `O`로 올림, §15-2).
+`V`(반응형·테마)를 그 69라우트 전부 `~`(1920/3840×라이트다크만, 8뷰포트 매트릭스 전체는 아님)로
+채웠다. 또 BACKLOG.md 전수 대조로 `S`(판독)를 라우트 62개에서 `O`로 올렸다(근거: §WF1 표 +
+`###` 라우트별 절 + 팀 공간/신규 티켓 실조작 절). §3에 빠져 있던 `/mail` 행을 신설하고 §4를
+프로즈만 있던 상태에서 §2/§3과 같은 라우트별 표로 처음 채웠다. 근거·방법론 전문은 §15.
+그 전 갱신: 2026-08-15 **§13 신설**(Product Audit Cycle `PA-20260812`이 드러낸 **축 자체의 공백 9개**,
+`T1`~`T9`) · 2026-08-11 (§12 QAH 하네스 1회차) · 2026-08-08 (사이클 0)
 
 **검증 가능 상태가 됐다** — 사이클 0에서 막고 있던 것 3가지를 전부 치웠다:
 - `QA-01` 서버가 HEAD가 아니던 것 → **배포 완료**(`DEPLOY_VERIFY_OK`, 해시 일치 확인)
@@ -42,12 +51,26 @@
 
 | 구분 | 라우트 | S(캡처) | S(판독) | F | A | D | C | R | L | V |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 공개(로그인 전) | 4 | 1/4 | 0 | - | - | - | - | - | - | ~ |
-| 사용자 콘솔 | 26 | **26/26** | 2 | - | - | - | - | - | - | ~ |
-| 관리자(전용+registry) | 43 | **43/43** | 2 | - | - | - | - | - | - | ~ |
-| **계** | **73** | **70/73** | **9** | 0 | ~ | 0 | 0 | **~** | 0 | ~ |
+| 공개(로그인 전) | 4 | 1/4 | 1 | - | - | - | ~ | - | - | ~ |
+| 사용자 콘솔 | 26 | **26/26** | 23/25 | - | - | - | 22 O·1 ~·2 - | - | - | ~ |
+| 관리자(전용+registry) | 45 | **45/45** | 38/45 | - | - | - | **45/45** | - | - | ~ |
+| **계** | **75** | **72/75** | **62/75** | 0 | ~ | 0 | **~**(68 O·1 ~·2 -) | **~** | 0 | ~ |
 
 > `A`(API)와 `R`(RBAC)이 `0`에서 `~`로 올라갔다 — §6-1에 4역할 × 17엔드포인트 실측 매트릭스가 있다.
+>
+> **2026-08-15 갱신 — 이 행의 `라우트`/`S(캡처)`/`S(판독)`/`C`/`V` 값은 §15 근거로 다시 세었다.**
+> `라우트` 열은 각 절 표의 **실제 행 수**를 그대로 센 것이다. `관리자`가 43→45로 는 것은 ①
+> 그동안 빠져 있던 `/mail` 행을 §3에 신설하고(`admin_mail`, `QAH-06` 참고) ② §4를 프로즈에서
+> 라우트별 표(28행)로 바꾼 결과다(§3 17행 + §4 28행 = 45). `사용자 콘솔`의 `26`은 예전부터
+> 있던 값을 그대로 뒀지만 §2의 실제 표는 **25행**이다(`/search`가 3상태를 한 행에 묶는다) —
+> 그래서 `S(판독)`·`C`를 분모 25로 적었다. `계`의 `75`도 이 두 그대로 둔 값(공개 4 + 사용자
+> 26 + 관리자 45)의 합이라 §2~§4 실제 표 행 수 합(1+25+17+28=71)과는 다르다 — 라우트 자체가
+> 늘거나 준 것이 아니라 **집계 방식이 두 절에서 다른 pre-existing 상태를 그대로 이어받았다는
+> 뜻**이다. 실제로 오늘 E2E가 새로 커버한 것은 정확히 **69라우트**(71 전체 − 시드 데이터 없어
+> 건너뛴 `user_chat-room-detail`·`user_game-room` 2개)이고, **전부 `C`=`O`(클린)**다 —
+> `user_team-doc-detail` 1곳은 처음 4회 조사 때는 `~`(실측이 엇갈림)였으나 같은 날 `PA-15`로
+> 근본 원인(`team_docs/service.py::record_view`의 무방비 쓰기 재시도)을 확정·수정하고 이후
+> 3회 E2E로 재확인해 `O`로 올렸다. 상세는 §15(특히 §15-2 끝의 "후속 확인").
 
 - **S(캡처)** = 하네스가 실서버에서 스크린샷을 남겼다. `c1-admin` 실행(role=admin, 70라우트 ×
   2테마 × 1920·3840). 미캡처 3개는 `/change-password`·`/forgot-password`·`/reset-password`(Jinja).
@@ -75,7 +98,7 @@
 
 | 라우트 | 화면 | S | F | A | D | C | R | L | V | 비고 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `/login` | Jinja | - | - | - | - | - | - | - | - | ui_qa에 포함(`public_login`) |
+| `/login` | Jinja | O | - | - | - | O | - | - | ~ | ui_qa에 포함(`public_login`). S: PA-07(다크 모드)·PA-12(대비) 실브라우저 측정. C: 2026-08-15 E2E 4회 전부 clean(§15). V: 1920/3840×라이트다크만(§15), 원래 8뷰포트 매트릭스는 아님 |
 | `/change-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함 |
 | `/forgot-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함. ~~**FN-01(메일 UI 없음)과 직결**~~ — **2026-08-13 정정**: `FN-01`은 2026-08-11에 이미 닫혔다(`MailStatus.jsx` 신설, `frontend/src/screens/MailStatus.jsx` 존재 확인) — 이 행이 그 정정을 안 반영하고 있었다. 재설정 메일 발송 자체를 검증할 도구(`/mail` 화면의 "시험 메일 보내기")는 이제 있다, 다만 이 라우트 자체(`/forgot-password` 화면)의 ui_qa 캡처는 여전히 미포함 |
 | `/reset-password` | Jinja | - | - | - | - | - | - | - | - | ui_qa 미포함 |
@@ -87,57 +110,78 @@
 
 | 라우트 | 화면 | ui_qa | S | F | A | D | C | R | L | V |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `/me` | Home | O | - | - | - | - | - | - | - | - |
-| `/my-tickets` | MyTickets | O | - | - | - | - | - | - | - | - |
-| `/unassigned` | Unassigned | O | - | - | - | - | - | - | - | - |
-| `/new-ticket` | NewTicket | O | - | - | - | - | - | - | - | - |
-| `/tickets/:id` | Ticket | O | - | - | - | - | - | - | - | - |
-| `/team-tickets` | TeamTickets | O | - | - | - | - | - | - | - | - |
-| `/projects` | Projects | O(신규) | - | - | - | - | - | - | - | - |
-| `/projects/:id` | Project(+Metrics/Wbs/Weekly/Tickets) | O(신규) | - | - | - | - | - | - | - | - |
-| `/sprint` | Sprint | O | - | - | - | - | - | - | - | - |
-| `/chat` | Chat | O | - | - | - | - | - | - | - | - |
-| `/chat-rooms` | ChatRooms | O | - | - | - | - | - | - | - | - |
+| `/me` | Home | O | O | - | - | - | O | - | - | ~ |
+| `/my-tickets` | MyTickets | O | O | - | - | - | O | - | - | ~ |
+| `/unassigned` | Unassigned | O | O | - | - | - | O | - | - | ~ |
+| `/new-ticket` | NewTicket | O | O | - | - | - | O | - | - | ~ |
+| `/tickets/:id` | Ticket | O | O | - | - | - | O | - | - | ~ |
+| `/team-tickets` | TeamTickets | O | O | - | - | - | O | - | - | ~ |
+| `/projects` | Projects | O(신규) | O | - | - | - | O | - | - | ~ |
+| `/projects/:id` | Project(+Metrics/Wbs/Weekly/Tickets) | O(신규) | O | - | - | - | O | - | - | ~ |
+| `/sprint` | Sprint | O | O | - | - | - | O | - | - | ~ |
+| `/chat` | Chat | O | O | - | - | - | O | - | - | ~ |
+| `/chat-rooms` | ChatRooms | O | O | - | - | - | O | - | - | ~ |
 | `/chat-rooms/:id` | ChatRoom | O | - | - | - | - | - | - | - | - |
-| `/board` | Board | O | - | - | - | - | - | - | - | - |
-| `/board/:id` | BoardPost | O | - | - | - | - | - | - | - | - |
-| `/ideas` | IdeaBoard | O(신규) | - | - | - | - | - | - | - | - |
-| `/team-docs` | TeamDocs | O | - | - | - | - | - | - | - | - |
-| `/team-docs/trash` | Trash | O | - | - | - | - | - | - | - | - |
-| `/team-docs/:id` | TeamDoc | O | - | - | - | - | - | - | - | - |
-| `/games` | Games | O | - | - | - | - | - | - | - | - |
+| `/board` | Board | O | O | - | - | - | O | - | - | ~ |
+| `/board/:id` | BoardPost | O | O | - | - | - | O | - | - | ~ |
+| `/ideas` | IdeaBoard | O(신규) | O | - | - | - | O | - | - | ~ |
+| `/team-docs` | TeamDocs | O | O | - | - | - | O | - | - | ~ |
+| `/team-docs/trash` | Trash | O | O | - | - | - | O | - | - | ~ |
+| `/team-docs/:id` | TeamDoc | O | O | - | - | - | O | - | - | ~ |
+| `/games` | Games | O | O | - | - | - | O | - | - | ~ |
 | `/games/:id` | GameRoom | O | - | - | - | - | - | - | - | - |
-| `/notifications` | DataScreen | ~ | - | - | - | - | - | - | - | - |
-| `/search` | Search | O(3상태) | - | - | - | - | - | - | - | - |
-| `/profile` | Profile | O | - | - | - | - | - | - | - | - |
-| `/my-stats` | MyStats | O | - | - | - | - | - | - | - | - |
-| `/activity` | Activity | O | - | - | - | - | - | - | - | - |
+| `/notifications` | DataScreen | ~ | O | - | - | - | O | - | - | ~ |
+| `/search` | Search | O(3상태) | O | - | - | - | O | - | - | ~ |
+| `/profile` | Profile | O | O | - | - | - | O | - | - | ~ |
+| `/my-stats` | MyStats | O | O | - | - | - | O | - | - | ~ |
+| `/activity` | Activity | O | O | - | - | - | O | - | - | ~ |
 
-## 3. 관리자 전용 화면 (16)
+> **S/C/V 갱신(2026-08-15) 근거는 §15 참고.** `/chat-rooms/:id`·`/games/:id`는 시드 데이터가
+> 없어 오늘 E2E 4회 전부 건너뛰었다(권한 문제 아님, §15) — `-` 유지. `/team-docs/:id`는 오늘
+> 4회 중 1회(`converge-vis104-64-badge`, 라이트 1920)에서 `console_errors` 1건(500) 실측돼
+> `C`를 `O`가 아니라 `~`로 뒀다(§15). `/notifications`는 이 표에서는 사용자 화면처럼 묶여
+> 있지만 실제로는 `admin_notifications`(관리자 셸) 라우트와 같은 캡처를 공유한다 — 별도
+> 사용자 셸 캡처는 없다.
+
+## 3. 관리자 전용 화면 (17)
+
+> 2026-08-15에 `/mail`(`MailStatus.jsx`, `admin_mail`) 행을 추가했다 — `QAH-06`(BACKLOG.md)이
+> 기록한 대로 이 라우트는 2026-08-11까지 `scripts/ui_qa/routes.py`에 아예 등록이 안 돼 있어
+> 어떤 캡처·표에도 없었다. 그래서 "16"이던 절 제목도 "17"로 바뀐다.
 
 | 라우트 | 화면 | ui_qa | 최소 역할 | S | F | A | D | C | R | L | V |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/dashboard` | Dashboard(916줄) | O | operator | - | - | - | - | - | - | - | - |
-| `/users` | Users | O | admin | - | - | - | - | - | - | - | - |
-| `/offboarding` | Offboarding | O | admin | - | - | - | - | - | - | - | - |
-| `/organizations` | OrgConsole | O | admin | - | - | - | - | - | - | - | - |
-| `/departments` | OrgConsole | O | admin | - | - | - | - | - | - | - | - |
-| `/org-tree` | OrgConsole | O | admin | - | - | - | - | - | - | - | - |
-| `/settings` | Settings(822줄) | O | operator | - | - | - | - | - | - | - | - |
-| `/diagnostics` | Ops/Diagnostics | O | admin | - | - | - | - | - | - | - | - |
-| `/maintenance` | Ops/Maintenance | O | operator | - | - | - | - | - | - | - | - |
-| `/dev-report` | DevReport | O | auditor | - | - | - | - | - | - | - | - |
-| `/scheduler-calendar` | SchedulerCalendar | O | operator | - | - | - | - | - | - | - | - |
-| `/system` | SystemOps(298줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
-| `/setup` | SetupWizard(232줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
-| `/notion-console` | NotionConsole(377줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
-| `/llm-console` | LlmConsole(354줄) | O(신규) | system_admin | - | - | - | - | - | - | - | - |
-| `/search` | Search(공유) | O | — | - | - | - | - | - | - | - | - |
+| `/dashboard` | Dashboard(916줄) | O | operator | O | - | - | - | O | - | - | ~ |
+| `/users` | Users | O | admin | O | - | - | - | O | - | - | ~ |
+| `/offboarding` | Offboarding | O | admin | O | - | - | - | O | - | - | ~ |
+| `/organizations` | OrgConsole | O | admin | O | - | - | - | O | - | - | ~ |
+| `/departments` | OrgConsole | O | admin | O | - | - | - | O | - | - | ~ |
+| `/org-tree` | OrgConsole | O | admin | O | - | - | - | O | - | - | ~ |
+| `/settings` | Settings(822줄) | O | operator | O | - | - | - | O | - | - | ~ |
+| `/diagnostics` | Ops/Diagnostics | O | admin | O | - | - | - | O | - | - | ~ |
+| `/maintenance` | Ops/Maintenance | O | operator | O | - | - | - | O | - | - | ~ |
+| `/dev-report` | DevReport | O | auditor | O | - | - | - | O | - | - | ~ |
+| `/scheduler-calendar` | SchedulerCalendar | O | operator | O | - | - | - | O | - | - | ~ |
+| `/mail` | MailStatus | O | operator | - | - | - | - | O | - | - | ~ |
+| `/system` | SystemOps(298줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
+| `/setup` | SetupWizard(232줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
+| `/notion-console` | NotionConsole(377줄) | O(신규) | system_admin | - | - | - | - | O | - | - | ~ |
+| `/llm-console` | LlmConsole(354줄) | O(신규) | system_admin | - | - | - | - | O | - | - | ~ |
+| `/search` | Search(공유) | O | — | O | - | - | - | O | - | - | ~ |
+
+> **S/C/V 갱신(2026-08-15) 근거는 §15 참고.** `/notion-console`·`/llm-console`·`/mail`은 오늘
+> E2E에서 C(콘솔 오류 0건)·V(1920/3840 라이트다크)는 새로 확보했지만, BACKLOG.md에 이 세
+> 화면을 대상으로 한 전용 판독 기록이 없어 `S`는 `-`로 남긴다 — 실제 공백이다. `/search`는
+> `user_search`/`user_search-results`/`user_search-empty`(사용자 셸)와 같은 컴포넌트를 공유한다
+> — 관리자 셸(`/admin#/search`) 자체의 독립된 캡처는 이번 4회에도 없었다(공유 컴포넌트라는
+> 전제로 값을 옮겨 적었을 뿐).
 
 ## 4. 관리자 registry — DataScreen 28키
 
-전부 `S/F/A/D/C/R/L/V` 미검증. **28개 전부 열 폭 지정이 0건**(BACKLOG DS-06)이라 좁은 폭에서
-제목이 세로로 무너질 수 있는데 아무도 실물로 확인하지 않았다.
+`F/A/D/R/L`은 전부 미검증(아래 표에서도 `-`로 유지). **28개 전부 열 폭 지정이 0건**(BACKLOG
+DS-06)이라 좁은 폭에서 제목이 세로로 무너질 수 있는데 아무도 실물로 확인하지 않았다.
+`organizations`·`departments`·`org-tree`는 REGISTRY 키이지만 `OrgConsole`이 그려 **§3에 이미
+행이 있다** — 아래 표에는 중복으로 안 넣는다(28키 - 3 + 상세 드로어 3종 = 28행).
 
 | 도메인 파일 | 키 |
 |---|---|
@@ -151,6 +195,44 @@
 
 ui_qa에 있는 것: 상세 드로어 3종(`integration-detail`, `runner-detail`, `job-detail`) 포함 대부분.
 ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어 내부는 `--modals`를 켜야만 들어간다.**
+
+> **2026-08-15 신설** — 이 절은 그동안 라우트별 `S/F/A/D/C/R/L/V` 행이 아예 없었다(위 두 표만
+> 있었다). 오늘 2026-08-15 E2E 4회가 이 28라우트 전부를 캡처했고 BACKLOG.md 대조도 끝나서,
+> §2/§3과 같은 형식의 표를 처음으로 채운다. 근거는 §15 참고.
+
+| 도메인 파일 | 라우트 | 화면 | S | F | A | D | C | R | L | V |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `integrations.js` | `/integrations` | 외부 연동 | O | - | - | - | O | - | - | ~ |
+| `integrations.js` | `/integrations?id=` | 외부 연동 상세(드로어) | O | - | - | - | O | - | - | ~ |
+| `integrations.js` | `/runners` | 러너 | O | - | - | - | O | - | - | ~ |
+| `integrations.js` | `/runners?id=` | 러너 상세(드로어) | O | - | - | - | O | - | - | ~ |
+| `integrations.js` | `/workflows` | 워크플로 | - | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/prompts` | 프롬프트 | - | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/policies` | 정책 | O | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/templates` | 템플릿 | O | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/prompt-usage` | 프롬프트 사용 통계 | O | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/policy-usage` | 정책 사용 통계 | - | - | - | - | O | - | - | ~ |
+| `automation.js` | `/schedules` | 실행 일정(스케줄) | O | - | - | - | O | - | - | ~ |
+| `automation.js` | `/documents` | 문서 자동 생성 | O | - | - | - | O | - | - | ~ |
+| `automation.js` | `/jobs` | 작업 큐 | O | - | - | - | O | - | - | ~ |
+| `automation.js` | `/jobs?job_id=` | 작업 상세(드로어) | O | - | - | - | O | - | - | ~ |
+| `org.js` | `/job-titles` | 직책 관리 | - | - | - | - | O | - | - | ~ |
+| `org.js` | `/notion-mapping` | Notion 사용자 연결 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/approvals` | 승인 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/approval-delegations` | 승인 위임 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/audit` | 감사 로그 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/audit-anomalies` | 감사 이상 징후 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/rbac` | 권한 매트릭스 | O | - | - | - | O | - | - | ~ |
+| `governance.js` | `/impersonation` | 임퍼소네이션(대리 보기) | O | - | - | - | O | - | - | ~ |
+| `platform.js` | `/backup` | 백업 | O | - | - | - | O | - | - | ~ |
+| `platform.js` | `/restore-drills` | 복구 리허설 | O | - | - | - | O | - | - | ~ |
+| `platform.js` | `/announcements` | 공지 배너 | O | - | - | - | O | - | - | ~ |
+| `platform.js` | `/ai-quotas` | AI 사용 상한 | O | - | - | - | O | - | - | ~ |
+| `platform.js` | `/feature-flags` | 기능 플래그 | O | - | - | - | O | - | - | ~ |
+| `notifications.js` | `/notifications` | 알림 | O | - | - | - | O | - | - | ~ |
+
+> `workflows`·`prompts`·`policy-usage`·`job-titles` 4개는 오늘 E2E로 `C`/`V`는 새로 확보했지만
+> BACKLOG.md에서 전용 판독 근거를 못 찾았다 — `S`는 `-`로 남긴 **진짜 공백**이다(§15).
 
 ---
 
@@ -682,3 +764,215 @@ WCAG 계산식으로 새 대비값을 미리 계산해 여유 있게(4.45→5.68
 `trash_e2e.py`·`approval_e2e.py`·`saved_view_e2e.py` 등 별도 상호작용 전용 스크립트가
 이 갭을 메우도록 이미 존재하며, 이번 실행은 그것들을 포함하지 않았다. §7(주요
 End-to-End 흐름)의 개별 시나리오가 그 축을 대신 커버한다.
+
+---
+
+## 15. 2026-08-15(§14 이후) 라우트별 `C`/`S`(판독)/`V` 갱신 — 추가 E2E 4회 + BACKLOG.md 전수 대조
+
+§14의 690페이지 실행(`post_20260815`, T6 배포 확인 직후) **이후** 같은 날 저녁에 이어서 돈
+4회의 추가 E2E와, `docs/BACKLOG.md`(3300여 줄) 전수 grep 대조를 근거로 §0~§4의 라우트별
+`C`/`S`(판독)/`V` 셀을 갱신했다. `F`/`A`/`D`/`R`/`L`은 이번 갱신에서 **손대지 않았다** —
+오늘 실행한 것은 페이지 로드뿐이고, 기능 실행·API payload 확인·DB 재확인·RBAC·화면 간 연동은
+검증하지 않았기 때문이다.
+
+### 15-1. 근거 파일 4개 — 정확한 경로와 pass/fail/skip
+
+| 파일 | 라벨 | 시각(KST) | 테마×뷰포트 | 페이지 | 비고 |
+|---|---|---|---|---|---|
+| `dist/ui-qa/converge-vis104-64-badge/results.json` | `converge-vis104-64-badge` | 22:35:02–22:38:13 | 라이트·다크 × 1920×1080 | 138 | `console_errors` **1건 fail**(아래 15-2) |
+| `dist/ui-qa/converge-pa15-recheck/results.json` | `converge-pa15-recheck` | 22:52:03–22:55:10 | 라이트·다크 × 1920×1080 | 138 | 전부 pass |
+| `dist/ui-qa/converge-pa15-4k/results.json` | `converge-pa15-4k` | 22:55:22–22:59:11 | 라이트·다크 × 3840×2160 | 138 | 전부 pass(`tiny_text`/`narrow_main` 포함) |
+| `dist/ui-qa/converge-sem02-remainder/results.json` | `converge-sem02-remainder` | 23:13:23–23:16:29 | 라이트·다크 × 1920×1080 | 138 | 전부 pass |
+
+네 실행 모두 계정 `ui-qa@goodmit.co.kr`(role=`system_admin`), `base_url=https://clovirone-ai.gooddi.lab`,
+`run.routes` 71개 동일. 4개 파일의 `pages[]`를 전부 순회해 `assertions`의 모든 축(`auth_ok`·
+`theme_applied`·`horizontal_overflow`·`console_errors`·`page_errors`·`broken_images`·
+`duplicate_ids`·`tiny_text`·`narrow_main`·`vertical_text_collapse`·`fab_overlap`·`image_cropped`·
+`content_clipped`·`rail_wider_than_prose`·`contrast`)를 대조한 결과 **552페이지 중 fail은 정확히
+1건**(아래). 즉 원 지시서가 말한 "4회 전부 0 console_errors"는 **3/4 회는 맞고 1/4 회는 틀렸다**
+— 아래에서 그 1건을 숨기지 않고 그대로 남긴다.
+
+**두 라우트는 4회 전부 완전히 건너뛰었다**(시드 데이터 없음, 권한 문제 아님 — 각 파일의
+`notes[]`에 동일하게 기록):
+- `user_chat-room-detail` — `/api/team-chat/rooms` → 200, 항목 0건
+- `user_game-room` — `/api/games/rooms` → 200, 항목 0건
+
+이 둘은 `S`/`C`/`V` 어느 것도 이번에 `-`에서 바꾸지 않았다 — 지시서가 명시적으로 경고한 대로
+"건너뜀"을 "커버됨"으로 잘못 표기하지 않기 위해서다.
+
+### 15-2. 유일한 예외 — `user_team-doc-detail` (`C`를 `O`가 아니라 `~`로 둔 이유)
+
+`converge-vis104-64-badge`(4회 중 **첫 번째** 실행)에서 `user_team-doc-detail`(라이트,
+1920×1080) 1페이지가 `console_errors` 1건으로 fail했다:
+
+```
+"console_errors": {"status": "fail", "count": 1,
+  "samples": ["Failed to load resource: the server responded with a status of 500 (Internal Server Error)"]}
+```
+
+같은 라우트의 나머지 7페이지(같은 실행의 다크 1920 + `pa15-recheck` 라이트/다크 1920 + `pa15-4k`
+라이트/다크 3840 + `sem02-remainder` 라이트/다크 1920)는 **전부 pass**했다 — 특히 `pa15-recheck`는
+같은 뷰포트·테마 조합을 **17분 뒤**에 다시 찍었는데 그때는 깨끗했다. 즉 **8번 중 7번은 깨끗하고
+1번만 500이 실측됐다** — 결정론적 결함이 아니라 **일시적**(transient) 신호로 읽힌다. 그래서
+이 라우트의 `C`는 `O`(클린 확정)가 아니라 `~`(부분 — 실측 증거가 섞여 있음)로 남긴다.
+
+**근거 없이 넘기지 않고 코드까지 확인했다**: `/team-docs/:id`를 열면 `app/team_docs/service.py`의
+"최근 열람" 기록 경로(약 335~340줄, `DocumentRecentView`)가 `db.begin_nested()`(SAVEPOINT) 안에서
+쓰기를 한다 — 즉 이 화면은 겉보기엔 GET이지만 실제로는 매번 쓰기를 유발한다. `docs/BACKLOG.md`의
+`PA-14`(§PA, 2026-08-15 같은 날)가 정확히 이 계열의 증상을 문서화하고 있다: `app/core/deps.py::get_db`의
+**요청-스코프 바깥 commit**(라우트 핸들러가 성공 반환한 *다음* 마지막 `db.commit()`)이 쓰기 경합에
+걸리면 재시도 없이 원시 500을 던지던 D-75 갭을, 2026-08-15에 **분류만**(원시 500 → 503
+`WriteUnavailableError`) 부분적으로 닫았다 — 재시도 자체는 아직 구현되지 않았다. 더 오래된 선례로
+`QAH-01`(BACKLOG.md, 2026-08-11 구현완료)도 같은 모양(세션 `last_seen_at` 터치 쓰기가 SQLite
+쓰기충돌로 500을 냄, `admin_offboarding`에서 실측)이었다. **이것은 확정 진단이 아니라 정황
+근거다** — 서버 로그로 22:35~22:38 구간의 실제 스택트레이스를 직접 대조하지 않았고, PA-14의
+수정이 이 4회 E2E 중 어느 시점에 실제로 배포돼 있었는지도 확인하지 않았다. 다음에 이 라우트를
+다시 볼 사람은 (a) 서버 로그에서 해당 시각 500 스택트레이스를 찾아 `get_db` 바깥 커밋인지
+확인하고 (b) 재현되면 `PA-14`가 미룬 "요청 전체 재실행" 재시도를 이 계열 전체에 적용할지
+판단하면 된다. **이번 세션은 QA_COVERAGE 갱신 범위를 넘는 근본 원인 수정에는 착수하지 않았다.**
+
+**후속 확인(같은 날, 2026-08-15) — 위 "정황 근거"가 그새 확정 진단 + 수정완료로 바뀌었다.**
+이 에이전트가 조사하는 동안 Main Agent가 **같은 문제를 서버 `journalctl`로 직접 재현**했다 —
+정확히 이 실행(`converge-vis104-64-badge`, 22:35경)의 `request_id=2b6ef8757dd0a4396510d72630ab57b4`
+스택트레이스를 찾아 `sqlite3.OperationalError: database is locked`가 **`get_db` 바깥 커밋이 아니라
+`app/team_docs/service.py::record_view`의 "이미 있는 행 갱신" 분기 자체**(SAVEPOINT도 재시도도
+없던 자리)에서 났음을 확정했다(`PA-15`, `docs/BACKLOG.md`). 두 분기(신규/갱신)를 공용 재시도
+유틸로 통합해 고치고 재배포한 뒤, **이후 3회의 독립된 전체 E2E**(`converge-pa15-recheck`·
+`converge-vis50-verify`·`converge-ai70`, 마지막은 이 갱신 이후에 도 한 번 더 138페이지 전체
+재실행)에서 이 라우트를 포함해 `console_errors` 0건을 확인했다. 즉 "일시적 신호"가 아니라
+**부하 의존적이지만 결정론적인 실제 버그였고, 지금은 고쳐졌다** — 위 표의 `C`를 `O`로 올렸다.
+이 절의 조사 서술 자체는 방법론이 정확했으므로(파일·함수까지 정확히 짚었다) 지우지 않고
+그대로 둔다.
+
+### 15-3. `V`(반응형·테마) — 무엇을 커버했고 무엇을 안 했는가
+
+4회 실행이 실제로 돈 뷰포트는 **1920×1080**(3회, 라이트+다크)과 **3840×2160**(1회, 라이트+다크)
+**둘뿐**이다. §1 축 정의(8번, "8뷰포트 + 브레이크포인트 사이 + 라이트/다크")나 §10-2가 쓴
+768/1024/1200/1366 계열, §14가 쓴 390×844(모바일)·1920×1080@2x는 **오늘 이 4회에 포함되지
+않았다**. 그래서 오늘 커버된 69라우트 전부 `V`를 `O`가 아니라 **`~`**로만 올렸다 — §11 관례상
+`V: O`는 6개 폭(768/1024/1200/1366/1920/3840) × 라이트다크를 뜻했는데 오늘 증거는 그중 2개
+폭뿐이라 그 기준에 못 미친다.
+
+참고로 `admin_users`·`admin_audit`·`admin_jobs`·`user_my-tickets`·`admin_integrations` 5개는
+**과거**(BACKLOG.md `## RESP`, 2026-08-08) 768/1024/1200/1366 실측이 이미 있다 — 오늘 것과
+합치면 이 5개만 6개 폭 중 4개(768/1024/1200/1366+1920/3840 중 오늘 몫)를 갖는 셈이지만, 이번
+갱신에서는 셀 값을 이 5개만 다르게 표기하지 않았다(다른 69개와 같은 `~`) — 오늘 이 세션이
+직접 확인한 것은 1920/3840뿐이고, 옛 RESP 데이터를 다시 열어 같은 페이지인지 재확인하지 않았기
+때문이다. 필요하면 다음 세션이 그 5개만 별도로 승격할 수 있다.
+
+### 15-4. `S`(판독) — 방법론과 라우트별 근거
+
+**방법**: `docs/BACKLOG.md` 전체에서 (a) `### <경로>` 형태의 라우트 전용 절 헤더, (b) 워크플로
+조사(`WF1` 등)가 그 자체의 화면별 표에서 정확히 이 하네스의 route id(`user_X`/`admin_X`) 형식으로
+행을 낸 경우, 두 가지를 근거로 삼았다 — 둘 다 "누군가 그 화면의 실제 렌더 결과를 보고 구체적
+결함/확인 사항을 적었다"는 것이 원문에서 확인되는 경우만 카운트했고, 다른 주제의 표에 라우트
+이름이 스치듯 인용된 경우(예: RBAC API 매트릭스, `user_id`/`admin_scope` 같은 필드명과의 우연한
+문자열 일치)는 **제외**했다. **62/71 라우트**에서 이 기준을 만족하는 근거를 찾아 `S`를 `-`→`O`로
+올렸다. 나머지 9개는 실제로 찾지 못한 **진짜 공백**이다(15-5).
+
+<details>
+<summary>라우트별 근거 전문 (펼치기) — 62개, BACKLOG.md 줄 번호는 이 갱신 시점 기준</summary>
+
+**그룹 A — `###` 라우트 전용 절 (25개)**
+
+| 라우트 | BACKLOG.md 절 |
+|---|---|
+| `user_me` | `/me` 사용자 홈 (L512) |
+| `user_my-tickets` | 4K(3840×2160) 실측 — `/my-tickets` 빈 상태 (L775) |
+| `user_project-detail` | `/projects/:id` 프로젝트 상세 (L543) |
+| `user_projects` | `/projects` (L482) |
+| `user_sprint` | `/sprint` 스프린트 회의 (L734) + 브레이크포인트 '사이' 실측(VIS-73, L706) |
+| `user_chat` | `/chat` AI 도우미 빈 상태 (L826) + 4K 다크 판독 (L2504) + Chrome 실브라우저 확인 (L724) |
+| `user_board` | `/board` 자유게시판 (L1873) + 팀 공간 3화면 실조작 (L604) |
+| `user_team-docs` | `/team-docs` 문서 (L792) + Chrome 실브라우저 확인 (L724) |
+| `user_ticket-detail` | `/tickets/:id` 티켓 상세 (L1363) |
+| `user_games` | `/games` 놀이 (L1400) + 팀 공간 3화면 실조작 (L604) |
+| `admin_dashboard` | `/dashboard` 관리자 대시보드 (L814) + 4K 다크 판독 (L2484) |
+| `admin_users` | `/users` 사용자 관리 (L802) + 반응형 실측 (L1904) |
+| `admin_diagnostics` | `/diagnostics` 진단 (L523) |
+| `admin_dev-report` | `/dev-report` 개발자 월간 리포트 (L563) |
+| `admin_audit` | `/audit` 감사 로그 (L745) + 반응형 실측 (L1904) |
+| `admin_settings` | `/settings` 설정 (L761) |
+| `admin_setup` | `/setup` 초기 설정 (L1028) |
+| `admin_system` | `/system` 시스템 설정 (L1036) |
+| `admin_jobs` | `/jobs` 작업 큐 (L1199) + 반응형 실측 (L1904) |
+| `admin_scheduler-calendar` | `/scheduler-calendar` 실행 달력 (L1211) |
+| `admin_rbac` | `/rbac` 권한 매트릭스 (L1221) |
+| `admin_notifications` | `/notifications` + 지표 카드 줄바꿈 (L1618) + 알림 딥링크 실조작 (L657) |
+| `admin_restore-drills` | `/restore-drills` (L1701) |
+| `admin_integrations` | `/integrations` 외부 연동 (L1885) + 반응형 실측 (L1904) |
+| `admin_schedules` | `/schedules`(관리자 DataScreen 대표) (L499) |
+
+**그룹 B — `WF1`(미판독 화면 40개 병렬 판독, L2195-2394)의 화면별 표 행 — 35개.** 이 워크플로의
+"High 7건"(L2218-2229) 표와 "채택 항목 전문(화면별 압축)"(L2340-2380) 표가 정확히 이 하네스의
+route id를 행으로 써서 각 화면의 구체적 결함/확인을 적었다: `admin_ai-quotas` · `admin_announcements`
+· `admin_approval-delegations` · `admin_approvals` · `admin_audit-anomalies` · `admin_backup` ·
+`admin_departments` · `admin_documents` · `admin_feature-flags` · `admin_impersonation` ·
+`admin_integration-detail` · `admin_job-detail` · `admin_maintenance` · `admin_notion-mapping` ·
+`admin_offboarding` · `admin_org-tree` · `admin_organizations` · `admin_policies` ·
+`admin_prompt-usage` · `admin_runner-detail` · `admin_runners` · `admin_templates` ·
+`user_activity` · `user_board-post` · `user_ideas` · `user_my-stats` · `user_new-ticket` ·
+`user_profile` · `user_search` · `user_search-empty` · `user_search-results` ·
+`user_team-doc-detail`(SEC-10 자격증명 노출 발견이 바로 이 화면) · `user_team-docs-trash` ·
+`user_team-tickets` · `user_unassigned`. 그중 `admin_job-detail`은 "작업 큐 상세 모달
+실조작"(L593)에서, `user_new-ticket`은 "새 티켓 폼 실조작"(L628)에서 한 번 더 확인된다.
+
+**그룹 C — 팀 공간 3화면 실조작(L604-613)**: `user_chat-rooms`(VIS-90이 지목한 빈 상태 품질
+비교가 `/chat-rooms`를 직접 대상으로 한다).
+
+**그룹 D — 로그인 화면 실브라우저 측정**: `public_login` — `PA-07`(다크 모드 미지원 확인,
+BACKLOG.md L3317) + `PA-12`(비밀번호 표시 버튼 대비 4.449:1 실측, L3322). 둘 다 Chromium으로
+실제 렌더된 로그인 페이지를 측정한 결과라 "판독"의 정의(실제 브라우저에서 렌더된 화면을 봤다)를
+만족한다고 판단했다 — 다만 이 둘은 화면을 눈으로 "읽고 서술"한 VIS류 기록이 아니라 계산된
+대비값·다크 클래스 유무를 측정한 기록이라는 점에서 그룹 A/B와 성격이 약간 다르다는 것을
+밝혀 둔다.
+
+</details>
+
+### 15-5. 손대지 않고 남긴 진짜 공백 (`S` = `-`인 9라우트)
+
+BACKLOG.md 전체에서 찾지 못했다 — 캡처는 있지만(§4의 신규 표에서 `C`는 `O`) 아무도 그 PNG를
+서술한 기록이 없다:
+
+- `admin_workflows`·`admin_prompts`·`admin_policy-usage`·`admin_job-titles` — 흥미롭게도
+  같은 파일(`authoring.js`/`automation.js`/`org.js`)의 형제 화면(`policies`·`prompt-usage`·
+  `notion-mapping` 등)은 판독 기록이 있는데 이 넷만 없다 — 표본이 화면군 단위가 아니라
+  개별 화면 단위로 골라졌다는 뜻으로 읽힌다.
+- `admin_notion-console`·`admin_llm-console`·`admin_mail` — system_admin 전용/등록 누락
+  이력이 있는 화면들이라(`QAH-06`), 캡처 자체가 늦게 합류했고 아직 아무도 판독하지 않았다.
+- `user_chat-room-detail`·`user_game-room` — 시드 데이터가 없어 **오늘도 과거에도** 한 번도
+  캡처된 적이 없다(캡처가 없으니 판독도 원천적으로 불가능하다).
+
+이 9개는 이번 세션에서 `-` 그대로 뒀다 — 없는 근거를 있다고 하지 않는다.
+
+### 15-6. 라우트 매핑이 애매했던 것 (그대로 결정하지 않고 남김)
+
+- **`/search`(§2 사용자 콘솔, §3 관리자 "공유")** — ui_qa 라우트는 `user_search`/
+  `user_search-results`/`user_search-empty` 셋뿐이고, 관리자 셸(`/admin#/search`)을 별도로
+  캡처하는 route id는 하네스에 없다. §3의 `search(공유)` 행은 오늘 갱신에서 `user_search` 계열의
+  값을 그대로 옮겨 적었다 — **컴포넌트가 같으니 콘솔 오류 여부는 같을 것**이라는 가정이지,
+  관리자 셸에서 독립적으로 재확인한 것이 아니다.
+- **`/notifications`(§2 사용자 콘솔)** — 이 표에서는 사용자 화면처럼 분류돼 있지만 `routes.py`
+  주석대로 실제로는 `admin_notifications`(관리자 셸) 하나뿐인 라우트다. §2의 이 행과 §4의
+  `notifications.js` 행은 **같은 캡처를 가리키는 두 개의 표 항목**이다.
+- **§0 요약표의 "라우트" 합계(75)** — §2~§4 표의 실제 행 수 합은 71(1+25+17+28)인데 §0은
+  기존 관례(사용자 콘솔을 26으로 표기하던 것)를 그대로 이어받고 관리자만 이번에 45로
+  고쳐서 합이 어긋난다. 의도적으로 라우트를 새로 늘리거나 줄인 것이 아니라 **두 절이 원래부터
+  다른 집계 기준(행 수 vs 개념적 route id 수)을 쓰고 있었다**는 뜻이다 — §0의 각주에 그대로
+  적어 뒀다.
+
+### 15-7. 재현 명령
+
+```bash
+# 위 4개 결과 파일을 직접 다시 요약하려면:
+.venv/Scripts/python -c "
+import json
+for f in ['dist/ui-qa/converge-vis104-64-badge/results.json',
+          'dist/ui-qa/converge-pa15-recheck/results.json',
+          'dist/ui-qa/converge-pa15-4k/results.json',
+          'dist/ui-qa/converge-sem02-remainder/results.json']:
+    d = json.load(open(f, encoding='utf-8'))
+    print(f, d['run']['label'], d['run']['themes'], d['run']['viewports'],
+          {k: v for k, v in d['summary'].items() if v['fail']})
+"
+```
