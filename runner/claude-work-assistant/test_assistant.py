@@ -1836,6 +1836,43 @@ def test_delete_refused_honestly():
     assert "취소" in data["response_text"] and "Notion" in data["response_text"]
 
 
+def test_rule_engine_query_turn_lands_in_history():
+    # AI-14: query_tickets(규칙엔진)는 스스로 conversation_history를 안 쓴다 — claude_query만
+    # 쓴다. 그래서 "티켓 보여줘"(규칙엔진) 다음에 오는 자유형 질문이 claude_query로 가면,
+    # 방금 무엇을 보여줬는지가 모델이 보는 대화에서 통째로 빠졌다. process_request 한 곳에서
+    # 이 턴을 채워 넣는지 확인한다(개별 규칙엔진 함수를 고치지 않고).
+    tks = [_raw_ticket("t1", "결제 오류 수정")]
+    b1 = {"message": "내 티켓 보여줘", "message_id": "h1", "conversation_id": "cv-h",
+          "requester": CREATE_REQUESTER, "projects": [], "tickets": tks,
+          "work_schema": _RT_SCHEMA, "context": {}}
+    d1, _ = m.process_request(b1)
+    assert d1["action"] == "TICKET_LIST", d1["action"]
+    hist1 = d1["context"]["conversation_history"]
+    assert len(hist1) == 2, "규칙엔진 턴이 기록되지 않았다"
+    assert hist1[0] == {"role": "user", "content": "내 티켓 보여줘"}
+    assert hist1[1] == {"role": "assistant", "content": d1["response_text"][:1000]}
+
+    # 두 번째 턴도 이어 붙는다(누적) — claude_query가 이미 기록한 것과 겹쳐 두 번
+    # 적히지 않는지는 test_more_after_freeform_continues_conversation 등 기존 시험이 본다.
+    b2 = {**b1, "message": "미완료만 보여줘", "message_id": "h2", "context": d1["context"]}
+    d2, _ = m.process_request(b2)
+    hist2 = d2["context"]["conversation_history"]
+    assert len(hist2) == 4, "두 번째 규칙엔진 턴이 누적되지 않았다"
+    assert hist2[2] == {"role": "user", "content": "미완료만 보여줘"}
+
+
+def test_cancel_does_not_resurrect_history():
+    # CANCELLED 응답 문구 자체가 "대화 문맥을 취소했다"고 답한다 — process_request의 새
+    # 일괄 기록이 그 직후 이 턴을 도로 채워 넣어 그 말을 거짓으로 만들면 안 된다.
+    prior = {"conversation_history": [{"role": "user", "content": "이전 대화"},
+                                       {"role": "assistant", "content": "이전 답변"}]}
+    data, _ = m.process_request({"message": "취소", "message_id": "c1", "conversation_id": "cv-c",
+                                 "requester": CREATE_REQUESTER, "projects": [], "tickets": [],
+                                 "work_schema": {}, "context": prior})
+    assert data["action"] == "CANCELLED", data["action"]
+    assert data["context"] == {}, "취소 응답의 문맥이 비어 있어야 하는데 history가 되살아났다"
+
+
 def test_groupby_beats_freeform_marker():
     # "상태별로 정리해줘"의 '정리'가 LLM으로 새지 않고 규칙 그룹화로 간다.
     assert not m.is_freeform_query("내 티켓 상태별로 정리해줘")

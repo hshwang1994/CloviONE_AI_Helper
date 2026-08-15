@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-APP_VERSION = "3.58.0"
+APP_VERSION = "3.58.1"
 HOST = os.environ.get("ASSISTANT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ASSISTANT_PORT", "8789"))
 TOKEN = os.environ.get("RUNNER_TOKEN", "").strip()
@@ -5520,6 +5520,35 @@ def diagnose(requester: dict[str, str], current_user: dict[str, str] | None, qua
     return response("DIAGNOSTIC", "\n".join(lines), context)
 
 
+_HISTORY_EXEMPT_ACTIONS = {"CANCELLED"}  # 응답 문구 자체가 "대화 문맥을 취소했다"고 단언하는
+# 유일한 경로다 — 지운 직후 이 턴을 다시 채워 넣으면 그 말이 거짓이 된다.
+
+
+def _ensure_turn_in_history(data: dict[str, Any], message: str) -> dict[str, Any]:
+    """AI-14: query_tickets/update_ticket/comment_ticket 등 규칙엔진 경로들은 각자
+    conversation_history를 쓰지 않는다 — claude_query(자유형 대화)와 create_ticket만
+    스스로 기록한다. 그래서 예를 들어 "티켓 목록 보여줘"(query_tickets) 다음에 오는
+    자유형 질문이 claude_query에 넘어가면, 방금 무엇을 보여줬는지가 모델이 보는 대화에서
+    통째로 빠져 있다 — 규칙엔진 턴만큼 구멍이 난다.
+
+    개별 함수 안의 (많고, 어떤 것은 555줄짜리 함수에 흩어진) return 지점을 전부 고치는
+    대신, 모든 응답이 반드시 지나는 이 자리 한 곳에서 "이번 턴이 아직 기록 안 됐으면"
+    채워 넣는다. claude_query/create_ticket이 이미 기록한 경우(마지막 두 항목이 이번
+    턴과 정확히 일치)는 중복 추가하지 않고 그대로 둔다."""
+    if not message or not isinstance(data, dict) or data.get("action") in _HISTORY_EXEMPT_ACTIONS:
+        return data
+    context = data.get("context")
+    if not isinstance(context, dict):
+        return data
+    history = safe_list(context.get("conversation_history"))
+    user_turn = {"role": "user", "content": message[:1000]}
+    assistant_turn = {"role": "assistant", "content": text(data.get("response_text"))[:1000]}
+    if len(history) >= 2 and history[-2] == user_turn and history[-1] == assistant_turn:
+        return data
+    data["context"] = {**context, "conversation_history": (history[-8:] + [user_turn, assistant_turn])[-10:]}
+    return data
+
+
 def process_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Entry point: ingest any new image attachments (vision analysis → context
     image_notes), then route. Vision time is included in the reported ai_ms."""
@@ -5560,6 +5589,7 @@ def process_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
             conversation_id = text(body.get("conversation_id"))
             persist_context_result(requester, conversation_id, new_context)
         raise
+    data = _ensure_turn_in_history(data, text(body.get("message")))
     return data, ai_ms + vision_ms
 
 

@@ -1,7 +1,7 @@
 # Runner (claude-work-assistant) — 버전관리 사본
 
 서버 `10.100.64.71:/opt/claude-work-assistant/assistant.py`(8789, User=n8n)에서 동작하는 러너의
-**버전관리 사본**(`APP_VERSION = 3.58.0`). n8n 워크플로와 웹 플랫폼이 호출해 사용자 발화를 해석하고
+**버전관리 사본**(`APP_VERSION = 3.58.1`). n8n 워크플로와 웹 플랫폼이 호출해 사용자 발화를 해석하고
 Notion 티켓 조회/생성/변경 결정을 내린다. Claude Code CLI(`/usr/bin/claude`)를 구조화 출력으로 호출.
 
 ## 엔드포인트
