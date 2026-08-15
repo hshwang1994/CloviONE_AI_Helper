@@ -42,6 +42,21 @@ Critical 1 · High 2 · Medium 0 · Low 0. **Probable 이하는 Handoff로 승�
 기존 보안 검사는 **워킹트리와 커밋만 보고 stash/reflog를 보지 않는다.** 이번 건이 정확히 그
 사각지대로 들어왔다 — 재발 방지 검사를 권한다.
 
+## 3-1. 구현 Phase가 **가장 먼저** 알아야 할 것: 회귀 스위트는 멈추지 않는다
+
+`docs/WORK_STATE.md`는 백엔드 전체 회귀가 *"장시간 출력 0줄로 멈춰 있다"*, *"진짜 행"*,
+*"두 번 연속 같은 증상"* 이라고 기록한다. **사실이 아니다.**
+
+이번 Audit이 끝까지 돌려 확인했다 — `pytest tests/regression` **331건 전부 통과, exit 0**,
+진행률이 21→43→65→87→100%로 꾸준히 증가. `pytest tests/security` 도 **498건 통과, exit 0**.
+행이 아니라 그냥 오래 걸리는 것이고, 원인은 `run_in_background`가 invocation 경계를 못 넘긴
+것이다(WF14가 그 가능성을 적었는데 "진짜 행" 쪽 해석이 채택돼 있었다).
+
+**영향이 크다**: 이 기록 때문에 WF12·WF13·WF14 **세 사이클 동안 백엔드 전체 회귀가 한 번도
+검증되지 않았고**, 매번 "다음 세션이 확인할 것"으로 미뤄졌다. 문서 한 줄이 안전망을 껐다.
+회귀는 **전경에서 넉넉한 타임아웃**으로 돌려라 — 이 Audit은 그렇게 해서 성공했다.
+(상세: `PRODUCT_AUDIT_FINDINGS.md` `PA-RC-0006`)
+
 ## 4. 구현 우선순위 권고
 
 1. **PA-RC-0003** — 사람에게 에스컬레이션. 구현 Runner는 코드를 쓰지 마라.
@@ -79,7 +94,7 @@ PA-RC-0001(토큰이 소비되지 않는다)과 PA-RC-0002(오류 문구에 회�
 | 한계 | 상태 |
 |---|---|
 | **실제 Chrome 렌더·콘솔·네트워크 관찰을 아직 안 했다** | N/O/M축 결론은 현재 **코드 근거까지**다. 승인된 TEST 서버(`10.100.64.71`)에서 브라우저를 설치해 관찰하는 경로는 이 Audit 프롬프트 7절이 허용하므로 **BLOCKED가 아니라 미수행**이다 — 다음 Round 후보 |
-| **실행 증거는 프런트에만 있다** | `npm test -- --run` 실행: **테스트 파일 253개 / 테스트 1,718건 전부 통과, 실패 0, 111초**(`var/product-audit/vitest.log`) → Y축 74칸이 `EXECUTED`. 백엔드 `pytest tests/regression` 은 실행 중이며 이 회차에 결과를 얻지 못했다 |
+| ~~실행 증거는 프런트에만 있다~~ → **해소됨** | 프런트 `npm test -- --run` **253파일 / 1,718건 통과** · 백엔드 `pytest tests/regression` **331건 통과 exit 0** · `pytest tests/security` **498건 통과 exit 0**. Coverage의 `EXECUTED` 156칸이 이 근거다 |
 | **Coverage 1,948칸이 아직 UNSEEN** | 전 칸에 사유가 등록돼 있다(`unseen_without_reason=0`). Round 계획은 `PRODUCT_AUDIT_STATE.md` §3 |
 | **Blind Re-Audit 0회** | 완료 Gate F는 2회 연속 clean을 요구한다. 아직 시작도 안 했다 |
 | **Skill 5개 중 1개만 실제 적용** | `ux-writing`만 적용했다(그 결과가 PA-F-011이다). `ui-ux-pro-max`·`impeccable`·`redesign-existing-projects`는 **미설치가 아니라 순서상 미적용**이고, `humanize-korean`은 프롬프트 2절에 따라 UX Writing 확정 후로 **의도적으로 보류**했다 |

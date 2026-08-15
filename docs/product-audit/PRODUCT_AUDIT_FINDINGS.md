@@ -329,6 +329,37 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0006 — "백엔드 전체 회귀가 멈춘다"는 기록이 사실이 아니다 (Z축)
+
+**Severity: Low · Confidence: Confirmed · Type: content(문서 드리프트) — 단, 영향은 Low가 아니다**
+
+### PA-F-015 · 두 세션이 남긴 "행(hang)" 기록 때문에 회귀가 계속 안 돌았다
+
+- **문서가 주장하는 것** (`docs/WORK_STATE.md`):
+  - WF12: *"`pytest tests/regression/` 전체 실행을 백그라운드로 걸어 뒀는데 **장시간 출력 0줄로
+    멈춰 있다**"*, *"다음 세션은 … 정말 걸리는 테스트가 있는지(타임아웃 아님 — **진짜 행**)
+    확인할 가치가 있다"*
+  - WF14: *"역시 세션 종료 시점까지 출력 0줄 — **두 번 연속 같은 증상**"*
+- **실측 (2026-08-15)**: `pytest tests/regression -q` 를 끝까지 실행했다 →
+  **331건 전부 통과, exit 0.** 진행 표시가 21% → 43% → 65% → 87% → 100% 로 **꾸준히 늘었다.**
+  `pytest tests/security` 도 **498건 전부 통과, exit 0.**
+- **즉 행이 아니라 "오래 걸림"이었다.** 관측이 어긋난 이유는 진단 가능하다 — 두 세션 모두
+  `run_in_background`로 걸어 두고 **invocation 경계를 넘기지 못한 채 종료**됐고, 출력이
+  버퍼링되어 그 시점 로그가 비어 보였다. WF14 자신도 *"run_in_background가 invocation 경계를
+  못 넘기는 것으로 보인다"*고 적었는데, **그 관찰이 맞고 "진짜 행" 쪽 해석이 틀렸다.**
+- **왜 Low가 아닌가**: 이 잘못된 기록 때문에 **최소 두 사이클 동안 백엔드 전체 회귀가 한 번도
+  검증되지 않았다.** WF12·WF13·WF14가 각각 "다음 세션이 확인할 것"으로 미뤘다.
+  문서 한 줄이 프로젝트의 안전망을 세 사이클 동안 껐다.
+- **구현 방향**: `docs/WORK_STATE.md`의 해당 문단을 정정한다(실측 결과와 소요 시간 명시).
+  더 나은 조치는 **회귀 실행을 전경(foreground)에서 넉넉한 타임아웃으로 돌리는 것**을
+  관례로 적어 두는 것이다 — 이 Audit은 그렇게 해서 성공했다.
+- **Auditor가 직접 못 고치는 이유**: `docs/WORK_STATE.md`는 이 Audit의 tracked write
+  allowlist(`docs/product-audit/**`, `BACKLOG.md`, `QA_COVERAGE.md`, `DECISIONS.md`)에 없다.
+- **Handoff 승격**: 하지 않는다(문서 한 줄 정정이라 구현 계약이 필요 없다). 다만 **REPORT에서
+  구현 Phase가 가장 먼저 볼 수 있게** 명시한다.
+
+---
+
 ## PA-RC-0004 — 없는 경로가 조용히 홈으로 삼켜진다 (알림 없음)
 
 **Severity: Low · Confidence: Confirmed · Type: ux-gap**
