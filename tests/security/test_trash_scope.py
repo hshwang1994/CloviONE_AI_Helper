@@ -239,3 +239,52 @@ def test_the_scoped_moderator_can_still_manage_their_own_teams_item(
     assert r.status_code == 200, f"자기 팀 항목을 복원할 수 없다: {r.status_code} {r.text}"
     db.commit()  # 스냅샷을 새로 뜬다 — 위 SELECT가 이미 연 트랜잭션은 restore 이전 상태를 본다
     assert not _still_there(db, "p-ok"), "복원했는데 휴지통에 남아 있다"
+
+
+# RBAC 재감사(2026-08-16)로 발견: list_visible/visible_to가 `is_dept`일 때만 걸러 org 범위
+# (admin_scope="org") 관리자를 global과 똑같이 취급했다 — 위 dept 시험들과 별개로 이 org
+# 경계는 어떤 시험도 없었다. 여기서는 그 결과가 **되돌릴 수 없는 영구삭제**라 더 심각하다.
+@pytest.fixture()
+def org_scoped_admin(make_user, db):
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Organization
+
+    other_org = Organization(slug="trash-org-scope-tenant", name="다른 회사", status="active")
+    db.add(other_org)
+    db.flush()
+    u = make_user("trash-org-mod@goodmit.co.kr", role="admin", display_name="A조직관리자")
+    u.org_id = DEFAULT_ORG_ID
+    u.admin_scope = "org"
+    u.scope_org_id = DEFAULT_ORG_ID
+    other = make_user("trash-org-victim@goodmit.co.kr", role="user", display_name="B조직원")
+    other.org_id = other_org.id
+    db.commit()
+    return u, other
+
+
+def test_org_scoped_admin_does_not_see_another_organizations_trash(client, login_as, db, org_scoped_admin):
+    _, other = org_scoped_admin
+    _trash(db, title="B조직이 지운 것", by=other, page="p-org-list")
+
+    login_as("admin", email="trash-org-mod@goodmit.co.kr")
+    titles = {i["title"] for i in client.get("/api/trash").json()["items"]}
+    assert "B조직이 지운 것" not in titles, "org 범위 관리자에게 다른 조직 휴지통 항목이 보인다"
+
+
+def test_org_scoped_admin_cannot_purge_another_organizations_item(client, login_as, db, org_scoped_admin):
+    """영구삭제는 되돌릴 수 없다 — org 경계가 뚫리면 다른 조직 자료가 영영 사라진다."""
+    from sqlalchemy import select
+
+    from app.trash.models import TrashItem
+
+    _, other = org_scoped_admin
+    _trash(db, title="B조직이 지운 것", by=other, page="p-org-idor")
+
+    hdr = {"X-CSRF-Token": login_as("admin", email="trash-org-mod@goodmit.co.kr")}
+    item_id = db.execute(
+        select(TrashItem.id).where(TrashItem.notion_page_id == "p-org-idor")
+    ).scalar_one()
+
+    r = client.post(f"/api/trash/{item_id}/purge", headers=hdr)
+    assert r.status_code == 404, f"org 범위 밖 항목이 영구삭제됐다: {r.status_code}"
+    assert _still_there(db, "p-org-idor"), "org 범위 밖 항목이 실제로 지워졌다"

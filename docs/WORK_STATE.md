@@ -6141,3 +6141,33 @@ commit 8개 추가(`c661389`~`654a810`). 전부 이 브랜치(`ui/mui-migration`
 잔여 Root Cause), `BACKLOG.md` 전체(High/Critical 포함, 이번 세션은
 Medium/Low 미판정만 훑었다)를 처음부터 다시 훑어 놓친 것이 없는지
 Whole-product 재감사 관점에서 점검한다.
+
+## 2026-08-16 05:xx — `SEC-34`(Critical) 발견+해소: org 범위 관리자가 다른 조직 자원에 무제한으로 닿았다
+
+앞 체크포인트 직후 띄운 `team_docs` 전용 RBAC 재감사 서브에이전트가 진짜 결함을
+찾았다: `doc_in_scope`가 `if not scope.is_dept: return True`로 판정해 `admin_scope
+='org'`(조직 관리자)를 `global`과 동일하게 무제한 취급 — 다른 조직 문서를 보고
+휴지통으로 보내고 비공개 지정하고 댓글까지 달 수 있었다. 같은 패턴을 저장소
+전체에서 grep해 `tickets/service.py` 3곳(`ensure_in_scope`·`_scope_assignee_ids`·
+`_drop_out_of_scope`)·`trash/repository.py` 2곳(`list_visible`·`visible_to` —
+후자는 **되돌릴 수 없는 영구삭제** 경로)까지 총 6곳을 찾아 전부 고쳤다.
+`search/scoping.py`의 표면적으로 비슷한 2곳은 직접 대조해 이미 올바르거나
+의도된 설계임을 확인(결함 아님, 손대지 않음).
+
+고치는 방식은 전부 동일: `if not scope.is_dept: return <무제한>` → `if scope.
+is_global: return <무제한>`. 새 분기 로직을 추가하지 않는다 — `core/scope.py`의
+`visible_user_ids`/`scope_filter`가 이미 org/dept를 올바르게 구분하므로, 잘못된
+지름길만 없애면 그 아래 로직이 알아서 맞게 처리한다.
+
+**검증**: 신규 회귀 8건(문서 3·티켓 3·휴지통 2, 전부 org 범위 관리자 vs 다른 조직
+자원으로 읽기+쓰기 양쪽) + 6곳 전부 개별 revert-to-verify(정확히 예측한 증상 재현
+확인 후 복원) + `tests/security/` 전체 green. 백엔드 전체 스위트는 지금 백그라운드로
+실행 중(결과 미확인) — 완료되면 이어서 확인. 상세: `docs/DECISIONS.md` D-79,
+`docs/BACKLOG.md` SEC-34.
+
+**남은 것 — 이번 체크포인트의 최우선**: 이 수정은 로컬에만 있다. **TEST SERVER는
+아직 취약한 버전을 그대로 돌리고 있다** — Critical RBAC 수정이라 다음 정기 배포까지
+미루지 않는다. 백엔드 전체 스위트 green 확인 → static_checks → 통합 배포(백엔드
+포함, 프런트는 이미 최신) → health/revision 확인 → 최소한 SEC-34 관련 경로(문서·
+티켓·휴지통의 org 범위)는 실서버에서도 직접 재현 확인. 그 다음에야 다른 작업으로
+넘어간다 — 이건 조사가 아니라 실제로 뚫려 있던 구멍이다.

@@ -126,3 +126,71 @@ def test_you_can_still_edit_your_own_team_ticket(client, login_as, world):
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 200, f"자기 팀 티켓을 못 고친다: {r.status_code} {r.text[:160]}"
+
+
+# RBAC 재감사(2026-08-16)로 발견: ensure_in_scope가 `not scope.is_dept`로 판정해 org 범위
+# (admin_scope="org") 관리자를 global과 똑같이 취급했다 — 위 시험들이 지키는 dept 경계와
+# 별개로 이 org 경계는 어떤 시험도 없었다. 상세(읽기)뿐 아니라 PATCH(쓰기)도 같은 함수를
+# 지나므로 함께 확인한다.
+@pytest.fixture()
+def org_notion(fake_http) -> FakeNotionTasksDB:
+    return FakeNotionTasksDB(
+        rows=[
+            task_row(page_id="od-mine", tid=11, title="A조직 티켓", status="진행", people=["notion-od-mine"]),
+            task_row(page_id="od-theirs", tid=12, title="B조직 티켓", status="진행", people=["notion-od-theirs"]),
+        ],
+        projects=[project_row(page_id="p1", name="알파")],
+        projects_db=DEFAULT_PROJECTS_DB,
+    ).install(fake_http)
+
+
+@pytest.fixture()
+def org_world(client, settings, org_notion, make_user, db, app):
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Organization
+    from app.tickets.sync import sync_tickets
+
+    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
+    other_org = Organization(slug="ticket-org-scope-tenant", name="다른 회사", status="active")
+    db.add(other_org)
+    db.flush()
+
+    boss = make_user("odt-boss@goodmit.co.kr", role="admin", display_name="A조직관리자")
+    boss.org_id = DEFAULT_ORG_ID
+    boss.admin_scope = "org"
+    boss.scope_org_id = DEFAULT_ORG_ID
+    mine = make_user("odt-mine@goodmit.co.kr", role="user", display_name="A조직원")
+    mine.org_id = DEFAULT_ORG_ID
+    theirs = make_user("odt-theirs@goodmit.co.kr", role="user", display_name="B조직원")
+    theirs.org_id = other_org.id
+    db.add(UserNotionMapping(user_id=mine.id, notion_user_id="notion-od-mine", status=STATUS_VERIFIED))
+    db.add(UserNotionMapping(user_id=theirs.id, notion_user_id="notion-od-theirs", status=STATUS_VERIFIED))
+    db.commit()
+    with app.state.session_factory() as s:
+        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
+                     now=app.state.clock.now())
+        s.commit()
+
+
+def test_org_scoped_admin_does_not_see_another_organizations_ticket(client, login_as, org_world):
+    login_as("admin", email="odt-boss@goodmit.co.kr")
+    ids = {t["id"] for t in client.get("/api/tickets/team").json()["tickets"]}
+    assert "od-mine" in ids
+    assert "od-theirs" not in ids, "org 범위 관리자에게 다른 조직 티켓이 목록에 그대로 보인다"
+
+
+def test_org_scoped_admin_gets_404_for_another_organizations_ticket(client, login_as, org_world):
+    login_as("admin", email="odt-boss@goodmit.co.kr")
+    assert client.get("/api/tickets/od-mine").status_code == 200
+    assert client.get("/api/tickets/od-theirs").status_code == 404, \
+        "목록에서 가린 다른 조직 티켓이 id 하나로 열린다"
+
+
+def test_org_scoped_admin_cannot_edit_another_organizations_ticket(client, login_as, org_world):
+    csrf = login_as("admin", email="odt-boss@goodmit.co.kr")
+    r = client.patch(
+        "/api/tickets/od-theirs", json={"title": "몰래 수정"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 404, f"org 범위 관리자가 다른 조직 티켓을 수정할 수 있다: {r.status_code} {r.text[:160]}"

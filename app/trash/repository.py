@@ -55,7 +55,10 @@ def list_visible(
     from app.core.scope import visible_user_ids
 
     rows = list_items(db)
-    if getattr(scope, "is_dept", False):
+    # RBAC 재감사(2026-08-16)로 발견: `is_dept`일 때만 걸렀던 원래 조건은 org 범위
+    # (admin_scope='org') 관리자를 global과 똑같이 취급해 다른 조직이 지운 항목까지
+    # 그대로 냈다. 진짜 무제한은 global뿐이므로 그 경우만 건너뛴다.
+    if not getattr(scope, "is_global", False):
         visible = visible_user_ids(db, scope)
         # 이 범위 밖 **활성** 사용자들. 이 사람들이 지운 것만 가린다.
         hidden = _active_user_ids(db) - set(visible)
@@ -83,7 +86,10 @@ def visible_to(db: Session, item: TrashItem, scope) -> bool:
     판정은 `list_visible` 과 **같은 규칙**이어야 한다(두 벌이 되면 한쪽만 고쳐진다):
     다른 팀의 **활성** 사용자가 지운 것만 가린다 — 퇴사자가 지운 것은 남긴다.
     """
-    if not getattr(scope, "is_dept", False):
+    # RBAC 재감사(2026-08-16)로 발견: `is_dept`가 아니면 무조건 통과시키던 조건은 org 범위
+    # 관리자를 global과 똑같이 취급했다 — 여기서는 그 결과가 **되돌릴 수 없는 영구삭제**라
+    # list_visible보다 더 심각하다. 진짜 무제한은 global뿐이다.
+    if getattr(scope, "is_global", False):
         return True
     from app.core.scope import visible_user_ids
 

@@ -190,7 +190,11 @@ def ensure_in_scope(db: Session, page_id: str, viewer: "User | None") -> None:
     from app.tickets.models import TicketCache, split_names   # 지연 import(순환 참조)
 
     scope = build_scope(db, viewer)
-    if not scope.is_dept:
+    # RBAC 재감사(2026-08-16)로 발견: `not scope.is_dept`는 org 범위(admin_scope='org')를
+    # global과 똑같이 취급해 이 함수가 지키는 모든 경로(단건 조회 + 위 호출부 주석이 명시한
+    # 6곳 이상의 쓰기 — 상태변경·댓글·첨부·배정 등)에서 조직 관리자가 다른 조직 티켓에
+    # 그대로 닿았다. 진짜 무제한은 global뿐이다.
+    if scope.is_global:
         return
     row = db.execute(
         select(TicketCache).where(TicketCache.notion_page_id == page_id)
@@ -304,7 +308,10 @@ def _scope_assignee_ids(db: Session, viewer) -> frozenset[str] | None:
     from app.core.scope import build_scope, visible_user_ids
 
     scope = build_scope(db, viewer)
-    if not scope.is_dept:
+    # RBAC 재감사(2026-08-16): ensure_in_scope와 같은 자리에서 같은 이유로 정정 — org
+    # 범위를 global처럼 무제한 취급하면 목록 SQL 필터가 이 함수가 존재하는 이유(페이지네이션
+    # 뒤가 아니라 SQL 단에서 거르기)를 org 관리자에게만 건너뛰게 된다.
+    if scope.is_global:
         return None
     visible = visible_user_ids(db, scope) or frozenset()
     return frozenset(
@@ -463,7 +470,10 @@ def _drop_out_of_scope(db: Session, views: list[dict], viewer) -> list[dict]:
     from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
 
     scope = build_scope(db, viewer)
-    if not scope.is_dept:
+    # RBAC 재감사(2026-08-16): 위 ensure_in_scope/_scope_assignee_ids와 같은 정정 — 이 함수는
+    # 팀 티켓 목록·스프린트/어시스턴트 집계가 쓴다(위 docstring), org 범위를 무제한 취급하면
+    # 그 경로들이 다른 조직 티켓까지 그대로 낸다.
+    if scope.is_global:
         return views
     visible = visible_user_ids(db, scope)
     return [

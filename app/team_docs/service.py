@@ -144,7 +144,12 @@ def doc_in_scope(db: Session, doc, viewer) -> bool:
     from app.tickets.service import _verified_id_to_user
 
     scope = build_scope(db, viewer)
-    if not scope.is_dept:
+    # RBAC 재감사(2026-08-16)로 발견: `not scope.is_dept`는 org 범위(admin_scope='org')를
+    # global과 똑같이 취급해 조직 관리자에게 전 조직 문서를 열어 줬다(휴지통 이동·비공개
+    # 지정·댓글 등 쓰기 경로까지 포함 — get_doc_in_scope가 이 함수 하나로 전부 모인다).
+    # 진짜 무제한은 global뿐이다. org/dept 구분은 아래 visible_user_ids(scope_filter를
+    # 경유)가 이미 올바르게 하므로, 여기서는 global만 조기 반환한다.
+    if scope.is_global:
         return True
     nids = [n for n in split_names(getattr(doc, "author_notion_ids", "") or "") if n]
     if not nids:

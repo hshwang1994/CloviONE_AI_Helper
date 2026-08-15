@@ -1943,3 +1943,81 @@ pageTitle 사이라 기존 토큰과 안 맞는다", "이 h2가 페이지 제목
 Phase가 풀 수 있는 문제가 아니라, 애초에 이 기준을 쓴 Audit이 "6단계 + 소수의
 정당한 예외"를 허용할 생각이었는지 결정해야 하는 자리다 — 다음 Audit Cycle이나
 사람 검토에서 acceptance_criteria(3)의 문구 자체를 재확인해야 한다.
+
+## D-79 (2026-08-16) — SEC-34: `is_dept`만 보고 `is_org`를 놓치는 형제-함수 결함이 세 모듈에 더 있었다
+
+### 배경
+
+전용 `security-reviewer` 서브에이전트에게 이번 세션에서 아직 안 본 모듈의 RBAC를
+독립적으로 재감사시켰다(`app/team_docs/`). 결과: `doc_in_scope`(`app/team_docs/
+service.py`)가 `scope = build_scope(db, viewer); if not scope.is_dept: return True`
+로 판정하고 있었다 — `Scope`에 `global`/`org`/`dept` 세 갈래가 있는데(`core/scope.py`)
+"dept가 아니면"이라는 조건은 `org`도 `global`과 똑같이 무제한으로 만든다. `admin_scope
+='org'`(조직 관리자)는 계약상 **자기 조직만** 봐야 하는데(`core/authz.py:120`), 이
+버그로 **전 조직**의 문서를 보고, 휴지통으로 보내고, 비공개 지정하고, 댓글을 달 수
+있었다(`get_doc_in_scope`가 읽기·쓰기 전부를 이 함수 하나로 모은다).
+
+### 왜 더 찾아봤는가
+
+에이전트 보고서가 스스로 지적했다: `app/tickets/service.py`의 형제 함수들이 **같은
+패턴**을 쓰는데, `drop_out_of_scope_dtos`는 이미 `UA-02`로 고쳐져 있었지만(주석에
+"org 범위 뷰어는 그대로 통과했다"고 스스로 남겨 둠) `ensure_in_scope`·
+`_scope_assignee_ids`는 안 고쳐져 있다고 했다. "한 곳에서 발견한 패턴은 저장소
+전체에서 같은 패턴을 찾는다"(CLAUDE.md §4)에 따라 `grep -rn "not scope\.is_dept\|
+\.is_dept\b" app/`로 전수 확인했다.
+
+### 찾은 것 — 결함 4곳 + 오탐 후보 2곳
+
+**진짜 결함(고침)**:
+1. `app/team_docs/service.py::doc_in_scope` — 읽기 + 쓰기(휴지통·비공개·댓글) 전부
+2. `app/tickets/service.py::ensure_in_scope` — 상세 + 쓰기 6곳 이상(상태변경·댓글·
+   첨부·배정 등, 호출부 주석이 이미 "3순위 IDOR"라고 스스로 표시해 뒀었다)
+3. `app/tickets/service.py::_scope_assignee_ids` — 팀 티켓 목록 SQL 필터
+4. `app/tickets/service.py::_drop_out_of_scope` — 팀 티켓 목록 파이썬 그물(스프린트/
+   어시스턴트 집계가 씀)
+5. `app/trash/repository.py::list_visible` — 휴지통 목록
+6. `app/trash/repository.py::visible_to` — 휴지통 단건(복원·**영구삭제**) — 여기가
+   가장 심각하다. 되돌릴 수 없다.
+
+**오탐 후보(직접 대조해 결함 아님으로 확정, 고치지 않음)**:
+- `app/search/scoping.py:80-92`(`scope_clause`) — 이미 `is_org`/`is_dept` 두 분기를
+  올바르게 갖고 있다. 이 기능의 **정답 참조 구현**이다.
+- `app/search/scoping.py:101`(`owner_gate`) — `not scope.is_dept`로 보이지만, 모듈
+  자신의 문서(`scoping.py:1-19` 표)가 "조직(org): scope_filter의 org 분기를 그대로
+  SQL로"라고 명시한다 — org 제한은 이 함수가 아니라 **그 앞단 SQL 절**(`scope_clause`)
+  에서 이미 걸린다. `owner_gate`는 dept 전용 "담당자 집합" 2차 정밀화만 담당하도록
+  **의도적으로** 설계된 것이지, 빠뜨린 게 아니다.
+
+이 마지막 확인이 중요했다 — 표면적으로 같은 문자열(`is_dept`)이 걸려도 전부 같은
+결함은 아니다. `search/scoping.py`를 무작정 고쳤다면 이미 올바른 코드를 망가뜨릴
+뻔했다.
+
+### 왜 이런 모양으로 반복됐는가
+
+`core/scope.py`는 `scope_filter`/`scope_allows_user`/`visible_user_ids`라는 **이미
+올바른 3갈래 판정 함수**를 갖고 있다. 그런데 문서·티켓·휴지통의 개별 판정 함수들은
+이 공용 함수를 온전히 위임하는 대신 **자기 나름의 지름길**(`if not is_dept: return
+True`)을 앞에 붙였다 — 아마 "우리 제품엔 dept 범위 관리자만 실제로 있다"는 시점의
+가정이 굳어진 것으로 보인다. `sprints/service.py::_visible_ids`(이미 UA-02로 고쳐짐)
+의 주석이 정확한 교훈을 남겨 뒀다: "`visible_user_ids` 자신이 이미 전역일 때만
+`None`을 주므로 그 판정 하나로 충분하다 — 여기서 다시 종류를 따질 필요가 없다."
+즉 **올바른 고정은 지름길을 없애는 것**이지 새 분기를 추가하는 게 아니다 — 6곳
+전부 이 원칙으로 고쳤다(`if scope.is_global: return <무제한>`, 그 외엔 항상 아래로
+내려가 이미 올바른 `visible_user_ids`/`scope_filter`에 맡긴다).
+
+### 검증
+
+읽기 전용 재확인(TEST SERVER에는 손대지 않음, 로컬 백엔드 테스트로만) — 6곳 전부
+신규 회귀(8건: `test_document_scope.py` 3 · `test_ticket_detail_scope.py` 3 ·
+`test_trash_scope.py` 2) + revert-to-verify. 되돌렸을 때 실제로 재현된 것: 문서
+휴지통 이동이 다른 조직 문서에 `200`(성공) · 티켓 `PATCH`가 다른 조직 티켓에 `200`
+· 휴지통 목록에 다른 조직 항목이 노출 · 휴지통 영구삭제 시도가 스코프 체크를
+통과해 더 깊은 코드(존재하지 않는 시크릿 참조로 `503`)까지 도달(고친 버전에서는
+스코프에서 즉시 `404`로 막혀 거기까지 못 감 — 이 대비 자체가 막힘 지점이 옮겨갔다는
+추가 증거). 전부 확인 후 정상 상태로 복원, `tests/security/` 전체 green.
+
+### 남은 것
+
+이 수정은 로컬 코드에만 있다 — **TEST SERVER는 아직 취약한 버전을 그대로 돌리고
+있다.** 이 세션의 다음 단계로 백엔드 재배포가 필요하다(Critical 등급 RBAC 수정이라
+프런트 변경과 달리 다음 정기 배포까지 미루지 않는다).

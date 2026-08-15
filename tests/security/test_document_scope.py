@@ -90,3 +90,57 @@ def test_the_detail_follows_the_same_rule(client, login_as, docs):
 def test_a_global_admin_still_sees_everything(client, login_as, docs):
     login_as("system_admin")
     assert {"우리팀 문서", "남의팀 문서", "작성자 미해석 문서"} <= _titles(client)
+
+
+# RBAC 재감사(2026-08-16)로 발견: doc_in_scope가 `not scope.is_dept`로 판정해 org 범위
+# (admin_scope="org") 관리자를 global과 똑같이 취급했다 — 위 시험들이 잡는 dept 경계와
+# 달리 이 org 경계는 어떤 시험도 없었다. 목록·상세뿐 아니라 휴지통 이동 같은 쓰기도
+# get_doc_in_scope 하나로 모이므로 여기서 함께 확인한다.
+@pytest.fixture()
+def org_docs(db, make_user):
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Organization
+    from app.team_docs.models import DocumentCache
+
+    other_org = Organization(slug="org-scope-tenant", name="다른 회사", status="active")
+    db.add(other_org)
+    db.flush()
+
+    boss = make_user("orgdoc-boss@goodmit.co.kr", role="admin", display_name="A조직관리자")
+    boss.org_id = DEFAULT_ORG_ID
+    boss.admin_scope = "org"
+    boss.scope_org_id = DEFAULT_ORG_ID
+    mine = make_user("orgdoc-mine@goodmit.co.kr", role="user", display_name="A조직원")
+    mine.org_id = DEFAULT_ORG_ID
+    theirs = make_user("orgdoc-theirs@goodmit.co.kr", role="user", display_name="B조직원")
+    theirs.org_id = other_org.id
+    db.add(UserNotionMapping(user_id=mine.id, notion_user_id="notion-org-mine", status=STATUS_VERIFIED))
+    db.add(UserNotionMapping(user_id=theirs.id, notion_user_id="notion-org-theirs", status=STATUS_VERIFIED))
+    db.add_all([
+        DocumentCache(notion_page_id="odm", title="A조직 문서", author_notion_ids="notion-org-mine"),
+        DocumentCache(notion_page_id="odt", title="B조직 문서", author_notion_ids="notion-org-theirs"),
+    ])
+    db.commit()
+
+
+def test_org_scoped_admin_does_not_see_another_organizations_document(client, login_as, org_docs):
+    login_as("admin", email="orgdoc-boss@goodmit.co.kr")
+    titles = _titles(client)
+    assert "A조직 문서" in titles
+    assert "B조직 문서" not in titles, "org 범위 관리자에게 다른 조직 문서가 그대로 보인다"
+
+
+def test_org_scoped_admin_gets_404_for_another_organizations_document_by_id(client, login_as, org_docs):
+    login_as("admin", email="orgdoc-boss@goodmit.co.kr")
+    assert client.get("/api/team-docs/odm").status_code == 200
+    assert client.get("/api/team-docs/odt").status_code == 404, \
+        "목록에서 가린 다른 조직 문서가 id 하나로 열린다"
+
+
+def test_org_scoped_admin_cannot_trash_another_organizations_document(client, login_as, org_docs):
+    """읽기뿐 아니라 쓰기(휴지통 이동)도 get_doc_in_scope 하나를 지난다 — 범위가
+    뚫리면 다른 조직 문서를 지울 수 있다."""
+    token = login_as("admin", email="orgdoc-boss@goodmit.co.kr")
+    r = client.post("/api/team-docs/odt/trash", headers={"X-CSRF-Token": token})
+    assert r.status_code == 404, f"org 범위 관리자가 다른 조직 문서를 휴지통으로 보낼 수 있다: {r.status_code} {r.text}"
