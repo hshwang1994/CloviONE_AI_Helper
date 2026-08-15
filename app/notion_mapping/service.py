@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import is_write_conflict
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.notion_mapping.models import (
     SOURCE_MANUAL,
@@ -36,7 +37,7 @@ MAPPING_WORKFLOW_NAME = "notion-user-mapping"
 _NOTION_USER_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
 
-_GET_OR_CREATE_RETRIES = 5
+_GET_OR_CREATE_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES  # PA-RC-0008: 예전엔 5, 지터 없음
 
 
 def get_or_create_mapping(db: Session, user_id: str) -> UserNotionMapping:
@@ -63,9 +64,15 @@ def get_or_create_mapping(db: Session, user_id: str) -> UserNotionMapping:
         except (IntegrityError, OperationalError) as exc:
             if not is_write_conflict(exc):
                 raise
-            db.commit()
             if attempt == _GET_OR_CREATE_RETRIES - 1:
-                raise
+                # PA-RC-0008: 예산을 다 썼는데도 여전히 안 보이면(재조회에서도 승자의
+                # 커밋이 안 보이는 낡은 스냅샷이 반복) 처리 안 된 예외를 그대로 올려
+                # 500을 내던 자리다 — 사용자에게 뜻이 통하는 409로 바꾼다.
+                raise ConflictError(
+                    "사용자 매핑을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
+                ) from None
+            db.commit()
+            time.sleep(write_conflict_backoff(attempt))
     raise AssertionError("unreachable")  # pragma: no cover
 
 

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import difflib
 import json
+import time
 from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import is_write_conflict
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.prompts.models import (
     STATUS_ARCHIVED,
@@ -120,7 +121,7 @@ def transition(
     return row
 
 
-_NEW_VERSION_RETRIES = 5
+_NEW_VERSION_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
 
 
 def new_version_from(
@@ -146,7 +147,11 @@ def new_version_from(
     # 시도하고, 지면 커밋(스냅샷을 새로 뜬다 - CORE-13, "낡은 스냅샷은 SAVEPOINT
     # 롤백으로도 안 새로고침된다")한 뒤 버전 번호를 다시 계산해 재시도한다. router.py의
     # create()와 달리 이건 재시도만으로 실제로 풀리는 경합이라(다음 루프의 next_version()
-    # 이 다른 번호를 준다) 사용자에게 409를 보여줄 이유가 없다.
+    # 이 다른 번호를 준다) 사용자에게 409를 보여줄 이유가 없다 — **재시도가 성공하는 한**
+    # 그렇다는 뜻이다. PA-RC-0008: 예산(예전엔 5, 지터 없음)을 소진하면 이 이유가 더는
+    # 성립하지 않는데도 raw OperationalError/IntegrityError를 그대로 올려 500이 났다
+    # (8-way 경합 실측 약 40%). auth/router.py 로그인 재시도의 실측값(10회+지터)으로
+    # 예산을 올리고, 소진 시에는 사용자에게 뜻이 통하는 409로 바꾼다.
     for attempt in range(_NEW_VERSION_RETRIES):
         version = next_version(db, model, name)
         if is_prompt:
@@ -174,9 +179,14 @@ def new_version_from(
                 db.flush()
             return copy
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc) or attempt == _NEW_VERSION_RETRIES - 1:
+            if not is_write_conflict(exc):
                 raise
+            if attempt == _NEW_VERSION_RETRIES - 1:
+                raise ConflictError(
+                    "다른 새 버전 요청과 계속 겹쳐 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                ) from None
             db.commit()
+            time.sleep(write_conflict_backoff(attempt))
     raise AssertionError("unreachable")  # pragma: no cover
 
 

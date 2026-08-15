@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.db import make_engine, make_session_factory
 
@@ -119,3 +120,45 @@ def test_concurrent_create_approval_same_payload_never_duplicates(db_path):
             assert count == 1
     finally:
         engine.dispose()
+
+
+def test_create_approval_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
+    """PA-RC-0008 — 예산을 다 쓰고도 승자를 못 찾으면 raw 500(처리 안 된
+    IntegrityError)이 아니라 깨끗한 409여야 한다. 실 스레드 경합 대신 `db.add()`가
+    항상 (가짜) `IntegrityError`로 실패하게 고정한다 — 실제로는 아무 것도 추가되지
+    않으므로 "승자 재조회"도 매번 빈 손으로 끝나 결정적으로 예산을 소진한다.
+    """
+    import app.approvals.service as svc  # noqa: F401 — request_type 실행기 등록 부수효과
+    from app.core.errors import ConflictError
+    from app.users.models import ROLE_ADMIN, User
+
+    user = User(
+        email="exhaust-racer@goodmit.co.kr",
+        display_name="소진 레이서",
+        password_hash="not-a-real-hash",
+        role=ROLE_ADMIN,
+        active=True,
+    )
+    db.add(user)
+    db.commit()
+
+    attempts = []
+
+    def _add_that_always_conflicts(_instance):
+        attempts.append(1)
+        raise IntegrityError("INSERT INTO approvals", {}, Exception("UNIQUE constraint failed (fake)"))
+
+    monkeypatch.setattr(db, "add", _add_that_always_conflicts)
+    monkeypatch.setattr(svc.time, "sleep", lambda _seconds: None)  # 재시도 횟수/결과만 본다 — 실제로 자면 느려진다
+
+    with pytest.raises(ConflictError):
+        svc.create_approval(
+            db,
+            request_type="schedule.enable",
+            object_type="schedule",
+            object_id="sched-exhaust-1",
+            requested_by=user,
+            payload={"definition": {"cron_expression": "0 * * * *"}},
+            now=datetime(2026, 8, 15, 0, 0, 0),
+        )
+    assert len(attempts) == svc._CREATE_RETRIES, f"정확히 예산만큼 시도해야 한다: {attempts}"

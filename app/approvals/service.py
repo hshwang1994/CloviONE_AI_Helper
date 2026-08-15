@@ -10,6 +10,7 @@ self_approval_allowed feature flag is on.
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timedelta
 from typing import Callable
 
@@ -28,7 +29,7 @@ from app.approvals.models import (
     Approval,
 )
 from app.core.authz import CONSOLE_WRITE_ROLES
-from app.core.db import is_write_conflict
+from app.core.db import is_write_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.notifications.service import notify_approvers, notify_user
 from app.users.models import ROLE_SYSTEM_ADMIN, User
@@ -144,7 +145,8 @@ def needs_approval(actor: User) -> bool:
 
 # 동시에 여러 요청이 같은 (request_type, object_id, payload)로 경합할 때(실측: 8-way)
 # 한 번의 실패-재조회로 안 끝날 수 있다 — `app/team_chat/service.py`의 `_SEQ_RETRIES`와
-# 같은 관용.
+# 같은 관용. PA-RC-0008: 공용 기본값(`app/core/db.py::DEFAULT_WRITE_CONFLICT_RETRIES`
+# = 10)보다 일부러 크다 — 이 경로는 관측된 경합이 더 잦다.
 _CREATE_RETRIES = 12
 
 
@@ -243,8 +245,15 @@ def create_approval(
             if winner is not None:
                 return winner
             if _attempt == _CREATE_RETRIES - 1:
-                raise
+                # PA-RC-0008: 예산을 다 썼는데 승자도 못 찾으면(재조회 시점에도 아직
+                # 아무도 안 커밋한 것처럼 보이는 낡은 스냅샷이 반복) 처리 안 된
+                # IntegrityError/OperationalError를 그대로 올려 500을 내던 자리다 —
+                # 사용자에게 뜻이 통하는 409로 바꾼다.
+                raise ConflictError(
+                    "다른 승인 요청과 계속 겹쳐 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+                ) from None
             # 아직 아무도 안 이겼다(내 스냅샷이 낡아 그렇게 보일 뿐) — 다시 시도한다.
+            time.sleep(write_conflict_backoff(_attempt))
     else:
         raise AssertionError("unreachable")  # pragma: no cover
     notify_approvers(

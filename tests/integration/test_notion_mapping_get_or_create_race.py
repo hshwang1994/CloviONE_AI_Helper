@@ -17,6 +17,7 @@ error (mirrors app/team_docs/service.py::record_view).
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.db import make_engine, make_session_factory
 
@@ -88,3 +89,38 @@ def test_concurrent_get_or_create_mapping_never_duplicates(db_path):
             assert again.id == ids[0]
     finally:
         engine.dispose()
+
+
+def test_get_or_create_mapping_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
+    """PA-RC-0008 — 예산을 다 쓰고도 승자가 안 보이면 raw 500(처리 안 된
+    IntegrityError)이 아니라 깨끗한 409여야 한다. 실 스레드 경합 대신 `db.add()`가
+    항상 (가짜) `IntegrityError`로 실패하게 고정한다 — 실제로는 아무 것도 추가되지
+    않으므로 매 반복의 "이미 있나" 재조회도 빈 손으로 끝나 결정적으로 예산을 소진한다.
+    """
+    import app.notion_mapping.service as svc
+    from app.core.errors import ConflictError
+    from app.users.models import ROLE_USER, User
+
+    user = User(
+        email="exhaust-mapping-racer@goodmit.co.kr",
+        display_name="매핑 소진 레이서",
+        password_hash="not-a-real-hash",
+        role=ROLE_USER,
+        active=True,
+    )
+    db.add(user)
+    db.commit()
+    user_id = user.id
+
+    attempts = []
+
+    def _add_that_always_conflicts(_instance):
+        attempts.append(1)
+        raise IntegrityError("INSERT INTO user_notion_mappings", {}, Exception("UNIQUE constraint failed (fake)"))
+
+    monkeypatch.setattr(db, "add", _add_that_always_conflicts)
+    monkeypatch.setattr(svc.time, "sleep", lambda _seconds: None)  # 재시도 횟수/결과만 본다 — 실제로 자면 느려진다
+
+    with pytest.raises(ConflictError):
+        svc.get_or_create_mapping(db, user_id)
+    assert len(attempts) == svc._GET_OR_CREATE_RETRIES, f"정확히 예산만큼 시도해야 한다: {attempts}"

@@ -137,3 +137,41 @@ def test_concurrent_new_version_all_succeed_with_distinct_versions(app, login_as
     # (409로 물러나는 게 아니라) — 그리고 새로 만든 버전 번호는 서로 겹치지 않아야 한다.
     assert all(c == 200 for c in codes), f"500/409 없이 전부 성공해야 한다: {codes}"
     assert len(set(versions)) == len(versions), f"버전 번호가 겹쳤다: {versions}"
+
+
+def test_new_version_from_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
+    """PA-RC-0008 — 예산을 다 쓰면 raw 500(처리 안 된 IntegrityError)이 아니라 깨끗한
+    409여야 한다. 실 스레드 타이밍 경주 대신 `next_version()`이 항상 이미 있는 버전
+    번호(1)를 돌려주게 고정해 **매 시도**가 `uq_prompts_name_version`과 결정적으로
+    부딪히게 만든다 — 8-way 타이밍 경주보다 재현이 확실하다(예전엔 예산 5·지터 없이
+    이 경로가 처리 안 된 `IntegrityError`를 그대로 500으로 흘렸다).
+    """
+    from app.core.errors import ConflictError
+    from app.prompts import service as svc
+    from app.prompts.models import STATUS_DRAFT, Prompt
+
+    base = Prompt(name="exhaust-prompt", version=1, content="v1", status=STATUS_DRAFT)
+    db.add(base)
+    db.commit()
+
+    attempts = []
+
+    def _always_colliding_version(_db, _model, _name):
+        attempts.append(1)
+        return 1
+
+    monkeypatch.setattr(svc, "next_version", _always_colliding_version)
+    monkeypatch.setattr(svc.time, "sleep", lambda _seconds: None)  # 재시도 횟수/결과만 본다 — 실제로 자면 느려진다
+
+    with pytest.raises(ConflictError):
+        svc.new_version_from(db, base, created_by=None)
+    assert len(attempts) == svc._NEW_VERSION_RETRIES, f"정확히 예산만큼 시도해야 한다: {attempts}"
+
+
+def test_new_version_from_retry_budget_is_the_shared_default():
+    """PA-RC-0008 — 새 공용 기본값(10, auth.py 로그인 실측)을 실제로 쓰는지 못박는다
+    (예전엔 지터 없이 5회뿐이라 8-way 경합에서 40% 확률로 500이 났다)."""
+    from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES
+    from app.prompts import service as svc
+
+    assert svc._NEW_VERSION_RETRIES == DEFAULT_WRITE_CONFLICT_RETRIES == 10

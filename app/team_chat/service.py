@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 
 from sqlalchemy import select
@@ -15,7 +16,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import people
-from app.core.db import is_write_conflict
+from app.core.db import is_write_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.presence import PRESENCE_THROTTLE_SECONDS, should_touch
 from app.notifications.service import notify_user
@@ -41,7 +42,9 @@ from app.users.models import User
 MAX_BODY = 2000
 MAX_TITLE = 200
 MAX_MEMBERS = 50  # 그룹 방 정원(스키마 제한이 아니라 화면·알림 팬아웃의 상한)
-_SEQ_RETRIES = 12  # 전체 채팅은 seq 경쟁이 잦다 — 놀이(5)보다 넉넉히
+# PA-RC-0008: 공용 기본값(`app/core/db.py::DEFAULT_WRITE_CONFLICT_RETRIES`=10)보다
+# 일부러 크다 — 전체 채팅은 seq 경쟁이 특히 잦다.
+_SEQ_RETRIES = 12
 
 # 초대 알림 유형 — 프런트 TYPE_KO / RELATED_DESTINATIONS 와 짝이다.
 NOTI_CHAT_INVITED = "chat_invited"
@@ -64,7 +67,7 @@ def dm_key(a: str, b: str) -> str:
 
 def _append_message(db: Session, room: ChatRoom, *, kind: str, sender_id: str | None, body: str,
                     client_message_id: str | None, now: datetime) -> ChatMessage:
-    for _ in range(_SEQ_RETRIES):
+    for attempt in range(_SEQ_RETRIES):
         seq = room.event_seq + 1
         msg = ChatMessage(
             room_id=room.id, seq=seq, sender_user_id=sender_id, kind=kind,
@@ -82,6 +85,8 @@ def _append_message(db: Session, room: ChatRoom, *, kind: str, sender_id: str | 
             if not is_write_conflict(exc):
                 raise
             db.refresh(room)  # 다른 요청이 먼저 seq를 붙였다 — 다시 계산
+            if attempt < _SEQ_RETRIES - 1:
+                time.sleep(write_conflict_backoff(attempt))  # PA-RC-0008: 지터 없이 즉시 재시도만 하면 계속 부딪힌다
     raise ConflictError("메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
 

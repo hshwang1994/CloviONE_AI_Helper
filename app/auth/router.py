@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import functools
-import random
 import time
 from datetime import timedelta, timezone
 from urllib.parse import quote as _urlquote
@@ -17,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit, record_audit_from_request
 from app.core.config import Settings
-from app.core.db import is_write_conflict
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -473,7 +472,10 @@ def login(
     # `test_10_concurrent_logins`, 10-way 동시 로그인에서 재현). `db.rollback()`으로
     # 스냅샷을 새로 뜨고 이 블록만 다시 시도한다 — `session_service.create()`는 매번
     # 새 토큰을 만들 뿐이라(부작용 없음) 재시도가 안전하다.
-    _LOGIN_WRITE_RETRIES = 10  # 실측(10-way 동시 로그인 스트레스 시험)으로 정한 값 — 3은 부족했다.
+    # 실측(10-way 동시 로그인 스트레스 시험)으로 정한 값 — 3은 부족했다. PA-RC-0008: 이
+    # 값(10회+지터)이 `app/core/db.py::DEFAULT_WRITE_CONFLICT_RETRIES`/`write_conflict_backoff`로
+    # 승격된 원본이다 — 값을 두 곳에 따로 유지하지 않도록 여기서도 그 공용 상수를 쓴다.
+    _LOGIN_WRITE_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
     for _attempt in range(_LOGIN_WRITE_RETRIES):
         try:
             user.failed_login_count = 0
@@ -503,7 +505,7 @@ def login(
             db.rollback()
             # 지터를 준다 — 여러 스레드가 즉시 재시도만 하면 서로 계속 다시 부딪힌다
             # (실측: 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다).
-            time.sleep(random.uniform(0.01, 0.05) * (_attempt + 1))
+            time.sleep(write_conflict_backoff(_attempt))
             user = get_user_by_email(db, email)  # 롤백으로 만료됨 — 다시 확실히 가져온다
 
     if _is_json_request(request):

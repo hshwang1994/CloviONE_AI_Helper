@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import json
 import secrets
+import time
 from datetime import datetime, timedelta
 
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import is_write_conflict
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, ValidationAppError
 from app.core.presence import should_touch
 from app.games import repository
@@ -67,9 +68,13 @@ def _timer_from_config(config: dict, game_type: str, now: datetime) -> tuple[int
     return timer, (now + timedelta(seconds=timer)).isoformat()
 
 
+# PA-RC-0008: 이전엔 이름 없는 상수 5(지터 없음)였다 — 공용 기본값으로 통일한다.
+_APPEND_EVENT_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
+
+
 def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: dict, now: datetime) -> GameEvent:
     """방 이벤트를 순번을 붙여 추가한다(동시 추가 시 유니크 충돌을 흡수하고 재시도)."""
-    for _ in range(5):
+    for attempt in range(_APPEND_EVENT_RETRIES):
         seq = room.event_seq + 1
         ev = GameEvent(
             room_id=room.id, seq=seq, kind=kind, actor_user_id=actor_id,
@@ -86,6 +91,8 @@ def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: 
             if not is_write_conflict(exc):
                 raise
             db.refresh(room)  # 다른 요청이 먼저 붙였다 — 순번 다시 계산
+            if attempt < _APPEND_EVENT_RETRIES - 1:
+                time.sleep(write_conflict_backoff(attempt))
     raise ConflictError("이벤트를 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
 

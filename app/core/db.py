@@ -16,6 +16,7 @@ busy_timeout)으로 잠금 경합을 재현할 방법이 없었다. 이제 인�
 
 from __future__ import annotations
 
+import random
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
@@ -177,6 +178,40 @@ def is_write_conflict(exc: BaseException) -> bool:
         return (code & 0xFF) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
     message = str(orig).lower()
     return any(m in message for m in _SQLITE_WRITE_CONFLICT_MESSAGES)
+
+
+# PA-RC-0008: `is_write_conflict()` 재시도 관용(13곳 이상)이 각자 다른 예산/지터로
+# 손으로 따로 쓰여 있었다 — 가장 약한 곳(`app/prompts/service.py::new_version_from`,
+# 예산 5·지터 없음)이 8-way 경합에서 40% 확률로 재시도를 소진해 처리 안 된
+# `OperationalError`를 그대로 500으로 흘렸다. `app/auth/router.py`의 로그인 재시도가
+# **실측으로 검증된** 유일한 값이다(10-way 동시 로그인 스트레스 시험 — 지터 없이 10회
+# 재시도로도 5번 중 1번은 여전히 실패했다). 그 값을 여기 한 곳으로 승격해 새 호출부의
+# 기본값으로 삼는다 — 다르게 써야 하면(예: `approvals`/`team_chat`은 관측된 경합이 더
+# 잦아 12) 그 이유를 호출부 주석에 남긴다(§13 완료 기준이 요구하는 "왜 다른가"다).
+#
+# 승격하지 않는 것: 재시도 **루프 구조 자체**(SAVEPOINT 후 실패 시 `db.commit()`으로
+# 스냅샷을 새로 뜨는지, `db.rollback()`+재조회인지, `db.refresh()`로 특정 컬럼만
+# 새로 읽는지)는 호출부마다 무엇을 다시 계산해야 하는지가 달라 하나로 묶을 수 없다 —
+# 묶으려 하면 SAVEPOINT/outer transaction 경계(§3-10)를 억지로 흐리게 된다. 여기서
+# 공용화하는 것은 "몇 번, 얼마나 쉬고" 뿐이다. `app/core/sessions.py::_commit_best_effort`
+# (예산 2, 실패해도 조용히 넘어감)는 순수 부수효과 커밋이라 의도적으로 이 기본값을
+# 안 쓴다 — Handoff 문서 자체가 "일괄 치환 전에 개별 판단할 것"이라고 못박았다.
+DEFAULT_WRITE_CONFLICT_RETRIES = 10
+
+
+def write_conflict_backoff(attempt: int) -> float:
+    """`attempt`번째 재시도 전에 잘 시간(초). `auth/router.py`가 실측으로 정한 지터
+    공식 그대로다 — 여러 스레드가 지터 없이 즉시 재시도만 하면 서로 계속 다시 부딪힌다.
+    """
+    return random.uniform(0.01, 0.05) * (attempt + 1)
+
+
+# PA-RC-0008 regression_risk: 예산을 늘리고 sleep을 넣으면 경합 시 응답 지연이 늘어난다
+# — 상한을 명시적으로 계산해 둔다. 예산 N이면 마지막 시도 전까지 (N-1)번 쉬고, 매번 최악
+# `write_conflict_backoff`의 상한 `0.05*(attempt+1)`를 쓴다고 가정하면 최대 누적 대기는
+# `0.05 * N*(N-1)/2` 초다. 기본값 N=10 → 최대 2.25초. `approvals`/`team_chat`처럼 일부러
+# 12를 쓰는 곳은 최대 3.3초. 둘 다 `deploy/nginx/*.conf`의 `proxy_read_timeout 180s`에
+# 비하면 무시할 수준(<2%)이라 별도 타임아웃 조정은 필요 없다.
 
 
 # SQLite caps host variables (default ~32766, older builds 999); an `id IN (...)`/
