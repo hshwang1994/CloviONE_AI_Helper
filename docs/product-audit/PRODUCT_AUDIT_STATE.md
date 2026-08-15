@@ -81,12 +81,30 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 
 ## 4. 현재 Blocker
 
-| Blocker | 상태 |
+**2026-08-15 COLD 재접지에서 이 표를 정정했다.** 이전 판은 "TEST 서버 접근 불가"라고 적었는데,
+Supervisor가 이제 `test_server_ssh=ok` 와 승인된 sudo 자격증명 경로(환경변수 →
+stdin 전용)를 주고 프롬프트 7절이 관측 권한을 명시한다. **즉 그 Blocker는 해소됐고, 남은 것은
+Blocker가 아니라 '아직 안 한 일'이다.** 낡은 Blocker를 그대로 두면 다음 회차가 할 수 있는 일을
+안 한다.
+
+| 항목 | 상태 |
 |---|---|
-| 승인된 TEST SERVER(`10.100.64.X`) 배포·실환경 확인 | **이 Audit의 범위 밖.** 자격증명을 비대화형으로 쓰지 않는다(프롬프트 7절). PHASE 2 담당 |
-| 실제 Chrome 렌더/콘솔/네트워크 관찰 | 이 Runner에 브라우저 자동화 도구 없음 → `skill_gap: chrome-devtools` 로 기록. N/O/M축 결론은 코드 근거까지 |
-| 인증이 필요한 로컬 API 실호출 | 자격증명 없음. 기존 pytest 스위트(TestClient)를 실행 증거로 쓴다 |
+| 실제 Chrome 렌더·콘솔·네트워크 관찰 | **BLOCKED 아님 · 미수행.** 승인된 TEST 서버에 브라우저를 설치해 관찰하는 것을 프롬프트 7절이 허용한다. 다음 Round 최우선 후보 |
+| 인증이 필요한 API 실호출 | **BLOCKED 아님 · 미수행.** 프롬프트 7절이 QA 계정·테스트 데이터 생성을 허용한다. 로컬 dev 서버는 `:8099`에 살아 있다(`/readyz` 200, 2026-08-15 확인) |
+| 배포·재배포·롤백 실행 | **의도적으로 안 한다.** 자격증명 문제가 아니라 **역할 경계**다 — PHASE 2의 일이다 |
+| `PA-RC-0003` 자격증명 회전·`stash drop` | **사람만 가능.** 되돌릴 수 없는 운영 결정이고, drop은 사람이 검토하기 전에 증거를 지우는 일이다 |
+| 워킹트리의 사용자 미완성 변경 5개 | 건드리지 않는다(`AppShell.jsx`·`CommandPalette.jsx`·`command-palette.test.jsx`·`lib/recentNav.js`·`lib/recent-nav.test.js`). 이 파일들에 대한 판단은 미완성 변경 위에서 내려진 것일 수 있다 — REPORT §6에 한계로 기록 |
 
 ## 5. Blind Re-Audit 기록
 
 아직 없음. (형식: `blind_pass=<회차> cycle_id=<Cycle> new_critical_high_categories=<정수> at=<ISO8601>`)
+
+## 6. 2026-08-15 COLD 재접지에서 확인한 것
+
+- 이전 회차의 Audit 문서 4종이 그대로 남아 있고 내용이 유효하다(`git ls-files` 로 추적 확인).
+  Coverage 요약 블록도 표와 일치한다 — 이어서 진행했다.
+- **`git stash@{0}` 에 TEST 서버 SSH/sudo 평문 비밀번호가 있다** → `PA-RC-0003`(Critical) 신규.
+  추적 중인 `CLAUDE.md`(HEAD)와 워킹트리는 깨끗하다. 값을 문서·로그에 복제하지 않았다.
+- `ux-writing` Skill을 **실제로 적용**해 `PA-F-011`(실패 문구의 85%가 회복 경로 없음, 3요소를
+  갖춘 것 0건)을 도출했고, 그 결과 `PA-RC-0002`를 Medium → **High**로 재분류했다.
+- 필수 문서 7종을 모두 만들었다(`FEATURE_CONTRACTS`·`HANDOFF`·`REPORT` 신규).
