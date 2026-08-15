@@ -97,3 +97,33 @@ qa_gaps: `docs/QA_COVERAGE.md`에 저장소 위생 축이 없다. 기존 보안 
 quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 CLAUDE.md §3-4(자격증명 비영구화)와 이 Audit 프롬프트 7절(stdin 전용·출력 금지)이라는 **정책 규칙**이며, 미적·설계 판단이 개입하지 않는다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0003 절(PA-F-009, PA-F-010) · `git stash list` → `stash@{0}` · `git stash show --name-only 'stash@{0}'` → `CLAUDE.md` · `git show HEAD:CLAUDE.md | grep -E 'password|비밀번호'` → 규칙 문장 1건뿐(추적본은 깨끗)
 <!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0005 -->
+rc_id: PA-RC-0005
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 입력 길이 정책이 **서버에만 존재한다**. 백엔드는 길이 제약을 452건 선언하는데(Pydantic `Field(max_length=)` + `mapped_column(String(n))`), 프런트의 `maxLength` 선언은 21건뿐이고 **그 21건은 전부 사용자 콘솔의 수제 화면**이다. 관리자 화면 28개를 전부 그리는 공용 폼 경로(`ui/kit.jsx::FormField`, `screens/DataScreen.jsx`, `screens/registry/*.js`)에는 길이 개념 자체가 **0건**이다. 그래서 관리자는 상한을 넘겨 입력할 수 있고 저장을 누른 뒤에야 거절당한다.
+expected: 같은 정책은 FE/API/BE/DB 네 층이 같게 표현해야 한다(Audit 프롬프트 E축). 입력 상한은 사용자가 타이핑하는 동안 알 수 있어야 하며, 최소한 초과 입력이 물리적으로 막히거나 남은 글자 수가 보여야 한다.
+actual: 공용 폼은 `inputProps`에 `aria-describedby`·`aria-required`·`inputMode`·`list`만 넣고 `maxLength`를 넣지 않는다(`kit.jsx:766,830`, `DataScreen.jsx:690`). registry 필드 정의에도 길이 필드가 없다.
+intent_evidence: ③ 백엔드 스키마·모델의 길이 제약 452건이 정책의 정본이다 · ⑤ 사용자 콘솔 수제 화면 21곳이 `maxLength`를 실제로 쓰고 있어 "상한을 화면에서 막는다"는 관용이 이 제품에 이미 존재함을 보여 준다 · 기존 Backlog `UX-40`이 422 거절 사유가 화면에 도달하지 않는 문제를 High로 등록해 두었다.
+findings: PA-F-014
+feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 폼 계층 공통이다. 다만 FC-05(화면 역할 게이트)와 같은 성격의 "네 층이 같은 것을 말해야 한다" 계약군에 속한다.
+routes: 관리자 REGISTRY 화면 27개 전체(`/prompts`·`/policies`·`/templates`·`/integrations`·`/runners`·`/workflows`·`/schedules`·`/documents`·`/organizations`·`/departments`·`/job-titles`·`/announcements`·`/ai-quotas`·`/feature-flags`·`/approval-delegations` 등) + `/users`·`/offboarding` 등 전용 폼 화면
+frontend: `frontend/src/ui/kit.jsx`(`FormField` :766, :830) · `frontend/src/screens/DataScreen.jsx`(:690) · `frontend/src/screens/registry/shared.js`(필드 정의 헬퍼 `col`/`opt`/`personField`) · `frontend/src/screens/registry/*.js` 7개 도메인 파일
+api: 길이를 거절하는 모든 쓰기 엔드포인트(POST/PUT/PATCH 168개). 계약 자체는 바뀌지 않는다 — 프런트가 그 계약을 **미리 표현**하게 하는 것이 목표다.
+backend: `app/*/schemas.py`(Pydantic 제약의 정본) · `app/*/models.py`(`String(n)`). 백엔드 로직은 바꾸지 않는다. 필요한 것은 상한 값을 프런트가 읽을 수 있게 **내보내는 경로**다.
+data: 해당 없음 — 컬럼 길이를 바꾸지 않는다. 기존 값 그대로 사용한다.
+rbac: 해당 없음 — 권한 경계와 무관하다.
+integration: 해당 없음 — 외부 연동과 무관하다.
+state_transition: 해당 없음 — 상태 전이와 무관하다.
+user_impact: 관리자가 긴 값을 입력하고 저장을 누르면 거절당한다. `UX-40`(422 사유가 화면에 안 온다)과 겹치면 사용자가 보는 것은 영어 상수 `Invalid request data` 하나뿐이라, **무엇이 왜 거절됐는지 알 수 없고 입력을 잃을 수 있다.** 두 결함은 함께 고쳐야 효과가 난다.
+implementation_direction: (1) 상한을 **손으로 두 벌 적지 말 것** — 그러면 반드시 갈라진다. Pydantic 스키마에서 필드별 `max_length`를 뽑아 프런트가 읽을 수 있는 경로를 먼저 정한다(설정/스키마 응답에 포함하거나 빌드 시 생성). (2) `registry/shared.js`의 필드 정의 헬퍼가 그 값을 받게 하고, `kit.jsx::FormField`가 `inputProps.maxLength`로 내려보낸다 — 공용 경로 한 곳만 고치면 관리자 화면 28개가 함께 따라온다(PA-F-013이 보여 준 "일급 API를 주면 소비된다"는 같은 원리). (3) 긴 텍스트 필드는 남은 글자 수 표시를 함께 검토한다(`maxLength`만 걸면 조용히 잘려 사용자가 눈치채지 못하는 반대 함정이 생긴다 — 특히 붙여넣기). (4) **`UX-40`과 같은 배치로 처리할 것.**
+constraints: CLAUDE.md §3-1(sync 일관성) 유지 · 서버 검증을 **절대 제거하지 말 것** — 클라이언트 제한은 편의이고 정본은 서버다(§3-5와 같은 원리) · 상한 값을 프런트에 하드코딩하지 말 것(두 벌이 되는 순간 이 RC가 재발한다) · 붙여넣기로 상한을 넘는 경우 조용히 자르지 말고 사용자에게 알릴 것.
+regression_risk: `maxLength`를 넣으면 기존 테스트가 긴 문자열을 입력하는 자리에서 값이 잘려 실패할 수 있다. 범위는 폼을 다루는 프런트 스위트(`datascreen*`·`users*`·registry 계열)다. 서버 동작은 바뀌지 않으므로 백엔드 회귀는 불필요하다. 상한 값을 잘못 유도하면 **정상 입력이 막히는** 더 나쁜 회귀가 되므로, 유도된 값과 백엔드 선언이 일치하는지 검사하는 테스트를 반드시 함께 넣는다.
+acceptance_criteria: (1) 공용 폼 경로(`FormField`/`DataScreen`)가 필드 정의의 상한을 `maxLength`로 내려보낸다. (2) 프런트가 쓰는 상한이 백엔드 선언에서 **유도된 값**이며 하드코딩이 아니다. (3) 유도값과 백엔드 선언의 불일치를 잡는 테스트가 있고 실제로 잡는다(revert-to-verify). (4) 대표 관리자 폼에서 상한 초과 입력이 저장 전에 막히거나 명확히 안내된다. (5) 붙여넣기로 초과할 때 조용히 잘리지 않는다. (6) 폼 관련 프런트 스위트 green.
+required_tests: **신규**: 프런트 유도 상한 == 백엔드 스키마 상한 검증 테스트(불일치 시 실패) · **신규**: 공용 `FormField`가 `maxLength`를 실제로 렌더하는지 · **신규**: 붙여넣기 초과 시 안내 동작 · 기존: `frontend/src/screens/datascreen*.test.jsx`, `users-*.test.jsx`, `registry/*.test.jsx` 전수 · 기존 백엔드 검증 테스트(서버 정본이 유지되는지 확인용, 변경 없어야 함)
+qa_gaps: `docs/QA_COVERAGE.md`에 "입력 경계값" 축이 없다. 화면별 기능 검증은 있으나 **상한/하한/빈 값/붙여넣기 초과** 같은 경계 입력을 보는 칸이 없어서, 관리자 화면 28개 전부가 이 상태로 QA를 통과했다. H축(Negative/Edge)과 함께 추가할 것.
+quality_rubric: 내장 rubric 6)(폼 — 라벨/도움말/검증 시점/오류 연결/저장 피드백) — 특히 "검증 시점"이 이 RC의 핵심이다(제출 후가 아니라 입력 중). 추가로 `ux-writing` — 폼 검증 오류는 "Validation Errors (Inline): 필드 옆에, 입력 중 또는 blur 시, `[Field] [specific requirement]` 패턴"이어야 한다는 항목. 이 RC를 구현할 때 오류 문구는 PA-RC-0002의 규칙을 따라야 하므로 **두 RC를 같이 읽을 것**.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0005 절(PA-F-014) · `frontend/src/ui/kit.jsx:766,830` · `frontend/src/screens/DataScreen.jsx:690` · 스캐너 `var/product-audit/scan_limits.py` · 기존 Backlog `UX-40`(422 사유 미도달, High, 미해결)
+<!-- PA-RC-END -->

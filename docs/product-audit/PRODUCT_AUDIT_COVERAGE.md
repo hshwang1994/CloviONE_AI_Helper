@@ -68,44 +68,44 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SETTINGS` 설정 | `/settings` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SYSTEM` 시스템 설정 | `/system` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-MAIL` 메일 발송 상태 | `/mail` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-LLMC` AI 관리 | `/llm-console` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DIAG` 진단 | `/diagnostics` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-MAINT` 유지보수 | `/maintenance` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-INTEG` 외부 연동 | `/integrations` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RUNNERS` 러너 | `/runners` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-POLICIES` 정책 | `/policies` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-TEMPLATES` 템플릿 | `/templates` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-APPROVALS` 승인 | `/approvals` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-BACKUP` 백업 | `/backup` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-SETTINGS` 설정 | `/settings` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-SYSTEM` 시스템 설정 | `/system` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-MAIL` 메일 발송 상태 | `/mail` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-LLMC` AI 관리 | `/llm-console` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DIAG` 진단 | `/diagnostics` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-MAINT` 유지보수 | `/maintenance` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-INTEG` 외부 연동 | `/integrations` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-RUNNERS` 러너 | `/runners` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-POLICIES` 정책 | `/policies` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-TEMPLATES` 템플릿 | `/templates` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-APPROVALS` 승인 | `/approvals` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-BACKUP` 백업 | `/backup` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 
 ## shell-cross
 
@@ -121,8 +121,8 @@
 | `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
+| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
+| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 
 ## platform
 
@@ -272,9 +272,9 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1757
+unseen=1677
 unseen_without_reason=0
-static_only=509
+static_only=589
 observed=0
 executed=74
 blocked=0

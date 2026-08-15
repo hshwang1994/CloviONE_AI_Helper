@@ -292,6 +292,43 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0005 — 길이 제한이 서버에만 있고 공용 폼 계층은 그것을 모른다
+
+**Severity: Medium · Confidence: Confirmed · Type: defect / ux-gap (E축)**
+
+### PA-F-014 · 백엔드 길이 제약 452개 중 공용 폼이 표현하는 것은 0개다
+
+- **Surface**: `S-DATASCREEN`(설정 주도 폼 엔진) + `S-KIT`(`FormField`) → 관리자 화면 28개 전체
+- **Expected**: 같은 정책은 FE/API/BE/DB 네 층이 같게 표현해야 한다(이 Audit 프롬프트 E축).
+  입력 상한은 사용자가 **타이핑하는 동안** 알아야 하는 정보다.
+- **Actual** (`var/product-audit/scan_limits.py`, 주석 제거 후 실측):
+  - 백엔드 길이 제약 선언 **452건**(Pydantic `Field(max_length=)` + `mapped_column(String(n))`)
+  - 프런트 `maxLength` 선언 **21건**
+  - **그 21건은 전부 사용자 콘솔의 수제 화면**(`Games` 5 · `MyTickets` 3 · `TeamDocs` 2 ·
+    `Board` · `ChatRooms` · `ChatRoomMembers` · `ChatPane` · `Chat` · `AssistantDrawer` ·
+    `SavedViews` · `filters` · `game-room/ChatPanel` · `chat/ConversationSidebar`)
+  - **공용 폼 경로에는 0건**이다. `ui/kit.jsx`의 `FormField`(`:766`, `:830`)는 `inputProps`로
+    `aria-describedby`·`aria-required`·`inputMode`만 넣고 `maxLength`를 넣지 않는다.
+    `screens/DataScreen.jsx:690`도 `list`(datalist)만 넣는다.
+    `screens/registry/*.js`의 필드 정의에는 **길이 개념 자체가 없다**(`maxLength` 0건).
+- **결과**: 관리자 화면 28개(제품 관리자 화면의 62%)의 모든 생성·편집 폼에서 사용자는
+  **상한을 넘겨 입력할 수 있고, 저장을 누른 뒤에야 거절당한다.**
+- **기존 `UX-40`과 겹쳐 증폭된다**: `UX-40`(High, 미해결)은 *"422 거절의 실제 사유가 대부분의
+  사용자 화면에 도달하지 않는다 — `lib/api.js`가 영어 상수 `Invalid request data`를 띄운다"*
+  고 적는다. 두 결함이 합쳐지면 사용자 경험은 이렇게 된다:
+  **긴 값을 입력한다 → 아무 경고 없다 → 저장 → 영어로 "Invalid request data" → 무엇이 문제인지
+  모른다.** 어느 한쪽만 고쳐도 절반만 해결된다.
+- **의도적으로 판단하지 않은 것**: "같은 필드명에 백엔드가 다른 상한을 쓴다"는 초기 스캔
+  결과(`name` 80/120/200, `content` 20000/100000 등)는 **Finding으로 올리지 않았다.**
+  서로 다른 엔티티의 동명 필드라 다른 것이 정상이다(프로필 이름 80 vs 조직 이름 120).
+  필드명만으로 엔티티를 묶는 휴리스틱은 이 저장소에서 신뢰할 수 없다.
+- **구현 방향**: registry 필드 정의와 `FormField`에 `maxLength`를 **백엔드 스키마에서 유도**해
+  넣는다. 손으로 두 벌 적으면 반드시 갈라지므로, Pydantic 스키마에서 상한을 뽑아 프런트로
+  내보내는 경로(설정 응답에 포함하거나 빌드 시 생성)를 먼저 정한다.
+- **Handoff 승격**: 한다(아래 `PA-RC-0005` 블록).
+
+---
+
 ## PA-RC-0004 — 없는 경로가 조용히 홈으로 삼켜진다 (알림 없음)
 
 **Severity: Low · Confidence: Confirmed · Type: ux-gap**
