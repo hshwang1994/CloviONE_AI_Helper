@@ -230,6 +230,22 @@ switch -Regex ($scenario) {
         & "$PSScriptRoot\make_valid_audit.ps1" -Repo $repo
         Emit-Json "success" "false" "completed"; exit 0
     }
+    # 검증 재감사가 "새로 구현할 것 없음" 으로 끝나는 경우 — run_all 의 수렴 조건이다.
+    '^audit-clean-complete$' {
+        & "$PSScriptRoot\make_valid_audit.ps1" -Repo $repo -Clean
+        Emit-Json "success" "false" "completed"; exit 0
+    }
+    # 사람 승인 대기로 미룬 항목이 있는 Handoff — 완료 Gate 가 거부해야 한다.
+    '^audit-deferred-to-human$' {
+        & "$PSScriptRoot\make_valid_audit.ps1" -Repo $repo -DeferToHuman
+        Emit-Json "success" "false" "completed"; exit 0
+    }
+    # Worker 가 스스로 AUDIT_BLOCKED 를 기록 — 사람 없이 자동 복구돼야 한다.
+    '^audit-selfblock$' {
+        Set-Content -Path (Join-Path $repo "var\product-audit\AUDIT_BLOCKED") `
+            -Value "blocked_at=now`nreason=브라우저를 못 띄워서 확인 불가" -Encoding utf8
+        Emit-Json "success" "false" "completed"; exit 0
+    }
     '^impl-premature-complete$' {
         Set-Content -Path (Join-Path $repo "var\runner\PROJECT_COMPLETE") -Value "프로젝트 끝났습니다 $(Get-Date -Format o)" -Encoding utf8
         Emit-Json "success" "false" "completed"; exit 0
@@ -262,7 +278,7 @@ switch -Regex ($scenario) {
 
 function Get-ValidAuditMakerBody {
 @'
-param([string]$Repo)
+param([string]$Repo, [switch]$Clean, [switch]$DeferToHuman)
 $ErrorActionPreference = "Continue"
 if (Test-Path Variable:\PSNativeCommandUseErrorActionPreference) { $global:PSNativeCommandUseErrorActionPreference = $false }
 $cyc = (Get-Content (Join-Path $Repo "var\product-audit\cycle.json") -Raw | ConvertFrom-Json)
@@ -298,10 +314,9 @@ not_applicable=5
 -->
 "@ -Encoding utf8
 
-$rc = @"
-# HANDOFF
-cycle_id=$cid
-$filler
+$rcCount   = $(if ($Clean) { 0 } else { 1 })
+$deferred  = $(if ($DeferToHuman) { 2 } else { 0 })
+$rcBlock = @"
 
 <!-- PA-RC-BEGIN PA-RC-0001 -->
 rc_id: PA-RC-0001
@@ -333,27 +348,46 @@ quality_rubric: ui-ux-pro-max — 정보 위계 3단계
 evidence_refs: FINDINGS#F-001
 <!-- PA-RC-END -->
 "@
+$rc = @"
+# HANDOFF
+cycle_id=$cid
+
+<!-- HANDOFF-SUMMARY
+cycle_id=$cid
+actionable_root_causes=$rcCount
+redesign_root_causes=$rcCount
+deferred_for_human_approval=$deferred
+-->
+
+$filler
+$(if ($Clean) { "" } else { $rcBlock })
+$(if ($DeferToHuman) { "RD-9 대시보드 재설계는 업무 흐름이 바뀌므로 사람 승인 필요 — 제안으로만 기록한다." } else { "" })
+"@
 Set-Content -Path (Join-Path $d "PRODUCT_AUDIT_HANDOFF.md") -Value $rc -Encoding utf8
 
 & git -C $Repo add "docs/product-audit" 2>&1 | Out-Null
 & git -C $Repo commit -q -m "audit: final docs" 2>&1 | Out-Null
 $final = (& git -C $Repo rev-parse HEAD 2>&1 | Out-String).Trim()
 
-Set-Content -Path (Join-Path $Repo "var\product-audit\IMPLEMENTATION_REQUIRED") -Value @"
+if (-not $Clean) {
+    Set-Content -Path (Join-Path $Repo "var\product-audit\IMPLEMENTATION_REQUIRED") -Value @"
 cycle_id=$cid
 created_at=$(Get-Date -Format o)
 baseline_sha=$base
 handoff=docs/product-audit/PRODUCT_AUDIT_HANDOFF.md
-root_causes=1
+root_causes=$rcCount
 audit_commit=$final
 "@ -Encoding utf8
+} else {
+    Remove-Item (Join-Path $Repo "var\product-audit\IMPLEMENTATION_REQUIRED") -Force -ErrorAction SilentlyContinue
+}
 
 Set-Content -Path (Join-Path $Repo "var\product-audit\AUDIT_COMPLETE") -Value @"
 cycle_id=$cid
 baseline_sha=$base
 final_commit=$final
-implementation_required=true
-root_causes=1
+implementation_required=$(if ($Clean) { 'false' } else { 'true' })
+root_causes=$rcCount
 blind_reaudit_consecutive_clean=2
 completed_at=$(Get-Date -Format o)
 전수조사를 마쳤다(controlled test stub).
@@ -749,7 +783,9 @@ Test-Case "T20" "Audit allowlist 안 write/commit 은 통과하고 계속 진행
 Test-Case "T21" "Audit 이 제품 코드를 워킹트리에서 고치면 AUDIT_BLOCKED (자동 revert 없음)" {
     param($repo)
     Set-Scenario $repo @("audit-bad-worktree")
-    [void](Invoke-Audit $repo $null $null)
+    # MaxWriteGuardRecoveries=0 → 자동 복구 없이 즉시 수렴시켜 **탐지 자체**를 검증한다.
+    # (자동 복구 경로는 T69 가 따로 본다.)
+    [void](Invoke-Audit $repo @{ MaxWriteGuardRecoveries = 0 } $null)
     $blocked = Read-TextOrEmpty (Join-Path $repo "var\product-audit\AUDIT_BLOCKED")
     Assert ($blocked -ne "") "AUDIT_BLOCKED 가 생겨야 한다"
     Assert-Match $blocked 'app/main\.py' "어떤 경로가 변경됐는지 증거가 남아야 한다"
@@ -761,7 +797,7 @@ Test-Case "T21" "Audit 이 제품 코드를 워킹트리에서 고치면 AUDIT_B
 Test-Case "T22" "commit 했다가 되돌린 금지 경로 변경도 탐지(순 변화 0) — 예전 guard 의 사각지대" {
     param($repo)
     Set-Scenario $repo @("audit-bad-commit-revert")
-    [void](Invoke-Audit $repo $null $null)
+    [void](Invoke-Audit $repo @{ MaxWriteGuardRecoveries = 0 } $null)
     $blocked = Read-TextOrEmpty (Join-Path $repo "var\product-audit\AUDIT_BLOCKED")
     Assert ($blocked -ne "") "touch-and-revert 도 AUDIT_BLOCKED 여야 한다"
     Assert-Match $blocked 'commit:.*app/main\.py' "어느 커밋이 금지 경로를 건드렸는지 남아야 한다"
@@ -770,7 +806,7 @@ Test-Case "T22" "commit 했다가 되돌린 금지 경로 변경도 탐지(순 �
 Test-Case "T23" "history rewrite(reset --hard)도 탐지" {
     param($repo)
     Set-Scenario $repo @("audit-history-rewrite")
-    [void](Invoke-Audit $repo $null $null)
+    [void](Invoke-Audit $repo @{ MaxWriteGuardRecoveries = 0 } $null)
     $blocked = Read-TextOrEmpty (Join-Path $repo "var\product-audit\AUDIT_BLOCKED")
     Assert ($blocked -ne "") "이력 재작성은 AUDIT_BLOCKED 여야 한다"
     Assert-Match $blocked 'history-rewritten|reflog|rev-list-failed' "이력 무결성 위반 증거가 남아야 한다"
@@ -977,11 +1013,11 @@ Test-Case "T42" "종료 코드로 상태를 구분한다: 정상/STOP/AUTO_STOP/
     # Audit write guard 위반 → BLOCKED = 5
     Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
     Set-Scenario $repo @("audit-bad-worktree")
-    $ra = Invoke-Audit $repo $null $null
+    $ra = Invoke-Audit $repo @{ MaxWriteGuardRecoveries = 0 } $null
     Assert ($ra.ExitCode -eq 5) "AUDIT_BLOCKED 는 exit 5 여야 한다(실제 $($ra.ExitCode))"
     # 그리고 BLOCKED 상태로 다시 실행하면 실행하지 않고 5 로 끝난다
     Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
-    $rb = Invoke-Audit $repo $null $null
+    $rb = Invoke-Audit $repo @{ MaxWriteGuardRecoveries = 0; MaxBlockedRecoveries = 0 } $null
     Assert ($rb.ExitCode -eq 5) "BLOCKED 상태의 재실행도 exit 5"
     Assert ((Get-StubCount $repo) -eq 0) "BLOCKED 상태에서는 Worker 를 띄우면 안 된다"
 }
@@ -1026,50 +1062,65 @@ Test-Case "T47" "진척 없는 일반 실패는 즉시 재시도하지 않고 �
     Assert ($sw.Elapsed.TotalSeconds -ge 4) "실제로 대기해야 한다(경과 $([int]$sw.Elapsed.TotalSeconds)초)"
 }
 
-Test-Case "T48" "run_all.ps1 이 Audit 완료 뒤 구현 단계로 자동으로 이어진다" {
-    param($repo)
-    Set-Scenario $repo @("audit-full-complete", "impl-consume-complete")
+function New-RunAllProbe([string]$repo, [string]$name, [string]$extra) {
     # 배열 인자는 argv 로 넘기면 앞의 '-' 때문에 파라미터로 오인된다 — probe 스크립트 안에서
-    # 진짜 PowerShell 배열로 넘긴다. 상한을 반드시 준다: 기본값(무제한)으로 두면 Gate 가 한 번만
+    # 진짜 PowerShell 배열로 넘긴다. 상한을 반드시 준다: 무제한으로 두면 Gate 가 한 번만
     # 어긋나도 테스트가 영원히 돈다(실제로 스위트를 10분 타임아웃시켰다).
-    $probe = Join-Path $repo "var\runall_probe.ps1"
+    $probe = Join-Path $repo "var\$name.ps1"
     $body = @"
 & '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
-    -MaxRestarts 0 ``
+    -RetryWaitMinutes 0.01 $extra ``
     -AuditArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyRetrySeconds','1','-DirtyQuietSeconds','0','-MaxDirtyWaits','2','-SkipTestServerProbe') ``
     -ImplementArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyPollSeconds','1','-DirtyQuietSeconds','0','-SkipTestServerProbe')
 "EXITCODE=`$LASTEXITCODE"
 "@
     [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
-    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
-    $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
-    Assert-Match $out 'PHASE 1 \(Product Audit\) 완료' "Audit 완료 후 넘어간다는 것을 알려야 한다"
-    Assert (Test-MarkerValid (Join-Path $repo "var\runner\PROJECT_COMPLETE")) "구현 단계까지 자동으로 이어져 완료돼야 한다. 출력: $out"
-    Assert ($code -eq 0) "전체 완료는 exit 0 이어야 한다(실제 $code)"
+    return $probe
 }
 
-Test-Case "T49" "run_all: exit 0 이어도 완료 marker 가 없으면 다음 Phase 로 넘어가지 않는다" {
+Test-Case "T48" "run_all: Audit 완료 → 구현 → 재감사까지 사람 없이 이어진다" {
     param($repo)
-    # Ctrl+C 로 중단해도 exit 0 이 나온다(실제 로그로 확인됨). 종료 코드만 믿으면 사용자가
-    # Audit 을 잠깐 멈춘 것뿐인데 구현 단계가 조용히 시작된다.
-    # 여기서는 test override 상한(exit 0, marker 없음)으로 같은 상황을 만든다.
-    Set-Scenario $repo @("success")
-    $probe = Join-Path $repo "var\runall_probe2.ps1"
-    $body = @"
-& '$(Join-Path $RunnerDir "run_all.ps1")' -ProjectDir '$repo' -ClaudeExe '$(Get-StubCmd $repo)' ``
-    -MaxRestarts 0 ``
-    -AuditArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyRetrySeconds','1','-DirtyQuietSeconds','0','-MaxDirtyWaits','2','-SkipTestServerProbe') ``
-    -ImplementArgs @('-MaxIterationsPerLaunch','1','-IdleTimeoutMinutes','1','-DirtyPollSeconds','1','-DirtyQuietSeconds','0','-SkipTestServerProbe')
-"EXITCODE=`$LASTEXITCODE"
-"@
-    [System.IO.File]::WriteAllText($probe, $body, (New-Object System.Text.UTF8Encoding($true)))
+    # audit-full-complete → impl-consume-complete → (검증 재감사) audit-full-complete-clean
+    Set-Scenario $repo @("audit-full-complete", "impl-consume-complete", "audit-clean-complete")
+    $probe = New-RunAllProbe $repo "runall_probe" "-MaxCycles 3"
+    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
+    $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
+    Assert-Match $out 'PHASE 1 \(Product Audit\) 완료' "Audit 완료를 알려야 한다"
+    Assert (Test-MarkerValid (Join-Path $repo "var\runner\PROJECT_COMPLETE")) "구현까지 자동으로 이어져야 한다. 출력: $out"
+    Assert-Match $out 'PHASE 3' "구현 완료 뒤 검증 재감사로 넘어가야 한다(예전엔 이 단계가 아예 없었다)"
+    Assert-Match $out '전체 수렴 완료' "재감사가 깨끗하면 수렴으로 끝나야 한다"
+    Assert ($code -eq 0) "수렴 완료는 exit 0 이어야 한다(실제 $code). 출력: $out"
+}
+
+Test-Case "T49" "run_all: marker 없이 끝난 Phase 를 사람 없이 자동 재시도한다 (Human Gate 제거)" {
+    param($repo)
+    # 예전 구조: marker 없이 exit 0 이면 "완료가 아니라 중단입니다 / 다시 실행하세요" → exit 10.
+    # 그 재실행이 사람 손이었다. 이제는 전략을 바꿔 가며 스스로 다시 돈다.
+    # 1~2회차는 marker 를 안 만들고, 3회차에 만든다.
+    Set-Scenario $repo @("success", "success", "audit-full-complete", "impl-consume-complete", "audit-clean-complete")
+    $probe = New-RunAllProbe $repo "runall_probe2" "-MaxCycles 3 -MaxPhaseRetries 5"
     $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
     $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
 
-    Assert-Match $out '완료가 아니라 중단입니다' "marker 없는 exit 0 은 중단으로 판정해야 한다"
-    Assert ($code -eq 10) "중단은 exit 10 이어야 한다(실제 $code)"
-    Assert (-not (Test-Path (Join-Path $repo "var\runner\PROJECT_COMPLETE"))) "구현 단계로 넘어가면 안 된다"
-    Assert-NoMatch $out 'PHASE 2' "PHASE 2 를 시작하면 안 된다"
+    Assert-NoMatch $out '완료가 아니라 중단입니다' "사람에게 재실행을 요구하면 안 된다"
+    Assert-NoMatch $out '다시 실행하세요' "사람에게 재실행을 요구하면 안 된다"
+    Assert-Match $out '다시 시도합니다.*사람을 기다리지 않습니다' "스스로 재시도한다고 알려야 한다"
+    Assert ($code -ne 10) "예전의 '중단' exit 10 경로가 남아 있으면 안 된다"
+    Assert (Test-MarkerValid (Join-Path $repo "var\runner\PROJECT_COMPLETE")) "재시도 끝에 완료까지 가야 한다. 출력: $out"
+}
+
+Test-Case "T49B" "run_all: 재감사에서 새 Root Cause 가 나오면 자동으로 구현으로 되돌아간다" {
+    param($repo)
+    # Audit → 구현(완료) → 재감사가 **또 구현거리를 냄** → 구현 → 재감사(깨끗) → 수렴.
+    Set-Scenario $repo @("audit-full-complete", "impl-consume-complete",
+                         "audit-full-complete", "impl-consume-complete", "audit-clean-complete")
+    $probe = New-RunAllProbe $repo "runall_probe3" "-MaxCycles 4"
+    $out = & $PsHost -NoProfile -ExecutionPolicy Bypass -File $probe 2>&1 | Out-String
+    $code = if ($out -match 'EXITCODE=(-?\d+)') { [int]$Matches[1] } else { -999 }
+    $cycles = ([regex]::Matches($out, '=== CYCLE \d+')).Count
+    Assert ($cycles -ge 3) "재감사 → 구현 → 재감사로 최소 3 Cycle 돌아야 한다(실제 $cycles). 출력: $out"
+    Assert-Match $out 'Audit 이 구현 계약을 넘겼습니다' "재감사가 낸 구현거리를 다시 구현해야 한다"
+    Assert ($code -eq 0) "결국 수렴해야 한다(실제 $code)"
 }
 
 Test-Case "T45" "MaxBudgetUsd=0 이면 --max-budget-usd 를 argv 에 붙이지 않는다(일을 자르지 않음)" {
@@ -1475,6 +1526,150 @@ Test-Case "T61" "품질 rubric이 Audit → 구현으로 실제로 넘어간다(
     [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1 } $null)
     $rej = Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt")
     Assert-Match $rej "필수 필드 'quality_rubric'" "rubric 이 빠지면 Gate 가 거부해야 한다. 실제: $rej"
+}
+
+Test-Case "T64" "사람 승인 대기로 미룬 Handoff 는 완료 Gate 가 거부한다 (RD-5/RD-6 재발 방지)" {
+    param($repo)
+    # 재설계가 필요하다는 것을 정확히 찾아 놓고 "업무 흐름이 바뀌니 사람 승인이 필요하다"며
+    # 제안으로만 남기면 그 Root Cause 는 영원히 구현되지 않는다. 개별 항목을 예외 처리하는
+    # 대신 **그런 결론 자체가 Gate 를 통과하지 못하게** 막는다.
+    Set-Scenario $repo @("audit-deferred-to-human", "success")
+    [void](Invoke-Audit $repo $null $null)
+    Assert (-not (Test-Path (Join-Path $repo "var\product-audit\AUDIT_COMPLETE"))) "거부돼 격리돼야 한다"
+    $rej = Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt")
+    Assert-Match $rej 'deferred_for_human_approval=2' "미룬 항목 수를 근거로 거부해야 한다. 실제: $rej"
+    Assert-Match $rej '사람 승인 Gate 가 없다' "왜 거부하는지 알려야 한다"
+    Assert-Match $rej '사람에게 미루는 표현' "본문의 미루는 표현도 함께 잡아야 한다"
+    $prompts = Read-TextOrEmpty (Join-Path $repo "var\stub\prompts.log")
+    Assert-Match $prompts 'deferred_for_human_approval' "거부 사유가 다음 invocation 에 되먹여져야 한다"
+}
+
+Test-Case "T65" "Human Gate 표현 탐지기는 제품의 '승인 워크플로' 기능을 오탐하지 않는다" {
+    param($repo)
+    # 이 제품에는 approval 이라는 **기능**이 있다. 기능 서술을 미루는 표현으로 오인하면
+    # 정상 Handoff 가 통과하지 못한다.
+    foreach ($ok in @(
+        "승인 워크플로에서 결재자가 반려하면 상태가 rejected 로 간다",
+        "approval_e2e.py 가 승인 처리 경로를 검증한다",
+        "관리자 승인 후 문서가 발행되는 것이 의도된 동작이다",
+        "승인 대기 목록 화면의 빈 상태 문구가 없다"
+    )) {
+        Assert (@(Get-HumanGateLanguage $ok).Count -eq 0) "제품 기능 서술을 오탐하면 안 된다: $ok"
+    }
+    foreach ($bad in @(
+        "업무 흐름이 바뀌므로 사람 승인 필요",
+        "제안으로만 기록하고 구현 대상에서 제외한다",
+        "이 설계는 사용자 판단이 필요하다",
+        "구현 보류 — 정책 결정 후 진행",
+        "Deferred: approval required from product owner",
+        "awaiting human decision"
+    )) {
+        Assert (@(Get-HumanGateLanguage $bad).Count -ge 1) "미루는 표현은 잡아야 한다: $bad"
+    }
+}
+
+Test-Case "T66" "AUDIT_BLOCKED 는 사람 호출 상태가 아니다 — 전략을 바꿔 자동 복구한다" {
+    param($repo)
+    # 예전: blocked → exit 5 → 사람이 고치고 -ResumeBlocked 로 재실행해야 이어졌다.
+    Set-Scenario $repo @("audit-selfblock", "audit-full-complete")
+    $r = Invoke-Audit $repo @{ MaxIterationsPerLaunch = 3; MaxBlockedRecoveries = 3 } $null
+    $log = Get-RunnerLog $repo "audit"
+    Assert-Match $log 'blocked 자동 복구' "사람을 기다리지 않고 복구해야 한다: $log"
+    Assert-Match $r.Output '사람을 기다리지 않습니다' "복구 사실을 알려야 한다"
+    $q = @(Get-ChildItem (Join-Path $repo "var\product-audit\quarantine") -File -ErrorAction SilentlyContinue)
+    Assert ($q.Count -ge 1) "BLOCKED marker 는 삭제가 아니라 격리돼야 한다(증거 보존)"
+    # 되먹임은 **다음 invocation 프롬프트에 실제로 도착**해야 의미가 있다.
+    # (last_gate_rejection.txt 는 Gate 통과 시 정리되므로 그 파일로 확인하면 안 된다.)
+    $prompts = Read-TextOrEmpty (Join-Path $repo "var\stub\prompts.log")
+    Assert-Match $prompts '같은 방법을 반복하지 마라' "다른 전략을 쓰라는 지시가 다음 invocation 에 되먹여져야 한다"
+    Assert-Match $prompts '사람이 풀어 주는 Gate 가 없다' "사람 대기가 선택지가 아님을 Worker 에게 알려야 한다"
+    Assert ((Get-StubCount $repo) -ge 2) "복구 후 조사를 계속해야 한다(실제 $(Get-StubCount $repo))"
+
+    # 상한을 넘기면 그때는 정말로 수렴한다(무한 반복 금지).
+    # -ResetAudit 을 줘야 1부가 남긴 유효한 AUDIT_COMPLETE 때문에 조사를 건너뛰지 않는다.
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("audit-selfblock")
+    $r2 = Invoke-Audit $repo @{ MaxIterationsPerLaunch = 6; MaxBlockedRecoveries = 1 } @("ResetAudit")
+    Assert ($r2.ExitCode -eq 5) "자동 복구 상한을 넘으면 exit 5 로 수렴해야 한다(실제 $($r2.ExitCode))"
+    $log2 = Get-RunnerLog $repo "audit"
+    Assert-Match $log2 '자동 복구 상한' "상한 도달을 근거로 수렴해야 한다(무한 재시도 금지)"
+}
+
+Test-Case "T67" "세 Runner 어디에도 '사람이 재시작/승인해야 진행' 하는 실행 분기가 없다" {
+    param($repo)
+    # 문자열 제거가 목적이 아니라 **실행 흐름**에 사람 개입 지점이 없어야 한다.
+    # 그래서 "예전에는 이랬다"고 설명하는 블록 주석(<# #>)은 걷어내고 **코드만** 본다 —
+    # 안 그러면 제거 사실을 문서화한 주석이 스스로 테스트를 깨뜨린다(실제로 두 번 당했다).
+    function Strip-BlockComments([string]$t) { return ($t -replace '(?s)<#.*?#>', '') }
+    $runAll = Strip-BlockComments (Read-TextOrEmpty (Join-Path $RunnerDir "run_all.ps1"))
+    $impl   = Read-TextOrEmpty $AutonomousScript
+    $audit  = Read-TextOrEmpty $AuditScript
+
+    # run_all: 예전의 "완료가 아니라 중단입니다 / 다시 실행하세요 → exit 10" 경로가 사라져야 한다
+    Assert-NoMatch $runAll '완료가 아니라 중단입니다' "marker 없는 종료를 사람에게 넘기면 안 된다"
+    # 주석에서 "예전에는 exit 10 이었다"고 설명하는 것은 괜찮다 — **실행문**이 없어야 한다.
+    Assert-NoMatch $runAll '(?m)^\s*exit\s+10\s*$' "사람 재실행을 요구하던 exit 10 실행 경로가 남아 있으면 안 된다"
+    Assert-NoMatch $runAll '같은 명령을 다시 실행하세요' "사람 재실행 안내가 남아 있으면 안 된다"
+    Assert-Match $runAll 'Invoke-PhaseUntilMarker' "marker 가 생길 때까지 스스로 도는 구조여야 한다"
+    Assert-Match $runAll 'PHASE 3' "구현 후 재감사 단계가 있어야 한다"
+    Assert-Match $runAll '\$TerminalExitCodes = @\(3, 7\)' "사람 개입 종료는 STOP·전제조건 둘뿐이어야 한다"
+
+    # audit: -ResumeBlocked 를 **사람이 쳐야만** 재개되는 구조가 아니어야 한다
+    Assert-Match $audit 'Invoke-BlockedAutoRecovery' "BLOCKED 자동 복구 경로가 있어야 한다"
+    Assert-Match $audit '\[bool\]\$AutoResolveBlockers = \$true' "자동 복구가 기본값이어야 한다"
+    Assert-NoMatch $audit '-ResumeBlocked 옵션으로 다시 실행하세요' "사람 재실행 안내가 남아 있으면 안 된다"
+    Assert-NoMatch $audit '사람이 확인하고 해결한 뒤' "사람 조치를 전제한 안내가 남아 있으면 안 된다"
+
+    # 두 Worker 프롬프트: 사람 승인/질문 금지가 명시돼야 한다
+    foreach ($p in @($impl, $audit)) {
+        Assert-Match $p '사람 승인 필요' "금지 목록에 명시적으로 있어야 한다(그래야 모델이 인식한다)"
+        Assert-Match $p '근거가 부족하면 질문하지 말고' "질문 대신 조사를 더 하라고 해야 한다"
+    }
+    Assert-Match $impl 'ADR/DECISIONS는 \*\*선행조건이 아니다\*\*' "문서가 Gate 가 되면 안 된다"
+    Assert-Match $impl '사후 기록' "결정 → 구현 → 사후 문서화 순서여야 한다"
+    Assert-Match $audit '재설계 필요 발견 → 근거 조사' "재설계를 제안이 아니라 구현 계약으로 만들어야 한다"
+}
+
+Test-Case "T69" "write guard 위반도 사람을 부르지 않는다 — 증거 보존 + 세션 회전 + 계속, 반복되면 수렴" {
+    param($repo)
+    # 안전장치를 없애는 게 아니다: 탐지는 그대로, **자동 revert 도 여전히 안 한다**.
+    # 달라진 것은 "사람이 고치고 -ResumeBlocked 로 재실행" 이라는 대기가 사라진 것뿐이다.
+    Set-Scenario $repo @("audit-bad-worktree", "audit-full-complete")
+    $r = Invoke-Audit $repo @{ MaxIterationsPerLaunch = 3; MaxWriteGuardRecoveries = 2 } $null
+    $log = Get-RunnerLog $repo "audit"
+    Assert-Match $log 'write-guard 자동 복구' "사람을 기다리지 않고 복구해야 한다: $log"
+    # 사용자/Worker 변경은 절대 되돌리지 않는다
+    Assert-Match (Read-TextOrEmpty (Join-Path $repo "app\main.py")) 'auditor touched' "자동 revert 하면 안 된다(변경 보존)"
+    # 증거는 격리 보관돼야 한다
+    $q = @(Get-ChildItem (Join-Path $repo "var\product-audit\quarantine") -File -ErrorAction SilentlyContinue)
+    Assert ($q.Count -ge 1) "위반 증거가 격리 보관돼야 한다"
+    $qtext = ($q | ForEach-Object { Read-TextOrEmpty $_.FullName }) -join "`n"
+    Assert-Match $qtext 'app/main\.py' "어떤 경로를 건드렸는지 증거에 남아야 한다"
+    # 오염된 세션은 회전하고, 강한 교정 지시가 다음 invocation 에 간다
+    $prompts = Read-TextOrEmpty (Join-Path $repo "var\stub\prompts.log")
+    Assert-Match $prompts '제품 코드/테스트/설정/배포 코드를 절대 건드리지 마라' "교정 지시가 되먹여져야 한다"
+    Assert ((Get-StubCount $repo) -ge 2) "복구 후 조사를 계속해야 한다"
+}
+
+Test-Case "T68" "UI/UX 재설계 권한과 완료 판정이 두 Phase 프롬프트에 실제로 있다" {
+    param($repo)
+    $impl  = Read-TextOrEmpty $AutonomousScript
+    $audit = Read-TextOrEmpty $AuditScript
+    foreach ($item in @('Information Architecture 재편', 'Sidebar 구조 변경', 'Navigation 재구성',
+                        'Dashboard 재설계', 'Tab 구조 도입', '정보 위계 재조정', 'CTA 위치')) {
+        Assert-Match $impl ([regex]::Escape($item)) "구현 프롬프트에 '$item' 권한이 있어야 한다"
+        Assert-Match $audit ([regex]::Escape($item)) "Audit 프롬프트에 '$item' 권한이 있어야 한다"
+    }
+    # 얕은 완료 판정 금지
+    Assert-Match $impl 'token migration 완료' "얕은 완료 근거를 명시적으로 부정해야 한다"
+    Assert-Match $impl '기존 화면보다 실제 사용성이 좋아졌는가' "실제 화면 기준 평가 항목이 있어야 한다"
+    Assert-Match $impl '단순 CSS/spacing 수정만 반복' "CSS 보정만으로 완료 처리 금지"
+    # Blocker 자가 복구 사다리
+    Assert-Match $impl 'Blocker는 사람 호출 상태가 아니다' "구현 쪽 자가 복구 사다리"
+    Assert-Match $audit 'Blocker는 사람 호출 상태가 아니다' "Audit 쪽 자가 복구 사다리"
+    # dirty worktree: 사람 대기 금지 + 사용자 변경 보호 동시 만족
+    Assert-Match $impl 'git worktree' "충돌 시 별도 worktree 전략이 있어야 한다"
+    Assert-Match $impl 'reset·revert·drop·overwrite 하는 것은 절대 금지' "사용자 변경 보호는 유지해야 한다"
 }
 
 Test-Case "T62" "WARM이 CLAUDE.md를 다시 안 읽어도 불변 규칙이 매 호출에 함께 간다" {

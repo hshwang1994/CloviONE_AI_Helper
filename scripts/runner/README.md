@@ -16,6 +16,53 @@ AUDIT_COMPLETE (기계 Gate)                    PROJECT_COMPLETE (기계 Gate)
 두 Supervisor는 **`var/runner/run.lock` 을 공유한다 — 동시에 실행할 수 없다.**
 두 번째로 뜬 프로세스는 이유를 크게 출력하고 물러난다(Audit은 exit 4, 구현 Runner는 exit 0).
 
+## 완전 자율 상태 머신 (D-74)
+
+`run_all.ps1` 을 **한 번** 시작하면 수렴할 때까지 사람이 다시 실행할 일이 없다.
+
+```
+      ┌──────────────────────────────────────────────────────────┐
+      ▼                                                          │
+    AUDIT ──(IMPLEMENTATION_REQUIRED)──▶ IMPLEMENT ──▶ VERIFY(새 Audit Cycle)
+      │                                      │                   │
+      └──(구현거리 없음 + PROJECT_COMPLETE)──▶ CONVERGED ◀────────┘
+                                                    (새 Root Cause 0건)
+```
+
+- **구현 완료가 끝이 아니다.** 구현이 `PROJECT_COMPLETE` 를 만들면 `-ResetAudit` 로 **새 Audit
+  Cycle** 을 돌려 독립 검증한다. 거기서 새 Root Cause 가 나오면 자동으로 구현으로 돌아간다.
+- 어느 Phase 든 **완료 marker 없이 끝나면 사람을 기다리지 않고 그 Phase 를 다시 돌린다.**
+  예전에는 여기서 `exit 10` + "같은 명령을 다시 실행하세요" 였다 — 그 재실행이 사람 손이었다.
+- 무한 반복은 하지 않는다. 재시도마다 **전략을 바꾼다**: Runner 내부 session 회전/유형별 백오프 →
+  `-ResumeBlocked`(BLOCKED 격리) → `-ResetAudit`(관점 자체를 새 Cycle 로). 상한을 넘으면 수렴한다.
+
+| 상한 | 기본값 | 뜻 |
+|---|---|---|
+| `-MaxCycles` | 12 | Audit↔구현 왕복 |
+| `-MaxPhaseRetries` | 6 | 같은 Phase 를 전략 바꿔 가며 재시도 |
+| `-RequiredCleanVerifications` | 1 | 재감사가 깨끗해야 하는 연속 횟수 |
+| `-MaxTotalHours` | 0(무제한) | 전체 실행 시간 |
+
+**사람이 개입해야 끝나는 경우는 둘뿐이다**: `3`=사용자 STOP(사용자만 만든다), `7`=전제조건 실패
+(claude 실행 파일 없음 / git 저장소 아님). 그 외(`5` Audit 미수렴, `6` 구현 미수렴, `8` 시간 상한,
+`9` Cycle 상한)는 전부 **상한까지 스스로 시도한 뒤** 증거를 남기고 끝난 상태다.
+
+### Human Gate 를 기계적으로 막는 장치
+
+재설계가 필요하다는 것을 정확히 찾아 놓고 "업무 흐름이 바뀌니 사람 승인이 필요하다"며 제안으로만
+남기면 그 Root Cause 는 영원히 구현되지 않는다. 개별 항목을 예외 처리하는 대신 **그런 결론 자체가
+완료 Gate 를 통과하지 못하게** 막는다.
+
+| 장치 | 무엇 |
+|---|---|
+| `HANDOFF-SUMMARY` 의 `deferred_for_human_approval` | **반드시 0.** 아니면 `AUDIT_COMPLETE` 거부 |
+| `Get-HumanGateLanguage` | HANDOFF 본문에서 `제안으로만`·`사람 승인`·`사용자 판단이 필요`·`구현 보류`·`approval required` 등 **미루는 표현**을 찾아 거부. 제품 기능인 '승인 워크플로'는 오탐하지 않는다 |
+| `Invoke-BlockedAutoRecovery` | `AUDIT_BLOCKED`·gate 반복 거부·write guard 위반을 **사람 호출 상태로 쓰지 않는다.** marker 를 격리(증거 보존)하고 session 을 회전한 뒤 "같은 방법을 반복하지 마라 + 대체 경로 목록"을 다음 invocation 에 되먹인다. 상한(`-MaxBlockedRecoveries` 3 / `-MaxWriteGuardRecoveries` 2)을 넘으면 수렴 |
+| 두 프롬프트의 금지 목록 | 사람 승인·질문·선택지 대기·ADR 승인·제안으로만 을 명시적으로 금지하고, 대신 쓸 판단 기준 13가지를 준다 |
+
+**자동 revert 는 여전히 하지 않는다.** write guard 위반이 감지돼도 변경 내용은 워킹트리와 이력에
+그대로 보존한다 — 사용자 변경 보호가 자율성보다 우선이다.
+
 ## 구성 파일
 
 | 파일 | 역할 |

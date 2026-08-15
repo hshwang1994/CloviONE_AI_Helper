@@ -1644,3 +1644,86 @@ commit이 `is_write_conflict`로 분류되는 경합으로 실패하면, 원시 
 503"으로 바뀌지만, **요청은 여전히 유실된다** — 사용자가 직접 다시 눌러야 한다. 위 1·3번 이유
 (범위가 크다, 확률이 낮다)도 여전히 유효해서, 진짜 재시도(요청 전체 재실행)는 여전히 이번
 범위 밖으로 남긴다. 다음에 이 결이 다시 나오면 이번엔 분류가 아니라 재시도 자체를 다룰 차례다.
+
+---
+
+## D-74 (2026-08-13) — Human Gate 전면 제거: 세 Runner를 완전 자율 상태 머신으로
+
+사용자 지시: Audit → 판단 → 설계 → 구현 → 테스트 → 배포 → 실환경 검증 → 재감사 → 추가 개선의
+전 과정에서 사람의 질문·승인·선택·ADR 승인·재시작이 **전혀** 필요 없어야 한다. 특정 항목
+(RD-5/RD-6 같은)만 예외 처리하지 말고 **상위 규칙과 Gate 자체**를 고칠 것.
+
+### 발견한 Human Gate와 그 Root Cause
+
+| # | Human Gate | 실제 Root Cause |
+|---|---|---|
+| H1 | `run_all` 이 Audit 1회 → 구현 1회 하고 **끝났다** | 재감사 단계가 상태 머신에 **아예 없었다**. 구현 후 새 문제가 나와도 사람이 다시 실행해야 했다 |
+| H2 | marker 없이 Phase 가 끝나면 `exit 10` + "같은 명령을 다시 실행하세요" | 종료 코드만 보고 사람에게 넘기는 분기 |
+| H3 | `AUDIT_BLOCKED` → `exit 5` → 사람이 고치고 `-ResumeBlocked` 로 재실행 | Blocker 를 **사람 호출 상태**로 설계했다 |
+| H4 | 완료 Gate 반복 거부 → `AUDIT_BLOCKED` + "사람이 확인하고 해결한 뒤 재개" | 같은 문제 |
+| H5 | write guard 위반 → 즉시 `AUDIT_BLOCKED` + "사람이 직접 확인하고 복구하라" | 탐지(안전)와 정지(가용성)를 한 덩어리로 묶었다 |
+| H6 | **Audit 이 재설계를 "제안"까지만 하고 끝냈다** | 프롬프트가 "재설계하는 후보를 **제안하라**"였고, "업무 흐름이 바뀌면 사람 승인"이라는 결론을 막는 규칙이 **하나도 없었다**. RD-5/RD-6 가 여기서 죽는다 |
+| H7 | 구현 Runner에 설계 권한 규정이 없었다 | Handoff 문구를 기계적으로 패치하는 역할로만 정의돼 있었다 |
+| H8 | dirty worktree 를 최대 10분 **기다렸다** | 사용자 변경 보호를 "기다리기"로만 구현했다 |
+| H9 | ADR/DECISIONS 를 선행조건처럼 읽을 여지 | 순서를 명시하지 않았다 |
+
+### 고친 구조
+
+**run_all.ps1 — 완전 자율 상태 머신으로 재작성**
+`AUDIT → (IMPLEMENTATION_REQUIRED) → IMPLEMENT → VERIFY(새 Audit Cycle) → …` 를 수렴까지 반복한다.
+구현이 `PROJECT_COMPLETE` 를 만들어도 끝이 아니라 `-ResetAudit` 로 **독립 재감사**를 돌려 검증하고,
+새 Root Cause 가 나오면 자동으로 구현으로 돌아간다(H1). marker 없이 끝난 Phase 는
+`Invoke-PhaseUntilMarker` 가 **전략을 바꿔 가며** 다시 돌린다(H2·H3) — Runner 내부 session 회전 →
+`-ResumeBlocked` → `-ResetAudit`. 사람이 개입해야 끝나는 종료는 `3`(사용자 STOP)·`7`(전제조건)
+**둘뿐**이다. 무한 반복은 `-MaxCycles`(12)·`-MaxPhaseRetries`(6)·`-MaxTotalHours` 가 막는다.
+
+**product_audit_runner.ps1**
+- 프롬프트 §0-A 신설: 사람 승인·질문·선택지 대기·ADR 승인·제안으로만 을 **명시적으로 금지**하고,
+  대신 쓸 판단 기준 13가지를 준다. 근거가 부족하면 질문이 아니라 **조사를 더 한다**.
+- §6: "재설계 후보를 **제안하라**" → "재설계안을 **결정하고 PA-RC 로 승격하라**". IA·Sidebar·
+  Navigation·Dashboard·Page·Component·Tab·정보위계·동선·CTA 변경을 승인 대상이 아닌 정상 범위로
+  명시하고, 금지 패턴(`재설계 발견 → 승인 필요 → 제안으로만 → 구현 안 됨`)을 이름 붙여 막았다(H6).
+- §8: **변경이 크다는 이유로 confidence 를 낮춰 Handoff 에서 빼는 것**을 증거 등급 조작으로 규정.
+- §10: `HANDOFF-SUMMARY` 기계 블록 신설 — `deferred_for_human_approval` 은 **반드시 0**.
+- 완료 Gate: 위 필드 검증 + `Get-HumanGateLanguage` 로 HANDOFF 본문의 미루는 표현 탐지. 제품
+  기능인 '승인 워크플로'는 오탐하지 않게 패턴을 좁혔다(T65 가 양방향으로 고정).
+- `Invoke-BlockedAutoRecovery` 신설: BLOCKED·gate 반복 거부·write guard 위반을 marker 격리 +
+  session 회전 + **"같은 방법을 반복하지 마라 + 대체 경로 목록"** 되먹임으로 처리(H3·H4·H5).
+  상한(3회 / write guard 2회)을 넘으면 그때 수렴한다.
+- §7: Blocker 를 적기 전에 소진해야 할 대체 경로 16가지를 명시. 도구·QA 데이터 부재는 blocker 가
+  아니라 **직접 설치/생성**한다.
+
+**autonomous_runner.ps1**
+- 프롬프트 §0 신설: 같은 금지 목록 + 판단 기준. **ADR/DECISIONS 는 선행조건이 아니다** —
+  `조사 → 결정 → 구현 → 검증 → 사후 문서화` 순서를 못박았다(H9).
+- UI/UX 재설계 권한 21항목을 구현 쪽에도 명시. **"단순 CSS/spacing 수정 반복 = UI/UX 완료" 금지**,
+  token migration·literal 제거·a11y green·lint green 을 완료 근거로 쓰지 못하게 하고 실제 화면
+  기준 평가 12항목(정보위계·밀도·액션 우선순위·Dashboard 의사결정 기여·1920/4K·Light/Dark·
+  **기존보다 실제로 나아졌는가**)을 완료 조건으로 넣었다.
+- "Handoff 는 하한선이지 상한선이 아니다" — 더 나은 방법을 찾으면 스스로 판단해 구현하고 근거를
+  사후 기록. 같은 Root Cause 의 다른 발생 지점을 발견하면 같은 Cycle 안에서 처리(H7).
+- Blocker 자가 복구 사다리 + **dirty worktree 전략**: 기다리지 않는다. 충돌 없는 파일부터 →
+  `git worktree` + 별도 branch → 안전한 시점에 통합. **사용자 변경 삭제·reset·revert·drop·
+  overwrite 는 절대 금지**를 함께 명시해 보호와 자율을 동시에 만족시킨다(H8).
+- 정지 조건 (a) 강화: 설계 선택지가 여럿·업무 흐름 변경·변경 규모·검증 방법 못 찾음은 전부
+  정지 사유가 **아니다**.
+
+### 보존한 안전장치
+
+자동 revert 없음(사용자 변경 보호) · write guard 탐지 · cycle_id/baseline 격리 ·
+Blind Re-Audit 2회 · marker 격리(삭제 아님) · 완료 Gate 전체 · RBAC/보안/데이터 정합성 규칙 ·
+revert-to-verify · single-instance lock · 사용자 STOP · 전제조건 Gate · 권한 밖 외부 행위를
+수행한 척하지 않기.
+
+자율화는 **안전장치를 지우는 방식이 아니라**, 사람에게 넘기던 판단을
+`조사 → 근거 수집 → AI 판단 → 구현 → 검증` 으로 대체하는 방식으로 했다.
+
+### 검증
+
+contract test **66건**이 Windows PowerShell 5.1 / PowerShell 7 양쪽 통과. 신규:
+T48(Audit→구현→재감사 연결) · T49(marker 없는 Phase 자동 재시도, exit 10 경로 소멸) ·
+T49B(재감사가 낸 새 Root Cause 로 구현 복귀, 3 Cycle) · T64(사람 승인 대기 Handoff Gate 거부) ·
+T65(승인 워크플로 오탐 방지 양방향) · T66(BLOCKED 자동 복구 + 상한 수렴) ·
+T67(세 파일 실행 흐름에 사람 개입 분기 0) · T68(UI/UX 권한·완료 판정·worktree 전략) ·
+T69(write guard 자동 복구 + 무revert + 증거 보존). 기존 T21/T22/T23/T42 는 write guard **탐지**를
+검증하도록 `-MaxWriteGuardRecoveries 0` 으로 고정했다.

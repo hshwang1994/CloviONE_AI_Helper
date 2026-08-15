@@ -1268,6 +1268,48 @@ function Write-TimingRecord {
 
 # ── TEST SERVER 접근 상태(무인 실행 가능 여부를 시작 시 한 번 확인) ───────────
 
+function Get-HumanGateLanguage {
+    <#  구현 계약 문서(HANDOFF)에서 **"사람에게 넘긴다"는 결론**을 찾아낸다.
+
+        왜 기계 Gate 로 두는가: 재설계가 필요하다는 것을 정확히 찾아 놓고 "업무 흐름이 바뀌니
+        사람 승인이 필요하다"며 제안으로만 남기면, 그 Root Cause 는 영원히 구현되지 않는다.
+        이건 특정 항목(RD-5/RD-6 같은)의 문제가 아니라 **상위 규칙의 문제**이므로, 개별 항목을
+        예외 처리하는 대신 그런 결론 자체가 완료 Gate 를 통과하지 못하게 막는다.
+
+        오탐 방지: 이 제품에는 '승인 워크플로'라는 **기능**이 있다(approval). 그래서 맨
+        '승인'/'승인 대기' 같은 제품 상태 이름은 절대 잡지 않고, **작업을 사람에게 미룬다는
+        뜻으로만 쓰이는** 표현만 좁게 본다. #>
+    param([string]$Text)
+    $hits = New-Object System.Collections.Generic.List[string]
+    if ([string]::IsNullOrWhiteSpace($Text)) { return @() }
+
+    $patterns = @(
+        '제안으로만',
+        '사람\s*승인', '사용자\s*승인', '승인\s*후\s*구현', 'ADR\s*승인',
+        '사람[의이]?\s*판단[이가]?\s*필요', '사용자[의]?\s*판단[이가]?\s*필요',
+        '사람[이의]?\s*확인[이가]?\s*필요', '사용자[의]?\s*확인[이가]?\s*필요',
+        '사람\s*조치', '사람이\s*해야', '사람만\s*(할|가능)',
+        '구현\s*보류', '구현하지\s*않(음|는다|기로)',
+        '(?i)approval\s+required', '(?i)awaiting\s+(human|approval)',
+        '(?i)human\s+(approval|decision|sign-?off)', '(?i)needs?\s+human',
+        '(?i)pending\s+(user|human)\s+decision'
+    )
+    $lines = $Text -split "`n"
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        foreach ($p in $patterns) {
+            if ($line -match $p) {
+                $t = $line.Trim()
+                if ($t.Length -gt 140) { $t = $t.Substring(0, 140) + "…" }
+                $hits.Add("L$($i + 1): $t")
+                break
+            }
+        }
+    }
+    return @($hits.ToArray() | Select-Object -First 12)
+}
+
 function Get-TestServerTargetFromRepo {
     <#  승인된 TEST SERVER 접속 대상(`user@host`)을 **현재 저장소 설정에서** 찾는다.
 

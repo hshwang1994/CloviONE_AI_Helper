@@ -133,8 +133,19 @@ param(
     # 완료된 Audit을 새 Cycle로 다시 시작할 때 사용한다.
     [switch]$ResetAudit,
 
-    # AUDIT_BLOCKED 원인을 사람이 해결한 뒤 이어서 실행할 때 사용한다.
-    [switch]$ResumeBlocked
+    # AUDIT_BLOCKED 를 사람 없이 이어서 실행할 때 쓴다(수동 확인용 seam — 자동 복구가 기본이다).
+    [switch]$ResumeBlocked,
+
+    # ★ D-74: AUDIT_BLOCKED 를 **사람 호출 상태로 쓰지 않는다.** 예전에는 blocked 가 뜨면
+    #   사람이 원인을 고치고 -ResumeBlocked 로 다시 실행해야 밤샘 실행이 이어졌다 — 그게
+    #   Human Gate 였다. 이제는 marker 를 격리하고 **거부 사유를 다음 invocation 에 되먹여
+    #   다른 전략으로 다시 조사시킨다.** 무한 반복은 아래 상한이 막는다: 같은 이유로 계속
+    #   막히면 그때는 진짜 외부 제약이므로 수렴한다.
+    [bool]$AutoResolveBlockers = $true,
+    [int]$MaxBlockedRecoveries = 3,
+    # write guard 위반은 성격이 다르다(역할 위반). 자동 revert 는 절대 하지 않고 증거를 남긴 뒤
+    # 오염된 세션을 회전시켜 다시 시도한다. 반복되면 그때 정말로 멈춘다.
+    [int]$MaxWriteGuardRecoveries = 2
 )
 
 $ErrorActionPreference = "Stop"
@@ -200,6 +211,8 @@ $StateDefaults = [ordered]@{
     lastFailureSignature       = ""
     lastFailureClass           = ""
     completionGateRejections   = 0
+    blockedRecoveries          = 0
+    writeGuardRecoveries       = 0
     sessionRotatedForStreak    = $false
     invocationsSinceCold       = 999          # 첫 회차는 항상 COLD
     lastRunAt                  = $null
@@ -323,6 +336,65 @@ function Write-AuditBlocked([string[]]$reasons) {
     foreach ($r in $reasons) { $body += $r }
     [void](Write-TextFile $AuditBlockedFile (($body -join [Environment]::NewLine)))
     Write-AuditLog "AUDIT_BLOCKED 기록: $($reasons -join ' | ')"
+}
+
+function Invoke-BlockedAutoRecovery {
+    <#  AUDIT_BLOCKED 를 **사람 호출 상태로 쓰지 않는다**(D-74).
+
+        예전 구조: blocked → exit 5 → 사람이 원인을 고치고 `-ResumeBlocked` 로 재실행.
+        그게 밤샘 실행을 끊는 Human Gate 였다.
+
+        새 구조: marker 를 격리(증거 보존)하고, **왜 막혔는지를 다음 invocation 프롬프트에
+        되먹여** 다른 전략으로 다시 조사시킨다. 무한 반복은 상한이 막는다 — 같은 이유로 계속
+        막히면 그건 정말로 AI 권한 밖이므로 그때 수렴한다.
+
+        돌려주는 값: $true = 복구해서 계속한다, $false = 상한 도달, 진짜로 멈춘다. #>
+    param([string]$Reason, [string]$Kind = "blocked")
+
+    if (-not $AutoResolveBlockers) { return $false }
+
+    $st = Get-NormalizedState -Path $StateFile -Defaults $StateDefaults -LogPath $RunnerLog
+    $key = if ($Kind -eq "write-guard") { "writeGuardRecoveries" } else { "blockedRecoveries" }
+    $max = if ($Kind -eq "write-guard") { $MaxWriteGuardRecoveries } else { $MaxBlockedRecoveries }
+    $n = (Get-IntOr $st.$key) + 1
+    if ($n -gt $max) {
+        Write-AuditLog "$Kind 자동 복구 상한($max) 초과 — 더 이상 재시도하지 않고 수렴한다."
+        return $false
+    }
+    $st.$key = $n
+    # 오염된 세션이 같은 실수를 반복하지 않게 회전시킨다.
+    Remove-Item -LiteralPath $SessionIdFile -Force -ErrorAction SilentlyContinue
+    [void](Save-StateFile $StateFile $st)
+
+    if (Test-Path -LiteralPath $AuditBlockedFile) {
+        [void](Move-MarkerToQuarantine -MarkerPath $AuditBlockedFile -QuarantineDir $QuarantineDir `
+            -Reasons "auto-recovery($Kind) #$n/$max — 사람을 기다리지 않고 다른 전략으로 재시도한다")
+    }
+
+    $advice = if ($Kind -eq "write-guard") {
+        "직전 invocation 이 Audit allowlist 밖 경로를 변경했다(역할 위반). 그 변경은 되돌리지 않고 " +
+        "증거로 보존했다. **제품 코드/테스트/설정/배포 코드를 절대 건드리지 마라.** 명령 실행으로 " +
+        "tracked 파일이 우연히 바뀔 수 있는 작업(빌드·번들·스냅샷 갱신·migration)은 아예 하지 마라. " +
+        "읽기 전용 검증과 기존 테스트 실행만 한다."
+    } else {
+        "직전 invocation 이 AUDIT_BLOCKED 를 기록했지만, 이 파이프라인에는 사람이 풀어 주는 Gate 가 없다. " +
+        "**같은 방법을 반복하지 마라.** 7절의 대체 경로(정적 분석·실제 API 호출·DB 직접 조회·로그 분석· " +
+        "테스트 데이터/QA 계정 직접 생성·로컬 dev·TEST SERVER·scripts/ui_qa 브라우저 자동화·대체 테스트 " +
+        "작성·별도 worktree) 중 아직 시도하지 않은 것을 실제로 시도하라. 필요한 도구가 없으면 직접 " +
+        "설치한다. 그래도 못 하는 것은 그 칸만 BLOCKED 로 남기고 **다른 모든 조사는 계속하라.**"
+    }
+    [void](Write-TextFile $GateRejectionFile (
+        "rejected_at=$(Get-Date -Format o)" + [Environment]::NewLine +
+        "auto_recovery=$Kind #$n/$max" + [Environment]::NewLine +
+        "직전 중단 사유: $Reason" + [Environment]::NewLine + $advice))
+
+    Write-Banner @(
+        "$Kind 상태를 자동 복구합니다($n/$max) — 사람을 기다리지 않습니다.",
+        "  사유: $Reason",
+        "Worker Session 을 회전하고, 다른 전략으로 다시 조사하도록 지시를 되먹입니다."
+    )
+    Write-AuditLog "$Kind 자동 복구($n/$max) — session 회전 + 전략 변경 지시 주입 후 계속. 사유: $Reason"
+    return $true
 }
 
 # ── Audit Cycle ───────────────────────────────────────────────────────────────
@@ -498,6 +570,29 @@ function Test-AuditCompletionGate {
         }
     }
 
+    # ── Human Gate 금지 (D-74) ──────────────────────────────────────────────
+    # 재설계가 필요하다는 것을 정확히 찾아 놓고 "업무 흐름이 바뀌니 사람 승인이 필요하다"며
+    # 제안으로만 남기면 그 Root Cause 는 영원히 구현되지 않는다. 개별 항목을 예외 처리하는
+    # 대신 **그런 결론 자체가 Gate 를 통과하지 못하게** 막는다.
+    $hDeferred = Get-KeyValueFromText $handoff "deferred_for_human_approval"
+    $hActionable = Get-KeyValueFromText $handoff "actionable_root_causes"
+    if ($hDeferred -notmatch '^\d+$') {
+        $fail.Add("HANDOFF 의 HANDOFF-SUMMARY 에 deferred_for_human_approval 정수 값이 없다. " +
+                  "사람 승인 대기 항목이 없다는 것을 기계가 확인할 수 있어야 한다(0 이어야 한다).")
+    } elseif ([int]$hDeferred -ne 0) {
+        $fail.Add("deferred_for_human_approval=$hDeferred — 사람 승인 대기로 미룬 항목이 있다. " +
+                  "이 파이프라인에는 사람 승인 Gate 가 없다. 근거가 충분하면 네가 결정해 PA-RC 로 승격하고, " +
+                  "근거가 부족하면 confidence 를 낮춰 FINDINGS 에만 남겨라. 변경이 크다는 것은 승인 사유가 아니다.")
+    }
+    if ($hActionable -match '^\d+$' -and [int]$hActionable -ne $blocks.Count) {
+        $fail.Add("HANDOFF-SUMMARY 의 actionable_root_causes=$hActionable 가 실제 PA-RC 블록 수($($blocks.Count))와 다르다.")
+    }
+    $gateLang = @(Get-HumanGateLanguage $handoff)
+    if ($gateLang.Count -gt 0) {
+        $fail.Add("HANDOFF 에 작업을 사람에게 미루는 표현이 있다 — 구현 계약에 그런 결론은 들어갈 수 없다: " +
+                  ($gateLang -join ' / '))
+    }
+
     foreach ($b in $blocks) {
         $rcId = $b.Groups[1].Value
         $body = $b.Groups[2].Value
@@ -620,6 +715,36 @@ API/DB/RBAC/통합 경로, 사용자 문구까지 근거 기반으로 전수조�
 
 사람이 실시간으로 답하지 않는 비대화형 무인 Audit이다. 질문하지 말고 저장소와 실행 가능한 증거로
 스스로 판단한다. 다만 근거가 없으면 의도를 지어내지 말고 UNKNOWN 또는 BLOCKED로 남긴다.
+
+======================================================================
+0-A. 사람 승인이라는 단계는 존재하지 않는다 (이 Audit의 최상위 규칙)
+======================================================================
+
+이 파이프라인에는 사람에게 판단을 넘기는 Gate가 **없다.** 아래 결론은 전부 금지다.
+
+- 사람 승인 필요 / 사용자 승인 필요 / 승인 후 구현
+- 사람 판단 필요 / 사용자 판단 필요 / 정책 결정 필요
+- 사용자에게 질문 · 선택지 제시 후 대기 · A안 B안 중 무엇으로 할지 문의
+- ADR 승인 필요 / 설계 결정 대기
+- 제안으로만 기록하고 구현 대상에서 제외
+- "업무 흐름이 바뀌므로" / "UI/UX 변경이 크므로" / "아키텍처 변경이므로" 사람이 정해야 함
+
+근거가 충분하면 **네가 결정한다.** 여러 선택지가 있어도 묻지 않는다. 아래 기준으로 직접 고른다.
+
+사용자 업무 성공 · 기존 제품 의도 · 기능 정확성 · 데이터 정합성 · RBAC/보안 경계 유지 ·
+단순성 · 일관성 · 유지보수성 · 접근성 · 테스트 가능성 · 회귀 위험 · UI/UX 품질 ·
+현재 코드와 아키텍처의 방향성
+
+**근거가 부족하면 질문하지 말고 조사를 더 해라.** 코드·테스트·스키마·API·RBAC·문서·실제 브라우저
+동작·DB 상태·로그를 더 본다. 그래도 확정 못 하면 그것은 "사람 승인 대상"이 아니라 **confidence가
+낮은 Finding**이다 — Probable/Hypothesis로 정직하게 남기고 다음 조사로 넘어간다.
+
+변경 규모가 크다는 것은 승인 사유가 아니라 **regression_risk와 acceptance_criteria를 더 촘촘히
+쓸 이유**다. 크기로 미루지 말고 위험을 설계로 통제하라.
+
+예외는 하나뿐이다: **네게 실제 권한이 없는 외부 행위**(자격증명 회전, 외부 운영시스템 변경,
+조직의 업무 정책 자체 변경). 그것은 수행하지 않은 사실과 영향만 정직하게 기록하고, 그것과
+독립적으로 가능한 모든 조사·판단은 계속한다. 하지 않은 외부 행위를 한 것처럼 꾸미지 마라.
 
 ======================================================================
 0. 역할 경계 — 당신은 AUDITOR다. IMPLEMENTER가 아니다
@@ -839,10 +964,32 @@ Z. Documentation Drift — docs가 현재 구현과 다른 곳, 이미 해결됐
 
 IA, Layout, Navigation, Page Structure, Component, Typography, Color System, Density,
 Interaction, Motion, Empty State, Loading, Feedback, Form, Table, Dashboard, Chat UI가
-낡았거나 제품 완성도를 떨어뜨린다면 **기존 구현을 과감하게 재설계하는 후보를 제안하라.**
+낡았거나 제품 완성도를 떨어뜨린다면 **기존 구현을 과감하게 재설계하는 안을 네가 결정하고
+PA-RC로 승격하라.** "후보를 제안한다"에서 멈추지 마라 — 그건 구현되지 않는다는 뜻이다.
 
 단순 CSS 보정이나 spacing 조정 수준에 머물지 마라. 필요하면 Page 구조, Component 구조,
-Navigation 구조, Workflow 자체까지 다시 설계하는 안을 내라.
+Navigation 구조, Workflow 자체까지 다시 설계한다.
+
+### 화면 구조가 바뀌는 것은 정상적인 UI/UX 개선이다 — 승인 대상이 아니다
+데이터 의미·API 의미·RBAC 경계 같은 **제품 계약을 유지하면서** 아래가 바뀌는 것은 이 Audit이
+직접 결정하고 Handoff로 넘길 수 있는 정상 범위다. 사람 승인 항목으로 분류하지 마라.
+
+Information Architecture 재편 · Sidebar 구조 변경 · Navigation 재구성 · Dashboard 재설계 ·
+Page 구조 변경 · Component 구조 변경 · 여러 화면 통합 또는 분리 · Tab 구조 도입 ·
+정보 위계 재조정 · 사용자 작업 동선 단축 · CTA 위치와 우선순위 변경 ·
+Form/Table/Dashboard/Chat UX 개선 · Empty/Error/Loading/Feedback 개선 · Typography 개선 ·
+Color System 개선 · Density/Spacing 개선 · Responsive · FHD/QHD/4K · Light/Dark ·
+Accessibility · UX Writing · Interaction 개선
+
+**금지 패턴(이 흐름이 나오면 그 자체가 결함이다):**
+```
+재설계 필요 발견 → 업무 흐름이 변경됨 → 사람 승인 필요 → 제안으로만 기록 → 구현 안 됨
+```
+**대신 이렇게 한다:**
+```
+재설계 필요 발견 → 근거 조사 → 영향 범위 분석 → 네가 설계안 결정
+→ PA-RC 생성(acceptance_criteria·required_tests·regression_risk 포함) → HANDOFF → 구현
+```
 
 목표:
 - 더 현대적이고 세련된 시각 디자인
@@ -912,9 +1059,23 @@ Skill이 없을 때 쓰는 내장 rubric(최소 이 목록으로 각 주요 화�
   외부 시스템(Notion 등) 쓰기. 격리된 test fixture·전용 QA 계정·disposable 데이터를 우선한다.
 - 저장소의 제품 코드/테스트/설정/migration은 절대 수정하지 않는다(0절 write guard).
 
-필수 Workflow를 안전한 환경에서 실제 검증할 방법이 전혀 없고 정적/기존 테스트로도 동등한 증거를
-확보할 수 없다면 그 칸을 BLOCKED로 기록한다. 다른 독립 Audit은 계속하고, 마지막까지 필수
-Coverage가 남으면 그때 AUDIT_BLOCKED를 만든다. **한 blocker 때문에 다른 조사를 멈추지 마라.**
+### Blocker는 사람 호출 상태가 아니다 — 먼저 대체 경로를 전부 소진하라
+"검증할 수 없다"고 적기 전에 아래를 실제로 시도했는지 확인한다. 하나라도 남아 있으면 그건
+BLOCKED가 아니라 아직 안 해 본 것이다.
+
+다른 검증 방법 · 코드 정적 분석 · 실제 API 호출 확인 · DB 상태 직접 조회 · 로그 분석 ·
+테스트 데이터 생성 · QA 계정 직접 생성 · 로컬 dev 환경 활용 · TEST SERVER 활용 ·
+필요한 테스트 추가 · 대체 테스트 작성 · 브라우저 자동화(`scripts/ui_qa/`) ·
+기존 스크린샷 활용 · 새 스크린샷 생성 · 재시도 · 다른 조사 전략 · 별도 worktree
+
+필요한 도구·패키지·브라우저가 없으면 **직접 설치하고 계속한다**(7절 TEST SERVER 권한).
+필요한 QA 계정·데이터가 없으면 **직접 만들고 계속한다**. 그것은 blocker가 아니다.
+
+그 모든 것을 소진하고도 실제로 못 하는 것만 그 칸을 BLOCKED로 기록한다. 기록에는
+**시도한 대체 경로 목록**과 **왜 전부 실패했는지**를 함께 적는다. "사람이 해 줘야 한다"만
+적힌 BLOCKED는 무효다. 다른 독립 Audit은 계속한다 — **한 blocker 때문에 다른 조사를 멈추지
+마라.** 마지막까지 남은 필수 Coverage가 있어도, 그것이 네 권한 밖 외부 행위 때문일 때만
+AUDIT_BLOCKED다.
 
 ======================================================================
 8. Finding과 Root Cause
@@ -935,6 +1096,10 @@ error handling 때문에 여러 페이지에서 같은 현상이 생기면 **하
 
 Confirmed/Strong이 아닌 Hypothesis를 구현 Handoff로 승격하지 마라. 추가 조사로 신뢰도를 높이거나
 PRODUCT_AUDIT_FINDINGS.md에만 남긴다.
+
+**단, confidence는 "증거가 얼마나 확실한가"만 뜻한다.** 변경이 크다는 이유, 업무 흐름이 바뀐다는
+이유, 사람이 봐야 할 것 같다는 이유로 confidence를 낮춰서 Handoff에서 빼지 마라 — 그것은
+증거 등급 조작이다. 증거가 확실하면 Confirmed/Strong이고, 그러면 승격 대상이다.
 
 ======================================================================
 9. Audit 문서 SSOT
@@ -963,6 +1128,23 @@ BACKLOG에 한 줄만 넘기고 Audit의 깊은 조사 결과를 버리면 안 �
 
 문서 맨 위에 다음 한 줄을 둔다.
     cycle_id=<현재 Cycle ID>
+
+그 아래에 기계 요약 블록을 **정확히 이 형식으로** 둔다. Supervisor가 파싱한다.
+
+<!-- HANDOFF-SUMMARY
+cycle_id=<현재 Cycle ID>
+actionable_root_causes=<PA-RC 블록 수와 같은 정수>
+redesign_root_causes=<그중 IA/Navigation/Dashboard/Page/Component 재설계에 해당하는 수>
+deferred_for_human_approval=0
+-->
+
+`deferred_for_human_approval` 은 **반드시 0이어야 하고**, 0이 아니면 완료 Gate가 거부한다.
+이 필드는 "사람 승인 대기"라는 결론 자체를 만들 수 없게 하려고 있는 것이다. 근거가 부족하면
+그건 승인 대기가 아니라 confidence가 낮은 Finding이다(8절).
+
+Supervisor는 HANDOFF 본문에서 `제안으로만`·`사람 승인`·`사용자 판단이 필요`·`구현 보류`·
+`approval required` 같은 **작업을 사람에게 미루는 표현**도 함께 검사한다. 발견되면 거부한다.
+(제품 기능으로서의 '승인 워크플로'는 잡지 않는다 — 미루는 뜻으로 쓰인 표현만 본다.)
 
 각 Root Cause:
 
@@ -1018,6 +1200,11 @@ PRODUCT_AUDIT_FINDINGS에서 중복 제거와 Root Cause merge를 끝낸다.
 - 기존 항목에 새 영향 범위/증거를 붙일 수 있으면 갱신한다.
 - 새 Confirmed/Strong 미해결 Root Cause만 승격하고, 각 행에 `PA-RC-XXXX` 와
   `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md` 참조를 남긴다.
+- **사람 승인이 필요해 보인다는 이유로 Handoff에서 빼지 마라.** UI/UX·IA·Navigation·Workflow·
+  Component 구조·Architecture 개선도 근거가 Confirmed/Strong이면 전부 승격 대상이다.
+  담당을 "사용자"로 적어 두고 넘기는 것도 금지다 — 담당은 언제나 구현 Phase다.
+  유일한 예외는 네게 실제 권한이 없는 외부 행위(자격증명 회전, 외부 시스템 변경)이고,
+  그것은 Handoff가 아니라 REPORT의 "외부 제약" 절에 사실만 적는다.
 - QA gap은 docs/QA_COVERAGE.md에 반영한다.
 - 중요한 제품 정책/설계 결정이 새로 확정된 경우에만 docs/DECISIONS.md를 갱신한다.
 - 구현이 필요한 항목이 하나라도 있으면 var/product-audit/IMPLEMENTATION_REQUIRED 를 만든다.
@@ -1071,9 +1258,13 @@ PA-RC 필수 필드, IMPLEMENTATION_REQUIRED 정합성을 전부 검사한다. �
 격리되고 **거부 사유가 다음 invocation 프롬프트에 그대로 전달되며** Audit은 계속된다.
 그러니 애초에 정확히 만들어라.
 
-필수 Coverage가 사람/환경 때문에 끝내 막히면 AUDIT_COMPLETE를 만들지 말고, 남은 모든 실행 가능한
-조사를 끝낸 뒤 var/product-audit/AUDIT_BLOCKED 에 다음을 적는다.
-    blocked_at / 막힌 Coverage / 정확한 이유 / 이미 확보한 대체 증거 / 사람이 해야 할 최소 조치
+AUDIT_BLOCKED는 **거의 만들 일이 없어야 한다.** 7절의 대체 경로를 전부 소진하고도 남는 것,
+즉 **네게 실제 권한이 없는 외부 행위** 때문에 필수 Coverage가 끝내 안 채워질 때만이다.
+그때도 남은 모든 실행 가능한 조사를 먼저 끝낸 뒤 var/product-audit/AUDIT_BLOCKED 에 적는다.
+    blocked_at / 막힌 Coverage / 정확한 이유 / **시도한 대체 경로 전체 목록과 각각의 실패 이유** /
+    이미 확보한 대체 증거 / 그것이 왜 AI 권한 밖인지
+"사람이 확인해 주면 된다"는 이유는 AUDIT_BLOCKED 사유가 아니다. Supervisor는 이 marker를
+자동으로 격리하고 **다른 전략으로 다시 조사시킨다** — 같은 이유를 반복해서 적으면 그때 수렴한다.
 
 marker를 만든 뒤에는 추가 조사나 코드 수정 없이 invocation을 종료한다.
 
@@ -1145,14 +1336,20 @@ try {
     foreach ($p in @($cycle.foreignDirty)) { if ($p) { $script:StableForeignDirty[[string]$p] = $true } }
 
     # BLOCKED 를 COMPLETE 보다 먼저 본다 — 둘 다 있으면 "막혔다"가 우선이다(안전한 쪽).
+    # 단 D-74 이후로 BLOCKED 는 **사람 호출 상태가 아니다** — 먼저 자동 복구를 시도한다.
     if (Test-MarkerValid $AuditBlockedFile) {
-        Write-Banner @(
-            "AUDIT_BLOCKED 상태입니다. 필수 전수조사 Coverage 를 현재 조건에서 완료할 수 없습니다.",
-            (Read-TextOrEmpty $AuditBlockedFile),
-            "원인을 해결한 뒤 -ResumeBlocked 옵션으로 다시 실행하세요."
-        )
-        Write-AuditLog "AUDIT_BLOCKED 유효 — 실행하지 않고 종료."
-        $script:FinalExit = 5; exit $script:FinalExit
+        $blockedBody = (Read-TextOrEmpty $AuditBlockedFile).Trim()
+        if (Invoke-BlockedAutoRecovery -Reason ($blockedBody -replace '\s+', ' ') -Kind "blocked") {
+            # 격리하고 전략 변경 지시를 주입했다 — 그대로 조사를 계속한다.
+        } else {
+            Write-Banner @(
+                "AUDIT_BLOCKED 상태이고 자동 복구 상한($MaxBlockedRecoveries)도 소진했습니다.",
+                $blockedBody,
+                "같은 이유로 반복해서 막혔다는 뜻입니다 — 실제 외부 제약일 가능성이 높습니다."
+            )
+            Write-AuditLog "AUDIT_BLOCKED 유효 + 자동 복구 상한 소진 — 실행하지 않고 종료."
+            $script:FinalExit = 5; exit $script:FinalExit
+        }
     }
 
     if (Test-MarkerValid $AuditCompleteFile) {
@@ -1211,9 +1408,12 @@ try {
             break
         }
         if (Test-MarkerValid $AuditBlockedFile) {
-            Write-AuditLog "AUDIT_BLOCKED 유효 — 루프 종료."
-            $script:FinalExit = 5
-            break
+            $bb = (Read-TextOrEmpty $AuditBlockedFile).Trim() -replace '\s+', ' '
+            if (-not (Invoke-BlockedAutoRecovery -Reason $bb -Kind "blocked")) {
+                Write-AuditLog "AUDIT_BLOCKED 유효 + 자동 복구 상한 소진 — 루프 종료."
+                $script:FinalExit = 5
+                break
+            }
         }
         if ($MaxIterationsPerLaunch -gt 0 -and $iterationsThisLaunch -ge $MaxIterationsPerLaunch) {
             Write-Banner @(
@@ -1258,25 +1458,33 @@ try {
             [void](Write-TextFile $AutoStopFile $msg)
             Write-Banner @(
                 "인프라성 재시도(rate-limit/network/overload/resume)가 $($state.consecutiveInfraRetries)회 연속입니다.",
-                "실제 조사가 한 번도 진행되지 않고 있으므로 사람이 확인해야 합니다(네트워크·인증·구독 상태)."
+                "실제 조사가 한 번도 진행되지 않았습니다 — 네트워크·인증(`claude auth`)·구독 상태 문제일 수 있습니다.",
+                "run_all.ps1 로 실행 중이면 상한까지 자동으로 다시 시도합니다. 단독 실행이면 여기서 멈춥니다."
             )
             Write-AuditLog "인프라 재시도 상한 도달 — AUTO_STOP 기록 후 중단: $msg"
             $script:FinalExit = 6
             break
         }
         if ((Get-IntOr $state.completionGateRejections) -ge $MaxCompletionGateRejections) {
-            Write-AuditBlocked @(
-                "reason=AUDIT_COMPLETE machine gate rejected $($state.completionGateRejections) times",
-                "detail=Worker 가 완료 Gate 를 반복해서 만족시키지 못한다. 마지막 거부 사유는 $GateRejectionFile 참고.",
-                "action=거부 사유를 사람이 확인하고 해결한 뒤 -ResumeBlocked 로 재개"
-            )
-            Write-Banner @(
-                "AUDIT_COMPLETE 가 기계 Gate 에서 $($state.completionGateRejections)회 거부되어 중단합니다.",
-                "마지막 거부 사유: $GateRejectionFile",
-                "원인 해결 후 -ResumeBlocked 로 재개하세요."
-            )
-            $script:FinalExit = 5
-            break
+            # 반복 거부도 사람 호출 사유가 아니다 — 세션을 회전하고 거부 사유를 되먹여 다시 시도한다.
+            $lastRej = (Read-TextOrEmpty $GateRejectionFile).Trim() -replace '\s+', ' '
+            if (Invoke-BlockedAutoRecovery -Reason "AUDIT_COMPLETE gate rejected $($state.completionGateRejections)x: $lastRej" -Kind "blocked") {
+                $state = Get-NormalizedState -Path $StateFile -Defaults $StateDefaults -LogPath $RunnerLog
+                $state.completionGateRejections = 0     # 새 전략으로 다시 센다
+                [void](Save-StateFile $StateFile $state)
+            } else {
+                Write-AuditBlocked @(
+                    "reason=AUDIT_COMPLETE machine gate rejected repeatedly and auto-recovery exhausted",
+                    "detail=Worker 가 완료 Gate 를 반복해서 만족시키지 못한다. 마지막 거부 사유는 $GateRejectionFile 참고.",
+                    "note=자동 복구($MaxBlockedRecoveries회)를 모두 소진했다 — 결정적 실패다."
+                )
+                Write-Banner @(
+                    "AUDIT_COMPLETE 가 기계 Gate 에서 반복 거부되고 자동 복구도 소진되어 중단합니다.",
+                    "마지막 거부 사유: $GateRejectionFile"
+                )
+                $script:FinalExit = 5
+                break
+            }
         }
 
         # ── Audit 외부 dirty 처리 ──
@@ -1491,6 +1699,8 @@ try {
         foreach ($v in @(Get-HistoryIntegrityViolations $headBefore $headAfter $branchBefore $branchAfter)) { $violations.Add($v) }
 
         if ($violations.Count -gt 0) {
+            # 역할 위반이다. **자동 revert 는 절대 하지 않는다**(사용자 변경 보호) — 증거를 남기고
+            # 오염된 세션을 회전해 다시 시도한다. 반복되면 그때 진짜로 멈춘다.
             $reasons = @(
                 "reason=audit worker touched tracked paths outside the audit allowlist (or rewrote history)",
                 "violations=$($violations -join ' | ')",
@@ -1498,17 +1708,22 @@ try {
                 "head_after=$headAfter",
                 "branch_before=$branchBefore",
                 "branch_after=$branchAfter",
-                "action=변경 내용을 사람이 직접 확인하고 필요한 것만 복구하라. Supervisor 는 자동 revert 하지 않는다."
+                "note=Supervisor 는 자동 revert 하지 않는다 — 변경 내용은 워킹트리/이력에 그대로 보존돼 있다."
             )
             Write-AuditBlocked $reasons
             Write-Banner @(
                 "AUDIT WRITE GUARD 위반을 감지했습니다.",
                 "Product Auditor 가 수정하면 안 되는 경로를 변경했거나 이력을 다시 썼습니다:",
                 ($violations -join [Environment]::NewLine),
-                "안전을 위해 자동 revert 하지 않고 AUDIT_BLOCKED 로 중단합니다."
+                "자동 revert 는 하지 않습니다(사용자 변경 보호)."
             )
-            $script:FinalExit = 5
-            break
+            if (-not (Invoke-BlockedAutoRecovery -Reason ("write guard violation: " + ($violations -join ' | ')) -Kind "write-guard")) {
+                Write-AuditLog "write guard 위반 + 자동 복구 상한 소진 — AUDIT_BLOCKED 로 중단."
+                $script:FinalExit = 5
+                break
+            }
+            $iterationsThisLaunch += 1
+            continue      # 세션 회전 + 강한 교정 지시를 받고 다시 조사한다
         }
 
         # ── 실패 분류(유형별) ──
@@ -1622,14 +1837,17 @@ try {
         }
 
         if (Test-MarkerValid $AuditBlockedFile) {
+            $bb2 = (Read-TextOrEmpty $AuditBlockedFile).Trim()
             Write-Banner @(
                 "Audit Worker 가 필수 Coverage blocker 를 기록했습니다.",
-                (Read-TextOrEmpty $AuditBlockedFile),
-                "원인을 해결한 뒤 -ResumeBlocked 로 다시 실행하세요."
+                $bb2,
+                "사람을 기다리지 않고 다른 전략으로 재시도합니다(상한: $MaxBlockedRecoveries회)."
             )
-            Write-AuditLog "Worker 가 AUDIT_BLOCKED 를 기록 — 루프 종료."
-            $script:FinalExit = 5
-            break
+            if (-not (Invoke-BlockedAutoRecovery -Reason ($bb2 -replace '\s+', ' ') -Kind "blocked")) {
+                Write-AuditLog "Worker 가 AUDIT_BLOCKED 를 기록 + 자동 복구 상한 소진 — 루프 종료."
+                $script:FinalExit = 5
+                break
+            }
         }
 
         # ── 백오프: 유형별로 다르게 기다린다 ──
