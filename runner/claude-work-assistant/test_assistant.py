@@ -2972,6 +2972,40 @@ def test_out_of_domain_questions_get_an_honest_answer_not_a_ticket_count():
     assert data3["context"].get("pending_action") == {"kind": "CREATE"}, "진행 중이던 생성 초안이 사라지면 안 된다"
 
 
+def test_code_example_requests_reach_the_llm_not_ticket_query():
+    # AI-53(High) 회귀 고정: query_markers의 "보여" 하나 때문에 코드 예시 요청이 LLM에
+    # 아예 도달하지 못하고 티켓 조회로 갔다 — 재현: 업무 명사가 전혀 없는 "파이썬 코드블록
+    # 예시를 보여줘"도 is_query_intent가 True였다(직접 확인함).
+    assert m.is_code_example_request("파이썬 코드블록 예시를 보여줘")
+    assert m.is_code_example_request("코드블록으로 예시 하나 보여줘")
+    assert m.is_code_example_request("코드 스니펫 하나 짜줘")
+    # 업무 명사가 함께 있으면(예: 티켓에 코드 첨부) 애매함을 억지로 안 풀고 기존 분류에
+    # 맡긴다 — query_markers/is_query_intent 자체는 건드리지 않았다.
+    assert not m.is_code_example_request("이 티켓에 코드 스니펫 첨부해줘")
+    # 코드 관련 낱말이 아예 없는 평범한 티켓 조회는 당연히 대상이 아니다.
+    assert not m.is_code_example_request("진행 중인 작업 보여줘")
+
+    structured = {"answer": "예시 코드입니다.", "ticket_ids": [], "project_ids": [],
+                  "needs_clarification": False, "clarify_question": ""}
+    with mock.patch.object(m.subprocess, "run", return_value=_fake_cli(structured)) as run:
+        data, _ = m.process_request({
+            "message": "파이썬 코드블록 예시를 보여줘",
+            "requester": {"email": "a@x", "name": "문의진"},
+            "projects": PROJECTS, "tickets": TICKETS, "work_schema": {}, "context": {},
+        })
+    assert run.called, "claude CLI should have been invoked (routed to claude_query), not answered as a ticket query"
+    assert data["action"] == "QUERY", data["action"]
+
+    # 업무 명사가 있는 코드 요청은 그대로 기존 라우팅(여기서는 조회)을 탄다 — 이 가드가
+    # 전부를 자유형으로 우회시키지 않는다는 것을 확인한다.
+    data2, _ = m.route_request({
+        "message": "GIT-1 티켓에 코드 스니펫 첨부해줘",
+        "requester": {"email": "a@x", "name": "문의진"},
+        "projects": PROJECTS, "tickets": TICKETS, "work_schema": {},
+    })
+    assert data2["action"] != "UNSUPPORTED", data2["action"]
+
+
 def test_that_ticket_is_not_my_ticket():
     # [HIGH·회귀] 지시관형사 '저'(that)를 1인칭 '저'(I)로 읽어 남의 티켓을 조용히 숨겼다.
     # 같은 파일 _CONTEXT_REF_RE는 '저'를 지시관형사로 등록해 두어, 두 판정이 같은 문장에서

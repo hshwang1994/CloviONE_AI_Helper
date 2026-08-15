@@ -5455,6 +5455,22 @@ def is_out_of_domain_query(message: str) -> bool:
     return not any(marker in n for marker in ("티켓", "프로젝트"))
 
 
+# AI-53: 같은 이유로, 코드/마크다운 예시를 요청하는 문장이 query_markers의 "보여" 하나
+# 때문에 티켓 조회로 오분류돼 LLM(claude_query)에 아예 도달하지 못했다 — 예:
+# "파이썬 코드블록 예시를 보여줘"에는 업무 명사가 전혀 없는데도 조회로 갔다(직접 재현
+# 확인). query_markers는 여기서도 손대지 않는다 — 위와 같은 자리에서 먼저 걸러 자유형
+# 대화 경로로 보낸다. _WORK_NOUNS가 함께 있으면(예: "이 티켓에 코드 스니펫 첨부해줘")
+# 애매함을 억지로 풀지 않고 기존 분류에 맡긴다.
+_CODE_REQUEST_MARKERS = ("코드블록", "코드예시", "코드스니펫", "스니펫", "codeblock")
+
+
+def is_code_example_request(message: str) -> bool:
+    n = norm(message)
+    if not any(marker in n for marker in _CODE_REQUEST_MARKERS):
+        return False
+    return not any(noun in n for noun in _WORK_NOUNS)
+
+
 def diagnose(requester: dict[str, str], current_user: dict[str, str] | None, quality: str, projects: list[dict[str, Any]], tickets: list[dict[str, Any]], schema: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     status_map = actual_status_map(schema, tickets)
     my_tickets = current_user_tickets(tickets, current_user, requester)
@@ -5607,6 +5623,12 @@ def route_request(body: dict[str, Any]) -> tuple[dict[str, Any], int]:
 
     if is_out_of_domain_query(message):
         return unsupported_response(context, message, "이 러너가 데이터를 갖고 있지 않은 플랫폼 기능(예: 백그라운드 작업 큐, 채팅방) 조회"), 0
+
+    # AI-53: is_query_intent의 아홉 호출부 중 어느 하나에 걸려도 자유형 대화(코드 예시
+    # 등)가 엉뚱한 티켓 조회로 새 나간다 — 그래서 그 호출부들에 닿기 전, 여기서 먼저
+    # 자유형 대화 경로로 확정한다.
+    if is_code_example_request(message):
+        return claude_query(message, context, requester, current_user, projects, tickets, status_map), 0
 
     # 지우려는 대상이 티켓 자체일 때만 막는다. '담당자 제거해줘', '마감일 지워줘'는
     # 티켓의 한 칸을 비우는 평범한 변경인데, 이 가드가 가로채 '삭제는 지원하지 않는다'는
