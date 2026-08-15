@@ -329,6 +329,102 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0008 — 쓰기 경합 재시도 정책이 호출부마다 다르고, 저장소가 이미 "부족하다"고 실측한 설정이 남아 있다
+
+**Severity: High · Confidence: Confirmed · Type: defect (J·I축) — 재현되는 실패가 있다**
+
+### PA-F-018 · 동시성 회귀 테스트가 실제로 실패한다 (재현율 약 40%)
+
+- **재현**: `pytest tests/integration/test_prompt_create_new_version_race.py`
+  → 격리 실행 5회 중 **2회 실패**(그 전 묶음 실행에서도 실패). 실패 형태는 어서션이 아니라
+  **처리되지 않은 예외**다:
+  ```
+  sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked
+  [SQL: INSERT INTO prompts (name, purpose, version, content, status, ...)]
+  ```
+- **이 테스트가 지키려는 계약**(파일 docstring): *"UB-21 — 프롬프트/정책 **생성**·**새 버전**이
+  경합할 때 500이 아니라 깨끗한 결과를 준다"*. 즉 **500이 나면 안 된다는 것이 계약인데
+  500이 난다.**
+- **왜 이제야 보이는가**: 이 파일은 `tests/integration`에 있다. 이번 Cycle에서 앞서 실행한
+  `tests/regression`(331건)·`tests/security`(498건)에는 포함되지 않는다. 그리고 **간헐적**이라
+  과거 전체 실행에서 통과했을 수 있다.
+
+### PA-F-019 · 원인 — 재시도 예산 5회, backoff·jitter 없음
+
+`app/prompts/service.py:123,148-178`:
+```
+_NEW_VERSION_RETRIES = 5
+for attempt in range(_NEW_VERSION_RETRIES):
+    ...
+    except (IntegrityError, OperationalError) as exc:
+        if not is_write_conflict(exc) or attempt == _NEW_VERSION_RETRIES - 1:
+            raise          # ← 예산 소진 시 그대로 500
+        db.commit()        # ← 즉시 재시도. sleep 없음, jitter 없음
+```
+분류기 자체는 정상이다 — `app/core/db.py:152 is_write_conflict()`가
+`SQLITE_BUSY`/`SQLITE_LOCKED`(확장 코드 하위 8비트)를 올바르게 잡는다. **문제는 예산과 backoff다.**
+
+### PA-F-020 · 결정적 증거 — 저장소가 **이미 이 교훈을 실측했고**, 그 지식이 전파되지 않았다
+
+`app/auth/router.py:476,505-506` (로그인 경로):
+```
+_LOGIN_WRITE_RETRIES = 10  # 실측(10-way 동시 로그인 스트레스 시험)으로 정한 값 — 3은 부족했다.
+...
+# 지터를 준다 — 여러 스레드가 즉시 재시도만 하면 서로 계속 다시 부딪힌다
+# (실측: 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다).
+time.sleep(random.uniform(0.01, 0.05) * (_attempt + 1))
+```
+
+**이 저장소는 "jitter 없이 10회로도 5번 중 1번 실패한다"를 직접 측정해 적어 두었다.**
+그런데 `new_version_from`은 **jitter 없이 5회**다 — 저장소 자신이 불충분하다고 측정한
+설정보다 **엄격하게 더 약하다**. 그리고 내 실측 실패율(5회 중 2회)이 그 기록과 같은 자릿수다.
+
+### PA-F-021 · 재시도 예산이 호출부마다 제각각이다 (전수)
+
+| 위치 | 상수 | 횟수 | backoff/jitter |
+|---|---|---:|---|
+| `app/team_chat/service.py:44` | `_SEQ_RETRIES` | 12 | 없음 |
+| `app/approvals/service.py:148` | `_CREATE_RETRIES` | 12 | 없음 |
+| `app/auth/router.py:476` | `_LOGIN_WRITE_RETRIES` | 10 | **있음(유일)** |
+| `app/notion_mapping/service.py:39` | `_GET_OR_CREATE_RETRIES` | 5 | 없음 |
+| `app/prompts/service.py:123` | `_NEW_VERSION_RETRIES` | 5 | 없음 |
+| `app/games/service.py::_append_event` | `_SEQ_RETRIES` | 5 *(team_chat 주석이 "놀이(5)보다 넉넉히"라고 지목)* | 없음 |
+| `app/core/sessions.py:41` | `_SIDE_EFFECT_COMMIT_ATTEMPTS` | 2 | 없음 |
+
+**같은 실패 종류(SQLite 쓰기 경합)에 예산이 2·5·10·12로 네 가지고, backoff를 쓰는 곳은
+7곳 중 1곳뿐이다.** 게다가 `new_version_from`의 주석은 자신이
+*"approvals.create_approval과 같은 관용"* 이라고 **명시적으로 주장하는데, 그 함수는 12회이고
+이쪽은 5회다.** 관용이 주석으로만 복사되고 값은 따라오지 않았다.
+
+### 병합된 Root Cause
+
+**재시도 정책이 공용 유틸이 아니라 호출부마다 손으로 쓰인다.** 그래서
+① 예산이 제각각이고 ② 한 곳에서 실측으로 얻은 교훈(jitter 필요)이 옆으로 전파되지 않으며
+③ 새 호출부가 생길 때마다 다시 갈라진다. 분류기(`is_write_conflict`)는 이미 공용화돼 있는데
+**그 분류기를 쓰는 재시도 루프는 공용화되지 않았다** — 딱 절반만 추상화된 상태다.
+
+이것은 이 저장소가 반복해서 겪는 계열(`PA-RC-0001`의 토큰, `PA-RC-0002`의 문구)과 **같은 모양**이다:
+*좋은 것이 한 곳에 있는데 그것을 강제하는 장치가 없어서 옆으로 안 퍼진다.*
+
+### 기존 Backlog 대조
+
+`UB-04`(발행 경합)·`UB-21`(생성/새 버전 경합)은 **각 지점을 개별로** 고쳤고 지금도 열려 있지
+않다. **"재시도 정책 자체가 흩어져 있다"는 항목은 없다.** `CORE-13`은 스냅샷 갱신을 다룬다. **신규.**
+
+### 구현 방향
+
+1. 공용 헬퍼 하나(`app/core/db.py`에 `retry_on_write_conflict(...)` 같은)를 만들어
+   **예산·backoff·jitter를 한 곳에서 정한다.** 분류기가 이미 그 파일에 있으므로 자연스러운 자리다.
+2. 기본값은 저장소가 이미 실측한 값에서 출발한다 — **jitter 필수**, 예산은 auth의 10 이상.
+   값을 새로 지어내지 말고 `auth/router.py`의 실측 근거를 근거로 삼는다.
+3. 7개 호출부를 그 헬퍼로 옮긴다. 다른 값이 필요하면 **왜 다른지 주석으로 남기게** 한다
+   (지금은 이유 없이 다르다).
+4. 예산 소진 시 **500이 아니라 깨끗한 409**로 끝나게 한다 — `new_version_from` 주석이 이미
+   *"사용자에게 409를 보여줄 이유가 없다"*고 적지만, 그것은 **재시도가 성공했을 때** 얘기다.
+   소진했을 때의 fallback이 raw 500인 것은 별개 문제다.
+
+---
+
 ## PA-RC-0007 — 승인된 TEST 서버가 131개 커밋 뒤처져 있어 최종 Gate가 성립하지 않는다 (V축)
 
 **Severity: Medium · Confidence: Confirmed · Type: blocker(검증 인프라) — 제품 결함은 아니다**

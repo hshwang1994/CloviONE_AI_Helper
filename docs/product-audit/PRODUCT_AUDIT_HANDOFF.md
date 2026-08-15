@@ -157,3 +157,33 @@ qa_gaps: `docs/QA_COVERAGE.md`에 **"배포본이 검증 대상과 같은가"를
 quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 `CLAUDE.md` §9·§10·§13(배포 순서와 최종 Gate 정의)이라는 **프로젝트 정책**이고, 증거는 번들 asset 해시 대조와 파일 타임스탬프라는 **기계적 사실**이다. 미적·설계 판단이 개입하지 않는다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0007 절(PA-F-016, PA-F-017) · `PRODUCT_AUDIT_COVERAGE.md` "OBSERVED 칸의 근거와 그 한계" 절 · 서버 실측(`ls -l /opt/clovirone-web-assistant/app/static/react/assets/`, `systemctl show -p ActiveEnterTimestamp`) · `git log --since=2026-08-10T17:05 -- app frontend` → 131건
 <!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0008 -->
+rc_id: PA-RC-0008
+severity: High
+priority: P1
+confidence: Confirmed
+problem: SQLite 쓰기 경합 재시도가 **공용 유틸 없이 호출부마다 손으로** 쓰여 있다. 예산이 2·5·10·12로 네 가지고, backoff/jitter를 쓰는 곳은 7곳 중 1곳(`auth/router.py`)뿐이다. 그 결과 `app/prompts/service.py::new_version_from`(예산 5, jitter 없음)이 8-way 경합에서 재시도를 소진하고 **처리되지 않은 `OperationalError: database is locked`를 그대로 올려 500이 난다.** 결정적인 것은 이 저장소가 **이미 그 교훈을 실측했다**는 점이다 — `auth/router.py:505`가 *"실측: 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다"*라고 적어 두었는데, `new_version_from`은 그보다 약한 "jitter 없이 5회"다. 지식이 옆 파일로 전파되지 않았다.
+expected: `tests/integration/test_prompt_create_new_version_race.py` docstring이 계약을 명시한다 — *"UB-21 — 프롬프트/정책 생성·새 버전이 경합할 때 **500이 아니라 깨끗한 결과**를 준다"*. 즉 경합 시 재시도로 성공하거나, 최악의 경우에도 사용자에게 의미 있는 409여야 하며 raw 500이어서는 안 된다.
+actual: 격리 실행 5회 중 2회 재현(약 40%). 실패는 어서션이 아니라 `sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked` — `INSERT INTO prompts ...` 에서 예산 소진 후 `raise`로 그대로 샌다.
+intent_evidence: ④ `tests/integration/test_prompt_create_new_version_race.py`가 "500이 나면 안 된다"를 테스트로 표현한다(신뢰할 수 있는 테스트가 표현하는 계약) · ⑥ `app/auth/router.py:476,505-506`의 **실측 기록**(10-way 스트레스 시험으로 10회를 정했고, jitter 없이는 10회로도 5번 중 1번 실패) — 같은 저장소가 같은 실패 종류에 대해 이미 내린 결론이다 · ⑥ `app/prompts/service.py`의 주석이 스스로 "approvals.create_approval과 같은 관용"이라 주장하는데 그 함수는 12회다.
+findings: PA-F-018, PA-F-019, PA-F-020, PA-F-021
+feature_contracts: FC-03(프롬프트 수명주기) — 새 버전 생성이 이 계약의 진입 동작이다. FC-01(승인 결재)도 `create_approval`이 같은 재시도 계열이라 함께 본다.
+routes: `/prompts`·`/policies`(새 버전 생성) · `/approvals`(생성) · `/chat-rooms`(team_chat seq) · `/games`(게임 이벤트 seq) · `/notion-mapping` · 로그인(`/login`)
+frontend: 해당 없음(직접 대상 아님) — 다만 500이 사용자에게 어떻게 보이는지는 `frontend/src/lib/api.js`의 오류 변환에 달려 있고, 그 문구 문제는 `PA-RC-0002`가 다룬다. 두 RC가 만나는 지점이다.
+api: `POST /api/admin/prompts/{id}/new-version` · `POST /api/admin/policies/{id}/new-version` · `POST /api/admin/approvals` · team_chat 메시지 전송 · games 이벤트 append · `POST /login`
+backend: `app/prompts/service.py:123,148-178`(`_NEW_VERSION_RETRIES`) · `app/approvals/service.py:148`(`_CREATE_RETRIES=12`) · `app/team_chat/service.py:44`(`_SEQ_RETRIES=12`) · `app/games/service.py::_append_event`(5) · `app/notion_mapping/service.py:39`(5) · `app/auth/router.py:476`(10, jitter 있음) · `app/core/sessions.py:41`(2) · `app/core/db.py:152`(`is_write_conflict` — 분류기는 이미 공용이다)
+data: 해당 없음 — 스키마 변경 없음. 관련 유일 제약(`uq_{prompts,policies}_name_version`, `ux_{prompts,policies}_published_dedup`)은 그대로 둔다. 그것들이 경합의 승자를 정해 주는 장치라 제거하면 안 된다.
+rbac: 해당 없음 — 권한 판정과 무관하다.
+integration: 해당 없음 — 외부 연동과 무관하다. SQLite 로컬 쓰기 경합 문제다.
+state_transition: FC-03의 `draft` 새 버전 생성 경로. 상태 전이 규칙 자체(`VALID_TRANSITIONS`)는 바꾸지 않는다 — 바꾸는 것은 그 전이에 도달하기까지의 재시도 정책이다.
+user_impact: 관리자가 "새 버전" 버튼을 연타하거나 두 관리자가 동시에 누르면 진 쪽이 **500**을 받는다. `PA-RC-0002`(오류 문구에 회복 경로 없음)와 겹치면 화면에는 원인도 다음 행동도 없는 메시지만 남는다. 더 나쁜 2차 영향은 **동시성 테스트 스위트가 간헐 실패한다**는 것 — race 테스트가 flaky하면 무시되기 시작하고, 그 스위트는 `CLAUDE.md` §3-10을 지키는 유일한 장치다.
+implementation_direction: (1) `app/core/db.py`에 **공용 재시도 헬퍼**를 만든다(분류기 `is_write_conflict`가 이미 그 파일에 있으므로 자연스러운 자리다) — 예산·backoff·jitter를 한 곳에서 정한다. (2) 기본값을 새로 지어내지 말고 **저장소가 이미 실측한 값**에서 출발한다: jitter 필수, 예산은 `auth/router.py`의 10 이상(`_LOGIN_WRITE_RETRIES` 주석의 근거를 그대로 인용할 것). (3) 7개 호출부를 헬퍼로 옮기고, 다른 값이 필요하면 **왜 다른지 주석으로 남기게** 강제한다(지금은 이유 없이 다르다). (4) **예산 소진 시 raw 500이 아니라 409**로 끝나게 한다 — `new_version_from` 주석의 "409를 보여줄 이유가 없다"는 *재시도가 성공했을 때* 얘기이고, 소진 시 fallback은 별개 문제다. (5) 고친 뒤 race 테스트를 **반복 실행**해 flaky가 사라졌는지 확인한다(1회 green은 근거가 안 된다 — 원래 60%는 통과했다).
+constraints: CLAUDE.md §3-10(명시적 transaction/BEGIN 규약 우회 금지, SAVEPOINT는 실제 outer transaction 안에서) 준수 · §3-1(sync 일관성, `async def` 라우트 핸들러 금지) · **`is_write_conflict()` 분류기를 우회하거나 복제하지 말 것**(§3-10이 "공용 classifier/retry 규약을 재사용한다"고 명시) · 유일 제약(`uq_*`, `ux_*`)을 제거해 경합을 "해결"하지 말 것 — 그것은 승자를 정하는 장치다 · `:memory:` DB로 WAL/멀티커넥션 의미를 대체하지 말 것(§3-10)
+regression_risk: 재시도 예산을 늘리고 sleep을 넣으면 **경합 시 응답 지연이 늘어난다**(최악의 경우 예산×최대 대기). 요청 타임아웃·워커 처리량과 상호작용하므로 상한을 명시적으로 계산할 것. 범위는 백엔드 7개 호출부이고 프런트 회귀는 불필요하다. 또한 `_SIDE_EFFECT_COMMIT_ATTEMPTS=2`(sessions)는 성격이 다를 수 있으니(부수효과 커밋) 일괄 치환 전에 개별 판단할 것.
+acceptance_criteria: (1) 쓰기 경합 재시도가 공용 헬퍼 한 곳을 지난다. (2) 예산과 jitter 기본값이 한 곳에 선언되고, 다르게 쓰는 호출부마다 사유 주석이 있다. (3) `tests/integration/test_prompt_create_new_version_race.py`를 **연속 20회 반복 실행해 실패 0건**(1회 green은 불충분 — 수정 전 통과율이 약 60%였다). (4) 예산 소진 경로가 raw 500이 아니라 409를 반환한다(테스트로 강제). (5) 경합 시 최대 지연의 상한이 계산돼 주석 또는 문서에 있다. (6) `tests/integration` 전체 + `tests/regression` + `tests/security` green.
+required_tests: **신규**: 공용 재시도 헬퍼의 단위 테스트(예산 소진 시 409, 분류 실패 시 재raise, jitter가 실제로 지연을 넣는지) · **신규**: 예산 소진 경로가 500이 아님을 검증 · 기존: `tests/integration/test_prompt_create_new_version_race.py` **반복 20회** · 기존 `test_notion_mapping_get_or_create_race.py`·`test_quota_toctou.py`·`test_trash_move_race.py`·`test_health_snapshot_job.py`(같은 계열, 함께 반복 실행) · 기존 `tests/regression`·`tests/security` 전체
+qa_gaps: `docs/QA_COVERAGE.md`에 **동시성 축이 반복 실행으로 검증되지 않는다.** race 테스트는 1회 실행으로는 의미가 없는데(이번 건도 60%는 통과했다) 현재 QA는 1회 실행만 본다. "race 계열 테스트는 N회 반복" 규칙을 축으로 추가할 것. 또한 `tests/integration`이 이 Cycle의 다른 실행 묶음(`tests/regression`·`tests/security`)에 포함되지 않는다는 사실도 기록할 것 — 그래서 이 결함이 오래 보이지 않았다.
+quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① 실제 재현되는 테스트 실패(5회 중 2회) ② `CLAUDE.md` §3-10(공용 classifier/retry 규약 재사용) ③ 저장소 자신의 실측 기록(`auth/router.py:505`)이라는 **기계적·문서적 사실**이다. 미적 판단이 개입하지 않는다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0008 절(PA-F-018~021) · `app/prompts/service.py:123,148-178` · `app/auth/router.py:476,505-506` · `app/core/db.py:148-176`(`is_write_conflict`) · `tests/integration/test_prompt_create_new_version_race.py`(docstring이 계약) · 스캐너 `var/product-audit/scan_retry.py`, `scan_tx.py`
+<!-- PA-RC-END -->

@@ -128,22 +128,22 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | · | · | · | · | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
-| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | · | · | · | · | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
-| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | · | · | S | · | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | S | · | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | O | S | O | S | · | E | · |
-| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | · | · | · | S | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
+| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | · | · | · | S | · | · | · | · | · | · | · | · | · | S | E | · | S | · | E | · |
+| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | · | · | · | E | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | · | · | S | S | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | · | · | · | E | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | S | S | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | O | S | O | S | · | E | · |
+| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
+| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | S | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
 
 ## UNSEEN / BLOCKED / NOT_APPLICABLE 사유
 
@@ -294,14 +294,24 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 >
 > 이것이 `P-DEPLOY`만 OBSERVED이고 화면 surface들은 아직 OBSERVED가 아닌 이유다 — 낡은 빌드를 보고 현재 화면을 판정하면 그 Finding 자체가 틀린다.
 
+## 동시성(J축) 실행 증거와 그 한계
+
+`tests/integration` 의 race 계열 5개 파일을 실행했다 — `test_notion_mapping_get_or_create_race` · `test_prompt_create_new_version_race` · `test_quota_toctou` · `test_trash_move_race` · `test_health_snapshot_job`.
+
+**결과: 통과가 아니다.** `test_prompt_create_new_version_race` 가 격리 실행 5회 중 **2회 실패**했다(`OperationalError: database is locked`, 처리되지 않고 500). 상세는 `PA-RC-0008`.
+
+> **이 칸을 EXECUTED로 적는 이유**: 실제로 돌려서 결과를 얻었기 때문이다. EXECUTED는 '통과했다'가 아니라 '실행으로 확인했다'는 뜻이다.
+>
+> **race 테스트는 1회 실행으로 판정할 수 없다.** 이번 건도 약 60%는 통과했다 — 한 번만 돌렸다면 '이상 없음'으로 기록했을 것이다. 이 축의 후속 검증은 반드시 반복 실행으로 한다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1590
+unseen=1574
 unseen_without_reason=0
-static_only=591
+static_only=605
 observed=3
-executed=156
+executed=158
 blocked=0
 not_applicable=0
 -->
