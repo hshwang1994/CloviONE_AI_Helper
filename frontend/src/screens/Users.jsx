@@ -339,9 +339,13 @@ export function Users() {
     {
       // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'·'Notion'과
       // 달리 유일하게 색 없는 맨 텍스트였다 — 같은 Badge 관례로 등급을 색으로도 구분한다.
-      // 등급을 색으로 구분한다: system_admin(danger)·admin(warn)·operator/auditor(info, 권한 있는 비-관리자)·
+      // 등급을 색으로 구분한다: system_admin(purple)·admin(warn)·operator/auditor(info, 권한 있는 비-관리자)·
       // 일반 사용자(neutral). 예전엔 operator/auditor가 일반 사용자와 같은 무채색이라 '관리자 아래는 다 같다'로
       // 읽혀, 색 구분의 취지(민감한 역할 열을 등급으로 구분)가 절반만 전달됐다.
+      // system_admin은 원래 danger(빨강)였다(VIS-39/DS-08) — 이 제품에서 빨강은 "실패·위험"을
+      // 뜻하는 상태색이라(대시보드의 실패 작업 위험 등) 최고 권한 배지가 마치 오류처럼 읽혔다.
+      // purple은 이미 검증된 톤(다크모드·대비 확인됨, EXTRA_TONE_VARS)이면서 상태 팔레트
+      // (ok/danger/warn/info)와 안 겹쳐 "특별한 등급"을 상태와 안 헷갈리게 표현한다.
       key: "role", label: "역할",
       // admin 역할은 admin_scope 조합으로 실제 성격이 갈린다(조직관리자/부서관리자/전체
       // 관리자) — 역할 배지 하나만으로는 이 화면 어디서도 그 조합이 보이지 않았다(RBAC
@@ -350,7 +354,7 @@ export function Users() {
         const concept = adminConcept(r);
         return (
           <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-            <Badge value={ROLE_KO[r.role] || r.role} kind={r.role === "system_admin" ? "danger" : r.role === "admin" ? "warn" : (r.role === "operator" || r.role === "auditor") ? "info" : "neutral"} />
+            <Badge value={ROLE_KO[r.role] || r.role} kind={r.role === "system_admin" ? "purple" : r.role === "admin" ? "warn" : (r.role === "operator" || r.role === "auditor") ? "info" : "neutral"} />
             {concept ? <Badge value={concept.label} kind={concept.kind} /> : null}
           </Box>
         );

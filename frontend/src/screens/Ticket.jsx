@@ -149,9 +149,14 @@ export function Ticket() {
   const actions = (
     <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
       <Button variant="ghost" onClick={() => nav("/my-tickets")}>목록</Button>
-      {data.can_edit === false ? null : <Button onClick={() => setEditing(true)}>수정</Button>}
+      {/* VIS-132: 이 화면에서 가장 자주 하는 일은 수정이다 — 이 앱 안에서 바로 되는 유일한
+          쓰기 동작이고, 원본 열기는 Notion으로 나가는 보조 참조다(TeamDoc.jsx의 "원본
+          열기"와 다르다 — 거기는 경쟁하는 인앱 수정 버튼이 아예 없어 원본 열기 자체가
+          사실상 그 화면의 주 동작이다). 그래서 여기서만 수정을 primary로, 원본 열기를
+          default로 바꾼다. */}
+      {data.can_edit === false ? null : <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>}
       {original ? (
-        <Button variant="primary" onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>원본 열기</Button>
+        <Button onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>원본 열기</Button>
       ) : null}
       <Button variant="danger" disabled={trash.isPending}
         onClick={async () => {
