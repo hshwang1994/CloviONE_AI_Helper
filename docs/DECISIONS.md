@@ -1786,3 +1786,53 @@ Supervisor의 `CLOVIR_TEST_SUDO_PASSWORD` 주입 등 다른 자동화와 조율�
 `tests/` 경로의 픽스처 값은 오탐하지 않음. `static_checks.sh`에 새 필수 단계로 배선했고
 예외/우회 경로는 없다 — 그래서 **회전 전까지 `static_checks.sh`는 의도적으로 계속 red**다.
 이것을 느슨하게 만들지 않는 것 자체가 이 결정의 일부다(Handoff의 명시적 요구).
+
+## D-77 (2026-08-16) — `build-bundle.sh`가 낡은 프런트 번들을 조용히 배포할 수 있었다 — 신선도 게이트 배선
+
+### 배경
+
+VIS-141(Board.jsx 공감 열) 배포 후 E2E 스크린샷에 변경이 안 보였다. 처음엔 "Vite 빌드
+캐시가 낡은 산출물을 서빙한다"는 가설을 세웠으나 조사해 보니 사실이 아니었다 — `vite.config.js`는
+`emptyOutDir: true`라 매 `npm run build`마다 `app/static/react`를 통째로 비우고 다시 만든다.
+Rollup 프로덕션 빌드에는 `node_modules/.vite`(dev 서버 dependency pre-bundling 캐시) 같은 게
+애초에 관여하지 않는다.
+
+실제 원인은 더 단순하고 더 나빴다: `scripts/build-bundle.sh`는 **프런트를 다시 빌드하지
+않는다** — 그 시점에 워킹트리에 있는 `app/static/react`를 있는 그대로 패키징만 한다. 그리고
+배포 파이프라인의 "신선도 확인" 단계는 `check_bundle_fresh.py --write`였는데, 이 플래그는
+**지금 `frontend/src`의 해시를 무조건 다시 적는다** — `app/static/react`의 실제 컴파일된
+바이트가 그 해시와 실제로 일치하는지는 전혀 검증하지 않는다. 그래서 "`npm run build`를 빼먹고
+바로 `--write`를 돌린" 순간, 도구는 스스로 "최신"이라고 착각하는 상태가 됐다 — 로컬에 새로
+패키징한 스테이지의 `UserRoutes.js` 해시가 배포된(그리고 실제로 낡은) 서버 파일과 정확히
+같다는 것으로 확인했다.
+
+`check_bundle_fresh.py`는 이 정확한 실패 유형을 잡으려고 만들어진 도구다 — 스크립트 자신의
+docstring이 "이 작업 중에도 실제로 프런트를 열여섯 파일 고치고 번들을 안 만든 상태가 됐다"고
+적어 두고 있다(즉 **이전 세션에서 이미 한 번 같은 사고가 났다**). 이 검사는 `static_checks.sh`·
+`final_verify.sh`·서버측 install/update 스크립트에는 배선돼 있었지만, 정작 "무엇을 배포할지
+결정하는" `build-bundle.sh`에는 한 번도 연결된 적이 없었다 — 그래서 신선도 확인 없이
+`build-bundle.sh` → scp → 배포까지 한 번에 진행하면 이 안전망을 완전히 우회할 수 있었다.
+
+### 결정
+
+`build-bundle.sh`의 맨 앞, 실제 패키징(rsync/wheelhouse 다운로드/manifest)을 시작하기 전에
+`check_bundle_fresh.py`를 **plain 모드(검증만, `--write` 아님)** 로 돌리는 게이트를 추가했다.
+실패하면 스크립트가 스스로 `npm run build`를 돌리지 않고 그 자리에서 종료한다 — 무엇을 소스로
+번들을 만들지는 운영자가 명시적으로 정하게 한다(자동으로 빌드까지 해 버리면 "Node 없이도
+패키징만 다시 하고 싶다"는 상황을 막아 버린다).
+
+새 게이트를 되돌려 검증했다: 지금 이 게이트가 없던 상태를 그대로 재현(`BUILD_STAMP.json`이
+`npm run build`의 `emptyOutDir`로 지워진 채)했더니 `build-bundle.sh`가 `[FAIL]`로 즉시
+종료(exit 1, 비싼 wheelhouse 다운로드 이전에 멈춤)했고, `npm run build` + `check_bundle_fresh.py
+--write`로 정상 복구한 뒤에는 통과해 패키징이 끝까지 진행됐다. 이후 그 번들을 실제 TEST
+SERVER에 재배포하고, 서버의 `BUILD_STAMP.json`·`UserRoutes.*.js` 해시·`grep 공감`으로 배포본
+자체가 이번 소스를 반영함을 직접 확인했다(우회 경로 없음).
+
+### 남은 불확실성
+
+이 세션 동안 이 gap이 정확히 언제부터 존재했는지(즉 오늘 세션의 어느 이전 배포 사이클이
+영향을 받았는지)는 재구성하지 않았다 — 커밋별로 "그때 실제로 `npm run build`를 돌렸는가"를
+따지는 것보다, 지금 시점에 **모든 변경을 포함한 번들을 새로 만들어 해시로 검증하고 71라우트
+전체를 재검증하는 것**이 더 빠르고 더 확실하다고 판단해 그 경로를 택했다. 그래서 이번 재배포
+직후 `user_*`/`admin_*` 전체 라우트 × light/dark E2E를 다시 돌렸다(별도로 진행 중 — 결과는
+`WORK_STATE.md`에 기록).

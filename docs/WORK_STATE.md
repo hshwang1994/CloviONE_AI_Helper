@@ -5942,3 +5942,38 @@ Gate를 전부 제거해 완전 자율 상태 머신으로 재작성했고, `43a
 묶음, 다음 사이클) ⓓ `docs/BACKLOG.md`의 나머지 Medium/Low unresolved
 스캔. 다음 작업은 ⓓ부터 계속하거나, 새 Audit Cycle이 있으면 그 Handoff를
 먼저 확인한다.
+
+## 2026-08-16 03:xx — DEPLOY-05(Critical) 발견+해소: 배포 파이프라인이 낡은 프런트 번들을 조용히 실어 나를 수 있었다
+
+위 체크포인트 직후 진행한 배포에서 VIS-141(자유게시판 공감 열) 변경이 E2E
+스크린샷에 안 보이는 것을 발견. 처음엔 "Vite 빌드 캐시가 낡았다"고 가정했으나
+`emptyOutDir:true`라 그 가설은 틀렸고, 실제 원인은 `build-bundle.sh`가 프런트를
+다시 빌드하지 않고 그 순간의 `app/static/react`를 그대로 패키징만 하는데
+신선도 확인으로 쓰던 `check_bundle_fresh.py --write`는 실제 컴파일 산출물을
+검증하지 않고 소스 해시를 무조건 다시 적기만 한다는 것이었다 — `npm run build`를
+빼먹고 `--write`만 돌리면 도구가 스스로 "최신"이라고 착각한다. 상세 근거·재현·
+검증은 `docs/DECISIONS.md` D-77, Backlog 항목은 `DEPLOY-05`(신규, Critical,
+구현완료로 기록).
+
+**조치**: `build-bundle.sh` 맨 앞에 `check_bundle_fresh.py` plain 모드 게이트
+추가(실패 시 비싼 패키징 이전에 즉시 종료) → revert-to-verify로 게이트 자체
+검증 → `npm run build`+`--write`로 실제 프런트 재빌드(모든 청크 해시 변경
+확인) → `build-bundle.sh` 재실행(통과) → TEST SERVER 재배포(`UPGRADE_OK`) →
+서버의 `BUILD_STAMP.json`·자산 해시·`grep 공감`으로 배포본이 최신 소스임을
+직접 확인 → 71라우트×light/dark(138페이지, 1920×1080) 전체 재검증
+green(`auth_ok`/`horizontal_overflow`/`console_errors`/`page_errors`/
+`broken_images` 전부 0 실패, 결과는 `dist/ui-qa/post-cachefix-full/`) →
+`user_board.png`(공감 열 "👍 1" 실측)·`user_unassigned.png`(동기화 배너
+"마지막 동기화: 2026.8.16 오전 3:32, 티켓 1112개" 실측)·`admin_org-tree.png`
+(조직/부서 굵기·크기 구분 정상) 스크린샷으로 직접 확인. `user_my-tickets`는
+이 QA 계정이 Notion 사용자 매핑이 안 돼(`mapped:false`) 다른(기존에 이미
+테스트된) 빈 상태가 나와 UB-26을 직접 스크린샷으로는 못 봤지만 `unassigned`
+스크린샷과 `tickets-list.test.jsx`의 UB-26 단위 테스트로 대체 확인.
+`user_chat-room-detail`/`user_game-room`은 이 환경에 시드 데이터가 없어
+정당하게 건너뜀(회귀 아님).
+
+**남긴 불확실성**: 이 gap이 오늘 세션 어느 시점부터 있었는지(=이전의 어느
+배포 사이클이 실제 영향을 받았는지)는 커밋 단위로 재구성하지 않았다 — 그
+대신 지금 시점에 전체 변경을 포함한 번들을 새로 만들어 해시로 검증하고
+71라우트 전체를 재검증하는 것이 더 빠르고 더 확실하다고 판단했다(이번
+재배포가 이전의 모든 "E2E 확인" 주장을 실질적으로 대체·상위호환한다).

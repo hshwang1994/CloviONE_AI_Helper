@@ -11,6 +11,20 @@ PY="${PY:-python}"
 command -v "$PY" >/dev/null 2>&1 || PY=python3
 [ -x ".venv/Scripts/python.exe" ] && PY=".venv/Scripts/python.exe"
 
+echo "== bundle freshness gate (frontend/src vs app/static/react) =="
+# 이 스크립트는 지금 워킹트리의 app/static/react 를 그대로 패키징한다 - 프런트를 다시
+# 빌드하지 않는다. 그래서 이 게이트가 없으면 소스만 고치고 `npm run build` 를 깜빡해도
+# 조용히 "성공"하고, 배포되는 건 옛 화면이다. check_bundle_fresh.py 자신의 문서가 적어 둔
+# 바로 그 사고이고, 실제로 여기서도 한 번 재현됐다(번들을 새로 안 만든 채 build-bundle.sh
+# 만 돌려 배포한 뒤에야 발견) - `--write` 는 지금 소스 해시를 무조건 다시 적기 때문에,
+# 빌드를 빼먹고 `--write` 만 돌리면 "최신"이라고 자기암시가 걸린다. 여기서는 plain 모드로
+# 검증만 하고 스스로 빌드하지 않는다 - 무엇으로 만들 번들인지는 운영자가 명시적으로 정한다.
+if ! "$PY" scripts/check_bundle_fresh.py; then
+  echo "[FAIL] app/static/react 가 frontend/src 보다 낡았다 - 이 상태로 패키징하면 옛 화면이 배포된다." >&2
+  echo "        고치는 법: cd frontend && npm run build && cd .. && $PY scripts/check_bundle_fresh.py --write" >&2
+  exit 1
+fi
+
 rm -rf "$STAGE"
 mkdir -p "$STAGE/app-src" "$STAGE/wheels"
 
