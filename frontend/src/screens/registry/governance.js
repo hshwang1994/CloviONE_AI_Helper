@@ -262,6 +262,10 @@ export const GOVERNANCE_SCREENS = {
     // 백엔드 최대 100(app/core/pagination.py MAX_PAGE_SIZE)까지 지원하는데 기본값 20에 머물러 있었다
     // — 감사·조사 화면 특성상(넓은 기간을 훑어야 함) 페이지당 더 많이 받아 클릭 수를 줄인다.
     pageSize: 100,
+    // VIS-58: 한 페이지 100행이면 표가 6,014px까지 늘어나 "언제·누가·무엇을·결과"를 대조하는
+    // 이 화면의 목적 자체가 스크롤 30행쯤부터 무너진다(열 제목이 사라짐). DataTable의
+    // stickyHeader(kit.jsx, MUI Table stickyHeader 위임)로 스크롤 중에도 열 제목이 고정되게 한다.
+    stickyHeader: true,
     filters: [
       // OBJTYPE_OPTS(shared.js)에는 organization·feature_flag가 빠져 있었다 — 둘 다 백엔드가
       // 실제로 기록하는 object_type이고(app/org/router.py, app/admin/feature_flags.py), 이

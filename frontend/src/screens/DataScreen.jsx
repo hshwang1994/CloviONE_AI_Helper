@@ -755,7 +755,7 @@ export function DataScreen({ config }) {
       ) : (
         <Card className="c-list-card">
           {topPager}
-          <DataTable columns={columns} rows={filtered} rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))} onRow={setSel} />
+          <DataTable columns={columns} rows={filtered} rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))} onRow={setSel} stickyHeader={config.stickyHeader} />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행
            * 수가 우연히 pageSize보다 적어져도 서버엔 다음 페이지가 있는데 '다음'이 조용히 꺼졌다(pager 참고). */}

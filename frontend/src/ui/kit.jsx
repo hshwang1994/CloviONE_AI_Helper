@@ -492,7 +492,7 @@ function cellValue(c, row, ctx) {
   return v == null || v === "" ? "-" : String(v);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis }) {
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const baseCols = Array.isArray(columns) ? columns : [];
@@ -555,7 +555,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
 
   return (
     <TableContainer>
-      <Table size="small" sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
+      <Table size="small" stickyHeader={stickyHeader} sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
         <TableHead>
           <TableRow>
             {cols.map((c) => (
@@ -570,8 +570,14 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                    가로 스크롤이 생기지는 않는다.
                    본문 셀엔 이미 이 바닥값이 있었는데(DS-06) 머리글 셀엔 없었다 — 폭 906~1366px
                    구간에서 열이 많은 표(`/users` 9열 등)가 실측으로 무너진 게(VIS-73/RESP-01/
-                   RESP-02) 바로 이 비대칭이었다. 같은 바닥값을 여기도 준다. */
-                sx={{ width: c.width, minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH), whiteSpace: "nowrap" }}
+                   RESP-02) 바로 이 비대칭이었다. 같은 바닥값을 여기도 준다.
+                   VIS-58: stickyHeader일 때 MUI가 자동으로 position:sticky를 붙이지만
+                   불투명 배경은 안 준다 — 스크롤되는 본문 셀이 헤더 뒤로 비쳐 보인다.
+                   이 표는 항상 Card(background.paper) 안에 있으므로 그 색을 명시한다. */
+                sx={{
+                  width: c.width, minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH), whiteSpace: "nowrap",
+                  ...(stickyHeader ? { bgcolor: "background.paper" } : null),
+                }}
               >
                 {/* 상세 열기 칸은 라벨이 비어 있어 스크린리더가 이름 없이 침묵으로 읽었다. */}
                 {c.open ? <span className="sr-only">동작</span> : c.label}

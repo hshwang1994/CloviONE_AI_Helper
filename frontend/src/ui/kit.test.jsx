@@ -176,6 +176,30 @@ describe("DataTable", () => {
     expect(screen.getByText("항목 없음")).toBeInTheDocument();
   });
 
+  /* VIS-58: 100행짜리 표가 6,014px까지 늘어나면 스크롤 중 열 제목을 잃는다. stickyHeader는
+   * MUI Table에 그대로 위임하고(position:sticky), 이 표는 항상 Card(불투명 배경) 안에
+   * 있으므로 스크롤되는 본문 셀이 비쳐 보이지 않게 배경색도 명시로 준다. */
+  describe("고정 헤더 (VIS-58)", () => {
+    it("stickyHeader가 없으면 기본 동작 그대로다 - MUI sticky 클래스가 안 붙는다", () => {
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />);
+      const headerCell = screen.getByRole("columnheader", { name: "이름" });
+      expect(headerCell.className).not.toMatch(/stickyHeader/);
+    });
+
+    it("stickyHeader=true면 헤더 셀에 MUI sticky 클래스와 불투명 배경이 붙는다", () => {
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} stickyHeader />);
+      const headerCell = screen.getByRole("columnheader", { name: "이름" });
+      expect(headerCell.className).toMatch(/stickyHeader/);
+      // 배경이 비어 있거나 완전 투명("transparent"/알파 0)이면 스크롤되는 본문 셀이
+      // 헤더 뒤로 비쳐 보인다 - 실제로 불투명한 색이 계산됐는지를 본다(빈 문자열은
+      // 아무 값에나 "포함"되므로 그것만으로는 이 실패를 못 잡는다).
+      const bg = getComputedStyle(headerCell).backgroundColor;
+      expect(bg).not.toBe("");
+      expect(bg).not.toBe("transparent");
+      expect(bg).not.toMatch(/rgba\([^)]*,\s*0\s*\)$/);
+    });
+  });
+
   /* VIS-73/RESP-01/RESP-02/HOST-01/HOST-02 — 열 폭이 순수하게 내용에서 파생돼 ① 열이 많으면
    * `overflowWrap:anywhere`가 열을 '한 글자' 폭까지 짜부라뜨리고(폭 1200 근처 vertical_text_collapse)
    * ② 값 하나가 길면 그 셀이 통째로 벌어지는(51px×2,353px) 두 결함이 같은 뿌리였다. `render`가
