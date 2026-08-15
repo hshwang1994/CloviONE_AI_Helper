@@ -429,6 +429,7 @@ Round 0에서 **찾았는데 없었던 것들.** 다음 Auditor가 같은 각도
 | MUI 마이그레이션 잔여(브랜치명이 `ui/mui-migration`) | **잔여 없음** | 화면 모듈 115개 중 MUI/kit 밖에 남은 렌더 표면 0개. 나머지 33개는 전부 helper/config |
 | 빈/오류/로딩 상태 미처리 화면 | **거의 없음** | 150줄 초과 화면 50개 중 `ErrorState` 40 · 로딩 45 · `EmptyState` 29 사용 |
 | 사이드바↔라우트↔백엔드 역할 게이트 불일치 (F축) | **0건** | `scan_nav.py` 3계층 기계 대조. 메뉴만 있고 라우트 없는 항목 0, 라우트만 있고 메뉴 없는 항목은 전부 의도된 것(통합·Ctrl+K 진입·상세) |
+| 워커가 죽었을 때 job이 `running`에 영원히 남는가 (K·I축) | **아니다 — 회수 경로가 있다** | `app/jobs/repository.py:234` `recover_stuck()`(주석이 `spec §22`를 근거로 인용)가 `started_at`이 타임아웃을 넘긴 `running` job을 `fail()`로 정리하고, `app/jobs/worker.py:195` `sweep()`이 그것을 호출한 뒤 **실패 훅까지 발화시킨다**(`_notify_failure`). 백업도 같은 계열의 별도 reaper(`app/backups/service.py:159`)를 갖는다 |
 | error → log → audit 상관관계 끊김 (T축) | **없음** | `middleware.py:109-127`이 `request_id`를 만들고 `X-Request-ID`로 돌려주며, 액세스 로그(`:153`)와 **감사 기록(`core/audit.py:115`)에 같은 값이 들어간다**. 즉 응답 헤더 하나로 로그와 감사 로그를 잇는 경로가 성립한다. `logging_setup.py`는 과거 웹 프로세스에서 이 줄이 소멸했던 사고의 수습 산물이며 그 경위가 파일 상단에 기록돼 있다 |
 | 시계 주입 우회 (W축) | **0건** | `date.today()` 0 · `time.time()` 0. 반대로 `app.state.clock` 참조가 **186회** — 주입 시계가 실제로 관철돼 있다 |
 | KST를 표시/cron 이외 용도로 쓰는 곳 (W축, §3-7) | **0건** | `ZoneInfo(...)` 3건 전부 `Asia/Seoul`. 리터럴 9개 파일을 개별 확인: `quotas/service.py`는 **쿼터 기간 경계**(UTC로 자르면 아침 9시 전에 상한이 초기화된 것처럼 보인다고 파일 자신이 근거를 적는다), `backups/service.py`는 **cron 타임존**. 둘 다 §3-7이 허용하는 용도다 |

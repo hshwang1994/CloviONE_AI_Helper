@@ -73,6 +73,31 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 | 5 | W (타임존/스케줄) | **위반 0건** — 시계 주입 186회, 우회 0회, KST는 전부 허용 용도 |
 | 5 | T (관측성) | **끊김 없음** — `request_id`가 응답 헤더·액세스 로그·감사 기록을 잇는다 |
 
+## 2-2. 현재 산출물 요약 (resume 시 여기부터 본다)
+
+| 항목 | 값 |
+|---|---|
+| Root Cause | **6건** — Critical 1(`PA-RC-0003`) · High 2(`0001`,`0002`) · Med 1(`0005`) · Low 2(`0004`,`0006`) |
+| Finding | PA-F-001 ~ PA-F-015 |
+| HANDOFF의 PA-RC 블록 | **4건**(`0001`,`0002`,`0003`,`0005`). `0004`·`0006`은 Low라 승격 안 함 |
+| Coverage | 2340칸 중 EXECUTED 156 · STATIC_ONLY 589 · UNSEEN 1595(**전부 사유 있음**) |
+| 실행 증거 | 프런트 1,718건 · 백엔드 회귀 331건 · 보안 498건, 전부 green |
+| Blind Re-Audit | **0 / 2** — 아직 시작 안 함 |
+| Backlog 승격 | **아직 안 함**(§11대로 수렴 후에 한다) |
+| `IMPLEMENTATION_REQUIRED` | **아직 안 만듦** |
+
+### AUDIT_COMPLETE까지 남은 일 (순서대로)
+
+1. 미조사 축 진행 — **C · D · G · J · K · N · O · R · S · V** 가 거의 UNSEEN이다.
+   특히 **D(업무 흐름 end-to-end)** 와 **K(AI/Runner/Job 수명주기)** 가 위험 대비 미조사다.
+2. `humanize-korean` 적용(R축) — 단 `PA-RC-0002`의 문구 규칙이 확정된 뒤가 순서다.
+3. 실제 브라우저 관측(N/O/M축) — 승인된 TEST 서버에서 가능하다(Blocker 아님).
+4. **Blind Re-Audit 2회 연속** — 기존 Finding 목록을 다시 읽는 것은 Blind Pass가 아니다.
+   서로 다른 진입점으로 처음 보듯 조사할 것. 제안 진입점:
+   *"신규 입사자가 첫날 하는 일"* / *"감사자가 분기 점검에서 하는 일"* /
+   *"운영자가 장애 났을 때 하는 일"*.
+5. §11 Backlog 승격(중복 대조 필수) + `QA_COVERAGE.md` 공백 반영 + marker 생성.
+
 ## 3. 다음 조사 후보 (우선순위 순)
 
 1. **Round 1 · L축 진입점**: `ui/theme.js`(520줄) + `styles/tokens.css`(366줄) +
