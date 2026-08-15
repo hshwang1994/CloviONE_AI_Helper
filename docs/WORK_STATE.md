@@ -5466,3 +5466,39 @@ harness의 동등한 재개 수단)를 다시 확인하거나, 위 파일들의 
 `docs/BACKLOG.md` PA-02에 이어 기록) → 그 다음에야(동사표+이번 E2E 발견
 3건이 합쳐진 상태로) 프런트 재빌드 → 통합 재배포 → Chrome 재E2E를
 한 번에 돌린다(작은 변경마다 배포하지 않는다는 CLAUDE.md §9 원칙).
+
+## invocation=4(WARM) 갱신 — 프로세스 재시작 실측, 에이전트 복구, OPS-01/02 검증완료
+
+바로 위 메모가 걱정했던 상황이 실제로 일어났다: Supervisor가 새 프로세스를
+시작했고(invocation=4), 동사표 에이전트의 완료 알림이 이전 프로세스에서
+유실됐다는 `task-notification`(status=stopped)을 이번 invocation이 받았다.
+다만 알림의 안내대로 트랜스크립트는 디스크에 남아 있었다 — `SendMessage`로
+에이전트 ID(`a4b252696a6de42fd`)에 재개 메시지를 보내 정상 복구했다(백그라운드로
+계속 작업 중, 이번에도 완료 알림을 놓칠 경우를 대비해 계속 이 문서에 상태를
+남긴다). RUN CONTEXT의 `dirty_paths=22`로 그 사이 `registry/` 클러스터
+전체(actions·authoring·automation·governance·integrations·org·platform·shared)까지
+번진 것을 확인 — 에이전트가 정상적으로 넓게 훑고 있다는 뜻이다.
+
+**추가로 처리한 것**(동사표 에이전트와 파일이 안 겹치는, 독립적으로 가능한 작업):
+`var/runner/unresolved_index.json`(BACKLOG.md에서 기계 추출한 92건)에서 Critical
+2건(`OPS-01`·`AI-51`)을 직접 확인해 보니 **둘 다 이미 사실상 해결돼 있었다** —
+이 index가 상태 갱신 없이 낡아 있다는 뜻(`AI-51`은 과거 ID 중복 사고로 `AI-30`의
+낡은 별칭이었을 뿐, `AI-30`은 이미 커밋 `5db9fbf`로 구현완료). 다만 `OPS-01`에는
+진짜 남은 갭이 하나 있었다: "앱 층 첨부 E2E 미검증"(디렉터리 소유권만 확인했지
+웹에서 실제 업로드는 아무도 실증한 적 없음). Playwright로 실QA계정 세션 +
+실브라우저 파일 입력을 통해 진짜 PNG를 실티켓에 첨부(200, 정확한 메타데이터,
+DOM 반영, 콘솔 오류 0건) → 같은 UI 경로로 삭제까지 확인 → `docs/BACKLOG.md`
+OPS-01/OPS-02 상태 갱신, 커밋(`3e929a6`).
+
+index 전체가 이런 식으로 낡아 있을 가능성이 높아 보여, 92건 전체를 현재
+BACKLOG.md/source와 대조해 정말 열려 있는 것만 추리는 조사를 background agent
+(`a1360fe322683a3f8`, 읽기 전용 — 파일 수정 없음)에게 맡겼다. 완료 알림을 못
+받으면 이 conversation에서 `SendMessage`로 같은 ID에 재개 요청.
+
+**진행 중인 백그라운드 에이전트 2개(둘 다 커밋 안 함 — 내가 diff 검토 후 처리)**:
+1. `a4b252696a6de42fd` — PA-RC-0002 동사표 정렬(frontend 파일 다수 수정 중)
+2. `a1360fe322683a3f8` — unresolved_index.json 92건 현재 상태 대조(읽기 전용)
+
+**다음 invocation이 이 상태를 만나면**: 두 에이전트 모두 위 ID로 `SendMessage`
+재개 시도 → 완료됐으면 1번은 review+test+commit, 2번은 보고서의 "진짜 열려있는
+항목" 목록을 다음 작업 후보로 사용 → 그 다음에야 통합 재빌드/재배포/재E2E.
