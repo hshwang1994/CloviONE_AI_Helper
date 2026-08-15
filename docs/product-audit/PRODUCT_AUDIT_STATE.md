@@ -86,11 +86,11 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 | 항목 | 값 |
 |---|---|
 | Root Cause | **11건** — Critical 1(`0003`) · High 3(`0001`,`0002`,`0008`) · Med 4(`0005`,`0007`,`0009`,`0010`) · Low 3(`0004`,`0006`,`0011`) |
-| Finding | PA-F-001 ~ **PA-F-038** + 재설계 후보 `RD-1`~`RD-6` |
+| Finding | PA-F-001 ~ **PA-F-039** + 재설계 후보 `RD-1`~`RD-6` |
 | HANDOFF의 PA-RC 블록 | **8건** — 필수 27필드 자기검사 PASS. Low 3건은 승격 안 함 |
-| Coverage | 2340칸 중 EXECUTED 158 · **OBSERVED 59** · STATIC_ONLY 618 · UNSEEN 1505(**전부 사유 있음**) |
+| Coverage | 2340칸 중 EXECUTED 158 · OBSERVED 59 · STATIC_ONLY **714** · UNSEEN 1409(**전부 사유 있음**) · **Gate C: A~Z 26축 전부 반영됨** |
 | 실행 증거 | **백엔드 2,903건 전부 통과**(4청크) · 프런트 1,718건 통과 · **Chromium 151로 화면 12개 실측** + 다크/배율/대비 probe · race 1건 flaky(`0008`) |
-| Blind Re-Audit | **1 / 2** — pass 1(신규 입사자 첫날) 완료, 새 Critical/High **0건**. §5에 기록 |
+| Blind Re-Audit | **2 / 2 연속 clean** — pass 1(신규 입사자)·pass 2(감사자) 모두 새 Critical/High **0건**. §5에 기록 |
 | Backlog 승격 | **아직 안 함**(§11대로 수렴 후에) |
 | `IMPLEMENTATION_REQUIRED` | **아직 안 만듦** |
 
@@ -120,15 +120,14 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 1-E. ~~`PA-F-036` 확인~~ → **완료 · 정정됨.** 모달 2개가 아니라 **AI 도우미 패널이 기본 열림**
    (비모달, backdrop 0). 남는 관측은 1920 폭에서 상시 크롬 724px(38%)와
    `role="dialog"`인데 비모달인 불일치(M축).
-2. **미조사 축** — `C`(기능 CRUD/필터/정렬/페이지네이션) · `R`(한국어).
-   `R`은 `PA-RC-0002` 문구 규칙이 확정된 뒤가 순서다(프롬프트 2절).
-   `N`·`O`는 이번에 부분 관측했으나 위 1-B의 잔여가 남아 있다.
+2. ~~`R`(한국어)~~ → **완료.** `humanize-korean` 탐지 적용 — **S1 고위험 번역투 지표 전부 0**,
+   검출 88건은 전수 확인 후 오탐/정상으로 폐기(`PA-F-039`). R축은 깨끗하다.
+   ~~`Z`(문서 드리프트)~~ → **완료.** 다른 축을 파는 내내 5건 발견(COVERAGE Z축 절).
+   **남은 미조사 축: `C`(기능 CRUD/필터/정렬/페이지네이션) 하나뿐.**
 3. **S축 잔여** — 무제한 목록 후보 15건 중 1건만 검증했다. 나머지 14건 확인.
-4. **Blind Re-Audit — pass 1 완료(0건), pass 2 남음.** ← *다음 회차 1순위*
-   pass 1은 *"신규 입사자가 첫날 하는 일"* 이었다. **pass 2는 반드시 다른 진입점**으로:
-   *"감사자가 분기 점검에서 하는 일"*(권한 경계·감사 로그·보존 기간) 또는
-   *"운영자가 장애 났을 때 하는 일"*(진단·작업 큐·재시도·복구).
-   두 pass 모두 새 Critical/High 0이어야 Gate F가 닫힌다.
+4. ~~Blind Re-Audit~~ → **완료. Gate F 2/2 연속 clean.**
+   pass 1 *"신규 입사자 첫날"*(0건) · pass 2 *"감사자 분기 점검"*(0건).
+   pass 2는 `auditor` 역할로 **F축을 행동 검증**했다 — 화면·라우트·API 세 계층이 같은 답을 낸다.
 5. §11 Backlog 승격(**기존 549KB BACKLOG 전체와 중복 대조 필수**) +
    `QA_COVERAGE.md` 공백 반영 + `IMPLEMENTATION_REQUIRED` marker 생성.
 
@@ -197,10 +196,36 @@ blind_pass=1 cycle_id=PA-20260812-171558-56c5befa new_critical_high_categories=0
 (`/my-tickets`·`/my-stats`)만 관리자 연결을 기다린다. 그 사실이 화면에 정직하게 적혀 있다.
 **새 Critical/High 없음.**
 
-> **pass 2는 다른 진입점으로 해야 한다** — 같은 각도를 반복하면 Blind Pass가 아니다.
-> 후보: *"감사자가 분기 점검에서 하는 일"*(권한 경계·감사 로그·보존) 또는
-> *"운영자가 장애 났을 때 하는 일"*(진단·작업 큐·재시도·복구).
+blind_pass=2 cycle_id=PA-20260812-171558-56c5befa new_critical_high_categories=0 at=2026-08-15T12:58:29+09:00
 
+### pass 2 — 진입점: **"감사자가 분기 점검에서 하는 일"**
+
+pass 1과 **역할도 workflow도 다르게** 잡았다 — 이 Cycle에서 한 번도 안 써 본 `auditor` 역할을
+만들고, "시작하기"가 아니라 **"이력을 읽고 경계를 확인한다"** 는 일을 걸었다
+(`var/product-audit/blind2_auditor.py`, 결과 `blind2.json`).
+프롬프트 F축이 특별히 지목한 것 — *"UI에서 버튼을 숨기는 것과 실제 API authorization을
+구분한다. direct URL/direct API"* — 를 **행동으로** 시험했다.
+
+**새 Critical/High 범주: 0건.** 그리고 F축이 **행동으로 확인됐다.**
+
+| 검사 | 결과 |
+|---|---|
+| 감사자가 써야 하는 화면 8개(`/audit`·`/audit-anomalies`·`/impersonation`·`/backup`·`/rbac`·`/dev-report`·`/maintenance`·`/announcements`) | **전부 정상 렌더 + 실데이터**(감사 로그 100행, 개발자 리포트 65행, 권한 매트릭스 13행 등) |
+| 감사자가 못 써야 하는 화면 8개(`/users`·`/offboarding`·`/organizations`·`/job-titles`·`/system`·`/setup`·`/notion-console`·`/llm-console`)에 **직접 URL로 진입** | **8개 전부 차단**(`h1` 없음, 거부 표시, 0행) |
+| **세션 쿠키를 들고 API 직접 호출** | `/api/admin/users` **403** · `/api/admin/offboarding` **403** · `/api/admin/audit` 200 · `/api/admin/backups` 200 · `/api/admin/settings` 200 · `/api/admin/reports/dev-monthly` 200 |
+| 사이드바 필터링 | 관리자 세그먼트로 전환하면 **29개 항목**이 보이고, **차단 대상 8개는 정확히 빠져 있다** |
+
+즉 **화면 게이트·라우트 게이트·API 게이트 셋이 모두 같은 답을 낸다.** `FC-05`(화면 역할 게이트)가
+정적 대조로 주장한 것을 이번에 **실제 요청으로** 확인했다.
+
+**조사 중 내 오탐 1건**: 처음에 *"감사자에게 관리자 메뉴가 하나도 안 보인다"* 로 읽었다.
+사이드바를 `/#/me`(사용자 세그먼트)에서 읽고, 세그먼트 전환 탭을 `header` 안에서만 찾았기
+때문이다. 실제로는 **사이드바 최상단(x=132, y=80)에 「관리자」 버튼**이 있고
+(`AppShell.jsx:322-339`, *"사용자 지적 P2 — 왼쪽 트리 상단으로 옮겨라"*), 누르면
+`/#/dashboard`로 전환된다. `App.jsx:46`의 `isUser = role === "user"` 조건상 `auditor`는
+당연히 탭을 받는다. **결함 아님.**
+
+## Gate F 상태: **2 / 2 연속 clean** — 두 pass 모두 새 Critical/High 0건.
 ## 6. 2026-08-15 COLD 재접지에서 확인한 것
 
 - 이전 회차의 Audit 문서 4종이 그대로 남아 있고 내용이 유효하다(`git ls-files` 로 추적 확인).

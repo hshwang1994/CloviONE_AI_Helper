@@ -39,111 +39,111 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `U-HOME` 홈 (개인 대시보드) | `/me` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-SEARCH` 통합 검색 | `/search` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-UNASSIGNED` 미할당 티켓 | `/unassigned` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-NEWTICKET` 새 티켓 | `/new-ticket` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TEAMTICKETS` 팀 티켓 | `/team-tickets` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-PROJECTS` 프로젝트 목록 | `/projects` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-CHAT` AI 도우미 대화 | `/chat` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-GAMES` 놀이 목록 | `/games` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-GAMEROOM` 게임방 | `/games/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-NOTIF` 알림 목록 | `/notifications` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-PROFILE` 내 프로필 | `/profile` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `U-MYSTATS` 내 업무량 | `/my-stats` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-ACTIVITY` 내 활동 | `/activity` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-HOME` 홈 (개인 대시보드) | `/me` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
+| `U-SEARCH` 통합 검색 | `/search` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-UNASSIGNED` 미할당 티켓 | `/unassigned` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-NEWTICKET` 새 티켓 | `/new-ticket` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TEAMTICKETS` 팀 티켓 | `/team-tickets` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-PROJECTS` 프로젝트 목록 | `/projects` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHAT` AI 도우미 대화 | `/chat` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-GAMES` 놀이 목록 | `/games` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-GAMEROOM` 게임방 | `/games/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-NOTIF` 알림 목록 | `/notifications` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-PROFILE` 내 프로필 | `/profile` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-MYSTATS` 내 업무량 | `/my-stats` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-ACTIVITY` 내 활동 | `/activity` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 
 ## admin-console
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SETTINGS` 설정 | `/settings` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SYSTEM` 시스템 설정 | `/system` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-MAIL` 메일 발송 상태 | `/mail` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-LLMC` AI 관리 | `/llm-console` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DIAG` 진단 | `/diagnostics` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-MAINT` 유지보수 | `/maintenance` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-INTEG` 외부 연동 | `/integrations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RUNNERS` 러너 | `/runners` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `A-POLICIES` 정책 | `/policies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-TEMPLATES` 템플릿 | `/templates` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `A-APPROVALS` 승인 | `/approvals` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
-| `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-BACKUP` 백업 | `/backup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
+| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SETTINGS` 설정 | `/settings` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SYSTEM` 시스템 설정 | `/system` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-MAIL` 메일 발송 상태 | `/mail` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-LLMC` AI 관리 | `/llm-console` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-DIAG` 진단 | `/diagnostics` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-MAINT` 유지보수 | `/maintenance` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-INTEG` 외부 연동 | `/integrations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-RUNNERS` 러너 | `/runners` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `A-POLICIES` 정책 | `/policies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-TEMPLATES` 템플릿 | `/templates` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `A-APPROVALS` 승인 | `/approvals` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-BACKUP` 백업 | `/backup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 
 ## shell-cross
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `S-SHELL` AppShell / 사이드바 / 그룹 | `app/AppShell.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | O | O | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-TOPBAR` 상단바 / 세그먼트 탭 / 검색 | `app/AppShell.jsx, TopSearch` | S | · | · | · | · | · | · | · | S | · | · | S | O | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-PALETTE` 커맨드 팔레트 (Ctrl+K) | `app/CommandPalette.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-BELL` 알림 벨 | `app/NotificationBell.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-ASSIST` AI 도우미 드로어 / FAB | `app/AssistantDrawer.jsx` | S | O | · | · | · | · | · | · | S | · | · | O | O | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-BANNER` 전역 배너(공지/유지보수/셋업) | `app/Banners.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-SCOPE` 관리 범위 표시줄 | `app/ScopeBar.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | O | · | · | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | S | E | · |
-| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
+| `S-SHELL` AppShell / 사이드바 / 그룹 | `app/AppShell.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | O | O | · | S | S | S | · | · | · | · | · | S | E | S |
+| `S-TOPBAR` 상단바 / 세그먼트 탭 / 검색 | `app/AppShell.jsx, TopSearch` | S | · | · | · | · | · | · | · | S | · | · | S | O | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-PALETTE` 커맨드 팔레트 (Ctrl+K) | `app/CommandPalette.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-BELL` 알림 벨 | `app/NotificationBell.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-ASSIST` AI 도우미 드로어 / FAB | `app/AssistantDrawer.jsx` | S | O | · | · | · | · | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-BANNER` 전역 배너(공지/유지보수/셋업) | `app/Banners.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-SCOPE` 관리 범위 표시줄 | `app/ScopeBar.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | O | · | · | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | S | E | S |
+| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | S |
+| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 
 ## platform
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | · |
-| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | · |
-| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | O | S | O | S | · | E | · |
-| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
-| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | · |
+| `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
+| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
+| `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | O | S | O | S | · | E | S |
+| `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 
 ## UNSEEN / BLOCKED / NOT_APPLICABLE 사유
 
@@ -250,7 +250,7 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `redesign-existing-projects` | `Skill 도구 목록의 `redesign-existing-projects`` | - | **적용함** — 감사 항목표 중 이 스택에 해당하는 것만 검사(마케팅 페이지 항목 제외). `PA-RC-0004`(무음 404)와 `PA-RC-0010`(로그인 다크)의 판정 근거. |
 | `ui-ux-pro-max` | `Skill 도구 목록의 `ui-ux-pro-max`` | - | **적용함** — 도메인 `ux` 검색으로 *'Font Size Scale: 일관된 modular scale, 임의 글자 크기 금지'* · *'Line Height 1.5~1.75'* · *'Line Length 65~75자'* 확보. 이것으로 `RD-1`~`RD-3`의 **단계 수를 확정**했다(15종→6단계, 10종→4단계, 10종→4슬롯). |
 | `impeccable` | `Skill 도구 목록의 `impeccable`` | 4.0.4 | **적용함 — 내 제안에 대한 적대적 교차 검증으로.** ⓐ 이 콘솔이 `Operate` 표면(스캔 용이성·일관성이 표현보다 우선)임을 확정해 `RD-1`이 62px 워드마크에 준 면제를 재검토하게 함. ⓑ 그 결과 대시보드의 진짜 문제가 '섹션 13개'가 아니라 **'통계 수치 20개가 전부 30px/800으로 동일해 우선순위가 없다'** 임을 찾아내 `RD-5`의 진단을 교체했다. |
-| `humanize-korean:humanize-korean` | `Skill 도구 목록의 `humanize-korean:humanize-korean`` | 2.1.0 | **의도적으로 보류(미적용).** 이 Audit 프롬프트 2절이 'UX Writing을 먼저, humanization은 그 뒤'로 순서를 못박는다. `PA-RC-0002`의 문구 규칙이 아직 확정되지 않았으므로, 지금 R축을 돌리면 곧 바뀔 문구를 다듬게 된다. **미설치가 아니라 순서상 보류다.** |
+| `humanize-korean:humanize-korean` | `Skill 도구 목록의 `humanize-korean:humanize-korean`` | 2.1.0 | **적용함(탐지 전용)** — 슬림 룰북 `references/quick-rules.md` v2.0의 taxonomy ID 중 UI 마이크로카피에 해당하는 13개를 골라 고유 문구 1,427종에 대고 탐지했다. **Auditor이므로 윤문은 하지 않았다**(스킬 본체는 rewriting 파이프라인이다). 결과: S1 고위험 번역투 지표가 전부 0 — R축은 깨끗하다(`PA-F-039`). 검출 88건은 전수 확인 후 오탐/정상으로 폐기했다. |
 
     skill_gap: a11y-debugging — Skill 목록에 없다. 대체 방법=Playwright + Chromium 151로 **실제 측정**했다 (키보드 Tab 순서·`:focus-visible`·`aria`·랜드마크·제목 계층, 그리고 렌더 픽셀 기반 WCAG 대비 227요소). 신뢰도 영향=**거의 없음** — 오히려 정적 점검보다 강한 증거를 얻었다.
     skill_gap: chrome-devtools — Skill 목록에 없다. 대체 방법=Playwright + Chromium 151 직접 구동. 콘솔·네트워크·계산 스타일·스크린샷 픽셀을 전부 실측했다. 신뢰도 영향=**해소됨**.
@@ -357,12 +357,40 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 >
 > **harness 오탐 정정**: '남은 backdrop 1'은 `opacity:0; visibility:hidden`인 드로어 backdrop 이었다 — 크기만 보고 세서 안 보이는 걸 남았다고 셌다. 측정은 가려지지 않았다.
 
+## F축 — 행동으로 검증됨 (Blind pass 2)
+
+`auditor` 역할 계정을 만들어 **세 계층이 같은 답을 내는지** 실제 요청으로 확인했다.
+
+| 계층 | 결과 |
+|---|---|
+| 사이드바(보이는가) | 관리자 세그먼트에서 **29항목**, 차단 대상 8개는 **정확히 빠져 있다** |
+| 라우트 게이트(직접 URL 진입) | 차단 대상 8개 **전부 차단**(h1 없음, 거부 표시, 0행) |
+| **API(세션 쿠키 동반 직접 호출)** | `/api/admin/users` **403** · `/api/admin/offboarding` **403** · audit·backups·settings·dev-monthly **200** |
+
+프롬프트 F축이 지목한 *"UI에서 버튼을 숨기는 것과 실제 API authorization을 구분한다"* 를 통과한다 — **버튼을 숨기는 것에 의존하지 않는다.** `FC-05`가 정적 대조로 주장한 것이 실제 요청으로 확인됐다.
+
+## Z축 — 문서 드리프트 (이번 Cycle에 실제로 찾은 것)
+
+Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드리프트:
+
+| 발견 | 상세 |
+|---|---|
+| `PA-RC-0006` | `WORK_STATE`가 백엔드 회귀를 '진짜 행(hang)'이라 기록 — **사실이 아니다.** 그 오기록 때문에 세 사이클 동안 전체 회귀가 미검증으로 남았다 |
+| `PA-RC-0011` | 실행 중인 제품 이름은 **ClovirAssist**(페이지 title·메일 제목·branding 기본값)인데 문서 13개는 **ClovirONE**이고 ClovirAssist는 0회 |
+| `PA-F-038` | `RESP-03`(768 상단바 라벨 붕괴)이 재현되지 않는다 — 자기모순 행 후보 |
+| `PA-F-030` | `RESP-04`의 수치가 낡았다 — 기록 180px/18% vs 실측 **264px/26%** |
+| `PA-F-030` | `RESP-01`의 조건이 너무 넓다 — '관리자 표 화면' 전부가 아니라 **열 많은 표(`/users`)만** |
+| Round 0 | `CLAUDE.md` §2는 Python **3.12**라 적는데 `.venv`는 **3.11.9** |
+| 이 Audit 자신 | 내 중복 기준선도 틀렸었다(prefix 41종/552행을 DS/VIS/RN/IA만으로 셌다) — 같은 계열의 드리프트다 |
+
+> 이 저장소는 `SEC-12/13`·`FN-02`·`RG-04`·`ADM-03`에서 '이미 고쳐졌는데 행만 안 갱신' 패턴을 반복해 찾아 왔다. **이번 Cycle에서도 같은 계열이 5건 더 나왔다** — 그 패턴은 아직 수렴하지 않았다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1505
+unseen=1409
 unseen_without_reason=0
-static_only=618
+static_only=714
 observed=59
 executed=158
 blocked=0
