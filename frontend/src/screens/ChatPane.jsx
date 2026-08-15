@@ -411,7 +411,11 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                   </Paper>
                   <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", gap: 0.25 }}>
                     {receipt ? (
-                      /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체. */
+                      /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체.
+                         PA-RC-0001: 10px는 스케일 최하단(caption=12px)보다도 작다 — 메신저 관용상
+                         읽음 표시는 말풍선보다 눈에 덜 띄어야 하는 보조 지표라 의도적으로 더 작게
+                         뒀다(카카오톡·슬랙 등도 같은 관용). caption으로 올리면 오히려 본문과
+                         경쟁하게 돼 실측 없이 바꾸지 않는다(의도된 예외). */
                       <Typography sx={{ fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
                         {receipt}
                       </Typography>

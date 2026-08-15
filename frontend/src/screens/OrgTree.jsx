@@ -11,6 +11,7 @@ import { api } from "../lib/api.js";
 import { Badge, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { EMPTYABLE_SELECT, SearchBox } from "../ui/filters.jsx";
 import { ORG_SCREENS } from "./registry/org.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 조직도 트리 — 조직 콘솔(OrgConsole.jsx)의 왼쪽 1/3.
  *
@@ -186,7 +187,7 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle }) {
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
             <Typography
               component="span"
-              sx={{ fontWeight: isOrg ? 800 : 600, fontSize: isOrg ? "0.9375rem" : "0.875rem", overflowWrap: "anywhere" }}
+              sx={{ fontWeight: isOrg ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, fontSize: isOrg ? "0.9375rem" : FONT_SIZE.body, overflowWrap: "anywhere" }}
             >
               {row.name}
             </Typography>

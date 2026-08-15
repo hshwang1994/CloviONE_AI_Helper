@@ -260,6 +260,8 @@ export function SchedulerCalendar() {
 
       <Card sx={{ mt: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
         <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>
+        {/* PA-RC-0001: sectionTitle(17px)·pageTitle(20px) 사이 18px — 이 h2가 페이지 제목인지
+            섹션 제목에 더 가까운 역할인지 실측 없이 임의로 정하지 않는다(의도된 예외). */}
         <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: "1.125rem", minWidth: "8ch" }}>
           {monthLabel}
         </Typography>

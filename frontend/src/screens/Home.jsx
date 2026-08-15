@@ -198,6 +198,9 @@ function MyBoardStats() {
   const s = q.data.summary || { post_count: 0, comment_count_received: 0, view_count_total: 0 };
   const stat = (num, label) => (
     <Box sx={{ display: "grid", gap: 0.25 }}>
+      {/* PA-RC-0001: kit.jsx StatCard의 큰 숫자(STAT_VALUE_FONT_SIZE=30px)보다 작은 보조
+          지표라 그 토큰을 그대로 쓰면 과하다 — sectionTitle(17px)·pageTitle(20px) 사이
+          18px 자리에 맞는 기존 토큰이 없다. 실측 없이 임의로 스냅하지 않는다(의도된 예외). */}
       <Typography component="span" sx={{ fontSize: "1.125rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{num}</Typography>
       <Typography component="span" variant="caption" color="text.secondary">{label}</Typography>
     </Box>

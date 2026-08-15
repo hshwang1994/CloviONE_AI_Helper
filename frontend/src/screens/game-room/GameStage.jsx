@@ -166,6 +166,11 @@ export function GameStage({ c }) {
                           borderColor: win ? "primary.main" : "divider",
                           bgcolor: (t) => (win ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
                         }}>
+                          {/* PA-RC-0001: 24px — ProjectWbs.jsx·charts/Donut.jsx의 큰 숫자와 정확히
+                              같은 값+굵기 조합이라 우연이 아니라 이미 자리 잡은 관용으로 보인다.
+                              statValue(30px)·pageTitle(20px) 사이 어느 쪽에도 억지로 안 맞춘다 —
+                              세 곳이 이미 서로를 증거로 세우고 있어 임의로 바꾸면 그 일치가
+                              깨진다(의도된 예외, 전용 토큰 신설은 다음 세션 판단). */}
                           <Box component="span" sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{p.number}</Box>
                           <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{p.name}</Box>
                         </Paper>

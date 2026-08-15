@@ -109,6 +109,8 @@ export function ProjectWbs({ data, ticketsLinked }) {
         <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>트리 전체 진행률</Typography>
         {/* 머리글 숫자는 개요 탭과 **같은 함수, 같은 표본**이다(서버가 그렇게 만든다).
             그 사실이 화면에서도 보이도록 같은 근거 표를 그린다. */}
+        {/* PA-RC-0001: 24px — game-room/GameStage.jsx·charts/Donut.jsx와 같은 값+굵기(의도된
+            예외, 세부 사유는 GameStage.jsx 참고). */}
         <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold }}>
           {percentText(d.progress && d.progress.percent) || "작업이 아직 없습니다"}
         </Typography>

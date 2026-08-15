@@ -30,6 +30,8 @@ export function Welcome({ title, help, onPick, busy, mode }) {
       <Box sx={{ display: "grid", justifyItems: "center", mb: 1 }}>
         <MascotPose mode={mode} size="6rem" decorative />
       </Box>
+      {/* PA-RC-0001: MUI 기본 h5(24px)보다 의도적으로 작게 한 22px — pageTitle(20px)·statValue(30px)
+          사이라 기존 토큰과 안 맞는다. 실측 없이 스냅하지 않는다(의도된 예외). */}
       <Typography variant="h5" component="h2" color="text.primary" sx={{ fontSize: "1.375rem", mb: 1 }}>{title}</Typography>
       <Typography sx={{ fontSize: "0.9375rem", lineHeight: 1.6 }}>{help}</Typography>
       <QuickPrompts onPick={onPick} busy={busy} />
