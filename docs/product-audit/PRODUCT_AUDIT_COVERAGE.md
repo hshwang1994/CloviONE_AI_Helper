@@ -39,9 +39,9 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `U-HOME` 홈 (개인 대시보드) | `/me` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-HOME` 홈 (개인 대시보드) | `/me` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `U-SEARCH` 통합 검색 | `/search` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `U-UNASSIGNED` 미할당 티켓 | `/unassigned` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-NEWTICKET` 새 티켓 | `/new-ticket` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
@@ -52,15 +52,15 @@
 | `U-CHAT` AI 도우미 대화 | `/chat` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-GAMES` 놀이 목록 | `/games` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-GAMEROOM` 게임방 | `/games/:id` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-NOTIF` 알림 목록 | `/notifications` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `U-PROFILE` 내 프로필 | `/profile` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `U-NOTIF` 알림 목록 | `/notifications` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
+| `U-PROFILE` 내 프로필 | `/profile` | S | · | · | · | · | E | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `U-MYSTATS` 내 업무량 | `/my-stats` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `U-ACTIVITY` 내 활동 | `/activity` | S | · | · | · | · | E | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 
@@ -68,8 +68,8 @@
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
+| `A-USERS` 사용자 관리 | `/users` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
@@ -86,17 +86,17 @@
 | `A-INTEG` 외부 연동 | `/integrations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-RUNNERS` 러너 | `/runners` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `A-POLICIES` 정책 | `/policies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-TEMPLATES` 템플릿 | `/templates` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `A-APPROVALS` 승인 | `/approvals` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
-| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
+| `A-AUDIT` 감사 로그 | `/audit` | S | · | · | · | S | E | · | S | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | · | E | · |
 | `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | · | · | S | E | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
@@ -120,7 +120,7 @@
 | `S-SCOPE` 관리 범위 표시줄 | `app/ScopeBar.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | · | · | · | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | S | E | · |
+| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | O | · | · | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | S | E | · |
 | `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 
@@ -330,13 +330,23 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 
 > 다만 로컬도 완전한 현재가 아니다(번들은 마지막 빌드 커밋 시점). 그리고 **인증이 필요한 화면은 아직 관측하지 않았다** — 로그인 이후 화면은 다음 Round 대상이다.
 
+## 인증 이후 화면 관측 (2026-08-15)
+
+로컬 dev `:8099` + Chromium 151로 **로그인 이후 화면 11개**를 실측했다(사용자 6 + 관리자 5). QA 계정 2개를 dev DB에 **추가**했다(기존 데이터 무수정, 비밀번호는 메모리→stdin 전용).
+
+**L/M/N/O를 OBSERVED로 올린 근거**: 화면별 렌더된 글자 크기·굵기·radius 분포, 제목 계층, 랜드마크, 콘솔/네트워크, 그리고 390~3840px 반응형을 실제로 측정했다.
+
+> **한계 두 가지를 같이 적는다.**
+> 1. **처음 반응형 검사가 1024px를 건너뛰었다** — 하필 `RESP-01`이 깨진다고 적어 둔 폭이다. 다시 재서 `/users`의 overflow를 확인했다(`PA-F-030`). **관측 폭을 고를 때 기존 Backlog가 지목한 폭을 먼저 넣어라.**
+> 2. **번들은 2026-08-13 커밋 시점**이다. 그 이후 프런트 변경은 이 관측에 반영되지 않았다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1530
+unseen=1507
 unseen_without_reason=0
-static_only=644
-observed=8
+static_only=622
+observed=53
 executed=158
 blocked=0
 not_applicable=0
