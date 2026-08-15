@@ -29,7 +29,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: "user", id: "me-1" } }),
 }));
 
-import { MyTickets } from "./MyTickets.jsx";
+import { MyTickets, Unassigned } from "./MyTickets.jsx";
 
 const ROWS = [
   { id: "t-1", tid: 1, title: "서버 등록 IP 중복 방지", status: "진행", project: "인프라", due: "2026-08-20", assignee_names: ["나"] },
@@ -149,5 +149,44 @@ describe("내 티켓 — 목록", () => {
     const table = await screen.findByRole("table");
     const head = within(table).getAllByRole("columnheader").map((c) => c.textContent);
     expect(head).toEqual(expect.arrayContaining(["티켓", "제목", "상태", "우선순위", "난이도", "예상 WD", "마감", "담당자"]));
+  });
+});
+
+/* UB-26: 개인 범위(내 티켓/미할당)는 팀 티켓과 달리 동기화 배너 자체가 아예 없었다 —
+ * 미러가 한 번도 안 됐는데 error도 아니면 "담당한 티켓이 없습니다"만 보여, 정말 0건인지
+ * 아직 못 재본 것인지 구분이 안 됐다. 백엔드는 이미 두 엔드포인트(mine/unassigned) 모두
+ * `_with_sync`로 sync 블록을 얹어 주고 있었다(`app/tickets/router.py`) — 화면만 안 그렸다.
+ * 이 엔드포인트들엔 can_sync 자체가 없으므로(팀 전용 트리거) 버튼은 여전히 안 뜬다 —
+ * team-tickets-sync.test.jsx의 "can_sync:false면 안내는 뜨지만 버튼은 없다"와 같은 결. */
+describe("내 티켓/미할당 — 동기화 배너 (UB-26)", () => {
+  it("내 티켓: 미러가 한 번도 성공 못 했으면(sync 있음, can_sync 없음) 안내가 뜨고 버튼은 없다", async () => {
+    mockMine({ ...TICKETS, sync: { status: "pending", ticket_count: 0, last_success_at: null } });
+    renderMyTickets();
+    expect(await screen.findByText(/마지막 동기화: 없음/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
+  });
+
+  it("미할당: 같은 이유로 sync 블록이 있으면 안내를 보여준다", async () => {
+    apiMock.mockImplementation((path) => {
+      const p = String(path);
+      if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
+      if (p.startsWith("/api/tickets/unassigned")) {
+        return Promise.resolve({
+          configured: true, ok: true, items: [], total: 0, page: 1, page_size: 20,
+          sync: { status: "ok", ticket_count: 12, last_success_at: "2026-08-10T00:00:00Z" },
+        });
+      }
+      return Promise.resolve({});
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={["/unassigned"]}>
+          <Routes><Route path="/unassigned" element={<Unassigned />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/마지막 동기화/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
 });

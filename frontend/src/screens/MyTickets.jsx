@@ -725,6 +725,13 @@ export function MyTickets() {
               {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
                   탐색에서 구획 없는 한 덩어리였다. 시각 디자인은 그대로 두고(.sr-only)
                   마크업에만 h2 두 개를 더한다. */}
+              {/* UB-26: 팀 티켓 화면은 이미 이 배너로 "마지막 동기화: 없음" 같은 상태를
+                  보여주는데, 개인 범위(내 티켓/미할당)는 트리거 버튼이 필요 없다는 이유로
+                  배너 자체를 통째로 뺐었다 — 그래서 미러가 한 번도 안 됐는데 error도 아니면
+                  "담당한 티켓이 없습니다"만 보여 "정말 0건"과 "아직 못 재본 것"이 구분 안
+                  됐다. canSync가 이 엔드포인트엔 없어(항상 undefined→false) 버튼은 여전히
+                  안 뜬다 — 정보만 준다. */}
+              <TicketSyncBanner sync={data.sync} canSync={data.can_sync} onSync={() => {}} syncing={false} />
               <Typography component="h2" className="sr-only">필터</Typography>
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Typography component="h2" className="sr-only">목록</Typography>
@@ -797,6 +804,9 @@ export function Unassigned() {
             ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: openTicket(nav, "/unassigned") })];
           return (
             <>
+              {/* UB-26: 개인 범위도 미러 신선도를 알 권리는 있다(트리거 버튼만 없을 뿐) —
+                  MyTickets()와 같은 이유, canSync는 이 엔드포인트에도 없어 버튼은 안 뜬다. */}
+              <TicketSyncBanner sync={data.sync} canSync={data.can_sync} onSync={() => {}} syncing={false} />
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
