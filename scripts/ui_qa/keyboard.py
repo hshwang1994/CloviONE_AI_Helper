@@ -104,9 +104,12 @@ def main() -> int:
                 if s_["y"] > 90 and s_["x"] > 280:      # 상단바·사이드바 밖
                     main_at = i + 1
                     break
+            # AppShell.jsx의 실제 문구는 "본문 바로가기"다 — 이전 패턴(건너|본문으로|skip)이
+            # 그 문구를 못 잡아 실제로 있는 스킵 링크를 "없음"으로 오탐하고 있었다(KBD-05
+            # 재확인 중 발견, DECISIONS.md 참고).
             skip = page.evaluate(
                 """() => [...document.querySelectorAll('a,button')]
-                    .filter(e => /건너|본문으로|skip/i.test((e.innerText||'') + (e.getAttribute('aria-label')||'')))
+                    .filter(e => /건너|본문으로|바로가기|skip/i.test((e.innerText||'') + (e.getAttribute('aria-label')||'')))
                     .map(e => (e.innerText||e.getAttribute('aria-label')||'').trim()).slice(0,3)""")
 
             report[rid] = {
