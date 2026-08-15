@@ -6061,7 +6061,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
-        if self.path not in {"/v1/assistant/message", "/v1/assistant/context/sync", "/v1/assistant/quiz"}:
+        if self.path not in {"/v1/assistant/message", "/v1/assistant/context/sync",
+                              "/v1/assistant/context/delete", "/v1/assistant/quiz"}:
             self.send_json(404, {"error": "not_found"})
             return
         if not self.authorized():
@@ -6156,6 +6157,26 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             self.send_json(200, {"ok": True, "context_revision": int(saved.get("_context_revision") or 0)})
+            return
+        if self.path == "/v1/assistant/context/delete":
+            # AI-16: 플랫폼에서 대화를 지우면 이 미러도 지운다 — 예전엔 clear_persisted_context가
+            # 정의만 되고 호출부가 없어(호출 0회) 대화 전문·이미지 분석 노트가
+            # CONTEXT_MODE_TTL_SECONDS(24h) 만료 전까지 무기한 남는 프라이버시 결함이었다.
+            requester_raw = body.get("requester") if isinstance(body.get("requester"), dict) else {}
+            requester = {
+                "email": clean_email(requester_raw.get("email")),
+                "name": text(requester_raw.get("name")),
+                "teams_user_id": text(requester_raw.get("teams_user_id")),
+            }
+            conversation_id = text(body.get("conversation_id"))
+            if not requester_state_key(requester) or not conversation_id:
+                self.send_json(400, {"error": "requester_conversation_required"})
+                return
+            # /context/sync와 같은 락 — 삭제가 진행 중인 /message 턴의 재저장과 겹쳐 "지웠는데
+            # 곧바로 되살아나는" 경합을 막는다(위 /context/sync 주석과 같은 이유).
+            with conversation_lock(requester, conversation_id):
+                clear_persisted_context(requester, conversation_id)
+            self.send_json(200, {"ok": True})
             return
         message = body.get("message")
         context = body.get("context", {})

@@ -133,6 +133,14 @@ class Settings(BaseSettings):
     assistant_runner_token_ref: str = "assistant_runner_token"
     assistant_runner_timeout_seconds: int = 25
 
+    # AI-16: 대화 삭제 시 러너의 미러(conversation_state)도 지운다 — 위와 같은 러너·같은
+    # 토큰·같은 관문(runners allowlist)이라 새 secret이 필요 없다. 이건 화면을 여는 길목이
+    # 아니라 삭제 버튼 하나의 뒤처리라 사람이 기다리는 정도가 훨씬 짧다 — 짧게 잡아 삭제
+    # 자체가 러너 장애로 느려지지 않게 한다. 실패해도 삭제는 그대로 성공한다(위생 실패,
+    # 데이터 무결성 문제 아님) — TTL 스윕(CONTEXT_MODE_TTL_SECONDS)이 그물을 겹쳐 준다.
+    assistant_context_delete_url: str = "http://127.0.0.1:8789/v1/assistant/context/delete"
+    assistant_context_delete_timeout_seconds: int = 5
+
     # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
     # 값: 'notion' | 'notion_cache' | 'native'. 'native'(자체 DB 정본)는 아직 구현체가 없어
     # 시작 시 거절된다 — 문만 열어 둔 상태다.

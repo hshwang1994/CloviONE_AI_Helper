@@ -143,12 +143,18 @@ def patch_conversation(
 
 @router.delete("/api/conversations/{conversation_id}", dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)])
 def delete_conversation_endpoint(
+    request: Request,
     conversation_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     conversation = get_owned_conversation(db, user, conversation_id)
-    delete_conversation(db, conversation)
+    # AI-16: 러너 미러도 함께 지운다(위생, 실패해도 이 삭제 자체는 진행됨 — delete_conversation
+    # 내부에서 outbound 호출을 별도로 감쌈).
+    delete_conversation(
+        db, conversation,
+        outbound=request.app.state.outbound_client, settings=request.app.state.settings, user=user,
+    )
     return {"ok": True}
 
 

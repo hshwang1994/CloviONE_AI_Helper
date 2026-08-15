@@ -3680,6 +3680,63 @@ def test_a_successful_state_save_still_reports_ok(tmp_path, monkeypatch):
     assert payload.get("context_revision") == 1, payload
 
 
+# AI-16: 대화 삭제 시 플랫폼이 호출하는 정리 경로 — clear_persisted_context가 정의만 되고
+# 호출부가 없어(호출 0회) 지운 대화의 전문·이미지 분석 노트가 TTL(24h) 전까지 무기한 남던
+# 프라이버시 결함이었다.
+def test_context_delete_actually_removes_the_saved_state(tmp_path, monkeypatch):
+    """🔴 revert-to-verify 대상 — 이 경로가 없으면(또는 clear_persisted_context를 안 부르면)
+    저장된 context가 그대로 남아야 한다."""
+    monkeypatch.setattr(m, "STATE_DB_PATH", tmp_path / "state.sqlite3")
+    save_status, save_payload = _post("/v1/assistant/context/sync", _SYNC_BODY)
+    assert save_status == 200 and save_payload.get("ok") is True, save_payload
+    # load_persisted_context는 못 찾아도 항상 dict를 돌려준다({} — Any | None이 아니다) — 저장이
+    # 실제로 됐는지는 내용(mode 키)으로 확인한다.
+    assert m.load_persisted_context(_SYNC_BODY["requester"], _SYNC_BODY["conversation_id"]).get("mode") == "CREATE"
+
+    del_status, del_payload = _post("/v1/assistant/context/delete", {
+        "requester": _SYNC_BODY["requester"], "conversation_id": _SYNC_BODY["conversation_id"],
+    })
+    assert del_status == 200 and del_payload == {"ok": True}, del_payload
+    assert m.load_persisted_context(_SYNC_BODY["requester"], _SYNC_BODY["conversation_id"]) == {}
+
+
+def test_context_delete_without_requester_or_conversation_id_is_400(tmp_path, monkeypatch):
+    monkeypatch.setattr(m, "STATE_DB_PATH", tmp_path / "state.sqlite3")
+    status, payload = _post("/v1/assistant/context/delete", {"requester": {}, "conversation_id": ""})
+    assert status == 400, payload
+
+
+def test_context_delete_of_a_never_saved_conversation_is_a_harmless_noop(tmp_path, monkeypatch):
+    """삭제는 멱등이어야 한다 — 플랫폼이 애초에 이 대화의 러너 상태가 있었는지 모르고도
+    안전하게 호출할 수 있어야 한다(있으면 지우고, 없으면 그냥 성공)."""
+    monkeypatch.setattr(m, "STATE_DB_PATH", tmp_path / "state.sqlite3")
+    status, payload = _post("/v1/assistant/context/delete", {
+        "requester": {"email": "nobody@goodmit.co.kr"}, "conversation_id": "cv-never-existed",
+    })
+    assert status == 200 and payload == {"ok": True}, payload
+
+
+def test_context_delete_requires_auth():
+    import http.client
+    import threading as _threading
+    from http.server import HTTPServer
+
+    srv = HTTPServer(("127.0.0.1", 0), m.Handler)
+    t = _threading.Thread(target=srv.handle_request, daemon=True)
+    t.start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", srv.server_port, timeout=10)
+        conn.request("POST", "/v1/assistant/context/delete",
+                      json.dumps({"requester": {"email": "a@b.com"}, "conversation_id": "x"}).encode("utf-8"),
+                      {"Content-Type": "application/json"})
+        res = conn.getresponse()
+        assert res.status == 401
+        conn.close()
+    finally:
+        t.join(timeout=5)
+        srv.server_close()
+
+
 # ============================================================================
 # round16 회귀 검수 확정 결함 — 승인/피벗 경계 fail-safe 재설계(러너 3.53.0)
 # 원칙: 잘못된 승인/피벗은 낡은 pending을 조용히 확정·유실시키는 HIGH 오쓰기다.
