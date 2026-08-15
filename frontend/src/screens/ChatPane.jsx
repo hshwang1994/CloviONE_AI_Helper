@@ -410,7 +410,8 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                   </Paper>
                   <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", gap: 0.25 }}>
                     {receipt ? (
-                      <Typography sx={{ fontSize: "0.625rem", fontWeight: 700, color: receipt === "읽음" ? "primary.main" : "text.disabled" }}>
+                      {/* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체. */}
+                      <Typography sx={{ fontSize: "0.625rem", fontWeight: 700, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
                         {receipt}
                       </Typography>
                     ) : null}

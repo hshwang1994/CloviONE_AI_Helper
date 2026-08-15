@@ -12,7 +12,10 @@ export function QuickPrompts({ onPick, busy }) {
     <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" role="group" aria-label="시작 예시" sx={{ mt: 2 }}>
       {QUICK_PROMPTS.map((p, i) => (
         <Chip key={i} clickable disabled={busy} label={p} onClick={() => onPick(p)} variant="outlined"
-          sx={{ fontSize: "0.8125rem", height: "2rem", "&:hover": { borderColor: "primary.main", color: "primary.main" } }} />
+          // QAH-07 — 이 칩은 Chat.jsx의 background.default 위에 뜬다(Card의 background.paper가
+          // 아니다) — light 모드도 accent 4개 중 2개가 미달(4.37/4.38), dark는 전량 미달(최저
+          // 3.07) 실측. borderColor는 텍스트가 아니라 손대지 않고 color만 primary.dark로 교체.
+          sx={{ fontSize: "0.8125rem", height: "2rem", "&:hover": { borderColor: "primary.main", color: "primary.dark" } }} />
       ))}
     </Stack>
   );

@@ -380,3 +380,62 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
     }
   }
 });
+
+/* QAH-07 — QAH-05 수정 뒤 배경 조사 에이전트가 저장소 전체에서 같은 `color: "X.main"` 패턴을
+ * 재확인했다(kit.jsx 필수 표시 asterisk 포함 15개 파일 후보). 대부분은 bgcolor/borderColor/
+ * SVG 아이콘 fill(텍스트 대비 문제 아님)이거나 이미 통과하는 조합이었지만, 5곳은 실측으로
+ * 대비 미달을 확인했다 — 전부 dark 모드에서 실패(최저 2.81), 그중 WelcomeStatus.jsx는
+ * light 모드도 accent 절반이 실패한다(배경이 Card의 background.paper가 아니라
+ * Chat.jsx가 다시 칠하는 background.default라 워시 없이도 대비가 더 나쁘다). */
+describe("QAH-07 — TeamDocs·ChatPane·AccentPicker·WelcomeStatus의 raw .main 텍스트가 대비 보강 색을 쓴다", () => {
+  const screensDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens");
+
+  function readSite(...segments) {
+    return readFileSync(path.join(...segments), "utf-8");
+  }
+
+  it("TeamDocs.jsx 테이블뷰 제목 링크 hover가 primary.dark를 쓴다", () => {
+    const src = readSite(screensDir, "TeamDocs.jsx");
+    const hits = src.match(/"&:hover":\s*{\s*color:\s*"primary\.dark"\s*}/g) || [];
+    expect(hits.length, "테이블뷰·DocCard 두 곳 모두 primary.dark를 써야 한다").toBe(2);
+    expect(src).not.toMatch(/"&:hover":\s*{\s*color:\s*"primary\.main"\s*}/);
+  });
+
+  it("ChatPane.jsx 읽음 표시가 primary.dark를 쓴다", () => {
+    const src = readSite(screensDir, "ChatPane.jsx");
+    expect(src).toMatch(/color:\s*receipt === "읽음" \? "primary\.dark" : "text\.disabled"/);
+  });
+
+  it("settings/AccentPicker.jsx 선택 체크가 primary.dark를 쓴다", () => {
+    const src = readSite(screensDir, "settings", "AccentPicker.jsx");
+    expect(src).toMatch(/fontWeight:\s*800,\s*color:\s*"primary\.dark"\s*}}>✓/);
+  });
+
+  it("chat/WelcomeStatus.jsx QuickPrompts hover색이 primary.dark를 쓴다(테두리는 그대로 primary.main)", () => {
+    const src = readSite(screensDir, "chat", "WelcomeStatus.jsx");
+    expect(src).toMatch(/"&:hover":\s*{\s*borderColor:\s*"primary\.main",\s*color:\s*"primary\.dark"\s*}/);
+  });
+
+  // ── 계산된 대비: 각 자리의 실제 배경과 비교 ──────────────────────────────────────
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — background.paper 위 4곳(TeamDocs×2·ChatPane·AccentPicker)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const ratio = contrastRatio(theme.palette.primary.dark, theme.palette.background.paper);
+        expect(
+          ratio,
+          `mode=${mode} accent=${accent} color=${theme.palette.primary.dark} paper=${theme.palette.background.paper} ratio=${ratio.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+
+      it(`${mode} 모드, accent=${accent} — WelcomeStatus.jsx QuickPrompts(Card 아님, background.default 위)`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const ratio = contrastRatio(theme.palette.primary.dark, theme.palette.background.default);
+        expect(
+          ratio,
+          `mode=${mode} accent=${accent} color=${theme.palette.primary.dark} default=${theme.palette.background.default} ratio=${ratio.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+    }
+  }
+});

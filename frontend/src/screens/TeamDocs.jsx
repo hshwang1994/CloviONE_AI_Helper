@@ -340,7 +340,8 @@ export function TeamDocs() {
           sx={{
             display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0, maxWidth: "100%",
             font: "inherit", fontWeight: 600, textAlign: "left",
-            "&:hover": { color: "primary.main" },
+            // QAH-07 — dark 모드 4개 accent 전부 대비 미달(최저 2.81) 실측, primary.dark로 교체(QAH-03/05와 같은 대비 보강 토큰).
+            "&:hover": { color: "primary.dark" },
           }}
         >
           {d.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main", flexShrink: 0 }}>★</Box> : null}
@@ -569,7 +570,8 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
         sx={{
           display: "flex", alignItems: "flex-start", gap: 0.75, font: "inherit",
           fontWeight: 700, fontSize: "1rem", lineHeight: 1.4, textAlign: "left",
-          "&:hover": { color: "primary.main" },
+          // QAH-07 — 위 테이블뷰 제목 링크와 같은 결함(dark 모드 대비 미달, 최저 2.81).
+          "&:hover": { color: "primary.dark" },
         }}
       >
         {doc.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main" }}>★</Box> : null}

@@ -48,7 +48,8 @@ export function AccentPicker() {
                 sx={{ width: "1.25rem", minWidth: "1.25rem", height: "1.25rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
               />
               <Box component="span" sx={{ fontSize: "0.875rem", fontWeight: selected ? 780 : 550 }}>{name}</Box>
-              {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: 800, color: "primary.main" }}>✓</Box> : null}
+              {/* QAH-07 — dark 모드 대비 미달(최저 2.81) 실측, primary.dark로 교체. */}
+              {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: 800, color: "primary.dark" }}>✓</Box> : null}
               {selected ? <span className="sr-only">(현재 색)</span> : null}
             </Box>
           );
