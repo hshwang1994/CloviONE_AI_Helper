@@ -339,11 +339,18 @@ export function EmptyState({
   const bodySx = { maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined, ...KO_WORD_BREAK };
   // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
   return (
-    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
+    // VIS-50/VIS-52: 4K 스크린샷 실측 확인(dist/ui-qa/converge-pa15-4k) — 삽화·여백이
+    // 1920 그대로라 3840 캔버스에서 왼쪽 위에 작게 몰려 있었다. uhd 삽화 폭을 sm/xxl의
+    // 확대 비율(약 160/600→200/2200, 뷰포트 대비 8~9%)에 맞춰 240→320으로 올리고(그
+    // 비율에서 벗어나 있던 값이었다), 세로 여백도 uhd에서만 키운다. 다만 전체 높이를
+    // 채우는 실제 세로 가운데 정렬은 이 컴포넌트가 31개 파일에 공유돼 있어(모달·좁은
+    // 카드 등 고정 높이가 아닌 맥락도 많다) 여기서 하지 않는다 — 그건 각 소비처의 레이아웃
+    // 문제라 이 컴포넌트 하나로 안전하게 처리할 수 없다.
+    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }}>
       {artSrc ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto", opacity: 0.95 }}
+          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 320 }, height: "auto", opacity: 0.95 }}
         />
       ) : icon ? (
         <Box aria-hidden="true" sx={{ fontSize: compact ? 20 : 32, color: "text.disabled" }}>{icon}</Box>
@@ -415,11 +422,13 @@ export function ErrorState({ error, onRetry, size }) {
   const artSrc = ART[art];
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
-    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
+    // VIS-50/VIS-52와 같은 이유(EmptyState 주석 참고) — ErrorState도 같은 삽화 자산과
+    // 여백 규칙을 공유하므로 같은 값으로 맞춘다.
+    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }}>
       {!compact ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto" }}
+          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 320 }, height: "auto" }}
         />
       ) : null}
       <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle }}>{title}</Typography>
