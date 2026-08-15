@@ -5977,3 +5977,23 @@ green(`auth_ok`/`horizontal_overflow`/`console_errors`/`page_errors`/
 대신 지금 시점에 전체 변경을 포함한 번들을 새로 만들어 해시로 검증하고
 71라우트 전체를 재검증하는 것이 더 빠르고 더 확실하다고 판단했다(이번
 재배포가 이전의 모든 "E2E 확인" 주장을 실질적으로 대체·상위호환한다).
+
+## 2026-08-16 03:xx — AI-14(High) 해소: 규칙엔진 턴이 대화 이력에서 빠지는 구멍
+
+DEPLOY-05 직후, 미뤄뒀던 BACKLOG.md Medium/Low 스캔 중 AI-05/06/13/14/19/20이
+전부 미판정 "발견" 상태로 방치된 것을 확인. AI-19/20(에이전틱 도구·데이터
+범위 확장)은 진짜 큰 신규 기능이라 손대지 않음. AI-13(플랫폼→러너 이력 미전송)은
+재확인 결과 여전히 사실이지만 "고친다"는 것 자체가 이력 저장소 이원화 설계
+결정이라 `AI-05`/`AI-06`/`AI-54`(채팅 응답성 아키텍처 묶음)로 이동. AI-05/06은
+`AI-54`(2026-08-15 조사완료)와 중복 발견임을 확인해 합침.
+
+AI-14는 실제로 좁혀지는 결함이었다: `query_tickets`/`update_ticket`/
+`comment_ticket`은 `conversation_history`를 스스로 안 쓰고 `claude_query`/
+`create_ticket`만 쓴다 — 고쳤다. 상세는 `docs/BACKLOG.md` AI-14, 커밋 메시지.
+러너 APP_VERSION 3.58.0→3.58.1, TEST SERVER 배포+health 확인 완료(3.58.0도
+이미 배포돼 있던 상태였음 — `is_code_example_request` 변경분).
+
+**다음(갱신)**: 정직하게 남은 것은 이전 체크포인트와 동일 — ⓐ `PA-RC-0001`
+장꼬리 토큰 설계 ⓑ `SEC-20` 자격증명 회전(사람만) ⓒ `AI-05`/`AI-06`/`AI-13`/
+`AI-07`/`AI-54` 아키텍처 묶음(다음 사이클) ⓓ `BACKLOG.md` 나머지 Medium/Low
+스캔 계속. `IMPLEMENTATION_REQUIRED`는 여전히 유효 — 지우지 않는다.
