@@ -6337,3 +6337,76 @@ Whole-product E2E 등)은 이번 재검증 범위 밖이고 여전히 미충족�
 
 상세: `docs/BACKLOG.md` SEC-10, `docs/DECISIONS.md` D-84.
 비게 된 "다음 AI 도우미 심화 사이클" 착수.
+
+## 2026-08-16 07:xx~ — `DBTX-02`(Critical) 발견+해소: 방금 배포한 새 채팅 기능이 TEST SERVER 실사용에서 응답을 통째로 잃고 있었다
+
+**발견 경위**: AI-16/AI-36/AI-68(재생성/삭제/피드백/대화삭제-러너전파) 배포 뒤 직접 Chrome
+E2E(`dist/verify_chat_features_e2e.py`)로 채팅을 보내자 **연속 2회**
+"업무 처리 서버와의 연결에 문제가 있어..." 실패. `journalctl -u clovirone-web-worker` +
+`jobs` 표 직접 조회로 확인한 실제 원인은 그 안내와 전혀 다르다 — n8n은 정상 응답했고
+워커가 assistant 메시지까지 다 만든 **뒤**, 마지막 `db.commit()`이
+`sqlite3.OperationalError: database is locked`로 거부되며 그 응답째로 롤백됐다.
+
+**근본 원인**: `app/core/db.py`가 이미 문서화해 둔 함정(DEFERRED BEGIN 아래 WAL 스냅샷
+노후화 — 다른 세션이 무엇을 커밋해도 낡고, `busy_timeout`으로 못 구한다)이 잡 핸들러
+5곳에서 그대로 실현되고 있었다. `chat_message.py`는 아웃바운드 호출 앞에 방어용 커밋을
+이미 갖고 있었는데, `_resolve_chat_endpoint()` 읽기가 그 커밋 **뒤**·호출 **앞**에 있어
+방어를 무력화하고 있었다 — 실사용 중 흔한 다른 세션의 커밋(30초 heartbeat 스레드 등)과
+겹치면 그대로 재현된다.
+
+**한 일**: `chat_message.py`(읽기를 커밋 앞으로 재배치) · `document_generate.py`(preview·
+publish 호출 앞 커밋 신설) · `notion_mapping_sync.py` · `schedule_run.py` · `project_weekly_
+summary.py`(호출 직전 커밋 신설/재배치), `app/jobs/worker.py::run_once`(핸들러 호출 직전
+보험 커밋 1곳 추가)로 다섯 핸들러 전부 "아웃바운드 호출 바로 앞 = 마지막 DB 문장"이 되게
+정정. `mail_send.py`는 토큰-롤백 계약과 충돌해 의도적으로 제외(근거는 D-85). 신규 회귀
+`test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call` —
+n8n 호출이 나가 있는 순간 별도 세션이 실제로 커밋하게 만들어 경합을 결정적으로 재현.
+revert-to-verify: `_resolve_chat_endpoint()`를 원위치로 되돌리자 **TEST SERVER에서 실제로
+본 것과 완전히 같은** 에러로 재현 → 복구 → 재확인. 관련 스위트 전체(14개 파일) green.
+전체 백엔드 Full Regression은 별도로 백그라운드 실행 중(이 항목이 worker.py/여러 핸들러를
+건드리는 고위험 공유 인프라 변경이라 CLAUDE.md §6 예외로 조기 실행) — 완료되면 결과를
+여기 이어 기록한다.
+
+**아직 안 한 일(다음 단계)**: 이 수정은 아직 TEST SERVER에 배포 전이다. Full Regression
+green 확인 → 러너/웹 재배포 → 이번에 실패했던 정확히 같은 시나리오(채팅 전송, 가능하면
+동시 다발)로 Chrome E2E 재검증 → `docs/QA_COVERAGE.md` §16의 "미실행" 5행(재생성/삭제/
+피드백/복사/대화삭제-러너전파) 마저 실행까지가 이번 사이클의 남은 범위.
+
+상세: `docs/BACKLOG.md` DBTX-02, `docs/DECISIONS.md` D-85.
+
+## 2026-08-16 08:xx~ — 같은 검증 구간에서 SEC-38(Critical RBAC) 추가 발견+해소 + DBTX-02 웹 경로 확장 7곳
+
+DBTX-02 배포 전 "신뢰할 수 있는" Full Regression을 다시 돌리다(첫 시도가
+`pytest | tail -N`로 종료 코드를 가려 거짓 초록을 보고했다 — `DECISIONS.md` D-88에 별도
+기록) `test_idea_board.py::test_another_organization_neither_sees_nor_moves_an_idea`가
+격리 실행에서도 결정적으로 실패하는 것을 발견했다: 조직 B "운영자"가 조직 A의 아이디어를
+그대로 봤다. 근본 원인은 `app/core/scope.py::build_scope()` — `role==user`만 부서 기반으로
+따로 보고 나머지(operator/auditor 포함)는 전부 `admin_scope`(기본값 global) 컬럼으로
+판정해 왔다. 관리자가 역할만 운영자로 바꾸고 "관리 범위"는 안 만지면 그 계정은 의도와
+무관하게 **전역 범위**가 된다 — `build_scope`를 쓰는 board/team_docs/tickets/trash 전체에
+영향. `test_board_scope.py`가 이미 이 함정을 주석으로 짚었지만(RBAC 재감사 2026-08-16)
+테스트 헬퍼만 고쳐졌고 제품(`build_scope` 자체)은 안 고쳐진 채였다.
+
+**한 일**: `build_scope()`에 분기 추가 — admin_scope가 아직 global이고 role이
+operator/auditor면 자기 조직으로 좁힌다(명시적으로 org/dept로 좁힌 설정은 그대로 존중,
+admin/system_admin은 안 건드림). 신규 단위 시험 6건 + revert-to-verify 완료. 커밋
+`9c87fb9`. 상세: `BACKLOG.md` SEC-38, `DECISIONS.md` D-86.
+
+**같은 검증 구간에서** 배경 조사 에이전트로 DBTX-02(D-85)와 같은 메커니즘을 job 핸들러
+밖 웹 요청 경로에서도 전수 확인 — 7곳 추가 발견·수정: `tickets/repository_notion.py`(create/
+update/save_body/ensure_local, **가장 빈도 높은 노출**) · `team_docs/repository_notion.py`
+(create/save_body) · `workflows/provider_n8n.py::test` · `notion_mapping/service.py::
+verify_mapping` · `notion_console/router.py`(연결 테스트·DB 생성) ·
+`assistant/router.py::_with_narrative`(ai_quotas.consume 블록 — Z15 잠금이 DB 트랜잭션이
+아니라 순수 프로세스 내 뮤텍스임을 코드로 확인한 뒤에만 커밋 삽입). `documents/router.py::
+generate`는 동기 아웃바운드 호출이 없어 해당 없음으로 확인. 관련 스위트 202+76건 green.
+커밋 `dfafe28`. 상세: `BACKLOG.md` DBTX-02, `DECISIONS.md` D-87.
+
+**진행 중(백그라운드)**: ① 이 모든 수정을 반영한 Full Regression을 파일 리다이렉트로
+다시 실행 중(이전 실행은 이번 SEC-38/DBTX-02 확장 수정 전 코드 기준이라 낡음 — 완료되면
+그 결과로 이 항목을 갱신). ② `build_scope()`류의 "중간 역할이 조용히 넓은 기본값을
+물려받는" 패턴이 다른 곳에도 있는지 배경 조사 에이전트로 별도 스윕 중.
+
+**아직 안 한 일**: 위 배경 작업 완료 확인 → TEST SERVER 통합 배포(웹 앱, 러너는 이미
+3.59.0) → Chrome E2E(DBTX-02 채팅 전송 시나리오 + `QA_COVERAGE.md` §16 5행 + RESP-01
+`/users` 1024px 재측정, `dist/verify_chat_features_e2e.py`에 이미 추가해 둠).
