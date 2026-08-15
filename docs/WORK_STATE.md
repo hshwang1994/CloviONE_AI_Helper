@@ -5637,3 +5637,54 @@ documentTitle.js+4화면) · `VIS-09`/`VIS-27`(Dashboard.jsx 각주 배치) ·
 6. E2E가 충분히 수렴하면 CLAUDE.md §13 체크리스트 전체를 자체 검증해
    `PROJECT_COMPLETE` 생성 여부를 판단한다(`IMPLEMENTATION_REQUIRED`
    marker 상태도 함께 확인).
+
+## 위 5단계까지 완료 — PA-01(fontWeight 전량+fontSize 2클러스터) + VIS-58 통합 배포+E2E
+
+**배경 조사 중 새로 발견/처리한 것**: `OPS-01`(Critical, 업로드 디렉터리
+root 소유)은 재확인 결과 이미 고쳐져 있었다(실서버 `uploads` 소유자가
+서비스 계정과 일치, `install` 스크립트 목록에도 이미 있음 — BACKLOG 표시만
+누락, 정정함). `SEC-20`(자격증명 stash)은 이미 여러 세션째 정확히
+추적되는 사람 전용 blocker — 그대로 손 안 댐, 상태만 재확인.
+
+**PA-01 나머지 진행**: fontWeight 750/720/650/620/780 전량(4개 병렬
+에이전트, 29파일·53곳) + fontSize "1rem"→sectionTitle(16곳 병렬, 23곳)
++ fontSize "0.9375rem"→body(2개 병렬 에이전트, 12파일·17곳, 근거:
+`Projects.jsx`의 이미 토큰화된 형제 패턴 + `ProjectMetrics.jsx`의 같은
+줄 인접 요소가 이미 `FONT_SIZE.body`를 씀). `0.6875rem`(11px, 12곳)은
+**의도적으로 손 안 댐** — `kit.jsx` sev 배지의 그 값에 이미 "12px로
+올리면 실측된 줄바꿈 버그가 재현될 위험"이라는 명시적 근거가 있어, 이
+클러스터 전체가 스케일 밖에 있는 게 사고가 아니라 최소 한 곳은 확인된
+의도일 수 있다는 뜻 — 다음 세션이 실측 없이 기계적으로 옮기지 않도록
+BACKLOG에 남김.
+
+**VIS-58**(감사 로그 표 고정 헤더 없음) 새로 발견·구현: `kit.jsx::DataTable`에
+`stickyHeader` prop 신설(MUI `Table stickyHeader` 위임 + 불투명 배경 명시),
+`audit` registry에 적용. `ui-ux-pro-max` 스킬로 offset 보정·
+virtualize-vs-paginate 판단 확인(기존 페이지네이션으로 충분).
+
+**커밋**(시간순): `b214102`(fontWeight 전량, 이전 invocation) →
+`628f564`(fontSize 1rem→sectionTitle) → `1911b3e`(fontSize 0.9375rem→body)
+→ `2afc436`(문서, 0.6875rem 위험 근거) → `ea95a2d`(번들 재생성) →
+`2b0aa45`(VIS-58 소스) → `3857afa`(VIS-58 문서) → `6297971`(VIS-58 번들).
+
+**검증(중요 — 이번에 background 검증 작업이 Supervisor invocation 경계에서
+반복적으로 끊겼다, 3번째 관측)**: 이후로는 전체 스위트/E2E를 **동기(blocking)
+Bash 호출로 직접** 돌렸다(run_in_background 금지 — 그 방식은 이 환경에서
+안 끝났다). 프런트 전체 261파일/1,785건 green(동기 실행). `static_checks.sh`
+`STATIC_CHECKS_OK`. TEST SERVER(`10.100.64.71`) 통합 배포 `UPGRADE_OK` +
+`verify_deploy.sh` `DEPLOY_VERIFY_OK`(자산 해시 34/34 새 번들 확인).
+**Chrome E2E 2회 동기 실행**: (1) 1920x1080 라이트/다크 138페이지 179.8초,
+전 항목(auth_ok·horizontal_overflow·console_errors·page_errors·
+broken_images·duplicate_ids·contrast 등) 138/138. (2) 3840x2160
+라이트/다크 138페이지 220.6초 — **tiny_text·narrow_main 포함 전 항목
+138/138**(PA-01 fontSize 변경이 4K에서 실제로 문제 없음을 이 두 검사가
+직접 증명). 실패 0건. `user_chat-room-detail`/`user_game-room`은 시드
+데이터 없어 스킵(기존에 알려진 제약, 결함 아님).
+
+**다음(진짜 새 작업)**: `docs/BACKLOG.md`의 나머지 87건 unresolved 중
+계속: `VIS-64`(Sprint.jsx 11,558px, 페이지네이션 없음 — 백엔드가 "그 주
+전량"을 의도적으로 주는 설계라 진짜 페이지네이션은 API 변경 필요, 접이식
+구역 등 대안 검토), `VIS-53`(백업 오래됨 알림 없음 — 조사 완료, 설계
+제안을 BACKLOG에 남김: 하트비트 루프에 저빈도 카운터 추가 + dedup은
+settings류 key-value 재사용), `/me`의 SEM-02 원래 사례(`SectionTitle`
+공유 소비처 4곳), 그 외 87건 중 미분류 항목 계속 훑기.
