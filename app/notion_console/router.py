@@ -87,6 +87,12 @@ def notion_connection_test(request: Request, db: Session = Depends(get_db)) -> d
     캐시하고, 그러면 사람이 다시 눌러도 **옛 결과**를 본다. 진단에서 그건 최악이다.
     감사에도 남긴다 - "그때 눌러 봤더니 이랬다" 는 나중에 원인을 재구성할 유일한 단서다.
     """
+    # DBTX: 아웃바운드 호출들 앞에서 커밋해 스냅샷을 새로 뜬다 — 인증 의존성이 이미 이
+    # 요청의 세션으로 User 행을 읽어 스냅샷을 고정해 뒀다. 그 스냅샷을 쥔 채로 토큰·DB
+    # 접근 확인 호출들을 통과하면, 아래 record_audit_from_request의 쓰기가 요청 종료
+    # 시점 커밋(`get_db`)에서 "database is locked"로 거부될 수 있다(app/core/db.py의
+    # "begin" 이벤트 주석, app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+    db.commit()
     result = service.run_connection_test(
         request.app.state.outbound_client,
         request.app.state.settings,
@@ -178,6 +184,10 @@ def create_notion_database(
             payload.key, settings, _effective(request, db), confirm=payload.confirm
         )
         token_ref = getattr(settings, spec.token_ref_field, "") or ""
+        # DBTX: 아웃바운드 호출 앞에서 커밋해 스냅샷을 새로 뜬다 — 위 guard_create의
+        # _effective(request, db) 읽기가 이미 스냅샷을 고정했다(app/jobs/handlers/
+        # chat_message.py의 실측 사고와 같은 근거).
+        db.commit()
         result = probe.create_database(
             request.app.state.outbound_client,
             settings,

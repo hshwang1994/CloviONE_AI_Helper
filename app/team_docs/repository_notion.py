@@ -44,6 +44,13 @@ class NotionDocumentRepository:
     ) -> dict:
         """새 문서를 만든다. 프로젝트만 Notion relation 으로 기록하고, 문서 종류·업무 분야·기술
         태그는 앱측 택소노미라 여기서 다루지 않는다(캐시에 저장 — service.cache_created_document)."""
+        # DBTX: 아웃바운드(Notion) 호출들 앞에서 커밋해 스냅샷을 새로 뜬다 — 이 요청의
+        # 세션은 여기 오기 전에 이미 다른 걸 읽었을 수 있고(인증이 항상 User 행을 읽는다),
+        # 그 낡은 스냅샷을 쥔 채로 호출들을 통과하면 이 함수가 끝난 뒤 호출부
+        # (service.cache_created_document)의 로컬 쓰기가 요청 종료 시점 커밋(`get_db`)에서
+        # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
+        # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+        db.commit()
         schema = notion_docs.fetch_documents_schema(self._outbound, self._settings)
         project_ids = notion_docs.resolve_names_to_ids(
             self._outbound, self._settings, schema, notion_docs.PROP_PROJECT, project_names
@@ -89,7 +96,11 @@ class NotionDocumentRepository:
 
         # 1) 정본. 여기까지가 "사용자 글은 반드시 살아남는다"의 범위다.
         row.body_markdown = body_markdown
-        db.flush()
+        # DBTX: flush가 아니라 commit — flush만으로는 확정되지 않는다. 아래 느린 Notion
+        # 호출을 통과하는 동안 요청 종료 시점 커밋(`get_db`)이 스냅샷 노후화로 거부되면,
+        # 방금 "반드시 살아남는다"고 약속한 이 본문까지 함께 롤백된다(티켓 쪽 save_body와
+        # 같은 근거).
+        db.commit()
 
         # 2) 소스 반영. 어떤 실패도 밖으로 내보내지 않는다.
         try:

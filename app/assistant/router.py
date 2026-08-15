@@ -75,6 +75,15 @@ def _with_narrative(
         db, user_id=user.id, org_id=getattr(user, "org_id", None),
         kind=ai_quotas.KIND_ASSISTANT_NARRATIVE, now=now,
     ) as slot:
+        # DBTX: 아웃바운드(러너) 호출 앞에서 커밋해 스냅샷을 새로 뜬다. 이 잠금은
+        # quota_lock.quota_guard(순수 프로세스 내 뮤텍스)가 지킨다 — DB 트랜잭션을
+        # 열어 두는 것과 무관하다(consume.__init__ 참고), 그러니 여기서 커밋해도 Z15가
+        # 막던 동시-소비 경합은 그대로 막힌다. 커밋 없이 느린 호출을 통과하면 아래
+        # slot.record() 뒤의 커밋이 "database is locked"로 거부될 수 있다
+        # (app/core/db.py의 "begin" 이벤트 주석, app/jobs/handlers/chat_message.py의
+        # 실측 사고와 같은 근거) — enforce()가 이미 위 __enter__에서 판정을 끝냈으므로
+        # 여기서 커밋해도 그 판정을 다시 열지 않는다.
+        db.commit()
         narrative = _call()
         # 성공한 호출만 센다. narrate()는 예외를 던지지 않고 {"enabled","text","error"}를
         # 돌려주므로, 실제로 문장이 나온 경우(text 가 있고 error 가 없음)만 쿼터를 깎는다 —

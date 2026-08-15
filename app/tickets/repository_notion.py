@@ -433,6 +433,13 @@ class NotionTicketRepository:
     # ── 쓰기 ─────────────────────────────────────────────────────────────────
 
     def create(self, db: Session, *, draft: TicketDraft, now: datetime | None = None) -> TicketDTO:
+        # DBTX: 아웃바운드(Notion) 호출 앞에서 커밋해 스냅샷을 새로 뜬다. 이 요청의 세션은
+        # 여기 오기 전에 이미 다른 걸 읽었을 수 있다(인증이 항상 User 행을 읽는다) — 그
+        # 스냅샷을 쥔 채로 느린 Notion 호출(들)을 통과하면, 아래 _write_through의 로컬
+        # 캐시 쓰기가 요청 종료 시점 커밋(`get_db`)에서 "database is locked"로 거부될 수
+        # 있다(app/core/db.py의 "begin" 이벤트 주석, app/jobs/handlers/chat_message.py의
+        # 실측 사고와 같은 근거).
+        db.commit()
         schema = notion_write.fetch_schema(self._outbound, self._settings)
         properties: dict = {}
 
@@ -516,6 +523,10 @@ class NotionTicketRepository:
         """
         if not changes:
             raise ValidationAppError("변경할 내용이 없습니다.")
+        # DBTX: create()와 같은 이유로 아웃바운드 호출 앞에서 커밋한다 — 이 메서드를 부르기
+        # 전에 이미 소유권/스코프 확인이 자체 Notion 조회(get_live)를 했을 수 있어, 스냅샷이
+        # 여기 도달하기 전부터 낡아 있을 수 있다.
+        db.commit()
         schema = notion_write.fetch_schema(self._outbound, self._settings)
         properties: dict = {}
         for key, value in changes.items():
@@ -596,6 +607,12 @@ class NotionTicketRepository:
         row = self._cache_row(db, page_id)
         if row is not None:
             return row.id
+        # DBTX: 아웃바운드 호출 앞에서 커밋해 스냅샷을 새로 뜬다 — 위 읽기가 이 세션의
+        # 스냅샷을 이미 고정했다. 커밋 없이 느린 호출을 통과하면, 아래 SAVEPOINT의 쓰기가
+        # (SAVEPOINT 롤백은 스냅샷을 새로 뜨지 않는다, app/core/db.py CORE-13 주석 참고)
+        # "database is locked"로 거부될 수 있고 그건 아래 except가 잡는 IntegrityError가
+        # 아니라 새어 나간다.
+        db.commit()
         dto = self._from_notion(notion_write.fetch_ticket(self._outbound, self._settings, page_id))
         # 아직 미러에 없는 티켓에 두 사람이 동시에 첫 댓글을 달면 둘 다 '행 없음'을 보고 둘 다
         # INSERT 를 시도한다 — notion_page_id 가 unique 라 진 쪽은 IntegrityError 로 500 이 된다.
@@ -640,7 +657,11 @@ class NotionTicketRepository:
         # 1) 정본. 여기까지가 "사용자 글은 반드시 살아남는다"의 범위다.
         row.body_markdown = body_markdown
         row.updated_at = stamp
-        db.flush()
+        # DBTX: flush가 아니라 commit — flush만으로는 이 세션 안에서만 보일 뿐 아직
+        # 확정되지 않는다. 아래 느린 Notion 호출을 통과하는 동안 요청 종료 시점 커밋
+        # (`get_db`)이 스냅샷 노후화로 거부되면, 방금 "반드시 살아남는다"고 약속한 이
+        # 본문까지 함께 롤백된다 — docstring의 그 약속이 여기서만 깨질 수 있었다.
+        db.commit()
 
         # 2) 소스 반영. 어떤 실패도 밖으로 내보내지 않는다.
         try:

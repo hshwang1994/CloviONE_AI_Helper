@@ -166,6 +166,12 @@ def verify_mapping(
         return row
 
     provider = N8nWorkflowProvider(outbound)
+    # DBTX: 아웃바운드 호출 앞에서 커밋해 스냅샷을 새로 뜬다 — 위 get_or_create_mapping/
+    # get_mapping_workflow 읽기가 이 세션의 스냅샷을 이미 고정했다. 커밋 없이 호출을
+    # 통과하면, 아래 row 쓰기(성공/실패 양쪽 경로 다)가 요청 종료 시점 커밋(`get_db`)에서
+    # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
+    # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+    db.commit()
     try:
         result = provider.invoke(
             workflow, {"action": "lookup_user", "email": user.email}, timeout=30.0

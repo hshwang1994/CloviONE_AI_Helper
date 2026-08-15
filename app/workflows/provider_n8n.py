@@ -56,6 +56,12 @@ class N8nWorkflowProvider:
 
     def test(self, db: Session, workflow: Workflow, *, now: datetime) -> dict:
         """Reachability only — never triggers workflow execution."""
+        # DBTX: 아웃바운드 호출 앞에서 커밋해 스냅샷을 새로 뜬다 — 이 요청의 세션은 여기
+        # 오기 전에 이미 workflow 행을 읽었다. 그 스냅샷을 쥔 채로 호출을 통과하면, 아래
+        # last_test_status/last_test_at 쓰기가 요청 종료 시점 커밋(`get_db`)에서
+        # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
+        # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+        db.commit()
         try:
             response = self._outbound.get(
                 workflow.webhook_url, allowlist=ALLOWLIST, timeout=10.0
