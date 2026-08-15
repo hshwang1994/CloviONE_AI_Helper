@@ -1016,3 +1016,30 @@ for f in ['dist/ui-qa/converge-vis104-64-badge/results.json',
           {k: v for k, v in d['summary'].items() if v['fail']})
 "
 ```
+
+## 16. AI 채팅 신규 기능(재생성·삭제·피드백·전체 복사) + AI-16 러너 미러 삭제 (2026-08-16)
+
+`AI-36`/`AI-68`(채팅 UX 기능 완성도 일부)와 `AI-16`(대화 삭제 시 러너 미러 정리)을 같은
+연속 구간에서 구현했다. **이 절은 구현+focused/subsystem 테스트 커버리지만 기록한다 —
+아래 항목들의 실제 Chrome E2E(로그인 상태에서 버튼을 직접 눌러 화면·네트워크·DB까지
+확인)는 이번 구간에서 아직 수행하지 않았다.** 다음 통합 배포+E2E 사이클에서 반드시
+실행하고 이 절을 갱신할 것 — 구현 커밋이 있다는 사실과 라우트를 실제로 눌러 본 것은
+다른 근거다(CLAUDE.md §10).
+
+| 기능 | 백엔드 | 프런트 | 테스트 근거 | Chrome E2E |
+|---|---|---|---|---|
+| 답변 재생성 | `POST /api/messages/{id}/regenerate` | `Chat.jsx`/`AssistantDrawer.jsx`의 재생성 아이콘(마지막 답변에만) | `test_chat_message_actions.py` 4건 + `message-thread-actions.test.jsx` 5건, revert-to-verify(`_is_last_turn` 가드) | **미실행** |
+| 메시지 삭제 | `DELETE /api/messages/{id}` | 삭제 아이콘(양 화자) + `useConfirm()` 확인 대화상자 | `test_chat_message_actions.py` 4건 + `message-thread-actions.test.jsx` 4건, revert-to-verify(soft-delete 필터) | **미실행** |
+| 피드백(👍/👎) | `PATCH /api/messages/{id}/feedback` | 어시스턴트 메시지의 피드백 아이콘 2개 | `test_chat_message_actions.py` 3건 + `message-thread-actions.test.jsx` 4건 | **미실행** |
+| 대화 전체 복사 | 해당 없음(순수 클라이언트) | `Chat.jsx` 헤더의 복사 아이콘 | 백엔드 없음 — `formatConversationText` 자체는 프런트 단위 시험 없음(단순 순수 함수, 리스크 낮다고 판단해 생략) | **미실행** |
+| AI-16 러너 미러 삭제 | 러너 `POST /v1/assistant/context/delete` + 플랫폼 `notify_runner_conversation_deleted` | 해당 없음(대화 삭제 버튼은 기존 UI 그대로) | 러너 4건 + 플랫폼 6건, 양쪽 revert-to-verify. **주의**: 이 기능은 TEST SERVER의 실제 러너 프로세스(`claude-work-assistant.service`)가 새 버전(3.59.0)으로 배포돼야 실제로 동작한다 — 배포 전까지는 플랫폼이 호출은 시도하되 옛 러너가 `/context/delete`를 404로 거부(fail-safe, 삭제 자체는 여전히 성공) | **미실행 + 배포 대기** |
+
+### 16-1. 왜 아직 E2E가 없는가
+
+이 구간은 배경 full backend regression이 오래 걸려(과거에도 반복 관측된 패턴, `WORK_STATE.md`
+참고) 실행 중인 상태에서 계속 다음 Root Cause로 넘어갔다 — CLAUDE.md §6·Stop hook의
+"작은 변경마다 전체 회귀·배포를 돌리지 않는다"·"체크포인트 후 멈추지 않는다"를 그대로
+따른 것이다. Full Regression green을 직접 확인한 뒤 프런트 번들 재빌드(이미 완료,
+커밋 `606d3c3`) → 통합 배포(웹 앱 + 러너 `assistant.py` 3.59.0) → 이 표의 다섯 행을
+실제 Chrome 세션으로 하나씩 확인하는 것이 다음 배포 사이클의 1순위 남은 일이다.
+```
