@@ -50,9 +50,9 @@
 | `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-CHAT` AI 도우미 대화 | `/chat` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | O | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | O | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | S | · | · | · | · | · | E | · |
 | `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | S | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
@@ -69,29 +69,29 @@
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | S | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
-| `A-USERS` 사용자 관리 | `/users` | S | · | S | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-USERS` 사용자 관리 | `/users` | S | · | S | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | S | · | · | · | · | · | E | S |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SYSTEM` 시스템 설정 | `/system` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-MAIL` 메일 발송 상태 | `/mail` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-LLMC` AI 관리 | `/llm-console` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-DIAG` 진단 | `/diagnostics` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-DIAG` 진단 | `/diagnostics` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-MAINT` 유지보수 | `/maintenance` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-INTEG` 외부 연동 | `/integrations` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-RUNNERS` 러너 | `/runners` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-INTEG` 외부 연동 | `/integrations` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-RUNNERS` 러너 | `/runners` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-PROMPTS` 프롬프트 | `/prompts` | S | · | S | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `A-POLICIES` 정책 | `/policies` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-TEMPLATES` 템플릿 | `/templates` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-TEMPLATES` 템플릿 | `/templates` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-JOBS` 작업 큐 | `/jobs` | S | · | S | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPROVALS` 승인 | `/approvals` | S | S | S | S | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
@@ -104,7 +104,7 @@
 | `A-BACKUP` 백업 | `/backup` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | S | · | S | E | · | S | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 
 ## shell-cross
@@ -404,9 +404,9 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1350
+unseen=1336
 unseen_without_reason=0
-static_only=770
+static_only=784
 observed=62
 executed=158
 blocked=0

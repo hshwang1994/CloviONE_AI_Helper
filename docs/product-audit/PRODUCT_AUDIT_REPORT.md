@@ -124,13 +124,13 @@ revert-to-verify로 증명하라**고 요구하는 이유다. 테스트가 없�
 
 | 한계 | 상태 |
 |---|---|
-| **Blind Re-Audit 0회** | 완료 Gate F는 2회 연속 clean을 요구한다. **아직 시작도 안 했다** |
-| **Coverage 1,530칸이 UNSEEN** | 2,340칸 중. 전 칸에 사유가 있다(`unseen_without_reason=0`). 계획은 `STATE` §3 |
-| **인증 이후 화면을 브라우저로 안 봤다** | 로그인 화면만 실측했다(`0010`). SPA 화면의 L/M/N/O축은 아직 코드 근거까지다 |
+| ~~Blind Re-Audit 0회~~ | ✅ **해소 — 2/2 연속 clean.** pass 1 *"신규 입사자 첫날"* · pass 2 *"감사자 분기 점검"*, 둘 다 새 Critical/High **0건**(`STATE` §5) |
+| **Coverage 1,336칸이 UNSEEN** | 2,340칸 중(EXECUTED 158 · OBSERVED 62 · STATIC_ONLY 784). 전 칸에 사유가 있다(`unseen_without_reason=0`). **이것이 이 Audit의 가장 큰 한계다** — 57%는 실행/관측이 아니라 코드 근거이거나 미조사다 |
+| ~~인증 이후 화면을 브라우저로 안 봤다~~ | ✅ **해소.** Chromium 151로 SPA 화면 12개 실측(`PA-F-028`~`033`·`036`~`038`). 다만 **12/90 표면**이라 전수는 아니다 |
 | **브라우저 관측은 로컬에서 했다** | TEST 서버는 08-10 빌드라 화면 판정에 쓸 수 없다(`0007`). 로컬도 번들은 마지막 빌드 커밋 시점이라 완전한 현재는 아니다 |
-| **Skill 적용 현황** | 실제 적용: `ux-writing`(→ PA-F-011), `redesign-existing-projects`(→ L/M축 감사표, `0004`, `0010`의 rubric). **미적용**: `ui-ux-pro-max`·`impeccable`(SPA 화면별 L축 Round에서 쓸 예정), `humanize-korean`(프롬프트 2절대로 `0002` 문구 규칙 확정 후) — **전부 미설치가 아니라 순서상 미적용**이다 |
+| **Skill 적용 현황** | ✅ **핵심 5개 전부 실제 적용(Gate E).** `ux-writing`(→ `PA-F-011`, `PA-RC-0002`를 Med→High로 재분류) · `redesign-existing-projects`(→ L/M축 감사표, `0004`·`0010`) · `ui-ux-pro-max`(→ `RD-1`~`RD-3` 재양자화 값) · `impeccable`(→ `RD-5` 진단 교체: 대시보드 문제는 섹션 수가 아니라 수치 20개가 전부 30px/800이라 우선순위가 없다는 것) · `humanize-korean`(→ `PA-F-039`, 탐지 88건 전수 확인 후 **전부 오탐**으로 폐기, R축은 깨끗하다). 적용 순서는 프롬프트 2절대로 **UX Writing → 한국어** 를 지켰다 |
 | **`skill_gap: chrome-devtools` 해소됨** | Playwright + Chromium 151로 실제 관측이 가능함을 확인했다 |
-| **S축 부분 조사** | 무제한 목록 후보 15건 중 1건만 검증. 나머지 14건 미확인 |
+| ~~S축 부분 조사~~ | ✅ **해소 — 후보 15건 전부 판정.** 실제 결함 1건뿐(`PA-F-040`, Low). 12건은 상수/설정/스키마 상한이라 오탐, 1건은 기존 `UB-29`. **다만 판정 근거는 핸들러 본문·스키마·실DB 행수이지 부하 측정이 아니다** — 지연·N+1·페이로드 크기는 여전히 안 쟀다 |
 | **워킹트리에 Audit 이전 사용자 변경 5개** | `AppShell.jsx`·`CommandPalette.jsx`·`command-palette.test.jsx`·`lib/recentNav.js`·`lib/recent-nav.test.js`. **건드리지 않았다.** 커밋된 코드가 아니므로 이들에 대한 판단은 미완성 변경 위에서 내려진 것일 수 있다 |
 
 ## 9. 방법론 기록 — 자작 측정은 표본 검증 전까지 Finding이 아니다
