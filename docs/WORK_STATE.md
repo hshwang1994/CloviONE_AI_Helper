@@ -6225,3 +6225,87 @@ SEC-36 (커밋 `4aa676e`).
 `docs/BACKLOG.md` 전체(이번 세션은 Medium/Low 미판정만 훑었다, High/Critical
 행 전체를 다시 훑지 않았다)를 Whole-product 재감사 관점에서 재점검한다. `SEC-36`
 을 실제 배포에 포함시키는 것도 다음 통합 배포 시점에 자연스럽게 같이 하면 된다.
+
+---
+
+## 체크포인트 — Product Audit Handoff 3건 실행 재검증 + `IMPLEMENTATION_REQUIRED` 해제, 신규 SEC-37 발견 (2026-08-16, WARM 재개 직후)
+
+**시작 경위**: 직전 체크포인트에서 배경 테스트(`b3py20ebr`)의 결과 확인이 미완인 채
+넘어갔다 — 재개 후 확인하니 프로세스 종료로 유실됐고, 대신 focused 스위트를 새로
+돌려 SEC-34/35/36 관련 전체 green을 재확인했다(문제 없음). `var/runner/
+unresolved_index.json`으로 다음 후보를 훑었는데 **표본으로 확인한 6개 중 4개가
+이미 해결/철회된 항목을 잘못 가리키고 있었다**(AI-51→실은 AI-30, "AI-31 Critical"
+→실은 AI-60, RN-01→실은 완전히 다른 항목, NOTI-04→원 주장 자체가 철회됨) — 이
+캐시 인덱스는 문서 전체를 훑는 naive 추출이라 정정/철회/구현완료 서술까지 ID로
+잡아낸다. **앞으로 이 인덱스는 후보 "힌트"로만 쓰고 개별 확인 없이 신뢰하지 않는다.**
+
+**핵심 발견**: Handoff(`docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`, cycle
+`PA-20260812-171558-56c5befa`)의 요약표가 `PA-RC-0001`/`PA-RC-0002`/`PA-RC-0003`을
+아직 "대부분 닫힘"/"열림"/"열림"으로 적고 있었는데, `docs/BACKLOG.md`(PA-01/PA-02
+행)와 실제 `git log`를 대조하니 **셋 다 이미 이 invocation 이전에 실질적으로
+완결돼 있었다** — Handoff 요약표가 구현 진행을 못 따라간 상태(Audit 문서는 감사
+시점 Snapshot이므로 정상, CLAUDE.md §4). "이미 해결됐다면 중복 수정하지 말고
+근거를 남겨라"는 지침대로, 실제 코드/스캐너를 직접 재실행해 재검증했다.
+
+- **`PA-RC-0001`(타이포)**: `scan_design.py` 재실행 — `fontWeight` 0건, `fontSize`
+  잔여 15종을 전부 grep+코드 문맥으로 낱개 재대조(`"1rem"` 9파일 13건 전량 포함) —
+  전부 이미 검증된 정당 예외(아이콘/이모지/아바타/입력창/서체본문/자격증명표시/
+  상대단위/`clamp()`/명명상수). **유일하게 실제로 비어 있던 것**은
+  acceptance_criteria(5)(재유입 방지 게이트) — `scripts/check_typography_literals.py`
+  신설(값 단위 EXEMPT 15종 + 새 값은 무조건 실패), `static_checks.sh` 필수 단계
+  배선, `tests/unit/test_typography_literals_scan.py` 7건(revert-to-verify 포함)
+  green. 만드는 중 검사 자신의 오탐 2종(삼항 조건 오판·JSDoc 주석 오판)도 실측으로
+  잡아 고침. acceptance_criteria(3)(≤8단계)는 D-78의 "정책 질문" 결론을 그대로
+  수용(6단계는 `theme-baseline.test.js`가 닫힌 집합으로 못박음). **완결로 판단.**
+- **`PA-RC-0002`(UX Writing)**: `scan_errcopy.py`를 직접 재실행해 라이브 확인 —
+  **회복 절 비율 100%, 진짜 남은 막다른 길 0건**(169건 중 예외 64건+행동 있음
+  105건). `docs/UX_WRITING.md` 존재, comma-splice·표준 동사표 게이트 2/3 green
+  직접 확인. 3번째 게이트(회복 절 비율)는 문맥 의존 판정이라 순수 정규식으로
+  굳히면 미래의 정상 문구를 오탐낸다는 5차 확장의 결론을 그대로 수용 — "안
+  만들어서"가 아니라 "정확히 자동화 못 하는 판단이라서". **완결로 판단.**
+- **`PA-RC-0003`(저장소 위생/자격증명)**: `scripts/check_git_secrets.py`가 이미
+  구현·배선·테스트 완료 상태(`c75a09d`, 이 invocation 이전 커밋)임을 확인, 직접
+  실행해 재검증. **오탐 정밀화**: 실행하니 진짜 결함(`stash@{0}` 2건) 외에 초기
+  임포트의 orphan 커밋(`f0efc52af4ec`)에서 코드를 값으로 오판한 오탐 약 50건 발견
+  — 값을 절대 안 보는 원칙 안에서(길이·문자종류만 boolean 확인) `CODE_REFERENCE_RE`
+  신설로 50→29건 감소, 이전에 "미판정"으로 남겼던 `1b819ce793af`(`assistant.py`)도
+  `os.environ.get(...)` 패턴임을 같은 방식으로 확정(미판정→안전 확인). 신규 회귀
+  1건, 전체 5/5 green. **완결로 판단** — 남은 것은 여전히 사람의 자격증명 회전뿐
+  (`SEC-20`, 저장소 밖 운영 행위).
+
+**부산물 — `SEC-37`(신규 발견, High)**: `static_checks.sh` 전체를 처음부터 끝까지
+돌리다가(exit code만 보지 않고 각 단계 출력을 직접 확인) `check_scope_gates.py`가
+`app/games/router.py`의 id 경로 7곳에 게이트가 없다고 예상 못 한 실패를 냈다.
+조사 결과 6곳은 오탐(`_ensure_host`가 실제로 정상 작동 — 검사기의 `GATE_PATTERNS`가
+선행 밑줄+"host" 동의어를 인식 못 함, `_?ensure_...host...` 로 정규식을 고쳐
+해결, 같은 밑줄 문제가 `quotas`/`tickets`의 다른 `_ensure_*`에도 독립적으로 있어
+정규식 수정이 EXEMPT 나열보다 나은 선택이었음을 확인). 나머지 1곳(`chat()`)은
+**진짜 결함**이었다 — 형제 함수(`set_ready`/`submit_vote`/`submit_number`/
+`submit_rps`/`submit_quiz_answer`) 전부가 갖는 멤버십 게이트가 없어 방에 한 번도
+안 들어온 사용자가 대화를 "쓸" 수 있었다(라우터 자신의 주석·읽기 쪽 필터는 이미
+"멤버 전용"을 전제하는데 쓰기만 안 지킴). 형제 함수와 같은 패턴으로 수정, 신규
+회귀 1건 revert-to-verify 확인(게이트 제거 시 실제로 200+메시지 노출 재현),
+`test_games_api.py`(43건) 회귀 없음, `check_scope_gates.py` 재실행 green(새
+EXEMPT 없음). 상세: `DECISIONS.md` D-81·D-82·D-83, `BACKLOG.md` PA-01/PA-02/
+SEC-20/SEC-37.
+
+**검증**: `static_checks.sh` 전체 재실행 — `git-secrets`(회전 대기, 의도된 상태)
+외 전부 green(신규 typography 단계 포함). 관련 focused 스위트
+(`test_typography_literals_scan.py`+`test_git_secrets_scan.py`+
+`test_game_room_chat_scope.py`+`test_games_api.py`) 전체 green.
+
+**`IMPLEMENTATION_REQUIRED` 판정**: `PA-RC-0001`/`0002`/`0003` 전부 actionable
+범위에서 완결(직접 재실행한 라이브 증거 기준) — CLAUDE.md §4의 "해결 또는 근거
+있게 정리" 기준 충족으로 판단해 이 checkpoint 커밋 직후 `IMPLEMENTATION_REQUIRED`를
+`IMPLEMENTATION_CONSUMED`로 전환한다(정확한 commit SHA는 마커 파일 자체에 기록).
+**단, 이것이 `PROJECT_COMPLETE`를 뜻하지는 않는다** — CLAUDE.md §13의 나머지
+기준(전체 Backlog·Design/UX·Admin/User workflow·QA Coverage·Chrome
+Whole-product E2E 등)은 이번 재검증 범위 밖이고 여전히 미충족이다.
+
+**정직하게 남은 것(갱신)**: ⓒ `AI-05`/`AI-06`/`AI-07`/`AI-13`/`AI-54` 채팅
+아키텍처 묶음 · ⓔ `AI-22` 제품 판단 필요 · ⓕ `AI-36`/`AI-42`/`AI-46`/`AI-68`
+채팅 UX 기능 완성도 묶음 · ⓖ `VIS-161` 대상 특정 불가 · ⓗ `SEC-20` 자격증명
+회전(사람만, 이제 유일하게 남은 Product Audit 관련 항목) · `SEC-36` 다음 통합
+배포 포함 · `docs/BACKLOG.md` High/Critical 전체 재점검(이번 세션도 아직 못 함,
+`unresolved_index.json` 신뢰 불가로 더 중요해짐) · `PA-RC-0001`/`0002`가 닫히며
+비게 된 "다음 AI 도우미 심화 사이클" 착수.

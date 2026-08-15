@@ -65,6 +65,27 @@ def test_an_outsider_sees_the_room_but_not_the_chat(client, login_as, make_user)
     assert "chat" not in kinds, f"밖에서 방 안 대화를 읽는다: {kinds}"
 
 
+# RBAC 재감사(2026-08-16, static_checks.sh의 check_scope_gates.py가 games 라우터의 id 경로
+# 게이트 부재를 잡아내며 발견): 위 두 시험은 읽기(events 필터)만 지켰다 — 정작 chat()
+# 서비스 함수 자신은 set_ready/submit_vote/submit_number/submit_rps/submit_quiz_answer가
+# 전부 갖는 `get_member(...) is None → Forbidden` 게이트가 없었다. 즉 방에 한 번도 들어온
+# 적 없는 사람이 POST로 대화를 "쓸" 수 있었다(읽지는 못해도, 실제 멤버들에게는 보인다).
+def test_an_outsider_cannot_post_to_the_room_chat(client, login_as, make_user):
+    csrf = login_as("user", email="gm-host3@goodmit.co.kr")
+    room_id = _make_room(client, csrf)
+
+    outsider_csrf = login_as("user", email="gm-intruder@goodmit.co.kr")
+    r = client.post(f"/api/games/rooms/{room_id}/chat", json={"text": "몰래 끼어든 말"},
+                     headers={"X-CSRF-Token": outsider_csrf})
+    assert r.status_code == 403, (
+        f"방에 들어온 적 없는 사용자가 대화를 쓸 수 있었다: {r.status_code} {r.text}"
+    )
+
+    login_as("user", email="gm-host3@goodmit.co.kr")
+    kinds, _ = _kinds(client, room_id)
+    assert "chat" not in kinds, "차단됐어야 할 메시지가 실제로 저장돼 방 안 사람에게 보인다"
+
+
 # RBAC 재감사(2026-08-16, SEC-35와 같은 자리): create_room이 org_id를 안 채워 호스트의
 # 실제 조직과 무관하게 컬럼 기본값(기본 조직)으로 저장되고 있었다. GameRoom.org_id를
 # 읽는 접근 제어는 지금 없어 활성 유출은 아니지만(그래서 SEC-35처럼 급한 재배포는

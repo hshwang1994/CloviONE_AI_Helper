@@ -72,7 +72,14 @@ GATES = (
 # 나서 검사를 믿지 않게 된다(실제로 새 게이트 `ensure_comment_ticket_visible` 에서 한 번 겪었다).
 # 그래서 이 저장소가 실제로 쓰는 작명 관용을 패턴으로 인정한다.
 GATE_PATTERNS = (
-    re.compile(r"\bensure_\w*(scope|visible|owner|member)\w*\s*\("),
+    # `_?` — private 헬퍼(`_ensure_host`처럼 앞에 밑줄)도 인정한다. `\b`는 단어 경계라
+    # 밑줄(단어 문자) 바로 뒤에서는 성립하지 않아 처음엔 `_ensure_*`를 전부 놓쳤다 — 실제로
+    # `app/quotas/router.py::_ensure_target_in_scope`·`app/tickets/router.py::
+    # _ensure_attachment_ticket_visible`도 이름에 scope/visible이 있는데 같은 이유로
+    # 안 걸리고 있었다(2026-08-16 발견). "host"도 추가한다 — 게임방은 조직 범위가 아니라
+    # **방장 소유권**이 게이트라 owner/member 동의어로는 안 걸렸다(`app/games/service.py::
+    # _ensure_host`).
+    re.compile(r"\b_?ensure_\w*(scope|visible|owner|member|host)\w*\s*\("),
     re.compile(r"\b_?require_(owner|member)\s*\("),
     # 채팅방은 멤버십 행을 직접 읽고 None/역할을 인라인으로 검사한다
     # (`repository.get_member(db, room.id, user.id)` → None 이면 403, owner 아니면 403).

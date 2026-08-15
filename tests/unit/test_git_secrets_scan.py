@@ -91,3 +91,23 @@ def test_secret_in_test_fixture_path_is_excluded(repo):
     _git(repo, "add", "tests")
     _git(repo, "stash", "push", "-u", "-m", "test stash touching tests/")
     assert mod.main(repo) == 0, "테스트 픽스처 경로를 실값 유출로 오탐했다"
+
+
+def test_code_that_merely_references_a_token_variable_is_not_flagged(repo):
+    """오탐 회귀(2026-08-16 실측) — 실제 저장소의 reflog-only 초기 import 커밋(f0efc52af4ec)을
+    이 검사로 훑었더니 `token = new_session_token()`·`token_hash=hash_token(token)` 같은
+    평범한 세션/토큰 처리 코드 약 50건이 "password-like assignment"로 오탐됐다. 전부
+    app/core/sessions.py·app/auth/router.py·scripts/seed_admin.py 등 애초에 비밀번호를
+    다루는 게 일인 모듈이었다 — 값이 아니라 코드였다. 따옴표 없이 식별자/호출/속성 접근으로
+    이어지면 값이 아니라 참조라고 보고 뺀다(`CODE_REFERENCE_RE`). CLAUDE.md stash의 실제
+    사고는 따옴표 없는 산문이라 값 뒤에 `(`나 `[`가 오지 않으므로 계속 잡힌다(다른 시험 참고)."""
+    mod = _load()
+    (repo / "auth_like.py").write_text(
+        "token = new_session_token()\n"
+        "token_hash=hash_token(token)\n"
+        "password = generate_temp_password(user)\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "auth_like.py")
+    _git(repo, "stash", "push", "-u", "-m", "test stash with ordinary token-handling code")
+    assert mod.main(repo) == 0, "토큰/비밀번호를 다루는 평범한 코드를 실값 유출로 오탐했다"

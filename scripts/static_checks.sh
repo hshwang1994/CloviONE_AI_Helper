@@ -142,6 +142,17 @@ VERB_VIOLATIONS="$(echo "$VERB_HITS" | grep -vE \
   '(AI로 문제 생성|생성 중…|주제를 적고 생성하면|문장 요약 만들기|요약 만드는 중|AI 요약 생성|등록된 부서|등록된 직책|등록된 조직|임시 비밀번호는 생성|예: 서버 등록 IP|역할 변경|비밀번호 변경|시 변경을 요구|변경 이력|변경 기록|새 변경으로 다시 기록|적용 시점은 항목마다|이전 변경 이력을 볼|어떤 변경도 저장되지|차단된 변경 시도|>변경<|필터 지우기|검색어 지우기|카테고리 지우기)' || true)"
 if [ -z "$VERB_VIOLATIONS" ]; then ok "no banned verb synonyms in user-facing text"; else echo "$VERB_VIOLATIONS"; fail "표준 동사표(UX_WRITING.md §3) 위반 — 금지된 동의어가 화면 텍스트에 있다"; fi
 
+step "No new typography literals (PA-RC-0001 §5)"
+# FONT_SIZE(6단계)가 있는데 fontSize: raw 값을 새로 쓰면 이 Root Cause가 다시 생긴다.
+# fontWeight는 이미 0건이라 그대로 지킨다. fontSize는 아이콘·이모지·입력창·서체본문·
+# 자격증명표시 같은 검증된 예외가 있어 완전 금지는 아니다 — scripts/check_typography_literals.py의
+# EXEMPT_FONT_SIZE_VALUES에 없는 새 값만 잡는다(각 값은 실제 코드 문맥으로 낱개 확인됨, D-81).
+if TYPO="$("$PY" scripts/check_typography_literals.py 2>&1)"; then
+  ok "$(echo "$TYPO" | tail -1)"
+else
+  echo "$TYPO"; fail "검증되지 않은 새 fontSize/fontWeight 리터럴"
+fi
+
 step "No external origins fetched by frontend"
 # 사내 LAN 전용이라 CDN·외부 폰트·외부 이미지를 런타임에 '받아오면' 오프라인에서 깨지고,
 # CSP(default-src 'self')에도 걸린다. 사용자가 눌러서 여는 링크(Notion 문서 등)는 문제가

@@ -39,6 +39,16 @@ CREDENTIAL_PATTERNS = [
 ]
 # 문서의 안내용 자리표시자(예: '<비밀번호>', 'xxx', 'change-me')는 실제 값이 아니다.
 SAFE_MARKERS = re.compile(r'(<[^>]*>|xxx+|change-?me|dummy|placeholder|example|여기에|자리표시자)', re.IGNORECASE)
+# "password-like assignment"는 따옴표를 강제하면 진짜 사고(CLAUDE.md stash, 따옴표 없는 평문
+# 산문)를 놓친다 — 그래서 따옴표를 여전히 선택적으로 둔다. 대신 이 저장소 실측(2026-08-16,
+# reflog-only f0efc52af4ec — 최초 import 커밋)에서 확인된 진짜 오탐 형태만 좁게 뺀다:
+# `token = new_session_token()`·`token_hash=hash_token(token)`처럼 따옴표 없이 식별자
+# 참조/함수 호출/속성 접근으로 이어지는 코드는 값이 아니라 코드다. 값이라면 따옴표로 싸여
+# 있거나, 산문이라면 `(`/`[` 로 이어지지 않는다.
+CODE_REFERENCE_RE = re.compile(
+    r'(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*(?![\'"])[A-Za-z_][A-Za-z0-9_.]*\s*[(\[]',
+    re.IGNORECASE,
+)
 # 구조적으로 실값이 아닌 파일류 — static_checks.sh의 기존 app/ 스캐너도 test/example을
 # 같은 이유로 뺀다(코드 참고). 특정 커밋·stash를 콕 집어 빼는 것이 아니라 파일 종류
 # 기준의 일반 규칙이라, "임시 예외" 금지 제약과 다른 층이다.
@@ -72,10 +82,13 @@ def _scan_text(text: str) -> list[str]:
         if SAFE_MARKERS.search(line):
             continue
         for label, pattern in CREDENTIAL_PATTERNS:
-            if pattern.search(line):
-                where = current_file or "(unknown file)"
-                hits.append(f"{where} line {lineno} ({label})")
-                break
+            if not pattern.search(line):
+                continue
+            if label == "password-like assignment" and CODE_REFERENCE_RE.search(line):
+                continue
+            where = current_file or "(unknown file)"
+            hits.append(f"{where} line {lineno} ({label})")
+            break
     return hits
 
 

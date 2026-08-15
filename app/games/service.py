@@ -314,6 +314,16 @@ def set_ready(db: Session, room: GameRoom, user: User, *, ready: bool, now: date
 
 
 def chat(db: Session, room: GameRoom, user: User, *, text: str, now: datetime) -> None:
+    # RBAC 재감사(2026-08-16)로 발견: 이 함수만 형제 함수들(set_ready/submit_vote/submit_number/
+    # submit_rps/submit_quiz_answer)이 전부 갖는 `repository.get_member(...) is None → Forbidden`
+    # 멤버십 게이트가 없었다 — 방에 한 번도 들어온 적 없는 사용자도 대화를 쓸 수 있었다.
+    # router.py의 room_state 주석이 스스로 "대화는 방 안 사람에게만(1순위 유출 #10)"이라고
+    # 읽기 쪽(events 필터 `mem is not None`)만 지키고 쓰기 쪽은 놓쳤음을 보여준다. 관전자는
+    # 다른 게임 액션과 달리 제외하지 않는다 — 읽기 쪽 필터도 관전자를 안 가리고, 관전은 참여의
+    # 한 형태라 대화까지 막을 이유가 없다.
+    member = repository.get_member(db, room.id, user.id)
+    if member is None:
+        raise ForbiddenError("참여자만 대화할 수 있습니다.")
     text = (text or "").strip()
     if not text:
         raise ValidationAppError("메시지를 입력하세요.")

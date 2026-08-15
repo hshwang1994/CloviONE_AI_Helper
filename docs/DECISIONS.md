@@ -2071,3 +2071,211 @@ B조직 사람의 글도 예외 없이 A조직 소속으로 저장돼 있었다.
 ### 남은 것
 
 `SEC-34`와 함께 배포해야 한다 — TEST SERVER는 아직 이 결함도 그대로 갖고 있다.
+
+---
+
+## D-81 (2026-08-16) — PA-RC-0001(타이포)·PA-RC-0002(UX Writing) 실행 완결 검증 + fontSize 재유입 방지 게이트 신설
+
+### 배경
+
+WARM 재개 직후 `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(cycle `PA-20260812-171558-56c5befa`)를
+다시 확인했다. 상단 요약표는 `PA-RC-0001`을 "대부분 닫힘(사이값 30~40회 남음)", `PA-RC-0002`를
+"열림(90% 기준 미달)"로 적고 있었는데, `docs/BACKLOG.md`의 `PA-01`/`PA-02` 행에는 그 요약표보다
+**훨씬 최근(같은 날 2026-08-16, 5~7차 확장)** 작업이 이미 기록돼 있었다 — Handoff 요약표가
+구현 진행을 못 따라간 상태였다(Audit 문서는 감사 시점의 Snapshot이므로 이건 오류가 아니라
+정상이다, CLAUDE.md §4). 실제 코드를 직접 재검증했다.
+
+### PA-RC-0001 검증 결과
+
+`var/product-audit/scan_design.py`를 다시 돌려 실측: `fontWeight` 리터럴 **0건**(완전
+토큰화 확정). `fontSize`는 286회 중 228회 이상이 `FONT_SIZE.*` 토큰 참조고, 남은 raw 값
+15종을 **전부 grep + 실제 코드 문맥**으로 낱개 대조했다(문서 서술을 그대로 믿지 않고 재확인 —
+`"1rem"`(9파일 13건)은 특히 전량 재검증). 결과: 아이콘(`aria-hidden` + `*Icon` 컴포넌트,
+`kit.jsx`/`TopSearch.jsx`/`Search.jsx`/`ConversationSidebar.jsx`/`MessageThread.jsx`/`Chat.jsx`/
+`ChatPane.jsx` 등) · 이모지/글리프(`GameStage.jsx`·`RpsViews.jsx`·`Mascot.jsx`) · 아바타
+이니셜(`Profile.jsx`) · 입력창(`Chat.jsx`·`CommandPalette.jsx`·`Search.jsx`) · 서체
+본문(`BoardPost.jsx`·`WelcomeStatus.jsx`, `lineHeight 1.6~1.75`+`overflowWrap:anywhere`가
+공통 지문) · 자격증명 표시(`Users.jsx`, monospace+`letterSpacing`) · 상대 단위(`BrandLogo.jsx`의
+`1em`/`BRAND_UNIT`) · 반응형 `clamp()` 공식(`ProjectMetrics.jsx`) · 명명 상수(`STAT_VALUE_FONT_SIZE`)
+— **15종 전부가 이미 검증된 정당한 예외 범주에 정확히 들어맞았다.** `acceptance_criteria(1)`은
+사실상 충족.
+
+`acceptance_criteria(2)`(본문 SSOT 일치)도 직접 확인: `tokens.css --font-size-md`와
+`theme.js FONT_SIZE.body`가 둘 다 `0.875rem`(14px)로 일치(이전 "15px" 값은 이미 삭제됨,
+주석에 근거 남아 있음). `acceptance_criteria(3)`(≤8단계)은 `theme-baseline.test.js`의
+"`FONT_SIZE`는 정확히 6단계다(RD-1)" 회귀가 **7번째 공식 토큰 신설을 이미 막아 뒀고**(직접
+시도했다가 되돌린 기록이 `PA-01` 행에 남아 있다), 남은 장꼬리 값은 개별로 근거가 있는
+예외라 인위적으로 6단계에 욱여넣는 것이 오히려 근거 없는 재양자화가 된다 — 이전 판단(D-78,
+"정책 질문으로 닫음")을 그대로 수용한다.
+
+`acceptance_criteria(4)`(borderRadius 수렴)는 새로 스캔해 보니 bare 숫자(`2`/`1.5`/`1`/`3`
+등, 27+11+8+7회)가 가장 흔한데, 이건 **MUI `sx` 의 `borderRadius` 가 스스로 제공하는 shape
+스케일 소비 관용**(spacing의 `p: 2`와 같은 층)이라 fontSize와 달리 "API가 없어서 리터럴을
+쓴다"는 이 Root Cause의 진단 자체가 적용되지 않는다 — 7개 확장 어디에서도 borderRadius가
+"남은 범위"로 지목된 적이 없다는 사실과 일치한다. 새 조사를 벌이지 않았다(찾지도 않은 문제를
+만들지 않는다).
+
+### 신설: `scripts/check_typography_literals.py` (acceptance_criteria 5)
+
+유일하게 실제로 **비어 있던** 자리다 — 7차 확장까지 "린트를 걸면 지금의 예외 판단이 다음에
+뒤집힐 때마다 다시 풀어야 한다"는 이유로 의도적으로 안 걸었는데, 그 우려는 **이제 근거가
+있다**(15종이 실제로 낱개 검증됨, 더 이상 "잠정 판단"이 아니다). `fontWeight`는 무조건 0건,
+`fontSize`는 `FONT_SIZE.*` 토큰(삼항 포함) 또는 위에서 검증한 15종 `EXEMPT_FONT_SIZE_VALUES`
+값만 통과 — **새 raw 값**이 나오면 무조건 실패한다. 파일이 아니라 값 단위로 면제한다(같은
+역할이면 새 파일에 나와도 정당하다는 것이 spacing의 `p: 2`와 같은 논리).
+
+만드는 과정에서 검사 자신의 결함 두 개를 실측으로 잡았다:
+1. **삼항연산자 조건까지 leaf로 오판** — `compact ? FONT_SIZE.x : FONT_SIZE.y`에서 `compact`
+   (조건, boolean prop 이름)까지 토큰인지 검사해 오탐을 냈다. `?`로 먼저 나눠 조건을 버리고
+   두 분기만 보게 고쳤다.
+2. **JSDoc 주석 안의 언급을 코드로 오판** — `BrandLogo.jsx`의 설명문(`* ... fontSize:
+   BRAND_UNIT ...`)이 실제 코드로 잡혔다. `*`로 시작하는 줄과 `//` 라인 코멘트를 스캔에서
+   제외하도록 고쳤다(범용 JS 파서는 아니다 — 이 저장소의 관용만 다룬다).
+`clamp(...)` 반응형 수식은 내부 쉼표 때문에 정규식이 뒷부분을 잘라 캡처해도(`"clamp(1.25rem`)
+접두사 판별로 안전하게 통과시킨다.
+
+**검증**: `tests/unit/test_typography_literals_scan.py` 7건 — 격리된 `tmp_path`만 쓴다.
+revert-to-verify 확인(EXEMPT에 없는 새 값 `"13.37px"`를 넣으면 실패, `fontWeight` 재유입도
+실패). 실제 저장소가 지금 이 검사를 통과하는지도 별도 시험으로 직접 확인(`test_the_real_
+repository_currently_passes`). `static_checks.sh`에 예외 없는 필수 단계로 배선, 전체
+재실행해 이 신규 단계 외에는 (이미 알려진 `git-secrets` 제외) 전부 green임을 확인.
+
+### PA-RC-0002 검증 결과
+
+`docs/BACKLOG.md` `PA-02` 5차 확장(2026-08-16)이 "62건 낱개 재검증 → 52건은 이미 회복 절이
+있거나 실패 서술 자체가 아님, 진짜 새로 고칠 것은 2곳뿐, 나머지 8건은 이유와 함께 예외
+등재 → 회복 절 비율 96~100%"라고 결론 낸 것을 직접 확인했다: `docs/UX_WRITING.md` 존재
+확인(criteria 1), `static_checks.sh`의 comma-splice·표준 동사표 2개 게이트가 실제로
+green(criteria 5의 2/3). 세 번째 게이트(회복 절 비율)는 **의도적으로 계속 안 건다** — 이
+판정이 문자열 연결·형제 JSX·공용 컴포넌트 문맥을 함께 봐야 정확한데(5차 확장이 직접
+실측한 오탐률 62건 중 52건), 순수 정규식으로 굳히면 미래의 정당한 새 문구가 그 오탐률만큼
+막힌다. **fontSize와 달리 이건 "아직 안 만들어서" 가 아니라 "정확히 자동화 못 하는 종류의
+판단이라서" 다** — 같은 재검토를 여기서 반복하지 않는다.
+
+### 결론
+
+두 Root Cause 모두 남은 acceptance_criteria는 (a) 실제로 충족됐거나 (b) 근거와 함께 정책
+질문/기술적 한계로 전환됐다 — CLAUDE.md §4의 "해결 또는 근거 있게 정리" 기준을 만족한다고
+판단한다. `IMPLEMENTATION_REQUIRED` 최종 판정은 `PA-RC-0003`까지 확인한 뒤 한 번에 내린다
+(D-82).
+
+---
+
+## D-82 (2026-08-16) — PA-RC-0003 재검증: 이미 구현완료, `check_git_secrets.py` 오탐 정밀화
+
+### 배경
+
+Handoff 요약표가 `PA-RC-0003`을 "열림"으로 적고 있었으나, `git log`로 확인하니
+`scripts/check_git_secrets.py`(커밋 `c75a09d`)가 **이미 이 invocation 이전에** 구현·배선·
+테스트까지 끝나 있었다(`D-76` 참고) — Handoff 요약표가 그 갱신을 못 따라간 것으로 보인다
+(D-81과 같은 종류의 문서 지연).
+
+### 실행해서 직접 확인
+
+`scripts/check_git_secrets.py`를 실행해 `stash@{0}`의 실제 자격증명을 여전히 정확히
+잡는지, 값은 한 글자도 안 찍는지 확인했다. `tests/unit/test_git_secrets_scan.py` 4건
+green. acceptance_criteria (1)(4)(5)(6)은 코드·배선을 직접 읽어 확인, (2)는 기존 시험이
+이미 격리 저장소로 확인, (3)은 값 미노출을 시험이 강제.
+
+### 발견한 문제: 자체 오탐(위양성)이 심했다
+
+검사를 실제로 돌려 보니 **stash@{0}의 진짜 결함(2건)과 별개로 약 50건**이 걸렸다 — 전부
+`reflog-only commit f0efc52af4ec`(커밋 메시지 자체가 "chore: initial import ...(secrets
+excluded, sudo password scrubbed)"인, 브랜치 재작성으로 orphan된 최초 import 커밋)의
+`app/auth/*`·`app/core/sessions.py`·`scripts/seed_admin.py` 등이었다. **값을 절대 출력하지
+않는다는 이 검사의 설계 원칙 안에서**, 문맥만으로 안전성을 판정하는 안전한 방법을 썼다 —
+매칭된 값의 **길이·대소문자·숫자 포함 여부·괄호 포함 여부**만 boolean으로 확인하고 값
+자체는 한 번도 출력하지 않았다. 확정적으로 안전하다고 판단된 표본만 최종적으로 실제 코드
+문맥을 열어 육안 확인했다(예: `os.environ.get(...)` 패턴).
+
+전부 `token = new_session_token()`·`token_hash=hash_token(token)`류 — **값이 아니라
+코드**였다. 특히 `1b819ce793af`(D-76이 "값을 안 보고는 판정 못 해 미판정으로 남긴다"고
+명시적으로 미룬 그 건)도 재조사해 `os.environ.get(...)` 패턴임을 shape 기반 검증으로
+확정했다 — **미판정 → 확인된 안전**으로 승격.
+
+### 수정
+
+`CODE_REFERENCE_RE` 신설 — 따옴표 없이 식별자로 시작해 `(`/`[`로 이어지면(함수 호출·속성
+접근) 값이 아니라 참조로 본다. **따옴표를 강제하지는 않는다** — 실제 `CLAUDE.md` stash
+사고를 boolean-only 검증으로 재확인한 결과 따옴표 없는 산문이라, 따옴표를 요구했다면
+바로 그 사고를 놓쳤을 것이다(위양성 줄이려다 위음성을 만드는 함정을 피함). 신규 회귀
+`test_code_that_merely_references_a_token_variable_is_not_flagged` — 오탐 재현 확인(수정
+전 실패 예상 로직을 시험 자체에 문서화). 수정 후 재실행: 진짜 결함 2건은 그대로 잡히고
+오탐은 50→29건으로 줄었다. 남은 29건도 샘플링해 전부 같은 성격(코드 참조·QA 픽스처의
+명백한 더미 값 `SECRET-XYZ`·주석)임을 확인했으나 **전수 검증은 안 함** — 이 orphan 커밋은
+회전 후 `git gc`로 결국 사라질 1회성 유물이고, 여기 더 투자하는 것보다 실제 게이트 로직
+(RC-0001/0002)에 시간을 쓰는 것이 낫다는 판단.
+
+### 결론
+
+`PA-RC-0003`은 **구현 관점에서 완결**이다. `static_checks.sh`가 회전 전까지 의도적으로
+계속 red인 것은 Handoff의 명시적 요구(강제 장치)이지 결함이 아니다 — 회전은 CLAUDE.md
+§3-4/§9가 명시한 사람 전용 외부 행위라 이 Root Cause의 완료 기준에 포함되지 않는다(`D-76`이
+이미 이렇게 판단했고, 이번 재검증도 동의한다). `SEC-20`이 이 사실을 계속 추적한다.
+
+---
+
+## D-83 (2026-08-16) — 게임방 대화 멤버십 게이트 부재(신규 발견) + `check_scope_gates.py`의 `_ensure_*` 사각지대
+
+### 배경
+
+D-81/D-82 검증 중 `scripts/static_checks.sh` 전체를 돌렸다가 **예상 못 한 새 실패**를
+만났다: "범위 있는 모듈인데 id 경로에 게이트가 없다"가 `app/games/router.py`의 7개
+경로(disband/start/reveal/next/finish/reset/**chat**)를 지목했다. 놀란 채로 넘기지 않고
+바로 조사했다(CLAUDE.md — blocker는 자가 복구 사다리를 다 밟은 뒤에만).
+
+### 조사
+
+`app/games/service.py`를 직접 읽어 7개를 둘로 나눴다.
+
+- **6개(disband/start/reveal/next/finish/reset)는 오탐이었다** — 전부 `_ensure_host(room,
+  user)`를 호출하고 있고, `_ensure_host`는 `room.host_user_id != user.id`면 정확히
+  `ForbiddenError`를 낸다(직접 소스 확인). `check_scope_gates.py`의 `GATE_PATTERNS`가 이걸
+  못 잡은 이유는 둘 — ① 정규식이 `\bensure_\w*(...)`로 **선행 밑줄을 안 받아** `_ensure_host`
+  자체가 단어 경계 매칭에서 빠졌다(반면 `require_` 패턴은 이미 `_?`로 이 문제를 안 갖고
+  있었다 — 기존 코드에 이미 있던 비대칭). ② "host"가 인정 동의어(scope/visible/owner/member)
+  목록에 없었다 — 게임방은 조직 범위가 아니라 **방장 소유권**이 게이트라 다른 이름을 쓴다.
+- **`chat` 1개는 진짜 결함이었다.** 형제 함수 전부(`set_ready`/`submit_vote`/`submit_number`/
+  `submit_rps`/`submit_quiz_answer`)가 `repository.get_member(...) is None → Forbidden`
+  게이트를 갖는데 `chat()`만 없었다. 라우터 자신의 주석("대화는 방 안 사람에게만 — 1순위
+  유출 #10")과 읽기 쪽(`room_state`의 `events` 필터, `mem is not None or e.kind != EV_CHAT`)이
+  이미 "대화는 멤버 전용"을 전제하고 있는데, **쓰기 쪽만 그 전제를 안 지키고 있었다** — 방에
+  한 번도 들어온 적 없는 사용자가 `POST /api/games/rooms/{id}/chat`으로 메시지를 "쓸" 수
+  있었다(자신은 못 읽어도, 실제 멤버들에게는 보인다). `tests/security/test_game_room_chat_scope.py`
+  의 기존 두 시험은 **읽기만** 지키고 있었다 — 쓰기 쪽 시험이 아예 없었다.
+
+### 수정
+
+1. `app/games/service.py::chat` — `member = repository.get_member(...); if member is None:
+   raise ForbiddenError(...)` 추가(형제 함수와 같은 관용). **관전자는 안 뺀다** — 다른
+   게임 액션(투표 등)과 달리, 읽기 쪽도 관전자를 안 가리고 관전은 참여의 한 형태라 대화까지
+   막을 이유가 없다.
+2. `scripts/check_scope_gates.py::GATE_PATTERNS` — `ensure_` 앞에 `_?`(선행 밑줄 허용)
+   추가 + `host`를 인정 동의어에 추가. **6곳을 EXEMPT에 개별로 적지 않고 탐지 자체를
+   고쳤다** — 검사 자신의 문서가 이 원칙을 이미 명시한다("이름을 하나씩 등록하면... 오탐이
+   나서 검사를 믿지 않게 된다... 저장소가 실제로 쓰는 작명 관용을 패턴으로 인정한다"). 이
+   선택이 옳았다는 근거: 같은 밑줄 문제가 `app/quotas/router.py::_ensure_target_in_scope`·
+   `app/tickets/router.py::_ensure_attachment_ticket_visible`에도 **독립적으로** 이미 있었다
+   (이름에 `scope`/`visible`이 들어 있는데도 밑줄 때문에 여태 인식 못 하고 있었다) — 한
+   곳만 고치는 EXEMPT보다 정규식을 고치는 쪽이 이 두 모듈의 잠재적 사각지대도 함께 없앤다.
+
+### 검증
+
+`tests/security/test_game_room_chat_scope.py`에 `test_an_outsider_cannot_post_to_the_room_
+chat` 신설 — 비멤버가 POST하면 403, revert-to-verify 확인(게이트를 지우면 실제로 200이
+나고 그 메시지가 방 안 사람에게 보이는 것까지 재현). 파일 전체 4/4 green.
+`tests/integration/test_games_api.py`(43건) 회귀 없음 확인. `check_scope_gates.py` 재실행:
+`SCOPE_GATES_OK`(면제 3개 그대로 — 새 EXEMPT 추가 없음, 탐지 개선만으로 해결).
+`static_checks.sh` 전체 재실행: 이제 `git-secrets`(회전 대기, 의도된 상태) 외에는 전부
+green.
+
+### 왜 지금까지 안 걸렸는가 (교훈)
+
+`check_scope_gates.py`는 static_checks.sh의 필수 단계인데, 이 결함이 **한 번도 안
+걸렸다는 것 자체가 이상하다.** 가장 유력한 설명: `chat`의 부재가 `_ensure_host` 6곳의
+밑줄 오탐과 **같은 실행에서 함께** 걸려 있었을 가능성이 높고, 과거 배포 전 검증에서
+`static_checks.sh`의 **다른(더 눈에 띄는) 실패**(예: 이번 세션 초반의 SEC-34/35 긴급
+배포 때는 `git-secrets`가 아직 없었으니 대신 무엇이 있었을지, 또는 단순히 전체 출력을
+끝까지 스크롤하지 않고 exit code만 보는 확인 습관)에 가려 놓쳤을 가능성이 있다 —
+정확한 시점은 재현 불가(과거 워킹트리 스냅숏 없음). **교훈으로 남긴다**: `static_checks.sh`
+같은 다단계 검사는 exit code만 보지 말고 각 단계의 개별 출력을 확인해야 한다.
