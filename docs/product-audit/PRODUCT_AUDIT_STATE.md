@@ -77,23 +77,28 @@ Coverage 문서와 Inventory 문서는 **손으로 고치지 않는다.**
 
 | 항목 | 값 |
 |---|---|
-| Root Cause | **8건** — Critical 1(`0003`) · High 3(`0001`,`0002`,`0008`) · Med 2(`0005`,`0007`) · Low 2(`0004`,`0006`) |
-| Finding | PA-F-001 ~ PA-F-021 |
-| HANDOFF의 PA-RC 블록 | **6건**(`0001`,`0002`,`0003`,`0005`,`0007`,`0008`). `0004`·`0006`은 Low라 승격 안 함 |
+| Root Cause | **9건** — Critical 1(`0003`) · High 3(`0001`,`0002`,`0008`) · Med 3(`0005`,`0007`,`0009`) · Low 2(`0004`,`0006`) |
+| Finding | PA-F-001 ~ PA-F-023 |
+| HANDOFF의 PA-RC 블록 | **7건**(`0001`,`0002`,`0003`,`0005`,`0007`,`0008`,`0009`) — 필수 27필드 자기검사 PASS. `0004`·`0006`은 Low라 승격 안 함 |
 | Coverage | 2340칸 중 EXECUTED 158 · OBSERVED 3 · STATIC_ONLY 637 · UNSEEN 1542(**전부 사유 있음**) |
-| 실행 증거 | 프런트 1,718건 green · 백엔드 회귀 331건 green · 보안 498건 green · **race 계열은 실패 재현**(`PA-RC-0008`) · `tests/integration` 전체는 실행 중 |
+| 실행 증거 | **백엔드 2,903건 전부 통과**(regression 331 · security 498 · unit 761 · integration 1,313을 4청크로) · 프런트 1,718건 통과 · **단 race 1건은 flaky**(`PA-RC-0008`) |
+
+> **이번 회차의 가장 중요한 자기 정정**: `PA-RC-0009`를 처음 High(*"Full Regression green이
+> 성립한 적 없다"*)로 썼다가, 스스로 제시한 처방(청크 분할 전경 실행)을 직접 돌려
+> **백엔드 2,903건 전부 통과**를 확인하고 Medium으로 낮췄다. 정정 경위는 `FINDINGS`에 남겼다.
+> **다음 회차도 같은 기준을 지켜라** — 처방을 제시했으면 가능한 범위에서 그것을 직접 시험한다.
 | Blind Re-Audit | **0 / 2** — 아직 시작 안 함 |
 | Backlog 승격 | **아직 안 함**(§11대로 수렴 후에 한다) |
 | `IMPLEMENTATION_REQUIRED` | **아직 안 만듦** |
 
 ### AUDIT_COMPLETE까지 남은 일 (순서대로)
 
-0. **`tests/integration` 전체 실행 결과를 반드시 확인할 것** — 이번 회차에 걸어 두었고
-   (`var/product-audit/pytest_integration.log`) 그 디렉터리는 앞선 실행 묶음
-   (`tests/regression`·`tests/security`)에 **포함되지 않는다.** 착수 즉시 거기서 High 하나
-   (`PA-RC-0008`)가 나왔으므로 나머지에도 더 있을 수 있다.
+0. ~~`tests/integration` 전체 실행 결과 확인~~ → **완료.** 4청크 전부 EXIT=0.
+   백엔드 2,903건 전부 통과 확인(`PA-RC-0009` 참조). 실행 방법은
+   `var/product-audit/chunk{1..4}.txt` + 전경 실행이다 — **다음 회차도 이 방법을 쓸 것**
+   (단일 호출은 45분+라 세션 경계를 못 넘는다).
 1. 미조사 축 진행 — **C · D · N · O · R** 가 아직 거의 UNSEEN이다
-   (G·J·K·S·T·W는 이번 회차에 최소 STATIC_ONLY로 덮었다).
+   (G·J·K·S·T·W·Y는 이번 회차에 덮었다).
    특히 **D(업무 흐름 end-to-end)** 가 위험 대비 미조사로 남아 있다.
 1-1. **S축 잔여** — 무제한 목록 후보 15건 중 1건만 검증했다. 나머지 14건 확인.
 2. `humanize-korean` 적용(R축) — 단 `PA-RC-0002`의 문구 규칙이 확정된 뒤가 순서다.
