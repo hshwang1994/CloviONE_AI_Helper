@@ -5750,8 +5750,29 @@ grep했더니 55건으로 나왔는데, 실제로 되짚어 보니 대부분(구
 **다음(진짜 새 작업)**: `SEC-20`은 여전히 사람만 처리 가능한 진짜 blocker로
 남는다(스택 자격증명, `git stash list` 재확인 시 존재 확인). `VIS-24`/
 `VIS-25`/`VIS-50`/`VIS-52`는 실제 화면 확인이 필요해 보류 중 — 다음에
-Chrome을 볼 기회가 있으면 그때 판단. `/me`의 SEM-02 원래 사례(`SectionTitle`
-공유 소비처 4곳), `AI-54`(스트리밍/취소 없음, 아키텍처急 변경 필요),
-`.claude/worktrees/wf_*` 88개 잔여 디렉터리 미착수. 다음 세션은 BACKLOG.md의
-나머지 unresolved 항목(이번에 검증한 필터를 써서) 계속 훑거나, 위 보류
-목록 중 실제 브라우저 확인이 가능하면 VIS-24/VIS-25/VIS-50부터.
+Chrome을 볼 기회가 있으면 그때 판단. `AI-54`(스트리밍/취소 없음, 아키텍처
+변경 필요), `.claude/worktrees/wf_*` 88개 잔여 디렉터리 미착수.
+
+### 추가 — SEM-02 `/me` 잔여 완료 + 통합 배포 3회차(2026-08-15, 같은 세션 계속)
+
+`Profile.jsx`는 이미 5곳 전부 `component="h2"`를 명시하고 있어 재확인만
+했다(손댈 것 없음). `Home.jsx`·`MyStats.jsx`(둘 다 단독 라우트, 자체
+`PageHeader`가 h1)의 최상위 `SectionTitle`들에 `component="h2"`를 추가.
+**새로 확정한 사실**: `AssistantPanel.jsx`/`TeamChatWidget.jsx`는 `grep`
+확인 결과 **항상 `Home.jsx` 안에만 박혀 있다**(단독 라우트 없음) — 그래서
+이 둘의 최상위 제목("AI 도우미"/"팀 채팅")도 Home의 다른 최상위 구역과
+같은 무게(h2)를 받고, `AssistantPanel.jsx`는 그 결과로 안쪽 소제목
+(`TicketLines`의 "내 몫" 등, 기존 h4)이 h2→h4로 건너뛰게 돼 h3로 함께
+낮췄다. 신규 회귀 3건(`home.test.jsx`/`assistant-panel.test.jsx`/
+`my-stats.test.jsx`, 각 h1/h2/h3 레벨을 정확히 확인), revert-to-verify
+확인. 전체 `npx vitest run`(264개 파일·1,797건) green.
+
+통합 배포 3회차(같은 세션 세 번째): `UPGRADE_OK` 확인 → Chrome E2E
+1920×1080 138페이지(185.8초) 전 항목 138/138. 순수 시맨틱/ARIA 변경이라
+(시각 스타일은 `variant="sectionTitle"`로 그대로) 4K 재검증은 생략 —
+직전 PA-15 배포 때 이미 4K 138페이지 전 항목 green을 확인했다.
+
+**다음(진짜 새 작업)**: 위 4가지(SEC-20/VIS-24·25/VIS-50·52/AI-54/
+worktree 88개)에 더해, `docs/BACKLOG.md`의 나머지 Medium/Low unresolved
+항목을 이번에 확립한 필터(`구현완료|실환경검증완료|철회|정정` 전체로
+거르기)로 다시 훑는 것이 다음 후보다.
