@@ -141,7 +141,7 @@
 | `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | · | · | S | · | S | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
 | `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
 | `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
-| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | S | · | S | · | E | · |
+| `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | O | S | O | S | · | E | · |
 | `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
 | `P-UPLOAD` 첨부 / 업로드 / 스토리지 | `app/core/uploads.py` | S | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | · | S | · | · | S | · | E | · |
 
@@ -286,13 +286,21 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 - **뒷받침한다**: RBAC/scope/보안 경계(F·U축)의 기존 계약이 실제로 성립한다. 보안 스위트 498건이 실행 증거다.
 - **뒷받침하지 않는다**: `PA-RC-0003`(stash 평문 자격증명)은 저장소 위생 문제라 어떤 테스트도 보지 않는다. 이 green과 무관하게 열려 있다.
 
+## OBSERVED 칸의 근거와 그 한계
+
+**2026-08-15 승인된 TEST 서버(`cloviradmin@10.100.64.71`) 실관측.** 서비스 3종 active · 앱 `127.0.0.1:8080`(uvicorn --workers 1) · nginx 443 · `/healthz` ok · `/readyz` ready · 미인증 루트 303→`/login`.
+
+> **이 서버발 증거에는 단서가 붙는다.** 배포본은 **2026-08-10 빌드**이고 그 이후 `app/`·`frontend/`를 건드린 커밋이 **131개**다. 번들 asset 34개 중 내용 해시가 저장소와 같은 것은 **4개뿐**이다. 그러므로 이 서버에서 브라우저로 본 것은 **현재 코드가 아니라 08-10 빌드의 동작**이며, L/M/N/O축 결론을 현재 코드에 그대로 귀속시킬 수 없다. 상세는 `PA-RC-0007`.
+>
+> 이것이 `P-DEPLOY`만 OBSERVED이고 화면 surface들은 아직 OBSERVED가 아닌 이유다 — 낡은 빌드를 보고 현재 화면을 판정하면 그 Finding 자체가 틀린다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1591
+unseen=1590
 unseen_without_reason=0
-static_only=593
-observed=0
+static_only=591
+observed=3
 executed=156
 blocked=0
 not_applicable=0

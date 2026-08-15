@@ -127,3 +127,33 @@ qa_gaps: `docs/QA_COVERAGE.md`에 "입력 경계값" 축이 없다. 화면별 �
 quality_rubric: 내장 rubric 6)(폼 — 라벨/도움말/검증 시점/오류 연결/저장 피드백) — 특히 "검증 시점"이 이 RC의 핵심이다(제출 후가 아니라 입력 중). 추가로 `ux-writing` — 폼 검증 오류는 "Validation Errors (Inline): 필드 옆에, 입력 중 또는 blur 시, `[Field] [specific requirement]` 패턴"이어야 한다는 항목. 이 RC를 구현할 때 오류 문구는 PA-RC-0002의 규칙을 따라야 하므로 **두 RC를 같이 읽을 것**.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0005 절(PA-F-014) · `frontend/src/ui/kit.jsx:766,830` · `frontend/src/screens/DataScreen.jsx:690` · 스캐너 `var/product-audit/scan_limits.py` · 기존 Backlog `UX-40`(422 사유 미도달, High, 미해결)
 <!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0007 -->
+rc_id: PA-RC-0007
+severity: Medium
+priority: P1
+confidence: Confirmed
+problem: 승인된 TEST 서버(`10.100.64.71`)가 저장소보다 **5일·131커밋 뒤처져 있다**. 배포본은 2026-08-10 16:22 빌드이고(번들 mtime·백엔드 소스 mtime·서비스 기동 시각이 모두 그날), 그 이후 `app/` 또는 `frontend/`를 건드린 커밋이 131개다. 번들 asset을 대조하면 모듈명 기준 공통 33개 중 **내용 해시가 같은 것은 4개뿐**이다. 제품 코드의 결함이 아니라 **검증 체계의 결함**이다 — `CLAUDE.md` §10이 `PROJECT_COMPLETE`의 필수 최종 Gate로 요구하는 Chrome Whole-product E2E를 지금 돌리면 현재 코드가 아니라 08-10 빌드를 검증하게 되고, green이 나와도 현재 제품에 대해 아무것도 말하지 않는다.
+expected: 최종 Gate인 Chrome Whole-product E2E는 **검증하려는 그 코드**를 대상으로 수행되어야 한다. `CLAUDE.md` §9가 이미 순서를 정해 두었다 — `구현 수렴 → Full Regression green → Build → 통합 Deploy → 실제 배포 revision 확인 → Chrome Whole-product E2E`.
+actual: 순서 자체는 문서에 있으나 **"배포본이 최신인지"를 기계적으로 강제하는 단계가 없다.** 그래서 저장소만 앞서 나가고 서버는 5일 전 상태로 남아 있어도 아무것도 그것을 막지 않는다. 이번 Audit이 번들 해시를 직접 대조하기 전까지 이 드리프트는 어떤 문서에도 기록돼 있지 않았다.
+intent_evidence: ② `CLAUDE.md` §9(배포 순서)와 §10(Chrome Whole-product E2E가 필수 최종 Gate, "Screenshot 존재·페이지 오픈·health 200만으로 E2E 완료 처리하지 않는다") · ② `CLAUDE.md` §13이 `PROJECT_COMPLETE` 조건에 "승인된 TEST SERVER 통합 Deploy, 실제 배포 revision 확인"을 명시 — 즉 revision 확인은 이미 요구사항인데 그것을 수행하는 수단이 없다.
+findings: PA-F-016, PA-F-017
+feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 배포·검증 파이프라인 전체에 걸린다.
+routes: 해당 없음 — 특정 라우트가 아니라 배포본 전체가 대상이다. 다만 `/mail`(메일 발송 상태)은 배포본에 아예 없어 드리프트가 가장 눈에 띄는 지점이다.
+frontend: `app/static/react/assets/**`(빌드 산출물) · `scripts/build-bundle.sh` · `scripts/check_bundle_fresh.py`(로컬 신선도는 보지만 **배포본과는 대조하지 않는다**)
+api: 해당 없음 — API 계약은 바뀌지 않는다. 다만 배포본의 API는 08-10 시점 계약이므로, 현재 계약 기준으로 배포본을 검증하면 잘못된 실패가 난다.
+backend: `/opt/clovirone-web-assistant/app/**`(배포본, 최신 mtime 2026-08-10 16:01) · `deploy/` · `scripts/` 의 배포·업그레이드 스크립트
+data: 해당 없음 — DB 스키마/데이터를 바꾸지 않는다. 단 재배포 시 migration 순서는 `docs/MAINTENANCE_PLAYBOOK.md` §2를 따를 것(백엔드 먼저, 프런트 번들 나중).
+rbac: 해당 없음 — 권한 규칙과 무관하다.
+integration: 배포본의 n8n(`:5678`)·러너(`:8787`/`:8788`/`:8789`)는 계속 떠 있다. 재배포 시 CLAUDE.md §3-9(공유 서비스 보호)에 따라 이들을 임의 변경하지 않는다.
+state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
+user_impact: 최종 사용자 영향은 없다(TEST 서버다). 영향은 **프로젝트 완료 판정**에 있다 — 낡은 배포본에서 얻은 E2E green을 근거로 `PROJECT_COMPLETE`를 만들면 그 판정 자체가 무효다. 실제로 배포본에는 `AI-11`(채팅 폴링이 5회 실패 후 영구 정지)·`AI-08`(진행 표시가 가짜)·`UA-25`(일괄 실패 토스트가 항상 "권한이 없어")·`VIS-162` 같은 이미 고쳐진 결함이 **그대로 살아 있다**.
+implementation_direction: (1) **Chrome E2E 진입 조건으로 배포 revision 대조를 기계화한다.** 저장소 HEAD의 번들 asset 파일명(내용 해시)과 서버 `/opt/clovirone-web-assistant/app/static/react/assets/` 의 목록을 비교해 불일치면 E2E를 시작하지 않고 재배포로 되돌린다 — 이번 Audit이 실제로 그 방법으로 드리프트를 찾아냈으므로 구현 가능함이 이미 증명됐다. (2) 백엔드도 함께 대조한다(파일 해시 또는 배포 시 기록하는 revision 파일). 현재 `/opt`에 git이 없어 `git log`로는 확인이 불가능하므로, **배포 스크립트가 배포 시점 SHA를 파일로 남기게** 하는 것이 가장 단순하다. (3) 그 다음에 재배포하고 E2E를 수행한다. 순서를 바꾸지 말 것.
+constraints: CLAUDE.md §9 배포 순서 준수(백엔드 → 프런트 번들) · §3-9 공유 서비스(n8n·기존 러너·공유 nginx) 무단 변경 금지 · §3-4 자격증명 비영구화(배포 스크립트에 비밀번호를 넣지 말 것, stdin/승인된 runtime 경로만) · 배포 대상 host/IP를 과거 기억으로 하드코딩하지 말 것(§9) · **Auditor는 재배포를 수행하지 않았다** — 프롬프트 7절이 배포 실행을 PHASE 2의 역할로 명시한다.
+regression_risk: 재배포 자체의 위험은 평소 배포와 같다(마이그레이션 순서, 서비스 재기동). 새로 도입하는 revision 대조 검사가 **거짓 불일치**를 내면 E2E가 영영 시작되지 않을 수 있으므로, 대조 대상을 빌드 산출물로 한정하고 비결정적 요소(타임스탬프·경로)를 넣지 말 것. 범위는 배포 파이프라인이며 제품 런타임 회귀는 없다.
+acceptance_criteria: (1) 저장소 HEAD와 배포본의 프런트 번들 asset 목록이 완전히 일치한다. (2) 배포본이 자신의 revision(SHA)을 파일로 갖고 있고 그 값이 저장소 HEAD와 같다. (3) revision 불일치 시 Chrome E2E가 **시작되지 않고** 명확한 사유를 출력한다(고의로 불일치를 만들어 revert-to-verify). (4) 재배포 후 `/healthz`·`/readyz`가 200이고 서비스 3종이 active다. (5) 배포본에 `/mail` 등 08-10 이후 추가된 화면이 실제로 존재한다. (6) 그 상태에서 수행한 Chrome E2E 결과만 완료 근거로 쓴다.
+required_tests: **신규**: 배포 revision 대조 검사 자체의 테스트(일치/불일치 양쪽) · 기존: `scripts/check_bundle_fresh.py`(로컬 신선도 — 이것과 **역할이 다르다**는 점을 주석으로 구분할 것) · 기존 배포 배선 테스트(`SYS-03`이 확장한 nginx 인증서 경로 검사 포함) · 재배포 후 `tests/regression` + `tests/security` 재실행 · Chrome Whole-product E2E(§10)
+qa_gaps: `docs/QA_COVERAGE.md`에 **"배포본이 검증 대상과 같은가"를 보는 축이 없다.** 그래서 5일·131커밋 드리프트가 어떤 QA도 통과하지 않고 존재했다. V축에 `배포 revision 일치` 칸을 추가할 것. 또한 이 Audit의 Coverage에서 화면 surface들이 아직 `OBSERVED`가 아닌 이유도 이것이다(낡은 빌드를 보고 현재 화면을 판정할 수 없다).
+quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 `CLAUDE.md` §9·§10·§13(배포 순서와 최종 Gate 정의)이라는 **프로젝트 정책**이고, 증거는 번들 asset 해시 대조와 파일 타임스탬프라는 **기계적 사실**이다. 미적·설계 판단이 개입하지 않는다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0007 절(PA-F-016, PA-F-017) · `PRODUCT_AUDIT_COVERAGE.md` "OBSERVED 칸의 근거와 그 한계" 절 · 서버 실측(`ls -l /opt/clovirone-web-assistant/app/static/react/assets/`, `systemctl show -p ActiveEnterTimestamp`) · `git log --since=2026-08-10T17:05 -- app frontend` → 131건
+<!-- PA-RC-END -->

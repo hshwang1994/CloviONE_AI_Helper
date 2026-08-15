@@ -329,6 +329,72 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0007 — 승인된 TEST 서버가 131개 커밋 뒤처져 있어 최종 Gate가 성립하지 않는다 (V축)
+
+**Severity: Medium · Confidence: Confirmed · Type: blocker(검증 인프라) — 제품 결함은 아니다**
+
+### PA-F-016 · 배포본은 2026-08-10 빌드다 (실측)
+
+**이 Cycle 최초의 OBSERVED 증거다** — 지금까지는 전부 정적/테스트 실행 증거였다.
+
+- **접속**: `ssh -o BatchMode=yes cloviradmin@10.100.64.71` (승인된 TEST 서버, 프롬프트 7절)
+- **관측한 것**:
+  | 항목 | 값 |
+  |---|---|
+  | host / uptime | `ai-n8n-svr` · up 35일 |
+  | 서비스 | `clovirone-web-assistant`·`clovirone-web-worker`·`nginx` **전부 active** |
+  | 앱 리슨 | `127.0.0.1:8080` (uvicorn, `--workers 1`), nginx가 `10.100.64.71:443` |
+  | health | `GET /healthz` → `{"status":"ok","ticket_source":"notion_cache"}` · `GET /readyz` → `{"status":"ready"}` · nginx 경유도 동일 |
+  | 미인증 루트 | `GET /` → **303** → `/login?next=%2F` (로컬과 같은 동작) |
+  | 배포 시각 | 번들 mtime **2026-08-10 16:22** · 백엔드 소스 최신 mtime **2026-08-10 16:01** · 서비스 기동 **2026-08-10 17:05 KST** |
+- **드리프트 실측**:
+  - 번들 asset **34개(repo) vs 33개(server)**, 모듈명 기준 공통 33개인데
+    **내용 해시가 같은 파일은 4개뿐**(`query`·`react`·`style.css`·`ticket-views`).
+    즉 공통 모듈 33개 중 **29개가 서로 다른 내용**이다.
+  - **배포 시각 이후 `app/` 또는 `frontend/` 를 건드린 커밋이 131개**
+    (전체 커밋은 272개). 그중에는 `AI-11`(채팅 폴링이 5회 실패 후 영구 정지),
+    `AI-08`(진행 표시가 가짜였음), `UA-25`(일괄 실패 토스트가 항상 "권한이 없어"),
+    `VIS-162`(수정 폼이 상세 Dialog를 완전히 덮음) 같은 **실제 결함 수정**이 포함된다.
+
+### PA-F-017 · `MailStatus` 누락은 결함이 아니다 — 확인해서 배제했다
+
+- 번들 비교에서 `MailStatus` 청크가 **repo에만 있고 서버에는 없어** 깨진 lazy import를 의심했다.
+- **검증**: 배포 번들 전체에서 `MailStatus`·`"/mail"`·`메일 발송` 문자열을 찾았다 → **0건**.
+  배포본은 그 기능이 생기기 **전** 빌드라 라우트도 메뉴도 애초에 없다.
+- **결론**: 깨진 참조가 아니라 단순 미배포다. **Finding으로 올리지 않는다.**
+  (이 확인을 생략했다면 Critical 오탐을 낼 뻔했다.)
+
+### Root Cause와 그 결과
+
+TEST 서버가 저장소보다 5일·131커밋 뒤처져 있다. 제품 코드의 결함은 아니지만
+**검증 체계의 결함**이다. `CLAUDE.md` §10은 `PROJECT_COMPLETE`의 필수 최종 Gate로
+**Chrome Whole-product E2E**를 요구하는데, 지금 상태로 그 E2E를 돌리면 **현재 코드가 아니라
+2026-08-10 빌드를 검증하게 된다.** green이 나와도 그것은 현재 제품에 대해 아무것도 말하지 않는다.
+
+### 이 Audit에 미치는 영향 (그래서 이걸 먼저 확인했다)
+
+앞으로 이 서버에서 브라우저로 관측하는 모든 것은 **2026-08-10 빌드의 동작**이다.
+따라서 이 Cycle의 브라우저 기반 L/M/N/O축 결론은 **현재 코드에 그대로 귀속시킬 수 없다.**
+Coverage에서 이 서버발 증거는 `OBSERVED`로 적되 그 단서를 함께 남긴다.
+
+### 구현 방향 (PHASE 2)
+
+Chrome E2E **이전에 반드시 재배포**한다. `CLAUDE.md` §9의 순서
+(`구현 수렴 → Full Regression green → Build → 통합 Deploy → revision 확인 → Chrome E2E`)가
+이미 그렇게 정해져 있다 — **문제는 순서가 아니라 "배포본이 최신인지 확인하는 단계가
+기계적으로 강제되지 않는다"는 것**이다. 배포 revision과 저장소 HEAD를 대조하는 검사를
+E2E 진입 조건으로 두는 것을 권한다(번들 asset 해시 대조로 충분하다 — 이 Audit이 그렇게 했다).
+
+**Auditor가 재배포하지 않은 이유**: 배포는 PHASE 2의 역할이다(프롬프트 7절이 명시적으로
+"배포/재배포/롤백을 실행하지 마라"고 못박는다). 자격증명 문제가 아니라 역할 경계다.
+
+### 기존 Backlog 대조
+
+`SYS-*`·`RSTR-*`·`DEPLOY` 계열에 "배포본과 저장소의 드리프트를 검사한다"는 항목이 없다.
+`SYS-03`(배포 배선 테스트가 실제 nginx 인증서 경로를 안 지킴)이 가장 가까우나 다른 대상이다. **신규.**
+
+---
+
 ## PA-RC-0006 — "백엔드 전체 회귀가 멈춘다"는 기록이 사실이 아니다 (Z축)
 
 **Severity: Low · Confidence: Confirmed · Type: content(문서 드리프트) — 단, 영향은 Low가 아니다**
