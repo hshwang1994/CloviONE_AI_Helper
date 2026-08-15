@@ -5,17 +5,22 @@ Server-side RBAC is authoritative — UI hiding is never the control (spec §25.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from collections.abc import Iterator
 from dataclasses import dataclass
 
 from fastapi import Depends, Request
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
-from app.core.errors import AppError, ForbiddenError, UnauthorizedError
+from app.core.db import is_write_conflict
+from app.core.errors import AppError, ForbiddenError, UnauthorizedError, WriteUnavailableError
 from app.core.sessions import SESSION_COOKIE_NAME, SessionService
 from app.users.models import User
+
+logger = logging.getLogger("app.deps")
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -68,14 +73,42 @@ class AuthContext:
 
 
 def get_db(request: Request) -> Iterator[Session]:
+    """D-75: the route handler's own writes already go through the SAVEPOINT
+    retry layer (`app/core/db.py`) at call sites that use it — this function's
+    own commit, after the handler has already returned successfully, has no
+    retry of its own. A busy/locked failure *here* can't be safely retried by
+    just calling `db.commit()` again (SQLAlchemy rolls back on a failed
+    commit, so whatever was flushed is already gone) — a real retry would mean
+    re-running the whole request, which this dependency doesn't do. So this
+    only classifies the failure into a clean, retryable-by-the-user response
+    instead of leaking a raw 500 (`docs/DECISIONS.md` D-75).
+
+    The `except (IntegrityError, OperationalError)` below only wraps the
+    commit itself (via the `else` clause, which runs only when `yield db`
+    raised nothing) — an exception raised by the handler's own business logic
+    still hits the plain `except Exception` below unchanged, so a genuine
+    (non-transient) `IntegrityError` from inside a route still surfaces as
+    whatever that route already turns it into, not as a 503.
+    """
     factory = request.app.state.session_factory
     db = factory()
     try:
         yield db
-        db.commit()
     except Exception:
         db.rollback()
         raise
+    else:
+        try:
+            db.commit()
+        except (IntegrityError, OperationalError) as exc:
+            db.rollback()
+            if not is_write_conflict(exc):
+                raise
+            logger.exception(
+                "get_db outer commit hit write conflict request_id=%s",
+                getattr(request.state, "request_id", None),
+            )
+            raise WriteUnavailableError() from exc
     finally:
         db.close()
 

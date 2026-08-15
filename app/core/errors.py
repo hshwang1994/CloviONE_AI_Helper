@@ -122,6 +122,24 @@ class StorageUnavailableError(AppError):
     default_message = "파일을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."
 
 
+class WriteUnavailableError(AppError):
+    """요청 처리 자체는 끝까지 성공했는데, 마지막 커밋이 SQLite 쓰기 경합
+    (`is_write_conflict`, `app/core/db.py`)으로 실패했을 때(D-75).
+
+    `app/core/deps.py::get_db`의 요청-스코프 바깥 커밋에는 재시도가 없다 — 이미
+    `db.rollback()`을 부른 뒤라 방금 flush됐던 행은 사라졌고, 안전하게 재시도하려면
+    커밋 재시도가 아니라 요청 처리 전체를 다시 실행해야 한다(SAVEPOINT 재시도 계층과
+    다른 문제, `docs/DECISIONS.md` D-75 참고). 그 전체 재실행은 이 커밋 지점에서 아직
+    구현되지 않았으므로, 최소한 사용자에게 "무엇이 실패했고 무엇을 하면 되는지"는
+    분명히 준다 — 원인(OperationalError 원문)은 StorageUnavailableError와 같은 이유로
+    message에 담지 않는다.
+    """
+
+    status_code = 503
+    code = "write_unavailable"
+    default_message = "일시적인 서버 혼잡으로 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+
+
 _HTTP_STATUS_CODES = {
     401: "unauthorized",
     403: "forbidden",
