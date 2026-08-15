@@ -144,7 +144,7 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
 // 프로젝트'·'지연 마일스톤' 타일과 스스로 모순돼 보인다 — 그 둘은 티켓이 아니라
 // 프로젝트/마일스톤 소스라 장애와 무관하게 정상 집계된다(app/home/work.py 의
 // "장애 격리(§17.4)" 설계). 못 세는 대상을 티켓 기반 항목으로 한정해 모순을 없앤다.
-export const WORK_UNKNOWN = "티켓 소스를 읽지 못해 내 미완료·이번 주 마감·지연 티켓은 셀 수 없습니다. 위 차질 프로젝트·지연 마일스톤은 다른 소스라 정상 집계됩니다.";
+export const WORK_UNKNOWN = "티켓 소스를 읽지 못해 내 미완료, 이번 주 마감, 지연 티켓은 셀 수 없습니다. 위 차질 프로젝트, 지연 마일스톤은 다른 소스라 정상 집계됩니다.";
 
 // 완료 추이의 기준. 소스에 '상태가 완료로 바뀐 시각'이 없다(app/projects/weekly.py 와
 // app/sprints/burndown.py 가 같은 사정을 적어 뒀다). 없는 이력을 추정해 선을 그으면 그건
