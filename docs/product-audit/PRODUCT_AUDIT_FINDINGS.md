@@ -329,6 +329,106 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0010 — 로그인 화면의 다크 모드가 죽어 있다 (실제 브라우저 관측, O축)
+
+**Severity: Medium · Confidence: Confirmed · Type: defect (O·L축)**
+
+> **이 절은 이 Cycle 최초의 화면 OBSERVED 증거다.** 로컬 dev 서버(`:8099`, 현재 백엔드 +
+> 2026-08-13 커밋 번들)에 **실제 Chromium 151**을 붙여 측정했다. TEST 서버는 08-10 빌드라
+> 화면 판정에 쓰지 않았다(`PA-RC-0007`).
+
+### PA-F-024 · `prefers-color-scheme: dark`에서 렌더가 **한 픽셀도 바뀌지 않는다**
+
+- **측정** (`var/product-audit/probe_login2.py`, Playwright `color_scheme` 컨텍스트 2개):
+
+  | | light | dark |
+  |---|---|---|
+  | `body` 배경 | `rgb(243,246,255)` | **`rgb(243,246,255)` (동일)** |
+  | `body` 글자색 | `rgb(51,59,85)` | **`rgb(51,59,85)` (동일)** |
+  | `<html data-theme>` | `null` | **`null`** |
+
+- **원인**: 이 페이지는 React 번들이 아니라 서버 렌더 템플릿이고 `app/static/css/tokens.css`를
+  읽는다. 그 파일 **`:154`에 `[data-theme="dark"]` 블록이 실제로 존재한다.** 그런데
+  `data-theme`를 켜는 주체가 없다 — `app/templates_html/*.html` 전체에서 `data-theme`·
+  `prefers-color-scheme` 검색 결과 **0건**이다. SPA에서는 JS가 그 속성을 세팅하지만
+  로그인 페이지에는 그 JS가 없다.
+- **즉 그 파일의 다크 토큰 20여 개는 자기를 읽는 유일한 화면에서 영원히 활성화될 수 없다.**
+  `DS-18`이 정적 사본의 **값 불일치**를 다뤘다면, 이것은 **활성화 경로 자체의 부재**다 —
+  DS-18의 남은 34개를 전부 동기화해도 이 화면은 여전히 밝은 채로 남는다.
+- **User impact**: 다크 모드 사용자가 앱을 여는 **첫 화면**에서 흰 화면을 맞는다.
+  로그인 후에는 SPA가 다크로 바뀌므로 전환이 눈에 띄게 튄다.
+- **적용 rubric**: `redesign-existing-projects`의 *"Random dark sections in a light mode page
+  (or vice versa) … Either commit to a full dark mode or keep a consistent background tone"*.
+  여기서는 그 반대 방향 — 제품은 다크를 지원하는데 진입 화면만 아니다.
+- **구현 방향**: 서버 템플릿에 `prefers-color-scheme` 미디어쿼리를 얹거나, `<html>`에
+  초기 `data-theme`를 심는 인라인 스크립트를 둔다. **단 CLAUDE.md §3-6이 inline script를
+  금지**하므로 미디어쿼리 방식이 제약과 맞는다 — 그 판단을 구현 전에 확인할 것.
+
+### PA-F-025 · 본문 글자 크기의 **세 번째 값**을 브라우저가 확인해 줬다
+
+`PA-F-003`은 정적 분석으로 "본문 크기에 두 SSOT가 다른 값을 말한다"고 적었다.
+브라우저 실측으로 **세 번째**가 드러났다:
+
+| 출처 | 본문 크기 |
+|---|---|
+| `frontend/src/styles/tokens.css:243` 주석 + `--font-size-base` | **15px** (`0.9375rem`) |
+| `frontend/src/ui/theme.js:271` `body1` | **14px** (`0.875rem`) |
+| **로그인 화면 실측 `body`** | **16px** (브라우저 기본값 그대로) |
+
+세 화면 층이 본문에 대해 각각 다른 답을 갖는다. **`PA-RC-0001`의 증거로 병합한다** —
+같은 Root Cause(소비 경로 부재)의 세 번째 얼굴이다.
+
+### 함께 관측된 것 (전부 정상 — 음성 결과)
+
+| 항목 | 실측 |
+|---|---|
+| HTTP | `GET /login` → **200**, 콘솔 오류 0, 페이지 오류 0, 실패 요청 0 |
+| 좁은 폭(390px) | `scrollWidth == clientWidth` — **가로 overflow 없음** |
+| 폼 접근성 | `input#email`·`input#password` 둘 다 `<label for>` 연결됨, `autocomplete="username"`/`"current-password"` 지정됨 |
+| 자동 초점 | 페이지 로드 시 `#email`이 이미 활성 — 키보드 사용자에게 유리 |
+
+### PA-F-026 · 포커스 링 "누락"은 **오탐이었다** — 3차 검증에서 폐기
+
+이 Cycle에서 가장 오래 붙든 오탐이라 과정을 남긴다.
+
+1. **1차(JS `.focus()`)**: `input#email`의 `outlineWidth: 0px`, `boxShadow: none` →
+   "포커스 링 없음" 의심. **그러나 JS `.focus()`는 `:focus-visible` 휴리스틱을 만족시키지
+   못할 수 있다** — 이 방법 자체가 부적절했다.
+2. **2차(실제 Tab 키)**: `:focus-visible`이 `True`인데도 여전히 outline 0px. 버튼은 3px
+   solid가 나와서 "입력만 빠졌다"로 보였다. **그런데 4번째 Tab이 `id=''`인 다른 요소에
+   닿아** 비교 대상이 어긋났다 — 페이지가 `#email`을 자동 초점하기 때문이었다.
+3. **3차(activeElement가 `#email`임을 확인한 뒤 부모까지 측정)**: **`.input-wrap` 부모가
+   `:focus-within`으로 테두리를 `rgb(221,228,246)` → `rgb(117,138,225)`로 바꾸고
+   `rgba(117,138,225,.14) 0 0 0 4px` 링을 그린다.** `app/static/css/base.css:98` 주석이
+   그 의도를 이미 적어 두었다.
+
+**결론: 포커스 표시는 정상이다. 결함 아님.** 요소 자신이 아니라 래퍼가 그리는 흔한 패턴이고,
+그것을 모르고 요소만 재면 없는 결함을 만든다.
+
+---
+
+## PA-RC-0011 — 제품 이름이 코드와 문서에서 다르다 (Z축)
+
+**Severity: Low · Confidence: Confirmed · Type: content(문서 드리프트)**
+
+### PA-F-027 · 실행 중인 제품은 "ClovirAssist", 문서는 "ClovirONE"
+
+- **브라우저 실측**: 로그인 페이지 `<title>` = **`로그인 | ClovirAssist`**
+- **코드**: `app/auth/router.py:298,603`·`app/auth/reset_router.py:117`이
+  `branding.get("product_name", "ClovirAssist")`로 기본값을 잡고,
+  `app/approvals/service.py:284`·`app/backups/service.py:309`가 **메일 제목**에
+  `[ClovirAssist]`를 쓴다 — 즉 **사용자에게 보이는 이름**이다.
+- **문서**: `CLAUDE.md`·`README.md`·`docs/PROGRESS_STATUS.md`에서 `ClovirAssist` **0건**.
+  반대로 `ClovirONE`은 **13개 문서**에 있다.
+- **이 Audit의 UNKNOWN 해소**: `PRODUCT_AUDIT_REPORT.md` §6에 *"Supervisor 프롬프트는
+  ClovirAssist라 부르는데 저장소에는 그 이름이 0회 — 근거가 없어 UNKNOWN"* 이라고 남겼던
+  항목이다. **브라우저와 코드 증거로 닫는다** — Supervisor 프롬프트가 맞고 문서가 낡았다.
+- **Impact**: Low. 다만 메일 제목과 화면 제목이 사용자 대상이므로 **문서만 낡은 것**이며,
+  신규 참여자가 문서를 읽고 다른 이름을 쓰게 된다.
+- **Handoff 승격**: 하지 않는다(Low, 문서 치환). 구현 Phase가 문서 배치 작업 때 함께 처리.
+
+---
+
 ## PA-RC-0009 — 백엔드 전체 회귀는 **통과한다**. 문제는 "한 번에 완주하는 방법"과 flaky 1건이다 (Y축)
 
 **Severity: Medium · Confidence: Confirmed · Type: test-gap**

@@ -120,7 +120,7 @@
 | `S-SCOPE` 관리 범위 표시줄 | `app/ScopeBar.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | · | E | · |
 | `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
-| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
+| `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | · | · | · | · | · | S | · | · | O | O | O | O | S | S | · | · | · | · | · | · | S | E | · |
 | `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 | `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | S | S | · | · | S | S | · | · | · | · | · | · | S | E | · |
 
@@ -210,7 +210,7 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `S-BELL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-DATASCREEN` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-KIT` | L축: 토큰 계층(타이포/반지름/색/모션)을 실측 스캔으로 조사 완료(PA-RC-0001). 나머지 축은 Round 계획에 남아 있다. |
-| `S-LOGIN` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-LOGIN` | L/M/N/O/C 축을 실제 Chromium 151 로 관측했다(로컬 dev :8099). 나머지 축은 Round 계획에 남아 있다. |
 | `S-PALETTE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-SCOPE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-SHELL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
@@ -320,13 +320,23 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 >
 > **그래도 flaky 1건이 남는다** — `test_prompt_create_new_version_race`는 격리 5회 중 2회 실패인데 이번 chunk3에서는 통과했다. 그것이 flaky의 정의이고, **1회 green을 근거로 삼으면 안 된다는 실례**다(`PA-RC-0008`).
 
+## 브라우저 관측 환경 (왜 로컬인가)
+
+화면 OBSERVED 증거는 **로컬 dev 서버(`:8099`)** 에서 얻었다. TEST 서버(`10.100.64.71`)가 아니다.
+
+이유는 `PA-RC-0007` 이다 — TEST 서버 배포본은 **2026-08-10 빌드**이고 그 뒤 `app/`·`frontend/` 커밋이 131개다. 거기서 화면을 보고 판정하면 **현재 코드가 아닌 것에 대한 Finding** 이 된다. 로컬은 현재 백엔드 + 2026-08-13 커밋 번들이라 훨씬 가깝다.
+
+도구: Python Playwright + Chromium **151.0.7922.34** (실행 확인함). `skill_gap: chrome-devtools` 는 이제 **해소됐다** — 브라우저 관측이 실제로 가능하다.
+
+> 다만 로컬도 완전한 현재가 아니다(번들은 마지막 빌드 커밋 시점). 그리고 **인증이 필요한 화면은 아직 관측하지 않았다** — 로그인 이후 화면은 다음 Round 대상이다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260812-171558-56c5befa
 total_cells=2340
-unseen=1533
+unseen=1530
 unseen_without_reason=0
-static_only=646
-observed=3
+static_only=644
+observed=8
 executed=158
 blocked=0
 not_applicable=0

@@ -131,13 +131,13 @@ PA-RC-0001(토큰이 소비되지 않는다)과 PA-RC-0002(오류 문구에 회�
 
 | 한계 | 상태 |
 |---|---|
-| **실제 Chrome 렌더·콘솔·네트워크 관찰을 아직 안 했다** | N/O/M축 결론은 현재 **코드 근거까지**다. 승인된 TEST 서버(`10.100.64.71`)에서 브라우저를 설치해 관찰하는 경로는 이 Audit 프롬프트 7절이 허용하므로 **BLOCKED가 아니라 미수행**이다 — 다음 Round 후보 |
+| ~~실제 브라우저 관찰을 안 했다~~ → **부분 해소** | Playwright + Chromium 151로 로그인 화면을 실측했다(`PA-RC-0010`). **인증 이후 화면은 아직** — 다음 Round. 옛 서술: | N/O/M축 결론은 현재 **코드 근거까지**다. 승인된 TEST 서버(`10.100.64.71`)에서 브라우저를 설치해 관찰하는 경로는 이 Audit 프롬프트 7절이 허용하므로 **BLOCKED가 아니라 미수행**이다 — 다음 Round 후보 |
 | ~~실행 증거는 프런트에만 있다~~ → **해소됨** | 프런트 `npm test -- --run` **253파일 / 1,718건 통과** · 백엔드 `pytest tests/regression` **331건 통과 exit 0** · `pytest tests/security` **498건 통과 exit 0**. Coverage의 `EXECUTED` 156칸이 이 근거다 |
 | **Coverage 1,948칸이 아직 UNSEEN** | 전 칸에 사유가 등록돼 있다(`unseen_without_reason=0`). Round 계획은 `PRODUCT_AUDIT_STATE.md` §3 |
 | **Blind Re-Audit 0회** | 완료 Gate F는 2회 연속 clean을 요구한다. 아직 시작도 안 했다 |
 | **Skill 5개 중 1개만 실제 적용** | `ux-writing`만 적용했다(그 결과가 PA-F-011이다). `ui-ux-pro-max`·`impeccable`·`redesign-existing-projects`는 **미설치가 아니라 순서상 미적용**이고, `humanize-korean`은 프롬프트 2절에 따라 UX Writing 확정 후로 **의도적으로 보류**했다 |
 | **워킹트리에 Audit 시작 전부터 있던 사용자 변경 5개** | `frontend/src/app/AppShell.jsx` · `CommandPalette.jsx` · `command-palette.test.jsx` · `lib/recentNav.js` · `lib/recent-nav.test.js`. **건드리지 않았다.** 이 파일들의 현재 상태는 커밋된 코드가 아니므로, 이들에 대한 이번 Audit의 판단은 미완성 변경 위에서 내려진 것일 수 있다 |
-| **제품명 불일치** | Supervisor 프롬프트는 "ClovirAssist"라 부르는데 저장소(`CLAUDE.md`·`README.md`)에는 그 이름이 **0회** 나오고 "ClovirONE Web Assistant"만 쓴다. 개명 진행 중인지 호칭 차이인지 **근거가 없어 UNKNOWN**으로 남긴다 — 지어내지 않는다 |
+| ~~제품명 불일치 UNKNOWN~~ → **해소됨** | 브라우저로 로그인 페이지 `<title>` = `로그인 \| ClovirAssist` 확인, 코드도 `branding.get("product_name", "ClovirAssist")` + 메일 제목 `[ClovirAssist]`. 즉 **실행 중인 제품은 ClovirAssist이고 문서 13개가 낡았다**(`PA-RC-0011`) |
 
 ## 7. 방법론 기록 — 자작 스캐너는 표본 검증 전까지 Finding이 아니다
 
