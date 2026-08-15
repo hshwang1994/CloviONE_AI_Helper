@@ -9,7 +9,7 @@ APP_DIR=/opt/clovirone-web-assistant
 BACKUP_ROOT=/var/backups/clovirone-web-assistant
 N8N_BACKUP_ROOT=/var/backups/n8n
 N8N_DB=/var/lib/n8n/.n8n/database.sqlite
-KEEP_PLATFORM=7   # 플랫폼 백업 보존 개수 (일 단위 실행 기준 7일)
+KEEP_PLATFORM_DAYS=7   # 플랫폼 백업 보존 기간(일)
 KEEP_N8N=4        # n8n DB 백업 보존 개수 (주 단위 실행 기준 4주)
 
 log() { echo "[backup-cron] $(date -Iseconds) $*"; }
@@ -22,17 +22,20 @@ else
 fi
 
 # 2) 플랫폼 백업 보존 정리 — 타임스탬프 디렉터리(YYYYmmdd_HHMMSS / YYYYmmdd-HHMMSS)만 대상.
-#    설치·배포 스크립트가 만든 백업도 같은 이름 규칙이므로 함께 보존 관리된다.
+#    설치·배포 스크립트가 만든 백업도 같은 이름 규칙이므로 함께 보존 관리된다(같은 풀을
+#    공유한다는 뜻이기도 하다 — 그래서 "개수"가 아니라 "나이"로 지운다, BKP-10). 예전엔
+#    "최근 KEEP_PLATFORM개만 남긴다"였는데, 배포 백업이 일일 백업과 같은 이름 규칙·같은
+#    풀을 쓰다 보니 배포가 잦은 날 하루 만에 일주일치 복원 지점이 증발할 수 있었다(배포
+#    N번 = 그날 슬롯 N개 소모). 배포 빈도와 무관하게 항상 최소 KEEP_PLATFORM_DAYS일치가
+#    남도록, 그 기간보다 오래된 것만 지운다.
 if [ -d "$BACKUP_ROOT" ]; then
-  mapfile -t dirs < <(find "$BACKUP_ROOT" -maxdepth 1 -mindepth 1 -type d \
-    -regextype posix-extended -regex '.*/[0-9]{8}[-_][0-9]{6}' | sort)
-  count=${#dirs[@]}
-  if (( count > KEEP_PLATFORM )); then
-    for d in "${dirs[@]:0:count-KEEP_PLATFORM}"; do
-      log "prune platform backup: $d"
-      rm -rf -- "$d"
-    done
-  fi
+  mapfile -t old_dirs < <(find "$BACKUP_ROOT" -maxdepth 1 -mindepth 1 -type d \
+    -regextype posix-extended -regex '.*/[0-9]{8}[-_][0-9]{6}' \
+    -mtime "+$KEEP_PLATFORM_DAYS")
+  for d in "${old_dirs[@]}"; do
+    log "prune platform backup: $d"
+    rm -rf -- "$d"
+  done
 fi
 
 # 3) n8n DB 백업 (일요일에만) — 온라인 스냅샷은 sqlite Backup API 사용(WAL 안전)
