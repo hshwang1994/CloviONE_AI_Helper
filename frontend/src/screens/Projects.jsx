@@ -95,12 +95,20 @@ function Summary({ query }) {
         <StatCard value={status.on_hold} label="보류" />
         <StatCard value={status.planned} label="계획" />
         {/* 평균을 못 낼 수도 있다(계산된 프로젝트가 하나도 없음). 그때 0% 로 그리면
-            "세어 봤더니 0" 이라는 거짓말이 된다 - StatCard 는 null 을 '-' 로 그린다. */}
-        <StatCard value={avg} label="평균 진행률" />
+            "세어 봤더니 0" 이라는 거짓말이 된다 - StatCard 는 null 을 '-' 로 그린다.
+            VIS-09: 이 각주는 예전엔 구역 전체 아래에 떨어진 공용 문단이라 "평균 진행률"과
+            "Health 하위" 중 어느 쪽 얘기인지 시선으로 안 이어졌다 - 각 타일의 note로 갈라
+            붙인다(kit.jsx::StatCard). */}
+        <StatCard
+          value={avg} label="평균 진행률"
+          note={"계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
+            + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + "."}
+        />
         <StatCard
           value={trouble.count}
           label="Health 하위"
           kind={trouble.count > 0 ? "danger" : undefined}
+          note={"Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다."}
         />
         <StatCard
           value={overdue.count}
@@ -108,11 +116,6 @@ function Summary({ query }) {
           kind={overdue.count > 0 ? "warn" : undefined}
         />
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, ...KO_WORD_BREAK }}>
-        {"평균 진행률은 계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
-          + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "")
-          + ". Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다."}
-      </Typography>
     </Box>
   );
 }

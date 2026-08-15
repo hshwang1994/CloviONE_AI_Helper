@@ -384,6 +384,23 @@ describe("프로젝트 목록 — 요약", () => {
     expect(screen.getByText(/8건은 아직 계산하지 않았습니다/)).toBeInTheDocument();
     expect(screen.getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
   });
+
+  it("VIS-09: 각주가 구역 전체가 아니라 그 숫자를 담은 타일 안에 있다", async () => {
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    // 예전엔 두 각주가 합쳐진 문단 하나가 그리드 전체 아래에 떨어져 있었다 - 어느 타일
+    // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 타일(.k-stat) 안에
+    // 있어야 한다(kit.jsx::StatCard 의 note prop).
+    const avgTile = screen.getByText("평균 진행률").closest(".k-stat");
+    expect(within(avgTile).getByText(/계산이 끝난 14건만 셌습니다/)).toBeInTheDocument();
+
+    const healthTile = screen.getByText("Health 하위").closest(".k-stat");
+    expect(within(healthTile).getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
+
+    // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
+    expect(within(avgTile).queryByText(/아직 재지 않았습니다/)).toBeNull();
+  });
 });
 
 describe("프로젝트 목록 — 조건이 주소에 남는다", () => {

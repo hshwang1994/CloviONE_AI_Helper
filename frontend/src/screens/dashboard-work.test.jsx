@@ -24,7 +24,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: "admin", id: "u-1" } }),
 }));
 
-import { Dashboard } from "./Dashboard.jsx";
+import { Dashboard, WORK_UNKNOWN } from "./Dashboard.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -151,7 +151,7 @@ describe("대시보드 업무 구역 - 0 과 없음", () => {
       return Promise.resolve({});
     });
     renderDashboard();
-    expect(await screen.findByText(/내 업무를 셀 수 없습니다/)).toBeInTheDocument();
+    expect(await screen.findByText(WORK_UNKNOWN)).toBeInTheDocument();
     expect(screen.queryByText("내 미완료")).not.toBeInTheDocument();
     expect(screen.queryByText("이번 주 마감")).not.toBeInTheDocument();
     // 프로젝트 쪽은 다른 소스다 - 티켓이 죽었다고 함께 사라지면 안 된다(타일 + 목록 제목).

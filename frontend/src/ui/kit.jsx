@@ -237,7 +237,7 @@ export function Callout({ tone = "info", children }) {
   );
 }
 
-export function StatCard({ value, label, kind, onClick, active }) {
+export function StatCard({ value, label, kind, onClick, active, note }) {
   // 심각도는 색만으로 전하지 않는다(WCAG 1.4.1). 짧은 텍스트 태그('주의'/'위험')로 비색상 단서를 준다.
   const sev = kind === "danger" ? "위험" : kind === "warn" ? "주의" : null;
   const color = TONE_COLOR[kind];
@@ -286,6 +286,14 @@ export function StatCard({ value, label, kind, onClick, active }) {
           <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
         ) : null}
       </Typography>
+      {/* VIS-09/VIS-27: 숫자를 한정하는 각주(예: "계산이 끝난 20건만")는 구역 아래 멀리
+          떨어진 공용 Note가 아니라 그 숫자를 담은 카드 안에 둔다 — 그래야 어느 숫자를
+          한정하는지 다시 찾을 필요가 없다(/projects/:id 상세의 기존 패턴과 같은 원칙). */}
+      {note ? (
+        <Typography component="div" variant="caption" color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, lineHeight: 1.4, ...KO_WORD_BREAK }}>
+          {note}
+        </Typography>
+      ) : null}
       {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이 없다. */}
       {onClick ? (
         <ChevronRightRoundedIcon

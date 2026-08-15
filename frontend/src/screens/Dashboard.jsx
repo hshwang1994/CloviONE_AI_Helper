@@ -140,7 +140,11 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
 
 // 티켓 소스를 못 읽었을 때의 문구. **0 을 그리지 않는다** — '할 일이 없다'는 거짓말이 된다
 // (Home.jsx 의 SprintProgress 가 같은 상황에 같은 결의 문장을 쓴다).
-export const WORK_UNKNOWN = "티켓 소스를 읽지 못해 내 업무를 셀 수 없습니다.";
+// VIS-28: "내 업무를 셀 수 없습니다"라고 뭉뚱그리면, 바로 위에 실제로 세어진 '차질
+// 프로젝트'·'지연 마일스톤' 타일과 스스로 모순돼 보인다 — 그 둘은 티켓이 아니라
+// 프로젝트/마일스톤 소스라 장애와 무관하게 정상 집계된다(app/home/work.py 의
+// "장애 격리(§17.4)" 설계). 못 세는 대상을 티켓 기반 항목으로 한정해 모순을 없앤다.
+export const WORK_UNKNOWN = "티켓 소스를 읽지 못해 내 미완료·이번 주 마감·지연 티켓은 셀 수 없습니다. 위 차질 프로젝트·지연 마일스톤은 다른 소스라 정상 집계됩니다.";
 
 // 완료 추이의 기준. 소스에 '상태가 완료로 바뀐 시각'이 없다(app/projects/weekly.py 와
 // app/sprints/burndown.py 가 같은 사정을 적어 뒀다). 없는 이력을 추정해 선을 그으면 그건
@@ -603,18 +607,19 @@ function DashboardBody({ d, nav, role, stale }) {
           {/* 서버는 이 값(jobs_24h.succeeded)을 매 폴링마다 이미 계산해 내려주는데(app/health/service.py)
               화면 어디에도 쓰이지 않고 버려지고 있었다, 옆 성공률 타일의 분자를 그대로 보여준다. */}
           <StatCard value={fmtNum(jobs.succeeded)} label={"성공" + jobsNote} onClick={goto("/jobs")} />
+          {/* VIS-27: 분모 설명("종료 작업만, 대기/실행 중 제외")은 이 타일 하나에만 해당하는데
+              예전엔 네 타일 전체 아래에 공용 Note로 떨어져 있어 성공/처리 타일에도 같은 예외가
+              적용되는 것처럼 읽혔다. StatCard의 note로 이 타일 안에 직접 붙인다. */}
           <StatCard value={jobs.success_rate_pct != null ? jobs.success_rate_pct + "%" : "-"} label={"성공률(종료 작업 대비)" + jobsNote}
             kind={jobs.success_rate_pct == null ? undefined : jobs.success_rate_pct >= 95 ? "ok" : jobs.success_rate_pct >= 80 ? "warn" : "danger"}
-            onClick={goto("/jobs")} />
+            onClick={goto("/jobs")}
+            note="최근 24시간에 종료(성공, 실패, 취소)된 작업 대비이며, 아직 끝나지 않은 대기, 실행 중 작업은 분모에서 제외됩니다." />
           {/* 단위는 라벨 괄호가 아니라 값에 붙인다, 성공률/디스크/메모리 타일과 같은 표기 규칙
               (위 주석 '성공률 낮음(%) 위 45는 어색했다' 참고). */}
           <StatCard value={fmtProcessingTime(jobs.avg_processing_seconds)} label={"평균 처리" + jobsNote} onClick={goto("/jobs")} />
         </Box>
-        {/* 성공률의 분모는 최근 24시간에 '종료된'(성공, 실패, 취소) 작업만이다, 아직 끝나지 않은
-            대기, 실행 중 작업은 분모에서 제외된다. */}
         {/* 이 네 값에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다 — app/health/service.py).
             없는 추세선을 그리면 한 점을 선으로 잇는 거짓말이 되므로 여기는 숫자로 둔다. */}
-        <Note>성공률은 최근 24시간에 종료(성공, 실패, 취소)된 작업 대비이며, 아직 끝나지 않은 대기, 실행 중 작업은 분모에서 제외됩니다.</Note>
       </DashSection>
 
       <DashSection title="현재 큐 상태">
