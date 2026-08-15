@@ -7,13 +7,14 @@ IntegrityError 흡수로 멱등하게 처리한다(자유게시판 검수에서 
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import is_write_conflict
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import comments as doc_comments
 from app.team_docs import repository
@@ -313,28 +314,45 @@ def toggle_favorite(db: Session, *, user_id: str, page_id: str, on: bool, now: d
     return False
 
 
+_RECORD_VIEW_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
+
+
 def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> None:
-    existing = repository.find_recent(db, user_id, page_id)
-    if existing is not None:
-        existing.viewed_at = now
-        db.flush()
-        return
-    row = DocumentRecentView(
-        user_id=user_id, notion_page_id=page_id, viewed_at=now,
-        document_id=_document_uid(db, page_id),
-    )
-    try:
-        with db.begin_nested():
-            db.add(row)
-            db.flush()
-    except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
-            raise
-        # 경쟁에서 진 쪽 — 이미 생긴 행의 시각을 갱신.
-        again = repository.find_recent(db, user_id, page_id)
-        if again is not None:
-            again.viewed_at = now
-            db.flush()
+    """최근 열람 기록 — 문서 상세 GET의 부수효과라 실패해도 본문 조회 자체를 막으면 안 된다.
+
+    실측(2026-08-15 E2E): 기존 코드는 "행이 이미 있으면 갱신"(existing 분기)에 재시도가
+    전혀 없어, 이미 성공적으로 읽어 온 본문이 있는데도 이 마지막 한 줄의 `database is locked`
+    로 문서 상세 전체가 원시 500이 났다(반대로 "행이 아직 없어 새로 만드는" 분기는 이미
+    PA-RC-0008 관용대로 한 번은 재시도 폴백이 있었다 — 둘을 하나의 루프로 합쳐 어느
+    분기든 같은 예산을 쓰게 한다).
+
+    예산을 다 쓰면(극히 드묾) 조용히 포기한다 — approvals/prompts류(사용자가 직접 일으킨
+    쓰기)와 달리 여기엔 사용자에게 409로 알릴 대상 행동이 없다: 최악의 결과는 "최근 열람"
+    시각이 이번 조회분만 안 갱신되는 것뿐이라, 로그만 남기고 본문 응답은 그대로 낸다.
+    """
+    for attempt in range(_RECORD_VIEW_RETRIES):
+        try:
+            with db.begin_nested():
+                existing = repository.find_recent(db, user_id, page_id)
+                if existing is not None:
+                    existing.viewed_at = now
+                else:
+                    db.add(DocumentRecentView(
+                        user_id=user_id, notion_page_id=page_id, viewed_at=now,
+                        document_id=_document_uid(db, page_id),
+                    ))
+                db.flush()
+            return
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            if attempt == _RECORD_VIEW_RETRIES - 1:
+                logger.warning(
+                    "최근 열람 기록 갱신 재시도 소진(page_id=%s), 조회 자체는 계속 진행합니다.",
+                    page_id,
+                )
+                return
+            time.sleep(write_conflict_backoff(attempt))
 
 
 def cache_created_document(
