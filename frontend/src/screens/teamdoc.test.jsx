@@ -144,7 +144,7 @@ describe("DocBody 공용 렌더러(티켓 상세와 공유)", () => {
     expect(screen.queryByRole("link", { name: /internal\.example\.com/ })).toBeNull();
     // 이 버튼의 접근성 이름은 Tooltip 안내문("외부 링크는...")이다 — URL 자체는 눈에
     // 보이는 자식 텍스트일 뿐 이름이 아니다.
-    const copyBtn = screen.getByRole("button", { name: "외부 링크는 열 수 없습니다, 눌러서 주소를 복사합니다." });
+    const copyBtn = screen.getByRole("button", { name: "외부 링크는 열 수 없습니다. 눌러서 주소를 복사합니다." });
     expect(copyBtn).toHaveTextContent("https://internal.example.com/vpn");
   });
 

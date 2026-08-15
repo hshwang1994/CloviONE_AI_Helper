@@ -611,7 +611,7 @@ export function DataScreen({ config }) {
        * 손으로 박아 뒀는데, 그 사이 '출처'는 서버 필터로 옮겨 갔다 — 안내가 화면보다 늦게
        * 늙는다. 목록을 clientFilterDefs에서 만들면 설정이 바뀌는 순간 문구도 함께 바뀐다. */}
       {config.paginated && clientFilterDefs.length ? (
-        <Callout tone="warn">{"‘" + clientFilterDefs.map((f) => f.label).join("’, ‘") + "’ 필터는 지금 보고 있는 페이지에만 적용됩니다, 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요."}</Callout>
+        <Callout tone="warn">{"‘" + clientFilterDefs.map((f) => f.label).join("’, ‘") + "’ 필터는 지금 보고 있는 페이지에만 적용됩니다. 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요."}</Callout>
       ) : null}
       {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
       {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (

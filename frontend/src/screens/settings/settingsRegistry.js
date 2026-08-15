@@ -191,7 +191,7 @@ export function securityDowngradeWarning(setting, value) {
     if (value && cur.absolute_timeout_seconds != null && value.absolute_timeout_seconds != null && value.absolute_timeout_seconds > cur.absolute_timeout_seconds)
       reasons.push("최대 세션 길이 " + fmtDuration(cur.absolute_timeout_seconds) + " → " + fmtDuration(value.absolute_timeout_seconds));
     if (reasons.length)
-      return "세션 정책을 완화합니다(" + reasons.join(", ") + "). 세션이 더 오래 유지됩니다, 계속할까요?";
+      return "세션 정책을 완화합니다(" + reasons.join(", ") + "). 세션이 더 오래 유지됩니다. 계속할까요?";
     // 유휴 제한을 줄이는 것은 '완화'가 아니라 반대(강화)지만, 다른 위험이 있다: absolute_timeout_seconds
     // 와 달리 idle_timeout_seconds 는 세션 생성 시점에 굳지 않고 매 요청마다 그때의 설정값으로 다시
     // 계산된다(app/core/sessions.py::validate). 그래서 "신규 세션부터 적용"이 아니라 저장 즉시 이미

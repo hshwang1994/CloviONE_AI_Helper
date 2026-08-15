@@ -100,7 +100,7 @@ export const ORG_SCREENS = {
     detailFields: [field("id", "부서 ID"), field("org_name", "조직"), field("org_id", "조직 ID"),
       field("child_department_count", "하위 부서"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count
-        ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요."
+        ? "사용 중인 부서(소속 인원 " + r.user_count + "명, 보관 계정 포함)는 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요."
         : r.child_department_count
           ? "삭제하면 하위 부서 " + r.child_department_count + "개가 최상위 부서로 올라갑니다(하위 부서 자체는 지워지지 않습니다)."
           : "-" }],
@@ -140,7 +140,7 @@ export const ORG_SCREENS = {
     emptyTitle: "등록된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 만들면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
     // 체인처럼 다음 단계(사용자)로 이어 준다. 단계별 안내는 canOnboard가 쓰기 역할에만 보여준다.
-    emptySituation: "부서, 직책, 사용자 온보딩 체인의 한 단계입니다, 아직 직책이 하나도 없습니다.",
+    emptySituation: "부서, 직책, 사용자 온보딩 체인의 한 단계입니다. 아직 직책이 하나도 없습니다.",
     emptySteps: ["‘+ 직책 추가’로 필요한 직책을 만듭니다.", "사용할 직책을 모두 등록합니다.", "사용자 화면에서 계정을 만들 때 이 직책을 배정합니다."],
     emptyExpected: "등록한 직책은 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
     emptyRelatedLink: { href: "#/users", label: "다음: 사용자 등록으로 이동" },
@@ -156,7 +156,7 @@ export const ORG_SCREENS = {
     columns: [col("name", "직책 이름"), activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "생성")],
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(부서와 동일한 이유) — 상세에 이유를 남긴다.
     detailFields: [field("id", "직책 ID"),
-      { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다, 대신 ‘비활성화’를 이용하세요." : "-" }],
+      { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요." : "-" }],
     create: { roles: WRITE_ROLES, fields: [{ name: "name", label: "직책 이름", type: "text", required: true, help: "사용자 폼의 '직책' 목록에 바로 나타납니다." }] },
     // 활성 토글은 확인 문구가 붙은 아래 활성/비활성 액션으로만 처리한다(수정 폼의 무경고 체크박스 제거).
     // required:true — 부서와 동일한 이유(비워서 제출하면 조용한 no-op + 거짓 성공 토스트가 됐다).
@@ -322,7 +322,7 @@ export const ORG_SCREENS = {
         // 자동 검증은 워크플로 재소스로 매칭한다 — 수동으로 지정한 연결(source==='manual')을
         // 무일치로 덮어써 지울 수 있으므로(service.py no-match 처리) 그 경우만 별도로 경고한다.
         confirm: (r) => r.source === "manual"
-          ? "이 사용자를 지금 검증할까요? 수동으로 지정한 연결입니다, 자동 검증이 일치를 못 찾으면 연결이 해제될 수 있습니다. (Notion에 직접 조회하므로 최대 30초까지 걸릴 수 있습니다.)"
+          ? "이 사용자를 지금 검증할까요? 수동으로 지정한 연결입니다. 자동 검증이 일치를 못 찾으면 연결이 해제될 수 있습니다. (Notion에 직접 조회하므로 최대 30초까지 걸릴 수 있습니다.)"
           : "이 사용자를 지금 검증할까요? Notion에 직접 조회하므로 최대 30초까지 걸릴 수 있습니다.",
         result: (res) => {
           const m = (res && res.mapping) || res || {};   // res===null(빈 2xx)이면 res.mapping 접근이 throw — 널가드

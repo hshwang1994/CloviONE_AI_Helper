@@ -45,7 +45,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
   // 카드의 '상세'도 선택 버튼과 같은 이유로 마지막 어시스턴트 메시지에서만 활성화한다, 스크롤해
   // 올라가 옛 목록의 '상세'를 누르면 'N번 상세'가 지금 맥락의 엉뚱한 티켓을 가리킨다(오작동).
   const cardChoose = isLast ? onChoose : undefined;
-  const attachCaveat = "전송 후 이미지 원본은 저장되지 않습니다, 파일 이름만 남습니다.";
+  const attachCaveat = "전송 후 이미지 원본은 저장되지 않습니다. 파일 이름만 남습니다.";
   // AI-08: 러너가 돌려주는 실제 처리 시간(structured.timing) — 있을 때만(정상 응답에만 실린다).
   const responseTime = isAssistant ? responseTimeLabel(m) : null;
 
@@ -114,7 +114,7 @@ export function Message({ m, onChoose, onRetry, sending, retrying, isLast, hideC
         {failed ? (
           <Typography sx={{ mt: 1, fontSize: "0.8125rem", color: isUser ? "inherit" : "error.main" }}>
             {m.error_code === "assistant_rejected"
-              ? "처리하지 못했습니다, 다시 시도해도 같은 결과가 나올 가능성이 높습니다. 질문을 다르게 표현해 새로 물어보세요."
+              ? "처리하지 못했습니다. 다시 시도해도 같은 결과가 나올 가능성이 높습니다. 질문을 다르게 표현해 새로 물어보세요."
               : (
                 <>
                   처리하지 못했습니다.{" "}

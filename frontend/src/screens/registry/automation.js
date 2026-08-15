@@ -68,7 +68,7 @@ export const AUTOMATION_SCREENS = {
     onSaved: (res, { toast, prev }) => {
       const s = res && res.schedule;
       if (prev && prev.enabled && s && s.enabled === false) {
-        toast("저장했지만 정의 변경으로 비활성화되었습니다, 다시 활성화(승인)해야 실행됩니다.", "error");
+        toast("저장했지만 정의 변경으로 비활성화되었습니다. 다시 활성화(승인)해야 실행됩니다.", "error");
         return true;
       }
       return false;
@@ -178,7 +178,7 @@ export const AUTOMATION_SCREENS = {
         // 부모 스케줄이 비활성이면 위 '재시도' 버튼이 통째로 숨겨진다(백엔드 _require_execution_gate가
         // 항상 거절하므로) — 그 자리에 이유를 알려준다(DataScreen.jsx SubListDrawer가 소비).
         actionHint: (sub, parent) => (sub.status === "failed" && parent && !parent.enabled)
-          ? "이 일정이 비활성 상태라 재시도할 수 없습니다, 먼저 활성화하세요." : null,
+          ? "이 일정이 비활성 상태라 재시도할 수 없습니다. 먼저 활성화하세요." : null,
       } },
       // operator는 스케줄 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
       // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
@@ -196,7 +196,7 @@ export const AUTOMATION_SCREENS = {
       // 이미 실행된 once형은 next_run_at이 비어 있어 이 폼도 run_at을 빈 채로 연다(백엔드 _view가
       // next_run_at이 있을 때만 run_at을 돌려줌) — 그대로 저장하면 백엔드가 422('once 스케줄에는
       // run_at이 필요합니다')로 거절한다. 왜 비어 있는지·무엇을 채워야 하는지 여기서 미리 알린다.
-      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다, 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
+      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다. 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
       { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",

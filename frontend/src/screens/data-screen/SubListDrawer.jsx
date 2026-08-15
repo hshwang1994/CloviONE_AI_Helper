@@ -144,7 +144,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
        * (예: 정책의 '이 정책을 쓰는 템플릿' — 발행·롤백 전 영향 범위를 이 불완전한 목록으로 오판할 수 있다). */}
       {!sl.paginated && (sl.filterRows ? rawRows.length >= 500 : rows.length >= 500) ? (
         <Callout tone="warn">{sl.filterRows
-          ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다, 일부 관련 항목이 누락됐을 수 있습니다."
+          ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다. 일부 관련 항목이 누락됐을 수 있습니다."
           : "결과가 500건으로 제한되어 일부 항목이 보이지 않을 수 있습니다."}</Callout>
       ) : null}
       {q.isLoading ? <Skeleton lines={4} />

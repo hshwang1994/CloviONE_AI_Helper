@@ -122,7 +122,7 @@ export function Settings() {
            응답이 비정상(빈 형태)일 때를 위한 방어적 폴백으로만 남긴다. */
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
-        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다, 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
+        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>}
       {/* 시스템 설정 표 아래에 개인 취향 설정을 둔다 — 위와 성격이 달라(서버 저장 아님) 카드를 나눈다. */}
       <AccentPicker />
@@ -134,7 +134,7 @@ export function Settings() {
           if (sel) qc.invalidateQueries({ queryKey: ["settings", sel.key, "versions"] });
           setSel(null);
           // 재시작이 필요한 키는 저장만으로 적용되지 않는다 — 수동 재시작 안내를 분명히 남긴다(현재는 해당 키 없음, 향후 대비).
-          if (res && res.restart_required) toast("설정을 저장했습니다, 적용하려면 서비스를 수동으로 재시작하세요.", "info");
+          if (res && res.restart_required) toast("설정을 저장했습니다. 적용하려면 서비스를 수동으로 재시작하세요.", "info");
           else toast("설정을 저장했습니다.", "success");
         }} />
     </div>

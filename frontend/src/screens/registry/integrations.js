@@ -351,7 +351,7 @@ export const INTEGRATION_SCREENS = {
       { name: "operation_mode", label: "모드", type: "select", value: "read", options: WFMODE_OPTS, help: "쓰기는 데이터를 변경합니다." },
       { name: "owner", label: "담당자", type: "text" },
       { name: "tags", label: "태그(JSON 배열)", type: "json", help: '예: ["report","weekly"]' },
-      { name: "approval_required", label: "승인 필요", type: "checkbox", value: false, checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다, 읽기 워크플로는 예약 실행 시 승인 없이 실행됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 켜진 모든 워크플로/템플릿에 적용됩니다(app/documents/service.py: publish_approval_required)." },
+      { name: "approval_required", label: "승인 필요", type: "checkbox", value: false, checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 읽기 워크플로는 예약 실행 시 승인 없이 실행됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 켜진 모든 워크플로/템플릿에 적용됩니다(app/documents/service.py: publish_approval_required)." },
       { name: "enabled", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "먼저 ‘테스트’로 수신 주소 도달을 확인한 뒤 켜는 것을 권장합니다." },
     ] },
     // 편집은 PATCH(부분 갱신) — 예약 워크플로 행에서는 name 필드를 아예 빼서 계약 이름이 바뀌지

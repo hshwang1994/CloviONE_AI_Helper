@@ -40,7 +40,7 @@ export const GOVERNANCE_SCREENS = {
     // self_approval_allowed는 서버 설정 파일에만 있고(app/core/feature_flags.py) 이 관리 콘솔에는
     // 그 값을 보거나 바꿀 화면이 없다 — '정책 설정에 따라 달라질 수 있어요'는 마치 이 화면 어딘가에
     // 바꿀 수 있는 정책 설정이 있는 것처럼 읽혀 없는 컨트롤을 찾게 만들었다. 서버 쪽 설정임을 명시한다.
-    help: "위험할 수 있는 작업의 승인 요청을 처리합니다. 본인 요청은 기본적으로 본인이 승인할 수 없습니다(서버 설정 파일로만 조정되며, 이 화면에서는 바꿀 수 없습니다). 승인 요청은 72시간(기본값)이 지나면 자동으로 만료됩니다, 처리하지 않고 두면 다음에 다시 열었을 때 '만료'로 바뀌어 있을 수 있습니다.",
+    help: "위험할 수 있는 작업의 승인 요청을 처리합니다. 본인 요청은 기본적으로 본인이 승인할 수 없습니다(서버 설정 파일로만 조정되며, 이 화면에서는 바꿀 수 없습니다). 승인 요청은 72시간(기본값)이 지나면 자동으로 만료됩니다. 처리하지 않고 두면 다음에 다시 열었을 때 '만료'로 바뀌어 있을 수 있습니다.",
     // 실제 승인 실행자는 5종(app/approvals/service.py): schedule.enable, runner.change_config,
     // integration.change_config, user.role_change, document.publish. 예전 문구는 3종만 언급해
     // 스케줄 활성화·문서 발행 승인이 왜 여기 뜨는지 안내가 없었다.
@@ -142,7 +142,7 @@ export const GOVERNANCE_SCREENS = {
       // 삭제·상한 삭제)처럼 확인을 먼저 받는다. document.publish 거절은 대상 문서 생성까지 실패로
       // 확정한다(_fail_pending_document_publish) — 그 파급을 요청 유형별로 밝힌다.
       { label: "거절", variant: "danger", when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId) && !!r.can_decide, path: (r) => "/api/admin/approvals/" + r.id + "/reject",
-        confirm: (r) => "이 요청을 거절하면 되돌릴 수 없습니다, 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다."
+        confirm: (r) => "이 요청을 거절하면 되돌릴 수 없습니다. 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다."
           + (r.request_type === "document.publish" ? " 이 요청은 문서 발행 건이라, 거절하면 대상 문서 생성도 실패로 확정됩니다." : "")
           + " 계속 거절할까요?",
         fields: [{ name: "comment", label: "거절 사유(선택)", type: "textarea", help: "거절 사유를 남기면 감사 기록에 함께 저장됩니다." }] },

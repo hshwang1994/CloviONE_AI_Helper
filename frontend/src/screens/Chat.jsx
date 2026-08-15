@@ -300,7 +300,7 @@ export function Chat() {
                   ))}
                 </Stack>
                 {/* hover-only 툴팁은 모바일/터치에서 아예 안 보인다, 전송 전에 눈에 보이는 문장으로도 알린다. */}
-                <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>전송 후에는 이미지 원본이 저장되지 않습니다, 파일 이름만 남습니다.</Typography>
+                <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>전송 후에는 이미지 원본이 저장되지 않습니다. 파일 이름만 남습니다.</Typography>
               </>
             ) : null}
             {/* 글자 수는 입력이 있으면 늘 옅게 보여준다 — 상한이 갑자기 닥치지 않게(바닐라도 항상 표시).
@@ -329,7 +329,7 @@ export function Chat() {
                 지속되는 수동 힌트를 컴포저 위에 둔다. */}
             {(busy || awaitingReply) && !composerLocked ? (
               <Typography role="status" sx={{ textAlign: "center", fontSize: "0.75rem", color: "text.secondary" }}>
-                답변을 기다리는 중입니다, 답변이 도착하면 다시 입력할 수 있습니다.
+                답변을 기다리는 중입니다. 답변이 도착하면 다시 입력할 수 있습니다.
               </Typography>
             ) : null}
             {aiQuotaDay && aiQuotaDay.limit != null ? (

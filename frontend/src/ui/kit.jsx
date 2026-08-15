@@ -771,7 +771,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength }) {
     const end = el.selectionEnd ?? el.value.length;
     const nextLength = el.value.length - (end - start) + pasted.length;
     if (nextLength > maxLength) {
-      toast(`최대 ${maxLength}자까지만 저장됩니다, 붙여넣은 내용 중 일부가 잘렸습니다.`, "warn");
+      toast(`최대 ${maxLength}자까지만 저장됩니다. 붙여넣은 내용 중 일부가 잘렸습니다.`, "warn");
     }
   } : undefined;
   const charCount = (multiline && maxLength) ? `${(value || "").length}/${maxLength}자` : null;
@@ -965,7 +965,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         val = val == null ? "" : String(val);
         if (f.required && !val.trim()) {
           // 옵션 자체가 없으면 '선택하세요'는 헛도는 무한 루프다 — 원인이 다른 문구를 준다.
-          if (!(f.options || []).length) { fail(f.name, f.label + ": 선택할 수 있는 항목이 없습니다, 다시 시도하거나 취소하세요."); return; }
+          if (!(f.options || []).length) { fail(f.name, f.label + ": 선택할 수 있는 항목이 없습니다. 다시 시도하거나 취소하세요."); return; }
           fail(f.name, f.label + "을(를) 선택하세요."); return;
         }
         body[f.name] = val === "" ? null : val; continue;

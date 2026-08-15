@@ -153,7 +153,7 @@ export function Maintenance() {
             {q.isError ? (
               <Box sx={{ mb: 3 }} role="status">
                 <Callout tone="warn">
-                  최신 상태를 불러오지 못했습니다, 아래 값은 이전에 불러온 자료입니다.{" "}
+                  최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.{" "}
                   <Link component="button" type="button" variant="body2" underline="hover" onClick={() => q.refetch()}>다시 시도</Link>
                 </Callout>
               </Box>

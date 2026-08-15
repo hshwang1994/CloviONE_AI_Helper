@@ -56,7 +56,7 @@ export function Diagnostics() {
         if (q.data) {
           // 자동 폴링(manual=false)이 계속 실패하는 동안엔(장애 지속) 매 60초마다 같은 배너를 반복
           // 토스트하지 않는다 — 오류 스트릭 진입 순간과, 사용자가 수동으로 다시 시도한 순간에만 알린다.
-          if (wasManual || !wasErrorRef.current) toast("진단 갱신에 실패했습니다, 아래 값은 이전에 수집한 자료입니다.", "error");
+          if (wasManual || !wasErrorRef.current) toast("진단 갱신에 실패했습니다. 아래 값은 이전에 수집한 자료입니다.", "error");
         } else if (wasManual) toast("진단 수집에 실패했습니다.", "error");
         // 자동 수집(manual=false)이고 이전 번들도 없으면 전체화면 ErrorState가 이미 실패를 알리므로 토스트를 겹치지 않는다.
         wasErrorRef.current = true;
@@ -150,7 +150,7 @@ export function Diagnostics() {
         : bundle ? (
           <Box>
             {/* 재수집이 실패해도 이전 번들이 그대로 남으므로, 낡은 값을 최신처럼 보여주지 않도록 경고 배너를 띄운다. */}
-            {q.isError ? <Box sx={{ mb: 3 }}><Callout tone="warn">진단 갱신에 실패했습니다, 아래 값은 {fmtDateTime(bundle.generated_at)}에 수집한 이전 자료입니다.</Callout></Box> : null}
+            {q.isError ? <Box sx={{ mb: 3 }}><Callout tone="warn">진단 갱신에 실패했습니다. 아래 값은 {fmtDateTime(bundle.generated_at)}에 수집한 이전 자료입니다.</Callout></Box> : null}
             <Note sx={{ mt: 0, mb: 3 }}>수집 시각: {fmtDateTime(bundle.generated_at)}, 이 번들은 민감정보가 가려져 있어 지원팀에 그대로 전달해도 안전합니다.</Note>
             {/* 상태 요약(정상/주의)은 수집마다 바뀌므로 낭독되도록 라이브 영역으로 감싼다. */}
             {(() => {

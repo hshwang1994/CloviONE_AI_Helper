@@ -390,7 +390,7 @@ function DashboardBody({ d, nav, role, stale }) {
   function copyObjectId(id) {
     copyToClipboard(id).then(
       () => { setRevealedId(null); toast("ID를 복사했습니다.", "success"); },
-      () => { setRevealedId(id); toast("복사를 지원하지 않는 환경입니다, 아래에 전체 ID를 펼쳤습니다.", "info"); }
+      () => { setRevealedId(id); toast("복사를 지원하지 않는 환경입니다. 아래에 전체 ID를 펼쳤습니다.", "info"); }
     );
   }
   const jobs = d.jobs_24h || {};
@@ -518,7 +518,7 @@ function DashboardBody({ d, nav, role, stale }) {
           운영자가 낡은 수치를 계속 최신처럼 읽기 쉽다, 눈에 띄는 경고 배너로 올린다. */}
       {/* 폴링 실패로 값이 낡았다는 사실 자체가 스크린리더에도 알려져야 한다, Callout 자체엔
           role/aria-live가 없어 이 배너가 나타나는 순간이 SR 사용자에게 조용히 지나갔다. */}
-      {stale ? <Box sx={{ mb: 3 }} role="status" aria-live="polite"><Callout tone="warn">실시간 갱신이 실패했습니다, 표시된 값이 최신이 아닐 수 있습니다.</Callout></Box> : null}
+      {stale ? <Box sx={{ mb: 3 }} role="status" aria-live="polite"><Callout tone="warn">실시간 갱신이 실패했습니다. 표시된 값이 최신이 아닐 수 있습니다.</Callout></Box> : null}
       {/* aria-live 래퍼 자체는 항상 마운트된 채로 두고 안의 자식(경보 묶음 ↔ all-clear)만 바꾼다 -
           예전엔 aria-live가 <section> 안쪽에 있어, 경보가 전부 사라지고 all-clear로 바뀌는 순간
           그 live region 엘리먼트 자체가 통째로 언마운트돼 전환 자체를 SR이 놓칠 수 있었다. */}

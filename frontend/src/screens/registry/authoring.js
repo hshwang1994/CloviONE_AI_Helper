@@ -18,7 +18,7 @@ export const AUTHORING_SCREENS = {
     key: "prompts", area: "콘텐츠", title: "프롬프트", endpoint: "/api/admin/prompts",
     // 워크플로 화면의 '테스트'가 실제 실행이 아니라 도달성만 확인한다고 밝히듯, 여기도 상태 전이
     // 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일 뿐 — app/prompts/service.py).
-    help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다, 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
+    help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
     emptyTitle: "등록된 프롬프트가 없습니다",
     // 읽기 전용 역할(operator/auditor)에는 렌더되지 않는 '+ 추가' 버튼을 누르라고 안내하지 않는다.
     // 안내 문구의 생명주기는 실제 강제되는 전이(draft→test→review→published)에 맞춘다('테스트' 단계 포함).
@@ -65,7 +65,7 @@ export const AUTHORING_SCREENS = {
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — policies와 동일한 이유로 편집
       // 안내를 남긴다(registry.js policies의 _edit_note와 동일 패턴).
-      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다, 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
+      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다. 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
       dateCol("published_at", "발행 시각"), jsonField("content", "프롬프트 내용")],
     // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은 좁아서
     // textarea로(워크플로의 purpose 필드와 동일한 대우).
@@ -87,7 +87,7 @@ export const AUTHORING_SCREENS = {
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 이 이름을 참조하는 템플릿이 문서 생성 시 이 내용을 사용합니다." },
       { name: "purpose", label: "용도", type: "textarea" },
-      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인. 비워도 기존 연결은 지워지지 않습니다, 바꾸려면 다른 러너 ID를 넣으세요." },
+      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인. 비워도 기존 연결은 지워지지 않습니다. 바꾸려면 다른 러너 ID를 넣으세요." },
     ] },
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
@@ -114,7 +114,7 @@ export const AUTHORING_SCREENS = {
     // _resolve_published_binding()가 이 정책 '이름'을 참조하는 모든 Template에 그 순간부터 현재 발행
     // 버전의 JSON을 그대로 n8n 페이로드에 inline한다(문서 생성이 다시 일어날 때마다). '테스트로'·
     // '검토로'·'발행'·'보관'은 상태만 바꿀 뿐 JSON 내용을 검증하지 않는다(프롬프트와 동일).
-    help: "업무 규칙(정책)을 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’, ‘보관’은 상태만 바꿀 뿐, 내용(JSON)을 검증하지 않습니다, 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 정책 이름을 참조하는 모든 템플릿이 그 즉시(다음 문서 생성부터) 새 버전의 JSON을 그대로 사용하게 됩니다, 프롬프트보다 실제 파급력이 큽니다.",
+    help: "업무 규칙(정책)을 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’, ‘보관’은 상태만 바꿀 뿐, 내용(JSON)을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 정책 이름을 참조하는 모든 템플릿이 그 즉시(다음 문서 생성부터) 새 버전의 JSON을 그대로 사용하게 됩니다. 프롬프트보다 실제 파급력이 큽니다.",
     // WF1 단독 결함 — 위 문장이 스스로 "프롬프트보다 실제 파급력이 크다"고 말하면서도, 배너
     // 자체는 프롬프트 화면의 일반 안내와 똑같은 기본(info) 톤이었다(DataScreen.jsx의 capWarning
     // 등 다른 배너는 이미 tone="warn"을 쓴다 — 능력은 있고 이 배너에는 안 쓰였다). warn으로 맞춘다.
@@ -160,7 +160,7 @@ export const AUTHORING_SCREENS = {
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — 이유를 밝히지 않으면 이 화면을
       // 처음 보는 관리자는 왜 버튼이 없는지 알 방법이 없다. '새 버전'이 실제 대안이라고 안내한다.
-      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다, 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
+      { key: "_edit_note", label: "편집 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 편집할 수 없습니다. 아래 ‘새 버전’으로 편집 가능한 초안을 만드세요." : "-" },
       dateCol("published_at", "발행 시각"), jsonField("content", "규칙(JSON)")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text", required: true },
@@ -169,7 +169,7 @@ export const AUTHORING_SCREENS = {
       { name: "purpose", label: "용도", type: "textarea" },
       // 서버 기본값("{}")과 맞춘다(app/prompts/router.py PolicyCreateRequest.content) — 값 없이는
       // 다른 registry create 필드처럼 즉시 제출 가능해야 한다(예전엔 최소 "{}"라도 직접 타이핑해야 했다).
-      { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '이 정책 이름을 참조하는 템플릿이 문서를 만들 때 n8n 페이로드에 그대로 실립니다. 업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다, 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
+      { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '이 정책 이름을 참조하는 템플릿이 문서를 만들 때 n8n 페이로드에 그대로 실립니다. 업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다. 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
     ] },
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "규칙(JSON)", type: "json", required: true, help: '예: {"required_fields":["title"]}' },
@@ -267,7 +267,7 @@ export const AUTHORING_SCREENS = {
       // 때만 대상을 해석하므로, 이 행의 '이 템플릿으로 문서 생성' 등 자동 소비 경로가 없다는 점을
       // 상세에서 명시한다(RESERVED_WORKFLOW_NOTES와 동일한 '겉보기엔 정상이지만 아님' 패턴).
       { key: "_runner_target_note", label: "[주의] 대상 유형", render: (r) => r.target_type === "runner"
-        ? "이 템플릿의 대상 유형은 '러너'입니다, 대상 워크플로 재지정(자동 문서 생성의 워크플로 호출)만 적용되지 않습니다. 프롬프트, 정책, 입력 스키마, 승인 정책 바인딩은 여전히 config.template_id를 통해 정상 적용됩니다."
+        ? "이 템플릿의 대상 유형은 '러너'입니다. 대상 워크플로 재지정(자동 문서 생성의 워크플로 호출)만 적용되지 않습니다. 프롬프트, 정책, 입력 스키마, 승인 정책 바인딩은 여전히 config.template_id를 통해 정상 적용됩니다."
         : "-" },
       // 프롬프트/정책 화면이 이제 ?id=로 특정 행 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 —
       // 무필터 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 프롬프트/정책으로 데려간다.
@@ -275,7 +275,7 @@ export const AUTHORING_SCREENS = {
       { key: "policy_id", label: "정책 ID", render: (r) => r.policy_id ? React.createElement("a", { href: "#/policies?id=" + encodeURIComponent(r.policy_id) }, r.policy_id) : "-" },
       // 비활성 템플릿은 '이 템플릿으로 문서 생성' CTA가 숨겨진다(enabled && workflow일 때만) — 왜
       // 그 버튼이 없는지 상세에서 바로 설명한다(RESERVED_WORKFLOW_NOTES와 동일한 '혼란 지점 안내' 패턴).
-      { key: "_inactive_note", label: "[주의] 활성 상태", render: (r) => r.enabled ? "-" : "이 템플릿은 비활성 상태입니다, 활성화해야 문서 생성에 사용되고 프롬프트, 정책, 입력 스키마, 승인 정책 바인딩이 적용됩니다." },
+      { key: "_inactive_note", label: "[주의] 활성 상태", render: (r) => r.enabled ? "-" : "이 템플릿은 비활성 상태입니다. 활성화해야 문서 생성에 사용되고 프롬프트, 정책, 입력 스키마, 승인 정책 바인딩이 적용됩니다." },
       field("created_by", "작성자 ID"), jsonField("input_schema", "입력 스키마"),
       // approval_policy는 폼에선 체크박스('발행 전 승인 필요')로 다루면서 상세에선 raw JSON({"required":true})을
       // 보여줘 계약 형태가 새고 폼 어휘와 어긋났다 — 폼과 같은 어휘로 예/아니오만 보여준다.

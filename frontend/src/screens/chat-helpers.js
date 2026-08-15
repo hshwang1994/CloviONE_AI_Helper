@@ -439,7 +439,7 @@ export function newClientMessageId() {
 export function rateLimitNoticeText(e) {
   const secs = e && e.body && e.body.error && e.body.error.retry_after_seconds;
   return typeof secs === "number" && secs > 0
-    ? secs + "초 후 다시 시도하세요, 요청이 너무 잦습니다."
+    ? secs + "초 후 다시 시도하세요. 요청이 너무 잦습니다."
     : "요청이 너무 잦습니다. 잠시 후 다시 시도하세요.";
 }
 

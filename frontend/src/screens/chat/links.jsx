@@ -16,7 +16,7 @@ import { trimUrlTail } from "../chat-text.js";
 export function PlainUrl({ url }) {
   const toast = useToast();
   return (
-    <Tooltip title="외부 링크는 열 수 없습니다, 눌러서 주소를 복사합니다.">
+    <Tooltip title="외부 링크는 열 수 없습니다. 눌러서 주소를 복사합니다.">
       <Box
         component="button"
         type="button"

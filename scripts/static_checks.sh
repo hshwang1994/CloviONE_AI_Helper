@@ -104,6 +104,17 @@ step "MUI icon barrel-import guard"
 BARREL="$(grep -rnE "from ['\"]@mui/icons-material['\"]" frontend/src 2>/dev/null || true)"
 if [ -z "$BARREL" ]; then ok "icons imported deeply"; else echo "$BARREL"; fail "barrel import from @mui/icons-material (번들이 폭증한다)"; fi
 
+step "User-facing text does not comma-splice two sentences (PA-RC-0002)"
+# docs/UX_WRITING.md §1: 두 문장은 마침표로 구분한다. "-습니다/-세요" 등으로 끝난 절 바로
+# 뒤에 쉼표로 다음 문장을 잇는 관용이 kit.jsx를 포함해 화면 20여 개에 흩어져 있었다(감사가
+# kit.jsx 내부의 6:5 불일치를 지목했는데, 실제로는 저장소 전체가 같은 패턴이었다). 목록
+# 나열(예: "중단, 응답 없음")은 서술어 종결 어미로 안 끝나 이 정규식에 안 걸린다. 프런트만
+# 본다 — frontend/src/ui/ux-writing-punctuation.test.js 가 같은 규칙을 npm test 경로에서
+# 지킨다(둘 다 static_checks.sh 는 npm test 를 안 부르므로 독립된 게이트가 필요하다).
+SPLICE="$(grep -rnE '(습니다|입니다|합니다|됩니다|세요|까요),\s*[가-힣]' frontend/src \
+  --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' || true)"
+if [ -z "$SPLICE" ]; then ok "no comma-spliced sentences in user-facing text"; else echo "$SPLICE"; fail "쉼표로 이어붙인 문장(마침표여야 함)"; fi
+
 step "No external origins fetched by frontend"
 # 사내 LAN 전용이라 CDN·외부 폰트·외부 이미지를 런타임에 '받아오면' 오프라인에서 깨지고,
 # CSP(default-src 'self')에도 걸린다. 사용자가 눌러서 여는 링크(Notion 문서 등)는 문제가
