@@ -43,4 +43,23 @@ describe("JSX 주석", () => {
     }
     expect(broken).toEqual([]);
   });
+
+  // PA-RC-0001 작업 중 실제로 두 번 더 났다(kit.jsx StatCard, ChatPane.jsx 읽음 표시) —
+  // `{sev ? ( {/* 주석 */} <Box>...` 처럼 삼항식이 여는 `(` 바로 뒤(JS 표현식 자리)에
+  // `{/* */}`(JSX children 전용 문법)를 쓰면 "Expected ')' but found ..." 로 그 주석과
+  // 20~60줄 떨어진 자리를 가리킨다(위 첫 테스트와 같은 원인 계열, 다른 증상). 이 자리는
+  // `/* ... */`(중괄호 없이)만 유효하다.
+  it("`(` 바로 뒤(JS 표현식 자리)에 `{/*` 로 시작하는 주석을 쓰지 않는다", () => {
+    const broken = [];
+    for (const file of jsxFiles(SRC)) {
+      const text = readFileSync(file, "utf8");
+      const opener = /\(\s*\{\/\*/g;
+      let m;
+      while ((m = opener.exec(text)) !== null) {
+        const line = text.slice(0, m.index).split("\n").length;
+        broken.push(`${file.replace(SRC, "src")}:${line}`);
+      }
+    }
+    expect(broken).toEqual([]);
+  });
 });

@@ -34,8 +34,12 @@ export function normalizeAccent(value) {
 }
 
 /* 기준선 --radius-sm/-md/-lg. 카드는 lg(18), 입력·버튼은 10px(기준선 .field/.btn 이
- * 토큰이 아니라 리터럴로 적어 둔 값이다), 나머지 기본값은 md(12) 다. */
-export const RADIUS = { sm: 8, md: 12, lg: 18 };
+ * 토큰이 아니라 리터럴로 적어 둔 값이다), 나머지 기본값은 md(12) 다.
+ * full(PA-RC-0001, RD-3) — 아바타·pill 배지처럼 "완전히 둥글게"는 md/lg 배율이 아니라
+ * 별도 의미 슬롯이다. 999는 어떤 높이에서도 알약 모양이 되게 하는 관용값(대비되는 px
+ * 반지름을 굳이 계산하지 않아도 된다) — 기준선에 이 값 자체는 없지만 실제로 쓰이는
+ * 값(예: --radius-pill: 999px, app/static/css/tokens.css:134)과 같은 관용이다. */
+export const RADIUS = { sm: 8, md: 12, lg: 18, full: 999 };
 
 /* fontWeight 값이 파일 70개에 걸쳐 원시 숫자로 흩어져 있다(700이 최다, 그 외 750/800/600/
  * 400/650/500/780 등 — DS-05). 여기서 한꺼번에 옮기지는 않는다(호출부 70여 곳을 한 번에
@@ -43,6 +47,41 @@ export const RADIUS = { sm: 8, md: 12, lg: 18 };
  * h1~h6/button 자체의 굵기 배율(아래 typography 설정)은 건드리지 않는다 — 그건 베이스라인이
  * 정한 값이라 별개다. */
 export const FONT_WEIGHT = { regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
+
+/* PA-RC-0001 — 글자 크기 15종이 화면 전반에 리터럴로 흩어져(31종·278회, 11~17px 사이
+ * 1px 연속체) 위계가 지각 임계 이하로 눌렸다. Product Audit의 재양자화 확정값(RD-1)을
+ * 그대로 쓴다: 12 caption / 13 bodySm / 14 body / 17 sectionTitle / 20 pageTitle / 30
+ * statValue(브랜드 워드마크의 62px는 이 스케일 밖 — 로고 전용).
+ *
+ * caption(MUI 기본과 동일)·bodySm/body(아래 typography의 body2/body1과 동일)·
+ * pageTitle(h6와 동일)은 **이미 존재하는 값과 겹친다** — 새 상수를 만드는 이유는
+ * body1/body2/h6 같은 MUI 이름이 "몇 번째 본문인가"만 말하고 "지금 어떤 의미로 쓰는가"를
+ * 말하지 않기 때문이다(그래서 리터럴이 더 쉬운 선택이 됐다 — PA-F-013). sectionTitle·
+ * statValue는 기존에 대응하는 MUI variant가 없어 정말 새로 필요했다.
+ *
+ * ⚠️ 이름 혼동 주의: 여기 pageTitle(20px, h6)은 `PageHeader`(kit.jsx)가 그리는 **화면
+ * 맨 위 제목**(h4, 기준선 .page-title, clamp(24~34px) — theme-baseline.test.js "화면
+ * 제목의 상·하한"이 그 계약이다)과 **다른 것이다.** RD-1이 정한 이름을 그대로 썼을 뿐,
+ * PageHeader의 그 제목과 바꿔 쓰면 안 된다 — 필요하면 "카드/패널 안의 20px 소제목" 같은
+ * 국소적 의미로만 쓴다.
+ *
+ * 새 코드는 `sx={{ fontSize: FONT_SIZE.bodySm }}`로 직접 쓰거나, Typography라면
+ * `variant="sectionTitle"`처럼 쓴다(MUI는 `theme.typography[variant]`가 있으면 그 값을
+ * 그대로 렌더한다 — TS 프로젝트의 모듈 보강 없이도 런타임에서는 동작한다).
+ * `variant="body1"`을 쓰는 기존 화면 수십 곳이 있어 body1/body2 이름 자체는 바꾸지
+ * 않는다(바꾸면 그 화면들이 전부 깨진다) — 이 상수는 나란히 놓는 새 이름일 뿐이다.
+ *
+ * 이번 커밋에서 kit.jsx만 이 상수로 옮긴다. 나머지 호출부(약 270여 곳)는 아직 리터럴로
+ * 남아 있다 — RADIUS·FONT_WEIGHT와 같은 이유로 한꺼번에 옮기지 않는다(위 주석 참고).
+ * docs/BACKLOG.md PA-01이 남은 범위를 추적한다. */
+export const FONT_SIZE = {
+  caption: "0.75rem",
+  bodySm: "0.8125rem",
+  body: "0.875rem",
+  sectionTitle: "1.0625rem",
+  pageTitle: "1.25rem",
+  statValue: "1.875rem",
+};
 
 /* 기준선 --brand-*. --brand-accent 만 런타임 강조색으로 덮인다
  * (기준선 render(): documentElement.style.setProperty('--brand-accent', state.accent)). */
@@ -271,6 +310,10 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       body1: { fontSize: "0.875rem", lineHeight: 1.5, letterSpacing: "-0.012em" },
       body2: { fontSize: "0.8125rem", lineHeight: 1.5, letterSpacing: "-0.012em" },
       button: { textTransform: "none", fontWeight: 750, letterSpacing: "-0.012em" },
+      /* PA-RC-0001(RD-1) — 기존 MUI variant에 대응이 없던 두 단계. `variant="sectionTitle"`/
+       * `variant="statValue"`로 쓴다. FONT_SIZE 위 주석 참고. */
+      sectionTitle: { fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.012em" },
+      statValue: { fontSize: FONT_SIZE.statValue, fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.02em" },
     },
     components: {
       MuiCssBaseline: {

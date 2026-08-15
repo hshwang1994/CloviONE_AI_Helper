@@ -239,8 +239,17 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  /* -------- 글자 크기 스케일 — 화면 전반에서 반복되는 12/13/14/15/17/24px를 토큰화.
-   * 기준선에 없는 추가 정의다(기존 font-size는 그대로). base는 본문 기본값(body 15px)과 같다. -------- */
+  /* -------- 글자 크기 스케일 — 화면 전반에서 반복되는 값을 토큰화.
+   * 기준선에 없는 추가 정의다(기존 font-size는 그대로).
+   *
+   * PA-RC-0001(2026-08-15): 이전엔 여기 --font-size-base(0.9375rem=15px)가 있었고
+   * "본문 기본값(body 15px)과 같다"고 주장했다 — 틀렸다. design/baseline/
+   * preview-standalone.html의 실제 정본은 `body { font-size: 14px }`이고,
+   * frontend/src/ui/theme.js의 body1도 이미 0.875rem(14px)로 그 기준을 따르고 있었다.
+   * 15px는 두 SSOT 중 어느 쪽에서도 온 적 없는 값이라 지웠다 — --font-size-md(14px)가
+   * 이미 정확한 본문 값이다. 이 CSS 변수들은 실사용이 거의 없다(screens.css 1곳뿐,
+   * sm) — sx 기반 JS/JSX는 대신 theme.js의 FONT_SIZE를 쓴다(그쪽이 정본, PA-RC-0001
+   * 주석 참고). */
   /* px가 아니라 rem이다. styles/root.css가 4K에서 루트 폰트사이즈를 16→18→20px로
      올려 글자와 여백을 함께 키우는데, px로 박아 두면 이 토큰을 쓰는 곳만 작게 남는다
      — 실제로 문서 본문(.doc-*)이 3840에서 혼자 작았다. 값은 16으로 나눈 rem이라
@@ -248,7 +257,6 @@
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
   --font-size-md: 0.875rem;
-  --font-size-base: 0.9375rem;
   --font-size-lg: 1.0625rem;
   --font-size-xl: 1.5rem;
 

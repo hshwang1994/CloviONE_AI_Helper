@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { baseline, baselineScope, lastDeclaration } from "./baselineTokens.js";
-import { createClovirTheme, DEFAULT_ACCENT, RADIUS } from "./theme.js";
+import { createClovirTheme, DEFAULT_ACCENT, FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 
 const { rules } = baseline();
 const tokensFor = (mode) => baselineScope(rules, { mode, accent: DEFAULT_ACCENT });
@@ -202,5 +202,25 @@ describe("타이포", () => {
     const ours = theme.typography.h4.fontSize.replace(/^clamp\(|\)$/g, "").split(",");
     expect(remToPx(ours[0])).toBe(px(min));
     expect(remToPx(ours[2])).toBe(px(max));
+  });
+});
+
+/* PA-RC-0001(RD-1/RD-2/RD-3) — 재양자화 확정 단계 수 자체를 못박는다. 여기서 잡는 것은
+ * "토큰 정의 자체가 늘어나지 않는가"다 — 실사용 리터럴이 이 단계 안에 실제로 수렴했는지는
+ * 별개 검사(acceptance_criteria (1)의 grep, 아직 전면 마이그레이션 전이라 여기서는 안 본다
+ * — docs/BACKLOG.md PA-01이 남은 범위를 추적한다). */
+describe("재양자화 단계 수 (PA-RC-0001)", () => {
+  it("FONT_SIZE는 정확히 6단계다(RD-1)", () => {
+    expect(Object.keys(FONT_SIZE)).toEqual(
+      ["caption", "bodySm", "body", "sectionTitle", "pageTitle", "statValue"]
+    );
+  });
+
+  it("FONT_WEIGHT는 정확히 5단계다(RD-2: 400/500/600/700 + 800은 워드마크 전용 예외)", () => {
+    expect(Object.values(FONT_WEIGHT)).toEqual([400, 500, 600, 700, 800]);
+  });
+
+  it("RADIUS는 정확히 4개의 의미 슬롯이다(RD-3: sm/md/lg/full)", () => {
+    expect(Object.keys(RADIUS)).toEqual(["sm", "md", "lg", "full"]);
   });
 });

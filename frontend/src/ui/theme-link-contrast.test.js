@@ -194,7 +194,7 @@ describe("QAH-02(2026-08-11 하네스 실측) — StatCard 배지가 좁은 칸�
     );
     const start = kitSrcHere.indexOf("export function StatCard");
     const block = kitSrcHere.slice(start, start + 3500);
-    const sevLine = /\{sev \? \([\s\S]{0,600}?<\/Box>/.exec(block);
+    const sevLine = /\{sev \? \([\s\S]{0,900}?<\/Box>/.exec(block);
     expect(sevLine, "sev Box 블록을 못 찾았다").not.toBeNull();
     expect(sevLine[0]).toMatch(/whiteSpace:\s*"nowrap"/);
     expect(sevLine[0]).toMatch(/flexShrink:\s*0/);

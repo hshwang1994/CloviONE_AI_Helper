@@ -33,7 +33,7 @@ import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { KO_WORD_BREAK, TABLE_CARD_QUERY } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, TABLE_CARD_QUERY } from "./theme.js";
 import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -153,7 +153,7 @@ export function Badge({ value, kind }) {
       color={extra ? undefined : TONE_COLOR[k] || "default"}
       variant={k === "neutral" ? "outlined" : "filled"}
       sx={{
-        height: 22, fontSize: "0.75rem", "& .MuiChip-label": { px: 1.25 },
+        height: 22, fontSize: FONT_SIZE.caption, "& .MuiChip-label": { px: 1.25 },
         ...(extra && { backgroundColor: extra.bg, color: extra.fg }),
       }}
     />
@@ -224,14 +224,14 @@ export function Callout({ tone = "info", children }) {
          그림자는 주지 않는다: 안내는 카드가 아니라 카드 앞의 한 줄이고, 띄우면 본문보다
          앞에 나서 버린다(기준도 테두리만 쓴다). */
       sx={{
-        alignItems: "flex-start", borderRadius: "18px",
+        alignItems: "flex-start", borderRadius: `${RADIUS.lg}px`,
         // 한국어 줄바꿈(#11) — 이 상자가 **모든 페이지의 도움말**을 그린다. 여기 한 줄이
         // 앱 전체의 안내 문구를 고친다. `Mascot.jsx` 가 같은 증상("도와드/려요")을 진단해
         // 놓고 거기 한 곳에만 걸어 뒀던 것을 토큰으로 올렸다.
         "& .MuiAlert-message": { minWidth: 0, width: "100%", ...KO_WORD_BREAK },
       }}
     >
-      <Box component="span" sx={{ fontWeight: 800, mr: 1.5, whiteSpace: "nowrap" }}>{label}</Box>
+      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1.5, whiteSpace: "nowrap" }}>{label}</Box>
       <Box component="span" className="k-callout-body">{children}</Box>
     </MuiAlert>
   );
@@ -268,7 +268,7 @@ export function StatCard({ value, label, kind, onClick, active }) {
         component="div"
         /* 기준선 `.kpi-value`(30px). 예전 clamp 는 상한이 2.25rem 이라 4K 루트(20px)에서
            45px 까지 커졌다 — 숫자 하나가 카드 높이를 혼자 밀어 올리던 자리다. */
-        sx={{ fontSize: STAT_VALUE_FONT_SIZE, fontWeight: 800, lineHeight: 1.1 }}
+        sx={{ fontSize: STAT_VALUE_FONT_SIZE, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}
         color={color && color !== "default" ? `${color}.main` : "text.primary"}
       >
         {value == null ? "-" : value}
@@ -280,8 +280,10 @@ export function StatCard({ value, label, kind, onClick, active }) {
            * 좁아지고, 한글은 라틴 문자와 달리 음절 사이 어디서나 줄바꿈이 허용돼(word-break
            * 기본 규칙) white-space를 안 주면 "주의" 2글자짜리 배지가 세로 한 글자씩
            * 쌓이며 너비가 12.6px까지 눌렸다(admin_dashboard, 라이트·다크 둘 다). 배지는
-           * 애초에 줄바꿈될 이유가 없는 고정 짧은 라벨이라 줄바꿈 자체를 막는다. */
-          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: 800, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
+           * 애초에 줄바꿈될 이유가 없는 고정 짧은 라벨이라 줄바꿈 자체를 막는다.
+           * PA-RC-0001: 11px는 6단계 스케일에 없지만, 위 실측 폭(12.6px)에서 12px로 올리면
+           * 그 줄바꿈이 재현될 위험이 있어 실측 없이는 안 바꾼다 — 의도된 예외. */
+          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
         ) : null}
       </Typography>
       {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이 없다. */}
@@ -326,7 +328,7 @@ export function EmptyState({
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
   // KO_WORD_BREAK: Callout·Mascot는 이미 쓰는데(사용자 지적 #11) 정작 이 컴포넌트가 31개 파일
   // 전체의 빈 상태 안내문을 그리면서 빠져 있었다 — 좁은 화면에서 한글이 단어 중간에서 잘렸다.
-  const bodySx = { maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined, ...KO_WORD_BREAK };
+  const bodySx = { maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined, ...KO_WORD_BREAK };
   // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
   return (
     <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : 6, px: compact ? 1.5 : 3 }}>
@@ -338,27 +340,27 @@ export function EmptyState({
       ) : icon ? (
         <Box aria-hidden="true" sx={{ fontSize: compact ? 20 : 32, color: "text.disabled" }}>{icon}</Box>
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem", ...KO_WORD_BREAK }}>{title}</Typography>
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle, ...KO_WORD_BREAK }}>{title}</Typography>
       {situation ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{situation}</Typography> : null}
       {help ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{help}</Typography> : null}
       {prerequisite ? (
         <Typography variant="body2" color="text.secondary" sx={bodySx}>
-          <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>필요한 것</Box>{prerequisite}
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, mr: 1 }}>필요한 것</Box>{prerequisite}
         </Typography>
       ) : null}
       {stepList && stepList.length ? (
-        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? "0.8125rem" : "0.875rem", display: "grid", gap: 0.5, maxWidth: "60ch", ...KO_WORD_BREAK }}>
+        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, display: "grid", gap: 0.5, maxWidth: "60ch", ...KO_WORD_BREAK }}>
           {stepList.map((s, i) => <li key={i}>{s}</li>)}
         </Box>
       ) : null}
       {expected ? (
         <Typography variant="body2" color="text.secondary" sx={bodySx}>
-          <Box component="span" sx={{ fontWeight: 750, mr: 1 }}>기대 결과</Box>{expected}
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, mr: 1 }}>기대 결과</Box>{expected}
         </Typography>
       ) : null}
       {action ? <Box sx={{ mt: compact ? 0.5 : 1 }}>{action}</Box> : null}
       {relatedLink && relatedLink.href ? (
-        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? "0.8125rem" : "0.875rem" }}>
+        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
           {relatedLink.label || "관련 화면으로"}
         </Link>
       ) : null}
@@ -412,8 +414,8 @@ export function ErrorState({ error, onRetry, size }) {
           sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 240 }, height: "auto" }}
         />
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: 750, fontSize: compact ? "0.875rem" : "1.0625rem" }}>{title}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch", fontSize: compact ? "0.8125rem" : undefined }}>{help}</Typography>
+      <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle }}>{title}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
       <Box sx={{ mt: compact ? 0.5 : 1 }}>
         {isAuth
           ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/login">로그인 화면으로</MuiButton>
@@ -431,7 +433,7 @@ export function ErrorState({ error, onRetry, size }) {
       {requestId && !isAuth && !isForbidden && !isGone && !compact ? (
         <Typography
           variant="body2" color="text.disabled"
-          sx={{ fontSize: "0.75rem", userSelect: "all", mt: 0.5 }}
+          sx={{ fontSize: FONT_SIZE.caption, userSelect: "all", mt: 0.5 }}
         >
           문의 번호 {requestId}
         </Typography>
@@ -533,7 +535,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
               ) : (
                 <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
                   <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                  <Box sx={{ minWidth: 0, fontSize: "0.875rem", overflowWrap: "anywhere" }}>{cellValue(c, row, ctx)}</Box>
+                  <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{cellValue(c, row, ctx)}</Box>
                 </Box>
               ))}
             </Paper>
@@ -642,7 +644,7 @@ export function ModalHeader({ title, onClose, titleId }) {
   return (
     <MuiDialogTitle
       id={titleId}
-      sx={{ display: "flex", alignItems: "center", gap: 2, pr: 1.5, fontSize: "1.0625rem", fontWeight: 780 }}
+      sx={{ display: "flex", alignItems: "center", gap: 2, pr: 1.5, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.extrabold }}
     >
       <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{title}</Box>
       <IconButton onClick={onClose} aria-label="닫기" size="small"><CloseRoundedIcon fontSize="small" /></IconButton>
@@ -659,8 +661,10 @@ export function ModalBody({ children }) {
  * 하네스에 클릭을 붙여 실제로 연 모달 47개가 **예외 없이 35px** 이었다.
  *
  * 절댓값으로 적는 이유: 배수로 두면 `shape.borderRadius` 를 나중에 건드리는 순간 다시
- * 틀어진다. 이 값은 "카드와 같은 반지름" 이라는 뜻이지 "shape 의 2.5배" 가 아니다. */
-const MODAL_RADIUS = "18px";
+ * 틀어진다. 이 값은 "카드와 같은 반지름" 이라는 뜻이지 "shape 의 2.5배" 가 아니다.
+ * PA-RC-0001: RADIUS.lg가 바로 그 "카드와 같은 반지름"이므로 그 값을 그대로 쓴다(여전히
+ * 절댓값 — RADIUS.lg 자체가 shape.borderRadius에서 유도되지 않는다). */
+const MODAL_RADIUS = `${RADIUS.lg}px`;
 
 /* 표준 하단 작업줄 — 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
 export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, submitVariant = "primary" }) {
@@ -853,7 +857,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength }) {
         ...(maxLength ? { maxLength } : null),
       }}
       /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
-      InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.8125rem" } } : undefined}
+      InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.bodySm } } : undefined}
     />
   );
 }
@@ -1136,7 +1140,7 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
           클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
       <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
         {area ? (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: 650 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
             {crumbRoot ? crumbRoot + " › " : ""}{area}
           </Typography>
         ) : null}
@@ -1152,13 +1156,16 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
  * 네 벌이 따로 있었다(DS-07). 넷 다 폰트 크기는 이미 17px로 수렴돼 있었지만(재검증으로
  * 확인), 컴포넌트 자체가 갈라져 있어 나중에 하나를 고치면 나머지 셋이 안 따라왔다.
  * title/children 둘 다 받는다(호출부 관성을 다 지원), action(오른쪽 링크·버튼)과
- * help(아래 설명문)는 있으면만 그린다. */
+ * help(아래 설명문)는 있으면만 그린다.
+ * PA-RC-0001: 이 컴포넌트가 그리는 17px가 바로 RD-1의 sectionTitle 단계다 — variant="h6"
+ * + sx fontSize 오버라이드 대신 theme.js의 그 variant를 직접 쓴다(같은 값, letterSpacing도
+ * body1/body2와 같은 계열로 맞춰짐 — h6 기본엔 없던 값이라 시각적으로 더 일관돼진다). */
 export function SectionTitle({ title, children, action, help, component = "h3", sx }) {
   const label = title != null ? title : children;
   return (
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5, ...sx }}>
       <Box sx={{ minWidth: 0 }}>
-        <Typography component={component} variant="h6" sx={{ fontSize: "1.0625rem" }}>{label}</Typography>
+        <Typography component={component} variant="sectionTitle">{label}</Typography>
         {help ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "70ch" }}>
             {help}
