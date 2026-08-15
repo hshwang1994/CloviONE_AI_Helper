@@ -233,6 +233,47 @@ pass 1과 **역할도 workflow도 다르게** 잡았다 — 이 Cycle에서 한 
 `/#/dashboard`로 전환된다. `App.jsx:46`의 `isUser = role === "user"` 조건상 `auditor`는
 당연히 탭을 받는다. **결함 아님.**
 
+## 2026-08-16 회차 — Gate 거부 해소 + Handoff 소비 재검증
+
+Supervisor가 직전 `AUDIT_COMPLETE`를 3가지 이유로 거부했다. 셋 다 해소했고,
+그 과정에서 **Handoff가 이미 대부분 소비됐다**는 것을 발견해 재검증까지 수행했다.
+
+### 거부 사유 해소
+
+| 사유 | 해소 |
+|---|---|
+| allowlist 밖 dirty(`node_modules/`, `BUILD_STAMP.json`) | **내가 만든 것이 아니다.** Supervisor가 이번 invocation 시작 시 `cycle.json`의 `foreignDirty`에 두 경로를 이미 등록했다(RUN CONTEXT의 `pre_existing_dirty_paths`와 일치). 건드리지 않았다. 내 `gate_check.py`가 목록을 하드코딩하고 있어 `cycle.json`을 읽도록 고쳤다 — 하드코딩은 Cycle 상태가 바뀔 때 조용히 어긋난다 |
+| `HANDOFF-SUMMARY`에 `deferred_for_human_approval` 없음 | 이 charter 판에서 새로 요구된 블록이다. `actionable_root_causes=3` · `redesign_root_causes=1` · `deferred_for_human_approval=0`으로 추가 |
+| Handoff에 사람에게 미루는 표현 | `PA-RC-0003`을 **구현 가능한 Root Cause로 재정의**했다 — "저장소 보안 검사가 `.git` 내부(stash/reflog/dangling)를 안 본다". 자격증명 회전 자체는 내 권한 밖 외부 행위라 `REPORT` §7-B "외부 제약"에 사실만 적었다. 즉 *"사람이 할 때까지 아무것도 못 한다"* 가 아니라 **검사를 먼저 켜서 그 조치가 실제로 일어나게 만드는 쪽**을 택했다 |
+
+### Handoff 소비 재검증 (이번 회차의 실질 작업)
+
+구현 Phase가 17커밋을 진행했다. **"완료"라는 기록을 믿지 않고** 각 RC를 그 자신의
+`acceptance_criteria`로 다시 쟀다. 결과: **8건 중 4건 닫힘 · 1건 철회 · 3건 열림.**
+
+| RC | 결과 |
+|---|---|
+| `PA-RC-0005`·`0007`·`0008`·`0009` | ✅ 닫힘. 특히 `0008`은 **race 테스트 5회 연속 통과**로 실행 확인(원래 약 40% 실패) |
+| `PA-RC-0010` | ❌ **철회 — 내 오탐이었다** |
+| `PA-RC-0001`·`0002`·`0003` | 열림(각각 잔여 범위가 명확) |
+
+### 이번 회차에 내가 저지른 오류 3건 (전부 정정함)
+
+1. **`PA-RC-0010` 자체가 오탐이었다.** `/login`의 라이트 고정은 빠뜨린 것이 아니라
+   회귀 테스트(`test_login_page_does_not_theme_itself`)와 `login.css`의 `color-scheme: light`
+   선언이 못박은 **의도된 설계**다. 나는 `templates_html`과 `tokens.css`만 보고
+   **그 화면이 실제로 읽는 `login.css`를 열지 않았다.**
+2. **그 정정도 틀렸다.** `/login` 하나만 다시 재고 *"수정이 무효하니 되돌려라"* 라고 적었다.
+   4화면을 전부 재니 `/forgot-password`·`/reset-password`에서는 **다크가 실제로 켜진다** —
+   구조적 주장은 옳았고 구현 Phase의 판단이 정확했다. 되돌리라는 지시를 철회했다.
+3. **`PA-RC-0001`을 잘못 깎아내렸다.** *"리터럴 285회·44종으로 늘었다"* 고 적었는데,
+   `fontSize:` 출현을 세면서 **토큰 참조 206회와 아이콘 크기 27회까지 리터럴로 계산**했다.
+   실제로는 이 RC의 핵심 처방(일급 타이포 API)이 적용됐고 소비도 진행 중이다.
+
+> **관통하는 교훈**: 셋 다 *"패턴이 몇 번 걸렸는가"* 만 세고 *"무엇이 걸렸는가"* 를 안 본 것이다.
+> 이 Audit이 Cycle 내내 13번 경계해 온 바로 그 실수를, 재검증 단계에서 3번 더 했다.
+> **표본 하나로 세운 결론은 표본 하나로 뒤집으면 안 된다** — 원 주장이 "전체"였으면 정정도 전체를 재야 한다.
+
 ## 완료 Gate A~G 평가 (2026-08-15, AUDIT_COMPLETE 직전)
 
 프롬프트 12절의 Gate를 하나씩 근거와 함께 판정한다. *"문서 많이 씀"* 은 근거가 아니다.

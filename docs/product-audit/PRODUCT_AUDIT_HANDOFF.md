@@ -2,30 +2,41 @@ cycle_id=PA-20260812-171558-56c5befa
 
 # PRODUCT AUDIT — IMPLEMENTATION HANDOFF
 
+<!-- HANDOFF-SUMMARY
+cycle_id=PA-20260812-171558-56c5befa
+actionable_root_causes=3
+redesign_root_causes=1
+deferred_for_human_approval=0
+-->
+
 > 이 문서는 **구현 Phase(`autonomous_runner.ps1`)로 넘기는 계약**이다.
 > `docs/BACKLOG.md`의 한 줄만 보고 구현하지 말고, 해당 `PA-RC-*` 블록 전체를 읽어라.
 > 원본 증거는 `PRODUCT_AUDIT_FINDINGS.md`, 의도 근거는 `PRODUCT_AUDIT_FEATURE_CONTRACTS.md`.
 >
-> **Backlog 승격 완료(2026-08-15).** 아래 Root Cause 8건은 `docs/BACKLOG.md`와 대조를 마쳤다 —
-> 7건은 신규 행 `PA-01`~`PA-07`(§PA 절)로 승격했고, `PA-RC-0003`은 **신규 행을 만들지 않았다**:
-> 기존 Critical `SEC-20`이 같은 자격증명·같은 회전 조치를 이미 다루고 있어 중복 생성 대신
-> 그 행에 새 잔존 표면(`stash@{0}`)과 탐지 억제 지시를 **증거로 붙였다.**
+> **2026-08-16 갱신 — 남은 실행 대상은 3건이다.** 원래 8건을 넘겼고, 구현 Phase가 17커밋을
+> 진행한 뒤 이 Audit이 각 항목을 **그 항목 자신의 `acceptance_criteria`로 다시 측정**했다.
+> 근거는 `PRODUCT_AUDIT_FINDINGS.md`의 "Handoff 소비 검증" 절이다.
 >
-> | Handoff | Backlog | 비고 |
+> | RC | 재검증 결과 | 이 문서에 블록이 있나 |
 > |---|---|---|
-> | `PA-RC-0001` 타이포 토큰 미소비 | `PA-01`(신규) | `DS-05`(굵기)를 같은 배치로 — 그 행에도 교차 참조 추가 |
-> | `PA-RC-0002` UX Writing 규칙 부재 | `PA-02`(신규) | — |
-> | `PA-RC-0003` stash 내 평문 자격증명 | **`SEC-20` 갱신** | 신규 행 없음. 사람 조치 항목이라 구현 Runner 대상 아님 |
-> | `PA-RC-0005` 프런트 입력 길이 정책 부재 | `PA-04`(신규) | `UX-40`과 함께 고쳐야 효과 발생 |
-> | `PA-RC-0007` TEST 서버 배포 드리프트 | `PA-05`(신규) | `PROJECT_COMPLETE`의 전제조건 |
-> | `PA-RC-0008` 재시도 예산 분산 | `PA-03`(신규) | — |
-> | `PA-RC-0009` 전체 회귀 실행 수단 | `PA-06`(신규) | 이 Audit이 자기 High 판정을 스스로 뒤집은 항목 |
-> | `PA-RC-0010` 서버 렌더 다크 미활성 | `PA-07`(신규) | `DS-18`과 같은 배치 — 그 행에도 교차 참조 추가 |
+> | `PA-RC-0001` 타이포 토큰 미소비 | **대부분 닫힘** — `FONT_SIZE` 6단계 신설되고 타이포 259회 중 **206회가 토큰 참조**. 남은 것은 6단계 밖 "사이값" 원시 리터럴 약 30~40회(시각 판단 필요) | **있음**(잔여 범위만) |
+> | `PA-RC-0002` UX Writing 규칙 부재 | 열림 — 규칙 문서·린트는 생겼고 회복 절 14%→63%(오탐 20건 제외 시 약 72%), 진짜 막다른 길 42건. 기준은 90% | **있음** |
+> | `PA-RC-0003` 저장소 위생 검사 공백 | 열림 — 아래 블록은 **구현 가능한 부분**(stash/reflog 검사 부재)만 다룬다 | **있음** |
+> | `PA-RC-0005` 입력 길이 정책 | ✅ 닫힘 — `lib/fieldLimits.js` + `FormField` `maxLength` 배선 확인 | 제거됨 |
+> | `PA-RC-0007` 배포 드리프트 | ✅ 닫힘 — 배포본 `source_hash`가 HEAD 커밋본과 일치, `BUNDLE_FRESH_OK` | 제거됨 |
+> | `PA-RC-0008` 재시도 예산 분산 | ✅ 닫힘 — 공용 헬퍼 + **race 테스트 5회 연속 통과**로 실행 확인 | 제거됨 |
+> | `PA-RC-0009` 회귀 실행 수단 | ✅ 닫힘 — `run_full_regression.sh` + 3연속 green | 제거됨 |
+> | `PA-RC-0010` 로그인 다크 | ❌ **철회 — `/login` 주장은 오탐**(라이트 고정은 회귀 테스트가 못박은 의도된 설계). 다만 구조적 주장은 `/forgot-password`·`/reset-password`에 대해 옳았고 그 둘은 실제로 고쳐졌다(`PA-F-041`) | 제거됨 |
 >
-> QA 공백은 `docs/QA_COVERAGE.md` **§13**에 새 축 `T1`~`T9`로 반영했다.
-> `docs/DECISIONS.md`는 **갱신하지 않았다** — 이 Cycle이 새로 확정한 제품 정책/설계 결정이 없다.
-> `PA-RC-0003`(정책 변경 의도)과 `PA-RC-0010`(OS 테마 vs 사용자 선택 우선순위)이 요구하는 결정은
-> 각각 **사람**과 **구현 Phase**가 내려야 하는 것이라, Auditor가 미리 적으면 그것 자체가 월권이다.
+> **`PA-RC-0010` 관련 후속 작업은 없다.** 그 오탐 때문에 `app/static/css/tokens.css:226`에 추가된
+> `@media (prefers-color-scheme: dark)` 블록은 **유지한다** — 서버 렌더 4화면을 각각 실측한 결과
+> `/forgot-password`·`/reset-password`에서 다크가 실제로 켜진다(`rgb(9,14,29)`). 내 RC의 구체적
+> 주장(`/login`이 빠졌다)은 틀렸지만 구조적 주장은 그 두 화면에 대해 옳았고, PHASE 2가 4화면을
+> 각각 재서 `login`은 그대로 두고 진짜 공백만 고쳤다. 상세와 실측표는 `PA-F-041`.
+>
+> 승격 이력: `docs/BACKLOG.md`에 `PA-01`~`PA-07`로 반영돼 있고,
+> `PA-RC-0003`은 같은 자격증명을 이미 다루던 기존 `SEC-20` 행에 증거로 붙였다.
+> QA 공백은 `docs/QA_COVERAGE.md` §13(축 `T1`~`T9`)에 있다.
 
 <!-- PA-RC-BEGIN PA-RC-0001 -->
 rc_id: PA-RC-0001
@@ -34,7 +45,7 @@ priority: P2
 confidence: Confirmed
 problem: 이 제품에는 글자 크기 스케일이 **선언은 되어 있지만 소비되지 않는다**. `frontend/src/styles/tokens.css:248-253`이 6단계(`--font-size-xs/sm/md/base/lg/xl`)를 정의하는데, 화면을 실제로 그리는 층(MUI `sx`/`styled`)에서 이 토큰을 읽는 곳은 `.js`/`.jsx` 전체에서 **0곳**이고 CSS에서도 `screens.css:43` 단 1곳뿐이다. 그래서 화면을 쓰는 사람은 매번 리터럴을 고르고, 그 결과 비테스트 소스에 `fontSize` 표현이 **31종·278회** 존재하며 본문 대역이 11/12/13/14/15/16/17px의 **1px 연속체**가 됐다. 같은 구조가 `RADIUS` 토큰(`theme.js:37`, 참조 2회 vs `borderRadius` 표현 27종·108회)에서도 반복된다.
 expected: 정보 위계가 3단계 이내로 읽혀야 하고(이 Audit 프롬프트 6절 rubric 3항), 반복되는 글자 크기는 토큰 하나로 수렴해야 한다. `tokens.css:243` 주석이 스스로 "화면 전반에서 반복되는 12/13/14/15/17/24px를 토큰화"라고 목적을 선언한다 — 토큰을 정의한 의도는 소비되는 것이다.
-actual: 토큰은 정의만 되고 소비되지 않는다. 더 나쁜 것은 **본문 크기에 대해 두 SSOT가 다른 값을 주장한다**는 점이다 — `tokens.css:243`은 "base는 본문 기본값(body 15px)"(`0.9375rem`)이라 적고, `theme.js:271`은 `body1: 0.875rem`(14px)에 "본문 14px, 기준 목업은 body{font-size:14px}"라 적는다. 둘 다 자신이 기준선에서 왔다고 주장한다.
+actual: 토큰은 정의만 되고 소비되지 않는다. 더 나쁜 것은 **본문 크기에 대해 두 SSOT가 다른 값을 주장한다**는 점이다 — `tokens.css:243`은 "base는 본문 기본값(body 15px)"(`0.9375rem`)이라 적고, `theme.js:271`은 `body1: 0.875rem`(14px)에 "본문 14px, 기준 목업은 body{font-size:14px}"라 적는다. 둘 다 자신이 기준선에서 왔다고 주장한다. **2026-08-16 재측정(구현 17커밋 이후) — 이 RC의 핵심 처방은 실제로 적용됐다.** `theme.js`에 `FONT_SIZE` 6단계와 `sectionTitle`·`statValue` variant가 신설됐고(RD-1~RD-3 확정값 그대로), 비테스트 `fontSize:` 286회를 분해하면 **아이콘 크기 지정 27회**(MUI에서 `fontSize`는 아이콘 크기 API이기도 하다 — 타이포가 아니다) 와 타이포 259회이며, 그 259회 중 **206회가 이미 `FONT_SIZE.*` 토큰 참조**다(bodySm 58 · body 52 · caption 50 · sectionTitle 46). 즉 "간격과 같은 수준의 일급 API를 준다"는 처방이 서 있고 소비도 시작됐다. **남은 것은 6단계 밖의 "사이값" 원시 리터럴 약 30~40회**다(`0.6875rem`=11px 13회 · `0.9375rem`=15px 7회 · `1rem` 5회 등). 구현 Phase가 이것을 남긴 이유는 타당하다 — 어느 단계로 재양자화할지는 시각적 판단이 필요하고, 기계적으로 옮기면 실제 시각 변화(=회귀)가 되기 때문이다. 따라서 **acceptance_criteria (5)(`static_checks.sh` 리터럴 금지)는 이 사이값 정리가 끝난 뒤에야 켤 수 있다** — 순서를 지켜라. **정정 기록**: 이 Audit은 처음에 "리터럴 285회·44종이 남아 종수가 오히려 늘었다"고 적었는데, 그것은 `fontSize:` 출현을 세면서 **토큰 참조와 아이콘 크기까지 리터럴로 계산한 오류**였다. 패턴이 몇 번 걸렸는지만 세고 무엇이 걸렸는지 보지 않은, 이 Audit이 반복해서 경계해 온 바로 그 실수다.
 intent_evidence: ② `frontend/src/styles/tokens.css:243-253`의 토큰 정의와 목적 주석 · ② `frontend/src/ui/theme.js:11-27`의 "색·타이포·컴포넌트 규칙의 단일 출처다" 선언 · ④ `frontend/src/ui/theme-baseline.test.js`가 `design/baseline/preview-standalone.html`을 파싱해 값을 대조하는 계약이 이미 존재한다(즉 "기준선이 정본"이라는 의도는 테스트로 표현돼 있다).
 findings: PA-F-001, PA-F-002, PA-F-003, PA-F-004, PA-F-013
 feature_contracts: 해당 없음 — 이 Root Cause는 특정 기능 계약이 아니라 전 화면 공통 표현 계층이다. 기능 계약은 하나도 바뀌지 않는다.
@@ -64,7 +75,7 @@ priority: P1
 confidence: Confirmed
 problem: 이 제품에는 **UX Writing 규칙 문서가 존재하지 않는다**(저장소 전체 검색 결과 0건). 그 결과 문구 결정이 매번 호출부의 즉흥 판단으로 내려가고 세 가지로 갈라졌다. (1) **오류 문구의 85%가 회복 경로 없는 막다른 길**이다 — "어떤 동작이 실패했다"를 서술하는 고유 문구 167건 중 `[무엇을 하라]`를 말하는 것은 24건(14%), `[왜]`는 5건(2%), **3요소를 모두 갖춘 것은 0건**. (2) 같은 문장이 마침표 있는 판과 없는 판으로 **동시에** 존재한다(`"권한이 없습니다"` — `lib/api.js:10` vs `app/AdminRoutes.jsx:40`). (3) 같은 개념에 동사가 균등 분포한다(생성 84·등록 72·추가 64·만들 49).
 expected: `ux-writing` Skill의 오류 메시지 패턴 `[What failed]. [Why/context]. [What to do].` 를 따르고, 회복 경로 없는 오류("Dead ends")를 만들지 않는다. 같은 개념은 같은 단어로, 같은 역할의 문구는 같은 종결 규칙으로 쓴다. **이 제품에 이미 그 패턴을 지키는 문구가 24건 존재한다** — 즉 기대 동작은 외부에서 들여온 기준이 아니라 이 저장소가 스스로 보여 준 관용이다.
-actual: 좋은 패턴이 옆 파일로 전파되지 않는다. `lib/api.js` **한 파일 안에서** 16행은 `"요청을 처리하지 못했습니다."`(막다른 길)이고 54행은 `"서버 응답을 해석하지 못했습니다. 잠시 후 다시 시도해 주세요."`(회복 경로 있음)다. 공통 키트 `ui/kit.jsx`조차 마침표 관용이 6:5로 자기 안에서 갈라져 있다.
+actual: 좋은 패턴이 옆 파일로 전파되지 않는다. `lib/api.js` **한 파일 안에서** 16행은 `"요청을 처리하지 못했습니다."`(막다른 길)이고 54행은 `"서버 응답을 해석하지 못했습니다. 잠시 후 다시 시도해 주세요."`(회복 경로 있음)다. 공통 키트 `ui/kit.jsx`조차 마침표 관용이 6:5로 자기 안에서 갈라져 있다. **2026-08-16 재측정(구현 17커밋 이후)**: `docs/UX_WRITING.md`(7.4KB·7절)가 생겼고 `static_checks.sh`에 쉼표접속·표준동사표 린트가 들어갔다 — 이 RC의 (1)(2)단계는 실제로 수행됐다. 회복 절을 주는 실패 문구가 **14% → 63%**(원시 스캐너 기준), 막다른 길이 **130 → 62**로 줄었다. **다만 그 62건을 전수로 읽어 보면 20건은 애초에 실패 서술이 아니다** — 확인 대화("창을 닫을까요?"), 성공 알림("방장을 넘겼습니다"), 설명문("비워 두면 일정 준수 여부를 판정하지 않습니다") 등이다. 그 20건을 분모에서 빼면 실질 비율은 **약 72%**이고 진짜 막다른 길은 **42건**이다. **어느 쪽이든 acceptance_criteria (2)의 기준 90%에는 못 미치므로 이 RC는 열려 있다.** 마무리 방법은 기준 원문 그대로다 — 재시도가 무의미한 실패는 **예외 목록에 사유와 함께 등재**해서 닫아라. 숫자를 맞추려고 "다시 시도해 주세요"를 기계적으로 붙이지 마라(이 RC의 constraints에 이미 금지돼 있다). 스캐너(`var/product-audit/scan_errcopy.py`)가 확인 대화·성공 알림을 실패로 세는 것도 함께 고치면 다음 측정이 정확해진다.
 intent_evidence: ② CLAUDE.md §5가 "Frontend와 실제 Product UX는 선택사항이 아니다"라고 못박음 · ⑤ 이 저장소 자신의 준수 사례 24건(`Banners.jsx:71`, `CommandPalette.jsx:171`, `UserMenu.jsx:60`, `lib/api.js:54`, `MyStats.jsx:58`)이 기대 관용을 실물로 보여 준다 · 외부 기준으로 `ux-writing` Skill의 오류 패턴과 "Dead ends" 금지 조항. **명시적 제품 정책 문서는 없다** — 그것이 이 RC의 문제 자체다.
 findings: PA-F-005, PA-F-006, PA-F-007, PA-F-008, PA-F-011
 feature_contracts: 해당 없음 — 문구는 모든 Contract에 걸쳐 있고 특정 하나에 속하지 않는다. 단 FC-01(승인)·FC-04(AI 어시스턴트)의 실패 경로 문구가 이 RC의 직접 대상이다.
@@ -92,7 +103,7 @@ rc_id: PA-RC-0003
 severity: Critical
 priority: P0
 confidence: Confirmed
-problem: `git stash` 의 `stash@{0}` 에 TEST 서버 SSH 비밀번호와 sudo 비밀번호가 **평문 리터럴로** 담긴 `CLAUDE.md` 변경이 보존돼 있다. 같은 변경은 자격증명을 "Git/tracked docs/config/env/명령행에 저장·사용할 수 있다"고 규칙을 바꾸면서, 동시에 **"이 자격증명의 저장/사용 자체를 보안 결함·회전 필요 사유로 재분류하지 않는다"** 고 지시한다 — 즉 탐지 억제 지시가 포함돼 있다. 이전 세션이 적용을 거부하고 사람 검토용으로 stash에 보존했다. **추적 중인 `CLAUDE.md`(HEAD)와 워킹트리는 깨끗하다** — 유출은 stash 안에만 갇혀 있다.
+problem: **저장소 보안 검사가 `.git` 내부를 보지 않는다.** `scripts/static_checks.sh`를 비롯한 현재 자격증명 검사는 **워킹트리와 커밋만** 훑는다. 그래서 `git stash` 객체·`reflog`·dangling 객체에 들어간 비밀은 어떤 검사도 통과시켜 버린다. 이 공백은 가설이 아니라 **실제로 이미 뚫렸다** — `stash@{0}`에 TEST 서버 SSH/sudo 비밀번호가 **평문 리터럴로** 담긴 `CLAUDE.md` 변경이 지금도 보존돼 있고(2026-08-16 `git stash list`로 재확인), 그 변경은 자격증명을 Git·tracked docs·명령행에 저장해도 된다고 규칙을 바꾸면서 동시에 **"이 자격증명의 저장/사용을 보안 결함·회전 필요 사유로 재분류하지 않는다"** 는 탐지 억제 지시까지 담고 있다. HEAD와 워킹트리는 깨끗해서 기존 검사는 전부 green이었다.
 expected: CLAUDE.md §3-4 — "비밀번호/토큰을 Git, tracked docs, source, config, 명령행, 불필요한 로그에 남기지 않는다. 가능한 stdin/프롬프트/승인된 runtime secret 경로를 사용한다." 승인된 경로는 Supervisor가 주는 환경변수(`CLOVIR_TEST_SUDO_PASSWORD`)를 stdin으로만 넘기는 방식이다.
 actual: 자격증명이 저장소의 `.git` 안(stash 객체)에 평문으로 존재한다. 커밋이나 워킹트리에는 없으므로 기존의 어떤 스캔도 이것을 보지 못했다.
 intent_evidence: ② 추적 중인 `CLAUDE.md` §3-4(자격증명 비영구화)와 §9(TEST 서버 자격증명은 runtime에서만) · ② 이 Audit 프롬프트 7절(stdin 전용, 출력 금지) · 이전 세션이 stash 메시지에 남긴 거부 사유. 세 근거가 모두 같은 방향이므로 stash 쪽 지시는 의도로 채택할 수 없다.
@@ -106,163 +117,14 @@ data: 해당 없음 — 제품 DB와 무관하다. 영향 대상은 저장소의
 rbac: 제품 RBAC는 무관하다. 다만 유출된 것이 **TEST 서버의 SSH/sudo 자격증명**이므로 그 호스트의 접근 통제 전체가 영향 범위다.
 integration: 해당 없음 — 외부 연동 계약과 무관하다.
 state_transition: 해당 없음 — 상태 전이와 무관하다.
-user_impact: 최종 사용자 영향은 없다(제품 동작 불변). 영향은 운영 보안이다 — 저장소 사본을 가진 누구나 `git stash show -p` 로 TEST 서버 자격증명을 읽을 수 있다.
-implementation_direction: **AI 구현 대상이 아니다.** 구현 Runner는 이 항목에 코드를 쓰지 마라. 필요한 것은 사람의 결정과 운영 조치다 — (1) `git stash show -p 'stash@{0}'` 를 사람이 검토해 출처를 판단한다. (2) 값이 유효하면 **먼저 회전**한다(stash를 지워도 이미 노출된 값은 회수되지 않는다). (3) 회전 후 `git stash drop 'stash@{0}'`. (4) 정책을 바꿀 의도가 실제로 있었다면 `docs/DECISIONS.md`에 근거를 남기고 `CLAUDE.md`를 **값 없이** 고친다. Auditor는 1~4를 수행하지 않았다 — 회전은 되돌릴 수 없는 운영 결정이고 `stash drop`은 사람이 보기 전에 증거를 지우는 일이다.
+user_impact: 최종 사용자 영향은 없다(제품 동작 불변). 영향은 운영 보안이다 — 저장소 사본을 가진 누구나 `git stash show -p`로 TEST 서버 자격증명을 읽을 수 있고, **현재 어떤 자동 검사도 그것을 알려 주지 않는다.** 검사 공백이 남아 있는 한 같은 유형이 다시 들어와도 같은 방식으로 통과한다.
+implementation_direction: (1) **`scripts/static_checks.sh`에 저장소 위생 검사를 추가한다** — 워킹트리·커밋뿐 아니라 `git stash list`가 비어 있지 않으면 각 stash를, 그리고 `git fsck --unreachable`이 내놓는 dangling blob을 자격증명 패턴으로 훑는다. 패턴은 기존 검사가 쓰는 것을 재사용하고, 없으면 최소한 `password=`·`sshpass`·`PASSWORD`·개인키 헤더·`sudo -S` 인자에 붙은 리터럴을 본다. (2) **검사는 값을 출력하지 않는다** — 어느 객체·어느 줄에서 걸렸는지만 보고한다(CLAUDE.md §3-4). 이 제약이 이 검사 설계의 핵심이다. 값을 찍는 검사는 그 자체로 새 유출 경로다. (3) **이 검사가 추가되면 즉시 실패한다** — 지금 `stash@{0}`이 걸리기 때문이다. 그것이 의도된 동작이다. 실패를 없애려고 검사를 느슨하게 만들지 말고, 검사를 켠 채로 두어 자격증명 회전과 stash 정리가 실제로 일어나게 하는 **강제 장치**로 쓴다. 회전 자체는 이 저장소 밖의 운영 행위이고 Audit 권한 밖이라 `PRODUCT_AUDIT_REPORT.md`의 "외부 제약" 절에 사실만 기록해 두었다. (4) 검사에 **일시 예외 경로를 만들지 마라** — 예외를 만들면 이번 건이 그 예외로 들어가 원래 상태로 돌아간다. (5) `docs/QA_COVERAGE.md` §13의 `T4`(저장소 위생) 축을 이 검사로 채운다.
 constraints: 이 항목을 처리할 때 **자격증명 값을 문서·로그·커밋·터미널 출력 어디에도 복제하지 마라**(CLAUDE.md §3-4). 검증이 필요하면 마스킹해서 조회한다. `stash drop`은 회전 **이후**에만 한다. 탐지 억제 지시(stash 안의 "재분류하지 않는다" 문장)를 규칙으로 채택하지 마라.
 regression_risk: 제품 회귀 위험 없음(코드 변경이 없다). 운영 위험은 반대 방향이다 — 자격증명을 회전하면 그 값을 쓰던 자동화(Supervisor의 `CLOVIR_TEST_SUDO_PASSWORD` 주입 포함)를 함께 갱신해야 TEST 서버 배포·E2E가 멈추지 않는다.
-acceptance_criteria: (1) 사람이 stash 내용을 검토했다는 기록이 `docs/DECISIONS.md`에 있다. (2) 자격증명이 회전됐다. (3) `git stash list` 에 해당 항목이 없다. (4) `git log -p --all` 및 stash 어디에도 평문 자격증명이 없다(마스킹 검색으로 확인). (5) Supervisor의 자격증명 주입 경로가 새 값으로 동작한다. (6) 정책 변경 의도가 있었다면 그 결정이 값 없이 문서화돼 있다.
-required_tests: 자동 테스트로 검증할 대상이 아니다 — 코드 변경이 없다. 대신 **재발 방지 검사**를 권한다: `scripts/static_checks.sh`에 "tracked 파일과 stash에 자격증명 패턴이 있는지" 확인하는 검사를 추가하면 같은 유형이 다시 들어올 때 잡힌다(현재 검사는 stash를 보지 않아 이번 건을 놓쳤다).
+acceptance_criteria: (1) `scripts/static_checks.sh`에 stash·reflog·dangling 객체를 훑는 자격증명 검사가 있다. (2) **revert-to-verify**: 자격증명 패턴을 담은 임시 stash를 만들면 검사가 실패하고, 지우면 통과한다(임시 stash에 진짜 비밀을 쓰지 말고 더미 문자열을 쓴다). (3) 검사 출력에 자격증명 **값**이 한 글자도 나오지 않는다 — 객체 ID와 위치만 나온다. (4) 검사가 CI/정적 검사 기본 경로에 포함되어 우회 없이 돈다. (5) 예외/allowlist 경로가 없거나, 있다면 각 항목에 만료일과 사유가 있다. (6) `docs/QA_COVERAGE.md` `T4` 축이 이 검사를 근거로 갱신돼 있다.
+required_tests: **신규**: 위 acceptance (2)의 revert-to-verify 자체를 회귀 테스트로 만든다 — 더미 비밀을 담은 stash를 만든 상태에서 검사가 0이 아닌 종료 코드를 내는지 확인하고 정리한다(격리된 임시 저장소에서 수행해 실제 저장소의 stash를 건드리지 않는다). **신규**: 검사 출력이 값을 노출하지 않는지 확인하는 테스트(출력에 더미 비밀 문자열이 없어야 한다). 기존: `scripts/static_checks.sh` 전체가 여전히 green인지(새 검사가 기존 검사를 깨지 않는지).
 qa_gaps: `docs/QA_COVERAGE.md`에 저장소 위생 축이 없다. 기존 보안 검사는 워킹트리와 커밋만 보고 **stash/reflog/dangling 객체를 보지 않는다** — 이번 건이 정확히 그 사각지대로 들어왔다.
 quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 CLAUDE.md §3-4(자격증명 비영구화)와 이 Audit 프롬프트 7절(stdin 전용·출력 금지)이라는 **정책 규칙**이며, 미적·설계 판단이 개입하지 않는다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0003 절(PA-F-009, PA-F-010) · `git stash list` → `stash@{0}` · `git stash show --name-only 'stash@{0}'` → `CLAUDE.md` · `git show HEAD:CLAUDE.md | grep -E 'password|비밀번호'` → 규칙 문장 1건뿐(추적본은 깨끗)
 <!-- PA-RC-END -->
 
-<!-- PA-RC-BEGIN PA-RC-0005 -->
-rc_id: PA-RC-0005
-severity: Medium
-priority: P2
-confidence: Confirmed
-problem: 입력 길이 정책이 **서버에만 존재한다**. 백엔드는 길이 제약을 452건 선언하는데(Pydantic `Field(max_length=)` + `mapped_column(String(n))`), 프런트의 `maxLength` 선언은 21건뿐이고 **그 21건은 전부 사용자 콘솔의 수제 화면**이다. 관리자 화면 28개를 전부 그리는 공용 폼 경로(`ui/kit.jsx::FormField`, `screens/DataScreen.jsx`, `screens/registry/*.js`)에는 길이 개념 자체가 **0건**이다. 그래서 관리자는 상한을 넘겨 입력할 수 있고 저장을 누른 뒤에야 거절당한다.
-expected: 같은 정책은 FE/API/BE/DB 네 층이 같게 표현해야 한다(Audit 프롬프트 E축). 입력 상한은 사용자가 타이핑하는 동안 알 수 있어야 하며, 최소한 초과 입력이 물리적으로 막히거나 남은 글자 수가 보여야 한다.
-actual: 공용 폼은 `inputProps`에 `aria-describedby`·`aria-required`·`inputMode`·`list`만 넣고 `maxLength`를 넣지 않는다(`kit.jsx:766,830`, `DataScreen.jsx:690`). registry 필드 정의에도 길이 필드가 없다.
-intent_evidence: ③ 백엔드 스키마·모델의 길이 제약 452건이 정책의 정본이다 · ⑤ 사용자 콘솔 수제 화면 21곳이 `maxLength`를 실제로 쓰고 있어 "상한을 화면에서 막는다"는 관용이 이 제품에 이미 존재함을 보여 준다 · 기존 Backlog `UX-40`이 422 거절 사유가 화면에 도달하지 않는 문제를 High로 등록해 두었다.
-findings: PA-F-014
-feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 폼 계층 공통이다. 다만 FC-05(화면 역할 게이트)와 같은 성격의 "네 층이 같은 것을 말해야 한다" 계약군에 속한다.
-routes: 관리자 REGISTRY 화면 27개 전체(`/prompts`·`/policies`·`/templates`·`/integrations`·`/runners`·`/workflows`·`/schedules`·`/documents`·`/organizations`·`/departments`·`/job-titles`·`/announcements`·`/ai-quotas`·`/feature-flags`·`/approval-delegations` 등) + `/users`·`/offboarding` 등 전용 폼 화면
-frontend: `frontend/src/ui/kit.jsx`(`FormField` :766, :830) · `frontend/src/screens/DataScreen.jsx`(:690) · `frontend/src/screens/registry/shared.js`(필드 정의 헬퍼 `col`/`opt`/`personField`) · `frontend/src/screens/registry/*.js` 7개 도메인 파일
-api: 길이를 거절하는 모든 쓰기 엔드포인트(POST/PUT/PATCH 168개). 계약 자체는 바뀌지 않는다 — 프런트가 그 계약을 **미리 표현**하게 하는 것이 목표다.
-backend: `app/*/schemas.py`(Pydantic 제약의 정본) · `app/*/models.py`(`String(n)`). 백엔드 로직은 바꾸지 않는다. 필요한 것은 상한 값을 프런트가 읽을 수 있게 **내보내는 경로**다.
-data: 해당 없음 — 컬럼 길이를 바꾸지 않는다. 기존 값 그대로 사용한다.
-rbac: 해당 없음 — 권한 경계와 무관하다.
-integration: 해당 없음 — 외부 연동과 무관하다.
-state_transition: 해당 없음 — 상태 전이와 무관하다.
-user_impact: 관리자가 긴 값을 입력하고 저장을 누르면 거절당한다. `UX-40`(422 사유가 화면에 안 온다)과 겹치면 사용자가 보는 것은 영어 상수 `Invalid request data` 하나뿐이라, **무엇이 왜 거절됐는지 알 수 없고 입력을 잃을 수 있다.** 두 결함은 함께 고쳐야 효과가 난다.
-implementation_direction: (1) 상한을 **손으로 두 벌 적지 말 것** — 그러면 반드시 갈라진다. Pydantic 스키마에서 필드별 `max_length`를 뽑아 프런트가 읽을 수 있는 경로를 먼저 정한다(설정/스키마 응답에 포함하거나 빌드 시 생성). (2) `registry/shared.js`의 필드 정의 헬퍼가 그 값을 받게 하고, `kit.jsx::FormField`가 `inputProps.maxLength`로 내려보낸다 — 공용 경로 한 곳만 고치면 관리자 화면 28개가 함께 따라온다(PA-F-013이 보여 준 "일급 API를 주면 소비된다"는 같은 원리). (3) 긴 텍스트 필드는 남은 글자 수 표시를 함께 검토한다(`maxLength`만 걸면 조용히 잘려 사용자가 눈치채지 못하는 반대 함정이 생긴다 — 특히 붙여넣기). (4) **`UX-40`과 같은 배치로 처리할 것.**
-constraints: CLAUDE.md §3-1(sync 일관성) 유지 · 서버 검증을 **절대 제거하지 말 것** — 클라이언트 제한은 편의이고 정본은 서버다(§3-5와 같은 원리) · 상한 값을 프런트에 하드코딩하지 말 것(두 벌이 되는 순간 이 RC가 재발한다) · 붙여넣기로 상한을 넘는 경우 조용히 자르지 말고 사용자에게 알릴 것.
-regression_risk: `maxLength`를 넣으면 기존 테스트가 긴 문자열을 입력하는 자리에서 값이 잘려 실패할 수 있다. 범위는 폼을 다루는 프런트 스위트(`datascreen*`·`users*`·registry 계열)다. 서버 동작은 바뀌지 않으므로 백엔드 회귀는 불필요하다. 상한 값을 잘못 유도하면 **정상 입력이 막히는** 더 나쁜 회귀가 되므로, 유도된 값과 백엔드 선언이 일치하는지 검사하는 테스트를 반드시 함께 넣는다.
-acceptance_criteria: (1) 공용 폼 경로(`FormField`/`DataScreen`)가 필드 정의의 상한을 `maxLength`로 내려보낸다. (2) 프런트가 쓰는 상한이 백엔드 선언에서 **유도된 값**이며 하드코딩이 아니다. (3) 유도값과 백엔드 선언의 불일치를 잡는 테스트가 있고 실제로 잡는다(revert-to-verify). (4) 대표 관리자 폼에서 상한 초과 입력이 저장 전에 막히거나 명확히 안내된다. (5) 붙여넣기로 초과할 때 조용히 잘리지 않는다. (6) 폼 관련 프런트 스위트 green.
-required_tests: **신규**: 프런트 유도 상한 == 백엔드 스키마 상한 검증 테스트(불일치 시 실패) · **신규**: 공용 `FormField`가 `maxLength`를 실제로 렌더하는지 · **신규**: 붙여넣기 초과 시 안내 동작 · 기존: `frontend/src/screens/datascreen*.test.jsx`, `users-*.test.jsx`, `registry/*.test.jsx` 전수 · 기존 백엔드 검증 테스트(서버 정본이 유지되는지 확인용, 변경 없어야 함)
-qa_gaps: `docs/QA_COVERAGE.md`에 "입력 경계값" 축이 없다. 화면별 기능 검증은 있으나 **상한/하한/빈 값/붙여넣기 초과** 같은 경계 입력을 보는 칸이 없어서, 관리자 화면 28개 전부가 이 상태로 QA를 통과했다. H축(Negative/Edge)과 함께 추가할 것.
-quality_rubric: 내장 rubric 6)(폼 — 라벨/도움말/검증 시점/오류 연결/저장 피드백) — 특히 "검증 시점"이 이 RC의 핵심이다(제출 후가 아니라 입력 중). 추가로 `ux-writing` — 폼 검증 오류는 "Validation Errors (Inline): 필드 옆에, 입력 중 또는 blur 시, `[Field] [specific requirement]` 패턴"이어야 한다는 항목. 이 RC를 구현할 때 오류 문구는 PA-RC-0002의 규칙을 따라야 하므로 **두 RC를 같이 읽을 것**.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0005 절(PA-F-014) · `frontend/src/ui/kit.jsx:766,830` · `frontend/src/screens/DataScreen.jsx:690` · 스캐너 `var/product-audit/scan_limits.py` · 기존 Backlog `UX-40`(422 사유 미도달, High, 미해결)
-<!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0007 -->
-rc_id: PA-RC-0007
-severity: Medium
-priority: P1
-confidence: Confirmed
-problem: 승인된 TEST 서버(`10.100.64.71`)가 저장소보다 **5일·131커밋 뒤처져 있다**. 배포본은 2026-08-10 16:22 빌드이고(번들 mtime·백엔드 소스 mtime·서비스 기동 시각이 모두 그날), 그 이후 `app/` 또는 `frontend/`를 건드린 커밋이 131개다. 번들 asset을 대조하면 모듈명 기준 공통 33개 중 **내용 해시가 같은 것은 4개뿐**이다. 제품 코드의 결함이 아니라 **검증 체계의 결함**이다 — `CLAUDE.md` §10이 `PROJECT_COMPLETE`의 필수 최종 Gate로 요구하는 Chrome Whole-product E2E를 지금 돌리면 현재 코드가 아니라 08-10 빌드를 검증하게 되고, green이 나와도 현재 제품에 대해 아무것도 말하지 않는다.
-expected: 최종 Gate인 Chrome Whole-product E2E는 **검증하려는 그 코드**를 대상으로 수행되어야 한다. `CLAUDE.md` §9가 이미 순서를 정해 두었다 — `구현 수렴 → Full Regression green → Build → 통합 Deploy → 실제 배포 revision 확인 → Chrome Whole-product E2E`.
-actual: 순서 자체는 문서에 있으나 **"배포본이 최신인지"를 기계적으로 강제하는 단계가 없다.** 그래서 저장소만 앞서 나가고 서버는 5일 전 상태로 남아 있어도 아무것도 그것을 막지 않는다. 이번 Audit이 번들 해시를 직접 대조하기 전까지 이 드리프트는 어떤 문서에도 기록돼 있지 않았다.
-intent_evidence: ② `CLAUDE.md` §9(배포 순서)와 §10(Chrome Whole-product E2E가 필수 최종 Gate, "Screenshot 존재·페이지 오픈·health 200만으로 E2E 완료 처리하지 않는다") · ② `CLAUDE.md` §13이 `PROJECT_COMPLETE` 조건에 "승인된 TEST SERVER 통합 Deploy, 실제 배포 revision 확인"을 명시 — 즉 revision 확인은 이미 요구사항인데 그것을 수행하는 수단이 없다.
-findings: PA-F-016, PA-F-017
-feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 배포·검증 파이프라인 전체에 걸린다.
-routes: 해당 없음 — 특정 라우트가 아니라 배포본 전체가 대상이다. 다만 `/mail`(메일 발송 상태)은 배포본에 아예 없어 드리프트가 가장 눈에 띄는 지점이다.
-frontend: `app/static/react/assets/**`(빌드 산출물) · `scripts/build-bundle.sh` · `scripts/check_bundle_fresh.py`(로컬 신선도는 보지만 **배포본과는 대조하지 않는다**)
-api: 해당 없음 — API 계약은 바뀌지 않는다. 다만 배포본의 API는 08-10 시점 계약이므로, 현재 계약 기준으로 배포본을 검증하면 잘못된 실패가 난다.
-backend: `/opt/clovirone-web-assistant/app/**`(배포본, 최신 mtime 2026-08-10 16:01) · `deploy/` · `scripts/` 의 배포·업그레이드 스크립트
-data: 해당 없음 — DB 스키마/데이터를 바꾸지 않는다. 단 재배포 시 migration 순서는 `docs/MAINTENANCE_PLAYBOOK.md` §2를 따를 것(백엔드 먼저, 프런트 번들 나중).
-rbac: 해당 없음 — 권한 규칙과 무관하다.
-integration: 배포본의 n8n(`:5678`)·러너(`:8787`/`:8788`/`:8789`)는 계속 떠 있다. 재배포 시 CLAUDE.md §3-9(공유 서비스 보호)에 따라 이들을 임의 변경하지 않는다.
-state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
-user_impact: 최종 사용자 영향은 없다(TEST 서버다). 영향은 **프로젝트 완료 판정**에 있다 — 낡은 배포본에서 얻은 E2E green을 근거로 `PROJECT_COMPLETE`를 만들면 그 판정 자체가 무효다. 실제로 배포본에는 `AI-11`(채팅 폴링이 5회 실패 후 영구 정지)·`AI-08`(진행 표시가 가짜)·`UA-25`(일괄 실패 토스트가 항상 "권한이 없어")·`VIS-162` 같은 이미 고쳐진 결함이 **그대로 살아 있다**.
-implementation_direction: (1) **Chrome E2E 진입 조건으로 배포 revision 대조를 기계화한다.** 저장소 HEAD의 번들 asset 파일명(내용 해시)과 서버 `/opt/clovirone-web-assistant/app/static/react/assets/` 의 목록을 비교해 불일치면 E2E를 시작하지 않고 재배포로 되돌린다 — 이번 Audit이 실제로 그 방법으로 드리프트를 찾아냈으므로 구현 가능함이 이미 증명됐다. (2) 백엔드도 함께 대조한다(파일 해시 또는 배포 시 기록하는 revision 파일). 현재 `/opt`에 git이 없어 `git log`로는 확인이 불가능하므로, **배포 스크립트가 배포 시점 SHA를 파일로 남기게** 하는 것이 가장 단순하다. (3) 그 다음에 재배포하고 E2E를 수행한다. 순서를 바꾸지 말 것.
-constraints: CLAUDE.md §9 배포 순서 준수(백엔드 → 프런트 번들) · §3-9 공유 서비스(n8n·기존 러너·공유 nginx) 무단 변경 금지 · §3-4 자격증명 비영구화(배포 스크립트에 비밀번호를 넣지 말 것, stdin/승인된 runtime 경로만) · 배포 대상 host/IP를 과거 기억으로 하드코딩하지 말 것(§9) · **Auditor는 재배포를 수행하지 않았다** — 프롬프트 7절이 배포 실행을 PHASE 2의 역할로 명시한다.
-regression_risk: 재배포 자체의 위험은 평소 배포와 같다(마이그레이션 순서, 서비스 재기동). 새로 도입하는 revision 대조 검사가 **거짓 불일치**를 내면 E2E가 영영 시작되지 않을 수 있으므로, 대조 대상을 빌드 산출물로 한정하고 비결정적 요소(타임스탬프·경로)를 넣지 말 것. 범위는 배포 파이프라인이며 제품 런타임 회귀는 없다.
-acceptance_criteria: (1) 저장소 HEAD와 배포본의 프런트 번들 asset 목록이 완전히 일치한다. (2) 배포본이 자신의 revision(SHA)을 파일로 갖고 있고 그 값이 저장소 HEAD와 같다. (3) revision 불일치 시 Chrome E2E가 **시작되지 않고** 명확한 사유를 출력한다(고의로 불일치를 만들어 revert-to-verify). (4) 재배포 후 `/healthz`·`/readyz`가 200이고 서비스 3종이 active다. (5) 배포본에 `/mail` 등 08-10 이후 추가된 화면이 실제로 존재한다. (6) 그 상태에서 수행한 Chrome E2E 결과만 완료 근거로 쓴다.
-required_tests: **신규**: 배포 revision 대조 검사 자체의 테스트(일치/불일치 양쪽) · 기존: `scripts/check_bundle_fresh.py`(로컬 신선도 — 이것과 **역할이 다르다**는 점을 주석으로 구분할 것) · 기존 배포 배선 테스트(`SYS-03`이 확장한 nginx 인증서 경로 검사 포함) · 재배포 후 `tests/regression` + `tests/security` 재실행 · Chrome Whole-product E2E(§10)
-qa_gaps: `docs/QA_COVERAGE.md`에 **"배포본이 검증 대상과 같은가"를 보는 축이 없다.** 그래서 5일·131커밋 드리프트가 어떤 QA도 통과하지 않고 존재했다. V축에 `배포 revision 일치` 칸을 추가할 것. 또한 이 Audit의 Coverage에서 화면 surface들이 아직 `OBSERVED`가 아닌 이유도 이것이다(낡은 빌드를 보고 현재 화면을 판정할 수 없다).
-quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 `CLAUDE.md` §9·§10·§13(배포 순서와 최종 Gate 정의)이라는 **프로젝트 정책**이고, 증거는 번들 asset 해시 대조와 파일 타임스탬프라는 **기계적 사실**이다. 미적·설계 판단이 개입하지 않는다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0007 절(PA-F-016, PA-F-017) · `PRODUCT_AUDIT_COVERAGE.md` "OBSERVED 칸의 근거와 그 한계" 절 · 서버 실측(`ls -l /opt/clovirone-web-assistant/app/static/react/assets/`, `systemctl show -p ActiveEnterTimestamp`) · `git log --since=2026-08-10T17:05 -- app frontend` → 131건
-<!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0008 -->
-rc_id: PA-RC-0008
-severity: High
-priority: P1
-confidence: Confirmed
-problem: SQLite 쓰기 경합 재시도가 **공용 유틸 없이 호출부마다 손으로** 쓰여 있다. 예산이 2·5·10·12로 네 가지고, backoff/jitter를 쓰는 곳은 7곳 중 1곳(`auth/router.py`)뿐이다. 그 결과 `app/prompts/service.py::new_version_from`(예산 5, jitter 없음)이 8-way 경합에서 재시도를 소진하고 **처리되지 않은 `OperationalError: database is locked`를 그대로 올려 500이 난다.** 결정적인 것은 이 저장소가 **이미 그 교훈을 실측했다**는 점이다 — `auth/router.py:505`가 *"실측: 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다"*라고 적어 두었는데, `new_version_from`은 그보다 약한 "jitter 없이 5회"다. 지식이 옆 파일로 전파되지 않았다.
-expected: `tests/integration/test_prompt_create_new_version_race.py` docstring이 계약을 명시한다 — *"UB-21 — 프롬프트/정책 생성·새 버전이 경합할 때 **500이 아니라 깨끗한 결과**를 준다"*. 즉 경합 시 재시도로 성공하거나, 최악의 경우에도 사용자에게 의미 있는 409여야 하며 raw 500이어서는 안 된다.
-actual: 격리 실행 5회 중 2회 재현(약 40%). 실패는 어서션이 아니라 `sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked` — `INSERT INTO prompts ...` 에서 예산 소진 후 `raise`로 그대로 샌다.
-intent_evidence: ④ `tests/integration/test_prompt_create_new_version_race.py`가 "500이 나면 안 된다"를 테스트로 표현한다(신뢰할 수 있는 테스트가 표현하는 계약) · ⑥ `app/auth/router.py:476,505-506`의 **실측 기록**(10-way 스트레스 시험으로 10회를 정했고, jitter 없이는 10회로도 5번 중 1번 실패) — 같은 저장소가 같은 실패 종류에 대해 이미 내린 결론이다 · ⑥ `app/prompts/service.py`의 주석이 스스로 "approvals.create_approval과 같은 관용"이라 주장하는데 그 함수는 12회다.
-findings: PA-F-018, PA-F-019, PA-F-020, PA-F-021
-feature_contracts: FC-03(프롬프트 수명주기) — 새 버전 생성이 이 계약의 진입 동작이다. FC-01(승인 결재)도 `create_approval`이 같은 재시도 계열이라 함께 본다.
-routes: `/prompts`·`/policies`(새 버전 생성) · `/approvals`(생성) · `/chat-rooms`(team_chat seq) · `/games`(게임 이벤트 seq) · `/notion-mapping` · 로그인(`/login`)
-frontend: 해당 없음(직접 대상 아님) — 다만 500이 사용자에게 어떻게 보이는지는 `frontend/src/lib/api.js`의 오류 변환에 달려 있고, 그 문구 문제는 `PA-RC-0002`가 다룬다. 두 RC가 만나는 지점이다.
-api: `POST /api/admin/prompts/{id}/new-version` · `POST /api/admin/policies/{id}/new-version` · `POST /api/admin/approvals` · team_chat 메시지 전송 · games 이벤트 append · `POST /login`
-backend: `app/prompts/service.py:123,148-178`(`_NEW_VERSION_RETRIES`) · `app/approvals/service.py:148`(`_CREATE_RETRIES=12`) · `app/team_chat/service.py:44`(`_SEQ_RETRIES=12`) · `app/games/service.py::_append_event`(5) · `app/notion_mapping/service.py:39`(5) · `app/auth/router.py:476`(10, jitter 있음) · `app/core/sessions.py:41`(2) · `app/core/db.py:152`(`is_write_conflict` — 분류기는 이미 공용이다)
-data: 해당 없음 — 스키마 변경 없음. 관련 유일 제약(`uq_{prompts,policies}_name_version`, `ux_{prompts,policies}_published_dedup`)은 그대로 둔다. 그것들이 경합의 승자를 정해 주는 장치라 제거하면 안 된다.
-rbac: 해당 없음 — 권한 판정과 무관하다.
-integration: 해당 없음 — 외부 연동과 무관하다. SQLite 로컬 쓰기 경합 문제다.
-state_transition: FC-03의 `draft` 새 버전 생성 경로. 상태 전이 규칙 자체(`VALID_TRANSITIONS`)는 바꾸지 않는다 — 바꾸는 것은 그 전이에 도달하기까지의 재시도 정책이다.
-user_impact: 관리자가 "새 버전" 버튼을 연타하거나 두 관리자가 동시에 누르면 진 쪽이 **500**을 받는다. `PA-RC-0002`(오류 문구에 회복 경로 없음)와 겹치면 화면에는 원인도 다음 행동도 없는 메시지만 남는다. 더 나쁜 2차 영향은 **동시성 테스트 스위트가 간헐 실패한다**는 것 — race 테스트가 flaky하면 무시되기 시작하고, 그 스위트는 `CLAUDE.md` §3-10을 지키는 유일한 장치다.
-implementation_direction: (1) `app/core/db.py`에 **공용 재시도 헬퍼**를 만든다(분류기 `is_write_conflict`가 이미 그 파일에 있으므로 자연스러운 자리다) — 예산·backoff·jitter를 한 곳에서 정한다. (2) 기본값을 새로 지어내지 말고 **저장소가 이미 실측한 값**에서 출발한다: jitter 필수, 예산은 `auth/router.py`의 10 이상(`_LOGIN_WRITE_RETRIES` 주석의 근거를 그대로 인용할 것). (3) 7개 호출부를 헬퍼로 옮기고, 다른 값이 필요하면 **왜 다른지 주석으로 남기게** 강제한다(지금은 이유 없이 다르다). (4) **예산 소진 시 raw 500이 아니라 409**로 끝나게 한다 — `new_version_from` 주석의 "409를 보여줄 이유가 없다"는 *재시도가 성공했을 때* 얘기이고, 소진 시 fallback은 별개 문제다. (5) 고친 뒤 race 테스트를 **반복 실행**해 flaky가 사라졌는지 확인한다(1회 green은 근거가 안 된다 — 원래 60%는 통과했다).
-constraints: CLAUDE.md §3-10(명시적 transaction/BEGIN 규약 우회 금지, SAVEPOINT는 실제 outer transaction 안에서) 준수 · §3-1(sync 일관성, `async def` 라우트 핸들러 금지) · **`is_write_conflict()` 분류기를 우회하거나 복제하지 말 것**(§3-10이 "공용 classifier/retry 규약을 재사용한다"고 명시) · 유일 제약(`uq_*`, `ux_*`)을 제거해 경합을 "해결"하지 말 것 — 그것은 승자를 정하는 장치다 · `:memory:` DB로 WAL/멀티커넥션 의미를 대체하지 말 것(§3-10)
-regression_risk: 재시도 예산을 늘리고 sleep을 넣으면 **경합 시 응답 지연이 늘어난다**(최악의 경우 예산×최대 대기). 요청 타임아웃·워커 처리량과 상호작용하므로 상한을 명시적으로 계산할 것. 범위는 백엔드 7개 호출부이고 프런트 회귀는 불필요하다. 또한 `_SIDE_EFFECT_COMMIT_ATTEMPTS=2`(sessions)는 성격이 다를 수 있으니(부수효과 커밋) 일괄 치환 전에 개별 판단할 것.
-acceptance_criteria: (1) 쓰기 경합 재시도가 공용 헬퍼 한 곳을 지난다. (2) 예산과 jitter 기본값이 한 곳에 선언되고, 다르게 쓰는 호출부마다 사유 주석이 있다. (3) `tests/integration/test_prompt_create_new_version_race.py`를 **연속 20회 반복 실행해 실패 0건**(1회 green은 불충분 — 수정 전 통과율이 약 60%였다). (4) 예산 소진 경로가 raw 500이 아니라 409를 반환한다(테스트로 강제). (5) 경합 시 최대 지연의 상한이 계산돼 주석 또는 문서에 있다. (6) `tests/integration` 전체 + `tests/regression` + `tests/security` green.
-required_tests: **신규**: 공용 재시도 헬퍼의 단위 테스트(예산 소진 시 409, 분류 실패 시 재raise, jitter가 실제로 지연을 넣는지) · **신규**: 예산 소진 경로가 500이 아님을 검증 · 기존: `tests/integration/test_prompt_create_new_version_race.py` **반복 20회** · 기존 `test_notion_mapping_get_or_create_race.py`·`test_quota_toctou.py`·`test_trash_move_race.py`·`test_health_snapshot_job.py`(같은 계열, 함께 반복 실행) · 기존 `tests/regression`·`tests/security` 전체
-qa_gaps: `docs/QA_COVERAGE.md`에 **동시성 축이 반복 실행으로 검증되지 않는다.** race 테스트는 1회 실행으로는 의미가 없는데(이번 건도 60%는 통과했다) 현재 QA는 1회 실행만 본다. "race 계열 테스트는 N회 반복" 규칙을 축으로 추가할 것. 또한 `tests/integration`이 이 Cycle의 다른 실행 묶음(`tests/regression`·`tests/security`)에 포함되지 않는다는 사실도 기록할 것 — 그래서 이 결함이 오래 보이지 않았다.
-quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① 실제 재현되는 테스트 실패(5회 중 2회) ② `CLAUDE.md` §3-10(공용 classifier/retry 규약 재사용) ③ 저장소 자신의 실측 기록(`auth/router.py:505`)이라는 **기계적·문서적 사실**이다. 미적 판단이 개입하지 않는다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0008 절(PA-F-018~021) · `app/prompts/service.py:123,148-178` · `app/auth/router.py:476,505-506` · `app/core/db.py:148-176`(`is_write_conflict`) · `tests/integration/test_prompt_create_new_version_race.py`(docstring이 계약) · 스캐너 `var/product-audit/scan_retry.py`, `scan_tx.py`
-<!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0009 -->
-rc_id: PA-RC-0009
-severity: Medium
-priority: P2
-confidence: Confirmed
-problem: 백엔드 전체 회귀(2,903건)는 **실제로 전부 통과한다** — 이 Audit이 청크 분할 전경 실행으로 확인했다(`regression` 331 · `security` 498 · `unit` 761 · `integration` 1,313을 4청크로, 5회 실행 모두 `EXIT=0`). 문제는 결과가 아니라 **실행 수단**이다. 단일 호출로는 45분+가 걸려 세션/호출 경계를 못 넘고(두 번 시도해 27%·49%에서 잘림), 그 결과 `docs/WORK_STATE.md`가 세 사이클 동안 이것을 "진짜 행(hang)"으로 잘못 기록해 아무도 전체 회귀를 돌리지 않았다. 여기에 flaky 1건(`PA-RC-0008`의 race 테스트, 약 40% 실패)이 겹쳐 **1회 green을 완료 근거로 쓸 수 없는** 상태다.
-expected: `CLAUDE.md` §12가 `.venv/Scripts/python -m pytest`를 "Backend full"로 정의하고 §13이 그 green을 `PROJECT_COMPLETE` 조건으로 요구한다. 따라서 **완주 가능하고 반복해도 같은 결과가 나오는** 실행 절차가 있어야 한다.
-actual: 결과는 green이지만 그것을 얻는 절차가 문서화돼 있지 않다. 단일 호출은 완주하지 못하고, 어떤 문서도 "청크로 나눠 돌린다"거나 "45분 걸린다"고 적지 않는다. 그래서 세 사이클(WF12·WF13·WF14) 동안 "행"으로 오진된 채 미검증으로 남았다.
-intent_evidence: ② `CLAUDE.md` §12(대표 검증 명령)·§13(완료 Gate) · ③ `pytest.ini`의 `testpaths = tests`가 "full"의 범위를 2,903건으로 기계적으로 확정한다 · ⑥ `docs/WORK_STATE.md` WF12·WF13·WF14의 "완료 못 함" 기록(원인 오진 — `PA-RC-0006`)
-findings: PA-F-022, PA-F-023
-feature_contracts: 해당 없음 — 특정 기능 계약이 아니라 검증 절차의 문제다. 다만 FC-03(프롬프트 수명주기)이 `PA-RC-0008`의 race 테스트를 통해 이 RC와 맞닿는다.
-routes: 해당 없음 — 사용자 화면이 아니라 검증 절차다.
-frontend: 해당 없음 — 프런트는 이미 건강하다. `npm test -- --run`이 111초에 253파일/1,718건 완주·전부 통과로 실증됐다. 이 RC는 백엔드 스위트 전용이다.
-api: 해당 없음 — API 계약과 무관하다.
-backend: `pytest.ini` · `tests/integration/**`(1,313건, 단일 호출로 완주 불가) · `tests/integration/test_prompt_create_new_version_race.py`(flaky, `PA-RC-0008`) · `tests/integration/test_cli_user.py:14-29`(`subprocess.run(timeout=60)` — 부하 의존 후보, 재현 안 됨)
-data: 해당 없음 — 제품 데이터와 무관하다.
-rbac: 해당 없음 — 권한 규칙과 무관하다.
-integration: 해당 없음 — 외부 연동과 무관하다.
-state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
-user_impact: 최종 사용자 영향 없음. 영향은 완료 판정의 신뢰성이다 — 절차가 없으면 다음 사람도 같은 오진을 반복하고, flaky 1건 때문에 1회 green이 근거가 되지 못한다.
-implementation_direction: (1) **청크 분할 전경 실행을 절차로 고정한다** — 이 Audit이 쓴 방법이 그대로 답이다(`tests/regression`·`tests/security`·`tests/unit` 각각 단독, `tests/integration`은 4청크). 스크립트 한 개로 만들고 각 청크의 exit code를 합산한다. (2) **소요 시간을 문서에 적는다**(약 45분) — `PA-RC-0006`의 "행" 오진이 재발하지 않도록. (3) `PA-RC-0008`의 flaky race를 고친다. (4) `test_cli_passwd_temp_resets`는 **우선순위를 낮게** 둔다 — 격리 3/3, 직전 파일 동반 실행, 그리고 같은 앞 334건을 담은 chunk1 실행에서 모두 통과했다. 실패한 그 한 번은 Auditor가 다른 명령을 동시에 돌리던 중이었으므로 **실험 조건 오염일 가능성이 높다.** 부하 높은 CI 러너에서 재현되면 그때 `subprocess` 타임아웃/직렬화를 본다. **재현 없이 타임아웃 숫자만 늘리지 말 것.**
-constraints: **Auditor는 테스트 코드를 수정하지 않았다**(프롬프트 0절) · 비결정 테스트를 `skip`/`xfail`로 덮어 green을 만들지 말 것 · `pytest.ini`의 `testpaths`를 좁혀 "full"의 정의를 축소하지 말 것 — §12·§13의 계약을 바꾸는 일이므로 그렇게 하려면 `docs/DECISIONS.md`에 근거를 남길 것 · CLAUDE.md §3-10(`:memory:` DB로 WAL/멀티커넥션 의미 대체 금지)을 우회해 통합 테스트를 빠르게 만들지 말 것
-regression_risk: 실행 절차 변경 자체는 제품 회귀 위험이 없다. 위험은 청크 분할이 **테스트 간 순서 의존을 가릴 수 있다**는 것이다 — 실제로 이번에 전체 실행에서만 난 실패가 청크에서는 안 났다. 그래서 절차에 "가끔은 단일 호출 완주도 시도한다"를 남기거나, 청크 경계를 고정해 재현 가능하게 할 것.
-acceptance_criteria: (1) 백엔드 2,903건 전부를 실행하는 **절차(스크립트)** 가 저장소에 있고, 각 청크 exit code를 합산해 하나의 결과를 낸다. (2) 그 절차를 **연속 3회** 돌려 매번 실패 0건이다(1회 green 불가 — 이 RC의 핵심이 비결정성이다). (3) `test_prompt_create_new_version_race`가 20회 반복에서 실패 0건(`PA-RC-0008`과 공유). (4) 소요 시간이 문서에 기록돼 있다. (5) 어떤 테스트도 이 RC 때문에 `skip`/`xfail` 되지 않았다. (6) `docs/WORK_STATE.md`의 "행(hang)" 서술이 정정돼 있다(`PA-RC-0006`과 공유).
-required_tests: 기존 테스트를 **실제로 완주시키는 것 자체**가 요구사항이다 — `tests/integration`(1,313)·`tests/unit`(761)·`tests/security`(498)·`tests/regression`(331). 추가로 **신규**: race/subprocess 계열을 N회 반복 실행하는 장치와, 그 장치가 실제로 비결정성을 잡는지 revert-to-verify.
-qa_gaps: `docs/QA_COVERAGE.md`에 **스위트 자체의 건강을 보는 축이 없다** — 완주 여부·소요 시간·비결정 테스트 목록. 그래서 "45분 걸린다"가 "행이다"로 세 사이클 동안 잘못 기록됐다. 두 축을 추가할 것: `Full Regression 완주 기록(소요 시간 포함)` · `비결정 테스트 목록과 반복 검증 결과`.
-quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 ① `pytest --collect-only`의 기계적 집계 ② 5회 청크 실행의 exit code ③ 실패 인덱스 역추적의 교차 확인(느슨한 계수 395와 엄격 계수 683이 같은 334를 지목) ④ 격리·동반·청크 3가지 재현 시도라는 대조 실험 ⑤ `CLAUDE.md` §12·§13과 `pytest.ini`라는 명시적 계약이다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0009 절(PA-F-022, PA-F-023 — 정정 경위 포함) · `var/product-audit/pytest_int_c1..c4.log`(4청크 전부 EXIT=0) · `var/product-audit/pytest_unit.log`(EXIT=0) · `var/product-audit/pytest_integration.log`(중단된 단일 실행, 334번째 F) · `var/product-audit/collect_all.txt`(2,903건 집계) · `tests/integration/test_cli_user.py:14-29` · `pytest.ini` · `CLAUDE.md` §12·§13
-<!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0010 -->
-rc_id: PA-RC-0010
-severity: Medium
-priority: P2
-confidence: Confirmed
-problem: 서버 렌더 로그인 화면이 **다크 모드를 전혀 따르지 않는다.** 실제 Chromium 151로 `prefers-color-scheme: dark` 컨텍스트를 주고 측정했더니 `body` 배경(`rgb(243,246,255)`)과 글자색(`rgb(51,59,85)`)이 light와 **완전히 동일**했고 `<html data-theme>`는 `null`이었다. 원인은 값이 아니라 **활성화 경로의 부재**다 — 이 화면이 읽는 `app/static/css/tokens.css`에는 `:154`에 `[data-theme="dark"]` 블록이 실제로 존재하는데, `app/templates_html/**` 전체에 `data-theme`·`prefers-color-scheme`가 **0건**이라 그 블록을 켜는 주체가 없다. SPA는 JS로 그 속성을 세팅하지만 로그인 페이지에는 그 JS가 없다.
-expected: 제품이 라이트/다크를 지원하면 **앱을 여는 첫 화면**도 그 설정을 따라야 한다. `app/static/css/tokens.css`가 다크 토큰을 정의해 둔 것 자체가 그 의도의 근거다 — 정의만 하고 켜지지 않는 토큰은 의도가 미완성이라는 뜻이다.
-actual: 다크 사용자가 흰 로그인 화면을 보고, 로그인 성공 후 SPA가 다크로 바뀌면서 화면이 눈에 띄게 튄다. 그 파일의 다크 토큰 20여 개는 자신을 읽는 유일한 화면에서 영원히 활성화되지 않는다.
-intent_evidence: ③ `app/static/css/tokens.css:154`의 `[data-theme="dark"]` 블록이 존재한다는 사실 자체 · ⑤ React SPA는 `frontend/src/ui/ThemeModeProvider.jsx`/`theme-store.js`로 라이트·다크를 완전히 지원한다(제품 의도가 다크 지원임을 보여 준다) · ⑥ 기존 Backlog `DS-18`이 이 정적 사본을 "한 세대 전 팔레트"로 지목하며 동기화를 진행해 왔다(값은 맞춰 왔으나 활성화는 다루지 않았다)
-findings: PA-F-024, PA-F-025
-feature_contracts: 해당 없음 — 로그인 자체의 기능 계약(인증)은 바뀌지 않는다. 표현 계층만 대상이다.
-routes: `/login` · `/forgot-password` · `/reset-password` · `/change-password` — `app/templates_html`이 그리는 서버 렌더 페이지 전부(같은 정적 CSS를 읽으므로 같은 문제를 공유할 가능성이 높다. **다만 이번에 실측한 것은 `/login` 하나다** — 나머지는 미확인)
-frontend: 해당 없음(React 번들 밖이다) — 이 RC의 대상은 서버 렌더 템플릿과 정적 CSS다. 단 SPA의 테마 저장 방식(`frontend/src/ui/theme-store.js`)과 **초기 테마를 어떻게 공유할지**는 함께 설계해야 한다(로그인 직후 튐을 없애려면).
-api: 해당 없음 — API 계약과 무관하다.
-backend: `app/templates_html/**`(로그인·비밀번호 재설정 등 서버 렌더 템플릿) · `app/static/css/tokens.css`(`:154` 다크 블록) · `app/static/css/base.css` · `app/auth/router.py`(템플릿 렌더 지점)
-data: 해당 없음 — 데이터 구조와 무관하다.
-rbac: 해당 없음 — 권한과 무관하다.
-integration: 해당 없음 — 외부 연동과 무관하다.
-state_transition: 해당 없음 — 제품 상태 전이와 무관하다.
-user_impact: 다크 모드 사용자가 **앱을 여는 첫 화면**에서 밝은 화면을 맞고, 로그인 후 어두워지며 튄다. 야간·저조도 환경에서 눈부심이 실제 불편이고, 제품이 테마를 지원한다는 인상을 첫 화면에서 스스로 깎는다. 기능 실패는 없다.
-implementation_direction: (1) **`prefers-color-scheme` 미디어쿼리 방식을 우선 검토한다** — `app/static/css/tokens.css`의 기존 `[data-theme="dark"]` 블록을 `@media (prefers-color-scheme: dark)`로도 적용되게 하면 JS 없이 켜진다. **CLAUDE.md §3-6이 inline script를 금지하므로 `<html>`에 초기 테마를 심는 인라인 스크립트 방식은 그 제약과 충돌한다** — 이 판단을 구현 착수 전에 확인할 것. (2) 사용자가 SPA에서 고른 테마(`theme-store.js`)와 OS 설정이 다를 때 어느 쪽을 따를지 정한다. 쿠키로 서버에 전달하면 튐 없이 일치시킬 수 있으나 그 결정을 `docs/DECISIONS.md`에 남길 것. (3) `/login` 외 나머지 서버 렌더 페이지도 **같은 문제인지 먼저 실측**하고 한 번에 고친다(이번 Audit은 `/login`만 확인했다). (4) `DS-18`(정적 사본 값 동기화)과 **같은 배치로** 처리한다 — 값을 맞춰도 켜지지 않으면 무의미하고, 켜기만 하고 값이 낡으면 이상하게 보인다.
-constraints: **CLAUDE.md §3-6** — 서버 데이터를 `innerHTML`로 주입 금지, **inline script / `onclick=` 금지**. 이것이 초기 테마 주입 방식을 제약하는 핵심이다 · CSP는 완화돼 있으나(`app/core/middleware.py`의 `CSP_POLICY`가 정본) `connect-src 'self'`는 유지 · `DS-18`이 정적 사본의 일부 합성 토큰을 **의도적으로 안 건드렸다**(개별 WCAG 대비 계산이 딸려 있어서) — 다크를 켜면 그 토큰들이 처음으로 실제 렌더되므로 **대비를 재계산할 것** · 값을 눈대중으로 고르지 말 것(`theme.js` 상단 경고와 같은 원칙)
-regression_risk: 다크를 켜는 순간 **여태 한 번도 렌더된 적 없는 다크 토큰들이 처음 화면에 나온다.** 즉 이 변경의 진짜 위험은 "다크가 안 켜지는 것"이 아니라 "켜졌는데 대비가 깨져 있는 것"이다. `tests/regression/test_css_says_what_it_does.py`(사이드바 대비 자동 검사)가 이미 존재하므로 그 계열을 다크 경로로 확장할 것. 범위는 서버 렌더 페이지에 한정되며 React 번들·백엔드 로직 회귀는 없다.
-acceptance_criteria: (1) `prefers-color-scheme: dark`에서 `/login`의 `body` 배경·글자색이 light와 **다르다**(실제 브라우저로 측정 — 이 Audit이 쓴 `var/product-audit/probe_login2.py`를 그대로 재사용할 수 있다). (2) 다크에서 렌더되는 모든 텍스트/배경 쌍의 대비가 WCAG AA(4.5:1, 비텍스트 3:1)를 만족한다(계산으로 증명). (3) `/login` 외 서버 렌더 페이지도 같은 기준을 통과한다. (4) 로그인 성공 후 SPA로 넘어갈 때 테마가 튀지 않는다. (5) inline script를 쓰지 않았다(§3-6). (6) 대비 회귀 검사가 다크 경로를 덮는다.
-required_tests: **신규**: `prefers-color-scheme: dark`에서 서버 렌더 페이지의 계산 색이 light와 다름을 검증하는 브라우저 테스트 · **신규**: 다크 토큰 조합의 WCAG 대비 계산 검증(기존 `tests/regression/test_css_says_what_it_does.py` 확장) · 기존: `frontend/src/styles/tokens-baseline.test.js`·`frontend/src/ui/theme-baseline.test.js`(SPA 쪽 값이 안 깨졌는지) · 기존 인증 플로우 테스트(템플릿을 건드리므로 렌더 자체가 안 깨졌는지)
-qa_gaps: `docs/QA_COVERAGE.md`에 **서버 렌더 페이지(로그인·비밀번호 재설정)를 위한 테마 축이 없다.** 화면 축이 React 라우트 중심이라 SPA 밖 페이지가 통째로 빠져 있고, 그래서 "다크가 아예 안 켜진다"가 QA를 그대로 통과했다. `서버 렌더 페이지 × 라이트/다크` 칸을 추가할 것.
-quality_rubric: `redesign-existing-projects` — *"Random dark sections in a light mode page (or vice versa) … Either commit to a full dark mode or keep a consistent background tone"* 항목(여기서는 반대 방향: 제품은 다크를 지원하는데 진입 화면만 아니다). 추가로 이 Audit 프롬프트 6절 **내장 rubric 11)**(Light/Dark 각각에서 대비와 상태색이 성립하는가). 판정은 미적 인상이 아니라 **실제 브라우저 계산값 비교**로 했다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0010 절(PA-F-024, PA-F-025) · `var/product-audit/probe_login2.py`·`probe_login2.json`(light/dark 두 컨텍스트 실측) · `var/product-audit/probe_login.json` · `app/static/css/tokens.css:154` · `PRODUCT_AUDIT_COVERAGE.md` "브라우저 관측 환경 (왜 로컬인가)" 절
-<!-- PA-RC-END -->
