@@ -329,6 +329,86 @@ Finding을 만든다. 아래 Finding은 전부 그 대조를 거쳤고, 관련 �
 
 ---
 
+## PA-RC-0009 — "Full Regression green"이 실제로 성립한 적이 없다 (Y축)
+
+**Severity: High · Confidence: Confirmed · Type: test-gap / blocker(완료 Gate)**
+
+### PA-F-022 · 백엔드 전체 스위트의 45%가 한 번도 완주되지 않았다
+
+- **규모 실측** (`pytest --collect-only`, `pytest.ini`의 `testpaths = tests` 적용):
+
+  | 디렉터리 | 테스트 | 이번 Cycle에서 완주했나 |
+  |---|---:|---|
+  | `tests/integration` | **1,313** (45%) | **아니오** — 두 번 시도, 각각 27%·49%에서 세션 경계로 중단 |
+  | `tests/unit` | 761 (26%) | 아니오 — 시도 안 함 |
+  | `tests/security` | 498 (17%) | **예 — 전부 통과** |
+  | `tests/regression` | 331 (11%) | **예 — 전부 통과** |
+  | **합계** | **2,903** | 실행 완료 **829건(29%)** |
+
+- **CLAUDE.md §12는 `.venv/Scripts/python -m pytest`를 "Backend full"이라 정의한다.**
+  `testpaths = tests`이므로 그 명령은 위 2,903건 전부를 뜻한다. 그런데
+  **`tests/integration` 1,313건이 완주된 기록이 이 저장소 어디에도 없다.**
+- `docs/WORK_STATE.md`의 WF12·WF13·WF14가 전부 "완료 못 함"을 기록했고, 그 원인을
+  "진짜 행(hang)"으로 잘못 진단했다(→ `PA-RC-0006`). 실제로는 **오래 걸리는 것**이고,
+  이번 Cycle에서도 45분 넘게 돌다 세션 경계에서 잘렸다.
+
+### PA-F-023 · 그 미완주 구간 안에 비결정적 테스트가 있다
+
+전체 실행 중단분(683건까지 진행)에서 **실패 1건**이 있었다. 실패 지점을 인덱스로 역추적했다:
+
+- 진행 문자열을 **엄격 파싱**(순수 진행 줄만)해 실패 위치 = **334번째**.
+  (첫 시도의 느슨한 계수는 로그 안 다른 마침표까지 세어 395가 나왔다 — 두 방법이 같은
+  334를 가리켜 교차 확인됐다.)
+- 순서 무작위화 플러그인이 **없음**을 확인했다(`pytest-randomly`·`xdist` 미설치, builtin만).
+  따라서 실행 순서 = 수집 순서이고 인덱스 매핑이 유효하다.
+- 수집 목록 누적으로 334번째 = **`tests/integration/test_cli_user.py`의 7번째 =
+  `test_cli_passwd_temp_resets`**.
+- **그런데 격리 실행에서는 3회 연속 통과**했고, 바로 앞 파일들
+  (`test_chat_quota`·`test_chat_ticket_routing_contract`·`test_claim_race`)과 함께 돌려도 통과했다.
+
+**즉 이 실패는 순서 의존이거나 부하 의존이다.** 그 테스트는 `subprocess.run(..., timeout=60)`로
+CLI를 **별도 프로세스로 두 번** 띄운다(`tests/integration/test_cli_user.py:14-29`) — 전체
+스위트 부하 아래서 콜드 스타트가 느려지는 경로다. **원인은 Probable이고 확정하지 않는다.**
+확정된 것은 "전체 실행에서 실패했고 격리에서는 3/3 통과한다"는 관측 사실뿐이다.
+
+### 병합된 Root Cause
+
+`CLAUDE.md` §13이 `PROJECT_COMPLETE`의 조건으로 요구하는 **"Backend/Frontend/Runner Full
+Regression green"** 이 **한 번도 실증된 적이 없다.** 이유는 두 겹이다.
+
+1. **완주 불가** — 백엔드 전체가 45분+ 걸리는데, 실행 방식(백그라운드)이 세션 경계를 못 넘긴다.
+2. **완주해도 신뢰 불가** — 비결정적 테스트가 최소 2개다
+   (`PA-RC-0008`의 race 테스트 약 40% 실패 + 위 order/load 의존 1건).
+   한 번의 green은 "안 깨졌다"가 아니라 "이번엔 운이 좋았다"일 수 있다.
+
+### `PA-RC-0007`과 합치면 — 완료 Gate 세 개 중 둘이 검증 불가다
+
+| §13이 요구하는 Gate | 현재 상태 |
+|---|---|
+| Backend/Frontend/Runner **Full Regression green** | **미실증** (이 RC) |
+| 승인된 TEST SERVER **통합 Deploy + revision 확인** | 배포본이 131커밋 뒤처짐 (`PA-RC-0007`) |
+| **Chrome Whole-product E2E** | 위 배포본 위에서 돌면 무의미 (`PA-RC-0007`) |
+
+프런트는 예외다 — `npm test`가 111초에 끝나고 1,718건 전부 통과했다(실증됨).
+
+### 구현 방향
+
+1. **완주 가능한 실행 방식을 먼저 정한다** — 전경 실행 + 넉넉한 타임아웃, 또는 디렉터리별
+   분할 실행 후 결과 합산. 백그라운드 단일 실행은 이 환경에서 두 번 실패했다.
+   (`tests/regression`·`tests/security`는 전경 실행으로 실제 완주했다 — 방법은 증명됐다.)
+2. **비결정적 테스트를 먼저 잡는다.** `PA-RC-0008`(race)이 하나고, `test_cli_passwd_temp_resets`
+   가 다른 하나다. 후자는 원인 규명이 먼저다 — 순서 의존이면 상태 누수, 부하 의존이면
+   subprocess 타임아웃/직렬화가 답이다. **원인을 모른 채 타임아웃만 늘리지 말 것.**
+3. 그 다음에야 "Full Regression green"을 완료 근거로 쓸 수 있다.
+4. race·subprocess 계열은 **반복 실행**으로 판정한다(1회 green 금지 — `PA-RC-0008` 참조).
+
+### 기존 Backlog 대조
+
+`QA-*` 계열에 커버리지·시계 주입 항목은 있으나 **"전체 회귀가 완주된 적 없다"는 항목은 없다.**
+`PA-RC-0006`(문서가 "행"이라 오기록)은 이 RC의 **원인 중 하나**이지 같은 항목이 아니다. **신규.**
+
+---
+
 ## PA-RC-0008 — 쓰기 경합 재시도 정책이 호출부마다 다르고, 저장소가 이미 "부족하다"고 실측한 설정이 남아 있다
 
 **Severity: High · Confidence: Confirmed · Type: defect (J·I축) — 재현되는 실패가 있다**
