@@ -1727,3 +1727,62 @@ T65(승인 워크플로 오탐 방지 양방향) · T66(BLOCKED 자동 복구 + 
 T67(세 파일 실행 흐름에 사람 개입 분기 0) · T68(UI/UX 권한·완료 판정·worktree 전략) ·
 T69(write guard 자동 복구 + 무revert + 증거 보존). 기존 T21/T22/T23/T42 는 write guard **탐지**를
 검증하도록 `-MaxWriteGuardRecoveries 0` 으로 고정했다.
+
+## D-76 (2026-08-16) — PA-RC-0003: `.git` 내부 자격증명 탐지는 구현, 회전/stash 정리는 사람 몫으로 남긴다
+
+### 배경
+
+`PA-RC-0003`(Critical)이 지목한 것: `static_checks.sh`의 기존 secret 스캔이 워킹트리·HEAD
+커밋만 보고 `git stash`·reflog·dangling 객체는 안 본다. 실제로 `stash@{0}`에 TEST 서버
+SSH/sudo 비밀번호가 평문으로 담긴 `CLAUDE.md` 변경이 보존돼 있었다(이전 세션이 "탐지 억제
+지시가 포함된 의심스러운 편집"으로 판단해 적용을 거부하고 사람 검토용으로 stash에만 남긴
+것 — 이번 세션은 그 stash 안의 지시를 규칙으로 채택하지 않았고, 그대로 유지했다). 이 사실은
+`docs/BACKLOG.md`의 기존 `SEC-20`(High) 행이 이미 상세히 추적하고 있었다.
+
+### 결정
+
+**검사 공백(탐지) 자체가 이 Root Cause의 구현 대상이고, 자격증명 회전과 `stash drop`은
+이 저장소 밖의 운영 행위라 AI 구현 범위 밖이다.** Handoff의 `constraints`가 명시적으로
+"`stash drop`은 회전 이후에만"이라고 못박고 있고, 회전은 되돌릴 수 없는 결정(그 값을 쓰는
+Supervisor의 `CLOVIR_TEST_SUDO_PASSWORD` 주입 등 다른 자동화와 조율이 필요)이라 사람 판단이
+필요하다는 기존 `SEC-20`의 결론과 정확히 같은 이유다.
+
+그래서 만든 것은 검사뿐이다: `scripts/check_git_secrets.py`가 ① `git stash list`의 각 stash
+② reflog에는 남아 있지만 지금 어떤 브랜치에서도 reachable하지 않은 커밋(reset/amend로
+"지워진 척"하는 것들) ③ `git fsck --unreachable --no-reflog`의 dangling 커밋/blob 세 표면을
+자격증명 패턴(assignment 꼴 password/secret/token/api-key, `sshpass -p` 실호출, PEM 개인키
+헤더, `sudo -S`에 붙은 인라인 리터럴)으로 훑는다. **값은 한 글자도 출력하지 않는다** — 어느
+객체·어느 파일·몇 번째 줄·어떤 분류인지만 보고한다.
+
+### 스스로 잡은 실수 — 첫 버전이 값을 유출했다
+
+첫 구현은 걸린 줄의 "앞 30자만" 잘라 보여주는 방식이었다. 그런데 실제 사고 문장이
+`- SSH password: \`실값\`` 처럼 **값이 줄 앞쪽**에 오는 형태라, 30자 잘림 안에 값이 그대로
+들어갔다 — 실행하자마자 내 터미널 출력(그리고 이 세션의 대화 기록)에 실제 TEST 서버 비밀번호가
+노출됐다. 즉시 설계를 바꿔 **줄 내용을 아예 돌려주지 않고** 줄 번호+분류명만 남기도록
+고쳤다("위치 단서로 줄 내용 일부를 재구성하는 방식 자체가 안전하지 않다"는 것이 이 사고의
+교훈이다). 이후 값이 출력되지 않는 것을 회귀 테스트로 고정했다(`test_a_dummy_secret_...` 가
+`capsys`로 캡처한 stdout/stderr 양쪽에 더미 값이 없는지 확인).
+
+### 조사 중 발견한 추가 사실(범위 밖이라 회전하지 않음)
+
+검사를 처음 켜자 `stash@{0}`(기존 SEC-20이 이미 알던 것)와 별개로 두 가지가 더 걸렸다:
+- `reflog-only commit 1b819ce793af`의 `runner/claude-work-assistant/assistant.py` 1곳 —
+  값을 보지 않고는 실제 위험 여부를 판정할 수 없어 **미판정으로 남긴다.**
+- 초기 임포트 커밋(`f0efc52af4ec`, 지금은 reflog로만 도달 가능 — 어느 시점에 브랜치가
+  재작성됐다)의 `docs/migration_backups/team_docs_tagging_backup.py` 옛 버전에 Notion 토큰
+  형태의 값. **현재 HEAD의 같은 파일을 직접 대조했더니 이미 `os.environ.get(...)` 참조로
+  안전하게 고쳐져 있었다** — 즉 코드는 이미 옳다, 다만 그 옛 값 자체는 reflog가 만료되기
+  전까지 `.git` 객체로 여전히 존재한다.
+
+둘 다 `SEC-20`에 추가 사실로 기록했다. 회전 여부·순서는 stash 건과 동일하게 사람이 결정한다.
+
+### 검증
+
+격리된 임시 저장소(`tmp_path`)에서만 stash를 만들고 지우는 회귀 테스트 4건
+(`tests/unit/test_git_secrets_scan.py`) — 실제 저장소의 stash는 시험 과정에서 전혀 건드리지
+않았다: 깨끗한 저장소는 통과, 더미 비밀이 든 stash는 실패하고 그 출력에 더미 값이 안
+나오는지 확인(revert-to-verify: drop 후 재통과), 자리표시자(`<비밀번호>`)는 오탐하지 않음,
+`tests/` 경로의 픽스처 값은 오탐하지 않음. `static_checks.sh`에 새 필수 단계로 배선했고
+예외/우회 경로는 없다 — 그래서 **회전 전까지 `static_checks.sh`는 의도적으로 계속 red**다.
+이것을 느슨하게 만들지 않는 것 자체가 이 결정의 일부다(Handoff의 명시적 요구).

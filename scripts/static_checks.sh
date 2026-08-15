@@ -73,6 +73,11 @@ HITS="$(grep -rnE '(password|secret|token|api[_-]?key)\s*=\s*["'\''][^"'\'' ]{8,
   | grep -vE '(test|example|dev-only|__GENERATED|password_hash|reveal|mask|SESSION_SECRET|change-me)' || true)"
 if [ -z "$HITS" ]; then ok "no hardcoded secrets"; else echo "$HITS"; fail "possible hardcoded secret"; fi
 
+step "Repository hygiene — stash/reflog/dangling objects scanned for credentials (PA-RC-0003)"
+# 위 검사는 워킹트리·HEAD만 본다 — git stash/reflog에 남은 옛 값은 못 본다(실제로
+# stash@{0}에서 TEST 서버 자격증명이 이 사각지대로 새 있었다). 값은 출력하지 않는다.
+if "$PY" scripts/check_git_secrets.py; then ok "git internals clean"; else fail "credential-like value in stash/reflog/dangling object — see above (object+line only, no value printed)"; fi
+
 step "Bash syntax"
 for s in scripts/*.sh deploy/*.sh; do
   [ -f "$s" ] || continue
