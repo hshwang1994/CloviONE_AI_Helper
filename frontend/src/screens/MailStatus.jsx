@@ -47,7 +47,7 @@ const FAILURE_COLUMNS = [
   { key: "subject", label: "제목" },
   { key: "status_label", label: "상태", render: (r) => <Badge value={r.status_label} kind="danger" /> },
   { key: "attempt_count", label: "시도 횟수" },
-  { key: "last_error", label: "오류", render: (r) => r.last_error || "-" },
+  { key: "last_error", label: "오류" },
   { key: "created_at", label: "발생" },
 ];
 

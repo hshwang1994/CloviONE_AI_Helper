@@ -149,4 +149,29 @@ describe("메일 발송 상태 화면", () => {
     await screen.findByText(/SMTP 서버 주소/);
     expect(screen.queryByRole("button", { name: "시험 메일 보내기" })).toBeNull();
   });
+
+  // '오류' 열에 값 그대로 보여주는 render(r => r.last_error || "-")가 있으면 DataTable의
+  // 기본 말줄임(title 힌트 포함)에서 빠진다 — 표 폭이 긴 오류 문장에 끌려가 옆 '발생' 열이
+  // "2026-0..."로 잘렸다. render를 없애 기본 cellValue 경로(말줄임 + title)를 타게 했다.
+  it("긴 오류 메시지는 title로 전체를 노출한다(말줄임 경로를 탄다)", async () => {
+    const LONG_ERROR = "메일 발송이 꺼져 있습니다. 설정에서 smtp.enabled 를 켜세요. SMTP 서버 주소(host)가 비어 있습니다. 보내는 사람 주소(from_address)가 비어 있습니다.";
+    apiMock.mockImplementation((path) => {
+      if (String(path).startsWith("/api/admin/mail/status")) {
+        return Promise.resolve({
+          ...NOT_CONFIGURED,
+          recent_failures: [
+            {
+              id: "d-9", kind: "backup_failed", to_email: "admin@goodmit.co.kr",
+              subject: "[Clovir] 백업 실패", status: "unconfigured", status_label: "발송 불가(설정 없음)",
+              attempt_count: 0, last_error: LONG_ERROR, created_at: "2026-08-15T23:38:00", sent_at: null,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    const cell = await screen.findByText(LONG_ERROR);
+    expect(cell.closest("td")).toHaveAttribute("title", LONG_ERROR);
+  });
 });

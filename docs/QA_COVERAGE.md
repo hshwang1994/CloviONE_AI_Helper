@@ -29,6 +29,9 @@
 채웠다. 또 BACKLOG.md 전수 대조로 `S`(판독)를 라우트 62개에서 `O`로 올렸다(근거: §WF1 표 +
 `###` 라우트별 절 + 팀 공간/신규 티켓 실조작 절). §3에 빠져 있던 `/mail` 행을 신설하고 §4를
 프로즈만 있던 상태에서 §2/§3과 같은 라우트별 표로 처음 채웠다. 근거·방법론 전문은 §15.
+**같은 날 나중에** 이 갱신이 `S`=`-`로 남겨 둔 9라우트 중 7개(관리자 전용/registry 화면)를
+`Read`로 직접 판독해 `S`도 `O`로 마저 올렸다 — 관리자 축은 이제 **45/45 전부 판독 완료**고,
+그 과정에서 실결함 1건(`PA-16`, DataTable 열 정의 문제)을 찾아 고쳤다(§15-5).
 그 전 갱신: 2026-08-15 **§13 신설**(Product Audit Cycle `PA-20260812`이 드러낸 **축 자체의 공백 9개**,
 `T1`~`T9`) · 2026-08-11 (§12 QAH 하네스 1회차) · 2026-08-08 (사이클 0)
 
@@ -53,8 +56,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | 공개(로그인 전) | 4 | 1/4 | 1 | - | - | - | ~ | - | - | ~ |
 | 사용자 콘솔 | 26 | **26/26** | 23/25 | - | - | - | 22 O·1 ~·2 - | - | - | ~ |
-| 관리자(전용+registry) | 45 | **45/45** | 38/45 | - | - | - | **45/45** | - | - | ~ |
-| **계** | **75** | **72/75** | **62/75** | 0 | ~ | 0 | **~**(68 O·1 ~·2 -) | **~** | 0 | ~ |
+| 관리자(전용+registry) | 45 | **45/45** | **45/45** | - | - | - | **45/45** | - | - | ~ |
+| **계** | **75** | **72/75** | **69/75** | 0 | ~ | 0 | **~**(68 O·1 ~·2 -) | **~** | 0 | ~ |
 
 > `A`(API)와 `R`(RBAC)이 `0`에서 `~`로 올라갔다 — §6-1에 4역할 × 17엔드포인트 실측 매트릭스가 있다.
 >
@@ -162,19 +165,24 @@
 | `/maintenance` | Ops/Maintenance | O | operator | O | - | - | - | O | - | - | ~ |
 | `/dev-report` | DevReport | O | auditor | O | - | - | - | O | - | - | ~ |
 | `/scheduler-calendar` | SchedulerCalendar | O | operator | O | - | - | - | O | - | - | ~ |
-| `/mail` | MailStatus | O | operator | - | - | - | - | O | - | - | ~ |
+| `/mail` | MailStatus | O | operator | O | - | - | - | O | - | - | ~ |
 | `/system` | SystemOps(298줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
 | `/setup` | SetupWizard(232줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
-| `/notion-console` | NotionConsole(377줄) | O(신규) | system_admin | - | - | - | - | O | - | - | ~ |
-| `/llm-console` | LlmConsole(354줄) | O(신규) | system_admin | - | - | - | - | O | - | - | ~ |
+| `/notion-console` | NotionConsole(377줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
+| `/llm-console` | LlmConsole(354줄) | O(신규) | system_admin | O | - | - | - | O | - | - | ~ |
 | `/search` | Search(공유) | O | — | O | - | - | - | O | - | - | ~ |
 
 > **S/C/V 갱신(2026-08-15) 근거는 §15 참고.** `/notion-console`·`/llm-console`·`/mail`은 오늘
-> E2E에서 C(콘솔 오류 0건)·V(1920/3840 라이트다크)는 새로 확보했지만, BACKLOG.md에 이 세
-> 화면을 대상으로 한 전용 판독 기록이 없어 `S`는 `-`로 남긴다 — 실제 공백이다. `/search`는
-> `user_search`/`user_search-results`/`user_search-empty`(사용자 셸)와 같은 컴포넌트를 공유한다
-> — 관리자 셸(`/admin#/search`) 자체의 독립된 캡처는 이번 4회에도 없었다(공유 컴포넌트라는
-> 전제로 값을 옮겨 적었을 뿐).
+> E2E에서 C(콘솔 오류 0건)·V(1920/3840 라이트다크)를 먼저 확보했고, 같은 날 나중에(7화면
+> 시각 재점검 패스) `dist/ui-qa/converge-ai70/light/1920x1080/`의 스크린샷을 `Read`로 직접
+> 판독해 `S`도 `O`로 올렸다 — `admin_notion-console`은 이미 알려진 `VIS-42`/`VIS-49`/`VIS-63`/
+> `VIS-122` 클로비-FAB 겹침 가족과 같은 종류의 겹침이 한 곳 더 보였으나(마스코트가 "토큰"
+> 주의 콜아웃 모서리를 살짝 덮음) 전담 세션으로 이미 의도적으로 미룬 것과 같은 사례라 새로
+> 만들지 않았고, `admin_mail`은 실제 결함(`PA-16`, DataTable 열 정의의 무의미한 `render`가
+> 말줄임을 깨 옆 열을 잘라 먹음)을 찾아 그 자리에서 고쳤다. `/system`·`/setup`은 이미 이전에
+> 판독됐던 상태 그대로다. `/search`는 `user_search`/`user_search-results`/`user_search-empty`
+> (사용자 셸)와 같은 컴포넌트를 공유한다 — 관리자 셸(`/admin#/search`) 자체의 독립된 캡처는
+> 이번에도 없었다(공유 컴포넌트라는 전제로 값을 옮겨 적었을 뿐).
 
 ## 4. 관리자 registry — DataScreen 28키
 
@@ -206,17 +214,17 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | `integrations.js` | `/integrations?id=` | 외부 연동 상세(드로어) | O | - | - | - | O | - | - | ~ |
 | `integrations.js` | `/runners` | 러너 | O | - | - | - | O | - | - | ~ |
 | `integrations.js` | `/runners?id=` | 러너 상세(드로어) | O | - | - | - | O | - | - | ~ |
-| `integrations.js` | `/workflows` | 워크플로 | - | - | - | - | O | - | - | ~ |
-| `authoring.js` | `/prompts` | 프롬프트 | - | - | - | - | O | - | - | ~ |
+| `integrations.js` | `/workflows` | 워크플로 | O | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/prompts` | 프롬프트 | O | - | - | - | O | - | - | ~ |
 | `authoring.js` | `/policies` | 정책 | O | - | - | - | O | - | - | ~ |
 | `authoring.js` | `/templates` | 템플릿 | O | - | - | - | O | - | - | ~ |
 | `authoring.js` | `/prompt-usage` | 프롬프트 사용 통계 | O | - | - | - | O | - | - | ~ |
-| `authoring.js` | `/policy-usage` | 정책 사용 통계 | - | - | - | - | O | - | - | ~ |
+| `authoring.js` | `/policy-usage` | 정책 사용 통계 | O | - | - | - | O | - | - | ~ |
 | `automation.js` | `/schedules` | 실행 일정(스케줄) | O | - | - | - | O | - | - | ~ |
 | `automation.js` | `/documents` | 문서 자동 생성 | O | - | - | - | O | - | - | ~ |
 | `automation.js` | `/jobs` | 작업 큐 | O | - | - | - | O | - | - | ~ |
 | `automation.js` | `/jobs?job_id=` | 작업 상세(드로어) | O | - | - | - | O | - | - | ~ |
-| `org.js` | `/job-titles` | 직책 관리 | - | - | - | - | O | - | - | ~ |
+| `org.js` | `/job-titles` | 직책 관리 | O | - | - | - | O | - | - | ~ |
 | `org.js` | `/notion-mapping` | Notion 사용자 연결 | O | - | - | - | O | - | - | ~ |
 | `governance.js` | `/approvals` | 승인 | O | - | - | - | O | - | - | ~ |
 | `governance.js` | `/approval-delegations` | 승인 위임 | O | - | - | - | O | - | - | ~ |
@@ -231,8 +239,9 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | `platform.js` | `/feature-flags` | 기능 플래그 | O | - | - | - | O | - | - | ~ |
 | `notifications.js` | `/notifications` | 알림 | O | - | - | - | O | - | - | ~ |
 
-> `workflows`·`prompts`·`policy-usage`·`job-titles` 4개는 오늘 E2E로 `C`/`V`는 새로 확보했지만
-> BACKLOG.md에서 전용 판독 근거를 못 찾았다 — `S`는 `-`로 남긴 **진짜 공백**이다(§15).
+> `workflows`·`prompts`·`policy-usage`·`job-titles` 4개는 오늘 E2E로 `C`/`V`를 먼저 확보했고,
+> 같은 날 나중에(7화면 시각 재점검 패스) 스크린샷을 `Read`로 직접 판독해 `S`도 `O`로 올렸다 —
+> 4개 다 표(각 3~5행)가 깨끗했고 새 결함은 없었다(§15).
 
 ---
 
@@ -929,21 +938,32 @@ BACKLOG.md L3317) + `PA-12`(비밀번호 표시 버튼 대비 4.449:1 실측, L3
 
 </details>
 
-### 15-5. 손대지 않고 남긴 진짜 공백 (`S` = `-`인 9라우트)
+### 15-5. 손대지 않고 남긴 진짜 공백 (원래 `S` = `-`였던 9라우트)
 
 BACKLOG.md 전체에서 찾지 못했다 — 캡처는 있지만(§4의 신규 표에서 `C`는 `O`) 아무도 그 PNG를
-서술한 기록이 없다:
+서술한 기록이 없었다:
 
 - `admin_workflows`·`admin_prompts`·`admin_policy-usage`·`admin_job-titles` — 흥미롭게도
   같은 파일(`authoring.js`/`automation.js`/`org.js`)의 형제 화면(`policies`·`prompt-usage`·
-  `notion-mapping` 등)은 판독 기록이 있는데 이 넷만 없다 — 표본이 화면군 단위가 아니라
+  `notion-mapping` 등)은 판독 기록이 있는데 이 넷만 없었다 — 표본이 화면군 단위가 아니라
   개별 화면 단위로 골라졌다는 뜻으로 읽힌다.
 - `admin_notion-console`·`admin_llm-console`·`admin_mail` — system_admin 전용/등록 누락
-  이력이 있는 화면들이라(`QAH-06`), 캡처 자체가 늦게 합류했고 아직 아무도 판독하지 않았다.
+  이력이 있는 화면들이라(`QAH-06`), 캡처 자체가 늦게 합류했고 아직 아무도 판독하지 않았었다.
 - `user_chat-room-detail`·`user_game-room` — 시드 데이터가 없어 **오늘도 과거에도** 한 번도
   캡처된 적이 없다(캡처가 없으니 판독도 원천적으로 불가능하다).
 
-이 9개는 이번 세션에서 `-` 그대로 뒀다 — 없는 근거를 있다고 하지 않는다.
+**같은 날 나중에(7화면 시각 재점검 패스) 위 7개를 전부 `Read`로 직접 판독했다** —
+`dist/ui-qa/converge-ai70/light/1920x1080/`의 스크린샷을 화면당 1장씩 열어 실제로 봤다. 6개는
+깨끗했다(`admin_notion-console`은 이미 알려진 클로비-FAB 겹침 가족과 같은 종류라 새로 만들지
+않음). `admin_mail`에서는 실제 결함을 하나 찾아 그 자리에서 고쳤다 — "최근 실패" 표의 "오류"
+열이 `DataTable` 열 정의에 무의미한 `render`를 달고 있어 공용 말줄임 보호에서 빠졌고, 그 결과
+표 폭을 혼자 다 먹어 옆의 진짜 중요한 "발생"(시각) 열이 `2026-0...`로 잘렸다(`PA-16`,
+BACKLOG.md). 같은 검색으로 저장소 전체에서 같은 패턴 3곳을 더 찾아(`Offboarding.jsx`의
+부서/직책/실행자 열) 함께 고쳤다. 7개 다 §3/§4 표의 `S`를 `O`로 올렸다.
+
+남은 진짜 공백은 `user_chat-room-detail`·`user_game-room` **2개뿐**이다 — 시드 데이터가 없어
+캡처 자체가 없고, 캡처가 없으니 판독도 원천적으로 불가능하다. 없는 근거를 있다고 하지 않고
+`-` 그대로 뒀다.
 
 ### 15-6. 라우트 매핑이 애매했던 것 (그대로 결정하지 않고 남김)
 

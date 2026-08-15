@@ -5811,3 +5811,51 @@ VIS-52를 **`Read` 도구가 PNG를 실제로 렌더해 보여준다**는 것을
 뺀다. `docs/BACKLOG.md`의 나머지 Medium/Low unresolved 스캔이 다음
 후보이고, 그 과정에서 "실측 필요"로 보류된 다른 항목을 만나면 위 교훈대로
 먼저 기존 `dist/ui-qa/**/*.png`에 해당 화면이 있는지부터 확인한다.
+
+### 관리자 7화면 시각 재점검 완주 + `PA-16` 신규 발견(2026-08-15, 같은 세션 계속)
+
+QA_COVERAGE.md 정리를 맡겼던 배경 Agent가 지목한, **BACKLOG.md 전체에서
+한 번도 판독 기록이 없던 관리자 화면 7개**(`admin_job-titles`·
+`admin_prompts`·`admin_policy-usage`·`admin_notion-console`·
+`admin_llm-console`·`admin_mail`·`admin_workflows`)를 위 "돌파구"와 같은
+방법으로 `dist/ui-qa/converge-ai70/light/1920x1080/`의 스크린샷을 `Read`로
+전부 열어 판독했다.
+
+- 6개는 깨끗했다. 다만 두 가지는 새로 만들지 않고 기존 판단에 흡수시켰다:
+  ⓐ `admin_job-titles`/`admin_prompts`에 보인 "티켓 동기화 일시 실패"
+  배너는 라이브 서버 `sync_status` 테이블을 직접 조회해(`healthy`,
+  타임스탬프가 이번 세션 마지막 배포 **이후**) 이 세션 자체의 빠른
+  재배포 리듬(15분에 5회)이 만든 일과성 현상임을 확인 — 실결함 아님.
+  ⓑ `admin_notion-console`의 클로비 마스코트가 "토큰" 주의 콜아웃 모서리를
+  살짝 덮는 것은 이미 전담 세션으로 미뤄 둔 `VIS-42`/`VIS-49`/`VIS-63`/
+  `VIS-122` 클로비-FAB 겹침 가족과 같은 종류라 재론하지 않음.
+- **`admin_mail`에서 신규 실결함 발견 → `PA-16`으로 기록하고 즉시 고침**:
+  "최근 실패" 표에서 "오류" 열이 긴 문장을 줄바꿈 없이 그대로 늘어놓아
+  표 폭을 다 먹고, 정작 중요한 "발생"(시각) 열이 `2026-0...`로 잘렸다.
+  근본 원인은 `kit.jsx::DataTable`의 말줄임 판정(`!c.open && (ellipsis ||
+  !c.render)`)이 `render`가 있는 열을 통째로 보호 대상에서 뺀다는
+  것이었는데, `MailStatus.jsx`의 `last_error` 열이 `render: (r) =>
+  r.last_error || "-"`라는 **`cellValue`의 기본 폴백과 완전히 동일한
+  값을 만드는 무의미한 render**를 달고 있어 조용히 그 보호를 잃고 있었다.
+  저장소 전체를 같은 패턴(`render`가 key와 같은 필드를 그대로 돌려주며
+  기본 `"-"` 폴백과 동일한 값을 만드는 경우)으로 검색해 `Offboarding.jsx`
+  3곳(부서/직책/실행자)도 같은 문제임을 확인하고 함께 고쳤다 — 반면
+  기본값과 다른 폴백 문구를 쓰거나(`user_name`→"알 수 없음") 원본과 다른
+  키로 값을 옮기는(`registry/*.js`의 `_full`/`_raw` 상세 패널 필드) 진짜
+  필요한 render는 그대로 뒀다. `mail-status.test.jsx`에 회귀 1건 추가
+  (긴 오류 문장이 있으면 `td`가 `title` 속성으로 전체 텍스트를 노출하는지
+  확인) — revert-to-verify 확인(render를 되살리면 `title`이 `null`로
+  정확히 예측대로 실패). 관련 스위트(`mail-status`7건·`offboarding`12건)
+  green. 표 폭이 실제로 넓어졌는지는 jsdom엔 실레이아웃이 없어 유닛 시험
+  으로 확인 못 함 — 다음 Chrome E2E에서 `admin_mail` 재스크린샷으로 실측
+  필요.
+- `docs/BACKLOG.md`에 `PA-16` 신설, `docs/QA_COVERAGE.md` §3/§4 표의 이
+  7라우트 `S`(판독)를 `-`→`O`로 올리고 §0 요약(관리자 38/45→**45/45**,
+  계 62/75→**69/75**)·§15-5(9개 진짜 공백 중 7개 해소, 남은 건
+  `user_chat-room-detail`/`user_game-room` 시드 데이터 없음 2개뿐)까지
+  갱신 완료.
+
+**다음(갱신)**: `SEC-20`(사람만)·`AI-54`(아키텍처)·worktree 88개는 그대로.
+관리자 화면 시각 판독은 이제 45/45로 완주했으므로 목록에서 뺀다.
+`admin_mail` 표 폭 실측(다음 Chrome E2E 때 같이)과 `docs/BACKLOG.md`의
+나머지 Medium/Low unresolved 스캔이 다음 후보.

@@ -129,8 +129,8 @@ function TargetPicker({ q, setQ, query, onPick }) {
   const columns = [
     { key: "display_name", label: "이름" },
     { key: "email", label: "이메일" },
-    { key: "department", label: "부서", render: (r) => r.department || "-" },
-    { key: "title", label: "직책", render: (r) => r.title || "-" },
+    { key: "department", label: "부서" },
+    { key: "title", label: "직책" },
     { key: "active", label: "상태", render: (r) => (
       <Box sx={{ display: "inline-flex", gap: 0.75, flexWrap: "wrap" }}>
         <Badge value={r.active ? "active" : "disabled"} />
@@ -432,7 +432,7 @@ function RunHistory() {
         kind={r.status === "completed" ? "ok" : r.status === "undone" ? "neutral" : "warn"} />
     ) },
     { key: "ticket_moved", label: "티켓", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
-    { key: "actor_name", label: "실행자", render: (r) => r.actor_name || "-" },
+    { key: "actor_name", label: "실행자" },
   ];
 
   const detail = (detailQ.data && detailQ.data.run) || sel;
