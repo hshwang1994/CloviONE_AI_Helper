@@ -97,6 +97,12 @@ def handle_document_generate(db: Session, job: Job, ctx: WorkerContext) -> None:
     preview_payload = build_workflow_payload(
         config, _requester(gen, db), action="preview"
     )
+    # DBTX: 아웃바운드 호출(n8n) 바로 앞에서 커밋해 스냅샷을 새로 뜬다. 커밋 없이 이
+    # 세션이 앞서 읽은 스냅샷을 쥔 채로 느린 호출을 통과하면, 그 사이 다른 세션이 아무
+    # 것도 안 써도 스냅샷이 낡을 수 있고 응답을 받은 뒤의 쓰기가 "database is locked"로
+    # 거부된다 — busy_timeout으로 못 구한다(app/core/db.py의 "begin" 이벤트 주석,
+    # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+    db.commit()
     preview = _invoke_classified(
         provider, workflow, preview_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
     )
@@ -162,6 +168,8 @@ def _publish(db, gen, workflow, config, provider, ctx, *, content=None) -> None:
     # response is lost and the job retries, the same idempotency key lets n8n
     # dedup so a duplicate document is not created. (n8n workflow must honor it.)
     publish_payload["idempotency_key"] = gen.idempotency_key
+    # DBTX: 위 preview 호출과 같은 이유로 아웃바운드 호출 직전에 커밋한다.
+    db.commit()
     result = _invoke_classified(
         provider, workflow, publish_payload, timeout=float(ctx.settings.n8n_timeout_seconds)
     )

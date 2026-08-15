@@ -2334,3 +2334,83 @@ Notion 원본(진짜 "외부 행위" 영역)은 손대지 않았다 — CLAUDE.m
    자동 전수탐지를 제품 기능으로 만드는 것은 원 SEC-10 기록이 이미 "범위 밖"으로 판단했다.
 
 상세: `docs/BACKLOG.md` SEC-10.
+
+## D-85 (2026-08-16) — DBTX-02: 잡 핸들러가 아웃바운드 호출 직전에 DB를 다시 읽으면 응답이 롤백된다 ("database is locked")
+
+### 배경
+
+새 채팅 기능(AI-16/AI-36/AI-68) 배포 직후 TEST SERVER에서 직접 Chrome E2E로 채팅을
+보내자 **연속 두 번** "업무 처리 서버와의 연결에 문제가 있어..." 오류가 났다. n8n은
+실제로 정상 응답했다(`journalctl` + `jobs` 표 직접 조회로 확인) — 워커가 응답을 이미
+받고 assistant 메시지까지 만든 **뒤**, 마지막 `db.commit()`에서
+`sqlite3.OperationalError: database is locked`
+(`UPDATE conversations SET backend_conversation_id=?...`)로 거부됐다.
+
+### 근본 원인
+
+`app/core/db.py`의 `"begin"` 이벤트가 이미 문서화해 둔 함정 그대로였다 — DEFERRED
+BEGIN + `busy_timeout` 조합에서, 세션이 먼저 읽어 고정한 WAL 스냅샷이 그 사이 **다른
+세션이 아무 것이나 커밋**하면 낡는다("지금 누가 잠갔다"가 아니라 "내가 본 상태가 이미
+낡았다"라 `busy_timeout`으로 못 구한다). `app/jobs/handlers/chat_message.py`는 이미
+아웃바운드 호출(n8n) **앞**에 방어용 `db.commit()`을 두고 있었는데(§S5 커밋-내부화와
+같은 계보), `_resolve_chat_endpoint(db, settings)`(Workflow 레지스트리 조회)가 그 커밋
+**뒤**·호출 **앞**에 자리하고 있어 새 트랜잭션을 도로 열어 버렸다 — 방어 코드 자체가
+있었는데 그 뒤에 추가된 읽기 한 줄이 조용히 무력화한 것이다.
+
+**재현 확인**: `tests/integration/test_chat_handler.py::
+test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call`을 만들어
+n8n 호출이 "나가 있는" 바로 그 순간 별도 세션이 `write_heartbeat`를 커밋하게 만들면,
+고친 코드로는 통과하고 `_resolve_chat_endpoint`를 원래 자리(커밋 뒤)로 되돌리면 **TEST
+SERVER에서 실제로 본 것과 완전히 같은** `OperationalError`로 결정적으로 재현·실패한다
+(revert-to-verify 완료, 실제 SQLite WAL 파일 기반 — `:memory:` 아님, 스레드 타이밍에
+기대지 않는다: 커밋 순서만으로 결정적이다).
+
+### 왜 하나가 아니라 반복되는 패턴인가
+
+같은 모양(느린 아웃바운드 호출 앞에 커밋이 없거나, 있어도 그 뒤에 읽기가 끼어든다)을
+나머지 잡 핸들러 전체에서 찾았다:
+
+- `document_generate.py` — preview·publish 두 호출 앞 모두 커밋이 **아예 없었다**(더
+  넓게 노출).
+- `notion_mapping_sync.py` — `get_mapping_workflow()` 읽기 뒤 90초짜리 호출 앞에 커밋 없음.
+- `schedule_run.py` — chat_message와 같은 모양: 방어용 커밋은 있었는데 `db.get(Workflow,
+  ...)`가 그 뒤·호출 앞에서 새 트랜잭션을 다시 열고 있었다.
+- `project_weekly_summary.py` — `db.get(Project, ...)` + 리포트 조회 뒤, LLM 호출(수십초)
+  앞에 커밋 없음.
+- `llm_connection_test.py` — 핸들러 자신은 아무 것도 안 읽지만, `run_once`가 잡을 읽은
+  스냅샷을 그대로 물려받은 채 곧장 느린 호출로 들어간다(핸들러 코드로는 못 고친다).
+
+### 결정 — 각 아웃바운드 호출 "바로 앞"을 마지막 DB 접촉으로 만든다, `mail_send`는 제외
+
+다섯 곳(`chat_message`/`document_generate`×2/`notion_mapping_sync`/`schedule_run`/
+`project_weekly_summary`) 모두 **아웃바운드 호출 바로 앞**에 `db.commit()`을 두거나(이미
+있던 커밋이 있으면 그 앞으로 읽기를 옮겨) 그 커밋이 정말 마지막 DB 문장이 되게 했다. 추가로
+`app/jobs/worker.py::run_once`가 핸들러를 부르기 **직전**에도 한 번 커밋한다 —
+`llm_connection_test`처럼 핸들러 자신은 못 고치는 경우의 보험이자, 나머지 핸들러에도
+방어 계층을 하나 더 얹는다. 이 커밋들은 전부 "그 시점까지 아무 것도 안 썼거나 이미 커밋해도
+되는 상태"에서만 넣었다 — 검증: 각 지점 직전 코드 경로를 직접 추적해 dirty 상태가 없음을
+확인.
+
+**`mail_send.py`는 의도적으로 그대로 뒀다.** `render_body()`가 만드는 1회용 토큰 행은
+주석으로 이미 "발송 실패 시 롤백과 함께 사라져야 한다"고 명시돼 있다 — 발송 호출 앞에
+커밋을 넣으면 발송이 실패해도 토큰이 영구히 남아(재시도가 새 토큰을 또 만들어 고아 토큰이
+쌓인다) 이 파일이 지키려는 계약을 깬다. SMTP 발송은 n8n/Notion/LLM 호출보다 훨씬 짧아
+노출 폭도 좁다 — 토큰 수명 설계를 다시 짜지 않고 이 좁은 위험을 그대로 안기로 했다(다시
+짜려면 "발송 실패 시 토큰을 명시적으로 지운다" 같은 별도 보상 로직이 필요하고, 이는 신용
+정보 인접 코드라 이번 수정 범위 밖에서 더 신중하게 다룰 문제다).
+
+### 회귀 확인
+
+- revert-to-verify: 위 신규 테스트로 원인-수정 인과관계를 직접 증명(재현 실패 →
+  고친 뒤 통과).
+- 관련 스위트 전체 재확인: `test_chat_handler.py`(신규 테스트 포함 17건 전부),
+  `test_notion_mapping_sync_job.py`, `test_project_weekly_llm_summary.py`,
+  `test_project_weekly_report.py`, `test_worker.py`,
+  `test_project_weekly_summary_handler.py`, `test_documents_api.py`,
+  `test_handlers_hardening.py`, `test_jobs_api.py`,
+  `test_document_generation_scope.py`, `test_job_scope.py`,
+  `test_mail_delivery.py`, `test_schedules_api.py`, `test_schedule_zombie_sweep.py`,
+  관련 regression 스위트 전체 — 모두 green.
+- 백엔드 Full Regression은 이 변경 이후 별도로 돌려 확인한다(수렴 지점 — §6).
+
+상세: `docs/BACKLOG.md` DBTX-02.

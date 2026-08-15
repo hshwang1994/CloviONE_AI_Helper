@@ -64,6 +64,11 @@ def handle_notion_mapping_sync(db: Session, job: Job, ctx: WorkerContext) -> Non
         )
 
     provider = N8nWorkflowProvider(ctx.outbound_client)
+    # DBTX: 아웃바운드 호출 직전 커밋 — SYNC_TIMEOUT_SECONDS(90초)짜리 호출을 이 세션이
+    # 위 get_mapping_workflow() 읽기 시점의 스냅샷을 쥔 채로 통과하면, 응답을 받은 뒤의
+    # 쓰기가 "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
+    # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+    db.commit()
     try:
         result = provider.invoke(workflow, {"action": "list_users"}, timeout=SYNC_TIMEOUT_SECONDS)
     except Exception as exc:

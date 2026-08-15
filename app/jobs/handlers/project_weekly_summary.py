@@ -66,6 +66,11 @@ def handle_project_weekly_summary(db: Session, job: Job, ctx: WorkerContext) -> 
     llm = build_service(
         ctx.settings, backend=ctx.extras.get("llm_backend"), outbound=ctx.outbound_client
     )
+    # DBTX: 아웃바운드(CLI) 호출 직전 커밋 — 위 db.get()/project_weekly_report()의 읽기가
+    # 연 스냅샷을 쥔 채로 수십 초짜리 호출을 통과하면, 응답을 받은 뒤의 쓰기가
+    # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
+    # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
+    db.commit()
     result = llm.summarize(body=body)
     if not result.ok:
         logger.warning(

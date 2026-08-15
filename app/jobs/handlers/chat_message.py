@@ -153,6 +153,24 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
 
     message = _load_message(db, job, payload)
     message.processing_status = PROC_PROCESSING
+
+    settings = ctx.settings
+    # DBTX: 이 조회를 아래 pre-call commit **앞으로** 당겨 둔다. commit 뒤에 실행되는 DB
+    # 읽기는(예전엔 이 조회가 여기 있었다) 새 트랜잭션을 연다 — 그 상태로 느린 아웃바운드
+    # 호출(n8n, 5~28초)을 통과하면 스냅샷이 낡고, 응답을 받은 뒤의 마지막 커밋이
+    # "database is locked"로 거부된다(다른 세션이 그 사이 아무 것도 안 썼어도 그렇다 —
+    # WAL 스냅샷이 낡았다는 뜻이지 "지금 누가 잠갔다"가 아니라 busy_timeout으로도 못
+    # 구한다, app/core/db.py의 "begin" 이벤트 주석 참고). 실측: TEST SERVER에서 배포 직후
+    # 연속 두 번(2026-08-15/16) 재현 — 워커가 응답을 이미 받았는데 그 응답(assistant
+    # 메시지 포함)이 롤백돼 사라지고 사용자에게는 "연결 문제" 안내만 남았다. 여기로
+    # 옮기면 pre-call commit이 정말 그 호출 앞의 마지막 DB 접촉이 되어, 응답을 받은 뒤
+    # 첫 읽기(conversation 조회)가 새 트랜잭션을 현재 시점 스냅샷으로 연다.
+    # revert-to-verify: tests/integration/test_chat_handler.py::
+    # test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call가
+    # 이 조회를 여기서 pre-call commit 뒤로 되돌리면 바로 이 정확한 OperationalError로
+    # 재현·실패한다(2026-08-16 직접 확인).
+    webhook_url, http_method = _resolve_chat_endpoint(db, settings)
+
     db.flush()
     db.commit()
 
@@ -162,7 +180,6 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     # them. Admin-verified mapping remains an accuracy booster, not a gate.
     # (The old platform-side refusal blocked users the runner could resolve fine.)
 
-    settings = ctx.settings
     request_body = {
         "requester": requester,
         "message": payload["content"],
@@ -197,8 +214,6 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     attachments = payload.get("attachments")
     if isinstance(attachments, list) and attachments:
         request_body = {**request_body, "attachments": attachments}
-
-    webhook_url, http_method = _resolve_chat_endpoint(db, settings)
 
     try:
         response = ctx.outbound_client.request(

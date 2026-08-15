@@ -448,3 +448,41 @@ def test_enabled_workflow_uses_edited_webhook_url(
     assert items[1]["content"] == "편집된 엔드포인트 응답"
     # The request went to the admin-edited URL, not the static settings default.
     assert str(fake_http.requests[-1].url) == edited_url
+
+
+# --- DBTX: a snapshot pinned across the slow n8n call must not lose the reply ---
+# 실측 (TEST SERVER, 2026-08-15/16): 배포 직후 연속 두 번, 워커가 n8n 응답을 이미 받고
+# assistant 메시지까지 만든 뒤 마지막 commit에서 "database is locked"(OperationalError)로
+# 거부됐다 — 그 응답 전체가 롤백되어 사라지고 사용자에게는 "연결 문제" 안내만 남았다.
+# app/core/db.py의 "begin" 이벤트 주석대로, DEFERRED BEGIN 아래서는 세션이 먼저 읽은
+# 스냅샷이 그 사이 **다른 세션의 커밋**(무엇이든, 같은 행이 아니어도)보다 낡으면 나중
+# 쓰기가 거부된다 — busy_timeout으로 못 구한다. 실제 범인은 30초마다 도는 liveness
+# heartbeat 스레드(app/worker_main.py::run_heartbeat_loop)처럼 워커와 별개로 커밋하는
+# 아무 세션이나 될 수 있다. 아래는 그 경합을 결정적으로 재현한다: n8n 호출이 "네트워크에
+# 나가 있는" 바로 그 순간 별도 세션이 실제로 커밋하게 만든다.
+
+
+def test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call(
+    app, client, chat_worker, fake_http, posted_message
+):
+    from datetime import datetime
+
+    from app.health.service import write_heartbeat
+
+    def _concurrent_writer_commits_mid_flight(request):
+        # A second, independent session/connection — exactly what the heartbeat
+        # thread (or any other tick callback, or another web request) is.
+        with app.state.session_factory() as db2:
+            write_heartbeat(db2, "worker", datetime(2026, 8, 16, 7, 35))
+            db2.commit()
+        return {"reply": "동시 커밋 이후에도 살아남아야 하는 답", "conversation_id": "ctx-race"}
+
+    fake_http.on_handler(N8N_URL, _concurrent_writer_commits_mid_flight)
+
+    assert chat_worker.run_once() is True
+
+    items = _messages(client, posted_message["conversation_id"])
+    assert len(items) == 2, items
+    assert items[0]["processing_status"] == "done", items
+    assert items[1]["role"] == "assistant"
+    assert items[1]["content"] == "동시 커밋 이후에도 살아남아야 하는 답", items

@@ -82,6 +82,15 @@ class Worker:
                 db.commit()
                 logger.error("job %s failed: unknown type %s", job_id, job_type)
                 return True
+            # DBTX: 핸들러를 부르기 직전 커밋한다. 위 db.get(Job, ...) 읽기가 이미 이
+            # 세션의 스냅샷을 고정했다 — 어떤 핸들러는(예: llm_connection_test) 그 자체로는
+            # 더 안 읽고 곧장 느린 아웃바운드 호출을 걸 수 있는데, 그러면 이 스냅샷이 호출이
+            # 도는 내내 낡아 가다가 응답을 받은 뒤의 쓰기가 "database is locked"로 거부될 수
+            # 있다(app/core/db.py의 "begin" 이벤트 주석 참고). 각 핸들러도 자신의 마지막
+            # 아웃바운드 호출 바로 앞에서 같은 이유로 커밋한다(chat_message.py 등) — 여기는
+            # 그 규율이 없는 핸들러를 위한 보험이다. 아직 아무 것도 안 썼으니(위에서 읽기만
+            # 했다) 커밋해도 잃을 것이 없다.
+            db.commit()
             try:
                 handler(db, job, self._ctx)
             except PermanentJobError as exc:

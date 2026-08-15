@@ -77,6 +77,11 @@ def handle_schedule_run(db: Session, job: Job, ctx: WorkerContext) -> None:
             if isinstance(request_payload, dict)
             else request_payload
         )
+        # DBTX: 아웃바운드 호출 직전 커밋 — 위 db.get(Workflow, ...) 읽기가 연 스냅샷을
+        # 쥔 채로 호출을 통과하면, 응답을 받은 뒤의 쓰기가 "database is locked"로
+        # 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석, app/jobs/handlers/
+        # chat_message.py의 실측 사고와 같은 근거).
+        db.commit()
         try:
             result = provider.invoke(
                 workflow, invoke_payload, timeout=float(schedule.timeout_seconds)
