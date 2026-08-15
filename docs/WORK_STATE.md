@@ -6204,6 +6204,24 @@ D-80, `BACKLOG.md` SEC-35.
 `PA-RC-0001` acceptance_criteria(3) 정책 확인 필요. `IMPLEMENTATION_REQUIRED`는
 여전히 유효 — 지우지 않는다.
 
+**`SEC-36`(High) 추가** — SEC-35 해소 뒤 `OrgScopedMixin` 상속 12개 모델을 전수
+점검, 같은 "생성 시 org_id 안 채움" 패턴이 `GameRoom`(games)·`ChatRoom`(team_chat,
+생성 자리 3곳)·`DocumentCache`(team_docs 동기화) 4곳에 더 있었다. 이번엔 그
+컬럼을 읽는 접근 제어가 아직 없어(놀이방·채팅방은 멤버십, 문서는 작성자 해석으로
+판정) 활성 유출은 아니다 — SEC-34/35처럼 긴급 재배포는 안 하고 코드만 고쳐 다음
+통합 배포로 미룸. 신규 회귀 3건(그 중 `DocumentCache`용 1건은 컬럼 기본값과
+명시값이 우연히 같아 revert-to-verify가 못 잡는다는 정직한 한계를 테스트 주석에
+남김). `tests/security/`+`tests/unit/` 관련 스위트 green. 상세: `BACKLOG.md`
+SEC-36 (커밋 `4aa676e`).
+
+**이번 연속 구간(compaction 이후) 총 정리**: `SEC-34`(Critical, 6곳)·`SEC-35`
+(Critical, 2곳, 배포 완료)·`SEC-36`(High, 4곳, 배포 보류)까지 RBAC/데이터 무결성
+결함 12곳을 한 근본 원인 계열(`OrgScopedMixin` 선언과 실제 소비/저장 사이 괴리)
+에서 찾아 고쳤다. `PA-RC-0001` 완결, `KBD-04`/`KBD-05` 실측, `AI-17` 재조사,
+`USE-06` 재평가도 같이 끝냈다(위 항목들 참고). 백엔드 전체 스위트 100% green
+확인함(이례적으로 오래 걸렸던 그 실행 포함).
+
 **다음**: 후보가 이미 정해져 있다 — ⓒ/ⓔ/ⓕ 중 하나를 실제로 설계하며 시작하거나,
 `docs/BACKLOG.md` 전체(이번 세션은 Medium/Low 미판정만 훑었다, High/Critical
-행 전체를 다시 훑지 않았다)를 Whole-product 재감사 관점에서 재점검한다.
+행 전체를 다시 훑지 않았다)를 Whole-product 재감사 관점에서 재점검한다. `SEC-36`
+을 실제 배포에 포함시키는 것도 다음 통합 배포 시점에 자연스럽게 같이 하면 된다.
