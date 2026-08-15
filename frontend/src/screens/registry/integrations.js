@@ -169,7 +169,10 @@ export const INTEGRATION_SCREENS = {
       // 링크로 보이면 관리자 자신의 브라우저에서 그 루프백 주소를 열게 되어 항상 실패한다(연동
       // 화면의 base_url과 동일한 이유로 평문으로만 보여준다).
       truncateCol("base_url", "서버 주소", 60),
-      col("owner", "담당자"), col("version", "버전")],
+      // VIS-145: 같은 표 안에 config_version("설정 버전", 위 :167 — 몇 번 편집됐는지 세는
+      // 값)과 이 version("러너 버전" — 러너 소프트웨어 자체의 릴리스 버전, 예: "3.57.0")이
+      // 다섯 칸 떨어져 나란히 있어 둘 다 "버전"이라고만 하면 어느 쪽인지 헷갈린다.
+      col("owner", "담당자"), col("version", "러너 버전")],
     // admin은 auth_type='none'인 러너만 새로 만들 수 있다(백엔드 _guard_secret_binding_create가 그 외
     // 값을 403). 연동 생성 폼과 동일하게, 골라도 항상 403이 되는 선택지를 애초에 못 고르게 role에
     // 따라 옵션 자체를 좁힌다(registry.js integrations.create와 동일 패턴).
