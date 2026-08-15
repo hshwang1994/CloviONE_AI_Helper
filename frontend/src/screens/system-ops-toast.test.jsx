@@ -73,4 +73,23 @@ describe("시스템 설정 — 작업 결과 토스트", () => {
     // 실제로는 undefined 호출이라 죽는 버그가 있으면 이 문구는 결코 화면에 나타나지 않는다.
     expect(await screen.findByText("적용하지 못했습니다. 잠시 후 다시 시도해 주세요.")).toBeInTheDocument();
   });
+
+  // PA-RC-0002: onError(요청 자체가 거부된 경우, 예: 네트워크 단절)의 폴백 문구는 회복 절 없이
+  // "요청을 보내지 못했습니다."로 끝나 막다른 길이었다 — 이 파일 위 테스트가 지키는 onSuccess
+  // 쪽 outcomeText()의 "잠시 후 다시 시도해 주세요"와 달리, 이쪽은 그 문구가 아예 없었다.
+  it("요청 자체가 실패하면(네트워크 등) 회복 절이 있는 문구를 보여준다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path, opt) => {
+      if (opt && opt.method === "POST") return Promise.reject({});
+      return Promise.resolve(STATE);
+    });
+    renderScreen();
+
+    const restartBtn = await screen.findByRole("button", { name: "재시작" });
+    await user.click(restartBtn);
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "확인" }));
+
+    expect(await screen.findByText("요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")).toBeInTheDocument();
+  });
 });

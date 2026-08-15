@@ -289,7 +289,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
           : old);
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
-    onError: (e) => toast(e.message || "삭제하지 못했습니다.", "error"),
+    onError: (e) => toast(e.message || "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   async function pickFiles(fileList) {

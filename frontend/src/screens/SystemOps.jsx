@@ -172,7 +172,7 @@ export function SystemOps() {
       // 변경 등)이 결과를 토스트로 전혀 알리지 못했다.
       toast(outcomeText(result), result && result.ok ? "success" : "error");
     },
-    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다.", "error"),
+    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
   if (state.isLoading) return <Skeleton lines={6} />;
