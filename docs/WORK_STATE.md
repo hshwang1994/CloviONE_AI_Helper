@@ -5585,3 +5585,55 @@ documentTitle.js+4화면) · `VIS-09`/`VIS-27`(Dashboard.jsx 각주 배치) ·
 미룬다. 전부 수렴하면 프런트 재빌드 → `static_checks.sh` 전체 green →
 통합 재배포 → Chrome 재E2E(이번 배치 전체 — E2E 발견 수정+동사표+이번 프런트
 묶음이 다 합쳐진 상태로 검증).
+
+## 트리아지 (d) 목록 전부 소진 — 수렴점 도달, 다음은 통합 배포+Chrome E2E
+
+위 우선순위 목록을 끝까지 처리했다: `VIS-132`(`891bb53`)·`DS-08`/`VIS-39`
+(`891bb53`, 같은 커밋)·`VIS-145`(`c91560e`)·`VIS-133` 잔여(`0f2f15a`) —
+전부 이전 invocation에서 완료. 이번 invocation에서 이어서:
+- **`VIS-09`/`VIS-27`/`VIS-28`**(`19c6ba6`) — 각주가 타일과 분리돼 어느
+  숫자를 한정하는지 안 보이던 문제. `kit.jsx::StatCard`에 공용 `note` prop
+  신설(72개 소비처는 안 쓰면 그대로), `Projects.jsx`·`Dashboard.jsx` 적용.
+  `VIS-28`(내 업무 자기모순)도 같은 자리라 문구로 해결.
+- **`VIS-116`/`VIS-156`(`83ff4b7`)** — 재확인 결과 상단바 버튼·FAB은 이미
+  `onAssistant` 게이트로 `/chat`에서 숨어 있었다(이전 사이클에서 이미
+  고쳐짐). 사이드바 도킹 카드만 게이트가 빠져 있어 그것만 맞췄다.
+- **`SEM-02`(`4a6ad9f`)** — Product Audit 확장판(PA-F-031, 목록 화면 8개
+  h1뿐)을 `DataScreen.jsx`(레지스트리 셸, 4화면 동시 해결) + 개별 4화면 +
+  `bulkSelect.jsx`/`UsersBulk.jsx`로 처리. `/me`의 원래 좁은 사례는
+  `SectionTitle` 공유 소비처 4곳 개별 확인이 필요해 범위 밖으로 남김(다음
+  후보). 시험 작성 중 `datascreen.test.jsx`의 실제 순서 의존 시험 결함
+  (`window.location.hash` 미초기화)도 함께 발견/수정.
+
+`AI-40`(재검토 결과 이미 해결됨, 기존 정책)·`VIS-40`/`VIS-41`(Users.jsx,
+검토 후 의도적 보류, 이유 BACKLOG에 기록)·`AI-39`(재검토 결과 이미 충분)는
+각각 조사 완료·의도적 보류로 문서화됐다(별도 코드 변경 없음). `PA-01`
+(fontSize/fontWeight 재양자화 잔여 ~90+57건)과 `AI-54`(스트리밍/취소 없음,
+아키텍처 변경)는 원래 계획대로 이번 배치 범위 밖 — 다음 세션의 별도 묶음
+후보로 명시적으로 남겨 둔다.
+
+**이 시점에 두 Full Regression 모두 green 확인**: 백엔드
+(`scripts/run_full_regression.sh`, unit·regression·security·integration
+4청크 전부 `[OK]`, `FULL_REGRESSION_OK`, 31분) — PA-14/PA-08 확장 등
+이번 세션의 백엔드 변경 전체를 커버. 프런트(`npx vitest run`) 261파일/
+1,783건 green — 이번 세션 프런트 변경 전체(동사표 76파일+이번 트리아지
+배치 전체) 커버.
+
+**다음(진짜 새 작업 — 수렴점 도달)**: CLAUDE.md §9의 표준 흐름을 시작한다.
+1. `bash scripts/static_checks.sh` 전체 재실행 — 이전에 "번들 신선도"
+   체크가 기대대로 실패 중이었는지 확인(동사표 에이전트가 소스를 계속
+   바꾸는 중이라 당연했던 것 — 지금은 소스가 수렴했으니 재확인 필요).
+2. 프런트 프로덕션 번들 재빌드(`scripts/build-bundle.sh` 또는 동등한
+   npm 빌드 스크립트 — 현재 package.json 확인).
+3. 재빌드 후 `static_checks.sh` 재실행해 번들 신선도 green 확인.
+4. 승인된 TEST SERVER(`10.100.64.X`)로 통합 배포
+   (`scripts/upgrade-clovirone-web-assistant.sh` 또는 현재 배포 스크립트
+   확인) — service/health/revision 확인까지.
+5. Chrome Whole-product E2E 재실행(`scripts/ui_qa/`) — 이번 세션 전체
+   누적 변경(D-75/PA-08/BKP-10/AI-02 백엔드 + PA-RC-0002 동사표 + 이번
+   트리아지 배치 전체 프런트)을 실제 배포 환경에서 검증. 발견 시
+   `수집 → Root Cause grouping → 일괄 수정 → focused test → 필요한
+   Full Regression → 통합 재배포 → Chrome 재E2E` 순서로 처리.
+6. E2E가 충분히 수렴하면 CLAUDE.md §13 체크리스트 전체를 자체 검증해
+   `PROJECT_COMPLETE` 생성 여부를 판단한다(`IMPLEMENTATION_REQUIRED`
+   marker 상태도 함께 확인).
