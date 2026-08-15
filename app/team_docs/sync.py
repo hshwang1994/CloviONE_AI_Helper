@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.sync_prune import PruneResult, prune_missing
+from app.org.constants import DEFAULT_ORG_ID
 from app.team_docs import notion_docs
 from app.team_docs.classify import classify
 from app.team_docs.models import (
@@ -50,7 +51,11 @@ def _upsert(db: Session, d: dict, rel_maps: dict, now: datetime) -> None:
         select(DocumentCache).where(DocumentCache.notion_page_id == pid)
     ).scalar_one_or_none()
     if row is None:
-        row = DocumentCache(notion_page_id=pid)
+        # RBAC 재감사(2026-08-16, SEC-35와 같은 자리): tickets/sync.py:92와 같은 관용 —
+        # Notion 동기화 산출물은 이 설치의 단일 Notion 워크스페이스에 귀속되므로
+        # DEFAULT_ORG_ID를 명시한다(컬럼 기본값과 결과가 같아도, 우연히 맞는 것과
+        # 의도해서 맞는 것은 다르다 — board의 Post가 그 차이로 뚫렸다).
+        row = DocumentCache(notion_page_id=pid, org_id=DEFAULT_ORG_ID)
         db.add(row)
     row.url = d.get("url")
     row.title = d.get("title") or ""

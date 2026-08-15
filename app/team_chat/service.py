@@ -114,6 +114,9 @@ def ensure_team_room(db: Session, user: User, *, now: datetime) -> ChatRoom | No
             return None  # 지워진 부서를 가리키는 사용자. 방을 만들 근거가 없다.
         room = ChatRoom(
             kind=ROOM_GROUP, title=dept.name[:200], created_by_user_id=None,
+            # RBAC 재감사(2026-08-16, SEC-35와 같은 자리): 이 방이 속한 조직은 부서
+            # 자신이 안다 — 컬럼 기본값에 맡기지 않는다(games.create_room과 같은 이유).
+            org_id=getattr(dept, "org_id", None),
             is_global=False, department_id=dept_id, event_seq=0,
             created_at=now, updated_at=now,
         )
@@ -180,6 +183,8 @@ def create_group(db: Session, user: User, *, title: str, member_user_ids: list[s
     if not title:
         raise ValidationAppError("방 이름을 입력하세요.")
     room = ChatRoom(kind=ROOM_GROUP, title=title[:200], created_by_user_id=user.id,
+                    # RBAC 재감사(2026-08-16, SEC-35와 같은 자리) — 컬럼 기본값에 맡기지 않는다.
+                    org_id=getattr(user, "org_id", None),
                     is_global=False, event_seq=0, created_at=now, updated_at=now)
     db.add(room)
     db.flush()
@@ -323,6 +328,8 @@ def create_or_get_direct(db: Session, user: User, *, other_user_id: str, now: da
         unhide_room(db, existing, user)
         return existing
     room = ChatRoom(kind=ROOM_DIRECT, title="", created_by_user_id=user.id, is_global=False,
+                    # RBAC 재감사(2026-08-16, SEC-35와 같은 자리) — 컬럼 기본값에 맡기지 않는다.
+                    org_id=getattr(user, "org_id", None),
                     dm_key=key, event_seq=0, created_at=now, updated_at=now)
     try:
         with db.begin_nested():

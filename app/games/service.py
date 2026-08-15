@@ -158,6 +158,12 @@ def create_room(db: Session, *, host: User, title: str, game_type: str, max_play
     max_players = max(2, min(int(max_players or 8), 50))
     room = GameRoom(
         title=title[:MAX_ROOM_TITLE], game_type=game_type, host_user_id=host.id,
+        # RBAC 재감사(2026-08-16, SEC-35와 같은 자리에서 발견): 이 줄이 없으면 org_id가
+        # 컬럼 기본값(DEFAULT_ORG_ID)에 맡겨져 호스트의 실제 조직과 무관해진다. 지금은
+        # GameRoom.org_id를 읽는 접근 제어가 없어 활성 유출은 아니지만, board의 Post가
+        # 정확히 이 모양으로 뚫려 있었다 — 나중에 조직 스코프를 걸 때 같은 함정에
+        # 빠지지 않도록 지금 맞게 채워 둔다.
+        org_id=getattr(host, "org_id", None),
         status=ROOM_WAITING, max_players=max_players, allow_spectators=bool(allow_spectators),
         config_json=json.dumps(config or {}, ensure_ascii=False), state_json="{}",
         event_seq=0, created_at=now, updated_at=now,

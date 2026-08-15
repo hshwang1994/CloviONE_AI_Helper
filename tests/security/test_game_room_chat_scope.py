@@ -63,3 +63,19 @@ def test_an_outsider_sees_the_room_but_not_the_chat(client, login_as, make_user)
     assert body["room"]["id"] == room_id
     assert body["you"]["in_room"] is False
     assert "chat" not in kinds, f"밖에서 방 안 대화를 읽는다: {kinds}"
+
+
+# RBAC 재감사(2026-08-16, SEC-35와 같은 자리): create_room이 org_id를 안 채워 호스트의
+# 실제 조직과 무관하게 컬럼 기본값(기본 조직)으로 저장되고 있었다. GameRoom.org_id를
+# 읽는 접근 제어는 지금 없어 활성 유출은 아니지만(그래서 SEC-35처럼 급한 재배포는
+# 안 함), board의 Post가 정확히 이 모양으로 뚫렸던 전례가 있어 미리 맞게 채워 둔다.
+def test_a_room_is_stamped_with_its_hosts_organization(client, login_as, two_orgs, db):
+    from app.games.models import GameRoom
+
+    csrf = login_as("user", email="orgb@goodmit.co.kr")
+    room_id = _make_room(client, csrf)
+
+    stored = db.get(GameRoom, room_id)
+    assert stored.org_id == two_orgs.org_b_id, (
+        f"B조직 호스트가 만든 방이 다른 조직({stored.org_id})으로 저장됐다"
+    )

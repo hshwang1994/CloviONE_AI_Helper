@@ -58,6 +58,13 @@ def test_sync_populates_cache_with_resolved_names(db, settings, monkeypatch):
     assert d1.classification_manual is False
     d2 = get_by_page_id(db, "p2")
     assert split_names(d2.type_names) == ["제안서"] and d2.archived is True
+    # RBAC 재감사(2026-08-16, SEC-35와 같은 자리): 새로 만든 캐시 행이 org_id를 명시적으로
+    # 갖는지 확인한다 — tickets/sync.py와 같은 관용. 정직한 한계: 컬럼 기본값도 우연히
+    # DEFAULT_ORG_ID라 이 assertion만으로는 "명시했다"와 "기본값이었다"를 구분 못 한다
+    # (revert-to-verify로 확인 시도했으나 두 경우 다 통과함, 실제로 확인해 본 뒤 남긴
+    # 기록이다) — 그래도 회귀 방지용 문서화 가치는 있어 남긴다.
+    from app.org.constants import DEFAULT_ORG_ID
+    assert d1.org_id == DEFAULT_ORG_ID
 
 
 def test_classify_taxonomy():

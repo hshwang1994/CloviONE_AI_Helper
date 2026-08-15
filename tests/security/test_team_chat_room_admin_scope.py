@@ -242,3 +242,20 @@ def test_the_team_room_keeps_its_ownerless_shape(client, login_as, make_user, db
     r = client.post(f"/api/team-chat/rooms/{team['id']}/rename", json={"title": "내팀방"},
                     headers={CSRF: csrf})
     assert r.status_code == 403, f"팀 방 이름이 바뀐다: {r.status_code}"
+
+
+# RBAC 재감사(2026-08-16, SEC-35와 같은 자리): create_group/create_or_get_direct/팀 방
+# 자동생성 셋 다 org_id를 안 채워 방장의 실제 조직과 무관하게 컬럼 기본값(기본 조직)으로
+# 저장되고 있었다. ChatRoom.org_id를 읽는 접근 제어는 지금 없어(초대·목록은 전부 멤버십/
+# User.org_id로 판정) 활성 유출은 아니지만, board의 Post가 정확히 이 모양으로 뚫렸던
+# 전례가 있어 미리 맞게 채워 둔다.
+def test_a_group_room_is_stamped_with_its_owners_organization(client, login_as, two_orgs, db):
+    from app.team_chat.models import ChatRoom
+
+    csrf = login_as("user", email="orgb@goodmit.co.kr")
+    rid = _group(client, csrf, "B조직 회의방")
+
+    stored = db.get(ChatRoom, rid)
+    assert stored.org_id == two_orgs.org_b_id, (
+        f"B조직 방장이 만든 방이 다른 조직({stored.org_id})으로 저장됐다"
+    )
