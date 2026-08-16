@@ -320,4 +320,48 @@ describe("PageHeader", () => {
     ui(<PageHeader title="내 티켓" />);
     expect(screen.queryByText(/관리자 ›/)).toBeNull();
   });
+
+  // PA-RC-0022: registry 28개 화면 + Users/Offboarding이 전부 이 자리 하나로 옮겨 온
+  // "제목 옆 도움말 토글". 기본 접힘, 내용 보존, 클릭으로 펼침/접힘이 이 컴포넌트 하나의
+  // 계약이라 여기서 지키면 소비처 전부가 같이 지켜진다.
+  describe("help(제목 옆 도움말 토글, PA-RC-0022)", () => {
+    it("help가 없으면 토글 버튼 자체가 없다", () => {
+      ui(<PageHeader title="테스트" />);
+      expect(screen.queryByRole("button", { name: /도움말/ })).not.toBeInTheDocument();
+    });
+
+    it("help가 있으면 기본 접힘이다 — aria-expanded=false", () => {
+      ui(<PageHeader title="테스트" help="도움말 내용입니다" />);
+      const toggle = screen.getByRole("button", { name: "도움말 보기" });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("눌러 펼치면 aria-expanded가 true로 바뀌고 라벨도 '닫기'로 바뀐다", async () => {
+      const user = userEvent.setup();
+      ui(<PageHeader title="테스트" help="도움말 내용입니다" />);
+      const toggle = screen.getByRole("button", { name: "도움말 보기" });
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: "도움말 닫기" })).toBeInTheDocument();
+    });
+
+    it("내용은 문구 그대로 보존된다 — 옮기는 과정에서 한 글자도 안 바뀐다", () => {
+      ui(<PageHeader title="테스트" help="원본 그대로여야 하는 문구" />);
+      expect(screen.getByText("원본 그대로여야 하는 문구")).toBeInTheDocument();
+    });
+
+    it("JSX(문단 여러 개)도 그대로 받는다 — 문자열만 되는 게 아니다(Users/Offboarding 형태)", () => {
+      ui(<PageHeader title="테스트" help={<><p>첫 줄</p><p>둘째 줄</p></>} />);
+      expect(screen.getByText("첫 줄")).toBeInTheDocument();
+      expect(screen.getByText("둘째 줄")).toBeInTheDocument();
+    });
+
+    it("helpTone이 주어지면 Callout의 톤 라벨이 그걸 따른다(기본은 '안내')", () => {
+      const { unmount } = ui(<PageHeader title="테스트" help="일반 안내" />);
+      expect(screen.getByText("안내")).toBeInTheDocument();
+      unmount();
+      ui(<PageHeader title="테스트" help="위험한 안내" helpTone="warn" />);
+      expect(screen.getByText("주의")).toBeInTheDocument();
+    });
+  });
 });

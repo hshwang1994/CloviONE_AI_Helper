@@ -29,6 +29,8 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
+import Collapse from "@mui/material/Collapse";
 import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
@@ -1143,7 +1145,7 @@ export function useToast() { return React.useContext(ToastCtx); }
  *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자", spot, size = "page" }) {
+export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자", spot, size = "page", help, helpTone }) {
   void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
    * 이 컴포넌트를 그대로 쓰면 h4/h1 이 감싸는 페이지의 진짜 제목과 같은 무게라 "페이지가
@@ -1155,26 +1157,57 @@ export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자",
   // 제목이 된다. 안 주는 61개 기존 호출부는 그대로 2단(관리자 › 영역 / 제목)이라 하위 호환된다.
   const crumb = [crumbRoot, area, tab ? title : null].filter(Boolean).join(" › ");
   const heading = tab || title;
+  // PA-RC-0022: 상시 안내 패널(8+ 화면, 실제로는 registry 28개 화면 전부가 DataScreen.jsx를
+  // 통해 이 자리를 썼다)을 "제목 옆 도움말 토글"로 옮긴다 — 내용은 그대로, 기본 접힘만 바뀐다.
+  // `SectionTitle`(아래, 카드 안 소제목)에도 `help` prop이 있지만 그건 상시 노출되는 평문
+  // 한 줄이다 — 이름은 같아도 다른 컴포넌트의 다른 prop이라 여기서 새로 만든다. 화면마다
+  // 매번 `useState`를 새로 선언하게 하지 않으려고(호출부 28곳을 전부 고치는 대신) 접힘
+  // 상태를 이 컴포넌트가 직접 들고, 호출부는 `help` 내용만 넘긴다.
+  const [helpOpen, setHelpOpen] = React.useState(false);
+  const helpId = help ? "page-help-" + Math.random().toString(36).slice(2, 8) : undefined;
   return (
-    <Box
-      className="k-page-head"
-      sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: isSection ? 1.5 : 3 }}
-    >
-      {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
-          61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.
-          "있다 없다" 가 반복되면 통일감이 없어 보인다. `spot` prop 은 호출부 13곳이 아직
-          넘기고 있어 시그니처만 남긴다(그 값은 이제 무시된다).
-          클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
-      <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
-        {crumb ? (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
-            {crumb}
-          </Typography>
-        ) : null}
-        <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"} sx={{ mt: crumb ? 0.5 : 0 }}>{heading}</Typography>
+    <>
+      <Box
+        className="k-page-head"
+        sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: help && helpOpen ? 1 : (isSection ? 1.5 : 3) }}
+      >
+        {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
+            61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.
+            "있다 없다" 가 반복되면 통일감이 없어 보인다. `spot` prop 은 호출부 13곳이 아직
+            넘기고 있어 시그니처만 남긴다(그 값은 이제 무시된다).
+            클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
+        <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
+          {crumb ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
+              {crumb}
+            </Typography>
+          ) : null}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: crumb ? 0.5 : 0 }}>
+            <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"}>{heading}</Typography>
+            {help ? (
+              <IconButton
+                size="small"
+                onClick={() => setHelpOpen((v) => !v)}
+                aria-expanded={helpOpen}
+                aria-controls={helpId}
+                aria-label={helpOpen ? "도움말 닫기" : "도움말 보기"}
+                sx={{ color: "text.secondary" }}
+              >
+                <HelpOutlineRoundedIcon fontSize={isSection ? "small" : "medium"} />
+              </IconButton>
+            ) : null}
+          </Box>
+        </Box>
+        {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
       </Box>
-      {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
-    </Box>
+      {help ? (
+        <Collapse in={helpOpen} id={helpId}>
+          <Box sx={{ mb: isSection ? 1.5 : 3 }}>
+            <Callout tone={helpTone}>{help}</Callout>
+          </Box>
+        </Collapse>
+      ) : null}
+    </>
   );
 }
 

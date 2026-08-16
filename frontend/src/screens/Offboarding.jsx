@@ -82,17 +82,19 @@ export function Offboarding() {
 
   return (
     <div className="c-screen">
+      {/* PA-RC-0022: 상시 안내였던 것을 PageHeader의 제목 옆 도움말 토글로 옮긴다 — 문구는
+          한 글자도 안 바꿨다, 기본 접힘만 바뀐다. */}
       <PageHeader area="사용자와 권한" title="오프보딩"
-        actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null} />
-      <Callout>
-        <Box component="p" sx={{ m: 0 }}>
-          퇴사, 부서 이동 시 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화, 보관합니다.
-          실행 전에 무엇이 바뀌는지 먼저 보여 주고, 실행한 뒤에도 <strong>되돌릴 수 있습니다</strong>.
-        </Box>
-        {STEP_HELP.map((line) => (
-          <Box component="p" key={line} sx={{ m: 0, mt: 0.75 }}>{line}</Box>
-        ))}
-      </Callout>
+        actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null}
+        help={<>
+          <Box component="p" sx={{ m: 0 }}>
+            퇴사, 부서 이동 시 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화, 보관합니다.
+            실행 전에 무엇이 바뀌는지 먼저 보여 주고, 실행한 뒤에도 <strong>되돌릴 수 있습니다</strong>.
+          </Box>
+          {STEP_HELP.map((line) => (
+            <Box component="p" key={line} sx={{ m: 0, mt: 0.75 }}>{line}</Box>
+          ))}
+        </>} />
 
       {!targetId ? (
         <TargetPicker q={q} setQ={setQ} query={searchQ} onPick={setTargetId} />
