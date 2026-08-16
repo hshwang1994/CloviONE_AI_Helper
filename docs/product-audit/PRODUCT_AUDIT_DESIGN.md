@@ -14,15 +14,15 @@
 
 ## 진행 상태 — 정직하게
 
-필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 5종**이다. 나머지 13종은
+필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 6종**이다. 나머지 12종은
 스크린샷과 레이아웃 계측은 확보했지만(`shots2/`, `pa2_design_*.json` — 28표면 실렌더)
 UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 13종에 판정 블록을 쓰지 않는다**
 — 계측만 있는 것을 `deep_audited: true` 로 적으면 그것이 조작이다.
 
 | 상태 | 표면 |
 |---|---|
-| 판정 완료 (5) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` |
-| 계측·스크린샷만 (13) | `global-header` · `sidebar` · `navigation-ia` · `list-screens` · `detail-screens` · `forms` · `modal-drawer` · `settings` · `ai-assistant-chat` · `empty-state` · `error-state` · `loading-state` · `key-workflows` |
+| 판정 완료 (6) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` |
+| 계측·스크린샷만 (12) | `global-header` · `sidebar` · `navigation-ia` · `list-screens` · `detail-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `empty-state` · `error-state` · `loading-state` · `key-workflows` |
 
 ## 적용한 Skill (실제 이름)
 
@@ -105,4 +105,18 @@ target_design: 구조 변경 없음. 헤더 높이·사이드바 폭·본문 폭
 rationale: `KEEP`의 근거는 「문제를 못 찾았다」가 아니라 **직전 Cycle이 이 표면에 대해 세운 구체적 계측 기준을 다시 재서 통과했다**는 것이다. 셸 비용(배너 331.5px → ~56px, 조건부), 본문 폭 활용, 라우트 간 편차 0, 역할별 내비 도달성 — 네 가지가 전부 개선된 상태로 유지된다. 28표면에서 셸이 흔들리는 라우트가 하나도 없었고, 어떤 화면에서도 셸이 본문을 가리지 않았다(직전 Cycle의 FAB 가림도 해소됐다 — 사용자 콘솔 표 화면에서 `상세` 버튼이 덮이지 않는다).
 browser_evidence: 28표면 전체 스크린샷(`var/product-audit/shots2/d1_admin_*.png` 16종 + `d1_user_*.png` 12종, 전부 1920×1080 라이트 전체 페이지)에서 헤더·사이드바 박스를 `pa2_design.py`가 라우트마다 계측 — `header`/`sidebar`/`main` 박스와 `mainStartY`·`contentWidthPct`가 라우트 간에 일치. 사이드바 링크 도달성은 `var/product-audit/pa2_rbac.py`가 역할별로 실제 앵커를 세어 확인(operator 26개).
 rc_ids: 해당 없음 — 구조 변경이 필요하지 않다. 장애 칩 잘림·알림 배지 중복은 이 표면의 RC가 아니라 `global-header` 판정에서 다룬다(아직 미판정).
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN settings -->
+surface: settings
+layout_family: settings
+deep_audited: true
+skills_applied: ui-ux-pro-max, ux-writing, redesign-existing-projects
+verdict: REFINE
+current_state: `/settings` 는 `PA-RC-0017` 이 `/system`·`/notion-console`·`/llm-console`·`/maintenance` 네 화면을 접어 넣은 탭 그릇이다. `TAB_DEFS` 4종 중 `policy` 만 전역 공개이고 `os`·`integration`·`ai` 는 `system_admin` 전용이다. 실측(1920×1080, admin): 탭 **1개**(`시스템 정책`), 그 아래 설정 표 11행 + `유지보수`(현재 상태·활성화 버튼) + `점검 공지`(textarea + `미리 검증`·`공지 저장`·`버전 기록`), 카드 3장, 세로 1383px. `system_admin` 은 탭 4개를 본다.
+user_problem: 통합 자체는 성공했다 — 네 화면을 오가던 것이 한 주소가 됐고 옛 주소도 죽지 않았다. 문제는 **볼 수 없는 탭을 요청했을 때**다. `admin`·`operator` 가 `/system` 으로 들어오면 주소는 `#/settings?tab=os` 가 되는데 화면은 `시스템 정책` 이다 — 주소와 화면이 다른 것을 말하고, 거부 안내는 없다. 12조합(역할 3 × 옛 라우트 4) 전부 실측했다. 같은 콘솔의 라우트 게이트는 같은 상황에서 「권한이 없습니다」를 명시적으로 보여주므로 권한 거부 어휘가 두 벌이다. 그리고 그 두 역할에게는 전환할 것이 없는 탭 바가 하나 남는다.
+target_design: 탭 구조와 통합 자체는 그대로 둔다. 셋만 고친다 — (1) 모르는 탭 값은 첫 탭으로 떨어뜨리되 주소를 `replace` 로 정정해 주소와 화면을 맞춘다, (2) 역할 때문에 못 보는 탭은 라우트 게이트와 **같은** `EmptyState`(「권한이 없습니다」 + 설명 + 이동 버튼)로 답한다, (3) 볼 수 있는 탭이 하나뿐이면 탭 스트립을 그리지 않는다. 새 컴포넌트를 만들지 않고 이미 있는 `EmptyState` 를 재사용한다.
+rationale: `PA-RC-0017` 의 통합은 되돌릴 이유가 없다 — 화면 넷을 하나로 모은 것이 IA 상 옳고 옛 주소도 살아 있다. 그래서 `REDESIGN` 이 아니다. 그러나 `KEEP` 도 아니다: 이 화면은 대부분의 사용자(23명 중 `system_admin` 2명을 뺀 전원)에게 **주소가 거짓말을 하는 화면**이고, 그것은 이 저장소가 `PA-RC-0024` 에서 스스로 세운 딥링크 계약을 정면으로 어긴다. 고칠 것이 구조가 아니라 거부의 표현과 주소 동기화라서 정확히 `REFINE` 이다.
+browser_evidence: `var/product-audit/shots2/d1_admin_settings.png`(1920×1080 라이트, 전체 페이지 1383px) — `Read` 로 열어 탭이 1개인 것과 본문 구성을 확인. 역할별 동작은 `system_admin`·`admin`·`operator` 세 계정으로 옛 라우트 4종을 실제 이동해 주소·활성 탭·탭 수·거부 여부를 12조합 계측(결과는 `PRODUCT_AUDIT_FINDINGS.md` §PA-F-088 표). 소스 근거 `settings/SettingsShell.jsx:51-68`.
+rc_ids: PA-RC-0030
 <!-- DESIGN-VERDICT-END -->

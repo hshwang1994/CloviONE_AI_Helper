@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=3
+actionable_root_causes=4
 redesign_root_causes=1
 deferred_for_human_approval=0
 -->
@@ -160,4 +160,51 @@ data_impact: 없음
 api_impact: 없음
 rbac_impact: 없음
 browser_verification: TEST SERVER 에서 admin 으로 `/users` 를 1920×1080 · 1366×768 · 390×844 세 뷰포트에서 캡처하고, 각 뷰포트에서 `pa2_cols.py` 계측으로 `clippedRows=0` 과 가로 넘침 없음을 함께 확인한다. `/audit`·`/jobs` 도 같은 계측으로 회귀가 없음을 확인한다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0030 -->
+rc_id: PA-RC-0030
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: `/settings` 의 탭 게이트가 역할 때문에 볼 수 없는 탭을 **주소는 그대로 둔 채** 첫 탭으로 떨어뜨린다. `admin`·`operator` 가 `/system` 으로 들어오면 주소는 `#/settings?tab=os` 인데 화면은 `시스템 정책` 이다. 거부 안내가 없고, 그 역할에게는 탭이 하나뿐이라 전환할 수 없는 탭 바만 남는다. 같은 콘솔의 라우트 게이트는 같은 상황에서 「권한이 없습니다」를 명시적으로 보여주므로 한 제품 안에 권한 거부 어휘가 두 벌이 된다.
+expected: 주소와 화면이 같은 것을 말해야 한다. 역할 때문에 못 보는 탭을 요청하면 (a) 주소를 실제로 그리는 탭으로 정정하거나 (b) 라우트 게이트와 같은 어휘로 「권한이 없습니다」를 보여야 한다. 근거는 이 저장소가 `PA-RC-0024` 에서 세운 계약 - 「주소만 상세 상태를 실어 딥링크·새로고침·뒤로가기가 성립하게 한다」. 그리고 「모르는 tab 값」과 「역할 때문에 못 보는 tab」은 사용자에게 다른 사실이므로 같은 처리로 묶으면 안 된다.
+actual: 역할 3종 x 옛 라우트 4종 = 12조합 실측. `system_admin` 은 4탭이 뜨고 요청한 탭이 정확히 활성화된다. `admin`·`operator` 는 8조합 전부에서 주소가 `?tab=os|ai|integration` 인 채 `시스템 정책` 탭이 활성화되고, 탭 수는 1이며 거부 안내는 없다(`denied=False`).
+intent_evidence: `frontend/src/screens/settings/SettingsShell.jsx:64-67` 주석이 낙하를 의도로 적는다 - 「모르는(또는 지금 role 로는 못 보는) tab 값이 주소에 있으면 첫 탭으로 떨어진다 ... 빈 화면이나 에러 대신 항상 뭔가를 보여주게 한다」. **의도 자체는 명시돼 있으나 두 경우를 묶은 것이 문제다.** 상충하는 명시 의도가 `AdminRoutes.jsx` 의 `RequireRole`(명시적 거부 화면)과 `PA-RC-0024`(주소가 화면 상태의 정본)에 있다. 어느 쪽이 옳은지에 대한 판단은 INFERRED 이며 근거는 제품 내 일관성이다.
+findings: PA-F-088
+feature_contracts: FC-시스템설정, FC-권한거부표현
+routes: `/settings`, `/system`, `/llm-console`, `/notion-console`, `/maintenance`
+frontend: `frontend/src/screens/settings/SettingsShell.jsx:51-68`(`TAB_DEFS`·`visibleTabs`·`tab` 결정), `frontend/src/app/AdminRoutes.jsx`(옛 주소 4종의 `Navigate` 리다이렉트), `frontend/src/ui/kit.jsx` `EmptyState`(라우트 게이트가 쓰는 거부 표현)
+api: 해당 없음 - 표시 계층 문제다. 서버 게이트는 이미 옳다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 저장 데이터가 바뀌지 않는다
+rbac: **경계는 바뀌지 않는다.** `TAB_DEFS` 의 `roles: ["system_admin"]` 세 탭은 그대로 유지되고 서버 게이트도 그대로다. 바뀌는 것은 거부를 **어떻게 말하는가**뿐이다
+integration: 해당 없음 - 외부 연동과 무관하다
+state_transition: 해당 없음 - 상태 전이가 없는 표시 경로다
+user_impact: TEST SERVER 23명 중 `system_admin` 은 2명뿐이라 나머지 콘솔 사용자(admin 14 · operator 1 · auditor 2)가 전부 이 경로에 있다. 사용자는 자신이 무언가를 못 보고 있다는 사실 자체를 모른 채 다른 화면을 본다. 주소를 북마크하거나 공유하면 계속 다른 화면이 열려 「링크가 고장 났다」로 읽힌다.
+implementation_direction: `SettingsShell` 에서 두 경우를 갈라 처리한다. (1) **모르는 tab 값**(오타·삭제된 탭)은 지금처럼 첫 탭으로 떨어뜨리되 주소를 `replace` 로 정정해 주소와 화면을 일치시킨다. (2) **역할 때문에 못 보는 tab** 은 라우트 게이트와 **같은 어휘**로 거부를 보여준다. `AdminRoutes.jsx` 의 `RequireRole` 이 쓰는 `EmptyState`(`title="권한이 없습니다"`, `art="noPermission"`, 이동 버튼)를 그대로 재사용한다 - 새 컴포넌트를 만들지 않는다. (3) `visibleTabs.length === 1` 이면 탭 스트립을 그리지 않는다(전환할 것이 없는 탭 바는 장식이다). 옛 라우트 4종의 리다이렉트 자체는 유지한다 - 죽은 링크를 만들지 않는 것이 `PA-RC-0017` 의 의도였다.
+constraints: CLAUDE.md 3-5(권한 판단은 서버가 정본 - 프런트 표시를 바꾸되 게이트를 넓히지 않는다) · 3-6(서버 데이터를 `innerHTML` 로 주입하지 않는다) · `PA-RC-0017` 이 만든 탭 통합 구조와 옛 주소 리다이렉트를 되돌리지 않는다 · `PA-RC-0024` 의 딥링크 계약(주소가 화면 상태의 정본)을 지킨다 · `useQueryState(TAB_SPEC)` 의 기존 쿼리 상태 관례를 따른다
+regression_risk: (a) 주소를 `replace` 로 정정하면 뒤로가기 동작이 바뀔 수 있다 - 히스토리에 항목을 쌓지 않는 `replace` 여야 뒤로가기가 이전 화면으로 간다. (b) 거부 화면을 넣을 때 `system_admin` 의 정상 경로가 영향받지 않아야 한다(4탭·요청 탭 활성). (c) 탭이 1개일 때 스트립을 숨기면 `PageHeader` 의 `tab={activeLabel}` 표시와 중복·누락이 생기지 않는지 확인한다. (d) `Project.jsx` 상세 탭이 같은 MUI Tabs 패턴을 쓰지만 **이 RC의 범위가 아니다**(`SettingsShell.jsx:70` 주석이 그 차이를 이미 기록하고 있다).
+acceptance_criteria: (1) `admin`·`operator` 가 `/system`·`/llm-console`·`/notion-console` 로 들어오면 주소와 화면이 일치한다 - 주소가 정정되거나 거부 화면이 뜬다. (2) 거부를 보여주는 경우 그 표현이 라우트 게이트(「권한이 없습니다」 + 설명 + 이동 버튼)와 **같다**. (3) `system_admin` 은 4탭이 그대로 뜨고 요청한 탭이 정확히 활성화된다(회귀 없음). (4) 탭이 1개인 역할에게 전환 불가능한 탭 스트립이 보이지 않는다. (5) `/maintenance` -> `?tab=policy` 는 모든 역할에서 지금처럼 정상 동작한다(볼 수 있는 탭이라 원래 문제가 없다). (6) 역할 3종 x 라우트 4종 12조합을 다시 실측해 주소·화면 불일치가 0이다.
+required_tests: (1) `SettingsShell` 컴포넌트 테스트 - 역할별 `visibleTabs`, 못 보는 탭 요청 시의 표현, 모르는 탭 값 요청 시의 주소 정정. (2) 12조합(역할 3 x 옛 라우트 4) 라우팅 테스트. (3) `system_admin` 정상 경로 회귀 테스트. (4) 실브라우저 재측정으로 수용 기준 (6) 을 확인.
+qa_gaps: `QA_COVERAGE.md` 에 「주소와 화면이 같은 것을 말하는가」 축이 없다. 기존 검증은 화면이 열리는지(4xx/5xx·console error)만 보므로 **잘못된 화면이 성공적으로 열리는 것**은 전부 통과한다. `PA-RC-0029`가 드러낸 것과 같은 종류의 공백이다 - 검사가 "실패"만 보고 "틀림"은 안 본다.
+quality_rubric: `ux-writing` - 권한 거부 문구의 일관성, 그리고 **없어서 문제인 문구**(거부를 아예 말하지 않는 것)를 핵심 근거로 삼았다. `ui-ux-pro-max` - 내비게이션/IA 의 「사용자가 지금 어디에 있는지 알 수 있는가」. 내장 rubric 4) 「같은 의미가 같은 component/pattern 으로 표현되는가」 - 한 콘솔에 권한 거부 표현이 두 벌인 것이 Root Cause 판정의 근거다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-088 · `frontend/src/screens/settings/SettingsShell.jsx:51-68` · `frontend/src/app/AdminRoutes.jsx`(옛 주소 리다이렉트 4종) · `var/product-audit/shots2/d1_admin_settings.png` · 12조합 실측(역할 3 x 라우트 4)
+current_state: `admin`·`operator` 로 `/settings` 를 열면 탭이 `시스템 정책` 하나뿐이고, 그 아래 설정 표 11행 + `유지보수` + `점검 공지` 가 이어진다. 옛 주소 4종으로 들어와도 같은 화면이 뜨는데 주소만 `?tab=os|ai|integration` 으로 남는다. `system_admin` 은 4탭을 본다.
+user_problem: 자신이 무언가를 못 보고 있다는 사실을 모른 채 다른 화면을 본다. 주소를 북마크·공유하면 계속 다른 화면이 열려 링크가 고장 난 것처럼 보인다.
+design_verdict: REFINE
+target_state: 주소와 화면이 항상 같은 것을 말한다. 권한이 없어 못 보는 탭을 요청하면 제품의 다른 곳과 같은 말투로 그 사실을 알려 준다. 탭이 하나뿐인 역할에게는 탭 바가 없다.
+target_design: 탭 구조·탭 구성·`/settings` 통합 자체는 그대로 둔다(`PA-RC-0017` 의 성과를 유지). 바뀌는 것은 셋 - 주소 정정(`replace`), 역할 거부 시 기존 `EmptyState` 재사용, 단일 탭일 때 스트립 숨김. 새 컴포넌트·새 시각 언어를 만들지 않는다.
+visual_change_required: true
+target_visual_delta: `admin`·`operator` 의 `/settings` 에서 탭 스트립(높이 약 48px, 탭 1개)이 사라진다. 옛 주소로 진입하면 주소창의 `?tab=os` 가 사라지거나, 「권한이 없습니다」 EmptyState(아이콘 + 제목 + 설명 + 버튼)가 본문 자리에 나타난다. `system_admin` 화면은 한 픽셀도 바뀌지 않는다.
+affected_surfaces: `A-SETTINGS` `/settings`, 옛 주소 `/system`·`/llm-console`·`/notion-console`·`/maintenance`
+affected_components: `settings/SettingsShell.jsx`(`TAB_DEFS` 필터·`tab` 결정·탭 렌더), `ui/kit.jsx` `EmptyState`(재사용, 수정 없음), `AdminRoutes.jsx`(리다이렉트 유지)
+workflow_change: 없음 - 볼 수 있는 것과 없는 것이 바뀌지 않는다. 못 보는 경우에 그 사실을 알게 되는 것뿐이다
+navigation_impact: 옛 주소 4종의 리다이렉트는 유지된다. 사이드바 항목도 그대로다. 주소가 화면과 일치하게 되어 딥링크·새로고침·뒤로가기가 성립한다
+data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 - API 계약이 바뀌지 않는다
+rbac_impact: **없어야 한다.** `TAB_DEFS` 의 `roles: ["system_admin"]` 을 넓히지 않는다 - 수용 기준 (3) 이 `system_admin` 회귀를, (1)(2) 가 나머지 역할이 여전히 내용을 못 보는 것을 확인한다
+browser_verification: TEST SERVER 에서 `system_admin`·`admin`·`operator` 세 역할로 `/settings` 와 옛 주소 4종(총 12조합)을 1920x1080 라이트/다크 두 테마로 열어 주소·활성 탭·탭 수·거부 표현을 스크린샷으로 확인한다. `system_admin` 화면이 변하지 않았음을 이전 스크린샷과 대조한다.
 <!-- PA-RC-END -->
