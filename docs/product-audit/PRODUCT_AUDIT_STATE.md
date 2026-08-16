@@ -31,6 +31,7 @@
 | 2 | M (접근성 구조) | 59 라우트 heading outline·label·landmark·tabindex·focus ring 계측. `probe_a11y.py` |
 | 3 | 표본 검증 | 플래그된 요소의 **DOM 원본 확인** → 대형 오탐 1건 폐기. `verify_a11y.py`·`verify_select.py` |
 | 4 | F (RBAC 행동) | 프런트 게이트 없는 화면 10개 × 역할 2개 실제 접근 + 대조군 3개. `probe_rbac_gate.py` |
+| 5 | C·H·I (실조작) | **이 Cycle에서 처음으로 제품을 눌렀다** — 페이지네이션·검색·새로고침 복원을 5화면 대조, 생성 폼 빈 제출. `probe_interact.py`·`probe_deeplink.py`·`probe_deeplink2.py` |
 
 ## A-2. 이번 Cycle이 고친 **이전 Cycle의 관측 방법 결함** (가장 중요)
 
@@ -43,10 +44,10 @@
 
 | 항목 | 값 |
 |---|---|
-| 신규 Finding | `PA-F-042` ~ `PA-F-047` |
-| 신규 Root Cause | **`PA-RC-0012`**(Medium) — 제목 계층이 시각 API에 종속 |
-| HANDOFF 블록 | **1건**(`PA-RC-0012`). `deferred_for_human_approval=0` |
-| Coverage | 2340칸 · EXECUTED 158 · OBSERVED **205**(62→) · STATIC_ONLY **641**(784→) · UNSEEN 1336(전부 사유 있음) |
+| 신규 Finding | `PA-F-042` ~ `PA-F-051` |
+| 신규 Root Cause | **`PA-RC-0012`**(Med) 제목 계층이 시각 API에 종속 · **`PA-RC-0013`**(Med) `/users`만 목록 상태를 URL에 안 싣는다 |
+| HANDOFF 블록 | **2건**. `deferred_for_human_approval=0` |
+| Coverage | 2340칸 · EXECUTED **169**(158→) · OBSERVED **200**(62→) · STATIC_ONLY **635**(784→) · UNSEEN 1336(전부 사유 있음) |
 | 적용 Skill | `ui-ux-pro-max` **실제 호출** — `--domain ux` "Heading Hierarchy", `--domain web`/`--stack react` "Semantic HTML before ARIA" |
 | Blind Re-Audit | **0 / 2** — 아직 안 함 |
 
@@ -56,15 +57,29 @@
 - **프런트 role gate 없는 10화면**: 백엔드와 **일치**한다 — operator/auditor 둘 다 정상 열람,
   대조군 3개는 정확히 거부. IDOR·bypass 아님 (`PA-F-045`)
 - **표 접근성**: `th` 전부에 `scope` — WCAG 성공 기준 충족, `<caption>` 부재는 권고 수준 (`PA-F-044`)
+- **상시 `aria-modal` 패널**: 닫힌 동안 `visibility:hidden` + 조상 `aria-hidden` — 접근성 트리에
+  없다. 본문 노출 정상, 포커스 가능 요소 68~115개 도달 가능 (`PA-F-049`)
+- **「사용자 추가」 폼**: 필드 8·필수 표시 2·`aria-modal`·포커스 이동까지 갖춤 (`PA-F-050`)
+- **목록 상태 URL 보존**: `/team-docs`·`/board`·`/team-tickets`·`/audit` 네 화면 **정상** —
+  `/users` 하나만 예외 (`PA-F-048`)
 
-### 이번 Cycle에 내가 저지른 오류 1건 (정정함)
+### 이번 Cycle에 내가 저지른 오류 3건 (전부 정정함)
 
-`probe_a11y.py`가 *"59라우트 중 47개에 라벨 없는 입력"* 을 보고했다. **전부 오탐이었다** —
-걸린 것은 MUI `<Select>`의 숨은 프록시 입력(`aria-hidden="true"`, `tabIndex=-1`, `opacity:0`)
-이고 실제 접근성 이름은 형제 `div[role=combobox]`가 갖는다(`verify_select.py`로 확정).
-내 `named()` 검사가 `aria-hidden`/`tabindex`를 안 봤다.
-> **교훈은 이전 Cycle과 똑같다** — 집계 47을 세기 **전에** 표본 1개의 DOM을 열었어야 했다.
-> 이 규칙을 지킨 덕분에 `PA-F-043`(진짜 결함)과 `PA-F-044`(오탐)를 갈라낼 수 있었다.
+1. **「라벨 없는 입력 47라우트」— 전부 오탐.** 걸린 것은 MUI `<Select>`의 숨은 프록시 입력
+   (`aria-hidden="true"`·`tabIndex=-1`·`opacity:0`)이고 실제 이름은 형제 `div[role=combobox]`가
+   갖는다(`verify_select.py`로 확정). 내 `named()`가 `aria-hidden`/`tabindex`를 안 봤다.
+2. **「생성 폼에 필드 1개, 제목·버튼 없음」— 오탐.** `querySelector('[role=dialog]')`가 DOM
+   순서상 첫 번째, 즉 상시 존재하는 AI 도우미 패널을 잡았다. 제외하고 재니 정상적인 8필드 폼이다.
+3. **「공유 셸은 되는데 손으로 쓴 화면은 안 된다」— 쓸 뻔한 틀린 일반화.** `/users` 실패 +
+   `/audit` 성공만 보고 `PA-RC-0012`와 같은 모양이라 특히 그럴듯했다. 손으로 쓴 화면 3개를
+   더 재니 **셋 다 통과** — 일반화는 틀렸고 `/users`가 단독 예외다. 이 확인이 severity를
+   High→Medium으로 낮췄다.
+
+> **셋을 관통하는 것**: 1·2는 *"내가 고른 선택자가 내가 생각한 그 요소인가"* 를 확인 안 한 것,
+> 3은 *"표본 2개로 세운 결론을 전체로 넓힌"* 것이다. 전자는 이전 Cycle이 다섯 번 경계한 실수이고
+> 후자는 이전 Cycle이 *"표본 하나로 세운 결론은 표본 하나로 뒤집으면 안 된다"* 로 적어 둔 바로 그
+> 실수다. **세 번 다 추가 측정으로 잡았다** — 집계를 세기 전에 표본을 열고, 일반화하기 전에
+> 대조군을 재라.
 
 ## A-4. 다음 조사 후보 (우선순위 순)
 

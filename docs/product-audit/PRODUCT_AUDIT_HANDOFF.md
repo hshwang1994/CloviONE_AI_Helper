@@ -4,7 +4,7 @@ cycle_id=PA-20260816-100149-48671b72
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
-actionable_root_causes=1
+actionable_root_causes=2
 redesign_root_causes=0
 deferred_for_human_approval=0
 -->
@@ -54,4 +54,34 @@ required_tests: **신규**: heading 순서를 검사하는 공용 회귀 테스�
 qa_gaps: `docs/QA_COVERAGE.md`에 **heading 계층(문서 구조) 축이 없다.** 기존 `SEM` 축은 2026-08-08 8화면 실측 1회로 끝났고 그 뒤 추가된 화면은 아무도 재지 않았다 — 이번 5개 화면이 정확히 그 사각지대로 들어왔다. 화면별 시각·기능 검증 축은 있으나 "이 화면의 제목 열이 건너뛰지 않는가"를 **모든 화면에 대해 반복 측정**하는 칸이 없다. 이 축을 추가하고 `probe_a11y.py`를 그 축의 재측정 수단으로 등재할 것.
 quality_rubric: `ui-ux-pro-max` — 이번 Cycle에서 **실제로 호출**했다(`.claude/skills/ui-ux-pro-max/scripts/search.py`). `--domain ux`의 **Heading Hierarchy** 항목: *"Screen readers use headings for navigation. Do: use sequential heading levels h1-h6. Don't: skip heading levels **or misuse for styling**."*(Severity Medium) — 이 규칙이 이 결함의 실패 모드를 이름 그대로 지목한다("스타일 목적의 heading 오용"). `--domain web` 및 `--stack react`의 **Use semantic HTML before ARIA**(Severity **High**) — 의미에 맞는 엘리먼트를 먼저 고르고 ARIA로 때우지 말라는 것으로, `aria-level`을 덧붙이는 우회가 아니라 태그 자체를 고치라는 근거다. 추가로 이 Audit 프롬프트 6절 내장 rubric **3)**(정보 위계가 3단계 이내로 읽히는가) · **4)**(같은 의미가 같은 component/pattern으로 표현되는가 — `DataScreen` 경로는 h2인데 손으로 쓴 화면은 h6인 것이 정확히 이 위반이다). 구현 Phase는 개별 화면 적용 시 같은 `ui-ux-pro-max` 항목으로 재확인할 것.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-043`·`PA-F-044`·`PA-F-047` 절 · 브라우저 실측 `var/product-audit/probe_a11y.json`(59라우트 heading outline)과 `var/product-audit/verify_a11y.json`(DOM 원본 확인) · 스캐너 `var/product-audit/probe_a11y.py`·`verify_a11y.py` · `frontend/src/ui/adminKit.jsx:52`(정본 관용) · `frontend/src/ui/theme.js:57-62,300`(`variantMapping` 부재) · `frontend/src/screens/SetupWizard.jsx:97` · `frontend/src/ui/BodyEditor.jsx:229` · 대조군 `var/product-audit/sweep_all.json`(`DataScreen` 화면은 전부 h1→h2)
+<!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0013 -->
+rc_id: PA-RC-0013
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: **`/users`만 자기 목록 상태를 URL에 싣지 않는다.** 이 제품의 목록 화면은 검색·필터·페이지를 URL 해시에 실어 새로고침과 공유에 견디는 것이 확립된 관용이다 — 실측으로 `/team-docs`·`/board`·`/team-tickets`(전부 손으로 쓴 화면)가 `#/...?q=a`를 만들고 새로고침 후 복원되며, 공유 셸 `DataScreen`도 `#/audit?page=2`로 같은 일을 한다. `/users`만 예외다: 「다음」을 눌러 2페이지(20행→1행)로 가도 hash가 `#/users` 그대로이고 새로고침하면 1페이지로 돌아간다. 검색도 20행→3행으로 걸리지만 hash는 변하지 않고 새로고침하면 입력칸이 비며 전체 목록으로 돌아간다. 원인은 **단방향 URL 상태**다 — `Users.jsx`는 `useSearchParams`를 쓰지만(198행) `q`(199·227행)와 `department_id`(208·228행)를 **읽기만** 하고 되쓰지 않으며, `page`(245행)·`roleFilter`(200)·`activeFilter`(201)·`lockedFilter`(204)·`showArchived`(205)는 URL과 아예 무관한 `useState`다. 유일한 `setSearchParams`(242행)는 `id` 파라미터를 지우는 용도다.
+expected: 목록 화면의 검색·필터·페이지 상태는 URL에 실려 (a) 새로고침 후 복원되고 (b) 링크로 공유 가능해야 한다. 이것은 외부에서 들여온 기준이 아니라 **이 저장소가 네 화면에서 이미 지키고 있는 관용**이다. 특히 `DataScreen.jsx`는 50행에서 hash를 읽고 462-464행에서 `history.replaceState`로 되써 양방향을 완성한다.
+actual: `/users`는 링크를 **받을 수는 있으나 만들지 못한다.** 다른 화면이 `#/users?q=...&department_id=...`로 걸어 오는 딥링크는 읽기 절반이 있어 동작한다. 그래서 이 결함은 "딥링크가 없다"가 아니라 **"절반만 있다"** 이고, 기능이 있는 것처럼 보이기 때문에 더 함정이다.
+intent_evidence: ⑤ 서로 일치하는 구현 관용 — `/team-docs`·`/board`·`/team-tickets`·`/audit` 네 화면이 실측으로 같은 동작을 한다(`var/product-audit/probe_deeplink2.json`). ② `docs/BACKLOG.md`의 `USE-08`이 "저장된 뷰는 필터를 URL에 싣고"를 제품의 잘 만든 기능으로 서술한다. ⑥ `DataScreen.jsx:462-464`의 코드와 주석이 딥링크 지원을 명시적 목적으로 밝힌다. ④ `datascreen.test.jsx`가 마운트 시 `window.location.hash`를 읽는 계약을 테스트로 고정하고 있다(`SEM-02` 배치 기록에 그 사실이 남아 있다).
+findings: PA-F-048, PA-F-051(같은 화면의 인접 관측 — 정렬 부재. 등급 보류이므로 이 RC의 필수 범위는 아니다)
+feature_contracts: 해당 없음 — 사용자 관리 기능의 입력·출력·권한 계약은 바뀌지 않는다. 바뀌는 것은 화면 상태의 표현 위치(React state → URL)뿐이다.
+routes: `/users` (단독). 대조군으로 동작을 맞출 기준 화면은 `/team-docs`·`/board`·`/team-tickets`·`/audit`.
+frontend: `frontend/src/screens/Users.jsx`(198·199·200·201·204·205·208·227·228·242·245행) · 참조 구현은 `frontend/src/screens/DataScreen.jsx`(50·411·418·462-464행) · 보조로 `frontend/src/screens/TeamDocs.jsx`·`Board.jsx`(손으로 쓴 화면이면서 올바르게 하는 예)
+api: 해당 없음 — `/api/admin/users` 호출 파라미터는 이미 이 상태들로부터 만들어진다. 네트워크 계약 변화 없음.
+backend: 해당 없음 — 서버 코드와 무관하다.
+data: 해당 없음 — DB/데이터 구조 변화 없음.
+rbac: 해당 없음 — 권한 경계와 무관하다. 단 공유된 URL을 여는 사람의 권한은 서버가 그대로 판정하므로(기존 게이트 유지) 필터가 URL에 실려도 권한 우회가 생기지 않는다는 점을 구현 시 확인할 것.
+integration: 해당 없음 — 외부 연동과 무관하다.
+state_transition: 해당 없음 — 도메인 상태 전이와 무관하다. 화면 로컬 상태의 저장 위치만 바뀐다.
+user_impact: `/users`는 관리자가 가장 자주 쓰는 화면이고 필터가 5종(역할·활성·잠김·부서·보관)이다. 필터를 걸어 대상을 찾고 → 상세를 열고 → 새로고침하거나 뒤로 오면 **조건을 처음부터 다시 걸어야 한다.** 동료에게 "이 조건으로 걸린 사람들"을 URL로 보낼 수도 없다. 데이터 손실이나 권한 문제는 없고 순수한 업무 흐름 마찰이다 — 그래서 High가 아니라 Medium이다.
+implementation_direction: (1) **새 메커니즘을 만들지 마라.** `DataScreen.jsx`가 이미 `parseView`/`withHashQuery`/`hashQuery` + `history.replaceState` 조합으로 이 문제를 풀어 두었다. 그 헬퍼를 공용으로 끌어올려 `Users.jsx`가 같은 것을 쓰게 하는 것이 가장 작은 변경이고, 다음에 같은 화면이 또 생겨도 재사용된다. `TeamDocs`/`Board`가 쓰는 방식도 함께 보고 **셋 중 이미 가장 널리 쓰이는 하나로 수렴**시킬 것 — 네 번째 방식을 새로 만들면 이 저장소가 반복해 온 분기 패턴이 그대로 재현된다. (2) `q`와 `department_id`는 **읽기가 이미 있으므로 쓰기만 붙이면 된다**(227·228행의 동기화 `useEffect`와 충돌하지 않게 할 것 — 220-224행 주석이 무한 루프를 피하려고 `searchParams.toString()`을 key로 쓰는 이유를 이미 설명한다. 그 주석을 반드시 읽고 같은 함정을 피할 것). (3) `page`·`roleFilter`·`activeFilter`·`lockedFilter`·`showArchived`를 URL 파라미터로 승격한다. **기본값은 URL에 쓰지 마라** — 빈 필터까지 실으면 주소가 지저분해지고 `DataScreen`의 기존 동작과도 어긋난다. (4) `history.replaceState`를 쓰고 `pushState`를 쓰지 마라 — 필터를 한 글자씩 고칠 때마다 뒤로가기 이력이 쌓이면 뒤로가기가 망가진다(`DataScreen`이 `replaceState`를 고른 이유가 그것이다). (5) `id` 파라미터를 지우는 기존 동작(242행)이 새 파라미터들을 함께 날리지 않는지 확인할 것.
+constraints: `Users.jsx`의 기존 인바운드 딥링크 계약(`?q=`·`?department_id=`·`?id=`)을 **깨지 말 것** — 다른 화면이 이 주소로 걸어 온다(`registry/org.js`의 부서→사용자 이동 등). CLAUDE.md §3-5(권한 판단은 서버가 정본) 유지 — 필터가 URL에 실린다고 클라이언트 필터를 신뢰하지 말 것. 220-224행의 무한 루프 회피 주석이 설명하는 함정을 재도입하지 말 것. `useSearchParams`는 HashRouter 아래에서 hash 내부 쿼리를 다루므로 `window.location.search`와 혼동하지 말 것.
+regression_risk: (a) URL 동기화는 **렌더 루프를 만들기 쉽다** — `searchParams` 변경 → state 변경 → `setSearchParams` → 무한 반복. 이 파일은 이미 그 함정을 한 번 만났고(220-224행 주석) 같은 실수를 반복할 위험이 가장 크다. (b) 기존 인바운드 딥링크를 쓰는 화면이 깨질 수 있다 — 부서/조직 콘솔에서 사용자로 넘어오는 경로를 반드시 함께 확인할 것. (c) `users*.test.jsx` 계열이 초기 URL 상태를 가정하고 있으면 깨진다. `DataScreen` 배치가 남긴 교훈대로 **테스트 파일 전역에서 `window.location.hash`를 초기화**하지 않으면 한 테스트의 필터가 다음 테스트로 샌다(실제로 `datascreen.test.jsx`에서 발생했던 순서 의존 결함이다). (d) 범위는 프런트 전용, 백엔드 회귀 불필요.
+acceptance_criteria: (1) `/users`에서 검색어를 넣으면 hash가 `#/users?q=...` 형태로 바뀐다. (2) 필터(역할·활성·잠김·부서·보관)와 페이지를 바꾸면 각각 URL에 반영된다. (3) 그 상태에서 **새로고침하면 목록이 그대로 복원된다** — 재측정은 `.venv/Scripts/python var/product-audit/probe_interact.py` 이고 `pagination_reload.page_restored`와 `search_reload.rows_restored`가 **둘 다 true**여야 한다. (4) 그 URL을 새 탭에 붙여넣으면 같은 목록이 나온다. (5) 기존 인바운드 딥링크(`?q=`·`?department_id=`·`?id=`)가 여전히 동작한다. (6) 필터를 여러 번 바꿔도 **뒤로가기 한 번에 이전 화면으로 나간다**(이력이 쌓이지 않는다). (7) 기본값(빈 필터)은 URL에 나타나지 않는다. (8) 프런트 전체 vitest green.
+required_tests: **신규**: `/users`의 검색·필터·페이지가 URL에 반영되는지, 그리고 그 URL로 마운트하면 상태가 복원되는지(양방향 각각). **신규**: 필터를 연속 변경해도 history 항목이 늘지 않는지(`replaceState` 사용 확인) — 이것이 (6)의 회귀 방어다. **신규**: 기존 인바운드 딥링크 3종이 여전히 동작하는지(회귀). **기존**: `users*.test.jsx` 전부 + `users-bulk.test.jsx` · 부서/조직에서 사용자로 넘어가는 크로스링크 테스트 · 프런트 전체 회귀. 모든 신규 테스트는 파일 전역 `beforeEach`에서 `window.location.hash = ""`로 초기화할 것.
+qa_gaps: `docs/QA_COVERAGE.md`에 **"목록 상태가 새로고침·공유에 견디는가" 축이 없다.** 이 제품은 목록 화면이 20개가 넘는데 검증 축은 화면별 렌더·기능 중심이고, "필터를 걸고 F5를 눌렀을 때"를 모든 목록 화면에 대해 반복 측정하는 칸이 없다. 그래서 네 화면이 올바르게 하고 한 화면이 빠진 상태를 아무도 못 봤다. 이 축을 추가하고 `probe_deeplink2.py`를 재측정 수단으로 등재할 것.
+quality_rubric: 이 Audit 프롬프트 6절 내장 rubric **4)** — *"같은 의미가 같은 component/pattern으로 표현되는가(다르면 Root Cause 후보)"*. 판정은 미적 판단이 아니라 **동일 제품 내 5개 화면의 실동작 대조**로 했고, 기준은 외부 표준이 아니라 이 저장소 자신의 관용이다. `ui-ux-pro-max`는 이 RC에 **적용하지 않았다** — 이 결함은 시각 품질이 아니라 상태 보존 동작이고, 그 도메인의 규칙(색·타이포·레이아웃·접근성)이 판정에 기여하지 않는다. 억지로 갖다 붙이지 않는다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-048` 절 · `var/product-audit/probe_interact.json`(`/users` 페이지네이션·검색 실조작) · `var/product-audit/probe_deeplink.json`(`/users` vs `/audit` 대조) · `var/product-audit/probe_deeplink2.json`(`/team-docs`·`/board`·`/team-tickets` 대조군 3건) · 스캐너 `probe_interact.py`·`probe_deeplink.py`·`probe_deeplink2.py` · `frontend/src/screens/Users.jsx:198-245` · `frontend/src/screens/DataScreen.jsx:50,462-464`
 <!-- PA-RC-END -->
