@@ -81,7 +81,7 @@ export const NOTIFICATIONS_SCREEN = {
     headerActions: [
       // unread===0이면 눌러도 항상 '0건을 읽음 처리했습니다' 무의미 토스트만 나므로, 안 읽은 알림이
       // 있을 때만 노출한다(같은 화면 상단 StatCard의 unread 값과 동일한 기준).
-      { label: "모두 읽음", when: (ctx) => ctx.unreadCount > 0, path: () => "/api/notifications/read-all", confirm: "모든 알림을 읽음 처리할까요?",
+      { label: "모두 읽음", variant: "primary", when: (ctx) => ctx.unreadCount > 0, path: () => "/api/notifications/read-all", confirm: "모든 알림을 읽음 처리할까요?",
         result: (res) => ({ ok: true, msg: (res && res.read_count != null ? res.read_count : 0) + "건을 읽음 처리했습니다." }) },
     ],
     actions: [
