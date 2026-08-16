@@ -3948,3 +3948,115 @@ green.
    자체를 검증하는 것은 같고, 상태 변경(계정 생성)만 피했다.
 
 **`PA-RC-0021`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-10`.
+
+## D-104 (2026-08-16) — `PA-RC-0024`: 관리자 상세도 진짜 주소를 가진다
+
+### 조사를 먼저 시켰다 — Handoff의 "새 API 불필요" 전제가 감사 로그엔 안 맞았다
+
+Explore agent로 4갈래(A~D)를 먼저 확인시켰다. 결정적으로 갈린 것: `/users`·`/departments`는
+이미 단건 GET이 있어 그 위에 얹으면 됐지만, **감사 로그는 목록뿐이고 단건 조회 자체가
+없었다** — Handoff는 "API 없음"이라고 적었지만 감사 로그에는 안 맞는 전제였다. 그래서
+`app/audit/router.py`에 `GET /api/admin/audit/{id}`를 새로 만드는 일이 이 RC의 실제
+선행 조건이 됐다(별도 커밋). 목록과 같은 범위 판정(`apply_scope`)을 걸고, 없는 id와
+범위 밖 id를 구분 없이 404로 접었다(`users`/`departments`의 `get_scoped_user_or_404`·
+`get_or_404`와 같은 원칙) — 신규 `test_audit_detail_scope.py` 6건(그중
+`test_scoped_admin_cannot_open_another_teams_log_and_it_404s_not_403`이 핵심)으로
+확인.
+
+또 하나 발견: registry 화면 9곳(`org.js`의 notion-mapping, `governance.js`의 approvals
+등)이 **이미** `config.onQuery`의 `{open:"select", id}` intent로 `?id=` 딥링크를
+지원하고 있었다 — Handoff도, 이전 세션도 몰랐던 기존 인프라다. 다만 이건 쿼리 문자열
+경로고, 이 RC가 원하는 건 **경로 자체**(`/users/:id`)다.
+
+### 설계 결정 — 같은 element를 두 Route에 등록해도 되는가
+
+목록 위 모달이라는 표현을 유지하면서 주소만 상세를 가리키게 하려면, `/users`와
+`/users/:id`가 **같은 컴포넌트 인스턴스**를 유지해야 한다(안 그러면 상세를 열 때마다
+목록이 다시 마운트돼 스크롤·검색어·불러온 데이터를 잃는다). 이 저장소에 그런 "같은
+컴포넌트, 두 경로" 선례가 없었다 — 사용자 콘솔의 6개 `:id` 라우트는 목록과 상세가
+애초에 다른 컴포넌트다. 그래서 구현 전에 react-router 7(이 저장소가 쓰는 버전)에서
+직접 시험했다: `<Route path="/x" element={<Probe/>}/>`와 `<Route path="/x/:id"
+element={<Probe/>}/>`(같은 엘리먼트 레퍼런스) 사이를 `navigate()`로 오가면서
+컴포넌트 내부 `useState` 값이 유지되는지 — **유지됨을 실측 확인**한 뒤에야
+`AdminRoutes.jsx`에 실제로 그렇게 배선했다. 근거 없이 가정하지 않은 지점이다.
+
+`DataScreen.jsx`가 쓰는 이 메커니즘은 새 config 필드 `hasIdRoute`로 옵트인만 켠
+화면(`audit`·`departments`)에만 켠다 — `AdminRoutes.jsx`에 실제 `:id` Route가 없는
+나머지 registry 화면에 이 배선이 잘못 돌면 `navigate()`가 없는 경로로 가서 방금 연
+상세가 "찾을 수 없음"으로 보이는 회귀가 난다.
+
+### 시험이 잡은 진짜 경합 조건
+
+`:id`로 막 들어온 첫 렌더에서 `sel`은 아직 `null`(단건 GET이 안 끝났다)인데, 반대
+방향 효과("`sel`이 바뀌면 주소를 따라간다")가 그 순간을 "방금 닫혔다"로 오해해
+주소를 목록으로 지웠다가, GET이 끝나면 다시 `:id`로 되돌리는 **깜빡임**이 실제로
+있었다. `MemoryRouter`(시험 전용)라 눈에는 안 보였지만 `admin-detail-routes.test.jsx`의
+"상세를 닫으면..." 시험이 순서 의존으로 간헐 실패해 잡았다 — 단독 실행하면 통과,
+바로 앞 시험과 같이 돌리면 실패했다(리액트 effect 실행 순서가 실제로 그렇게 갈렸다).
+`routeIdSettledRef`(그 `:id`의 첫 조회가 성공/실패로 실제로 끝나기 전까지 반대 방향
+효과를 죽여 두는 ref)로 고쳤다 — `Users.jsx`·`DataScreen.jsx` 둘 다 같은 패턴.
+
+### 라이브 검증이 잡은 진짜 결함 — `departments/:id`가 매번 404로 튕겼다
+
+로컬 목(mock) 시험은 전부 통과한 채로 배포했는데, TEST SERVER의 **진짜** 부서 id로
+직접 열어 보니 즉시 "연결된 항목을 열지 못했습니다" 토스트가 뜨며 실패했다. 원인:
+`app/org/router.py`의 단건 GET은 `{"department": {...}}`로 감싸서 오는데(`body_key=
+"department"`), `registry/org.js`의 `departments` config에 `selectKey`가 없어
+`DataScreen`이 그 봉투 객체 전체를 `sel`로 삼았다 — `sel.id`가 `undefined`가 되고,
+반대 방향 효과가 그 값을 문자열 `"undefined"`로 만들어 `GET /departments/undefined`를
+또 불렀다(404 → 에러 토스트). 로컬 목이 처음부터 감싸지 않은 응답을 흉내 냈기 때문에
+이 결함을 **한 번도** 못 잡았다 — 목을 실제 응답 모양(`{department:{...}}`)으로 고치고
+`registry/org.js`에 `selectKey: "department"`를 추가한 뒤에야 목 시험도, 실측도 같이
+통과했다. **"통합 배포 후 실제 데이터로 재확인"이 정확히 이런 결함을 위해 있다** —
+mock의 정확성 자체가 검증되지 않으면 그 위의 모든 시험이 헛것이 될 수 있다는 실제 사례.
+
+### 검증
+
+프런트 신규 `admin-detail-routes.test.jsx`(직접 진입·행 클릭 URL 동기화·닫기 시 목록
+복귀·404 시 목록 유지·부서 경로) + `user-console-fallback.test.jsx`(관리자 전용 경로
+vs 진짜 모르는 경로). 백엔드 신규 `test_audit_detail_scope.py`(RBAC 게이트 +
+IDOR·404 정합성 + 응답 모양이 목록 항목과 같은지). `tests/security` 전체 +
+감사 관련 기존 스위트 green. 프런트 전체 회귀(병합 후 settled tree에서 재실행)
+284파일 1951건 green.
+
+배포 2회(선행 배선 + selectKey 결함 수정) 전부 `UPGRADE_OK`+`DEPLOY_VERIFY_OK`.
+라이브 확인(`var/product-audit/verify_pa_rc_0024.py`, 실제 데이터로): `/users/:id`
+직접 진입+새로고침 생존, `/departments/:id`(결함 수정 후), `/audit/:id`(신규
+엔드포인트), 모르는 경로가 대시보드 대신 "찾을 수 없습니다" — **11개 검사 전부 PASS.**
+
+**`PA-RC-0024`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-13`.
+
+## D-105 (2026-08-16) — `PA-RC-0025`: 성공 토스트 명사형 → 문장형 사전 (백그라운드 agent)
+
+격리 worktree에서 백그라운드 agent가 구현, 진행 중이던 `PA-RC-0014` 회귀 대기 시간에
+병렬로 돌렸다(DataScreen.jsx/SubListDrawer.jsx만 건드려 그 시점 진행 중이던
+`PA-RC-0014`/`0021`/`0024` 작업 파일과 겹치지 않게 범위를 미리 좁혀 지시). 산출물:
+`frontend/src/screens/data-screen/successMessages.js`(라벨→문장 사전, 23항목 +
+일반 기본형), `DataScreen.jsx`/`SubListDrawer.jsx`의 `라벨 + " 완료"` 조립을
+`successMessageFor(label)` 호출로 교체, `docs/UX_WRITING.md` §3-1에 같은 표 등재,
+`scripts/check_success_toast_labels.py`(정적 검사, `check_typography_literals.py`
+선례와 같은 방식 — registry 전수 스캔, 중첩 `subList.rowAction`까지 구분).
+
+머지 시 `DataScreen.jsx`가 이 RC와 `PA-RC-0024`(같은 파일, 다른 구간 — 토스트 조립은
+~287번 줄, `:id` 라우팅 효과는 450번대) 양쪽에서 동시에 바뀌어 있었는데, `git merge`가
+자동으로 깔끔히 합쳤다(충돌 0, `git merge-tree`로 사전 확인). 병합 후 두 RC의 시험을
+함께 돌려 실제로 안 깨졌는지 재확인(39건 green).
+
+agent가 이미 확인한 것: 델타 6종 회귀(신규 성공 문구 단위 시험 + 렌더 시험 +
+`aria-live` 유지 시험), Handoff가 지목한 예외(`Users.jsx`/`UsersBulk.jsx`의 "보관
+복구"·"세션 해제"는 이 사전과 무관한 별도 경로임을 소스로 확인), `a.result(res)`
+옵트아웃 경로(`/users` 대량 활성화의 "활성화: N명 적용(...)" 커스텀 문구)가 그대로
+유지되는지(음성 대조군 시험).
+
+라이브 검증(`var/product-audit/verify_pa_rc_0025.py`, TEST SERVER에 일회용 부서를
+만들었다 지우며 실측): 생성 토스트 "추가했습니다."(기존에도 정상), **삭제 토스트
+"삭제했습니다."**(실측으로 확인한 결함 재현 지점 — 예전엔 "삭제 완료") 전부 확인.
+첫 시도에서 토스트 텍스트를 못 찾는 자작 프로브 버그(선택자가 `role="presentation"`으로
+렌더되는 실제 토스트가 아니라 페이지에 항상 떠 있는 `role="alert"` 안내 배너를 잘못
+집어 "통과"를 보고했다 — `kit.jsx`의 `ToastProvider`가 이중 낭독을 막으려고 `MuiAlert`에
+`role="presentation"`을 명시로 준 것이 원인)와, 트리 노드 클릭이 상세를 안 연다는
+설계(OrgConsole 헤더 주석)를 몰라서 생긴 정리 실패(테스트용 부서 2개가 안 지워진 채
+남음, API로 직접 지우려니 CSRF로 403)를 둘 다 잡아 고치고, 남은 테스트 데이터를
+실제 UI 경로로 정리했다.
+
+**`PA-RC-0025`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-15`.

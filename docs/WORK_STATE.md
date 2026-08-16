@@ -6995,8 +6995,41 @@ worktree에서 백그라운드 agent가 구현 중, 아직 결과 미수신.
 스크립트를 그대로 fetch해 별도 문서에서 실행하는 방식을 썼다. 상세: `DECISIONS.md`
 D-103, `BACKLOG.md` `PA2-10`.
 
-**다음에 할 일 우선순위**: `PA-RC-0025` agent 결과 수신 후 diff 검토·병합 → `PA-RC-0024`
-프런트 라우팅(라우트 3개 추가·row-click URL 동기화·미등록 경로 폴백을 `ErrorState`로·
-RBAC/IDOR negative 시험) 마저 구현·완결 → 이 Audit Cycle(`PA-20260816-120655-f103fb5b`)의
-15개 Root Cause 전부 완료 여부 재확인 → `var/product-audit/IMPLEMENTATION_REQUIRED`
-제거 조건 충족 여부 판단.
+### 체크포인트 — 2026-08-16 계속: `PA-RC-0024`·`PA-RC-0025` 완결, Audit Cycle 15/15 완료
+
+**`PA-RC-0024`** 완결. 감사 로그 단건 조회를 신설(`GET /api/admin/audit/{id}`,
+Handoff의 "새 API 불필요" 전제가 이 화면엔 안 맞았다)하고, `/users/:id`·`/departments/:id`·
+`/audit/:id`를 목록과 같은 element로 등록(react-router 7에서 컴포넌트 인스턴스 유지를
+직접 실측 확인한 뒤 배선). 시험이 실제 경합 조건(딥링크 첫 렌더에서 `sel`이 아직 `null`인
+순간 반대 방향 효과가 그걸 닫힘으로 오해해 URL을 지웠다 되돌리는 깜빡임)을 잡아
+`routeIdSettledRef`로 수정. **라이브 검증이 로컬 목이 못 잡은 진짜 결함을 찾았다** —
+`departments/:id`가 서버의 `{"department":{...}}` 봉투를 못 풀어(`selectKey` 배선 누락)
+매번 404로 튕겼다, 수정 후 재배포·재확인 통과. `UserRoutes.jsx`의 미등록 경로 처리도
+"관리자 전용"과 "진짜 모름"을 갈라 권한거부/not-found로 분리(예전엔 둘 다 `/me`로
+조용히 이동). 프런트 전체 회귀(병합 후 재실행) 284파일 1951건 green, TEST SERVER
+배포 2회 + 라이브 확인 11개 전부 PASS. 상세: `DECISIONS.md` D-104, `BACKLOG.md` `PA2-13`.
+
+**`PA-RC-0025`** 완결(격리 worktree agent 결과 검토·병합). `DataScreen.jsx`/
+`SubListDrawer.jsx`의 `라벨+" 완료"` 조립을 사전 기반 `successMessageFor()`로 교체,
+`check_success_toast_labels.py` 신규 정적 검사. `PA-RC-0024`와 같은 파일을 동시에
+고쳤으나 병합 충돌 0(사전 확인 후 병합, 병합 후 두 RC 시험 함께 재확인 39건 green).
+라이브 검증(일회용 부서 생성→삭제로 실측): 삭제 토스트가 "삭제했습니다."로 실제
+확인(예전 "삭제 완료" 재현 지점). 검증 스크립트 자체의 버그(토스트가 아니라 페이지
+상시 안내 배너를 잘못 집던 선택자, 트리 클릭이 상세를 안 연다는 설계를 몰라 생긴
+정리 실패)를 잡아 고치고 TEST SERVER에 남은 테스트 데이터를 실제 UI로 정리. 상세:
+`DECISIONS.md` D-105, `BACKLOG.md` `PA2-15`.
+
+**Audit Cycle `PA-20260816-120655-f103fb5b`의 Root Cause 15건(`PA-RC-0012`~`0026`)이
+전부 BACKLOG.md에서 ✅로 확인됐다**(교차 확인: 각 PA-RC ID를 개별로 grep해 상태 재확인,
+요약 몇 줄만 보고 판단하지 않음). `visual_change_required: true`인 8건(`0016`~`0023`)
+전부 실제 스크린샷/Playwright 실측 근거가 BACKLOG.md에 있음을 확인
+(`visual_change_rcs=8`, `visually_verified_rcs=8`, 일치). 이 문서들을 커밋한 뒤
+`var/product-audit/IMPLEMENTATION_CONSUMED`를 기록하고 `IMPLEMENTATION_REQUIRED`를
+제거한다.
+
+**다음에 할 일**: `IMPLEMENTATION_REQUIRED` 제거 후에도 CLAUDE.md §13의 `PROJECT_COMPLETE`
+기준은 별개로 남아 있다 — Backend/Frontend/Runner Full Regression 최근 상태 재확인,
+Static Checks(SEC-20 stash/reflog 자격증명 회전은 사람 조치 대기 항목이라 계속 문서화된
+예외로 남김), Chrome Whole-product E2E가 이번 Cycle 구현분을 충분히 커버했는지, 그 외
+`docs/BACKLOG.md`에 이 Audit Cycle과 무관하게 남아 있는 미해결 항목이 있는지 전수
+재확인 — 그 결과에 따라 `PROJECT_COMPLETE`를 만들 수 있는지 판단한다.
