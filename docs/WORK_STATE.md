@@ -6410,3 +6410,64 @@ generate`는 동기 아웃바운드 호출이 없어 해당 없음으로 확인.
 **아직 안 한 일**: 위 배경 작업 완료 확인 → TEST SERVER 통합 배포(웹 앱, 러너는 이미
 3.59.0) → Chrome E2E(DBTX-02 채팅 전송 시나리오 + `QA_COVERAGE.md` §16 5행 + RESP-01
 `/users` 1024px 재측정, `dist/verify_chat_features_e2e.py`에 이미 추가해 둠).
+
+## 2026-08-16 09:2x — Full Regression 확정 green, 통합 배포 착수
+
+`pytest -q > file.log 2>&1; echo EXIT=$?`(파이프 없음, D-88 교훈 적용)로 백엔드 전체
+스위트 재실행: **100% 완료, `FAILED`/`ERROR` 0건, `PYTEST_EXIT_CODE=0`**(로그 파일에
+직접 grep해 확인 — exit code 문자열만 보지 않음). 러너(`runner/claude-work-assistant`)
+스위트도 100%/exit 0. 이 결과에는 이번 검증 구간에서 고친 것 전부가 포함됨: DBTX-02
+(job 핸들러 5곳 + 웹 경로 7곳), SEC-38(`build_scope` operator/auditor 기본 범위),
+`MODERATOR_ROLES` 통합. 배경 BACKLOG/QA_COVERAGE 재스윕(별도 에이전트)도 새 후보
+없음으로 수렴 확인.
+
+CLAUDE.md §9 순서(whole-product convergence → Full Regression green → Build →
+통합 Deploy → health/revision 확인 → Chrome E2E)에 따라 지금부터 통합 배포를
+진행한다. TEST SERVER(`cloviradmin@10.100.64.71`) SSH/서비스 상태는 이미
+사전 확인(active 3/3, 디스크 여유 250G). 프런트 변경 없음(이번 구간은 전부 백엔드) —
+`app/static/react` 재빌드 불필요, `build-bundle.sh`의 freshness gate가 그대로 통과할
+것으로 예상.
+
+## 2026-08-16 09:3x~09:4x — 통합 배포 완료 + Chrome E2E 2회 + AI-71(High) 발견·수정·재배포·재검증
+
+`build-bundle.sh` → scp(sha256 대조 일치) → `upgrade-clovirone-web-assistant.sh`
+(DNS_NAME/BIND_IP 지정) → `UPGRADE_OK`, healthz/readyz/web/worker 전부 OK, 배포 코드에
+DBTX/SEC-38 수정 존재 직접 grep 확인, 서비스 fresh PID(배포 시각과 일치).
+
+**1차 Chrome E2E**(`dist/verify_chat_features_e2e.py`, Playwright): 채팅 전송 성공(DBTX-02
+핵심 목표 달성) — 답변 도착·피드백·복사 버튼·삭제 확인/실행·콘솔 오류 0건 전부 PASS.
+**재생성만 40초 타임아웃으로 FAIL.** `journalctl -u clovirone-web-worker`로 실제 원인
+확인: n8n은 좋은 답변을 만들었는데 저장이 `IntegrityError: UNIQUE constraint failed:
+messages.conversation_id, messages.message_id`로 거부됨 — DBTX-02와 다른 새 결함.
+
+**근본 원인(AI-71)**: `handle_chat_message`가 성공 답변에 `job.attempt_count` 기반
+message_id를 쓰는데, `regenerate_message`는 매번 attempt_count=1부터 다시 세는 **새
+Job**을 만든다. 최초 전송이 attempt 1에 성공해 있으면(흔함) 그 답변은 soft-delete만 되고
+UNIQUE 제약은 그대로 걸려 있어, 재생성의 새 Job도 attempt 1 성공 시 똑같은 message_id로
+충돌한다. 실패 경로(`-fail-{job.id}`)가 이미 쓰던 `job.id`(전역 유일 UUID) 기반으로
+성공 경로도 통일해 고침. 신규 회귀(실워커로 재생성까지 끝까지 실행) + revert-to-verify
+(되돌리면 TEST SERVER 로그와 글자 그대로 같은 IntegrityError 재현) 완료. 커밋 `a702ce5`.
+상세: `BACKLOG.md` AI-71, `DECISIONS.md` D-89.
+
+재빌드(`BUNDLE_OK`) → 재업로드(sha256 일치) → 재배포(`UPGRADE_OK`) → 배포 코드에 수정
+존재 grep 확인.
+
+**2차 Chrome E2E**: **9개 확인 중 8개 PASS** — 재생성이 이제 실제로 새 답변을 받아온다
+(스크린샷 `dist/chat_feature_e2e/03_regenerated.png`: 2.9초만에 진짜 LLM 응답 "안녕하세요!
+다시 인사 주셨네요 😉..."). 콘솔 오류 0건. **유일한 실패는 `RESP-01`**(`/users` 1024px
+가로 넘침, `scrollWidth=1123 clientWidth=1024`) — 채팅 기능과 무관한 기존 항목, HOST-01/
+02/03(`DataTable` 열 폭 기본값) 배포 이후에도 원 수치(1123 vs 1024) 그대로 재확인. 열
+우선순위/반응형 숨김 같은 별도 설계가 필요하다고 판단해 이번 사이클에서는 의도적으로
+안 고침(RESP-04와 같은 성격의 "다음 전담 UI 사이클" 후보) — `BACKLOG.md` RESP-01 갱신,
+`QA_COVERAGE.md` §16 갱신.
+
+**이번 연속 구간(DBTX-02 발견부터 여기까지) 전체 요약**: DBTX-02(job 핸들러 5곳+웹 경로
+7곳, Critical) → SEC-38(operator/auditor 기본 범위, Critical) → `MODERATOR_ROLES` 통합 →
+AI-71(재생성 충돌, High) — 전부 발견·수정·테스트·revert-to-verify·문서화·커밋 완료. Full
+Regression(파일 리다이렉트로 확정) + 러너 스위트 전부 green. 통합 배포 2회 + Chrome E2E
+2회로 실환경 검증 완료.
+
+**남은 다음 작업**: RESP-01(위 기록, 다음 UI 사이클) · AI-16 러너 미러 삭제의 Chrome
+E2E(대화 자체 삭제까지 눌러 러너 로그에서 `/context/delete` 확인, 현재는 메시지 삭제만
+확인함) · 전체 제품 재감사 관점에서 이번 사이클 밖 영역(관리자 콘솔 전반 등) Chrome
+E2E 확대 여부 검토.
