@@ -3321,3 +3321,119 @@ hierarchy.py`에 화면 단위 "최소 1개" 축을 더할 때 이 화면을 예
 `MyStats`·`Activity`·`SystemOps`)을 정식 예외로 등재, TEST SERVER 재배포 + Chrome 실측.
 
 상세: `docs/BACKLOG.md` `PA2-12`.
+
+## D-96 (2026-08-16) — PA-RC-0023 계속: 「상세」 버튼 열 실제 제거 + 정적 검사 2종 추가(acceptance_criteria 1·2) + 신규 결함 2건
+
+### 배경
+
+D-95가 남긴 것을 그대로 이어받았다(같은 invocation, CLAUDE.md §0). 전제 조건(키보드 도달이
+먼저 배포돼 동작함)은 D-95 시점에 이미 TEST SERVER 실측으로 확인됐으므로(`/users`·`/jobs`·
+`/offboarding` 두 표 모두 행 클릭+Enter 동작), 「상세」 버튼 열을 실제로 지우는 단계로
+넘어갔다.
+
+### 「상세」 버튼 열 제거 — `ui/kit.jsx`의 `DataTable`
+
+`cols`에서 `__open` 합성 열과 `openButton()` 헬퍼를 완전히 제거했다(좁은 카드 뷰·넓은 표
+뷰 둘 다). 이 열은 관리자 28+화면이 공유하는 유일한 표 컴포넌트라 파급이 전 라우트로
+퍼진다 — 실행 결과 **20개 파일 / 49개 시험이 한꺼번에 깨졌다**(전부 「상세」 버튼을 다른
+동작을 시험하기 위한 **수단**으로 썼던 시험들 — 상세 그 자체를 시험하는 게 아니었다).
+
+파일별로 두 갈래로 고쳤다:
+- **기계적 치환(대다수)** — `within(row.closest("tr")).getByRole("button", {name:/상세/})`를
+  눌러 상세를 열던 자리를 `row.closest("tr")`(행 자체) 클릭으로 바꿨다. `getByRole("button",
+  {name:"상세 보기: X"})` 직접 조회는 `getByRole("row", {name:"상세 보기: X"})`로 바꿨다
+  (행이 이제 그 aria-label을 직접 갖는다, `rowOpenLabel` 재사용은 그대로라 라벨 문자열
+  자체는 안 바뀌었다). `settings-coerce/save-flow/editor-readonly.test.jsx`처럼 공유
+  `openEditor` 헬퍼 하나로 여러 시험이 걸린 파일은 헬퍼 한 곳만 고치면 됐다.
+- **판단이 필요했던 소수** — `kit.test.jsx`(버튼 기반 단정 → 행 기반), `users-row-open-
+  label.test.jsx`(SEM-01 접근 이름 시험 자체가 "버튼이 서로 다른 이름을 읽는다"를 검증했으므로
+  "행이 서로 다른 이름을 읽는다"로 주석·시험명까지 다시 썼다), `board.test.jsx`(존재 단정을
+  행 기반으로), `datatable-detail-button.test.jsx`(버튼 자체의 스타일/라벨을 시험하던 파일 —
+  대상이 없어져 파일째 삭제), `datatable-row-keyboard.test.jsx`(이미 D-95에서 추가한 시험,
+  주석을 미래형("버튼을 지우기 전에")에서 과거형으로 다시 썼다).
+- `offboarding.test.jsx`는 후보 표 행 열기가 **공유 헬퍼 밖에서** 두 곳 더 직접
+  `getByRole("button",{name:/상세 보기/})`를 썼다 — grep 한 번으로 다 못 찾아 첫 실행에서
+  2건이 남아 있었다(12/14 pass), 마저 고쳐 14/14.
+- `projects.test.jsx`("행을 누르면 상세로 간다" 시험)도 같은 패턴.
+
+이력 표에 두 후보 표(대상 고르기 + 실행 이력)가 **동시에 렌더된 상태**에서 `/상세 보기:
+퇴사자/` 같은 비고정 정규식이 두 표 모두와 매칭돼 `findByRole`이 "여러 요소" 예외를 던지지
+않을지 이론적으로 의심했다(이력 표 rowName이 `"퇴사자 / 2026-08-03…"`라 "상세 보기: 퇴사자"가
+그 문자열의 접두사다) — **실측으로 반증**됐다(14/14 green, 걱정한 충돌 없음). 이론보다
+실행 결과를 신뢰한다는 원칙을 그대로 따랐다.
+
+**결과: 프런트 전체 회귀 277파일 1904건 green(0 fail).**
+
+### 정적 검사 확장 — `scripts/check_button_hierarchy.py`에 화면 단위 축 2개 신설
+
+D-95가 "아직 안 만듦"으로 남긴 화면 단위 primary 개수 검사를 실제로 만들었다. 핵심 설계:
+`frontend/src/screens/registry/*.js`의 `*_SCREENS`/`*_SCREEN` export 안에서 **자기
+`key:` 필드가 자기 property 이름과 일치하는 2-space 블록만** 화면으로 센다(`actions.js`의
+`subList`처럼 화면이 아닌 공유 조각을 화면으로 오판하지 않기 위한 안전장치). "primary
+있음" 판정은 `variant:"primary"` 문자열 매칭뿐 아니라 `DataScreen.jsx`가 registry 내용과
+무관하게 항상 그리는 두 버튼도 센다 — `edit:` 존재 → 상세 footer 고정 primary "수정",
+`create:` 존재 → 헤더 고정 primary "+ 추가". 오탐(진짜 있는데 없다고 잘못 잡음)보다
+미탐이 나은 쪽으로 의도적으로 넓게 잡았다(기존 파일의 "오탐이 더 해롭다" 원칙 유지).
+
+1. **acceptance_criteria 1 — 화면마다 contained 최소 1개.** `ZERO_PRIMARY_EXCEPTIONS`에
+   근거와 함께 정식 등재(코드에 직접, 문서와 이중 관리 아님) — `audit`·`audit-anomalies`·
+   `rbac`·`prompt-usage`·`policy-usage`·`restore-drills`(D-95가 잠정 기록한 6개, 전부
+   registry 조회 전용 확인) + **새로 찾은 `org-tree`**(조직도 — 조회 전용, 행 액션도
+   "펼쳐 보기"뿐 변경 없음). `SystemOps.jsx`·`DisplaySettings.jsx`·`MyStats.jsx`·
+   `Activity.jsx`는 registry 밖 독립 JSX라 이 검사가 애초에 못 본다 — 문서 밖 근거
+   대신 스크립트 docstring에 "이 검사가 안 하는 것"으로 명시하고 이유(임의 JSX의 버튼
+   렌더를 줄 단위로 안전하게 판별할 방법이 없다)를 남겼다, `SystemOps.jsx`의 0-primary
+   근거 자체는 D-95에 이미 있다.
+2. **acceptance_criteria 2 — 화면·오버레이당 contained 2개 미만.** `headerActions:`/
+   `actions:` 배열마다 따로 세고(전체 화면 합계로 세면 "헤더 1개 + 상세 1개"인 정상
+   화면을 오탐한다), `create:`/`edit:`의 암묵 primary도 그 영역 합계에 더한다. registry
+   전수 재확인 결과 **위반 0건**(D-95가 이미 고친 `activeToggle()` 활성화가 정확히 이
+   유형이었다 — revert-to-verify로 재현: `edit:` + 행 액션 `variant:"primary"` 조합을
+   합성 픽스처로 넣으면 이 검사가 잡는다).
+
+`tests/unit/test_button_hierarchy_scan.py` 9→19건(신규 10건: 0-primary 예외 등재/미등재,
+edit·create의 암묵 primary 인정, 공유 조각 오판 방지, export 밖 블록 무시, 2-primary
+헤더/상세 각각 + 영역별로 세야 정상 케이스를 안 잡는다는 것까지). 19/19 green.
+
+### 신규 실제 결함 2건 — 화면 단위 검사를 실제 registry에 처음 돌려서 찾음(28개 화면 스캔)
+
+Handoff도 D-95도 못 짚은 것들이다:
+
+1. **`org-tree`** — 순수 조회 화면, 정당한 예외. 위에 기록.
+2. **`notifications`("모두 읽음")** — `headerActions`에 `variant` 필드 자체가 없어
+   `DataScreen.jsx`의 `variant={a.variant||"default"}` 폴백으로 항상 외곽선이었다. 이
+   화면의 유일한 "화면 핵심 동작"다운 액션인데 시각적으로 안 도드라졌다 — Handoff의
+   `implementation_direction`(2)이 예시로 직접 든 케이스이기도 하다("`/notifications`
+   「모두 읽음」"). `variant:"primary"` 추가. `roles:` 필드는 원래도 없었다(자기 알림을
+   자기가 읽음 처리하는 self-service 동작이라 역할 게이트가 불필요 — 삭제 액션과 같은
+   이유로 애초에 role 무관하다, FN-03 주석 참고) — 그래서 이 변경은 **RBAC 노출 범위를
+   전혀 넓히지 않는다**(스타일만 바뀜, 누가 보는지는 그대로).
+
+### RBAC 재검증 범위 — 이번 배치는 diff로 근거를 대신한다
+
+이번 배치가 건드린 파일 중 `roles:` 필드를 바꾼 곳은 **0건**이다(kit.jsx는 DOM 구조·
+접근성 속성만, notifications.js는 `variant`만, check_button_hierarchy.py는 검사 스크립트
+자체). 새 primary 버튼(notifications "모두 읽음")도 기존에 이미 모든 역할에게 노출되던
+액션의 색만 바뀐 것이라 노출 범위 자체는 불변이다. 따라서 이번 배치에 한해 4역할 실측
+Playwright 스크린샷 대신 **diff 기반 근거**로 대체한다 — `roles:` 필드 변경이 실제로
+전무함을 grep으로 재확인했다. `probe_write_gate.py`(로컬 서버 대상, PA-F-045 10화면)는
+이번 배치가 그 10화면을 안 건드려 재실행 대상이 아니다. 다음 배치가 `roles:`를 건드리면
+그때는 반드시 역할 4종 실측으로 되돌아간다.
+
+### 검증
+
+빌드 그린(`npm run build`), `check_bundle_fresh.py --write`, `build-bundle.sh`
+(`dist/clovirone-web-assistant-bundle.tar.gz` 재생성). `static_checks.sh` 전부 green —
+유일한 예외는 `PA-RC-0003`/`SEC-20`(stash/reflog 자격증명, 사람 회전 대기, 이 배치와 무관,
+이미 D-76/D-82에 "AI 구현 대상 아님"으로 확정됨). 백엔드 전체 `pytest` 재실행(이번 배치는
+`app/` 무변경이라 회귀 위험은 낮지만 배포 전 관례상 다시 돌림).
+
+### 남은 것
+
+TEST SERVER 재배포 + `var/product-audit/verify_pa_rc_0023.py`(신규, PA-RC-0022 패턴을
+그대로 본떠 작성 — 행 클릭/키보드 Enter로 상세 열림·「상세」 버튼 완전 부재·notion-mapping
+"자동 동기화"/notifications "모두 읽음" primary 렌더·departments 비활성 상세 contained
+정확히 1개)로 실측. Chrome whole-product E2E는 이 RC 하나만이 아니라 전체 수렴 시점에
+통합해서 한다(CLAUDE.md §10).
+
+상세: `docs/BACKLOG.md` `PA2-12`.

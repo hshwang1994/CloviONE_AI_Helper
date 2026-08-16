@@ -6801,3 +6801,36 @@ RBAC 4역할 실측(`probe_write_gate.py` 재실행 포함), 화면 단위 "0-pr
 TEST SERVER 재배포 + Chrome 실측. 이 RC는 **아직 완결이 아니다** — 다음 invocation이
 바로 이어서 위 순서대로 계속한다(이 체크포인트 + Handoff `PA-RC-0023` 블록만 읽으면
 충분, 대형 문서 재통독 불필요).
+
+### 체크포인트 — 2026-08-16 (같은 invocation 이어서, PA-RC-0023 계속)
+
+「상세」 버튼 열을 실제로 지웠다(`ui/kit.jsx` `DataTable` — `__open` 합성 열 + `openButton()`
+헬퍼 제거). 파급으로 20개 파일 49건이 깨졌고(전부 「상세」 버튼을 다른 동작을 시험하는
+**수단**으로 썼던 시험, 상세 자체를 시험하는 게 아니었다) 전부 고쳤다 — 대다수는
+`within(row.closest("tr")).getByRole("button",{name:/상세/})` → `row.closest("tr")` 직접
+클릭인 기계적 치환, `kit.test.jsx`·`users-row-open-label.test.jsx`(SEM-01 접근 이름 시험
+자체를 행 기반으로 다시 씀)·`board.test.jsx`·`datatable-detail-button.test.jsx`(대상이
+없어져 파일째 삭제)는 판단이 필요했다. **프런트 전체 회귀 277파일 1904건 green.**
+
+D-95가 "아직 안 만듦"으로 남긴 화면 단위 정적 검사 2개(acceptance_criteria 1·2)를
+`scripts/check_button_hierarchy.py`에 실제로 만들었다 — `*_SCREENS` export 안의 화면
+블록만 골라(자기 `key:` 필드로 공유 조각과 구분) 화면당 primary 0개/2개 이상을 잡는다.
+`ZERO_PRIMARY_EXCEPTIONS`에 순수 조회 화면 7개(D-95의 6개 + 신규 `org-tree`) 코드로
+등재. 이 검사를 실물에 처음 돌려 **`notifications` "모두 읽음"의 `variant` 누락**(원래
+Handoff가 예시로 든 화면인데 실제로 안 돼 있었다)을 새로 찾아 고쳤다 — `roles:`는
+원래도 없어(self-service) RBAC 노출은 불변. `test_button_hierarchy_scan.py` 9→19건
+green. 이번 배치는 `roles:` 필드를 한 곳도 안 바꿔 RBAC 재검증은 diff 근거로 대신했다
+(다음에 roles를 건드리면 역할 4종 실측으로 되돌아간다).
+
+빌드+번들 재생성(`npm run build` → `check_bundle_fresh.py --write` → `build-bundle.sh`).
+`static_checks.sh` 전부 green — 유일한 예외는 이 배치와 무관한 기존 `PA-RC-0003`/`SEC-20`
+(사람 회전 대기, 이미 D-76/D-82에서 "AI 구현 대상 아님"으로 확정됨, 탐지 자체는 의도한
+동작). 백엔드 전체 `pytest` 배포 전 관례상 재실행(백그라운드, 이번 배치는 `app/` 무변경).
+신규 `var/product-audit/verify_pa_rc_0023.py` 작성 완료(PA-RC-0022 패턴 — 행 클릭/키보드
+Enter 상세 열림, 「상세」 버튼 완전 부재, notion-mapping/notifications primary 렌더,
+departments 비활성 상세 contained 정확히 1개). 상세: `DECISIONS.md` D-96.
+
+**다음 단계**: TEST SERVER 배포(`scp` 번들 → `upgrade-clovirone-web-assistant.sh`,
+`DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71`) → `verify_pa_rc_0023.py` 실행 →
+결과에 따라 수정/재배포 → PA-RC-0023 완결 처리(Handoff acceptance_criteria 8개 전부
+재확인 후) → 다음 미해결 Root Cause(`docs/BACKLOG.md`)로 같은 invocation 안에서 계속.
