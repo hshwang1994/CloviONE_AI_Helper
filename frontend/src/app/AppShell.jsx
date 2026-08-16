@@ -177,7 +177,11 @@ function NavBadge({ count }) {
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         borderRadius: "0.625rem", flexShrink: 0,
         fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1,
-        bgcolor: "error.main", color: "common.white",
+        // PA-RC-0021: 흰 글자를 고정해 뒀었다 — 다크 모드의 error.main(#FF8B9B, 밝은 분홍)
+        // 위에서 2.23:1(기준 4.5)로 실측 실패했다. error.contrastText는 MUI가 각 모드의
+        // error.main 명도로 자동 계산한 값이라(명시적 override 없음, theme.js:256) 라이트에서는
+        // 여전히 흰 글자, 다크에서는 검은 글자로 갈라져 두 모드 다 통과한다.
+        bgcolor: "error.main", color: "error.contrastText",
       }}
     >
       {count > 99 ? "99+" : count}

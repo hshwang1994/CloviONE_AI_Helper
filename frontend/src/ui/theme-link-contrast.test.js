@@ -391,6 +391,102 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
  * 대비 미달을 확인했다 — 전부 dark 모드에서 실패(최저 2.81), 그중 WelcomeStatus.jsx는
  * light 모드도 accent 절반이 실패한다(배경이 Card의 background.paper가 아니라
  * Chat.jsx가 다시 칠하는 background.default라 워시 없이도 대비가 더 나쁘다). */
+describe("PA-RC-0021 — MuiTab/MuiTabs 선택 상태가 primary.dark(대비 보강)를 쓴다", () => {
+  // 소비처 셋(AssistantPanel의 /me 브리핑 탭, Project, SettingsShell) 전부 색을 안 주므로
+  // MUI 기본값(indicatorColor/textColor="primary" → palette.primary.main)이 그대로
+  // 적용돼 있었다 — 다크 표면에서 3.76:1로 AA 미달(실측). 개별 화면 대신 테마 컴포넌트
+  // 층에서 고쳐 세 소비처 모두 한 번에 낫는다(MuiLink/MuiButton과 같은 방식).
+  it("MuiTab.styleOverrides의 선택 상태 color, MuiTabs.styleOverrides.indicator가 실제로 primary.dark를 쓴다", () => {
+    const theme = createClovirTheme("dark", "indigo");
+    expect(theme.components?.MuiTab?.styleOverrides?.root?.["&.Mui-selected"]?.color).toBe(
+      theme.palette.primary.dark,
+    );
+    expect(theme.components?.MuiTabs?.styleOverrides?.indicator?.backgroundColor).toBe(
+      theme.palette.primary.dark,
+    );
+  });
+
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — 탭 글자/밑줄색(primary.dark) vs 표면`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const color = theme.components.MuiTab.styleOverrides.root["&.Mui-selected"].color;
+        for (const surface of [theme.palette.background.paper, theme.palette.background.default]) {
+          const ratio = contrastRatio(color, surface);
+          expect(
+            ratio,
+            `mode=${mode} accent=${accent} color=${color} surface=${surface} ratio=${ratio.toFixed(2)}`,
+          ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        }
+      });
+    }
+  }
+});
+
+/* PA-RC-0021 — NavBadge(사이드바 안 읽음/실패 건수 배지)가 색을 하드코딩했었다
+ * (color: "common.white"). 배경(error.main)은 모드별로 다른데(다크: #FF8B9B 밝은 분홍)
+ * 글자만 항상 흰색이라 다크에서 2.23:1(기준 4.5)로 실패했다. error.contrastText는
+ * theme.js가 명시적으로 지정하지 않으므로 MUI가 error.main 명도로 자동 계산한다 —
+ * 라이트(짙은 빨강)에서는 흰 글자, 다크(밝은 분홍)에서는 검은 글자로 자동으로 갈라진다.
+ *
+ * contrastText는 "#fff"뿐 아니라 "rgba(0, 0, 0, 0.87)"(부분 불투명 검정)로도 나올 수
+ * 있어 hex 전용 relativeLuminance로 못 읽는다 — jsdom의 실제 CSS 파서(getComputedStyle)에
+ * 맡겨 rgb/rgba 어느 쪽이든 정규화하고, 알파가 있으면 실제 배경(error.main) 위에 합성한
+ * 뒤에 대비를 잰다(근사가 아니라 실제 렌더 결과와 같은 계산). */
+function parseCssColorViaDom(cssColor) {
+  const el = document.createElement("div");
+  el.style.color = cssColor;
+  document.body.appendChild(el);
+  const computed = getComputedStyle(el).color;
+  document.body.removeChild(el);
+  const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/.exec(computed);
+  if (!m) throw new Error(`jsdom이 색을 못 읽었다: "${cssColor}" -> "${computed}"`);
+  return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), a: m[4] != null ? Number(m[4]) : 1 };
+}
+
+function toHexFromRgb({ r, g, b }) {
+  return "#" + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
+}
+
+function resolveOverBackground(fgCss, bgHex) {
+  const fg = parseCssColorViaDom(fgCss);
+  if (fg.a >= 1) return toHexFromRgb(fg);
+  const bg = parseCssColorViaDom(bgHex);
+  return toHexFromRgb({
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+  });
+}
+
+describe("PA-RC-0021 — NavBadge가 색을 하드코딩하지 않고 error.contrastText를 쓴다", () => {
+  const appShellSrc = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "app", "AppShell.jsx"),
+    "utf-8",
+  );
+
+  it("NavBadge의 color가 error.contrastText이고 common.white 하드코딩이 아니다", () => {
+    const start = appShellSrc.indexOf("function NavBadge");
+    expect(start, "NavBadge 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = appShellSrc.slice(start, start + 1100);
+    expect(block).toMatch(/color:\s*"error\.contrastText"/);
+    expect(block).not.toMatch(/color:\s*"common\.white"/);
+  });
+
+  for (const mode of ["light", "dark"]) {
+    it(`${mode} 모드 — error.contrastText가 실제 배경(error.main) 위에서 AA를 만족한다`, () => {
+      const theme = createClovirTheme(mode, "indigo");
+      const bg = theme.palette.error.main;
+      const resolvedFg = resolveOverBackground(theme.palette.error.contrastText, bg);
+      const ratio = contrastRatio(resolvedFg, bg);
+      expect(
+        ratio,
+        `mode=${mode} contrastText=${theme.palette.error.contrastText} resolved=${resolvedFg} bg=${bg} ratio=${ratio.toFixed(2)}`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+  }
+});
+
 describe("QAH-07 — TeamDocs·ChatPane·AccentPicker·WelcomeStatus의 raw .main 텍스트가 대비 보강 색을 쓴다", () => {
   const screensDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens");
 

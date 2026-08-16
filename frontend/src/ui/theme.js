@@ -444,6 +444,21 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           outlinedPrimary: { color: primaryStrong },
         },
       },
+      /* PA-RC-0021: MuiTabs/MuiTab에 색을 안 주면(Tabs 세 소비처 — AssistantPanel의 /me
+       * 브리핑 탭, Project, SettingsShell — 전부 그렇다) MUI 기본값(indicatorColor/
+       * textColor="primary")이 selected 상태 글자·밑줄을 palette.primary.main(원본 accent)
+       * 그대로 쓴다. 다크 표면 위에서 3.76:1로 WCAG AA 4.5 미달(실측) — MuiLink/MuiButton의
+       * text/outlined variant와 같은 원인이라 같은 토큰(primaryStrong)으로 맞춘다. */
+      MuiTab: {
+        styleOverrides: {
+          root: { "&.Mui-selected": { color: primaryStrong } },
+        },
+      },
+      MuiTabs: {
+        styleOverrides: {
+          indicator: { backgroundColor: primaryStrong },
+        },
+      },
       MuiOutlinedInput: {
         /* 기준선은 `.field { background: var(--surface) }` 인데, 카드도 --surface 라 흰
          * 카드 위에서 입력칸이 안 보인다는 문제가 실사용에서 나왔다(사용자 확인, 08-07).
