@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
@@ -164,7 +165,14 @@ export function Ticket() {
           열기"와 다르다 — 거기는 경쟁하는 인앱 수정 버튼이 아예 없어 원본 열기 자체가
           사실상 그 화면의 주 동작이다). 그래서 여기서만 수정을 primary로, 원본 열기를
           default로 바꾼다. */}
-      {data.can_edit === false ? null : <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>}
+      {/* VIS-135: 본문 카드 안에도 별도의 "본문 수정"(EditableBody.jsx)이 있어, 둘의 차이가
+          화면에 설명 없이는 안 보였다. 이 버튼은 상태·우선순위·담당자·마감 같은 속성을
+          여는 것이라는 것을 툴팁으로 밝힌다 — 본문 텍스트는 이 모달이 안 건드린다. */}
+      {data.can_edit === false ? null : (
+        <Tooltip describeChild title="상태·담당자·마감 등 속성을 수정합니다. 본문 텍스트는 아래 '본문 수정'에서 고칩니다.">
+          <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>
+        </Tooltip>
+      )}
       {original ? (
         <Button onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>원본 열기</Button>
       ) : null}
@@ -178,6 +186,13 @@ export function Ticket() {
   );
 
   const meta = [
+    // VIS-134: 예전엔 상태/우선순위가 라벨 없이 본문 카드 맨 위에 칩 두 개로만 있었다 —
+    // "높음" 칩만 보고 그게 우선순위인지 난이도인지 알 수 없었다. 편집 폼(TicketEditModal)도
+    // 이 둘을 project/assignee/due/difficulty와 같은 한 폼에서 다뤄, 화면만 임의로 갈라 둘
+    // 이유가 없었다 — 나머지 속성과 같은 '속성' 카드로 합치고 라벨을 준다. 가장 먼저 훑는
+    // 두 값이라 맨 앞에 둔다.
+    t.status ? ["상태", <Badge key="status" value={t.status} />] : null,
+    t.priority ? ["우선순위", <Badge key="priority" value={priorityKo(t.priority)} kind={priorityKind(t.priority)} />] : null,
     // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
     // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
     // 되므로 메타로 옮긴다.
@@ -207,11 +222,9 @@ export function Ticket() {
         <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
-                또 반복하지 않는다(배지 아래 여백은 유지). */}
-            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 2 }}>
-              {t.status ? <Badge value={t.status} /> : null}
-              {t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : null}
-            </Stack>
+                또 반복하지 않는다. 상태/우선순위 배지는 VIS-134로 오른쪽 '속성' 카드로
+                옮겼다(라벨 없이 여기 있으면 어느 값이 무엇인지 구별이 안 됐다) — 본문은
+                본문만 그린다. */}
             <TicketBody
               ticketId={id}
               blocks={data.blocks}

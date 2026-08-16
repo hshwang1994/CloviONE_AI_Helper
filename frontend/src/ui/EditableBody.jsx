@@ -2,6 +2,7 @@ import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { BodyEditor, BodyPreview, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
@@ -59,6 +60,10 @@ export function hasNestedBlocks(blocks) {
 export function EditableBody({
   editorId, endpoint, invalidateKeys = [], heading = "본문", placeholder,
   blocks, bodyMarkdown, bodyVersion, bodyIsLocal, bodySyncError, sourceView, onSaved,
+  // VIS-135: 화면에 이 버튼과 경쟁하는 다른 "수정" 입구가 따로 있을 때만(현재는 Ticket.jsx)
+  // 그 차이를 밝히는 툴팁을 준다. TeamDoc.jsx처럼 경쟁하는 입구가 없는 소비처는 안 줘도
+  // 되므로 기본값 없음 — 없는 문제를 있다고 말하면 안 된다.
+  editButtonHint,
 }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -204,7 +209,16 @@ export function EditableBody({
     <Box>
       <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
         <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading}</Typography>
-        <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
+        {/* canEdit이 false일 땐 버튼이 disabled라 MUI Tooltip이 그 위에서 마우스 이벤트를
+            못 받는다(MUI 자체 경고) — 그리고 바로 아래 Callout이 "왜 못 고치는지"를 이미
+            말하고 있어 이 시점엔 안내가 중복이다. 고칠 수 있을 때만 감싼다. */}
+        {editButtonHint && canEdit ? (
+          <Tooltip describeChild title={editButtonHint}>
+            <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
+          </Tooltip>
+        ) : (
+          <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
+        )}
       </Stack>
       {!canEdit ? (
         <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>

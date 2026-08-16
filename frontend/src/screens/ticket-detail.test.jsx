@@ -328,6 +328,57 @@ describe("댓글", () => {
   });
 });
 
+// ── 속성 통합 + 편집 입구 구별 (VIS-134/VIS-135) ──────────────────────────────
+
+describe("VIS-134 — 상태·우선순위가 속성 카드로 합쳐진다", () => {
+  it("본문 카드가 아니라 '속성' 카드 안에 라벨과 함께 있다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+    const { container } = wrap();
+    await screen.findByRole("heading", { name: "속성" });
+
+    const rail = container.querySelector('[data-testid="ticket-detail-rail"]');
+    const main = container.querySelector('[data-testid="ticket-detail-main"]');
+    // 라벨이 속성 레일 안에 있다 — "높음"만 보고 우선순위인지 난이도인지 알 수 없던 문제였다.
+    expect(within(rail).getByText("상태")).toBeInTheDocument();
+    expect(within(rail).getByText("우선순위")).toBeInTheDocument();
+    expect(within(rail).getByText("진행")).toBeInTheDocument();
+    expect(within(rail).getByText("높음")).toBeInTheDocument();
+    // 본문 카드 맨 위에는 더 이상 라벨 없는 칩 쌍이 없다.
+    expect(within(main).queryByText("진행")).toBeNull();
+  });
+});
+
+describe("VIS-135 — 헤더 '수정'과 '본문 수정'의 범위를 툴팁으로 구별한다", () => {
+  // MUI Tooltip은 호버로 여는 실제 팝오버 텍스트를 jsdom에서 안정적으로 재현하기 어렵다 —
+  // 대신 Tooltip(describeChild)이 열리기 전부터 정적으로 붙이는 title 속성으로 확인한다.
+  // describeChild가 없으면 이 title 대신 aria-label을 덮어써 버튼의 접근 가능한 이름 자체가
+  // 짧은 "수정"/"본문 수정" 대신 긴 문장으로 바뀌는 회귀가 있었다(아래에서 이름도 같이 확인).
+  it("헤더 '수정'은 이름은 그대로 '수정'이고, 속성을 고친다는 설명이 붙는다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+    wrap();
+    await screen.findByText("배경");
+    const btn = screen.getByRole("button", { name: "수정" });
+    expect(btn).toHaveAttribute("title", expect.stringContaining("본문 텍스트는 아래 '본문 수정'에서 고칩니다"));
+  });
+
+  it("'본문 수정'은 이름은 그대로이고, 본문 텍스트만 고친다는 설명이 붙는다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+    wrap();
+    await screen.findByText("배경");
+    const btn = screen.getByRole("button", { name: "본문 수정" });
+    expect(btn).toHaveAttribute("title", expect.stringContaining("상태·담당자 등 속성은 위 '수정' 버튼에서 고칩니다"));
+  });
+});
+
 // ── 레이아웃(댓글은 본문이 아니라 속성 레일) ──────────────────────────────────
 
 describe("레이아웃 — 댓글은 속성 레일에", () => {

@@ -32,6 +32,9 @@ export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVe
       bodyIsLocal={bodyIsLocal}
       bodySyncError={bodySyncError}
       onSaved={onSaved}
+      // VIS-135: 헤더의 '수정'(TicketEditModal)과 이 버튼이 다른 것을 편집한다는 것을
+      // 밝힌다 — 상태·담당자 같은 속성은 여기서 못 고친다.
+      editButtonHint="본문 텍스트만 수정합니다. 상태·담당자 등 속성은 위 '수정' 버튼에서 고칩니다."
       sourceView={(
         <Box sx={PROSE_SX}>
           <DocBody blocks={blocks} blocksError={blocksError} originalUrl={originalUrl} />

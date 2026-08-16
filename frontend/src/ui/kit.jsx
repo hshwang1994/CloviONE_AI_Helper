@@ -172,11 +172,14 @@ const BUTTON_VARIANT = {
 /* loading: 라벨을 "처리 중…"으로 바꿔치기하지 않는다(예전 DataScreen/ModalFooter 관행) —
  * 텍스트만 바뀌면 스피너도 없고 버튼 폭도 라벨 길이 따라 흔들린다(DS-04). 라벨은 그대로 두고
  * visibility만 숨겨 폭을 고정한 채 스피너를 겹쳐 그린다. */
-export function Button({ variant = "default", size, loading = false, disabled, children, sx, ...rest }) {
+// forwardRef: MUI 컴포넌트(Tooltip 등)가 자식 DOM 노드에 직접 ref를 걸어야 하는 경우가 있다
+// (Tooltip은 호버 위치를 앵커에서 계산한다) — 일반 함수 컴포넌트면 그 ref가 조용히 버려진다.
+export const Button = React.forwardRef(function Button({ variant = "default", size, loading = false, disabled, children, sx, ...rest }, ref) {
   const v = BUTTON_VARIANT[variant] || BUTTON_VARIANT.default;
   const isSm = size === "sm";
   return (
     <MuiButton
+      ref={ref}
       type="button"
       size={isSm ? "small" : "medium"}
       disabled={disabled || loading}
@@ -196,7 +199,7 @@ export function Button({ variant = "default", size, loading = false, disabled, c
       ) : null}
     </MuiButton>
   );
-}
+});
 
 /* 안쪽 여백은 기준선 `.card.pad`(20px)다. 예전에는 `p: 3`(=1.5rem, 기본 루트에서 24px)이었다.
  * 한 변에 4px 이지만 **앱의 모든 카드**가 높이도 폭도 8px 씩 커지는 값이라
