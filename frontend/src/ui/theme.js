@@ -516,6 +516,15 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       /* 터치 타깃 44px — 디자인 사양서 규칙. 아이콘 버튼이 기본 40px이라 미달이었다. */
       MuiIconButton: { styleOverrides: { root: { minWidth: 44, minHeight: 44 } } },
       MuiTooltip: { defaultProps: { enterDelay: 400 } },
+      /* PA-RC-0012: `variant="h6"`은 시각 크기 선택이면서 동시에(component= 없으면) `<h6>`
+       * 태그도 결정해 버려, 문서 구조를 의도치 않게 네 단계(h1→h6) 건너뛰게 만든 사례가
+       * 다섯 화면에 있었다. `sectionTitle`(PA-RC-0001, 카드 소제목 전용 variant)은 의미상
+       * 항상 h2~h3 수준의 구역 제목이므로 기본 태그를 h2로 못박는다 — 호출부가 실수로
+       * component=를 빠뜨려도 옳은 태그가 나간다. MUI Typography는 `variantMapping[variant]
+       * || defaultVariantMapping[variant]`로 폴백하므로(node_modules/@mui/material/
+       * Typography/Typography.js) 여기 h6 등 표준 variant를 다시 안 적어도 그쪽 매핑은
+       * 안 건드린다 — sectionTitle 하나만 추가한다. */
+      MuiTypography: { defaultProps: { variantMapping: { sectionTitle: "h2" } } },
     },
   });
 }

@@ -150,7 +150,7 @@ function TokenSection({ token, testTokens, onSave, busy }) {
   (testTokens || []).forEach((t) => { byField[t.field] = t; });
   return (
     <Card sx={{ mt: 2, p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>토큰</Typography>
+      <Typography variant="h6" component="h2" sx={{ mb: 1 }}>토큰</Typography>
       <Typography variant="body2" color="text.secondary">{token.note}</Typography>
       {token.items.map((item) => (
         <Box
@@ -315,7 +315,7 @@ export function NotionConsole({ embedded = false } = {}) {
       <Callout tone="info">{data.apply_note}</Callout>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6">데이터베이스</Typography>
+        <Typography variant="h6" component="h2">데이터베이스</Typography>
         {(data.databases || []).map((item) => (
           <DatabaseRow
             key={item.key}
@@ -352,7 +352,7 @@ export function NotionConsole({ embedded = false } = {}) {
       />
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>연결 테스트</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>연결 테스트</Typography>
         <Typography variant="body2" color="text.secondary">
           토큰과 데이터베이스를 실제로 한 번씩 불러 봅니다. 결과는 누른 그 순간의 사실이며,
           여기서 성공해도 다음 동기화가 반드시 성공한다는 뜻은 아닙니다.
@@ -379,7 +379,7 @@ export function NotionConsole({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>스프린트 진단</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>스프린트 진단</Typography>
         <Typography variant="body2" color="text.secondary">
           {data.sprint && data.sprint.portal_window}
         </Typography>

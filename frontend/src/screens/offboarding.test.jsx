@@ -367,4 +367,22 @@ describe("오프보딩 화면", () => {
     await screen.findByText("퇴사자2-0");
     expect(screen.queryByText("퇴사자0")).not.toBeInTheDocument();
   });
+
+  it("PA-RC-0012: 미리보기 카드 제목(대상 이름)이 h1 다음 h6이 아니라 h2다", async () => {
+    const user = userEvent.setup();
+    const { container } = renderScreen();
+    await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
+    await screen.findByText("혼자 담당 A");
+
+    const headings = screen.getAllByRole("heading", {}, { container }).map((el) => {
+      const m = el.tagName.match(/^H([1-6])$/);
+      return m ? Number(m[1]) : null;
+    }).filter((lvl) => lvl != null);
+    expect(headings.length).toBeGreaterThan(0);
+    let prev = headings[0];
+    for (const level of headings.slice(1)) {
+      expect(level, `heading 열 [${headings.join(",")}] 에서 ${prev}→${level}로 건너뜀`).toBeLessThanOrEqual(prev + 1);
+      prev = level;
+    }
+  });
 });

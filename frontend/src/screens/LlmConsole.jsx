@@ -200,7 +200,7 @@ export function LlmConsole({ embedded = false } = {}) {
 
       <Card sx={{ mt: 2, p: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="h6">지금 적용 중인 값</Typography>
+          <Typography variant="h6" component="h2">지금 적용 중인 값</Typography>
           <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
           <Badge value="확인 안 함" kind="warn" />
         </Box>
@@ -237,7 +237,7 @@ export function LlmConsole({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6">설정</Typography>
+        <Typography variant="h6" component="h2">설정</Typography>
 
         <Box data-testid="llm-settings-grid" sx={SETTINGS_GRID}>
         {/* SYS-07: value=""는 MUI Select가 "아직 아무것도 안 고름"으로 보고, 그 값의
@@ -331,7 +331,7 @@ export function LlmConsole({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>연결 테스트</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>연결 테스트</Typography>
         <Typography variant="body2" color="text.secondary">{data.test_mode_note}</Typography>
         <Box sx={{ mt: 1.5 }}>
           <Button variant="primary" disabled={busy} onClick={() => startTest.mutate()}>
@@ -356,7 +356,7 @@ export function LlmConsole({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
           {data.login && data.login.title}
         </Typography>
         <Box component="ol" sx={{ pl: 3, m: 0 }}>

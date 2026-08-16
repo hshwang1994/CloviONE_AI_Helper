@@ -107,7 +107,7 @@ export function MailStatus() {
       <ProblemsList problems={mail.problems} />
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>서버 설정</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>서버 설정</Typography>
         <Box sx={{ display: "grid", gap: 0.5 }}>
           {/* Badge(Chip→div)를 Typography 기본 태그(p)의 자식으로 두면 DOM 중첩이 깨진다
               (div는 p 안에 못 들어간다) — component="div"로 바꾼다. */}
@@ -119,7 +119,7 @@ export function MailStatus() {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>발송 현황</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>발송 현황</Typography>
         <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
           <Typography>대기 {counts.queued || 0}건</Typography>
           <Typography>발송됨 {counts.sent || 0}건</Typography>
@@ -142,7 +142,7 @@ export function MailStatus() {
       </Card>
 
       <Card sx={{ mt: 2, p: 0, overflow: "hidden" }}>
-        <Typography variant="h6" sx={{ p: 2, pb: 1 }}>최근 실패</Typography>
+        <Typography variant="h6" component="h2" sx={{ p: 2, pb: 1 }}>최근 실패</Typography>
         <DataTable
           columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id}
           empty="최근 실패한 메일이 없습니다."

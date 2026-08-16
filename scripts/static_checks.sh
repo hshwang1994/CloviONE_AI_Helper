@@ -165,6 +165,17 @@ else
   echo "$BTNH"; fail "버튼 위계 규범 위반 — 파괴적 동작이 primary이거나 primary:true 짝이 안 맞다"
 fi
 
+step "Heading variant/component separation (PA-RC-0012)"
+# variant="h6"는 시각 크기 선택이면서 동시에(component= 없으면) 실제 <h6> 태그도 정해
+# 버린다 — 손으로 쓴 화면 5개가 이 함정으로 h1 다음에 h6을 놓아 문서 heading 구조가
+# 네 단계를 건너뛰었다. component=로 시각/의미를 분리하는 관용은 이미 27곳에 있다
+# (ui/adminKit.jsx:52 등) — scripts/check_heading_variant_mapping.py 참고.
+if HEAD="$("$PY" scripts/check_heading_variant_mapping.py 2>&1)"; then
+  ok "$(echo "$HEAD" | tail -1)"
+else
+  echo "$HEAD"; fail "heading variant/component 분리 위반 — component= 없이 h3~h6를 썼다"
+fi
+
 step "No external origins fetched by frontend"
 # 사내 LAN 전용이라 CDN·외부 폰트·외부 이미지를 런타임에 '받아오면' 오프라인에서 깨지고,
 # CSP(default-src 'self')에도 걸린다. 사용자가 눌러서 여는 링크(Notion 문서 등)는 문제가

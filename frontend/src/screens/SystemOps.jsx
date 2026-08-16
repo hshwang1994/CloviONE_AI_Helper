@@ -234,7 +234,7 @@ export function SystemOps({ embedded = false } = {}) {
       )}
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>시스템 정보</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>시스템 정보</Typography>
         {usable ? (
           <Box sx={{ display: "grid", gap: 0.5 }}>
             <Typography>호스트 이름: {info.hostname || "확인하지 못했습니다"}</Typography>
@@ -251,7 +251,7 @@ export function SystemOps({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>서비스</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>서비스</Typography>
         {usable && Object.keys(units).length > 0 ? (
           Object.keys(units).map((unit) => (
             <UnitRow key={unit} unit={unit} state={units[unit]}
@@ -265,7 +265,7 @@ export function SystemOps({ embedded = false } = {}) {
       </Card>
 
       <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>변경</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>변경</Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
           {(data.actions || [])
             .filter((a) => a.mutating && FORMS[a.name])

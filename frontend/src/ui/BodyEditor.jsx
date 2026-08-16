@@ -226,9 +226,9 @@ export function BodyPreview({ text, wide = false }) {
       {blocks.map((b, i) => {
         if (b.type === "spacer") return <Box key={i} sx={{ height: "0.5rem" }} aria-hidden="true" />;
         if (b.type === "hr") return <Divider key={i} sx={{ my: 1 }} />;
-        if (b.type === "h1") return <Typography key={i} variant="h6" sx={{ mt: 1 }}>{b.text}</Typography>;
-        if (b.type === "h2") return <Typography key={i} sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.sectionTitle, mt: 1 }}>{b.text}</Typography>;
-        if (b.type === "h3") return <Typography key={i} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, mt: 0.5 }}>{b.text}</Typography>;
+        if (b.type === "h1") return <Typography key={i} variant="h6" component="h2" sx={{ mt: 1 }}>{b.text}</Typography>;
+        if (b.type === "h2") return <Typography key={i} component="h3" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.sectionTitle, mt: 1 }}>{b.text}</Typography>;
+        if (b.type === "h3") return <Typography key={i} component="h4" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, mt: 0.5 }}>{b.text}</Typography>;
         if (b.type === "ul") return <Box component="ul" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
         if (b.type === "ol") return <Box component="ol" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
         return <Typography key={i} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{b.text}</Typography>;

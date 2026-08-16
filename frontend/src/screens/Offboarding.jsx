@@ -277,7 +277,7 @@ function OffboardPlan({ preview, onDone, toast }) {
   return (
     <>
       <Card sx={{ p: 2.5, mb: 2.5 }}>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>{user.display_name}, {user.email}</Typography>
+        <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>{user.display_name}, {user.email}</Typography>
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))" } }}>
           {(preview.onboarding || []).map((check) => (
             <Box key={check.key} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
@@ -308,7 +308,7 @@ function OffboardPlan({ preview, onDone, toast }) {
 
       <Card sx={{ mb: 2.5 }}>
         <Box sx={{ p: 2, pb: 0 }}>
-          <Typography variant="subtitle1">보유 티켓 {tickets.length}건, 선택 {chosen.length}건</Typography>
+          <Typography variant="subtitle1" component="h2">보유 티켓 {tickets.length}건, 선택 {chosen.length}건</Typography>
         </Box>
         {tickets.length ? (
           <DataTable columns={columns} rows={tickets} rowKey={(t) => t.id} />
@@ -361,7 +361,7 @@ function RunResult({ result }) {
   const moves = result.moves || [];
   return (
     <Card sx={{ p: 2.5, mb: 2.5 }}>
-      <Typography variant="h6" sx={{ mb: 1 }}>실행 결과</Typography>
+      <Typography variant="h6" component="h2" sx={{ mb: 1 }}>실행 결과</Typography>
       <Callout tone={run.ticket_failed ? "warn" : "info"}>
         티켓 {run.ticket_total}건 중 <strong>{run.ticket_moved}건 이동</strong>
         {run.ticket_failed ? <>, <strong>{run.ticket_failed}건 실패</strong></> : null}.
@@ -460,7 +460,7 @@ function RunHistory() {
 
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography variant="h6" sx={{ mb: 1.5 }}>실행 이력</Typography>
+      <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>실행 이력</Typography>
       {query.isLoading ? (
         <Card><Skeleton lines={3} /></Card>
       ) : query.isError ? (
