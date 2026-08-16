@@ -7498,3 +7498,46 @@ journalctl 안내가 web이 아니면 무조건 `clovirone-web-worker`(배치 �
 이번 Phase 2 전체 변경 묶음에 대해 한 번 더 수렴 지점으로 돌릴지 판단(지금까지는
 matching focused test 스위트로 커버해 왔다). (c) `SEC-20`은 여전히 사람 전용.
 (d) Medium 잔여 재스캔 여지. (e) 그 뒤에야 `PROJECT_COMPLETE` 판단.
+
+### 체크포인트 — 2026-08-17 계속(invocation 7 계속): Phase 3 — 동시성 1→3 실측+실결함 1건 발견/수정/자가치유까지 증명, D-118 종료
+
+`WORKER_CONVERSATIONAL_CONCURRENCY`를 1→3으로 올리고 TEST SERVER에서 서로 다른
+대화 3개에 ~70ms 이내로 메시지를 보내 실측했다. `started_at` 구간이 실제로
+겹치는 것을 확인해 러너 `conversation_lock`(대화별로 갈림)이 전제한 안전성이
+맞다는 것을 실측으로 증명했고, 동시에 SQLite `database is locked` 오류도 실제로
+발생하는 것을 확인했다(대부분 기존 백오프로 자가회복, 단 1건은 클레임 쓰기+실패
+기록 쓰기가 둘 다 잠기는 "이중 실패"로 `status=running`에 멈춤).
+
+**발견된 실결함**: 멈춘 잡이 배치 레인의 3900초(65분) 기본 회수 타임아웃을 그대로
+물려받고 있었다 — D-118 설계 당시 이미 "대화형 레인은 짧은 타임아웃(≈840초)이
+필요하다"고 예정돼 있었는데 Phase 1 구현에서 실제로 배선이 안 됐던 것.
+
+**수정**: `app/core/config.py`에 `worker_conversational_running_timeout_seconds=840`
+추가 + `build_conversational_worker()`에 배선(`app/worker_main.py`). 배치 레인의
+3900초는 그대로 둠(스케줄러/백업 같은 장시간 작업엔 여전히 맞는 값). 시험 2건
+추가/수정(`tests/integration/test_worker_main_lanes.py`), revert-to-verify. 커밋
+`59c28c0` → TEST SERVER 배포 `UPGRADE_OK`+`DEPLOY_VERIFY_OK`, 3개 유닛(web/배치
+워커/대화형 워커) 전부 `active`.
+
+**자가치유를 실제 잡 하나로 끝까지 증명**: 멈춘 잡
+(`1d4236a2-1567-498d-a092-82d86bb75283`)을 DB 직접 조회로 추적 — 669초→704초
+경과(840초 미만이라 아직 회수 안 됨, 정상) 확인 → `journalctl`에서
+`WARNING app.worker recovered 1 stuck job(s)`(05:25:17, ≈840초 경과 시점과 일치)
+→ 38초 뒤 `INFO app.worker job 1d4236a2... succeeded`(05:25:55). 최종 DB 상태:
+`attempt_count=2`(재클레임되어 두 번째 시도로 처리됨), `last_error` 빈 문자열,
+`status=succeeded`. 회수→재클레임→재처리→성공까지 전 과정을 실제 잡 하나로
+end-to-end 확인했다.
+
+**D-118 결론**: Phase 1(다크 배선)/Phase 2(플래그 on, 배치 워커 완전 정지 상태에서도
+대화형 레인 단독 동작 증명)/Phase 3(동시성 상향, 실결함 발견+수정+자가치유 증명)를
+모두 TEST SERVER 실측으로 닫았다. 코드 롤백 없이 `web.env` 플래그만 되돌리면 즉시
+이전 단일 배치 레인 동작으로 복귀하는 경로도 유지된다. Phase 4/5(스트리밍 UI,
+취소 시맨틱)는 이번 세션 범위 밖 — 별도 후속 후보로 남긴다.
+
+상세: `docs/DECISIONS.md` D-125, `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
+
+**다음에 할 일**: (a) 진행 중인 `scripts/run_full_regression.sh`(Phase 1/2/3 +
+이번 세션 Medium 배치 전체에 대한 수렴 지점 점검) 결과 확인. (b) 결과가 green이면
+whole-product 재감사(CLAUDE.md §8) — 이번 세션 후반부에 실제로 다시 돈 적이
+없다. (c) `SEC-20`은 여전히 사람 전용 blocker. (d) 그 뒤 `PROJECT_COMPLETE`
+판단(§13 체크리스트 기준 — 아직 Full Regression 확정 전이라 이르다).

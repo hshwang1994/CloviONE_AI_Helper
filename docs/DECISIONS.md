@@ -5001,3 +5001,59 @@ Phase 3(동시성 1→3)은 Phase 0가 이미 안전성 근거(러너 `conversat
 대화별로 갈림)를 확인해 둔 상태라 설정값만 바꾸면 된다 — 다음 세션의 후보로 남긴다.
 
 상세: `docs/WORK_STATE.md`, `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
+
+## D-125 (2026-08-17) — D-118 Phase 3 완료: 동시성 1→3 실측, 실제 결함 1건 발견+수정+자가치유 증명
+
+`WORKER_CONVERSATIONAL_CONCURRENCY=1`→`3`으로 올리고 TEST SERVER에서 서로 다른 대화
+3개에 거의 동시(약 70ms 이내)로 메시지를 보내 실측했다.
+
+### 실측으로 확인한 것 — 진짜 동시 처리, 진짜 쓰기 경합
+
+3건의 `started_at` 구간이 실제로 겹쳤다(순차 처리였다면 불가능한 타이밍) — 러너
+`conversation_lock`이 대화별로 갈린다는 Phase 0의 소스 분석이 실측으로 확인됐다.
+동시에, SQLite `database is locked` 오류도 실제로 발생했다 — 대부분은 기존
+`repository.fail`의 지수 백오프로 스스로 회복했지만, 그중 한 건은 **클레임 쓰기와
+그 뒤의 실패 기록 쓰기가 둘 다 잠금에 걸리는("이중 실패") 엣지 케이스**에 걸려
+`status=running`에 멈췄다. 배치 레인의 3900초(65분) 기본 타임아웃을 그대로
+물려받은 상태라 65분 동안 회수되지 않을 상황이었다 — D-118 설계 당시 이미
+`worker_conversational_running_timeout_seconds ≈ 840`으로 예정돼 있었지만 Phase 1
+구현에서 실제로 배선되지 않았던 것이 이번에 실측으로 드러났다.
+
+### 수정
+
+`app/core/config.py`에 `worker_conversational_running_timeout_seconds: int = 840`
+추가, `app/worker_main.py::build_conversational_worker()`가
+`Worker(..., running_timeout_seconds=settings.worker_conversational_running_timeout_seconds)`로
+넘기도록 배선했다. 840초는 n8n 웹훅 타임아웃(180초)에 재시도 여유를 더한 값 — 배치
+레인의 3900초는 그대로 둔다(스케줄러/백업 같은 장시간 배치 작업에는 여전히 필요한
+값이라 손대지 않았다). 신규/수정 시험 2건(`tests/integration/test_worker_main_lanes.py`),
+revert-to-verify. 커밋 `59c28c0` → TEST SERVER 배포, `UPGRADE_OK`+`DEPLOY_VERIFY_OK`,
+web/배치워커/대화형워커 3개 유닛 전부 `active` 확인.
+
+### 자가치유를 끝까지 실측으로 증명
+
+멈춘 실제 잡(`1d4236a2-1567-498d-a092-82d86bb75283`)의 회수 과정을 DB 직접 조회로
+추적했다: `running` 상태에서 669초 → 704초 경과까지 확인(아직 840초 미만이라
+회수 안 되는 것이 정상 동작임을 먼저 확인) → 이후 `journalctl`에서
+`WARNING app.worker recovered 1 stuck job(s)`(05:25:17, 약 840초 경과 시점과
+일치) → 38초 뒤 `INFO app.worker job 1d4236a2... succeeded`(05:25:55) 확인. DB
+재조회 결과 `attempt_count=2`(재클레임되어 두 번째 시도로 처리됨), `last_error`
+빈 문자열, `status=succeeded` — 배치 레인의 기존 sweep/재클레임 메커니즘이 대화형
+레인에도 그대로 작동하고, 새 840초 임계값이 실제로 적용되며, 재시도가 실제로
+성공한다는 것까지 하나의 실제 잡으로 끝까지 확인했다.
+
+### 결론
+
+Phase 3는 "설정값만 바꾸면 된다"는 Phase 0의 사전 판단이 큰 틀에서는 맞았지만,
+동시성을 실제로 올려보지 않았다면 이 이중 실패 엣지 케이스는 발견되지 않았을
+것이다(단위 시험은 이 타이밍 의존적 경합을 재현하지 못한다) — 실제 TEST SERVER
+동시 요청으로만 드러난 결함이었다. D-118의 3단계(다크 배선 → 플래그 on → 동시성
+상향)를 모두 실측으로 닫았다.
+
+### 다음
+
+D-118의 나머지 범위(스트리밍 응답 UI, 사용자 취소 시맨틱 — 애초에 Phase 4/5로
+분리해 둔 항목)는 이번 세션에서 다루지 않았다. 지금 상태(동시성 3, 자가치유 확인됨)
+자체가 배포 가능한 완결 지점이라 판단해 별도 후속 후보로 남긴다.
+
+상세: `docs/WORK_STATE.md`, `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
