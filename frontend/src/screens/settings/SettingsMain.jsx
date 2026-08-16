@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
@@ -28,6 +30,10 @@ import { SettingEditor } from "./SettingEditor.jsx";
  * 없어져 통째로 없앴다(Handoff acceptance_criteria: "안내 4문단이 삭제되어 있다"). */
 export function Settings({ embedded = false } = {}) {
   const [sel, setSel] = useState(null);
+  // PA-RC-0022 acceptance_criteria 6: 백엔드 키(raw REGISTRY 키 문자열)는 운영 디버깅에는
+  // 유용하지만 일반 사용자 언어가 아니다 — 기본 숨김 + 열 토글로 내린다(완전히 없애지는
+  // 않는다, constraints가 명시).
+  const [showKey, setShowKey] = useState(false);
   const qc = useQueryClient();
   const toast = useToast();
   const auth = useAuth();
@@ -70,11 +76,15 @@ export function Settings({ embedded = false } = {}) {
    * 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로 설명 글자가 한 줄에 한 자씩 세로로 흘렀다.
    * 폭 배분은 브라우저 auto 레이아웃에 맡긴다(내용에 비례해 나눈다). */
   const columns = [
-    { key: "label", label: "설정" },
-    { key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> },
-    { key: "value", label: "값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
-    // '변경됨'은 기본값과 다를 뿐 문제 상태가 아니다 — warn(주황)은 이상으로 오독되므로 info로 표시한다.
-    { key: "is_default", label: "상태", render: (r) => <Badge value={r.is_default ? "기본값" : "수정됨"} kind={r.is_default ? "neutral" : "info"} /> },
+    { key: "label", label: "항목명" },
+    // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
+    // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
+    ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
+    { key: "value", label: "현재 값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
+    // PA-RC-0022 target_design: "「기본값」 배지 10개는 없애고 「수정됨」만 표시한다" — 기본값
+    // 상태는 이제 배지가 아예 없는 것으로 표현한다(변경 안 됐다는 사실 자체는 정보 가치가
+    // 낮다 - 눈에 띄어야 하는 건 "누가 뭔가 바꿨다"는 사실 하나뿐이다).
+    { key: "is_default", label: "상태", render: (r) => (r.is_default ? null : <Badge value="수정됨" kind="info" />) },
     { key: "description", label: "설명" },
   ];
 
@@ -88,7 +98,15 @@ export function Settings({ embedded = false } = {}) {
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
         : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
-        : <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>}
+        : <>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+              <FormControlLabel
+                control={<Checkbox size="small" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} />}
+                label="백엔드 키 표시"
+              />
+            </Box>
+            <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>
+          </>}
       <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
         onSaved={(res) => {
           qc.invalidateQueries({ queryKey: ["settings"] });
