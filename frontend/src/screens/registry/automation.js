@@ -364,6 +364,7 @@ export const AUTOMATION_SCREENS = {
     // 이유(registry.js audit pageSize:100 주석 참고)로 기본값 20보다 넉넉하게 둔다.
     pageSize: 100,
     // 큐 정체를 이 화면에서 바로 감지 — 대기/실행/실패 카운트와 '실행 가능(ready)'·가장 오래된 대기 age.
+    // VIS-120: 그 지표들은 전부 "지금 이 순간"뿐이라 최근 24시간 실패 수·평균 처리 시간도 더했다.
     summary: {
       endpoint: "/api/admin/jobs/stats",
       poll: true,   // 대기/실행/실패 카운트도 목록과 함께 주기적으로 갱신(정체를 실시간 감지).
@@ -382,6 +383,23 @@ export const AUTOMATION_SCREENS = {
           { value: s.failed != null ? s.failed : 0, label: "실패", kind: s.failed > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed") },
           { value: s.succeeded != null ? s.succeeded : 0, label: "완료", onClick: () => ctx.setFilter("status", "succeeded") },
           { value: s.cancelled != null ? s.cancelled : 0, label: "취소됨", onClick: () => ctx.setFilter("status", "cancelled") },
+          // VIS-120: 위 6장은 전부 "지금 이 순간의 큐 깊이"뿐이라 셋 다 0이면 큐가 건강해
+          // 보이지만, 최근에 계속 실패해 왔거나(재시도로 큐를 이미 빠져나갔다) 처리가
+          // 느려지고 있다는 신호는 어디에도 없었다 — 같은 24시간 창으로 그 둘을 더한다.
+          // '실패'(현재 status=failed 행 수, 오래된 것도 포함)와는 다른 신호다: 이건
+          // "최근에 새로 실패가 났는가"라는 속도 신호다.
+          {
+            value: s.recent_failed_24h != null ? s.recent_failed_24h : 0, label: "최근 24시간 실패",
+            kind: s.recent_failed_24h > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed"),
+          },
+          {
+            value: s.avg_processing_seconds_24h == null ? null : (
+              s.avg_processing_seconds_24h < 60
+                ? s.avg_processing_seconds_24h.toFixed(1) + "초"
+                : Math.floor(s.avg_processing_seconds_24h / 60) + "분 " + Math.round(s.avg_processing_seconds_24h % 60) + "초"
+            ),
+            label: "평균 처리 시간(24h)",
+          },
         ];
         if (s.oldest_queued_at) {
           const str = String(s.oldest_queued_at);

@@ -276,6 +276,45 @@ def queue_stats(db: Session, *, now: datetime, visible: frozenset[str] | None = 
             select(func.min(Job.created_at)).where(Job.status == STATUS_QUEUED), visible
         )
     ).scalar_one()
+
+    # VIS-120: 대기/실행 중/실행 가능(ready)은 전부 "지금 이 순간의 큐 깊이"뿐이다 — 셋 다
+    # 0이면 큐가 건강해 보이지만, 최근에 계속 실패해 왔거나(재시도로 결국 빠져나가 큐에는
+    # 안 남는다) 처리가 느려지고 있다는 신호는 이 셋 중 어디에도 없다. 같은 24시간 창으로
+    # 두 가지를 더 낸다.
+    cutoff = now - timedelta(hours=24)
+    recent_failed = db.execute(
+        apply_scope(
+            select(func.count()).select_from(Job).where(
+                Job.status == STATUS_FAILED, Job.finished_at.is_not(None), Job.finished_at >= cutoff,
+            ),
+            visible,
+        )
+    ).scalar_one()
+    # 평균 처리 시간은 성공한 건만 잰다 — 실패는 재시도 백오프까지 걸린 시간이 섞여
+    # "얼마나 걸리는가"가 아니라 "몇 번 재시도했는가"를 재게 된다. SQLite 날짜 함수
+    # (julianday 등) 대신 파이썬에서 직접 뺀다 — 이 저장소에 그 함수를 쓴 전례가 없고,
+    # 시각 컬럼 하나가 예상과 다른 문자열 표현으로 저장되면 조용히 틀린 값을 낼 수 있어
+    # (이 코드베이스가 UTC 저장·시간대 변환에 유난히 조심하는 이유와 같다) 검증된 파이썬
+    # datetime 뺄셈이 더 안전하다. 이 요약은 /jobs 화면이 4초마다 폴링하므로(DataScreen의
+    # summary.poll) 건수가 많은 설치에서 매번 무제한 행을 끌어오지 않게 최근 200건으로
+    # 상한을 둔다 — "최근 추세"가 목적이지 전수 집계가 아니다.
+    recent_succeeded = db.execute(
+        apply_scope(
+            select(Job.started_at, Job.finished_at).where(
+                Job.status == STATUS_SUCCEEDED, Job.started_at.is_not(None),
+                Job.finished_at.is_not(None), Job.finished_at >= cutoff,
+            ),
+            visible,
+        ).order_by(Job.finished_at.desc()).limit(200)
+    ).all()
+    avg_processing_seconds = (
+        round(
+            sum((finished - started).total_seconds() for started, finished in recent_succeeded)
+            / len(recent_succeeded),
+            1,
+        )
+        if recent_succeeded else None
+    )
     return {
         "queued": counts.get(STATUS_QUEUED, 0),
         "running": counts.get(STATUS_RUNNING, 0),
@@ -284,4 +323,6 @@ def queue_stats(db: Session, *, now: datetime, visible: frozenset[str] | None = 
         "cancelled": counts.get(STATUS_CANCELLED, 0),
         "ready": ready,
         "oldest_queued_at": oldest_queued.isoformat() if oldest_queued else None,
+        "recent_failed_24h": recent_failed,
+        "avg_processing_seconds_24h": avg_processing_seconds,
     }

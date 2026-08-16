@@ -180,3 +180,42 @@ def test_queue_stats(db, now):
     assert stats["queued"] == 2
     assert stats["ready"] == 1
     assert stats["oldest_queued_at"] is not None
+
+
+# VIS-120: 대기/실행 중/실행 가능(ready)은 "지금 이 순간"만 잰다 — 최근에 계속 실패해
+# 왔거나(재시도로 결국 큐를 빠져나간다) 처리가 느려지고 있다는 신호는 그 셋에 없다.
+def test_queue_stats_recent_failed_24h_excludes_failures_outside_the_window(db, now):
+    _enqueue(db, now, payload={"a": 1})
+    _enqueue(db, now, payload={"b": 2})
+    db.commit()
+    recent = repository.claim_next(db, now)
+    repository.fail(db, recent, error="boom", now=now + timedelta(hours=1), permanent=True)
+    old = repository.claim_next(db, now)
+    repository.fail(db, old, error="boom", now=now - timedelta(hours=25), permanent=True)
+    db.commit()
+
+    stats = repository.queue_stats(db, now=now)
+    assert stats["recent_failed_24h"] == 1  # 24시간보다 전에 끝난 실패는 창 밖
+
+
+def test_queue_stats_avg_processing_seconds_counts_succeeded_only(db, now):
+    _enqueue(db, now, payload={"a": 1})
+    _enqueue(db, now, payload={"b": 2})
+    db.commit()
+    succeeded = repository.claim_next(db, now)
+    repository.finish(db, succeeded, now=now + timedelta(seconds=30))
+    failed = repository.claim_next(db, now)
+    # 실패는 재시도 백오프까지 걸린 시간이 섞이므로 평균에서 빠져야 한다 — 극단적으로
+    # 오래(1시간) 걸린 실패를 섞어서, 만약 잘못 포함되면 평균이 크게 어긋나 바로 드러난다.
+    repository.fail(db, failed, error="boom", now=now + timedelta(hours=1), permanent=True)
+    db.commit()
+
+    stats = repository.queue_stats(db, now=now + timedelta(hours=1))
+    assert stats["avg_processing_seconds_24h"] == 30.0
+
+
+def test_queue_stats_avg_processing_seconds_is_none_not_zero_when_nothing_recent(db, now):
+    """0초와 '잴 것이 없음'은 다른 사실이다 — 성공 이력이 아예 없으면 None이지 0이 아니다."""
+    stats = repository.queue_stats(db, now=now)
+    assert stats["avg_processing_seconds_24h"] is None
+    assert stats["recent_failed_24h"] == 0
