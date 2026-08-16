@@ -52,9 +52,9 @@
 | `U-CHAT` AI 도우미 대화 | `/chat` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | E | · | · | E | · | · | E | · | · | O | O | O | O | S | S | S | S | · | · | · | · | · | E | · |
+| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | E | · | · | E | · | E | E | · | · | O | O | O | O | S | S | S | S | · | E | · | · | · | E | · |
 | `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | E | · | · | E | · | · | E | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | E | · | · | E | · | E | E | · | · | O | O | O | O | S | S | S | · | · | E | · | · | · | E | · |
 | `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-GAMES` 놀이 목록 | `/games` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
@@ -69,7 +69,7 @@
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | O | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
-| `A-USERS` 사용자 관리 | `/users` | S | · | E | · | E | E | · | E | E | · | · | O | O | O | O | E | S | S | S | · | · | · | · | · | E | S |
+| `A-USERS` 사용자 관리 | `/users` | S | · | E | · | E | E | · | E | E | · | · | O | O | O | O | E | S | S | S | · | E | · | · | · | E | S |
 | `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | O | S | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
@@ -403,11 +403,11 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
 total_cells=2340
-unseen=1330
+unseen=1325
 unseen_without_reason=0
 static_only=609
 observed=218
-executed=183
+executed=188
 blocked=0
 not_applicable=0
 -->
