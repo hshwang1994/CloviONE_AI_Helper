@@ -6861,3 +6861,45 @@ green 확인함) — 그 결과를 기다리며 멈추지 않고 다음 작업�
 invocation 안에서 곧바로 착수한다(대형 상태 문서 재통독 없이 — 다음 후보가 이미 안 정해져
 있으면 `BACKLOG.md`/`QA_COVERAGE.md`의 미해결 영역을 다시 훑는다). 백엔드 pytest 배경 실행
 결과가 도착하면 실패 유무를 확인하고, 실패가 있으면 그 원인을 이 새 작업과 병행해 조사한다.
+
+### 체크포인트 — 2026-08-16 계속: 백엔드 pytest 전체 green 확인(변경 전 상태) + `PA-RC-0026` 완결
+
+배경으로 돌리던 백엔드 전체 `pytest`(PA-RC-0026 착수 **전** 시점에 건 것)가 **exit code
+0(전체 green)** 로 끝났다 — `PA-RC-0023`까지의 상태가 여전히 green임을 확인. **주의**:
+이 결과는 `PA-RC-0026`의 `app/health/*` 변경을 포함하지 않는다 — 그 변경에 대해서는
+아래 66건 포커스 시험이 근거이고, `tests/security/`+`tests/integration/` 전체 재실행은
+별도로 배경에서 돌리는 중(아직 완료 신호 없음, 완료되면 결과 확인).
+
+High/Critical 등급이 전부 완결이라(`PA2-05`~`07`·`12`) Medium 중 RBAC/보안에 가장
+가까운 `PA-RC-0026`(`/diagnostics` 게이트가 제품 자신의 공표된 권한표 `console.ops`보다
+좁음)을 골랐다(CLAUDE.md §4). 게이트를 낮추기 전 번들 5개 키를 전부 감사(Handoff가 명시한
+선행 조건) — 4개는 안전 확인, **`dashboard`(내장 호출) 1개에서 실제 결함**을 찾았다:
+`include_critical_audit`를 안 넘겨 기본값 `True`가 적용돼, `/api/admin/dashboard`가
+operator에게 명시적으로 가리는 감사 슬라이스를 진단 번들 옆문으로 우회 노출할 뻔했다 —
+`include_critical_audit` 파라미터를 새로 뚫어 막았다.
+
+게이트를 `CONSOLE_WRITE_ROLES`(admin+) → `CONSOLE_OPS_ROLES`(operator 포함, `/jobs`와
+동일)로 낮춤, 프런트 `AdminRoutes.jsx`·`navConfig.js` role 배열 동기화. 신규
+`test_diagnostics_bundle_rbac.py` 9건(역할 5종 매트릭스 + critical-audit 우회를
+revert-to-verify로 실제 재현) + 기존 RBAC/보안 66/66 green, 프런트 전체 회귀
+277파일 1904건 green.
+
+**작업 중 실수 하나**: revert-to-verify로 일부러 고장낸 상태를 `git checkout --
+app/health/router.py`로 되돌리려다, 그 파일에 아직 커밋 안 한 진짜 수정도 같이 있어서
+**수정 전체가 통째로 날아갔다** — `git diff`로 바로 발견해 같은 내용을 다시 작성, 복구
+확인. 앞으로 같은 파일에 미커밋 변경이 섞여 있을 때는 `git checkout` 대신 Edit로만
+되돌린다.
+
+TEST SERVER 배포(`UPGRADE_OK`) + `verify_deploy.sh` 전부 OK. 캐시된 `operator`/
+`system_admin` 세션으로 라이브 확인: operator가 `/api/admin/diagnostics/bundle`
+200(전엔 403), `recent_critical_audit` 빈 배열로 정확히 가려짐, `/#/diagnostics` 화면이
+권한 거부 대신 실제 진단 데이터 렌더(스크린샷 확인). **`PA-RC-0026`을 완결로 처리한다.**
+상세: `DECISIONS.md` D-98, `BACKLOG.md` `PA2-14`.
+
+**다음 단계**: 남은 미해결 Root Cause(전부 Medium/Low) 중 다음 후보를 골라 같은
+invocation 안에서 계속한다 — `PA2-01`(`PA-RC-0012`, h1→h6 heading skip)·`PA2-02`
+(`PA-RC-0013`, `/users` URL 상태 미보존)·`PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·
+`PA2-08`(`PA-RC-0019`, FAB가 상세 버튼을 가림 — **PA-RC-0023에서 상세 버튼 자체를
+지웠으므로 이 RC의 전제 자체가 사라졌을 가능성이 높다, 먼저 재확인할 것**)·`PA2-09`
+(`PA-RC-0020`, 어시스턴트 이름/진입점 불일치)·`PA2-10`(`PA-RC-0021`, 다크 테마 색
+토큰)·`PA2-13`(`PA-RC-0024`, 관리자 상세 딥링크 없음)·`PA2-15`(`PA-RC-0025`, Low).

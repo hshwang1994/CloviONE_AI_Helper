@@ -3580,4 +3580,17 @@ TEST SERVER 배포 + 역할 4종 실측(acceptance_criteria 8 — 특히 `operat
 전수 단언)는 기존 `test_secret_exposure_sweep.py`가 이미 이 엔드포인트를 포함해 하고
 있어 별도 신설 안 함.
 
-상세: `docs/BACKLOG.md` `PA2-14`.
+### 배포 + 실측(같은 invocation 이어서)
+
+`build-bundle.sh` → scp(sha256 일치) → `MANIFEST.sha256` 1675개 OK → `upgrade-
+clovirone-web-assistant.sh` → `UPGRADE_OK`, `verify_deploy.sh` 전부 OK. 캐시된
+`operator`/`system_admin` 세션으로 라이브 확인: `GET /api/admin/diagnostics/bundle`이
+operator에게 이제 200(전엔 403)이고 `dashboard.recent_critical_audit`가 빈 배열로
+정확히 가려짐, `/#/diagnostics` 화면이 "권한이 없습니다" 대신 실제 진단 데이터(디스크·
+서비스 상태·연동 4개·설치처 설정)를 렌더(스크린샷 확인), 사이드바에 "진단" 항목이
+활성 상태로 보임(nav 게이트도 함께 갱신됐다는 뜻). system_admin은 그대로 200(무변화
+확인). `auditor`/`user`는 원격 계정이 없어 라이브로 안 돌렸으나 백엔드 role-matrix
+시험 9건이 이미 두 역할 다 403임을 로컬에서 확정했다(코드가 하나뿐인 게이트라 로컬
+확인이 원격에도 그대로 적용된다).
+
+**`PA-RC-0026`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-14`.
