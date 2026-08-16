@@ -1,6 +1,6 @@
 # PRODUCT AUDIT — FEATURE / WORKFLOW CONTRACTS
 
-> cycle_id=PA-20260816-100149-48671b72 · baseline=`64ef571764bc8ee2ebac3628a4c1383dff2d9217`
+> cycle_id=PA-20260816-120655-f103fb5b · baseline=`70e264bf13110e7e61cdf96331bd92de48f2163d`
 > 이전 Cycle: `PA-20260812-171558-56c5befa` (baseline `89ac9f16`)
 >
 > **이 Cycle에서의 취급**: 아래 Contract(`FC-01`~`FC-08`)는 이전 Cycle이 근거와 함께 세운

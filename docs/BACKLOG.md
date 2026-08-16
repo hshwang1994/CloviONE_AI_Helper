@@ -3343,3 +3343,59 @@ Handoff Root Cause 8건 중 **7건이 아래 신규 행**이고, `PA-RC-0003`은
 | PA-14 | Med | **`get_db`의 요청-스코프 바깥 commit이 쓰기 경합으로 실패하면 원시 500이 새던 D-75 갭을 부분적으로 닫았다**(2026-08-15, 이전에 PA-08 조사 중 발견하고 의도적으로 범위 밖으로 미뤄 뒀던 것 — `docs/DECISIONS.md` D-75). `app/core/deps.py::get_db`는 라우트 핸들러가 성공적으로 반환한 *다음* 마지막 `db.commit()`을 부르는데, 이 지점엔 재시도가 전혀 없었다(SAVEPOINT 재시도 계층은 각 호출부 안의 커밋만 방어한다) | `app/core/deps.py::get_db` · `app/core/errors.py`(신규 `WriteUnavailableError`) | **부분 구현완료(분류만, 재시도는 아직 아님)** — D-75가 이미 문서화한 이유(실패한 commit 뒤 rollback하면 이미 flush된 행이 사라져 단순 commit 재시도로는 안 됨, 진짜 재시도는 요청 전체 재실행이 필요한 더 큰 아키텍처 작업)는 그대로 유효해 재시도는 여전히 구현하지 않았다. 대신 이 특정 실패를 원시 `OperationalError`(500) 대신 `WriteUnavailableError`(503, "일시적인 서버 혼잡으로 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.")로 분류만 한다 — `StorageUnavailableError`(OPS-05)와 같은 기존 패턴을 그대로 따름. 쓰기 경합이 아닌 `OperationalError`(디스크 오류 등)와 라우트 핸들러 자신의 예외는 이 분류를 안 거치고 그대로 샌다(`try/except/else`로 "커밋 자체의 실패"와 "핸들러 로직의 실패"를 분리). 신규 회귀 `tests/regression/test_get_db_outer_commit_write_conflict.py`(4건, 제너레이터 직접 구동, revert-to-verify 확인 — 원본 코드로 되돌리면 정확히 예측한 증상대로 재현됨). `get_db`가 모든 인증 라우트가 공유하는 기반이라 CLAUDE.md §6 예외(영향 반경이 큰 기반 변경)에 따라 `tests/regression/`+`tests/security/` 조기 전체 실행 |
 | PA-15 | High | **`team_docs.record_view`의 "이미 있는 행 갱신" 분기에 재시도가 아예 없어, 이미 성공적으로 읽어 온 문서 본문까지 원시 500으로 날렸다**(2026-08-15, PA-01/VIS-104/VIS-64 통합 배포 뒤 Chrome E2E 재확인 중 실측 — `PA-RC-0008`과 같은 계열, 8건 승격 때 이 호출부도 PA-08/PA-14처럼 빠졌었다). `GET /api/team-docs/{id}`가 Notion 본문 두 페이지를 성공적으로 받아 온 **뒤**, 마지막 줄인 `record_view(existing.viewed_at = now; db.flush())`에서 처리 안 된 `sqlite3.OperationalError: database is locked`가 나 요청 전체가 500으로 끝났다(`request_id=2b6ef8757dd0a4396510d72630ab57b4`, `journalctl` 확인, 1356.9ms 소요 — Notion 페이지네이션 호출 두 번이 끝난 뒤였다). "행이 아직 없어 새로 만드는" 분기는 PA-RC-0008 당시 이미 한 번은 재시도 폴백이 있었는데, 같은 문서를 반복해서 보면 매번 타는 "이미 있는 행" 분기는 처음부터 무방비였다 | `app/team_docs/service.py::record_view`(수정 전 300-337행 부근) | **구현완료** — 두 분기(신규 생성/기존 갱신)를 `app/core/db.py`의 공용 `DEFAULT_WRITE_CONFLICT_RETRIES`/`write_conflict_backoff`/`is_write_conflict`로 하나의 재시도 루프로 통합. **소진 처리는 PA-08/PA-14와 다르게 골랐다** — approvals/prompts/org류(사용자가 직접 일으킨 쓰기)와 달리 이건 GET의 부수효과라 보여줄 409/503 대상 행동이 없다: 예산을 다 쓰면 로그만 남기고 조용히 반환해, 최근 열람 시각 갱신 하나를 놓치더라도 이미 성공한 본문 응답은 그대로 낸다. 신규 회귀 `tests/integration/test_team_docs_record_view_race.py` 4건(신규 생성 기본 동작·일시적 경합 뒤 재시도로 실제 갱신·예산 소진 시 예외 없이 조용히 포기·공용 기본값 10 사용 확인 — 소진/성공 판정은 `db.flush` 호출 횟수가 아니라 `write_conflict_backoff` 호출 횟수로 잡았다: SQLAlchemy autoflush가 다음 반복의 `find_recent` SELECT 앞에서 실패로 남은 dirty 상태를 조용히 재플러시해 raw flush 호출 수가 예측과 어긋나는 것을 직접 확인했다), revert-to-verify 확인(원본 코드로 되돌리면 3건이 정확히 예측한 대로 실패). 관련 팀 문서 스위트 63건 green |
 | PA-16 | Low | **`DataTable` 열 정의에 아무 일도 안 하는 `render`를 달면 그 열이 공용 말줄임 보호에서 빠지고, 옆의 진짜 중요한 열이 대신 잘려 나간다**(2026-08-15, 7화면 시각 재점검 중 `admin_mail`(메일 발송) 스크린샷 실측 — 최근 실패 표에서 "오류" 열이 긴 문장을 줄바꿈 없이 그대로 늘어놓아 표 폭을 다 먹고, 정작 짧고 중요한 "발생"(시각) 열이 "2026-0..."로 잘렸다). `kit.jsx::DataTable`은 `render`가 없는 순수 값 열만 기본으로 말줄임(`ellipsis`+`title` 호버)을 주는데(`truncate = !c.open && (ellipsis || !c.render)`), `MailStatus.jsx`의 `last_error` 열은 `render: (r) => r.last_error || "-"`를 달고 있었다 — `cellValue`의 기본 폴백(`v == null || v === "" ? "-" : String(v)`)과 **완전히 동일한 값을 만드는 무의미한 render**라 겉보기엔 값이 똑같이 나오지만, `!c.render`가 거짓이 되어 말줄임/타이틀 보호만 조용히 빠진다. `table-layout:auto`에서 말줄임 없는 열은 `maxWidth` 제약이 없어 여유 폭을 독차지하고, `maxWidth:0`로 말줄임 처리된 이웃 열은 그 여유를 전혀 못 받아 최소폭까지 짜부라진다. 저장소 전체에서 같은 패턴(`render: (r) => r.<key> || "<기본 폴백과 동일한 문자열>"`, `key`가 원본 필드명과 같음)을 검색해 `Offboarding.jsx`의 대상 고르기 표(`department`/`title`)와 실행 이력 표(`actor_name`) 3곳도 같은 무의미한 render였음을 확인 — 반면 `user_name`("알 수 없음")·`successor_name`("없음")처럼 기본값("-")과 다른 폴백 문구를 쓰는 render, 그리고 `registry/*.js`의 `_full`/`_raw` 접미사 키(원본 필드명과 다른 이름이라 render가 실제로 값을 옮겨야 하는 상세 패널 필드)는 진짜로 필요해 그대로 뒀다 | `frontend/src/screens/MailStatus.jsx:50`(오류) · `frontend/src/screens/Offboarding.jsx:132-133`(부서/직책) · `frontend/src/screens/Offboarding.jsx:435`(실행자) · `frontend/src/ui/kit.jsx:620`(`DataTable`의 truncate 판정) | **구현완료** — 4곳 모두 무의미한 `render`를 지워 기본 `cellValue` 경로(말줄임+호버 타이틀)를 타게 했다. `mail-status.test.jsx`에 회귀 1건 추가(긴 오류 문장이 있는 행에서 `td`가 전체 텍스트를 `title` 속성으로 노출하는지 확인) — revert-to-verify 확인(render를 되살리면 `title`이 `null`로 정확히 예측한 대로 실패). `mail-status.test.jsx`(7건)·`offboarding.test.jsx`(12건) 관련 스위트 green. 표 폭이 실제로 넓어졌는지(옆 열이 더 이상 안 잘리는지)는 jsdom엔 실레이아웃이 없어 유닛 시험으로 확인 못 함 — 다음 Chrome E2E에서 `admin_mail` 재스크린샷으로 실측 확인 필요 |
+
+
+---
+
+## PA2 — Whole Product Audit Cycle `PA-20260816-120655-f103fb5b` (Handoff 13건, 2026-08-16)
+
+전수 Product Audit이 Root Cause 기준으로 넘긴 항목이다. **각 행은 요약일 뿐이다** —
+착수 전에 반드시 [`docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`](product-audit/PRODUCT_AUDIT_HANDOFF.md)
+의 해당 `PA-RC-*` 블록 전체(문제·기대·실제·구현 방향·제약·회귀 범위·Acceptance Criteria·필수 시험,
+UI 계열은 **Target Design 필드 일습**까지)를 읽어라. 원본 증거는 `PRODUCT_AUDIT_FINDINGS.md`
+(`PA-F-042`~`069`), UI 판정 근거는 **`PRODUCT_AUDIT_DESIGN.md`**(필수 18표면 판정).
+
+**PA2-01~04는 직전 Cycle(`PA-20260816-100149`)이 찾았으나 BACKLOG에 승격되지 않았던 것**을
+이번에 함께 올린 것이다(현재 HEAD에서 여전히 미해결임을 확인). **PA2-05~13이 이번 Cycle의
+L축 Deep Design Audit 신규분**이다.
+
+### 착수 순서에 의존이 있다 — 임의로 바꾸지 마라
+
+| 묶음 | 순서 | 이유 |
+|---|---|---|
+| 셸·IA·문구 | `PA2-05` → `PA2-06` → `PA2-11` | 같은 병의 세 증상이라 따로 고치면 서로를 되살린다(배너만 접고 IA를 두면 안내문이 여전히 필요하다) |
+| 어시스턴트 | `PA2-09` 먼저, 그러면 `PA2-08`이 원인 소멸로 닫힌다 | 진입점을 헤더 하나로 모으면 FAB이 사라져 가림 문제가 없어진다. **z-index만 낮추지 마라** |
+| 상세 라우트 | `PA2-02` 먼저 → `PA2-13` | 목록 상태가 URL에 실려야 "뒤로가기가 상세만 닫고 목록을 보존"이 성립한다 |
+| 배너 문구 | `PA2-04` 먼저 → `PA2-05` | 먼저 하면 새 요약 칩이 처음부터 올바른 단위를 쓴다 |
+
+| ID | 심각 | 문제 | 근거 | 상태 |
+|---|---|---|---|---|
+| PA2-01 | Med | **`variant="h6"`이 시각 선택이면서 DOM 구조까지 결정한다**(`PA-RC-0012`). 관리자 화면 5개가 `h1 → h6`으로 네 단계를 건너뛴다. 스크린리더의 문서 개요가 깨진다 | `PRODUCT_AUDIT_HANDOFF.md` `PA-RC-0012` · `PA-F-046` | **발견** |
+| PA2-02 | Med | **`/users`만 목록 상태(검색·필터·페이지)를 URL에 안 싣는다**(`PA-RC-0013`). 새로고침·공유에 잃는다. `/team-docs`·`/board`·`/team-tickets`·`/audit` 넷은 정상이라 **단독 예외**다 | `PA-RC-0013` · `PA-F-048` · `probe_deeplink2.json` | **발견** |
+| PA2-03 | Med | **Pydantic 스키마 422가 영문 그대로 노출되고 필드에 연결되지 않는다**(`PA-RC-0014`). 서버는 정확히 거절하나 사용자는 어느 칸이 문제인지 모른다 | `PA-RC-0014` · `PA-F-054` · `probe_limits.json` | **발견** |
+| PA2-04 | Low | **장애 배너 경과 시간이 항상 '분'이라 12.5일이 "17976분"으로 나온다**(`PA-RC-0015`). 가장 심각한 배너가 가장 안 읽힌다. 같은 저장소의 백업·프로젝트 경로는 이미 '일 전'을 쓴다 | `PA-RC-0015` · `PA-F-056` · `verify_banner.json` | **발견** |
+| PA2-05 | **High** | **전역 배너 스택이 모든 화면 첫 화면의 31%(관리자)·20%(사용자)를 고정 비용으로 가져간다**(`PA-RC-0016`). 관리자 14라우트 전부 배너 5장 331.5px, 사용자 9라우트 전부 4장 216px — **편차 0**. 닫을 수 있는 것은 2/5·1/4뿐이라 상시 표시가 되고 진짜 장애도 배경으로 읽힌다. 같은 셸에서 **본문 상한(max-width)이 없어** 4K 본문이 3500px까지 늘어난다(활용률 86.3→88.3→91.1%) — `RESP-01`·`RESP-02`가 좁은 폭만 다뤄 이 축은 미조사였다. **175% 가로 넘침은 기존 `RESP-01`이므로 여기서 중복 계상하지 않는다**(함께 고치되 `RESP-01`의 기존 진단을 먼저 읽을 것). `RESP-04`(1024~1200 사이드바 264px, 축소 레일 필요)는 `PA2-06`이 함께 닫는다 | `PA-RC-0016` · `PA-F-058`·`067` · `probe_shell.json` · `design_capture2.json` viewports[] · 기존 `RESP-01`·`RESP-04` | **발견** |
+| PA2-06 | **High** | **관리자 IA가 8그룹 39목적지 평면이라 내비가 839px 창으로 1976px를 보여준다(42%)**(`PA-RC-0017`). 설정이 6화면에 흩어져 `/settings` 안내 4문단이 그 사실을 설명한다. 사용자 콘솔은 23링크·접힘 0으로 정상 — **관리자만의 문제** | `PA-RC-0017` · `PA-F-059`·`064` · `verify_nav.json` | **발견** |
+| PA2-07 | **High** | **대시보드가 결정 화면이 아니라 균일 카드 벽이다**(`PA-RC-0018`, 판정 **REBUILD**). 카드 40장·기본 동작 0개·2.38화면, 같은 수치가 최대 3회 반복(`3`이 3구역, `42.6%`·`0`이 각 2구역). 화면이 「이 줄은 요약입니다…」로 자기 IA를 설명한다. `/me`·`/my-stats`·`/projects`도 같은 병 | `PA-RC-0018` · `PA-F-060` · `probe_shell.json` dup 스캔 | **발견** |
+| PA2-08 | Med | **어시스턴트 FAB(z=1050)이 표 화면 행 「상세」 버튼을 실제로 덮어 클릭을 가로챈다**(`PA-RC-0019`). 관리자 9/10 · 사용자 1/5 라우트에서 `elementFromPoint`가 FAB을 반환. **z-index만 낮추지 말 것** — `PA2-09`가 원인을 없앤다 | `PA-RC-0019` · `PA-F-061` · `verify_fab.json` | **발견** |
+| PA2-09 | Med | **어시스턴트가 이름 4종·진입점 3개로 존재한다**(`PA-RC-0020`). `/chat` 한 화면에서 breadcrumb 「AI 도우미」와 `h1` 「채팅」이 불일치. 진입점은 헤더 칩·사이드바 카드(264×121)·FAB. **미확정 1건**: 「업무 도우미」 동일성 확인 필요 | `PA-RC-0020` · `PA-F-062` | **발견** |
+| PA2-10 | Med | **색 토큰이 다크 테마에 참여하지 않는다**(`PA-RC-0021`). 온보딩 다이얼로그가 다크에서 흰색, 알림 배지 2.23:1, `/me` 활성 탭 3.76:1(기준 4.5), `prefers-color-scheme` 첫 로드 무시. **다크 팔레트 자체는 잘 만들었다** — 참여하지 않는 표면만 문제 | `PA-RC-0021` · `PA-F-063` · `verify_dark.json` | **발견** |
+| PA2-11 | Med | **화면이 자기 IA를 산문으로 설명한다**(`PA-RC-0022`). 안내 패널 8화면. `/settings`는 전역 정책 표와 브라우저 로컬 개인 설정(「화면 강조색」)이 한 화면에 있고 그 차이도 산문으로만 구분된다. 설정 표가 백엔드 키를 사용자용 열로 노출 | `PA-RC-0022` · `PA-F-064` · `probe_shell.json` intro[] | **발견** |
+| PA2-12 | **High** | **동작 위계 규범이 퍼지지 않아 양쪽 극단이 동시에 존재한다**(`PA-RC-0023`). 한쪽은 `contained` 0개(관리자 10/16 · 사용자 4/10), 다른 쪽은 상세 모달에 3개이고 `/departments`는 그중 하나가 **「삭제」**다. 표의 행 「상세」 버튼은 행 클릭과 중복. **`/users` 목록과 생성 모달이 같은 제품 안의 정답 대조군** | `PA-RC-0023` · `PA-F-065` · `design_capture2.json` detail[] | **발견** |
+| PA2-13 | Med | **"상세 보기"가 콘솔별로 다른 것이다**(`PA-RC-0024`). 사용자는 `:id` 라우트 6개, 관리자는 URL 없는 모달 — 딥링크·새로고침·뒤로가기 불가. `/users/<uuid>`는 9초 뒤 대시보드로 조용히 이동(같은 제품의 `/board/999999`는 정상 not-found). **라우트 신설로 직접 진입 경로가 열리므로 RBAC/IDOR negative 테스트 필수** | `PA-RC-0024` · `PA-F-066` · `UserRoutes.jsx:60-83` vs `AdminRoutes.jsx` | **발견** |
+
+### 이 13건이 실제로 몇 개의 병인가
+
+`PA2-05`·`06`·`11`은 **같은 병의 세 증상**이다 — *구조가 할 일을 다른 것에 떠넘긴다*.
+배너는 우선순위 판단을 사용자에게, 8그룹 평면은 분류를 사용자에게, 안내 4문단은 화면 경계
+설명을 문구에 떠넘긴다. `PA2-07`·`12`는 **위계의 두 축**(정보 위계와 동작 위계)이고,
+`PA2-08`·`09`는 **어시스턴트 표면 하나**에서 나온다.
+
+### 재설계가 잃으면 안 되는 것 (`PA-F-068`)
+
+구현 전에 반드시 읽어라. 이 제품이 **근거를 갖고 잘 만든 것**이고, 재설계가 이것들을 깨뜨리면
+그 자체가 회귀다 — 빈 상태의 회복 3요소(`/me` Notion 미연결) · AI 채팅 빈 화면(시작 프롬프트 7 +
+쿼터 표시) · 생성 모달의 접근성(`aria-modal`·`aria-labelledby`·Escape·라벨 1:1) ·
+**스켈레톤 로딩**(`loading-state`를 KEEP으로 판정한 근거) · 정직한 결손 고지 ·
+다크 팔레트(틴티드 `rgb(9,14,29)`) · `/chat`의 맥락 인지 · `/users`의 동작 위계.
+각 `PA-RC` 블록의 `constraints`에 명시해 두었다.

@@ -1,16 +1,130 @@
 # PRODUCT AUDIT — STATE
 
 > **이 Audit의 resume pointer다.** 새 invocation은 이 문서를 먼저 읽는다.
-> cycle_id=PA-20260816-100149-48671b72 · baseline=`64ef571764bc8ee2ebac3628a4c1383dff2d9217`
+> cycle_id=PA-20260816-120655-f103fb5b · baseline=`70e264bf13110e7e61cdf96331bd92de48f2163d`
 > baseline_branch=`ui/mui-migration`
 >
-> 아래 §A가 **현재 Cycle**이다. §0부터는 이전 Cycle(`PA-20260812-171558-56c5befa`,
-> baseline `89ac9f16`)의 기록이며 **증거로 보존**한다 — 그 Cycle의 완료 marker와
-> Blind Re-Audit PASS는 이 Cycle의 완료 근거가 되지 못한다(CLAUDE.md §11-1).
+> 아래 §A가 **현재 Cycle**이다. §B부터는 이전 Cycle들의 기록이며 **증거로 보존**한다 —
+> 그 Cycle의 완료 marker와 Blind Re-Audit PASS는 이 Cycle의 완료 근거가 되지 못한다(CLAUDE.md §11-1).
 
 ---
 
-# §A. 현재 Cycle — PA-20260816-100149-48671b72
+# §A. 현재 Cycle — PA-20260816-120655-f103fb5b
+
+## A-0. 이 Cycle이 존재하는 이유
+
+직전 Cycle(`PA-20260816-100149-48671b72`)이 끝나기 전에 사용자가 **D-75를 커밋하고
+`-ResetAudit`을 눌렀다**(`70e264b` — "UI/UX를 '다듬기'에서 '다시 설계'로 — Deep Design Audit Gate").
+즉 이 Cycle의 목적은 명확하다 — **이전 Cycle들이 하지 않은 L축 Deep Design Audit을 실제로 하는 것.**
+
+D-75가 바꾼 것: L축에 `OBSERVED`/`EXECUTED`를 쓸 수 없다. HTTP 4xx/5xx · console error ·
+overflow · heading · landmark · 접근성 자동검사 · Light/Dark 동작 확인은 **전부 QA이지 Deep
+Design Audit이 아니다.** 그리고 완료 Gate가 필수 18표면의 KEEP/REFINE/REDESIGN/REBUILD 판정을
+기계적으로 요구한다.
+
+**제품 코드는 `64ef571` 이후 바뀌지 않았다** — 그 사이 커밋은 전부 `docs/`와 `scripts/runner/`다.
+따라서 직전 Cycle의 기능 계열 관측(`PA-F-042`~`057`)은 현재 HEAD에서도 유효하며, 이 Cycle은
+그것을 다시 재지 않고 **L축에 자원을 집중했다.** 승계한 미해결 RC 4건(`PA-RC-0012`~`0015`)은
+Handoff에 그대로 남아 있다.
+
+## A-1. 이 Cycle이 실제로 실행한 것
+
+| Round | 축 | 결과 |
+|---|---|---|
+| 0 | 재접지 | SSOT 7종 + git + marker + quarantine 사유 교차 대조. `PRODUCT_AUDIT_DESIGN.md`가 **없다**는 것이 이 Cycle의 첫 사실 |
+| 1 | L (계측) | 관리자 16 + 사용자 10 = **26 표면 실렌더**, 레이아웃·타입 스케일·색 표면·CTA 수 계측. `design_capture.py` |
+| 2 | L (육안) | 스크린샷을 **`Read`로 열어서 판정**. 대시보드·사용자 목록·홈·채팅·설정·빈 상태·다크 |
+| 3 | L·N (셸) | 배너 높이·본문 시작 위치·중복 지표를 23라우트에서 계측. `probe_shell.py` |
+| 4 | L (검증) | 내비 도달 가능성을 **클릭으로** 판정 → 내 가설 철회. `verify_nav.py` |
+| 5 | L·M (검증) | FAB 겹침을 `elementFromPoint` 히트테스트로 판정 → **진짜** 확정. `verify_fab.py` |
+| 6 | O (다크) | 토글 후 실측 + 대비 계산. 프로브를 두 번 고쳐야 했다. `verify_dark.py` |
+| 7 | L·H·N | 상세·모달·빈/오류/로딩 상태 + 6개 뷰포트/배율. `design_capture2.py` |
+| 8 | 산출 | `PRODUCT_AUDIT_DESIGN.md` 신설(18표면 판정) → Handoff `PA-RC-0016`~`0024` 9건 |
+
+## A-2. 이 Cycle의 산출물
+
+| 항목 | 값 |
+|---|---|
+| 신규 문서 | **`PRODUCT_AUDIT_DESIGN.md`** — 필수 18표면 전부 판정. `REBUILD` 1 · `REDESIGN` 10 · `REFINE` 6 · `KEEP` 1 |
+| 신규 Finding | `PA-F-058` ~ `PA-F-069` (음성 결과 1 + 방법론 정정 1 포함) |
+| 신규 Root Cause | `PA-RC-0016`(셸 배너 비용) · `0017`(관리자 IA 밀도) · `0018`(대시보드 카드 벽) · `0019`(FAB 가림) · `0020`(어시스턴트 명명·진입점) · `0021`(다크 토큰) · `0022`(산문이 IA를 대신함) · `0023`(동작 위계) · `0024`(상세 기제 분열) |
+| HANDOFF 블록 | **13건**(신규 9 + 승계 4). 전부 27 기본 필드 + UI 15 필드 자기검사 PASS. `deferred_for_human_approval=0`, 미루는 표현 0건 |
+| Coverage | 2340칸 · UNSEEN 1292(전부 사유) · EXECUTED **248**(190→) · OBSERVED 200 · STATIC 584 · N/A 16 · **L축 판정완료 37 / 시각관측 37** |
+| 적용 Skill | `ui-ux-pro-max` · `redesign-existing-projects` · `impeccable` **셋 다 실제 판단 기준으로 사용**. skill_gap 없음(§A-5) |
+| Blind Re-Audit | **0 / 2** — 아직 안 함 |
+
+### 이 Cycle이 찾은 것은 화면 결함 목록이 아니라 **전역 원인 넷**이다
+
+1. **구조가 할 일을 다른 것에 떠넘긴다**(`0016`·`0017`·`0022`) — 배너는 우선순위 판단을
+   사용자에게, 8그룹 평면은 분류를 사용자에게, 안내 4문단은 화면 경계 설명을 문구에 떠넘긴다.
+   **따로 고치면 서로를 되살린다** — 배너만 접고 IA를 두면 안내문이 여전히 필요하다.
+2. **위계가 없다**(`0018`·`0023`) — 정보 위계(카드 40장이 전부 같은 무게)와 동작 위계
+   (한쪽은 primary 0개, 다른 쪽은 3개에 「삭제」까지 primary)의 두 축.
+3. **어시스턴트 표면이 정리되지 않았다**(`0019`·`0020`) — 이름 4종·진입점 3개이고 그중 하나가
+   본문 버튼을 덮는다. 진입점을 하나로 모으면 가림도 함께 닫힌다.
+4. **같은 개념이 콘솔별로 다른 것이다**(`0024`) — 상세 보기가 사용자는 라우트, 관리자는 모달.
+
+## A-3. 이 Cycle에서 내가 저지르고 정정한 측정 오류 3건
+
+| # | 잘못 세운 결론 | 실제 원인 | 어떻게 잡았나 |
+|---|---|---|---|
+| 1 | 관리자 사이드바 하단 21항목 **도달 불가**(Critical급) | 탐지기가 `querySelectorAll('*')`로 찾아 **자기 자신을 제외** → `<nav>`의 `overflow-y:auto`를 놓쳤다 | 조상 스크롤 체인 전수 출력 |
+| 2 | AI 카드가 **내비 항목을 가린다** | 고정(fixed) 요소 좌표에 `scrollY`를 더해 문서 좌표와 섞었다 | 뷰포트 좌표로 재계산 |
+| 3 | 다크 헤더 텍스트 **대비 실패 7건** | 배경이 `linear-gradient`인데 조상 훑기가 body의 밝은 색을 잡았다 | 그라디언트를 만나면 판정 포기 후 따로 집계 |
+
+> **셋 다 "내가 잰 것이 내가 재려던 것인가"** 다 — 선택자 범위 · 좌표계 · 배경 모델.
+> 이 저장소가 이전 Cycle에 배운 교훈(*집계를 세기 전에 표본을 열어라*)의 계측 버전이다.
+> **같은 계열로 보이던 `PA-F-061`(FAB이 본문 버튼을 가림)은 히트테스트로 재서 진짜였다.**
+> 오탐 경계는 "AI가 뭔가를 가린다"는 주제가 아니라 **측정 방법**에 있었다.
+
+## A-4. 다음 조사 후보 (우선순위 순)
+
+1. **P축 정면 — 「없어서 문제인 문구」.** `ux-writing`을 지금까지 *존재하는* 문구 판정에만 썼다.
+   빈 상태·권한 거부·로딩·성공 피드백에서 **있어야 하는데 없는 문구**를 찾는 것이 남았다.
+2. **Q축 확장.** 어시스턴트 명명(`PA-RC-0020`)만 닫았다. 티켓/문서/게시판/프로젝트 등 **다른
+   개념의 용어 일관성은 미조사**다. `probe_terms.json`이 있으나 이번 Cycle이 쓰지 않았다.
+3. **R축 — `humanize-korean`.** 순서상 UX Writing 다음이며 아직 적용하지 않았다.
+4. **C축 쓰기 조작.** 읽기 계열은 직전 Cycle이 닫았다. **실제 생성/수정/삭제·대량 선택·승인/반려**는
+   여전히 미측정이다. 격리된 QA 데이터로 수행할 것.
+5. **G·K축 성공 경로.** 실패 전파는 닫혔다(`PA-F-057`). 러너가 `enabled=0`이라 **정상 경로를
+   본 적이 없다.** 러너를 띄우거나 격리 fixture로 재현할 것.
+6. **「업무 도우미」 동일성 확인**(`PA-F-062` 미확정분) — 관리자 서비스 상태의 그 항목이 사용자
+   콘솔 어시스턴트와 같은 서비스인가. `PA-RC-0020` 구현 전에 닫아야 한다.
+7. **S축** — `/board/:id`·`/team-docs/:id`의 not-found 판정이 5~10초. 환경 요인(Notion 동기화
+   정지)과 코드 요인을 아직 분리하지 못했다.
+8. **Blind Re-Audit 2회 — 아직 0/2.** 위 항목이 어느 정도 닫힌 뒤에 할 것.
+   이전에 쓴 진입점은 **재사용 금지**("신규 입사자 첫날" · "감사자 분기 점검").
+   후보: "인수인계받은 운영자가 장애 대응하는 날", "퇴사 처리를 끝까지 실행한다".
+
+## A-5. 현재 Blocker
+
+**없다.** 로컬 dev 서버(`:8099`) 가동 중, Playwright/Chromium 사용 가능, QA 계정 확보,
+승인된 TEST 서버 SSH `ok`. UI/UX Skill 3종 전부 설치되어 실제 사용했다 — `skill_gap` 없음.
+`ux-writing`·`humanize-korean`도 설치돼 있으며 미적용은 **순서 때문**이지 부재 때문이 아니다
+(재설계 문구가 아직 구현되지 않아 다듬을 대상이 없다).
+
+한계로 기록할 것: `node_modules/`가 Audit 시작 전부터 dirty이며 사용자의 것이라 건드리지 않았다.
+
+## A-6. 실행 방법 메모
+
+```
+.venv/Scripts/python var/product-audit/design_capture.py admin   # 레이아웃·CTA·타입 스케일 + 스크린샷
+.venv/Scripts/python var/product-audit/design_capture.py user
+.venv/Scripts/python var/product-audit/design_capture2.py        # 상세·모달·빈/오류/로딩 + 6뷰포트
+.venv/Scripts/python var/product-audit/probe_shell.py            # 배너 높이·본문 시작·중복 지표
+.venv/Scripts/python var/product-audit/verify_nav.py             # 내비 스크롤 체인 + 클릭 도달
+.venv/Scripts/python var/product-audit/verify_fab.py             # FAB elementFromPoint 히트테스트
+.venv/Scripts/python var/product-audit/verify_dark.py            # 테마 토글 후 대비
+.venv/Scripts/python var/product-audit/gen_coverage.py           # COVERAGE 재생성(요약 자동 일치)
+```
+
+스크린샷은 `var/product-audit/shots/`에 있다. **생성만 하고 넘어가지 말 것** — `Read` 도구로
+실제로 열어서 판정하는 것이 이 축의 전제다. 전부 로컬 `:8099`를 쓰고 QA 계정 비밀번호는 매
+실행 새로 만들어 **stdin으로만** 넣는다(기록 안 함).
+
+---
+
+# §B. 이전 Cycle 기록 — PA-20260816-100149-48671b72 (baseline `64ef571`)
 
 ## A-0. 이 Cycle의 성격
 

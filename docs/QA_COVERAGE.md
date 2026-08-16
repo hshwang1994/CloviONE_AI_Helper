@@ -1051,3 +1051,49 @@ messages.conversation_id, messages.message_id`로 거부되고 있었다 — DBT
 실패한다(`scrollWidth=1123 clientWidth=1024, overflow=99px` — HOST-01/02/03의 `DataTable`
 열 폭 기본값 수정 이후에도 그대로). 이 채팅 기능들과는 무관한, 이미 알려진 별도 항목이라
 같이 고치지 않았다 — 상세는 `docs/BACKLOG.md` RESP-01.
+
+
+---
+
+## Product Audit Cycle `PA-20260816-120655-f103fb5b` — L축 Deep Design Audit이 드러낸 검증 공백
+
+이 Cycle은 D-75가 신설한 L축(Deep Design Audit)을 처음 수행했고, 그 과정에서 **기존 QA가 재는
+축 자체가 없던 것들**을 찾았다. 아래는 결함이 아니라 **검증 공백**이다 — 결함은
+`BACKLOG.md` §PA2와 `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`에 있다.
+
+| # | 공백 | 왜 지금까지 안 잡혔나 | 이번에 어떻게 쟀나 |
+|---|---|---|---|
+| 1 | **전 라우트 공통 셸 높이 예산** — 배너가 첫 화면의 몇 %를 먹는지 재는 검사가 없다 | 화면별 QA는 각 화면이 "열리는가"를 보지 검사 대상에 셸의 고정 비용이 들어가지 않는다. 26라우트 전부 동일한 값이라 **한 화면만 봐서는 이상해 보이지 않는다** | `probe_shell.py` — `[role=alert]` 중 `h1`보다 위에 있는 것들의 `y` 범위와 `h1`의 `y` |
+| 2 | **125/150/175% Windows 배율** | `RESP-01`이 175%를 이미 알고 있었으나(그래서 이번 관측은 재확인) **정기 검사로는 돌지 않는다** — 6개 뷰포트를 매번 재는 절차가 없다 | `design_capture2.py` viewports[] — 6조건에서 `scrollWidth > clientWidth` |
+| 3 | **넓은 폭의 본문 상한(max-width)** | 반응형 검사가 전부 "좁아지면 깨지는가"만 본다. **넓어지면 늘어나는가**는 아무도 안 봤다 — QHD/4K에서 활용률이 86.3 → 88.3 → 91.1%로 계속 오른다 | 같은 뷰포트 계측의 `main` 폭 / 뷰포트 폭 |
+| 4 | **고정 요소와 본문 컨트롤의 겹침** | 시각 검사로는 놓치기 쉽고(겹쳐 보여도 위인지 아래인지 모른다) 자동 접근성 검사도 이 축을 안 본다 | `verify_fab.py` — 겹침 중심점에서 `document.elementFromPoint()` 히트테스트 |
+| 5 | **테마별 대비 수치 기준** | 기존 O축이 "다크로 바뀌는가"만 확인한다. **바뀐 뒤 읽히는가**는 기준이 없었다 | `verify_dark.py` — 토글 후 두 테마 대비 계산(그라디언트 배경은 판정 제외) |
+| 6 | **`prefers-color-scheme` 초기값** | 축 자체가 없었다. OS 다크 사용자가 첫 화면에서 무엇을 보는지 아무도 재지 않았다 | `color_scheme=dark` 컨텍스트로 로그인해 토글 전 `body` 배경 확인 |
+| 7 | **화면당 기본 동작(primary) 존재/개수** | 버튼이 "있는가"는 재도 **위계**는 안 잰다. 그래서 primary 0개인 화면 14개와 primary 3개인 상세 모달이 동시에 존재해도 통과했다 | `design_capture*.py` — `MuiButton-contained` 개수 |
+| 8 | **파괴적 동작의 시각 구분** | 확인 절차는 검증하나 **강조가 기본 동작과 같은지**는 안 본다. `/departments` 상세의 「삭제」가 「수정」과 같은 채운 버튼이다 | 상세 모달의 버튼 variant 수집 |
+| 9 | **행 클릭 상세의 키보드 도달** | 행 「상세」 버튼이 있어서 지금은 문제가 없다. **`PA-RC-0023`이 그 버튼을 없애면 이 축이 즉시 필요해진다** — 없애기 전에 먼저 세워야 한다 | 아직 안 쟀다. 착수 전 필수 |
+| 10 | **관리자 상세의 딥링크·새로고침·뒤로가기** | 관리자에 `:id` 라우트가 **없어서** 검증 대상이 아니었다. 사용자 콘솔은 검증돼 있다(`PA-F-052`) | `design_capture2.py` detail[] — 행 클릭 후 `urlBefore == urlAfter` |
+| 11 | **미등록 URL 폴백 동작** | 축이 없었다. `/users/<uuid>`가 9초 뒤 대시보드로 조용히 가는 것을 이번에 처음 봤다 | `design_capture2.py` states[] — 350ms/9s 시계열 |
+| 12 | **대시보드 정보 중복** | "지표가 보이는가"만 보고 **같은 수치가 몇 번 나오는가**는 안 본다. `3`이 3구역, `42.6%`·`0`이 각 2구역 | `probe_shell.py` dup 스캔 — (값, 라벨) 쌍 집계 |
+| 13 | **Q축(같은 개념 = 같은 용어)** | 축 자체가 QA_COVERAGE에 없다. 어시스턴트만 이번에 쟀고(이름 4종) **나머지 개념은 미조사** | 육안 + 스크린샷 대조 |
+
+### 이 공백들을 닫는 순서
+
+`PA-RC-0016`~`0024` 구현이 `required_tests`에서 1~8·10~12를 회귀 검사로 편입하도록 계약돼 있다.
+**9번은 예외로 선행 조건**이다 — 행 「상세」 버튼을 없애기 전에 키보드 도달 축을 먼저 세우지
+않으면 접근성 회귀를 만들고도 못 잡는다. 13번은 다음 Audit Round의 대상이다.
+
+### 이번 Cycle이 쓴 프로브 (재사용 가능)
+
+```
+var/product-audit/design_capture.py    # 레이아웃·타입 스케일·색 표면·CTA 수 + 스크린샷
+var/product-audit/design_capture2.py   # 상세·모달·빈/오류/로딩 상태 + 6개 뷰포트/배율
+var/product-audit/probe_shell.py       # 배너 높이·본문 시작 위치·중복 지표
+var/product-audit/verify_nav.py        # 내비 스크롤 체인 + 클릭 도달
+var/product-audit/verify_fab.py        # FAB elementFromPoint 히트테스트
+var/product-audit/verify_dark.py       # 테마 토글 후 대비(그라디언트 배경 제외)
+```
+
+**스크린샷은 `var/product-audit/shots/`에 있고, 생성만 하고 넘어가면 이 축을 한 것이 아니다** —
+`Read` 도구로 실제로 열어서 판정해야 한다. 이번 Cycle이 찾은 것 중 카드 40장·안내 4문단·
+다크 흰 모달·배지 3열은 전부 **계측 수치가 아니라 화면을 보고** 나왔다.
