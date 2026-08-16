@@ -3236,3 +3236,88 @@ operator 대시보드. `admin_login_lands_on_dashboard`가 캐시된 세션이 �
 상세: `docs/BACKLOG.md` `PA2-07`.
 
 상세: `docs/BACKLOG.md` `PA2-06`.
+
+## D-95 (2026-08-16) — PA-RC-0023 착수: 동작 위계 — Handoff 재검증이 다른 결함 2건을 찾음
+
+### 배경
+
+`PA-RC-0018`을 마치고 같은 invocation 안에서 곧바로 이어 착수했다(CLAUDE.md §0 — invocation은
+work unit이 아니다). Handoff의 핵심 주장: 화면 절반이 `contained` 0개, 반대로 상세 모달은
+3개(그중 하나가 `/departments`의 「삭제」), 표의 행 「상세」 버튼은 행 클릭과 중복.
+
+### Explore 조사 — Handoff 수치를 실제 코드로 재검증
+
+착수 전 Explore 에이전트로 registry 전체(`frontend/src/screens/registry/*.js`)와 관련
+화면을 직접 대조했다. 핵심 발견:
+
+- **`/departments`의 「삭제」 주장은 틀렸다** — 실제로는 이미 `variant:"danger"`다. 파괴적
+  라벨(삭제·비활성화·보관·거절·취소·롤백·연결 해제·위임 거두기) 전체를 registry에서
+  전수 검색한 결과 **예외 0건** — 전부 이미 올바르게 `danger`다.
+- 대신 **실제로 존재하는, Handoff가 못 짚은 결함 2건**을 찾았다:
+  1. `actions.js`의 `onoff()`/`activeToggle()`(부서·직책·워크플로·스케줄·러너·연동이 공유)
+     — "활성화"가 `variant:"primary"`다. 이 액션이 뜨는 상세 모달에는 `DataScreen.jsx`가
+     `canEdit`일 때 항상 그리는 "수정"(고정 `primary`)이 이미 있다 — 편집 가능한 행이
+     비활성 상태면 primary 버튼 2개가 동시에 뜬다. `Users.jsx`는 이미 같은 상황("복구")을
+     `default`로 맞춰 뒀다(코드 주석이 그 이유를 직접 설명한다) — 그 선례를 따랐다.
+  2. `org.js`의 `notion-mapping` "자동 동기화" 헤더 액션 — `primary: true`(빈 상태 CTA
+     승격 의도)만 있고 `variant: "primary"`가 빠졌다. `DataScreen.jsx`의 툴바 렌더는
+     `variant`만 보고 `primary`는 안 본다(그 필드는 오직 빈 상태 CTA 계산에만 쓰인다) —
+     그래서 목록에 대상이 있는 보통 상태에서는 이 "headline 액션"이 의도와 달리 외곽선
+     버튼으로 떴다.
+
+### 표 행 키보드 접근 — 「상세」 버튼 열을 지우기 전에 먼저
+
+Handoff의 `constraints`가 "⚠️ 선행 확인"으로 강조한 항목: `/offboarding` 후보 행이
+클릭해도 안 열린다(`PA-F-077`)는 주장을 TEST SERVER 실측으로 직접 재현 시도했다 —
+**재현 안 됨, 이미 정상 동작한다**(`TargetPicker`의 `onRow` 배선이 이미 올바르다). `PA-RC-0022`
+에서 `/system`·`/diagnostics`가 낡은 발견이었던 것과 같은 종류로 기록한다.
+
+키보드 경로는 실제로 없었다(행 자체에 `tabIndex`가 없어 Tab으로 못 건너뛴다, 「상세」
+버튼만 유일한 키보드 진입점이었다) — `ui/kit.jsx`의 `DataTable`(관리자 28+화면이 공유하는
+유일한 표 컴포넌트)에 `tabIndex`+`aria-label`(기존 `rowOpenLabel` 재사용)+`onKeyDown`
+(Enter/Space)을 행에 추가했다, 넓은 화면과 좁은 화면(카드형) 둘 다. **`role="button"`은
+의도적으로 안 줬다** — 재시도/취소 같은 진짜 버튼이 같은 행에 함께 있는 표가 있어
+(registry 행 액션), `role=button` 위에 포커스 가능한 자손을 두는 것은 WAI-ARIA 금지다
+(`adminKit.jsx`의 `StatusTile`이 이미 같은 이유로 카드 안에 중첩 버튼을 안 두는 것과
+동일한 근거). 「상세」 버튼 열은 **아직 안 지웠다** — 이 도달 경로가 배포돼 전 화면에서
+실제로 동작함을 확인한 뒤에야 지운다(acceptance_criteria 4-b가 명시한 순서).
+
+### 정적 검사 — `check_typography_literals.py`를 그대로 본떴다
+
+implementation_direction(1)이 "정적 검사로 강제하는 편이 이 저장소의 관례"라며 명시적으로
+`check_typography_literals.py`(`PA-RC-0001`)를 선례로 든다. 같은 구조(줄 단위 정규식, AST
+없음, `.test.` 파일 제외, 주석 줄 제외)로 `scripts/check_button_hierarchy.py`를 만들었다 —
+① 파괴적 라벨(위 8종)이 `variant:"primary"`면 예외 없이 실패, ② `primary:true`인데 같은
+줄에 `variant:"primary"`가 없으면 실패. "화면마다 `contained` 최소 1개"(acceptance_criteria
+1)는 **이 검사에 안 넣었다** — 그건 "이 화면이 정말 순수 조회 화면인가"라는 판단이 필요해
+줄 단위 스캔만으로는 오탐 위험이 크다(값 단위로 면제하는 fontSize 검사와 달리, 화면 단위
+판단은 사람이 한 번은 봐야 한다).
+
+### 의도적으로 미룬 것 — `SystemOps.jsx`에 억지로 primary를 만들지 않았다
+
+이 화면(`/settings` "OS와 서비스 동작" 탭)은 서비스 재시작 5개(웹 서버·워커·nginx·시각
+동기화·DNS) + 설정 변경 액션 N개가 전부 동등한 무게로 나열돼 있다. 하나를 인위적으로
+`primary`로 올리면 나머지가 부당하게 격하된다 — 어느 것도 "이 화면의 그 하나의 주 목적"이
+아니다(설정 화면류의 특성). 재시작을 `danger`로 칠하는 것도 고려했으나, 재시작은 되돌릴 수
+없는 데이터 손실이 아니라 잠깐 멈췄다 스스로 복구되는 성격이라 삭제와 같은 시각 언어를
+쓰면 과잉 경고가 된다. Handoff 자신의 경고("억지로 만들지 말고 그 화면에서 실제로 가능한
+것을 고를 것")를 따라, 이 화면은 primary 없음을 의도된 상태로 남긴다 — `check_button_
+hierarchy.py`에 화면 단위 "최소 1개" 축을 더할 때 이 화면을 예외로 등재할 자리가 필요하다.
+
+### 검증
+
+`ui/datatable-row-keyboard.test.jsx` 신규 5건, `tests/unit/test_button_hierarchy_scan.py`
+신규 9건(두 실제 결함의 revert-to-verify 재현 포함), `admin-uiux.test.jsx` 신규 1건(비활성
+부서 상세의 실제 렌더에서 `contained`+primary 버튼이 정확히 1개임을 색 클래스로 직접
+대조). 전체 프런트 회귀 278파일 1905건 green, 백엔드 `tests/unit/` 전체 green,
+`static_checks.sh`의 새 단계 green.
+
+### 남은 것
+
+「상세」 버튼 열 실제 제거(전 표 대상, 배포 후 실측으로 키보드 경로 확인 먼저), RBAC
+4역할 실측(신규/변경된 기본 동작이 권한 없는 역할에 노출되지 않는지, `probe_write_gate.py`
+재실행), 화면 단위 "0-primary 없음" 축을 검사에 추가하고 순수 조회 화면(`audit`·
+`audit-anomalies`·`rbac`·`prompt-usage`·`policy-usage`·`restore-drills`·`DisplaySettings`·
+`MyStats`·`Activity`·`SystemOps`)을 정식 예외로 등재, TEST SERVER 재배포 + Chrome 실측.
+
+상세: `docs/BACKLOG.md` `PA2-12`.

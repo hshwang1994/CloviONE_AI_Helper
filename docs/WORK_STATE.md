@@ -6765,3 +6765,39 @@ Handoff의 "0-primary 화면"에 여전히 해당한다 — 새 액션을 만들
 `/departments` 등 destructive-as-primary 실제 수정 ③ 0-primary 화면들에 `variant` 조정
 순으로 진행. 그 다음에야(4-b가 전 표에서 성립함을 재확인한 뒤) 「상세」 버튼 열 제거를
 시도한다.
+
+## 2026-08-16 18:1x~18:2x — `PA-RC-0023` Explore 결과 반영: 실제 결함 2건 수정 + 정적 검사 신설(로컬, 미배포)
+
+Explore 조사 결과 도착 — Handoff의 `/departments` 「삭제」=primary 주장은 **틀렸다**(이미
+`danger`). 대신 registry 전수 검색으로 파괴적 라벨 예외 0건(전부 이미 danger)을 확인하고,
+Handoff가 못 짚은 진짜 결함 2건을 직접 찾아 고쳤다(둘 다 시험 추가):
+
+1. `actions.js`의 `onoff()`/`activeToggle()`(부서·직책·워크플로·스케줄·러너·연동 공유)
+   "활성화"가 `primary`라 편집 가능한 비활성 행 상세에서 "수정"(DataScreen 고정 primary)과
+   동시에 채운 버튼 2개 — `default`로. `Users.jsx`의 "복구" 선례와 통일.
+2. `notion-mapping` "자동 동기화"가 `primary:true`인데 `variant:"primary"`가 안 짝지어져
+   평소 툴바에서 외곽선으로 보임 — 짝 맞춤.
+
+신규 `scripts/check_button_hierarchy.py`(`check_typography_literals.py`와 같은 구조 —
+implementation_direction(1)이 그 선례를 직접 지목했다) — 파괴적 라벨 primary 금지(예외
+없음) + `primary:true`/`variant:"primary"` 짝 검증, `static_checks.sh` 배선.
+`tests/unit/test_button_hierarchy_scan.py` 9건(두 결함의 revert-to-verify 포함).
+`admin-uiux.test.jsx` 신규 1건(비활성 부서 상세 실제 렌더에서 primary 정확히 1개).
+
+**의도적으로 안 건드림**: `SystemOps.jsx`(재시작 5개+설정변경 N개, 전부 동등한 무게라
+인위적 primary 지정이 오히려 나머지를 부당하게 격하시킨다 — Handoff 자신의 "억지로 만들지
+말라"는 경고를 그대로 적용, 상세 근거는 `DECISIONS.md` D-95).
+
+전체 프런트 회귀 278파일 1905건 green, 백엔드 `tests/unit/` 전체 green,
+`static_checks.sh` 신규 단계 green(전체는 SEC-20 인간 전담 항목·번들 미재빌드로 인한
+bundle-fresh만 제외 — 이번 커밋들은 로컬 소스 변경뿐, 아직 재배포 안 함). 커밋 3건
+(`d808a4d` DataTable 키보드, `957a9ee` 버튼 위계 결함 2건+정적 검사). 상세: `DECISIONS.md`
+D-95, `BACKLOG.md` `PA2-12`.
+
+**남은 것(`PA-RC-0023`)**: 「상세」 버튼 열 실제 제거(배포 후 키보드 경로 실측 확인 먼저),
+RBAC 4역할 실측(`probe_write_gate.py` 재실행 포함), 화면 단위 "0-primary 없음" 축을 검사에
+추가 + 순수 조회 화면(`audit`·`audit-anomalies`·`rbac`·`prompt-usage`·`policy-usage`·
+`restore-drills`·`DisplaySettings`·`MyStats`·`Activity`·`SystemOps`) 정식 예외 등재,
+TEST SERVER 재배포 + Chrome 실측. 이 RC는 **아직 완결이 아니다** — 다음 invocation이
+바로 이어서 위 순서대로 계속한다(이 체크포인트 + Handoff `PA-RC-0023` 블록만 읽으면
+충분, 대형 문서 재통독 불필요).
