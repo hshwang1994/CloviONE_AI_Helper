@@ -24,6 +24,7 @@ import logging
 
 from app.core.feature_flags import load_feature_flags
 from app.core.http_client import AUTH_BEARER, is_timeout_error, is_transport_error
+from app.core.secret_refs import SecretMissingError
 
 logger = logging.getLogger("app.assistant.narrate")
 
@@ -103,7 +104,11 @@ def narrate(outbound, settings, *, kind: str, facts: dict, requester: dict) -> d
             auth_type=AUTH_BEARER,
             secret_ref=settings.assistant_runner_token_ref,
         )
-    except FileNotFoundError:  # 러너 토큰 secret 파일 없음 = 기능 미설정
+    except SecretMissingError:  # 러너 토큰 secret 파일 없음 = 기능 미설정
+        # secret_refs.py가 SecretMissingError(AppError)로 옮겨 간 뒤 이 except가 갱신되지
+        # 않았다 — FileNotFoundError는 이제 여기서 안 올라온다(실측: 이 갈래가 한 번도
+        # 안 잡히고 매번 아래 except Exception → _ERR_UNAVAILABLE로 빠졌다). 사용자에게는
+        # "지연/실패"와 "아직 설정 안 됨"이 다른 문구라 실제로 갈라져야 한다.
         return {"enabled": True, "text": None, "error": _ERR_UNCONFIGURED}
     except Exception as exc:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
         if is_timeout_error(exc):

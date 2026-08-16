@@ -355,6 +355,20 @@ def test_numbers_survive_every_runner_failure_mode(narrative_client, fake_http, 
     assert body["narrative"]["error"]                  # 왜 문장이 없는지 화면이 말할 수 있다
 
 
+def test_missing_runner_secret_reports_unconfigured_not_generic_failure(narrative_client):
+    """`secret_refs.py`가 `FileNotFoundError`에서 `SecretMissingError`로 옮겨 간 뒤
+    `narrate.py`의 except 절이 갱신되지 않아, 러너 토큰이 아예 없는 상태("미설정")가
+    타임아웃/전송 오류와 똑같이 애매한 `_ERR_UNAVAILABLE` 문구로 뭉개지고 있었다(TEST
+    SERVER 실측 중 재현·발견) — 이제는 더 구체적인 "아직 설정되지 않았습니다"로 갈라진다.
+    """
+    client, settings = narrative_client
+    (settings.secrets_dir / "assistant_runner_token").unlink()
+    body = _get(client, "/api/assistant/briefing?narrate=true")
+    assert body["narrative"]["enabled"] is True
+    assert body["narrative"]["text"] is None
+    assert "아직 설정되지 않았습니다" in body["narrative"]["error"]
+
+
 def test_runner_output_is_not_trusted_verbatim(narrative_client, fake_http):
     """모델 출력 불신(§11): 제어문자는 버리고 길이는 자른다."""
     from app.assistant.narrate import MAX_TEXT_CHARS

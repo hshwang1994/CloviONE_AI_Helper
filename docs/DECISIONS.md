@@ -4266,3 +4266,82 @@ role별 세션 캐시(`run.py`가 `out-dir/auth-<role>/`로 분리)를 쓴다.
 TEST SERVER 재배포는 필요 없다 — 로컬 실측이 곧 검증이다.
 
 상세: `docs/BACKLOG.md` `QA-05`(및 `QA-03`/`QA-04`/`VIS-60`/`VIS-96`/`VIS-40`/`VIS-91`/`VIS-20`).
+
+## D-109 (2026-08-17) — `AI-01`: 러너에 `/v1/assistant/summarize` 신설 + 실측 중 발견한 별개 결함 2건(같은 근본 원인) 동시 수정
+
+### 배경
+
+`AI-01`(High)은 "AI 도우미의 문장 요약(브리핑/스탠드업/주간 다이제스트)이 0 문장을
+만든다"였다. architect 에이전트로 AI/Runner 클러스터(AI-01/05/06/07/13/19/20/31/33/54)
+전체의 호출 그래프를 먼저 매핑했다 — 핵심 발견: `AI-06`(진행 중인 작업 취소)은
+`app/jobs/worker.py`가 핸들러를 동기·단일 스레드로 실행하고 `OutboundClient`가 완료된
+`httpx.Response`만 돌려주는 구조라 **협조적 취소 지점이 아예 없다**(`cancel_queued`의
+기존 docstring이 이미 이 계열의 CAS 경합 사고를 기록해 뒀다 — 섣불리 손대면 같은 함정을
+또 밟는다). `AI-05`/`07`/`13`/`20`은 n8n(이 저장소 밖)이 경로 중간에 있어 부분적으로만
+닿는다. `AI-01`만 **n8n을 전혀 안 거치는** 별도 경로(`app/assistant/narrate.py` →
+`runner/claude-work-assistant/assistant.py`, quiz·context.delete와 같은 직접 호출
+관문)였고, 플랫폼 쪽은 이미 완성+테스트 고정(`test_assistant_api.py`)돼 있었다 — 러너
+쪽 라우트 하나만 없었다.
+
+### 구현 — 기존 `/quiz` 패턴을 그대로 재사용
+
+`assistant.py`에 `SUMMARIZE_SCHEMA`/`SUMMARIZE_PROMPT`/`generate_narrative()` +
+`do_POST`의 `/v1/assistant/summarize` 분기를 추가했다 — `route_request`(티켓·채팅 라우팅)를
+전혀 안 건드리는 독립 경로, `REQUEST_SEMAPHORE`/`_REQUEST_DEADLINE`/`_busy_response` 동시성
+관례를 `/quiz`와 동일하게 재사용(전용 타임아웃 20s, 플랫폼 쪽 25s보다 5s 여유). `tools=""`
+기본값을 그대로 둬 `AI-19`(에이전틱 도구 접근)의 공격면을 전혀 넓히지 않는다. 러너 자체
+단위 시험 9건(happy path·CLI 실패·빈 응답·엔드포인트 400×2·타임아웃·429 로그) 추가,
+`APP_VERSION`/`dist/deploy-runner.sh`의 `EXPECT`를 3.59.0→3.60.0으로 동기화.
+
+### TEST SERVER 실측 — 배포 자체는 성공했지만 두 가지 별개의 운영 공백이 막았다
+
+러너 배포(`dist/deploy-runner.sh`, 포트 8789 전용, n8n/플랫폼 무접촉) 자체는
+`UPGRADE_OK` 수준으로 깨끗했다. 그런데 실제 `GET /api/assistant/briefing?narrate=true`로
+검증하려니 둘을 더 거쳐야 했다:
+
+1. **`assistant_narrative_enabled` 플래그를 관리자 API(PUT)로 켜려니 409.** 원인은
+   버그가 아니라 `install-clovirone-web-assistant.sh:218`의 의도된 하드닝(
+   `chown root:clovirone-web; chmod 0640` + systemd `ProtectSystem=strict`,
+   `secret_refs.py`의 `SecretDirNotWritableError` 문서화 주석이 스스로 "운영에서
+   이것이 정상이다"라고 밝힘) — 서비스 프로세스가 자기 보안 설정을 스스로 못 고치게 하는
+   설계다. 권한을 풀지 않고 **의도된 경로대로**(root sudo로 파일 직접 편집) 켰다.
+2. **그 다음 호출이 `SecretMissingError`로 실패.** `assistant_runner_token` secret
+   파일이 이 TEST SERVER에 한 번도 생성된 적이 없었다(AI-01 자체가 "한 번도 동작한 적
+   없다"던 것과 일치하는 증거). 같은 러너를 쓰는 `game_runner_token`(퀴즈, 이미
+   동작 확인됨)과 러너 쪽엔 `RUNNER_TOKEN` 값이 하나뿐임을 확인한 뒤(`systemctl show`로
+   경로만 확인, 값은 출력하지 않음) 같은 값을 `assistant_runner_token`으로 복사(권한도
+   형제 파일과 동일하게 `root:clovirone-web 0640`으로 유지).
+
+두 조치 다음 `GET /api/assistant/briefing?narrate=true`가 실제 자연스러운 한국어 문장을
+돌려줬고("오늘은 마감이나 지연된 티켓 없이... 읽지 않은 알림이 3건 있으니..."), 실브라우저로
+`/#/me`의 "문장 요약 만들기" 버튼을 직접 눌러 같은 결과가 렌더되는 것도 스크린샷으로
+확인(콘솔 오류 0건).
+
+### 실측 중 발견한 별개 결함 2건 — 같은 근본 원인, 즉시 같이 수정
+
+`SecretMissingError`를 처음 봤을 때 `narrate.py`가 `except FileNotFoundError:`로 그
+경우를 잡아 더 친절한 `_ERR_UNCONFIGURED`("아직 설정되지 않았습니다")를 주도록 이미
+짜여 있었는데도, 실제로는 그 분기가 한 번도 안 잡히고 매번 일반 `_ERR_UNAVAILABLE`로
+빠졌다 — `secret_refs.py`가 과거 `FileNotFoundError`에서 `SecretMissingError(AppError)`로
+옮겨 간 뒤 이 호출부가 안 갱신된 것이다. 저장소 전체에서 같은 패턴을 찾으니
+`app/games/ai.py`(퀴즈)도 **정확히 같은 결함**을 갖고 있었다(`except FileNotFoundError as
+exc:`도 죽은 코드). 둘 다 `except SecretMissingError`로 교체하고 이유를 주석에 남겼다.
+두 파일 다 이 경로를 재는 시험이 전무해서(신뢰도 문제로 처음 발견 못 한 이유이기도 하다)
+회귀 시험을 새로 추가했다 — secret 파일을 일부러 지우고 사용자 문구가 정확히
+"아직 설정되지 않았습니다"로 갈라지는지 확인, revert-to-verify로 되돌리면 두 시험
+모두 정확히 그 증상(일반 문구)으로 실패하는 것도 확인했다.
+
+### 검증
+
+러너: 신규 9건 + 기존 314건 = 323건 green(로컬). 플랫폼: `test_assistant_api.py`
+17건(신규 1건 포함) + `test_games_api.py` 44건(신규 1건 포함) = 61건 green. 정적 검사
+`SEC-20`(사람 조치 대기, 무관) 하나만 실패. TEST SERVER 러너 배포 헬스 게이트
+통과(`3.60.0`), 플랫폼 실측(API 응답 + 실브라우저 스크린샷) 둘 다 확인.
+
+### 결론
+
+`AI-01`을 완결로 처리한다. 클러스터의 나머지(`AI-05`~`54`)는 n8n 경계 또는 동시성
+재설계·보안 결정이 필요해 이번 배치에서 손대지 않는다 — 상세 사유는 architect
+에이전트 조사 결과에 근거해 위에 요약했다.
+
+상세: `docs/BACKLOG.md` `AI-01`.

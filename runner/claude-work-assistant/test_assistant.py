@@ -4382,6 +4382,101 @@ def test_quiz_endpoint_timeout_reports_quiz_timeout_not_message_timeout():
     assert data["timeout_seconds"] == m.QUIZ_TIMEOUT_SECONDS
 
 
+# --- (10) 브리핑/스탠드업/주간 다이제스트 문장 요약 (AI-01) -----------------------
+
+def _summarize_cli(text_value):
+    return _fake_cli({"text": text_value})
+
+
+def test_generate_narrative_returns_text_from_cli():
+    facts = {"kind": "briefing", "mine": {"due_today": {"count": 2}}}
+    with mock.patch.object(m.subprocess, "run", return_value=_summarize_cli("오늘 마감 2건이 있습니다.")) as run:
+        out, ai_ms, ok = m.generate_narrative("briefing", facts)
+    assert run.called
+    assert out == "오늘 마감 2건이 있습니다."
+    assert ai_ms >= 0
+    assert ok is True
+
+
+def test_generate_narrative_cli_failure_returns_none_not_raise():
+    class Fail:
+        returncode = 1
+        stdout = ""
+        stderr = "boom"
+    with mock.patch.object(m.subprocess, "run", return_value=Fail()), mock.patch.object(m.time, "sleep"):
+        out, _, ok = m.generate_narrative("briefing", {})
+    assert out is None  # 실패는 None으로 — 예외를 던지지 않는다
+    assert ok is False  # CLI 자체가 실패했다(quiz의 ok=False와 같은 구분)
+
+
+def test_generate_narrative_blank_text_reports_ok_false():
+    # CLI는 정상 실행됐지만 빈 문자열을 냈다 — "CLI 실패"와 구별해야 한다(quiz의
+    # ok=True-but-empty-questions와 반대 방향의 같은 원칙: 이쪽은 결과 자체가 못 쓸 값이면
+    # ok=False로 그 사실 자체를 말한다. narrate.py가 이 신호로 _ERR_EMPTY를 고른다).
+    with mock.patch.object(m.subprocess, "run", return_value=_summarize_cli("   ")):
+        out, _, ok = m.generate_narrative("briefing", {})
+    assert out is None
+    assert ok is False
+
+
+def test_summarize_endpoint_happy_path_returns_text():
+    facts = {"kind": "standup", "recently_done": {"items": []}}
+    with mock.patch.object(m.subprocess, "run", return_value=_summarize_cli("최근 끝낸 일이 없습니다.")):
+        status, data = _post("/v1/assistant/summarize", {"kind": "standup", "facts": facts})
+    assert status == 200
+    assert data["ok"] is True
+    assert data["data"]["text"] == "최근 끝낸 일이 없습니다."
+    # ai_ms는 모킹된 CLI 호출이 1ms 미만에 끝나면 0일 수 있다(quiz 시험도 ai_ms >= 0만
+    # 본다) — ai_used 자체가 존재/타입만 확인하고 시간에 민감한 값은 재는 대상에서 뺀다.
+    assert isinstance(data["meta"]["ai_used"], bool)
+
+
+def test_summarize_endpoint_rejects_missing_kind():
+    status, data = _post("/v1/assistant/summarize", {"facts": {}})
+    assert status == 400
+    assert data["error"] == "invalid_kind"
+
+
+def test_summarize_endpoint_rejects_non_object_facts():
+    status, data = _post("/v1/assistant/summarize", {"kind": "briefing", "facts": "nope"})
+    assert status == 400
+    assert data["error"] == "invalid_facts"
+
+
+def test_summarize_endpoint_cli_failure_reports_ok_false_not_success():
+    # quiz의 동등 시험과 같은 이유 — CLI 실패를 HTTP 200 {ok:true}로 감추면 플랫폼이
+    # "정상인데 문장이 비었다"와 "생성 자체가 실패했다"를 구별할 수 없다.
+    class Fail:
+        returncode = 1
+        stdout = ""
+        stderr = "boom"
+    with mock.patch.object(m.subprocess, "run", return_value=Fail()), mock.patch.object(m.time, "sleep"):
+        status, data = _post("/v1/assistant/summarize", {"kind": "briefing", "facts": {}})
+    assert status == 200  # /context/sync·/quiz와 같은 원칙 — HTTP 상태는 유지
+    assert data["ok"] is False
+    assert data["error"] == "summarize_generation_failed"
+    assert data["data"]["text"] is None
+
+
+def test_summarize_endpoint_timeout_reports_summarize_timeout_not_message_timeout():
+    # quiz의 동등 시험과 같은 이유 — 이 엔드포인트 전용 예산(SUMMARIZE_TIMEOUT_SECONDS=20)이
+    # 아니라 메시지 엔드포인트의 예산(180)을 복사해 보고하면 실제 대기 시간과 어긋난다.
+    def boom(*a, **kw):
+        raise m.subprocess.TimeoutExpired(cmd="claude", timeout=20)
+    with mock.patch.object(m.subprocess, "run", side_effect=boom):
+        status, data = _post("/v1/assistant/summarize", {"kind": "briefing", "facts": {}})
+    assert status == 504
+    assert data["timeout_seconds"] == m.SUMMARIZE_TIMEOUT_SECONDS
+
+
+def test_busy_response_distinguishes_summarize_endpoint_too(capsys):
+    # 위 AI-10 시험군과 같은 이유 — quiz/assistant와 마찬가지로 summarize발 429도 로그에서
+    # 구분돼야 운영자가 어느 엔드포인트가 세마포어를 굶기는지 알 수 있다.
+    m._busy_response("summarize")
+    logged = json.loads(capsys.readouterr().out.strip())
+    assert logged == {"event": "assistant_busy", "endpoint": "summarize"}
+
+
 # --- diagnose(): 권한 게이트 없는 자리는 남의 개인정보를 보여주면 안 된다 (RN-17) -------
 
 _DIAG_SCHEMA = {"properties": {"티켓 담당자": {"type": "people"}}}

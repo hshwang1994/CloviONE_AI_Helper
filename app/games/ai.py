@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from app.core.errors import ValidationAppError
 from app.core.http_client import AUTH_BEARER, is_timeout_error, is_transport_error
+from app.core.secret_refs import SecretMissingError
 from app.games.schemas import _clean_questions
 
 
@@ -22,8 +23,10 @@ class QuizGenerateError(ValidationAppError):
 def generate_quiz(outbound, settings, *, topic: str, count: int, num_options: int) -> list[dict]:
     """러너를 호출해 퀴즈 문제를 생성하고, 앱이 쓸 수 있게 정제·검증한 목록을 돌려준다.
 
-    실패는 사용자 친화 메시지(QuizGenerateError)로 올린다 — 러너 미설정(토큰 파일 없음)·타임아웃·
-    전송 오류·형식 오류를 구분하지 않고 '다시 시도/직접 입력'을 안내한다(민감 정보 노출 없음)."""
+    실패는 사용자 친화 메시지(QuizGenerateError)로 올린다 — 타임아웃·전송 오류·형식 오류는
+    구분하지 않고 '다시 시도/직접 입력'을 안내한다(민감 정보 노출 없음). 러너 미설정(토큰
+    파일 없음)만 예외로 더 구체적인 문구를 준다 — 그건 재시도로 해결되지 않는 상태라 다시
+    시도하라고 안내하면 사용자를 헛수고시킨다."""
     try:
         resp = outbound.request(
             "POST",
@@ -34,7 +37,10 @@ def generate_quiz(outbound, settings, *, topic: str, count: int, num_options: in
             auth_type=AUTH_BEARER,
             secret_ref=settings.game_runner_token_ref,
         )
-    except FileNotFoundError as exc:  # 러너 토큰 secret 파일이 없음(기능 미설정)
+    except SecretMissingError as exc:  # 러너 토큰 secret 파일이 없음(기능 미설정)
+        # app/assistant/narrate.py와 같은 근본 원인 — secret_refs.py가 FileNotFoundError에서
+        # SecretMissingError(AppError)로 옮겨 간 뒤 이 except가 갱신되지 않아 한 번도 안
+        # 잡히고 매번 아래 일반 분기로 빠졌다(실측으로 확인).
         raise QuizGenerateError("AI 퀴즈 생성이 아직 설정되지 않았습니다. 관리자에게 문의하세요.") from exc
     except Exception as exc:
         if is_timeout_error(exc):

@@ -972,6 +972,26 @@ def test_quiz_generate_no_valid_questions_is_422(db_path, tmp_path, fake_clock, 
         assert r.status_code == 422 and r.json()["error"]["code"] == "quiz_generate_failed"
 
 
+def test_quiz_generate_missing_secret_reports_unconfigured_not_generic_failure(
+    db_path, tmp_path, fake_clock, fake_http
+):
+    """`secret_refs.py`가 `FileNotFoundError`에서 `SecretMissingError`로 옮겨 간 뒤
+    `games/ai.py`의 except 절이 갱신되지 않아, 러너 토큰이 아예 없는 상태("미설정")도
+    타임아웃/전송 오류와 똑같이 애매한 일반 문구로 뭉개지고 있었다(app/assistant/narrate.py의
+    같은 결함을 TEST SERVER 실측 중 발견 — 여기도 같은 근본 원인) — 이제는 더 구체적인
+    "아직 설정되지 않았습니다"로 갈라진다.
+    """
+    app, settings = _ai_app(db_path, tmp_path, fake_clock, fake_http)
+    (settings.secrets_dir / "game_runner_token").unlink()
+    with TestClient(app, raise_server_exceptions=False) as c:
+        c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
+        csrf = c.get("/api/me").json()["csrf_token"]
+        r = c.post("/api/games/quiz/generate", json={"topic": "상식", "count": 2},
+                   headers={"X-CSRF-Token": csrf})
+        assert r.status_code == 422
+        assert "아직 설정되지 않았습니다" in r.json()["error"]["message"]
+
+
 def test_feature_flag_off_hides_games(db_path, tmp_path, fake_clock, fake_http):
     import shutil
 
