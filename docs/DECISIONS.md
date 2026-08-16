@@ -4190,3 +4190,79 @@ checked 스냅샷을 심어 잡히는 것을, prj-zero는 5/5 checked 스냅샷�
 만점"을 구별해 말한다. 새 컬럼도, 기존 계약을 흔드는 임계값 변경도 없었다.
 
 상세: `docs/BACKLOG.md` `FN-42`.
+
+## D-108 (2026-08-17) — Medium 백로그 재검증: 후보 6건 중 5건이 이미 해결/의도된 설계, `QA-05`만 실제 구현
+
+### 배경
+
+`FN-42` 다음으로 Explore agent가 triage한 Medium 후보 목록(VIS-60/96/40/91/20, QA-03/04/05)을
+하나씩 실제 소스로 재확인했다 — 이번 세션이 이미 두 번 겪은 "에이전트 요약을 코드로
+재검증하니 다르더라" 패턴(RESP-01의 1123px 재측정, FAB 클러스터)이 이 배치에서도 반복됐다.
+
+### 6건 중 5건 — "빠른 재활용"이 아니었다
+
+- **`VIS-60`**(감사 로그 `object_id`) — `VIS-11`/`RG-07`과 같은 패턴이라던 전제가 틀렸다.
+  `object_id`는 `object_type`에 따라 20개 이상 엔티티로 갈리는 다형적 id인데
+  `app/audit/router.py::_serialize_row`엔 대응하는 `object_name` 필드 자체가 없다 —
+  `actor_name`(단일 타입) 수준의 프런트 패치가 아니라 새 백엔드 작업이 필요하다.
+- **`VIS-96`**(작업 상세 모달 raw UUID 6개) — `automation.js:436-439` 주석이 스스로 밝힌다:
+  `user_id`(요청자)는 `app/jobs/router.py::_job_view`가 **의도적으로** 이름/이메일을 뺀다
+  (작업 큐가 대화 내용 열람의 우회로가 되지 않게 하는 프라이버시 경계). 나머지 5개는
+  애초에 "이름"이 없는 상관관계 id다. 액션 가능한 부분이 없다.
+- **`VIS-40`**(Users 화면 중복 관리자 배지) — `Users.jsx:67-86`의 `adminConcept()`가
+  의도적으로 만든 RBAC 발견성 장치다. `전체 관리자`의 warn 톤은 "범위가 안 좁혀진
+  관리자"라는 보안 신호이고, 오늘 org/dept 관리자가 0명인 것은 데이터 우연이지 구조적
+  결함이 아니다. 지우면 이 장치가 원래 고치려던 발견성 문제가 되돌아온다.
+- **`VIS-91`**(ChatPane 빈 공간) — `ChatPane.jsx:292-295` 주석: `justifyContent:flex-end`는
+  **실제로 재현됐던** "내용이 위에 쌓이고 입력창까지 큰 빈 공간" 버그의 수정 결과다.
+  메시지가 적을 때 위가 비는 것은 iMessage/Slack 등 채팅 UI의 표준 동작 — 되돌리면
+  예전 버그가 재현된다.
+- **`VIS-20`**(사이드바 한글 줄바꿈) — 이미 해결됨. `kit.jsx:341`의 `EmptyState` `bodySx`가
+  `KO_WORD_BREAK`를 이미 포함(`help`·`title` 둘 다 적용, 341/360/362행) — 이 행이 지목한
+  `ConversationSidebar.jsx:195`의 `EmptyState help`도 이미 그 수정을 받고 있다. stale
+  duplicate.
+- (같은 패스에서 `QA-03`/`QA-04`도 이미 해결됨으로 확인 — `run.py`에 이미 `--insecure`
+  전 구간 배선, `routes.py`에 7개 라우트 전부 이미 등록돼 있었다.)
+
+각 행에 재확인 근거를 BACKLOG.md에 직접 남겼다(커밋 `79ce923`) — 다음 세션이 같은 5건을
+"빠른 승"으로 다시 집지 않도록.
+
+### `QA-05` — 실제로 열려 있던 유일한 항목, 구현
+
+QA 하네스(`scripts/ui_qa/`)가 `system_admin` 한 역할로만 돌아 역할별 메뉴 노출·데이터
+범위·403 처리를 실물로 본 적이 없었다. 조사 결과 **판정 로직 자체는 이미 있었다** —
+`routes.py`의 `Route.min_role`/`allowed_roles`/`visible_to()`, `run.py`의 `out_of_reach`
+필터링(`QA-12`가 만든 "권한부족은 통과가 아니라 미검사로 센다" 로직)이 전부 구현
+완료 상태였는데, `system_admin`은 모든 라우트를 볼 수 있어 이 로직이 **한 번도 실제로
+갈라진 적이 없었다.**
+
+`run.py`에 `--role`(routes.py의 `ROLE_RANK`에서 뽑은 `choices`로 검증) 신설,
+`auth.py::ensure_session`에 `role` 파라미터 추가 — 기본 role일 때는 기존 동작(같은
+이메일·같은 캐시 경로) 그대로, 다른 role을 요청하면 role별 계정(`ui-qa-<role>@...`)과
+role별 세션 캐시(`run.py`가 `out-dir/auth-<role>/`로 분리)를 쓴다.
+
+**실측(로컬 서버, `http://127.0.0.1:8099`)으로 세 가지를 직접 확인**했고, 그 과정에서
+버그 하나를 실제로 잡았다:
+1. 새 role 프로비저닝 성공(`ui-qa-operator@...` 생성, role=operator로 로그인 확인).
+2. 캐시 재사용 정상.
+3. **버그 발견**: 세션 캐시(`storage_state.json`)엔 role 불일치 감지를 넣었는데
+   `credentials.json`엔 안 넣었다 — 같은 out_dir에 다른 role의 자격증명이 남아 있으면
+   그 role 요청이 조용히 옛 계정으로 로그인됐다(`--role auditor`인데 캐시된
+   `ui-qa-operator@...`로 로그인해 결과가 `role: operator`로 나옴, 요청과 다른데도
+   에러 없이 "성공"했다 — 하네스 자신의 무결성을 위해서라도 조용히 넘기면 안 되는
+   부류의 결함). `email != default_email`이면 캐시를 버리는 같은 안전장치를
+   `credentials.json` 경로에도 추가해 재확인 — 이후 `auditor` 요청이 실제로
+   `ui-qa-auditor@...`를 새로 만들었다.
+4. `run.py --role operator`로 실제 라우트 4개(그중 3개는 operator가 못 보는 관리자
+   전용) 캡처 — 로그에 "역할 operator로 볼 수 없는 라우트 3개를 미검사로 제외"가
+   실제로 찍히고, `results.json`의 메모에 라우트별 필요 role이 정확히 기록됨을 확인.
+   `visible_to()`/`out_of_reach` 로직이 이번에 처음으로 실제 분기를 탔다.
+
+### 결론
+
+`QA-05`를 완결로 처리한다. `QA-03`/`QA-04`는 이미 해결된 상태였음을 확인, `VIS-60`/
+`VIS-96`/`VIS-40`/`VIS-91`은 재확인 결과 각각 더 큰 작업이거나 의도된 설계라 이번
+배치에서 손대지 않는다. 순수 harness 도구 변경이라(제품 코드/배포 산출물 무관)
+TEST SERVER 재배포는 필요 없다 — 로컬 실측이 곧 검증이다.
+
+상세: `docs/BACKLOG.md` `QA-05`(및 `QA-03`/`QA-04`/`VIS-60`/`VIS-96`/`VIS-40`/`VIS-91`/`VIS-20`).

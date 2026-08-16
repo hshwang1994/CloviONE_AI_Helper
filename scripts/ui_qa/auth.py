@@ -121,7 +121,7 @@ def is_local_target(base_url: str) -> bool:
     return host in {"localhost", "127.0.0.1", "::1", ""}
 
 
-def _provision(email: str, initial_password: str, log, *, base_url: str) -> None:
+def _provision(email: str, initial_password: str, log, *, base_url: str, role: str) -> None:
     """Create the account, or reset it to a password we know.
 
     Both paths leave ``must_change_password=True`` (app/users/service.py
@@ -151,10 +151,10 @@ def _provision(email: str, initial_password: str, log, *, base_url: str) -> None
         # 저장된 세션이 만료되는 순간 전 라우트 캡처가 통째로 막혔다.
         proc = _run_cli(["passwd", "--email", email], initial_password + "\n")
     else:
-        log(f"[auth] 계정 생성(user_cli add): {email} role={DEFAULT_ROLE}")
+        log(f"[auth] 계정 생성(user_cli add): {email} role={role}")
         proc = _run_cli(
             ["add", "--email", email, "--name", DEFAULT_NAME,
-             "--role", DEFAULT_ROLE, "--password-stdin"],
+             "--role", role, "--password-stdin"],
             initial_password + "\n",
         )
     if proc.returncode != 0:
@@ -256,12 +256,26 @@ def _dismiss_tour(context, base_url: str, log) -> None:
 # public entry point
 # --------------------------------------------------------------------------- #
 def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = False,
-                   log=print, insecure: bool = False) -> QaSession:
+                   log=print, insecure: bool = False, role: str | None = None) -> QaSession:
     """Return a QaSession backed by a validated storage_state.json.
 
     ``out_dir`` is ``dist/ui-qa`` — the cache is shared across ``--label`` runs
     so a PRE and a POST run reuse the same account and the same session.
+
+    ``role`` (QA-05) lets a caller target a role other than the default
+    ``system_admin`` — needed to actually exercise menu visibility/403 dead
+    ends for lower-privileged roles (``Route.visible_to`` in ``routes.py``
+    already has the metadata for this; nothing had ever driven it with a
+    non-default role). Defaults to ``DEFAULT_ROLE`` when omitted, so every
+    existing caller (the ``verify_pa_rc_*.py`` scripts, a plain ``run.py``
+    invocation) behaves exactly as before. A non-default role gets its own
+    email (``ui-qa-<role>@...``) so it provisions a distinct, stable account
+    instead of fighting over the same one — pass a role-scoped ``out_dir``
+    too (``run.py`` does) so its session cache doesn't collide with another
+    role's either. Either way, a cache whose actual role doesn't match what
+    was asked for is treated as invalid rather than silently returned.
     """
+    resolved_role = role or DEFAULT_ROLE
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     state_path = out_dir / "storage_state.json"
@@ -278,6 +292,9 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
                 _dismiss_tour(context, base_url, log)
         finally:
             context.close()
+        if user and user["role"] != resolved_role:
+            log(f"[auth] 캐시된 세션의 역할이 다름(요청 {resolved_role}, 캐시 {user['role']}) → 재로그인")
+            user = None
         if user:
             log(f"[auth] 캐시된 세션 재사용: {user['email']} (role={user['role']})")
             return QaSession(email=user["email"], user_id=user["id"], role=user["role"],
@@ -286,7 +303,14 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
         log("[auth] 캐시된 세션 만료 → 재로그인")
 
     creds = _load_credentials(creds_path)
-    email = (creds or {}).get("email") or DEFAULT_EMAIL
+    default_email = DEFAULT_EMAIL if resolved_role == DEFAULT_ROLE else f"ui-qa-{resolved_role}@goodmit.co.kr"
+    # 위 세션 캐시와 같은 이유의 안전장치: 이 out_dir에 다른 역할(또는 UI_QA_PASSWORD로
+    # DEFAULT_EMAIL을 강제한 이전 실행)의 자격증명이 남아 있으면 이번에 요청한 역할과 다른
+    # 계정으로 조용히 로그인하게 된다 — 이메일이 이번 역할의 기대값과 다르면 버린다.
+    if creds and creds.get("email") and creds["email"] != default_email:
+        log(f"[auth] 캐시된 자격증명({creds['email']})이 요청 역할({resolved_role})과 안 맞음 → 새로 프로비저닝")
+        creds = None
+    email = (creds or {}).get("email") or default_email
     password = (creds or {}).get("password")
 
     context = browser.new_context(ignore_https_errors=insecure)
@@ -304,7 +328,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
         if not logged_in:
             initial = _generate_password()
             final = _generate_password()
-            _provision(email, initial, log, base_url=base_url)
+            _provision(email, initial, log, base_url=base_url, role=resolved_role)
             _submit_login(page, base_url, email, initial)
             # user_cli always forces a first-login change; complete it for real.
             _complete_forced_change(page, base_url, initial, final)
@@ -364,13 +388,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--out-dir", default=str(REPO_ROOT / "dist" / "ui-qa"))
     parser.add_argument("--rebuild", action="store_true", help="캐시를 무시하고 다시 로그인")
+    parser.add_argument("--role", default=None,
+                        help=f"기본 {DEFAULT_ROLE} — 다른 역할(user/operator/auditor/admin)로 "
+                             "세션을 만든다(QA-05)")
     args = parser.parse_args(argv)
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         try:
             session = ensure_session(browser, args.base_url, Path(args.out_dir),
-                                     rebuild=args.rebuild)
+                                     rebuild=args.rebuild, role=args.role)
         finally:
             browser.close()
     print(json.dumps(session.to_json(), ensure_ascii=False, indent=2))

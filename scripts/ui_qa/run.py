@@ -99,6 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT))
     parser.add_argument("--rebuild-auth", action="store_true", help="세션 캐시를 무시하고 재로그인")
     parser.add_argument(
+        "--role", default=None, choices=sorted(routes_mod.ROLE_RANK, key=routes_mod.ROLE_RANK.get),
+        help=("기본 system_admin. user/operator/auditor/admin 으로 돌리면 그 역할이 실제로 "
+              "보는 메뉴·데이터 범위·권한부족(미검사) 처리를 검증할 수 있다(QA-05) — "
+              "route.visible_to()/out_of_reach 로직은 이미 있었지만 지금까지 system_admin "
+              "말고 다른 역할로 돈 적이 없었다(system_admin은 전부 보이므로 그 로직이 한 번도 "
+              "실제로 갈라지지 않았다). 역할마다 별도 계정 + 별도 세션 캐시(--out-dir/auth-<role>)를 쓴다."),
+    )
+    parser.add_argument(
         "--insecure", action="store_true",
         help=("자체서명 인증서를 신뢰한다. 사내 서버(https://…gooddi.lab)를 겨눌 때 필요하다. "
               "SSH 터널로 http 로 우회하는 방법은 쓰지 마라 — 서버가 COOKIE_SECURE=true 라 "
@@ -150,6 +158,11 @@ def main(argv: list[str] | None = None) -> int:
     out_base = Path(args.out_dir)
     out_root = out_base / args.label
     out_root.mkdir(parents=True, exist_ok=True)
+    # 역할별로 계정도 세션 캐시도 분리한다 — 같은 out_dir을 role만 바꿔 재사용하면
+    # 매번 "캐시된 역할과 다름"으로 재로그인하게 된다(auth.py의 안전장치, 그 자체는
+    # 맞는 동작이지만 반복 실행마다 헛도는 건 낭비다). 기본 역할(system_admin)은
+    # 기존 경로를 그대로 써서 이전부터 있던 캐시와 호환된다.
+    auth_dir = out_base if not args.role else out_base / f"auth-{args.role}"
 
     total = len(selected_routes) * len(themes) * len(viewports)
     started_at = datetime.now()
@@ -186,9 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         browser = pw.chromium.launch(headless=not args.headed)
         try:
             try:
-                session = ensure_session(browser, args.base_url, out_base,
+                session = ensure_session(browser, args.base_url, auth_dir,
                                          rebuild=args.rebuild_auth, log=_log,
-                                         insecure=args.insecure)
+                                         insecure=args.insecure, role=args.role)
             except AuthError as exc:
                 _log(f"[FATAL] 세션을 만들지 못했습니다: {exc}")
                 return EXIT_HARNESS
