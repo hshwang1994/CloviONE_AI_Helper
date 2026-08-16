@@ -287,7 +287,7 @@ describe("요약 카드 줄 — 카드 수와 무관하게 auto-fit (VIS-119/137
   // 예전 고정 `repeat(4,...)`는 카드 수가 4의 배수가 아니면 마지막 줄에 빈 칸을 남겼다
   // (jobs 6장 → 4+2, notifications 1장 → 3칸 빔). auto-fit은 카드 수와 무관하게 항상
   // 그 줄을 채운다 — 카드가 몇 장이든 같은 grid-template-columns 값 하나로 충분한지를 본다.
-  const AUTO_FIT = "repeat(auto-fit, minmax(14rem, 18rem))";
+  const AUTO_FIT = "repeat(auto-fit, minmax(14rem, 1fr))";
 
   it("summary.cards가 6장이어도(4의 배수가 아님) 고정 열 수가 아니라 auto-fit을 쓴다", async () => {
     apiMock.mockImplementation((url) => {
