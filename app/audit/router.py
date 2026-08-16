@@ -19,7 +19,7 @@ from app.audit.repository import apply_scope
 from app.core.authz import SENSITIVE_READ_ROLES
 from app.core.deps import get_db, get_principal, require_roles
 from app.core.scope import Principal, visible_user_ids
-from app.core.errors import ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.users.models import User
 
@@ -114,6 +114,46 @@ def _filtered_stmt(
     return stmt
 
 
+def _actor_names(db: Session, rows: list[AuditLog]) -> dict[str, dict[str, str]]:
+    """행위자 id들을 표시 이름/이메일로 일괄 해석한다 — 목록과 단건 상세가 같은 로직을 쓴다."""
+    actor_ids = {row.user_id for row in rows if row.user_id}
+    names: dict[str, dict[str, str]] = {}
+    if actor_ids:
+        for u in db.execute(
+            select(User.id, User.display_name, User.email).where(User.id.in_(actor_ids))
+        ).all():
+            names[u.id] = {"display_name": u.display_name, "email": u.email}
+    return names
+
+
+def _serialize_row(row: AuditLog, actor_names: dict[str, dict[str, str]]) -> dict:
+    """목록·단건 상세가 같은 모양을 돌려준다 — 상세 딥링크로 연 항목과 목록에서 행을
+    눌러 연 항목이 같은 필드를 가져야 화면 쪽이 두 경로를 구분해서 다룰 필요가 없다."""
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "actor_name": (
+            actor_names.get(row.user_id, {}).get("display_name")
+            if row.user_id
+            else None
+        ),
+        "actor_email": (
+            actor_names.get(row.user_id, {}).get("email")
+            if row.user_id
+            else None
+        ),
+        "action": row.action,
+        "object_type": row.object_type,
+        "object_id": row.object_id,
+        "before": json.loads(row.before_json) if row.before_json else None,
+        "after": json.loads(row.after_json) if row.after_json else None,
+        "result": row.result,
+        "client_ip": row.client_ip,
+        "request_id": row.request_id,
+        "created_at": row.created_at.isoformat(),
+    }
+
+
 @router.get("")
 def list_audit_logs(
     db: Session = Depends(get_db),
@@ -147,40 +187,9 @@ def list_audit_logs(
     # 행위자 id를 표시 이름/이메일로 일괄 해석한다 — '누가 바꿨나'가 이 화면의 목적인데
     # UUID만 보이면 아무 의미가 없다(대시보드 '최근 주요 변경'과 같은 방식). 시스템/CLI
     # 행위(user_id=None)는 actor_name=None으로 두고 프런트가 '시스템'으로 표시한다.
-    actor_ids = {row.user_id for row in rows if row.user_id}
-    actor_names: dict[str, dict[str, str]] = {}
-    if actor_ids:
-        for u in db.execute(
-            select(User.id, User.display_name, User.email).where(User.id.in_(actor_ids))
-        ).all():
-            actor_names[u.id] = {"display_name": u.display_name, "email": u.email}
+    actor_names = _actor_names(db, rows)
     return {
-        "items": [
-            {
-                "id": row.id,
-                "user_id": row.user_id,
-                "actor_name": (
-                    actor_names.get(row.user_id, {}).get("display_name")
-                    if row.user_id
-                    else None
-                ),
-                "actor_email": (
-                    actor_names.get(row.user_id, {}).get("email")
-                    if row.user_id
-                    else None
-                ),
-                "action": row.action,
-                "object_type": row.object_type,
-                "object_id": row.object_id,
-                "before": json.loads(row.before_json) if row.before_json else None,
-                "after": json.loads(row.after_json) if row.after_json else None,
-                "result": row.result,
-                "client_ip": row.client_ip,
-                "request_id": row.request_id,
-                "created_at": row.created_at.isoformat(),
-            }
-            for row in rows
-        ],
+        "items": [_serialize_row(row, actor_names) for row in rows],
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
@@ -294,13 +303,7 @@ def export_audit_logs(
     )
     truncated = len(rows) > limit
     rows = rows[:limit]
-    actor_ids = {row.user_id for row in rows if row.user_id}
-    actor_names: dict[str, dict[str, str]] = {}
-    if actor_ids:
-        for u in db.execute(
-            select(User.id, User.display_name, User.email).where(User.id.in_(actor_ids))
-        ).all():
-            actor_names[u.id] = {"display_name": u.display_name, "email": u.email}
+    actor_names = _actor_names(db, rows)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
@@ -332,6 +335,31 @@ def export_audit_logs(
         "Cache-Control": "no-store",
     }
     return Response(content=body, media_type="text/csv; charset=utf-8", headers=headers)
+
+
+# PA-RC-0024: 관리자 콘솔은 상세를 URL 없는 모달로만 열어 딥링크·새로고침·뒤로가기가 안
+# 됐다. 사용자 콘솔의 :id 라우트들은 서버 단건 조회가 있어서 가능했는데, 감사 로그는
+# 목록뿐이라(행 클릭이 이미 받은 목록 행 객체를 그대로 쓴다) 그 라우트 자체를 못 만들었다
+# — 이 엔드포인트가 그 전제를 채운다. `/{log_id}` 는 반드시 위의 `/anomalies`·`/export.csv`
+# **뒤에** 와야 한다 — FastAPI 는 등록 순서로 매칭하므로, 앞에 두면 그 두 경로를
+# log_id="anomalies"/"export.csv" 로 삼켜버린다.
+@router.get("/{log_id}")
+def get_audit_log_detail(
+    log_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """목록과 같은 범위 판정(apply_scope)을 그대로 건다 — 범위 밖 id도 존재하지 않는 id와
+    똑같이 404로 접어, 있는지 없는지 자체를 노출하지 않는다(users.get_scoped_user_or_404·
+    org.get_or_404와 같은 원칙)."""
+    stmt = apply_scope(
+        select(AuditLog).where(AuditLog.id == log_id),
+        visible_user_ids(db, principal.scope),
+    )
+    row = db.execute(stmt).scalar_one_or_none()
+    if row is None:
+        raise NotFoundError("감사 로그를 찾을 수 없습니다.")
+    return _serialize_row(row, _actor_names(db, [row]))
 
 
 # ── 저장 필터는 여기 있지 않다 (0033 설계 결정) ───────────────────────────────
