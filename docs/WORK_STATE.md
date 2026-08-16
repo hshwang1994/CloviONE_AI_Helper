@@ -6471,3 +6471,33 @@ Regression(파일 리다이렉트로 확정) + 러너 스위트 전부 green. �
 E2E(대화 자체 삭제까지 눌러 러너 로그에서 `/context/delete` 확인, 현재는 메시지 삭제만
 확인함) · 전체 제품 재감사 관점에서 이번 사이클 밖 영역(관리자 콘솔 전반 등) Chrome
 E2E 확대 여부 검토.
+
+## 2026-08-16 13:5x~14:2x — WARM 재개: 이전 invocation이 남긴 Product Audit Handoff 발견 + PHASE 1↔2 전환 확인 + PA-RC-0015/0016 완료
+
+**중요한 재확인(당황했다가 정정)**: 이전 요약 이후 프로세스가 끊겼다가 새 invocation으로
+재개됐는데, `git log`가 이전 세션의 커밋(DBTX-02/SEC-38/AI-71 등)을 안 보여 처음엔 유실을
+의심했다. `git reflog` + `git merge-base --is-ancestor`로 직접 확인: **유실이 아니다** —
+내 마지막 커밋(`64ef571`) 이후 PHASE 1(`product_audit_runner.ps1`)이 새 Audit Cycle을
+끝까지 돌려(`PA-20260816-120655-f103fb5b`, 26개 `docs(product-audit)` 커밋, 전부 내 커밋의
+직계 후손) 완료 Gate 8종을 통과시켰고, 그 결과물(새 Handoff, `implementation_required=true`)
+을 들고 PHASE 2가 재시작된 것뿐이다. CLAUDE.md §11-1이 설명한 정확히 그 구조다. 다만
+`admin_audit`(감사 로그) 500 하나는 못 끝내고 있었다 — 이건 SEC-10(D-84)이 raw SQL로 남긴
+`audit_logs` 행의 깨진 JSON(`{restricted: false}`, 따옴표 없는 키)이 원인이었고, 이번 재개
+직후 바로 잡아 고쳤다(`DECISIONS.md` D-90, 커밋 `8d6c875`).
+
+**새 Handoff 내용**: Deep UI/UX Design Audit(D-75)이 처음 수행돼 L축 신규 Root Cause 9건
+(`PA-RC-0016`~`0024`) + 이전 Cycle 승계 4건(`PA-RC-0012`~`0015`) + 기타 2건 = 총 15건.
+순서 의존: `0015→0016→0017→0022`, `0020`이 `0019`를 함께 닫음, `0013→0024`.
+
+**이번 구간에서 완료**: `PA-RC-0015`(Low, 배너 경과 '분' 고정) + `PA-RC-0016`(**High,
+design_verdict=REDESIGN** — 전역 배너 스택을 헤더 상태 칩+CRITICAL 한 줄로 재설계).
+상세 근거·검증은 `DECISIONS.md` D-91, 상태는 `BACKLOG.md` `PA2-04`/`PA2-05`. TEST SERVER
+통합 배포 2회 완료, Chrome 실측(h1 위치·4K 폭) 확인, 프런트 전체 269파일/1833건 green.
+
+**다음(순서 의존 상 바로 이어야 함)**: `PA-RC-0017`(**High, REDESIGN** — 관리자 IA를
+39목적지·8그룹 평면에서 업무 기준 5영역+탭으로 재편, 설정 6화면→1화면+4탭 통합, 기존
+URL 39개 리다이렉트 보존, **가장 큰 위험은 RBAC**— 역할 4종×신규 탭 전체 allow/deny
+회귀 필수). Handoff 원문은 `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`의
+`PA-RC-0017` 블록(라인 244~287 부근, cycle_id `PA-20260816-120655-f103fb5b`). 착수 전
+`frontend/src/app/AdminRoutes.jsx`·`frontend/src/screens/registry/*.js`·현재 사이드바
+구조를 먼저 전수 파악할 것 — 이 항목은 규모가 커서 여러 체크포인트에 걸칠 수 있다.
