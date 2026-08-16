@@ -241,14 +241,11 @@
   function detailText(d) {
     if (typeof d === "string") return d;
     if (d && typeof d === "object") {
-      // {loc, msg} 모양이면 FastAPI의 기본 RequestValidationError 항목이다 — msg는
-      // Pydantic이 만든 영어 문구('Field required' 등)라 그대로 보이면 나머지 한국어
-      // 화면 사이에 영어 한 줄이 섞여 나간다. 이 앱 자체의 ValidationAppError는 항상
-      // 문자열 배열로 오므로(위 typeof d === "string" 분기), 여기 도달하는 객체는
-      // 사실상 전부 그 기본 핸들러의 출력이다 — 일반 한국어 안내로 대체한다.
-      if (typeof d.msg === "string" && Array.isArray(d.loc)) {
-        return "입력값을 확인해 주세요.";
-      }
+      // {loc, msg} 모양이면 FastAPI의 기본 RequestValidationError 항목이다. PA-RC-0014부터
+      // app/core/errors.py가 그 msg 자체를 err["type"]+ctx로 만든 한국어 문구로 바꿔
+      // 보내므로(예: "최대 120자까지 입력할 수 있습니다") 그대로 쓴다 — 예전엔 Pydantic이
+      // 영문을 그대로 실어 보내던 시절의 방어책으로 일반 안내("입력값을 확인해 주세요")로
+      // 덮어썼지만, 지금 덮으면 서버가 이미 만들어 준 더 구체적인 문구를 버리게 된다.
       if (typeof d.msg === "string") return d.msg;
       try {
         return JSON.stringify(d);
@@ -492,12 +489,14 @@
         showDetails(data.error.details);
       } else {
         // data.error.message는 여기 도달하는 경로에서 한국어라는 보장이 없다 — 예를 들어
-        // app/core/errors.py의 일반 StarletteHTTPException 핸들러(message=str(exc.detail))나
-        // 포괄 RequestValidationError 핸들러("Invalid request data")는 영어 문구를 그대로
-        // 싣는다. POST /change-password가 실제로 내는 코드(rate_limited·
-        // wrong_current_password·unauthorized·csrf_failed·validation_error·500)는 모두
-        // 위의 전용 분기에서 처리되므로, 이 fallback에 도달하는 code는 한국어가 보장되지
-        // 않는다 — 서버 메시지를 믿지 않고 정적 한국어로 대체한다.
+        // app/core/errors.py의 일반 StarletteHTTPException 핸들러(message=str(exc.detail))는
+        // Starlette가 만든 영문 문구(예: "Not Found")를 그대로 싣는다(RequestValidationError
+        // 핸들러는 PA-RC-0014부터 한국어 고정 문구를 쓰지만, 그 사실에 기대지 않는다 — 이
+        // fallback은 이 핸들러가 아닌 다른 어떤 예외 경로가 여기 떨어져도 안전해야 한다).
+        // POST /change-password가 실제로 내는 코드(rate_limited·wrong_current_password·
+        // unauthorized·csrf_failed·validation_error·500)는 모두 위의 전용 분기에서 처리되므로,
+        // 이 fallback에 도달하는 code는 한국어가 보장되지 않는다 — 서버 메시지를 믿지 않고
+        // 정적 한국어로 대체한다.
         errorBox.textContent = "비밀번호 변경에 실패했습니다.";
       }
       newInput.setAttribute("aria-invalid", "true");

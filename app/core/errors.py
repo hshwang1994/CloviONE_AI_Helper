@@ -22,6 +22,67 @@ from app.core.urls import safe_next_path
 logger = logging.getLogger("app.errors")
 
 
+# PA-RC-0014: Pydantic 검증 실패가 영문 그대로 사용자에게 나갔다("Invalid request data
+# String should have at most 120 characters"). `err["msg"]`는 절대 파싱하지 않는다 —
+# Pydantic 버전이 올라가면 문구가 바뀐다. 안정적인 `err["type"]` + `err["ctx"]`(예:
+# max_length)만으로 한국어 문구를 만든다. 매핑에 없는 type도 영어가 새지 않도록 일반
+# 문구로 떨어진다(완전 나열이 아니라 안전망이다).
+def _validation_error_message_ko(err: dict) -> str:
+    err_type = err.get("type") or ""
+    ctx = err.get("ctx") or {}
+
+    if err_type == "value_error":
+        # 이 저장소의 커스텀 validator(예: 이메일 형식)는 이미 한국어 ValueError를 던진다
+        # (app/users/schemas.py::_validate_email_shape 등) — Pydantic이 그 문구를 그대로
+        # ctx.error에 담아 주고, msg에는 "Value error, " 영문 접두어를 붙인 것만 다르다.
+        # ctx.error를 쓰면 접두어 없이 원래 한국어 문구를 그대로 돌려줄 수 있다.
+        custom = ctx.get("error")
+        if custom:
+            return str(custom)
+        return "입력값을 확인해 주세요."
+    if err_type == "missing":
+        return "필수 항목입니다."
+    if err_type == "extra_forbidden":
+        return "허용되지 않는 값입니다."
+    if err_type == "string_too_short":
+        n = ctx.get("min_length")
+        return f"최소 {n}자 이상 입력하세요." if n is not None else "너무 짧습니다."
+    if err_type == "string_too_long":
+        n = ctx.get("max_length")
+        return f"최대 {n}자까지 입력할 수 있습니다." if n is not None else "너무 깁니다."
+    if err_type == "too_short":
+        n = ctx.get("min_length")
+        unit = "개" if (ctx.get("field_type") or "").lower() != "string" else "자"
+        return f"최소 {n}{unit} 이상이어야 합니다." if n is not None else "너무 짧습니다."
+    if err_type == "too_long":
+        n = ctx.get("max_length")
+        unit = "개" if (ctx.get("field_type") or "").lower() != "string" else "자"
+        return f"최대 {n}{unit}까지 허용됩니다." if n is not None else "너무 깁니다."
+    if err_type in ("greater_than_equal", "greater_than"):
+        n = ctx.get("ge", ctx.get("gt"))
+        op = "이상" if err_type == "greater_than_equal" else "초과"
+        return f"{n}{op}이어야 합니다." if n is not None else "값이 너무 작습니다."
+    if err_type in ("less_than_equal", "less_than"):
+        n = ctx.get("le", ctx.get("lt"))
+        op = "이하" if err_type == "less_than_equal" else "미만"
+        return f"{n}{op}여야 합니다." if n is not None else "값이 너무 큽니다."
+    if err_type in ("literal_error", "enum"):
+        expected = ctx.get("expected")
+        return f"허용되지 않는 값입니다(허용: {expected})." if expected else "허용되지 않는 값입니다."
+    if err_type in ("int_parsing", "int_type", "float_parsing", "float_type"):
+        return "숫자를 입력하세요."
+    if err_type in ("bool_parsing", "bool_type"):
+        return "값을 확인하세요."
+    if err_type in ("string_type",):
+        return "문자열이어야 합니다."
+    if err_type in ("list_type",):
+        return "목록 형식이어야 합니다."
+    if err_type in ("json_invalid", "json_type"):
+        return "형식이 올바르지 않습니다."
+    # 나열에 없는 type — 영어가 새지 않는 것이 우선이다, 그 다음이 구체성이다.
+    return "값을 확인해 주세요."
+
+
 class AppError(Exception):
     status_code: int = 400
     code: str = "bad_request"
@@ -250,13 +311,13 @@ def register_error_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         # Field locations and messages only — never echo submitted values back.
         details = [
-            {"loc": [str(part) for part in err.get("loc", [])], "msg": err.get("msg", "")}
+            {"loc": [str(part) for part in err.get("loc", [])], "msg": _validation_error_message_ko(err)}
             for err in exc.errors()
         ]
         return error_response(
             request,
             code="validation_error",
-            message="Invalid request data",
+            message="입력값을 확인해 주세요.",
             status_code=422,
             details=details,
         )
@@ -271,7 +332,7 @@ def register_error_handlers(app: FastAPI) -> None:
         # (예: PATCH로 필드를 null로 비웠는데 그 모델이 Optional을 허용 안 하는 계약 실수). 값은
         # 절대 되돌려주지 않는다(위와 동일한 원칙).
         details = [
-            {"loc": [str(part) for part in err.get("loc", [])], "msg": err.get("msg", "")}
+            {"loc": [str(part) for part in err.get("loc", [])], "msg": _validation_error_message_ko(err)}
             for err in exc.errors()
         ]
         logger.warning(
@@ -282,7 +343,7 @@ def register_error_handlers(app: FastAPI) -> None:
         return error_response(
             request,
             code="validation_error",
-            message="Invalid request data",
+            message="입력값을 확인해 주세요.",
             status_code=422,
             details=details,
         )

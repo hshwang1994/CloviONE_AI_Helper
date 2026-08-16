@@ -119,3 +119,23 @@ def test_announcements_and_ai_quotas_limits_match_the_schema_declarations():
         "scope_type": 16, "user_id": 36, "period": 16, "note": 200,
     }
     assert limits["ai-quotas"]["edit"] == {"note": 200}
+
+
+def test_users_limits_match_the_schema_declarations():
+    """PA-RC-0014 — Users.jsx는 registry 화면은 아니지만 FormModal을 그대로 쓰므로 다른
+    screenKey와 똑같이 FORM_SCHEMAS에 연결한다(field_limits.py 모듈 docstring 참고)."""
+    limits = all_field_limits()
+    assert limits["users"]["create"] == {
+        "email": 255, "display_name": 120, "password": 128, "department_id": 36, "title_id": 36,
+    }
+    assert limits["users"]["edit"] == {
+        "display_name": 120, "department_id": 36, "title_id": 36,
+        "admin_scope": 16, "scope_org_id": 36, "scope_dept_id": 36,
+    }
+
+
+def test_offboarding_limits_match_the_schema_declaration():
+    """오프보딩 실행 폼(메모)도 같은 처리를 받는다(PA-RC-0014 acceptance_criteria 4) — formKind는
+    create/edit이 아니라 "run"(1회성 실행)이다."""
+    limits = all_field_limits()
+    assert limits["offboarding"]["run"] == {"successor_user_id": 36, "note": 1000}

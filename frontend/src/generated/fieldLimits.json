@@ -70,6 +70,12 @@
       "name": 120
     }
   },
+  "offboarding": {
+    "run": {
+      "note": 1000,
+      "successor_user_id": 36
+    }
+  },
   "organizations": {
     "create": {
       "name": 200,
@@ -145,6 +151,23 @@
       "description": 2000,
       "name": 120,
       "target_ref": 64
+    }
+  },
+  "users": {
+    "create": {
+      "department_id": 36,
+      "display_name": 120,
+      "email": 255,
+      "password": 128,
+      "title_id": 36
+    },
+    "edit": {
+      "admin_scope": 16,
+      "department_id": 36,
+      "display_name": 120,
+      "scope_dept_id": 36,
+      "scope_org_id": 36,
+      "title_id": 36
     }
   },
   "workflows": {

@@ -636,6 +636,7 @@ export function Users() {
         onChanged={() => { refresh(); }} />
 
       <FormModal open={creating} title="사용자 추가" fields={createFields} submitLabel="추가"
+        screenKey="users" formKind="create"
         onClose={() => setCreating(false)}
         onSubmit={async (body) => {
           // 흔한 오타는 서버 왕복(영문 검증 오류) 전에 한국어로 잡는다. 서버(_EMAIL_SHAPE_RE)는 도메인에
@@ -667,6 +668,7 @@ export function Users() {
 
       <FormModal open={!!editing} title={editing ? (editing.display_name || editing.email) + " 수정" : ""}
         fields={editFields} initial={editing || {}} submitLabel="저장" onClose={() => setEditing(null)}
+        screenKey="users" formKind="edit"
         onSubmit={async (body) => {
           // 전체 스냅샷이 아니라 실제로 바뀐 필드만 PATCH한다(diffFields) — 안 그러면 이 폼이 열려
           // 있는 사이 다른 관리자가 바꾼 필드(역할 승인 등)를 조용히 원래 값으로 되돌려 버릴 수 있다.

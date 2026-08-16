@@ -780,7 +780,7 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
  * 옮기지 않는다). 붙여넣기로 상한을 넘기면 브라우저가 조용히 자르기만 하는데, 그러면 사용자는
  * 잘린 줄 모른다 — onPaste에서 미리 계산해 잘릴 상황이면 토스트로 알린다(막지는 않는다, 자르고
  * 알린다). 긴 텍스트(textarea/json)는 helperText에 남은 글자 수도 함께 보여준다. */
-export function FormField({ field: f, value, onChange, invalid, maxLength }) {
+export function FormField({ field: f, value, onChange, invalid, maxLength, errorMessage }) {
   const id = "ff-" + f.name;
   const required = !!f.required;
   const isJson = f.type === "json";
@@ -798,7 +798,10 @@ export function FormField({ field: f, value, onChange, invalid, maxLength }) {
     }
   } : undefined;
   const charCount = (multiline && maxLength) ? `${(value || "").length}/${maxLength}자` : null;
-  const helpText = charCount ? (f.help ? `${f.help} (${charCount})` : charCount) : (f.help || undefined);
+  const staticHelp = charCount ? (f.help ? `${f.help} (${charCount})` : charCount) : (f.help || undefined);
+  // PA-RC-0014: invalid면 도움말 대신 실제 오류 문구를 aria-describedby가 가리키는 자리에 둔다 —
+  // 빨간 테두리(error)만으로는 스크린리더가 "무엇이 문제인지"를 읽을 수 없었다.
+  const helpText = invalid && errorMessage ? errorMessage : staticHelp;
   const helpId = helpText ? id + "-helper-text" : undefined;
 
   if (f.type === "checkbox") {
@@ -810,7 +813,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength }) {
               id={id}
               checked={!!value}
               onChange={(e) => onChange(e.target.checked)}
-              inputProps={{ "aria-describedby": helpId, "aria-required": required || undefined }}
+              inputProps={{ "aria-describedby": helpId, "aria-required": required || undefined, "aria-invalid": invalid || undefined }}
             />
           }
           label={
@@ -820,7 +823,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength }) {
             </>
           }
         />
-        {f.help ? <Typography id={helpId} variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{f.help}</Typography> : null}
+        {helpText ? <Typography id={helpId} variant="caption" color={invalid ? "error" : "text.secondary"} sx={{ display: "block", mt: 0.5 }}>{helpText}</Typography> : null}
       </Box>
     );
   }
@@ -1015,6 +1018,14 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의
       // api()로 옮겼다 — e.message가 이제 이미 합쳐진 문구다(모든 호출부가 공짜로 받는다).
       // 여기서 다시 합치면 details가 중복으로 붙는다.
+      // PA-RC-0014: details[].loc 마지막 조각(필드명)이 이 폼의 필드와 일치하면 그 칸에
+      // aria-invalid + 빨간 테두리를 건다 — 지금까지는 상단 알림 문구뿐이라 필드가 많은 폼
+      // (사용자 생성 등)에서 어느 칸이 문제인지 눈으로 하나씩 훑어야 했다.
+      const details = e && e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;
+      const badField = details && details
+        .map((d) => (Array.isArray(d.loc) && d.loc.length ? d.loc[d.loc.length - 1] : null))
+        .find((name) => name && shownFields.some((f) => f.name === name));
+      if (badField) { fail(badField, e.message || "저장하지 못했습니다. 다시 시도해 주세요."); setBusy(false); return; }
       setErr(e.message || "저장하지 못했습니다. 다시 시도해 주세요."); setBusy(false); return;
     }
     setBusy(false);
@@ -1030,6 +1041,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         {err ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
         {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name}
           onChange={(val) => set(f.name, val)}
+          errorMessage={errField === f.name ? err : undefined}
           maxLength={screenKey ? maxLengthFor(screenKey, formKind, f.name) : null} />)}
         {/* 화면에 보이지 않는 제출 버튼 — 실제 저장 버튼은 Dialog footer(별도 DOM 트리)에 있어
             이 <form> 안에 없다. type="submit"이 하나도 없으면 브라우저에 따라 단일 텍스트

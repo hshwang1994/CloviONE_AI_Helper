@@ -191,6 +191,42 @@ describe("오프보딩 화면", () => {
     expect(lastRunBody.ticket_page_ids).toEqual(["page-2"]);
   });
 
+  // PA-RC-0014: 이 화면은 FormModal을 안 쓰는 손수 제작 폼이라 details[].loc 연결을
+  // Offboarding.jsx가 직접 한다 — kit.jsx의 공용 배선과 별도로 실제로 동작하는지 못박는다.
+  it("PA-RC-0014: 메모가 서버 상한을 넘으면 그 칸에 aria-invalid + 오류 문구가 붙는다", async () => {
+    apiMock.mockImplementation((path, opts) => {
+      const method = (opts && opts.method) || "GET";
+      if (path.startsWith("/api/admin/users?")) return Promise.resolve({ items: [LEAVER], total: 1, page_size: 20 });
+      if (path.startsWith("/api/admin/offboarding/preview/")) return Promise.resolve(PREVIEW);
+      if (path.startsWith("/api/admin/offboarding/run/") && method === "POST") {
+        const err = new Error("입력값을 확인해 주세요. 최대 1000자까지 입력할 수 있습니다.");
+        err.status = 422;
+        err.body = {
+          error: {
+            code: "validation_error",
+            details: [{ loc: ["body", "note"], msg: "최대 1000자까지 입력할 수 있습니다." }],
+          },
+        };
+        return Promise.reject(err);
+      }
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
+    await screen.findByText("혼자 담당 A");
+
+    await user.type(screen.getByLabelText(/메모/), "너무 긴 메모");
+    await user.click(screen.getByRole("button", { name: "오프보딩 실행" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "실행" }));
+
+    const noteField = await screen.findByLabelText(/메모/);
+    await waitFor(() => expect(noteField).toHaveAttribute("aria-invalid", "true"));
+    const describedBy = noteField.getAttribute("aria-describedby");
+    expect(document.getElementById(describedBy)).toHaveTextContent("최대 1000자까지 입력할 수 있습니다.");
+  });
+
   it("미리보기가 배경에서 다시 조회돼도(예: 재연결) 이미 체크를 푼 티켓 선택은 그대로 유지된다", async () => {
     // OffboardPlan의 '전부 선택' 초기화 이펙트가 previewQ.data 객체 참조 하나에만 매여 있으면,
     // 티켓 집합 자체는 그대로인데 다른 값(예: Notion에서 마감일이 바뀜)만 달라진 새 응답이 와도

@@ -8,9 +8,15 @@
 
 ## 무엇을 매핑하는가, 무엇을 매핑하지 않는가
 
-`FORM_SCHEMAS`는 `frontend/src/screens/registry/*.js`의 DataScreen 화면(공용
-FormModal/FormField 경로, kit.jsx)만 연결한다. `Users.jsx`처럼 손으로 지은 화면은 이 공용
-경로를 타지 않으므로 대상이 아니다 — 별도로 다뤄야 한다(docs/BACKLOG.md PA-04 참고).
+`FORM_SCHEMAS`의 키는 화면 이름표일 뿐이다 — 소비하는 쪽이 둘 있다. (1) `kit.jsx`의
+`FormModal`이 `screenKey`/`formKind` prop으로 `maxLengthFor()`를 호출하는 경로
+(`frontend/src/screens/registry/*.js`의 DataScreen 화면이 대다수지만, `Users.jsx`처럼
+registry 밖의 손으로 쓴 화면도 그 상세/생성/수정 폼이 이미 `FormModal`을 그대로 쓰면
+`screenKey="users"`만 넘겨 재사용할 수 있다 — PA-RC-0014, 새 경로를 만들지 않았다).
+(2) `FormModal`조차 안 쓰는 완전 수제 화면(`Offboarding.jsx`)이 자기 `<TextField>`에서
+`maxLengthFor()`를 직접 불러 쓰는 경로 — 이 경우 `formKind`는 "create"/"edit"이 아니어도
+된다(예: `"offboarding": {"run": ...}`, 아래 `FORM_SCHEMAS` 주석 참고). 두 경로 다
+`app/*/schemas.py`가 정본이라는 점은 같다.
 
 ## Pydantic max_length가 없는 필드는 결과에 없다
 
@@ -27,6 +33,7 @@ from pydantic import BaseModel
 from app.announcements.router import AnnouncementPatch, AnnouncementRequest
 from app.approvals.router import DelegationRequest
 from app.integrations.schemas import IntegrationConfig, IntegrationUpdateRequest
+from app.offboarding.schemas import OffboardingRunRequest
 from app.org.schemas import (
     DepartmentCreateRequest,
     DepartmentUpdateRequest,
@@ -45,6 +52,7 @@ from app.quotas.router import QuotaPatch, QuotaRequest
 from app.runners.schemas import RunnerConfig, RunnerUpdateRequest
 from app.schedules.router import ScheduleRequest
 from app.templates.router import TemplateRequest
+from app.users.schemas import UserCreateRequest, UserUpdateRequest
 from app.workflows.schemas import WorkflowConfig, WorkflowUpdateRequest
 
 
@@ -91,6 +99,10 @@ FORM_SCHEMAS: dict[str, dict[str, type[BaseModel]]] = {
     "workflows": {"create": WorkflowConfig, "edit": WorkflowUpdateRequest},
     "announcements": {"create": AnnouncementRequest, "edit": AnnouncementPatch},
     "ai-quotas": {"create": QuotaRequest, "edit": QuotaPatch},
+    "users": {"create": UserCreateRequest, "edit": UserUpdateRequest},
+    # 오프보딩 실행 폼은 create/edit이 아니라 1회성 실행이다 — formKind를 "run"으로 둔다
+    # (maxLengthFor는 formKind 문자열 자체엔 의미를 두지 않고 그대로 조회만 한다).
+    "offboarding": {"run": OffboardingRunRequest},
 }
 
 

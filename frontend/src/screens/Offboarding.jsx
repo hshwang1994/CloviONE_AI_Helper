@@ -10,6 +10,7 @@ import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
+import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
   PageHeader, Card, Badge, Button, DataTable, Modal, Skeleton,
   EmptyState, ErrorState, Callout, useConfirm, useToast,
@@ -204,9 +205,11 @@ function OffboardPlan({ preview, onDone, toast }) {
   const [deactivate, setDeactivate] = useState(true);
   const [archive, setArchive] = useState(false);
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const confirm = useConfirm();
+  const noteMaxLength = maxLengthFor("offboarding", "run", "note");
 
   // 처음 열 때 모든 티켓을 선택해 둔다 — 전형적인 의도는 '전부 옮긴다'이고, 빼야 할 건만
   // 체크를 푸는 편이 하나씩 켜는 것보다 실수가 적다. 서버는 여전히 보낸 목록만 처리한다.
@@ -250,7 +253,7 @@ function OffboardPlan({ preview, onDone, toast }) {
     ].filter(Boolean).join("\n");
     if (!(await confirm(message, { danger: true, title: "오프보딩 실행", confirmLabel: "실행" }))) return;
 
-    setBusy(true);
+    setBusy(true); setNoteError("");
     try {
       const res = await api("/api/admin/offboarding/run/" + user.id, {
         method: "POST",
@@ -268,6 +271,11 @@ function OffboardPlan({ preview, onDone, toast }) {
       else toast("오프보딩을 실행했습니다.", "success");
     } catch (e) {
       if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); window.setTimeout(() => { window.location.href = "/login"; }, 1200); return; }
+      // PA-RC-0014: 이 화면은 FormModal을 안 쓰는 손수 제작 폼이라 details[].loc 연결을
+      // 직접 한다 — 메모(note)가 서버 상한(1000자)을 넘으면 그 칸에도 aria-invalid를 건다.
+      const details = e && e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;
+      const noteDetail = details && details.find((d) => Array.isArray(d.loc) && d.loc[d.loc.length - 1] === "note");
+      if (noteDetail) setNoteError(e.message || "");
       toast(e.message, "error");
     } finally { setBusy(false); }
   }
@@ -335,8 +343,11 @@ function OffboardPlan({ preview, onDone, toast }) {
             ))}
           </TextField>
           <TextField
-            size="small" label="메모(선택)" value={note} onChange={(e) => setNote(e.target.value)}
-            helperText="왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."
+            size="small" label="메모(선택)" value={note}
+            onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
+            error={!!noteError}
+            helperText={noteError || "왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."}
+            inputProps={noteMaxLength ? { maxLength: noteMaxLength } : undefined}
           />
         </Box>
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mt: 1.5 }}>
