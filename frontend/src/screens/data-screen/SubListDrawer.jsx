@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { Callout, Button, DataTable, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
+import { successMessageFor } from "./successMessages.js";
 
 /* 하위 리소스 드로어 — 액션의 subList로 지정한 엔드포인트(버전·실행 이력 등)를 조회해 표로 보여준다.
  * subList.rowAction이 있으면 각 하위 행에 작업(예: 특정 버전으로 롤백)을 건다. */
@@ -69,7 +70,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
       const res = await api(ra.path(subRow, row), { method: ra.method || "POST", body: ra.body ? ra.body(subRow) : {} });
       // 승인 게이트가 걸리면 202 approval_pending — 성공으로 오인하지 않게 안내(예: 연동 롤백).
       if (res && (res.status === "approval_pending" || res.approval_pending)) toast("승인 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.", "info");
-      else toast(ra.label + " 완료", "success");
+      else toast(successMessageFor(ra.label), "success");
       onActed();
       // keepOpen — 이 하위 행 작업이 지금 보고 있는 바로 이 목록 안의 항목을 제자리에서 바꿀 뿐이면
       // (예: 실행 이력의 '재시도') 드로어를 닫지 않고 하위 목록만 다시 불러온다. 방금 누른 결과를

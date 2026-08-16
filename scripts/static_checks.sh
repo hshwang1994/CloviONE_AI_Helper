@@ -165,6 +165,18 @@ else
   echo "$BTNH"; fail "버튼 위계 규범 위반 — 파괴적 동작이 primary이거나 primary:true 짝이 안 맞다"
 fi
 
+step "Success toast labels have a sentence-form dictionary entry (PA-RC-0025)"
+# DataScreen.jsx의 finishAction()/SubListDrawer.jsx의 act()는 액션이 a.result()로 자기
+# 메시지를 안 만들면 data-screen/successMessages.js의 사전에서 라벨로 문장을 찾는다(예전엔
+# "라벨 + 완료"로 이어 붙여 "삭제 완료"처럼 마침표 없는 명사형이 났다). 새 라벨이 이 기본
+# 경로를 타는데 사전에 등록을 안 하면 GENERIC_SUCCESS_MESSAGE로는 떨어지지만(안전망), 그
+# 라벨 고유의 문장이 빠진 채로 넘어가는 걸 이 검사가 잡는다. scripts/check_success_toast_labels.py 참고.
+if TOASTLBL="$("$PY" scripts/check_success_toast_labels.py 2>&1)"; then
+  ok "$(echo "$TOASTLBL" | tail -1)"
+else
+  echo "$TOASTLBL"; fail "기본 경로를 타는 액션 라벨이 successMessages.js 사전에 없다"
+fi
+
 step "Heading variant/component separation (PA-RC-0012)"
 # variant="h6"는 시각 크기 선택이면서 동시에(component= 없으면) 실제 <h6> 태그도 정해
 # 버린다 — 손으로 쓴 화면 5개가 이 함정으로 h1 다음에 h6을 놓아 문서 heading 구조가
