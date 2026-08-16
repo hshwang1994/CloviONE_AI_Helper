@@ -445,6 +445,41 @@ MUI가 서랍을 `keepMounted`로 남겨 둔 것이고 닫힌 동안은 올바�
 
 ---
 
+## PA-F-053 — 쓰기 버튼도 **403 막다른 길이 되지 않는다** (음성 결과, `PA-F-045`의 나머지 절반)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** — 2역할 × 10화면 실측 |
+| 근거 | `var/product-audit/probe_write_gate.py` → `probe_write_gate.json` |
+
+`PA-F-045`는 **읽기만** 확인하고 *"쓰기 액션은 미측정"* 이라고 정직하게 남겼다. 여기서 닫는다.
+
+`DataScreen.jsx:104`의 게이트는 `canDo = (a) => !a.roles || role.includes(...)` 이므로
+**`roles`를 선언하지 않은 액션은 모든 역할에게 보인다.** 즉 구조적으로 구멍이 가능하다.
+그래서 실제로 무엇이 보이는지 셌다.
+
+| 화면 | `operator`에게 보이는 쓰기 버튼 | `system_admin` |
+|---|---|---|
+| `/prompts` · `/policies` · `/templates` · `/schedules` | **없음** | `+ … 추가` |
+| `/documents` | **없음** | `+ 문서 생성` |
+| `/integrations` · `/runners` · `/workflows` | **없음** | `+ … 추가` |
+| `/notion-mapping` | **없음** | `자동 동기화` |
+| `/approvals` | **없음** | 없음(행 단위 승인/거절은 행 액션) |
+
+`operator`에게 공통으로 남는 것은 **「저장된 뷰」 하나뿐**이고, 이것은 제품 데이터를 쓰지 않는
+클라이언트 측 필터 저장 기능이다(`ui/SavedViews.jsx`, `USE-08`).
+
+**판정: 결함 없음.** `navConfig.js`가 경계한 두 실패 모드 중 *"넓게 두면 눌렀더니 403"* 은
+일어나지 않는다. 프런트 라우트 게이트가 없는 화면에서도 **쓰기 컨트롤은 역할별로 정확히
+갈린다** — `DataScreen.jsx:525·532·549`의 주석이 밝힌 의도(*"권한 없는 버튼이 403 데드엔드가
+되지 않도록"*)가 실제 동작으로 확인됐다.
+
+> 이로써 `PA-F-045`의 미측정 절반이 닫혔다. 관측 범위의 한계는 남는다 — **버튼을 실제로 누르지
+> 않았다**(누르면 제품 데이터가 바뀐다). 보이지 않는 것은 확인했고, 보이는 것을 눌렀을 때의
+> 서버 응답은 여전히 미측정이다. 다만 그 경로는 `system_admin`에게만 열려 있고 그는 권한이 있다.
+
+---
+
 ## PA-RC-0003 — `stash@{0}` 에 TEST 서버 SSH/sudo 평문 비밀번호가 남아 있다 (사람 조치 필요)
 
 **Severity: Critical · Confidence: Confirmed · Type: blocker / defect(보안)**
