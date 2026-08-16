@@ -5057,3 +5057,81 @@ D-118의 나머지 범위(스트리밍 응답 UI, 사용자 취소 시맨틱 —
 자체가 배포 가능한 완결 지점이라 판단해 별도 후속 후보로 남긴다.
 
 상세: `docs/WORK_STATE.md`, `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
+
+## D-126 (2026-08-17) — 신선한 Full Regression + Chrome Whole-product E2E 재실행이 실결함 1건을 잡았다: `WriteUnavailableError` 없이 그대로 500이 새던 알림 API
+
+D-118 Phase 1~3(대화형 워커 레인) 작업이 끝난 뒤, 그 규모의 기반 변경에 대해
+CLAUDE.md §6이 허용하는 조기 전체 회귀를 돌렸다. 첫 시도에서 `tests/integration`
+청크1의 `test_cli_user.py` 7건이 Windows `STATUS_DLL_INIT_FAILED`(0xC0000142)로
+실패했는데, 격리 재실행(7/7 16초 green)으로 **Chrome E2E 스윕과 동시 실행한 자원
+경합**임을 확인했다 — 이 저장소의 코드 결함이 아니다. 이후 **Full Regression과
+Chrome E2E는 순차로만 돌린다**는 운용 규칙을 세웠다.
+
+### 배경 — background task가 invocation 경계를 못 넘는다
+
+같은 조사 도중 더 중요한 하네스 특성을 발견했다: `run_in_background`로 띄운 프로세스는
+Claude Code invocation이 끝나면(Supervisor가 다음 invocation을 시작하면) 함께
+죽는다 — 올바르게 `run_in_background`를 썼어도 마찬가지였다(수동 `&` 이중
+백그라운딩 문제가 아니다). 반대로 **같은 turn 안에서 PowerShell `Wait-Process`로
+계속 지켜보면**(응답을 끝내지 않고 다른 일을 하며 대기) invocation 경계를 안 넘어도
+정상적으로 완주+통지된다 — 이번 세션에서 30분 이상 걸리는 작업 여러 개(Full
+Regression 청크들, 710페이지 E2E 스윕 두 번)를 전부 이 방식으로 끝까지 지켜봐
+증명했다. 앞으로 긴 검증은 이 패턴을 따른다.
+
+### Full Regression — 청크별 순차 재실행, 전부 green
+
+`unit`+`regression`+`security` 묶음 1회 + `integration` 4청크(알파벳순 132파일을
+33/32/32/32로 고정 분할)를 전부 foreground로 순차 실행 — 실패 0건.
+
+### Static Checks — 번들 최신성 결함 자체 발견
+
+`static_checks.sh`가 `[FAIL] 프런트 소스가 커밋된 번들보다 새롭다`를 냈다 — 같은
+세션에서 고친 `OrgTree.jsx`(KBD-06)를 빌드+커밋하지 않은 채였다. 재빌드+
+`check_bundle_fresh.py --write`로 해소, 이후 SEC-20(git stash 자격증명, 사람 전용
+blocker) 2줄만 남고 전부 green.
+
+### Chrome Whole-product E2E 재실행이 잡은 실결함
+
+§14(2026-08-15)의 마지막 690페이지 스윕 이후 이 세션이 여러 프런트 변경을 커밋한
+채였다(T6 원칙상 재확인 필요). `scripts/stage-static-update.sh`로 우선 정적
+핫배포한 뒤 710페이지 스윕을 돌리니 `console_errors` 709/710 — `admin_approvals`
+(light, 1920×1080@2x)에서 500. 서버 journal 정밀 조회(`\" 500 \"` 패턴으로 hex
+request_id의 우연한 부분열 오탐 회피)로 `POST /api/notifications/read-types`의
+`sqlite3.OperationalError: database is locked`가 원인임을 특정했다.
+
+`app/notifications/service.py::mark_types_read`가 `app/core/db.py`의 공용
+SAVEPOINT 재시도 관용(`is_write_conflict`+`write_conflict_backoff`+
+`DEFAULT_WRITE_CONFLICT_RETRIES`, `team_chat/service.py::_append_message`와 같은
+패턴, PA-RC-0008이 승격해 둔 것)을 안 쓰고 있었다 — 화면 진입마다 자동으로 나가는
+호출이라 다른 동시 쓰기와 부딪힐 일이 흔한데도. **하나만 고치지 않았다**: 같은
+파일의 `mark_read`·`mark_all_read`도 정확히 같은 결함(재시도 없는 `db.execute`+
+`db.flush()`)을 갖고 있어 셋 다 함께 고쳤다. 재시도 소진 시에는 raw 500 대신
+이미 존재하던 `WriteUnavailableError`(503, "일시적인 서버 혼잡으로 저장하지
+못했습니다")를 쓴다 — 이 클래스의 원래 동기는 `get_db` 바깥 커밋의 실패였지만
+(D-75), 필드값 자체("일시적 혼잡으로 저장 실패")가 이 자리에도 정확히 들어맞아
+재사용했다. `ConflictError`(team_chat이 쓰는 것)는 쓰지 않았다 — 그쪽은 실제
+경쟁자(seq 선점)가 있는 경우고, 이쪽은 순수 자원 혼잡이라 의미가 다르다.
+
+신규 시험 4건(`tests/regression/test_notifications_write_conflict.py`) —
+`Session.execute`를 `Update`문에서만 걸리게 monkeypatch해 재시도 성공/소진 둘 다
+확인, revert-to-verify(소스를 되돌리면 재시도 인프라 자체가 없어 4건 전부
+`ImportError`로 실패 확인).
+
+### 배포와 최종 재확인
+
+`build-bundle.sh`(freshness gate 통과) → 서버 전송+무결성 확인 →
+`upgrade-clovirone-web-assistant.sh`(백업→install→`alembic upgrade head`→서비스
+재기동, `docs/MAINTENANCE_PLAYBOOK.md` §2의 기존 검증된 명령 그대로) → `UPGRADE_OK`,
+`verify_deploy.sh` → `DEPLOY_VERIFY_OK`, 3개 유닛(web/배치 워커/대화형 워커) 전부
+`active`(D-118 Phase 2/3 설정이 `web.env`는 배포 대상이 아니므로 그대로 유지됨
+재확인). 710페이지 E2E를 한 번 더 돌려 **21개 검사축 전부 실패 0건**(`console_errors`
+포함) 확인 — `[OK] 치명 검사 실패 없음`.
+
+### 의의
+
+710페이지 중 정확히 1건(0.14%)의 확률적 SQLite 경합 결함이 대규모 실E2E 스윕에서만
+드러났다 — 단위/통합 테스트만으로는 이 클래스의 결함을 체계적으로 잡기 어렵다는
+것을 다시 확인했다(D-118 Phase 3의 발견과 같은 종류). 수정 자체는 국소적이었다
+(기존 공용 관용 재사용, 새 메커니즘 발명 없음).
+
+상세: `docs/QA_COVERAGE.md` §16, `docs/WORK_STATE.md`.

@@ -19,7 +19,12 @@
 
 **표기**: `-` 미검증 · `~` 부분 · `O` 완료
 
-**마지막 갱신**: 2026-08-15 — **§15 신설 + §0~§4 라우트별 `C`/`S`(판독)/`V` 갱신**: 같은 날
+**마지막 갱신**: 2026-08-17 — **§16 신설**: §14 이후 첫 재확인 Chrome E2E(710페이지,
+3회) — `console_errors` 축에서 실결함 1건(`POST /api/notifications/read-types`의
+SQLite 쓰기 경합 500) 발견·수정·재배포·재확인. 최종 실행(`post_20260817c`)은
+**21개 검사축 전부 실패 0건**. 상세는 §16.
+
+그 전 갱신: 2026-08-15 — **§15 신설 + §0~§4 라우트별 `C`/`S`(판독)/`V` 갱신**: 같은 날
 §14(T6 배포 확인 직후 690페이지 E2E) 이후에 돈 4회 추가 E2E(`converge-vis104-64-badge` ·
 `converge-pa15-recheck` · `converge-pa15-4k` · `converge-sem02-remainder`, 71라우트 × 라이트/다크,
 1920×1080 3회 + 3840×2160 1회 = 페이지 552장)를 근거로 `C`(Console·Network)를 69라우트(전체
@@ -1139,3 +1144,49 @@ var/product-audit/verify_dark.py       # 테마 토글 후 대비(그라디언�
 **아직 못 닫은 것**: 위 셋은 전부 jsdom(가짜 DOM) 기준이다. 실브라우저에서 스크롤 높이·겹침·
 줄바꿈까지 눈으로 확인하는 것(Handoff의 `browser_verification` 필드)은 다음 통합 배포 +
 Chrome E2E 사이클로 남아 있다 — jsdom 통과가 "화면이 실제로 그렇게 보인다"의 증거는 아니다.
+
+---
+
+## 16. Chrome Whole-product E2E 재실행 (2026-08-17) — §14(2026-08-15) 이후 첫 재확인, 실결함 1건 발견+수정+재확인
+
+§14/§15의 마지막 690페이지 스윕은 2026-08-15였다 — 그 뒤 이 세션이 VIS-163·VIS-34·
+VIS-59·배너 glyph 정리·D-118(대화형 워커 레인) 대시보드 타일·`OrgTree.jsx` 접근성
+수정까지 실제 프런트 변경을 여러 건 커밋했다. T6(배포 revision 일치) 원칙상 그 변경들은
+§14의 스윕이 본 적 없는 코드다 — 재확인이 필요했다.
+
+**같은 날 세 번 돌렸다** (`scripts/ui_qa/run.py --routes all --viewports 390x844
+1366x768 1920x1080 3840x2160 1920x1080@2x --themes light dark --role system_admin
+--fail-on horizontal_overflow,console_errors,page_errors,auth_ok,theme_applied`,
+71/73라우트 × 2테마 × 5뷰포트 = 710페이지):
+
+| 라벨 | 결과 | 비고 |
+|---|---|---|
+| `post_20260817` | 291/710에서 중단 | Claude Code invocation 경계에서 background 프로세스가 죽음(harness 특성, 코드 결함 아님) — `docs/WORK_STATE.md` invocation 8 checkpoint에 기록 |
+| `post_20260817b` | 710/710 완주, **`console_errors` 709/710** | `admin_approvals`(light, 1920×1080@2x)에서 `Failed to load resource: 500`. 서버 journal 직접 조회로 원인 특정: `POST /api/notifications/read-types`가 `sqlite3.OperationalError: database is locked`를 그대로 500으로 흘림 |
+| `post_20260817c` | 710/710 완주, **전 축 실패 0건** | 위 원인을 고치고(`app/notifications/service.py`, 아래) 재배포한 뒤 재실행 — `console_errors` 710/710 포함 21개 축 전부 pass/의도된 skip뿐, `[OK] 치명 검사 실패 없음` |
+
+### 발견한 결함과 수정
+
+`mark_types_read`(화면 진입마다 자동 호출)가 `app/core/db.py`의 공용 SAVEPOINT
+재시도 관용(`is_write_conflict`+`write_conflict_backoff`+`DEFAULT_WRITE_CONFLICT_RETRIES`,
+`team_chat/service.py::_append_message`와 같은 패턴)을 안 쓰고 있었다. 같은 파일의
+같은 패턴을 가진 `mark_read`·`mark_all_read`도 확인해 셋 다 함께 고쳤다(하나만 고치고
+넘어가지 않음 — CLAUDE.md §4). 재시도 소진 시 raw 500 대신 `WriteUnavailableError`
+(503). 신규 시험 4건(`tests/regression/test_notifications_write_conflict.py`),
+revert-to-verify 확인. 상세: `docs/DECISIONS.md`(다음 항목), `docs/BACKLOG.md`.
+
+### 이 재실행이 검증한 것 / 안 한 것
+
+690→710페이지 전부 **정적 상태**(첫 로드 후 DOM 스냅샷) 기준이다 — §14와 같은 한계를
+그대로 공유한다(모달 열기·폼 제출 등 상호작용 이후 상태는 이 21축이 안 본다,
+`modal_*` 7종이 세 번의 실행 모두 0/0/0인 것이 그 증거). `theme_applied` 10건 skip은
+전부 로그인 화면(의도된 라이트 고정, T9 기존 판정)이다. `tiny_text`/`narrow_main`은
+뷰포트 조건부 검사라 이번에도 대부분 skip(§0 원 서술과 동일한 이유, 새 결함 아님).
+
+발견된 유일한 결함이 **710페이지 중 정확히 1건**(0.14%)이었다는 것은 이 규모의
+동시 요청 스윕에서 SQLite 쓰기 경합이 "드물지만 실재한다"는 것을 보여준다 — 정확히
+D-118 Phase 3가 대화형 레인에서 이미 실측·문서화한 것과 같은 종류의 위험이 배치
+경로(알림 읽음 처리)에도 있었다는 뜻이다. 수정은 국소적이었지만(기존 공용 관용
+재사용, 새 메커니즘 발명 없음), **발견 경로 자체**(대규모 실E2E 스윕만이 이런 확률적
+결함을 드러낸다)는 기록해 둘 가치가 있다 — 단위/통합 테스트만으로는 이 클래스의
+결함을 체계적으로 잡기 어렵다.
