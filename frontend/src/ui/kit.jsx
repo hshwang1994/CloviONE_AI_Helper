@@ -35,7 +35,7 @@ import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, TABLE_CARD_QUERY } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -514,6 +514,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   const safeRows = Array.isArray(rows) ? rows : [];
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
+  // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열이 많은 표만 겪는 문제라 카드 뷰는
+  // 안 건드린다 — 폭 제약이 없는 카드에서 열을 빼면 정보만 준다.
+  const compact = useMediaQuery(TABLE_COMPACT_QUERY);
+  const wideCols = compact ? baseCols.filter((c) => !c.hideNarrow) : baseCols;
 
   if (safeRows.length === 0) {
     return (
@@ -558,7 +562,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
       <Table size="small" stickyHeader={stickyHeader} sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
         <TableHead>
           <TableRow>
-            {cols.map((c) => (
+            {wideCols.map((c) => (
               <TableCell
                 key={c.key}
                 scope="col"
@@ -607,7 +611,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                 aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
                 sx={{ cursor: onRow ? "pointer" : "default" }}
               >
-                {cols.map((c) => {
+                {wideCols.map((c) => {
                   /* HOST-01/HOST-02/VIS-73 — 열 폭이 순수하게 내용에서 파생되던 게 두 방향 모두에서
                      문제였다: ① 값 하나가 길면 그 셀이 51px×2,353px까지 벌어지고 같은 행의 다른
                      셀도 그 높이로 끌려간다(HOST-01, truncateCol이 있는 자리에만 부분 적용돼 있었다)

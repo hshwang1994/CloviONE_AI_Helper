@@ -1062,6 +1062,11 @@ messages.conversation_id, messages.message_id`로 거부되고 있었다 — DBT
 열 폭 기본값 수정 이후에도 그대로). 이 채팅 기능들과는 무관한, 이미 알려진 별도 항목이라
 같이 고치지 않았다 — 상세는 `docs/BACKLOG.md` RESP-01.
 
+> **후속(2026-08-16, D-106)**: 이 실측은 같은 날 나중에 배포된 `PA-RC-0023`(「상세」 버튼
+> 열 제거) **이전** 시점이었다 — 재측정 결과 페이지 자체는 이미 안 넘쳤고, 남은 컨테이너
+> 내부 64px 스크롤도 `DataTable`의 `c.hideNarrow`로 닫았다. 상세는 `docs/DECISIONS.md`
+> D-106, `docs/BACKLOG.md` RESP-01.
+
 
 ---
 

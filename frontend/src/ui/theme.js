@@ -209,6 +209,12 @@ export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2
  * 정확한 값(0.05px 겹침 방지)과 같다. */
 export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 
+/* 카드로 접히기 전, 사이드바(264px, RESP-04)가 아직 안 접힌 900~1200 구간 — 열이 많은 표는
+ * 여기서 페이지 자체가 아니라 TableContainer 안에서 가로 스크롤이 생긴다(RESP-01, 실측:
+ * `/users` 9열이 1024px에서 734px를 요구하는데 본문 폭은 670px뿐이었다). DataTable이
+ * `c.hideNarrow` 열을 이 구간에서만 뺀다 — 카드 뷰(≤899.95px)는 폭 제약이 없으니 그대로 다 보여준다. */
+export const TABLE_COMPACT_QUERY = `(max-width:${BREAKPOINTS.lg - 0.05}px)`;
+
 /* 표제는 화면 폭에 따라 유동적으로 키우되 상한을 둔다(4K에서 무한정 커지지 않게).
  * 본문 계열은 rem 그대로 두고 루트 폰트사이즈 레버에 맡긴다. */
 const display = (minRem, vw, maxRem, weight, tracking) => ({

@@ -480,8 +480,11 @@ export function Users() {
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
     { key: "department", label: "부서", render: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
     { key: "title", label: "직책", render: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
-    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} /> },
-    { key: "last_login_at", label: "최근 로그인", render: (r) => fmtDateTime(r.last_login_at) },
+    // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 9열 전부를 채우면 TableContainer가
+    // 64px+ 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
+    // 핵심이지만 이 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.
+    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} />, hideNarrow: true },
+    { key: "last_login_at", label: "최근 로그인", render: (r) => fmtDateTime(r.last_login_at), hideNarrow: true },
   ];
 
   const items = (query.data && query.data.items) || [];

@@ -7033,3 +7033,38 @@ Static Checks(SEC-20 stash/reflog 자격증명 회전은 사람 조치 대기 �
 예외로 남김), Chrome Whole-product E2E가 이번 Cycle 구현분을 충분히 커버했는지, 그 외
 `docs/BACKLOG.md`에 이 Audit Cycle과 무관하게 남아 있는 미해결 항목이 있는지 전수
 재확인 — 그 결과에 따라 `PROJECT_COMPLETE`를 만들 수 있는지 판단한다.
+
+### 체크포인트 — 2026-08-16 계속: BACKLOG.md 전수 재스윕 — 이미 해결된 15건 교차연결 + `RESP-01`(High) 완결
+
+Audit Cycle 종료 후 CLAUDE.md §8(whole-product 재감사)에 따라 Explore agent로 BACKLOG.md
+736행 전수 triage를 돌렸다 — 열린 것으로 읽히지만 실제로는 후속 작업이 이미 닫았는데
+서로 교차연결이 안 된 "이미 해결됐는데 미완료 표시" 후보 6그룹을 찾았다. 각각을 grep/코드
+직접 확인으로 독립 재검증(agent 주장을 그대로 안 믿음) 후 BACKLOG.md에 완결 근거를
+교차연결했다:
+
+- **FAB 겹침 계열**(`VIS-06`·`VIS-63`·`VIS-49`·`VIS-42`·`VIS-30`·`VIS-122`·`VIS-122 확증`,
+  7건) — `PA-RC-0019`+`0020`(FAB 완전 삭제)과 `PA-RC-0023`(겹침 대상이던 「상세」 버튼 열
+  삭제)로 이미 해소. `Mascot.jsx`/`AppShell.jsx`에 `MascotButton` 참조 0건 직접 확인.
+- **홈 화면 카드 계열**(`VIS-36`·`VIS-37`, 2건) — `PA-RC-0018` direction 6이 팀 채팅/게시판
+  카드를 `/me`에서 이미 제거(`Home.jsx:191-196`·`333-338` 주석이 직접 근거).
+- **「상세」 버튼 반복 계열**(`VIS-61`·`VIS-43`, 2건) — `PA-RC-0023`이 `DataTable`의 `__open`
+  합성 열 자체를 삭제해 반복되던 버튼이 더는 없음.
+
+총 15개 행에 교차연결 커밋(`ae5a3e6`).
+
+이어서 Explore가 보고한 열린 High 11건 중 사람 조치 대기(`SEC-20`)·큰 아키텍처 결정이
+필요한 AI/Runner 묶음(`AI-19/20/33/31/01/07/13/54`)을 제외하고 즉시 착수 가능한
+**`RESP-01`**(1024×768 관리자 표 화면)을 골랐다. 재진단 결과 원 증상("사용 불가")은
+같은 날 나중에 배포된 `PA-RC-0023`으로 이미 사라져 있었고(페이지 자체는 안 넘침), 남은
+64px `TableContainer` 내부 스크롤을 `DataTable`의 opt-in `c.hideNarrow` 신설로 마저
+닫았다(`/users`의 `Notion 연결`·`최근 로그인` 두 열, 900~1200 구간 한정, 카드 뷰는 그대로
+전체 필드). TEST SERVER 배포(`UPGRADE_OK`+`verify_deploy.sh` OK) 후 DOM 조상 사슬 실측
++ 1024/1920/700px 3단 스크린샷으로 재확인, focused 회귀(kit.test.jsx 42건+users 관련
+10파일 37건) green. 상세: `docs/DECISIONS.md` D-106, `docs/BACKLOG.md` `RESP-01`.
+
+**다음에 할 일**: 남은 두 supersession 후보(`VIS-43`/`VIS-61`은 이번에 같이 닫혔으므로
+제외 — Pending 목록에 있던 `VIS-43`/`VIS-61`·`VIS-36`/`VIS-37`은 위에서 전부 처리 완료)는
+없다. 다음은 Explore 보고의 나머지: 남은 High(`FN-42` — 프로젝트 Health 신뢰도 표시
+설계 공백, DB 마이그레이션 또는 16개 pinned 테스트 재검토가 필요해 신중한 별도 검토
+대상), Medium ~30건, AI/Runner 아키텍처 묶음(별도 설계 세션 필요) 순으로 계속 진행한다.
+그 뒤에야 `PROJECT_COMPLETE` 판단(Full Regression 최신 상태 재확인 포함)을 시도한다.

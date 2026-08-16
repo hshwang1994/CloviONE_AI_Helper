@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -234,6 +234,50 @@ describe("DataTable", () => {
       ui(<DataTable columns={[{ key: "name", label: "이름" }]} rows={[{ id: 1, name: "홍길동" }]} rowKey={(r) => r.id} />);
       const header = screen.getByRole("columnheader", { name: "이름" });
       expect(header).toHaveStyle({ minWidth: "4.5rem" });
+    });
+  });
+
+  /* RESP-01: 900~1200(카드로 접히기 전, 사이드바는 아직 264px)에서 열이 많은 표만 겪는
+   * 문제라 c.hideNarrow는 그 구간의 표 렌더링에서만 열을 뺀다 — 카드 뷰(폭 제약 없음)와
+   * 넓은 화면(자리 충분)에서는 항상 전체 열이 보인다. */
+  describe("hideNarrow 열 (RESP-01)", () => {
+    const cols = [
+      { key: "name", label: "이름" },
+      { key: "extra", label: "부가정보", hideNarrow: true },
+    ];
+    const rows = [{ id: 1, name: "홍길동", extra: "부가값" }];
+
+    function mockMedia({ card = false, compact = false } = {}) {
+      window.matchMedia = (query) => ({
+        matches: query.includes("899.95") ? card : query.includes("1199.95") ? compact : false,
+        media: query,
+        addEventListener() {}, removeEventListener() {},
+        addListener() {}, removeListener() {}, onchange: null,
+        dispatchEvent: () => false,
+      });
+    }
+
+    afterEach(() => { delete window.matchMedia; });
+
+    it("넓은 화면(둘 다 거짓)에서는 hideNarrow 열도 그대로 보인다", () => {
+      mockMedia({ card: false, compact: false });
+      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.getByRole("columnheader", { name: "부가정보" })).toBeInTheDocument();
+    });
+
+    it("900~1200 압축 구간(compact만 참)에서는 hideNarrow 열이 빠진다", () => {
+      mockMedia({ card: false, compact: true });
+      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.queryByRole("columnheader", { name: "부가정보" })).toBeNull();
+      // 일반 열은 그대로 남는다 — 표 자체가 카드로 바뀐 게 아니다.
+      expect(screen.getByRole("columnheader", { name: "이름" })).toBeInTheDocument();
+    });
+
+    it("카드 뷰(card도 참)에서는 폭 제약이 없으니 hideNarrow 열도 다시 보인다", () => {
+      mockMedia({ card: true, compact: true });
+      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.getByText("부가정보")).toBeInTheDocument();
+      expect(screen.getByText("부가값")).toBeInTheDocument();
     });
   });
 });
