@@ -6719,3 +6719,49 @@ D-94, `BACKLOG.md` `PA2-07`.
 
 **다음**: 같은 invocation 안에서 곧바로 다음 Root Cause로 — `PA-RC-0023`(동작 위계 규범,
 High/P1, 이번 RC가 이미 국소 선례를 대시보드 안에 만들어 뒀다).
+
+## 2026-08-16 18:0x~ — `PA-RC-0023` 착수: 표 행 키보드 접근 기반 완료(로컬), 사실 확인 2건
+
+**구현(로컬, 아직 미배포)**: `ui/kit.jsx`의 `DataTable`(관리자 28+화면이 공유하는 유일한
+표 컴포넌트)에 `onRow`가 있을 때 행 자체를 키보드로 도달 가능하게 했다 — `tabIndex={0}` +
+`aria-label`(기존 `rowOpenLabel` 재사용) + `onKeyDown`(Enter/Space → `onRow(row)`), 넓은
+화면(`TableRow`)과 좁은 화면(카드형 `Paper`) 둘 다. `role="button"`은 의도적으로 **안**
+줬다 — 재시도/취소 같은 진짜 버튼이 같은 행 안에 있는 표가 있어(registry 행 액션),
+role=button 위에 포커스 가능한 자손을 두는 것은 WAI-ARIA 금지다(`StatusTile`이 이미 같은
+이유로 카드 안에 중첩 버튼을 안 두는 것과 동일한 근거, `adminKit.jsx`). 이 변경은 「상세」
+버튼 열을 **아직 지우지 않은 채** 두 번째 도달 경로만 추가한 것이다 — acceptance_criteria
+4-b(버튼 열 제거 *전에* 행 클릭+키보드가 먼저 성립해야 한다)를 만족하는 순서를 지킨다.
+신규 시험 `ui/datatable-row-keyboard.test.jsx`(5건: 포커스 가능 여부, Enter/Space 활성화,
+셀 안의 실제 버튼과 이중 발화 안 함, onRow 없을 때 tabIndex 없음). 전체 프런트 회귀
+278파일 1905건 green(공유 컴포넌트 변경이라 전체 스위트로 확인).
+
+**사실 확인(TEST SERVER 실측, 아직 배포 전인 현재 라이브 코드 대상)**: Handoff
+`PA-RC-0023`의 `constraints`가 "⚠️ 선행 확인"으로 강조한 `/offboarding` 후보 행 클릭 결함
+(`PA-F-077`: "클릭해도 상세가 열리지 않는다")을 실제로 마우스 클릭으로 재현 시도 —
+**재현 안 됨, 이미 정상 동작한다**(`TargetPicker`의 `onRow={(r) => onPick(r.id)}`가 이미
+올바르게 배선돼 있다, `/users`와 같은 패턴). `PA-RC-0022`에서 `/system`·`/diagnostics`
+안내 패널 수치가 낡았던 것과 같은 종류의 stale finding으로 기록한다 — Handoff 작성 시점
+이후 이 화면이 이미 손봐졌거나(이번 세션의 PA-RC-0022 작업이 이 파일을 건드렸다) 애초에
+그 시점부터 정상이었을 수 있다, 재확인 없이는 구별 못 하므로 "낡음"으로만 기록한다. 키보드
+경로(Tab+Enter)는 위 DataTable 변경이 배포되기 전이라 예상대로 아직 안 됨을 확인 —
+배포하면 이 화면(표 2개: 후보 목록 + 실행 이력, 후자도 같은 `onRow` 패턴)이 자동으로
+같이 고쳐진다.
+
+**병렬로 돌린 Explore 조사**(관리자 콘솔 전체 스캔, 아직 결과 대기): 0-primary 14화면
+실측 재확인, destructive-as-primary 검증(`/departments` 등), `onRow` 소비 화면 전체 목록,
+`scripts/check_typography_literals.py` 구조(신규 버튼 위계 정적 검사의 모델).
+
+**발견(코드 읽기, 조사 대기 중 확인)**: `DataScreen.jsx`의 `headerActions` 항목은
+`variant`(인라인 스타일)와 `primary: true`(빈 상태 CTA로 별도 승격, 항상 `variant="primary"`
+강제)가 **서로 다른 필드**다 — `/notifications`의 "모두 읽음"은 이미 존재하는 헤더
+액션이지만 `variant`를 안 줘서 `default`(외곽선)로 뜬다, `primary: true`도 없다. 그래서
+Handoff의 "0-primary 화면"에 여전히 해당한다 — 새 액션을 만들 필요 없이 기존 항목에
+`variant: "primary"` 한 줄만 더하면 될 가능성이 높다(단, "모두 읽음"은 생성 성격이
+아니라서 `primary: true`로 빈 상태 CTA에 끌어올리는 것까진 안 맞을 수 있다 — 그건 인라인
+`variant`만 primary로 주고 `primary:true`는 안 주는 세 번째 조합이 필요할 수 있다,
+`showCreate`/`primaryHeaderAction` 로직이 그 조합을 지원하는지 재확인 필요).
+
+**다음**: Explore 결과 도착하면 그것과 위 발견을 합쳐 ① 정적 검사 스크립트 신설 ②
+`/departments` 등 destructive-as-primary 실제 수정 ③ 0-primary 화면들에 `variant` 조정
+순으로 진행. 그 다음에야(4-b가 전 표에서 성립함을 재확인한 뒤) 「상세」 버튼 열 제거를
+시도한다.

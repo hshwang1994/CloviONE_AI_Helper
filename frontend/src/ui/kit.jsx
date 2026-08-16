@@ -547,6 +547,9 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
               key={keyOf(row, i)}
               variant="outlined"
               onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+              onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
+              tabIndex={onRow ? 0 : undefined}
+              aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
               sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
             >
               {cols.map((c) => c.open ? (
@@ -602,11 +605,21 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
             const ctx = { rowName: rowNameOf(baseCols, row) };
             return (
               /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
-                 문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작. */
+                 문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작.
+                 같은 이유로 키보드 Enter/Space도 셀 안의 실제 버튼·링크에서 눌렀으면
+                 행 전체의 onRow를 다시 부르지 않는다(그 버튼 자신의 키보드 활성화가
+                 이미 처리한다). PA-RC-0023: role="button"은 일부러 안 준다 — 이 행 안에
+                 재시도/취소 같은 진짜 버튼이 함께 있는 표가 있어(registry 행 액션),
+                 role=button 위에 포커스 가능한 자손을 두는 것은 WAI-ARIA 금지다
+                 (StatusTile의 같은 이유 참고, adminKit.jsx). tabIndex + aria-label +
+                 Enter 처리만으로 키보드 도달을 준다. */
               <TableRow
                 key={keyOf(row, i)}
                 hover={!!onRow}
                 onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+                onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
+                tabIndex={onRow ? 0 : undefined}
+                aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
                 sx={{ cursor: onRow ? "pointer" : "default" }}
               >
                 {cols.map((c) => {
