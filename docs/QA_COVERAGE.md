@@ -154,7 +154,7 @@
 
 | 라우트 | 화면 | ui_qa | 최소 역할 | S | F | A | D | C | R | L | V |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/dashboard` | Dashboard(916줄) | O | operator | O | - | - | - | O | - | - | ~ |
+| `/dashboard` | Dashboard(803줄, PA-RC-0018 REBUILD 2026-08-16) | O | operator | O | - | - | - | O | - | - | ~ |
 | `/users` | Users | O | admin | O | - | - | - | O | - | - | ~ |
 | `/offboarding` | Offboarding | O | admin | O | - | - | - | O | - | - | ~ |
 | `/organizations` | OrgConsole | O | admin | O | - | - | - | O | - | - | ~ |
@@ -183,6 +183,14 @@
 > 판독됐던 상태 그대로다. `/search`는 `user_search`/`user_search-results`/`user_search-empty`
 > (사용자 셸)와 같은 컴포넌트를 공유한다 — 관리자 셸(`/admin#/search`) 자체의 독립된 캡처는
 > 이번에도 없었다(공유 컴포넌트라는 전제로 값을 옮겨 적었을 뿐).
+
+### 3-1. `PA-RC-0018`이 추가한 검증 축 (Handoff `qa_gaps` — 이전엔 이 세 항목이 표에 없었다)
+
+| 축 | Vitest(단위/렌더) | TEST SERVER 실브라우저 |
+|---|---|---|
+| 대시보드 정보 중복(같은 값·라벨이 2회 이상) | ✅ `dashboard-render.test.jsx`(경보↔스트립 상호 배제 2건 + 값 대조) | ⏳ 배포 차단(사람 조치 대기 — `WORK_STATE.md` 2026-08-16 17:0x 체크포인트) 후 `verify_pa_rc_0018.py`의 DUP 스캔(`probe_shell.py` 이식) |
+| 0 값 지표 렌더 규칙(큰 카드로 안 그림) | ✅ `dashboard-render.test.jsx`(`.k-stat` 부재 확인) + `projects.test.jsx`(0건이면 요약 타일 0개) | ⏳ 위와 동일 |
+| 조치 버튼 권한 노출(role별 활성/비활성) | ✅ `dashboard-render.test.jsx`(auditor 비활성·operator 활성 2건) | ⏳ 위와 동일(operator 계정 스크린샷 포함) |
 
 ## 4. 관리자 registry — DataScreen 28키
 

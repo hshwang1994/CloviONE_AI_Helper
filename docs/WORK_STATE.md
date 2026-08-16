@@ -6637,3 +6637,50 @@ High/P1 — Handoff에서 유일한 남은 High, CLAUDE.md §4 우선순위상 �
 이 RC는 이번 체크포인트에서 **아직 구현을 시작하지 않았다** — 위 재확인만 마쳤다. 다음
 invocation이 그대로 이어서 시작하면 된다(큰 문서를 다시 통독할 필요 없이, 이 항목과
 Handoff 블록만 읽으면 충분).
+
+## 2026-08-16 17:0x~ — `PA-RC-0018` 구현 완료(전체 회귀 green), TEST SERVER 배포는 사람 조치 대기
+
+바로 위 체크포인트에서 예고한 대로 시작해 끝까지 구현했다. 요약(상세는 `DECISIONS.md`
+D-94, `BACKLOG.md` `PA2-07`):
+
+- 「확인이 필요한 항목」: StatCard 격자 → 행 목록. 각 행 라벨+값(심각도 텍스트 병기, 색만
+  쓰지 않음)+기본 조치 버튼. danger 우선 정렬의 **첫 행만 `primary`**, 나머지 `default` —
+  `PA-RC-0018`(행마다 기본 버튼)과 아직 미구현인 `PA-RC-0023`(화면당 `contained` 1개) 사이
+  충돌을 이 화면 안에서 해결했다(전체 `PA-RC-0023` 선구현은 범위 밖으로 판단).
+- 경보 판단(`alerts` 배열, 임계값)은 `buildAlerts(d, role)`로 **한 글자도 안 바꾸고** 추출 —
+  git diff로 옛 인라인 코드와 줄 단위 대조 완료, 신규 단위 시험 20건.
+- 「지금 상태」 5카드 → `HealthyStrip`(한 줄, 가운뎃점 대신 테두리 구분 — 처음엔 "·"를 썼다가
+  `check_user_text.py`(§8 가운뎃점 금지)에 바로 걸려 고침). 지금 경보 중인 지표는 스트립에서
+  자동 제외 → 같은 값이 화면에 두 번 안 뜬다.
+- 「인벤토리」·「현재 큐 상태」 삭제(대응 상세 화면이 이미 더 상세), 「작업 지표」는 성공률
+  타일만 제거, 「백업」은 유지하되 버튼 항상 `default` + 배지 중복 억제.
+- 「이 줄은 요약입니다…」 삭제. `/projects` 0건이면 8타일 요약 안 그림. `/me`는 팀 채팅·
+  게시판 카드 제거(사이드바로 이미 대체 경로 있음, 컴포넌트 파일 자체는 존치).
+- **관리자 로그인 착지**: `login.js`가 `next` 없으면 항상 물리 경로 `"/"`로 보내는데
+  `App.jsx`는 물리 경로(`/admin` 여부)만 보고 있어서 **로그인 흐름상 관리자도 실제로는
+  항상 `/me`에 떨어지고 있었다**(버그를 이번에 처음 발견) — `initialLandingPath` 추출해
+  역할 기반으로 고침.
+
+**시험**: `dashboard-helpers.test.js` +20(`buildAlerts`/`dashboardNav`, 원본과 값 대조),
+`dashboard-render.test.jsx` 전면 재작성(중복 부재·0값 무채색·RBAC 버튼 비활성),
+`app-landing-path.test.js` 신규 4건, `home.test.jsx`/`projects.test.jsx` 갱신. **전체 프런트
+회귀 277파일 1900건 green.** `static_checks.sh` green(SEC-20 인간 전담 회전 항목 제외 —
+`PA-RC-0017`/`0022`와 같은 관용). 번들 재빌드 완료(`npm run build` +
+`check_bundle_fresh.py --write`).
+
+**차단(사람 조치 필요) — TEST SERVER 배포**: `scripts/upgrade-clovirone-web-assistant.sh`는
+`systemctl`을 직접 호출해 root 컨텍스트 실행을 전제한다. TEST SERVER(`10.100.64.71`,
+`cloviradmin`)에 SSH 키 인증은 됐지만(`known_hosts`에 기존 항목 다수, `-o BatchMode=yes`
+접속 성공) `sudo -n true`가 `"a password is required"`로 실패했고 `sudo -n -l`도 같은
+오류라 범위가 좁혀진 NOPASSWD 항목도 없다 — CLAUDE.md §3-4(credential 비영구화)상
+비밀번호를 명령행에 넣거나 추측해서 진행하지 않는다(SEC-20이 정확히 이 실수였다). 배포와
+`browser_verification`(acceptance_criteria가 요구하는 실브라우저 라이트/다크 스크린샷,
+역할 4종 대조)은 **사람이 sudo 비밀번호를 제공하거나 직접 배포를 실행**해야 이어진다.
+`var/product-audit/verify_pa_rc_0018.py`를 `verify_pa_rc_0022.py`와 같은 구조로 미리
+작성해 뒀다(`py_compile` 문법 검증만 마침, 배포 직후 그대로 실행하면 된다).
+
+**다음(Handoff 의존 순서)**: 배포가 풀리면 ① `verify_pa_rc_0018.py` 실행 → 실패 항목
+수정 → 재배포 재검증 순으로 `PA-RC-0018`을 완전히 닫는다. 그와 별개로, 배포를 못 하는
+동안에도 남은 10건 중 다음 Handoff 의존 항목(`PA-RC-0023`, 동작 위계 규범 — 이번 RC가
+이미 그 규범의 국소 버전을 대시보드 안에 적용해 둬서 착수 시 참고할 선례가 생겼다)으로
+독립적으로 계속 진행할 수 있다.

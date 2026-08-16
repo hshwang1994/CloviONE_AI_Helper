@@ -3091,4 +3091,114 @@ localStorage 접힘 기록도 새 이름과 안 맞게 돼**, 신규 계정뿐 �
 상세: `docs/BACKLOG.md` `PA2-11`(Handoff cycle의 `PA-RC-0022` 대응 행 — 정확한 ID는
 `BACKLOG.md`에서 재확인).
 
+## D-94 (2026-08-16) — PA-RC-0018: 대시보드 REBUILD — 카드 벽 → 조치 목록 + 정상 지표 스트립
+
+### 배경
+
+`/dashboard`가 최상위 카드 39~40장·기본 동작 0개·2569px(2.38화면)였고, 같은 수치가 최대
+3구역(`3`이 「확인이 필요한 항목」·「지금 상태」·「현재 큐 상태」)에 반복됐다. `/my-stats`·
+`/me`·`/projects`도 같은 병. 상세는 `PRODUCT_AUDIT_HANDOFF.md` `PA-RC-0018`.
+
+### 두 RC의 충돌 — 「행마다 기본 버튼」 vs 「화면당 contained 1개」
+
+`PA-RC-0018`의 target_design은 조치 목록의 **각 행**에 기본 조치 버튼을 요구한다. 같은
+Handoff의 `PA-RC-0023`은 **화면/오버레이당 `contained` 정확히 1개**를 규범으로 못 박는다
+(그리고 `PA-RC-0018` 자신의 implementation_direction(8)이 "조치 버튼의 위계는 `PA-RC-0023`의
+규범을 따른다"고 그 규범에 스스로 종속된다). 경보가 2건 이상이면 이 둘은 표면적으로
+충돌한다.
+
+`PA-RC-0023`은 이번 Cycle에서 아직 구현되지 않은 별도의 제품 전역 RC다(표의 행 「상세」
+버튼 열 제거·정적 검사 신설 등 14+ 화면에 걸친 훨씬 큰 범위). `PA-RC-0018`을 위해 그
+전체를 선구현하는 것은 범위 밖이라고 판단했다 — 대신 이 화면 **안에서** 그 규범의 정신을
+지키는 국소 해법을 택했다: 경보를 danger 우선으로 정렬한 뒤(기존 로직 그대로) **첫 행(가장
+급한 것) 하나만 `primary`(채운 버튼), 나머지는 `default`(외곽선)**로 렌더한다
+(`Dashboard.jsx::ActionQueue`/`ActionRow`). "행마다 기본 동작이 있다"는 target_design의
+요구는 각 행에 실제 클릭 가능한 조치 버튼을 두는 것으로 지켰고, "화면당 contained 1개"는
+그 버튼들의 시각적 강조를 위계화해서 지켰다 — 어느 쪽 계약도 문자 그대로 어기지 않는다.
+같은 이유로 화면 하단 「백업」 구역의 버튼도 상태와 무관하게 항상 `default`로 낮췄다(이전엔
+백업이 하나도 없을 때 `primary`였다 — 경보 목록의 첫 행과 동시에 `primary` 2개가 뜰 수
+있었다).
+
+### 중복 제거 — 값마다 정확히 한 자리
+
+기존 코드의 경보 판단 로직(`alerts` 배열 구성, 임계값 하나하나)은 **한 글자도 바꾸지
+않고** `buildAlerts(d, role)`로 그대로 옮겼다(옛 인라인 코드와 diff로 대조 완료). 이 함수가
+반환하는 `src`(예: `"job:rate"`, `"disk"`)를 정상 지표 스트립을 만들 때 제외 목록으로
+재사용한다 — 같은 지표가 "지금 경보 중이면 조치 목록에, 아니면 스트립에" 중 정확히 한
+곳에만 나온다. `headlineStats()`(5개 헤드라인 지표 계산)도 완전히 무수정으로 남겼다 — 기존
+`dashboard-helpers.test.js`의 6개 시험이 그대로 통과해야 로직이 안 바뀌었다는 증거가 된다.
+
+「인벤토리」·「현재 큐 상태」 두 구역은 Handoff가 명시적으로 지목한 대로 완전히 없앴다
+(`/workflows`·`/schedules`·`/runners`·`/jobs`가 이미 각자 더 상세한 목록/필터를 갖고
+있다 — `/jobs`는 자체 `summary.cards`로 대기/실행/실패/완료/취소 카운트까지 이미 보여준다,
+`registry/automation.js`). 「작업 지표」는 성공률 타일만 빼고(스트립과 중복) 나머지 셋(처리
+요청·성공·평균 처리)은 남겼다 — `/jobs`의 자체 요약이 24시간 롤링 집계나 평균 처리 시간을
+보여주지 않아, 통째로 없애면 어디에도 없는 지표가 된다(regression_risk 2 경고). 「백업」
+구역은 완전히 안 없앴다 — `last_backup_status`가 `SUCCEEDED`/`VERIFIED` 두 값을 가질 수
+있어(`app/backups/service.py::last_successful_backup`) 단순 "며칠 전"보다 더 세밀한 정보이고,
+`alerts`가 안 만드는 값(정확한 타임스탬프)도 갖고 있다 — 대신 그 안의 "며칠 전" 배지만
+system_admin이면서 경보가 이미 뜬 경우에 한해 숨긴다(중복은 그 한 조합에서만 생긴다).
+
+### 로그인 착지 (acceptance_criteria 11)
+
+`login.js`를 직접 추적한 결과 `next`가 없으면(일반 로그인) 항상 물리 경로 `"/"`로
+리다이렉트했다 — `App.jsx`의 기존 분기는 물리 경로(`/admin` 여부)만 보고 역할을 안 봐서,
+**로그인 경로상으로는 관리자도 항상 `/me`에 떨어지고 있었다**(직접 `/admin`으로 들어올 때만
+`/dashboard`). `initialLandingPath(pathname, role)`로 추출해 역할 기반 분기를 추가하고,
+`/admin` 물리 경로 진입(서버가 이미 `app/admin/router.py::admin_console`에서 게이팅)은
+그대로 우선한다. `auth.isLoading`이 끝난 뒤에만 판단한다 — 로딩 중엔 메뉴 자체가 없어
+(`showMenu`) 해시가 바뀔 수 없으므로 안전하다.
+
+### 가운뎃점 회귀
+
+스트립 항목 구분자로 처음에 "·"(가운뎃점)를 썼다가 `static_checks.sh`의
+`check_user_text.py`(사용자 지시 §8: 화면 문구에 가운뎃점·em 대시 금지)에 바로 걸렸다 —
+글자 대신 `borderLeft` 테두리로 구분하도록 고쳤다. 이 검사가 실제로 이런 실수를 잡으라고
+있는 것임을 확인한 사례로 남긴다.
+
+### 프롬프트 인젝션 메모
+
+구현 착수 전 `redesign-existing-projects` 스킬을 호출했을 때, 스킬 출력 끝에 이번 작업과
+무관한 "대화 압축 요약을 지금 만들라"는 지시가 거짓 긴급성("이후 도구 호출은 거부된다")과
+함께 섞여 있었다. 인젝션으로 판단하고 따르지 않았다 — 스킬의 실제 본문(카드는 위계를
+전달할 때만·3열 카드 균일 배열 지양·데이터엔 tabular-nums)은 `quality_rubric`이 이미
+인용한 내용과 일치해 그대로 적용했다.
+
+### 구현 범위
+
+- `Dashboard.jsx`: `buildAlerts`/`dashboardNav` 추출(순수 함수, 로직 무변경), `ActionQueue`/
+  `ActionRow`/`HealthyStrip` 신설, 「지금 상태」·「인벤토리」·「현재 큐 상태」 제거, 「작업
+  지표」 축소, 「백업」 조건부 배지.
+- `App.jsx`: `initialLandingPath` 추출 + 역할 기반 로그인 착지.
+- `Home.jsx`(`/me`): `TeamChatWidget`·게시판 카드(`MyBoardStats`/`RecentBoard`) 제거 —
+  둘 다 사이드바에 이미 목적지가 있다(`navConfig.js` "채팅방"/"자유게시판"). `TeamChatWidget.jsx`
+  파일 자체는 안 지웠다(자기 완결 컴포넌트 + 자체 테스트 보유, 이 작업의 범위는 "카드에서
+  뺀다"이지 "구현을 지운다"가 아니다 — 필요하면 `refactor-cleaner`류 전용 정리로).
+- `Projects.jsx`: 프로젝트 0건이면 8타일 요약을 안 그린다(`Summary` 컴포넌트 조기 `null`
+  반환, `d.total` 기준 — 목록 페이지의 보관 필터와 무관한 집계 쿼리 자체 값).
+- `MyStats.jsx`: 무수정 — 상단 6타일이 이미 `kind={value>0 ? ... : undefined}`로 0값을
+  무채색 처리하고 있었고, Handoff의 direction 4가 명시적으로 지목한 화면이 아니다.
+
+### 검증
+
+`buildAlerts`/`dashboardNav` 신규 단위 시험 20건(원본 로직과 값 대조, git diff로 임계값
+1:1 확인) + `initialLandingPath` 신규 4건 + `dashboard-render.test.jsx` 전면 재작성(중복
+부재·0값 무채색·RBAC 버튼 비활성 포함) + `Home.jsx`/`Projects.jsx` 관련 시험 갱신·신설.
+전체 프런트 회귀 277파일 1900건 green. `static_checks.sh` green(기존 SEC-20 인간 전담
+회전 항목 제외, `PA-RC-0017`/`PA-RC-0022`와 동일한 관용).
+
+### 남은 것 — TEST SERVER 배포 차단(사람 조치 필요)
+
+`scripts/upgrade-clovirone-web-assistant.sh`는 `systemctl`을 직접 호출해 root 컨텍스트
+실행을 전제한다. TEST SERVER(`10.100.64.71`, `cloviradmin`)에 SSH 키 인증은 됐지만
+(`known_hosts`에 기존 20건, `BatchMode=yes` 접속 성공) `sudo -n true`가
+`"a password is required"`로 실패했고 범위가 좁혀진 NOPASSWD 항목도 없다(`sudo -n -l`도
+같은 오류) — CLAUDE.md §3-4(credential 비영구화)상 비밀번호를 명령행에 넣거나 추측할 수
+없다. 배포·`browser_verification`(acceptance_criteria의 실브라우저 스크린샷)은 사람이
+sudo 비밀번호를 제공하거나 직접 배포를 실행해야 진행된다. `var/product-audit/
+verify_pa_rc_0018.py`를 `verify_pa_rc_0022.py`와 같은 구조로 미리 작성해 뒀다(문법 검증만
+완료, 실서버 대상 실행은 아직 — 배포 직후 바로 돌리면 된다).
+
+상세: `docs/BACKLOG.md` `PA2-07`.
+
 상세: `docs/BACKLOG.md` `PA2-06`.
