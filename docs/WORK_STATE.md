@@ -6981,7 +6981,22 @@ green, 관련 화면 회귀 16파일 283건 green). **온보딩 다이얼로그*
 **`PA-RC-0025`**(성공 토스트 명사형 — `DataScreen.jsx`/`SubListDrawer.jsx`)는 격리
 worktree에서 백그라운드 agent가 구현 중, 아직 결과 미수신.
 
-**다음에 할 일 우선순위**: `PA-RC-0025` agent 결과 수신 후 diff 검토·병합 → `PA-RC-0021`
-배포·라이브 검증·완결 → `PA-RC-0024` 프런트 라우팅 마저 구현·완결 → 이 Audit
-Cycle(`PA-20260816-120655-f103fb5b`)의 15개 Root Cause 전부 완료 여부 재확인 →
-`var/product-audit/IMPLEMENTATION_REQUIRED` 제거 조건 충족 여부 판단.
+### 체크포인트 — 2026-08-16 계속: `PA-RC-0021` 완결
+
+배포 + 라이브 검증까지 마쳤다. `scripts/ui_qa/contrast.py`(기존 하네스 재사용)로
+대표 8화면×2테마 위반 0건. 신규 `var/product-audit/verify_pa_rc_0021.py`로 하네스가
+못 재는 세 가지를 추가 확인: 온보딩 다이얼로그 실측(프로필의 "다시 보기"로 실제
+다이얼로그를 다시 띄워 배경색 측정 — `rgb(17,24,45)`, 정상 다크 표면. Handoff의
+관련 증거가 자기모순이라 **오탐으로 판정**하고 코드는 고치지 않음), 실제 배포된
+`/static/js/theme.js`가 OS 다크 선호를 따르는지, 명시적 저장 선택이 그보다
+우선하는지(회귀 없음) — 6개 검사 전부 PASS. `/change-password`는 인증(그것도
+`must_change_password` 상태) 없이는 안 열려 익명 방문은 `/login`으로 새므로, 이
+확인 하나 때문에 공유 서버에 진짜 테스트 계정을 새로 안 만들고 그 페이지가 쓰는
+스크립트를 그대로 fetch해 별도 문서에서 실행하는 방식을 썼다. 상세: `DECISIONS.md`
+D-103, `BACKLOG.md` `PA2-10`.
+
+**다음에 할 일 우선순위**: `PA-RC-0025` agent 결과 수신 후 diff 검토·병합 → `PA-RC-0024`
+프런트 라우팅(라우트 3개 추가·row-click URL 동기화·미등록 경로 폴백을 `ErrorState`로·
+RBAC/IDOR negative 시험) 마저 구현·완결 → 이 Audit Cycle(`PA-20260816-120655-f103fb5b`)의
+15개 Root Cause 전부 완료 여부 재확인 → `var/product-audit/IMPLEMENTATION_REQUIRED`
+제거 조건 충족 여부 판단.

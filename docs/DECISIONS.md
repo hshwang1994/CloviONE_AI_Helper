@@ -3879,3 +3879,72 @@ Chrome 확인(`var/product-audit/verify_pa_rc_0014.py`, 실제 계정으로 이�
 
 **`PA-RC-0014`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA-04`·`PA2-03`,
 `docs/QA_COVERAGE.md` `T11`.
+
+## D-103 (2026-08-16) — `PA-RC-0021`: 다크 테마 대비 — Handoff 4개 항목 중 3개는 진짜, 1개는 오탐
+
+### 조사를 먼저 시켰다 — 그리고 Handoff가 두 번 틀렸다는 게 드러났다
+
+구현 전에 Explore agent로 4개 항목 각각의 정확한 원인 파일을 먼저 확인시켰다(읽기
+전용, 코드 수정 없이 file:line만). 결과:
+
+1. **탭 대비 미달** — 맞다. `AssistantPanel.jsx`(`/me` 브리핑 탭)뿐 아니라
+   `Project.jsx`·`SettingsShell.jsx`도 같은 원인(`MuiTab`/`MuiTabs`에 색 지정 없음)으로
+   같이 걸려 있었다 — Handoff는 `/me` 하나만 측정했지만 실제로는 소비처 3곳 전부였다.
+2. **알림 배지 대비 미달** — 맞다. 단 Handoff가 지목한 컴포넌트(`NotificationBell`의
+   MUI `Badge`)가 아니라 `AppShell.jsx`의 `NavBadge`(사이드바 안 읽음 건수)였다 —
+   `NotificationBell`은 이미 MUI 자동 계산에 맡겨 뒀고 하드코딩은 다른 자리에 있었다.
+3. **`prefers-color-scheme` 첫 로드 무시** — 맞다. 단 Handoff가 암묵적으로 지목한
+   SPA의 `theme-store.js`는 **이미 정확히 구현돼 있었다**(`prefersDark()` 확인 코드
+   존재). 진짜 원인은 레거시 `app/static/js/theme.js`(비밀번호 변경 화면 전용)였다 —
+   `localStorage.getItem(KEY) || "light"`로 OS 선호를 안 보고 즉시 그 기본값을 같은
+   공유 키에 다시 써 버려서, SPA가 나중에 그 키를 읽을 때는 이미 오염된 뒤였다.
+4. **온보딩 다이얼로그가 다크에서 흰색** — **오탐으로 판정.** 실제 코드는 `Modal`
+   공용 컴포넌트를 그대로 쓰고(`kit.jsx`), 하드코딩 색이 없으며, `ThemeProvider`
+   트리 안에 정상 마운트돼 있다. Handoff가 인용한 증거 자체가 자기모순이었다 — 같은
+   HEAD에서 90초 간격으로 찍은 스크린샷 두 장 중 하나는 흰색, 하나는 정상 다크였다
+   (`var/product-audit/shots/dark2_user_me.png` vs `dark3_user_me.png`). 스크린샷
+   타이밍(테마 전환 트랜지션 도중 캡처)이 원인으로 추정된다. **고치지 않고 실측으로
+   재확인만 했다** — `verify_pa_rc_0021.py`가 프로필의 "둘러보기 다시 보기"로 실제
+   다이얼로그를 다시 띄워 배경색을 쟀고 `rgb(17,24,45)`(정상 다크 표면)로 나왔다.
+   근거 없이 재현 안 되는 결함을 "고쳤다"고 적지 않기 위해, 실측으로 확인하는 절차
+   자체를 acceptance_criteria 검증에 포함시켰다.
+
+### 왜 색을 화면마다 안 고치고 테마 컴포넌트 층에서 고쳤나
+
+`MuiLink`/`MuiButton`의 `textPrimary`/`outlinedPrimary`가 이미 같은 문제(색을 안
+주면 MUI가 `primary.main` 원본 accent를 그대로 씀)를 `primaryStrong`(각 모드에서
+대비를 올려 섞은 변수, `mixSrgb`로 이미 계산돼 있음)으로 고쳐 둔 선례가 있었다.
+`MuiTab`/`MuiTabs`에도 같은 토큰을 `theme.components`에 배선해, `Tabs`를 쓰는 세
+화면 전부가 한 번에 낫게 했다 — Handoff가 실측한 것은 `/me` 하나였지만 나머지 둘도
+같은 코드 경로였다(조사로 확인).
+
+### 검증
+
+`theme-link-contrast.test.js`에 기존 파일의 관용(배선 확인 + 실제 대비 수치 계산,
+`light`/`dark` × 4개 accent preset 반복)을 그대로 따라 신규 테스트 추가. `NavBadge`
+쪽은 `error.contrastText`가 `"#fff"`나 `"rgba(0, 0, 0, 0.87)"`처럼 hex가 아닐 수
+있어(MUI 자동 계산값) 기존 hex 전용 대비 계산 헬퍼로 못 쟀다 — jsdom의 실제 CSS
+엔진(`getComputedStyle`)에 색 파싱을 맡기고, 알파가 있으면 실제 배경(`error.main`)
+위에 합성한 뒤 대비를 계산하도록 새 헬퍼(`parseCssColorViaDom`/`resolveOverBackground`)를
+추가했다 — 근사가 아니라 실제 렌더 결과와 같은 계산이다. 137건(신규분 포함) 전부
+green.
+
+배포 전 프런트 관련 회귀(테마·AppShell·AssistantPanel·nav 계열 16파일 283건) green
+확인 후 커밋·배포. `UPGRADE_OK` + `verify_deploy.sh`(`DEPLOY_VERIFY_OK`) OK.
+
+라이브 검증 두 갈래:
+1. `scripts/ui_qa/contrast.py`(기존 QA 하네스, 새로 안 만듦) — 대표 8화면(요구
+   5화면보다 많이) × `light`/`dark` = 16개 조합, **위반 0건**
+   (`dist/contrast/contrast.json`).
+2. 신규 `var/product-audit/verify_pa_rc_0021.py` — 위 하네스가 못 재는 세 가지를
+   직접 잰다: (a) 온보딩 다이얼로그 실측(위에서 설명), (b) 실제 배포된
+   `/static/js/theme.js`를 그대로 fetch해서 실행 — 저장된 값이 없을 때 OS 다크
+   선호를 따르는지, (c) 명시적으로 저장된 "light" 선택이 OS 선호보다 우선하는지
+   (회귀 확인). **6개 검사 전부 PASS.**
+   `/change-password` 자체는 `must_change_password` 세션이 있어야 렌더되는데(익명
+   방문은 `/login`으로 redirect, `/login`은 이 스크립트를 안 읽는다) 이 확인 하나
+   때문에 공유 TEST SERVER에 진짜 계정을 새로 만들지 않고, 그 페이지가 실제로 쓰는
+   스크립트 URL을 그대로 가져와 별도 문서에서 실행하는 방식을 썼다 — 배포된 코드
+   자체를 검증하는 것은 같고, 상태 변경(계정 생성)만 피했다.
+
+**`PA-RC-0021`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-10`.
