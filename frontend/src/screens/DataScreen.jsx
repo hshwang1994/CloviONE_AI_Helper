@@ -28,6 +28,7 @@ import { CROSS_SCREEN_KEYS } from "./data-screen/crossScreenKeys.js";
 import { handleApiError } from "./data-screen/apiError.js";
 import { mergeDetailFields, detailTitle } from "./data-screen/detailFields.js";
 import { SubListDrawer } from "./data-screen/SubListDrawer.jsx";
+import { successMessageFor } from "./data-screen/successMessages.js";
 
 // 열/필드 렌더 헬퍼(badgeCol 등)의 실제 구현은 data-screen/columnHelpers.jsx로 옮겼다.
 // registry/shared.js가 `from "../DataScreen.jsx"`로 이 이름들을 그대로 가져다 쓰므로
@@ -284,7 +285,7 @@ export function DataScreen({ config }) {
         else if (res && res.mapping) setSel(res.mapping);  // 검증→충돌 등: 최신 엔티티로 드로어 갱신(상태·후보 반영)
       }
     } else {
-      announce(res, a.label.replace(/^\+\s*/, "") + " 완료");
+      announce(res, successMessageFor(a.label));
       if (row) {
         // keepSelection — 응답이 새 항목(item)을 돌려주면 드로어를 닫지 않고 그 항목으로 갱신한다
         // (예: 프롬프트 '새 버전' 후 새 초안을 바로 편집할 수 있게 — 목록으로 튕겨 나가지 않는다).
