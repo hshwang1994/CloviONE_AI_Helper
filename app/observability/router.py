@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.core.authz import CONSOLE_READ_ROLES
 from app.core.deps import get_current_user, get_db
+from app.core.elapsed import format_elapsed_korean
 from app.observability.models import (
     COMPONENT_DOCUMENTS,
     COMPONENT_TICKETS,
@@ -84,13 +85,13 @@ def _notice_for(row: SyncStatus, label: str, now: datetime) -> dict | None:
         level, word = LEVEL_INFO, "일시적으로 실패했습니다"
     else:
         return None
-    minutes = int(age // 60)
     return {
         "id": f"sync.{row.component}",
         "level": level,
         "message": (
             f"지금 {label} 동기화가 {word}. "
-            f"마지막으로 정상 갱신된 지 {minutes}분 지났습니다. 최근 변경이 아직 안 보일 수 있습니다."
+            f"마지막으로 정상 갱신된 지 {format_elapsed_korean(age)} 지났습니다. "
+            "최근 변경이 아직 안 보일 수 있습니다."
         ),
         "since": row.last_success_at.isoformat() if row.last_success_at else None,
     }

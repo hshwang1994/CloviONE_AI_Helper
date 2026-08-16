@@ -20,6 +20,7 @@ from app.backups.models import (
 )
 from app.backups.sqlite_backup import backup_database, restore_test, verify_backup
 from app.core.config import Settings
+from app.core.elapsed import format_elapsed_korean
 
 logger = logging.getLogger("app.backups")
 
@@ -350,9 +351,10 @@ def backup_health_alert_reason(db: Session, config: dict, *, now: datetime) -> s
     last = last_successful_backup(db)
     if last is None:
         return "예약 백업이 켜져 있지만 아직 성공한 백업이 하나도 없습니다."
-    stale_days = (now - last.created_at).total_seconds() / 86400
+    seconds_elapsed = (now - last.created_at).total_seconds()
+    stale_days = seconds_elapsed / 86400
     if stale_days > BACKUP_STALE_ALERT_DAYS:
-        return f"마지막으로 성공한 백업이 {int(stale_days)}일 전입니다. 예약이 켜져 있는데도 이렇게 오래됐다면 워커나 스케줄 설정을 확인하세요."
+        return f"마지막으로 성공한 백업이 {format_elapsed_korean(seconds_elapsed)} 전입니다. 예약이 켜져 있는데도 이렇게 오래됐다면 워커나 스케줄 설정을 확인하세요."
     return None
 
 

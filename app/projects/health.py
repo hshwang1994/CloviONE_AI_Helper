@@ -356,6 +356,9 @@ def _rule_stale(data: HealthInput, out: _Ledger) -> None:
         out.checked(RULE_STALE)
         return
     penalty = PENALTY_VERY_STALE if days > VERY_STALE_DAYS else PENALTY_STALE
+    # PA-RC-0015: app/core/elapsed.py의 승급 포맷터(분/시간/일)를 여기서는 안 쓴다 — `days`가
+    # 애초에 `date` 뺄셈(`.days`)에서 나와 하루보다 작은 단위가 없다. 초 단위로 되돌려
+    # 넣는 것은 없는 정밀도를 지어내는 것이라 오히려 오해를 부른다.
     out.checked(
         RULE_STALE, penalty,
         f"마지막 작업 변경이 {days}일 전({data.last_activity_on})입니다.",
