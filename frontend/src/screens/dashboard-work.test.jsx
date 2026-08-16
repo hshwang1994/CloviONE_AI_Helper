@@ -103,9 +103,10 @@ describe("대시보드 업무 구역", () => {
     expect(tile("내 미완료")).toHaveTextContent("3");
     expect(tile("이번 주 마감")).toHaveTextContent("2");
     expect(tile("지연 티켓")).toHaveTextContent("1");
-    // '차질 프로젝트'는 타일과 목록 제목에 각각 있다 - 타일 쪽만 고른다.
-    expect(screen.getAllByText("차질 프로젝트")[0].parentElement).toHaveTextContent("2");
-    expect(screen.getAllByText("지연 마일스톤")[0].parentElement).toHaveTextContent("1");
+    // PA-RC-0018: 이름·사유 목록(WorkList)을 지운 뒤로는 '차질 프로젝트'/'지연 마일스톤'이
+    // 타일 하나에만 있다(대시보드 문서 높이 예산 초과로 제거 — Dashboard.jsx 주석 참고).
+    expect(screen.getByText("차질 프로젝트").parentElement).toHaveTextContent("2");
+    expect(screen.getByText("지연 마일스톤").parentElement).toHaveTextContent("1");
   });
 
   it("이번 주가 어느 주인지(KST 달력일)를 문장으로 말한다", async () => {
@@ -115,12 +116,15 @@ describe("대시보드 업무 구역", () => {
     expect(await screen.findByText(/2026-08-03 부터 2026-08-09 까지/)).toBeInTheDocument();
   });
 
-  it("차질 프로젝트와 지연 마일스톤을 이유와 함께 나열한다", async () => {
+  it("차질 프로젝트·지연 마일스톤 타일을 누르면 /projects로 간다(이름·사유 상세는 거기에 있다)", async () => {
+    // PA-RC-0018: 이름·사유가 딸린 목록(예전엔 여기서 "노션 차질"/"지난 기한" 같은 항목별
+    // 텍스트를 직접 확인했다)은 문서 높이 예산 초과로 지웠다 — 타일이 이미 /projects로
+    // 링크하므로 상세는 그 화면의 몫이다. 여기서는 타일이 여전히 클릭 가능하고 그 목록
+    // 텍스트가 더는 안 뜨는지만 본다.
     renderDashboard();
-    expect(await screen.findByText("노션 차질")).toBeInTheDocument();
-    expect(screen.getByText(/노션 진행 상태가 차질/)).toBeInTheDocument();
-    expect(screen.getByText("지난 기한")).toBeInTheDocument();
-    expect(screen.getByText(/2026-08-02/)).toBeInTheDocument();
+    const tile = await screen.findByText("차질 프로젝트");
+    expect(tile.closest("button")).toBeInTheDocument();
+    expect(screen.queryByText("노션 차질")).not.toBeInTheDocument();
   });
 
   it("아직 Health 를 재지 않은 프로젝트를 '차질 0건'에 섞지 않고 따로 말한다", async () => {
@@ -154,8 +158,8 @@ describe("대시보드 업무 구역 - 0 과 없음", () => {
     expect(await screen.findByText(WORK_UNKNOWN)).toBeInTheDocument();
     expect(screen.queryByText("내 미완료")).not.toBeInTheDocument();
     expect(screen.queryByText("이번 주 마감")).not.toBeInTheDocument();
-    // 프로젝트 쪽은 다른 소스다 - 티켓이 죽었다고 함께 사라지면 안 된다(타일 + 목록 제목).
-    expect(screen.getAllByText("차질 프로젝트")).toHaveLength(2);
+    // 프로젝트 쪽은 다른 소스다 - 티켓이 죽었다고 함께 사라지면 안 된다.
+    expect(screen.getByText("차질 프로젝트")).toBeInTheDocument();
   });
 
   it("운영 지표 질의가 실패해도 업무 구역은 그대로 뜬다", async () => {

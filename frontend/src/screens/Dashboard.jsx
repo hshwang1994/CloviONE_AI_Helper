@@ -362,32 +362,6 @@ export function lastDayOf(endExclusive) {
   return d.toISOString().slice(0, 10);
 }
 
-/* 목록 카드 하나(차질 프로젝트 / 지연 마일스톤 공용).
- * 비었을 때 문구를 받는 이유: '0건'과 '왜 0건인지'는 다른 정보다. */
-function WorkList({ title, bucket, empty, renderItem }) {
-  const items = (bucket && bucket.items) || [];
-  const count = (bucket && bucket.count) || 0;
-  return (
-    <Card sx={{ p: 2.5 }}>
-      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>{title}</Typography>
-      {items.length ? (
-        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
-          {items.map((item) => (
-            <Box component="li" key={item.key} sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-              {renderItem(item)}
-            </Box>
-          ))}
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary">{empty}</Typography>
-      )}
-      {count > items.length ? (
-        <Note>{items.length}건만 표시했습니다. 전체 {count}건은 프로젝트 화면에 있습니다.</Note>
-      ) : null}
-    </Card>
-  );
-}
-
 export function WorkSection() {
   const nav = useNavigate();
   const q = useQuery({
@@ -455,43 +429,14 @@ export function WorkSection() {
         <Note>프로젝트가 많아 일부만 훑었습니다. 합계가 전체와 다를 수 있습니다.</Note>
       ) : null}
 
-      <Box sx={{ display: "grid", gap: 2, mt: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0,1fr))" } }}>
-        <WorkList
-          title="차질 프로젝트"
-          bucket={{ count: troubled.count, items: (troubled.items || []).map((p) => ({ ...p, key: p.project_id })) }}
-          empty="지금 차질로 판정된 프로젝트가 없습니다."
-          renderItem={(p) => (
-            <>
-              <Link component="button" type="button" variant="body2" underline="hover"
-                sx={{ textAlign: "left", fontWeight: FONT_WEIGHT.bold }}
-                onClick={() => nav("/projects/" + p.project_id)}>
-                {p.name}
-              </Link>
-              <Typography variant="caption" color="text.secondary">
-                {(p.reasons || []).join(", ")}
-                {p.health_score != null ? ", Health " + p.health_score + "점" : ""}
-              </Typography>
-            </>
-          )}
-        />
-        <WorkList
-          title="지연 마일스톤"
-          bucket={{ count: overdueMs.count, items: (overdueMs.items || []).map((m) => ({ ...m, key: m.id })) }}
-          empty="기한을 넘긴 마일스톤이 없습니다."
-          renderItem={(m) => (
-            <>
-              <Link component="button" type="button" variant="body2" underline="hover"
-                sx={{ textAlign: "left", fontWeight: FONT_WEIGHT.bold }}
-                onClick={() => nav("/projects/" + m.project_id)}>
-                {m.name}
-              </Link>
-              <Typography variant="caption" color="text.secondary">
-                {m.project_name}, 기한 {m.due_on}
-              </Typography>
-            </>
-          )}
-        />
-      </Box>
+      {/* PA-RC-0018: 차질 프로젝트/지연 마일스톤 이름·사유 목록(WorkList, 2카드)이 여기 있었다.
+          TEST SERVER 실측(2026-08-16)에서 대시보드 문서 높이가 1.5화면 예산(acceptance
+          criteria 2)을 넘겨(1805px) 지웠다 — 위 StatCard 두 장이 이미 개수를 보여주고
+          클릭하면 /projects로 간다, 이름·사유는 거기서 본다. 인벤토리·현재 큐 상태 구역을
+          상세 화면으로 내린 것과 같은 판단이다(같은 값을 화면에 두 번, 이번엔 "개수"와
+          "그 개수의 목록"으로 반복하지 않는다). 항목 3개 이하로 줄이는 것부터 먼저
+          시도했으나(서버가 count와 별개로 items를 최대 5줄까지만 주므로) 실측 데이터가 이미
+          3건 이하라 절감 효과가 없었다 — 카드 자체를 지워야 폭을 줄일 수 있었다. */}
 
       {trend ? (
         <Box sx={{ mt: 2 }}>
