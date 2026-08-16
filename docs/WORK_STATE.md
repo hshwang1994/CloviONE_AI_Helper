@@ -7374,3 +7374,69 @@ Medium 전체를 다시 스캔해야 하지만, 최근 두 차례 전수 스캔(
 Root Cause 레버리지가 있다. (c) `SEC-20`은 여전히 사람 전용 blocker. (d) 그 뒤에야
 `PROJECT_COMPLETE` 판단 — 아직 Phase 2 미착수, 최종 Full Regression 미확인이라
 시기상조.
+
+### 체크포인트 — 2026-08-17 계속(invocation 7): Phase 2 착수 — 실 SQLite 2-레인 시험 + **배포 전 실제 결함 발견·수정** + 대화형 유닛 TEST SERVER 배포(아직 어두움)
+
+**운영 관찰**: 이 구간에서도 background bash/agent가 invocation 경계에서 완료 기록 없이
+끝나는 패턴이 반복됐다(`bwo1hhuox` 등 — 다만 이번엔 재개 후 다시 확인하니 일부는
+실제로 끝까지 돌아 있었다, 유실이 아니라 알림 전달의 문제로 보임). **전략 변경**:
+몇 분 안에 안 끝날 검증은 foreground로 돌려 그 안에서 결과를 확정하고, VIS-59처럼
+이미 focused 시험이 충분한 작은 변경은 전체 회귀를 더 기다리지 않고 그 근거로
+진행했다(나중에 기존 orphan 백그라운드 결과가 뒤늦게 들어와 어차피 green으로
+재확인됨).
+
+**Phase 2 실 SQLite 2-레인 통합 시험(5건)** — `tests/integration/
+test_worker_lanes_two_processes.py` 신설. `test_job_claim_race.py`와 같은 패턴
+(같은 파일을 가리키는 독립된 engine/session_factory 두 벌 = 별도 프로세스 흉내,
+`:memory:` 금지). D-118 Phase 2 체크리스트의 5개 시나리오 전부 커버: (i) 긴 배치
+잡이 chat_message를 안 막음 (ii) 레인이 서로의 job_type을 안 채감 (iii) 대화형
+sweep이 실행 중인 schedule_run을 안 건드림(**핵심 방어선**, revert-to-verify로
+직접 실패 확인) (iv) 플래그 꺼짐 시 단일 워커가 예전과 동일 (v) 대화형 레인 부재 시
+배치가 결국 인수. 첫 시도에서 `run_once()`가 핸들러 반환 즉시 자동으로 finish()까지
+호출한다는 것을 놓쳐 "running 상태 유지" 시뮬레이션이 실패했다 — `claim_next`를
+직접 불러 클레임만 하고 멈추는 방식(`test_worker.py`의 기존 stuck-job 시험과 같은
+패턴)으로 정정.
+
+**배포 전 발견한 진짜 결함 — `main()`이 설정 플래그를 아예 안 봄**: TEST SERVER에
+실제로 뭘 배포할지 설계하던 중, `main()`이 `--lane=conversational`이면 무조건
+`build_conversational_worker`로 가고 `worker_conversational_lane_enabled`는 어디서도
+확인하지 않는다는 것을 발견했다 — 즉 **유닛 파일만 설치·기동돼도 플래그와 무관하게
+즉시 chat_message를 채가기 시작**했을 것이다("플래그가 꺼지면 배치만 처리한다"는
+Phase 1의 전제가 깨짐). 리스 획득 전에 플래그를 확인해 꺼져 있으면 `exit(0)`하도록
+수정(`Restart=on-failure`라 재시작 루프 없음). **revert-to-verify가 극적으로
+확인**: 고치기 전 코드로 새 시험을 돌리니 그냥 실패하는 게 아니라 **테스트 자체가
+행(hang)** 했다 — `main()`이 실제로 `run_forever_pooled`의 블로킹 루프까지 들어가
+버린다는 뜻(2분 타임아웃으로 강제 종료). 배포 전에 잡아서 다행이었던 결함.
+
+**설치 스크립트에도 정식으로 배선** — 처음엔 "TEST SERVER에만 수동으로 유닛을
+깔고 나중에 installer도 고치자"고 생각했는데, 위 flag-gate 수정 덕분에 유닛을
+**항상** 설치·enable해도 안전해졌다(플래그 꺼짐=안전한 조기 종료) — 그래서 수동
+패치 대신 `install-clovirone-web-assistant.sh`를 정식으로 고쳐 배치 유닛과 같은
+방식(복사·enable·재시작)으로 배선했다. `test_deploy_wiring.py`(특권 헬퍼 배선이
+한 번 통째로 사라졌던 실제 사고를 막으려고 만들어진 파일)에 같은 패턴의 시험 추가.
+
+**TEST SERVER 배포(어두운 상태)**: 새 유닛 설치+enable까지 통합 배포
+(`UPGRADE_OK`+`DEPLOY_VERIFY_OK`). 실측: `clovirone-web-worker-conversational.service`
+가 `enabled`인데 `inactive (dead)`, `exit code=0/SUCCESS`, 저널 로그에 정확히
+의도한 문구("...worker_conversational_lane_enabled가 꺼져 있다...")가 찍힘,
+systemd가 "Deactivated successfully"로 취급(재시작 루프 없음). 배치 워커는
+`active`로 정상 유지. **아직 플래그는 안 켰다** — 대화형 레인은 여전히 완전히
+어두운 상태, 이번 배포로 바뀐 실제 동작은 없다(유닛이 설치·enable됐을 뿐).
+
+**커밋**: `4cfdbf6`(실 SQLite 2-레인 시험) → `de1bf6f`(flag-gate 결함 수정,
+revert-to-verify로 하마터면 놓칠 뻔한 배포 전 결함 확인) → `ac3499f`(installer
+배선+시험) → `1feea5e`(가운뎃점/em대시 정리).
+
+**다음에 할 일(Phase 2 계속)**: 지금까지는 전부 어두운 상태로만 검증했다 — **아직
+`worker_conversational_lane_enabled`를 실제로 켠 적이 없다.** 다음 단계: (1)
+TEST SERVER의 `/etc/clovirone-web-assistant/web.env`에 `WORKER_CONVERSATIONAL_LANE_ENABLED=true`
++ `WORKER_CONVERSATIONAL_CONCURRENCY=1` 추가 (2) 배치 워커 재시작(새 설정 반영,
+`exclude_types` 켜짐) + 대화형 유닛 재시작(이번엔 실제로 리스를 잡고 돎) (3) 실측:
+두 유닛 다 active, 서로 다른 리스 파일(`worker.lock`/`worker-conversational.lock`)
+각자 소유자 확인, 두 liveness 컴포넌트(`worker`/`worker_conversational`) 둘 다
+up, **실제 채팅 메시지 하나를 보내 응답이 오는지 확인**(배치 워커를 잠깐 멈추고
+보내면 대화형 레인 단독으로 처리되는지까지 명확히 검증 가능). (4) 문제 없으면
+Phase 3(동시성 1→3, 설정값만 변경)까지 이어서 진행할지 판단. 이 단계가 D-118이
+"가장 위험한 phase"라 부른 지점의 실질적 핵심이므로, 각 단계마다 실측하고 이상
+있으면 즉시 플래그를 다시 끄고 원인 조사한다(롤백 경로: `web.env`에서 플래그만
+`false`로 되돌리고 두 워커 재시작 — 코드 롤백 불필요).
