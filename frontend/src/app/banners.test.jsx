@@ -5,15 +5,16 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* 화면 위쪽 띠 3종(PLAN Phase 6).
+/* 화면 위쪽 띠(PLAN Phase 6, PA-RC-0016로 축소).
  *
- * 여기서 못박는 것은 "예쁘게 그려지는가"가 아니라 **거짓말을 하지 않는가**다:
- *   - 정상일 때는 아무 띠도 뜨지 않는다(늘 떠 있으면 아무도 안 읽는다).
- *   - 임퍼소네이션 중이면 닫을 수 없는 띠가 뜨고, 종료 버튼이 실제로 stop 을 부른다.
- *   - 공지를 닫으면 서버에 dismiss 를 보낸다(브라우저에만 숨기지 않는다 — 그러면 다른 PC
- *     에서 다시 뜬다).
- *   - 배너 API 가 실패해도 화면에 오류가 뜨지 않는다(본문은 멀쩡한데 앱이 고장 난 것처럼
- *     보이는 것이 가장 나쁜 결과다).
+ * PA-RC-0016 이전에는 이 파일이 임퍼소네이션·시스템 상태·공지 셋을 전부 다뤘다. 지금은
+ * `Banners`가 임퍼소네이션(항상 자체 조회)과 CRITICAL 한 줄(부모가 내려주는 `notices` prop을
+ * 그대로 그리기만 함)만 맡는다 — 시스템 상태·공지의 실제 데이터 조회·병합·닫기 로직은
+ * statusNotices.test.jsx가 덮는다(StatusNotices.jsx). 여기서 못박는 것은 여전히 같다:
+ *   - 아무것도 없으면 아무 띠도 뜨지 않는다.
+ *   - 임퍼소네이션 중이면 닫을 수 없는 띠가 뜨고, 종료가 실제 API를 부른다.
+ *   - 임퍼소네이션 API가 죽어도 화면에 오류가 뜨지 않는다.
+ *   - CRITICAL 항목이 있으면 그 한 줄이 뜨고, 없으면(주의/안내뿐이어도) 안 뜬다.
  */
 
 const apiMock = vi.fn();
@@ -24,14 +25,10 @@ vi.mock("../lib/api.js", () => ({
 
 import { Banners } from "./Banners.jsx";
 
-const QUIET = {
-  "/api/admin/impersonation/state": { impersonating: false },
-  "/api/system/status": { notices: [], checked_at: "2026-08-03T00:00:00", poll_seconds: 120 },
-  "/api/announcements": { items: [] },
-};
+const QUIET_IMPERSONATION = { "/api/admin/impersonation/state": { impersonating: false } };
 
 function mockRoutes(overrides = {}) {
-  const table = { ...QUIET, ...overrides };
+  const table = { ...QUIET_IMPERSONATION, ...overrides };
   apiMock.mockImplementation((path, opts) => {
     const method = (opts && opts.method) || "GET";
     if (method !== "GET") return Promise.resolve({ ok: true });
@@ -43,11 +40,19 @@ function mockRoutes(overrides = {}) {
   });
 }
 
-function renderBanners() {
+// useStatusNotices()가 실제로 돌려주는 모양을 손으로 흉내 낸다 — Banners는 이 값을 그대로
+// CriticalStatusLine에 넘기기만 하므로, 여기서는 그 껍데기(prop 계약)만 검증하면 된다.
+function fakeNotices(visible) {
+  const counts = { critical: 0, warning: 0, info: 0 };
+  for (const n of visible) counts[n.level] = (counts[n.level] || 0) + 1;
+  return { isLoading: false, isError: false, all: visible, visible, counts, dismiss: vi.fn() };
+}
+
+function renderBanners(notices) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <Banners />
+      <Banners notices={notices} />
     </QueryClientProvider>,
   );
 }
@@ -58,8 +63,8 @@ beforeEach(() => {
 });
 
 describe("화면 위쪽 띠", () => {
-  it("전부 정상이면 아무 띠도 그리지 않는다", async () => {
-    const { container } = renderBanners();
+  it("임퍼소네이션도 CRITICAL 항목도 없으면 아무 띠도 그리지 않는다", async () => {
+    const { container } = renderBanners(fakeNotices([]));
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(container.textContent.trim()).toBe("");
@@ -76,7 +81,7 @@ describe("화면 위쪽 띠", () => {
         blocked_write_count: 2,
       },
     });
-    renderBanners();
+    renderBanners(fakeNotices([]));
     const banner = await screen.findByRole("status");
     expect(banner).toHaveTextContent("홍길동");
     expect(banner).toHaveTextContent("읽기 전용");
@@ -87,121 +92,37 @@ describe("화면 위쪽 띠", () => {
     const stopCalls = [];
     apiMock.mockImplementation((path, opts) => {
       if (opts && opts.method === "POST") { stopCalls.push(path); return Promise.resolve({ ok: true }); }
-      return Promise.resolve(QUIET[path] || {});
+      return Promise.resolve(QUIET_IMPERSONATION[path] || {});
     });
     await userEvent.click(screen.getByRole("button", { name: /대리 보기 종료/ }));
     await waitFor(() => expect(stopCalls).toContain("/api/admin/impersonation/stop"));
   });
 
-  it("동기화가 늦으면 사실만 담백하게 알린다", async () => {
-    mockRoutes({
-      "/api/system/status": {
-        notices: [{
-          id: "sync.tickets",
-          level: "warning",
-          message: "지금 티켓 동기화가 늦어지고 있습니다. 마지막으로 정상 갱신된 지 22분 지났습니다 — 최근 변경이 아직 안 보일 수 있습니다.",
-          since: "2026-08-03T00:00:00",
-        }],
-        poll_seconds: 120,
-      },
-    });
-    renderBanners();
-    const banner = await screen.findByRole("status");
-    expect(banner).toHaveTextContent("티켓 동기화가 늦어지고");
-    expect(banner).toHaveTextContent("마지막 정상");
-  });
-
-  /* 초기 설정 안내(9-3): 관리자에게는 갈 곳을 함께 준다.
-   * "초기 설정 화면에서 확인하세요"라고만 하고 가는 길을 안 주면 그 문장은 안내가 아니라
-   * 수수께끼다. 반대로 아무 URL이나 받으면 배너가 사람을 밖으로 보내는 통로가 된다. */
-  it("서버가 준 앱 안 경로만 링크로 그린다", async () => {
-    mockRoutes({
-      "/api/system/status": {
-        notices: [{
-          id: "setup.incomplete", level: "warning",
-          message: "초기 설정이 아직 끝나지 않았습니다.",
-          since: null, href: "#/setup",
-        }],
-        poll_seconds: 120,
-      },
-    });
-    renderBanners();
-    const link = await screen.findByRole("link", { name: /초기 설정 계속하기/ });
-    expect(link).toHaveAttribute("href", "#/setup");
-  });
-
-  it("앱 밖으로 나가는 주소는 링크로 그리지 않는다", async () => {
-    mockRoutes({
-      "/api/system/status": {
-        notices: [{
-          id: "setup.incomplete", level: "warning",
-          message: "초기 설정이 아직 끝나지 않았습니다.",
-          since: null, href: "https://evil.example.com/",
-        }],
-        poll_seconds: 120,
-      },
-    });
-    renderBanners();
-    await screen.findByRole("status");
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("갈 곳이 없는 알림에는 링크를 만들어 내지 않는다", async () => {
-    mockRoutes({
-      "/api/system/status": {
-        notices: [{
-          id: "setup.incomplete", level: "warning",
-          message: "초기 설정이 아직 끝나지 않았습니다. 관리자에게 문의해 주세요.",
-          since: null, href: null,
-        }],
-        poll_seconds: 120,
-      },
-    });
-    renderBanners();
-    await screen.findByRole("status");
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("공지를 닫으면 서버에 dismiss 를 보낸다", async () => {
-    mockRoutes({
-      "/api/announcements": {
-        items: [{
-          id: "a-1", title: "정기 점검", body: "토요일 02:00~04:00",
-          level: "warning", dismissible: true, link_url: null, link_label: null,
-        }],
-      },
-    });
-    renderBanners();
-    expect(await screen.findByText("정기 점검")).toBeInTheDocument();
-
-    const posted = [];
-    apiMock.mockImplementation((path, opts) => {
-      if (opts && opts.method === "POST") { posted.push(path); return Promise.resolve({ ok: true, dismissed: true }); }
-      return Promise.resolve(QUIET[path] || { items: [] });
-    });
-    await userEvent.click(screen.getByRole("button", { name: /close/i }));
-    await waitFor(() => expect(posted).toContain("/api/announcements/a-1/dismiss"));
-  });
-
-  it("닫을 수 없는 공지에는 닫기 버튼이 없다", async () => {
-    mockRoutes({
-      "/api/announcements": {
-        items: [{ id: "a-2", title: "필수 안내", body: "", level: "critical", dismissible: false }],
-      },
-    });
-    renderBanners();
-    expect(await screen.findByText("필수 안내")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
-  });
-
-  it("배너 API 가 죽어도 화면에 오류를 띄우지 않는다", async () => {
-    mockRoutes({
-      "/api/system/status": new Error("boom"),
-      "/api/announcements": new Error("boom"),
-      "/api/admin/impersonation/state": new Error("boom"),
-    });
-    const { container } = renderBanners();
+  it("임퍼소네이션 API가 죽어도 화면에 오류를 띄우지 않는다", async () => {
+    mockRoutes({ "/api/admin/impersonation/state": new Error("boom") });
+    const { container } = renderBanners(fakeNotices([]));
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
     expect(container.textContent).not.toMatch(/오류|실패|boom/);
+  });
+
+  it("CRITICAL 항목이 있으면 한 줄로 뜬다", async () => {
+    renderBanners(fakeNotices([
+      { id: "sync.tickets", level: "critical", message: "지금 티켓 동기화가 멈춰 있습니다.", kind: "sync" },
+    ]));
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent("티켓 동기화가 멈춰 있습니다");
+  });
+
+  it("WARNING/INFO뿐이면(CRITICAL 없음) 한 줄도 뜨지 않는다 — 칩 안으로만 접힌다", async () => {
+    const { container } = renderBanners(fakeNotices([
+      { id: "sync.tickets", level: "warning", message: "지금 티켓 동기화가 늦어지고 있습니다.", kind: "sync" },
+    ]));
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/늦어지고 있습니다/);
+  });
+
+  it("notices가 아직 없으면(로딩 중 등) 크래시하지 않는다", () => {
+    expect(() => renderBanners(undefined)).not.toThrow();
   });
 });

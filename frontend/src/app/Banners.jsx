@@ -7,28 +7,29 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { api } from "../lib/api.js";
-import { fmtDateTime } from "../lib/format.js";
-import { safeExternal } from "../lib/safeUrl.js";
+import { CriticalStatusLine } from "./StatusNotices.jsx";
 
-/* 화면 위쪽 띠 — 세 종류가 같은 자리를 쓴다 (PLAN Phase 6).
+/* 화면 위쪽 띠 (PLAN Phase 6, PA-RC-0016로 재편).
  *
- *   1. 임퍼소네이션    — "지금 남의 눈으로 보고 있다". 닫을 수 없다.
- *   2. 시스템 상태     — "지금 티켓 동기화가 늦다" 같은 사실. 서버가 정상이라고 하면 사라진다.
- *   3. 공지            — 관리자가 띄운 것. 사용자가 닫으면 그 계정에는 다시 안 뜬다.
+ *   1. 임퍼소네이션    — "지금 남의 눈으로 보고 있다". 닫을 수 없다. 여기 그대로 남는다.
+ *   2. CRITICAL 한 줄  — 시스템 상태·공지 중 장애(critical)급만, 최대 40px. 나머지(주의·안내,
+ *                        그리고 이미 여기 보인 critical 항목의 상세)는 헤더 우측 상태 칩
+ *                        (StatusNotices.jsx::StatusChip)을 눌러야 보인다.
  *
- * **한 컴포넌트에 모은 이유.** 셋을 각자 다른 곳에서 그리면 동시에 뜰 때 순서와 간격이
- * 화면마다 달라지고, 무엇보다 "본문이 아래로 얼마나 밀리는가"를 아무도 책임지지 않는다.
- * 여기 한 곳에서 그리면 순서(위험한 것이 위)와 간격이 항상 같다.
+ * **PA-RC-0016 이전에는 시스템 상태·공지가 전부 여기서 Alert로 세로로 쌓여, 관리자 화면
+ * 5장(331.5px)·사용자 화면 4장(216px)이 전 라우트에서 상시 첫 화면을 잡아먹었다**(실측).
+ * 판정 조건(WARNING/CRITICAL 임계, 공지 노출 대상)은 하나도 안 바꿨다 — 같은 정보를
+ * 화면 어디에 얼마나 크게 두는가만 바꿨다. 시스템 상태·공지의 실제 데이터 조회·병합·닫기는
+ * StatusNotices.jsx의 useStatusNotices()가 맡는다(칩과 이 줄이 같은 목록을 봐야 서로 다른
+ * 개수를 말하는 모순이 안 생긴다 — AppShell.jsx가 훅 하나를 두 컴포넌트에 나눠 준다).
  *
  * **폴링에 대해.** 상태는 서버가 알려 준 주기(`poll_seconds`)로만 다시 묻는다 — 프런트에
- * 숫자를 박아 두면 부하를 줄이려 할 때 배포가 두 번 필요하다. 공지는 훨씬 덜 바뀌므로
- * 그보다 느리게 돈다. 임퍼소네이션 상태는 자기 세션에 대한 것이라 짧게 본다.
+ * 숫자를 박아 두면 부하를 줄이려 할 때 배포가 두 번 필요하다. 임퍼소네이션 상태는 자기
+ * 세션에 대한 것이라 짧게 본다.
  *
  * 실패하면 **조용히 아무것도 그리지 않는다**. 배너를 못 불러온 것 때문에 화면 위에
  * 빨간 오류가 뜨면, 정작 아래 본문은 멀쩡한데 사용자는 앱이 고장 났다고 읽는다.
  */
-
-const LEVEL_SEVERITY = { info: "info", warning: "warning", critical: "error" };
 
 function useImpersonation() {
   return useQuery({
@@ -40,39 +41,10 @@ function useImpersonation() {
   });
 }
 
-function useSystemStatus() {
-  const [interval_, setInterval_] = React.useState(120000);
-  const query = useQuery({
-    queryKey: ["system-status"],
-    queryFn: () => api("/api/system/status"),
-    refetchInterval: interval_,
-    retry: false,
-    staleTime: 30000,
-  });
-  React.useEffect(() => {
-    const seconds = query.data && query.data.poll_seconds;
-    if (seconds && seconds * 1000 !== interval_) setInterval_(seconds * 1000);
-  }, [query.data, interval_]);
-  return query;
-}
-
-function useAnnouncements() {
-  return useQuery({
-    queryKey: ["announcements-active"],
-    queryFn: () => api("/api/announcements"),
-    refetchInterval: 300000,
-    retry: false,
-    staleTime: 120000,
-  });
-}
-
-function ImpersonationBanner() {
-  const state = useImpersonation();
+function ImpersonationBanner({ data }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [busy, setBusy] = React.useState(false);
-  const data = state.data;
-  if (!data || !data.impersonating) return null;
 
   const stop = async () => {
     setBusy(true);
@@ -114,91 +86,28 @@ function ImpersonationBanner() {
   );
 }
 
-function SystemStatusBanner() {
-  const status = useSystemStatus();
-  const notices = (status.data && status.data.notices) || [];
-  if (!notices.length) return null;
-  return (
-    <>
-      {notices.map((notice) => (
-        <Alert
-          key={notice.id}
-          severity={LEVEL_SEVERITY[notice.level] || "info"}
-          role="status"
-          sx={{ borderRadius: 0 }}
-        >
-          {notice.message}
-          {notice.since ? (
-            <Box component="span" sx={{ ml: 1, opacity: 0.8, fontSize: FONT_SIZE.bodySm }}>
-              (마지막 정상: {fmtDateTime(notice.since)})
-            </Box>
-          ) : null}
-          {/* 서버가 갈 곳을 함께 준 알림에만 링크가 붙는다(초기 설정 안내). "화면에서
-              확인하세요"라고만 하고 가는 길을 안 주면 그 문장은 안내가 아니라 수수께끼다.
-              **앱 안의 해시 경로만** 받는다 - 배너가 임의 URL로 사람을 보내는 통로가 되면
-              안 된다(공지의 safeExternal과 같은 이유, 여기서는 더 좁게 본다). */}
-          {typeof notice.href === "string" && notice.href.startsWith("#/") ? (
-            <Box sx={{ mt: 0.5 }}>
-              <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
-                초기 설정 계속하기
-              </Button>
-            </Box>
-          ) : null}
-        </Alert>
-      ))}
-    </>
-  );
-}
+/** 위험한 것이 위 — 임퍼소네이션(항상) → CRITICAL 한 줄(있을 때만) 순서는 바꾸지 않는다.
+ * `notices`는 AppShell.jsx가 useStatusNotices()로 만들어 이 컴포넌트와 헤더의 StatusChip에
+ * 함께 내려준다 — 훅을 여기서 또 부르면 같은 데이터를 두 번 조회하고, 폴링 타이밍이 갈리면
+ * 칩과 이 줄이 잠깐 다른 개수를 말하는 모순이 생긴다.
+ *
+ * **아무것도 그릴 게 없으면 감싸는 Box 자체를 안 만든다.** `display:"grid"`인 빈 Box는
+ * 높이는 0이 돼도 폭은 부모(`#main-content`, flex:1)를 그대로 채운다 — 눈에는 안 보이지만
+ * 실측 도구(scrollWidth/union-of-boxes 계열)가 그 폭을 "본문 폭"으로 잘못 잰다(PA-RC-0016
+ * 4K 측정에서 실제로 재현: 화면엔 아무 띠도 없는데 본문 폭이 3500px로 나왔다 — 범인은
+ * 안 보이는 이 Box였다, 실제 카드 영역은 CONTENT_MAX_WIDTH대로 3040px에 이미 잘 잡혀
+ * 있었다). 조건부 렌더로 아예 없애는 편이 "폭 0으로 만드는" 임시방편보다 정직하다. */
+export function Banners({ notices }) {
+  const impersonation = useImpersonation();
+  const data = impersonation.data;
+  const impersonating = !!(data && data.impersonating);
+  const critical = !!(notices && notices.visible.some((n) => n.level === "critical"));
+  if (!impersonating && !critical) return null;
 
-function AnnouncementBanner() {
-  const announcements = useAnnouncements();
-  const qc = useQueryClient();
-  const [dismissing, setDismissing] = React.useState({});
-  const items = (announcements.data && announcements.data.items) || [];
-  if (!items.length) return null;
-
-  const dismiss = async (id) => {
-    setDismissing((d) => ({ ...d, [id]: true }));
-    try {
-      await api(`/api/announcements/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: {} });
-      qc.invalidateQueries({ queryKey: ["announcements-active"] });
-    } catch (e) {
-      setDismissing((d) => ({ ...d, [id]: false }));
-    }
-  };
-
-  return (
-    <>
-      {items.map((item) => (
-        <Alert
-          key={item.id}
-          severity={LEVEL_SEVERITY[item.level] || "info"}
-          role="status"
-          sx={{ borderRadius: 0 }}
-          onClose={item.dismissible && !dismissing[item.id] ? () => dismiss(item.id) : undefined}
-        >
-          <AlertTitle sx={{ fontWeight: FONT_WEIGHT.extrabold, mb: item.body ? 0.5 : 0 }}>{item.title}</AlertTitle>
-          {item.body ? <Box component="span" sx={{ fontSize: FONT_SIZE.body }}>{item.body}</Box> : null}
-          {safeExternal(item.link_url) ? (
-            <Box sx={{ mt: 0.5 }}>
-              <Button size="small" href={safeExternal(item.link_url)} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
-                {item.link_label || "자세히 보기"}
-              </Button>
-            </Box>
-          ) : null}
-        </Alert>
-      ))}
-    </>
-  );
-}
-
-/** 위험한 것이 위. 임퍼소네이션 → 시스템 상태 → 공지 순서는 바꾸지 않는다. */
-export function Banners() {
   return (
     <Box sx={{ display: "grid" }}>
-      <ImpersonationBanner />
-      <SystemStatusBanner />
-      <AnnouncementBanner />
+      {impersonating ? <ImpersonationBanner data={data} /> : null}
+      {critical ? <CriticalStatusLine notices={notices} /> : null}
     </Box>
   );
 }

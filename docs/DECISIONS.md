@@ -2762,3 +2762,89 @@ DBTX-02/SEC-38/AI-71 배포 뒤 `scripts/ui_qa/run.py`로 TEST SERVER 전체(71�
 열릴 때만 터진다. 이번 건은 whole-product Chrome QA 스윕이 없었으면 다음에 누가 감사 로그를
 열어볼 때까지 몰랐을 결함이다 — CLAUDE.md §10이 "몇 화면 smoke test로 끝내지 않는다"고 못박은
 이유이기도 하다.
+
+## D-91 (2026-08-16) — PA-RC-0015/0016: 배너 스택 REDESIGN — 헤더 칩 + CRITICAL 한 줄
+
+### 배경
+
+Product Audit Cycle `PA-20260816-120655-f103fb5b`의 Deep UI/UX Design Audit(D-75)이 찾은
+L축 신규 Root Cause 9건 중 첫 둘. `PA-RC-0015`(Low, 배너 경과 시간이 항상 '분' — 이미 별도
+커밋으로 완료, `docs/BACKLOG.md`·`DECISIONS.md` 자체 항목 있음)와 `PA-RC-0016`
+(**High/P1, design_verdict=REDESIGN**)을 그 순서 의존(`0015 → 0016`, Handoff 명시)대로 처리.
+
+`PA-RC-0016` 문제: 전역 배너 스택(시스템 상태 + 공지)이 전 인증 라우트에서 관리자
+5장(331.5px, 1080 뷰포트의 30.7%)·사용자 4장(216px)을 상시 점유. `h1`이 관리자에서
+`y=447`까지 밀림. 티켓·문서 동기화 정지가 동시에 있으면 같은 사실을 두 번 말함(같은
+문구가 컴포넌트만 다른 채 반복). 4K에서 배너가 본문 폭 캡 밖에 있어 화면 폭 활용률이
+91.1%까지 올라감(뒤에 상세 서술).
+
+### 구현
+
+`frontend/src/app/StatusNotices.jsx`(신설) — 시스템 상태(`/api/system/status`)·공지
+(`/api/announcements`) 조회·병합·닫힘 상태를 전담하는 단일 훅 `useStatusNotices()` +
+컴포넌트 둘:
+- `StatusChip` — 헤더 우측의 작은 칩(`장애 N · 주의 M · 안내 K`). 활성 항목이 0이면
+  아예 안 그려진다(공간을 안 뺏는다). 누르면 Popover 패널에 전체 목록.
+- `CriticalStatusLine` — CRITICAL 항목이 있을 때만 뜨는 얇은 한 줄(≤40px, `Banners.jsx`가
+  임퍼소네이션 배너 자리에 그린다). 여럿이어도 첫 항목 + "그 외 N건"으로 한 줄만 유지.
+
+**같은 원인 병합**: `id`가 `"sync."` 접두어(관측 라우터의 `sync.{component}` 식별자,
+`app/observability/router.py::_notice_for`)로 시작하고 **같은 심각도**인 알림을 하나로
+합친다 — 문구 매칭이 아니라 접두어 기준(Handoff가 명시적으로 요구한 방식). 티켓+문서가
+동시에 정지하면 "지금 2개 항목의 동기화가 멈춰 있습니다"로 한 줄.
+
+**판정 조건은 하나도 안 바꿨다** — WARNING/CRITICAL 임계, 공지 노출 대상, 두 엔드포인트의
+응답 구조 전부 그대로. 바뀐 것은 화면 어디에 얼마나 크게 두는가뿐(Handoff의 명시적 제약).
+
+**닫기(dismiss) — 두 갈래로 의도적으로 다르게 처리(D-91 판단, 사후 기록)**:
+- 공지(announcement): 기존 그대로 `POST /api/announcements/{id}/dismiss` — 서버가 그
+  사용자에게 다시 안 보이게 영구 기억(기존 계약 100% 유지).
+- 시스템 상태(sync): **새로 서버 저장소를 만들지 않고 `localStorage`로 처리.** 근거:
+  이 알림은 서버에 "행"으로 존재하지 않고(`/api/system/status`가 매 폴링마다 현재 상태를
+  다시 계산해 돌려줄 뿐) 사고 자체가 일시적/자가치유적이다(동기화가 복구되면 알림도 사라짐).
+  기기를 바꾸면 다시 보이는 정도의 비용이, 새 테이블+엔드포인트+마이그레이션을 들일 만큼
+  크지 않다고 판단했다. 닫힘 키에 **심각도를 포함**(`{id}::{level}`)해 "심각도가 올라가면
+  다시 뜬다" 요구를 새 판정 로직 없이 만족시켰다(레벨이 바뀌면 키 자체가 달라져 자동으로
+  다시 보인다).
+
+`AppShell.jsx`: `useStatusNotices({enabled: !minimal})`를 한 번만 불러 `StatusChip`(헤더)과
+`Banners`(본문 위)에 같은 값을 내려준다 — 각자 훅을 부르면 60초/300초 폴링 타이밍이 갈려
+칩과 줄이 잠깐 다른 개수를 말하는 모순이 생긴다.
+
+`Banners.jsx`: 임퍼소네이션 배너(변경 없음, 여전히 닫을 수 없고 항상 보임)만 남기고
+시스템 상태·공지 렌더링 전체를 제거. **아무것도 그릴 게 없으면(임퍼소네이션도 CRITICAL도
+없으면) 감싸는 `Box` 자체를 렌더하지 않는다** — 빈 `display:"grid"` Box는 높이는 0이 돼도
+폭은 부모(`#main-content`, `flex:1`)를 그대로 채워, 눈에는 안 보이지만 DOM에 존재해
+측정 스크립트에 잡힐 수 있다(직접 실측으로 확인·정정, 아래 "검증" 참고).
+
+### 검증
+
+- 신규 vitest 18건(`statusNotices.test.jsx` 12 + 재작성된 `banners.test.jsx` 6) — 병합,
+  칩 노출/은닉, 패널, 동기화 알림 닫기+새로고침 유지+심각도 상승 재노출, 공지 닫기의
+  서버 호출, 안전하지 않은 링크 미노출, 부분 API 실패 허용, CRITICAL 여러 건 축약.
+  Revert-to-verify: `mergeSyncNotices`를 no-op으로 되돌리면 "같은 심각도 동기화 알림 둘은
+  한 줄로 합쳐진다" 시험이 정확히 예측한 대로("2개 항목" 문구 부재) 실패 → 복구 → 재확인.
+  AppShell 의존 기존 스위트 20개 파일(69건) 전체 green(회귀 없음).
+- TEST SERVER 통합 배포 2회(첫 배포 뒤 직접 DOM 실측으로 "4K 3500px" 잔여 원인을 추적 —
+  실제 카드 영역은 이미 `CONTENT_MAX_WIDTH`대로 3040px에 정확히 잡혀 있었고, 犯인은 빈
+  `Banners` wrapper였다 — 위 조건부 렌더로 정정 후 재배포).
+  **주의**: `ui_qa` 하네스가 보고하는 `mainWidth`는 `#main-content`(`flex:1` 컨테이너) 자체의
+  크기라 크게 나오는 것이 정상이다 — 실제 판정에 쓰이는 값은 `usedWidth`(보이는 자손 박스의
+  합집합)이고, 이건 처음부터 3040px로 정확했다(`narrow_main` 검사 8/8 통과, 스윕으로 직접
+  확인). 이 둘을 혼동해 존재하지 않는 결함을 30분가량 쫓았다 — 다음에 이 하네스의 폭 관련
+  필드를 볼 때는 `usedWidth`를 봐야 한다는 것을 여기 남긴다.
+- 실측(1920×1080, 로그인 상태): `h1` y좌표 — `/admin#/dashboard` 115.9px·`/admin#/users`
+  115.9px·`/#/me` 92px·`/#/chat` 115.9px. 전부 acceptance_criteria(1)의 200px 기준을
+  크게 밑돈다(예전 관리자 y=447 대비).
+- 스크린샷(`dist/ui-qa/rc16_verify/light/3840x2160/admin_dashboard.png`): 배너 띠 없음,
+  카드가 화면 대부분을 채움, 헤더 우측에 작은 칩 자리.
+
+### 남은 것 — 이 RC의 범위가 아니다(Handoff가 명시)
+
+175% 배율 가로 넘침은 `RESP-01`과 같은 결함(`DataTable` 열 폭 계산 — 8개 컬럼 + 264px
+사이드바가 1123px 최소 폭을 요구)이고 Handoff 자신이 "새로 조사하지 마라, RESP-01의 기존
+진단 위에서 이어가라"고 명시했다 — 셸 재설계로는 안 풀린다. `RESP-01`은 이미
+`docs/BACKLOG.md`에 별도 항목으로 열려 있고(다음 전담 UI 사이클 후보) 이 RC가 그것까지
+닫았다고 주장하지 않는다.
+
+상세: `docs/BACKLOG.md` PA-RC-0016(신규 행 추가).

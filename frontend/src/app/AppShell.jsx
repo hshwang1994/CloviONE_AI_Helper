@@ -42,6 +42,7 @@ import { navIcon } from "./navIcons.js";
 import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
+import { StatusChip, useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications } from "./notification-keys.js";
 import { CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
@@ -479,6 +480,14 @@ export function AppShell({
   const onAssistant = loc.pathname === "/chat";
   const homeUser = isUser || userSeg;
 
+  // PA-RC-0016: 헤더 우측 상태 칩(StatusChip)과 본문 위 CRITICAL 한 줄(Banners 안의
+  // CriticalStatusLine)이 **같은** 목록을 봐야 한다 — 훅을 각자 부르면 60초/300초
+  // 폴링 타이밍이 미세하게 갈려 칩은 "장애 2"라고 하는데 그 줄은 1건만 보이는 순간이
+  // 생긴다. minimal(세션 만료) 상태에선 배너 API도 401이므로 아예 조회하지 않는다
+  // (예전 Banners.jsx가 `{!minimal ? <Banners /> : null}`로 컴포넌트째 안 그려 훅도
+  // 안 불렀던 것과 같은 효과를 enabled로 낸다).
+  const statusNotices = useStatusNotices({ enabled: !minimal });
+
   const drawerContent = (
     /* 기준 파일의 .sidebar 는 단색이 아니라 위에서 아래로 어두워지는 그라데이션이다(기준선의
        :root --sidebar 는 #111831 단색이지만, "2026-07-31 full rebuild" 구간에서
@@ -655,6 +664,11 @@ export function AppShell({
               같은 스위치가 화면에 두 번 나온다. 좁은 화면에서는 사이드바가 서랍으로 접히지만,
               그때는 메뉴를 여는 것이 곧 트리를 보는 것이라 스위치도 함께 나온다. */}
 
+          {/* PA-RC-0016: 예전엔 시스템 상태·공지가 본문 위 배너 스택으로 상시 자리를 차지했다
+              (관리자 331.5px·사용자 216px, 전 라우트). 활성 항목이 있을 때만 나타나는 작은
+              칩으로 옮긴다 — 없을 때는 아예 안 그려(StatusChip 내부 total===0 가드) 평소엔
+              헤더 폭을 한 글자도 안 뺏는다. */}
+          {!minimal ? <StatusChip notices={statusNotices} /> : null}
           {!minimal ? <NotificationBell isUser={isUser} /> : null}
           {!minimal ? <UserMenu name={name} userId={userId} avatarUrl={avatarUrl} /> : null}
         </Toolbar>
@@ -699,7 +713,7 @@ export function AppShell({
         {/* 배너는 본문 폭 캡 밖에 있어야 한다 — 안쪽에 두면 4K 에서 화면 가운데만 띠가 뜨고
             양옆이 비어, "전역 공지"가 한 열짜리 카드처럼 보인다. 세션 만료(minimal) 상태에는
             띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이고, 배너 API 도 401 이다. */}
-        {!minimal ? <Banners /> : null}
+        {!minimal ? <Banners notices={statusNotices} /> : null}
         {/* 스코프 바 — 배너 **아래**, 본문 폭 캡 **안**이다. 배너는 전역 공지라 화면 폭
             전체를 쓰지만 이건 "이 목록이 왜 이만큼인가" 를 설명하는 줄이라 목록과 같은
             폭이어야 붙어 읽힌다. 전체 범위인 사람에게는 아무것도 그리지 않는다. */}
