@@ -55,8 +55,8 @@ describe("SettingEditor — 읽기 전용 역할(operator)", () => {
   it("'미리 검증'·'저장' 버튼이 사라지지 않고 비활성으로 남으며, 이유와 연결된다", async () => {
     const user = userEvent.setup();
     renderSettings();
-    const btn = await screen.findByRole("button", { name: "상세 보기: 대화 보존 기간(일)" });
-    await user.click(btn);
+    const row = await screen.findByRole("row", { name: "상세 보기: 대화 보존 기간(일)" });
+    await user.click(row);
 
     const check = await screen.findByRole("button", { name: "미리 검증" });
     const save = screen.getByRole("button", { name: "저장" });

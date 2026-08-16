@@ -169,8 +169,8 @@ describe("목록 표시", () => {
     expect(screen.getByText("[3]")).toBeInTheDocument();
     // 댓글이 0건인 글에는 대괄호 표시를 붙이지 않는다.
     expect(screen.queryByText("[0]")).toBeNull();
-    // 첫 열이 render()를 써도 행 열기 버튼이 이름을 갖는다(openLabel).
-    expect(screen.getByRole("button", { name: "상세 보기: 사내 보안 공지" })).toBeInTheDocument();
+    // 첫 열이 render()를 써도 행이 열기 이름(aria-label)을 갖는다(openLabel).
+    expect(screen.getByRole("row", { name: "상세 보기: 사내 보안 공지" })).toBeInTheDocument();
   });
 
   // VIS-141: like_count는 아이디어 전용 값이 아니다(서버가 두 종류 모두에 채워 준다) —

@@ -55,8 +55,8 @@ function renderSettings() {
 }
 
 async function openEditor(user, rowLabel) {
-  const btn = await screen.findByRole("button", { name: "상세 보기: " + rowLabel });
-  await user.click(btn);
+  const row = await screen.findByRole("row", { name: "상세 보기: " + rowLabel });
+  await user.click(row);
 }
 
 function isGet(opts) { return !opts || !opts.method || opts.method === "GET"; }

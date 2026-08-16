@@ -62,7 +62,7 @@ function renderScreen(qc) {
 
 async function openRow(text) {
   const cell = await screen.findByText(text);
-  await userEvent.click(within(cell.closest("tr")).getByRole("button", { name: /상세/ }));
+  await userEvent.click(cell.closest("tr"));
   return screen.findByRole("dialog");
 }
 

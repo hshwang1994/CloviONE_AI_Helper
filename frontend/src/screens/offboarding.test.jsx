@@ -114,7 +114,7 @@ function renderScreen(qc = new QueryClient({ defaultOptions: { queries: { retry:
 }
 
 async function pickLeaverAndRun(user) {
-  await user.click(await screen.findByRole("button", { name: /상세 보기/ }));
+  await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
   // 미리보기 — 실행 전에 보유 티켓이 화면에 있어야 한다.
   expect(await screen.findByText("혼자 담당 A")).toBeInTheDocument();
   expect(screen.getByText(/보유 티켓 2건/)).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("오프보딩 화면", () => {
   it("체크를 풀면 그 티켓은 요청에서 빠진다", async () => {
     const user = userEvent.setup();
     renderScreen();
-    await user.click(await screen.findByRole("button", { name: /상세 보기/ }));
+    await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
     await screen.findByText("혼자 담당 A");
 
     /* 예전에는 "이 항목 선택" 이 모든 행에 똑같이 붙어서, 검사도 **몇 번째 상자인지**로만
@@ -212,7 +212,7 @@ describe("오프보딩 화면", () => {
     });
     const user = userEvent.setup();
     renderScreen(qc);
-    await user.click(await screen.findByRole("button", { name: /상세 보기/ }));
+    await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
     await screen.findByText("혼자 담당 A");
 
     await user.click(screen.getByRole("checkbox", { name: "혼자 담당 A 선택" }));
@@ -232,7 +232,7 @@ describe("오프보딩 화면", () => {
     renderScreen();
     // 이력 표의 첫 열(실행 시각)은 render(날짜 포맷)가 있지만 rowName으로 "대상 · 시각"을
     // 명시했다(SEM-01) — 대상 고르기 표('상세 보기: 퇴사자')와 정규식으로 구별해 고른다.
-    const openRun = await screen.findByRole("button", { name: /상세 보기: 퇴사자/ });
+    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).getByRole("button", { name: "되돌리기" })).toBeInTheDocument();
@@ -251,7 +251,7 @@ describe("오프보딩 화면", () => {
     });
     const user = userEvent.setup();
     renderScreen();
-    const openRun = await screen.findByRole("button", { name: /상세 보기: 퇴사자/ });
+    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     const link = within(drawer).getByRole("link", { name: "감사 로그에서 보기" });
@@ -283,7 +283,7 @@ describe("오프보딩 화면", () => {
 
     // user_name이 null이라 rowName(SEM-01)도 같은 "알 수 없음" 폴백으로 떨어진다 — raw UUID는
     // 여기서도(버튼 접근 이름에서도) 새면 안 된다.
-    const openRun = await screen.findByRole("button", { name: /상세 보기: 알 수 없음/ });
+    const openRun = await screen.findByRole("row", { name: /상세 보기: 알 수 없음/ });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).queryByText(/1{8}-1{4}-1{4}-1{4}-1{12}/)).not.toBeInTheDocument();

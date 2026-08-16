@@ -468,7 +468,10 @@ export function ErrorState({ error, onRetry, size }) {
  * .k-table th:nth-child(n)으로 고정하고(문서 표) 좁은 화면 카드 전환도 그 CSS가 담당하기
  * 때문이다. 표는 DataScreen 재설계(A3)에서 CSS까지 함께 옮긴다.
  *
- * 접근성: 행은 표 의미(row)를 유지하고, 상세 열기는 마지막 칸의 실제 <button>이 담당한다. */
+ * 접근성: 행은 표 의미(row)를 유지한다 — 상세 열기는 행 자체의 클릭/Enter·Space가
+ * 담당한다(PA-RC-0023). 예전엔 마지막 칸의 실제 <button>("상세")이 유일한 진입점이었는데,
+ * 그 버튼이 하는 일이 행 클릭과 완전히 같아 잉크만 쓰고 정보를 더하지 않았다 — 버튼 없이도
+ * 키보드로 도달 가능해진 뒤(tabIndex+aria-label+onKeyDown, 아래) 열을 지웠다. */
 function rowOpenLabel(columns, row) {
   /* 열 정의가 '행을 구별하는 값'을 명시했으면(rowName) 그것이 가장 정확하다 — 첫 열이
      무엇이든 화면이 정한 식별 열을 쓴다(ui/rowName.js). 표식이 없는 표는 아래 옛 규칙
@@ -507,25 +510,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const baseCols = Array.isArray(columns) ? columns : [];
+  const cols = baseCols;
   const safeRows = Array.isArray(rows) ? rows : [];
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
-  const cols = onRow ? [...baseCols, { key: "__open", label: "", align: "right", open: true, width: "6rem" }] : baseCols;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
-
-  /* 이 저장소에서 **가장 많이 반복되는 버튼**이다 — 관리자 28화면 × 표의 모든 행.
-     `MuiButton variant="outlined"` 를 그냥 쓰면 MUI 기본 색(primary)이 붙어 **혼자만
-     파랗다**. kit 의 `default` 는 `color: "inherit"`(중립)이고 같은 화면의 다른 버튼은
-     전부 그쪽이다. 한 화면에 수십 개가 깔리므로 이 하나가 화면 전체의 색 인상을 정한다
-     (K-B1). kit `Button` 을 쓰면 어휘가 한 곳에서만 정해진다. */
-  const openButton = (row) => (
-    <Button
-      size="sm"
-      aria-label={rowOpenLabel(baseCols, row)}
-      onClick={(e) => { e.stopPropagation(); onRow(row); }}
-    >
-      상세
-    </Button>
-  );
 
   if (safeRows.length === 0) {
     return (
@@ -552,9 +540,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
               aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
               sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
             >
-              {cols.map((c) => c.open ? (
-                <Box key={c.key} sx={{ pt: 1 }}>{openButton(row)}</Box>
-              ) : (
+              {cols.map((c) => (
                 <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
                   <Typography variant="caption" color="text.secondary">{c.label}</Typography>
                   <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{cellValue(c, row, ctx)}</Box>
@@ -589,12 +575,11 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                    불투명 배경은 안 준다 — 스크롤되는 본문 셀이 헤더 뒤로 비쳐 보인다.
                    이 표는 항상 Card(background.paper) 안에 있으므로 그 색을 명시한다. */
                 sx={{
-                  width: c.width, minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH), whiteSpace: "nowrap",
+                  width: c.width, minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH, whiteSpace: "nowrap",
                   ...(stickyHeader ? { bgcolor: "background.paper" } : null),
                 }}
               >
-                {/* 상세 열기 칸은 라벨이 비어 있어 스크린리더가 이름 없이 침묵으로 읽었다. */}
-                {c.open ? <span className="sr-only">동작</span> : c.label}
+                {c.label}
               </TableCell>
             ))}
           </TableRow>
@@ -632,8 +617,8 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                      말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
                      이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
                      `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
-                  const truncate = !c.open && (ellipsis || !c.render);
-                  const raw = !c.open && !c.render ? cellValue(c, row, ctx) : null;
+                  const truncate = ellipsis || !c.render;
+                  const raw = !c.render ? cellValue(c, row, ctx) : null;
                   return (
                     <TableCell
                       key={c.key}
@@ -644,9 +629,9 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                            minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH }
                         : { overflowWrap: c.nowrap ? "normal" : "anywhere",
                            whiteSpace: c.nowrap ? "nowrap" : undefined,
-                           minWidth: c.minWidth ?? (c.open ? undefined : DEFAULT_COL_MIN_WIDTH) }}
+                           minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH }}
                     >
-                      {c.open ? openButton(row) : raw != null ? raw : cellValue(c, row, ctx)}
+                      {raw != null ? raw : cellValue(c, row, ctx)}
                     </TableCell>
                   );
                 })}

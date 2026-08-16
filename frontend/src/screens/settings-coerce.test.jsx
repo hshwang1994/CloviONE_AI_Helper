@@ -51,9 +51,9 @@ function renderSettings() {
 }
 
 async function openEditor(user, rowLabel) {
-  // 행 라벨과 '키' 열이 같은 텍스트일 수 있어(extra_object) 유일한 '상세 보기' 버튼으로 연다.
-  const btn = await screen.findByRole("button", { name: "상세 보기: " + rowLabel });
-  await user.click(btn);
+  // 행 라벨과 '키' 열이 같은 텍스트일 수 있어(extra_object) 유일한 '상세 보기' 행 이름으로 연다.
+  const row = await screen.findByRole("row", { name: "상세 보기: " + rowLabel });
+  await user.click(row);
 }
 
 describe("coerce (via SettingEditor render)", () => {

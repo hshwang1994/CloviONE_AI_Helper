@@ -305,7 +305,7 @@ describe("프로젝트 목록 — 표", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    await user.click(screen.getByRole("button", { name: "상세 보기: 배포 자동화" }));
+    await user.click(screen.getByRole("row", { name: "상세 보기: 배포 자동화" }));
 
     await waitFor(() => expect(addr()).toBe("/projects/p-1"));
   });

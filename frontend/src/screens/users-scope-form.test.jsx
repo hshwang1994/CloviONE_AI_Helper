@@ -77,7 +77,7 @@ async function openEditForm(user, emailToClick) {
   renderUsers();
   const rowEmail = await screen.findByText(emailToClick);
   const row = rowEmail.closest("tr");
-  await user.click(within(row).getByRole("button", { name: /상세 보기/ }));
+  await user.click(row);
   const drawer = await screen.findByRole("dialog");
   await user.click(within(drawer).getByRole("button", { name: "수정" }));
   return screen.findAllByRole("dialog").then((ds) => ds[ds.length - 1]);

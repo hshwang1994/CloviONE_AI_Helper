@@ -165,10 +165,13 @@ describe("DataTable", () => {
   const columns = [{ key: "name", label: "이름" }, { key: "role", label: "역할" }];
   const rows = [{ id: 1, name: "홍길동", role: "관리자" }];
 
-  it("행마다 다른 이름으로 상세 버튼을 만든다", () => {
+  // PA-RC-0023: 「상세」 버튼 열을 없앴다(행 클릭+키보드가 같은 일을 하므로 중복이었다,
+  // ui/datatable-row-keyboard.test.jsx가 그 도달 경로를 고정한다) — 행마다 다른 이름을
+  // 갖는다는 계약은 이제 행 자신의 aria-label에 있다.
+  it("행마다 다른 이름(aria-label)을 갖는다", () => {
     const onRow = vi.fn();
     ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} onRow={onRow} />);
-    expect(screen.getByRole("button", { name: "상세 보기: 홍길동" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "상세 보기: 홍길동" })).toBeInTheDocument();
   });
 
   it("비정상 입력에도 크래시하지 않고 빈 안내로 떨어진다", () => {

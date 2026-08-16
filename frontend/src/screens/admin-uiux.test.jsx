@@ -58,7 +58,7 @@ const findText = (text) => screen.findByText(text, {}, WAIT);
 // 행 하나를 찾아 상세 드로어를 연다(표 모드 기준 — jsdom 기본 폭에서는 카드가 아니라 표다).
 async function openRow(text) {
   const cell = await findText(text);
-  await userEvent.click(within(cell.closest("tr")).getByRole("button", { name: /상세/ }));
+  await userEvent.click(cell.closest("tr"));
   return screen.findByRole("dialog", {}, WAIT);
 }
 

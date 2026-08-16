@@ -71,7 +71,7 @@ afterEach(() => { window.location.hash = ""; });
 
 async function openDetail(user) {
   const cell = await screen.findByText("영업팀", {}, WAIT);
-  await user.click(within(cell.closest("tr")).getByRole("button", { name: /상세/ }));
+  await user.click(cell.closest("tr"));
   return screen.findByRole("dialog", {}, WAIT);
 }
 

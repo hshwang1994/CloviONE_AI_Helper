@@ -74,7 +74,7 @@ afterEach(() => { window.location.hash = ""; });
 
 async function openEditForm(user) {
   const cell = await screen.findByText("영업팀", {}, WAIT);
-  await user.click(within(cell.closest("tr")).getByRole("button", { name: /상세/ }));
+  await user.click(cell.closest("tr"));
   const drawer = await screen.findByRole("dialog", {}, WAIT);
   await user.click(within(drawer).getByRole("button", { name: "수정" }));
   const dialogs = await screen.findAllByRole("dialog", {}, WAIT);

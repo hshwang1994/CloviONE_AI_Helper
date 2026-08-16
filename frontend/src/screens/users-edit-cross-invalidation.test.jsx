@@ -104,7 +104,7 @@ describe("사용자 수정 — 화면 밖 값 갱신", () => {
     const orgBefore = getCallCount("/api/admin/organizations");
 
     const row = rowEmail.closest("tr");
-    await user.click(within(row).getByRole("button", { name: /상세 보기/ }));
+    await user.click(row);
     const drawer = await screen.findByRole("dialog");
     await user.click(within(drawer).getByRole("button", { name: "수정" }));
     const dialogs = await screen.findAllByRole("dialog");

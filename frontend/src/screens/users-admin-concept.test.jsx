@@ -101,8 +101,8 @@ describe("Users 목록/상세 — 조직관리자·부서관리자 배지가 실
   it("상세 드로어의 '관리 범위' 줄에도 개념 배지가 붙는다", async () => {
     const user = userEvent.setup();
     renderUsers();
-    const openBtns = await screen.findAllByRole("button", { name: /상세 보기/ });
-    await user.click(openBtns[0]);
+    const openRows = await screen.findAllByRole("row", { name: /상세 보기/ });
+    await user.click(openRows[0]);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("조직관리자")).toBeInTheDocument();
   });

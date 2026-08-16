@@ -73,7 +73,7 @@ afterEach(() => { window.location.hash = ""; });
 
 async function openDrawer(user) {
   const cell = await screen.findByText("기본 러너", {}, WAIT);
-  await user.click(within(cell.closest("tr")).getByRole("button", { name: /상세/ }));
+  await user.click(cell.closest("tr"));
   return screen.findByRole("dialog", {}, WAIT);
 }
 

@@ -4,12 +4,12 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* SEM-01: `/users` 목록의 "상세 보기" 버튼(과 대량 작업 선택 체크박스)이 18명 전부
- * 똑같은 이름으로 읽혔다. 첫 열이 선택 체크박스(render 있음, rowName:false로 스스로
- * 제외)이고 그다음 "이메일" 열엔 표식이 없어 kit.jsx의 rowOpenLabel 이 옛 폴백(첫 열 —
- * 즉 체크박스)에 걸려 무조건 "상세 보기"로 뭉뚱그렸다. 이메일 열에 rowName 을 달아
- * 고쳤다 — 이 테스트는 실제로 2행을 렌더링해 두 "상세 보기" 버튼의 접근 이름이 서로
- * 다른지 확인한다(단일 행 픽스처인 users-detail.test.jsx는 이 결함을 드러낼 수 없었다).
+/* SEM-01: `/users` 목록의 행(과 대량 작업 선택 체크박스)이 18명 전부 똑같은 "상세 보기"
+ * 이름으로 읽혔다. 첫 열이 선택 체크박스(render 있음, rowName:false로 스스로 제외)이고
+ * 그다음 "이메일" 열엔 표식이 없어 kit.jsx의 rowOpenLabel 이 옛 폴백(첫 열 — 즉 체크박스)에
+ * 걸려 무조건 "상세 보기"로 뭉뚱그렸다. 이메일 열에 rowName 을 달아 고쳤다 — 이 테스트는
+ * 실제로 2행을 렌더링해 두 행의 접근 이름이 서로 다른지 확인한다(단일 행 픽스처인
+ * users-detail.test.jsx는 이 결함을 드러낼 수 없었다).
  */
 
 const apiMock = vi.fn();
@@ -67,11 +67,11 @@ function renderUsers() {
 }
 
 describe("Users 목록의 행별 접근 이름 (SEM-01)", () => {
-  it("두 사용자의 '상세 보기' 버튼이 서로 다른 이름으로 읽힌다", async () => {
+  it("두 사용자의 행이 서로 다른 '상세 보기' 이름으로 읽힌다", async () => {
     renderUsers();
-    const openButtons = await screen.findAllByRole("button", { name: /상세 보기/ });
-    expect(openButtons).toHaveLength(2);
-    const names = openButtons.map((b) => b.getAttribute("aria-label"));
+    const openRows = await screen.findAllByRole("row", { name: /상세 보기/ });
+    expect(openRows).toHaveLength(2);
+    const names = openRows.map((r) => r.getAttribute("aria-label"));
     expect(new Set(names).size).toBe(2);
     expect(names).toContain("상세 보기: 서윤경");
     expect(names).toContain("상세 보기: 홍길동");
@@ -79,7 +79,7 @@ describe("Users 목록의 행별 접근 이름 (SEM-01)", () => {
 
   it("대량 선택 체크박스도 서로 다른 이름으로 읽힌다(같은 열 표식을 공유)", async () => {
     renderUsers();
-    await screen.findAllByRole("button", { name: /상세 보기/ });
+    await screen.findAllByRole("row", { name: /상세 보기/ });
     const boxes = screen.getAllByRole("checkbox").filter((b) => b.getAttribute("aria-label") !== "전체 선택");
     const names = boxes.map((b) => b.getAttribute("aria-label"));
     expect(new Set(names).size).toBe(names.length);

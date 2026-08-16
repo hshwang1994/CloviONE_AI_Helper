@@ -86,7 +86,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     });
     renderScreen("feature-flags");
     const row = await screen.findByText("games_enabled");
-    await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
+    await userEvent.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
     await userEvent.click(within(drawer).getByRole("button", { name: "비활성화" }));
     // 확인 대화상자
@@ -108,7 +108,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     }));
     renderScreen("feature-flags");
     const row = await screen.findByText("maintenance_mode");
-    await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
+    await userEvent.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).queryByRole("button", { name: "활성화" })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole("button", { name: "비활성화" })).not.toBeInTheDocument();
@@ -210,7 +210,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     // WF1 R1: 요약 열이 title만 쓰던 시절엔 kind별 고정 문자열이라 같은 kind의 다른 행위자와
     // 안 구별됐다 — 이제 행위자를 붙인다(registry/governance.js audit-anomalies).
     const row = await screen.findByText("실패가 몰려 있습니다 / 홍길동");
-    await userEvent.click(within(row.closest("tr")).getByRole("button", { name: /상세/ }));
+    await userEvent.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
     expect(drawer).toHaveTextContent("user.update (failure)");
     expect(drawer).toHaveTextContent("5");

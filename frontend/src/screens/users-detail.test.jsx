@@ -64,12 +64,12 @@ function renderUsers() {
 }
 
 describe("Users 상세 팝업 (Rules of Hooks 회귀)", () => {
-  it("행의 '상세'를 눌러도 크래시 없이 상세 드로어가 열린다", async () => {
+  it("행을 눌러도 크래시 없이 상세 드로어가 열린다", async () => {
     const user = userEvent.setup();
     renderUsers();
-    // 목록에 사용자가 렌더된 뒤 '상세' 버튼(aria-label="상세 보기: <이메일>")을 누른다.
-    const openBtn = await screen.findByRole("button", { name: /상세 보기/ });
-    await user.click(openBtn); // 수정 전에는 여기서 훅 개수 변화로 throw → 테스트 실패
+    // 목록에 사용자가 렌더된 뒤 행(aria-label="상세 보기: <이메일>")을 누른다.
+    const openRow = await screen.findByRole("row", { name: /상세 보기/ });
+    await user.click(openRow); // 수정 전에는 여기서 훅 개수 변화로 throw → 테스트 실패
     // 드로어(role=dialog)가 열리고 그 안에 대상 사용자 정보가 보이면 크래시 없이 렌더된 것이다.
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("서윤경")).toBeInTheDocument();       // 드로어 제목
