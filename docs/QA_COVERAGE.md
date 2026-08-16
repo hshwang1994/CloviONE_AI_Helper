@@ -271,7 +271,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | Empty | 미검증. 시드 데이터가 없어 재현 조건 자체를 안 만들었다 |
 | Loading | 미검증 |
 | Error | 미검증 |
-| **Permission Denied** | 미검증. 단 이제 4역할 계정이 있어 **재현 가능해졌다** |
+| **Permission Denied** | ✅ **부분 검증(2026-08-17)** — `user` 역할 전체 캡처에서 관리자 전용 47라우트가 정확히 `역할부족(미검사)`로 걸러짐(§6). UI 게이팅 실측 확인. API 레벨 403/404 응답 자체의 문구·상태 코드 커버리지는 여전히 §6-1 매트릭스(17엔드포인트)로 한정 — 전체 API 표면은 아직 아님 |
 | 긴 텍스트 | 미검증 |
 | 데이터 0건 | 미검증 |
 | 데이터 대량 | 미검증(ticket_cache 1077행은 있으나 표별 대량 상태는 미확인) |
@@ -282,14 +282,18 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | 역할 | 계정 | 상태 |
 |---|---|---|
 | system_admin | `hshwang@goodmit.co.kr`(실계정) | 서버 실계정 14개 중 유일 |
-| admin | **`qa-admin@goodmit.co.kr`** | ✅ 생성·로그인 확인. `c1-admin` 캡처 272페이지를 이 계정으로 돌렸다 |
-| operator | **`qa-operator@goodmit.co.kr`** | ✅ **68라우트 캡처 완료**(`c1-operator`). 권한 화면·사이드바 축소가 API 실측과 정확히 일치 |
-| auditor | **`qa-auditor@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
-| user | **`qa-user@goodmit.co.kr`** | ✅ 생성. 아직 실행 안 함 |
+| admin | `qa-admin@goodmit.co.kr`(구) | ✅ 생성·로그인 확인. `c1-admin` 캡처 272페이지를 이 계정으로 돌렸다 |
+| operator | `qa-operator@goodmit.co.kr`(구) | ✅ **68라우트 캡처 완료**(`c1-operator`). 권한 화면·사이드바 축소가 API 실측과 정확히 일치 |
+| auditor | **`ui-qa-auditor@goodmit.co.kr`** | ✅ **전체 라우트 캡처 완료(2026-08-17, TEST SERVER)** — 1,008페이지, 치명 검사(가로 넘침·콘솔 오류·페이지 오류·깨진 이미지·중복 id) 전부 통과 |
+| user | **`ui-qa-user@goodmit.co.kr`** | ✅ **전체 라우트 캡처 완료(2026-08-17, TEST SERVER)** — 450페이지, 치명 검사 전부 통과. 관리자 전용 라우트 47개가 정확히 `역할부족(미검사)`로 걸러짐(`routes_out_of_reach`) — RBAC UI 게이팅이 실제로 동작한다는 실측 근거. 비치명 `vertical_text_collapse` 2건 발견 → `VIS-163`(신규) |
 | `admin_scope` dept/org/global | — | 전부 미검증. `SEC-01`·`UB-01`·`UA-02`가 여기서만 재현된다 |
 
-> 비밀번호는 `dist/ui-qa-*/credentials.json`(gitignore). 실행 시 역할마다 `--out-dir`을 따로 줘야
-> `storage_state`가 안 섞인다. 서버 실계정 14개 중 **12개가 `admin`, `operator`·`auditor`는 0명**이라
+> 비밀번호는 `dist/ui-qa/auth-<role>/credentials.json`(gitignore). **2026-08-17 정정**: `run.py --role`
+> 하네스는 비-기본 역할에 `ui-qa-<role>@goodmit.co.kr` 이메일을 하드코딩해 기대한다(`scripts/ui_qa/auth.py:306`,
+> `UI_QA_EMAIL`은 기본 역할에만 적용) — 위 표의 예전 `qa-<role>@goodmit.co.kr` 계정들과는 **다른
+> 계정**이다. `ui-qa-auditor`/`ui-qa-user`는 이번에 TEST SERVER에 새로 생성했다(`user_cli add`,
+> 원격 대상이라 하네스 자체 프로비저닝은 불가 — `scripts/ui_qa/auth.py::_provision`의 원격 거부가
+> 의도대로 동작해 로컬 DB에 계정이 쌓이는 사고를 막았다). 서버 실계정 14개 중 12개가 `admin`이라
 > 이 계정들 없이는 역할 매트릭스를 재현할 방법이 애초에 없었다.
 
 ## 6-1. RBAC 실측 매트릭스 (2026-08-08, 배포 서버, 4역할 실제 로그인)
