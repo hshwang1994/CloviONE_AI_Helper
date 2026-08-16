@@ -3806,3 +3806,76 @@ React 규약상 **마운트 때도 한 번 무조건 돈다** — 주소에서 `
 즉시 반영, 새로고침 → 검색창에 값 그대로 복원(스크립트로 실측, 둘 다 PASS).
 
 **`PA-RC-0013`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-02`.
+
+## D-102 (2026-08-16) — `PA-RC-0014`: Pydantic 422가 한국어로, 필드에 연결됨
+
+### Handoff 전제 하나가 틀렸다 — 그리고 그게 범위를 오히려 줄였다
+
+Handoff·`docs/BACKLOG.md` `PA-04` 둘 다 "`Users.jsx`는 공용 `FormModal`/`FormField`를
+안 타는 손수 제작 화면"이라고 적고 있었다. 실제로 읽어 보니 **틀렸다** — `Users.jsx`는
+`fields` 배열만 직접 구성할 뿐 두 `<FormModal>` 자체는 그대로 쓰고 있었다. 그래서 이
+RC는 "새 필드 연결 기제를 만드는 일"이 아니라 "이미 있는 `FormModal`의 `screenKey`
+prop 하나를 안 넘기고 있던 배선 누락을 고치는 일"이 됐다 — Handoff의
+`regression_risk`가 예상한 범위보다 훨씬 좁았다. `field_limits.py` 모듈 docstring의
+"무엇을 매핑하는가" 절을 이 사실에 맞춰 정정했다.
+
+### 서버: `err["msg"]`를 파싱하지 않는다, `err["type"]`+`ctx`로 새로 만든다
+
+`app/core/errors.py`에 `_validation_error_message_ko(err)` 신설 — Pydantic v2의
+안정적 식별자 `type`(`string_too_long`·`missing`·`value_error` 등)과 `ctx`(예:
+`max_length`)만 보고 한국어 문구를 만든다. `value_error`는 한 겹 더 있다 — 이
+저장소의 커스텀 validator(`app/users/schemas.py::_validate_email_shape` 등)가 이미
+한국어 `ValueError`를 던지는데, Pydantic이 `msg`에는 영문 접두어("Value error, ")를
+붙이고 `ctx.error`에는 원본 그대로를 담아 준다는 것을 스크립트로 직접 확인하고
+`ctx.error`를 썼다 — 안 그러면 이미 한국어인 문구 앞에 영문 접두어가 새어 나갈
+뻔했다. 매핑 표에 없는 `type`은 안전한 일반 문구로 떨어진다(완전 나열이 목표가
+아니라 영어가 새지 않는 것이 우선).
+
+### 프런트: 필드 연결이 그냥 안 됐던 게 아니라, 반쯤 만들어져 있었다
+
+`kit.jsx`의 `FormModal`은 이미 클라이언트 검증 실패용 `errField`/`fail()` 장치가
+있었다 — 그런데 서버 422의 `details[].loc`를 그 장치에 연결하는 코드가 없었다.
+`catch` 블록에 `details[].loc` 마지막 조각을 `shownFields`와 대조해 일치하면
+`fail()`을 부르는 코드 6줄을 추가했다. `FormField`는 `invalid`일 때 정적 도움말
+대신 실제 오류 문구를 `helperText`(=`aria-describedby` 대상)로 보여주게 고쳤다 —
+전에는 빨간 테두리만 있고 그 칸이 "왜" 문제인지 스크린리더가 읽을 방법이 없었다.
+이 변경은 `FormModal`을 쓰는 등록 화면 13개 전부에 공짜로 적용된다(클라이언트 검증
+실패도 이제 필드 옆에 문구가 뜬다) — 서버 422 연결이 원래 목적이었지만 부수적으로
+기존 클라이언트 검증의 같은 결함도 같이 닫혔다.
+
+`Offboarding.jsx`는 정말로 `FormModal`을 안 쓰는 손수 제작 화면이다(메모 필드 하나
+뿐인 `<TextField>`) — 여기는 같은 원리를 손으로 배선했다(`details[].loc`가
+`"note"`면 그 필드 state를 직접 invalid로).
+
+### 검증
+
+백엔드: `test_error_envelope.py`에 `string_too_long`·`missing` 2종을 **실제 등록된
+FastAPI 핸들러**를 통해 pin(단위 테스트가 아니라 통합 테스트로 — 순수 함수만
+테스트하면 라우터에 실제로 연결됐는지는 증명 못 한다). `field_limits.py`에
+`users`(email=255·display_name=120)·`offboarding`(note=1000) 핀 테스트 추가. 백엔드
+전체 회귀(`unit`+`regression`+`security`+`integration`×4, 2,903건대) **29분51초,
+`FULL_REGRESSION_OK`** — `errors.py`가 전역 예외 핸들러라 반경이 커서(CLAUDE.md §6
+예외 조항) 조기에 한 번 돌렸다.
+
+프런트: `FormModal` 필드 연결 신규 2건(성공 케이스/오검출 없음 확인), `/users` 생성
+폼 maxLength 신규 1건, `Offboarding.jsx` 신규 1건(이 화면만의 손수 배선 경로가
+독립적으로 동작하는지). 전체 회귀 280파일 1915건 green.
+
+부수 발견 — `app/static/js/change_password.js`의 `detailText()`가 `{loc,msg}` 모양
+객체를 만나면 "Pydantic이 항상 영문을 준다"는 예전 전제로 `msg`를 버리고 일반
+안내("입력값을 확인해 주세요")로 덮어쓰고 있었다. 이 RC로 `msg` 자체가 이제
+한국어·구체적이 됐으니, 그 방어 로직이 거꾸로 **더 나은 문구를 버리고 있었다** —
+`msg`를 그대로 쓰게 고쳤다. 같은 파일에 이 RC를 근거로 든 stale 주석(RequestValidationError
+핸들러가 "영문을 그대로 싣는다")도 정정.
+
+배포 `UPGRADE_OK` + `verify_deploy.sh`(`DEPLOY_VERIFY_OK`, 자산 33/33) OK. 라이브
+Chrome 확인(`var/product-audit/verify_pa_rc_0014.py`, 실제 계정으로 이름 500자
+제출): 화면에 영문 `Invalid request data`/`String should have at most` **0건**,
+실제 문구 "입력값을 확인해 주세요. 최대 120자까지 입력할 수 있습니다.", `aria_invalid`
+1개(정확히 이름 칸), 그 칸의 `aria-describedby`가 그 문구를 가리킴, 폼은 계속 열려
+있음(입력 안 날아감), 계정 미생성(`GET /api/admin/users?q=`로 확인). `Offboarding.jsx`
+경로는 TEST SERVER에 마침 오프보딩 후보가 없어 라이브로는 못 짚었다 — 같은 배선
+패턴이라 프런트 테스트로 대신 확인(정직하게 남긴다, 실측 아님).
+
+**`PA-RC-0014`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA-04`·`PA2-03`,
+`docs/QA_COVERAGE.md` `T11`.

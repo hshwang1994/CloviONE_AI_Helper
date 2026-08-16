@@ -6932,7 +6932,56 @@ green, 프런트 전체 회귀 278파일 1911건 green. TEST SERVER 배포 + 라
 hash 즉시 반영, 새로고침→복원, 둘 다 실측 PASS). 상세: `DECISIONS.md` D-101,
 `BACKLOG.md` `PA2-02`.
 
-**다음 단계**: 남은 미해결 Root Cause(전부 Medium/Low) 중 다음 후보를 골라 같은
-invocation 안에서 계속한다 — `PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·
-`PA2-10`(`PA-RC-0021`, 다크 테마 색 토큰)·`PA2-13`(`PA-RC-0024`, 관리자 상세
-딥링크 없음)·`PA2-15`(`PA-RC-0025`, Low).
+### 체크포인트 — 2026-08-16 계속: `PA-RC-0014` 완결, `PA-RC-0021`·`PA-RC-0024` 진행 중
+
+**`PA-RC-0014`**(Pydantic 422 영문 노출) 완결. Handoff의 "Users.jsx는 FormModal 밖"
+전제가 틀려 있었다(실제로 씀, `screenKey` prop만 안 넘겼을 뿐) — 그 사실을 확인하고
+`PA-04`의 자기모순도 함께 정정. `errors.py`가 `err["type"]`+`ctx`로 한국어 문구를
+만들고(`err["msg"]` 파싱 금지 원칙 준수), `kit.jsx::FormModal`이 `details[].loc`를
+필드에 연결(등록 화면 13개 전부 공짜 적용) + `Offboarding.jsx`는 손수 배선. 백엔드
+전체 회귀(2,903건대) 29분51초 `FULL_REGRESSION_OK`, 프런트 전체 회귀 280파일 1915건
+green. TEST SERVER 배포 + 라이브 Chrome 확인 전부 PASS(`var/product-audit/verify_pa_rc_0014.py`).
+부수로 `change_password.js`의 stale 방어 로직(한국어 문구를 버리고 일반 안내로
+덮어쓰던 것)도 고침. 상세: `DECISIONS.md` D-102, `BACKLOG.md` `PA-04`·`PA2-03`.
+
+**`PA-RC-0021`**(다크 테마 색 토큰) — 핵심 수정 커밋 완료, **배포·라이브 재검증
+아직 안 함**. Explore agent 조사로 Handoff의 문제 지목 중 하나(`prefers-color-scheme`
+미반영)가 **엉뚱한 파일을 지목**하고 있었음을 발견 — SPA의 `theme-store.js`는 이미
+`matchMedia`를 정확히 확인하고 있었고, 실제 범인은 레거시 `app/static/js/theme.js`
+(`/change-password`용, 신규/재설정 계정이 로그인 직후 반드시 거치는 화면)가 그 확인
+없이 "light"를 부팅 키에 먼저 써 버리는 것이었다. 탭 대비(`MuiTab`/`MuiTabs`에
+`primaryStrong` 배선, 소비처 3곳 동시 해결)·배지 대비(`NavBadge`의 하드코딩
+`common.white` → `error.contrastText`, jsdom 실제 CSS 엔진으로 두 모드 다 실측
+확인)까지 3가지 다 수정 + `theme-link-contrast.test.js`에 회귀 테스트 추가(137건
+green, 관련 화면 회귀 16파일 283건 green). **온보딩 다이얼로그**(Handoff 항목 4번째)는
+조사 결과 재현 불가 — 같은 HEAD의 스크린샷 두 장이 90초 간격으로 서로 다른 결과를
+보여 자체 모순이었다. **다음에 할 일**: 빌드→배포→`scripts/ui_qa/contrast.py`로
+대표 5화면×2테마 재측정, 온보딩 다이얼로그 라이브 재확인(진짜 결함인지 스크린샷
+타이밍 오탐인지), `verify_pa_rc_0021.py` 작성해 acceptance_criteria 7개 확인 후
+완결 처리.
+
+**`PA-RC-0024`**(관리자 상세 딥링크 없음) — Explore agent 조사로 상세 설계 확정,
+**백엔드 선행 조건 하나만** 구현 완료. 조사가 밝힌 것: `ErrorState`(kit.jsx)가 이미
+사용자 콘솔 6개 `:id` 라우트 전부가 쓰는 유일한 not-found 컴포넌트라 그대로 재사용
+가능, `RequireRole`(AdminRoutes.jsx)이 이미 유일한 권한 거부 화면이라 마찬가지,
+`DataScreen.jsx`의 `config.onQuery` "select" intent가 registry 화면 9곳에 **이미**
+`?id=` 딥링크를 지원하고 있어(사용자가 모르던 기존 인프라) 그 위에 얹으면 됨. 단
+**`/audit`는 백엔드에 단건 조회 엔드포인트 자체가 없어서**(목록만 있음, Handoff는
+"새 API 불필요"라고 잘못 가정했다) `/audit/:id`를 만들려면 먼저 그게 있어야 했다 —
+`app/audit/router.py`에 `GET /api/admin/audit/{log_id}` 신설(목록과 같은 범위 판정,
+없는 id/범위 밖 id를 구분 없이 404로 접음, 직렬화 로직을 `_serialize_row`/`_actor_names`로
+뽑아 목록·CSV export·단건 셋이 같은 모양을 쓰게 함 — 예전엔 그 로직이 두 곳에
+따로 복사돼 있었다). audit 관련 백엔드 테스트 전체 green. **다음에 할 일**:
+`AdminRoutes.jsx`에 `/users/:id`·`/audit/:id`·`/departments/:id` 라우트 추가(registry
+동적 루프 특성상 audit는 `/organizations`·`/departments`처럼 별도 선언 필요),
+각 화면의 row-click을 URL 동기화로 연결(Users.jsx의 기존 `?id=` 소비 패턴이 참고
+모델), 미등록 경로 폴백을 `<Navigate>`에서 `ErrorState`로 교체, RBAC/IDOR negative
+테스트(역할 4종 × 신규 라우트).
+
+**`PA-RC-0025`**(성공 토스트 명사형 — `DataScreen.jsx`/`SubListDrawer.jsx`)는 격리
+worktree에서 백그라운드 agent가 구현 중, 아직 결과 미수신.
+
+**다음에 할 일 우선순위**: `PA-RC-0025` agent 결과 수신 후 diff 검토·병합 → `PA-RC-0021`
+배포·라이브 검증·완결 → `PA-RC-0024` 프런트 라우팅 마저 구현·완결 → 이 Audit
+Cycle(`PA-20260816-120655-f103fb5b`)의 15개 Root Cause 전부 완료 여부 재확인 →
+`var/product-audit/IMPLEMENTATION_REQUIRED` 제거 조건 충족 여부 판단.

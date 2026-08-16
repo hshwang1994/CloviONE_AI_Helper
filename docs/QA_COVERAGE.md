@@ -736,6 +736,7 @@ AI 사용 상한 · 공지 배너 · 주간 리포트 · 저장된 뷰 · 휴지
 | 새 축 | 무엇을 보는가 | 왜 필요한가 | 상태 |
 |---|---|---|---|
 | `T10` 완료 재측정 | **"완료"로 기록된 항목을 그 항목 자신의 `acceptance_criteria`로 다시 재는가** | 이번 재검증에서 구현 기록과 실제가 **양쪽 방향으로** 어긋났다 — `PA-RC-0007`은 "보류"라 적혀 있었는데 이미 닫혀 있었고, `PA-RC-0002`는 "완전 종료"라 적혀 있었는데 기준 미달이었다. 어느 쪽도 악의가 아니라 **다시 재지 않은 것**이다 | **1회 수행함**(이 Audit, 2026-08-16). 정례화 필요 |
+| `T11` 검증 실패 표현 | **스키마 위반 422가 한국어인가** · **그 오류가 해당 필드에 연결되는가**(`aria-invalid`+`aria-describedby`) | 화면별 시각·기능 축은 있어도 "검증 실패 시 사용자가 무엇을 보는가" 축이 없었다 — `/users`에 이름 500자를 넣으면 영문 `Invalid request data String should have at most 120 characters`가 그대로 뜨고 `aria-invalid`는 0개인 채로 두 Cycle의 QA를 통과했다(`PA-RC-0014`, `PA-F-054`/`055`) | **검증완료(2026-08-16)** — `app/core/errors.py`가 `err["msg"]` 파싱 대신 `err["type"]`+`ctx`로 한국어 문구를 만들어 전 폼 공통(`lib/api.js` 결합 경로)에 적용, `kit.jsx::FormField`가 `errorMessage`를 `aria-describedby` 대상(helperText)에 실어 필드 연결도 등록 화면 13개+`Users.jsx`+`Offboarding.jsx`(메모, 손수 배선) 전부에 닿는다. 백엔드 단위 2종(`string_too_long`/`missing`) + 프런트 FormModal/Users/Offboarding 회귀 신규. 재측정 수단은 `var/product-audit/probe_limits.py`(현재 `-1`인 `users_form.fields[].maxLength`가 email 255/이름 120으로, `aria_invalid`가 0→≥1로 바뀌는지 확인) |
 
 ### 이 표가 드러낸 것
 
