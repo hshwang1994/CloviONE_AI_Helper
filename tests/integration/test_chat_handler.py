@@ -486,3 +486,41 @@ def test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call(
     assert items[0]["processing_status"] == "done", items
     assert items[1]["role"] == "assistant"
     assert items[1]["content"] == "동시 커밋 이후에도 살아남아야 하는 답", items
+
+
+# --- 재생성이 최초 답변의 message_id와 충돌해 실제로 버려지던 결함 -------------------
+# TEST SERVER 실측(2026-08-16): 최초 전송이 attempt 1에 성공(흔한 경우)한 뒤 재생성을
+# 누르면, 재생성이 만드는 **새 Job**도 attempt_count=1부터 다시 세어 예전 message_id 계약
+# (`a-{user_msg_id}-{attempt_count}`)이 최초 답변과 똑같은 값을 다시 만들었다. 최초 답변은
+# regenerate_message가 soft-delete(`deleted_at`)만 하므로 행 자체는 남아 있고,
+# UNIQUE(conversation_id, message_id)가 그 재사용을 거부했다 — n8n이 실제로 만든 새 답변이
+# IntegrityError로 저장되지 못하고 사용자에게는 "연결 문제" 안내만 남았다.
+
+
+def test_regenerate_after_a_first_attempt_success_does_not_collide_with_the_old_reply(
+    client, chat_worker, fake_http, fake_clock, posted_message
+):
+    """🔴 revert-to-verify 대상 — message_id를 job.attempt_count 기반으로 되돌리면
+    두 번째 run_once()에서 IntegrityError로 재현된다."""
+    fake_http.on(N8N_URL, json_body={"reply": "첫 번째 답", "conversation_id": "ctx-1"})
+    assert chat_worker.run_once() is True  # 최초 전송 — attempt 1에 성공
+
+    first_items = _messages(client, posted_message["conversation_id"])
+    assert first_items[0]["processing_status"] == "done"
+    user_msg_db_id = first_items[0]["id"]
+
+    fake_http.on(N8N_URL, json_body={"reply": "재생성된 답", "conversation_id": "ctx-2"})
+    r = client.post(
+        f"/api/messages/{user_msg_db_id}/regenerate",
+        headers={"X-CSRF-Token": posted_message["csrf"]},
+    )
+    assert r.status_code == 200, r.text
+
+    assert chat_worker.run_once() is True  # 재생성 Job — 이 Job도 attempt_count=1부터 시작
+
+    items = _messages(client, posted_message["conversation_id"])
+    assert items[0]["processing_status"] == "done", items
+    assert items[1]["role"] == "assistant"
+    assert items[1]["content"] == "재생성된 답", (
+        f"재생성이 충돌로 조용히 버려졌다(사용자에게는 실패만 보인다): {items}"
+    )

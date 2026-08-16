@@ -2612,3 +2612,65 @@ exit code만 보지 않고 **파일 안의 실제 `FAILED`/`ERROR` 줄을 직접
 — 파이프의 어느 쪽 명령의 코드인지 확인해야 한다. `docs/rules`의 검증 원칙("커밋·클린
 트리·exit 0는 그 자체로 완료 근거가 아니다")이 사람의 작업 흐름뿐 아니라 **셸 파이프
 구성 자체**에도 적용된다는 구체적 사례로 남긴다.
+
+## D-89 (2026-08-16) — AI-71(High): 재생성이 최초 답변과 message_id가 충돌해 실제로는 버려지고 있었다
+
+### 발견 경위
+
+DBTX-02(D-85/D-87) + SEC-38(D-86) 통합 배포 뒤 실제 Chrome E2E(`dist/verify_chat_features_e2e.py`)로
+새 채팅 기능 전체를 검증하는 중 확인. 채팅 전송 자체는 DBTX-02 수정 이후 정상 동작했다
+(핵심 목표 달성) — 다만 **재생성** 버튼을 누르자 40초 타임아웃 안에 새 답변이 오지 않았다.
+서버 로그(`journalctl -u clovirone-web-worker`)를 직접 확인하니 n8n은 실제로 좋은 답변을
+만들어 돌려줬는데(로그에 응답 본문 전문이 남아 있다: "안녕하세요! 다시 반갑습니다 😊...") 그
+답을 저장하는 마지막 INSERT가 `sqlite3.IntegrityError: UNIQUE constraint failed:
+messages.conversation_id, messages.message_id`로 거부됐다 — DBTX-02와는 **다른** 메커니즘의
+새 결함이다(스냅샷 노후화가 아니라 진짜 키 충돌).
+
+### 근본 원인
+
+`app/jobs/handlers/chat_message.py::handle_chat_message`는 성공한 답변의 `message_id`를
+`f"a-{message.message_id}-{job.attempt_count}"`로 만들었다 — `job.attempt_count`는 **그
+Job 자신의** 재시도 횟수일 뿐이다. 그런데 `app/chat/service.py::regenerate_message`는 매번
+**완전히 새로운 `Job` 행**을 큐에 넣는다(`_reenqueue` → `jobs_repo.enqueue`) — 새 Job은
+`attempt_count`가 다시 1부터 시작한다. 최초 전송이 흔한 경우대로 첫 시도(attempt 1)에
+성공해 있으면, `regenerate_message`는 그 답변 행을 `deleted_at`으로 **soft-delete만**
+하고(432-441행) 지우지는 않는다 — 그런데 `UNIQUE(conversation_id, message_id)` 제약은
+`deleted_at`을 모른다. 재생성의 새 Job도 attempt 1에 성공하면 정확히 같은 message_id를
+다시 만들려다 이 제약에 걸린다.
+
+`job.attempt_count` 기반 계약을 "answered일 때는 기존 ID 형식을 그대로 유지한다"고 적어
+둔 원래 주석 자체가, retry/regenerate가 **새 Job**을 만든다는 사실과 이 계약이 실제로
+어떻게 충돌하는지 예측하지 못하고 있었다 — 실패 경로(`-fail-{job.id}`)는 이미 `job.id`를
+쓰고 있어 이 충돌이 없다.
+
+### 결정 — 성공 경로도 `job.id` 기반으로 통일한다
+
+`f"a-{message.message_id}-{job.attempt_count}"` → `f"a-{message.message_id}-{job.id}"`로
+교체. `job.id`는 UUID라 Job마다 전역 유일하므로 이 충돌이 구조적으로 불가능해진다 — 실패
+경로가 이미 쓰던 것과 같은 계약으로 통일한 것뿐이라 새 개념을 도입하지 않는다.
+
+**영향 확인**: `job.attempt_count`는 이 파일에서 이 자리 한 곳에서만 성공 ID로 쓰였다
+(직접 grep 확인). 프런트 어디도 이 ID의 접미사 형식을 파싱하지 않는다(React key/API 경로
+용 불투명 문자열로만 쓰임, 직접 확인). `_is_last_turn`/`regenerate_message`의 소프트삭제
+질의는 전부 **접두사**(`a-{message_id}-`)만 보므로 접미사 형식 변경에 영향받지 않는다.
+
+두 시험이 예전 형식(`a-<메시지>-<시도횟수>`)을 문자 그대로 검증하고 있어 함께 고쳤다
+(`test_chat_ticket_routing_contract.py`의 `test_created_response_becomes_reply_ticket_card_and_backend_context`·
+`test_worker_retry_after_timeout_reposts_an_identical_body`) — 두 시험 다 `job`/`only_job(db)`가
+이미 있어 그 `.id`로 기대값을 다시 계산하도록 바꿨을 뿐, 검증하려던 내용(응답 파싱, 재시도
+시 동일 본문 재전송)은 그대로다.
+
+### 회귀 확인
+
+신규 회귀 `tests/integration/test_chat_handler.py::
+test_regenerate_after_a_first_attempt_success_does_not_collide_with_the_old_reply` — 실제
+워커로 최초 전송을 attempt 1 성공시킨 뒤 재생성을 누르고 워커를 다시 돌려, 새 답변이
+실제로 저장되는지 확인(기존 `test_chat_message_actions.py`의 재생성 시험들은 워커를 돌리지
+않고 enqueue만 확인해 이 결함을 못 잡고 있었다 — 이번에 그 공백도 함께 메운다).
+Revert-to-verify 완료: `job.attempt_count`로 되돌리면 **TEST SERVER 로그에서 실제로 본 것과
+글자 그대로 같은** `IntegrityError: UNIQUE constraint failed:
+messages.conversation_id, messages.message_id`로 재현 → 복구 → 재확인. 관련 스위트
+(`test_chat_handler.py`·`test_chat_ticket_routing_contract.py`·`test_chat_message_actions.py`·
+`test_chat_api.py`·`test_chat_runner_context_delete.py`) 전체 green.
+
+상세: `docs/BACKLOG.md` AI-71.

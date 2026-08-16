@@ -430,13 +430,17 @@ def test_created_response_becomes_reply_ticket_card_and_backend_context(
     assert created["structured"]["action"] == "CREATED"
     # 응답 전체가 손실 없이 그대로 저장된다 — context/last_action 까지.
     assert created["structured"] == body
-    assert created["message_id"] == f"a-{APPROVE_MSG_ID}-1"  # a-<사용자메시지>-<시도횟수>
+    job = only_job(db, APPROVE_MSG_ID)
+    # a-<사용자메시지>-<job.id> — attempt_count였던 예전 계약은 재생성(regenerate_message)이
+    # 매번 attempt_count=1부터 다시 세는 **새 Job**을 만들어, 최초 답변과 똑같은 message_id로
+    # 충돌(UNIQUE 제약 위반)했다(TEST SERVER 실측). job.id(UUID)는 Job마다 전역 유일하므로
+    # 이 충돌이 구조적으로 불가능하다 — 실패 경로(-fail-{job.id})가 이미 쓰던 것과 통일.
+    assert created["message_id"] == f"a-{APPROVE_MSG_ID}-{job.id}"
     assert created["processing_status"] == "done"
 
     # 사용자 메시지는 done 으로 닫히고 오류 코드는 지워진다.
     assert (approve_user["processing_status"], approve_user["error_code"]) == ("done", None)
 
-    job = only_job(db, APPROVE_MSG_ID)
     assert (job.status, job.attempt_count, job.last_error) == ("succeeded", 1, None)
     assert job.finished_at == fake_clock.now()
 
@@ -665,8 +669,12 @@ def test_worker_retry_after_timeout_reposts_an_identical_body(
     assert [m["role"] for m in items] == ["user", "assistant"]
     assert items[1]["structured"]["duplicate"] is True
     assert items[1]["structured"]["ticket"]["id"] == NOTION_PAGE_ID
-    assert items[1]["message_id"] == f"a-{DRAFT_MSG_ID}-2"  # 시도 2 가 답을 만들었다
-    assert only_job(db).status == "succeeded"
+    job = only_job(db)
+    # a-<사용자메시지>-<job.id> — attempt_count 기반이던 예전 계약은 재생성이 만드는 새
+    # Job이 매번 attempt_count=1부터 다시 세면서 최초 답변과 충돌했다(TEST SERVER 실측,
+    # app/jobs/handlers/chat_message.py 주석 참고). job.id는 Job마다 전역 유일하다.
+    assert items[1]["message_id"] == f"a-{DRAFT_MSG_ID}-{job.id}"
+    assert job.status == "succeeded"
 
 
 def test_user_retry_after_failure_reuses_the_same_remote_idempotency_key(

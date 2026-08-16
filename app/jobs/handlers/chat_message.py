@@ -265,11 +265,22 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     stored = data if answered else {**data, "empty_response": True, "error_notice": True}
     # '-fail-{job.id}' ID는 on_failure의 안내 메시지와 같은 규약이다 — retry_message가 그
     # 패턴으로 옛 안내를 지운다(재시도가 성공해도 '답을 못 받았다' 안내가 새 답변 옆에 그대로
-    # 남는 걸 막는다). answered일 때는 기존 ID 형식을 그대로 유지한다.
+    # 남는 걸 막는다).
+    #
+    # answered일 때도 **job.id**를 쓴다(attempt_count가 아니다) — TEST SERVER 실사용
+    # (재생성 버튼) 실측으로 발견: attempt_count는 "이 잡 자신의" 재시도 횟수일 뿐이라,
+    # regenerate_message/retry_message가 만드는 **새 Job**은 매번 attempt_count=1부터
+    # 다시 센다. 원래 답변이 최초 시도(attempt_count=1)에 성공해 있으면 그 행이
+    # messages.deleted_at으로 soft-delete만 되고 UNIQUE(conversation_id, message_id)
+    # 제약에는 여전히 걸리므로, 재생성이 새 Job의 attempt_count=1로 똑같은 message_id를
+    # 다시 만들려다 IntegrityError로 거부됐다 — AI가 실제로 만든 좋은 답변이 그대로
+    # 버려지고 사용자에게는 "연결 문제" 안내만 남았다. job.id(UUID)는 매 Job마다
+    # 전역적으로 유일해 이 충돌 자체가 구조적으로 불가능하다 — 실패 경로가 이미 쓰던
+    # 것과 같은 계약으로 통일한다.
     assistant = Message(
         conversation_id=conversation.id,
         message_id=(
-            f"a-{message.message_id}-{job.attempt_count}"
+            f"a-{message.message_id}-{job.id}"
             if answered
             else f"a-{message.message_id}-fail-{job.id}"
         ),
