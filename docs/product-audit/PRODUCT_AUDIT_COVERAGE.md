@@ -99,7 +99,7 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `A-MAINT` 유지보수 | `/maintenance` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | E | · | S | E | · | S | E | · | · | C | E | · | · | E | S | S | · | · | · | · | · | · | E | · |
 | `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-INTEG` 외부 연동 | `/integrations` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
@@ -116,10 +116,10 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-AUDIT` 감사 로그 | `/audit` | S | · | E | · | S | E | · | S | E | · | · | C | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | E | S | S | · | · | · | · | · | · | E | · |
+| `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | E | S | S | · | · | · | · | · | · | E | · |
 | `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-BACKUP` 백업 | `/backup` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-BACKUP` 백업 | `/backup` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | E | S | S | · | · | · | · | · | · | E | · |
 | `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
@@ -129,7 +129,7 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `S-SHELL` AppShell / 사이드바 / 그룹 | `app/AppShell.jsx` | S | · | · | · | · | · | · | · | S | · | · | C | O | E | E | S | S | S | · | · | · | · | · | S | E | S |
+| `S-SHELL` AppShell / 사이드바 / 그룹 | `app/AppShell.jsx` | S | · | · | · | · | · | · | · | S | · | · | C | O | E | E | S | S | S | · | · | · | · | · | E | E | S |
 | `S-TOPBAR` 상단바 / 세그먼트 탭 / 검색 | `app/AppShell.jsx, TopSearch` | S | · | · | · | · | · | · | · | S | · | · | C | O | E | E | S | E | S | · | · | · | · | · | S | E | · |
 | `S-PALETTE` 커맨드 팔레트 (Ctrl+K) | `app/CommandPalette.jsx` | S | S | · | · | · | · | · | · | S | · | · | V | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-BELL` 알림 벨 | `app/NotificationBell.jsx` | S | S | · | · | · | · | · | · | S | · | · | V | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
@@ -139,8 +139,8 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | C | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | C | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | O | · | · | · | · | S | · | · | V | O | O | O | S | S | S | · | · | · | · | · | S | E | S |
-| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | C | S | E | E | S | S | S | · | · | · | · | · | S | E | S |
-| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | C | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | C | S | E | E | E | S | S | · | · | · | · | · | S | E | S |
+| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | C | E | · | · | E | S | S | · | · | · | · | · | S | E | · |
 
 ## platform
 
@@ -486,14 +486,28 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 둘 다 Critical이 될 뻔했다. 반면 같은 계열로 보이던 「FAB이 본문 버튼을 가린다」는
 `elementFromPoint` 히트테스트로 재서 **진짜였다**. 셋을 가른 것은 추측이 아니라 재측정이다.
 
+## C·P축 라운드에서 확인한 것
+
+쓰기 조작은 **이 Audit이 만든 폐기용 부서**(`감사임시<random>`)로만 했고 끝나고 지웠다.
+실제 데이터는 건드리지 않았다. `/users`에서는 선택만 하고 대량 동작을 실행하지 않았다.
+
+결과는 대체로 **음성**이다 — 생성·수정·삭제가 실제로 동작하고, 성공 문구가 `aria-live`로
+통지되며, 파괴적 확인이 「되돌릴 수 없습니다」로 결과를 명시하고, 진행 중에 「처리 중…」이
+뜨고, 대량 선택이 「3명 선택」과 액션 바를 보여 준다(`PA-F-070`). 권한 거부 문구도
+`operator`·`auditor`에게는 3요소를 갖췄고 열람 권한과 실행 권한을 구분한다(`PA-F-071`).
+
+결함은 둘이다 — 일반 사용자에게는 그 권한 거부 문구가 **아예 없고 조용히 홈으로 이동**하며
+(`PA-F-072`, `PA-RC-0024`에 병합), 공유 `DataScreen`이 성공 문구를 `라벨 + " 완료"`로
+조립해 저장소 자신의 `docs/UX_WRITING.md:54` 규칙을 어긴다(`PA-F-073`, `PA-RC-0025` 신규).
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
 total_cells=2340
 unseen=1292
 unseen_without_reason=0
-static_only=584
-observed=200
-executed=248
+static_only=575
+observed=198
+executed=259
 blocked=0
 not_applicable=16
 l_axis_visual_observed=37

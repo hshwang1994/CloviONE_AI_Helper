@@ -4,7 +4,7 @@ cycle_id=PA-20260816-120655-f103fb5b
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
-actionable_root_causes=13
+actionable_root_causes=14
 redesign_root_causes=9
 deferred_for_human_approval=0
 -->
@@ -558,7 +558,7 @@ problem: **"상세 보기"라는 하나의 개념이 콘솔에 따라 두 가지
 expected: 같은 개념은 제품 전체에서 같은 방식으로 동작해야 하고, 상세는 공유 가능한 주소를 가져야 하며, 존재하지 않는 대상은 오류로 알려야 한다. 근거: ⑤ **사용자 콘솔이 같은 저장소 안에 옳은 구현을 이미 갖고 있다**(라우트 6개 + not-found 3요소) · ② 이전 Cycle의 `PA-RC-0002` 산출물인 `docs/UX_WRITING.md`가 오류 문구의 회복 3요소를 제품 규칙으로 정했고 사용자 콘솔이 그것을 만족한다 · ② CLAUDE.md §5가 "Navigation/deep-link/refresh/state retention"을 필수 검증 범위로 규정.
 actual: 관리자 상세는 URL 없는 모달이라 공유·새로고침·뒤로가기가 안 되고, 미등록 상세 URL은 설명 없이 대시보드로 간다.
 intent_evidence: ⑤ `frontend/src/app/UserRoutes.jsx:60,66,72,77,81,83`의 6개 `:id` 라우트 — 같은 팀이 같은 문제를 이미 라우트로 풀었다 · ② `docs/UX_WRITING.md`(not-found 3요소) · ② CLAUDE.md §5 · ⑤ 이전 Cycle `PA-F-052`가 사용자 콘솔 상세 6화면의 not-found 품질을 확인한 기록.
-findings: PA-F-066
+findings: PA-F-066, PA-F-072
 feature_contracts: FC-사용자관리 · FC-감사로그 · FC-부서관리(각 상세가 보여주는 정보와 가능한 동작) — **상세가 보여주는 정보·동작·권한은 전부 불변.** 바뀌는 것은 그 상세에 도달하고 그 상태를 주소로 표현하는 방식이다.
 routes: 신설 대상 — `/users/:id` · `/audit/:id` · `/departments/:id`(그 외 관리자 상세 모달이 있는 화면 전체를 조사해 포함할 것). 참조 구현 — `/board/:id` · `/team-docs/:id` 등 사용자 콘솔 6개. 미등록 URL 처리 — 관리자 전 라우트.
 frontend: `frontend/src/app/AdminRoutes.jsx`(라우트 추가) · 각 관리자 목록 화면의 행 클릭 핸들러(모달 열기 → 라우트 이동 + URL 동기화) · 상세 모달/드로어 컴포넌트(URL 상태와 동기화) · 라우터의 미등록 경로 폴백(현재 대시보드 리다이렉트) · 사용자 콘솔의 not-found 컴포넌트(공용으로 승격할 대상).
@@ -568,11 +568,11 @@ data: 해당 없음 — 데이터 구조·의미 불변.
 rbac: **경계 불변이며 확인이 필요하다.** 상세 라우트가 생기면 직접 URL 진입이 가능해지므로, 권한 없는 사용자의 직접 진입이 **서버에서** 정확히 거부되는지 반드시 검증한다. 이전 Cycle이 프런트 게이트와 백엔드 판정이 일치함을 확인했으나(`PA-F-045`), 새로 생기는 라우트는 그 검증 범위 밖이므로 다시 확인해야 한다. IDOR 관점에서 다른 조직/부서의 id 진입도 검증 대상이다.
 integration: 해당 없음.
 state_transition: 해당 없음 — 상세에서 수행하는 동작의 전이 규칙 불변.
-user_impact: 관리자가 특정 사용자나 감사 항목을 동료에게 링크로 보낼 수 없다. 상세를 연 뒤 뒤로가기를 누르면 상세만 닫히는 것이 아니라 이전 화면을 떠나고, 새로고침하면 상세가 사라진다. 잘못된 상세 링크를 받으면 오류 대신 대시보드에 도착해 무슨 일이 일어났는지 알 수 없다. 같은 제품의 게시글 상세는 링크가 되는데 사용자 상세는 안 되는 비일관이 학습을 방해한다.
-implementation_direction: (1) **관리자 상세에 `:id` 라우트를 부여한다.** 표현은 지금처럼 목록 위 오버레이(모달/드로어)를 유지하되 **URL과 동기화**해 딥링크·뒤로가기·새로고침이 성립하게 한다. 표현을 바꾸는 것이 아니라 주소를 붙이는 작업이다. (2) **뒤로가기는 상세만 닫고 목록 상태(검색·필터·페이지)를 보존한다** — `PA-RC-0013`(`/users`가 목록 상태를 URL에 안 싣는다)을 **먼저 또는 함께** 처리해야 이것이 성립한다. 두 RC는 같은 URL 상태 문제의 앞뒤다. (3) **미등록/미해결 상세 id는 대시보드 이동이 아니라 not-found를 보여준다** — 사용자 콘솔이 이미 쓰는 3요소(무엇이 없다 / 왜 그럴 수 있다 / 목록·홈으로)를 **공용 컴포넌트로 승격**해 양쪽 콘솔이 같은 것을 쓰게 한다. 새로 만들지 말고 있는 것을 옮길 것. (4) 관리자 콘솔에 상세 모달이 있는 화면을 **전수 조사**해 이번에 확인한 3개 외에 더 있는지 확인하고 함께 처리한다. (5) 라우트 추가 후 권한 없는 직접 진입과 cross-scope id 진입을 반드시 검증한다.
+user_impact: 관리자가 사용자·감사 항목을 동료에게 링크로 보낼 수 없고, 상세를 연 뒤 새로고침하면 사라지며 뒤로가기는 이전 화면을 떠난다. 잘못된 상세 링크는 오류 대신 대시보드로 데려간다. **일반 사용자는 더 나쁘다** — 관리자 화면 링크를 받으면 아무 설명 없이 자기 홈에 도착해 무슨 일이 일어났는지 알 수 없다(`PA-F-072`). 같은 제품이 `operator`·`auditor`에게는 정확한 권한 거부 화면을 보여 주므로 역할에 따라 설명을 받기도 하고 못 받기도 한다.
+implementation_direction: (1) **관리자 상세에 `:id` 라우트를 부여한다.** 표현은 지금처럼 목록 위 오버레이(모달/드로어)를 유지하되 **URL과 동기화**해 딥링크·뒤로가기·새로고침이 성립하게 한다. 표현을 바꾸는 것이 아니라 주소를 붙이는 작업이다. (2) **뒤로가기는 상세만 닫고 목록 상태(검색·필터·페이지)를 보존한다** — `PA-RC-0013`(`/users`가 목록 상태를 URL에 안 싣는다)을 **먼저 또는 함께** 처리해야 이것이 성립한다. 두 RC는 같은 URL 상태 문제의 앞뒤다. (3) **`path="*"` 폴백 두 곳이 `Navigate` 대신 설명하는 화면을 그리게 한다** — `frontend/src/app/UserRoutes.jsx:91`의 `<Navigate to="/me">`와 `AdminRoutes.jsx:166`의 `<Navigate to="/dashboard">`가 같은 결함의 두 얼굴이다. 일반 사용자에게는 `AdminRoutes`가 아예 마운트되지 않으므로(`App.jsx:95`) `/rbac` 같은 관리자 URL이 **권한 문제가 아니라 모르는 라우트**가 되어 조용히 `/me`로 사라진다(`PA-F-072`). 미등록/미해결 상세 id도 대시보드 이동이 아니라 not-found를 보여준다 — 사용자 콘솔이 이미 쓰는 3요소(무엇이 없다 / 왜 그럴 수 있다 / 목록·홈으로)를 **공용 컴포넌트로 승격**해 양쪽 콘솔이 같은 것을 쓰게 한다. **권한 때문에 막힌 경우에는 제품에 이미 있는 권한 거부 화면**(「권한이 없습니다 / 이 화면은 …만 사용할 수 있습니다 / 대시보드로 이동」, `PA-F-071`)**을 그대로 쓴다** — 그것도 새로 만들지 마라. 즉 폴백이 판단해야 하는 것은 셋이다: 모르는 경로 → not-found · 권한 없음 → 권한 거부 화면 · 없는 id → not-found. (4) 관리자 콘솔에 상세 모달이 있는 화면을 **전수 조사**해 이번에 확인한 3개 외에 더 있는지 확인하고 함께 처리한다. (5) 라우트 추가 후 권한 없는 직접 진입과 cross-scope id 진입을 반드시 검증한다.
 constraints: RBAC 경계를 넓히지 않는다 — 라우트가 생겨도 접근 판단은 서버가 정본이고, 권한 없는 직접 진입은 거부되어야 한다(CLAUDE.md §3-5). IDOR 방지 규약 유지. 상세가 보여주는 정보와 가능한 동작을 바꾸지 않는다. not-found 문구는 **새로 쓰지 말고** 사용자 콘솔의 것을 공용화한다. 오버레이의 접근성 속성(`aria-modal`·`aria-labelledby`·Escape·포커스 관리)을 URL 동기화 과정에서 잃지 않는다.
 regression_risk: (1) **RBAC/IDOR가 가장 큰 위험** — 직접 URL 진입 경로가 새로 열리므로 권한 검증을 반드시 재확인해야 한다. (2) URL 동기화는 목록 상태 보존과 얽혀 있어 `PA-RC-0013`과 충돌하거나 서로를 되돌릴 수 있다. (3) 뒤로가기 동작 변경은 브라우저 히스토리를 다루므로 중첩 오버레이·모달 위 모달에서 예상 밖으로 동작할 수 있다. (4) 미등록 경로 폴백 변경은 모든 오타 URL의 동작을 바꾼다 — 기존에 대시보드 리다이렉트를 기대하는 테스트가 있는지 확인할 것. (5) 오버레이 접근성 속성 유실.
-acceptance_criteria: (1) `/users/:id`·`/audit/:id`·`/departments/:id`(및 조사로 발견된 나머지)가 **직접 URL 진입으로 상세를 연다**. (2) 상세가 열린 상태에서 **새로고침하면 같은 상세가 다시 열린다**. (3) **뒤로가기가 상세만 닫고** 목록의 검색·필터·페이지가 보존된다. (4) 존재하지 않는 id로 진입하면 **not-found 3요소**(무엇이 없다 / 왜 그럴 수 있다 / 목록·홈 두 경로)가 보이고 **대시보드로 이동하지 않는다**. (5) 사용자 콘솔과 관리자 콘솔이 **같은 not-found 컴포넌트**를 쓴다. (6) 권한 없는 역할이 상세 URL로 직접 진입하면 **서버가 거부**하고 화면이 권한 거부 상태를 보여준다(역할 4종 검증). (7) 다른 조직/부서 범위의 id 직접 진입이 거부된다. (8) 오버레이의 `aria-modal`·`aria-labelledby`·Escape·포커스 관리가 유지된다. (9) 관리자 상세 모달이 있는 화면을 전수 조사한 목록이 문서에 남아 있다.
+acceptance_criteria: (1) `/users/:id`·`/audit/:id`·`/departments/:id`(및 조사로 발견된 나머지)가 **직접 URL 진입으로 상세를 연다**. (2) 상세가 열린 상태에서 **새로고침하면 같은 상세가 다시 열린다**. (3) **뒤로가기가 상세만 닫고** 목록의 검색·필터·페이지가 보존된다. (4) **일반 사용자(`user`)가 `/users`·`/rbac`·`/backup`·`/impersonation`에 직접 진입하면 `/me`로 조용히 이동하지 않고 권한 거부 화면을 본다**(역할 4종 검증). (4-b) 존재하지 않는 id로 진입하면 **not-found 3요소**(무엇이 없다 / 왜 그럴 수 있다 / 목록·홈 두 경로)가 보이고 **대시보드로 이동하지 않는다**. (5) 사용자 콘솔과 관리자 콘솔이 **같은 not-found 컴포넌트**를 쓴다. (6) 권한 없는 역할이 상세 URL로 직접 진입하면 **서버가 거부**하고 화면이 권한 거부 상태를 보여준다(역할 4종 검증). (7) 다른 조직/부서 범위의 id 직접 진입이 거부된다. (8) 오버레이의 `aria-modal`·`aria-labelledby`·Escape·포커스 관리가 유지된다. (9) 관리자 상세 모달이 있는 화면을 전수 조사한 목록이 문서에 남아 있다.
 required_tests: 상세 라우트 딥링크/새로고침/뒤로가기 테스트(관리자 상세 전체). not-found 공용 컴포넌트 테스트(양쪽 콘솔). **RBAC 직접 진입 negative 테스트** — 역할 4종 × 상세 라우트 전체, 권한 없음/타 조직 id. `var/product-audit/probe_badid.py`·`verify_badid.py`를 관리자 상세 라우트까지 확장해 재실행. 목록 상태 보존 테스트(`PA-RC-0013`과 공유). 오버레이 접근성 속성 회귀 테스트.
 qa_gaps: `QA_COVERAGE.md`에 관리자 상세의 딥링크·새로고침·뒤로가기 축이 없다(라우트가 없어서 검증 대상이 아니었다). 미등록 URL 폴백 동작도 검증된 적이 없고, 이번 Cycle이 대시보드로 조용히 이동하는 것을 처음 관측했다. 관리자 상세 라우트의 RBAC/IDOR은 라우트 신설과 동시에 커버리지를 세워야 한다.
 quality_rubric: `impeccable` — heuristic 3(User Control and Freedom: 뒤로가기·탈출 경로)·4(Consistency and Standards: 같은 개념이 같게 동작)·9(Error Recovery: 오류를 정확히 알리고 회복 경로를 준다), 페르소나 Riley(새로고침·뒤로가기로 흐름을 깨뜨려 보기). `ui-ux-pro-max` `--domain ux` — Navigation의 Deep Linking("URL은 공유 가능하도록 현재 상태를 반영해야 한다", "상태/뷰 변경 시 URL 갱신"). `ux-writing` — not-found 문구의 회복 3요소(이미 사용자 콘솔이 충족하므로 재사용).
@@ -584,12 +584,42 @@ target_design: 관리자 상세에 `/users/:id`·`/audit/:id`·`/departments/:id
 visual_change_required: false
 target_visual_delta: 화면 모습은 거의 그대로다 — 상세는 지금처럼 목록 위 오버레이로 열린다. 눈에 보이는 변화는 주소창의 URL이 상세 id를 포함하게 되는 것과, 잘못된 상세 URL에서 대시보드 대신 not-found 화면이 나타나는 것뿐이다.
 affected_surfaces: detail-screens · modal-drawer · error-state · table-screens(행 클릭 핸들러)
-affected_components: `frontend/src/app/AdminRoutes.jsx` · 관리자 목록 화면의 행 클릭 핸들러 · 상세 오버레이 컴포넌트(URL 동기화) · 라우터 미등록 경로 폴백 · 사용자 콘솔 not-found 컴포넌트(공용 승격 대상)
+affected_components: `frontend/src/app/AdminRoutes.jsx`(라우트 추가 + `:166` 폴백) · `frontend/src/app/UserRoutes.jsx:91`(폴백) · `frontend/src/app/App.jsx:95`(콘솔 분기) · 관리자 목록 화면의 행 클릭 핸들러 · 상세 오버레이 컴포넌트(URL 동기화) · 사용자 콘솔 not-found 컴포넌트(공용 승격 대상) · 권한 거부 화면 컴포넌트(재사용 대상)
 workflow_change: 없음 — 상세를 보고 조작하는 절차와 권한은 불변이다. 상세에 도달하는 수단이 하나 늘어나고(직접 URL) 뒤로가기의 의미가 정확해진다.
 navigation_impact: 관리자 콘솔에 상세 라우트가 신설된다. 뒤로가기 동작이 「이전 화면으로」에서 「상세만 닫기」로 바뀐다. 미등록 URL 폴백이 대시보드 리다이렉트에서 not-found로 바뀐다.
 data_impact: 없음 — 상세가 보여주는 정보·구조·의미 불변.
 api_impact: 없음 — 상세 조회 엔드포인트는 이미 존재하고 모달이 지금 그것을 부른다. 서버는 없는 id에 이미 404를 준다.
 rbac_impact: **경계 불변이나 새 진입 경로가 생기므로 재검증 필수.** 직접 URL 진입 시 서버가 권한을 정본으로 판단해 거부해야 하고, 타 조직/부서 범위 id의 IDOR도 차단되어야 한다. 역할 4종 × 신설 라우트 전체의 negative 테스트가 완료 조건이다.
-browser_verification: 1920×1080 light에서 `/users/<실제id>` 직접 입력 → 상세 열림 스크린샷, 그 상태에서 새로고침 → 같은 상세 스크린샷, 뒤로가기 → 목록 + 검색어/페이지 유지 스크린샷. `/users/<없는id>` → not-found 3요소 스크린샷(대시보드 아님). 권한 없는 역할로 같은 URL 진입 → 거부 화면 스크린샷. 사용자 콘솔 `/board/999999`와 나란히 놓고 같은 컴포넌트인지 대조.
+browser_verification: **역할 4종(user·operator·auditor·system_admin)으로 각각 로그인해** `/users`·`/rbac`·`/backup`·`/impersonation` 직접 진입 스크린샷 — `user`가 `/me`가 아니라 권한 거부 화면에 머무는 것을 확인(1920×1080 light). 그리고 1920×1080 light에서 `/users/<실제id>` 직접 입력 → 상세 열림 스크린샷, 그 상태에서 새로고침 → 같은 상세 스크린샷, 뒤로가기 → 목록 + 검색어/페이지 유지 스크린샷. `/users/<없는id>` → not-found 3요소 스크린샷(대시보드 아님). 권한 없는 역할로 같은 URL 진입 → 거부 화면 스크린샷. 사용자 콘솔 `/board/999999`와 나란히 놓고 같은 컴포넌트인지 대조.
 evidence_refs: `PRODUCT_AUDIT_DESIGN.md` §3 detail-screens·§3 modal-drawer·§3 error-state · `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-066` · 계측 `var/product-audit/design_capture2.json` detail[](openedAs=dialog, urlBefore==urlAfter, 박스 크기)·states[](`/users/00000000-…` at9s h1=「대시보드」 / `/board/999999` at9s h1=「게시글」) · 소스 `frontend/src/app/UserRoutes.jsx:60,66,72,77,81,83`(사용자 `:id` 6개) 대비 `AdminRoutes.jsx`(0개) · 이전 Cycle `PA-F-052`(사용자 콘솔 not-found 3요소) · 스크린샷 `var/product-audit/shots/detail_user-detail.png`·`detail_audit-detail.png`·`detail_dept-detail.png`·`state_error-baduser.png`·`state_error-badboard.png`
+<!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0025 -->
+rc_id: PA-RC-0025
+severity: Low
+priority: P3
+confidence: Confirmed
+problem: **공유 `DataScreen`이 성공 문구를 조립해서 만드는 바람에 저장소 자신의 UX Writing 규칙을 어기는 유일한 위반자가 됐다.** `docs/UX_WRITING.md:54`가 토스트를 문장형으로 못박고(「문장형(마침표 O): "권한이 없습니다.", "저장했습니다.", "다시 시도해 주세요."」) `:74`가 저장 동작의 토스트를 「저장했습니다.」로 지정한다. 손으로 쓴 화면은 이 규칙을 지킨다 — 저장소 전체 한국어 알림 문자열 **87종 / 101회** 중 **서술형 62종 대 명사형 2종**이다. 그런데 `frontend/src/screens/DataScreen.jsx:287`이 액션에 `result()`가 없으면 `announce(res, a.label.replace(/^\+\s*/, "") + " 완료")`로 문구를 **조립**하고 `data-screen/SubListDrawer.jsx:72`도 `toast(ra.label + " 완료", "success")`로 같은 일을 한다. 그 결과 「삭제」 액션은 「**삭제 완료**」가 된다 — 명사형·마침표 없음이라 확인 문장이 아니라 **상태 배지처럼 읽힌다**. 실제로 한 화면 안에서 갈라지는 것을 관측했다: `/departments`의 생성은 「추가했습니다.」, 수정은 「저장했습니다.」인데 **삭제만 「삭제 완료」**다.
+expected: 성공 토스트는 문장형 과거 시제에 마침표를 쓴다(「삭제했습니다.」). 근거는 추론이 아니라 **이 저장소의 SSOT 문서**다 — `docs/UX_WRITING.md:54`·`:74`. `ux-writing` Skill의 Success Message 패턴(`[Action] [result]`, 과거형: "Changes saved")과도 같은 방향이다.
+actual: registry 액션의 기본 경로가 `<라벨> + " 완료"`를 만든다. 「삭제 완료」·「보관 완료」 같은 명사형이 문장형 화면과 섞인다.
+intent_evidence: ② `docs/UX_WRITING.md:54`(문장형·마침표 규칙)·`:74`(저장 토스트를 「저장했습니다.」로 명시) — 이 문서는 이전 Cycle `PA-RC-0002`의 산출물이라 제품 규칙으로 확정된 것이다. ⑤ 손으로 쓴 화면 62종이 실제로 이 규칙을 따른다(정량 대조). ⑥ `DataScreen.jsx`의 옵트인 경로(`a.result(res)` → `toast(rr.msg, ...)`)가 이미 존재한다는 것은 액션별 문구를 지정하는 설계 의도가 있었음을 보여 준다 — 기본값만 규칙 밖에 있다.
+findings: PA-F-073
+feature_contracts: 해당 없음 — 기능 계약이 아니라 조작 성공을 알리는 문구다. 어떤 액션이 무엇을 하는지는 하나도 바뀌지 않는다.
+routes: `DataScreen`을 쓰는 전 화면 — registry 화면 키 **24종** + 손수 작성 소비자 9개(`Users.jsx`·`Board.jsx`·`TeamDocs.jsx`·`OrgConsole.jsx`·`OrgTree.jsx`·`Offboarding.jsx`·`LlmConsole.jsx`·`SchedulerCalendar.jsx`·`DataScreen.jsx` 자신). 실측 관측은 `/departments`.
+frontend: `frontend/src/screens/DataScreen.jsx:287`(기본 성공 문구 조립) · `frontend/src/screens/data-screen/SubListDrawer.jsx:72`(같은 패턴) · 필요하면 `frontend/src/screens/registry/*.js`의 액션 정의(문구가 필요한 액션에 한해).
+api: 없음 — 응답 구조·상태 코드 불변. 문구는 전부 프런트에서 만든다.
+backend: 없음.
+data: 해당 없음 — 데이터 구조·의미 불변.
+rbac: 해당 없음 — 어떤 액션이 누구에게 보이는지는 바뀌지 않는다.
+integration: 해당 없음.
+state_transition: 해당 없음 — 액션의 상태 전이는 불변이고 그 결과를 말하는 문구만 바뀐다.
+user_impact: 같은 화면에서 두 문체를 본다(「추가했습니다.」 옆에 「삭제 완료」). 업무를 막지는 않으므로 Low다. 다만 `aria-live`로 읽히는 문구이기도 해서 스크린리더 사용자에게는 「삭제 완료」가 상태 표시인지 완료 통지인지 덜 분명하다.
+implementation_direction: (1) **기본 조립을 문장형으로 바꾼다.** `label + " 완료"` 대신 액션 종류별 문장형 사전을 두고(삭제→「삭제했습니다.」, 보관→「보관했습니다.」, 활성화→「활성화했습니다.」 등) 매핑에 없는 라벨만 안전한 기본형으로 떨어뜨린다. **라벨을 문자열 결합으로 활용형으로 만들려고 하지 마라** — 한국어 동사 활용은 라벨에서 기계적으로 유도되지 않는다(「보관 복구」·「세션 해제」 같은 복합 라벨이 실제로 있다). 사전 방식이 옳다. (2) **`docs/UX_WRITING.md`에 이 사전을 등재**해 규칙과 구현이 같은 곳을 보게 한다. (3) 사전에 없는 라벨이 나오면 정적 검사가 잡게 한다 — 이 저장소는 `scripts/check_typography_literals.py`로 같은 방식을 이미 쓴다(`PA-RC-0001` 선례). (4) 액션별로 특별한 문구가 필요하면 **이미 있는 `a.result(res)` 옵트인 경로**를 쓰고 새 기제를 만들지 마라. (5) `SubListDrawer.jsx:72`도 같은 사전을 쓰게 한다 — 두 곳이 갈라지면 이 RC가 다시 열린다.
+constraints: 기술 용어·상태값·API 필드명을 바꾸지 않는다(문구만 바꾼다). `aria-live` 통지가 계속 발화해야 한다 — 문구를 바꾸면서 통지 자체를 잃지 마라(`PA-F-070`이 확인한 좋은 성질이다). 실패 문구(`rr.kind === "error"`)의 기존 회복 절 3요소를 건드리지 않는다(`PA-RC-0002` 산출물). `humanize-korean`은 이 작업에서 **문체 다듬기에만** 쓰고 액션 라벨·상태값·기술 용어는 손대지 않는다.
+regression_risk: 성공 문구 문자열로 요소를 찾는 기존 테스트가 깨진다(`frontend/src/ui/toast-announce.test.jsx` 등 토스트 계열). 영향 범위가 registry 24종이라 넓지만 **문자열 한 층**이라 깊지 않다. 정적 검사를 도입하면 사전에 없는 라벨이 한꺼번에 걸릴 수 있으므로 예외 목록 관리 방식을 `check_typography_literals.py` 선례에 맞춘다. 라벨→문장 매핑을 잘못 만들면 엉뚱한 동사가 나오므로(예: 「보관 복구」→「보관 복구했습니다」가 어색) 매핑은 사람이 읽고 확정한 사전이어야 한다.
+acceptance_criteria: (1) `/departments`에서 생성·수정·삭제 세 조작의 토스트가 **모두 문장형(마침표 포함)**이다. (2) registry 액션 중 성공 토스트가 명사형(`… 완료`·`… 성공`)으로 나오는 것이 **0건**이다. (3) 문구가 바뀐 뒤에도 `aria-live` 통지가 계속 발화한다. (4) `docs/UX_WRITING.md`에 액션→문장 사전이 등재돼 있다. (5) 사전에 없는 액션 라벨이 추가되면 정적 검사가 실패한다. (6) 액션별 커스텀 문구가 필요한 경우 기존 `a.result(res)` 경로로 표현돼 있고 새 기제가 추가되지 않았다. (7) 실패 토스트의 회복 3요소가 그대로다.
+required_tests: `DataScreen`의 기본 성공 문구 단위 테스트(액션 라벨 → 기대 문장). `SubListDrawer`의 같은 경로 테스트. `aria-live` 통지 유지 테스트(`frontend/src/ui/toast-announce.test.jsx` 확장). 정적 검사 신설 시 `scripts/static_checks.sh` 배선. 대표 소비자 회귀 — `/departments`·`/users`·`/prompts` 렌더 및 액션 실행.
+qa_gaps: `QA_COVERAGE.md`에 「성공 토스트 문구가 UX Writing 규칙을 따르는가」 축이 없다. 지금까지 P축은 **오류 문구**만 검사했고(회복 절 비율) **성공 문구의 문체**는 검사한 적이 없다. `aria-live` 통지 존재 여부도 이번 Cycle이 처음 관측했다.
+quality_rubric: `ux-writing` — Success Messages 패턴(`[Action] [result/benefit]`, 과거형, "Changes saved"), Consistency("Use consistent terminology throughout"), Accessibility("Label all interactive elements explicitly" — `aria-live` 문구도 같은 기준). 그리고 이 저장소의 SSOT `docs/UX_WRITING.md:54`(문장형·마침표)·`:74`(저장 토스트 지정). `humanize-korean`은 확정된 사전의 한국어 자연스러움 검토에만 적용하고 기술 용어·상태값은 제외한다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-073` · 규칙 `docs/UX_WRITING.md:54,74` · 소스 `frontend/src/screens/DataScreen.jsx:287` · `frontend/src/screens/data-screen/SubListDrawer.jsx:72` · 런타임 관측 `var/product-audit/probe_write_copy.json`(생성 「추가했습니다.」 / 수정 「저장했습니다.」 / 삭제 「삭제 완료」) · 정량 대조: 저장소 한국어 알림 문자열 87종 101회 중 서술형 62 대 명사형 2
 <!-- PA-RC-END -->

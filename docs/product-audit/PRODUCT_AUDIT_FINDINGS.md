@@ -2537,3 +2537,183 @@ user  /notifications                                                         : B
 > 3은 배경 모델이다. 이 저장소가 이전 Cycle에 배운 교훈(*집계를 세기 전에 표본을 열어라*)의
 > 계측 버전이다. **같은 계열로 보이던 `PA-F-061`(FAB이 본문 버튼을 가림)은 히트테스트로 재서
 > 진짜였다** — 오탐 경계가 "AI가 뭔가를 가린다"는 주제가 아니라 측정 방법에 있었다는 뜻이다.
+
+
+---
+
+# PA-F-070 ~ PA-F-074 — C축(쓰기 조작) · P축(없어서 문제인 문구) (Cycle `PA-20260816-120655-f103fb5b`)
+
+> 두 축이 함께 열렸다. C축은 지금까지 **읽기만** 검증됐고(페이지네이션·검색·새로고침 복원)
+> 생성/수정/삭제를 누른 사람이 없었다. P축은 *존재하는* 문구만 판정했고, 프롬프트가 실제로
+> 요구하는 **없어서 문제인 문구**는 정면으로 다루지 않았다. 쓰기를 실행한 뒤 제품이 무엇을
+> 말하는지 보면 둘이 같이 답해진다.
+>
+> 적용 Skill: `ux-writing`(Success Messages `[Action] [result]` · Cautious tone for high-stakes ·
+> Permission Errors · Bulk feedback · 8~14단어 이해도 기준).
+> 쓰기는 **이 프로브가 직접 만든 폐기용 부서**(`감사임시<random>`)로만 했고 끝나고 지웠다.
+> 실제 데이터는 건드리지 않았다.
+
+## PA-F-070 — C축: 생성·수정·삭제가 실제로 동작하고 피드백이 완비돼 있다 (음성 결과, 강한 구현)
+
+| 항목 | 값 |
+|---|---|
+| Type | (음성 결과) |
+| Confidence | **Confirmed** — 실제 쓰기 실행 |
+| Root Cause | 없음 — 보존 대상 |
+| 근거 | `var/product-audit/probe_write_copy.json` · 스크린샷 `shots/write_after_create.png`·`write_after_update.png`·`write_delete_confirm.png`·`write_bulk_selected.png` |
+
+`/departments`에서 폐기용 부서 하나를 만들고, 이름을 바꾸고, 지웠다. **세 조작 모두 실제로
+DB에 반영됐다** — 행 수 7 → 8, 목록에 나타남, 삭제 후 사라짐(`rowGone=true`).
+
+| 단계 | 사용자가 받는 피드백 | aria-live 통지 |
+|---|---|---|
+| 생성 | 「추가했습니다.」 | ✅ 있음 |
+| 수정 | 「저장했습니다.」 | ✅ 있음 |
+| 삭제(확인 전) | 「이 부서를 지울까요? **되돌릴 수 없습니다.**」 + 취소/삭제 | — |
+| 삭제 실행 중 | 버튼이 「처리 중…」으로 바뀜 | — |
+| 삭제 완료 | 「삭제 완료」 | ✅ 있음 |
+
+`ux-writing`이 요구하는 조각이 **거의 다 있다**:
+
+- **Success message** — 조작마다 확인 문구가 뜨고 `aria-live`로 스크린리더에 통지된다.
+- **Cautious tone / 결과 고지** — 파괴적 동작 전에 「되돌릴 수 없습니다」로 **되돌릴 수 없음을
+  명시**한다. 「Delete account? You'll lose all data and this can't be undone.」 패턴 그대로다.
+- **Long-operation progress** — 「처리 중…」이 버튼 자리에 들어간다.
+- **Bulk feedback** — 3행 선택 시 「3명 선택」과 함께 액션 바가 나타난다
+  (비활성화 · 활성화 · 보관 · 보관 복구 · 잠금 해제 · 세션 해제 · 선택 해제).
+- **Error prevention 도움말** — 수정 폼이 「이름을 바꾸면 이 부서를 쓰는 모든 사용자(소속 인원)에게
+  **즉시 반영됩니다**」, 「비우면 최상위 부서가 됩니다. 하위 부서를 상위로 고르면 **순환이 되어
+  저장되지 않습니다**」로 결과와 금지 조건을 미리 말한다.
+- **라우트 이동 통지** — `aria-live`에 「화면을 이동했습니다.」가 실린다. SPA에서 흔히 빠지는 것이다.
+
+> **P축의 핵심 질문에 대한 답은 대체로 '없지 않다'였다.** 성공 확인·파괴적 확인·진행 표시·
+> 대량 선택 피드백 넷 다 존재한다. 이것은 `PA-F-068`(재설계가 잃으면 안 되는 것)에 추가한다.
+
+## PA-F-071 — P·F축: 권한 거부 문구가 3요소를 갖췄고 열람 권한과 실행 권한을 구분한다 (음성 결과)
+
+| 항목 | 값 |
+|---|---|
+| Type | (음성 결과) |
+| Confidence | **Confirmed** — 역할 3종 × 4라우트 실주행 |
+| Root Cause | 없음 — 보존 대상 |
+| 근거 | `var/product-audit/verify_denied.json` · 스크린샷 `shots/denied_operator_*.png`·`denied_auditor_*.png` |
+
+`operator`·`auditor`가 `/users`에 들어가면:
+
+> **권한이 없습니다** / 이 화면은 관리자, 시스템 관리자만 사용할 수 있습니다. / **[대시보드로 이동]**
+
+무엇이 · 왜(어느 역할이면 되는지) · 어디로 가면 되는지 **3요소**가 다 있다.
+`/impersonation`은 한 걸음 더 간다:
+
+> 권한이 없습니다 / 이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.
+> **대리 보기 시작은 관리자, 시스템 관리자만 할 수 있습니다.** / [대시보드로 이동]
+
+**열람 권한과 실행 권한을 나눠서 말한다.** 드문 수준의 정밀함이다.
+
+API 계층도 일치한다 — `GET /api/admin/users`가 `operator`·`auditor`·`user` 전부에
+`403 {"error":{"code":"forbidden","message":"권한이 없습니다.","request_id":"..."}}`를 준다.
+한국어 · 내부 정보 비노출 · `request_id`로 추적 가능(T축 양성). `auditor`가
+`/api/admin/rbac-matrix`·`/api/admin/settings`에 `200`을 받는 것은 **읽기 전용 감사자 역할과
+일치**하며 화면 노출과도 어긋나지 않는다 — bypass가 아니다.
+
+## PA-F-072 — 일반 사용자에게는 그 문구가 아예 없다. 조용히 홈으로 보낸다
+
+| 항목 | 값 |
+|---|---|
+| Type | defect / ux-gap |
+| Severity | Medium |
+| Confidence | **Confirmed** — 실주행 + 소스 확인 |
+| Root Cause | **`PA-RC-0024`**(기존 RC의 범위 확장 — 새 RC를 만들지 않았다) |
+| 근거 | `var/product-audit/verify_denied.json` · `frontend/src/app/App.jsx:95` · `UserRoutes.jsx:91` · `AdminRoutes.jsx:166` |
+
+같은 URL, 같은 상황인데 역할에 따라 완전히 다른 일이 벌어진다.
+
+| 역할 | `/users` | `/impersonation` | `/rbac` | `/backup` |
+|---|---|---|---|---|
+| `operator` | 권한 없음 화면 | 권한 없음 화면 | 정상 열람 | 정상 열람 |
+| `auditor` | 권한 없음 화면 | 정상 열람 | 정상 열람 | 정상 열람 |
+| **`user`** | **`/me`로 조용히 이동** | **`/me`로 조용히 이동** | **`/me`로 조용히 이동** | **`/me`로 조용히 이동** |
+
+### 원인은 두 줄이다
+
+`App.jsx:95` — `{useUserConsole ? <UserRoutes /> : <AdminRoutes />}`. 일반 사용자에게는
+`AdminRoutes`가 **아예 마운트되지 않으므로** `/rbac`은 권한 문제가 아니라 **모르는 라우트**가 되고,
+`UserRoutes.jsx:91`의 `<Route path="*" element={<Navigate to="/me" replace />} />`가 삼킨다.
+
+**그리고 이것은 `PA-F-066`(관리자 상세 URL이 대시보드로 조용히 이동)과 같은 결함이다** —
+`AdminRoutes.jsx:166`의 `<Navigate to="/dashboard" replace />`가 대칭 위치에 있다.
+증상 둘, 원인 하나: **`path="*"` 폴백이 설명하는 화면을 그리지 않고 `Navigate` 한다.**
+
+동료에게 「/rbac 좀 봐 줘」라는 링크를 받은 일반 사용자는 자기 홈 화면에 도착하고, 무슨 일이
+일어났는지 알 방법이 없다. **제품에 이미 있는 좋은 권한 거부 화면**(`PA-F-071`)을 그 자리에
+쓰기만 하면 되므로 새로 설계할 것이 없다. `PA-RC-0024`의 범위와 acceptance criteria에 넣었다.
+
+## PA-F-073 — 공유 `DataScreen`의 성공 문구가 저장소 자신의 UX Writing 규칙을 어긴다
+
+| 항목 | 값 |
+|---|---|
+| Type | content |
+| Severity | Low |
+| Confidence | **Confirmed** — 규칙 문서 + 소스 + 런타임 관측 |
+| Root Cause | **`PA-RC-0025`**(신규) |
+| 근거 | `docs/UX_WRITING.md:54,74` · `frontend/src/screens/DataScreen.jsx:287` · `frontend/src/screens/data-screen/SubListDrawer.jsx:72` · 런타임 `probe_write_copy.json` |
+
+이 저장소의 UX Writing SSOT는 토스트 문구를 **문장형**으로 못박는다.
+
+- `docs/UX_WRITING.md:54` — 「문장형(마침표 O): "권한이 없습니다.", **"저장했습니다."**, "다시 시도해 주세요."」
+- `docs/UX_WRITING.md:74` — 저장 동작 → 토스트 **"저장했습니다."**
+
+손으로 쓴 화면은 이 규칙을 지킨다. 저장소 전체 한국어 알림 문자열 **87종 / 101회**를 세면
+**서술형 62종 대 명사형 2종**이다.
+
+그런데 **공유 `DataScreen`이 규칙을 어긴다.** 액션이 자기 `result()`를 정의하지 않으면 기본 경로가
+성공 문구를 **조립**한다:
+
+```js
+// frontend/src/screens/DataScreen.jsx:287
+announce(res, a.label.replace(/^\+\s*/, "") + " 완료")
+// frontend/src/screens/data-screen/SubListDrawer.jsx:72
+toast(ra.label + " 완료", "success")
+```
+
+그래서 「삭제」 액션은 「**삭제 완료**」가 된다 — 명사형, 마침표 없음, 확인 문장이 아니라 **상태
+배지처럼 읽힌다**. `ux-writing`의 Success Message 패턴(`[Action] [result]`, 과거형 —
+"Changes saved")과도 어긋난다.
+
+영향 범위는 registry 화면 키 **24종** + `DataScreen`을 쓰는 손수 작성 화면 9개다. 실제로 한 화면
+안에서 갈라지는 것을 관측했다 — `/departments`의 생성은 「추가했습니다.」, 수정은
+「저장했습니다.」인데 **삭제만 「삭제 완료」**다. 사용자는 같은 화면에서 두 문체를 본다.
+
+> **이 저장소가 반복해 온 병의 뒤집힌 형태다.** 지금까지는 *"좋은 관행이 한 곳에 있는데 옆으로
+> 퍼뜨릴 장치가 없다"* 였다(`PA-RC-0001`·`0002`·`0008`). 이번엔 규칙이 **문서로 적혀 있고**
+> 손으로 쓴 화면 62곳이 그것을 지키는데, **규칙을 강제해야 할 공유 프레임워크가 유일한 위반자**다.
+> 고칠 지점이 두 줄이라 비용은 작고, 옵트인 경로(`a.result(res)`)가 이미 있어 예외도 표현 가능하다.
+
+## PA-F-074 — 이번 라운드에 내가 저지른 4번째 측정 오류: **시간축을 또 놓쳤다**
+
+| 항목 | 값 |
+|---|---|
+| Type | (방법론 기록) |
+| Confidence | **Confirmed** — 재측정으로 판정 |
+| Root Cause | 없음 |
+
+`probe_write_copy.py`는 라우트 진입 후 **1400ms**에 쟀고, `operator`의 `/users`가
+`h1=None` · 본문이 배너뿐(454자)으로 나왔다. 나는 이것을 **"권한 거부 화면에 문구가 아예 없다"**
+로 읽었다 — 이번 Audit에서 가장 중요한 P축 결함이 될 뻔했다.
+
+`verify_denied.py`에서 **2500ms**로 늘리고 스크린샷을 찍으니 47자짜리 정상적인 권한 거부 화면이
+있었다(`PA-F-071`). **1400ms 시점에는 아직 렌더되지 않았을 뿐이다.**
+
+> 이것은 **직전 Cycle이 이미 기록한 교훈**이다 — `PA-F-052`의 「`/board/:id`가 영원히 로딩에
+> 멈춘다」 오탐이 2.4초 단일 스냅샷 때문이었고, 그때 *"비동기 화면은 단일 스냅샷이 아니라
+> 시계열로 판정하라"* 고 적었다. **적어 두고 또 밟았다.**
+>
+> 이번 Cycle의 측정 오류는 이것으로 **4건**이다(`PA-F-069`의 3건 + 이것). 앞의 셋은
+> *"내가 잰 것이 내가 재려던 것인가"*(선택자·좌표계·배경 모델)였고 이번 것은 *"내가 잰 **때**가
+> 맞는가"* 다. **프로브에 settle 시간을 고정값으로 박지 말고, 판정이 "없다"로 나올 때는 반드시
+> 더 기다려 본 뒤에 확정하라** — 없다는 결론은 시간이 부족했을 때도 똑같이 나온다.
+
+부수로 하나 더 정정한다. 같은 프로브가 `/api/users`·`/api/rbac/matrix`·`/api/settings`를 호출해
+`404`를 받았는데, **실제 경로는 `/api/admin/*`** 다(`var/product-audit/api_inventory.json`).
+경로를 내가 지어낸 것이라 그 404는 제품 사실이 아니다. 올바른 경로로 다시 재서 `403` +
+한국어 메시지 + `request_id`를 확인했다(`PA-F-071`).
