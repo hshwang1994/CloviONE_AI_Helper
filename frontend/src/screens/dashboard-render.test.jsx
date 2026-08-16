@@ -1,19 +1,17 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 대시보드가 '비어 있는 응답'에도 무너지지 않는가 + 차트가 그림 없이도 읽히는가.
+/* 대시보드가 '비어 있는 응답'에도 무너지지 않는가 + PA-RC-0018(REBUILD) 이후의 계약을
+ * 지키는가: 조치가 필요한 항목은 목록 행 + 버튼으로, 정상 지표는 한 줄 스트립으로, 같은
+ * (값,라벨)은 화면에 한 번만.
  *
  * 대시보드 payload는 필드가 20개 가까이 되고, 필드마다 null이 될 수 있는 실제 이유가 있다
  * (비-Linux 호스트 → disk/memory null, nginx TLS 종단 → cert null, 신규 설치 → integrations {}).
  * 화면이 그중 하나라도 그냥 읽으면 ErrorBoundary가 대시보드를 통째로 잡아먹는다 —
  * 첫 화면이라 앱 전체가 고장 난 것처럼 보인다. 완전히 빈 객체({})로 그 최악을 고정한다.
- *
- * 함께 확인하는 것: 새로 들인 SVG 차트 두 종의 계약.
- *   - 값이 하나도 없으면 빈 그림이 아니라 '없다'는 글자를 낸다(도넛).
- *   - 값이 0이어도 숫자는 항상 글자로 나간다(막대) — 그림을 못 보는 사람도 같은 정보를 얻는다.
  */
 
 const apiMock = vi.fn();
@@ -58,26 +56,44 @@ describe("대시보드 — 빈 payload", () => {
     apiMock.mockResolvedValue({});
     renderDashboard();
 
-    // 섹션 뼈대는 그대로 선다.
+    // 섹션 뼈대는 그대로 선다(현재 큐 상태·인벤토리·지금 상태는 PA-RC-0018로 없어졌다).
     expect(await screen.findByText("서비스 상태")).toBeInTheDocument();
-    expect(screen.getByText("현재 큐 상태")).toBeInTheDocument();
     expect(screen.getByText("작업 지표 (최근 24시간)")).toBeInTheDocument();
+    expect(screen.getByText("백업")).toBeInTheDocument();
+    expect(screen.queryByText("현재 큐 상태")).toBeNull();
+    expect(screen.queryByText("인벤토리")).toBeNull();
+    expect(screen.queryByText("지금 상태")).toBeNull();
     // 경보가 하나도 없으면 '조치 필요 없음'을 명시한다(빈 화면과 구분).
     expect(screen.getByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
     // 감사 로그를 볼 수 있는 역할인데 목록이 비었으면 '정말 없다'고 말해 준다.
     expect(screen.getByText("최근 주요 변경 이력이 없습니다.")).toBeInTheDocument();
     // disk/memory/cert가 전부 없으면 '-' 죽은 타일 대신 섹션 자체가 사라진다.
     expect(screen.queryByText("시스템 리소스")).toBeNull();
+    // 재구축의 성공 판정: 화면이 스스로 자기 구조를 설명하는 문장이 없어도 이해된다
+    // (PA-RC-0018 acceptance criteria 7 — 삭제해도 이해되면 성공, 문구 자체가 없어야 통과).
+    expect(screen.queryByText(/이 줄은 요약입니다/)).toBeNull();
   });
 
-  it("차트는 값이 없으면 '없다'고 쓰고, 0이어도 숫자를 글자로 낸다", async () => {
+  it("정상 지표는 큰 숫자 카드가 아니라 한 줄 스트립 텍스트로 나온다(0이어도)", async () => {
+    apiMock.mockResolvedValue({
+      components: { web: "up", worker: "up", scheduler: "up" },
+      jobs_24h: { total: 0, succeeded: 0, success_rate_pct: null, queued: 0, failed_open: 0 },
+      disk: { used_pct: 40 },
+    });
+    renderDashboard();
+
+    expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+    // 대기 작업이 0이어도 글자로 보인다 — 스트립 전체가 이미 "카드가 아닌 작은 텍스트"이므로
+    // StatCard(.k-stat, 30px 큰 숫자)로 그려지지 않는다(direction 4).
+    const queuedText = screen.getByText("대기 작업 0");
+    expect(queuedText.closest(".k-stat")).toBeNull();
+  });
+
+  it("도넛은 값이 하나도 없으면 빈 그림이 아니라 '없다'고 쓴다", async () => {
     apiMock.mockResolvedValue({});
     renderDashboard();
 
-    // 도넛: 서비스가 한 건도 없으면 빈 원이 아니라 이유를 쓴다.
     expect(await screen.findByText("서비스 정보 없음")).toBeInTheDocument();
-    // 막대: 대기/미해결 실패가 0이어도 두 값 모두 숫자로 읽힌다(그림에만 의존하지 않는다).
-    expect(screen.getAllByText("0건")).toHaveLength(2);
   });
 
   it("'마지막 백업 없음'은 백업을 실제로 실행할 수 있는 역할에게만 경보로 뜬다", async () => {
@@ -89,33 +105,62 @@ describe("대시보드 — 빈 payload", () => {
     expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
     expect(screen.getByText("마지막 백업")).toBeInTheDocument();
     expect(screen.getByText("없음")).toBeInTheDocument();
+    // 조치 목록의 기본 동작 버튼은 정확히 하나이고(이 경보 하나뿐이므로 primary), 백업
+    // 구역의 버튼은 같은 화면의 두 번째 채운 버튼이 되지 않도록 outlined로 남는다
+    // (PA-RC-0023 규범: 화면당 contained 정확히 1개).
+    expect(screen.getAllByRole("button", { name: "백업 관리로 이동" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "백업 관리로 이동" }).className).toMatch(/containedPrimary/);
+    expect(screen.getByRole("button", { name: "백업 관리" }).className).not.toMatch(/contained/);
   });
 });
 
-describe("대시보드 — 경보와 큐 구성", () => {
-  it("실패·대기 작업이 있으면 경보 타일과 막대 값이 같은 수치를 말한다", async () => {
+describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 acceptance criteria 3)", () => {
+  it("경보 중인 지표는 조치 목록에만 뜨고, 정상 지표 스트립에는 다시 뜨지 않는다", async () => {
     apiMock.mockResolvedValue({
       components: { web: "up", worker: "up", scheduler: "down" },
       integrations: { n8n: { enabled: true, last_health: "up" } },
       counts: { runners: 2, active_workflows: 1, active_schedules: 0 },
       jobs_24h: { total: 10, succeeded: 7, success_rate_pct: 70, queued: 4, failed_open: 2 },
       recent_critical_audit: [],
-      disk: {}, memory: {},
+      disk: { used_pct: 42 }, memory: {},
       cert_days_remaining: null, last_backup_at: null, last_backup_status: null,
+    });
+    const { container } = renderDashboard();
+
+    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    // 경보 행: 스케줄러 중단, 실패 2, 대기 4, 성공률 낮음(70%) — 넷 다 행으로 뜬다.
+    expect(screen.getByText("2")).toBeInTheDocument(); // 실패 작업 값
+    expect(screen.getByText("4")).toBeInTheDocument(); // 대기 작업 값
+    expect(screen.getByText("70%")).toBeInTheDocument(); // 성공률 값
+    // 기본 조치 버튼: 가장 급한(danger) 한 건만 primary, 나머지는 outlined.
+    const primaryButtons = container.querySelectorAll(".MuiButton-containedPrimary");
+    expect(primaryButtons.length).toBe(1);
+
+    // 지금 경보 중인 값(대기 작업·성공률)은 정상 지표 스트립에 다시 나오지 않는다 —
+    // 스트립에 남는 건 서비스 정상 요약과 디스크(42%, 경보 임계값 80% 미만)뿐이다.
+    // within으로 스트립 영역만 좁혀 판정한다(경보 행에는 같은 라벨 "대기 작업"이
+    // 존재해야 정상이므로 전체 문서에서 부재만 보면 안 된다). 라벨+값이 한 노드의
+    // textContent로 합쳐지므로(예: "디스크 사용 42%") 정규식으로 부분일치를 본다.
+    const strip = screen.getByText(/디스크 사용/).closest("div");
+    expect(within(strip).queryByText(/대기 작업/)).toBeNull();
+    expect(within(strip).queryByText(/24시간 성공률/)).toBeNull();
+    expect(within(strip).getByText(/42%/)).toBeInTheDocument();
+  });
+
+  it("경보가 없는 지표는 스트립에 뜨고, 값이 조치 목록과 스트립 양쪽에 겹치지 않는다", async () => {
+    apiMock.mockResolvedValue({
+      components: { web: "up", worker: "up", scheduler: "up" },
+      counts: { active_workflows: 3 },
+      jobs_24h: { total: 20, succeeded: 19, success_rate_pct: 99, queued: 0, failed_open: 0 },
+      disk: { used_pct: 30 },
     });
     renderDashboard();
 
-    // 경보 줄(스케줄러 중단 / 실패 / 대기 / 성공률). '중단'은 경보 타일·서비스 배지·도넛 범례에
-    // 동시에 나온다 — 셋이 같은 말을 쓰는 것이 이 화면의 규칙이라 개수로 세지 않고 존재만 본다.
-    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
-    expect(screen.getAllByText("중단").length).toBeGreaterThan(0);
-
-    // 막대 차트의 값은 타일과 같은 수치를 글자로 낸다(타일은 '4'/'2', 막대는 '4건'/'2건').
-    expect(screen.getByText("4건")).toBeInTheDocument();
-    expect(screen.getByText("2건")).toBeInTheDocument();
-
-    // 도넛 범례도 글자로 구성을 말한다(정상 3 = web/worker/n8n, 중단 1 = scheduler).
-    expect(screen.getByText("3개")).toBeInTheDocument();
+    expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("활성 워크플로 3")).toBeInTheDocument();
+    expect(screen.getByText(/24시간 성공률 99%/)).toBeInTheDocument();
+    expect(screen.getByText("디스크 사용 30%")).toBeInTheDocument();
+    expect(screen.getByText("대기 작업 0")).toBeInTheDocument();
   });
 });
 
@@ -132,6 +177,7 @@ describe("대시보드 — 유지보수 모드", () => {
     expect(await screen.findByText("유지보수 모드")).toBeInTheDocument();
     expect(screen.getByText("활성")).toBeInTheDocument();
     expect(screen.queryByText("지금 조치가 필요한 문제가 없습니다.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "유지보수 화면 열기" })).toBeInTheDocument();
   });
 
   it("점검 중이 아니면 경보를 만들지 않는다", async () => {
@@ -140,5 +186,30 @@ describe("대시보드 — 유지보수 모드", () => {
 
     expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText("유지보수 모드")).not.toBeInTheDocument();
+  });
+});
+
+describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance criteria 12)", () => {
+  it("작업 큐에 갈 수 없는 역할(auditor)에게는 실패 작업 경보 버튼이 비활성이다", async () => {
+    mockRole = "auditor";
+    apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 } });
+    renderDashboard();
+
+    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    // auditor는 /jobs 권한이 없다(NAV_ROLES) — 라벨에 "관리자 문의"가 붙고, 갈 곳이 없으니
+    // 버튼도 "작업 큐 열기"라고 거짓 약속하지 않고 "이동 불가"로 비활성 표시한다.
+    expect(screen.getByText(/실패 작업.*관리자 문의/)).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "이동 불가" });
+    expect(btn).toBeDisabled();
+  });
+
+  it("작업 큐에 갈 수 있는 역할(operator)에게는 같은 경보 버튼이 활성이다", async () => {
+    mockRole = "operator";
+    apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 } });
+    renderDashboard();
+
+    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "작업 큐 열기" });
+    expect(btn).not.toBeDisabled();
   });
 });

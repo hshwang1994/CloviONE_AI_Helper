@@ -401,6 +401,21 @@ describe("프로젝트 목록 — 요약", () => {
     // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
     expect(within(avgTile).queryByText(/아직 재지 않았습니다/)).toBeNull();
   });
+
+  it("PA-RC-0018 direction 4: 프로젝트가 0건이면 값 없는 요약 타일 여덟 장을 빈 상태 위에 그리지 않는다", async () => {
+    listPayload = { items: [], total: 0, page: 1, page_size: 20 };
+    apiMock.mockImplementation((path) => {
+      const p = String(path);
+      if (p.startsWith("/api/projects/dashboard")) return Promise.resolve({ ...DASHBOARD, total: 0, by_status: {}, milestones: { overdue: { count: 0, items: [] } }, health: { unscored: 0, trouble: { count: 0, items: [] } } });
+      if (p.startsWith("/api/projects")) return Promise.resolve(listPayload);
+      if (p.startsWith("/api/admin/departments")) return Promise.resolve({ items: [] });
+      return Promise.resolve({});
+    });
+    renderAt("/projects");
+
+    expect(await screen.findByText("프로젝트가 없습니다")).toBeInTheDocument();
+    expect(document.querySelectorAll(".k-stat")).toHaveLength(0);
+  });
 });
 
 describe("프로젝트 목록 — 조건이 주소에 남는다", () => {

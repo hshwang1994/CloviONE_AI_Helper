@@ -17,6 +17,17 @@ import { applyBootTheme } from "./theme-store.js";
  * 라우트 경로는 재설계에서도 한 글자도 바꾸지 않았다 — 북마크·알림 딥링크·초기 진입 로직이
  * 전부 이 해시 경로에 걸려 있다. */
 
+/* 해시가 없는 최초 진입에서 기본 화면을 정한다(PA-RC-0018 acceptance criteria 11).
+ * /admin 경로로 직접 들어오면 그 자체가 관리 콘솔 진입 의도이므로 대시보드로 보낸다
+ * (app/admin/router.py::admin_console, 서버가 이미 관리 콘솔 역할로 게이팅한다). 그 외
+ * (로그인 직후 포함 — login.js는 항상 물리 경로 "/"로 보낸다)에서는 역할로 정한다 — 이전엔
+ * 여기서도 물리 경로만 봐서, 로그인이 항상 "/"로 보내는 지금 흐름에서는 관리자도 항상
+ * /me에 떨어졌다. */
+export function initialLandingPath(pathname, role) {
+  const toDashboard = pathname === "/admin" || (role != null && role !== "user");
+  return toDashboard ? "/dashboard" : "/me";
+}
+
 /* 첫 페인트 전에 테마를 적용해 다크 사용자의 화이트 플래시(FOUC)를 없앤다.
  * CSP가 인라인 <script>를 막으므로 부팅 인라인 스크립트 대신 모듈 스코프에서 동기 적용한다
  * (이 모듈은 createRoot보다 먼저 평가된다). */
@@ -49,11 +60,14 @@ function Layout() {
   // 경로가 바뀌면 모바일 드로어를 닫는다(항목 선택 후 자동 닫힘).
   useEffect(() => { setNavOpen(false); }, [loc.pathname]);
 
-  // 최초 진입: 해시가 없으면 실제 경로로 기본 화면을 정한다(/admin→대시보드, 그 외→내 업무 홈).
+  // 최초 진입: 해시가 없으면 initialLandingPath()로 기본 화면을 정한다. role은 인증 조회가
+  // 끝나야 안다 — 로딩 중엔 메뉴 자체가 없어(showMenu) 그 사이 해시가 바뀔 수 없으므로
+  // (누를 것이 없다) 안전하게 기다린다.
   useEffect(() => {
+    if (auth.isLoading) return;
     const h = window.location.hash.replace("#", "");
-    if (!h) nav(window.location.pathname === "/admin" ? "/dashboard" : "/me", { replace: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!h) nav(initialLandingPath(window.location.pathname, role), { replace: true });
+  }, [auth.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // must_change_password가 켜진 계정은 /api/me 이외 거의 모든 API가 403으로 막힌다 —
   // 그대로 두면 화면마다 막다른 403만 보인다. login.js가 로그인 직후 하는 것과 같은

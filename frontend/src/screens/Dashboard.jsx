@@ -9,7 +9,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
@@ -18,7 +18,14 @@ import { Donut } from "../ui/charts/Donut.jsx";
 /* 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 에 있다.
  * 지표마다 (어느 질의에서 오는가 / 어떤 시점 기준인가 / 범위를 지나는가 / 0과 없음을
  * 구분하는가)를 적어 뒀다. 타일을 하나 더할 때 그 네 칸을 못 채우면 그 숫자는 아직
- * 화면에 올릴 준비가 안 된 것이다 — 기준을 설명할 수 없는 숫자는 결국 아무도 안 본다. */
+ * 화면에 올릴 준비가 안 된 것이다 — 기준을 설명할 수 없는 숫자는 결국 아무도 안 본다.
+ *
+ * PA-RC-0018(REBUILD): 예전엔 이 화면이 9개 구역 전부 같은 흰 카드였고, 같은 수치가
+ * 최대 3구역에 반복됐다(3이 "확인이 필요한 항목"·"지금 상태"·"현재 큐 상태"에, 42.6%가
+ * "지금 상태"·"시스템 리소스"에). 지금은 계약이 다르다: **어떤 지표든 화면에 정확히 한
+ * 번만 나온다** — 지금 경보 중이면 위 조치 목록에, 아니면 아래 한 줄 스트립에, 둘 다
+ * 아니면(인벤토리·현재 큐 상태처럼 순수 재고) 해당 상세 화면에만 있다. 계산 자체(무엇을
+ * 어떻게 세는가)는 하나도 바꾸지 않았다 — 바뀐 것은 그 값을 어디에 어떤 크기로 놓느냐다. */
 
 // 대상 화면별로 접근 가능한 역할(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
 // 볼 수 없는 화면으로 보내면 403 막다른 길이 되므로, 링크는 역할에 맞을 때만 활성화한다.
@@ -68,7 +75,81 @@ export function serviceMix(services) {
   ];
 }
 
-/* 머리 지표 다섯 — **맨 위 한 줄에서 끝나는 질문들** (6단계, 기준 목업 구조).
+// 역할별 이동 대상 + 안내 접미사를 한 곳에서 계산한다 — 경보 목록·헤드라인·서비스 카드가
+// 전부 같은 값을 써야 "여기선 갈 수 있다는데 저기선 막다른 길"이 안 생긴다.
+export function dashboardNav(role) {
+  const diagTo = canGo("/diagnostics", role) ? "/diagnostics" : undefined;
+  const procTo = diagTo || (canGo("/jobs", role) ? "/jobs" : undefined);
+  const jobsTo = canGo("/jobs", role) ? "/jobs" : undefined;
+  const diagNote = diagTo ? "" : ", 관리자 문의";
+  const jobsNote = jobsTo ? "" : ", 관리자 문의";
+  const procNote = procTo ? "" : ", 관리자 문의";
+  return { diagTo, procTo, jobsTo, diagNote, jobsNote, procNote };
+}
+
+/* 운영자가 지금 확인해야 할 것(§6.1) — 조치가 필요한 항목만 담는다.
+ *
+ * PA-RC-0018 전에는 이 계산이 DashboardBody 렌더 함수 안에 있어 값 자체를 렌더 없이 단위
+ * 테스트로 대조할 방법이 없었다. 로직은 한 글자도 바꾸지 않고 그대로 옮긴다 — 임계값
+ * 하나하나가 이미 옆 지표(headlineStats)와 맞춰 조정된 값들이다. */
+export function buildAlerts(d, role) {
+  const jobs = d.jobs_24h || {};
+  const disk = d.disk || {};
+  const mem = d.memory || {};
+  const comps = d.components || {};
+  const { diagTo, procTo, jobsTo, diagNote, jobsNote, procNote } = dashboardNav(role);
+  const alerts = [];
+
+  // 유지보수 모드는 이 앱에서 blast-radius가 가장 큰 운영 상태다 — 켜져 있는 동안 일반
+  // 사용자의 모든 쓰기가 막힌다(app/settings/gate.py::block_if_maintenance). 맨 앞에 넣는다:
+  // 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
+  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
+  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
+  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
+  // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다 — 접수만
+  // 몰린 순간에는 이 값이 영향받지 않는다. headlineStats의 80/95 경계와 맞춘다.
+  if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
+    alerts.push({ src: "job:rate", label: "성공률 낮음(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "danger", to: jobsTo });
+  else if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 95)
+    alerts.push({ src: "job:rate", label: "성공률 저하(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "warn", to: jobsTo });
+  // 워커/스케줄러가 죽으면 큐가 비어 있어도 작업이 멈춘다 — 하트비트 stale를 최상단 경보로.
+  // 'down'(중단)은 danger, 'unknown'(응답 없음, 재시작 직후 등)은 warn으로 구분해 서비스 카드와 심각도를 맞춘다.
+  if (comps.worker && comps.worker !== "up")
+    alerts.push({ src: "comp:worker", label: "워커" + procNote, value: comps.worker === "down" ? "중단" : "응답 없음", kind: comps.worker === "down" ? "danger" : "warn", to: procTo });
+  if (comps.scheduler && comps.scheduler !== "up")
+    alerts.push({ src: "comp:scheduler", label: "스케줄러" + procNote, value: comps.scheduler === "down" ? "중단" : "응답 없음", kind: comps.scheduler === "down" ? "danger" : "warn", to: procTo });
+  // 핵심 연동(n8n·Notion·러너 등)이 down/degraded면 큐가 비어 있어도 업무가 멈춘다 — 서비스 상태 배지로만
+  // 두지 않고 상단 경보로 올린다(비활성 연동은 제외). enabled!==false인 것만.
+  Object.entries(d.integrations || {}).forEach(([name, v]) => {
+    if (v && v.enabled !== false && v.last_health === "down")
+      alerts.push({ src: "integ:" + name, label: serviceLabel(name), value: "중단", kind: "danger", to: "/integrations" });
+  });
+  if (d.cert_days_remaining != null && d.cert_days_remaining <= 30)
+    alerts.push({ src: "cert", label: "인증서 만료" + diagNote, value: fmtCertDays(d.cert_days_remaining), kind: d.cert_days_remaining <= 0 ? "danger" : "warn", to: diagTo });
+  // '마지막 백업 없음'은 백업을 실제로 '실행할 수 있는' 역할(system_admin)에게만 경보로 띄운다 —
+  // 조치할 수 없는 빨간 경보를 상시 띄우면 실제 경보에 둔감해진다(캔 액트 없는 경보는 계약 위반).
+  if (!d.last_backup_at && role === "system_admin") alerts.push({ src: "backup", label: "마지막 백업", value: "없음", kind: "danger", to: "/backup" });
+  // 마지막 성공 백업은 있지만 그 이후로 한참 지났으면(예: 계속 실패 중) 조용한 '정상'으로 보이던
+  // 문제 — 자원 타일의 80/90% warn 기준과 같은 취지로, 여기도 나이 기준 경보를 둔다.
+  const backupAgeDays = d.last_backup_at ? daysSince(d.last_backup_at) : null;
+  if (backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS && role === "system_admin")
+    alerts.push({ src: "backup-stale", label: "마지막 백업이 오래됨", value: Math.floor(backupAgeDays) + "일 전", kind: backupAgeDays > BACKUP_STALE_DAYS * 2 ? "danger" : "warn", to: "/backup" });
+  // 디스크/메모리는 headlineStats의 표시 임계값(80/90)과 달리 경보 발생 임계값이 조금 더
+  // 엄격하다(85/90 danger, 80+ warn 전체가 경보) — 자원이 실제로 위험해지는 지점을 우선한다.
+  if (disk.used_pct != null && disk.used_pct >= 85)
+    alerts.push({ src: "disk", label: "디스크 사용" + diagNote, value: disk.used_pct + "%", kind: "danger", to: diagTo });
+  else if (disk.used_pct != null && disk.used_pct >= 80)
+    alerts.push({ src: "disk", label: "디스크 사용" + diagNote, value: disk.used_pct + "%", kind: "warn", to: diagTo });
+  // 메모리 고갈도 디스크만큼 급하다 — 자원 타일만 빨갛게 칠하고 경보엔 없어 '이상 없음' 오배너가 뜨던 문제.
+  if (mem.used_pct != null && mem.used_pct >= 90)
+    alerts.push({ src: "mem", label: "메모리 사용" + diagNote, value: mem.used_pct + "%", kind: "danger", to: diagTo });
+  else if (mem.used_pct != null && mem.used_pct >= 80)
+    alerts.push({ src: "mem", label: "메모리 사용" + diagNote, value: mem.used_pct + "%", kind: "warn", to: diagTo });
+
+  return alerts;
+}
+
+/* 머리 지표 다섯 — **정상일 때 아래 한 줄 스트립에 접히는 값들**(6단계, 기준 목업 구조).
  *
  * 예전에는 같은 값들이 여섯 구역에 흩어져 있어, "지금 괜찮은가" 를 알려면 화면을 끝까지
  * 스크롤하며 여섯 번 찾아야 했다. 운영 화면에서 그건 매일 반복되는 비용이다.
@@ -78,8 +159,9 @@ export function serviceMix(services) {
  * 이미 계산하는 **서비스 정상/전체**를 쓴다. 같은 질문("전부 떠 있나")에 답하는 값이고,
  * 옆의 도넛과 같은 `serviceMix()` 를 쓰므로 **두 곳이 다른 말을 할 수 없다.**
  *
- * 아래 구역들을 지우지 않는다. 이 줄은 요약이고 그쪽이 상세다 — 여기서 이상한 값을 보면
- * 눌러서 그 구역/화면으로 내려간다(모든 타일에 이동 대상이 있다).
+ * 이 다섯 중 지금 경보 중인 것은(rate/failed/disk) buildAlerts()가 이미 위 조치 목록에
+ * 올렸다 — DashboardBody가 그 경보 소스와 겹치는 항목을 스트립에서 걸러낸다(같은 값이
+ * 화면에 두 번 나오지 않는다, PA-RC-0018 acceptance criteria 3).
  */
 export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, diagTo, diagNote }) {
   const mix = serviceMix(services);
@@ -122,9 +204,127 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
   ];
 }
 
+// 위 다섯 지표 중 지금 경보 중이면(buildAlerts의 src) 스트립에서 빼는 대응표.
+// services/workflows는 대응하는 경보 자체가 없다(항상 스트립에 남는다).
+const HEALTHY_SRC_FOR_KEY = { rate: "job:rate", failed: "job:failed", disk: "disk" };
+
+// 경보 행의 기본 조치 버튼 — 라벨은 "어디로 가는가"로 정한다(경보 종류가 아니라). 워커·
+// 스케줄러·디스크·메모리·인증서는 전부 diagTo/procTo로 모이므로 종류별로 따로 정의하면
+// 어차피 같은 문구가 다섯 번 반복된다.
+const ACTION_LABEL = {
+  "/maintenance": "유지보수 화면 열기",
+  "/jobs": "작업 큐 열기",
+  "/diagnostics": "진단 열기",
+  "/integrations": "연동 상태 보기",
+  "/backup": "백업 관리로 이동",
+};
+const SEV_COLOR = { danger: "error.main", warn: "warning.strong" };
+const SEV_TEXT = { danger: "위험", warn: "주의" };
+
+/* 조치 대기 행 하나 — 카드가 아니라 표에 가까운 한 줄이다. 「무엇이(라벨) · 영향(값+심각도)
+ * · 기본 조치」를 한 시선에서 읽는다. 심각도는 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은
+ * 텍스트 태그를 함께 쓴다(StatCard와 같은 규칙).
+ *
+ * 가장 급한 한 건만 `primary`(채운 버튼)이고 나머지는 `default`(외곽선)다 — PA-RC-0023
+ * 규범(화면/오버레이당 `contained` 정확히 1개)을 이 목록 안에서부터 지킨다. 호출부가 이미
+ * danger를 앞으로 정렬해 두므로 "첫 행"이 곧 "가장 급한 행"이다. */
+function ActionRow({ a, isPrimary, onClick }) {
+  const sevText = SEV_TEXT[a.kind];
+  return (
+    <Box
+      component="li"
+      sx={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap",
+        py: 1.5, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 },
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.5, minWidth: 0, flexWrap: "wrap" }}>
+        <Typography sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, ...KO_WORD_BREAK }}>{a.label}</Typography>
+        <Typography
+          component="span"
+          sx={{
+            fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums",
+            color: SEV_COLOR[a.kind] || "text.primary", display: "inline-flex", alignItems: "center", gap: 0.5,
+          }}
+        >
+          {a.value}
+          {/* StatCard(kit.jsx)의 0.6875rem 예외는 좁은 카드 폭에서 줄바꿈이 실측된 경우다
+              (PA-RC-0001 QAH-02) — 이 행은 카드가 아니라 훨씬 넓은 가로 목록이라 같은 제약이
+              없다, 6단계 스케일의 정식 토큰을 그대로 쓴다. */}
+          {sevText ? <Box component="span" sx={{ fontSize: FONT_SIZE.caption }}>{sevText}</Box> : null}
+        </Typography>
+      </Box>
+      <Button variant={isPrimary ? "primary" : "default"} size="sm" disabled={!a.to} onClick={onClick}>
+        {a.to ? (ACTION_LABEL[a.to] || "이동") : "이동 불가"}
+      </Button>
+    </Box>
+  );
+}
+
+/* 조치 대기 목록 — 경보가 없으면 「이상 없음」 한 줄로 접힌다(PA-RC-0018 implementation
+ * direction 1). danger를 항상 앞으로 정렬한다(불변성: sort 전에 배열을 복사) — 좁은 화면에서
+ * 스크롤 없이 처음 1~2개만 보이면 danger가 코드 순서상 warn보다 뒤에 있을 때 가장 급한
+ * 항목을 놓칠 수 있다. */
+function ActionQueue({ alerts, goto }) {
+  if (!alerts.length) {
+    return (
+      <Paper
+        variant="outlined"
+        sx={{
+          display: "flex", alignItems: "center", gap: 1, px: 2, py: 1.5,
+          borderColor: "success.main", bgcolor: (t) => t.palette.action.hover,
+        }}
+      >
+        <Badge value="up" />
+        <Typography variant="body2">지금 조치가 필요한 문제가 없습니다.</Typography>
+      </Paper>
+    );
+  }
+  const sorted = [...alerts].sort((a, b) => (a.kind === "danger" ? 0 : 1) - (b.kind === "danger" ? 0 : 1));
+  return (
+    <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+      {sorted.map((a, i) => (
+        // 안정 key(출처 태그 a.src) — label만 쓰면 컴포넌트 경보('워커')와 같은 이름을 쓰는
+        // 연동 경보가 같은 key로 충돌할 수 있다(원본 로직 그대로 보존).
+        <ActionRow key={a.src} a={a} isPrimary={i === 0} onClick={a.to ? goto(a.to) : undefined} />
+      ))}
+    </Box>
+  );
+}
+
+/* 정상 지표 한 줄 — 지금 경보 중이 아닌 값만 여기 온다(경보 중이면 위 목록에 이미 있다).
+ * 값 하나하나는 headlineStats()가 이미 계산한 것을 그대로 빌린다 — 도넛·서비스 카드와 같은
+ * 숫자를 이 줄만 다시 세면 셋이 다른 말을 하게 된다. 0인 값도 무채색 텍스트로 그대로
+ * 보여준다(direction 4) — 카드가 아니라 이 작은 글자 자체가 이미 "크게 그리지 않는다"다. */
+function HealthyStrip({ items }) {
+  if (!items.length) return null;
+  return (
+    <Typography
+      component="div" variant="body2" color="text.secondary"
+      sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "1em", fontVariantNumeric: "tabular-nums" }}
+    >
+      {items.map((it, i) => (
+        // 항목 구분은 글자(가운뎃점 등)가 아니라 테두리로 한다 — 사용자 지시(§8)로 화면
+        // 문구에 가운뎃점(·)·em 대시(—)를 쓰지 않는다(scripts/check_user_text.py).
+        <Box key={it.key} component="span"
+          sx={i > 0 ? { pl: "1em", borderLeft: 1, borderColor: "divider" } : undefined}>
+          {it.onClick ? (
+            <Link component="button" type="button" underline="hover" color="text.primary"
+              onClick={it.onClick} sx={{ font: "inherit", verticalAlign: "baseline" }}>
+              {it.label} {it.value}
+            </Link>
+          ) : (
+            <Box component="span">{it.label} {it.value}</Box>
+          )}
+        </Box>
+      ))}
+    </Typography>
+  );
+}
 
 /* ────────────────────────────────────────────────────────────────────────────
- * 내 업무 구역 (8단계) — 이 화면은 지금까지 **운영 지표만** 있었다.
+ * 내 업무 구역 (8단계) — 운영 지표와 다른 관심사(개인 업무)라 이번 재구축의 카드 벽
+ * 대상이 아니다. 이미 각 타일에 이동 대상이 있고, 다른 구역과 겹치는 수치도 없다.
  *
  * 잡 큐·하트비트·디스크는 "서버가 괜찮은가"에 답하지만 "내가 지금 뭘 놓치고 있나"에는
  * 답하지 않는다. 그 답을 찾으려면 프로젝트·내 티켓·스프린트 화면을 따로 돌아야 했다.
@@ -359,18 +559,16 @@ export function Dashboard() {
         </>} />
       {!q.data ? (
         // 데이터가 아직/전혀 없을 때: 오류면 ErrorState, 아니면 로딩 스켈레톤. (undefined를 본문에 넘겨 크래시하지 않게 한다.)
-        // 실제 대시보드는 경보 줄 + 여러 지표 그리드 섹션으로 이루어져 있다, 카드 한 장짜리 평평한
-        // 스켈레톤에서 그 구조로 바뀌면 레이아웃이 눈에 띄게 출렁인다. 대략적인 모양(경보 트랙 +
-        // 표준 지표 그리드)만이라도 미리 잡아 세로 공간이 크게 튀지 않게 한다.
+        // 조치 목록(가변 높이 행) + 그 아래 작은 지표 그리드 정도의 대략적인 모양만 미리 잡아
+        // 세로 공간이 크게 튀지 않게 한다 — 정확한 모양을 맞출 필요는 없다(§ 로딩 스켈레톤 계약).
         q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
           <Box>
-            {[0, 1].map((row) => (
-              <Box key={row} sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID, mb: 4 }}>
-                {Array.from({ length: row ? 4 : 2 }).map((_, i) => (
-                  <Card key={i}><Skeleton lines={2} /></Card>
-                ))}
-              </Box>
-            ))}
+            <Card sx={{ mb: 3 }}><Skeleton lines={3} /></Card>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i}><Skeleton lines={2} /></Card>
+              ))}
+            </Box>
           </Box>
         )
       ) : (
@@ -403,97 +601,36 @@ function DashboardBody({ d, nav, role, stale }) {
   const mem = d.memory || {};
   // 링크는 볼 수 있는 역할에게만 건다(없으면 클릭 불가 카드로 남겨 정보는 유지).
   const goto = (path) => (canGo(path, role) ? () => nav(path) : undefined);
-  // 운영자가 지금 확인해야 할 것(§6.1), 문제 있는 항목만 우선.
-  const alerts = [];
-  // 진단(/diagnostics)은 admin/system_admin만 들어간다, operator/auditor에게 '진단으로' 링크를 걸면 막다른 길이 된다.
-  // 볼 수 있으면 진단으로, 아니면 도달 가능한 대체 화면으로 보낸다(없으면 클릭 불가 정보 카드로 남겨 경보 자체는 유지).
-  const diagTo = canGo("/diagnostics", role) ? "/diagnostics" : undefined;
-  // 워커/스케줄러 문제는 큐 정체로 이어지므로, 진단을 못 보는 역할은 작업 큐(/jobs)로 안내한다.
-  const procTo = diagTo || (canGo("/jobs", role) ? "/jobs" : undefined);
-  // 디스크/메모리/인증서 경보는 진단(/diagnostics) 외에 도달 가능한 대체 화면이 없다, 진단을 못 보는
-  // 역할에겐 클릭 불가 카드가 되므로, 다음 행동을 라벨에 짧게 덧붙여 막다른 길로 남기지 않는다.
-  const diagNote = diagTo ? "" : ", 관리자 문의";
-  // 작업(/jobs) 경보도 같은 이유로 도달 불가 역할(auditor)에겐 다음 행동을 안내한다, 안 그러면
-  // diagNote가 붙는 형제 경보 옆에서 이 타일만 아무 설명 없는 클릭 불가 막다른 카드가 된다.
-  const jobsTo = canGo("/jobs", role) ? "/jobs" : undefined;
-  const jobsNote = jobsTo ? "" : ", 관리자 문의";
-  const procNote = procTo ? "" : ", 관리자 문의";
-  {/* jobs.total/succeeded는 이미 fmtNum()으로 천 단위 구분자를 붙이는데(아래 '작업 지표' 섹션), 바로
-      이 경보 타일과 '현재 큐 상태' 타일의 같은 종류 수치(failed_open/queued)만 raw로 새고 있었다 -
-      정작 사건이 몰려 자릿수가 커지는 순간(장애 중)에 가장 스캔하기 어려워지는 값이다. */}
-  // 유지보수 모드는 이 앱에서 blast-radius가 가장 큰 운영 상태다 — 켜져 있는 동안 일반
-  // 사용자의 **모든 쓰기가 막힌다**(app/settings/gate.py::block_if_maintenance).
-  // 서버는 이 사실을 매 폴링마다 payload에 실어 보내면서(app/health/service.py의 "maintenance"
-  // 필드, 주석은 "화면이 상단 배너/경보로 띄운다"고 적어 두었다) 화면이 그것을 한 번도 읽지
-  // 않았다 — 그래서 점검 중에도 이 화면은 초록색 "지금 조치가 필요한 문제가 없습니다."를
-  // 띄웠다. 운영자는 그 배너를 보고 사용자 신고("저장이 안 돼요")를 장애로 오해한다.
-  // 맨 앞에 넣는다: 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
-  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
-  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
-  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
-  // 단위(%)는 라벨 괄호가 아니라 값에 붙인다(자원 타일과 동일한 표기), '성공률 낮음(%)' 위 '45'는 어색했다.
-  // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다, 아직 끝나지 않은
-  // queued/running 작업은 분모에서 제외된다(app/health/service.py finished_24h). 접수만 몰린 순간에는
-  // 이 값이 영향받지 않는다.
-  // 아래 KPI 타일은 80~94.9%를 warn(주황)으로, 95%↑를 ok로 칠하는데 이 상단 경보는
-  // 예전엔 <80(danger)만 반영해 '85% 성공률'이 타일에선 '주의'인데 경보 줄엔 아예 안 뜨는 모순이
-  // 있었다 — 디스크/메모리 경보와 같은 if/else-if danger·warn 2단 구조로 맞춘다.
-  if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
-    alerts.push({ src: "job:rate", label: "성공률 낮음(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "danger", to: jobsTo });
-  else if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 95)
-    alerts.push({ src: "job:rate", label: "성공률 저하(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "warn", to: jobsTo });
-  // 워커/스케줄러가 죽으면 큐가 비어 있어도 작업이 멈춘다 — 하트비트 stale를 최상단 경보로.
-  // 'down'(중단)은 danger, 'unknown'(응답 없음, 재시작 직후 등)은 warn으로 구분해 서비스 카드와 심각도를 맞춘다.
-  const comps = d.components || {};
-  if (comps.worker && comps.worker !== "up")
-    alerts.push({ src: "comp:worker", label: "워커" + procNote, value: comps.worker === "down" ? "중단" : "응답 없음", kind: comps.worker === "down" ? "danger" : "warn", to: procTo });
-  if (comps.scheduler && comps.scheduler !== "up")
-    alerts.push({ src: "comp:scheduler", label: "스케줄러" + procNote, value: comps.scheduler === "down" ? "중단" : "응답 없음", kind: comps.scheduler === "down" ? "danger" : "warn", to: procTo });
-  // 핵심 연동(n8n·Notion·러너 등)이 down/degraded면 큐가 비어 있어도 업무가 멈춘다 — 서비스 상태 배지로만
-  // 두지 않고 상단 경보로 올린다(비활성 연동은 제외). enabled!==false인 것만.
-  // src에 "integ:"+원본 이름(표시 라벨이 아니라)을 태그한다 — 연동 이름이 컴포넌트 라벨('워커' 등)과
-  // 우연히 같아도(관리자가 그렇게 이름 붙인 경우) label만으로 만든 key와 달리 출처가 겹치지 않는다.
-  // app/integrations/models.py는 HEALTH_UP/HEALTH_DOWN/HEALTH_UNKNOWN만 정의하고, 유일한
-  // writer(run_health_check)도 up/down만 기록한다 — 'degraded'는 백엔드가 실제로 만들어낼 수 없는
-  // 값이라 그 분기는 죽은 코드였다(제거). 실제로 저하 판정이 생기면 그때 다시 추가한다.
-  Object.entries(d.integrations || {}).forEach(([name, v]) => {
-    if (v && v.enabled !== false && v.last_health === "down")
-      alerts.push({ src: "integ:" + name, label: serviceLabel(name), value: "중단", kind: "danger", to: "/integrations" });
-  });
-  if (d.cert_days_remaining != null && d.cert_days_remaining <= 30)
-    alerts.push({ src: "cert", label: "인증서 만료" + diagNote, value: fmtCertDays(d.cert_days_remaining), kind: d.cert_days_remaining <= 0 ? "danger" : "warn", to: diagTo });
-  // '마지막 백업 없음'은 백업을 실제로 '실행할 수 있는' 역할(system_admin)에게만 경보로 띄운다.
-  // 백업 화면은 operator/admin/auditor도 조회는 가능하지만 실행은 system_admin 전용이므로, 도달 가능성이 아니라
-  // 실행 권한으로 게이트한다 — 조치할 수 없는 빨간 경보를 상시 띄우면 실제 경보에 둔감해진다(캔 액트 없는 경보는 계약 위반).
-  if (!d.last_backup_at && role === "system_admin") alerts.push({ src: "backup", label: "마지막 백업", value: "없음", kind: "danger", to: "/backup" });
-  // 마지막 성공 백업은 있지만 그 이후로 한참 지났으면(예: 계속 실패 중) 조용한 '정상'으로 보이던
-  // 문제 — 자원 타일의 80/90% warn 기준과 같은 취지로, 여기도 나이 기준 경보를 둔다.
-  const backupAgeDays = d.last_backup_at ? daysSince(d.last_backup_at) : null;
-  if (backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS && role === "system_admin")
-    alerts.push({ src: "backup-stale", label: "마지막 백업이 오래됨", value: Math.floor(backupAgeDays) + "일 전", kind: backupAgeDays > BACKUP_STALE_DAYS * 2 ? "danger" : "warn", to: "/backup" });
-  // 아래 시스템 리소스 타일은 80%부터 warn(주의) 색을 칠하는데, 이 상단 경보 묶음은 85%(디스크)·
-  // 90%(메모리)의 danger만 반영해 같은 수치를 두고 타일과 경보가 서로 다른 말을 하고 있었다 —
-  // 타일의 warn 기준을 그대로 여기도 반영한다.
-  if (disk.used_pct != null && disk.used_pct >= 85)
-    alerts.push({ src: "disk", label: "디스크 사용" + diagNote, value: disk.used_pct + "%", kind: "danger", to: diagTo });
-  else if (disk.used_pct != null && disk.used_pct >= 80)
-    alerts.push({ src: "disk", label: "디스크 사용" + diagNote, value: disk.used_pct + "%", kind: "warn", to: diagTo });
-  // 메모리 고갈도 디스크만큼 급하다 — 자원 타일만 빨갛게 칠하고 경보엔 없어 '이상 없음' 오배너가 뜨던 문제.
-  if (mem.used_pct != null && mem.used_pct >= 90)
-    alerts.push({ src: "mem", label: "메모리 사용" + diagNote, value: mem.used_pct + "%", kind: "danger", to: diagTo });
-  else if (mem.used_pct != null && mem.used_pct >= 80)
-    alerts.push({ src: "mem", label: "메모리 사용" + diagNote, value: mem.used_pct + "%", kind: "warn", to: diagTo });
+  const { diagTo, procTo, jobsTo, diagNote, jobsNote, procNote } = dashboardNav(role);
+  const alerts = buildAlerts(d, role);
+  const alertSrcs = new Set(alerts.map((a) => a.src));
 
   // 불변성(§7): 제자리 수정 대신 새 객체로 구성한다.
   // 비활성화된 연동은 마지막 헬스 상태(예: 'up')를 그대로 두면 꺼져 있는데 '정상'으로 보인다 —
   // enabled===false면 상태 대신 '비활성화'로 표시한다.
   // 연동 이름이 핵심 컴포넌트 키(web/worker/scheduler)와 우연히 겹치면 그 연동의 상태가 실제
   // 하트비트를 조용히 덮어써 버린다 — 겹치는 이름에는 접미사를 붙여 절대 가리지 않게 한다.
+  const comps = d.components || {};
   const integrationEntries = Object.entries(d.integrations || {}).map(([k, v]) => {
     const key = (k in comps) ? k + "(연동)" : k;
     return [key, (v && v.enabled === false) ? "disabled" : (v || {}).last_health];
   });
   const services = { ...comps, ...Object.fromEntries(integrationEntries) };
+
+  // 정상 지표 스트립: headlineStats의 다섯 중 지금 경보 중이 아닌 것만 남긴다(services/
+  // workflows는 대응 경보가 없어 항상 남는다) + 대기 작업(direction 3이 "현재 큐 상태"
+  // 구역 자체를 없애므로, 정상일 때 이 값을 보여줄 다른 자리가 없다 — target_design이
+  // 스트립 예시에 "큐 0"을 직접 들었다).
+  const headline = headlineStats({ services, counts: d.counts, jobs, disk, jobsNote, diagTo, diagNote });
+  const stripItems = headline
+    .filter((t) => {
+      const src = HEALTHY_SRC_FOR_KEY[t.key];
+      return !src || !alertSrcs.has(src);
+    })
+    .map((t) => ({ key: t.key, label: t.label, value: t.value, onClick: t.to && canGo(t.to, role) ? goto(t.to) : undefined }));
+  if (jobs.queued != null && !alertSrcs.has("job:queued"))
+    stripItems.splice(3, 0, { key: "queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), onClick: jobsTo ? goto(jobsTo) : undefined });
+
   // 서비스 카드의 이동 대상(정상 카드는 이동할 곳이 없으면 클릭 불가). 워커/스케줄러는 상단 경보와
   // 동일하게 진단을 못 보는 역할이면 작업 큐(/jobs)로 대체한다 — 예전엔 여기만 /diagnostics만
   // 제공해, 같은 '워커 중단' 사실이 상단 경보에선 클릭 가능한데 이 타일에선 죽어 보였다.
@@ -517,6 +654,10 @@ function DashboardBody({ d, nav, role, stale }) {
   const svcRank = (k) => { const v = services[k]; return v === "down" ? 0 : (v === "unknown" || v == null) ? 1 : 2; };
   const serviceKeys = Object.keys(services).sort((a, b) => svcRank(a) - svcRank(b));
 
+  // 백업 나이 — 아래 "백업" 구역의 오래됨 배지에 쓴다. system_admin에게는 이미 위 조치 목록에
+  // 같은 사실이 행으로 떠 있으므로(buildAlerts의 backup-stale) 거기서는 배지를 다시 안 그린다.
+  const backupAgeDays = d.last_backup_at ? daysSince(d.last_backup_at) : null;
+
   return (
     <Box>
       {/* 백그라운드 폴링이 실패해 캐시된 값이 남았을 때(staleAfterError), 헤더의 작은 접미 문구만으론
@@ -527,48 +668,18 @@ function DashboardBody({ d, nav, role, stale }) {
       {/* aria-live 래퍼 자체는 항상 마운트된 채로 두고 안의 자식(경보 묶음 ↔ all-clear)만 바꾼다 -
           예전엔 aria-live가 <section> 안쪽에 있어, 경보가 전부 사라지고 all-clear로 바뀌는 순간
           그 live region 엘리먼트 자체가 통째로 언마운트돼 전환 자체를 SR이 놓칠 수 있었다. */}
-      {/* 머리 지표 — 경보보다 **아래**다. 급한 일(경보)이 먼저 눈에 들어와야 한다.
-          기준 목업도 빨간 경보 배너 → 지표 다섯 순서다. */}
       <Box aria-live="polite">
-        {alerts.length ? (
-          <DashSection title="확인이 필요한 항목">
-            {/* 타일은 색, 글리프로 심각도를 구분하지만, 좁은 화면에서 스크롤 없이 처음 1~2개만 보이면
-                danger가 코드 순서상 warn보다 뒤에 있을 때 가장 급한 항목을 놓칠 수 있다 -
-                danger를 항상 앞으로 정렬한다(불변성: sort 전에 배열을 복사). */}
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-              {[...alerts].sort((a, b) => (a.kind === "danger" ? 0 : 1) - (b.kind === "danger" ? 0 : 1)).map((a) => (
-                // 안정 key(출처 태그 a.src), 폴링마다 경보 집합이 바뀔 때 index key는 DOM을 재사용해
-                // aria-live 영역이 바뀌지 않은 내용을 잘못 낭독하거나 onClick이 어긋날 수 있다. label만
-                // 쓰면 컴포넌트 경보('워커')와 그와 같은 이름을 쓰는 연동 경보가 같은 key로 충돌할 수
-                // 있어(React 경고 또는 항목 하나가 조용히 사라짐), 출처가 겹치지 않는 src로 키를 잡는다.
-                <StatCard key={a.src} value={a.value} label={a.label} kind={a.kind}
-                  onClick={a.to ? goto(a.to) : undefined} />
-              ))}
-            </Box>
-          </DashSection>
-        ) : (
-          <Paper
-            variant="outlined"
-            sx={{
-              display: "flex", alignItems: "center", gap: 1, px: 2, py: 1.5, mb: 4,
-              borderColor: "success.main", bgcolor: (t) => t.palette.action.hover,
-            }}
-          >
-            <Badge value="up" />
-            <Typography variant="body2">지금 조치가 필요한 문제가 없습니다.</Typography>
-          </Paper>
-        )}
+        <DashSection title="확인이 필요한 항목">
+          <ActionQueue alerts={alerts} goto={goto} />
+        </DashSection>
       </Box>
 
-      <DashSection title="지금 상태">
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: HEADLINE_GRID }}>
-          {headlineStats({ services, counts: d.counts, jobs, disk, jobsNote, diagTo, diagNote }).map((t) => (
-            <StatCard key={t.key} value={t.value} label={t.label} kind={t.kind}
-              onClick={t.to && canGo(t.to, role) ? goto(t.to) : undefined} />
-          ))}
-        </Box>
-        <Note>이 줄은 요약입니다. 값을 누르면 그 화면으로 내려가고, 자세한 항목은 아래 구역에 있습니다.</Note>
-      </DashSection>
+      {/* 정상 지표 한 줄 — 예전 "지금 상태" 카드 다섯 장 + "이 줄은 요약입니다…" 설명문을
+          대신한다. 접었을 때도 이해되는 것이 성공 판정이라 설명문 자체를 없앤다
+          (PA-RC-0018 implementation direction 5). */}
+      <Box sx={{ mb: 4 }}>
+        <HealthyStrip items={stripItems} />
+      </Box>
 
       <DashSection title="서비스 상태">
         {/* 넓은 화면에서는 카드 격자 옆에 상태 구성 도넛을 세운다 — 연동이 열 개를 넘는 배포에서
@@ -597,108 +708,17 @@ function DashboardBody({ d, nav, role, stale }) {
       </DashSection>
 
       <DashSection title="작업 지표 (최근 24시간)">
+        {/* 성공률은 이 24시간 지표군의 하나이지만 위 스트립/조치 목록과 겹치는 값이라
+            여기서는 뺐다(같은 값이 화면에 두 번 나오지 않는다) — 나머지 셋(처리량·완료
+            건수·평균 처리 시간)은 스트립/경보 어디에도 없는 유일한 자리라 그대로 둔다. */}
         <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-          {/* 바로 아래 '현재 큐 상태', '인벤토리' 타일은 모두 클릭해 해당 목록으로 드릴다운하는데
-              이 24시간 집계 타일만 예외적으로 죽은 채였다, 같은 화면(볼 수 있는 역할에게만)으로
-              연결해 시각적으로 동일한 타일 그룹의 상호작용을 통일한다. */}
-          {/* auditor는 /jobs에 못 들어가 goto('/jobs')가 undefined다, '현재 큐 상태', 리소스 타일과
-              같은 이유(jobsNote)를 붙여, 클릭 불가 타일이 아무 설명 없는 막다른 카드로 보이지 않게 한다. */}
           <StatCard value={fmtNum(jobs.total)} label={"처리 요청" + jobsNote} onClick={goto("/jobs")} />
-          {/* 서버는 이 값(jobs_24h.succeeded)을 매 폴링마다 이미 계산해 내려주는데(app/health/service.py)
-              화면 어디에도 쓰이지 않고 버려지고 있었다, 옆 성공률 타일의 분자를 그대로 보여준다. */}
           <StatCard value={fmtNum(jobs.succeeded)} label={"성공" + jobsNote} onClick={goto("/jobs")} />
-          {/* VIS-27: 분모 설명("종료 작업만, 대기/실행 중 제외")은 이 타일 하나에만 해당하는데
-              예전엔 네 타일 전체 아래에 공용 Note로 떨어져 있어 성공/처리 타일에도 같은 예외가
-              적용되는 것처럼 읽혔다. StatCard의 note로 이 타일 안에 직접 붙인다. */}
-          <StatCard value={jobs.success_rate_pct != null ? jobs.success_rate_pct + "%" : "-"} label={"성공률(종료 작업 대비)" + jobsNote}
-            kind={jobs.success_rate_pct == null ? undefined : jobs.success_rate_pct >= 95 ? "ok" : jobs.success_rate_pct >= 80 ? "warn" : "danger"}
-            onClick={goto("/jobs")}
-            note="최근 24시간에 종료(성공, 실패, 취소)된 작업 대비이며, 아직 끝나지 않은 대기, 실행 중 작업은 분모에서 제외됩니다." />
-          {/* 단위는 라벨 괄호가 아니라 값에 붙인다, 성공률/디스크/메모리 타일과 같은 표기 규칙
-              (위 주석 '성공률 낮음(%) 위 45는 어색했다' 참고). */}
           <StatCard value={fmtProcessingTime(jobs.avg_processing_seconds)} label={"평균 처리" + jobsNote} onClick={goto("/jobs")} />
         </Box>
-        {/* 이 네 값에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다 — app/health/service.py).
+        {/* 이 값들에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다 — app/health/service.py).
             없는 추세선을 그리면 한 점을 선으로 잇는 거짓말이 되므로 여기는 숫자로 둔다. */}
       </DashSection>
-
-      <DashSection title="현재 큐 상태">
-        {/* queued/failed_open은 24시간 창이 아니라 '지금'의 큐 깊이, 미해결 실패다(서버가 시간 필터 없이 계산).
-            24시간 지표와 섞으면 며칠 전 실패가 최근 것처럼 읽혀 오해를 부른다, 별도 '현재 큐' 묶음으로 분리한다.
-            failed_open 자체엔 여전히 시간축이 없었다(VIS-107R) — "미해결 실패 4건"이 방금 생긴 것인지
-            3주 방치된 것인지 구분이 안 됐다. failedOpenAgeLabel이 가장 오래된 것의 나이를 덧붙인다. */}
-        <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
-            {/* 대기·실패 작업 수는 0이어도 항상 노출해 '큐 비었음/실패 없음'을 확인할 수 있게 한다(스펙 §14.1). */}
-            {/* 심각도(빨강/노랑)는 상단 '확인이 필요한 항목' 경보가 이미 담당하므로 여기선 중복 강조하지 않는다. */}
-            {/* 인벤토리 타일처럼 0이어도 항상 /jobs로 드릴다운한다 — 값에 따라 클릭 가능/불가가 갈리면(예전 >0 가드)
-                같은 타일이 상황에 따라 죽어 보여 혼란스러웠다. 빈 목록으로 가도 해당 화면이 EmptyState를 보여 무해하다. */}
-            {/* 위 '확인이 필요한 항목' 경보 타일과 같은 이유 안내(jobsNote)를 붙인다, 안 그러면 이
-                쌍둥이 수치가 이 섹션에서만 아무 설명 없이 클릭 불가 카드로 보인다(예: auditor 역할). */}
-            <StatCard value={fmtNum(jobs.queued != null ? jobs.queued : 0)} label={"대기 작업" + jobsNote} onClick={goto("/jobs")} />
-            <StatCard value={fmtNum(jobs.failed_open != null ? jobs.failed_open : 0)} label={"미해결 실패 작업" + failedOpenAgeLabel(jobs) + jobsNote} onClick={goto("/jobs")} />
-          </Box>
-          {/* 두 수치의 '비율'은 숫자 두 개만 봐서는 안 잡힌다 — 대기 1,200건 옆의 실패 3건과
-              대기 3건 옆의 실패 12건은 대응이 완전히 다른데 타일만 보면 똑같이 보인다. */}
-          <Card sx={{ p: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>미처리 작업 구성</Typography>
-            <BarSeries
-              items={[
-                { label: "대기", value: jobs.queued != null ? jobs.queued : 0, color: jobs.queued ? "warn" : "neutral" },
-                { label: "미해결 실패", value: jobs.failed_open != null ? jobs.failed_open : 0, color: jobs.failed_open ? "danger" : "neutral" },
-              ]}
-              unit="건" formatValue={fmtNum} emptyLabel="큐 정보를 불러오지 못했습니다"
-            />
-          </Card>
-        </Box>
-      </DashSection>
-
-      <DashSection title="인벤토리">
-        {/* 인벤토리(이동 가능한 개체 수)와 시스템 리소스(인프라 건강)는 성격이 다르다 -
-            한 묶음에 섞으면 스캔이 어려워 별도 섹션으로 나눈다. */}
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-          {/* 자원 수 타일도 큐 타일처럼 해당 레지스트리로 드릴다운한다(볼 수 있는 역할에게만 클릭 가능). */}
-          <StatCard value={fmtNum((d.counts || {}).active_workflows)} label="활성 워크플로" onClick={goto("/workflows")} />
-          <StatCard value={fmtNum((d.counts || {}).active_schedules)} label="활성 스케줄" onClick={goto("/schedules")} />
-          <StatCard value={fmtNum((d.counts || {}).runners)} label="추가된 러너" onClick={goto("/runners")} />
-        </Box>
-      </DashSection>
-
-      {/* 디스크, 메모리, 인증서가 모두 null이면(비-Linux 호스트, nginx TLS 종단 등) 섹션 자체를 숨긴다 -
-          영구 '-' 죽은 타일/빈 섹션을 남기지 않는다. */}
-      {(disk.free_gb != null || disk.used_pct != null || mem.used_pct != null || d.cert_days_remaining != null) ? (
-        <DashSection title="시스템 리소스">
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-            {/* 디스크 정보가 없으면(disk_usage OSError 등 전부 null) 메모리, 인증서 타일과 같은 규칙으로 숨긴다 -
-                영구 '-' 죽은 타일을 남기지 않는다. 디스크도 메모리처럼 %, 경고색을 함께 보여 준다. */}
-            {/* 이 값들이 이미 위 경보 타일에서 diagTo로 클릭 가능한 것과 동일한 드릴다운을 여기도 제공한다 -
-                안 그러면 같은 수치가 경보에선 클릭 가능, 여기선 죽은 타일로 보여 일관성이 깨진다. */}
-            {/* 단위는 라벨 괄호가 아니라 값에 붙인다, 이 섹션의 나머지(사용률, 초 등)와 같은 표기 규칙. */}
-            {/* 여유 용량만 보여주면 규모 감이 없다('80% 사용'이 500GB 중인지 20GB 중인지 모른다) -
-                서버가 매 폴링에 함께 주는 total_gb로 '여유 / 전체'를 보여준다(값이 없으면 여유만).
-                diagNote는 이웃 '디스크 사용' 타일과 통일, 진단을 못 보는 역할에게 클릭 불가 사유를 남긴다. */}
-            {disk.free_gb != null ? <StatCard value={disk.total_gb != null ? fmtNum(disk.free_gb) + " / " + fmtNum(disk.total_gb) + "GB" : fmtNum(disk.free_gb) + "GB"} label={"디스크 여유" + diagNote} onClick={diagTo ? goto(diagTo) : undefined} /> : null}
-            {disk.used_pct != null ? (
-              <StatCard value={disk.used_pct + "%"} label={"디스크 사용" + diagNote}
-                kind={disk.used_pct >= 85 ? "danger" : disk.used_pct >= 80 ? "warn" : undefined}
-                onClick={diagTo ? goto(diagTo) : undefined} />
-            ) : null}
-            {/* 메모리 데이터가 없으면(비-Linux 호스트 등 used_pct=null) 인증서 타일과 동일하게 숨긴다 -
-                영구 '-' 죽은 타일을 남기지 않는다(인접 타일과 null 처리 규칙을 맞춘다). */}
-            {mem.used_pct != null ? (
-              <StatCard value={mem.used_pct + "%"} label={"메모리 사용" + diagNote}
-                kind={mem.used_pct >= 90 ? "danger" : mem.used_pct >= 80 ? "warn" : undefined}
-                onClick={diagTo ? goto(diagTo) : undefined} />
-            ) : null}
-            {/* 인증서 경로가 없으면(nginx TLS 종단) cert_days_remaining이 null, 영구 '-' 타일 대신 숨긴다. */}
-            {d.cert_days_remaining != null ? (
-              <StatCard value={fmtCertDays(d.cert_days_remaining)} label={"인증서 만료" + diagNote}
-                kind={d.cert_days_remaining <= 0 ? "danger" : d.cert_days_remaining <= 30 ? "warn" : undefined}
-                onClick={diagTo ? goto(diagTo) : undefined} />
-            ) : null}
-          </Box>
-        </DashSection>
-      ) : null}
 
       <DashSection title="백업">
         <Card sx={{ p: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
@@ -707,15 +727,19 @@ function DashboardBody({ d, nav, role, stale }) {
           <Typography component="div" variant="body2" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
             마지막 백업: {d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
             {d.last_backup_status ? <Badge value={d.last_backup_status} /> : null}
-            {/* 성공 이력은 있지만 그 이후로 오래 지났으면(계속 실패 중일 수 있음) 여기서도 나이를 알린다 —
-                위 상단 경보(backup-stale)와 같은 임계값. */}
-            {backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS
+            {/* 오래된 백업 배지는 system_admin에게는 이미 위 조치 목록에 같은 사실이 행으로
+                떠 있다(buildAlerts의 backup-stale, PA-RC-0018: 같은 값이 화면에 두 번 나오지
+                않는다) — 그 역할이 아니면(백업 실행 권한이 없어 애초에 경보가 안 뜬다) 여기가
+                그 사실을 보여주는 유일한 자리라 그대로 둔다. */}
+            {backupAgeDays != null && backupAgeDays > BACKUP_STALE_DAYS && role !== "system_admin"
               ? <Badge value={Math.floor(backupAgeDays) + "일 전"} kind={backupAgeDays > BACKUP_STALE_DAYS * 2 ? "danger" : "warn"} />
               : null}
           </Typography>
-          <Button variant={d.last_backup_at ? "default" : "primary"} size="sm"
-            disabled={!canGo("/backup", role)} onClick={goto("/backup")}>
-            {d.last_backup_at ? "백업 관리" : "백업 관리로 이동"}
+          {/* 채운(primary) 버튼은 이 화면에서 위 조치 목록의 첫 행 하나뿐이다(PA-RC-0023 규범:
+              화면당 contained 정확히 1개) — 백업이 위급해도 그 버튼은 이미 목록에 있으므로
+              여기는 항상 외곽선이다. */}
+          <Button variant="default" size="sm" disabled={!canGo("/backup", role)} onClick={goto("/backup")}>
+            백업 관리
           </Button>
         </Card>
       </DashSection>

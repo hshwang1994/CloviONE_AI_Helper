@@ -79,6 +79,12 @@ function Summary({ query }) {
   if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
 
   const d = query.data || {};
+  // PA-RC-0018 direction 4(0 지표 규칙): 프로젝트가 0건이면 여덟 타일 전부가 0/-다 —
+  // 빈 상태 위에 값 없는 카드 벽을 먼저 그리는 대신, 아래 EmptyState 하나로만 말한다.
+  // 이 total은 서버 집계(project_dashboard)라 목록 화면의 보관 필터와 무관하게 항상
+  // 전체 기준이다(위 주석 "요약을 화면에서 세지 않는 이유" 참고) — 필터로 화면에 0건이
+  // 보여도 조직에 프로젝트가 있으면 이 요약은 그대로 뜬다.
+  if (!d.total) return null;
   const status = d.by_status || {};
   const progress = d.progress || {};
   const health = d.health || {};

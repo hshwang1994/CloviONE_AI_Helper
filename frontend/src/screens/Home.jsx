@@ -17,7 +17,6 @@ import { GRID_GAP } from "../ui/density.js";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
-import { TeamChatWidget } from "./TeamChatWidget.jsx";
 
 /* 홈 '오늘' 커맨드 센터 (계획서 Phase 5).
  *
@@ -189,55 +188,12 @@ function RecentDocuments({ items }) {
   );
 }
 
-/* 내 게시판 활동 요약(내 글·받은 댓글·조회). 게시판이 꺼져 있거나(404) 로딩 중이면 조용히
- * 숨긴다 — 예전 홈에 있던 위젯을 그대로 옮겨 왔다(기능을 잃지 않는다). 최근 글 목록과 같은
- * 카드에 두어 카드 수를 늘리지 않는다. */
-function MyBoardStats() {
-  const q = useQuery({ queryKey: ["board-mine"], queryFn: () => api("/api/board/mine"), retry: false });
-  if (q.isError || !q.data) return null;
-  const s = q.data.summary || { post_count: 0, comment_count_received: 0, view_count_total: 0 };
-  const stat = (num, label) => (
-    <Box sx={{ display: "grid", gap: 0.25 }}>
-      {/* PA-RC-0001: kit.jsx StatCard의 큰 숫자(STAT_VALUE_FONT_SIZE=30px)보다 작은 보조
-          지표라 그 토큰을 그대로 쓰면 과하다 — sectionTitle(17px)·pageTitle(20px) 사이
-          18px 자리에 맞는 기존 토큰이 없다. 실측 없이 임의로 스냅하지 않는다(의도된 예외). */}
-      <Typography component="span" sx={{ fontSize: "1.125rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{num}</Typography>
-      <Typography component="span" variant="caption" color="text.secondary">{label}</Typography>
-    </Box>
-  );
-  return (
-    <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: "repeat(3, minmax(0,1fr))", mb: 2 }}>
-      {stat(s.post_count, "내 글")}
-      {stat(s.comment_count_received, "받은 댓글")}
-      {stat(s.view_count_total, "조회")}
-    </Box>
-  );
-}
-
-function RecentBoard({ items }) {
-  if (!items.length) {
-    return (
-      <EmptyState art="board" title="아직 올라온 글이 없습니다"
-        help="자유게시판에 글이 올라오면 여기에 표시됩니다."
-        action={<Button variant="primary" size="sm" href="#/board">자유게시판 열기</Button>} />
-    );
-  }
-  return (
-    <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
-      {items.map((p) => (
-        <RowLink
-          key={p.id}
-          href={"#/board/" + p.id}
-          title={p.title}
-          badge={p.is_pinned ? <Badge value="고정" kind="info" /> : null}
-          meta={`${p.author_name || "-"}, 댓글 ${p.comment_count}`}
-        />
-      ))}
-    </Stack>
-  );
-}
-
-/* 오른쪽 레일 — 진척과 최근 변경. ≥lg 에서만 옆으로 붙고 그 아래에서는 본문 뒤에 쌓인다. */
+/* 오른쪽 레일 — 진척과 최근 변경. ≥lg 에서만 옆으로 붙고 그 아래에서는 본문 뒤에 쌓인다.
+ *
+ * PA-RC-0018 direction 6: 팀 채팅·게시판 카드는 여기서 뺐다 — 둘 다 사이드바에 이미 자기
+ * 목적지가 있다(navConfig.js "채팅방" "/chat-rooms", "자유게시판" "/board"). `/me`는
+ * "오늘 내가 할 일"에 좁힌다: 티켓(본문)과 그 티켓의 이번 주 진척·최근 문서 변경(둘 다
+ * 업무와 바로 이어지는 맥락)만 남긴다. */
 function SideRail({ data }) {
   const recent = data.recent || {};
   return (
@@ -249,11 +205,6 @@ function SideRail({ data }) {
       <Card>
         <SectionTitle component="h2" title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
         <RecentDocuments items={recent.documents || []} />
-      </Card>
-      <Card>
-        <SectionTitle component="h2" title="게시판" action={<Link href="#/board" underline="hover">자유게시판</Link>} />
-        <MyBoardStats />
-        <RecentBoard items={recent.board || []} />
       </Card>
     </Stack>
   );
@@ -379,10 +330,12 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
       <Box sx={BODY_GRID}>
         <Stack gap={2.5} sx={{ minWidth: 0 }}>
           <Card>
-            {/* SEM-02: /me는 h1(PageHeader "오늘") 하나 아래 h3 다섯 개(이 카드+AssistantPanel의
-                "AI 도우미"+TeamChatWidget의 "팀 채팅"+SideRail 셋)가 직결돼 h2가 아예 없었다.
-                SectionTitle 기본값(h3)은 그대로 두고(다른 소비처가 이미 올바르게 h2 아래 h3로
-                쓴다 — kit.jsx 주석 참고) 여기서만 명시적으로 h2를 준다. */}
+            {/* SEM-02: /me는 h1(PageHeader "오늘") 하나 아래 SectionTitle 여러 개(이 카드+
+                AssistantPanel의 "AI 도우미"+SideRail 셋)가 전부 기본값(h3)으로 직결돼 h2가
+                아예 없었다 — 이 화면에서만 SectionTitle 호출마다 명시적으로 h2를 준다(다른
+                소비처는 이미 h2 아래 h3로 올바르게 쓴다 — kit.jsx 주석 참고). PA-RC-0018
+                전에는 TeamChatWidget "팀 채팅"·SideRail의 "게시판"도 같은 층에 있었으나
+                direction 6으로 카드에서 빠지고 사이드바 "채팅방"/"자유게시판"으로 돌아갔다. */}
             <SectionTitle
               component="h2"
               title={`${view.label} (${total}건)`}
@@ -426,7 +379,6 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
             )}
           </Card>
           <AssistantPanel />
-          <TeamChatWidget />
         </Stack>
         <SideRail data={data} />
       </Box>
