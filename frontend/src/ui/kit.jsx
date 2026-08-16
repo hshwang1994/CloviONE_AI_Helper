@@ -1143,7 +1143,7 @@ export function useToast() { return React.useContext(ToastCtx); }
  *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot, size = "page" }) {
+export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자", spot, size = "page" }) {
   void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
    * 이 컴포넌트를 그대로 쓰면 h4/h1 이 감싸는 페이지의 진짜 제목과 같은 무게라 "페이지가
@@ -1151,6 +1151,10 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
    * 페이지처럼 보임). 글자만 작게(h6/h2) 줄이는 하위 무게 — breadcrumb(area)는 상위
    * 페이지가 이미 보여 주므로 호출부는 보통 area=null 을 같이 넘긴다. */
   const isSection = size === "section";
+  // PA-RC-0017: tab 이 있으면 3단(영역 › 화면 › 탭) — title 이 캡션 줄로 올라가고 tab 이 큰
+  // 제목이 된다. 안 주는 61개 기존 호출부는 그대로 2단(관리자 › 영역 / 제목)이라 하위 호환된다.
+  const crumb = [crumbRoot, area, tab ? title : null].filter(Boolean).join(" › ");
+  const heading = tab || title;
   return (
     <Box
       className="k-page-head"
@@ -1162,12 +1166,12 @@ export function PageHeader({ area, title, actions, crumbRoot = "관리자", spot
           넘기고 있어 시그니처만 남긴다(그 값은 이제 무시된다).
           클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
       <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
-        {area ? (
+        {crumb ? (
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
-            {crumbRoot ? crumbRoot + " › " : ""}{area}
+            {crumb}
           </Typography>
         ) : null}
-        <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"} sx={{ mt: area ? 0.5 : 0 }}>{title}</Typography>
+        <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"} sx={{ mt: crumb ? 0.5 : 0 }}>{heading}</Typography>
       </Box>
       {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
     </Box>

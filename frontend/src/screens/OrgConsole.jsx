@@ -69,7 +69,7 @@ export function OrgConsole({ defaultKind = "organizations" }) {
 
   return (
     <div className="c-screen">
-      <PageHeader area="사용자" title="조직도" />
+      <PageHeader area="사용자와 권한" title="조직도" />
       <Box sx={{ mb: 2.5 }}>
         <Callout>조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.</Callout>
       </Box>

@@ -65,13 +65,6 @@ export const DEDICATED_SCREEN_KEYS = [
   "llm_enabled", "llm_backend", "llm_executable", "llm_model",
   "llm_timeout_seconds", "llm_max_concurrency",
 ];
-// 두 전용 화면의 실제 접근 역할(AdminRoutes.jsx / navConfig.js / 백엔드 라우터와 같은 집합).
-// 이 목록으로 게이트해야 열 수 없는 사람에게 죽은 링크를 주지 않는다.
-export const CONSOLE_SCREEN_ROLES = ["system_admin"];
-// /maintenance 라우트의 실제 접근 역할(App.jsx RequireRole/NAV와 일치) — operator·auditor도 조회는
-// 할 수 있다(쓰기만 canWrite로 서버가 막는다). 아래 안내 링크는 이 화면 자체의 canWrite(설정 편집 권한)가
-// 아니라 이 목록으로 게이트해야, 조회만 가능한 역할도 403 없이 실제로 열 수 있는 화면을 클릭할 수 있다.
-export const MAINTENANCE_READ_ROLES = ["operator", "admin", "system_admin", "auditor"];
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).

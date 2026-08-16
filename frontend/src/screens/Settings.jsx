@@ -8,7 +8,12 @@
  *   settings/StructuredObjectFields.jsx  설정 카테고리별(비밀번호/세션/도메인/브랜딩) 구조화 입력
  *   settings/SettingEditor.jsx       값 편집 드로어(coerce/dry-run/저장/보안 완화 확인)
  *   settings/SettingVersions.jsx     버전 기록 + 롤백
- *   settings/SettingsMain.jsx        설정 표 화면(Settings 컴포넌트) 본체 */
+ *   settings/SettingsMain.jsx        설정 표 화면(Settings 컴포넌트) 본체
+ *   settings/SettingsShell.jsx       PA-RC-0017: /settings 라우트가 실제로 그리는 탭 그릇
+ *                                    (시스템 정책=Settings+Maintenance / OS와 서비스 동작 /
+ *                                    연동 / AI). Settings 자체는 여전히 "설정 표"만이다 —
+ *                                    AdminRoutes.jsx는 SettingsShell을 렌더한다. */
 export { Settings } from "./settings/SettingsMain.jsx";
+export { SettingsShell } from "./settings/SettingsShell.jsx";
 export { SettingVersions } from "./settings/SettingVersions.jsx";
 export { fmtDuration, summarizeSetting, SETTING_LABELS, OBJECT_SCHEMA_HELP } from "./settings/settingsRegistry.js";

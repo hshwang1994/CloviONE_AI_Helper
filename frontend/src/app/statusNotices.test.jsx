@@ -119,7 +119,7 @@ describe("StatusChip / CriticalStatusLine", () => {
       },
     });
     renderHarness();
-    expect(await screen.findByText(/장애 1 · 주의 1/)).toBeInTheDocument();
+    expect(await screen.findByText(/장애 1, 주의 1/)).toBeInTheDocument();
   });
 
   it("칩을 누르면 패널이 열려 항목이 보인다", async () => {

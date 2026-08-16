@@ -9,7 +9,7 @@ import { fmtDateTime } from "../../lib/format.js";
 import { useAuth } from "../../app/auth.jsx";
 import { DashSection, Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
-import { PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { PageHeader, SectionTitle, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { FONT_WEIGHT } from "../../ui/theme.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
 
@@ -21,8 +21,14 @@ import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
  *
  * 이 화면은 operator/auditor(읽기 전용 역할)도 들어온다(App.jsx RequireRole). 그 역할에게 쓰기
  * 컨트롤을 **숨기지 않는다** — 보이되 비활성이고, 왜 비활성인지 옆에 글자로 남긴다. 숨기면
- * '이 앱엔 그런 기능이 없다'로 읽혀, 권한을 받으면 할 수 있는 일을 영영 모른 채로 지나간다. */
-export function Maintenance() {
+ * '이 앱엔 그런 기능이 없다'로 읽혀, 권한을 받으면 할 수 있는 일을 영영 모른 채로 지나간다.
+ *
+ * PA-RC-0017: `embedded`(SettingsShell.jsx의 '시스템 정책' 탭, 설정 표 바로 아래)일 땐 이
+ * 화면 몫의 큰 PageHeader(h1) 대신 한 단계 아래인 SectionTitle(h3)을 그린다 — 탭 하나 안에
+ * '설정' 표와 '유지보수' 카드가 나란히 있는데 둘 다 h1이면 탭 안에 페이지가 두 개 겹친
+ * 것처럼 읽힌다(PageHeader.jsx의 size="section" 과 같은 근거). 새로고침 버튼·갱신 시각은
+ * 그대로 필요해 SectionTitle의 action 자리로 옮긴다. */
+export function Maintenance({ embedded = false } = {}) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -132,15 +138,21 @@ export function Maintenance() {
           폴링을 걸진 않되(쓰기가 잦은 화면은 아니다), 최소한 수동 새로고침은 준다. QueryClient가
           refetchOnWindowFocus:false, staleTime 30s라 아무 조작도 없이 놔두면 30초 넘게 낡은 값이
           '지금 상태'처럼 보일 수 있었다(main.jsx). */}
-      <PageHeader area="운영" title="유지보수"
-        actions={<>
-          {updated ? (
-            <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
-              {updated} 기준
-            </Typography>
-          ) : null}
-          <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
-        </>} />
+      {(() => {
+        const refreshActions = (
+          <>
+            {updated ? (
+              <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
+                {updated} 기준
+              </Typography>
+            ) : null}
+            <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
+          </>
+        );
+        return embedded
+          ? <SectionTitle title="유지보수" action={refreshActions} />
+          : <PageHeader area="운영" title="유지보수" actions={refreshActions} />;
+      })()}
       {/* TanStack Query v5에서 isLoading은 '최초' 로딩만 true다, 캐시된 데이터가 이미 있는 상태에서
           (예: 이 화면의 '새로고침' 버튼을 눌렀다가) 재조회가 실패하면 isLoading은 false, isError만
           true가 된다. 그걸 그대로 ErrorState로 바꿔치기하면 방금까지 보이던 켜짐/꺼짐 토글과 공지

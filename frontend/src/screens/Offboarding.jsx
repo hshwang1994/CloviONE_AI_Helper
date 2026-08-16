@@ -82,7 +82,7 @@ export function Offboarding() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="사용자" title="오프보딩"
+      <PageHeader area="사용자와 권한" title="오프보딩"
         actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null} />
       <Callout>
         <Box component="p" sx={{ m: 0 }}>

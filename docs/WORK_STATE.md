@@ -6501,3 +6501,54 @@ URL 39개 리다이렉트 보존, **가장 큰 위험은 RBAC**— 역할 4종×
 `PA-RC-0017` 블록(라인 244~287 부근, cycle_id `PA-20260816-120655-f103fb5b`). 착수 전
 `frontend/src/app/AdminRoutes.jsx`·`frontend/src/screens/registry/*.js`·현재 사이드바
 구조를 먼저 전수 파악할 것 — 이 항목은 규모가 커서 여러 체크포인트에 걸칠 수 있다.
+
+## 2026-08-16 14:5x~15:2x — `PA-RC-0017` 구현 진행 중 (8개 acceptance_criteria 중 6개 완료)
+
+**한 판단**: Handoff는 "설정 6화면 → 4탭"이라 했지만 그대로 따르면 유지보수(role이 시스템
+설정보다 넓다)를 시스템 설정과 한 탭에 묶어 RBAC이 부서진다 — 대신 role 집합이 같은
+화면끼리만(설정+유지보수 = 시스템 정책 탭, 나머지 셋은 각자 탭) 묶고 초기 설정은 마법사라
+탭 그릇이 안 맞아 독립 화면으로 남겼다. 상세 근거는 `DECISIONS.md` D-92.
+
+**완료(자동 시험으로 확인)**:
+- `frontend/src/app/navConfig.js`의 `NAV`: 8그룹 39항목 → 5그룹 35항목(운영/사용자와
+  권한/자동화/연동/감사, 그룹당 정확히 7항목). `registry/*.js` 4개 파일 + 독립 화면 5곳의
+  breadcrumb `area`도 새 그룹명에 맞춰 함께 갱신(안 하면 breadcrumb과 사이드바가 다른
+  그룹을 말하는 모순이 생긴다).
+- `frontend/src/screens/settings/SettingsShell.jsx`(신규) — 4탭(시스템 정책/OS와 서비스
+  동작/연동/AI) 그릇. 기존 5개 컴포넌트에 `embedded` prop만 얹어 재배선(새 화면 로직은
+  안 짰다). 안내 4문단 **삭제 확인**(acceptance_criteria 3).
+- `AdminRoutes.jsx`의 옛 라우트 4개(`/system`·`/notion-console`·`/llm-console`·
+  `/maintenance`) → `/settings?tab=*` 리다이렉트. 나머지 35개 URL은 경로 불변이라
+  리다이렉트 불필요(자동 시험으로 확인, 39개 전부 커버).
+- `AppShell.jsx`의 `SidebarNav`에 필터 입력 신설(관리자 셸만, 2글자로 좁혀짐, 사용자
+  콘솔은 미변경 — Handoff 제약 준수).
+- `kit.jsx`의 `PageHeader`에 `tab` prop(3단 breadcrumb, 하위 호환).
+- **RBAC**: 역할 4종(user·operator·auditor·system_admin) × 신규 탭 매트릭스를
+  `settings-shell.test.jsx`가 자동 확인. revert-to-verify로 실제 증명(`visibleTabs`
+  필터를 무력화하니 operator가 `?tab=os`로 실제 OS 탭에 닿는 것을 시험이 정확히 잡음,
+  복구 후 재확인 green).
+- 회귀 중 발견: 새로 쓴 "사용자·권한"/"OS·서비스 동작"뿐 아니라 **이전 PA-RC-0016**
+  (`StatusNotices.jsx`)에도 금지 문자(가운뎃점·em대시, §8) 위반이 이미 있었다 — 그때
+  `static_checks.sh`를 안 돌렸거나 놓친 것으로 보인다. 전부 자연스러운 한국어로 교체.
+- 신규 vitest 27건 + 기존 nav/sidebar 스위트 3파일의 옛 그룹명 하드코딩 갱신. 전체
+  프런트 회귀 273파일 1862건 green. `static_checks.sh` green(git-secrets의 기존
+  SEC-20/PA-RC-0003 인간 전담 항목 제외 — `git stash`/reflog 자격증명 회전은 여전히
+  사용자 조치 필요, 이번 세션이 새로 만든 문제 아님). 번들 재빌드 +
+  `check_bundle_fresh.py --write` 반영.
+
+**아직 안 한 것 (다음 체크포인트)**:
+1. `RESP-04`(1024~1200px 사이드바 축소 레일) — `PA2-05`가 교차 참조했지만 `PA-RC-0017`
+   자신의 acceptance_criteria 8개에는 없다. 후순위로 이월.
+2. **실브라우저 검증**(`browser_verification` 필드): 1920×1080 light/dark 레일·설정
+   화면 스크린샷, 역할 4종 로그인 대조, 옛 URL 39개 직접 입력 확인. jsdom 통과가 실제
+   렌더(줄바꿈·겹침·스크롤 여부)의 증거는 아니다 — 다음 통합 배포 + Chrome E2E 사이클로.
+3. `var/product-audit/probe_rbac_gate.py` 재실행 — 이 스크립트가 재는 라우트(레지스트리
+   화면 10개, 프런트 게이트 없음)는 이번 재편 범위 밖이라 로컬 서버+시드 계정이 필요한
+   다음 배포 사이클에 함께 돌린다.
+
+**남은 15건 Handoff 항목 중 미착수**: `PA-RC-0012`(heading 계층)·`0013`(`/users` URL
+상태)·`0014`(영문 422 오류)·`0018`(대시보드 REBUILD)·`0019`(FAB 가림)·`0020`(어시스턴트
+명명)·`0021`(다크 테마 토큰)·`0022`(0017 이후 착수, 프로즈가 IA를 대신함)·`0023`(동작
+위계)·`0024`(0013 이후 착수)·`0025`(Low, UX 문구)·`0026`(Med, 진단 화면 권한).
+`PA-RC-0017`을 acceptance_criteria 100%까지 마저 채운 뒤(위 3항목) `0022`로 이어가는 것이
+Handoff의 명시적 의존 순서다.

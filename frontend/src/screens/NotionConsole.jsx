@@ -212,7 +212,9 @@ function TokenSection({ token, testTokens, onSave, busy }) {
   );
 }
 
-export function NotionConsole() {
+// PA-RC-0017: embedded(SettingsShell.jsx의 '연동' 탭)일 땐 자체 PageHeader를 그리지 않는다
+// — SystemOps.jsx와 같은 이유.
+export function NotionConsole({ embedded = false } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -308,7 +310,7 @@ export function NotionConsole() {
 
   return (
     <Box className="c-screen">
-      <PageHeader area="연동" title="Notion 관리" />
+      {embedded ? null : <PageHeader area="연동" title="Notion 관리" />}
 
       <Callout tone="info">{data.apply_note}</Callout>
 

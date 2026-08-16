@@ -180,7 +180,7 @@ export function SetupWizard() {
   if (!allowed) {
     return (
       <Box className="c-screen">
-        <PageHeader area="시스템" title="초기 설정" />
+        <PageHeader area="감사" title="초기 설정" />
         <EmptyState
           title="권한이 없습니다"
           help="이 화면은 시스템 관리자만 사용할 수 있습니다. 여기 담긴 것은 조직 단위가 아니라 서버 한 대 전체의 상태입니다."
@@ -193,7 +193,7 @@ export function SetupWizard() {
   if (query.isLoading) {
     return (
       <Box className="c-screen">
-        <PageHeader area="시스템" title="초기 설정" />
+        <PageHeader area="감사" title="초기 설정" />
         <Card><Skeleton lines={7} /></Card>
       </Box>
     );
@@ -201,7 +201,7 @@ export function SetupWizard() {
   if (query.isError) {
     return (
       <Box className="c-screen">
-        <PageHeader area="시스템" title="초기 설정" />
+        <PageHeader area="감사" title="초기 설정" />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </Box>
     );
@@ -212,7 +212,7 @@ export function SetupWizard() {
   return (
     <Box className="c-screen">
       <PageHeader
-        area="시스템"
+        area="감사"
         title="초기 설정"
         actions={
           <Button onClick={() => setOpen((v) => !v)}>

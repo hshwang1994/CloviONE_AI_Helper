@@ -89,7 +89,9 @@ function Field({ label, help, children }) {
   );
 }
 
-export function LlmConsole() {
+// PA-RC-0017: embedded(SettingsShell.jsx의 'AI' 탭)일 땐 자체 PageHeader를 그리지 않는다 —
+// SystemOps.jsx와 같은 이유.
+export function LlmConsole({ embedded = false } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const [jobId, setJobId] = React.useState(null);
@@ -192,7 +194,7 @@ export function LlmConsole() {
 
   return (
     <Box className="c-screen">
-      <PageHeader area="연동" title="AI 관리" />
+      {embedded ? null : <PageHeader area="연동" title="AI 관리" />}
 
       <Callout tone="info">{data.apply_note}</Callout>
 

@@ -227,7 +227,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   audit: {
-    key: "audit", area: "운영", title: "감사 로그", endpoint: "/api/admin/audit",
+    key: "audit", area: "감사", title: "감사 로그", endpoint: "/api/admin/audit",
     help: "누가 무엇을 언제 바꿨는지 기록을 봅니다. 자주 쓰는 필터 조합은 ‘저장된 뷰’로 이름을 붙여 두면 다시 부를 수 있고, ‘CSV 내보내기’는 지금 화면에 걸린 필터를 그대로 적용해 내려받습니다.",
     // 내보내기·이상 징후 (0033, PLAN Phase 6). 내보내기는 브라우저가 직접 그 주소로 가야
     // Content-Disposition 이 먹으므로 download 액션이다(DataScreen.runAction 주석 참조) —
@@ -366,7 +366,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   "audit-anomalies": {
-    key: "audit-anomalies", area: "운영", title: "감사 이상 징후",
+    key: "audit-anomalies", area: "감사", title: "감사 이상 징후",
     endpoint: "/api/admin/audit/anomalies",
     help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
     emptyTitle: "눈여겨볼 징후가 없습니다",
@@ -410,7 +410,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   rbac: {
-    key: "rbac", area: "사용자", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
+    key: "rbac", area: "사용자와 권한", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
     // 이 표는 역할(role) 축 하나만 보여준다 — role=admin 은 admin_scope(전체/조직/부서)로
     // 추가로 좁혀질 수 있는데(app/core/scope.py), 그 축이 이 매트릭스 어디에도 안 보이면
     // "부서 관리자가 왜 남의 부서를 못 보는지" 이 화면만 봐서는 알 수 없다. 그 범위 설정
@@ -467,7 +467,7 @@ export const GOVERNANCE_SCREENS = {
    * 한다(그리고 매번 조금씩 다르게 된다). 달력(스케줄러)만 표로 표현할 수 없어 별도 화면이다.
    */
   impersonation: {
-    key: "impersonation", area: "사용자", title: "임퍼소네이션(대리 보기)",
+    key: "impersonation", area: "사용자와 권한", title: "임퍼소네이션(대리 보기)",
     endpoint: "/api/admin/impersonation/sessions",
     help: "다른 사용자의 화면을 그 사람 눈으로 읽기만 합니다. 임퍼소네이션 중에는 모든 쓰기가 서버에서 차단되고, 누가 누구를 언제 봤는지가 이 목록과 감사 로그에 남습니다. 시작하면 화면 위에 띠가 뜹니다.",
     emptyTitle: "임퍼소네이션 기록이 없습니다",

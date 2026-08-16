@@ -145,7 +145,10 @@ function UnitRow({ unit, state, onControl, disabled }) {
   );
 }
 
-export function SystemOps() {
+// PA-RC-0017: embedded(SettingsShell.jsx의 'OS와 서비스 동작' 탭)일 땐 자체 PageHeader를
+// 그리지 않는다 — 이 화면은 탭 하나를 통째로 차지해 SettingsShell의 바깥 PageHeader(tab=
+// "OS와 서비스 동작")가 이미 제목을 보여준다, 안에서 또 그리면 h1이 두 개가 된다.
+export function SystemOps({ embedded = false } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -214,7 +217,7 @@ export function SystemOps() {
 
   return (
     <Box className="c-screen">
-      <PageHeader area="운영" title="시스템 설정" />
+      {embedded ? null : <PageHeader area="운영" title="시스템 설정" />}
 
       {!usable && (
         <Callout tone="warn">

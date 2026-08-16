@@ -15,10 +15,10 @@ import { safeExternal } from "../lib/safeUrl.js";
 
 /* PA-RC-0016: 시스템 상태 + 공지 배너 스택을 헤더 칩 하나로 접는다.
  *
- * **왜 여기 있는가.** 예전엔 Banners.jsx가 셋(임퍼소네이션·시스템 상태·공지)을 전부 세로로
+ * **왜 여기 있는가.** 예전엔 Banners.jsx가 셋(임퍼소네이션·시스템 상태와 공지)을 전부 세로로
  * 쌓아 전 라우트에서 첫 화면의 20~31%를 상시 점유했다(PA-RC-0016 실측). 임퍼소네이션은
  * "지금 남의 눈으로 본다"는 사실이라 닫을 수 없고 항상 눈에 보여야 하므로 Banners.jsx에
- * 그대로 남긴다. 이 파일은 나머지 둘(시스템 상태·공지) — 원래도 언젠가는 풀리거나 닫을 수
+ * 그대로 남긴다. 이 파일은 나머지 둘(시스템 상태와 공지) — 원래도 언젠가는 풀리거나 닫을 수
  * 있는 것들 — 만 다룬다.
  *
  * **판정 조건은 하나도 안 건드린다.** WARNING/CRITICAL 임계, 공지 노출 대상, 응답 구조
@@ -215,7 +215,7 @@ function NoticeRow({ notice, onDismiss }) {
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
         <Typography sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
-          {LEVEL_LABEL[notice.level] || "안내"} — {notice.message}
+          {LEVEL_LABEL[notice.level] || "안내"}: {notice.message}
         </Typography>
         {notice.kind === "sync" || notice.dismissible ? (
           <Button size="small" onClick={() => onDismiss(notice)} sx={{ minWidth: "auto", px: 1, flexShrink: 0 }}>
@@ -255,7 +255,7 @@ export function StatusChip({ notices }) {
     counts.critical ? `장애 ${counts.critical}` : null,
     counts.warning ? `주의 ${counts.warning}` : null,
     counts.info ? `안내 ${counts.info}` : null,
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(", ");
   const chipColor = counts.critical ? "error" : counts.warning ? "warning" : "info";
 
   return (
@@ -288,13 +288,13 @@ export function StatusChip({ notices }) {
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{
           paper: {
-            id: "status-notices-pop", role: "dialog", "aria-label": "시스템 상태·공지",
+            id: "status-notices-pop", role: "dialog", "aria-label": "시스템 상태와 공지",
             sx: { mt: 1, width: "min(28rem, calc(100vw - 2rem))", maxHeight: "min(30rem, 80vh)", overflow: "hidden", display: "flex", flexDirection: "column" },
           },
         }}
       >
         <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>시스템 상태·공지</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>시스템 상태와 공지</Typography>
         </Box>
         <Box role="list" sx={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           {visible.length === 0 ? (
@@ -327,7 +327,7 @@ export function CriticalStatusLine({ notices }) {
     >
       <ReportProblemRoundedIcon fontSize="small" aria-hidden="true" />
       <Typography sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, flex: 1 }}>
-        {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건 — 우측 상단 칩에서 확인)` : ""}
+        {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건, 우측 상단 칩에서 확인)` : ""}
       </Typography>
       {first.kind === "sync" ? (
         <Button size="small" color="inherit" onClick={() => dismiss(first)} sx={{ flexShrink: 0, textDecorationLine: "underline" }}>

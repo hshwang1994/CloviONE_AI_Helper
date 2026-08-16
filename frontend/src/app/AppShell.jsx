@@ -9,6 +9,8 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
 import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -30,7 +32,7 @@ import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
 import { AssistantDrawer } from "./AssistantDrawer.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
-import { activeNavPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
+import { activeNavPath, filterGroupsByQuery, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
@@ -192,9 +194,16 @@ function filterNavByRole(nav, role) {
     .filter((g) => g.items.length);
 }
 
-function SidebarNav({ groups, activePath, onNavigate, userId }) {
+/* PA-RC-0017 acceptance_criteria 7: 레일 상단 내비 필터. `showFilter`가 없으면(사용자 콘솔
+ * 호출부) 입력 자체를 그리지 않는다 — Handoff의 constraints가 "사용자 콘솔 내비는 건드리지
+ * 않는다(이미 정상이다)"라고 명시했다. 관리자 39개 중 지금 role이 보는 목적지 안에서만
+ * 좁힌다(groups는 이미 filterNavByRole을 거친 뒤라 role 밖 항목은 애초에 여기 없다). */
+function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
   const badges = useNavBadges();
   const [collapsed, setCollapsed] = React.useState(() => getStoredCollapsed(userId));
+  const [filterQuery, setFilterQuery] = React.useState("");
+  const filtering = showFilter && filterQuery.trim().length > 0;
+  const visibleGroups = filtering ? filterGroupsByQuery(groups, filterQuery) : groups;
   const toggle = (name) => setCollapsed((c) => {
     const next = { ...c, [name]: !c[name] };
     try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
@@ -217,9 +226,9 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
     });
   }, [activeGroup, collapsed, userId]);
 
-  /* VIS-113: 37항목 5그룹이 1080 높이에 다 안 들어가 목록 자체가 스크롤된다. 활성 그룹은
-   * 강제로 펼치지만(위 effect), 펼친 뒤 그 활성 항목이 스크롤 영역 밖에 있으면(예: /llm-console·
-   * /notion-console처럼 아래쪽 그룹) "내가 어디 있는지"를 보여주는 아무 표시도 화면에 없다 —
+  /* VIS-113: 35항목 5그룹이 1080 높이에 다 안 들어가 목록 자체가 스크롤된다. 활성 그룹은
+   * 강제로 펼치지만(위 effect), 펼친 뒤 그 활성 항목이 스크롤 영역 밖에 있으면(예: /restore-drills·
+   * /policy-usage처럼 아래쪽 그룹) "내가 어디 있는지"를 보여주는 아무 표시도 화면에 없다 —
    * 하이라이트 자체는 이미 있는데(selected/aria-current) 스크롤이 안 따라가 안 보일 뿐이다.
    * 경로가 바뀔 때마다 활성 항목을 목록 안으로 스크롤한다(포커스는 옮기지 않는다 — 라우트
    * 전환 포커스는 이미 route-change-focus가 본문으로 보낸다, 여기서 또 가져가면 그것과 싸운다).
@@ -233,7 +242,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
     } catch (e) { /* ignore */ }
   }, [activePath]);
 
-  /* VIS-104: 이 목록이 VIS-113처럼 스크롤되는데(37항목 5그룹은 1080 높이에 다 안 들어간다),
+  /* VIS-104: 이 목록이 VIS-113처럼 스크롤되는데(35항목 5그룹은 1080 높이에 다 안 들어간다),
    * 바로 아래 항상 보이는 마스코트 카드가 붙어 있어 "메뉴가 여기서 끝난다"로 착시된다 —
    * 실제로는 스크롤하면 항목이 더 있다(1920×1080 실측: `내 업무량`·`내 활동`이 이렇게
    * 가려졌다, 1305 높이에서는 셋 다 보임). 스크롤 가능 여부를 재서 아래쪽 경계에 그림자를
@@ -257,23 +266,55 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
       el.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, [groups, collapsed]);
+  }, [visibleGroups, collapsed]);
 
   return (
-    <List
-      component="nav"
-      ref={listRef}
-      sx={{
-        px: 1.5, py: 1, flex: 1, overflowY: "auto",
-        boxShadow: hasMoreBelow ? "inset 0 -16px 12px -12px rgba(0,0,0,.5)" : "none",
-        transition: "box-shadow .15s",
-      }}
-    >
-      {groups.map((g) => {
+    <>
+      {showFilter ? (
+        <Box sx={{ px: 1.5, pt: 1 }}>
+          <TextField
+            size="small"
+            fullWidth
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            placeholder="메뉴 찾기"
+            inputProps={{ "aria-label": "메뉴 찾기" }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchRoundedIcon fontSize="small" sx={{ color: "rgba(237,240,255,.62)" }} />
+                </InputAdornment>
+              ),
+              sx: {
+                color: "common.white", bgcolor: "rgba(255,255,255,.08)", borderRadius: 2,
+                "& fieldset": { borderColor: "rgba(255,255,255,.16)" },
+                "&:hover fieldset": { borderColor: "rgba(255,255,255,.28)" },
+              },
+            }}
+          />
+        </Box>
+      ) : null}
+      {filtering && visibleGroups.length === 0 ? (
+        <Typography variant="body2" sx={{ px: 3, py: 2, color: "rgba(237,240,255,.62)" }}>
+          '{filterQuery}'와 맞는 메뉴가 없습니다.
+        </Typography>
+      ) : null}
+      <List
+        component="nav"
+        ref={listRef}
+        sx={{
+          px: 1.5, py: 1, flex: 1, overflowY: "auto",
+          boxShadow: hasMoreBelow ? "inset 0 -16px 12px -12px rgba(0,0,0,.5)" : "none",
+          transition: "box-shadow .15s",
+        }}
+      >
+      {visibleGroups.map((g) => {
         const groupActive = g.items.some((it) => it.to === activePath);
         // 현재 위치가 든 그룹은 사용자가 접어 뒀어도 항상 펼친다 — 알림 딥링크나 직접 해시로
         // 접힌 그룹 안의 경로에 도착했을 때 '여기 있음' 항목이 숨으면 길을 잃는다.
-        const isOpen = !collapsed[g.group] || groupActive;
+        // 필터링 중에는 무조건 편다 — 검색으로 찾은 항목이 접힌 그룹 안에 숨어 있으면 필터
+        // 자체가 무용해진다.
+        const isOpen = filtering || !collapsed[g.group] || groupActive;
         const GroupIcon = g.icon;
         const itemsId = "nav-group-" + g.group;
         return (
@@ -349,7 +390,8 @@ function SidebarNav({ groups, activePath, onNavigate, userId }) {
           </Box>
         );
       })}
-    </List>
+      </List>
+    </>
   );
 }
 
@@ -537,7 +579,7 @@ export function AppShell({
           {!isUser && !minimal ? (
             <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); navigate(to); }} />
           ) : null}
-          <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} />
+          <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} showFilter={!isUser} />
           {/* 세로가 짧은 화면(노트북 1366x768 에 관리자 메뉴 전개)에서 이 카드가 눌리지 않게
               한다. 목록은 이미 자기 안에서 스크롤되므로(SidebarNav overflowY:auto) 카드가
               자리를 먼저 가져가도 메뉴를 못 보게 되지 않는다. */}

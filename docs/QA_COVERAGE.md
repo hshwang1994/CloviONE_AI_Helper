@@ -1099,3 +1099,20 @@ var/product-audit/verify_dark.py       # 테마 토글 후 대비(그라디언�
 **스크린샷은 `var/product-audit/shots/`에 있고, 생성만 하고 넘어가면 이 축을 한 것이 아니다** —
 `Read` 도구로 실제로 열어서 판정해야 한다. 이번 Cycle이 찾은 것 중 카드 40장·안내 4문단·
 다크 흰 모달·배지 3열은 전부 **계측 수치가 아니라 화면을 보고** 나왔다.
+
+### `PA-RC-0017`의 `qa_gaps`(별도 신설 — 위 L축 표와 다른 계열)
+
+`PA-RC-0017` Handoff는 이 표(브라우저 계측 프로브)와 별개로 "구조 자체를 재는 축이 아예 없다"는
+세 공백을 직접 지목했다. 구현(2026-08-16, `DECISIONS.md` D-92)과 함께 vitest 회귀로 신설했다 —
+브라우저 프로브가 아니라 컴포넌트/라우트 레벨 자동 시험이라 이 표의 방법론과는 다르지만, 같은
+"측정 축 자체가 없었다"는 문제를 닫는다는 점은 같다.
+
+| 공백(Handoff 원문) | 신설 커버리지 |
+|---|---|
+| 관리자 IA 구조(최상위 개수·형제 수·스크롤 없는 도달) | `frontend/src/app/nav-ops-group-split.test.js` — `NAV`가 정확히 5그룹, 그룹당 7항목 이하, 총 35항목임을 매 실행마다 확인(회귀 시 즉시 실패) |
+| 기존 URL 리다이렉트 보존 | `frontend/src/app/settings-route-redirects.test.jsx` — 옛 4개 URL이 대시보드가 아니라 정확한 탭으로 도달함을 `<AdminRoutes>` 통합 렌더로 확인 |
+| 탭 단위 RBAC(구조 자체가 신설 대상) | `frontend/src/screens/settings/settings-shell.test.jsx` — 역할 4종(user·operator·auditor·system_admin) × 탭 가시성, URL 직접 조작 시 클램프, revert-to-verify로 실제 검증 |
+
+**아직 못 닫은 것**: 위 셋은 전부 jsdom(가짜 DOM) 기준이다. 실브라우저에서 스크롤 높이·겹침·
+줄바꿈까지 눈으로 확인하는 것(Handoff의 `browser_verification` 필드)은 다음 통합 배포 +
+Chrome E2E 사이클로 남아 있다 — jsdom 통과가 "화면이 실제로 그렇게 보인다"의 증거는 아니다.

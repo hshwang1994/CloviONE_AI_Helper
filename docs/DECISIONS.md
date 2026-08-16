@@ -2848,3 +2848,113 @@ L축 신규 Root Cause 9건 중 첫 둘. `PA-RC-0015`(Low, 배너 경과 시간�
 닫았다고 주장하지 않는다.
 
 상세: `docs/BACKLOG.md` PA-RC-0016(신규 행 추가).
+
+## D-92 (2026-08-16) — PA-RC-0017: 관리자 IA REDESIGN — 8그룹 39항목 → 5그룹 35항목 + 설정 탭 통합
+
+### 배경
+
+관리자 내비가 8그룹 39목적지 평면이라 1080 뷰포트의 42%만 보여주고(nav `scrollHeight`
+1976 / `clientHeight` 839), 설정이 6화면(설정·시스템 설정·초기 설정·유지보수·Notion
+관리·AI 관리)에 흩어져 `/settings` 상단 안내 4문단이 그 사실을 설명하고 있었다
+(`PA-RC-0017`, High/P1, REDESIGN). Handoff는 "역할 4종 × 신규 탭 전체의 allow/deny 검증"을
+가장 큰 위험으로 못박았다.
+
+### 판단 1 — Handoff가 말한 "6화면 → 4탭"을 글자 그대로 따르지 않았다
+
+Handoff의 `implementation_direction`은 6화면을 4탭(시스템 정책/OS·서비스 동작/연동/AI)으로
+묶으라고 했다. 그대로 따르면 두 가지가 깨진다.
+
+1. **초기 설정**(`SetupWizard.jsx`)은 값 패널이 아니라 순서가 있는 체크리스트 마법사라 탭이라는
+   그릇 자체가 안 맞는다. 상단 배너의 직접 링크로도 이미 닿는다.
+2. **유지보수**를 시스템 설정과 한 탭에 묶으면 role이 부서진다 — 시스템 설정(`/system`)은
+   `system_admin` 전용인데 유지보수(`/maintenance`)는 `operator/admin/system_admin/auditor`까지
+   읽을 수 있다(기존 `RequireRole`을 그대로 물려받음). 한 탭에 넣으려면 후자를 `system_admin`
+   전용으로 좁히거나(권한 있던 역할이 기능을 잃는 회귀) 전자를 넓히거나(OS 특권 동작을 읽기
+   전용 역할에게 노출하는 권한 상승) 둘 중 하나를 깨야 한다.
+
+대신 유지보수는 설정(`SettingsMain.jsx`)과 **같은 "넓게 읽고 좁게 쓴다" 성격**(둘 다 라우트는
+열려 있고 내부 `canWrite`/`isWriteRole`로 쓰기만 좁힌다)이라 '시스템 정책' 탭 안에 설정 표
+바로 아래로 이어붙였다. 결과: 4탭은 각각 **단일하고 균일한 role 게이트**를 갖는다(정책=무제한,
+OS·연동·AI=`system_admin`) — role 집합이 실제로 같은 화면끼리만 한 탭에 두어 RBAC 상승/회귀
+둘 다를 구조적으로 차단했다. 초기 설정은 독립 화면(`/setup`)으로 남기고 감사 그룹으로
+재분류했다(사후 점검 성격). 이 판단은 Handoff의 글자 수(6→4)보다 "탭마다 role이 하나로
+균일해야 한다"는 더 강한 제약(regression_risk가 명시한 최우선 위험)을 우선한 것이다.
+
+### 판단 2 — `/settings` 안내 4문단은 삭제했다(수정이 아니라)
+
+처음엔 문단을 "라우트 이동" 대신 "탭 전환"을 가리키도록 고쳐 남겼으나, Handoff의
+`acceptance_criteria` 3번이 "안내 4문단이 **삭제**되어 있다"를 명시적으로 요구한다는 것을
+재확인하고 되돌려 통째로 없앴다(`SettingsMain.jsx`). `canReachMaintenance`/`canReachConsoles`
+플래그와 `settingsRegistry.js`의 대응 상수도 그 문단에서만 쓰여 함께 지웠다. 읽기 전용 역할에게
+"왜 못 고치는지"는 이제 `SettingEditor`가 항목을 열 때 비활성 버튼 + `aria-describedby` 이유로
+그 자리에서 알린다(`settings-editor-readonly.test.jsx`가 이미 지키는 계약) — 상시 배너로
+미리 알릴 필요가 없어졌다.
+
+### 판단 3 — 5그룹 분류(운영/사용자와 권한/자동화/연동/감사)는 유일해는 아니다
+
+35항목을 정확히 7개씩 5그룹으로 나눴다(35/5=7, "그룹당 7 이하"를 여유 없이 채움). 프롬프트·
+정책·템플릿·프롬프트 사용 통계를 "연동"에 둔 것(러너·워크플로가 실행 시 참조하는 재료라는
+근거)이 가장 약한 연결이다 — "콘텐츠"라는 독립 그룹을 만들지 않은 이유는 항목 5개만으로
+최상위 그룹 하나를 쓰는 것보다 5그룹 상한 안에서 실사용 맥락(누가 언제 이 화면을 찾는가)
+기준으로 흡수하는 편이 낫다고 판단했기 때문이다. 다른 타당한 분류도 있을 수 있다 — 이후
+사용자 피드백으로 재배치될 수 있는 영역으로 남긴다.
+
+### 판단 4 — role 게이트를 프런트에서 두 겹으로 걸었다
+
+`SettingsShell.jsx`의 `visibleTabs` 필터가 이미 role로 걸러 `tab` 상태값이 "os"/"integration"/
+"ai"가 되는 순간 role은 논리적으로 `system_admin`이 보장된다. 그런데도 각 탭 콘텐츠를 그리는
+자리에 `role === "system_admin"` 검사를 한 번 더 남겼다 — `SystemOps`/`NotionConsole`/
+`LlmConsole`은 지금까지 라우트의 `RequireRole` 하나에만 기대 왔고 `Settings`/`Maintenance`와
+달리 자체 role 검사가 없다. 탭이 되면서 이 세 화면이 처음으로 "라우트가 아니라 파생 상태"로
+접근 가능해지는데, 파생 로직 한 곳의 실수가 OS 특권 동작을 그대로 노출시킬 수 있는 지점이라
+일반적인 "중복 검증 금지" 원칙보다 이 경계의 안전을 우선했다. revert-to-verify로 실제 증명함:
+`visibleTabs` 필터를 무력화하자 operator role에 `?tab=os` 로 들어갔을 때 실제로 "OS와 서비스
+동작" 탭이 선택되고 SystemOps 콘텐츠가 렌더됐다(`settings-shell.test.jsx`가 이 실패를 정확히
+잡았다) — 복구 후 재확인 green.
+
+### 회귀 중 발견 — `StatusNotices.jsx`(PA-RC-0016)의 금지 문자 누락
+
+`static_checks.sh`의 "사용자에게 보이는 문구에 쓰지 않기로 한 문자가 있다" 검사(§8, 가운뎃점
+`·`·em 대시 `—` 금지)를 이번 체크포인트에서 처음 돌려 보니, 이번에 새로 쓴 "사용자·권한"/
+"OS·서비스 동작"뿐 아니라 **이전 PA-RC-0016 구현**(`StatusNotices.jsx`)에도 위반 4건이 이미
+있었다 — 그때 이 검사를 안 돌렸거나 놓친 것으로 보인다. 전부 자연스러운 한국어 대체로
+고쳤다(가운뎃점 목록 결합 → 쉼표, "라벨 — 내용" → "라벨: 내용", "A·B" → "A와 B"). 같은
+검사로 잡히는 문제라 함께 처리했다 — Root Cause 단위로 묶으라는 CLAUDE.md §4와 같은 정신.
+
+### 구현 요약
+
+- `frontend/src/app/navConfig.js`: `NAV` 8그룹 39항목 → 5그룹 35항목 재편. `registry/*.js`
+  4개 파일의 `area:` 필드와 독립 화면 5곳(`Offboarding`/`OrgConsole`/`Users`/`SetupWizard`)의
+  `PageHeader area=`도 새 그룹명에 맞춰 함께 고쳤다(breadcrumb과 사이드바가 다른 그룹을
+  말하는 모순 방지). `filterGroupsByQuery()` 신설(레일 필터, acceptance_criteria 7).
+- `frontend/src/screens/settings/SettingsShell.jsx`(신규): 4탭 그릇. `Settings`/`Maintenance`/
+  `SystemOps`/`NotionConsole`/`LlmConsole` 5개 기존 컴포넌트에 `embedded` prop을 얹어 자체
+  `PageHeader`를 지운다 — 새로 쓴 컴포넌트는 하나도 없다, 전부 재배선이다.
+- `frontend/src/ui/kit.jsx`: `PageHeader`에 `tab` prop 추가(3단 breadcrumb, 하위 호환 —
+  안 주는 기존 61개 호출부는 그대로 2단).
+- `frontend/src/app/AdminRoutes.jsx`: `/system`·`/notion-console`·`/llm-console`·`/maintenance`
+  4개 라우트를 `<Navigate>`로 바꿔 `/settings?tab=*`로 보낸다. 나머지 35개 URL은 경로 자체가
+  안 바뀌어(사이드바 그룹만 재편) 리다이렉트가 필요 없다 — 자동 시험으로 확인.
+- `frontend/src/app/AppShell.jsx`: `SidebarNav`에 `showFilter` prop과 필터 입력(관리자 셸에만,
+  "사용자 콘솔은 건드리지 않는다" 제약 준수). 필터링 중엔 그룹을 강제로 편다.
+- 신규 vitest: `nav-filter.test.js`(6), `sidebar-nav-filter.test.jsx`(5), `settings-shell.test.jsx`
+  (11, role 4종×탭 매트릭스 포함), `settings-route-redirects.test.jsx`(5). 기존 nav/sidebar
+  스위트 3개 파일의 옛 그룹명 하드코딩을 새 구조에 맞춰 갱신. 전체 프런트 회귀 273파일
+  1862건 green. `static_checks.sh`(git-secrets의 기존 SEC-20/PA-RC-0003 인간 전담 항목
+  제외) green. 번들 재빌드 + `check_bundle_fresh.py --write` 반영.
+
+### 남은 것 — 이번 체크포인트에서 안 끝냈다
+
+- **`RESP-04`(1024~1200px 사이드바 축소 레일)**: `docs/BACKLOG.md`의 `PA2-05`가 "`PA2-06`이
+  함께 닫는다"고 교차 참조했지만, `PA-RC-0017` 자신의 `acceptance_criteria` 8개에는 들어있지
+  않다. 이번 체크포인트에서는 손대지 않았다 — 다음 체크포인트 후보로 남긴다.
+- **`browser_verification`**: 1920×1080 light/dark 레일·설정 화면 스크린샷, 역할 4종 로그인
+  대조, 옛 URL 39개 직접 입력 확인이 Handoff에 명시돼 있는데 아직 실브라우저로 안 했다 —
+  로컬 유닛/통합 시험으로는 실제 렌더 결과(줄바꿈, 겹침, 스크롤 여부)를 못 본다. 다음
+  통합 배포 + Chrome E2E 사이클에서 다른 대기 중인 PA-RC 항목들과 함께 묶어 확인한다.
+- **`var/product-audit/probe_rbac_gate.py`**: required_tests가 재실행을 요구하지만 이 스크립트가
+  실제로 재는 라우트(`/prompts`·`/policies`·`/integrations`... 등 프런트 role 게이트가 없는
+  10개 레지스트리 화면)는 이번 재편이 건드린 범위 밖이다(레이블/그룹만 옮겼지 게이트를 새로
+  만들거나 없애지 않았다). 로컬 서버 기동 + 시드 계정이 필요해 다음 배포 사이클에 함께 돌린다.
+
+상세: `docs/BACKLOG.md` `PA2-06`.

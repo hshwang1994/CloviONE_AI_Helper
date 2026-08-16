@@ -28,13 +28,13 @@ import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
 const Dashboard = React.lazy(() => import("../screens/Dashboard.jsx").then((m) => ({ default: m.Dashboard })));
 const Users = React.lazy(() => import("../screens/Users.jsx").then((m) => ({ default: m.Users })));
 const Offboarding = React.lazy(() => import("../screens/Offboarding.jsx"));
-const Settings = React.lazy(() => import("../screens/Settings.jsx").then((m) => ({ default: m.Settings })));
+// PA-RC-0017: 시스템 설정·유지보수·Notion 관리·AI 관리는 더 이상 각자의 라우트가 그리지
+// 않는다 — 전부 SettingsShell.jsx의 탭이 됐다(그 파일이 이 네 컴포넌트를 직접 import한다).
+// 아래 /system·/maintenance·/notion-console·/llm-console 라우트는 옛 주소가 죽은 링크가
+// 되지 않도록 /settings?tab=* 로 보내는 리다이렉트만 남는다.
+const Settings = React.lazy(() => import("../screens/Settings.jsx").then((m) => ({ default: m.SettingsShell })));
 const Diagnostics = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Diagnostics })));
-const Maintenance = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Maintenance })));
-const SystemOps = React.lazy(() => import("../screens/SystemOps.jsx"));
 const MailStatus = React.lazy(() => import("../screens/MailStatus.jsx"));
-const NotionConsole = React.lazy(() => import("../screens/NotionConsole.jsx"));
-const LlmConsole = React.lazy(() => import("../screens/LlmConsole.jsx"));
 const SetupWizard = React.lazy(() => import("../screens/SetupWizard.jsx"));
 const DevReport = React.lazy(() => import("../screens/DevReport.jsx").then((m) => ({ default: m.DevReport })));
 const DataScreen = React.lazy(() => import("../screens/DataScreen.jsx").then((m) => ({ default: m.DataScreen })));
@@ -108,20 +108,20 @@ function AdminRoutes() {
             역할 게이트를 스스로 들고 있고(SetupWizard.jsx), 그래야 권한 없는 역할에게 목록
             요청 자체를 보내지 않는다. 서버 게이트는 app/setup/router.py 가 따로 건다. */}
         <Route path="/setup" element={<SetupWizard />} />
-        {/* 시스템 설정(§S). `system_admin` 만이다 - `admin` 은 부서 범위로 좁혀질 수 있는
-            역할인데, 여기서 바뀌는 것은 조직이 아니라 **서버 한 대 전체**라 범위라는 개념이
-            없다. 서버 게이트는 app/sysops/router.py 가 같은 근거로 따로 건다. */}
-        <Route path="/system" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><SystemOps /></RequireRole>} />
+        {/* PA-RC-0017: 시스템 설정·Notion 관리·AI 관리·유지보수는 화면이 아니라 /settings의
+            탭이 됐다(SettingsShell.jsx) — role 게이트도 그 안에서 탭 단위로 건다(옛
+            RequireRole과 같은 role 집합을 SettingsShell의 TAB_DEFS가 그대로 물려받았다).
+            여기 남는 것은 옛 주소 네 개가 죽은 링크나 대시보드로 튕기지 않고 정확한 탭으로
+            가게 하는 리다이렉트뿐이다 — 권한 없는 역할이 옛 주소로 와도 SettingsShell이 그
+            탭을 안 보여주고 첫 탭(시스템 정책)으로 떨어지므로 여기서 또 막을 필요가 없다. */}
+        <Route path="/system" element={<Navigate to="/settings?tab=os" replace />} />
+        <Route path="/notion-console" element={<Navigate to="/settings?tab=integration" replace />} />
+        <Route path="/llm-console" element={<Navigate to="/settings?tab=ai" replace />} />
+        <Route path="/maintenance" element={<Navigate to="/settings?tab=policy" replace />} />
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
             navConfig.js의 /mail 항목과 같은 role 집합. */}
         <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailStatus /></RequireRole>} />
-        {/* Notion 관리(9-4)와 AI 관리(9-5). 시스템 설정과 같은 근거로 `system_admin` 만이다 -
-            여기서 바뀌는 것은 **설치 한 벌 전체**가 어느 워크스페이스를 보고 어떤 실행 파일을
-            띄우는가라 '부서 범위' 라는 개념이 없다. 서버 게이트는 각 라우터가 따로 건다. */}
-        <Route path="/notion-console" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><NotionConsole /></RequireRole>} />
-        <Route path="/llm-console" element={<RequireRole roles={["system_admin"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다."><LlmConsole /></RequireRole>} />
         <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />
-        <Route path="/maintenance" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><Maintenance /></RequireRole>} />
         <Route path="/dev-report" element={<RequireRole roles={["admin", "system_admin", "auditor"]} help="이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><DevReport /></RequireRole>} />
         {/* 스케줄러 캘린더(PLAN Phase 6) — "언제 도는가"는 표로 답이 안 되는 유일한 질문이라
             DataScreen 계약을 쓰지 않는다(SchedulerCalendar.jsx 헤더 주석). 같은 백로그의 다른

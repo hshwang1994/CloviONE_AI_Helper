@@ -15,7 +15,7 @@ import { NAV, SCREEN_ROLES, activeNavPath } from "./navConfig.js";
  */
 describe("사이드바 조직 메뉴 통합", () => {
   const ORG_PATHS = ["/organizations", "/departments", "/org-tree"];
-  const userGroup = NAV.find((g) => g.group === "사용자");
+  const userGroup = NAV.find((g) => g.group === "사용자와 권한");
   const orgItems = (userGroup.items || []).filter((i) => ORG_PATHS.includes(i.to));
 
   it("조직 관련 메뉴 항목은 하나뿐이다(예전에는 3개라 클릭할 때마다 메뉴가 바뀌었다)", () => {

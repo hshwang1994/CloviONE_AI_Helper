@@ -19,7 +19,7 @@ export const ORG_SCREENS = {
      관계를 보여 줄 수가 없다. 삭제가 없는 이유: 사용자·부서가 org_id 로 이 행을 가리키고
      있어서 지우면 그 참조가 통째로 끊긴다 — 대신 '정지'로 새 사용을 막는다. */
   organizations: {
-    key: "organizations", area: "사용자", title: "조직 관리",
+    key: "organizations", area: "사용자와 권한", title: "조직 관리",
     endpoint: "/api/admin/organizations",
     help: "회사(테넌트)를 관리합니다. 부서와 사용자는 모두 조직 하나에 속하며, 그 포함 관계는 ‘조직도’에서 한눈에 볼 수 있습니다.",
     createLabel: "+ 조직 추가",
@@ -77,7 +77,7 @@ export const ORG_SCREENS = {
     ],
   },
   departments: {
-    key: "departments", area: "사용자", title: "부서 관리", endpoint: "/api/admin/departments",
+    key: "departments", area: "사용자와 권한", title: "부서 관리", endpoint: "/api/admin/departments",
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "+ 부서 추가",
     emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이
@@ -135,7 +135,7 @@ export const ORG_SCREENS = {
     ],
   },
   "job-titles": {
-    key: "job-titles", area: "사용자", title: "직책 관리", endpoint: "/api/admin/job-titles",
+    key: "job-titles", area: "사용자와 권한", title: "직책 관리", endpoint: "/api/admin/job-titles",
     help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "+ 직책 추가",
     emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
@@ -172,7 +172,7 @@ export const ORG_SCREENS = {
     ],
   },
   "org-tree": {
-    key: "org-tree", area: "사용자", title: "조직도", endpoint: "/api/admin/departments/tree",
+    key: "org-tree", area: "사용자와 권한", title: "조직도", endpoint: "/api/admin/departments/tree",
     help: "조직 > 부서 > 사용자 순서로 소속 관계를 봅니다. 맨 윗줄이 조직이고 그 아래 들여쓴 줄이 부서입니다. 부서 줄의 ‘소속 인원’을 누르면 그 자리에서 사람 이름까지 펼쳐 볼 수 있습니다.",
     emptyTitle: "추가된 부서가 없습니다",
     emptyHelp: "‘부서 관리’에서 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
@@ -241,7 +241,7 @@ export const ORG_SCREENS = {
     ],
   },
   "notion-mapping": {
-    key: "notion-mapping", area: "사용자", title: "Notion 사용자 연결", endpoint: "/api/admin/notion-mapping",
+    key: "notion-mapping", area: "사용자와 권한", title: "Notion 사용자 연결", endpoint: "/api/admin/notion-mapping",
     help: "직원 계정과 Notion 사용자를 연결합니다. 자동 매칭되며 수동 지정도 가능합니다. (‘notion-user-mapping’ 워크플로가 추가, 활성화되어 있어야 자동 동기화, 검증이 동작합니다.)",
     // 사용자 화면(Users.jsx)의 'Notion 연결 확인' 링크가 ?user_id=를 붙여 이 화면으로 온다 — 다른
     // 9개 id 딥링크 화면(runners.onQuery 등)과 동일하게 GET /{user_id}({"mapping":...} 응답,

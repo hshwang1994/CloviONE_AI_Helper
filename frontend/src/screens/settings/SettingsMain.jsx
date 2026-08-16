@@ -1,15 +1,13 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
-import { PageHeader, Card, Badge, Button, Callout, DataTable, Skeleton, EmptyState, ErrorState, useToast } from "../../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, DataTable, Skeleton, EmptyState, ErrorState, useToast } from "../../ui/kit.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
-  CONSOLE_SCREEN_ROLES, MAINTENANCE_READ_ROLES, summarizeSetting, displayValue,
+  summarizeSetting, displayValue,
 } from "./settingsRegistry.js";
 import { AccentPicker } from "./AccentPicker.jsx";
 import { SettingEditor } from "./SettingEditor.jsx";
@@ -21,16 +19,20 @@ import { SettingEditor } from "./SettingEditor.jsx";
  * 2026-08 MUI 재설계: 손으로 쓴 입력(.c-search/.k-chip/textarea)을 MUI 폼 컴포넌트로 바꿨다.
  * 값은 rem/테마 값이라 4K에서 글자와 여백이 함께 커진다. 저장 로직(coerce/dry-run/보안 완화 확인/
  * 미저장 변경 보호)은 한 줄도 바꾸지 않았다 — 이 화면의 위험은 전부 그쪽에 있다(그 로직은
- * ./SettingEditor.jsx에 있다, 파일을 나누며 옮긴 것이지 다시 쓴 것이 아니다). */
-export function Settings() {
+ * ./SettingEditor.jsx에 있다, 파일을 나누며 옮긴 것이지 다시 쓴 것이 아니다).
+ *
+ * PA-RC-0017: `embedded`(SettingsShell.jsx의 '시스템 정책' 탭에서 렌더될 때)일 땐 자체
+ * PageHeader를 그리지 않는다 — 바깥 탭 헤더가 이미 "관리자 › 운영 › 설정 › 시스템 정책"을
+ * 보여주므로 안에서 또 h1을 그리면 탭 하나에 제목이 두 개가 된다. 예전엔 이 표 위에 "시스템
+ * 설정/유지보수/Notion 관리/AI 관리는 다른 화면에 있다"는 안내 4문단(Callout)이 있었다 —
+ * 그 화면들이 이제 같은 탭 줄에 나란히 보이는 형제 탭이라 어디 있는지 설명할 필요 자체가
+ * 없어져 통째로 없앴다(Handoff acceptance_criteria: "안내 4문단이 삭제되어 있다"). */
+export function Settings({ embedded = false } = {}) {
   const [sel, setSel] = useState(null);
   const qc = useQueryClient();
   const toast = useToast();
-  const nav = useNavigate();
   const auth = useAuth();
   const canWrite = (auth.data && WRITE_ROLES.includes(auth.data.role)) || false;
-  const canReachMaintenance = (auth.data && MAINTENANCE_READ_ROLES.includes(auth.data.role)) || false;
-  const canReachConsoles = (auth.data && CONSOLE_SCREEN_ROLES.includes(auth.data.role)) || false;
   const q = useQuery({ queryKey: ["settings"], queryFn: () => api("/api/admin/settings"), retry: false });
 
   const map = (q.data && q.data.settings) || {};
@@ -79,43 +81,7 @@ export function Settings() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="운영" title="설정" />
-      {/* 다른 관리 화면(DataScreen)의 help 인트로와 같은 패턴, 처음 오는 관리자에게 화면 사용법을 안내한다. */}
-      {/* '즉시 적용됩니다'는 사실이 아니었다, 세션 정책은 신규 세션부터, 허용 도메인은 사용자 생성 시, 보존 기간은 다음 정리 작업 때 반영된다. 적용 시점은 항목별 '설명'을 따르도록 문구를 완화한다. */}
-      {/* 예전엔 이 안내가 인트로 Callout, '열람만 가능' 안내, '유지보수' 안내로 3개의 서로 떨어진
-          시각 블록이었다, 개별로는 다 맞는 말이지만 함께 있으면 세 조각 난 도입부처럼 읽혀 아래
-          진짜 콘텐츠(설정 표)를 더 밀어냈다. 한 Callout 안의 문단으로 한 덩어리로 묶는다. */}
-      <Box sx={{ mb: 2.5, "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
-        <Callout tone="info">
-          {/* 버전 기록은 읽기 전용 역할(operator, auditor)도 편집기의 '버전 기록' 버튼으로 열람할 수
-              있다(롤백만 canWrite), 예전엔 canWrite일 때만 언급해, 읽기 역할은 이력의 존재조차 몰랐다. */}
-          <p>시스템 동작 값을 관리합니다. 항목을 클릭하면 편집기가 열립니다. 저장 시 유효성 검증 후 반영되며, 적용 시점은 항목마다 다를 수 있습니다(각 항목의 ‘설명’ 참고).{canWrite ? " 각 항목의 ‘버전 기록’에서 이전 값으로 되돌릴 수 있습니다." : " 각 항목의 ‘버전 기록’에서 이전 변경 이력을 볼 수 있습니다."}</p>
-          {!canWrite ? <p>설정 값은 열람만 가능합니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다.</p> : null}
-          {/* maintenance_mode, maintenance_message는 이 표에서 의도적으로 숨겨진다(위 MAINTENANCE_KEYS) -
-              숨긴 이유만 있고 어디로 갔는지 안내가 없으면 관리자가 '유지보수 스위치가 없어졌다'고 오인한다.
-              /maintenance는 operator, admin, system_admin, auditor가 조회할 수 있다(App.jsx RequireRole/NAV) -
-              쓰기만 canWrite(admin/system_admin)로 서버가 막으므로, 이 안내 링크는 canWrite가 아니라
-              MAINTENANCE_READ_ROLES로 게이트해야 조회만 가능한 역할도 실제로 열 수 있는 화면을 클릭할 수 있다. */}
-          <p>유지보수 모드, 점검 공지는 {canReachMaintenance
-            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/maintenance")}>‘유지보수’ 화면</Link>
-            : "‘유지보수’ 화면"}에서 관리합니다.</p>
-          {/* 숨긴 이유만 있고 어디로 갔는지 안내가 없으면 관리자가 '노션 설정이 없어졌다'고
-              오인한다 - 유지보수 안내와 같은 실수를 반복하지 않는다. */}
-          <p>노션 데이터베이스 id 와 토큰은 {canReachConsoles
-            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/notion-console")}>‘Notion 관리’ 화면</Link>
-            : "‘Notion 관리’ 화면"}에서, AI 설정은 {canReachConsoles
-            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/llm-console")}>‘AI 관리’ 화면</Link>
-            : "‘AI 관리’ 화면"}에서 관리합니다. 두 화면에는 연결 테스트가 함께 있습니다.</p>
-          {/* 사용자 지적: "설정이랑 시스템 설정은 묶을 수 있는거 아님?" — 이름이 겹쳐 같은
-              화면의 다른 이름처럼 보이지만, 이 표는 애플리케이션 동작 값(REGISTRY, 키-값)이고
-              '시스템 설정'(/system)은 특권 헬퍼가 수행하는 OS 동작(시간대, DNS, 서비스 재시작)이라
-              값이 아니라 실행이다 — 합치면 일반 설정 옆에 되돌릴 수 없는 재시작 버튼이 놓인다.
-              대신 여기서 그 화면으로 가는 이유를 밝혀 "왜 따로냐"는 의문 자체를 없앤다. */}
-          <p>서버 시간대, DNS, 서비스 재시작처럼 운영체제에 직접 손대는 동작은 {canReachConsoles
-            ? <Link component="button" type="button" underline="hover" sx={{ font: "inherit", verticalAlign: "baseline" }} onClick={() => nav("/system")}>‘시스템 설정’ 화면</Link>
-            : "‘시스템 설정’ 화면"}에서 따로 관리합니다(이 표의 값과 달리 되돌릴 수 없는 실행 동작이라 화면을 분리했습니다).</p>
-        </Callout>
-      </Box>
+      {embedded ? null : <PageHeader area="운영" title="설정" />}
       {q.isLoading ? <Card><Skeleton lines={5} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.

@@ -465,7 +465,7 @@ export function Users() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="사용자" title="사용자"
+      <PageHeader area="사용자와 권한" title="사용자"
         actions={<>
           {/* 내보내기는 지금 화면에 걸린 필터 그대로 나간다(같은 filterParams). */}
           <CsvTools exportQuery={filterParams(false)} onImported={refresh} />
