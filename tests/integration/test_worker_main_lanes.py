@@ -58,6 +58,23 @@ def test_build_batch_worker_with_lane_enabled_excludes_conversational_types(app,
         outbound.close()
 
 
+def test_main_refuses_to_run_the_conversational_lane_when_the_flag_is_off(tmp_path, monkeypatch):
+    """D-118 — installing/enabling the systemd unit must not be enough on its own to
+    start actively claiming chat_message/llm_connection_test; only the config flag
+    decides that. Calling main() for real (not just source inspection) here is safe
+    because this exact path returns before acquiring any lease or touching the DB."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WORKER_CONVERSATIONAL_LANE_ENABLED", "false")
+
+    rc = worker_main.main(["--lane", "conversational"])
+
+    assert rc == 0
+    assert not (tmp_path / "worker-conversational.lock").exists(), (
+        "플래그가 꺼져 있는데 대화형 레인 리스를 잡았다 — 유닛만 설치돼도 잡을 채가기 시작한다는 뜻이다"
+    )
+    assert not (tmp_path / "worker.lock").exists()
+
+
 def test_main_dispatches_to_the_right_builder_per_lane():
     """소스 인용 — main()이 --lane에 따라 실제로 다른 조립 함수를 부르는지(어느 한쪽만
     있고 분기가 없으면 --lane 인자 자체가 죽은 설정이 된다)."""

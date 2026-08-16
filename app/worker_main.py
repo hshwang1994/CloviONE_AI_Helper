@@ -693,6 +693,22 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings()
     clock = SystemClock()
 
+    # D-118: `--lane=conversational`은 설정 플래그와 별개로 systemd 유닛이 존재/활성화만
+    # 되면 항상 실행될 수 있다 — 유닛 파일이 설치돼 있는 것과 그 레인이 실제로 운영 중인
+    # 것은 다른 결정이어야 한다(설치는 배포 스크립트가, 실제로 켜는 것은 이 설정값이
+    # 판단해야 한다). 이 검사가 없으면 유닛만 깔려 있어도(플래그는 꺼진 채) 대화형 워커가
+    # 곧바로 chat_message/llm_connection_test를 채가기 시작해, "플래그가 꺼지면 배치
+    # 레인만 처리한다"는 D-119의 전제가 깨진다. 리스를 잡기 **전에** 확인해 불필요한 리스
+    # 파일 churn도 없앤다. `Restart=on-failure`라 exit(0)은 재시작 루프를 만들지 않는다 —
+    # 플래그를 나중에 켜면 운영자가 이 유닛을 다시 시작해야 한다(설정 변경 후 재시작은
+    # 이 저장소의 기존 관례와 같다).
+    if lane == LANE_CONVERSATIONAL and not settings.worker_conversational_lane_enabled:
+        logger.info(
+            "lane=conversational이지만 worker_conversational_lane_enabled가 꺼져 있다 — "
+            "리스를 잡지 않고 정상 종료한다(D-118). 켜려면 설정을 바꾼 뒤 이 유닛을 재시작하라."
+        )
+        return 0
+
     # 싱글턴 리스(§ 스케일 심, D-118로 레인마다 별도 파일). 워커가 둘 돌면 잡이 두 번
     # 실행되고 스케줄이 두 번 발화한다. systemd 재시작 중첩, 운영자가 진단하려고 손으로
     # 띄운 워커, 배포 스크립트의 중복 start — 셋 다 실제로 있는 경로다. 잡지 못하면
