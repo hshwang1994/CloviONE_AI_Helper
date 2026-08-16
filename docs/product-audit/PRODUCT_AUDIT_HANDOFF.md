@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=8
+actionable_root_causes=9
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -365,4 +365,51 @@ required_tests: (1) 전역 `retry` 정책 단위 테스트 - 404·403 은 false,
 qa_gaps: `QA_COVERAGE.md` 에 「오류가 확정된 뒤 화면이 얼마나 빨리 그것을 말하는가」 축이 없다. 기존 검증은 최종적으로 올바른 화면이 뜨는지만 보므로, **올바른 답을 30초 걸려 주는 것**은 통과한다. 이 Cycle의 `PA-RC-0029`·`PA-RC-0030`·`PA-RC-0031`과 같은 공백이다 - 검사가 결과만 보고 경로를 안 본다.
 quality_rubric: `ui-ux-pro-max` - 「로딩 피드백」과 「체감 성능」: 사용자는 정상 로딩과 재시도 중인 실패를 구분할 수 없다. 내장 rubric 10) 「Motion: 목적 있는 전환인가, 지연을 늘리기만 하는가」를 로딩 상태에 적용했다. `ux-writing` - 오류를 늦게 말하는 것은 문구 품질과 무관하게 오류 전달 실패다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-092 · `frontend/src/main.jsx:17-19` · `frontend/src/screens/BoardPost.jsx:405` · `var/product-audit/pa2_badid.py` 실행 결과(네트워크 4회 404 관측) · `useQuery` 80곳 중 20곳 무설정 계측
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0035 -->
+rc_id: PA-RC-0035
+severity: Low
+priority: P3
+confidence: Confirmed
+problem: `/new-ticket` 의 담당자 선택이 사람 수만큼 자라는 평면 체크박스 목록이다(현재 14명, 각 항목이 「이름 + 부서 직책」 두 줄) - 검색·필터·그룹이 없어 인원이 늘면 화면 길이가 그대로 비례해 늘고, 티켓 하나 만드는 화면에서 사람 목록이 세로의 상당 부분을 차지한다. 그리고 이 폼은 `MuiFormHelperText` 를 **한 번도 쓰지 않고** 안내를 전부 placeholder 에 담아서, 입력을 시작하는 순간 안내가 사라진다.
+expected: 선택 대상이 늘어나도 폼의 길이가 비례해 늘지 않아야 하고, 입력 중에 필요한 안내는 입력 중에도 보여야 한다. placeholder 는 예시를 보여주는 자리이지 지속적인 설명을 담는 자리가 아니다 - 이 제품은 `제목` 필드에서 이미 그 구분을 옳게 쓰고 있다(「예: 서버 등록 IP 중복 방지」).
+actual: 입력 요소 25개 전수 계측 - 담당자 체크박스 14개가 평면 나열, `MuiFormHelperText` 0회, `설명` 의 placeholder 가 「배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다」로 길게 들어가 있다. 화면 세로 1,318px.
+intent_evidence: 명시적인 폼 안내 규약 문서는 **없다** - INFERRED 다. 근거는 (1) 같은 폼의 `제목` 필드가 placeholder 를 예시로만 쓰는 올바른 패턴을 이미 보여준다는 것, (2) 이 저장소가 `docs/UX_WRITING.md` 를 두고 문구 규약을 관리한다는 것, (3) `ux-writing` 의 표준 기준(지속적 안내는 helper text, 예시는 placeholder)이다.
+findings: PA-F-093
+feature_contracts: FC-티켓생성
+routes: `/new-ticket`
+frontend: `frontend/src/screens/NewTicket.jsx`(담당자 선택부와 `설명` 필드), 담당자 목록을 그리는 공용 선택 컴포넌트가 있다면 그것, `frontend/src/ui/kit.jsx`(입력 계열)
+api: 해당 없음 - 담당자 명부 조회 API 는 그대로 쓴다. 표시 방식만 바뀐다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 저장되는 티켓 데이터 구조가 바뀌지 않는다
+rbac: 해당 없음 - 배정 가능한 사람의 범위는 서버가 이미 정하고 있고 그 판단을 바꾸지 않는다
+integration: Notion(티켓 생성 대상) - 배정 값의 의미와 전송 형식은 바뀌지 않는다
+state_transition: 해당 없음
+user_impact: 지금은 한 부서(14명)뿐이라 견딜 만하다. 조직이 늘면 티켓 생성 화면이 사람 목록으로 길어져 스크롤 없이는 제출 버튼에 닿지 못하게 된다. 안내가 입력과 함께 사라지는 것은 `설명` 처럼 **입력하는 동안 참고해야 하는** 안내에서 특히 비용이 크다.
+implementation_direction: 담당자 선택을 검색 가능한 형태로 바꾼다 - 자동완성 입력 + 선택된 사람을 칩으로 표시하거나, 부서로 접히는 그룹 목록으로 만든다. 어느 쪽이든 **인원 수와 무관하게 폼 길이가 일정**해야 한다. 이 저장소에 이미 사람을 고르는 다른 화면(오프보딩·조직 관리)이 있으므로 그쪽 패턴을 먼저 확인해 재사용한다 - 새 선택 컴포넌트를 만드는 것은 마지막 수단이다. 지속적 안내는 `FormHelperText` 로 옮기고 placeholder 에는 예시만 남긴다(`제목` 필드와 같은 규칙).
+constraints: CLAUDE.md §5(per-page 예외보다 shared component 우선 - 기존 사람 선택 패턴 재사용 우선) · §3-6(서버 데이터를 `innerHTML` 로 주입하지 않는다) · 배정 가능 인원 판정은 서버가 정본이므로 프런트가 명부를 새로 거르지 않는다 · 접근성을 낮추지 않는다(자동완성으로 바꿀 때 키보드 조작과 스크린리더 안내가 체크박스 목록보다 나빠지면 안 된다)
+regression_risk: (a) 체크박스에서 자동완성으로 바꾸면 **다중 선택 의미**가 유지되는지 확인해야 한다 - 지금은 여러 명 배정이 가능하다. (b) 키보드만으로 선택·해제·전체 확인이 가능해야 한다(현재 체크박스는 그 점이 자명하다). (c) placeholder 를 helper text 로 옮기면 폼 세로가 오히려 늘 수 있으므로 담당자 선택 축소와 함께 재야 한다. (d) 배정 값의 전송 형식이 바뀌지 않아야 한다(Notion 연동).
+acceptance_criteria: (1) 배정 가능 인원이 14명에서 50명이 되어도 `/new-ticket` 의 세로 길이가 **유의하게 늘지 않는다**(현재 1,318px 기준으로 재측정). (2) 담당자를 이름으로 검색해 선택할 수 있다. (3) 여러 명 배정이 여전히 가능하고 선택 결과가 화면에 보인다. (4) 키보드만으로 담당자 선택·해제가 가능하다. (5) `설명` 을 포함해 지속적 안내가 필요한 필드가 `FormHelperText` 를 쓰고, 입력 중에도 안내가 보인다. (6) placeholder 에는 예시만 남는다.
+required_tests: (1) 담당자 선택 컴포넌트 테스트 - 검색·다중 선택·해제·키보드 조작. (2) 인원이 많을 때 폼 높이가 선형으로 늘지 않는 것을 확인하는 렌더 테스트. (3) 배정 값 전송 형식 회귀 테스트(Notion 연동 계약). (4) `pa2_states.py` 폼 계측 재실행으로 helper text 사용과 placeholder 내용 확인.
+qa_gaps: `QA_COVERAGE.md` 에 「선택 대상이 늘어날 때 폼이 어떻게 되는가」 축이 없다. 현재 데이터(14명)로만 검증하면 이 문제는 영원히 드러나지 않는다 - 대량 데이터 축이 표(`table-screens`)에는 있지만 폼에는 없다.
+quality_rubric: `ui-ux-pro-max` - 「폼: 라벨/도움말/검증 시점/오류 연결/키보드 흐름」. `ux-writing` - placeholder 와 helper text 의 역할 구분(예시 vs 지속적 안내). 내장 rubric 6) 「폼: 라벨/도움말/검증 시점/오류 연결/키보드 흐름/저장 피드백」 · 5) 「대량 데이터」를 폼에 적용.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-093 · `PRODUCT_AUDIT_DESIGN.md` `forms` 판정 블록 · `var/product-audit/pa2_states.py` 폼 전수 계측 · `var/product-audit/pa2_states.json` `form_newticket` · `var/product-audit/shots2/d1_user_new-ticket.png`
+current_state: 입력 요소 25개, 세로 1,318px. 담당자 체크박스 14개가 평면 나열(각 두 줄). `MuiFormHelperText` 0회. 안내는 전부 placeholder 에 있고 `설명` 의 placeholder 는 한 문장이 넘는다.
+user_problem: 인원이 늘면 폼이 그만큼 길어지고, 입력을 시작하면 안내가 사라진다.
+design_verdict: REFINE
+target_state: 담당자를 이름으로 검색해 고르고 선택 결과가 칩으로 보인다. 폼 길이가 인원 수와 무관하다. 입력 중에도 필요한 안내가 보인다.
+target_design: 담당자 자리를 자동완성 입력 + 선택 칩으로 바꾸거나 부서 그룹으로 접는다(기존 사람 선택 패턴 재사용 우선). 지속적 안내는 `FormHelperText` 로 내리고 placeholder 는 예시만. 필드 구성·순서·필수 표시·서식 도구줄·미리보기는 그대로 둔다.
+visual_change_required: true
+target_visual_delta: 담당자 영역이 체크박스 14줄(약 화면 세로의 상당 부분)에서 입력 한 줄 + 선택 칩으로 줄어 폼 전체 세로가 1,318px 에서 눈에 띄게 짧아진다. 각 필드 아래에 회색 helper text 한 줄이 생기고 placeholder 는 짧아진다.
+affected_surfaces: `/new-ticket`
+affected_components: `NewTicket.jsx`, 재사용할 사람 선택 컴포넌트(오프보딩·조직 관리 쪽 패턴), `ui/kit.jsx` 입력 계열
+workflow_change: 없음 - 티켓을 만드는 단계 수와 순서가 바뀌지 않는다. 담당자를 고르는 조작만 스크롤에서 검색으로 바뀐다
+navigation_impact: 해당 없음 - 라우트·메뉴가 바뀌지 않는다
+data_impact: 해당 없음 - 저장 구조와 배정 값의 의미가 바뀌지 않는다
+api_impact: 해당 없음 - 명부 조회와 티켓 생성 API 계약이 그대로다
+rbac_impact: 없음 - 배정 가능 인원 판정은 서버가 하고 그 결과를 그대로 표시한다
+browser_verification: TEST SERVER 에서 `/new-ticket` 을 1920×1080 라이트/다크로 캡처해 폼 세로와 담당자 영역 높이를 변경 전(1,318px)과 비교하고, 키보드만으로 담당자를 검색·선택·해제해 본다. `pa2_states.py` 폼 계측을 재실행해 helper text 사용과 placeholder 길이를 확인한다.
 <!-- PA-RC-END -->

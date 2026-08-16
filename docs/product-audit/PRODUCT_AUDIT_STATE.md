@@ -1,3 +1,19 @@
+## A-4. 다음 조사 후보 (우선순위 순)
+
+1. **L축 남은 2표면** — `list-screens` · `key-workflows`. 스크린샷·계측은 있다
+   (`/my-tickets` 카드 0·버튼 1 / `/team-docs` 카드 21 / `/board` / `/offboarding` /
+   `/scheduler-calendar`). DESIGN 현재 **16/18**
+2. **Coverage 문서 재생성** — `coverage_state.json` 이 아직 직전 Cycle 값이다. 이번 Cycle 관측
+   (28표면 렌더 · 63 RBAC 조합 · 9 상세 라우트 · 12 탭 조합 · API 원문 · 서버 로그)을 반영하고
+   `l_axis_design_verdict_complete` 를 DESIGN 판정 블록 수와 **정확히** 맞춘다
+3. `PRODUCT_AUDIT_REPORT.md` · `INVENTORY` · `FEATURE_CONTRACTS` 를 이번 Cycle 기준으로 갱신
+4. `BACKLOG.md` · `QA_COVERAGE.md` 에 9건 반영(중복 대조 후) + `IMPLEMENTATION_REQUIRED`
+5. P·R축(문구·한국어) — `ux-writing` → `humanize-korean` 순서
+6. N·O축 — 1366/390 뷰포트, 125/150/175% 배율, 다크
+7. W축(시간대·만료) · S축(성능) · T축(관측성)
+8. **Blind Re-Audit 2회 연속** — 이전 Cycle의 진입점(퇴사 처리·장애 대응·신규 입사자 첫날·
+   감사자 분기 점검)을 재사용하지 않는다
+
 # PRODUCT AUDIT — STATE
 
 > **이 Audit의 resume pointer다.** 새 invocation은 이 문서를 먼저 읽는다.
@@ -65,38 +81,19 @@ Windows 체크아웃에서 왔을 뿐 내용은 같았다. `tr -d '
 | 4 | L·E (검증) | 대시보드/진단 중복을 **문자열 단위로 계측** | `pa2_dup.py` — 68% 중복 확정 |
 | 5 | B·E (검증) | `/api/home/today` 원문 확인 → 문서 계약과 대조 | `PA-F-002` Confirmed |
 
-## A-3. 지금까지 확정한 Root Cause — 4건 (전부 Confirmed)
+## A-3. 지금까지 확정한 Root Cause — 9건 (전부 Confirmed)
 
 | RC | Sev | 요지 |
 |---|---|---|
-| `PA-RC-0027` | **High** | `/me`·`/my-stats`의 개수 타일이 *"모른다"* 를 `0`으로 그린다. 같은 응답의 비율·진척은 `null`로 옳게 답하고 형제 화면(`work.py`)은 가드가 있다. 문서(`DASHBOARD_METRICS.md` §3)와 **두 파일의 코드 주석**이 그 불변식을 명시하는데 호출부 2곳에만 가드가 없다. 프런트는 이미 옳다. TEST SERVER 23명 중 **10명**이 이 경로. 기존 회귀 테스트가 이 결함을 **고정**하고 있다(`PA-F-085`) |
-| `PA-RC-0028` | Medium | `/dashboard`와 `/diagnostics`가 본문 **68%** 중복. `build_diagnostic_bundle`이 `build_dashboard()`를 통째로 품는 구조(docstring 명시). `최근 주요 변경` 16/16 동일, `백업`은 CTA까지 동일. 같은 8개 서비스를 두 화면이 다르게 분류 |
-| `PA-RC-0029` | Medium | `/users`의 이메일 열이 **20/20행** 잘린다(131px, 필요 198px). 같은 표의 `역할`이 295px·`최근 로그인`이 287px. 가로 스크롤 없어 드러낼 방법이 없다. `/audit`·`/jobs`는 잘림 0이라 표 계열 전체 문제가 아니다 |
-| `PA-RC-0030` | Medium | `/settings` 탭 게이트에서 **주소와 화면이 갈라진다**. `admin`·`operator`가 `/system`으로 오면 주소는 `?tab=os`인데 화면은 `시스템 정책`이고 거부 안내가 없다(12조합 실측). 같은 콘솔의 라우트 게이트는 「권한이 없습니다」를 명시하므로 거부 어휘가 두 벌. 23명 중 `system_admin` 2명을 뺀 전원이 이 경로 |
-
-### 이 Cycle이 확인한 **음성** 결과 (안 본 것과 구별한다)
-
-- `PA-F-081` — TEST SERVER 배포본이 **정확히 HEAD**다(`app/**/*.py` 314/314).
-- `PA-F-086` — F축 **63조합**(관리자 라우트 21 × 역할 3)에서 나브·화면·직접 API 세 계층이
-  어긋난 곳 **0건**. 나브가 숨겼는데 API가 열린 조합 0, 나브가 줬는데 화면이 거부하는 조합 0.
-- 28표면 실렌더에서 console error **0**, HTTP 4xx/5xx **0**.
-
-## A-4. 다음 조사 후보 (우선순위 순)
-
-1. **L축 나머지 13표면 판정** — `PRODUCT_AUDIT_DESIGN.md`가 현재 5/18이다. 스크린샷과 계측은
-   28표면 전부 확보돼 있으므로(`shots2/`) 남은 것은 Skill 기준의 구조 평가다.
-   미판정: `global-header`·`sidebar`·`navigation-ia`·`list-screens`·`detail-screens`·`forms`·
-   `modal-drawer`·`settings`·`ai-assistant-chat`·`empty-state`·`error-state`·`loading-state`·`key-workflows`
-2. **Coverage 문서 재생성** — `coverage_state.json`은 아직 직전 Cycle 값이다. 이번 Cycle의
-   관측(28표면 렌더·63 RBAC 조합·API 원문)을 반영해 `gen_coverage.py`로 다시 만든다.
-   `COVERAGE-SUMMARY`의 `l_axis_design_verdict_complete`는 DESIGN 판정 블록 수와 **정확히**
-   같아야 한다(현재 5).
-3. 사용자 콘솔의 얇은 화면 — `/my-tickets`(카드 0·버튼 1)·`/my-stats`·`/search`·`/board`
-4. P·R축(문구·한국어) — 직전 Cycle 이후 문구가 많이 바뀌었다. `ux-writing` → `humanize-korean` 순서
-5. N·O축 — 1366/390 뷰포트, 125/150/175% 배율, 다크 테마
-6. W축 — UTC 저장/KST 표시, cron 평가, 만료 계산
-7. **Blind Re-Audit 2회 연속** — 진입점은 이전 Cycle이 쓴 「퇴사 처리」·「장애 대응」·
-   「신규 입사자 첫날」·「감사자 분기 점검」을 **재사용하지 않는다**
+| `PA-RC-0032` | **High** | **필수 관문이 500을 낸다.** `POST /change-password` 가 SQLite 잠금에서 raw 500(오늘 31건 중 3건). `app/chat/` 전체도 공용 재시도 관용을 안 쓴다(`is_write_conflict` 0회). 같은 파일의 `login()` 이 기준 구현을 갖고 있는데 쓰기를 더 많이 하는 `change_password()` 에만 없다 |
+| `PA-RC-0027` | **High** | `/me`·`/my-stats` 개수 타일이 *"모른다"* 를 `0`으로 그린다. 문서와 코드 주석 두 곳이 그 불변식을 명시하는데 호출부 2곳에 가드가 없다. 23명 중 **10명**이 이 경로. **기존 테스트가 이 결함을 고정**하고 있다 |
+| `PA-RC-0031` | Medium | 관리자 `감사` 그룹 6개 중 3개가 감사가 아니다. 같은 명사·같은 종류 화면·한 업무가 그룹으로 쪼개진다. 용어 병기 관례가 34항목 중 3개에만 |
+| `PA-RC-0028` | Medium | `/dashboard`·`/diagnostics` 본문 **68%** 중복. `build_diagnostic_bundle` 이 `build_dashboard()` 를 통째로 품는 구조 |
+| `PA-RC-0030` | Medium | `/settings` 탭 게이트에서 **주소와 화면이 갈라진다**(12조합 실측). 거부 안내 없음. `system_admin` 2명을 뺀 전원이 이 경로 |
+| `PA-RC-0033` | Medium | 관리자 상세 3종이 없는 레코드에 **침묵**한다(목록만 그린다). 사용자 콘솔 5종은 옳게 답한다 |
+| `PA-RC-0034` | Medium | 전역 QueryClient 에 `retry` 가 없어 확정적 4xx 를 **4회** 호출한다. `/board/<없는 id>` 가 30초 걸려 답한다. `useQuery` 80곳 중 20곳이 이 기본값 상속, 60곳은 각자 덮어씀 |
+| `PA-RC-0029` | Medium | `/users` 이메일 열이 **20/20행** 잘린다(131px, 필요 198px). `역할` 은 295px |
+| `PA-RC-0035` | Low | `/new-ticket` 담당자가 체크박스 14개 평면 나열. `FormHelperText` 0회 — 안내가 placeholder 에만 있어 입력 시 사라진다 |
 
 ## A-4-B. 이 Cycle의 계측 규칙 (오류 두 번을 겪고 세운 것)
 

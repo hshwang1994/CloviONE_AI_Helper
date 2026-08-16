@@ -14,15 +14,15 @@
 
 ## 진행 상태 — 정직하게
 
-필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 13종**이다. 나머지 5종은
+필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 16종**이다. 나머지 2종은
 스크린샷과 레이아웃 계측은 확보했지만(`shots2/`, `pa2_design_*.json` — 28표면 실렌더)
-UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 5종에 판정 블록을 쓰지 않는다**
+UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 2종에 판정 블록을 쓰지 않는다**
 — 계측만 있는 것을 `deep_audited: true` 로 적으면 그것이 조작이다.
 
 | 상태 | 표면 |
 |---|---|
-| 판정 완료 (13) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` · `detail-screens` · `error-state` · `empty-state` · `loading-state` |
-| 계측·스크린샷만 (5) | `list-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `key-workflows` |
+| 판정 완료 (16) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` · `detail-screens` · `error-state` · `empty-state` · `loading-state` · `modal-drawer` · `ai-assistant-chat` · `forms` |
+| 계측·스크린샷만 (2) | `list-screens` · `key-workflows` |
 
 ## 적용한 Skill (실제 이름)
 
@@ -217,4 +217,46 @@ target_design: 로딩 표현(스켈레톤·「불러오는 중…」·골격 우
 rationale: 스켈레톤·골격 우선 렌더·라우트 전환 로딩은 이미 잘 만들어져 있어 다시 설계할 이유가 없다. 그래서 `REDESIGN` 이 아니다. 그러나 이 표면의 목적은 「기다리는 동안 무슨 일이 일어나는지 알려 주는 것」인데, 답이 이미 나온 뒤에도 20초를 더 기다리게 하는 경로가 실측으로 존재하므로 `KEEP` 도 아니다. 고칠 것이 로딩의 **모양**이 아니라 **지속 시간**이라 `REFINE` 이다.
 browser_evidence: `var/product-audit/pa2_states.py` 가 CDP `Network.emulateNetworkConditions`(지연 2,200ms · 12KB/s)로 실제 느린 네트워크를 만들어 `/audit` 로딩을 관측 - 스피너/스켈레톤 5개 + 「불러오는 중…」(`shots2/d2_loading_audit.png`). `/board/<ghost>` 는 20초·30초 두 시점에서 본문을 따로 읽어 20초에는 로딩, 30초에는 「찾을 수 없습니다」임을 확인하고 네트워크에서 404 4회를 기록.
 rc_ids: PA-RC-0034
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN modal-drawer -->
+surface: modal-drawer
+layout_family: overlay
+deep_audited: true
+skills_applied: ui-ux-pro-max, impeccable, ux-writing
+verdict: KEEP
+current_state: 어시스턴트 드로어 실측(1920×1080) - 우측 고정 460×1080, `x=1460`, 본문 폭의 **28%** 를 덮는다. `role="dialog"` · `aria-modal="true"` · 레이블 있음 · **열자마자 포커스가 드로어 안에 있다**. 동작 3종(`전체 화면으로 열기` · `AI 도우미 닫기` · `질문 전송`)이 있어 좁게 보기/넓게 보기/닫기를 사용자가 고른다. 관리자 상세는 별도로 목록 위 모달을 쓰고(`/users/:id` 계열) 그쪽은 목록 인스턴스를 유지하도록 배선돼 있다.
+user_problem: 실측에서 이 표면의 결함이 나오지 않았다. 모달 접근성의 핵심 네 가지(역할·모달 선언·레이블·초기 포커스)가 전부 갖춰져 있고, 본문을 28%만 덮어 뒤 화면을 계속 읽을 수 있다 - 어시스턴트가 「현재 화면을 기준으로」 답한다는 제품 개념과 레이아웃이 일치한다. 직전 Cycle이 High 로 올렸던 「FAB 가 본문 버튼을 덮는다」는 지금 재현되지 않는다 - 28표면 전체 캡처에서 본문 동작이 가려진 화면이 없었다.
+target_design: 변경 없음. 폭 460px, 우측 고정, 28% 점유, 세 동작(확대·닫기·전송), 모달 접근성 속성을 그대로 유지한다.
+rationale: `KEEP` 의 근거는 기준을 세우고 실측으로 통과한 것이다 - (1) `role`/`aria-modal`/레이블/초기 포커스 네 항목 전부 충족, (2) 본문 점유 28% 로 「옆에 두고 보는」 용도에 맞고 뒤 내용이 계속 보인다, (3) 넓게 보기 경로(`전체 화면으로 열기`)가 있어 좁아서 불편한 경우의 탈출구가 있다, (4) 직전 Cycle 의 가림 문제가 28표면에서 0건으로 해소됐다. 구조를 바꿀 근거가 나오지 않았다.
+browser_evidence: `var/product-audit/pa2_states.py` 가 헤더의 어시스턴트 진입점을 실제로 클릭해 드로어를 열고 박스·`role`·`aria-modal`·레이블 유무·`document.activeElement` 포함 여부·본문 점유율을 계측(`pa2_states.json` 의 `drawer_assistant`, 스크린샷 `shots2/d2_drawer_assistant.png`). 가림 여부는 `shots2/` 의 28표면 전체 캡처로 확인.
+rc_ids: 해당 없음 - 실측에서 구현이 필요한 결함이 나오지 않았다.
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN ai-assistant-chat -->
+surface: ai-assistant-chat
+layout_family: chat
+deep_audited: true
+skills_applied: ui-ux-pro-max, ux-writing, impeccable
+verdict: REFINE
+current_state: 드로어를 열면 이름(`클로비`), 역할 한 줄(「현재 화면을 기준으로 도와드려요」), **현재 문맥 표시**(「현재 문맥: ClovirAssist」), 능력 설명(「지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다」), 그리고 시작 프롬프트 4개(「현재 화면의 핵심 내용을 요약해 줘」·「우선 처리할 다음 작업을 추천해 줘」·「관련 문서를 찾아 줘」·「이번 주 마감인 티켓 알려줘」)가 있다. 전용 화면 `/chat` 은 별도로 있고(카드 1 · 버튼 11 · contained 2 · 세로 1138px), 사용자 사이드바에는 `도우미` 그룹에 `AI 도우미`로 들어 있다.
+user_problem: 첫 화면 구성은 이 제품에서 가장 잘 만들어진 축에 든다 - 빈 채팅창만 주지 않고 문맥·능력·예시를 함께 준다. 남은 문제는 **쓰기 경로의 실패**다. `POST /api/conversations/{id}/messages` 가 SQLite 잠금에서 raw 500 을 내고(`PA-RC-0032`), `app/chat/` 세 파일 전부 이 저장소의 공용 재시도 관용을 쓰지 않는다(`is_write_conflict` 0회). 제품이 파는 핵심 상호작용이 경합에서 그냥 실패한다. 부수적으로 이름이 화면마다 갈린다 - 헤더 진입점은 `클로비`, 사이드바 항목은 `AI 도우미`, 드로어 닫기 버튼의 레이블은 `AI 도우미 닫기`다.
+target_design: 첫 화면(문맥·능력·시작 프롬프트)과 드로어 레이아웃은 그대로 둔다 - 바꿀 이유가 실측으로 나오지 않았다. 전송 경로에 공용 재시도 관용을 적용해 경합에서 실패하지 않게 하고(`PA-RC-0032`), 재시도를 소진했을 때는 raw 500 이 아니라 사용자가 다음 행동을 아는 오류로 접는다. 이름은 한 벌로 정한다 - 제품명(`클로비`)을 쓰든 기능명(`AI 도우미`)을 쓰든 진입점·메뉴·버튼 레이블이 같은 말을 하게 한다.
+rationale: 대화 UI 의 어려운 부분(빈 상태에서 무엇을 물어야 할지 모르는 문제, 문맥이 무엇인지 안 보이는 문제)을 이미 잘 풀어 놓았다. 그래서 `REDESIGN` 이 아니다. 그러나 그 화면이 얹혀 있는 전송 경로가 잠금 경합에서 500 을 내는 것이 실서버 로그로 확인됐으므로 `KEEP` 도 아니다 - 화면이 좋아도 보내기가 실패하면 이 표면은 제 역할을 못 한다.
+browser_evidence: `var/product-audit/pa2_states.py` 가 드로어를 실제로 열어 첫 화면 텍스트 전문과 동작 버튼을 캡처(`pa2_states.json` `drawer_assistant.headText`, `shots2/d2_drawer_assistant.png`). `/chat` 전용 화면은 `shots2/d1_user_chat.png` 와 `pa2_design_user.json` 계측(카드 1 · 버튼 11 · contained 2 · scrollH 1138). 전송 실패는 TEST SERVER `journalctl` 2026-08-17 05:09:23 의 `POST /api/conversations/{id}/messages` 500 + `sqlite3.OperationalError: database is locked` traceback.
+rc_ids: PA-RC-0032
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN forms -->
+surface: forms
+layout_family: form
+deep_audited: true
+skills_applied: ui-ux-pro-max, ux-writing, impeccable
+verdict: REFINE
+current_state: `/new-ticket` 실측 - 입력 요소 25개, 세로 1318px, contained 동작 1개. `제목` 은 필수 + `maxlength=200` + 예시 플레이스홀더(「예: 서버 등록 IP 중복 방지」). 선택 4종(`프로젝트`(필수)·`진행상태`·`우선순위`·`난이도`)은 MUI Select. `예상 WD`(number)·`마감일`(date)가 있고, 담당자는 **체크박스 14개가 평면으로 나열**된다(각 항목이 「이름 + 부서 직책」 두 줄). `설명` 은 서식 도구줄(제목·글머리·번호·구분선 + 이모지 7종)과 미리보기를 갖춘 textarea 다. `MuiFormHelperText` 사용은 **0회**다.
+user_problem: 두 가지다. (1) **담당자 14명이 평면 체크박스 목록**이라 검색·필터·그룹이 없다. 지금은 한 부서(ClovirONE팀)뿐이라 견딜 만하지만 사람이 늘면 그대로 늘어나고, 티켓 하나 만드는 화면에서 세로의 상당 부분을 사람 목록이 차지한다. (2) **도움말이 플레이스홀더에만 있다** - `MuiFormHelperText` 가 0회이고 안내가 전부 placeholder 로 들어가 있어, 입력을 시작하는 순간 사라진다. `설명` 의 플레이스홀더는 「배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다」로 길어서, 정확히 입력 중에 필요한 안내가 입력과 함께 사라진다.
+target_design: 담당자 선택을 검색 가능한 형태로 바꾼다 - 부서로 묶거나 자동완성 입력을 두어 인원이 늘어도 화면 길이가 비례해 늘지 않게 한다(선택된 사람은 칩으로 남긴다). 지속적으로 필요한 안내는 placeholder 에서 `FormHelperText` 로 옮겨 입력 중에도 보이게 하고, placeholder 는 `제목` 처럼 **예시**만 남긴다. 필드 구성·순서·필수 표시·서식 도구줄은 그대로 둔다.
+rationale: 폼의 기본기는 갖춰져 있다 - 필수 표시(`*`), 길이 제한, 예시 플레이스홀더, 서식 도구와 미리보기, 날짜/숫자 전용 입력. 구조를 다시 그릴 이유가 없어 `REDESIGN` 이 아니다. 그러나 담당자 선택이 인원수에 선형으로 커지는 구조이고 안내가 입력과 동시에 사라지는 것은 폼에서 흔하고 실제로 비용을 만드는 결함이라 `KEEP` 도 아니다. **주의**: 계측에서 「레이블 없는 입력 4개」가 잡혔지만 이는 MUI Select 4개의 숨은 input 이다(Select 4 : 무레이블 input 4 로 정확히 대응) - 접근성 결함이 아니므로 결함으로 세지 않았다.
+browser_evidence: `var/product-audit/pa2_states.py` 의 폼 계측 - 입력 요소별 태그·타입·연결된 레이블(`label[for]` -> 조상 `label` -> `aria-label` 순)·`required`·`aria-describedby`·`maxlength`·`placeholder` 를 전수 덤프(`pa2_states.json` `form_newticket`). 화면은 `shots2/d1_user_new-ticket.png`(1920×1080 라이트, 전체 페이지 1318px)와 `pa2_design_user.json` 계측(카드 2 · 버튼 17 · contained 1).
+rc_ids: PA-RC-0035
 <!-- DESIGN-VERDICT-END -->
