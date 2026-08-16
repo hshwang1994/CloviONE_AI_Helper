@@ -1,6 +1,11 @@
 # PRODUCT AUDIT — FEATURE / WORKFLOW CONTRACTS
 
-> cycle_id=PA-20260812-171558-56c5befa · baseline=`89ac9f16d42e8bd0bab8c4ca97b15d6563b03fde`
+> cycle_id=PA-20260816-100149-48671b72 · baseline=`64ef571764bc8ee2ebac3628a4c1383dff2d9217`
+> 이전 Cycle: `PA-20260812-171558-56c5befa` (baseline `89ac9f16`)
+>
+> **이 Cycle에서의 취급**: 아래 Contract(`FC-01`~`FC-08`)는 이전 Cycle이 근거와 함께 세운
+> 것이고 이번 Cycle에서 **무효화된 것이 없다** — 그대로 이어서 쓴다(WARM 증분 원칙).
+> 이번 Cycle이 이 문서에 더한 것은 아래 "PA-20260816 Cycle이 행동으로 확인한 계약" 절이다.
 >
 > **코드의 현재 동작을 그대로 '의도'라고 적지 않는다.** 각 Contract는 의도의 근거
 > (Intent evidence)와 confidence를 함께 단다. 근거가 코드밖에 없으면 `INFERRED`로 표시하고
@@ -166,3 +171,33 @@
 > **이 표 자체가 산출물이다.** 이 제품에서 명시적 스펙 조항을 근거로 댈 수 있는 계약은
 > FC-03(프롬프트 §17.1) 하나뿐이고, 나머지는 코드 주석·테스트·FE/BE 일치로 역산한 것이다.
 > 이것은 결함이 아니라 **위험**이다 — 주석을 지우거나 리팩터링하면 의도의 유일한 기록이 사라진다.
+
+---
+
+# PA-20260816 Cycle이 행동으로 확인한 계약
+
+## FC-09 — AI 요청 실패 전파 (이전 Cycle의 UNKNOWN 3건 중 1건을 닫는다)
+
+이전 Cycle은 *"n8n / Claude Runner 실패 전파 — 외부 시스템 경계의 **기대 동작**이 문서화된
+곳을 못 찾음"* 을 UNKNOWN으로 남겼다. 이번 Cycle이 **실제 실패 데이터로 그 계약을 관측**했다
+(`PA-F-057`). 이 인스턴스에 12일 전 영구 실패한 `chat_message` 잡 3건이 남아 있었다.
+
+| 필드 | 값 |
+|---|---|
+| **Feature/Workflow** | AI 어시스턴트 요청의 백엔드 실패가 사용자에게 전달되는 경로 |
+| **Actor/Role** | `user` 이상 전체(대화 소유자) · 운영 측은 `operator` 이상이 `/jobs`에서 본다 |
+| **목적** | 외부 시스템(n8n·Claude Runner) 장애가 **조용한 무응답으로 남지 않게** 한다 |
+| **Entry point** | 채팅 입력(`/chat`, `/me`의 AI 도우미 패널) → `chat_message` 잡 |
+| **Precondition** | 대화와 사용자 메시지가 이미 저장돼 있고 잡이 그 `conversation_id`·`message_id`를 들고 있다 |
+| **Allowed state** | 잡: `queued → running → succeeded \| failed \| cancelled`. 메시지: `pending/processing → done \| failed` |
+| **Input/validation** | 해당 없음(이 계약은 실패 경로다) |
+| **Expected transition/effect** | 재시도 소진(`attempt_count == max_attempts`) 시 ① 잡 `status=failed` + `last_error` 보존 ② 사용자 메시지 `processing_status=failed`, `error_code=assistant_error` ③ **어시스턴트 역할 메시지로 한국어 설명이 기록됨** |
+| **Success feedback/navigation** | 해당 없음 — 이 계약의 성공은 "실패가 정확히 보이는 것"이다 |
+| **Failure behavior/recovery** | 대화에 3요소 문구 표시 — *"업무 처리 서버와의 연결에 문제가 있어 요청을 완료하지 못했습니다. '다시 시도' 버튼을 누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려주세요."* + 「다시 시도」 버튼. **재시도가 무의미한 분류(`assistant_rejected`)는 다른 문구**로 안내한다 |
+| **Forbidden behavior** | 내부 예외 문자열(`RuntimeError: n8n 연결 실패`)을 사용자에게 노출하지 않는다 — 실측에서 노출되지 않았다. 사용자를 무응답 상태로 방치하지 않는다 |
+| **Data/API/RBAC/integration deps** | `jobs`(`job_type`·`attempt_count`·`max_attempts`·`last_error`·`conversation_id`·`message_id`) · `messages`(`processing_status`·`error_code`) · `app/jobs/handlers/chat_message.py::on_failure` · `frontend/src/screens/chat/MessageThread.jsx:39-129` · 외부 n8n/Runner |
+| **Intent evidence** | ④ **테스트가 계약을 표현한다** — `processing_status`/`assistant_error`를 다루는 테스트 5파일(`message-thread-actions`·`message-thread-inline-cards`·`message-thread-response-time`·`chat-state`·`assistant-drawer-parity`). ⑤ FE/BE 흐름 일치 — 핸들러가 쓰는 상태를 UI가 그대로 분기한다. ⑥ `MessageThread.jsx:121-129` 주석이 `assistant_rejected`와 `assistant_error`를 **왜** 다르게 다루는지 명시. **명시적 정책 문서는 여전히 없다**(①②③ 없음) |
+| **Confidence** | **Strong** — 실제 실패 데이터 3건으로 ①잡 ②메시지 ③문구 세 계층을 모두 관측했고 테스트가 계약을 고정한다. Confirmed로 올리지 않는 이유는 **성공 경로와 「다시 시도」 클릭 이후를 측정하지 못했기 때문**이다(이 인스턴스의 유일한 러너가 `enabled=0`) |
+
+> **UNKNOWN 표 갱신**: 위 3건 중 이 건이 닫혔다. **남은 UNKNOWN은 2건** —
+> 「티켓 정본 정책」과 「복구 리허설 성공 판정 기준」이다. 둘 다 이번 Cycle에서 조사하지 않았다.

@@ -1,6 +1,6 @@
 # PRODUCT AUDIT — SURFACE INVENTORY
 
-> cycle_id=PA-20260812-171558-56c5befa · baseline=89ac9f16d42e8bd0bab8c4ca97b15d6563b03fde
+> cycle_id=PA-20260816-100149-48671b72 · baseline=64ef571764bc8ee2ebac3628a4c1383dff2d9217
 >
 > 이 문서는 `var/product-audit/gen_inventory.py`가 저장소를 실제로 훑어 생성한다.
 > 숫자는 생성 시점의 실측이다 — 손으로 고치지 않는다.
