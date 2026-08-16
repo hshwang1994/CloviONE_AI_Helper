@@ -6867,8 +6867,9 @@ invocation 안에서 곧바로 착수한다(대형 상태 문서 재통독 없�
 배경으로 돌리던 백엔드 전체 `pytest`(PA-RC-0026 착수 **전** 시점에 건 것)가 **exit code
 0(전체 green)** 로 끝났다 — `PA-RC-0023`까지의 상태가 여전히 green임을 확인. **주의**:
 이 결과는 `PA-RC-0026`의 `app/health/*` 변경을 포함하지 않는다 — 그 변경에 대해서는
-아래 66건 포커스 시험이 근거이고, `tests/security/`+`tests/integration/` 전체 재실행은
-별도로 배경에서 돌리는 중(아직 완료 신호 없음, 완료되면 결과 확인).
+아래 66건 포커스 시험이 1차 근거이고, **`tests/security/`+`tests/integration/` 전체
+재실행도 배경에서 완료돼 exit code 0(전체 green)** — `PA-RC-0026` 변경이 다른 보안/통합
+시험을 하나도 안 건드렸음을 광범위하게 재확인했다.
 
 High/Critical 등급이 전부 완결이라(`PA2-05`~`07`·`12`) Medium 중 RBAC/보안에 가장
 가까운 `PA-RC-0026`(`/diagnostics` 게이트가 제품 자신의 공표된 권한표 `console.ops`보다
