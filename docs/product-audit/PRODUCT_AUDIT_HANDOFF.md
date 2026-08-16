@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=10
+actionable_root_causes=11
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -459,4 +459,51 @@ data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
 api_impact: 해당 없음 - API 계약이 바뀌지 않는다
 rbac_impact: 해당 없음 - 권한 경계가 바뀌지 않는다
 browser_verification: TEST SERVER 에서 admin 으로 `/offboarding` 을 1920x1080 라이트/다크로 캡처해 행 높이가 한 종류인지, 상태가 배지인지, 설명이 1회만 있는지 확인하고, 같은 화면에서 `실행 이력`과 되돌리기 안내가 그대로인지 본다. 1366·390 뷰포트에서 가로 넘침도 함께 확인한다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0037 -->
+rc_id: PA-RC-0037
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 표와 설정 목록에서 **행을 식별하는 열**(사용자의 이메일, 설정의 항목명)이 가장 좁게 배분돼 있고, 뷰포트가 좁아질수록 가장 먼저 읽을 수 없게 된다. `/settings` 의 `항목명` 은 1920에서 140px 로 잘림 0이지만 1366에서 91px 가 되어 **11행 중 8행이 잘린다** — 같은 화면의 `설명` 열이 566px 를 쓰는 동안이다. `/users` 와 `/offboarding` 의 이메일 열도 1366에서 각각 83px·127px 인데 필요 폭은 181px 다. 가로 스크롤은 어느 뷰포트에서도 생기지 않으므로 사용자가 잘린 값을 드러낼 방법이 화면에 없다.
+expected: 폭이 부족해질 때 가장 먼저 지켜야 하는 것은 **그 행이 무엇인지 알려 주는 열**이고, 가장 먼저 양보해야 하는 것은 부가 설명 열이다. 좁은 폭에서 모든 열을 다 보여줄 수 없다면 열을 우선순위대로 접거나 숨기고 그 사실을 사용자에게 알려야 한다. 이 저장소는 이미 같은 원칙을 다른 자리에서 지킨다 — `docs/DASHBOARD_METRICS.md` 의 「목록 카드의 `count` 는 언제나 진짜 총계이고 `items` 만 5줄로 잘린다」, `/offboarding` 의 「21명 중 20명을 보여 줍니다」 잘림 고지. **잘림은 보조 정보에서 일어나고, 일어나면 고지한다**는 규약이 제품에 이미 있다.
+actual: 7뷰포트 x 5라우트 = 35조합 실측. 가로 넘침은 전 조합 0건이지만 셀 내부 잘림이 폭에 반비례해 급증한다 - `/offboarding` 4(1920) -> 23(1366) -> 40(1024), `/users` 23 -> 30 -> 31, `/settings` 3 -> 11 -> 14. 열 단위로 재면 `/settings` `항목명` 이 1920에서 140px·잘림 0/11, 1366에서 91px·잘림 **8/11**(최대 필요 141px, 예: `계정 추가 허용 도메인`)이고 같은 표의 `설명` 은 1366에서도 566px 를 유지한다. 잘린 값을 드러낼 가로 스크롤은 없다.
+intent_evidence: CLAUDE.md 5절이 「FHD/QHD/4K, Responsive」를 Frontend 필수 완료 범위로 규정한다. 「잘림은 보조 정보에서 일어나고 고지한다」는 규약은 `docs/DASHBOARD_METRICS.md` 와 `/offboarding` 의 잘림 고지에 실재한다. 다만 **열 우선순위를 명시한 문서는 없다** - 어느 열이 먼저 양보해야 하는지는 INFERRED 이며, 근거는 「행을 식별하는 열이 없으면 나머지 열의 값이 누구 것인지 알 수 없다」는 표의 기본 성질이다.
+findings: PA-F-095, PA-F-087
+feature_contracts: FC-사용자관리, FC-시스템설정, FC-오프보딩
+routes: `/users`, `/settings`, `/offboarding`, 그리고 같은 `DataScreen` 계약을 쓰는 표 계열 화면 전반
+frontend: `frontend/src/ui/kit.jsx` `DataTable`(공통 표), `frontend/src/screens/registry/*.js`(열 정의), `frontend/src/screens/Users.jsx`, `frontend/src/screens/settings/SettingsShell.jsx` 와 시스템 정책 표, `frontend/src/screens/Offboarding.jsx`
+api: 해당 없음 - 표시 계층 문제다. 응답은 이미 전체 값을 준다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 저장 데이터가 바뀌지 않는다
+rbac: 해당 없음 - 권한 경계와 무관하다
+integration: 해당 없음 - 외부 연동과 무관하다
+state_transition: 해당 없음 - 읽기 표시 경로다
+user_impact: 1366x768 은 사내 노트북에서 가장 흔한 해상도다. 그 폭에서 관리자는 `/settings` 의 설정 **이름** 8개를 못 읽으면서 그 설정의 긴 설명을 읽게 되고, `/users`·`/offboarding` 에서는 이메일로 사람을 특정할 수 없다. 가로 스크롤이 없어 드러낼 방법도 없으므로 행을 하나씩 열어 확인해야 한다. `PA-RC-0029` 를 1920 기준으로만 고치면 이 폭에서는 여전히 못 읽는다.
+implementation_direction: 공통 표에 **열 우선순위** 개념을 도입한다. 각 열 정의에 (a) 식별자 여부와 (b) 최소 폭, (c) 좁은 폭에서 접힐 순서를 둔다. 폭이 부족하면 우선순위가 낮은 열(`설명`·`최근 로그인`·`직책` 등)부터 접고, 식별자 열은 최소 폭 아래로 내려가지 않게 한다. 접은 열이 있으면 그 사실을 화면에 알리고(예: 행 확장 또는 열 선택), **접힌 값을 볼 방법을 남긴다** - 이 저장소가 이미 쓰는 잘림 고지 관례(`21명 중 20명을 보여 줍니다`)와 같은 태도다. `PA-RC-0029`(1920에서의 폭 배분)와 `PA-RC-0036`(`/offboarding` 행 높이·배지)은 이 처방과 **같은 표를 건드리므로 함께 처리하는 것이 싸다** - 셋을 따로 하면 열 정의를 세 번 만진다. 새 표 컴포넌트를 만들지 않고 기존 `DataTable`/열 정의 계약을 확장한다.
+constraints: CLAUDE.md 3절(공유 컴포넌트 우선 - 표 계열 27화면이 공유하는 `DataScreen` 계약을 깨지 않는다) · 5절(per-page 예외보다 shared token/variant/component 우선) · **가로 스크롤을 새로 도입하지 않는다**(다른 표와 상호작용이 달라지고 기존 `horizontal_overflow` 검사 전제가 흔들린다) · 열을 접더라도 그 값에 도달할 경로를 남긴다(정보를 조용히 없애지 않는다) · 접근성을 낮추지 않는다(접힌 열이 스크린리더에서도 사라지면 안 된다)
+regression_risk: (a) 공통 표를 건드리므로 **27개 REGISTRY 화면이 전부 영향권**이다 - 열 정의를 안 고친 화면이 기본 동작으로 안전하게 남는지(우선순위 미지정 = 현재 동작) 확인해야 한다. (b) 열을 접으면 기존 UI QA 의 `horizontal_overflow` 검사는 여전히 통과하므로 **그 검사로는 회귀를 못 잡는다** - 셀 내부 잘림을 보는 검사를 함께 넣어야 한다(`qa_gaps` 참조). (c) 접기 기준을 폭으로 두면 1366@125% 같은 배율 조합에서 의도와 다르게 접힐 수 있다 - 실측 조합으로 확인한다. (d) `PA-RC-0029`·`PA-RC-0036` 과 같은 파일을 건드리므로 순서를 정하지 않으면 서로 덮어쓴다.
+acceptance_criteria: (1) 1366x768 에서 `/settings` `항목명` 열의 잘린 행이 **8/11 -> 0**이다. (2) 같은 폭에서 `/users`·`/offboarding` 의 이메일 열 잘림이 0이다. (3) 1920·1366·1366@125%·1024 네 조합에서 가로 넘침이 여전히 0건이다. (4) 열이 접힌 경우 접혔다는 사실이 화면에 표시되고 그 값에 도달할 방법이 있다. (5) 열 우선순위를 지정하지 않은 REGISTRY 화면들의 렌더 결과가 변경 전과 같다. (6) 390 뷰포트에서 화면 밖으로 밀려난 요소가 늘지 않는다.
+required_tests: (1) `pa2_resp_dark.py` 재실행으로 수용 기준 (1)(2)(3)(6) - 7뷰포트 x 5라우트 계측을 그대로 다시 돌린다. (2) `pa2_verify_no.py` 의 열 단위 계측으로 `/settings` 항목명 열을 1920·1366 두 폭에서 확인. (3) 열 우선순위 미지정 화면의 스냅샷 회귀 테스트. (4) 접힌 열이 스크린리더에서 접근 가능한지 확인하는 접근성 테스트.
+qa_gaps: `scripts/ui_qa` 의 `horizontal_overflow` 는 **표가 화면을 넘는가**만 본다. 표가 컨테이너 안에 얌전히 들어가 있고 셀 안에서만 잘리는 이 결함은 그 검사를 그대로 통과한다 - `PA-RC-0029` 가 드러낸 것과 같은 공백이며, 이번 계측으로 그것이 **폭이 좁아질수록 심해진다**는 것까지 확인됐다. `QA_COVERAGE.md` 에 「좁은 폭에서 식별자 열이 읽히는가」 축을 신설한다. 계측 시 **절대 위치 자식과 스크린리더 전용 라벨은 잘림에서 제외**해야 한다(이번 Cycle에서 그 둘 때문에 오탐이 나왔다).
+quality_rubric: `ui-ux-pro-max` - 「표/목록: 밀도, 정렬, **열 우선순위**, 대량 데이터」. `impeccable` - 폭 배분이 내용 요구와 무관한 것을 시각 위계 결함으로 판정. 내장 rubric 5) 「표/목록: 열 우선순위」 · 12) 「좁은 폭/고배율에서 정보가 사라지거나 겹치는가」 - 이 RC 는 정확히 12)의 사례이며, 사라지는 것이 하필 식별자라는 점을 severity 판단 근거로 삼았다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-095 / PA-F-087 · `var/product-audit/pa2_resp_dark.py` 실행 결과(7뷰포트 x 5라우트) · `var/product-audit/pa2_resp_dark.json` · `var/product-audit/pa2_verify_no.py` 열 단위 계측(`/settings` 항목명 1920:140/잘림0 vs 1366:91/잘림8) · `var/product-audit/shots2/d3_light_*.png` · `d3_dark_*.png`
+current_state: 1920 에서는 대체로 읽힌다(`/settings` 항목명 140px·잘림 0/11). 1366 에서 `항목명` 이 91px 로 줄며 8/11 행이 잘리고, 같은 표의 `설명` 은 566px 를 유지한다. `/users` 이메일 83px(필요 181), `/offboarding` 이메일 127px(필요 181). 가로 스크롤은 없다. 셀 내부 잘림 총계는 `/offboarding` 기준 4(1920) -> 23(1366) -> 40(1024).
+user_problem: 사내에서 가장 흔한 노트북 폭에서 행을 식별할 수 없다. 어떤 설정인지 모르는 채 그 설정의 설명을 읽고, 누구인지 모르는 채 그 사람의 상태를 본다. 드러낼 가로 스크롤도 없어 행을 하나씩 열어야 한다.
+design_verdict: REFINE
+target_state: 폭이 좁아지면 부가 설명 열이 먼저 줄거나 접히고, 행을 식별하는 열은 끝까지 읽힌다. 접힌 열이 있으면 그 사실과 도달 경로가 화면에 있다.
+target_design: 공통 표의 열 정의에 식별자 표시·최소 폭·접기 우선순위를 추가한다. 폭 부족 시 우선순위가 낮은 열부터 접고 식별자 열의 최소 폭을 보장한다. 접힘은 이 제품이 이미 쓰는 잘림 고지 관례와 같은 태도로 알린다. 표 컴포넌트를 새로 만들지 않고 기존 계약을 확장하며, 열 우선순위를 지정하지 않은 화면은 현재 동작을 그대로 유지한다.
+visual_change_required: true
+target_visual_delta: 1366 에서 `/settings` 의 `항목명` 열이 91px 에서 약 141px 이상으로 넓어져 말줄임표가 사라지고, `설명` 열이 566px 에서 그만큼 좁아진다. `/users`·`/offboarding` 의 이메일 열도 같은 방식으로 넓어진다. 폭이 더 부족한 1024 에서는 우선순위가 낮은 열이 접혀 사라지고 접힘 표시가 나타난다. 1920 화면은 거의 그대로다(이미 잘림이 적다).
+affected_surfaces: `/settings`, `/users`, `/offboarding`, 그리고 공통 표를 쓰는 REGISTRY 화면 27종(열 우선순위를 지정한 화면만 실제로 달라진다)
+affected_components: `ui/kit.jsx` `DataTable`, `screens/registry/*.js` 열 정의, `Users.jsx`, `Offboarding.jsx`, 시스템 정책 표
+workflow_change: 없음 - 사용자가 할 수 있는 일과 단계가 바뀌지 않는다. 좁은 화면에서 행을 하나씩 열어 확인하던 우회가 없어질 뿐이다
+navigation_impact: 해당 없음 - 라우트·메뉴가 바뀌지 않는다
+data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 - API 계약이 바뀌지 않는다
+rbac_impact: 해당 없음 - 권한 경계가 바뀌지 않는다. 접힌 열도 권한에 따른 노출 규칙을 그대로 따른다
+browser_verification: TEST SERVER 에서 admin 으로 `/settings`·`/users`·`/offboarding` 을 1920x1080 · 1366x768 · 1366@125% · 1024x768 · 390x844 다섯 조합에서 라이트/다크로 캡처하고, `pa2_resp_dark.py` 와 `pa2_verify_no.py` 를 재실행해 식별자 열 잘림이 0인지, 가로 넘침이 여전히 0인지 수치로 확인한다.
 <!-- PA-RC-END -->
