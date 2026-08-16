@@ -4059,6 +4059,8 @@ agent가 이미 확인한 것: 델타 6종 회귀(신규 성공 문구 단위 �
 남음, API로 직접 지우려니 CSRF로 403)를 둘 다 잡아 고치고, 남은 테스트 데이터를
 실제 UI 경로로 정리했다.
 
+**`PA-RC-0025`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-15`.
+
 ## D-106 (2026-08-16) — `RESP-01`: 1024px 표 넘침 재진단 — 페이지 넘침은 이미 사라졌고, 남은 64px 컨테이너 내부 스크롤을 열 우선순위로 닫음
 
 ### 배경
@@ -4129,4 +4131,62 @@ DOM 조상 사슬을 `document.documentElement`부터 `<table>`까지 직접 걸
 
 상세: `docs/BACKLOG.md` `RESP-01`.
 
-**`PA-RC-0025`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-15`.
+## D-107 (2026-08-16) — `FN-42`: 프로젝트 Health 신뢰도 — 마이그레이션도 위험한 임계값 변경도 없이, 이미 있는 주간 스냅샷에서 답을 찾음
+
+### 배경
+
+`FN-42`(High)는 "규칙 5개 중 1개만 판정돼도(감점이 0이면) `100점`이 되고 대시보드
+`unscored`는 `health_score is None`만 세므로 그 경우를 못 잡는다"였다. 이전 검토(BACKLOG.md
+기존 메모)는 두 방향 다 부담스럽다고 보류했었다 — (a) `Project`에 새 컬럼을 추가하는
+마이그레이션, (b) `compute_health()`의 None 판정 기준 자체를 바꾸는 것(16개 pinned 시험이
+현재 계약을 정밀하게 고정해 둬서 임계값을 잘못 고르면 조용히 다른 정상 케이스를 깬다).
+
+### 재검토 — 이미 있는 데이터였다
+
+`compute_health()`(순수 함수, `health.py`)는 처음부터 `score`/`reasons`/`checked`/`unknown`
+넷을 함께 낸다. 그리고 `record_health_snapshot()`(`service.py:712`)이 점수를 `Project.
+health_score`에 캐시할 때 **같은 트랜잭션·같은 호출**에서 `HealthResult.as_dict()`
+(checked/unknown 전부 포함) 를 `ProjectHealthSnapshot.reasons_json`에도 이미 적고 있었다
+(주간 이력 목적, D-?? 이전부터 있던 설계) — 그 파일 docstring이 스스로 "못 잰 지표도
+함께 남긴다"고 밝힌다. `project.health_score` 를 쓰는 코드 경로가 `record_health_snapshot`
+**하나뿐**(grep 확인, `router.py:539` 수동 재계산과 `service.py:906` 워커 스윕 둘 다 이
+함수를 통해서만 쓴다)이므로, `health_score`가 non-null인 프로젝트는 **항상** 같은 주
+스냅샷에 `checked` 목록이 있다. 즉 마이그레이션도, `compute_health()` 임계값 변경도 필요
+없었다 — 이미 쌓인 이력에서 읽기만 하면 됐다.
+
+### 조치
+
+- `service.py`에 `latest_checked_rule_counts(db, project_ids)` 신설 — 프로젝트별 **가장
+  최근** 스냅샷의 `checked` 개수를 배치 조회 한 번으로 낸다(`GROUP BY project_id, MAX
+  (week_of)` 서브쿼리 + join, N+1 아님). 스냅샷이 아예 없는 프로젝트(워커가 아직 안 돎)는
+  결과에서 빠진다 — "모른다"를 "신뢰도 낮음"으로 단정하지 않는다는, 이 모듈이 이미 지켜온
+  원칙(`unscored`와 같은 태도)을 그대로 따른다.
+- `home/work.py::_projects_and_milestones`가 이 함수를 한 번 불러 `low_confidence`(점수는
+  있지만 5규칙 중 일부만 checked인 프로젝트 수)를 `unscored`와 별개로 센다. **이 파일
+  자신이 "헬스를 다시 계산하지 않는다"고 명시한 규칙**(파일 최상단 docstring)을 지키려고
+  `compute_health()`를 다시 부르지 않고 이미 캐시된 스냅샷만 읽는다.
+- `Dashboard.jsx`에 `unscored` Note와 같은 자리에 `low_confidence` Note를 별도 문구로
+  추가(값이 있을 때만 렌더).
+
+### 검증
+
+백엔드: `latest_checked_rule_counts`의 계약(부분 판정→집계, 전부 판정→제외, 스냅샷
+없음→제외)을 대시보드 통합 시험 한 건으로 한 번에 증명(`test_dashboard_metrics.py::
+test_low_confidence_counts_partially_checked_projects_separately`, prj-low는 2/5
+checked 스냅샷을 심어 잡히는 것을, prj-zero는 5/5 checked 스냅샷을 심어 점수가 나빠도
+안 잡히는 것을, prj-notion은 스냅샷을 아예 안 심어 "모름"이 안 잡히는 것을 한 시험 안에서
+같이 확인). `test_dashboard_metrics.py` 9건 + `test_health_snapshot_job.py`/
+`test_project_dashboard.py` 25건 + `tests/ -k project` 156건 전부 green.
+
+프런트: `dashboard-work.test.jsx` 신규 1건("일부만 판정된 프로젝트는 unscored와 별개로
+신뢰도 문구로 말한다") 포함 8건 green.
+
+`scripts/static_checks.sh` — `SEC-20`(stash/reflog 자격증명 회전, 사람 조치 대기, 기존
+문서화된 예외) 하나만 실패, 이 변경과 무관.
+
+### 결론
+
+`FN-42`를 완결로 처리한다 — 대시보드가 이제 "다 재서 건강함"과 "몇 개만 재서 우연히
+만점"을 구별해 말한다. 새 컬럼도, 기존 계약을 흔드는 임계값 변경도 없었다.
+
+상세: `docs/BACKLOG.md` `FN-42`.

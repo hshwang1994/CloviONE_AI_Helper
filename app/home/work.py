@@ -35,6 +35,10 @@ UTC 자정으로 자르면 한국 사용자에게 9시간 밀린다. KST 월요�
     0 으로 그리면 "할 일이 없다" 는 거짓말이 된다.
   * `health_score` 가 NULL 인 프로젝트는 차질이 **아니다**. 아직 안 잰 것이다. 0 점과
     구별해 `unscored` 로 따로 센다(0 은 재 봤더니 나쁜 것이라 차질에 든다).
+  * 점수가 있어도 **일부 규칙만 판정된 채**일 수 있다(예: 마일스톤이 없어 그 규칙만
+    `unknown`) — 나머지 규칙에 감점이 없으면 그대로 만점으로 보여, "다 재서 건강함"과
+    "몇 개만 재서 우연히 만점"이 화면에서 구별되지 않는다(FN-42). `low_confidence` 가
+    그 차이를 따로 센다.
   * '최근 완료 추이' 의 완료는 **마감일 기준**이다. 소스에 상태가 완료로 바뀐 시각이
     없다(`app/projects/weekly.py` 와 `app/sprints/burndown.py` 가 같은 사정을 적어 뒀다).
     없는 이력을 최종수정 시각으로 추정해 선을 그으면 그건 추이가 아니라 창작이다.
@@ -163,10 +167,22 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
     )
     troubled: list[dict] = []
     unscored = 0
+    low_confidence = 0
     overdue: list[dict] = []
+    # 신뢰도는 캐시된 `health_score` 자체가 아니라 가장 최근 스냅샷의 `checked` 목록에서
+    # 온다(projects_service.record_health_snapshot 이 같은 트랜잭션에서 함께 남긴다) —
+    # 여기서 다시 계산하면 이 파일이 지키는 "헬스를 다시 계산하지 않는다" 규칙을 어긴다.
+    checked_counts = projects_service.latest_checked_rule_counts(db, [p.id for p in rows])
+    total_rules = len(project_health.RULE_ORDER)
     for project in rows:
         if project.health_score is None:
             unscored += 1
+        else:
+            checked = checked_counts.get(project.id)
+            # 스냅샷 자체가 없으면(워커가 아직 안 돎) 신뢰도를 판단할 근거가 없다 —
+            # 모르는 것을 "신뢰도 낮음"으로 단정하지 않는다(unscored 와 같은 원칙).
+            if checked is not None and checked < total_rules:
+                low_confidence += 1
         reasons = _trouble_reasons(project)
         if reasons:
             troubled.append(_project_row(project, reasons))
@@ -191,6 +207,10 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
             # '못 잼' 을 0 으로 뭉개지 않는다. 차질 0건이 "다 건강하다" 인지 "아무것도 안
             # 쟀다" 인지는 완전히 다른 사실이고, 화면이 그 둘을 구별해 말해야 한다.
             "unscored": unscored,
+            # 점수는 있지만 5개 규칙을 다 재지 못한 프로젝트 수(FN-42) — unscored 와
+            # 별개다: unscored 는 "점수가 없다", low_confidence 는 "점수는 있는데 일부만
+            # 보고 낸 값이다".
+            "low_confidence": low_confidence,
             "truncated": total > len(rows),
             "troubled": _bucket(troubled),
         },

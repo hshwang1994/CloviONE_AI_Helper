@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.db import is_write_conflict
@@ -773,6 +773,46 @@ def record_health_snapshot(
         row.reasons_json = payload
     db.flush()
     return result, row
+
+
+def latest_checked_rule_counts(db: Session, project_ids: list[str]) -> dict[str, int]:
+    """프로젝트별 **가장 최근** 헬스 스냅샷이 실제로 판정한 규칙 수 (FN-42).
+
+    `Project.health_score` 는 정수 하나뿐이라 "5개 규칙을 다 재서 100점"과 "1개만
+    재서(그것도 감점 없이) 100점"을 화면에서 구별할 수 없다 — 둘 다 만점으로 보이지만
+    신뢰도는 다르다. `record_health_snapshot` 이 점수를 쓸 때마다 **같은 트랜잭션**에서
+    `reasons_json` 에 `checked` 목록도 함께 남기므로(health.py 의 계약), 새 컬럼이나
+    마이그레이션 없이 이미 있는 이력에서 답할 수 있다.
+
+    스냅샷이 아예 없는 프로젝트(워커가 아직 한 번도 안 돈 경우)는 결과 dict 에서 빠진다 —
+    "신뢰도를 모른다"는 뜻이고, 호출부가 그 경우를 "다 쟀다"로 착각하면 안 된다.
+    """
+    if not project_ids:
+        return {}
+    latest_week = (
+        select(
+            ProjectHealthSnapshot.project_id,
+            func.max(ProjectHealthSnapshot.week_of).label("week_of"),
+        )
+        .where(ProjectHealthSnapshot.project_id.in_(project_ids))
+        .group_by(ProjectHealthSnapshot.project_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(ProjectHealthSnapshot.project_id, ProjectHealthSnapshot.reasons_json).join(
+            latest_week,
+            (ProjectHealthSnapshot.project_id == latest_week.c.project_id)
+            & (ProjectHealthSnapshot.week_of == latest_week.c.week_of),
+        )
+    ).all()
+    counts: dict[str, int] = {}
+    for project_id, reasons_json in rows:
+        try:
+            checked = json.loads(reasons_json).get("checked") or []
+        except (TypeError, ValueError):
+            continue
+        counts[project_id] = len(checked)
+    return counts
 
 
 # ── 주간 헬스 스냅샷 일괄 기록 ──────────────────────────────────────────────────

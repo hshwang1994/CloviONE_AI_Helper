@@ -43,6 +43,7 @@ const WORK = {
   projects: {
     in_scope: 4,
     unscored: 1,
+    low_confidence: 2,
     truncated: false,
     troubled: {
       count: 2,
@@ -130,6 +131,13 @@ describe("대시보드 업무 구역", () => {
   it("아직 Health 를 재지 않은 프로젝트를 '차질 0건'에 섞지 않고 따로 말한다", async () => {
     renderDashboard();
     expect(await screen.findByText(/아직 Health 를 계산하지 않은 프로젝트 1건/)).toBeInTheDocument();
+  });
+
+  // FN-42: 점수는 있지만 일부 규칙만 판정된 프로젝트는 unscored(점수 자체 없음)와 다른
+  // 문구로 말한다 - 서버가 이미 두 수를 나눠 세므로 화면은 그대로 옮기기만 한다.
+  it("일부만 판정된 프로젝트는 unscored와 별개로 신뢰도 문구로 말한다", async () => {
+    renderDashboard();
+    expect(await screen.findByText(/일부 지표만으로 계산된 프로젝트 2건/)).toBeInTheDocument();
   });
 
   it("최근 완료 추이를 주별로 보여주고 기준을 밝힌다", async () => {

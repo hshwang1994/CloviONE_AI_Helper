@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 import pytest
@@ -35,6 +36,7 @@ from app.projects.models import (
     MILESTONE_PLANNED,
     PROJECT_ACTIVE,
     Project,
+    ProjectHealthSnapshot,
     ProjectMilestone,
 )
 from app.tickets.models import (
@@ -263,6 +265,40 @@ def test_zero_is_a_measurement_but_null_is_not(work_client):
     assert projects["troubled"]["count"] == 3
     # '못 잼' 을 0 으로 뭉개지 않고 따로 센다.
     assert projects["unscored"] == 1
+
+
+def test_low_confidence_counts_partially_checked_projects_separately(work_client, db):
+    """점수가 있어도 규칙을 다 재지 못했으면 `unscored`가 아니라 `low_confidence`로 센다(FN-42).
+
+    `unscored`는 점수 자체가 없는 경우다(위 테스트) — 이건 다른 축이다: 점수는 있는데
+    5개 규칙 중 일부만 판정됐다. 감점이 없으면 그 상태로도 만점처럼 보이므로, 화면이
+    "다 재서 건강함"과 "몇 개만 재서 우연히 만점"을 구별하려면 이 수가 따로 있어야 한다.
+    """
+    # prj-low(30점) — 최근 스냅샷이 5개 규칙 중 2개만 checked. low_confidence에 잡힌다.
+    db.add(ProjectHealthSnapshot(
+        project_id="prj-low", week_of="2026-07-27", score=30,
+        reasons_json=json.dumps({
+            "score": 30, "reasons": [], "checked": ["task_overdue", "unassigned"], "unknown": [],
+        }),
+        created_at=SYNCED_AT,
+    ))
+    # prj-zero(0점) — 5개 다 checked. 점수는 나쁘지만 신뢰도는 낮지 않다 — low_confidence에
+    # 안 잡혀야 차질(troubled)과 신뢰도가 서로 다른 축이라는 게 실제로 증명된다.
+    db.add(ProjectHealthSnapshot(
+        project_id="prj-zero", week_of="2026-07-27", score=0,
+        reasons_json=json.dumps({
+            "score": 0, "reasons": [], "checked": [
+                "notion_trouble", "milestone_overdue", "task_overdue", "unassigned", "stale",
+            ], "unknown": [],
+        }),
+        created_at=SYNCED_AT,
+    ))
+    # prj-notion(100점)은 일부러 스냅샷을 안 남긴다 — 워커가 아직 안 돈 상태를 흉내낸다.
+    # "모른다"를 "신뢰도 낮음"으로 단정하면 안 되므로 low_confidence에 안 잡혀야 한다.
+    db.commit()
+
+    projects = _work(work_client)["projects"]
+    assert projects["low_confidence"] == 1
 
 
 def test_a_dead_ticket_source_says_unknown_not_zero(work_client, notion, db):

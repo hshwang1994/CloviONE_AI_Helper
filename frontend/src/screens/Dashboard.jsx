@@ -425,6 +425,12 @@ export function WorkSection() {
       {projects.unscored ? (
         <Note>아직 Health 를 계산하지 않은 프로젝트 {fmtNum(projects.unscored)}건은 이 판정에 들어가지 않았습니다.</Note>
       ) : null}
+      {/* FN-42: 점수가 있어도 5개 규칙 중 일부만 판정됐을 수 있다(예: 마일스톤이 없어 그
+          규칙만 못 잼) — 감점이 없으면 그대로 만점처럼 보여 '다 재서 건강함'과 구별이
+          안 된다. unscored(점수 자체 없음)와 다른 신호라 별도 문구로 말한다. */}
+      {projects.low_confidence ? (
+        <Note>일부 지표만으로 계산된 프로젝트 {fmtNum(projects.low_confidence)}건이 있어 점수의 신뢰도가 낮을 수 있습니다.</Note>
+      ) : null}
       {projects.truncated ? (
         <Note>프로젝트가 많아 일부만 훑었습니다. 합계가 전체와 다를 수 있습니다.</Note>
       ) : null}
