@@ -185,6 +185,7 @@ $RequiredAuditDocs = @(
     "docs/product-audit/PRODUCT_AUDIT_FEATURE_CONTRACTS.md",
     "docs/product-audit/PRODUCT_AUDIT_FINDINGS.md",
     "docs/product-audit/PRODUCT_AUDIT_COVERAGE.md",
+    "docs/product-audit/PRODUCT_AUDIT_DESIGN.md",
     "docs/product-audit/PRODUCT_AUDIT_REPORT.md",
     "docs/product-audit/PRODUCT_AUDIT_HANDOFF.md"
 )
@@ -593,6 +594,68 @@ function Test-AuditCompletionGate {
                   ($gateLang -join ' / '))
     }
 
+    # ── Deep UI/UX Design Audit Gate (D-75) ─────────────────────────────────
+    # 일반 Browser QA 를 돌린 것만으로 L축을 완료 처리하던 구멍을 막는다. 모든 주요 Surface 는
+    # KEEP/REFINE/REDESIGN/REBUILD 판정을 근거와 함께 가져야 하고, REDESIGN/REBUILD 는 반드시
+    # 실제 PA-RC 로 내려가야 한다 — 판정만 하고 구현으로 안 가는 것이 실제 발생한 실패다.
+    $designPath = Join-Path $ProjectDir "docs\product-audit\PRODUCT_AUDIT_DESIGN.md"
+    $designDoc  = Read-TextOrEmpty $designPath
+    $rcIds = @($blocks | ForEach-Object { $_.Groups[1].Value })
+    foreach ($f in @(Test-DesignVerdictBlocks -DesignText $designDoc -HandoffRcIds $rcIds)) { $fail.Add($f) }
+
+    $dCounts = Get-DesignVerdictCounts $designDoc
+    $dLang = @(Get-HumanGateLanguage $designDoc)
+    if ($dLang.Count -gt 0) {
+        $fail.Add("DESIGN 문서에 작업을 사람에게 미루는 표현이 있다: " + ($dLang -join ' / '))
+    }
+
+    # HANDOFF-SUMMARY 의 redesign 수와 실제 판정이 일치해야 한다(자기모순 탐지).
+    $hRedesign = Get-KeyValueFromText $handoff "redesign_root_causes"
+    if ($hRedesign -match '^\d+$' -and [int]$hRedesign -ne $dCounts.RedesignRcIds.Count) {
+        $fail.Add("HANDOFF-SUMMARY 의 redesign_root_causes=$hRedesign 가 DESIGN 판정이 참조하는 " +
+                  "재설계 PA-RC 수($($dCounts.RedesignRcIds.Count))와 다르다.")
+    }
+
+    # COVERAGE 의 L축 판정 수와도 교차 검증한다.
+    $lComplete = Get-KeyValueFromText $cov "l_axis_design_verdict_complete"
+    if ($lComplete -notmatch '^\d+$') {
+        $fail.Add("COVERAGE 요약에 l_axis_design_verdict_complete 정수 값이 없다(L축 상태 구분 미적용).")
+    } elseif ([int]$lComplete -ne $dCounts.Total) {
+        $fail.Add("COVERAGE 의 l_axis_design_verdict_complete=$lComplete 가 실제 디자인 판정 블록 수($($dCounts.Total))와 다르다.")
+    }
+    $lDeep = Get-KeyValueFromText $cov "l_axis_deep_design_audited"
+    if ($lDeep -notmatch '^\d+$') {
+        $fail.Add("COVERAGE 요약에 l_axis_deep_design_audited 정수 값이 없다.")
+    }
+
+    # UI Root Cause 는 Target Design 을 반드시 들고 가야 한다. 판정이 참조하는 RC 와
+    # 스스로 visual_change_required 를 선언한 RC 가 대상이다.
+    foreach ($b in $blocks) {
+        $rcId = $b.Groups[1].Value
+        $body = $b.Groups[2].Value
+        $declaresVisual = -not [string]::IsNullOrWhiteSpace((Get-KeyValueFromText $body "visual_change_required"))
+        if (-not ($declaresVisual -or ($dCounts.RedesignRcIds -contains $rcId))) { continue }
+
+        foreach ($f in $script:RequiredUiRcFields) {
+            if ([string]::IsNullOrWhiteSpace((Get-KeyValueFromText $body $f))) {
+                $fail.Add("HANDOFF $rcId 는 UI Root Cause 인데 필수 필드 '$f' 가 없다. " +
+                          "Target Design 없이 넘기면 구현이 현재 UI 를 조금씩 손보는 Bottom-up 으로 돌아간다.")
+            }
+        }
+        $dv = (Get-KeyValueFromText $body "design_verdict").ToUpperInvariant()
+        if ($dv -and ($script:DesignVerdicts -notcontains $dv)) {
+            $fail.Add("HANDOFF $rcId 의 design_verdict='$dv' 가 KEEP/REFINE/REDESIGN/REBUILD 가 아니다.")
+        }
+        if ((Get-KeyValueFromText $body "visual_change_required").ToLowerInvariant() -eq "true") {
+            $bv = Get-KeyValueFromText $body "browser_verification"
+            if (-not (Test-VisualVerificationEvidence $bv)) {
+                $fail.Add("HANDOFF $rcId 는 visual_change_required=true 인데 browser_verification 이 " +
+                          "실제 화면 검증(뷰포트·테마·스크린샷·브라우저)을 가리키지 않는다: '$bv'. " +
+                          "lint/test/token 수정만으로 완료할 수 없는 작업이다.")
+            }
+        }
+    }
+
     foreach ($b in $blocks) {
         $rcId = $b.Groups[1].Value
         $body = $b.Groups[2].Value
@@ -891,6 +954,23 @@ checks · dead/orphan/mock/stub/TODO 후보 · 배포/설정/migration/health �
 Coverage 문서에서 각 (Surface x Audit Axis) 의 상태를 명시한다.
 UNSEEN / STATIC_ONLY / OBSERVED / EXECUTED / BLOCKED / NOT_APPLICABLE
 
+### L축(UI/UX)만은 상태 어휘가 다르다 — 일반 QA 와 디자인 감사를 분리한다
+L축에 OBSERVED/EXECUTED 를 쓰지 마라. 아래 여섯 상태를 쓴다.
+
+| 상태 | 인정 조건 |
+|---|---|
+| `VISUAL_OBSERVED` | 화면을 렌더해서 봤다. **일반 sweep 실행은 여기까지만 인정된다** |
+| `DEEP_DESIGN_AUDITED` | UI/UX Skill 로 구조·위계·IA·Navigation·Workflow·Visual Design 을 실제로 평가했다 |
+| `DESIGN_VERDICT_COMPLETE` | KEEP/REFINE/REDESIGN/REBUILD 판정이 근거와 함께 존재한다 |
+| `IMPLEMENTATION_REQUIRED` | 판정 결과 구현이 필요하고 PA-RC 로 내려갔다 |
+| `IMPLEMENTED` | 구현이 끝났다 |
+| `VISUALLY_VERIFIED` | 바뀐 화면을 실제 브라우저에서 다시 보고 개선을 확인했다 |
+
+**다음은 전부 QA 이지 UI/UX Deep Audit 이 아니다.** 이것들만 하고 L축을 완료로 올리지 마라:
+HTTP 4xx/5xx 검사 · console error 검사 · overflow 검사 · heading 검사 · landmark 검사 ·
+spinner 검사 · 접근성 자동검사 · Light/Dark 동작 확인 · 단순 Responsive pass/fail ·
+테스트 통과 · DOM semantic 수정.
+
 '봤다'와 '실제로 동작을 검증했다'를 혼동하지 마라. 정적 분석만 한 영역을 EXECUTED로 적지 마라.
 UNSEEN으로 남기는 칸에는 반드시 이유를 같이 적는다. 이유 없는 UNSEEN이 하나라도 남아 있으면
 Supervisor의 완료 Gate가 거부한다.
@@ -907,7 +987,13 @@ observed=<정수>
 executed=<정수>
 blocked=<정수>
 not_applicable=<정수>
+l_axis_visual_observed=<정수>
+l_axis_deep_design_audited=<정수>
+l_axis_design_verdict_complete=<정수>
 -->
+
+`l_axis_design_verdict_complete` 는 PRODUCT_AUDIT_DESIGN.md 의 판정 블록 수와 **정확히 같아야
+한다.** 다르면 완료 Gate 가 거부한다(자기모순 탐지).
 
 ======================================================================
 5. Audit Axis — 전부 덮어야 한다
@@ -959,16 +1045,113 @@ Z. Documentation Drift — docs가 현재 구현과 다른 곳, 이미 해결됐
 6. UI/UX 축 — 현재 UI 보존은 목표가 아니다 (사용자 지시)
 ======================================================================
 
-**현재 구현을 기준점으로만 사용하라. 지키는 것이 목표가 아니다.**
-2026년 기준의 현대적인 Enterprise SaaS / AI Product 수준에서 전체 UI/UX를 다시 평가하라.
+**현재 UI는 보존 대상이 아니다.** 이 Audit의 목적은 기존 UI를 다듬는 것이 아니라, 2026년 기준
+현대적인 Enterprise SaaS / AI Product로 제품 전체를 **다시 설계**할 근거를 만드는 것이다.
 
-IA, Layout, Navigation, Page Structure, Component, Typography, Color System, Density,
-Interaction, Motion, Empty State, Loading, Feedback, Form, Table, Dashboard, Chat UI가
-낡았거나 제품 완성도를 떨어뜨린다면 **기존 구현을 과감하게 재설계하는 안을 네가 결정하고
-PA-RC로 승격하라.** "후보를 제안한다"에서 멈추지 마라 — 그건 구현되지 않는다는 뜻이다.
+### 보존해야 하는 것 / 보존 의무가 없는 것
+| 반드시 보존 | 보존 의무 없음 |
+|---|---|
+| 제품 기능의 목적 · 사용자가 수행할 업무 · 데이터 의미 · API 계약 · DB 무결성 · RBAC/권한 경계 · 보안 정책 · 상태 전이 규칙 · 외부 Integration 계약 | App Shell · Header · Sidebar · Navigation · IA · Dashboard · Page Layout · 화면 분할 · 메뉴 구조/그룹 · Component/Card/Table/Form/Modal/Drawer/Detail/Tab 구조 · Typography · Color hierarchy · Spacing · Density · CTA 위치 · 정보 배치 · 작업 동선 · Interaction 방식 |
 
-단순 CSS 보정이나 spacing 조정 수준에 머물지 마라. 필요하면 Page 구조, Component 구조,
-Navigation 구조, Workflow 자체까지 다시 설계한다.
+기능 계약을 유지하면서 **UX Workflow 자체를 더 짧고 명확하게 바꾸는 것은 허용**된다.
+다음을 재설계를 막는 이유로 쓰지 마라: "기존 UI와 너무 달라진다" · "기존 구조를 최대한
+유지한다" · "변경 범위를 최소화한다" · "기존 코드가 있으니".
+
+### 먼저 Target Design을 만든다 (Bottom-up 금지)
+각 주요 Surface를 평가할 때 **반드시 이 질문을 먼저** 한다.
+
+> "현재 UI 구현을 하나도 보존할 필요가 없고, 이 기능과 업무 요구사항만 가지고 2026 Enterprise
+> SaaS / AI Product를 지금 새로 만든다면, 어떤 화면과 Workflow로 설계할 것인가?"
+
+그 Target Design을 먼저 적고, **그 다음에** 현재 UI와 비교해서 격차를 판정한다. 현재 UI를
+출발점으로 조금씩 고치는 Bottom-up 방식만 쓰지 마라 — 그러면 구조적 문제는 영원히 안 보인다.
+
+### 5개 Skill을 이 순서로 실제 적용한다
+호출했다고 문서에 적는 것으로 끝내지 마라. **각 Skill의 판단 기준을 설계에 실제로 적용**한다.
+
+1. `ui-ux-pro-max` — 제품 전체 UX / IA / Layout / Navigation / Dashboard / Design 방향 설계
+2. `redesign-existing-projects` — 현재 UI에 얽매이지 않고 화면 통합·분리·삭제·재배치·REBUILD 판단
+3. `impeccable` — 새 설계안을 **적대적으로 재검토**(시각 위계·정보 밀도·사용성·일관성·접근성·
+   Interaction·완성도 보정)
+4. `ux-writing` — 새 구조에 맞춰 버튼·설명·오류·Empty State·Action 문구 재설계
+5. `humanize-korean` — 최종 한국어 문구를 실제 제품다운 표현으로 정리
+
+### 모든 주요 Surface에 판정을 내린다 — KEEP / REFINE / REDESIGN / REBUILD
+| 판정 | 뜻 |
+|---|---|
+| `KEEP` | 현재 구조가 충분히 좋다. **실제 근거가 있어야 한다** |
+| `REFINE` | 기본 구조는 유지하되 의미 있는 UX 개선 필요 |
+| `REDESIGN` | 정보 구조·레이아웃·Workflow·Navigation의 상당한 변경 필요 |
+| `REBUILD` | 기존 UI 구조를 폐기하고 **기능 계약만 유지한 채 새 화면으로 다시 구현** |
+
+**REBUILD는 정상적인 선택지다.** "기존 코드가 있으니 REFINE"으로 자동 판단하지 마라.
+
+판정은 `docs/product-audit/PRODUCT_AUDIT_DESIGN.md`에 아래 형식으로 남긴다(기계가 검증한다).
+
+<!-- DESIGN-VERDICT-BEGIN dashboard -->
+surface: dashboard
+layout_family: dashboard
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, impeccable
+verdict: REBUILD
+current_state: 현재 화면 구조를 사실대로(섹션 수·카드 수·스크롤 길이 등 실측)
+user_problem: 사용자가 실제로 겪는 문제
+target_design: 처음부터 만든다면 어떤 화면인가 — 구체적으로(30자 이상)
+rationale: 왜 이 판정인가(30자 이상)
+browser_evidence: 실제로 본 근거(스크린샷 경로·뷰포트·테마 등, 30자 이상)
+rc_ids: PA-RC-0007
+<!-- DESIGN-VERDICT-END -->
+
+`deep_audited: true`는 **UI/UX Skill로 구조·위계·IA·Navigation·Workflow·Visual Design을 실제로
+평가했을 때만** 쓸 수 있다. 일반 browser sweep 실행으로는 세울 수 없다.
+`REDESIGN`/`REBUILD`는 **반드시 실제 PA-RC를 참조**해야 한다. `REFINE`은 PA-RC 참조 또는
+`completed_commit:` 중 하나가 있어야 한다. `KEEP`도 rationale과 browser_evidence가 필요하다.
+
+### 반드시 독립 판정을 가져야 하는 Surface (누락 시 완료 Gate 거부)
+app-shell · global-header · sidebar · navigation-ia · dashboard · home · admin-console ·
+list-screens · detail-screens · table-screens · forms · modal-drawer · settings ·
+ai-assistant-chat · empty-state · error-state · loading-state · key-workflows
+
+**Dashboard / Sidebar / Navigation / IA / App Shell은 "Surface 중 하나"가 아니다.** 제품 전체
+구조를 결정하는 핵심 영역이므로 별도로 깊게 판정한다.
+
+### Dashboard — 처음부터 다시 설계한다는 관점으로 평가
+현재 Dashboard 구조를 보존한다는 전제 없이 본다. 기존 Section 수나 Card 구조를 유지해야 할
+이유는 없다. 확인: 들어오자마자 가장 먼저 봐야 할 정보가 무엇인가 · 지금 조치해야 하는 것이
+즉시 보이는가 · 정상 정보와 이상 정보의 시각적 우선순위가 다른가 · 모든 숫자가 같은 무게로
+보이지 않는가 · 정보가 반복되지 않는가 · 상세 화면에 있어야 할 정보가 Dashboard를 차지하지
+않는가 · 화면이 지나치게 길지 않은가 · Card가 과도하지 않은가 · 단순 현황판인가 실제 의사결정
+화면인가 · Primary Action이 분명한가.
+
+### Sidebar / Navigation / IA — 현재 메뉴 이름과 그룹을 정답으로 보지 마라
+메뉴가 업무 기준인가 시스템 내부 구현 기준인가 · 비슷한 CRUD 화면이 여러 메뉴로 흩어져 있지
+않은가 · 메뉴가 지나치게 많은가 · 같은 Workflow가 여러 Group에 흩어져 있지 않은가 · Tab으로
+합치는 게 나은 화면은 없는가 · 메뉴를 없애고 다른 화면 안으로 넣는 게 나은 경우는 없는가 ·
+역할별 노출이 자연스러운가 · 메뉴 이름만 보고 목적을 이해할 수 있는가.
+**RBAC는 유지하되 메뉴 구조는 자유롭게 바꿀 수 있다.**
+
+### App Shell — 전면 재설계 가능
+Header 높이와 역할 · Sidebar 폭 · Compact/Collapse 방식 · Content 영역 활용률 ·
+FHD/QHD/4K 화면 균형 · Windows 125/150/175% Scaling · max-width · 좌우 여백 · 고정 영역 ·
+Scroll 구조 · AI Assistant와 본문 영역 관계 · Navigation과 Page Context 관계.
+
+### 시각 디자인도 실제로 바꿀 수 있다
+Typography hierarchy · Component visual language · Color hierarchy · Density · Spacing system ·
+Radius 체계 · Table visual structure · Card 사용 방식 · Button hierarchy · Navigation visual
+treatment · Dashboard visual language 전면 변경을 허용한다.
+단 기능 정확성·데이터 의미·접근성·RBAC는 훼손하지 않는다.
+
+### 자잘한 수정을 UI/UX 완료로 판단하지 마라
+Typography token 정리 · fontSize 정리 · Radius 정리 · Color token 정리 · Spacing 정리 ·
+h1/h2 수정 · aria 수정 · 접근성 수정 · Responsive bug 몇 건 · Error copy 수정 ·
+기존 Component CSS 조정 — 이것들도 필요하면 한다. 하지만 이는 **전면 재설계의 기반 작업이지
+최종 결과가 아니다.**
+
+### 과거 UI Finding은 현재 HEAD에서 다시 판정한다
+과거 Audit 문구를 그대로 복사하지 마라. Dashboard·Admin Sidebar/IA를 포함해 과거에 제기된 UI
+Finding은 **현재 HEAD 기준으로 다시 측정**한다. 지금도 문제가 있으면 새 Cycle의 정식 Root
+Cause로 만들어 Handoff로 넘긴다(사람 승인 없이). 충분히 좋아졌다면 왜 KEEP/REFINE인지
+브라우저와 구조적 근거로 증명한다. **판정 없이 과거 Finding이 사라지는 것은 허용하지 않는다.**
 
 ### 화면 구조가 바뀌는 것은 정상적인 UI/UX 개선이다 — 승인 대상이 아니다
 데이터 의미·API 의미·RBAC 경계 같은 **제품 계약을 유지하면서** 아래가 바뀌는 것은 이 Audit이
@@ -1113,6 +1296,8 @@ PRODUCT_AUDIT_FINDINGS.md에만 남긴다.
 3) docs/product-audit/PRODUCT_AUDIT_FEATURE_CONTRACTS.md — 근거 기반 Feature/Workflow Contract
 4) docs/product-audit/PRODUCT_AUDIT_FINDINGS.md    — 모든 Finding과 Root Cause mapping
 5) docs/product-audit/PRODUCT_AUDIT_COVERAGE.md    — Surface x Axis Coverage + Skill 절 + 요약 블록
+5-A) docs/product-audit/PRODUCT_AUDIT_DESIGN.md    — **Deep UI/UX Design Audit**. 주요 Surface별
+   KEEP/REFINE/REDESIGN/REBUILD 판정 블록(6절 형식). 필수 Surface 18종이 전부 있어야 한다
 6) docs/product-audit/PRODUCT_AUDIT_REPORT.md      — 최종 요약, Root Cause 분포, 미해결 blocker,
    구현 우선순위, 검증 한계
 7) docs/product-audit/PRODUCT_AUDIT_HANDOFF.md     — 구현 계약(아래 10절)
@@ -1184,6 +1369,31 @@ quality_rubric: 이 Root Cause를 판정할 때 **실제로 사용한 기준**. 
 evidence_refs: 원본 증거 위치(FINDINGS/CONTRACTS/COVERAGE의 절, 파일:줄)
 <!-- PA-RC-END -->
 
+### UI Root Cause는 위 필드에 더해 Target Design을 반드시 들고 간다
+DESIGN 판정이 REDESIGN/REBUILD로 참조하는 PA-RC, 또는 스스로 `visual_change_required`를 선언한
+PA-RC는 아래 필드를 **추가로** 가져야 한다(없으면 완료 Gate가 거부한다). Target Design 없이
+넘기면 구현이 현재 UI를 조금씩 손보는 Bottom-up으로 되돌아간다.
+
+    current_state: 현재 화면 구조를 사실대로(실측)
+    user_problem: 사용자가 실제로 겪는 문제
+    design_verdict: KEEP|REFINE|REDESIGN|REBUILD
+    target_state: 바뀐 뒤 사용자가 보게 될 상태
+    target_design: 구체적인 목표 설계(레이아웃·정보 위계·동선·컴포넌트 구성)
+    visual_change_required: true|false
+    target_visual_delta: 화면이 눈으로 어떻게 달라지는가
+    affected_surfaces: 영향 Surface 목록
+    affected_components: 영향 Component 목록
+    workflow_change: 업무 동선이 어떻게 바뀌는가(없으면 "없음 — <이유>")
+    navigation_impact: Navigation/IA 영향
+    data_impact: 데이터 의미 영향(계약은 유지돼야 한다)
+    api_impact: API 계약 영향(계약은 유지돼야 한다)
+    rbac_impact: RBAC 영향(경계는 유지돼야 한다)
+    browser_verification: 어떤 뷰포트·테마에서 무엇을 확인해야 완료인가
+
+`visual_change_required: true` 인 작업은 **lint/test/token 수정만으로 완료할 수 없다.**
+실제 브라우저 화면이 달라져야 하고, browser_verification 에는 뷰포트·테마·스크린샷 같은
+실제 화면 검증 어휘가 들어가야 한다(기계가 확인한다).
+
 모든 필드는 **비어 있으면 안 된다**. 해당 없음이면 "해당 없음 — <이유>" 라고 적는다.
 confidence는 Confirmed 또는 Strong만 허용된다(그 외는 Handoff로 승격하지 않는다).
 PA-RC ID는 안정적이어야 한다 — 한 번 부여한 번호를 재사용하거나 바꾸지 마라.
@@ -1237,6 +1447,21 @@ F. Blind Re-Audit 수렴 — 서로 다른 진입점/Workflow로 처음 보는 A
    새 Medium/Low가 나오면 무시하지 말고 기록/병합한다.
 G. Handoff — REPORT가 있고, Confirmed/Strong actionable Root Cause가 BACKLOG에 중복 없이
    반영됐으며, HANDOFF의 PA-RC 블록이 완전하고, QA gap이 반영됐고, marker가 정확하다.
+H. **Deep UI/UX Design Audit** — 아래를 전부 만족해야 한다(기계가 검증한다).
+   - 필수 Surface 18종(app-shell·global-header·sidebar·navigation-ia·dashboard·home·
+     admin-console·list-screens·detail-screens·table-screens·forms·modal-drawer·settings·
+     ai-assistant-chat·empty-state·error-state·loading-state·key-workflows) 전부 판정 완료
+   - 모든 판정에 `deep_audited: true` + UI/UX Skill 이름 + rationale + browser_evidence
+   - KEEP에도 근거가 있다 / REFINE에는 PA-RC 또는 completed_commit이 있다
+   - REDESIGN·REBUILD는 **전부 HANDOFF의 실제 PA-RC로 내려갔다**
+   - 그 PA-RC들은 Target Design 필드 일습을 갖췄다
+   - `visual_change_required=true` 작업은 browser_verification이 실제 화면 검증을 가리킨다
+   - 일반 sweep만으로 L축을 완료 처리한 Surface 0
+   - 사람 승인으로 보류된 항목 0
+
+   `redesign_root_causes=0` 자체는 실패가 아니다. 다만 0이라면 **주요 Surface 전체가 왜
+   KEEP/REFINE으로 충분한지** UI/UX Skill 판단과 실제 브라우저 증거로 각 블록에서 입증돼야
+   한다. "큰 UI 문제를 못 찾았다"는 이유만으로 0을 쓰지 마라 — 그건 안 봤다는 뜻일 가능성이 높다.
 
 모든 Gate를 만족하면 **최종 문서를 먼저 commit한 뒤** var/product-audit/AUDIT_COMPLETE 를 만든다.
 내용은 아래 키를 정확히 포함하고(기계가 파싱한다), 그 아래에 한국어 요약을 덧붙인다.

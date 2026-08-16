@@ -2674,3 +2674,54 @@ messages.conversation_id, messages.message_id`로 재현 → 복구 → 재확�
 `test_chat_api.py`·`test_chat_runner_context_delete.py`) 전체 green.
 
 상세: `docs/BACKLOG.md` AI-71.
+
+---
+
+## D-75 (2026-08-13) — UI/UX를 "다듬기"에서 "다시 설계"로: Deep Design Audit Gate 도입
+
+사용자 지시: 기능·데이터·API·RBAC·보안·업무 목적은 보존하되 **UI는 보존 대상이 아니다.**
+필요하면 기존 구현을 폐기하고 2026년 기준 Enterprise SaaS / AI Product로 다시 설계하고
+실제 구현까지 간다. D-73/D-74가 만든 폐쇄 루프 위에 **UI 재설계가 실제로 구현까지 내려가게
+하는 기계 Gate**를 얹었다.
+
+### 고친 구조적 결함
+
+| # | 결함 | 고친 방법 |
+|---|---|---|
+| 1 | **일반 browser QA를 돌리면 L축을 완료 처리할 수 있었다** — 4xx·console·overflow·heading·a11y 자동검사·Light/Dark 동작 확인은 QA이지 디자인 감사가 아니다 | L축 상태 어휘를 6단계로 분리(`VISUAL_OBSERVED`→`DEEP_DESIGN_AUDITED`→`DESIGN_VERDICT_COMPLETE`→`IMPLEMENTATION_REQUIRED`→`IMPLEMENTED`→`VISUALLY_VERIFIED`). sweep 실행은 `VISUAL_OBSERVED`까지만. 판정 블록의 `deep_audited: true`는 UI/UX Skill을 실제 적용해야만 세울 수 있고, Gate가 skills_applied까지 확인한다 |
+| 2 | **주요 화면에 "판정"이라는 개념 자체가 없었다** — 문제를 못 찾으면 그냥 지나갔다 | `PRODUCT_AUDIT_DESIGN.md` 신설. 필수 Surface 18종에 `KEEP/REFINE/REDESIGN/REBUILD` 판정을 강제하고, 누락되면 `AUDIT_COMPLETE`를 거부한다. Dashboard·Sidebar·Navigation·IA·App Shell은 "Surface 중 하나"가 아니라 별도 핵심 영역으로 다룬다 |
+| 3 | **판정만 하고 구현으로 안 내려가는 경로**가 열려 있었다(RD-5/RD-6가 죽던 자리) | `REDESIGN`/`REBUILD`는 **반드시 HANDOFF의 실존 PA-RC를 참조**해야 한다. 참조가 없거나 허수 ID면 Gate 거부. `REFINE`은 PA-RC 또는 `completed_commit` 필수. `KEEP`도 rationale·browser_evidence(각 30자↑) 필수 |
+| 4 | **Bottom-up 패치로 되돌아갔다** — Target Design이 계약에 없었다 | UI PA-RC에 `current_state`·`user_problem`·`design_verdict`·`target_state`·`target_design`·`visual_change_required`·`target_visual_delta`·`affected_surfaces`·`affected_components`·`workflow_change`·`navigation_impact`·`data_impact`·`api_impact`·`rbac_impact`·`browser_verification` 15종을 필수화. 프롬프트는 "현재 UI를 하나도 보존할 필요가 없다면 어떻게 만들 것인가"를 **먼저** 쓰게 한다 |
+| 5 | **token/lint 정리로 UI 재설계를 완료 처리**할 수 있었다 | `visual_change_required=true`면 `browser_verification`이 실제 화면 검증 어휘(뷰포트·테마·스크린샷·브라우저)를 담아야 한다. 구현 쪽 완료 Gate는 `IMPLEMENTATION_CONSUMED`의 `visually_verified_rcs ≥ visual_change_rcs`를 대조한다 |
+| 6 | 요약과 실제가 어긋나도 통과 | `redesign_root_causes` ↔ 판정이 참조하는 PA-RC 수, `l_axis_design_verdict_complete` ↔ 판정 블록 수를 교차 검증 |
+
+### 프롬프트 변경
+
+**Audit §6 전면 재작성** — 보존/비보존 경계표 · Target Design 우선(Bottom-up 금지) ·
+5개 Skill을 순서대로 실제 적용(ui-ux-pro-max → redesign-existing-projects → impeccable →
+ux-writing → humanize-korean) · 판정 어휘와 블록 형식 · 필수 Surface 18종 ·
+Dashboard/Sidebar·Navigation·IA/App Shell 전용 평가 항목 · 시각 디자인 변경 허용 범위 ·
+자잘한 수정을 완료로 보지 않기 · **과거 UI Finding은 현재 HEAD에서 다시 판정**(판정 없이
+사라지는 것 금지). §4에 L축 상태 어휘와 "이것들은 QA다" 목록 추가. §12 완료 Gate에 H항 추가.
+
+**Implementation** — 보존/비보존 경계표 · `PRODUCT_AUDIT_DESIGN.md`의 판정과 `target_design`을
+읽고 구현 · REBUILD는 기존 Component/Page를 폐기하고 새로 만드는 것이 정상 · Handoff보다 나은
+설계를 찾으면 스스로 판단 · `visual_change_required=true`는 화면이 실제로 달라져야 완료 ·
+5개 Skill을 구현에서도 같은 순서로 적용 · `IMPLEMENTATION_CONSUMED`에 시각 검증 수 기록.
+
+`run_all.ps1`의 Audit → Implement → Re-Audit 폐쇄 루프와 Human Gate 제거 구조(D-74)는 그대로다.
+
+### 개별 항목 하드코딩 금지
+
+RD-5/RD-6를 예외 처리하지 않았다. 부모 규칙(판정 강제 + REDESIGN/REBUILD→PA-RC 강제 +
+Target Design 필수 + 시각 검증 대조)을 고쳤으므로, 앞으로 어떤 RD-*/VIS-*/IA-*/UX-*가
+발견돼도 같은 경로로 구현까지 내려간다.
+
+### 검증
+
+contract test **73건**이 Windows PowerShell 5.1 / PowerShell 7 양쪽 통과. 신규:
+T70(일반 sweep으로 판정 불가) · T71(필수 Surface 누락 거부) · T72(REDESIGN/REBUILD가 PA-RC로
+안 내려가면 실패 + 허수 참조 탐지) · T73(UI RC의 Target Design 필드 강제) ·
+T74(visual_change_required에 lint/test만 적으면 실패, 판정 함수 양방향) ·
+T75(구현 쪽 시각 검증 부족 시 PROJECT_COMPLETE 거부) · T76(두 프롬프트의 재설계 권한·판정
+어휘·QA 분리·과거 Finding 재판정 계약).

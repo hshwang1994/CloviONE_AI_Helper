@@ -1268,6 +1268,171 @@ function Write-TimingRecord {
 
 # ── TEST SERVER 접근 상태(무인 실행 가능 여부를 시작 시 한 번 확인) ───────────
 
+# ── Deep UI/UX Design Audit ───────────────────────────────────────────────────
+# 일반 Browser QA(4xx·console·overflow·heading·landmark·a11y 자동검사·Light/Dark 동작)를
+# 돌린 것만으로 L축을 완료 처리하던 구멍을 막는다. 그것들은 **QA**이지 디자인 감사가 아니다.
+# 디자인 감사는 "이 화면을 지금 처음부터 만든다면 어떻게 만들 것인가"(Target Design)를 먼저
+# 세우고 현재와 비교해 **판정**을 내리는 일이다.
+
+# 제품 전체 구조를 결정하는 영역이라 각각 **독립 판정**을 반드시 가져야 하는 Surface.
+# Dashboard·Sidebar·Navigation·IA·App Shell 을 "Surface 중 하나"로 취급하지 않는 것이 요점이다.
+$script:RequiredDesignSurfaces = @(
+    "app-shell", "global-header", "sidebar", "navigation-ia", "dashboard", "home",
+    "admin-console", "list-screens", "detail-screens", "table-screens", "forms",
+    "modal-drawer", "settings", "ai-assistant-chat", "empty-state", "error-state",
+    "loading-state", "key-workflows"
+)
+$script:DesignVerdicts = @("KEEP", "REFINE", "REDESIGN", "REBUILD")
+# 모든 판정 블록이 반드시 담아야 하는 필드. rationale/browser_evidence 는 한 단어 placeholder 를
+# 막기 위해 최소 길이도 본다(아래 Test-DesignVerdictBlocks).
+$script:RequiredDesignFields = @(
+    "surface", "layout_family", "deep_audited", "skills_applied", "verdict",
+    "current_state", "user_problem", "target_design", "rationale", "browser_evidence", "rc_ids"
+)
+# UI Root Cause 는 일반 RC 보다 많은 정보를 요구한다 — Target Design 없이 "고쳐라"만 넘기면
+# 구현이 다시 현재 UI 를 조금씩 손보는 Bottom-up 으로 돌아간다.
+$script:RequiredUiRcFields = @(
+    "current_state", "user_problem", "design_verdict", "target_state", "target_design",
+    "visual_change_required", "target_visual_delta", "affected_surfaces", "affected_components",
+    "workflow_change", "navigation_impact", "data_impact", "api_impact", "rbac_impact",
+    "browser_verification"
+)
+
+function Get-DesignVerdictBlocks {
+    <#  PRODUCT_AUDIT_DESIGN.md 의 판정 블록을 파싱한다.
+
+        <!-- DESIGN-VERDICT-BEGIN app-shell -->
+        surface: app-shell
+        ...
+        <!-- DESIGN-VERDICT-END -->
+
+        PA-RC 블록과 같은 형식을 쓴다 — 파서와 Gate 가 같은 방식으로 동작해야 한 쪽만 느슨해지는
+        사고가 안 난다. #>
+    param([string]$Text)
+    $out = New-Object System.Collections.Generic.List[object]
+    if ([string]::IsNullOrWhiteSpace($Text)) { return @($out.ToArray()) }
+    $m = [regex]::Matches($Text, '(?s)<!--\s*DESIGN-VERDICT-BEGIN\s+([a-z0-9\-]+)\s*-->(.*?)<!--\s*DESIGN-VERDICT-END\s*-->')
+    foreach ($b in $m) {
+        $out.Add([pscustomobject]@{
+            Surface = $b.Groups[1].Value.Trim().ToLowerInvariant()
+            Body    = $b.Groups[2].Value
+        })
+    }
+    return @($out.ToArray())
+}
+
+function Test-DesignVerdictBlocks {
+    <#  디자인 판정 문서를 기계 검증한다. 돌려주는 값은 실패 사유 문자열 배열이다(빈 배열 = 통과).
+
+        검증하는 것:
+          1) 필수 Surface 18종이 전부 판정을 가졌는가 (누락 = 그 화면은 아무도 안 본 것이다)
+          2) verdict 가 KEEP/REFINE/REDESIGN/REBUILD 중 하나인가
+          3) deep_audited=true 인가 — **일반 sweep 으로는 이 값을 세울 수 없다**(프롬프트 계약)
+          4) UI/UX Skill 을 실제로 적용했다고 이름으로 적었는가
+          5) KEEP 이라도 rationale 과 브라우저 근거가 실제로 있는가(한 단어 금지)
+          6) REDESIGN/REBUILD 는 **반드시 존재하는 PA-RC 를 참조**하는가 — 판정만 하고 구현
+             계약으로 안 내려가는 것이 이 프로젝트에서 실제로 발생한 실패다(RD-5/RD-6).
+             REFINE 은 PA-RC 참조 또는 completed_commit(이미 처리됨) 중 하나가 있어야 한다. #>
+    param([string]$DesignText, [string[]]$HandoffRcIds)
+
+    $fail = New-Object System.Collections.Generic.List[string]
+    $blocks = @(Get-DesignVerdictBlocks $DesignText)
+    $seen = @{}
+    if ($null -eq $HandoffRcIds) { $HandoffRcIds = @() }
+
+    foreach ($b in $blocks) {
+        $s = $b.Surface
+        if ($seen.ContainsKey($s)) { $fail.Add("DESIGN: surface '$s' 판정 블록이 중복이다."); continue }
+        $seen[$s] = $true
+
+        foreach ($f in $script:RequiredDesignFields) {
+            if ([string]::IsNullOrWhiteSpace((Get-KeyValueFromText $b.Body $f))) {
+                $fail.Add("DESIGN: '$s' 블록에 필수 필드 '$f' 가 없거나 비어 있다.")
+            }
+        }
+        $verdict = (Get-KeyValueFromText $b.Body "verdict").ToUpperInvariant()
+        if ($script:DesignVerdicts -notcontains $verdict) {
+            $fail.Add("DESIGN: '$s' 의 verdict='$verdict' 가 KEEP/REFINE/REDESIGN/REBUILD 가 아니다.")
+            continue
+        }
+        if ((Get-KeyValueFromText $b.Body "deep_audited").ToLowerInvariant() -ne "true") {
+            $fail.Add("DESIGN: '$s' 는 deep_audited=true 가 아니다. 일반 browser sweep(4xx·console·" +
+                      "overflow·heading·a11y 자동검사)만으로는 디자인 판정을 세울 수 없다.")
+        }
+        $skills = Get-KeyValueFromText $b.Body "skills_applied"
+        if ($skills -notmatch '(?i)(ui-ux-pro-max|redesign-existing-projects|impeccable)') {
+            $fail.Add("DESIGN: '$s' 의 skills_applied 에 UI/UX 판단 Skill(ui-ux-pro-max / " +
+                      "redesign-existing-projects / impeccable)이 하나도 없다: '$skills'")
+        }
+        foreach ($f in @("rationale", "browser_evidence", "target_design")) {
+            $v = Get-KeyValueFromText $b.Body $f
+            if ($v.Length -gt 0 -and $v.Length -lt 30) {
+                $fail.Add("DESIGN: '$s' 의 $f 가 너무 짧다($($v.Length)자) — 근거로 인정하지 않는다: '$v'")
+            }
+        }
+
+        $rcRaw = Get-KeyValueFromText $b.Body "rc_ids"
+        $rcs = @([regex]::Matches($rcRaw, 'PA-RC-\d{4}') | ForEach-Object { $_.Value })
+        if ($verdict -eq "REDESIGN" -or $verdict -eq "REBUILD") {
+            if ($rcs.Count -eq 0) {
+                $fail.Add("DESIGN: '$s' 가 $verdict 인데 rc_ids 에 PA-RC 참조가 없다. " +
+                          "판정만 하고 구현 계약으로 내려보내지 않으면 그 재설계는 영원히 구현되지 않는다.")
+            }
+            foreach ($r in $rcs) {
+                if ($HandoffRcIds -notcontains $r) {
+                    $fail.Add("DESIGN: '$s'($verdict)가 참조하는 $r 가 HANDOFF 에 없다.")
+                }
+            }
+        } elseif ($verdict -eq "REFINE") {
+            $done = Get-KeyValueFromText $b.Body "completed_commit"
+            if ($rcs.Count -eq 0 -and [string]::IsNullOrWhiteSpace($done)) {
+                $fail.Add("DESIGN: '$s' 가 REFINE 인데 rc_ids(PA-RC 참조)도 completed_commit 도 없다. " +
+                          "REFINE 은 '실행 결과' 또는 '명시적 Root Cause' 중 하나를 가져야 한다.")
+            }
+            foreach ($r in $rcs) {
+                if ($HandoffRcIds -notcontains $r) { $fail.Add("DESIGN: '$s'(REFINE)가 참조하는 $r 가 HANDOFF 에 없다.") }
+            }
+        }
+    }
+
+    foreach ($req in $script:RequiredDesignSurfaces) {
+        if (-not $seen.ContainsKey($req)) {
+            $fail.Add("DESIGN: 필수 Surface '$req' 의 디자인 판정이 없다. " +
+                      "App Shell·Dashboard·Sidebar·Navigation/IA 는 제품 전체 구조를 결정하므로 " +
+                      "반드시 독립 판정을 가져야 한다.")
+        }
+    }
+    return @($fail.ToArray())
+}
+
+function Get-DesignVerdictCounts {
+    <#  판정 분포. Gate 메시지와 COVERAGE 자기모순 검사에 쓴다. #>
+    param([string]$DesignText)
+    $c = [ordered]@{ Total = 0; KEEP = 0; REFINE = 0; REDESIGN = 0; REBUILD = 0; RedesignRcIds = @() }
+    $ids = New-Object System.Collections.Generic.List[string]
+    foreach ($b in @(Get-DesignVerdictBlocks $DesignText)) {
+        $c.Total += 1
+        $v = (Get-KeyValueFromText $b.Body "verdict").ToUpperInvariant()
+        if ($c.Contains($v)) { $c[$v] = $c[$v] + 1 }
+        if ($v -eq "REDESIGN" -or $v -eq "REBUILD") {
+            foreach ($m in [regex]::Matches((Get-KeyValueFromText $b.Body "rc_ids"), 'PA-RC-\d{4}')) {
+                if (-not $ids.Contains($m.Value)) { $ids.Add($m.Value) }
+            }
+        }
+    }
+    $c.RedesignRcIds = @($ids.ToArray())
+    return [pscustomobject]$c
+}
+
+function Test-VisualVerificationEvidence {
+    <#  `visual_change_required: true` 인 작업은 lint/test/token 수정으로 끝낼 수 없다.
+        browser_verification 이 실제 화면 검증을 가리키는지 최소한으로 확인한다.
+        (뷰포트·테마·스크린샷 같은 화면 어휘가 하나도 없으면 그건 화면을 안 본 것이다) #>
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    return ($Text -match '(?i)(스크린샷|screenshot|브라우저|browser|FHD|QHD|4K|1920|2560|3840|다크|dark|라이트|light|viewport|뷰포트|ui_qa)')
+}
+
 function Get-HumanGateLanguage {
     <#  구현 계약 문서(HANDOFF)에서 **"사람에게 넘긴다"는 결론**을 찾아낸다.
 

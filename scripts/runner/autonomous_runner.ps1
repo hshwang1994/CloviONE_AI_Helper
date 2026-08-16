@@ -239,6 +239,32 @@ function Test-ProjectCompletionGate {
         }
     }
 
+    # ── UI 재설계 시각 검증 Gate (D-75) ──────────────────────────────────────
+    # `visual_change_required=true` 인 Root Cause 는 lint/test/token 정리로 끝낼 수 없다.
+    # 실제 화면이 달라졌는지 확인한 수를 IMPLEMENTATION_CONSUMED 에 남기게 하고 대조한다.
+    # 이게 없으면 "UI 전면 재설계"가 CSS 몇 줄로 완료 처리되는 경로가 그대로 남는다.
+    $handoffText = Read-TextOrEmpty $HandoffFile
+    if (-not [string]::IsNullOrWhiteSpace($handoffText)) {
+        $visualCount = ([regex]::Matches($handoffText, '(?im)^\s*visual_change_required\s*[:=]\s*true\s*$')).Count
+        if ($visualCount -gt 0) {
+            $consumed = Read-TextOrEmpty $ImplementationConsumedFile
+            $declared = Get-KeyValueFromText $consumed "visual_change_rcs"
+            $verified = Get-KeyValueFromText $consumed "visually_verified_rcs"
+            if ([string]::IsNullOrWhiteSpace($consumed)) {
+                $fail.Add("Handoff 에 visual_change_required=true 인 Root Cause 가 $visualCount 건 있는데 " +
+                          "IMPLEMENTATION_CONSUMED 가 없다. UI 재설계는 화면 검증 근거 없이 완료할 수 없다.")
+            } elseif ($declared -notmatch '^\d+$' -or $verified -notmatch '^\d+$') {
+                $fail.Add("IMPLEMENTATION_CONSUMED 에 visual_change_rcs / visually_verified_rcs 정수 값이 없다. " +
+                          "Handoff 의 visual_change_required=true 는 $visualCount 건이다.")
+            } elseif ([int]$verified -lt [int]$declared) {
+                $fail.Add("시각 검증이 부족하다: visual_change_rcs=$declared 인데 visually_verified_rcs=$verified. " +
+                          "UI 가 실제로 달라졌는지 브라우저로 확인하지 않은 Root Cause 가 남아 있다.")
+            } elseif ([int]$declared -lt $visualCount) {
+                $fail.Add("visual_change_rcs=$declared 가 Handoff 의 실제 visual_change_required=true 수($visualCount)보다 적다.")
+            }
+        }
+    }
+
     return [pscustomobject]@{ Passed = ($fail.Count -eq 0); Failures = @($fail.ToArray()) }
 }
 
@@ -502,6 +528,10 @@ Backlog 한 줄만 보고 구현하지 마라.
       consumed_at=<ISO8601>
       final_commit=<최종 구현 commit SHA>
       verification=<무엇을 어떻게 검증했는지 한 줄 요약>
+      visual_change_rcs=<Handoff에서 visual_change_required=true 인 PA-RC 수>
+      visually_verified_rcs=<그중 실제 브라우저로 화면 변화를 확인한 수 — 앞의 값과 같아야 한다>
+  뒤의 두 값이 다르면 Supervisor 의 완료 Gate 가 거부한다. UI 재설계를 "구현했다"고만 하고
+  화면을 확인하지 않는 경로를 막기 위한 것이다.
   REQUIRED가 있는데 Handoff가 없거나 비어 있으면 marker를 지우지 마라 — Audit 계약 오류로
   기록하고 독립적으로 가능한 다른 작업을 계속하라.
 
@@ -625,10 +655,43 @@ dev server/브라우저가 이미 떠 있고 다음 작업에도 쓸 만하면 �
 - **실제로 적용한 Skill의 이름을 커밋 메시지나 WORK_STATE 체크포인트에 한 줄로 남겨라.**
   쓰지 않은 Skill을 "적용했다"고 적으면 그것은 조작이다. 절대 하지 마라.
 
-### UI/UX 재설계 권한 — 화면 구조를 바꾸는 것은 정상 작업이다
+### UI/UX 재설계 권한 — 기능은 보존한다, UI는 보존하지 않는다
 현재 UI를 보존하는 것이 목표가 **아니다.** 2026년 기준 Enterprise SaaS/AI Product 수준을 목표로,
-데이터 의미·API 의미·RBAC 경계 같은 **제품 계약을 유지하면서** 아래를 네가 직접 결정하고 구현한다.
-승인 대상으로 분류하지 마라.
+아래 **제품 계약만 유지하면서** 화면은 필요하면 폐기하고 새로 만든다.
+
+| 반드시 보존 | 보존 의무 없음 |
+|---|---|
+| 제품 기능의 목적 · 사용자가 수행할 업무 · 데이터 의미 · API 계약 · DB 무결성 · RBAC/권한 경계 · 보안 정책 · 상태 전이 규칙 · 외부 Integration 계약 | App Shell · Header · Sidebar · Navigation · IA · Dashboard · Page Layout · 메뉴 구조/그룹 · Component/Card/Table/Form/Modal/Drawer/Detail/Tab 구조 · Typography · Color hierarchy · Spacing · Density · CTA 위치 · 정보 배치 · 작업 동선 · Interaction 방식 |
+
+**"기존 UI와 너무 달라진다" · "기존 구조를 최대한 유지한다" · "변경 범위를 최소화한다" ·
+"기존 코드가 있으니" 를 재설계를 막는 이유로 쓰지 마라.**
+
+### REDESIGN / REBUILD를 실제로 수행한다
+`docs/product-audit/PRODUCT_AUDIT_DESIGN.md` 에 Surface별
+KEEP/REFINE/REDESIGN/REBUILD 판정과 `target_design` 이 들어 있다. 구현하기 전에 **네가 맡은
+Root Cause가 참조된 판정 블록을 읽어라.**
+
+- `REBUILD` = 기존 UI 구조를 **폐기하고** 기능 계약만 유지한 채 새 화면으로 다시 구현한다.
+  기존 Component/Page를 지우고 새로 만들어도 된다. 그게 그 판정의 뜻이다.
+- `REDESIGN` = 정보 구조·레이아웃·Workflow·Navigation을 상당히 바꾼다. 색/여백만 손대는 게 아니다.
+- PA-RC의 `target_design`·`target_state`·`target_visual_delta` 가 **구현 목표**다. 현재 UI를
+  출발점으로 조금씩 고치는 Bottom-up으로 되돌아가지 마라.
+- Handoff의 Target Design보다 더 나은 설계를 찾으면 네가 판단해서 그걸로 구현하고 근거를
+  DECISIONS.md에 사후 기록한다(승인받지 않는다).
+
+### `visual_change_required: true` 는 화면이 실제로 달라져야 완료다
+다음만 하고 그 Root Cause를 완료로 표시하지 마라:
+Typography/fontSize/Radius/Color/Spacing token 정리 · h1/h2 수정 · aria 수정 · 접근성 수정 ·
+Responsive bug 몇 건 · Error copy 수정 · 기존 Component CSS 조정 · lint/test green.
+이것들은 **기반 작업이지 결과가 아니다.** 실제 브라우저 화면이 `target_visual_delta` 대로
+달라졌는지 확인하고, 그 근거(뷰포트·테마·스크린샷 경로)를 남겨야 완료다.
+
+### Audit이 쓴 5개 Skill을 구현에서도 같은 순서로 쓴다
+`ui-ux-pro-max`(구조·IA·Layout 설계) → `redesign-existing-projects`(통합·분리·삭제·REBUILD 판단)
+→ `impeccable`(적대적 재검토) → `ux-writing`(문구 재설계) → `humanize-korean`(한국어 정리).
+각 PA-RC의 `quality_rubric` 이 Audit이 쓴 기준이다 — 그것을 다시 읽고 같은 자로 만들어라.
+
+### 아래는 승인 대상이 아니라 정상 구현 범위다
 
 Information Architecture 재편 · Sidebar 구조 변경 · Navigation 재구성 · Dashboard 재설계 ·
 Page 구조 변경 · Component 구조 변경 · 여러 화면 통합 또는 분리 · Tab 구조 도입 ·

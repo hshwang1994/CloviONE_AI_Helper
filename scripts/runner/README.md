@@ -294,6 +294,71 @@ WARM은 CLAUDE.md를 다시 읽지 않고 긴 세션은 context가 압축된다.
 사라지므로, 항상 전송되는 core 프롬프트에 다음을 인라인한다: CLAUDE.md §3 불변 규칙 10개 요약,
 배포 흐름 순서(§9), Responsive/Light-Dark/Accessibility 축. 애매하면 CLAUDE.md 원문이 정본이다.
 
+## Deep UI/UX Design Audit (D-75)
+
+**기능은 보존한다. UI는 보존하지 않는다.** 목표는 기존 UI를 다듬는 것이 아니라, 필요하면 폐기하고
+2026년 기준 Enterprise SaaS / AI Product로 다시 설계·구현하는 것이다.
+
+| 반드시 보존 | 보존 의무 없음 |
+|---|---|
+| 기능 목적 · 업무 · 데이터 의미 · API 계약 · DB 무결성 · RBAC · 보안 정책 · 상태 전이 · 외부 Integration | App Shell · Header · Sidebar · Navigation · IA · Dashboard · Layout · 메뉴 구조 · Component/Card/Table/Form/Modal/Detail/Tab 구조 · Typography · Color · Spacing · Density · CTA 위치 · 정보 배치 · 동선 · Interaction |
+
+### QA와 디자인 감사를 분리한다
+
+일반 browser sweep(4xx·console·overflow·heading·landmark·a11y 자동검사·Light/Dark 동작·
+Responsive pass/fail)은 **QA**다. 그것만으로 L축을 완료 처리할 수 없다. L축 상태 어휘:
+`VISUAL_OBSERVED` → `DEEP_DESIGN_AUDITED` → `DESIGN_VERDICT_COMPLETE` → `IMPLEMENTATION_REQUIRED`
+→ `IMPLEMENTED` → `VISUALLY_VERIFIED`. **sweep 실행은 `VISUAL_OBSERVED`까지만 인정된다.**
+
+### 판정 문서 `docs/product-audit/PRODUCT_AUDIT_DESIGN.md`
+
+주요 Surface마다 `KEEP` / `REFINE` / `REDESIGN` / `REBUILD` 판정을 남긴다. **REBUILD는 정상
+선택지다** — "기존 코드가 있으니 REFINE"으로 자동 판단하지 않는다.
+
+```
+<!-- DESIGN-VERDICT-BEGIN dashboard -->
+surface: dashboard
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, impeccable
+verdict: REBUILD
+current_state: … / user_problem: … / target_design: … / rationale: … / browser_evidence: …
+rc_ids: PA-RC-0007
+<!-- DESIGN-VERDICT-END -->
+```
+
+필수 Surface 18종(누락 시 `AUDIT_COMPLETE` 거부): `app-shell` `global-header` `sidebar`
+`navigation-ia` `dashboard` `home` `admin-console` `list-screens` `detail-screens`
+`table-screens` `forms` `modal-drawer` `settings` `ai-assistant-chat` `empty-state`
+`error-state` `loading-state` `key-workflows`.
+Dashboard·Sidebar·Navigation·IA·App Shell은 "Surface 중 하나"가 아니라 제품 전체 구조를
+결정하는 핵심 영역으로 별도 판정한다.
+
+### 기계 Gate가 막는 것
+
+| 검사 | 막는 실패 |
+|---|---|
+| 필수 Surface 18종 판정 존재 | 큰 화면을 아무도 안 보고 지나가는 것 |
+| `deep_audited: true` + UI/UX Skill 이름 | **일반 sweep으로 L축을 완료 처리하는 것** |
+| KEEP도 rationale·browser_evidence 필수(30자↑) | 근거 없는 "지금도 괜찮다" |
+| REDESIGN/REBUILD → 실제 PA-RC 참조 필수 | **판정만 하고 구현으로 안 내려가는 것**(RD-5/RD-6가 죽던 자리) |
+| UI PA-RC의 Target Design 필드 15종 | Target 없이 넘겨 구현이 Bottom-up으로 되돌아가는 것 |
+| `visual_change_required=true` → 화면 검증 어휘 필수 | lint/test/token 정리로 UI 재설계를 완료 처리하는 것 |
+| `redesign_root_causes` ↔ 판정 수 교차 검증 | 요약과 실제의 자기모순 |
+| `l_axis_design_verdict_complete` ↔ 판정 블록 수 | Coverage 요약 조작 |
+| 구현 Gate: `visually_verified_rcs` ≥ `visual_change_rcs` | 화면을 안 보고 "구현 완료" 선언 |
+
+`redesign_root_causes=0` 자체는 실패가 아니다. 다만 0이면 **모든 Surface가 왜 KEEP/REFINE으로
+충분한지** 각 블록의 Skill 판단과 브라우저 증거로 입증돼 있어야 한다.
+
+### 흐름
+
+```
+Deep UI Audit → Design Verdict → Target Design → PA-RC(Handoff)
+→ Autonomous Implementation(REDESIGN/REBUILD 수행) → Test → Browser Verification
+→ 재감사 → 부족하면 다시 Redesign
+```
+이 구간 어디에도 사람 승인 단계가 없다(D-74의 폐쇄 루프를 그대로 쓴다).
+
 ## 진행 상황 보기 / 성능 측정
 
 Worker의 stdout은 여전히 `var/runner/logs/<타임스탬프>.log`로 redirect된다(안정성 유지). 대신

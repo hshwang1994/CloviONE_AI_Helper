@@ -258,8 +258,12 @@ switch -Regex ($scenario) {
             if ($m.Success) { $cyc = $m.Groups[1].Value }
             Remove-Item $req -Force
         }
+        # visual_change_required 인 RC 수만큼 시각 검증을 했다고 남긴다(완료 Gate 가 대조한다).
+        $hf = Join-Path $repo "docs\product-audit\PRODUCT_AUDIT_HANDOFF.md"
+        $vc = 0
+        if (Test-Path $hf) { $vc = ([regex]::Matches((Get-Content $hf -Raw), '(?im)^\s*visual_change_required\s*[:=]\s*true\s*$')).Count }
         Set-Content -Path (Join-Path $repo "var\product-audit\IMPLEMENTATION_CONSUMED") `
-            -Value "cycle_id=$cyc`nconsumed_at=$(Get-Date -Format o)`nfinal_commit=abc1234`nverification=stub" -Encoding utf8
+            -Value "cycle_id=$cyc`nconsumed_at=$(Get-Date -Format o)`nfinal_commit=abc1234`nverification=stub`nvisual_change_rcs=$vc`nvisually_verified_rcs=$vc" -Encoding utf8
         Set-Content -Path (Join-Path $repo "var\runner\PROJECT_COMPLETE") -Value "완료 근거 $(Get-Date -Format o)" -Encoding utf8
         Emit-Json "success" "false" "completed"; exit 0
     }
@@ -298,6 +302,46 @@ blind_pass=1 cycle_id=$cid new_critical_high_categories=0 at=$(Get-Date -Format 
 blind_pass=2 cycle_id=$cid new_critical_high_categories=0 at=$(Get-Date -Format o)
 "@ -Encoding utf8
 
+$rcCount   = $(if ($Clean) { 0 } else { 1 })
+$deferred  = $(if ($DeferToHuman) { 2 } else { 0 })
+
+# ── Deep UI/UX Design Audit 판정 18종 ──
+# 기본: dashboard 는 REDESIGN(PA-RC-0001 참조), 나머지는 근거 있는 KEEP.
+# -Clean: 전부 KEEP(재설계 0건).
+$surfaces = @("app-shell","global-header","sidebar","navigation-ia","dashboard","home",
+              "admin-console","list-screens","detail-screens","table-screens","forms",
+              "modal-drawer","settings","ai-assistant-chat","empty-state","error-state",
+              "loading-state","key-workflows")
+$long = "controlled test 가 만든 충분한 길이의 판정 근거 문장이다. 실제 화면을 보고 적은 것으로 간주한다."
+$designBlocks = ""
+foreach ($sf in $surfaces) {
+    $isRedesign = ((-not $Clean) -and $sf -eq "dashboard")
+    $v   = $(if ($isRedesign) { "REDESIGN" } else { "KEEP" })
+    $rcl = $(if ($isRedesign) { "PA-RC-0001" } else { "해당 없음 — KEEP 이라 구현 계약이 필요 없다" })
+    $designBlocks += @"
+
+<!-- DESIGN-VERDICT-BEGIN $sf -->
+surface: $sf
+layout_family: $sf
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, impeccable
+verdict: $v
+current_state: $sf 의 현재 구조를 실측한 내용이다. $long
+user_problem: 사용자가 겪는 문제를 적은 것이다. $long
+target_design: 처음부터 만든다면 이렇게 만든다는 목표 설계다. $long
+rationale: 이 판정을 내린 근거다. $long
+browser_evidence: dist/ui_qa/$sf-1920-light.png 및 3840 dark 스크린샷으로 확인했다. $long
+rc_ids: $rcl
+<!-- DESIGN-VERDICT-END -->
+"@
+}
+Set-Content -Path (Join-Path $d "PRODUCT_AUDIT_DESIGN.md") -Value @"
+# DESIGN
+cycle_id=$cid
+$filler
+$designBlocks
+"@ -Encoding utf8
+
 Set-Content -Path (Join-Path $d "PRODUCT_AUDIT_COVERAGE.md") -Value @"
 # COVERAGE
 $filler
@@ -311,11 +355,12 @@ observed=30
 executed=40
 blocked=5
 not_applicable=5
+l_axis_visual_observed=18
+l_axis_deep_design_audited=18
+l_axis_design_verdict_complete=18
 -->
 "@ -Encoding utf8
 
-$rcCount   = $(if ($Clean) { 0 } else { 1 })
-$deferred  = $(if ($DeferToHuman) { 2 } else { 0 })
 $rcBlock = @"
 
 <!-- PA-RC-BEGIN PA-RC-0001 -->
@@ -346,6 +391,21 @@ required_tests: test_x
 qa_gaps: QA-1
 quality_rubric: ui-ux-pro-max — 정보 위계 3단계
 evidence_refs: FINDINGS#F-001
+current_state: 현재 Dashboard 는 13개 섹션이 같은 무게로 나열돼 있다. $long
+user_problem: 지금 조치해야 할 것이 무엇인지 첫 화면에서 안 보인다. $long
+design_verdict: REDESIGN
+target_state: 조치 필요 항목이 최상단에 단독으로 보인다. $long
+target_design: 상단 액션 존 + 3열 지표 + 하단 상세 링크 구조로 재구성한다. $long
+visual_change_required: true
+target_visual_delta: 섹션 13개 → 3개 존으로 줄고 스크롤 길이가 절반이 된다. $long
+affected_surfaces: dashboard, home
+affected_components: DashboardPage.jsx, MetricCard.jsx
+workflow_change: 조치까지 클릭 3회 → 1회
+navigation_impact: 없음 — 메뉴 구조는 그대로다
+data_impact: 없음 — 같은 API 응답을 다르게 배치할 뿐이다
+api_impact: 없음 — API 계약 변경 없음
+rbac_impact: 없음 — 역할별 노출 규칙 유지
+browser_verification: 1920/2560/3840 라이트·다크에서 스크린샷으로 스크롤 길이와 위계 확인
 <!-- PA-RC-END -->
 "@
 $rc = @"
@@ -1628,6 +1688,176 @@ Test-Case "T67" "세 Runner 어디에도 '사람이 재시작/승인해야 진�
     Assert-Match $impl 'ADR/DECISIONS는 \*\*선행조건이 아니다\*\*' "문서가 Gate 가 되면 안 된다"
     Assert-Match $impl '사후 기록' "결정 → 구현 → 사후 문서화 순서여야 한다"
     Assert-Match $audit '재설계 필요 발견 → 근거 조사' "재설계를 제안이 아니라 구현 계약으로 만들어야 한다"
+}
+
+function Get-DesignDoc([string]$repo) { return (Join-Path $repo "docs\product-audit\PRODUCT_AUDIT_DESIGN.md") }
+function Edit-DesignDoc([string]$repo, [scriptblock]$transform) {
+    # 유효한 Audit 산출물을 만든 뒤 DESIGN 문서만 망가뜨리고 다시 Gate 를 태운다.
+    # 주의: Gate 가 거부하면 AUDIT_COMPLETE 가 격리돼 사라진다 — 그러면 다음 호출에서
+    # 시작 시점 Gate 가 아예 안 돌아 직전 거부 사유를 그대로 다시 읽게 된다(테스트가 통과한
+    # 것처럼 보이거나, 두 번째 변형이 검증되지 않는다). 매번 marker 를 되살려 Gate 를 태운다.
+    $mk = Join-Path $repo "var\product-audit\AUDIT_COMPLETE"
+    if (Test-MarkerValid $mk) { $script:SavedAuditComplete = Read-TextOrEmpty $mk }
+    elseif ($script:SavedAuditComplete) { [void](Write-TextFile $mk $script:SavedAuditComplete) }
+    $p = Get-DesignDoc $repo
+    [void](Write-TextFile $p (& $transform (Read-TextOrEmpty $p)))
+    [void](Invoke-Git -RepoDir $repo "add" "docs/product-audit")
+    [void](Invoke-Git -RepoDir $repo "commit" "-q" "-m" "design tweak")
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("success")
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1 } $null)
+    return (Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt"))
+}
+
+Test-Case "T70" "일반 browser sweep 만으로는 L축 디자인 판정을 세울 수 없다 (deep_audited)" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    Assert (Test-MarkerValid (Join-Path $repo "var\product-audit\AUDIT_COMPLETE")) "정상 판정은 통과해야 한다"
+
+    # sweep 만 돌린 상태를 흉내낸다: deep_audited=false + UI Skill 미적용
+    $rej = Edit-DesignDoc $repo {
+        param($t)
+        ($t -replace '(?m)^deep_audited: true[ 	]*?$', 'deep_audited: false') `
+           -replace '(?m)^skills_applied: .*$', 'skills_applied: 없음 — sweep_all.py 만 실행'
+    }
+    Assert-Match $rej 'deep_audited=true 가 아니다' "sweep 만으로 판정을 세우면 거부해야 한다. 실제: $rej"
+    Assert-Match $rej '일반 browser sweep' "왜 거부하는지 알려야 한다"
+    Assert-Match $rej 'skills_applied' "UI/UX Skill 미적용도 잡아야 한다"
+}
+
+Test-Case "T71" "필수 Surface 판정 누락 — App Shell/Dashboard/Sidebar/IA 는 반드시 독립 판정" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    # 핵심 4개 Surface 블록을 지운다
+    $rej = Edit-DesignDoc $repo {
+        param($t)
+        foreach ($s in @('app-shell', 'dashboard', 'sidebar', 'navigation-ia')) {
+            $t = $t -replace ("(?s)<!--\s*DESIGN-VERDICT-BEGIN\s+" + [regex]::Escape($s) + "\s*-->.*?<!--\s*DESIGN-VERDICT-END\s*-->"), ''
+        }
+        return $t
+    }
+    foreach ($s in @('app-shell', 'dashboard', 'sidebar', 'navigation-ia')) {
+        Assert-Match $rej ("필수 Surface '" + [regex]::Escape($s) + "' 의 디자인 판정이 없다") "$s 판정 누락을 잡아야 한다"
+    }
+    Assert-Match $rej '제품 전체 구조를 결정하므로' "핵심 영역임을 알려야 한다"
+}
+
+Test-Case "T72" "REDESIGN/REBUILD 가 Handoff PA-RC 로 안 내려가면 Gate 실패 (RD-5/RD-6 구조적 재발 방지)" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    # 판정은 REBUILD 인데 구현 계약 참조를 지운다 = "판정만 하고 구현 안 함"
+    $rej = Edit-DesignDoc $repo {
+        param($t)
+        ($t -replace '(?m)^verdict: REDESIGN[ 	]*?$', 'verdict: REBUILD') `
+           -replace '(?m)^rc_ids: PA-RC-0001[ 	]*?$', 'rc_ids: 아직 정하지 않음'
+    }
+    Assert-Match $rej 'rc_ids 에 PA-RC 참조가 없다' "판정만 하고 구현으로 안 내려가면 거부해야 한다. 실제: $rej"
+    Assert-Match $rej '영원히 구현되지 않는다' "왜 막는지 알려야 한다"
+
+    # 존재하지 않는 PA-RC 를 가리키는 것도 잡는다
+    $rej2 = Edit-DesignDoc $repo { param($t) $t -replace '(?m)^rc_ids: 아직 정하지 않음[ 	]*?$', 'rc_ids: PA-RC-9999' }
+    Assert-Match $rej2 'PA-RC-9999 가 HANDOFF 에 없다' "허수 참조도 잡아야 한다. 실제: $rej2"
+}
+
+Test-Case "T73" "UI Root Cause 는 Target Design 필드를 반드시 들고 간다" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    # Handoff 의 UI 필드를 지운다(Bottom-up 으로 되돌아가는 경로)
+    $hf = Join-Path $repo "docs\product-audit\PRODUCT_AUDIT_HANDOFF.md"
+    $t = Read-TextOrEmpty $hf
+    foreach ($f in @('target_design', 'target_visual_delta', 'workflow_change', 'navigation_impact')) {
+        $t = $t -replace ("(?m)^" + [regex]::Escape($f) + ": .*$"), ''
+    }
+    [void](Write-TextFile $hf $t)
+    [void](Invoke-Git -RepoDir $repo "add" "docs/product-audit")
+    [void](Invoke-Git -RepoDir $repo "commit" "-q" "-m" "strip ui fields")
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("success")
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1 } $null)
+    $rej = Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt")
+    foreach ($f in @('target_design', 'target_visual_delta', 'workflow_change', 'navigation_impact')) {
+        Assert-Match $rej ("필수 필드 '" + $f + "' 가 없다") "UI RC 의 $f 누락을 잡아야 한다. 실제: $rej"
+    }
+    Assert-Match $rej 'Bottom-up' "왜 필요한지 알려야 한다"
+}
+
+Test-Case "T74" "visual_change_required=true 인데 화면 검증 근거가 없으면 Gate 실패" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    $hf = Join-Path $repo "docs\product-audit\PRODUCT_AUDIT_HANDOFF.md"
+    # lint/test 만 적어 둔다 — 화면을 안 본 것이다
+    [void](Write-TextFile $hf ((Read-TextOrEmpty $hf) -replace '(?m)^browser_verification: .*$', 'browser_verification: eslint 통과 및 단위테스트 green'))
+    [void](Invoke-Git -RepoDir $repo "add" "docs/product-audit")
+    [void](Invoke-Git -RepoDir $repo "commit" "-q" "-m" "weak verification")
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    Set-Scenario $repo @("success")
+    [void](Invoke-Audit $repo @{ MaxIterationsPerLaunch = 1 } $null)
+    $rej = Read-TextOrEmpty (Join-Path $repo "var\product-audit\last_gate_rejection.txt")
+    Assert-Match $rej 'browser_verification 이 실제 화면 검증' "lint/test 만으로는 시각 검증이 아니다. 실제: $rej"
+    Assert-Match $rej 'lint/test/token 수정만으로 완료할 수 없는' "왜 막는지 알려야 한다"
+    # 순수 함수 양방향 확인
+    Assert (Test-VisualVerificationEvidence "1920/3840 라이트·다크 스크린샷 비교") "화면 어휘가 있으면 인정"
+    Assert (-not (Test-VisualVerificationEvidence "eslint 통과, 단위테스트 green")) "lint/test 는 인정하면 안 된다"
+}
+
+Test-Case "T75" "구현 쪽: visual_change_required 작업을 화면 확인 없이 완료 처리할 수 없다" {
+    param($repo)
+    Set-Scenario $repo @("audit-full-complete")
+    [void](Invoke-Audit $repo $null $null)
+    Assert (Test-MarkerValid (Join-Path $repo "var\product-audit\IMPLEMENTATION_REQUIRED")) "Handoff 준비"
+
+    # CONSUMED 에 시각 검증 수를 안 적고 완료를 선언한다
+    Set-Content -Path (Join-Path $repo "var\stub\counter.txt") -Value 0 -Encoding ascii
+    $stub = Join-Path $repo "var\stub\claude_stub.ps1"
+    $t = [System.IO.File]::ReadAllText($stub, [System.Text.Encoding]::UTF8)
+    $t = $t.Replace('visually_verified_rcs=$vc', 'visually_verified_rcs=0')
+    [System.IO.File]::WriteAllText($stub, $t, (New-Object System.Text.UTF8Encoding($true)))
+    Set-Scenario $repo @("impl-consume-complete", "success")
+    [void](Invoke-Autonomous $repo $null)
+    Assert (-not (Test-Path (Join-Path $repo "var\runner\PROJECT_COMPLETE"))) "시각 검증 없는 완료는 격리돼야 한다"
+    $rej = Read-TextOrEmpty (Join-Path $repo "var\runner\last_completion_rejection.txt")
+    Assert-Match $rej '시각 검증이 부족하다' "무엇이 부족한지 알려야 한다. 실제: $rej"
+    Assert-Match $rej '브라우저로 확인하지 않은' "왜 거부인지 알려야 한다"
+}
+
+Test-Case "T76" "두 Runner 프롬프트에 '기능은 보존, UI는 보존하지 않는다' 계약이 있다" {
+    param($repo)
+    $audit = Read-TextOrEmpty $AuditScript
+    $impl  = Read-TextOrEmpty $AutonomousScript
+
+    # 판정 어휘와 REBUILD 를 정상 선택지로 다룰 것
+    foreach ($src in @($audit, $impl)) {
+        foreach ($v in @('KEEP', 'REFINE', 'REDESIGN', 'REBUILD')) {
+            Assert-Match $src $v "판정 어휘 $v 가 있어야 한다"
+        }
+        Assert-Match $src '기존 UI와 너무 달라진다' "재설계를 막는 변명을 명시적으로 금지해야 한다"
+        Assert-Match $src '보존 의무 없음' "보존/비보존 경계표가 있어야 한다"
+    }
+    # Audit: Target Design 우선(Bottom-up 금지) + 5 Skill 순서 + 필수 Surface
+    Assert-Match $audit '먼저 Target Design을 만든다' "Top-down 설계가 먼저여야 한다"
+    Assert-Match $audit 'Bottom-up 방식만 쓰지 마라' "Bottom-up 금지"
+    Assert-Match $audit 'DESIGN-VERDICT-BEGIN' "판정 블록 형식이 프롬프트에 있어야 한다"
+    Assert-Match $audit 'REBUILD는 정상적인 선택지다' "REBUILD 를 정상 선택지로 둬야 한다"
+    foreach ($s in @('app-shell', 'dashboard', 'sidebar', 'navigation-ia', 'ai-assistant-chat', 'key-workflows')) {
+        Assert-Match $audit ([regex]::Escape($s)) "필수 Surface $s 가 프롬프트에 있어야 한다"
+    }
+    # QA 와 Deep Audit 분리
+    Assert-Match $audit '전부 QA 이지 UI/UX Deep Audit 이 아니다' "QA 와 디자인 감사를 분리해야 한다"
+    Assert-Match $audit 'VISUAL_OBSERVED' "L축 상태 어휘가 있어야 한다"
+    Assert-Match $audit 'DESIGN_VERDICT_COMPLETE' "L축 상태 어휘가 있어야 한다"
+    Assert-Match $audit 'VISUALLY_VERIFIED' "L축 상태 어휘가 있어야 한다"
+    # 과거 Finding 재판정
+    Assert-Match $audit '판정 없이 과거 Finding이 사라지는 것은 허용하지 않는다' "과거 UI Finding 재판정 규칙"
+    # 구현: REBUILD 권한 + 기반작업을 결과로 착각 금지
+    Assert-Match $impl '기존 UI 구조를 \*\*폐기하고\*\*' "REBUILD 권한이 명시돼야 한다"
+    Assert-Match $impl '기반 작업이지 결과가 아니다' "token/lint 정리를 결과로 보면 안 된다"
+    Assert-Match $impl 'PRODUCT_AUDIT_DESIGN\.md' "구현이 판정 문서를 읽어야 한다"
+    Assert-Match $impl 'visually_verified_rcs' "시각 검증 수를 남기게 해야 한다"
 }
 
 Test-Case "T69" "write guard 위반도 사람을 부르지 않는다 — 증거 보존 + 세션 회전 + 계속, 반복되면 수렴" {
