@@ -66,6 +66,7 @@ def _parse_boundary(value: str, field: str, *, upper: bool) -> datetime:
 def _filtered_stmt(
     *,
     action: str | None = None,
+    exclude_actions: str | None = None,
     object_type: str | None = None,
     object_id: str | None = None,
     user_id: str | None = None,
@@ -83,6 +84,15 @@ def _filtered_stmt(
     stmt = select(AuditLog)
     if action:
         stmt = stmt.where(AuditLog.action == action)
+    # VIS-59: 로그인/로그아웃처럼 일상적으로 반복되는 사건이 화면을 지배해 실제로 봐야
+    # 할 사건(실패·설정 변경 등)이 그 사이에 묻힌다. action(정확 일치, 하나만 골라 좁히는
+    # 용도)과는 반대 방향 — 이건 "이것만 빼고 전부"다. 쉼표로 여러 개 받는다(지금은 화면이
+    # 로그인·로그아웃 두 개만 묶어 보내지만, 나중에 다른 잡음 action이 추가돼도 화면
+    # 쪽만 바꾸면 된다).
+    if exclude_actions:
+        excluded = [a.strip() for a in exclude_actions.split(",") if a.strip()]
+        if excluded:
+            stmt = stmt.where(AuditLog.action.not_in(excluded))
     if object_type:
         stmt = stmt.where(AuditLog.object_type == object_type)
     if object_id:
@@ -159,6 +169,7 @@ def list_audit_logs(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     action: str | None = Query(default=None, max_length=64),
+    exclude_actions: str | None = Query(default=None, max_length=256),
     object_type: str | None = Query(default=None, max_length=64),
     object_id: str | None = Query(default=None, max_length=64),
     user_id: str | None = Query(default=None, max_length=36),
@@ -169,7 +180,7 @@ def list_audit_logs(
     until: str | None = Query(default=None),
 ):
     stmt = _filtered_stmt(
-        action=action, object_type=object_type, object_id=object_id,
+        action=action, exclude_actions=exclude_actions, object_type=object_type, object_id=object_id,
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
         actor_ids=visible_user_ids(db, principal.scope),
     )
@@ -267,12 +278,13 @@ def _truncation_notice(limit: int) -> list[str]:
 def export_audit_logs(
     db: Session = Depends(get_db),
     action: str | None = Query(default=None, max_length=64),
+    # 목록과 **같은 필터 집합**이어야 한다 — 하나라도 빠지면 아래 docstring 이 못박은
+    # 계약("화면에서 좁혀 놓고 내보내면 그건 다른 데이터다")이 그 필터에서만 깨진다.
+    exclude_actions: str | None = Query(default=None, max_length=256),
     object_type: str | None = Query(default=None, max_length=64),
     object_id: str | None = Query(default=None, max_length=64),
     user_id: str | None = Query(default=None, max_length=36),
     result: str | None = Query(default=None, max_length=16),
-    # 목록과 **같은 필터 집합**이어야 한다 — 하나라도 빠지면 아래 docstring 이 못박은
-    # 계약("화면에서 좁혀 놓고 내보내면 그건 다른 데이터다")이 그 필터에서만 깨진다.
     request_id: str | None = Query(default=None, max_length=64),
     principal: Principal = Depends(get_principal),
     since: str | None = Query(default=None),
@@ -287,7 +299,7 @@ def export_audit_logs(
     엑셀이 UTF-8 로 인식한다 — 감사 담당자가 실제로 여는 도구가 엑셀이다.
     """
     stmt = _filtered_stmt(
-        action=action, object_type=object_type, object_id=object_id,
+        action=action, exclude_actions=exclude_actions, object_type=object_type, object_id=object_id,
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
         actor_ids=visible_user_ids(db, principal.scope),
     )

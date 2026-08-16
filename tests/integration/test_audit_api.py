@@ -77,3 +77,54 @@ def test_audit_result_filter_isolates_failures(client, login_as, make_user):
     assert only_failure["total"] + only_success["total"] == client.get(
         "/api/admin/audit"
     ).json()["total"]
+
+
+# VIS-59: 로그인/로그아웃이 화면을 지배해 실제로 봐야 할 사건(설정 변경 등)이 묻힌다.
+# exclude_actions 는 action(정확 일치, 하나만 골라 좁힘)과 반대 방향이다 — "이것만 빼고 전부".
+def test_audit_exclude_actions_hides_routine_login_logout_noise(client, login_as):
+    # user.login(로그인 자체) 여러 건을 먼저 만들고, 마지막 세션의 csrf로 계속한다
+    # (login_as를 다시 부르면 이전 세션의 csrf가 무효화된다).
+    for _ in range(2):
+        login_as("admin")
+    csrf = login_as("admin")
+    headers = {"X-CSRF-Token": csrf}
+    # + user.create(진짜 봐야 할 사건) 한 건.
+    client.post(
+        "/api/admin/users",
+        json={"email": "vis59@goodmit.co.kr", "display_name": "VIS-59"},
+        headers=headers,
+    )
+
+    everything = client.get("/api/admin/audit").json()
+    assert everything["total"] >= 4  # 로그인 여러 건 + 생성 1건
+
+    filtered = client.get(
+        "/api/admin/audit", params={"exclude_actions": "user.login,user.logout"}
+    ).json()
+    actions = {item["action"] for item in filtered["items"]}
+    assert "user.login" not in actions
+    assert "user.logout" not in actions
+    assert "user.create" in actions
+    assert filtered["total"] < everything["total"]
+
+
+def test_audit_export_csv_respects_exclude_actions_too(client, login_as):
+    """목록과 CSV 내보내기가 같은 질의를 쓴다는 계약(0033) — exclude_actions도 예외가 아니다."""
+    login_as("admin")
+    csrf = login_as("admin")  # 여러 번 로그인해 login 행을 만든 뒤, 마지막 세션의 csrf를 쓴다.
+    headers = {"X-CSRF-Token": csrf}
+    client.post(
+        "/api/admin/users",
+        json={"email": "vis59-csv@goodmit.co.kr", "display_name": "VIS-59 CSV"},
+        headers=headers,
+    )
+
+    r = client.get(
+        "/api/admin/audit/export.csv", params={"exclude_actions": "user.login,user.logout"}
+    )
+    assert r.status_code == 200, r.text
+    body = r.text
+    assert "user.create" in body
+    # login/logout 행 자체가 CSV에 없어야 한다(액션 원문 문자열로 확인).
+    assert "user.login" not in body
+    assert "user.logout" not in body

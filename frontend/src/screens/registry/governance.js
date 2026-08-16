@@ -298,6 +298,12 @@ export const GOVERNANCE_SCREENS = {
       // '작업'은 정확 일치 자유 입력인데, 목록의 '작업' 열은 한국어 번역만 보여줘(원문은 hover title뿐)
       // 필터에 뭘 입력해야 할지 알 방법이 없었다 — 현재 페이지의 실제 action 문자열로 자동완성 제안을 준다.
       { key: "action", type: "text", label: "작업(정확히, 예: user.update)", datalistFrom: (items) => items.map((r) => r.action) },
+      // VIS-59: 로그인/로그아웃이 같은 대상 ID로 수십 행씩 연속돼 실제로 봐야 할 사건
+      // (실패·설정 변경 등)이 그 사이에 묻힌다. action(하나만 골라 좁히는 정확 일치)과는
+      // 반대 방향이 필요해서 별도 필터로 둔다 — exclude_actions는 이것만 빼고 전부 보여준다
+      // (백엔드 app/audit/router.py, 쉼표로 구분된 action 목록을 받는다).
+      { key: "exclude_actions", type: "select", label: "표시 범위",
+        options: [{ value: "user.login,user.logout", label: "로그인/로그아웃 제외" }] },
       { key: "user_id", type: "text", label: "행위자 ID" },
       // 실패만 격리하는 것은 보안 감사에서 가장 자주 필요한 질의다(로그인 실패·비밀번호 변경
       // 실패). 백엔드는 예전부터 이 조건을 받고 있었고(app/audit/router.py `_filtered_stmt`,
