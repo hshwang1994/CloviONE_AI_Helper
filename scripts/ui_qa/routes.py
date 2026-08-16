@@ -190,6 +190,13 @@ USER_ROUTES: tuple[Route, ...] = (
 ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_dashboard", "/dashboard", "대시보드"),
     _a("admin_users", "/users", "사용자", "admin", ("admin", "system_admin")),
+    # PA-RC-0024가 신설한 상세 딥링크(직접 진입·새로고침·뒤로가기 보존) — QAH-06과 같은
+    # 함정을 세 번째로 반복하지 않으려고 새 라우트를 추가하면서 바로 등록한다
+    # (test_ui_qa_route_registry_completeness.py가 이제 이 누락을 회귀로 잡는다).
+    # hash_path는 AdminRoutes.jsx의 `<Route path="/users/:id">` 리터럴과 정확히 같아야
+    # 완전성 검사를 통과한다 — 실제 캡처용 대체값은 hash_template(`{id}` 자리표시자)이 쓴다.
+    _a("admin_users-detail", "/users/:id", "사용자 상세", "admin", ("admin", "system_admin"),
+       hash_template="/users/{id}", discover=("/api/admin/users",)),
     # 온보딩·오프보딩(Phase 6)은 마법사라 REGISTRY 가 아니라 전용 화면이다
     # (미리 보여 주고 확인받는 단계를 DataScreen 계약으로는 표현할 수 없다 — Offboarding.jsx).
     _a("admin_offboarding", "/offboarding", "온보딩 · 오프보딩", "admin",
@@ -212,6 +219,10 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_approvals", "/approvals", "승인"),
     _a("admin_organizations", "/organizations", "조직 관리", "admin", ("admin", "system_admin")),
     _a("admin_departments", "/departments", "부서 관리", "admin", ("admin", "system_admin")),
+    # admin_users-detail과 같은 이유(PA-RC-0024, QAH-06 재발 방지) — AdminRoutes.jsx의
+    # `<Route path="/departments/:id">` 리터럴과 hash_path가 정확히 같아야 한다.
+    _a("admin_departments-detail", "/departments/:id", "부서 상세", "admin", ("admin", "system_admin"),
+       hash_template="/departments/{id}", discover=("/api/admin/departments",)),
     # 조직도(Phase 6) — 0024 의 Department.parent_id 를 평탄화해 표 하나로 그린다.
     _a("admin_org-tree", "/org-tree", "조직도", "admin", ("admin", "system_admin")),
     _a("admin_job-titles", "/job-titles", "직책 관리", "admin", ("admin", "system_admin")),
