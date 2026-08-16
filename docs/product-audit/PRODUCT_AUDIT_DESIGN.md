@@ -14,15 +14,15 @@
 
 ## 진행 상태 — 정직하게
 
-필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 6종**이다. 나머지 12종은
+필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 9종**이다. 나머지 9종은
 스크린샷과 레이아웃 계측은 확보했지만(`shots2/`, `pa2_design_*.json` — 28표면 실렌더)
-UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 12종에 판정 블록을 쓰지 않는다**
+UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 9종에 판정 블록을 쓰지 않는다**
 — 계측만 있는 것을 `deep_audited: true` 로 적으면 그것이 조작이다.
 
 | 상태 | 표면 |
 |---|---|
-| 판정 완료 (6) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` |
-| 계측·스크린샷만 (12) | `global-header` · `sidebar` · `navigation-ia` · `list-screens` · `detail-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `empty-state` · `error-state` · `loading-state` · `key-workflows` |
+| 판정 완료 (9) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` |
+| 계측·스크린샷만 (9) | `list-screens` · `detail-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `empty-state` · `error-state` · `loading-state` · `key-workflows` |
 
 ## 적용한 Skill (실제 이름)
 
@@ -100,10 +100,10 @@ deep_audited: true
 skills_applied: ui-ux-pro-max, impeccable, redesign-existing-projects
 verdict: KEEP
 current_state: 1920×1080 실측 — 헤더 높이 64px(브랜드 + 전역 검색 `Ctrl K` + 어시스턴트 + 테마 토글 + 장애 칩 + 알림 벨 + 계정), 사이드바 폭 264px(사용자/관리자 콘솔 전환 + 메뉴 검색 + 그룹 아코디언), 본문은 나머지 폭 전체를 쓰고 좌우 여백이 균일하다. 사이드바 링크 26개가 역할에 따라 달라진다(user 0 / operator 26). 28표면 전부에서 셸이 같은 위치·같은 높이로 유지되고 본문 시작 y가 라우트 간에 흔들리지 않는다.
-user_problem: 직전 Cycle이 High로 올렸던 셸 문제(배너가 첫 화면의 31%인 331.5px를 26라우트에서 편차 없이 먹던 것)는 **해소됐다**. 지금 배너는 단일 행(높이 ~56px)이고 닫기가 있으며, 그것도 실제 장애가 있을 때만 뜬다. 남은 것은 사소하다 — 헤더의 장애 칩이 「장애 1, 안내」에서 잘리고, 알림 수가 벨 배지와 사이드바 `알림` 배지에 두 번 나온다. 둘 다 셸의 구조 문제가 아니라 개별 요소의 문구·중복이다.
-target_design: 구조 변경 없음. 헤더 높이·사이드바 폭·본문 폭 활용·고정 영역·스크롤 구조를 유지한다. 장애 칩 잘림과 알림 배지 중복은 셸 재설계가 아니라 각 요소의 개선으로 다룬다(별도 RC 후보).
+user_problem: 직전 Cycle이 High로 올렸던 셸 문제(배너가 첫 화면의 31%인 331.5px를 26라우트에서 편차 없이 먹던 것)는 **해소됐다**. 지금 배너는 단일 행(높이 약 56px)이고 닫기가 있으며, 그것도 실제 장애가 있을 때만 뜬다. 셸 자체에서 새로 찾은 구조 결함은 **없다**. 헤더에서 실제로 잘리는 요소는 0개이고(전 요소 `scrollWidth == clientWidth` 실측), 유일하게 `clipped`로 잡힌 「읽지 않은 알림 13건」은 폭 1px의 스크린리더 전용 라벨이라 잘림이 아니라 의도된 시각적 숨김이다.
+target_design: 구조 변경 없음. 헤더 높이(64px)·사이드바 폭(264px)·본문 폭 활용·고정 영역·스크롤 구조를 그대로 유지한다. 셸이 담는 **내용**의 분류 문제(관리자 메뉴 taxonomy)는 셸이 아니라 `navigation-ia` 표면에서 다루며 `PA-RC-0031`로 내려갔다.
 rationale: `KEEP`의 근거는 「문제를 못 찾았다」가 아니라 **직전 Cycle이 이 표면에 대해 세운 구체적 계측 기준을 다시 재서 통과했다**는 것이다. 셸 비용(배너 331.5px → ~56px, 조건부), 본문 폭 활용, 라우트 간 편차 0, 역할별 내비 도달성 — 네 가지가 전부 개선된 상태로 유지된다. 28표면에서 셸이 흔들리는 라우트가 하나도 없었고, 어떤 화면에서도 셸이 본문을 가리지 않았다(직전 Cycle의 FAB 가림도 해소됐다 — 사용자 콘솔 표 화면에서 `상세` 버튼이 덮이지 않는다).
-browser_evidence: 28표면 전체 스크린샷(`var/product-audit/shots2/d1_admin_*.png` 16종 + `d1_user_*.png` 12종, 전부 1920×1080 라이트 전체 페이지)에서 헤더·사이드바 박스를 `pa2_design.py`가 라우트마다 계측 — `header`/`sidebar`/`main` 박스와 `mainStartY`·`contentWidthPct`가 라우트 간에 일치. 사이드바 링크 도달성은 `var/product-audit/pa2_rbac.py`가 역할별로 실제 앵커를 세어 확인(operator 26개).
+browser_evidence: 28표면 전체 스크린샷(`var/product-audit/shots2/d1_admin_*.png` 16종 + `d1_user_*.png` 12종, 전부 1920×1080 라이트 전체 페이지)에서 헤더·사이드바 박스를 `pa2_design.py`가 라우트마다 계측 — `header`/`sidebar`/`main` 박스와 `mainStartY`·`contentWidthPct`가 라우트 간에 일치. 사이드바 링크 도달성은 `var/product-audit/pa2_rbac.py`가 역할별로 실제 앵커를 세어 확인(operator 26개). 헤더 요소별 잘림은 `var/product-audit/pa2_ia.py`가 `scrollWidth` 대 `clientWidth`로 직접 계측(잘린 요소 0). **이 계측이 내가 스크린샷으로 세웠던 「장애 칩 잘림」 주장을 반증했다** — 상세는 `PRODUCT_AUDIT_FINDINGS.md` §PA-F-089.
 rc_ids: 해당 없음 — 구조 변경이 필요하지 않다. 장애 칩 잘림·알림 배지 중복은 이 표면의 RC가 아니라 `global-header` 판정에서 다룬다(아직 미판정).
 <!-- DESIGN-VERDICT-END -->
 
@@ -119,4 +119,46 @@ target_design: 탭 구조와 통합 자체는 그대로 둔다. 셋만 고친다
 rationale: `PA-RC-0017` 의 통합은 되돌릴 이유가 없다 — 화면 넷을 하나로 모은 것이 IA 상 옳고 옛 주소도 살아 있다. 그래서 `REDESIGN` 이 아니다. 그러나 `KEEP` 도 아니다: 이 화면은 대부분의 사용자(23명 중 `system_admin` 2명을 뺀 전원)에게 **주소가 거짓말을 하는 화면**이고, 그것은 이 저장소가 `PA-RC-0024` 에서 스스로 세운 딥링크 계약을 정면으로 어긴다. 고칠 것이 구조가 아니라 거부의 표현과 주소 동기화라서 정확히 `REFINE` 이다.
 browser_evidence: `var/product-audit/shots2/d1_admin_settings.png`(1920×1080 라이트, 전체 페이지 1383px) — `Read` 로 열어 탭이 1개인 것과 본문 구성을 확인. 역할별 동작은 `system_admin`·`admin`·`operator` 세 계정으로 옛 라우트 4종을 실제 이동해 주소·활성 탭·탭 수·거부 여부를 12조합 계측(결과는 `PRODUCT_AUDIT_FINDINGS.md` §PA-F-088 표). 소스 근거 `settings/SettingsShell.jsx:51-68`.
 rc_ids: PA-RC-0030
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN sidebar -->
+surface: sidebar
+layout_family: shell
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, impeccable
+verdict: KEEP
+current_state: 폭 264px 고정. 위에서부터 사용자/관리자 콘솔 전환 토글, `메뉴 찾기` 검색 입력, 그리고 아코디언 그룹 트리. 실측 트리 — 관리자 **5그룹 / 34항목**, 사용자 **5그룹 / 18항목**. 들여쓰기 단계는 12px·20px **두 단계뿐**(그룹 → 항목, 3단 중첩 없음). 역할에 따라 항목이 실제로 줄어든다(user 0 · operator 26 · admin 34). `알림`·`백업` 항목은 숫자 배지를 단다.
+user_problem: 컴포넌트 자체에서 측정된 결함이 없다. 깊이가 2단이라 길을 잃을 구조가 아니고, 34항목이 5그룹으로 묶여 그룹당 평균 7개이며, `메뉴 찾기`가 있어 항목이 많아도 도달 비용이 낮다. 역할별 노출이 서버 권한과 정확히 일치한다는 것은 F축에서 63조합으로 따로 확인했다(나브·화면·API 불일치 0). 사이드바가 담는 **내용의 분류**에는 문제가 있지만 그것은 이 컴포넌트가 아니라 `navigation-ia`의 문제이므로 그쪽에서 판정했다.
+target_design: 구조 변경 없음. 폭 264px, 2단 깊이, 아코디언, 콘솔 전환, `메뉴 찾기`, 역할 필터링, 배지를 그대로 유지한다. 이 컴포넌트에 손댈 이유가 측정으로 나오지 않았다.
+rationale: `KEEP`의 근거는 「문제를 못 찾았다」가 아니라 **이 표면에 대해 구체적 기준을 세우고 재서 통과했다**는 것이다 — 깊이 2단(3단 이상이면 탐색 비용이 급증한다), 그룹당 항목 7개 평균(밀러 한계 안), 검색 존재, 역할 노출과 서버 권한 일치(63조합 실측), 28라우트에서 폭·위치 편차 0. 직전 Cycle이 High로 올렸던 「8그룹 평면이 분류를 사용자에게 떠넘긴다」는 지금 5그룹으로 정리돼 재현되지 않는다.
+browser_evidence: `var/product-audit/pa2_ia.py`가 아코디언을 전부 펼친 뒤 DOM에서 트리를 그대로 덤프(`pa2_ia.json`) — 관리자 5그룹/34항목·사용자 5그룹/18항목, 들여쓰기 12·20px 두 단계. 폭·위치 편차는 `pa2_design.py`가 28라우트에서 계측. 역할별 도달성은 `pa2_rbac.py`(21라우트 × 3역할). 화면은 `shots2/d1_admin_dashboard.png`·`d1_user_me.png` 등 28종.
+rc_ids: 해당 없음 — 이 컴포넌트에는 구현이 필요한 결함이 측정되지 않았다. 사이드바가 담는 분류 문제는 `navigation-ia`의 `PA-RC-0031`이 가져갔다.
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN navigation-ia -->
+surface: navigation-ia
+layout_family: shell
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, impeccable
+verdict: REDESIGN
+current_state: 관리자 5그룹 34항목 — `운영`(7) `사용자와 권한`(7) `자동화`(7) `연동`(7) `감사`(6). 사용자 5그룹 18항목 — `내 업무`(5) `도우미`(2) `문서`(2) `팀 공간`(6) `내 정보`(3). 전부 실측 덤프(`pa2_ia.json`).
+user_problem: 그룹 이름이 그 안의 내용을 설명하지 못하는 자리가 여러 곳이다. (1) **`감사` 그룹 6개 중 3개가 감사가 아니다** — `기능 플래그`(설정) `공지 배너`(콘텐츠) `복구 리허설`(운영). (2) **같은 명사가 두 그룹으로 쪼개진다** — `정책`은 `연동`에, `정책 사용 통계`는 `감사`에 있다. (3) **같은 종류의 화면이 다른 그룹에 있다** — `프롬프트 사용 통계`(연동)와 `정책 사용 통계`(감사)는 구조가 같은 사용 통계 화면인데 그룹이 다르다. (4) **같은 업무가 갈라진다** — `백업`은 `운영`, 그 백업이 실제로 복구되는지 확인하는 `복구 리허설`은 `감사`에 있다. 백업을 점검하러 온 관리자는 두 그룹을 오간다. (5) 업무용어 뒤에 기술용어를 괄호로 다는 좋은 관례(`실행 일정(스케줄)`·`자동화 작업 실행기(러너)`·`업무 자동화 흐름(워크플로)`)가 **34항목 중 3개에만** 적용돼 있어, 나머지(`프롬프트`·`정책`·`템플릿`·`기능 플래그`)는 내부 구현 용어 그대로다. (6) 사용자 콘솔의 `문서` 그룹은 `문서`와 `휴지통` 둘뿐인데, 휴지통은 문서 화면 안의 상태이지 형제 메뉴가 아니다.
+target_design: 그룹을 **업무 기준**으로 다시 긋는다. `감사`는 감사만 남긴다(`감사 로그`·`감사 이상 징후`·`정책 사용 통계`·`프롬프트 사용 통계` — 사용 통계 둘을 여기 모으면 (2)(3)이 동시에 풀린다). `기능 플래그`는 `운영`의 설정 계열로, `공지 배너`는 콘텐츠를 다루는 `자동화`(문서 자동 생성과 같은 성격)로, `복구 리허설`은 `백업` 바로 옆 `운영`으로 옮긴다. 용어 관례를 통일한다 — 업무용어를 앞에 두고 기술용어를 괄호에 넣는 형식을 이미 3개가 쓰고 있으므로 나머지에도 같은 규칙을 적용하거나(예: `문구 틀(프롬프트)`), 반대로 3개에서 괄호를 빼서 한 벌로 만든다. 어느 쪽이든 **34항목이 한 규칙을 따라야 한다.** 사용자 콘솔의 `휴지통`은 메뉴에서 빼고 `문서` 화면 안의 뷰로 넣는다 — 그러면 `문서` 그룹이 항목 하나가 되므로 그룹 자체를 없애고 `팀 공간`으로 합친다. RBAC 경계·라우트·데이터 의미는 하나도 바꾸지 않는다(옛 주소는 살려 둔다).
+rationale: 개별 화면은 각각 잘 만들어져 있는데 **찾는 비용**이 화면 품질과 무관하게 발생한다. 「백업이 실제로 복구되는지」를 확인하려면 `운영`과 `감사`를 오가야 하고, 「사용 통계」를 보려면 두 그룹을 다 열어야 한다. 이것은 항목 하나를 고쳐서 되는 일이 아니라 분류 체계를 다시 긋는 일이라 `REFINE`이 아니라 `REDESIGN`이다. 반대로 사이드바 컴포넌트 자체(깊이·폭·검색·역할 필터)는 건드릴 이유가 없어 그쪽은 `KEEP`으로 갈랐다 — **그릇은 좋고 분류가 틀렸다.**
+browser_evidence: `var/product-audit/pa2_ia.py`가 아코디언을 전부 펼친 뒤 두 콘솔의 메뉴 트리를 DOM에서 그대로 덤프했다(`pa2_ia.json`) — 그룹명·항목명·href·들여쓰기까지 실측. 위 (1)~(6)은 전부 그 덤프에서 직접 읽은 것이고 추정이 아니다. 화면은 `shots2/d1_admin_dashboard.png`(관리자 사이드바 펼침)·`d1_user_me.png`(사용자 사이드바).
+rc_ids: PA-RC-0031
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN global-header -->
+surface: global-header
+layout_family: shell
+deep_audited: true
+skills_applied: ui-ux-pro-max, impeccable, ux-writing
+verdict: KEEP
+current_state: 높이 64px 고정. 좌→우로 브랜드(264px, 사이드바 폭과 정렬), 전역 검색(약 615~625px, `Ctrl K` 단축키 표시), 어시스턴트 진입(`클로비`), 다크 모드 토글, 장애 칩(`장애 1` + 개수 배지), 알림 벨(배지), 계정. 두 콘솔에서 같은 구성이고 28라우트에서 위치·높이 편차가 없다.
+user_problem: 측정된 결함이 없다. 요소별 `scrollWidth` 대 `clientWidth` 실측에서 **잘린 요소 0개**다. 전역 검색이 헤더 폭의 약 1/3을 차지해 이 제품에서 가장 큰 헤더 요소인데, 검색이 실제 진입 수단(`Ctrl K` 커맨드 팔레트)이라는 점에서 그 비중이 정당하다. 알림 개수가 헤더 벨과 사이드바 `알림` 항목에 **동시에 같은 값**으로 뜨는 것은 실측으로 확인했지만(같은 순간 둘 다 `15`), 전역 알림 표시와 목적지 메뉴가 같은 수를 보이는 것은 널리 쓰이는 의도된 패턴이고 이 제품이 그것을 결함으로 본다는 근거가 문서·테스트·주석 어디에도 없다 — 근거 없이 결함으로 부르지 않는다.
+target_design: 구조 변경 없음. 높이 64px, 요소 구성과 순서, 검색의 비중, 배지 표시를 유지한다.
+rationale: `KEEP`의 근거는 기준을 세우고 실측으로 통과한 것이다 — 잘림 0(요소별 scrollWidth 계측), 라우트 28곳에서 높이·위치 편차 0, 두 콘솔 구성 동일, 브랜드 폭이 사이드바 폭(264px)과 정확히 정렬. 처음에 스크린샷을 보고 「장애 칩이 잘린다」고 판단했으나 **계측이 그것을 반증했다**(`장애 1`: width 45 = scrollWidth 45). 그 오판과 정정을 `PA-F-089`에 남겼다.
+browser_evidence: `var/product-audit/pa2_ia.py`의 헤더 계측 — 요소별 좌표·폭·`scrollWidth`/`clientWidth` 비교(잘린 요소 0, 유일한 `clipped`는 폭 1px 스크린리더 라벨). 배지 동시 계측은 `var/product-audit/pa2_badges.py`(같은 순간 사이드바 `알림 15` · 헤더 벨 `15`). 화면은 `shots2/d1_admin_dashboard.png`·`d1_user_me.png` 등 28종(1920×1080 라이트).
+rc_ids: 해당 없음 — 실측에서 구현이 필요한 결함이 나오지 않았다. 이 표면에 대한 나의 첫 주장(칩 잘림)은 계측으로 반증돼 철회했다.
 <!-- DESIGN-VERDICT-END -->
