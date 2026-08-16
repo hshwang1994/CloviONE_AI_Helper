@@ -7440,3 +7440,61 @@ Phase 3(동시성 1→3, 설정값만 변경)까지 이어서 진행할지 판�
 "가장 위험한 phase"라 부른 지점의 실질적 핵심이므로, 각 단계마다 실측하고 이상
 있으면 즉시 플래그를 다시 끄고 원인 조사한다(롤백 경로: `web.env`에서 플래그만
 `false`로 되돌리고 두 워커 재시작 — 코드 롤백 불필요).
+
+### 체크포인트 — 2026-08-17 계속(invocation 7 계속): Phase 2 — 플래그 실제로 켬, TEST SERVER 실측 완료, 대시보드 관측성까지 마무리
+
+**플래그 실제로 켰다** — `/etc/clovirone-web-assistant/web.env`에
+`WORKER_CONVERSATIONAL_LANE_ENABLED=true`+`WORKER_CONVERSATIONAL_CONCURRENCY=1`
+추가(sudo, stdin 경유, 값 출력 없음) 후 대화형 유닛 먼저 재시작(리스 잡을 준비를
+먼저 갖춤) → 배치 워커 재시작(새 `exclude_types` 반영). 두 유닛 다 `active`.
+
+**실측 5건, 전부 통과**:
+1. **리스 분리** — `worker.lock`(소유자 PID 528197, 배치)과
+   `worker-conversational.lock`(소유자 PID 528087, 대화형)이 서로 다른 파일, 서로
+   다른 PID로 동시에 존재.
+2. **liveness 3종** — `heartbeats` 표에 `worker`/`scheduler`/`worker_conversational`
+   전부 신선한 타임스탬프.
+3. **실제 채팅 메시지 처리** — 브라우저로 실제 메시지 전송, DB에서 직접 확인:
+   `created_at`→`started_at` 0.27초(거의 즉시 클레임), `finished_at`까지 총
+   ~27.4초, `status=succeeded`.
+4. **배치 워커를 완전히 멈춘 채로 재확인**(가장 결정적인 시험) — `systemctl stop
+   clovirone-web-worker`로 배치 레인을 통째로 내린 상태에서 새 채팅 메시지 전송 →
+   0.35초만에 클레임, ~16.8초만에 `succeeded`. **대화형 레인이 배치 워커 없이도
+   완전히 독립적으로 채팅을 처리한다는 것을 배치 워커가 실제로 안 도는 상태에서
+   직접 증명**. 이후 배치 워커 재기동, 전 서비스 `active`로 복귀.
+5. **10분 창 동안 journalctl 경고/오류 0건**, `verify_deploy.sh` → `DEPLOY_VERIFY_OK`
+   유지.
+
+**대시보드 관측성 추가** — 위 실측 도중, 대시보드의 "서비스 상태" 8칸 그리드에
+대화형 레인이 안 보인다는 것을 발견했다(하트비트 데이터는 있는데 화면에 타일이
+없음 — SSH로 DB를 직접 조회해야만 상태를 알 수 있는 상태, 그 자체가 관측성 결함).
+`app/health/service.py::build_dashboard()`의 `components` dict에
+`worker_conversational`을 추가하되, **그 레인을 켠 적 있는 설치에서만**(플래그
+켜짐 또는 하트비트 행 존재) 넣는다 — 무조건 넣으면 이 기능을 켠 적 없는 압도적
+다수의 설치(오늘 기준 전부)에서 "응답 없음" 타일이 영구히 뜬다(끈 기능이 알람처럼
+보이는 반대 방향의 실수). 이 작업 중 **진짜 결함 2건을 더 발견**: `ServiceStatusPanel.jsx`의
+journalctl 안내가 web이 아니면 무조건 `clovirone-web-worker`(배치 유닛)를
+가리키는 이분법이라, 대화형 레인이 죽었을 때도 배치 워커 로그를 보라고 안내해
+**이 컴포넌트 자신의 존재 이유("잘못된 유닛을 가리키면 안 된다")와 정확히 같은
+결함**이 재발했을 것 — 컴포넌트별 유닛 매핑으로 정정. `Dashboard.jsx`의 `svcNav`
+드릴다운도 같은 이유로 정정. 신규 시험 9건(백엔드 3+프런트 6), 전부 revert-to-verify.
+
+**최종 배포+실측**: 통합 배포(`UPGRADE_OK`+`DEPLOY_VERIFY_OK`), 대화형 유닛이
+코드 재배포로 재시작된 뒤에도 플래그가 그대로 살아 있어(설정 파일은 배포 대상이
+아님) 정상적으로 다시 리스를 잡음 확인. 실제 대시보드 스크린샷: **"서비스 정상
+8/8"**, "대화형 워커" 타일이 초록 "정상"으로 렌더, 콘솔 오류 0건.
+
+**커밋**: `d908786`(관측성 추가+버그 2건 수정) → `08f2a55`(번들).
+
+**Phase 2 결론**: D-118이 "가장 위험한 phase"라 명시한 지점을 완료했다 — 레인
+분리·claim 배타성·sweep 격리·takeover 유예·관측성까지 실측으로 증명됐고, 배치
+워커를 완전히 내린 채로도 대화형 레인 단독 동작을 직접 확인했다. 코드 롤백 없이
+설정 플래그 하나로 즉시 되돌릴 수 있는 경로도 유지된다.
+
+**다음에 할 일**: (a) Phase 3(동시성 1→3) — D-118/Phase 0가 이미 "러너
+`conversation_lock`이 대화별로 갈리므로 안전하다"고 확인해 둔 상태라 설정값만
+바꾸면 된다, 서로 다른 대화 두 개가 실제로 겹치는지 + TEST SERVER 워커 로그의
+`is_write_conflict`/"database is locked" 관찰이 필요. (b) 전체 Full Regression을
+이번 Phase 2 전체 변경 묶음에 대해 한 번 더 수렴 지점으로 돌릴지 판단(지금까지는
+matching focused test 스위트로 커버해 왔다). (c) `SEC-20`은 여전히 사람 전용.
+(d) Medium 잔여 재스캔 여지. (e) 그 뒤에야 `PROJECT_COMPLETE` 판단.
