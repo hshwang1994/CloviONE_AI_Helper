@@ -6684,3 +6684,38 @@ D-94, `BACKLOG.md` `PA2-07`):
 동안에도 남은 10건 중 다음 Handoff 의존 항목(`PA-RC-0023`, 동작 위계 규범 — 이번 RC가
 이미 그 규범의 국소 버전을 대시보드 안에 적용해 둬서 착수 시 참고할 선례가 생겼다)으로
 독립적으로 계속 진행할 수 있다.
+
+## 2026-08-16 17:3x~17:5x — Stop hook이 위 "배포 차단"을 되돌림 → `CLOVIR_TEST_SUDO_PASSWORD`로 직접 배포·`PA-RC-0018` 완전히 닫음
+
+바로 위 체크포인트에서 sudo 비밀번호가 없다고 사람 조치 필요로 기록하고 멈추려던 것을
+stop hook이 되돌렸다 — CLAUDE.md §9(승인된 TEST SERVER에서 SSH·sudo는 직접 수행)와
+"runtime에서만 사용"을 다시 읽고 **환경변수를 먼저 확인하지 않았다는 것**을 깨달았다.
+`env`에 `CLOVIR_TEST_SUDO_PASSWORD`가 이미 있었다 — 그게 그 runtime credential이었다.
+
+`echo "$CLOVIR_TEST_SUDO_PASSWORD" | ssh ... 'sudo -S -p "" ...'`로(값은 명령행 인자가
+아니라 stdin 파이프로만, `sshpass` 금지와 같은 이유) 번들 배포 완료 —
+`UPGRADE_OK`/`DEPLOY_VERIFY_OK`(정적 자산 33/33 새 번들 확인). 미리 써 둔
+`verify_pa_rc_0018.py`를 그대로 돌려 acceptance_criteria를 실브라우저로 대조 — 13개 중
+4개 실패, 실측으로 원인을 갈랐다:
+
+- **진짜 결함 1건**: 문서 높이 1805px(예산 1620px 초과). 범위 밖으로 남겨 뒀던
+  WorkSection("내 업무")의 차질 프로젝트/지연 마일스톤 상세 목록(이름+사유, 카드 2장)이
+  ~230px를 먹고 있었다 — 그 위 StatCard 두 장이 이미 개수를 보여주고 `/projects`로
+  링크하므로 지웠다(3건으로 미리보기를 줄이는 것부터 시도했으나 실측 데이터가 이미 3건
+  이하라 효과가 없었다 — 카드 자체의 padding·제목이 비용이었다). 재배포 후 1576px.
+- **검사 스크립트 오탐 3건**(제품 결함 아님, `verify_pa_rc_0018.py` 자체를 고침): ①
+  `contained` 버튼 카운트가 `/jobs`에도 있는 전역 어시스턴트 "질문 전송" 제출 버튼까지
+  잡았다 — `:not([type=submit])`로 제외. ② "게시판" 부재 확인이 사이드바 nav의
+  "자유게시판"까지 잡았다 — heading role로 좁힘. ③ 다크 모드 스크린샷의 300ms 대기가 이
+  화면(카드 20여 개)엔 짧아 페인트 전에 찍혔다(`getComputedStyle`로는 이미 정확히
+  바뀌어 있었다, `/jobs`처럼 가벼운 화면은 300ms에서도 문제없었다) — 1000ms로 늘림.
+
+수정 반영 재배포 후 **13/13 PASS**, 스크린샷 5장(라이트·다크 대시보드·`/projects`·
+`/me`·operator 대시보드) 육안 확인 완료 — `admin_login_lands_on_dashboard`는 캐시
+세션이 아니라 실제 `/login` 폼 제출로 확인해 로그인 착지 수정이 실제로 동작함을 실증.
+커밋 1건(`fd3a135`, WorkList 제거 + 번들 재빌드). `PA-RC-0018`은 이제 acceptance_criteria
+12개 전부(값 동등성 포함) + browser_verification까지 완전히 닫혔다. 상세: `DECISIONS.md`
+D-94, `BACKLOG.md` `PA2-07`.
+
+**다음**: 같은 invocation 안에서 곧바로 다음 Root Cause로 — `PA-RC-0023`(동작 위계 규범,
+High/P1, 이번 RC가 이미 국소 선례를 대시보드 안에 만들어 뒀다).
