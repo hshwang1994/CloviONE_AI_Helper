@@ -42,6 +42,13 @@ const STEP_HELP = [
   "3. 실행: 옮길 티켓과 후임을 정하고 실행합니다. 결과는 되돌릴 수 있습니다.",
 ];
 
+// PA-RC-0022 acceptance_criteria 9: 후보 목록의 "미연결" 배지가 왜 문제인지는 지금까지
+// 골라야만(미리 보기까지 가야만) 알 수 있었다 — app/offboarding/service.py::_onboarding_checklist
+// 의 notion 항목 help 문구를 **그대로** 옮긴다(새로 쓰지 않는다, Handoff가 명시). 목록은
+// preview를 후보마다 부르지 않으므로(N+1) 문자열 그대로를 프런트에도 둔다 — 값 자체는
+// 두 곳 다 같은 문장이라 나중에 한쪽만 고쳐지면 이 주석이 드리프트를 잡을 단서가 된다.
+const NOTION_UNMAPPED_HELP = "연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.";
+
 /* `running` 은 **끝까지 가지 못한 실행**이다(C3). 실행은 요청 하나 안에서 끝나므로 목록에
    이 값이 보인다면 계정 처리 중에 무언가 터진 것이다 — 티켓은 이미 옮겨졌을 수 있으니
    "완료" 옆에 조용히 두면 안 된다. 라벨과 색이 둘 다 그 사실을 말해야 한다. */
@@ -139,7 +146,19 @@ function TargetPicker({ q, setQ, query, onPick }) {
         {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
       </Box>
     ) },
-    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} /> },
+    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => (
+      <Box sx={{ display: "grid", gap: 0.25 }}>
+        <Badge value={r.notion_mapping_status} />
+        {/* PA-RC-0022: 미연결 행은 배지만으로는 "그래서 뭐가 안 되는지"가 안 보였다 — 미리
+            보기까지 가야만 알던 문구를 목록에 그대로 옮긴다. 정상 대상과 다른 무게로 보이게
+            하는 것도 겸한다(글자 자체가 시선을 붙잡는다, 대비를 낮춰 접근성을 해치지 않는다). */}
+        {r.notion_mapping_status === "unmapped" ? (
+          <Typography variant="caption" color="text.secondary" sx={{ maxWidth: "22ch" }}>
+            {NOTION_UNMAPPED_HELP}
+          </Typography>
+        ) : null}
+      </Box>
+    ) },
   ];
   return (
     <>

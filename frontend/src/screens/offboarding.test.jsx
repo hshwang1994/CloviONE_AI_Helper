@@ -312,6 +312,31 @@ describe("오프보딩 화면", () => {
     expect(screen.queryByText(/명을 보여 줍니다/)).not.toBeInTheDocument();
   });
 
+  // PA-RC-0022 acceptance_criteria 9: Notion 미연결 행이 왜 막히는지 목록 수준에서 알 수
+  // 있어야 한다 — 미리 보기까지 가지 않아도.
+  it("Notion 미연결 후보는 목록에서부터 왜 막히는지 보인다(미리 보기 API의 help 문구를 그대로 재사용)", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) {
+        return Promise.resolve({
+          items: [{ ...LEAVER, notion_mapping_status: "unmapped" }], total: 1, page_size: 20,
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    await screen.findByText(LEAVER.display_name);
+    // app/offboarding/service.py::_onboarding_checklist의 notion help와 글자 그대로 같아야 한다.
+    expect(screen.getByText(
+      "연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.",
+    )).toBeInTheDocument();
+  });
+
+  it("Notion 연결이 확인된 후보는 이 안내가 없다", async () => {
+    renderScreen();  // 기본 mock: notion_mapping_status: "verified".
+    await screen.findByText(LEAVER.display_name);
+    expect(screen.queryByText(/담당한 티켓을 조회할 수 없어/)).not.toBeInTheDocument();
+  });
+
   it("실행 이력이 20건을 넘으면 총 건수를 말하고 다음 페이지로 넘어갈 수 있다", async () => {
     // 25건 중 첫 페이지(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
     // 보여야 한다 — 감사 이력이 조용히 잘리면 5건은 아무도 다시 못 찾는다.
