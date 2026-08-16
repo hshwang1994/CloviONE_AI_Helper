@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=9
+actionable_root_causes=10
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -412,4 +412,51 @@ data_impact: 해당 없음 - 저장 구조와 배정 값의 의미가 바뀌지 
 api_impact: 해당 없음 - 명부 조회와 티켓 생성 API 계약이 그대로다
 rbac_impact: 없음 - 배정 가능 인원 판정은 서버가 하고 그 결과를 그대로 표시한다
 browser_verification: TEST SERVER 에서 `/new-ticket` 을 1920×1080 라이트/다크로 캡처해 폼 세로와 담당자 영역 높이를 변경 전(1,318px)과 비교하고, 키보드만으로 담당자를 검색·선택·해제해 본다. `pa2_states.py` 폼 계측을 재실행해 helper text 사용과 placeholder 길이를 확인한다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0036 -->
+rc_id: PA-RC-0036
+severity: Low
+priority: P3
+confidence: Confirmed
+problem: `/offboarding` 의 대상 선택 표에서 미연결 행 8개가 「연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.」라는 **동일한 문장을 각각 반복**하고, 그 때문에 행 높이가 97px 로 정상 행(35px)의 2.8배가 된다. 상태 표시도 481px 폭 막대(열 폭 513px)로 그려져 이름·이메일보다 시각적으로 무겁다. 같은 `Notion 연결` 값이 `/users` 에서는 작은 배지 하나다 - 같은 데이터가 두 화면에서 완전히 다른 무게로 표현된다.
+expected: 표의 행은 비교 가능해야 하므로 높이가 균일해야 하고, 모든 행에 같은 내용이 들어가는 설명은 행이 아니라 표 위나 열 머리글에 한 번만 있어야 한다. 같은 데이터(`Notion 연결`)는 화면이 달라도 같은 컴포넌트로 표현돼야 한다 - `/users` 가 이미 그 표현(작은 배지)을 갖고 있다.
+actual: 실측 - 20행 중 8행이 97px, 12행이 35px. 마지막 열 폭 513px 에 상태 막대 481px. 동일 문장이 8개 행에 반복. 화면 세로 1,889px.
+intent_evidence: `/users` 의 `Notion 연결` 열이 같은 값을 작은 배지로 그리는 것이 이 제품 자신의 표현 기준이다. 다만 「오프보딩 표에서 설명을 얼마나 보여야 하는가」에 대한 명시 문서는 **없다** - INFERRED 이며 근거는 두 화면의 표현 불일치와 표 훑기의 기본 요건(행 높이 균일)이다.
+findings: PA-F-094
+feature_contracts: FC-오프보딩
+routes: `/offboarding`
+frontend: `frontend/src/screens/Offboarding.jsx`(대상 표 렌더와 `Notion 연결` 셀), `/users` 의 같은 값 표현(`Users.jsx` 또는 공용 배지)을 재사용 대상으로 확인
+api: 해당 없음 - `GET /api/admin/offboarding/*` 응답을 그대로 쓴다. 표시만 바뀐다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 데이터가 바뀌지 않는다
+rbac: 해당 없음 - 권한 경계와 무관하다
+integration: Notion 매핑 상태를 표시하는 자리이지만 연동 계약은 바뀌지 않는다
+state_transition: 해당 없음 - 대상 선택 전 표시 단계다
+user_impact: 20명 중에서 퇴사 대상을 고르는 화면인데 행 높이가 들쭉날쭉해 위아래 비교가 어렵다. 그리고 화면에서 가장 눈에 띄는 것이 사람 이름이 아니라 상태 막대라 정작 골라야 할 대상이 시각적으로 밀린다. 미연결자가 늘수록(현재 8/20) 표가 그만큼 길어진다.
+implementation_direction: 반복 문장을 행에서 빼고 표 위 한 줄 또는 열 머리글 도움말로 옮긴다 - 사람마다 다른 정보가 아니라 「미연결」의 정의이므로 한 번이면 충분하다. 상태를 `/users` 와 **같은 배지 컴포넌트**로 통일해 열 폭을 회수하고, 회수한 폭을 잘리고 있는 이메일 열로 보낸다(`PA-RC-0029` 와 같은 처방이므로 함께 처리하면 한 번에 끝난다). 검색·잘림 고지·`실행 이력`·되돌리기 안내는 **건드리지 않는다** - 이 화면에서 가장 잘 된 부분이다.
+constraints: CLAUDE.md 5절(per-page 예외보다 shared component 우선 - `/users` 의 배지를 재사용한다) · 미연결이 재배정을 막는다는 **정보 자체를 없애지 않는다**(위치만 옮긴다) · `실행 이력`·되돌리기 경로를 건드리지 않는다
+regression_risk: (a) 설명을 행에서 빼면서 정보가 아예 사라지면 관리자가 미연결의 의미를 모른 채 실행할 수 있다 - 반드시 표 위나 툴팁에 남긴다. (b) 배지로 바꿀 때 미연결/확인됨 두 상태의 색 대비가 라이트·다크 양쪽에서 유지되는지 확인한다. (c) 열 폭을 재배분하면 좁은 뷰포트에서 가로 넘침이 생길 수 있다.
+acceptance_criteria: (1) `/offboarding` 표의 행 높이가 **균일**하다(현재 97px/35px 두 종류에서 한 종류로). (2) 동일한 설명 문장이 표 안에서 **1회만** 나타난다(현재 8회). (3) 상태 표시가 `/users` 와 같은 배지 컴포넌트이고 열 폭이 481px 막대에서 배지 크기로 줄어든다. (4) 미연결이 재배정을 막는다는 정보가 화면 어딘가에 여전히 있다. (5) 이메일 열 잘림이 없다(`PA-RC-0029` 와 함께 확인). (6) 라이트·다크 양쪽에서 두 상태가 구분된다. (7) `실행 이력`·되돌리기·잘림 고지가 그대로 동작한다.
+required_tests: (1) `Offboarding.jsx` 컴포넌트 테스트 - 설명이 1회만 렌더되고 행 높이가 균일한지. (2) 상태 배지가 `/users` 와 같은 컴포넌트를 쓰는지 확인하는 테스트. (3) `실행 이력`·되돌리기 회귀 테스트. (4) 1920/1366/390 뷰포트에서 가로 넘침 없음(`scripts/ui_qa` 의 `horizontal_overflow`).
+qa_gaps: `QA_COVERAGE.md` 에 「같은 데이터가 여러 화면에서 같은 컴포넌트로 표현되는가」 축이 없다. 개별 화면은 각각 통과하므로 `/users` 의 배지와 `/offboarding` 의 막대가 같은 값을 그린다는 사실이 검증에서 드러나지 않는다.
+quality_rubric: `ui-ux-pro-max` - 「표/목록: 밀도, 정렬, 열 우선순위」와 시각 위계(가장 무거운 요소가 가장 중요한 요소인가). `impeccable` - 반복 요소 제거와 정보 밀도 보정. 내장 rubric 4) 「같은 의미가 같은 component/pattern 으로 표현되는가」 · 5) 「표/목록: 밀도, 열 우선순위」.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-094 · `PRODUCT_AUDIT_DESIGN.md` `key-workflows` 판정 블록 · `var/product-audit/shots2/d1_admin_offboarding.png` · 행 높이 분포 `{97px:8, 35px:12}` · 열 폭 513px / 막대 481px / 동일 문장 8회 계측
+current_state: 20행 중 8행 97px · 12행 35px. 마지막 열 513px 에 481px 상태 막대. 동일 설명 문장 8회 반복. 세로 1,889px.
+user_problem: 대상 20명을 위아래로 비교해야 하는데 행 높이가 2.8배까지 벌어지고, 가장 눈에 띄는 것이 사람이 아니라 상태 막대다.
+design_verdict: REFINE
+target_state: 20행이 균일한 높이로 늘어서고, 상태는 `/users` 와 같은 작은 배지이며, 미연결의 의미는 표 위에 한 번 설명된다.
+target_design: 반복 문장을 표 위(또는 열 머리글 도움말)로 한 번만 옮기고, 상태를 `/users` 의 배지 컴포넌트로 통일하고, 회수한 열 폭을 이메일 열로 보낸다. 검색·잘림 고지·`실행 이력`·되돌리기는 그대로 둔다.
+visual_change_required: true
+target_visual_delta: 미연결 행 8개가 97px 에서 35px 로 줄어 표 전체가 균일해지고 화면 세로가 1,889px 에서 눈에 띄게 짧아진다. 마지막 열의 481px 채워진 막대가 작은 배지로 바뀌고, 그만큼 이메일 열이 넓어져 잘림이 사라진다.
+affected_surfaces: `/offboarding` (그리고 열 폭 처방을 공유하는 `/users` - `PA-RC-0029`)
+affected_components: `Offboarding.jsx` 대상 표, `/users` 가 쓰는 상태 배지(재사용, 수정 없음)
+workflow_change: 없음 - 대상을 고르고 실행하고 되돌리는 단계가 그대로다. 고르는 표가 읽기 쉬워질 뿐이다
+navigation_impact: 해당 없음 - 라우트·메뉴가 바뀌지 않는다
+data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 - API 계약이 바뀌지 않는다
+rbac_impact: 해당 없음 - 권한 경계가 바뀌지 않는다
+browser_verification: TEST SERVER 에서 admin 으로 `/offboarding` 을 1920x1080 라이트/다크로 캡처해 행 높이가 한 종류인지, 상태가 배지인지, 설명이 1회만 있는지 확인하고, 같은 화면에서 `실행 이력`과 되돌리기 안내가 그대로인지 본다. 1366·390 뷰포트에서 가로 넘침도 함께 확인한다.
 <!-- PA-RC-END -->

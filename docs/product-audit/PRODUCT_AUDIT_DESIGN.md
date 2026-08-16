@@ -14,15 +14,14 @@
 
 ## 진행 상태 — 정직하게
 
-필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 16종**이다. 나머지 2종은
-스크린샷과 레이아웃 계측은 확보했지만(`shots2/`, `pa2_design_*.json` — 28표면 실렌더)
-UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 2종에 판정 블록을 쓰지 않는다**
-— 계측만 있는 것을 `deep_audited: true` 로 적으면 그것이 조작이다.
+필수 18표면 **전부** 판정을 마쳤다. 각 판정은 스크린샷을 `Read` 로 직접 열어 본 뒤 눈으로
+본 주장을 계측으로 확인하는 순서로 세웠다 — 이 Cycle에서 스크린샷만 보고 세운 주장이
+계측에 반증된 적이 있어(`PA-F-089`) 판정마다 수치 근거를 함께 남겼다.
 
 | 상태 | 표면 |
 |---|---|
-| 판정 완료 (16) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` · `detail-screens` · `error-state` · `empty-state` · `loading-state` · `modal-drawer` · `ai-assistant-chat` · `forms` |
-| 계측·스크린샷만 (2) | `list-screens` · `key-workflows` |
+| 판정 완료 (18 - 전부) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` · `detail-screens` · `error-state` · `empty-state` · `loading-state` · `modal-drawer` · `ai-assistant-chat` · `forms` · `list-screens` · `key-workflows` |
+| 계측·스크린샷만 (0) | - |
 
 ## 적용한 Skill (실제 이름)
 
@@ -259,4 +258,32 @@ target_design: 담당자 선택을 검색 가능한 형태로 바꾼다 - 부서
 rationale: 폼의 기본기는 갖춰져 있다 - 필수 표시(`*`), 길이 제한, 예시 플레이스홀더, 서식 도구와 미리보기, 날짜/숫자 전용 입력. 구조를 다시 그릴 이유가 없어 `REDESIGN` 이 아니다. 그러나 담당자 선택이 인원수에 선형으로 커지는 구조이고 안내가 입력과 동시에 사라지는 것은 폼에서 흔하고 실제로 비용을 만드는 결함이라 `KEEP` 도 아니다. **주의**: 계측에서 「레이블 없는 입력 4개」가 잡혔지만 이는 MUI Select 4개의 숨은 input 이다(Select 4 : 무레이블 input 4 로 정확히 대응) - 접근성 결함이 아니므로 결함으로 세지 않았다.
 browser_evidence: `var/product-audit/pa2_states.py` 의 폼 계측 - 입력 요소별 태그·타입·연결된 레이블(`label[for]` -> 조상 `label` -> `aria-label` 순)·`required`·`aria-describedby`·`maxlength`·`placeholder` 를 전수 덤프(`pa2_states.json` `form_newticket`). 화면은 `shots2/d1_user_new-ticket.png`(1920×1080 라이트, 전체 페이지 1318px)와 `pa2_design_user.json` 계측(카드 2 · 버튼 17 · contained 1).
 rc_ids: PA-RC-0035
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN key-workflows -->
+surface: key-workflows
+layout_family: workflow
+deep_audited: true
+skills_applied: ui-ux-pro-max, impeccable, ux-writing, redesign-existing-projects
+verdict: REFINE
+current_state: `/offboarding` 실측(1920x1080) - 검색 한 줄 + 대상 표 20행 + `실행 이력`. 표는 6열(이름·이메일·부서·직책·상태·Notion 연결)이고 **행 높이가 두 종류로 갈린다: 12행은 35px, 8행은 97px(2.8배)**. 마지막 열의 상태 표시가 **481px 폭 막대**(열 폭 513px)로 그려지고, 미연결 행 8개에는 「연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.」라는 **동일한 문장이 8번 반복**된다. 표 아래에 「21명 중 20명을 보여 줍니다. 검색어로 좁혀 보세요.」 잘림 고지가 있고, `실행 이력` 빈 상태는 「아직 실행한 오프보딩이 없습니다 / 위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다」다. `/scheduler-calendar` 는 카드 1 · 세로 1080px 로 가볍다.
+user_problem: 대상을 고르는 표에서 **훑기가 깨진다.** 같은 열의 같은 문장이 8번 반복되면서 미연결 행이 정상 행의 2.8배 높이가 되어, 20명을 위아래로 비교하려는 화면에서 행 높이가 들쭉날쭉하다. 그리고 상태가 481px 짜리 채워진 막대라 이름·이메일보다 시각적으로 훨씬 무겁다 - 정작 사용자가 고르려는 것은 사람인데 화면에서 가장 눈에 띄는 것은 상태 막대다. 같은 `Notion 연결` 값이 `/users` 에서는 작은 배지 하나로 그려지므로, **같은 데이터가 두 화면에서 완전히 다른 무게로 표현된다.**
+target_design: 반복 문장을 행에서 뺀다 - 그 설명은 사람마다 다른 정보가 아니라 「미연결」의 뜻이므로 표 위에 한 번(또는 열 머리글 도움말)에 두면 충분하다. 상태는 `/users` 와 같은 **작은 배지**로 통일해 열 폭을 회수하고, 회수한 폭은 잘리고 있는 이메일 쪽으로 보낸다(`PA-RC-0029` 와 같은 처방). 그러면 20행이 전부 35px 로 균일해져 대상 비교가 가능해진다. 검색·잘림 고지·`실행 이력`·되돌리기 안내는 그대로 둔다 - 이 화면에서 가장 잘 만들어진 부분이다.
+rationale: 워크플로 구조 자체는 옳다 - 「대상을 고른다 -> 실행한다 -> 이력에 남고 되돌릴 수 있다」가 한 화면에 있고 빈 상태가 그 계약을 문장으로 설명한다. 되돌리기가 실재하고 이력이 남는다는 것은 파괴적 작업 화면이 갖춰야 할 핵심이다. 그래서 `REDESIGN` 이 아니다. 그러나 대상 선택 표가 훑기에 실패하고 같은 데이터가 자매 화면과 다르게 표현되므로 `KEEP` 도 아니다. 고칠 것이 워크플로가 아니라 표의 표현 밀도라서 `REFINE` 이다.
+browser_evidence: `shots2/d1_admin_offboarding.png`(1920x1080 라이트, 전체 페이지 1889px)를 `Read` 로 열어 판정한 뒤, 눈으로 본 것을 계측으로 확인했다 - 행 높이 분포 `{97px: 8행, 35px: 12행}`, 마지막 열 폭 513px 중 상태 막대 481px, 동일 문장 반복 8/20행. `/scheduler-calendar` 는 `shots2/d1_admin_scheduler-calendar.png` 와 `pa2_design_admin.json` 계측.
+rc_ids: PA-RC-0036
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN list-screens -->
+surface: list-screens
+layout_family: list
+deep_audited: true
+skills_applied: ui-ux-pro-max, impeccable, redesign-existing-projects
+verdict: REFINE
+current_state: 목록 계열은 대부분 `DataScreen` 한 계약 위에 있다 - REGISTRY 화면 27종이 같은 필터 카드·같은 페이지네이션·같은 빈 상태를 공유한다. 실측 - `/team-docs` 카드 21 · 세로 1860px, `/board` 카드 2 · 1080px, `/notifications` 카드 2 · 1080px, `/prompts`(`?status=published` 기본 필터가 걸린 채 열린다) 카드 2 · 1080px, `/announcements` 카드 1 · contained 2, `/chat-rooms` 는 진입 시 첫 방으로 자동 이동한다. 빈 상태는 「결과 없음」(필터 지우기 버튼 포함)과 「데이터 없음」을 구분한다. `/my-tickets` 는 미매핑 계정에서 카드 0 · 버튼 1 로 거의 비어 있다.
+user_problem: 공통 계약 덕분에 화면 간 학습 전이가 좋고 필터·페이지네이션·빈 상태가 예측 가능하다. 남은 문제는 목록 계열 고유의 것이 아니라 **다른 Root Cause 가 이 표면에서 드러나는 것**이다 - `/my-tickets` 가 거의 비어 보이는 것은 미매핑 상태를 `0`/빈 목록으로 그리는 `PA-RC-0027` 의 표면화이고, 목록에서 상세로 들어갔을 때 없는 레코드에 침묵하는 것은 `PA-RC-0033`, 없는 항목 판정이 30초 걸리는 것은 `PA-RC-0034` 다. 고유 개선점은 하나 - `/prompts`·`/approvals` 가 기본 필터가 걸린 채 열리는데 그 사실이 필터 카드 안에만 있어, 목록이 전체가 아니라는 신호가 약하다.
+target_design: `DataScreen` 공통 계약을 그대로 유지한다 - 27화면이 공유하는 구조를 흔들 이유가 없다. 이 표면에 필요한 것은 위 세 RC 가 닫히는 것이고, 추가로 기본 필터가 걸린 채 열리는 화면에서 그 사실이 목록 위에서 바로 읽히게 한다(활성 필터 칩). 새 목록 컴포넌트를 만들지 않는다.
+rationale: 목록 계열은 이 제품에서 가장 균질한 화면군이고 공통 계약이 실제로 작동한다 - 27화면이 같은 필터·페이지네이션·빈 상태를 쓰고 빈 상태는 「결과 없음」과 「데이터 없음」까지 구분한다. 구조를 다시 그릴 근거가 없어 `REDESIGN` 이 아니다. 그러나 이 표면에서 사용자가 실제로 겪는 문제 셋(`PA-RC-0027`·`0033`·`0034`)이 전부 목록에서 시작하고 기본 필터 가시성이라는 고유 개선점도 있어 `KEEP` 도 아니다.
+browser_evidence: `pa2_design.py` 가 목록 계열 8화면(`/team-docs`·`/board`·`/notifications`·`/my-tickets`·`/chat-rooms`·`/departments`·`/prompts`·`/announcements`)을 1920x1080 라이트로 실렌더해 카드 수·버튼 수·contained 수·세로 길이·최종 URL 을 계측(`pa2_design_admin.json`·`pa2_design_user.json`, 스크린샷 `shots2/d1_*`). 빈 상태는 `pa2_states.py` 가 `/users?q=<없는 값>` 으로 실제로 만들어 확인(`d2_empty_users.png`).
+rc_ids: PA-RC-0027, PA-RC-0033, PA-RC-0034
 <!-- DESIGN-VERDICT-END -->
