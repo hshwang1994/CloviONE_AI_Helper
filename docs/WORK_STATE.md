@@ -7236,3 +7236,85 @@ Medium 전체(257행)에서 아직 손 안 댄 나머지를 다시 스캔해야 
 rotation — 이미 로그됨), (d) 그 뒤에야 `PROJECT_COMPLETE` 판단. Full Regression·전체
 프런트 회귀·통합 배포·실측까지 방금 전부 확인했으므로 다음 수렴 지점까지는 각 항목별
 focused test만으로 충분하다.
+
+### 체크포인트 — 2026-08-17 계속(WARM 재개, invocation 5): AI 아키텍처 설계(D-118) + Phase 1 구현완료 + VIS-163/VIS-34 + 역할별 QA 캡처 2건 + 통합 배포·실측
+
+이전 invocation의 background 작업(9건 Medium 재검증 Explore agent, Full Regression 2회
+시도)이 프로세스 경계에서 완료 기록 없이 끝났다고 재개 시 보고됐다 — 실제로는 유실이
+아니었다: git log 대조 결과 그 Explore agent의 결과물은 이미 `543d286`/`07b048a`
+커밋으로 반영·배포·실측까지 끝나 있었다(VIS-13/35/55/92/124/125/134/135, 상세는 그
+커밋들의 WORK_STATE 체크포인트). Full Regression만 다시 필요해 재실행했다.
+
+**AI/Runner 채팅 아키텍처 — 조사가 아니라 설계를 architect agent에 위임(D-118)**: n8n
+workflow·러너 CLI 호출·스케줄러·nginx·systemd 유닛까지 이 저장소가 훑지 않은 표면을
+전부 다시 읽게 했다. 기존 backlog 기록의 사실 오류 2건을 잡아냈다(`AI-07`의 스케줄 tick
+이중 발화 우려는 틀렸다 — `schedule_runs.idempotency_key` UNIQUE 제약으로 이미 안전함,
+진짜 위험은 다른 14개 tick; 진짜 토큰 스트리밍은 n8n의 `responseNode`/완결형
+`respondToWebhook` 때문에 막혀 있지 이 저장소 코드나 sync 불변규칙 때문이 아님). 구체적
+설계: 레인 분리(배치=기존 프로세스 그대로, 대화형=새 프로세스+스레드풀), tick 중복은
+배선 자체를 안 하는 것+기동 시 assertion으로 이중 방어, 스트리밍 대신 정직한 단계
+표시로 재설계, 취소는 "중단"이 아니라 "detach"(soft-delete). Phase 0(러너
+`conversation_lock`이 대화별로 갈리는지, `SettingsCache.load`가 build-then-swap인지)을
+소스로 직접 재확인 — 둘 다 참, `max_concurrency=3`이 Phase 0부터 안전하다는 근거.
+`docs/RUNNER_HANDOFF.md`에 스트리밍의 n8n 쪽 블로커도 별도 절로 기록(D-118이 "옮긴다"고
+적어 두고 실제로 안 옮겼던 것을 뒤늦게 채움).
+
+**Phase 1 구현(D-119)** — 어두운 배선, 기본 설정에서 동작 100% 불변: 신규
+`app/jobs/lanes.py`(레인 정의 단일 정본), `claim_next`/`recover_stuck`에
+`include_types`/`exclude_types`/`takeover_after_seconds`(기본 인자 없으면 SQL 불변),
+`default_lock_path(lane=)`, `Worker.run_forever_pooled`(`run_once` 자체는 무수정, tick
+있으면 기동 거부), `worker_main.py`를 `_bootstrap`/`build_batch_worker`/
+`build_conversational_worker`+`--lane` 인자로 재구성, 신규 systemd 유닛(설치 스크립트엔
+의도적으로 미배선 — Phase 2 몫). 신규/보강 시험 26건, `tests/unit` 전체 + `tests/integration`
+전체(1,359건) green. 기존 `test_health_snapshot_job.py`의 소스 인용 시험 하나가 리팩터로
+실제 정정 필요했음(등록 줄이 `main()`에서 `build_batch_worker()`로 옮겨감 — 배선 자체는
+그대로라 시험을 그 사실에 맞게 고쳤다). **Phase 2(레인을 실제로 켬)는 이번에 시작 안
+함** — D-118 스스로 "가장 위험한 phase"라 명시한 지점이라 서두르지 않는다.
+
+**병행 조사(Explore agent, Medium 잔여 스캔)**: D-108/직전 배치와 다른 프레이밍(adversarial,
+전체 스캔)으로 남은 Medium ~242행을 훑어 진짜 열린 것 3건(`VIS-163`·`VIS-34`·`VIS-45`)과
+이미 해결된 것 5건(`VIS-44`·`VIS-82`·`VIS-52`·`VIS-41`·`RN-11 확증`, 전부 교차연결로
+종결)을 찾았다. `VIS-45`는 백엔드(Notion 동기화 실패 신호 부재) 재조사가 필요해 다음으로
+미뤘다.
+
+**`VIS-163`**: 재조사로 원인이 QA 하네스의 원래 추정(폭/tableLayout)과 달랐다 — 진짜
+원인은 `ticketColumns()`의 `assignee_names` 열만 `nowrap: true`가 빠진 것(나머지 7열은
+전부 있음, `GIT-4101` 수정 때 이 열이 아직 없었거나 빠뜨린 것으로 보임). 한 줄 추가로
+4개 소비처(내 티켓·미할당·팀 티켓·스프린트) 전부 해결.
+
+**`VIS-34`**: `VIS-25`(관리자 대시보드, 이미 종결)와 같은 질문을 다시 검토했지만 결론이
+갈렸다 — `Briefing`의 KPI 숫자는 "숫자가 먼저, 문장은 나중" 계약에서 '문장 요약 만들기'
+버튼의 근거 역할을 해 완전한 장식적 중복이 아니다(그래서 안 지웠다). 대신 `VIS-25`가 쓴
+처방(관계를 명시하는 캡션)을 그대로 적용. 순수 중복이던 실패 문구는 짧은 참조로 교체.
+
+**병행 QA 캡처**: `ui-qa-user`/`ui-qa-auditor` 두 역할 다 전체 라우트 첫 실캡처(각 450·
+1,008페이지) — `QA_COVERAGE.md`의 역할 커버리지 공백을 완전히 닫았다. 치명 검사 전부
+통과, RBAC UI 게이팅 실측 확인(권한 없는 라우트가 정확히 걸러짐). 비치명
+`vertical_text_collapse` 2건이 곧 `VIS-163`이었다.
+
+**통합 배포 + Static Checks + 실측**: `bash scripts/static_checks.sh` 전체 재확인 —
+새로 걸린 것 3건(가운뎃점/em대시, 2건은 이전 배치의 VIS-134/135 툴팁, 1건은 이번
+Phase 1의 `worker.py` 예외 메시지) 전부 자연스러운 문장으로 정정, 재검사 green. **유일한
+잔여 실패는 `SEC-20`의 stash/reflog 자격증명 스캔**(사람 전용 credential rotation
+blocker, 이미 로그됨 — 새 문제 아님, 다른 모든 검사 53개는 green). 번들 빌드+TEST
+SERVER(`10.100.64.71`) 통합 배포(`UPGRADE_OK`) — 백업·마이그레이션·서비스 재기동·헬스
+전부 정상, `scripts/verify_deploy.sh` → `DEPLOY_VERIFY_OK`. 신규 systemd 유닛이 설치
+스크립트에 안 걸려 있어 배포 후에도 `clovirone-web-worker.service` 하나만 등록돼 있음을
+직접 확인(Phase 1 설계 경계가 실제로 지켜졌다는 증거). Playwright 실측: `/sprint`
+1200×900에서 원 버그 리포트의 정확히 같은 데이터("임승환, 김동현" 등)가 이제
+`whiteSpace: nowrap`으로 렌더(표 컨테이너는 846→878px로 32px만 가로 스크롤 — 이
+저장소가 이미 택한 트레이드오프); `/me`가 마침 Notion 미연결 계정이라 `VIS-34`의 실패
+분기가 실제로 발동한 상태를 그대로 캡처 — 스프린트 카드는 전체 문장, AI 브리핑은 새
+참조 문장+관계 캡션이 동시에 화면에 보임(스크린샷 확인, 콘솔 오류 0건).
+
+**커밋**: `5c9b32e`(Phase 1 백엔드) → `93fd89b`(VIS-163/VIS-34 프런트) → `7d2133f`(번들)
+→ `62769a9`(가운뎃점/em대시 수정) → `1415492`(번들). `docs/DECISIONS.md` D-118(설계)·
+D-119(Phase 1 구현)·D-120(VIS-163/VIS-34).
+
+**다음에 할 일**: (a) `VIS-45`(TeamDocs 작성자 없음 신호 부재, 백엔드 재조사 필요) —
+다음 후보. (b) Phase 2(대화형 레인 실제로 켬) — 전담 세션, `recover_stuck` 레인 필터가
+핵심 방어선이라는 것 다시 확인하고 실제 SQLite 파일 기반 2-레인 통합 시험부터 새로
+짜야 한다(D-118 Phasing 항목). (c) Medium 나머지(이번 배치가 다루지 않은 부분, 이제
+`VIS-163`/`VIS-34`/`VIS-44`/`VIS-82`/`VIS-52`/`VIS-41`/`RN-11 확증` 7건 추가로 소진)
+재스캔 여지가 아직 있는지 확인. (d) `SEC-20`은 여전히 사람 전용. (e) 그 뒤에야
+`PROJECT_COMPLETE` 판단.
