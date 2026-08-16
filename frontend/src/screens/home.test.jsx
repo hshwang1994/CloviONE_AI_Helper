@@ -188,6 +188,21 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     // 그 화면 자신의 데이터 모양으로 직접 확인한다.
   });
 
+  // VIS-35: 티켓 카드(행 수만큼 커짐)와 AssistantPanel을 같은 왼쪽 열에 쌓아 두면, 실데이터가
+  // 있을수록 오른쪽 SideRail(고정 크기 카드 둘)과의 높이 차이가 벌어져 오른쪽 아래에 큰 흰
+  // 여백이 남았다. AssistantPanel을 격자 밖 전체 폭으로 내려 그 조합 자체를 없앤다.
+  it("AssistantPanel은 티켓/속성 2단 격자 밖, 전체 폭에 있다(격자 안에서 왼쪽 열과 쌓이지 않는다)", async () => {
+    routeApi();
+    renderHome();
+    await screen.findByText("안 읽은 알림");
+
+    const grid = screen.getByTestId("home-body-grid");
+    const heading = screen.getByRole("heading", { level: 2, name: "AI 도우미" });
+    expect(grid.contains(heading)).toBe(false);
+    // 격자 다음에 이어지는 형제 구역이어야 한다(화면에서 그 아래로 온다).
+    expect(grid.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("채팅이 꺼진 설치(chat_unread=null)에서는 그 자리를 '막힘' 카드가 채운다", async () => {
     routeApi({ today: { ...TODAY_OK, inbox: { notifications_unread: 0, chat_unread: null } } });
     renderHome();

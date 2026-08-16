@@ -265,6 +265,9 @@ export function Home() {
             <Card><Skeleton lines={6} /></Card>
             <Card><Skeleton lines={4} /></Card>
           </Box>
+          {/* VIS-35로 AssistantPanel이 격자 밖 전체 폭으로 내려왔다 — 스켈레톤도 같은 3번째
+              구역을 둬야 로딩이 끝나는 순간 이 블록만큼 페이지가 아래로 밀리지 않는다. */}
+          <Box sx={{ mt: 2.5 }}><Card><Skeleton lines={3} /></Card></Box>
         </>
       ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
@@ -327,7 +330,15 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
         )}
       </Box>
 
-      <Box sx={BODY_GRID}>
+      {/* VIS-35: AssistantPanel은 예전엔 왼쪽 열 안에서 티켓 카드 아래로 쌓여 있었다 — 티켓
+          행 수만큼 커지는 카드 하나(왼쪽)와 담당자 배지가 없는 고정형 카드 둘(오른쪽 SideRail)이
+          같은 열에서 경쟁하면 실데이터가 있는 계정일수록 왼쪽이 오른쪽보다 훨씬 길어져 오른쪽
+          아래에 큰 흰 여백이 남았다(VIS-36/37이 SideRail에서 팀채팅·게시판 위젯을 뺀 뒤로 격차가
+          더 벌어졌다). 두 열의 높이를 억지로 맞추는 대신(내용 없는 카드를 늘리면 그 자체가
+          더 어색하다), 행 수와 무관하게 항상 일정한 AssistantPanel을 격자 **밖**, 전체 폭으로
+          내려 격차의 원인이 되는 조합 자체를 없앤다 — 4개 탭(브리핑/스탠드업/다이제스트/트리아지)도
+          좁은 2fr 칸보다 전체 폭에서 더 잘 읽힌다. */}
+      <Box data-testid="home-body-grid" sx={BODY_GRID}>
         <Stack gap={2.5} sx={{ minWidth: 0 }}>
           <Card>
             {/* SEM-02: /me는 h1(PageHeader "오늘") 하나 아래 SectionTitle 여러 개(이 카드+
@@ -378,9 +389,11 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
               />
             )}
           </Card>
-          <AssistantPanel />
         </Stack>
         <SideRail data={data} />
+      </Box>
+      <Box sx={{ mt: 2.5 }}>
+        <AssistantPanel />
       </Box>
     </>
   );
