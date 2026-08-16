@@ -375,7 +375,7 @@ describe("VIS-135 — 헤더 '수정'과 '본문 수정'의 범위를 툴팁으�
     wrap();
     await screen.findByText("배경");
     const btn = screen.getByRole("button", { name: "본문 수정" });
-    expect(btn).toHaveAttribute("title", expect.stringContaining("상태·담당자 등 속성은 위 '수정' 버튼에서 고칩니다"));
+    expect(btn).toHaveAttribute("title", expect.stringContaining("상태, 담당자 등 속성은 위 '수정' 버튼에서 고칩니다"));
   });
 });
 

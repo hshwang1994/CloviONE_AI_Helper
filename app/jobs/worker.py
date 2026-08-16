@@ -273,7 +273,7 @@ class Worker:
         """
         if self.tick_callbacks:
             raise RuntimeError(
-                "run_forever_pooled은 tick_callbacks가 비어 있어야 한다 — 대화형 레인은 "
+                "run_forever_pooled은 tick_callbacks가 비어 있어야 한다. 대화형 레인은 "
                 f"배치 tick을 실행하면 안 된다(D-118). 등록된 콜백 {len(self.tick_callbacks)}개."
             )
         self.sweep()  # crash recovery on startup — run_forever와 같은 이유

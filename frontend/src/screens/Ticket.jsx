@@ -169,7 +169,7 @@ export function Ticket() {
           화면에 설명 없이는 안 보였다. 이 버튼은 상태·우선순위·담당자·마감 같은 속성을
           여는 것이라는 것을 툴팁으로 밝힌다 — 본문 텍스트는 이 모달이 안 건드린다. */}
       {data.can_edit === false ? null : (
-        <Tooltip describeChild title="상태·담당자·마감 등 속성을 수정합니다. 본문 텍스트는 아래 '본문 수정'에서 고칩니다.">
+        <Tooltip describeChild title="상태, 담당자, 마감 등 속성을 수정합니다. 본문 텍스트는 아래 '본문 수정'에서 고칩니다.">
           <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>
         </Tooltip>
       )}
