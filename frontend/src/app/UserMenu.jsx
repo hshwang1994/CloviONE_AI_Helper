@@ -132,6 +132,9 @@ export function UserMenu({ name, userId, avatarUrl }) {
         <MenuItem onClick={() => { setAnchor(null); nav("/profile"); }}>내 프로필</MenuItem>
         <MenuItem onClick={() => { setAnchor(null); nav("/my-stats"); }}>내 업무량</MenuItem>
         <MenuItem onClick={() => { setAnchor(null); nav("/activity"); }}>내 활동</MenuItem>
+        {/* PA-RC-0022: 화면 강조색을 관리자 전용 「설정」 화면에서 떼어 여기로 옮긴다 — 예전엔
+            역할이 시스템 정책 표에 안 닿으면 개인 취향(강조색)도 못 바꿨다. */}
+        <MenuItem onClick={() => { setAnchor(null); nav("/my-display"); }}>내 화면 설정</MenuItem>
         <MenuItem component="a" href="/change-password">비밀번호 변경</MenuItem>
         <Divider />
         <MenuItem disabled={busy} onClick={logout} sx={{ color: "error.main" }}>

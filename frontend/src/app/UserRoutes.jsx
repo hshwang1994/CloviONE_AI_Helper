@@ -18,6 +18,7 @@ import { Search } from "../screens/Search.jsx";
 import { Profile } from "../screens/Profile.jsx";
 import { MyStats } from "../screens/MyStats.jsx";
 import { Activity } from "../screens/Activity.jsx";
+import { DisplaySettings } from "../screens/DisplaySettings.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 /* 알림 화면 설정만 들여온다 — `registry.js` 전체가 아니다 (PF7).
    그 파일은 관리자 화면 스물여덟 개의 설정 덩어리(gzip 43KB)이고, 사용자 콘솔이 거기서
@@ -88,6 +89,9 @@ function UserRoutes() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/my-stats" element={<MyStats />} />
       <Route path="/activity" element={<Activity />} />
+      {/* PA-RC-0022: 화면 강조색은 브라우저 로컬 저장이라 서버 세션·역할과 아예 무관하다 —
+          위 셋보다도 게이트가 더 필요 없다. */}
+      <Route path="/my-display" element={<DisplaySettings />} />
       <Route path="*" element={<Navigate to="/me" replace />} />
     </Routes>
   );

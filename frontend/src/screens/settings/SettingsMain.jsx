@@ -9,7 +9,6 @@ import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
   summarizeSetting, displayValue,
 } from "./settingsRegistry.js";
-import { AccentPicker } from "./AccentPicker.jsx";
 import { SettingEditor } from "./SettingEditor.jsx";
 
 /* 설정 — 시스템 동작 값을 관리한다. GET /api/admin/settings는 {settings:{key:{value,type,
@@ -90,8 +89,6 @@ export function Settings({ embedded = false } = {}) {
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
         : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>}
-      {/* 시스템 설정 표 아래에 개인 취향 설정을 둔다 — 위와 성격이 달라(서버 저장 아님) 카드를 나눈다. */}
-      <AccentPicker />
       <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
         onSaved={(res) => {
           qc.invalidateQueries({ queryKey: ["settings"] });
