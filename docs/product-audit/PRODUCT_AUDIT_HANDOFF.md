@@ -1,130 +1,57 @@
-cycle_id=PA-20260812-171558-56c5befa
+cycle_id=PA-20260816-100149-48671b72
 
 # PRODUCT AUDIT — IMPLEMENTATION HANDOFF
 
 <!-- HANDOFF-SUMMARY
-cycle_id=PA-20260812-171558-56c5befa
-actionable_root_causes=3
-redesign_root_causes=1
+cycle_id=PA-20260816-100149-48671b72
+actionable_root_causes=1
+redesign_root_causes=0
 deferred_for_human_approval=0
 -->
 
 > 이 문서는 **구현 Phase(`autonomous_runner.ps1`)로 넘기는 계약**이다.
 > `docs/BACKLOG.md`의 한 줄만 보고 구현하지 말고, 해당 `PA-RC-*` 블록 전체를 읽어라.
 > 원본 증거는 `PRODUCT_AUDIT_FINDINGS.md`, 의도 근거는 `PRODUCT_AUDIT_FEATURE_CONTRACTS.md`.
->
-> **2026-08-16 갱신 — 남은 실행 대상은 3건이다.** 원래 8건을 넘겼고, 구현 Phase가 17커밋을
-> 진행한 뒤 이 Audit이 각 항목을 **그 항목 자신의 `acceptance_criteria`로 다시 측정**했다.
-> 근거는 `PRODUCT_AUDIT_FINDINGS.md`의 "Handoff 소비 검증" 절이다.
->
-> | RC | 재검증 결과 | 이 문서에 블록이 있나 |
-> |---|---|---|
-> | `PA-RC-0001` 타이포 토큰 미소비 | **대부분 닫힘** — `FONT_SIZE` 6단계 신설되고 타이포 259회 중 **206회가 토큰 참조**. 남은 것은 6단계 밖 "사이값" 원시 리터럴 약 30~40회(시각 판단 필요) | **있음**(잔여 범위만) |
-> | `PA-RC-0002` UX Writing 규칙 부재 | 열림 — 규칙 문서·린트는 생겼고 회복 절 14%→63%(오탐 20건 제외 시 약 72%), 진짜 막다른 길 42건. 기준은 90% | **있음** |
-> | `PA-RC-0003` 저장소 위생 검사 공백 | 열림 — 아래 블록은 **구현 가능한 부분**(stash/reflog 검사 부재)만 다룬다 | **있음** |
-> | `PA-RC-0005` 입력 길이 정책 | ✅ 닫힘 — `lib/fieldLimits.js` + `FormField` `maxLength` 배선 확인 | 제거됨 |
-> | `PA-RC-0007` 배포 드리프트 | ✅ 닫힘 — 배포본 `source_hash`가 HEAD 커밋본과 일치, `BUNDLE_FRESH_OK` | 제거됨 |
-> | `PA-RC-0008` 재시도 예산 분산 | ✅ 닫힘 — 공용 헬퍼 + **race 테스트 5회 연속 통과**로 실행 확인 | 제거됨 |
-> | `PA-RC-0009` 회귀 실행 수단 | ✅ 닫힘 — `run_full_regression.sh` + 3연속 green | 제거됨 |
-> | `PA-RC-0010` 로그인 다크 | ❌ **철회 — `/login` 주장은 오탐**(라이트 고정은 회귀 테스트가 못박은 의도된 설계). 다만 구조적 주장은 `/forgot-password`·`/reset-password`에 대해 옳았고 그 둘은 실제로 고쳐졌다(`PA-F-041`) | 제거됨 |
->
-> **`PA-RC-0010` 관련 후속 작업은 없다.** 그 오탐 때문에 `app/static/css/tokens.css:226`에 추가된
-> `@media (prefers-color-scheme: dark)` 블록은 **유지한다** — 서버 렌더 4화면을 각각 실측한 결과
-> `/forgot-password`·`/reset-password`에서 다크가 실제로 켜진다(`rgb(9,14,29)`). 내 RC의 구체적
-> 주장(`/login`이 빠졌다)은 틀렸지만 구조적 주장은 그 두 화면에 대해 옳았고, PHASE 2가 4화면을
-> 각각 재서 `login`은 그대로 두고 진짜 공백만 고쳤다. 상세와 실측표는 `PA-F-041`.
->
-> 승격 이력: `docs/BACKLOG.md`에 `PA-01`~`PA-07`로 반영돼 있고,
-> `PA-RC-0003`은 같은 자격증명을 이미 다루던 기존 `SEC-20` 행에 증거로 붙였다.
-> QA 공백은 `docs/QA_COVERAGE.md` §13(축 `T1`~`T9`)에 있다.
 
-<!-- PA-RC-BEGIN PA-RC-0001 -->
-rc_id: PA-RC-0001
-severity: High
+## 이전 Cycle(`PA-20260812-171558-56c5befa`) 잔여분 — **전부 닫혔다. 재확인함**
+
+`IMPLEMENTATION_CONSUMED`의 기록을 그대로 믿지 않고 이번 Cycle이 현재 HEAD(`64ef571`)에서
+각 항목을 **다시 측정**했다.
+
+| 이전 RC | 이번 Cycle 재측정 | 판정 |
+|---|---|---|
+| `PA-RC-0001` 타이포 토큰 미소비 | `scripts/check_typography_literals.py` 존재하고 `static_checks.sh:150`에 배선됨. 실행 결과 `TYPOGRAPHY_LITERALS_OK` (예외 16종 등재) | ✅ 닫힘 |
+| `PA-RC-0002` UX Writing 규칙 부재 | `docs/UX_WRITING.md`(7,428B) 존재. `scan_errcopy.py` 재실행 → **회복 절 비율 100%**, 진짜 막다른 길 **0건**(기준은 90%) | ✅ 닫힘 — 기준 초과 달성 |
+| `PA-RC-0003` 저장소 위생 검사 공백 | `scripts/check_git_secrets.py` 존재하고 `static_checks.sh:79`에 배선됨 | ✅ 닫힘(검사 공백 기준). 검사가 잡아내는 `stash@{0}` 자격증명 **회전 자체는 여전히 미수행** — 내 권한 밖 외부 행위라 `REPORT` §7-B에 사실만 적는다 |
+
+즉 **이 Handoff의 실행 대상은 이번 Cycle이 새로 찾은 `PA-RC-0012` 하나다.**
+
+<!-- PA-RC-BEGIN PA-RC-0012 -->
+rc_id: PA-RC-0012
+severity: Medium
 priority: P2
 confidence: Confirmed
-problem: 이 제품에는 글자 크기 스케일이 **선언은 되어 있지만 소비되지 않는다**. `frontend/src/styles/tokens.css:248-253`이 6단계(`--font-size-xs/sm/md/base/lg/xl`)를 정의하는데, 화면을 실제로 그리는 층(MUI `sx`/`styled`)에서 이 토큰을 읽는 곳은 `.js`/`.jsx` 전체에서 **0곳**이고 CSS에서도 `screens.css:43` 단 1곳뿐이다. 그래서 화면을 쓰는 사람은 매번 리터럴을 고르고, 그 결과 비테스트 소스에 `fontSize` 표현이 **31종·278회** 존재하며 본문 대역이 11/12/13/14/15/16/17px의 **1px 연속체**가 됐다. 같은 구조가 `RADIUS` 토큰(`theme.js:37`, 참조 2회 vs `borderRadius` 표현 27종·108회)에서도 반복된다.
-expected: 정보 위계가 3단계 이내로 읽혀야 하고(이 Audit 프롬프트 6절 rubric 3항), 반복되는 글자 크기는 토큰 하나로 수렴해야 한다. `tokens.css:243` 주석이 스스로 "화면 전반에서 반복되는 12/13/14/15/17/24px를 토큰화"라고 목적을 선언한다 — 토큰을 정의한 의도는 소비되는 것이다.
-actual: 토큰은 정의만 되고 소비되지 않는다. 더 나쁜 것은 **본문 크기에 대해 두 SSOT가 다른 값을 주장한다**는 점이다 — `tokens.css:243`은 "base는 본문 기본값(body 15px)"(`0.9375rem`)이라 적고, `theme.js:271`은 `body1: 0.875rem`(14px)에 "본문 14px, 기준 목업은 body{font-size:14px}"라 적는다. 둘 다 자신이 기준선에서 왔다고 주장한다. **2026-08-16 재측정(구현 17커밋 이후) — 이 RC의 핵심 처방은 실제로 적용됐다.** `theme.js`에 `FONT_SIZE` 6단계와 `sectionTitle`·`statValue` variant가 신설됐고(RD-1~RD-3 확정값 그대로), 비테스트 `fontSize:` 286회를 분해하면 **아이콘 크기 지정 27회**(MUI에서 `fontSize`는 아이콘 크기 API이기도 하다 — 타이포가 아니다) 와 타이포 259회이며, 그 259회 중 **206회가 이미 `FONT_SIZE.*` 토큰 참조**다(bodySm 58 · body 52 · caption 50 · sectionTitle 46). 즉 "간격과 같은 수준의 일급 API를 준다"는 처방이 서 있고 소비도 시작됐다. **남은 것은 6단계 밖의 "사이값" 원시 리터럴 약 30~40회**다(`0.6875rem`=11px 13회 · `0.9375rem`=15px 7회 · `1rem` 5회 등). 구현 Phase가 이것을 남긴 이유는 타당하다 — 어느 단계로 재양자화할지는 시각적 판단이 필요하고, 기계적으로 옮기면 실제 시각 변화(=회귀)가 되기 때문이다. 따라서 **acceptance_criteria (5)(`static_checks.sh` 리터럴 금지)는 이 사이값 정리가 끝난 뒤에야 켤 수 있다** — 순서를 지켜라. **정정 기록**: 이 Audit은 처음에 "리터럴 285회·44종이 남아 종수가 오히려 늘었다"고 적었는데, 그것은 `fontSize:` 출현을 세면서 **토큰 참조와 아이콘 크기까지 리터럴로 계산한 오류**였다. 패턴이 몇 번 걸렸는지만 세고 무엇이 걸렸는지 보지 않은, 이 Audit이 반복해서 경계해 온 바로 그 실수다.
-intent_evidence: ② `frontend/src/styles/tokens.css:243-253`의 토큰 정의와 목적 주석 · ② `frontend/src/ui/theme.js:11-27`의 "색·타이포·컴포넌트 규칙의 단일 출처다" 선언 · ④ `frontend/src/ui/theme-baseline.test.js`가 `design/baseline/preview-standalone.html`을 파싱해 값을 대조하는 계약이 이미 존재한다(즉 "기준선이 정본"이라는 의도는 테스트로 표현돼 있다).
-findings: PA-F-001, PA-F-002, PA-F-003, PA-F-004, PA-F-013
-feature_contracts: 해당 없음 — 이 Root Cause는 특정 기능 계약이 아니라 전 화면 공통 표현 계층이다. 기능 계약은 하나도 바뀌지 않는다.
-routes: 전 라우트(사용자 콘솔 26 + 관리자 명시 18 + REGISTRY 27). 특정 라우트에 국한되지 않는다.
-frontend: `frontend/src/ui/theme.js`(타이포/RADIUS 정의) · `frontend/src/styles/tokens.css`(선언만 되고 안 쓰이는 스케일) · `frontend/src/ui/kit.jsx`(공통 키트, 자신도 리터럴 사용) · `frontend/src/ui/density.js` · `fontSize:` 리터럴을 쓰는 비테스트 모듈 전체(스캔 결과 `var/product-audit/design_scan.json`)
-api: 해당 없음 — 표현 계층만 바뀐다. 네트워크 계약 변화 없음.
-backend: 해당 없음 — 서버 렌더 페이지(`app/templates_html`, `app/static/css/tokens.css`)는 별도 사본이라 이 RC의 SPA 범위 밖이다. 다만 `DS-18`이 그 사본을 다루므로 함께 계획할 것.
-data: 해당 없음 — DB/데이터 구조 변화 없음.
+problem: 화면의 **문서 제목 계층이 시각 스타일 API에 종속돼 있다.** MUI에서 `variant="h6"`은 "20px 굵은 글자"라는 시각 선택이면서 동시에 `<h6>` 엘리먼트를 결정한다. 이 저장소에는 그 둘을 분리하는 `variantMapping`이 **없어서**(전체 0건), 개발자가 시각적 이유로 `variant="h6"`을 고르면 문서 구조가 조용히 따라간다. 그 결과 손으로 쓴 관리자 화면 5개가 `h1` 바로 다음에 `h6`을 놓아 **네 단계를 건너뛴다** — `/system`·`/mail`·`/llm-console`·`/notion-console`·`/offboarding`. `/setup`은 `SetupWizard.jsx:97`이 `component="h3"`을 명시해 `h1 → h3`으로 두 단계를 건너뛴다. 추가로 `ui/BodyEditor.jsx:229`는 **사용자가 문서 본문에 넣은 `h1` 블록을 `<h6>`으로** 그린다(사용자 저작 콘텐츠의 의미가 바뀌는, 성격이 다른 사례). 그리고 이 계열의 재유입을 막는 장치가 **하나도 없다** — `scripts/static_checks.sh`에 heading 규칙이 0건이고 heading 순서를 보는 공용 테스트도 없다.
+expected: 문서 제목은 건너뛰지 않고 순차적이어야 한다(`h1 → h2 → h3`). 시각적 크기와 문서 구조는 **독립적으로** 지정할 수 있어야 한다. 이 저장소는 이미 그 옳은 관용을 알고 있고 실제로 쓰고 있다 — `ui/adminKit.jsx:52`의 `<Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>`가 정본이며, `variant="h6"` 47회 중 **27회는 이미 `component=`로 의미를 따로 지정**한다. 기대 동작은 외부에서 들여온 기준이 아니라 이 저장소가 스스로 보여 준 관용이다.
+actual: 20회가 `component=` 없이 쓰여 `<h6>`이 그대로 나간다. 브라우저 실측(`probe_a11y.py` → `verify_a11y.py`)과 소스 추적이 1:1로 대응한다 — `LlmConsole.jsx`(201·238·332·357) · `NotionConsole.jsx`(153·316·353·380) · `MailStatus.jsx`(110·122·145) · `Offboarding.jsx`(259·343·442) · `SystemOps.jsx`(234·251·265) · `BodyEditor.jsx`(229) · `LoginHandoff.jsx`(137). 대조군으로 `DataScreen.jsx` 기반 화면은 이번 sweep 60라우트에서 전부 `h1 → h2`로 정상이다 — 즉 공유 셸을 거치는 경로는 이미 옳고, 손으로 쓴 화면만 갈라져 있다.
+intent_evidence: ⑤ 서로 일치하는 구현 관용 — `ui/adminKit.jsx:52`·`ui/EditableBody.jsx:144,206`이 `component="h2" variant="h6"` 형태로 시각과 의미를 분리한다(27회). ④ 신뢰할 수 있는 테스트가 표현하는 계약 — `SEM-02`/`SEM-03`/`PA-F-031` 수정 배치가 `home.test.jsx`·`my-stats.test.jsx`·`datascreen.test.jsx` 등에 "h1 1개 + h2 N개"를 **명시적으로 못박는 회귀 테스트**를 남겼다. 즉 "제목 계층은 순차적이어야 한다"는 의도는 이미 테스트로 표현돼 있고, 이번 5개 화면이 그 계약의 사정권 밖이었을 뿐이다. ② `docs/BACKLOG.md`의 `SEM` 절이 접근성 시맨틱을 제품의 강점으로 명시하고 유지 대상으로 삼는다.
+findings: PA-F-043, PA-F-047, PA-F-044(같은 프로브에서 나온 오탐 — 승격하지 않는 근거로 함께 읽을 것)
+feature_contracts: 해당 없음 — 기능 계약이 아니라 전 화면 공통 표현/의미 계층이다. 어떤 Feature Contract의 입력·출력·상태 전이도 바뀌지 않는다.
+routes: `/system` · `/mail` · `/llm-console` · `/notion-console` · `/offboarding` · `/setup` (직접 확인). 추가로 `BodyEditor`를 쓰는 문서·게시글 본문 렌더 경로 전체(`/team-docs/:id` · `/board/:id`), `LoginHandoff`가 뜨는 로그인 인계 화면.
+frontend: `frontend/src/ui/theme.js`(`variantMapping` 부재 — 근본 처방 자리) · `frontend/src/screens/LlmConsole.jsx` · `NotionConsole.jsx` · `MailStatus.jsx` · `Offboarding.jsx` · `SystemOps.jsx` · `SetupWizard.jsx` · `frontend/src/ui/BodyEditor.jsx` · `frontend/src/app/LoginHandoff.jsx` · 정본 관용은 `frontend/src/ui/adminKit.jsx:52`
+api: 해당 없음 — 네트워크 계약은 바뀌지 않는다. 렌더 결과의 DOM 태그만 바뀐다.
+backend: 해당 없음 — 서버 코드와 무관하다. 서버 렌더 페이지(`app/templates_html/**`)는 이 RC의 SPA 범위 밖이며, 이번 Cycle은 그쪽 heading을 재지 않았다(`COVERAGE` M축에 미측정으로 남김).
+data: 해당 없음 — DB/데이터 구조 변화 없음. 단 `BodyEditor`의 경우 **저장된 데이터는 그대로**이고(블록 `type: "h1"` 유지) 렌더 태그만 교정한다 — 데이터 마이그레이션을 하지 말 것.
 rbac: 해당 없음 — 권한 경계와 무관하다.
 integration: 해당 없음 — 외부 연동과 무관하다.
 state_transition: 해당 없음 — 상태 전이와 무관하다.
-user_impact: 위계가 ±1px과 ±50 굵기로만 표현되어 지각 임계 이하다. 사용자는 화면에서 "무엇이 중요한가"를 글자만으로 판별하지 못하고, 표·대시보드처럼 밀도가 높은 화면에서 훑기(scan)가 느려진다. 직접적인 기능 실패는 없다.
-implementation_direction: (1) `theme.typography`에 **의미 기반 variant**를 추가하고(`tableCell`·`metaLabel`·`statValue`·`sectionTitle` 등) 화면은 `variant=`로만 고르게 한다 — CSS 변수는 `sx`에서 자연스럽게 안 읽히므로 토큰을 더 만드는 방식으로는 해결되지 않는다. 이것이 이 RC의 핵심이다. **근거는 PA-F-013의 대조 실험이다**: 같은 `sx` 층에서 간격은 스케일 준수율 96%인데(무단위 배수 1,279회, 상위 10개 값이 96%), 그 이유는 MUI가 `p: 2` 라는 일급 스케일 API를 주기 때문이다. 글자 크기에는 그 API가 없어서 가장 쉬운 길이 리터럴이 된다. 따라서 처방은 "규율을 요구하기"가 아니라 **"간격과 같은 수준의 일급 API를 만들어 주기"** 다. (2) **재양자화 값이 이제 확정돼 있다** — `PRODUCT_AUDIT_FINDINGS.md`의 `RD-1`~`RD-3`을 그대로 쓴다: 글자 크기 **15종 → 6단계**(12 caption / 13 bodySm / 14 body / 17 sectionTitle / 20 pageTitle / 30 statValue, 62px는 브랜드 워드마크 전용으로 스케일 밖), 굵기 **10종 → 4단계**(400/500/600/700, 800은 워드마크만), radius **10종 → 의미 슬롯 4개**(sm 입력·배지 / md 버튼 / lg 카드·모달 / full 아바타·pill, 채팅 말풍선의 비대칭 radius는 이름을 주고 예외로 남긴다). **11px 미만(10.5·10.88px)은 없앤다** — `PA-F-029`가 1920 기본 배율에서 실렌더를 확인했다. (3) 본문 SSOT 충돌을 먼저 해소한다 — `design/baseline/preview-standalone.html`을 열어 실제 기준값을 확인하고 `tokens.css`/`theme.js` 중 틀린 쪽을 고친다(값을 눈대중으로 고르지 말 것, `theme.js` 상단 주석의 경고 그대로). (4) 재발 방지로 `scripts/static_checks.sh`에 `fontSize:` 리터럴 금지 검사를 넣는다 — 규칙만 두면 다시 갈라진다. (5) `DS-05`(굵기)와 **같은 배치로** 처리한다. 둘은 같은 소비 경로 문제의 두 얼굴이다.
-constraints: CLAUDE.md §3-6(서버 데이터를 `innerHTML`로 주입 금지, inline script 금지) 유지 · `theme-baseline.test.js`가 기준선 파일과 값을 대조하므로 **기준선 파일을 먼저 고치고 코드를 따라가는** 순서를 지킬 것 · `ui/kit.jsx`의 **export 이름과 prop 시그니처를 바꾸지 말 것**(화면 다수가 의존, 파일 주석이 명시) · 4K 대응을 위해 `rem` 기반을 유지할 것(px로 박으면 `styles/root.css`의 루트 폰트사이즈 미디어쿼리가 무력화된다).
-regression_risk: 글자 크기가 바뀌면 (a) 표 열 폭과 줄바꿈이 달라져 `DS-06`(열 폭 미지정)이 표면화될 수 있다 (b) `DS-32`의 4K `tiny_text` 검사가 영향받는다 (c) `ko-wordbreak.test.jsx`·`tokens-baseline.test.js`·`theme-baseline.test.js`가 값에 직접 걸려 있다. 범위는 프런트 전체이며 백엔드 회귀는 불필요하다.
-acceptance_criteria: (1) `grep -rn "fontSize:" frontend/src --include=*.jsx --include=*.js` 에서 비테스트 리터럴이 0건이거나, 남은 것마다 예외 사유가 주석으로 있다. (2) 본문 기본 크기가 `tokens.css`와 `theme.js`에서 **같은 값**이고, 그 값이 `design/baseline/preview-standalone.html`과 일치한다. (3) 실사용 글자 크기 단계가 8단계 이하다(재측정: `var/product-audit/scan_design.py`). (4) `borderRadius` 표현이 `RADIUS` 토큰 또는 MUI shape로 수렴하고 무단위 숫자와 문자열이 한 파일 안에서 섞이지 않는다. (5) `static_checks.sh`가 리터럴 재유입을 막는다. (6) 프런트 전체 vitest green.
-required_tests: `frontend/src/ui/theme-baseline.test.js`(기준선 대조, 기존) · `frontend/src/styles/tokens-baseline.test.js`(기존) · **신규**: 타입 스케일 단계 수 상한을 못박는 테스트 · **신규**: `static_checks.sh`의 `fontSize:` 리터럴 검사가 실제로 위반을 잡는지(revert-to-verify) · 대표 소비 화면 회귀(`Dashboard`·`MyTickets`·`Users`·`DataScreen`) · 4K `tiny_text` 검사 재실행.
-qa_gaps: `docs/QA_COVERAGE.md`에 "타이포 스케일 일관성" 축이 없다 — 화면별 시각 검증은 있으나 **토큰 소비 여부**를 보는 축이 없어서 이 결함이 162건의 VIS 항목을 거치고도 안 잡혔다. 이 축을 추가할 것.
-quality_rubric: **탐지**는 정량 스캔(소스 31종/278회 + 브라우저 실측 15종/10종/10종)으로 했고 미적 판단이 개입하지 않았다. **재양자화 판단**에는 `ui-ux-pro-max`를 실제로 적용했다 — 도메인 `ux`의 *"Font Size Scale: 일관된 modular scale을 쓴다 / 임의 글자 크기 금지"*, *"Line Height 1.5~1.75"*, *"Line Length 65~75자"* 항목. `redesign-existing-projects`의 감사 항목표도 적용했다(`PA-RC-0004`·`PA-RC-0010`의 근거). 내장 rubric 3)(정보 위계 3단계) · 4)(같은 의미=같은 pattern) · 9)(약한 위계). **구현 Phase는 `RD-1`~`RD-3`의 확정 단계값을 그대로 쓰고, 개별 화면 적용 시 `impeccable`로 위반을 재탐지할 것.**
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0001 절(PA-F-001~004) · `frontend/src/styles/tokens.css:243-253` · `frontend/src/ui/theme.js:37,271` · `frontend/src/styles/screens.css:43` · `var/product-audit/design_scan.json` · 스캐너 `var/product-audit/scan_design.py`
+user_impact: 스크린리더 사용자는 heading 목록으로 페이지를 훑는다. `h1` 다음이 `h6`이면 목차에서 네 단계가 비어 그 구역이 최상위인지 하위 절인지 판별할 수 없고, 구역 단위 점프(대부분의 스크린리더가 제공하는 `h2` 순회)가 아예 걸리지 않는다. 영향이 가장 큰 곳은 `/system`(서비스 재시작)과 `/offboarding`(퇴사 처리 실행)처럼 **되돌릴 수 없는 조작**을 담은 화면이다 — 어느 구역에 있는지 모른 채 버튼을 누르는 비용이 다른 화면보다 크다. 시각 사용자에게는 영향이 없고 기능도 정상이다(그래서 High가 아니라 Medium이다). `BodyEditor` 건은 영향 대상이 다르다 — 사용자가 쓴 문서의 제목 위계가 화면에서 뒤집힌다.
+implementation_direction: (1) **먼저 `theme.js`에 `variantMapping`을 준다** — 이것이 근본 처방이다. `MuiTypography.defaultProps.variantMapping`에서 `sectionTitle`·`pageTitle` 같은 **의미 variant는 올바른 태그로**, 그리고 `h6`은 시각 전용임을 분명히 한다. 값을 눈대중으로 고르지 말고 기존 `FONT_SIZE.sectionTitle`(17px)/`pageTitle`(20px) 단계를 그대로 쓴다. (2) **`kit.jsx`에 `SectionTitle`류 의미 컴포넌트를 쓰게 한다** — 이미 `SectionTitle`이 존재하고 `component` prop을 받는다(`SEM-02` 배치가 `Home.jsx`·`MyStats.jsx`·`Profile.jsx`에서 이 경로로 해결했다). 5개 화면을 이 경로로 옮기면 개별 파일에 `component="h2"`를 흩뿌리는 것보다 재발이 적다. (3) 5개 화면의 17개 호출부를 `h2`로 교정한다. 각 화면은 `PageHeader`가 `h1`이므로 카드 제목은 전부 `h2`가 맞다. **단순 치환이 아니다** — `Offboarding.jsx:259`는 `{user.display_name}, {user.email}`이라 구역 제목이 아니라 선택된 대상 표시일 수 있으니 그 자리는 heading이 맞는지부터 판단할 것(heading이 아니라면 `component="p"`가 옳다). (4) `SetupWizard.jsx:97`은 `h3` → `h2`로 올린다(위에 h2가 없으므로 h3일 이유가 없다). (5) `BodyEditor.jsx:229`는 `variant="h6"`은 시각적으로 유지하되 `component="h2"`를 준다 — 저장 데이터는 건드리지 않는다. 본문 안 `h2`/`h3` 블록도 같은 규칙으로 한 단계씩 내려 순서를 유지할 것. (6) **재유입 방지 게이트를 넣는다** — `scripts/static_checks.sh`에 `component=` 없는 `variant="h[3-6]"`를 잡는 검사를 추가한다. 규칙만 두면 반드시 다시 갈라진다(이 저장소가 `PA-RC-0001`·`0002`·`0008`에서 세 번 겪은 패턴이고, `PA-RC-0001`의 `FONT_SIZE` 일급 API + `check_typography_literals.py` 조합이 실제로 성공한 처방이다 — **같은 모양으로 하라**). 예외가 정당한 자리(`LoginHandoff.jsx:137` 등)는 `check_typography_literals.py`가 이미 쓰는 **예외 등재 방식**을 그대로 재사용한다.
+constraints: `ui/kit.jsx`의 **export 이름과 prop 시그니처를 바꾸지 말 것**(화면 다수가 의존, 파일 주석이 명시) · **시각적 크기를 바꾸지 말 것** — 이 RC는 의미 층위만 고친다. `fontSize`가 달라지면 `PA-RC-0001`이 세운 `FONT_SIZE` 스케일과 `check_typography_literals.py`를 건드리게 되고 회귀 범위가 폭발한다 · `BodyEditor`의 저장 데이터 형식(블록 `type`)을 바꾸지 말 것 · CLAUDE.md §3-6(서버 데이터 `innerHTML` 주입 금지) 유지 · `EmptyState`는 `role="heading" aria-level={2}`로 레벨을 **고정**하고 있어(`PA-F-031` 배치가 남긴 함정) DOM heading 순서 검사가 이것을 오탐으로 잡지 않게 할 것.
+regression_risk: (a) 제목 태그가 바뀌면 **텍스트/역할로 조회하는 기존 테스트가 깨진다** — `getAllByRole("heading", {level: N})`을 쓰는 스위트가 이미 여럿 있다(`home.test.jsx`·`my-stats.test.jsx`·`assistant-panel.test.jsx`·`datascreen.test.jsx`·`chat-page-heading.test.jsx`). 바꾼 화면의 스위트를 반드시 함께 돌릴 것. (b) `h6` → `h2`는 MUI 기본 CSS 상속이 아니라 `variant`가 크기를 주므로 **시각 변화는 없어야 한다** — 만약 보이면 그 화면이 태그 기본 스타일에 의존하고 있었다는 뜻이므로 그 자체를 결함으로 기록할 것. (c) 범위는 프런트 전용이며 **백엔드 회귀는 불필요하다**. (d) 새 static check는 정당한 예외를 잡을 수 있으므로 켜기 전에 전수 목록을 먼저 뽑을 것.
+acceptance_criteria: (1) `/system`·`/mail`·`/llm-console`·`/notion-console`·`/offboarding`·`/setup` 여섯 화면에서 heading 열이 건너뛰지 않는다 — 재측정은 `.venv/Scripts/python var/product-audit/probe_a11y.py` 이고 `headingSkips`가 **6개 화면 모두 빈 배열**이어야 한다. (2) 비테스트 소스에서 `component=` 없는 `variant="h[3-6]"`가 0건이거나, 남은 것마다 예외 목록에 사유와 함께 등재돼 있다. (3) `frontend/src/ui/theme.js`에 `variantMapping`이 존재하고, 의미 variant가 올바른 태그로 매핑된다. (4) `BodyEditor`가 그리는 본문 `h1` 블록이 `<h2>`로 렌더되고, 저장 데이터의 블록 `type`은 `"h1"` 그대로다. (5) `scripts/static_checks.sh`가 이 계열의 재유입을 실제로 잡는다 — **revert-to-verify**로 확인한다(위반 코드를 넣으면 실패하고 지우면 통과). (6) 프런트 전체 vitest green. (7) 여섯 화면의 **시각적 렌더가 변하지 않았다** — 글자 크기·굵기 측정값이 수정 전후 동일(같은 프로브의 `fontSizes` 비교).
+required_tests: **신규**: heading 순서를 검사하는 공용 회귀 테스트 — 대표 화면들을 렌더해 heading 레벨 열이 1씩만 증가하는지 확인한다(화면별로 흩어 놓지 말고 한 파일에 모아 새 화면이 추가돼도 걸리게 할 것). **신규**: `static_checks.sh`의 새 heading 검사가 실제로 위반을 잡는지(revert-to-verify). **신규**: `BodyEditor`의 `h1` 블록이 `<h2>`로 렌더되고 저장 형식은 불변인지. **기존**: 수정한 5개 화면의 스위트 전부 + `getAllByRole("heading")`에 의존하는 기존 스위트(`home.test.jsx`·`my-stats.test.jsx`·`assistant-panel.test.jsx`·`datascreen.test.jsx`·`chat-page-heading.test.jsx`·`teamdoc.test.jsx`·`board-post-kind-crumb.test.jsx`·`ticket-detail.test.jsx`) · 프런트 전체 회귀.
+qa_gaps: `docs/QA_COVERAGE.md`에 **heading 계층(문서 구조) 축이 없다.** 기존 `SEM` 축은 2026-08-08 8화면 실측 1회로 끝났고 그 뒤 추가된 화면은 아무도 재지 않았다 — 이번 5개 화면이 정확히 그 사각지대로 들어왔다. 화면별 시각·기능 검증 축은 있으나 "이 화면의 제목 열이 건너뛰지 않는가"를 **모든 화면에 대해 반복 측정**하는 칸이 없다. 이 축을 추가하고 `probe_a11y.py`를 그 축의 재측정 수단으로 등재할 것.
+quality_rubric: `ui-ux-pro-max` — 이번 Cycle에서 **실제로 호출**했다(`.claude/skills/ui-ux-pro-max/scripts/search.py`). `--domain ux`의 **Heading Hierarchy** 항목: *"Screen readers use headings for navigation. Do: use sequential heading levels h1-h6. Don't: skip heading levels **or misuse for styling**."*(Severity Medium) — 이 규칙이 이 결함의 실패 모드를 이름 그대로 지목한다("스타일 목적의 heading 오용"). `--domain web` 및 `--stack react`의 **Use semantic HTML before ARIA**(Severity **High**) — 의미에 맞는 엘리먼트를 먼저 고르고 ARIA로 때우지 말라는 것으로, `aria-level`을 덧붙이는 우회가 아니라 태그 자체를 고치라는 근거다. 추가로 이 Audit 프롬프트 6절 내장 rubric **3)**(정보 위계가 3단계 이내로 읽히는가) · **4)**(같은 의미가 같은 component/pattern으로 표현되는가 — `DataScreen` 경로는 h2인데 손으로 쓴 화면은 h6인 것이 정확히 이 위반이다). 구현 Phase는 개별 화면 적용 시 같은 `ui-ux-pro-max` 항목으로 재확인할 것.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-043`·`PA-F-044`·`PA-F-047` 절 · 브라우저 실측 `var/product-audit/probe_a11y.json`(59라우트 heading outline)과 `var/product-audit/verify_a11y.json`(DOM 원본 확인) · 스캐너 `var/product-audit/probe_a11y.py`·`verify_a11y.py` · `frontend/src/ui/adminKit.jsx:52`(정본 관용) · `frontend/src/ui/theme.js:57-62,300`(`variantMapping` 부재) · `frontend/src/screens/SetupWizard.jsx:97` · `frontend/src/ui/BodyEditor.jsx:229` · 대조군 `var/product-audit/sweep_all.json`(`DataScreen` 화면은 전부 h1→h2)
 <!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0002 -->
-rc_id: PA-RC-0002
-severity: High
-priority: P1
-confidence: Confirmed
-problem: 이 제품에는 **UX Writing 규칙 문서가 존재하지 않는다**(저장소 전체 검색 결과 0건). 그 결과 문구 결정이 매번 호출부의 즉흥 판단으로 내려가고 세 가지로 갈라졌다. (1) **오류 문구의 85%가 회복 경로 없는 막다른 길**이다 — "어떤 동작이 실패했다"를 서술하는 고유 문구 167건 중 `[무엇을 하라]`를 말하는 것은 24건(14%), `[왜]`는 5건(2%), **3요소를 모두 갖춘 것은 0건**. (2) 같은 문장이 마침표 있는 판과 없는 판으로 **동시에** 존재한다(`"권한이 없습니다"` — `lib/api.js:10` vs `app/AdminRoutes.jsx:40`). (3) 같은 개념에 동사가 균등 분포한다(생성 84·등록 72·추가 64·만들 49).
-expected: `ux-writing` Skill의 오류 메시지 패턴 `[What failed]. [Why/context]. [What to do].` 를 따르고, 회복 경로 없는 오류("Dead ends")를 만들지 않는다. 같은 개념은 같은 단어로, 같은 역할의 문구는 같은 종결 규칙으로 쓴다. **이 제품에 이미 그 패턴을 지키는 문구가 24건 존재한다** — 즉 기대 동작은 외부에서 들여온 기준이 아니라 이 저장소가 스스로 보여 준 관용이다.
-actual: 좋은 패턴이 옆 파일로 전파되지 않는다. `lib/api.js` **한 파일 안에서** 16행은 `"요청을 처리하지 못했습니다."`(막다른 길)이고 54행은 `"서버 응답을 해석하지 못했습니다. 잠시 후 다시 시도해 주세요."`(회복 경로 있음)다. 공통 키트 `ui/kit.jsx`조차 마침표 관용이 6:5로 자기 안에서 갈라져 있다. **2026-08-16 재측정(구현 17커밋 이후)**: `docs/UX_WRITING.md`(7.4KB·7절)가 생겼고 `static_checks.sh`에 쉼표접속·표준동사표 린트가 들어갔다 — 이 RC의 (1)(2)단계는 실제로 수행됐다. 회복 절을 주는 실패 문구가 **14% → 63%**(원시 스캐너 기준), 막다른 길이 **130 → 62**로 줄었다. **다만 그 62건을 전수로 읽어 보면 20건은 애초에 실패 서술이 아니다** — 확인 대화("창을 닫을까요?"), 성공 알림("방장을 넘겼습니다"), 설명문("비워 두면 일정 준수 여부를 판정하지 않습니다") 등이다. 그 20건을 분모에서 빼면 실질 비율은 **약 72%**이고 진짜 막다른 길은 **42건**이다. **어느 쪽이든 acceptance_criteria (2)의 기준 90%에는 못 미치므로 이 RC는 열려 있다.** 마무리 방법은 기준 원문 그대로다 — 재시도가 무의미한 실패는 **예외 목록에 사유와 함께 등재**해서 닫아라. 숫자를 맞추려고 "다시 시도해 주세요"를 기계적으로 붙이지 마라(이 RC의 constraints에 이미 금지돼 있다). 스캐너(`var/product-audit/scan_errcopy.py`)가 확인 대화·성공 알림을 실패로 세는 것도 함께 고치면 다음 측정이 정확해진다.
-intent_evidence: ② CLAUDE.md §5가 "Frontend와 실제 Product UX는 선택사항이 아니다"라고 못박음 · ⑤ 이 저장소 자신의 준수 사례 24건(`Banners.jsx:71`, `CommandPalette.jsx:171`, `UserMenu.jsx:60`, `lib/api.js:54`, `MyStats.jsx:58`)이 기대 관용을 실물로 보여 준다 · 외부 기준으로 `ux-writing` Skill의 오류 패턴과 "Dead ends" 금지 조항. **명시적 제품 정책 문서는 없다** — 그것이 이 RC의 문제 자체다.
-findings: PA-F-005, PA-F-006, PA-F-007, PA-F-008, PA-F-011
-feature_contracts: 해당 없음 — 문구는 모든 Contract에 걸쳐 있고 특정 하나에 속하지 않는다. 단 FC-01(승인)·FC-04(AI 어시스턴트)의 실패 경로 문구가 이 RC의 직접 대상이다.
-routes: 전 라우트. 오류 문구가 집중된 곳은 `/notifications`·`/chat-rooms`·`/board`·`/team-docs`·`/projects`와 관리자 `DataScreen` 계열 전체.
-frontend: `frontend/src/lib/api.js`(공용 오류 변환, 16·35·54행) · `frontend/src/ui/kit.jsx`(토스트·확인·빈 상태 공통) · `frontend/src/app/NotificationBell.jsx` · `frontend/src/screens/ChatPane.jsx` · `BoardPost.jsx` · `Board.jsx` · `ChatRoom.jsx` · `screens/registry/*.js`(관리자 액션 문구) 외 `var/product-audit/errcopy_scan.json`의 전체 목록
-api: 해당 없음 — 엔드포인트 계약은 바뀌지 않는다. 다만 백엔드가 주는 한국어 사유(`error.details`)를 화면이 읽는지는 기존 `UX-40`과 함께 볼 것.
-backend: 해당 없음(직접 대상 아님) — 다만 `app/core/errors.py`가 만드는 사용자 노출 문구는 같은 규칙을 따라야 하므로 규칙 문서의 적용 범위에 포함할 것.
-data: 해당 없음 — 데이터 구조 변화 없음.
-rbac: 해당 없음 — 권한 판정은 바뀌지 않는다. 단 권한 거부 문구("권한이 없습니다")가 이 RC의 대표 증거이므로 문구만 통일된다.
-integration: 해당 없음 — 외부 연동 계약과 무관하다.
-state_transition: 해당 없음 — 상태 전이와 무관하다.
-user_impact: 실패한 뒤 무엇을 해야 하는지 모르는 사용자는 같은 버튼을 다시 누르거나(중복 제출 위험) 작업을 포기한다. 이 Audit 프롬프트의 적용 우선순위 1위인 **사용자 업무 성공**에 직접 걸린다. 용어 분산은 검색·도움말·교육 자료가 화면과 어긋나게 만든다.
-implementation_direction: (1) `docs/UX_WRITING.md`를 **먼저** 만든다 — 종결·마침표 규칙, 개념별 표준 동사표(생성/등록/추가/만들기 중 하나로 확정), 오류 3요소 패턴, 길이 상한, 괄호 사용 조건. (2) **규칙을 기계 검사로 못박는다** — `scripts/static_checks.sh`에 문구 린트를 추가해 ⓐ 같은 문장이 두 철자로 존재하는 것 ⓑ 표준 동사표 위반 ⓒ 실패 문구에 회복 절이 없는 것을 잡는다. 규칙만 쓰면 반드시 다시 갈라진다(PA-F-011이 그 증거다 — 좋은 문구가 있어도 규칙이 없으면 안 퍼진다). (3) 그 다음에 기존 문구를 일괄 정렬하되 **오류 문구(막다른 길 약 130건)를 최우선**으로 한다. (4) 공용 진입점부터 고친다 — `lib/api.js`와 `ui/kit.jsx`를 먼저 맞추면 다수 화면이 따라온다.
-constraints: 기술 용어·제품명·상태값·API 필드명·수치의 의미를 바꾸지 말 것(이 Audit 프롬프트 2절) · 짧은 버튼명을 억지로 문학적으로 바꾸지 말 것 · UX Writing을 먼저 적용하고 한국어 humanization은 그 뒤에 적용할 것 · CLAUDE.md §3-3(secret 비노출) — 오류 문구에 내부 경로·스택·식별자를 노출하지 말 것 · 회복 절을 기계적으로 붙여 "다시 시도해 주세요"를 남발하지 말 것(재시도가 무의미한 실패에는 다른 안내가 필요하다).
-regression_risk: 문구 변경은 **테스트가 텍스트로 조회하면 깨진다.** vitest 다수가 `getByText`/`findByText`로 한국어 문구를 직접 찾는다(172개 테스트 파일). 범위는 프런트 전체이며, 문구를 바꾼 화면의 스위트를 반드시 함께 돌려야 한다. 백엔드 회귀는 `app/core/errors.py`를 건드릴 때만 필요하다.
-acceptance_criteria: (1) `docs/UX_WRITING.md`가 존재하고 종결 규칙·표준 동사표·오류 3요소 패턴을 포함한다. (2) `var/product-audit/scan_errcopy.py` 재실행 시 `[무엇을 하라]`를 말하는 실패 문구 비율이 **14% → 90% 이상**이고, 재시도가 무의미한 실패는 예외 목록에 사유와 함께 등재돼 있다. (3) 글자 그대로 같은 문장이 마침표 유무로 공존하는 사례가 0건이다. (4) 표준 동사표 위반이 0건이다. (5) `static_checks.sh`가 위 3개를 실제로 잡는다(각각 revert-to-verify로 확인). (6) 문구를 바꾼 화면의 vitest 스위트 green.
-required_tests: **신규**: 문구 린트 자체의 회귀 테스트(위반 문자열을 넣으면 실패하는지) · **신규**: `lib/api.js`의 오류 변환이 회복 절을 포함하는지 검증하는 단위 테스트 · 기존: 문구를 바꾼 화면의 vitest 스위트 전부(`notification-*`, `board-*`, `chat-*`, `teamdoc*`, `datascreen*`) · 기존 `frontend/src/app/*.test.jsx` 중 텍스트 조회에 의존하는 것 전수.
-qa_gaps: `docs/QA_COVERAGE.md`에 **문구 축(P/Q)이 없다.** 화면별 시각·기능 검증 축은 있으나 "이 화면의 실패 문구가 회복 경로를 주는가"를 보는 칸이 없어서, 이 결함이 QA를 통과했다. 최소 두 축을 추가할 것: `오류 문구 3요소` · `용어 표준 준수`.
-quality_rubric: `ux-writing` — 오류 메시지 패턴 `[What failed]. [Why/context]. [What to do].`, "Dead ends (error with no recovery path)" 금지 조항, "Inconsistent terminology" 항목, 길이 벤치마크(오류 12~18단어·한 줄 40~60자). 이 Skill을 이번 Cycle에서 **실제로 불러 적용**했고 그 결과 PA-F-011이 나왔다(적용 전에는 이 RC를 Medium 일관성 문제로 잘못 보고 있었다). 추가로 내장 rubric 6)(폼 오류 연결). 한국어 자연스러움(R축)은 **아직 적용하지 않았다** — 프롬프트 2절대로 UX Writing 확정 후 `humanize-korean`을 적용할 것.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0002 절(PA-F-005~008, PA-F-011) · `frontend/src/lib/api.js:10,16,35,54` · `frontend/src/app/AdminRoutes.jsx:40` · `frontend/src/app/NotificationBell.jsx:201,357` · `var/product-audit/errcopy_scan.json`(막다른 길 전체 목록) · `var/product-audit/copy_inventory.json`(문자열 4,919회/2,847종) · 스캐너 `var/product-audit/scan_copy.py`, `scan_errcopy.py`
-<!-- PA-RC-END -->
-
-<!-- PA-RC-BEGIN PA-RC-0003 -->
-rc_id: PA-RC-0003
-severity: Critical
-priority: P0
-confidence: Confirmed
-problem: **저장소 보안 검사가 `.git` 내부를 보지 않는다.** `scripts/static_checks.sh`를 비롯한 현재 자격증명 검사는 **워킹트리와 커밋만** 훑는다. 그래서 `git stash` 객체·`reflog`·dangling 객체에 들어간 비밀은 어떤 검사도 통과시켜 버린다. 이 공백은 가설이 아니라 **실제로 이미 뚫렸다** — `stash@{0}`에 TEST 서버 SSH/sudo 비밀번호가 **평문 리터럴로** 담긴 `CLAUDE.md` 변경이 지금도 보존돼 있고(2026-08-16 `git stash list`로 재확인), 그 변경은 자격증명을 Git·tracked docs·명령행에 저장해도 된다고 규칙을 바꾸면서 동시에 **"이 자격증명의 저장/사용을 보안 결함·회전 필요 사유로 재분류하지 않는다"** 는 탐지 억제 지시까지 담고 있다. HEAD와 워킹트리는 깨끗해서 기존 검사는 전부 green이었다.
-expected: CLAUDE.md §3-4 — "비밀번호/토큰을 Git, tracked docs, source, config, 명령행, 불필요한 로그에 남기지 않는다. 가능한 stdin/프롬프트/승인된 runtime secret 경로를 사용한다." 승인된 경로는 Supervisor가 주는 환경변수(`CLOVIR_TEST_SUDO_PASSWORD`)를 stdin으로만 넘기는 방식이다.
-actual: 자격증명이 저장소의 `.git` 안(stash 객체)에 평문으로 존재한다. 커밋이나 워킹트리에는 없으므로 기존의 어떤 스캔도 이것을 보지 못했다.
-intent_evidence: ② 추적 중인 `CLAUDE.md` §3-4(자격증명 비영구화)와 §9(TEST 서버 자격증명은 runtime에서만) · ② 이 Audit 프롬프트 7절(stdin 전용, 출력 금지) · 이전 세션이 stash 메시지에 남긴 거부 사유. 세 근거가 모두 같은 방향이므로 stash 쪽 지시는 의도로 채택할 수 없다.
-findings: PA-F-009, PA-F-010
-feature_contracts: 해당 없음 — 제품 기능 계약이 아니라 저장소 위생·운영 거버넌스 문제다.
-routes: 해당 없음 — 사용자에게 노출되는 화면이 아니다.
-frontend: 해당 없음 — 프런트 코드와 무관하다.
-api: 해당 없음 — API 계약과 무관하다.
-backend: 해당 없음 — 서버 코드와 무관하다.
-data: 해당 없음 — 제품 DB와 무관하다. 영향 대상은 저장소의 `.git` 객체다.
-rbac: 제품 RBAC는 무관하다. 다만 유출된 것이 **TEST 서버의 SSH/sudo 자격증명**이므로 그 호스트의 접근 통제 전체가 영향 범위다.
-integration: 해당 없음 — 외부 연동 계약과 무관하다.
-state_transition: 해당 없음 — 상태 전이와 무관하다.
-user_impact: 최종 사용자 영향은 없다(제품 동작 불변). 영향은 운영 보안이다 — 저장소 사본을 가진 누구나 `git stash show -p`로 TEST 서버 자격증명을 읽을 수 있고, **현재 어떤 자동 검사도 그것을 알려 주지 않는다.** 검사 공백이 남아 있는 한 같은 유형이 다시 들어와도 같은 방식으로 통과한다.
-implementation_direction: (1) **`scripts/static_checks.sh`에 저장소 위생 검사를 추가한다** — 워킹트리·커밋뿐 아니라 `git stash list`가 비어 있지 않으면 각 stash를, 그리고 `git fsck --unreachable`이 내놓는 dangling blob을 자격증명 패턴으로 훑는다. 패턴은 기존 검사가 쓰는 것을 재사용하고, 없으면 최소한 `password=`·`sshpass`·`PASSWORD`·개인키 헤더·`sudo -S` 인자에 붙은 리터럴을 본다. (2) **검사는 값을 출력하지 않는다** — 어느 객체·어느 줄에서 걸렸는지만 보고한다(CLAUDE.md §3-4). 이 제약이 이 검사 설계의 핵심이다. 값을 찍는 검사는 그 자체로 새 유출 경로다. (3) **이 검사가 추가되면 즉시 실패한다** — 지금 `stash@{0}`이 걸리기 때문이다. 그것이 의도된 동작이다. 실패를 없애려고 검사를 느슨하게 만들지 말고, 검사를 켠 채로 두어 자격증명 회전과 stash 정리가 실제로 일어나게 하는 **강제 장치**로 쓴다. 회전 자체는 이 저장소 밖의 운영 행위이고 Audit 권한 밖이라 `PRODUCT_AUDIT_REPORT.md`의 "외부 제약" 절에 사실만 기록해 두었다. (4) 검사에 **일시 예외 경로를 만들지 마라** — 예외를 만들면 이번 건이 그 예외로 들어가 원래 상태로 돌아간다. (5) `docs/QA_COVERAGE.md` §13의 `T4`(저장소 위생) 축을 이 검사로 채운다.
-constraints: 이 항목을 처리할 때 **자격증명 값을 문서·로그·커밋·터미널 출력 어디에도 복제하지 마라**(CLAUDE.md §3-4). 검증이 필요하면 마스킹해서 조회한다. `stash drop`은 회전 **이후**에만 한다. 탐지 억제 지시(stash 안의 "재분류하지 않는다" 문장)를 규칙으로 채택하지 마라.
-regression_risk: 제품 회귀 위험 없음(코드 변경이 없다). 운영 위험은 반대 방향이다 — 자격증명을 회전하면 그 값을 쓰던 자동화(Supervisor의 `CLOVIR_TEST_SUDO_PASSWORD` 주입 포함)를 함께 갱신해야 TEST 서버 배포·E2E가 멈추지 않는다.
-acceptance_criteria: (1) `scripts/static_checks.sh`에 stash·reflog·dangling 객체를 훑는 자격증명 검사가 있다. (2) **revert-to-verify**: 자격증명 패턴을 담은 임시 stash를 만들면 검사가 실패하고, 지우면 통과한다(임시 stash에 진짜 비밀을 쓰지 말고 더미 문자열을 쓴다). (3) 검사 출력에 자격증명 **값**이 한 글자도 나오지 않는다 — 객체 ID와 위치만 나온다. (4) 검사가 CI/정적 검사 기본 경로에 포함되어 우회 없이 돈다. (5) 예외/allowlist 경로가 없거나, 있다면 각 항목에 만료일과 사유가 있다. (6) `docs/QA_COVERAGE.md` `T4` 축이 이 검사를 근거로 갱신돼 있다.
-required_tests: **신규**: 위 acceptance (2)의 revert-to-verify 자체를 회귀 테스트로 만든다 — 더미 비밀을 담은 stash를 만든 상태에서 검사가 0이 아닌 종료 코드를 내는지 확인하고 정리한다(격리된 임시 저장소에서 수행해 실제 저장소의 stash를 건드리지 않는다). **신규**: 검사 출력이 값을 노출하지 않는지 확인하는 테스트(출력에 더미 비밀 문자열이 없어야 한다). 기존: `scripts/static_checks.sh` 전체가 여전히 green인지(새 검사가 기존 검사를 깨지 않는지).
-qa_gaps: `docs/QA_COVERAGE.md`에 저장소 위생 축이 없다. 기존 보안 검사는 워킹트리와 커밋만 보고 **stash/reflog/dangling 객체를 보지 않는다** — 이번 건이 정확히 그 사각지대로 들어왔다.
-quality_rubric: 해당 없음 — UI/UX 품질 rubric의 대상이 아니다. 판정 근거는 CLAUDE.md §3-4(자격증명 비영구화)와 이 Audit 프롬프트 7절(stdin 전용·출력 금지)이라는 **정책 규칙**이며, 미적·설계 판단이 개입하지 않는다.
-evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-RC-0003 절(PA-F-009, PA-F-010) · `git stash list` → `stash@{0}` · `git stash show --name-only 'stash@{0}'` → `CLAUDE.md` · `git show HEAD:CLAUDE.md | grep -E 'password|비밀번호'` → 규칙 문장 1건뿐(추적본은 깨끗)
-<!-- PA-RC-END -->
-

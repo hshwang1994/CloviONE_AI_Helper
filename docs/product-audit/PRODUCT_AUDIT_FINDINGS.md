@@ -1,6 +1,7 @@
 # PRODUCT AUDIT — FINDINGS
 
-> cycle_id=PA-20260812-171558-56c5befa · baseline=`89ac9f16d42e8bd0bab8c4ca97b15d6563b03fde`
+> cycle_id=PA-20260816-100149-48671b72 · baseline=`64ef571764bc8ee2ebac3628a4c1383dff2d9217`
+> 이전 Cycle: `PA-20260812-171558-56c5befa` (baseline `89ac9f16`) — 그 증거는 아래에 보존한다.
 >
 > Finding은 **증거**이고 Root Cause(`PA-RC-*`)가 **구현 단위**다.
 > 같은 원인에서 나온 현상은 화면이 몇 개든 하나의 Root Cause로 병합한다.
@@ -29,6 +30,231 @@
 `QA` 14 · `CORE` 13 · `SYS` 11 · `RG` 10. 접근성·반응형: `KBD` 5 · `CTR` 5 · `RESP` 4 · `SEM` 3.
 그래서 이 Audit은 **"이미 있는 항목과 겹치는가"를 먼저 확인한 뒤에만** Finding을 만든다.
 아래 Finding은 전부 그 대조를 거쳤고, 관련 기존 ID를 명시한다.
+
+---
+
+# ══ Cycle PA-20260816-100149-48671b72 (baseline `64ef571`) ══
+
+이전 Cycle 이후 **272 커밋**이 쌓였고 그 Handoff 3건은 `IMPLEMENTATION_CONSUMED`로 닫혔다.
+이 Cycle은 그 종료 상태를 근거로 삼지 않고 **현재 HEAD를 다시 잰다.**
+
+## 이 Cycle이 가장 먼저 고친 것 — 이전 Cycle의 **관측 방법 결함**
+
+이전 Cycle의 정직한 한계는 *"브라우저로 실제로 본 화면은 12/90 표면"* 이었다. 그래서 이번엔
+관측 폭을 먼저 넓혔는데, 넓히는 과정에서 **이전 프로브가 구조적으로 못 보던 것**을 찾았다.
+
+`var/product-audit/probe_spa.py`는 Playwright의 `requestfailed`만 듣는다. 그것은 **전송 계층
+실패**(DNS·연결 끊김·CORS 차단)만 발화한다. **HTTP 500은 전송이 성공한 교환**이므로 그 이벤트를
+내지 않는다. 즉 화면이 여는 API가 전부 500을 뱉어도 그 프로브는 *"실패 요청 (없음)"* 이라고
+보고한다. 이번 `sweep_all.py`는 `response` 이벤트에서 `status >= 400`을 **라우트별로 귀속**해
+기록한다. 방법이 바뀌었으므로 이전 Cycle의 "네트워크 깨끗함" 결론은 **이번 측정으로 대체**한다.
+
+---
+
+## PA-F-042 — 전 라우트 60개 실주행: HTTP 4xx/5xx **0건**, 콘솔 오류 **0건** (음성 결과)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** (실행 관측) |
+| Type | 음성 결과(negative result) |
+| 근거 | `var/product-audit/sweep_all.py` → `sweep_all.json` |
+
+`user` 19 라우트 + `admin` 41 라우트 = **60 라우트**를 인증 상태로 순회했다(이전 Cycle 11개).
+
+| 측정 | 결과 |
+|---|---|
+| `status >= 400` 응답 | **0건** (이번에 새로 볼 수 있게 된 축) |
+| 콘솔 `error`/`warning`/`pageerror` | **0건** |
+| `requestfailed` | **0건** |
+| `h1`이 정확히 1개가 아닌 화면 | **0건** |
+| `main` 랜드마크가 1개가 아닌 화면 | **0건** |
+| 가로 overflow(1920 기준) | **0건** |
+| 정착 후에도 남은 스피너 | **0건** |
+| 라우터가 요청과 다른 곳에 착지시킨 경우 | **0건** |
+
+**판정: 결함 없음.** 이 제품의 happy path는 넓게 재도 깨끗하다. 이 사실은 이후 Finding의
+심각도 보정에 쓴다 — 남은 문제는 "동작이 깨진다"가 아니라 **"구조·의미 층위"** 에 있다.
+
+---
+
+## PA-F-043 — 문서 제목 계층이 `h1 → h6`으로 **네 단계를 건너뛴다** (→ `PA-RC-0012`)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** — 브라우저 실측 + 소스 추적이 1:1로 대응 |
+| Severity | **Medium** |
+| Type | defect (accessibility / semantics) |
+| 기존 Backlog 대조 | `SEM-02`·`SEM-03`·`PA-F-031`/`RD-4`와 **같은 계열이지만 겹치지 않는다**(아래) |
+
+### 실측 — `var/product-audit/probe_a11y.py` → `verify_a11y.py` (DOM 원본 확인)
+
+| 라우트 | 실제 heading 열 |
+|---|---|
+| `/system` | `H1「시스템 설정」` → **`H6`「시스템 정보」·`H6`「서비스」·`H6`「변경」** |
+| `/mail` | `H1「메일 발송」` → **`H6`「서버 설정」·`H6`「발송 현황」·`H6`「최근 실패」** |
+| `/llm-console` | `H1「AI 관리」` → **`H6` × 4** |
+| `/notion-console` | `H1「Notion 관리」` → **`H6`**(「토큰」 외) |
+| `/offboarding` | `H1「오프보딩」` → **`H6`**(「실행 이력」 외) |
+| `/setup` | `H1「초기 설정」` → **`H3` × 8** (h2 없음) |
+
+### 소스 추적 — 브라우저 관측과 정확히 일치한다
+
+`variant="h6"`은 비테스트 소스에 **47회**. 그중 **27회는 `component=`로 의미를 따로 지정**해
+정상이고(예: `ui/adminKit.jsx:52` — `component="h2" variant="h6"`, 이것이 이 저장소가 아는
+**옳은 관용**이다), **override 없는 것이 20회**다. 그 20회가 위 5개 화면에 그대로 대응한다.
+
+| 파일 | override 없는 `variant="h6"` |
+|---|---|
+| `screens/LlmConsole.jsx` | 201, 238, 332, 357 |
+| `screens/NotionConsole.jsx` | 153, 316, 353, 380 |
+| `screens/MailStatus.jsx` | 110, 122, 145 |
+| `screens/Offboarding.jsx` | 259, 343, 442 |
+| `screens/SystemOps.jsx` | 234, 251, 265 |
+| `ui/BodyEditor.jsx` | 229 → **`PA-F-047`**(별건) |
+| `app/LoginHandoff.jsx` | 137 |
+| `screens/SetupWizard.jsx` | 97은 `component="h3"` **명시** — h6이 아니라 h2 부재가 원인 |
+
+### 왜 이것이 `SEM-02`/`SEM-03`/`RD-4`의 중복이 아닌가
+
+셋 다 **이미 구현완료**이고, 고친 대상이 다르다.
+`SEM-03`은 `h1` **중복** 4화면, `PA-F-031`/`RD-4`는 목록 화면 8개에 `h2`(「필터」·「목록」)를
+넣은 것이고 그 8개는 대부분 **공유 셸 `DataScreen.jsx`** 에서 한 번에 해결됐다. `SEM-02`는
+`/me` 계열 4개 소비처였다. **이번 5개 화면은 셋 중 어디에도 속하지 않는다** — `DataScreen`을
+쓰지 않는 손으로 쓴 관리자 화면이라 그 배치의 사정권 밖이었다. 실제로 이번 sweep에서
+`DataScreen` 기반 화면은 전부 `h1 → h2`로 **정상**이다(그 수정이 유효하다는 증거이기도 하다).
+
+### 근본 원인 — 규율이 아니라 **API 모양**이다
+
+`frontend/src/ui/theme.js`에 `variantMapping`이 **없다**(저장소 전체 0건). 따라서 MUI 기본
+매핑이 그대로 적용되어 `variant="h6"` → `<h6>` 엘리먼트다. 그런데 `theme.js:57-62`은
+`pageTitle`이 곧 `h6`(20px)라고 적는다 — 즉 개발자가 `variant="h6"`을 고르는 이유는
+**"20px 굵은 제목이 필요해서"** 라는 **시각적** 이유이고, 그 선택이 **문서 구조까지 동시에**
+결정해 버린다. 시각과 구조를 분리하는 장치(`variantMapping` 또는 의미 전용 컴포넌트)가 없다.
+
+그리고 **재유입을 막는 것이 아무것도 없다** — `scripts/static_checks.sh`에 heading 규칙이 없고
+(`grep -nE "heading|h6|variant"` → 0건), heading 순서를 검사하는 공용 테스트도 없다. 화면별
+테스트는 있지만 **새 화면이 같은 실수를 하는 것은 못 막는다.**
+
+> 이것은 이 저장소가 이미 진단한 병의 **네 번째 사례**다 — `PA-RC-0001`(타이포)·`PA-RC-0002`
+> (문구)·`PA-RC-0008`(재시도 예산)과 같은 모양: **좋은 관행이 한 곳(`adminKit.jsx:52`)에
+> 있는데 그것을 옆으로 퍼뜨리는 장치가 없다.** 그리고 처방도 같다 — 규율을 요구하지 말고
+> **일급 API를 주라**(`PA-RC-0001`이 `FONT_SIZE`로 실제로 성공시킨 그 처방).
+
+### 판정 기준 (`ui-ux-pro-max` 실제 적용)
+
+`--domain ux` → **Heading Hierarchy**: *"Screen readers use headings for navigation. Do: use
+sequential heading levels h1-h6. **Don't: skip heading levels or misuse for styling.**"*
+(Severity Medium, Bad 예시가 `h1 then h4`인데 **이 제품은 `h1 then h6`으로 더 멀다**.)
+`--domain web` / `--stack react` → **Use semantic HTML before ARIA** (Severity **High**).
+
+### 사용자 영향
+
+스크린리더는 heading 목록으로 페이지를 훑는다. `h1` 다음이 `h6`이면 목차에서 네 단계가 비어
+"이것이 하위 절인가 최상위 구역인가"를 알 수 없다. 특히 `/system`·`/offboarding`은
+**되돌릴 수 없는 조작**(서비스 재시작·오프보딩 실행)을 담은 화면이라 구역 파악 실패의 비용이
+다른 화면보다 크다. 시각 사용자에게는 영향이 없다 — 그래서 Critical이 아니라 Medium이다.
+
+---
+
+## PA-F-044 — 「라벨 없는 입력 47라우트」는 **내 프로브의 오탐이었다** (방법 기록)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed 오탐** — 폐기 |
+
+`probe_a11y.py`가 59라우트 중 47개에서 *"접근 가능한 이름이 없는 `input[text]`"* 를 보고했다.
+**전부 오탐이다.** `verify_a11y.py`로 DOM을 열어 보니 걸린 것이 전부
+`input.MuiSelect-nativeInput`이었고, `verify_select.py`로 결정적으로 확인했다:
+
+| 요소 | `aria-hidden` | `tabIndex` | `opacity` | 판정 |
+|---|---|---|---|---|
+| `input.MuiSelect-nativeInput` | **`true`** | **`-1`** | `0` | **접근성 트리에 없다** |
+| 형제 `div[role=combobox]` | — | `0` | — | `aria-labelledby` 해석됨(「대상」 등) |
+
+MUI `<Select>`가 폼 전송용으로 두는 숨은 프록시 입력이고, 실제 접근성 이름은 형제 combobox가
+갖는다. 즉 **결함이 아니다.**
+
+> **내 `named()` 검사가 `aria-hidden`과 `tabindex=-1`을 안 봤다.** 가시성을
+> `getBoundingClientRect()`로만 판정해서, `opacity:0`이지만 박스가 있는 요소를 "보인다"로 셌다.
+> 이 Audit이 Cycle 내내 지켜 온 규칙 — *"자작 스캐너의 첫 결과를 그대로 믿지 마라"* — 이
+> 다섯 번째로 값을 했다. **집계 47을 세기 전에 표본 1개의 DOM을 열었다면 즉시 보였을 것이다.**
+
+같은 이유로 `TABLE-UNNAMED`(약 30라우트)도 **승격하지 않는다**. 확인해 보니 이 제품의 표는
+`th` 전부에 `scope`가 붙어 있다(`/audit` 7/7, `/users` 10/10) — 헤더 연결이라는 **WCAG 성공
+기준 자체는 충족**하고 `<caption>` 부재는 권고 수준이다. 기존 `SEM` 절의 *"모든 `th`에 `scope`가
+붙어 있는 제품은 드물다"* 는 평가가 이번에도 재확인됐다.
+
+---
+
+## PA-F-045 — 프런트 role gate가 없는 관리자 화면 10개: **백엔드와 일치한다** (음성 결과)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** (2역할 × 13화면 실제 접근) |
+| 근거 | `var/product-audit/probe_rbac_gate.py` → `probe_rbac_gate.json` |
+
+`AdminRoutes.jsx:159`는 `roles = cfg.roles || SCREEN_ROLES[key]`로 게이트를 정하고, 둘 다
+`undefined`면 **`RequireRole` 없이 그대로 렌더**한다. 그리고 registry 설정 28개 중 최상위
+`roles:`를 선언하는 것은 **하나도 없다**(`registry/*.js`의 `roles:` 는 전부 행 액션용이다).
+따라서 `SCREEN_ROLES`에 없는 **10개 화면**(`prompts`·`policies`·`templates`·`schedules`·
+`documents`·`approvals`·`integrations`·`runners`·`workflows`·`notion-mapping`)은 프런트
+게이트가 **없다**.
+
+`navConfig.js`가 스스로 밝힌 정책이 바로 이 상황을 겨눈다 —
+*"백엔드 게이트와 정확히 같은 집합으로 맞춘다 — 넓게 두면 '눌렀더니 403' 막다른 길이 되고,
+좁게 두면 권한이 있는 사람이 화면을 못 찾는다."* 그래서 **어느 쪽 실패인지 행동으로 쟀다.**
+
+| 역할 | ungated 10화면 | 대조군(gated) |
+|---|---|---|
+| `operator` | **10/10 정상 렌더, HTTP 4xx/5xx 0건** (`/notion-mapping` 20행 · `/integrations` 4행 · `/schedules` 2행 · `/runners` 1행) | `/users` 거부 · `/offboarding` 거부 · `/audit` 거부 |
+| `auditor` | **10/10 정상 렌더, HTTP 4xx/5xx 0건** | `/users` 거부 · `/offboarding` 거부 · `/audit` **허용**(100행) |
+
+**판정: 결함 아님.** 백엔드가 이 10개를 `CONSOLE_READ_ROLES`(operator·admin·system_admin·
+auditor)로 열어 두었고 프런트가 게이트를 두지 않은 것은 **두 층이 같은 답을 내는 상태**다.
+사이드바도 이 10개를 두 역할에게 그대로 보여 준다(`navItems` 실측) — 즉 "보이는데 못 쓴다"도,
+"쓸 수 있는데 못 찾는다"도 아니다. `auditor`의 `/audit` 허용·`operator`의 `/audit` 거부까지
+`SCREEN_ROLES`와 정확히 일치한다.
+
+> 다만 **읽기만** 확인했다. 이 화면들의 **쓰기 액션**(`WRITE_ROLES` 게이트)을 `operator`가
+> 눌렀을 때 403 막다른 길이 되는지는 이번에 재지 않았다 — `COVERAGE`의 F축은 그래서 이
+> 13화면만 EXECUTED이고, 쓰기 경로는 다음 조사 후보로 남긴다.
+
+---
+
+## PA-F-046 — 라우트 3개가 **같은 제목**을 단다 (`/departments`·`/org-tree`·`/organizations`)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** (실측) · Severity **Low** · Type ux-gap |
+
+셋 다 `OrgConsole`이 그리고 `PageHeader area="사용자" title="조직도"` 가 **하드코딩**이라
+(`OrgConsole.jsx:72`) 세 라우트의 `h1`이 전부 「조직도」다. 내용은 실제로 다르다
+(`/departments` 7행 · `/org-tree` 1행 · `/organizations` 1행 — `defaultKind`가 다르다).
+
+**이것은 의도된 통합이다.** `OrgConsole.jsx:15-16`이 이유를 적는다 — 예전에는 부서를 옮기려면
+`/org-tree`↔`/departments`를 왕복해야 했고 그것이 정당한 지적이었다. 따라서 **통합 자체는
+옳고 되돌릴 것이 아니다.** 남는 문제는 그 통합 뒤에 **세 진입점을 그대로 둔 것**이다:
+사이드바에서 「부서」를 눌러도 「조직」을 눌러도 제목이 똑같아 *"내 클릭이 먹었나"* 를 제목으로
+확인할 수 없다. `document.title`도 동일하다.
+
+Root Cause로 승격하지 않는다 — 영향이 작고(위계·데이터·권한 무변) 처방이 한 줄
+(`defaultKind`에 따라 제목/부제를 달리 주거나 진입점을 하나로 줄이기)이라 `RD` 후보로 남긴다.
+
+---
+
+## PA-F-047 — 문서 본문의 `h1` 블록이 화면에서 **`<h6>`으로 렌더된다**
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed**(소스) · Severity **Low** · Type defect |
+
+`frontend/src/ui/BodyEditor.jsx:229`:
+`if (b.type === "h1") return <Typography variant="h6" ...>`
+
+사용자가 문서 본문에 **최상위 제목**으로 넣은 블록이 문서 구조상 **최하위 heading**이 된다.
+`PA-F-043`과 원인은 같지만(시각 크기로 heading을 고름) **대상이 사용자 저작 콘텐츠**라
+성격이 다르다 — 화면 골격이 아니라 **사용자가 쓴 글의 의미**가 바뀐다. 페이지 자신의 `h1`
+아래에 놓이므로 본문 최상위 제목은 `h2`가 맞다. `PA-RC-0012`에 함께 넣는다.
 
 ---
 

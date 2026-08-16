@@ -1,8 +1,108 @@
 # PRODUCT AUDIT — STATE
 
 > **이 Audit의 resume pointer다.** 새 invocation은 이 문서를 먼저 읽는다.
-> cycle_id=PA-20260812-171558-56c5befa · baseline=`89ac9f16d42e8bd0bab8c4ca97b15d6563b03fde`
+> cycle_id=PA-20260816-100149-48671b72 · baseline=`64ef571764bc8ee2ebac3628a4c1383dff2d9217`
 > baseline_branch=`ui/mui-migration`
+>
+> 아래 §A가 **현재 Cycle**이다. §0부터는 이전 Cycle(`PA-20260812-171558-56c5befa`,
+> baseline `89ac9f16`)의 기록이며 **증거로 보존**한다 — 그 Cycle의 완료 marker와
+> Blind Re-Audit PASS는 이 Cycle의 완료 근거가 되지 못한다(CLAUDE.md §11-1).
+
+---
+
+# §A. 현재 Cycle — PA-20260816-100149-48671b72
+
+## A-0. 이 Cycle의 성격
+
+이전 Cycle 이후 **272 커밋**이 쌓였고, 그 Handoff 3건(`PA-RC-0001`·`0002`·`0003`)은
+`IMPLEMENTATION_CONSUMED`로 닫힌 상태로 넘어왔다. `-ResetAudit`으로 새 Cycle이 열렸다.
+
+이 Cycle의 무게중심은 **이전 Cycle이 스스로 밝힌 한계**다:
+*"UNSEEN이 57%이고 브라우저로 실제 본 화면은 12/90 표면이다."*
+즉 이전 Cycle의 수렴 근거는 Coverage가 아니라 Gate F였다. **그래서 이번엔 관측 폭부터 넓혔고,
+넓히는 과정에서 이전 프로브의 방법 결함을 찾았다**(A-2).
+
+## A-1. 이번 Cycle이 실제로 실행한 것
+
+| Round | 축 | 결과 |
+|---|---|---|
+| 0 | 재접지 | 이전 Cycle 3개 RC를 **현재 HEAD에서 재측정** → 전부 닫힘 확인(기록을 믿지 않고 직접 실행) |
+| 1 | C·L·M (전 라우트) | **60 라우트 실주행**(user 19 + admin 41, 이전 11개). `sweep_all.py` |
+| 2 | M (접근성 구조) | 59 라우트 heading outline·label·landmark·tabindex·focus ring 계측. `probe_a11y.py` |
+| 3 | 표본 검증 | 플래그된 요소의 **DOM 원본 확인** → 대형 오탐 1건 폐기. `verify_a11y.py`·`verify_select.py` |
+| 4 | F (RBAC 행동) | 프런트 게이트 없는 화면 10개 × 역할 2개 실제 접근 + 대조군 3개. `probe_rbac_gate.py` |
+
+## A-2. 이번 Cycle이 고친 **이전 Cycle의 관측 방법 결함** (가장 중요)
+
+`probe_spa.py`는 Playwright의 `requestfailed`만 들었다. 그것은 **전송 계층 실패**만 발화하고
+**HTTP 500은 전송이 성공한 교환**이라 발화하지 않는다. 즉 화면의 API가 전부 500을 뱉어도
+*"실패 요청 (없음)"* 으로 보고된다. `sweep_all.py`는 `response` 이벤트에서 `status >= 400`을
+**라우트별로 귀속**해 기록한다. 이전 Cycle의 "네트워크 깨끗함"은 이번 측정으로 **대체**한다.
+
+## A-3. 현재 산출물
+
+| 항목 | 값 |
+|---|---|
+| 신규 Finding | `PA-F-042` ~ `PA-F-047` |
+| 신규 Root Cause | **`PA-RC-0012`**(Medium) — 제목 계층이 시각 API에 종속 |
+| HANDOFF 블록 | **1건**(`PA-RC-0012`). `deferred_for_human_approval=0` |
+| Coverage | 2340칸 · EXECUTED 158 · OBSERVED **205**(62→) · STATIC_ONLY **641**(784→) · UNSEEN 1336(전부 사유 있음) |
+| 적용 Skill | `ui-ux-pro-max` **실제 호출** — `--domain ux` "Heading Hierarchy", `--domain web`/`--stack react` "Semantic HTML before ARIA" |
+| Blind Re-Audit | **0 / 2** — 아직 안 함 |
+
+### 이번 Cycle의 음성 결과 (이것도 산출물이다)
+
+- **60 라우트 전부**: HTTP 4xx/5xx 0 · 콘솔 오류 0 · 실패 요청 0 · h1 정확히 1개 · overflow 0 (`PA-F-042`)
+- **프런트 role gate 없는 10화면**: 백엔드와 **일치**한다 — operator/auditor 둘 다 정상 열람,
+  대조군 3개는 정확히 거부. IDOR·bypass 아님 (`PA-F-045`)
+- **표 접근성**: `th` 전부에 `scope` — WCAG 성공 기준 충족, `<caption>` 부재는 권고 수준 (`PA-F-044`)
+
+### 이번 Cycle에 내가 저지른 오류 1건 (정정함)
+
+`probe_a11y.py`가 *"59라우트 중 47개에 라벨 없는 입력"* 을 보고했다. **전부 오탐이었다** —
+걸린 것은 MUI `<Select>`의 숨은 프록시 입력(`aria-hidden="true"`, `tabIndex=-1`, `opacity:0`)
+이고 실제 접근성 이름은 형제 `div[role=combobox]`가 갖는다(`verify_select.py`로 확정).
+내 `named()` 검사가 `aria-hidden`/`tabindex`를 안 봤다.
+> **교훈은 이전 Cycle과 똑같다** — 집계 47을 세기 **전에** 표본 1개의 DOM을 열었어야 했다.
+> 이 규칙을 지킨 덕분에 `PA-F-043`(진짜 결함)과 `PA-F-044`(오탐)를 갈라낼 수 있었다.
+
+## A-4. 다음 조사 후보 (우선순위 순)
+
+1. **F축 잔여 — 쓰기 액션.** `PA-F-045`는 **읽기만** 확인했다. `operator`가 ungated 10화면의
+   `WRITE_ROLES` 액션을 눌렀을 때 403 막다른 길이 되는지 미측정.
+2. **C축 — 실제 조작.** 이번 sweep은 **탐색만** 했다. 생성/수정/삭제·정렬·페이지네이션·
+   대량 선택을 실제로 눌러 본 적이 없다(이전 Cycle도 "선택자 한계로 판정 보류").
+3. **H/I축 — 부정 입력과 복구.** 빈 값·과길이·중복·없는 ID·삭제된 객체. 미측정.
+4. **P/Q/R축 재측정.** `PA-RC-0002`가 100%로 닫혔으므로 **이번엔 다른 각도**로 — 존재하는
+   문구가 아니라 **없어서 문제인 문구**(프롬프트 P축이 특별히 지목).
+5. **상세 라우트 6개**(`/tickets/:id`·`/projects/:id`·`/board/:id`·`/team-docs/:id`·
+   `/chat-rooms/:id`·`/games/:id`) — 이번 sweep은 정적 라우트만 걸었다.
+6. **서버 렌더 4화면**의 heading/구조 — 이번 M축 측정은 SPA 전용이었다.
+7. **Blind Re-Audit 2회** — 이전 Cycle이 쓴 진입점("신규 입사자 첫날"·"감사자 분기 점검")은
+   **재사용하지 말 것**. 예: "인수인계받은 운영자가 장애 대응하는 날", "퇴사 처리를 끝까지 실행".
+
+## A-5. 현재 Blocker
+
+**없다.** 로컬 dev 서버(`:8099`) 가동 중, Playwright/Chromium 사용 가능, QA 계정
+4역할(user·operator·auditor·system_admin) 전부 확보. 승인된 TEST 서버 SSH도 `ok`다.
+`stash@{0}` 자격증명 **회전**만 내 권한 밖 외부 행위이며(REPORT §7-B), 저장소 코드로 닫을 수
+있는 부분은 이전 Cycle의 `PA-RC-0003`으로 이미 닫혔다(`check_git_secrets.py` 배선 확인).
+
+## A-6. 실행 방법 메모
+
+```
+.venv/Scripts/python var/product-audit/sweep_all.py        # 60라우트 + HTTP 4xx/5xx 귀속
+.venv/Scripts/python var/product-audit/probe_a11y.py       # heading/label/landmark/focus
+.venv/Scripts/python var/product-audit/verify_a11y.py      # 플래그 요소 DOM 원본 확인
+.venv/Scripts/python var/product-audit/probe_rbac_gate.py  # 역할별 화면 접근
+.venv/Scripts/python var/product-audit/gen_coverage.py     # COVERAGE 재생성(요약 블록 자동 일치)
+.venv/Scripts/python var/product-audit/cov.py set "A-*" "C,L,M" OBSERVED
+```
+전부 로컬 `:8099`를 쓴다. QA 계정 비밀번호는 매 실행 새로 만들어 **stdin으로만** 넣는다(기록 안 함).
+
+---
+
+# §0~§6. 이전 Cycle 기록 (`PA-20260812-171558-56c5befa`) — 증거로 보존
 
 ## 0. 이 Cycle의 성격
 
