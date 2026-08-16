@@ -13,9 +13,16 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
   const toast = useToast();
   // 실제로 중단·응답 없음 상태인 컴포넌트의 systemd 유닛만 안내한다 — web과 worker/scheduler는
   // 서로 다른 유닛(clovirone-web-assistant.service / clovirone-web-worker.service)이라, 웹만 죽었을
-  // 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을 가리키게 된다.
+  // 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을 가리키게 된다. worker_conversational
+  // (D-118)은 배치 워커와 또 다른 세 번째 유닛이다 — 예전의 이분법(web이 아니면 무조건
+  // clovirone-web-worker)을 그대로 두면 대화형 레인이 죽었을 때도 배치 워커 로그를 보라고
+  // 안내해, 실제 장애 유닛과 다른 곳을 가리키는 바로 그 문제가 재발한다.
+  const DOWN_UNIT_FOR = {
+    web: "clovirone-web-assistant",
+    worker_conversational: "clovirone-web-worker-conversational",
+  };
   const downComponentKeys = Object.keys(comps).filter((k) => comps[k] && comps[k] !== "up");
-  const downUnits = Array.from(new Set(downComponentKeys.map((k) => (k === "web" ? "clovirone-web-assistant" : "clovirone-web-worker"))));
+  const downUnits = Array.from(new Set(downComponentKeys.map((k) => DOWN_UNIT_FOR[k] || "clovirone-web-worker")));
 
   return (
     <>
@@ -71,7 +78,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
               // 바로 아래 '외부 연동' 카드는 클릭 가능한데 이 서비스 카드만 정적이라, 시각적으로
               // 똑같은 두 그리드가 나란히 있어 죽은 카드를 눌러 보게 유도했다, 워커/스케줄러는
               // Dashboard.jsx svcNav처럼 작업 큐(/jobs)로 드릴다운시킨다(웹은 드릴다운할 곳이 없어 정적 유지).
-              const dest = (k === "worker" || k === "scheduler") ? "/jobs" : null;
+              const dest = (k === "worker" || k === "scheduler" || k === "worker_conversational") ? "/jobs" : null;
               // 상단 healthVerdict() 배너, Dashboard.jsx 서비스 카드는 이 상태를 '응답 없음'이라
               // 부른다, kit.jsx STATUS_TEXT는 'unknown'을 '알 수 없음'으로 옮겨, 같은 상태를
               // 이 화면 안에서만 다른 한국어로 말하고 있었다(배너와 타일이 서로 모순).

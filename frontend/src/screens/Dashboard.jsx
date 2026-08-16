@@ -587,7 +587,7 @@ function DashboardBody({ d, nav, role, stale }) {
   // 제공해, 같은 '워커 중단' 사실이 상단 경보에선 클릭 가능한데 이 타일에선 죽어 보였다.
   function svcNav(k) {
     if (k === "web") return undefined;
-    if (k === "worker" || k === "scheduler") return procTo ? goto(procTo) : undefined;
+    if (k === "worker" || k === "scheduler" || k === "worker_conversational") return procTo ? goto(procTo) : undefined;
     return goto("/integrations");
   }
   // services의 키는 위에서 충돌 방지를 위해 "(연동)" 접미사가 붙을 수 있다(예: "worker(연동)") —

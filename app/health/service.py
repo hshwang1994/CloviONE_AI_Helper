@@ -323,6 +323,17 @@ def build_dashboard(
             "web": "up",  # if this endpoint responds, web is up
             "worker": _component_status(db, "worker", now),
             "scheduler": _component_status(db, "scheduler", now),
+            # D-118: 켠 설치처만 이 타일을 본다. 대부분의 설치는 이 레인을 켠 적이 없어
+            # (기본값 꺼짐) 하트비트 행 자체가 없다 — 무조건 넣으면 켠 적도 없는 기능이
+            # 모든 배포에서 "응답 없음"으로 영구히 붉게 보인다(끈 기능이 알람처럼
+            # 보이는 것 — VIS-134류와 반대 방향의 실수). 켰던 적이 있는 설치(하트비트
+            # 행이 존재)에서만 실제 상태를 보여준다.
+            **(
+                {"worker_conversational": _component_status(db, "worker_conversational", now)}
+                if settings.worker_conversational_lane_enabled
+                or db.get(Heartbeat, "worker_conversational") is not None
+                else {}
+            ),
         },
         "integrations": {
             i.name: {"enabled": i.enabled, "last_health": i.last_health_status}

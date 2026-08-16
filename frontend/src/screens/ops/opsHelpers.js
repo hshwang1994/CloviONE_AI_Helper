@@ -11,10 +11,12 @@ export const isWriteRole = (role) => role != null && WRITE_ROLES.includes(role);
 export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 있습니다.";
 
 // 진단 번들의 컴포넌트(하트비트) 키를 한국어로. '살아있는가'를 판단하는 핵심 신호.
-export const COMP_LABELS = { web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러" };
+// worker_conversational(D-118)은 그 레인을 켠 적이 있는 설치에만 백엔드가 보낸다
+// (app/health/service.py::build_dashboard) — 안 켠 설치는 이 키 자체를 안 받는다.
+export const COMP_LABELS = { web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커" };
 
 export const SERVICE_LABELS = {
-  web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러",
+  web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커",
   n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
   "claude-ticket-runner": "티켓 러너", "claude-request-interpreter": "요청 해석기",
   notion: "Notion",
