@@ -6580,7 +6580,34 @@ acceptance_criteria엔 없음): `RESP-04`(축소 레일, `PA2-05` 교차 참조�
 `probe_rbac_gate.py`(이 RC가 안 건드린 라우트 대상). 상세: `DECISIONS.md` D-92,
 `BACKLOG.md` `PA2-06`.
 
-**다음(Handoff 의존 순서)**: `PA-RC-0022`("프로즈가 IA를 대신함" — 0016+0017 완료를
-전제로 착수 가능해짐). Handoff 원문은 `PRODUCT_AUDIT_HANDOFF.md`에서 `PA-RC-0022` 블록을
-찾아 전체를 읽고 시작할 것(라인 번호는 이번 세션 중 문서가 갱신되지 않았다면 이전 요약에
-언급된 480~510 부근이었으나, 정확한 위치는 grep으로 다시 확인).
+## 2026-08-16 16:0x~16:3x — `PA-RC-0022` 완료(TEST SERVER 실배포·실브라우저 14/14 확인)
+
+`PageHeader`(kit.jsx)에 `help`/`helpTone` prop 신설(제목 옆 도움말 토글, 기본 접힘) —
+`DataScreen.jsx` 한 곳을 고쳐 registry 28개 화면 전부 + `Offboarding.jsx`/`Users.jsx`가
+한 번에 옮겨졌다. `/system`·`/diagnostics`는 직접 재확인 결과 정적 안내 패널이 아예
+없었다(전자는 조건부 런타임 배너뿐, 후자는 `aria-live` 실시간 장애 요약이라 접으면
+활성 장애를 숨기는 회귀가 됨) — Handoff 수치와 코드 불일치를 기록만 하고 손대지 않음.
+화면 강조색을 `/my-display`(신규 `DisplaySettings.jsx`, 계정 메뉴 "내 화면 설정")로
+이전 — 관리자·사용자 두 콘솔이 `UserMenu`를 공유해 역할 무관 접근이 자동 충족. 설정
+표: 백엔드 키 열 기본 숨김+토글, "기본값" 배지 제거("수정됨"만 표시), 열 라벨
+항목명/현재 값으로. "적용 범위"·"마지막 변경" 열은 만들지 않음 — 실제 API 응답에 그
+데이터가 없고 `api: 없음` 제약이 있어, 없는 데이터로 열만 만들면 거짓 정보가 된다(근거는
+`DECISIONS.md` D-93). 오프보딩 후보 목록: unmapped 행에 `_onboarding_checklist`의
+notion `help` 문자열을 그대로 캡션으로 추가(새 문구 안 씀).
+
+전체 프런트 회귀 276파일 1878건 green, `static_checks.sh` green(SEC-20 제외). 커밋 5건
+(`6b7e7c0` 도움말 토글, `a5cbb17` 강조색 이전, `84577b7` 키 열 토글, `07bf7dc` 오프보딩
+목록, `765e56c` 번들 재빌드). TEST SERVER 통합 배포(`UPGRADE_OK`, 15:27 재배포로
+PA-RC-0017 이후 두 번째) + Playwright 실측 14/14 + 스크린샷 4장 육안 확인
+(`dist/pa_rc_0022_verify/`, 로컬 전용) — `/rbac` 도움말 토글, `/settings` 키 열+배지,
+계정 메뉴 → `/my-display`(강조색 선택기 실제 렌더 확인), 오프보딩 목록의 QA 계정 5명
+실제 미연결 사유 노출 전부 실서버에서 확인. 상세: `DECISIONS.md` D-93, `BACKLOG.md`
+`PA2-11`.
+
+**다음(Handoff 의존 순서)**: 남은 11건 — `0020`이 `0019`를 함께 닫음(어시스턴트
+명명/진입점 통일, FAB이 표 행 버튼을 가리는 문제), `0013→0024`(`/users` URL 상태 →
+상세 기제 분열), 그 외 독립적인 `0012`(heading 계층 h1→h6 skip)·`0014`(영문 422 오류)·
+`0018`(대시보드 REBUILD, High)·`0021`(다크 테마 토큰)·`0023`(동작 위계 규범)·`0025`
+(Low, UX 문구)·`0026`(Med, 진단 화면 권한 게이트 재검토). 우선순위는 CLAUDE.md §4
+기준(Critical/Security/RBAC → 큰 Root Cause → High 영향)으로 재확인할 것 — `0018`이
+Handoff에서 유일한 남은 High다.

@@ -3005,4 +3005,90 @@ localStorage 접힘 기록도 새 이름과 안 맞게 돼**, 신규 계정뿐 �
 `probe_rbac_gate.py`(이 RC가 건드리지 않은 라우트를 잰다) 둘 다 — 이 RC를 닫는 데 필수가
 아니다.
 
+## D-93 (2026-08-16) — PA-RC-0022: 상시 안내 패널 → 제목 옆 도움말 토글, 개인 설정 계정 메뉴 이전
+
+### 배경
+
+8개 이상 화면이 상시 안내 Callout을 화면 맨 위에 고정으로 그렸다(`/rbac` 260자·
+`/offboarding` 220자·`/prompts` 162자·`/feature-flags` 135자·`/users` 5줄 블록 등). 가장
+뚜렷한 `/settings`의 4문단은 이미 `PA-RC-0017`이 지웠다. `/settings` 하단에는 브라우저
+로컬 개인 설정(화면 강조색)이 전역 시스템 정책 표와 한 화면에 있어 적용 범위를 착각하기
+쉬웠고, **관리자가 아니면 이 화면 자체에 닿을 수 없어 개인 취향도 못 바꿨다.**
+
+### 사전 조사 — Explore 에이전트로 8화면 전수 확인 후 계획 확정
+
+구현 전에 7화면(`/settings` 제외, 이미 처리됨)의 실제 코드를 각각 확인했다(에이전트 위임,
+직접 재확인). 핵심 발견:
+
+- **`DataScreen.jsx:589-598`가 registry 28개 화면 전부의 공유 렌더 지점**이었다 — `/rbac`·
+  `/prompts`·`/feature-flags`뿐 아니라 `runners`(role 함수형 help 포함)·`policies`
+  (`helpTone: "warn"`) 등 registry 화면 100%(28/28)가 이 자리 하나를 같이 쓴다. 여기 한
+  곳을 고치면 Handoff가 이름 붙인 3개보다 훨씬 넓게, 근본 원인 수준에서 닫힌다.
+- **`/system`(SystemOps.jsx)과 `/diagnostics`(ops/Diagnostics.jsx)에는 정적 안내 패널이
+  없었다.** `/system`의 유일한 Callout 둘은 런타임 상태 조건부(privhelper 미가용·롤백
+  알림)이고, `/diagnostics`의 두 블록은 `role="status" aria-live="polite"`로 60초마다
+  다시 계산되는 **살아있는 장애 요약**이다 — 기본 접힘으로 바꾸면 활성 장애를 숨기는
+  회귀가 된다. Handoff의 139자/183px+218px 수치는 감사 도구가 특정 순간의 조건부/동적
+  상태를 관측한 것으로 보인다. 둘 다 손대지 않았다 — 강제로 뭔가를 만들지 않고 충돌 자체를
+  기록한다(CLAUDE.md §4).
+
+### 구현
+
+1. **`PageHeader`에 `help`/`helpTone` prop 신설**(`kit.jsx`) — 제목 옆 도움말 아이콘
+   토글(`HelpOutlineRoundedIcon`), 기본 접힘(`useState(false)`), `Collapse` 안에 기존
+   `Callout` 재사용. `SectionTitle`의 기존 `help`(상시 평문 한 줄)와 이름은 같지만 다른
+   컴포넌트의 다른 prop이라 의미가 갈리지 않는다. 문자열은 물론 JSX(여러 `<p>`)도 그대로
+   받는다 — Users/Offboarding의 손으로 짠 안내가 문자열 하나가 아니었기 때문.
+2. **`DataScreen.jsx`**: `config.help`를 별도 `<Callout>`으로 그리던 것을 `PageHeader`의
+   `help`/`helpTone`로 전달하도록 한 줄 교체 — registry 28개 화면 전부가 이 한 번의 수정으로
+   같이 바뀐다.
+3. **`Offboarding.jsx`/`Users.jsx`**: 손으로 짠 인트로 `<Callout>`을 `PageHeader help`로
+   옮겼다. 문구·구조(JSX children, 문단 간격 스타일)는 한 글자도 안 바꿨다.
+4. **화면 강조색을 계정 메뉴로**: `AccentPicker.jsx` 자체는 안 옮겼다(순수 컴포넌트,
+   위치가 동작에 영향 없음) — 새 화면 `DisplaySettings.jsx`(`/my-display`, `UserRoutes.jsx`에
+   등록, `navConfig.js`의 `USER_SEG_PATHS`에 추가해 `/profile`·`/my-stats`·`/activity`와
+   같은 "나에 대한 것, 역할 무관" 취급을 받는다)가 그것을 가져다 쓴다. `UserMenu.jsx`에
+   "내 화면 설정" 항목 추가 — 이 메뉴는 관리자·사용자 두 콘솔이 공유하므로 이 한 곳의
+   변경으로 모든 역할이 닿는다(acceptance_criteria 5). 다크/라이트 토글은 의도적으로
+   여기 안 넣었다 — `UserMenu.jsx`가 이미 "상단바 아이콘이 정본, 두 곳에 상태를 나눠
+   들면 서로 낡은 채 어긋난다"는 근거로 그 토글을 딱 한 곳에만 두기로 확정해 둔 결정이라,
+   같은 실수를 반복하지 않는다. `SettingsMain.jsx`에서 `<AccentPicker/>` 렌더와 import를
+   제거.
+5. **백엔드 키 열 기본 숨김**: `SettingsMain.jsx`에 `showKey`(기본 `false`) 상태 + "백엔드
+   키 표시" 체크박스. 컬럼 배열을 조건부로 구성해(안 보이면 아예 렌더하지 않는다 — CSS로
+   숨기지 않아 스크린리더가 안 쓰는 열까지 훑지 않는다) 열 전체를 껐다 켠다. `설정`/`값`
+   라벨을 target_design이 제안한 `항목명`/`현재 값`으로 바꿨다. **`적용 범위`·`마지막 변경`
+   열은 만들지 않았다** — `app/settings/service.py::effective_settings()`의 실제 응답에
+   그런 필드가 없고, `api: 없음 — 응답 구조 불변`이 이 RC의 명시적 제약이라 데이터 없이
+   열만 만들면 거짓 정보가 된다. `설명` 열은 이미 적용 시점/범위 설명을 산문으로 담고
+   있어 그대로 둔다 — "적용 범위"로 재라벨링하면 실제보다 좁은 것처럼 보인다.
+6. **`is_default` 배지 제거**: `is_default`가 참이면 배지를 아예 안 그린다(`null`). "수정됨"
+   배지만 남는다 — 안 바뀐 항목이 "기본값"이라고 매번 알려주는 것은 정보가 아니라 잡음이다.
+7. **오프보딩 후보 목록**: `Offboarding.jsx`의 검색 결과 표(`notion_mapping_status` 열)에,
+   `unmapped`인 행에만 `app/offboarding/service.py::_onboarding_checklist`의 notion 항목
+   `help` 문자열을 **글자 그대로** 캡션으로 추가했다(`NOTION_UNMAPPED_HELP` 상수, 새 문구를
+   쓰지 않는다는 implementation_direction을 그대로 따름). 미리 보기까지 가야만 알던 이유를
+   목록에서부터 볼 수 있다.
+
+### 검증
+
+신규/갱신 vitest: `kit.test.jsx`(PageHeader help 토글 6건), `settings-accent.test.jsx`
+(DisplaySettings로 타깃 이전), `settings-key-column-toggle.test.jsx`(4건, 신규),
+`user-menu-display-settings-link.test.jsx`(신규), `offboarding.test.jsx`(+2건). 전체
+프런트 회귀 276파일 1878건 green. `static_checks.sh` green(SEC-20 인간 전담 항목 제외).
+
+### 남은 것
+
+- **`browser_verification`**(1920×1080 light/dark, 8화면 스크린샷, 역할별 계정 메뉴
+  확인)이 아직 실브라우저로 안 끝났다 — TEST SERVER 재배포 후 진행 예정, 다음 체크포인트로
+  이월 가능성 있음.
+- **acceptance_criteria 8**(강조색이 새로고침 후에도 유지)은 별도 검증하지 않았다 — 관련
+  훅(`useThemeMode`)과 localStorage 키를 전혀 안 건드렸고 `AccentPicker.jsx` 자체도
+  무수정이라, 이미 통과하던 `settings-accent.test.jsx`의 "이전에 고른 색이 있으면 그
+  색이 선택된 채로 열린다" 케이스가 이 계약을 그대로 지킨다(렌더 대상만 `DisplaySettings`로
+  바뀜) — 별도 재확인이 필요할 만큼 위험이 바뀐 지점이 아니라고 판단했다.
+
+상세: `docs/BACKLOG.md` `PA2-11`(Handoff cycle의 `PA-RC-0022` 대응 행 — 정확한 ID는
+`BACKLOG.md`에서 재확인).
+
 상세: `docs/BACKLOG.md` `PA2-06`.
