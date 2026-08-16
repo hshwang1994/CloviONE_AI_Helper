@@ -49,7 +49,7 @@
 | `U-PROJECTS` 프로젝트 목록 | `/projects` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-CHAT` AI 도우미 대화 | `/chat` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHAT` AI 도우미 대화 | `/chat` | S | · | O | · | · | E | · | · | O | · | O | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | E | · | · | E | · | E | E | · | · | O | O | O | O | S | S | S | S | · | E | · | · | · | E | · |
@@ -93,7 +93,7 @@
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | O | S | S | E | · | S | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | · | S | O | · | O | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPROVALS` 승인 | `/approvals` | S | S | O | S | S | E | · | S | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-AUDIT` 감사 로그 | `/audit` | S | · | E | · | S | E | · | S | E | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
@@ -131,11 +131,11 @@
 | `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
 | `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | S | · | · | S | · | · | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
 | `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | O | · | O | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | O | · | O | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | O | · | O | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | O | · | · | S | · | · | · | · | · | · | · | · | S | O | · | · | S | · | E | S |
-| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | O | · | O | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
@@ -403,10 +403,10 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
 total_cells=2340
-unseen=1324
+unseen=1319
 unseen_without_reason=0
-static_only=604
-observed=222
+static_only=597
+observed=234
 executed=190
 blocked=0
 not_applicable=0

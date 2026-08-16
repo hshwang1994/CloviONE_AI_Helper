@@ -678,6 +678,64 @@ WARNING 크기의 값만 확인하고 **CRITICAL 크기(수천 분)는 한 번�
 
 ---
 
+## PA-F-057 — G·K축: 연동 실패가 **사용자 대화까지 정확히 전파된다** (음성 결과, 강한 구현)
+
+| 항목 | 값 |
+|---|---|
+| Confidence | **Confirmed** — DB 상태 + 소스 + 테스트 존재 확인 |
+| 근거 | `var/web.sqlite3`(읽기 전용 조회) · `frontend/src/screens/chat/MessageThread.jsx:39-129` · `app/jobs/handlers/chat_message.py` |
+
+이 인스턴스에는 **12일 전에 영구 실패한 잡 3건**이 남아 있어 K축을 자연 실험으로 볼 수 있었다.
+
+### DB가 보여 주는 전파 경로
+
+| 계층 | 상태 |
+|---|---|
+| `jobs` | `job_type=chat_message` · `status=failed` · `attempt_count=3 / max_attempts=3`(재시도 소진) · `last_error="RuntimeError: n8n 연결 실패"` |
+| `messages`(사용자) | `processing_status=**failed**` · `error_code=**assistant_error**` |
+| `messages`(어시스턴트) | 실패를 설명하는 **답변이 실제로 기록됨** |
+
+즉 잡 큐의 실패가 **관리자 화면에만 남는 것이 아니라 사용자의 대화에 되돌아온다.**
+`user_id`·`conversation_id`·`message_id`가 잡에 실려 있어 되돌아올 길이 설계돼 있다.
+
+### 사용자가 실제로 보는 문구
+
+> 업무 처리 서버와의 연결에 문제가 있어 요청을 완료하지 못했습니다.
+> **'다시 시도' 버튼을 누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려주세요.**
+
+`[무엇이 실패했나]` + `[무엇을 하라]` + `[그래도 안 되면]` 3요소가 전부 있다 —
+`PA-RC-0002`가 세운 기준을 **이 경로는 만족한다**. 내부 오류(`RuntimeError`, n8n)는
+노출하지 않고 사용자 언어로 바꿔 말한다(`errors.py`의 값 비노출 원칙과 같은 방향).
+
+### 특히 잘한 것 — **재시도가 의미 있는 실패와 아닌 실패를 구분한다**
+
+`MessageThread.jsx:121-129`가 `assistant_rejected`(서버가 *"다시 시도해도 똑같이 실패한다"* 고
+이미 분류한 경우)를 `assistant_error`/`assistant_timeout`과 **다르게** 다룬다:
+
+> 처리하지 못했습니다. **다시 시도해도 같은 결과가 나올 가능성이 높습니다.
+> 질문을 다르게 표현해 새로 물어보세요.**
+
+`ux-writing`이 금지하는 *"Dead ends (error with no recovery path)"* 를 피하면서, 동시에
+**무의미한 재시도를 권하지 않는다**. `PA-RC-0002`의 constraints가 경고한 *"재시도가 무의미한
+실패에 '다시 시도해 주세요'를 기계적으로 붙이지 마라"* 를 이 경로는 이미 지키고 있다.
+
+### 회귀 보호도 있다
+
+`processing_status`/`assistant_error`를 다루는 테스트가 **5개 파일**에 존재한다
+(`message-thread-actions` · `message-thread-inline-cards` · `message-thread-response-time` ·
+`chat-state` · `assistant-drawer-parity`). 즉 이 계약은 테스트로 고정돼 있다.
+
+**판정: 결함 없음.** 이 Cycle이 본 것 중 **가장 잘 만들어진 실패 경로**다.
+
+### 남는 미측정 (정직하게)
+
+- 실패 잡의 **「재시도」를 실제로 누르지 않았다** — 누르면 러너를 호출하고 제품 상태가 바뀐다.
+  DB·소스·테스트로 경로가 성립함을 확인했고, 클릭 후의 서버 동작은 **미측정**이다.
+- 유일한 러너가 `enabled=0`·health `unknown`이라 **러너가 살아 있을 때의 정상 경로**는
+  이 인스턴스에서 관측할 수 없었다. K축의 성공 경로는 여전히 미측정으로 남긴다.
+
+---
+
 ## PA-RC-0003 — `stash@{0}` 에 TEST 서버 SSH/sudo 평문 비밀번호가 남아 있다 (사람 조치 필요)
 
 **Severity: Critical · Confidence: Confirmed · Type: blocker / defect(보안)**
