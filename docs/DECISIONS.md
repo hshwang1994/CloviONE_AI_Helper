@@ -2725,3 +2725,40 @@ T70(일반 sweep으로 판정 불가) · T71(필수 Surface 누락 거부) · T7
 T74(visual_change_required에 lint/test만 적으면 실패, 판정 함수 양방향) ·
 T75(구현 쪽 시각 검증 부족 시 PROJECT_COMPLETE 거부) · T76(두 프롬프트의 재설계 권한·판정
 어휘·QA 분리·과거 Finding 재판정 계약).
+
+## D-90 (2026-08-16) — 전체 제품 UI QA 스윕이 D-84(SEC-10)가 남긴 자기 버그를 잡았다: `admin_audit` 500
+
+### 배경
+
+DBTX-02/SEC-38/AI-71 배포 뒤 `scripts/ui_qa/run.py`로 TEST SERVER 전체(71라우트×2뷰포트×
+2테마=276페이지)를 훑는 whole-product QA 스윕을 처음 돌렸다. `admin_audit`(감사 로그) 화면만
+4/4 조합에서 `console_errors` 치명 실패 — 매번 "Failed to load resource: 500".
+
+### 원인 — 내가 D-84에서 만든 감사 로그 행 자체가 깨진 JSON이었다
+
+서버 로그에서 `GET /api/admin/audit` 500 직전에 항상
+`json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes`가 찍혔다.
+`app/audit/router.py:175-176`이 목록의 모든 행에서 `before_json`/`after_json`을
+`json.loads()`하는데, `audit_logs` 전체 837행을 실제로 스캔(값은 출력하지 않고 파싱
+성공/실패만 확인)하니 **정확히 1건**이 깨져 있었다 — `id=4c87beae-...`,
+`request_id=autonomous-agent-SEC-10-2026-08-16`. D-84에서 SEC-10 완화를 적용하며 감사
+로그에 근거를 남기려고 raw SQL로 직접 INSERT했는데, 그때 `before_json`/`after_json`에
+`{restricted: false}`처럼 **키를 따옴표 없이** 적었다 — Python 리터럴처럼 보이지만 JSON
+문법은 아니다. 목록 API는 모든 행을 렌더링하려 하므로, 이 한 행 때문에 **감사 로그 화면
+전체**가 관리자 전원에게 500으로 막혀 있었다.
+
+### 조치
+
+같은 값·같은 의미로 `json.dumps({"restricted": False/True})`를 써서 그 한 행만 정정
+(`UPDATE audit_logs SET before_json=?, after_json=? WHERE id=?`) — 감사 기록 자체(누가·언제·
+무엇을)는 손대지 않고 JSON 문법만 고쳤다. 837행 전체 재스캔으로 이제 깨진 행이 0건임을
+확인. `scripts/ui_qa.run --routes admin_audit`로 재검증 — 콘솔 오류 0건.
+
+### 교훈
+
+값-비노출 원칙(D-76/D-82/D-84가 확립)을 지키며 raw SQL로 직접 쓰는 완화 조치는 **JSON
+직렬화도 실제 코드 경로(`json.dumps`)를 쓰거나 최소한 문법을 직접 확인해야 한다** — 손으로
+짠 JSON-비슷한 문자열은 저장 시점엔 조용히 성공하고, 그 값을 실제로 읽어 파싱하는 화면이
+열릴 때만 터진다. 이번 건은 whole-product Chrome QA 스윕이 없었으면 다음에 누가 감사 로그를
+열어볼 때까지 몰랐을 결함이다 — CLAUDE.md §10이 "몇 화면 smoke test로 끝내지 않는다"고 못박은
+이유이기도 하다.
