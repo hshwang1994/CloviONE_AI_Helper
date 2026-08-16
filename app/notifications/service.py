@@ -6,11 +6,15 @@ fanned out alongside (spec §13.5 마지막 문단).
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.errors import WriteUnavailableError
 from app.notifications.models import AUDIENCE_ADMIN, AUDIENCE_USER, Notification
 from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, User
 
@@ -174,7 +178,9 @@ def notify_active_users(
 def mark_read(db: Session, user_id: str, notification_id: str, *, now: datetime) -> bool:
     """Idempotent: marking an already-read notification is a success (not 404).
     Returns False only when the notification does not belong to the user or
-    does not exist."""
+    does not exist.
+
+    `mark_types_read`와 같은 이유(잦은 동시 쓰기)로 같은 SAVEPOINT 재시도를 쓴다."""
     row = db.execute(
         select(Notification).where(
             Notification.id == notification_id,
@@ -184,21 +190,46 @@ def mark_read(db: Session, user_id: str, notification_id: str, *, now: datetime)
     if row is None:
         return False
     if row.read_at is None:
-        row.read_at = now
-        db.flush()
+        for attempt in range(DEFAULT_WRITE_CONFLICT_RETRIES):
+            try:
+                with db.begin_nested():
+                    row.read_at = now
+                    db.flush()
+                break
+            except (IntegrityError, OperationalError) as exc:
+                if not is_write_conflict(exc):
+                    raise
+                db.refresh(row)
+                if row.read_at is not None:
+                    break  # 다른 요청이 먼저 읽음 처리했다 — 목표 상태는 이미 달성됨
+                if attempt < DEFAULT_WRITE_CONFLICT_RETRIES - 1:
+                    time.sleep(write_conflict_backoff(attempt))
+                else:
+                    raise WriteUnavailableError()
     return True
 
 
 def mark_all_read(db: Session, user_id: str, *, now: datetime) -> int:
     """현재 사용자의 안 읽은 알림을 한 번에 읽음 처리한다(소유권 범위 안에서만).
-    반환값은 읽음 처리된 건수."""
-    result = db.execute(
-        update(Notification)
-        .where(Notification.user_id == user_id, Notification.read_at.is_(None))
-        .values(read_at=now)
-    )
-    db.flush()
-    return int(result.rowcount or 0)
+    반환값은 읽음 처리된 건수.
+
+    `mark_types_read`와 같은 이유(잦은 동시 쓰기)로 같은 SAVEPOINT 재시도를 쓴다."""
+    for attempt in range(DEFAULT_WRITE_CONFLICT_RETRIES):
+        try:
+            with db.begin_nested():
+                result = db.execute(
+                    update(Notification)
+                    .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+                    .values(read_at=now)
+                )
+            db.flush()
+            return int(result.rowcount or 0)
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            if attempt < DEFAULT_WRITE_CONFLICT_RETRIES - 1:
+                time.sleep(write_conflict_backoff(attempt))
+    raise WriteUnavailableError()
 
 
 def unread_by_type(
@@ -239,20 +270,35 @@ def mark_types_read(db: Session, user_id: str, types: list[str], *, now: datetim
 
     유형 목록이 비면 아무 일도 하지 않는다(빈 목록을 '전부'로 해석하면 화면 하나를 여는
     것이 모든 알림을 지우는 사고가 된다).
+
+    화면 진입마다 호출되는 자리라 다른 요청의 쓰기와 부딪힐 일이 흔하다(whole-product
+    Chrome E2E 710페이지 스윕에서 실측: `database is locked`가 그대로 500으로 샜다) —
+    `app/core/db.py`의 공용 SAVEPOINT 재시도 관용(`team_chat/service.py::_append_message`와
+    같은 패턴)을 그대로 쓴다. 경쟁할 로컬 카운터가 없는 단순 UPDATE라 `db.refresh()`는
+    필요 없다.
     """
     if not types:
         return 0
-    result = db.execute(
-        update(Notification)
-        .where(
-            Notification.user_id == user_id,
-            Notification.read_at.is_(None),
-            Notification.type.in_(types),
-        )
-        .values(read_at=now)
-    )
-    db.flush()
-    return int(result.rowcount or 0)
+    for attempt in range(DEFAULT_WRITE_CONFLICT_RETRIES):
+        try:
+            with db.begin_nested():
+                result = db.execute(
+                    update(Notification)
+                    .where(
+                        Notification.user_id == user_id,
+                        Notification.read_at.is_(None),
+                        Notification.type.in_(types),
+                    )
+                    .values(read_at=now)
+                )
+            db.flush()
+            return int(result.rowcount or 0)
+        except (IntegrityError, OperationalError) as exc:
+            if not is_write_conflict(exc):
+                raise
+            if attempt < DEFAULT_WRITE_CONFLICT_RETRIES - 1:
+                time.sleep(write_conflict_backoff(attempt))
+    raise WriteUnavailableError()
 
 
 def unread_count(db: Session, user_id: str, *, audience: str | None = None) -> int:
