@@ -7068,3 +7068,25 @@ Audit Cycle 종료 후 CLAUDE.md §8(whole-product 재감사)에 따라 Explore 
 설계 공백, DB 마이그레이션 또는 16개 pinned 테스트 재검토가 필요해 신중한 별도 검토
 대상), Medium ~30건, AI/Runner 아키텍처 묶음(별도 설계 세션 필요) 순으로 계속 진행한다.
 그 뒤에야 `PROJECT_COMPLETE` 판단(Full Regression 최신 상태 재확인 포함)을 시도한다.
+
+### 체크포인트 — 2026-08-16 계속: `FN-42`(High) 완결 — 재검토로 마이그레이션 없이 해결
+
+`RESP-01` 다음으로 남은 High 중 `FN-42`(프로젝트 Health 점수의 신뢰도가 화면에 안 드러남)를
+골랐다. 예전 메모는 "(a) 마이그레이션 필요 또는 (b) `compute_health()` 임계값 변경(16개
+pinned 시험 위험) 둘 다 신중한 검토 대상"이라 보류돼 있었는데, 코드를 다시 읽으니 전제가
+틀렸다 — `record_health_snapshot()`이 `health_score`를 캐시할 때 **이미 같은 트랜잭션**에서
+`checked`/`unknown` 전체를 `ProjectHealthSnapshot.reasons_json`에 함께 적고 있었다(주간
+이력 목적으로 원래 있던 데이터). `service.py::latest_checked_rule_counts()`(최신 스냅샷의
+checked 개수를 배치 조회, N+1 아님) 신설 + `home/work.py`의 `unscored`와 나란히
+`low_confidence` 신설 + `Dashboard.jsx`에 구별 문구 추가로, 새 컬럼도 임계값 변경도 없이
+닫았다. 백엔드(`test_dashboard_metrics.py` 신규 1건 + 관련 156건)·프런트(신규 1건 포함
+8건) green, TEST SERVER 배포(`UPGRADE_OK`+`verify_deploy.sh` OK) 후 실측: 이 서버의 실제
+22개 프로젝트 **전부**가 `low_confidence`로 잡혔다(밀 프로젝트-티켓 연동이 옅어 마일스톤/
+지연작업/담당자 3개 규칙이 대부분 `unknown`인 실제 데이터 상태 — 코드 버그 아님, DB
+직접 조회로 `checked:["notion_trouble","stale"]` 2/5만 확인). 대시보드 스크린샷으로
+"일부 지표만으로 계산된 프로젝트 22건" 문구 실제 렌더 확인. 상세: `DECISIONS.md` D-107,
+`BACKLOG.md` `FN-42`.
+
+**다음에 할 일**: Explore 보고의 나머지 — Medium ~30건 중 다음 후보 선정, 이어서 AI/Runner
+아키텍처 묶음(`AI-19/20/33/31/01/07/13/54`, 별도 설계 세션 필요)과 `SEC-20`(사람 조치
+대기, credential rotation) 처리 여부 확인. 그 뒤 `PROJECT_COMPLETE` 판단 시도.
