@@ -98,19 +98,19 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `A-DIAG` 진단 | `/diagnostics` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-MAINT` 유지보수 | `/maintenance` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | E | · | S | E | · | S | E | · | · | C | E | · | · | E | S | S | · | · | · | · | · | · | E | · |
-| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
+| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | E | · | S | E | · | S | E | · | · | C | E | · | · | E | E | S | · | · | · | · | · | · | E | · |
+| `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
 | `A-INTEG` 외부 연동 | `/integrations` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | O | · | S | E | · | S | S | · | · | C | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
-| `A-POLICIES` 정책 | `/policies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-TEMPLATES` 템플릿 | `/templates` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
+| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
+| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | O | · | S | E | · | S | S | · | · | C | O | O | O | S | E | S | · | · | · | · | · | · | E | · |
+| `A-POLICIES` 정책 | `/policies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
+| `A-TEMPLATES` 템플릿 | `/templates` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
 | `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
+| `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
 | `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | · | S | O | · | O | C | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPROVALS` 승인 | `/approvals` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
@@ -505,9 +505,9 @@ cycle_id=PA-20260816-120655-f103fb5b
 total_cells=2340
 unseen=1292
 unseen_without_reason=0
-static_only=575
+static_only=565
 observed=198
-executed=259
+executed=269
 blocked=0
 not_applicable=16
 l_axis_visual_observed=37
