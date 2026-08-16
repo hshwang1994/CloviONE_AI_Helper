@@ -3662,4 +3662,16 @@ TEST SERVER 재배포 + `probe_a11y.py`/`verify_a11y.py` 재실행으로 6화면
 `headingSkips`가 실제로 빈 배열인지 라이브 재확인(acceptance_criteria 1). `PA2-08`
 (`PA-RC-0019`)/`PA2-09`(`PA-RC-0020`) 착수는 계속 진행 중(같은 invocation).
 
-상세: `docs/BACKLOG.md` `PA2-01`.
+### 배포 + 실측(같은 invocation 이어서) — `PA-RC-0012` 완결
+
+`UPGRADE_OK`, `verify_deploy.sh` 전부 OK. 신규 `var/product-audit/verify_pa_rc_0012.py`로
+6화면 전부 라이브 확인: `/llm-console`·`/notion-console`·`/mail`·`/system`·`/setup`
+(스크립트, 5/5) + `/offboarding`(별도 즉석 확인, 후보 선택 후 미리보기 카드까지) 전부
+heading 레벨 열이 건너뛰지 않음(`[1,2,2,2,...]` 패턴). **글자 크기도 실측으로 불변
+확인** — 고친 카드 제목들이 전부 `20px/700`(h6 그대로), `/setup` 체크리스트 항목은
+`17px/700`(`FONT_SIZE.sectionTitle` 그대로) — `component=` 추가가 태그만 바꾸고
+스타일은 안 건드렸다는 구조적 근거(D-99 본문)를 실측으로도 재확인했다.
+`/system`·`/llm-console`·`/notion-console`은 `PA-RC-0017`이 만든 `/settings?tab=*`
+리다이렉트를 거쳐도(SettingsShell 탭 안에 중첩) heading 열이 안 깨짐을 확인.
+
+**`PA-RC-0012`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-01`.
