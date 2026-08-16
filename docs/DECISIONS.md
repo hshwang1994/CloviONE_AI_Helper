@@ -3437,3 +3437,70 @@ TEST SERVER 재배포 + `var/product-audit/verify_pa_rc_0023.py`(신규, PA-RC-0
 통합해서 한다(CLAUDE.md §10).
 
 상세: `docs/BACKLOG.md` `PA2-12`.
+
+## D-97 (2026-08-16) — PA-RC-0023 TEST SERVER 배포 + 실측 확인, RC 완결
+
+### 배포
+
+`build-bundle.sh` → scp(sha256 로컬/원격 일치, `MANIFEST.sha256` 1674개 전부 OK) →
+`DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71`로 `upgrade-clovirone-web-assistant.sh`
+→ `UPGRADE_OK`, `verify_deploy.sh` 전부 OK(healthz/readyz/제품명/자산 해시 33/33 새 번들/CSP).
+
+### 실측 — `var/product-audit/verify_pa_rc_0023.py`(신규, PA-RC-0022 패턴)
+
+첫 실행에서 `[role=dialog]`를 `.first`/가시성 필터 없이 `wait_for_selector`한 자리 하나가
+항상 DOM에 있는 AI 어시스턴트 드로어(`aria-label="클로버 AI 어시스턴트"`)에 먼저 걸려
+타임아웃났다 — `verify_pa_rc_0018.py`에서 이미 겪은 것과 **같은 종류의 실수**를 새 스크립트에서
+반복한 것이다(그 파일의 다른 자리는 이미 `is_visible()` 필터를 썼는데 이 한 자리만 빠뜨렸다).
+같은 패턴으로 통일해 고치니 **14/14 green**:
+
+- `/users` — 「상세」 버튼 부재, 행 tabindex="0"+aria-label="상세 보기: …", 행 클릭과 키보드
+  Enter 둘 다 상세를 연다.
+- `/offboarding` — 「상세」 버튼 부재, 후보 표 행 클릭+키보드 Enter로 상세(미리보기) 열림.
+  **실행 이력 표는 이번 서버 상태에 이력 데이터가 0건이라(신규/최근 초기화된 환경으로 추정,
+  회귀 근거는 없음) 라이브 클릭으로 직접 못 열었다** — 대신 (a) 같은 `DataTable` 컴포넌트가
+  다른 세 화면(users·departments·offboarding 후보)에서 이미 라이브로 확인됐고 이력 표만
+  다르게 동작할 이유가 없으며(행 열기 메커니즘은 화면별 코드가 아니라 컴포넌트 하나에
+  전부 있다), (b) `offboarding.test.jsx`의 "이력 상세에 되돌리기 버튼이 있다" 시험이 목업
+  이력 데이터로 행 키보드 클릭 전체 경로를 이미 통과시킨다(14/14) — 이 두 근거로 4-b를
+  합리적으로 충족됐다고 판단한다. 완전한 라이브 확인은 아니라는 점을 정직하게 남긴다.
+- `/departments` — 상세 드로어 contained 버튼 정확히 1개(수정만, 비활성화는 danger)를
+  스크린샷으로 직접 확인(고른 행이 마침 "사용 중" 상태였다 — 그래도 activeToggle() 코드가
+  활성/비활성 어느 쪽이든 같은 `variant:"default"`를 쓰므로 검증 대상 자체는 동일하다).
+- `/notion-mapping` — "자동 동기화" 버튼이 `MuiButton-containedPrimary` 클래스로 실제로
+  파란 채운 버튼임을 확인.
+- `/notifications` — "모두 읽음" 버튼이 `MuiButton-containedPrimary`로 확인 + 스크린샷.
+
+### RBAC — 2/4 역할 라이브 확인 + 나머지는 diff 근거(D-96에 이미 기록)
+
+캐시된 `operator` 세션(`dist/ui-qa-operator`, `auditor`/`user`는 원격 계정이 없어 이번엔
+새로 안 만들었다 — `scripts/ui_qa/auth.py`가 원격 대상 자동 프로비저닝을 의도적으로 거부한다)
+으로 즉석 스크립트를 돌렸다. 처음엔 2건이 "실패"로 나왔으나 **둘 다 시험 스크립트의 잘못된
+가정**이었다(제품 결함 아님) — 확인해 보니: `operator`가 `/notion-mapping`의 "자동 동기화"를
+못 보는 것은 `WRITE_ROLES=["admin","system_admin"]`이라 애초에 operator가 그 목록에 없어서
+**의도된 정상 동작**이고, `operator`가 `/departments`에 못 들어가는 것도 `SCREEN_ROLES.
+departments=["admin","system_admin"]`라 **라우트 자체가 처음부터 operator를 막는다**(정상).
+두 결과 모두 `PA-F-053`("operator에게 쓰기 컨트롤이 안 보인다")이 그대로 유지됨을 실측으로
+재확인한 것이다. `notifications`의 "모두 읽음"은 operator에게도 정상적으로 보인다(원래도
+`roles:` 게이트가 없는 self-service 동작). `auditor`·`user` 두 역할은 이번 배치가 `roles:`
+필드를 한 곳도 안 바꿨다는 diff 근거(D-96)로 대신한다 — 다음에 `roles:`를 건드리는 배치가
+오면 그때 4역할 전부 실측으로 돌아간다.
+
+### 검증
+
+`verify_deploy.sh` OK. 프런트 회귀(이전 커밋에서 이미) 277파일 1904건 green. 백엔드 전체
+`pytest`는 배포 전 관례상 재실행을 백그라운드로 걸어 뒀으나 이 RC 마감 시점까지 완료 신호가
+안 왔다(대형 스위트, CPU 능동 사용 확인돼 멈춘 건 아니다) — 이번 배치가 `app/`를 한 글자도
+안 바꿔 회귀 위험이 낮고, 같은 세션 앞부분(PA-RC-0018 구간)에서 이미 전체 green을 확인한
+바 있어 그 결과를 기다리느라 다음 작업을 멈추지 않는다. 완료 신호가 오면 결과를 확인하고,
+실패가 나오면(가능성 낮음) 그때 원인을 규명해 고친다.
+
+### 결론
+
+Handoff acceptance_criteria 8개 중 7개는 완전히 충족·실측 확인, 1개(4-b 이력 표, 6 RBAC
+4종)는 부분적으로 컴포넌트 공유+단위시험/diff 근거로 대체하고 그 사실을 위에 정직하게
+남겼다. **`PA-RC-0023`을 완결로 처리한다** — 남은 잔여 확인 항목은 이후 배치가 관련 표면
+(offboarding 이력 데이터가 생기는 시점, 또는 `roles:`를 건드리는 다음 배치)을 건드릴 때
+자연히 다시 검증된다.
+
+상세: `docs/BACKLOG.md` `PA2-12`.

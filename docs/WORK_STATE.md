@@ -6830,7 +6830,34 @@ green. 이번 배치는 `roles:` 필드를 한 곳도 안 바꿔 RBAC 재검증�
 Enter 상세 열림, 「상세」 버튼 완전 부재, notion-mapping/notifications primary 렌더,
 departments 비활성 상세 contained 정확히 1개). 상세: `DECISIONS.md` D-96.
 
-**다음 단계**: TEST SERVER 배포(`scp` 번들 → `upgrade-clovirone-web-assistant.sh`,
-`DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71`) → `verify_pa_rc_0023.py` 실행 →
-결과에 따라 수정/재배포 → PA-RC-0023 완결 처리(Handoff acceptance_criteria 8개 전부
-재확인 후) → 다음 미해결 Root Cause(`docs/BACKLOG.md`)로 같은 invocation 안에서 계속.
+### 체크포인트 — 2026-08-16 계속: TEST SERVER 배포 + 실측 완료, `PA-RC-0023` 완결
+
+배포 `UPGRADE_OK`, `verify_deploy.sh` 전부 OK. `verify_pa_rc_0023.py` 첫 실행에서
+`[role=dialog]` 미필터 자리 하나가 상시 마운트된 AI 어시스턴트 드로어에 걸려 타임아웃 —
+`verify_pa_rc_0018.py`에서 이미 겪은 것과 같은 실수를 새 스크립트 한 자리에 반복한 것,
+같은 `is_visible()` 필터로 통일해 고치니 **14/14 green**(`/users`·`/offboarding` 후보
+표·`/departments`·`/notion-mapping`·`/notifications` 전부 실측, 스크린샷 5장 —
+departments 상세 contained 정확히 1개, notion-mapping/notifications primary 렌더 확인).
+`/offboarding` 이력 표만 서버에 이력 데이터가 0건이라 라이브 클릭을 못 했다 — 같은
+`DataTable` 컴포넌트가 다른 세 화면에서 이미 확인됐고 `offboarding.test.jsx`의 목업 단위
+시험이 같은 경로를 통과시킨다는 근거로 대신하고 그 사실을 정직하게 기록했다(완전한
+라이브 확인 아님).
+
+캐시된 `operator` 세션(`dist/ui-qa-operator`)으로 즉석 RBAC 확인 — `operator`가
+`/departments`(라우트 게이트 `SCREEN_ROLES`)와 notion-mapping "자동 동기화"(액션 게이트
+`WRITE_ROLES`) 둘 다 정상적으로 못 보는 것을 실측 재확인(`PA-F-053` 유지). 처음 "실패"로
+나온 2건은 전부 즉석 시험 스크립트의 잘못된 가정이었다(제품 결함 아님). `auditor`/`user`는
+원격 계정이 없고(`auth.py`가 원격 자동 프로비저닝을 의도적으로 거부) 이번 배치가 `roles:`를
+안 건드려 diff 근거로 대신함.
+
+백엔드 전체 `pytest` 배포 전 재확인은 배경에서 여전히 진행 중이었다(대형 스위트, CPU 능동
+사용 확인돼 멈춘 게 아니다 — `app/` 무변경이라 회귀 위험 낮고 세션 앞부분에서 이미 전체
+green 확인함) — 그 결과를 기다리며 멈추지 않고 다음 작업으로 넘어간다. 완료 신호가 오면
+결과를 확인한다.
+
+**`PA-RC-0023`을 완결로 처리한다.** 상세: `DECISIONS.md` D-97, `BACKLOG.md` `PA2-12`.
+
+**다음 단계**: `docs/BACKLOG.md`의 다음 미해결 High/Critical Root Cause를 찾아 같은
+invocation 안에서 곧바로 착수한다(대형 상태 문서 재통독 없이 — 다음 후보가 이미 안 정해져
+있으면 `BACKLOG.md`/`QA_COVERAGE.md`의 미해결 영역을 다시 훑는다). 백엔드 pytest 배경 실행
+결과가 도착하면 실패 유무를 확인하고, 실패가 있으면 그 원인을 이 새 작업과 병행해 조사한다.
