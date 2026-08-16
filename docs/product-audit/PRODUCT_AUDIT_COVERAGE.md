@@ -173,12 +173,15 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-ANNOUNCE:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-ANNOUNCE:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-ANNOUNCE:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-ANNOUNCE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-APPRDELEG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-APPRDELEG:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-APPRDELEG:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-APPROVALS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-APPROVALS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-APPROVALS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-APPROVALS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-APPROVALS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-AUDIT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-AUDIT:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-AUDIT:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
@@ -186,13 +189,16 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-AUDIT:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-AUDIT:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
 | `A-AUDIT:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-AUDIT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-AUDIT:T` | TEST SERVER journalctl 실조회 — 500 이 request_id 와 함께 traceback 을 남기는 것을 확인(2026-08-17 change-password/conversations) |
 | `A-AUDIT:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-AUDITANOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-AUDITANOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-AUDITANOM:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-BACKUP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-BACKUP:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-BACKUP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-BACKUP:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-DASH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DASH:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-DASH:E` | pa2_dup.py — /dashboard 와 /diagnostics 본문 문자열 중복률 계측(68%) |
@@ -200,82 +206,108 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-DASH:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-DASH:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
 | `A-DASH:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-DASH:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-DEVREP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DEVREP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-DEVREP:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-DIAG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DIAG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-DIAG:E` | 같은 조사 + app/health/service.py:390 docstring(embeds a full build_dashboard() call) |
 | `A-DIAG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-DIAG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-DIAG:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-DIAG:T` | TEST SERVER journalctl 실조회 — 500 이 request_id 와 함께 traceback 을 남기는 것을 확인(2026-08-17 change-password/conversations) |
 | `A-DOCGEN` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DOCGEN:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-DOCGEN:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-FLAGS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-FLAGS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-FLAGS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-FLAGS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-FLAGS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-IMPERSON` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-IMPERSON:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-IMPERSON:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-IMPERSON:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-INTEG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-INTEG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-INTEG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-INTEG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-INTEG:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-JOBS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-JOBS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-JOBS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-JOBS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-JOBS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-JOBTITLES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-JOBTITLES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-JOBTITLES:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-LLMC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-LLMC:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-MAIL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-MAIL:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-MAIL:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-MAIL:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-MAINT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-MAINT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-MAINT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-NOTIONC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-NOTIONC:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-NOTIONC:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-NOTIONMAP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-NOTIONMAP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-NOTIONMAP:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-OFFBOARD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-OFFBOARD:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-OFFBOARD:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-OFFBOARD:L` | 행 높이 분포(97px 8행 / 35px 12행)·상태 막대 481px·동일 문장 8회 반복 계측 |
 | `A-OFFBOARD:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
 | `A-OFFBOARD:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-OFFBOARD:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-ORG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-ORG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-ORG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-ORG:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `A-ORG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-ORG:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-POLICIES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-POLICIES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-POLICIES:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-POLICYUSE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-POLICYUSE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-POLICYUSE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-PROMPTS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-PROMPTS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-PROMPTS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-PROMPTS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-PROMPTS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-PROMPTUSE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-PROMPTUSE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-PROMPTUSE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-QUOTAS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-QUOTAS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-QUOTAS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-RBAC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-RBAC:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-RBAC:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-RBAC:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-RBAC:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-RESTORE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-RESTORE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-RESTORE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-RUNNERS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-RUNNERS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-RUNNERS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-RUNNERS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-SCHEDCAL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-SCHEDCAL:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-SCHEDCAL:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-SCHEDCAL:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-SCHEDCAL:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-SCHEDULES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-SCHEDULES:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-SCHEDULES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-SCHEDULES:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-SCHEDULES:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-SETTINGS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-SETTINGS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
@@ -283,11 +315,15 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-SETTINGS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-SETTINGS:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
 | `A-SETTINGS:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-SETTINGS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-SETUP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-SETUP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-SETUP:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-SYSTEM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-SYSTEM:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-TEMPLATES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-TEMPLATES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-TEMPLATES:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-USERS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-USERS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `A-USERS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
@@ -295,9 +331,11 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-USERS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-USERS:N` | pa2_cols.py + pa2_resp_dark.py — 열 폭/필요 폭/잘린 행을 1920·1366 두 폭에서 계측 |
 | `A-USERS:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-USERS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `A-WORKFLOWS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-WORKFLOWS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-WORKFLOWS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-WORKFLOWS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `P-AI` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `P-AI:L` | 화면이 없는 플랫폼 계층이라 UI/UX 판정 대상이 아니다. 이 계층의 사용자 대면 결과는 해당 Surface의 L축에서 판정한다. |
 | `P-AUDITLOG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
@@ -331,89 +369,125 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `P-UPLOAD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `P-UPLOAD:L` | 화면이 없는 플랫폼 계층이라 UI/UX 판정 대상이 아니다. 이 계층의 사용자 대면 결과는 해당 Surface의 L축에서 판정한다. |
 | `S-ASSIST` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-ASSIST:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-BANNER` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-BANNER:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-BELL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-BELL:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `S-BELL:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-DATASCREEN` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-DATASCREEN:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-KIT` | L축: 토큰 계층(타이포/반지름/색/모션)을 실측 스캔으로 조사 완료(PA-RC-0001). 나머지 축은 Round 계획에 남아 있다. |
+| `S-KIT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-LOGIN` | L/M/N/O/C 축을 실제 Chromium 151 로 관측했다(로컬 dev :8099). 나머지 축은 Round 계획에 남아 있다. |
 | `S-LOGIN:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `S-LOGIN:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-PALETTE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-PALETTE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `S-PALETTE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-SCOPE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `S-SCOPE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `S-SCOPE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-SHELL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-SHELL:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-TOPBAR` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-TOPBAR:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-TOUR` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-TOUR:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `S-USERMENU` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `S-USERMENU:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-ACTIVITY` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-ACTIVITY:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-ACTIVITY:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-BOARD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-BOARD:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-BOARD:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-BOARD:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-BOARDPOST` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-BOARDPOST:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
+| `U-BOARDPOST:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-CHAT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-CHAT:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-CHAT:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-CHAT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-CHATROOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-CHATROOM:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-CHATROOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-CHATROOM:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-CHATROOMS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-CHATROOMS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-CHATROOMS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-CHATROOMS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-GAMEROOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-GAMEROOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-GAMEROOM:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-GAMES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-GAMES:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-GAMES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-GAMES:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-HOME` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-HOME:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-HOME:B` | pa2_home_api.py — GET /api/home/today 원문을 DASHBOARD_METRICS.md §3 계약과 대조 |
 | `U-HOME:E` | 같은 조사 — API 페이로드와 프런트 렌더(Home.jsx:309)와 문서 계약 3층 대조 |
 | `U-HOME:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-HOME:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-MYSTATS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-MYSTATS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-MYSTATS:B` | pa2_states.py + 소스 대조 — /api/me/stats 의 totals 가 mapped:false 에서 0 을 낸다 |
 | `U-MYSTATS:E` | 같은 조사 — build_stats 호출부에 mapped 가드 없음을 소스로 확인 |
 | `U-MYSTATS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-MYSTATS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-MYTICKETS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-MYTICKETS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-MYTICKETS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-MYTICKETS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-NEWTICKET` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-NEWTICKET:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-NEWTICKET:C` | pa2_states.py — 입력 요소 25개 전수(레이블 연결·required·maxlength·placeholder) |
 | `U-NEWTICKET:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-NEWTICKET:M` | 같은 계측 — 레이블 연결 확인. 무레이블 4건은 MUI Select 숨은 input 으로 확인(결함 아님) |
+| `U-NEWTICKET:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-NOTIF` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-NOTIF:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-NOTIF:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-NOTIF:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-PROFILE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-PROFILE:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-PROFILE:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-PROFILE:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-PROJECT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-PROJECT:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-PROJECT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-PROJECT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-PROJECTS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-PROJECTS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-SEARCH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-SEARCH:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-SEARCH:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-SEARCH:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-SPRINT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-SPRINT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-SPRINT:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-TEAMDOC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-TEAMDOC:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-TEAMDOC:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-TEAMDOC:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-TEAMDOCS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-TEAMDOCS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
 | `U-TEAMDOCS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-TEAMDOCS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-TEAMTICKETS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-TEAMTICKETS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-TEAMTICKETS:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-TICKET` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-TICKET:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-TICKET:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-TICKET:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-TRASH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-TRASH:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 | `U-UNASSIGNED` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-UNASSIGNED:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `U-UNASSIGNED:R` | scan_r_axis.py — HEAD의 UI 문자열 1,481개 전수에 humanize-korean 패턴 ID 적용. S1 1건·S2 0·D/G/I 0 |
 
 ## Skill 적용 기록
 
@@ -423,8 +497,8 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `redesign-existing-projects` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | L축. *"이 화면이 없으면 사용자가 무엇을 못 하는가"* 로 /diagnostics 의 고유값(수집·마스킹·원본 JSON)을 가려내 REDESIGN 근거로 삼았다(PA-RC-0028). *"메뉴를 없애고 다른 화면 안으로 넣는 게 나은 경우"* 로 사용자 콘솔 `문서/휴지통` 그룹을 판정(PA-RC-0031). sidebar 와 navigation-ia 를 **그릇과 분류로 갈라** 각각 KEEP/REDESIGN 으로 판정한 것도 이 기준이다 |
 | `impeccable` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | L축. **중복 요소 제거**로 카드 8장이 말한 것을 다시 말하는 도넛을 판정(PA-RC-0028), **정보 밀도**로 /offboarding 이 같은 문장을 8행에 반복해 행 높이가 2.8배 벌어지는 것을 판정(PA-RC-0036), **폭 배분이 내용 요구와 무관한 것**을 시각 위계 결함으로 판정(PA-RC-0029·0037) |
 | `ux-writing` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | P축. **상태 표현**(0 과 '-' 와 문장이 같은 상태를 세 가지로 말하는 것)으로 PA-RC-0027 을 High 로 판정. **없어서 문제인 문구**로 관리자 상세의 '없는 레코드' 침묵(PA-RC-0033)과 /settings 탭 권한 거부의 무안내(PA-RC-0030)를 판정. placeholder 와 helper text 의 역할 구분으로 PA-RC-0035 판정. 빈 상태 3요소(무엇이 없나·왜·무엇을 하면 되나)로 empty-state 를 **KEEP** 판정 |
+| `humanize-korean` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 — references/quick-rules.md 패턴 ID(S1/S2/D/G/I) | R축. **윤문 파이프라인은 돌리지 않았다**(장르가 산문 오케스트레이터이고 게이트가 문서 단위 지표인데 대상은 평균 11.3자 UI 문자열이다 — 스킬 자신과 이 Audit 2절이 똑같이 '짧은 버튼명을 억지로 문학적으로 바꾸지 않는다'고 적는다). **이전 가능한 탐지 분류 체계**를 가져와 HEAD의 UI 문자열 1,481개 전수에 적용(scan_r_axis.py) — S1 1건(라벨 형식 문제로 확인, PA-RC-0031에 병합)·S2 0건·D/G/I 0건. 직전 Cycle 이후 문구가 많이 바뀌었으므로 그 결과를 승계하지 않고 다시 쟀다(PA-F-096) |
 
-    skill_gap: {'name': 'humanize-korean', 'note': '**이번 Cycle에서는 아직 적용하지 않았다** — R축(한국어 자연스러움)을 아직 수행하지 않았기 때문이다. 미설치가 아니라 순서상 미실행이며, R축을 돌릴 때 `ux-writing` 다음에 적용한다. 직전 Cycle(PA-20260816-120655)은 이 스킬의 탐지 분류 체계를 UI 문자열 1,484개에 적용해 S1 1건(오탐)·S2 0건·D/G/I 0건을 얻었고 그 결과는 PA-F-079 에 있다. 그 증거는 제품 문구가 그 뒤 바뀐 만큼 이번 Cycle에서 다시 재야 한다'}
 
 ## 이번 Cycle에서 각 상태가 실제로 뜻하는 것
 
