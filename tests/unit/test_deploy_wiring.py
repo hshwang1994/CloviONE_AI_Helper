@@ -90,6 +90,23 @@ def test_the_installer_actually_installs_the_helper():
     )
 
 
+def test_the_installer_installs_and_enables_the_conversational_worker_unit():
+    """D-118 — 같은 사고 부류다: 유닛 파일만 repo 에 있고 설치 스크립트가 모르면
+    이 레인은 절대 배포되지 않는다. `worker_conversational_lane_enabled`가 꺼져
+    있으면(기본값) 그 프로세스는 안전하게 곧장 종료하도록 `app/worker_main.py`가
+    이미 보장한다 — 그래서 이 유닛은 배치 워커처럼 **항상** 설치·enable해도 된다."""
+    text = _text(INSTALL)
+    assert "clovirone-web-worker-conversational.service" in text, (
+        "설치 스크립트가 대화형 레인 유닛을 모른다 - Phase 2가 배포되지 않는다"
+    )
+    assert "systemctl enable clovirone-web-assistant.service clovirone-web-worker.service clovirone-web-worker-conversational.service" in text, (
+        "대화형 레인 유닛을 enable하지 않는다 - 재부팅하면 설정을 켜도 그 레인이 안 뜬다"
+    )
+    assert "systemctl restart clovirone-web-worker-conversational.service" in text, (
+        "배포할 때마다 최신 코드/설정으로 재시작하지 않는다"
+    )
+
+
 def test_the_installer_prepares_the_certificate_directory():
     """인증서 교체 액션이 쓰는 자리를 설치가 만들어 두지 않으면 첫 교체가 실패한다.
 

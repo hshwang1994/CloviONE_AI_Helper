@@ -284,6 +284,11 @@ runuser -u "$SVC_USER" -- env $(grep -v '^#' "$ETC_DIR/web.env" | xargs) \
 log "install systemd units"
 cp -f "$APP_DIR/deploy/systemd/clovirone-web-assistant.service" /etc/systemd/system/
 cp -f "$APP_DIR/deploy/systemd/clovirone-web-worker.service" /etc/systemd/system/
+# D-118: 대화형 레인 유닛. worker_conversational_lane_enabled가 꺼져 있으면(기본값)
+# main()이 리스를 잡기 전에 즉시 exit(0)한다 — 그래서 이 유닛은 설치·활성화해 둬도
+# 안전하다(배포 상태가 실제 설정과 갈라지지 않는다, PA-05와 같은 부류의 drift를
+# 피한다). 실제로 도는 것은 그 설정값이 켜졌을 때뿐이다.
+cp -f "$APP_DIR/deploy/systemd/clovirone-web-worker-conversational.service" /etc/systemd/system/
 # 특권 헬퍼(§S). 이것이 있어야 관리자 콘솔의 시스템 설정(타임존·DNS·호스트 이름·프록시·
 # 인증서)이 동작한다. 웹은 하드닝돼 있어 /etc 를 못 쓰기 때문이다 — 그 하드닝은 풀지 않는다.
 # 없어도 웹은 정상 기동하고 화면이 "도우미가 없습니다" 라고 말한다.
@@ -294,7 +299,7 @@ chmod 0644 /etc/systemd/system/clovirone-web-*.service /etc/systemd/system/clovi
 systemctl daemon-reload
 systemd-analyze verify /etc/systemd/system/clovirone-web-assistant.service >>"$LOG" 2>&1 || true
 systemd-analyze verify /etc/systemd/system/clovirone-privhelper.service >>"$LOG" 2>&1 || true
-systemctl enable clovirone-web-assistant.service clovirone-web-worker.service >>"$LOG" 2>&1
+systemctl enable clovirone-web-assistant.service clovirone-web-worker.service clovirone-web-worker-conversational.service >>"$LOG" 2>&1
 systemctl enable clovirone-privhelper.service >>"$LOG" 2>&1
 # 웹보다 먼저 띄운다(유닛의 Before= 와 같은 뜻이지만, 설치 중에는 순서를 명시해야 한다).
 systemctl restart clovirone-privhelper.service >>"$LOG" 2>&1 || \
@@ -384,6 +389,11 @@ log "start services"
 systemctl restart clovirone-web-worker.service
 sleep 2
 systemctl is-active clovirone-web-worker.service >>"$LOG" 2>&1 || { log "worker not active"; journalctl -u clovirone-web-worker -n 50 --no-pager >>"$LOG" 2>&1; exit 20; }
+# D-118: 대화형 레인은 **활성 상태를 강제하지 않는다** — worker_conversational_lane_enabled가
+# 꺼져 있으면(현재 기본값) main()이 정상적으로 exit(0)해 곧 inactive(dead)로 보인다. 그건
+# 실패가 아니라 이 유닛의 정상 대기 상태다(배치 워커처럼 계속 떠 있는 것과 다르다).
+systemctl restart clovirone-web-worker-conversational.service >>"$LOG" 2>&1 || \
+  log "conversational worker restart failed (harmless if the lane flag is off)"
 systemctl restart clovirone-web-assistant.service
 for i in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1; then break; fi
