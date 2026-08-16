@@ -4606,3 +4606,159 @@ revert-to-verify 확인. 상세: `docs/BACKLOG.md` `VIS-35`.
    낮추는 트레이드오프라 이번엔 택하지 않는다.
 
 코드 변경 없음, 이 재확인 결과로 backlog 재분류. 상세: `docs/BACKLOG.md` `VIS-12`.
+
+## D-118 (2026-08-17) — 채팅 응답성 아키텍처(`AI-05`/`AI-06`/`AI-07`/`AI-54`): 레인 분리 설계, phase 0 검증 완료, 구현은 다음
+
+### 배경
+
+`AI-05`(스트리밍 없음)·`AI-06`(중단 없음)·`AI-07`(모든 채팅이 단일 워커 슬롯에 직렬화, 최대
+3600초 `schedule_run` 하나가 전 사용자 채팅을 막을 수 있음)은 이전 세션들이 이미 "같은
+채팅 응답성 축의 아키텍처 작업"으로 함께 묶어 뒀지만, 실제 구현 계획은 없었다. `architect`
+에이전트에게 "또 하나의 조사"가 아니라 **넘길 수 있는 구체적 설계**를 요청했다 — 결과가
+기존 backlog 기록의 사실 오류 2건을 함께 잡아냈다.
+
+### 기존 기록의 정정 2건
+
+1. **`AI-07`의 "스케줄 tick 이중 발화" 우려가 틀렸다.** `app/schedules/scheduler.py`를
+   다시 읽으면 스케줄 발화는 이미 `schedule_runs.idempotency_key =
+   "{schedule_id}:{scheduled_at}"` UNIQUE 제약으로 insert-first 처리돼 있다 — 두 워커가
+   동시에 같은 스케줄을 발화 판단해도 먼저 insert하는 쪽만 성공한다(`create_run_and_enqueue`/
+   `_record_skip`가 `IntegrityError`를 그렇게 처리, `scheduler.py` 자신의 모듈 docstring이
+   이미 이 설계를 명시하고 있었다). **진짜 이중 실행 위험이 있는 것은 다른 14개
+   tick**(백업 스케줄·보존 정리[Notion 아웃바운드 보관/삭제 호출 포함]·문서/티켓/프로젝트
+   동기화·승인 SLA 알림·검색 색인 등 — 유니크 제약이 없다).
+2. **진짜 토큰 스트리밍은 이 저장소 소관이 아니다.** n8n 워크플로(`docs/n8n/
+   ClovirONE_AI_Work_Assistant_v7.json`)가 `responseMode: responseNode` + 완결형
+   `respondToWebhook`(`respondWith: json`)이라 한 번에 완성된 응답만 낸다. 러너도
+   `--output-format json`이지 `stream-json`이 아니다(`assistant.py:2433,2455`,
+   `subprocess.run`이 프로세스 종료까지 블록). `docs/DECISIONS.md` D-14가 "sync 제너레이터
+   `StreamingResponse`로 §3-1을 지키며 SSE 가능"이라고 이미 결론 낸 것은 맞다 — **막는
+   것은 불변규칙이 아니라 n8n**이다.
+
+### Phase 0 — 설계가 기대는 전제 2가지, 직접 소스로 재확인(완료)
+
+- **러너 `conversation_lock`이 대화별로 갈리는가** → 그렇다. `runner/claude-work-assistant/
+  assistant.py:271-287`, 키가 `f"{requester_state_key(requester)}|{conversation_id}"`다 —
+  같은 대화의 턴은 직렬화되지만 **다른 대화는 서로 안 막는다**. `/message` 경로도 이 락을
+  잡는다(`:6232` 주석이 "`/message` 턴은 LLM 호출 내내(10~60초) `conversation_lock`을
+  쥔다"고 명시, `/context/sync`·`/context/delete`와 같은 락 키 공간). 이 사실이 아래
+  Phase 3(동시성 1→3)이 안전하다는 근거다.
+- **`SettingsCache.load`가 build-then-swap인가** → 그렇다. `app/settings/service.py:49-62`,
+  로컬 `values` dict를 다 채운 뒤에야 `self._lock` 안에서 `self._values = values`로
+  교체한다(락 밖에서 만들고 락 안에서 원자적으로 바꿔치기) — 이미 스레드 세이프하게
+  설계돼 있다(클래스 자신의 docstring). 대화형 레인이 자기 하트비트 스레드에서 30초마다
+  `settings_cache.load(db)`를 불러도 안전하다는 뜻이다.
+
+### 권장 아키텍처 — 레인 분리(프로세스) + 대화형 레인 안에서만 스레드 풀
+
+**배치 레인**(기존 `worker_main.py` 그대로, 단일 스레드, 기존 15개 tick 전부)과 **대화형
+레인**(`chat_message`·`llm_connection_test` 둘만, 새 프로세스, `max_concurrency=3`
+스레드 풀) — 프로세스는 둘로 가르되 동시성은 대화형 레인 **안에서만** 스레드로 준다.
+배치 레인 프로세스 안에 스레드를 섞지 않는 이유: 그 프로세스가 Notion 보관/삭제
+아웃바운드 쓰기(retention)·백업·세 갈래 미러 prune을 이미 안고 있어, 가장 위험한 스윕들이
+있는 자리에 동시성을 추가하고 싶지 않다.
+
+**파일별 변경**(전부 구현 전, 계획만):
+- 신규 `app/jobs/lanes.py` — `LANE_BATCH`/`LANE_CONVERSATIONAL`, `CONVERSATIONAL_JOB_TYPES`,
+  `lock_filename(lane)`/`liveness_component(lane)` — claim 필터·lock 경로·liveness 컴포넌트·
+  sweep 필터 4곳이 이 한 정의를 같이 쓴다(따로 두면 다음에 대화형 job_type을 추가할 때
+  한 곳만 빠뜨리는 함정이 다시 생긴다).
+- `app/jobs/repository.py::claim_next` — `include_types`/`exclude_types`/
+  `takeover_after_seconds` 키워드 인자 추가(기본 인자 없이 부르면 SQL 바이트까지 기존과
+  동일). 대화형 레인 프로세스가 없거나 죽었을 때 오래된(예: 120초 초과) 대화형 잡을 배치
+  레인이 대신 처리하는 **takeover 유예**를 포함 — 없으면 "채팅이 조용히 완전히 멈추는데
+  아무 데도 안 남는" 최악의 실패 모드가 생긴다.
+- `app/jobs/repository.py::recover_stuck` — 같은 `include_types`/`exclude_types`.
+  **여기가 이 설계에서 가장 중요한 한 줄이다**: 필터 없이 두 레인이 각자 sweep하면
+  대화형 레인이 배치 레인에서 지금 실제로 돌고 있는 긴 `schedule_run`을 "멈췄다"고 오판해
+  재큐잉할 수 있다 — `WorkerLock`이 막으려는 바로 그 이중 실행이 sweep 경로로 재발한다.
+- `app/core/worker_lock.py::default_lock_path(data_dir, lane=LANE_BATCH)` — 기본값을
+  배치로 둬서 기존 `worker.lock` 경로가 그대로 유지되고, in-place 업그레이드 중 리스가
+  고아가 되거나 두 배치 워커가 잠깐 동시에 뜨는 창이 안 생긴다.
+- `app/jobs/worker.py` — 새 메서드 `run_forever_pooled(stop_event, *, max_concurrency)`만
+  추가. **`run_once`는 한 글자도 안 건드린다** — 그 함수의 pre-handler commit·try 안
+  commit·`_finish_out_of_band` 규약은 이미 hard-won(여러 revert-to-verify 시험이 못 박고
+  있다). 풀 루프는 `run_once`를 스레드 풀에 제출하고 in-flight future를 추적할 뿐이다.
+  풀 루프는 **tick_callback을 아예 안 부른다**(아래).
+- `app/worker_main.py` — `main(argv)`가 `--lane`(기본 `batch`)을 받는다. 본문을
+  `_bootstrap(settings)`(engine/session/outbound/ctx/lock 공용)·
+  `build_batch_worker(...)`(기존 15개 tick 전부 그대로)·`build_conversational_worker(...)`
+  (핸들러를 `CONVERSATIONAL_JOB_TYPES`로만 제한, tick 0개)로 분리 — 배선 지점이 한 모듈
+  안에 있어 둘이 갈라질 여지가 없다.
+- 신규 systemd 유닛 `deploy/systemd/clovirone-web-worker-conversational.service`
+  (`--lane=conversational`).
+- `app/core/config.py`에 설정 3개, 전부 기본값이 오늘 동작과 같다:
+  `worker_conversational_lane_enabled=False`, `worker_conversational_concurrency=3`
+  (Phase 0 확인대로 1이 아니라 3부터 시작해도 안전), `worker_conversational_takeover_seconds=120.0`.
+
+### tick 중복 방지 — 배선 자체를 안 하고, 그래도 등록되면 기동이 실패하게
+
+3중 방어: ① `build_conversational_worker()`가 `tick_callbacks.append`를 아예 안 부른다
+(배선 자체가 불가능) ② `run_forever_pooled`가 시작할 때 `tick_callbacks`가 비어 있지
+않으면 **기동을 거부**한다(나중에 실수로 tick 하나가 대화형 쪽에 등록되면 조용히 두 번
+도는 대신 systemd가 즉시 failed로 보여준다 — "보이는, 복구 가능한 실패"라는 이 저장소의
+기존 원칙과 같음) ③ 정적 시험 2건(`대화형 레인은 tick 0개`/`배치 레인은 15개 전부`).
+
+### 스트리밍(AI-05) — 진짜 토큰 스트리밍 대신 정직한 단계 표시
+
+SSE를 만들지 않는다. `--workers 1`이 고정(`deploy/systemd/clovirone-web-assistant.service`
+자신의 주석 "고정이다. 올리지 마라")인 상태에서 폴링-슬립 제너레이터를 스레드풀에 태우면
+동시 대기 사용자 수만큼 **앱 전체의 다른 sync 엔드포인트**가 말라붙는다 — 지금의 폴링보다
+훨씬 나쁜 장애다. 대신 이미 갖고 있는 정보(대기/클레임됨/n8n 전송됨/정리 중, 그리고
+`COUNT(*) WHERE status='queued' AND created_at < mine`로 싼 대기열 앞 건수)를 `message_view()`에
+얹고 `TypingBubble`이 "대기 중(앞에 2건)" → "업무 서버에 요청 중 · 14초"처럼 보여준다.
+폴링 간격도 1500ms→1000ms로 낮춘다. **대화형 레인이 실제로 뜬 뒤에** 넣는다(Phase 4) —
+그 전에는 3600초짜리 배치 잡에 막혀 있으면서 "대기열 앞 0건"이라고 정직하지 않은 값을
+보여주게 된다.
+
+### 취소(AI-06) — "중단"이 아니라 "더 안 기다림(detach)"
+
+`idempotency_key: chatmsg:{message_id}`를 쓰는 이유 자체가 "n8n이 이미 티켓을 만들었는데
+응답만 유실됐을 수 있다"는 전제다 — 연결을 끊는 "중단"은 n8n이 이미 만든 부작용을
+없애주지 못하면서 "중단했습니다"라고 거짓말하는 꼴이 된다. 그래서: 아직 큐에 있으면 기존
+`cancel_queued`의 CAS로 즉시 취소(이미 있는 경로), 이미 러너에 나가 있으면 응답이 왔을 때
+**soft-delete로 남기고**(완전 폐기하면 실제 부작용의 흔적이 사라진다) 잡은 `succeeded`로
+끝낸다(`failed`로 끝내면 "요청 처리에 실패했습니다" 알림이 오발송된다). 컴포저 잠금은
+`useChat.js:540`(원 기록의 483-485는 그 사이 줄 번호가 밀렸다)의 기존 가드를 유지하되,
+"잡이 큐를 벗어난 적이 없다"가 증명되는 경우(`cancelled_before_start`)만 즉시 풀고, 이미
+러너에 나가 있던 경우(`detached_while_running`)는 여전히 잠근 채로 "취소했습니다 — 이전
+요청이 정리되는 중입니다"로 문구만 바꾼다 — `AI-54`가 우려한 "겹치는 러너 작업→맥락
+뒤섞임" 재발을 실제로 막는 유일한 조건이 이것이다.
+
+### Phasing (순서대로, 각자 독립 배포 가능)
+
+0. **(완료)** 위 두 전제 검증.
+1. **레인 배선, 어둡게** — `lanes.py`, `claim_next`/`recover_stuck` 시그니처, `default_lock_path(lane=)`,
+   `main(argv)`의 `--lane` 분리, 설정 3개(전부 꺼짐). 실제 동작 변화 없음. 위험 낮음 —
+   기존 `test_worker.py`/`test_job_claim_race.py`/`test_worker_lock.py`가 무수정으로
+   green이어야 하고, 새 시험은 기본 인자 SQL이 그대로인지·필터가 레인 소속을 지키는지만
+   확인.
+2. **대화형 레인 실제로 켬(`max_concurrency=1`부터)** — **가장 위험한 phase.** `recover_stuck`
+   레인 필터가 핵심 방어선. 배포 전 최소: 위 기존 시험 전체 + 실제 SQLite 파일 기반(⚠️
+   `:memory:` 금지, CLAUDE.md §3) 2-레인 통합 시험(긴 `schedule_run`이 `chat_message`를
+   안 막는지, 서로 다른 레인이 서로의 job_type을 안 채가는지, 대화형 sweep이 실행 중인
+   `schedule_run`을 안 건드리는지, 플래그 꺼짐이면 배치 레인이 여전히 채팅을 처리하는지,
+   대화형 레인이 없을 때 takeover 유예가 실제로 발동하는지) + tick 0개 정적 시험 + 백엔드
+   Full Regression 조기 1회(claim_next는 전 job_type이 지나는 경로다, CLAUDE.md §6 고위험
+   예외 해당).
+3. **동시성 1→3** — Phase 0 확인대로 설정값만 바꾸면 됨(코드 배포 불필요, 즉시 되돌릴 수
+   있음). 서로 다른 대화 두 개가 실제로 겹치는지 시험 + TEST SERVER 워커 로그에서
+   `is_write_conflict`/"database is locked" 관찰.
+4. **정직한 단계 표시(AI-05의 실제로 가능한 절반)** — 위험 낮음, 읽기 전용 파생값 + 컴포넌트 하나.
+5. **취소(AI-06)** — 위험 중간, `handle_chat_message`를 건드린다(트랜잭션 순서에 이미
+   revert-to-verify 이력이 있는 민감한 함수). `test_chat_handler.py` 전체(DBTX 순서를
+   고정) + `test_chat_ticket_routing_contract.py`(idempotency-key 계약 고정) +
+   신규(취소 시점 3가지 분기·RBAC negative).
+6. **backlog 정정** — 위 정정 2건 반영(완료, 이 문서와 함께), `AI-05` 분리, `AI-09`/`AI-54`의
+   낡은 줄 번호 인용 정리.
+
+### 이번 세션에서 한 일 / 안 한 일
+
+Phase 0 검증(소스 직접 재확인, 2건 모두 참)과 backlog 정정(`AI-05`/`AI-07`/`AI-54`)까지
+했다. **Phase 1 이후 실제 구현은 아직 시작하지 않았다** — `claim_next`/`recover_stuck`은
+Job 처리 전체가 지나는 공유 경로이고 Phase 2는 이 설계 자신이 "가장 위험한 phase"라고
+명시하는 지점이라, 이번 세션의 나머지 누적 변경(VIS-120 + Medium 6건 통합 배포 직후)과
+섞어 서두르지 않는다. 다음 착수는 Phase 1(어두운 배선, 위험 낮음)부터 — 이 문서가 그
+시작점이다.
+
+상세: `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
