@@ -283,6 +283,44 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
   });
 });
 
+describe("요약 카드 줄 — 카드 수와 무관하게 auto-fit (VIS-119/137/151)", () => {
+  // 예전 고정 `repeat(4,...)`는 카드 수가 4의 배수가 아니면 마지막 줄에 빈 칸을 남겼다
+  // (jobs 6장 → 4+2, notifications 1장 → 3칸 빔). auto-fit은 카드 수와 무관하게 항상
+  // 그 줄을 채운다 — 카드가 몇 장이든 같은 grid-template-columns 값 하나로 충분한지를 본다.
+  const AUTO_FIT = "repeat(auto-fit, minmax(14rem, 18rem))";
+
+  it("summary.cards가 6장이어도(4의 배수가 아님) 고정 열 수가 아니라 auto-fit을 쓴다", async () => {
+    apiMock.mockImplementation((url) => {
+      if (String(url).includes("/summary")) {
+        return Promise.resolve({ queued: 1, running: 2, ready: 1, failed: 0, succeeded: 10, cancelled: 0 });
+      }
+      return Promise.resolve({ items: [], total: 0 });
+    });
+    renderScreen({
+      ...BASE_CONFIG,
+      summary: {
+        endpoint: "/api/admin/jobs/summary",
+        cards: (s) => [
+          { value: s.queued, label: "대기" }, { value: s.running, label: "실행 중" },
+          { value: s.ready, label: "실행 가능(ready)" }, { value: s.failed, label: "실패" },
+          { value: s.succeeded, label: "완료" }, { value: s.cancelled, label: "취소됨" },
+        ],
+      },
+    });
+    const card = await screen.findByText("실행 가능(ready)");
+    const grid = card.closest(".MuiPaper-root").parentElement;
+    expect(grid).toHaveStyle({ gridTemplateColumns: AUTO_FIT });
+  });
+
+  it("unreadCountKey가 카드 1장뿐이어도 같은 auto-fit 격자를 쓴다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 3 });
+    renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
+    const card = await screen.findByText("안 읽음");
+    const grid = card.closest(".MuiPaper-root").parentElement;
+    expect(grid).toHaveStyle({ gridTemplateColumns: AUTO_FIT });
+  });
+});
+
 describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
   // 빈 목록으로 재면 EmptyState 자신의 제목도 h2(role=heading aria-level=2, kit.jsx)라 셋이
   // 섞인다 - 그건 별개의 기존 규약이라, 행이 있는 상태로 필터/목록 h2 둘만 본다.

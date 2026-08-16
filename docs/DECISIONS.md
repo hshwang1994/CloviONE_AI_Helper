@@ -4345,3 +4345,48 @@ exc:`도 죽은 코드). 둘 다 `except SecretMissingError`로 교체하고 이
 에이전트 조사 결과에 근거해 위에 요약했다.
 
 상세: `docs/BACKLOG.md` `AI-01`.
+
+## D-110 (2026-08-17) — KPI 카드 줄 그리드: 고정 열 수 → `auto-fit`(VIS-119/137/151, 4번째 소비처까지 확인)
+
+### 배경
+
+`VIS-119`(`/jobs` 6장이 4+2로 접혀 둘째 줄 ~1,100px 빔)·`VIS-137`(카드 줄이 4장이 아니면
+항상 어색함)·`VIS-151`(`/notifications` 1장 뒤로 ~1,300px)이 전부 같은 근본 원인을
+가리켰다. `DataScreen.jsx`의 `config.summary.cards`/`config.unreadCountKey` 요약 카드
+줄이 `gridTemplateColumns: { lg: "repeat(4,...)", xxl: "repeat(5,...)", uhd: "repeat(6,...)" }`
+— **카드 수와 무관한 고정 열 수**를 썼다. 카드 수가 그 열 수의 약수가 아니면 마지막 줄에
+빈 트랙이 그대로 남는다.
+
+`config.summary`를 쓰는 소비처를 전수 확인(registry 파일 grep)하니 이 backlog가 아직
+못 잡은 **4번째 소비처**가 있었다 — `/ai-quotas`(2장, "오늘 전체 AI 호출"/"이번 달 전체
+AI 호출")도 같은 결함을 겪고 있었다(`lg`에서 2장+빈 칸 2개). `/restore-drills`(4장)는
+`lg`에서 정확히 맞아떨어져 증상이 안 보였을 뿐 같은 코드다.
+
+### 조치 — CSS `auto-fit`, 새 로직 없음
+
+`repeat(4,...)` 류의 브레이크포인트별 고정 열 수 객체를 `"repeat(auto-fit, minmax(14rem,
+18rem))"` 문자열 하나로 교체했다(`DataScreen.jsx`, `SUMMARY_CARD_GRID` 상수, 두 소비
+지점 — `unreadCountKey`·`summary.cards` — 전부 같은 값을 쓰게 통합). `auto-fit`은 그
+줄에 들어갈 수 있는 트랙 수를 계산해 만들고, 실제 아이템이 없는 트랙은 접어(폭 0) 남은
+트랙에 공간을 나눠준다 — 카드가 1장이든 7장이든 항상 그 줄을 채운다. `Home.jsx`의
+`STAT_GRID`는 안 건드렸다 — 그쪽은 카드가 "항상 정확히 6장"이라는 그 화면 자신의
+계약(§46-53 주석)이 있어 고정 열 수가 맞는 다른 경우다. `minmax` 최소값(14rem)은 이 줄의
+가장 긴 라벨("가장 오래된 대기", "자동 백업 (Asia/Seoul)")이 줄바꿈 없이 들어가는 값,
+최대값(18rem)은 카드 1장뿐일 때 그 카드가 화면 전체 폭으로 무한정 늘어나 어색해 보이는
+것을 막는 상한이다.
+
+### 검증
+
+신규 시험 2건(`datascreen.test.jsx`) — `summary.cards` 6장·`unreadCountKey` 1장 둘 다
+`auto-fit` 값을 실제로 쓰는지 확인, revert-to-verify(고정 grid로 되돌리면 둘 다 정확히
+그 이유로 실패 확인). `DataScreen.jsx`는 registry 기반 화면 20여 개가 공유하는 셸이라
+프런트 전체 회귀(284파일/1957건, 신규 2건 포함) green.
+
+### 결론
+
+`VIS-119`·`VIS-137`·`VIS-151`을 완결로 처리한다. **`VIS-120`(어떤 지표 6개를 보여줄지)과
+`VIS-121`(표 열 구성)은 별개다** — 둘 다 "이 그리드가 어떻게 배치되는가"가 아니라 "무엇을
+보여줄 것인가"의 제품 판단이라 이번 CSS 수정과 근본 원인이 다르다. 이어서 `VIS-120`을
+검토한다.
+
+상세: `docs/BACKLOG.md` `VIS-119`/`VIS-137`/`VIS-151`.

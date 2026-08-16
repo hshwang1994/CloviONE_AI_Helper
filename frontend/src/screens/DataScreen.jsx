@@ -38,6 +38,17 @@ export {
   jsonField, objectField, listField, previewField,
 } from "./data-screen/columnHelpers.jsx";
 
+/* 요약 카드 줄(config.summary.cards / config.unreadCountKey) 격자 — 카드 수가 화면마다 다르다
+ * (/notifications 1장 · /ai-quotas 2장 · /restore-drills 4장 · /jobs 6~7장). 예전엔 고정
+ * `repeat(4,...)`(더 넓은 화면에서 5·6)라 카드 수가 그 열 수의 약수가 아니면 마지막 줄이
+ * 어중간하게 남았다 — 4장 폭에 6장이 4+2로 접혀 둘째 줄에 ~1,100px 빈 칸(VIS-119/137),
+ * /notifications는 1장 뒤로 ~1,300px(VIS-151). Home.jsx의 STAT_GRID는 카드가 "항상 정확히
+ * 6장"이라 고정 열 수가 맞지만, 이 요약 줄은 화면마다 카드 수 자체가 다르므로 같은 해법이
+ * 안 맞는다 — `auto-fit`은 카드 수와 무관하게 매번 그 줄을 꽉 채운다(적게 있으면 남은 폭을
+ * 나눠 갖고, 많으면 다음 줄로 넘어갈 뿐 빈 칸을 안 남긴다). 최소 폭(14rem)은 이 줄의 가장 긴
+ * 라벨(예: "가장 오래된 대기", "자동 백업 (Asia/Seoul)")이 줄바꿈 없이 들어가는 값이다. */
+const SUMMARY_CARD_GRID = "repeat(auto-fit, minmax(14rem, 18rem))";
+
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
  * 생성·수정은 공통 중앙 모달 폼. headerActions=폼 없는 즉시 실행/입력폼. 액션에 subList가 있으면
@@ -663,7 +674,7 @@ export function DataScreen({ config }) {
       ) : null}
       {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
       {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (
-        <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))", xxl: "repeat(5, minmax(0,1fr))", uhd: "repeat(6, minmax(0,1fr))" } }}>
+        <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: SUMMARY_CARD_GRID }}>
           <StatCard value={query.data[config.unreadCountKey]} label="안 읽음" kind={query.data[config.unreadCountKey] > 0 ? "warn" : undefined} />
         </Box>
       ) : null}
@@ -684,7 +695,7 @@ export function DataScreen({ config }) {
             <Callout tone="warn">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )
         ) : summaryQuery.data ? (
-          <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))", xxl: "repeat(5, minmax(0,1fr))", uhd: "repeat(6, minmax(0,1fr))" } }}>
+          <Box sx={{ display: "grid", gap: 2, mb: 2.5, gridTemplateColumns: SUMMARY_CARD_GRID }}>
             {config.summary.cards(summaryQuery.data, { setFilter }).map((c, i) => <StatCard key={i} value={c.value} label={c.label} kind={c.kind} onClick={c.onClick} />)}
           </Box>
         ) : null
