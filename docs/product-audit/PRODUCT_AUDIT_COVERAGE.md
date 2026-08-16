@@ -140,7 +140,7 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | C | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-LOGIN` 로그인 / 핸드오프 / 비밀번호 재설정 | `/login, LoginHandoff` | S | · | O | O | · | · | · | · | S | · | · | V | O | O | O | S | S | S | · | · | · | · | · | S | E | S |
 | `S-KIT` 공통 UI 키트 / 토큰 / 테마 | `ui/kit.jsx, ui/theme.js, styles/tokens.css` | S | S | · | · | S | · | · | S | S | · | · | C | S | E | E | E | S | S | · | · | · | · | · | S | E | S |
-| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | · | · | S | · | · | S | S | · | · | C | E | · | · | E | S | S | · | · | · | · | · | S | E | · |
+| `S-DATASCREEN` 설정 주도 데이터 화면 엔진 | `screens/DataScreen.jsx + registry/*` | S | · | E | · | S | · | · | S | E | · | · | C | E | · | · | E | S | S | · | · | · | · | · | S | E | · |
 
 ## platform
 
@@ -503,11 +503,11 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
 total_cells=2340
-unseen=1292
+unseen=1291
 unseen_without_reason=0
-static_only=565
+static_only=564
 observed=198
-executed=269
+executed=271
 blocked=0
 not_applicable=16
 l_axis_visual_observed=37
