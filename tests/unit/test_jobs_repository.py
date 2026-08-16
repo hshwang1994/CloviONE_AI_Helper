@@ -219,3 +219,83 @@ def test_queue_stats_avg_processing_seconds_is_none_not_zero_when_nothing_recent
     stats = repository.queue_stats(db, now=now)
     assert stats["avg_processing_seconds_24h"] is None
     assert stats["recent_failed_24h"] == 0
+
+
+# D-118 Phase 1 — 레인 필터(claim_next/recover_stuck). 아직 아무 실행 경로도 이 인자들을
+# 넘기지 않는다(배선만) — 여기 시험이 그 배선이 실제로 동작하는지 미리 증명해 둔다.
+
+
+def test_claim_next_default_args_claim_across_all_types(db, now):
+    """기본 호출(레인 인자 없음)은 이 변경 전과 똑같이 job_type과 무관하게 클레임한다."""
+    _enqueue(db, now, job_type="chat_message")
+    _enqueue(db, now, job_type="schedule_run", available_at=now + timedelta(seconds=1))
+    db.commit()
+    first = repository.claim_next(db, now)
+    second = repository.claim_next(db, now + timedelta(seconds=2))
+    assert {first.job_type, second.job_type} == {"chat_message", "schedule_run"}
+
+
+def test_claim_next_include_types_only_claims_matching_types(db, now):
+    _enqueue(db, now, job_type="schedule_run")
+    _enqueue(db, now, job_type="chat_message", available_at=now + timedelta(seconds=1))
+    db.commit()
+    claimed = repository.claim_next(db, now + timedelta(seconds=2), include_types=("chat_message",))
+    assert claimed.job_type == "chat_message"
+    # 배치 잡은 여전히 대기 중이다 — 대화형 레인이 안 채간다.
+    remaining = db.query(Job).filter(Job.job_type == "schedule_run").one()
+    assert remaining.status == "queued"
+
+
+def test_claim_next_exclude_types_skips_matching_types(db, now):
+    _enqueue(db, now, job_type="chat_message")
+    _enqueue(db, now, job_type="schedule_run", available_at=now + timedelta(seconds=1))
+    db.commit()
+    claimed = repository.claim_next(db, now + timedelta(seconds=2), exclude_types=("chat_message",))
+    assert claimed.job_type == "schedule_run"
+    remaining = db.query(Job).filter(Job.job_type == "chat_message").one()
+    assert remaining.status == "queued"
+
+
+def test_claim_next_exclude_types_takeover_claims_stale_excluded_job(db, now):
+    """대화형 레인이 죽었거나 없을 때, 오래 대기한 대화형 잡은 배치 레인이 대신 처리한다
+    (조용히 영원히 안 처리되는 것보다 낫다)."""
+    _enqueue(db, now, job_type="chat_message")
+    db.commit()
+    # 아직 유예 시간(120초) 안 — 배치 레인이 안 채간다.
+    assert repository.claim_next(
+        db, now + timedelta(seconds=60), exclude_types=("chat_message",), takeover_after_seconds=120,
+    ) is None
+    # 유예 시간을 넘기면 배치 레인이 인수한다.
+    claimed = repository.claim_next(
+        db, now + timedelta(seconds=121), exclude_types=("chat_message",), takeover_after_seconds=120,
+    )
+    assert claimed is not None
+    assert claimed.job_type == "chat_message"
+
+
+def test_recover_stuck_default_args_sweep_across_all_types(db, now):
+    _enqueue(db, now, job_type="chat_message", max_attempts=1)
+    _enqueue(db, now, job_type="schedule_run", max_attempts=1, available_at=now + timedelta(seconds=1))
+    db.commit()
+    repository.claim_next(db, now)
+    repository.claim_next(db, now + timedelta(seconds=2))
+    recovered = repository.recover_stuck(db, now=now + timedelta(seconds=4000))
+    assert {j.job_type for j in recovered} == {"chat_message", "schedule_run"}
+
+
+def test_recover_stuck_exclude_types_does_not_touch_a_running_batch_job(db, now):
+    """레인 필터가 없으면 대화형 레인의 sweep이 배치 레인에서 실제로 아직 도는
+    schedule_run을 '멈췄다'고 오판해 재큐잉할 수 있다 — WorkerLock이 막으려는 바로 그
+    이중 실행이 sweep 경로로 재발한다(D-118). exclude_types가 이걸 막는다."""
+    _enqueue(db, now, job_type="chat_message", max_attempts=1)
+    _enqueue(db, now, job_type="schedule_run", max_attempts=1, available_at=now + timedelta(seconds=1))
+    db.commit()
+    repository.claim_next(db, now)
+    repository.claim_next(db, now + timedelta(seconds=2))
+    later = now + timedelta(seconds=4000)
+    recovered = repository.recover_stuck(
+        db, now=later, exclude_types=("schedule_run",),
+    )
+    assert [j.job_type for j in recovered] == ["chat_message"]
+    still_running = db.query(Job).filter(Job.job_type == "schedule_run").one()
+    assert still_running.status == "running"

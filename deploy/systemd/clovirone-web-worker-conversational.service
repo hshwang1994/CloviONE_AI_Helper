@@ -1,0 +1,47 @@
+[Unit]
+Description=ClovirONE Web Assistant Conversational Worker (chat + LLM connection test)
+After=network-online.target clovirone-web-assistant.service
+Wants=network-online.target
+# 배치 워커 유닛(clovirone-web-worker.service)과 같은 이유(OPS-10) — WorkerLockError는
+# app/worker_main.py가 잡아 깨끗이 종료하지만, 그래도 순간적인 문제가 스스로 풀릴 시간을
+# 더 준다(무한 재시도는 아니다).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# D-118 Phase 1 — 아직 이 유닛을 설치 스크립트가 배선하지 않는다. worker_conversational_lane_enabled
+# 설정이 기본 꺼짐이라, 이 유닛이 떠 있어도 대화형 job_type은 배치 워커가 계속 처리한다
+# (batch_worker.py의 exclude_types는 그 설정이 켜져야만 채워진다) — 유닛 파일이 먼저
+# 존재해도 안전하다.
+
+[Service]
+Type=simple
+User=clovirone-web
+Group=clovirone-web
+WorkingDirectory=/opt/clovirone-web-assistant
+EnvironmentFile=/etc/clovirone-web-assistant/web.env
+ExecStart=/opt/clovirone-web-assistant/venv/bin/python -m app.worker_main --lane=conversational
+Restart=on-failure
+RestartSec=10
+# 배치 워커와 달리 이 레인의 잡(chat_message/llm_connection_test)은 전부 n8n 타임아웃
+# (기본 180초) 안에서 끝나거나 실패한다 — schedule_run류의 3600초짜리 예외가 없으므로
+# 200초면 정상 종료를 충분히 덮는다(배치 유닛의 같은 값이 세운 근거를 그대로 따른다).
+KillSignal=SIGTERM
+TimeoutStopSec=200
+
+# Hardening (배치 워커 유닛과 동일, spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirone-web-assistant
+
+[Install]
+WantedBy=multi-user.target

@@ -142,6 +142,78 @@ def test_run_forever_graceful_shutdown(worker_env, fake_clock):
     assert executed
 
 
+# ── D-118 Phase 1: run_forever_pooled (대화형 레인) ───────────────────────────
+
+
+def test_run_forever_pooled_rejects_a_worker_with_tick_callbacks(worker_env):
+    """2차 방어(D-118 §2) — 대화형 레인에 실수로 tick이 하나라도 등록돼 있으면 조용히
+    두 번 실행되는 대신 기동 자체를 거부한다."""
+    worker, factory, executed = worker_env
+    worker.tick_callbacks.append(lambda now: None)
+    with pytest.raises(RuntimeError, match="tick_callbacks"):
+        worker.run_forever_pooled(threading.Event(), max_concurrency=2)
+
+
+def test_run_forever_pooled_runs_jobs_concurrently_up_to_max_concurrency(app, settings, fake_clock):
+    """순차 실행이면 이 시험은 배리어 타임아웃으로 실패한다 — 통과 자체가 동시성의 증거다."""
+    factory = app.state.session_factory
+    barrier = threading.Barrier(3, timeout=5)
+    executed = []
+
+    def slow_handler(db, job, ctx):
+        barrier.wait()  # 셋이 동시에 여기 도달해야 통과한다
+        executed.append(parse_payload(job))
+
+    ctx = WorkerContext(settings=settings, clock=fake_clock)
+    worker = Worker(factory, fake_clock, {"slow": slow_handler}, ctx, poll_interval=0.01)
+    for i in range(3):
+        _enqueue(factory, fake_clock, "slow", payload={"i": i})
+
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=worker.run_forever_pooled, kwargs={"stop_event": stop, "max_concurrency": 3}, daemon=True,
+    )
+    thread.start()
+    for _ in range(500):
+        if len(executed) >= 3:
+            break
+        threading.Event().wait(0.02)
+    stop.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert len(executed) == 3
+
+
+def test_run_forever_pooled_graceful_shutdown_drains_in_flight_job(app, settings, fake_clock):
+    """정지 신호가 와도 이미 시작한 잡은 끝까지 기다린 뒤 스레드가 종료돼야 한다
+    (run_forever의 '진행 중인 잡은 끝내고 종료' 규약과 같다)."""
+    factory = app.state.session_factory
+    started = threading.Event()
+    release = threading.Event()
+    executed = []
+
+    def blocking_handler(db, job, ctx):
+        started.set()
+        release.wait(timeout=5)
+        executed.append(parse_payload(job))
+
+    ctx = WorkerContext(settings=settings, clock=fake_clock)
+    worker = Worker(factory, fake_clock, {"blocking": blocking_handler}, ctx, poll_interval=0.01)
+    _enqueue(factory, fake_clock, "blocking")
+
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=worker.run_forever_pooled, kwargs={"stop_event": stop, "max_concurrency": 1}, daemon=True,
+    )
+    thread.start()
+    assert started.wait(timeout=5), "핸들러가 시작하지 않았다"
+    stop.set()  # 잡이 아직 실행 중인 채로 정지 신호를 보낸다
+    release.set()  # 이제 핸들러가 끝나게 둔다
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert executed, "정지 신호가 in-flight 잡을 중간에 끊었다 — drain이 안 된다"
+
+
 # ── S5: 완료 커밋이 실패해도 핸들러를 두 번 실행하지 않는다 ─────────────────────
 
 def test_a_failed_completion_commit_marks_the_job_failed_not_silently_succeeded(

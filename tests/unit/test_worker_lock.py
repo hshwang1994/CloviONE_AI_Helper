@@ -291,3 +291,21 @@ def test_lock_file_records_who_holds_it(tmp_path):
     assert data["owner"] == "host-a:1234"
     assert isinstance(data["pid"], int)
     assert "expires_at" in data and "acquired_at" in data
+
+
+# D-118 Phase 1 — 레인별 리스 경로. 기본값(레인 인자 없음)은 기존 배포의 worker.lock 경로를
+# 그대로 유지해야 한다(안 그러면 in-place 업그레이드 중 기존 리스가 고아가 된다).
+def test_default_lock_path_batch_lane_matches_pre_lane_filename(tmp_path):
+    from app.core.worker_lock import default_lock_path
+
+    assert default_lock_path(tmp_path) == tmp_path / "worker.lock"
+    assert default_lock_path(tmp_path, lane="batch") == tmp_path / "worker.lock"
+
+
+def test_default_lock_path_conversational_lane_is_a_different_file(tmp_path):
+    from app.core.worker_lock import default_lock_path
+
+    batch_path = default_lock_path(tmp_path, lane="batch")
+    conv_path = default_lock_path(tmp_path, lane="conversational")
+    assert conv_path != batch_path
+    assert conv_path.name == "worker-conversational.lock"

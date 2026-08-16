@@ -476,18 +476,27 @@ def test_the_worker_tick_never_raises_into_the_worker_loop(settings, fake_clock)
 
 
 def test_main_actually_registers_the_tick():
-    """위 테스트들이 헛것이 되지 않도록 - `main()` 이 실제로 이 틱을 등록하는지 본다.
+    """위 테스트들이 헛것이 되지 않도록 - 실제 기동 경로가 이 틱을 등록하는지 본다.
 
     `main()` 은 시그널 핸들러와 리스를 잡고 무한 루프를 도는 함수라 테스트에서 부를 수 없다.
     그래서 등록 한 줄이 있는지를 소스에서 확인한다(tests/unit/test_search_no_hot_path.py 가
     같은 방법을 쓴다). 이 한 줄이 빠지면 위 테스트는 전부 통과하면서 **운영에서는 아무 일도
     일어나지 않는다** - 이 과제가 고치려는 결함이 정확히 그것이다.
+
+    D-118(레인 분리)로 이 등록 줄은 `main()` 자신이 아니라 `build_batch_worker()`(배치
+    레인 조립)로 옮겨갔다 - `main()`이 배치 레인일 때 실제로 그 함수를 부르는지까지 함께
+    확인해야, "등록 코드는 어딘가에 있지만 아무도 안 부른다"는 정확히 이 시험이 막으려던
+    결함의 새 모양을 놓치지 않는다.
     """
     import inspect
 
     from app import worker_main
 
-    source = inspect.getsource(worker_main.main)
-    assert "register_health_snapshot_tick(" in source, (
+    batch_source = inspect.getsource(worker_main.build_batch_worker)
+    assert "register_health_snapshot_tick(" in batch_source, (
         "워커가 주간 헬스 스냅샷 틱을 등록하지 않는다 - 이력은 손으로 부를 때만 쌓인다"
+    )
+    main_source = inspect.getsource(worker_main.main)
+    assert "build_batch_worker(" in main_source, (
+        "main()이 배치 레인일 때 build_batch_worker()를 안 부른다 - 틱 등록 코드가 죽은 코드가 된다"
     )

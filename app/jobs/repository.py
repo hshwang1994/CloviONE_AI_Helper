@@ -120,14 +120,53 @@ def get_in_scope(db: Session, job_id: str, visible: frozenset[str] | None) -> Jo
     ).scalar_one_or_none()
 
 
-def claim_next(db: Session, now: datetime) -> Job | None:
-    """Atomically claim the oldest ready job. Commits the claim."""
+def claim_next(
+    db: Session,
+    now: datetime,
+    *,
+    include_types: tuple[str, ...] | None = None,
+    exclude_types: tuple[str, ...] = (),
+    takeover_after_seconds: float | None = None,
+) -> Job | None:
+    """Atomically claim the oldest ready job. Commits the claim.
+
+    ``include_types``/``exclude_types`` (D-118) let a lane-scoped worker
+    (app/jobs/lanes.py) claim only its own job types — a conversational
+    worker passes ``include_types=CONVERSATIONAL_JOB_TYPES``, the batch
+    worker passes ``exclude_types=CONVERSATIONAL_JOB_TYPES``. Neither is
+    supplied by any caller yet (Phase 1 is wiring-only), so the default call
+    generates the exact same SQL as before this change.
+
+    ``takeover_after_seconds`` only applies together with ``exclude_types``:
+    it lets the batch lane also claim an excluded-type job once it has sat
+    queued longer than that many seconds — the fallback for "the
+    conversational worker is down or was never installed," so chat jobs
+    degrade to today's single-lane behavior instead of silently never
+    running.
+    """
     # Must match SQLAlchemy's SQLite DATETIME storage format exactly
     # (microseconds always present) — string comparison depends on it.
     now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+    params: dict[str, object] = {"now": now_str}
+    extra_where = ""
+    if include_types:
+        placeholders = ", ".join(f":inc{i}" for i in range(len(include_types)))
+        extra_where = f" AND job_type IN ({placeholders})"
+        params.update({f"inc{i}": t for i, t in enumerate(include_types)})
+    elif exclude_types:
+        placeholders = ", ".join(f":exc{i}" for i in range(len(exclude_types)))
+        params.update({f"exc{i}": t for i, t in enumerate(exclude_types)})
+        if takeover_after_seconds is not None:
+            cutoff = now - timedelta(seconds=takeover_after_seconds)
+            extra_where = (
+                f" AND (job_type NOT IN ({placeholders}) OR created_at <= :takeover_cutoff)"
+            )
+            params["takeover_cutoff"] = cutoff.strftime("%Y-%m-%d %H:%M:%S.%f")
+        else:
+            extra_where = f" AND job_type NOT IN ({placeholders})"
     row = db.execute(
         text(
-            """
+            f"""
             UPDATE jobs
             SET status = 'running',
                 started_at = :now,
@@ -135,14 +174,14 @@ def claim_next(db: Session, now: datetime) -> Job | None:
                 updated_at = :now
             WHERE id = (
                 SELECT id FROM jobs
-                WHERE status = 'queued' AND available_at <= :now
+                WHERE status = 'queued' AND available_at <= :now{extra_where}
                 ORDER BY created_at, id
                 LIMIT 1
             )
             RETURNING id
             """
         ),
-        {"now": now_str},
+        params,
     ).fetchone()
     db.commit()
     if row is None:
@@ -236,14 +275,26 @@ def recover_stuck(
     *,
     now: datetime,
     running_timeout_seconds: int = DEFAULT_RUNNING_TIMEOUT_SECONDS,
+    include_types: tuple[str, ...] | None = None,
+    exclude_types: tuple[str, ...] = (),
 ) -> list[Job]:
     """Requeue (or fail) jobs left 'running' by a crashed worker (spec §22).
-    Returns the recovered jobs so the caller can fire failure hooks."""
+    Returns the recovered jobs so the caller can fire failure hooks.
+
+    ``include_types``/``exclude_types`` (D-118): a lane-scoped worker must
+    only sweep its own job types. Without this, a conversational-lane sweep
+    could requeue a batch job that is genuinely still `running` in the batch
+    process (e.g. a 50-minute schedule_run) — exactly the double-execution
+    WorkerLock exists to prevent. Neither is supplied by any caller yet.
+    """
     cutoff = now - timedelta(seconds=running_timeout_seconds)
+    conditions = [Job.status == STATUS_RUNNING, Job.started_at < cutoff]
+    if include_types:
+        conditions.append(Job.job_type.in_(include_types))
+    elif exclude_types:
+        conditions.append(Job.job_type.not_in(exclude_types))
     stuck = (
-        db.execute(
-            select(Job).where(Job.status == STATUS_RUNNING, Job.started_at < cutoff)
-        )
+        db.execute(select(Job).where(*conditions))
         .scalars()
         .all()
     )

@@ -48,6 +48,9 @@ class Worker:
         poll_interval: float = 0.5,
         running_timeout_seconds: int = repository.DEFAULT_RUNNING_TIMEOUT_SECONDS,
         sweep_every: int = 60,
+        include_types: tuple[str, ...] | None = None,
+        exclude_types: tuple[str, ...] = (),
+        takeover_after_seconds: float | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._clock = clock
@@ -56,6 +59,12 @@ class Worker:
         self._poll_interval = poll_interval
         self._running_timeout_seconds = running_timeout_seconds
         self._sweep_every = sweep_every
+        # 레인 필터(D-118) — 기본값(둘 다 비었음)은 이전과 똑같이 전 job_type을 클레임/sweep한다.
+        # 대화형 레인 워커는 include_types=lanes.CONVERSATIONAL_JOB_TYPES를, 배치 레인 워커는
+        # exclude_types=lanes.CONVERSATIONAL_JOB_TYPES(+ takeover_after_seconds)를 받는다.
+        self._include_types = include_types
+        self._exclude_types = exclude_types
+        self._takeover_after_seconds = takeover_after_seconds
         # Hooks run every loop iteration (M8 plugs the scheduler tick in here).
         self.tick_callbacks: list[Callable[[datetime], None]] = []
 
@@ -63,7 +72,12 @@ class Worker:
         """Claim and execute at most one job. Returns True if one was processed."""
         now = now or self._clock.now()
         with self._session_factory() as db:
-            job = repository.claim_next(db, now)
+            job = repository.claim_next(
+                db, now,
+                include_types=self._include_types,
+                exclude_types=self._exclude_types,
+                takeover_after_seconds=self._takeover_after_seconds,
+            )
             if job is None:
                 return False
             job_id = job.id
@@ -205,7 +219,8 @@ class Worker:
         now = now or self._clock.now()
         with self._session_factory() as db:
             recovered = repository.recover_stuck(
-                db, now=now, running_timeout_seconds=self._running_timeout_seconds
+                db, now=now, running_timeout_seconds=self._running_timeout_seconds,
+                include_types=self._include_types, exclude_types=self._exclude_types,
             )
             db.commit()
             finally_failed = [
@@ -242,6 +257,52 @@ class Worker:
             if not processed:
                 stop_event.wait(self._poll_interval)
         logger.info("worker stopped gracefully")
+
+    def run_forever_pooled(self, stop_event: threading.Event, *, max_concurrency: int) -> None:
+        """대화형 레인 전용 폴링 루프(D-118) — `run_once`를 스레드 풀에서 최대
+        `max_concurrency`개 동시에 돈다. `run_once` 자신은 한 글자도 안 바뀐다: 각 호출은
+        자기 세션(`with self._session_factory() as db`)을 여니 스레드 사이에 공유되는
+        상태가 없다.
+
+        `tick_callbacks`는 절대 안 부른다 — 대화형 레인이 스케줄러/보존/백업 같은 배치
+        tick을 대신 실행하면 안 된다(그중 상당수가 유니크 제약 없는 outbound 쓰기라 두
+        군데서 돌면 실제로 중복 실행된다, D-118 §2). 배선 자체를 안 하는 것이 1차
+        방어(`worker_main.py::build_conversational_worker`가 이 메서드를 쓰는 워커에
+        `tick_callbacks.append`를 아예 안 부른다)이고, 이 assertion이 2차 방어다 — 나중에
+        실수로 하나가 등록되면 "조용히 두 번 실행"이 아니라 "기동 즉시 실패"가 되게 한다.
+        """
+        if self.tick_callbacks:
+            raise RuntimeError(
+                "run_forever_pooled은 tick_callbacks가 비어 있어야 한다 — 대화형 레인은 "
+                f"배치 tick을 실행하면 안 된다(D-118). 등록된 콜백 {len(self.tick_callbacks)}개."
+            )
+        self.sweep()  # crash recovery on startup — run_forever와 같은 이유
+        from concurrent.futures import ThreadPoolExecutor
+
+        def run_once_safely(now: datetime) -> bool:
+            try:
+                return self.run_once(now)
+            except Exception:
+                logger.exception("conversational worker iteration failed")
+                return False
+
+        in_flight: set = set()
+        iterations = 0
+        with ThreadPoolExecutor(max_workers=max_concurrency, thread_name_prefix="conv-worker") as pool:
+            while not stop_event.is_set():
+                in_flight = {f for f in in_flight if not f.done()}
+                while len(in_flight) < max_concurrency and not stop_event.is_set():
+                    in_flight.add(pool.submit(run_once_safely, self._clock.now()))
+                iterations += 1
+                if iterations % self._sweep_every == 0:
+                    self.sweep()
+                stop_event.wait(self._poll_interval)
+            if in_flight:
+                logger.info("conversational worker draining %d in-flight job(s)", len(in_flight))
+            # `with` 블록을 벗어나면 ThreadPoolExecutor.__exit__가 shutdown(wait=True)를
+            # 불러 in_flight의 모든 future가 끝난 뒤에야 아래 줄로 진행한다 — run_forever의
+            # "진행 중인 잡은 끝내고 종료" 규약과 같다.
+        logger.info("conversational worker stopped gracefully")
 
 
 def parse_payload(job: Job) -> dict:

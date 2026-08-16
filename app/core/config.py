@@ -105,6 +105,16 @@ class Settings(BaseSettings):
     # 인덱싱은 네 유형을 전부 다시 읽으므로 미러 동기화보다 비싸다.
     search_index_interval_seconds: int = 300
 
+    # 대화형 워커 레인(D-118, Phase 1 — 아직 아무 실행 경로도 이 값들을 안 쓴다). 켜지면
+    # chat_message/llm_connection_test가 별도 워커 프로세스(별도 systemd 유닛)에서
+    # `max_concurrency`개까지 동시에 처리되고, 배치 워커는 그 두 job_type을 스케줄 실행 등
+    # 배치 잡보다 뒤로 미룬다(단, `takeover_seconds`를 넘겨 계속 대기 중이면 배치 워커가
+    # 대신 처리한다 — 대화형 프로세스가 없거나 죽었을 때 채팅이 조용히 영영 안 처리되는
+    # 것을 막는 안전장치).
+    worker_conversational_lane_enabled: bool = False
+    worker_conversational_concurrency: int = 3
+    worker_conversational_takeover_seconds: float = 120.0
+
     # 주간 프로젝트 헬스 스냅샷 주기. **워커에서만** 돈다.
     #
     # '주간' 이력인데 왜 한 시간인가: 스냅샷은 (프로젝트, 주) 유일 키로 upsert 하므로 여러 번

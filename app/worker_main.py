@@ -279,41 +279,9 @@ def build_handlers() -> dict:
     }
 
 
-def main() -> int:
-    # 웹(`create_app`)과 같은 설정을 쓴다. 예전에는 여기만 설정이 있어서 **워커 로그는 보이고
-    # 웹 로그는 안 보이는** 비대칭이 있었다 — RUNBOOK 의 journalctl 안내가 반만 맞았던 이유다.
-    configure_logging()
-    settings = Settings()
-    clock = SystemClock()
-
-    # 싱글턴 리스(§ 스케일 심). 워커가 둘 돌면 잡이 두 번 실행되고 스케줄이 두 번 발화한다.
-    # systemd 재시작 중첩, 운영자가 진단하려고 손으로 띄운 워커, 배포 스크립트의 중복
-    # start — 셋 다 실제로 있는 경로다. 잡지 못하면 **뜨지 않는다**(조용히 둘째로 돌지 않는다).
-    lock = WorkerLock(default_lock_path(settings.data_dir))
-    try:
-        acquired = lock.acquire()
-    except WorkerLockError:
-        # OPS-10: 리스 경쟁(다른 워커가 있다)이 아니라 파일시스템이 리스 자체를 못 쓰게
-        # 한다(권한 어긋남·디스크 가득 참 등) - 여기서 잡지 않으면 트레이스백과 함께
-        # 죽고 systemd 가 RestartSec=3 로 계속 재시도하며 같은 이유로 또 죽는다(재시작
-        # 루프). 명확한 원인과 함께 조용히 종료해, 유닛의 완화된 재시작 정책
-        # (deploy/systemd/clovirone-web-worker.service - RestartSec 10, StartLimitBurst)이
-        # 감당하게 한다.
-        logger.exception(
-            "워커 리스 파일을 쓸 수 없다(lock=%s) - 디렉터리 권한이나 디스크 공간을 확인하라.",
-            lock.path,
-        )
-        return 1
-    if not acquired:
-        holder = (lock.read() or {}).get("owner", "?")
-        logger.error(
-            "다른 워커가 이미 돌고 있다(owner=%s, lock=%s). 중복 실행을 막기 위해 종료한다. "
-            "정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.",
-            holder, lock.path,
-        )
-        return 1
-    logger.info("워커 리스 획득: %s", lock.owner)
-
+def _bootstrap(settings: Settings, clock: Clock):
+    """레인과 무관한 공용 배선. 리스 획득(레인마다 경로가 다르다)과 `Worker` 생성(레인마다
+    핸들러·필터가 다르다)은 여기 없다 — `main()`이 레인을 안 뒤에 한다(D-118 Phase 1)."""
     engine = make_engine(settings.database_url)
     session_factory = make_session_factory(engine)
 
@@ -334,7 +302,41 @@ def main() -> int:
         # 제공자를 쥐고 있지만 그 안에 갇혀 있어 잡 핸들러가 꺼내 쓸 수 없었다.
         extras={"settings_cache": settings_cache, "secret_provider": secrets},
     )
-    worker = Worker(session_factory, clock, build_handlers(), ctx)
+    return session_factory, ctx, settings_cache, outbound
+
+
+def build_conversational_worker(session_factory, clock: Clock, ctx: WorkerContext, settings: Settings) -> Worker:
+    """대화형 레인(D-118) — `chat_message`·`llm_connection_test`만, tick 0개.
+
+    tick을 등록하지 않는 것 자체가 1차 방어다(2차는 `Worker.run_forever_pooled`의
+    assertion) — 이 함수가 `worker.tick_callbacks.append`를 한 번도 안 부르므로, 배치
+    레인의 15개 tick(스케줄러·보존·백업·동기화 등) 중 어느 것도 이 프로세스에서 돌 수
+    없다."""
+    from app.jobs.lanes import CONVERSATIONAL_JOB_TYPES
+
+    handlers = {k: v for k, v in build_handlers().items() if k in CONVERSATIONAL_JOB_TYPES}
+    return Worker(
+        session_factory, clock, handlers, ctx,
+        include_types=CONVERSATIONAL_JOB_TYPES,
+    )
+
+
+def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settings: Settings, settings_cache, outbound) -> Worker:
+    """배치 레인 — 기존 워커 전체(잡 핸들러 전부 + tick 15개)를 그대로 옮긴 것이다.
+
+    `worker_conversational_lane_enabled`가 꺼져 있으면(기본값) `exclude_types`를 전혀
+    안 줘 이 워커가 예전처럼 전 job_type을 그대로 클레임한다 — 대화형 레인이 실제로 뜨지
+    않는 한 채팅 잡의 지연을 단 1ms도 늘리지 않는다. 켜져 있을 때만 대화형 job_type을
+    제외하고(`takeover_after_seconds` 유예 포함) 별도 프로세스에 그 몫을 넘긴다."""
+    from app.jobs.lanes import CONVERSATIONAL_JOB_TYPES
+
+    lane_kwargs: dict = {}
+    if settings.worker_conversational_lane_enabled:
+        lane_kwargs = {
+            "exclude_types": CONVERSATIONAL_JOB_TYPES,
+            "takeover_after_seconds": settings.worker_conversational_takeover_seconds,
+        }
+    worker = Worker(session_factory, clock, build_handlers(), ctx, **lane_kwargs)
 
     # 설정 캐시 재적재 — 60초 간격. 이 콜백을 **맨 먼저** 등록한다: 같은 반복(iteration)
     # 안에서 다른 콜백(스케줄러, 백업, 보존, 티켓/문서/프로젝트 미러 동기화)보다 먼저 돌아야
@@ -665,6 +667,68 @@ def main() -> int:
                 logger.exception("search index tick failed")
 
     worker.tick_callbacks.append(search_index_tick)
+    return worker
+
+
+def main(argv: list[str] | None = None) -> int:
+    """워커 진입점. `--lane batch`(기본, 인자 없이 불러도 동일)|`conversational`(D-118).
+
+    기존 systemd 유닛(`clovirone-web-worker.service`)은 `--lane`을 안 준다 —
+    `argparse`의 `default=LANE_BATCH`가 배치 레인으로 떨어져 이 리팩터 전과 100% 같은
+    프로세스가 뜬다. 대화형 레인은 아직 아무 systemd 유닛도 이걸 안 부른다(Phase 1은
+    배선만, 실제로 띄우는 것은 다음 phase).
+    """
+    import argparse
+
+    from app.jobs.lanes import LANE_BATCH, LANE_CONVERSATIONAL, liveness_component
+
+    parser = argparse.ArgumentParser(prog="app.worker_main")
+    parser.add_argument("--lane", default=LANE_BATCH, choices=(LANE_BATCH, LANE_CONVERSATIONAL))
+    args = parser.parse_args(argv)
+    lane = args.lane
+
+    # 웹(`create_app`)과 같은 설정을 쓴다. 예전에는 여기만 설정이 있어서 **워커 로그는 보이고
+    # 웹 로그는 안 보이는** 비대칭이 있었다 — RUNBOOK 의 journalctl 안내가 반만 맞았던 이유다.
+    configure_logging()
+    settings = Settings()
+    clock = SystemClock()
+
+    # 싱글턴 리스(§ 스케일 심, D-118로 레인마다 별도 파일). 워커가 둘 돌면 잡이 두 번
+    # 실행되고 스케줄이 두 번 발화한다. systemd 재시작 중첩, 운영자가 진단하려고 손으로
+    # 띄운 워커, 배포 스크립트의 중복 start — 셋 다 실제로 있는 경로다. 잡지 못하면
+    # **뜨지 않는다**(조용히 둘째로 돌지 않는다).
+    lock = WorkerLock(default_lock_path(settings.data_dir, lane=lane))
+    try:
+        acquired = lock.acquire()
+    except WorkerLockError:
+        # OPS-10: 리스 경쟁(다른 워커가 있다)이 아니라 파일시스템이 리스 자체를 못 쓰게
+        # 한다(권한 어긋남·디스크 가득 참 등) - 여기서 잡지 않으면 트레이스백과 함께
+        # 죽고 systemd 가 RestartSec=3 로 계속 재시도하며 같은 이유로 또 죽는다(재시작
+        # 루프). 명확한 원인과 함께 조용히 종료해, 유닛의 완화된 재시작 정책
+        # (deploy/systemd/clovirone-web-worker.service - RestartSec 10, StartLimitBurst)이
+        # 감당하게 한다.
+        logger.exception(
+            "워커 리스 파일을 쓸 수 없다(lock=%s) - 디렉터리 권한이나 디스크 공간을 확인하라.",
+            lock.path,
+        )
+        return 1
+    if not acquired:
+        holder = (lock.read() or {}).get("owner", "?")
+        logger.error(
+            "다른 워커가 이미 돌고 있다(lane=%s, owner=%s, lock=%s). 중복 실행을 막기 위해 종료한다. "
+            "정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.",
+            lane, holder, lock.path,
+        )
+        return 1
+    logger.info("워커 리스 획득(lane=%s): %s", lane, lock.owner)
+
+    session_factory, ctx, settings_cache, outbound = _bootstrap(settings, clock)
+    if lane == LANE_CONVERSATIONAL:
+        worker = build_conversational_worker(session_factory, clock, ctx, settings)
+        components = (liveness_component(LANE_CONVERSATIONAL),)
+    else:
+        worker = build_batch_worker(session_factory, clock, ctx, settings, settings_cache, outbound)
+        components = LIVENESS_COMPONENTS
 
     stop_event = threading.Event()
 
@@ -682,14 +746,17 @@ def main() -> int:
     heartbeat_thread = threading.Thread(
         target=run_heartbeat_loop,
         args=(session_factory, clock, stop_event),
-        kwargs={"lock": lock},
+        kwargs={"lock": lock, "components": components},
         name="liveness-heartbeat",
         daemon=True,
     )
     heartbeat_thread.start()
 
     try:
-        worker.run_forever(stop_event)
+        if lane == LANE_CONVERSATIONAL:
+            worker.run_forever_pooled(stop_event, max_concurrency=settings.worker_conversational_concurrency)
+        else:
+            worker.run_forever(stop_event)
         heartbeat_thread.join(timeout=5.0)
     finally:
         # 리스는 반드시 놓는다. 안 놓으면 다음 워커가 만료(120초)까지 기다려야 하고,

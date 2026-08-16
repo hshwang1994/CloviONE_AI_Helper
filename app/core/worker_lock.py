@@ -252,5 +252,11 @@ def _hostname() -> str:
         return "unknown-host"
 
 
-def default_lock_path(data_dir) -> Path:
-    return Path(data_dir) / LOCK_FILENAME
+def default_lock_path(data_dir, lane: str = "batch") -> Path:
+    """레인별 리스 파일 경로(D-118). 기본 ``lane="batch"``는 기존 ``worker.lock``
+    그대로다. `app.jobs.lanes.lock_filename`을 함수 안에서 import한다 — `app.core`는
+    `app.jobs`보다 낮은 층이어야 하는데(그 반대로 의존하는 곳은 없다), 모듈 최상단에서
+    끌어오면 그 방향이 뒤집힌다."""
+    from app.jobs.lanes import lock_filename
+
+    return Path(data_dir) / lock_filename(lane)
