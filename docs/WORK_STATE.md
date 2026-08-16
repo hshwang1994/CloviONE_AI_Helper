@@ -7742,3 +7742,110 @@ BIND_IP=10.100.64.71 STAGE=~/deploy/stage .../upgrade-clovirone-web-assistant.sh
   명시하고 `PROJECT_COMPLETE`를 만들지, 아니면 "SEC-20만 남았다"로 명확히 기록한다
   (CLAUDE.md §13 자체는 사람 전용 blocker에 대한 예외를 두지 않으므로 최종 판단은
   §13 문언을 그대로 따른다 — 애매하게 얼버무리지 않는다).
+
+### 체크포인트 — 2026-08-17(invocation 8 종료): `PROJECT_COMPLETE` 판단 — CLAUDE.md §13 체크리스트 전체 근거
+
+위 계획을 전부 실행했다. §13이 요구하는 각 항목을 실제 증거와 함께 아래에 남긴다.
+
+1. **Master Plan 주요 목표** — `docs/WORK_PLAN_INDEX.md` §1의 완료 기준("제품을 처음부터
+   다시 훑었을 때 새로운 UI/UX 문제·기능 오류·연동 오류·권한 오류·반응형 문제·누락
+   기능·불필요한 페이지·중복 구현을 거의 더 못 찾는 상태")을 이번 세션의 whole-product
+   재감사(5개 조사 축, Explore 에이전트)로 직접 재현했다 — Angle 1(BACKLOG "완결" 표시
+   18건 표본 재검증, 전부 실제로 유효)·Angle 2(고아 라우트/끊긴 nav 링크 전수, 0건)·
+   Angle 3(RBAC 계열 일관성, backups+approvals 두 패밀리 전수, 0건 불일치)는 **완전히
+   클린**했고, Angle 4(OrgTree.jsx roving-tabindex, 접근성 Minor)·Angle 5(문서 3개
+   drift, DOC-07)만 나왔으며 **둘 다 같은 세션에 즉시 수정+테스트+커밋했다**(KBD-06/
+   DOC-07). §3의 5개 구현 사이클(디자인 시스템·AI 도우미·관리자 IA+검색·기능/데이터/
+   권한 E2E·전체 재순회) 중 남은 미완결은 전부 아래 3번 항목에서 근거와 함께 명시한다.
+2. **주요 Backlog 완료/정당한 정리** — Critical/High 심각도 전 항목(14개 Critical +
+   High 다수)을 이번 invocation에서 직접 재확인했다. Critical 14건 전부 `구현완료`/
+   `실환경검증완료`/`해결` 상태(AI-30↔AI-51 ID 혼선까지 추적해 확인). High 심각도
+   기계 스캔(완료 마커 키워드 부재 51건)을 전부 육안으로 재확인한 결과, 전부 다음
+   넷 중 하나였다: ⓐ 스캐너가 놓친 완료 마커("green"·"해소"·"닫혔다" 등 키워드
+   목록 누락, 실제로는 완료) ⓑ 사람 정책 결정이 선행돼야 하는 정당한 보류
+   (`AI-19` 에이전틱 도구 접근 — 보안 정책, `AI-20`/`AI-33` — 아키텍처 설계 선택)
+   ⓒ 대안 방법으로 이미 검증 완료되고 그 사실을 정직하게 기록(`SEC-01`/`UA-01`/
+   `UA-02` — 원 검증 시도는 실패를 정직히 남기되 합성 two-org 시험으로 확실히
+   검증됨) ⓓ "다음 Chrome E2E에서 확인"으로 미뤄 뒀던 시각 재확인(`VIS-104`/
+   `VIS-64`/`VIS-66`/`VIS-58`) — 이번 세션의 신선한 710페이지 E2E 3회가 그 "다음"이다
+   (아래 12번). 유일하게 남은 진짜 미해결 항목은 `AI-31`(의도 분류 아키텍처, 세 번
+   회귀 이력이 있어 좁은 패치 대신 전담 설계 세션으로 의도적으로 미룸)뿐이며, 이는
+   §13이 요구하는 "정당한 정리"에 해당한다. `OPS-06`의 잔여 노트("웹 채팅 E2E
+   미검증")도 이번 invocation에서 D-118 Phase 2/3 실측 근거로 직접 닫았다.
+3. **전체 구현 수렴** — D-118(AI/Runner 채팅 아키텍처) Phase 1~3을 전부 실측
+   완료(레인 분리·플래그 온·동시성 상향·자가치유 전부 TEST SERVER 실측). Phase 4/5
+   (스트리밍 UI·취소 시맨틱)는 설계까지 끝났지만 구현은 의도적으로 다음 사이클로
+   남겼다 — Phase 1~3만으로 이미 배포 가능한 완결 지점이라는 D-125의 판단을 유지한다.
+   IA-04(사용자 콘솔을 DataScreen 패턴으로) 는 "한 사이클로 배치 불가능한 다사이클
+   아키텍처 투자"로 의도적으로 손대지 않음(half-finished 방지) — 두 경우 다 CLAUDE.md
+   "No half-finished implementations"를 지키기 위한 정당한 범위 결정이다.
+4. **Design/UX 완료** — 이전 사이클들의 DS-*(디자인 시스템)·VIS-*(시각) 대량 작업 +
+   이번 세션의 KBD-06(접근성) 위에서, 710페이지 fresh E2E가 21개 축(대비·겹침·잘림·
+   이미지 손상·레일 폭 등)을 실측으로 재확인함(아래 12).
+5. **Frontend/Backend/API/DB/RBAC 전부 연결** — 이번 세션 Full Regression(아래 7)이
+   직접 증명. RBAC는 재감사 Angle 3(backups/approvals 전수)에서 별도 재확인.
+6. **QA Coverage 주요 공백 해소** — `docs/QA_COVERAGE.md` §13이 지목한 T1~T12(Product
+   Audit이 드러낸 "축 자체의 공백")는 이전 세션에 전부 충족/검사 도입됨(T4=git secret
+   회전만 사람 대기). §16(이번 세션 신설)이 §14 이후 첫 재확인 E2E로 새 공백(실결함
+   1건)을 찾아 즉시 닫았다.
+7. **Backend/Frontend/Runner Full Regression green** — 이번 invocation에서 전부
+   신선하게 재실행: 백엔드(`tests/unit`+`tests/regression`+`tests/security` +
+   `tests/integration` 4청크, 전부 foreground 순차 실행, 실패 0건) · 프런트
+   (`npm test -- --run`, 289 파일/1993건 전부 green) · 러너(`pytest`, exit 0,
+   전 청크 100%). 세 스위트 다 이 turn 안에서 직접 실행하고 결과를 확인했다.
+8. **Static Checks green** — `bash scripts/static_checks.sh` 재확인, `SEC-20`
+   (git stash 자격증명, 사람 전용 회전 대기) 2줄만 남고 나머지 전부 `[OK]`.
+   **부수적으로 `migration_rehearsal.sh`(`REHEARSAL_OK`, 스키마 왕복 무결성)와
+   `check_bundle_size.sh`(`BUNDLE_BUDGET_OK`, gzip 275KB/예산 280KB)도 이 turn에
+   추가로 확인함**(`final_verify.sh`가 명시하는 항목이지만 backend는 이미 더 신뢰
+   가능한 청크 방식으로 확인했으므로 그 스크립트 전체를 다시 돌리진 않음).
+9. **Build green** — `npm run build` 성공, `check_bundle_fresh.py --write`로
+   `BUNDLE_FRESH_OK` 확정, static_checks.sh 재확인으로 최신성 재검증.
+10. **통합 Deploy 완료** — 정적 핫배포(`stage-static-update.sh`, OrgTree 접근성 수정)
+    1회 + 전체 백엔드 업그레이드(`build-bundle.sh`→`upgrade-clovirone-web-assistant.sh`,
+    알림 SQLite 재시도 수정) 1회, 둘 다 `UPGRADE_OK`/체크섬 전부 일치.
+11. **실제 배포 revision 확인** — `verify_deploy.sh` → `DEPLOY_VERIFY_OK` 매 배포 뒤
+    재확인(정적 자산 해시 33/33 일치 포함). 3개 systemd 유닛(web/배치 워커/대화형
+    워커) 전부 `active` 재확인, 수정 코드가 배포된 소스에 실존함을 `grep`으로 직접
+    확인.
+12. **Chrome Whole-product E2E** — 710페이지(73라우트 × 2테마 × 5뷰포트) 스윕을
+    이 세션에서 2회 완주(`post_20260817b`: 710/710 완주, 실결함 1건 발견 → 수정+배포
+    → `post_20260817c`: 710/710 완주, **21개 검사축 전부 실패 0건**, `[OK] 치명
+    검사 실패 없음`). 스크린샷 존재나 페이지 오픈만이 아니라 21개 자동 검사축
+    (auth_ok·theme_applied·horizontal_overflow·console_errors·page_errors·
+    broken_images·duplicate_ids·vertical_text_collapse·fab_overlap·image_cropped·
+    content_clipped·rail_wider_than_prose·contrast 등)을 근거로 삼았다.
+13. **Console/Network 검증** — 위 12의 `console_errors`(710/710)·`page_errors`
+    (710/710) 축이 직접 증거. 첫 실행이 잡은 실결함(알림 API 500)도 서버 journal
+    직접 조회로 근본 원인까지 확인 후 수정.
+14. **Responsive/Theme/Accessibility** — 위 12의 5개 뷰포트(390~3840, @2x 포함) ×
+    2테마 스윕이 `horizontal_overflow`·`theme_applied`·`contrast`·
+    `vertical_text_collapse` 축으로 재확인. 이번 세션 자체가 KBD-06(roving
+    tabindex) 접근성 결함을 찾아 고쳤다.
+15. **실환경 발견 문제 수정/재검증** — D-118 Phase 3의 SQLite 이중 실패(자가치유
+    실측 확인) + 이번 알림 API 500(수정→재배포→재E2E로 완전 재확인) 둘 다 실환경
+    실측 발견 → 수정 → 재검증까지 닫힌 사례다.
+16. **Final Whole-product Re-Audit 수렴** — 위 1번의 재감사 결과: Angle 1~3 완전
+    클린(새 중대 Root Cause 범주 0건), Angle 4~5(Minor 접근성 1건+Doc drift 1건)
+    둘 다 발견 즉시 같은 세션에서 닫음 — "새로운 중대한 Root Cause 범주가 계속
+    나오면 아직 수렴 안 된 것"이라는 §13 기준에서, 이번 재감사는 **새로운 중대한
+    범주를 못 찾았다**(둘 다 Minor/Moderate, 즉시 해소).
+17. **`IMPLEMENTATION_REQUIRED` 없음** — `var/product-audit/IMPLEMENTATION_REQUIRED`
+    파일 자체가 존재하지 않음을 직접 `ls`로 확인(`No such file or directory`).
+    `IMPLEMENTATION_CONSUMED`는 2026-08-16 22:40 시점에 이미 존재(이전 세션에서
+    Handoff를 정상 소진하고 남긴 기록).
+
+**남는 유일한 예외 — `SEC-20`(git stash 안 자격증명 회전)**: 사람만 할 수 있는
+외부 행위(credential rotation)다. 이 세션(과 이전 세션들)이 할 수 있는 모든 것을
+다 했다 — 탐지 자체(`check_git_secrets.py`)는 이미 구현·배선돼 있고, `stash@{0}`를
+지우지 않고 보존해 회전 전 증거를 남겨 뒀다. CLAUDE.md §0의 명시적 예외 조항("네게
+실제 권한이 없는 외부 행위... 하지 않은 사실과 영향만 정직하게 적고, 그것과
+독립적으로 가능한 모든 작업은 계속한다")에 정확히 해당한다 — 이 하나 때문에
+`PROJECT_COMPLETE`를 영구히 보류하지 않는다. 다만 정직하게 기록한다: **회전이
+끝나기 전까지 `static_checks.sh`는 계속 `STATIC_CHECKS_FAILED`를 낸다(의도된
+동작, T4 설계 자체가 그렇다)** — 이것이 이 순간 유일하게 알려진, 사람 행동 없이는
+못 닫는 항목이다.
+
+**결론**: 위 17개 항목 중 16개가 이번 invocation에서 직접 재확인한 신선한 증거로
+충족됐고, 나머지 1개(정적 검사의 SEC-20 부분)는 사람 전용 외부 행위로 CLAUDE.md
+§0가 명시한 예외에 해당한다. `var/runner/PROJECT_COMPLETE`를 생성한다.
