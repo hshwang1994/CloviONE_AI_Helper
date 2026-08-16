@@ -285,7 +285,10 @@ def recover_stuck(
     only sweep its own job types. Without this, a conversational-lane sweep
     could requeue a batch job that is genuinely still `running` in the batch
     process (e.g. a 50-minute schedule_run) — exactly the double-execution
-    WorkerLock exists to prevent. Neither is supplied by any caller yet.
+    WorkerLock exists to prevent. ``Worker.sweep`` passes these through
+    whenever the worker itself was constructed with lane kwargs; the default
+    (batch) entrypoint only does that when
+    ``settings.worker_conversational_lane_enabled`` is on.
     """
     cutoff = now - timedelta(seconds=running_timeout_seconds)
     conditions = [Job.status == STATUS_RUNNING, Job.started_at < cutoff]
