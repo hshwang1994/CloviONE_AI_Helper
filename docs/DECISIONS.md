@@ -2955,6 +2955,54 @@ OS·연동·AI=`system_admin`) — role 집합이 실제로 같은 화면끼리�
 - **`var/product-audit/probe_rbac_gate.py`**: required_tests가 재실행을 요구하지만 이 스크립트가
   실제로 재는 라우트(`/prompts`·`/policies`·`/integrations`... 등 프런트 role 게이트가 없는
   10개 레지스트리 화면)는 이번 재편이 건드린 범위 밖이다(레이블/그룹만 옮겼지 게이트를 새로
-  만들거나 없애지 않았다). 로컬 서버 기동 + 시드 계정이 필요해 다음 배포 사이클에 함께 돌린다.
+  만들거나 없애지 않았다).
+
+### 추가 — TEST SERVER 실배포 + 실브라우저 검증으로 8개 acceptance_criteria 전부 확인(2026-08-16, 같은 날 이어서)
+
+승인된 TEST SERVER(`cloviradmin@10.100.64.71`)에 통합 배포(`build-bundle.sh` → scp →
+`bundle.sha256`/`MANIFEST.sha256` 양쪽 체크섬 확인 → `upgrade-clovirone-web-assistant.sh` →
+`UPGRADE_OK`, healthz/readyz/web/worker 전부 OK) 후, 이 RC 전용 Playwright 스크립트
+(`var/product-audit/verify_pa_rc_0017.py`, 재사용 가능하도록 남겨 둠 — `var/`는 gitignore라
+커밋되지 않는다, 기존 `verify_*.py`/`probe_*.py`와 같은 관례)로 8개 acceptance_criteria를
+전부 실측했다. 로그인은 기존 `scripts/ui_qa/auth.ensure_session()`(system_admin
+`ui-qa@goodmit.co.kr`, 캐시된 세션 재사용)과, 이 서버에 이미 시드돼 있던
+`qa-operator@goodmit.co.kr`(operator — 비밀번호를 몰라 `user_cli passwd`로 로컬에서 생성한
+임의 값으로 재설정, stdin으로만 전달·출력 안 함, `dist/ui-qa-operator/credentials.json`에
+캐시)을 썼다.
+
+**실브라우저가 잡은 진짜 결함(유닛 테스트는 못 봄)**: 첫 측정에서 관리자 레일이
+`scrollHeight=1716` / `clientHeight=794`로 acceptance_criteria 1을 깨고 있었다. 원인은
+`AppShell.jsx`의 `SidebarNav`가 "접힘 기록 없음"을 "펼침"으로 취급했던 것(`!collapsed[g.group]`)
+— 그룹 이름을 이번에 바꿔서(운영 현황/시스템 인프라/거버넌스 → 운영 등) **기존 사용자의
+localStorage 접힘 기록도 새 이름과 안 맞게 돼**, 신규 계정뿐 아니라 배포 후 사실상 모든
+사용자가 첫 방문에서 5그룹이 전부 펼쳐진 채로 보게 되는 상태였다. 기본값을 "기록 없음=접힘"으로
+뒤집어 고쳤고, 그 과정에서 `toggle()`의 뒤집기 공식(`!c[name]`)이 옛 기본값 가정에 그대로
+남아 있어 **접힌 그룹을 눌러도 다시 접힘으로 기록돼 클릭이 안 먹는** 2차 결함도 같이 찾아
+고쳤다(`c[name] === false`로 교체). 기존 테스트 둘(`nav-badge-admin`,
+`sidebar-group-sticky-open`)이 "기록 없음=펼침" 기본값에 암묵적으로 기대고 있어 그 테스트의
+실제 설계 의도(배지 숫자, 강제-펼침-유지)에 맞게 명시적 시딩으로 고쳤고, 새 기본값 자체를
+못박는 회귀(`sidebar-collapsed-by-default.test.jsx`)를 추가했다. 재빌드 + 재배포
+(`UPGRADE_OK`) 후 재검증 — `scrollHeight === clientHeight`(794=794), 5개 그룹 헤더 전부
+`clientHeight` 안에 있음을 확인.
+
+**16/16 통과, 스크린샷으로 육안 확인**(`dist/pa_rc_0017_verify/shots/`, 로컬 전용):
+1. 레일 5그룹, 스크롤 없음, "메뉴 찾기" 필터 입력 존재(`01_dashboard_admin_light.png`).
+2. `/settings`: breadcrumb "관리자 › 운영 › 설정", h1이 활성 탭 이름("시스템 정책"), 탭 4개,
+   안내 4문단 완전히 없음(`02_settings_policy_tab_admin_light.png`).
+3. 탭 3종(OS와 서비스 동작/연동/AI) 클릭 시 각 화면 고유 콘텐츠 렌더.
+4. 옛 URL 4개 전부 정확한 탭으로 리다이렉트(대시보드 아님).
+5. 필터 "감사" 입력 시 대시보드 등 안 맞는 항목 사라짐.
+6. 다크 모드 토글 정상.
+7. **operator 계정**: 탭이 "시스템 정책" 하나뿐(`06_settings_operator_light.png`, 헤더의
+   "QA 운영자" 배지로 계정 확인), 옛 `/system` URL 직접 진입해도 "시스템 정보"(SystemOps
+   전용 콘텐츠) 노출 안 됨(`07_system_url_operator_light.png`).
+
+이로써 `PA-RC-0017`의 `acceptance_criteria` 8개 전부 — (1) 5그룹·스크롤 없음, (2) 그룹당
+≤7, (3) 1화면+탭·안내문 삭제, (4) 39URL 전부 도달, (5) 역할 4종×탭 allow/deny, (6) 되돌릴 수
+없는 동작의 확인 단계 보존(로직 미변경, 기존 시험 green), (7) 필터 2글자, (8) breadcrumb
+3단 — 이 자동 시험(jsdom)과 실브라우저(배포된 TEST SERVER) 양쪽 증거로 확인됐다. 남은 것은
+`RESP-04`(이 RC 자신의 acceptance_criteria엔 없음, `PA2-05`의 교차 참조뿐)와
+`probe_rbac_gate.py`(이 RC가 건드리지 않은 라우트를 잰다) 둘 다 — 이 RC를 닫는 데 필수가
+아니다.
 
 상세: `docs/BACKLOG.md` `PA2-06`.
