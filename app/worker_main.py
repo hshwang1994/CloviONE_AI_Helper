@@ -704,7 +704,7 @@ def main(argv: list[str] | None = None) -> int:
     # 이 저장소의 기존 관례와 같다).
     if lane == LANE_CONVERSATIONAL and not settings.worker_conversational_lane_enabled:
         logger.info(
-            "lane=conversational이지만 worker_conversational_lane_enabled가 꺼져 있다 — "
+            "lane=conversational이지만 worker_conversational_lane_enabled가 꺼져 있다. "
             "리스를 잡지 않고 정상 종료한다(D-118). 켜려면 설정을 바꾼 뒤 이 유닛을 재시작하라."
         )
         return 0
