@@ -1,19 +1,3 @@
-## A-4. 다음 조사 후보 (우선순위 순)
-
-1. **L축 남은 2표면** — `list-screens` · `key-workflows`. 스크린샷·계측은 있다
-   (`/my-tickets` 카드 0·버튼 1 / `/team-docs` 카드 21 / `/board` / `/offboarding` /
-   `/scheduler-calendar`). DESIGN 현재 **16/18**
-2. **Coverage 문서 재생성** — `coverage_state.json` 이 아직 직전 Cycle 값이다. 이번 Cycle 관측
-   (28표면 렌더 · 63 RBAC 조합 · 9 상세 라우트 · 12 탭 조합 · API 원문 · 서버 로그)을 반영하고
-   `l_axis_design_verdict_complete` 를 DESIGN 판정 블록 수와 **정확히** 맞춘다
-3. `PRODUCT_AUDIT_REPORT.md` · `INVENTORY` · `FEATURE_CONTRACTS` 를 이번 Cycle 기준으로 갱신
-4. `BACKLOG.md` · `QA_COVERAGE.md` 에 9건 반영(중복 대조 후) + `IMPLEMENTATION_REQUIRED`
-5. P·R축(문구·한국어) — `ux-writing` → `humanize-korean` 순서
-6. N·O축 — 1366/390 뷰포트, 125/150/175% 배율, 다크
-7. W축(시간대·만료) · S축(성능) · T축(관측성)
-8. **Blind Re-Audit 2회 연속** — 이전 Cycle의 진입점(퇴사 처리·장애 대응·신규 입사자 첫날·
-   감사자 분기 점검)을 재사용하지 않는다
-
 # PRODUCT AUDIT — STATE
 
 > **이 Audit의 resume pointer다.** 새 invocation은 이 문서를 먼저 읽는다.
@@ -81,7 +65,7 @@ Windows 체크아웃에서 왔을 뿐 내용은 같았다. `tr -d '
 | 4 | L·E (검증) | 대시보드/진단 중복을 **문자열 단위로 계측** | `pa2_dup.py` — 68% 중복 확정 |
 | 5 | B·E (검증) | `/api/home/today` 원문 확인 → 문서 계약과 대조 | `PA-F-002` Confirmed |
 
-## A-3. 지금까지 확정한 Root Cause — 9건 (전부 Confirmed)
+## A-3. 지금까지 확정한 Root Cause — 10건 (전부 Confirmed)
 
 | RC | Sev | 요지 |
 |---|---|---|
@@ -94,6 +78,36 @@ Windows 체크아웃에서 왔을 뿐 내용은 같았다. `tr -d '
 | `PA-RC-0034` | Medium | 전역 QueryClient 에 `retry` 가 없어 확정적 4xx 를 **4회** 호출한다. `/board/<없는 id>` 가 30초 걸려 답한다. `useQuery` 80곳 중 20곳이 이 기본값 상속, 60곳은 각자 덮어씀 |
 | `PA-RC-0029` | Medium | `/users` 이메일 열이 **20/20행** 잘린다(131px, 필요 198px). `역할` 은 295px |
 | `PA-RC-0035` | Low | `/new-ticket` 담당자가 체크박스 14개 평면 나열. `FormHelperText` 0회 — 안내가 placeholder 에만 있어 입력 시 사라진다 |
+| `PA-RC-0036` | Low | `/offboarding` 대상 표가 같은 문장을 **8/20행** 반복해 행 높이가 97px/35px 로 갈린다(2.8배). 상태가 481px 막대인데 `/users` 는 같은 값을 작은 배지로 그린다 |
+
+### 이 Cycle이 확인한 **음성** 결과 (안 본 것과 구별한다)
+
+- `PA-F-081` — TEST SERVER 배포본이 **정확히 HEAD**다(`app/**/*.py` 314/314).
+- `PA-F-086` — F축 **63조합**(관리자 라우트 21 × 역할 3)에서 나브·화면·직접 API 세 계층이
+  어긋난 곳 **0건**.
+- `sidebar`·`global-header`·`modal-drawer`·`empty-state` 는 기준을 세우고 재서 통과한 `KEEP`이다
+  (깊이 2단·그룹당 7항목·헤더 잘림 0·모달 접근성 4항목·빈 상태 3요소).
+- 28표면 실렌더에서 console error **0**, HTTP 4xx/5xx **0**.
+
+## A-4. 다음 조사 후보 (우선순위 순)
+
+**L축은 끝났다** — 필수 18표면 전부 판정(`REDESIGN` 3 · `REFINE` 10 · `KEEP` 5).
+자체 Gate 검사(`var/product-audit/pa2_gate_check.py`)가 필수 표면·판정별 필수 필드·
+REDESIGN의 PA-RC 참조·UI 15필드·요약 수 정합성·미루는 표현을 기계적으로 확인해
+**ALL CHECKS PASS**다. 남은 것은 아래다.
+
+1. **Coverage 재생성** — `coverage_state.json` 이 아직 직전 Cycle 값이다. 이번 Cycle 관측
+   (28표면 렌더 · 63 RBAC 조합 · 9 상세 라우트 · 12 탭 조합 · 폼 25필드 · 오프보딩 20행 ·
+   API 원문 · 서버 로그)을 반영하고 `l_axis_design_verdict_complete=18` 을 DESIGN 블록 수와
+   정확히 맞춘다. 이유 없는 UNSEEN 0을 유지한다
+2. `PRODUCT_AUDIT_REPORT.md` · `INVENTORY` · `FEATURE_CONTRACTS` 를 이번 Cycle 기준으로 갱신
+3. `BACKLOG.md` · `QA_COVERAGE.md` 에 10건 반영(기존 278행 전체 대조 후 중복 없이) +
+   `var/product-audit/IMPLEMENTATION_REQUIRED` 생성
+4. **P·R축** — 문구·한국어. `ux-writing` → `humanize-korean` 순서
+5. **N·O축** — 1366/390 뷰포트, 125/150/175% 배율, 다크 테마
+6. **W·S·T축** — 시간대/만료 · 성능 · 관측성
+7. **Blind Re-Audit 2회 연속** — 이전 Cycle 진입점(퇴사 처리·장애 대응·신규 입사자 첫날·
+   감사자 분기 점검) 재사용 금지
 
 ## A-4-B. 이 Cycle의 계측 규칙 (오류 두 번을 겪고 세운 것)
 
@@ -108,6 +122,19 @@ Windows 체크아웃에서 왔을 뿐 내용은 같았다. `tr -d '
 **규칙: 0건/전건 같은 극단값이 나오면 그것부터 의심하고, 표본 하나를 직접 열어 본 뒤에만
 기록한다.** `pa2_rbac.py`에는 사이드바를 못 찾으면 `null`을 반환해 실행을 중단시키는 가드를
 넣었다 — 「찾지 못했다」가 「비어 있다」로 조용히 번역되는 것이 그 오류의 본질이었다.
+
+### 문서 편집에서도 같은 실수를 했다 (2026-08-17 정정)
+
+이 STATE 문서를 갱신하면서 **두 개의 구간 치환이 같은 끝 앵커(`## A-4-B.`)를 썼다.**
+첫 치환이 A-4 절까지 통째로 삼켰고, 두 번째 치환의 `s.index('## A-4. ...')` 는 그 다음으로
+발견된 **이전 Cycle의 A-4** 를 잡아서 문서 머리말이 통째로 밀려났다. 결과적으로 파일이
+`## A-4.` 로 시작하게 됐다.
+
+계측 프로브에서 저지른 것과 정확히 같은 실수다 — **결과를 확인하지 않고 다음으로 넘어갔다.**
+복구는 마지막 정상 커밋(`c3f0f2c`)에서 되돌린 뒤, 겹치는 구간 슬라이스 대신
+「제목부터 다음 `## ` 제목까지」로 경계를 명확히 잡아 다시 적용했다(`pa2_fix_state.py`).
+**규칙에 한 줄 더한다: 문서를 스크립트로 고쳤으면 고친 결과를 다시 읽어 확인한다.**
+
 
 ## A-5. 현재 blocker
 
