@@ -20,6 +20,23 @@ import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
+import { buildViewQuery, withHashQuery } from "./datascreen-view.js";
+
+// PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
+// (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
+// 순수 함수(datascreen-view.js)의 buildViewQuery/withHashQuery만 가져다 쓴다 — 이 화면은
+// registry 기반이 아니라 수제라 DataScreen.jsx 자체는 못 쓰지만, 그 직렬화 로직은
+// config.filters 키 목록만 있으면 돌아가는 순수 함수라 registry 없이도 그대로 쓸 수 있다.
+// 읽는 쪽은 이미 있는 useSearchParams(HashRouter가 해시 안 쿼리를 그대로 파싱해 준다)를
+// 그대로 쓴다 — 쓰는 쪽만 raw history.replaceState로 우회한다(DataScreen.jsx와 동일 이유:
+// setSearchParams를 쓰면 아래 220행대의 기존 감시 useEffect가 searchParams 변경 자체에
+// 반응해 되먹임 루프에 빠질 위험이 있다).
+const USERS_VIEW_CONFIG = {
+  filters: [
+    { key: "role" }, { key: "active" }, { key: "locked" },
+    { key: "department_id" }, { key: "archived" },
+  ],
+};
 
 // 생성/수정 폼의 역할 선택지를 행위자 권한으로 제한한다. 서버는 비-system_admin이 관리자·시스템
 // 관리자 '계정 생성'을 하드 403으로 막고(승인 경로 없음), 역할 '변경'만 관리자 승인 흐름이 있다.
@@ -197,12 +214,16 @@ export function Users() {
   // 받지 않으면 결과를 눌렀는데 필터 없는 전체 목록이 뜬다 — 아무 일도 안 한 것처럼 보인다.
   const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState(() => searchParams.get("q") || "");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [activeFilter, setActiveFilter] = useState("");
+  // PA-RC-0013: 아래 다섯 필터·페이지도 q/department_id와 같은 방식으로 최초 마운트에
+  // 주소를 읽는다 — 이 게으른 초기화(useState 함수형 초기값)는 DataScreen.jsx가 이미
+  // 쓰는 관용과 같다(마운트 후 setState로 넣으면 기본값으로 한 번 조회했다가 다시
+  // 조회해 목록이 두 번 깜빡인다).
+  const [roleFilter, setRoleFilter] = useState(() => searchParams.get("role") || "");
+  const [activeFilter, setActiveFilter] = useState(() => searchParams.get("active") || "");
   // ADM-06R: 화면·배지(잠김)·잠금 해제 버튼은 이미 다 있는데 "지금 잠긴 사람만 보기"가
   // 안 됐다 — 활성 필터와 같은 모양으로 추가한다.
-  const [lockedFilter, setLockedFilter] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [lockedFilter, setLockedFilter] = useState(() => searchParams.get("locked") || "");
+  const [showArchived, setShowArchived] = useState(() => searchParams.get("archived") === "true");
   // 조직도·부서 관리에서 '소속 인원 보기'로 오면 `#/users?department_id=<id>` 다. 백엔드는
   // 이 필터를 이미 지원했지만 화면이 주소를 읽지 않아, 눌러도 필터 없는 전체 목록이 떴다.
   const [deptFilter, setDeptFilter] = useState(() => searchParams.get("department_id") || "");
@@ -242,9 +263,42 @@ export function Users() {
       setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("id"); return next; }, { replace: true });
     }
   }, [searchParams]);
-  const [page, setPage] = useState(1);
+  // PA-RC-0013: 페이지도 주소에서 복원한다(page=1은 기본값이라 주소에 안 실린다 — 없으면 1).
+  const [page, setPage] = useState(() => {
+    const n = parseInt(searchParams.get("page"), 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  });
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다
-  React.useEffect(() => { setPage(1); }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter]);
+  // 필터가 바뀌면 1쪽으로 되돌린다 — 단, **마운트(첫 실행)는 빼고**. 이 효과는 원래
+  // dq/필터 dependency 배열이 바뀔 때마다 도는데, React는 마운트도 "바뀜"으로 쳐서 첫
+  // 실행이 무조건 한 번 돈다 — 그 첫 실행이 위에서 주소로부터 막 복원한 page를 조용히
+  // 1로 덮어썼다(딥링크로 page=3을 열어도 항상 1쪽이 뜨는 회귀가 될 뻔했다).
+  const skipFirstPageReset = React.useRef(true);
+  React.useEffect(() => {
+    if (skipFirstPageReset.current) { skipFirstPageReset.current = false; return; }
+    setPage(1);
+  }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter]);
+  // PA-RC-0013: 지금 상태를 주소로 되쓴다(DataScreen.jsx와 같은 raw history.replaceState —
+  // setSearchParams를 쓰지 않는 이유는 위 import 옆 주석 참고). 이 효과는 반드시 위 id를
+  // 소비하는 효과보다 **아래**(=나중 실행)여야 한다 — 그 효과가 `?id=`를 지우려고
+  // setSearchParams(prev => ...)를 부르는데, 그 prev가 react-router가 들고 있는 옛
+  // searchParams라 우리가 먼저 raw로 써 두면 그 삭제가 우리 값까지 함께 덮어쓴다.
+  const viewQuery = buildViewQuery(
+    {
+      q: dq, page,
+      filters: {
+        role: roleFilter, active: activeFilter, locked: lockedFilter,
+        department_id: deptFilter, archived: showArchived ? "true" : "",
+      },
+    },
+    USERS_VIEW_CONFIG,
+  );
+  React.useEffect(() => {
+    const next = withHashQuery(window.location.hash, viewQuery);
+    if (next !== window.location.hash) {
+      try { window.history.replaceState(null, "", next); } catch (e) { /* ignore */ }
+    }
+  }, [viewQuery]);
   // 대량 작업 선택 집합. 페이지·필터가 바뀌어도 유지된다 — 여러 페이지에 걸쳐 고른 뒤
   // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
   const selection = useRowSelection();
