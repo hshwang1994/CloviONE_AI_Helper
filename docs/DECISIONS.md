@@ -3504,3 +3504,80 @@ Handoff acceptance_criteria 8개 중 7개는 완전히 충족·실측 확인, 1�
 자연히 다시 검증된다.
 
 상세: `docs/BACKLOG.md` `PA2-12`.
+
+## D-98 (2026-08-16) — PA-RC-0026: `/diagnostics` 게이트를 공표된 권한표(`console.ops`)에 맞춤
+
+### 배경
+
+`PA-RC-0023`을 마치고 같은 invocation 안에서 남은 Root Cause 중 우선순위를 다시 훑었다
+— High 등급은 전부(`PA2-05`~`07`·`12`) 완결이라 Medium 중에서 RBAC/보안에 가장 가까운
+`PA-RC-0026`을 골랐다(CLAUDE.md §4의 "RBAC → 큰 Root Cause" 우선순위). `/diagnostics`
+(진단 번들 조회)가 `CONSOLE_WRITE_ROLES`(admin+)로 막혀 있는데, 제품 자신이 공표하는
+권한표(`app/core/authz.py::CAPABILITIES`)는 이 성격의 동작("헬스체크")을 `console.ops`
+(operator 포함)로 정의한다 — 화면 게이트가 제품이 스스로 말하는 정책보다 더 좁았다.
+
+### 게이트를 낮추기 전 번들 내용 감사(Handoff가 명시한 선행 조건)
+
+`build_diagnostic_bundle`이 돌려주는 5개 키를 각각 "operator가 다른 화면에서 이미
+보는가"로 대조했다:
+
+- **`settings`**(마스킹됨, `mask_sensitive` 적용) — 오히려 **더 안전**했다. operator가
+  이미 접근 가능한 `GET /api/admin/settings`(`CONSOLE_READ_ROLES`)의
+  `effective_settings()`는 **마스킹을 전혀 안 한다** — 진단 번들 쪽이 원본보다 더 가린
+  버전이다.
+- **`tenant_config`** — `tenant_config_status()`는 `state`(SET/UNSET)·`key`·`env_var`
+  이름만 담고 실제 값은 안 담는다. 안전.
+- **`mail`** — `mail_status()` 독스트링이 "비밀 값은 절대 안 들어간다"고 명시하고,
+  진단 호출은 `secret_provider`를 안 넘겨 `password_secret`이 항상 `None`이다. 안전.
+- **`recent_job_errors[].last_error`** — `/jobs`(`CONSOLE_OPS_ROLES`, operator 포함)의
+  목록·상세 양쪽이 이미 같은 원문을 그대로 보여준다(`app/jobs/router.py:89`,
+  `automation.js` `last_error_full`). 새로운 노출이 아니다.
+- **`dashboard`(embedded `build_dashboard()` 호출)** — **실제 결함을 찾았다.** 이
+  내부 호출이 `include_critical_audit`를 안 넘겨 `build_dashboard`의 기본값 `True`가
+  그대로 적용된다 — `/api/admin/dashboard` 라우터 자신은 `role in SENSITIVE_READ_ROLES`로
+  이 슬라이스(누가 역할 변경/롤백/승인했나)를 operator에게서 명시적으로 가리는데, 진단
+  번들이라는 옆문으로 그 판정을 완전히 우회하고 있었다. 게이트만 낮췄다면 이 우회가 그대로
+  operator에게 뚫렸을 것이다 — Handoff가 "게이트만 낮추지 말고 먼저 감사하라"고 강조한
+  이유가 바로 이것이다.
+
+### 수정
+
+`app/health/service.py::build_diagnostic_bundle`에 `include_critical_audit: bool = True`
+파라미터 추가 → 내부 `build_dashboard()` 호출에 그대로 전달. `app/health/router.py`의
+`/api/admin/diagnostics/bundle`: 게이트를 `CONSOLE_WRITE_ROLES` → `CONSOLE_OPS_ROLES`로
+낮추고, `/api/admin/dashboard` 라우터와 **정확히 같은 판정**(`role in
+SENSITIVE_READ_ROLES`)을 계산해 넘긴다 — 두 라우터가 같은 판정 로직을 각자 계산하는
+대신(중복이지만 이미 `dashboard` 라우터가 그렇게 하고 있어 같은 관용을 따름), 코드
+주석으로 두 곳이 반드시 같이 가야 함을 명시했다. 프런트 `AdminRoutes.jsx:124`(role 배열을
+`/jobs`와 동일하게, `help` 문구 추가)·`navConfig.js:85`(내비 항목 role 배열, 백엔드와
+동일 집합) 동기화. `auditor`는 포함하지 않았다 — `console.ops` 능력 자체가 auditor를 안
+담고(읽기 전용 가지, 운영 동작이 아니다), Handoff도 별도 판단 없이 넣지 말라고 명시했다.
+
+### 검증
+
+`git checkout`으로 되돌리기 실수 — revert-to-verify 도중 `include_critical_audit` 전달을
+잠깐 지웠다가 `git checkout -- app/health/router.py`로 되돌리려 했는데, 이 파일 전체가
+아직 커밋 전이라 **되돌리기 실험뿐 아니라 실제 수정 전체가 통째로 날아갔다** — 직후
+`git diff`로 발견해 같은 내용을 다시 작성했다(diff 재확인으로 완전히 복구 확인). 앞으로
+같은 파일에 여러 미커밋 변경이 섞여 있을 때는 `git checkout`이 아니라 Edit 되돌리기만
+쓴다.
+
+신규 `tests/integration/test_diagnostics_bundle_rbac.py` 9건: 역할 5종(user·auditor→403,
+operator·admin·system_admin→200) 매트릭스, 미인증 401, **revert-to-verify로 실제
+확인**(`include_critical_audit` 전달을 지우면 operator 시험이 정확히 예상대로 실패함을
+직접 재현) — operator는 critical-audit 슬라이스가 빈 배열, admin/system_admin은 채워짐.
+기존 `test_dashboard_critical_audit.py`·`test_admin_rbac.py`·`test_secret_exposure_sweep.py`
+(시스템 관리자로 스윕, 영향 없음)·`test_rbac_matrix.py`·`test_rbac_basics.py`·
+`test_sysops_boundary.py` 66/66 green. 프런트 전체 회귀 277파일 1904건 green(변경이
+데이터 리터럴 2줄뿐이라 낮은 위험, 그래도 전체를 돌려 확인). `static_checks.sh`는 빌드
+재생성 후 유일하게 기존 SEC-20/PA-RC-0003만 남고 green.
+
+### 남은 것
+
+TEST SERVER 배포 + 역할 4종 실측(acceptance_criteria 8 — 특히 `operator`로 로그인해
+`/diagnostics`가 실제로 열리고 `GET .../bundle`이 200을 주는지, `user`/`auditor`는 여전히
+막히는지). `required_tests`의 "번들 마스킹 회귀 테스트"(응답 전체에 비밀 패턴 없음을
+전수 단언)는 기존 `test_secret_exposure_sweep.py`가 이미 이 엔드포인트를 포함해 하고
+있어 별도 신설 안 함.
+
+상세: `docs/BACKLOG.md` `PA2-14`.
