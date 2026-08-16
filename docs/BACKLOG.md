@@ -3347,7 +3347,7 @@ Handoff Root Cause 8건 중 **7건이 아래 신규 행**이고, `PA-RC-0003`은
 
 ---
 
-## PA2 — Whole Product Audit Cycle `PA-20260816-120655-f103fb5b` (Handoff 13건, 2026-08-16)
+## PA2 — Whole Product Audit Cycle `PA-20260816-120655-f103fb5b` (Handoff 15건, 2026-08-16)
 
 전수 Product Audit이 Root Cause 기준으로 넘긴 항목이다. **각 행은 요약일 뿐이다** —
 착수 전에 반드시 [`docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`](product-audit/PRODUCT_AUDIT_HANDOFF.md)
@@ -3384,7 +3384,9 @@ L축 Deep Design Audit 신규분**이다.
 | PA2-12 | **High** | **동작 위계 규범이 퍼지지 않아 양쪽 극단이 동시에 존재한다**(`PA-RC-0023`). 한쪽은 `contained` 0개(관리자 10/16 · 사용자 4/10), 다른 쪽은 상세 모달에 3개이고 `/departments`는 그중 하나가 **「삭제」**다. 표의 행 「상세」 버튼은 행 클릭과 중복. **`/users` 목록과 생성 모달이 같은 제품 안의 정답 대조군** | `PA-RC-0023` · `PA-F-065` · `design_capture2.json` detail[] | **발견** |
 | PA2-13 | Med | **"상세 보기"가 콘솔별로 다른 것이다**(`PA-RC-0024`). 사용자는 `:id` 라우트 6개, 관리자는 URL 없는 모달 — 딥링크·새로고침·뒤로가기 불가. `/users/<uuid>`는 9초 뒤 대시보드로 조용히 이동(같은 제품의 `/board/999999`는 정상 not-found). **라우트 신설로 직접 진입 경로가 열리므로 RBAC/IDOR negative 테스트 필수** | `PA-RC-0024` · `PA-F-066` · `UserRoutes.jsx:60-83` vs `AdminRoutes.jsx` | **발견** |
 
-### 이 13건이 실제로 몇 개의 병인가
+| PA2-14 | Med | **「진단」 화면이 조회 행위인데 설정 변경 권한으로 막혀 있다**(`PA-RC-0026`). `/diagnostics`가 프런트(`AdminRoutes.jsx:123`)·백엔드(`health/router.py:80`) 양쪽에서 `CONSOLE_WRITE_ROLES`를 요구하는데, 제품 자신의 능력 표는 `console.ops` 「운영 동작(실행, 재시도, **헬스체크**, 드라이런)」을 운영자에게 준다. 번들은 spec §14.7로 마스킹이 보장되고 그 조각들(대시보드·설정·실패 잡)은 운영자가 이미 각각 본다. `/maintenance`는 바로 다음 줄에서 운영자를 포함한다 — **고치는 화면은 열리고 진단하는 화면이 닫혀 있다.** 권한을 넓히는 변경이라 **번들 내용 항목별 감사가 선행 조건**이다 | `PA-RC-0026` · `PA-F-078` · `authz.py:145,149,153` · `health/service.py:382` | **발견** |
+
+### 이 14건이 실제로 몇 개의 병인가
 
 `PA2-05`·`06`·`11`은 **같은 병의 세 증상**이다 — *구조가 할 일을 다른 것에 떠넘긴다*.
 배너는 우선순위 판단을 사용자에게, 8그룹 평면은 분류를 사용자에게, 안내 4문단은 화면 경계

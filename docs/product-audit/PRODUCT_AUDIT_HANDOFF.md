@@ -4,7 +4,7 @@ cycle_id=PA-20260816-120655-f103fb5b
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
-actionable_root_causes=14
+actionable_root_causes=15
 redesign_root_causes=9
 deferred_for_human_approval=0
 -->
@@ -198,7 +198,7 @@ problem: **전역 배너 스택이 모든 화면에서 첫 화면의 3분의 1�
 expected: 전역 크롬은 **높이 예산**을 가져야 하고, 개별 화면의 본문이 첫 화면의 대부분을 차지해야 한다. 이것은 외부 기준이 아니라 이 저장소가 스스로 세운 방향이다 — CLAUDE.md §5가 "Layout/max-width/density"와 "FHD/QHD/4K"를 필수 완료 범위로 적고, D-75(`docs/DECISIONS.md`)가 App Shell을 "전면 재설계 가능" 영역으로 명시한다. 지원 배율 구간(125/150/175%) 안에서 가로 넘침은 없어야 한다.
 actual: 배너 5장이 331.5px를 상시 점유하고, 그 결과 표 화면에서 데이터 행이 뷰포트 경계까지 밀린다(`/users` thead `y=982`, 첫 행 `y=1019`). 4K에서 본문 상한이 없어 3500px까지 늘어난다. (175% 가로 넘침도 재현되나 그것은 기존 `RESP-01`이다.)
 intent_evidence: ② CLAUDE.md §5(Layout/max-width/density·FHD/QHD/4K를 필수 범위로 규정) · ② `docs/DECISIONS.md` D-75(App Shell·Layout을 보존 의무 없는 재설계 대상으로 확정) · ⑤ 제품 자신의 반증 — 배너 5장 중 2장에만 닫기 버튼을 붙였다는 것은 "영구 표시가 바람직하지 않다"는 판단이 이미 코드에 있다는 뜻이고, 그 판단이 나머지 3장에는 적용되지 않았다.
-findings: PA-F-058, PA-F-067 (PA-F-067의 가로 넘침 절반은 기존 `RESP-01`과 동일 결함이므로 이 RC의 신규 범위에서 제외했다 — 중복 계상 방지)
+findings: PA-F-058, PA-F-067, PA-F-078(장애 배너에 따라갈 링크가 없다 — 증상만 말하고 다음 화면을 주지 않는다) (PA-F-067의 가로 넘침 절반은 기존 `RESP-01`과 동일 결함이므로 이 RC의 신규 범위에서 제외했다 — 중복 계상 방지)
 feature_contracts: FC-배너알림(장애·공지 노출 조건과 심각도) — **판정 조건·임계·심각도·대상 사용자는 하나도 바뀌지 않는다.** 바뀌는 것은 같은 정보를 화면에 배치하는 방식뿐이다.
 routes: 인증된 **전 라우트**(셸에서 그려진다). 실측은 관리자 14(`/dashboard`·`/users`·`/audit`·`/jobs`·`/settings`·`/system`·`/departments`·`/rbac`·`/integrations`·`/prompts`·`/feature-flags`·`/offboarding`·`/diagnostics`·`/org-tree`) + 사용자 9(`/me`·`/my-tickets`·`/team-docs`·`/board`·`/notifications`·`/chat`·`/new-ticket`·`/projects`·`/search`).
 frontend: `frontend/src/app/Banners.jsx`(배너 렌더) · `frontend/src/app/AppShell.jsx`(셸 레이아웃·본문 폭) · 헤더 컴포넌트(상태 칩이 들어갈 자리) · 본문 컨테이너의 max-width 정의 위치.
@@ -622,4 +622,34 @@ required_tests: `DataScreen`의 기본 성공 문구 단위 테스트(액션 라
 qa_gaps: `QA_COVERAGE.md`에 「성공 토스트 문구가 UX Writing 규칙을 따르는가」 축이 없다. 지금까지 P축은 **오류 문구**만 검사했고(회복 절 비율) **성공 문구의 문체**는 검사한 적이 없다. `aria-live` 통지 존재 여부도 이번 Cycle이 처음 관측했다.
 quality_rubric: `ux-writing` — Success Messages 패턴(`[Action] [result/benefit]`, 과거형, "Changes saved"), Consistency("Use consistent terminology throughout"), Accessibility("Label all interactive elements explicitly" — `aria-live` 문구도 같은 기준). 그리고 이 저장소의 SSOT `docs/UX_WRITING.md:54`(문장형·마침표)·`:74`(저장 토스트 지정). `humanize-korean`은 확정된 사전의 한국어 자연스러움 검토에만 적용하고 기술 용어·상태값은 제외한다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-073` · 규칙 `docs/UX_WRITING.md:54,74` · 소스 `frontend/src/screens/DataScreen.jsx:287` · `frontend/src/screens/data-screen/SubListDrawer.jsx:72` · 런타임 관측 `var/product-audit/probe_write_copy.json`(생성 「추가했습니다.」 / 수정 「저장했습니다.」 / 삭제 「삭제 완료」) · 정량 대조: 저장소 한국어 알림 문자열 87종 101회 중 서술형 62 대 명사형 2
+<!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0026 -->
+rc_id: PA-RC-0026
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: **「진단」 화면이 조회 행위인데 설정 변경 권한으로 막혀 있어, 헬스체크를 담당하는 역할이 장애 중에 그 화면만 못 연다.** `/diagnostics`는 프런트(`frontend/src/app/AdminRoutes.jsx:123`)와 백엔드(`app/health/router.py:80`) 양쪽에서 `CONSOLE_WRITE_ROLES`(`admin`·`system_admin`)를 요구한다. 그런데 이 제품 자신의 능력 표(`app/core/authz.py`)는 `console.read` 「관리 콘솔 목록, 상세 조회」와 `console.ops` 「운영 동작(실행, 재시도, **헬스체크**, 드라이런)」을 **운영자에게 부여**하고, `console.write`는 「**설정 변경**(생성, 수정, 활성/비활성)」이라고 정의한다. 진단 번들 조회는 설정 변경이 아니다. 게다가 번들 자신의 docstring이 **"Masked diagnostics — no secrets, no raw journals (spec §14.7)"**(`app/health/service.py:382`)이고, 번들이 모으는 조각(대시보드·설정·실패 잡 목록)은 운영자가 이미 각각 볼 수 있다. 대조로 형제 엔드포인트 `/api/admin/dashboard`(`:62`)는 `CONSOLE_READ_ROLES`를 쓰면서 운영자를 감안한 주석까지 달려 있고, `/maintenance`는 바로 다음 줄(`AdminRoutes.jsx:124`)에서 운영자를 **포함**한다 — **고치는 화면은 열리고 진단하는 화면이 닫혀 있다.**
+expected: 마스킹이 보장된 진단 번들 조회는 `console.read` 또는 `console.ops` 수준에서 열려야 하고, 화면의 역할 게이트가 능력 표와 같은 이야기를 해야 한다. 근거: ② `app/core/authz.py:145,149,153`의 Capability 정의(제품이 공표하는 권한 정책이며 `GET /api/admin/rbac-matrix`로 사용자에게 그대로 렌더된다) · ② `app/health/service.py:382`가 인용하는 spec §14.7(마스킹·저널 비노출 보장) · ⑤ 같은 파일의 `/api/admin/dashboard`가 조회를 `CONSOLE_READ_ROLES`로 여는 관용.
+actual: 프런트·백엔드 모두 `CONSOLE_WRITE_ROLES`를 요구해 `operator`·`auditor`가 「권한이 없습니다」를 받는다. 운영자는 대시보드·작업 큐·러너·연동 화면으로 우회해 원인에 도달할 수 있으나, 그 조각들을 모아 놓은 화면 하나만 닫혀 있다.
+intent_evidence: ② `app/core/authz.py`의 Capability 표 — 이 저장소는 `app/admin/rbac.py:3`에 *"이 라우터는 계산을 하지 않는다. 표 전체가 `app/core/authz.py::rbac_matrix()` 에서 나온다"* 라고 적어 이 표가 정책의 정본임을 명시한다. ② spec §14.7(번들 마스킹). ⑤ `/api/admin/dashboard`의 `CONSOLE_READ_ROLES` + 주석. ⑥ `authz.py:78,82`가 게이트 선택이 미묘한 경우를 주석으로 남기는 관용이 있는데 **diagnostics에는 그런 주석이 없다** — 의도적 선택이라기보다 기본값으로 흘러갔을 가능성을 시사한다(단, 이것은 정황이지 확증이 아니다).
+findings: PA-F-078
+feature_contracts: FC-관리자권한범위(어느 역할이 어느 콘솔 화면을 쓰는가) · FC-진단번들(무엇을 모으고 무엇을 마스킹하는가) — **번들의 내용·마스킹 규칙은 하나도 바꾸지 않는다.** 바뀌는 것은 누가 그것을 열 수 있는가뿐이다.
+routes: `/diagnostics`. 대조군으로 함께 확인할 것: `/maintenance`(운영자 포함) · `/dashboard`(CONSOLE_READ_ROLES) · `/jobs`·`/runners`·`/integrations`(운영자 열람 가능).
+frontend: `frontend/src/app/AdminRoutes.jsx:123`의 `<RequireRole roles={["admin","system_admin"]}>`. 이 줄에는 `help` 문구도 없어 기본 문구가 나간다(형제 줄 `:121`·`:122`·`:124`·`:125`는 `help`를 준다).
+api: `GET /api/admin/diagnostics/bundle` — **응답 구조와 마스킹은 불변.** `dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))]`만 바뀐다.
+backend: `app/health/router.py:80-82`(게이트) · `app/health/service.py:379`(`build_diagnostic_bundle`, 내용은 건드리지 않는다).
+data: 해당 없음 — 데이터 구조·의미 불변. 번들은 읽기만 한다.
+rbac: **이 RC의 본체가 RBAC다. 경계를 넓히는 방향이므로 가장 조심해서 다뤄야 한다.** 번들이 정말로 `console.read`/`console.ops` 수준에 맞는지 **내용물을 항목별로 확인한 뒤** 게이트를 낮춘다. 확인 대상: 마스킹된 설정 덤프에 운영자가 다른 화면에서 못 보는 항목이 섞여 있는가, `tenant_config_status`·`mail_status`가 민감한 값을 담는가, `recent_job_errors`의 `last_error`가 내부 경로/자격증명을 흘리는가. 하나라도 걸리면 **게이트를 낮추지 말고 그 항목을 번들에서 빼거나 역할별로 슬라이스한다**(`/api/admin/dashboard`가 `include_critical_audit`로 이미 쓰는 수법이다).
+integration: 번들이 n8n·러너·메일 상태를 포함하지만 **연동을 호출하지 않고 저장된 상태만 읽는다.** 연동 계약 불변.
+state_transition: 해당 없음 — 조회 전용 엔드포인트다.
+user_impact: 장애 대응을 맡은 운영자가 「진단」 화면을 열지 못한다. 이번 Blind pass가 확인한 대로 우회로(대시보드·작업 큐·러너·연동)로 원인에는 도달하므로 업무가 막히지는 않지만, 화면 네 개를 돌아야 할 것을 한 화면으로 볼 수 없어 **장애 시간이 길어진다**. 부수로, 제품이 사용자에게 보여 주는 권한 매트릭스가 「운영 동작(헬스체크 포함) 허용」이라고 말하는데 실제로는 막히므로 **공표된 정책과 경험이 어긋난다**.
+implementation_direction: (1) **먼저 번들 내용을 항목별로 감사한다** — `build_diagnostic_bundle`이 돌려주는 각 키(`dashboard`·`settings`(마스킹됨)·`tenant_config`·`mail`·`recent_job_errors` 등)를 운영자가 다른 화면에서 이미 볼 수 있는지 대조한다. **이 감사가 선행 조건이고, 건너뛰고 게이트만 낮추지 마라.** (2) 전부 통과하면 게이트를 `CONSOLE_OPS_ROLES`로 바꾼다 — 능력 표의 `console.ops`가 헬스체크를 명시하므로 의미가 정확히 맞는다. `CONSOLE_READ_ROLES`(감사자 포함)로 갈지는 (1)의 결과로 정한다. (3) 통과하지 못하는 항목이 있으면 **게이트를 낮추는 대신 역할별 슬라이스**를 쓴다 — `/api/admin/dashboard`가 `include_critical_audit = role in SENSITIVE_READ_ROLES`로 이미 하고 있는 방식을 그대로 따른다. (4) 프런트 `AdminRoutes.jsx:123`을 같은 역할 집합으로 맞추고 **`help` 문구를 준다**(형제 줄들은 전부 갖고 있다). (5) 어느 쪽으로 결정하든 **`authz.py`에 그 선택의 이유를 주석으로 남긴다** — 이 파일은 `:78`·`:82`에서 미묘한 게이트 선택을 주석으로 설명하는 관용을 이미 갖고 있고, diagnostics에 그것이 없어서 이 Finding이 생겼다.
+constraints: **게이트를 낮추기 전에 번들 내용 감사를 반드시 먼저 한다**(CLAUDE.md §3-3 secret 비노출, §3-5 권한 판단은 서버가 정본). 번들의 마스킹 규칙(`mask_sensitive`)과 spec §14.7의 "no secrets, no raw journals" 보장을 약화하지 않는다. 프런트 게이트는 보조일 뿐이고 서버가 정본이라는 규약을 유지한다 — 프런트만 열고 백엔드를 그대로 두는 절반 수정을 하지 마라(반대도 마찬가지). `auditor`를 포함할지는 별도 판단이며, 포함한다면 `sensitive.read` 경계(운영자를 빼는 이유가 '사람에 대한 평가'라는 것)와 충돌하지 않는지 확인한다.
+regression_risk: **권한을 넓히는 변경이라 회귀 위험의 성격이 다르다 — 틀리면 정보 노출이다.** (1) 번들에 운영자가 못 보던 항목이 섞여 있으면 그대로 노출된다. (2) `tests/security/test_rbac_basics.py`가 역할 집합의 동등성을 검사하고 있으므로(`authz.py:78` 주석 참조) 게이트를 바꾸면 그 테스트가 반응할 수 있다 — 반응하면 그것이 신호다. (3) 프런트/백엔드를 한쪽만 바꾸면 화면은 열리는데 API가 403이거나 그 반대가 된다. (4) `auditor`까지 열면 감사자의 읽기 전용 경계 서술과 상호작용한다.
+acceptance_criteria: (1) 번들 항목별 감사 결과가 문서로 남아 있고, 각 항목이 **운영자가 다른 화면에서 이미 볼 수 있음**이 확인됐거나 **역할별로 슬라이스**됐다. (2) `operator`로 로그인해 `/diagnostics`가 열리고 내용이 렌더된다. (3) `operator` 세션으로 `GET /api/admin/diagnostics/bundle`이 **200**을 준다. (4) 프런트 게이트와 백엔드 게이트의 역할 집합이 **동일**하다. (5) 번들 응답에 마스킹되지 않은 비밀·원시 저널이 **0건**이다(자동 검사). (6) `AdminRoutes.jsx:123`에 `help` 문구가 있다. (7) `authz.py`(또는 `health/router.py`)에 게이트 선택 이유가 주석으로 남아 있다. (8) 역할 4종 × `/diagnostics`의 allow/deny가 의도한 표와 정확히 일치한다. (9) `/api/admin/rbac-matrix`가 말하는 정책과 실제 게이트가 어긋나지 않는다.
+required_tests: `tests/security/` 에 `/api/admin/diagnostics/bundle` 역할별 접근 테스트(4역할 × allow/deny). 번들 마스킹 회귀 테스트 — 응답 전체를 훑어 비밀 패턴이 없음을 단언(이미 `mask_sensitive`가 있으므로 그 계약을 고정). 프런트 `RequireRole` 역할 집합이 백엔드 상수와 일치하는지 검사(가능하면 정적으로). `var/product-audit/verify_denied.py`를 `/diagnostics` 포함으로 재실행해 역할별 화면 결과를 대조.
+qa_gaps: `QA_COVERAGE.md`에 「화면 역할 게이트가 능력 표(`rbac_matrix`)와 일치하는가」 축이 없다. 지금까지 F축은 *"프런트가 숨긴 것을 백엔드도 막는가"*(느슨한 방향)만 봤고, **공표한 것보다 더 막는 반대 방향**은 검사한 적이 없다. 이 축이 없어서 이 결함이 지금까지 안 보였다.
+quality_rubric: 해당 없음 — 시각·문구 품질이 아니라 권한 경계와 정책 일관성 문제다. 판정에 쓴 자는 이 프롬프트 5절 **E축**(같은 정책을 Frontend/API/Backend/DB 네 층이 같게 표현하는가)과 **F축**(UI가 숨기는 것과 실제 authorization의 구분)이며, 근거는 제품 자신의 `app/core/authz.py` Capability 정의와 spec §14.7이다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-078`(Blind pass 2) · 게이트 `frontend/src/app/AdminRoutes.jsx:123` · `app/health/router.py:80-82` · 능력 표 `app/core/authz.py:145,149,153` · 정본 선언 `app/admin/rbac.py:3` · 마스킹 보장 `app/health/service.py:382` · 대조 관용 `app/health/router.py:62`(dashboard) · `frontend/src/app/AdminRoutes.jsx:124`(maintenance는 운영자 포함) · 런타임 `var/product-audit/blind2_incident.json`(operator `/diagnostics` denied=true, `/jobs`·`/runners`·`/integrations` 열람 가능)
 <!-- PA-RC-END -->

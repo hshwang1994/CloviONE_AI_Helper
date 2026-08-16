@@ -51,7 +51,7 @@ Handoff에 그대로 남아 있다.
 | HANDOFF 블록 | **14건**(신규 10 + 승계 4). 전부 27 기본 필드 + UI 15 필드 자기검사 PASS. `deferred_for_human_approval=0`, 미루는 표현 0건 |
 | Coverage | 2340칸 · UNSEEN 1292(전부 사유) · EXECUTED **269**(190→) · OBSERVED 198 · STATIC 565 · N/A 16 · **L축 판정완료 37 / 시각관측 37** |
 | 적용 Skill | `ui-ux-pro-max` · `redesign-existing-projects` · `impeccable` **셋 다 실제 판단 기준으로 사용**. skill_gap 없음(§A-5) |
-| Blind Re-Audit | **1 / 2** — pass 1 완료(진입점 「오늘 퇴사자 처리를 끝내야 하는 관리자」), 새 Critical/High 범주 **0** |
+| Blind Re-Audit | **2 / 2 연속 clean** — pass 1(퇴사 처리)·pass 2(장애 대응) 둘 다 새 Critical/High 범주 **0** |
 
 ### 이 Cycle이 찾은 것은 화면 결함 목록이 아니라 **전역 원인 넷**이다
 
@@ -79,8 +79,20 @@ blind_pass=1 cycle_id=PA-20260816-120655-f103fb5b new_critical_high_categories=0
 나머지는 기존 RC 재확인이었고, 잘 만든 것 3건(되돌리기 실재+이력, 잘림 고지, preview 계약)을
 `PA-F-068`에 추가했다.
 
-**pass 2는 다른 진입점으로 한다** — 후보: 「인수하고 첫 장애를 맡은 운영자」(G·K·S·T축을 자연히
-지나간다). 아직 수행하지 않았다.
+```
+blind_pass=2 cycle_id=PA-20260816-120655-f103fb5b new_critical_high_categories=0 at=2026-08-16T13:38:50+09:00
+```
+
+**pass 2 진입점**: 「인수하고 첫 장애를 맡은 운영자」 — `operator` 역할로 로그인해 증상에서
+원인까지 끌고 갈 수 있는지 봤다. 이 인스턴스가 실제로 고장나 있어(동기화 12일 정지·러너 비활성·
+잡 3건 영구 실패) 연출이 아니다. 읽기만 했다.
+
+결과는 `PA-F-078`이다 — **새 Critical/High 범주 0**. 운영자는 배너 → 대시보드 → 작업 큐 →
+러너 → 잡 상세로 **원인에 실제로 도달한다**(T축이 강하다). 새 Medium 1건은 `PA-RC-0026`으로
+분리했다 — 「진단」 화면이 조회 행위인데 설정 변경 권한으로 막혀 있어, 헬스체크를 담당하는
+역할만 그 화면을 못 연다. 잘 만든 것 3건을 `PA-F-068`에 추가했다.
+
+**Gate F 충족**: 서로 다른 진입점·역할·축으로 2회 연속, 두 pass 모두 새 Critical/High 범주 0.
 
 ## A-3. 이 Cycle에서 내가 저지르고 정정한 측정 오류 3건
 

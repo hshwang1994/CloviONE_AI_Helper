@@ -86,24 +86,24 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | S | · | · | · | · | · | · | E | S |
-| `A-USERS` 사용자 관리 | `/users` | S | · | E | · | E | E | · | E | E | · | · | C | O | E | E | E | S | S | S | · | E | · | · | · | E | S |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | O | S | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | S | · | E | · | · | · | · | E | S |
+| `A-USERS` 사용자 관리 | `/users` | S | · | E | E | E | E | · | E | E | · | · | C | O | E | E | E | S | S | S | · | E | · | · | · | E | S |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | O | E | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | E | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SYSTEM` 시스템 설정 | `/system` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-MAIL` 메일 발송 상태 | `/mail` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-LLMC` AI 관리 | `/llm-console` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `A-DIAG` 진단 | `/diagnostics` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
+| `A-DIAG` 진단 | `/diagnostics` | S | · | O | · | E | E | · | S | S | · | · | C | O | · | · | S | S | S | S | E | · | · | · | · | E | · |
 | `A-MAINT` 유지보수 | `/maintenance` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
 | `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | E | · | S | E | · | S | E | · | · | C | E | · | · | E | E | S | · | · | · | · | · | · | E | · |
 | `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
-| `A-INTEG` 외부 연동 | `/integrations` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
-| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
+| `A-INTEG` 외부 연동 | `/integrations` | S | · | O | · | S | E | E | S | S | · | E | C | O | · | · | S | S | S | S | E | · | · | · | · | E | · |
+| `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | E | S | S | · | E | V | O | · | · | S | E | S | S | E | · | · | · | · | E | · |
+| `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | E | · | · | · | · | E | · |
 | `A-PROMPTS` 프롬프트 | `/prompts` | S | · | O | · | S | E | · | S | S | · | · | C | O | O | O | S | E | S | · | · | · | · | · | · | E | · |
 | `A-POLICIES` 정책 | `/policies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
 | `A-TEMPLATES` 템플릿 | `/templates` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
@@ -111,7 +111,7 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | S | S | · | · | · | · | · | E | · |
 | `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | E | S | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | · | S | O | · | O | C | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | E | S | E | · | E | C | O | O | O | S | S | S | · | E | · | · | · | · | E | · |
 | `A-APPROVALS` 승인 | `/approvals` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-AUDIT` 감사 로그 | `/audit` | S | · | E | · | S | E | · | S | E | · | · | C | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
@@ -147,9 +147,9 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `P-AUTH` 인증 / 세션 / CSRF | `app/auth, app/core/sessions.py` | S | · | · | · | · | E | S | · | · | S | · | - | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
-| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | · | E | S | · | · | S | · | - | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
+| `P-RBAC` 역할 / 범위 / IDOR 경계 | `app/core/authz.py, scope.py` | S | · | · | · | E | E | S | · | · | S | · | - | · | · | · | · | · | · | S | S | E | · | S | · | E | S |
 | `P-DB` DB 트랜잭션 / 무결성 / 동시성 | `app/core/db.py, alembic` | S | · | · | · | · | · | S | · | · | E | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | O | · | O | S | S | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | O | · | O | S | E | - | · | · | · | · | · | · | S | E | · | · | S | · | E | S |
 | `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | O | · | O | E | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | O | · | O | S | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | O | · | · | S | · | - | · | · | · | · | · | · | S | O | · | · | S | · | E | S |
@@ -157,7 +157,7 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 | `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | O | · | · | S | · | - | · | · | · | · | · | · | S | O | · | · | S | · | E | S |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | O | · | · | S | · | - | · | · | · | · | · | · | S | E | · | · | S | · | E | S |
 | `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | S | · | · | S | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | S | · | · | S | · | - | · | · | · | · | · | · | S | O | S | O | S | · | E | S |
 | `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | S | · | · | S | · | - | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
@@ -500,14 +500,27 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 (`PA-F-072`, `PA-RC-0024`에 병합), 공유 `DataScreen`이 성공 문구를 `라벨 + " 완료"`로
 조립해 저장소 자신의 `docs/UX_WRITING.md:54` 규칙을 어긴다(`PA-F-073`, `PA-RC-0025` 신규).
 
+## Blind Re-Audit 2회 기록
+
+**pass 1** 「오늘 퇴사자 처리를 끝내야 하는 관리자」 — 오프보딩 업무를 처음부터 끝까지 걸었다.
+`run_offboarding`은 Notion에 쓰므로 호출하지 않았고 읽기 전용 `preview`와 화면만 봤다.
+새 Critical/High 범주 **0**, 새 Medium 1건은 `PA-RC-0022`·`0023`에 병합(`PA-F-077`).
+
+**pass 2** 「인수하고 첫 장애를 맡은 운영자」 — `operator` 역할로 증상에서 원인까지 끌고
+갈 수 있는지 봤다. 이 인스턴스가 실제로 고장나 있어 연출이 아니다.
+새 Critical/High 범주 **0**, 새 Medium 1건 `PA-RC-0026`(`PA-F-078`).
+
+두 pass 모두 기존 Finding 목록을 대조하지 않았고 서로 다른 진입점·역할·축을 썼다.
+운영자가 원인에 **실제로 도달한다**는 것이 pass 2의 가장 중요한 음성 결과다 — T축이 강하다.
+
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
 total_cells=2340
-unseen=1291
+unseen=1277
 unseen_without_reason=0
-static_only=564
-observed=198
-executed=271
+static_only=560
+observed=195
+executed=292
 blocked=0
 not_applicable=16
 l_axis_visual_observed=37
