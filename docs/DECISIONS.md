@@ -3675,3 +3675,87 @@ heading 레벨 열이 건너뛰지 않음(`[1,2,2,2,...]` 패턴). **글자 크�
 리다이렉트를 거쳐도(SettingsShell 탭 안에 중첩) heading 열이 안 깨짐을 확인.
 
 **`PA-RC-0012`를 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-01`.
+
+## D-100 (2026-08-16) — PA-RC-0019+0020: 어시스턴트 진입점 3개 → 1개, 이름 통일
+
+### 배경
+
+Explore agent에게 어시스턴트 이름/진입점 관련 코드 전체(FAB·사이드바 카드·헤더 칩·breadcrumb·
+`/chat` h1·단축키 유무·`CHAT_WORKFLOW_NAME` 범위·영향받는 시험 12개 파일)를 백그라운드로
+맡겨 두고, 그 사이 독립적으로 `PA-RC-0012`를 마쳤다(D-99). 에이전트 보고를 받은 뒤 이 RC에
+착수했다 — Handoff 자신이 `PA-RC-0019`(FAB 겹침)의 권장 처리 순서를 "`PA-RC-0020`을 먼저
+처리해 진입점을 헤더 칩 하나로 모으고 FAB을 제거한다 — 그러면 PA-RC-0019는 원인 소멸로
+닫힌다"로 명시했기 때문에 둘을 한 배치로 묶었다.
+
+### 재확인 — `PA-RC-0023` 이후 `PA-RC-0019`의 대상이 바뀌었는가
+
+Handoff constraints가 명시한 대로("`PA-RC-0023`이 「상세」 버튼 열을 제거하면 겹침
+대상이 바뀌므로 완료 검증을 재실행할 것") `var/product-audit/verify_pa_rc_0019.py`
+(신규, TEST SERVER 대상)로 먼저 재확인했다. 원래 대상(작은 버튼)은 사라졌지만 FAB
+자체는 그대로 `position:fixed` 라 **행 전체(`tr[tabindex]`, 상세를 여는 새 클릭
+대상)를 가린다** — `/users` 2줄·`/audit` 3줄·`/jobs` 3줄·`/offboarding` 3줄, 총
+12건 `blocked`. 문제가 안 없어졌으니 그대로 진행.
+
+### 이름 통일 — 실제로 남은 불일치는 생각보다 좁았다
+
+에이전트 보고로 확인한 현재 상태: 사이드바 라벨("AI 도우미", `navConfig.js:174`)·
+breadcrumb area(`Chat.jsx:158`의 `area="AI 도우미"`)·`/me`의 `AssistantPanel` 섹션
+제목(`AssistantPanel.jsx:264`)이 **이미 전부 "AI 도우미"**였다 — 어긋난 자리는 딱
+둘, `/chat`의 `h1`(대화 없을 때 "채팅")과 대화 제목 막대(같은 조건, 별개의 두 번째
+리터럴)뿐이었다. 둘 다 "AI 도우미"로 맞췄다. "클로비"는 인격 이름으로 그대로 둔다(헤더
+칩 표시 텍스트·드로어 머리말·온보딩 인사말) — Handoff가 명시적으로 구분한 두 축
+그대로다.
+
+**`"ClovirONE AI 업무 도우미"`(`CHAT_WORKFLOW_NAME`)는 손대지 않았다** — 에이전트가
+이 문자열이 `/workflows` 관리 화면의 실제 표시값으로도 쓰이고(`integrations.js:318`
+"이름" 열) `runner/claude-work-assistant/assistant.py`의 실제 채팅 응답 문구에도
+박혀 있음을 추가로 확인했지만, 전부 이번 배치가 다루는 "클로비/AI 도우미" 축과는
+다른 이름("업무 도우미")이고 다른 시스템(기존 n8n 워크플로/러너)이라 대상이 아니다.
+
+### 진입점 통합 — FAB·사이드바 카드 제거, 컴포넌트째 삭제
+
+`AppShell.jsx`에서 `MascotButton`(FAB)·`MascotSidebarCard` 마운트를 제거하고,
+`Mascot.jsx`에서 두 컴포넌트 정의 자체를 지웠다(더는 아무도 안 쓴다 — CLAUDE.md
+"쓰이지 않으면 완전히 지운다"). FAB 자리를 비워 두던 본문 하단 여백(`pb: onAssistant
+? {xs:3,md:4} : {xs:5,md:14}`)도 단일 값으로 접었다 — 더는 피할 떠 있는 컨트롤이
+없다. 대신할 전역 단축키(`Ctrl/Cmd+/`, `useAssistantHotkey`, `AssistantDrawer.jsx`
+신설)를 `CommandPalette.jsx`의 기존 `useCommandPaletteHotkey`(Ctrl/Cmd+K)와 같은
+모양으로 만들었다 — `K`는 이미 팔레트가 쓰고, 단독 `/`는 채팅 컴포저에 그 글자를
+치는 것과 구별이 안 돼 모디파이어 조합으로 골랐다.
+
+### 의도적으로 안 건드린 것 — `/org-tree`의 h1 vs 사이드바 라벨
+
+Handoff acceptance_criteria(1-b)는 `/org-tree`의 "레일 라벨과 h1이 동일"을 요구한다.
+`OrgConsole.jsx`를 직접 읽어보니 h1 "조직도"가 하드코딩인 이유가 이미 상세한 설계
+근거 주석으로 남아 있었다 — 사용자 지적("조직관리랑 부서관리랑 조직도를 하나로 묶을
+수 있는거아님?")에 대응해 `/organizations`·`/departments`·`/org-tree` 세 라우트를
+**의도적으로 한 화면**(왼쪽 트리 + 오른쪽 관리 패널)으로 합친 것이고, h1은 "아무것도
+안 골랐을 때 왼쪽 트리와 같은 방향을 가리켜야 한다"는 이유로 방문 라우트와 무관하게
+고정했다. 사이드바의 공유 라벨("조직 관리")은 세 라우트 전부가 함께 쓰는 진입점
+이름이다 — 이 둘을 강제로 맞추려면 (a) h1을 "조직 관리"로 낮춰 트리 중심 설계를
+약화시키거나 (b) `/org-tree`만 별도 사이드바 항목으로 다시 쪼개 이미 의도적으로
+합친 것을 부분적으로 되돌려야 한다. 기존 `org-console.test.jsx`(h1 "조직도"를
+명시적으로 못박음)도 이미 이 설계를 계약으로 고정하고 있다. 시간 압박 속에 억지로
+맞추는 대신 **의도된 예외로 기록**한다 — PA-RC-0023의 `SystemOps.jsx` 0-primary
+예외와 같은 종류의 판단이다.
+
+### 검증
+
+`var/product-audit/verify_pa_rc_0019.py` 재실행 — 10라우트 전부 `no FAB present`,
+`total_blocked=0`(라이브). 신규 `assistant-hotkey.test.jsx` 3건(`Ctrl+/`만 열고
+단독 `/`·`Ctrl+K`는 안 열림을 직접 확인) + `chat-page-heading.test.jsx`(h1 "AI
+도우미"로 갱신) + `topbar-baseline.test.jsx`(FAB·사이드바 카드 전용 시험 4건 제거,
+남은 헤더 칩 시험은 "정확히 1개"로 더 엄격하게 강화) green. 대상이 사라진
+`sidebar-mascot-hidden-on-chat.test.jsx`·`mascot-sidebar-hint-font-size.test.js`
+삭제. 프런트 전체 회귀(신규 hotkey 시험 3건 포함) 277파일 1905건 green. 번들 축소
+확인(mui 청크 346.57→343.66kB, index 청크도 감소 — 실제로 죽은 코드가 빠졌다는 방증).
+
+배포 `UPGRADE_OK` + `verify_deploy.sh` 전부 OK. 라이브 확인: FAB 히트테스트
+`total_blocked=0`(전 10라우트), 헤더 칩 aria-label 정확히 1개, 사이드바 카드 텍스트
+0개, `Ctrl+/`로 드로어 실제로 열림(스크린샷), `/chat` 진입 시(실제 대화 있음) 헤더
+칩 안 보임(온-어시스턴트 게이트 정상), 사이드바·breadcrumb 둘 다 "AI 도우미"로
+일치(스크린샷 육안 확인) — h1은 이 계정의 기존 대화가 있어 대화 제목을 보여줬다(빈
+cid 폴백 케이스는 `chat-page-heading.test.jsx`의 통제된 렌더로 이미 확인).
+
+**`PA-RC-0019`·`PA-RC-0020`을 완결로 처리한다**(`/org-tree` 서브 항목은 의도적
+예외로 문서화). 상세: `docs/BACKLOG.md` `PA2-08`·`PA2-09`.

@@ -6897,10 +6897,28 @@ TEST SERVER 배포(`UPGRADE_OK`) + `verify_deploy.sh` 전부 OK. 캐시된 `oper
 권한 거부 대신 실제 진단 데이터 렌더(스크린샷 확인). **`PA-RC-0026`을 완결로 처리한다.**
 상세: `DECISIONS.md` D-98, `BACKLOG.md` `PA2-14`.
 
+### 체크포인트 — 2026-08-16 계속: `PA-RC-0012`·`PA-RC-0019`·`PA-RC-0020` 완결
+
+**`PA-RC-0012`**(heading h1→h6 skip): `theme.js`에 `variantMapping`(`sectionTitle→h2`)
+신설(MUI 소스로 부분 매핑 안전성 확인), 5화면 17곳 + `SetupWizard`+`BodyEditor`에
+`component=` 추가. 신규 정적 검사가 처음엔 `Offboarding.jsx`의 `variant="subtitle1"`을
+놓쳤는데(h3~h6만 봄) 렌더 시험(`heading-order.test.jsx`)이 그 구멍을 실제로 잡아
+검사를 넓혔다 — 정적 검사+렌더 시험을 같이 두는 이유가 실증됨. TEST SERVER 배포 +
+6화면 전부 라이브 확인(heading 안 건너뜀, 글자 크기 불변).
+
+**`PA-RC-0019`+`PA-RC-0020`**(FAB 겹침 + 어시스턴트 이름/진입점): Explore agent의
+코드 맵을 받아 진행. FAB 재확인 결과 「상세」 버튼은 사라졌지만 행 전체(12건)를
+여전히 가리고 있어(Handoff가 예견한 대로) 문제가 안 없어졌음을 먼저 실측 확인 →
+Handoff 권장 순서대로 `PA-RC-0020`(진입점을 헤더 칩 하나로 모으고 FAB 제거)으로
+원인 소멸시켜 함께 닫음. 이름은 예상보다 어긋난 자리가 적었다(사이드바·breadcrumb·
+`/me`는 이미 "AI 도우미", `/chat`의 h1+대화 제목 막대 2곳만 "채팅" 폴백) — 둘 다
+맞추고, "클로비"는 인격 이름으로 유지. FAB·사이드바 카드 컴포넌트째 삭제, 전역
+단축키(`Ctrl/Cmd+/`) 신설. `/org-tree`의 h1/사이드바 라벨 불일치는 `OrgConsole.jsx`의
+의도된 3-라우트 통합 설계라 강제로 안 맞추고 예외로 문서화(D-100). TEST SERVER 배포 +
+라이브 확인(FAB 히트테스트 0건, 헤더 칩 정확히 1개, `Ctrl+/` 드로어 실제로 열림,
+스크린샷 확인). 상세: `DECISIONS.md` D-99·D-100, `BACKLOG.md` `PA2-01`·`PA2-08`·`PA2-09`.
+
 **다음 단계**: 남은 미해결 Root Cause(전부 Medium/Low) 중 다음 후보를 골라 같은
-invocation 안에서 계속한다 — `PA2-01`(`PA-RC-0012`, h1→h6 heading skip)·`PA2-02`
-(`PA-RC-0013`, `/users` URL 상태 미보존)·`PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·
-`PA2-08`(`PA-RC-0019`, FAB가 상세 버튼을 가림 — **PA-RC-0023에서 상세 버튼 자체를
-지웠으므로 이 RC의 전제 자체가 사라졌을 가능성이 높다, 먼저 재확인할 것**)·`PA2-09`
-(`PA-RC-0020`, 어시스턴트 이름/진입점 불일치)·`PA2-10`(`PA-RC-0021`, 다크 테마 색
+invocation 안에서 계속한다 — `PA2-02`(`PA-RC-0013`, `/users` URL 상태 미보존)·
+`PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·`PA2-10`(`PA-RC-0021`, 다크 테마 색
 토큰)·`PA2-13`(`PA-RC-0024`, 관리자 상세 딥링크 없음)·`PA2-15`(`PA-RC-0025`, Low).
