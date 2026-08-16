@@ -112,7 +112,7 @@ function summaryOf(row, isOrg) {
   return bits.join(", ");
 }
 
-function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle }) {
+function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabbableId }) {
   const row = node.row;
   const isOrg = isOrgRow(row);
   const hasKids = node.children.length > 0;
@@ -128,7 +128,12 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle }) {
       aria-level={level}
       aria-selected={selected}
       aria-expanded={hasKids ? open : undefined}
-      tabIndex={0}
+      /* Roving tabindex(WAI-ARIA APG treeview) — 노드마다 tabIndex=0을 주면 Tab이 트리
+         전체를 한 칸씩 통과해야 해서(그것도 접기 버튼까지 있으면 둘씩) 화살표 키가
+         있으나 마나가 된다. 트리 전체에서 딱 하나(선택된 노드, 없으면 첫 루트)만
+         Tab 정지점이고 나머지는 -1 — 화살표 키 이동은 DOM에 직접 focus()하므로
+         tabIndex=-1이어도 그대로 동작한다. */
+      tabIndex={tabbableId === row.id ? 0 : -1}
       onClick={(e) => { e.stopPropagation(); onSelect(row); }}
       onKeyDown={(e) => {
         // ARIA 트리의 표준 조작 — 오른쪽/왼쪽으로 펴고 접는다. 그래서 아래 꺾쇠는 순수한
@@ -211,6 +216,7 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle }) {
               onSelect={onSelect}
               collapsed={collapsed}
               onToggle={onToggle}
+              tabbableId={tabbableId}
             />
           ))}
         </Box>
@@ -239,6 +245,9 @@ export function OrgTree({ selectedId, onSelect }) {
   const rows = (query.data && query.data.items) || [];
   const nodes = useMemo(() => pruneTree(nestRows(rows), q), [rows, q]);
   const activeFilter = (TREE_CFG.filters || [])[0];
+  // roving tabindex의 유일한 정지점 — 선택된 노드가 있으면 그 노드, 없으면(처음 진입) 첫
+  // 루트 노드. nodes가 비어 있으면(로딩/빈 상태) undefined라 아무 노드와도 안 맞는다.
+  const tabbableId = selectedId || (nodes[0] && nodes[0].row.id);
 
   return (
     <Card sx={{ position: "sticky", top: 0 }}>
@@ -297,6 +306,7 @@ export function OrgTree({ selectedId, onSelect }) {
               onSelect={onSelect}
               collapsed={collapsed}
               onToggle={toggle}
+              tabbableId={tabbableId}
             />
           ))}
         </Box>

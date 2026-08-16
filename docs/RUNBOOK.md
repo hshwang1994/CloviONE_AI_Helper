@@ -6,17 +6,32 @@
 
 ## 1. Worker가 멈춤 (채팅 응답이 계속 "처리 중")
 
-- **증상**: 대시보드 worker/scheduler가 `stale`(heartbeat 90초 초과), Job `queued` 적체.
-- **진단**:
+- **먼저 확인 — 어느 유닛이 채팅을 처리하는가(D-118)**: 대시보드
+  `/api/admin/dashboard`(또는 화면)의 `components`에 `worker_conversational` 칸이
+  있으면(또는 `grep WORKER_CONVERSATIONAL_LANE_ENABLED /etc/clovirone-web-assistant/web.env`가
+  `true`) **채팅은 대화형 레인 전용 유닛(`clovirone-web-worker-conversational`)이
+  처리한다** — 배치 워커(`clovirone-web-worker`)가 멀쩡해도 채팅이 멈춰 있을 수 있다.
+  이 칸이 없거나 설정이 `false`/미설정이면(대부분의 설치, 기본값) 채팅도 배치
+  워커가 처리하므로 아래 절차를 `clovirone-web-worker`에 그대로 적용한다.
+- **증상**: 대시보드 worker(또는 worker_conversational)/scheduler가 `stale`(heartbeat
+  90초 초과), Job `queued` 적체(대화형 레인이면 `chat_message`/`llm_connection_test`만).
+- **진단** (`<unit>`을 위에서 확인한 실제 유닛명으로 치환 — `clovirone-web-worker` 또는
+  `clovirone-web-worker-conversational`):
   ```bash
-  systemctl status clovirone-web-worker
-  journalctl -u clovirone-web-worker -n 100
-  sqlite3 .../web.sqlite3 "SELECT status, COUNT(*) FROM jobs GROUP BY status;"
+  systemctl status <unit>
+  journalctl -u <unit> -n 100
+  sqlite3 "file:.../web.sqlite3?mode=ro" "SELECT status, COUNT(*) FROM jobs GROUP BY status;"
   ```
-- **조치**: `sudo systemctl restart clovirone-web-worker`.
-  worker는 기동 시 stuck-job sweep을 수행한다 — `running` 상태로 10분(600s) 넘게
-  방치된 Job은 자동으로 재큐 또는 최종 실패 처리되므로 수동 DB 조작이 필요 없다.
-  재발 시 journal에서 특정 job_type의 반복 예외를 찾아 원인(대부분 n8n 연동)을 제거.
+- **조치**: `sudo systemctl restart <unit>`.
+  worker는 기동 시(및 매 tick) stuck-job sweep을 수행한다 — `running` 상태로 일정
+  시간 넘게 방치된 Job은 자동으로 재큐 또는 최종 실패 처리되므로 수동 DB 조작이
+  필요 없다. 이 임계값은 레인마다 다르다: 배치 워커는 기본 **65분(3900초,
+  `jobs/repository.DEFAULT_RUNNING_TIMEOUT_SECONDS`)** — 스케줄/백업 같은 장시간
+  작업을 오탐 회수하지 않기 위해 일부러 길다. 대화형 레인은 훨씬 짧은 전용 기본값
+  **14분(840초, `worker_conversational_running_timeout_seconds`)** — n8n 웹훅
+  타임아웃(180초)에 재시도 여유를 더한 값이다. 재발 시 journal에서 특정 job_type의
+  반복 예외를 찾아 원인(대부분 n8n 연동, 또는 대화형 레인 동시성 하에서의 SQLite
+  쓰기 경합 — 아래 §6 참고)을 제거.
 
 ## 2. n8n 다운 (채팅/스케줄 실패 급증)
 
@@ -82,7 +97,15 @@
   **운영 DB를 sqlite3 셸로 열어둔 채 방치한 경우가 최다 원인**.
 - **조치**: 외부에서 연 세션 종료. 서버에서 DB를 조회할 때는 읽기 전용으로:
   `sqlite3 "file:web.sqlite3?mode=ro" ...`. 해소되지 않으면 두 서비스 재시작.
-  worker는 단일 프로세스 설계라 정상 상태에서 writer 경합은 짧다.
+  대화형 레인이 꺼져 있으면(기본값) worker는 단일 프로세스라 정상 상태에서 writer
+  경합은 짧다. **대화형 레인이 켜져 있으면(D-118, `worker_conversational_lane_enabled`)
+  이 전제가 다르다** — 배치 워커 + 대화형 워커(스레드풀 동시성, 기본 3)가 같은
+  DB 파일에 동시에 쓰므로 순간적인 `database is locked`는 그 자체로는 이상 징후가
+  아니다(TEST SERVER 실측: 서로 다른 대화 3개를 70ms 이내로 보내면 실제로 발생,
+  대부분 기존 백오프로 자가 회복). 이 경우 진짜 문제는 "잠금이 발생했는가"가
+  아니라 "회복하지 못하고 `running`에 멈춘 Job이 있는가"다 — 위 §1의 레인별
+  stuck-job 타임아웃(배치 3900초/대화형 840초)이 지나도 회수 안 된 Job이 있으면
+  그때 조사한다.
 
 ## 7. 마지막 system_admin 잠금/접근 불가
 

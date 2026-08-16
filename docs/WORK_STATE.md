@@ -7541,3 +7541,48 @@ end-to-end 확인했다.
 whole-product 재감사(CLAUDE.md §8) — 이번 세션 후반부에 실제로 다시 돈 적이
 없다. (c) `SEC-20`은 여전히 사람 전용 blocker. (d) 그 뒤 `PROJECT_COMPLETE`
 판단(§13 체크리스트 기준 — 아직 Full Regression 확정 전이라 이르다).
+
+### 체크포인트 — 2026-08-17 계속(invocation 7 계속): 3개 백그라운드 프로세스 동시 진행 중 — 다음 invocation은 여기부터
+
+**이 세션 컨텍스트가 끊겨도 아래 3개를 각각 확인하고 이어가라.** 셋 다 서로 다른
+자원(로컬 pytest / 원격 Chrome / 읽기전용 조사 에이전트)이라 병렬로 안전하다.
+
+1. **Full Regression** — `bash scripts/run_full_regression.sh > /tmp/full_regression_phase123.log 2>&1`,
+   background task `bv80ubnuh`. 확인: `tail -n 30 /tmp/full_regression_phase123.log`.
+   이 checkpoint 시점까지 `unit`·`regression` 두 청크 green, `security` 청크 진행 중,
+   실패 0건. 남은 청크(security 나머지 + integration) 완주까지 지켜본다 — 실패가
+   나오면 CLAUDE.md §6 순서(전체 수집→Root Cause grouping→대량 수정→focused
+   test→재실행)를 따른다.
+2. **Chrome Whole-product E2E 재실행** — `docs/QA_COVERAGE.md` §14의 690페이지
+   스윕(2026-08-15)이 이번 세션의 프런트 변경(VIS-163/VIS-34/VIS-59/배너 glyph
+   수정 + D-118 대시보드 타일)보다 **오래돼 낡았다** — T6(배포 revision 일치)
+   원칙상 재실행이 필요했다. `BASE=https://10.100.64.71 bash scripts/verify_deploy.sh`
+   로 배포 최신 확인(`DEPLOY_VERIFY_OK`, HEAD `59c28c0` 기준) 후 §14와 동일 설정으로
+   재실행: `scripts/ui_qa/run.py --base-url https://10.100.64.71 --routes all
+   --viewports 390x844 1366x768 1920x1080 3840x2160 1920x1080@2x --themes light dark
+   --role system_admin --insecure --label post_20260817 --fail-on
+   horizontal_overflow,console_errors,page_errors,auth_ok,theme_applied`.
+   **주의**: `--rebuild-auth`는 원격 대상에서 계정을 새로 못 만들어 즉시 FATAL로
+   죽는다(하네스가 로컬 DB만 고칠 수 있다고 명시) — 쓰지 마라. `dist/ui-qa/auth-
+   system_admin/`의 캐시가 비어 있었던 것이 이번 실행 실패의 원인이었다: 서버에서
+   직접 `sudo -u clovirone-web`로 `cd /opt/clovirone-web-assistant && set -a &&
+   source /etc/clovirone-web-assistant/web.env && set +a && venv/bin/python -m
+   app.cli.user_cli passwd --email ui-qa@goodmit.co.kr`(새 비밀번호는 stdin 두 번째
+   줄로, sudo 비밀번호가 첫 줄)로 비밀번호를 재설정한 뒤 그 값을 `UI_QA_PASSWORD`로
+   같은 스크립트 안에서 하네스에 바로 넘겨야 한다(env 파일을 안 sourcing하면
+   `sqlite3.OperationalError: unable to open database file`, 작업 디렉터리를
+   안 옮기면 `ModuleNotFoundError: No module named 'app'`). background task
+   `bg038abxf`, 로그 `/tmp/ui_qa_post_20260817.log`, 출력
+   `dist/ui-qa/post_20260817/`. 이 checkpoint 시점 3/710 페이지, 실패 0건. 완주(약
+   25~30분 예상)까지 지켜보고, §14 때처럼 결함이 나오면 개별 검토 후 Root Cause로
+   수렴시켜라. 완주하면 `docs/QA_COVERAGE.md` §14/§15에 이어 새 절을 추가하고
+   summary(§0) 표도 갱신한다.
+3. **Whole-product 재감사 에이전트(Explore, agentId 내부 추적)** — CLAUDE.md §8
+   기준 5개 조사 축(BACKLOG "완결" 표시 재검증 샘플링·고아 라우트·RBAC 계열
+   일관성·미검사 화면 접근성·문서 drift)을 맡겼다. 읽기 전용이라 위 둘과 파일
+   충돌 없음. 완료 알림이 오면 findings를 재검증(스스로 반박 시도 후 살아남은
+   것만) 후 실제 결함은 `BACKLOG.md`에 등록하고 우선순위대로 처리한다.
+
+**세 프로세스가 모두 끝난 뒤에만** PROJECT_COMPLETE 여부를 §13 체크리스트로
+재평가한다 — 그 전까지는 계속 `false`다. `SEC-20`(git secret 회전)은 변함없이
+사람 전용 blocker로 남는다.

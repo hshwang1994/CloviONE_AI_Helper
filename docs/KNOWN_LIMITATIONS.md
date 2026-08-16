@@ -11,13 +11,31 @@
   장기 writer 세션이 `database is locked`를 유발한다 (`docs/RUNBOOK.md` #6)
 - 전환 기준과 이식 경로: `docs/EXTENSION_GUIDE.md` §7 (Postgres, spec §7.4)
 
-## 2. 단일 Worker 프로세스
+## 2. 단일 Worker 프로세스 (기본값) — 채팅만은 옵션으로 분리 가능(D-118)
+
+> 🔴 이 절은 오랫동안 "worker는 항상 하나뿐"이라고만 적고 있었다. **2026-08-17
+> D-118부터는 사실이 아닐 수 있다** — `worker_conversational_lane_enabled`를 켠
+> 설치는 실제로 두 개의 동시 writer worker가 돈다. 기본값은 여전히 꺼짐(하나)이라
+> 새 설치 대부분에는 아래 원 서술이 그대로 맞지만, 이 설정을 켠 설치(TEST SERVER
+> 포함)에서는 아니다.
 
 - Job 처리량 = worker 1개의 순차 처리. 긴 n8n 호출(최대 180s)이 큐를 막을 수 있다
 - claim이 원자적(UPDATE…RETURNING + UNIQUE idempotency key)이라 **worker를 여러 개
   띄워도 이중 처리는 없지만**, 공식 배포는 단일 인스턴스만 검증되어 있다
 - Scheduler가 worker 안에서 돌므로 worker 중단 = 스케줄 중단 (misfire 정책이
   재기동 시 처리). 분리 배포는 tick 콜백 구조상 코드 변경 없이 가능 (spec §2.3)
+
+**옵션 — 대화형 레인 분리(D-118, 기본 꺼짐)**: `worker_conversational_lane_enabled=true`로
+켜면 `chat_message`/`llm_connection_test`만 처리하는 두 번째 워커 프로세스
+(`clovirone-web-worker-conversational.service`)가 배치 워커와 완전히 분리된 리스로
+동작한다 — 이때는 위 "worker 1개"가 더 이상 참이 아니다: 실제 동시 writer 2개(스레드풀
+동시성까지 포함하면 최대 `1 + worker_conversational_concurrency`, 기본 `1+3=4`)가
+같은 SQLite 파일에 쓴다. WAL + busy_timeout(5s)의 기존 재시도/백오프로 대부분
+스스로 회복하지만, 클레임 쓰기와 실패 기록 쓰기가 동시에 잠기는 드문 이중 실패는
+남아 있을 수 있다(TEST SERVER 실측 확인, 짧은 전용 stuck-job 타임아웃 840초로
+자가치유). 배치 성격 Job(스케줄/백업/동기화 14종)은 이 옵션을 켜도 여전히 배치
+워커 하나가 순차 처리한다 — 분리되는 것은 채팅류뿐이다. 상세: `docs/ARCHITECTURE.md`,
+`docs/DECISIONS.md` D-118~D-125.
 
 ## 3. 인앱 알림 + 메일(SMTP). Teams 는 아직 없다
 

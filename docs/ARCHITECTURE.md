@@ -2,15 +2,24 @@
 
 ClovirONE Web Assistant는 기존 n8n 기반 AI 업무 도우미를 손상 없이 확장하는
 사내 웹 플랫폼이다. FastAPI(sync 핸들러) + SQLAlchemy 2.0 + SQLite(WAL) 단일 서버
-구성이며, 웹 프로세스와 백그라운드 Worker 프로세스 두 개로 동작한다.
+구성이며, 기본값은 웹 프로세스와 백그라운드 Worker 프로세스 두 개다. **D-118(2026-08-17)
+이후로는 Worker가 하나의 레인(기존 동작, 기본값)이거나 배치/대화형 두 레인으로 나뉜
+별도 프로세스 두 개(옵션, 기본 꺼짐)일 수 있다** — 아래 참고.
 
 ## 프로세스 구성
 
 | 프로세스 | 진입점 | 역할 |
 |---|---|---|
 | Web (uvicorn) | `app.main:create_app` (--factory) | HTTP API + React SPA 셸 서빙, 127.0.0.1:8080 |
-| Worker | `python -m app.worker_main` | Job 큐 소비 + Scheduler tick + 승인 만료 스윕 + heartbeat |
+| Worker (배치 레인) | `python -m app.worker_main` (`--lane batch`, 기본값) | Job 큐 소비 + Scheduler tick(15개) + 승인 만료 스윕 + 보존 정리 + heartbeat. `worker_conversational_lane_enabled=true`면 `chat_message`/`llm_connection_test`는 이 레인이 클레임하지 않는다(아래 대화형 레인이 가져간다) |
+| Worker (대화형 레인, 옵션) | `python -m app.worker_main --lane conversational` | `worker_conversational_lane_enabled=true`일 때만 리스를 잡고 실제로 동작(꺼져 있으면 유닛이 떠 있어도 즉시 정상 종료). `chat_message`/`llm_connection_test`만 처리, tick 콜백 0개, 스레드풀 동시성(`worker_conversational_concurrency`, 기본 3) — 배치 레인의 65분(3900초) 기본 stuck-job 타임아웃 대신 짧은 전용 타임아웃(`worker_conversational_running_timeout_seconds`, 기본 840초)을 쓴다. systemd 유닛은 `clovirone-web-worker-conversational.service`(배치는 `clovirone-web-worker.service`). 상세: `docs/DECISIONS.md` D-118~D-125, `app/jobs/lanes.py` |
 | Nginx | `deploy/nginx/clovirone-web-assistant.conf` | 10.100.64.71:443 TLS 종단 → 127.0.0.1:8080 프록시 |
+
+대화형 레인이 왜 있는가: 기본(단일 레인) 구성에서는 스케줄 실행 같은 장시간 배치
+Job이 워커의 유일한 슬롯을 쥐고 있는 동안 전 사용자 채팅이 큐에서 대기해야 했다
+(`jobs/repository.claim_next`가 `job_type` 우선순위 없는 순수 FIFO라서). 대화형 레인은
+그 슬롯을 물리적으로 분리해, 배치 워커가 완전히 멈춰 있어도 채팅은 독립적으로
+계속 처리되게 한다(TEST SERVER에서 배치 워커를 실제로 내린 채로 실측 확인함).
 
 ## App Factory
 
@@ -101,7 +110,8 @@ frontend/          # React 18 + Vite 소스(src/app, src/screens, src/ui, src/li
 2. `chat/service.post_user_message`: 검증(길이 5000, client_message_id 형식/중복) → `Message` 저장
    → `jobs.repository.enqueue(job_type="chat_message", idempotency_key="chatmsg:<client_message_id>")`
 3. 즉시 202-성 응답 — 브라우저는 메시지 목록을 폴링(backoff 1s→최대 5s)
-4. Worker `run_once`: **원자적 claim** — `UPDATE jobs SET status='running' WHERE id=(SELECT ... LIMIT 1) RETURNING id`
+4. Worker `run_once`: **원자적 claim** — `UPDATE jobs SET status='running' WHERE id=(SELECT ... LIMIT 1) RETURNING id`.
+   대화형 레인이 켜져 있으면 이 claim을 배치 워커가 아니라 대화형 워커가 수행한다(위 참고)
 5. `handlers/chat_message.py`: 미매핑 사용자의 1인칭 요청이면 safe-refusal 안내로 종료,
    아니면 `OutboundClient.post(n8n_work_assistant_url, allowlist="workflows")` 호출
 6. 성공 시 assistant `Message` 저장, 실패 시 backoff 재시도(5s·10s·20s), 최종 실패 시
