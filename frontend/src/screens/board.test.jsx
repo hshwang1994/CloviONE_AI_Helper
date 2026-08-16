@@ -117,6 +117,20 @@ describe("카테고리 칩은 서버 쿼리에 반영된다", () => {
   });
 });
 
+// VIS-92: 다른 필터 화면(표 기반 목록·티켓 필터)은 전부 "왼쪽 검색 + 오른쪽 필터"인데
+// 이 화면만 카테고리(왼쪽)·검색(오른쪽)으로 뒤집혀 있었다.
+describe("필터 순서 — 다른 화면과 같은 관용(왼쪽 검색 먼저)", () => {
+  it("검색창이 카테고리 칩보다 DOM에서 먼저 온다", async () => {
+    mockApi(() => ({ items: [] }));
+    renderBoard();
+    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+
+    const search = screen.getByRole("searchbox", { name: "검색" });
+    const categoryGroup = screen.getByRole("group", { name: "카테고리" });
+    expect(search.compareDocumentPosition(categoryGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
 describe("작성 중인 글은 배경 새로고침에 지워지지 않는다", () => {
   // PostFormModal의 폼 초기화 useEffect가 `categories` 배열을 의존성에 넣고 있으면, board-meta
   // 쿼리가 배경에서 다시 불려 값은 같아도 새 배열 참조를 받을 때마다(react-query 재조회, 네트워크

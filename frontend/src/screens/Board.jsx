@@ -487,10 +487,32 @@ function BoardScreen({ kind = "free" }) {
           한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx/TeamDocs.jsx와 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
+        {/* VIS-92: 예전엔 카테고리(왼쪽)·검색+정렬(오른쪽) 순이었다 — 다른 필터 화면(표
+            기반 목록 28개 + 티켓 필터 4개)은 전부 "왼쪽 검색 + 오른쪽 필터"라 이 화면만
+            좌우가 뒤집혀 있었다(DS-12/DS-13에 이은 네 번째 관용 불일치). 카테고리는 칩
+            묶음이라 값 개수만큼 자유롭게 줄바꿈해야 하므로(TicketFilterBar의 select처럼
+            고정 폭 칸에 넣지 않는다) 그리드 자체를 새로 쓰지 않고, 기존 두 열의 순서와
+            폭 배분(가변 열이 칩 쪽)만 검색이 먼저 오도록 뒤집는다. */}
         <Box sx={{
           display: "grid", gap: 1.5, alignItems: "center",
-          gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) auto" },
+          gridTemplateColumns: { xs: "1fr", lg: "auto minmax(0,1fr)" },
         }}>
+          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "minmax(12rem,1fr) 9rem" } }}>
+            <SearchBox
+              value={q}
+              onSearch={commitSearch}
+              placeholder="제목, 내용, 작성자 검색"
+              ariaLabel="검색"
+              sx={undefined}
+            />
+            <TextField
+              select size="small" value={sort}
+              onChange={(e) => setQuery({ sort: e.target.value })}
+              inputProps={{ "aria-label": "정렬" }}
+            >
+              {SORTS.map(([v, label]) => <MenuItem key={v} value={v}>{label}</MenuItem>)}
+            </TextField>
+          </Box>
           <Box role="group" aria-label="카테고리" sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
             <Chip
               component="button" type="button" clickable label="전체"
@@ -509,22 +531,6 @@ function BoardScreen({ kind = "free" }) {
                 onClick={() => setQuery({ category: c })}
               />
             ))}
-          </Box>
-          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "minmax(12rem,1fr) 9rem" } }}>
-            <SearchBox
-              value={q}
-              onSearch={commitSearch}
-              placeholder="제목, 내용, 작성자 검색"
-              ariaLabel="검색"
-              sx={undefined}
-            />
-            <TextField
-              select size="small" value={sort}
-              onChange={(e) => setQuery({ sort: e.target.value })}
-              inputProps={{ "aria-label": "정렬" }}
-            >
-              {SORTS.map(([v, label]) => <MenuItem key={v} value={v}>{label}</MenuItem>)}
-            </TextField>
           </Box>
         </Box>
         {statuses.length > 0 ? (
