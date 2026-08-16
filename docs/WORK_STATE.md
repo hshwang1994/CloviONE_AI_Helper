@@ -7586,3 +7586,70 @@ whole-product 재감사(CLAUDE.md §8) — 이번 세션 후반부에 실제로 
 **세 프로세스가 모두 끝난 뒤에만** PROJECT_COMPLETE 여부를 §13 체크리스트로
 재평가한다 — 그 전까지는 계속 `false`다. `SEC-20`(git secret 회전)은 변함없이
 사람 전용 blocker로 남는다.
+
+### 체크포인트 — 2026-08-17 계속(invocation 8): 중요 발견 — background task가 invocation 경계를 못 넘는다
+
+**위 3개 중 재감사 에이전트는 완료돼 findings를 처리했다(DOC-07/KBD-06 커밋 `6d53181`).**
+남은 둘(Full Regression `bv80ubnuh`, E2E `bg038abxf`)은 **invocation 7→8 경계에서
+죽었다** — invocation 8 시작 시 `bg038abxf`가 "stopped, no completion record"로
+통지됐고, 실제로 `Get-Process`로 확인하니 두 백그라운드 작업 다 이 PC에 살아있는
+프로세스가 없었다(pytest도, Playwright Chrome도). 즉 **이 환경에서는
+`run_in_background`로 띄운 프로세스가 Claude Code invocation이 끝나면(Supervisor가
+다음 invocation을 시작하면) 함께 죽는다** — 올바르게 `run_in_background`를 썼어도(수동
+`&` 이중 백그라운딩이 아니어도) 마찬가지였다. **다음에도 이 가정으로 계획하라**: 30분+
+짜리 단일 background 작업을 띄우고 다음 invocation에서 결과를 기대하지 마라. 대신
+① 한 invocation 안에서 끝날 만큼 작게 쪼개서 foreground로 돌리거나, ② background로
+띄우더라도 **같은 invocation 안에서 끝까지 지켜보고**(응답을 끝내지 않고 계속 다른
+일을 하며 대기), ③ 그래도 못 끝내면 다음 invocation에서 처음부터 다시 판단한다(부분
+로그를 신뢰하되 "완료"로 간주하지 않는다).
+
+**두 번째 발견 — integration chunk 1/4의 실패 7건은 전부 가짜(자원 경합)였다.**
+`tests/integration/test_cli_user.py`가 7건 다 `returncode=3221225794`(=`0xC0000142`
+`STATUS_DLL_INIT_FAILED`, Windows에서 프로세스 대량 동시 실행 시 흔한 일시적 실패)로
+죽어 있었는데, **E2E Chrome 스윕과 동시에 돌고 있었다.** 두 무거운 프로세스가 다 죽은
+뒤 `test_cli_user.py`만 단독 실행하니 **7/7 전부 15.99초에 green**. 결론: 이
+저장소의 실제 코드 결함이 아니라 **Chrome E2E와 subprocess를 스폰하는 pytest를
+동시에 돌리면 안 된다**(이 PC 한정 자원 제약) — 앞으로 Full Regression과 Chrome
+E2E는 **순차로만** 돌린다.
+
+**지금 상태**: `tests/unit tests/regression tests/security`를 묶어 재실행 중
+(`bhr6zjjur`, foreground 480초 타임아웃에 걸려 자동 background 전환 + 감시용
+`Wait-Process`(`bvrn8pdu9`) 추가). 이 checkpoint를 쓰는 시점엔 아직 결과 미확인 —
+CPU 사용량으로 보아 hang이 아니라 `tests/regression/test_stage_static_update.py`류의
+디스크 I/O 위주 실제 테스트가 도는 중으로 보인다(스크립트 자체에 네트워크 호출 없음,
+`curl`/`ssh` 언급은 전부 `echo` 안의 안내 문자열일 뿐임을 소스로 확인함).
+
+**다음 invocation이 할 일 (순서대로)**:
+1. `bhr6zjjur`/`bvrn8pdu9`가 실제로 끝났는지 먼저 확인(`Get-Process -Id 35192` 살아있는지,
+   출력 파일 내용). 살아있으면 계속 지켜본다. 죽었으면(경계를 또 못 넘었으면) 처음부터
+   `tests/unit tests/regression tests/security`를 다시 돌리되, 이번엔 **끝날 때까지
+   같은 invocation 안에서 계속 지켜본다**(다른 일 하면서 주기적 확인, 응답을 끝내지 않음).
+2. green 확인되면 `tests/integration`의 4청크를 **순차로, 각각 foreground로** 돌린다
+   (같은 invocation 안에서). 청크 경계(알파벳순 132개 파일을 33/33/33/33 정확히 4등분)는
+   이미 계산해 뒀다 — `run_full_regression.sh`의 로직 그대로 재계산하거나, 아래 순서를
+   그대로 써도 된다(파일 목록이 안 바뀌었다면 동일):
+   - 청크1(33): test_admin_backlog.py ~ test_cli_user.py (알파벳순)
+   - 청크2(32): test_collab_notifications.py ~ test_notification_audience.py
+   - 청크3(32): test_notification_badges.py ~ test_runners_api.py
+   - 청크4(32): test_schedule_zombie_sweep.py ~ test_workflows_api.py
+   (정확한 목록은 `mapfile -t INT_FILES < <(find tests/integration -maxdepth 1 -name
+   'test_*.py' | sort)` + 33개씩 슬라이스로 즉시 재계산 가능 — 하드코딩 대신 이 명령을
+   신뢰하라, 파일이 추가/삭제됐으면 경계가 자연히 달라진다)
+3. 백엔드가 전부 green이면 **그제서야** E2E를 재실행한다. **좋은 소식 — 인증 캐시가
+   디스크에 남아 있다**(`dist/ui-qa/auth-system_admin/{credentials.json,session.json,
+   storage_state.json}` 확인됨, 05:35 작성) — 이전처럼 `sudo`로 서버 비밀번호를 다시
+   설정하는 절차를 반복할 필요가 **없다**. `UI_QA_PASSWORD` 없이(또는 캐시된
+   `credentials.json`를 그대로 쓰도록) 아래를 그대로 재실행:
+   ```
+   python scripts/ui_qa/run.py --base-url https://10.100.64.71 --routes all \
+     --viewports 390x844 1366x768 1920x1080 3840x2160 1920x1080@2x \
+     --themes light dark --role system_admin --insecure --label post_20260817b \
+     --fail-on horizontal_overflow,console_errors,page_errors,auth_ok,theme_applied
+   ```
+   (라벨을 `post_20260817b`로 바꿔 이전 부분 실행(291/710까지만 있음, 재사용 불가능한
+   부분 산출물)과 섞이지 않게 한다.) `--rebuild-auth`는 여전히 쓰지 마라(원격 대상 계정
+   생성 시도로 즉시 FATAL). 이번에도 background로 띄우되 **regression과 동시에 돌리지
+   말고, 같은 invocation 안에서 끝까지 지켜본다.**
+4. 둘 다 green이면 `docs/QA_COVERAGE.md`에 새 절 추가 + summary 표 갱신, 커밋.
+5. 그 뒤에야 whole-product 재감사(이미 한 번 함, Angle 1-3은 클린) 결과를 종합해
+   `PROJECT_COMPLETE` 여부를 §13 체크리스트로 판단한다.
