@@ -1,15 +1,12 @@
 import React from "react";
-import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
-import Fab from "@mui/material/Fab";
-import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
 import { MASCOT } from "../lib/assets.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 
 /* 마스코트 '클로비'.
  *
@@ -235,55 +232,6 @@ export function MascotMini({
   );
 }
 
-/* 우하단 플로팅 버튼. 모바일에서는 본문을 가리므로 숨기고 상단바 버튼을 쓴다. */
-export function MascotButton({ onClick, mode = "listening", badge = 0 }) {
-  const fab = (
-    <Fab
-      aria-label="클로비 AI 도우미 열기"
-      onClick={onClick}
-      sx={{
-        /* 기준선 `.ai-fab { width:70px; height:70px; border-radius:23px; padding:6px;
-           background:rgba(255,255,255,.96); }` 와 `.ai-fab .mascot-mini { width:58px }`.
-           예전 값(반지름 22, 패딩 4, 포즈 54)은 눈대중이었다. */
-        width: "70px",
-        height: "70px",
-        borderRadius: "23px",
-        /* 기준선은 overflow:visible 이다 — 고리와 상태 점이 상자 밖으로 3~4px 나가야 한다.
-           hidden 으로 두면 그 둘이 잘려 아예 안 보인다. */
-        overflow: "visible",
-        bgcolor: "rgba(255,255,255,.96)",
-        border: 1,
-        borderColor: (t) => alpha(t.palette.primary.main, 0.28),
-        p: "6px",
-        boxShadow: (t) => t.shadowTokens?.md,
-        // 바깥 래퍼(AppShell의 fixed Box)가 pointerEvents:none 이라 실제로 눌리는 것은 이 Fab
-        // 하나다. 브라우저는 border-radius 를 히트 테스트에도 적용하므로, 이렇게 두면 둥근
-        // 모서리 바깥의 빈 공간은 아래 콘텐츠가 그대로 받는다 — 안 보이는 사각형이 클릭을 먹지 않는다.
-        pointerEvents: "auto",
-        "&:hover": {
-          bgcolor: "rgba(255,255,255,.96)",
-          transform: "translateY(-2px)",
-          boxShadow: (t) => t.shadowTokens?.lg,
-        },
-      }}
-    >
-      <MascotMini mode={mode} size={58} plateRadius={18} plateOpacity={0.96} />
-    </Fab>
-  );
-  return (
-    /* 기준선은 960px 이하에서 FAB 을 숨긴다(그 아래에서는 상단바 버튼이 그 일을 한다). */
-    <Box sx={{ "@media (max-width:960px)": { display: "none" } }}>
-      {badge > 0 ? (
-        <Badge badgeContent={badge} color="error" overlap="circular">
-          {fab}
-        </Badge>
-      ) : (
-        fab
-      )}
-    </Box>
-  );
-}
-
 /* 상단바 우측 클로비 버튼 — 기준 파일의 .top-clovi-btn.
  *
  * 예전에는 여기에 MUI 의 일반 로봇 아이콘(SmartToyOutlined)이 있었다. 사용자가 "오른쪽 상단에
@@ -319,63 +267,3 @@ export function MascotTopButton({ onClick, mode = "listening", label = "AI 도�
   );
 }
 
-/* 사이드바 하단 CTA. */
-export function MascotSidebarCard({ onClick }) {
-  return (
-    <Paper
-      component="button"
-      type="button"
-      onClick={onClick}
-      variant="outlined"
-      sx={{
-        /* 기준선 `.sidebar-clovi { width:calc(100% - 12px); margin:18px 6px 4px;
-           grid-template-columns:52px minmax(0,1fr) auto; gap:10px; padding:9px 10px;
-           border:1px solid rgba(255,255,255,.11); border-radius:15px;
-           background:linear-gradient(135deg,rgba(117,138,225,.18),rgba(142,117,225,.08)) }`.
-           예전 값(여백 16, 좌우 24, 반지름 18, 단색 바탕)은 눈대중이었다. */
-        width: "calc(100% - 12px)",
-        mt: "18px", mx: "6px", mb: "4px",
-        px: "10px", py: "9px",
-        display: "grid",
-        gridTemplateColumns: "52px minmax(0,1fr) auto",
-        gap: "10px",
-        alignItems: "center",
-        textAlign: "left",
-        color: "inherit",
-        borderRadius: "15px",
-        borderColor: "rgba(255,255,255,.11)",
-        background: "linear-gradient(135deg,rgba(117,138,225,.18),rgba(142,117,225,.08))",
-        cursor: "pointer",
-        "&:hover": {
-          borderColor: "rgba(216,208,255,.45)",
-          background: "linear-gradient(135deg,rgba(117,138,225,.28),rgba(142,117,225,.14))",
-        },
-      }}
-    >
-      <MascotMini mode="listening" size={48} plateRadius={13} plateOpacity={0.94}
-        label="클로비가 질문을 기다리는 모습" />
-      <Box minWidth={0}>
-        {/* QA-하네스: 4K(>=3840px)에서 tiny_text 검사가 절대 px 글자 크기는 잡는다 — 루트
-            글자 크기 레버(16→18→20px)가 커져도 px로 박힌 크기는 그대로다. DS-32가 같은
-            원인의 다른 자리(TopSearch.jsx·kit.css)를 고치며 세운 관례(px→rem, 12px
-            하한 밑이면 0.75rem으로 올림)를 그대로 따른다 — 이 자리는 그 스윕에서 빠져
-            있었다(실측: 3840×2160에서 사용자 콘솔 66개 화면 전부 실패, 하나의 공용
-            컴포넌트라 한 곳만 고치면 전부 해소된다). */}
-        <Typography color="common.white" fontSize="0.8125rem" fontWeight={800}>
-          클로비에게 물어보기
-        </Typography>
-        {/* wordBreak:"keep-all" — 한글 기본값은 아무 데서나 끊어서 "도와드/려요"처럼 단어
-            중간에 줄이 바뀐다. 좁은 사이드바에서는 반드시 두 줄이 되므로 띄어쓰기에서만
-            끊기게 한다(한국어 조판의 기본 설정이다). */}
-        <Typography color="sidebar.muted" fontSize="0.75rem" lineHeight={1.35} mt="3px"
-          sx={KO_WORD_BREAK}>
-          현재 화면을 기준으로 도와드려요
-        </Typography>
-      </Box>
-      {/* 기준선의 `.sidebar-clovi-arrow` — 누르면 무언가 열린다는 것을 알리는 홑화살표다. */}
-      <Box component="span" aria-hidden="true" sx={{ fontSize: "24px", opacity: 0.7, lineHeight: 1 }}>
-        ›
-      </Box>
-    </Paper>
-  );
-}

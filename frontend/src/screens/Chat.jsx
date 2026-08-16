@@ -155,7 +155,7 @@ export function Chat() {
     <Box className="c-screen">
       {/* SEM-03 재확인(2026-08-13) — PageHeader에 실제(동적) 대화 제목을 넘긴다. 예전엔
           여기가 항상 "AI 도우미"라 아래 대화 제목 막대가 별도 h1을 또 만들어야 했다. */}
-      <PageHeader crumbRoot="도우미" area="AI 도우미" title={cid ? activeTitle : "채팅"} />
+      <PageHeader crumbRoot="도우미" area="AI 도우미" title={cid ? activeTitle : "AI 도우미"} />
       <Card
         sx={{
           p: 0, overflow: "hidden",
@@ -215,7 +215,7 @@ export function Chat() {
             component="h2"
             sx={{ flex: 1, minWidth: 0, fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
           >
-            {cid ? activeTitle : "채팅"}
+            {cid ? activeTitle : "AI 도우미"}
           </Typography>
           {/* AI-68: 대화 전체 복사 — 메시지가 있을 때만(빈 대화를 복사할 이유가 없다). */}
           {cid && items.length ? (

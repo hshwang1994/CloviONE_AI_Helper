@@ -62,11 +62,13 @@ beforeEach(() => {
 });
 
 describe("AI 도우미 화면 — h1이 하나뿐이다 (SEM-03 재검증)", () => {
-  it("대화가 없을 때(cid 없음) PageHeader가 '채팅'을 h1으로 보여주고 하나뿐이다", async () => {
+  it("대화가 없을 때(cid 없음) PageHeader가 'AI 도우미'를 h1으로 보여주고 하나뿐이다", async () => {
+    // PA-RC-0020: 사이드바 라벨·breadcrumb·h1 세 문자열을 "AI 도우미"로 통일한다 —
+    // 이 h1만 "채팅"으로 남아 있으면 사이드바에서 누른 이름과 도착 화면 제목이 갈린다.
     renderChat();
     await screen.findByRole("button", { name: /대화 목록/ });
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent("채팅");
+    expect(headings[0]).toHaveTextContent("AI 도우미");
   });
 });

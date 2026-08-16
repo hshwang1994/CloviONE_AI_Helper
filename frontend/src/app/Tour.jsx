@@ -55,7 +55,7 @@ export const TOUR_STEPS = [
   {
     key: "chat",
     title: "AI 도우미와 팀 채팅",
-    body: "오른쪽 아래 클로비 버튼을 누르면 언제든 AI 도우미가 열립니다. 팀 채팅방은 왼쪽 메뉴의 ‘팀 공간’에 있습니다.",
+    body: "위쪽의 클로비 버튼을 누르면 언제든 AI 도우미가 열립니다. 팀 채팅방은 왼쪽 메뉴의 ‘팀 공간’에 있습니다.",
     art: MASCOT.talking,
     to: "/chat",
     goLabel: "AI 도우미 열기",

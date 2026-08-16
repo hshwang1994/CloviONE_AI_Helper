@@ -9,7 +9,7 @@ import { readBaselineCss, topLevelRules, lastDeclaration } from "../ui/baselineT
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
-import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
+import { MascotTopButton } from "../ui/Mascot.jsx";
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -153,7 +153,8 @@ describe("상단 검색", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// 3. 클로비가 앉는 세 자리
+// 3. 클로비의 유일한 자리 — PA-RC-0020이 사이드바 카드·우하단 FAB을 없애고
+//    헤더 칩(.top-clovi-btn) + 전역 단축키(Ctrl/Cmd+/)로 모았다.
 // ════════════════════════════════════════════════════════════════════════════
 describe("상단바 우측 클로비(.top-clovi-btn)", () => {
   it("반지름·바탕·테두리색이 기준선과 같다", () => {
@@ -172,45 +173,6 @@ describe("상단바 우측 클로비(.top-clovi-btn)", () => {
 
     expect(toPx(getComputedStyle(mini).width))
       .toBe(px(".top-clovi-btn .mascot-mini", "width"));
-  });
-});
-
-describe("우하단 플로팅 버튼(.ai-fab)", () => {
-  it("크기·반지름·안쪽 여백이 기준선과 같다", () => {
-    mount(<MascotButton onClick={() => {}} />);
-    const style = getComputedStyle(screen.getByRole("button"));
-
-    expect(toPx(style.width)).toBe(px(".ai-fab", "width"));
-    expect(toPx(style.borderRadius)).toBe(px(".ai-fab", "border-radius"));
-    expect(toPx(style.padding)).toBe(px(".ai-fab", "padding"));
-  });
-
-  it("마스코트 크기가 기준선의 .ai-fab .mascot-mini 와 같다", () => {
-    mount(<MascotButton onClick={() => {}} />);
-    const mini = screen.getByTestId("mascot-mini");
-
-    expect(toPx(getComputedStyle(mini).width))
-      .toBe(px(".ai-fab .mascot-mini", "width"));
-  });
-});
-
-describe("사이드바 하단 클로비(.sidebar-clovi)", () => {
-  it("반지름과 안쪽 여백이 기준선과 같다", () => {
-    mount(<MascotSidebarCard onClick={() => {}} />);
-    const style = getComputedStyle(screen.getByRole("button"));
-    const [vertical, horizontal] = decl(".sidebar-clovi", "padding").split(/\s+/);
-
-    expect(toPx(style.borderRadius)).toBe(px(".sidebar-clovi", "border-radius"));
-    expect(toPx(style.paddingTop)).toBe(Number.parseFloat(vertical));
-    expect(toPx(style.paddingLeft)).toBe(Number.parseFloat(horizontal));
-  });
-
-  it("마스코트 크기가 기준선의 .sidebar-clovi .mascot-mini 와 같다", () => {
-    mount(<MascotSidebarCard onClick={() => {}} />);
-    const mini = screen.getByTestId("mascot-mini");
-
-    expect(toPx(getComputedStyle(mini).width))
-      .toBe(px(".sidebar-clovi .mascot-mini", "width"));
   });
 });
 
@@ -277,9 +239,9 @@ describe("셸의 상단바", () => {
     expect(toPx(getComputedStyle(search).height)).toBe(px(".top-search", "height"));
   });
 
-  // "클로비 AI 도우미 열기" aria-label은 상단바 버튼과 우하단 FAB(MascotButton)이
-  // 공유한다(별개 결함 — 이번 배치 범위 밖) — getAllByLabelText로 개수를 센다.
-  it("AI-57: /chat 에서는 상단바 클로비 버튼을 안 그린다 — 이미 전체화면 채팅이 열려 있다(FAB도 같은 이유로 이미 숨는다)", async () => {
+  // PA-RC-0020: 사이드바 카드·우하단 FAB을 없애 "클로비 AI 도우미 열기" aria-label을
+  // 가진 요소는 이제 상단바 버튼 하나뿐이다.
+  it("AI-57: /chat 에서는 상단바 클로비 버튼을 안 그린다 — 이미 전체화면 채팅이 열려 있다", async () => {
     renderShell("/chat");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
@@ -290,8 +252,7 @@ describe("셸의 상단바", () => {
     renderShell("/me");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
-    // 상단바 버튼 + 우하단 FAB, 둘 다 그려진다.
-    expect(screen.getAllByLabelText("클로비 AI 도우미 열기").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("클로비 AI 도우미 열기")).toHaveLength(1);
     const bar = document.querySelector(".MuiAppBar-root");
     expect(bar.querySelector('[aria-label="클로비 AI 도우미 열기"]'), "상단바 안에 클로비 버튼이 없다").toBeTruthy();
   });

@@ -29,14 +29,14 @@ import { useAuth } from "./auth.jsx";
 import { NotificationBell } from "./NotificationBell.jsx";
 import { UserMenu } from "./UserMenu.jsx";
 import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
-import { AssistantDrawer } from "./AssistantDrawer.jsx";
+import { AssistantDrawer, useAssistantHotkey } from "./AssistantDrawer.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
 import { activeNavPath, filterGroupsByQuery, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
-import { MascotButton, MascotSidebarCard, MascotTopButton } from "../ui/Mascot.jsx";
+import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
@@ -505,6 +505,7 @@ export function AppShell({
   // 이 화면이 보여 주는 알림 유형을 진입 시 읽음 처리한다(S2 "확인하면 자동으로 없애는 형태로").
   useClearBadgeOnEntry(loc.pathname, !!(auth.data && auth.data.id));
   useCommandPaletteHotkey(setPaletteOpen);
+  useAssistantHotkey(setAssistantOpen);
 
   // 권한 없는 메뉴는 숨긴다 — 검색 결과로 403에 빠지면 안 된다.
   const groups = React.useMemo(() => filterNavByRole(nav, role), [nav, role]);
@@ -595,19 +596,6 @@ export function AppShell({
             <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); navigate(to); }} />
           ) : null}
           <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} showFilter={!isUser} />
-          {/* 세로가 짧은 화면(노트북 1366x768 에 관리자 메뉴 전개)에서 이 카드가 눌리지 않게
-              한다. 목록은 이미 자기 안에서 스크롤되므로(SidebarNav overflowY:auto) 카드가
-              자리를 먼저 가져가도 메뉴를 못 보게 되지 않는다. */}
-          {/* VIS-116/VIS-156: 상단바 버튼·플로팅 FAB은 이미 `!onAssistant`로 /chat 에서
-              숨긴다(바로 아래·690행 — "그 화면에서는 아무 일도 하지 않으면서" 자리만
-              차지한다는 같은 이유). 이 카드만 그 게이트가 빠져 있었다 - 이미 AI 도우미
-              화면 안인데 "클로비에게 물어보기"가 그 위에 또 다른 대화창(드로어)을 여는
-              막다른 진입점으로 남아 있었다. 같은 조건으로 맞춘다. */}
-          {!onAssistant ? (
-            <Box sx={{ pb: 3, flexShrink: 0 }}>
-              <MascotSidebarCard onClick={() => { onCloseNav(); setAssistantOpen(true); }} />
-            </Box>
-          ) : null}
         </>
       )}
     </Box>
@@ -779,11 +767,9 @@ export function AppShell({
             {
                   width: "100%", maxWidth: CONTENT_MAX_WIDTH, mx: "auto",
                   px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 },
-                  /* 우하단 마스코트 버튼이 본문 위에 떠 있다(70px + 여백 24px ≈ 94px).
-                     아래 여백이 그보다 작으면 화면 맨 아래에 붙는 컨트롤을 가린다 —
-                     실제로 놀이방의 '보내기' 버튼을 덮었다. 버튼이 보이는 md 이상에서만 넉넉히. */
-                  // AI 도우미는 화면 아래까지 카드가 차므로 마스코트 버튼 자리를 비울 필요가 없다.
-                  pb: onAssistant ? { xs: 3, md: 4 } : { xs: 5, md: 14 },
+                  // PA-RC-0020: 우하단 FAB을 없애 본문 위에 뜬 컨트롤이 더는 없다 — FAB
+                  // 자리를 비워 두던 큰 하단 여백(md:14)도 함께 걷어낸다.
+                  pb: { xs: 3, md: 4 },
             }
           }
         >
@@ -792,23 +778,12 @@ export function AppShell({
         </Box>
       </Box>
 
-      {/* 우하단 플로팅 마스코트 — AI 도우미로 가는 상시 입구. 실제 대화 패널은 /chat 화면이다.
-          pointerEvents:none — 이 래퍼는 **자리를 잡을 뿐 눌리는 물건이 아니다.** 안쪽 FAB은
-          borderRadius가 커서 네 모서리가 시각적으로 비어 있는데, 사각형인 이 래퍼는 그 빈
-          모서리에서도 클릭을 가로챈다. 실제로 권한 매트릭스 표 맨 아랫줄의 '상세' 버튼이
-          아무것도 안 그려진 지점(1837,987)에서 눌리지 않았다(QA fab_overlap 검사가 잡았다).
-          받는 쪽은 MascotButton 안의 Fab이 pointerEvents:auto로 되돌린다. */}
-      {/* /chat 에서는 띄우지 않는다(onAssistant 가 곧 '지금 /chat'이다). 이 버튼이 하는 일은
-          /chat 으로 가는 것뿐이라, 그 화면에서는 아무 일도 하지 않으면서 입력창 오른쪽의
-          '전송'을 덮는다 — QA fab_overlap 검사가 1920 라이트·다크에서 잡았고, 실제로
-          스크롤로도 비켜낼 수 없다(입력창이 화면 아래에 고정돼 있다).
-          동작하지 않는 컨트롤을 띄워 두지 않는다는 저장소 원칙과도 같은 방향이다. */}
-      {!minimal && !onAssistant ? (
-        <Box sx={{ position: "fixed", right: 24, bottom: 24, pointerEvents: "none",
-                   zIndex: (t) => t.zIndex.speedDial }}>
-          <MascotButton onClick={() => setAssistantOpen(true)} mode="listening" />
-        </Box>
-      ) : null}
+      {/* PA-RC-0019/0020: 우하단 FAB과 사이드바 카드를 없앴다 — 셋이던 진입점(FAB·사이드바
+          카드·상단 칩)이 헤더 칩 하나 + 전역 단축키(Ctrl/Cmd+/, useAssistantHotkey)로
+          모인다. FAB은 늘 본문 위에 떠 있어 표 화면 마지막 행(그리고 「상세」 버튼 열이
+          사라진 뒤로는 행 자체)을 실제로 가려 클릭을 가로챘다(elementFromPoint 히트테스트로
+          확인, `PA-RC-0019`) — z-index만 낮추거나 자리를 옮기는 대신 진입점 자체를 하나로
+          줄여 겹칠 대상을 없앴다. */}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} groups={paletteGroups} />
 

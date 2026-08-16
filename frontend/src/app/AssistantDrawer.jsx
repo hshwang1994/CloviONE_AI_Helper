@@ -77,6 +77,23 @@ export function routeContextLabel(pathname) {
   return hit ? hit[1] : "ClovirAssist";
 }
 
+/* PA-RC-0020: 진입점을 헤더 칩 하나로 모으면서(사이드바 카드·FAB 제거) 그 자리를 대신할
+ * 전역 단축키가 필요해졌다 — `CommandPalette.jsx`의 `useCommandPaletteHotkey`(Ctrl/Cmd+K)와
+ * 같은 모양이다. `Ctrl+/`(Cmd+/)를 쓴다 — K는 팔레트가 이미 쓰고, 한 글자 단축키(예: `/`
+ * 단독)는 입력창에 그 글자를 치는 것과 구별이 안 돼 채팅 컴포저 등에서 오작동한다. */
+export function useAssistantHotkey(setOpen) {
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setOpen]);
+}
+
 export function AssistantDrawer({ open, onClose }) {
   const nav = useNavigate();
   const loc = useLocation();
