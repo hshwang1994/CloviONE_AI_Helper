@@ -377,7 +377,8 @@ def build_dashboard(
 
 
 def build_diagnostic_bundle(
-    db: Session, settings: Settings, now: datetime, cache=None
+    db: Session, settings: Settings, now: datetime, cache=None,
+    *, include_critical_audit: bool = True,
 ) -> dict:
     """Masked diagnostics — no secrets, no raw journals (spec §14.7).
 
@@ -387,6 +388,16 @@ def build_diagnostic_bundle(
     the DB on every diagnostics collect, duplicating work the app already did
     once at startup/on write, for no behavioral difference (falls back to a
     throwaway instance only if a caller genuinely has none, e.g. ad-hoc scripts).
+
+    ``include_critical_audit``: PA-RC-0026 — this bundle embeds a full
+    ``build_dashboard()`` call, whose own ``/api/admin/dashboard`` endpoint
+    gates the "최근 주요 변경" critical-audit slice to SENSITIVE_READ_ROLES
+    (operator excluded). ``build_dashboard`` defaults this to True, so once
+    this endpoint's own role gate was widened to CONSOLE_OPS_ROLES (operator
+    included), a naive unparameterized call here would have quietly handed
+    operator the exact slice the sibling endpoint deliberately withholds from
+    them. The caller must pass the same ``role in SENSITIVE_READ_ROLES`` test
+    the dashboard route already does.
     """
     from app.core.audit import mask_sensitive
     from app.core.tenant_config import tenant_config_status
@@ -419,7 +430,10 @@ def build_diagnostic_bundle(
     }
     return {
         "generated_at": now.isoformat(),
-        "dashboard": build_dashboard(db, settings, now, cache=bundle_cache),
+        "dashboard": build_dashboard(
+            db, settings, now, cache=bundle_cache,
+            include_critical_audit=include_critical_audit,
+        ),
         "settings": masked_settings,
         # 설치처 고유 설정이 비었는지(app/core/tenant_config.py). 마스킹된 settings 덤프만
         # 봐서는 "비어 있음"과 "원래 그런 값"이 구별되지 않는다 — 상태를 따로 싣는다.

@@ -121,7 +121,10 @@ function AdminRoutes() {
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
             navConfig.js의 /mail 항목과 같은 role 집합. */}
         <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailStatus /></RequireRole>} />
-        <Route path="/diagnostics" element={<RequireRole roles={["admin", "system_admin"]}><Diagnostics /></RequireRole>} />
+        {/* PA-RC-0026: GET /api/admin/diagnostics/bundle은 CONSOLE_OPS_ROLES(operator/admin/
+            system_admin) — /jobs와 같은 role 집합("헬스체크"는 authz.py의 console.ops가
+            명시한다). 예전엔 CONSOLE_WRITE_ROLES(admin+)라 발표된 권한표보다 더 좁았다. */}
+        <Route path="/diagnostics" element={<RequireRole roles={["operator", "admin", "system_admin"]} help="이 화면은 운영자, 관리자, 시스템 관리자만 사용할 수 있습니다."><Diagnostics /></RequireRole>} />
         <Route path="/dev-report" element={<RequireRole roles={["admin", "system_admin", "auditor"]} help="이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><DevReport /></RequireRole>} />
         {/* 스케줄러 캘린더(PLAN Phase 6) — "언제 도는가"는 표로 답이 안 되는 유일한 질문이라
             DataScreen 계약을 쓰지 않는다(SchedulerCalendar.jsx 헤더 주석). 같은 백로그의 다른

@@ -10,8 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.authz import (
+    CONSOLE_OPS_ROLES,
     CONSOLE_READ_ROLES,
-    CONSOLE_WRITE_ROLES,
     SENSITIVE_READ_ROLES,
 )
 from app.core.deps import get_db, require_roles
@@ -77,12 +77,26 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @router.get(
     "/api/admin/diagnostics/bundle",
-    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))],
+    dependencies=[Depends(require_roles(*CONSOLE_OPS_ROLES))],
 )
 def diagnostics_bundle(request: Request, db: Session = Depends(get_db)):
+    # PA-RC-0026: diagnostics is a read-only health-check bundle (spec §14.7 —
+    # masked settings, no secrets, no raw journals), which is exactly what the
+    # product's own capability table (app/core/authz.py CAPABILITIES) calls
+    # "console.ops" ("헬스체크" is named explicitly) — a role gate stricter
+    # than that (CONSOLE_WRITE_ROLES, admin+) contradicted the published RBAC
+    # matrix and blocked the on-call operator from the one screen that
+    # aggregates the pieces they otherwise have to gather from four separate
+    # ones during an incident. Every embedded piece was audited against what
+    # operator can already see elsewhere before this gate was widened
+    # (docs/DECISIONS.md) — the one gap found (the embedded dashboard's
+    # critical-audit slice) is closed by passing role through below rather
+    # than by leaving the gate narrow.
+    role = getattr(getattr(request.state, "user", None), "role", None)
     return build_diagnostic_bundle(
         db,
         request.app.state.settings,
         request.app.state.clock.now(),
         cache=request.app.state.settings_cache,
+        include_critical_audit=role in SENSITIVE_READ_ROLES,
     )

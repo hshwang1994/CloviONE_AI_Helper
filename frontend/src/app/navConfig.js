@@ -82,7 +82,7 @@ export const NAV = [
     { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
     { to: "/jobs", label: "작업 큐", roles: ["operator", "admin", "system_admin"], badge: "jobFailed", icon: "ticket" },
     { to: "/settings", label: "설정", icon: "settings" },
-    { to: "/diagnostics", label: "진단", roles: ["admin", "system_admin"], icon: "diagnostics" },
+    { to: "/diagnostics", label: "진단", roles: ["operator", "admin", "system_admin"], icon: "diagnostics" },
     { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], badge: "backupFailed", icon: "backup" },
     // FN-01: GET /api/admin/mail/status(진단)·POST /test(시험 발송)는 처음부터 있었는데
     // 띄우는 화면이 없어 SMTP 설정 오류(비밀번호 재설정 메일 등이 조용히 안 감)를 아무도
