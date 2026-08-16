@@ -85,7 +85,20 @@ export function Settings({ embedded = false } = {}) {
     // 상태는 이제 배지가 아예 없는 것으로 표현한다(변경 안 됐다는 사실 자체는 정보 가치가
     // 낮다 - 눈에 띄어야 하는 건 "누가 뭔가 바꿨다"는 사실 하나뿐이다).
     { key: "is_default", label: "상태", render: (r) => (r.is_default ? null : <Badge value="수정됨" kind="info" />) },
-    { key: "description", label: "설명" },
+    // VIS-55: 백엔드 description이 라벨과 같은 말로 시작하는 항목이 여럿이다(예: "대화 보존
+    // 기간(일)" 라벨 + "대화 보존 기간(일). 초과 시…" 설명) — 바로 왼쪽 열과 같은 문장을
+    // 반복해 가로 공간만 먹었다. 그 앞부분이 라벨 그대로면 벗겨내고 나머지만 보여준다(라벨
+    // 자체를 여기서 다시 만들지 않고 실제 렌더된 r.label과 대조 — 두 소스가 갈리면 이 열이
+    // 조용히 잘못 벗겨내는 대신 원문을 그대로 보여주게 안전한 쪽으로 둔다).
+    { key: "description", label: "설명", render: (r) => {
+      const desc = r.description;
+      if (!desc) return "-";
+      if (desc.startsWith(r.label)) {
+        const rest = desc.slice(r.label.length).replace(/^[.:]\s*/, "");
+        if (rest) return rest;
+      }
+      return desc;
+    } },
   ];
 
   return (
