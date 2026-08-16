@@ -62,7 +62,10 @@ function commonApi(extra) {
     if (u.startsWith("/api/admin/users/u-detail-1")) return Promise.resolve(USER_ROW);
     if (u.startsWith("/api/admin/users?")) return Promise.resolve({ items: [USER_ROW], total: 1, page_size: 20 });
     if (u === "/api/admin/departments/tree") return Promise.resolve({ items: TREE });
-    if (u.startsWith("/api/admin/departments/dep-1")) return Promise.resolve(DEPT_ROW);
+    // 실제 서버(app/org/router.py::get_org_item, body_key="department")는 단건 조회를
+    // {"department": {...}}로 감싸서 준다 — 목이 감싸지 않은 응답을 흉내 내면 registry/org.js의
+    // selectKey 배선이 빠져도 이 시험은 계속 통과한다(TEST SERVER 실측으로 실제로 놓쳤던 경우).
+    if (u.startsWith("/api/admin/departments/dep-1")) return Promise.resolve({ department: DEPT_ROW });
     if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: [DEPT_ROW] });
     if (u.startsWith("/api/admin/organizations")) return Promise.resolve({ items: ORGS });
     if (u === "/api/admin/settings") {
