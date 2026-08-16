@@ -44,21 +44,21 @@
 | `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | O | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `U-UNASSIGNED` 미할당 티켓 | `/unassigned` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-NEWTICKET` 새 티켓 | `/new-ticket` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TEAMTICKETS` 팀 티켓 | `/team-tickets` | S | · | E | · | · | E | · | · | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-PROJECTS` 프로젝트 목록 | `/projects` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-CHAT` AI 도우미 대화 | `/chat` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
-| `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | E | · | · | E | · | · | E | · | · | O | O | O | O | S | S | S | S | · | · | · | · | · | E | · |
-| `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | E | · | · | E | · | · | E | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
-| `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-GAMES` 놀이 목록 | `/games` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
-| `U-GAMEROOM` 게임방 | `/games/:id` | S | · | S | · | · | E | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
+| `U-GAMEROOM` 게임방 | `/games/:id` | S | · | O | · | · | E | · | E | E | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `U-NOTIF` 알림 목록 | `/notifications` | S | · | O | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `U-PROFILE` 내 프로필 | `/profile` | S | · | O | · | · | E | · | · | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | · |
 | `U-MYSTATS` 내 업무량 | `/my-stats` | S | · | O | · | · | E | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
@@ -402,11 +402,11 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
 total_cells=2340
-unseen=1336
+unseen=1330
 unseen_without_reason=0
-static_only=635
-observed=200
-executed=169
+static_only=611
+observed=218
+executed=181
 blocked=0
 not_applicable=0
 -->
