@@ -14,15 +14,15 @@
 
 ## 진행 상태 — 정직하게
 
-필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 9종**이다. 나머지 9종은
+필수 18표면 중 **이 Cycle에서 실제로 깊게 판정한 것은 아래 13종**이다. 나머지 5종은
 스크린샷과 레이아웃 계측은 확보했지만(`shots2/`, `pa2_design_*.json` — 28표면 실렌더)
-UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 9종에 판정 블록을 쓰지 않는다**
+UI/UX Skill 기준의 구조·위계 평가를 아직 마치지 않았다. **그 5종에 판정 블록을 쓰지 않는다**
 — 계측만 있는 것을 `deep_audited: true` 로 적으면 그것이 조작이다.
 
 | 상태 | 표면 |
 |---|---|
-| 판정 완료 (9) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` |
-| 계측·스크린샷만 (9) | `list-screens` · `detail-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `empty-state` · `error-state` · `loading-state` · `key-workflows` |
+| 판정 완료 (13) | `dashboard` · `home` · `admin-console` · `table-screens` · `app-shell` · `settings` · `sidebar` · `navigation-ia` · `global-header` · `detail-screens` · `error-state` · `empty-state` · `loading-state` |
+| 계측·스크린샷만 (5) | `list-screens` · `forms` · `modal-drawer` · `ai-assistant-chat` · `key-workflows` |
 
 ## 적용한 Skill (실제 이름)
 
@@ -161,4 +161,60 @@ target_design: 구조 변경 없음. 높이 64px, 요소 구성과 순서, 검�
 rationale: `KEEP`의 근거는 기준을 세우고 실측으로 통과한 것이다 — 잘림 0(요소별 scrollWidth 계측), 라우트 28곳에서 높이·위치 편차 0, 두 콘솔 구성 동일, 브랜드 폭이 사이드바 폭(264px)과 정확히 정렬. 처음에 스크린샷을 보고 「장애 칩이 잘린다」고 판단했으나 **계측이 그것을 반증했다**(`장애 1`: width 45 = scrollWidth 45). 그 오판과 정정을 `PA-F-089`에 남겼다.
 browser_evidence: `var/product-audit/pa2_ia.py`의 헤더 계측 — 요소별 좌표·폭·`scrollWidth`/`clientWidth` 비교(잘린 요소 0, 유일한 `clipped`는 폭 1px 스크린리더 라벨). 배지 동시 계측은 `var/product-audit/pa2_badges.py`(같은 순간 사이드바 `알림 15` · 헤더 벨 `15`). 화면은 `shots2/d1_admin_dashboard.png`·`d1_user_me.png` 등 28종(1920×1080 라이트).
 rc_ids: 해당 없음 — 실측에서 구현이 필요한 결함이 나오지 않았다. 이 표면에 대한 나의 첫 주장(칩 잘림)은 계측으로 반증돼 철회했다.
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN detail-screens -->
+surface: detail-screens
+layout_family: detail
+deep_audited: true
+skills_applied: ui-ux-pro-max, redesign-existing-projects, ux-writing
+verdict: REFINE
+current_state: 상세는 두 가지 표현으로 나뉜다 - 사용자 콘솔은 **라우트**(`/projects/:id`·`/tickets/:id`·`/board/:id`·`/team-docs/:id`·`/chat-rooms/:id`·`/games/:id`), 관리자 콘솔은 **목록 위 모달**(`/users/:id`·`/departments/:id`·`/audit/:id`, 목록과 같은 element 를 가리켜 인스턴스가 유지된다). 존재하지 않는 id 로 9개 전부에 진입해 보면 주소는 전부 유지되는데 화면은 셋으로 갈린다 - 침묵 3(관리자) · 정확히 안내 5 · 30초 걸려 안내 1(`/board/:id`).
+user_problem: 관리자 상세 3종은 없는 레코드를 요청해도 목록만 그린다. 주소는 계속 그 레코드를 가리키므로 사용자는 삭제된 것인지 잘못 온 것인지 못 보는 것인지 알 수 없고 결국 목록에서 손으로 다시 찾는다. 감사 로그가 특히 나쁘다 - 항목 링크는 사건을 특정해 공유하는 용도인데 그 항목이 없으면 8,138자짜리 전체 목록이 뜬다. `/board/:id` 는 답을 알면서도 404 를 네 번 재시도하느라 20초를 넘긴다.
+target_design: 상세 표현이 콘솔별로 다른 것 자체는 유지한다 - 관리자 목록-모달은 `PA-RC-0024` 가 「목록의 스크롤·필터·데이터를 잃지 않는다」는 실측 근거로 택한 구조이고 실제로 성립한다. 바꾸는 것은 **없을 때의 경로**뿐이다. 세 관리자 라우트가 상세 자리(모달·오른쪽 패널)에 기존 `ErrorState`(`status: 404`)를 그려 사용자 콘솔 5종과 같은 문구를 말하게 한다. `/board/:id` 는 전역 재시도 정책을 고쳐 즉시 답하게 한다. 새 컴포넌트·새 문구를 만들지 않는다.
+rationale: 구조를 다시 그릴 이유가 없다 - 두 표현이 각각 그 콘솔의 사용 방식에 맞고, 5개 라우트는 이미 정답을 보여주고 있다. 그래서 `REDESIGN` 이 아니다. 그러나 9개 중 4개가 없는 레코드에 대해 사용자에게 아무 말도 못 하거나 30초 걸려 말하므로 `KEEP` 도 아니다. 고칠 것이 레이아웃이 아니라 **누락된 상태 경로**라서 정확히 `REFINE` 이다.
+browser_evidence: `var/product-audit/pa2_badid.py` 가 존재할 수 없는 UUID 로 9개 상세 라우트에 실제 진입해 본문 텍스트·모달 유무·주소 유지를 계측(`pa2_badid.json`). `/board/:id` 는 네트워크를 함께 기록해 같은 404 가 4회 호출되는 것을 확인했고, 20초·30초 두 시점에서 화면 상태를 따로 관측했다. 화면은 `shots2/d2_error_baduser.png`·`d2_error_404route.png`.
+rc_ids: PA-RC-0033, PA-RC-0034
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN error-state -->
+surface: error-state
+layout_family: state
+deep_audited: true
+skills_applied: ux-writing, ui-ux-pro-max, impeccable
+verdict: REFINE
+current_state: 공용 `ErrorState`(`frontend/src/ui/kit.jsx`)가 「찾을 수 없습니다 / 요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다. / 홈으로」를 그린다 - 제목·설명·회복 동작 3요소에 삽화까지 갖췄다. 알 수 없는 관리자 라우트(`RouteNotFound`), 사용자 콘솔 상세 5종이 전부 이것을 쓴다. 권한 거부는 별도로 `EmptyState`(`art="noPermission"`, 「권한이 없습니다」 + 설명 + 「대시보드로 이동」)를 쓴다. 세션 만료(401)는 권한 없음과 구분해 재로그인 링크가 있는 `ErrorState` 로 따로 처리한다(`AdminRoutes.jsx`).
+user_problem: 컴포넌트와 문구는 좋다. 문제는 **그것이 필요한 자리에 항상 놓이지는 않는다**는 것이다. 관리자 상세 3종은 404 를 받고도 이 컴포넌트를 그리지 않고 목록을 보여주며(`PA-RC-0033`), `/settings` 의 탭 게이트는 권한 거부에 이 어휘를 쓰지 않고 조용히 다른 탭을 보여준다(`PA-RC-0030`). 즉 제품에 좋은 오류 표현이 **있는데도** 같은 상황에서 어떤 화면은 쓰고 어떤 화면은 안 쓴다.
+target_design: 컴포넌트 자체는 그대로 둔다 - 문구·삽화·버튼 구성을 바꾸지 않는다. 대신 **적용 범위를 채운다**: 관리자 상세 3종의 404 경로(`PA-RC-0033`)와 `/settings` 탭 권한 거부(`PA-RC-0030`)가 이 공용 표현을 쓰게 한다. 그리고 오류가 확정된 뒤 즉시 표시되도록 재시도 정책을 고친다(`PA-RC-0034`) - 30초 뒤에 나오는 좋은 오류 화면은 좋은 오류 화면이 아니다.
+rationale: 문구 품질은 이 제품의 강점이다(3요소 + 회복 동작 + 401/403 구분). 그래서 표현을 다시 설계할 이유가 없어 `REDESIGN` 이 아니다. 그러나 같은 상황에서 이 표현을 쓰는 화면과 안 쓰는 화면이 갈리고 그 격차가 실측으로 4건 확인됐으므로 `KEEP` 도 아니다 - 이 표면의 결함은 컴포넌트가 아니라 **적용 일관성**이다.
+browser_evidence: `var/product-audit/pa2_states.py` 가 없는 사용자 id·알 수 없는 라우트로 실제 진입해 본문·버튼·삽화 수를 계측(`d2_error_404route.png`: 「찾을 수 없습니다」 + 「홈으로」 버튼, 삽화 2). `pa2_badid.py` 가 9개 상세 라우트에서 이 표현이 나오는 5곳과 안 나오는 3곳을 갈라 확인. `/settings` 탭 거부는 역할 3종 × 라우트 4종 12조합 실측.
+rc_ids: PA-RC-0030, PA-RC-0033, PA-RC-0034
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN empty-state -->
+surface: empty-state
+layout_family: state
+deep_audited: true
+skills_applied: ux-writing, ui-ux-pro-max, impeccable
+verdict: KEEP
+current_state: 필터로 결과가 0건이 되는 경우 - `/users?q=<없는 값>` 은 「조건에 해당하는 사용자가 없습니다 / 검색어나 필터를 지우고 다시 확인하세요」 + **「필터 지우기」 버튼**을 그리고, 그 버튼이 필터 카드와 빈 상태 양쪽에 놓인다(삽화 포함, 본문 237자). 데이터 자체가 없는 경우 - `/me` 의 미매핑 상태는 「내 계정이 Notion 사용자와 연결되어 있지 않습니다」 + 번호 매긴 조치 2단계 + 「기대 결과: 연결되면 내 담당 티켓이 이 자리에 표시됩니다」를 그린다.
+user_problem: 실측에서 이 표면의 결함이 나오지 않았다. 「결과 없음」(필터를 지우면 해결)과 「데이터 없음」(설정이 필요)을 **다른 문구와 다른 회복 동작**으로 구분하고 있고, 둘 다 사용자가 다음에 무엇을 할지 알 수 있다. `/me` 의 빈 상태는 원인·조치·기대 결과 3요소를 갖춰 이 제품에서 가장 잘 쓰인 문구에 속한다. 다만 그 화면의 **숫자 타일**이 같은 상황을 `0` 으로 말하는 것은 별개 결함이며 `PA-RC-0027` 이 가져갔다 - 빈 상태 문구 자체는 옳다.
+target_design: 변경 없음. 두 종류의 빈 상태를 구분하는 현재 방식, 회복 동작 버튼의 위치, 삽화, 3요소 문구 구성을 유지한다.
+rationale: `KEEP` 의 근거는 기준을 세우고 실측으로 통과한 것이다 - (1) 「결과 없음」과 「데이터 없음」이 구분되는가: 그렇다, (2) 회복 동작이 있는가: 그렇다(「필터 지우기」가 실제 동작하는 버튼으로 두 곳에), (3) 원인을 말하는가: 그렇다, (4) 기대 결과를 말하는가: `/me` 는 명시한다. `ux-writing` 의 빈 상태 기준(무엇이 없는지·왜 없는지·무엇을 하면 되는지)을 네 항목 다 만족한다.
+browser_evidence: `var/product-audit/pa2_states.py` 가 `/users?q=zzzz-no-such-user-zzzz` 로 실제 필터 빈 상태를 만들어 본문·버튼·삽화를 계측(`shots2/d2_empty_users.png`, 버튼에 「필터 지우기」 2회 등장, 삽화 8). `/me` 미매핑 빈 상태는 `shots2/d1_user_me.png` 를 `Read` 로 열어 3요소를 확인.
+rc_ids: 해당 없음 - 이 표면에서 구현이 필요한 결함이 측정되지 않았다. `/me` 의 숫자 타일 문제는 빈 상태가 아니라 값 표현의 결함이라 `PA-RC-0027` 이 가져갔다.
+<!-- DESIGN-VERDICT-END -->
+
+<!-- DESIGN-VERDICT-BEGIN loading-state -->
+surface: loading-state
+layout_family: state
+deep_audited: true
+skills_applied: ui-ux-pro-max, impeccable, ux-writing
+verdict: REFINE
+current_state: 네트워크를 2.2초 지연·12KB/s 로 조인 상태에서 `/audit` 을 열면 「불러오는 중…」 텍스트와 스켈레톤/스피너 **5개**가 뜨고, 화면 골격(제목·필터·동작 버튼)은 먼저 그려져 있다. 라우트 전환에는 `AdminRoutes.jsx` 의 `React.Suspense` 가 카드형 스켈레톤을 보인다. `registry` 로딩 중에는 catch-all 이 대시보드로 튕기지 않고 로딩을 유지한다(주소 깜빡임 방지).
+user_problem: 로딩 표현 자체는 옳다 - 골격을 먼저 그리고 데이터 자리만 스켈레톤으로 채우는 방식이라 레이아웃이 튀지 않는다. 문제는 **로딩이 끝나야 할 때 끝나지 않는 경우**다. `/board/<없는 id>` 는 서버가 즉시 404 를 답했는데도 같은 요청을 네 번 재시도하느라 20초 시점에 여전히 「불러오는 중…」이었다. 그 사이 화면은 정상 로딩과 구분되지 않아 사용자는 기다릴지 새로고침할지 판단할 수 없다.
+target_design: 로딩 표현(스켈레톤·「불러오는 중…」·골격 우선 렌더)은 그대로 둔다. 바꾸는 것은 **로딩이 끝나는 조건**이다 - 확정적인 4xx 를 재시도하지 않게 해 오류가 확정되는 즉시 로딩을 끝내고 오류 상태로 넘긴다(`PA-RC-0034`). 목표는 「없는 게시글」 판정이 3초 안에 끝나는 것이다.
+rationale: 스켈레톤·골격 우선 렌더·라우트 전환 로딩은 이미 잘 만들어져 있어 다시 설계할 이유가 없다. 그래서 `REDESIGN` 이 아니다. 그러나 이 표면의 목적은 「기다리는 동안 무슨 일이 일어나는지 알려 주는 것」인데, 답이 이미 나온 뒤에도 20초를 더 기다리게 하는 경로가 실측으로 존재하므로 `KEEP` 도 아니다. 고칠 것이 로딩의 **모양**이 아니라 **지속 시간**이라 `REFINE` 이다.
+browser_evidence: `var/product-audit/pa2_states.py` 가 CDP `Network.emulateNetworkConditions`(지연 2,200ms · 12KB/s)로 실제 느린 네트워크를 만들어 `/audit` 로딩을 관측 - 스피너/스켈레톤 5개 + 「불러오는 중…」(`shots2/d2_loading_audit.png`). `/board/<ghost>` 는 20초·30초 두 시점에서 본문을 따로 읽어 20초에는 로딩, 30초에는 「찾을 수 없습니다」임을 확인하고 네트워크에서 404 4회를 기록.
+rc_ids: PA-RC-0034
 <!-- DESIGN-VERDICT-END -->

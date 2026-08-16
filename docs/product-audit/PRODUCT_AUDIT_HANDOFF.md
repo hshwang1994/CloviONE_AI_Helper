@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=6
+actionable_root_causes=8
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -286,4 +286,83 @@ required_tests: (1) `tests/integration/test_notifications_write_conflict.py`(`d5
 qa_gaps: `QA_COVERAGE.md` 에 「쓰기 경합에서 각 엔드포인트가 어떻게 답하는가」 축이 알림 경로에만 있다(`d5ba3f9` 가 만든 테스트 하나). 인증 관문과 AI 대화라는 **가장 중요한 두 쓰기 경로**에는 그 축이 없다. 더 넓게는 「25개 모듈은 공용 관용을 쓰는데 어느 모듈이 안 쓰는가」를 기계적으로 검사하는 정적 검사가 없어서, 새 쓰기 경로가 보호 없이 추가돼도 아무것도 빨개지지 않는다 - `scripts/static_checks.sh` 에 그 검사를 넣는 것을 함께 검토한다.
 quality_rubric: 해당 없음 - 기능/데이터 정합성 계열이라 UI 품질 rubric 이 무관하다. 판정 기준은 CLAUDE.md §3-10(공용 classifier/retry 규약 재사용)과 §6(회귀 결함은 수정 전 실패 -> 수정 후 통과로 확인)이며, 사용자에게 보이는 실패 문구에 한해 `ux-writing` 의 3요소(무엇이/왜/무엇을 하라)를 적용해 수용 기준 (1)의 "안내하는 오류"를 정의했다.
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-091 · `app/auth/router.py:631-700`(실패 지점 689) · `app/auth/router.py:476-508`(기준 구현) · `app/core/db.py:154-210`(`is_write_conflict`·기본값·지터) · `app/chat/router.py:177`(`post_message`) · TEST SERVER `journalctl -u clovirone-web-assistant` 2026-08-17 02:25:53 / 05:09:23 / 08:12:45 / 08:14:06 traceback · 오늘 `POST /change-password` 31건 중 500 3건 집계
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0033 -->
+rc_id: PA-RC-0033
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 관리자 콘솔의 상세 라우트 3종(`/users/:id`·`/departments/:id`·`/audit/:id`)은 존재하지 않는 id 로 들어와도 아무 말 없이 목록을 그린다. 주소는 계속 그 레코드를 가리키는데 화면은 그 레코드를 언급조차 하지 않아서, 사용자는 대상이 삭제된 것인지 원래 없던 것인지 자신이 잘못 온 것인지 알 수 없다. 같은 제품의 사용자 콘솔 라우트 5종은 같은 상황에서 「찾을 수 없습니다」를 정확히 보여준다 - 한 제품 안에 같은 상황에 대한 답이 두 가지 있다.
+expected: 없는 레코드를 요청하면 화면이 그 사실을 말해야 한다. 이 제품은 이미 그 표현을 갖고 있다 - `frontend/src/ui/kit.jsx` 의 `ErrorState` 가 「찾을 수 없습니다 / 요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다. / 홈으로」를 그리고, 사용자 콘솔 5개 라우트와 관리자 `RouteNotFound` 가 그것을 쓴다. 관리자 상세 3종만 그 경로가 없다.
+actual: 존재할 수 없는 UUID 로 9개 상세 라우트에 진입한 실측 - `/users/:id` 는 사용자 목록 21행(본문 1,923자), `/departments/:id` 는 조직도, `/audit/:id` 는 감사 로그 목록(본문 8,138자)을 그리고 **셋 다 없는 레코드를 언급하지 않는다**. 주소는 세 경우 모두 그대로 유지된다.
+intent_evidence: `AdminRoutes.jsx` 주석이 `PA-RC-0024` 의 의도를 명시한다 - 「주소만 상세 상태를 실어 딥링크·새로고침·뒤로가기가 성립하게 한다」. 딥링크가 성립한다는 것은 그 주소가 가리키는 것이 없을 때 그렇다고 말하는 것까지 포함한다. 같은 RC 가 만든 `RouteNotFound` 와 사용자 콘솔 5개 라우트의 동작이 이 제품이 택한 정답을 보여준다. 다만 **관리자 상세에서 없는 id 를 어떻게 다뤄야 하는지 명시한 문서는 없다** - INFERRED 이며 근거는 제품 내 일관성이다.
+findings: PA-F-092
+feature_contracts: FC-사용자관리, FC-조직관리, FC-감사로그
+routes: `/users/:id`, `/departments/:id`, `/audit/:id`
+frontend: `frontend/src/app/AdminRoutes.jsx`(세 라우트 배선), `frontend/src/screens/Users.jsx`(`useParams().id` 소비), `frontend/src/screens/OrgConsole.jsx`, `frontend/src/screens/registry/governance.js`(`audit` 의 select intent), `frontend/src/ui/kit.jsx` `ErrorState`(재사용 대상)
+api: `GET /api/admin/users/{id}`, `GET /api/admin/departments/{id}`, `GET /api/admin/audit/{id}` - 서버는 이미 404 를 옳게 답한다(변경 불필요)
+backend: 해당 없음 - 서버는 이미 옳다. 프런트가 404 를 화면으로 옮기지 않는 것이 문제다
+data: 해당 없음 - 데이터 변경 없음
+rbac: 해당 없음 - 권한 경계가 바뀌지 않는다. 다만 **없는 레코드와 권한 없는 레코드를 구분해 노출하지 않도록** 주의한다(존재 여부 노출은 IDOR 정보 누출이 될 수 있다) - 서버가 이미 그 판단을 하고 있으므로 서버 응답을 그대로 표현만 한다
+integration: 해당 없음
+state_transition: 해당 없음 - 읽기 경로다
+user_impact: 관리자가 남에게 받은 링크나 오래된 즐겨찾기로 사용자 상세를 열면 목록이 뜬다. 그 사람이 퇴사해 삭제된 것인지, 링크가 잘못된 것인지, 자신이 못 보는 것인지 화면이 알려주지 않아 결국 목록에서 손으로 다시 찾는다. 감사 로그 상세는 특히 문제다 - 감사 항목 링크는 사건을 특정해 공유하는 용도인데, 그 항목이 없으면 8,138자짜리 전체 목록이 떠서 무엇을 보라는 것인지 알 수 없다.
+implementation_direction: 세 라우트에서 `:id` 가 주어졌는데 조회가 404 를 돌려주면 기존 `ErrorState`(`status: 404`)를 그린다 - `AdminRoutes.jsx` 의 `RouteNotFound` 가 이미 그렇게 하고 있으므로 **새 컴포넌트도 새 문구도 만들지 않는다**. 목록 자체를 숨길지 목록 위에 알림을 띄울지는 화면 성격에 맞춘다: `/users/:id`·`/audit/:id` 는 목록 위 모달 자리에 `ErrorState` 를 두는 편이 자연스럽고(목록은 그대로 쓸 수 있어야 한다), `/departments/:id` 는 오른쪽 패널 자리에 둔다. **`:id` 가 없는 목록 경로의 동작은 한 자도 바뀌면 안 된다.**
+constraints: CLAUDE.md §3-6(서버 데이터를 `innerHTML` 로 주입하지 않는다) · §5(per-page 예외보다 shared component 우선 - `ErrorState` 를 그대로 쓴다) · `PA-RC-0024` 가 만든 「같은 element 라 인스턴스가 유지된다」는 성질을 깨지 않는다(목록의 스크롤·필터·데이터를 잃지 않아야 한다) · 없는 레코드와 권한 없는 레코드의 구분을 프런트가 새로 만들지 않는다(서버 응답을 그대로 표현한다)
+regression_risk: (a) `:id` 라우트와 목록 라우트가 **같은 element** 를 가리키는 구조라, 오류 표시를 잘못 넣으면 목록 경로에서도 오류가 뜨거나 목록 인스턴스가 다시 마운트돼 `PA-RC-0024` 가 확보한 「스크롤·필터·데이터 유지」가 깨진다. (b) `/audit/:id` 의 단건 조회는 `PA-RC-0024` 가 새로 만든 엔드포인트라 소비자가 이 화면뿐이다 - 변경 영향이 좁지만 그만큼 테스트도 이 화면에만 있다. (c) 권한 없는 레코드를 「없음」으로 표시하면 반대로 정보가 새지 않는지 확인한다.
+acceptance_criteria: (1) 존재하지 않는 id 로 `/users/:id`·`/departments/:id`·`/audit/:id` 에 들어가면 화면이 「찾을 수 없습니다」를 명시한다. (2) 그 표현이 사용자 콘솔 5개 라우트·`RouteNotFound` 와 **같은 컴포넌트·같은 문구**다. (3) `:id` 없는 목록 경로(`/users`·`/departments`·`/audit`)의 동작과 렌더 결과가 변경 전과 같다. (4) 목록에서 상세를 열고 닫을 때 스크롤·필터·페이지가 유지된다(`PA-RC-0024` 회귀). (5) 9개 상세 라우트 전체를 없는 id 로 다시 훑었을 때 「침묵」이 0건이다.
+required_tests: (1) 세 라우트 각각에 대해 없는 id 진입 시 `ErrorState` 가 렌더되는 컴포넌트 테스트. (2) 목록 경로 회귀 테스트(`:id` 없이 진입할 때 기존과 동일). (3) 상세 열고 닫기에서 목록 상태 유지 테스트(`PA-RC-0024` 가 남긴 계약). (4) `var/product-audit/pa2_badid.py` 재실행으로 수용 기준 (5).
+qa_gaps: `QA_COVERAGE.md` 에 「없는 레코드를 요청했을 때의 표현」 축이 상세 라우트 전체에 대해 없다. 사용자 콘솔 5개는 우연히 맞게 동작하고 있을 뿐 그것을 고정하는 검증도 없다.
+quality_rubric: `ux-writing` - 「없어서 문제인 문구」. 이 RC 는 잘못된 문구가 아니라 **문구가 아예 없는 것**이 결함이다. 내장 rubric 4) 「같은 의미가 같은 component/pattern 으로 표현되는가」 - 같은 상황(없는 레코드)에 대해 관리자 3종과 사용자 5종이 다르게 답하는 것이 Root Cause 판정의 근거다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-092 · `var/product-audit/pa2_badid.py` 실행 결과 · `var/product-audit/pa2_badid.json` · `frontend/src/app/AdminRoutes.jsx`(`:id` 라우트 배선과 `RouteNotFound`) · `frontend/src/ui/kit.jsx` `ErrorState`
+current_state: 없는 id 로 진입하면 `/users/:id` 는 사용자 목록 21행(1,923자), `/departments/:id` 는 조직도, `/audit/:id` 는 감사 로그 목록(8,138자)이 뜬다. 주소는 그대로 그 레코드를 가리킨다. 없는 레코드에 대한 언급은 어디에도 없다.
+user_problem: 링크가 잘못된 것인지 대상이 삭제된 것인지 자신이 못 보는 것인지 알 수 없고, 결국 목록에서 손으로 다시 찾는다.
+design_verdict: REFINE
+target_state: 없는 상세를 요청하면 제품의 다른 곳과 같은 말투로 「찾을 수 없습니다」가 뜬다. 목록 경로는 지금과 똑같이 동작한다.
+target_design: 기존 `ErrorState`(`status: 404`)를 상세가 뜰 자리에 그린다 - `/users`·`/audit` 은 목록 위 모달 자리, `/departments` 는 오른쪽 패널 자리. 새 컴포넌트·새 문구·새 레이아웃을 만들지 않는다. 목록은 뒤에 그대로 살아 있어 바로 다시 쓸 수 있다.
+visual_change_required: true
+target_visual_delta: 없는 id 진입 시 목록 위(또는 오른쪽 패널)에 아이콘 + 「찾을 수 없습니다」 + 설명 + 「홈으로」 버튼이 나타난다. 정상 id 와 목록 경로의 화면은 변하지 않는다.
+affected_surfaces: `/users/:id`, `/departments/:id`, `/audit/:id`
+affected_components: `AdminRoutes.jsx`, `Users.jsx`, `OrgConsole.jsx`, `registry/governance.js`(audit), `ui/kit.jsx` `ErrorState`(재사용, 수정 없음)
+workflow_change: 없음 - 할 수 있는 일이 바뀌지 않는다. 잘못된 링크로 왔을 때 그 사실을 알게 되는 것뿐이다
+navigation_impact: 라우트·메뉴가 바뀌지 않는다. 주소와 화면이 일치하게 된다
+data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 - 서버는 이미 404 를 옳게 답하고 있으며 계약을 바꾸지 않는다
+rbac_impact: 없음 - 서버의 판단을 그대로 표현만 한다. 없는 레코드와 권한 없는 레코드의 구분을 프런트가 새로 만들지 않는다
+browser_verification: TEST SERVER 에서 admin 으로 존재하지 않는 UUID 를 세 라우트에 넣어 1920×1080 라이트/다크로 캡처하고, 같은 화면에서 정상 id 로도 열어 상세가 정상 동작하는지 확인한다. 이어서 목록 경로를 열어 스크롤·필터가 유지되는지 확인한다 - 한 번에 회귀까지 본다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0034 -->
+rc_id: PA-RC-0034
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 전역 React Query 설정에 `retry` 가 없어 라이브러리 기본값(`retry: 3`)이 적용된다. 그래서 확정적인 4xx(404·403)까지 네 번 호출하고, 사용자는 「이미 답이 나온 오류」를 보기까지 지수 백오프만큼 기다린다. `/board/<없는 id>` 실측에서 20초 시점에 여전히 「불러오는 중…」이고 30초 시점에야 「찾을 수 없습니다」가 떴다. 개별 화면 60곳이 각자 `retry` 를 적어 이 기본값을 덮고 있다는 사실 자체가 기본값이 틀렸다는 증거다.
+expected: 4xx 는 다시 호출해도 답이 바뀌지 않으므로 재시도하지 않고 즉시 오류 상태로 넘어가야 한다. 재시도는 네트워크 오류·5xx 처럼 다시 하면 달라질 수 있는 실패에만 의미가 있다. 이 저장소는 서버 쪽에서 이미 같은 원칙을 정교하게 구현해 두었다 - `app/core/db.py::is_write_conflict` 가 「재시도해야 하는 실패」와 「그렇지 않은 실패」를 판정하고, 재시도 예산을 실측으로 정했다. 프런트에는 그에 대응하는 판정이 없다.
+actual: `frontend/src/main.jsx:17` 이 `defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30 * 1000 } }` 만 설정하고 `retry` 를 생략한다. 실측 - `/board/<ghost>` 진입 시 `GET /api/board/posts/<ghost>` 가 **4회** 호출되고 전부 404 를 받는다(API 는 즉시 `{"error":{"code":"not_found"}}` 로 옳게 답한다). `useQuery` 호출부 **80개 중 20개**가 명시적 `retry` 없이 이 기본값을 상속하고, 나머지 60개는 각자 값을 적어 두었다(`Diagnostics.jsx` 는 `retry: false`, `Dashboard.jsx` 는 `retry: 1` 로 서로 다르다).
+intent_evidence: 직접적인 프런트 재시도 정책 문서는 **없다** - 이 부분은 INFERRED 다. 근거는 (1) 이 저장소가 서버에서 「재시도할 실패와 아닌 실패」를 명시적으로 판정하는 규약(`is_write_conflict`)을 두고 CLAUDE.md §3-10 으로 의무화했다는 것, (2) 60개 호출부가 기본값을 덮어쓰고 있다는 실측, (3) API 가 404 를 즉시 정확히 답하는데 화면이 30초를 쓰는 것은 어떤 제품 의도로도 설명되지 않는다는 것이다.
+findings: PA-F-092
+feature_contracts: FC-게시판상세, FC-공용오류표시
+routes: 명시적 `retry` 가 없는 20개 호출부가 속한 화면 전부 - `/board`·`/board/:id`·`/team-docs`·`/team-docs/:id`·`/chat-rooms`·`/games`·`/search`·`/settings`(LlmConsole·NotionConsole·SystemOps 탭)·`/mail`·`/team-docs/trash`·커맨드 팔레트
+frontend: `frontend/src/main.jsx:17-19`(전역 `QueryClient` - 주 변경), 그리고 명시 `retry` 가 없는 20곳: `CommandPalette.jsx:94` · `Board.jsx:393,404` · `BoardPost.jsx:404,405` · `ChatRoomMembers.jsx:154` · `ChatRooms.jsx:78,238` · `Games.jsx:378` · `LlmConsole.jsx:100,112,119` · `MailStatus.jsx:62` · `NotionConsole.jsx:225` · `Search.jsx:148` · `SystemOps.jsx:158` · `TeamDoc.jsx:215` · `TeamDocs.jsx:128` · `Trash.jsx:47` · `game-room/useGameRoomController.js:41`
+api: 해당 없음 - 서버 응답은 이미 옳다. 프런트가 그 응답을 몇 번 부르는지가 문제다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 데이터가 바뀌지 않는다
+rbac: 해당 없음 - 권한 경계와 무관하다. 다만 403 도 재시도 대상에서 빠지므로 권한 없는 화면의 오류 표시가 빨라진다
+integration: 해당 없음 - 외부 연동과 무관하다
+state_transition: 해당 없음
+user_impact: 없는 게시글 링크를 연 사용자가 30초 가까이 스피너를 본 뒤에야 「찾을 수 없습니다」를 받는다. 그 사이 화면은 정상 로딩과 구분되지 않아 사용자는 기다릴지 새로고침할지 판단할 수 없다. 같은 지연이 권한 없는 화면(403)과 지워진 문서·채팅방에도 적용된다. 그리고 불필요한 재요청 3배가 서버에도 그대로 간다.
+implementation_direction: `frontend/src/main.jsx` 의 `defaultOptions.queries` 에 4xx 를 재시도하지 않는 `retry` 함수를 넣는다 - 예: `retry: (count, err) => { const s = err?.status; if (s >= 400 && s < 500) return false; return count < 2; }`. 이 저장소의 API 클라이언트(`frontend/src/lib/api.js`)가 오류에 `status` 를 싣는지 먼저 확인하고, 안 싣는다면 그 클라이언트에서 상태 코드를 보존하는 것을 함께 처리한다(`ErrorState` 가 이미 `error.status` 를 읽어 404 화면을 그리므로 실을 가능성이 높다). **개별 화면 20곳에 `retry` 를 하나씩 추가하지 않는다** - 그러면 61번째 예외를 만드는 것이고 이 RC 의 요지(기본값이 틀렸다)를 놓친다. 이미 명시 `retry` 를 가진 60곳은 **건드리지 않는다**(각자 이유가 있을 수 있고, 새 기본값과 충돌하지 않는다).
+constraints: CLAUDE.md §5(per-page 예외보다 shared 설정 우선) · 기존 60개 호출부의 명시 설정을 임의로 지우지 않는다 · `staleTime`·`refetchOnWindowFocus` 등 기존 기본값의 의미를 바꾸지 않는다 · 재시도를 없애는 것이 아니라 **4xx 만 제외**한다(네트워크 오류·5xx 는 계속 재시도해야 한다)
+regression_risk: (a) 오류 객체에 `status` 가 없으면 조건이 항상 거짓이 되어 재시도 동작이 의도와 달라진다 - `api.js` 의 오류 형태를 먼저 확인해야 한다. (b) 일시적 401(세션 갱신 중)을 재시도하지 않게 되면 화면이 더 자주 로그인 오류를 보일 수 있다 - 401 처리는 이미 `auth-401-invalidates-me.test.jsx` 가 있는 별도 경로이므로 그 테스트로 회귀를 확인한다. (c) 5xx 재시도 횟수를 기본 3에서 줄이면 일시적 서버 오류에서 화면이 더 빨리 실패한다 - 줄일지 유지할지는 명시적으로 정하고 주석에 이유를 남긴다.
+acceptance_criteria: (1) `/board/<없는 id>` 진입 시 `GET /api/board/posts/<id>` 호출이 **1회**다(현재 4회). (2) 같은 화면이 「찾을 수 없습니다」를 **3초 이내**에 보여준다(현재 20초 초과). (3) 403 을 돌려주는 화면도 재시도 없이 즉시 권한 오류를 보인다. (4) 네트워크 오류·5xx 는 **여전히 재시도한다**(재시도를 통째로 끄는 과잉 수정 방지). (5) 명시 `retry` 를 가진 60개 호출부의 동작이 변하지 않는다. (6) 세션 만료(401) 처리 경로가 기존 테스트로 계속 통과한다.
+required_tests: (1) 전역 `retry` 정책 단위 테스트 - 404·403 은 false, 네트워크 오류·500 은 재시도. (2) `/board/:id` 없는 id 진입 시 요청이 1회임을 확인하는 통합/컴포넌트 테스트. (3) 기존 `auth-401-invalidates-me.test.jsx` 회귀. (4) `api.js` 가 오류에 `status` 를 싣는다는 것을 고정하는 테스트(이 정책이 조용히 무력화되지 않게).
+qa_gaps: `QA_COVERAGE.md` 에 「오류가 확정된 뒤 화면이 얼마나 빨리 그것을 말하는가」 축이 없다. 기존 검증은 최종적으로 올바른 화면이 뜨는지만 보므로, **올바른 답을 30초 걸려 주는 것**은 통과한다. 이 Cycle의 `PA-RC-0029`·`PA-RC-0030`·`PA-RC-0031`과 같은 공백이다 - 검사가 결과만 보고 경로를 안 본다.
+quality_rubric: `ui-ux-pro-max` - 「로딩 피드백」과 「체감 성능」: 사용자는 정상 로딩과 재시도 중인 실패를 구분할 수 없다. 내장 rubric 10) 「Motion: 목적 있는 전환인가, 지연을 늘리기만 하는가」를 로딩 상태에 적용했다. `ux-writing` - 오류를 늦게 말하는 것은 문구 품질과 무관하게 오류 전달 실패다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-092 · `frontend/src/main.jsx:17-19` · `frontend/src/screens/BoardPost.jsx:405` · `var/product-audit/pa2_badid.py` 실행 결과(네트워크 4회 404 관측) · `useQuery` 80곳 중 20곳 무설정 계측
 <!-- PA-RC-END -->
