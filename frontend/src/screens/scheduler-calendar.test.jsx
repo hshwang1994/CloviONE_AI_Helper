@@ -155,6 +155,32 @@ describe("실행 달력", () => {
     expect(await screen.findByText("추가된 실행 일정이 없습니다")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
+
+  // VIS-124/VIS-125: 일정은 있는데(등록 자체는 됨) 전부 비활성이면 예정이 안 만들어진다 —
+  // 예전엔 그 이유를 말하지 않고 빈 42칸 격자만 그렸다.
+  it("등록된 일정이 전부 비활성이면 빈 격자 대신 이유와 활성화 경로를 안내한다", async () => {
+    mockApi(() => Promise.resolve(body({
+      items: [], schedules: [{ id: "s-1", name: "매일 리포트", enabled: false, timezone: "Asia/Seoul" }],
+    })));
+    renderCalendar();
+    expect(await screen.findByText("예정된 실행이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText(/등록된 일정 1개가 모두 비활성 상태입니다/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "실행 일정에서 활성화" })).toHaveAttribute("href", "#/schedules");
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
+  it("활성 일정이 하나라도 있으면(예정이 우연히 0건이어도) 격자를 그대로 그린다", async () => {
+    mockApi(() => Promise.resolve(body({
+      items: [],
+      schedules: [
+        { id: "s-1", name: "매일 리포트", enabled: false, timezone: "Asia/Seoul" },
+        { id: "s-2", name: "주간 요약", enabled: true, timezone: "Asia/Seoul" },
+      ],
+    })));
+    renderCalendar();
+    expect(await screen.findByRole("grid")).toBeInTheDocument();
+    expect(screen.queryByText("예정된 실행이 없습니다")).not.toBeInTheDocument();
+  });
 });
 
 describe("실행 상세의 재시도 액션 (M9)", () => {

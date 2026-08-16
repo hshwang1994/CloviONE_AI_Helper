@@ -228,6 +228,7 @@ export function SchedulerCalendar() {
   }, [query.data]);
 
   const schedules = (query.data && query.data.schedules) || [];
+  const allDisabled = schedules.length > 0 && schedules.every((s) => !s.enabled);
   const monthLabel = `${cursor.year}년 ${cursor.month + 1}월`;
   const move = (delta) => setCursor((c) => {
     const next = new Date(Date.UTC(c.year, c.month + delta, 1));
@@ -312,6 +313,21 @@ export function SchedulerCalendar() {
             title="추가된 실행 일정이 없습니다"
             help="‘실행 일정(스케줄)’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
             relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
+          />
+        </Box>
+      ) : allDisabled && counts.run === 0 && counts.planned === 0 ? (
+        // VIS-124/VIS-125: 일정이 있는데(schedules.length > 0) 전부 비활성이면 빈 42칸 격자만
+        // "실행 0건, 예정 0건"과 함께 그려져 "왜 없는지"를 말하지 않았다. 비활성 일정은 애초에
+        // Cron 전개(예정)를 안 만드니 원인이 명확하다 — 빈 격자 대신 zero-schedules 분기와
+        // 같은 EmptyState 관용으로 원인+행동을 바로 보여준다(D-22: 새로 설계하지 않고 위
+        // 분기의 형식을 그대로 재사용).
+        <Box sx={{ mt: 2 }}>
+          <EmptyState
+            art="search"
+            title="예정된 실행이 없습니다"
+            situation={`등록된 일정 ${schedules.length}개가 모두 비활성 상태입니다.`}
+            help="비활성 일정은 예정을 만들지 않습니다. 실행 일정 화면에서 활성화하면 이 달력에 다시 표시됩니다."
+            relatedLink={{ href: "#/schedules", label: "실행 일정에서 활성화" }}
           />
         </Box>
       ) : (
