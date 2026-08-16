@@ -7119,3 +7119,28 @@ adversarial 프레이밍이 없었다).
 결과 자체가 낡았을 수 있음 — 위 교훈과 같은 이유로 재확인 필요), (2) 이번 세션 누적
 변경(RESP-01/FN-42/QA-05 + 문서 다수)에 대해 수렴 지점에서 Full Regression 1회, (3) 그
 뒤에야 Medium 항목 처리 여부 재검토.
+
+### 체크포인트 — 2026-08-17 계속: 남은 전체 High 재확인 → `AI-01` 완결(러너 엔드포인트 신설), `AI-06`은 진짜 함정으로 재확인
+
+`architect` 에이전트로 AI/Runner High 클러스터(`AI-01/05/06/07/13/19/20/31/33/54`) 전체의
+호출 그래프를 다시 매핑했다 — n8n(이 저장소 밖)이 대부분의 경로 중간에 있어 `AI-05/07/
+13/20`은 부분 차단, `AI-06`(진행 중 작업 취소)은 `app/jobs/worker.py`의 동기·단일 스레드
+실행 구조상 협조적 취소 지점이 아예 없는 **진짜 함정**(이전 세션이 `AI-54`에서 이미
+독립적으로 도달한 결론과 정확히 일치 — 교차 확인됨). 유일하게 n8n을 전혀 안 거치는
+`AI-01`(브리핑/스탠드업/다이제스트 문장 요약)만 골라 구현: 러너(`assistant.py`)에
+`/v1/assistant/summarize` 신설(`/quiz`와 같은 격리 패턴 재사용), 배포(`3.60.0`,
+러너 전용 파이프라인, n8n/플랫폼 무접촉).
+
+TEST SERVER 실측 중 이 서버에 한 번도 없었던 설정 2건(플래그 파일 쓰기 권한 —
+`ProtectSystem=strict` 의도된 하드닝이라 root sudo 직접 편집으로 우회 아닌 정식 경로 사용,
+`assistant_runner_token` secret 미생성)을 만나 정면 해결하고, 그 과정에서
+`narrate.py`/`games/ai.py` 공유 결함(`SecretMissingError`를 옛 `FileNotFoundError`로
+잡던 죽은 코드)까지 같은 근본 원인으로 함께 수정 — 회귀 시험 2건 추가.
+실측: `GET /api/assistant/briefing?narrate=true` 실제 한국어 문장 반환 + 실브라우저
+"문장 요약 만들기" 버튼 클릭 → 렌더 확인(스크린샷). 러너 323건(신규 9)+플랫폼 61건
+(신규 2) green. 상세: `DECISIONS.md` D-109, `BACKLOG.md` `AI-01`(+`AI-19`/`AI-20` 신규
+조사 노트).
+
+이후 이번 세션 전체 누적 변경(RESP-01/FN-42/QA-05/AI-01 + 백로그 문서 다수)에 대해
+Full Regression을 백그라운드로 실행 중 — 완료되면 결과를 확인하고 다음 작업(Medium
+항목 재검토 또는 `PROJECT_COMPLETE` 판단)으로 이어간다.
