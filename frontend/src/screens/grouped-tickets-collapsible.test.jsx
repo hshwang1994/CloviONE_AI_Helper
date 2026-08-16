@@ -85,3 +85,24 @@ describe("GroupedTickets — collapsible=true (VIS-64)", () => {
     }
   });
 });
+
+// VIS-163 — 담당자 열만 nowrap이 빠져 있어 1200×900처럼 좁은 폭에서 "임승환, 김동현" 같은
+// 값이 글자 하나씩 세로로 무너졌다(overflowWrap:anywhere). 다른 모든 열(티켓 번호·상태·
+// 우선순위·난이도·예상 WD·마감·작업)은 이미 nowrap:true라 같은 문제를 안 겪는다 — 담당자
+// 열도 같은 규칙을 따라야 한다.
+describe("담당자 열 — vertical_text_collapse 방지 (VIS-163)", () => {
+  it("showAssignee면 담당자 열도 다른 열처럼 nowrap이다", () => {
+    const cols = ticketColumns({ showAssignee: true });
+    const assigneeCol = cols.find((c) => c.key === "assignee_names");
+    expect(assigneeCol).toBeDefined();
+    expect(assigneeCol.nowrap).toBe(true);
+  });
+
+  it("compact든 아니든 상관없이 담당자 열은 nowrap이다", () => {
+    for (const compact of [true, false]) {
+      const cols = ticketColumns({ showAssignee: true, compact });
+      const assigneeCol = cols.find((c) => c.key === "assignee_names");
+      expect(assigneeCol.nowrap).toBe(true);
+    }
+  });
+});

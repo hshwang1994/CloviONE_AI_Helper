@@ -4762,3 +4762,128 @@ Job 처리 전체가 지나는 공유 경로이고 Phase 2는 이 설계 자신�
 시작점이다.
 
 상세: `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`.
+
+## D-119 (2026-08-17) — D-118 Phase 1 구현완료: 레인 배선, 아직 어둡다(실행 경로 변화 없음)
+
+D-118이 세운 계획대로 Phase 1(어두운 배선)을 구현했다. **기본 설정에서 실제 동작은 이
+변경 전과 100% 동일하다** — `worker_conversational_lane_enabled`가 기본 꺼짐이고, 꺼진
+상태에서 모든 새 코드 경로는 예전과 같은 인자 없는 호출과 동치가 되도록 짰다.
+
+### 만든 것
+
+- 신규 `app/jobs/lanes.py` — `LANE_BATCH`/`LANE_CONVERSATIONAL`/`CONVERSATIONAL_JOB_TYPES`
+  (`chat_message`·`llm_connection_test`)/`lock_filename(lane)`/`liveness_component(lane)`.
+  claim 필터·sweep 필터·리스 경로·liveness 컴포넌트 네 곳이 이 한 정의를 같이 쓴다.
+- `app/jobs/repository.py::claim_next`에 `include_types`/`exclude_types`/
+  `takeover_after_seconds` 키워드 인자 추가 — 셋 다 안 주면(기존 모든 호출부) SQL이
+  이 변경 전과 바이트 단위로 같다. `recover_stuck`에도 같은 `include_types`/
+  `exclude_types`(ORM `.in_()`/`.not_in()`로 구현, `claim_next`보다 단순 — 원래 raw SQL이
+  아니라 ORM `select()`였다).
+- `app/core/worker_lock.py::default_lock_path(data_dir, lane="batch")` — 배치 레인
+  기본값은 기존 `worker.lock` 경로 그대로, 대화형 레인은 `worker-conversational.lock`.
+  `app.jobs.lanes`를 함수 안에서 import한다(`app.core`가 `app.jobs`에 의존하는 방향이
+  뒤집히지 않게).
+- `app/jobs/worker.py::Worker`에 `include_types`/`exclude_types`/`takeover_after_seconds`
+  생성자 인자(기본값 전부 "필터 없음") — `run_once`의 유일한 `claim_next` 호출과
+  `sweep`의 유일한 `recover_stuck` 호출이 이 인스턴스 상태를 그대로 넘긴다.
+  **`run_once`의 트랜잭션/커밋 순서 자체는 한 줄도 안 바꿨다** — kwargs만 추가했다.
+  신규 `Worker.run_forever_pooled(stop_event, *, max_concurrency)` — `run_once`를
+  `ThreadPoolExecutor`에 제출하는 폴링 루프, tick_callbacks가 하나라도 있으면 시작을
+  거부한다(D-118 §2의 2차 방어). graceful shutdown은 `ThreadPoolExecutor.__exit__`의
+  `shutdown(wait=True)`에 그대로 기댄다 — in-flight 잡을 강제 종료 안 하고 끝까지
+  기다린 뒤 스레드가 죽는다.
+- `app/core/config.py`에 `worker_conversational_lane_enabled`(기본 `False`)·
+  `worker_conversational_concurrency`(기본 3 — Phase 0에서 확인한 대로 러너
+  `conversation_lock`이 대화별로 갈리므로 1이 아니라 3부터 시작해도 안전하다)·
+  `worker_conversational_takeover_seconds`(기본 120.0).
+- `app/worker_main.py` 재구성 — `main()`을 세 함수로 쪼갰다: `_bootstrap(settings, clock)`
+  (레인과 무관한 공용 배선), `build_batch_worker(...)`(기존 15개 tick 전부 + 잡 핸들러
+  전부, 그대로 옮김 — **로직 자체는 한 줄도 안 바뀌었다**, `worker_conversational_lane_enabled`가
+  켜졌을 때만 `exclude_types`/`takeover_after_seconds`를 `Worker`에 넘긴다),
+  `build_conversational_worker(...)`(신규, `chat_message`/`llm_connection_test` 핸들러만,
+  tick 배선 자체가 없다). `main(argv=None)`이 `--lane`(기본 `batch`)을 파싱해 리스 경로·
+  워커 조립 함수·heartbeat `components`·`run_forever`/`run_forever_pooled` 선택을 분기한다.
+  인자 없이 부르면(기존 systemd 유닛 그대로) 이 리팩터 전과 동일한 프로세스가 뜬다.
+- 신규 `deploy/systemd/clovirone-web-worker-conversational.service` — 배치 유닛과 같은
+  하드닝, `ExecStart`만 `--lane=conversational` 추가. **설치 스크립트(`install-
+  clovirone-web-assistant.sh`)에는 아직 안 걸었다** — 의도적으로 Phase 2 몫으로 남긴다
+  (그 스크립트는 `systemctl enable`까지 하므로, 파일을 만드는 것과 실제로 띄우는 것
+  사이의 경계를 Phase 경계와 맞춘다).
+
+### 시험
+
+신규/보강 26건: `tests/unit/test_jobs_lanes.py`(5, `lanes.py` 계약), `test_jobs_repository.py`
++6(기본 인자 SQL 불변 확인 2건 포함), `test_worker_lock.py`+2(레인별 경로), `test_worker.py`
++3(`run_forever_pooled` — 실제 배리어로 동시성 증명, tick 있으면 기동 거부, graceful
+shutdown이 in-flight 잡을 안 끊는지), 신규 `test_worker_main_lanes.py`(4, 조립 함수의
+실제 산출물 확인 + `main()` 소스 인용으로 분기 배선 확인). 기존 `test_health_snapshot_job.py`의
+`test_main_actually_registers_the_tick`이 `main()` 소스만 인용하던 것을 `build_batch_worker`
+소스 인용 + `main()`이 그 함수를 실제로 부르는지로 정정(리팩터로 그 등록 줄이 물리적으로
+옮겨갔을 뿐 배선 자체는 그대로라, 정정하지 않으면 시험이 구현 세부사항에 걸려 실패했다).
+
+`tests/unit` 전체(수백 건) green, `tests/integration` 전체 확인 진행 중(claim_next/
+recover_stuck는 전 job_type이 지나는 공유 경로라 CLAUDE.md §6의 고위험 조기 회귀 대상).
+
+### 다음
+
+Phase 2(대화형 레인을 실제로 켬, `max_concurrency=1`부터)가 D-118이 "가장 위험한
+phase"라고 명시한 지점이다 — `recover_stuck`의 레인 필터가 핵심 방어선(필터 없이 두
+레인이 각자 sweep하면 대화형 레인이 배치 레인의 실행 중인 `schedule_run`을 오판해
+재큐잉할 수 있다). Phase 1은 그 방어선의 배선까지만이고, 실제로 두 프로세스를 동시에
+띄워 보는 것은 하지 않았다(설치 스크립트 미배선이 그 경계를 강제한다) — 다음 세션이
+Phase 2를 시작하기 전에 실제 SQLite 파일 기반 2-레인 통합 시험(D-118 Phasing 항목
+참고)부터 새로 짜야 한다.
+
+상세: `docs/BACKLOG.md` `AI-05`/`AI-06`/`AI-07`/`AI-54`, 설계는 D-118.
+
+## D-120 (2026-08-17) — `VIS-163`/`VIS-34`: Explore agent가 Medium 잔여 스캔에서 재발견, 둘 다 구현
+
+D-118/Phase 1 작업과 병행해 Medium 백로그 잔여분(약 242행, 이전 두 배치가 다루지 않은
+나머지)을 Explore agent에게 adversarial 검증 프레이밍으로 다시 맡겼다. 결과 3건 후보 중
+2건을 이번에 구현했다(`VIS-45`는 백엔드 재조사가 필요해 다음으로 미룸, 나머지 4건은
+재설계가 필요해 스킵 — 상세는 BACKLOG.md 각 행).
+
+### `VIS-163` — 진짜 원인은 폭이 아니라 빠진 플래그였다
+
+이전 세션이 이 증상을 처음 실측했을 때(QA 캡처, `docs/QA_COVERAGE.md`) 원인을 "`width`
+힌트가 `tableLayout` 자동 계산에서 안 지켜진다"로 추정해 기록해 뒀다. 재조사하며 실제
+컬럼 정의(`MyTickets.jsx::ticketColumns`)를 다시 읽으니 추정이 틀렸다 — 이 표의 8열 중
+7열은 전부 `nowrap: true`가 있고 `assignee_names` 열 하나만 빠져 있었다. `nowrap`이
+`overflowWrap: anywhere`(빠졌을 때) vs `normal`(있을 때)을 가르는데, 이 열만 `anywhere`로
+렌더되며 글자 단위로 쪼개졌다 — 폭 계산 버그가 아니라 **컬럼 하나가 기존 관례에서
+빠진 것**이었다. `nowrap: true` 한 줄로 해결, `ticketColumns()` 공유 함수라 4개 소비처
+(내 티켓·미할당·팀 티켓·스프린트) 전부에 자동 적용된다.
+
+**교훈**: 실측(QA 하네스)이 "무엇이 잘못됐는지"는 정확히 잡아도 "왜"는 추정일 수 있다 —
+실측 결과를 코드 수정의 근거로 쓸 때도 실제 소스를 다시 확인해야 한다. 이번엔 다행히
+추정과 실제 수정 방향이 겹쳤다(둘 다 "이 열에 뭔가 처리를 추가한다"는 결론), 그렇지
+않았다면 잘못된 처방(예: `tableLayout: fixed`로 강제)이 다른 7열의 기존 동작을 깼을 수
+있다.
+
+### `VIS-34` — `VIS-25`와 같은 질문, 다른 답
+
+`Briefing`(AssistantPanel.jsx)의 KPI 숫자 반복을 관리자 대시보드의 `VIS-25`(같은 저장소,
+이미 "의도된 설계"로 종결됨)와 같은 기준으로 재검토했다. `VIS-25`가 반복을 그대로 둔
+근거는 "요약 줄 + 상세 구역, 클릭하면 이동하는 네비게이션 구조 + `<Note>`로 그 관계를
+명시"였다. `Briefing`은 그 구조(클릭해도 아무 데도 안 움직인다)가 없어 **같은 정당화가
+안 통했다** — 대신 이 컴포넌트 자신의 설계 계약("숫자가 먼저, 문장은 나중" — 사용자가
+누르는 '문장 요약 만들기' 버튼이 정확히 무엇을 문장으로 바꾸는지 보여주는 근거)이 다른
+정당화를 줬다. 결론: 숫자는 남기고 `VIS-25`가 썼던 것과 같은 처방(관계를 명시하는
+캡션)을 적용했다 — "위 숫자는 이 화면 상단 카드와 같은 값입니다." 완전히 동일한
+패턴이라도 판정은 그 컴포넌트 고유의 계약을 다시 확인해야 한다는 사례로 남긴다.
+
+**순수 중복(실패 문구)은 다르게 처리**: "티켓 소스를 읽지 못해 이번 주 진척을 계산할 수
+없습니다. 관리자에게 문의하세요." 전체 문장이 `SprintProgress`와 `Briefing` 양쪽에
+그대로 있던 것은 정당화할 구조가 없는 순수 중복이라, `Briefing` 쪽을 "위 스프린트
+카드와 같은 이유로…"로 짧게 참조하게 바꿨다.
+
+### 검증
+
+신규 시험 2건(`grouped-tickets-collapsible.test.jsx`)+2건(`home.test.jsx`), 전부
+revert-to-verify. `AssistantPanel`은 자체 비동기 쿼리를 쓰는데 기존 `home.test.jsx`의
+관련 시험이 `findByText`로 그 쿼리 완료를 기다리지 않고 있었다는 것도 이번에 확인했다
+(고쳐 전 코드로도 통과하던 시험이었다 — Home 자신의 쿼리만 기다리고 AssistantPanel의
+콘텐츠가 DOM에 실제로 있는지는 확인 안 함). 새 시험은 `findByText`로 명시적으로 기다려
+실제 렌더 내용을 검증한다. 프런트 전체 회귀(286파일/1,983건) green.
+
+상세: `docs/BACKLOG.md` `VIS-163`, `VIS-34`.

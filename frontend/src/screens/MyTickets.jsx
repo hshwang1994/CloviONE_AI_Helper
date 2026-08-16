@@ -148,7 +148,11 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact }
   }
   cols.push({ key: "due", label: "마감", align: "right", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.due || "-") });
   if (showAssignee) {
-    cols.push({ key: "assignee_names", label: "담당자", width: "10rem", render: (t) => ((t.assignee_names || []).join(", ") || "-") });
+    // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
+    // anywhere가 "임승환, 김동현" 같은 값을 글자 하나씩 세로로 무너뜨렸다(다른 모든 열의
+    // 이유와 같다, 위 주석 참고). 담당자가 많아 셀이 넓어지면 이 표도 다른 nowrap 열처럼
+    // 가로 스크롤로 넘긴다 — 읽을 수 없는 표보다 낫다는 같은 트레이드오프.
+    cols.push({ key: "assignee_names", label: "담당자", width: "10rem", nowrap: true, render: (t) => ((t.assignee_names || []).join(", ") || "-") });
   }
   if (onEdit || onClaim) {
     cols.push({

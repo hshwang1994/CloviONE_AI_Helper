@@ -227,6 +227,30 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.getByText(/이번 주 진척을 계산할 수 없습니다/)).toBeInTheDocument();
   });
 
+  // VIS-34: 스프린트 카드(SprintProgress)와 AI 도우미의 '오늘 브리핑'(AssistantPanel의
+  // Briefing)이 같은 실패를 각자 전체 문장으로 반복해 같은 화면에 같은 경고가 두 번
+  // 떴다. AssistantPanel은 자기 쿼리가 따로 있어 findByText로 그 완료까지 기다려야
+  // 실제로 렌더된 내용을 본다(Home 쿼리 완료만 기다리면 이 컴포넌트를 놓친다).
+  it("티켓 소스가 죽으면 AI 도우미 브리핑은 스프린트 카드를 반복하지 않고 참조만 한다", async () => {
+    routeApi({
+      today: {
+        ...TODAY_OK,
+        tickets: { configured: true, ok: false, mapped: true, error: "Notion 조회에 실패했습니다." },
+        sprint: null,
+      },
+    });
+    renderHome();
+
+    // SprintProgress(스프린트 카드)의 전체 문장은 그대로 남아 있다.
+    expect(await screen.findByText(/이번 주 진척을 계산할 수 없습니다\. 관리자에게 문의하세요\./)).toBeInTheDocument();
+    // Briefing은 그 문장을 반복하지 않고 짧게 참조한다 — AssistantPanel 자신의 쿼리가
+    // 끝나야 나타나므로 findByText로 기다린다.
+    expect(await screen.findByText(/위 스프린트 카드와 같은 이유로/)).toBeInTheDocument();
+    // "티켓 소스를 읽지 못해"로 시작하는 전체 문장이 두 번 나오지는 않는다(딱 한 곳,
+    // 스프린트 카드에만).
+    expect(screen.getAllByText(/티켓 소스를 읽지 못해/)).toHaveLength(1);
+  });
+
   it("미러 신선도를 화면에 드러낸다(잘린 동기화는 눈에 띄게)", async () => {
     routeApi({
       today: { ...TODAY_OK, sync: { ...TODAY_OK.sync, status: "error", truncated: true } },

@@ -94,10 +94,16 @@ function Briefing({ data }) {
       </Typography>
       <Typography variant="body2" color="text.secondary">
         {s ? `이번 주 내 몫 ${s.assigned}건 중 ${s.done}건 완료${s.completion_rate == null ? "" : ` (${s.completion_rate}%)`}`
-           : "티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다. 관리자에게 문의하세요."}
+           /* VIS-34: 위 스프린트 카드(SprintProgress, Home.jsx)가 같은 원인으로 이미 전체
+              문장("티켓 소스를 읽지 못해...")을 설명한다 — 여기서 그대로 반복하면 같은
+              화면에 같은 경고가 두 번 뜬다. 짧게 참조만 한다. */
+           : "위 스프린트 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다."}
       </Typography>
       <Typography variant="caption" color="text.secondary">
-        위 숫자는 이 화면이 계산한 값입니다. ‘문장 요약 만들기’를 누르면 같은 숫자를 문장으로 옮겨 줍니다.
+        {/* VIS-34: 이 숫자들은 이 화면 상단 카드(오늘 마감·지연·진행 중·막힘)와 같은 값이다
+            — 서로 다른 집계로 오해하지 않도록 그 관계를 밝힌다(VIS-25가 관리자 대시보드에서
+            쓴 것과 같은 "요약 vs 상세" 신호). */}
+        위 숫자는 이 화면 상단 카드와 같은 값입니다. ‘문장 요약 만들기’를 누르면 문장으로 옮겨 줍니다.
       </Typography>
     </Stack>
   );
