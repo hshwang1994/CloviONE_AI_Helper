@@ -443,6 +443,93 @@ auditor 2)는 **전부** 이 경로에 있다 - 즉 이 화면을 여는 대부�
 
 ---
 
+## PA-F-091 - 필수 관문 `POST /change-password` 가 SQLite 잠금에서 그대로 500 을 낸다 -> `PA-RC-0032`
+
+| 항목 | 값 |
+|---|---|
+| Type | defect |
+| Severity | **High** |
+| Confidence | **Confirmed** (실제 재현 + 서버 traceback + 발생 빈도) |
+| Surface | `/change-password`(최초 로그인 강제 관문) · `POST /api/conversations/{id}/messages`(AI 대화 전송) |
+| Root Cause | 이 저장소의 공용 쓰기충돌 재시도 관용이 **두 경로에 적용돼 있지 않다** |
+
+### 어떻게 발견했나 (의도한 조사가 아니었다)
+
+`empty/error/loading` 상태를 관측하려고 프로브를 돌렸는데 **네 상태가 전부 같은 화면**
+(비밀번호 변경)을 반환했다. 프로브 오류를 의심하고 로그인 흐름을 직접 따라가 보니
+클라이언트 검증이 **전부 통과**한 상태에서 서버가 거부하고 있었다.
+
+```
+✓ 8자 이상 (28자)   ✓ 문자 종류 2종 이상 (4종)   ✓ 기존 비밀번호와 다름   ✓ 새 비밀번호 확인 일치
+서버 오류로 비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.
+```
+
+### 서버 traceback (TEST SERVER, HEAD)
+
+```
+File "/opt/clovirone-web-assistant/app/auth/router.py", line 689, in change_password
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database is locked
+INFO: POST /change-password HTTP/1.1" 500 Internal Server Error
+```
+
+### 빈도 — 드문 사고가 아니다
+
+오늘(2026-08-17) TEST SERVER 실측: **`POST /change-password` 31건 중 3건이 500** (약 10%).
+
+| 시각 | 경로 | 배포(06:51:13) 기준 |
+|---|---|---|
+| 02:25:53 | `POST /change-password` | 이전 |
+| 05:09:23 | `POST /api/conversations/{id}/messages` | 이전 |
+| 06:31:11 | `POST /api/notifications/read-types` | **이전** |
+| 08:12:45 | `POST /change-password` | 이후 |
+| 08:14:06 | `POST /change-password` | 이후 |
+
+**직전 구현(`d5ba3f9`, 06:49)을 부당하게 깎지 않기 위해 분명히 적는다** — 알림 경로의 500은
+그 수정이 배포되기 **20분 전**이다. 배포 이후 알림 경로의 500은 **0건**이고, 그 수정은
+지금까지 유지되고 있다. 반면 `change-password` 는 배포 **전후 모두** 실패했다.
+
+**내 부하로 생긴 것과 아닌 것도 갈라 적는다** — 08:12·08:14 두 건은 이 Audit이 계정을
+반복 프로비저닝하던 중 발생했다. 그러나 02:25(`change-password`)와 05:09(`대화 전송`)는
+**이 Audit이 시작되기 전**이고 내 트래픽이 아니다.
+
+### 왜 이것이 이 저장소 기준으로 명백한 결함인가
+
+같은 파일에 **정답이 이미 있다.** `app/auth/router.py:476-508` 의 `login()` 은 공용 관용으로
+보호돼 있고, `app/core/db.py:183` 주석은 그 값이 **실측으로 검증된 유일한 값**이라고 적는다
+(「10-way 동시 로그인 스트레스 시험 — 지터 없이 10회 재시도로도 5번 중 1번은 여전히 실패했다」).
+
+그런데 같은 파일의 `change_password()`(631행)에는 그 보호가 **없다.** 그러면서 `login()` 보다
+**쓰기를 더 많이 한다** — 비밀번호 해시 갱신 · `revoke_all_for_user` · 세션 생성 · 감사 기록.
+
+| 경로 | 공용 재시도 | 쓰기 |
+|---|---|---|
+| `auth/router.py::login` | **있다** (기준 구현) | 세션 생성 + 감사 |
+| `auth/router.py::change_password` | **없다** | 해시 + 전체 세션 폐기 + 세션 생성 + 감사 |
+| `app/chat/` 전체(router·service·attachments) | **없다** (`is_write_conflict` 0회) | 대화·메시지·잡 생성 |
+
+CLAUDE.md §3-10이 못박는다 — 「SQLite write conflict/busy/locked 판정은 **기존 공용
+classifier/retry 규약을 재사용한다**」. 25개 모듈이 이미 그렇게 한다. 이 둘만 빠져 있다.
+
+### User impact
+
+`change-password` 는 **선택 화면이 아니라 관문**이다. 최초 로그인과 관리자 비밀번호 재설정
+직후에는 이 화면을 통과하지 않으면 제품에 들어갈 수 없다. 500이 나면 사용자는
+「서버 오류 … 잠시 후 다시 시도해 주세요」만 보고, 자신이 무엇을 잘못했는지 알 수 없다
+(사실 아무 잘못도 없다). 임시 비밀번호는 살아 있으므로 다시 시도하면 대개 통과하지만,
+**하필 그 시점이 신규 입사자의 첫 접속**이라 제품의 첫인상이 원인 불명의 서버 오류가 된다.
+
+`POST /api/conversations/{id}/messages` 는 AI 어시스턴트의 **핵심 상호작용**이다. 이 제품이
+파는 것이 그것이므로, 같은 잠금에서 raw 500이 나는 것은 기능 실패다.
+
+### 아직 확인하지 않은 것 (정직하게)
+
+500 이후 **부분 쓰기가 남는지**는 확인하지 않았다. 요청 하나가 트랜잭션 하나이므로 롤백이
+정상 동작하면 남지 않아야 하지만, `change_password` 는 해시 갱신과 세션 폐기·생성을 한
+요청에서 하므로 경계가 어긋나면 「비밀번호는 바뀌었는데 세션이 없다」 같은 상태가 가능하다.
+이것은 구현 Phase가 `PA-RC-0032`의 수용 기준으로 실제 검증해야 한다.
+
+---
+
 # §이전 Cycle 기록 (증거 보존)
 
 

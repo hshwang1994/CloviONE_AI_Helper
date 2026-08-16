@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=5
+actionable_root_causes=6
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -254,4 +254,36 @@ data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
 api_impact: 해당 없음 - API 계약이 바뀌지 않는다
 rbac_impact: **없어야 한다.** 각 항목의 `SCREEN_ROLES` 조건을 그대로 들고 옮긴다. 수용 기준 (6)이 F축 63조합 재실행으로 이것을 검사하며, 한 조합이라도 달라지면 실패다
 browser_verification: TEST SERVER 에서 `admin`·`operator`·`auditor`·`user` 네 역할로 로그인해 1920×1080 라이트/다크로 사이드바를 캡처하고, `pa2_ia.py` 로 새 트리를 덤프해 그룹 구성이 목표와 일치하는지 확인한다. 이어서 `pa2_rbac.py` 를 돌려 역할별 노출이 변경 전과 같은지 대조한다 - 화면과 권한을 한 번에 본다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0032 -->
+rc_id: PA-RC-0032
+severity: High
+priority: P1
+confidence: Confirmed
+problem: 이 저장소는 SQLite 쓰기 경합을 다루는 공용 관용(`is_write_conflict` + `DEFAULT_WRITE_CONFLICT_RETRIES` + `write_conflict_backoff`)을 갖고 있고 25개 모듈이 그것을 쓴다. 그런데 두 개의 중요한 쓰기 경로에 그 보호가 없어서 `sqlite3.OperationalError: database is locked` 가 그대로 500으로 나간다 - 최초 로그인 강제 관문인 `POST /change-password`(`app/auth/router.py::change_password`)와 AI 대화 전송을 포함한 `app/chat/` 모듈 전체다. 같은 파일의 `login()` 은 그 관용의 기준 구현을 갖고 있는데, 쓰기를 더 많이 하는 `change_password()` 에는 없다.
+expected: 쓰기 경합(`database is locked`)은 사용자에게 보이는 오류가 아니라 서버가 재시도로 흡수해야 하는 상태다. CLAUDE.md §3-10이 「SQLite write conflict/busy/locked 판정은 기존 공용 classifier/retry 규약을 재사용한다」고 못박고, `app/core/db.py:183` 이 그 기본값(재시도 10회 + 지터)을 **실측으로 검증된 값**으로 승격해 두었다. 재시도를 다 쓰고도 실패하면 그때는 500이 아니라 사용자가 무엇을 해야 하는지 아는 오류여야 한다.
+actual: TEST SERVER(HEAD) 실측 - 오늘 `POST /change-password` 31건 중 **3건이 500**(약 10%), traceback 은 `app/auth/router.py` 689행의 `sqlite3.OperationalError: database is locked`. `POST /api/conversations/{id}/messages` 도 같은 예외로 500(05:09:23). 화면에는 「서버 오류로 비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.」만 뜨고, 그때 클라이언트 검증 4종은 전부 통과 상태였다.
+intent_evidence: (1) CLAUDE.md §3-10 - 공용 classifier/retry 규약 재사용 의무. (2) `app/core/db.py:183-210` - `DEFAULT_WRITE_CONFLICT_RETRIES = 10` 과 `write_conflict_backoff()` 를 「`app/auth/router.py`의 로그인 재시도가 실측으로 검증된 유일한 값」이라며 공용으로 승격한 주석, 그리고 「13개 호출부가 이미 이 패턴을 쓴다」. (3) `PA-RC-0008`(직전 Cycle) 이 이미 이 관용의 예산·지터를 통일했다. (4) 직전 커밋 `d5ba3f9` 가 알림 경로에 같은 처방(SAVEPOINT 재시도)을 적용했다 - 같은 결함 유형을 이 제품이 이미 결함으로 인정하고 고친 전례다. 의도는 INFERRED 가 아니라 **문서·코드·직전 수정 전례에 명시**돼 있다.
+findings: PA-F-091
+feature_contracts: FC-최초로그인-비밀번호변경, FC-AI대화전송
+routes: `/change-password`(전체 사용자 필수 관문), `/chat`(AI 도우미), 그리고 `app/chat/` 이 지원하는 대화 화면 전부
+frontend: `app/templates` 의 비밀번호 변경 화면과 `static/js/change_password.js`(서버 오류 문구 표시부), `frontend/src/screens/Chat*.jsx` 계열(전송 실패 표시)
+api: `POST /change-password`, `POST /api/conversations/{id}/messages`, 그리고 `app/chat/router.py` 의 나머지 쓰기 엔드포인트
+backend: `app/auth/router.py::change_password`(631-700행 부근, 실패 지점 689), `app/chat/router.py`·`app/chat/service.py`·`app/chat/attachments.py`(세 파일 모두 `is_write_conflict` 0회). 기준 구현은 같은 파일의 `app/auth/router.py::login`(476-508행)
+data: 스키마 변경 없음. `users.password_hash`·`sessions`·`audit_logs`·대화/메시지 테이블에 대한 쓰기 경계가 대상이다
+rbac: 해당 없음 - 권한 경계가 바뀌지 않는다. 재시도는 이미 인증된 요청 안에서 일어난다
+integration: 해당 없음 - 외부 연동과 무관한 로컬 DB 경합이다
+state_transition: `must_change_password: true -> false` 전이와 세션 폐기·재생성이 한 요청 안에서 일어난다. 이 전이가 부분적으로 남지 않아야 한다
+user_impact: `change-password` 는 선택 화면이 아니라 **관문**이다. 최초 로그인과 관리자 비밀번호 재설정 직후에는 통과하지 못하면 제품에 들어갈 수 없다. 오늘 실측 실패율 약 10%이고, 가장 흔한 발생 시점이 신규 입사자의 첫 접속이라 제품의 첫인상이 원인 불명의 서버 오류가 된다. 사용자는 자신이 무엇을 잘못했는지 알 수 없다(아무 잘못도 없다). AI 대화 전송은 이 제품이 파는 핵심 상호작용이라 같은 잠금에서 raw 500이 나면 기능 실패다.
+implementation_direction: 공용 관용을 두 경로에 적용한다. (1) `app/auth/router.py::change_password` 를 같은 파일 `login()`(476-508행)과 **같은 형태**로 감싼다 - `except (IntegrityError, OperationalError) as exc: if not is_write_conflict(exc) or attempt == N-1: raise; time.sleep(write_conflict_backoff(attempt))`. 예산은 `DEFAULT_WRITE_CONFLICT_RETRIES` 기본값을 쓴다(다르게 쓸 이유가 없다). **재시도 루프 구조 자체는 공용화하지 않는다** - `app/core/db.py:183` 주석이 "무엇을 다시 계산해야 하는지가 호출부마다 다르므로 예산·지터만 공용"이라고 이미 판단했고, 여기서 다시 계산해야 하는 것은 세션 재생성이다. (2) `app/chat/` 의 쓰기 경로(최소 `post_message`)에 같은 관용을 적용한다. (3) 재시도를 소진했을 때는 raw 500이 아니라 사용자가 다음 행동을 아는 오류로 접는다 - 이 저장소의 실패 문구 3요소(무엇이/왜/무엇을 하라) 규약을 따른다. (4) `app/core/sessions.py::_commit_best_effort` 는 **일부러** 기본값을 안 쓰는 예외로 명시돼 있으므로 건드리지 않는다.
+constraints: CLAUDE.md §3-1(sync 일관성 - `async def` 추가 금지) · §3-10(**SAVEPOINT/`begin_nested()` 는 실제 outer transaction 안에서 동작해야 한다**. `app/core/db.py` 의 명시적 transaction/BEGIN 규약을 우회하지 않는다) · §3-3/§3-4(비밀번호·토큰을 로그에 남기지 않는다 - 재시도 로깅에 자격증명이 섞이면 안 된다) · §11.3 세션 규약(비밀번호 변경 시 다른 세션 전부 폐기 + 세션 회전)을 재시도 중에도 유지한다 · `:memory:` DB 로 WAL/멀티커넥션 의미를 대체하지 않는다
+regression_risk: (a) **재시도 루프가 세션 회전을 두 번 하면 안 된다** - `revoke_all_for_user` + `create` 를 재시도 안에서 다시 부를 때 이전 시도의 부분 상태가 남아 있으면 세션이 중복 생성되거나 방금 만든 세션을 스스로 폐기할 수 있다. 무엇을 다시 계산할지(rollback 후 재조회인지 SAVEPOINT 되감기인지)를 명시적으로 정해야 한다. (b) 재시도로 응답이 느려진다 - `app/core/db.py` 가 예산 10에서 최대 누적 2.25초로 계산해 두었고 nginx `proxy_read_timeout 180s` 대비 무시할 수준이라고 이미 판단했다. (c) `app/chat/` 은 잡 큐에 넣는 경로라 재시도가 **중복 잡 생성**을 만들지 않는지 확인해야 한다(멱등성). (d) 알림 경로(`d5ba3f9`)가 배포 후 500 0건으로 유지되고 있으므로 그 수정을 건드리지 않는다.
+acceptance_criteria: (1) 쓰기 경합을 인위적으로 만든 상태에서 `POST /change-password` 가 500을 내지 않는다 - 재시도로 성공하거나, 소진 시 사용자 행동을 안내하는 오류로 접힌다. (2) 같은 조건에서 `POST /api/conversations/{id}/messages` 가 500을 내지 않는다. (3) `app/chat/` 의 쓰기 경로에서 `is_write_conflict` 사용이 0이 아니다. (4) 재시도 후에도 §11.3 세션 규약이 유지된다 - 비밀번호 변경 성공 시 다른 세션은 전부 폐기되고 새 세션 하나만 남는다(세션 표 직접 조회로 확인). (5) **부분 쓰기가 남지 않는다** - 실패한 요청 뒤에 `must_change_password` 와 `password_hash` 가 요청 이전 상태로 일관된다. (6) AI 대화 전송 재시도가 잡을 중복 생성하지 않는다. (7) TEST SERVER 로그에서 `database is locked` 로 인한 500이 0건이다.
+required_tests: (1) `tests/integration/test_notifications_write_conflict.py`(`d5ba3f9` 가 만든 것)를 **본보기로** `change_password` 용 쓰기 경합 테스트를 신설한다 - 같은 harness 를 재사용하면 판정이 갈라지지 않는다. (2) 같은 방식으로 `app/chat/` 의 `post_message` 쓰기 경합 테스트. (3) 재시도 성공 후 세션 규약(§11.3) 검증 테스트 - 다른 세션 전부 폐기 + 새 세션 1개. (4) 실패 경로에서 부분 쓰기가 없음을 확인하는 테스트(수용 기준 5). (5) 대화 전송 재시도의 잡 멱등성 테스트. (6) 회귀: 알림 경로의 기존 쓰기 경합 테스트가 계속 통과한다.
+qa_gaps: `QA_COVERAGE.md` 에 「쓰기 경합에서 각 엔드포인트가 어떻게 답하는가」 축이 알림 경로에만 있다(`d5ba3f9` 가 만든 테스트 하나). 인증 관문과 AI 대화라는 **가장 중요한 두 쓰기 경로**에는 그 축이 없다. 더 넓게는 「25개 모듈은 공용 관용을 쓰는데 어느 모듈이 안 쓰는가」를 기계적으로 검사하는 정적 검사가 없어서, 새 쓰기 경로가 보호 없이 추가돼도 아무것도 빨개지지 않는다 - `scripts/static_checks.sh` 에 그 검사를 넣는 것을 함께 검토한다.
+quality_rubric: 해당 없음 - 기능/데이터 정합성 계열이라 UI 품질 rubric 이 무관하다. 판정 기준은 CLAUDE.md §3-10(공용 classifier/retry 규약 재사용)과 §6(회귀 결함은 수정 전 실패 -> 수정 후 통과로 확인)이며, 사용자에게 보이는 실패 문구에 한해 `ux-writing` 의 3요소(무엇이/왜/무엇을 하라)를 적용해 수용 기준 (1)의 "안내하는 오류"를 정의했다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-091 · `app/auth/router.py:631-700`(실패 지점 689) · `app/auth/router.py:476-508`(기준 구현) · `app/core/db.py:154-210`(`is_write_conflict`·기본값·지터) · `app/chat/router.py:177`(`post_message`) · TEST SERVER `journalctl -u clovirone-web-assistant` 2026-08-17 02:25:53 / 05:09:23 / 08:12:45 / 08:14:06 traceback · 오늘 `POST /change-password` 31건 중 500 3건 집계
 <!-- PA-RC-END -->
