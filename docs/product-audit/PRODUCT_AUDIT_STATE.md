@@ -46,7 +46,7 @@ Handoff에 그대로 남아 있다.
 | 항목 | 값 |
 |---|---|
 | 신규 문서 | **`PRODUCT_AUDIT_DESIGN.md`** — 필수 18표면 전부 판정. `REBUILD` 1 · `REDESIGN` 10 · `REFINE` 6 · `KEEP` 1 |
-| 신규 Finding | `PA-F-058` ~ `PA-F-079` (음성 결과 8 + 방법론 정정 2 + Blind pass 2 포함) |
+| 신규 Finding | `PA-F-058` ~ `PA-F-080` (음성 결과 8 + 방법론 정정 3 + Blind pass 2 포함) |
 | 신규 Root Cause | `PA-RC-0016`(셸 배너 비용) · `0017`(관리자 IA 밀도) · `0018`(대시보드 카드 벽) · `0019`(FAB 가림) · `0020`(어시스턴트 명명·진입점) · `0021`(다크 토큰) · `0022`(산문이 IA를 대신함) · `0023`(동작 위계) · `0024`(상세 기제 분열) |
 | HANDOFF 블록 | **15건**(신규 11 + 승계 4). 전부 27 기본 필드 + UI 15 필드 자기검사 PASS. `deferred_for_human_approval=0`, 미루는 표현 0건 |
 | Coverage | 2340칸 · UNSEEN 1292(전부 사유) · EXECUTED **366**(190→) · OBSERVED 195 · STATIC 486 · N/A 16 · **L축 판정완료 37 / 시각관측 37** |
@@ -113,6 +113,12 @@ blind_pass=2 cycle_id=PA-20260816-120655-f103fb5b new_critical_high_categories=0
 > 오탐 경계는 "AI가 뭔가를 가린다"는 주제가 아니라 **측정 방법**에 있었다.
 
 ## A-3-B. 이 Cycle은 완료됐다 — `AUDIT_COMPLETE`
+
+> **첫 시도는 거부됐다(2026-08-16 13:49).** 사유: `HANDOFF-SUMMARY`의 `redesign_root_causes=9`가
+> DESIGN 판정에서 파생되는 8과 달랐다. **Supervisor가 맞았다** — `PA-RC-0021`(다크 테마 토큰)은
+> 신규 L축 RC지만 `REFINE` 판정(`global-header`)만 참조하고, 의미로도 색 토큰 수정이지 재설계가
+> 아니다. 한 건만 고치지 않고 `var/product-audit/derive_counts.py`를 만들어 **파생 가능한 수
+> 7종을 전부 대조**하게 했다(`PA-F-080`). 완료 시도 전에 이 스크립트를 돌린다.
 
 완료 Gate 8종을 전부 기계 검증했다. **핵심은 Gate F다** — 서로 다른 업무·역할·축으로 blind
 pass를 2회 연속 수행했고 둘 다 새 Critical/High Root Cause 범주가 **0**이었다.

@@ -3122,3 +3122,64 @@ Low 미만이라 Root Cause로 올리지 않고 관측만 남긴다.)
 이로써 이 Audit이 계약한 **핵심 다섯 Skill이 전부 실제로 적용됐다** —
 `ui-ux-pro-max`·`redesign-existing-projects`·`impeccable`(L축) · `ux-writing`(P축) ·
 `humanize-korean`(R축). `skill_gap` 없음.
+
+
+---
+
+## PA-F-080 — 완료 Gate가 잡은 7번째 자기 정정: **손으로 센 수가 파생 가능한 수와 어긋났다**
+
+| 항목 | 값 |
+|---|---|
+| Type | (방법론 기록) |
+| Confidence | **Confirmed** — Supervisor 기계 판정 + 자체 재계산 |
+| Root Cause | 없음 — 문서 자기정합성 오류 |
+| 근거 | Supervisor 거부 사유 · `var/product-audit/derive_counts.py` |
+
+첫 `AUDIT_COMPLETE`가 거부됐다. 사유는 하나였다.
+
+> `HANDOFF-SUMMARY`의 `redesign_root_causes=9`가 DESIGN 판정이 참조하는 재설계 PA-RC 수(8)와 다르다.
+
+**Supervisor가 맞다.** 재계산하니 `REDESIGN`/`REBUILD` 판정이 참조하는 `PA-RC` 합집합은
+`0016`·`0017`·`0018`·`0019`·`0020`·`0022`·`0023`·`0024` = **8**이다.
+
+내가 9로 센 이유는 **「이번 Cycle의 신규 L축 RC 9건」을 그대로 옮겨 적었기** 때문이다.
+그 9건에는 `PA-RC-0021`(다크 테마 토큰)이 들어 있는데, 그것을 참조하는 판정은 `global-header`
+하나이고 그 판정은 **`REFINE`**이다. 그리고 의미로 봐도 0021은 **색 토큰이 테마에 참여하지
+않는다**는 문제지 IA/Navigation/Dashboard/Page/Component **재설계**가 아니다.
+즉 기계 규칙과 프롬프트의 뜻이 **둘 다 8을 가리킨다.**
+
+### 이 오류가 특히 뼈아픈 이유 — **같은 교훈을 이 Cycle 안에서 이미 배웠다**
+
+`COVERAGE`의 `l_axis_design_verdict_complete`는 **손으로 적지 않는다.** `gen_coverage.py`에
+`design_verdict_count()`를 만들어 `PRODUCT_AUDIT_DESIGN.md`의 판정 블록을 **직접 세어 넣게** 했다.
+그 필드의 주석에 내가 이렇게 적어 뒀다 — *"두 문서가 어긋날 수 없게 하려는 것이다."*
+
+**바로 옆 필드에는 그 규율을 적용하지 않았다.** 같은 종류의 수인데 하나는 파생시키고 하나는
+손으로 적었다.
+
+### 그래서 한 건만 고치지 않았다
+
+`var/product-audit/derive_counts.py`를 만들었다. 파생 가능한 수를 **전부** 계산해 문서에 적힌
+값과 대조하고, 하나라도 어긋나면 종료 코드 1을 낸다.
+
+| 대조 항목 | 결과 |
+|---|---|
+| `HANDOFF actionable` == PA-RC 블록 수 | PASS (15) |
+| `HANDOFF redesign` == 재설계 참조 RC 수 | **FAIL 9 → 8** (이 건) |
+| `COVERAGE l_axis` == DESIGN 판정 블록 수 | PASS (18) |
+| marker `root_causes` == PA-RC 블록 수 | PASS (15) |
+| `BACKLOG` PA2 행 수 == PA-RC 블록 수 | PASS (15) |
+| `REPORT` severity 분포 == HANDOFF severity | PASS (0/4/9/2) |
+| `STATE` HANDOFF 블록 수·Finding 최대번호 | PASS (15 / 79) |
+
+**어긋난 것은 이 한 건뿐이었다.** 나머지는 매 라운드 검증해 온 것이라 맞았다.
+
+### 이 Cycle의 자기 정정 유형 — 이제 7건, 그리고 새 범주다
+
+앞의 여섯은 **관측** 오류였다(선택자 범위 2 · 좌표계 1 · 배경 모델 1 · 시간축 1 · 중복 계상 1).
+일곱 번째는 **문서 자기정합성** 오류다 — 제품을 잘못 본 것이 아니라 **내가 쓴 두 문서가 서로
+다른 말을 했다.**
+
+> **교훈**: *파생 가능한 수를 손으로 적으면 언젠가 어긋난다.* 한 번 파생 규칙을 만들었으면
+> 같은 종류의 이웃 필드에도 적용해야 한다. 그리고 **기계 Gate는 이런 것을 잡으라고 있는 것이다** —
+> 거부당한 것이 손해가 아니라, 이 수치를 믿고 구현 Phase가 재설계 범위를 잘못 잡는 것이 손해다.

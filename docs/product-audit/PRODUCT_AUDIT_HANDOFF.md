@@ -5,10 +5,17 @@ cycle_id=PA-20260816-120655-f103fb5b
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260816-120655-f103fb5b
 actionable_root_causes=15
-redesign_root_causes=9
+redesign_root_causes=8
 deferred_for_human_approval=0
 -->
 
+> **`redesign_root_causes`의 정의(기계가 파생한다)**: `PRODUCT_AUDIT_DESIGN.md`에서 판정이
+> `REDESIGN` 또는 `REBUILD`인 블록이 참조하는 `PA-RC` **합집합의 크기**다. 손으로 세지 마라 —
+> `var/product-audit/derive_counts.py`가 계산해 문서와 대조한다.
+> 현재 **8**: `0016`·`0017`·`0018`·`0019`·`0020`·`0022`·`0023`·`0024`.
+> `PA-RC-0021`(다크 테마 토큰)은 신규 L축 RC지만 **`REFINE` 판정(`global-header`)만 참조**하므로
+> 이 수에 들어가지 않는다 — 색 토큰 수정이지 IA/Navigation/Dashboard/Page/Component 재설계가 아니다.
+>
 > 이 문서는 **구현 Phase(`autonomous_runner.ps1`)로 넘기는 계약**이다.
 > `docs/BACKLOG.md`의 한 줄만 보고 구현하지 말고, 해당 `PA-RC-*` 블록 전체를 읽어라.
 > 원본 증거는 `PRODUCT_AUDIT_FINDINGS.md`, 의도 근거는 `PRODUCT_AUDIT_FEATURE_CONTRACTS.md`.
