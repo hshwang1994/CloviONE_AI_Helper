@@ -1,5 +1,6 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
+import MuiButton from "@mui/material/Button";
 import { MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
 import { Home } from "../screens/Home.jsx";
 import { Board, IdeaBoard } from "../screens/Board.jsx";
@@ -25,7 +26,11 @@ import { DataScreen } from "../screens/DataScreen.jsx";
    실제로 쓰는 것은 알림 하나뿐이다. 예전에는 이 한 줄 때문에 평범한 사용자가 평생 열지
    않을 관리자 설정을 전부 내려받았다. */
 import { NOTIFICATIONS_SCREEN } from "../screens/registry/notifications.js";
-import { Card, Skeleton } from "../ui/kit.jsx";
+// PA-RC-0024: registry.js 전체(gzip 43KB, 위 주석)는 여전히 안 들여온다 — navConfig.js는
+// App.jsx가 이미 무조건 정적으로 물어 오는 가벼운 모듈(아이콘 레퍼런스 + 배열)이라 이
+// 파일이 추가로 들여와도 초기 번들 비용이 늘지 않는다.
+import { NAV } from "./navConfig.js";
+import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 
 /* 사용자 콘솔 라우트
  *
@@ -41,6 +46,37 @@ const GameRoom = React.lazy(() => import("../screens/GameRoom.jsx").then((m) => 
 
 function Lazy({ children }) {
   return <React.Suspense fallback={<Card><Skeleton lines={6} /></Card>}>{children}</React.Suspense>;
+}
+
+/* PA-RC-0024: 모르는 주소로 들어오면 전부 조용히 /me 로 튕겼다 — 관리자 화면 링크를
+ * user 역할 계정이 열어도(App.jsx가 role===user 이면 AdminRoutes 자체를 마운트 안
+ * 하므로 그 요청은 항상 여기로 떨어진다), 진짜 오타 URL을 열어도 똑같이 조용히 홈으로
+ * 갔다 — 무슨 일이 있었는지 알 방법이 없었다(Handoff PA-F-072).
+ *
+ * 이 두 경우는 사람이 받아야 할 안내가 다르다: 관리자 전용 화면은 "권한이 없다"(그
+ * 화면은 존재한다, 이 역할이 못 쓸 뿐)고, 진짜 모르는 경로는 "찾을 수 없다"(그런
+ * 화면 자체가 없다)고 말해야 한다. navConfig.js의 NAV(관리자 내비 설정, App.jsx가 이미
+ * 무조건 물어 오는 가벼운 모듈)에 그 경로가 있는지로 둘을 가른다 — registry.js 전체를
+ * 새로 들여오지 않는다. */
+const ADMIN_NAV_PATHS = NAV.flatMap((group) => group.items).map((item) => item.to);
+
+function isKnownAdminPath(pathname) {
+  return ADMIN_NAV_PATHS.some((to) => pathname === to || pathname.startsWith(to + "/"));
+}
+
+function UserConsoleFallback() {
+  const location = useLocation();
+  if (isKnownAdminPath(location.pathname)) {
+    return (
+      <EmptyState
+        title="권한이 없습니다"
+        help="이 화면은 관리자 콘솔 전용입니다. 관리자 권한이 필요하면 관리자에게 문의하세요."
+        art="noPermission"
+        action={<MuiButton variant="contained" href="#/me">홈으로 이동</MuiButton>}
+      />
+    );
+  }
+  return <ErrorState error={{ status: 404 }} />;
 }
 
 /* 사용자 콘솔 — 내 업무/내 티켓/미할당 + 팀 공간 + 문서 + AI 도우미(/chat).
@@ -92,7 +128,7 @@ function UserRoutes() {
       {/* PA-RC-0022: 화면 강조색은 브라우저 로컬 저장이라 서버 세션·역할과 아예 무관하다 —
           위 셋보다도 게이트가 더 필요 없다. */}
       <Route path="/my-display" element={<DisplaySettings />} />
-      <Route path="*" element={<Navigate to="/me" replace />} />
+      <Route path="*" element={<UserConsoleFallback />} />
     </Routes>
   );
 }

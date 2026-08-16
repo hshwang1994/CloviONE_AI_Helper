@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { diffFields } from "../lib/diffFields.js";
 import { kstLocalToApi } from "../lib/format.js";
@@ -98,6 +98,8 @@ export function DataScreen({ config }) {
   const toast = useToast();
   const auth = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { id: routeId } = useParams();
   const role = (auth && auth.data && auth.data.role) || null;
   const userId = (auth && auth.data && auth.data.id) || null;   // 본인 요청 자기승인 차단 등 행 게이트에 쓴다.
   // 액션 role 게이트 — a.roles가 지정된 액션은 현재 역할이 포함될 때만 노출(백엔드 RBAC와 일치시켜 403 사전 차단).
@@ -448,6 +450,46 @@ export function DataScreen({ config }) {
     // 컴포넌트를 리마운트하지 않아 config.key만 보면 새 쿼리를 영영 소비하지 못했다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.key, location.search]);
+
+  /* PA-RC-0024: 이 화면 "자신의" 주소가 상세를 가리키는 경우(/audit/:id, /departments/:id)
+   * — 위 onQuery 효과(다른 화면이 보낸 ?id= 프리필)와는 다른 경로다. config.hasIdRoute가
+   * 있는 화면만 켠다(AdminRoutes.jsx에 실제로 그 :id 라우트가 등록된 화면만 — 없는 화면에서
+   * 이 효과가 돌면 useParams().id가 항상 undefined라 아무 일도 안 하지만, 명시적으로 플래그를
+   * 요구해 두 배선이 어긋날 여지를 아예 없앤다).
+   *
+   * routeIdSettledRef: :id로 막 들어온 마운트 첫 렌더에서는 sel이 아직 null이다(아래 GET이
+   * 안 끝났다) — 그 순간 아래 "반대 방향" 효과가 그걸 "닫혔다"로 오해해 주소를 목록으로
+   * 지웠다가 GET이 끝나면 다시 :id로 되돌리는 깜빡임이 실제로 있었다(Users.jsx에서 같은
+   * 버그를 시험이 잡아서 여기도 같은 방식으로 막는다). */
+  const routeIdSettledRef = React.useRef(!config.hasIdRoute || !routeId);
+  useEffect(() => {
+    if (!config.hasIdRoute || !routeId) { routeIdSettledRef.current = true; return; }
+    if (sel && String(sel.id) === String(routeId)) { routeIdSettledRef.current = true; return; }
+    api(config.endpoint + "/" + routeId).then((res) => {
+      const item = (config.selectKey && res && res[config.selectKey]) || res;
+      if (item) setSel(item);
+    }).catch(() => {
+      toast("연결된 항목을 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", "error");
+    }).finally(() => { routeIdSettledRef.current = true; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.key, routeId]);
+
+  /* 위 효과의 반대 방향 — sel이 바뀌면(행 클릭으로 열림, 닫기로 사라짐) 주소를 따라가게
+   * 한다. replace를 써 방향키(뒤로가기) 한 번에 상세만 닫히고 목록까지 나가지 않게 한다.
+   * routeId와 이미 같으면(방금 위 효과가 그 값으로 sel을 채운 직후 등) 쓰지 않는다 —
+   * 안 그러면 새로고침 직후 같은 주소를 자기 자신에게 다시 쓰는 불필요한 replaceState가 돈다.
+   * 지금 쿼리 문자열(검색어·필터·페이지)을 함께 실어야 아래 "뷰를 주소에 되쓴다" 효과가
+   * 관리하는 값이 상세를 여는 순간 사라지지 않는다 — react-router의 location이 아니라
+   * window.location.hash를 직접 읽는다(그 효과도 raw replaceState라 값이 거기 있다). */
+  useEffect(() => {
+    if (!config.hasIdRoute || !routeIdSettledRef.current) return;
+    const nextId = sel ? String(sel.id) : null;
+    if (nextId === (routeId || null)) return;
+    const qs = hashQuery(window.location.hash);
+    const base = "/" + config.key + (nextId ? "/" + nextId : "");
+    navigate(qs ? base + "?" + qs : base, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.key, sel]);
 
   /* 지금 보고 있는 뷰를 주소에 되쓴다 — 저장된 뷰와 링크 공유의 토대다.
    *

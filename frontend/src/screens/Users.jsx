@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -20,7 +20,7 @@ import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
-import { buildViewQuery, withHashQuery } from "./datascreen-view.js";
+import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -213,6 +213,11 @@ export function Users() {
   // 통합 검색(Ctrl+K)에서 사람을 고르면 `#/users?q=<이름>` 으로 온다. 초기값을 주소에서
   // 받지 않으면 결과를 눌렀는데 필터 없는 전체 목록이 뜬다 — 아무 일도 안 한 것처럼 보인다.
   const [searchParams, setSearchParams] = useSearchParams();
+  // PA-RC-0024: /users/:id — 이 화면 "자신의" 주소가 상세를 가리키는 경우. 아래 ?id=
+  // 딥링크(다른 화면이 보내는, 한 번 쓰고 지우는 프리필)와는 다른, 지속적인 canonical
+  // 주소다. AdminRoutes.jsx가 /users와 /users/:id 둘 다 이 컴포넌트로 보낸다.
+  const routeId = useParams().id;
+  const navigate = useNavigate();
   const [q, setQ] = useState(() => searchParams.get("q") || "");
   // PA-RC-0013: 아래 다섯 필터·페이지도 q/department_id와 같은 방식으로 최초 마운트에
   // 주소를 읽는다 — 이 게으른 초기화(useState 함수형 초기값)는 DataScreen.jsx가 이미
@@ -303,6 +308,43 @@ export function Users() {
   // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
   const selection = useRowSelection();
   const [sel, setSel] = useState(null);
+  // PA-RC-0024: 위쪽 ?id= 효과(다른 화면이 보내는, 소비 후 지우는 프리필)와 같은 계약
+  // (단건 GET, 실패 시 이유 안내)을 경로 :id에도 건다 — 이쪽은 소비 후 지우지 않는다
+  // (경로 자체가 상태이므로 지울 대상이 없다). sel 선언 아래 둔 이유는 단순하다 — 이
+  // 효과의 의존성 배열이 sel을 읽는데, useState 호출보다 위에서 그 값을 참조하면(클로저
+  // 안이 아니라 배열 리터럴 자체가 그 줄에서 바로 평가되므로) "Cannot access 'sel' before
+  // initialization"으로 죽는다(실제로 겪음 — 처음에는 ?id= 효과 바로 아래 뒀었다).
+  //
+  // routeIdSettledRef: :id로 막 들어온 마운트 첫 렌더에서는 sel이 아직 null이다(아래 GET이
+  // 안 끝났다) — 그 순간 아래 "반대 방향" 효과가 그걸 "닫혔다"로 오해해 주소를 /users로
+  // 지웠다가 GET이 끝나면 다시 /users/:id로 되돌리는 깜빡임이 실제로 있었다(시험이 실패해
+  // 잡음 — MemoryRouter라 눈에는 안 보이지만 순서가 실제로 그렇게 돈다). :id가 없으면
+  // 기다릴 것도 없으므로 처음부터 true.
+  const routeIdSettledRef = React.useRef(!routeId);
+  React.useEffect(() => {
+    if (!routeId) { routeIdSettledRef.current = true; return; }
+    if (sel && String(sel.id) === String(routeId)) { routeIdSettledRef.current = true; return; }
+    api("/api/admin/users/" + routeId)
+      .then((item) => { if (item) setSel(item); })
+      .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다). 목록에서 다시 확인해 주세요.", "error"))
+      .finally(() => { routeIdSettledRef.current = true; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeId]);
+  // 반대 방향 — sel이 바뀌면(행 클릭으로 열림, 닫기로 사라짐) 주소를 따라가게 한다.
+  // replace를 써 뒤로가기 한 번에 상세만 닫히고 목록까지 나가지 않게 한다. 지금 쿼리
+  // 문자열(검색어·필터)을 함께 실어야 한다 — 안 그러면 상세를 열자마자 그 필터들이
+  // 주소에서 사라진다. react-router의 searchParams가 아니라 window.location.hash를
+  // 직접 읽는다 — 이 화면은 필터 상태를 raw history.replaceState로도 쓰므로(위
+  // viewQuery 효과) react-router가 추적하는 값이 그 사이 낡았을 수 있다.
+  React.useEffect(() => {
+    if (!routeIdSettledRef.current) return;
+    const nextId = sel ? String(sel.id) : null;
+    if (nextId === (routeId || null)) return;
+    const qs = hashQuery(window.location.hash);
+    const base = nextId ? "/users/" + nextId : "/users";
+    navigate(qs ? base + "?" + qs : base, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [tempPw, setTempPw] = useState(null);

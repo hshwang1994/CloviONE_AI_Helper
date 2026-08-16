@@ -66,6 +66,14 @@ function RequireRole({ roles, children, help }) {
   return children;
 }
 
+/* PA-RC-0024: 모르는 관리자 경로(오타 URL, 지워진 상세 id 등)가 설명 없이 대시보드로
+ * 조용히 튕겨 나갔다 — 잘못 온 것인지 뭔가 없어진 것인지 사용자가 알 방법이 없었다.
+ * 새 컴포넌트를 만들지 않는다(Handoff 명시) — 사용자 콘솔의 :id 라우트 6개가 이미
+ * 쓰는 ErrorState(kit.jsx)를 그대로 재사용한다. status:404를 주면 "찾을 수 없습니다"
+ * 문구·홈으로 버튼까지 전부 그 컴포넌트가 책임진다. */
+function RouteNotFound() {
+  return <ErrorState error={{ status: 404 }} />;
+}
 
 /* 조직 콘솔이 대신 그리는 화면 키. `REGISTRY` 에는 설정이 그대로 남아 있다 — 콘솔이 그
  * 열·필터·폼 정의를 읽어 쓰기 때문이다(OrgConsole.jsx). 여기서는 **라우트만** 가져간다. */
@@ -91,6 +99,12 @@ function useRegistry() {
 
 function AdminRoutes() {
   const registry = useRegistry();
+  const usersElement = <RequireRole roles={SCREEN_ROLES.users}><Users /></RequireRole>;
+  const departmentsElement = (
+    <RequireRole roles={SCREEN_ROLES.departments} help={SCREEN_ROLE_HELP.departments}>
+      <OrgConsole defaultKind="departments" />
+    </RequireRole>
+  );
   return (
     <React.Suspense fallback={ROUTES_FALLBACK}>
       <Routes>
@@ -99,7 +113,14 @@ function AdminRoutes() {
             관리자가 Ctrl+K 로 검색했는데 세그먼트가 사용자 쪽으로 튀면 사이드바가 통째로 바뀐다.
             역할 게이트는 걸지 않는다: 결과 자체가 역할·범위로 걸러져 나온다(app/search/service.py). */}
         <Route path="/search" element={<Search />} />
-        <Route path="/users" element={<RequireRole roles={SCREEN_ROLES.users}><Users /></RequireRole>} />
+        {/* PA-RC-0024: /users/:id는 /users와 완전히 같은 element(같은 컴포넌트
+            레퍼런스)다 — 목록 위 모달이라는 표현은 그대로 두고 주소만 상세 상태를 실어
+            딥링크·새로고침·뒤로가기가 성립하게 한다. 두 Route가 같은 컴포넌트를 가리키면
+            둘 사이를 navigate()로 오갈 때 컴포넌트 인스턴스가 유지된다(리액트 라우터
+            v7 실측 확인 — 목록이 다시 마운트되며 스크롤/필터/데이터를 잃지 않는다).
+            Users.jsx 안에서 useParams().id를 기존 ?id= 딥링크 소비 경로와 함께 읽는다. */}
+        <Route path="/users" element={usersElement} />
+        <Route path="/users/:id" element={usersElement} />
         {/* 온보딩·오프보딩은 목록이 아니라 마법사라 DataScreen 계약으로는 '미리 보여 주고
             확인받는' 단계를 표현할 수 없다(Offboarding.jsx 헤더 주석). */}
         <Route path="/offboarding" element={<RequireRole roles={SCREEN_ROLES.offboarding}><Offboarding /></RequireRole>} />
@@ -152,21 +173,31 @@ function AdminRoutes() {
          * `/org-tree` 의 기본값이 조직인 이유는 OrgConsole.jsx 헤더 주석 참조. */}
         <Route path="/org-tree" element={<RequireRole roles={SCREEN_ROLES["org-tree"]} help={SCREEN_ROLE_HELP["org-tree"]}><OrgConsole /></RequireRole>} />
         <Route path="/organizations" element={<RequireRole roles={SCREEN_ROLES.organizations} help={SCREEN_ROLE_HELP.organizations}><OrgConsole defaultKind="organizations" /></RequireRole>} />
-        <Route path="/departments" element={<RequireRole roles={SCREEN_ROLES.departments} help={SCREEN_ROLE_HELP.departments}><OrgConsole defaultKind="departments" /></RequireRole>} />
+        <Route path="/departments" element={departmentsElement} />
+        {/* PA-RC-0024: 부서 상세도 같은 원리(같은 element, 인스턴스 유지) — OrgConsole은
+            트리+DataScreen을 같이 그리므로 :id가 있으면 DataScreen 쪽 상세만 자동으로
+            열리게 하는 배선은 registry/org.js의 departments onQuery에 있다. */}
+        <Route path="/departments/:id" element={departmentsElement} />
         {/* 위 세 화면은 설정만으로 그려지지 않는다(트리 + 관리 패널) — 아래 일괄 등록에서 뺀다.
             같은 경로를 두 번 등록하면 어느 쪽이 이기는지가 라우터의 정렬 규칙에 달리게 된다.
             `registry` 가 아직 로드되기 전(null)에는 REGISTRY 기반 라우트가 하나도 없다 —
             그 사이에는 아래 catch-all 이 대시보드로 튕기는 대신 로딩 화면을 보인다. */}
-        {registry && Object.keys(registry).filter((key) => !ORG_CONSOLE_KEYS.includes(key)).map((key) => {
+        {registry && Object.keys(registry).filter((key) => !ORG_CONSOLE_KEYS.includes(key)).flatMap((key) => {
           const cfg = registry[key];
           const roles = cfg.roles || SCREEN_ROLES[key];
           const screen = <DataScreen config={cfg} />;
-          return (
-            <Route key={key} path={"/" + key}
-              element={roles ? <RequireRole roles={roles} help={SCREEN_ROLE_HELP[key]}>{screen}</RequireRole> : screen} />
-          );
+          const element = roles ? <RequireRole roles={roles} help={SCREEN_ROLE_HELP[key]}>{screen}</RequireRole> : screen;
+          const listRoute = <Route key={key} path={"/" + key} element={element} />;
+          // PA-RC-0024: 감사 로그만 :id 상세 라우트를 함께 낸다(다른 registry 화면까지
+          // 전부 넓히는 건 이 RC의 근거(Handoff 실측 3곳) 밖이다). 목록 라우트와 완전히
+          // 같은 element라 users/departments와 같은 이유로 인스턴스가 유지된다. audit의
+          // 단건 조회(GET /api/admin/audit/{id})는 이 RC가 새로 만들었다 — 감사 로그는
+          // 목록뿐이라 registry/governance.js의 onQuery(select intent)가 그 id로 실제
+          // 서버 왕복을 할 수 있게 된 것도 이번에 함께 배선했다.
+          if (key !== "audit") return [listRoute];
+          return [listRoute, <Route key={key + "-detail"} path={"/" + key + "/:id"} element={element} />];
         })}
-        <Route path="*" element={registry ? <Navigate to="/dashboard" replace /> : ROUTES_FALLBACK} />
+        <Route path="*" element={registry ? <RouteNotFound /> : ROUTES_FALLBACK} />
       </Routes>
     </React.Suspense>
   );

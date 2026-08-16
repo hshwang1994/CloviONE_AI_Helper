@@ -228,6 +228,11 @@ export const GOVERNANCE_SCREENS = {
   },
   audit: {
     key: "audit", area: "감사", title: "감사 로그", endpoint: "/api/admin/audit",
+    // PA-RC-0024: /audit/:id 라우트가 AdminRoutes.jsx에 등록돼 있다 — DataScreen이 이
+    // 플래그를 보고 sel(상세 선택)을 그 경로와 동기화한다(직접 진입·새로고침·뒤로가기).
+    // 이 플래그가 없는 다른 registry 화면은 :id 라우트 자체가 없으므로 절대 켜면 안 된다
+    // (없는 경로로 navigate하면 방금 연 상세가 "찾을 수 없음"으로 잘못 보인다).
+    hasIdRoute: true,
     help: "누가 무엇을 언제 바꿨는지 기록을 봅니다. 자주 쓰는 필터 조합은 ‘저장된 뷰’로 이름을 붙여 두면 다시 부를 수 있고, ‘CSV 내보내기’는 지금 화면에 걸린 필터를 그대로 적용해 내려받습니다.",
     // 내보내기·이상 징후 (0033, PLAN Phase 6). 내보내기는 브라우저가 직접 그 주소로 가야
     // Content-Disposition 이 먹으므로 download 액션이다(DataScreen.runAction 주석 참조) —

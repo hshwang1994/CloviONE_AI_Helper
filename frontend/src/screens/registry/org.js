@@ -78,6 +78,9 @@ export const ORG_SCREENS = {
   },
   departments: {
     key: "departments", area: "사용자와 권한", title: "부서 관리", endpoint: "/api/admin/departments",
+    // PA-RC-0024: /departments/:id 라우트가 AdminRoutes.jsx에 등록돼 있다(organizations는
+    // 아니다 — Handoff 실측 범위 밖). DataScreen이 이 플래그로 sel을 그 경로와 동기화한다.
+    hasIdRoute: true,
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "+ 부서 추가",
     emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이
