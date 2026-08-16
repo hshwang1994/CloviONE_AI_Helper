@@ -114,6 +114,16 @@ class Settings(BaseSettings):
     worker_conversational_lane_enabled: bool = False
     worker_conversational_concurrency: int = 3
     worker_conversational_takeover_seconds: float = 120.0
+    # Phase 3 실측(2026-08-17, TEST SERVER)에서 직접 발견: 동시성 3에서 SQLite 쓰기
+    # 경합("database is locked")이 실제로 발생했다 — 대부분은 기존 재시도/백오프로
+    # 회복됐지만, 한 건은 claim_next의 최초 쓰기와 그 실패를 기록하려던 fail()의 쓰기가
+    # **둘 다** 락에 걸려 잡이 `running` 상태로 멈춰 버렸다. `Worker`의 기본
+    # `running_timeout_seconds`(repository.DEFAULT_RUNNING_TIMEOUT_SECONDS=3900,
+    # 3600초짜리 schedule_run에 맞춘 값)를 대화형 레인이 그대로 물려받으면 이런 잡이
+    # 최대 65분 동안 "처리 중"인 것처럼 멈춰 있다 — 채팅은 수십 초 안에 끝나야 정상인
+    # 레인이라 그 격차가 훨씬 크게 느껴진다. n8n 타임아웃(180초) 기준 3회 재시도 여유를
+    # 두고 훨씬 짧게 잡는다.
+    worker_conversational_running_timeout_seconds: int = 840
 
     # 주간 프로젝트 헬스 스냅샷 주기. **워커에서만** 돈다.
     #

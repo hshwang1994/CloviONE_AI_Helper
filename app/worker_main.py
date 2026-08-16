@@ -311,13 +311,19 @@ def build_conversational_worker(session_factory, clock: Clock, ctx: WorkerContex
     tick을 등록하지 않는 것 자체가 1차 방어다(2차는 `Worker.run_forever_pooled`의
     assertion) — 이 함수가 `worker.tick_callbacks.append`를 한 번도 안 부르므로, 배치
     레인의 15개 tick(스케줄러·보존·백업·동기화 등) 중 어느 것도 이 프로세스에서 돌 수
-    없다."""
+    없다.
+
+    Phase 3 실측(D-118)에서 발견: 배치 레인의 기본 `running_timeout_seconds`(3900초,
+    3600초짜리 schedule_run 기준)를 그대로 두면, SQLite 쓰기 경합으로 잡이 멈춰도
+    최대 65분 동안 sweep이 회수하지 않는다 — 채팅은 수십 초 안에 끝나는 레인이라 그
+    격차가 훨씬 크게 느껴진다. n8n 타임아웃(180초) 기준의 훨씬 짧은 값을 쓴다."""
     from app.jobs.lanes import CONVERSATIONAL_JOB_TYPES
 
     handlers = {k: v for k, v in build_handlers().items() if k in CONVERSATIONAL_JOB_TYPES}
     return Worker(
         session_factory, clock, handlers, ctx,
         include_types=CONVERSATIONAL_JOB_TYPES,
+        running_timeout_seconds=settings.worker_conversational_running_timeout_seconds,
     )
 
 

@@ -21,6 +21,20 @@ def test_build_conversational_worker_only_has_conversational_handlers(app, setti
         assert worker._exclude_types == ()
         # 대화형 레인은 tick을 하나도 등록 안 한다 — D-118 §2의 1차 방어.
         assert worker.tick_callbacks == []
+        # Phase 3 실측 결함(D-118) — 배치 레인의 3900초(65분) 기본값을 물려받으면 SQLite
+        # 쓰기 경합으로 멈춘 채팅 잡이 65분 동안 안 회수된다. 설정값(기본 840초)을 쓴다.
+        assert worker._running_timeout_seconds == settings.worker_conversational_running_timeout_seconds
+        assert worker._running_timeout_seconds != 3900
+    finally:
+        outbound.close()
+
+
+def test_build_conversational_worker_running_timeout_is_configurable(app, settings, fake_clock):
+    settings.worker_conversational_running_timeout_seconds = 111
+    session_factory, ctx, settings_cache, outbound = worker_main._bootstrap(settings, fake_clock)
+    try:
+        worker = worker_main.build_conversational_worker(session_factory, fake_clock, ctx, settings)
+        assert worker._running_timeout_seconds == 111
     finally:
         outbound.close()
 
