@@ -284,7 +284,7 @@ ui_qa에 **없는** registry 화면: 없음(키 기준). 단 **모달·드로어
 | system_admin | `hshwang@goodmit.co.kr`(실계정) | 서버 실계정 14개 중 유일 |
 | admin | `qa-admin@goodmit.co.kr`(구) | ✅ 생성·로그인 확인. `c1-admin` 캡처 272페이지를 이 계정으로 돌렸다 |
 | operator | `qa-operator@goodmit.co.kr`(구) | ✅ **68라우트 캡처 완료**(`c1-operator`). 권한 화면·사이드바 축소가 API 실측과 정확히 일치 |
-| auditor | **`ui-qa-auditor@goodmit.co.kr`** | ✅ **전체 라우트 캡처 완료(2026-08-17, TEST SERVER)** — 1,008페이지, 치명 검사(가로 넘침·콘솔 오류·페이지 오류·깨진 이미지·중복 id) 전부 통과 |
+| auditor | **`ui-qa-auditor@goodmit.co.kr`** | ✅ **전체 라우트 캡처 완료(2026-08-17, TEST SERVER)** — 1,008페이지(23분), 치명 검사 전부 통과. 관리자·시스템 전용 15라우트가 정확히 `역할부족(미검사)`로 걸러짐. 비치명 `vertical_text_collapse` 2건은 `user` 캡처와 동일 원인(`VIS-163`, `/sprint` 1200×900) — 새 발견 없음 |
 | user | **`ui-qa-user@goodmit.co.kr`** | ✅ **전체 라우트 캡처 완료(2026-08-17, TEST SERVER)** — 450페이지, 치명 검사 전부 통과. 관리자 전용 라우트 47개가 정확히 `역할부족(미검사)`로 걸러짐(`routes_out_of_reach`) — RBAC UI 게이팅이 실제로 동작한다는 실측 근거. 비치명 `vertical_text_collapse` 2건 발견 → `VIS-163`(신규) |
 | `admin_scope` dept/org/global | — | 전부 미검증. `SEC-01`·`UB-01`·`UA-02`가 여기서만 재현된다 |
 
