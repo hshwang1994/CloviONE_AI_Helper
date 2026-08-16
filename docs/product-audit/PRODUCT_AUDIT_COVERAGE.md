@@ -1,6 +1,6 @@
 # PRODUCT AUDIT — COVERAGE (Surface × Axis)
 
-> cycle_id=PA-20260816-120655-f103fb5b
+> cycle_id=PA-20260817-072224-24b91505
 >
 > 이 문서는 `var/product-audit/gen_coverage.py`가 `coverage_state.json`에서 생성한다.
 > 손으로 고치지 않는다 — 상태를 바꾸려면 state를 고치고 다시 생성한다.
@@ -57,73 +57,73 @@ heading·landmark·접근성 자동검사·Light/Dark 동작 확인은 전부 QA
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `U-HOME` 홈 (개인 대시보드) | `/me` | S | · | O | · | · | E | · | · | S | · | · | C | O | E | E | S | S | E | · | · | · | · | · | · | E | S |
-| `U-SEARCH` 통합 검색 | `/search` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-MYTICKETS` 내 티켓 | `/my-tickets` | S | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
+| `U-HOME` 홈 (개인 대시보드) | `/me` | E | E | O | · | E | E | · | · | S | · | · | C | O | E | E | S | S | E | · | · | · | · | · | · | E | S |
+| `U-SEARCH` 통합 검색 | `/search` | E | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `U-MYTICKETS` 내 티켓 | `/my-tickets` | E | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
 | `U-UNASSIGNED` 미할당 티켓 | `/unassigned` | S | · | O | · | · | E | · | · | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-NEWTICKET` 새 티켓 | `/new-ticket` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `U-NEWTICKET` 새 티켓 | `/new-ticket` | E | · | E | · | · | E | · | · | S | · | · | C | E | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-TICKET` 티켓 상세 | `/tickets/:id` | S | · | O | · | · | E | · | E | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-TEAMTICKETS` 팀 티켓 | `/team-tickets` | S | · | E | · | · | E | · | · | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-PROJECTS` 프로젝트 목록 | `/projects` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-PROJECT` 프로젝트 상세 | `/projects/:id` | S | · | O | · | · | E | · | E | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-SPRINT` 스프린트 회의 | `/sprint` | S | · | O | · | · | E | · | · | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-CHAT` AI 도우미 대화 | `/chat` | S | · | O | · | · | E | · | · | O | · | O | C | O | E | E | S | E | E | · | · | · | · | · | · | E | · |
-| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
+| `U-CHAT` AI 도우미 대화 | `/chat` | E | · | O | · | · | E | · | · | O | · | O | C | O | E | E | S | E | E | · | · | · | · | · | · | E | · |
+| `U-CHATROOMS` 채팅방 목록 | `/chat-rooms` | E | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
 | `U-CHATROOM` 채팅방 상세 | `/chat-rooms/:id` | S | · | O | · | · | E | · | E | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | S | · | E | · | · | E | · | E | E | · | · | C | O | O | O | S | S | E | S | · | E | · | · | · | E | · |
+| `U-BOARD` 자유게시판/기능 제안 | `/board, /ideas` | E | · | E | · | · | E | · | E | E | · | · | C | O | O | O | S | S | E | S | · | E | · | · | · | E | · |
 | `U-BOARDPOST` 게시글 상세 | `/board/:id` | S | · | O | · | · | E | · | E | E | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | S | · | E | · | · | E | · | E | E | · | · | C | O | O | O | S | S | E | · | · | E | · | · | · | E | · |
+| `U-TEAMDOCS` 팀 문서 목록 | `/team-docs` | E | · | E | · | · | E | · | E | E | · | · | C | O | O | O | S | S | E | · | · | E | · | · | · | E | · |
 | `U-TEAMDOC` 팀 문서 상세 | `/team-docs/:id` | S | · | O | · | · | E | · | E | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-TRASH` 휴지통 | `/team-docs/trash` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-GAMES` 놀이 목록 | `/games` | S | · | O | · | · | E | · | · | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `U-GAMES` 놀이 목록 | `/games` | S | · | O | · | · | E | · | E | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-GAMEROOM` 게임방 | `/games/:id` | S | · | O | · | · | E | · | E | E | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `U-NOTIF` 알림 목록 | `/notifications` | S | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
-| `U-PROFILE` 내 프로필 | `/profile` | S | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
-| `U-MYSTATS` 내 업무량 | `/my-stats` | S | · | O | · | · | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `U-NOTIF` 알림 목록 | `/notifications` | E | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
+| `U-PROFILE` 내 프로필 | `/profile` | E | · | O | · | · | E | · | · | S | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
+| `U-MYSTATS` 내 업무량 | `/my-stats` | E | E | O | · | E | E | · | · | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `U-ACTIVITY` 내 활동 | `/activity` | S | · | O | · | · | E | · | · | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 
 ## admin-console
 
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | E | · | E | · | · | · | · | E | S |
-| `A-USERS` 사용자 관리 | `/users` | S | · | E | E | E | E | · | E | E | · | · | C | O | E | E | E | S | E | S | · | E | · | · | · | E | S |
-| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | O | E | S | E | · | S | S | · | · | C | O | · | · | S | S | E | S | E | · | · | · | · | E | · |
-| `A-SETTINGS` 설정 | `/settings` | S | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | E | · | · | · | · | · | · | E | · |
+| `A-DASH` 관리자 대시보드 | `/dashboard` | E | · | O | · | E | E | · | S | S | · | · | C | O | E | E | S | S | E | · | E | · | · | · | · | E | S |
+| `A-USERS` 사용자 관리 | `/users` | E | · | E | E | E | E | · | E | E | · | · | C | O | E | E | E | S | E | S | · | E | · | · | · | E | S |
+| `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | E | S | O | E | S | E | · | S | S | · | · | C | O | E | E | S | S | E | S | E | · | · | · | · | E | · |
+| `A-SETTINGS` 설정 | `/settings` | E | · | O | · | S | E | · | S | S | · | · | C | O | E | E | S | S | E | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
 | `A-SYSTEM` 시스템 설정 | `/system` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-MAIL` 메일 발송 상태 | `/mail` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-NOTIONC` Notion 관리 | `/notion-console` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-LLMC` AI 관리 | `/llm-console` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `A-DIAG` 진단 | `/diagnostics` | S | · | O | · | E | E | · | S | S | · | · | C | O | · | · | S | S | E | S | E | · | · | · | · | E | · |
+| `A-DIAG` 진단 | `/diagnostics` | E | · | O | · | E | E | · | S | S | · | · | C | O | · | · | S | S | E | S | E | · | · | · | · | E | · |
 | `A-MAINT` 유지보수 | `/maintenance` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-DEVREP` 개발자 월간 리포트 | `/dev-report` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | E | E | · | · | · | · | · | · | E | · |
-| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | S | · | E | · | S | E | · | S | E | · | · | C | E | · | · | E | E | E | · | · | · | · | · | · | E | · |
+| `A-SCHEDCAL` 실행 달력 | `/scheduler-calendar` | E | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | E | E | · | · | · | · | S | · | E | · |
+| `A-ORG` 조직 콘솔(조직/부서/조직도) | `/organizations,/departments,/org-tree` | E | · | E | · | S | E | · | E | E | · | · | C | E | · | · | E | E | E | · | · | · | · | · | · | E | · |
 | `A-JOBTITLES` 직책 관리 | `/job-titles` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | · | · | · | · | · | · | E | · |
-| `A-INTEG` 외부 연동 | `/integrations` | S | · | O | · | S | E | E | S | S | · | E | C | O | · | · | S | S | E | S | E | · | · | · | · | E | · |
+| `A-INTEG` 외부 연동 | `/integrations` | E | · | O | · | S | E | E | S | S | · | E | C | O | · | · | S | S | E | S | E | · | · | · | · | E | · |
 | `A-RUNNERS` 러너 | `/runners` | S | · | O | · | S | E | E | S | S | · | E | V | O | · | · | S | E | E | S | E | · | · | · | · | E | · |
 | `A-WORKFLOWS` 워크플로 | `/workflows` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | S | E | · | · | · | · | E | · |
-| `A-PROMPTS` 프롬프트 | `/prompts` | S | · | O | · | S | E | · | S | S | · | · | C | O | O | O | S | E | E | · | · | · | · | · | · | E | · |
+| `A-PROMPTS` 프롬프트 | `/prompts` | E | · | O | · | S | E | · | S | S | · | · | C | O | O | O | S | E | E | · | · | · | · | · | · | E | · |
 | `A-POLICIES` 정책 | `/policies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | · | · | · | · | · | · | E | · |
 | `A-TEMPLATES` 템플릿 | `/templates` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | S | · | · | · | · | · | E | · |
 | `A-PROMPTUSE` 프롬프트 사용 통계 | `/prompt-usage` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
 | `A-POLICYUSE` 정책 사용 통계 | `/policy-usage` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
-| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | S | · | · | · | · | · | E | · |
+| `A-SCHEDULES` 실행 일정 | `/schedules` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | E | E | S | · | · | · | S | · | E | · |
 | `A-DOCGEN` 문서 자동 생성 | `/documents` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | E | E | · | · | · | · | · | · | E | · |
-| `A-JOBS` 작업 큐 | `/jobs` | S | · | O | · | S | E | E | S | E | · | E | C | O | O | O | S | S | E | · | E | · | · | · | · | E | · |
-| `A-APPROVALS` 승인 | `/approvals` | S | S | O | S | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `A-JOBS` 작업 큐 | `/jobs` | E | · | O | · | S | E | E | S | E | · | E | C | O | O | O | S | S | E | · | E | · | · | · | · | E | · |
+| `A-APPROVALS` 승인 | `/approvals` | E | S | O | S | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-APPRDELEG` 승인 위임 | `/approval-delegations` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `A-AUDIT` 감사 로그 | `/audit` | S | · | E | · | S | E | · | S | E | · | · | C | O | O | O | S | S | E | · | · | · | · | · | · | E | · |
+| `A-AUDIT` 감사 로그 | `/audit` | E | · | E | · | S | E | · | E | E | · | · | C | O | E | E | S | S | E | · | E | · | · | S | · | E | · |
 | `A-AUDITANOM` 감사 이상 징후 | `/audit-anomalies` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `A-RBAC` 권한 매트릭스 | `/rbac` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | E | S | E | · | · | · | · | · | · | E | · |
+| `A-RBAC` 권한 매트릭스 | `/rbac` | E | · | O | · | S | E | · | S | S | · | · | C | O | · | · | E | S | E | · | · | · | · | · | · | E | · |
 | `A-IMPERSON` 대리 보기 | `/impersonation` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | E | S | E | · | · | · | · | · | · | E | · |
 | `A-NOTIONMAP` Notion 사용자 연결 | `/notion-mapping` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-BACKUP` 백업 | `/backup` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | E | S | E | · | · | · | · | · | · | E | · |
 | `A-RESTORE` 복구 리허설 | `/restore-drills` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
-| `A-ANNOUNCE` 공지 배너 | `/announcements` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `A-ANNOUNCE` 공지 배너 | `/announcements` | E | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 | `A-QUOTAS` AI 사용 상한 | `/ai-quotas` | S | · | O | · | S | E | · | S | S | · | · | V | O | · | · | S | S | E | S | · | · | · | · | · | E | · |
-| `A-FLAGS` 기능 플래그 | `/feature-flags` | S | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
+| `A-FLAGS` 기능 플래그 | `/feature-flags` | E | · | O | · | S | E | · | S | S | · | · | C | O | · | · | S | S | E | · | · | · | · | · | · | E | · |
 
 ## shell-cross
 
@@ -170,31 +170,66 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | 대상 | 사유 |
 |---|---|
 | `A-ANNOUNCE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
-| `A-ANNOUNCE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-ANNOUNCE:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-ANNOUNCE:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-ANNOUNCE:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-APPRDELEG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-APPRDELEG:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-APPROVALS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
-| `A-APPROVALS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-APPROVALS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-APPROVALS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-APPROVALS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-AUDIT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-AUDIT:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-AUDIT:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-AUDIT:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
+| `A-AUDIT:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-AUDIT:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
+| `A-AUDIT:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
+| `A-AUDIT:T` | TEST SERVER journalctl 실조회 — 500 이 request_id 와 함께 traceback 을 남기는 것을 확인(2026-08-17 change-password/conversations) |
+| `A-AUDIT:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-AUDITANOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-AUDITANOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-BACKUP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-BACKUP:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-BACKUP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-DASH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-DASH:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-DASH:E` | pa2_dup.py — /dashboard 와 /diagnostics 본문 문자열 중복률 계측(68%) |
+| `A-DASH:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-DASH:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-DASH:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
+| `A-DASH:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
 | `A-DEVREP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DEVREP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-DIAG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-DIAG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-DIAG:E` | 같은 조사 + app/health/service.py:390 docstring(embeds a full build_dashboard() call) |
+| `A-DIAG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-DIAG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-DIAG:T` | TEST SERVER journalctl 실조회 — 500 이 request_id 와 함께 traceback 을 남기는 것을 확인(2026-08-17 change-password/conversations) |
 | `A-DOCGEN` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-DOCGEN:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-FLAGS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-FLAGS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-FLAGS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-FLAGS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-IMPERSON` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-IMPERSON:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-IMPERSON:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-INTEG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-INTEG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-INTEG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-INTEG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-JOBS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-JOBS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-JOBS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-JOBS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-JOBTITLES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-JOBTITLES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-LLMC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-MAIL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-MAIL:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-MAIL:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-MAINT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-MAINT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
@@ -203,32 +238,65 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `A-NOTIONMAP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-NOTIONMAP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-OFFBOARD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-OFFBOARD:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-OFFBOARD:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-OFFBOARD:L` | 행 높이 분포(97px 8행 / 35px 12행)·상태 막대 481px·동일 문장 8회 반복 계측 |
+| `A-OFFBOARD:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
+| `A-OFFBOARD:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
 | `A-ORG` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-ORG:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-ORG:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-ORG:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
+| `A-ORG:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-POLICIES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-POLICIES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-POLICYUSE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-POLICYUSE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-PROMPTS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-PROMPTS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-PROMPTS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-PROMPTS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-PROMPTUSE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-PROMPTUSE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-QUOTAS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-QUOTAS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-RBAC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-RBAC:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-RBAC:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-RBAC:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `A-RESTORE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-RESTORE:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-RUNNERS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-RUNNERS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-RUNNERS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-SCHEDCAL` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-SCHEDCAL:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-SCHEDCAL:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-SCHEDCAL:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-SCHEDULES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-SCHEDULES:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-SCHEDULES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
+| `A-SCHEDULES:W` | 소스 전수 스캔 — 제품 코드에 naive datetime.now()/utcnow() 없음(55모듈이 clock seam 사용), KST 변환은 replace(tzinfo=utc).astimezone(_KST) 로 일관. 실행 검증은 안 함 |
 | `A-SETTINGS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-SETTINGS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-SETTINGS:F` | 역할 3종 x 옛 라우트 4종 12조합 실측 — 주소와 활성 탭 불일치 확인 |
+| `A-SETTINGS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-SETTINGS:N` | pa2_resp_dark.py — 7뷰포트(FHD·FHD@150%·QHD·1366·1366@125%·1024·390) 실측. 가로 넘침 0, 셀 내부 잘림 계측 |
+| `A-SETTINGS:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
 | `A-SETUP` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-SETUP:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-SYSTEM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-TEMPLATES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `A-TEMPLATES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `A-USERS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-USERS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `A-USERS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
+| `A-USERS:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
+| `A-USERS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `A-USERS:N` | pa2_cols.py + pa2_resp_dark.py — 열 폭/필요 폭/잘린 행을 1920·1366 두 폭에서 계측 |
+| `A-USERS:O` | pa2_resp_dark.py — 라이트/다크 각각 말단 텍스트 전수 WCAG 대비 계산. 실질 실패 0(1건은 disabled 버튼, WCAG 예외) |
 | `A-WORKFLOWS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `A-WORKFLOWS:F` | pa2_rbac.py — 나브·화면·직접 API 세 계층을 역할 3종(user/auditor/operator)으로 대조. 불일치 0 |
 | `A-WORKFLOWS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `P-AI` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `P-AI:L` | 화면이 없는 플랫폼 계층이라 UI/UX 판정 대상이 아니다. 이 계층의 사용자 대면 결과는 해당 Surface의 L축에서 판정한다. |
@@ -281,33 +349,67 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | `U-ACTIVITY` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-ACTIVITY:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-BOARD` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-BOARD:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-BOARD:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-BOARDPOST` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-BOARDPOST:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-CHAT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-CHAT:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-CHAT:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-CHATROOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-CHATROOM:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-CHATROOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-CHATROOMS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-CHATROOMS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-CHATROOMS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-GAMEROOM` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-GAMEROOM:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-GAMES` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-GAMES:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-GAMES:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-HOME` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-HOME:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-HOME:B` | pa2_home_api.py — GET /api/home/today 원문을 DASHBOARD_METRICS.md §3 계약과 대조 |
+| `U-HOME:E` | 같은 조사 — API 페이로드와 프런트 렌더(Home.jsx:309)와 문서 계약 3층 대조 |
+| `U-HOME:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-MYSTATS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-MYSTATS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-MYSTATS:B` | pa2_states.py + 소스 대조 — /api/me/stats 의 totals 가 mapped:false 에서 0 을 낸다 |
+| `U-MYSTATS:E` | 같은 조사 — build_stats 호출부에 mapped 가드 없음을 소스로 확인 |
+| `U-MYSTATS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-MYTICKETS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-MYTICKETS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-MYTICKETS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-NEWTICKET` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-NEWTICKET:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-NEWTICKET:C` | pa2_states.py — 입력 요소 25개 전수(레이블 연결·required·maxlength·placeholder) |
+| `U-NEWTICKET:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
+| `U-NEWTICKET:M` | 같은 계측 — 레이블 연결 확인. 무레이블 4건은 MUI Select 숨은 input 으로 확인(결함 아님) |
 | `U-NOTIF` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-NOTIF:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-NOTIF:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-PROFILE` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-PROFILE:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-PROFILE:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-PROJECT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-PROJECT:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-PROJECT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-PROJECTS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-SEARCH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-SEARCH:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-SEARCH:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-SPRINT` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-SPRINT:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-TEAMDOC` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-TEAMDOC:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-TEAMDOC:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-TEAMDOCS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-TEAMDOCS:A` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측(pa2_design.py) — 라우트·레이아웃 실측 |
+| `U-TEAMDOCS:L` | 이번 Cycle에 TEST SERVER(HEAD)에서 실렌더·계측. 속한 표면 범주의 판정이 PRODUCT_AUDIT_DESIGN.md 에 있다(18/18) |
 | `U-TEAMTICKETS` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-TEAMTICKETS:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-TICKET` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
+| `U-TICKET:H` | pa2_badid.py — 존재할 수 없는 UUID 로 진입해 화면이 없는 레코드를 말하는지 확인 |
 | `U-TICKET:L` | 이번 Cycle이 렌더해서 봤지만(V) UI/UX Skill 루브릭으로 개별 평가하지는 않았다. 판정은 이 표면이 속한 범주 단위로 PRODUCT_AUDIT_DESIGN.md에 있다. |
 | `U-TRASH` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
 | `U-UNASSIGNED` | 아직 이번 Cycle에서 조사하지 않음 — Round 계획에 남아 있다(PRODUCT_AUDIT_STATE.md '다음 조사 후보'). |
@@ -317,13 +419,12 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 
 | Skill 실제 이름 | 실제 경로 | 버전 | 이번 Cycle 적용 |
 |---|---|---|---|
-| `ux-writing` | `~/.claude/skills/ux-writing` | SKILL.md (Validation Errors / What to Avoid / Accessibility / Benchmarks) | P축. **Validation Errors (Inline)** 의 `[Field] [specific requirement]` 패턴과 위치(필드 옆)·시점(blur) 규정, **What to Avoid** 의 'Robotic tone'·'Vague causes', **Accessibility** 의 '오류와 필드 라벨이 함께 읽혀야 한다'를 PA-RC-0014 판정에 사용. `humanize-korean` 은 이 축에서 **아직 적용 안 함** — 한국어 문구가 존재하지 않아 다듬을 대상이 없다(구현이 문구를 만든 뒤 적용해야 순서가 맞다) |
-| `ui-ux-pro-max` | `.claude/skills/ui-ux-pro-max` | scripts/search.py — --design-system, --domain ux | L축 Deep Design Audit. `--design-system`이 이 제품군에 지정한 **Data-Dense Dashboard** 스타일(minimal padding · grid layout · space-efficient · **maximum data visibility**)을 판정 기준으로 사용해 대시보드가 data-dense가 아니라 card-dense임을 확정(카드 40장이 표 행 0을 감싼다 → PA-RC-0018). `--domain ux`의 Empty States·Navigation Active State·Heading Hierarchy·Layout&Responsive의 horizontal-scroll을 PA-RC-0016·0018·0023 판정에 사용 |
-| `redesign-existing-projects` | `~/.claude/skills/redesign-existing-projects` | SKILL.md — Design Audit / Generic AI 패턴 목록 | L축. 「Generic card look(border+shadow+white bg): 카드는 elevation이 위계를 전달할 때만 존재해야 한다」로 대시보드 40카드를 판정(PA-RC-0018), 「purple/blue AI gradient」로 헤더를 판정(PA-RC-0016·0020), 「Random dark sections … looks like a copy-paste accident」의 반전으로 다크에서 흰 온보딩 모달을 판정(PA-RC-0021), 「No max-width container」로 4K 본문 3500px를 판정, 「Modals for everything」으로 관리자 상세 모달을 판정(PA-RC-0024), 「범용 스피너 대신 레이아웃 모양 스켈레톤」으로 loading-state를 **KEEP** 판정 |
-| `impeccable` | `.claude/skills/impeccable` | reference/critique.md — Nielsen 10 heuristics / Cognitive Load / Personas | L축. **Operate 모드**(scanability·consistency가 표현보다 우선)를 이 제품의 모드로 확정. **Working Memory 규범**(최상위 ≤5 · 형제 ≤4 · 8+ 과부하)으로 관리자 내비 8그룹·39목적지를 판정(PA-RC-0017). **Cognitive Load 8항**에서 대시보드가 Single focus·Chunking·Visual hierarchy·Minimal choices 4항 동시 실패(PA-RC-0018). heuristic 5(Error Prevention)로 「삭제」가 primary인 상세 모달을 판정(PA-RC-0023), heuristic 3·4·9로 관리자 상세의 딥링크 부재를 판정(PA-RC-0024). 페르소나 Alex(파워유저)·Sam(접근성)·Riley(새로고침·뒤로가기로 흐름 깨기)를 사용 |
-| `humanize-korean` | `~/.claude/plugins/cache/im-not-ai/humanize-korean/2.1.0/.claude/skills/humanize-korean` | v2.3 — references/quick-rules.md (패턴 ID A/B/C/D/E/F/G/H/I/J) | R축. **윤문 파이프라인은 돌리지 않았다** — 이 스킬은 장르가 `essay|column|report|blog|abstract`인 산문 오케스트레이터이고 게이트가 대구 전멸률·문장 터치율 같은 문서 단위 지표로 판정하는데, 이 제품의 대상은 평균 11.3자짜리 UI 문자열 1,484개다. 스킬 자신의 주의 사항과 이 Audit 2절이 똑같이 *'짧은 버튼명을 억지로 문학적으로 바꾸지 않는다'* 고 적는다. **이전 가능한 부분인 탐지 분류 체계**를 가져와 `quick-rules.md`의 패턴 ID를 실제 UI 코퍼스 전체에 적용했다(`scan_r_axis.py`) — S1 6패턴·S2 6패턴·D/G/I 8패턴. 결과: S1 1건(오탐 확인)·S2 0건·D/G/I 0건. 직전 Cycle의 `PA-F-039`('R축은 깨끗하다')를 더 날카로운 자로 확인했다(`PA-F-079`) |
+| `ui-ux-pro-max` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | L축 18표면 판정 전부. Data-Dense Dashboard 기준의 **신호 대 잡음**으로 대시보드/진단의 정상 상태 면적 점유를 판정(PA-RC-0028), **표/목록의 열 우선순위**로 /users 이메일 잘림과 /settings 항목명 잘림을 판정(PA-RC-0029·0037), **Navigation/IA 의 그룹 예측 가능성**으로 관리자 34항목 taxonomy 를 판정(PA-RC-0031), **로딩 피드백·체감 성능**으로 4xx 재시도를 판정(PA-RC-0034) |
+| `redesign-existing-projects` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | L축. *"이 화면이 없으면 사용자가 무엇을 못 하는가"* 로 /diagnostics 의 고유값(수집·마스킹·원본 JSON)을 가려내 REDESIGN 근거로 삼았다(PA-RC-0028). *"메뉴를 없애고 다른 화면 안으로 넣는 게 나은 경우"* 로 사용자 콘솔 `문서/휴지통` 그룹을 판정(PA-RC-0031). sidebar 와 navigation-ia 를 **그릇과 분류로 갈라** 각각 KEEP/REDESIGN 으로 판정한 것도 이 기준이다 |
+| `impeccable` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | L축. **중복 요소 제거**로 카드 8장이 말한 것을 다시 말하는 도넛을 판정(PA-RC-0028), **정보 밀도**로 /offboarding 이 같은 문장을 8행에 반복해 행 높이가 2.8배 벌어지는 것을 판정(PA-RC-0036), **폭 배분이 내용 요구와 무관한 것**을 시각 위계 결함으로 판정(PA-RC-0029·0037) |
+| `ux-writing` | `확인 방법=Skill 도구 목록(런타임)` | 이번 Cycle 적용 | P축. **상태 표현**(0 과 '-' 와 문장이 같은 상태를 세 가지로 말하는 것)으로 PA-RC-0027 을 High 로 판정. **없어서 문제인 문구**로 관리자 상세의 '없는 레코드' 침묵(PA-RC-0033)과 /settings 탭 권한 거부의 무안내(PA-RC-0030)를 판정. placeholder 와 helper text 의 역할 구분으로 PA-RC-0035 판정. 빈 상태 3요소(무엇이 없나·왜·무엇을 하면 되나)로 empty-state 를 **KEEP** 판정 |
 
-    skill_gap: 없음 — 이 Audit이 계약한 핵심 다섯(`ui-ux-pro-max`·`redesign-existing-projects`·`impeccable`·`ux-writing`·`humanize-korean`)이 전부 설치돼 있고 전부 실제 판단 기준으로 사용됐다. `humanize-korean`만은 윤문 파이프라인 대신 **탐지 분류 체계만** 적용했고 그 이유(입력 장르 불일치)를 Skill 절과 `PA-F-079`에 적었다 — 미적용이 아니라 적용 방식의 선택이다.
+    skill_gap: {'name': 'humanize-korean', 'note': '**이번 Cycle에서는 아직 적용하지 않았다** — R축(한국어 자연스러움)을 아직 수행하지 않았기 때문이다. 미설치가 아니라 순서상 미실행이며, R축을 돌릴 때 `ux-writing` 다음에 적용한다. 직전 Cycle(PA-20260816-120655)은 이 스킬의 탐지 분류 체계를 UI 문자열 1,484개에 적용해 S1 1건(오탐)·S2 0건·D/G/I 0건을 얻었고 그 결과는 PA-F-079 에 있다. 그 증거는 제품 문구가 그 뒤 바뀐 만큼 이번 Cycle에서 다시 재야 한다'}
 
 ## 이번 Cycle에서 각 상태가 실제로 뜻하는 것
 
@@ -514,16 +615,16 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 운영자가 원인에 **실제로 도달한다**는 것이 pass 2의 가장 중요한 음성 결과다 — T축이 강하다.
 
 <!-- COVERAGE-SUMMARY
-cycle_id=PA-20260816-120655-f103fb5b
+cycle_id=PA-20260817-072224-24b91505
 total_cells=2340
-unseen=1277
+unseen=1266
 unseen_without_reason=0
-static_only=486
-observed=195
-executed=366
+static_only=460
+observed=189
+executed=409
 blocked=0
 not_applicable=16
-l_axis_visual_observed=37
-l_axis_deep_design_audited=37
+l_axis_visual_observed=35
+l_axis_deep_design_audited=39
 l_axis_design_verdict_complete=18
 -->
