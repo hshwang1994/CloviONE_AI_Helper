@@ -7653,3 +7653,92 @@ CPU 사용량으로 보아 hang이 아니라 `tests/regression/test_stage_static
 4. 둘 다 green이면 `docs/QA_COVERAGE.md`에 새 절 추가 + summary 표 갱신, 커밋.
 5. 그 뒤에야 whole-product 재감사(이미 한 번 함, Angle 1-3은 클린) 결과를 종합해
    `PROJECT_COMPLETE` 여부를 §13 체크리스트로 판단한다.
+
+### 체크포인트 — 2026-08-17 계속(invocation 8 계속): 위 계획 전부 완주 — Full Regression green, 실결함 1건 발견+수정+배포, 최종 E2E 재확인 중
+
+**핵심 교훈 확인됨(위 checkpoint의 가설이 맞았다)**: background task를 같은 turn
+안에서 `Wait-Process`(PowerShell)로 계속 지켜보면(응답을 끝내지 않고 다른 일을 하며
+대기) invocation 경계를 안 넘어도 되고 정상적으로 완주+통지된다. 이번 invocation
+내내 이 방식으로 아래를 전부 끝까지 지켜봤다.
+
+**1. Full Regression — 전부 green**: `tests/unit`+`tests/regression`+`tests/security`
+묶음 1회 + `tests/integration` 4청크(알파벳순 132파일을 33/32/32/32로 분할, 정확한
+목록은 위 checkpoint에 이미 기록)를 **전부 순차 foreground로** 재실행 — 전 구간 실패
+0건. (이전 시도의 `test_cli_user.py` 7건 실패는 E2E Chrome 스윕과 동시 실행으로 인한
+자원 경합이었다고 이미 확인·기록됨, 위 checkpoint 참고 — **이제부터 Full Regression과
+Chrome E2E는 순차로만 돌린다**.)
+
+**2. Static Checks — `BUNDLE_FRESH_OK` 결함 발견+수정**: `bash scripts/static_checks.sh`를
+돌리니 `[FAIL] 프런트 소스가 커밋된 번들보다 새롭다` — 이번 invocation에서 고친
+`OrgTree.jsx`(KBD-06)를 빌드+커밋하지 않은 채였다. `cd frontend && npm run build &&
+python scripts/check_bundle_fresh.py --write`로 해소, 재실행하니 SEC-20(git stash
+자격증명, 사람 전용 blocker) 2줄만 남고 나머지 전부 green. 번들 커밋: 프런트
+소스+빌드 커밋 자체는 이전 turn에 이미 있었고, 이번엔 번들만 별도 커밋.
+
+**3. 프런트 핫배포**: `SERVER=... BASE_URL=... bash scripts/stage-static-update.sh`(인자
+없음=app/static 전체, 107MB tar) → scp → `sudo tar -xzf ... && sudo sha256sum -c
+...`(stdin 2줄: sudo 비번 + 혹시 몰라 한 번 더, 캐시로 보통 1번만 씀)로 적용,
+전 파일 체크섬 OK, `verify_deploy.sh` → `DEPLOY_VERIFY_OK`.
+
+**4. Chrome E2E 재실행(`post_20260817b`, 710페이지) — 실결함 1건 발견**: 인증 캐시가
+디스크에 남아 있어(`dist/ui-qa/auth-system_admin/credentials.json`) 비밀번호 재설정
+없이 바로 재실행됨(`캐시된 세션 재사용` 로그로 확인). 결과: 21개 검사축 중
+**`console_errors`만 709/710**(나머지 전부 710/710 또는 의도된 skip). 유일한
+실패: `admin_approvals`(light, 1920x1080@2x)에서 `Failed to load resource: ...
+500`. 서버 journal 직접 조회(`journalctl` 정밀 grep, `\" 500 \"` 패턴으로 hex
+request_id의 우연한 "500" 부분열 오탐 회피)로 정확한 원인 특정:
+`POST /api/notifications/read-types`가 `sqlite3.OperationalError: database is
+locked`를 그대로 500으로 흘렸다(traceback 확인).
+
+**5. Root Cause 수정 — `app/notifications/service.py` 3곳 전부**: `mark_types_read`
+(실제 500을 낸 함수) 하나만 고치지 않고 **같은 파일의 같은 패턴** `mark_read`·
+`mark_all_read`도 함께 확인해 **셋 다 SAVEPOINT 재시도가 없는 같은 결함**임을
+확인, `app/core/db.py`의 공용 관용(`is_write_conflict`+`write_conflict_backoff`+
+`DEFAULT_WRITE_CONFLICT_RETRIES`, `team_chat/service.py::_append_message`와 같은
+패턴)을 셋 다에 적용. 재시도 소진 시 raw 500 대신 이미 존재하는 목적에 맞는
+`WriteUnavailableError`(503, "일시적인 서버 혼잡으로 저장하지 못했습니다") —
+`team_chat`처럼 실제 경쟁 상대가 있는 상황이 아니라 순수 자원 혼잡이라 `ConflictError`
+보다 이 클래스가 의미상 더 맞는다고 판단(그 클래스의 원 동기였던 `get_db` 바깥
+커밋 사례와는 다른 자리지만, 클래스 자체는 이 사례에도 정확히 들어맞아 재사용).
+신규 시험 4건(`tests/regression/test_notifications_write_conflict.py`) —
+`Session.execute`를 `Update`문에서만 걸리게 monkeypatch해 재시도 성공/소진 둘 다
+확인. revert-to-verify: 소스를 되돌리면(=`import time` 등 재시도 인프라 자체가
+없어짐) 4건 전부 `ImportError`로 실패 — 재시도 코드가 실제로 없으면 안 되는
+변경임을 증명. 포커스 재검증(새 시험 4 + `test_notifications.py` +
+`test_collab_notifications.py` + `test_error_envelope.py` = 17건) green,
+`static_checks.sh` 재확인(SEC-20만 남음) green.
+
+**6. 백엔드 정식 배포(핫배포 아님, 코드 변경이라 전체 업그레이드)**:
+`bash scripts/build-bundle.sh`(번들 34종 wheel, freshness gate 통과) → scp
+`dist/clovirone-web-assistant-bundle.tar.gz`+`bundle.sha256` → 서버에서 압축 해제 +
+`sha256sum -c`(전체 파일 무결성) → `sudo DNS_NAME=clovirone-ai.gooddi.lab
+BIND_IP=10.100.64.71 STAGE=~/deploy/stage .../upgrade-clovirone-web-assistant.sh`
+(stdin 1줄, `docs/MAINTENANCE_PLAYBOOK.md` §2의 기존 검증된 명령 그대로) →
+`UPGRADE_OK`(백업→install→alembic upgrade head→서비스 재기동→healthz/worker 확인
+전부 스크립트 자신이 함). `verify_deploy.sh` → `DEPLOY_VERIFY_OK`. 3개 유닛(web/배치
+워커/대화형 워커) 전부 `active` 재확인(업그레이드가 대화형 레인 플래그를 안 건드림
+확인 — `web.env`는 배포 대상이 아니므로 D-118 Phase 2/3 설정이 그대로 유지됨).
+배포된 소스에서 수정 코드 실존 확인(`grep -c` 로 실측).
+
+**7. 최종 재확인 E2E 진행 중(`post_20260817c`, 710페이지)** — 수정이 실제로 이
+버그를 없앴는지, 그리고 이번 배포 자체가 새 회귀를 안 냈는지 확인하는 마지막
+바퀴. 아직 완료 전(같은 invocation 안에서 Wait-Process로 지켜보는 중).
+
+**다음(이 마지막 E2E 완료 후)**:
+- 21개 검사축 전부(또는 최소 `console_errors`) green이면 `docs/QA_COVERAGE.md`
+  §14/§15 뒤에 새 절 추가(오늘자 재실행 3회 — `post_20260817`(291/710에서 끊김,
+  invocation 경계), `post_20260817b`(710/710 완주, 실결함 1건), `post_20260817c`
+  (재확인) — 요약)하고 summary(§0) 표도 갱신, 커밋.
+- 만약 이번에도 다른 무작위 결함이 나오면(710페이지 규모에서 드문 타이밍 결함이
+  또 나올 수 있음을 배제하지 않는다) 같은 방식(journal 정밀 조회 → Root Cause →
+  같은 파일 전체 패턴 확인 → 수정 → 시험 → 배포 → 재확인)으로 처리한다 — 무한정
+  반복하지 않고, 새로 나오는 결함이 **이미 알려진 자원 경합 패턴의 반복**이라면
+  1~2회 더 재확인 후 "이 수준의 아주 드문 동시성 결함은 이 규모 배포에서 정상
+  범위"로 판단하고 다음 항목으로 넘어간다(무한 재귀적 완벽주의 방지).
+- 그 뒤 whole-product 재감사(이미 한 번 완료, Angle 1-3 클린 + Angle 4/5 findings
+  둘 다 이번 세션에 이미 처리됨 — DOC-07/KBD-06) 결과까지 종합해 `PROJECT_COMPLETE`
+  여부를 CLAUDE.md §13 체크리스트로 최종 판단한다. `SEC-20`(git secret 회전)은
+  여전히 유일한 사람 전용 blocker로 남는다 — 그 외 모든 축이 충족되면 그 사실 하나만
+  명시하고 `PROJECT_COMPLETE`를 만들지, 아니면 "SEC-20만 남았다"로 명확히 기록한다
+  (CLAUDE.md §13 자체는 사람 전용 blocker에 대한 예외를 두지 않으므로 최종 판단은
+  §13 문언을 그대로 따른다 — 애매하게 얼버무리지 않는다).
