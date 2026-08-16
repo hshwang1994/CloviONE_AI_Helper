@@ -3594,3 +3594,72 @@ operator에게 이제 200(전엔 403)이고 `dashboard.recent_critical_audit`가
 확인이 원격에도 그대로 적용된다).
 
 **`PA-RC-0026`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-14`.
+
+## D-99 (2026-08-16) — PA-RC-0012: heading 시각/의미 분리, 정적 검사가 놓친 걸 렌더 시험이 잡음
+
+### 배경
+
+`PA-RC-0026`을 마치고 같은 invocation 안에서 계속했다. 남은 후보가 전부 Medium/Low라
+`PA2-08`(`PA-RC-0019`, FAB 겹침)을 TEST SERVER 실측으로 먼저 재확인했다(`PA-RC-0023`이
+「상세」 버튼 열을 지운 뒤라 전제가 바뀌었다는 Handoff의 명시적 요구) — 원래 대상은
+사라졌지만 FAB이 이제 행 전체(12건)를 가리는 걸 확인, Handoff 권장대로 `PA2-09`
+(`PA-RC-0020`)를 먼저 처리해 원인 소멸로 함께 닫기로 하고 코드 맵을 Explore agent에
+맡겨 뒀다(백그라운드). 그 사이 독립적으로 가능한 `PA2-01`(`PA-RC-0012`, heading
+계층)을 시작했다.
+
+### 근본 처방 — `theme.js`의 `variantMapping`
+
+MUI Typography는 `component || variantMapping[variant] || defaultVariantMapping[variant]
+|| 'span'` 순으로 태그를 정한다(`node_modules/@mui/material/Typography/Typography.js`
+직접 확인) — `variantMapping`을 부분적으로만 채워도(예: `{sectionTitle:"h2"}`) h1~h6 등
+표준 variant는 자기 자리의 `defaultVariantMapping` 폴백으로 안전하다는 것을 소스로
+먼저 확인한 뒤 적용했다(전체를 재정의해 h1~h6 매핑을 실수로 지우는 사고를 피하려고).
+`sectionTitle`(`PA-RC-0001`이 만든 카드 소제목 전용 variant)에 `h2` 기본 매핑을 추가 —
+`kit.jsx`의 `SectionTitle` 컴포넌트가 이미 이 variant를 쓰므로 새 화면이 그 경로를
+쓰면 자동으로 옳은 태그가 나간다.
+
+### 17개 호출부 + `SetupWizard`+`BodyEditor`
+
+손으로 쓴 5화면(`LlmConsole`·`NotionConsole`·`MailStatus`·`Offboarding`·`SystemOps`)의
+`variant="h6"` 17곳에 `component="h2"`를 추가했다 — 전부 카드/구역 제목이라 단순
+치환이지만, `Offboarding.jsx:280`(`{user.display_name}, {user.email}`)는 Handoff가
+직접 "선택된 대상 표시일 수 있으니 heading이 맞는지 판단할 것"이라 경고한 자리라 문맥을
+먼저 확인했다 — 미리보기 카드 전체의 제목 역할이 맞아 h2로 확정. `SetupWizard.jsx`의
+체크리스트 항목 제목(`component="h3"`, 위에 h2가 전혀 없음)을 `h2`로 올렸다 — 이 항목은
+`.map()` 안에서 반복되므로 형제 h2 여러 개가 되는데, 같은 레벨이 반복되는 건 건너뛰는
+것과 다른 정상 패턴이다(SetupWizard.jsx의 다른 곳에 h2가 전혀 없어 검증). `BodyEditor.jsx`
+는 사용자 저작 콘텐츠 블록 h1/h2/h3를 `component="h2"/"h3"/"h4"`로(원래 h2/h3 블록은
+`component=` 자체가 없어 `<p>`로 떨어지고 있었다 — 반대 방향의 같은 결함) — 저장 데이터의
+블록 `type`은 안 건드렸다.
+
+### 정적 검사가 놓친 것을 렌더 시험이 잡았다 — `variant="subtitle1"`
+
+`scripts/check_heading_variant_mapping.py`(`h3`~`h6` 줄 단위 검사)를 먼저 만들어
+`static_checks.sh`에 배선했다. 그런데 새로 만든 `heading-order.test.jsx`(6개 대표
+화면을 실제로 렌더해 heading 레벨 열이 1씩만 증가하는지 확인, Handoff required_tests가
+명시한 형태)를 돌리자 `offboarding.test.jsx`의 미리보기 카드 시험이 `[1,2,6,2]`로
+실패했다 — `Offboarding.jsx:311`의 `variant="subtitle1"`이 원인이었다. MUI
+`defaultVariantMapping`은 `subtitle1`/`subtitle2`도 `<h6>`로 매핑한다(소스 직접
+확인) — 처음 짠 정적 검사가 `h3`~`h6`만 보느라 이 경로를 놓쳤다. `component="h2"`로
+고치고, 정적 검사 자체도 `subtitle[12]`까지 잡게 넓혔다(같은 저장소 전수 검색으로
+다른 자리엔 없음을 확인, 이 한 곳뿐이었다). **정적 검사 하나만 믿지 않고 렌더 결과를
+보는 시험을 같이 둔 이유가 바로 이것이다** — 하나가 놓쳐도 다른 하나가 잡는다.
+
+### 검증
+
+`test_heading_variant_mapping_scan.py` 13건(신규, subtitle1/2 케이스 포함, revert-to-
+verify로 실제 결함 재현) green, 실물 `frontend/src` 재확인 green. `heading-order.test.jsx`
+5건 + `offboarding.test.jsx` 신규 1건(총 91건, 관련 12개 파일) green. 프런트 전체 회귀
+278파일 1910건 green. 시각 렌더 불변 근거: MUI Typography는 `variant`가 CSS 클래스를,
+`component`가 DOM 태그만 결정하는 두 축이 독립적이라(소스로 확인) `component=` 추가는
+스타일에 영향을 줄 수 없다 — 별도 실측 스크린샷 대조는 생략하고 이 구조적 근거로
+대신한다(전부 `variant` 값 자체는 하나도 안 바꿨다). `static_checks.sh` 전부 green
+(SEC-20 제외). 빌드+번들 재생성.
+
+### 남은 것
+
+TEST SERVER 재배포 + `probe_a11y.py`/`verify_a11y.py` 재실행으로 6화면의
+`headingSkips`가 실제로 빈 배열인지 라이브 재확인(acceptance_criteria 1). `PA2-08`
+(`PA-RC-0019`)/`PA2-09`(`PA-RC-0020`) 착수는 계속 진행 중(같은 invocation).
+
+상세: `docs/BACKLOG.md` `PA2-01`.
