@@ -14,6 +14,10 @@ export const dateCol = (key, label) => ({ key, label, render: (r) => fmtDateTime
 // 미사용(active=false)은 이 화면이 관리하는 핵심 상태(새로 배정 가능 여부를 가른다)라 눈에 잘
 // 안 띄는 중립(neutral) 톤 대신 주의(warn) 톤을 준다 — 훑어보다 놓치기 쉬웠다.
 export const activeCol = (label) => ({ key: "active", label, render: (r) => <Badge value={r.active ? "사용 중" : "미사용"} kind={r.active ? "ok" : "warn"} /> });
+// 켬/꺼짐(boolean) → 도메인 어휘 배지('활성'/'비활성'). activeCol과 같은 이유(VIS-13):
+// 일반 badgeCol의 '예/아니오'는 화면 필터의 '활성'/'비활성' 어휘와 어긋나고, 꺼짐이 중립(회색)
+// 톤이라 훑어보다 놓치기 쉬웠다 — 스케줄·연동·러너·워크플로 4곳이 이 패턴이 필요했다.
+export const enabledCol = (label) => ({ key: "enabled", label, render: (r) => <Badge value={r.enabled ? "활성" : "비활성"} kind={r.enabled ? "ok" : "warn"} /> });
 // 외부 링크 열(예: 발행된 Notion 문서) — http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
 export const linkCol = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];

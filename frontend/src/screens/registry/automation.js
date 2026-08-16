@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { CONCURRENCY_OPTS, DOC_MODE, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, field, fmtDateTime, jsonField, linkCol, listField, mapCol, opt, personField, previewField, schedSkipReasonText } from "./shared.js";
+import { CONCURRENCY_OPTS, DOC_MODE, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTime, jsonField, linkCol, listField, mapCol, opt, personField, previewField, schedSkipReasonText } from "./shared.js";
 import { DOC_GENERATE_FIELDS, docConfigInitial, docConfigTransform, docGenerateResult, onoff } from "./actions.js";
 
 export const AUTOMATION_SCREENS = {
@@ -56,7 +56,7 @@ export const AUTOMATION_SCREENS = {
       { key: "target_ref", label: "대상", render: (r) => (r.target_ref && r.target_type === "workflow")
         ? React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_name || r.target_ref)
         : (r.target_ref || "-") },
-      badgeCol("enabled", "활성"),
+      enabledCol("활성"),
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
       // 보여주면 '이 시각에 다시 실행될 것'처럼 읽힌다. 비활성 행은 활성 배지로 알 수 있으니 이 열은
       // 무의미한 미래 시각 대신 '-'로 지워 이중 확인을 강제하지 않는다.

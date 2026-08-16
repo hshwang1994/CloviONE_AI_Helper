@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, col, dateCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
+import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
 import { healthResult, onoff, reachResult, snapCol, testResult, versionsAction } from "./actions.js";
 import { serviceLabel } from "../ops/opsHelpers.js";
 
@@ -57,7 +57,7 @@ export const INTEGRATION_SCREENS = {
       // 관리자가 직접 등록한(§4종 밖) 연동 이름은 serviceLabel의 kebab/snake 자동 정리
       // 폴백만 타므로 자유 텍스트를 훼손하지 않는다.
       { key: "name", label: "이름", render: (r) => serviceLabel(r.name), rowName: (r) => serviceLabel(r.name) },
-      mapCol("provider_type", "유형", PROVIDER), badgeCol("enabled", "활성"),
+      mapCol("provider_type", "유형", PROVIDER), enabledCol("활성"),
       badgeCol("last_health_status", "상태 확인"), truncateCol("base_url", "서버 주소", 60), col("config_version", "버전")],
     // admin은 auth_type='none'인 연동만 새로 만들 수 있다(백엔드 _guard_secret_binding_create가 그 외
     // 값을 403). 예전엔 옵션을 그대로 다 보여주고 help 문구만으로 고르지 말라고 부탁했다 — 골라도
@@ -156,7 +156,7 @@ export const INTEGRATION_SCREENS = {
       { key: "maintenance_state", type: "select", label: "점검 상태", options: RUNNER_MAINT_OPTS },
       { key: "enabled", type: "select", label: "활성", options: opt([["true", "활성"], ["false", "비활성"]]) },
     ],
-    columns: [col("name", "이름"), badgeCol("enabled", "활성"), badgeCol("maintenance_state", "상태"),
+    columns: [col("name", "이름"), enabledCol("활성"), badgeCol("maintenance_state", "상태"),
       // 회로 차단(연속 실패로 배분이 300초 막힘) 상태를 목록에서 바로 본다 — degraded 배지로는 구분되지 않는다.
       // key는 상세 드로어의 circuit_open_until(해제 시각) 필드와 겹치지 않도록 별도 이름을 쓴다.
       { key: "circuit_blocked", label: "차단", render: (r) => {
@@ -317,7 +317,7 @@ export const INTEGRATION_SCREENS = {
     // 상세를 하나씩 열지 않고도 알 수 있게) purpose를 승격한 것과 동일한 패턴(registry.js:572-577).
     columns: [col("name", "이름"), truncateCol("purpose", "용도", 40), col("owner", "담당자"),
       mapCol("operation_mode", "모드", WF_MODE), badgeCol("approval_required", "승인 필요"),
-      badgeCol("enabled", "활성"),
+      enabledCol("활성"),
       // provider_n8n.test()는 'reachable'/'unreachable'만 기록한다 — 한 번도 테스트한 적 없는 행은
       // last_test_status가 그냥 null이라, 일반 Badge는 이걸 '알 수 없음'으로 보여준다(오류처럼 읽힘).
       // '미검증'으로 구분해 실제로 테스트가 실패한 적이 있는지와 헷갈리지 않게 한다.

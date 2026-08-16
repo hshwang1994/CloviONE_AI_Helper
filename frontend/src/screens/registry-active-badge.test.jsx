@@ -39,6 +39,37 @@ describe("templates 목록의 '활성' 배지", () => {
   });
 });
 
+/* VIS-13 — templates(위)가 이미 고쳐 둔 이 패턴이 같은 저장소 안에서 4곳 더(스케줄·연동·
+ * 러너·워크플로) badgeCol("enabled", ...)로 남아 있었다 — "활성"이 가장 중요한 사실인 화면인데
+ * 원시 예/아니오 + 중립 톤이라 훑어보다 놓치기 쉬웠다. enabledCol 헬퍼로 한 번에 통일한다.
+ */
+describe.each([
+  ["schedules", "스케줄"],
+  ["integrations", "연동"],
+  ["runners", "러너"],
+  ["workflows", "워크플로"],
+])("%s(%s) 목록의 '활성' 배지", (registryKey) => {
+  const col = REGISTRY[registryKey].columns.find((c) => c.key === "enabled");
+
+  it("필터와 같은 어휘(활성/비활성)를 쓴다 — 원시 예/아니오가 아니다", () => {
+    const { container: onC } = renderCol(col, { enabled: true });
+    expect(onC).toHaveTextContent("활성");
+
+    const { container: offC } = renderCol(col, { enabled: false });
+    expect(offC).toHaveTextContent("비활성");
+    expect(offC).not.toHaveTextContent("아니오");
+  });
+
+  it("비활성은 중립이 아니라 주의(warning) 톤이다", () => {
+    const { container: offC } = renderCol(col, { enabled: false });
+    expect(offC.querySelector(".MuiChip-colorWarning")).toBeTruthy();
+    expect(offC.querySelector(".MuiChip-colorDefault")).toBeFalsy();
+
+    const { container: onC } = renderCol(col, { enabled: true });
+    expect(onC.querySelector(".MuiChip-colorSuccess")).toBeTruthy();
+  });
+});
+
 /* WF1 R1 — 백업(backup) 목록의 '크기' 열이 숫자인데도 align:"right"가 없어 문자열처럼
  * 왼쪽 정렬됐다 — governance.js·authoring.js 등 8곳이 이미 쓰는 관례(숫자는 자릿수를 눈으로
  * 비교할 수 있게 오른쪽 정렬)에서 이 화면만 빠져 있었다. DataTable 자체의 align 배선은
