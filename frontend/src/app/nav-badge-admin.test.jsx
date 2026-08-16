@@ -67,7 +67,19 @@ function mockApi(byType) {
 }
 
 describe("관리자 사이드바 — 유형별 배지", () => {
-  beforeEach(() => { apiMock.mockReset(); wideViewport(); });
+  beforeEach(() => {
+    apiMock.mockReset();
+    wideViewport();
+    // 이 파일이 재는 것은 배지 숫자이지 그룹 접힘 상태가 아니다 — 활성 라우트가 없는
+    // "/"로 들어가므로(어느 그룹도 강제로 안 펼쳐진다) 배지가 붙는 두 그룹(운영·자동화)을
+    // 미리 펼친 상태로 남겨 둔다. PA-RC-0017 전에는 "기록 없음 = 펼침"이 기본값이라 이
+    // 시딩 없이도 통과했지만, 지금은 "기록 없음 = 접힘"이 기본값이다(AppShell.jsx isOpen
+    // 주석 참조 — 관리자 레일이 스크롤 없이 5그룹만 보이려면 그래야 한다).
+    window.localStorage.setItem(
+      "clovirone_nav_collapsed:a1",
+      JSON.stringify({ "운영": false, "자동화": false }),
+    );
+  });
 
   it("작업 큐·승인·백업이 각자의 유형 합계만 보인다", async () => {
     mockApi({

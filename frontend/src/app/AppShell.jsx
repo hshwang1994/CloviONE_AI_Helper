@@ -204,8 +204,12 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
   const [filterQuery, setFilterQuery] = React.useState("");
   const filtering = showFilter && filterQuery.trim().length > 0;
   const visibleGroups = filtering ? filterGroupsByQuery(groups, filterQuery) : groups;
+  // PA-RC-0017: `isOpen`(아래)의 "기록 없음 = 접힘" 기본값과 짝을 맞춘다 — 지금 열려
+  // 있다는 뜻은 `c[name] === false`(명시적으로 편 적이 있음)일 때뿐이므로, 그 반대를
+  // 다음 값으로 적는다. 예전 `!c[name]`은 "기록 없음 = 펼침"이던 옛 기본값 시절 공식이라,
+  // 지금 기본값(접힘)에서 그대로 두면 처음 눌러도 `true`(접힘)를 또 적어 아무 반응이 없었다.
   const toggle = (name) => setCollapsed((c) => {
-    const next = { ...c, [name]: !c[name] };
+    const next = { ...c, [name]: c[name] === false };
     try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
     return next;
   });
@@ -314,7 +318,18 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
         // 접힌 그룹 안의 경로에 도착했을 때 '여기 있음' 항목이 숨으면 길을 잃는다.
         // 필터링 중에는 무조건 편다 — 검색으로 찾은 항목이 접힌 그룹 안에 숨어 있으면 필터
         // 자체가 무용해진다.
-        const isOpen = filtering || !collapsed[g.group] || groupActive;
+        //
+        // PA-RC-0017: `collapsed[g.group]`에 **아무 기록이 없을 때**(첫 방문, 또는 이번
+        // 재편으로 그룹 이름이 바뀌어 예전 기록이 새 이름과 안 맞게 된 경우) 예전엔
+        // `!collapsed[g.group]`(undefined → true)로 펼침이 기본값이었다 — 그룹 5개 전부가
+        // 한꺼번에 펼쳐져 관리자 레일이 실측 scrollHeight 1716 / clientHeight 794로 정확히
+        // "5개 이하·스크롤 없이 전부 보인다"(acceptance_criteria 1)를 깨뜨렸다(실브라우저
+        // 재측정으로 확인). 바로 위 주석의 원래 의도("접혀 있었어도 강제로 펼친다")도 애초에
+        // "평소엔 접혀 있다"를 전제한다 — 코드의 실제 기본값이 그 전제와 어긋나 있었다.
+        // `collapsed[g.group] === false`(사용자가 실제로 편 적이 있어 명시적으로 기록됨)일
+        // 때만 접힘 기록 없이도 펼치고, 그 외(기록 없음 포함)엔 접힘이 기본값이다 — 활성
+        // 그룹은 `groupActive`가 여전히 강제로 편다.
+        const isOpen = filtering || groupActive || collapsed[g.group] === false;
         const GroupIcon = g.icon;
         const itemsId = "nav-group-" + g.group;
         return (

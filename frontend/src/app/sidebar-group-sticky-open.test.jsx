@@ -59,10 +59,14 @@ describe("사이드바 그룹이 저절로 접히지 않는다", () => {
     wideViewport();
     apiMock.mockResolvedValue({ items: [], unread: 0, badge: 0, by_type: {}, unread_total: 0 });
     window.localStorage.clear();
-    // "문서" 그룹이 예전 세션에서 접힌 채로 저장돼 있다고 가정한다.
+    // "문서" 그룹이 예전 세션에서 접힌 채로 저장돼 있다고 가정한다. "내 업무"(홈이 속한
+    // 그룹)는 이 시험의 실제 관심사가 아니라 "다른 그룹의 항목을 눌러 벗어난다"는 절차를
+    // 수행하기 위한 발판일 뿐이라 — "기록 없음 = 접힘"이 기본값인 지금(PA-RC-0017, AppShell.jsx
+    // isOpen 주석 참조) 명시적으로 펼쳐 둔다. 접힌 채로 두면 "홈" 링크 자체가 안 보여
+    // 시험이 본론(문서 그룹의 펼침 유지)에 닿기도 전에 죽는다.
     window.localStorage.setItem(
       "clovirone_nav_collapsed:u1",
-      JSON.stringify({ "문서": true }),
+      JSON.stringify({ "문서": true, "내 업무": false }),
     );
   });
 
