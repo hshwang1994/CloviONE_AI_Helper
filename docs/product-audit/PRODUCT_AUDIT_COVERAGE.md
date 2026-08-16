@@ -69,7 +69,7 @@
 | Surface | 위치 | A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W | X | Y | Z |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `A-DASH` 관리자 대시보드 | `/dashboard` | S | · | O | · | S | E | · | S | S | · | · | O | O | O | O | S | S | S | · | · | · | · | · | · | E | S |
-| `A-USERS` 사용자 관리 | `/users` | S | · | E | · | S | E | · | E | E | · | · | O | O | O | O | S | S | S | S | · | · | · | · | · | E | S |
+| `A-USERS` 사용자 관리 | `/users` | S | · | E | · | E | E | · | E | E | · | · | O | O | O | O | E | S | S | S | · | · | · | · | · | E | S |
 | `A-OFFBOARD` 온보딩/오프보딩 | `/offboarding` | S | S | O | S | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
 | `A-SETTINGS` 설정 | `/settings` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `A-SETUP` 초기 설정 마법사 | `/setup` | S | · | O | · | S | E | · | S | S | · | · | O | O | · | · | S | S | S | S | · | · | · | · | · | E | · |
@@ -247,6 +247,7 @@ surface 단위 사유는 그 surface의 모든 UNSEEN 칸에 적용된다.
 | Skill 실제 이름 | 실제 경로 | 버전 | 이번 Cycle 적용 |
 |---|---|---|---|
 | `ui-ux-pro-max` | `.claude/skills/ui-ux-pro-max` | scripts/search.py (ux/web/react 도메인) | L·M축. `--domain ux`가 준 **Heading Hierarchy**(Do: sequential h1-h6 / Don't: skip levels **or misuse for styling**, Severity Med)와 `--domain web`·`--stack react`의 **Use semantic HTML before ARIA**(Severity High)를 PA-RC-0012 판정 기준으로 사용. 이 규칙이 결함의 실패 모드(스타일 목적의 heading 오용)를 그대로 지목한다 |
+| `ux-writing` | `~/.claude/skills/ux-writing` | SKILL.md (Validation Errors / What to Avoid / Accessibility / Benchmarks) | P축. **Validation Errors (Inline)** 의 `[Field] [specific requirement]` 패턴과 위치(필드 옆)·시점(blur) 규정, **What to Avoid** 의 'Robotic tone'·'Vague causes', **Accessibility** 의 '오류와 필드 라벨이 함께 읽혀야 한다'를 PA-RC-0014 판정에 사용. `humanize-korean` 은 이 축에서 **아직 적용 안 함** — 한국어 문구가 존재하지 않아 다듬을 대상이 없다(구현이 문구를 만든 뒤 적용해야 순서가 맞다) |
 
     skill_gap: chrome-devtools — 미설치. 대체=Playwright + Chromium 직접 구동(sweep_all.py / probe_a11y.py). 신뢰도 영향: 없음에 가깝다 — DevTools 프로토콜로 얻을 콘솔·네트워크·DOM 계측을 Playwright 이벤트(response/console/pageerror/requestfailed)로 동등하게 얻었고, 이번 Cycle은 오히려 이전 Cycle이 놓쳤던 HTTP 4xx/5xx 응답까지 포착했다.
     skill_gap: a11y-debugging — 미설치. 대체=probe_a11y.py 로 heading outline·label 연결·landmark·positive tabindex·focus ring 을 브라우저에서 직접 계측. 신뢰도 영향: 자동 규칙 엔진(axe 등)이 주는 넓은 규칙 목록은 못 얻었다 — 이번에 판정한 것은 측정한 축뿐이고, 측정하지 않은 WCAG 항목은 COVERAGE 에서 M축 OBSERVED(=구조 계측)로만 표기하고 EXECUTED 로 올리지 않았다.
@@ -404,9 +405,9 @@ cycle_id=PA-20260816-100149-48671b72
 total_cells=2340
 unseen=1330
 unseen_without_reason=0
-static_only=611
+static_only=609
 observed=218
-executed=181
+executed=183
 blocked=0
 not_applicable=0
 -->
