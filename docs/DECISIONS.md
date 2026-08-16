@@ -3759,3 +3759,50 @@ cid 폴백 케이스는 `chat-page-heading.test.jsx`의 통제된 렌더로 이�
 
 **`PA-RC-0019`·`PA-RC-0020`을 완결로 처리한다**(`/org-tree` 서브 항목은 의도적
 예외로 문서화). 상세: `docs/BACKLOG.md` `PA2-08`·`PA2-09`.
+
+## D-101 (2026-08-16) — PA-RC-0013: `/users`도 검색·필터·페이지를 URL에 싣는다
+
+### 배경
+
+`PA-RC-0019`+`0020`을 마치고 같은 invocation 안에서 계속했다. `/users`만 목록 상태를
+URL에 안 싣는 단독 예외였다 — 대조군 `/team-docs`·`/board`·`/team-tickets`·
+registry 기반 `DataScreen.jsx` 화면(`/audit` 등)은 전부 이미 견딘다.
+
+### 새 메커니즘을 안 만들었다
+
+`DataScreen.jsx`가 쓰는 변환 로직이 이미 `datascreen-view.js`에 **순수 함수**로
+분리돼 있었다(`config.filters` 키 목록만 있으면 registry 전체 없이도 동작) —
+`Users.jsx`는 수제 화면이라 `DataScreen.jsx` 자체는 못 쓰지만, `buildViewQuery`/
+`withHashQuery`만 가져다 5개 필터 키(`role`·`active`·`locked`·`department_id`·
+`archived`)를 나열한 작은 config 객체로 그대로 재사용했다. 읽는 쪽은 이미 있던
+`useSearchParams`(HashRouter가 해시 안 쿼리를 그대로 파싱)를 그대로 쓰고, 쓰는
+쪽만 `DataScreen.jsx`와 같은 raw `history.replaceState`로 우회했다 — `setSearchParams`를
+썼다면 `?id=` 딥링크를 소비하고 지우는 기존 효과가 `searchParams` 변경 자체에
+반응해 되먹임 루프에 빠질 위험이 있었다(이 파일 자신의 기존 주석이 이미 그 함정을
+경고하고 있었다).
+
+### 실제로 잡은 버그 — 마운트 시 페이지 복원이 조용히 도로 1로 밀림
+
+기존 "필터가 바뀌면 1쪽으로" 효과(`useEffect(() => setPage(1), [dq, ...필터들])`)는
+React 규약상 **마운트 때도 한 번 무조건 돈다** — 주소에서 `page=3`을 막 복원해도
+그 직후 이 효과가 곧바로 1로 덮어썼을 것이다. `useRef` 플래그로 첫 실행만 건너뛰게
+고쳐 막았다 — 구현 전에 코드를 눈으로 훑다가 발견해 실제로 배포되기 전에 잡았다.
+
+### 검증
+
+신규 `users-url-state.test.jsx` 6건: 쓰기 방향(검색어→hash, 기본값 미기록, `pushState`
+안 씀 확인) + 읽기 방향(`?role=admin&page=2` 마운트 시 그 조건으로 조회, 기존
+`?q=`/`?department_id=` 인바운드 딥링크 회귀 없음). 시험 작성 중 `window.location.hash`
+가 `MemoryRouter`(시험 전용)와 무관하게 독립적이라는 실제 환경 차이를 하나 발견했다
+— 실제 앱(HashRouter)은 마운트 시점에 이미 해시 경로를 갖고 있지만 시험은 안 그래서
+`hashPath`가 빈 문자열을 보고 첫 쓰기 결과가 "#/users?q=Alice" 대신 "#?q=Alice"가 됐다
+— 시험 안에서 `window.location.hash = "#/users"`로 그 전제를 흉내내 고쳤다(제품
+결함 아님, `datascreen.test.jsx` 계열이 이미 마운트마다 `window.location.hash=""`로
+초기화하는 것과 같은 종류의 시험 전용 관용이다).
+
+기존 `users-*.test.jsx` 7파일 30건 회귀 없음. 프런트 전체 회귀 278파일 1911건 green.
+
+배포 `UPGRADE_OK` + `verify_deploy.sh` OK. 라이브 확인: 검색어 입력 → `#/users?q=a`로
+즉시 반영, 새로고침 → 검색창에 값 그대로 복원(스크립트로 실측, 둘 다 PASS).
+
+**`PA-RC-0013`을 완결로 처리한다.** 상세: `docs/BACKLOG.md` `PA2-02`.

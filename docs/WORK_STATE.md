@@ -6918,7 +6918,21 @@ Handoff 권장 순서대로 `PA-RC-0020`(진입점을 헤더 칩 하나로 모�
 라이브 확인(FAB 히트테스트 0건, 헤더 칩 정확히 1개, `Ctrl+/` 드로어 실제로 열림,
 스크린샷 확인). 상세: `DECISIONS.md` D-99·D-100, `BACKLOG.md` `PA2-01`·`PA2-08`·`PA2-09`.
 
+### 체크포인트 — 2026-08-16 계속: `PA-RC-0013` 완결
+
+`/users`만 목록 상태(검색·필터·역할·활성·잠김·부서·보관·페이지)를 URL에 안 싣던
+단독 예외를 닫았다. 새 메커니즘 대신 `DataScreen.jsx`가 이미 쓰는 `datascreen-view.js`
+순수 함수(`buildViewQuery`/`withHashQuery`)를 5개 필터 키 config로 재사용, raw
+`history.replaceState`로 씀(이유: `setSearchParams`를 쓰면 기존 `?id=` 소비 효과와
+되먹임 루프 위험 — 파일 자신의 기존 주석이 이미 그 함정을 경고). **구현 전 코드
+리뷰로 실제 버그 하나 배포 전에 잡음**: "필터 바뀌면 1쪽" 효과가 마운트 때도 돌아
+URL에서 복원한 page를 조용히 1로 되돌릴 뻔했다 — `useRef` 플래그로 첫 실행만
+건너뛰게 수정. 신규 `users-url-state.test.jsx` 6건 + 기존 `users-*` 7파일 30건
+green, 프런트 전체 회귀 278파일 1911건 green. TEST SERVER 배포 + 라이브 확인(검색→
+hash 즉시 반영, 새로고침→복원, 둘 다 실측 PASS). 상세: `DECISIONS.md` D-101,
+`BACKLOG.md` `PA2-02`.
+
 **다음 단계**: 남은 미해결 Root Cause(전부 Medium/Low) 중 다음 후보를 골라 같은
-invocation 안에서 계속한다 — `PA2-02`(`PA-RC-0013`, `/users` URL 상태 미보존)·
-`PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·`PA2-10`(`PA-RC-0021`, 다크 테마 색
-토큰)·`PA2-13`(`PA-RC-0024`, 관리자 상세 딥링크 없음)·`PA2-15`(`PA-RC-0025`, Low).
+invocation 안에서 계속한다 — `PA2-03`(`PA-RC-0014`, Pydantic 422 영문 노출)·
+`PA2-10`(`PA-RC-0021`, 다크 테마 색 토큰)·`PA2-13`(`PA-RC-0024`, 관리자 상세
+딥링크 없음)·`PA2-15`(`PA-RC-0025`, Low).
