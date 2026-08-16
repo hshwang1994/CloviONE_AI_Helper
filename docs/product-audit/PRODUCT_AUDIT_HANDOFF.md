@@ -4,7 +4,7 @@ cycle_id=PA-20260816-100149-48671b72
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
-actionable_root_causes=3
+actionable_root_causes=4
 redesign_root_causes=0
 deferred_for_human_approval=0
 -->
@@ -24,7 +24,18 @@ deferred_for_human_approval=0
 | `PA-RC-0002` UX Writing 규칙 부재 | `docs/UX_WRITING.md`(7,428B) 존재. `scan_errcopy.py` 재실행 → **회복 절 비율 100%**, 진짜 막다른 길 **0건**(기준은 90%) | ✅ 닫힘 — 기준 초과 달성 |
 | `PA-RC-0003` 저장소 위생 검사 공백 | `scripts/check_git_secrets.py` 존재하고 `static_checks.sh:79`에 배선됨 | ✅ 닫힘(검사 공백 기준). 검사가 잡아내는 `stash@{0}` 자격증명 **회전 자체는 여전히 미수행** — 내 권한 밖 외부 행위라 `REPORT` §7-B에 사실만 적는다 |
 
-즉 **이 Handoff의 실행 대상은 이번 Cycle이 새로 찾은 `PA-RC-0012` 하나다.**
+즉 **이 Handoff의 실행 대상은 이번 Cycle이 새로 찾은 3건**(`PA-RC-0012`·`PA-RC-0013`·`PA-RC-0014`)**이다.**
+
+| 신규 RC | 한 줄 요약 | 성격 |
+|---|---|---|
+| `PA-RC-0012` | `variant="h6"`이 시각 선택이면서 DOM 구조까지 결정해 관리자 화면 5개가 `h1 → h6`으로 네 단계를 건너뛴다 | 접근성/의미 |
+| `PA-RC-0013` | `/users`만 자기 목록 상태(검색·필터·페이지)를 URL에 싣지 않아 새로고침에 잃는다 | 기능 일관성 |
+| `PA-RC-0014` | Pydantic 스키마 422가 영문 그대로 나오고 어느 필드인지도 표시되지 않는다 | UX Writing/접근성 |
+
+**셋을 관통하는 모양**: 이 제품은 공유 인프라(`DataScreen`·`FormField`·생성된 `fieldLimits`)를
+잘 만들어 두었고 그 경로는 전부 옳다. **틀어지는 곳은 언제나 그 인프라 밖에 있는 손으로 쓴
+화면**이다. 구현 Phase는 세 건 모두 **새 메커니즘을 만들지 말고 이미 있는 것을 그 화면까지
+넓히는 방향**으로 처리하라 — 각 블록의 `implementation_direction`이 그렇게 쓰여 있다.
 
 <!-- PA-RC-BEGIN PA-RC-0012 -->
 rc_id: PA-RC-0012
@@ -114,4 +125,34 @@ required_tests: **신규**: 스키마 위반 422가 한국어 문구를 반환�
 qa_gaps: `docs/QA_COVERAGE.md`에 **"검증 실패 시 사용자가 무엇을 보는가" 축이 없다.** 화면별 렌더·기능 축은 있으나 상한 초과·형식 오류를 실제로 제출해 보는 칸이 없어서, 영문 문구가 두 Cycle의 QA를 전부 통과했다. 최소 두 축을 추가할 것: `스키마 위반 오류가 한국어인가` · `오류가 해당 필드에 연결되는가`. 재측정 수단으로 `var/product-audit/probe_limits.py`를 등재할 것.
 quality_rubric: `ux-writing` — 이번 Cycle에서 **실제로 호출**했다. 적용한 구체 항목: **Validation Errors (Inline)** — *"Pattern: `[Field] [specific requirement]`"*, *"Location: Below or beside the field"*, *"Timing: Real-time or on field exit"* (현재는 제출 후 폼 상단 한 줄이라 위치·시점 둘 다 어긋난다). **What to Avoid** — *"Robotic tone ('An error has occurred')"* 와 *"Vague causes"* 에 `Invalid request data`가 정확히 해당한다. **Accessibility** — *"Structure error messages to work with screen readers (error + field label read together)"* 가 `aria-invalid` 0개를 결함으로 만드는 근거다. **Benchmarks** — 오류 문구 12~18단어. 추가로 `ui-ux-pro-max`의 `--stack react` **"Label form controls / htmlFor matching input id"**(Severity High). `humanize-korean`은 **적용하지 않았다** — 아직 한국어 문구가 존재하지 않아 다듬을 대상이 없다. 구현 Phase가 한국어 문구를 만든 **뒤에** 그 문구에 `humanize-korean`을 적용할 것(프롬프트 2절의 순서: UX Writing → 한국어).
 evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-054` 절 · 실측 `var/product-audit/probe_limits.json`(422 응답·화면 문구·`aria_invalid` 0·계정 미생성) · 프로브 `var/product-audit/probe_limits.py` · `app/core/errors.py:247-288` · `app/users/schemas.py:38-39` · `frontend/src/lib/api.js:74-86` · `frontend/src/generated/fieldLimits.json`(`users` 키 부재) · `docs/BACKLOG.md` `PA-04`(자기모순 상태) · `UX-40`(선행 수정)
+<!-- PA-RC-END -->
+
+<!-- PA-RC-BEGIN PA-RC-0015 -->
+rc_id: PA-RC-0015
+severity: Low
+priority: P3
+confidence: Confirmed
+problem: **장애 배너의 경과 시간이 항상 '분' 단위라 오래될수록 읽을 수 없어진다.** `app/observability/router.py:87`이 `minutes = int(age // 60)` 하나로 모든 경우를 찍는데, 이 문구를 쓰는 심각도가 둘이다 — `늦어지고 있습니다`(WARNING, ≥15분)와 `멈춰 있습니다`(CRITICAL, **≥1시간이고 상한이 없다**). 분 단위는 앞쪽에는 맞지만 뒤쪽에는 맞지 않는다. 현재 이 인스턴스에서 실제로 렌더되는 문구는 **"마지막으로 정상 갱신된 지 17976분 지났습니다"**(=12.5일)이고, 인증된 화면 **8/8**에서 동일하게 보인다. 즉 **가장 심각한 배너가 가장 안 읽힌다.**
+expected: 경과 시간은 크기에 맞는 단위로 표시되어야 한다(분 → 시간 → 일). 이것은 외부 기준이 아니라 **이 저장소가 다른 두 곳에서 이미 지키는 관용**이다 — `app/backups/service.py:355` *"마지막으로 성공한 백업이 {int(stale_days)}일 전입니다"*, `app/projects/health.py:361` *"마지막 작업 변경이 {days}일 전입니다"*. 같은 제품 안에서 같은 개념(마지막 성공 이후 경과)을 한 곳은 '일'로, 한 곳은 '분'으로 말한다.
+actual: 항상 분이다. 12.5일이 "17976분"으로 나온다. 사용자가 1,440으로 나눠야 의미를 안다.
+intent_evidence: ⑤ 서로 일치하는 구현 관용 2건(`backups/service.py:355`·`projects/health.py:361`)이 '일 전' 표기를 쓴다. ② `docs/UX_WRITING.md`(`PA-RC-0002` 산출물)가 사용자 문구의 명확성을 제품 규칙으로 정한다. ⑥ `app/observability/router.py:5`의 모듈 주석이 이 배너의 목적을 *"티켓 미러가 30분째 안 돌면 사용자 화면에는 30분 전 목록이 아무 표시 없이 떠 있다"* 로 적는다 — **설계 시 상정한 크기가 '30분'** 이었음을 보여 주고, 그래서 분 단위가 선택된 경위와 그것이 CRITICAL 구간까지 확장된 것이 의도가 아님을 뒷받침한다.
+findings: PA-F-056
+feature_contracts: 해당 없음 — 기능 계약이 아니라 사용자 알림 문구다. 배너를 띄우는 조건·임계·심각도는 하나도 바뀌지 않는다.
+routes: 인증된 **전 화면**(배너는 앱 셸에서 그려진다). 실측은 `/me`·`/my-tickets`·`/team-docs`·`/board`·`/notifications`·`/profile`·`/sprint`·`/activity` 8개에서 8/8 확인.
+frontend: 해당 없음(문구 생성 위치가 아니다) — 다만 프런트가 `since`로 절대 시각 `(마지막 정상: …)`을 덧붙이므로 표기를 바꿀 때 **두 값이 서로 모순되지 않는지** 확인할 것. 렌더는 `frontend/src/app/Banners.jsx`.
+api: `GET /api/observability/notices`(이 문구를 실어 보내는 응답). 응답 **구조**는 바꾸지 말 것 — `message` 문자열 내용만 바뀐다.
+backend: `app/observability/router.py:64-95`(`_notice_for`) — 수정 지점. 상수 `LATE_AFTER_SECONDS`(:50)·`STALLED_AFTER_SECONDS`(:52)는 그대로 둔다.
+data: 해당 없음 — DB/데이터 구조 변화 없음. `SyncStatus.last_success_at` 읽기만 한다.
+rbac: 해당 없음 — 권한 경계와 무관하다. 배너 노출 대상도 바뀌지 않는다.
+integration: 이 문구가 말하는 대상이 외부 연동(Notion 티켓·문서 동기화)이다. **연동 동작 자체는 건드리지 않는다** — 상태를 사람에게 전달하는 방식만 바꾼다.
+state_transition: 해당 없음 — WARNING/CRITICAL 판정 로직과 임계값을 바꾸지 않는다. 같은 상태를 다른 문구로 말할 뿐이다.
+user_impact: 장애 중 모든 화면 상단에 뜨는 문구의 핵심 숫자를 사용자가 즉시 해석할 수 없다. 영향이 제한적인 이유는 **같은 문장이 읽을 수 있는 절대 시각을 함께 주기 때문**이다(`(마지막 정상: 2026. 8. 3. 오후 11:22)`) — 정보가 아예 없는 것이 아니라 중복된 한 조각이 안 읽히는 것이다. 그래서 Low다. 업무를 막지 않고 막다른 길도 아니다.
+implementation_direction: (1) **경과 시간 포맷터를 하나 만들고 `_notice_for`가 그것을 쓰게 한다** — 60분 미만은 "N분", 24시간 미만은 "N시간", 그 이상은 "N일"로 승급한다. 경계에서 "1일"과 "24시간"이 왔다 갔다 하지 않도록 규칙을 하나로 못박을 것. (2) **새로 만들기 전에 재사용할 것이 있는지 먼저 본다** — `app/backups/service.py:355`와 `app/projects/health.py:361`이 이미 '일 전'을 계산한다. 셋이 같은 헬퍼를 쓰게 만드는 것이 이 RC의 실제 가치다(문구 하나 고치는 것보다). 공용 위치는 기존 관용을 따를 것. (3) 문구는 `docs/UX_WRITING.md`의 종결·표현 규칙을 따른다. (4) **임계값과 심각도 판정은 건드리지 마라** — 이 RC는 표기만 바꾼다. (5) 프런트가 덧붙이는 절대 시각과 중복되므로, 상대 시간을 유지할지 절대 시각만 남길지 판단할 것 — 둘 다 남긴다면 서로 어긋나 보이지 않아야 한다.
+constraints: `GET /api/observability/notices`의 응답 **구조**(`id`·`level`·`message`·`since`)를 바꾸지 말 것 — 프런트 `Banners.jsx`와 `banners.test.jsx`가 그 모양에 의존한다. CLAUDE.md §3-1(sync 일관성) 유지. CLAUDE.md §3-7(UTC 저장, 표시만 Asia/Seoul) 유지 — 경과 시간 계산에 로컬 시간대를 끌어들이지 말 것(현재 `now`는 이미 tz-aware로 들어온다). 배너 임계·심각도·노출 조건을 바꾸지 말 것.
+regression_risk: (a) `frontend/src/app/banners.test.jsx`가 문구를 **문자열로 고정**하고 있다(`:102`의 "22분 지났습니다") — 표기를 바꾸면 이 테스트가 깨진다. 깨지는 것이 정상이므로 함께 갱신할 것. (b) 백엔드에 이 문구를 기대하는 테스트가 있으면 같이 갱신한다 — `tests/`에서 "분 지났습니다"를 전수 검색할 것. (c) `backups`/`projects`의 기존 '일 전' 문구를 공용 헬퍼로 옮기면 그 두 모듈의 테스트도 범위에 들어온다. 범위를 (1)+(2)로 잡으면 3개 모듈, (1)만 잡으면 1개 모듈이다. (d) 제품 동작·데이터·권한 변화 없음.
+acceptance_criteria: (1) 경과가 60분 미만이면 "N분", 24시간 미만이면 "N시간", 그 이상이면 "N일"로 표시된다. (2) 현재 인스턴스처럼 12일 이상 멈춘 상태에서 배너에 **네 자리 이상의 분 숫자가 나타나지 않는다** — 재측정은 `.venv/Scripts/python var/product-audit/verify_banner.py` 이고 `matches`에 `\d{4,}분`이 **0건**이어야 한다. (3) WARNING 구간(15~60분)의 표기는 기존과 동일하다(회귀 없음). (4) 경계값(59분/60분/23시간/24시간)에서 표기가 일관된다. (5) `backups`·`projects`의 '일 전' 문구가 같은 헬퍼를 쓰거나, 안 쓴다면 그 이유가 주석에 있다. (6) 관련 백엔드·프런트 테스트 green.
+required_tests: **신규**: 포맷터 단위 테스트 — 경계값 5종(1분·59분·60분·23시간59분·24시간) 각각의 표기를 고정한다. **신규**: `_notice_for`가 CRITICAL 구간(예: 12일)에서 '일' 표기를 내는지(이 결함의 revert-to-verify). **기존 갱신**: `frontend/src/app/banners.test.jsx`(문구 문자열 고정) · `tests/`에서 "분 지났습니다"를 기대하는 것 전수. **주의**: 기존 테스트가 WARNING 크기 값만 고정하고 있어서 이 결함이 통과했다 — 새 테스트는 **반드시 CRITICAL 크기 값을 포함**할 것.
+qa_gaps: `docs/QA_COVERAGE.md`에 **"장애/열화 상태에서 사용자가 무엇을 보는가" 축이 없다.** 이 제품은 외부 연동(Notion·n8n·Runner)에 의존하는데 검증 축은 정상 경로 중심이고, 연동이 멈춘 상태의 화면 문구를 보는 칸이 없다. 이번 발견도 dev 인스턴스가 **우연히** 12일째 멈춰 있어서 관측된 것이다. 축을 추가하고, 재측정 수단으로 `var/product-audit/verify_banner.py`를 등재할 것.
+quality_rubric: `ux-writing` — 이번 Cycle에서 실제로 호출했다. 적용 항목: **Clarity** *"Use plain language"* 와 *"Choose meaningful, specific verbs / unambiguous"* — 1,440으로 나눠야 뜻을 아는 숫자는 plain language가 아니다. **Conciseness** *"Front-load important information"* — 배너의 핵심은 "얼마나 오래됐나"인데 그 값이 해석 불가능하면 앞세운 의미가 없다. **Notifications** 패턴 *"verb-first title + contextual description"*. 추가로 이 Audit 프롬프트 6절 내장 rubric **4)**(같은 의미가 같은 pattern으로 표현되는가 — 같은 제품이 '일 전'과 '분'을 섞어 쓴다). `humanize-korean`은 **적용하지 않았다** — 기존 문구의 한국어 자체는 자연스럽고 번역투가 아니다. 문제는 문체가 아니라 단위 선택이라 그 Skill의 판정 대상이 아니다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md`의 `PA-F-056` 절 · 실측 `var/product-audit/verify_banner.json`(8/8 라우트, "17976분") · 프로브 `var/product-audit/verify_banner.py` · `app/observability/router.py:50,52,87,93`(포맷터와 임계) · 대조 관용 `app/backups/service.py:355` · `app/projects/health.py:361` · 테스트 공백 `frontend/src/app/banners.test.jsx:102`
 <!-- PA-RC-END -->

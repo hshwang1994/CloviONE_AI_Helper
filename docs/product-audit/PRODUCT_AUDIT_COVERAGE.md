@@ -116,7 +116,7 @@
 | `S-PALETTE` 커맨드 팔레트 (Ctrl+K) | `app/CommandPalette.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-BELL` 알림 벨 | `app/NotificationBell.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-ASSIST` AI 도우미 드로어 / FAB | `app/AssistantDrawer.jsx` | S | O | · | · | · | · | · | · | S | · | · | O | O | · | · | S | S | S | · | · | · | · | · | S | E | · |
-| `S-BANNER` 전역 배너(공지/유지보수/셋업) | `app/Banners.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
+| `S-BANNER` 전역 배너(공지/유지보수/셋업) | `app/Banners.jsx` | S | S | · | · | · | · | E | · | S | · | · | S | S | · | · | E | S | S | · | · | · | · | · | S | E | · |
 | `S-SCOPE` 관리 범위 표시줄 | `app/ScopeBar.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | · | E | · |
 | `S-USERMENU` 사용자 메뉴 / 테마 토글 | `app/UserMenu.jsx` | S | S | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
 | `S-TOUR` 온보딩 투어 | `app/Tour.jsx` | S | · | · | · | · | · | · | · | S | · | · | S | S | · | · | S | S | S | · | · | · | · | · | S | E | · |
@@ -134,12 +134,12 @@
 | `P-JOBS` 작업 큐 / 워커 / 재시도 | `app/jobs, app/worker_main.py` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-AI` AI 대화 / 어시스턴트 / 쿼터 | `app/assistant, app/llm, app/quotas` | S | · | · | · | · | · | S | · | · | E | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-RUNNER` Claude Runner 연동 | `runner/, app/runners` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-NOTION` Notion 연동 / 티켓 동기화 | `app/integrations, app/notion_*` | S | · | · | · | · | · | O | · | · | S | · | · | · | · | · | · | · | · | S | O | · | · | S | · | E | S |
 | `P-N8N` n8n 워크플로 연동 | `app/workflows` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-MAIL` 메일 발송 | `app/mail` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-SEARCH` 검색 색인 | `app/search` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-BACKUP` 백업 / 복구 | `app/backups` | S | · | · | · | · | · | S | · | S | S | S | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
-| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
+| `P-AUDITLOG` 감사 로그 / 관측성 | `app/audit, app/observability` | S | · | · | · | · | · | O | · | · | S | · | · | · | · | · | · | · | · | S | O | · | · | S | · | E | S |
 | `P-SCHED` 스케줄 / cron / 타임존 | `app/schedules, app/core/clock.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
 | `P-DEPLOY` 배포 / 설정 / 헬스 | `deploy/, scripts/, app/health` | O | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | O | S | O | S | · | E | S |
 | `P-FLAGS` 기능 플래그 | `app/core/feature_flags.py` | S | · | · | · | · | · | S | · | · | S | · | · | · | · | · | · | · | · | S | S | · | · | S | · | E | S |
@@ -403,11 +403,11 @@ Z축은 별도 Round 없이 다른 축을 파는 내내 나왔다. 확인된 드
 <!-- COVERAGE-SUMMARY
 cycle_id=PA-20260816-100149-48671b72
 total_cells=2340
-unseen=1325
+unseen=1324
 unseen_without_reason=0
-static_only=609
-observed=218
-executed=188
+static_only=604
+observed=222
+executed=190
 blocked=0
 not_applicable=0
 -->
