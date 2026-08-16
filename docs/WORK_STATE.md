@@ -7144,3 +7144,95 @@ TEST SERVER 실측 중 이 서버에 한 번도 없었던 설정 2건(플래그 
 이후 이번 세션 전체 누적 변경(RESP-01/FN-42/QA-05/AI-01 + 백로그 문서 다수)에 대해
 Full Regression을 백그라운드로 실행 중 — 완료되면 결과를 확인하고 다음 작업(Medium
 항목 재검토 또는 `PROJECT_COMPLETE` 판단)으로 이어간다.
+
+### 체크포인트 — 2026-08-17 계속: VIS-99·KPI 그리드(D-110)·QA 하네스 라우트 공백 완결, `VIS-120` 착수 → 완결
+
+첫 Full Regression 백그라운드 실행은 invocation 경계에 걸려 결과 없이 끝났다(WARM 재개가
+"stopped, 완료 기록 없음"으로 보고) — 거짓 성공을 남기지 않고 재실행으로 이어갔다. 그 사이/그
+뒤로 다음이 이미 커밋돼 있었다(이 체크포인트가 처음 기록한다): `VIS-99`(DevReport 툴팁의
+거짓 폴백 설명 정정), `VIS-119`/`VIS-137`/`VIS-151`(KPI 요약 카드 그리드 `auto-fit` 전환 —
+**첫 배포(`minmax(14rem,18rem)`)가 실측에서 4+2보다 나쁜 5+1로 접혀 즉시 `1fr`로 정정한
+사례**, D-110), `VIS-33`/`VIS-106`(재확인 후 이미 해결로 교차연결). 재실행한 Full
+Regression에서 real failure 2건 발견: `test_ui_qa_route_registry_completeness`(`AdminRoutes.jsx`의
+`/users/:id`·`/departments/:id`가 QA 하네스에 미등록 — `PA-RC-0024` 때 라우트만 신설되고
+하네스 등록이 빠진 잔재, `admin_users-detail`/`admin_departments-detail` 등록으로 해결)와
+`test_no_hard_refresh_instruction`(격리 재실행에서 통과 — 동시에 돌던 번들 재빌드가
+`stage-static-update.sh`의 파일 스캔과 경합한 오탐으로 확정, 코드 결함 아님).
+
+이어서 `VIS-120`(Medium, `/jobs` 요약 카드 6장 중 3장이 큐 내부 개념의 0 — 대기/실행 중/
+실행 가능) 착수: `queue_stats()`에 `recent_failed_24h`·`avg_processing_seconds_24h` 신설
+(평균은 성공 이력이 없으면 `None`, "0 vs 데이터 없음" 유지), `automation.js`의 jobs 요약
+카드에 두 장 추가. 백엔드 신규 시험 3건, 프런트 신규 시험 5건 green. 상세: `DECISIONS.md`
+D-111, `BACKLOG.md` `VIS-120`.
+
+### 체크포인트 — 2026-08-17 계속: 전체 High 재확인(스크립트 기반, 독립 교차검증) — AI 클러스터·`SEC-20` 외엔 소진 확인
+
+VIS-120 배포를 규모 있는 회귀 재확인 시점으로 삼기 전에, `docs/BACKLOG.md`의 High 등급이
+AI/Runner 클러스터 밖에도 아직 안 건드린 항목이 남아 있는지 grep 휴리스틱이 아니라 파이썬
+스크립트로 직접 재분류해 재확인했다(agent 위임 없이 직접 — 표본이 아니라 전수라 스크립트가
+더 빠르고 누락이 없다). "해결 신호 키워드가 아예 없는" 15건을 추렸는데, 실제로 각 행을
+읽어 보니 **15건 전부** 이미 "구현완료"/"실환경검증완료"/"철회" 같은 다른 표현으로 닫혀
+있었다(내 첫 키워드 목록이 그 표현들을 놓쳤을 뿐, 행 자체는 이미 처리돼 있었다) — 5건은
+이미 알고 있던 AI 클러스터(`AI-02/13/19/20/33`), 나머지 10건(`VIS-107`·`VIS-25`·`UB-01`·
+`UB-03`·`SYS-02`·`USE-01`·`ADM-01`·`DEPLOY-02`·`DEPLOY-04`·`UX-50`)도 전부 이미 해결·재확인
+완료 상태였다. **결론: High 등급은 AI/Runner 아키텍처 클러스터(전담 설계 세션 필요, 이미
+architect agent가 깊게 조사함)와 `SEC-20`(사람 조치 대기, credential rotation) 외엔 소진됐다**
+— 이전 세션의 architect 재확인 결과와 독립적인 방법(agent 재조사 대신 스크립트 전수 분류)으로
+교차 확인된 것.
+
+### 체크포인트 — 2026-08-17 계속: Explore agent가 Medium 9건 재검증 — **D-108과 정반대 패턴**(9건 전부 실재), 6건 완결
+
+VIS-120 회귀를 백그라운드로 돌리는 동안, WORK_STATE가 다음 후보로 남겨 뒀던 Medium 9건
+(`VIS-12`/`VIS-13`/`VIS-35`/`VIS-92`/`VIS-55`/`VIS-124`/`VIS-125`/`VIS-134`/`VIS-135`)을
+adversarial 검증 프레이밍(D-108의 교훈 — "실제 소스를 읽고 반증을 시도하라"를 명시)으로
+Explore agent에 위임했다. 결과가 D-108(6건 중 5건이 이미 해결)과 **정반대**였다 — **9건
+전부 소스 확인으로 실재를 확인**, 심지어 `VIS-13`은 "고친 자리(templates 화면)가 이미
+있는데 4곳에 전파가 안 됨"까지 구체적으로 짚었다. 이 결과를 받아 같은 세션 안에서 바로
+6건(단일 root cause로 묶이는 `VIS-124`+`VIS-125`, `VIS-134`+`VIS-135` 포함) 구현·시험·
+revert-to-verify까지 끝냈다:
+
+- `VIS-13`: `badgeCol("enabled",...)` 원시 예/아니오 4곳 → `enabledCol` 공용 헬퍼로 통일
+- `VIS-124`/`VIS-125`: 스케줄 전부 비활성일 때 빈 격자 대신 원인+행동 안내
+- `VIS-134`/`VIS-135`: 티켓 상태/우선순위를 속성 카드로 통합 + 편집 버튼 둘의 범위를
+  Tooltip으로 구별 — **부수로 `Tooltip`의 `describeChild` 기본값 함정(접근 가능한 이름을
+  덮어씀, 9건 회귀)과 `ui/kit.jsx`의 `Button`이 `forwardRef`가 아니던 것을 발견·수정**
+- `VIS-55`: 설정 화면 '설명' 열이 '항목명'과 겹치는 접두부를 벗겨냄
+- `VIS-92`: 게시판 필터 툴바 순서를 다른 화면과 통일(검색 먼저)
+- `VIS-35`: `/me`의 `AssistantPanel`을 2열 격자 밖 전체 폭으로 옮겨 높이 격차 원인 제거
+  (로컬 실측은 빈 데이터라 51px뿐이었지만, 코드로 실데이터 상태에서 격차가 재현될 구조임을
+  확인하고 진행 — KPI 그리드 실수의 교훈대로 "숫자 하나만 믿지 않는다"를 지켰다)
+- `VIS-12`: 재확인 결과 코드 변경 없음(다음 실행/마지막 실행 열은 정직한 무값, 표 아래
+  공백은 VIS-35와 같은 이유로 안 채움) — Medium 재분류
+
+부수로 `docs/QA_COVERAGE.md` §6-1의 RBAC 매트릭스가 2026-08-08 캡처를 그대로 갖고 있어
+`UA-01`/`UA-02`(2026-08-10에 이미 구현완료)를 아직 열린 🔴로 잘못 표시하고 있는 것도
+발견해 주석으로 정정(코드 변경 없음, 문서만).
+
+**검증 규모**: 프런트 전체 회귀 286파일/1,980건 green(Button forwardRef 변경이 앱 전체에
+쓰이는 컴포넌트라 전체 스위트로 확인 필수), 백엔드 Full Regression(unit/regression/security/
+integration×4) 36분 전체 green — regression 스위트에서 위 2건의 real failure가 이번엔
+재현되지 않아 그 수정들도 함께 재확인됐다.
+
+**통합 배포+실측**: `VIS-120` + Medium 6건 전부를 한 번에 빌드해 TEST SERVER(`10.100.64.71`,
+`clovirone-ai.gooddi.lab`)에 통합 배포(`UPGRADE_OK`, `scripts/verify_deploy.sh` →
+`DEPLOY_VERIFY_OK`). Playwright로 실제 화면 6개 라이브 확인(전부 콘솔 오류 0건):
+`/jobs`(새 카드 2장 — "최근 24시간 실패 위험 3"·"평균 처리 시간(24h) 13.4초", 6+2 auto-fit
+줄바꿈 빈칸 0), `/schedules`(비활성 배지 정상), `/board`(검색이 카테고리보다 왼쪽), `/settings`
+(설명 열 중복 제거 실데이터 확인), `/me`(AssistantPanel 격자 밖 전체 폭 확인), `/scheduler-calendar`
+(**원 버그 리포트와 정확히 같은 실데이터 — 일정 1개 비활성 — 에서 "등록된 일정 1개가 모두
+비활성 상태입니다 → 실행 일정에서 활성화" 정확히 렌더**), `/tickets/:id`(상태·우선순위가
+속성 카드 맨 위에 라벨과 함께 있음 확인).
+
+**다음에 할 일**: WORK_STATE의 Medium 후보 목록(`VIS-124/125`·`VIS-12/13`·`VIS-134/135`
+등)은 이제 소진됐다 — 이번 배치가 그 전부였다. 남은 후보를 찾으려면 `docs/BACKLOG.md`
+Medium 전체(257행)에서 아직 손 안 댄 나머지를 다시 스캔해야 한다(D-108 교훈대로 agent
+위임 시 adversarial 프레이밍 필수). High는 위 체크포인트에서 소진 확인됐고, 남은 진짜
+작업은 (a) Medium 나머지 재스캔, (b) AI/Runner 채팅 아키텍처 클러스터(`AI-05`/`AI-06`/
+`AI-07`/`AI-54` — 스트리밍·중단·워커 직렬화, 이미 architect agent가 깊게 조사해 방향까지
+잡아 둠: 채팅 잡을 별도 리스+별도 워커로 분리 + SSE 계층 신설이 진짜 수정이라 워커 동시성
+모델 자체를 건드리는 **고위험·큰 범위** 변경 — `worker_main.py`를 읽어 현재 단일
+`WorkerLock`+단일 프로세스+수십 개 tick callback 구조를 직접 확인, 섣불리 병행 작업 중
+손대지 않기로 판단, 전담 집중 세션 필요), (c) `SEC-20`(사람 전용 blocker, credential
+rotation — 이미 로그됨), (d) 그 뒤에야 `PROJECT_COMPLETE` 판단. Full Regression·전체
+프런트 회귀·통합 배포·실측까지 방금 전부 확인했으므로 다음 수렴 지점까지는 각 항목별
+focused test만으로 충분하다.
