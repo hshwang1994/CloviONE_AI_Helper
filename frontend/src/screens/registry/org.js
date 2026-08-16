@@ -299,7 +299,11 @@ export const ORG_SCREENS = {
       // 자체는 SYNC_TIMEOUT_SECONDS=90초까지 걸릴 수 있다(app/jobs/handlers/notion_mapping_sync.py).
       // primary:true — 백업(+ 백업 실행)·문서(+ 문서 생성) 화면과 동일하게, 이 화면의 headline
       // 액션을 EmptyState CTA로도 승격한다(그렇지 않으면 목록이 완전히 비어 있을 때 이 버튼이 안 보였다).
-      { label: "자동 동기화", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/notion-mapping/sync", confirm: "Notion 사용자와 자동 매칭을 다시 실행할까요? 수동으로 지정한 연결도 일치하는 후보가 없으면 해제될 수 있습니다. Notion 조회에 최대 1~2분 정도 걸릴 수 있으며, 화면은 진행 상태를 자동으로 갱신합니다.",
+      // PA-RC-0023: variant:"primary"가 빠져 있었다 — DataScreen.jsx는 헤더 툴바에서
+      // variant(없으면 default)만 보고, primary:true는 EmptyState CTA로 승격할 때만 본다.
+      // 그래서 이 화면에 실제 대상이 있는 보통 상태에서는 "headline 액션"이라는 의도와 달리
+      // 툴바에 외곽선 버튼으로 떠 있었다(+ 백업 실행/+ 문서 생성과 다르게).
+      { label: "자동 동기화", variant: "primary", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/notion-mapping/sync", confirm: "Notion 사용자와 자동 매칭을 다시 실행할까요? 수동으로 지정한 연결도 일치하는 후보가 없으면 해제될 수 있습니다. Notion 조회에 최대 1~2분 정도 걸릴 수 있으며, 화면은 진행 상태를 자동으로 갱신합니다.",
         // 202 큐 작업 — 완료를 단정하지 않고 실제 상태를 반영해 안내한다.
         result: (res) => {
           const running = res && (res.status === "running" || res.deduplicated);

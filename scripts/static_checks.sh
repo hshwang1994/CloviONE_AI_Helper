@@ -153,6 +153,18 @@ else
   echo "$TYPO"; fail "검증되지 않은 새 fontSize/fontWeight 리터럴"
 fi
 
+step "Button hierarchy — destructive actions never primary (PA-RC-0023)"
+# registry/*.js 액션이 그 화면의 버튼 색을 정한다(DataScreen.jsx가 variant를 그대로 옮긴다).
+# 삭제·비활성화·보관 등은 항상 danger(채운 빨간 버튼)여야 한다 — primary(채운 파란 버튼)로
+# 새는 걸 문서가 아니라 이 검사가 잡는다. primary:true(빈 상태 CTA 승격)는 variant:"primary"와
+# 항상 짝지어야 한다(안 그러면 평소 툴바에서만 외곽선으로 보인다 — notion-mapping이 실제로
+# 이 상태였다). scripts/check_button_hierarchy.py 참고.
+if BTNH="$("$PY" scripts/check_button_hierarchy.py 2>&1)"; then
+  ok "$(echo "$BTNH" | tail -1)"
+else
+  echo "$BTNH"; fail "버튼 위계 규범 위반 — 파괴적 동작이 primary이거나 primary:true 짝이 안 맞다"
+fi
+
 step "No external origins fetched by frontend"
 # 사내 LAN 전용이라 CDN·외부 폰트·외부 이미지를 런타임에 '받아오면' 오프라인에서 깨지고,
 # CSP(default-src 'self')에도 걸린다. 사용자가 눌러서 여는 링크(Notion 문서 등)는 문제가

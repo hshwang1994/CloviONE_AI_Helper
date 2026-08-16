@@ -15,15 +15,21 @@ import { WRITE_ROLES, badgeCol, col, dateCol, opt, personField } from "./shared.
 // extraEnableWhen(r) — '활성화' 버튼을 !r.enabled 외에 추가 조건으로도 숨겨야 하는 리소스용(예:
 // 스케줄의 실행 시각이 이미 지난 once형 — 눌러도 백엔드가 항상 409 'once 스케줄의 실행 시각이
 // 이미 지났습니다'로 거절한다. 눌러도 항상 실패하는 버튼을 애초에 숨긴다).
+// PA-RC-0023: '활성화'는 primary가 아니라 default다 — 이 액션이 뜨는 상세 모달에는 이미
+// '수정'(DataScreen.jsx의 canEdit 분기, 항상 primary)이 같이 떠 있다. 화면/오버레이당
+// primary는 정확히 하나여야 하는데(같은 원칙으로 '비활성화'는 이미 danger), '활성화'만
+// primary로 남아 있어 두 개가 동시에 채워져 있었다 — Users.jsx의 '복구'가 이미 같은
+// 상황(활성화 성격 + 수정과 공존)을 default로 맞춰 둔 것과 같은 결로 통일한다.
 export const onoff = (base, disableConfirm, extraEnableWhen) => [
-  { label: "활성화", variant: "primary", roles: WRITE_ROLES, when: (r) => !r.enabled && (!extraEnableWhen || extraEnableWhen(r)), path: (r) => base + "/" + r.id + "/enable" },
+  { label: "활성화", variant: "default", roles: WRITE_ROLES, when: (r) => !r.enabled && (!extraEnableWhen || extraEnableWhen(r)), path: (r) => base + "/" + r.id + "/enable" },
   { label: "비활성화", variant: "danger", roles: WRITE_ROLES, when: (r) => r.enabled, path: (r) => base + "/" + r.id + "/disable", confirm: disableConfirm || "이 항목을 비활성화할까요?" },
 ];
 // 승인 대기가 아닌(종료된) 상태
 export const APPROVAL_DONE = ["approved", "rejected", "expired", "cancelled"];
 // active 토글 공통(부서·직책) — /enable·/disable 하위경로가 없어 PATCH 본문으로 처리한다.
+// PA-RC-0023: 위 onoff()와 같은 이유로 default — '수정'이 이미 이 상세 모달의 primary다.
 export const activeToggle = (base) => [
-  { label: "활성화", variant: "primary", roles: WRITE_ROLES, when: (r) => !r.active, method: "PATCH", path: (r) => base + "/" + r.id, body: { active: true } },
+  { label: "활성화", variant: "default", roles: WRITE_ROLES, when: (r) => !r.active, method: "PATCH", path: (r) => base + "/" + r.id, body: { active: true } },
   // r.user_count가 이미 같은 행 열에 로드돼 있으므로, 실제로 몇 명이 영향을 받는지 확인 문구에 반영한다
   // (0명이든 200명이든 똑같은 경고였다 — 사용 중인 부서/직책을 무심코 끄기 쉬웠다).
   { label: "비활성화", variant: "danger", roles: WRITE_ROLES, when: (r) => r.active, method: "PATCH", path: (r) => base + "/" + r.id, body: { active: false },

@@ -202,6 +202,36 @@ describe("위험 액션 확인", () => {
     expect(confirmOf("policies", "보관")).toBeTruthy();
     expect(confirmOf("feature-flags", "비활성화")).toBeTruthy();
   });
+
+  /* PA-RC-0023: 비활성 부서의 상세는 '수정'(DataScreen의 canEdit 분기, 항상 primary)과
+   * '활성화'(activeToggle)가 같은 footer에 함께 뜬다 — 둘 다 primary였던 것을 '활성화'만
+   * default로 내렸다(actions.js). 화면당 contained는 정확히 하나여야 한다는 규범을
+   * 값으로 고정한다 — 이 실측(색 클래스 대조)이 없으면 나중에 누가 실수로 primary를
+   * 되돌려도 아무 시험도 못 잡는다. */
+  it("비활성 부서 상세: '수정'만 primary고 '활성화'는 아니다(화면당 primary 1개)", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({
+      items: [{
+        id: "d1", name: "휴면 부서", org_name: "굿밋", org_id: "o1",
+        active: false, user_count: 0, child_department_count: 0,
+        created_at: "2026-01-01T00:00:00Z",
+      }],
+      total: 1,
+    }));
+    renderScreen("departments");
+    const drawer = await openRow("휴면 부서");
+
+    const colorClass = (el) =>
+      [...el.classList].find((c) => /^MuiButton-(outlined|contained|text)[A-Z]/.test(c));
+
+    const edit = within(drawer).getByRole("button", { name: "수정" });
+    const activate = within(drawer).getByRole("button", { name: "활성화" });
+    expect(colorClass(edit)).toMatch(/^MuiButton-contained/);
+    expect(colorClass(activate)).not.toMatch(/^MuiButton-contained/);
+
+    // 서술이 아니라 실제 렌더에서 채운 버튼이 하나인지 직접 센다.
+    const filled = within(drawer).getAllByRole("button").filter((b) => colorClass(b) === "MuiButton-containedPrimary");
+    expect(filled).toHaveLength(1);
+  });
 });
 
 /* ── 2. 거르는 조건은 서버로 간다(못 가면 이름을 대고 밝힌다) ───────────── */
