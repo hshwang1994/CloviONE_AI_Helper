@@ -32,20 +32,10 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core import people
+from app.core.authz import MODERATOR_ROLES
 from app.core.errors import ForbiddenError, NotFoundError
 from app.tickets.models import TicketComment
-from app.users.models import (
-    ROLE_ADMIN,
-    ROLE_OPERATOR,
-    ROLE_SYSTEM_ADMIN,
-    User,
-)
-
-# 남의 댓글을 지울 수 있는 역할(모더레이션) — 게시판(app/board/service.py)과 같은 선이다.
-# 권한 그룹을 한곳(app/core/authz.py)으로 모으는 작업이 별도로 진행 중이므로, 그게 들어오면
-# 이 집합을 거기의 MODERATOR_ROLES 로 바꾼다(값은 이미 같다). 지금 앞질러 import 하면 아직
-# 커밋되지 않은 모듈에 의존해 fresh clone 에서만 깨지는 커밋이 된다.
-MODERATOR_ROLES = frozenset({ROLE_OPERATOR, ROLE_ADMIN, ROLE_SYSTEM_ADMIN})
+from app.users.models import User
 
 MAX_COMMENT_CHARS = 2000
 
