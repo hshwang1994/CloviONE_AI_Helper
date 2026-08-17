@@ -438,7 +438,10 @@ export function Users() {
     // SEM-01: 선택 체크박스가 첫 열이라(rowName:false로 스스로 제외됨) 표식 없이는 이 표의
     // "상세 보기" 버튼과 체크박스 라벨(selectLabel, bulkSelect.jsx) 둘 다 모든 행이
     // 동일했다 — 이미 화면에 보이는 이메일로 실제로 구별되는 이름을 만든다.
-    { key: "email", label: "이메일", rowName: (r) => r.display_name || r.email },
+    // PA-RC-0029: 이메일이 이 표의 유일한 고유 식별자인데 131px로 20/20행이 잘렸다(필요
+    // 198px) — 같은 표의 '역할'(295px)·'최근 로그인'(287px)이 내용량과 무관하게 더 넓었다.
+    // identifier:true가 kit.jsx DataTable의 바닥 폭(12.5rem)을 자동으로 준다.
+    { key: "email", label: "이메일", identifier: true, rowName: (r) => r.display_name || r.email },
     { key: "display_name", label: "이름" },
     {
       // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'·'Notion'과
@@ -451,6 +454,10 @@ export function Users() {
       // purple은 이미 검증된 톤(다크모드·대비 확인됨, EXTRA_TONE_VARS)이면서 상태 팔레트
       // (ok/danger/warn/info)와 안 겹쳐 "특별한 등급"을 상태와 안 헷갈리게 표현한다.
       key: "role", label: "역할",
+      // PA-RC-0029: 배지 1~2개(짧은 한국어 라벨)만 담는데 295px를 썼다 — 내용량과 무관한
+      // 폭이었다. width는 auto 레이아웃의 힌트일 뿐 강제 상한이 아니라(HOST-01/VIS-73
+      // 참고), 두 배지가 실제로 안 들어가면 flexWrap이 다음 줄로 넘긴다.
+      width: "9rem",
       // admin 역할은 admin_scope 조합으로 실제 성격이 갈린다(조직관리자/부서관리자/전체
       // 관리자) — 역할 배지 하나만으로는 이 화면 어디서도 그 조합이 보이지 않았다(RBAC
       // 발견성 문제). 개념이 있는 조합에만 두 번째 배지를 나란히 붙인다.
@@ -492,7 +499,11 @@ export function Users() {
     // 64px+ 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
     // 핵심이지만 이 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.
     { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} />, hideNarrow: true },
-    { key: "last_login_at", label: "최근 로그인", render: (r) => fmtDateTime(r.last_login_at), hideNarrow: true },
+    // PA-RC-0029: 'ko-KR' Intl 포맷(dateStyle:medium+timeStyle:short)이 "2026. 8. 17. 오후
+    // 3:24"처럼 길어 287px를 자연스럽게 요구했다 — 이메일보다 우선순위가 낮은 보조 열이라
+    // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
+    // 잘리지 않는다.
+    { key: "last_login_at", label: "최근 로그인", width: "9.5rem", render: (r) => fmtDateTime(r.last_login_at), hideNarrow: true },
   ];
 
   const items = (query.data && query.data.items) || [];

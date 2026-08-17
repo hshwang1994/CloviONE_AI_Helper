@@ -1240,3 +1240,27 @@ D-118 Phase 3가 대화형 레인에서 이미 실측·문서화한 것과 같�
 라우트 전체를 없는 id로 다시 훑었을 때 침묵이 0건")를 실측 확인하는 것 — `visual_change_required:
 true`라 컴포넌트 시험만으로는 완료로 보지 않는다. 나머지 PA3 항목의 배포와 함께 일괄
 배치할 예정(`BACKLOG.md` PA3-06).
+
+### T14/T16 부분 닫힘 — `PA-RC-0029`+`0036`+`0037`(표 열 우선순위) 구현+시험, 브라우저 검증은 아직
+
+`T14`("좁은 폭에서 식별자 열이 읽히는가")와 `T16`("같은 데이터가 여러 화면에서 같은
+컴포넌트로 표현되는가")의 관련 RC 중 이번에 `PA-RC-0029`(`/users` 이메일 폭)·`PA-RC-0036`
+(`/offboarding` 반복 문장+배지 통일)·`PA-RC-0037`(공용 `DataTable` 열 우선순위 프레임)
+셋을 함께 닫았다 — `0028`(대시보드/진단 중복, `T16`의 다른 절반)은 아직 손대지 않아
+`T16`도 `T12`처럼 **부분** 닫힘이다.
+
+`kit.jsx` `DataTable`에 `c.identifier`(식별자 열 최소 폭)와 숨은 열 안내 캡션을
+추가하고, `Users.jsx`(이메일 열)·`Offboarding.jsx`(이메일 열 + Notion 연결 배지 통일)·
+`SettingsMain.jsx`(항목명 열)에 적용했다. 새 시험 4개 파일(`kit.test.jsx`에 6건 추가,
+`offboarding.test.jsx`에 3건 추가, `users-columns-priority.test.jsx`·
+`settings/settings-main-columns.test.jsx` 신설 각 2건)이 열 정의(식별자 최소 폭·숨은
+열 안내·반복 문장 제거)를 고정한다. 전체 프런트 회귀 291파일/2013건 green — 우선순위를
+지정하지 않은 나머지 REGISTRY 화면은 렌더 결과가 이 배치 전(289파일/2000건)과 정확히
+같은 통과 수로 확인됐다.
+
+**아직 안 한 것**: 셋 다 `visual_change_required:true`인데 jsdom은 `table-layout:auto`의
+실제 픽셀 폭을 계산하지 않는다 — 위 시험은 "열 정의가 의도한 값을 갖는가"만 고정하고
+"잘림이 실제로 0이 됐는가"는 증명하지 못한다. `pa2_cols.py`(`/users` 이메일
+`clippedRows`)·`pa2_resp_dark.py`(7뷰포트×5라우트 잘림 계측)·`pa2_verify_no.py`
+(`/settings` 항목명 열 단위 계측)를 TEST SERVER에서 재실행해 수용 기준의 실측 숫자를
+확인하는 것은 나머지 PA3 항목과 함께 일괄 배치한다(`BACKLOG.md` PA3-08/11/13).

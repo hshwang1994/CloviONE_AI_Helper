@@ -136,9 +136,15 @@ export function Offboarding() {
 function TargetPicker({ q, setQ, query, onPick }) {
   const items = (query.data && query.data.items) || [];
   const total = query.data && query.data.total;
+  // PA-RC-0036: 미연결 행마다 NOTION_UNMAPPED_HELP 전체 문장을 반복해 그려 행 높이가
+  // 97px(정상 35px의 2.8배)까지 벌어졌다 — 사람마다 다른 정보가 아니라 '미연결'이라는
+  // 상태의 정의라 한 번이면 충분하다. 아래 Card에 표 위 한 줄로 옮기고, 이 열은 이제
+  // /users의 같은 값과 완전히 같은 표현(배지 하나)이다(PA-RC-0037: 그렇게 회수한 폭을
+  // 잘리던 이메일 열로 보낸다).
   const columns = [
     { key: "display_name", label: "이름" },
-    { key: "email", label: "이메일" },
+    // PA-RC-0029/0036: 사람을 고르는 화면인데 이메일이 식별자 대접을 못 받고 있었다.
+    { key: "email", label: "이메일", identifier: true },
     { key: "department", label: "부서" },
     { key: "title", label: "직책" },
     { key: "active", label: "상태", render: (r) => (
@@ -147,20 +153,9 @@ function TargetPicker({ q, setQ, query, onPick }) {
         {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
       </Box>
     ) },
-    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => (
-      <Box sx={{ display: "grid", gap: 0.25 }}>
-        <Badge value={r.notion_mapping_status} />
-        {/* PA-RC-0022: 미연결 행은 배지만으로는 "그래서 뭐가 안 되는지"가 안 보였다 — 미리
-            보기까지 가야만 알던 문구를 목록에 그대로 옮긴다. 정상 대상과 다른 무게로 보이게
-            하는 것도 겸한다(글자 자체가 시선을 붙잡는다, 대비를 낮춰 접근성을 해치지 않는다). */}
-        {r.notion_mapping_status === "unmapped" ? (
-          <Typography variant="caption" color="text.secondary" sx={{ maxWidth: "22ch" }}>
-            {NOTION_UNMAPPED_HELP}
-          </Typography>
-        ) : null}
-      </Box>
-    ) },
+    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} /> },
   ];
+  const hasUnmapped = items.some((r) => r.notion_mapping_status === "unmapped");
   return (
     <>
       <Card sx={{ p: 2, mb: 2.5 }}>
@@ -180,6 +175,11 @@ function TargetPicker({ q, setQ, query, onPick }) {
           help="검색어를 지우거나 다른 이름으로 찾아보세요." />
       ) : (
         <Card>
+          {hasUnmapped ? (
+            <Box sx={{ p: 2, pb: 0 }}>
+              <Typography variant="caption" color="text.secondary">{NOTION_UNMAPPED_HELP}</Typography>
+            </Box>
+          ) : null}
           <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
           {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
               더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도

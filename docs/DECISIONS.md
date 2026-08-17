@@ -5222,3 +5222,83 @@ E2E를 동시에 돌리지 않는다"는 규칙에 이 스테이징 시험도 �
 자원 경합 위양성).
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0033`), `docs/WORK_STATE.md`.
+
+## D-128 (2026-08-17) — `PA-RC-0029`+`PA-RC-0036`+`PA-RC-0037` 구현: 표 열 우선순위 — `DataTable`에 `identifier` 개념을 새로 얹는다, 기존 27개 REGISTRY 화면은 렌더 결과 불변
+
+Handoff가 "같은 표를 건드리므로 함께 처리하는 것이 싸다"고 명시한 3건을 한 번에 처리했다.
+셋 다 근본 원인이 같다 — **행을 식별하는 열이 표에서 가장 낮은 폭 우선순위를 받고 있었다.**
+
+### `PA-RC-0037` — 공용 `DataTable`에 최소한의 확장만
+
+`frontend/src/ui/kit.jsx`의 `DataTable`은 이미 `c.hideNarrow`(900~1200px 구간에서 열
+드롭)와 `c.minWidth`(바닥 폭)를 갖고 있었다 — 완전히 새 프레임워크를 만들 필요가
+없었다. 추가한 것은 딱 하나: `c.identifier:true`면 `colMinWidth(c)`가
+`DEFAULT_COL_MIN_WIDTH`(4.5rem) 대신 `IDENTIFIER_COL_MIN_WIDTH`(12.5rem)를 바닥값으로
+쓴다(`c.minWidth`를 명시하면 여전히 그 값이 이긴다 — `/settings`의 `항목명`처럼 12.5rem
+보다 좁은 값이 필요한 경우를 덮는다). **우선순위를 지정하지 않은 화면은 `c.identifier`
+자체가 없으므로 `colMinWidth`가 기존과 완전히 같은 값을 반환한다** — 이것이
+acceptance(5) "우선순위 미지정 화면은 렌더 결과가 변경 전과 같다"의 근거다. 전체
+프런트 회귀(291파일/2013건, 이 배치 전 289/2000이었던 것과 같은 통과율)로 확인했다.
+
+두 번째 추가: `hideNarrow`로 열이 실제로 빠지면(compact 900~1200 구간) 그 사실과 숨은
+열 이름을 알리는 캡션을 표 위에 그린다(`hiddenCols` 계산 + 조건부 렌더). acceptance(4)
+"열이 접힌 경우 그 사실이 표시되고 도달 경로가 있다"를 위한 것 — `Users.jsx`가 이미
+`hideNarrow`를 2열(Notion 연결·최근 로그인) 쓰고 있었는데 이 캡션이 없어서 그 자체가
+같은 결함의 축소판이었다(수정 전엔 아무 표시 없이 조용히 사라졌다). 값 자체에
+도달하는 경로는 새로 만들지 않았다 — 행을 열면(onRow) 상세가 모든 필드를 보여주는
+기존 계약을 그대로 재사용한다.
+
+### `PA-RC-0029` — `/users` 이메일 131px→식별자 바닥값, `역할`·`최근 로그인` 폭 회수
+
+`Users.jsx` 이메일 열에 `identifier:true`만 붙였다(px를 직접 계산하지 않는다). `역할`은
+`width:"9rem"` 힌트로 줄였다 — 배지 1~2개(짧은 한국어 라벨)만 담는데 295px를 쓰고
+있었다. `최근 로그인`은 `width:"9.5rem"` — `ko-KR` `Intl.DateTimeFormat`(dateStyle:
+medium+timeStyle:short)이 "2026. 8. 17. 오후 3:24"처럼 길어 287px를 자연스럽게
+요구했는데, 이 열은 상세를 열면 바로 확인되는 보조 정보라 우선순위가 낮다.
+`overflowWrap:anywhere`가 이미 있어 좁아지면 두 줄로 접힐 뿐 잘리지 않는다. `width`는
+`table-layout:auto`의 힌트일 뿐 강제 상한이 아니다(HOST-01/VIS-73 관용과 같은 이유) —
+배지가 실제로 안 들어가면 `flexWrap`이 다음 줄로 넘긴다, 깨지지 않는다.
+
+### `PA-RC-0036` — `/offboarding` 대상 표: 반복 문장 제거, 배지 통일
+
+`Offboarding.jsx`의 `TargetPicker`가 미연결 행마다 `NOTION_UNMAPPED_HELP` 전체 문장을
+셀 안에 반복해 그리고 있었다(행 높이 97px, 정상 35px의 2.8배) — Handoff가 "481px 상태
+막대"라 부른 것의 정체가 이것이었다(별도 progress-bar 컴포넌트가 아니라 `maxWidth:22ch`
+캡션 텍스트 블록). 문장을 셀 `render`에서 빼고 `Card` 안 표 위에 조건부(미연결 행이
+있을 때만) 한 줄로 옮겼다 — **문구는 한 글자도 다시 쓰지 않았다**(같은
+`NOTION_UNMAPPED_HELP` 상수 재사용, PA-RC-0022가 명시했던 "새로 쓰지 않는다" 원칙을
+그대로 지킨다). `notion_mapping_status` 셀은 이제 `/users`와 완전히 같은 렌더
+(`<Badge value={r.notion_mapping_status}/>` 한 줄)다. 회수한 폭은 `email` 열에
+`identifier:true`를 붙여 흡수시켰다 — `PA-RC-0029`와 정확히 같은 처방.
+
+### 안 건드린 것
+
+`SettingsMain.jsx`의 기존 주석("열에 width를 주지 않는다")이 과거 실제 사고(DS-06 —
+앞 네 열에 고정 width를 주자 `설명`이 0에 가깝게 짜부라져 한 글자씩 세로로 흘렀다)를
+기록하고 있었다 — `항목명`에 `identifier:true`+`minWidth:"10rem"`만 추가하고
+`설명`·`현재 값`·`상태`·`키`는 그대로 뒀다. `minWidth`는 바닥값이지 그 사고의 원인이었던
+`width`(강제 선호값)가 아니라서 같은 함정을 다시 밟지 않는다 — 주석을 그 구분을
+설명하도록 갱신했다. `/audit`·`/jobs`(`PA-RC-0029`가 "잘림 0, 건드리지 않는다"고 확인한
+화면)와 `실행 이력`·되돌리기·검색·잘림 고지(`PA-RC-0036`이 "가장 잘 된 부분"이라 명시한
+축)는 한 줄도 바꾸지 않았다.
+
+### 시험
+
+`kit.test.jsx`에 identifier 최소 폭 3건 + hideNarrow 안내 캡션 3건(있음/없음/컴팩트
+아님) 신설. `offboarding.test.jsx`에 새 describe 3건 — 그중 "1회만" 시험 2건은
+revert-to-verify로 실측(구코드로 되돌리면 2/2 FAIL, 정확히 예상한 방식대로: 문장
+1회 기대에 2회 발견, 행 안에 문장이 없어야 하는데 발견). `users-columns-priority.test.jsx`,
+`settings/settings-main-columns.test.jsx` 신설(각 2건) — 열 정의가 조용히 되돌아가지
+않게 고정. 전체 프런트 회귀 291파일/2013건 green.
+
+### 안 한 것 — 실측 픽셀 검증은 배치 대기
+
+셋 다 `visual_change_required:true`다. jsdom은 실제 CSS auto-layout 픽셀을 계산하지
+않으므로(`table-layout:auto`가 콘텐츠+`width`+`minWidth`+컨테이너 폭을 함께 계산하는
+알고리즘 자체가 jsdom엔 없다) 위 시험들은 전부 "열 정의가 의도한 값을 갖는가"를
+고정할 뿐 "실제로 잘림이 0이 됐는가"는 증명하지 못한다. `pa2_cols.py`·
+`pa2_resp_dark.py`·`pa2_verify_no.py`를 TEST SERVER에서 재실행해 수용 기준의 실측
+숫자(예: `/users` 이메일 `clippedRows=0`, `/settings` 항목명 1366px 잘림 8→0)를
+확인하는 것은 나머지 PA3 항목들과 함께 일괄 배치한다(`BACKLOG.md` PA3-08/11/13).
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0029`/`0036`/`0037`), `docs/WORK_STATE.md`.

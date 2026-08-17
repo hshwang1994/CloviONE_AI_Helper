@@ -422,3 +422,50 @@ describe("오프보딩 화면", () => {
     }
   });
 });
+
+// PA-RC-0036: 미연결 대상마다 같은 설명 문장을 반복해 그려 행 높이가 97px(정상 35px의
+// 2.8배)까지 벌어졌다. jsdom은 실제 픽셀 레이아웃을 계산하지 않으므로(TEST SERVER
+// 브라우저 검증으로 별도 확인) 여기서는 그 원인(문장이 행마다 반복되는가)을 직접 고정한다.
+describe("오프보딩 대상 표 — 미연결 안내는 한 번만 (PA-RC-0036)", () => {
+  const UNMAPPED_A = { ...LEAVER, id: "u-unmapped-a", email: "a@goodmit.co.kr", display_name: "미연결A", notion_mapping_status: "unmapped" };
+  const UNMAPPED_B = { ...LEAVER, id: "u-unmapped-b", email: "b@goodmit.co.kr", display_name: "미연결B", notion_mapping_status: "unmapped" };
+  const MAPPED = { ...LEAVER, id: "u-mapped", email: "mapped@goodmit.co.kr", display_name: "연결됨", notion_mapping_status: "verified" };
+
+  it("미연결 행이 여러 개여도 안내 문장은 표 위에 1회만 뜬다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) {
+        return Promise.resolve({ items: [UNMAPPED_A, UNMAPPED_B, MAPPED], total: 3, page_size: 20 });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    await screen.findByText("미연결A");
+    expect(screen.getAllByText(/연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어/)).toHaveLength(1);
+  });
+
+  it("미연결 행 자체에는 배지만 있다 — /users와 같은 표현(설명 문장은 행 안에 없다)", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) {
+        return Promise.resolve({ items: [UNMAPPED_A], total: 1, page_size: 20 });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    const row = await screen.findByRole("row", { name: /상세 보기: 미연결A/ });
+    expect(within(row).queryByText(/연결이 없으면/)).not.toBeInTheDocument();
+    // Badge가 raw "unmapped"를 한국어("미연결")로 옮긴다(statusText, kit.jsx) — 배지 자체는 남아 있어야 한다.
+    expect(within(row).getByText("미연결")).toBeInTheDocument();
+  });
+
+  it("미연결 대상이 없으면 안내 문장 자체가 없다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/admin/users?")) {
+        return Promise.resolve({ items: [MAPPED], total: 1, page_size: 20 });
+      }
+      return Promise.resolve({});
+    });
+    renderScreen();
+    await screen.findByText("연결됨");
+    expect(screen.queryByText(/연결이 없으면/)).not.toBeInTheDocument();
+  });
+});

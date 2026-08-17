@@ -279,6 +279,52 @@ describe("DataTable", () => {
       expect(screen.getByText("부가정보")).toBeInTheDocument();
       expect(screen.getByText("부가값")).toBeInTheDocument();
     });
+
+    // PA-RC-0037 acceptance (4): 열이 접힌 경우 그 사실이 화면에 표시돼야 한다 — hideNarrow는
+    // PA-RC-0037 이전부터 있었지만(Users.jsx) 예전엔 아무 표시 없이 조용히 사라졌다.
+    it("compact 구간에서 열이 숨으면 그 사실과 숨은 열 이름을 알린다", () => {
+      mockMedia({ card: false, compact: true });
+      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.getByText(/부가정보 열을 숨겼습니다/)).toBeInTheDocument();
+    });
+
+    it("숨는 열이 없으면(hideNarrow 미지정) compact여도 안내를 안 보여준다 — REGRESSION 없음", () => {
+      mockMedia({ card: false, compact: true });
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.queryByText(/열을 숨겼습니다/)).toBeNull();
+    });
+
+    it("넓은 화면에서는 hideNarrow 열이 있어도 안내를 안 보여준다(열이 안 숨었으므로)", () => {
+      mockMedia({ card: false, compact: false });
+      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+      expect(screen.queryByText(/열을 숨겼습니다/)).toBeNull();
+    });
+  });
+
+  /* PA-RC-0029/0037: 행을 식별하는 열(이메일·항목명 등)에 identifier:true만 붙이면 화면마다
+   * px를 직접 재지 않아도 최소 폭이 보장된다. 우선순위를 지정하지 않은 기존 화면(이 describe
+   * 위의 모든 테스트가 그 예)은 렌더 결과가 바뀌지 않아야 한다 — 그 회귀 방지가 이 테스트의
+   * 목적이다(required_tests: "열 우선순위 미지정 화면의 스냅샷 회귀"). */
+  describe("identifier 열의 최소 폭 (PA-RC-0029/0037)", () => {
+    it("identifier:true면 기본 바닥 폭(4.5rem) 대신 더 넓은 식별자 바닥 폭(12.5rem)을 받는다", () => {
+      ui(<DataTable columns={[{ key: "email", label: "이메일", identifier: true }]}
+        rows={[{ id: 1, email: "a@b.co" }]} rowKey={(r) => r.id} />);
+      const header = screen.getByRole("columnheader", { name: "이메일" });
+      expect(header).toHaveStyle({ minWidth: "12.5rem" });
+    });
+
+    it("identifier:true여도 c.minWidth를 명시하면 그 값이 이긴다(설정 화면의 항목명처럼 더 좁은 값이 필요할 수 있다)", () => {
+      ui(<DataTable columns={[{ key: "label", label: "항목명", identifier: true, minWidth: "10rem" }]}
+        rows={[{ id: 1, label: "설정" }]} rowKey={(r) => r.id} />);
+      const header = screen.getByRole("columnheader", { name: "항목명" });
+      expect(header).toHaveStyle({ minWidth: "10rem" });
+    });
+
+    it("identifier를 지정하지 않은 기존 열은 그대로 기본 바닥 폭(4.5rem)이다 — 회귀 없음", () => {
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />);
+      const header = screen.getByRole("columnheader", { name: "이름" });
+      expect(header).toHaveStyle({ minWidth: "4.5rem" });
+    });
   });
 });
 

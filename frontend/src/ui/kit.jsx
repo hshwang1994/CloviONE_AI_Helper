@@ -499,6 +499,16 @@ function rowOpenLabel(columns, row) {
  * 확인한 버그와 같은 것이다 — 개별 화면마다 minWidth를 채우는 대신 표 자신이 바닥값을 둔다. */
 const DEFAULT_COL_MIN_WIDTH = "4.5rem";
 
+/* PA-RC-0029/0037: 행을 식별하는 열(이메일·항목명 등)은 폭이 부족해질 때 가장 먼저
+ * 보호돼야 하는 열이다 — `c.identifier:true`만 붙이면 화면마다 정확한 px를 직접 재지
+ * 않아도 이 바닥값이 붙는다(필요폭이 다르면 `c.minWidth`로 그대로 덮어쓸 수 있다,
+ * SettingsMain.jsx의 `항목명`처럼). 나머지 열은 `DEFAULT_COL_MIN_WIDTH`를 그대로 쓴다 —
+ * 우선순위를 지정하지 않은 화면은 렌더 결과가 바뀌지 않는다(REGRESSION 없음). */
+const IDENTIFIER_COL_MIN_WIDTH = "12.5rem";
+function colMinWidth(c) {
+  return c.minWidth ?? (c.identifier ? IDENTIFIER_COL_MIN_WIDTH : DEFAULT_COL_MIN_WIDTH);
+}
+
 /* 셀 렌더러에 넘기는 두 번째 인자(ctx)는 **그 행에 대한 표의 지식**이다. 지금은 rowName
  * 하나뿐이다: 선택 체크박스처럼 셀 안에 있으면서 '자기 행이 무엇인지' 알아야 하는 컨트롤이
  * 쓴다. 화면이 열 정의마다 라벨을 손으로 적지 않게 하려면 표가 알려 주는 수밖에 없다
@@ -521,6 +531,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   // 안 건드린다 — 폭 제약이 없는 카드에서 열을 빼면 정보만 준다.
   const compact = useMediaQuery(TABLE_COMPACT_QUERY);
   const wideCols = compact ? baseCols.filter((c) => !c.hideNarrow) : baseCols;
+  // PA-RC-0037 acceptance (4): 열이 접힌 경우 그 사실을 화면에 알린다 — 예전엔 hideNarrow
+  // 열이 900~1200 구간에서 아무 표시 없이 사라졌다(Users.jsx가 이미 그렇게 2열 쓰고 있었다).
+  // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
+  const hiddenCols = compact ? baseCols.filter((c) => c.hideNarrow) : [];
 
   if (safeRows.length === 0) {
     return (
@@ -561,7 +575,13 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   }
 
   return (
-    <TableContainer>
+    <>
+      {hiddenCols.length ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
+          화면 폭이 좁아 {hiddenCols.map((c) => c.label).join("·")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
+        </Typography>
+      ) : null}
+      <TableContainer>
       <Table size="small" stickyHeader={stickyHeader} sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
         <TableHead>
           <TableRow>
@@ -582,7 +602,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                    불투명 배경은 안 준다 — 스크롤되는 본문 셀이 헤더 뒤로 비쳐 보인다.
                    이 표는 항상 Card(background.paper) 안에 있으므로 그 색을 명시한다. */
                 sx={{
-                  width: c.width, minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH, whiteSpace: "nowrap",
+                  width: c.width, minWidth: colMinWidth(c), whiteSpace: "nowrap",
                   ...(stickyHeader ? { bgcolor: "background.paper" } : null),
                 }}
               >
@@ -633,10 +653,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                       title={truncate && raw && raw !== "-" ? raw : undefined}
                       sx={truncate
                         ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0,
-                           minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH }
+                           minWidth: colMinWidth(c) }
                         : { overflowWrap: c.nowrap ? "normal" : "anywhere",
                            whiteSpace: c.nowrap ? "nowrap" : undefined,
-                           minWidth: c.minWidth ?? DEFAULT_COL_MIN_WIDTH }}
+                           minWidth: colMinWidth(c) }}
                     >
                       {raw != null ? raw : cellValue(c, row, ctx)}
                     </TableCell>
@@ -647,7 +667,8 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
           })}
         </TableBody>
       </Table>
-    </TableContainer>
+      </TableContainer>
+    </>
   );
 }
 

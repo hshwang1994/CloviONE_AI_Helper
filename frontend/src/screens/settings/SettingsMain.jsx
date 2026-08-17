@@ -71,12 +71,18 @@ export function Settings({ embedded = false } = {}) {
   const rows = Object.keys(map)
     .filter((k) => !MAINTENANCE_KEYS.includes(k) && !DEDICATED_SCREEN_KEYS.includes(k))
     .map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
-  /* 열에 width를 주지 않는다(DataTable이 지원하긴 한다). 이 표는 '설명'만 길고 나머지는 짧은데,
-   * 앞 네 열에 고정 폭을 주면 요청 폭 합이 1366px 화면의 가용 폭을 넘겨 브라우저가 폭을 지정하지
-   * 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로 설명 글자가 한 줄에 한 자씩 세로로 흘렀다.
-   * 폭 배분은 브라우저 auto 레이아웃에 맡긴다(내용에 비례해 나눈다). */
+  /* '항목명' 외 열엔 width를 주지 않는다(DataTable이 지원하긴 한다). 이 표는 '설명'만
+   * 길고 나머지는 짧은데, 앞 네 열 전부에 고정 폭을 주면 요청 폭 합이 1366px 화면의 가용
+   * 폭을 넘겨 브라우저가 폭을 지정하지 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로
+   * 설명 글자가 한 줄에 한 자씩 세로로 흘렀다(DS-06). 나머지 열의 폭 배분은 여전히 브라우저
+   * auto 레이아웃에 맡긴다(내용에 비례해 나눈다).
+   *
+   * PA-RC-0037: '항목명'은 이 표에서 행을 식별하는 유일한 열인데 1366px에서 91px로
+   * 줄어 11행 중 8행이 잘렸다(예: "계정 추가 허용 도메인" 141px 필요) — identifier:true로
+   * 최소 폭만 준다(minWidth는 바닥값이지 다른 열처럼 고정 width가 아니라서 위 함정을
+   * 다시 밟지 않는다 — '설명'은 여전히 자유롭게 auto 레이아웃 대로 남는 공간을 가져간다). */
   const columns = [
-    { key: "label", label: "항목명" },
+    { key: "label", label: "항목명", identifier: true, minWidth: "10rem" },
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
