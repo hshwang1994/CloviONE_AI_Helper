@@ -139,7 +139,7 @@ step "User-facing text uses the standard verb table (PA-RC-0002 §3)"
 VERB_HITS="$(grep -rnE '>[^<]*(생성|등록|만들기|만들다|편집|변경|제거|지우기|지우다|끄기|중지|정지|켜기)[^<]*<' \
   frontend/src --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' | grep -v '편집기' || true)"
 VERB_VIOLATIONS="$(echo "$VERB_HITS" | grep -vE \
-  '(AI로 문제 생성|생성 중…|주제를 적고 생성하면|문장 요약 만들기|요약 만드는 중|AI 요약 생성|등록된 부서|등록된 직책|등록된 조직|임시 비밀번호는 생성|예: 서버 등록 IP|역할 변경|비밀번호 변경|시 변경을 요구|변경 이력|변경 기록|새 변경으로 다시 기록|적용 시점은 항목마다|이전 변경 이력을 볼|어떤 변경도 저장되지|차단된 변경 시도|>변경<|필터 지우기|검색어 지우기|카테고리 지우기)' || true)"
+  '(AI로 문제 생성|생성 중…|주제를 적고 생성하면|문장 요약 만들기|요약 만드는 중|AI 요약 생성|등록된 부서|등록된 직책|등록된 조직|임시 비밀번호는 생성|예: 서버 등록 IP|역할 변경|비밀번호 변경|시 변경을 요구|변경 이력|변경 기록|새 변경으로 다시 기록|적용 시점은 항목마다|이전 변경 이력을 볼|어떤 변경도 저장되지|차단된 변경 시도|>변경<|최근 주요 변경은 대시보드|필터 지우기|검색어 지우기|카테고리 지우기)' || true)"
 if [ -z "$VERB_VIOLATIONS" ]; then ok "no banned verb synonyms in user-facing text"; else echo "$VERB_VIOLATIONS"; fail "표준 동사표(UX_WRITING.md §3) 위반 — 금지된 동의어가 화면 텍스트에 있다"; fi
 
 step "No new typography literals (PA-RC-0001 §5)"

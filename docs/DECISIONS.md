@@ -5581,3 +5581,94 @@ aid-contrast.test.jsx`(8파일 72건, `AssigneePicker`를 직접 조작하는 �
 전체 프런트 회귀 296파일/2052건 green.
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0035`), `docs/WORK_STATE.md`.
+
+## D-133 (2026-08-17) — `PA-RC-0028` 구현: `/dashboard`와 `/diagnostics` 본문 중복 제거 — 화면만 갈라내고 번들 페이로드는 그대로, 서비스 라벨은 `serviceLabel()` 단일 소스로
+
+`/diagnostics`가 `/dashboard`의 페이로드를 통째로 품고(`build_diagnostic_bundle`이
+`build_dashboard()`를 그대로 호출) 화면도 그 내용을 그대로 펼쳐 그려, 본문 79줄 중
+54줄(68%)이 두 화면에 문자 그대로 겹쳐 있었다. Handoff의 최대 위험은
+`include_critical_audit`(`PA-RC-0026`이 만든 역할 분기, operator에게서 "최근 주요
+변경" 슬라이스를 숨긴다) 유실이었다 — 이번 변경은 **화면 렌더만** 건드리고 그
+분기가 있는 백엔드(`app/health/service.py`·`app/health/router.py`)는 한 글자도
+바꾸지 않았다.
+
+### `Diagnostics.jsx` — 중복 섹션 렌더 제거, 데이터는 번들에 그대로
+
+`최근 주요 변경`(5행 표, `LogList`/`LogRow`)과 `백업`(카드+`백업 관리` 버튼) 두
+`DashSection`을 본문에서 뺐다. 그 자리엔 "백업 상태와 최근 주요 변경은 대시보드에서
+상시 확인할 수 있습니다" + `/dashboard`로 가는 링크 한 줄만 남긴다. `dash.recent_critical_audit`·
+`dash.last_backup_at`·`dash.last_backup_status`를 읽던 계산(`recentAudit` 등)도 함께
+지웠다 — 화면이 안 읽는 값을 굳이 지역 변수로 남겨 두지 않는다. **번들
+API 응답 자체는 무수정**이라 그 필드들은 JSON 다운로드에 여전히 나온다(지원팀
+산출물 계약 유지, acceptance(3)).
+
+### 두 화면 공통 — 도넛 제거, 서비스 2분류 통일
+
+두 화면 모두 도넛(`Donut`)을 없애고 섹션 제목 옆 "정상 N / M" 텍스트로 바꿨다(옆
+카드가 이미 개별 상태를 말하므로 100% 정상일 때 도넛이 "볼 것 없음"에 화면에서
+가장 큰 면적을 쓰던 문제). `Donut.jsx` 자체는 다른 소비처(`MyStats.jsx`·`Home.jsx`·
+`DevReport.jsx`, 3곳) 확인 후 그대로 뒀다 — 두 화면의 **호출부만** 제거했다
+(Handoff regression_risk (d)).
+
+`Dashboard.jsx`가 내부 컴포넌트(`comps`)와 외부 연동(`integrations`)을 `services`
+한 묶음으로 합쳐 그리던 것을(연동 이름이 컴포넌트 키와 겹치면 `"(연동)"` 접미사로
+구분해야 했다) `Diagnostics.jsx`와 같은 `서비스 상태`/`외부 연동` 2분류로
+갈랐다(target_design이 권장한 대로 진단의 분류를 정본으로 삼았다). 헤드라인 스트립의
+"서비스 정상 N/M" 한 줄(`headlineStats`/`serviceMix`)은 **손대지 않았다** — 그건
+합산 요약이라는 별개 개념이고(PA-RC-0018), 값은 두 상세 섹션의 `upSummary()` 합과
+항상 같은 수를 말한다(주석에 그 근거를 남겼다, 예전 주석이 "옆의 도넛과 같은 함수를
+쓴다"고 적었던 것은 도넛 삭제로 더는 사실이 아니라 갱신했다). `comps`가 빈
+객체(방어적으로만 가능한 경로 — `build_dashboard()`는 항상 채워 돌려준다)일 때
+빈 그리드를 그냥 비워 두지 않고 "서비스 정보 없음"(기존 도넛의 빈 상태 문구를
+그대로 재사용)을 쓰게 했다 — `최근 주요 변경`의 빈 상태(`Note`)와 같은 관례.
+
+### 실제 Root Cause 하나 더 — `COMP_LABELS`/`SERVICE_LABELS` 이중 상수
+
+`opsHelpers.js`가 컴포넌트 4종의 한국어 이름을 `COMP_LABELS`(자체 상수, `ServiceStatusPanel.jsx`가
+읽음)와 `SERVICE_LABELS`(`serviceLabel()`이 읽는 8종 상수, `Dashboard.jsx`·
+`Diagnostics.jsx`의 외부 연동 그리드가 읽음)에 **각각** 들고 있었다 — 값은
+지금은 우연히 같지만(둘 다 손으로 맞춰 둔 상태), 구조적으로 한쪽만 고치면 두 화면이
+말없이 다른 이름을 보여줄 수 있었다. Handoff regression_risk (c)와 required_tests
+(4)가 정확히 이 위험을 지목한다. `COMP_LABELS`를 지우고 `ServiceStatusPanel.jsx`도
+`serviceLabel()`을 직접 부르게 해 이제 세 그리드(대시보드 서비스 상태·진단 서비스
+상태·진단 외부 연동) 전부 같은 함수를 쓴다. 더는 아무도 안 쓰던 `integrationMix()`
+(예전 진단 도넛 조각 계산)도 같이 지웠다.
+
+### 시험 — revert-to-verify로 둘 다 실제 발산을 잡는지 확인
+
+(1) `tests/integration/test_diagnostics_bundle_rbac.py`에 페이로드 불변 회귀 신설 —
+`system_admin`으로 실제 백업을 만들고 감사 로그를 심은 뒤 번들 JSON에
+`last_backup_at`/`last_backup_status`/`recent_critical_audit`가 여전히 있는지
+확인(10/10 green, 기존 `include_critical_audit` 역할 매트릭스 포함).
+(2) `ops-service-status.test.jsx`에 새 describe — `recent_critical_audit`/`last_backup_*`를
+일부러 채운 채로 렌더해도 "최근 주요 변경"·"백업" 섹션 제목이 안 보이고 옛
+CTA("백업 관리")도 없는지 확인(목록이 비어서 안 보이는 게 아니라 섹션 자체가
+없다는 것을 데이터를 채워서 증명). (3) `dashboard-diagnostics-consistency.test.jsx`
+신설 — 같은 `components`/`integrations` fixture로 `Dashboard`·`Diagnostics`를 각각
+렌더(`unmount()`로 분리)해 같은 키의 타일 텍스트를 직접 대조. `ServiceStatusPanel.jsx`의
+`web` 라벨을 일부러 다른 문자열로 바꿔 이 시험이 실제로 실패하는지 확인한 뒤
+되돌렸다(revert-to-verify) — 대조가 진짜로 작동함을 확인. 전체 프런트 회귀
+297파일/2054건 green.
+
+### 검증 중 우연히 잡은 무관한 기존 결함 2건
+
+`static_checks.sh`를 이번 배치 확인차 돌리다가 이 RC와 무관한 실패 2건을 발견해
+같이 고쳤다(둘 다 이전 세션 커밋에 이미 들어가 있던 결함 — 당시 `npm test`만
+돌리고 `static_checks.sh`까지 다시 돌리지 않아 놓쳤던 것으로 보인다):
+- `kit.jsx`의 숨은 열 안내 캡션(`PA-RC-0029`/`0037` 배치, D-128)이 금지 문자
+  가운뎃점(·, §8)으로 열 이름을 이었다 — 저장소 전체가 이미 쓰는 `", "` 관용으로
+  바꿨다(`.join(", ")`, 이 파일의 다른 모든 목록 이어붙이기와 동일).
+- UX 동사표 검사(vitest `ux-writing-verb-table.test.js` + `static_checks.sh`의
+  독립 bash 게이트, 반드시 같은 allow 목록을 유지해야 한다는 주석이 있다)가 이번에
+  새로 쓴 "최근 주요 변경"(Dashboard.jsx의 기존 섹션 제목을 인용하는 프로즈, 동사
+  아님)의 "변경"을 오탐했다 — 두 게이트의 allow 목록에 같은 예외를 나란히 추가했다.
+
+### 안 한 것 — 실측 검증은 배치 대기
+
+`visual_change_required:true`다. `pa2_dup.py` 재실행으로 수용 기준 (1)("본문 줄
+중복 68%→35% 이하")을 실측 확인하는 것, `/dashboard` scrollH 감소와 두 화면
+도넛 소거를 라이트/다크 스크린샷으로 확인하는 것은 나머지 PA3 항목들과 함께
+일괄 배치한다(`BACKLOG.md` PA3-03). 프런트 번들도 아직 재빌드하지 않았다 —
+전체 13건 Root Cause가 코드 수준에서 수렴한 뒤 한 번에 빌드+배포한다(CLAUDE.md §9).
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0028`), `docs/WORK_STATE.md`.

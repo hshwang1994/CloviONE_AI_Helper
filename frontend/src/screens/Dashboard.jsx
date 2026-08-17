@@ -13,7 +13,6 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
-import { Donut } from "../ui/charts/Donut.jsx";
 
 /* 이 화면의 **모든 숫자**의 출처표는 docs/DASHBOARD_METRICS.md 에 있다.
  * 지표마다 (어느 질의에서 오는가 / 어떤 시점 기준인가 / 범위를 지나는가 / 0과 없음을
@@ -157,7 +156,9 @@ export function buildAlerts(d, role) {
  * **없는 지표를 지어내지 않는다.** 기준 목업의 다섯(러너 8/8·워크플로·성공률·지연 작업·
  * 디스크) 중 '러너 온라인' 에 해당하는 값을 우리는 러너 단위로 갖고 있지 않다 — 대신
  * 이미 계산하는 **서비스 정상/전체**를 쓴다. 같은 질문("전부 떠 있나")에 답하는 값이고,
- * 옆의 도넛과 같은 `serviceMix()` 를 쓰므로 **두 곳이 다른 말을 할 수 없다.**
+ * `serviceMix()`가 내부 컴포넌트+외부 연동을 합친 값이라 아래 두 섹션(서비스 상태/외부
+ * 연동)의 `upSummary()` 합과 항상 같은 수를 말한다(PA-RC-0028 이후: 도넛은 없앴지만 이
+ * 스트립 한 줄은 "전부 떠 있나"에 압축해 답해야 해서 합산값 자체는 그대로 남겼다).
  *
  * 이 다섯 중 지금 경보 중인 것은(rate/failed/disk) buildAlerts()가 이미 위 조치 목록에
  * 올렸다 — DashboardBody가 그 경보 소스와 겹치는 항목을 스트립에서 걸러낸다(같은 값이
@@ -585,25 +586,29 @@ function DashboardBody({ d, nav, role, stale }) {
   // 서비스 카드의 이동 대상(정상 카드는 이동할 곳이 없으면 클릭 불가). 워커/스케줄러는 상단 경보와
   // 동일하게 진단을 못 보는 역할이면 작업 큐(/jobs)로 대체한다 — 예전엔 여기만 /diagnostics만
   // 제공해, 같은 '워커 중단' 사실이 상단 경보에선 클릭 가능한데 이 타일에선 죽어 보였다.
-  function svcNav(k) {
+  function compNav(k) {
     if (k === "web") return undefined;
-    if (k === "worker" || k === "scheduler" || k === "worker_conversational") return procTo ? goto(procTo) : undefined;
-    return goto("/integrations");
+    return procTo ? goto(procTo) : undefined;
   }
-  // services의 키는 위에서 충돌 방지를 위해 "(연동)" 접미사가 붙을 수 있다(예: "worker(연동)") —
-  // SERVICE_LABELS는 그 접미 붙은 키를 모르므로 그대로 조회하면 항상 못 찾아 원시 영문 키가
-  // ('worker(연동)') 그대로 화면에 샜다. 원래 이름(접미사를 뗀 키)으로 먼저 찾고, 붙어 있던
-  // 접미사만 번역된 라벨 뒤에 다시 붙인다.
-  function svcLabel(k) {
-    const suffixed = k.endsWith("(연동)");
-    const base = suffixed ? k.slice(0, -"(연동)".length) : k;
-    return serviceLabel(base) + (suffixed ? "(연동)" : "");
-  }
+  // PA-RC-0028: 내부 컴포넌트(comps)와 외부 연동(integrations)을 이제 진단 화면과 같은
+  // 2분류로 각자의 그리드에 그린다(DECISIONS.md) — 예전엔 하나로 합쳐 그리며 키가 겹칠 수
+  // 있어("worker"라는 연동 이름이 컴포넌트 키와 같은 경우) "(연동)" 접미사로 구분해야 했다.
+  // 두 그리드가 애초에 안 섞이는 지금은 그 접미사 자체가 필요 없다.
+  const rank = (v) => (v === "down" ? 0 : (v === "unknown" || v == null) ? 1 : 2);
   // 상단 경보 그리드가 danger를 앞으로 정렬하듯, 서비스 카드도 문제(중단)·응답 없음을
   // 먼저 보여준다 — 연동이 많은 배포에서 '중단' 카드가 정상 카드들 아래로 밀려 스크롤해야 찾던 문제.
   // 같은 등급 안에서는 원래 삽입 순서(web/worker/scheduler 먼저)가 안정 정렬로 유지된다.
-  const svcRank = (k) => { const v = services[k]; return v === "down" ? 0 : (v === "unknown" || v == null) ? 1 : 2; };
-  const serviceKeys = Object.keys(services).sort((a, b) => svcRank(a) - svcRank(b));
+  const compKeys = Object.keys(comps).sort((a, b) => rank(comps[a]) - rank(comps[b]));
+  const integrationStates = Object.fromEntries(
+    Object.entries(d.integrations || {}).map(([k, v]) => [k, (v && v.enabled === false) ? "disabled" : (v || {}).last_health])
+  );
+  const integrationKeys = Object.keys(integrationStates).sort((a, b) => rank(integrationStates[a]) - rank(integrationStates[b]));
+  // 도넛 대신 섹션 제목 옆 한 줄 요약(PA-RC-0028 target_design) — 100% 정상일 때 도넛이
+  // 화면에서 가장 큰 시각 요소가 되어 '볼 것 없음'에 최대 면적을 주던 문제를 없앤다.
+  const upSummary = (map) => {
+    const vals = Object.values(map);
+    return `정상 ${vals.filter((v) => v === "up").length} / ${vals.length}`;
+  };
 
   // 백업 나이 — 아래 "백업" 구역의 오래됨 배지에 쓴다. system_admin에게는 이미 위 조치 목록에
   // 같은 사실이 행으로 떠 있으므로(buildAlerts의 backup-stale) 거기서는 배지를 다시 안 그린다.
@@ -632,31 +637,47 @@ function DashboardBody({ d, nav, role, stale }) {
         <HealthyStrip items={stripItems} />
       </Box>
 
-      <DashSection title="서비스 상태">
-        {/* 넓은 화면에서는 카드 격자 옆에 상태 구성 도넛을 세운다 — 연동이 열 개를 넘는 배포에서
-            카드를 하나씩 세는 대신 '정상 8 / 중단 1'을 한눈에 읽게 한다. 좁은 화면에서는 아래로 접힌다. */}
-        <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
+      {/* PA-RC-0028: 예전엔 내부 컴포넌트+외부 연동을 '서비스 상태' 한 묶음으로 합쳐 그렸는데
+          /diagnostics는 같은 데이터를 '서비스 상태'/'외부 연동' 2분류로 나눠 그리고 있었다 —
+          같은 8개 서비스가 화면마다 다르게 묶여 "n8n이 서비스인가 연동인가"가 어느 화면에
+          있었는지에 달렸다. 진단의 분류(내부 프로세스 vs 외부 의존 — 장애 대응에서 실제로
+          다른 행동을 낳는다)를 정본으로 삼아 대시보드도 같은 어휘를 쓴다. 도넛도 없앤다 —
+          100% 정상일 때 도넛이 화면에서 가장 큰 시각 요소가 되어 '볼 것 없음'에 최대 면적을
+          줬다, 옆 카드가 이미 개별 상태를 말하므로 요약은 제목 옆 'N / M' 한 줄로 충분하다. */}
+      <DashSection title="서비스 상태" action={<Typography variant="body2" color="text.secondary">{upSummary(comps)}</Typography>}>
+        {/* build_dashboard()(app/health/service.py)는 components를 항상 채워 돌려준다 — 이
+            compKeys.length 가드는 실제로는 결코 false가 될 수 없는 사전 방어다(ServiceStatusPanel.jsx의
+            같은 가드와 동일한 이유). 그래도 빈 그리드를 아무 설명 없이 그리면 "비어 보이는 것"과
+            "고장난 것"을 구분할 수 없으므로, 다른 빈 목록(아래 '최근 주요 변경')과 같은 관례로 문구를 둔다. */}
+        {compKeys.length ? (
           <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
-            {serviceKeys.map((k) => {
-              const onClick = svcNav(k);
+            {compKeys.map((k) => {
               // 워커/스케줄러가 'unknown'(하트비트 없음)이면 상단 경보와 심각도를 맞춰 warn으로 물들인다.
               // (기본 배지는 unknown을 무채색으로 그려 카드에선 무해하게 보였다.)
-              const unknownComp = (k in comps && services[k] === "unknown");
+              const unknownComp = comps[k] === "unknown";
               const badgeKind = unknownComp ? "warn" : undefined;
               // 같은 상태를 상단 경보는 '응답 없음', 배지는 '알 수 없음'으로 달리 불러 혼란을 줬다, 경보 문구로 통일한다.
               return (
-                <StatusTile key={k} name={svcLabel(k)} onClick={onClick} ariaLabel={svcLabel(k) + " 상세 열기"}>
-                  <Badge value={unknownComp ? "응답 없음" : services[k]} kind={badgeKind} />
+                <StatusTile key={k} name={serviceLabel(k)} onClick={compNav(k)} ariaLabel={serviceLabel(k) + " 상세 열기"}>
+                  <Badge value={unknownComp ? "응답 없음" : comps[k]} kind={badgeKind} />
                 </StatusTile>
               );
             })}
           </Box>
-          <Card sx={{ p: 2.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>상태 구성</Typography>
-            <Donut segments={serviceMix(services)} unit="개" centerLabel="서비스" emptyLabel="서비스 정보 없음" />
-          </Card>
-        </Box>
+        ) : <Note sx={{ mt: 0 }}>서비스 정보 없음</Note>}
       </DashSection>
+
+      {integrationKeys.length ? (
+        <DashSection title="외부 연동" action={<Typography variant="body2" color="text.secondary">{upSummary(integrationStates)}</Typography>}>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+            {integrationKeys.map((k) => (
+              <StatusTile key={k} name={serviceLabel(k)} onClick={goto("/integrations")} ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
+                <Badge value={integrationStates[k]} />
+              </StatusTile>
+            ))}
+          </Box>
+        </DashSection>
+      ) : null}
 
       <DashSection title="작업 지표 (최근 24시간)">
         {/* 성공률은 이 24시간 지표군의 하나이지만 위 스트립/조치 목록과 겹치는 값이라

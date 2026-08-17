@@ -10,11 +10,11 @@ export const isWriteRole = (role) => role != null && WRITE_ROLES.includes(role);
 // 쓰기 권한이 없을 때 버튼 옆에 남기는 이유 — 버튼을 숨기지 않는다(아래 Maintenance 주석 참고).
 export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 있습니다.";
 
-// 진단 번들의 컴포넌트(하트비트) 키를 한국어로. '살아있는가'를 판단하는 핵심 신호.
-// worker_conversational(D-118)은 그 레인을 켠 적이 있는 설치에만 백엔드가 보낸다
-// (app/health/service.py::build_dashboard) — 안 켠 설치는 이 키 자체를 안 받는다.
-export const COMP_LABELS = { web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커" };
-
+// 진단 번들의 컴포넌트(하트비트) 키와 외부 연동 키를 한국어로 — 두 화면(Dashboard.jsx/
+// Diagnostics.jsx)이 같은 8개 서비스를 각자 다른 표(COMP_LABELS 따로, SERVICE_LABELS 따로)로
+// 들고 있다가 서로 어긋날 수 있었다(PA-RC-0028 regression_risk c). 이제 한 표만 둔다 — 컴포넌트
+// 4종(worker_conversational은 그 레인을 켠 적이 있는 설치에만 백엔드가 보낸다, app/health/
+// service.py::build_dashboard)과 외부 연동 4종을 아래 serviceLabel()이 함께 조회한다.
 export const SERVICE_LABELS = {
   web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커",
   n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
@@ -132,30 +132,6 @@ export function errorBuckets(errors, bins = 12) {
   return { counts, from, to, n: times.length };
 }
 
-/* 연동 상태 맵 → 도넛 조각. Dashboard.jsx의 serviceMix()와 같은 일을 하지만 라벨이 다르다:
- * 이 화면은 헬스체크 이력이 없는 연동을 '미점검'이라 부른다(아래 카드 배지와 같은 말). 대시보드의
- * '응답 없음'을 그대로 가져오면 바로 옆 카드와 같은 연동을 다른 말로 부르게 된다. */
-export function integrationMix(integrations) {
-  const vals = Object.values(integrations || {}).map((it) => {
-    const v = it || {};
-    if (v.enabled === false) return "disabled";
-    return !v.last_health || v.last_health === "unknown" ? "unknown" : v.last_health;
-  });
-  const count = (x) => vals.filter((v) => v === x).length;
-  const up = count("up");
-  const down = count("down");
-  const unknown = count("unknown");
-  const disabled = count("disabled");
-  const other = vals.length - up - down - unknown - disabled;
-  return [
-    { label: "정상", value: up, color: "ok" },
-    { label: "중단", value: down, color: "danger" },
-    { label: "미점검", value: unknown, color: "warn" },
-    { label: "비활성화", value: disabled, color: "neutral" },
-    { label: "기타", value: other > 0 ? other : 0, color: "info" },
-  ];
-}
-
 // 전체 상태 한 줄 판정 — 진단 화면 상단에 '정상/주의' 요약을 준다(타일을 다 훑지 않게).
 // 반드시 아래 타일들과 '같은 임계값'으로 모든 신호(웹/워커/스케줄러·디스크·메모리·인증서·성공률·대기·미해결 실패·
 // 외부 연동 상태·최근 백업 실패 여부)를 검사한다 — 어느 타일이라도 warn/danger면 '정상'이라 말하지 않는다
@@ -173,7 +149,7 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   Object.keys(comps).forEach((k) => {
     const v = comps[k];
     if (v && v !== "up") {
-      const label = (COMP_LABELS[k] || k) + (v === "down" ? " 중단" : " 응답 없음");
+      const label = serviceLabel(k) + (v === "down" ? " 중단" : " 응답 없음");
       if (v === "down") dang(label); else warn(label);
     }
   });

@@ -70,3 +70,24 @@ def test_system_admin_diagnostics_bundle_shows_critical_audit(client, login_as, 
     body = client.get("/api/admin/diagnostics/bundle").json()
     actions = [row["action"] for row in body["dashboard"]["recent_critical_audit"]]
     assert "user.role_change" in actions
+
+
+def test_diagnostics_bundle_payload_keeps_fields_pa_rc_0028_stopped_rendering(client, login_as, db):
+    """PA-RC-0028 removed the '백업'/'최근 주요 변경' sections from Diagnostics.jsx's
+    body (they duplicated /dashboard's own always-visible sections 16/16 and 3/3) but
+    acceptance criterion (3) requires the *payload* to stay whole — the bundle is a
+    support-team artifact (JSON download) that must still be complete even though the
+    screen now renders less of it. This pins the fields the removed sections used to
+    read so a future payload-shrink (e.g. "unused, let's drop it from the query") gets
+    caught here instead of silently thinning the support artifact.
+    """
+    _seed_critical_audit(db)
+    csrf = login_as("system_admin")
+    r = client.post("/api/admin/backups", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 201, r.text
+
+    body = client.get("/api/admin/diagnostics/bundle").json()
+    dash = body["dashboard"]
+    assert dash["last_backup_at"] is not None
+    assert dash["last_backup_status"] == "verified"
+    assert any(row["action"] == "user.role_change" for row in dash["recent_critical_audit"])

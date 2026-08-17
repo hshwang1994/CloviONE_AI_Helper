@@ -5,12 +5,11 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
-import { fmtDateTime, actionKo, objKo } from "../../lib/format.js";
+import { fmtDateTime } from "../../lib/format.js";
 import { DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
 import { PageHeader, Card, Badge, Button, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
-import { Donut } from "../../ui/charts/Donut.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
-import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, errorBuckets, healthVerdict, integrationMix, shortId, copyText, bundleStamp } from "./opsHelpers.js";
+import { serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
 import { ServiceStatusPanel } from "./ServiceStatusPanel.jsx";
 import { JobQueuePanel } from "./JobQueuePanel.jsx";
@@ -129,9 +128,6 @@ export function Diagnostics() {
   // 서버가 이 필드를 안 주는 낡은 배포에서는 섹션 자체를 그리지 않는다(없는 것을 있는 척하지 않는다).
   const tenant = bundle && bundle.tenant_config ? bundle.tenant_config : null;
   const tenantItems = (tenant && tenant.items) || [];
-  // 번들은 actor 이름까지 해석한 '최근 주요 변경'(누가 role_change/backup.restore/rollback/approve 했나)을 담는데
-  // 화면이 이걸 버려 지원팀이 원본 JSON을 뒤져야 했다, 대시보드와 같은 방식(actionKo/objKo)으로 구조화해 보여준다.
-  const recentAudit = dash.recent_critical_audit || [];
   // 스펙 §14.7 'Integration Error Summary'용 integration_errors 필드는 build_diagnostic_bundle
   // (app/health/service.py)이 더 이상 응답에 내려주지 않는다, 이 화면 바로 위 '외부 연동' 섹션이
   // 이미 down/degraded 전 목록을 배지로 보여주므로, 존재하지 않는 필드를 읽어 항상 빈 배열이 되는
@@ -184,7 +180,15 @@ export function Diagnostics() {
               );
             })()}
             <ServiceStatusPanel disk={disk} mem={mem} certDaysRemaining={dash.cert_days_remaining} comps={comps} nav={nav} />
-            <DashSection title="외부 연동">
+            <DashSection title="외부 연동"
+              action={Object.keys(integrations).length ? (
+                <Typography variant="body2" color="text.secondary">
+                  {/* PA-RC-0028: 도넛 대신 제목 옆 'N / M' 한 줄로 — 옆 카드가 이미 개별 상태를
+                      말하므로, 100% 정상일 때 도넛이 화면에서 가장 큰 시각 요소가 되어 '볼 것
+                      없음'에 최대 면적을 주는 문제를 없앤다(Dashboard.jsx의 같은 처방과 동일). */}
+                  정상 {Object.values(integrations).filter((it) => it && it.enabled !== false && it.last_health === "up").length} / {Object.keys(integrations).length}
+                </Typography>
+              ) : null}>
               {/* down만이 아니라 전체 연동 상태를 보여준다, unknown도 드러나야 진단에 쓸모가 있다.
                   비활성 연동은 마지막 헬스값 대신 '비활성화'로 표기한다. */}
               {/* 서비스 이름은 대시보드와 같은 serviceLabel()로 표기해 두 화면이 같은 연동을 다르게 부르지 않게 한다.
@@ -192,30 +196,23 @@ export function Diagnostics() {
                   '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라 바로 옆에 둔다, 이 페이지 자신이 선언한
                   '스냅샷 먼저, 이력 나중' 원칙(아래 '현재 리소스' 주석)을 이 섹션에도 실제로 지킨다. */}
               {Object.keys(integrations).length ? (
-                <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) minmax(0, 24rem)" } }}>
-                  <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
-                    {Object.keys(integrations).map((k) => {
-                      const it = integrations[k] || {};
-                      // last_health는 NOT NULL이라 'unknown'으로 채워져 온다(models.py), 'it.last_health ||'
-                      // 폴백은 결코 타지 않아 갓 만든/미점검 연동이 '알 수 없음'으로 새고 있었다.
-                      // 'unknown'(과 만일의 빈 값)을 명시적으로 '미점검'으로 표기한다.
-                      const raw = it.last_health;
-                      const val = it.enabled === false ? "disabled" : (!raw || raw === "unknown") ? "미점검" : raw;
-                      // 다른 화면(Dashboard.jsx의 서비스 카드)과 같은 방식으로 클릭 가능한 카드로 만든다 -
-                      // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 카드로 남기지 않는다.
-                      return (
-                        <StatusTile key={k} name={serviceLabel(k)} onClick={() => nav("/integrations")}
-                          ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
-                          <Badge value={val} />
-                        </StatusTile>
-                      );
-                    })}
-                  </Box>
-                  {/* 연동이 열 개를 넘는 배포에서는 카드를 하나씩 세는 것보다 구성비가 빠르다. */}
-                  <Card sx={{ p: 2.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>연동 상태 구성</Typography>
-                    <Donut segments={integrationMix(integrations)} unit="개" centerLabel="연동" emptyLabel="연동 정보 없음" />
-                  </Card>
+                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+                  {Object.keys(integrations).map((k) => {
+                    const it = integrations[k] || {};
+                    // last_health는 NOT NULL이라 'unknown'으로 채워져 온다(models.py), 'it.last_health ||'
+                    // 폴백은 결코 타지 않아 갓 만든/미점검 연동이 '알 수 없음'으로 새고 있었다.
+                    // 'unknown'(과 만일의 빈 값)을 명시적으로 '미점검'으로 표기한다.
+                    const raw = it.last_health;
+                    const val = it.enabled === false ? "disabled" : (!raw || raw === "unknown") ? "미점검" : raw;
+                    // 다른 화면(Dashboard.jsx의 서비스 카드)과 같은 방식으로 클릭 가능한 카드로 만든다 -
+                    // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 카드로 남기지 않는다.
+                    return (
+                      <StatusTile key={k} name={serviceLabel(k)} onClick={() => nav("/integrations")}
+                        ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
+                        <Badge value={val} />
+                      </StatusTile>
+                    );
+                  })}
                 </Box>
               ) : (
                 // dash.integrations(위 integrations)는 Integration 테이블 전 행을 무조건 담고(app/health/
@@ -276,52 +273,22 @@ export function Diagnostics() {
               </DashSection>
             ) : null}
             <JobQueuePanel jobs24={jobs24} jobErrors={jobErrors} errorDist={errorDist} nav={nav} />
-            <DashSection title="백업">
-              {/* 대시보드 백업 카드(Dashboard.jsx)와 동일하게 '백업 관리'로 이동할 수단을 준다 -
-                  '마지막 백업: 없음'/실패를 보고도 조치할 곳이 없는 막다른 카드가 되지 않게 한다(백업 화면은 이 역할이 도달 가능). */}
-              <Card sx={{ p: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
-                {/* component="div" — 안에 Badge(Chip은 <div>)가 들어간다(Dashboard.jsx 백업 카드와 같은 이유). */}
-                <Typography component="div" variant="body2" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-                  마지막 백업: {dash.last_backup_at ? fmtDateTime(dash.last_backup_at) : "없음"}
-                  {dash.last_backup_status ? <Badge value={dash.last_backup_status} /> : null}
-                  {/* Dashboard.jsx 백업 카드와 같은 나이 배지 — 성공 이력은 있지만 오래됐으면(계속 실패 중일 수
-                      있음) 두 화면이 같은 임계값(BACKUP_STALE_DAYS)으로 같은 신호를 보이게 한다. */}
-                  {(() => { const age = dash.last_backup_at ? daysSince(dash.last_backup_at) : null; return age != null && age > BACKUP_STALE_DAYS ? <Badge value={Math.floor(age) + "일 전"} kind={age > BACKUP_STALE_DAYS * 2 ? "danger" : "warn"} /> : null; })()}
+            {/* PA-RC-0028: '백업'과 '최근 주요 변경'을 이 화면 본문에서 뺐다 — /dashboard가
+                이미 상시(30초 폴링)로 같은 두 섹션을 보여주고 있어(build_diagnostic_bundle이
+                build_dashboard()를 그대로 품는 구조, 데이터는 번들에 그대로 남는다·JSON
+                다운로드도 불변) 본문 79줄 중 54줄이 두 화면에서 문자 그대로 겹쳤다. 대시보드로
+                가는 링크 한 줄만 남긴다 — 진단의 나머지(시스템 리소스·설치처 설정·최근 작업
+                오류·원본 JSON)는 대시보드가 안 답하는 것들이라 그대로 둔다. */}
+            <Box sx={{ mb: 3 }}>
+              <Card sx={{ p: 2.5 }}>
+                <Typography variant="body2" color="text.secondary">
+                  백업 상태와 최근 주요 변경은 대시보드에서 상시 확인할 수 있습니다.
                 </Typography>
-                <Button variant={dash.last_backup_at ? "default" : "primary"} size="sm" onClick={() => nav("/backup")}>백업 관리</Button>
+                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/dashboard")} sx={{ display: "inline-block", mt: 1 }}>
+                  대시보드에서 보기 →
+                </Link>
               </Card>
-            </DashSection>
-            {/* '최근 작업 오류'(위 JobQueuePanel)와 짝인 섹션, 비었다고 화면에서 통째로 사라지면 '아직
-                안 불러왔나'와 '실제로 최근 주요 변경이 없다'를 구분할 수 없다. 형제 섹션과 같은 방식으로
-                항상 렌더하고 빈 목록엔 안심시키는 안내 문구를 둔다. */}
-            {/* Dashboard.jsx의 동일 섹션, 바로 위 '최근 작업 오류' 섹션과 같은 방식으로 전체 감사
-                로그(/audit)로 가는 딸린 링크를 준다, 이전엔 이 섹션만 더 볼 곳으로 가는 길이 없었다. */}
-            <DashSection title="최근 주요 변경"
-              action={<Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>전체 보기 →</Link>}>
-              <Card>
-                {recentAudit.length ? (
-                  <LogList>
-                    {recentAudit.map((a) => (
-                      <LogRow key={a.created_at + "|" + (a.object_id || "") + "|" + a.action}
-                        when={fmtDateTime(a.created_at)}
-                        what={actionKo(a.action) + " (" + (a.actor || "시스템") + ")"}>
-                        {/* Dashboard.jsx의 동일 섹션과 같은 방식, title 툴팁은 터치, 스크린리더에서 안
-                            뜨므로, 대상 ID가 있으면 눌러서 전체 값을 복사할 수 있는 버튼으로 둔다
-                            (예전엔 여기만 비인터랙티브 <span>이라 8자로 잘린 ID를 다시 알아낼 방법이 없었다). */}
-                        {a.object_id ? (
-                          <Link component="button" type="button" variant="body2" underline="hover" color="text.secondary" title={a.object_id}
-                            aria-label={objKo(a.object_type) + " 전체 ID 복사: " + a.object_id}
-                            onClick={() => copyText(a.object_id).then((ok) => toast(ok ? "ID를 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}
-                            sx={{ textAlign: "left" }}>
-                            {objKo(a.object_type)}, {shortId(a.object_id)}
-                          </Link>
-                        ) : <Typography variant="body2" color="text.secondary">{objKo(a.object_type)}</Typography>}
-                      </LogRow>
-                    ))}
-                  </LogList>
-                ) : <Note sx={{ mt: 0 }}>최근 주요 변경 이력이 없습니다.</Note>}
-              </Card>
-            </DashSection>
+            </Box>
             <DashSection title="원본 자료">
               {/* 다른 모든 섹션과 같은 Card로 감싸 원시 브라우저 기본 <details> 외형(카드 없음, 테두리 없음)이
                   이 페이지에서만 미완성처럼 보이던 문제를 없앤다. */}

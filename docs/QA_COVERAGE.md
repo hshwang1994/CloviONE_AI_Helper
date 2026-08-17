@@ -1264,6 +1264,51 @@ true`라 컴포넌트 시험만으로는 완료로 보지 않는다. 나머지 P
 (`/settings` 항목명 열 단위 계측)를 TEST SERVER에서 재실행해 수용 기준의 실측 숫자를
 확인하는 것은 나머지 PA3 항목과 함께 일괄 배치한다(`BACKLOG.md` PA3-08/11/13).
 
+### T16 마저 닫힘 — `PA-RC-0028`(대시보드/진단 중복) 구현+시험, `T16` 전부 완료
+
+`PA-RC-0036`에 이어 `PA-RC-0028`도 구현+시험으로 닫아 `T16`("같은 데이터가 여러
+화면에서 같은 컴포넌트로 표현되는가")를 이 Cycle 기준 **전부** 닫았다.
+
+`Diagnostics.jsx`에서 `최근 주요 변경`·`백업` 섹션의 **렌더**를 뺐다(데이터는
+`build_diagnostic_bundle`이 그대로 품는 번들에 남는다 — JSON 다운로드 불변). 그
+자리엔 `/dashboard`로 가는 링크 한 줄만 남는다. 두 화면 모두 도넛을 없애고 섹션
+제목 옆 `정상 N/M` 텍스트로 바꿨다(값이 없으면 "없다"고 쓰는 기존 관례를
+`Dashboard.jsx`의 '서비스 상태' 섹션에도 그대로 적용). `Dashboard.jsx`의 서비스
+카드를 `Diagnostics.jsx`와 같은 `서비스 상태`(내부 컴포넌트)/`외부 연동`(n8n 등)
+2분류로 나눴다 — 예전엔 두 화면이 8개 서비스를 다르게 묶어 "n8n이 서비스인가
+연동인가"가 어느 화면인지에 달려 있었다.
+
+이 과정에서 실제 Root Cause를 하나 더 찾았다: `opsHelpers.js`가 컴포넌트 4종의
+한국어 이름을 `COMP_LABELS`(자체 상수)와 `SERVICE_LABELS`(`serviceLabel()`이
+읽는 8종 상수)에 **각각 따로** 들고 있었다 — 값은 우연히 같았지만 한쪽만 고치면
+두 화면이 말없이 다른 이름을 보여줄 수 있는 구조였다(Handoff regression_risk
+(c)가 정확히 이 위험을 지목했다). `COMP_LABELS`를 없애고 `ServiceStatusPanel.jsx`도
+`serviceLabel()` 하나만 쓰게 통일했다 — 이제 두 화면이 **같은 함수**를 부른다.
+같은 이유로 더는 어디서도 안 쓰던 `integrationMix()`(예전 도넛 조각 계산)도 지웠다.
+
+새 시험: (1) 백엔드 페이로드 불변 회귀
+(`tests/integration/test_diagnostics_bundle_rbac.py`, 화면이 덜 그려도 번들
+JSON은 `last_backup_at`·`last_backup_status`·`recent_critical_audit`를 그대로
+포함하는지 확인 — `include_critical_audit` 기존 역할 매트릭스 10건도 무수정으로
+green), (2) `ops-service-status.test.jsx`에 컴포넌트 시험 신설 — 데이터를
+일부러 채워도 `최근 주요 변경`·`백업` 섹션 제목이 렌더되지 않고 대시보드 링크만
+남는지 확인, (3) `dashboard-diagnostics-consistency.test.jsx` 신설 — 같은
+fixture로 `/dashboard`·`/diagnostics`를 각각 렌더해 같은 키가 같은 한국어
+타일 이름으로 나오는지 교차 대조(라벨을 일부러 다르게 바꿔 실제로 잡아내는지
+revert-to-verify 확인). 전체 프런트 회귀 297파일/2054건 green.
+
+검증 중 이 RC와 무관한 기존 결함 2건을 추가로 발견해 함께 고쳤다(모두
+`static_checks.sh`가 실제로 잡던 것) — `kit.jsx`의 숨은 열 안내 캡션이 금지된
+가운뎃점(·)으로 목록을 이었던 것(§8, `PA-RC-0029` 배치에서 새로 생긴 문구라
+당시 `npm test`만 돌리고 `static_checks.sh`를 그 문구까지 다시 안 돌려 놓쳤다)을
+쉼표로, UX 동사표 검사(vitest+bash 두 게이트)가 "최근 주요 변경"의 "변경"을
+동사로 오탐한 것을 두 allow 목록에 함께 추가해 고쳤다.
+
+**아직 안 한 것**: `visual_change_required:true` — `pa2_dup.py` 재실행으로
+수용 기준 (1)("본문 줄 중복 68%→35% 이하")을 실측 확인하는 것과, `/dashboard`
+`scrollH` 감소·두 화면 도넛 소거를 스크린샷으로 확인하는 것은 나머지 PA3
+항목과 함께 일괄 배치한다(`BACKLOG.md` PA3-03).
+
 ### T12 마저 닫힘 — `PA-RC-0030`(설정 탭 게이트) 구현+시험, `T12` 세 RC 전부 완료
 
 `PA-RC-0033`에 이어 `PA-RC-0030`도 구현+시험으로 닫아 `T12`("주소와 화면이 같은 것을

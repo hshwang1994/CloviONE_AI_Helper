@@ -7884,3 +7884,34 @@ navigation/breadcrumb/메뉴 taxonomy(0039가 0031 순서에 의존적일 수 �
 
 **다음**: `PA-RC-0033`(404 처리 일관성, 기존 `ErrorState` 재사용이라 저위험)부터 이어서
 진행 — 이 checkpoint 작성 직후 바로 시작한다.
+
+### 체크포인트 — 2026-08-17(invocation 10): `PA-RC-0028` 마저 구현 — **`PA-RC-0038`이 여태 미착수임을 재확인, 이 Cycle의 진짜 마지막 1건**
+
+`PA-RC-0033`부터 이어서 `0029`·`0036`·`0037`·`0030`·`0031`·`0039`·`0034`·`0035`
+순으로 8건을 이 세션에서 마저 구현+시험+문서화했고(각 `DECISIONS.md` D-127~D-132),
+이번 invocation에서 마지막으로 남아 있던 `PA-RC-0028`(`/dashboard`·`/diagnostics`
+본문 68% 중복)도 구현+시험 완료했다(D-133). `Diagnostics.jsx`에서 `최근 주요
+변경`·`백업` 섹션 렌더 제거(번들 페이로드는 그대로), 두 화면 도넛→`정상 N/M`
+텍스트, `Dashboard.jsx` 서비스 카드를 진단과 같은 2분류로 통일, 부수적으로 발견한
+`COMP_LABELS`/`SERVICE_LABELS` 이중 상수를 `serviceLabel()` 하나로 합쳤다. 검증
+과정에서 이 RC와 무관한 기존 결함 2건(`kit.jsx` 가운뎃점 위반, UX 동사표 오탐)도
+`static_checks.sh`가 실제로 잡아 함께 고쳤다. 전체 프런트 회귀 297파일/2054건 green.
+
+**중요한 정정**: `BACKLOG.md`의 실제 PA3 표(13행)를 다시 대조하다가 `PA3-09`
+(`PA-RC-0038` — "기본 필터가 걸린 화면이 '없습니다'를 무조건형으로 말한다",
+`/approvals`가 `?status=pending`으로 열려 0건일 때 필터 지우기 버튼 없이 무조건
+"승인 요청이 없습니다"만 보여주는 문제)가 여전히 `⬜ 미착수`로 남아 있는 것을
+발견했다 — 이 window 시작 시점에 이어받은 요약은 "13건 중 12건 완료, 0028만 남음"
+이라고 믿고 있었는데 **실제로는 0038도 손대지 않은 상태였다**(요약이 어디선가
+빠뜨렸거나 다른 항목과 혼동한 것으로 보인다, 원인은 안 밝혔다 — 문서/Git 실물을
+직접 대조해서 잡은 사례). CLAUDE.md의 "문서와 실제가 충돌하면 실제를 정본으로
+본다" 원칙이 실제로 작동한 순간이다.
+
+**다음(진짜 마지막 1건)**: `PA-RC-0038` 구현 — Handoff의 해당 블록(`implementation_direction`·
+`acceptance_criteria`·`required_tests`)을 전체 다시 읽고 시작한다. 이것이 끝나야
+13건 전부 코드 수준에서 닫히고, 그 다음에야 (a) 번들 재빌드, (b) 승인된 TEST
+SERVER 통합 배포, (c) Chrome Whole-product E2E(특히 `visual_change_required:true`
+9건 전부: `0027`·`0029`·`0030`·`0031`·`0033`·`0035`·`0036`·`0037`·`0039`, `0028`도
+추가돼 총 10건), (d) `pa2_dup.py`/`pa2_cols.py`/`pa2_resp_dark.py`/`pa2_verify_no.py`/
+`pa2_rbac.py`/`pa2_badid.py` 재실행 실측을 한 번에 배치한다. 그 전까지는
+`var/product-audit/IMPLEMENTATION_REQUIRED`를 제거하지 않는다.

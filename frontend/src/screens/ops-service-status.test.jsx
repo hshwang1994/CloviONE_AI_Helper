@@ -134,7 +134,11 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
 });
 
 describe("진단 — 백업 실패 표시", () => {
-  it("마지막 백업이 실패했으면 배지와 상단 배너 모두 실패를 말한다", async () => {
+  // PA-RC-0028: 진단 화면 본문의 '백업' 카드(배지 포함)는 제거됐다 — /dashboard가 이미 같은
+  // 사실을 상시 보여주므로 두 화면에 같은 실패를 중복 표시하지 않는다(데이터는 번들에 그대로
+  // 남고, 이 화면은 대시보드로 가는 링크만 남긴다). 실패는 이제 상단 healthVerdict 배너
+  // 하나로만 말한다 — 예전엔 배지가 더 있어 "실패를 두 번 말한다"가 이 테스트의 요지였다.
+  it("마지막 백업이 실패했으면 상단 배너가 실패를 말한다", async () => {
     apiMock.mockImplementation((path) => {
       if (path === "/api/admin/diagnostics/bundle") {
         return Promise.resolve({
@@ -152,7 +156,40 @@ describe("진단 — 백업 실패 표시", () => {
     renderDiagnostics();
 
     expect(await screen.findByText("최근 백업 실패")).toBeInTheDocument(); // 상단 배너
-    expect(screen.getByText("실패")).toBeInTheDocument(); // 백업 카드 배지
+    expect(screen.getByRole("button", { name: "대시보드에서 보기 →" })).toBeInTheDocument();
+  });
+});
+
+// PA-RC-0028 required_tests (3) — Diagnostics.jsx가 '최근 주요 변경'·'백업' 섹션을 렌더하지
+// 않는다는 컴포넌트 테스트. 데이터를 일부러 채워서 확인한다 — "목록이 비어서 안 보인다"가 아니라
+// "섹션 자체가 없다"를 증명해야, 언젠가 recent_critical_audit/last_backup_at이 다시 채워져도
+// 예전 중복 렌더가 조용히 되살아나지 않는다.
+describe("진단 — 대시보드와 중복이던 섹션 제거(PA-RC-0028)", () => {
+  it("'최근 주요 변경'·'백업' 섹션은 데이터가 있어도 더는 렌더되지 않고 대시보드로 가는 링크만 남는다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === "/api/admin/diagnostics/bundle") {
+        return Promise.resolve({
+          generated_at: "2026-08-03T07:00:00",
+          dashboard: {
+            ...BASE_DASH,
+            components: { web: "up", worker: "up", scheduler: "up" },
+            recent_critical_audit: [
+              { created_at: "2026-08-02T00:00:00", action: "user.role_change", actor: "admin@example.com", object_type: "user", object_id: "u-9" },
+            ],
+          },
+          recent_job_errors: [],
+        });
+      }
+      return Promise.reject(new Error("unexpected api call: " + path));
+    });
+    renderDiagnostics();
+
+    await screen.findByText("서비스 상태");
+    expect(screen.queryByText("최근 주요 변경")).toBeNull();
+    expect(screen.queryByText("백업")).toBeNull();
+    expect(screen.queryByText("백업 관리")).toBeNull(); // 예전 백업 카드의 CTA 버튼
+    expect(screen.getByText(/백업 상태와 최근 주요 변경은 대시보드에서/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "대시보드에서 보기 →" })).toBeInTheDocument();
   });
 });
 

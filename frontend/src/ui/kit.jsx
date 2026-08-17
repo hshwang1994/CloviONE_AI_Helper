@@ -578,7 +578,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
     <>
       {hiddenCols.length ? (
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
-          화면 폭이 좁아 {hiddenCols.map((c) => c.label).join("·")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
+          화면 폭이 좁아 {hiddenCols.map((c) => c.label).join(", ")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
         </Typography>
       ) : null}
       <TableContainer>
