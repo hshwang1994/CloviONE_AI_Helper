@@ -7966,3 +7966,77 @@ UX 동사표 오탐)도 함께 잡아 고쳤다(D-133).
 **다음 invocation이 즉시 할 일**: 백엔드 full pytest 결과 확인 → 실패가 있으면
 Root Cause 묶어 수정 → 없으면 곧장 1(번들 빌드)부터 순서대로 진행. 중간에
 멈추지 않는다.
+
+### 체크포인트 — 2026-08-17(invocation 11 계속): Full Regression 전부 green, 번들 빌드+커밋 완료 — **TEST SERVER 배포가 사람 전용 sudo 비밀번호에 막힘**
+
+위 checkpoint 직후 순서대로 진행한 결과:
+
+1. **배경 감사(Explore agent)**: `PA-RC-0028`/`0038` 두 커밋의 diff와 관련 파일
+   전체를 다시 읽게 했다 — 진짜 결함 2건(둘 다 사소, 동작 영향 없음) 발견해 즉시
+   고치고 별도 커밋(`aaee32f5`): `Diagnostics.jsx`의 죽은 `Button` import(백업
+   카드 제거 때 유일한 사용처가 함께 지워졌는데 import 줄만 남음), `ServiceStatusPanel.jsx`
+   주석이 `Dashboard.jsx`에서 `compNav`로 이름이 바뀐 함수를 옛 이름(`svcNav`)으로
+   계속 가리킴. 그 외(`COMP_LABELS`/`integrationMix` 잔존 참조, `Donut` 잔존
+   import, `defaultFilterVals` 잔존, 다른 화면의 병렬 `hasFilter` 구현)는 전부
+   깨끗함을 확인.
+2. **백엔드 full pytest**: 첫 시도는 `| tail -60`으로 파이프해 60분 가까이 아무
+   출력도 안 보여 멈춘 것으로 오판, 죽이고 재시도(교훈: `tail -N`은 입력 스트림이
+   끝나야 한 번에 출력한다 — 배경 프로세스 진행 확인용으로 절대 쓰지 않는다,
+   원 명령을 그대로 파일로 리다이렉트해야 실시간으로 보인다). 파이프 없이
+   재실행하니 꾸준히 진행해 **3,131개 전부 통과**(exit 0, 진행률 표시 전 구간에
+   `F`/`E` 없음)로 끝났다 — 처음 것도 실제로는 안 멈춰 있었을 가능성이 높다(진행
+   중 CPU 사용량이 한 번은 정체됐던 것도 확인했으나 최종 결과가 green인 이상
+   재현·조사할 이유가 없다).
+3. **프런트 프로덕션 빌드**: `npm run build` 2회(감사가 찾은 정리 커밋 전후) —
+   두 번째 빌드도 첫 번째와 완전히 같은 산출물 해시를 냈다(죽은 import 제거·주석
+   수정 둘 다 압축 후 바이트에 영향이 없는 변경이라 당연한 결과, 문제 아님).
+   `check_bundle_fresh.py --write`로 스탬프 갱신 후 `app/static/react/**` 전체를
+   커밋(`0211641b`) — `static_checks.sh`의 "커밋된 번들이 소스와 일치하는가"
+   게이트가 이제 green이다.
+4. **`static_checks.sh` 최종 상태**: 전 항목 green, **유일한 예외는 여전히
+   `SEC-20`**(git stash 안 자격증명, 사람 전용 회전 대기 — 위 checkpoint에서 이미
+   상세히 기록, 변동 없음).
+
+**여기서 TEST SERVER 배포를 실제로 시도했다.** SSH 키 인증(`~/.ssh/id_ed25519`
+→ `cloviradmin@10.100.64.71`)은 비밀번호 없이 성공한다(`known_hosts`에 이 대역
+IP 8개가 남아 있어 과거 여러 번 배포했음을 확인, 이번엔 `docs/DECISIONS.md`·
+`WORK_STATE.md`에 가장 최근·일관되게 나오는 `.71`을 썼다). 그런데 **`sudo`는
+이 계정에서 예외 없이 비밀번호를 요구한다** — `sudo -n whoami`와 `sudo -n -l`
+둘 다 비대화형으로 거부됨을 직접 확인했다(우회 시도는 하지 않았다 — 보안
+경계를 약화시키는 방향이라 규칙 위반이다). `scripts/stage-static-update.sh`
+자신의 설계도 이걸 전제한다 — 그 apply 단계는 "USER runs this — needs sudo
+password, real terminal"이라고 스크립트 자체가 명시하고 실행하지 않는다.
+`.github/workflows`·`.gitlab-ci.yml` 등 대체 자동 배포 경로도 없음을 확인했다
+(원격은 개인 GitHub 저장소 하나뿐, 배포와 무관).
+
+**결론: 이번 invocation에서 할 수 있는 배포 준비는 전부 끝났다.**
+- 정적 업데이트 tarball을 이미 스테이징해 뒀다(`dist/static-update/`,
+  `SERVER=cloviradmin@10.100.64.71 BASE_URL=https://clovirone-ai.gooddi.lab
+  bash scripts/stage-static-update.sh`, 인자 없이 실행해 `app/static` 전체
+  포함 — DNS_NAME은 `docs/DECISIONS.md`/`WORK_STATE.md`의 최근 배포 기록에서
+  확인했다). scp+sudo tar 적용 명령이 이미 인쇄돼 있다.
+- 현재 서버는 정상이다(`healthz`=200, `readyz`={"status":"ready"}, 세 유닛
+  전부 `active` — read-only 확인만 했다).
+- **`upgrade-clovirone-web-assistant.sh`를 통한 전체 배포**(이번 Cycle이
+  실제로 백엔드 프로덕션 코드는 안 바꿨으므로 — `PA-RC-0028`·`0038` 둘 다
+  프런트 전용, `0038`이 백엔드에 새 시험 파일 1개만 추가 — 정적 핫배포로
+  충분할 가능성이 높지만, **최종 판단과 sudo 실행은 사람 몫이다**)이든
+  정적 핫배포든, **다음 단계(scp + `sudo tar -xzf ... && sudo sha256sum -c
+  ...`, 또는 `upgrade-clovirone-web-assistant.sh` 자체)는 실제 터미널에서
+  sudo 비밀번호를 아는 사람이 실행해야 한다.**
+
+**PROJECT의 현재 진짜 상태**: 13개 Root Cause 전부 코드 수준에서 닫히고
+Full Regression(백엔드 3,131·프런트 2,064·러너 323) + Static Checks + Build가
+전부 green이다. 남은 것은 정확히 두 가지, 둘 다 사람 전용 외부 행위다 —
+① `SEC-20`(git stash 자격증명 회전), ② 이번 배치의 TEST SERVER 배포(sudo
+비밀번호). `var/product-audit/IMPLEMENTATION_REQUIRED`는 ②가 끝나 Chrome
+E2E+실측이 될 때까지 유지한다 — 코드가 다 됐다고 미리 지우지 않는다.
+
+**다음 invocation(또는 사람이 sudo를 실행해 준 뒤)이 할 일**: (a) 사람이
+배포를 완료했다면 `healthz`/`readyz`/서비스 active/배포본 코드 grep으로
+확인 → Chrome Whole-product E2E(`visual_change_required:true` 10건) →
+`pa2_*.py` 재실행 실측 → `IMPLEMENTATION_CONSUMED` 기록 → `IMPLEMENTATION_REQUIRED`
+제거 → `PROJECT_COMPLETE` 재평가. (b) 아직 배포가 안 됐다면, 배포 없이
+가능한 다른 독립 작업(예: 이번 Cycle과 무관한 새 이슈 스캔, 문서 정합성
+점검)을 찾아 계속하되, ①·② 없이 `PROJECT_COMPLETE`나 `IMPLEMENTATION_CONSUMED`를
+만들지 않는다.
