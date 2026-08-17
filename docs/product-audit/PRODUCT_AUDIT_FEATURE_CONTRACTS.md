@@ -1,9 +1,9 @@
 # PRODUCT AUDIT — FEATURE / WORKFLOW CONTRACTS
 
-> cycle_id=PA-20260816-120655-f103fb5b · baseline=`70e264bf13110e7e61cdf96331bd92de48f2163d`
+> cycle_id=PA-20260817-072224-24b91505 · baseline=`2aacd2a2ab4a50e92d3dee8f3aba3a248e175e83`
 > 이전 Cycle: `PA-20260812-171558-56c5befa` (baseline `89ac9f16`)
 >
-> **이 Cycle에서의 취급**: 아래 Contract(`FC-01`~`FC-08`)는 이전 Cycle이 근거와 함께 세운
+> **이 Cycle에서의 취급**: 아래 Contract(`FC-01`~`FC-09`)는 이전 Cycle들이 근거와 함께 세운
 > 것이고 이번 Cycle에서 **무효화된 것이 없다** — 그대로 이어서 쓴다(WARM 증분 원칙).
 > 이번 Cycle이 이 문서에 더한 것은 아래 "PA-20260816 Cycle이 행동으로 확인한 계약" 절이다.
 >
@@ -201,3 +201,135 @@
 
 > **UNKNOWN 표 갱신**: 위 3건 중 이 건이 닫혔다. **남은 UNKNOWN은 2건** —
 > 「티켓 정본 정책」과 「복구 리허설 성공 판정 기준」이다. 둘 다 이번 Cycle에서 조사하지 않았다.
+
+---
+
+# §PA-20260817 Cycle — 이 Cycle이 근거와 함께 세운 Contract (FC-10 ~ FC-15)
+
+> `FC-01`~`FC-09` 는 이전 Cycle들이 세운 것이고 **이번 Cycle에서 무효화된 것이 없다** —
+> 그대로 이어서 쓴다. 아래는 이번 Cycle의 Root Cause 가 실제로 판정 근거로 삼은 계약이다.
+> 각 Contract 는 이 Cycle 이 **실행으로 확인한 것**만 담는다.
+
+## 요약
+
+| # | Contract | Actor | Intent 근거 등급 | Confidence |
+|---|---|---|---|---|
+| FC-10 | 내 티켓 요약 표시 (판정 불가 상태 포함) | 로그인 사용자 | ②③⑤⑥ | **Confirmed** |
+| FC-11 | 최초 로그인 강제 비밀번호 변경 | 신규·재설정 계정 | ②③④ | **Confirmed** |
+| FC-12 | 운영 상태 조회 대 진단 번들 수집 | operator+ | ①③⑥ | Strong |
+| FC-13 | 화면 위치 표시 (breadcrumb ↔ 사이드바) | 전 역할 | ⑤⑥ | Strong |
+| FC-14 | 목록의 빈 상태 (결과 없음 대 데이터 없음) | 전 역할 | ⑤⑥ | Strong |
+| FC-15 | 없는 레코드 요청에 대한 응답 | 전 역할 | ③⑤ | Strong |
+
+### RC 가 쓴 이름 ↔ Contract 대응
+
+이번 Cycle의 `PA-RC-*` 블록은 `feature_contracts:` 에 서술형 이름을 썼다. 대응은 다음과 같다.
+
+| RC 가 쓴 이름 | Contract |
+|---|---|
+| FC-홈-오늘(내 티켓 요약) · FC-내업무량(완료 통계) | **FC-10** |
+| FC-최초로그인-비밀번호변경 | **FC-11** |
+| FC-AI대화전송 | **FC-04**(AI 어시스턴트) + **FC-11** 과 같은 쓰기 경합 계열 |
+| FC-운영대시보드 · FC-진단번들 | **FC-12** |
+| FC-관리자내비게이션 · FC-사용자내비게이션 · FC-사용자콘솔내비게이션 | **FC-13** |
+| FC-공용빈상태 · FC-승인워크플로 | **FC-14** (+ 승인 자체는 **FC-01**) |
+| FC-공용오류표시 · FC-게시판상세 | **FC-15** |
+| FC-사용자관리 · FC-조직관리 · FC-감사로그 · FC-시스템설정 · FC-오프보딩 · FC-티켓생성 · FC-권한거부표현 | **FC-05**(역할 게이트) · **FC-07**(오프보딩) 및 위 신규 계약의 조합 |
+
+---
+
+## FC-10 · 내 티켓 요약 표시 (판정 불가 상태 포함)
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | 로그인 사용자 본인 |
+| 목적 | 오늘 무엇을 해야 하는지 숫자로 먼저 보여준다 |
+| Entry point | `/me` 상단 타일 6종, `/my-stats` 타일 6종, `/dashboard` 「내 업무」 |
+| Precondition | 로그인. Notion 사용자 매핑은 **있을 수도 없을 수도 있다** |
+| Allowed state | `configured` × `ok` × `mapped` 세 불리언의 조합 |
+| Expected effect | `ok and mapped` 일 때만 버킷을 센다. 아니면 **버킷을 응답에 싣지 않는다** |
+| Success feedback | 숫자 타일. 판정 불가면 `-` (프런트가 `null` 을 그렇게 그린다) |
+| Failure behavior | 티켓이 죽어도 문서·게시판·알림 위젯은 그대로 나온다(§17.4 장애 격리) |
+| **Forbidden** | **판정 불가를 `0` 으로 그리는 것.** 「0건」과 「모른다」는 다른 말이다 |
+| Data/API 의존 | `GET /api/home/today`, `GET /api/me/stats`, `user_notion_mappings` |
+| Intent evidence | ② `docs/DASHBOARD_METRICS.md` §3(「소스 장애면 버킷 자체가 없다 → `-`」, 서두의 「안 쟀다를 0으로 그리면…」) · ③ 응답 스키마의 `mapped` 플래그 · ⑤ `Home.jsx:309` 가 이미 `null`→`-` 처리 · ⑥ `service.py:110`·`work.py:236` 주석이 불변식을 명시 |
+| Confidence | **Confirmed** — 문서·코드 주석·형제 구현·API 원문 네 가지가 일치한다 |
+| 현재 위반 | `PA-RC-0027` (호출부 2곳에 가드 없음) |
+
+## FC-11 · 최초 로그인 강제 비밀번호 변경
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | 신규 계정, 관리자가 비밀번호를 재설정한 계정 |
+| 목적 | 임시 비밀번호로 제품에 들어오지 못하게 막는 **관문** |
+| Entry point | 로그인 성공 직후 `/change-password` 로 강제 이동 |
+| Precondition | `users.must_change_password = true` |
+| Input/validation | 현재 비밀번호 + 새 비밀번호 + 확인. 정책은 최소 길이·문자 종류(서버가 정본) |
+| Expected transition | 성공 시 `must_change_password → false`, **다른 세션 전부 폐기 + 세션 회전**(spec §11.3) |
+| Success feedback | 원래 가려던 화면 또는 홈으로 이동 |
+| Failure behavior | 정책 위반은 필드별 안내. **쓰기 경합은 사용자에게 보이면 안 된다** — 서버가 재시도로 흡수한다 |
+| **Forbidden** | 통과하지 못한 계정이 제품 화면에 도달하는 것. 그리고 **경합을 raw 500 으로 흘리는 것** |
+| Data/API 의존 | `POST /change-password`, `users`, `sessions`, `audit_logs` |
+| Intent evidence | ② CLAUDE.md §3-10(공용 classifier/retry 규약 재사용 의무) · ③ spec §11.3 세션 규약 · ④ `app/core/db.py:183` 이 재시도 기본값을 「실측으로 검증된 유일한 값」이라며 승격하고 같은 파일 `login()` 이 그 기준 구현을 갖는다 |
+| Confidence | **Confirmed** |
+| 현재 위반 | `PA-RC-0032` (이 경로에만 공용 관용이 없다) |
+
+## FC-12 · 운영 상태 조회 대 진단 번들 수집
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | operator · admin · system_admin (`CONSOLE_OPS_ROLES`) |
+| 목적 | `/dashboard` = 「지금 조치할 것」(상시·자동 갱신) / `/diagnostics` = 「지원팀에 넘길 마스킹된 스냅샷」(요청 시 수집) |
+| Entry point | `/dashboard`, `/diagnostics` |
+| Expected effect | 번들은 그 시점 운영 상태를 **데이터로** 포함한다(`build_dashboard()` 내장은 의도) |
+| **Forbidden** | 번들의 `recent_critical_audit` 슬라이스를 `SENSITIVE_READ_ROLES` 밖에 노출하는 것(`PA-RC-0026` 이 만든 분기) · 번들 페이로드를 화면 정리를 이유로 줄이는 것 |
+| Data/API 의존 | `GET /api/admin/dashboard`, `GET /api/admin/diagnostics/bundle` |
+| Intent evidence | ① spec §14.7(마스킹된 진단, no secrets/raw journals) · ③ `include_critical_audit` 파라미터 · ⑥ `health/service.py:390` docstring |
+| Confidence | Strong — **화면이 번들을 어떻게 보여야 하는지에 대한 명시적 의도는 없다**(그 부분은 INFERRED) |
+| 현재 위반 | `PA-RC-0028` (화면이 번들을 그대로 펼쳐 그려 본문 68% 중복) |
+
+## FC-13 · 화면 위치 표시 (breadcrumb ↔ 사이드바)
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | 전 역할 |
+| 목적 | 사용자가 지금 어느 콘솔의 어느 그룹에 있는지 알려준다 |
+| Expected effect | breadcrumb 뿌리 = 현재 **콘솔**, 그다음 = 사이드바 **그룹**, 탭이 있으면 3단(`PA-RC-0017`) |
+| **Forbidden** | 일반 사용자에게 「관리자」라고 말하는 것. 사이드바가 말하는 위치와 화면이 말하는 위치가 다른 것 |
+| Intent evidence | ⑤ 사용자 콘솔 12화면 중 10화면이 이미 그렇게 한다 · ⑥ `Trash.jsx:173`·`Profile.jsx:449` 가 `crumbRoot` 를 **명시적으로** 넘기는 것은 기본값이 사용자 콘솔에서 틀리다는 것을 알고 있었다는 증거 |
+| Confidence | Strong — 기본값을 무엇으로 두어야 하는가는 문서에 없다(INFERRED) |
+| 현재 위반 | `PA-RC-0039` (`PageHeader` 기본값이 `"관리자"`), `PA-RC-0031` (그룹 분류 자체가 업무와 어긋남) |
+
+## FC-14 · 목록의 빈 상태 (결과 없음 대 데이터 없음)
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | 전 역할 |
+| 목적 | 목록이 비었을 때 **왜** 비었는지와 **무엇을 하면 되는지**를 말한다 |
+| Allowed state | (a) 필터·검색으로 0건 (b) 데이터 자체가 0건 — **둘은 다른 사실이다** |
+| Expected effect | (a) 「조건에 해당하는 ~가 없습니다」 + 필터를 지울 수단 / (b) 무엇이 여기 나타나는지 설명 |
+| **Forbidden** | 필터 때문에 비었는데 무조건형(「~가 없습니다」)으로 말하는 것. **기본 필터도 활성 필터로 센다** |
+| Intent evidence | ⑤ `/users` 가 (a)를 정확히 구현하고 `/approval-delegations` 가 (b)를 모범적으로 구현한다 · ⑥ `useQueryState` 가 기본값을 주소에 쓰지 않는 규약 |
+| Confidence | Strong |
+| 현재 위반 | `PA-RC-0038` (`/approvals` 가 (a) 상황에서 (b) 문장을 쓴다) |
+
+## FC-15 · 없는 레코드 요청에 대한 응답
+
+| 필드 | 값 |
+|---|---|
+| Actor / Role | 전 역할 |
+| 목적 | 주소가 가리키는 것이 없으면 그렇다고 말한다(딥링크가 성립하려면 필수) |
+| Entry point | 모든 `:id` 상세 라우트(사용자 6 · 관리자 3) |
+| Expected effect | 서버 404 → 화면이 공용 `ErrorState`(「찾을 수 없습니다」 + 설명 + 「홈으로」) |
+| **Forbidden** | 목록을 대신 그리고 침묵하는 것 · 확정된 404 를 재시도하며 사용자를 기다리게 하는 것 |
+| Intent evidence | ③ 서버가 이미 404 를 옳게 답한다(`{"error":{"code":"not_found"}}`) · ⑤ 사용자 콘솔 5종 + `RouteNotFound` 가 공용 표현을 쓴다 |
+| Confidence | Strong |
+| 현재 위반 | `PA-RC-0033` (관리자 3종 침묵), `PA-RC-0034` (4xx 재시도로 30초 지연) |
+
+## 이 Cycle이 **닫지 못한** UNKNOWN (정직하게)
+
+| 무엇 | 왜 못 닫았나 | 다음에 무엇을 보면 되나 |
+|---|---|---|
+| `/approvals` 목록의 **범위** | 원시 API 는 다른 사람이 결재자인 건을 돌려주는데 화면은 0건이었다. 「내가 결재자인 건만」인지 「전체」인지 확정하지 못했다 | `app/approvals/` 의 목록 질의와 `principal.scope` 적용 여부. `PA-RC-0038` `acceptance_criteria` (5)가 이것을 요구한다 |
+| `change_password` 500 이후 **부분 쓰기** 잔존 여부 | 실패 뒤 DB 상태를 직접 읽어 확인하지 않았다 | `users.password_hash`·`must_change_password`·`sessions` 를 실패 직후 조회. `PA-RC-0032` `acceptance_criteria` (5) |
+| 이전 Cycle의 `FC-06`(AI 사용 상한) | 이번 Cycle에서 이 축을 조사하지 않았다 — 근거 등급 ⑥ + 부분 ③, **Probable** 그대로 승계 | 쿼터 소비 시점·경계의 명시적 정책 문서 |
