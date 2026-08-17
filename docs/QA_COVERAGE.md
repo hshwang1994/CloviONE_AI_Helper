@@ -1301,3 +1301,18 @@ FAIL함을 확인(`DECISIONS.md` D-130).
 **아직 안 한 것**: `pa2_ia.py`(새 트리 덤프)·`pa2_crumb.py`(사용자 콘솔 12화면
 breadcrumb)·`pa2_rbac.py`(역할별 나브 노출 63조합, `PA-RC-0031`의 최대 위험)를 TEST
 SERVER에서 재실행하는 것은 `PA-RC-0030`과 함께 일괄 배치한다(`BACKLOG.md` PA3-04/10).
+
+### T13 구현+시험 완료 — `PA-RC-0034`(전역 retry 정책)
+
+`T13`("오류가 확정된 뒤 화면이 얼마나 빨리 말하는가")를 `lib/queryRetry.js` 신설(4xx는
+즉시 포기, 5xx·네트워크만 최대 2회 재시도)로 닫았다. 다른 항목과 달리 `visual_change_
+required`가 없는 RC라 순수 함수 단위 시험(`query-retry.test.js`, 5건) + 실제
+`QueryClient`와 react-query 재시도 엔진을 함께 도는 통합 시험(`query-retry-
+integration.test.jsx`, 3건 — 404/403 1회 호출, 500은 `retryDelay:0`로 빠르게 3회
+확인)으로 이 축을 **테스트만으로 충분히 증명했다**(브라우저 픽셀이 아니라 요청
+횟수·타이밍이 관심사라서). 전체 프런트 회귀 295파일/2043건 green.
+
+**아직 안 한 것**: acceptance (1)(2)의 최종 실측(`/board/<없는 id>`가 실제 백엔드
+왕복에서 정말 1회·3초 이내인지)은 TEST SERVER Network 탭 확인이 필요해 나머지 배치와
+함께 확인한다(`DECISIONS.md` D-131 — 이 항목만 "픽셀이 아니라 요청 횟수" 게이트라고
+구분해 뒀다).

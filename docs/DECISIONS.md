@@ -5452,3 +5452,57 @@ TEST SERVER에서 재실행하는 것은 나머지 PA3 항목과 함께 일괄 �
 PA3-04/05/10).
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0030`), `docs/WORK_STATE.md`.
+
+## D-131 (2026-08-17) — `PA-RC-0034` 구현: 전역 React Query `retry` — 4xx는 즉시 포기, 5xx·네트워크만 재시도
+
+`frontend/src/main.jsx`의 `QueryClient`가 `retry`를 생략해 라이브러리 기본값(3회
+재시도, 총 4회 호출)이 그대로 적용되고 있었다 — 확정적 404도 예외가 아니라 3번 더
+불렀다. `GET /api/board/posts/<없는 id>`가 실측 4회 호출됐고(서버는 즉시 옳게 404를
+줬다), 화면은 20~30초 동안 로딩 스피너와 구분되지 않는 상태로 남았다.
+
+### 구현 — 판정 함수를 `main.jsx` 밖으로 뺀 이유
+
+`main.jsx`는 최상위에서 `createRoot(document.getElementById("root")).render(...)`를
+직접 부르는 진입점이라, 이 파일에서 무엇을 import하든(named export를 하나만 가져와도)
+모듈 전체가 실행돼 테스트 환경(jsdom, `#root` 없음)에서 `createRoot(null)`이 죽는다 —
+그래서 판정 로직 자체(`shouldRetryQuery`)를 새 `frontend/src/lib/queryRetry.js`로
+분리했다. 순수 함수라 직접 단위 테스트할 수 있고, `main.jsx`는 그 결과를
+`defaultOptions.queries.retry`에 그대로 꽂기만 한다(한 줄).
+
+판정: `error.status`가 4xx(400~499)면 재시도하지 않는다. 그 외(5xx, 또는 `lib/api.js`가
+`status`를 안 붙이는 네트워크 오류, `fetch()` 자체가 실패한 경우)는 `failureCount<2`까지
+재시도한다(기존 라이브러리 기본값 3회에서 2회로 살짝 낮췄다 — 이 경로는 자주 겪는 자리가
+아니고, Handoff의 "재시도 횟수를 정할 때 이유를 남긴다"는 요구에 맞춰 여기 근거를
+남긴다). `api.js`가 이미 모든 오류 경로(401/일반 4xx/5xx/`invalid_response`)에서
+`err.status = r.status`를 붙이고 있음을 `api.js` 소스로 직접 확인했다(`api.test.js`의
+기존 테스트 "던지는 오류가 status/requestId를 실어 ErrorState가 구분할 수 있게 한다"가
+이미 이 계약을 고정하고 있었다 — required_tests (4)를 위한 새 테스트가 필요 없었다).
+
+개별 화면 20곳에 `retry`를 하나씩 추가하는 대신 전역 기본값만 고쳤다(Handoff가 명시적으로
+금지한 접근 — "61번째 예외를 만드는 것") — 이미 자기 `retry`를 명시한 60곳은 한 글자도
+안 건드렸다(react-query는 로컬 옵션이 항상 defaultOptions보다 우선한다).
+
+### 시험 — 순수 함수 + 실제 react-query 엔진 두 층
+
+`query-retry.test.js`(5건)가 `shouldRetryQuery` 자체를 고정한다(404/400/401/403/409/429
+전부 재시도 안 함, 500·네트워크 오류는 2회까지, error가 없어도 안 죽는다). 이것만으로는
+"실제 QueryClient에 꽂았을 때 react-query의 재시도 엔진이 정말 멈추는가"를 증명하지
+못해 `query-retry-integration.test.jsx`(3건)를 추가했다 — `main.jsx`와 똑같은 방식으로
+구성한 실제 `QueryClient` + 최소 `useQuery` 훅으로 404/403은 정확히 1회 호출, 500은
+`retryDelay:0`(지수 백오프로 실제 초 단위를 기다리는 타이밍 취약 테스트를 피한다)로
+빠르게 3회(최초+2회 재시도) 호출됨을 확인한다. `BoardPost.jsx:405-408`의 실제 쿼리에
+로컬 `retry`가 없음을 직접 읽어 확인했다 — 이 전역 기본값이 실제로 그 화면까지 닿는다.
+기존 `api.test.js`(11건)·`auth-401-invalidates-me.test.jsx`(2건) 회귀 확인(401 처리는
+`api.js`가 응답을 받는 즉시 동기로 처리하므로 react-query의 재시도 판정보다 먼저
+끝난다 — 재시도를 막아도 그 부작용 타이밍은 안 바뀐다, 오히려 중복 호출이 최대 4회에서
+1회로 줄어든다). 전체 프런트 회귀 295파일/2043건 green.
+
+### 이 RC는 `visual_change_required`가 없다 — 배치 검증의 성격이 다르다
+
+다른 PA3 항목과 달리 이 Handoff 블록엔 `visual_change_required`·`browser_verification`
+필드 자체가 없다(픽셀이 아니라 요청 횟수·응답 시간이 관심사라서다). 그래도 acceptance
+(1)(2)("`GET .../posts/<id>` 1회, 3초 이내 표시")의 최종 실측 확인은 실제 백엔드
+왕복이 필요해 TEST SERVER 배치에 함께 넣는다 — 다만 게이트가 "화면이 픽셀 단위로
+같은가"가 아니라 "Network 탭에서 그 요청이 1회인가"라는 점을 구분해 둔다.
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0034`), `docs/WORK_STATE.md`.

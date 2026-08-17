@@ -13,9 +13,10 @@ import "./styles/screens.css";
 import { App } from "./app/App.jsx";
 import { ConfirmProvider, ToastProvider } from "./ui/kit.jsx";
 import { ThemeModeProvider } from "./ui/ThemeModeProvider.jsx";
+import { shouldRetryQuery } from "./lib/queryRetry.js";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30 * 1000 } },
+  defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30 * 1000, retry: shouldRetryQuery } },
 });
 
 createRoot(document.getElementById("root")).render(
