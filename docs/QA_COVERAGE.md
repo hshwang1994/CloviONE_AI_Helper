@@ -1316,3 +1316,16 @@ integration.test.jsx`, 3건 — 404/403 1회 호출, 500은 `retryDelay:0`로 �
 왕복에서 정말 1회·3초 이내인지)은 TEST SERVER Network 탭 확인이 필요해 나머지 배치와
 함께 확인한다(`DECISIONS.md` D-131 — 이 항목만 "픽셀이 아니라 요청 횟수" 게이트라고
 구분해 뒀다).
+
+### 새 축 닫힘 — `PA-RC-0035`(선택 대상이 늘어날 때 폼이 어떻게 되는가)
+
+Handoff 자신의 `qa_gaps`가 명시한 "선택 대상이 늘어날 때 폼이 어떻게 되는가" 축(표에는
+`대량 데이터` 축이 있지만 폼에는 없었다)을 `/new-ticket` 담당자 선택 재설계로 닫았다.
+`new-ticket-assignee-picker.test.jsx`가 50명 후보로도 옵션 role이 평소엔 문서에
+없음을 확인해(`table-screens`의 대량 데이터 축과 같은 발상을 폼에 적용) "폼 길이가
+선택 대상 수와 무관하다"는 acceptance(1)의 구조적 증거로 삼는다 — 실제 픽셀 높이는
+jsdom이 계산하지 않으므로 TEST SERVER 재측정(현재 1,318px 기준)이 최종 확인이다.
+
+**아직 안 한 것**: `pa2_states.py` 폼 계측 재실행으로 helper text 사용·placeholder
+길이·폼 세로 높이를 실측 확인하는 것은 나머지 PA3 항목과 함께 일괄 배치한다
+(`BACKLOG.md` PA3-12).

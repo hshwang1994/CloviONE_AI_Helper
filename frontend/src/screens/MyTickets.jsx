@@ -1,9 +1,9 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -30,7 +30,7 @@ import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.
 import { rowNameOf } from "../ui/rowName.js";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
-import { affiliation, needsOrg } from "../lib/people.js";
+import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -389,52 +389,67 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
 /* 편집 모달용 후보/옵션은 모달이 열릴 때만 불러온다(enabled:open) — 목록 화면 초기 로드를
  * 늘리지 않는다. 질의 자체는 `ticket-options.js` 가 갖는다(공용 필터 줄이 같은 목록을 쓴다).
  *
- * 담당자 선택 목록 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
- * 손으로 복사해 두어 한쪽만 고치면 조용히 어긋났다). 목록이 길어질 수 있어 높이를 제한하고 스크롤한다. */
-function AssigneePicker({ loading, candidates, selected, onToggle, myId, maxHeight = "12rem" }) {
+ * 담당자 선택 — 편집 모달과 새 티켓 폼이 같은 마크업을 쓴다(예전엔 .k-check-list를 두 곳에
+ * 손으로 복사해 두어 한쪽만 고치면 조용히 어긋났다).
+ *
+ * PA-RC-0035: 예전엔 평면 체크박스 그리드였다 — 후보 수만큼 화면이 그대로 길어져(14명
+ * 기준 새 티켓 폼 세로의 상당 부분) 조직이 크면 스크롤 없이는 제출 버튼에 닿지 못했다.
+ * 자동완성 입력 + 선택 칩(MUI Autocomplete, 이 저장소에서 첫 사용이지만 이미 설치된
+ * @mui/material 안이라 새 의존성은 아니다 — multiple 모드가 다중 선택·칩·키보드 조작·
+ * ARIA combobox 시맨틱을 전부 내장해서 준다)으로 바꾸면 후보가 14명이든 50명이든 입력
+ * 한 줄 높이는 그대로다. 오프보딩(TargetPicker)·조직 관리(OrgTree)의 기존 사람 선택
+ * 화면은 "고른 뒤 그 사람으로 이동/전환"하는 **단일 선택** 패턴이라 여기(다중 배정,
+ * 폼 안에 머무름)에 그대로 재사용할 모양이 아니었다 — 그래도 새 컴포넌트를 만들지는
+ * 않았다, MUI가 이미 이 상호작용을 위해 제공하는 컴포넌트를 쓴다. */
+function AssigneePicker({ loading, candidates, selected, onChange, myId }) {
   // 조직은 둘 이상 섞여 있을 때만 그린다 — 하나뿐이면 모든 줄에 같은 값이 붙어 구분에
   // 도움이 안 되면서 줄만 길어진다.
   const withOrg = needsOrg(candidates);
   if (loading) return <Typography variant="body2" color="text.secondary">불러오는 중…</Typography>;
   if (!candidates.length) return <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion에 연결된 사용자 없음).</Typography>;
+  const byId = new Map(candidates.map((c) => [c.user_id, c]));
+  // selected는 id 배열이다(서버로 보내는 값 그대로, PA-RC-0035 이전과 같은 계약) —
+  // Autocomplete는 옵션 객체로 값을 다루므로 여기서만 id -> 후보 객체로 바꾼다. 서버가
+  // 이미 지워졌거나 배정 범위 밖으로 나간 id는 후보 목록에 없을 수 있다 — 조용히 건너뛴다
+  // (모달의 도움말 문구 "앱에 연결되지 않은 기존 담당자는 그대로 유지됩니다"와 같은 값,
+  // 화면에 안 보여도 selected 배열 자체에서는 지우지 않는다 — 다음 저장까지는 유지된다).
+  const value = selected.map((id) => byId.get(id)).filter(Boolean);
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        /* 12rem 은 **모달** 안에서만 맞는 값이다(다이얼로그 자체가 스크롤을 갖는다).
-           전체 페이지인 새 티켓 화면에 같은 값을 쓰면 담당자 목록만 12rem 에서 잘려,
-           팀이 조금만 커도 "화면 일부가 잘려 보인다"가 된다 — 사용자가 §7에서 지적한 것. */
-        p: 1, maxHeight, overflow: maxHeight === "none" ? "visible" : "auto",
-        display: "grid",
-        // 후보가 많은 팀에서 한 줄에 하나씩만 쌓으면 스크롤이 길어진다 — 넓은 화면에서는 여러 열로.
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" },
-      }}
-    >
-      {candidates.map((c) => {
+    <Autocomplete
+      multiple
+      size="small"
+      options={candidates}
+      value={value}
+      onChange={(e, next) => onChange(next.map((c) => c.user_id))}
+      getOptionLabel={(c) => personLabel(c, { withOrg })}
+      isOptionEqualToValue={(a, b) => a.user_id === b.user_id}
+      noOptionsText="일치하는 사람이 없습니다"
+      renderOption={(props, c) => {
+        const { key, ...rest } = props;
         const aff = affiliation(c, { withOrg });
         return (
-          <FormControlLabel
-            key={c.user_id}
-            sx={{ m: 0 }}
-            control={<Checkbox size="small" checked={selected.includes(c.user_id)} onChange={() => onToggle(c.user_id)} />}
-            label={
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="body2" sx={{ lineHeight: 1.3 }}>
-                  {c.display_name}{myId && c.user_id === myId ? " (나)" : ""}
-                </Typography>
-                {/* 소속은 보조줄로 — 동명이인이 있을 때 이게 유일한 구분 수단이다.
-                    소속 정보가 없는 사용자는 줄을 만들지 않는다(빈 줄이 생기면 목록이 들쭉날쭉). */}
-                {aff ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
-                    {aff}
-                  </Typography>
-                ) : null}
-              </Box>
-            }
-          />
+          <Box component="li" key={key ?? c.user_id} {...rest} sx={{ display: "block !important" }}>
+            <Typography variant="body2" sx={{ lineHeight: 1.3 }}>
+              {c.display_name}{myId && c.user_id === myId ? " (나)" : ""}
+            </Typography>
+            {/* 소속은 보조줄로 — 동명이인이 있을 때 이게 유일한 구분 수단이다. 소속 정보가
+                없는 사용자는 줄을 만들지 않는다(빈 줄이 생기면 옵션 목록이 들쭉날쭉). */}
+            {aff ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
+                {aff}
+              </Typography>
+            ) : null}
+          </Box>
         );
+      }}
+      renderTags={(tagValue, getTagProps) => tagValue.map((c, i) => {
+        const { key, ...rest } = getTagProps({ index: i });
+        return <Chip key={key ?? c.user_id} {...rest} size="small" label={c.display_name} />;
       })}
-    </Paper>
+      renderInput={(params) => (
+        <TextField {...params} label="담당자 검색" placeholder="예: 김하나" />
+      )}
+    />
   );
 }
 
@@ -485,10 +500,6 @@ export function TicketEditModal({ ticket, open, onClose }) {
   const meta = metaQ.data || {};
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
-  const toggleAssignee = (uid) => setForm((s) => ({
-    ...s,
-    assignees: s.assignees.includes(uid) ? s.assignees.filter((x) => x !== uid) : [...s.assignees, uid],
-  }));
 
   function buildChanges() {
     const c = {};
@@ -546,7 +557,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
           inputProps={{ maxLength: 200 }} />
         <Box sx={{ mb: 2.5 }}>
           <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
-          <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} />
+          <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} />
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
             선택한 사람으로 담당자를 설정합니다. 앱에 연결되지 않은 기존 담당자는 그대로 유지됩니다.
           </Typography>
@@ -998,7 +1009,6 @@ export function NewTicket() {
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
-  const toggleAssignee = (uid) => setForm((s) => ({ ...s, assignees: s.assignees.includes(uid) ? s.assignees.filter((x) => x !== uid) : [...s.assignees, uid] }));
   const notConfigured = (projectsQ.data && projectsQ.data.configured === false) || (metaQ.data && metaQ.data.configured === false);
 
   function submit() {
@@ -1067,7 +1077,7 @@ export function NewTicket() {
             </Box>
             <Box sx={{ mb: 2.5 }}>
               <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
-              <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onToggle={toggleAssignee} myId={myId} maxHeight="none" />
+              <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} myId={myId} />
             </Box>
             {/* 폭: 예전에는 이 블록만 maxWidth:"60rem" 을 손으로 박아 뒀다 — 바로 위 필드
                 격자와 폼 자체(72rem)는 컨테이너를 따라가는데 설명 블록만 그보다 좁은 상한에
@@ -1079,13 +1089,21 @@ export function NewTicket() {
             <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
               <Box sx={editorSurfaceWidthSx("nt-desc-surface")}>
                 <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>설명</Typography>
+                {/* PA-RC-0035: placeholder는 예시 한 줄만(제목 필드와 같은 규칙) — 서식
+                    도구·미리보기 안내처럼 입력하는 동안에도 필요한 안내는 placeholder가
+                    아니라 지속적으로 남는 캡션으로 옮긴다(BodyEditor는 MUI TextField가
+                    아니라 FormHelperText를 그대로 못 쓴다 — 바로 아래 '선택한 사람으로…'
+                    캡션과 같은 자리·같은 스타일로 손수 둔다). */}
                 <BodyEditor
                   id="nt-desc"
                   value={form.description}
                   onChange={(v) => set("description", v)}
                   rows={12}
-                  placeholder="배경, 요구사항을 적어주세요(선택). 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다."
+                  placeholder="예: 재현 절차와 기대 결과"
                 />
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                  선택 항목입니다. 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다.
+                </Typography>
               </Box>
             </Box>
             {/* 우하단 마스코트 FAB(고정, 70px, right/bottom 24)이 이 버튼을 덮는다.

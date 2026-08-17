@@ -5506,3 +5506,78 @@ PA3-04/05/10).
 같은가"가 아니라 "Network 탭에서 그 요청이 1회인가"라는 점을 구분해 둔다.
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0034`), `docs/WORK_STATE.md`.
+
+## D-132 (2026-08-17) — `PA-RC-0035` 구현: `/new-ticket` 담당자를 체크박스 그리드에서 MUI Autocomplete(검색+칩)로, 설명 placeholder를 예시로만
+
+`/new-ticket`의 담당자 선택이 후보 수만큼 자라는 평면 체크박스 그리드였다(14명 기준
+새 티켓 폼 세로의 상당 부분) — 검색·필터·그룹이 없어 조직이 커지면 폼이 그만큼
+길어진다. 같은 폼의 `설명` 필드는 `MuiFormHelperText`를 한 번도 안 쓰고 서식 도구·
+미리보기 안내를 전부 placeholder에 담아, 입력을 시작하는 순간 안내가 사라졌다.
+
+### `AssigneePicker` 재설계 — 새 컴포넌트가 아니라 이미 설치된 MUI 컴포넌트
+
+`frontend/src/screens/MyTickets.jsx`의 `AssigneePicker`는 `TicketEditModal`(수정
+모달)과 `NewTicket`(새 티켓 폼)이 공유하는 컴포넌트였다(주석: "편집 모달과 새 티켓
+폼이 같은 마크업을 쓴다"). 체크박스 그리드를 `<Autocomplete multiple>`(칩 렌더링·
+다중 선택·키보드 조작·ARIA combobox 시맨틱을 전부 내장)로 바꿨다 — 이 저장소에서
+`@mui/material/Autocomplete`의 첫 사용이지만 이미 설치된 `@mui/material` 패키지
+안이라 새 의존성은 아니다. 오프보딩의 `TargetPicker`·조직 관리의 `OrgTree`를 먼저
+확인했지만 둘 다 "고른 뒤 그 사람으로 이동/전환"하는 **단일 선택** 패턴이라(Handoff가
+예로 든 재사용 후보였지만) 여기(다중 배정, 폼 안에 머무름)에 그대로 옮겨 쓸 모양이
+아니었다 — 새 컴포넌트를 만드는 대신 MUI가 이미 이 상호작용을 위해 제공하는
+컴포넌트를 썼다(Handoff의 "새 선택 컴포넌트는 마지막 수단" 제약을 라이브러리
+수준에서 지킨다).
+
+컴포넌트 계약을 `onToggle(uid)`(한 명씩 토글)에서 `onChange(ids)`(선택 배열 전체)로
+바꿨다 — Autocomplete의 `onChange`가 새 선택 배열을 통째로 주는 것과 자연스럽게
+맞고, 두 호출부(`TicketEditModal`·`NewTicket`)의 `toggleAssignee` 로컬 함수를 각각
+`(ids) => set("assignees", ids)`로 단순화했다(더 짧아졌다 — 토글 로직 자체가
+필요 없어진다). `lib/people.js`의 기존 `personLabel`/`affiliation`/`needsOrg`(동명이인
+구분 규칙, 조직이 둘 이상일 때만 조직명 표시)를 그대로 재사용해 옵션 렌더링·검색
+라벨을 그렸다 — 이 규칙을 새로 쓰지 않는다.
+
+**두 호출부 모두 영향받는다.** `TicketEditModal`(수정 모달)의 체크박스 12rem 스크롤
+그리드도 함께 Autocomplete가 됐다 — Handoff의 범위는 `/new-ticket`뿐이었지만, 공유
+컴포넌트를 하나만 바꿔 두 갈래로 남기면(모달은 체크박스, 새 티켓은 자동완성) "같은
+개념을 두 가지 컴포넌트로 표현"하는 새로운 불일치를 만든다. 모달의 기존 12rem
+캡+스크롤은 애초에 이 RC가 지적한 "폭이 인원 수만큼 늘어난다"는 문제를 안 겪고
+있었지만(이미 높이 제한+스크롤이었다), Autocomplete로 바꿔도 모달 안에서 더 나빠질
+이유가 없어(오히려 더 컴팩트해진다) 함께 적용했다.
+
+### 설명 필드 — placeholder는 예시, 서식 안내는 캡션으로
+
+`BodyEditor`는 MUI `TextField`가 아니라 `FormHelperText`를 그대로 못 붙인다 —
+편집 모달의 담당자 아래 이미 있던 "선택한 사람으로 담당자를 설정합니다…" 캡션과
+같은 자리·같은 스타일(`Typography variant="caption"`)로 손수 추가했다. placeholder는
+"배경, 요구사항을 적어주세요(선택). 위 도구로…"(한 문장 이상)에서 "예: 재현 절차와
+기대 결과"(제목 필드와 같은 규칙)로 줄이고, 서식 도구·미리보기 안내는 캡션으로 옮겨
+입력 중에도 남는다.
+
+### 시험 — revert-to-verify로 9건 전부 구코드에서 실패 확인
+
+`new-ticket-assignee-picker.test.jsx`(9건, `NewTicket`을 통해 시험 — `AssigneePicker`
+자신은 export되지 않은 로컬 컴포넌트라 부모 화면을 통해서만 닿을 수 있다): 후보
+50명이어도 평소엔 옵션 role이 문서에 없다(폼 길이 불변의 구조적 증거, jsdom은 실제
+픽셀을 안 재므로 "항상 렌더되는 행 수"로 대신 증명한다) · '나' 자동 선택 보존 ·
+검색 필터링 · 다중 선택+칩 · 칩 삭제 · 키보드만으로 검색·선택(ArrowDown+Enter)·
+해제(빈 입력에서 Backspace) · 선택 id 배열이 `assignee_user_ids`로 그대로 전송(Notion
+연동 계약) · 설명 placeholder/캡션 분리 2건. revert-to-verify로 `MyTickets.jsx`만
+되돌리면 9건 전부 FAIL함을 확인했다(체크박스 그리드에는애초 이 role/상호작용이 없다).
+
+디버깅 메모: 이 9건 중 하나가 처음엔 계속 타임아웃으로 실패해 컴포넌트 로직을 한참
+의심했다 — 원인은 제품 코드가 아니라 시험 자체의 오프바이원(`Array.from({length:49},
+(_,i)=>...)`에서 "사람02"는 `i=2`라 `user_id`가 `u-1`이 아니라 `u-2`인데 단언은
+`u-1`을 기대하고 있었다). `waitFor`가 매 재시도 실패를 삼키고 타임아웃 시점의 마지막
+상태만 보여줘 이 실수를 처음엔 "제출이 아예 안 된다"로 오독하게 만들었다 — 최소
+재현(격리된 디버그 시험, 서로 다른 후보 규모로 단계적으로 좁힘)으로 POST 요청 자체는
+정상이고 본문의 `assignee_user_ids` 값만 시험 기대값과 다르다는 것을 확인한 뒤에야
+잡았다.
+
+기존 화면 회귀 없음: `ticket-edit-invalidation.test.jsx`·`ticket-detail.test.jsx`·
+`ticket-attachments.test.jsx`·`ticket-filters.test.jsx`·`tickets-list.test.jsx`·
+`new-ticket-layout.test.jsx`·`new-ticket-desc-width.test.jsx`·`new-ticket-writing-
+aid-contrast.test.jsx`(8파일 72건, `AssigneePicker`를 직접 조작하는 시험이 없어
+전부 무손상으로 통과 — 담당자 API를 빈 배열/단일 값으로만 모의해 렌더 여부만 봤다).
+전체 프런트 회귀 296파일/2052건 green.
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0035`), `docs/WORK_STATE.md`.
