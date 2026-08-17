@@ -341,7 +341,7 @@ export const AUTHORING_SCREENS = {
     },
   },
   "prompt-usage": {
-    key: "prompt-usage", area: "연동", title: "프롬프트 사용 통계",
+    key: "prompt-usage", area: "감사", title: "프롬프트 사용 통계",
     endpoint: "/api/admin/prompts/usage/stats",
     help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 템플릿, 스케줄이 없고 문서 생성에도 쓰인 적이 없다는 뜻입니다. 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
     emptyTitle: "추가된 프롬프트가 없습니다",
