@@ -1,6 +1,6 @@
 # PRODUCT AUDIT — SURFACE INVENTORY
 
-> cycle_id=PA-20260816-120655-f103fb5b · baseline=70e264bf13110e7e61cdf96331bd92de48f2163d
+> cycle_id=PA-20260817-072224-24b91505 · baseline=2aacd2a2ab4a50e92d3dee8f3aba3a248e175e83
 >
 > 이 문서는 `var/product-audit/gen_inventory.py`가 저장소를 실제로 훑어 생성한다.
 > 숫자는 생성 시점의 실측이다 — 손으로 고치지 않는다.
@@ -9,23 +9,23 @@
 
 | 항목 | 수 | 근거 |
 |---|---|---|
-| API 엔드포인트 데코레이터 | 312 | `app/**/*.py`의 `@router.<method>(...)` |
+| API 엔드포인트 데코레이터 | 316 | `app/**/*.py`의 `@router.<method>(...)` |
 | API 모듈 | 42 | 위와 같음 |
 | DB 테이블(`__tablename__`) | 69 | `app/**/*.py` |
-| Alembic revision | 57 | `alembic/versions/*.py` |
-| 프런트 화면 모듈(비테스트) | 115 | `frontend/src/screens/**` |
-| 사용자 콘솔 라우트 | 26 | `frontend/src/app/UserRoutes.jsx` |
-| 관리자 콘솔 명시 라우트 | 18 | `frontend/src/app/AdminRoutes.jsx` |
-| 관리자 REGISTRY 화면 키 | 27 | `frontend/src/screens/registry/*.js` |
+| Alembic revision | 59 | `alembic/versions/*.py` |
+| 프런트 화면 모듈(비테스트) | 118 | `frontend/src/screens/**` |
+| 사용자 콘솔 라우트 | 27 | `frontend/src/app/UserRoutes.jsx` |
+| 관리자 콘솔 명시 라우트 | 20 | `frontend/src/app/AdminRoutes.jsx` |
+| 관리자 REGISTRY 화면 키 | 28 | `frontend/src/screens/registry/*.js` |
 
 ## 1. HTTP 메서드 분포
 
 | Method | 수 |
 |---|---|
-| POST | 146 |
-| GET | 128 |
-| PATCH | 16 |
-| DELETE | 16 |
+| POST | 147 |
+| GET | 129 |
+| PATCH | 17 |
+| DELETE | 17 |
 | PUT | 6 |
 
 ## 2. 모듈별 엔드포인트
@@ -40,10 +40,10 @@
 | `app/profiles` | 16 |
 | `app/users` | 16 |
 | `app/team_docs` | 15 |
+| `app/chat` | 12 |
 | `app/schedules` | 12 |
 | `app/runners` | 11 |
 | `app/auth` | 9 |
-| `app/chat` | 9 |
 | `app/integrations` | 9 |
 | `app/prompts` | 9 |
 | `app/workflows` | 9 |
@@ -60,11 +60,11 @@
 | `app/trash` | 5 |
 | `app/admin` | 4 |
 | `app/assistant` | 4 |
+| `app/audit` | 4 |
 | `app/documents` | 4 |
 | `app/health` | 4 |
 | `app/impersonation` | 4 |
 | `app/notion_console` | 4 |
-| `app/audit` | 3 |
 | `app/llm_console` | 3 |
 | `app/home` | 2 |
 | `app/mail` | 2 |
@@ -193,41 +193,41 @@
 
 | 줄 | 파일 | MUI import | kit import |
 |---|---|---|---|
-| 1146 | `frontend/src/ui/kit.jsx` | 30 | 0 |
-| 1049 | `frontend/src/screens/MyTickets.jsx` | 19 | 1 |
-| 981 | `frontend/src/screens/Users.jsx` | 10 | 1 |
-| 826 | `frontend/src/screens/DataScreen.jsx` | 5 | 1 |
-| 774 | `frontend/src/screens/Dashboard.jsx` | 4 | 2 |
-| 693 | `frontend/src/app/AppShell.jsx` | 21 | 1 |
-| 607 | `frontend/src/app/NotificationBell.jsx` | 8 | 1 |
-| 597 | `frontend/src/screens/TeamDocs.jsx` | 7 | 1 |
-| 591 | `frontend/src/screens/Board.jsx` | 5 | 1 |
-| 589 | `frontend/src/screens/BoardPost.jsx` | 7 | 1 |
-| 550 | `frontend/src/screens/ChatPane.jsx` | 12 | 1 |
-| 531 | `frontend/src/screens/useChat.js` | 0 | 1 |
-| 523 | `frontend/src/screens/Offboarding.jsx` | 8 | 1 |
-| 520 | `frontend/src/ui/theme.js` | 1 | 0 |
-| 509 | `frontend/src/screens/registry/governance.js` | 1 | 0 |
-| 502 | `frontend/src/screens/Sprint.jsx` | 4 | 1 |
-| 486 | `frontend/src/screens/Profile.jsx` | 7 | 1 |
-| 479 | `frontend/src/screens/chat-helpers.js` | 0 | 0 |
-| 458 | `frontend/src/screens/SchedulerCalendar.jsx` | 8 | 1 |
-| 451 | `frontend/src/screens/Project.jsx` | 5 | 1 |
-| 445 | `frontend/src/screens/registry/automation.js` | 0 | 0 |
+| 1256 | `frontend/src/ui/kit.jsx` | 32 | 0 |
+| 1118 | `frontend/src/screens/MyTickets.jsx` | 20 | 1 |
+| 1072 | `frontend/src/screens/Users.jsx` | 10 | 1 |
+| 950 | `frontend/src/screens/DataScreen.jsx` | 5 | 1 |
+| 817 | `frontend/src/app/AppShell.jsx` | 23 | 1 |
+| 755 | `frontend/src/screens/Dashboard.jsx` | 4 | 2 |
+| 630 | `frontend/src/screens/useChat.js` | 0 | 1 |
+| 627 | `frontend/src/screens/BoardPost.jsx` | 7 | 1 |
+| 617 | `frontend/src/screens/Board.jsx` | 5 | 1 |
+| 608 | `frontend/src/app/NotificationBell.jsx` | 8 | 1 |
+| 604 | `frontend/src/screens/TeamDocs.jsx` | 7 | 1 |
+| 593 | `frontend/src/ui/theme.js` | 1 | 0 |
+| 564 | `frontend/src/screens/Offboarding.jsx` | 8 | 1 |
+| 556 | `frontend/src/screens/ChatPane.jsx` | 12 | 1 |
+| 543 | `frontend/src/screens/registry/governance.js` | 1 | 0 |
+| 508 | `frontend/src/screens/Sprint.jsx` | 4 | 1 |
+| 507 | `frontend/src/screens/chat-helpers.js` | 0 | 0 |
+| 500 | `frontend/src/screens/Project.jsx` | 7 | 1 |
+| 493 | `frontend/src/screens/Profile.jsx` | 8 | 1 |
+| 485 | `frontend/src/screens/registry/automation.js` | 1 | 0 |
+| 477 | `frontend/src/screens/SchedulerCalendar.jsx` | 8 | 1 |
 | 443 | `frontend/src/screens/Games.jsx` | 9 | 1 |
-| 419 | `frontend/src/screens/Home.jsx` | 6 | 1 |
-| 413 | `frontend/src/screens/NotionConsole.jsx` | 3 | 1 |
-| 393 | `frontend/src/screens/registry/authoring.js` | 0 | 0 |
+| 422 | `frontend/src/screens/Chat.jsx` | 15 | 1 |
+| 416 | `frontend/src/screens/NotionConsole.jsx` | 3 | 1 |
+| 413 | `frontend/src/screens/registry/authoring.js` | 1 | 0 |
 
 ## 5. 디자인 시스템 채택 실측
 
-- 화면 모듈 115개 중 `@mui/*` 를 직접 들여오는 것 81개
-- `ui/kit.jsx` / `ui/adminKit.jsx` 를 들여오는 것 70개
-- 둘 다 69개, 둘 다 아닌 것 33개
+- 화면 모듈 118개 중 `@mui/*` 를 직접 들여오는 것 85개
+- `ui/kit.jsx` / `ui/adminKit.jsx` 를 들여오는 것 72개
+- 둘 다 70개, 둘 다 아닌 것 31개
 - **둘 다 아닌 모듈은 전부 helper/config 모듈이고 시각 표면이 없다** — 즉 렌더되는 화면 중
   MUI 체계 밖에 남은 것은 0개다(2026-08-12 실측). `ui/kit.jsx`는 자체 구현이 아니라
   MUI 위의 얇은 래퍼다(`@mui` import 31개, export 26개).
-- 비테스트 소스 전체의 인라인 `style={{...}}` 은 2건, `className=` 은 146건.
+- 비테스트 소스 전체의 인라인 `style={{...}}` 은 2건, `className=` 은 159건.
 
 ## 6. 정적 위생 스캔 결과 (CLAUDE.md §3 불변 규칙)
 
