@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
-import { PageHeader, Card, Badge, Button, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
+import { PageHeader, Card, Badge, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";

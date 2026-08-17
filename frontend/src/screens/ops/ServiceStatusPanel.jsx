@@ -81,7 +81,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
               const badgeKind = comps[k] === "unknown" ? "warn" : undefined;
               // 바로 아래 '외부 연동' 카드는 클릭 가능한데 이 서비스 카드만 정적이라, 시각적으로
               // 똑같은 두 그리드가 나란히 있어 죽은 카드를 눌러 보게 유도했다, 워커/스케줄러는
-              // Dashboard.jsx svcNav처럼 작업 큐(/jobs)로 드릴다운시킨다(웹은 드릴다운할 곳이 없어 정적 유지).
+              // Dashboard.jsx compNav처럼 작업 큐(/jobs)로 드릴다운시킨다(웹은 드릴다운할 곳이 없어 정적 유지).
               const dest = (k === "worker" || k === "scheduler" || k === "worker_conversational") ? "/jobs" : null;
               // 상단 healthVerdict() 배너, Dashboard.jsx 서비스 카드는 이 상태를 '응답 없음'이라
               // 부른다, kit.jsx STATUS_TEXT는 'unknown'을 '알 수 없음'으로 옮겨, 같은 상태를
