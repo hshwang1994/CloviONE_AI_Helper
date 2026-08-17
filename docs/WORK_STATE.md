@@ -7915,3 +7915,54 @@ SERVER 통합 배포, (c) Chrome Whole-product E2E(특히 `visual_change_require
 추가돼 총 10건), (d) `pa2_dup.py`/`pa2_cols.py`/`pa2_resp_dark.py`/`pa2_verify_no.py`/
 `pa2_rbac.py`/`pa2_badid.py` 재실행 실측을 한 번에 배치한다. 그 전까지는
 `var/product-audit/IMPLEMENTATION_REQUIRED`를 제거하지 않는다.
+
+### 체크포인트 — 2026-08-17(invocation 11): `PA-RC-0038` 구현 완료 — **13건 Root Cause 전부 코드 수준에서 닫힘**, 다음은 일괄 배치(빌드→배포→Chrome E2E→실측)
+
+`DataScreen.jsx`(REGISTRY 27화면 공유 셸)의 `hasFilter` 계산이 config 기본
+필터값을 "능동적 필터가 아니다"라며 일부러 빼고 있었다 — `useQueryState`가
+기본값을 주소에 안 쓰므로 그 제외 로직 때문에 기본 필터가 실제로 결과를 0으로
+좁혀도(`/approvals`의 `status=pending`) 화면은 무조건형 온보딩 문구만 내고
+필터를 지울 수단이 없었다. 제외 로직을 지워 기본값도 hasFilter로 세게 하는
+한 줄짜리 수정으로 REGISTRY 전체(기본 필터를 가진 화면 4개: `approvals`·
+`prompts`·`policies`·`audit-anomalies`)에 자동 적용했다 — 새 config 필드도
+새 문구도 만들지 않았고, 기존 "검색 결과 없음 ↔ 온보딩" 두 빈 상태가 필터
+상태에 따라 스스로 갈라져 답하게 했다(자세한 설계 근거는 D-134).
+acceptance (5)("승인 목록이 결재자 배정 기준인가")도 조사해 `Approval.approver_id`가
+결정 시점에만 채워지는 기록 필드일 뿐 배정 개념이 아님을 백엔드 코드 추적 +
+신규 시험 1건으로 확정했다. 신규 프런트 시험 10건(합성 config 5 + 실제
+`REGISTRY.approvals` 3 + enumeration 2) 전부 revert-to-verify로 데이터 의존
+4건이 구코드에서 FAIL함을 확인, 전체 프런트 회귀 300파일/2064건 green.
+검증 과정에서 이 RC와 무관한 `static_checks.sh` 실패 2건(가운뎃점 금지 위반,
+UX 동사표 오탐)도 함께 잡아 고쳤다(D-133).
+
+**이로써 `PA-RC-0027`~`0039` 13건 전부 구현+시험 완료**(코드 수준). 남은 것은
+더 이상 "다음 RC 하나"가 아니라 **일괄 배치 단계**다:
+1. 프런트 번들 재빌드(`cd frontend && npm run build`, `scripts/build-bundle.sh`),
+   `static_checks.sh`의 "Committed frontend bundle matches the sources" 게이트가
+   지금 실패 중인 이유가 이것이다(의도된 상태 — CLAUDE.md §9 "작은 변경마다
+   배포하지 않는다").
+2. 백엔드 full pytest는 이번 invocation에서 background로 시작해 결과 대기 중
+   (PA-RC-0028/0038 둘 다 백엔드 프로덕션 코드는 무수정, 새 시험만 추가라 실패
+   위험은 낮게 본다 — 그래도 신선한 증거로 확인한다).
+3. 승인된 TEST SERVER(`10.100.64.X` 대역, 현재 배포본 확인 먼저)에 통합 배포.
+4. Chrome Whole-product E2E — `visual_change_required:true` 10건(`0027`·`0028`·
+   `0029`·`0030`·`0031`·`0033`·`0035`·`0036`·`0037`·`0039`) 전부 실브라우저로
+   확인. 나머지 3건(`0032`·`0034`·`0038`)은 시각 변화가 아니라 동작/타이밍/문구
+   계약이라 별도 축(네트워크 재시도 횟수, 필터 지우기 상호작용 등)으로 확인한다.
+5. 실측 스크립트 재실행: `pa2_dup.py`(0028 수용기준 1) · `pa2_cols.py`+
+   `pa2_resp_dark.py`+`pa2_verify_no.py`(0029/0037/0036/0008 계열) · `pa2_rbac.py`
+   (0030/0031 회귀 없음) · `pa2_badid.py`(0033) · `pa2_ia.py`(0031 트리 재덤프).
+6. 실측에서 실결함이 나오면 `collect → Root Cause grouping → bulk fix → focused
+   test → 필요한 Full Regression → integrated redeploy → Chrome re-E2E` 순서로
+   처리(CLAUDE.md §10) — 한 건 나온다고 처음부터 다시 시작하지 않는다.
+7. 전부 끝나면 `var/product-audit/IMPLEMENTATION_CONSUMED`에 `cycle_id`
+   (`PA-20260817-072224-24b91505`)·`consumed_at`·최종 구현 commit SHA·검증
+   요약·`visual_change_rcs`(10)/`visually_verified_rcs`(그 시점 실측 완료 수,
+   반드시 10과 일치해야 한다)를 남기고 `IMPLEMENTATION_REQUIRED`를 제거한다.
+8. 그 뒤에야 CLAUDE.md §13 전체 체크리스트로 새 `PROJECT_COMPLETE` 재평가를
+   시작한다 — `SEC-20`(git stash 자격증명 회전) 하나는 여전히 사람 전용 외부
+   행위로 남아 있을 것이다(§0 예외 조항, 이전 checkpoint들이 이미 상세히 기록).
+
+**다음 invocation이 즉시 할 일**: 백엔드 full pytest 결과 확인 → 실패가 있으면
+Root Cause 묶어 수정 → 없으면 곧장 1(번들 빌드)부터 순서대로 진행. 중간에
+멈추지 않는다.

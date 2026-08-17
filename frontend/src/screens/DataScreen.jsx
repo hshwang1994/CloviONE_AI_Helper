@@ -579,16 +579,20 @@ export function DataScreen({ config }) {
   }, [totalPages]);
 
   // 서버 필터가 하나라도 걸려 있으면 '검색/필터 결과 없음'으로 안내(빈 화면과 구분).
-  // 단, config에서 준 기본값(f.value — 예: 정책 status='published', 승인 status='pending')은
-  // '사용자가 능동적으로 건 필터'가 아니다 — 그 값과 같은 필터는 hasFilter로 치지 않는다.
-  // 그렇지 않으면 신규 설치(0건)에서도 항상 '검색 결과가 없습니다'만 떠서, 정성껏 만든 온보딩
-  // 빈 상태(config.emptyTitle/steps)가 사실상 죽은 코드가 됐다.
-  const defaultFilterVals = {};
-  (config.filters || []).forEach((f) => { if (f.value != null && f.value !== "") defaultFilterVals[f.key] = f.value; });
+  // PA-RC-0038 이전에는 config가 준 기본값(f.value — 예: 정책 status='published', 승인
+  // status='pending')을 '사용자가 능동적으로 건 필터'가 아니라며 hasFilter에서 뺐다 —
+  // 그런데 useQueryState는 기본값을 주소에 안 쓰므로(D-024) 주소만 보면 그 필터가
+  // 없는 것처럼 보인다. 승인 화면처럼 기본값이 실제로 결과를 0으로 좁히면("대기 중인
+  // 승인이 없다") 화면은 "승인 요청이 없습니다"라는 무조건형 문장을 냈다 — 실제로는
+  // '대기 중'만 없고 처리된 이력은 있을 수 있는데도 필터를 지울 수단조차 없었다.
+  // 기본값도 이제 hasFilter로 센다 — 필터가 전혀 없는 화면(config.filters가 비었거나
+  // f.value 기본값이 없는 화면)은 filters가 항상 {}라 이 변경으로 아무것도 안 바뀐다.
+  // 필터를 지우면(setFilters({})) '전체'가 되고, 그래도 0건이면(진짜 신규 설치) filters가
+  // 다시 {}가 되어 자연히 아래 config.emptyTitle 온보딩 빈 상태로 떨어진다 — 두 빈 상태가
+  // 서로 다른 질문(필터 때문인가 vs 정말 없는가)에 스스로 갈라져 답한다.
   const hasFilter = Object.keys(filters).some((k) => {
     const v = filters[k];
-    if (v == null || v === "") return false;
-    return String(v) !== String(defaultFilterVals[k] == null ? "" : defaultFilterVals[k]);
+    return v != null && v !== "";
   });
   // 페이지네이션되지만 서버 검색이 없는 화면(감사·작업·문서 등)은 클라이언트 부분검색이 오해를 낳으므로 검색창을 숨긴다.
   const showSearch = config.searchable || !config.paginated;

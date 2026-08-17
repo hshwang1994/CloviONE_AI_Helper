@@ -225,6 +225,28 @@ def test_a_non_delegate_operator_sees_can_decide_false(client, login_as, world, 
     assert detail.json()["approval"]["can_decide"] is False
 
 
+def test_list_scope_is_requester_scope_not_a_personal_approver_assignment(client, login_as, world):
+    """PA-RC-0038 acceptance (5) — `/approvals` 목록의 범위를 고정한다.
+
+    `Approval.approver_id` 컬럼이 있어 "나에게 배정된 건만 목록에 뜬다"로 오해하기
+    쉽지만, 그 컬럼은 `decide()`(approve/reject) 시점에만 채워지는 **결정 기록**이지
+    (누가 결재했는가) 목록 쿼리는 그 컬럼을 필터로 쓰지 않는다(service.py의 list 쿼리는
+    request_type·requested_by·status·apply_scope만 본다). 그래서 `boss`가 만들지도,
+    결재하지도 않은 `mate`의 요청(같은 부서=범위 안)이 `boss`의 목록에 뜬다 — 목록은
+    "나에게 배정된 것"이 아니라 "내 조회 범위 안에서 올라온 것" 전부를 돌려준다.
+    """
+    headers = _boss(login_as, world)
+    listing = client.get("/api/admin/approvals?status=pending", headers=headers)
+    assert listing.status_code == 200
+    ids = [i["id"] for i in listing.json()["items"]]
+    assert world.inside_id in ids, (
+        "같은 범위(우리팀) 안, boss가 요청자도 결재자도 아닌 건이 목록에서 빠졌다 — "
+        "목록이 '나에게 배정된 것'으로 좁혀졌다면 이게 실패한다"
+    )
+    # 범위 판정 자체는 위 test_a_scoped_admin_cannot_read_an_out_of_scope_request 등이
+    # 이미 고정하고 있다 — 여기서 다시 outside_id가 빠지는지까지 검사하면 중복이다.
+
+
 def test_no_role_can_be_told_apart_from_a_missing_approval(client, login_as, world):
     """범위 밖과 '없는 id' 는 **구별되지 않아야** 한다 — 구별되면 큐를 열거할 수 있다."""
     headers = _boss(login_as, world)

@@ -1309,6 +1309,52 @@ revert-to-verify 확인). 전체 프런트 회귀 297파일/2054건 green.
 `scrollH` 감소·두 화면 도넛 소거를 스크린샷으로 확인하는 것은 나머지 PA3
 항목과 함께 일괄 배치한다(`BACKLOG.md` PA3-03).
 
+### T15 닫힘 — `PA-RC-0038`(기본 필터 빈 상태) 구현+시험, 이 Cycle의 마지막 축
+
+`T15`("필터로 0건인가 데이터가 0건인가")를 걸고 있던 `PA-RC-0038` 하나를
+구현+시험으로 닫았다 — 이로써 T10~T16 일곱 축이 이 Cycle 기준 전부 닫혔다.
+
+`DataScreen.jsx`의 공유 `hasFilter` 분기가 config 기본 필터값(`f.value`)을
+"사용자가 능동적으로 건 필터가 아니다"라며 제외하고 있었다 — `useQueryState`가
+기본값을 주소에 안 쓰므로(`T12`와 같은 근본 원인, D-024) 주소만 보면 그 필터가
+아예 없는 것처럼 보인다. `/approvals`가 `status=pending` 기본값으로 열려 대기
+0건일 때 "승인 요청이 없습니다"라는 무조건형 문장을 내고 필터를 지울 수단조차
+없었던 것이 실제 사례다. 그 제외 로직을 없애 기본값도 hasFilter로 세게 했다 —
+REGISTRY 27화면 공용 컴포넌트 한 곳만 고쳐 기본 필터를 가진 화면 전부(현재
+4개: `approvals`·`prompts`·`policies`·`audit-anomalies`)에 자동 적용됐다.
+
+설계의 핵심은 **두 빈 상태가 필터 상태에 따라 스스로 갈라져 답하는 것**이다 —
+새 config 필드나 새 문구를 만들지 않았다(target_design 제약). 기본 필터가
+0건으로 좁히면 기존 "검색 결과가 없습니다" + `필터 지우기`(`/users`와 동일
+문장·컴포넌트)가 뜬다. `필터 지우기`는 원래 있던 `setFilters({})`를 그대로
+쓰므로 기본값 복귀가 아니라 진짜 전체를 요청한다 — 그런데도 여전히 0건이면
+(진짜 신규 설치) `filters`가 다시 `{}`가 되어 자연히 기존 온보딩형
+`config.emptyTitle` 빈 상태로 떨어진다. 두 단계 다 기존 코드 경로라 어느 쪽도
+새로 만들지 않았다.
+
+acceptance (5)("`/approvals` 목록 범위 확정")도 조사해 문서화했다 — `Approval`
+모델의 `approver_id` 컬럼 때문에 "나에게 배정된 것만 보인다"로 오해하기 쉽지만,
+그 컬럼은 결정(`approve`/`reject`) 시점에만 채워지는 **기록** 필드이고 목록
+쿼리는 그 컬럼을 필터로 쓰지 않는다 — 실제 범위는 `requested_by` 기준 조직/부서
+스코프(`apply_scope`)다. 배정 개념이 없다는 사실을 백엔드 시험 1건으로 고정했다
+(`tests/security/test_approval_scope.py`, 같은 범위 안 다른 사람이 요청한
+건이 목록에 뜨는지 직접 확인).
+
+새 시험 10건: `datascreen-default-filter-empty-state.test.jsx`(합성 config로
+공유 분기 자체 5건, `ServiceStatusPanel` 류 패턴과 동일하게 실제 화면과 분리해
+검사), `approvals-default-filter-empty-state.test.jsx`(실제 `REGISTRY.approvals`
+3건 — 합성 시험이 통과해도 실제 설정의 필터 key 오타 등은 못 잡으므로 별도 확인),
+`registry-default-filters.test.jsx`(기본 필터를 가진 화면 집합 자체를 코드로
+고정 2건, acceptance 4). 프런트 4건을 revert-to-verify로 확인(고친 `hasFilter`를
+되돌리면 4/4 FAIL). 전체 프런트 회귀 300파일/2064건, 백엔드 승인 범위 시험
+10/10 green.
+
+**아직 안 한 것**: `visual_change_required:true` — TEST SERVER에서 `/approvals`를
+대기 0건 상태로 캡처해 문장·`필터 지우기` 존재를 확인하고, 눌러서 전체가 보이는지
+확인하는 것, 그리고 필터 없는 화면(`/announcements` 등)의 빈 상태가 변경 전과
+픽셀 단위로 같은지 대조하는 것은 나머지 PA3 항목과 함께 일괄 배치한다
+(`BACKLOG.md` PA3-09).
+
 ### T12 마저 닫힘 — `PA-RC-0030`(설정 탭 게이트) 구현+시험, `T12` 세 RC 전부 완료
 
 `PA-RC-0033`에 이어 `PA-RC-0030`도 구현+시험으로 닫아 `T12`("주소와 화면이 같은 것을

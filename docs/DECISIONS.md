@@ -5672,3 +5672,97 @@ CTA("백업 관리")도 없는지 확인(목록이 비어서 안 보이는 게 �
 전체 13건 Root Cause가 코드 수준에서 수렴한 뒤 한 번에 빌드+배포한다(CLAUDE.md §9).
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0028`), `docs/WORK_STATE.md`.
+
+## D-134 (2026-08-17) — `PA-RC-0038` 구현(이 Product Audit Cycle의 마지막 Root Cause): 기본 필터가 걸린 화면의 빈 상태 — 두 빈 상태가 필터 상태로 스스로 갈라져 답한다
+
+`BACKLOG.md`의 PA3 표(13행)를 실제로 다시 대조하다가, 이전에 이어받은 요약이 "13건
+중 12건 완료, `PA-RC-0028`만 남음"이라 믿고 있었는데 실제로는 `PA-RC-0038`(PA3-09)도
+`⬜ 미착수`로 남아 있는 것을 발견했다 — `PA-RC-0028`을 마저 구현한 직후, 그것으로
+Cycle이 끝난 게 아니라는 사실을 문서 재대조로 잡은 사례다. CLAUDE.md의 "문서와
+실제가 충돌하면 실제를 정본으로 본다" 원칙이 실제로 작동한 순간이라 기록해 둔다.
+
+### 진짜 결함 — `hasFilter`가 config 기본값을 일부러 제외하고 있었다
+
+`DataScreen.jsx`(REGISTRY 27화면이 공유하는 셸)의 빈 상태 분기는 서버 필터가 하나라도
+"걸려" 있으면 `/users`식 "검색 결과가 없습니다" + `필터 지우기`를 보여준다. 그런데
+`hasFilter` 계산이 config가 준 기본값(`f.value` — 예: 승인 `status='pending'`)과
+같은 필터는 **일부러** 세지 않았다 — 원래 의도는 정당했다(신규 설치에서 항상
+"검색 결과 없음"만 떠 config.emptyTitle의 온보딩 콘텐츠가 죽은 코드가 되는 것을
+막으려던 것, 초기 임포트 커밋부터 있던 로직이라 이 저장소 안에 그 결정을 설명하는
+과거 DECISIONS.md 항목은 없다). 하지만 `useQueryState`가 기본값을 주소에 안 쓰므로
+(D-024, `T12`와 같은 근본 원인) 주소만 보면 그 필터가 없는 것처럼 보이고, 기본값이
+실제로 결과를 0으로 좁히면(승인 대기 0건) 화면은 "승인 요청이 없습니다"라는
+무조건형 문장을 내고 필터를 지울 수단조차 주지 않았다 — 실제로는 "처리된 이력은
+있는데 대기만 없다"인데도.
+
+### 고친 것 — `hasFilter`에서 기본값 제외를 없앤다, 그게 전부다
+
+`defaultFilterVals` 계산과 그 예외 분기를 지우고 `hasFilter`를 "필터 키에 비어있지
+않은 값이 있으면 활성"으로 단순화했다. 필터가 아예 없는 화면(REGISTRY 대다수)은
+`filters`가 항상 `{}`라 이 변경으로 아무것도 안 바뀐다(acceptance 3) — 기본값이
+있는 필터를 가진 화면(정확히 4개: `approvals.status`·`prompts.status`·
+`policies.status`·`audit-anomalies.window_hours`, `registry-default-filters.test.jsx`로
+전체 집합을 고정했다)에만 영향이 간다.
+
+**새 config 필드도 새 문구도 만들지 않았다**(target_design 제약) — 대신 기존 두
+빈 상태가 필터 상태에 따라 스스로 갈라져 답하게 했다:
+1. 기본 필터가 0건으로 좁히면 → 기존 "검색 결과가 없습니다"(`/users`와 완전히
+   같은 문장·컴포넌트) + `필터 지우기`.
+2. `필터 지우기`를 누르면 → 기존 핸들러(`setFilters({})`)가 그대로 실행된다 —
+   기본값으로 되돌아가는 게 아니라 그 키 자체가 사라지므로 서버는 진짜 전체를
+   돌려준다(regression_risk (c)가 정확히 경고한 "기본값 복귀로 구현하면 버튼이
+   고장난 것처럼 보인다"를 피한다 — approvals의 백엔드 `status: str|None = Query(default=None)`을
+   직접 확인해 부재 시 전체 조회임을 확인했다. `audit-anomalies`의 `window_hours`는
+   반대로 부재 시 백엔드 기본값이 24로 **같은 값**이라 "지워도 그대로"인 화면도
+   있다는 점을 문서로 남긴다 — 버튼 자체는 항상 옳게 동작하지만 그 화면에서는
+   시각적으로 아무 변화가 없을 수 있다, 실제 결함은 아니다).
+3. 지운 뒤에도 여전히 0건이면(진짜 신규 설치) → `filters`가 다시 `{}`가 되어
+   `hasFilter`가 다시 false로 떨어지고, 자연히 기존 온보딩형 `config.emptyTitle`
+   (승인 화면은 `emptyHelp`+`emptyRelatedLink`까지) 빈 상태로 떨어진다.
+
+트레이드오프 하나를 의식적으로 받아들였다: `prompts`는 `emptySituation`/
+`emptySteps`/`emptyExpected`가 있는 **다단계 온보딩** 화면이다(정책도 부분적으로).
+진짜 신규 설치(발행본이 하나도 없는 경우)에서는 이제 그 온보딩이 클릭 한 번 뒤에야
+보인다(먼저 "검색 결과가 없습니다" + 필터 지우기를 보고, 눌러야 온보딩이 뜬다) —
+target_design이 "활성이면 `/users`와 같은 문장을 쓰고"라고 화면별 예외 없이
+명시했고, 감사 자신도 "`/prompts`는 현재 3건이 있어 빈 상태가 재현되지 않았다"고
+적어 이 경로가 흔치 않다고 판단했다. 실제 결함(대기만 있고 필터를 못 지우는 것)이
+더 크고 흔한 문제라 이 한 클릭 비용은 받아들일 만하다고 판단했다.
+
+### acceptance (5) — `/approvals` 목록 범위를 조사해 확정한다(코드 변경 없음)
+
+`Approval.approver_id` 컬럼이 있어 "나에게 배정된 요청만 보인다"로 오해하기 쉬웠다.
+`app/approvals/service.py`를 직접 추적한 결과: `approver_id`는 `approve()`/`reject()`
+**결정 시점에만** 채워지는 기록 필드다(`decided_at`·`decision_comment`와 같은
+계열) — 목록 쿼리(`list_approvals`, `app/approvals/router.py`)는 `request_type`·
+`requested_by`·`status`·`apply_scope`(요청자의 조직/부서 범위)만 본다. **배정
+개념 자체가 없다** — 그래서 rbac_impact는 실제로 "없음"이 맞다(기존 서버 게이트가
+이미 이 의도를 구현하고 있다, 코드를 바꿀 필요가 없었다). 이 사실을 백엔드 시험
+1건(`test_list_scope_is_requester_scope_not_a_personal_approver_assignment`,
+`tests/security/test_approval_scope.py`)으로 고정했다 — `boss`가 만들지도
+결재하지도 않은 같은 팀 `mate`의 요청이 `boss`의 목록에 뜨는지 직접 확인한다.
+
+### 시험 — revert-to-verify로 실제 발산을 확인
+
+프런트 3개 파일 신설: `datascreen-default-filter-empty-state.test.jsx`(합성
+config로 `DataScreen`의 공유 분기 자체를 검사 — 기본 필터 0건→필터 문구,
+빈 상태에서도 아닌 곳에서도 툴바 `필터 지우기` 노출, 눌렀을 때 진짜 전체 확인,
+필터 없는 화면 무영향, 지워도 0건이면 온보딩으로 떨어짐, 5건),
+`approvals-default-filter-empty-state.test.jsx`(실제 `REGISTRY.approvals`로
+같은 계약을 다시 확인 — 합성 시험이 통과해도 실제 설정의 필터 key 오타 등은
+못 잡는다, 3건), `registry-default-filters.test.jsx`(기본 필터를 가진 화면
+집합 자체를 코드로 고정, acceptance 4, 2건). `DataScreen.jsx`를 stash로
+되돌려 새 프런트 시험 중 데이터 의존 4건이 전부 FAIL함을 확인(나머지는 "무영향"
+회귀 시험이라 되돌려도 통과하는 것이 맞다). 전체 프런트 회귀 300파일/2064건,
+백엔드 승인 범위 시험(신규 1건 포함) 10/10 green.
+
+### 이 Cycle의 13건 Root Cause가 전부 코드 수준에서 닫혔다
+
+`PA-RC-0027`~`0039` 13건 전부 구현+시험 완료 — 남은 것은 (a) 프런트 번들
+재빌드, (b) 승인된 TEST SERVER 통합 배포, (c) `visual_change_required:true`
+10건(`0027`·`0028`·`0029`·`0030`·`0031`·`0033`·`0035`·`0036`·`0037`·`0039`)의
+Chrome Whole-product E2E 실측, (d) `pa2_dup.py`/`pa2_cols.py`/`pa2_resp_dark.py`/
+`pa2_verify_no.py`/`pa2_rbac.py`/`pa2_badid.py`/`pa2_ia.py` 재실행 수치 확인,
+(e) `IMPLEMENTATION_CONSUMED` 기록 + `IMPLEMENTATION_REQUIRED` 제거뿐이다.
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0038`), `docs/WORK_STATE.md`.
