@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=12
+actionable_root_causes=13
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -553,4 +553,51 @@ data_impact: 해당 없음 — 데이터 의미가 바뀌지 않는다
 api_impact: 해당 없음 — 응답 계약이 바뀌지 않는다. 화면이 어떤 질의를 보내는지만 달라진다
 rbac_impact: 없음 — 권한 경계가 바뀌지 않는다. 다만 acceptance (5)가 목록 범위(결재자 한정 여부)를 확정하도록 요구하며, 그 결과가 「전체」라면 기존 서버 게이트가 이미 그것을 허용하고 있는지 확인한다
 browser_verification: TEST SERVER 에서 admin 으로 `/approvals` 를 대기 0건 상태로 1920x1080 라이트/다크에서 캡처해 문장과 「필터 지우기」 존재를 확인하고, 버튼을 눌러 전체 상태가 보이는지 본다. 필터가 없는 화면(`/announcements` 등)의 빈 상태를 같은 뷰포트에서 캡처해 변경 전 스크린샷과 대조한다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0039 -->
+rc_id: PA-RC-0039
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 두 콘솔이 함께 쓰는 `PageHeader` 의 `crumbRoot` 기본값이 `"관리자"` 라서, 사용자 콘솔 화면이 그 prop 을 넘기는 것을 잊으면 일반 사용자에게 「관리자」가 breadcrumb 뿌리로 표시된다. 실측으로 `/team-docs` 는 「관리자」, `/notifications` 는 「관리자 › 운영」을 `role=user` 계정에게 보여준다 — 정작 그 사용자의 사이드바에서 두 화면은 각각 `문서`·`내 업무` 그룹에 있다.
+expected: 사용자 콘솔 화면의 breadcrumb 뿌리는 그 사용자가 실제로 있는 콘솔과 사이드바 그룹을 가리켜야 한다. 같은 제품의 나머지 10개 사용자 화면이 이미 그렇게 한다(`내 업무 › 내 티켓`·`팀 공간 › 자유게시판`·`문서 › 휴지통`·`도우미 › AI 도우미`). 공용 컴포넌트의 기본값은 두 콘솔 중 한쪽을 편들면 안 되며, 빠뜨렸을 때 **틀린 값이 조용히 나가는 대신** 눈에 띄거나 아무것도 안 나오는 쪽이 안전하다.
+actual: `frontend/src/ui/kit.jsx:1165` 가 `crumbRoot = "관리자"` 를 기본값으로 두고 `crumb = [crumbRoot, area, ...].filter(Boolean).join(" › ")` 로 조립한다. `TeamDocs.jsx:376` 은 `area={null}` 만 넘기고 `crumbRoot` 를 안 넘겨 결과가 `관리자` 가 된다. 사용자 콘솔 12화면 실측에서 `/team-docs`(`관리자`)와 `/notifications`(`관리자 › 운영`) 2건이 나왔고, 정적 분석(사용자 콘솔 모듈 20종의 `PageHeader` 호출 32곳 중 `crumbRoot` 미전달 2곳 — `TeamDocs.jsx:375`·`DataScreen.jsx:662`)과 정확히 일치한다.
+intent_evidence: 나머지 10개 사용자 콘솔 화면의 구현이 이 제품이 택한 정답을 보여준다(우선순위 5 — 서로 일치하는 Frontend 흐름). `Trash.jsx:173` 이 `crumbRoot="문서"` 를, `Profile.jsx:449` 가 `crumbRoot=""` 를 명시적으로 넘기는 것은 **이 기본값이 사용자 콘솔에서 틀리다는 것을 개발자가 이미 알고 있었다**는 증거다. 다만 「기본값을 무엇으로 두어야 하는가」를 명시한 문서는 없다 — 그 부분은 INFERRED 다.
+findings: PA-F-098
+feature_contracts: FC-사용자콘솔내비게이션
+routes: `/team-docs`, `/notifications`(사용자 콘솔). 관리자 콘솔의 `/notifications` 는 「관리자 › 운영」이 옳으므로 바뀌면 안 된다
+frontend: `frontend/src/ui/kit.jsx:1165` `PageHeader`(기본값 — 주 원인), `frontend/src/screens/TeamDocs.jsx:375-376`, `frontend/src/screens/DataScreen.jsx:662`, 비교 기준 `Trash.jsx:173`·`Profile.jsx:449`
+api: 해당 없음 - 표시 계층 문제다
+backend: 해당 없음 - 백엔드 변경이 필요하지 않다
+data: 해당 없음 - 데이터가 바뀌지 않는다
+rbac: **권한 자체는 영향 없다** — 사용자가 볼 수 있는 것과 없는 것이 바뀌지 않는다. 다만 일반 사용자에게 「관리자」라고 말하는 것은 자신의 권한에 대한 잘못된 인상을 준다
+integration: 해당 없음 - 외부 연동과 무관하다
+state_transition: 해당 없음 - 표시 전용이다
+user_impact: 일반 사용자가 문서와 알림 화면에서 자신이 「관리자」 영역에 있다고 읽는다. `/notifications` 는 관리자 콘솔의 `운영` 그룹까지 붙어 있어, 사용자가 사이드바에서 본 위치(`내 업무 › 알림`)와 화면이 말하는 위치가 서로 다르다. 위치 표시가 틀리면 breadcrumb 의 존재 이유 자체가 없어진다.
+implementation_direction: `PageHeader` 의 `crumbRoot` 기본값에서 관리자 콘솔 전제를 뺀다. 두 가지 중 하나를 고른다 — (a) 기본값을 `""` 로 두고 호출부 전부가 명시하게 한다(관리자 61곳을 고쳐야 하지만 이후로는 빠뜨리면 아무것도 안 나와 조용히 틀리지 않는다), 또는 (b) 현재 콘솔(사용자/관리자)과 `navConfig` 의 그룹에서 **자동으로 유도**해 호출부가 안 넘겨도 맞게 나오게 한다. **(b)를 우선 검토한다** — 이 저장소는 이미 `labelForPath`/`navConfig` 로 경로에서 라벨을 유도하는 배선을 갖고 있고(`document-title-item-override.test.jsx` 가 그 계약을 고정한다), 그러면 `PA-RC-0031`(메뉴 taxonomy 정리)로 그룹이 바뀔 때 breadcrumb 가 자동으로 따라온다. 어느 쪽이든 **관리자 콘솔의 현재 표시는 한 글자도 바뀌면 안 된다.**
+constraints: CLAUDE.md 5절(per-page 예외보다 shared component 우선 — 두 화면에 `crumbRoot` 를 손으로 넣고 끝내면 세 번째 화면에서 같은 일이 반복된다. 기본값 자체를 고친다) · `PA-RC-0017` 이 만든 3단 breadcrumb(`영역 › 화면 › 탭`) 동작을 유지한다 · `PageHeader` 호출부가 61곳 이상이므로 하위 호환을 깨지 않는다 · `PA-RC-0031`(메뉴 taxonomy)과 같은 `navConfig` 를 건드리므로 순서를 정한다
+regression_risk: (a) **관리자 콘솔 61곳 이상이 기본값에 의존한다** — 기본값을 `""` 로 바꾸면 그 전부가 breadcrumb 뿌리를 잃는다. (a)안을 택하면 호출부를 전수 수정해야 하고 누락 시 조용히 사라진다. (b)안은 유도 규칙이 틀리면 **모든 화면이 한꺼번에** 틀리므로 두 콘솔 전 화면 스냅샷이 필요하다. (b) `labelForPath` 소비자(document title·커맨드 팔레트)가 같은 배선을 쓰므로 함께 움직인다 — `document-title-item-override.test.jsx` 가 회귀 기준이다. (c) `PA-RC-0031` 이 그룹 이름을 바꾸면 (b)안에서는 breadcrumb 도 같이 바뀐다 — 그것이 의도지만 두 RC 의 순서를 정해야 한다.
+acceptance_criteria: (1) `role=user` 세션에서 사용자 콘솔 12화면 중 breadcrumb 뿌리가 「관리자」인 화면이 **0개**다(현재 2개). (2) `/notifications` 가 사용자 콘솔에서는 사용자 사이드바 그룹(`내 업무`)을, 관리자 콘솔에서는 「관리자 › 운영」을 보인다. (3) `/team-docs` 가 `문서` 를 뿌리로 보인다(자식 `/team-docs/trash` 가 이미 그렇게 한다). (4) **관리자 콘솔 전 화면의 breadcrumb 가 변경 전과 동일하다.** (5) `PA-RC-0017` 의 3단 breadcrumb(탭 있는 화면)가 그대로 동작한다. (6) document title·커맨드 팔레트 라벨이 변경 전과 같다.
+required_tests: (1) `PageHeader` 단위 테스트 — `crumbRoot` 미전달 시 사용자/관리자 콘솔 각각에서 무엇이 나오는지 고정. (2) 사용자 콘솔 12화면 breadcrumb 스냅샷 테스트(수용 기준 1~3). (3) 관리자 콘솔 breadcrumb 회귀 스냅샷(수용 기준 4) — 이것이 이 RC 의 가장 중요한 안전망이다. (4) 기존 `document-title-item-override.test.jsx` 통과 유지. (5) `var/product-audit/pa2_crumb.py` 재실행으로 실브라우저 확인.
+qa_gaps: `QA_COVERAGE.md` 에 「화면이 말하는 위치가 사용자가 실제로 있는 위치와 같은가」 축이 없다. 기존 검증은 화면이 열리는지만 보므로 **틀린 breadcrumb 가 성공적으로 렌더되는 것**은 통과한다. 이 Cycle의 `PA-RC-0030`(주소와 화면 불일치)과 같은 계열이다 — 「맞는 말인가」를 보는 검사가 없다.
+quality_rubric: `ui-ux-pro-max` — Navigation/IA 의 「사용자가 지금 어디에 있는지 알 수 있는가」. `ux-writing` — 라벨의 사실 정확성(권한이 없는 사용자에게 「관리자」라고 말하지 않기). 내장 rubric 4) 「같은 의미가 같은 component/pattern 으로 표현되는가」 — 사용자 콘솔 12화면 중 10개가 옳고 2개가 틀린 것이 Root Cause 판정의 근거다.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-098 · `frontend/src/ui/kit.jsx:1165`(`crumbRoot = "관리자"`) · `frontend/src/screens/TeamDocs.jsx:375-376` · `frontend/src/screens/DataScreen.jsx:662` · `frontend/src/screens/Trash.jsx:173`·`Profile.jsx:449`(옳게 넘기는 비교 기준) · `var/product-audit/pa2_crumb.py` 실행 결과(12화면) · `var/product-audit/pa2_blind2.py` / `pa2_blind2b.py`
+current_state: 사용자 콘솔 12화면 중 `/team-docs` 가 「관리자」, `/notifications` 가 「관리자 › 운영」을 breadcrumb 뿌리로 보인다. 나머지 10화면은 사용자 콘솔 그룹을 옳게 보인다.
+user_problem: 일반 사용자가 자신이 관리자 영역에 있다고 읽는다. 사이드바가 말하는 위치와 화면이 말하는 위치가 달라 breadcrumb 를 믿을 수 없게 된다.
+design_verdict: REFINE
+target_state: 사용자 콘솔의 모든 화면이 사용자 사이드바 그룹을 뿌리로 보인다. 관리자 콘솔은 지금과 똑같다.
+target_design: `PageHeader` 의 `crumbRoot` 기본값에서 관리자 전제를 제거하고, 현재 콘솔과 `navConfig` 그룹에서 유도한다(`labelForPath` 배선 재사용). 호출부가 명시하면 그것이 이긴다. 시각적 형식(`A › B › C`)·글자 크기·위치는 그대로 둔다.
+visual_change_required: true
+target_visual_delta: `/team-docs` 의 머리말 위 작은 글씨가 「관리자」에서 「문서」로, `/notifications`(사용자 콘솔) 이 「관리자 › 운영」에서 「내 업무 › 알림」류로 바뀐다. 다른 화면과 관리자 콘솔 전체는 픽셀 단위로 그대로다.
+affected_surfaces: 사용자 콘솔 `/team-docs`·`/notifications`. (회귀 감시 대상) 관리자 콘솔 전 화면
+affected_components: `ui/kit.jsx` `PageHeader`(주 변경), `TeamDocs.jsx`, `DataScreen.jsx`, `app/navConfig.js`(유도에 쓰는 경우)
+workflow_change: 없음 — 사용자가 할 수 있는 일이 바뀌지 않는다. 화면이 자기 위치를 사실대로 말하게 될 뿐이다
+navigation_impact: 라우트·메뉴가 바뀌지 않는다. breadcrumb 표시만 사이드바와 일치하게 된다
+data_impact: 해당 없음 — 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 — API 계약이 바뀌지 않는다
+rbac_impact: 권한 경계는 바뀌지 않는다. 일반 사용자에게 「관리자」라고 말하지 않게 되므로 **권한에 대한 오해가 줄어든다**
+browser_verification: TEST SERVER 에서 `role=user` 계정으로 사용자 콘솔 12화면을 1920x1080 라이트/다크에서 캡처해 breadcrumb 뿌리가 「관리자」인 화면이 0인지 확인하고(`pa2_crumb.py` 재실행), 이어서 admin 계정으로 관리자 콘솔 주요 화면을 캡처해 변경 전 스크린샷(`shots2/d1_admin_*.png`)과 breadcrumb 가 동일한지 대조한다.
 <!-- PA-RC-END -->

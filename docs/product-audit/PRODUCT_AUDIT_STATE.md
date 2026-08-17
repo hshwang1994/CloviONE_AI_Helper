@@ -151,6 +151,22 @@ blind_pass=1 cycle_id=PA-20260817-072224-24b91505 new_critical_high_categories=0
 화면이 「없습니다」를 무조건형으로 말하고 필터 지우기를 주지 않는다). 그 밖에는 잘 만들어진
 것의 확인이었다(`/approval-delegations` 빈 상태가 문제·준비물·절차·기대 결과 네 단계를 갖췄다).
 
+```
+blind_pass=2 cycle_id=PA-20260817-072224-24b91505 new_critical_high_categories=0 at=2026-08-17T09:22:00+09:00
+```
+
+**pass 2 진입점: 「팀 문서를 찾아 읽고 정리하는 사용자」.** pass 1(결재자)과도, 이전 Cycle들의
+진입점과도 겹치지 않는다. `role=user` 계정으로 검색 -> 문서 -> 상세 -> 휴지통을 걸었다.
+
+결과는 `PA-F-098` — **새 Critical/High 범주 0**, 새 Medium 1건(`PA-RC-0039`: 공용 `PageHeader` 의
+`crumbRoot` 기본값이 `"관리자"` 라 사용자 콘솔 2화면이 일반 사용자에게 「관리자」라고 말한다).
+정적 분석(호출 32곳 중 미전달 2곳)과 브라우저 실측(12화면 중 2화면)이 정확히 일치했다.
+
+이 pass 에서 오탐 1건을 걸러냈다 — 「검색 결과에 링크가 없다」는 `a[href]` 만 센 탓이고,
+실제로는 `role="button"`+`tabindex="0"` 카드이며 클릭하니 `/tickets/…` 로 이동했다.
+
+> **Gate F 상태: 2 / 2 연속 clean** — 두 pass 모두 새 Critical/High 범주 0.
+
 ## A-5. 현재 blocker
 
 **없다.** `AUDIT_BLOCKED` 사유에 해당하는 항목이 없다.
