@@ -5135,3 +5135,90 @@ SAVEPOINT 재시도 관용(`is_write_conflict`+`write_conflict_backoff`+
 (기존 공용 관용 재사용, 새 메커니즘 발명 없음).
 
 상세: `docs/QA_COVERAGE.md` §16, `docs/WORK_STATE.md`.
+
+## D-127 (2026-08-17) — `PA-RC-0033` 구현: 관리자 상세 3종의 "없는 id 침묵" — `DataScreen.jsx` 한 곳을 고치면 `/audit`·`/departments`가 공짜로 따라온다, Handoff의 "오른쪽 패널" 지시와 실측이 어긋난 근거를 남긴다
+
+새 Product Audit cycle(`PA-20260817-072224-24b91505`)의 Handoff가 넘긴 13건 중 하나.
+`/users/:id`·`/departments/:id`·`/audit/:id`에 존재하지 않는 id로 들어가면 주소는
+그대로 유지되는데 화면은 그 사실을 한마디도 언급하지 않고 목록만 그렸다(토스트 하나가
+몇 초 뜨고 사라지는 게 전부). 서버는 이미 404를 옳게 준다 — 프런트가 그 404를 화면으로
+옮기지 않는 것이 유일한 결함.
+
+### 구현 — 새 컴포넌트 없이 기존 `ErrorState` 재사용
+
+`DataScreen.jsx`(레지스트리 기반 화면 공용, `/audit` 포함)와 `Users.jsx`(수제, 별도
+`:id` 배선)에 각각 `routeIdNotFound` state를 추가했다. `:id` 단건 GET이 404거나
+응답이 falsy면 `setRouteIdNotFound(true)` — 기존처럼 토스트만 띄우고 몇 초 뒤 사라지게
+두지 않는다. 목록 위 기존 Modal 자리에 `sel`이 없고 `routeIdNotFound`만 있을 때
+`<ErrorState error={{status:404}} />`를 그린다(사용자 콘솔 5개 라우트·`RouteNotFound`와
+완전히 같은 컴포넌트·같은 문구). 모달을 닫으면(`sel`이 애초에 null이라 기존 "sel 변화
+감지" 반대 방향 효과가 못 걸린다) `onClose`에서 직접 목록 주소로 `navigate` — 같은
+element라 목록 인스턴스는 유지된다(`PA-RC-0024` 계약, 스크롤·필터가 안 날아간다).
+
+`Users.jsx`는 구조가 달라(`UserDetail`이 별도 함수 컴포넌트, `if (!user) return null`
+이른 return이 Rules-of-Hooks 회귀 방지용으로 이미 있음) `notFound` prop을 받아 그
+early-return 자리에서 `Modal` + `ErrorState`를 직접 그리는 별도 분기를 추가했다 — 훅
+호출 순서(모든 훅이 이른 return 위)는 건드리지 않았다.
+
+### 확인 — `/departments/:id`는 이미 `/audit`·`/users`와 같은 Modal을 쓰고 있었다
+
+`OrgConsole.jsx`는 `<DataScreen key={config.key} config={panelConfig}/>`를 오른쪽
+패널에 그대로 얹는 구조라(`registry/org.js`의 `departments`도 `hasIdRoute:true`),
+`DataScreen.jsx` 한 곳만 고치면 `/departments/:id`의 not-found도 저절로 같은
+Modal+ErrorState로 뜬다 — 실제로 **`OrgConsole.jsx`는 한 줄도 안 고쳤다.**
+`frontend/src/app/admin-detail-routes.test.jsx`에 `/departments/does-not-exist`
+시험을 추가해 코드 변경 없이 그대로 통과함을 확인했다(아래 시험 결과 참고).
+
+### Handoff와 실측이 어긋난 지점 — "오른쪽 패널"이 아니라 이미 모달이었다
+
+Handoff의 `implementation_direction`/`target_design`은 "`/users`·`/audit`은 목록 위
+모달 자리, `/departments`는 오른쪽 패널 자리"라고 적었다. 그런데
+`admin-detail-routes.test.jsx`의 기존 found-case 시험(`/departments/:id`로 직접
+들어가면 단건 GET으로 그 부서 상세가 열린다)이 **이미** `screen.getByRole("dialog")`로
+모달을 단언하고 있었고, 실행하면 그대로 통과한다 — 즉 `/departments/:id`의 정상
+케이스조차 지금 모달을 쓰고 있다는 뜻이다. `OrgConsole.jsx` 헤더 주석의 "상세를
+자동으로 모달로 안 연다"는 설명은 **트리 클릭**에만 해당하는 얘기였고(사용자가 나란히
+보고 싶어하는 트리를 덮지 않으려는 의도), `:id` 딥링크로 직접 들어오는 경우는 `PA-RC-0024`
+때부터 이미 다른 두 라우트와 같은 `DataScreen` 공용 Modal을 그대로 쓰고 있었다 —
+Handoff 작성 시점에 이 구분을 놓치고 OrgConsole 주석만 보고 추론한 것으로 보인다
+(INFERRED 근거의 한계, Handoff 자신도 그렇게 표시했다).
+
+**판단**: found-case가 이미 모달인데 not-found만 오른쪽 패널로 갈라치면 같은 라우트
+안에서 "있으면 모달, 없으면 인라인"이라는 새로운 비일관성을 만든다 — 오히려 Root
+Cause가 지적한 "같은 상황에 대한 답이 두 가지"의 축소판이 된다. 세 라우트 모두
+같은 Modal+ErrorState로 통일하는 쪽이 (a) 기존 found-case 동작과 일관되고 (b)
+공용 컴포넌트를 그대로 재사용하며(구현 방향 원칙과 일치) (c) 수용 기준 1~2("찾을 수
+없습니다"를 같은 컴포넌트·문구로 명시)를 그대로 만족한다. 오른쪽 패널로 별도 구현하지
+않기로 했다.
+
+### 시험
+
+`frontend/src/app/admin-detail-routes.test.jsx`에 없는 id 시험 4건 추가(사용자/부서/
+감사 로그 not-found + 사용자 not-found 모달을 닫으면 주소가 `/users`로 돌아가는지),
+기존 "없는 사용자 id" 시험 1건을 새 동작(모달+ErrorState 렌더, 목록은 뒤에 유지)으로
+수정 — 이 시험은 고치기 전엔 `없음(no dialog)`을 정답으로 단언하고 있어 그 자체가
+이번 결함의 화석이었다. `/audit/:id` found-case 시험도 이 파일에 전에 없어 함께
+추가했다. 관련 파일 전체 회귀(`users*.test.jsx`, `datascreen.test.jsx`,
+`org-console.test.jsx`, `admin-detail-routes.test.jsx`, `user-console-fallback.test.jsx`)
+16개 파일 101건 전부 green, 기존 시험 회귀 없음.
+
+테스트 작성 중 mock 자체의 버그도 하나 잡았다: `commonApi`의 넓은 접두사 매칭
+(`u.startsWith("/api/admin/audit")`)이 `/api/admin/audit/does-not-exist`에도 걸려
+`extra` 콜백(404 거부)보다 먼저 응답해 버렸다 — 시험 mock에서 흔한 함정이라 순서를
+"알려진 단건 id → `extra` 콜백 → 넓은 목록 폴백"으로 재정렬해 고쳤다(실 프로덕트
+코드가 아니라 이 시험 파일 안의 문제였다).
+
+### 부수 발견 — `stage-static-update.sh` 회귀 시험의 위양성
+
+이번 작업 중 백그라운드로 돌린 "touched areas 통합 회귀"에서
+`tests/regression/test_stage_static_update.py::test_default_run_stages_every_static_file`가
+`app/static/react/assets/`의 라우트 청크 7개(`AdminRoutes`·`Chat`·`DevReport`·
+`GameRoom`·`Search`·`UserRoutes`·`index`)가 스테이지 목록에서 빠졌다고 실패했다.
+스크립트 자체를 읽어 확인한 결과 하드코딩 목록이 아니라 `find app/static -type f`로
+매 파일을 탐색하고 있어 그 결함 부류가 아니었고, 격리 재실행(4/4 전부 green,
+297초)으로 **다른 백그라운드 작업(번들 재빌드로 추정)과 동시 실행된 TOCTOU 경합**임을
+확인했다 — 이 스크립트/제품 코드의 결함이 아니다. D-126의 "Full Regression과 Chrome
+E2E를 동시에 돌리지 않는다"는 규칙에 이 스테이징 시험도 포함해 기억한다(같은 부류의
+자원 경합 위양성).
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0033`), `docs/WORK_STATE.md`.

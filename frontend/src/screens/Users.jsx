@@ -308,6 +308,10 @@ export function Users() {
   // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
   const selection = useRowSelection();
   const [sel, setSel] = useState(null);
+  // PA-RC-0033: :id 라우트로 들어왔는데 그 사용자가 없으면(삭제됨/권한 밖) 예전엔 토스트 하나만
+  // 뜨고 몇 초 뒤 사라지면 화면엔 흔적이 남지 않았다 — sel과 별개로 들고 있다가 아래 UserDetail의
+  // Modal 자리에 기존 ErrorState를 그린다(DataScreen.jsx와 같은 계약, 새 컴포넌트 없음).
+  const [routeIdNotFound, setRouteIdNotFound] = useState(false);
   // PA-RC-0024: 위쪽 ?id= 효과(다른 화면이 보내는, 소비 후 지우는 프리필)와 같은 계약
   // (단건 GET, 실패 시 이유 안내)을 경로 :id에도 건다 — 이쪽은 소비 후 지우지 않는다
   // (경로 자체가 상태이므로 지울 대상이 없다). sel 선언 아래 둔 이유는 단순하다 — 이
@@ -324,9 +328,13 @@ export function Users() {
   React.useEffect(() => {
     if (!routeId) { routeIdSettledRef.current = true; return; }
     if (sel && String(sel.id) === String(routeId)) { routeIdSettledRef.current = true; return; }
+    setRouteIdNotFound(false);
     api("/api/admin/users/" + routeId)
-      .then((item) => { if (item) setSel(item); })
-      .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다). 목록에서 다시 확인해 주세요.", "error"))
+      .then((item) => { if (item) setSel(item); else setRouteIdNotFound(true); })
+      // PA-RC-0033: 서버는 없는 레코드와 권한 밖 레코드를 둘 다 404로 접어 준다(IDOR 정보 누출
+      // 방지) — 여기서도 그 판단을 그대로 표현만 한다, 새로 구분하지 않는다. 몇 초 뒤 사라지는
+      // 토스트 대신 화면에 계속 남는 ErrorState로 바꾼다(아래 UserDetail).
+      .catch(() => setRouteIdNotFound(true))
       .finally(() => { routeIdSettledRef.current = true; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
@@ -676,7 +684,20 @@ export function Users() {
 
       {/* 작업 후 드로어를 닫지 않는다, 상세는 자체 useQuery로 서버 최신 상태를 다시 불러
           결과(활성/잠금/세션 수 변화)를 그 자리에서 보여준다. */}
-      <UserDetail user={sel} onClose={() => setSel(null)} onEdit={(u) => setEditing(u)}
+      <UserDetail user={sel} notFound={routeIdNotFound}
+        onClose={() => {
+          // PA-RC-0033: 없는 id 오류는 sel이 애초에 null이라 위 "반대 방향" 효과(sel 변화 감지)가
+          // 안 걸린다 — 여기서 직접 목록 주소로 되돌린다(같은 element라 목록 인스턴스는 그대로,
+          // PA-RC-0024 계약 유지).
+          if (routeIdNotFound) {
+            setRouteIdNotFound(false);
+            const qs = hashQuery(window.location.hash);
+            navigate(qs ? "/users?" + qs : "/users", { replace: true });
+          } else {
+            setSel(null);
+          }
+        }}
+        onEdit={(u) => setEditing(u)}
         onTempPw={(res) => maybeShowTempPw(res)} pwHelp={pwHelp} dept={dept} title={title}
         onChanged={() => { refresh(); }} />
 
@@ -794,7 +815,7 @@ function inactiveSuffix(nameOpts, currentId) {
   return found && found.active === false ? " (비활성)" : "";
 }
 
-function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, title }) {
+function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, title }) {
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false); // 저빈도 유틸리티를 '더보기'로 접어 좁은 화면에서 작업줄이 넘치지 않게 한다
@@ -825,7 +846,19 @@ function UserDetail({ user, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, 
   const prelimRole = (detailQ.data && detailQ.data.role) || (user && user.role);
   const canManagePrelim = !(prelimRole === "system_admin" && actorRole !== "system_admin");
   const sessionsQ = useQuery({ queryKey: ["user-sessions", uid], queryFn: () => api("/api/admin/users/" + uid + "/sessions"), enabled: !!uid && canManagePrelim, retry: false });
-  if (!user) return null;
+  if (!user) {
+    // PA-RC-0033: :id가 없는 사용자를 가리키면 목록 위 모달 자리에 그대로 ErrorState를 그린다
+    // (DataScreen.jsx와 같은 계약) — sel이 끝까지 null이라 아래 정상 상세 렌더 경로를 못 타므로
+    // 여기서 별도 분기가 필요하다.
+    if (notFound) {
+      return (
+        <Modal open onClose={onClose} title="" size="lg">
+          <ErrorState error={{ status: 404 }} />
+        </Modal>
+      );
+    }
+    return null;
+  }
 
   const d = detailQ.data || user;
   // 상세 재조회가 실패하면(예: 다른 관리자가 그 사이 이 사용자를 보관/삭제) d는 목록 행의 낡은

@@ -85,6 +85,11 @@ export function DataScreen({ config }) {
   // 매 렌더마다 새로 만들면 `React.memo` 가 매번 깨져 이 수정이 무효가 된다.
   const commitSearch = React.useCallback((next) => { setQ(next); setPage(1); }, []);
   const [sel, setSel] = useState(null);
+  // PA-RC-0033: :id 라우트로 들어왔는데 그 레코드가 없으면(삭제됨/권한 밖) 지금까지
+  // 토스트 하나만 뜨고(몇 초 뒤 사라짐) 화면은 조용히 목록으로 남았다 — 사용자는 잘못
+  // 온 것인지 삭제된 것인지 알 방법이 없었다. sel과 별개로 들고 있다가 아래 Modal
+  // 자리에 기존 ErrorState를 그린다(새 컴포넌트를 만들지 않는다).
+  const [routeIdNotFound, setRouteIdNotFound] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [actionForm, setActionForm] = useState(null); // 입력이 필요한 액션(예: 수동 연결)
@@ -485,11 +490,17 @@ export function DataScreen({ config }) {
   useEffect(() => {
     if (!config.hasIdRoute || !routeId) { routeIdSettledRef.current = true; return; }
     if (sel && String(sel.id) === String(routeId)) { routeIdSettledRef.current = true; return; }
+    setRouteIdNotFound(false);
     api(config.endpoint + "/" + routeId).then((res) => {
       const item = (config.selectKey && res && res[config.selectKey]) || res;
       if (item) setSel(item);
+      else setRouteIdNotFound(true);
     }).catch(() => {
-      toast("연결된 항목을 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", "error");
+      // PA-RC-0033: 이전에는 여기서 토스트만 띄우고 끝냈다 — 몇 초 뒤 사라지면 화면에는
+      // "왜 없는지"의 흔적이 남지 않았다. 서버가 이미 없는 레코드와 권한 밖 레코드를
+      // 구분해 두지 않고 둘 다 404로 접어 준다(IDOR 정보 누출 방지) — 여기서도 그
+      // 판단을 그대로 표현만 한다, 새로 구분하지 않는다.
+      setRouteIdNotFound(true);
     }).finally(() => { routeIdSettledRef.current = true; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.key, routeId]);
@@ -838,8 +849,20 @@ export function DataScreen({ config }) {
           안 건드리는 이유) 화면에서만 잠깐 숨긴다. navigate 액션(위 runAction)이 이미 하던
           setSel(null)과 같은 발상을 나머지 중첩 오버레이 셋(actionForm/subView/infoView)에도
           일관되게 적용한다. */}
-      <Modal open={!!sel && !editing && !actionForm && !subView && !infoView}
-        onClose={() => setSel(null)} title={sel ? detailTitle(sel, columns) : ""} size="lg"
+      <Modal open={(!!sel || routeIdNotFound) && !editing && !actionForm && !subView && !infoView}
+        onClose={() => {
+          // PA-RC-0033: 없는 id 오류는 sel이 애초에 null이라 아래 "반대 방향" 효과(sel 변화
+          // 감지)가 안 걸린다 — 여기서 직접 목록 주소로 되돌린다(같은 element라 목록
+          // 인스턴스는 그대로, PA-RC-0024 계약 유지).
+          if (routeIdNotFound) {
+            setRouteIdNotFound(false);
+            const qs = hashQuery(window.location.hash);
+            navigate(qs ? "/" + config.key + "?" + qs : "/" + config.key, { replace: true });
+          } else {
+            setSel(null);
+          }
+        }}
+        title={sel ? detailTitle(sel, columns) : ""} size="lg"
         footer={(sel && (canEdit || visibleActions.length)) ? <>
           {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
           {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
@@ -863,6 +886,8 @@ export function DataScreen({ config }) {
               </Box>
             ))}
           </Box>
+        ) : routeIdNotFound ? (
+          <ErrorState error={{ status: 404 }} />
         ) : null}
       </Modal>
 

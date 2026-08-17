@@ -1220,3 +1220,23 @@ D-118 Phase 3가 대화형 레인에서 이미 실측·문서화한 것과 같�
 | 설정 탭 권한 | 역할 3 × 옛 라우트 4 = 12조합 | 인라인 프로브 |
 | 폼 | 입력 요소 **25개** 전수(레이블 연결·required·maxlength) | `pa2_states.py` |
 | 서버 로그 | `journalctl` 실조회 — 500 이 `request_id` + traceback 을 남기는 것 확인 | SSH |
+
+### T12 부분 닫힘 — `PA-RC-0033`(관리자 상세 3종 없는 id) 구현+시험, 브라우저 검증은 아직
+
+`T12`("주소와 화면이 같은 것을 말하는가")가 `PA-RC-0033`·`0030`·`0039` 세 RC에 걸려
+있었다. 이번에 `PA-RC-0033`(`/users/:id`·`/departments/:id`·`/audit/:id`)만 구현+
+컴포넌트 시험으로 닫았다 — `0030`(설정 탭 게이트)·`0039`(breadcrumb 뿌리)는 아직 손대지
+않아 `T12`는 **부분** 닫힘이다.
+
+새로 추가한 컴포넌트 시험(`frontend/src/app/admin-detail-routes.test.jsx`, 10건)이
+`pa2_badid.py`가 원래 실측한 9라우트 중 관리자 상세 3종(`/users`·`/departments`·`/audit`)의
+없는 id 진입을 고정한다 — 각 라우트에서 `ErrorState`(「찾을 수 없습니다」)가 렌더되는지,
+목록/트리 인스턴스가 뒤에 그대로 남는지(`PA-RC-0024` 회귀), 모달을 닫으면 주소가
+목록으로 돌아가는지 세 가지를 매 라우트마다 확인한다. `/departments/:id`는 코드 변경 없이
+`DataScreen.jsx` 공용 수정만으로 통과했다(`DECISIONS.md` D-127 — Handoff의 "오른쪽 패널"
+지시와 실측이 어긋난 근거 포함).
+
+**아직 안 한 것**: `pa2_badid.py`를 TEST SERVER에 재실행해 수용 기준 (5)("9개 상세
+라우트 전체를 없는 id로 다시 훑었을 때 침묵이 0건")를 실측 확인하는 것 — `visual_change_required:
+true`라 컴포넌트 시험만으로는 완료로 보지 않는다. 나머지 PA3 항목의 배포와 함께 일괄
+배치할 예정(`BACKLOG.md` PA3-06).

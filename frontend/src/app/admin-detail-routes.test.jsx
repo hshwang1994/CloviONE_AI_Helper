@@ -46,6 +46,8 @@ const ORGS = [{ id: "org-1", name: "클로비원", slug: "clovirone", status: "a
   department_count: 1, user_count: 1, created_at: AT }];
 const DEPT_ROW = { id: "dep-1", name: "개발팀", org_name: "클로비원", org_id: "org-1",
   active: true, user_count: 1, created_at: AT };
+const AUDIT_ROW = { id: "audit-1", created_at: AT, action: "user.update", object_type: "user",
+  object_id: "u-detail-1", result: "success", user_id: "actor-1", actor_name: "감사대상행위자" };
 const TREE = [
   { id: "org-1", kind: "organization", name: "클로비원", depth: 0, path: "클로비원",
     parent_id: null, parent_name: null, active: true, user_count: 1, child_count: 1,
@@ -60,19 +62,25 @@ function commonApi(extra) {
     const u = String(url);
     const method = (opts && opts.method) || "GET";
     if (u.startsWith("/api/admin/users/u-detail-1")) return Promise.resolve(USER_ROW);
-    if (u.startsWith("/api/admin/users?")) return Promise.resolve({ items: [USER_ROW], total: 1, page_size: 20 });
-    if (u === "/api/admin/departments/tree") return Promise.resolve({ items: TREE });
     // 실제 서버(app/org/router.py::get_org_item, body_key="department")는 단건 조회를
     // {"department": {...}}로 감싸서 준다 — 목이 감싸지 않은 응답을 흉내 내면 registry/org.js의
     // selectKey 배선이 빠져도 이 시험은 계속 통과한다(TEST SERVER 실측으로 실제로 놓쳤던 경우).
     if (u.startsWith("/api/admin/departments/dep-1")) return Promise.resolve({ department: DEPT_ROW });
+    // audit의 단건 조회는 selectKey가 없다(governance.js) — 응답 자체가 그 행이다.
+    if (u.startsWith("/api/admin/audit/audit-1")) return Promise.resolve(AUDIT_ROW);
+    // 없는 id(예: does-not-exist)의 단건 조회를 여기서 가로챈다 — 아래 목록/트리 폴백이
+    // prefix만 보고 더 넓게 걸려("/api/admin/audit"가 "/api/admin/audit/does-not-exist"에도
+    // 걸린다) extra의 404 거부보다 먼저 응답해 버리는 것을 막는다.
+    if (extra) { const hit = extra(u); if (hit !== undefined) return hit; }
+    if (u.startsWith("/api/admin/users?")) return Promise.resolve({ items: [USER_ROW], total: 1, page_size: 20 });
+    if (u === "/api/admin/departments/tree") return Promise.resolve({ items: TREE });
     if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: [DEPT_ROW] });
     if (u.startsWith("/api/admin/organizations")) return Promise.resolve({ items: ORGS });
+    if (u.startsWith("/api/admin/audit")) return Promise.resolve({ items: [], total: 0, page_size: 100 });
     if (u === "/api/admin/settings") {
       return Promise.resolve({ settings: { password_policy: { value: { min_length: 12, min_classes: 3 } } } });
     }
     if (method !== "GET") return Promise.resolve({ status: "ok" });
-    if (extra) { const hit = extra(u); if (hit !== undefined) return hit; }
     return Promise.resolve({ items: [], total: 0 });
   };
 }
@@ -138,14 +146,32 @@ describe("관리자 상세 딥링크", () => {
     await waitFor(() => expect(currentPath()).toBe("/users"), WAIT);
   });
 
-  it("없는 사용자 id로 들어가면 오류를 알리고 목록은 그대로 보여준다(대상만 못 연다)", async () => {
+  // PA-RC-0033: 없는 id는 예전엔 토스트 하나만 뜨고 몇 초 뒤 사라지면 화면엔 흔적이 남지
+  // 않았다(대상만 못 연다는 사실 자체를 알 길이 없었다) — 이제 목록 위 모달 자리에 기존
+  // ErrorState(찾을 수 없습니다)가 계속 남는다. 목록은 뒤에 그대로 살아있다(PA-RC-0024 유지).
+  it("없는 사용자 id로 들어가면 ErrorState로 명시하고 목록은 그대로 뒤에 남는다", async () => {
     apiMock.mockImplementation(commonApi((u) => {
       if (u.startsWith("/api/admin/users/does-not-exist")) return Promise.reject({ status: 404 });
       return undefined;
     }));
     renderRoute("/users/does-not-exist");
-    await screen.findByText("상세대상", {}, WAIT);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
+    // 사용자 콘솔 5개 라우트·RouteNotFound와 같은 컴포넌트·같은 문구(ErrorState, kit.jsx).
+    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("상세대상")).toBeInTheDocument();
+  });
+
+  it("없는 사용자 id 모달을 닫으면 주소가 /users로 돌아간다(sel이 애초에 비어 반대 방향 효과가 못 걸린다)", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(commonApi((u) => {
+      if (u.startsWith("/api/admin/users/does-not-exist")) return Promise.reject({ status: 404 });
+      return undefined;
+    }));
+    renderRoute("/users/does-not-exist");
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument(), WAIT);
+    await waitFor(() => expect(currentPath()).toBe("/users"), WAIT);
   });
 
   it("/departments/:id 로 직접 들어가면 단건 GET으로 그 부서 상세가 열린다(DataScreen 공용 배선)", async () => {
@@ -153,6 +179,38 @@ describe("관리자 상세 딥링크", () => {
     renderRoute("/departments/dep-1");
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
     expect(apiMock).toHaveBeenCalledWith("/api/admin/departments/dep-1");
+  });
+
+  // PA-RC-0033 Handoff는 부서 상세를 "오른쪽 패널 자리"로 적었지만, 실측(위 found-case 시험)은
+  // /departments/:id도 /users·/audit과 같은 DataScreen 공용 Modal을 이미 쓰고 있다(OrgConsole은
+  // 트리 클릭 시의 자동 오픈만 피할 뿐, :id 딥링크는 다른 두 라우트와 동일한 배선이다) — 그래서
+  // not-found도 같은 Modal 자리에 같은 ErrorState로 통일한다(DECISIONS.md 기록).
+  it("없는 부서 id로 들어가면 ErrorState로 명시하고 트리·목록은 그대로 뒤에 남는다", async () => {
+    apiMock.mockImplementation(commonApi((u) => {
+      if (u.startsWith("/api/admin/departments/does-not-exist")) return Promise.reject({ status: 404 });
+      return undefined;
+    }));
+    renderRoute("/departments/does-not-exist");
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
+    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
+    expect(screen.getByTestId("org-console-tree")).toBeInTheDocument();
+  });
+
+  it("/audit/:id 로 직접 들어가면 단건 GET으로 그 감사 기록 상세가 열린다(governance.js hasIdRoute)", async () => {
+    apiMock.mockImplementation(commonApi());
+    renderRoute("/audit/audit-1");
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
+    expect(apiMock).toHaveBeenCalledWith("/api/admin/audit/audit-1");
+  });
+
+  it("없는 감사 기록 id로 들어가면 ErrorState로 명시한다(빈 목록이라도 조용히 침묵하지 않는다)", async () => {
+    apiMock.mockImplementation(commonApi((u) => {
+      if (u.startsWith("/api/admin/audit/does-not-exist")) return Promise.reject({ status: 404 });
+      return undefined;
+    }));
+    renderRoute("/audit/does-not-exist");
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
+    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
   });
 });
 
