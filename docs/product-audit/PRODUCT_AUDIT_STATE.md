@@ -89,25 +89,27 @@ Windows 체크아웃에서 왔을 뿐 내용은 같았다. `tr -d '
   (깊이 2단·그룹당 7항목·헤더 잘림 0·모달 접근성 4항목·빈 상태 3요소).
 - 28표면 실렌더에서 console error **0**, HTTP 4xx/5xx **0**.
 
-## A-4. 다음 조사 후보 (우선순위 순)
+## A-4. 조사 상태 — 이 Cycle 은 수렴했다
 
-**L축은 끝났다** — 필수 18표면 전부 판정(`REDESIGN` 3 · `REFINE` 10 · `KEEP` 5).
-자체 Gate 검사(`var/product-audit/pa2_gate_check.py`)가 필수 표면·판정별 필수 필드·
-REDESIGN의 PA-RC 참조·UI 15필드·요약 수 정합성·미루는 표현을 기계적으로 확인해
-**ALL CHECKS PASS**다. 남은 것은 아래다.
+**남은 조사 후보 없음.** 아래 Gate 를 전부 근거와 함께 만족했다.
 
-1. **Coverage 재생성** — `coverage_state.json` 이 아직 직전 Cycle 값이다. 이번 Cycle 관측
-   (28표면 렌더 · 63 RBAC 조합 · 9 상세 라우트 · 12 탭 조합 · 폼 25필드 · 오프보딩 20행 ·
-   API 원문 · 서버 로그)을 반영하고 `l_axis_design_verdict_complete=18` 을 DESIGN 블록 수와
-   정확히 맞춘다. 이유 없는 UNSEEN 0을 유지한다
-2. `PRODUCT_AUDIT_REPORT.md` · `INVENTORY` · `FEATURE_CONTRACTS` 를 이번 Cycle 기준으로 갱신
-3. `BACKLOG.md` · `QA_COVERAGE.md` 에 10건 반영(기존 278행 전체 대조 후 중복 없이) +
-   `var/product-audit/IMPLEMENTATION_REQUIRED` 생성
-4. **P·R축** — 문구·한국어. `ux-writing` → `humanize-korean` 순서
-5. **N·O축** — 1366/390 뷰포트, 125/150/175% 배율, 다크 테마
-6. **W·S·T축** — 시간대/만료 · 성능 · 관측성
-7. **Blind Re-Audit 2회 연속** — 이전 Cycle 진입점(퇴사 처리·장애 대응·신규 입사자 첫날·
-   감사자 분기 점검) 재사용 금지
+| Gate | 요구 | 판정 | 근거 |
+|---|---|---|---|
+| **A** Inventory | 주요 Surface 가 전부 있고 **이유 없는 UNSEEN 0** | ✅ | 90표면 × 26축 = 2,340칸, `unseen_without_reason=0`. INVENTORY 는 소스에서 기계 생성하며 이번에 하드코딩 수치 5개를 계산식으로 바꿨다(3개가 HEAD 와 어긋나 있었다) |
+| **B** Intent | 주요 Feature 가 Intent 근거 + confidence 를 갖고, 모르는 것은 정직하게 UNKNOWN | ✅ | `FC-01`~`FC-15`. 이번 Cycle 이 `FC-10`~`FC-15` 신설(둘은 **Confirmed**). **UNKNOWN 3건을 지우지 않고 남겼다** — `/approvals` 목록 범위 · `change_password` 500 이후 부분 쓰기 · `FC-06` 쿼터 |
+| **C** Axis | A~Z 축이 전부 Coverage 에 반영 | ✅ | 26축 전부. 이번 Cycle 이 실행으로 올린 축: A·B·C·E·F·H·L·M·N·O·R·T |
+| **D** Evidence | 정적 추정과 실행 증거가 구분되고, Confirmed 에 재현/trace | ✅ | Coverage 가 `STATIC_ONLY`/`OBSERVED`/`EXECUTED` 를 셀 단위로 구분. W축은 소스 스캔만 했으므로 **`STATIC_ONLY` 로 두었다**. RC 13건 전부 Confirmed 이며 각각 계측 스크립트 또는 서버 traceback 을 갖는다 |
+| **E** Skill | 사용 가능한 Skill 을 실제 적용, 미설치는 skill_gap | ✅ | 핵심 다섯 **전부 적용**, `skill_gaps` **비어 있다**. 각 Skill 을 어느 RC 의 어느 판정에 썼는지 COVERAGE Skill 절에 항목 단위로 기록 |
+| **F** Blind Re-Audit | 서로 다른 진입점 **2회 연속**, 둘 다 새 Critical/High 범주 0 | ✅ | pass 1「결재자」· pass 2「문서 사용자」 — 둘 다 **0**. 이전 Cycle 진입점 4종 재사용 안 함 |
+| **G** Handoff | REPORT 존재 · BACKLOG 중복 없이 반영 · PA-RC 블록 완전 · QA gap 반영 · marker 정확 | ✅ | REPORT 재작성. BACKLOG `PA3-01`~`13`(기존 278행 대조, 중복 0 — 가장 가까운 SQLite 경합 계열 4행은 전부 ✅이고 다른 호출부다). QA `T10`~`T16` 신설 |
+| **H** Deep UI/UX | 필수 18표면 전부 판정 + 필드 일습 + REDESIGN 이 실제 PA-RC 로 | ✅ | 18/18(`REDESIGN` 3 · `REFINE` 10 · `KEEP` 5). 자체 Gate 검사 `pa2_gate_check.py` **ALL CHECKS PASS** — 필수 표면·판정 필드·REDESIGN 의 PA-RC 참조·UI 15필드·요약 수 정합성·미루는 표현 |
+
+### 이 Gate 표가 숨기지 않는 것
+
+Coverage 2,340칸 중 **1,266칸(54%)이 여전히 UNSEEN** 이다. 전부 사유가 달려 있지만
+「제품 전체를 실행으로 훑었다」는 뜻은 **아니다.** 브라우저로 실제로 본 표면은 **28 / 90** 이다.
+수렴의 근거는 Coverage 비율이 아니라 **Gate F** — 서로 다른 진입점의 blind pass 2회가
+새 Critical/High 를 하나도 못 찾았다는 사실이다.
 
 ## A-4-B. 이 Cycle의 계측 규칙 (오류 두 번을 겪고 세운 것)
 
@@ -169,8 +171,13 @@ blind_pass=2 cycle_id=PA-20260817-072224-24b91505 new_critical_high_categories=0
 
 ## A-5. 현재 blocker
 
-**없다.** `AUDIT_BLOCKED` 사유에 해당하는 항목이 없다.
+**없다.** `AUDIT_BLOCKED` 사유(내 권한 밖 외부 행위 때문에 끝내 못 채운 필수 Coverage)에
+해당하는 항목이 없다. TEST SERVER 접근 · sudo · QA 계정 생성 · 브라우저 자동화가 전부
+가능했고 실제로 사용했다.
 
+기록해 둘 한계는 `PRODUCT_AUDIT_REPORT.md` §8 에 7가지로 적었다 — 그중 `node_modules/` 는
+Audit 시작 전부터 사용자가 남겨 둔 dirty 경로라 건드리지 않았고, 이 Audit 의 어떤 결론도
+그 경로에 의존하지 않는다.
 
 # §B-0. 이전 Cycle 기록 — PA-20260816-120655-f103fb5b (baseline `70e264b`)
 
