@@ -5302,3 +5302,153 @@ revert-to-verify로 실측(구코드로 되돌리면 2/2 FAIL, 정확히 예상�
 확인하는 것은 나머지 PA3 항목들과 함께 일괄 배치한다(`BACKLOG.md` PA3-08/11/13).
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0029`/`0036`/`0037`), `docs/WORK_STATE.md`.
+
+## D-129 (2026-08-17) — `PA-RC-0039`+`PA-RC-0031` 구현: breadcrumb 유도(Context) 먼저, 메뉴 재편은 그 위에 — Handoff가 명시한 순서를 그대로 따른다
+
+두 RC를 Handoff의 명시적 순서("PA-RC-0031로 그룹이 바뀔 때 breadcrumb가 자동으로
+따라오게 하려면 PA-RC-0039를 먼저")대로 처리했다. 근거를 남긴다.
+
+### `PA-RC-0039` — `crumbRoot` 기본값의 "관리자" 전제를 없앤다
+
+`kit.jsx` `PageHeader`의 `crumbRoot` 기본값이 리터럴 `"관리자"`라 그 prop을 빠뜨린
+사용자 콘솔 화면(`TeamDocs.jsx`, `DataScreen.jsx`)이 일반 사용자에게 "관리자"라고
+말했다. 두 선택지(Handoff a/b) 중 **(b) 콘솔+navConfig 그룹에서 자동 유도**를 택했다 —
+관리자 61곳을 전수 수정하는 (a)보다 작고, `PA-RC-0031`의 그룹 재편이 breadcrumb에
+자동으로 반영되는 부수 효과를 얻는다.
+
+구현은 `kit.jsx`가 라우팅을 전혀 모르는 채로 유지하는 것이 핵심 제약이었다 — `PageHeader`
+안에서 `useLocation()`을 직접 부르면 Router 컨텍스트 없이 렌더하는 기존 `kit.test.jsx`
+다수(약 10곳)가 깨진다. 대신:
+- `navConfig.js`에 `groupForPath(nav, pathname, from)`을 추가했다 — 기존 `activeNavPath`
+  (사이드바 강조 판정)를 그대로 재사용해 그 경로가 속한 그룹 이름을 찾는다. **같은 함수를
+  쓰므로 "사이드바가 강조하는 메뉴"와 "breadcrumb 뿌리"가 서로 다른 답을 낼 수 없다** —
+  이것이 Root Cause("주소가 말하는 위치와 사이드바가 말하는 위치가 다르다")를 구조적으로
+  막는다.
+- `kit.jsx`에 `CrumbRootCtx`(React Context, 기본값 `undefined`)와 `CrumbRootProvider`를
+  추가했다. `PageHeader`는 `crumbRoot` prop → context 값 → `"관리자"` 순으로 폴백한다.
+  Provider가 없으면(기존 kit.test.jsx 대부분) 예전과 100% 같은 값이 나온다 — 실제로 전체
+  frontend 회귀(2000/2000 → 이 변경 뒤 그대로 통과)로 확인했다.
+- `AppShell.jsx`가 지금 콘솔(`homeUser`)과 `groups`(role로 이미 걸러진 NAV/USER_NAV)에서
+  값을 계산해 `children`을 `CrumbRootProvider`로 감싼다. 관리자 콘솔은 **리터럴
+  `"관리자"`로 고정**(유도값으로 새지 않는다 — 화면마다 손으로 넘기는 `area`가 그 아래
+  단계를 맡는 기존 설계를 그대로 둔다). 사용자 콘솔만 `groupForPath`의 유도값을 쓴다.
+- `Trash.jsx`의 기존 `crumbRoot="문서"` 하드코딩은 **지웠다** — 남겨 두면 `PA-RC-0031`이
+  부모(`/team-docs`)의 그룹을 바꿀 때 자식(`/team-docs/trash`)만 옛 이름에 남아 새로운
+  불일치를 만들었을 것이다. `Profile.jsx`의 `crumbRoot=""`는 그대로 뒀다(Handoff가 손대라고
+  하지 않았고, 두 콘솔에서 공유되는 화면이라 빈 접두어가 의도적으로 보인다).
+
+### `PA-RC-0031` — 감사=사후 점검만, 백업↔복구 리허설 인접, 사용 통계 두 화면 같은 그룹
+
+`navConfig.js` `NAV`(관리자)에서 4개 항목만 옮겼다(다른 모든 항목·role·배지·아이콘은
+그대로): `기능 플래그`·`복구 리허설`을 감사→운영, `공지 배너`를 감사→자동화, `프롬프트
+사용 통계`를 연동→감사. 결과: 운영 7→9, 자동화 7→8, 연동 7→6, 감사 7→5(아래 참고).
+
+**Handoff와 실측이 어긋난 지점 — `/setup`이 실측 트리에 없었다.** Handoff의 `actual`은
+"감사(6)·총 34항목"이라 적었는데, 실제 `navConfig.js`는 감사에 `/setup`(초기 설정)까지
+7개, 총 35항목을 갖고 있었다. 차이를 `roles: ["system_admin"]`(이 항목만 유일하게 이
+role 하나로 제한된 admin 항목이다) 탓으로 진단했다 — `pa2_ia.py`가 `system_admin`이
+아닌 계정으로 돌았다면 이 항목이 아코디언 DOM에 애초에 없어 카운트에서 빠진다. Handoff의
+`target_design`도 감사를 4항목(`/setup` 제외)으로 적었지만, 이 항목의 기존 배치 근거
+("설정이 전부 끝났는가"를 확인하는 사후 점검 체크리스트, `navConfig.js` 자체 주석)가
+새 taxonomy의 "감사=사후 점검·통제·완결성 확인" 정의와 여전히 맞고, Handoff 어디에도
+이 항목을 옮기라는 근거(실측·의도)가 없다 — **옮기지 않았다.** 최종 감사 그룹은
+5항목(감사 로그·이상 징후·정책 사용 통계·프롬프트 사용 통계·초기 설정), 총 35항목이다.
+`nav-ia-taxonomy.test.js`에 이 판단 근거를 그대로 남겼다.
+
+**라벨 용어 규칙 — 3개 항목의 괄호를 없앴다.** "실행 일정(스케줄)"·"자동화 작업
+실행기(러너)"·"업무 자동화 흐름(워크플로)" 세 항목만 `업무용어(기술용어)` 형식이었다.
+Handoff의 두 선택지 중 **31개에 새로 괄호를 지어 붙이는 대신 이 3개에서 걷어내는 쪽**을
+택했다(더 작고, 안전하고, 31개의 적절한 기술용어를 새로 창작할 필요가 없다). `registry/
+automation.js`·`integrations.js`의 `title`도 맞추고, 이 세 화면 이름을 인용하는 도움말
+문구 4곳(`registry/actions.js`·`authoring.js`·`integrations.js`·`SchedulerCalendar.jsx`)과
+주석 2곳까지 전수 검색으로 찾아 함께 고쳤다 — 라벨만 바꾸고 도움말이 옛 이름을 계속
+가리키면 "화면 제목과 메뉴 라벨이 갈라지지 않게 한다"는 제약을 절반만 지킨 것이 된다.
+
+**사용자 콘솔 — 휴지통을 메뉴에서 화면 안 버튼으로.** `USER_NAV`의 `문서` 그룹(항목
+2개: 문서·휴지통)을 없애고 `/team-docs`를 `팀 공간`에 합쳐 5그룹→4그룹으로 줄였다.
+`/team-docs/trash` 메뉴 항목을 통째로 지우면 그 라우트로 가는 **유일한 길**이 없어져
+발견 가능성이 0이 된다(Handoff의 "메뉴를 없애고 다른 화면 안으로 넣는 게 나은 경우"라는
+질문 자체가 대체 진입점을 전제한다) — `TeamDocs.jsx` 헤더 액션에 `휴지통` 버튼
+(`href="#/team-docs/trash"`)을 새로 추가해 라우트 자체는 그대로 살리면서 도달 경로만
+옮겼다.
+
+### role·배지·아이콘 무결성 — 프로그램적으로 검증
+
+옮긴 4항목 중 2개(`기능 플래그`·`복구 리허설`)에 처음에는 `roles:
+["operator","admin","system_admin","auditor"]`를 **새로 달아** 커밋 직전 자체 diff
+스크립트(원본 `git show HEAD:...`와 현재 파일에서 모든 `{to, roles, badge, icon}` 튜플을
+정규식으로 뽑아 대조)로 잡았다 — 두 항목 다 원래 `roles` 키 자체가 없었다(admin 콘솔에
+도달하는 4역할 전원이 어차피 보므로 시각적으로는 동일했겠지만, Handoff의 "role은 그대로
+옮긴다"는 요구를 어겼을 것이다). 둘 다 원본 그대로(`roles` 없음)로 되돌렸다. 이 사고가
+`nav-ia-taxonomy.test.js`의 "이동한 항목의 role·배지·아이콘은 한 글자도 안 바뀐다"
+describe 블록이 존재하는 이유다.
+
+### 기존 테스트 갱신 — 새 계약이 옛 불변식을 의도적으로 깬 자리들
+
+- `nav-ops-group-split.test.js`: `PA-RC-0017`이 세운 "그룹당 7항목 이하"를
+  `PA-RC-0031`이 의도적으로 깬다(운영 9·자동화 8) — 그 상한 검사만 제거, 5그룹·순서·
+  총 35항목·역할 보존 검사는 그대로 남겼다.
+- `nav-active.test.js`: `/team-docs/trash`가 더 이상 자기 메뉴 항목이 없어 이제
+  `/tickets/:id`와 같은 부류(접두 매칭으로 부모가 대신 켜짐)다 — 기대값을
+  `/team-docs/trash`(예전, 자기 항목 있었음)에서 `/team-docs`(지금, 부모가 대신)로 갱신.
+- `sidebar-group-sticky-open.test.jsx`: 독립 "문서" 그룹이 없어져 "팀 공간"을 대신
+  검증하도록 그룹명·localStorage 시드 키를 갱신.
+- `crumb-root.test.jsx`(이번 세션에서 `PA-RC-0039`용으로 막 만든 파일): `/team-docs`의
+  기대 breadcrumb를 "문서"→"팀 공간"으로 갱신 — 내가 그 파일을 쓸 때 이미 "PA-RC-0031이
+  이 값을 바꿀 것"이라고 주석에 적어 뒀던 그 연쇄가 실제로 일어난 것이다.
+
+전체 프런트 회귀 293파일/2035건 green(0030 포함 최종 수치, 아래 참고).
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0039`/`PA-RC-0031`), `frontend/src/app/nav-ia-taxonomy.test.js`, `docs/WORK_STATE.md`.
+
+## D-130 (2026-08-17) — `PA-RC-0030` 구현: 설정 탭 게이트 — "모르는 tab 값"과 "역할 때문에 못 보는 tab"을 가른다
+
+`SettingsShell.jsx`가 두 경우를 하나로 뭉쳐 처리하고 있었다 — 오타/삭제된 탭 값과
+role이 못 보는 탭 값 둘 다 조용히 "시스템 정책" 탭으로 떨어졌다. `admin`·`operator`가
+`/system`(`?tab=os`로 리다이렉트)으로 오면 주소는 `?tab=os`인데 화면은 시스템 정책이고
+거부 안내가 없었다 — 같은 콘솔의 라우트 게이트(`RequireRole`)는 같은 상황에서 「권한이
+없습니다」를 명시하므로 한 제품 안에 권한 거부 어휘가 두 벌이었다.
+
+### 구현
+
+`TAB_DEFS`에서 요청한 tab 키를 찾아(`requestedDef`) 두 갈래로 나눈다:
+- **`requestedDef`가 없다**(오타·삭제된 키): `useEffect`가 `setState({tab:"policy"})`로
+  주소를 정정한다. `useQueryState`의 `setState`는 **기본이 `replace`**라(`lib/
+  useQueryState.js` 자체 문서화) 이 정정이 히스토리에 새 항목을 안 남긴다 — 뒤로가기가
+  여전히 이전 화면으로 간다는 Handoff의 regression_risk를 그 훅의 기존 설계가 이미
+  보장하고 있었다.
+- **`requestedDef`는 있는데 지금 role엔 안 보인다**(`roleDenied`): 주소는 그대로 두고
+  (`PA-RC-0024` 딥링크 계약 — 요청한 곳을 계속 가리켜야 새로고침·공유가 의미 있다)
+  `AdminRoutes.jsx`의 `RequireRole`이 쓰는 것과 **완전히 같은 `EmptyState`**(`title="권한이
+  없습니다"`, `art="noPermission"`, "대시보드로 이동" 버튼)를 그린다 — 새 컴포넌트·새
+  문구를 만들지 않는다(Handoff 명시).
+
+부수로 두 가지를 더 처리했다: (1) `visibleTabs.length > 1`일 때만 탭 스트립을 그린다 —
+전환할 곳이 없는 탭 바는 장식이다(acceptance 4). (2) `SettingsShell` 자신에
+`auth.isLoading`/`auth.isError` 가드를 추가했다 — 원래 없어서, 인증 조회가 끝나기 전
+잠깐 `role=undefined`인 순간에 `roleDenied` 계산이 "권한이 없습니다"를 잘못 깜빡였을
+것이다(`RequireRole`과 같은 패턴 재사용, 이 화면은 라우트 자체에 `RequireRole`이 없고
+"role 게이트를 탭 안에서 스스로 건다"는 기존 설계라 이 화면 자신이 그 책임을 진다).
+
+### 기존 테스트가 옛 버그를 정답으로 고정하고 있었다
+
+`settings-shell.test.jsx`와 `settings-route-redirects.test.jsx` 둘 다 "role이 못 보는
+탭 요청 → 조용히 시스템 정책으로 떨어진다"를 **기대값으로** 갖고 있었다 — 이번 RC가
+고치는 바로 그 결함이 시험으로 고정돼 있었다(`PA-RC-0033`의 `admin-detail-routes.test.jsx`
+때와 같은 패턴). 두 파일 다 새 동작("권한이 없습니다" 노출, 주소 유지)으로 갱신했다.
+revert-to-verify로 확인 — `SettingsShell.jsx`만 되돌리고 갱신한 시험을 돌리면 새로 쓴
+8건이 전부 FAIL(그중 하나는 5초 타임아웃으로, 나머지는 정상 실패)하고 손 안 댄 5건(전부
+system_admin 케이스)은 그대로 PASS했다.
+
+전체 프런트 회귀 293파일/2035건 green(`PA-RC-0030`+`0031`+`0039` 세 RC를 함께 반영한
+최종 수치 — 마지막으로 발견된 `settings-route-redirects.test.jsx`의 옛 단언도 이 회귀에서
+잡아 함께 갱신했다).
+
+### 안 한 것 — 실측 검증은 배치 대기
+
+셋 다(`0030`/`0031`/`0039`) `visual_change_required:true`다. `pa2_rbac.py`(역할별 나브
+노출 63조합)·`pa2_ia.py`(새 트리 덤프)·`pa2_crumb.py`(사용자 콘솔 12화면 breadcrumb)를
+TEST SERVER에서 재실행하는 것은 나머지 PA3 항목과 함께 일괄 배치한다(`BACKLOG.md`
+PA3-04/05/10).
+
+상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0030`), `docs/WORK_STATE.md`.

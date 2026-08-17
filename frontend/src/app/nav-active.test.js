@@ -21,8 +21,15 @@ const PATHS = USER_NAV.flatMap((g) => g.items || []).map((i) => i.to);
 describe("사이드바 선택 유지", () => {
   it("직접 맞는 항목이 있으면 그것이 이긴다", () => {
     expect(activeNavPath("/my-tickets", PATHS)).toBe("/my-tickets");
-    // 접두 매칭으로 두 개가 동시에 켜지던 예전 버그도 함께 지킨다.
-    expect(activeNavPath("/team-docs/trash", PATHS)).toBe("/team-docs/trash");
+  });
+
+  // PA-RC-0031: '휴지통'이 더 이상 자기 메뉴 항목을 안 갖는다(TeamDocs.jsx 화면 안 버튼으로
+  // 옮겼다) — /tickets/:id 와 같은 부류(자기 항목 없는 상세 경로)가 됐다. 접두 매칭으로
+  // 부모(문서, 지금은 '팀 공간' 그룹)가 대신 켜져야 한다 — 예전엔 자기 항목이 있어 이 경로
+  // 자체가 정확히 켜졌었다(그때는 '접두 매칭으로 부모·자식이 동시에 켜지는' 버그 방지가
+  // 목적이었다 — 이제 그 시나리오 자체가 없어져 이 테스트의 목적이 바뀌었다).
+  it("자기 메뉴 항목이 없어진 /team-docs/trash는 접두 매칭으로 부모(문서)가 대신 켜진다", () => {
+    expect(activeNavPath("/team-docs/trash", PATHS)).toBe("/team-docs");
   });
 
   it("티켓 상세는 예전에 아무 메뉴에도 안 걸렸다", () => {

@@ -66,10 +66,15 @@ describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
     expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
   });
 
-  it("system_admin이 아니면 /system도 결국 '시스템 정책' 탭(모두가 보는 기본 탭)에 떨어진다", async () => {
+  // PA-RC-0030: 예전엔 role 때문에 못 보는 탭이어도 조용히 '시스템 정책'으로 떨어졌다 —
+  // 주소(?tab=os)와 화면(시스템 정책)이 어긋나는데 거부 안내가 없었다. 이제 라우트 게이트
+  // (RequireRole)와 같은 EmptyState로 명시한다(settings-shell.test.jsx가 이 배선을 상세히
+  // 고정한다 — 여기서는 옛 주소 리다이렉트를 거쳐도 그 배선까지 정상적으로 닿는지만 본다).
+  it("system_admin이 아니면 /system은 '시스템 정책'으로 조용히 안 떨어지고 '권한이 없습니다'를 명시한다", async () => {
     currentRole = "operator";
     renderRoute("/system");
-    expect(await screen.findByRole("tab", { name: "시스템 정책", selected: true }, WAIT)).toBeInTheDocument();
+    expect(await screen.findByText("권한이 없습니다", {}, WAIT)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "시스템 정책" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "OS와 서비스 동작" })).not.toBeInTheDocument();
   });
 });

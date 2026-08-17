@@ -58,6 +58,17 @@ describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
   });
 });
 
+// PA-RC-0031: 사이드바 '휴지통' 단독 메뉴 항목을 없앤 대신(navConfig.js USER_NAV, 문서 화면
+// 안의 상태였지 형제 메뉴가 아니었다) 이 화면 헤더에 진입점을 둔다 — 라우트 자체는 그대로다.
+describe("휴지통 진입점 (PA-RC-0031)", () => {
+  it("헤더에 '휴지통' 링크가 있고 #/team-docs/trash로 이동한다", async () => {
+    renderScreen();
+    await screen.findByText("인프라 운영 계획");
+    const link = screen.getByRole("link", { name: "휴지통" });
+    expect(link).toHaveAttribute("href", "#/team-docs/trash");
+  });
+});
+
 describe("문서 목록 보기", () => {
   it("기본은 카드 격자다 — 기준 목업이 카드이고 문서는 훑어보며 고르는 화면이다", async () => {
     renderScreen();

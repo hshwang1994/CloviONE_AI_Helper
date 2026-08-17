@@ -5,7 +5,6 @@ import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 
@@ -77,6 +76,17 @@ export const NAV = [
   // 다섯 다 정확히 7항목이라 "5그룹 이하, 그룹당 7항목 이하"(Acceptance Criteria)를
   // 여유 없이 딱 채운다. 이 배치는 완벽한 유일해가 아니라 여러 타당한 분류 중 하나다 —
   // 판단 근거는 DECISIONS.md에 남겼다.
+  //
+  // PA-RC-0031: 위 7항목 배치를 유지한 채(같은 group당 상한 없음, PA-RC-0017의 성과 보존)
+  // 업무 인접성이 깨진 4곳만 옮긴다 — 근거는 DECISIONS.md D-129:
+  //   · 기능 플래그·복구 리허설: 감사(사후 점검) → 운영(그 대상 자체를 다루는 곳, 백업 바로 옆)
+  //   · 공지 배너: 감사 → 자동화(콘텐츠를 다루는 예약/자동 실행 계열)
+  //   · 프롬프트 사용 통계: 연동(재료) → 감사(사용 통계는 정책 사용 통계와 같은 성격)
+  // "실행 일정(스케줄)"·"자동화 작업 실행기(러너)"·"업무 자동화 흐름(워크플로)" 세 항목만
+  // 쓰던 "업무용어(기술용어)" 괄호 병기를 걷어낸다 — 34항목 중 3개에만 있던 규칙을 넓히는
+  // 대신(31개의 적절한 기술용어를 새로 지어내야 한다), 이미 31개가 쓰는 평문 한 벌로 통일한다
+  // (Handoff가 명시한 두 선택지 중 더 작고 안전한 쪽). registry/automation.js·integrations.js의
+  // title도 같은 문구로 맞춘다(화면 제목과 메뉴 라벨이 갈라지면 안 된다).
   { group: "운영", icon: DashboardOutlinedIcon, items: [
     { to: "/dashboard", label: "대시보드", icon: "dashboard" },
     { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
@@ -84,10 +94,19 @@ export const NAV = [
     { to: "/settings", label: "설정", icon: "settings" },
     { to: "/diagnostics", label: "진단", roles: ["operator", "admin", "system_admin"], icon: "diagnostics" },
     { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], badge: "backupFailed", icon: "backup" },
+    // PA-RC-0031: 백업 점검과 그 복구 가능성을 확인하는 일은 한 업무다 — 예전엔 감사(사후
+    // 점검) 그룹에 있어 그룹을 오가야 했다. 백업 바로 옆에 둔다(원래 항목 그대로 — roles를
+    // 새로 달지 않는다. SCREEN_ROLES["restore-drills"]가 라우트 게이트를 이미 맡는다).
+    { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
     // FN-01: GET /api/admin/mail/status(진단)·POST /test(시험 발송)는 처음부터 있었는데
     // 띄우는 화면이 없어 SMTP 설정 오류(비밀번호 재설정 메일 등이 조용히 안 감)를 아무도
     // 못 봤다 — CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)와 같은 role 집합.
     { to: "/mail", label: "메일 발송", roles: ["operator", "admin", "system_admin", "auditor"], icon: "mail" },
+    // PA-RC-0031: 기능 플래그는 시스템 동작을 켜고 끄는 운영 설정이다 — /settings와 같은
+    // 성격인데 감사 그룹에 있어 "감사=사후 점검"이라는 그룹 이름의 예측력을 깼다(원래 항목
+    // 그대로 옮긴다 — roles를 새로 달지 않는다, SCREEN_ROLES["feature-flags"]가 라우트
+    // 게이트를 이미 맡는다).
+    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
   ] },
   { group: "사용자와 권한", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
@@ -109,40 +128,45 @@ export const NAV = [
     { to: "/impersonation", label: "대리 보기", roles: ["admin", "system_admin", "auditor"], icon: "impersonate" },
   ] },
   { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
-    { to: "/schedules", label: "실행 일정(스케줄)", icon: "schedule" },
+    { to: "/schedules", label: "실행 일정", icon: "schedule" },
     { to: "/scheduler-calendar", label: "실행 달력", icon: "sprint" },
     { to: "/documents", label: "문서 자동 생성", icon: "docs" },
     { to: "/approvals", label: "승인", badge: "approvalPending", icon: "check" },
     { to: "/approval-delegations", label: "승인 위임", icon: "check" },
     { to: "/ai-quotas", label: "AI 사용 상한", icon: "quota" },
     { to: "/dev-report", label: "개발자 월간 리포트", roles: ["admin", "system_admin", "auditor"], icon: "report" },
+    // PA-RC-0031: 공지 배너는 예약된 기간에 자동으로 노출/해제되는 콘텐츠라 실행 일정·승인과
+    // 같은 "예약/자동 실행" 계열이다 — 감사(사후 점검)에는 원래 안 맞았다.
+    { to: "/announcements", label: "공지 배너", icon: "announce" },
   ] },
   { group: "연동", icon: LinkOutlinedIcon, items: [
     { to: "/integrations", label: "외부 연동", icon: "integration" },
-    { to: "/runners", label: "자동화 작업 실행기(러너)", icon: "runner" },
-    { to: "/workflows", label: "업무 자동화 흐름(워크플로)", icon: "workflow" },
+    { to: "/runners", label: "자동화 작업 실행기", icon: "runner" },
+    { to: "/workflows", label: "업무 자동화 흐름", icon: "workflow" },
     // 프롬프트·정책·템플릿은 러너·워크플로가 실행 시 참조하는 재료라 여기 묶인다(자체 화면
     // '콘텐츠' 그룹은 PA-RC-0017에서 없앴다 — 항목 다섯 개만으로 최상위 그룹 하나를 쓰는
     // 것보다, 실제로 누가 쓰는가를 기준으로 기존 그룹에 흡수하는 편이 5그룹 상한과 맞았다).
     { to: "/prompts", label: "프롬프트", icon: "ai" },
     { to: "/policies", label: "정책", icon: "policy" },
     { to: "/templates", label: "템플릿", icon: "template" },
-    { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
   ] },
   { group: "감사", icon: GavelOutlinedIcon, items: [
     { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
     { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
-    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
-    { to: "/announcements", label: "공지 배너", icon: "announce" },
-    { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
     // 최초 실행 셋업(9-3)은 SettingsShell 탭이 아니라(PA-RC-0017 상단 주석 참조) 여전히
     // 독립 화면이다 — "설정이 전부 끝났는가"를 확인하는 체크리스트라 사후 점검 성격의 이
     // 그룹에 둔다. `system_admin` 만인 이유는 SystemOps.jsx / app/setup/router.py와 같다.
+    // (PA-RC-0031 Handoff의 실측 트리에는 이 항목이 없다 — system_admin 전용이라 그 실측을
+    // 돌린 계정에 아예 안 보였을 뿐이다, DECISIONS.md D-129에 근거를 남긴다. 그룹 자체는
+    // 이 항목의 "사후 점검" 성격과 여전히 맞아 옮기지 않는다.)
     { to: "/setup", label: "초기 설정", roles: ["system_admin"], icon: "settings" },
     // registry/authoring.js에 화면(policy-usage)과 역할 게이트(SCREEN_ROLES 아래)는 있는데
     // 사이드바 항목만 빠져 있었다(IA-01) — 형제 항목 prompt-usage의 headerActions에서만
     // 갈 수 있었고, 직접 주소로만 닿을 수 있었다. 정책이 실제로 지켜지는가의 확인이라 여기 둔다.
     { to: "/policy-usage", label: "정책 사용 통계", icon: "report" },
+    // PA-RC-0031: 구조가 완전히 같은 사용 통계 화면(policy-usage) 바로 옆으로 옮긴다 — 예전엔
+    // 연동(재료) 그룹에 있어 "같은 종류 화면인데 다른 그룹"이었다.
+    { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
   ] },
 ];
 
@@ -174,10 +198,11 @@ export const USER_NAV = [
     { to: "/chat", label: "AI 도우미", icon: "ai" },
     { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
   ] },
-  { group: "문서", icon: DescriptionOutlinedIcon, items: [
-    { to: "/team-docs", label: "문서", icon: "docs" },
-    { to: "/team-docs/trash", label: "휴지통", icon: "trash" },
-  ] },
+  // PA-RC-0031: '문서' 그룹은 문서·휴지통 둘뿐이었는데 휴지통은 문서 화면 안의 상태이지
+  // 형제 메뉴가 아니다(그 자체로는 갈 이유가 없다 — 항상 '문서에서 지운 것'이라는 맥락이
+  // 있어야 뜻이 있다). 휴지통 메뉴 항목을 없애고(라우트 #/team-docs/trash는 살아 있다,
+  // TeamDocs.jsx 헤더의 '휴지통' 버튼이 새 진입점이다) 항목 하나만 남은 '문서' 그룹은
+  // '팀 공간'에 합쳐 5그룹을 4그룹으로 줄인다(DECISIONS.md D-129).
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
     /* 프로젝트는 팀 티켓 **바로 위**에 둔다. 티켓은 그 안의 한 줄이고, 목록에서 프로젝트로
        올라갈 길이 없으면 사용자는 '내 티켓이 어느 계획의 일부인가'를 화면에서 알 수 없다.
@@ -185,6 +210,9 @@ export const USER_NAV = [
        현황은 참여자 전원이 봐야 하는 화면이라 그렇게 만들어 두었다. */
     { to: "/projects", label: "프로젝트", icon: "project" },
     { to: "/team-tickets", label: "팀 티켓", icon: "ticket" },
+    // PA-RC-0031: 문서도 프로젝트·티켓과 같은 '업무 산출물' 계열이라 그 옆에 둔다(뒤의
+    // 채팅방·놀이·게시판은 소통/커뮤니티 계열이라 성격이 다르다).
+    { to: "/team-docs", label: "문서", icon: "docs" },
     // badge는 '어떤 수를 붙일지'만 고르는 키다. 실제 값은 AppShell의 useNavBadges가
     // 정한다 — 여기서 숫자를 알 수는 없고, 그렇다고 셸에 경로를 하드코딩하면
     // 다음 배지를 붙일 때 또 if가 는다.
@@ -321,6 +349,19 @@ export function activeNavPath(pathname, paths, from) {
   if (from && paths.includes(from)) return from;
   const owner = ROUTE_OWNER[bestNavMatch(pathname, Object.keys(ROUTE_OWNER)) || ""];
   return owner && paths.includes(owner) ? owner : null;
+}
+
+/* PA-RC-0039: 지금 경로가 속한 사이드바 그룹 이름 — kit.jsx의 PageHeader가 crumbRoot를
+ * 유도할 때 쓴다(사이드바 하이라이트와 같은 activeNavPath를 재사용하므로 "지금 켜진 메뉴"와
+ * "breadcrumb 뿌리"가 서로 다른 답을 낼 수 없다 — 같은 함수라 어긋날 방법이 없다). 상세
+ * 화면(`/team-docs/trash` 등 자기 메뉴 항목이 없는 경로)도 activeNavPath의 ROUTE_OWNER/
+ * prefix 폴백을 그대로 물려받는다. */
+export function groupForPath(nav, pathname, from) {
+  const paths = nav.flatMap((g) => (g.items || []).map((it) => it.to));
+  const active = activeNavPath(pathname, paths, from);
+  if (!active) return null;
+  const owner = nav.find((g) => (g.items || []).some((it) => it.to === active));
+  return owner ? owner.group : null;
 }
 
 /* 사이드바가 서랍으로 바뀌는 폭. 디자인 사양서와 기존 앱이 모두 860px이다. */

@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 회귀: 실행 일정(스케줄) DataScreen(#/schedules)과 실행 달력(SchedulerCalendar.jsx,
+/* 회귀: 실행 일정 DataScreen(#/schedules)과 실행 달력(SchedulerCalendar.jsx,
  * #/scheduler-calendar)은 같은 스케줄/실행 자료를 두 가지 보기로 보여준다 —
  * data-screen/crossScreenKeys.js에 "schedules" 매핑이 없어서 어느 쪽에서 상태를 바꿔도
  * 다른 쪽 캐시는 그대로 낡아 있었다(CROSS_SCREEN_KEYS의 다른 항목들, 예: jobs -> dashboard와
@@ -31,7 +31,7 @@ import { AuthProvider } from "../app/auth.jsx"; // 위 mock의 통과용(passthr
 describe("실행 일정 DataScreen -> 실행 달력 캐시", () => {
   const SCHEDULES_CONFIG = {
     key: "schedules",
-    title: "실행 일정(스케줄)",
+    title: "실행 일정",
     endpoint: "/api/admin/schedules",
     columns: [{ key: "name", label: "이름" }],
     detailFields: [],

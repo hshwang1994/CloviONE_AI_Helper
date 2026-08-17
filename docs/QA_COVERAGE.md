@@ -1221,12 +1221,11 @@ D-118 Phase 3가 대화형 레인에서 이미 실측·문서화한 것과 같�
 | 폼 | 입력 요소 **25개** 전수(레이블 연결·required·maxlength) | `pa2_states.py` |
 | 서버 로그 | `journalctl` 실조회 — 500 이 `request_id` + traceback 을 남기는 것 확인 | SSH |
 
-### T12 부분 닫힘 — `PA-RC-0033`(관리자 상세 3종 없는 id) 구현+시험, 브라우저 검증은 아직
+### T12 구현 완전 닫힘 — `PA-RC-0033`+`0030`+`0039` 셋 다 구현+시험, 브라우저 검증은 아직
 
-`T12`("주소와 화면이 같은 것을 말하는가")가 `PA-RC-0033`·`0030`·`0039` 세 RC에 걸려
-있었다. 이번에 `PA-RC-0033`(`/users/:id`·`/departments/:id`·`/audit/:id`)만 구현+
-컴포넌트 시험으로 닫았다 — `0030`(설정 탭 게이트)·`0039`(breadcrumb 뿌리)는 아직 손대지
-않아 `T12`는 **부분** 닫힘이다.
+`T12`("주소와 화면이 같은 것을 말하는가")가 걸려 있던 `PA-RC-0033`·`0030`·`0039` 세
+RC를 전부 구현+테스트로 닫았다(처음엔 `0033`만 닫아 "부분 닫힘"이라고 적었었다 — 이번
+세션에서 나머지 둘도 마저 닫아 이 문단을 갱신한다).
 
 새로 추가한 컴포넌트 시험(`frontend/src/app/admin-detail-routes.test.jsx`, 10건)이
 `pa2_badid.py`가 원래 실측한 9라우트 중 관리자 상세 3종(`/users`·`/departments`·`/audit`)의
@@ -1264,3 +1263,41 @@ true`라 컴포넌트 시험만으로는 완료로 보지 않는다. 나머지 P
 `clippedRows`)·`pa2_resp_dark.py`(7뷰포트×5라우트 잘림 계측)·`pa2_verify_no.py`
 (`/settings` 항목명 열 단위 계측)를 TEST SERVER에서 재실행해 수용 기준의 실측 숫자를
 확인하는 것은 나머지 PA3 항목과 함께 일괄 배치한다(`BACKLOG.md` PA3-08/11/13).
+
+### T12 마저 닫힘 — `PA-RC-0030`(설정 탭 게이트) 구현+시험, `T12` 세 RC 전부 완료
+
+`PA-RC-0033`에 이어 `PA-RC-0030`도 구현+시험으로 닫아 `T12`("주소와 화면이 같은 것을
+말하는가")를 이 Cycle 기준 **전부** 닫았다(`0033`·`0030`·`0039` 세 RC 모두 완료 — 위
+"T12 구현 완전 닫힘" 문단 참고).
+
+`SettingsShell.jsx`가 "모르는 tab 값"과 "역할 때문에 못 보는 tab"을 분리했다 — 전자는
+주소를 정정(`replace`)하고, 후자는 라우트 게이트(`RequireRole`)와 같은
+`EmptyState`("권한이 없습니다")를 그린다. `settings-shell.test.jsx`에 새 시험 4건
+(`권한이 없습니다` 노출·주소 유지·모르는 tab 정정·탭 스트립 숨김)을 추가하고, 옛 결함을
+정답으로 고정하던 기존 시험 2건(`settings-shell.test.jsx`·`settings-route-redirects.test.jsx`
+각 1건)을 새 동작으로 갱신했다 — revert-to-verify로 새 시험 8건이 구코드에서 전부
+FAIL함을 확인(`DECISIONS.md` D-130).
+
+**아직 안 한 것**: `visual_change_required:true` — `pa2_rbac.py`(역할 3×옛 라우트 4,
+12조합) 재실행으로 주소·활성 탭·탭 수·거부 표현이 실측과 맞는지 확인하는 것은 `0031`·
+`0039`와 함께 일괄 배치한다(`BACKLOG.md` PA3-05).
+
+### 새 축 닫힘 — `PA-RC-0031`(메뉴 taxonomy)+`PA-RC-0039`(breadcrumb 유도) 구현+시험
+
+`PA-RC-0031` 자신의 `qa_gaps`가 명시한 "메뉴 분류가 업무와 맞는가" 축(이 Cycle의 T10~T16
+표에는 별도 행으로 승격되지 않았다 — `T12`·`T16`과 같은 계열의 공백으로 `PA-RC-0031`
+자신의 Handoff 블록에만 기록돼 있었다)과 `PA-RC-0039`의 "화면이 말하는 위치가 사용자가
+실제로 있는 위치와 같은가" 축을 함께 구현+시험으로 닫았다.
+
+`navConfig.js`에 `groupForPath`(사이드바 강조에 쓰는 `activeNavPath`를 그대로 재사용)를
+추가해 `kit.jsx`의 새 `CrumbRootProvider`가 이 함수로 breadcrumb 뿌리를 유도한다 — 사이드바
+강조와 breadcrumb가 **같은 함수**를 쓰므로 구조적으로 어긋날 수 없다. 관리자 4항목 재배치
+(감사→운영/자동화/감사 내부 이동)와 사용자 콘솔 문서/휴지통 그룹 병합도 함께 반영했다.
+새 시험 파일 `frontend/src/app/crumb-root.test.jsx`(7건)·`nav-ia-taxonomy.test.js`(11건)
+신설 + 기존 시험 4개 파일(`nav-active.test.js`·`nav-ops-group-split.test.js`·
+`sidebar-group-sticky-open.test.jsx`·`teamdocs-view.test.jsx`) 갱신. 전체 프런트 회귀
+293파일/2035건 green(`PA-RC-0030`까지 반영한 최종 수치, `DECISIONS.md` D-129/D-130).
+
+**아직 안 한 것**: `pa2_ia.py`(새 트리 덤프)·`pa2_crumb.py`(사용자 콘솔 12화면
+breadcrumb)·`pa2_rbac.py`(역할별 나브 노출 63조합, `PA-RC-0031`의 최대 위험)를 TEST
+SERVER에서 재실행하는 것은 `PA-RC-0030`과 함께 일괄 배치한다(`BACKLOG.md` PA3-04/10).

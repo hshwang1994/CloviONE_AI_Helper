@@ -16,7 +16,7 @@ import { DOC_GENERATE_FIELDS, docConfigInitial, docConfigTransform, docGenerateR
 
 export const AUTOMATION_SCREENS = {
   schedules: {
-    key: "schedules", area: "자동화", title: "실행 일정(스케줄)", endpoint: "/api/admin/schedules",
+    key: "schedules", area: "자동화", title: "실행 일정", endpoint: "/api/admin/schedules",
     help: "정해진 시간에 자동 실행을 예약합니다.",
     emptyTitle: "예약된 일정이 없습니다",
     // 문서 화면의 '정기 실행으로 예약'에서 넘어온 ?workflow_id= 쿼리를 생성 폼 프리필로 소비한다

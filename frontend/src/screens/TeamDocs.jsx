@@ -389,6 +389,10 @@ export function TeamDocs() {
                 bulkTrash.mutate([...sel.selected]);
               }}>선택 삭제</Button>
           </BulkActions>
+          {/* PA-RC-0031: 사이드바에서 '휴지통' 단독 메뉴 항목을 없애고(문서 화면 안의 상태이지
+              형제 메뉴가 아니었다) 이 화면 안의 진입점으로 옮긴다 — 라우트(#/team-docs/trash)
+              자체는 그대로 살아 있다, 도달하는 방법만 바뀐다. */}
+          <Button href="#/team-docs/trash">휴지통</Button>
           <Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>
         </>}
       />

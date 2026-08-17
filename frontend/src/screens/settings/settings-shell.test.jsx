@@ -1,9 +1,9 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 /* PA-RC-0017: /settings의 탭 그릇(SettingsShell.jsx). 각 탭 내용(설정 표·시스템 설정·
  * Notion 관리·AI 관리·유지보수)의 자체 동작은 이미 각자의 테스트(system-ops*.test.jsx,
@@ -35,6 +35,14 @@ beforeEach(() => {
   apiMock.mockImplementation(() => Promise.resolve({}));
 });
 
+// MemoryRouter(시험 전용)는 window.location.hash를 실제로 안 건드린다(users-url-state.test.jsx
+// 등 기존 관용과 같은 이유) — 실제 매치된 주소를 보려면 같은 라우터 컨텍스트 안에서
+// useLocation()을 읽는 프로브가 필요하다(admin-detail-routes.test.jsx와 같은 패턴).
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname + location.search}</div>;
+}
+
 function renderShell(initialPath = "/settings") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -43,6 +51,7 @@ function renderShell(initialPath = "/settings") {
         <ThemeModeProvider>
           <ToastProvider>
             <ConfirmProvider>
+              <LocationProbe />
               <SettingsShell />
             </ConfirmProvider>
           </ToastProvider>
@@ -51,6 +60,7 @@ function renderShell(initialPath = "/settings") {
     </MemoryRouter>,
   );
 }
+const currentPath = () => screen.getByTestId("location-probe").textContent;
 
 describe("설정 탭 — role별 가시성", () => {
   it("system_admin은 네 탭을 전부 본다", () => {
@@ -66,29 +76,51 @@ describe("설정 탭 — role별 가시성", () => {
   // allow/deny". system_admin은 위에서 이미 확인했으니 나머지 셋을 여기서 명시적으로 돈다 —
   // 셋 다 결과가 같더라도(전부 system_admin 전용 게이트라) "왜 안 물어봤나"로 남지 않게
   // 이름을 하나씩 못박는다.
+  //
+  // PA-RC-0030 acceptance(4): 볼 수 있는 탭이 하나뿐인 역할에게는 전환할 게 없는 탭 스트립
+  // 자체가 장식이다 — 예전엔(PA-RC-0017) 탭이 하나여도 버튼으로 그렸다. 이제 탭 목록
+  // (role="tablist") 자체가 없다 — 시스템 정책 '내용'(설정 표)은 그대로 보인다.
   it.each(["user", "operator", "auditor"])(
-    "%s는 '시스템 정책' 탭 하나만 본다 — 나머지 셋은 탭 버튼 자체가 없다",
+    "%s는 탭 전환 UI 자체가 없다 — 시스템 정책 내용만 바로 보인다(탭이 하나뿐이라)",
     (role) => {
       currentRole = role;
       renderShell();
-      expect(screen.getByRole("tab", { name: "시스템 정책" })).toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: "OS와 서비스 동작" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: "AI" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+      expect(screen.queryByRole("tab")).not.toBeInTheDocument();
     },
   );
 
+  // PA-RC-0030: 예전엔 주소만 ?tab=os로 남긴 채 조용히 시스템 정책으로 떨어졌다(거부 안내
+  // 없음, 주소·화면 불일치) — 이제 라우트 게이트(RequireRole)와 같은 EmptyState로 명시하고
+  // 주소는 요청한 그대로 둔다(PA-RC-0024 딥링크 계약).
   it.each(["user", "operator", "auditor"])(
-    "%s가 주소를 손으로 ?tab=os/integration/ai로 바꿔도 해당 탭 내용이 아니라 시스템 정책으로 떨어진다",
-    (role) => {
+    "%s가 주소를 손으로 ?tab=os/integration/ai로 바꾸면 '권한이 없습니다'를 명시한다(조용히 시스템 정책으로 안 떨어진다)",
+    async (role) => {
       currentRole = role;
       renderShell("/settings?tab=os");
       // SystemOps.jsx만 그리는 "시스템 정보" 카드 제목이 없어야 한다 — 있다면 role 게이트가
       // 뚫려 이 역할이 OS 특권 동작(서비스 재시작 등)에 닿은 것이다.
+      expect(await screen.findByText("권한이 없습니다")).toBeInTheDocument();
       expect(screen.queryByText("시스템 정보")).not.toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "시스템 정책", selected: true })).toBeInTheDocument();
+      // 설정 표(시스템 정책 탭의 내용)로 조용히 안 떨어졌다 — 거부 화면만 있다.
+      expect(screen.queryByText("현재 상태")).not.toBeInTheDocument();
     },
   );
+
+  it("역할 때문에 못 보는 탭을 요청해도 주소는 그대로 남는다(PA-RC-0024 딥링크 계약)", async () => {
+    currentRole = "operator";
+    renderShell("/settings?tab=os");
+    await screen.findByText("권한이 없습니다");
+    expect(currentPath()).toContain("tab=os");
+  });
+
+  it("모르는 tab 값(오타·삭제된 탭)은 주소를 정정하고 시스템 정책으로 떨어진다 — 역할 문제와 다르게 처리한다", async () => {
+    currentRole = "operator";
+    renderShell("/settings?tab=does-not-exist");
+    await screen.findByText("현재 상태");
+    expect(screen.queryByText("권한이 없습니다")).not.toBeInTheDocument();
+    await waitFor(() => expect(currentPath()).not.toContain("tab=does-not-exist"));
+  });
 });
 
 describe("설정 탭 — 전환하면 실제로 다른 화면을 그린다", () => {

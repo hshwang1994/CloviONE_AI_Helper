@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import { useAuth } from "../../app/auth.jsx";
-import { PageHeader } from "../../ui/kit.jsx";
+import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../../ui/kit.jsx";
 import { useQueryState } from "../../lib/useQueryState.js";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps } from "../SystemOps.jsx";
@@ -54,6 +54,7 @@ const TAB_DEFS = [
   { key: "integration", label: "연동", roles: ["system_admin"] },
   { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
+const SYSTEM_ADMIN_TAB_HELP = "이 화면은 시스템 관리자만 사용할 수 있습니다.";
 
 export function SettingsShell() {
   const auth = useAuth();
@@ -61,11 +62,24 @@ export function SettingsShell() {
   const visibleTabs = TAB_DEFS.filter((t) => !t.roles || t.roles.includes(role));
   const [state, setState] = useQueryState(TAB_SPEC);
   const tabKeys = visibleTabs.map((t) => t.key);
-  // 모르는(또는 지금 role 로는 못 보는) tab 값이 주소에 있으면 첫 탭으로 떨어진다 — 오래된
-  // 북마크·손으로 고친 주소·역할이 바뀐 뒤 남은 링크가 빈 화면이나 에러 대신 항상 뭔가를
-  // 보여주게 한다(Project.jsx 상세 탭과 같은 관례).
-  const tab = tabKeys.includes(state.tab) ? state.tab : "policy";
-  const activeLabel = (visibleTabs.find((t) => t.key === tab) || visibleTabs[0]).label;
+  // PA-RC-0030: "모르는 tab 값"과 "역할 때문에 못 보는 tab"은 사용자에게 다른 사실이다 —
+  // 예전엔 둘 다 조용히 첫 탭으로 떨어져(아래 requestedDef가 없다) admin·operator가
+  // /system 등 옛 주소로 들어오면 주소는 ?tab=os인데 화면은 시스템 정책이고 거부 안내가
+  // 없었다. requestedDef가 있는데(=진짜 있는 탭 키) visibleTabs엔 없으면 역할 문제다 —
+  // 라우트 게이트(AdminRoutes.jsx RequireRole)와 같은 EmptyState로 명시하고 주소는
+  // 그대로 둔다(PA-RC-0024 딥링크 계약). requestedDef 자체가 없으면(오타·삭제된 탭) 아래
+  // effect가 주소를 정정한다(useQueryState의 setState는 기본이 replace라 히스토리를
+  // 안 남긴다 — 뒤로가기가 이전 화면으로 간다).
+  const requestedDef = TAB_DEFS.find((t) => t.key === state.tab);
+  const roleDenied = !!requestedDef && !tabKeys.includes(requestedDef.key);
+  const unknownTab = state.tab !== "policy" && !requestedDef;
+  React.useEffect(() => {
+    if (unknownTab) setState({ tab: "policy" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unknownTab, state.tab]);
+
+  const tab = roleDenied ? requestedDef.key : (tabKeys.includes(state.tab) ? state.tab : "policy");
+  const activeTabDef = roleDenied ? requestedDef : (visibleTabs.find((t) => t.key === tab) || visibleTabs[0]);
 
   // Project.jsx의 상세 탭(TABS.map)에는 이 id/aria-controls 연결이 없다 — 그쪽도 같은 MUI
   // Tabs 패턴을 쓰므로 이 화면만 고친다고 전체가 나아지진 않는다(BACKLOG의 별도 항목으로
@@ -73,36 +87,53 @@ export function SettingsShell() {
   const tabId = (key) => `settings-tab-${key}`;
   const panelId = (key) => `settings-tabpanel-${key}`;
 
+  if (auth.isLoading) return <Card><Skeleton /></Card>;
+  // 세션 만료(401)는 role 이 아직 안 왔을 뿐인데 roleDenied 로 오판해 "권한이 없습니다"를
+  // 잘못 보여줄 수 있다 — RequireRole 과 같은 이유로 재로그인 경로가 있는 ErrorState 를 먼저 본다.
+  if (auth.isError) return <ErrorState error={auth.error} onRetry={() => auth.refetch()} />;
+
   return (
     <Box className="c-screen">
-      <PageHeader area="운영" title="설정" tab={activeLabel} />
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
-        <Tabs
-          value={tab}
-          onChange={(e, next) => setState({ tab: next })}
-          variant="scrollable"
-          allowScrollButtonsMobile
-          aria-label="설정 탭"
-        >
-          {visibleTabs.map((t) => (
-            <Tab key={t.key} value={t.key} label={t.label} id={tabId(t.key)} aria-controls={panelId(t.key)} />
-          ))}
-        </Tabs>
-      </Box>
+      <PageHeader area="운영" title="설정" tab={activeTabDef.label} />
+      {/* 전환할 곳이 없는 탭 스트립은 장식이다 — role 이 system_admin 이 아니면 항상 1개뿐이다. */}
+      {visibleTabs.length > 1 ? (
+        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
+          <Tabs
+            value={tab}
+            onChange={(e, next) => setState({ tab: next })}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            aria-label="설정 탭"
+          >
+            {visibleTabs.map((t) => (
+              <Tab key={t.key} value={t.key} label={t.label} id={tabId(t.key)} aria-controls={panelId(t.key)} />
+            ))}
+          </Tabs>
+        </Box>
+      ) : null}
 
-      <Box role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} tabIndex={0}>
-        {tab === "policy" ? (
-          <>
-            <Settings embedded />
-            <Box sx={{ mt: 4 }}>
-              <Maintenance embedded />
-            </Box>
-          </>
-        ) : null}
-        {tab === "os" && role === "system_admin" ? <SystemOps embedded /> : null}
-        {tab === "integration" && role === "system_admin" ? <NotionConsole embedded /> : null}
-        {tab === "ai" && role === "system_admin" ? <LlmConsole embedded /> : null}
-      </Box>
+      {roleDenied ? (
+        <EmptyState
+          title="권한이 없습니다"
+          help={SYSTEM_ADMIN_TAB_HELP}
+          art="noPermission"
+          action={<Button variant="contained" href="#/">대시보드로 이동</Button>}
+        />
+      ) : (
+        <Box role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} tabIndex={0}>
+          {tab === "policy" ? (
+            <>
+              <Settings embedded />
+              <Box sx={{ mt: 4 }}>
+                <Maintenance embedded />
+              </Box>
+            </>
+          ) : null}
+          {tab === "os" && role === "system_admin" ? <SystemOps embedded /> : null}
+          {tab === "integration" && role === "system_admin" ? <NotionConsole embedded /> : null}
+          {tab === "ai" && role === "system_admin" ? <LlmConsole embedded /> : null}
+        </Box>
+      )}
     </Box>
   );
 }

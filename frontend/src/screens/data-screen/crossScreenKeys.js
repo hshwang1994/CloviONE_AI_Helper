@@ -33,7 +33,7 @@ export const CROSS_SCREEN_KEYS = {
   // ["announcements-active"] 캐시까지 무효화해 주지 않으면, "즉시 사라집니다"(사용 안 함
   // 확인 문구)라는 약속과 달리 다른 탭/세션은 배너의 5분 폴링이 돌 때까지 옛 상태를 본다.
   announcements: [["announcements-active"]],
-  // 실행 일정(스케줄) DataScreen(registry/automation.js `schedules`)과 달력(SchedulerCalendar.jsx,
+  // 실행 일정 DataScreen(registry/automation.js `schedules`)과 달력(SchedulerCalendar.jsx,
   // `["scheduler-calendar", ...]`)은 같은 스케줄/실행 자료를 두 가지 보기로 보여준다 — 이 화면에서
   // 지금 실행·활성/비활성을 눌러도 달력은 별도 캐시라 반영되지 않았다(반대 방향은 SchedulerCalendar.jsx
   // 쪽 재시도/취소 mutation에서 이 키를 함께 무효화해 맞춘다).

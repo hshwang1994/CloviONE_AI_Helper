@@ -32,7 +32,7 @@ import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
 import { AssistantDrawer, useAssistantHotkey } from "./AssistantDrawer.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
-import { activeNavPath, filterGroupsByQuery, NAV_BREAKPOINT_PX } from "./navConfig.js";
+import { activeNavPath, filterGroupsByQuery, groupForPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
@@ -41,7 +41,7 @@ import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
 import { navIcon } from "./navIcons.js";
-import { Card, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { StatusChip, useStatusNotices } from "./StatusNotices.jsx";
@@ -541,6 +541,13 @@ export function AppShell({
   // 있으므로 예외를 둘 이유가 없다.
   const onAssistant = loc.pathname === "/chat";
   const homeUser = isUser || userSeg;
+  // PA-RC-0039: 관리자 콘솔의 breadcrumb 뿌리는 계속 리터럴 "관리자"다(화면마다 손으로
+  // 넘기는 area가 그 아래 단계를 맡는다) — 사용자 콘솔만 지금 경로가 속한 groups(=USER_NAV,
+  // role로 이미 걸러진 값)의 그룹 이름으로 유도한다. activePath와 같은 인자로 같은
+  // activeNavPath를 타므로 사이드바 강조와 항상 같은 답을 낸다.
+  const crumbRoot = homeUser
+    ? (groupForPath(groups, loc.pathname, loc.state && loc.state.from) || "")
+    : "관리자";
 
   // PA-RC-0016: 헤더 우측 상태 칩(StatusChip)과 본문 위 CRITICAL 한 줄(Banners 안의
   // CriticalStatusLine)이 **같은** 목록을 봐야 한다 — 훅을 각자 부르면 60초/300초
@@ -778,7 +785,9 @@ export function AppShell({
           }
         >
           {!minimal ? <ScopeBar /> : null}
-          {auth.isLoading ? <Card><Skeleton /></Card> : children}
+          <CrumbRootProvider value={crumbRoot}>
+            {auth.isLoading ? <Card><Skeleton /></Card> : children}
+          </CrumbRootProvider>
         </Box>
       </Box>
 

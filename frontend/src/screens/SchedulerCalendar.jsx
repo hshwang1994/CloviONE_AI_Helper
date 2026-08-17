@@ -169,7 +169,7 @@ export function SchedulerCalendar() {
     onSuccess: () => {
       toast("실행을 다시 대기열에 넣었습니다.", "success");
       qc.invalidateQueries({ queryKey: ["scheduler-calendar"] });
-      // 실행 일정(스케줄) DataScreen(#/schedules, registry/automation.js)이 같은 실행 이력을
+      // 실행 일정 DataScreen(#/schedules, registry/automation.js)이 같은 실행 이력을
       // 별도 캐시(["schedules", ...])로 보여준다 — crossScreenKeys.js의 반대 방향(schedules ->
       // scheduler-calendar)과 짝을 맞춘다.
       qc.invalidateQueries({ queryKey: ["schedules"] });
@@ -311,7 +311,7 @@ export function SchedulerCalendar() {
           <EmptyState
             art="search"
             title="추가된 실행 일정이 없습니다"
-            help="‘실행 일정(스케줄)’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
+            help="‘실행 일정’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
             relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
           />
         </Box>

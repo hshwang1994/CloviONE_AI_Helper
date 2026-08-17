@@ -1170,9 +1170,21 @@ export function ToastProvider({ children }) {
 }
 export function useToast() { return React.useContext(ToastCtx); }
 
+/* PA-RC-0039: crumbRoot의 기본값이 리터럴 "관리자"였다 — 사용자 콘솔 화면이 그 prop을
+ * 잊으면 조용히 "관리자"가 새어 나갔다(TeamDocs.jsx·DataScreen.jsx가 실제로 그랬다).
+ * kit.jsx는 라우팅을 모르는 채로 남긴다(useLocation을 여기서 부르면 Router 없이 렌더하는
+ * 기존 kit.test.jsx 다수가 깨진다) — 대신 AppShell.jsx가 지금 콘솔+navConfig 그룹에서 값을
+ * 계산해 Context로 흘려보낸다. Provider가 없으면(격리 렌더·기존 테스트) undefined → 아래
+ * PageHeader가 그대로 "관리자"로 떨어져 회귀가 없다. 호출부가 crumbRoot를 명시하면(Trash.jsx
+ * 등) 그 값이 always 이긴다.  */
+const CrumbRootCtx = React.createContext(undefined);
+export function CrumbRootProvider({ value, children }) {
+  return <CrumbRootCtx.Provider value={value}>{children}</CrumbRootCtx.Provider>;
+}
+
 /* 페이지 헤더 — 빵부스러기→제목 순서와 간격을 한곳에서 정한다.
- * crumbRoot: 빵부스러기 접두어(기본 '관리자'). 사용자 대면 화면은 다른 뿌리를 넘기거나
- *   area를 비워 빵부스러기 자체를 숨길 수 있다.
+ * crumbRoot: 빵부스러기 접두어. 명시하면 그 값, 안 하면 위 CrumbRootProvider가 콘솔에 맞게
+ *   계산한 값, 그것도 없으면(Provider 밖) "관리자"다. area를 비우면 빵부스러기 자체를 숨길 수 있다.
  * spot: 섹션 일러스트 키(lib/assets.js의 SPOT).
  *
  * 일러스트는 **격자 항목이 아니라 배경 장식**이다(사용자 지시 §5: "페이지마다 클로비
@@ -1183,7 +1195,9 @@ export function useToast() { return React.useContext(ToastCtx); }
  *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자", spot, size = "page", help, helpTone }) {
+export function PageHeader({ area, title, tab, actions, crumbRoot, spot, size = "page", help, helpTone }) {
+  const ctxCrumbRoot = React.useContext(CrumbRootCtx);
+  const resolvedCrumbRoot = crumbRoot !== undefined ? crumbRoot : (ctxCrumbRoot !== undefined ? ctxCrumbRoot : "관리자");
   void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
    * 이 컴포넌트를 그대로 쓰면 h4/h1 이 감싸는 페이지의 진짜 제목과 같은 무게라 "페이지가
@@ -1193,7 +1207,7 @@ export function PageHeader({ area, title, tab, actions, crumbRoot = "관리자",
   const isSection = size === "section";
   // PA-RC-0017: tab 이 있으면 3단(영역 › 화면 › 탭) — title 이 캡션 줄로 올라가고 tab 이 큰
   // 제목이 된다. 안 주는 61개 기존 호출부는 그대로 2단(관리자 › 영역 / 제목)이라 하위 호환된다.
-  const crumb = [crumbRoot, area, tab ? title : null].filter(Boolean).join(" › ");
+  const crumb = [resolvedCrumbRoot, area, tab ? title : null].filter(Boolean).join(" › ");
   const heading = tab || title;
   // PA-RC-0022: 상시 안내 패널(8+ 화면, 실제로는 registry 28개 화면 전부가 DataScreen.jsx를
   // 통해 이 자리를 썼다)을 "제목 옆 도움말 토글"로 옮긴다 — 내용은 그대로, 기본 접힘만 바뀐다.

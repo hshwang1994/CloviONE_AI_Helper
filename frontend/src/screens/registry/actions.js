@@ -164,7 +164,7 @@ export const DOC_GENERATE_FIELDS = [
   // DGEN-01: 자유 텍스트 ID 받아쓰기 대신 이름으로 고른다 — documents 화면의 config.refLists
   // (registry/automation.js)가 이 화면에 로드된 워크플로/템플릿 목록을 DataScreen.jsx의
   // withOptionsFrom을 통해 select 옵션으로 준다.
-  { name: "workflow_id", label: "워크플로", type: "select", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름(워크플로)’ 화면에서 추가하고 활성화합니다." },
+  { name: "workflow_id", label: "워크플로", type: "select", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름’ 화면에서 추가하고 활성화합니다." },
   { name: "period", label: "기간", type: "text", required: true, help: "예: 2026-07 또는 2026-W29 (문서가 다룰 기간)" },
   { name: "mode", label: "모드", type: "select", value: "preview_then_approve", options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]), help: "‘자동 발행’이라도 대상 워크플로/템플릿이 승인을 요구하면 미리보기 후 승인 흐름으로 전환됩니다." },
   { name: "template_id", label: "템플릿(선택)", type: "select", optionsFromRefList: "templates", extraOptions: [{ value: "", label: "(템플릿 없음)" }], help: "고르면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },

@@ -26,7 +26,7 @@ export const INTEGRATION_SCREENS = {
     emptySituation: "이 관리 콘솔이 아직 n8n, 러너 같은 외부 서비스를 하나도 모릅니다.",
     emptyPrerequisite: "추가할 서비스의 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다).",
     emptySteps: ["‘+ 외부 연동 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스체크’로 연결을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
-    emptyExpected: "추가한 연동은 목록에 상태와 함께 표시되고, ‘자동화 작업 실행기(러너)’ 화면에서 이 연동을 선택할 수 있습니다.",
+    emptyExpected: "추가한 연동은 목록에 상태와 함께 표시되고, ‘자동화 작업 실행기’ 화면에서 이 연동을 선택할 수 있습니다.",
     emptyRelatedLink: { href: "#/runners", label: "다음: 러너 추가로 이동" },
     createLabel: "+ 외부 연동 추가",
     // 다른 화면(러너 상세의 integration_id)이 ?id=로 넘겨주는 딥링크를 소비해 그 연동의 상세
@@ -115,7 +115,7 @@ export const INTEGRATION_SCREENS = {
       field("description", "설명"), dateCol("last_health_at", "마지막 점검"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
   },
   runners: {
-    key: "runners", area: "연동", title: "자동화 작업 실행기(러너)", endpoint: "/api/admin/runners",
+    key: "runners", area: "연동", title: "자동화 작업 실행기", endpoint: "/api/admin/runners",
     // '수정'에서 점검 상태를 바꾸는 안내는 그 버튼을 실제로 볼 수 있는 쓰기 역할(admin/system_admin)
     // 에게만 준다 — 읽기 전용 역할(operator/auditor)은 이 화면을 볼 수 있어도 '수정' 버튼이 없다.
     // RN-10/RN-11: 예전엔 이 문구가 "실제 업무(티켓 처리, 요청 해석)를 수행하는 실행기"라고 단정했다.
@@ -283,7 +283,7 @@ export const INTEGRATION_SCREENS = {
       dateCol("last_health_at", "마지막 상태 확인"), dateCol("circuit_open_until", "회로 차단 해제"), dateCol("created_at", "추가"), dateCol("updated_at", "수정"), field("description", "설명")],
   },
   workflows: {
-    key: "workflows", area: "연동", title: "업무 자동화 흐름(워크플로)", endpoint: "/api/admin/workflows",
+    key: "workflows", area: "연동", title: "업무 자동화 흐름", endpoint: "/api/admin/workflows",
     help: "n8n 워크플로를 추가해 관리합니다. 읽기/쓰기, 승인 필요 여부를 표시합니다. ‘테스트’는 수신 주소의 도달 가능성(GET 연결)만 확인하며, 실제 실행을 보장하지 않습니다.",
     emptyTitle: "추가된 워크플로가 없습니다",
     // 워크플로는 READ_ROLES(operator/auditor 포함)가 읽을 수 있지만 생성은 WRITE_ROLES 전용이다

@@ -286,7 +286,7 @@ export const AUTHORING_SCREENS = {
       { name: "name", label: "이름", type: "text", required: true },
       { name: "description", label: "설명", type: "textarea" },
       { name: "target_type", label: "대상 유형", type: "select", value: "workflow", options: TEMPLATE_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름(워크플로)’ 화면에서, 러너면 ‘자동화 작업 실행기(러너)’ 화면에서 대상의 ID를 확인해 입력하세요." },
+      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요." },
       { name: "prompt_id", label: "프롬프트 ID(선택)", type: "text", help: "‘프롬프트’ 화면에서 확인." },
       { name: "policy_id", label: "정책 ID(선택)", type: "text", help: "‘정책’ 화면 상세의 ID를 입력." },
       // apply_template_bindings(app/documents/service.py)는 input_schema를 {**input_schema, **config}로
@@ -326,7 +326,7 @@ export const AUTHORING_SCREENS = {
         options: (row && row.target_type === "runner")
           ? [...TEMPLATE_TARGET_OPTS, { value: "runner", label: "러너(신규 선택 불가, 기존 값 유지)" }]
           : TEMPLATE_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름(워크플로)’ 화면에서, 러너면 ‘자동화 작업 실행기(러너)’ 화면에서 대상의 ID를 확인해 입력하세요." },
+      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요." },
       { name: "prompt_id", label: "프롬프트 ID(선택)", type: "text", help: "‘프롬프트’ 화면에서 확인." },
       { name: "policy_id", label: "정책 ID(선택)", type: "text", help: "‘정책’ 화면 상세의 ID를 입력." },
       ...TEMPLATE_SCHEMA_FIELDS,

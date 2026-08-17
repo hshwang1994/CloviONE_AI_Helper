@@ -59,24 +59,26 @@ describe("사이드바 그룹이 저절로 접히지 않는다", () => {
     wideViewport();
     apiMock.mockResolvedValue({ items: [], unread: 0, badge: 0, by_type: {}, unread_total: 0 });
     window.localStorage.clear();
-    // "문서" 그룹이 예전 세션에서 접힌 채로 저장돼 있다고 가정한다. "내 업무"(홈이 속한
+    // PA-RC-0031: 예전엔 독립 "문서" 그룹이 있었지만 이제 /team-docs는 "팀 공간"에 합쳐졌다
+    // — 그 그룹이 예전 세션에서 접힌 채로 저장돼 있다고 가정한다. "내 업무"(홈이 속한
     // 그룹)는 이 시험의 실제 관심사가 아니라 "다른 그룹의 항목을 눌러 벗어난다"는 절차를
     // 수행하기 위한 발판일 뿐이라 — "기록 없음 = 접힘"이 기본값인 지금(PA-RC-0017, AppShell.jsx
     // isOpen 주석 참조) 명시적으로 펼쳐 둔다. 접힌 채로 두면 "홈" 링크 자체가 안 보여
-    // 시험이 본론(문서 그룹의 펼침 유지)에 닿기도 전에 죽는다.
+    // 시험이 본론(팀 공간 그룹의 펼침 유지)에 닿기도 전에 죽는다.
     window.localStorage.setItem(
       "clovirone_nav_collapsed:u1",
-      JSON.stringify({ "문서": true, "내 업무": false }),
+      JSON.stringify({ "팀 공간": true, "내 업무": false }),
     );
   });
 
   it("접혀 있던 그룹이 활성 라우트로 강제로 펼쳐진 뒤, 다른 곳을 클릭해도 계속 펼쳐져 있다", async () => {
-    // '문서' 그룹의 라우트(/team-docs)로 바로 진입 — 접혀 있었어도 강제로 펼쳐진다.
+    // '팀 공간' 그룹의 라우트(/team-docs, PA-RC-0031로 이 그룹에 합쳐짐)로 바로 진입 —
+    // 접혀 있었어도 강제로 펼쳐진다.
     renderShell("/team-docs");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
-    const docsHeader = screen.getByRole("button", { name: /문서/ });
-    expect(docsHeader).toHaveAttribute("aria-expanded", "true");
+    const groupHeader = screen.getByRole("button", { name: /팀 공간/ });
+    expect(groupHeader).toHaveAttribute("aria-expanded", "true");
 
     // 사용자는 이 그룹을 한 번도 직접 접은 적이 없다 — 다른 그룹의 항목("홈")을 클릭해
     // 그룹을 벗어난다.
@@ -85,7 +87,7 @@ describe("사이드바 그룹이 저절로 접히지 않는다", () => {
 
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
-    // 사용자가 직접 접은 적이 없으므로 '문서' 그룹은 계속 펼쳐져 있어야 한다.
-    expect(docsHeader).toHaveAttribute("aria-expanded", "true");
+    // 사용자가 직접 접은 적이 없으므로 '팀 공간' 그룹은 계속 펼쳐져 있어야 한다.
+    expect(groupHeader).toHaveAttribute("aria-expanded", "true");
   });
 });
