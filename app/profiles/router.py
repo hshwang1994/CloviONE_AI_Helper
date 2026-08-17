@@ -483,10 +483,14 @@ def my_stats(
         repo=request.app.state.repositories.tickets,
     )
     tickets = state["tickets"]
+    # PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면 통계 자체를 안 싣는다 — tickets가
+    # 이미 빈 리스트라 build_stats를 그대로 돌리면 totals.all 등이 전부 0으로 나와
+    # '모른다'가 '0건이다'로 보인다(app/home/service.py::build_today와 같은 원칙).
+    usable = state["ok"] and state["mapped"]
     body = {
         "ok": True,
         "source": {k: v for k, v in state.items() if k != "tickets"},
-        **stats.build_stats(tickets, today=today, months=months, weeks=weeks),
+        **(stats.build_stats(tickets, today=today, months=months, weeks=weeks) if usable else {}),
     }
     from app.tickets.service import sync_indicator
 

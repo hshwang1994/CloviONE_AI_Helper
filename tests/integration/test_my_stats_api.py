@@ -179,7 +179,13 @@ def test_stats_report_mirror_freshness(stats_client):
 
 
 def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_user):
-    """Notion 연결이 없으면 숫자를 지어내지 않고 `mapped: false` 로 말한다."""
+    """Notion 연결이 없으면 숫자를 지어내지 않고 `mapped: false` 로 말한다.
+
+    PA-RC-0027: 이 테스트가 원래 `totals["all"] == 0` 을 단언했다 — 그게 정확히 이
+    Root Cause다("모른다"를 "0건"으로 지어내면 이 테스트가 그것을 green 으로 고정한다).
+    이제는 `totals`/`workload`/`months` 자체가 응답에 없다 — 화면이 숫자 대신 "모른다"를
+    그릴 수 있게, 있는 척(0)을 하지 않는다.
+    """
     (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     make_user("nomap@goodmit.co.kr")
     assert client.post(
@@ -187,9 +193,9 @@ def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_us
     ).status_code == 200
     body = _stats(client)
     assert body["source"]["mapped"] is False
-    assert body["totals"]["all"] == 0
-    # 화면이 그릴 모양은 그대로 온전하다.
-    assert body["months"] and body["workload"]["by_week"]
+    assert "totals" not in body
+    assert "workload" not in body
+    assert "months" not in body
 
 
 def test_stats_survive_a_dead_source(client, db, notion):
@@ -198,15 +204,43 @@ def test_stats_survive_a_dead_source(client, db, notion):
     이 경로를 타려면 **연결됐고(mapped) 미러도 비어 있어야** 한다. 미매핑 계정은 소스를
     부르기 전에 멈추고(`mapped: false`), 미러가 차 있으면 토큰 없이도 답이 나온다
     (그게 캐시의 존재 이유다) — 그래서 여기서는 사용자·매핑만 심고 티켓 미러는 비워 둔다.
+
+    PA-RC-0027: `configured: false`도 `ok: false`(소스를 못 읽었다)를 동반하므로
+    `usable = ok and mapped`에 걸려 totals 등이 마찬가지로 빠진다 — 위 미매핑 테스트와
+    같은 원칙("소스 장애면 버킷 자체가 없다")의 다른 발생 지점이다.
     """
     _seed_users(db)  # 토큰 파일도 티켓 미러도 일부러 만들지 않는다
     assert client.post("/login", json={"email": EMAIL, "password": PASSWORD}).status_code == 200
     body = _stats(client)
     assert body["ok"] is True, "요청 자체는 성공이다"
     assert body["source"]["configured"] is False
+    assert "totals" not in body
+    assert "workload" not in body
+    assert "months" not in body
+
+
+def test_stats_totals_are_real_zero_when_mapped_with_no_tickets(client, db, settings, notion, make_user):
+    """PA-RC-0027 acceptance (과잉 수정 방지): 매핑은 됐고 실제로 티켓이 0건인 사용자는
+    여전히 진짜 0을 본다 — "모른다"만 감추지 "0건이다"까지 감추면 반대 방향의 거짓말이 된다."""
+    (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
+    user = make_user("mapped-empty@goodmit.co.kr")
+    db.add(UserNotionMapping(
+        user_id=user.id, notion_user_id="person-empty", notion_email=user.email,
+        source=SOURCE_MANUAL, status=STATUS_VERIFIED, last_verified_at=datetime(2026, 1, 1),
+    ))
+    # get-or-create — 이 파일의 `_seed()`와 같은 이유(SYNC_STATE_ID가 싱글턴 PK라 다른
+    # 테스트가 이미 만들어 둔 행이 있을 수 있다).
+    state = db.get(TicketSyncState, SYNC_STATE_ID) or TicketSyncState(id=SYNC_STATE_ID)
+    state.status = SYNC_OK
+    state.last_success_at = datetime(2026, 1, 1)
+    db.add(state)
+    db.commit()
+    assert client.post(
+        "/login", json={"email": "mapped-empty@goodmit.co.kr", "password": "Str0ng-Passw0rd!"}
+    ).status_code == 200
+    body = _stats(client)
+    assert body["source"]["mapped"] is True
     assert body["totals"]["all"] == 0
-    # 화면이 그릴 모양은 그대로 온전하다 — 빈 통계라도 키가 빠지면 화면이 깨진다.
-    assert body["months"] and body["workload"]["by_week"]
 
 
 def test_stats_require_login(app):

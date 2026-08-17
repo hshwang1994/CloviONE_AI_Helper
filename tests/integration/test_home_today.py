@@ -216,5 +216,35 @@ def test_today_survives_a_dead_ticket_source(home_client, notion, db):
     assert [p["title"] for p in body["recent"]["board"]] == ["최근 글"]
 
 
+def test_today_omits_ticket_buckets_when_unmapped(client, db, settings, notion, make_user):
+    """PA-RC-0027: 매핑이 없으면 오늘 마감/지연/진행 중/곧 마감/막힘 버킷이 아예 없다 —
+    빈 리스트로 집계해 전부 0을 내면 "모른다"가 "없다"로 보인다(work.py의 sprint 판정과
+    같은 원칙, 이 테스트가 새로 그 원칙을 `tickets` 블록에도 고정한다)."""
+    (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
+    make_user("home-nomap@goodmit.co.kr", password=PASSWORD)
+    r = client.post("/login", json={"email": "home-nomap@goodmit.co.kr", "password": PASSWORD})
+    assert r.status_code == 200
+    client.headers["X-CSRF-Token"] = r.json()["csrf_token"]
+
+    body = _today(client)
+    assert body["ok"] is True
+    assert body["tickets"]["mapped"] is False
+    for bucket in ("due_today", "overdue", "in_progress", "due_soon", "blocked"):
+        assert bucket not in body["tickets"], f"{bucket}가 매핑 없는 응답에 남아 있다"
+    assert body["sprint"] is None
+    # 장애 격리 — 티켓과 무관한 블록은 그대로 나온다.
+    assert "inbox" in body and "recent" in body
+
+
+def test_today_mapped_with_zero_tickets_still_shows_real_zero(home_client, db):
+    """과잉 수정 방지 — 매핑은 됐고 실제로 담당 티켓이 0건이면 버킷은 여전히 진짜 0이다."""
+    db.query(TicketCache).delete()
+    db.commit()
+    body = _today(home_client)
+    assert body["tickets"]["mapped"] is True and body["tickets"]["ok"] is True
+    assert body["tickets"]["due_today"]["count"] == 0
+    assert body["tickets"]["in_progress"]["count"] == 0
+
+
 def test_today_requires_authentication(client):
     assert client.get("/api/home/today").status_code == 401

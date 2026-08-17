@@ -99,8 +99,11 @@ export function MyStats() {
   });
 
   const data = q.data;
-  const totals = data && data.totals;
-  const load = data && data.workload;
+  // PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면 백엔드가 totals/workload를 아예
+  // 안 싣는다 — `{}`로 기본값을 줘야 아래 totals.active 등이 undefined로 안전하게
+  // 평가된다(StatCard가 이미 null/undefined 둘 다 '-'로 그린다).
+  const totals = (data && data.totals) || {};
+  const load = (data && data.workload) || {};
   const source = data && data.source;
 
   return (
@@ -140,7 +143,11 @@ export function MyStats() {
             <StatCard value={pct(totals.completion_rate)} label="완료율(취소 제외)" />
           </Box>
 
-          {totals.all === 0 ? (
+          {/* PA-RC-0027: `totals.all`이 이제 소스를 못 읽었을 때 0이 아니라 undefined다
+              (totals={}) — `=== 0`만 보면 이 경우 아래 차트 분기로 빠져 load.by_week 등
+              없는 값에 접근해 죽는다. `!totals.all`은 "0건"과 "모른다"를 같은 EmptyState
+              분기로 보내고, 그 안의 source.mapped 체크가 둘을 다시 정확히 갈라 말한다. */}
+          {!totals.all ? (
             <Card>
               {/* WF1 R4 — 계정이 Notion과 안 연결된 사람은 위 SourceNotice("관리자에게 계정
                   연결을 요청하세요")와 여기 아래 EmptyState가 **서로 다른 원인**을 말했다

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.chat.service import (
@@ -25,6 +28,7 @@ from app.chat.service import (
     set_conversation_archived,
     set_message_feedback,
 )
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.deps import (
     AuthContext,
     get_current_user,
@@ -199,25 +203,41 @@ def post_message(
     # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
     # 버스트, 이쪽은 하루·한 달 총량이다.
     #
-    # 확인과 적재를 **한 덩어리로** 묶는다 (Z15). 이 경로는 기록을 워커가 하므로
-    # 큐에 넣은 잡 자체가 예약이고, 그 예약이 다른 요청에 보이려면 블록 안에서
-    # 커밋해야 한다(`ai_quotas.reserve` docstring).
-    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
-        conversation = get_owned_conversation(db, user, conversation_id)
-        message, job = post_user_message(
-            db,
-            user,
-            conversation,
-            content=payload.content,
-            client_message_id=payload.client_message_id,
-            settings=request.app.state.settings,
-            now=request.app.state.clock.now(),
-            attachments=(
-                [a.model_dump() for a in payload.attachments] if payload.attachments else None
-            ),
-            screen_context=payload.screen_context,
-        )
-        db.commit()
+    attachments = (
+        [a.model_dump() for a in payload.attachments] if payload.attachments else None
+    )
+
+    # PA-RC-0032: 이 경로 전체(확인→적재→커밋)에 SQLite 쓰기 경합 재시도가 없었다 —
+    # 실측(TEST SERVER)에서 `database is locked`가 그대로 500으로 샜다. `ai_quotas.reserve`
+    # 의 프로세스 내 뮤텍스(quota_guard)는 같은 사용자의 동시 요청끼리만 직렬화하고
+    # SQLite 트랜잭션 경합은 막지 않는다 — 매 시도마다 `reserve`를 새로 만들어 블록
+    # 전체(확인 재검증 포함)를 다시 실행한다. `client_message_id` 기반 idempotency_key
+    # (`jobs.repository.enqueue`)가 있어 재시도로 잡이 중복 적재되지 않는다 — 실패한
+    # 시도는 커밋 전이라 rollback으로 전부 되감기고, 성공한 시도만 그 키로 한 번 적재된다.
+    _CHAT_WRITE_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
+    message = job = None
+    for _attempt in range(_CHAT_WRITE_RETRIES):
+        try:
+            with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+                conversation = get_owned_conversation(db, user, conversation_id)
+                message, job = post_user_message(
+                    db,
+                    user,
+                    conversation,
+                    content=payload.content,
+                    client_message_id=payload.client_message_id,
+                    settings=request.app.state.settings,
+                    now=request.app.state.clock.now(),
+                    attachments=attachments,
+                    screen_context=payload.screen_context,
+                )
+                db.commit()
+            break
+        except OperationalError as exc:
+            if not is_write_conflict(exc) or _attempt == _CHAT_WRITE_RETRIES - 1:
+                raise
+            db.rollback()
+            time.sleep(write_conflict_backoff(_attempt))
     return {
         "message": message_view(message),
         "job_id": job.id if job is not None else None,

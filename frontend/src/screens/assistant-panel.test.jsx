@@ -103,6 +103,30 @@ describe("AI 도우미 패널", () => {
     expect(apiMock.mock.calls.every(([p]) => !p.includes("narrate"))).toBe(true);
   });
 
+  // PA-RC-0027: mapped:false면 백엔드가 버킷 키를 아예 안 싣는다(app/home/service.py)
+  // — n()이 그 부재를 그냥 0으로 접으면 "오늘 마감 0건..."이 "모른다"를 "없다"로 오독시킨다.
+  it("매핑이 없으면 '오늘 마감 0건' 대신 판단 불가 문장을 낸다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/assistant/briefing")) {
+        return Promise.resolve({
+          kind: "briefing",
+          tickets: { configured: true, ok: true, mapped: false },
+          sprint: null,
+          narrative: null,
+        });
+      }
+      if (path.startsWith("/api/assistant/standup")) return Promise.resolve(STANDUP);
+      if (path.startsWith("/api/assistant/triage")) return Promise.resolve(TRIAGE);
+      return Promise.resolve({});
+    });
+    renderPanel();
+
+    expect(await screen.findByText("담당 티켓을 판단할 수 없어 오늘 요약을 계산할 수 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/오늘 마감 0건/)).not.toBeInTheDocument();
+    // 두 번째 절("위 스프린트 카드와...")도 "0"을 지어낸 상단 줄을 다시 가리키지 않는다.
+    expect(screen.queryByText(/위 숫자는 이 화면 상단 카드와 같은 값입니다/)).not.toBeInTheDocument();
+  });
+
   it("문장 생성이 꺼져 있으면 숫자는 그대로 두고 이유만 덧붙인다", async () => {
     routeApi();
     renderPanel();

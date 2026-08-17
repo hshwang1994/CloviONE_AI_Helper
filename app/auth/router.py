@@ -682,26 +682,48 @@ def change_password(
     if problems:
         raise ValidationAppError("비밀번호 정책 위반", details=problems)
 
-    user.password_hash = hash_password(new_password)
-    user.must_change_password = False
+    # Argon2id hashing is deliberately CPU-expensive — compute it once outside the
+    # retry loop below, not on every attempt.
+    new_hash = hash_password(new_password)
 
-    # Spec §11.3: 비밀번호 변경 시 모든 다른 세션 폐기 + 세션 회전.
-    session_service.revoke_all_for_user(db, user.id)
-    record, token = session_service.create(
-        db,
-        user,
-        client_ip=get_client_ip(request),
-        user_agent=request.headers.get("user-agent"),
-    )
-    # 자기 자신의 비밀번호 변경은 지금까지 감사 로그에 전혀 남지 않았다 — login()/logout()은
-    # 이 파일에서 이미 record_audit를 부르는데(위 참조) change_password()만 빠져 있었다.
-    # '언제 누가 비밀번호를 바꿨나'는 감사 화면의 존재 목적과 정확히 일치하는 사건이다.
-    record_audit(
-        db, actor_id=user.id, action="user.password_change_self", object_type="user",
-        object_id=user.id, result="success", client_ip=get_client_ip(request),
-        request_id=getattr(request.state, "request_id", None),
-    )
-    db.commit()
+    # PA-RC-0032: 같은 파일 login()과 같은 이유(app/core/db.py의 정확한 트랜잭션
+    # 격리 아래서는 동시 쓰기가 SQLITE_BUSY_SNAPSHOT으로 거부될 수 있다)로 이 관문도
+    # 재시도가 필요하다 — 실측(TEST SERVER): 오늘 31건 중 3건이 이 경합으로 500이었다.
+    # 이 관문은 최초 로그인마다 통과해야 하는 필수 경로라 login()보다 영향이 크다.
+    _CHANGE_PW_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
+    for _attempt in range(_CHANGE_PW_RETRIES):
+        try:
+            user.password_hash = new_hash
+            user.must_change_password = False
+
+            # Spec §11.3: 비밀번호 변경 시 모든 다른 세션 폐기 + 세션 회전.
+            session_service.revoke_all_for_user(db, user.id)
+            record, token = session_service.create(
+                db,
+                user,
+                client_ip=get_client_ip(request),
+                user_agent=request.headers.get("user-agent"),
+            )
+            # 자기 자신의 비밀번호 변경은 지금까지 감사 로그에 전혀 남지 않았다 — login()/logout()은
+            # 이 파일에서 이미 record_audit를 부르는데(위 참조) change_password()만 빠져 있었다.
+            # '언제 누가 비밀번호를 바꿨나'는 감사 화면의 존재 목적과 정확히 일치하는 사건이다.
+            record_audit(
+                db, actor_id=user.id, action="user.password_change_self", object_type="user",
+                object_id=user.id, result="success", client_ip=get_client_ip(request),
+                request_id=getattr(request.state, "request_id", None),
+            )
+            db.commit()
+            break
+        except OperationalError as exc:
+            if not is_write_conflict(exc) or _attempt == _CHANGE_PW_RETRIES - 1:
+                raise
+            db.rollback()
+            # 실패한 시도의 revoke/create/audit는 커밋 전이라 rollback으로 전부 되감긴다 —
+            # session_service.create()가 매번 새 토큰을 만들 뿐이라(login()과 동일 근거)
+            # 이 블록 전체를 다시 실행하는 것이 안전하다. rollback은 세션의 객체를
+            # expire시키므로 user를 다시 가져와야 위 password_hash 대입이 새 스냅샷에 반영된다.
+            time.sleep(write_conflict_backoff(_attempt))
+            user = get_user_by_email(db, user.email)
 
     response = JSONResponse({"ok": True, "csrf_token": record.csrf_token})
     set_session_cookie(response, token, settings, max_age=session_service.absolute_ttl())

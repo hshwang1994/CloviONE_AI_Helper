@@ -87,10 +87,17 @@ function Briefing({ data }) {
   const t = data.tickets || {};
   const s = data.sprint;
   const n = (b) => (b && typeof b.count === "number" ? b.count : 0);
+  // PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면 백엔드가 버킷 자체를 안 싣는다 —
+  // due_today가 그 다섯 버킷을 대표하는 존재 여부 신호다(전부 함께 실리거나 함께
+  // 빠진다). 여기서 n()으로 그냥 0을 내면 "오늘 마감 0건"이 "모른다"를 "없다"로
+  // 오독시킨다 — 위 스프린트 문장과 같은 원칙으로 짧게 참조만 한다.
+  const ticketsUsable = t.due_today !== undefined;
   return (
     <Stack gap={1}>
       <Typography variant="body2">
-        오늘 마감 {n(t.due_today)}건, 지연 {n(t.overdue)}건, 진행 중 {n(t.in_progress)}건, 막힘 {n(t.blocked)}건
+        {ticketsUsable
+          ? `오늘 마감 ${n(t.due_today)}건, 지연 ${n(t.overdue)}건, 진행 중 ${n(t.in_progress)}건, 막힘 ${n(t.blocked)}건`
+          : "담당 티켓을 판단할 수 없어 오늘 요약을 계산할 수 없습니다."}
       </Typography>
       <Typography variant="body2" color="text.secondary">
         {s ? `이번 주 내 몫 ${s.assigned}건 중 ${s.done}건 완료${s.completion_rate == null ? "" : ` (${s.completion_rate}%)`}`
@@ -102,8 +109,10 @@ function Briefing({ data }) {
       <Typography variant="caption" color="text.secondary">
         {/* VIS-34: 이 숫자들은 이 화면 상단 카드(오늘 마감·지연·진행 중·막힘)와 같은 값이다
             — 서로 다른 집계로 오해하지 않도록 그 관계를 밝힌다(VIS-25가 관리자 대시보드에서
-            쓴 것과 같은 "요약 vs 상세" 신호). */}
-        위 숫자는 이 화면 상단 카드와 같은 값입니다. ‘문장 요약 만들기’를 누르면 문장으로 옮겨 줍니다.
+            쓴 것과 같은 "요약 vs 상세" 신호). PA-RC-0027: ticketsUsable이 아니면 위 줄에
+            숫자 자체가 없으므로 "위 숫자는..." 문장을 빼고 두 번째 절만 남긴다. */}
+        {ticketsUsable ? "위 숫자는 이 화면 상단 카드와 같은 값입니다. " : ""}
+        ‘문장 요약 만들기’를 누르면 문장으로 옮겨 줍니다.
       </Typography>
     </Stack>
   );

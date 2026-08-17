@@ -167,6 +167,27 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.queryByText(/해당하는 티켓이 없습니다/)).toBeNull();
   });
 
+  // PA-RC-0027: 매핑이 없으면(usable=false) 백엔드가 버킷 키를 아예 안 싣는다 —
+  // EMPTY_BUCKETS(mapped:true, count:0)와 겉보기엔 같은 "숫자 없음"이지만 뜻이 다르다
+  // ("0건이다" vs "모른다"). 카드가 "0"이 아니라 "-"를 그려야 그 구분이 지켜진다.
+  it("매핑이 없으면 개수 카드가 '0'이 아니라 '-'를 그린다", async () => {
+    routeApi({
+      today: {
+        ...TODAY_OK,
+        tickets: { configured: true, ok: true, mapped: false },
+        sprint: null,
+      },
+    });
+    renderHome();
+
+    await screen.findByText("안 읽은 알림");
+    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감"]) {
+      expect(cardValue(label)).toBe("-");
+    }
+    // 진짜 0건(EMPTY_BUCKETS)이 쓰는 문장과 섞이면 안 된다 — 이 화면은 "모른다" 쪽이다.
+    expect(screen.queryByText("담당한 티켓이 없습니다")).toBeNull();
+  });
+
   it("SEM-02: 최상위 구역이 h1 바로 아래 h2다(예전엔 h3로 건너뛰어 h2가 아예 없었다)", async () => {
     routeApi();
     renderHome();

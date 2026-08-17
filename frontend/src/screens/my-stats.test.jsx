@@ -128,6 +128,26 @@ describe("내 업무량 · 완료 통계", () => {
     expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
   });
 
+  // PA-RC-0027: 위 시험은 totals/workload/months를 그대로 둔 채 source만 바꿔 프런트의
+  // source 분기만 본다. 실제 백엔드는 이제 mapped:false일 때 그 세 키를 아예 안 싣는다
+  // (app/profiles/router.py::my_stats) — 그 모양 그대로 줘도 죽지 않고 카드가 '-'를
+  // 그리는지, 그리고 EmptyState가 뜨는지(과거엔 totals.all===0이 undefined에서 거짓이라
+  // 아래 차트 분기로 빠져 load.by_week.map()에서 죽었다)를 여기서 직접 확인한다.
+  it("백엔드가 totals/workload/months를 아예 안 실어도 카드는 '-'를 그리고 안 죽는다", async () => {
+    apiMock.mockResolvedValue({
+      ok: true,
+      source: { configured: true, ok: true, mapped: false },
+      today: "2026-08-03",
+      sync: null,
+    });
+    renderStats();
+    expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
+    expect(screen.getByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
+    const remaining = screen.getAllByText("남은 일")[0].closest(".k-stat");
+    expect(remaining).not.toBeNull();
+    expect(remaining.textContent).toContain("-");
+  });
+
   /* WF1 R4 — 위 시험은 totals를 안 바꿔 항상 6건이라, 연결이 없는 계정이 실제로도
    * 거의 항상 함께 겪는 "담당 티켓 0건" 조합을 재현하지 않았다(그래서 이 결함을
    * 가리고 있었다). 그 조합에서는 배너("계정 연결을 요청하세요")와 빈 상태("담당
