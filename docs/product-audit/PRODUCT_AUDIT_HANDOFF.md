@@ -16,7 +16,7 @@ cycle_id=PA-20260817-072224-24b91505
 
 <!-- HANDOFF-SUMMARY
 cycle_id=PA-20260817-072224-24b91505
-actionable_root_causes=11
+actionable_root_causes=12
 redesign_root_causes=2
 deferred_for_human_approval=0
 -->
@@ -506,4 +506,51 @@ data_impact: 해당 없음 - 데이터 의미가 바뀌지 않는다
 api_impact: 해당 없음 - API 계약이 바뀌지 않는다
 rbac_impact: 해당 없음 - 권한 경계가 바뀌지 않는다. 접힌 열도 권한에 따른 노출 규칙을 그대로 따른다
 browser_verification: TEST SERVER 에서 admin 으로 `/settings`·`/users`·`/offboarding` 을 1920x1080 · 1366x768 · 1366@125% · 1024x768 · 390x844 다섯 조합에서 라이트/다크로 캡처하고, `pa2_resp_dark.py` 와 `pa2_verify_no.py` 를 재실행해 식별자 열 잘림이 0인지, 가로 넘침이 여전히 0인지 수치로 확인한다.
+<!-- PA-RC-END -->
+
+---
+
+<!-- PA-RC-BEGIN PA-RC-0038 -->
+rc_id: PA-RC-0038
+severity: Medium
+priority: P2
+confidence: Confirmed
+problem: 기본 필터가 걸린 채 열리는 목록 화면이 0건일 때 「승인 요청이 없습니다」처럼 **무조건형 문장**을 쓰고 필터를 지우는 수단을 주지 않는다. 실제 상태는 「대기 중인 것이 없다」인데 사용자는 「승인 요청이라는 것이 아예 없다」로 읽는다. 같은 제품의 `/users` 는 같은 상황에서 「조건에 해당하는 사용자가 없습니다 / 검색어나 필터를 지우고 다시 확인하세요」 + 「필터 지우기」 버튼을 정확히 제공한다 — 좋은 패턴이 이미 있는데 기본 필터로 여는 화면에는 적용되지 않았다.
+expected: 필터 때문에 0건인 화면은 (a) 「조건에 해당하는 ~가 없습니다」처럼 **필터 때문임을 밝히는 문장**을 쓰고 (b) 필터를 지울 수단을 함께 준다. 데이터가 정말 하나도 없을 때만 무조건형 문장을 쓴다. 근거: `/users` 가 이 저장소 안에서 그 구분을 이미 구현하고 있고, 이 Cycle의 `empty-state` 판정이 그 구분을 `KEEP` 근거로 삼았다(`PRODUCT_AUDIT_DESIGN.md`).
+actual: `/approvals` 는 `?status=pending` 을 달고 열리며 0건일 때 「승인 요청이 없습니다」를 보이고 동작 버튼은 `저장된 뷰` 하나뿐이다(필터 지우기 없음). 대조군 `/users?q=<없는 값>` 은 「조건에 해당하는 사용자가 없습니다」 + 「필터 지우기」 버튼 2곳. `/prompts` 도 `?status=published` 기본 필터로 열린다(현재 3건이 있어 빈 상태는 재현되지 않았다).
+intent_evidence: `/users` 의 구현이 이 제품이 택한 정답을 보여준다(우선순위 5 — 서로 일치하는 Frontend 흐름). `docs/UX_WRITING.md` 가 문구 규약을 관리한다. 다만 **「기본 필터가 걸린 화면의 빈 상태를 어떻게 쓸 것인가」를 명시한 문서는 없다** — INFERRED 이며 근거는 제품 내 일관성과 「결과 없음과 데이터 없음은 다른 사실」이라는 이 저장소가 이미 지키는 원칙이다.
+findings: PA-F-097
+feature_contracts: FC-승인워크플로, FC-공용빈상태
+routes: `/approvals`, `/prompts`, 그리고 기본 필터를 갖고 여는 다른 REGISTRY 목록 화면
+frontend: `frontend/src/screens/registry/automation.js`(approvals 설정), `frontend/src/screens/registry/authoring.js`(prompts 설정), 공용 `DataScreen` 의 빈 상태 분기, `frontend/src/lib/useQueryState.js`(기본값을 주소에 쓰지 않는 규약), `frontend/src/ui/kit.jsx` `EmptyState`
+api: `GET /api/admin/approvals`, `GET /api/admin/prompts` — 계약은 바뀌지 않는다
+backend: 해당 없음 - 표시 계층 문제다
+data: 해당 없음 - 저장 데이터가 바뀌지 않는다
+rbac: 해당 없음 - 권한 경계가 바뀌지 않는다. 다만 아래 acceptance_criteria (5)가 목록의 **범위**(내가 결재자인 건만 보이는지)를 함께 확정하도록 요구한다
+integration: 해당 없음 - 외부 연동과 무관하다
+state_transition: 승인 상태(pending/approved/rejected/cancelled) 자체는 바뀌지 않는다. 어떤 상태가 기본으로 보이는지의 **표현**만 다룬다
+user_impact: 결재자가 `/approvals` 를 열고 「승인 요청이 없습니다」를 보면 할 일이 없다고 판단하고 화면을 닫는다. 실제로는 「대기 중」만 비어 있는 것이고, 거절·취소된 건이나 다른 상태의 건은 필터 밖에 있다. 필터를 지우는 버튼조차 없어서 그 사실을 확인하려면 필터 카드를 직접 열어 상태 값을 바꿔야 한다.
+implementation_direction: 공용 `DataScreen` 의 빈 상태를 **두 경우로 갈라** 그린다 — (1) 필터·검색이 하나라도 활성이면 `/users` 와 같은 「조건에 해당하는 ~가 없습니다」 + 「필터 지우기」, (2) 아무 필터도 없이 0건이면 지금의 설명형 빈 상태. **판정 기준에 「기본 필터도 활성 필터로 센다」를 명시**한다 — `useQueryState` 가 기본값을 주소에 쓰지 않으므로 주소만 보고 판단하면 `/approvals` 는 필터가 없는 것처럼 보인다. 이것이 이 RC의 핵심이다. `/users` 가 이미 그 표현을 갖고 있으므로 새 컴포넌트·새 문구를 만들지 않고 공용 분기에 올린다. 「필터 지우기」는 기본값으로 되돌리는 것이 아니라 **전체를 보이게** 해야 한다.
+constraints: CLAUDE.md 5절(per-page 예외보다 shared component 우선 — `DataScreen` 공용 분기에서 해결하고 화면별 예외를 만들지 않는다) · `useQueryState` 의 「기본값은 주소에 쓰지 않는다」 규약을 바꾸지 않는다(주소가 짧아지는 이점이 있고 다른 화면이 의존한다) · 저장된 뷰(`saved_views`) 기능과 충돌하지 않게 한다 · 빈 상태의 기존 설명형 문구(무엇이 여기 나타나는지)를 없애지 않는다 — 필터가 없을 때는 그것이 옳다
+regression_risk: (a) 공용 `DataScreen` 을 건드리므로 **REGISTRY 27화면 전부가 영향권**이다 — 필터가 없는 화면의 빈 상태가 바뀌지 않아야 한다. (b) 「기본 필터도 활성으로 센다」로 바꾸면 기본 필터를 가진 모든 화면의 빈 상태 문구가 동시에 달라진다 — 어느 화면이 기본 필터를 갖는지 먼저 열거해야 한다. (c) 「필터 지우기」가 기본값 복귀로 구현되면 아무것도 안 바뀌어 사용자가 버튼이 고장 났다고 읽는다. (d) 저장된 뷰로 진입한 경우 「필터 지우기」가 그 뷰를 깨뜨리지 않아야 한다.
+acceptance_criteria: (1) `/approvals` 가 대기 0건일 때 필터 때문임을 밝히는 문장을 보인다. (2) 같은 화면에 「필터 지우기」가 있고, 눌렀을 때 **전체 상태**가 보인다(기본값 복귀가 아니다). (3) 필터가 하나도 없는 화면의 빈 상태 문구는 변경 전과 같다. (4) 기본 필터를 가진 화면 목록이 코드에서 열거 가능하고 전부 (1)(2)를 만족한다. (5) **`/approvals` 목록의 범위를 확정해 문서화한다** — 「내가 결재자인 건만」인지 「전체」인지. 원시 API 는 다른 사람이 결재자인 건을 돌려주는데 화면은 0건이었으므로 둘 중 하나가 사용자 기대와 어긋난다. (6) 저장된 뷰로 진입한 뒤 「필터 지우기」를 눌러도 앱이 깨지지 않는다.
+required_tests: (1) `DataScreen` 빈 상태 분기 컴포넌트 테스트 — 필터 활성/비활성 두 경우, 기본 필터 포함. (2) `/approvals` 빈 상태 회귀 테스트. (3) 필터 없는 화면의 빈 상태 문구 불변 테스트(과잉 수정 방지). (4) 「필터 지우기」가 전체를 보이게 하는지 확인하는 상호작용 테스트. (5) `/approvals` 목록 범위(결재자 한정 여부)를 고정하는 API/화면 테스트 — acceptance (5).
+qa_gaps: `QA_COVERAGE.md` 에 「기본 필터가 걸린 화면의 빈 상태」 축이 없다. 기존 검증은 화면이 열리고 오류가 없는지만 보므로 **틀린 문장이 성공적으로 렌더되는 것**은 통과한다. 이 Cycle의 `PA-RC-0030`·`0033`·`0034`·`0037` 과 같은 종류의 공백이다 — 검사가 실패만 보고 「맞는 말인가」를 안 본다.
+quality_rubric: `ux-writing` — 빈 상태 기준(무엇이 없는지·왜 없는지·무엇을 하면 되는지)과 **조건부 사실을 무조건형으로 쓰지 않기**. 내장 rubric 4) 「같은 의미가 같은 component/pattern 으로 표현되는가」 — `/users` 와 `/approvals` 가 같은 상황에 다르게 답하는 것이 Root Cause 판정의 근거다. 5) 「표/목록: 빈 상태」.
+evidence_refs: `PRODUCT_AUDIT_FINDINGS.md` PA-F-097 · `var/product-audit/pa2_blind1.py` / `pa2_blind1.json`(결재자 진입점 walk) · `var/product-audit/pa2_blind1b.py` / `pa2_blind1b.json`(4화면 빈 상태 대조) · `var/product-audit/shots2/d4_blind1_admin_approvals.png` · `d4_blind1_admin_approval-delegations.png`
+current_state: `/approvals` 는 `?status=pending` 으로 열리고 0건일 때 「승인 요청이 없습니다」 + 설명문을 보인다. 동작 버튼은 `저장된 뷰` 하나뿐이고 필터 지우기가 없다. 대조군 `/users?q=<없는 값>` 은 「조건에 해당하는 사용자가 없습니다」 + 「필터 지우기」 2곳.
+user_problem: 결재자가 「없습니다」를 보고 할 일이 없다고 판단하는데, 실제로는 대기 상태만 비어 있다. 필터를 지울 버튼도 없어 확인하려면 필터 카드를 직접 열어야 한다.
+design_verdict: REFINE
+target_state: 필터 때문에 비어 있으면 화면이 그렇게 말하고 한 번 눌러 전체를 볼 수 있다. 정말 아무것도 없으면 지금의 설명형 빈 상태가 그대로 나온다.
+target_design: 공용 `DataScreen` 빈 상태를 필터 활성 여부로 분기하고, 활성 판정에 **기본 필터를 포함**한다. 활성이면 `/users` 와 같은 문장과 「필터 지우기」를 쓰고, 비활성이면 기존 설명형 빈 상태를 유지한다. 새 컴포넌트·새 문구를 만들지 않는다.
+visual_change_required: true
+target_visual_delta: `/approvals` 빈 화면의 제목이 「승인 요청이 없습니다」에서 「조건에 해당하는 승인 요청이 없습니다」류로 바뀌고, 그 아래에 「필터 지우기」 버튼이 새로 나타난다. 필터가 없는 화면의 빈 상태는 픽셀 단위로 그대로다.
+affected_surfaces: `/approvals`, `/prompts`, 기본 필터를 갖는 나머지 REGISTRY 목록 화면
+affected_components: `DataScreen` 빈 상태 분기, `registry/automation.js`·`registry/authoring.js` 등 기본 필터 정의, `ui/kit.jsx` `EmptyState`(재사용, 수정 없음)
+workflow_change: 없음 — 승인·거절·취소 절차가 바뀌지 않는다. 목록이 왜 비었는지 알게 되고 한 번에 전체를 볼 수 있게 될 뿐이다
+navigation_impact: 라우트·메뉴가 바뀌지 않는다. 「필터 지우기」가 주소의 쿼리를 바꾼다
+data_impact: 해당 없음 — 데이터 의미가 바뀌지 않는다
+api_impact: 해당 없음 — 응답 계약이 바뀌지 않는다. 화면이 어떤 질의를 보내는지만 달라진다
+rbac_impact: 없음 — 권한 경계가 바뀌지 않는다. 다만 acceptance (5)가 목록 범위(결재자 한정 여부)를 확정하도록 요구하며, 그 결과가 「전체」라면 기존 서버 게이트가 이미 그것을 허용하고 있는지 확인한다
+browser_verification: TEST SERVER 에서 admin 으로 `/approvals` 를 대기 0건 상태로 1920x1080 라이트/다크에서 캡처해 문장과 「필터 지우기」 존재를 확인하고, 버튼을 눌러 전체 상태가 보이는지 본다. 필터가 없는 화면(`/announcements` 등)의 빈 상태를 같은 뷰포트에서 캡처해 변경 전 스크린샷과 대조한다.
 <!-- PA-RC-END -->
