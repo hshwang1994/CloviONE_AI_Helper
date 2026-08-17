@@ -56,7 +56,7 @@ export const INTEGRATION_SCREENS = {
       // (declaredRowName이 이 rowName을 그대로 쓴다) 모두에 원시 슬러그가 그대로 샜다.
       // 관리자가 직접 등록한(§4종 밖) 연동 이름은 serviceLabel의 kebab/snake 자동 정리
       // 폴백만 타므로 자유 텍스트를 훼손하지 않는다.
-      { key: "name", label: "이름", render: (r) => serviceLabel(r.name), rowName: (r) => serviceLabel(r.name) },
+      { key: "name", label: "이름", identifier: true, render: (r) => serviceLabel(r.name), rowName: (r) => serviceLabel(r.name) },
       mapCol("provider_type", "유형", PROVIDER), enabledCol("활성"),
       badgeCol("last_health_status", "상태 확인"), truncateCol("base_url", "서버 주소", 60), col("config_version", "버전")],
     // admin은 auth_type='none'인 연동만 새로 만들 수 있다(백엔드 _guard_secret_binding_create가 그 외
@@ -156,7 +156,7 @@ export const INTEGRATION_SCREENS = {
       { key: "maintenance_state", type: "select", label: "점검 상태", options: RUNNER_MAINT_OPTS },
       { key: "enabled", type: "select", label: "활성", options: opt([["true", "활성"], ["false", "비활성"]]) },
     ],
-    columns: [col("name", "이름"), enabledCol("활성"), badgeCol("maintenance_state", "상태"),
+    columns: [{ ...col("name", "이름"), identifier: true }, enabledCol("활성"), badgeCol("maintenance_state", "상태"),
       // 회로 차단(연속 실패로 배분이 300초 막힘) 상태를 목록에서 바로 본다 — degraded 배지로는 구분되지 않는다.
       // key는 상세 드로어의 circuit_open_until(해제 시각) 필드와 겹치지 않도록 별도 이름을 쓴다.
       { key: "circuit_blocked", label: "차단", render: (r) => {
@@ -315,7 +315,7 @@ export const INTEGRATION_SCREENS = {
     // (연동·러너의 base_url과 달리 여긴 클릭 가능한 링크가 사실상 죽은 기능이었다) — 평문으로만 보여준다.
     // purpose·owner도 목록 열로 노출 — prompts 화면이 이미 같은 이유로(각 행이 '무엇을 위한 것인지'
     // 상세를 하나씩 열지 않고도 알 수 있게) purpose를 승격한 것과 동일한 패턴(registry.js:572-577).
-    columns: [col("name", "이름"), truncateCol("purpose", "용도", 40), col("owner", "담당자"),
+    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 40), col("owner", "담당자"),
       mapCol("operation_mode", "모드", WF_MODE), badgeCol("approval_required", "승인 필요"),
       enabledCol("활성"),
       // provider_n8n.test()는 'reachable'/'unreachable'만 기록한다 — 한 번도 테스트한 적 없는 행은

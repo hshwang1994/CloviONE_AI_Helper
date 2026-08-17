@@ -47,7 +47,7 @@ export const AUTOMATION_SCREENS = {
     // target_type/target_ref도 목록 열로 노출 — 이 일정이 실제로 무엇을 실행하는지(어느 워크플로/
     // 시스템)가 예전엔 상세를 하나씩 열어야만 보였다. target_ref는 대상이 워크플로일 때 그 화면으로
     // 바로 이동하는 링크로 보여준다(러너 상세의 integration_id와 동일한 패턴).
-    columns: [col("name", "이름"), mapCol("schedule_type", "유형", SCHED_TYPE),
+    columns: [{ ...col("name", "이름"), identifier: true }, mapCol("schedule_type", "유형", SCHED_TYPE),
       { key: "cron_expression", label: "실행 일정(Cron)", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
       mapCol("target_type", "대상 유형", { workflow: "워크플로", system: "시스템" }),
       // 워크플로 화면의 ?id= 딥링크(onQuery)로 그 워크플로 상세를 곧바로 연다(무필터 전체 목록 아님).
@@ -272,7 +272,7 @@ export const AUTOMATION_SCREENS = {
     // 첫 열은 원시 UUID 대신 사람이 읽는 식별자(미리보기 제목 → 없으면 UUID)로 행을 구분한다.
     // 실제 UUID(id)는 감사 로그 대조·API 문의 등에 필요한데 어디에도 안 보였다 — 두 분기 모두 끝에
     // 붙여 항상 보이게 한다(제목이 있어도 UUID를 확인·복사할 방법이 있어야 한다).
-    columns: [{ key: "id", label: "문서", render: (r) => {
+    columns: [{ key: "id", label: "문서", identifier: true, render: (r) => {
       const idSuffix = r.id ? ", " + r.id : "";
       if (r.preview && r.preview.title) return String(r.preview.title) + idSuffix;
       // 미리보기 제목이 없는 행(대기·품질 미달·실패 — 정확히 운영자가 가장 자주 찾아보는 상태들)은

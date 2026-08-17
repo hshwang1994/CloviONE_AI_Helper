@@ -5766,3 +5766,72 @@ Chrome Whole-product E2E 실측, (d) `pa2_dup.py`/`pa2_cols.py`/`pa2_resp_dark.p
 (e) `IMPLEMENTATION_CONSUMED` 기록 + `IMPLEMENTATION_REQUIRED` 제거뿐이다.
 
 상세: `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`(`PA-RC-0038`), `docs/WORK_STATE.md`.
+
+## D-135 (2026-08-17) — 13건 코드 완료 뒤 배경 재감사 2건이 새 Root Cause 2건을 찾았다: breadcrumb `area` 드리프트, `identifier` 열 롤아웃 미완
+
+`PA-RC-0028`/`0038`로 이 Cycle의 13건이 전부 코드 수준에서 닫힌 뒤, CLAUDE.md §8("상당량
+구현한 뒤 Repository 전체를 다시 감사한다")에 따라 이번 Cycle이 손댄 11개 커밋 전체를
+배경 Explore 에이전트 넷으로 재감사했다(각 커밋 diff를 직접 읽고 실제 소비처를 추적 —
+문서 재탕이 아니다). 8건은 완전히 깨끗했다(`PA-RC-0033`·`0034`, `Diagnostics.jsx`의
+`COMP_LABELS`/`integrationMix`/`Donut` 잔존 없음, `DataScreen.jsx`의 `defaultFilterVals`
+잔존 없음). 나머지에서 진짜 결함 2건을 찾아 그 자리에서 고쳤다.
+
+### 1. `PA-RC-0031`의 사이드바 재배치가 breadcrumb `area`를 안 따라갔다
+
+`복구 리허설`·`기능 플래그`·`공지 배너`·`프롬프트 사용 통계` 4개 화면이 `PA-RC-0031`
+(`edcc3b1d`)로 사이드바 그룹은 옮겨졌는데(운영/운영/자동화/감사), 각 화면 설정 자신의
+`area` 필드(`registry/platform.js`·`authoring.js`)는 그대로 남아 있었다. 관리자 콘솔은
+`homeUser`가 항상 false라(`AppShell.jsx`) breadcrumb 뿌리가 `PA-RC-0039`의
+`CrumbRootProvider`/`groupForPath` 유도를 안 타고 항상 리터럴 "관리자"다 — 그 다음
+조각(`config.area`)이 사이드바가 강조하는 그룹과 다른 이름을 계속 말했다. 정확히
+`PA-RC-0039`가 구조적으로 없애려 했던 결함 부류가, 그 배선이 안 닿는 형제 필드로
+재발한 것이다. `D-129`의 검증(diff를 `{to,roles,badge,icon}` 튜플로만 비교)이 애초에
+`area`를 비교 대상에 넣지 않아서 놓쳤다.
+
+4개 필드를 사이드바와 일치시켜 고치고, `REGISTRY` 전체의 `config.area`를
+`groupForPath()`(사이드바 강조가 쓰는 바로 그 함수)와 교차 대조하는 회귀 시험을
+신설했다(`frontend/src/app/registry-area-matches-nav-group.test.js`, 29건 — REGISTRY의
+`area` 있는 화면 전부). revert-to-verify로 4개 필드를 되돌리면 정확히 그 4개 화면만
+실패함을 확인했다.
+
+### 2. `identifier` 열 최소 폭이 3개 화면에만 적용되고 나머지 REGISTRY에는 안 갔다
+
+`D-128`(`PA-RC-0029`/`0036`/`0037`)이 `kit.jsx`에 만든 `c.identifier:true` → 12.5rem
+최소 폭 메커니즘 자체는 튼튼했지만, 실제로 그 플래그를 붙인 화면은 `Users.jsx`·
+`Offboarding.jsx`·`SettingsMain.jsx` 셋뿐이었다 — REGISTRY(관리자 화면 28개 조립)
+안에는 하나도 안 들어갔다. 그런데 REGISTRY 대다수가 정확히 같은 형태(행을 식별하는
+첫 열이 이름/이메일인데 폭 보호가 없다)를 그대로 갖고 있었고, 일부는 원래 `/users`를
+고치게 만든 사례보다 더 나쁘다 — `runners`는 10열(`/users` 수정 당시보다 많다),
+`notion-mapping`은 첫 열 자체가 `user_email`(정확히 같은 이메일 잘림 패턴)이다.
+
+22개 REGISTRY 화면(`integrations`·`runners`·`workflows`·`schedules`·`documents`·
+`organizations`·`departments`·`job-titles`·`notion-mapping`·`org-tree`·`prompts`·
+`policies`·`templates`·`prompt-usage`·`policy-usage`·`approval-delegations`·
+`impersonation`·`approvals`·`audit-anomalies`·`notifications`·`announcements`·
+`feature-flags`·`ai-quotas`)의 식별 열에 `identifier:true`를 붙였다 — 새 메커니즘을
+만들지 않고 `D-128`이 이미 만든 것을 실제로 다 쓰게 했을 뿐이다. 식별 열이 항상
+첫 열은 아니다(`ai-quotas`는 "대상"이 두 번째, `approvals`는 "요청자"가 두 번째,
+`audit-anomalies`는 "행위자"가 세 번째) — 실제로 행을 구별하는 값이 무엇인지를 각
+화면의 SEM-01 주석과 `rowName` 로직을 근거로 판단했다.
+
+**의도적으로 안 건드린 것**: `audit`·`jobs`는 `PA-RC-0029` 원 조사가 실측으로 "잘림
+0, 건드리지 않는다"고 이미 확정한 화면이다(`BACKLOG.md` PA3-11) — 실측 없이 그 판정을
+뒤집지 않는다. `backup`·`restore-drills`(둘 다 `platform.js`)는 첫 열이 배지/타임스탬프고
+실제 식별 값(`source_label` 등)이 이미 `truncateCol`로 보호돼 있어 같은 결함 형태가
+아니다 — 판단 확신이 낮은 채로 만지지 않았다. `subList`(버전 기록·부서 소속 인원 등
+드로어 안 중첩 표)도 범위 밖으로 뒀다 — 좁은 드로어 폭에서 12.5rem 최소값이 실제로
+같은 효과를 내는지 확인된 바 없다.
+
+22개 화면·26개 `identifier:true` 열(일부 화면은 두 곳)의 집합을 코드로 고정하는 시험
+신설(`registry-identifier-columns.test.js`, 24건) — `audit`/`jobs`에 `identifier`가
+없어야 한다는 것까지 함께 고정해, 나중에 "그냥 다 붙이자"는 시도가 이 시험을 깨고
+그 판단을 다시 하게 만든다. `runners`에서 임시로 플래그를 빼 시험이 정확히 그 화면만
+실패하는 것으로 revert-to-verify 확인. 전체 프런트 회귀 302파일/2117건 green.
+
+**아직 안 한 것**: 둘 다 `visual_change_required`에 준하는 시각 변화(breadcrumb 문구,
+표 열 폭)라 TEST SERVER 실측이 필요하다 — 나머지 PA3 항목과 함께 일괄 배치한다. 이
+2건은 Handoff에 없던 항목이라 `BACKLOG.md`에 `PA3-14`/`PA3-15`로 새로 추가했다(이
+Cycle 자신의 구현이 낳은 후속 발견이라 PA3 번호 계열을 그대로 잇는다).
+
+상세: `docs/DECISIONS.md` D-128(`identifier` 메커니즘 신설)·D-129(`PA-RC-0031`/`0039`),
+`docs/BACKLOG.md` PA3-14/PA3-15, `docs/WORK_STATE.md`.

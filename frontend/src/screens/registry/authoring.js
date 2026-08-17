@@ -57,7 +57,7 @@ export const AUTHORING_SCREENS = {
     // integration_id와 동일한 패턴 — 원시 UUID로 방치하지 않음).
     // runner_id는 이제 링크로 보여준다 — 러너 화면이 ?id= 기반 딥링크(onQuery)를 지원하게 되어,
     // 클릭하면 그 러너의 상세 드로어가 곧바로 열린다(러너 상세의 integration_id와 동일한 패턴).
-    columns: [col("name", "이름"), truncateCol("purpose", "용도", 60),
+    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60),
       { key: "runner_id", label: "러너 ID", render: (r) => r.runner_id ? React.createElement(Link, { underline: "hover", href: "#/runners?id=" + encodeURIComponent(r.runner_id) }, r.runner_id) : "-" },
       col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
     // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
@@ -150,7 +150,7 @@ export const AUTHORING_SCREENS = {
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
     // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
     // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
-    columns: [col("name", "이름"), truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
+    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "추가")],
     // id는 템플릿의 policy_id 입력에 쓰이므로 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의
     // '프롬프트 ID'와 맞춰 어느 화면 상세를 보고 있는지 분명히 한다 — 템플릿의 policy_id 도움말이
     // '정책 화면 상세의 ID를 입력'이라 안내한다).
@@ -231,7 +231,7 @@ export const AUTHORING_SCREENS = {
     ],
     // target_ref는 다른 화면(대상 유형이 워크플로일 때 '업무 자동화 흐름') 엔티티의 ID다 — 러너
     // 상세의 integration_id와 동일한 이유로 원시 텍스트 대신 그 화면으로 바로 이동하는 링크로 보여준다.
-    columns: [col("name", "이름"),
+    columns: [{ ...col("name", "이름"), identifier: true },
       // target_type='runner' 행은 목록을 훑는 것만으로는 대상 워크플로 재지정이 안 된다는 특이점이
       // 안 보였다(상세를 열어야만 _runner_target_note로 알 수 있었다) — 경고 배지로 목록에서 바로 신호한다.
       { key: "target_type", label: "대상 유형", render: (r) => r.target_type === "runner"
@@ -356,7 +356,7 @@ export const AUTHORING_SCREENS = {
     // 쌓인다. 그 위 폭에서는 TableContainer가 스스로 가로 스크롤하므로 페이지에 가로 스크롤이
     // 생기지도 않는다. 즉 여기서 열을 숨기면 좁은 화면에서 이미 잘 보이던 값을 없애는 셈이다.
     columns: [
-      col("name", "이름"),
+      { ...col("name", "이름"), identifier: true },
       { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
       { key: "versions", label: "버전 수", align: "right" },
       { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
@@ -389,7 +389,7 @@ export const AUTHORING_SCREENS = {
     searchPlaceholder: "정책 이름으로 검색",
     filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
     columns: [
-      col("name", "이름"),
+      { ...col("name", "이름"), identifier: true },
       { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
       { key: "versions", label: "버전 수", align: "right" },
       { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },

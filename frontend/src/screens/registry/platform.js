@@ -181,7 +181,7 @@ export const PLATFORM_SCREENS = {
       { key: "level", type: "select", label: "중요도", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
     ],
     columns: [
-      col("title", "제목"),
+      { ...col("title", "제목"), identifier: true },
       { key: "level", label: "중요도", render: (r) => React.createElement(Badge, {
         value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
         kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
@@ -274,7 +274,7 @@ export const PLATFORM_SCREENS = {
       mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
       // SEM-01: 첫 열(범위)이 mapCol(render 있음)이라 표식 없이는 같은 범위(대부분 "사용자")끼리
       // 전부 "상세 보기"로 동일했다 — 대상 + 기간을 합쳐 실제로 구별되는 이름을 만든다.
-      { key: "user_name", label: "대상", render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-"), rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
+      { key: "user_name", label: "대상", identifier: true, render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-"), rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
       { key: "max_calls", label: "상한", align: "right" },
       { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
@@ -318,7 +318,7 @@ export const PLATFORM_SCREENS = {
     // 어긋남 자체가 잘못은 아니다(의도적으로 바꿨을 수 있다), 그래도 훑어보다 놓치면 안 되는
     // 상태라는 점은 다른 warn 톤 사용처(activeCol 등)와 같은 이유다.
     columns: [
-      col("name", "플래그"),
+      { ...col("name", "플래그"), identifier: true },
       { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
       { key: "default", label: "기본값", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),

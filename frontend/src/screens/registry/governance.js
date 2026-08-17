@@ -76,7 +76,7 @@ export const GOVERNANCE_SCREENS = {
     columns: [{ ...actionCol("request_type", "유형"), rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
       // 예약/시스템이 자동 생성한 document.publish 승인은 requested_by="system"이다(사람이 아니므로
       // resolve_names가 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
-      { key: "requester_name", label: "요청자", render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
+      { key: "requester_name", label: "요청자", identifier: true, render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
       badgeCol("status", "상태"), dateCol("requested_at", "요청 시각"),
       // 기한(SLA, 0033)은 만료와 **다른 축**이다: 만료는 요청이 죽는 시각, 기한은 사람이 답해야
       // 하는 시각이다. 둘을 한 열로 합치면 "아직 살아 있지만 이미 늦었다"를 표현할 수 없다.
@@ -192,7 +192,7 @@ export const GOVERNANCE_SCREENS = {
     columns: [
       // SEM-01: 첫 열이 render라 표식 없이는 모든 위임이 "상세 보기"로 동일했다 — 위임한
       // 사람→대리 승인자를 합쳐 실제로 구별되는 이름을 만든다.
-      { key: "delegator_name", label: "위임한 사람", render: (r) => r.delegator_name || r.delegator_user_id, rowName: (r) => (r.delegator_name || r.delegator_user_id) + " → " + (r.delegate_name || r.delegate_user_id) },
+      { key: "delegator_name", label: "위임한 사람", identifier: true, render: (r) => r.delegator_name || r.delegator_user_id, rowName: (r) => (r.delegator_name || r.delegator_user_id) + " → " + (r.delegate_name || r.delegate_user_id) },
       { key: "delegate_name", label: "대리 승인자", render: (r) => r.delegate_name || r.delegate_user_id },
       { key: "state", label: "상태", render: (r) => React.createElement(Badge, {
         value: ({ active: "진행 중", scheduled: "예정", ended: "종료", revoked: "거둠" })[r.state] || r.state,
@@ -392,7 +392,7 @@ export const GOVERNANCE_SCREENS = {
         failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
       }),
-      { key: "actor_name", label: "행위자", render: (r) => r.actor_name || r.actor_id || "시스템" },
+      { key: "actor_name", label: "행위자", identifier: true, render: (r) => r.actor_name || r.actor_id || "시스템" },
       /* SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 처음엔 서버가
        * 만들어 주는 요약 문장(title)을 그대로 rowName으로 썼는데(app/audit/anomalies.py의
        * _finding), 그 title이 실제로는 **kind별 고정 문자열**이라는 것을 WF1 R1 재검증 중
@@ -505,7 +505,7 @@ export const GOVERNANCE_SCREENS = {
     columns: [
       // SEM-01: 첫 열이 render라 표식 없이는 모든 기록이 "상세 보기"로 동일했다 — 관리자→
       // 대상을 합쳐 실제로 구별되는 이름을 만든다(delegations와 동일한 패턴).
-      { key: "actor_name", label: "관리자", render: (r) => r.actor_name || r.actor_user_id, rowName: (r) => (r.actor_name || r.actor_user_id) + " → " + (r.target_name || r.target_user_id) },
+      { key: "actor_name", label: "관리자", identifier: true, render: (r) => r.actor_name || r.actor_user_id, rowName: (r) => (r.actor_name || r.actor_user_id) + " → " + (r.target_name || r.target_user_id) },
       { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },
       dateCol("started_at", "시작"), dateCol("ended_at", "종료"),
       { key: "active", label: "상태", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },

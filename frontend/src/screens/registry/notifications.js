@@ -69,7 +69,7 @@ export const NOTIFICATIONS_SCREEN = {
     // RG-03: 서버는 이 유형을 사용자가 뮤트했는지(muted) 이미 내려주고 있었다(app/notifications/
     // router.py::_view — "목록에서 빼지 않고 표시만 한다"는 그 필드의 존재 이유 자체가 화면에
     // 보여야 성립하는 계약인데, 열이 없어 뮤트해 놓고도 왜 계속 오는지 알 길이 없었다.
-    columns: [col("title", "제목"), mapCol("type", "유형", TYPE_KO), readCol("read_at", "읽음"), dateCol("created_at", "시각"),
+    columns: [{ ...col("title", "제목"), identifier: true }, mapCol("type", "유형", TYPE_KO), readCol("read_at", "읽음"), dateCol("created_at", "시각"),
       // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
       // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
       { key: "muted", label: "뮤트 유형", render: (r) => r.muted

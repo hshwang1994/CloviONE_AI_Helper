@@ -34,7 +34,7 @@ export const ORG_SCREENS = {
     // 일치 항목이 사라지는데, 여기는 다른 페이지 자체가 없다).
     filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용 중"], ["suspended", "미사용"]]) }],
     columns: [
-      col("name", "조직 이름"),
+      { ...col("name", "조직 이름"), identifier: true },
       col("slug", "식별자"),
       { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용 중" : "미사용") },
       col("department_count", "부서"),
@@ -101,7 +101,7 @@ export const ORG_SCREENS = {
     // '조직' 열 — 사용자 지적 P5("부서 추가하면 부서랑 조직을 연결하는 것이 없음").
     // 서버가 이제 부서 응답에 org_id/org_name 을 싣는다. 연결을 만들어 놓고 화면에 안 보이면
     // 같은 말을 다시 듣는다. 조직이 하나뿐인 지금도 "이 부서가 어느 조직 것인지" 가 보인다.
-    columns: [col("name", "부서 이름"), col("org_name", "조직"), activeCol("사용"),
+    columns: [{ ...col("name", "부서 이름"), identifier: true }, col("org_name", "조직"), activeCol("사용"),
       col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "추가")],
     // id는 감사 로그의 object_id와 대조할 때 쓰이므로 상세에서 노출한다.
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
@@ -162,7 +162,7 @@ export const ORG_SCREENS = {
     filters: ACTIVE_FILTER,
     // usage_count(보유 인원)는 보관(soft-delete)된 사용자도 센다(부서와 동일한 계산 — app/org/service.py).
     // 라벨은 부서 화면과 다르게 '보유'를 쓴다 — 직책은 사람이 '보유'하는 것이지 '소속'되는 게 아니다.
-    columns: [col("name", "직책 이름"), activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "추가")],
+    columns: [{ ...col("name", "직책 이름"), identifier: true }, activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "추가")],
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(부서와 동일한 이유) — 상세에 이유를 남긴다.
     detailFields: [field("id", "직책 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요." : "-" }],
@@ -195,7 +195,7 @@ export const ORG_SCREENS = {
       /* 맨 위 줄은 **조직**이다(지시서 §3 "조직 > 부서 > 사용자"). 조직이 하나뿐이어도
          그 층이 화면에 없으면 사용자는 이 부서들이 어느 조직 소속인지 알 방법이 없다.
          조직 행은 굵게, 부서 행은 들여쓰기 + 갈래표시로 갈라 놓는다. */
-      { key: "name", label: "조직과 부서", render: (r) => React.createElement(
+      { key: "name", label: "조직과 부서", identifier: true, render: (r) => React.createElement(
         "span",
         {
           style: {
@@ -277,7 +277,7 @@ export const ORG_SCREENS = {
       // 수동 매핑은 화면에서 사라진다 — 그리고 사용자는 그걸 '그런 연결이 없다'로 읽는다.
       // 백엔드는 이미 고쳐졌는데 이 줄만 옛 사실("지원하지 않는다")을 붙들고 있었다.
       { key: "source", type: "select", label: "출처", options: opt([["workflow", "워크플로 자동"], ["manual", "수동 지정"]]) }],
-    columns: [col("user_email", "사용자"), col("user_display_name", "이름"), badgeCol("status", "상태"),
+    columns: [{ ...col("user_email", "사용자"), identifier: true }, col("user_display_name", "이름"), badgeCol("status", "상태"),
       // 실패로 'unmapped'로 되돌아온 행을 '한 번도 시도 안 함'과 구분한다 — 대량 트리아지 때 각 행을
       // 열지 않아도 사유를 바로 읽을 수 있게 실제 메시지를 보여준다(길면 말줄임, title 속성으로 전체 확인).
       truncateCol("error_message", "오류", 40),
