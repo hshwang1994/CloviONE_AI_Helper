@@ -7849,3 +7849,38 @@ BIND_IP=10.100.64.71 STAGE=~/deploy/stage .../upgrade-clovirone-web-assistant.sh
 **결론**: 위 17개 항목 중 16개가 이번 invocation에서 직접 재확인한 신선한 증거로
 충족됐고, 나머지 1개(정적 검사의 SEC-20 부분)는 사람 전용 외부 행위로 CLAUDE.md
 §0가 명시한 예외에 해당한다. `var/runner/PROJECT_COMPLETE`를 생성한다.
+
+### 체크포인트 — 2026-08-17(invocation 9): 새 Product Audit Cycle(`PA-20260817-072224-24b91505`) — `IMPLEMENTATION_REQUIRED` 재발생, PROJECT_COMPLETE 마커는 Supervisor가 제거함(설계대로)
+
+내가 만든 `PROJECT_COMPLETE`를 확인하기 전에, Phase 1 Audit Supervisor가 **독립적으로**
+새 전수조사를 돌려(내 마지막 커밋 `2aacd2a2`를 baseline으로 삼아 grounded) 13개 새
+Root Cause(`PA-RC-0027`~`0039`)를 찾고 `docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`를
+남겼다 — 이건 CLAUDE.md §11-1이 설계한 그대로다("Product Audit의 IMPLEMENTATION_REQUIRED는
+PROJECT_COMPLETE보다 추가로 앞서는 완료 Gate", "그 사이 잘못 만들어진 premature marker도
+제거한다"). git log는 내 작업 이력이 전부 그대로 있고(2aacd2a2 이하) 그 위에 audit 전용
+커밋만 쌓였다 — 코드 유실은 없었다, 그냥 다음 Gate가 열린 것이다.
+
+**완료+배포 (High/Critical 2건)**:
+- **`PA-RC-0032`(Critical)** — `app/auth/router.py::change_password`와 `app/chat/router.py::post_message`에
+  SQLite 쓰기 경합 재시도가 없어 TEST SERVER 실측 **10%**가 500이었다(최초 로그인 필수
+  관문!). `login()`/알림 수정(`d5ba3f9`)과 같은 관용 적용, 신규 시험 6건, revert-to-verify
+  (change_password 되돌리면 정확히 같은 실측 traceback 재현 확인).
+- **`PA-RC-0027`(High)** — `/me`·`/my-stats`가 매핑 없음/소스 장애 시 "모른다"를 "0건"으로
+  냈다. 백엔드 2곳 + 프런트 2곳(MyStats.jsx·AssistantPanel.jsx) 수정 — MyStats.jsx 되돌리면
+  **실제 크래시**(`TypeError: Cannot read properties of undefined (reading 'active')`)로
+  재현됨, 단순 문구 문제가 아니라 잠재적 화면 크래시였다. 신규/수정 시험 8건.
+
+커밋 `736fa65f`, 배포 `UPGRADE_OK`+`DEPLOY_VERIFY_OK`, 수정 코드 배포본에 실존 확인.
+
+**남은 11개**(`PA-RC-0028`~`0031`, `0033`~`0039`) — 대부분 Medium/Low, 여러 건이
+REDESIGN 판정 + `visual_change_required: true`(실브라우저 확인 필수). 공유 파일 기준
+두 묶음으로 계획: ⓐ `PA-RC-0029`+`0036`+`0037` — 전부 `DataTable`/열 폭 우선순위
+(0037 자신이 "함께 처리하는 것이 싸다"고 명시). ⓑ `PA-RC-0030`+`0031`+`0039` — 전부
+navigation/breadcrumb/메뉴 taxonomy(0039가 0031 순서에 의존적일 수 있음, Handoff가
+"두 RC의 순서를 정해야 한다"고 명시). 나머지(`0028`·`0033`·`0034`·`0035`)는 상대적으로
+독립적. 각 RC 상세(acceptance_criteria·target_design·regression_risk)는
+`docs/product-audit/PRODUCT_AUDIT_HANDOFF.md`에 있다 — Backlog 한 줄로 요약하지 않고
+그 문서를 구현 입력으로 계속 쓴다.
+
+**다음**: `PA-RC-0033`(404 처리 일관성, 기존 `ErrorState` 재사용이라 저위험)부터 이어서
+진행 — 이 checkpoint 작성 직후 바로 시작한다.
