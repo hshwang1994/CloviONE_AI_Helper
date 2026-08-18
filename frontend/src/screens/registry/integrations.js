@@ -58,7 +58,11 @@ export const INTEGRATION_SCREENS = {
       // 폴백만 타므로 자유 텍스트를 훼손하지 않는다.
       { key: "name", label: "이름", identifier: true, render: (r) => serviceLabel(r.name), rowName: (r) => serviceLabel(r.name) },
       mapCol("provider_type", "유형", PROVIDER), enabledCol("활성"),
-      badgeCol("last_health_status", "상태 확인"), truncateCol("base_url", "서버 주소", 60), col("config_version", "버전")],
+      /* 지시 37: `http://127.0.0.1:8788` 은 이 연동이 무엇인지가 아니라 **어디에 있는지**다.
+         SSRF allowlist 때문에 어차피 전부 서버-로컬 주소라 행끼리 비교할 값도 아니다 —
+         목록의 자리는 "지금 통하는가"와 "언제 확인했는가"가 갖고, 주소는 상세로 내린다. */
+      badgeCol("last_health_status", "상태 확인"), dateCol("last_health_at", "마지막 확인"),
+      col("config_version", "버전")],
     // admin은 auth_type='none'인 연동만 새로 만들 수 있다(백엔드 _guard_secret_binding_create가 그 외
     // 값을 403). 예전엔 옵션을 그대로 다 보여주고 help 문구만으로 고르지 말라고 부탁했다 — 골라도
     // 항상 403이 되는 선택지를 애초에 못 고르게, system_admin이 아니면 옵션 자체를 '없음'만 준다
@@ -106,13 +110,15 @@ export const INTEGRATION_SCREENS = {
       // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=integration&object_id=" + r.id },
     ],
-    // provider_type·base_url은 이미 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
+    // provider_type은 이미 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
+    // base_url 은 목록에서 상세로 내려왔다(지시 37) — 여기서는 주요 정보가 아니라 확인용이다.
     // id는 러너 create의 integration_id 입력에 쓰이므로 상세에서 확인·복사할 수 있게 노출.
-    detailFields: [field("id", "연동 ID"), truncateCol("health_url", "상태 확인 주소", 80), mapCol("auth_type", "인증", { none: "없음", bearer: "Bearer 토큰", api_key_header: "API 키(헤더)" }), field("secret_ref", "인증 정보 이름"),
+    detailFields: [field("id", "연동 ID"), truncateCol("base_url", "서버 주소", 80),
+      truncateCol("health_url", "상태 확인 주소", 80), mapCol("auth_type", "인증", { none: "없음", bearer: "Bearer 토큰", api_key_header: "API 키(헤더)" }), field("secret_ref", "인증 정보 이름"),
       // auth_type이 '없음'이면 secret_status는 null이다(원래 정상) — 일반 Badge는 null을 '알 수 없음'으로
       // 오해하게 표시하므로, 인증 자체가 필요 없는 경우엔 '해당 없음'으로 구분한다(그 외엔 기존 배지 재사용).
       { key: "secret_status", label: "인증 정보 상태", render: (r) => r.auth_type === "none" ? "해당 없음" : badgeCol("secret_status", "인증 정보 상태").render(r) },
-      field("description", "설명"), dateCol("last_health_at", "마지막 점검"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
+      field("description", "설명"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
   },
   runners: {
     key: "runners", area: "자동화와 연동", title: "자동화 작업 실행기", endpoint: "/api/admin/runners",

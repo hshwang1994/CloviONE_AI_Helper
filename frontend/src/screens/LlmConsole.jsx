@@ -5,7 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, Tag, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* AI(LLM) 관리 (9-5).
@@ -194,9 +194,9 @@ export function LlmConsole({ embedded = false } = {}) {
 
   return (
     <Box className="c-screen">
-      {embedded ? null : <PageHeader area="연동" title="AI 관리" />}
-
-      <Callout tone="info">{data.apply_note}</Callout>
+      {/* 저장이 언제 반영되는지는 이 화면 전체에 대한 사실이라 도움말에 둔다. 상시 안내
+          상자로 두면 화면을 열 때마다 같은 문장을 다시 읽어야 한다(지시 44). */}
+      {embedded ? null : <PageHeader area="AI" title="AI 관리" help={data.apply_note} />}
 
       <Card sx={{ mt: 2, p: 2 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -226,10 +226,12 @@ export function LlmConsole({ embedded = false } = {}) {
         ) : null}
         {/* 값 옆에 **어디서 온 값인지**를 붙인다. 이게 없으면 "저장했는데 왜 안 바뀌지" 의
             답이 화면에 없다 - 아직 저장한 적이 없어 서버 환경변수 값이 쓰이는 중일 수 있다. */}
+        {/* 실행 파일은 서버의 경로다 - AI 를 쓰는 사람이 판단할 값이 아니라 이 서버를 만든
+            사람이 아는 값이다(지시 38). 지우지는 않는다: 백엔드가 명령줄 도구일 때 장애를
+            보는 사람에게는 그것이 첫 단서다. 기술 정보로 내린다. */}
         <Box data-testid="llm-effective" sx={{ mt: 1, display: "grid", gap: 0.25 }}>
           {[
             ["백엔드", config.backend, "llm_backend"],
-            ["실행 파일", config.executable, "llm_executable"],
             ["모델", config.model, "llm_model"],
             ["제한 시간", config.timeout_seconds + "초", "llm_timeout_seconds"],
             ["동시 실행 수", config.max_concurrency, "llm_max_concurrency"],
@@ -239,6 +241,10 @@ export function LlmConsole({ embedded = false } = {}) {
               {(data.sources || {})[key] === "env" ? " (서버 환경변수 또는 기본값)" : ""}
             </Typography>
           ))}
+          <TechDetail sx={{ mt: 0.5 }}>
+            실행 파일: {config.executable}
+            {(data.sources || {}).llm_executable === "env" ? " (서버 환경변수 또는 기본값)" : ""}
+          </TechDetail>
         </Box>
       </Card>
 
@@ -279,15 +285,6 @@ export function LlmConsole({ embedded = false } = {}) {
           </TextField>
         </Field>
 
-        <Field label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
-          <TextField
-            size="small" fullWidth sx={{ mt: 0.5 }}
-            value={value("llm_executable", "")}
-            onChange={(e) => setValue("llm_executable", e.target.value)}
-            inputProps={{ "aria-label": "실행 파일" }}
-          />
-        </Field>
-
         <Field label="모델" help="비워 두면 기본 모델을 씁니다.">
           <TextField
             size="small" fullWidth sx={{ mt: 0.5 }}
@@ -324,7 +321,22 @@ export function LlmConsole({ embedded = false } = {}) {
         </Field>
         </Box>
 
-        <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
+        {/* 실행 파일은 서버 경로라 평소 화면의 내용이 아니다(지시 38). 바꿀 수 있는 자리는
+            남기되 접어 둔다 - 명령줄 도구 백엔드에서 장애를 볼 때만 여는 값이다. */}
+        <TechDetail label="고급 설정" sx={{ mt: 2 }}>
+          <Field label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
+            <TextField
+              size="small" fullWidth sx={{ mt: 0.5, maxWidth: "28rem" }}
+              value={value("llm_executable", "")}
+              onChange={(e) => setValue("llm_executable", e.target.value)}
+              inputProps={{ "aria-label": "실행 파일" }}
+            />
+          </Field>
+        </TechDetail>
+
+        {/* 연결 테스트를 별도 큰 카드로 두지 않는다(지시 38) - 설정을 바꾸고 나서 확인하는
+            것이 하나의 흐름이라, 저장 버튼과 같은 줄에 둔다. */}
+        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
           <Button
             variant="primary"
             disabled={busy || !draft}
@@ -333,19 +345,12 @@ export function LlmConsole({ embedded = false } = {}) {
             {saving ? "저장 중…" : "저장"}
           </Button>
           <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
+          <Box sx={{ flex: 1 }} />
+          <Button disabled={busy} onClick={() => startTest.mutate()}>연결 테스트</Button>
         </Box>
-      </Card>
-
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>연결 테스트</Typography>
-        <Typography variant="body2" color="text.secondary">{data.test_mode_note}</Typography>
-        <Box sx={{ mt: 1.5 }}>
-          <Button variant="primary" disabled={busy} onClick={() => startTest.mutate()}>
-            연결 테스트
-          </Button>
-        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{data.test_mode_note}</Typography>
         {jobId && (
-          <Box data-testid="llm-test-result" sx={{ mt: 2 }}>
+          <Box data-testid="llm-test-result" sx={{ mt: 1.5 }}>
             <Badge
               value={jobLabel(testJob.data && testJob.data.status)}
               kind={result ? testKind(result.status) : "muted"}

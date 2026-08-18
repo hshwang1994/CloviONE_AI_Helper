@@ -3573,9 +3573,9 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 **P1-B 미착수 화면**
 - `UI-R19` Global Search Overlay 재설계 (지시 14, todo)
 - `UI-R20` 채팅 UI 재설계 (지시 15, todo)
-- `UI-R21` 관리자 콘솔 — 남은 것은 **NotionConsole·LlmConsole·SetupWizard** (지시 34·37·38).
-  **MailStatus 완료**(2026-08-19, D-154) · **SystemOps 완료**(2026-08-19, D-157: 값과 동작을
-  한 줄로, 모르는 값은 모른다고, 헬퍼가 모르는 동작은 안 그림, 재시작은 넘침 메뉴로)
+- `UI-R21` 관리자 콘솔 — 남은 것은 **SetupWizard**(지시 34 시스템 변경 Workflow 공통화 포함).
+  **MailStatus**(D-154) · **SystemOps**(D-157) · **NotionConsole·LlmConsole·연동 목록**(D-158)
+  2026-08-19 완료
 - `UI-R22` 나머지 화면 롤아웃(Search·Profile·Activity·Board·Games·Project* 등). 지시 61
 - `UI-R18` AI 도우미 영역 분리 (지시 2)
 - `UI-R16` Chart 공통 계약 + 구현 방식 판단 (지시 9·54·59)

@@ -72,7 +72,9 @@ export function resultKind(result) {
 
 function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
   const [value, setValue] = React.useState(item.value || "");
-  React.useEffect(() => { setValue(item.value || ""); }, [item.value]);
+  const [editing, setEditing] = React.useState(false);
+  // 저장이 반영되면 서버 값이 바뀐다 - 그때 편집 상태를 닫아 읽는 화면으로 돌아간다.
+  React.useEffect(() => { setValue(item.value || ""); setEditing(false); }, [item.value]);
   const dirty = (value || "") !== (item.value || "");
   return (
     <Box data-testid={"notion-db-" + item.key} sx={{ py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
@@ -111,23 +113,38 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
           {testResult.message}
         </Typography>
       )}
+      {/* 지시 37: 예전에는 행마다 데이터베이스 id 입력칸이 **항상 열려 있었다**. 그래서 이
+          화면의 주된 내용이 32자짜리 원시 id 여섯 줄이었고, "지금 연결돼 있는가"는 그 옆의
+          작은 배지였다. 읽는 화면과 고치는 화면을 갈라, 고칠 때만 칸을 연다 - 바로 아래
+          토큰 구역이 이미 쓰고 있던 방식과 같다. */}
       <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <TextField
-          size="small"
-          label="데이터베이스 id"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          inputProps={{ "aria-label": item.label + " 데이터베이스 id" }}
-          sx={{ minWidth: 320, flex: 1 }}
-          helperText="비우면 서버 환경변수 값을 그대로 씁니다."
-        />
-        <Button variant="primary" disabled={!dirty || busy} onClick={() => onSave(item.key, value.trim())}>
-          저장
-        </Button>
-        {item.creatable && !item.configured && (
-          <Button disabled={busy} onClick={() => onCreate(item)}>
-            새로 추가
-          </Button>
+        {editing ? (
+          <>
+            <TextField
+              size="small"
+              label="데이터베이스 id"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              inputProps={{ "aria-label": item.label + " 데이터베이스 id" }}
+              sx={{ minWidth: 320, flex: 1 }}
+              helperText="비우면 서버 환경변수 값을 그대로 씁니다."
+            />
+            <Button variant="primary" disabled={!dirty || busy} onClick={() => onSave(item.key, value.trim())}>
+              저장
+            </Button>
+            <Button disabled={busy} onClick={() => { setValue(item.value || ""); setEditing(false); }}>취소</Button>
+          </>
+        ) : (
+          <>
+            <Button disabled={busy} onClick={() => setEditing(true)}>
+              {item.configured ? "id 변경" : "id 입력"}
+            </Button>
+            {item.creatable && !item.configured && (
+              <Button disabled={busy} onClick={() => onCreate(item)}>
+                새로 추가
+              </Button>
+            )}
+          </>
         )}
       </Box>
       {!item.creatable && !item.configured && (
@@ -312,9 +329,8 @@ export function NotionConsole({ embedded = false } = {}) {
 
   return (
     <Box className="c-screen">
-      {embedded ? null : <PageHeader area="연동" title="Notion 관리" />}
-
-      <Callout tone="info">{data.apply_note}</Callout>
+      {/* 저장이 언제 반영되는지는 이 화면 전체에 대한 사실이라 도움말에 둔다(지시 44). */}
+      {embedded ? null : <PageHeader area="연동" title="Notion 관리" help={data.apply_note} />}
 
       <Card sx={{ mt: 2, p: 2 }}>
         <Typography variant="h6" component="h2">데이터베이스</Typography>

@@ -284,13 +284,23 @@ describe("화면", () => {
 // 각 줄 오른쪽이 통째로 비었다. 반응형 그리드(SETTINGS_GRID)로 옮겨 여러 필드가 폭을
 // 나눠 쓰게 한다.
 describe("설정 필드는 그리드로 폭을 나눠 쓴다", () => {
-  it("여섯 필드가 한 grid 컨테이너 안에 있다(세로로 홀로 쌓이지 않는다)", async () => {
+  it("주 설정 필드가 한 grid 컨테이너 안에 있다(세로로 홀로 쌓이지 않는다)", async () => {
     mockApi({ view: overview() });
     renderConsole();
     const grid = await screen.findByTestId("llm-settings-grid");
     expect(window.getComputedStyle(grid).display).toBe("grid");
-    // 사용 여부/백엔드/실행 파일/모델/제한 시간/동시 실행 수 — 여섯 개.
-    expect(grid.children.length).toBe(6);
+    // 사용 여부/백엔드/모델/제한 시간/동시 실행 수 — 다섯 개.
+    // '실행 파일'은 서버 경로라 고급 설정으로 내려갔다(지시 38) — 바꿀 수 있는 자리는
+    // 남아 있고, 아래 시험이 그것을 확인한다.
+    expect(grid.children.length).toBe(5);
+  });
+
+  it("실행 파일은 지워진 것이 아니라 고급 설정으로 접혀 있다", async () => {
+    mockApi({ view: overview() });
+    renderConsole();
+    const input = await screen.findByLabelText("실행 파일");
+    expect(input.closest("details"), "실행 파일 입력이 접힌 자리에 없다").toBeTruthy();
+    expect(screen.getByText("고급 설정")).toBeInTheDocument();
   });
 });
 

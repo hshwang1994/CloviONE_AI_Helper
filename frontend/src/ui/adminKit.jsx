@@ -1,15 +1,102 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Card } from "./kit.jsx";
+import { Badge, Card } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
-import { FONT_SIZE, FONT_WEIGHT, MOTION } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "./theme.js";
 
 /* 관리자 화면(Dashboard·진단·유지보수·작업 큐·개발자 리포트)이 함께 쓰는 껍데기·격자.
  * 예전엔 전부 Dashboard.jsx 안에 있어서, 그 화면 하나가 사실상 '관리자 전용 디자인 시스템'
  * 노릇을 했다(DS-17) — 5개 모듈이 화면 파일 하나를 import하는 구조였다. 여기로 옮겨 진짜
  * 공용 위치에 둔다. 순수 표시 헬퍼(serviceLabel·날짜/숫자 포맷 등)는 ops/opsHelpers.js로
  * 옮겼다 — 그쪽은 JSX 없는 순수 함수 모음이라는 기존 성격에 맞춘 것이다. */
+
+/* 설정 한 줄 — **이름 · 지금 값 · 그것이 무엇인지 · 바꾸는 동작** (지시 32 · 33 · 45).
+ *
+ * 관리 화면이 공통으로 틀리던 자리가 여기였다. `변경` 이라는 상자에 기능명 버튼을 몰아 두고,
+ * 지금 값은 다른 상자에 두거나 아예 안 보여 줬다. 그러면 화면은 "무엇을 바꿀 수 있는가"만
+ * 말하고 "무엇이 설정돼 있는가"는 말하지 않는다 - 사용자는 버튼을 누른 **뒤에야** 현재
+ * 설정을 알게 된다.
+ *
+ * `state` 는 저장·적용 상태다(지시 45). 값이 화면에 있다는 것과 그 값이 실제로 동작에
+ * 반영됐다는 것은 다른 사실이다.
+ *
+ *   `dirty`    수정됨(아직 저장 안 함)
+ *   `saved`    저장됨, 다음 실행 주기부터 반영
+ *   `applied`  즉시 적용됨
+ *   `restart`  재시작해야 반영됨
+ *   `failed`   적용 실패
+ *
+ * 값을 읽을 수 없을 때는 `tone="muted"` 로 두고 **모른다고 쓴다** - 빈칸은 "설정 안 됨"으로
+ * 읽힌다(§불변 6: 없는 것을 있는 척하지 않는다).
+ */
+export const SETTING_STATE_LABELS = {
+  dirty: "수정됨",
+  saved: "저장됨, 다음 주기부터",
+  applied: "즉시 적용됨",
+  restart: "재시작 필요",
+  failed: "적용 실패",
+};
+
+const SETTING_STATE_KIND = {
+  dirty: "warn",
+  saved: "neutral",
+  applied: "ok",
+  restart: "warn",
+  failed: "error",
+};
+
+export function SettingRow({ label, value, description, tone, action, state, last, children }) {
+  return (
+    <Box
+      /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
+         올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
+      className="k-settingrow"
+      sx={{
+        display: "flex", alignItems: "flex-start", gap: 2, flexWrap: "wrap",
+        py: 1.75, borderBottom: last ? 0 : 1, borderColor: "divider",
+      }}
+    >
+      <Box sx={{ flex: "1 1 22rem", minWidth: 0, display: "grid", gap: 0.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
+          <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
+            {label}
+          </Typography>
+          {state ? <Badge value={SETTING_STATE_LABELS[state] || state} kind={SETTING_STATE_KIND[state] || "neutral"} /> : null}
+        </Box>
+        {value == null ? null : (
+          <Typography
+            component="div"
+            color={tone === "muted" ? "text.faint" : "text.primary"}
+            sx={{ fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
+          >
+            {value}
+          </Typography>
+        )}
+        {description ? (
+          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+            {description}
+          </Typography>
+        ) : null}
+        {children}
+      </Box>
+      {action ? <Box sx={{ flexShrink: 0, pt: 0.25 }}>{action}</Box> : null}
+    </Box>
+  );
+}
+
+/* 설정 줄 묶음의 판. 카드 안쪽 여백을 줄마다 다시 정하지 않도록 여기서 한 번 정한다. */
+export function SettingList({ title, action, children }) {
+  return (
+    <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
+      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, pt: 1.5, flexWrap: "wrap" }}>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
+        {action}
+      </Box>
+      {children}
+    </Card>
+  );
+}
 
 /* 개수가 고정(5개)인 머리 지표 줄의 격자.
  *

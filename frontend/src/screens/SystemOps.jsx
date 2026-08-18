@@ -4,10 +4,10 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, ErrorState, FormModal, OverflowMenu, PageHeader,
-  SectionTitle, Skeleton, useConfirm, useToast,
+  Badge, Button, Callout, ErrorState, FormModal, OverflowMenu, PageHeader,
+  Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { SettingList, SettingRow } from "../ui/adminKit.jsx";
 
 /* 운영 콘솔 - OS와 서비스 (§S, 9-6/9-7/9-8 · 지시 33 · 34 · 43).
  *
@@ -171,40 +171,6 @@ export function certificateText(cert) {
     : days === 0 ? "오늘 만료됩니다"
     : `만료까지 ${days}일 남았습니다`;
   return cert.self_signed ? life + ", 자체 서명 인증서입니다" : life;
-}
-
-/** 설정 한 줄 — 이름 · 지금 값 · 무엇인지 · 바꾸는 동작 (지시 32 · 33 · 45). */
-function SettingRow({ label, value, description, tone, action, last }) {
-  return (
-    <Box
-      /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
-         올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
-      className="k-settingrow"
-      sx={{
-        display: "flex", alignItems: "flex-start", gap: 2, flexWrap: "wrap",
-        py: 1.75, borderBottom: last ? 0 : 1, borderColor: "divider",
-      }}
-    >
-      <Box sx={{ flex: "1 1 22rem", minWidth: 0, display: "grid", gap: 0.25 }}>
-        <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-          {label}
-        </Typography>
-        <Typography
-          component="div"
-          color={tone === "muted" ? "text.faint" : "text.primary"}
-          sx={{ fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
-        >
-          {value}
-        </Typography>
-        {description ? (
-          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
-            {description}
-          </Typography>
-        ) : null}
-      </Box>
-      {action ? <Box sx={{ flexShrink: 0, pt: 0.25 }}>{action}</Box> : null}
-    </Box>
-  );
 }
 
 /** 서비스 한 줄 — 이름 · 지금 상태 · 무엇을 하는 서비스인지 · 가능한 동작. */
@@ -383,18 +349,16 @@ export function SystemOps({ embedded = false } = {}) {
         </Callout>
       )}
 
-      <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
-        <SectionTitle title="시스템 설정" component="h2" sx={{ pt: 1.5 }} />
+      <SettingList title="시스템 설정">
         {rows.map((r, i) => (
           <SettingRow
             key={r.key} label={r.label} value={r.value} description={r.description}
             tone={r.tone} action={r.action} last={i === rows.length - 1}
           />
         ))}
-      </Card>
+      </SettingList>
 
-      <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
-        <SectionTitle title="서비스" component="h2" sx={{ pt: 1.5 }} />
+      <SettingList title="서비스">
         {usable && unitNames.length > 0 ? (
           unitNames.map((unit, i) => (
             <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
@@ -405,7 +369,7 @@ export function SystemOps({ embedded = false } = {}) {
             {usable ? "서비스 상태를 읽지 못했습니다. 새로고침한 뒤 다시 시도해 주세요." : "도우미가 없어 읽지 못했습니다."}
           </Typography>
         )}
-      </Card>
+      </SettingList>
 
       {openAction && (
         <FormModal
