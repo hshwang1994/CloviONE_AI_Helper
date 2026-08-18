@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
 import { MASCOT } from "../lib/assets.js";
-import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 
 /* 마스코트 '클로비'.
  *
@@ -247,19 +247,19 @@ export function MascotTopButton({ onClick, mode = "listening", label = "AI 도�
         onClick={onClick}
         aria-label="클로비 AI 도우미 열기"
         sx={{
-          /* 기준선 `.top-clovi-btn { min-height:44px; padding:3px 9px 3px 4px; gap:7px;
-             border:1px solid rgba(255,255,255,.18); border-radius:14px;
-             background:rgba(8,14,42,.22); }` 와 `.top-clovi-btn .mascot-mini { width:36px }`.
-             예전에는 34px 흰 판 안에 30px 포즈를 넣어 마스코트가 실제보다 작았다. */
-          display: "inline-flex", alignItems: "center", gap: "7px",
-          minHeight: "44px", pt: "3px", pb: "3px", pl: "4px", pr: "9px",
-          border: 1, borderColor: "rgba(255,255,255,.18)", borderRadius: "14px",
-          background: "rgba(8,14,42,.22)", color: "common.white",
-          "&:hover": { background: "rgba(255,255,255,.16)" },
+          /* 색은 테마 토큰에서 온다. 예전 값(흰 글자 + 반투명 남색 바탕)은 어두운 상단바를
+             전제한 것이라, chrome 이 캔버스 계열이 된 뒤 대비 1.21 로 떨어졌다(D-141).
+             클로비 자체는 사용자가 "제품의 정체성"이라고 확정한 브랜드 요소라 그대로 둔다 —
+             바뀌는 것은 그것을 감싼 판의 색뿐이다. */
+          display: "inline-flex", alignItems: "center", gap: "6px",
+          minHeight: "34px", pt: "2px", pb: "2px", pl: "3px", pr: "8px",
+          border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
+          bgcolor: "background.plate", color: "text.primary",
+          "&:hover": { borderColor: "dividerStrong", bgcolor: "background.inset" },
         }}
       >
-        <MascotMini mode={mode} size={36} plateRadius={10} ringInset={-2} ringRadius={12} />
-        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold }}>
+        <MascotMini mode={mode} size={28} plateRadius={RADIUS.sm} ringInset={-2} ringRadius={RADIUS.sm} />
+        <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.semibold }}>
           클로비
         </Box>
       </ButtonBase>

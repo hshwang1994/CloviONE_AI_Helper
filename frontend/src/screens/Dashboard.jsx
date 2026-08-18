@@ -244,8 +244,12 @@ function ActionRow({ a, isPrimary, onClick }) {
         <Typography
           component="span"
           sx={{
-            fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums",
-            color: SEV_COLOR[a.kind] || "text.primary", display: "inline-flex", alignItems: "center", gap: 0.5,
+            fontWeight: FONT_WEIGHT.semibold, fontVariantNumeric: "tabular-nums",
+            /* 한 줄 상자 하나로 둔다. 예전에는 inline-flex 라 값과 심각도 낱말이 각자
+               line box 를 만들었고, 눈으로는 한 줄이어도 측정은 3줄로 읽혔다
+               (ui_qa vertical_text_collapse). 줄바꿈을 막는 것과 line box 를 하나로
+               두는 것은 다른 일이다. */
+            color: SEV_COLOR[a.kind] || "text.primary", display: "inline",
             // kit.jsx StatCard의 sev 배지와 같은 이유(PA-RC-0001 QAH-02) — 짧고 고정된 값이
             // 줄바꿈될 이유가 없는데 white-space 없이 두면 390px에서 라벨이 행을 다 채운 뒤
             // 이 값만 남은 좁은 폭에 한글 음절 단위로 세로 붕괴한다(실측: admin_dashboard
@@ -258,7 +262,7 @@ function ActionRow({ a, isPrimary, onClick }) {
           {/* StatCard(kit.jsx)의 0.6875rem 예외는 좁은 카드 폭에서 줄바꿈이 실측된 경우다
               (PA-RC-0001 QAH-02) — 이 행은 카드가 아니라 훨씬 넓은 가로 목록이라 같은 제약이
               없다, 6단계 스케일의 정식 토큰을 그대로 쓴다. */}
-          {sevText ? <Box component="span" sx={{ fontSize: FONT_SIZE.caption }}>{sevText}</Box> : null}
+          {sevText ? <Box component="span" sx={{ fontSize: FONT_SIZE.caption, ml: 0.5 }}>{sevText}</Box> : null}
         </Typography>
       </Box>
       <Button variant={isPrimary ? "primary" : "default"} size="sm" disabled={!a.to} onClick={onClick}>

@@ -288,7 +288,7 @@ export function StatCard({ value, label, kind, onClick, active, note }) {
            * 애초에 줄바꿈될 이유가 없는 고정 짧은 라벨이라 줄바꿈 자체를 막는다.
            * PA-RC-0001: 11px는 6단계 스케일에 없지만, 위 실측 폭(12.6px)에서 12px로 올리면
            * 그 줄바꿈이 재현될 위험이 있어 실측 없이는 안 바꾼다 — 의도된 예외. */
-          <Box component="span" sx={{ fontSize: "0.6875rem", fontWeight: FONT_WEIGHT.extrabold, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
+          <Box component="span" sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.extrabold, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
         ) : null}
       </Typography>
       {/* VIS-09/VIS-27: 숫자를 한정하는 각주(예: "계산이 끝난 20건만")는 구역 아래 멀리

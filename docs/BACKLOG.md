@@ -3494,3 +3494,29 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 | IA-18 | Low | **`ticket_cache.scope_dept_id` 죽은 컬럼** — 실측 non-null 0건, 읽는 코드 0건. 남기면 "티켓에도 부서 축이 있구나"로 읽힌다 | 0044 가 열어 둔 문 | ✅ **구현완료** — 0060 에서 제거(downgrade 는 인덱스까지 복원한다) |
 | IA-19 | Med | **소속을 판정할 수 없는 운영 데이터가 대량으로 남는다** — 로컬 실측 사용자 21 · 티켓 1056 · 문서 104. 배포 즉시 그 데이터는 전역 관리자 외에 안 보인다 | `var/e2e.sqlite3` 마이그레이션 실측 | 🟡 **도구 제공, 데이터 정리는 운영 몫** — `/integrity` 가 원인·대상·일괄 지정을 제공한다. 티켓은 프로젝트 동기화가 돌면 대부분 자동 해소(`project_link.reresolve_all`) |
 | IA-20 | Med | **`0060` 의 문서 이관(ClovirONE팀)이 이 환경에서 no-op** — 로컬/E2E DB 에 그 이름의 부서가 없다(본부·개발팀·프런트팀·영업팀·플랫폼팀·인프라팀). 설계대로 "없으면 아무것도 안 한다" | `var/e2e.sqlite3` 부서 목록 | 🟡 **운영 DB 에서 확인 필요** — TEST/운영 서버에 그 부서가 있으면 이관되고, 없으면 `/integrity` 로 지정한다 |
+
+### PERF-01 — 초기 번들이 예산을 넘은 채로 HEAD 에 들어와 있다 (신규, 2026-08-18)
+
+`scripts/check_bundle_size.sh` 예산은 초기 로드 gzip **280KB** 인데 실측 **285KB** 다.
+**리뉴얼 이전부터 넘어 있었다** — 리뉴얼 작업분을 `git stash` 로 걷어내고 다시 빌드해
+확인했다(890KB/gzip 285KB, 걷어내기 전과 같음). 즉 이번 변경이 만든 회귀가 아니다.
+
+초기 로드에 들어가는 청크:
+
+| 청크 | raw | gzip |
+|---|---:|---:|
+| `mui` | 359KB | 107KB |
+| `vendor` | 145KB | 50KB |
+| `react` | 140KB | 44KB |
+| `datascreen` | 104KB | 35KB |
+| `index` | 102KB | 35KB |
+| `query` | 40KB | 12KB |
+
+`datascreen`(35KB gzip)은 `registry/shared.js`+`actions.js`+`notifications.js` 를 묶은
+수동 청크인데 `index.html` 이 modulepreload 로 즉시 받는다 — 사용자 콘솔은 관리자 registry
+설정을 첫 화면에서 받을 이유가 없다. `vite.config.js` 주석은 "라우트에 들어갈 때 받는다"고
+적어 두었지만 실제 산출물은 그렇지 않다.
+
+지시 26(성능·대용량) 범위에서 다룬다. 우선 조사할 것: `notifications.js` 가 사용자
+라우트(`/notifications`)에서 직접 import 되어 초기 그래프에 끌려 들어오는지.
+

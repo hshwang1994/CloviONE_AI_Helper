@@ -33,6 +33,26 @@ const LEVEL_LABEL = { info: "안내", warning: "주의", critical: "장애" };
 // "같은 사실을 다르게 말한다"는 새 혼란이 생긴다).
 const SYNC_LEVEL_WORD = { warning: "늦어지고 있습니다", critical: "멈춰 있습니다" };
 
+/* 사용자 알림함에 넣을 자격이 있는 것만 고른다 (지시 1·67).
+ *
+ * 지시 1: "정상적인 동기화 시작·완료·주기 등의 내부 처리 정보는 일반 사용자에게 노출하지
+ * 않는다. 동기화 실패로 실제 기능에 영향이 있거나 사용자의 조치가 필요한 경우에만 알림
+ * 대상으로 처리한다."
+ *
+ * 그래서 두 갈래를 다르게 다룬다:
+ *   · `kind === "sync"` — 내부 처리 정보다. **주의·장애일 때만** 보낸다. 정상 동기화는
+ *     사용자가 알 필요가 없다.
+ *   · 공지(announcement) — 사람이 사용자에게 하려고 쓴 말이다. 심각도와 무관하게 보낸다.
+ *
+ * 지시 67: 이것은 **사용자 알림함**의 규칙일 뿐이다. 관리자·운영자용 시스템 상태
+ * (`/api/system/status` 의 `components[]`, 서비스 Health, 조치 필요 항목)는 여기서 거르지
+ * 않는다 — 그쪽은 관리 화면이 계속 보여 준다(관리자 대시보드·진단).
+ */
+export function userFacingNotices(notices) {
+  const all = (notices && notices.visible) || [];
+  return all.filter((n) => (n.kind === "sync" ? n.level !== "info" : true));
+}
+
 const DISMISS_STORAGE_KEY = "clovirone_dismissed_status_notices_v1";
 
 function loadDismissed() {
@@ -204,7 +224,7 @@ export function useStatusNotices({ enabled = true } = {}) {
   };
 }
 
-function NoticeRow({ notice, onDismiss }) {
+export function NoticeRow({ notice, onDismiss }) {
   return (
     <Box
       role="listitem"

@@ -145,7 +145,7 @@ export function RoomDetailPanel({ id }) {
             없어 한 줄뿐이지만, 그 차이만큼 빈 자리를 안 주면 두 칸의 헤더/본문 경계선이
             어긋나 한 판처럼 읽히지 않는다. 검색줄과 세로 치수를 맞춘다: py:1.25 로 감싼
             자리에 기본 컨트롤 높이 2.5rem(MuiButton.styleOverrides.root.minHeight:40 /
-            design/baseline .field·.btn 의 min-height:40px 과 같은 값 — TextField(size="small")도
+            입력·버튼의 최소 높이와 같은 값 — TextField(size="small")도
             이 높이로 맞춰진다)짜리 빈 칸을 두고, 그 자리 아래에 구분선을 그린다. */}
         <Box
           data-testid="chatroom-header-spacer" aria-hidden="true"

@@ -15,6 +15,7 @@ import { Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/ki
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "./auth.jsx";
 import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey, notiUnreadKey } from "./notification-keys.js";
+import { NoticeRow, userFacingNotices } from "./StatusNotices.jsx";
 
 /* 알림 벨 + 팝오버(§6.4/§14) — 아이콘을 누르면 페이지로 튀지 않고 최근 알림 팝오버를 연다.
  * 개별/전체 읽음, 관련 화면 이동(딥링크), 전체 보기, 로딩·빈·오류 상태, 열림 애니메이션.
@@ -112,7 +113,7 @@ function StaticNotiRow({ n, content, label, expanded, onToggle }) {
   );
 }
 
-export function NotificationBell({ isUser }) {
+export function NotificationBell({ isUser, notices }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const bellRef = useRef(null);
@@ -323,6 +324,10 @@ export function NotificationBell({ isUser }) {
   };
 
   const items = (list.data && list.data.items) || [];
+  /* 시스템 상태·공지 (지시 1). 예전에는 헤더 상태 칩과 본문 위 띠가 따로 보여 줬다.
+     사용자에게 보일 자격이 있는 것만 고르는 규칙은 StatusNotices 가 갖는다 — 정상 동기화
+     같은 내부 처리 정보는 여기 오지 않는다. */
+  const sysNotices = userFacingNotices(notices);
   /* 0051 은 두 종류를 한 벨에서 **정렬로** 구분했다(지금 콘솔의 audience 를 앞에 모으고
    * 섞였을 때만 그룹 헤더를 붙였다). 0060 에서 아예 **서버가 갈라서** 준다 — 이 벨은 한
    * 종류만 받으므로 정렬도 그룹 헤더도 필요 없다. 섞어 놓고 잘 정렬하는 것보다 안 섞는
@@ -355,8 +360,14 @@ export function NotificationBell({ isUser }) {
    * 조용한데 안 읽음이 있으면 빨간 숫자 대신 **조용한 점**을 띄운다 — 배지를 통째로
    * 없애면 사용자가 "조용히 해 둔 것"과 "아무것도 안 온 것"을 구분할 수 없다.
    * badge 를 안 주는 옛 응답(캐시)에서는 count 로 폴백해 예전과 똑같이 동작한다. */
-  const badge = unread.data && typeof unread.data.badge === "number" ? unread.data.badge : count;
-  const quiet = !!(unread.data && unread.data.quiet) || (badge === 0 && count > 0);
+  const rawBadge = unread.data && typeof unread.data.badge === "number" ? unread.data.badge : count;
+  /* 지시 1 로 종이 **사용자 알림의 단일 진입점**이 됐다. 예전에는 장애가 나면 본문 위 빨간
+     띠가 대신 소리쳤는데 그것을 걷어냈으므로, 시스템 알림이 있으면 종이 반드시 신호해야
+     한다 — 안 그러면 조치가 필요한 상황이 조용히 묻힌다. 방해금지도 이것까지 잠재우지
+     않는다(방해금지는 "알림이 시끄럽다"는 뜻이지 "장애를 숨겨 달라"는 뜻이 아니다). */
+  const sysCount = sysNotices.length;
+  const badge = rawBadge + sysCount;
+  const quiet = sysCount === 0 && (!!(unread.data && unread.data.quiet) || (badge === 0 && count > 0));
   const quietTitle = count > 0
     ? `방해금지, 알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
     : "방해금지 중입니다";
@@ -463,6 +474,24 @@ export function NotificationBell({ isUser }) {
               : count > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>모두 읽음</MuiButton>
               : null}
           </Box>
+          {sysNotices.length ? (
+            <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
+              <Typography
+                component="h3"
+                sx={{
+                  px: 2, pt: 1.25, pb: 0.5, fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold,
+                  letterSpacing: "0.03em", color: "text.secondary",
+                }}
+              >
+                시스템 상태
+              </Typography>
+              <Box role="list">
+                {sysNotices.map((n) => (
+                  <NoticeRow key={n.id + "|" + n.level} notice={n} onDismiss={notices.dismiss} />
+                ))}
+              </Box>
+            </Box>
+          ) : null}
           {/* 안 읽음이 page_size(8건)보다 많으면 헤더 숫자와 실제 보이는 행 수가 어긋난다 —
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
           {!list.isPending && !list.isError && items.length > 0 && items.length < count ? (

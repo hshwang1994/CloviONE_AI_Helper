@@ -10,7 +10,7 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
  *
  * 사용자 지적: "AI도우미 디자인이 왼쪽 바에 색상 칠해져 있는 거, 이거 안 쓰기로 했잖아."
  *
- * 기준선(design/baseline/preview-standalone.html:216)의 카드는 이렇다:
+ * 기준선(폐기한 목업(지시 64))의 카드는 이렇다:
  *     .kanban-card { background: var(--surface); border: 1px solid var(--border);
  *                    border-radius: 12px; padding: 12px; box-shadow: var(--shadow-sm); }
  * 네 변이 같은 1px 중립 테두리다. 상태를 색으로 말하는 자리는 카드 몸통이 아니라

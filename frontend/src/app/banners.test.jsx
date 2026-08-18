@@ -5,16 +5,20 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* 화면 위쪽 띠(PLAN Phase 6, PA-RC-0016로 축소).
+/* 화면 위쪽 띠 — **임퍼소네이션 하나만 남는다** (지시 1·55·67).
  *
- * PA-RC-0016 이전에는 이 파일이 임퍼소네이션·시스템 상태·공지 셋을 전부 다뤘다. 지금은
- * `Banners`가 임퍼소네이션(항상 자체 조회)과 CRITICAL 한 줄(부모가 내려주는 `notices` prop을
- * 그대로 그리기만 함)만 맡는다 — 시스템 상태·공지의 실제 데이터 조회·병합·닫기 로직은
- * statusNotices.test.jsx가 덮는다(StatusNotices.jsx). 여기서 못박는 것은 여전히 같다:
- *   - 아무것도 없으면 아무 띠도 뜨지 않는다.
+ * 지시 1 로 상단의 `안내`·`장애` 알림 영역을 걷어냈다. 그래서 이 파일의 계약이 바뀌었다:
+ * 예전에는 "CRITICAL 이면 한 줄이 뜬다"를 못박았는데, 지금은 **어떤 시스템 알림도 여기
+ * 뜨지 않는다**는 것을 못박는다. 그 정보는 사라진 게 아니라 종(NotificationBell) 안의
+ * "시스템 상태" 묶음으로 갔다 — notification-bell-system-notices.test.jsx 가 그쪽을 덮는다.
+ *
+ * **임퍼소네이션은 남는다.** 알림이 아니라 보안 상태 표시이기 때문이다(지시 55) — 지금
+ * 남의 눈으로 보고 있다는 사실은 접혀 있으면 안 된다.
+ *
+ * 여기서 못박는 것:
+ *   - 임퍼소네이션이 아니면 아무 띠도 뜨지 않는다(장애가 있어도).
  *   - 임퍼소네이션 중이면 닫을 수 없는 띠가 뜨고, 종료가 실제 API를 부른다.
  *   - 임퍼소네이션 API가 죽어도 화면에 오류가 뜨지 않는다.
- *   - CRITICAL 항목이 있으면 그 한 줄이 뜨고, 없으면(주의/안내뿐이어도) 안 뜬다.
  */
 
 const apiMock = vi.fn();
@@ -48,7 +52,8 @@ function fakeNotices(visible) {
   return { isLoading: false, isError: false, all: visible, visible, counts, dismiss: vi.fn() };
 }
 
-function renderBanners(notices) {
+function renderBanners(notices, overrides) {
+  if (overrides) mockRoutes(overrides);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -105,21 +110,35 @@ describe("화면 위쪽 띠", () => {
     expect(container.textContent).not.toMatch(/오류|실패|boom/);
   });
 
-  it("CRITICAL 항목이 있으면 한 줄로 뜬다", async () => {
-    renderBanners(fakeNotices([
+  it("CRITICAL 장애가 있어도 상단에 띠를 그리지 않는다 (지시 1 — 종이 단일 진입점)", async () => {
+    const { container } = renderBanners(fakeNotices([
       { id: "sync.tickets", level: "critical", message: "지금 티켓 동기화가 멈춰 있습니다.", kind: "sync" },
     ]));
-    const banner = await screen.findByRole("status");
-    expect(banner).toHaveTextContent("티켓 동기화가 멈춰 있습니다");
+    await waitFor(() => expect(apiMock).toHaveBeenCalled());
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/멈춰 있습니다/);
   });
 
-  it("WARNING/INFO뿐이면(CRITICAL 없음) 한 줄도 뜨지 않는다 — 칩 안으로만 접힌다", async () => {
+  it("WARNING/INFO 도 마찬가지로 상단에 뜨지 않는다", async () => {
     const { container } = renderBanners(fakeNotices([
       { id: "sync.tickets", level: "warning", message: "지금 티켓 동기화가 늦어지고 있습니다.", kind: "sync" },
     ]));
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/늦어지고 있습니다/);
+  });
+
+  it("장애 중이어도 임퍼소네이션 띠는 그대로 뜬다 (보안 상태는 접히지 않는다)", async () => {
+    renderBanners(fakeNotices([
+      { id: "sync.tickets", level: "critical", message: "지금 티켓 동기화가 멈춰 있습니다.", kind: "sync" },
+    ]), {
+      "/api/admin/impersonation/state": {
+        impersonating: true, target_name: "김지혜", actor_name: "UI QA", blocked_write_count: 0,
+      },
+    });
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent("읽기 전용");
+    expect(banner).not.toHaveTextContent("멈춰 있습니다");
   });
 
   it("notices가 아직 없으면(로딩 중 등) 크래시하지 않는다", () => {

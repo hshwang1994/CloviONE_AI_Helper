@@ -111,7 +111,7 @@
 
   /* 시선이 포인터를 따라가는 상태.
    *
-   * 기준선(design/baseline/preview-standalone.html:1364)이 정한 목록 그대로다 — idle 과
+   * 로그인 화면이 쓰는 포즈 목록이다 — idle 과
    * welcome 둘이다. 나머지 상태에는 뜻이 있는 고정 좌표(FIXED_GAZE)가 있어서, 포인터가
    * 그걸 덮으면 "비밀번호를 안 본다" 같은 표현이 마우스 위치에 따라 깨진다.
    *
@@ -315,7 +315,7 @@
     if (document.hidden) resetPointerTracking();
   });
 
-  /* 등장: 780ms 동안 welcome 인사를 하고 idle로 내려간다(기준선 preview-standalone.html:1368).
+  /* 등장: 780ms 동안 welcome 인사를 하고 idle 로 내려간다.
    *
    * 한동안 여기서 activeElement를 보고 email/privacy로 내려앉게 했었다 — 이 저장소의
    * login.js가 넓은 화면(≥1024px)에서 첫 칸에 초점을 주기 때문에, "이메일에 초점이 가면

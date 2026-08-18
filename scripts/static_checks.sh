@@ -293,6 +293,35 @@ else
   echo "$FLIM"; fail "fieldLimits.json이 지금의 백엔드 스키마와 다르다"
 fi
 
+step "Design token CSS matches theme.js (D-141)"
+# 디자인 토큰의 정본은 frontend/src/ui/theme.js 하나다. tokens.css 두 벌(SPA·Jinja)은
+# scripts/generate_design_tokens.mjs 가 만든다. 생성기를 안 돌리면 **로그인 화면만 옛
+# 팔레트로 남는다** - 예전에 app/static/css/tokens.css 가 정확히 그렇게 낡아 있었다
+# (흰 사이드바, 56px 상단바, surface 계층 없음). fieldLimits 와 같은 관용이다.
+if command -v node >/dev/null 2>&1; then
+  if TOK="$(node scripts/generate_design_tokens.mjs --check 2>&1)"; then
+    ok "$(echo "$TOK" | tail -1)"
+  else
+    echo "$TOK"; fail "tokens.css 가 theme.js 와 다르다 — node scripts/generate_design_tokens.mjs 를 돌려라"
+  fi
+else
+  ok "node 없음 - 토큰 드리프트 검사 건너뜀"
+fi
+
+step "폐기한 목업(preview-standalone.html)을 아직 참조하는 곳이 없다 (지시 64)"
+# 목업은 이번 리뉴얼에서 디자인 정본이 아니다. 파일을 지운 뒤에도 주석·스크립트가 그 이름을
+# 계속 부르면, 다음 세션이 "정본이 있다"고 믿고 다시 그쪽으로 값을 맞춘다.
+# 시험 파일은 제외한다 — "그 경로가 없다"를 단언하려면 문자열 자체를 적어야 한다.
+STALE_BASELINE="$(grep -rlE "preview-standalone|design/baseline" \
+  app frontend/src scripts tests --include='*.py' --include='*.js' --include='*.jsx' \
+  --include='*.css' --include='*.html' --include='*.sh' 2>/dev/null \
+  | grep -vE '\.test\.(js|jsx)$|static_checks\.sh$' || true)"
+if [ -z "$STALE_BASELINE" ]; then
+  ok "목업 참조 0건"
+else
+  echo "$STALE_BASELINE"; fail "폐기한 목업을 아직 참조한다"
+fi
+
 step "Committed frontend bundle matches the sources"
 # 이 저장소는 빌드 산출물을 git 에 커밋한다(서버에 Node 불필요). 대신 소스만 고치고 번들을
 # 안 만들면 git 으로 설치한 서버가 **조용히 옛 UI 를 돌린다** - 로그에도 화면에도 흔적이 없다.

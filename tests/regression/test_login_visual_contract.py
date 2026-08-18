@@ -215,7 +215,7 @@ def test_fixed_gaze_offsets_are_exactly_the_approved_numbers(state, x, y):
 def test_state_durations_are_preserved():
     """전이 시간이 바뀌면 같은 화면이 다른 리듬으로 움직인다."""
     js = CLOVI_JS.read_text(encoding="utf-8")
-    # welcome은 780ms 뒤 idle로. 기준선(preview-standalone.html:1368)이 그렇다.
+    # welcome은 780ms 뒤 idle로. 기준선(폐기한 목업(지시 64))이 그렇다.
     #
     # 한동안 여기서 activeElement를 보고 email/privacy로 내려앉게 했었다. 그런데 email에는
     # 고정 시선이 있어서 시선 추적이 시작조차 하지 않았고, 사용자가 "한번 눌러야 눈이 움직임"
@@ -229,7 +229,7 @@ def test_state_durations_are_preserved():
 def test_pointer_tracking_is_limited_to_resting_states():
     """고정 시선이 있는 상태에서는 포인터가 눈을 덮지 않는다.
 
-    목록은 기준선(preview-standalone.html:1364)이 정한 idle·welcome 둘뿐이다. 여기에
+    목록은 기준선(폐기한 목업(지시 64))이 정한 idle·welcome 둘뿐이다. 여기에
     email이나 privacy가 들어가면 "비밀번호를 안 본다"는 표현이 마우스 위치에 따라 깨진다.
     """
     js = CLOVI_JS.read_text(encoding="utf-8")

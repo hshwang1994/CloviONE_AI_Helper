@@ -1,6 +1,6 @@
 /* 브라우저 탭 제목 — "<페이지> | ClovirAssist".
  *
- * 기준 파일(preview-standalone.html)이 `document.title = \`${routeTitle(route)} | ClovirAssist\``
+ * 문서 제목 규약은 `${routeTitle(route)} | ClovirAssist`
  * 로 쓰는 형식 그대로다.
  *
  * 왜 필요한가: 이 앱은 HashRouter SPA 라 서버가 내려주는 HTML 은 한 벌뿐이고, 정적 <title> 도

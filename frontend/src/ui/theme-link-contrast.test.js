@@ -95,17 +95,45 @@ describe("CTR-02 — ConsoleSwitch 활성 탭이 실제로 primary.main을 쓰�
     "utf-8",
   );
 
-  it("ConsoleSwitch의 활성 탭 color가 primary.main이다(다크 표면용으로 밝힌 primary.dark가 아니다)", () => {
-    // bgcolor가 항상 리터럴 common.white인 바로 그 줄에서 color를 읽는다 — 다른 곳의
-    // primary.dark 참조(예: MuiLink)까지 잘못 걸리지 않도록 좁힌다.
-    const block = appShellSrc.slice(
-      appShellSrc.indexOf("function ConsoleSwitch"),
-      appShellSrc.indexOf("function ConsoleSwitch") + 2000,
-    );
-    const colorLine = /color:\s*seg\.on\s*\?\s*"([^"]+)"/.exec(block);
-    expect(colorLine, "ConsoleSwitch에서 seg.on 삼항 color 선언을 못 찾았다").not.toBeNull();
-    expect(colorLine[1]).toBe("primary.main");
+  /* D-141 로 선택 표현이 바뀌었다. 예전에는 활성 탭 글자가 강조색이었고 배경이 리터럴
+   * 흰색이었다(CTR-02 가 그 조합의 대비를 지켰다). 지금은 **판이 떠오르고 글자는 본문색**
+   * 이다 — 강조색은 주요 행동·현재 선택 레일·포커스 세 자리에만 쓴다.
+   *
+   * 그래서 검사 대상도 바뀐다: "글자가 primary.main 인가"가 아니라 **"선택된 쪽이 실제로
+   * 구분되고, 그 글자가 자기 배경 위에서 AA 를 넘는가"** 를 본다. 배선 검사(소스를 읽어
+   * 실제 적용값을 확인)라는 성격은 그대로 유지한다. */
+  const consoleSwitchBlock = appShellSrc.slice(
+    appShellSrc.indexOf("function ConsoleSwitch"),
+    appShellSrc.indexOf("function ConsoleSwitch") + 2500,
+  );
+
+  it("ConsoleSwitch 활성 탭은 판(plate)으로 떠오르고 비활성은 트랙에 남는다", () => {
+    const bg = /bgcolor:\s*seg\.on\s*\?\s*"([^"]+)"\s*:\s*"([^"]+)"/.exec(consoleSwitchBlock);
+    expect(bg, "ConsoleSwitch 에서 seg.on 삼항 bgcolor 선언을 못 찾았다").not.toBeNull();
+    expect(bg[1]).toBe("background.plate");
+    expect(bg[2]).toBe("transparent");
+    // 판만으로는 트랙과 붙어 보일 수 있어 실선을 하나 더 얹는다.
+    expect(consoleSwitchBlock).toMatch(/boxShadow:\s*seg\.on\s*\?/);
   });
+
+  it("ConsoleSwitch 활성 탭 글자는 본문색이고 비활성은 보조색이다", () => {
+    const colorLine = /color:\s*seg\.on\s*\?\s*"([^"]+)"\s*:\s*"([^"]+)"/.exec(consoleSwitchBlock);
+    expect(colorLine, "ConsoleSwitch 에서 seg.on 삼항 color 선언을 못 찾았다").not.toBeNull();
+    expect(colorLine[1]).toBe("text.primary");
+    expect(colorLine[2]).toBe("sidebar.muted");
+  });
+
+  for (const mode of ["light", "dark"]) {
+    it(`${mode} — ConsoleSwitch 활성/비활성 글자가 각자 배경 위에서 AA 를 넘는다`, () => {
+      const t = createClovirTheme(mode);
+      // 활성: text.primary on background.plate
+      expect(contrastRatio(t.palette.text.primary, t.palette.background.plate))
+        .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      // 비활성: sidebar.muted on background.inset(트랙)
+      expect(contrastRatio(t.palette.sidebar.muted, t.palette.background.inset))
+        .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+  }
 
   for (const mode of ["light", "dark"]) {
     for (const accent of ACCENT_PRESETS) {

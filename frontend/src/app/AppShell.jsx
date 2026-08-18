@@ -44,7 +44,7 @@ import { navIcon } from "./navIcons.js";
 import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
-import { StatusChip, useStatusNotices } from "./StatusNotices.jsx";
+import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
 import { CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
@@ -55,9 +55,12 @@ import { applyTheme, storeTheme } from "./theme-store.js";
  * 사이드바 폭과 상단바 높이는 화면이 커지면 같이 커진다. 4K에서 고정 284px 사이드바는
  * 화면의 7%밖에 안 돼 메뉴가 실처럼 가늘어 보인다.
  */
-/* 기준 파일의 --sidebar-w 는 264px 다(예전 값 284는 초안 단계에서 온 것). */
-const DRAWER_WIDTH = { xs: 264, xxl: 300, uhd: 340 };
-const APPBAR_HEIGHT = { xs: 64, xxl: 72, uhd: 80 };
+/* 사이드바 폭 — 지시 13·48. 예전 264/300/340 은 로고 칸이 상단바 폭을 결정하는 구조라
+ * Navigation 영역이 시각적으로 무거웠다. 한 단씩 줄여 데이터에 폭을 돌려준다. */
+const DRAWER_WIDTH = { xs: 248, xxl: 280, uhd: 320 };
+/* 상단바 높이 — 64 는 상시 도구에서 세로를 너무 먹는다. 로고·검색·사용자 영역을 함께
+ * 줄여 균형을 맞춘다(지시 13: 이미지 크기만 줄이지 않는다). */
+const APPBAR_HEIGHT = { xs: 52, xxl: 60, uhd: 68 };
 
 /* 그룹 접힘 상태는 새로고침에도 유지한다(테마와 같은 이유). 5그룹 20여 항목 트리를 접어
  * 정리한 배치가 새로고침마다 초기화되던 문제. 공용 PC를 위해 계정별로 키를 나눈다. */
@@ -317,20 +320,20 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchRoundedIcon fontSize="small" sx={{ color: "rgba(237,240,255,.62)" }} />
+                  <SearchRoundedIcon fontSize="small" sx={{ color: "sidebar.muted" }} />
                 </InputAdornment>
               ),
               sx: {
-                color: "common.white", bgcolor: "rgba(255,255,255,.08)", borderRadius: 2,
-                "& fieldset": { borderColor: "rgba(255,255,255,.16)" },
-                "&:hover fieldset": { borderColor: "rgba(255,255,255,.28)" },
+                color: "text.primary", bgcolor: "background.plate", borderRadius: RADIUS.sm / 8,
+                "& fieldset": { borderColor: "divider" },
+                "&:hover fieldset": { borderColor: "dividerStrong" },
               },
             }}
           />
         </Box>
       ) : null}
       {filtering && visibleGroups.length === 0 ? (
-        <Typography variant="body2" sx={{ px: 3, py: 2, color: "rgba(237,240,255,.62)" }}>
+        <Typography variant="body2" sx={{ px: 3, py: 2, color: "sidebar.muted" }}>
           '{filterQuery}'와 맞는 메뉴가 없습니다.
         </Typography>
       ) : null}
@@ -339,7 +342,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
         ref={listRef}
         sx={{
           px: 1.5, py: 1, flex: 1, overflowY: "auto",
-          boxShadow: hasMoreBelow ? "inset 0 -16px 12px -12px rgba(0,0,0,.5)" : "none",
+          boxShadow: hasMoreBelow ? "inset 0 -14px 10px -12px rgba(16,20,28,.18)" : "none",
           transition: "box-shadow .15s",
         }}
       >
@@ -369,7 +372,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
               onClick={() => toggle(g.group)}
               aria-expanded={isOpen}
               aria-controls={itemsId}
-              sx={{ borderRadius: 2, py: 1, color: "rgba(237,240,255,.72)" }}
+              sx={{ borderRadius: RADIUS.sm / 8, py: 0.75, color: "sidebar.muted" }}
             >
               {GroupIcon ? (
                 <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}><GroupIcon fontSize="small" /></ListItemIcon>
@@ -401,18 +404,28 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
                       aria-current={active ? "page" : undefined}
                       selected={active}
                       sx={{
-                        borderRadius: 2, minHeight: 42, py: 0.5, pl: 1.5,
-                        color: active ? "common.white" : "rgba(237,240,255,.78)",
-                        /* 활성 항목은 기준 파일의 .nav-item.is-active 와 같은 처리 —
-                           단색 배경이 아니라 왼쪽에서 흐르는 그라데이션 + 안쪽 링이다. */
-                        "&.Mui-selected": {
-                          background: "linear-gradient(90deg, rgba(117,138,225,.34), rgba(142,117,225,.14))",
-                          boxShadow: "inset 0 0 0 1px rgba(173,185,255,.2)",
+                        position: "relative",
+                        borderRadius: RADIUS.sm / 8,
+                        minHeight: 34,
+                        py: 0.25,
+                        pl: 1.75,
+                        color: active ? "text.primary" : "sidebar.muted",
+                        /* 선택 표현은 제품 전체에서 **하나**다(D-141 RAISE, console-atmosphere):
+                           앞머리 2px 레일 + 글자 굵기 + 글자색. 예전의 큰 알약 그라데이션
+                           배경은 쓰지 않는다 — 펼침 상태와 선택 상태가 헷갈렸고(지시 48),
+                           chrome 이 데이터보다 눈에 띄었다. */
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          insetBlock: 4,
+                          insetInlineStart: 0,
+                          width: 2,
+                          borderRadius: 1,
+                          bgcolor: active ? "sidebar.activeRail" : "transparent",
                         },
-                        "&.Mui-selected:hover": {
-                          background: "linear-gradient(90deg, rgba(117,138,225,.44), rgba(142,117,225,.2))",
-                        },
-                        "&:hover": { bgcolor: "rgba(255,255,255,.08)" },
+                        "&.Mui-selected": { bgcolor: "transparent" },
+                        "&.Mui-selected:hover": { bgcolor: "sidebar.hover" },
+                        "&:hover": { bgcolor: "sidebar.hover" },
                       }}
                     >
                       {/* 기준 파일은 메뉴 항목마다 아이콘을 둔다(§2). 예전에는 그룹에만 있어서
@@ -463,7 +476,7 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
       aria-label="화면 전환"
       sx={{
         display: "flex", mx: 1.5, mt: 1.5, mb: 0.5, p: 0.5,
-        bgcolor: "rgba(255,255,255,.08)", borderRadius: RADIUS.full,
+        bgcolor: "background.inset", borderRadius: RADIUS.sm / 8,
       }}
     >
       {[{ label: "사용자", on: userSeg, to: "/me" }, { label: "관리자", on: !userSeg, to: "/dashboard" }].map((seg) => (
@@ -473,14 +486,15 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           onClick={() => onNavigate(seg.to)}
           aria-current={seg.on ? "page" : undefined}
           sx={{
-            flex: 1, minHeight: 32, borderRadius: RADIUS.full, textTransform: "none", fontWeight: FONT_WEIGHT.bold,
-            // CTR-02: 배경은 다크모드 여부와 무관하게 항상 리터럴 흰색이다 — 다크 표면용으로
-            // 밝힌 primary.dark(strongMix)와 짝지으면 다크 모드에서 흰색 배경에 거의
-            // 흰색인 글자(대비 2.84~3.43:1, WCAG AA 4.5:1 미달, 실측 확인)가 된다.
-            // primary.main은 두 모드에서 같은 원본 accent라 흰 배경 위에서 항상 4.68 이상.
-            color: seg.on ? "primary.main" : "rgba(237,240,255,.78)",
-            bgcolor: seg.on ? "common.white" : "transparent",
-            "&:hover": { bgcolor: seg.on ? "common.white" : "rgba(255,255,255,.12)" },
+            flex: 1, minHeight: 28, borderRadius: RADIUS.sm / 8, textTransform: "none",
+            fontWeight: seg.on ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+            /* 선택된 쪽이 판(plate)으로 떠오르고 나머지는 오목면에 남는다 — 트랙이 inset 이라
+               두 면이 서로 다른 값이어야 눌린 쪽이 보인다. 예전에는 배경이 두 모드 모두
+               리터럴 흰색이었는데(CTR-02), chrome 이 밝아지면서 선택 표시가 사라졌다. */
+            color: seg.on ? "text.primary" : "sidebar.muted",
+            bgcolor: seg.on ? "background.plate" : "transparent",
+            boxShadow: seg.on ? (t) => `inset 0 0 0 1px ${t.palette.divider}` : "none",
+            "&:hover": { bgcolor: seg.on ? "background.plate" : "sidebar.hover" },
           }}
         >
           {seg.label}
@@ -576,26 +590,18 @@ export function AppShell({
     ? (groupForPath(groups, loc.pathname, loc.state && loc.state.from) || "")
     : "관리자";
 
-  // PA-RC-0016: 헤더 우측 상태 칩(StatusChip)과 본문 위 CRITICAL 한 줄(Banners 안의
-  // CriticalStatusLine)이 **같은** 목록을 봐야 한다 — 훅을 각자 부르면 60초/300초
-  // 폴링 타이밍이 미세하게 갈려 칩은 "장애 2"라고 하는데 그 줄은 1건만 보이는 순간이
-  // 생긴다. minimal(세션 만료) 상태에선 배너 API도 401이므로 아예 조회하지 않는다
-  // (예전 Banners.jsx가 `{!minimal ? <Banners /> : null}`로 컴포넌트째 안 그려 훅도
-  // 안 불렀던 것과 같은 효과를 enabled로 낸다).
+  // 시스템 상태·공지는 이제 종(NotificationBell) 안에서만 보인다(지시 1). 훅은 셸이 한 번
+  // 부르고 벨에 내려준다 — 벨이 직접 부르면 같은 데이터를 두 번 조회한다.
+  // minimal(세션 만료) 상태에선 이 API 도 401 이므로 아예 조회하지 않는다.
   const statusNotices = useStatusNotices({ enabled: !minimal });
 
   const drawerContent = (
-    /* 기준 파일의 .sidebar 는 단색이 아니라 위에서 아래로 어두워지는 그라데이션이다(기준선의
-       :root --sidebar 는 #111831 단색이지만, "2026-07-31 full rebuild" 구간에서
-       `.sidebar { background: linear-gradient(...) }` 로 다시 선언돼 — CSS는 나중 선언이
-       이기므로 — 기준선이 실제로 그리는 값은 이 그라데이션이다. --sidebar 변수 자체는
-       기준선 안에서도 이 규칙에 다시 쓰이지 않는 죽은 값이다). 상단바(딥 인디고)와 이어지고
-       아래로 갈수록 가라앉아 목록이 길어도 답답하지 않다.
-       리터럴을 여기 박아 두지 않고 tokens.css의 --sidebar-bg 를 참조한다 — 옛 tokens.css는
-       "디자인 시스템은 흰 사이드바다"라고 적혀 있었고 이 값과 어긋나 있었다(사용자 지적:
-       "사이드바가 흰색인데 어두운 남색이어야 한다"). tokens.css를 이 값에 맞춰 고쳤으니
-       이제 여기서도 그 토큰을 그대로 가져와, 두 소스가 다시 갈라지지 않게 한다. */
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--sidebar-bg)", color: "common.white" }}>
+    /* chrome 은 캔버스 계열 단색이다(D-141). 예전에는 위에서 아래로 어두워지는 딥 인디고
+       그라데이션이었고, 글자색이 `common.white` 로 고정돼 있었다 — 사이드바가 밝아진 뒤에도
+       그 흰 글자가 남아 제품명이 대비 1.21 로 사라졌다(하네스가 잡았다).
+       색은 팔레트에서 온다. tokens.css 는 같은 theme.js 에서 생성되므로 두 소스가 갈라지지
+       않는다(scripts/generate_design_tokens.mjs). */
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "sidebar.bg", color: "sidebar.text", borderInlineEnd: 1, borderColor: "sidebar.line" }}>
       {/* 로고+브랜드명 묶음은 사이드바 폭 안에서 가운데 정렬한다(사용자 지적). justifyContent
           만으로는 좁은 화면에서 닫기 버튼이 로고 옆에 그대로 남아 묶음이 광학적으로 오른쪽에
           치우쳐 보이므로, 그 버튼은 절대 위치로 오른쪽 끝에 고정해 가운데 정렬을 방해하지
@@ -604,7 +610,7 @@ export function AppShell({
         <BrandLogo markOnly width={30} />
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{brand()}</Typography>
-          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "rgba(237,240,255,.62)" }}>Smart Workspace Assistant</Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "sidebar.muted" }}>Smart Workspace Assistant</Typography>
         </Box>
         {isNarrow ? (
           <IconButton
@@ -624,7 +630,7 @@ export function AppShell({
            누르는 족족 401로 가는 죽은 링크 더미다. 상단바를 minimal로 접는 것과 같은 정신으로
            사이드바도 재로그인 안내 한 칸으로 접는다. */
         <Box sx={{ p: 3, display: "grid", gap: 2 }}>
-          <Typography variant="body2" sx={{ color: "rgba(237,240,255,.8)" }}>세션이 만료되었습니다.</Typography>
+          <Typography variant="body2" sx={{ color: "sidebar.muted" }}>세션이 만료되었습니다.</Typography>
           <Button variant="contained" href="/login">다시 로그인</Button>
         </Box>
       ) : (
@@ -670,15 +676,13 @@ export function AppShell({
         elevation={0}
         sx={(t) => ({
           zIndex: t.zIndex.drawer + 1,
-          /* 기준 파일의 최종 상단바. 예전 값(105deg, primary.dark → #327C98 → #765FC7)은
-             초안 단계의 것이라 전체적으로 밝고 청록이 강했다. 최종안은 딥 인디고에서
-             브랜드 파랑으로 흐르고, 오른쪽 위 바깥에서 보라 빛무리가 내려앉는다.
-             마지막 정지점은 예전에 DEFAULT_ACCENT(#536CD6)를 그대로 박아 둬서, 사용자가
-             강조색을 바꿔도(버튼 등 다른 곳은 다 따라가는데) 상단바만 늘 파란 기본값으로
-             남았다(DS-29) — 실제 팔레트 accent를 읽어 반영한다. */
-          background:
-            `radial-gradient(circle at 78% -120%, ${alpha(t.palette.brand.purple, 0.74)}, transparent 44%),` +
-            ` linear-gradient(112deg, ${t.palette.brand.deep} 0%, ${t.palette.brand.mid} 48%, ${t.palette.brand.accent} 100%)`,
+          /* chrome 은 발광하지 않는다(D-141). 예전에는 보라 빛무리 + 3정지점 그라데이션이
+             화면에서 가장 채도 높은 면이었다 — 정작 데이터는 무채색인데 상단바가 시선을
+             가져갔다. 이제 캔버스 계열 단색에 실선 하나다. 채도는 조치가 필요한 상태·
+             현재 선택·주요 행동 세 자리에만 쓴다. */
+          background: t.palette.sidebar.bg,
+          color: t.palette.text.primary,
+          borderBottom: `1px solid ${t.palette.sidebar.line}`,
         })}
       >
         {/* disableGutters — MUI Toolbar 기본 좌우 패딩(24px)이 남으면 로고 칸이
@@ -747,12 +751,10 @@ export function AppShell({
               같은 스위치가 화면에 두 번 나온다. 좁은 화면에서는 사이드바가 서랍으로 접히지만,
               그때는 메뉴를 여는 것이 곧 트리를 보는 것이라 스위치도 함께 나온다. */}
 
-          {/* PA-RC-0016: 예전엔 시스템 상태·공지가 본문 위 배너 스택으로 상시 자리를 차지했다
-              (관리자 331.5px·사용자 216px, 전 라우트). 활성 항목이 있을 때만 나타나는 작은
-              칩으로 옮긴다 — 없을 때는 아예 안 그려(StatusChip 내부 total===0 가드) 평소엔
-              헤더 폭을 한 글자도 안 뺏는다. */}
-          {!minimal ? <StatusChip notices={statusNotices} /> : null}
-          {!minimal ? <NotificationBell isUser={isUser} /> : null}
+          {/* 지시 1: 사용자 알림의 단일 진입점은 이 종 하나다. 예전에는 헤더 상태 칩과
+              본문 위 CRITICAL 띠가 따로 있었다. 지시 67 에 따라 정보를 없앤 것이 아니라
+              옮긴 것이다 — 운영자용 서비스 Health 는 관리자 대시보드·진단이 계속 보여 준다. */}
+          {!minimal ? <NotificationBell isUser={isUser} notices={statusNotices} /> : null}
           {!minimal ? (
             <UserMenu
               name={name} userId={userId} avatarUrl={avatarUrl}
@@ -779,7 +781,7 @@ export function AppShell({
             sx={{
               "& .MuiDrawer-paper": {
                 width: DRAWER_WIDTH, boxSizing: "border-box", border: 0,
-                bgcolor: "#1B2447",
+                bgcolor: "sidebar.bg",
               },
             }}
           >
@@ -802,7 +804,7 @@ export function AppShell({
         {/* 배너는 본문 폭 캡 밖에 있어야 한다 — 안쪽에 두면 4K 에서 화면 가운데만 띠가 뜨고
             양옆이 비어, "전역 공지"가 한 열짜리 카드처럼 보인다. 세션 만료(minimal) 상태에는
             띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이고, 배너 API 도 401 이다. */}
-        {!minimal ? <Banners notices={statusNotices} /> : null}
+        {!minimal ? <Banners /> : null}
         {/* 스코프 바 — 배너 **아래**, 본문 폭 캡 **안**이다. 배너는 전역 공지라 화면 폭
             전체를 쓰지만 이건 "이 목록이 왜 이만큼인가" 를 설명하는 줄이라 목록과 같은
             폭이어야 붙어 읽힌다. 전체 범위인 사람에게는 아무것도 그리지 않는다. */}

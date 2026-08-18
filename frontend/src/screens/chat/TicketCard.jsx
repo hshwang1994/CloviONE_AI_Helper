@@ -17,7 +17,7 @@ import { NotionLink, PlainUrl } from "./links.jsx";
 /* 여기 있던 TONE_PALETTE 는 상태에 따라 카드의 왼쪽에 0.25rem 색 띠를 두르고 테두리·바탕까지
  * 물들이던 표다. 지웠다.
  *
- * 기준선(design/baseline/preview-standalone.html:216)의 카드는 상태와 무관하게 언제나
+ * 이 카드는 상태와 무관하게 언제나
  *     .kanban-card { background: var(--surface); border: 1px solid var(--border); }
  * 이고, 상태를 색으로 말하는 자리는 칩(.chip.ok/.warn/.danger/.info) 하나뿐이다.
  * 기준선 전체에 상태를 뜻하는 border-left 는 없다. 사용자도 그 색 띠를 쓰지 말자고 했다.

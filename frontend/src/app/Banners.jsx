@@ -7,14 +7,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { api } from "../lib/api.js";
-import { CriticalStatusLine } from "./StatusNotices.jsx";
 
-/* 화면 위쪽 띠 (PLAN Phase 6, PA-RC-0016로 재편).
+/* 화면 위쪽 띠 — **임퍼소네이션 하나만 남는다** (지시 1·55·67).
  *
- *   1. 임퍼소네이션    — "지금 남의 눈으로 보고 있다". 닫을 수 없다. 여기 그대로 남는다.
- *   2. CRITICAL 한 줄  — 시스템 상태·공지 중 장애(critical)급만, 최대 40px. 나머지(주의·안내,
- *                        그리고 이미 여기 보인 critical 항목의 상세)는 헤더 우측 상태 칩
- *                        (StatusNotices.jsx::StatusChip)을 눌러야 보인다.
+ * 지시 1 은 상단의 `안내`·`장애` 알림 영역을 없애고 우측 상단 종을 사용자 알림의 단일
+ * 진입점으로 쓰라고 한다. 그래서 여기 있던 CRITICAL 한 줄과 헤더의 상태 칩을 걷어내고,
+ * 사용자가 알아야 할 시스템 알림은 `NotificationBell` 안의 "시스템 상태" 묶음으로 옮겼다.
+ *
+ * **임퍼소네이션 배너는 남는다.** 이것은 알림이 아니라 **보안 상태 표시**다 — 지금 남의
+ * 눈으로 보고 있다는 사실은 닫을 수 있으면 안 되고, 종 안에 접혀 있어도 안 된다(지시 55).
+ *
+ * 지시 67 도 함께 지킨다: 없앤 것은 **사용자 화면의 상시 띠**이지 운영 상태 정보 자체가
+ * 아니다. 서비스 Health·조치 필요 항목은 관리자 대시보드와 진단 화면이 계속 보여 준다.
  *
  * **PA-RC-0016 이전에는 시스템 상태·공지가 전부 여기서 Alert로 세로로 쌓여, 관리자 화면
  * 5장(331.5px)·사용자 화면 4장(216px)이 전 라우트에서 상시 첫 화면을 잡아먹었다**(실측).
@@ -86,30 +90,16 @@ function ImpersonationBanner({ data }) {
   );
 }
 
-/** 위험한 것이 위 — 임퍼소네이션(항상) → CRITICAL 한 줄(있을 때만) 순서는 바꾸지 않는다.
- * `notices`는 AppShell.jsx가 useStatusNotices()로 만들어 이 컴포넌트와 헤더의 StatusChip에
- * 함께 내려준다 — 훅을 여기서 또 부르면 같은 데이터를 두 번 조회하고, 폴링 타이밍이 갈리면
- * 칩과 이 줄이 잠깐 다른 개수를 말하는 모순이 생긴다.
- *
- * **아무것도 그릴 게 없으면 감싸는 Box 자체를 안 만든다.** `display:"grid"`인 빈 Box는
+/** **아무것도 그릴 게 없으면 감싸는 Box 자체를 안 만든다.** `display:"grid"`인 빈 Box는
  * 높이는 0이 돼도 폭은 부모(`#main-content`, flex:1)를 그대로 채운다 — 눈에는 안 보이지만
  * 실측 도구(scrollWidth/union-of-boxes 계열)가 그 폭을 "본문 폭"으로 잘못 잰다(PA-RC-0016
- * 4K 측정에서 실제로 재현: 화면엔 아무 띠도 없는데 본문 폭이 3500px로 나왔다 — 범인은
- * 안 보이는 이 Box였다, 실제 카드 영역은 CONTENT_MAX_WIDTH대로 3040px에 이미 잘 잡혀
- * 있었다). 조건부 렌더로 아예 없애는 편이 "폭 0으로 만드는" 임시방편보다 정직하다. */
-export function Banners({ notices }) {
+ * 4K 측정에서 실제로 재현: 화면엔 아무 띠도 없는데 본문 폭이 3500px로 나왔다). 조건부
+ * 렌더로 아예 없애는 편이 "폭 0으로 만드는" 임시방편보다 정직하다. */
+export function Banners() {
   const impersonation = useImpersonation();
   const data = impersonation.data;
-  const impersonating = !!(data && data.impersonating);
-  const critical = !!(notices && notices.visible.some((n) => n.level === "critical"));
-  if (!impersonating && !critical) return null;
-
-  return (
-    <Box sx={{ display: "grid" }}>
-      {impersonating ? <ImpersonationBanner data={data} /> : null}
-      {critical ? <CriticalStatusLine notices={notices} /> : null}
-    </Box>
-  );
+  if (!data || !data.impersonating) return null;
+  return <ImpersonationBanner data={data} />;
 }
 
 export default Banners;

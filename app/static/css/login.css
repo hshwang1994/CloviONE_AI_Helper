@@ -241,7 +241,7 @@ body {
 .clovi-card strong { margin-top: 3px; font-size: 14px; transition: opacity var(--motion-fast) ease; }
 .hero-footer { position: relative; z-index: 3; margin: 16px 0 0; color: rgba(255,255,255,.68); font-size: 11px; }
 
-/* 폼 패널 — 값은 기준 파일(preview-standalone.html)의 .auth-panel 계열과 항목별로 맞춘다.
+/* 폼 패널 — 값은 tokens.css(theme.js 에서 생성)를 따른다.
    사용자 지적: "현재 로그인 화면의 폰트, 굵기와 문구 표현이 기준 파일과 다르다". 실제로
    달랐던 것은 프레임이 아니라 이 아래의 타이포·간격 값들이었다(프레임은 이미 일치). */
 .form-panel {

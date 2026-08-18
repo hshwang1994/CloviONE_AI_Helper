@@ -8,12 +8,11 @@ import { NAV_BREAKPOINT_PX } from "./navConfig.js";
  * AppShell 에서 떼어낸 이유가 둘이다. AppShell 이 700줄을 넘었고, 이 자리의 겉모습을
  * 시험이 직접 보려면(topbar-baseline.test.jsx) 셸 전체를 띄우지 않고 이것만 그릴 수 있어야 한다.
  *
- * ── 흰 판을 걷어냈다 (사용자 지적: "아이콘 ClovirAssist 흰바탕이 너무 크다") ──────────
- * 여기에는 로고를 흰 사각형 위에 얹는 상자가 있었다. 이유는 대비였다 — 워드마크의 강조어
- * "Assist"가 브랜드 인디고(#536CD6)라 딥 인디고 상단바 위에서 묻혔기 때문이다. 그런데
- * 기준선은 이 자리를 `background: transparent` 로 두고(`.brand-lockup > img`), 대신 반전
- * 자산(clovirassist-logo-horizontal-dark.svg)을 끼운다. 대비 문제의 답은 흰 판이 아니라
- * 글자색이었다. `BrandLogo inverse` 가 그 자산의 색을 그대로 쓴다.
+ * ── 반전 자산을 쓰지 않는다 (D-141) ──────────────────────────────────────────
+ * 예전에는 `BrandLogo inverse`(흰 글자)를 썼다. 딥 인디고 상단바를 전제한 선택이다.
+ * chrome 이 캔버스 계열이 된 지금 그 자산은 밝은 바탕 위 흰 글자라 대비 1.21 로 떨어진다.
+ * 정방향 자산이 맞다 — 워드마크의 "Assist"는 브랜드 인디고이고, 그 색은 밝은 판 위에서
+ * 이미 AA 를 넘는다(theme-contract.test.js 가 프리셋 전체로 검증한다).
  */
 
 /* 락업이냐 마크만이냐의 경계.
@@ -54,9 +53,9 @@ export default function TopBrand({ onClick, label = "홈으로", width }) {
         minWidth: 0,
       }}
     >
-      <BrandLogo inverse sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
+      <BrandLogo sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
       {/* 자르는 대신 같은 마크를 그린다 — 인라인 SVG라 자를 이유가 없다. */}
-      <BrandLogo inverse markOnly width={42} sx={{ [WIDE]: { display: "none" } }} />
+      <BrandLogo markOnly width={34} sx={{ [WIDE]: { display: "none" } }} />
     </Button>
   );
 }
