@@ -134,6 +134,8 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
       // (Banners.jsx 의 대리 보기 종료 실패와 같은 판단 - 조용히 삼키면 사용자가 로그아웃된
       // 줄 알고 자리를 뜬다).
       if (e && e.status === 401) {
+        // 로그아웃은 **되돌아갈 곳을 싣지 않는다** — 스스로 나간 사람을 방금 있던
+        // 화면으로 다시 데려가는 것은 의도와 반대다(세션 만료와 다른 경로다).
         window.location.href = "/login";
         return;
       }

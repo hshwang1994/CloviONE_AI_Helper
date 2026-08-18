@@ -12,6 +12,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
+import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
@@ -902,7 +903,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
     catch (e) {
       // 다른 admin 화면(DataScreen.jsx handleApiError)과 같은 401 처리 — 세션이 끊긴 채 계속
       // 여기서만 일반 오류 토스트로 흘리면, 다시 로그인하라는 신호 없이 다음 조작도 계속 실패한다.
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); window.location.href = "/login"; return; }
+      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
       toast(e.message, "error");
     }
     finally { setBusy(false); }

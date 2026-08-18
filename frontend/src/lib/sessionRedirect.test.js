@@ -64,3 +64,38 @@ describe("redirectToLogin", () => {
     expect(replaced).toHaveLength(0);
   });
 });
+
+/* 소비처가 실제로 이 계층을 타는가 (지시 19).
+ *
+ * 모듈만 만들고 화면이 각자 `window.location.href = "/login"` 을 계속하면 아무것도 안 고쳐진
+ * 것이다 — 실제로 그 상태로 한동안 있었다(감사에서 발견). 소스에 그 패턴이 다시 들어오지
+ * 못하게 못박는다. */
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+function walk(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) { walk(full, out); continue; }
+    if (/\.(js|jsx)$/.test(name) && !/\.test\.(js|jsx)$/.test(name)) out.push(full);
+  }
+  return out;
+}
+
+describe("401 이동은 공통 계층만 한다", () => {
+  it("화면 코드에 맨 '/login' 이동이 남아 있지 않다 (로그아웃 제외)", () => {
+    const root = join(process.cwd(), "src");
+    const offenders = [];
+    for (const file of walk(root)) {
+      const text = readFileSync(file, "utf8");
+      if (!/location\.href\s*=\s*"\/login"/.test(text)) continue;
+      // 로그아웃은 **의도적으로** 되돌아갈 곳을 안 싣는다(app/UserMenu.jsx 주석 참고) —
+      // 스스로 나간 사람을 방금 있던 화면으로 다시 데려가는 것은 의도와 반대다.
+      // 경로 구분자는 OS 마다 다르다 — 경로에 쓰이지 않는 글자를 전부 "/" 로 바꿔 통일한다.
+      const tail = file.replace(/[^A-Za-z0-9_.-]/g, "/").split("/").filter(Boolean).slice(-2).join("/");
+      if (tail === "app/UserMenu.jsx" || tail === "lib/sessionRedirect.js") continue;
+      offenders.push(file.replace(root, "src"));
+    }
+    expect(offenders, "세션 만료 이동은 redirectToLogin() 을 쓴다").toEqual([]);
+  });
+});

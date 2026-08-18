@@ -129,7 +129,12 @@ describe("빈 화면 / 오류 상태", () => {
     const onRetry = vi.fn();
     const { unmount } = ui(<ErrorState error={{ status: 401, message: "만료" }} onRetry={onRetry} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "로그인 화면으로" })).toHaveAttribute("href", "/login");
+    /* 되돌아올 곳을 싣는다(지시 19) — 예전에는 맨 `/login` 이라 재로그인 뒤 서버가 `/` 로
+       떨어뜨렸고, 사용자는 보던 화면을 손으로 다시 찾아가야 했다. */
+    const loginLink = screen.getByRole("link", { name: "로그인 화면으로" });
+    const href = loginLink.getAttribute("href");
+    expect(href.startsWith("/login")).toBe(true);
+    expect(new URL(href, "https://example.test").searchParams.get("next")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
     unmount();
 

@@ -211,6 +211,17 @@ def _document_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     # 티켓과 같은 이유로 휴지통 문서도 뺀다(H2).
     trashed_docs = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
     rows = [r for r in rows if getattr(r, "notion_page_id", None) not in trashed_docs]
+    # 열람 제한 문서(SEC-10)는 **아예 담지 않는다**.
+    #
+    # 이 색인은 범위가 없는 전역 저장소다. 여기 담아 두고 질의에서만 거르면 질의 경로가
+    # 하나 늘어날 때마다 같은 실수를 다시 할 수 있고, 실제로 그렇게 새고 있었다 —
+    # `doc_in_scope` 의 restricted 게이트가 목록·상세는 막는데 통합 검색은 안 지나서,
+    # 같은 부서 동료가 제목·분류·작성자를 검색으로 그대로 찾았다. 제한을 켜는 이유가
+    # "원본에 평문 자격증명이 있다" 같은 것이라 제목만으로도 유출이다.
+    #
+    # 채팅을 아예 색인하지 않는 것과 같은 규칙이다(SEARCH_KINDS) — 예외 없음이 가장
+    # 확인하기 쉽다. 작성자·운영자는 문서 목록에서 그대로 보고 열 수 있다(기능 유지).
+    rows = [r for r in rows if not getattr(r, "restricted", False)]
     out: list[dict] = []
     for d in rows:
         # 이 필드들은 콤마가 아니라 NAMES_SEP(\x1f) 로 이어져 있다. 콤마로 자르면 이름 하나가

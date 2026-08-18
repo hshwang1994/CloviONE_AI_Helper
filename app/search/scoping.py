@@ -34,9 +34,11 @@
 
 from __future__ import annotations
 
+from sqlalchemy import or_, select
+
 from app.core.ownership import stored_ownership_clause
 from app.core.scope import Scope
-from app.search.models import SearchDocument
+from app.search.models import KIND_DOCUMENT, SearchDocument
 
 
 def sql_clause(scope: Scope):
@@ -53,4 +55,36 @@ def sql_clause(scope: Scope):
         org_col=SearchDocument.org_id,
         dept_col=SearchDocument.owner_dept_id,
         project_col=SearchDocument.owner_project_id,
+    )
+
+
+def not_restricted_clause():
+    """열람 제한 문서(SEC-10)를 결과에서 뺀다. 색인 1층과 짝이 되는 2층이다.
+
+    ## 왜 두 층인가
+
+    색인기가 제한 문서를 애초에 안 담지만(`app/search/indexer.py::_document_rows`), 색인은
+    주기 작업이다(기본 300초, `notion_docs_sync_interval_seconds` 와 같은 계열). 운영자가
+    제한을 **켠 직후** 다음 색인이 돌기 전까지 창이 열린다 — 그 창이 정확히 "지금 막
+    민감하다고 판단한 문서"의 창이라 가장 위험하다. 질의 단계에도 같은 판정을 둬서 닫는다.
+
+    ## 왜 예외(작성자·운영자)가 없는가
+
+    목록·상세에서는 작성자와 운영자군이 제한 문서를 본다(`doc_in_scope`). 여기서는 **아무도
+    검색으로 찾지 못한다** — 검색 색인은 범위가 없는 전역 저장소라, 예외를 하나 열면 그
+    예외가 인덱스 안 ACL 의 시작이 된다(채팅을 통째로 안 담는 것과 같은 이유). 기능은
+    잃지 않는다: 그 사람들은 문서 목록에서 그대로 보고 연다.
+
+    ⚠️ 이 절은 **후보 상한 앞에서** 걸려야 한다(Z6) — `service.py` 의 `narrowing` 에 들어간다.
+    """
+    from app.team_docs.models import DocumentCache
+
+    restricted_refs = select(DocumentCache.notion_page_id).where(
+        DocumentCache.restricted.is_(True)
+    )
+    # 문서 유형에만 건다 — 티켓·게시글·사용자 행의 ref_id 가 우연히 겹칠 이유는 없지만,
+    # 조건을 유형으로 좁혀 두면 이 절이 다른 유형의 결과를 조용히 줄일 길 자체가 없다.
+    return or_(
+        SearchDocument.kind != KIND_DOCUMENT,
+        SearchDocument.ref_id.not_in(restricted_refs),
     )

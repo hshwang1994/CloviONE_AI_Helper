@@ -33,6 +33,7 @@ import { AssistantDrawer, useAssistantHotkey } from "./AssistantDrawer.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
 import { activeNavPath, filterGroupsByQuery, groupForPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
+import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import BrandLogo from "../ui/BrandLogo.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
@@ -631,7 +632,7 @@ export function AppShell({
            사이드바도 재로그인 안내 한 칸으로 접는다. */
         <Box sx={{ p: 3, display: "grid", gap: 2 }}>
           <Typography variant="body2" sx={{ color: "sidebar.muted" }}>세션이 만료되었습니다.</Typography>
-          <Button variant="contained" href="/login">다시 로그인</Button>
+          <Button variant="contained" href={loginUrl()}>다시 로그인</Button>
         </Box>
       ) : (
         <>
@@ -712,7 +713,7 @@ export function AppShell({
               그래서 검색 막대는 이 칸 **다음**에서 시작한다. 좁은 화면(사이드바가 서랍으로
               접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */}
           <TopBrand
-            onClick={() => { if (minimal) { window.location.href = "/login"; } else { navigate(homeUser ? "/me" : "/dashboard"); } }}
+            onClick={() => { if (minimal) { redirectToLogin(); } else { navigate(homeUser ? "/me" : "/dashboard"); } }}
             label={minimal ? "로그인 화면으로" : "홈으로"}
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />

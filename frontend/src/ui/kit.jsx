@@ -39,6 +39,7 @@ import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING } from "./density.js";
+import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
@@ -749,7 +750,8 @@ export function ErrorState({ error, onRetry, size }) {
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
       <Box sx={{ mt: compact ? 0.5 : 1 }}>
         {isAuth
-          ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/login">로그인 화면으로</MuiButton>
+          /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
+          ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href={loginUrl()}>로그인 화면으로</MuiButton>
           // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
           : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
           // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
@@ -1362,7 +1364,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       // 자신이 방금 입력한 내용이 왜 저장되지 않는지 모른 채 이 모달 안에 막힌다.
       if (e && e.status === 401) {
         toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error");
-        window.setTimeout(() => { window.location.href = "/login"; }, 1200);
+        redirectToLogin({ delayMs: 1200 });
         return; // busy=true로 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
       }
       // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의

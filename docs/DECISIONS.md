@@ -6539,3 +6539,69 @@ registry 화면 15개의 `config.area` 가 새 사이드바 그룹과 갈라져 
 배치 자체를 다시 짜라고 했으므로 계약을 새 배치로 옮겼다. **옛 단언 중 살아 있는 것은 전부
 남겼고**, 짝을 이루던 화면들의 단언은 "같은 그룹에 이웃해 있다"보다 **강한** 상태
 ("사이드바 항목이 아니라 한 화면의 탭이다")로 바뀌었다.
+
+---
+
+## D-150 — 보안: 열람 제한 문서가 통합 검색으로 새고 있었다
+
+**날짜** 2026-08-19 · **범위** 보안(SEC-10 후속) · **지시** 29 · 55 · **심각도** 높음
+
+### 무엇이 뚫려 있었나
+
+`app/team_docs/service.py::doc_in_scope` 는 목록·상세·쓰기가 모두 지나는 단 하나의 문이고
+그 안에 `restricted` 게이트가 있다 — 같은 부서 동료라도 제한 문서는 못 본다
+(`tests/security/test_document_restricted_scope.py` 가 그 계약을 못박는다).
+
+**그런데 통합 검색은 그 문을 지나지 않았다.** `app/search/*` 전체에 `restricted` 라는 문자열이
+한 번도 없었다. 색인기는 휴지통만 빼고 전 문서를 담았고(제목·요약·메모·작성자·태그가 본문
+필드로 들어간다), 질의는 Ownership(조직·부서·프로젝트) 축만 걸었다.
+
+결과: **목록에서 가려 둔 문서를 검색으로 찾았다.** 상세는 404 라 본문은 못 읽지만, 제한을
+켜는 이유가 "원본에 평문 자격증명이 있다" 같은 것이라 제목만으로도 유출이다.
+
+재현은 새 시험이 한다 — `tests/security/test_search_restricted_documents.py` 는 수정 전
+3건이 실패했다.
+
+### 어떻게 막았나 — 두 층, 예외 없음
+
+1. **색인에 담지 않는다** (`app/search/indexer.py::_document_rows`). 색인은 범위가 없는
+   전역 저장소다. 담아 두고 질의에서만 거르면 질의 경로가 하나 늘어날 때마다 같은 실수를
+   다시 할 수 있다.
+2. **질의에서도 거른다** (`app/search/scoping.py::not_restricted_clause`). 색인은 주기
+   작업이라(기본 300초) 제한을 **켠 직후** 다음 색인까지 창이 열린다 — 그 창이 정확히
+   "지금 막 민감하다고 판단한 문서"의 창이라 가장 위험하다. 후보 상한 **앞에서** 건다(Z6).
+
+**작성자·운영자 예외를 두지 않았다.** 목록·상세에서는 그들이 제한 문서를 본다. 검색에서는
+아무도 못 찾는다 — 예외를 하나 열면 그 예외가 인덱스 안 ACL 의 시작이 된다. 채팅을 통째로
+안 담는 규칙과 같은 판단이다(`test_search_no_chat.py`: "'본인 것이니 괜찮다'로 예외를 하나
+열면 그 예외가 인덱스 안 ACL 의 시작이 된다"). 기능은 잃지 않는다 — 시험이 같은 사람이
+문서 목록에서 그 문서를 보고 여는 것까지 함께 확인한다.
+
+### revert-to-verify
+
+두 층을 **각각** 떼어 실패를 확인했다.
+- 색인 필터만 제거 → `test_a_restricted_document_is_never_indexed` 실패.
+- 질의 절만 제거 → `test_turning_restriction_on_removes_it_from_search_without_waiting_for_reindex` 실패.
+
+---
+
+## D-151 — 401 이동을 소비처까지 다 옮겼다
+
+**날짜** 2026-08-19 · **범위** P5-1 · **지시** 19
+
+D-147 이 `lib/sessionRedirect.js` 를 만들었지만 **소비처가 `auth.jsx` 하나뿐이었다.**
+화면 열한 곳이 각자 `window.location.href = "/login"` 을 하고 있었고, 그 경로들은 전부
+되돌아올 곳(`next`)과 만료 표시(`expired=1`)를 잃었다. 일부는 `setTimeout` 으로 1.2초 뒤
+이동해 서로의 좋은 주소를 덮어썼다. **공용 모듈만 만들고 소비처는 안 고친** 전형적인 모양이다.
+
+옮긴 곳: `ui/kit.jsx`(FormModal + ErrorState 링크) · `screens/data-screen/apiError.js`
+(registry 23화면이 지난다) · `screens/useChat.js`(3곳) · `Users.jsx` · `UsersBulk.jsx` ·
+`Offboarding.jsx` · `app/AppShell.jsx`(2곳) · `screens/DataScreen.jsx`(요약 실패 링크).
+
+`loginUrl()` 을 함께 만들었다 — 사용자가 누르는 링크·버튼은 이동을 예약하지 않고 주소만
+필요하다. 1회 가드를 건드리지 않는다.
+
+**로그아웃(`app/UserMenu.jsx`)은 의도적으로 제외한다.** 스스로 나간 사람을 방금 있던
+화면으로 다시 데려가는 것은 의도와 반대다. 그 예외는 코드 주석과 가드 시험 양쪽에 적었다.
+
+재발 방지: `sessionRedirect.test.js` 가 소스를 훑어 맨 `/login` 이동이 다시 들어오면 실패한다.

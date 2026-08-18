@@ -9,6 +9,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
+import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { fmtDateTime } from "../lib/format.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
@@ -271,7 +272,7 @@ function OffboardPlan({ preview, onDone, toast }) {
       if (run.ticket_failed) toast(`티켓 ${run.ticket_moved}건을 옮기고 ${run.ticket_failed}건은 실패했습니다.`, "error");
       else toast("오프보딩을 실행했습니다.", "success");
     } catch (e) {
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); window.setTimeout(() => { window.location.href = "/login"; }, 1200); return; }
+      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
       // PA-RC-0014: 이 화면은 FormModal을 안 쓰는 손수 제작 폼이라 details[].loc 연결을
       // 직접 한다 — 메모(note)가 서버 상한(1000자)을 넘으면 그 칸에도 aria-invalid를 건다.
       const details = e && e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;

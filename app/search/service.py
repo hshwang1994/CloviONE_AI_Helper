@@ -31,7 +31,7 @@ from app.search.models import (
     SEARCH_KINDS,
     SearchDocument,
 )
-from app.search.scoping import sql_clause
+from app.search.scoping import not_restricted_clause, sql_clause
 
 logger = logging.getLogger("app.search")
 
@@ -125,9 +125,12 @@ def search(
     # 두 질의(FTS 후보 뽑기, LIKE 폴백)가 같은 목록을 쓴다.
     kind_clause = SearchDocument.kind.in_(kinds)
     clause = sql_clause(principal.visibility)
-    narrowing = (kind_clause, clause)
+    # 열람 제한 문서(SEC-10)는 색인에 안 담기지만, 제한을 켠 직후 다음 색인까지의 창을
+    # 여기서 닫는다(app/search/scoping.py::not_restricted_clause).
+    restricted = not_restricted_clause()
+    narrowing = (kind_clause, clause, restricted)
 
-    stmt = select(SearchDocument).where(kind_clause)
+    stmt = select(SearchDocument).where(kind_clause).where(restricted)
     if clause is not None:
         stmt = stmt.where(clause)
 

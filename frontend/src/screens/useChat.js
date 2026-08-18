@@ -1,3 +1,4 @@
+import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
@@ -341,7 +342,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     onError: (e) => {
       // 세션 만료(401)면 다른 모든 401 경로(doSend·FormModal·DataScreen·Users)와 동일하게 로그인으로
       // 보낸다 — 예전엔 이 분기가 없어 '다시 시도' 중 세션이 끊기면 토스트만 뜨고 복구 경로가 없었다.
-      if (e && e.status === 401) { window.location.href = "/login"; return; }
+      if (e && e.status === 401) { redirectToLogin(); return; }
       if (e && e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode") {
         setMaintenanceNotice((e.body.error && e.body.error.message) || "시스템 점검 중에는 새 요청이 차단됩니다. 잠시 후 다시 시도하세요.");
         return;
@@ -365,7 +366,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     mutationFn: ({ messageId }) => api("/api/messages/" + messageId + "/regenerate", { method: "POST", body: {} }),
     onSuccess: (_d, vars) => { qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }); qc.invalidateQueries({ queryKey: ["conversations"] }); },
     onError: (e) => {
-      if (e && e.status === 401) { window.location.href = "/login"; return; }
+      if (e && e.status === 401) { redirectToLogin(); return; }
       if (e && e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode") {
         setMaintenanceNotice((e.body.error && e.body.error.message) || "시스템 점검 중에는 새 요청이 차단됩니다. 잠시 후 다시 시도하세요.");
         return;
@@ -564,7 +565,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     } catch (e) {
       // 세션 만료(401)는 다른 화면(ErrorState)과 같은 로그인 복구 동작으로 통일한다 — 8초 뒤
       // 사라지는 토스트 하나에만 기대면, 대화 중 세션이 끊긴 사용자는 무엇이 잘못됐는지 놓치기 쉽다.
-      if (e && e.status === 401) { window.location.href = "/login"; return; }
+      if (e && e.status === 401) { redirectToLogin(); return; }
       // 첫 전송(대화를 방금 만든 경우)이 실패하면 메시지 0개짜리 '새 대화'가 목록에 남아 어지럽힌다 —
       // 조용히 정리한다(초안은 아래에서 컴포저에 복구하므로 같은 내용으로 곧바로 다시 보낼 수 있다).
       // deleteConv 뮤테이션은 쓰지 않는다 — 그 onSuccess가 clearDraft()로 방금 복구한 초안을 지운다.

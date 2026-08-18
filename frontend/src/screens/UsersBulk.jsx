@@ -4,6 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { Badge, Button, Card, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 
@@ -73,7 +74,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
       selection.clear();
       onDone();
     } catch (e) {
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); window.setTimeout(() => { window.location.href = "/login"; }, 1200); return; }
+      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
       toast(e.message, "error");
     } finally { setBusy(null); }
   }

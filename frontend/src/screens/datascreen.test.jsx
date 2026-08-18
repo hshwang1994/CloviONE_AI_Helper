@@ -30,6 +30,7 @@ vi.mock("../app/auth.jsx", () => ({
 }));
 
 import { DataScreen } from "./DataScreen.jsx";
+import { resetSessionRedirect } from "../lib/sessionRedirect.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -227,17 +228,30 @@ describe("액션 진행 표시는 누른 버튼에만", () => {
   });
 });
 
+/* 세션 만료(401)는 **공통 계층**이 처리한다 (지시 19).
+ *
+ * 예전에는 이 화면이 스스로 `window.location.href = "/login"` 을 했다 — 되돌아올 곳도,
+ * 만료였다는 사실도 싣지 않았고, 같은 순간 다른 화면이 또 이동을 예약하면 서로 덮어썼다.
+ * 지금은 `lib/sessionRedirect.js` 한 곳이 그 주소를 만든다. 그래서 여기서 재는 것은
+ * "어디로 갔는가"가 아니라 **"그 공통 계층을 탔는가, 되돌아올 곳을 실었는가"** 다. */
 describe("세션 만료(401)", () => {
   let originalLocation;
+  let replaced;
   beforeEach(() => {
+    replaced = [];
     originalLocation = window.location;
     delete window.location;
-    window.location = { ...originalLocation, href: "", hash: "" };
+    window.location = {
+      ...originalLocation, href: "", hash: "", pathname: "/", search: "",
+      replace: (u) => replaced.push(u),
+    };
+    resetSessionRedirect();
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
   afterEach(() => {
     vi.useRealTimers();
     window.location = originalLocation;
+    resetSessionRedirect();
   });
 
   it("액션이 401이면 안내 후 로그인 화면으로 보낸다 — 일반 오류로 뭉개지 않는다", async () => {
@@ -260,7 +274,12 @@ describe("세션 만료(401)", () => {
     expect(await screen.findByText(/로그인이 필요합니다/)).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(1500);
-    expect(window.location.href).toBe("/login");
+    expect(replaced).toHaveLength(1);
+    const url = new URL(replaced[0], "https://example.test");
+    expect(url.pathname).toBe("/login");
+    // 재로그인 뒤 보던 화면으로 돌아온다 — 예전에는 맨 `/login` 이라 서버가 `/` 로 떨어뜨렸다.
+    expect(url.searchParams.get("next")).toBeTruthy();
+    expect(url.searchParams.get("expired")).toBe("1");
   });
 });
 

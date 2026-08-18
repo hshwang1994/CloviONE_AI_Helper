@@ -21,6 +21,7 @@ import { SearchBox } from "../ui/filters.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
 import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery } from "./datascreen-view.js";
+import { loginUrl } from "../lib/sessionRedirect.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
 // 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
 import { JsonBlock } from "./data-screen/JsonBlock.jsx";
@@ -723,7 +724,7 @@ export function DataScreen({ config, embedded = false }) {
           // 이 경우 '로그인 화면으로' 링크를 보여주는데, 요약 카드만 별도 쿼리라 여기선 늘 일반
           // '다시 시도' 버튼을 보여줘 실제로 회복 안 되는 재시도를 계속 제안했다(거짓 희망).
           summaryQuery.error && summaryQuery.error.status === 401 ? (
-            <Callout tone="warn">요약 통계를 불러오지 못했습니다(로그인이 필요합니다). <a href="/login">로그인 화면으로</a></Callout>
+            <Callout tone="warn">요약 통계를 불러오지 못했습니다(로그인이 필요합니다). <a href={loginUrl()}>로그인 화면으로</a></Callout>
           ) : summaryQuery.error && (summaryQuery.error.status === 403 || summaryQuery.error.status === 404) ? (
             // 403/404도 401과 같은 이유로 재시도해도 회복되지 않는다(ErrorState의 판단과 동일) -
             // 영원히 실패할 '다시 시도' 버튼 대신 이유만 알린다(거짓 희망 방지).
