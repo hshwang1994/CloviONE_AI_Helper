@@ -164,7 +164,7 @@ export const PLATFORM_SCREENS = {
     ],
   },
   announcements: {
-    key: "announcements", area: "자동화", title: "공지 배너",
+    key: "announcements", area: "설정", title: "공지 배너",
     endpoint: "/api/admin/announcements",
     help: "모든 화면 위쪽에 띠로 뜨는 공지입니다. 사용자가 닫으면 그 사람에게는 다시 뜨지 않습니다(브라우저가 아니라 계정에 기록되므로 다른 PC에서도 닫힌 상태가 유지됩니다).",
     emptyTitle: "추가된 공지가 없습니다",
@@ -228,7 +228,7 @@ export const PLATFORM_SCREENS = {
     ],
   },
   "ai-quotas": {
-    key: "ai-quotas", area: "자동화", title: "AI 사용 상한",
+    key: "ai-quotas", area: "AI", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
     // WF1 R4 — "상한이 걸리는 곳은 아래 표 위의 '상한이 걸리는 곳' 목록에 서버가 직접
     // 알려 줍니다"라는 문장이 있었다. 그런 이름의 목록을 그리는 코드는 저장소에 없다 — 위
@@ -303,7 +303,7 @@ export const PLATFORM_SCREENS = {
     ],
   },
   "feature-flags": {
-    key: "feature-flags", area: "운영", title: "기능 플래그",
+    key: "feature-flags", area: "설정", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
     help: "모듈을 활성화하고 비활성화하는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 적용됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
     emptyTitle: "플래그 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",

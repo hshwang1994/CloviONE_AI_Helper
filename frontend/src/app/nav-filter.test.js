@@ -9,10 +9,12 @@ describe("레일 내비 필터", () => {
   });
 
   it("두 글자만 쳐도 라벨이 맞는 항목만 남는다", () => {
+    // '감사' 그룹은 지시 30 재구성으로 감사 로그·개발자 월간 리포트 둘만 남았다
+    // ('감사 이상 징후'는 감사 로그의 탭이 됐다) — 그룹 이름이 맞으면 그 그룹 전체가 남는다.
     const out = filterGroupsByQuery(NAV, "감사");
     const paths = out.flatMap((g) => g.items.map((i) => i.to));
     expect(paths).toContain("/audit");
-    expect(paths).toContain("/audit-anomalies");
+    expect(paths).toContain("/dev-report");
     expect(paths).not.toContain("/dashboard");
   });
 

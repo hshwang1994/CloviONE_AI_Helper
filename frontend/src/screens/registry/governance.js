@@ -36,7 +36,7 @@ function adminScopeTooltip(scopes) {
 
 export const GOVERNANCE_SCREENS = {
   approvals: {
-    key: "approvals", area: "자동화", title: "승인", endpoint: "/api/admin/approvals",
+    key: "approvals", area: "사용자와 권한", title: "승인", endpoint: "/api/admin/approvals",
     // self_approval_allowed는 서버 설정 파일에만 있고(app/core/feature_flags.py) 이 관리 콘솔에는
     // 그 값을 보거나 바꿀 화면이 없다 — '정책 설정에 따라 달라질 수 있어요'는 마치 이 화면 어딘가에
     // 바꿀 수 있는 정책 설정이 있는 것처럼 읽혀 없는 컨트롤을 찾게 만들었다. 서버 쪽 설정임을 명시한다.

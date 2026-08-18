@@ -20,7 +20,7 @@ import { SearchBox } from "../ui/filters.jsx";
 // 필터 줄 격자 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). 트랙 상한을 포함해 한 곳에서만 정한다.
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
-import { buildViewQuery, describeView, hashQuery, parseView, withHashQuery } from "./datascreen-view.js";
+import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery } from "./datascreen-view.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
 // 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
 import { JsonBlock } from "./data-screen/JsonBlock.jsx";
@@ -43,7 +43,7 @@ export {
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
  * 생성·수정은 공통 중앙 모달 폼. headerActions=폼 없는 즉시 실행/입력폼. 액션에 subList가 있으면
  * 하위 리소스(버전·실행 이력 등)를 별도 드로어로 조회한다. config.paginated면 서버 페이지네이션. */
-export function DataScreen({ config }) {
+export function DataScreen({ config, embedded = false }) {
   /* 첫 렌더에서 주소의 쿼리(#/audit?action=user.login)를 그대로 읽어 초기 상태로 삼는다.
    * 마운트 후에 setState 로 넣으면 기본 필터로 한 번 조회한 뒤 다시 조회해 목록이 두 번
    * 깜빡이고, 그 사이 사용자는 자기가 연 링크와 다른 화면을 본다. 게으른 초기화가 그
@@ -424,7 +424,12 @@ export function DataScreen({ config }) {
     try { new URLSearchParams(hash.slice(qi + 1)).forEach((v, k) => { params[k] = v; }); } catch (e) { return; }
     if (!Object.keys(params).length) return;
     const intent = config.onQuery(params);
-    try { window.history.replaceState(null, "", hash.slice(0, qi) || "#"); } catch (e) { /* ignore */ }
+    /* 딥링크 쿼리는 한 번 쓰고 지운다 — 다만 그릇(탭 셸)이 소유한 키는 남긴다. 예전에는
+       쿼리 전체를 지워서, 이 화면이 탭 안에 있으면 딥링크로 들어오는 순간 `?tab=` 까지
+       함께 사라지고 첫 탭으로 튕겼다. */
+    const keptShell = keepQueryKeys(hash.slice(qi + 1), SHELL_QUERY_KEYS);
+    const cleaned = (hash.slice(0, qi) || "#") + (keptShell ? "?" + keptShell : "");
+    try { window.history.replaceState(null, "", cleaned); } catch (e) { /* ignore */ }
     if (!intent) return;
     if (intent.open === "header") {
       const a = (config.headerActions || []).find((x) => x.label === intent.label);
@@ -513,12 +518,15 @@ export function DataScreen({ config }) {
    * pushState 가 아니라 replaceState 다 — 필터를 한 칸 고칠 때마다 히스토리가 쌓이면
    * '뒤로 가기'가 화면을 벗어나기까지 열 번을 눌러야 한다. */
   const viewQuery = buildViewQuery({ q, page, filters }, config);
+  /* 자기 키만 갈아치운다 — 이 화면이 탭 그릇 안에 있으면 그릇이 쓴 `?tab=…` 이 여기 함께
+     실려 있고, 예전처럼 쿼리 전체를 덮으면 필터를 한 칸 건드리는 순간 첫 탭으로 튕긴다. */
+  const ownedKeys = React.useMemo(() => ownedQueryKeys(config), [config]);
   useEffect(() => {
-    const next = withHashQuery(window.location.hash, viewQuery);
+    const next = withHashQuery(window.location.hash, viewQuery, ownedKeys);
     if (next !== window.location.hash) {
       try { window.history.replaceState(null, "", next); } catch (e) { /* ignore */ }
     }
-  }, [viewQuery]);
+  }, [viewQuery, ownedKeys]);
 
   /* 저장된 뷰를 골랐을 때 — 그 쿼리 문자열로 화면 상태를 통째로 되돌린다.
    * 주소는 위 효과가 따라온다(여기서 두 번 쓰지 않는다). */
@@ -656,10 +664,27 @@ export function DataScreen({ config }) {
        * PageHeader 바로 아래 상시 Callout으로 그렸는데, 그러면 화면을 열 때마다 매번 문단을
        * 지나쳐야 했다(8+ 화면 실측). PageHeader의 `help`/`helpTone` prop으로 옮겨 제목 옆
        * 도움말 토글 + 기본 접힘으로 바꾼다 — 문구는 한 글자도 안 바꾼다, 보이는 방식만 바뀐다. */}
-      <PageHeader area={config.area} title={config.title} size={config.compact ? "section" : "page"}
-        actions={hasHeaderActions ? headerActions : null}
-        help={config.help ? (typeof config.help === "function" ? config.help(role) : config.help) : null}
-        helpTone={config.helpTone || "info"} />
+      {/* 탭 그릇 안에서는 제목을 그리지 않는다 — 그릇이 이미 "영역 › 화면 › 탭"을 보여 준다.
+          제목을 두 번 그리면 한 탭에 페이지가 둘 겹쳐 있는 것처럼 읽힌다(SettingsShell 이
+          `embedded` 로 같은 문제를 먼저 풀었다). 헤더 액션과 도움말은 잃으면 안 되므로 그릇
+          안쪽 줄로 내려 그대로 남긴다. */}
+      {embedded ? (
+        (hasHeaderActions || config.help) ? (
+          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 2 }}>
+            {config.help ? (
+              <Callout tone={config.helpTone || "info"} variant="inline">
+                {typeof config.help === "function" ? config.help(role) : config.help}
+              </Callout>
+            ) : null}
+            {hasHeaderActions ? headerActions : null}
+          </Box>
+        ) : null
+      ) : (
+        <PageHeader area={config.area} title={config.title} size={config.compact ? "section" : "page"}
+          actions={hasHeaderActions ? headerActions : null}
+          help={config.help ? (typeof config.help === "function" ? config.help(role) : config.help) : null}
+          helpTone={config.helpTone || "info"} />
+      )}
       {/* 서버가 개수 제한(예: 500건)만 걸고 total/페이지네이션을 주지 않는 목록에서, 항목 수가 그
        * 한도에 닿으면 '더 있을 수 있음'을 알린다(자를 뿐 안 알리면 데이터가 조용히 사라진 것처럼 보인다).
        * paginated:true + 서버가 실제 total을 주는 화면(프롬프트/정책 등)은 페이저가 이미 '총 N건'을

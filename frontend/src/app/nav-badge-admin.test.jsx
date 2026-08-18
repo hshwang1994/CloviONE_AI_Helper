@@ -90,11 +90,18 @@ describe("관리자 사이드바 — 유형별 배지", () => {
     });
     renderShell();
 
-    // 배지가 붙으면 링크의 접근성 이름이 "작업 큐 안 읽음 2건"처럼 라벨+배지로 합쳐지고
-    // "승인"/"승인 위임"처럼 라벨끼리 겹치는 항목도 있어, 이름이 아니라 href로 링크
-    // 자체를 먼저 찾는다(안정적) — 배지 숫자는 findByLabelText로 비동기 렌더를 기다린다.
+    /* 배지가 붙으면 링크의 접근성 이름이 "작업 큐 안 읽음 2건"처럼 라벨+배지로 합쳐지므로
+       이름이 아니라 href 로 링크 자체를 찾는다. **역할 질의(byRole)를 쓰지 않는 이유**:
+       사이드바 그룹은 기본이 접힘이고 활성 경로가 든 그룹만 펼쳐진다 — 그러면 다른 그룹의
+       항목은 `visibility:hidden` 이라 byRole 이 못 찾는다. 여기서 재려는 것은 "그 항목이
+       지금 눈에 보이는가"가 아니라 **"배지 숫자를 유형별로 옳게 합치는가"** 다(그룹 접힘은
+       sidebar-*.test.jsx 가 따로 잰다). 그래서 DOM 에서 직접 찾는다. */
     const linkTo = async (href) => {
-      const link = await screen.findByRole("link", { name: (_, el) => el.getAttribute("href") === href });
+      const link = await waitFor(() => {
+        const el = document.querySelector(`a[href="${href}"]`);
+        expect(el, `${href} 링크가 사이드바에 없다`).toBeTruthy();
+        return el;
+      });
       return within(link).findByLabelText(/안 읽음/);
     };
 

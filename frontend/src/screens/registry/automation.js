@@ -16,7 +16,7 @@ import { DOC_GENERATE_FIELDS, docConfigInitial, docConfigTransform, docGenerateR
 
 export const AUTOMATION_SCREENS = {
   schedules: {
-    key: "schedules", area: "자동화", title: "실행 일정", endpoint: "/api/admin/schedules",
+    key: "schedules", area: "자동화와 연동", title: "실행 일정", endpoint: "/api/admin/schedules",
     help: "정해진 시간에 자동 실행을 예약합니다.",
     emptyTitle: "예약된 일정이 없습니다",
     // 문서 화면의 '정기 실행으로 예약'에서 넘어온 ?workflow_id= 쿼리를 생성 폼 프리필로 소비한다
@@ -213,7 +213,7 @@ export const AUTOMATION_SCREENS = {
     ] },
   },
   documents: {
-    key: "documents", area: "자동화", title: "문서 자동 생성", endpoint: "/api/admin/documents",
+    key: "documents", area: "자동화와 연동", title: "문서 자동 생성", endpoint: "/api/admin/documents",
     help: "Notion 문서를 자동으로 만듭니다. ‘+ 문서 생성’으로 워크플로와 기간을 지정하면 생성 결과가 아래 기록에 남고, ‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다.",
     emptyTitle: "생성된 문서가 없습니다",
     // WF1 R5 — 쓰기 역할(admin/system_admin)에게는 emptyHelp가 위 help 배너 및 아래

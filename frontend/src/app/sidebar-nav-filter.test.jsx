@@ -78,7 +78,7 @@ describe("사이드바 내비 필터 (PA-RC-0017)", () => {
 
     expect(within(nav).queryByText("대시보드")).not.toBeInTheDocument();
     expect(within(nav).getByText("감사 로그")).toBeInTheDocument();
-    expect(within(nav).getByText("감사 이상 징후")).toBeInTheDocument();
+    expect(within(nav).getByText("개발자 월간 리포트")).toBeInTheDocument();
   });
 
   it("맞는 게 없으면 '맞는 메뉴가 없습니다' 안내가 뜬다", async () => {

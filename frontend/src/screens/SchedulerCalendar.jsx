@@ -119,7 +119,7 @@ function EventDot({ event, onClick }) {
   );
 }
 
-export function SchedulerCalendar() {
+export function SchedulerCalendar({ embedded = false } = {}) {
   // 오늘의 KST 연·월에서 시작한다.
   const todayKey = kstDayKey(new Date());
   const [cursor, setCursor] = React.useState(() => ({
@@ -245,14 +245,18 @@ export function SchedulerCalendar() {
   }, [query.data]);
 
   return (
-    <div className="c-screen">
-      <PageHeader
-        area="자동화"
-        title="실행 달력"
-        actions={
-          <Button variant="ghost" href="#/schedules">일정 목록으로</Button>
-        }
-      />
+    <div className={embedded ? undefined : "c-screen"}>
+      {/* 탭 그릇 안에서는 제목을 그리지 않는다 — 바깥 그릇이 이미 "실행 일정 › 달력"을
+          보여 준다. '일정 목록으로' 링크도 필요 없다: 그 목록이 바로 옆 탭이다. */}
+      {embedded ? null : (
+        <PageHeader
+          area="자동화"
+          title="실행 달력"
+          actions={
+            <Button variant="ghost" href="#/schedules">일정 목록으로</Button>
+          }
+        />
+      )}
       <Callout>
         예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
         <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.

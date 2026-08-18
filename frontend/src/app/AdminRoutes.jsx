@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import { useAuth } from "./auth.jsx";
 import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
+import { TabShell } from "../ui/TabShell.jsx";
 
 /* 관리자 콘솔 라우트
  *
@@ -78,6 +79,75 @@ function RouteNotFound() {
 
 /* 조직 콘솔이 대신 그리는 화면 키. `REGISTRY` 에는 설정이 그대로 남아 있다 — 콘솔이 그
  * 열·필터·폼 정의를 읽어 쓰기 때문이다(OrgConsole.jsx). 여기서는 **라우트만** 가져간다. */
+
+/* 탭으로 합친 관리자 화면 (지시 30 · 41 · 51).
+ *
+ * ## 합치는 기준
+ *
+ * "이름이 비슷해서"가 아니라 **같은 질문에 답하는가**다. 네 짝 모두 역할 집합이 정확히
+ * 같아서(아래 `sameRoles` 가 조립 시점에 확인한다) 탭으로 합쳐도 RBAC 가 부서지지 않는다 —
+ * SettingsShell 이 '초기 설정'과 '유지보수'를 탭으로 안 묶은 것과 같은 기준이다(그쪽은
+ * 역할이 달랐다).
+ *
+ * ## 주소
+ *
+ * 대표 주소 하나(`path`)가 그릇이고 탭은 `?tab=` 이다. 합쳐진 화면의 **옛 주소는 전부
+ * 살린다** — 즐겨찾기와 다른 화면의 딥링크가 조용히 끊기면 안 된다(조직 콘솔이 세 주소를
+ * 남긴 것과 같은 이유). 옛 주소는 리다이렉트가 아니라 **그 자리에서 해당 탭으로 연다**:
+ * 리다이렉트는 해시 쿼리를 버려서, 저장된 뷰 링크(`#/restore-drills?status=failed`)를 열면
+ * 필터가 사라진 화면이 뜬다.
+ */
+const TAB_GROUPS = [
+  {
+    path: "/backup", area: "운영", title: "백업",
+    tabs: [
+      { key: "backup", label: "백업" },
+      { key: "restore-drills", label: "복구 리허설" },
+    ],
+  },
+  {
+    path: "/approvals", area: "사용자와 권한", title: "승인",
+    tabs: [
+      { key: "approvals", label: "승인 요청" },
+      { key: "approval-delegations", label: "승인 위임" },
+    ],
+  },
+  {
+    path: "/audit", area: "감사", title: "감사 로그",
+    tabs: [
+      { key: "audit", label: "감사 로그" },
+      { key: "audit-anomalies", label: "이상 징후" },
+    ],
+  },
+  {
+    path: "/ai-usage", area: "AI", title: "AI 사용 통계",
+    tabs: [
+      { key: "policy-usage", label: "정책" },
+      { key: "prompt-usage", label: "프롬프트" },
+    ],
+  },
+  {
+    /* 실행 일정 ↔ 실행 달력은 **같은 데이터의 두 표현**이다 — "무엇이 등록돼 있나"(표)와
+       "언제 도나"(달력). 달력은 DataScreen 계약으로는 답이 안 되는 질문이라 별도 화면으로
+       남아 있었는데(SchedulerCalendar.jsx 헤더 주석), 그렇다고 사이드바 항목 두 개일 이유는
+       없었다 — 둘 중 무엇을 고를지는 '어떻게 볼지'의 문제다. */
+    path: "/schedules", area: "자동화와 연동", title: "실행 일정",
+    tabs: [
+      { key: "schedules", label: "목록" },
+      { key: "scheduler-calendar", label: "달력", render: () => <SchedulerCalendar embedded /> },
+    ],
+  },
+];
+
+/** 탭이 대신 그리는 registry 키 — 아래 일괄 라우트 등록에서 뺀다(같은 경로 이중 등록 금지). */
+const TAB_GROUP_KEYS = TAB_GROUPS.flatMap((g) => g.tabs.map((t) => t.key));
+
+/** 한 그릇 안의 탭들이 같은 역할 집합인가. 다르면 합치는 순간 RBAC 가 넓어지거나 좁아진다. */
+function sameRoles(tabs) {
+  const sets = tabs.map((t) => JSON.stringify([...(SCREEN_ROLES[t.key] || [])].sort()));
+  return sets.every((x) => x === sets[0]);
+}
+
 const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
 
 /* registry.js 를 정적으로 물어 오지 않는다(PF7) — 대신 이 파일이 마운트된 뒤 한 번
@@ -154,17 +224,6 @@ function AdminRoutes() {
             명시한다). 예전엔 CONSOLE_WRITE_ROLES(admin+)라 발표된 권한표보다 더 좁았다. */}
         <Route path="/diagnostics" element={<RequireRole roles={["operator", "admin", "system_admin"]} help="이 화면은 운영자, 관리자, 시스템 관리자만 사용할 수 있습니다."><Diagnostics /></RequireRole>} />
         <Route path="/dev-report" element={<RequireRole roles={["admin", "system_admin", "auditor"]} help="이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><DevReport /></RequireRole>} />
-        {/* 스케줄러 캘린더(PLAN Phase 6) — "언제 도는가"는 표로 답이 안 되는 유일한 질문이라
-            DataScreen 계약을 쓰지 않는다(SchedulerCalendar.jsx 헤더 주석). 같은 백로그의 다른
-            화면 여덟 개는 전부 registry.js 설정으로 끝냈다. */}
-        <Route
-          path="/scheduler-calendar"
-          element={
-            <RequireRole roles={SCREEN_ROLES["scheduler-calendar"]} help={SCREEN_ROLE_HELP["scheduler-calendar"]}>
-              <SchedulerCalendar />
-            </RequireRole>
-          }
-        />
         {/* 조직 콘솔(OrgConsole.jsx) — 조직 관리, 부서 관리, 조직도가 한 화면이다.
          *
          * **세 주소를 모두 남긴다.** 사라진 주소로 들어온 사람은 대시보드로 튕기고(아래
@@ -189,20 +248,48 @@ function AdminRoutes() {
             같은 경로를 두 번 등록하면 어느 쪽이 이기는지가 라우터의 정렬 규칙에 달리게 된다.
             `registry` 가 아직 로드되기 전(null)에는 REGISTRY 기반 라우트가 하나도 없다 —
             그 사이에는 아래 catch-all 이 대시보드로 튕기는 대신 로딩 화면을 보인다. */}
-        {registry && Object.keys(registry).filter((key) => !ORG_CONSOLE_KEYS.includes(key)).flatMap((key) => {
+        {/* 탭으로 합친 묶음 — 대표 주소와 옛 주소가 **같은 그릇**을 그리고, 옛 주소는 그
+            자리에서 해당 탭이 열린다(리다이렉트가 아니라 기본 탭을 바꿔 준다 — 해시 쿼리를
+            버리지 않기 위해서다). */}
+        {registry && TAB_GROUPS.flatMap((g) => {
+          const roles = SCREEN_ROLES[g.tabs[0].key];
+          if (!sameRoles(g.tabs)) return [];   // 조립 실수를 화면에 내보내지 않는다
+          const shellFor = (firstKey) => {
+            const ordered = [...g.tabs].sort((a, b) => (a.key === firstKey ? -1 : b.key === firstKey ? 1 : 0));
+            return (
+              <RequireRole roles={roles} help={SCREEN_ROLE_HELP[g.tabs[0].key]}>
+                <TabShell
+                  area={g.area} title={g.title} idPrefix={g.path.slice(1)}
+                  tabs={ordered.map((t) => ({
+                    key: t.key,
+                    label: t.label,
+                    // 대부분은 설정 주도 목록이지만, 표로 답이 안 되는 탭은 자기 화면을 준다.
+                    render: t.render || (() => <DataScreen config={registry[t.key]} embedded />),
+                  }))}
+                />
+              </RequireRole>
+            );
+          };
+          const routes = [<Route key={g.path} path={g.path} element={shellFor(g.tabs[0].key)} />];
+          // 감사 로그는 상세 :id 라우트를 함께 쓴다(PA-RC-0024) — 그릇 안에서도 그대로다.
+          if (g.path === "/audit") {
+            routes.push(<Route key="/audit/:id" path="/audit/:id" element={shellFor("audit")} />);
+          }
+          g.tabs.forEach((t) => {
+            const old = "/" + t.key;
+            if (old === g.path) return;
+            routes.push(<Route key={old} path={old} element={shellFor(t.key)} />);
+          });
+          return routes;
+        })}
+        {registry && Object.keys(registry).filter((key) => !ORG_CONSOLE_KEYS.includes(key) && !TAB_GROUP_KEYS.includes(key)).flatMap((key) => {
           const cfg = registry[key];
           const roles = cfg.roles || SCREEN_ROLES[key];
           const screen = <DataScreen config={cfg} />;
           const element = roles ? <RequireRole roles={roles} help={SCREEN_ROLE_HELP[key]}>{screen}</RequireRole> : screen;
-          const listRoute = <Route key={key} path={"/" + key} element={element} />;
-          // PA-RC-0024: 감사 로그만 :id 상세 라우트를 함께 낸다(다른 registry 화면까지
-          // 전부 넓히는 건 이 RC의 근거(Handoff 실측 3곳) 밖이다). 목록 라우트와 완전히
-          // 같은 element라 users/departments와 같은 이유로 인스턴스가 유지된다. audit의
-          // 단건 조회(GET /api/admin/audit/{id})는 이 RC가 새로 만들었다 — 감사 로그는
-          // 목록뿐이라 registry/governance.js의 onQuery(select intent)가 그 id로 실제
-          // 서버 왕복을 할 수 있게 된 것도 이번에 함께 배선했다.
-          if (key !== "audit") return [listRoute];
-          return [listRoute, <Route key={key + "-detail"} path={"/" + key + "/:id"} element={element} />];
+          // 감사 로그의 :id 상세 라우트(PA-RC-0024)는 위 탭 묶음이 담당한다 — 여기 남은
+          // 화면들은 목록 라우트 하나씩이다.
+          return [<Route key={key} path={"/" + key} element={element} />];
         })}
         <Route path="*" element={registry ? <RouteNotFound /> : ROUTES_FALLBACK} />
       </Routes>

@@ -17,7 +17,7 @@ import { serviceLabel } from "../ops/opsHelpers.js";
 
 export const INTEGRATION_SCREENS = {
   integrations: {
-    key: "integrations", area: "연동", title: "외부 연동", endpoint: "/api/admin/integrations",
+    key: "integrations", area: "자동화와 연동", title: "외부 연동", endpoint: "/api/admin/integrations",
     help: "이 시스템이 불러다 쓰는 외부 서비스(n8n, Claude 러너 등)를 추가하고 점검합니다. 활성/비활성화는 이 연동을 참조하는 러너의 실제 호출을 막습니다(러너 화면에서 이 연동을 선택한 경우에 한함).",
     emptyTitle: "추가된 외부 연동이 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 외부 연동 추가’로 n8n, 러너 등 외부 서비스를 추가하고 상태를 점검하세요.", "외부 연동은 관리자가 추가합니다. 추가되면 여기에 상태와 함께 표시됩니다."),
@@ -115,7 +115,7 @@ export const INTEGRATION_SCREENS = {
       field("description", "설명"), dateCol("last_health_at", "마지막 점검"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
   },
   runners: {
-    key: "runners", area: "연동", title: "자동화 작업 실행기", endpoint: "/api/admin/runners",
+    key: "runners", area: "자동화와 연동", title: "자동화 작업 실행기", endpoint: "/api/admin/runners",
     // '수정'에서 점검 상태를 바꾸는 안내는 그 버튼을 실제로 볼 수 있는 쓰기 역할(admin/system_admin)
     // 에게만 준다 — 읽기 전용 역할(operator/auditor)은 이 화면을 볼 수 있어도 '수정' 버튼이 없다.
     // RN-10/RN-11: 예전엔 이 문구가 "실제 업무(티켓 처리, 요청 해석)를 수행하는 실행기"라고 단정했다.
@@ -283,7 +283,7 @@ export const INTEGRATION_SCREENS = {
       dateCol("last_health_at", "마지막 상태 확인"), dateCol("circuit_open_until", "회로 차단 해제"), dateCol("created_at", "추가"), dateCol("updated_at", "수정"), field("description", "설명")],
   },
   workflows: {
-    key: "workflows", area: "연동", title: "업무 자동화 흐름", endpoint: "/api/admin/workflows",
+    key: "workflows", area: "자동화와 연동", title: "업무 자동화 흐름", endpoint: "/api/admin/workflows",
     help: "n8n 워크플로를 추가해 관리합니다. 읽기/쓰기, 승인 필요 여부를 표시합니다. ‘테스트’는 수신 주소의 도달 가능성(GET 연결)만 확인하며, 실제 실행을 보장하지 않습니다.",
     emptyTitle: "추가된 워크플로가 없습니다",
     // 워크플로는 READ_ROLES(operator/auditor 포함)가 읽을 수 있지만 생성은 WRITE_ROLES 전용이다

@@ -84,10 +84,53 @@ export function buildViewQuery(view, config) {
   return parts.join("&");
 }
 
-/** 경로는 그대로 두고 쿼리만 바꾼 새 해시 문자열. */
-export function withHashQuery(hash, query) {
+/* 그릇(탭 셸)이 소유한 쿼리 키 — 목록 화면은 이 키를 **읽지도 지우지도 않는다**.
+ *
+ * 목록 화면은 자기 뷰를 주소에 되쓰고(withHashQuery), 딥링크 쿼리를 한 번 쓰고 지운다.
+ * 둘 다 예전에는 쿼리 **전체**를 다뤘다 — 그래서 목록을 탭 그릇 안에 넣는 순간 필터를 한 칸
+ * 건드리거나 딥링크로 들어오는 것만으로 `?tab=` 이 사라지고 화면이 첫 탭으로 튕겼다. */
+export const SHELL_QUERY_KEYS = ["tab"];
+
+/** 쿼리 문자열에서 주어진 키만 **원문 그대로** 남긴다(재직렬화하지 않는다). */
+export function keepQueryKeys(query, keys) {
+  const kept = [];
+  for (const part of String(query || "").split("&")) {
+    if (!part) continue;
+    let key = part.split("=")[0];
+    try { key = decodeURIComponent(key); } catch (e) { /* 깨진 조각은 원문 키로 비교한다 */ }
+    if (keys.includes(key)) kept.push(part);
+  }
+  return kept.join("&");
+}
+
+/** 이 화면이 **자기 것이라고 주장하는** 쿼리 키. 나머지는 남의 규약이다. */
+export function ownedQueryKeys(config) {
+  return ["q", "page", ...filterKeys(config)];
+}
+
+/** 경로는 그대로 두고 쿼리만 바꾼 새 해시 문자열.
+ *
+ * `ownedKeys` 를 주면 **그 키들만 갈아치우고 나머지는 그대로 둔다.** 목록 화면이 탭 그릇
+ * 안에서 그려질 때 필요하다 — 예전에는 쿼리 전체를 자기 뷰로 덮어써서, 필터를 한 칸
+ * 건드리는 순간 그릇이 쓴 `?tab=…` 이 사라지고 화면이 첫 탭으로 튕겼다.
+ *
+ * 보존하는 조각은 **원문 그대로** 다시 붙인다(다시 파싱해 직렬화하지 않는다). URLSearchParams
+ * 는 공백을 `+` 로 쓰는데 이 화면들의 뷰 문자열은 `encodeURIComponent`(`%20`)로 만들어져
+ * 있어서, 왕복시키면 같은 뷰가 다른 문자열이 된다 — 저장된 뷰의 중복 판정과 링크 비교가
+ * 그 문자열을 그대로 쓴다. */
+export function withHashQuery(hash, query, ownedKeys) {
   const path = hashPath(hash) || "#";
-  return query ? path + "?" + query : path;
+  if (!ownedKeys) return query ? path + "?" + query : path;
+  const kept = [];
+  for (const part of hashQuery(hash).split("&")) {
+    if (!part) continue;
+    let key = part.split("=")[0];
+    try { key = decodeURIComponent(key); } catch (e) { /* 깨진 조각은 원문 키로 비교한다 */ }
+    if (!ownedKeys.includes(key)) kept.push(part);
+  }
+  // 화면 소유 키가 앞이다 — 저장된 뷰 문자열이 그 순서를 전제한다(buildViewQuery 주석).
+  const merged = [query, ...kept].filter(Boolean).join("&");
+  return merged ? path + "?" + merged : path;
 }
 
 /**

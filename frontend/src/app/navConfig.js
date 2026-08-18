@@ -6,6 +6,8 @@ import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 
 /* 사이드바 구조와 라우트 권한 표.
@@ -78,6 +80,9 @@ export const SCREEN_ROLES = {
   "scheduler-calendar": ["operator", "admin", "system_admin", "auditor"],
   "prompt-usage": ["operator", "admin", "system_admin", "auditor"],
   "policy-usage": ["operator", "admin", "system_admin", "auditor"],
+  // 탭 그릇의 대표 경로 — 안에 든 두 탭(policy-usage·prompt-usage)과 같은 집합이어야
+  // 한다(AdminRoutes.jsx 의 sameRoles 가 조립 시점에 확인한다).
+  "ai-usage": ["operator", "admin", "system_admin", "auditor"],
 };
 
 /* 화면별 403 안내 — 기본 문구("관리자, 시스템 관리자만")는 실제 허용 역할이 더 넓은 화면에서
@@ -131,34 +136,65 @@ function withRoles(groups) {
 }
 
 export const NAV = withRoles([
-  // PA-RC-0017/0031 이 만든 5그룹 배치를 유지하되, 0060 에서 실제 기능 기준으로 네 자리를
-  // 옮긴다(§30 — 이름이 아니라 기능을 읽고 판단한다):
-  //   · 초기 설정: 감사 → 운영 (설치 자체를 세우는 일이라 사후 점검이 아니다)
-  //   · 프롬프트·정책·템플릿: 연동 → 자동화 (자동화가 실행할 때 참조하는 재료다.
-  //     '연동'은 외부 시스템과의 배관이고, 이 셋은 그 배관을 타고 흐르는 내용물이다)
-  //   · 개발자 월간 리포트: 자동화 → 감사 (사람에 대한 민감 집계라 SENSITIVE_READ 다 —
-  //     같은 role 집합을 쓰는 감사 로그 옆이 예측 가능한 자리다)
-  //   · 승인 위임: 자동화 → 사용자와 권한 (누가 누구를 대신할 수 있는가는 권한 배정이다)
-  // 그룹 수는 늘리지 않는다. 새 항목은 조직 정합성 진단 하나뿐이고 운영에 둔다.
+  /* 관리자 사이드바 — 36항목·5그룹에서 31항목·6그룹으로 (지시 30 · 51 · 60).
+   *
+   * ## 무엇이 문제였나
+   *
+   * 항목이 많은 것 자체가 아니라 **묶음이 질문에 답하지 않았다.**
+   *
+   *   · `운영` 열한 개가 장애 대응(대시보드·작업 큐·진단), 설정(설정·초기 설정·기능 플래그),
+   *     데이터 보호(백업·복구 리허설), 메일, 정합성 진단을 한 통에 담았다.
+   *   · `자동화` 아홉 개가 실행 일정과 AI 재료(프롬프트·정책·템플릿)와 승인과 공지를 섞었다.
+   *   · `감사` 다섯 개 중 셋이 감사가 아니라 **사용 통계 리포트**였다.
+   *
+   * ## 판단 기준 (지시 51)
+   *
+   * 기존 코드 구조가 IA 를 정하지 않는다. "이 일을 하려면 어디를 보겠는가"로 정하고, 같은
+   * 질문에 답하는 화면끼리 묶었다. 짝을 이루는 다섯은 탭으로 합쳤다(AdminRoutes.jsx
+   * TAB_GROUPS) — 백업↔복구 리허설, 승인↔승인 위임, 감사 로그↔이상 징후,
+   * 정책 사용↔프롬프트 사용, 실행 일정↔실행 달력. 다섯 짝 모두 역할 집합이 같아서 합쳐도
+   * RBAC 가 부서지지 않는다.
+   *
+   * **합치지 않은 것도 근거가 있다.**
+   *   · `조직 관리`(OrgConsole)는 이미 조직·부서·조직도를 내부 전환으로 담고 있다. 거기에
+   *     `직책 관리`를 바깥 탭으로 또 씌우면 탭이 두 겹이 된다 — 지시 60 이 경고하는 "복잡도가
+   *     탭으로 이동"이 정확히 그 모양이다. 형제 항목으로 둔다.
+   *   · `오프보딩`은 목록이 아니라 마법사다(SettingsShell 이 '초기 설정'을 탭으로 안 묶은
+   *     것과 같은 이유). 사용자 상세의 넘침 메뉴에서도 닿지만, 사이드바에서 지우면 그 기능이
+   *     있다는 사실 자체를 모르게 된다.
+   *
+   * ## 옮긴 것
+   *   · 설정·초기 설정·기능 플래그·공지 배너 → 새 `설정` 묶음. 공지 배너는 자동화가 아니라
+   *     "무엇을 사용자에게 보여 줄지" 설정이다.
+   *   · 프롬프트·정책·템플릿·AI 사용 상한·AI 사용 통계 → 새 `AI` 묶음. 흩어져 있던 AI 재료가
+   *     한 자리에 모인다(지시 30 이 예로 든 재배치).
+   *   · 자동화와 연동을 한 묶음으로. 실행 일정·문서 자동 생성이 타고 흐르는 배관이 외부 연동·
+   *     러너·워크플로다 — 둘을 갈라 두면 "왜 안 돌지"를 두 묶음에서 찾아야 한다.
+   *   · 조직 정합성·백업·메일 발송은 운영에 남는다(장애·데이터 보호·전달 상태).
+   */
   { group: "운영", icon: DashboardOutlinedIcon, items: [
     { to: "/dashboard", label: "대시보드", icon: "dashboard" },
     // 관리자 알림은 **사용자 알림과 다른 경로**다(0060). 같은 canonical path 를 두 콘솔이
     // 공유하면 어느 쪽에서 눌러도 상대 콘솔로 튕긴다 — 경로가 콘솔을 정하기 때문이다.
     { to: "/admin-notifications", label: "관리 알림", badge: "adminNotifUnread", icon: "bell" },
     { to: "/jobs", label: "작업 큐", badge: "jobFailed", icon: "ticket" },
-    { to: "/settings", label: "설정", icon: "settings" },
-    { to: "/setup", label: "초기 설정", icon: "settings" },
     { to: "/diagnostics", label: "진단", icon: "diagnostics" },
     { to: "/integrity", label: "조직 정합성", icon: "policy" },
+    // 백업 화면은 '복구 리허설' 탭을 함께 갖는다 — 백업이 있는가와 그것이 실제로 복구되는가는
+    // 한 질문의 앞뒤다.
     { to: "/backup", label: "백업", badge: "backupFailed", icon: "backup" },
-    { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
     { to: "/mail", label: "메일 발송", icon: "mail" },
+  ] },
+  { group: "설정", icon: SettingsOutlinedIcon, items: [
+    { to: "/settings", label: "설정", icon: "settings" },
+    { to: "/setup", label: "초기 설정", icon: "settings" },
     { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
+    { to: "/announcements", label: "공지 배너", icon: "announce" },
   ] },
   { group: "사용자와 권한", icon: ManageAccountsOutlinedIcon, items: [
     { to: "/users", label: "사용자", icon: "users" },
     // WF1 R4 — "온보딩과 오프보딩"이라고 약속했지만 이 화면(Offboarding.jsx)은 퇴사자 티켓
-    // 재배정 마법사뿐이다. 신규 입사자 계정을 만드는 실제 온보딩은 위 "/users"의 "+ 사용자
+    // 재배정 마법사뿐이다. 신규 입사자 계정을 만드는 실제 온보딩은 위 "/users"의 "사용자
     // 추가"다 — 이 라벨이 온보딩도 여기서 한다고 오해하게 만들었다.
     { to: "/offboarding", label: "오프보딩", icon: "users" },
     // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다.
@@ -166,32 +202,32 @@ export const NAV = withRoles([
     { to: "/organizations", label: "조직 관리", icon: "org" },
     { to: "/job-titles", label: "직책 관리", icon: "jobtitle" },
     { to: "/rbac", label: "권한 매트릭스", icon: "policy" },
-    { to: "/approval-delegations", label: "승인 위임", icon: "check" },
+    // 승인 화면은 '승인 위임' 탭을 함께 갖는다 — 누가 승인하는가와 그 권한을 누구에게
+    // 넘겼는가는 같은 질문이다.
+    { to: "/approvals", label: "승인", badge: "approvalPending", icon: "check" },
     { to: "/notion-mapping", label: "Notion 사용자 연결", icon: "docs" },
     { to: "/impersonation", label: "대리 보기", icon: "impersonate" },
   ] },
-  { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
+  { group: "자동화와 연동", icon: AutoAwesomeOutlinedIcon, items: [
+    // 실행 일정 화면은 '달력' 탭을 함께 갖는다 — 같은 데이터의 두 표현이다.
     { to: "/schedules", label: "실행 일정", icon: "schedule" },
-    { to: "/scheduler-calendar", label: "실행 달력", icon: "sprint" },
     { to: "/documents", label: "문서 자동 생성", icon: "docs" },
-    { to: "/approvals", label: "승인", badge: "approvalPending", icon: "check" },
-    { to: "/ai-quotas", label: "AI 사용 상한", icon: "quota" },
-    { to: "/announcements", label: "공지 배너", icon: "announce" },
-    { to: "/prompts", label: "프롬프트", icon: "ai" },
-    { to: "/policies", label: "정책", icon: "policy" },
-    { to: "/templates", label: "템플릿", icon: "template" },
-  ] },
-  { group: "연동", icon: LinkOutlinedIcon, items: [
     { to: "/integrations", label: "외부 연동", icon: "integration" },
     { to: "/runners", label: "자동화 작업 실행기", icon: "runner" },
     { to: "/workflows", label: "업무 자동화 흐름", icon: "workflow" },
   ] },
+  { group: "AI", icon: SmartToyOutlinedIcon, items: [
+    { to: "/prompts", label: "프롬프트", icon: "ai" },
+    { to: "/policies", label: "정책", icon: "policy" },
+    { to: "/templates", label: "템플릿", icon: "template" },
+    { to: "/ai-quotas", label: "사용 상한", icon: "quota" },
+    // 정책 사용 통계와 프롬프트 사용 통계는 같은 모양의 리포트 둘이었다 — 한 화면의 탭이다.
+    { to: "/ai-usage", label: "사용 통계", icon: "report" },
+  ] },
   { group: "감사", icon: GavelOutlinedIcon, items: [
+    // 감사 로그 화면은 '이상 징후' 탭을 함께 갖는다 — 이상 징후는 감사 로그 위의 파생 뷰다.
     { to: "/audit", label: "감사 로그", icon: "audit" },
-    { to: "/audit-anomalies", label: "감사 이상 징후", icon: "audit" },
     { to: "/dev-report", label: "개발자 월간 리포트", icon: "report" },
-    { to: "/policy-usage", label: "정책 사용 통계", icon: "report" },
-    { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
   ] },
 ]);
 

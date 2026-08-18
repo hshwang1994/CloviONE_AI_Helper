@@ -7,7 +7,7 @@ import "@testing-library/jest-dom/vitest";
 
 /* VIS-113: 관리자 내비가 5그룹 35항목이라 1080 높이에 다 안 들어간다. 활성 그룹은 강제로
  * 펼쳐지지만(sidebar-group-sticky-open.test.jsx), 펼친 뒤 그 활성 항목이 스크롤 영역 밖에
- * 있으면(예: /policy-usage — 마지막 그룹 "감사"의 마지막 항목) "내가 어디 있는지" 보여주는
+ * 있으면(예: /dev-report — 마지막 그룹 "감사"의 마지막 항목) "내가 어디 있는지" 보여주는
  * 표시가 화면에 하나도 없었다 — 하이라이트 자체는 이미 있는데 스크롤이 안 따라가 안 보일
  * 뿐이었다. PA-RC-0017 이전엔 /llm-console이 이 예시였다 — 그 화면이 /settings의 탭이
  * 되며 더는 사이드바 항목이 아니라(활성 항목 자체가 없어 스크롤할 대상도 없다) 여전히
@@ -70,7 +70,7 @@ describe("사이드바 활성 항목 스크롤 (VIS-113)", () => {
     const scrollSpy = vi.fn();
     Element.prototype.scrollIntoView = scrollSpy;
 
-    renderShell("/policy-usage");
+    renderShell("/dev-report");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
     expect(scrollSpy).toHaveBeenCalledWith(
@@ -83,7 +83,7 @@ describe("사이드바 활성 항목 스크롤 (VIS-113)", () => {
     const scrollSpy = vi.fn();
     Element.prototype.scrollIntoView = scrollSpy;
 
-    renderShell("/policy-usage");
+    renderShell("/dev-report");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
     expect(scrollSpy).toHaveBeenCalledWith(
