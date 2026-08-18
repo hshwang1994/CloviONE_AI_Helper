@@ -3557,15 +3557,21 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 **P1-A 공용 부품 — 한 파일이 40~60화면을 바꾼다**
 - `UI-R6` Callout 소비처 80곳 tone 재판정 + `detail`(기술 정보 접기) 실사용 + 동일 원인
   중복 표시 제거(NotionConsole 4중, MailStatus 3중). 지시 20·35·44
-- `UI-R7` `Tag` 보급 — Board/BoardPost/TeamDocs/TeamDoc 의 분류값이 상태값과 같은 알약. 지시 11
+- `UI-R7` `Tag` 보급 — **2026-08-19 완료**(D-162). 분류 색 표(`boardCategoryKind`·`docTypeKind`)를
+  지웠고 `ui/badge-vs-tag.test.jsx` 가 되돌아오는 것을 막는다
 - `UI-R8` 액션 위계 — `DataScreen.jsx` 헤더 액션 줄(registry 28화면 공통), `MyTickets` Row
   Action, 공용 `ActionGroup` 신설, Button `risk` 축, 라벨 바꿔치기 제거. 지시 8·11·12·43
-- `UI-R9` DataTable 본체 — 정렬 미구현, `Pager` 분리, 선택 열 외주, 로딩/빈/오류 상태. 지시 10·26
+- `UI-R9` DataTable 본체 — **정렬·로딩 완료**(D-157·D-163). 정렬은 전체를 들고 있는 목록에만
+  준다(서버에 정렬 파라미터가 없다). 남은 것: `Pager` 를 표 안으로 흡수, 선택 열(`bulkSelect`)
+  외주 상태 유지 여부 판단
 - `UI-R10` Skeleton 4종(전체/구획/표/버튼) — **2026-08-19 완료**(D-157). 버튼 모양은 만들지
   않았다: `Button loading` 이 이미 그 자리를 지키고, 회색 알약은 버튼이 사라진 것처럼 보인다.
   남은 롤아웃은 `UI-R43`
-- `UI-R11` FormField 재설계(라벨·도움말·오류·필수 표기). 지시 17
-- `UI-R12` EmptyState 다음 행동 슬롯 · ErrorState 정렬. 지시 18
+- `UI-R11` FormField — **라벨 위·필수 표기 완료**(D-165). 남은 것: Autocomplete·DatePicker 신설
+  여부 판단(지시 5 Combobox 와 함께)
+- `UI-R12` EmptyState — 슬롯은 이미 있었고(제목→다음 행동→보조 순서 포함), **안내가 시키는 일을
+  화면이 못 하던 자리**를 고쳤다(D-164). 남은 것: 나머지 빈 상태에서 실제 다음 행동이 있는데
+  안 준 곳 재점검
 - `UI-R13` `DetailLayout`·`SearchFilterBar` 신설 + Archetype 판정표. 지시 6·66
 - `UI-R14` 도구 줄 전면 적용 + 디바운스 상수 수렴. 지시 5·26
 - `UI-R15` `KO_WORD_BREAK` 전수 적용. 지시 16
@@ -3622,5 +3628,17 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 - `UI-R44` `datascreen` 청크(gzip 47KB)가 아직 초기 로드에 있다. 예산은 통과하지만(253/280)
   관리자 설정 화면들의 설정 표가 첫 화면에 필요한 이유가 없다. `registry/notifications.js`
   가 셸 그래프에 정적으로 닿는 경로를 끊으면 더 줄어든다(D-161).
+
+
+### 2026-08-19 (2차) — 이번에 닫은 것
+
+`UI-R6`(Callout tone 재판정, D-155) · `UI-R7`(D-162) · `UI-R10`(D-157) · `UI-R19`(통합 검색,
+D-159) · `UI-R20`(채팅, D-159) · `UI-R25`(권한 표 단일화, D-160) · `UI-R28`(가드 공백, D-153) ·
+`UI-R32`(죽은 export, D-160) · `UI-R34`(추적표 Gate, D-153) · `UI-R39`~`UI-R41`(D-162) ·
+`UI-R43`(스켈레톤 롤아웃, D-162).
+
+`UI-R29`(로그인 화면)는 **손대지 않기로 판정**했다 — 사용자가 보존을 못박았고(§1.5-2),
+파일 자신이 "이 화면은 개선 대상이 아니다, 값·타이밍·미디어 쿼리를 그대로 옮긴다"고 선언한
+승인된 이식본이다. 배포 후 실제 렌더도 확인했다(마스코트·폭죽·4K clamp 유지).
 
 **감사 원본**: 워크플로우 `wf_add53824-7d2` (에이전트별 결과는 그 journal.jsonl).
