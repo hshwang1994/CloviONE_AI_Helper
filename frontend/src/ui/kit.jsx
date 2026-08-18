@@ -1061,6 +1061,11 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                     sx={{
                       font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
                       display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
+                      /* 머리글 칸은 `whiteSpace: nowrap` 인데, 그 안에 flex 상자를 넣으면 글자
+                         항목이 상자 폭에 맞춰 줄어들 수 있다 — 4K 실측에서 "마지막 확인"이
+                         81.5px 안에서 세 줄(줄당 2.3자)로 무너졌다(QA 의 vertical_text_collapse).
+                         상자 자신에게도 같은 규칙을 준다. */
+                      whiteSpace: "nowrap",
                       "&:hover": { color: "text.primary" },
                       "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
                     }}

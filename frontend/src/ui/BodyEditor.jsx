@@ -1,14 +1,13 @@
 import React, { useRef } from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
 import MuiButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 
-/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선/이모지)과
+/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선)과
  * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
  * 같아야 미리보기와 실제 저장 결과가 어긋나지 않는다. 서식 도구는 커서가 있는 '줄 맨 앞'에 표식을 붙인다.
  *
@@ -16,18 +15,15 @@ import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
  * 기대고 있었는데, 이 편집기는 MUI 폼 필드들 사이에 끼어 있어 혼자만 옛 모양으로 남아 있었다.
  * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
 
-// VIS-86 — aria-label이 이모지 자체를 그대로 되읽어("이모지 ✅") 스크린리더 사용자에게
-// 그 버튼이 무엇을 하는지 아무 정보도 주지 않았다. 각 버튼의 실제 뜻(삽입될 내용)을 말한다.
-const BODY_EMOJIS = [
-  { emoji: "✅", label: "완료 표시 넣기" },
-  { emoji: "📌", label: "고정 표시 넣기" },
-  { emoji: "⚠️", label: "주의 표시 넣기" },
-  { emoji: "🔹", label: "강조 표시 넣기" },
-  { emoji: "👉", label: "가리킴 표시 넣기" },
-  { emoji: "🎯", label: "목표 표시 넣기" },
-  { emoji: "🎉", label: "축하 표시 넣기" },
-  { emoji: "💡", label: "아이디어 표시 넣기" },
-];
+/* 이모지 버튼은 없앴다 (지시 28).
+ *
+ * 예전에는 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 있었다. 지시 28 은 "이모지, 장식
+ * Unicode, 불필요한 특수기호"를 화면에서 전수 제거하라고 했고, **이 여덟 개는 그것을 화면이
+ * 스스로 권하는 자리**였다 — 없애는 것으로 끝나지 않고 넣으라고 버튼까지 줬다.
+ *
+ * 본문에 이모지를 못 쓰게 막지는 않는다(사용자가 직접 치면 그대로 저장된다). 제품이 그것을
+ * **권하지 않을** 뿐이다. 강조가 필요하면 위의 제목·글머리·번호·구분선이 그 일을 한다.
+ */
 /* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
  * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
 export const BODY_MAX_LINES = 100;
@@ -102,27 +98,14 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
     const chunk = (before && !before.endsWith("\n") ? "\n" : "") + "---\n";
     apply(before + chunk + val.slice(pos), pos + chunk.length);
   };
-  const insertAtCursor = (text) => {
-    const { val, pos } = caret();
-    apply(val.slice(0, pos) + text + val.slice(pos), pos + text.length);
-  };
-
   /* 카드 배경(흰색)과 구별되는 옅은 표면 — theme.js 의 background.surface2 토큰을 그대로
    * 쓴다(표 머리·칸반 열이 이미 쓰는 것과 같은 위계). 예전에는 `variant="outlined"
-   * color="inherit"` 라 배경이 투명이었고, 이모지 IconButton 은 배경 자체가 없어 흰 Card
-   * 위에서 버튼 경계가 잘 안 보인다는 지적이 있었다. */
+   * color="inherit"` 라 배경이 투명이어서 흰 Card 위에서 버튼 경계가 잘 안 보였다. */
   const fmtBtn = {
     minWidth: 0, px: 1.5, minHeight: 32, fontSize: FONT_SIZE.bodySm,
     bgcolor: "background.surface2",
     borderColor: "divider",
     "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08), borderColor: "divider" },
-  };
-  const emojiBtn = {
-    minWidth: 32, minHeight: 32, fontSize: "1rem",
-    bgcolor: "background.surface2",
-    border: "1px solid",
-    borderColor: "divider",
-    "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08) },
   };
 
   return (
@@ -136,18 +119,6 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- ")}>글머리</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("1. ")}>번호</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertDivider}>구분선</MuiButton>
-        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-        {BODY_EMOJIS.map((em) => (
-          <IconButton
-            key={em.emoji}
-            size="small"
-            aria-label={em.label}
-            onClick={() => insertAtCursor(em.emoji + " ")}
-            sx={emojiBtn}
-          >
-            {em.emoji}
-          </IconButton>
-        ))}
       </Box>
       <TextField
         id={id}

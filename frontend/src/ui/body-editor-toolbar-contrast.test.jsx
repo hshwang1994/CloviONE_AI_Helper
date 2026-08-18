@@ -97,10 +97,7 @@ describe("작성 도움 툴바 — 버튼이 카드 배경과 구별되는 배�
     }
   });
 
-  it("이모지 버튼에도 배경색이 선언돼 있다", () => {
-    const { getByRole } = renderEditor();
-    // VIS-86 — aria-label이 "이모지 ✅"에서 뜻을 말하는 "완료 표시 넣기"로 바뀌었다.
-    const btn = getByRole("button", { name: "완료 표시 넣기" });
-    expect(hasOwnBackground(btn)).toBe(true);
-  });
+  /* 이모지 버튼 여덟 개는 지시 28 로 없앴다(`body-editor-no-emoji.test.jsx`).
+     이 파일이 지키는 것은 "도구 버튼이 카드 배경과 구별되는가"이고, 그 대상은 이제 남아
+     있는 네 개다 — 없어진 버튼의 배경색을 계속 재면 초록불이 아무것도 증명하지 않는다. */
 });
