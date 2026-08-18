@@ -623,7 +623,12 @@ export function useClaim() {
 // 경고 한 줄로 끝내지 말고 '지금 무엇을 하면 되는지'까지 EmptyState로 보여준다(kit §9와 같은 규칙).
 // 팀 티켓·스프린트 화면도 같은 함수를 쓴다 — 예전엔 화면마다 같은 뜻의 문장을 따로 적어 두어
 // 한 곳만 고치면 나머지가 옛 문구로 남았다(연동 미설정은 티켓 화면 전부가 동시에 맞는 상태다).
-export function ticketConnState(data) {
+/* `onRetry` 를 주면 빈 상태에 **다시 불러오기** 버튼이 붙는다.
+ *
+ * 이 안내는 스스로 "연결이 끝나면 이 화면을 새로고침하세요"라고 말하면서 정작 새로고침할
+ * 방법을 주지 않았다(지시 18: 빈 상태에는 다음 행동이 있어야 한다). 안 주면 예전처럼
+ * 버튼 없이 안내만 그린다 — 다시 불러올 수단이 없는 호출부가 아직 있기 때문이다. */
+export function ticketConnState(data, onRetry) {
   if (data && data.configured === false) {
     return (
       <EmptyState
@@ -633,6 +638,7 @@ export function ticketConnState(data) {
         prerequisite="관리자 권한과 Notion 통합 토큰"
         steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 추가되면 이 화면을 새로고침하세요."]}
         expected="연동이 끝나면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
+        action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
       />
     );
   }
@@ -644,6 +650,7 @@ export function ticketConnState(data) {
         situation="계정 연결이 없으면 어떤 티켓이 내 것인지 판단할 수 없어 목록을 불러올 수 없습니다."
         steps={["관리자에게 ‘Notion 사용자 연결’을 요청하세요.", "연결이 끝나면 이 화면을 새로고침하세요."]}
         expected="연결되면 내 담당 티켓이 이 자리에 표시됩니다."
+        action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
       />
     );
   }
@@ -708,7 +715,7 @@ export function MyTickets() {
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const data = q.data || {};
-          const conn = ticketConnState(data);
+          const conn = ticketConnState(data, () => q.refetch());
           if (conn) return conn;
           const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
@@ -787,7 +794,7 @@ export function Unassigned() {
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const data = q.data || {};
-          const conn = ticketConnState(data);
+          const conn = ticketConnState(data, () => q.refetch());
           if (conn) return conn;
           const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),

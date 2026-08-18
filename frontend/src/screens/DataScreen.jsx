@@ -235,6 +235,15 @@ export function DataScreen({ config, embedded = false }) {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refListsQuery.data, config.refLists]);
+  /* 정렬 상태. 같은 열을 다시 누르면 방향이 뒤집히고 **세 번째에 해제된다** — 서버가 정한
+     원래 순서로 돌아갈 길이 없으면 정렬은 되돌릴 수 없는 조작이 된다. */
+  const [sort, setSort] = useState({ key: "", dir: "asc" });
+  const toggleSort = (key) => setSort((cur) => {
+    if (cur.key !== key) return { key, dir: "asc" };
+    if (cur.dir === "asc") return { key, dir: "desc" };
+    return { key: "", dir: "asc" };
+  });
+
   function setFilter(key, val) { setFilters((s) => ({ ...s, [key]: val })); setPage(1); }
   /* 화면 밖에서도 같은 값을 보여 주는 곳이 있으면 함께 갱신한다 (X10).
    *
@@ -560,9 +569,40 @@ export function DataScreen({ config, embedded = false }) {
     ? ((config.searchable || !q) ? items : items.filter((r) => searchText(r).toLowerCase().includes(q.toLowerCase())))
     : (config.searchable ? items : items.filter((r) => !q || searchText(r).toLowerCase().includes(q.toLowerCase())));
   // clientFilter 필터(위 buildUrl 주석 참고) — 서버로 보내지 않았으니 여기서 직접 값을 비교해 거른다.
-  const filtered = clientFilterDefs.length
+  const filteredRows = clientFilterDefs.length
     ? searched.filter((r) => clientFilterDefs.every((f) => { const v = filters[f.key]; return !v || String(r[f.key]) === v; }))
     : searched;
+
+  /* 정렬 (지시 10).
+   *
+   * **서버가 페이지를 자르는 목록에는 정렬을 붙이지 않는다.** 보이는 20건만 정렬해 놓고
+   * 화살표를 그리면 사용자는 "가장 오래된 것"을 봤다고 믿는데 실제로는 그 페이지 안에서
+   * 가장 오래된 것이다. `clientFilter` 는 결과가 줄어드는 게 눈에 보여 경고 한 줄로 막을 수
+   * 있었지만(위 Callout), 정렬은 틀린 순서가 맞아 보이기 때문에 경고로 못 막는다.
+   * 서버에 정렬 파라미터가 생기면 그때 이 조건을 풀고 서버로 넘긴다.
+   *
+   * 값 비교는 숫자면 숫자로, 아니면 한국어 로케일 문자열로 한다 — `"10" < "9"` 같은
+   * 사전순 함정을 피한다. 빈 값은 방향과 무관하게 뒤로 보낸다(정렬은 값이 있는 것을
+   * 나란히 놓으려는 것이지 빈 칸을 위로 올리려는 것이 아니다). */
+  const canSort = !config.paginated;
+  const sortedRows = React.useMemo(() => {
+    if (!canSort || !sort.key) return filteredRows;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col) return filteredRows;
+    const sign = sort.dir === "desc" ? -1 : 1;
+    const valueOf = (row) => (typeof col.sortValue === "function" ? col.sortValue(row) : row[sort.key]);
+    return [...filteredRows].sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      const aEmpty = av == null || av === "";
+      const bEmpty = bv == null || bv === "";
+      if (aEmpty || bEmpty) return aEmpty === bEmpty ? 0 : (aEmpty ? 1 : -1);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * sign;
+      return String(av).localeCompare(String(bv), "ko") * sign;
+    });
+  }, [canSort, sort.key, sort.dir, filteredRows, columns]);
+
+  const filtered = sortedRows;
   const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
   // 마지막 페이지의 마지막 행이 사라지는 변경(예: 마지막 대기 승인 처리) 후 total이 줄어 현재 페이지가
   // 더 이상 존재하지 않게 되면, '필터 지우기'로 검색/필터까지 통째로 지우지 않고 페이지 번호만
@@ -902,7 +942,11 @@ export function DataScreen({ config, embedded = false }) {
       ) : (
         <Card className="c-list-card">
           {topPager}
-          <DataTable columns={columns} rows={filtered} rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))} onRow={setSel} stickyHeader={config.stickyHeader} />
+          <DataTable
+            columns={columns} rows={filtered} onRow={setSel} stickyHeader={config.stickyHeader}
+            rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))}
+            sort={canSort ? sort : undefined} onSort={canSort ? toggleSort : undefined}
+          />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행
            * 수가 우연히 pageSize보다 적어져도 서버엔 다음 페이지가 있는데 '다음'이 조용히 꺼졌다(pager 참고). */}

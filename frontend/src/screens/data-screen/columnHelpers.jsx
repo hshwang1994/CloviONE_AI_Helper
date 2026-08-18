@@ -8,8 +8,16 @@ import { JsonBlock, KeyValueRow } from "./JsonBlock.jsx";
 // 열/필드 렌더 헬퍼 — registry에서 사용.
 export const badgeCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key]} /> });
 export const mapCol = (key, label, map) => ({ key, label, render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
-// 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
-export const dateCol = (key, label) => ({ key, label, nowrap: true, render: (r) => <DateCell value={r[key]} /> });
+/* 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
+ *
+ * 날짜 열은 **정렬 대상이다**(지시 10). "언제 추가됐나 / 무엇이 가장 오래됐나"는 목록에서
+ * 가장 자주 묻는 질문이고, 화면에 보이는 압축 표기(`2026-08-18 15:33`)가 아니라 **원본 ISO**
+ * 로 비교한다 — 표기 문자열로 비교하면 오전/오후 같은 지역 표기에 순서가 끌려간다.
+ * 정렬 UI 를 실제로 그릴지는 `DataScreen` 이 정한다(서버가 페이지를 자르는 목록에는 안 붙인다). */
+export const dateCol = (key, label) => ({
+  key, label, nowrap: true, sortable: true, sortValue: (r) => r[key],
+  render: (r) => <DateCell value={r[key]} />,
+});
 // 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는
 // 같은 화면의 필터('사용 중'/'미사용')·체크박스 어휘와 어긋나므로 이 렌더로 통일한다.
 // 미사용(active=false)은 이 화면이 관리하는 핵심 상태(새로 배정 가능 여부를 가른다)라 눈에 잘

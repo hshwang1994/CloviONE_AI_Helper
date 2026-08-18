@@ -928,7 +928,18 @@ function cellValue(c, row, ctx) {
   return v == null || v === "" ? "-" : String(v);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading }) {
+/* 정렬은 **지금 화면에 있는 행 전부**를 대상으로만 제공한다 (지시 10).
+ *
+ * 서버가 페이지를 자르는 목록에서 보이는 20건만 정렬해 놓고 화살표를 그리면, 사용자는
+ * "가장 오래된 것"을 봤다고 믿는다. 실제로는 그 페이지 안에서 가장 오래된 것이다. 이 저장소는
+ * 같은 함정을 `clientFilter` 에서 이미 겪었고 그때는 "이 필터는 지금 보고 있는 페이지에만
+ * 적용됩니다"라는 경고로 막았다 — 정렬은 그 경고로도 못 막는다(필터는 결과가 줄어드는 것이
+ * 눈에 보이지만 정렬은 틀린 순서가 맞아 보인다). 그래서 호출부가 `onSort` 를 줄지 말지로
+ * 정한다: 전체를 들고 있는 화면만 준다.
+ *
+ * `sort` = `{ key, dir }`(dir: "asc" | "desc"), `onSort(key)` 는 호출부가 방향을 뒤집는다.
+ */
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const baseCols = Array.isArray(columns) ? columns : [];
@@ -1014,11 +1025,18 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
       >
         <TableHead>
           <TableRow>
-            {wideCols.map((c) => (
+            {wideCols.map((c) => {
+              const sortable = !!(c.sortable && onSort);
+              const active = sortable && sort && sort.key === c.key;
+              const dir = active ? sort.dir : null;
+              return (
               <TableCell
                 key={c.key}
                 scope="col"
                 align={c.align || "left"}
+                /* 스크린리더가 "정렬 안 됨 / 오름차순 / 내림차순"을 읽는다. 화살표만 그리면
+                   그 정보는 눈으로만 전달된다(WCAG 1.4.1 과 같은 이유). */
+                aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
                 /* minWidth: 이 열이 절대 그 아래로 줄지 않는 폭. 없으면 좁은 컨테이너에서
                    `overflowWrap: anywhere` 때문에 열의 최소 폭이 '한 글자'가 되어, 제목이
                    세로로 무너진다(24px 폭에 11줄 — QA의 vertical_text_collapse 검사가 잡는
@@ -1035,9 +1053,29 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                   ...(stickyHeader ? { bgcolor: "background.paper" } : null),
                 }}
               >
-                {c.label}
+                {sortable ? (
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => onSort(c.key)}
+                    sx={{
+                      font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
+                      display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
+                      "&:hover": { color: "text.primary" },
+                      "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+                    }}
+                  >
+                    {c.label}
+                    {/* 방향 표시는 지금 정렬된 열에만 그린다 — 모든 열에 회색 화살표를 달면
+                        머리행이 화살표 줄이 되고 정작 어느 열이 정렬 중인지 안 보인다. */}
+                    <Box component="span" aria-hidden="true" sx={{ fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
+                      {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
+                    </Box>
+                  </Box>
+                ) : c.label}
               </TableCell>
-            ))}
+              );
+            })}
           </TableRow>
         </TableHead>
         <TableBody>
