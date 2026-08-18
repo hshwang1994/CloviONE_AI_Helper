@@ -82,7 +82,10 @@ export const DEDICATED_SCREEN_KEYS = [
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).
-export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding"];
+// 보안 연결 값의 사람 이름. 편집 화면(StructuredObjectFields)과 목록 요약이 같은 표를 쓴다.
+export const SMTP_SECURITY_LABELS = { none: "사용 안 함", starttls: "STARTTLS", ssl: "SSL" };
+
+export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "smtp"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
 export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };
@@ -165,7 +168,9 @@ export function summarizeSetting(key, v) {
     if (!v.enabled) return "비활성";
     const parts = ["활성"];
     if (v.host) parts.push(String(v.host) + ":" + (v.port != null ? v.port : "?"));
-    if (v.security) parts.push(String(v.security));
+    // `starttls` 는 설정 파일의 어휘다 - 편집 화면이 이름으로 고르게 한 뒤 목록만 원문을
+    // 보이면 같은 값이 두 이름을 갖는다(지시 36).
+    if (v.security) parts.push(SMTP_SECURITY_LABELS[v.security] || String(v.security));
     if (v.from_address) parts.push("발신: " + String(v.from_address));
     return parts.join(", ");
   }

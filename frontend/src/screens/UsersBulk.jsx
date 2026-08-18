@@ -7,6 +7,7 @@ import { api } from "../lib/api.js";
 import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { Badge, Button, Card, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
+import { Note } from "../ui/adminKit.jsx";
 
 /* 사용자 대량 작업 + CSV 가져오기/내보내기 (PLAN Phase 6)
  *
@@ -223,17 +224,17 @@ export function ImportModal({ onClose, onImported }) {
 
   return (
     <Modal open onClose={onClose} title="CSV로 사용자 가져오기" size="lg" dirty={dirty} footer={footer}>
-      <Callout>
-        <Box component="p" sx={{ m: 0 }}>
-          <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할, 부서, 직책은 선택입니다(부서, 직책은 <em>이름</em>으로 씁니다).
-        </Box>
-        <Box component="p" sx={{ m: 0, mt: 0.75 }}>
-          가져오기는 <strong>새 계정만 추가합니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
-        </Box>
-        <Box component="p" sx={{ m: 0, mt: 0.75 }}>
-          추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
-        </Box>
-      </Callout>
+      {/* 형식 설명은 경고가 아니다 - 상자와 `안내` 라벨을 걷어내고 부연 문단으로 둔다(지시 35 · 44).
+          `Note` 는 문단(p)이라 예전처럼 안에 문단을 다시 넣을 수 없다 - 문단마다 하나씩 둔다. */}
+      <Note sx={{ mt: 0 }}>
+        <strong>이메일</strong>과 <strong>이름</strong> 열이 필요합니다. 역할, 부서, 직책은 선택입니다(부서, 직책은 <em>이름</em>으로 씁니다).
+      </Note>
+      <Note sx={{ mt: 0.75 }}>
+        가져오기는 <strong>새 계정만 추가합니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
+      </Note>
+      <Note sx={{ mt: 0.75 }}>
+        추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
+      </Note>
       <TextField
         multiline minRows={6} fullWidth sx={{ mt: 2 }}
         label="CSV 내용" placeholder={SAMPLE_CSV}

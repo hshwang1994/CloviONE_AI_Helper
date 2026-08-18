@@ -423,7 +423,7 @@ export function Project() {
 
       {project.notion_sync_error ? (
         <Box sx={{ mb: 2 }}>
-          <Callout tone="warn">{"노션에 반영하지 못했습니다. " + project.notion_sync_error + " 관리자에게 문의하세요."}</Callout>
+          <Callout tone="danger">{"노션에 반영하지 못했습니다. " + project.notion_sync_error + " 관리자에게 문의하세요."}</Callout>
         </Box>
       ) : null}
       {project.notion_missing_at ? (

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -39,6 +40,7 @@ from app.mail.models import (
     MAIL_UNCONFIGURED,
     MailDelivery,
 )
+from app.mail.renderers import MAIL_KIND_LABELS
 
 logger = logging.getLogger("app.mail")
 
@@ -217,15 +219,92 @@ def record_failure(db: Session, row: MailDelivery, *, error: str, now: datetime)
     db.flush()
 
 
+# 원문 앞머리가 `SMTPAuthenticationError: ...` 처럼 파이썬 예외 이름이면 그건 사람에게
+# 보여 줄 문장이 아니다. 설정 문제 경로(configuration_problems)는 이미 한국어 문장을
+# 넣으므로 이 표를 타지 않는다 - 아래 summarize_failure 가 둘을 구분한다.
+_ERROR_SUMMARIES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (
+        ("SMTPAuthenticationError", "authentication", "535", "534"),
+        "메일 서버가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인하세요.",
+    ),
+    (
+        ("SMTPSenderRefused", "SenderRefused"),
+        "메일 서버가 보내는 사람 주소를 거부했습니다. 보내는 사람 주소를 확인하세요.",
+    ),
+    (
+        ("SMTPRecipientsRefused", "RecipientsRefused", "550"),
+        "메일 서버가 받는 사람 주소를 거부했습니다. 주소가 맞는지 확인하세요.",
+    ),
+    (
+        ("SSLError", "SMTPNotSupportedError", "STARTTLS", "wrong version number"),
+        "보안 연결 방식이 서버와 맞지 않습니다. 보안 방식(STARTTLS/SSL)과 포트를 확인하세요.",
+    ),
+    (
+        ("timed out", "TimeoutError", "timeout"),
+        "메일 서버가 제때 응답하지 않았습니다. 서버 주소와 포트, 방화벽을 확인하세요.",
+    ),
+    (
+        (
+            "ConnectionRefused",
+            "SMTPConnectError",
+            "getaddrinfo",
+            "gaierror",
+            "Name or service not known",
+            "Network is unreachable",
+        ),
+        "메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인하세요.",
+    ),
+    (
+        ("SMTPServerDisconnected",),
+        "메일 서버와의 연결이 끊겼습니다. 보안 방식과 포트를 확인하세요.",
+    ),
+    (
+        ("PermanentJobError", "메일 파라미터", "대상 계정"),
+        "메일 내용을 만들지 못했습니다. 대상 계정이 남아 있는지 확인하세요.",
+    ),
+)
+
+_UNKNOWN_FAILURE = "메일을 보내지 못했습니다. 아래 기술 정보로 원인을 확인하세요."
+
+# `Klass: 메시지` 또는 `module.Klass: 메시지` 모양. 파이썬 예외를 문자열로 만든 자국이다.
+_EXCEPTION_HEAD = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception|Refused|Disconnected)\b")
+
+
+def summarize_failure(raw: str | None) -> str | None:
+    """실패 원문을 **사람에게 보여 줄 한 문장**으로 바꾼다 (지시 36 · 40).
+
+    원문(`f"{type(exc).__name__}: {exc}"`)은 지우지 않는다 - 운영자가 원인을 찾을 때
+    그것이 유일한 단서다. 다만 그것이 화면의 **주된 내용**이 되어서는 안 된다. 여기서
+    만든 요약이 앞에 서고 원문은 `기술 정보`로 내려간다.
+
+    설정 문제 경로는 `configuration_problems()` 가 이미 한국어 문장을 만들어 넣으므로
+    (app/jobs/handlers/mail_send.py) 그대로 통과시킨다. 요약을 한 번 더 씌우면
+    "메일 서버 주소가 비어 있습니다" 같은 정확한 안내가 뭉개진다.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return None
+    for needles, message in _ERROR_SUMMARIES:
+        if any(n.lower() in text.lower() for n in needles):
+            return message
+    # 예외 이름으로 시작하지 않으면 우리가 직접 쓴 한국어 안내다. 그대로 쓴다.
+    if not _EXCEPTION_HEAD.match(text):
+        return text
+    return _UNKNOWN_FAILURE
+
+
 def delivery_view(row: MailDelivery) -> dict:
     return {
         "id": row.id,
         "kind": row.kind,
+        "kind_label": MAIL_KIND_LABELS.get(row.kind, row.kind),
         "to_email": row.to_email,
         "subject": row.subject,
         "status": row.status,
         "status_label": MAIL_STATUS_LABELS.get(row.status, row.status),
         "attempt_count": row.attempt_count,
+        # error_summary 가 화면의 주된 내용이고 last_error 는 `기술 정보` 안에서만 쓴다.
+        "error_summary": summarize_failure(row.last_error),
         "last_error": row.last_error,
         "created_at": row.created_at.isoformat(),
         "sent_at": row.sent_at.isoformat() if row.sent_at else None,

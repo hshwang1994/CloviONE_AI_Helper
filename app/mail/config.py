@@ -149,31 +149,39 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
 
     ``secret_provider`` 를 주면 비밀번호 secret 파일 존재까지 본다. 안 주면 그 항목은
     검사하지 않는다(모듈 docstring 참조).
+
+    ## 문장에 내부 이름을 쓰지 않는 이유 (지시 35 · 36)
+
+    이 문장들은 관리 화면과 진단에 **그대로** 나간다. `smtp.enabled`, `(host)`,
+    `(from_address)`, `password_ref` 는 설정 JSON 의 필드 이름이지 사람이 화면에서 찾는
+    이름이 아니다. 고쳐야 할 자리는 같은 화면의 설정 폼이고, 그 폼은 이미 한국어 라벨을
+    쓴다 - 그러니 문장이 필드 이름을 가르칠 필요가 없다.
+
+    빠진 secret 파일의 **이름**은 지우지 않는다. 다만 문장이 아니라
+    ``public_view()["password_ref"]`` 로 내려가 화면의 `기술 정보`에서 읽힌다.
     """
     problems: list[str] = []
     if not config.enabled:
-        problems.append("메일 발송이 꺼져 있습니다. 설정에서 smtp.enabled 를 켜세요.")
+        problems.append("메일 발송이 꺼져 있습니다. 메일 설정에서 발송을 켜세요.")
     if not config.host:
-        problems.append("SMTP 서버 주소(host)가 비어 있습니다.")
+        problems.append("메일 서버 주소가 비어 있습니다.")
     if not (0 < config.port < 65536):
-        problems.append("SMTP 포트가 올바르지 않습니다.")
+        problems.append("메일 서버 포트가 올바르지 않습니다.")
     if config.security not in ALL_SECURITY_MODES:
         problems.append(
-            "SMTP 보안 방식은 none, starttls, ssl 중 하나여야 합니다."
+            "보안 연결 방식이 올바르지 않습니다. 사용 안 함, STARTTLS, SSL 중에서 고르세요."
         )
     if not config.from_address:
-        problems.append("보내는 사람 주소(from_address)가 비어 있습니다.")
+        problems.append("보내는 사람 주소가 비어 있습니다.")
     if config.username and not config.password_ref:
         problems.append(
-            "SMTP 사용자 이름이 있는데 비밀번호 secret 이름(password_ref)이 비어 있습니다."
+            "사용자 이름을 넣었으면 비밀번호도 함께 등록해야 합니다."
         )
     if config.password_ref and secret_provider is not None:
         from app.core.secret_refs import STATUS_CONFIGURED
 
         if secret_provider.status(config.password_ref) != STATUS_CONFIGURED:
-            problems.append(
-                f"SMTP 비밀번호 secret 파일이 서버에 없습니다: {config.password_ref}"
-            )
+            problems.append("메일 서버 비밀번호가 서버에 등록되지 않았습니다.")
     return problems
 
 

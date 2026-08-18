@@ -73,13 +73,36 @@ def test_status_never_leaks_the_smtp_password(client, app, login_as, settings):
 
 
 def test_a_missing_secret_file_is_named_as_the_problem(client, app, login_as):
+    """빠진 파일 이름은 계속 화면에 있다. 다만 **문장이 아니라 기술 정보**에 있다.
+
+    지시 36 이후 문제 문장은 사람이 읽는 한 줄이고(`메일 서버 비밀번호가 서버에 등록되지
+    않았습니다`), 어느 파일이냐는 `server.password_ref` 로 내려간다. 이름 자체가 사라지면
+    운영자가 무엇을 만들어야 하는지 알 수 없으므로 사라지지 않았음을 함께 못박는다.
+    """
     csrf = login_as("admin")
     configure_smtp(app, username="mailer", password_ref="smtp_password")
     body = client.get(
         "/api/admin/mail/status", headers={"X-CSRF-Token": csrf}
     ).json()["mail"]
     assert body["configured"] is False
-    assert any("smtp_password" in p for p in body["problems"])
+    assert any("비밀번호" in p for p in body["problems"])
+    assert body["server"]["password_ref"] == "smtp_password"
+    assert body["password_secret"] != "configured"
+
+
+def test_configuration_problems_do_not_teach_json_field_names(client, app, login_as):
+    """설정 문제 문장에 `smtp.enabled` · `(host)` · `password_ref` 가 남으면 안 된다.
+
+    같은 화면의 설정 폼은 이미 한국어 라벨을 쓴다 - 문장이 내부 필드 이름을 가르칠 이유가
+    없다(지시 35 · 36). 이 검사가 없으면 문제 항목이 하나 늘 때 조용히 되돌아온다.
+    """
+    csrf = login_as("admin")
+    body = client.get(
+        "/api/admin/mail/status", headers={"X-CSRF-Token": csrf}
+    ).json()["mail"]
+    joined = " ".join(body["problems"])
+    for internal in ("smtp.enabled", "(host)", "(from_address)", "password_ref", "SMTP "):
+        assert internal not in joined, f"설정 문제 문장에 내부 표기가 남았다: {internal}"
 
 
 def test_unconfigured_consumer_leaves_a_trace_instead_of_vanishing(app, make_user):
@@ -230,6 +253,72 @@ def test_failures_surface_on_the_admin_status_screen(
     body = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()
     assert body["counts"]["failed"] >= 1
     assert body["recent_failures"], "실패가 화면에 안 보이면 삼킨 것과 같다"
+
+
+def test_the_screen_gets_a_summary_not_just_the_raw_exception(
+    client, app, settings, fake_clock, login_as, make_user
+):
+    """`SMTPAuthenticationError: (535, ...)` 는 원인이 아니라 우리 구현이다 (지시 36 · 40).
+
+    원문을 지우지는 않는다 - 운영자가 원인을 찾을 때 유일한 단서다. 다만 화면의 주된
+    내용은 사람이 읽는 한 문장이어야 하고, 원문은 `기술 정보`로 내려간다. 그래서 응답이
+    **둘 다** 준다.
+    """
+    csrf = login_as("admin")
+    configure_smtp(app)
+    make_user("summary@goodmit.co.kr")
+    client.post("/forgot-password", json={"email": "summary@goodmit.co.kr"})
+    drain_worker(app, settings, fake_clock, FakeSmtp(fail=True))
+
+    row = client.get(
+        "/api/admin/mail/status", headers={"X-CSRF-Token": csrf}
+    ).json()["recent_failures"][0]
+    assert row["error_summary"], "실패 이유를 사람 말로 말하는 자리가 없다"
+    assert "Error:" not in row["error_summary"], (
+        f"요약이 예외 원문 그대로다: {row['error_summary']}"
+    )
+    assert row["last_error"], "원문이 사라지면 운영자가 원인을 찾을 단서가 없다"
+
+
+def test_the_kind_column_is_a_name_not_an_internal_key(app, login_as, client):
+    """`backup_failed` 는 종류의 이름이 아니다 (§1.3-② · 지시 40)."""
+    from app.mail.renderers import MAIL_KIND_LABELS, RENDERERS
+    from app.mail.service import delivery_view
+
+    assert set(MAIL_KIND_LABELS) == set(RENDERERS), (
+        "종류가 하나 늘었는데 이름을 안 붙였다 - 화면에 raw 키가 샌다"
+    )
+    csrf = login_as("admin")
+    configure_smtp(app, enabled=False)
+    with app.state.session_factory() as db:
+        from app.mail.service import queue_mail_to_admins
+
+        queue_mail_to_admins(
+            db,
+            kind="backup_failed",
+            subject="자동 백업이 실패했습니다",
+            params={"reason": "디스크 없음"},
+            now=app.state.clock.now(),
+        )
+        db.commit()
+    body = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()
+    rows = body["recent_failures"]
+    assert rows, "보낼 수 없었던 메일이 화면에 안 보인다"
+    assert rows[0]["kind_label"] == "백업 실패 알림"
+
+
+def test_summary_keeps_our_own_korean_sentences_intact():
+    """설정 문제 문장은 이미 사람 말이다. 요약을 한 번 더 씌우면 정확도가 떨어진다."""
+    from app.mail.service import summarize_failure
+
+    ours = "메일 서버 주소가 비어 있습니다."
+    assert summarize_failure(ours) == ours
+    assert summarize_failure(None) is None
+    assert summarize_failure("  ") is None
+    assert "로그인" in summarize_failure("SMTPAuthenticationError: (535, b'nope')")
+    assert "연결" in summarize_failure("ConnectionRefusedError: [WinError 10061]")
+    # 분류에 없는 예외는 원문을 앞세우지 않고 기술 정보로 미룬다.
+    assert summarize_failure("RuntimeError: boom").startswith("메일을 보내지 못했습니다")
 
 
 def test_mail_failure_does_not_break_the_work_itself(app, settings, fake_clock, make_user):

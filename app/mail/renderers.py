@@ -36,6 +36,18 @@ KIND_BACKUP_FAILED = "backup_failed"
 KIND_APPROVAL_REQUESTED = "approval_requested"
 KIND_TEST = "test"
 
+# 화면이 `backup_failed` 를 그대로 보여 주면 그건 메일 종류의 이름이 아니라 우리 내부
+# 코드다(지시 36 · 40). 상태값을 서버가 이름 지어 주는 것과 같은 이유로 종류도 여기서
+# 이름을 준다 - 화면이 스스로 사전을 들면 종류가 하나 늘 때마다 raw 키가 샌다
+# (app/mail/models.py 의 MAIL_STATUS_LABELS 주석 참조).
+MAIL_KIND_LABELS: dict[str, str] = {
+    KIND_PASSWORD_RESET: "비밀번호 재설정",
+    KIND_INVITE: "계정 초대",
+    KIND_BACKUP_FAILED: "백업 실패 알림",
+    KIND_APPROVAL_REQUESTED: "결재 요청 알림",
+    KIND_TEST: "발송 시험",
+}
+
 
 def _params(delivery: MailDelivery) -> dict:
     try:

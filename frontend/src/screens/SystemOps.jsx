@@ -228,7 +228,7 @@ export function SystemOps({ embedded = false } = {}) {
       )}
 
       {lastResult && lastResult.rolled_back && (
-        <Callout tone="warn">
+        <Callout tone="danger">
           적용에 실패해 원래 설정으로 되돌렸습니다. {lastResult.detail}
         </Callout>
       )}

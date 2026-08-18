@@ -236,7 +236,7 @@ export function Diagnostics() {
                     <Note sx={{ mt: 0 }}>설치처 고유 설정을 모두 채웠습니다.</Note>
                   ) : (
                     <Box sx={{ mb: 2 }}>
-                      <Callout tone="warn">
+                      <Callout tone="info">
                         아직 설정하지 않은 항목이 {tenant.unset_count}개 있습니다. 그 기능은 비어 있는 것이 아니라 아직 연결되지 않은 상태입니다.
                       </Callout>
                     </Box>

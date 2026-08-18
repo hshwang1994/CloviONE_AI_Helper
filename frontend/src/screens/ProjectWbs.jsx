@@ -3,11 +3,12 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Badge, Callout, Card, EmptyState } from "../ui/kit.jsx";
+import { Badge, Card, EmptyState } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
+import { Note } from "../ui/adminKit.jsx";
 
 /* WBS 트리 — 노션 작업 계층(`parent_page_id`)을 그대로 그린다.
  *
@@ -130,9 +131,9 @@ export function ProjectWbs({ data, ticketsLinked }) {
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>
             {"트리에 넣지 못한 작업 " + unplaced.length + "건"}
           </Typography>
-          <Callout tone="warn">
+          <Note sx={{ mt: 0 }}>
             아래 작업은 트리에 넣지 못했지만 위의 진행률에는 들어 있습니다. 빼면 상위 작업 설정 하나에 진행률이 통째로 흔들립니다.
-          </Callout>
+          </Note>
           <Box component="ul" sx={{ m: 0, mt: 1.5, p: 0, display: "grid", gap: 1 }}>
             {unplaced.map((u) => (
               <Box component="li" key={u.key} sx={{ listStyle: "none", display: "grid", gap: 0.25 }}>

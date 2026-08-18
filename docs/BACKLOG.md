@@ -3571,8 +3571,9 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 **P1-B 미착수 화면**
 - `UI-R19` Global Search Overlay 재설계 (지시 14, todo)
 - `UI-R20` 채팅 UI 재설계 (지시 15, todo)
-- `UI-R21` 관리자 콘솔 5종 — NotionConsole·LlmConsole·MailStatus·SystemOps·SetupWizard
-  (리뉴얼 diff 0줄). 지시 33·34·37·38·40
+- `UI-R21` 관리자 콘솔 5종 — NotionConsole·LlmConsole·SystemOps·SetupWizard (리뉴얼 diff 0줄).
+  지시 33·34·37·38. **MailStatus 는 2026-08-19 완료**(D-154: 발송 가능 여부 → 설정 → 현황 →
+  최근 실패 순서, MetaBar/MetricStrip, kind_label·error_summary·TechDetail, 날짜 압축 표기)
 - `UI-R22` 나머지 화면 롤아웃(Search·Profile·Activity·Board·Games·Project* 등). 지시 61
 - `UI-R18` AI 도우미 영역 분리 (지시 2)
 - `UI-R16` Chart 공통 계약 + 구현 방식 판단 (지시 9·54·59)
@@ -3586,12 +3587,26 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
   안 봐서 `generate_design_tokens.mjs`·`ui_qa/README.md` 참조를 못 잡았다
 - `UI-R29` 로그인 화면이 방향 계약 이전 상태 (지시 61) — Jinja 토큰은 갱신됐지만 마크업 미검수
 - `UI-R30` UX Writing 전수 (지시 22)
-- `UI-R31` 내부 구현 정보 노출 (지시 36) — SMTP 가 아직 raw JSON 편집
+- `UI-R31` 내부 구현 정보 노출 (지시 36) — **SMTP 부분 완료**(2026-08-19, D-156): 구조화 편집기 +
+  검증 문장 재작성 + 요약의 `starttls` → 이름. 남은 것: `backup_schedule`(cron 원문 편집),
+  Notion/LLM 콘솔의 경로·실행 파일 노출(UI-R21 과 함께), 작업 큐 상세의 `<pre>` 원문 표현
 - `UI-R32` 죽은 export·중복 별칭 정리 (지시 23)
 - `UI-R33` **옛 UI를 지키고 있는 테스트 재작성** — 지금 초록불이 근거가 못 되는 자리
 - `UI-R34` 추적표 Gate 를 스크립트로 (지시 56) — 지금은 사람이 눈으로 본 것뿐
 - `UI-R36` 접근성·성능 재실행 (지시 25·26)
 - `UI-R37` 관리자 기능 전수검증 + 위험 Action 상태 복구 프로토콜 (지시 42·68, todo)
 - `UI-R38` P12 최종 Visual/IA Audit + Before/After 7기준 (지시 27·47·60·70)
+
+
+### 2026-08-19 추가 — Callout 의미 재분류 뒤 남은 것
+
+- `UI-R39` `Callout` 호출부 중 **동적 tone 8곳**(`tone={x ? "warn" : "info"}`)은 D-155 기준을
+  아직 안 거쳤다. 그중 `Diagnostics.jsx` 의 `hv.tone` 은 `healthVerdict()` 가 정하므로 그
+  함수의 판정 자체를 기준에 맞춰야 한다.
+- `UI-R40` `Note`(adminKit)가 문단(p)이라 안에 문단을 넣을 수 없다. 여러 문단짜리 설명은
+  `Note` 를 여러 개 쓴다 — 이 제약이 다음 사람에게 안 보이므로 `Note` 자체에 적어야 한다.
+- `UI-R41` 잡 큐 상세(`registry/automation.js`)의 `last_error` 는 여전히 `<pre>` 원문이다.
+  운영 진단 화면이라 원문이 주된 내용인 것이 맞는지, 아니면 `TechDetail` 로 접어야 하는지
+  판단하고 근거를 남긴다(지시 36).
 
 **감사 원본**: 워크플로우 `wf_add53824-7d2` (에이전트별 결과는 그 journal.jsonl).

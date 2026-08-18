@@ -269,7 +269,10 @@ export function DataScreen({ config, embedded = false }) {
       if (job && terminal.includes(job.status)) {
         refresh();
         if (job.status === "succeeded") toast(opts.doneMsg || "완료되었습니다.", "success");
-        else toast((opts.failMsg || "작업이 실패했습니다. 잠시 후 다시 시도해 주세요.") + (job.last_error ? ": " + job.last_error : ""), "error");
+        /* 백엔드 예외 원문(`job.last_error`)을 토스트에 붙이지 않는다 (지시 20 · 36). 토스트는
+           사라지고, 사라지는 자리에 유일한 단서를 두면 안 된다 - 원문은 작업 큐의 그 작업
+           상세에 그대로 남아 있고 거기가 기술 정보를 읽는 자리다. */
+        else toast(opts.failMsg || "작업이 실패했습니다. 작업 큐에서 실패 원인을 확인하세요.", "error");
         return;
       }
     }
@@ -765,11 +768,13 @@ export function DataScreen({ config, embedded = false }) {
           summaryQuery.error && summaryQuery.error.status === 401 ? (
             <Callout tone="warn">요약 통계를 불러오지 못했습니다(로그인이 필요합니다). <a href={loginUrl()}>로그인 화면으로</a></Callout>
           ) : summaryQuery.error && (summaryQuery.error.status === 403 || summaryQuery.error.status === 404) ? (
-            // 403/404도 401과 같은 이유로 재시도해도 회복되지 않는다(ErrorState의 판단과 동일) -
-            // 영원히 실패할 '다시 시도' 버튼 대신 이유만 알린다(거짓 희망 방지).
-            <Callout tone="warn">{"요약 통계를 불러오지 못했습니다(" + (summaryQuery.error.status === 403 ? "권한이 없습니다" : "찾을 수 없습니다") + ")." + (summaryQuery.error.status === 403 ? " 관리자에게 문의하세요." : " 이미 삭제되었거나 이동했을 수 있습니다.")}</Callout>
+            /* 403/404도 401과 같은 이유로 재시도해도 회복되지 않는다(ErrorState의 판단과 동일) -
+               영원히 실패할 '다시 시도' 버튼 대신 이유만 알린다(거짓 희망 방지).
+               403 은 오류가 아니라 **권한 상태**다 - 고칠 것이 아니라 알 것이라 조용히 알린다.
+               404 는 있어야 할 것이 없는 것이라 오류로 말한다(지시 35). */
+            <Callout tone={summaryQuery.error.status === 403 ? "info" : "danger"}>{"요약 통계를 불러오지 못했습니다(" + (summaryQuery.error.status === 403 ? "권한이 없습니다" : "찾을 수 없습니다") + ")." + (summaryQuery.error.status === 403 ? " 관리자에게 문의하세요." : " 이미 삭제되었거나 이동했을 수 있습니다.")}</Callout>
           ) : (
-            <Callout tone="warn">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
+            <Callout tone="danger">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )
         ) : summaryQuery.data ? (
           <MetricStrip

@@ -18,6 +18,7 @@ import {
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
+import { Note } from "../ui/adminKit.jsx";
 
 /* 내 프로필 — 아바타 · 알림 설정 · 방해금지 · 내 기기(세션) (계획서 Phase 6 사용자).
  *
@@ -199,9 +200,9 @@ function NotificationCard({ prefs, save, saving }) {
           </Box>
         ))}
       </Box>
-      <Callout>
+      <Note sx={{ mt: 0 }}>
         계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다. 침해를 알리는 유일한 신호이기 때문입니다.
-      </Callout>
+      </Note>
     </Card>
   );
 }
@@ -220,7 +221,7 @@ function DndCard({ prefs, save, saving }) {
       </SectionTitle>
 
       {dnd.quiet_now ? (
-        <Callout tone="warn">
+        <Callout tone="info">
           지금 조용한 상태입니다({dnd.reason === "manual" ? "직접 켬" : "조용시간"}).
           {dnd.until ? ` ${fmtDateTime(dnd.until)}에 자동으로 풀립니다.` : ""}
           {" "}알림은 계속 쌓이고 있습니다.

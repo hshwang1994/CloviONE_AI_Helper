@@ -1012,7 +1012,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
           여기서도 실패와 재시도 경로를 드러낸다. */}
       {detailStale ? (
         <Box sx={{ mb: 2 }}>
-          <Callout tone="warn">
+          <Callout tone="danger">
             최신 상태를 불러오지 못해 작업을 수행할 수 없습니다. <LinkButton onClick={refetchDetail}>다시 시도</LinkButton>
           </Callout>
         </Box>

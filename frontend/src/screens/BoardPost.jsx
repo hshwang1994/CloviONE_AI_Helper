@@ -578,7 +578,7 @@ export function BoardPost() {
         <Box component="section" sx={{ minWidth: 0 }}>
             <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>댓글 {comments.length}</Typography>
             {tops.length === 0 ? (
-              <Callout tone="info">아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.</Callout>
+              <Typography color="text.secondary">아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.</Typography>
             ) : (
               /* 레일이 아주 넓어지는 4K에서는 댓글 묶음을 두 갈래로 접는다 — 한 줄이 2,000px가
                  되는 대신 폭을 실제로 쓴다. 답글은 자기 최상위 댓글 안에 중첩된 목록으로 남는다. */

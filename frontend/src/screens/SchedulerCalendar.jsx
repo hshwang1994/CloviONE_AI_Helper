@@ -13,6 +13,7 @@ import { toUTCDate } from "../lib/format.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES } from "./registry/shared.js";
+import { Note } from "../ui/adminKit.jsx";
 import {
   PageHeader, Card, Callout, Badge, Button, Skeleton,
   EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
@@ -257,11 +258,11 @@ export function SchedulerCalendar({ embedded = false } = {}) {
           }
         />
       )}
-      <Callout>
+      <Note sx={{ mt: 0 }}>
         예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
         <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.
         예정은 Cron 식을 펼쳐 계산한 값이라, 일정을 비활성화했다 활성화하면 다시 계산됩니다.
-      </Callout>
+      </Note>
 
       <Card sx={{ mt: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
         <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>

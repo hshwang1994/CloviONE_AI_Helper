@@ -127,13 +127,15 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
   const lb = useLightbox();
   if (blocksError) {
     return (
-      <Callout tone="warn">
+      <Callout tone="danger">
         본문을 불러오지 못했습니다({blocksError}). 원본에서 확인해 주세요.
       </Callout>
     );
   }
   if (!blocks || blocks.length === 0) {
-    return <Callout tone="info">본문 내용이 없습니다. 원본 문서를 확인해 주세요.</Callout>;
+    /* 빈 상태는 안내가 아니다 - `안내` 라벨을 붙이면 읽을 것이 없다는 사실보다 라벨이 먼저
+       읽힌다. 평문으로 둔다. */
+    return <Typography color="text.secondary">본문 내용이 없습니다. 원본 문서를 확인해 주세요.</Typography>;
   }
   // 연속한 목록 항목(bulleted/numbered)을 <ul>/<ol>로 묶는다 — bare <li>는 번호가
   // 문서 전체 카운터를 공유해 잘못 매겨지고 목록 시맨틱(스크린리더)도 잃는다(검수 결함).
@@ -325,7 +327,7 @@ export function TeamDoc() {
             </Stack>
             {doc.restricted ? (
               <Box sx={{ mb: 2.5 }}>
-                <Callout tone="warn">
+                <Callout tone="info">
                   이 문서는 열람이 제한되어 있습니다. 운영자와 작성자 본인만 볼 수 있고, 다른
                   사용자에게는 목록에서도 보이지 않습니다.
                 </Callout>

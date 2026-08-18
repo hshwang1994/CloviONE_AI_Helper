@@ -63,7 +63,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
             const journalCmd = "journalctl -u " + downUnits.join(" -u ");
             return (
               <Box sx={{ mb: 2 }}>
-                <Callout tone="warn">
+                <Callout tone="danger">
                   일부 서비스가 중단, 응답 없음 상태입니다. 웹에서 재시작하는 수단은 제공되지 않습니다. 서버 로그(예: <Box component="code" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{journalCmd}</Box>{" "}
                   <Link component="button" type="button" variant="body2" underline="hover" onClick={() => copyText(journalCmd).then((ok) => toast(ok ? "명령을 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}>복사</Link>
                   )를 확인하고 필요하면 담당자가 해당 서비스를 재시작하세요(저장소의 <Box component="code" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>docs/RUNBOOK.md</Box> 참고).

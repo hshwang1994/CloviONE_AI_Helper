@@ -100,7 +100,9 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     });
     const { MailStatus } = await import("./screens/MailStatus.jsx");
     const { container } = qcRender(<MailStatus />);
-    await screen.findByText("서버 설정");
+    // 서버 설정은 이제 제목 딸린 카드가 아니라 속성 줄(MetaBar)이다 - 제목 위계를 재는
+    // 이 시험의 기준점은 남아 있는 구역 제목이다.
+    await screen.findByText("최근 실패");
     assertSequentialHeadings(container, "MailStatus");
   });
 

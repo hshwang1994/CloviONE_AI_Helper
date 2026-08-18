@@ -182,6 +182,96 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       </Box>
     );
   }
+  if (settingKey === "smtp") {
+    /* 메일 설정은 이 저장소에서 마지막까지 **JSON 원문 편집**으로 남아 있었다(지시 32 · 36).
+       그래서 관리자는 중괄호를 손으로 맞추고, `security` 에 무엇을 쓸 수 있는지는 힌트 문장을
+       읽어야 알았고, 오타는 저장 왕복 뒤에야 드러났다. 필드마다 이름과 허용값을 준다.
+
+       **비밀번호 자체는 여기서 받지 않는다.** 백엔드 검증기(registry.py::_smtp)가 `password`
+       계열 키를 모양이 맞아도 거절한다 - DB 설정은 관리 API 와 진단 번들에 실리므로 값이
+       들어오는 순간 평문이 응답을 타고 나간다(불변 §3). 화면도 같은 경계를 지켜, 서버에 둔
+       파일의 **이름**만 받는다. */
+    const secId = fieldId("security");
+    return (
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("enabled")} select label="메일 발송" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid} SelectProps={{ native: true }}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.enabled ? "true" : "false"}
+            onChange={(e) => patch({ enabled: e.target.value === "true" })}
+          >
+            <option value="true">사용</option>
+            <option value="false">사용 안 함</option>
+          </TextField>
+          <TextField
+            id={secId} select label="보안 연결" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid} SelectProps={{ native: true }}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.security || "starttls"}
+            onChange={(e) => patch({ security: e.target.value })}
+          >
+            <option value="starttls">STARTTLS(587 포트에서 주로 씁니다)</option>
+            <option value="ssl">SSL(465 포트에서 주로 씁니다)</option>
+            <option value="none">사용 안 함(사내망에서만)</option>
+          </TextField>
+        </Box>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("host")} label="메일 서버 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            placeholder="smtp.example.com"
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+            value={safe.host || ""} onChange={(e) => patch({ host: e.target.value })}
+          />
+          <TextField
+            id={fieldId("port")} label="포트(1~65535)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ min: 1, max: 65535, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.port != null ? safe.port : ""}
+            onChange={(e) => patch({ port: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("from_address")} label="보내는 사람 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            placeholder="portal@example.com"
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+            value={safe.from_address || ""} onChange={(e) => patch({ from_address: e.target.value })}
+          />
+          <TextField
+            id={fieldId("from_name")} label="보내는 사람 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.from_name || ""} onChange={(e) => patch({ from_name: e.target.value })}
+          />
+        </Box>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("username")} label="로그인 계정(필요할 때만)" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+            value={safe.username || ""} onChange={(e) => patch({ username: e.target.value })}
+          />
+          <Box>
+            <TextField
+              id={fieldId("password_ref")} label="비밀번호 파일 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+              value={safe.password_ref || ""} onChange={(e) => patch({ password_ref: e.target.value })}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              비밀번호 자체는 적지 않습니다. 서버에 미리 둔 파일의 이름만 적습니다.
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("timeout_seconds")} label="응답 대기 시간(초, 1~300)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ min: 1, max: 300, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.timeout_seconds != null ? safe.timeout_seconds : ""}
+            onChange={(e) => patch({ timeout_seconds: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
+      </Box>
+    );
+  }
   if (settingKey === "ui_branding") {
     const nameId = fieldId("product_name");
     const emailId = fieldId("support_email");

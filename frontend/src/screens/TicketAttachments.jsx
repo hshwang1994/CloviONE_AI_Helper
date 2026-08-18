@@ -8,9 +8,10 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
-import { Button, Callout, Card, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Card, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
+import { Note } from "../ui/adminKit.jsx";
 
 /* 티켓 첨부 — 지시서 §4 "티켓에 연결된 이미지가 있다면 현재 화면과 티켓 상세에서 바로 확인할 수
  * 있게 하고, 클릭했을 때 내용을 확인할 수 있도록 구성하라." + 제품화 지시("사용자가 노션에
@@ -159,10 +160,10 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           않는다"는 보고의 절반이 이것이었다). 문구는 서버 판정(app/tickets/service.py
           `ensure_can_edit`)과 같은 선이다 — 한쪽만 고치면 화면이 거짓말을 하게 된다. */}
       {!canEdit ? (
-        <Callout tone="info">
+        <Note sx={{ mt: 0 }}>
           이 티켓의 담당자가 아니라 첨부를 올리거나 뗄 수 없습니다. 담당자이거나 담당자가 아직
           없는 티켓만 수정할 수 있습니다. 파일을 붙이고 떼는 것도 티켓을 고치는 일입니다.
-        </Callout>
+        </Note>
       ) : null}
 
       {list.length === 0 && !canEdit ? (

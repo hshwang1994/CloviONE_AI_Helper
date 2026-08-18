@@ -157,29 +157,29 @@ def _smtp(value: Any) -> None:
     for banned in ("password", "passwd", "secret", "password_value"):
         if banned in value:
             raise ValidationAppError(
-                "비밀번호는 설정에 저장하지 않습니다. 서버의 secret 파일 이름을 "
-                "password_ref 에 적으세요."
+                "비밀번호는 설정에 저장하지 않습니다. 서버에 미리 둔 파일의 "
+                "이름만 적으세요."
             )
     if not isinstance(value.get("enabled"), bool):
-        raise ValidationAppError("enabled는 true/false여야 합니다.")
+        raise ValidationAppError("메일 발송은 사용 또는 사용 안 함이어야 합니다.")
     port = value.get("port", 587)
     if not isinstance(port, int) or isinstance(port, bool) or not (0 < port < 65536):
-        raise ValidationAppError("port는 1~65535 정수여야 합니다.")
+        raise ValidationAppError("포트는 1~65535 사이의 정수여야 합니다.")
     security = value.get("security", "starttls")
     if security not in ALL_SECURITY_MODES:
-        raise ValidationAppError("security는 none, starttls, ssl 중 하나여야 합니다.")
+        raise ValidationAppError("보안 연결은 STARTTLS, SSL, 사용 안 함 중 하나여야 합니다.")
     timeout = value.get("timeout_seconds", 20)
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not (1 <= timeout <= 300):
-        raise ValidationAppError("timeout_seconds는 1~300 정수여야 합니다.")
+        raise ValidationAppError("응답 대기 시간은 1~300초 사이의 정수여야 합니다.")
     for key in ("host", "from_address", "from_name", "username", "password_ref"):
         if key in value and not isinstance(value[key], str):
             raise ValidationAppError(f"{key}는 문자열이어야 합니다.")
     # 켜 놓고 주소가 비어 있으면 큐에 쌓기만 하고 아무것도 못 보낸다 - 저장 시점에 막는다.
     if value.get("enabled"):
         if not str(value.get("host", "")).strip():
-            raise ValidationAppError("메일 발송을 켜려면 host가 필요합니다.")
+            raise ValidationAppError("메일 발송을 켜려면 메일 서버 주소가 필요합니다.")
         if not str(value.get("from_address", "")).strip():
-            raise ValidationAppError("메일 발송을 켜려면 from_address가 필요합니다.")
+            raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
 
 
 def _notion_database_id(value: Any) -> None:

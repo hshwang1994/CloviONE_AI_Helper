@@ -22,6 +22,7 @@ import {
 } from "./TicketFilterBar.jsx";
 import { BASELINE_TRACKS, TILE_GRID_GAP, TILE_PADDING } from "../ui/density.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { Note } from "../ui/adminKit.jsx";
 
 /* 도우미 > 주간 스프린트 회의. 한 화면에서 (1) 그 주의 담당자별 티켓, (2) 계획 티켓을 본다.
  * 편집은 회의 중 바로 — 기존 티켓 API 재사용. 데이터는 조회 전용.
@@ -318,11 +319,11 @@ export function Sprint() {
           것을 같은 이름으로 부른다 — 한 사람은 이 날짜 범위를, 다른 사람은 Notion 스프린트를
           떠올린다. 연동에 공유되지 않은 데이터베이스를 있는 것처럼 말하지도 않는다. */}
       <Box sx={{ mb: 2.5 }}>
-        <Callout tone="info">
+        <Note sx={{ mt: 0 }}>
           이 화면은 <b>날짜 범위 기준</b>입니다. 위 기간에 마감이 잡힌 티켓을 모읍니다. Notion 의 스프린트
           데이터베이스는 이 포털 연동에 공유되어 있지 않아 읽지 못합니다. 그래서 팀이 Notion 에서 만든 스프린트와
           이 화면의 한 주는 서로 다를 수 있습니다.
-        </Callout>
+        </Note>
       </Box>
 
       {q.isLoading ? <Card><Skeleton lines={8} /></Card>

@@ -67,3 +67,49 @@ describe("StructuredObjectFields — 나머지 STRUCTURED_OBJECT_KEYS 3종 (스�
     expect(screen.getByText("제한 없음(모든 이메일 도메인 허용)")).toBeInTheDocument();
   });
 });
+
+/* 지시 32 · 36: 메일 설정은 이 저장소에서 마지막까지 raw JSON 편집으로 남아 있었다.
+ * 관리자가 중괄호를 손으로 맞추고 `security` 의 허용값을 힌트 문장에서 읽어야 하는 상태가
+ * "설정 화면"일 수는 없다. 여기서 고정하는 것은 셋이다.
+ *   1) 필드마다 사람이 읽는 이름이 있다.
+ *   2) 값의 어휘(`starttls`)가 아니라 이름으로 고른다.
+ *   3) **비밀번호 자체를 받는 칸이 없다** — 서버 검증기가 거절하는 것을 화면도 열지 않는다.
+ */
+describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
+  const SMTP = JSON.stringify({
+    enabled: true, host: "smtp.internal", port: 587, security: "starttls",
+    from_address: "portal@goodmit.co.kr", from_name: "ClovirAssist",
+    username: "mailer", password_ref: "smtp_password", timeout_seconds: 20,
+  });
+
+  it("필드마다 이름이 붙은 입력으로 렌더되고 저장된 값을 보여준다", () => {
+    renderField("smtp", SMTP);
+    expect(screen.getByLabelText("메일 서버 주소")).toHaveValue("smtp.internal");
+    expect(screen.getByLabelText("포트(1~65535)")).toHaveValue(587);
+    expect(screen.getByLabelText("보내는 사람 주소")).toHaveValue("portal@goodmit.co.kr");
+    expect(screen.getByLabelText("응답 대기 시간(초, 1~300)")).toHaveValue(20);
+  });
+
+  it("보안 연결은 값의 어휘가 아니라 이름으로 고른다", () => {
+    renderField("smtp", SMTP);
+    const select = screen.getByLabelText("보안 연결");
+    expect(select).toHaveValue("starttls");
+    const names = Array.from(select.options).map((o) => o.textContent);
+    expect(names.some((n) => n.startsWith("STARTTLS"))).toBe(true);
+    expect(names).toContain("사용 안 함(사내망에서만)");
+  });
+
+  it("비밀번호를 직접 입력받는 칸은 없다 — 파일 이름만 받는다", () => {
+    renderField("smtp", SMTP);
+    expect(screen.getByLabelText("비밀번호 파일 이름")).toHaveValue("smtp_password");
+    expect(screen.queryByLabelText("비밀번호")).toBeNull();
+    expect(screen.getByText(/비밀번호 자체는 적지 않습니다/)).toBeInTheDocument();
+    // 값을 넣을 수 있는 password 입력이 하나라도 있으면 평문이 설정 JSON 으로 들어간다.
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it("잘못된 JSON 에도 크래시하지 않는다", () => {
+    renderField("smtp", "{ not valid json");
+    expect(screen.getByLabelText("메일 서버 주소")).toHaveValue("");
+  });
+});

@@ -329,7 +329,7 @@ export function Projects() {
                 표 아래 한 줄로 모아 말한다 - 감추면 사용자는 저장이 된 줄 안다. */}
             {items.filter((p) => p.notion_sync_error).map((p) => (
               <Box key={p.id} sx={{ mt: 1.5 }}>
-                <Callout tone="warn">
+                <Callout tone="danger">
                   {p.name + ": 노션에 반영하지 못했습니다. " + p.notion_sync_error + " 관리자에게 문의하세요."}
                 </Callout>
               </Box>

@@ -222,7 +222,7 @@ export function EditableBody({
       </Stack>
       {!canEdit ? (
         <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
-          <Callout tone="warn">
+          <Callout tone="danger">
             본문을 불러오지 못해 수정할 수 없습니다. 지금 저장하면 원본 본문을 지우게 되므로
             수정을 막았습니다. 새로고침하거나 ‘원본 열기’에서 수정하세요.
           </Callout>
@@ -230,7 +230,7 @@ export function EditableBody({
       ) : null}
       {bodySyncError ? (
         <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
-          <Callout tone="warn">
+          <Callout tone="danger">
             <Box sx={{ display: "grid", gap: 1 }}>
               <span>
                 본문은 저장되었지만 원본(Notion)에 반영하지 못했습니다: {bodySyncError}.

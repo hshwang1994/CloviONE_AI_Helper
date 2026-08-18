@@ -308,7 +308,7 @@ function OffboardPlan({ preview, onDone, toast }) {
       ) : null}
       {preview.tickets_error ? (
         <Box sx={{ mb: 2.5 }}>
-          <Callout tone="warn">보유 티켓을 불러오지 못했습니다: {preview.tickets_error}: 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
+          <Callout tone="danger">보유 티켓을 불러오지 못했습니다: {preview.tickets_error}: 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
         </Box>
       ) : !preview.notion_mapped ? (
         <Box sx={{ mb: 2.5 }}>
@@ -375,7 +375,9 @@ function RunResult({ result }) {
   return (
     <Card sx={{ p: 2.5, mb: 2.5 }}>
       <Typography variant="h6" component="h2" sx={{ mb: 1 }}>실행 결과</Typography>
-      <Callout tone={run.ticket_failed ? "warn" : "info"}>
+      {/* 실패한 티켓이 남았다는 것은 주의가 아니라 오류다 - 그 티켓은 아직 그 사람 앞에
+          있다. 실패가 없으면 이 줄은 실행 결과 요약일 뿐이므로 조용한 안내다. */}
+      <Callout tone={run.ticket_failed ? "danger" : "info"}>
         티켓 {run.ticket_total}건 중 <strong>{run.ticket_moved}건 이동</strong>
         {run.ticket_failed ? <>, <strong>{run.ticket_failed}건 실패</strong></> : null}.
         {run.deactivated ? " 계정을 비활성화했습니다." : ""}
@@ -539,7 +541,7 @@ function RunHistory() {
               <Row label="메모">{detail.note || "-"}</Row>
               <Row label="되돌린 시각">{detail.undone_at ? fmtDateTime(detail.undone_at) : "-"}</Row>
             </Box>
-            {detail.undo_error ? <Box sx={{ mt: 2 }}><Callout tone="warn">{detail.undo_error}</Callout></Box> : null}
+            {detail.undo_error ? <Box sx={{ mt: 2 }}><Callout tone="danger">{detail.undo_error}</Callout></Box> : null}
             {(detail.moves || []).length ? (
               <Box sx={{ mt: 2 }}>
                 <DataTable columns={MOVE_COLUMNS} rows={detail.moves} rowKey={(m) => m.id} />

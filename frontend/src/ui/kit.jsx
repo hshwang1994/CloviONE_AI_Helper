@@ -355,6 +355,39 @@ export function Card({ className, children, sx, ...rest }) {
   );
 }
 
+/** 기술 정보 — 원문·내부 키·경로처럼 **평소에는 화면의 내용이 아닌 것**을 접어 둔다.
+ *
+ * 지시 36 이 요구하는 것은 기술 정보의 **삭제가 아니라 강등**이다: 장애를 분석하려면
+ * `SMTPAuthenticationError: (535, ...)` 원문이 필요하고, 그것을 지우면 운영자에게서 유일한
+ * 단서를 빼앗는다. 다만 그것이 화면의 주된 내용이 되면 읽는 사람은 매번 우리 구현을 먼저
+ * 읽는다. 그래서 요약이 앞에 서고 원문은 이 안에 접힌다 — 열기 전에는 한 줄도 차지하지 않는다.
+ *
+ * `Callout` 안에만 두면 표·카드·상세가 각자 `<details>` 를 다시 만든다(그러면 라벨과
+ * 포커스 표시가 화면마다 갈라진다). 그래서 primitive 로 둔다.
+ */
+export function TechDetail({ label = "기술 정보", children, sx }) {
+  if (children == null || children === "" || children === false) return null;
+  return (
+    <Box
+      component="details"
+      className="k-techdetail"
+      sx={{
+        "& > summary": {
+          cursor: "pointer", fontSize: FONT_SIZE.bodySm, color: "text.secondary",
+          listStyle: "revert", width: "fit-content",
+        },
+        "& > summary:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+        ...sx,
+      }}
+    >
+      <Box component="summary">{label}</Box>
+      <Box sx={{ mt: 0.75, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
 export function Callout({ tone = "info", variant = "block", detail, detailLabel = "기술 정보", children }) {
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
@@ -372,7 +405,7 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
    * 기호는 문화·스크린리더별로 읽히는 방식이 달라 이 앱은 처음부터 글자를 택했다.
    *
    * `detail` 은 긴 기술 설명을 접어 둔다(지시 35: "긴 기술 설명을 하나의 Alert 안에 모두
-   * 넣지 않는다"). 열기 전에는 한 줄도 차지하지 않는다.
+   * 넣지 않는다"). 표현은 `TechDetail` 이 맡는다 - 표·카드도 같은 접기를 쓴다.
    */
   const kind = tone === "ok" ? "success" : tone;
   const label = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "완료" : "안내";
@@ -418,21 +451,7 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
       }}
     >
       <Box sx={{ minWidth: 0 }}>{body}</Box>
-      {detail ? (
-        <Box
-          component="details"
-          sx={{
-            "& > summary": {
-              cursor: "pointer", fontSize: FONT_SIZE.bodySm, color: "text.secondary",
-              listStyle: "revert", width: "fit-content",
-            },
-            "& > summary:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
-          }}
-        >
-          <Box component="summary">{detailLabel}</Box>
-          <Box sx={{ mt: 0.75, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>{detail}</Box>
-        </Box>
-      ) : null}
+      <TechDetail label={detailLabel}>{detail}</TechDetail>
     </Box>
   );
 }

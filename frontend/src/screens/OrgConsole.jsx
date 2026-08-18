@@ -3,7 +3,8 @@ import Box from "@mui/material/Box";
 import { DataScreen } from "./DataScreen.jsx";
 import { OrgTree, isOrgRow } from "./OrgTree.jsx";
 import { ORG_SCREENS } from "./registry/org.js";
-import { Callout, PageHeader } from "../ui/kit.jsx";
+import { PageHeader } from "../ui/kit.jsx";
+import { Note } from "../ui/adminKit.jsx";
 
 /* 조직 콘솔 — 조직 관리, 부서 관리, 조직도를 한 화면으로.
  *
@@ -71,7 +72,7 @@ export function OrgConsole({ defaultKind = "organizations" }) {
     <div className="c-screen">
       <PageHeader area="사용자와 권한" title="조직도" />
       <Box sx={{ mb: 2.5 }}>
-        <Callout>조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.</Callout>
+        <Note sx={{ mt: 0 }}>조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.</Note>
       </Box>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 2.5 }}>
         <Box data-testid="org-console-tree" sx={TREE_PANE}>

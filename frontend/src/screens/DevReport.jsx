@@ -18,6 +18,7 @@ import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
+import { Note } from "../ui/adminKit.jsx";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
 function thisMonth() {
@@ -149,9 +150,9 @@ export function DevReport() {
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
       <Box sx={{ mb: 3 }}>
-        <Callout>
+        <Note sx={{ mt: 0 }}>
           마감일이 선택한 달인 티켓을 Notion에서 실시간으로 읽어 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다.
-        </Callout>
+        </Note>
       </Box>
 
       <Card className="devrep-noprint" sx={{ p: 2, mb: 3 }}>
@@ -304,9 +305,9 @@ export function DevReport() {
           </Box>
 
           <Box sx={{ mb: 4 }}>
-            <Callout tone="info">
+            <Note sx={{ mt: 0 }}>
               완료 건수와 완료 예상 WD는 그 사람이 이번 달에 실제로 마무리한 일의 양을 나타냅니다. 진행과 검증 건수가 많으면 지금 손에 쥔 일이 많다는 뜻이고, 지연 건수는 마감이 지났는데 아직 끝나지 않은 티켓입니다. 완료율은 담당한 일 가운데 끝낸 비율이며 취소는 제외합니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 보아야 공정합니다.
-            </Callout>
+            </Note>
           </Box>
 
           <Box component="section" sx={{ mb: 4 }}>
