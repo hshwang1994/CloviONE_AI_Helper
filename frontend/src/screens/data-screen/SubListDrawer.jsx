@@ -6,7 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Callout, Button, DataTable, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
 import { successMessageFor } from "./successMessages.js";
@@ -148,7 +148,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
           ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다. 일부 관련 항목이 누락됐을 수 있습니다."
           : "결과가 500건으로 제한되어 일부 항목이 보이지 않을 수 있습니다."}</Callout>
       ) : null}
-      {q.isLoading ? <Skeleton lines={4} />
+      {q.isLoading ? <DataTable columns={cols} rows={[]} loading />
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : rows.length === 0 ? <EmptyState title={sl.emptyTitle || "표시할 항목이 없습니다"} help={sl.emptyHelp} />
         : <>

@@ -31,7 +31,7 @@ import { NOTIFICATIONS_SCREEN } from "../screens/registry/notifications.js";
 // App.jsx가 이미 무조건 정적으로 물어 오는 가벼운 모듈(아이콘 레퍼런스 + 배열)이라 이
 // 파일이 추가로 들여와도 초기 번들 비용이 늘지 않는다.
 import { NAV } from "./navConfig.js";
-import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
+import { Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 
 /* 사용자 콘솔 라우트
  *
@@ -45,8 +45,11 @@ import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 const Chat = React.lazy(() => import("../screens/Chat.jsx").then((m) => ({ default: m.Chat })));
 const GameRoom = React.lazy(() => import("../screens/GameRoom.jsx").then((m) => ({ default: m.GameRoom })));
 
+/* 라우트 청크가 통째로 아직 없다 — 회색 줄 여섯 개는 "무언가 온다"까지만 말하고, 실제
+ * 화면이 도착하면 제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡는다
+ * (지시 20, D-157). */
 function Lazy({ children }) {
-  return <React.Suspense fallback={<Card><Skeleton lines={6} /></Card>}>{children}</React.Suspense>;
+  return <React.Suspense fallback={<Skeleton kind="page" lines={4} />}>{children}</React.Suspense>;
 }
 
 /* PA-RC-0024: 모르는 주소로 들어오면 전부 조용히 /me 로 튕겼다 — 관리자 화면 링크를

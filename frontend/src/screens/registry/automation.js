@@ -444,10 +444,23 @@ export const AUTOMATION_SCREENS = {
         return "지연 " + Math.floor(m / 60) + "시간 " + (m % 60) + "분";
       } },
       { key: "attempt_count", label: "시도", render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
-      // 실패 사유를 목록에서 바로 훑을 수 있게(예전엔 상세 드로어를 하나씩 열어야만 보였다) — 스케줄
-      // 실행 이력의 truncate-at-60 패턴과 동일. title 속성으로 truncateCol과 동일하게 마우스 오버 시
-      // 전체 텍스트를 미리 볼 수 있게 한다.
-      { key: "last_error", label: "오류", render: (r) => { const v = r.last_error; if (!v) return "-"; const s = String(v); return s.length > 60 ? React.createElement("span", { title: s }, s.slice(0, 60) + "…") : s; } }],
+      /* 실패 사유를 목록에서 바로 훑을 수 있게(예전엔 상세 드로어를 하나씩 열어야만 보였다).
+       *
+       * **여기서는 원문이 화면의 내용인 것이 맞다**(지시 36 판정, D-162): 작업 큐는 장애를
+       * 보는 사람이 오는 기술 화면이고, 요약으로 바꾸면 그 사람에게서 유일한 단서를 빼앗는다.
+       * 메일 화면처럼 사람이 읽는 요약이 앞에 서야 하는 자리와는 목적이 다르다.
+       *
+       * 다만 60자에서 글자 중간을 자르면 `TypeError: Cannot read prope…` 처럼 아무 정보도
+       * 없는 조각이 남을 때가 있다 — 예외 원문은 첫 줄이 곧 요약이므로 **첫 줄**을 보여 주고,
+       * 그보다 길면 그때 자른다. 전체는 행을 열면 상세에 그대로 있다. */
+      { key: "last_error", label: "오류", render: (r) => {
+        const v = r.last_error;
+        if (!v) return "-";
+        const first = String(v).split("\n")[0];
+        const cut = first.length > 80 ? first.slice(0, 80) + "…" : first;
+        const more = cut !== String(v);
+        return React.createElement("span", { title: more ? String(v) : undefined }, cut);
+      } }],
     // available_at·last_error는 목록 열에도 있지만 그 열은 각각 '지연 여부만'(대기 상태 한정)과
     // '60자로 자른 요약'만 보여준다 — 상세에서는 같은 값을 실제 시각/전체 텍스트로 보여줘야 하므로
     // (드로어 중복 제거는 key 기준이라) 목록 열과 겹치지 않는 별도 key를 쓴다.

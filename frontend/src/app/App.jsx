@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth.jsx";
-import { Card, Skeleton } from "../ui/kit.jsx";
+import { Skeleton } from "../ui/kit.jsx";
 import { AppShell, ShellErrorFallback } from "./AppShell.jsx";
 import { LoginHandoff } from "./LoginHandoff.jsx";
 
@@ -108,7 +108,7 @@ function Layout() {
         {/* 오류 경계를 본문에만 두고 경로별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
             살아 이동 가능하다. */}
         <ErrorBoundary key={loc.pathname}>
-          <React.Suspense fallback={<Card><Skeleton lines={6} /></Card>}>
+          <React.Suspense fallback={<Skeleton kind="page" lines={4} />}>
             {useUserConsole ? <UserRoutes /> : <AdminRoutes />}
           </React.Suspense>
         </ErrorBoundary>

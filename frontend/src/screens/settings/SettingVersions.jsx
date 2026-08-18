@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { Card, Button, DataTable, Modal, Skeleton, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Card, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { summarizeSetting, securityDowngradeWarning, displayValue } from "./settingsRegistry.js";
 import { DateCell } from "../../ui/cells.jsx";
 
@@ -81,7 +81,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
           자주 손보는 설정은 기록이 눈에 안 띄게 계속 늘어날 수 있어, 최소한 개수라도 먼저 보여준다
           (DataScreen의 capWarning과 같은 취지 — '이 목록이 얼마나 긴지' 모르는 채로 스크롤하지 않게). */}
       {!vq.isLoading && !vq.isError && items.length > 0 ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>{items.length}건</Typography> : null}
-      {vq.isLoading ? <Skeleton lines={4} />
+      {vq.isLoading ? <DataTable columns={columns} rows={[]} loading />
         : vq.isError ? <ErrorState error={vq.error} onRetry={() => vq.refetch()} />
         : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
         : <Card><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}

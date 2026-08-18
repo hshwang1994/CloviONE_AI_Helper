@@ -298,7 +298,7 @@ export function Projects() {
         ) : null}
       </Card>
 
-      {q.isPending ? <Card><Skeleton lines={6} /></Card>
+      {q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : items.length === 0 ? (
           <Card>

@@ -6,7 +6,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
-import { PageHeader, Card, Badge, Button, DataTable, Skeleton, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, DataTable, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
 import { ToolbarEnd, ToolbarRow } from "../../ui/FilterBar.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
@@ -130,7 +130,7 @@ export function Settings({ embedded = false } = {}) {
   return (
     <div className="c-screen">
       {embedded ? null : <PageHeader area="운영" title="설정" />}
-      {q.isLoading ? <Card><Skeleton lines={5} /></Card>
+      {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.
            응답이 비정상(빈 형태)일 때를 위한 방어적 폴백으로만 남긴다. */

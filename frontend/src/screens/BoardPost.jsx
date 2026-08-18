@@ -17,6 +17,7 @@ import {
   ErrorState,
   PageHeader,
   Skeleton,
+  Tag,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
@@ -28,7 +29,7 @@ import { PROSE_MAX_WIDTH } from "../ui/theme.js";
    몇 글자 안 들어간다. 화면 전체로 늘리지도 않는다 — 4K 에서 3,000px 짜리
    한 줄은 눈이 다음 줄 첫 글자를 못 찾는다. */
 const PROSE_MAX_WIDTH_WIDE = "min(100%, 68rem)";
-import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
+import { ideaStatusKind } from "../lib/badges.js";
 import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
@@ -516,8 +517,8 @@ export function BoardPost() {
       <Box sx={{ display: "grid", rowGap: 3, maxWidth: PROSE_MAX_WIDTH_WIDE }}>
         <Card component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
-            {post.is_pinned ? <Badge value="고정" kind="info" /> : null}
-            <Badge value={post.category} kind={boardCategoryKind(post.category)} />
+            {post.is_pinned ? <Tag label="고정" /> : null}
+            <Tag label={post.category} />
             {/* 🔴 상태 배지는 **종류로** 가른다(값이 아니라). 값으로 가르면 서버가 실수로
                 실어 보낸 `idea_status` 가 자유게시글에 그대로 그려진다. */}
             {isIdea && post.idea_status ? (

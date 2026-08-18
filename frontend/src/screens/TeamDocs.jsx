@@ -28,7 +28,6 @@ import {
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { invalidateDocumentViews } from "./document-views.js";
 import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { docTypeKind } from "../lib/badges.js";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { FilterBarGrid, ToolbarEnd, ToolbarRow, TOOLBAR_SEARCH_SX } from "../ui/FilterBar.jsx";
@@ -345,7 +344,7 @@ export function TeamDocs() {
         </Link>
       ),
     },
-    { key: "document_type", label: "문서 종류", width: "12%", render: (d) => (d.document_type ? <Badge value={d.document_type} kind={docTypeKind(d.document_type)} /> : "-") },
+    { key: "document_type", label: "문서 종류", width: "12%", render: (d) => (d.document_type ? <Tag label={d.document_type} /> : "-") },
     { key: "work_field", label: "업무 분야", width: "13%", render: (d) => d.work_field || "-" },
     { key: "tech_tags", label: "기술 태그", width: "13%", render: (d) => (d.tech_tags || []).join(", ") || "-" },
     { key: "projects", label: "프로젝트", width: "10%", render: (d) => (d.projects || []).join(", ") || "-" },
@@ -589,8 +588,9 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-        {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
-        {doc.work_field ? <Badge value={doc.work_field} kind="neutral" /> : null}
+        {/* 문서 종류·업무 분야는 분류다 — 상태 배지와 같은 모양을 쓰지 않는다(지시 11). */}
+        {doc.document_type ? <Tag label={doc.document_type} /> : null}
+        {doc.work_field ? <Tag label={doc.work_field} /> : null}
         <Box sx={{ flex: 1 }} />
         {/* 여러 건 고르기는 카드에서도 된다 — 보기를 바꿨다고 할 수 있던 일이 사라지면
             그건 개선이 아니라 기능 축소다. */}

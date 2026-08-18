@@ -17,12 +17,13 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
+  Tag,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
+import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { SearchBox } from "../ui/filters.jsx";
@@ -420,7 +421,8 @@ function BoardScreen({ kind = "free" }) {
       openLabel: (p) => "상세 보기: " + (p.title || ""),
       render: (p) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-          {p.is_pinned ? <Badge value="고정" kind="info" /> : null}
+          {/* 고정은 상태가 아니라 이 글의 속성이다 — 색 등급을 매기지 않는다(지시 11). */}
+          {p.is_pinned ? <Tag label="고정" /> : null}
           <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</Box>
           {p.comment_count > 0 ? (
             <Box component="span" sx={{ color: "primary.dark", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm, flexShrink: 0 }}>
@@ -430,7 +432,7 @@ function BoardScreen({ kind = "free" }) {
         </Box>
       ),
     },
-    { key: "category", label: "카테고리", width: "8rem", render: (p) => <Badge value={p.category} kind={boardCategoryKind(p.category)} /> },
+    { key: "category", label: "카테고리", width: "8rem", render: (p) => <Tag label={p.category} /> },
     /* 🔴 상태 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
        "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
        (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라

@@ -243,7 +243,10 @@ export function ImportModal({ onClose, onImported }) {
       />
       {preview ? (
         <Box sx={{ mt: 2 }}>
-          <Callout tone={preview.failed ? "warn" : "info"}>
+          {/* 실패한 행이 있다는 것은 "그 계정이 만들어지지 않았다"는 뜻이다 — 주의가 아니라
+              오류다(D-155). 미리 보기에서의 실패도 마찬가지로 적용하면 그대로 실패한다.
+              건너뜀(이미 있는 이메일)은 설계된 정상 동작이라 등급을 올리지 않는다. */}
+          <Callout tone={preview.failed ? "danger" : "info"}>
             {preview.dry_run ? "미리 보기: " : "적용 결과: "}
             총 {preview.total}행, {preview.dry_run ? "추가 예정" : "추가"} {preview.created}
             {", 건너뜀 "}{preview.skipped}{", 실패 "}{preview.failed}

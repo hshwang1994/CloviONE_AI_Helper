@@ -15,13 +15,15 @@ import {
   MetaBar,
   PageHeader,
   Skeleton,
+  /* 이 파일에는 목록 태그 이름을 담는 지역 변수 `Tag` 가 이미 있다(본문 렌더러).
+     같은 이름이 두 뜻을 가지면 읽는 사람이 매번 어느 쪽인지 따져야 하므로 별칭을 준다. */
+  Tag as CategoryTag,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
 import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
-import { docTypeKind } from "../lib/badges.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { EditableBody } from "../ui/EditableBody.jsx";
@@ -322,7 +324,7 @@ export function TeamDoc() {
           <Card component="article" sx={{ minWidth: 0 }}>
             <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
               {doc.status ? <Badge value={doc.status} /> : null}
-              {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
+              {doc.document_type ? <CategoryTag label={doc.document_type} /> : null}
               {doc.restricted ? <Badge value="열람 제한" kind="warn" /> : null}
             </Stack>
             {doc.restricted ? (

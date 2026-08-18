@@ -44,7 +44,8 @@ const Search = React.lazy(() => import("../screens/Search.jsx"));
 const SchedulerCalendar = React.lazy(() => import("../screens/SchedulerCalendar.jsx"));
 const Integrity = React.lazy(() => import("../screens/Integrity.jsx").then((m) => ({ default: m.Integrity })));
 
-const ROUTES_FALLBACK = <Card><Skeleton lines={6} /></Card>;
+// 라우트 청크가 통째로 아직 없다 — `UserRoutes.jsx::Lazy` 와 같은 이유로 화면 모양을 그린다.
+const ROUTES_FALLBACK = <Skeleton kind="page" lines={4} />;
 
 /* 역할 가드 — 나브 항목만 숨기면 해시 URL 직접 진입 시 죽은 껍데기(수집 버튼 없는 진단 등)가
  * 그려진다. 라우트 자체를 역할로 감싸 권한 없는 사용자에겐 명확한 안내를 보인다. */
