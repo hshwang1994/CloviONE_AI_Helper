@@ -185,3 +185,38 @@ describe("명령 팔레트", () => {
     );
   });
 });
+
+/* 지시 14 — 통합 검색 겉모습.
+ *
+ * 예전에는 흰 팝업(600px) 안의 평범한 목록이었다. 4K 에서 화면 폭의 1/6 짜리 상자였고,
+ * 지금 고른 줄은 MUI 기본 옅은 배경뿐이라 키보드로 훑으면 놓치기 쉬웠다. 여기서 고정하는
+ * 것은 "무엇이 지금 선택돼 있는지 눈으로 알 수 있는가"와 "이 창을 키보드로 어떻게 쓰는지
+ * 화면이 말하는가"다.
+ */
+describe("통합 검색 — 겉모습 계약", () => {
+  it("키보드 사용법을 화면이 말한다", async () => {
+    renderPalette();
+    expect(await screen.findByText("↑ ↓ 이동")).toBeInTheDocument();
+    expect(screen.getByText("Enter 열기")).toBeInTheDocument();
+    expect(screen.getByText("Esc 닫기")).toBeInTheDocument();
+  });
+
+  it("고른 줄은 옅은 배경만이 아니라 앞머리 표시를 갖는다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await screen.findByText("스프린트 회의록 정리");
+    const selected = document.querySelector(".Mui-selected");
+    expect(selected, "선택된 줄이 없다").toBeTruthy();
+    // 색만으로 선택을 전하지 않는다 — 앞머리 테두리가 함께 선다.
+    expect(getComputedStyle(selected).borderInlineStartWidth).not.toBe("0px");
+  });
+
+  it("구역 제목이 스크롤에 따라 붙박이로 남는다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await screen.findByText("스프린트 회의록 정리");
+    const sub = document.querySelector(".MuiListSubheader-root");
+    expect(sub).toBeTruthy();
+    expect(getComputedStyle(sub).position).toBe("sticky");
+  });
+});

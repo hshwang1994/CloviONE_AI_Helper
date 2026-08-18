@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Typography from "@mui/material/Typography";
-export { badgeCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, enabledCol, truncateCol } from "../DataScreen.jsx";
+export { badgeCol, boolCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, enabledCol, truncateCol } from "../DataScreen.jsx";
 export { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
 import { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";

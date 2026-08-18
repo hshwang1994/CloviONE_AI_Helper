@@ -978,7 +978,9 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
               {cols.map((c) => (
                 <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
                   <Typography variant="caption" color="text.secondary">{c.label}</Typography>
-                  <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{cellValue(c, row, ctx)}</Box>
+                  {/* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
+                      안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */}
+                  <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
                 </Box>
               ))}
             </Paper>
@@ -1081,8 +1083,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                       sx={truncate
                         ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0,
                            minWidth: colMinWidth(c) }
-                        : { overflowWrap: c.nowrap ? "normal" : "anywhere",
-                           whiteSpace: c.nowrap ? "nowrap" : undefined,
+                        : { ...(c.nowrap ? { overflowWrap: "normal", whiteSpace: "nowrap" } : KO_WORD_BREAK),
                            minWidth: colMinWidth(c) }}
                     >
                       {raw != null ? raw : cellValue(c, row, ctx)}

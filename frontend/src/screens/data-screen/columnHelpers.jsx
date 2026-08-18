@@ -19,6 +19,15 @@ export const activeCol = (label) => ({ key: "active", label, render: (r) => <Bad
 // 일반 badgeCol의 '예/아니오'는 화면 필터의 '활성'/'비활성' 어휘와 어긋나고, 꺼짐이 중립(회색)
 // 톤이라 훑어보다 놓치기 쉬웠다 — 스케줄·연동·러너·워크플로 4곳이 이 패턴이 필요했다.
 export const enabledCol = (label) => ({ key: "enabled", label, render: (r) => <Badge value={r.enabled ? "활성" : "비활성"} kind={r.enabled ? "ok" : "warn"} /> });
+/* 요구사항 boolean → **평문**. 상태가 아니라 성질이라 배지를 주지 않는다(지시 11).
+ *
+ * `badgeCol("approval_required")` 는 원시 boolean 이 statusText 를 타 `아니요` 라는 알약이
+ * 됐다 — 지시 11 이 이름까지 들어 지적한 그 알약이다. 표 한 줄에 상태 알약과 성질 알약이
+ * 나란히 있으면 무엇이 지금 벌어지는 일이고 무엇이 이 항목의 성질인지 구분되지 않는다.
+ * 단순 텍스트가 맞는 곳에서는 배지를 뺀다. */
+export const boolCol = (key, label, yes, no) => ({
+  key, label, render: (r) => (r[key] ? yes : no),
+});
 // 외부 링크 열(예: 발행된 Notion 문서) — http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
 export const linkCol = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];

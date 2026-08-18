@@ -185,7 +185,10 @@ export function StatusTile({ name, onClick, ariaLabel, children }) {
 // id를 받는다 — 이 문단이 곧 입력의 설명(aria-describedby 대상)이 되는 자리가 있다(Ops의 점검 공지).
 export function Note({ children, sx, id }) {
   return (
-    <Typography id={id} variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6, ...sx }}>
+    /* 한국어 설명 문단이라 `KO_WORD_BREAK` 가 필요하다 — 없으면 좁은 칸에서 "도와드/려요"
+       처럼 단어 중간에서 줄이 바뀐다(ui/ko-wordbreak.test.jsx 가 지키는 그 결함). Callout 을
+       대신해 설명을 받게 된 뒤로는 이쪽이 그 문장들의 집이다. */
+    <Typography id={id} variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6, ...KO_WORD_BREAK, ...sx }}>
       {children}
     </Typography>
   );

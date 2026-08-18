@@ -6,7 +6,6 @@ import InputBase from "@mui/material/InputBase";
 import LinearProgress from "@mui/material/LinearProgress";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
 import ListSubheader from "@mui/material/ListSubheader";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -14,7 +13,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
  *
@@ -174,15 +173,32 @@ export function CommandPalette({ open, onClose, groups }) {
   const failed = searchable && search.isError && !search.isFetching;
 
   return (
+    /* 통합 검색 (지시 14).
+     *
+     * 예전에는 흰 팝업(600px) 안의 평범한 목록이었다. 4K 에서 화면 폭의 1/6 을 차지하는
+     * 상자에 결과가 두 줄씩 쌓였고, 지금 고른 줄은 MUI 기본 옅은 배경뿐이라 키보드로
+     * 훑으면 어디 있는지 놓치기 쉬웠다. 그리고 결과 유형(메뉴/티켓/문서)은 구역 제목에만
+     * 있어서, 목록을 반쯤 내려가면 지금 보는 것이 무엇인지 알 수 없었다.
+     *
+     * 바뀐 것: 폭을 실제 화면에 맞게 넓히고, 고른 줄에 **앞머리 레일 + 안쪽 바탕**을 주고
+     * (계기판의 현재 선택 표현과 같은 어휘), 줄마다 유형 표지를 달고, 아래에 키 안내를
+     * 상시로 둔다. 목록은 여전히 한 줄에 하나 - 두 줄짜리 카드로 만들면 한 화면에 들어오는
+     * 결과가 절반이 된다. */
     <Dialog
       open={!!open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth={false}
       fullWidth
       aria-label="통합 검색"
-      sx={{ "& .MuiDialog-paper": { alignSelf: "flex-start", mt: { xs: 4, sm: 12 }, borderRadius: 3 } }}
+      sx={{
+        "& .MuiDialog-paper": {
+          alignSelf: "flex-start", mt: { xs: 4, sm: 10 },
+          width: "min(46rem, calc(100% - 2rem))", maxWidth: "none",
+          borderRadius: `${RADIUS.lg}px`,
+        },
+      }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 3, py: 2, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2.5, py: 1.75, borderBottom: 1, borderColor: "divider" }}>
         <SearchRoundedIcon aria-hidden="true" sx={{ color: "text.secondary" }} />
         <InputBase
           inputRef={inputRef}
@@ -193,19 +209,16 @@ export function CommandPalette({ open, onClose, groups }) {
           onKeyDown={onKeyDown}
           placeholder="검색 (티켓, 문서, 게시판, 메뉴)"
           inputProps={{ "aria-label": "통합 검색" }}
-          sx={{ fontSize: "1rem" }}
+          sx={{ fontSize: FONT_SIZE.title }}
         />
-        <Box component="kbd" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.25 }}>
-          Esc
-        </Box>
       </Box>
       {/* 높이가 0인 자리를 늘 잡아 두면 결과 목록이 위아래로 튀지 않는다. */}
       <Box sx={{ height: "0.25rem" }}>
         {busy ? <LinearProgress aria-label="검색 중" sx={{ height: "0.25rem" }} /> : null}
       </Box>
-      <DialogContent sx={{ p: 0, maxHeight: "60vh" }}>
+      <DialogContent sx={{ p: 0, maxHeight: "62vh" }}>
         {flat.length === 0 ? (
-          <Typography sx={{ p: 4, textAlign: "center" }} color="text.secondary">
+          <Typography sx={{ px: 3, py: 5, textAlign: "center", ...KO_WORD_BREAK }} color="text.secondary">
             {!q
               ? "메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요."
               : busy
@@ -218,43 +231,97 @@ export function CommandPalette({ open, onClose, groups }) {
                   : "검색 결과 없음"}
           </Typography>
         ) : (
-          <List dense disablePadding>
+          <List dense disablePadding sx={{ py: 0.5 }}>
             {sections.map((section) => (
               <li key={section.key}>
                 <ul style={{ padding: 0, margin: 0, listStyle: "none" }}>
-                  <ListSubheader disableSticky sx={{ bgcolor: "transparent", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, letterSpacing: ".04em" }}>
+                  {/* 붙박이 제목. 예전에는 구역을 벗어나 스크롤하면 지금 보는 것이 무엇인지
+                      알 수 없었다. 줄마다 유형을 다시 적으면 같은 말을 두 번 하는 것이라
+                      (지시 44) 제목이 따라오게 한다. */}
+                  <ListSubheader
+                    sx={{
+                      bgcolor: "background.paper", color: "text.faint", lineHeight: 2.2,
+                      px: 2.5, fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, letterSpacing: ".06em",
+                      borderBottom: 1, borderColor: "divider",
+                    }}
+                  >
                     {section.label}
                   </ListSubheader>
-                  {section.items.map((it) => {
-                    const idx = flat.indexOf(it);
-                    return (
-                      <ListItemButton
-                        key={it.key}
-                        selected={idx === cursor}
-                        onMouseEnter={() => setCursor(idx)}
-                        onClick={() => go(it.to)}
-                      >
-                        <ListItemText primary={it.label} secondary={it.hint || null} />
-                      </ListItemButton>
-                    );
-                  })}
+                  {section.items.map((it) => (
+                    <PaletteRow
+                      key={it.key} item={it}
+                      selected={flat.indexOf(it) === cursor}
+                      onHover={() => setCursor(flat.indexOf(it))}
+                      onPick={() => go(it.to)}
+                    />
+                  ))}
                 </ul>
               </li>
             ))}
             {seeAll ? (
-              <ListItemButton
-                key={seeAll.key}
+              <PaletteRow
+                item={seeAll}
                 selected={flat.indexOf(seeAll) === cursor}
-                onMouseEnter={() => setCursor(flat.indexOf(seeAll))}
-                onClick={() => go(seeAll.to)}
-              >
-                <ListItemText primary={seeAll.label} secondary={seeAll.hint} />
-              </ListItemButton>
+                onHover={() => setCursor(flat.indexOf(seeAll))}
+                onPick={() => go(seeAll.to)}
+              />
             ) : null}
           </List>
         )}
       </DialogContent>
+      {/* 키 안내는 상시로 둔다 - 팔레트를 키보드로 쓰는 사람에게 그것이 이 창의 사용법이다. */}
+      <Box
+        sx={{
+          display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
+          px: 2.5, py: 1, borderTop: 1, borderColor: "divider",
+          fontSize: FONT_SIZE.caption, color: "text.faint",
+        }}
+      >
+        <Box component="span">↑ ↓ 이동</Box>
+        <Box component="span">Enter 열기</Box>
+        <Box component="span">Esc 닫기</Box>
+      </Box>
     </Dialog>
+  );
+}
+
+/* 결과 한 줄. 고른 줄은 앞머리 레일 + 안쪽 바탕으로 말한다 - 옅은 배경만으로는 키보드로
+ * 빠르게 훑을 때 놓친다(지시 14). 유형은 붙박이 구역 제목이 말한다. */
+function PaletteRow({ item, selected, onHover, onPick }) {
+  return (
+    <ListItemButton
+      selected={selected}
+      onMouseEnter={onHover}
+      onClick={onPick}
+      sx={{
+        px: 2.5, py: 0.875, gap: 1.5, alignItems: "baseline",
+        borderInlineStart: 2, borderColor: "transparent",
+        "&.Mui-selected, &.Mui-selected:hover": {
+          bgcolor: "background.inset", borderColor: "primary.main",
+        },
+      }}
+    >
+      <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "baseline", gap: 1.5 }}>
+        <Typography
+          component="span"
+          sx={{
+            fontSize: FONT_SIZE.body, fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {item.label}
+        </Typography>
+        {item.hint ? (
+          <Typography
+            component="span"
+            color="text.faint"
+            sx={{ fontSize: FONT_SIZE.caption, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
+          >
+            {item.hint}
+          </Typography>
+        ) : null}
+      </Box>
+    </ListItemButton>
   );
 }
 

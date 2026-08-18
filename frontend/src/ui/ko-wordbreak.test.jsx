@@ -3,7 +3,8 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { Callout, EmptyState } from "./kit.jsx";
+import { Callout, DataTable, EmptyState, MetaBar, TechDetail } from "./kit.jsx";
+import { Note, SettingRow } from "./adminKit.jsx";
 import { KO_WORD_BREAK } from "./theme.js";
 
 /* 한국어 도움말이 **단어 중간에서** 줄바꿈되지 않는다 (사용자 지적 #11).
@@ -62,5 +63,45 @@ describe("한국어 줄바꿈", () => {
     expect(getComputedStyle(heading).wordBreak).toBe("keep-all");
     expect(getComputedStyle(help).wordBreak).toBe("keep-all");
     expect(getComputedStyle(steps).wordBreak).toBe("keep-all");
+  });
+});
+
+/* 2026-08-19 — 같은 결함이 또 났다. `Callout` 이 지고 있던 설명 문단이 `Note`(adminKit)로,
+ * 상세 화면의 속성이 `MetaBar` 로, 기술 원문이 `TechDetail` 로 옮겨 갔는데 토큰은 따라가지
+ * 않았다. 그리고 **표 셀**은 처음부터 `overflowWrap:anywhere` 단독이라 한글이 음절 단위로
+ * 끊겼다 — 영문에서는 안 생기는 일이라 아무도 눈치채지 못했다.
+ *
+ * 새 공용 부품이 생길 때마다 이 목록에 한 줄을 더한다. 목록이 검사기다. */
+describe("한국어 줄바꿈 — 글을 담는 공용 부품 전부", () => {
+  const SAMPLE = "아주긴한국어문장입니다";
+  const CASES = [
+    ["Note", <Note key="n">{SAMPLE}</Note>],
+    ["TechDetail", <TechDetail key="t">{SAMPLE}</TechDetail>],
+    ["MetaBar", <MetaBar key="m" items={[{ key: "a", label: "담당자", value: SAMPLE }]} />],
+    ["SettingRow", <SettingRow key="s" label="타임존" value={SAMPLE} />],
+    ["SettingRow 설명", <SettingRow key="d" label="타임존" description={SAMPLE} />],
+  ];
+
+  for (const [name, node] of CASES) {
+    it(name + " 안의 글은 단어를 지킨다", () => {
+      render(node);
+      // 그 글을 실제로 담고 있는 요소를 본다 — 바깥 상자에 토큰이 있어도 글이 다른 요소
+      // 안에 있으면 아무 효과가 없다(토큰만 있고 안 쓰이는 상태를 잡는 것이 이 파일의 목적).
+      const el = screen.getByText(SAMPLE);
+      expect(getComputedStyle(el).wordBreak, name + " 의 글에 토큰이 도달하지 않았다").toBe("keep-all");
+    });
+  }
+
+  it("표 셀이 한글을 음절 단위로 끊지 않는다", () => {
+    const { container } = render(
+      <DataTable
+        columns={[{ key: "title", label: "제목", render: (r) => r.title }]}
+        rows={[{ id: 1, title: "아주긴한국어제목입니다" }]}
+        rowKey={(r) => r.id}
+      />,
+    );
+    const cell = container.querySelector("tbody td");
+    expect(cell).toBeTruthy();
+    expect(getComputedStyle(cell).wordBreak).toBe("keep-all");
   });
 });

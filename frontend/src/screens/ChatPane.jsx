@@ -363,15 +363,14 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                   <Paper
                     elevation={0}
                     sx={{
-                      px: 1.5, py: 1, borderRadius: 2.5, minWidth: 0,
+                      /* 지시 15 — 팀 채팅도 AI 채팅과 같은 이유로 채팅 앱 관용구를 벗는다:
+                         모서리마다 다른 반지름(꼬리)과 강조색 번짐 그림자를 걷고, 화자 구분은
+                         정렬 + 면으로만 한다. `MessageThread` 와 같은 규칙이다. */
+                      px: 1.5, py: 1, borderRadius: `${RADIUS.lg}px`, minWidth: 0,
                       fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
                       ...(mine
-                        ? {
-                            bgcolor: "primary.main", color: "primary.contrastText",
-                            borderBottomRightRadius: "0.375rem",
-                            boxShadow: (t) => `0 2px 10px ${alpha(t.palette.primary.main, 0.28)}`,
-                          }
-                        : { bgcolor: "background.default", border: 1, borderColor: "divider", borderBottomLeftRadius: "0.375rem" }),
+                        ? { bgcolor: "primary.main", color: "primary.contrastText" }
+                        : { bgcolor: "background.inset" }),
                       // 나를 부른 말은 눈에 띄어야 한다 — 알림은 갔는데 대화에서 어느 줄인지
                       // 찾을 수 없으면 알림만 시끄럽고 쓸모가 없다. 판정은 서버가 한다(mentions_me).
                       ...(m.mentions_me

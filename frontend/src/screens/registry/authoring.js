@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { Badge, OBJTYPE_OPTS, TEMPLATE_TARGET_OPTS, WRITE_ROLES, badgeCol, col, dateCol, field, jsonField, mapCol, opt, truncateCol, writerEmptyHelp } from "./shared.js";
+import { Badge, OBJTYPE_OPTS, TEMPLATE_TARGET_OPTS, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, jsonField, mapCol, opt, truncateCol, writerEmptyHelp } from "./shared.js";
 import { TEMPLATE_SCHEMA_FIELDS, assembleInputSchema, disassembleInputSchema, nameVersionsAction, onoff } from "./actions.js";
 
 export const AUTHORING_SCREENS = {
@@ -195,7 +195,7 @@ export const AUTHORING_SCREENS = {
         title: "이 정책을 쓰는 템플릿",
         endpoint: () => "/api/admin/templates",
         filterRows: (t, parent) => t.policy_id === parent.id,
-        columns: [col("name", "이름"), mapCol("target_type", "대상 유형", { workflow: "워크플로", runner: "러너" }), badgeCol("enabled", "활성")],
+        columns: [col("name", "이름"), mapCol("target_type", "대상 유형", { workflow: "워크플로", runner: "러너" }), enabledCol("활성")],
         emptyTitle: "이 정책을 쓰는 템플릿이 없습니다",
         emptyHelp: "아직 이 정책 이름을 policy_id로 참조하는 템플릿이 없습니다.",
       } },

@@ -35,7 +35,7 @@ import { successMessageFor } from "./data-screen/successMessages.js";
 // registry/shared.js가 `from "../DataScreen.jsx"`로 이 이름들을 그대로 가져다 쓰므로
 // (수십 개 화면의 registry.js가 그 재수출에 기댄다) import 계약이 깨지지 않게 여기서 재수출한다.
 export {
-  badgeCol, mapCol, dateCol, activeCol, enabledCol, linkCol, truncateCol, readCol,
+  badgeCol, boolCol, mapCol, dateCol, activeCol, enabledCol, linkCol, truncateCol, readCol,
   jsonField, objectField, listField, previewField,
 } from "./data-screen/columnHelpers.jsx";
 

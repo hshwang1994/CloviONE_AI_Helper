@@ -137,7 +137,7 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
         ) : (
           <>
             <Button disabled={busy} onClick={() => setEditing(true)}>
-              {item.configured ? "id 변경" : "id 입력"}
+              {item.configured ? "id 수정" : "id 입력"}
             </Button>
             {item.creatable && !item.configured && (
               <Button disabled={busy} onClick={() => onCreate(item)}>

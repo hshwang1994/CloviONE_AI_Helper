@@ -6,7 +6,6 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -16,7 +15,7 @@ import ThumbDownRoundedIcon from "@mui/icons-material/ThumbDownRounded";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
 import { Button } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
   stripDuplicatedTicketLines, ticketPageStart,
@@ -70,29 +69,31 @@ export function Message({
         alignItems: isUser ? "flex-end" : "flex-start",
       }}
     >
+      {/* 말풍선 (지시 15).
+       *
+       * 예전에는 채팅 앱의 관용구를 그대로 입고 있었다: 24px 둥근 모서리에 한쪽만 각진
+       * 꼬리, 그리고 사용자 말풍선 아래 강조색 번짐(`0 2px 10px alpha(primary,.28)`).
+       * 이 제품의 다른 화면에는 그런 그림자도, 모서리마다 다른 반지름도 없다 - 이 영역만
+       * 다른 언어를 쓰고 있었고, 그 언어가 하필 "AI 채팅 제품" 을 가리켰다.
+       *
+       * 화자 구분은 남긴다(정렬 + 면). 다만 구분을 **장식이 아니라 면**으로 한다:
+       * 내 말은 강조색 면, 도우미 말은 안쪽 면. 반지름은 이 앱의 단일 규칙을 따른다. */}
       <Paper
         elevation={0}
         sx={{
           px: 2, py: 1.5, minWidth: 0, maxWidth: "100%",
-          fontSize: "0.9375rem", lineHeight: 1.6, overflowWrap: "anywhere",
-          borderRadius: 3,
+          fontSize: FONT_SIZE.body, lineHeight: 1.6, overflowWrap: "anywhere",
+          borderRadius: `${RADIUS.lg}px`,
           ...(isUser
-            ? {
-                bgcolor: "primary.main", color: "primary.contrastText",
-                borderBottomRightRadius: "0.375rem",
-                boxShadow: (t) => `0 2px 10px ${alpha(t.palette.primary.main, 0.28)}`,
-              }
-            : {
-                bgcolor: "background.paper", border: 1, borderColor: "divider",
-                borderBottomLeftRadius: "0.375rem",
-              }),
+            ? { bgcolor: "primary.main", color: "primary.contrastText" }
+            : { bgcolor: "background.inset" }),
         }}
       >
         {/* 화자 구분은 색/정렬뿐이라 스크린리더엔 안 들린다, 텍스트로도 알린다. */}
         <span className="sr-only">{isUser ? "나: " : "도우미: "}</span>
         {/* 어시스턴트 답은 머리글, 목록, 키-값으로 구조화(텍스트 노드 전용). 사용자 글은 친 그대로. */}
         {content ? (isAssistant ? <RichText text={content} /> : (
-          <Typography sx={{ m: 0, fontSize: "0.9375rem", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{content}</Typography>
+          <Typography sx={{ m: 0, fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{content}</Typography>
         )) : null}
         {attachments.length ? (
           <>

@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
+import { AUTH_OPTS, Badge, HTTP_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, RESERVED_WORKFLOW_NOTES, RUNNER_MAINT_OPTS, WFMODE_OPTS, WF_MODE, WRITE_ROLES, badgeCol, boolCol, col, dateCol, enabledCol, field, mapCol, opt, reservedDisableConfirm, truncateCol, writerEmptyHelp } from "./shared.js";
 import { healthResult, onoff, reachResult, snapCol, testResult, versionsAction } from "./actions.js";
 import { serviceLabel } from "../ops/opsHelpers.js";
 
@@ -322,7 +322,7 @@ export const INTEGRATION_SCREENS = {
     // purpose·owner도 목록 열로 노출 — prompts 화면이 이미 같은 이유로(각 행이 '무엇을 위한 것인지'
     // 상세를 하나씩 열지 않고도 알 수 있게) purpose를 승격한 것과 동일한 패턴(registry.js:572-577).
     columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 40), col("owner", "담당자"),
-      mapCol("operation_mode", "모드", WF_MODE), badgeCol("approval_required", "승인 필요"),
+      mapCol("operation_mode", "모드", WF_MODE), boolCol("approval_required", "승인", "필요", "필요 없음"),
       enabledCol("활성"),
       // provider_n8n.test()는 'reachable'/'unreachable'만 기록한다 — 한 번도 테스트한 적 없는 행은
       // last_test_status가 그냥 null이라, 일반 Badge는 이걸 '알 수 없음'으로 보여준다(오류처럼 읽힘).
