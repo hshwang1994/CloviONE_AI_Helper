@@ -42,6 +42,10 @@ import os
 # 로컬 실행으로도 똑같이 증명된다(FN-05/FN-03b가 이미 쓴 방식과 동일).
 BASE = os.environ.get("USE_AXIS_BASE_URL", "http://127.0.0.1:8080")
 OUT = Path("dist/use-axis-e2e")
+# 비우면 서버가 422("사용자 쿼터에는 user_id 가 필요합니다")로 정확히 거절한다 — 그건
+# 제품이 옳게 동작한 것이고, 쿼터 축은 **한 번도 안 돌아 본 것**이 된다(2026-08-19 실측).
+# 안 주면 로그인한 그 계정 자신에게 건다: 스스로에게 거는 쿼터는 남의 사용에 영향이 없고,
+# 이 스크립트가 곧바로 지운다.
 QA_USER_ID = os.environ.get("USE_AXIS_TARGET_USER_ID", "")
 
 
@@ -68,11 +72,20 @@ def main() -> int:
         b = pw.chromium.launch(headless=True)
         # 로컬 dev 서버 전용 QA 계정(system_admin, 이 파일 상단 주석 참고) — user_cli로
         # 새로 만들었으니 credentials.json 없이도 UI_QA_EMAIL/UI_QA_PASSWORD로 첫 로그인.
-        sess = ensure_session(b, BASE, Path("dist/use-axis-e2e-session"), log=print)
+        # 승인된 TEST SERVER 는 자체 서명 인증서를 쓴다(`USE_AXIS_BASE_URL` 로 겨눌 때).
+        # 그 사실을 안 넘기면 로그인 자체가 ERR_CERT_AUTHORITY_INVALID 로 죽는다 —
+        # 이 파일이 로컬 http 만 상정하고 쓰였기 때문이다(2026-08-19 실측).
+        insecure = BASE.startswith("https://")
+        sess = ensure_session(b, BASE, Path("dist/use-axis-e2e-session"), log=print,
+                              insecure=insecure)
         ctx = new_context(b, storage_state=sess.storage_state, user_id=sess.user_id,
-                          theme="light", viewport=Viewport("1600x1000", 1600, 1000))
-        csrf = ctx.request.get(BASE + "/api/me", timeout=30_000).json().get("csrf_token", "")
+                          theme="light", viewport=Viewport("1600x1000", 1600, 1000),
+                          insecure=insecure)
+        me = ctx.request.get(BASE + "/api/me", timeout=30_000).json()
+        csrf = me.get("csrf_token", "")
         log["csrf"] = bool(csrf)
+        target_user_id = QA_USER_ID or (me.get("user") or {}).get("id") or me.get("id") or sess.user_id
+        log["quota_target_user_id"] = bool(target_user_id)
 
         # ── 1. 공지 배너 — active=False 로 생성, 목록 확인, 삭제 ──────────────
         st, before = call(ctx, "get", "/api/admin/announcements?page=1", csrf)
@@ -105,7 +118,7 @@ def main() -> int:
                                 if isinstance(before_q, dict) else None}
 
         st, created_q = call(ctx, "post", "/api/admin/ai-quotas", csrf, body={
-            "scope_type": "user", "user_id": QA_USER_ID, "period": "day",
+            "scope_type": "user", "user_id": target_user_id, "period": "day",
             "max_calls": 500, "note": "[QA 조사용] U축 실행 이력 확인 — 2026-08-12",
         })
         log["quota_create"] = {"status": st, "body": created_q}

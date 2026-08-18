@@ -95,7 +95,11 @@ def main() -> int:
             page.wait_for_timeout(2500)
 
         # 4) 서버에 남았는가 — 화면이 아니라 API 로 확인한다
-        for path in ("/api/saved-views", "/api/admin/saved-views", "/api/views"):
+        # 2026-08-19: 세 경로 다 404 였다 — 기능이 없어서가 아니라 **이 목록이 틀렸기**
+        # 때문이다. 실제 경로는 `ui/SavedViews.jsx` 가 부르는 `/api/me/views` 다.
+        # 없는 경로를 물어 404 를 받아 오면 "서버에 안 남는다"로 잘못 읽힌다 — 검사가
+        # 있는데 틀린 답을 주는 자리라 검사가 없는 것보다 나쁘다.
+        for path in ("/api/me/views?screen_key=workflows", "/api/saved-views", "/api/views"):
             r = ctx.request.get(BASE + path, timeout=30_000)
             log[f"GET {path}"] = {"status": r.status, "body": (r.text() or "")[:250]}
 
