@@ -101,6 +101,23 @@ export function navRoles(to) {
   return SCREEN_ROLES[to.replace(/^\//, "")] || null;
 }
 
+/** 이 역할이 이 경로에 **도달할 수 있는가**. 링크를 살릴지 죽일지 정하는 자리다.
+ *
+ * 표에 없는 경로는 통과시킨다 — 사용자 콘솔 경로처럼 역할 게이트가 없는 화면이 그렇다.
+ * 표에 있으면 그 목록이 전부다(라우트 게이트·사이드바·명령 팔레트와 같은 표).
+ *
+ * 쿼리·해시는 떼고 본다: `/settings?tab=policy` 는 `/settings` 와 같은 화면이고, 탭 단위
+ * 게이트는 그 화면이 따로 건다(SettingsShell.jsx).
+ *
+ * ⚠️ 프런트의 판단은 **표시**를 위한 것이다. 권한의 정본은 서버다(불변규칙 §5) — 여기서
+ * 통과한다고 API 가 열리지 않고, 여기서 막는다고 보안이 되는 것도 아니다. 목적은 '눌렀더니
+ * 403' 막다른 길과 '권한이 있는데 링크가 죽어 있음'을 둘 다 없애는 것이다. */
+export function canReach(path, role) {
+  const clean = String(path || "").split(/[?#]/)[0];
+  const allowed = navRoles(clean);
+  return !allowed || (role != null && allowed.includes(role));
+}
+
 /** nav 정의에 role 을 붙여 돌려준다. 정의(무엇이 어느 묶음인가)와 권한(누가 보는가)을
  *  따로 적되 **합치는 자리는 하나**로 둔다. */
 function withRoles(groups) {

@@ -93,3 +93,41 @@ describe("다른 API의 401이 세션 상태를 실제로 갱신한다", () => {
     expect(meCalls, "무효화 루프로 /api/me 가 반복 호출됐다").toBe(1);
   });
 });
+
+/* 401 이 확정되면 로그인 화면으로 보낸다 (지시 19).
+ *
+ * 예전에는 확정된 뒤에도 아무도 보내지 않았다 — 셸만 `minimal` 로 축소되고 직전 데이터가
+ * 화면에 남아 "로그인이 풀렸다"인지 "화면이 고장났다"인지 알 수 없었다. */
+import { redirectToLogin, resetSessionRedirect } from "../lib/sessionRedirect.js";
+
+vi.mock("../lib/sessionRedirect.js", async (orig) => {
+  const real = await orig();
+  return { ...real, redirectToLogin: vi.fn(() => true) };
+});
+
+describe("세션이 끊기면 로그인 화면으로 보낸다", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    redirectToLogin.mockClear();
+    resetSessionRedirect();
+  });
+
+  it("/api/me 가 401 이면 로그인 화면으로 보낸다", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      jsonResponse(401, { error: { message: "로그인이 필요합니다." } }));
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    await waitFor(() => expect(redirectToLogin).toHaveBeenCalled());
+  });
+
+  it("네트워크가 끊긴 것은 로그아웃이 아니다 — 보내지 않는다", async () => {
+    // 연결 자체가 안 되면 api.js 가 status 없는 network 오류를 던진다. 이때 로그인 화면으로
+    // 보내면 사용자는 멀쩡한 세션으로 다시 로그인해야 하고, 하던 화면도 잃는다.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => { throw new TypeError("failed to fetch"); });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(redirectToLogin).not.toHaveBeenCalled();
+  });
+});

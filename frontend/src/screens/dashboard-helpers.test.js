@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { canGo } from "./Dashboard.jsx";
+/* 링크 활성화 판정의 정본은 `app/navConfig.js` 한 곳이다 — 예전에는 Dashboard.jsx 가
+   자기 표를 들고 있었고 그 표가 정본과 갈라져 있었다(아래 describe 참고, 지시 21). */
+import { canReach as canGo } from "../app/navConfig.js";
 import { fmtCertDays } from "./ops/opsHelpers.js";
 
 describe("fmtCertDays", () => {
@@ -19,7 +21,17 @@ describe("fmtCertDays", () => {
   });
 });
 
-describe("canGo (NAV role gating)", () => {
+/* 링크 활성화 판정 (지시 21).
+ *
+ * 이 화면은 예전에 `NAV_ROLES` 라는 **두 번째** 권한표를 갖고 있었고, 그 표가 정본
+ * (`app/navConfig.js::SCREEN_ROLES`)과 갈라져 있었다 — `/diagnostics` 를
+ * `["admin","system_admin"]` 으로 적었지만 정본도, SPA 라우트 게이트도
+ * (`AdminRoutes.jsx`), 백엔드도(`app/health/router.py` 의 `CONSOLE_OPS_ROLES`) `operator` 를
+ * 허용한다. 그래서 운영자는 볼 수 있는 화면인데 대시보드에서 갈 방법이 없었다.
+ *
+ * 🔴 아래 `/diagnostics` 단언은 **뒤집혔다**. 예전 검사가 그 불일치를 그대로 못박고 있었다 —
+ * 검사가 옳고 구현이 틀린 경우가 아니라, 검사가 틀린 값을 지키고 있던 경우다. */
+describe("canGo — 정본 한 표에서 읽는다", () => {
   it("allows operator into /jobs but blocks auditor", () => {
     expect(canGo("/jobs", "operator")).toBe(true);
     expect(canGo("/jobs", "auditor")).toBe(false);
@@ -27,9 +39,10 @@ describe("canGo (NAV role gating)", () => {
   it("allows auditor into /audit", () => {
     expect(canGo("/audit", "auditor")).toBe(true);
   });
-  it("restricts /diagnostics to admin/system_admin", () => {
+  it("운영자도 /diagnostics 에 간다 — 라우트·백엔드와 같은 집합이다", () => {
     expect(canGo("/diagnostics", "admin")).toBe(true);
-    expect(canGo("/diagnostics", "operator")).toBe(false);
+    expect(canGo("/diagnostics", "operator")).toBe(true);
+    expect(canGo("/diagnostics", "auditor")).toBe(false);
   });
   it("treats an unlisted path as unrestricted", () => {
     expect(canGo("/anything", "user")).toBe(true);
@@ -40,6 +53,11 @@ describe("canGo (NAV role gating)", () => {
   it("opens /backup and /integrations to read roles including auditor", () => {
     expect(canGo("/backup", "auditor")).toBe(true);
     expect(canGo("/integrations", "auditor")).toBe(true);
+  });
+  it("쿼리가 붙은 주소도 같은 화면으로 본다 (/settings?tab=policy)", () => {
+    // 유지보수 경보가 가리키는 곳이다 — 탭 단위 게이트는 그 화면이 따로 건다.
+    expect(canGo("/settings?tab=policy", "operator")).toBe(true);
+    expect(canGo("/settings?tab=policy", "user")).toBe(false);
   });
 });
 
@@ -130,12 +148,17 @@ describe("dashboardNav — 역할별 이동 대상", () => {
     const n = dashboardNav("admin");
     expect(n).toEqual({ diagTo: "/diagnostics", procTo: "/diagnostics", jobsTo: "/jobs", diagNote: "", jobsNote: "", procNote: "" });
   });
-  it("operator는 진단은 못 가지만 작업 큐로 대체된다(procTo)", () => {
+  it("operator도 진단·작업 큐 모두 간다 (지시 21 — 정본 표와 같은 집합)", () => {
+    /* 🔴 뒤집힌 단언이다. 예전에는 이 화면만의 두 번째 권한표가 `/diagnostics` 를
+       admin+ 로 좁혀 놨고, 검사가 그 불일치를 그대로 못박고 있었다. 정본
+       (`SCREEN_ROLES.diagnostics`)·SPA 라우트 게이트(`AdminRoutes.jsx`)·백엔드
+       (`app/health/router.py` 의 `CONSOLE_OPS_ROLES`) 셋 다 운영자를 허용한다 —
+       장애 대응 중인 운영자가 볼 수 있는 화면인데 대시보드에서 갈 방법이 없었다. */
     const n = dashboardNav("operator");
-    expect(n.diagTo).toBeUndefined();
-    expect(n.procTo).toBe("/jobs"); // diagTo가 없으면 procTo가 jobsTo로 대체된다.
+    expect(n.diagTo).toBe("/diagnostics");
+    expect(n.procTo).toBe("/diagnostics");
     expect(n.jobsTo).toBe("/jobs");
-    expect(n.diagNote).toBe(", 관리자 문의");
+    expect(n.diagNote).toBe("");
     expect(n.jobsNote).toBe("");
   });
   it("auditor는 진단·작업 큐 둘 다 못 가 procTo도 undefined다", () => {
@@ -152,9 +175,11 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
     expect(buildAlerts({}, "admin")).toEqual([]);
   });
 
-  it("유지보수 모드는 danger, /maintenance로 보낸다", () => {
+  it("유지보수 모드는 danger, 설정의 정책 탭으로 보낸다", () => {
+    /* 예전 목적지는 `/maintenance` 였다 — 지금은 `/settings?tab=policy` 로 접힌 옛 주소라
+       (AdminRoutes.jsx) 링크가 한 번 튕겨 보내는 셈이었다. 실제 목적지를 가리킨다. */
     const a = buildAlerts({ maintenance: true }, "admin");
-    expect(a).toEqual([{ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: "/maintenance" }]);
+    expect(a).toEqual([{ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: "/settings?tab=policy" }]);
   });
 
   it("실패 작업은 danger, 대기 작업은 warn이다", () => {

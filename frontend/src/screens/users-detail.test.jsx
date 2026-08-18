@@ -78,3 +78,45 @@ describe("Users 상세 팝업 (Rules of Hooks 회귀)", () => {
     expect(within(dialog).getByRole("button", { name: "비밀번호 재설정" })).toBeInTheDocument();
   });
 });
+
+/* 푸터의 행동 위계 (지시 12 · 43) — 파괴적 작업은 주 작업의 이웃이 아니다.
+ *
+ * 예전에는 이 푸터에 버튼이 최대 아홉 개였고, 그중 '비활성화'·'보관'이 '비밀번호 재설정'·
+ * '감사 로그에서 보기' 옆에 같은 크기로 붙어 있었다. 화면이 자체 '더보기' 펼침 상태를
+ * 갖고 있었지만 펼치면 결국 같은 줄이었다. 지금은 공용 넘침 메뉴다. */
+describe("사용자 상세 푸터 — 행동 위계", () => {
+  async function openDetail(user) {
+    renderUsers();
+    await user.click(await screen.findByRole("row", { name: /상세 보기/ }));
+    return screen.findByRole("dialog");
+  }
+
+  it("푸터에 보이는 버튼은 주 작업과 소수의 자주 쓰는 것뿐이다", async () => {
+    const user = userEvent.setup();
+    const dialog = await openDetail(user);
+    const footerButtons = within(dialog).getAllByRole("button")
+      .map((b) => b.textContent.trim())
+      .filter((t) => t && t !== "닫기");
+
+    expect(footerButtons).toContain("수정");
+    expect(footerButtons).toContain("비밀번호 재설정");
+    // 파괴적 작업은 펼치기 전에는 화면에 없다.
+    expect(footerButtons).not.toContain("비활성화");
+    expect(footerButtons).not.toContain("보관");
+    expect(footerButtons).not.toContain("세션 해제");
+  });
+
+  it("넘침 메뉴 안에서 파괴적 작업이 맨 뒤에 온다", async () => {
+    const user = userEvent.setup();
+    const dialog = await openDetail(user);
+    await user.click(within(dialog).getByRole("button", { name: "사용자 작업 더 보기" }));
+
+    const items = (await screen.findAllByRole("menuitem")).map((el) => el.textContent.trim());
+    expect(items).toContain("세션 해제");
+    expect(items).toContain("비활성화");
+    expect(items).toContain("보관");
+    // 무해한 항목이 먼저, 되돌리기 어려운 것이 뒤 — 손이 미끄러져도 먼저 닿는 것이 안전하다.
+    expect(items.indexOf("비활성화")).toBeGreaterThan(items.indexOf("세션 해제"));
+    expect(items.indexOf("보관")).toBeGreaterThan(items.indexOf("감사 로그에서 보기"));
+  });
+});

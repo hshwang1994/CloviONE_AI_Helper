@@ -15,7 +15,7 @@ import { api } from "../lib/api.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
@@ -830,7 +830,6 @@ function inactiveSuffix(nameOpts, currentId) {
 function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, title }) {
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false); // 저빈도 유틸리티를 '더보기'로 접어 좁은 화면에서 작업줄이 넘치지 않게 한다
   const [notionNotice, setNotionNotice] = useState(null); // "conflict" | "no-match" | null — Notion 연결 확인 실패를 토스트 소멸 이후에도 남긴다
   const confirm = useConfirm();
   const toast = useToast();
@@ -838,9 +837,9 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   const auth = useAuth();
   const nav = useNavigate();
   const uid = user && user.id;
-  // 다른 사용자의 드로어로 넘어가면 이전 사용자의 Notion 연결 확인 결과 안내와 '더보기' 펼침
-  // 상태를 함께 초기화한다 — moreOpen만 남기면 A의 펼친 상태가 B의 드로어에도 그대로 이어진다.
-  React.useEffect(() => { setNotionNotice(null); setMoreOpen(false); }, [uid]);
+  // 다른 사용자의 상세로 넘어가면 이전 사용자의 Notion 연결 확인 결과 안내를 지운다 —
+  // 남겨 두면 A 의 결과가 B 의 화면에 그대로 이어져 붙는다.
+  React.useEffect(() => { setNotionNotice(null); }, [uid]);
   // '복사' 버튼 상태·타이머 — 훅이므로 반드시 이른 return(`if (!user) return null;`) 위에 둔다.
   // 예전엔 이 세 훅이 그 return 아래(copyId 근처)에 있어, user가 null→비null로 바뀌는 순간
   // (상세를 처음 열 때) 훅 개수가 12→15로 늘어 React가 "Rendered more hooks than during the
@@ -937,80 +936,58 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   // 안 그러면 관리자가 목록의 낡은 스냅샷을 보고 지금과 다른 상태(예: 이미 비활성화됨)에 대해
   // 조작할 수 있다.
   const actionsDisabled = busy || detailStale;
-  // 이 두 버튼(감사 로그, 활동 보기)은 읽기 전용 내비게이션이라 canManage(쓰기 권한 게이트)와
-  // 무관하게 항상 노출한다, 백엔드는 이 경로(/audit)에 ensure_can_manage_target 같은 대상 역할
-  // 제한을 두지 않는다. 예전엔 이 버튼들이 canManage 삼항식 안에 있어, system_admin이 아닌 관리자가
-  // 다른 system_admin 계정을 보는 중(canManage=false)엔 감사 기록조차 볼 방법이 사라졌다.
-  const readonlyNav = (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-      <Button disabled={busy} onClick={() => nav("/audit?object_type=user&object_id=" + encodeURIComponent(uid))}>감사 로그에서 보기</Button>
-      <Button disabled={busy} onClick={() => nav("/audit?user_id=" + encodeURIComponent(uid))}>이 사용자의 활동 보기</Button>
-    </Box>
-  );
-  const dangerActions = [];
-  // 퇴사 처리는 이 화면에서 하지 않는다 — 보유 티켓을 먼저 보여 주고 재배정까지 함께 해야
-  // '비활성화만 하고 티켓은 퇴사자에게 남아 있는' 상태가 안 생긴다(그것이 현재 운영 공백이었다).
-  // 본인 계정은 서버가 409로 거절하므로 애초에 안내하지 않는다.
-  if (!isSelf) dangerActions.push(
-    <Button key="offboard" disabled={busy} onClick={() => nav("/offboarding")}>오프보딩(퇴사 처리)</Button>);
-  if (d.active && !isSelf) dangerActions.push(
-    <Button key="disable" variant="danger" disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/disable", { confirm: "이 사용자를 비활성화할까요? 로그인할 수 없게 됩니다.", danger: true, okMsg: "비활성화했습니다." })}>비활성화</Button>);
-  if (!d.archived_at && !isSelf) dangerActions.push(
-    <Button key="archive" variant="danger" disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/archive", { confirm: "이 사용자를 보관할까요? 목록에서 사라지지만 기록은 남고 복구할 수 있습니다.", danger: true, okMsg: "보관했습니다." })}>보관</Button>);
-  // 버튼이 여러 개라 좁은 화면에서 넘치지 않도록 k-footer-extra(줄바꿈)에 무해한 부가 작업을 담고,
-  // 위험 작업은 별도 group 묶음, 주 작업(수정)만 k-footer-main에 둔다.
+  const navItems = [
+    { key: "audit-object", label: "감사 로그에서 보기", disabled: busy,
+      onClick: () => nav("/audit?object_type=user&object_id=" + encodeURIComponent(uid)) },
+    { key: "audit-actor", label: "이 사용자의 활동 보기", disabled: busy,
+      onClick: () => nav("/audit?user_id=" + encodeURIComponent(uid)) },
+  ];
+
+  const manageItems = canManage ? [
+    { key: "notion-verify", label: "Notion 연결 확인", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/notion-mapping/verify", {
+        // "verified" 외 실패도 전부 같은 문구로 뭉뚱그리지 않는다 — "conflict"(여러 계정과 동시에
+        // 일치)는 관리자가 매핑을 새로 만드는 게 아니라 충돌을 해결해야 하는 별개 상황이다.
+        // 실패 시 토스트(자동 소멸)만 남기지 않고 notionNotice에 담아, 상세 안에 실제로 누를
+        // 수 있는 링크로 남긴다(부서/직책 empty-state 링크와 같은 패턴).
+        format: (res) => {
+          const status = res && res.mapping && res.mapping.status;
+          const detail = (res && res.mapping && res.mapping.error_message) || "";
+          if (status === "verified") { setNotionNotice(null); return { msg: "Notion 연결을 확인했습니다.", kind: "success" }; }
+          if (status === "conflict") { setNotionNotice("conflict"); return { msg: (detail || "일치하는 Notion 계정이 여러 개 발견되었습니다.") + " ‘Notion 사용자 연결’ 화면에서 충돌을 해결하세요.", kind: "info" }; }
+          setNotionNotice("no-match");
+          return { msg: detail || "연결된 Notion 계정을 찾지 못했습니다. ‘Notion 사용자 연결’ 화면에서 매핑을 만들 수 있습니다.", kind: "info" };
+        },
+      }) },
+    isSelf ? null : { key: "revoke", label: "세션 해제", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/revoke-sessions", { confirm: "이 사용자의 모든 로그인 세션을 끊을까요?", danger: true, format: (res) => (res && res.revoked_count ? res.revoked_count + "개 세션을 해제했습니다." : "해제할 활성 세션이 없습니다.") }) },
+    d.active ? null : { key: "enable", label: "활성화", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/enable", { confirm: "이 사용자를 다시 활성화할까요?", okMsg: "다시 활성화했습니다." }) },
+    d.archived_at ? { key: "unarchive", label: "복구", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/unarchive", { confirm: "이 사용자를 복구할까요?", okMsg: "복구했습니다." }) } : null,
+    ...navItems,
+    // 퇴사 처리는 이 화면에서 하지 않는다 — 보유 티켓을 먼저 보여 주고 재배정까지 함께 해야
+    // '비활성화만 하고 티켓은 퇴사자에게 남아 있는' 상태가 안 생긴다(그것이 현재 운영 공백이었다).
+    // 본인 계정은 서버가 409로 거절하므로 애초에 안내하지 않는다.
+    isSelf ? null : { key: "offboard", label: "오프보딩(퇴사 처리)", disabled: busy,
+      onClick: () => nav("/offboarding") },
+    (d.active && !isSelf) ? { key: "disable", label: "비활성화", tone: "danger", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/disable", { confirm: "이 사용자를 비활성화할까요? 로그인할 수 없게 됩니다.", danger: true, okMsg: "비활성화했습니다." }) } : null,
+    (!d.archived_at && !isSelf) ? { key: "archive", label: "보관", tone: "danger", disabled: actionsDisabled,
+      onClick: () => run("/api/admin/users/" + id + "/archive", { confirm: "이 사용자를 보관할까요? 목록에서 사라지지만 기록은 남고 복구할 수 있습니다.", danger: true, okMsg: "보관했습니다." }) } : null,
+  ].filter(Boolean) : [];
+
   const footer = canManage ? (
     <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
       <Box className="k-footer-extra">
-        <Button disabled={actionsDisabled} onClick={() => setResetting(true)}>비밀번호 재설정</Button>
-        {/* 계정 잠금 해제는 이 화면에서 가장 시급도가 높은 복구 조작이다, '활성화'와 대칭으로, 저빈도 유틸리티 묶음(더보기) 안에 숨기지 않고 항상 보이게 한다. */}
+        {/* 계정 잠금 해제는 이 화면에서 가장 시급한 복구 조작이라 메뉴에 접지 않는다. */}
         {d.locked ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unlock", { confirm: "이 계정의 잠금을 해제할까요?", okMsg: "잠금을 해제했습니다." })}>잠금 해제</Button> : null}
-        {/* 저빈도 유틸리티(Notion 연결 확인, 세션 해제, 감사 로그)는 '더보기'로 접는다, 이전엔
-            무해한 재설정부터 위험 작업까지 최대 7개 버튼이 한 줄에 다 나와(좁은 460px 폭 기준) 줄바꿈이
-            뒤섞이고 위험 작업(비활성화/보관) 옆에 바짝 붙어 있었다. */}
-        {/* aria-controls로 이 토글이 여는/접는 실제 영역(user-detail-more)을 스크린리더에 알린다 -
-            이전엔 aria-expanded만 있어 무엇이 펼쳐지는지 프로그래매틱하게 연결되지 않았다. */}
-        <Button disabled={busy} onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-controls="user-detail-more">{moreOpen ? "간단히" : "더보기"}</Button>
-        {moreOpen ? (
-          // display:contents, id를 달 실제 엘리먼트가 필요하지만, 감싸는 div가 레이아웃에 끼면 이
-          // 버튼들이 부모 k-footer-extra 플렉스 흐름 밖으로 한 덩어리가 된다. display:contents는
-          // 이 div 자체를 레이아웃에서 투명하게 만들어(자식이 부모의 직접 플렉스 아이템이 됨)
-          // id/aria-controls 연결만 추가하고 기존 줄바꿈 배치는 그대로 유지한다.
-          <Box id="user-detail-more" sx={{ display: "contents" }}>
-            <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/notion-mapping/verify", {
-              // "verified" 외 실패도 전부 같은 문구로 뭉뚱그리지 않는다 — "conflict"(여러 계정과 동시에
-              // 일치)는 관리자가 매핑을 새로 만드는 게 아니라 충돌을 해결해야 하는 별개 상황이다.
-              // 실패 시 토스트(자동 소멸)만 남기지 않고 notionNotice에 담아, 드로어 안에 실제로 누를
-              // 수 있는 링크로 남긴다(부서/직책 empty-state 링크와 같은 패턴).
-              format: (res) => {
-                const status = res && res.mapping && res.mapping.status;
-                const detail = (res && res.mapping && res.mapping.error_message) || "";
-                if (status === "verified") { setNotionNotice(null); return { msg: "Notion 연결을 확인했습니다.", kind: "success" }; }
-                if (status === "conflict") { setNotionNotice("conflict"); return { msg: (detail || "일치하는 Notion 계정이 여러 개 발견되었습니다.") + " ‘Notion 사용자 연결’ 화면에서 충돌을 해결하세요.", kind: "info" }; }
-                setNotionNotice("no-match");
-                return { msg: detail || "연결된 Notion 계정을 찾지 못했습니다. ‘Notion 사용자 연결’ 화면에서 매핑을 만들 수 있습니다.", kind: "info" };
-              },
-            })}>Notion 연결 확인</Button>
-            {!isSelf ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/revoke-sessions", { confirm: "이 사용자의 모든 로그인 세션을 끊을까요?", danger: true, format: (res) => (res && res.revoked_count ? res.revoked_count + "개 세션을 해제했습니다." : "해제할 활성 세션이 없습니다.") })}>세션 해제</Button> : null}
-          </Box>
-        ) : null}
-        {!d.active
-          // kit.jsx ModalFooter 관례상 '기본 작업'은 하나만 primary다, '수정'이 그 자리를 이미
-          // 차지하므로 '활성화'는 '복구'와 같은 비-primary 톤으로 맞춘다.
-          ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/enable", { confirm: "이 사용자를 다시 활성화할까요?", okMsg: "다시 활성화했습니다." })}>활성화</Button>
-          : null}
-        {d.archived_at
-          ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unarchive", { confirm: "이 사용자를 복구할까요?", okMsg: "복구했습니다." })}>복구</Button>
-          : null}
+        <Button disabled={actionsDisabled} onClick={() => setResetting(true)}>비밀번호 재설정</Button>
+        <OverflowMenu ariaLabel="사용자 작업 더 보기" items={manageItems} />
       </Box>
-      {dangerActions.length ? (
-        <Box role="group" aria-label="주의가 필요한 작업"
-          sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", ml: { sm: 1.5 } }}>{dangerActions}</Box>
-      ) : null}
-      {/* 본인 계정을 보는 중엔 비활성화, 보관, 세션 해제 버튼이 조용히 사라진다(자기 보호), 이유를
+      {/* 본인 계정을 보는 중엔 비활성화, 보관, 세션 해제가 조용히 사라진다(자기 보호), 이유를
           바로 옆에서 밝히지 않으면 버그로 보이기 쉽다. */}
       {isSelf ? <Typography variant="caption" color="text.secondary">본인 계정은 비활성화, 보관, 세션 해제를 할 수 없습니다.</Typography> : null}
-      {readonlyNav}
       <Box className="k-footer-main">
         {/* detailStale일 때 다른 모든 쓰기 버튼과 마찬가지로 잠근다, 수정은 role을 포함한 임의
             필드를 PATCH할 수 있어(권한 상승 가능), 낡은 스냅샷을 근거로 열리면 안 된다. */}
@@ -1020,7 +997,9 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   ) : (
     <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
       <Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다(system_admin 전용).</Typography>
-      {readonlyNav}
+      <Box className="k-footer-main">
+        <OverflowMenu ariaLabel="사용자 작업 더 보기" items={navItems} />
+      </Box>
     </Box>
   );
 

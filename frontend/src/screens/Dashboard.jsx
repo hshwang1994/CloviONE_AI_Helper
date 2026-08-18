@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
+import { canReach } from "../app/navConfig.js";
 import { PageHeader, Card, Badge, MetricStrip, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { DashSection, StatusList, StatusTile, Note, HEADLINE_GRID } from "../ui/adminKit.jsx";
@@ -26,21 +27,13 @@ import { BarSeries } from "../ui/charts/BarSeries.jsx";
  * 아니면(인벤토리·현재 큐 상태처럼 순수 재고) 해당 상세 화면에만 있다. 계산 자체(무엇을
  * 어떻게 세는가)는 하나도 바꾸지 않았다 — 바뀐 것은 그 값을 어디에 어떤 크기로 놓느냐다. */
 
-// 대상 화면별로 접근 가능한 역할(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
-// 볼 수 없는 화면으로 보내면 403 막다른 길이 되므로, 링크는 역할에 맞을 때만 활성화한다.
-const NAV_ROLES = {
-  "/jobs": ["operator", "admin", "system_admin"], "/audit": ["admin", "system_admin", "auditor"], "/diagnostics": ["admin", "system_admin"], // 백업 조회(GET)는 백엔드가 READ_ROLES에 허용하고 App.jsx 라우트/NAV도 동일하게 열려 있다.
-  // (백업 실행 등 쓰기 액션만 registry에서 system_admin으로 게이트, 조회 링크는 막다른 길이 아니다.)
-  "/backup": ["operator", "admin", "system_admin", "auditor"], "/integrations": ["operator", "admin", "system_admin", "auditor"],
-  // 유지보수 화면은 읽기 전용 역할(operator/auditor)에게도 열려 있다(AdminRoutes.jsx의 RequireRole과 동일).
-  // 여기 적어 두지 않으면 canGo가 무조건 true를 주는데, 그 '통과'가 규칙을 확인한 결과인지
-  // 목록에서 빠뜨린 결과인지 코드만 봐서는 구별되지 않는다.
-  "/maintenance": ["operator", "admin", "system_admin", "auditor"],
-};
-export function canGo(path, role) {
-  const allowed = NAV_ROLES[path];
-  return !allowed || (role != null && allowed.includes(role));
-}
+/* 링크를 살릴지 죽일지는 **정본 한 표**로 정한다 (지시 21).
+ *
+ * 예전에는 이 파일이 `NAV_ROLES` 라는 두 번째 표를 들고 있었고, 실제로 갈라져 있었다:
+ * `/diagnostics` 를 `["admin","system_admin"]` 으로 적었는데 정본(`SCREEN_ROLES`)과 라우터는
+ * `operator` 도 허용한다 — 운영자에게는 '진단 열기' 링크가 볼 수 있는 화면인데도 죽어
+ * 있었다. 표가 둘이면 한쪽만 고쳐지고, 그때 증상이 정확히 이런 모양이다. */
+const canGo = canReach;
 
 // 대상 ID를 8자로 줄여 보여줄 때, 줄였다는 시각적 신호(…)를 남긴다 — 그냥 잘라내면 '이게 전체
 // 값'처럼 보여 그대로 다른 화면(감사 로그 필터 등)에 잘못 붙여넣기 쉽다.
@@ -102,7 +95,10 @@ export function buildAlerts(d, role) {
   // 유지보수 모드는 이 앱에서 blast-radius가 가장 큰 운영 상태다 — 켜져 있는 동안 일반
   // 사용자의 모든 쓰기가 막힌다(app/settings/gate.py::block_if_maintenance). 맨 앞에 넣는다:
   // 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
-  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/maintenance", role) ? "/maintenance" : undefined });
+  // `/maintenance` 는 `/settings?tab=policy` 로 접힌 옛 주소다(AdminRoutes.jsx) — 링크는
+  // 실제 목적지를 가리킨다. 한 번 튕겨 보내면 뒤로가기가 이상해지고, 권한 판정도 옛
+  // 주소 기준으로 하게 된다.
+  if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/settings", role) ? "/settings?tab=policy" : undefined });
   if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
   if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다 — 접수만
@@ -213,7 +209,8 @@ const HEALTHY_SRC_FOR_KEY = { rate: "job:rate", failed: "job:failed", disk: "dis
 // 스케줄러·디스크·메모리·인증서는 전부 diagTo/procTo로 모이므로 종류별로 따로 정의하면
 // 어차피 같은 문구가 다섯 번 반복된다.
 const ACTION_LABEL = {
-  "/maintenance": "유지보수 화면 열기",
+  // 유지보수 정책은 설정 화면의 '정책' 탭에 있다(옛 `/maintenance` 주소는 거기로 접힌다).
+  "/settings?tab=policy": "유지보수 설정 열기",
   "/jobs": "작업 큐 열기",
   "/diagnostics": "진단 열기",
   "/integrations": "연동 상태 보기",

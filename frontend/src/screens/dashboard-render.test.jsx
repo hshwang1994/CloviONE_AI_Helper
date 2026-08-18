@@ -180,7 +180,7 @@ describe("대시보드 — 유지보수 모드", () => {
     expect(await screen.findByText("유지보수 모드")).toBeInTheDocument();
     expect(screen.getByText("활성")).toBeInTheDocument();
     expect(screen.queryByText("지금 조치가 필요한 문제가 없습니다.")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "유지보수 화면 열기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "유지보수 설정 열기" })).toBeInTheDocument();
   });
 
   it("점검 중이 아니면 경보를 만들지 않는다", async () => {
