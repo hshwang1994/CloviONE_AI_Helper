@@ -142,7 +142,12 @@ function tokensFor(mode) {
     "--sidebar-muted": p.sidebar.muted,
     "--sidebar-hover": p.sidebar.hover,
     "--sidebar-line": p.sidebar.line,
-    "--sidebar-active-bg": p.sidebar.hover,
+    /* 선택된 줄의 면. D-141 로 사이드바의 '현재 위치'는 앞머리 레일이 말하므로 이 토큰의
+       실제 소비처는 채팅 대화 목록의 선택 행 하나뿐이다(styles/screens.css). 새 규칙대로
+       **선택/호버 면은 `inset`** 이다 — 표와 판독 줄이 이미 같은 값을 쓴다. 반투명 대신
+       불투명 값을 두는 이유는 그것이 실제로 그려지는 색이기 때문이다: 투명 틴트는 어떤 면
+       위에 얹히느냐에 따라 대비가 달라져 "이 조합은 AA 인가"에 답할 수 없다. */
+    "--sidebar-active-bg": bg.inset,
     "--sidebar-active-fg": p.text.primary,
     "--sidebar-active-rail": p.primary.main,
     "--sidebar-danger": p.error.main,
@@ -211,8 +216,63 @@ const STATIC_TOKENS = {
   "--nav-breakpoint": `${NAV_BREAKPOINT}px`,
 };
 
+/* ── 대비 주석 ────────────────────────────────────────────────────────────
+ *
+ * 주석은 실행되지 않으므로 조용히 썩는다. 이 저장소에서 실제로 세 번 썩었고
+ * (`tests/regression/test_css_says_what_it_does.py` 의 docstring 에 사례 셋이 있다),
+ * 그래서 그 시험이 색에서 대비를 다시 계산해 주석과 대조한다.
+ *
+ * 여기서는 아예 **생성기가 계산해서 적는다.** 색을 바꾸면 주석이 저절로 따라오므로
+ * 사람이 숫자를 옮겨 적을 일이 없다 — 썩을 자리 자체가 없어진다.
+ *
+ * 값은 그 시험과 같은 방식으로 낸다(WCAG 2.x 상대 휘도, 채널 0~255). */
+function srgbChannel(c8) {
+  const c = c8 / 255;
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function hexToRgb(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function luminance(rgb) {
+  const [r, g, b] = rgb.map(srgbChannel);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(fgHex, bgHex) {
+  const fg = hexToRgb(fgHex);
+  const bg = hexToRgb(bgHex);
+  if (!fg || !bg) return null;
+  const a = luminance(fg);
+  const b = luminance(bg);
+  const [hi, lo] = a > b ? [a, b] : [b, a];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/* 글자 토큰 → 그 글자가 실제로 놓이는 면 토큰. "무엇을 무엇 위에 그리는가" 는 설계 의도라
+ * 여기에 적어 두고, 숫자는 계산한다. 위 회귀 시험의 CASES 와 같은 짝이다. */
+const CONTRAST_PAIRS = {
+  "--sidebar-text": "--sidebar-bg",
+  "--sidebar-muted": "--sidebar-bg",
+  "--sidebar-active-fg": "--sidebar-active-bg",
+  "--color-text": "--color-bg",
+  "--color-muted": "--color-bg",
+};
+
 function block(selector, map, indent = "  ") {
-  const lines = Object.entries(map).map(([k, v]) => `${indent}${k}: ${v};`);
+  const lines = Object.entries(map).map(([k, v]) => {
+    const decl = `${indent}${k}: ${v};`;
+    const on = CONTRAST_PAIRS[k];
+    if (!on) return decl;
+    const ratio = contrastRatio(v, map[on]);
+    if (ratio == null) return decl;
+    // 숫자는 주석에 **하나만** 둔다 — 회귀 시험이 정확히 하나를 기대한다.
+    return `${decl}   /* ${on} 위 ${ratio.toFixed(2)}:1 */`;
+  });
   return `${selector} {\n${lines.join("\n")}\n}`;
 }
 
@@ -266,7 +326,11 @@ function renderJinja() {
     block('[data-theme="dark"]', drop(dark)),
     "",
     "@media (prefers-color-scheme: dark) {",
-    block('  :root:not([data-theme="light"])', drop(dark), "    "),
+    /* `:not([data-theme])` — 사용자가 명시적으로 고르지 않았을 때만 OS 선호를 따른다.
+       고른 경우는 위 `[data-theme="..."]` 블록이 이미 답한다. 저장소의 회귀 시험
+       (tests/regression/test_css_says_what_it_does.py)이 이 선택자로 두 블록이 정확히
+       같은 값을 갖는지 대조한다. */
+    block("  :root:not([data-theme])", drop(dark), "    "),
     "}",
     "",
   ].join("\n");

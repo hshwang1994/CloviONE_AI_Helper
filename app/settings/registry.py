@@ -24,6 +24,21 @@ class SettingSpec:
     validate: Callable[[Any], None] | None = None
 
 
+def _interval_seconds(value: Any) -> None:
+    """동기화 주기(초). `0` 은 "서버 기본값을 따른다" 는 센티널이다.
+
+    하한 60초: 노션 API 에는 속도 제한이 있고, 그보다 촘촘하게 돌면 미러가 빨라지는 게
+    아니라 429 로 실패하기 시작한다. 상한 24시간: 그보다 길면 '주기 동기화'라고 부를 수
+    없고, 그런 설치는 자동 동기화를 끄는 편이 정직하다.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValidationAppError("정수여야 합니다.")
+    if value == 0:
+        return
+    if value < 60 or value > 86400:
+        raise ValidationAppError("0(서버 기본값) 또는 60~86400 사이의 정수여야 합니다.")
+
+
 def _positive_int(max_value: int):
     def _v(value: Any) -> None:
         if not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > max_value:
@@ -288,6 +303,29 @@ REGISTRY: dict[str, SettingSpec] = {
                     "허용 이메일 도메인: 사용자 생성 시 즉시 적용, 비우면 제한 없음", _email_domains),
         # config_dir/feature-flags.json에 있던 값을 관리 콘솔에서 켜고 끌 수 있게 옮긴다 —
         # 예전엔 이 값을 바꾸려면 서버 파일을 직접 편집해야 했다(Settings 화면에 노출 안 됨).
+        # ── 미러 동기화 주기 (지시 1 · 29) ──────────────────────────────────
+        #
+        # 예전에는 이 넷이 env 기본값 상수뿐이라 관리자 화면에 없었다. 그래서 "지금
+        # 동기화" 버튼이 사용자 목록 화면 맨 위에서 그 공백을 메우고 있었다.
+        #
+        # 기본값 `0` 은 "서버 기본값(app/core/config.py)을 따른다" 는 뜻이다. 실제 값을
+        # 여기 박아 두면 env 로 주기를 정해 둔 기존 설치가 업그레이드하는 순간 조용히
+        # 다른 값으로 바뀐다 — `llm_timeout_seconds` 가 이미 쓰는 규약과 같다.
+        #
+        # `restart_required=False`: 워커 틱이 매번 이 값을 다시 읽는다
+        # (app/worker_main.py). 설정 캐시 재적재가 60초 간격이므로 늦어도 그 안에 반영된다.
+        SettingSpec("notion_docs_sync_interval_seconds", "int", 0, False,
+                    "문서 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
+                    _interval_seconds),
+        SettingSpec("notion_tickets_sync_interval_seconds", "int", 0, False,
+                    "티켓 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
+                    _interval_seconds),
+        SettingSpec("notion_projects_sync_interval_seconds", "int", 0, False,
+                    "프로젝트 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
+                    _interval_seconds),
+        SettingSpec("search_index_interval_seconds", "int", 0, False,
+                    "검색 색인 갱신 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
+                    _interval_seconds),
         SettingSpec("document_automation_enabled", "bool", True, False,
                     "문서 자동화: 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
         # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다

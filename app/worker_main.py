@@ -344,6 +344,28 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
         }
     worker = Worker(session_factory, clock, build_handlers(), ctx, **lane_kwargs)
 
+    # 동기화 주기는 **매 틱마다** 다시 읽는다 (지시 1 · 29).
+    #
+    # 예전에는 아래 네 틱이 등록 시점에 `float(settings.<key>)` 를 한 번만 읽어 상수로
+    # 굳혔다. 그래서 관리자가 주기를 바꿔도 워커를 재시작하기 전까지는 옛 값으로 돌았다 —
+    # 화면은 "저장했습니다" 라고 말하는데 실제 동작은 안 바뀌는, 이 저장소가 가장 싫어하는
+    # 종류의 거짓말이다. 캐시 재적재 틱이 60초마다 돌고 그 콜백이 맨 앞에 등록돼 있으므로,
+    # 같은 반복 안에서 이미 새로 고친 값을 읽는다.
+    #
+    # 레지스트리 값 `0` 은 "서버 기본값을 따른다" 센티널이다(app/settings/registry.py).
+    def _sync_interval(key: str, fallback: float) -> float:
+        try:
+            raw = settings_cache.current_value(key)
+        except Exception:  # 캐시가 아직 안 떴거나 비정상이면 기본값으로 돈다.
+            return fallback
+        if raw is None or isinstance(raw, bool):
+            return fallback
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return fallback
+        return value if value > 0 else fallback
+
     # 설정 캐시 재적재 — 60초 간격. 이 콜백을 **맨 먼저** 등록한다: 같은 반복(iteration)
     # 안에서 다른 콜백(스케줄러, 백업, 보존, 티켓/문서/프로젝트 미러 동기화)보다 먼저 돌아야
     # 그 콜백들이 이번 반복에서 이미 새로 고친 값을 읽는다.
@@ -570,10 +592,11 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     from app.team_docs.sync import sync_documents
 
     _last_docs_sync: list = [None]
-    DOCS_SYNC_INTERVAL_SECONDS = float(settings.notion_docs_sync_interval_seconds)
+    DOCS_SYNC_FALLBACK_SECONDS = float(settings.notion_docs_sync_interval_seconds)
 
     def docs_sync_tick(now):
-        if _last_docs_sync[0] is None or (now - _last_docs_sync[0]).total_seconds() >= DOCS_SYNC_INTERVAL_SECONDS:
+        interval = _sync_interval("notion_docs_sync_interval_seconds", DOCS_SYNC_FALLBACK_SECONDS)
+        if _last_docs_sync[0] is None or (now - _last_docs_sync[0]).total_seconds() >= interval:
             _last_docs_sync[0] = now
             try:
                 with session_factory() as db:
@@ -592,10 +615,11 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     from app.tickets.sync import sync_tickets
 
     _last_tickets_sync: list = [None]
-    TICKETS_SYNC_INTERVAL_SECONDS = float(settings.notion_tickets_sync_interval_seconds)
+    TICKETS_SYNC_FALLBACK_SECONDS = float(settings.notion_tickets_sync_interval_seconds)
 
     def tickets_sync_tick(now):
-        if _last_tickets_sync[0] is None or (now - _last_tickets_sync[0]).total_seconds() >= TICKETS_SYNC_INTERVAL_SECONDS:
+        interval = _sync_interval("notion_tickets_sync_interval_seconds", TICKETS_SYNC_FALLBACK_SECONDS)
+        if _last_tickets_sync[0] is None or (now - _last_tickets_sync[0]).total_seconds() >= interval:
             _last_tickets_sync[0] = now
             try:
                 with session_factory() as db:
@@ -615,10 +639,11 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     from app.projects.sync import sync_projects
 
     _last_projects_sync: list = [None]
-    PROJECTS_SYNC_INTERVAL_SECONDS = float(settings.notion_projects_sync_interval_seconds)
+    PROJECTS_SYNC_FALLBACK_SECONDS = float(settings.notion_projects_sync_interval_seconds)
 
     def projects_sync_tick(now):
-        if _last_projects_sync[0] is None or (now - _last_projects_sync[0]).total_seconds() >= PROJECTS_SYNC_INTERVAL_SECONDS:
+        interval = _sync_interval("notion_projects_sync_interval_seconds", PROJECTS_SYNC_FALLBACK_SECONDS)
+        if _last_projects_sync[0] is None or (now - _last_projects_sync[0]).total_seconds() >= interval:
             _last_projects_sync[0] = now
             try:
                 with session_factory() as db:
@@ -655,11 +680,12 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     from app.search.indexer import reindex_all
 
     _last_search_index: list = [None]
-    SEARCH_INDEX_INTERVAL_SECONDS = float(settings.search_index_interval_seconds)
+    SEARCH_INDEX_FALLBACK_SECONDS = float(settings.search_index_interval_seconds)
     repositories = build_repositories(settings, outbound)
 
     def search_index_tick(now):
-        if _last_search_index[0] is None or (now - _last_search_index[0]).total_seconds() >= SEARCH_INDEX_INTERVAL_SECONDS:
+        interval = _sync_interval("search_index_interval_seconds", SEARCH_INDEX_FALLBACK_SECONDS)
+        if _last_search_index[0] is None or (now - _last_search_index[0]).total_seconds() >= interval:
             _last_search_index[0] = now
             try:
                 with session_factory() as db:

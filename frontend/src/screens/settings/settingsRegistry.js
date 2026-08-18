@@ -17,6 +17,12 @@ export const SETTING_LABELS = {
   // 운영자가 이 값으로 접근을 끊을 수 있다고 믿으면 그게 보안 사고가 된다.
   allowed_email_domains: "계정 추가 허용 도메인",
   document_automation_enabled: "문서 자동화",
+  // 미러 동기화 주기(지시 1 · 29). 예전에는 env 상수뿐이라 이 표에 아예 없었고, 그래서
+  // 사용자 목록 화면의 "지금 동기화" 버튼이 그 공백을 메우고 있었다.
+  notion_docs_sync_interval_seconds: "문서 동기화 주기",
+  notion_tickets_sync_interval_seconds: "티켓 동기화 주기",
+  notion_projects_sync_interval_seconds: "프로젝트 동기화 주기",
+  search_index_interval_seconds: "검색 색인 갱신 주기",
   // N6: 이 키가 세 맵에 **전부** 빠져 있어 관리자가 raw 영문 키 + raw JSON 으로 편집했다.
   // 이 파일이 그 드리프트를 예견해 경고까지 심어 놨는데 `import.meta.env.DEV` 게이트라
   // 운영에서는 침묵했다 — 예견해 놓고 못 잡은 셈이다.
@@ -34,6 +40,14 @@ export const SETTING_LABELS = {
   llm_max_concurrency: "AI 동시 실행 수",
 };
 export const settingLabel = (k) => SETTING_LABELS[k] || k;
+
+/* 값이 초 단위 주기인 키들 — 값 칸을 사람 말로 그리는 데 쓴다. */
+export const INTERVAL_KEYS = [
+  "notion_docs_sync_interval_seconds",
+  "notion_tickets_sync_interval_seconds",
+  "notion_projects_sync_interval_seconds",
+  "search_index_interval_seconds",
+];
 // object 설정 편집 시 필요한 키·단위를 알려 준다(비개발자 관리자가 raw JSON을 추측하지 않게).
 export const OBJECT_SCHEMA_HELP = {
   password_policy: 'JSON 예: {"min_length": 12, "min_classes": 3}, min_length(최소 글자 수), min_classes(문자 종류 수, 1~4).',
@@ -100,6 +114,11 @@ export function summarizeSetting(key, v) {
   // 나머지 object 설정은 이미 완결된 한국어 요약('최소 12자' 등)을 보여주는데, 정수 타입인 이
   // 두 보존 기간 키만 '값' 칸에 단위 없는 맨숫자('90')로 떨어져 옆 행들과 표기가 어긋났다.
   if ((key === "conversation_retention_days" || key === "notification_retention_days" || key === "trash_retention_days") && typeof v === "number") return v + "일";
+  /* 동기화 주기(지시 1 · 29). `0` 은 "서버 기본값을 따른다" 센티널이라(registry.py) 맨숫자
+     0 으로 그리면 "0초마다 동기화"로 읽힌다 — 정확히 반대 뜻이다. */
+  if (INTERVAL_KEYS.includes(key) && typeof v === "number") {
+    return v > 0 ? fmtDuration(v) + "마다" : "서버 기본값";
+  }
   if (v == null || typeof v !== "object") return null;
   if (key === "password_policy") {
     const parts = [];

@@ -50,10 +50,10 @@
   --color-card: #FFFFFF;
   --color-surface-2: #F4F6F8;
   --color-surface-3: #E7EAEE;
-  --color-text: #171A1F;
+  --color-text: #171A1F;   /* --color-bg 위 15.14:1 */
   --color-heading: #171A1F;
   --color-ink: #171A1F;
-  --color-muted: #5C6370;
+  --color-muted: #5C6370;   /* --color-bg 위 5.25:1 */
   --color-faint: #656D7A;
   --color-text-inverse: #FFFFFF;
   --color-border: #DCE0E6;
@@ -92,12 +92,12 @@
   --badge-info-bg: #EAF0FA;
   --badge-info-fg: #1D4D9F;
   --sidebar-bg: #E7EAEE;
-  --sidebar-text: #171A1F;
-  --sidebar-muted: #5C6370;
+  --sidebar-text: #171A1F;   /* --sidebar-bg 위 14.45:1 */
+  --sidebar-muted: #5C6370;   /* --sidebar-bg 위 5.01:1 */
   --sidebar-hover: rgba(23,26,31,.06);
   --sidebar-line: #D3D8DE;
-  --sidebar-active-bg: rgba(23,26,31,.06);
-  --sidebar-active-fg: #171A1F;
+  --sidebar-active-bg: #F4F6F8;
+  --sidebar-active-fg: #171A1F;   /* --sidebar-active-bg 위 16.10:1 */
   --sidebar-active-rail: #536CD6;
   --sidebar-danger: #B3261E;
   --sidebar-shadow: none;
@@ -123,10 +123,10 @@
   --color-card: #16191E;
   --color-surface-2: #1C2026;
   --color-surface-3: #101318;
-  --color-text: #E6E9EE;
+  --color-text: #E6E9EE;   /* --color-bg 위 15.65:1 */
   --color-heading: #E6E9EE;
   --color-ink: #E6E9EE;
-  --color-muted: #9BA3AF;
+  --color-muted: #9BA3AF;   /* --color-bg 위 7.49:1 */
   --color-faint: #828B98;
   --color-text-inverse: #0E1013;
   --color-border: #2A2F37;
@@ -165,12 +165,12 @@
   --badge-info-bg: #151F31;
   --badge-info-fg: #ABC9FA;
   --sidebar-bg: #101318;
-  --sidebar-text: #E6E9EE;
-  --sidebar-muted: #9BA3AF;
+  --sidebar-text: #E6E9EE;   /* --sidebar-bg 위 15.29:1 */
+  --sidebar-muted: #9BA3AF;   /* --sidebar-bg 위 7.31:1 */
   --sidebar-hover: rgba(230,233,238,.07);
   --sidebar-line: #242931;
-  --sidebar-active-bg: rgba(230,233,238,.07);
-  --sidebar-active-fg: #E6E9EE;
+  --sidebar-active-bg: #1C2026;
+  --sidebar-active-fg: #E6E9EE;   /* --sidebar-active-bg 위 13.44:1 */
   --sidebar-active-rail: #536CD6;
   --sidebar-danger: #FF8A80;
   --sidebar-shadow: none;
@@ -191,16 +191,16 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) {
     color-scheme: dark;
     --color-bg: #0E1013;
     --color-card: #16191E;
     --color-surface-2: #1C2026;
     --color-surface-3: #101318;
-    --color-text: #E6E9EE;
+    --color-text: #E6E9EE;   /* --color-bg 위 15.65:1 */
     --color-heading: #E6E9EE;
     --color-ink: #E6E9EE;
-    --color-muted: #9BA3AF;
+    --color-muted: #9BA3AF;   /* --color-bg 위 7.49:1 */
     --color-faint: #828B98;
     --color-text-inverse: #0E1013;
     --color-border: #2A2F37;
@@ -239,12 +239,12 @@
     --badge-info-bg: #151F31;
     --badge-info-fg: #ABC9FA;
     --sidebar-bg: #101318;
-    --sidebar-text: #E6E9EE;
-    --sidebar-muted: #9BA3AF;
+    --sidebar-text: #E6E9EE;   /* --sidebar-bg 위 15.29:1 */
+    --sidebar-muted: #9BA3AF;   /* --sidebar-bg 위 7.31:1 */
     --sidebar-hover: rgba(230,233,238,.07);
     --sidebar-line: #242931;
-    --sidebar-active-bg: rgba(230,233,238,.07);
-    --sidebar-active-fg: #E6E9EE;
+    --sidebar-active-bg: #1C2026;
+    --sidebar-active-fg: #E6E9EE;   /* --sidebar-active-bg 위 13.44:1 */
     --sidebar-active-rail: #536CD6;
     --sidebar-danger: #FF8A80;
     --sidebar-shadow: none;
