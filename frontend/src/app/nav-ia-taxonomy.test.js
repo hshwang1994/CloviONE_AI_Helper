@@ -136,11 +136,27 @@ describe("사용자 사이드바 — 휴지통 메뉴 항목 제거, 4그룹으�
     expect(paths).not.toContain("/team-docs/trash");
   });
 
-  it("'문서' 단독 그룹이 없다 — /team-docs가 팀 공간에 합쳐졌다", () => {
+  it("'문서' 단독 그룹이 없다 — /team-docs는 팀 업무 안에 있다", () => {
     const names = USER_NAV.map((g) => g.group);
     expect(names).not.toContain("문서");
     expect(names).toHaveLength(4);
-    const teamSpace = findItem(USER_NAV, "/team-docs");
-    expect(teamSpace.group).toBe("팀 공간");
+    // 2026-08-19(D-166): 예전엔 '팀 공간' 하나에 여덟 항목이 있었다. 업무와 소통·놀이를
+    // 갈랐으므로 문서는 '팀 업무' 쪽이다 — 문서를 찾는 사람은 일하러 온 사람이다.
+    expect(findItem(USER_NAV, "/team-docs").group).toBe("팀 업무");
+  });
+
+  /* 지시 58 재검토 결과를 고정한다(D-166). 이 셋은 판정이지 취향이 아니다 — 되돌리려면
+     같은 근거를 다시 세워야 한다. */
+  it("'도우미' 그룹이 없다 — AI 도우미와 스프린트 회의는 같은 부류가 아니다", () => {
+    const names = USER_NAV.map((g) => g.group);
+    expect(names).not.toContain("도우미");
+    expect(findItem(USER_NAV, "/chat").group).toBe("내 업무");
+    expect(findItem(USER_NAV, "/sprint").group).toBe("팀 업무");
+  });
+
+  it("한 그룹이 여섯 항목을 넘지 않는다 — 넘으면 서랍이 아니라 목록이다", () => {
+    for (const g of USER_NAV) {
+      expect(g.items.length, `${g.group} 이 너무 크다`).toBeLessThanOrEqual(6);
+    }
   });
 });

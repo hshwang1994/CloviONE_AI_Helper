@@ -4,7 +4,7 @@ import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlin
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
-import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
+import TopicOutlinedIcon from "@mui/icons-material/TopicOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
@@ -245,28 +245,42 @@ export const USER_NAV = [
   // 팀이 함께 나눠 갖는 일이므로 '팀 공간'으로 옮긴다. 개인 결재함(/my-approvals)은 새로
   // 생겼다 — 승인은 위임받은 일반 사용자에게도 오는 개인 업무인데, 예전에는 관리자 콘솔에만
   // 화면이 있어서 그 사람은 알림만 받고 들어갈 곳이 없었다.
+  /* 지시 58 재검토(2026-08-19, D-166). 바꾼 것 셋과 그 근거:
+   *
+   * ① `알림` 은 **그대로 둔다.** 지시 1 의 "단일 진입점은 종"을 이 항목까지 지우라는 뜻으로
+   *    읽을 뻔했는데, 이 항목은 사용자가 직접 요구해서 생긴 것이다("신규 알람 하면 왼쪽
+   *    사이드바나 알림창에 뜨기로 했는데 왜 안 됨??" — `user-nav-notifications.test.jsx`).
+   *    지시 1 이 없앤 것은 **전 라우트 상단의 장애 띠와 헤더 칩**이고, 알림 전체 목록으로
+   *    가는 길은 다른 것이다. 종은 "왔다"를 알리고 이 항목은 "전부 보기"로 간다.
+   * ② `도우미` 그룹을 해체했다. `AI 도우미` 와 `스프린트 회의` 는 같은 부류가 아니다 —
+   *    하나는 내가 쓰는 도구, 하나는 팀이 함께 보는 회의 화면이다. 그룹 이름이 둘 중
+   *    하나도 설명하지 못했고, 그룹 아이콘(달력)은 스프린트만 가리켰다.
+   * ③ `팀 공간` 8항목을 성격으로 갈랐다. 업무(프로젝트·티켓·문서·회의)와 소통·놀이가
+   *    한 서랍에 있으면, 일하러 온 사람도 놀러 온 사람도 목록 전체를 훑어야 한다.
+   */
   { group: "내 업무", icon: WorkOutlineRoundedIcon, items: [
     { to: "/me", label: "홈", icon: "home" },
     { to: "/my-tickets", label: "내 티켓", icon: "ticket" },
     { to: "/new-ticket", label: "새 티켓", icon: "plus" },
     { to: "/my-approvals", label: "승인", badge: "myApprovalPending", icon: "check" },
     { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
-  ] },
-  { group: "도우미", icon: EventNoteOutlinedIcon, items: [
+    // AI 도우미는 내 업무를 돕는 도구다 — 팀 회의 화면과 묶이는 것보다 여기가 정확하다.
     { to: "/chat", label: "AI 도우미", icon: "ai" },
-    { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
   ] },
-  { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
+  { group: "팀 업무", icon: TopicOutlinedIcon, items: [
     { to: "/projects", label: "프로젝트", icon: "project" },
     { to: "/team-tickets", label: "팀 티켓", icon: "ticket" },
-    // 미할당은 "우리 팀이 함께 나눠 가질 일" 이다 — 개인 업무가 아니라 팀 공간의 일이고,
+    // 미할당은 "우리 팀이 함께 나눠 가질 일" 이다 — 개인 업무가 아니라 팀의 일이고,
     // 0060 부터 실제로도 팀(프로젝트) 범위로 좁혀진다.
     { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
+    { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
     { to: "/team-docs", label: "문서", icon: "docs" },
+  ] },
+  { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
     { to: "/chat-rooms", label: "채팅방", badge: "chatUnread", icon: "chat" },
-    { to: "/games", label: "놀이", icon: "game" },
     { to: "/board", label: "자유게시판", icon: "board" },
     { to: "/ideas", label: "기능 개선 제안", icon: "flag" },
+    { to: "/games", label: "놀이", icon: "game" },
   ] },
   /* 내 정보. '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을 할까'를 고르는 곳이고
    * 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. */

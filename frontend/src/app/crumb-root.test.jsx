@@ -93,14 +93,14 @@ describe("관리자 콘솔 — crumbRoot 회귀 없음 (PA-RC-0039 acceptance 4)
 
 describe("사용자 콘솔 — crumbRoot를 유도한다 (PA-RC-0039 acceptance 1~3)", () => {
   it("TeamDocs처럼 crumbRoot를 안 넘기고 area=null이면, 예전엔 '관리자'였지만 이제 소속 그룹이 뜬다", () => {
-    // /team-docs는 PA-RC-0031이 '문서' 그룹을 '팀 공간'에 합친 뒤라 그 그룹 이름이 뜬다 —
+    // /team-docs는 PA-RC-0031이 '문서' 그룹을 합친 뒤 그 그룹 이름이 뜬다 (2026-08-19(D-166)로 업무와 소통·놀이를 갈라 /team-docs 는 '팀 업무' 쪽이다) —
     // 그룹이 바뀌면 breadcrumb가 자동으로 따라오는 것이 derivation을 택한 이유였다
     // (DECISIONS.md D-129, 의도된 연쇄).
     renderAt("/team-docs", {
       nav: USER_NAV, isUser: true, userSeg: true,
       screen: <PageHeader area={null} title="문서 홈" />,
     });
-    expect(main().getByText("팀 공간")).toBeInTheDocument();
+    expect(main().getByText("팀 업무")).toBeInTheDocument();
     expect(main().queryByText(/관리자/)).not.toBeInTheDocument();
   });
 
@@ -114,12 +114,12 @@ describe("사용자 콘솔 — crumbRoot를 유도한다 (PA-RC-0039 acceptance 
 
   it("자기 메뉴 항목이 없는 상세 경로도 prefix로 소속 그룹을 찾는다(활성 메뉴 판정과 같은 함수)", () => {
     // /team-docs/trash는 PA-RC-0031로 독립 메뉴 항목을 잃었다(TeamDocs.jsx 화면 안 버튼으로
-    // 이동) — /team-docs 접두 매칭으로 그 부모의 그룹('팀 공간')을 그대로 물려받는다.
+    // 이동) — /team-docs 접두 매칭으로 그 부모의 그룹('팀 업무')을 그대로 물려받는다.
     renderAt("/team-docs/trash", {
       nav: USER_NAV, isUser: true, userSeg: true,
       screen: <PageHeader area="휴지통" title="휴지통" />,
     });
-    expect(main().getByText("팀 공간 › 휴지통")).toBeInTheDocument();
+    expect(main().getByText("팀 업무 › 휴지통")).toBeInTheDocument();
   });
 });
 
