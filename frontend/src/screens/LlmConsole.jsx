@@ -5,9 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import {
-  Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, useToast,
-} from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, Tag, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* AI(LLM) 관리 (9-5).
@@ -202,7 +200,13 @@ export function LlmConsole({ embedded = false } = {}) {
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
           <Typography variant="h6" component="h2">지금 적용 중인 값</Typography>
           <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
-          <Badge value="확인 안 함" kind="warn" />
+          {/* 예전에는 조건 없이 `"확인 안 함" kind="warn"` 이 박혀 있었다 — 백엔드가
+              내려 주는 `verified` 를 읽지 않아서, 그 값이 참이 되는 날 화면이 거짓말을
+              한다. 그리고 "아직 테스트 안 했다"는 **참고 사실**이라 경고 톤이 아니다
+              (지시 35: 참고와 조치 필요를 같은 강도로 표현하지 않는다). */}
+          {data.verified
+            ? <Badge value="연결 확인됨" kind="ok" />
+            : <Tag label="연결 미확인" tone="neutral" />}
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           {data.verified_note}

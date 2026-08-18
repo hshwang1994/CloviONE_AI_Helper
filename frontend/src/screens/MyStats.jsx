@@ -5,7 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { fmtDateTime } from "../lib/format.js";
+import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import {
   Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
@@ -41,7 +41,6 @@ const MONTH_OPTIONS = [3, 6, 12];
 
 // 티켓 미러 동기화 상태(app/tickets/models.py SYNC_IDLE/RUNNING/OK/ERROR) → 한국어.
 // 매핑에 없는 값이 오면(새 상태 추가 등) 원시 영문 대신 '확인 필요'로 뭉뚱그린다(Home.jsx와 동일 원칙).
-const SYNC_STATUS_KO = { idle: "대기", running: "동기화 중", ok: "정상", error: "오류" };
 
 function pct(rate) {
   return rate == null ? "-" : Math.round(rate * 100) + "%";
@@ -280,17 +279,10 @@ export function MyStats() {
             </Box>
           )}
 
-          {data.sync ? (
-            /* 원시 ISO 문자열을 그대로 두면 '2026-08-03T12:01:32.434817' 이 나온다 —
-               이 앱의 표시 규약은 Asia/Seoul 로 포맷한 시각이다(lib/format.js).
-               상태값도 원시 영문(idle/running/ok/error, app/tickets/models.py SYNC_*)을 그대로
-               내면 안 된다 — Home.jsx·TeamDocs.jsx가 이미 같은 sync.status를 한국어로 옮긴다. */
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5 }}>
-              티켓 미러 상태: {SYNC_STATUS_KO[data.sync.status] || "확인 필요"}
-              {data.sync.last_success_at ? `, 마지막 동기화 ${fmtDateTime(data.sync.last_success_at)}` : ""}
-              {data.sync.truncated ? ", 일부만 동기화됨" : ""}
-            </Typography>
-          ) : null}
+          {/* 정상 동기화 상태는 사용자에게 알리지 않는다 (지시 1 · 29) — 예전에는 이 자리에
+              "티켓 미러 상태: 정상, 마지막 동기화 …"이 상시로 떴다. 조치가 필요한 경우의
+              문구·표기 규약은 공용 `MirrorNotice` 한 곳이 갖는다. */}
+          <Box sx={{ mt: 2.5 }}><MirrorNotice sync={data.sync} unit="티켓" /></Box>
         </>
       )}
     </div>

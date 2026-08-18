@@ -120,9 +120,24 @@ describe("화면", () => {
     await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
 
     expect(screen.getByText("활성")).toBeInTheDocument();
-    // 🔴 활성 상태라는 것과 통한다는 것은 다른 사실이다.
-    expect(screen.getByText("확인 안 함")).toBeInTheDocument();
+    /* 🔴 활성 상태라는 것과 통한다는 것은 다른 사실이다.
+       표시는 이제 백엔드 `verified` 에 묶여 있다(예전에는 문구가 하드코딩이라, 그 값이
+       참이 되는 날 화면이 거짓말을 하게 돼 있었다). "아직 확인 안 했다"는 참고 사실이라
+       경고 톤이 아니라 중립 태그다(지시 35). */
+    expect(screen.getByText("연결 미확인")).toBeInTheDocument();
+    expect(screen.queryByText("연결 확인됨")).toBeNull();
     expect(screen.getByText(/연결 테스트를 눌러야/)).toBeInTheDocument();
+  });
+
+  it("백엔드가 확인됨을 내려 주면 화면도 확인됨이라고 말한다", async () => {
+    /* 지금 백엔드는 항상 `verified: false` 다(app/llm_console/service.py) — 그래도 화면이
+       그 값을 **읽고** 있다는 것을 못박는다. 하드코딩이었던 것이 이 결함의 정체였다. */
+    const base = overview();
+    mockApi({ view: { ...base, verified: true, config: { ...base.config, enabled: true } } });
+    renderConsole();
+    await waitFor(() => expect(screen.getByText("지금 적용 중인 값")).toBeInTheDocument());
+    expect(screen.getByText("연결 확인됨")).toBeInTheDocument();
+    expect(screen.queryByText("연결 미확인")).toBeNull();
   });
 
   it("UA-28: 백엔드 값이 잘못되면 '꺼짐' 배지만이 아니라 진짜 원인을 따로 말한다", async () => {

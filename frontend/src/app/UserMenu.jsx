@@ -157,16 +157,15 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
         color="inherit"
         sx={{
           minWidth: 0, gap: 1, px: 1, py: 0.5, textTransform: "none", borderRadius: RADIUS.full,
-          // WF7(K축, 2026-08-11 실측): 상단바 배경은 radial-gradient(circle at 78% -120%,
-          // brand.purple@0.74, ...) + linear-gradient(brand.deep→mid→accent)다(AppShell.jsx).
-          // 자동 대비 검사(scripts/ui_qa/contrast.py)는 그라디언트 배경을 판정 못 해 지금까지
-          // 아무도 못 쟀다 — 직접 계산해 보니 78% 부근(이 메뉴가 있는 자리)에서 보라 광원이
-          // 강조색과 겹치는 지점은 흰 글자 대비가 4종 강조색 전부에서 3.88~4.20으로 AA(4.5)
-          // 미달이었다("최종안"으로 확정된 그라디언트 자체는 그대로 두고, 그 위에 놓이는
-          // 실제 텍스트(계정 이름)만 보강한다 — 흰 글자에 옅은 검정 알약 배경을 얹으면 같은
-          // 최악 지점에서도 5.1 이상으로 여유 있게 통과한다, 4종 강조색 전부 계산 확인함).
-          bgcolor: "rgba(0,0,0,.15)",
-          "&:hover": { bgcolor: "rgba(0,0,0,.24)" },
+          /* 예전 값(`rgba(0,0,0,.15)` 알약 + 흰 글자)은 **어두운 보라 그라데이션 상단바**를
+             전제로 계산된 것이다(WF7, 2026-08-11). D-141 로 chrome 이 캔버스 계열 단색이
+             되면서 그 전제가 사라졌는데 값만 남아, 밝은 상단바 위에 검은 알약이 얹히고
+             그 안 글자는 여전히 밝은 색을 기대하는 상태가 됐다.
+             이제 chrome 위의 표현은 전부 `sidebar.*` 토큰을 쓴다 — 상단바 색이 바뀌면
+             같이 따라온다(리터럴은 안 따라온다, 그게 이 결함의 원인이었다). */
+          color: "text.primary",
+          bgcolor: "transparent",
+          "&:hover": { bgcolor: "sidebar.hover" },
         }}
       >
         {/* 좁은 화면에서는 이름을 숨긴다. 버튼 자체에 aria-label이 있어 접근 가능한 이름은 유지된다
@@ -176,7 +175,13 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
             MUI Avatar 가 자식(이니셜)으로 자동 폴백하므로 깨진 이미지가 뜨지 않는다. */}
         <Avatar
           src={avatarUrl || undefined}
-          sx={{ width: 30, height: 30, fontSize: FONT_SIZE.bodySm, bgcolor: "rgba(255,255,255,.22)" }}
+          /* 이니셜 색을 명시한다. MUI Avatar 의 기본 글자색은 `palette.background.default`
+             인데, 밝은 배경 위 밝은 원 안에서는 그 값이 곧 "안 보임"이다. */
+          sx={{
+            width: 30, height: 30, fontSize: FONT_SIZE.bodySm,
+            bgcolor: "background.plate", color: "text.secondary",
+            border: 1, borderColor: "sidebar.line",
+          }}
           aria-hidden="true"
         >
           {label[0]}

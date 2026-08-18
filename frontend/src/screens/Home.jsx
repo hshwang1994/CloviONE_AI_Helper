@@ -12,6 +12,7 @@ import {
   Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
+import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { GRID_GAP } from "../ui/density.js";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
@@ -201,25 +202,6 @@ function SideRail({ data }) {
   );
 }
 
-/* 미러 신선도 — '지금 보는 숫자가 언제 것인가'. 정상이면 조용히 한 줄, 문제가 있으면 눈에 띄게. */
-function Freshness({ sync }) {
-  if (!sync) return null;
-  const stale = sync.status !== "ok" || sync.truncated;
-  return (
-    <Typography
-      variant="caption"
-      // warning.main은 badge/tint 배경 위 전용이다 — 이 텍스트는 page background.default
-      // 위에 바로 얹혀 4.48:1로 WCAG AA 4.5 미달이었다(Chrome E2E contrast 실측).
-      // warning.strong이 이미 이 정확한 경계 문제(theme.js QAH-03)를 위해 만들어져 있었다.
-      color={stale ? "warning.strong" : "text.secondary"}
-      sx={{ display: "block", mb: 1.5 }}
-    >
-      티켓 동기화 {sync.status === "ok" ? "정상" : "확인 필요"}, 마지막 성공 {fmtRelative(sync.last_success_at)}
-      {sync.truncated ? ", 일부만 동기화됨(관리자 확인 필요)" : ""}
-    </Typography>
-  );
-}
-
 function useToday() {
   return useQuery({
     queryKey: ["home", "today"],
@@ -292,7 +274,10 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
 
   return (
     <>
-      <Freshness sync={data.sync} />
+      {/* 정상 동기화 상태는 사용자에게 알리지 않는다 (지시 1 · 29). 실패했거나 한 번도
+          성공 못 했을 때만 말한다 — 그 판정은 공용 `MirrorNotice` 한 곳에 있다. 예전에는
+          이 화면이 자기 `Freshness` 로 "티켓 동기화 정상, 마지막 성공 …"을 상시로 띄웠다. */}
+      <MirrorNotice sync={data.sync} unit="티켓" />
       {/* 지표 줄 (지시 2).
         *
         * 예전에는 흰 카드 여섯 장이 한 격자에 깔렸고, 여섯이라는 개수 자체가 격자 산수에서

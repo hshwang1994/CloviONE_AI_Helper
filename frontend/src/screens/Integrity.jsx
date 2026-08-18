@@ -69,8 +69,10 @@ function Findings({ finding, onFix }) {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{finding.why}</Typography>
       <Callout tone="info">{finding.remedy}</Callout>
 
+      {/* `art` 는 예전에 `"done"` 이었다 — `lib/assets.js::ART` 에 없는 키라 일러스트가
+          조용히 안 그려졌다(오류도 안 난다). 실제 키는 `success` 다. */}
       {finding.count === 0 ? (
-        <EmptyState title="해당 없음" help="이 항목에서 정리할 것이 없습니다." art="done" />
+        <EmptyState title="해당 없음" help="이 항목에서 정리할 것이 없습니다." art="success" />
       ) : (
         <>
           {finding.count > finding.items.length ? (

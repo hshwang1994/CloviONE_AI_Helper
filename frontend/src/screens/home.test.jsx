@@ -301,12 +301,31 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.getAllByText(/티켓 소스를 읽지 못해/)).toHaveLength(1);
   });
 
-  it("미러 신선도를 화면에 드러낸다(잘린 동기화는 눈에 띄게)", async () => {
+  it("동기화가 실패했으면 무엇을 보고 있는지 알린다", async () => {
     routeApi({
       today: { ...TODAY_OK, sync: { ...TODAY_OK.sync, status: "error", truncated: true } },
     });
     renderHome();
-    expect(await screen.findByText(/일부만 동기화됨/)).toBeInTheDocument();
+    expect(await screen.findByText(/마지막 정상 데이터를 보고 있습니다/)).toBeInTheDocument();
+  });
+
+  it("일부만 가져왔으면 숫자가 전체가 아니라고 말한다", async () => {
+    /* 상태값은 ok 라 "실패"에 안 걸리는데 화면의 숫자는 전체가 아니다 — 조용히 넘기면
+       사용자는 그 숫자를 전체로 읽는다. 공용 `MirrorNotice` 가 이 갈래를 갖는다. */
+    routeApi({
+      today: { ...TODAY_OK, sync: { ...TODAY_OK.sync, status: "ok", truncated: true } },
+    });
+    renderHome();
+    expect(await screen.findByText(/일부만 동기화됐습니다/)).toBeInTheDocument();
+  });
+
+  it("동기화가 정상이면 신선도 줄 자체를 안 그린다 (지시 1)", async () => {
+    routeApi();
+    renderHome();
+    await screen.findByText("오늘 마감");
+    // 예전에는 "티켓 동기화 정상, 마지막 성공 …"이 본문 맨 위에 상시로 떴다.
+    expect(screen.queryByText(/티켓 동기화 정상/)).toBeNull();
+    expect(screen.queryByText(/마지막 정상 데이터/)).toBeNull();
   });
 
   it("불러오는 동안에는 스켈레톤을 보여준다", async () => {

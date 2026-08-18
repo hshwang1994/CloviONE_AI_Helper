@@ -146,9 +146,11 @@ export function MyApprovals() {
         />
       ) : null}
 
+      {/* 아래 `art="success"` 는 예전에 `"done"` 이었다 — ART 에 없는 키라 일러스트가 조용히
+          안 그려졌다(Integrity.jsx 와 같은 오배선). */}
       {data && (box !== "todo" || canDecide) ? (
         data.items.length === 0 ? (
-          <EmptyState title={current.empty} art="done" />
+          <EmptyState title={current.empty} art="success" />
         ) : (
           <Card>
             <DataTable columns={columns} rows={data.items} rowKey={(r) => r.id} />
