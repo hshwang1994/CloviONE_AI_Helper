@@ -91,7 +91,7 @@ export const AUTOMATION_SCREENS = {
       { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",
         extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
         help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음으로 설정된 것만 실제 실행됩니다). 시스템이면 목록 끝의 ‘시스템 (noop)’을 고르세요." },
-      { name: "payload_template", label: "실행 페이로드(JSON)", type: "json", help: "워크플로에 보낼 기본 페이로드. 비우면 빈 값으로 실행됩니다." },
+      { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "워크플로에 보낼 기본 입력값. 비우면 빈 값으로 실행됩니다." },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3). app/schedules/scheduler.py가 이 값으로 재시도/백오프를 결정합니다.' },
       // 기본값을 명시하지 않으면 FormModal이 null을 보내 백엔드(non-Optional str)가 422로 거절한다
       // → 모든 기본 경로 스케줄 생성이 실패했다. 백엔드 기본값(skip)과 맞춘다.
@@ -110,7 +110,7 @@ export const AUTOMATION_SCREENS = {
     // 소유자는 서버가 이름을 함께 준다(app/schedules/router.py `_view`) — UUID 대신 그 이름을 쓴다.
     detailFields: [field("id", "스케줄 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
       { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTime(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
-      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "타임아웃(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "추가"), jsonField("payload_template", "실행 페이로드"), jsonField("retry_policy", "재시도 정책")],
+      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "제한 시간(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "추가"), jsonField("payload_template", "실행 입력값"), jsonField("retry_policy", "재시도 정책")],
     actions: [
       // once형은 백엔드 enable이 실행 시각이 이미 지났으면 항상 409('실행 시각이 이미 지났습니다')로
       // 거절한다 — 눌러도 항상 실패하는 '활성화'를 숨긴다. next_run_at이 아예 없거나(이미 실행됨),
@@ -468,7 +468,9 @@ export const AUTOMATION_SCREENS = {
     // 빼기 때문이다(app/jobs/router.py `_job_view`: 큐 화면이 대화 내용 열람의 우회로가
     // 되지 않게). 여기에 이름을 그리려면 그 원칙부터 다시 정해야 한다 — 그래서 id 로
     // 남기되, 라벨에 "계정 ID" 라고 적어 이게 사람 이름이 아니라는 것을 분명히 한다.
-    detailFields: [field("id", "작업 ID"), field("idempotency_key", "멱등키"), field("user_id", "요청자 계정 ID"), field("conversation_id", "대화 ID"), field("message_id", "메시지 ID"),
+    detailFields: [// `멱등키` 는 개발자 어휘다 — 이 화면에 오는 운영자에게 그 말은 아무것도 알려 주지
+      // 않는다. 이 값이 하는 일(같은 작업이 두 번 들어가는 것을 막는다)로 부른다(지시 22).
+      field("id", "작업 ID"), field("idempotency_key", "중복 방지 키"), field("user_id", "요청자 계정 ID"), field("conversation_id", "대화 ID"), field("message_id", "메시지 ID"),
       // schedule_run/document_generate 작업이 자신을 구동한 스케줄/문서로 돌아갈 길이 없었다
       // (IA-02) — 백엔드는 이미 참조 ID를 내려주고 있었다(app/jobs/router.py::_link_ids,
       // round30 감사 E에서 이 문제를 위해 추가됨) 프런트가 안 그렸을 뿐이다. schedule_run_id는

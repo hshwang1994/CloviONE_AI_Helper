@@ -109,10 +109,13 @@ export function buildAlerts(d, role) {
     alerts.push({ src: "job:rate", label: "성공률 저하(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "warn", to: jobsTo });
   // 워커/스케줄러가 죽으면 큐가 비어 있어도 작업이 멈춘다 — 하트비트 stale를 최상단 경보로.
   // 'down'(중단)은 danger, 'unknown'(응답 없음, 재시작 직후 등)은 warn으로 구분해 서비스 카드와 심각도를 맞춘다.
+  /* 이름은 `serviceLabel` 한 곳에서 온다 — 예전에는 이 경보만 "워커"·"스케줄러"라고 짧게
+     부르고 바로 아래 서비스 카드는 "백그라운드 워커"라고 불렀다. 같은 것을 화면 한 장에서
+     두 이름으로 부르면 사용자는 그것이 다른 것인지 확인해야 한다(지시 22). */
   if (comps.worker && comps.worker !== "up")
-    alerts.push({ src: "comp:worker", label: "워커" + procNote, value: comps.worker === "down" ? "중단" : "응답 없음", kind: comps.worker === "down" ? "danger" : "warn", to: procTo });
+    alerts.push({ src: "comp:worker", label: serviceLabel("worker") + procNote, value: comps.worker === "down" ? "중단" : "응답 없음", kind: comps.worker === "down" ? "danger" : "warn", to: procTo });
   if (comps.scheduler && comps.scheduler !== "up")
-    alerts.push({ src: "comp:scheduler", label: "스케줄러" + procNote, value: comps.scheduler === "down" ? "중단" : "응답 없음", kind: comps.scheduler === "down" ? "danger" : "warn", to: procTo });
+    alerts.push({ src: "comp:scheduler", label: serviceLabel("scheduler") + procNote, value: comps.scheduler === "down" ? "중단" : "응답 없음", kind: comps.scheduler === "down" ? "danger" : "warn", to: procTo });
   // 핵심 연동(n8n·Notion·러너 등)이 down/degraded면 큐가 비어 있어도 업무가 멈춘다 — 서비스 상태 배지로만
   // 두지 않고 상단 경보로 올린다(비활성 연동은 제외). enabled!==false인 것만.
   Object.entries(d.integrations || {}).forEach(([name, v]) => {

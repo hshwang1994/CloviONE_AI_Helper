@@ -170,7 +170,7 @@ export const AUTHORING_SCREENS = {
       { name: "purpose", label: "용도", type: "textarea" },
       // 서버 기본값("{}")과 맞춘다(app/prompts/router.py PolicyCreateRequest.content) — 값 없이는
       // 다른 registry create 필드처럼 즉시 제출 가능해야 한다(예전엔 최소 "{}"라도 직접 타이핑해야 했다).
-      { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '이 정책 이름을 참조하는 템플릿이 문서를 만들 때 n8n 페이로드에 그대로 실립니다. 업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다. 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
+      { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '이 정책 이름을 참조하는 템플릿이 문서를 만들 때 n8n 으로 그대로 전달됩니다. 업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다. 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
     ] },
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "규칙(JSON)", type: "json", required: true, help: '예: {"required_fields":["title"]}' },

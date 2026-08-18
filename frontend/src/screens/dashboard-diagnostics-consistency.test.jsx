@@ -68,9 +68,15 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
     });
     const dashboardRender = render(wrap(<Dashboard />));
     await within(dashboardRender.container).findByText("서비스 상태");
-    const dashboardWeb = within(dashboardRender.container).getByText("웹 서버");
-    const dashboardWorker = within(dashboardRender.container).getByText("백그라운드 워커");
-    const dashboardN8n = within(dashboardRender.container).getByText("n8n 엔진");
+    /* 2026-08-19: 상단 경보도 `serviceLabel` 을 쓰게 하면서 같은 이름이 한 화면에 두 번
+       나올 수 있게 됐다(경보 + 서비스 타일). 그게 **이 시험이 원하던 상태**다 — 예전에는
+       경보만 "워커"라고 짧게 부르고 타일은 "백그라운드 워커"라고 불렀다. 그러니 여기서
+       재는 것은 "한 번만 나오는가"가 아니라 "두 화면이 같은 이름을 쓰는가"이므로 첫 번째
+       것을 집는다. */
+    const first = (t) => within(dashboardRender.container).getAllByText(t)[0];
+    const dashboardWeb = first("웹 서버");
+    const dashboardWorker = first("백그라운드 워커");
+    const dashboardN8n = first("n8n 엔진");
     dashboardRender.unmount();
 
     apiMock.mockReset();
@@ -84,8 +90,8 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
     await within(diagnosticsRender.container).findByText("서비스 상태");
     // 같은 문자열이 두 번째 화면에도 그대로 있어야 한다 — 렌더 자체가 실패하면(다른 이름이면)
     // getByText가 여기서 던진다. 첫 화면에서 읽은 텍스트를 그대로 다시 찾는 것 자체가 대조다.
-    expect(within(diagnosticsRender.container).getByText(dashboardWeb.textContent)).toBeInTheDocument();
-    expect(within(diagnosticsRender.container).getByText(dashboardWorker.textContent)).toBeInTheDocument();
-    expect(within(diagnosticsRender.container).getByText(dashboardN8n.textContent)).toBeInTheDocument();
+    for (const el of [dashboardWeb, dashboardWorker, dashboardN8n]) {
+      expect(within(diagnosticsRender.container).getAllByText(el.textContent).length).toBeGreaterThan(0);
+    }
   });
 });
