@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Card } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
-import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, MOTION } from "./theme.js";
 
 /* 관리자 화면(Dashboard·진단·유지보수·작업 큐·개발자 리포트)이 함께 쓰는 껍데기·격자.
  * 예전엔 전부 Dashboard.jsx 안에 있어서, 그 화면 하나가 사실상 '관리자 전용 디자인 시스템'
@@ -23,11 +23,6 @@ export const HEADLINE_GRID = {
   xs: "1fr",
   sm: "repeat(2, minmax(0,1fr))",
   lg: "repeat(5, minmax(0,1fr))",
-};
-
-// 서비스/연동 카드 격자 — 타일이 작아 머리 지표 줄(HEADLINE_GRID)보다 촘촘하게 깐다.
-export const SERVICE_GRID = {
-  xs: "1fr", sm: "repeat(2, minmax(0,1fr))", md: "repeat(3, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))",
 };
 
 /* 대시보드·진단이 공유하는 섹션 껍데기(제목 + 오른쪽 보조 링크).
@@ -52,25 +47,49 @@ export function DashSection({ title, action, children }) {
  * '누를 수 있는 카드'인지 아닌지가 화면마다 달라 보였다.
  * 이름 옆에 중첩 <button>을 두지 않는다 — role="button" 안의 포커스 가능한 자손은 WAI-ARIA 금지이고,
  * 실제로도 '이름을 누르면 다른 일이 일어난다'는 잘못된 기대를 만든다. 카드 하나만 클릭 대상이다. */
+/* 상태 목록 한 벌. 판(Card)은 **하나**고 줄이 실선으로 나뉜다.
+ *
+ * 예전에는 상태 하나가 흰 카드 한 장이었고 3~7장을 격자에 깔았다. 1920 실측에서 이름
+ * 하나와 배지 하나가 530px 카드 안에 놓여 가운데가 통째로 비었고, 개수가 열 수의 약수가
+ * 아니면 마지막 줄이 남았다 — 지표 카드 벽과 같은 결함이다(D-143).
+ *
+ * 위쪽 '확인이 필요한 항목'이 이미 "왼쪽에 무엇, 오른쪽에 상태/조치" 줄로 읽히므로 같은
+ * 어휘를 쓴다 — 한 화면에서 같은 성격의 정보가 두 가지 모양으로 나오지 않게 한다. */
+export function StatusList({ children, ariaLabel }) {
+  return (
+    <Card
+      className="k-statuslist"
+      aria-label={ariaLabel}
+      sx={{ p: 0, overflow: "hidden", "& > *:not(:first-of-type)": { borderTop: 1, borderColor: "divider" } }}
+    >
+      {children}
+    </Card>
+  );
+}
+
+/* 상태 한 줄. `StatusList` 안에서만 쓴다(자기 판을 갖지 않는다). */
 export function StatusTile({ name, onClick, ariaLabel, children }) {
   return (
-    <Card onClick={onClick}
+    <Box
+      onClick={onClick}
       sx={{
-        p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
+        px: 2, py: 1.25, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
         cursor: onClick ? "pointer" : "default",
-        "&:hover": onClick ? { borderColor: "primary.main" } : undefined,
+        transition: `background-color ${MOTION.instant} ${MOTION.ease}`,
+        "&:hover": onClick ? { bgcolor: "background.inset" } : undefined,
+        "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: -2 }),
       }}
       role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
       aria-label={onClick ? ariaLabel : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
       <Typography
         variant="body2" title={name}
-        sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
       >
         {name}
       </Typography>
       {children}
-    </Card>
+    </Box>
   );
 }
 

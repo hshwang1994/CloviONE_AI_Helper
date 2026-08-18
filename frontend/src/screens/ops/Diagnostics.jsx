@@ -6,7 +6,7 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { DashSection, Note, StatusTile, SERVICE_GRID } from "../../ui/adminKit.jsx";
+import { DashSection, Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import { PageHeader, Card, Badge, Callout, MetricStrip, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp } from "./opsHelpers.js";
@@ -196,7 +196,7 @@ export function Diagnostics() {
                   '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라 바로 옆에 둔다, 이 페이지 자신이 선언한
                   '스냅샷 먼저, 이력 나중' 원칙(아래 '현재 리소스' 주석)을 이 섹션에도 실제로 지킨다. */}
               {Object.keys(integrations).length ? (
-                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+                <StatusList ariaLabel="외부 연동">
                   {Object.keys(integrations).map((k) => {
                     const it = integrations[k] || {};
                     // last_health는 NOT NULL이라 'unknown'으로 채워져 온다(models.py), 'it.last_health ||'
@@ -204,8 +204,8 @@ export function Diagnostics() {
                     // 'unknown'(과 만일의 빈 값)을 명시적으로 '미점검'으로 표기한다.
                     const raw = it.last_health;
                     const val = it.enabled === false ? "disabled" : (!raw || raw === "unknown") ? "미점검" : raw;
-                    // 다른 화면(Dashboard.jsx의 서비스 카드)과 같은 방식으로 클릭 가능한 카드로 만든다 -
-                    // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 카드로 남기지 않는다.
+                    // 다른 화면(Dashboard.jsx의 서비스 목록)과 같은 방식으로 누를 수 있는 줄로 만든다 -
+                    // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 줄로 남기지 않는다.
                     return (
                       <StatusTile key={k} name={serviceLabel(k)} onClick={() => nav("/integrations")}
                         ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
@@ -213,7 +213,7 @@ export function Diagnostics() {
                       </StatusTile>
                     );
                   })}
-                </Box>
+                </StatusList>
               ) : (
                 // dash.integrations(위 integrations)는 Integration 테이블 전 행을 무조건 담고(app/health/
                 // service.py build_dashboard), integration_errors는 그중 down/degraded만 거른 부분집합이다 -

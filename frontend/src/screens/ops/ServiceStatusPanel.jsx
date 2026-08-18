@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { Badge, MetricStrip, Callout, useToast } from "../../ui/kit.jsx";
-import { DashSection, StatusTile, SERVICE_GRID } from "../../ui/adminKit.jsx";
+import { DashSection, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import { fmtNum, serviceLabel, fmtCertDays, copyText } from "./opsHelpers.js";
 
 /* 진단 화면의 "시스템 리소스" + "서비스 상태" 카드 — 둘 다 '지금 이 순간' 스냅샷이라 한 패널로 묶는다.
@@ -71,7 +71,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
               </Box>
             );
           })() : null}
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+          <StatusList ariaLabel="서비스 상태">
             {Object.keys(comps).map((k) => {
               // 'unknown'(하트비트 없음/오래됨)도 상단 healthVerdict()가 이미 주의 대상으로 세는 문제다 -
               // 배지를 무채색 그대로 두면 상단 '주의 N건' 배너와 이 타일의 심각도가 서로 어긋나 보인다.
@@ -91,7 +91,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
                 </StatusTile>
               );
             })}
-          </Box>
+          </StatusList>
         </DashSection>
       ) : null}
     </>

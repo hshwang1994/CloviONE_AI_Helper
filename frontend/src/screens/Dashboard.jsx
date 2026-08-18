@@ -10,7 +10,7 @@ import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, MetricStrip, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { DashSection, StatusTile, Note, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
+import { DashSection, StatusList, StatusTile, Note, HEADLINE_GRID } from "../ui/adminKit.jsx";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 
@@ -535,7 +535,7 @@ function DashboardBody({ d, nav, role, stale }) {
             같은 가드와 동일한 이유). 그래도 빈 그리드를 아무 설명 없이 그리면 "비어 보이는 것"과
             "고장난 것"을 구분할 수 없으므로, 다른 빈 목록(아래 '최근 주요 변경')과 같은 관례로 문구를 둔다. */}
         {compKeys.length ? (
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+          <StatusList ariaLabel="서비스 상태">
             {compKeys.map((k) => {
               // 워커/스케줄러가 'unknown'(하트비트 없음)이면 상단 경보와 심각도를 맞춰 warn으로 물들인다.
               // (기본 배지는 unknown을 무채색으로 그려 카드에선 무해하게 보였다.)
@@ -548,19 +548,19 @@ function DashboardBody({ d, nav, role, stale }) {
                 </StatusTile>
               );
             })}
-          </Box>
+          </StatusList>
         ) : <Note sx={{ mt: 0 }}>서비스 정보 없음</Note>}
       </DashSection>
 
       {integrationKeys.length ? (
         <DashSection title="외부 연동" action={<Typography variant="body2" color="text.secondary">{upSummary(integrationStates)}</Typography>}>
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SERVICE_GRID }}>
+          <StatusList ariaLabel="외부 연동">
             {integrationKeys.map((k) => (
               <StatusTile key={k} name={serviceLabel(k)} onClick={goto("/integrations")} ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
                 <Badge value={integrationStates[k]} />
               </StatusTile>
             ))}
-          </Box>
+          </StatusList>
         </DashSection>
       ) : null}
 
