@@ -63,7 +63,7 @@ export function failedOpenAgeLabel(jobs) {
   return ", 가장 오래된 것 " + (days < 1 ? "오늘" : days + "일 전");
 }
 
-// StatCard는 값을 크게(clamp 1.5~2.25rem) 낸다(ui/kit.jsx), 자리수가 늘면(작업 누적 총계 등) 천 단위
+// 판독 칸은 값을 크게 낸다(ui/kit.jsx::MetricStrip), 자리수가 늘면(작업 누적 총계 등) 천 단위
 // 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
 export function fmtNum(n) {
   return typeof n === "number" ? n.toLocaleString("ko-KR") : n;
@@ -166,7 +166,7 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   }
   // 인증서: 만료 danger / D-30 이내 warn (아래 타일과 동일)
   // days===0(오늘 만료, 자정 전까진 아직 유효)과 days<0(이미 만료)을 fmtCertDays()로 일관되게
-  // 구분한다 — 여기서 둘 다 "인증서 만료됨"으로 뭉뚱그리면 StatCard 타일은 "오늘 만료"라고
+  // 구분한다 — 여기서 둘 다 "인증서 만료됨"으로 뭉뚱그리면 판독 칸은 "오늘 만료"라고
   // 정확히 말하는데 이 상단 배너만 다르게 말해 서로 모순되는 문구가 동시에 뜬다.
   if (certDays != null) {
     if (certDays <= 0) dang("인증서 " + fmtCertDays(certDays));

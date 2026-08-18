@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader,
-  SectionTitle, Skeleton, StatCard, useToast,
+  MetricStrip, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
@@ -202,16 +202,16 @@ export function Integrity() {
           title="관리자 범위 현황"
           help="조직 관리자와 부서 관리자는 role=admin 과 관리 범위의 조합입니다. 전부 '전체 관리자'라면 범위 기능이 실제로는 쓰이지 않고 있다는 뜻입니다."
         />
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0,1fr))" }, mb: 2 }}>
-          {["global", "org", "dept"].map((k) => (
-            <StatCard
-              key={k}
-              value={admins.by_scope[k] || 0}
-              label={SCOPE_KO[k]}
-              kind={k === "global" && (admins.by_scope[k] || 0) === admins.total ? "warn" : undefined}
-            />
-          ))}
-        </Box>
+        <MetricStrip
+          ariaLabel="관리자 범위 현황"
+          items={["global", "org", "dept"].map((k) => ({
+            key: k,
+            value: admins.by_scope[k] || 0,
+            label: SCOPE_KO[k],
+            kind: k === "global" && (admins.by_scope[k] || 0) === admins.total ? "warn" : undefined,
+          }))}
+          sx={{ mb: 2 }}
+        />
         <DataTable
           columns={[
             { key: "display_name", label: "이름", identifier: true },

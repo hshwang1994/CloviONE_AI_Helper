@@ -8,9 +8,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, Badge, StatCard, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, MetricStrip, Skeleton, ErrorState, Button, Callout, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { DashSection, StatusTile, Note, STAT_GRID, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
+import { DashSection, StatusTile, Note, SERVICE_GRID, HEADLINE_GRID } from "../ui/adminKit.jsx";
 import { serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays, failedOpenAgeLabel } from "./ops/opsHelpers.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 
@@ -224,7 +224,7 @@ const SEV_TEXT = { danger: "위험", warn: "주의" };
 
 /* 조치 대기 행 하나 — 카드가 아니라 표에 가까운 한 줄이다. 「무엇이(라벨) · 영향(값+심각도)
  * · 기본 조치」를 한 시선에서 읽는다. 심각도는 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은
- * 텍스트 태그를 함께 쓴다(StatCard와 같은 규칙).
+ * 텍스트 태그를 함께 쓴다(판독 칸과 같은 규칙).
  *
  * 가장 급한 한 건만 `primary`(채운 버튼)이고 나머지는 `default`(외곽선)다 — PA-RC-0023
  * 규범(화면/오버레이당 `contained` 정확히 1개)을 이 목록 안에서부터 지킨다. 호출부가 이미
@@ -250,7 +250,7 @@ function ActionRow({ a, isPrimary, onClick }) {
                (ui_qa vertical_text_collapse). 줄바꿈을 막는 것과 line box 를 하나로
                두는 것은 다른 일이다. */
             color: SEV_COLOR[a.kind] || "text.primary", display: "inline",
-            // kit.jsx StatCard의 sev 배지와 같은 이유(PA-RC-0001 QAH-02) — 짧고 고정된 값이
+            // kit.jsx 판독 칸의 심각도 배지와 같은 이유(PA-RC-0001 QAH-02) — 짧고 고정된 값이
             // 줄바꿈될 이유가 없는데 white-space 없이 두면 390px에서 라벨이 행을 다 채운 뒤
             // 이 값만 남은 좁은 폭에 한글 음절 단위로 세로 붕괴한다(실측: admin_dashboard
             // 390x844 라이트, "7일 전"이 60.4px/줄당 2자로 3줄). 값은 줄바꿈되지 않고 통째로
@@ -259,7 +259,7 @@ function ActionRow({ a, isPrimary, onClick }) {
           }}
         >
           {a.value}
-          {/* StatCard(kit.jsx)의 0.6875rem 예외는 좁은 카드 폭에서 줄바꿈이 실측된 경우다
+          {/* 판독 칸(kit.jsx)의 0.6875rem 예외는 좁은 폭에서 줄바꿈이 실측된 경우다
               (PA-RC-0001 QAH-02) — 이 행은 카드가 아니라 훨씬 넓은 가로 목록이라 같은 제약이
               없다, 6단계 스케일의 정식 토큰을 그대로 쓴다. */}
           {sevText ? <Box component="span" sx={{ fontSize: FONT_SIZE.caption, ml: 0.5 }}>{sevText}</Box> : null}
@@ -404,11 +404,7 @@ export function Dashboard() {
         q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
           <Box>
             <Card sx={{ mb: 3 }}><Skeleton lines={3} /></Card>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Card key={i}><Skeleton lines={2} /></Card>
-              ))}
-            </Box>
+            <Card sx={{ py: 1.5 }}><Skeleton lines={2} /></Card>
           </Box>
         )
       ) : (
@@ -572,11 +568,14 @@ function DashboardBody({ d, nav, role, stale }) {
         {/* 성공률은 이 24시간 지표군의 하나이지만 위 스트립/조치 목록과 겹치는 값이라
             여기서는 뺐다(같은 값이 화면에 두 번 나오지 않는다) — 나머지 셋(처리량·완료
             건수·평균 처리 시간)은 스트립/경보 어디에도 없는 유일한 자리라 그대로 둔다. */}
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-          <StatCard value={fmtNum(jobs.total)} label={"처리 요청" + jobsNote} onClick={goto("/jobs")} />
-          <StatCard value={fmtNum(jobs.succeeded)} label={"성공" + jobsNote} onClick={goto("/jobs")} />
-          <StatCard value={fmtProcessingTime(jobs.avg_processing_seconds)} label={"평균 처리" + jobsNote} onClick={goto("/jobs")} />
-        </Box>
+        <MetricStrip
+          ariaLabel="작업 처리량"
+          items={[
+            { key: "total", value: fmtNum(jobs.total), label: "처리 요청" + jobsNote, primary: true, onClick: goto("/jobs") },
+            { key: "succeeded", value: fmtNum(jobs.succeeded), label: "성공" + jobsNote, onClick: goto("/jobs") },
+            { key: "avg", value: fmtProcessingTime(jobs.avg_processing_seconds), label: "평균 처리" + jobsNote, onClick: goto("/jobs") },
+          ]}
+        />
         {/* 이 값들에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다 — app/health/service.py).
             없는 추세선을 그리면 한 점을 선으로 잇는 거짓말이 되므로 여기는 숫자로 둔다. */}
       </DashSection>

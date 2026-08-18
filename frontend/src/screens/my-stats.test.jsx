@@ -143,7 +143,7 @@ describe("내 업무량 · 완료 통계", () => {
     renderStats();
     expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
     expect(screen.getByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
-    const remaining = screen.getAllByText("남은 일")[0].closest(".k-stat");
+    const remaining = screen.getAllByText("남은 일")[0].closest(".k-readout");
     expect(remaining).not.toBeNull();
     expect(remaining.textContent).toContain("-");
   });

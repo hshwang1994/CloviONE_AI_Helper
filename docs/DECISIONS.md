@@ -6186,3 +6186,66 @@ P12-1 의 Before/After 대조에서 다시 필요하다. 지금 절반만 만들
 
 `scripts/static_checks.sh` 에 "폐기한 목업을 아직 참조하는 곳이 없다" 검사를 추가했다.
 시험 파일과 검사기 자신은 제외한다 — "그 경로가 없다"를 단언하려면 문자열을 적어야 한다.
+
+---
+
+## D-143 — 지표는 카드 벽이 아니라 판독 줄이다 (`MetricStrip`), `StatCard` 폐기
+
+**날짜** 2026-08-18 · **범위** P2(공용 Component) · **지시** 2 · 61 · 62 · 70
+
+### 문제
+
+`StatCard` 는 "지표 하나 = 흰 카드 한 장"이었고, 화면 12개가 그것을 격자에 깔았다.
+실제 화면(1920 실측)에서 이 구조가 만든 결함은 셋이다.
+
+1. **무엇이 핵심인지 말하지 않는다.** 카드 여덟 장이 같은 크기·같은 테두리·같은 그림자로
+   놓이면 "전체 22"와 "지연 마일스톤 6"이 같은 무게로 읽힌다.
+2. **값이 없을 때 화면 절반을 '없음'이 차지한다.** `/projects` 는 여덟 장 중 다섯이
+   `0`/`-` 였고 그 벽이 표보다 먼저 나왔다.
+3. **개수가 격자 산수에 종속된다.** 홈은 카드가 "항상 정확히 여섯"이어야 열 수가 맞아서,
+   채팅이 켜져 있으면 **'막힘(이슈)' 판독이 자리가 없다는 이유로 화면에서 빠졌다.**
+   격자를 맞추려고 정보를 버리고 있었다.
+
+### 결정
+
+`kit.jsx::MetricStrip` 하나로 대체한다. 판(Card) **하나** 안에서 실선으로 나뉜 판독 칸
+여럿이 폭을 나눠 갖는다. 칸마다 값·라벨·각주(`note`)·심각도·변화량(`delta`)·클릭을 갖고,
+`primary: true` 인 칸만 `FONT_SIZE.readout` 으로 크게 낸다.
+
+- **무게는 폭이 아니라 글자 크기로 준다.** 핵심 칸을 두 배 폭으로 잡아 봤더니(실측) 짧은
+  숫자 하나가 490px 칸에 놓여 오른쪽이 통째로 비었다 — 없애려던 그 죽은 공간이다.
+- **칸 폭에 상한을 두지 않는다.** 24rem 으로 묶어 봤더니 항목이 셋인 줄에서 칸들이 왼쪽에
+  뭉치고 판의 오른쪽 절반이 테두리 안에서 비었다(실측). 남는 폭은 칸들이 나눠 갖는다.
+- **칸 수 제약이 없으므로** 홈의 '막힘(이슈)'은 채팅 설정과 무관하게 항상 있다.
+
+### 옮긴 화면 (전수 — 지시 61)
+
+`Home` · `MyStats` · `Projects` · `Sprint` · `Trash` · `WorkSummary` · `Integrity` ·
+`DevReport` · `Dashboard` · `DataScreen`(레지스트리 23화면 공유) · `ops/Diagnostics` ·
+`ops/JobQueuePanel` · `ops/ServiceStatusPanel`.
+
+`StatCard` 와 `.k-stat` CSS, `adminKit.STAT_GRID`, `Home.STAT_GRID`, `MyStats.STAT_GRID`,
+`DataScreen.SUMMARY_CARD_GRID`, `density.js` 의 `STAT_CARD_PADDING`/`STAT_VALUE_FONT_SIZE`,
+`DevReport.KpiLabel` 을 함께 제거했다. 죽은 컴포넌트를 남기면 다음 화면이 그것을 다시 집는다.
+
+### 함께 지운 정보 — 홈의 '안 읽은 알림'·'안 읽은 채팅'
+
+같은 숫자를 **상단 종**(알림의 단일 진입점, 지시 1)과 **사이드바 배지**
+(`navConfig` 의 `notifUnread`/`chatUnread`)가 이미 말하고 있어 한 화면에 세 번 나왔다.
+게다가 그 줄의 나머지 칸은 아래 목록을 거르는 **필터**인데 이 둘만 다른 화면으로 나가는
+링크라, 누를 때 무슨 일이 일어나는지가 칸마다 달랐다(지시 62: 행동으로 이어지지 않는
+지표를 두지 않는다). 개수 자체는 종과 배지에 그대로 있다 — 정보를 없앤 게 아니라
+**중복을 없앴다**.
+
+### 검사 이관 (삭제·약화 없음 — 지시 54·70)
+
+| 옛 검사 | 새 검사 | 살린 계약 |
+|---|---|---|
+| `kit.test.jsx` StatCard 2건 | 같은 파일, `MetricStrip` 대상 | 심각도를 글자로도 표시 · 누를 수 있는 칸만 버튼 |
+| `theme-link-contrast` QAH-02/03 | 같은 파일, `MetricStrip` 블록 대상 | 배지가 `.strong` 을 쓴다 · `nowrap`+`flexShrink:0` |
+| `density-contract` 홈 6장 격자 | `home.test.jsx` "판 하나에 담긴다" | 마지막 줄 빈 칸 — 이제 **DOM** 을 본다(트랙 문자열이 아니라) |
+| `density-contract` `STAT_VALUE_FONT_SIZE` | 같은 파일, `FONT_SIZE.readout` | 판독값이 본문보다 확실히 크다 — 정본이 테마로 옮겨졌다 |
+| `datascreen.test.jsx` auto-fit 격자 2건 | 같은 파일, 판 하나 + `flex-wrap` | 카드 수와 무관하게 빈 칸이 안 생긴다 |
+| `projects.test.jsx` `.k-stat` 선택자 | `.k-stat, .k-readout` | 서버 숫자를 그대로 쓴다 · 각주가 자기 숫자 옆에 |
+
+`.k-readout` 은 "숫자 하나와 그 라벨·각주를 담은 칸"이라는 뜻의 안정적인 검사 손잡이다.

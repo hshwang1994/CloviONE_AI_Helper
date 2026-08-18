@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  FormField, Modal, PageHeader, StatCard, ToastProvider, statusKind, statusText,
+  FormField, MetricStrip, Modal, PageHeader, ToastProvider, statusKind, statusText,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
@@ -76,15 +76,26 @@ describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
     expect(screen.getByText("연결이 끊어졌습니다")).toBeInTheDocument();
   });
 
-  it("StatCard는 위험/주의를 글자로도 표시한다", () => {
-    ui(<StatCard value={3} label="지연" kind="danger" />);
+  /* 아래 둘은 StatCard(카드 한 장 = 지표 하나)가 지키던 계약이다. 그 컴포넌트는
+     MetricStrip 으로 대체됐고, 계약은 그대로 옮겨 왔다. */
+  it("판독 칸은 위험/주의를 글자로도 표시한다", () => {
+    ui(<MetricStrip ariaLabel="티켓" items={[{ key: "o", value: 3, label: "지연", kind: "danger" }]} />);
     expect(screen.getByText("위험")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
   });
 
-  it("누를 수 있는 StatCard만 버튼이 되고 눌림 상태를 알린다", async () => {
+  it("누를 수 있는 판독 칸만 버튼이 되고 눌림 상태를 알린다", async () => {
     const onClick = vi.fn();
-    ui(<StatCard value={1} label="열린 티켓" onClick={onClick} active />);
+    ui(
+      <MetricStrip
+        ariaLabel="티켓"
+        items={[
+          { key: "open", value: 1, label: "열린 티켓", onClick, active: true },
+          { key: "done", value: 9, label: "완료" },
+        ]}
+      />,
+    );
+    // 누를 수 없는 칸은 버튼이 아니다 — 버튼은 하나뿐이어야 한다.
     const card = screen.getByRole("button");
     expect(card).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(card);

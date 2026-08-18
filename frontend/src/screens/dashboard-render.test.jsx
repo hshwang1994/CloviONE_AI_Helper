@@ -84,9 +84,9 @@ describe("대시보드 — 빈 payload", () => {
 
     expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
     // 대기 작업이 0이어도 글자로 보인다 — 스트립 전체가 이미 "카드가 아닌 작은 텍스트"이므로
-    // StatCard(.k-stat, 30px 큰 숫자)로 그려지지 않는다(direction 4).
+    // 큰 판독 칸(.k-readout)으로 그려지지 않는다(direction 4).
     const queuedText = screen.getByText("대기 작업 0");
-    expect(queuedText.closest(".k-stat")).toBeNull();
+    expect(queuedText.closest(".k-readout")).toBeNull();
   });
 
   // PA-RC-0028: 도넛 자체를 없앴다(제목 옆 'N / M' 요약으로 대체) — 이 테스트가 막던 문제는

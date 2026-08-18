@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -96,7 +96,7 @@ function renderHome() {
   );
 }
 
-/* 통계 카드 하나(라벨로 찾는다). StatCard 는 onClick 이 있으면 <button> 으로 그려진다. */
+/* 판독 칸 하나(라벨로 찾는다). 누를 수 있는 칸만 <button> 으로 그려진다. */
 function statCard(label) {
   return screen.getAllByRole("button").find((el) => el.textContent.includes(label));
 }
@@ -115,15 +115,18 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     routeApi();
     renderHome();
 
-    expect(await screen.findByText("안 읽은 알림")).toBeInTheDocument();
-    // 통계 카드 6장: 오늘 마감 / 지연 / 진행 중 / 7일 내 마감 / 안 읽은 알림 / 안 읽은 채팅
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "안 읽은 알림", "안 읽은 채팅"]) {
+    expect(await screen.findByText("오늘 마감")).toBeInTheDocument();
+    // 판독 다섯: 오늘 마감 / 지연 / 진행 중 / 7일 내 마감 / 막힘(이슈).
+    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힘(이슈)"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
-    // 값은 카드 안에서 확인한다 — 같은 숫자가 화면 다른 곳(요약 문장 등)에도 나올 수 있다.
-    expect(cardValue("안 읽은 알림")).toBe("7");
-    expect(cardValue("안 읽은 채팅")).toBe("4");
+    // 값은 판독 칸 안에서 확인한다 — 같은 숫자가 화면 다른 곳(요약 문장 등)에도 나올 수 있다.
     expect(cardValue("지연")).toBe("1");
+    /* 안 읽은 알림·채팅 개수는 **홈이 말하지 않는다**. 상단 종(알림의 단일 진입점, 지시 1)과
+       사이드바 배지가 이미 그 숫자를 말하고 있어서 한 화면에 세 번 나왔다. 정본 검사는
+       app/notification-bell*.test.jsx 와 app/nav-*.test.jsx 다. */
+    expect(screen.queryByText("안 읽은 알림")).toBeNull();
+    expect(screen.queryByText("안 읽은 채팅")).toBeNull();
     // 스프린트 내 몫 — 도넛을 못 보는 사람도 같은 수치를 글자로 읽는다.
     expect(screen.getByText(/내 티켓 5건 중 2건 완료/)).toBeInTheDocument();
     // 최근 문서 — 게시판 카드는 PA-RC-0018 direction 6으로 빠지고 사이드바 "자유게시판"으로
@@ -136,7 +139,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
   it("카드를 누르면 아래 목록이 그 칸으로 바뀐다(서버를 다시 부르지 않는다)", async () => {
     routeApi();
     renderHome();
-    await screen.findByText("안 읽은 알림");
+    await screen.findByText("오늘 마감");
     const before = apiMock.mock.calls.length;
 
     await userEvent.click(statCard("지연"));
@@ -149,7 +152,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
   it("고른 칸만 비면 '검색 결과 없음'으로 안내한다(데이터 없음과 구분)", async () => {
     routeApi();
     renderHome();
-    await screen.findByText("안 읽은 알림");
+    await screen.findByText("오늘 마감");
 
     await userEvent.click(statCard("7일 내 마감"));
     expect(await screen.findByText("7일 내 마감에 해당하는 티켓이 없습니다")).toBeInTheDocument();
@@ -180,7 +183,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     });
     renderHome();
 
-    await screen.findByText("안 읽은 알림");
+    await screen.findByText("오늘 마감");
     for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감"]) {
       expect(cardValue(label)).toBe("-");
     }
@@ -191,7 +194,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
   it("SEM-02: 최상위 구역이 h1 바로 아래 h2다(예전엔 h3로 건너뛰어 h2가 아예 없었다)", async () => {
     routeApi();
     renderHome();
-    await screen.findByText("안 읽은 알림");
+    await screen.findByText("오늘 마감");
 
     expect(screen.getByRole("heading", { level: 1, name: "오늘" })).toBeInTheDocument();
     // AssistantPanel("AI 도우미")도 이 화면 안에서만 쓰여 같은 무게의 최상위 구역이다 —
@@ -216,7 +219,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
   it("AssistantPanel은 티켓/속성 2단 격자 밖, 전체 폭에 있다(격자 안에서 왼쪽 열과 쌓이지 않는다)", async () => {
     routeApi();
     renderHome();
-    await screen.findByText("안 읽은 알림");
+    await screen.findByText("오늘 마감");
 
     const grid = screen.getByTestId("home-body-grid");
     const heading = screen.getByRole("heading", { level: 2, name: "AI 도우미" });
@@ -225,12 +228,37 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(grid.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("채팅이 꺼진 설치(chat_unread=null)에서는 그 자리를 '막힘' 카드가 채운다", async () => {
+  it("'막힘(이슈)'은 채팅 설정과 무관하게 항상 있다", async () => {
+    /* 예전에는 지표가 격자 여섯 칸이라 자리가 모자랐고, 채팅이 켜져 있으면 '막힘'이 그
+       산수 때문에 화면에서 빠졌다 — 막힌 티켓은 채팅 개수보다 먼저 봐야 하는 정보다.
+       판독 줄에는 칸 수 제약이 없고, 애초에 채팅 개수가 이 줄에 없다. */
+    routeApi();
+    renderHome();
+    expect(await screen.findByText("막힘(이슈)")).toBeInTheDocument();
+
     routeApi({ today: { ...TODAY_OK, inbox: { notifications_unread: 0, chat_unread: null } } });
     renderHome();
+    expect((await screen.findAllByText("막힘(이슈)")).length).toBeGreaterThan(0);
+  });
 
-    expect(await screen.findByText("막힘(이슈)")).toBeInTheDocument();
-    expect(screen.queryByText("안 읽은 채팅")).toBeNull();
+  it("지표가 카드 여섯 장이 아니라 판(plate) 하나에 담긴다 — 마지막 줄 빈 칸이 생기지 않는다", async () => {
+    /* `density.test.jsx`(폐기한 목업 파서)가 지키던 성질을 여기로 옮겼다: 개수가 고정된
+       카드 줄은 열 수가 개수를 못 나누면 오른쪽이 빈 채 줄만 늘어난다. 판 하나 안에서
+       실선으로 나뉘는 지금 구조에는 그 결함이 구조적으로 없다 — 격자 칸이 아니라
+       flex-wrap 이라 남는 폭을 항목들이 나눠 갖는다. */
+    routeApi();
+    renderHome();
+    await screen.findByText("오늘 마감");
+
+    const plates = document.querySelectorAll(".k-metrics");
+    expect(plates).toHaveLength(1);
+
+    const ticketPlate = document.querySelector('[aria-label="내 티켓"]');
+    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힘(이슈)"]) {
+      expect(within(ticketPlate).getByText(label), label).toBeInTheDocument();
+    }
+    // 판독 칸은 자기 판(카드)을 갖지 않는다 — 판은 줄 하나당 하나뿐이다.
+    expect(document.querySelectorAll(".k-readout").length).toBeGreaterThan(plates.length);
   });
 
   it("티켓 소스가 죽어도 알림·최근 변경은 그대로 보인다", async () => {
@@ -244,8 +272,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
 
     expect(await screen.findByText("Notion 조회에 실패했습니다.")).toBeInTheDocument();
-    expect(cardValue("안 읽은 알림")).toBe("7");                      // 알림은 살아 있다
-    expect(screen.getByText("회의록 초안")).toBeInTheDocument();      // 최근 문서도 살아 있다
+    expect(screen.getByText("회의록 초안")).toBeInTheDocument();      // 최근 문서는 살아 있다
     expect(screen.getByText(/이번 주 진척을 계산할 수 없습니다/)).toBeInTheDocument();
   });
 
@@ -292,6 +319,6 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
     expect(screen.getAllByText("불러오는 중…").length).toBeGreaterThan(0);
     resolve(TODAY_OK);
-    await waitFor(() => expect(screen.getByText("안 읽은 알림")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("오늘 마감")).toBeInTheDocument());
   });
 });

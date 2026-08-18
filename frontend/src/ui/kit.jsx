@@ -35,8 +35,8 @@ import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
-import { CARD_PADDING, STAT_CARD_PADDING, STAT_VALUE_FONT_SIZE } from "./density.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
+import { CARD_PADDING } from "./density.js";
 import { prefersReducedMotion } from "./motion.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
@@ -143,22 +143,83 @@ const EXTRA_TONE_VARS = {
   pink: { bg: "var(--badge-pink-bg)", fg: "var(--badge-pink-fg)" },
 };
 
-export function Badge({ value, kind }) {
+export function Badge({ value, kind, emphasis }) {
+  /* 상태 표시 — **알약을 기본형으로 쓰지 않는다** (지시 11).
+   *
+   * 예전에는 `정상`·`활성`·`사용 중`·`미연결`·`아니요`·`전체 관리자`가 전부 같은 색 알약이었다.
+   * 표 한 줄에 알약이 셋씩 들어가면서 "무엇이 상태이고 무엇이 분류인지" 구분이 사라졌고,
+   * 목록 전체가 알약 죽이 됐다.
+   *
+   * 지금은 **표지(marker) + 글자**다. 배경 없음이 기본이고, 조치가 필요한 것(danger)만
+   * 옅은 바탕을 갖는다 — 화면에서 눈에 띄어야 하는 것은 나머지가 조용할 때만 눈에 띈다.
+   *
+   * 색만으로 상태를 전달하지 않는다(WCAG 1.4.1): 라벨 글자가 항상 함께 있고
+   * (`statusText` 가 ~80개 값을 한국어로 옮긴다), 표지는 색 + **모양**을 같이 쓴다.
+   *
+   * 분류(문서 종류·업무 분야)는 상태가 아니다 — `Tag` 를 쓴다.
+   */
   const raw = String(value == null ? "" : value);
   const k = kind || STATUS_KIND[raw] || "neutral";
   const extra = EXTRA_TONE_VARS[k];
+  const palette = { ok: "success", danger: "error", warn: "warning", info: "info" }[k];
+  const strong = emphasis === "strong" || k === "danger";
+
+  /* 표지 모양이 톤마다 다르다 — 흑백으로 인쇄하거나 색을 못 봐도 구분된다. */
+  const marker = { ok: "50%", danger: "2px", warn: "2px", info: "50%" }[k] || "1px";
+
   return (
-    <MuiChip
+    <Box
+      component="span"
       className="k-badge"
-      size="small"
-      label={statusText(value)}
-      color={extra ? undefined : TONE_COLOR[k] || "default"}
-      variant={k === "neutral" ? "outlined" : "filled"}
+      data-tone={k}
       sx={{
-        height: 22, fontSize: FONT_SIZE.caption, "& .MuiChip-label": { px: 1.25 },
-        ...(extra && { backgroundColor: extra.bg, color: extra.fg }),
+        display: "inline-flex", alignItems: "center", gap: 0.625,
+        maxWidth: "100%", minWidth: 0,
+        fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.4,
+        whiteSpace: "nowrap",
+        color: extra ? extra.fg : palette ? `${palette}.strong` : "text.secondary",
+        ...(strong && {
+          px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+          bgcolor: extra ? extra.bg : palette ? `${palette}.bg` : "background.inset",
+          fontWeight: FONT_WEIGHT.semibold,
+        }),
       }}
-    />
+    >
+      <Box
+        aria-hidden="true"
+        component="span"
+        sx={{
+          flexShrink: 0, width: 6, height: 6, borderRadius: marker,
+          bgcolor: extra ? extra.fg : palette ? `${palette}.main` : "text.faint",
+        }}
+      />
+      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>{statusText(value)}</Box>
+    </Box>
+  );
+}
+
+/** 분류 표시 — 상태가 아니다 (지시 11: Status / Category / Tag / Editable Value 를 구분한다).
+ *
+ * 문서 종류(매뉴얼·참고자료·회의록)·업무 분야(인프라·개발·운영) 같은 것. 좋고 나쁨이 없으므로
+ * 상태색을 쓰지 않는다 — 중립 램프 위 옅은 면 하나다. */
+export function Tag({ label, tone }) {
+  const extra = EXTRA_TONE_VARS[tone];
+  return (
+    <Box
+      component="span"
+      className="k-tag"
+      data-tone={tone || "neutral"}
+      sx={{
+        display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0,
+        px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.5,
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        bgcolor: extra ? extra.bg : "background.inset",
+        color: extra ? extra.fg : "text.secondary",
+      }}
+    >
+      {label}
+    </Box>
   );
 }
 
@@ -213,100 +274,194 @@ export function Card({ className, children, sx, ...rest }) {
   );
 }
 
-export function Callout({ tone = "info", children }) {
-  // 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1). MUI 기본 아이콘 대신 짧은 텍스트 라벨을
-  // 쓴다 — 기호는 문화·스크린리더별로 읽히는 방식이 달라 이 앱은 처음부터 글자를 택했다.
-  const label = tone === "danger" ? "오류" : tone === "warn" ? "주의" : tone === "success" ? "완료" : "안내";
+export function Callout({ tone = "info", variant = "block", detail, detailLabel = "기술 정보", children }) {
+  /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
+   *
+   * 예전에는 tone 과 무관하게 전부 `MuiAlert variant="outlined"` 였다. 호출부 67곳 중
+   * **43곳이 warn** 이었으니, 화면에서 주황 테두리 상자가 기본값이었다는 뜻이다 — 전부
+   * 경고면 아무것도 경고가 아니다. 참고와 조치 필요가 같은 강도로 보이던 원인이다.
+   *
+   * 새 위계:
+   *   info    앞머리 실선 하나. 바탕 없음. 가장 조용하다.
+   *   success 옅은 바탕 + 앞머리 실선.
+   *   warn    옅은 바탕 + 앞머리 실선(색이 다르다).
+   *   danger  옅은 바탕 + 앞머리 실선 + 라벨 굵게. 페이지 전폭 빨간 테두리는 쓰지 않는다.
+   *
+   * 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1) — 짧은 **텍스트 라벨**을 항상 붙인다.
+   * 기호는 문화·스크린리더별로 읽히는 방식이 달라 이 앱은 처음부터 글자를 택했다.
+   *
+   * `detail` 은 긴 기술 설명을 접어 둔다(지시 35: "긴 기술 설명을 하나의 Alert 안에 모두
+   * 넣지 않는다"). 열기 전에는 한 줄도 차지하지 않는다.
+   */
+  const kind = tone === "ok" ? "success" : tone;
+  const label = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "완료" : "안내";
+  const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
+  const quiet = kind === "info";
+
+  const body = (
+    <>
+      <Box
+        component="span"
+        sx={{
+          fontWeight: FONT_WEIGHT.semibold, mr: 1.25, whiteSpace: "nowrap",
+          color: `${paletteKey}.strong`, fontSize: FONT_SIZE.bodySm,
+        }}
+      >
+        {label}
+      </Box>
+      <Box component="span" className="k-callout-body">{children}</Box>
+    </>
+  );
+
+  if (variant === "inline") {
+    // 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 없다.
+    return (
+      <Typography className="k-callout" data-tone={kind} component="p" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+        {body}
+      </Typography>
+    );
+  }
+
   return (
-    <MuiAlert
+    <Box
       className="k-callout"
-      severity={TONE_SEVERITY[tone] || "info"}
-      icon={false}
-      variant="outlined"
-      /* 반지름을 카드와 맞춘다(18px). `MuiAlert` 는 `shape.borderRadius`(14)를 받는데,
-         안내 상자는 화면에서 카드 바로 위에 놓이는 자리라 둘의 모서리가 다르면 한 화면에
-         반지름이 두 종류가 된다 — 기준 대조에서 **24화면**이 이 한 가지 때문에 어긋났다.
-         그림자는 주지 않는다: 안내는 카드가 아니라 카드 앞의 한 줄이고, 띄우면 본문보다
-         앞에 나서 버린다(기준도 테두리만 쓴다). */
+      data-tone={kind}
+      role={kind === "danger" ? "alert" : "note"}
       sx={{
-        alignItems: "flex-start", borderRadius: `${RADIUS.lg}px`,
-        // 한국어 줄바꿈(#11) — 이 상자가 **모든 페이지의 도움말**을 그린다. 여기 한 줄이
-        // 앱 전체의 안내 문구를 고친다. `Mascot.jsx` 가 같은 증상("도와드/려요")을 진단해
-        // 놓고 거기 한 곳에만 걸어 뒀던 것을 토큰으로 올렸다.
-        "& .MuiAlert-message": { minWidth: 0, width: "100%", ...KO_WORD_BREAK },
+        display: "grid", gap: 0.5,
+        px: 1.5, py: 1, borderRadius: `${RADIUS.sm}px`,
+        borderInlineStart: 2, borderColor: `${paletteKey}.main`,
+        bgcolor: quiet ? "transparent" : `${paletteKey}.bg`,
+        fontSize: FONT_SIZE.body,
+        ...KO_WORD_BREAK,
       }}
     >
-      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1.5, whiteSpace: "nowrap" }}>{label}</Box>
-      <Box component="span" className="k-callout-body">{children}</Box>
-    </MuiAlert>
+      <Box sx={{ minWidth: 0 }}>{body}</Box>
+      {detail ? (
+        <Box
+          component="details"
+          sx={{
+            "& > summary": {
+              cursor: "pointer", fontSize: FONT_SIZE.bodySm, color: "text.secondary",
+              listStyle: "revert", width: "fit-content",
+            },
+            "& > summary:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+          }}
+        >
+          <Box component="summary">{detailLabel}</Box>
+          <Box sx={{ mt: 0.75, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>{detail}</Box>
+        </Box>
+      ) : null}
+    </Box>
   );
 }
 
-export function StatCard({ value, label, kind, onClick, active, note }) {
-  // 심각도는 색만으로 전하지 않는다(WCAG 1.4.1). 짧은 텍스트 태그('주의'/'위험')로 비색상 단서를 준다.
-  const sev = kind === "danger" ? "위험" : kind === "warn" ? "주의" : null;
-  const color = TONE_COLOR[kind];
+
+/** 지표 묶음 — **판 하나에 판독값 여럿** (지시 2, D-141 "계측 전면").
+ *
+ * 예전에는 지표 하나당 카드 하나였다. 프로젝트 화면은 그래서 흰 카드 8장이 격자로 깔렸고
+ * 그중 다섯이 `0` 이나 `-` 였다 — 화면의 절반을 "값이 없다"는 사실이 차지했다.
+ *
+ * 계측기 전면에는 게이지마다 케이스가 따로 있지 않다. 판 하나 위에 판독값이 나란히 놓이고
+ * 실선이 그것들을 가른다. 이 컴포넌트가 그 배치다:
+ *
+ *   · `primary: true` 인 항목은 **지배하는 판독값**(readout, 28px)이 된다. 한 묶음에 하나만 둔다.
+ *   · 나머지는 보조 판독값(title, 17px)이다 — 지시 2 의 "핵심 지표와 보조 지표를 구분한다".
+ *   · `delta` 를 주면 변화량을 함께 읽는다(지시 2: 기간 비교가 의미 있는 값에 Trend).
+ *   · `note` 는 그 숫자를 한정하는 각주다. 숫자 바로 아래 둔다 — 구역 아래 공용 각주로
+ *     빼면 어느 숫자를 한정하는지 다시 찾아야 한다(VIS-09/VIS-27).
+ *
+ * 심각도는 색만으로 전하지 않는다(WCAG 1.4.1) — `kind` 가 danger/warn 이면 짧은 텍스트
+ * 태그를 함께 붙인다.
+ */
+export function MetricStrip({ items, ariaLabel, sx }) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return null;
+
   return (
-    <Paper
-      className="k-stat"
-      component={onClick ? "button" : "div"}
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      aria-pressed={onClick ? !!active : undefined}
-      variant="outlined"
-      sx={{
-        /* 기준선 `.kpi-card`(17px 18px)다. 예전 `p: 3`(24px)은 카드가 담는 것이 숫자 한 줄과
-           라벨 한 줄뿐인데도 위아래 여백만 48px 을 먹었다. 기준선의 `min-height: 132px` 은
-           일부러 가져오지 않는다 — 기준선 카드는 그 안에 부연(kpi-note)과 증감 칩까지 그리고
-           우리는 안 그린다. 없는 내용을 위해 높이를 비워 두면 사용자가 지적한 그 문제
-           ("정보에 비해 카드가 크다")를 검사가 통과시키는 꼴이 된다. */
-        p: STAT_CARD_PADDING, textAlign: "left", width: "100%", minWidth: 0, position: "relative",
-        display: "grid", gap: 0.5, alignContent: "start",
-        font: "inherit", color: "inherit", cursor: onClick ? "pointer" : "default",
-        borderColor: active ? "primary.main" : "divider",
-        borderWidth: active ? 2 : 1,
-        transition: "border-color .15s, transform .15s",
-        "&:hover": onClick ? { borderColor: "primary.main", transform: "translateY(-1px)" } : undefined,
-      }}
-    >
-      <Typography
-        component="div"
-        /* 기준선 `.kpi-value`(30px). 예전 clamp 는 상한이 2.25rem 이라 4K 루트(20px)에서
-           45px 까지 커졌다 — 숫자 하나가 카드 높이를 혼자 밀어 올리던 자리다. */
-        sx={{ fontSize: STAT_VALUE_FONT_SIZE, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}
-        color={color && color !== "default" ? `${color}.main` : "text.primary"}
+    <Card className="k-metrics" aria-label={ariaLabel} sx={{ p: 0, overflow: "hidden", ...sx }}>
+      <Box
+        sx={{
+          display: "flex", flexWrap: "wrap",
+          /* 실선이 항목을 가른다. 음수 마진 없이 각 항목이 앞머리 선을 갖고 첫 항목만
+             그것을 지운다 — 줄바꿈이 일어나도 선이 어긋나지 않는다. */
+          "& > *:not(:first-of-type)": { borderInlineStart: 1, borderColor: "divider" },
+        }}
       >
-        {value == null ? "-" : value}
-      </Typography>
-      <Typography component="div" variant="body2" color="text.secondary" sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-        {label}
-        {sev ? (
-          /* QAH-02(2026-08-11 하네스 실측): label이 길면(예: "이번 주 마감") flex 행이
-           * 좁아지고, 한글은 라틴 문자와 달리 음절 사이 어디서나 줄바꿈이 허용돼(word-break
-           * 기본 규칙) white-space를 안 주면 "주의" 2글자짜리 배지가 세로 한 글자씩
-           * 쌓이며 너비가 12.6px까지 눌렸다(admin_dashboard, 라이트·다크 둘 다). 배지는
-           * 애초에 줄바꿈될 이유가 없는 고정 짧은 라벨이라 줄바꿈 자체를 막는다.
-           * PA-RC-0001: 11px는 6단계 스케일에 없지만, 위 실측 폭(12.6px)에서 12px로 올리면
-           * 그 줄바꿈이 재현될 위험이 있어 실측 없이는 안 바꾼다 — 의도된 예외. */
-          <Box component="span" sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.extrabold, color: `${color}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}>{sev}</Box>
-        ) : null}
-      </Typography>
-      {/* VIS-09/VIS-27: 숫자를 한정하는 각주(예: "계산이 끝난 20건만")는 구역 아래 멀리
-          떨어진 공용 Note가 아니라 그 숫자를 담은 카드 안에 둔다 — 그래야 어느 숫자를
-          한정하는지 다시 찾을 필요가 없다(/projects/:id 상세의 기존 패턴과 같은 원칙). */}
-      {note ? (
-        <Typography component="div" variant="caption" color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, lineHeight: 1.4, ...KO_WORD_BREAK }}>
-          {note}
-        </Typography>
-      ) : null}
-      {/* 클릭 가능 여부가 hover(cursor)로만 드러나면 터치 사용자는 눌러보기 전까진 알 방법이 없다. */}
-      {onClick ? (
-        <ChevronRightRoundedIcon
-          aria-hidden="true"
-          sx={{ position: "absolute", top: 12, right: 8, fontSize: 20, color: "text.disabled" }}
-        />
-      ) : null}
-    </Paper>
+        {list.map((it, i) => {
+          const sev = it.kind === "danger" ? "위험" : it.kind === "warn" ? "주의" : null;
+          const tone = TONE_COLOR[it.kind];
+          const clickable = !!it.onClick;
+          return (
+            <Box
+              key={it.key || it.label || i}
+              /* `k-readout` 는 "숫자 하나와 그 라벨·각주를 담은 칸"이라는 뜻이다. 카드 한
+                 장이 지표 하나였던 예전 구조(`.k-stat`)를 대체한다 — 다른 점은 칸이 자기
+                 판을 갖지 않고 줄 하나를 여럿이 나눠 쓴다는 것이다. */
+              className="k-readout"
+              component={clickable ? "button" : "div"}
+              type={clickable ? "button" : undefined}
+              onClick={it.onClick}
+              aria-pressed={clickable ? !!it.active : undefined}
+              sx={{
+                /* 칸 폭은 거의 같게 둔다 — 무게는 폭이 아니라 **글자 크기**로 준다.
+                   핵심 지표를 두 배 폭으로 잡아 봤더니(1920 실측) 짧은 숫자 하나가 490px
+                   칸에 놓여 오른쪽이 통째로 비었다. 그건 없애려던 바로 그 죽은 공간이다.
+                   상한도 두지 않는다 — 24rem 으로 묶어 봤더니 항목이 셋인 줄에서 칸들이
+                   왼쪽에 뭉치고 판의 오른쪽 절반이 테두리 안에서 비었다(같은 실측). 남는
+                   폭은 칸들이 고르게 나눠 갖는 편이 낫다. */
+                flex: it.primary ? "1 1 10rem" : "1 1 8.5rem",
+                minWidth: 0, textAlign: "left", font: "inherit", color: "inherit",
+                border: 0, borderRadius: 0, bgcolor: it.active ? "background.inset" : "transparent",
+                px: 2, py: 1.5, display: "grid", gap: 0.25, alignContent: "start",
+                cursor: clickable ? "pointer" : "default",
+                transition: `background-color ${MOTION.instant} ${MOTION.ease}`,
+                "&:hover": clickable ? { bgcolor: "background.inset" } : undefined,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+                <Typography
+                  component="div"
+                  sx={{
+                    fontSize: it.primary ? FONT_SIZE.readout : FONT_SIZE.title,
+                    fontWeight: FONT_WEIGHT.semibold, lineHeight: 1.15, ...NUMERIC,
+                  }}
+                  color={tone && tone !== "default" ? `${tone}.strong` : "text.primary"}
+                >
+                  {it.value == null ? "-" : it.value}
+                </Typography>
+                {it.delta ? (
+                  <Typography
+                    component="span"
+                    sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap", ...NUMERIC }}
+                  >
+                    {it.delta}
+                  </Typography>
+                ) : null}
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                <Typography component="div" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+                  {it.label}
+                </Typography>
+                {sev ? (
+                  <Box
+                    component="span"
+                    sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: `${tone}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    {sev}
+                  </Box>
+                ) : null}
+              </Box>
+              {it.note ? (
+                <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.faint", lineHeight: 1.4, ...KO_WORD_BREAK }}>
+                  {it.note}
+                </Typography>
+              ) : null}
+            </Box>
+          );
+        })}
+      </Box>
+    </Card>
   );
 }
 
@@ -339,51 +494,93 @@ export function EmptyState({
   const compact = size === "compact";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
-  // KO_WORD_BREAK: Callout·Mascot는 이미 쓰는데(사용자 지적 #11) 정작 이 컴포넌트가 31개 파일
-  // 전체의 빈 상태 안내문을 그리면서 빠져 있었다 — 좁은 화면에서 한글이 단어 중간에서 잘렸다.
-  const bodySx = { maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined, ...KO_WORD_BREAK };
-  // role="status" + aria-live로 빈 상태 전환을 낭독한다. 제목은 heading으로 올려 탐색 가능하게.
+  const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
+  const bodySx = { maxWidth: "56ch", fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, ...KO_WORD_BREAK };
+
+  /* 빈 상태 — 읽는 순서가 **제목 → 다음 행동 → 보조 설명**이다 (지시 18).
+   *
+   * 예전에는 일러스트가 맨 위에 160~320px 로 오고, 그 아래 설명이 쌓이고, 정작 다음
+   * 행동(action)은 맨 끝에 있었다. 4K 에서 세로 450px 를 마스코트가 차지해 "내 티켓이
+   * 왜 비었지"보다 "그림이 크다"가 먼저 읽혔다.
+   *
+   * **클로비는 그대로 둔다.** 사용자가 "제품의 정체성"이라고 확정했다. 바뀌는 것은 크기와
+   * 자리다 — 위가 아니라 옆, 화면을 채우는 크기가 아니라 표지 크기. 지시 18 의 실제 요구는
+   * "캐릭터를 쓰지 말라"가 아니라 "빈 공간을 캐릭터로 때우지 말라"이고, 둘을 모두 만족하는
+   * 답이 이 배치다.
+   *
+   * 가운데 정렬도 걷어냈다. 읽을 것이 두 줄을 넘으면 가운데 정렬은 매 줄 시작점이 달라져
+   * 훑기 어렵다 — 왼쪽 정렬이 목록·표와도 같은 축을 쓴다(D-141 RAISE, mesophotic). */
   return (
-    // VIS-50/VIS-52: 4K 스크린샷 실측 확인(dist/ui-qa/converge-pa15-4k) — 삽화·여백이
-    // 1920 그대로라 3840 캔버스에서 왼쪽 위에 작게 몰려 있었다. uhd 삽화 폭을 sm/xxl의
-    // 확대 비율(약 160/600→200/2200, 뷰포트 대비 8~9%)에 맞춰 240→320으로 올리고(그
-    // 비율에서 벗어나 있던 값이었다), 세로 여백도 uhd에서만 키운다. 다만 전체 높이를
-    // 채우는 실제 세로 가운데 정렬은 이 컴포넌트가 31개 파일에 공유돼 있어(모달·좁은
-    // 카드 등 고정 높이가 아닌 맥락도 많다) 여기서 하지 않는다 — 그건 각 소비처의 레이아웃
-    // 문제라 이 컴포넌트 하나로 안전하게 처리할 수 없다.
-    <Box className="k-empty" role="status" aria-live="polite" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }}>
+    <Box
+      className="k-empty"
+      role="status"
+      aria-live="polite"
+      sx={{
+        display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5,
+        py: compact ? 2 : 3.5, px: compact ? 1.5 : 2,
+      }}
+    >
       {artSrc ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 320 }, height: "auto", opacity: 0.95 }}
+          sx={{
+            display: { xs: "none", sm: "block" }, flexShrink: 0,
+            width: { sm: 72, xxl: 88, uhd: 112 }, height: "auto",
+          }}
         />
       ) : icon ? (
-        <Box aria-hidden="true" sx={{ fontSize: compact ? 20 : 32, color: "text.disabled" }}>{icon}</Box>
+        <Box aria-hidden="true" sx={{ flexShrink: 0, fontSize: compact ? FONT_SIZE.pageTitle : FONT_SIZE.readout, color: "text.faint", lineHeight: 1 }}>{icon}</Box>
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle, ...KO_WORD_BREAK }}>{title}</Typography>
-      {situation ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{situation}</Typography> : null}
-      {help ? <Typography variant="body2" color="text.secondary" sx={bodySx}>{help}</Typography> : null}
-      {prerequisite ? (
-        <Typography variant="body2" color="text.secondary" sx={bodySx}>
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, mr: 1 }}>필요한 것</Box>{prerequisite}
+
+      <Box sx={{ display: "grid", gap: compact ? 0.5 : 0.75, minWidth: 0 }}>
+        <Typography
+          role="heading"
+          aria-level={2}
+          sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.title, ...KO_WORD_BREAK }}
+        >
+          {title}
         </Typography>
-      ) : null}
-      {stepList && stepList.length ? (
-        <Box component="ol" sx={{ textAlign: "left", m: 0, pl: 3, color: "text.secondary", fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, display: "grid", gap: 0.5, maxWidth: "60ch", ...KO_WORD_BREAK }}>
-          {stepList.map((s, i) => <li key={i}>{s}</li>)}
-        </Box>
-      ) : null}
-      {expected ? (
-        <Typography variant="body2" color="text.secondary" sx={bodySx}>
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, mr: 1 }}>기대 결과</Box>{expected}
-        </Typography>
-      ) : null}
-      {action ? <Box sx={{ mt: compact ? 0.5 : 1 }}>{action}</Box> : null}
-      {relatedLink && relatedLink.href ? (
-        <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
-          {relatedLink.label || "관련 화면으로"}
-        </Link>
-      ) : null}
+
+        {/* 한 줄 요약. 상황과 도움말이 둘 다 있으면 상황이 먼저다(무엇이 일어났는가). */}
+        {situation ? <Typography color="text.secondary" sx={bodySx}>{situation}</Typography> : null}
+        {help ? <Typography color="text.secondary" sx={bodySx}>{help}</Typography> : null}
+
+        {/* 다음 행동이 설명보다 위에 온다. */}
+        {action || (relatedLink && relatedLink.href) ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: 0.25 }}>
+            {action}
+            {relatedLink && relatedLink.href ? (
+              <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
+                {relatedLink.label || "관련 화면으로"}
+              </Link>
+            ) : null}
+          </Box>
+        ) : null}
+
+        {/* 준비물·절차·기대 결과는 보조다. 실선 하나로 아래에 붙인다(상자를 만들지 않는다). */}
+        {detail ? (
+          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5 }}>
+            {prerequisite ? (
+              <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
+                <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>필요한 것</Box>{prerequisite}
+              </Typography>
+            ) : null}
+            {stepList && stepList.length ? (
+              <Box
+                component="ol"
+                sx={{ m: 0, pl: 2.5, color: "text.secondary", fontSize: FONT_SIZE.bodySm, display: "grid", gap: 0.25, maxWidth: "56ch", ...KO_WORD_BREAK }}
+              >
+                {stepList.map((s, i) => <li key={i}>{s}</li>)}
+              </Box>
+            ) : null}
+            {expected ? (
+              <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
+                <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>기대 결과</Box>{expected}
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
+      </Box>
     </Box>
   );
 }
@@ -582,7 +779,20 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
         </Typography>
       ) : null}
       <TableContainer>
-      <Table size="small" stickyHeader={stickyHeader} sx={{ tableLayout: fixed ? "fixed" : "auto" }}>
+      {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
+          아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
+          **hover 면**과 머리행의 굵은 선이 만든다 — 엑셀 표가 아니라 계기판 판독부다. */}
+      <Table
+        size="small"
+        stickyHeader={stickyHeader}
+        sx={{
+          tableLayout: fixed ? "fixed" : "auto",
+          "& td, & th": { borderInline: 0 },
+          "& tbody tr:last-of-type td": { borderBottom: 0 },
+          "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },
+          "& tbody tr.MuiTableRow-hover:hover": { bgcolor: "background.inset" },
+        }}
+      >
         <TableHead>
           <TableRow>
             {wideCols.map((c) => (

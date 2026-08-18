@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import {
-  Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, StatCard,
+  Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
@@ -27,19 +27,6 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
  * MUI Grid 를 쓰지 않는다(MUI 7 에서 xs={12} 가 조용히 무시된다). px 폰트 크기도 쓰지 않는다.
  */
 
-const STAT_GRID = {
-  display: "grid", gap: 2, mb: 2.5,
-  // 모든 트랙이 minmax(0,...) — 그냥 "1fr" 이면 트랙이 내용보다 작아지지 않아 긴 값 하나가
-  // 격자를 밀어내고 페이지에 가로 스크롤이 생긴다(Home.jsx 와 같은 함정).
-  gridTemplateColumns: {
-    xs: "minmax(0, 1fr)",
-    md: "repeat(2, minmax(0,1fr))",
-    lg: "repeat(3, minmax(0,1fr))",
-    xl: "repeat(4, minmax(0,1fr))",
-    xxl: "repeat(5, minmax(0,1fr))",
-    uhd: "repeat(6, minmax(0,1fr))",
-  },
-};
 
 const BODY_GRID = {
   display: "grid", gap: 2.5, alignItems: "start",
@@ -101,7 +88,7 @@ export function MyStats() {
   const data = q.data;
   // PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면 백엔드가 totals/workload를 아예
   // 안 싣는다 — `{}`로 기본값을 줘야 아래 totals.active 등이 undefined로 안전하게
-  // 평가된다(StatCard가 이미 null/undefined 둘 다 '-'로 그린다).
+  // 평가된다(판독 칸이 이미 null/undefined 둘 다 '-'로 그린다).
   const totals = (data && data.totals) || {};
   const load = (data && data.workload) || {};
   const source = data && data.source;
@@ -134,14 +121,22 @@ export function MyStats() {
         <>
           <SourceNotice source={data.source} />
 
-          <Box sx={STAT_GRID}>
-            <StatCard value={totals.active} label="남은 일" />
-            <StatCard value={totals.overdue} label="지연" kind={totals.overdue > 0 ? "danger" : undefined} />
-            <StatCard value={totals.due_today} label="오늘 마감" kind={totals.due_today > 0 ? "warn" : undefined} />
-            <StatCard value={totals.blocked} label="막힘(이슈)" kind={totals.blocked > 0 ? "danger" : undefined} />
-            <StatCard value={totals.done} label="완료" kind="ok" />
-            <StatCard value={pct(totals.completion_rate)} label="완료율(취소 제외)" />
-          </Box>
+          {/* 예전에는 흰 카드 여섯 장이 같은 무게로 깔려서 "남은 일 3"과 "완료 128"이 같은
+              크기로 읽혔다. 한 줄에 모으고 핵심('남은 일')만 큰 글자로 둔다 (지시 2).
+              둘로 가르는 안도 만들어 봤으나 뒷줄이 둘뿐이라 판 하나가 숫자 두 개를 위해
+              화면 폭을 다 쓰게 돼서, 남은 일부터 완료까지 한 줄로 읽는 쪽을 골랐다. */}
+          <MetricStrip
+            ariaLabel="내 업무량"
+            sx={{ mb: 2.5 }}
+            items={[
+              { key: "active", value: totals.active, label: "남은 일", primary: true },
+              { key: "overdue", value: totals.overdue, label: "지연", kind: totals.overdue > 0 ? "danger" : undefined },
+              { key: "due_today", value: totals.due_today, label: "오늘 마감", kind: totals.due_today > 0 ? "warn" : undefined },
+              { key: "blocked", value: totals.blocked, label: "막힘(이슈)", kind: totals.blocked > 0 ? "danger" : undefined },
+              { key: "done", value: totals.done, label: "완료", kind: "ok" },
+              { key: "rate", value: pct(totals.completion_rate), label: "완료율(취소 제외)" },
+            ]}
+          />
 
           {/* PA-RC-0027: `totals.all`이 이제 소스를 못 읽었을 때 0이 아니라 undefined다
               (totals={}) — `=== 0`만 보면 이 경우 아래 차트 분기로 빠져 load.by_week 등

@@ -74,7 +74,7 @@ function TicketLines({ label, block, empty }) {
 }
 
 /* 모든 트랙이 minmax(0,...) 다 — "1fr" 은 트랙이 내용보다 작아지지 못하게 해서 긴 티켓
- * 제목 하나가 좁은 화면에서 격자를 밀어낸다(홈 STAT_GRID 주석 참조). */
+ * 제목 하나가 좁은 화면에서 격자를 밀어낸다. */
 const SECTION_GRID = {
   display: "grid", gap: 2.5, alignItems: "start",
   gridTemplateColumns: { xs: "minmax(0,1fr)", md: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" },

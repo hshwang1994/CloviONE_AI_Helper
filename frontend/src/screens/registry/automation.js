@@ -370,7 +370,7 @@ export const AUTOMATION_SCREENS = {
       poll: true,   // 대기/실행/실패 카운트도 목록과 함께 주기적으로 갱신(정체를 실시간 감지).
       // (s, {setFilter}) — Dashboard.jsx/Ops.jsx는 이미 이 화면 바깥에서 동일한 카운트 데이터로
       // onClick 드릴다운을 건다(Ops.jsx 주석: '문제를 보여주기만 하고 조치할 방법이 없는 죽은
-      // 타일'을 피하려는 목적) — 정작 이 화면 자신의 StatCard는 그 드릴다운이 없어 같은 데이터를
+      // 타일'을 피하려는 목적) — 정작 이 화면 자신의 요약 판독은 그 드릴다운이 없어 같은 데이터를
       // 보여주면서도 클릭해도 아무 일이 없었다. 목록의 status 필터로 직접 좁혀 준다.
       cards: (s, ctx) => {
         const cards = [

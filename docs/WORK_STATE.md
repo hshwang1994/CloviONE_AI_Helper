@@ -53,6 +53,46 @@ Supervisor/세션 격리 점검도 불필요하다.
 
 ---
 
+## 2026-08-18 — 전면 UI/UX 리뉴얼 (지시 1~70) 착수: P0~P1 완료, 커밋 `c8375ef5`
+
+**지금 위치: P2(공용 Component 계층 재설계) 시작 직전.**
+
+계획서는 `~/.claude/plans/misty-honking-wirth.md`(1006줄, P0~P12). 요구사항 추적은
+`docs/UI_RENEWAL_TRACEABILITY.md`(지시 1~70 전부, 생성 시 빈 필드 0건 assert).
+Route/Archetype/영향 반경은 `docs/UI_INVENTORY.md`.
+
+### 사용자가 실제로 확정한 것 (이것만 확정이다)
+1. 문서 "잠금" — **잠금 기능은 저장소에 없다**(전수 조사). 자물쇠는 문서 열람 제한
+   (`restricted`, SEC-10)의 🔒 이모지 표현이었다. **이모지만 제거, 기능·권한·API·보안
+   테스트 11개는 그대로 유지**(지시 55).
+2. **마스코트 Clovi 는 제품의 정체성이다. 최대한 유지한다.** 로그인 화면과 로그인 직후
+   폭죽(`LoginHandoff.jsx` canvas-confetti)은 **없어지면 안 되는 디자인**이다.
+3. 최종 Chrome 전수 E2E 는 승인된 TEST SERVER(`10.100.64.71`)에서 수행한다.
+
+### 완료
+- **P0**: PRODUCT.md · 방향 결정(D-141 "계측 전면", concept-seed key `b0c749d6`) ·
+  Inventory · 추적표 · Before 캡처 584장(`dist/ui-qa/before-renewal/`).
+- **P1**: 토큰 정본 4겹→1겹(`theme.js` + `scripts/generate_design_tokens.mjs`) ·
+  중립 캔버스 · Surface 4단 · enclosure 기본값 해제 · 모서리 18→6 · tabular-nums ·
+  상단바 그라디언트/네이비 사이드바 제거 · 선택 표현을 2px 레일로 통일 ·
+  상단 알림 띠 제거 + 종 단일 진입점(지시 1·67) · **목업 baseline 폐기(D-142)**.
+
+### 다음 (P2) — 공용 Component 계층
+영향 반경이 큰 순서: `Button`(61파일) · `Card`(55) · `ErrorState`(54) · `EmptyState`(41) ·
+`Badge`(41) · `PageHeader`(39) · `Callout`(35) · `DataTable`(17) · `Modal`(15) · `StatCard`(13).
+지시 66 유의: 공통 컴포넌트를 Archetype 에 맞게 쓰되 집중형 화면(로그인·Chat·Game)에
+강제하지 않는다.
+
+### 알아 둘 것
+- 로컬 앱은 `DATABASE_URL=sqlite:///./var/e2e.sqlite3` 로 8080 에 띄운다. `var/web.sqlite3`
+  는 마이그레이션 0059 로 낡아 있어 QA 하네스가 `users.membership_kind` 에서 죽는다.
+- QA 하네스도 같은 `DATABASE_URL` 을 줘야 한다(자기 프로세스에서 `.env` 를 읽는다).
+- `static_checks.sh` 의 남은 실패 1건은 `.git stash@{0}` 자격증명 — **사람만 결정한다**
+  (PA-RC-0003). 손대지 않는다.
+- 번들 예산 초과(gzip 285/280KB)는 리뉴얼 이전부터다(`docs/BACKLOG.md` PERF-01).
+
+---
+
 ## 2026-08-15 — QUICK 백로그 수렴 완료 + 신규 Product Audit Handoff 인계 시작
 
 **QUICK 후보 수렴 배치 완료.** `invocation=5`(2026-08-13, git log상 `6dd5a07`→`5e69e6d`

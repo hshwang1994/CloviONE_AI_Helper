@@ -87,8 +87,6 @@ export function rem(px) {
 /* 화면에서 그대로 쓰는 값들. sx 에 넣기 좋은 모양으로 미리 만들어 둔다 —
  * 호출부마다 rem() 을 다시 부르면 결국 또 숫자가 흩어진다. */
 export const CARD_PADDING = rem(BASELINE_PX.cardPadding);                 // 20px
-export const STAT_CARD_PADDING = `${rem(BASELINE_PX.kpiPaddingY)} ${rem(BASELINE_PX.kpiPaddingX)}`; // 17px 18px
-export const STAT_VALUE_FONT_SIZE = rem(BASELINE_PX.kpiValueFontSize);    // 30px
 export const TILE_PADDING = rem(BASELINE_PX.healthCardPadding);           // 16px
 export const GRID_GAP = rem(BASELINE_PX.gridGap);                         // 16px
 export const TILE_GRID_GAP = rem(BASELINE_PX.healthGridGap);              // 12px

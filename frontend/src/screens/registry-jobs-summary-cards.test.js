@@ -39,7 +39,7 @@ describe("작업 큐 요약 카드 — 최근 24시간 신호 (VIS-120)", () => 
     expect(slow.find((c) => c.label === "평균 처리 시간(24h)").value).toBe("2분 5초");
   });
 
-  it("평균 처리 시간을 잴 성공 이력이 없으면 0초가 아니라 null을 낸다(StatCard가 '-'로 그린다)", () => {
+  it("평균 처리 시간을 잴 성공 이력이 없으면 0초가 아니라 null을 낸다(판독 칸이 '-'로 그린다)", () => {
     const cards = REGISTRY.jobs.summary.cards({ ...base, avg_processing_seconds_24h: null }, ctx());
     expect(cards.find((c) => c.label === "평균 처리 시간(24h)").value).toBeNull();
   });

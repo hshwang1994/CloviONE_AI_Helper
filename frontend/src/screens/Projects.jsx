@@ -7,7 +7,7 @@ import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
-  PageHeader, Skeleton, StatCard, useToast,
+  MetricStrip, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -54,15 +54,6 @@ import {
 const PROJECT_SPEC = { page: 1, archived: false, dept: "" };
 const PAGE_RESET = { reset: ["page"] };
 
-/* 요약 타일 줄. 타일이 여덟 개라 lg 에서 4열이면 두 줄로 딱 떨어진다 - 5열로 두면 마지막
- * 세 개가 다음 줄에 흩어져 '상태별' 이 한 덩어리로 안 읽힌다(Dashboard.jsx 의 STAT_GRID 가
- * 같은 이유로 개수에 맞춰 열을 정한다). */
-const SUMMARY_GRID = {
-  xs: "1fr",
-  sm: "repeat(2, minmax(0,1fr))",
-  lg: "repeat(4, minmax(0,1fr))",
-  xxl: "repeat(4, minmax(0,1fr))",
-};
 
 /** 화면 상태 → 서버 질의. 기본값은 안 싣는다(주소도 질의도 깨끗해야 조건이 눈에 보인다). */
 export function projectListQuery(filters) {
@@ -97,36 +88,55 @@ function Summary({ query }) {
   const overdue = (d.milestones || {}).overdue || {};
   const avg = percentText(progress.average_pct);
 
+  /* 지표를 성격으로 **두 묶음**으로 나눈다 (지시 2).
+   *
+   * 예전에는 타일 여덟 장이 한 격자에 깔렸고, 프로젝트가 적으면 그중 다섯이 `0`/`-` 라
+   * 화면 절반을 "값이 없다"는 사실이 차지했다. 여덟 개가 같은 무게로 보이니 무엇이 핵심인지도
+   * 알 수 없었다.
+   *
+   *   1) 구성 — 전체가 지배 판독값이고 상태별 넷이 그 옆에 붙는다. 합이 전체가 되는 관계다.
+   *   2) 진행과 위험 — 성격이 다르다. 조치가 필요한지 보는 줄이라 따로 둔다.
+   */
   return (
-    <Box sx={{ mb: 2.5 }}>
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: SUMMARY_GRID }}>
-        <StatCard value={d.total} label="전체" />
-        <StatCard value={status.active} label="진행" />
-        <StatCard value={status.done} label="완료" />
-        <StatCard value={status.on_hold} label="보류" />
-        <StatCard value={status.planned} label="계획" />
-        {/* 평균을 못 낼 수도 있다(계산된 프로젝트가 하나도 없음). 그때 0% 로 그리면
-            "세어 봤더니 0" 이라는 거짓말이 된다 - StatCard 는 null 을 '-' 로 그린다.
-            VIS-09: 이 각주는 예전엔 구역 전체 아래에 떨어진 공용 문단이라 "평균 진행률"과
-            "Health 하위" 중 어느 쪽 얘기인지 시선으로 안 이어졌다 - 각 타일의 note로 갈라
-            붙인다(kit.jsx::StatCard). */}
-        <StatCard
-          value={avg} label="평균 진행률"
-          note={"계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
-            + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + "."}
-        />
-        <StatCard
-          value={trouble.count}
-          label="Health 하위"
-          kind={trouble.count > 0 ? "danger" : undefined}
-          note={"Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다."}
-        />
-        <StatCard
-          value={overdue.count}
-          label="지연 마일스톤"
-          kind={overdue.count > 0 ? "warn" : undefined}
-        />
-      </Box>
+    <Box sx={{ mb: 2.5, display: "grid", gap: 1.5 }}>
+      <MetricStrip
+        ariaLabel="프로젝트 구성"
+        items={[
+          { key: "total", value: d.total, label: "전체", primary: true },
+          { key: "active", value: status.active, label: "진행" },
+          { key: "done", value: status.done, label: "완료" },
+          { key: "on_hold", value: status.on_hold, label: "보류" },
+          { key: "planned", value: status.planned, label: "계획" },
+        ]}
+      />
+      <MetricStrip
+        ariaLabel="진행과 위험"
+        items={[
+          {
+            key: "progress",
+            value: avg,
+            label: "평균 진행률",
+            /* 평균을 못 낼 수도 있다(계산된 프로젝트가 하나도 없음). 그때 0% 로 그리면
+               "세어 봤더니 0" 이라는 거짓말이 된다 — null 은 '-' 로 그린다.
+               각주는 그 숫자 바로 아래 붙인다(VIS-09). */
+            note: "계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
+              + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + ".",
+          },
+          {
+            key: "health",
+            value: trouble.count,
+            label: "Health 하위",
+            kind: trouble.count > 0 ? "danger" : undefined,
+            note: "Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다.",
+          },
+          {
+            key: "overdue",
+            value: overdue.count,
+            label: "지연 마일스톤",
+            kind: overdue.count > 0 ? "warn" : undefined,
+          },
+        ]}
+      />
     </Box>
   );
 }

@@ -8,7 +8,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Button, Callout, Card, ErrorState, PageHeader, Skeleton, StatCard } from "../ui/kit.jsx";
+import { Button, Callout, Card, ErrorState, MetricStrip, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { ChartEmpty } from "../ui/charts/base.jsx";
@@ -359,17 +359,18 @@ export function Sprint() {
           const pickPerson = (uid) => setFilters({ assignee_user_id: filters.assignee_user_id === uid ? "" : uid });
           return (
             <>
-              <Box
-                sx={{
-                  display: "grid", gap: 2, mb: 2.5,
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))" },
-                }}
-              >
-                <StatCard value={team.done || 0} label="완료(건)" />
-                <StatCard value={team.in_progress || 0} label="진행 중(건)" />
-                <StatCard value={team.est_done_total || 0} label="완료 업무량(인일)" />
-                <StatCard value={team.overdue || 0} label="지연(건)" kind={team.overdue ? "warn" : undefined} />
-              </Box>
+              {/* 건수 셋과 인일 하나가 한 줄에 있다 — 단위가 섞이므로 라벨에 단위를 적는다
+                  (지시 9의 "Ticket Count 와 WD 를 의미 없이 혼합하지 않는다"). */}
+              <MetricStrip
+                ariaLabel="이번 주 팀 합계"
+                items={[
+                  { key: "done", value: team.done || 0, label: "완료(건)", primary: true },
+                  { key: "in_progress", value: team.in_progress || 0, label: "진행 중(건)" },
+                  { key: "est", value: team.est_done_total || 0, label: "완료 업무량(인일)" },
+                  { key: "overdue", value: team.overdue || 0, label: "지연(건)", kind: team.overdue ? "warn" : undefined },
+                ]}
+                sx={{ mb: 2.5 }}
+              />
 
               {/* 번다운 + WD 밸런스. 회의에서 먼저 묻는 두 가지가 "이 주가 계획대로 가고 있나"와
                   "누구에게 몰려 있나"다 — 목록을 읽기 전에 그 둘을 그림으로 한 번에 본다.

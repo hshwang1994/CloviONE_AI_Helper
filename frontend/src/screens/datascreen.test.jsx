@@ -283,13 +283,18 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
   });
 });
 
-describe("요약 카드 줄 — 카드 수와 무관하게 auto-fit (VIS-119/137/151)", () => {
-  // 예전 고정 `repeat(4,...)`는 카드 수가 4의 배수가 아니면 마지막 줄에 빈 칸을 남겼다
-  // (jobs 6장 → 4+2, notifications 1장 → 3칸 빔). auto-fit은 카드 수와 무관하게 항상
-  // 그 줄을 채운다 — 카드가 몇 장이든 같은 grid-template-columns 값 하나로 충분한지를 본다.
-  const AUTO_FIT = "repeat(auto-fit, minmax(14rem, 1fr))";
+describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VIS-119/137/151)", () => {
+  /* 예전 고정 `repeat(4,...)`는 카드 수가 4의 배수가 아니면 마지막 줄에 빈 칸을 남겼다
+     (jobs 6장 → 4+2, notifications 1장 → 3칸 빔). 그 다음 해법이 auto-fit 격자였고,
+     지금은 격자 자체가 없다 — 요약은 판 하나를 여럿이 나눠 쓰는 판독 줄
+     (kit.jsx::MetricStrip)이다. 칸이 아니라 flex 이므로 남는 폭을 항목들이 나눠 갖고,
+     "마지막 줄 빈 칸"이라는 결함이 구조적으로 생길 수 없다.
 
-  it("summary.cards가 6장이어도(4의 배수가 아님) 고정 열 수가 아니라 auto-fit을 쓴다", async () => {
+     검사 대상도 트랙 문자열이 아니라 그 구조다: 요약 항목이 **판 하나 안에** 모여 있고,
+     그 줄이 접힐 수 있는가(flex-wrap). */
+  const LABELS = ["대기", "실행 중", "실행 가능(ready)", "실패", "완료", "취소됨"];
+
+  it("summary.cards가 6장이어도(4의 배수가 아님) 판 하나를 나눠 쓴다", async () => {
     apiMock.mockImplementation((url) => {
       if (String(url).includes("/summary")) {
         return Promise.resolve({ queued: 1, running: 2, ready: 1, failed: 0, succeeded: 10, cancelled: 0 });
@@ -307,17 +312,25 @@ describe("요약 카드 줄 — 카드 수와 무관하게 auto-fit (VIS-119/137
         ],
       },
     });
-    const card = await screen.findByText("실행 가능(ready)");
-    const grid = card.closest(".MuiPaper-root").parentElement;
-    expect(grid).toHaveStyle({ gridTemplateColumns: AUTO_FIT });
+    await screen.findByText("실행 가능(ready)");
+
+    const plates = document.querySelectorAll(".k-metrics");
+    expect(plates, "요약 판이 하나여야 한다").toHaveLength(1);
+    for (const label of LABELS) {
+      expect(within(plates[0]).getByText(label), label).toBeInTheDocument();
+    }
+    // 판 안의 줄은 접힌다 — 좁아지면 다음 줄로 내려가고 폭은 남은 항목들이 나눠 갖는다.
+    expect(getComputedStyle(plates[0].firstElementChild).flexWrap).toBe("wrap");
   });
 
-  it("unreadCountKey가 카드 1장뿐이어도 같은 auto-fit 격자를 쓴다", async () => {
+  it("unreadCountKey가 항목 1개뿐이어도 같은 판독 줄을 쓴다", async () => {
     apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 3 });
     renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
-    const card = await screen.findByText("안 읽음");
-    const grid = card.closest(".MuiPaper-root").parentElement;
-    expect(grid).toHaveStyle({ gridTemplateColumns: AUTO_FIT });
+    const label = await screen.findByText("안 읽음");
+
+    const plate = label.closest(".k-metrics");
+    expect(plate, "판독 줄 안에 있어야 한다").not.toBeNull();
+    expect(within(plate).getByText("3")).toBeInTheDocument();
   });
 });
 

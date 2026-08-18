@@ -104,15 +104,15 @@ describe("대시보드 업무 구역", () => {
     // 섹션 제목은 로딩 중에도 뜬다 - 값이 실린 타일을 기다려야 '로딩 화면을 검사'하지 않는다.
     expect(await screen.findByText("내 미완료")).toBeInTheDocument();
 
-    // 라벨 옆의 값. StatCard 는 값과 라벨을 같은 카드 안 형제로 그린다.
-    const tile = (label) => screen.getByText(label).parentElement;
+    // 라벨 옆의 값. 판독 칸(.k-readout) 하나가 값·라벨·각주를 함께 담는다.
+    const tile = (label) => screen.getByText(label).closest(".k-readout");
     expect(tile("내 미완료")).toHaveTextContent("3");
     expect(tile("이번 주 마감")).toHaveTextContent("2");
     expect(tile("지연 티켓")).toHaveTextContent("1");
     // PA-RC-0018: 이름·사유 목록(WorkList)을 지운 뒤로는 '차질 프로젝트'/'지연 마일스톤'이
     // 타일 하나에만 있다(대시보드 문서 높이 예산 초과로 제거 — Dashboard.jsx 주석 참고).
-    expect(screen.getByText("차질 프로젝트").parentElement).toHaveTextContent("2");
-    expect(screen.getByText("지연 마일스톤").parentElement).toHaveTextContent("1");
+    expect(tile("차질 프로젝트")).toHaveTextContent("2");
+    expect(tile("지연 마일스톤")).toHaveTextContent("1");
   });
 
   it("이번 주가 어느 주인지(KST 달력일)를 문장으로 말한다", async () => {

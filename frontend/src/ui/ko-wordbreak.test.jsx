@@ -30,7 +30,7 @@ describe("한국어 줄바꿈", () => {
 
   it("Callout 본문에 실제로 적용된다", () => {
     const { container } = render(<Callout>휴지통에서 항목을 되돌릴 수 있습니다</Callout>);
-    const message = container.querySelector(".MuiAlert-message");
+    const message = container.querySelector(".k-callout");
     expect(message, "Callout 구조가 바뀌었다 — 이 검사가 아무것도 안 보고 있다").toBeTruthy();
     expect(getComputedStyle(message).wordBreak).toBe("keep-all");
   });
@@ -41,7 +41,7 @@ describe("한국어 줄바꿈", () => {
     const { container } = render(
       <Callout>{"요청 번호 a491cf5f-0000-4000-8000-0000000000ff 를 알려 주세요"}</Callout>,
     );
-    const message = container.querySelector(".MuiAlert-message");
+    const message = container.querySelector(".k-callout");
     expect(getComputedStyle(message).overflowWrap).toBe("break-word");
   });
 

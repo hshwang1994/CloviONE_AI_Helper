@@ -268,10 +268,15 @@ function lastQuery(path) {
   return new URLSearchParams(last && last.includes("?") ? last.slice(last.indexOf("?") + 1) : "");
 }
 
-/** 요약 타일 {라벨: 값}. 라벨 뒤의 심각도 표시('위험'/'주의')는 떼어 낸다(kit.jsx::StatCard). */
+/** 요약 판독 {라벨: 값}. 라벨 뒤의 심각도 표시('위험'/'주의')는 떼어 낸다(kit.jsx::MetricStrip). */
+/* 판독 칸의 선택자. 요약을 카드 벽에서 한 줄(MetricStrip)로 바꿨을 때 이 이름만 늘었고
+   아래 단언은 그대로다 — 지키는 것은 DOM 모양이 아니라 "서버 숫자를 그대로 쓴다"와
+   "각주가 자기 숫자 옆에 있다"는 계약이다. */
+const READOUT = ".k-stat, .k-readout";
+
 function summaryTiles() {
   const out = {};
-  for (const el of document.querySelectorAll(".k-stat")) {
+  for (const el of document.querySelectorAll(READOUT)) {
     const kids = Array.from(el.children);
     const value = kids[0] ? kids[0].textContent.trim() : "";
     const label = kids[1] ? kids[1].textContent.trim().replace(/(위험|주의)$/, "").trim() : "";
@@ -390,12 +395,12 @@ describe("프로젝트 목록 — 요약", () => {
     await screen.findByText("배포 자동화");
 
     // 예전엔 두 각주가 합쳐진 문단 하나가 그리드 전체 아래에 떨어져 있었다 - 어느 타일
-    // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 타일(.k-stat) 안에
-    // 있어야 한다(kit.jsx::StatCard 의 note prop).
-    const avgTile = screen.getByText("평균 진행률").closest(".k-stat");
+    // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 판독 칸 안에
+    // 있어야 한다(kit.jsx::MetricStrip 의 note).
+    const avgTile = screen.getByText("평균 진행률").closest(READOUT);
     expect(within(avgTile).getByText(/계산이 끝난 14건만 셌습니다/)).toBeInTheDocument();
 
-    const healthTile = screen.getByText("Health 하위").closest(".k-stat");
+    const healthTile = screen.getByText("Health 하위").closest(READOUT);
     expect(within(healthTile).getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
 
     // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
@@ -414,7 +419,7 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
 
     expect(await screen.findByText("프로젝트가 없습니다")).toBeInTheDocument();
-    expect(document.querySelectorAll(".k-stat")).toHaveLength(0);
+    expect(document.querySelectorAll(READOUT)).toHaveLength(0);
   });
 });
 

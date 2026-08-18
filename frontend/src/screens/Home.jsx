@@ -4,13 +4,12 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Fade from "@mui/material/Fade";
 import Link from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, StatCard,
+  Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { GRID_GAP } from "../ui/density.js";
@@ -27,8 +26,8 @@ import { WorkSection } from "./WorkSummary.jsx";
  * 내려 준다(GET /api/home/today) — 요청 1회, Notion 왕복 0회.
  *
  * 이 화면이 지키는 계약 세 가지:
- *   1) **4K 반응형** — StatCard 행이 <900 1열 → 900~1536 2~3 → 1536~2200 4 → ≥2200 5 → ≥3000 6.
- *      MUI Grid 는 쓰지 않는다(MUI 7 에서 xs={12} 가 조용히 무시된다). Box + display:grid 다.
+ *   1) **4K 반응형** — 지표는 판독 줄(MetricStrip)이라 폭에 따라 스스로 접힌다. 본문 격자는
+ *      MUI Grid 를 쓰지 않는다(MUI 7 에서 xs={12} 가 조용히 무시된다). Box + display:grid 다.
  *   2) **빈 상태를 구분한다** — '필터를 걸어서 없다'(art="search" + 필터 해제)와 '원래 없다'
  *      (art="tickets"/"docs"/"board")는 다른 화면이다. 같은 그림·같은 문장을 쓰면 사용자는
  *      자기가 건 필터 때문인 줄 모르고 데이터가 사라졌다고 생각한다.
@@ -56,15 +55,6 @@ import { WorkSection } from "./WorkSummary.jsx";
  * 모든 트랙이 minmax(0,...) 다. 그냥 "1fr" 은 minmax(auto,1fr) 이라 **트랙이 내용보다
  * 작아지지 않는다** — 긴 문서 제목 하나가 격자를 통째로 밀어내 페이지에 가로 스크롤이
  * 생겼다(390px 캡처에서 실제로 727px 로 벌어졌다). 격자 폭 문제는 항상 이 한 줄이다. */
-export const STAT_GRID = {
-  display: "grid", gap: GRID_GAP, mb: 2.5,
-  gridTemplateColumns: {
-    xs: "minmax(0, 1fr)",
-    sm: "repeat(2, minmax(0,1fr))",
-    md: "repeat(3, minmax(0,1fr))",
-    xl: "repeat(6, minmax(0,1fr))",
-  },
-};
 
 /* 본문 2단 — 좁으면 한 줄로 쌓이고, 넓어지면 오른쪽에 '레일'(진척·최근 변경)이 붙는다.
  * 남는 폭을 줄 길이로 쓰지 않고 두 번째 열로 보내는 것이 이 앱의 4K 규칙이다. */
@@ -256,11 +246,11 @@ export function Home() {
       <PageHeader crumbRoot="" title="오늘" spot="mywork" />
       {q.isLoading ? (
         <>
-          {/* 스켈레톤은 실제 배치와 같은 격자를 쓴다 — 로딩이 끝나는 순간 요소가 뛰지 않는다. */}
-          <Box sx={STAT_GRID}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Paper key={i} variant="outlined" sx={{ p: 3 }}><Skeleton lines={2} /></Paper>
-            ))}
+          {/* 스켈레톤은 실제 배치와 같은 모양을 쓴다 — 로딩이 끝나는 순간 요소가 뛰지 않는다.
+              이제 지표는 격자 여섯 칸이 아니라 판독 줄 둘이다. */}
+          <Box sx={{ display: "grid", gap: 1.5, mb: 2.5 }}>
+            <Card sx={{ py: 1.5 }}><Skeleton lines={2} /></Card>
+            <Card sx={{ py: 1.5 }}><Skeleton lines={2} /></Card>
           </Box>
           <Box sx={BODY_GRID}>
             <Card><Skeleton lines={6} /></Card>
@@ -294,41 +284,40 @@ export function Home() {
 /* 본문 — 로딩·오류가 아닌 정상 상태만 그린다(위 컴포넌트가 분기를 이미 끝냈다). */
 function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
   const tickets = data.tickets || {};
-  const inbox = data.inbox || {};
   const conn = ticketConnState(tickets);
   const view = VIEWS.find((v) => v.key === focus) || VIEWS[0];
   const rows = (tickets[view.key] && tickets[view.key].items) || [];
   const total = (tickets[view.key] && tickets[view.key].count) || 0;
   const anyTicket = VIEWS.some((v) => tickets[v.key] && tickets[v.key].count > 0);
-  // 채팅이 꺼진 설치에서는 chat_unread 가 null 이다(0 과 다른 뜻) — 카드 자리를 '막힘'이 채운다.
-  const chatOff = inbox.chat_unread == null;
 
   return (
     <>
       <Freshness sync={data.sync} />
-      <Box sx={STAT_GRID}>
-        <StatCard value={tickets.due_today ? tickets.due_today.count : null} label="오늘 마감"
-          kind={tickets.due_today && tickets.due_today.count ? "warn" : undefined}
-          active={focus === "due_today"} onClick={() => onFocus("due_today")} />
-        <StatCard value={tickets.overdue ? tickets.overdue.count : null} label="지연"
-          kind={tickets.overdue && tickets.overdue.count ? "danger" : undefined}
-          active={focus === "overdue"} onClick={() => onFocus("overdue")} />
-        <StatCard value={tickets.in_progress ? tickets.in_progress.count : null} label="진행 중"
-          active={focus === "in_progress"} onClick={() => onFocus("in_progress")} />
-        <StatCard value={tickets.due_soon ? tickets.due_soon.count : null} label="7일 내 마감"
-          active={focus === "due_soon"} onClick={() => onFocus("due_soon")} />
-        <StatCard value={inbox.notifications_unread} label="안 읽은 알림"
-          kind={inbox.notifications_unread ? "info" : undefined}
-          onClick={() => { window.location.hash = "#/notifications"; }} />
-        {chatOff ? (
-          <StatCard value={tickets.blocked ? tickets.blocked.count : null} label="막힘(이슈)"
-            kind={tickets.blocked && tickets.blocked.count ? "danger" : undefined}
-            active={focus === "blocked"} onClick={() => onFocus("blocked")} />
-        ) : (
-          <StatCard value={inbox.chat_unread} label="안 읽은 채팅"
-            kind={inbox.chat_unread ? "info" : undefined}
-            onClick={() => { window.location.hash = "#/chat-rooms"; }} />
-        )}
+      {/* 지표 줄 (지시 2).
+        *
+        * 예전에는 흰 카드 여섯 장이 한 격자에 깔렸고, 여섯이라는 개수 자체가 격자 산수에서
+        * 나온 값이었다 — 그래서 채팅이 켜져 있으면 '막힘(이슈)'이 자리가 없다는 이유만으로
+        * 사라졌다. 판독 줄에는 그 산수가 없으므로 막힘은 항상 있다.
+        *
+        * 여기 있던 '안 읽은 알림'·'안 읽은 채팅' 두 칸은 뺐다. 같은 숫자를 상단 종
+        * (알림의 단일 진입점, 지시 1)과 사이드바 배지(navConfig `notifUnread`/`chatUnread`)가
+        * 이미 말하고 있어서 한 화면에 세 번 나왔고, 무엇보다 이 줄의 나머지 칸은 아래 목록을
+        * 거르는 **필터**인데 그 둘만 다른 화면으로 나가는 링크라 누를 때 무슨 일이
+        * 일어나는지가 칸마다 달랐다(지시 62: 행동으로 이어지지 않는 지표는 두지 않는다). */}
+      <Box sx={{ mb: 2.5 }}>
+        <MetricStrip
+          ariaLabel="내 티켓"
+          items={VIEWS.map((v) => ({
+            key: v.key,
+            value: tickets[v.key] ? tickets[v.key].count : null,
+            label: v.label,
+            // 색은 셀 값이 있을 때만 — 0건인 '지연'을 빨갛게 칠하면 없는 문제를 만든다.
+            kind: v.kind && tickets[v.key] && tickets[v.key].count ? v.kind : undefined,
+            primary: v.key === "due_today",
+            active: focus === v.key,
+            onClick: () => onFocus(v.key),
+          }))}
+        />
       </Box>
 
       {/* VIS-35: AssistantPanel은 예전엔 왼쪽 열 안에서 티켓 카드 아래로 쌓여 있었다 — 티켓

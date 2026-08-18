@@ -31,11 +31,11 @@ describe("templates 목록의 '활성' 배지", () => {
 
   it("비활성은 중립이 아니라 주의(warning) 톤이다 — 프롬프트/정책/승인이 전부 안 먹는 상태다", () => {
     const { container: offC } = renderCol(col, { enabled: false });
-    expect(offC.querySelector(".MuiChip-colorWarning")).toBeTruthy();
-    expect(offC.querySelector(".MuiChip-colorDefault")).toBeFalsy();
+    expect(offC.querySelector('[data-tone="warn"]')).toBeTruthy();
+    expect(offC.querySelector('[data-tone="neutral"]')).toBeFalsy();
 
     const { container: onC } = renderCol(col, { enabled: true });
-    expect(onC.querySelector(".MuiChip-colorSuccess")).toBeTruthy();
+    expect(onC.querySelector('[data-tone="ok"]')).toBeTruthy();
   });
 });
 
@@ -62,11 +62,11 @@ describe.each([
 
   it("비활성은 중립이 아니라 주의(warning) 톤이다", () => {
     const { container: offC } = renderCol(col, { enabled: false });
-    expect(offC.querySelector(".MuiChip-colorWarning")).toBeTruthy();
-    expect(offC.querySelector(".MuiChip-colorDefault")).toBeFalsy();
+    expect(offC.querySelector('[data-tone="warn"]')).toBeTruthy();
+    expect(offC.querySelector('[data-tone="neutral"]')).toBeFalsy();
 
     const { container: onC } = renderCol(col, { enabled: true });
-    expect(onC.querySelector(".MuiChip-colorSuccess")).toBeTruthy();
+    expect(onC.querySelector('[data-tone="ok"]')).toBeTruthy();
   });
 });
 

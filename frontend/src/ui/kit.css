@@ -31,7 +31,6 @@
 /* 상태 카드: 균등 그리드에서 쓰며 값은 톤 색, 클릭형은 필터 연동. */
 /* 안쪽 여백은 kit.jsx의 StatCard가 STAT_CARD_PADDING(17px 18px)으로 이미 sx에 준다 — 여기
    padding을 다시 선언하면 18px 20px와 값 자체가 달라 이중 선언 충돌이 된다(DS-19). */
-.k-stat { position: relative; text-align: left; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); width: 100%; }
 /* 선택된(필터로 켜진) 카드 — 색 링으로 지금 어느 카드가 아래 목록을 필터하고 있는지 알린다. */
 @keyframes k-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 

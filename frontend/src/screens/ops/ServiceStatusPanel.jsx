@@ -2,8 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Badge, StatCard, Callout, useToast } from "../../ui/kit.jsx";
-import { DashSection, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
+import { Badge, MetricStrip, Callout, useToast } from "../../ui/kit.jsx";
+import { DashSection, StatusTile, SERVICE_GRID } from "../../ui/adminKit.jsx";
 import { fmtNum, serviceLabel, fmtCertDays, copyText } from "./opsHelpers.js";
 
 /* 진단 화면의 "시스템 리소스" + "서비스 상태" 카드 — 둘 다 '지금 이 순간' 스냅샷이라 한 패널로 묶는다.
@@ -31,23 +31,20 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
           Dashboard.jsx의 규칙(§ '영구, 죽은 타일을 남기지 않는다')과 동일하게, 값이 없는 개별 타일도 숨긴다. */}
       {(disk.free_gb != null || disk.used_pct != null || mem.used_pct != null || certDaysRemaining != null) ? (
         <DashSection title="시스템 리소스">
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-            {/* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
-                이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. */}
-            {disk.free_gb != null ? <StatCard value={fmtNum(disk.free_gb) + "GB"} label="디스크 여유" /> : null}
-            {disk.used_pct != null ? (
-              <StatCard value={disk.used_pct + "%"} label="디스크 사용"
-                kind={disk.used_pct >= 85 ? "danger" : disk.used_pct >= 80 ? "warn" : undefined} />
-            ) : null}
-            {mem.used_pct != null ? (
-              <StatCard value={mem.used_pct + "%"} label="메모리 사용"
-                kind={mem.used_pct >= 90 ? "danger" : mem.used_pct >= 80 ? "warn" : undefined} />
-            ) : null}
-            {certDaysRemaining != null ? (
-              <StatCard value={fmtCertDays(certDaysRemaining)} label="인증서 만료"
-                kind={certDaysRemaining <= 0 ? "danger" : certDaysRemaining <= 30 ? "warn" : undefined} />
-            ) : null}
-          </Box>
+          {/* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
+              이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. */}
+          <MetricStrip
+            ariaLabel="시스템 리소스"
+            items={[
+              disk.free_gb != null ? { key: "disk_free", value: fmtNum(disk.free_gb) + "GB", label: "디스크 여유" } : null,
+              disk.used_pct != null ? { key: "disk_used", value: disk.used_pct + "%", label: "디스크 사용",
+                kind: disk.used_pct >= 85 ? "danger" : disk.used_pct >= 80 ? "warn" : undefined } : null,
+              mem.used_pct != null ? { key: "mem", value: mem.used_pct + "%", label: "메모리 사용",
+                kind: mem.used_pct >= 90 ? "danger" : mem.used_pct >= 80 ? "warn" : undefined } : null,
+              certDaysRemaining != null ? { key: "cert", value: fmtCertDays(certDaysRemaining), label: "인증서 만료",
+                kind: certDaysRemaining <= 0 ? "danger" : certDaysRemaining <= 30 ? "warn" : undefined } : null,
+            ].filter(Boolean)}
+          />
         </DashSection>
       ) : null}
       {/* build_dashboard()(app/health/service.py)는 components/counts/jobs_24h를 항상 고정된

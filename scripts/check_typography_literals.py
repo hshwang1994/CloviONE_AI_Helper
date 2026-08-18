@@ -45,7 +45,7 @@ EXEMPT_FONT_SIZE_VALUES: dict[str, str] = {
     '"0.9375rem"': "입력창 또는 서체 본문(prose, lineHeight 1.6~1.75) — PA-01 5~7차 확장에서 전수 확인",
     '"0.625rem"': "ChatPane.jsx 메신저 읽음 표시 — 본문보다 작아야 하는 보조 지표라 caption(12px)"
                   "로 올리면 본문과 시각적으로 경쟁한다",
-    '"0.6875rem"': "kit.jsx StatCard 심각도 배지(12px로 올리면 실측 줄바꿈 위험) + "
+    '"0.6875rem"': "kit.jsx 판독 칸 심각도 배지(12px로 올리면 실측 줄바꿈 위험) + "
                    "theme.js MuiTableCell head(기준선 th{11px}와 정확히 일치, 손대면 오히려 이탈)",
     '"19px"': "TopSearch.jsx 검색 아이콘(SearchRoundedIcon)",
     '"1.125rem"': "Home.jsx/SchedulerCalendar.jsx 보조 통계(18px, sectionTitle 17px·pageTitle 20px "

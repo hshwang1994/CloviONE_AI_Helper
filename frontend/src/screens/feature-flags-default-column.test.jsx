@@ -32,16 +32,16 @@ describe("기능 플래그 목록 — '기본값' 열과 어긋남 신호 (WF1 R
   it("현재 값이 기본값과 같으면 '현재' 배지가 warn이 아니다", () => {
     const col = findCol("value");
     const { container } = renderCol(col, { value: true, default: true });
-    expect(container.querySelector(".MuiChip-colorWarning")).toBeFalsy();
+    expect(container.querySelector('[data-tone="warn"]')).toBeFalsy();
   });
 
   it("현재 값이 기본값과 어긋나면(위험 플래그가 반대로 켜진 경우 등) '현재' 배지가 warn이다", () => {
     const col = findCol("value");
     // game_ai_enabled 실사례: 기본 OFF인데 켜져 있음.
     const { container: onDeviates } = renderCol(col, { value: true, default: false });
-    expect(onDeviates.querySelector(".MuiChip-colorWarning")).toBeTruthy();
+    expect(onDeviates.querySelector('[data-tone="warn"]')).toBeTruthy();
     // 반대 방향(기본 ON인데 꺼짐)도 어긋남이다.
     const { container: offDeviates } = renderCol(col, { value: false, default: true });
-    expect(offDeviates.querySelector(".MuiChip-colorWarning")).toBeTruthy();
+    expect(offDeviates.querySelector('[data-tone="warn"]')).toBeTruthy();
   });
 });

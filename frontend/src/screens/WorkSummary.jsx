@@ -8,8 +8,8 @@ import { api } from "../lib/api.js";
 // `fmtNum` 은 운영 화면 헬퍼에 있다(대시보드와 같은 출처를 쓴다 — 숫자 표기가
 // 두 화면에서 달라지면 같은 값이 다르게 보인다).
 import { fmtNum } from "./ops/opsHelpers.js";
-import { Card, ErrorState, Skeleton, StatCard } from "../ui/kit.jsx";
-import { DashSection, HEADLINE_GRID, Note } from "../ui/adminKit.jsx";
+import { Card, ErrorState, MetricStrip, Skeleton } from "../ui/kit.jsx";
+import { DashSection, Note } from "../ui/adminKit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 
@@ -92,23 +92,24 @@ export function WorkSection() {
         </Note>
       ) : null}
 
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: HEADLINE_GRID }}>
-        {/* 티켓 소스가 죽으면 이 세 장은 아예 안 그린다. '-'로 그려도 0으로 그려도 사용자는
-            그것을 '없다'로 읽는다 — 아래 안내 문구가 이유를 대신 말한다. */}
-        {mine ? (
-          <>
-            <StatCard value={fmtNum(mine.open)} label="내 미완료" onClick={() => nav("/my-tickets")} />
-            <StatCard value={fmtNum(mine.due_this_week)} label="이번 주 마감"
-              kind={mine.due_this_week ? "warn" : undefined} onClick={() => nav("/my-tickets")} />
-            <StatCard value={fmtNum(mine.overdue)} label="지연 티켓"
-              kind={mine.overdue ? "danger" : undefined} onClick={() => nav("/my-tickets")} />
-          </>
-        ) : null}
-        <StatCard value={fmtNum(troubled.count)} label="차질 프로젝트"
-          kind={troubled.count ? "danger" : undefined} onClick={() => nav("/projects")} />
-        <StatCard value={fmtNum(overdueMs.count)} label="지연 마일스톤"
-          kind={overdueMs.count ? "warn" : undefined} onClick={() => nav("/projects")} />
-      </Box>
+      {/* 티켓 소스가 죽으면 내 티켓 셋은 아예 안 그린다. '-'로 그려도 0으로 그려도 사용자는
+          그것을 '없다'로 읽는다 — 아래 안내 문구가 이유를 대신 말한다. */}
+      <MetricStrip
+        ariaLabel="내 업무 요약"
+        items={[
+          ...(mine ? [
+            { key: "open", value: fmtNum(mine.open), label: "내 미완료", primary: true, onClick: () => nav("/my-tickets") },
+            { key: "due_week", value: fmtNum(mine.due_this_week), label: "이번 주 마감",
+              kind: mine.due_this_week ? "warn" : undefined, onClick: () => nav("/my-tickets") },
+            { key: "overdue", value: fmtNum(mine.overdue), label: "지연 티켓",
+              kind: mine.overdue ? "danger" : undefined, onClick: () => nav("/my-tickets") },
+          ] : []),
+          { key: "troubled", value: fmtNum(troubled.count), label: "차질 프로젝트",
+            kind: troubled.count ? "danger" : undefined, onClick: () => nav("/projects") },
+          { key: "overdue_ms", value: fmtNum(overdueMs.count), label: "지연 마일스톤",
+            kind: overdueMs.count ? "warn" : undefined, onClick: () => nav("/projects") },
+        ]}
+      />
       {!mine ? <Note>{WORK_UNKNOWN}</Note> : null}
       {/* 차질 0건이 '다 건강하다'인지 '아무것도 안 쟀다'인지는 완전히 다른 사실이다. 서버가
           센 '못 잼' 건수를 그대로 말한다(0으로 뭉개면 화면에서 둘을 구별할 방법이 없다). */}
@@ -127,7 +128,7 @@ export function WorkSection() {
 
       {/* PA-RC-0018: 차질 프로젝트/지연 마일스톤 이름·사유 목록(WorkList, 2카드)이 여기 있었다.
           TEST SERVER 실측(2026-08-16)에서 대시보드 문서 높이가 1.5화면 예산(acceptance
-          criteria 2)을 넘겨(1805px) 지웠다 — 위 StatCard 두 장이 이미 개수를 보여주고
+          criteria 2)을 넘겨(1805px) 지웠다 — 위 판독 줄의 두 칸이 이미 개수를 보여주고
           클릭하면 /projects로 간다, 이름·사유는 거기서 본다. 인벤토리·현재 큐 상태 구역을
           상세 화면으로 내린 것과 같은 판단이다(같은 값을 화면에 두 번, 이번엔 "개수"와
           "그 개수의 목록"으로 반복하지 않는다). 항목 3개 이하로 줄이는 것부터 먼저

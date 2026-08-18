@@ -11,31 +11,21 @@ import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
  * 공용 위치에 둔다. 순수 표시 헬퍼(serviceLabel·날짜/숫자 포맷 등)는 ops/opsHelpers.js로
  * 옮겼다 — 그쪽은 JSX 없는 순수 함수 모음이라는 기존 성격에 맞춘 것이다. */
 
-/* 지표 타일 한 줄의 열 수 — 이 앱의 모든 StatCard 그리드가 이 한 값을 공유한다.
- * 예전 CSS는 repeat(auto-fill, minmax(210px,1fr))이었다. 210px는 고정값이라 3840px 화면에서
- * 타일이 18개까지 늘어나 한 줄이 얇은 띠가 됐고, 반대로 4K에서 루트 폰트가 커져 글자만 큰
- * 타일이 좁은 트랙에 갇혔다. 브레이크포인트로 못 박아 xs→sm→lg→xxl→uhd에서 1→2→4→5→6열로 간다.
- * (DataScreen.jsx의 요약 카드줄과 같은 값 — 두 화면의 타일 크기가 어긋나 보이지 않게 한다.) */
-export const STAT_GRID = {
-  xs: "1fr",
-  sm: "repeat(2, minmax(0,1fr))",
-  lg: "repeat(4, minmax(0,1fr))",
-  xxl: "repeat(5, minmax(0,1fr))",
-  uhd: "repeat(6, minmax(0,1fr))",
-};
-
-/* 머리 지표 줄만 다른 격자를 쓴다 — **개수가 고정(5개)이기 때문**이다.
- * `STAT_GRID` 는 개수가 변하는 목록(경보 0~N, 서비스 N개)을 담는 값이라 lg 에서 4열인데,
- * 거기에 다섯을 넣으면 마지막 하나가 혼자 다음 줄로 떨어진다(실제로 그렇게 나왔다).
- * 한 줄로 읽히는 것이 이 줄의 존재 이유이므로 lg 부터 다섯 열로 못 박는다.
- * 좁은 화면에서는 2열로 접히고, 그때는 5개가 세 줄이 되는 게 맞다(가로 스크롤보다 낫다). */
+/* 개수가 고정(5개)인 머리 지표 줄의 격자.
+ *
+ * 지표를 낱장 카드 격자(옛 `STAT_GRID`)로 까는 방식은 폐기했다 — 열 수가 개수를 나누지
+ * 못하면 마지막 줄이 비고, 무엇보다 카드 N장은 무엇이 핵심 지표인지 말해 주지 않는다.
+ * 지표는 이제 판 하나를 나눠 쓰는 판독 줄(kit.jsx::MetricStrip)이다.
+ *
+ * 이 격자는 지표가 아니라 **경보 타일**처럼 개수가 고정된 줄에만 남는다. 좁은 화면에서는
+ * 2열로 접히고, 그때는 5개가 세 줄이 되는 게 맞다(가로 스크롤보다 낫다). */
 export const HEADLINE_GRID = {
   xs: "1fr",
   sm: "repeat(2, minmax(0,1fr))",
   lg: "repeat(5, minmax(0,1fr))",
 };
 
-// 서비스/연동 카드 격자 — 타일이 작아 지표 타일(STAT_GRID)보다 촘촘하게 깐다.
+// 서비스/연동 카드 격자 — 타일이 작아 머리 지표 줄(HEADLINE_GRID)보다 촘촘하게 깐다.
 export const SERVICE_GRID = {
   xs: "1fr", sm: "repeat(2, minmax(0,1fr))", md: "repeat(3, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))",
 };

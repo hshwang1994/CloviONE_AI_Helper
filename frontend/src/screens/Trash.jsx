@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, StatCard, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
@@ -194,15 +194,16 @@ export function Trash() {
           <>
             {/* 요약 줄 — '보관기간이 지나면 사라진다'만으로는 언제가 그 순간인지 알 수 없다.
              * 24시간 안에 사라질 건수를 숫자로 먼저 보여준다(0이면 톤 없이 중립). */}
-            <Box sx={{
-              display: "grid", gap: 2, mb: 2.5,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "repeat(4, minmax(0,1fr))" },
-            }}>
-              <StatCard value={items.length} label="보관 중" />
-              <StatCard value={tickets} label="티켓" />
-              <StatCard value={docs} label="문서" />
-              <StatCard value={urgent} label="24시간 내 영구 삭제" kind={urgent > 0 ? "warn" : undefined} />
-            </Box>
+            <MetricStrip
+              ariaLabel="휴지통 요약"
+              items={[
+                { key: "all", value: items.length, label: "보관 중", primary: true },
+                { key: "tickets", value: tickets, label: "티켓" },
+                { key: "docs", value: docs, label: "문서" },
+                { key: "urgent", value: urgent, label: "24시간 내 영구 삭제", kind: urgent > 0 ? "warn" : undefined },
+              ]}
+              sx={{ mb: 2.5 }}
+            />
             <Card className="c-list-card">
               <DataTable columns={columns} rows={items} rowKey={(r) => r.id} fixed ellipsis
                 empty="휴지통이 비어 있습니다." />

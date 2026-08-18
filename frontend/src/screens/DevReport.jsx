@@ -12,12 +12,11 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, StatCard } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
-import { STAT_GRID } from "../ui/adminKit.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
@@ -189,16 +188,24 @@ export function DevReport() {
         <ErrorState error={{ message: data.error || "리포트를 불러오지 못했습니다." }} onRetry={() => query.refetch()} />
       ) : ok ? (
         <>
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID, mb: 4 }}>
-            {/* 타일의 둘째 줄은 '이 숫자가 무엇을 센 것인지'다 — 정의가 사라지면 숫자를 신뢰할 수 없다.
-                (StatCard는 값+라벨만 모델링하므로 라벨 자리에 두 줄을 넣는다.) */}
-            <StatCard kind="ok" value={data.team.done + "건"} label={<KpiLabel main="완료" note={"취소를 뺀 기준 완료 " + data.team.est_done_total + "인일"} />} />
-            <StatCard value={data.team.in_progress + "건"} label={<KpiLabel main="진행 중" note="진행과 이슈 상태" />} />
-            <StatCard value={data.team.verify + "건"} label={<KpiLabel main="검증" note="검토, 확인 단계" />} />
-            <StatCard value={data.team.plan + "건"} label={<KpiLabel main="계획" note="아직 착수 전" />} />
-            <StatCard kind={data.team.overdue > 0 ? "danger" : undefined} value={data.team.overdue + "건"} label={<KpiLabel main="지연" note="마감이 지난 미완료" />} />
-            <StatCard value={data.unassigned.total + "건"} label={<KpiLabel main="담당자 없음" note="담당자가 지정되지 않음" />} />
-          </Box>
+          {/* 각 칸의 셋째 줄은 '이 숫자가 무엇을 센 것인지'다 — 정의가 사라지면 숫자를
+              신뢰할 수 없다. 판독 줄이 값·라벨·각주 셋을 모두 모델링하므로 예전처럼 라벨
+              자리에 두 줄을 밀어 넣지 않는다(KpiLabel 을 없앤 이유). */}
+          <MetricStrip
+            ariaLabel="팀 합계"
+            sx={{ mb: 4 }}
+            items={[
+              { key: "done", kind: "ok", value: data.team.done + "건", label: "완료", primary: true,
+                note: "취소를 뺀 기준 완료 " + data.team.est_done_total + "인일" },
+              { key: "in_progress", value: data.team.in_progress + "건", label: "진행 중", note: "진행과 이슈 상태" },
+              { key: "verify", value: data.team.verify + "건", label: "검증", note: "검토, 확인 단계" },
+              { key: "plan", value: data.team.plan + "건", label: "계획", note: "아직 착수 전" },
+              { key: "overdue", kind: data.team.overdue > 0 ? "danger" : undefined, value: data.team.overdue + "건",
+                label: "지연", note: "마감이 지난 미완료" },
+              { key: "unassigned", value: data.unassigned.total + "건", label: "담당자 없음",
+                note: "담당자가 지정되지 않음" },
+            ]}
+          />
 
           <Box component="section" sx={{ mb: 4 }}>
             <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>개발자별 상세 ({data.period})</Typography>
@@ -368,12 +375,3 @@ export function DevReport() {
   );
 }
 
-// KPI 타일의 라벨 두 줄(이름 + 그 숫자가 무엇을 센 것인지).
-function KpiLabel({ main, note }) {
-  return (
-    <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-      <Box component="span">{main}</Box>
-      <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.disabled" }}>{note}</Box>
-    </Box>
-  );
-}

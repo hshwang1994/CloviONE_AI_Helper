@@ -4,15 +4,13 @@ import {
   CARD_PADDING,
   GRID_GAP,
   SECTION_GAP,
-  STAT_CARD_PADDING,
-  STAT_VALUE_FONT_SIZE,
   TILE_GRID_GAP,
   TILE_PADDING,
 } from "./density.js";
+import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
 import { DOC_DETAIL_GRID } from "../screens/TeamDoc.jsx";
 import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";
-import { STAT_GRID as HOME_STAT_GRID } from "../screens/Home.jsx";
 import { PEOPLE_GRID } from "../screens/Sprint.jsx";
 
 /* 밀도·격자 계약 — 목업이 아니라 **레이아웃이 지켜야 하는 성질**을 본다.
@@ -78,15 +76,11 @@ describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다
 });
 
 describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기지 않는다", () => {
-  /* 홈의 지표 줄은 항상 정확히 6장이다(오늘 마감·지연·진행 중·7일 내 마감·안 읽은 알림·
-     안 읽은 채팅 또는 막힘). 4열이면 4+2, 5열이면 5+1 이라 오른쪽이 빈 채 줄만 하나 늘어난다. */
-  it("홈 지표 줄(6장)의 모든 열 수가 6을 나누어떨어뜨린다", () => {
-    const bad = trackEntries(HOME_STAT_GRID)
-      .map(([bp, track]) => [bp, columnCount(track)])
-      .filter(([, cols]) => 6 % cols !== 0)
-      .map(([bp, cols]) => `${bp}: ${cols}열 → 마지막 줄에 ${cols - (6 % cols)}칸이 빈다`);
-    expect(bad).toEqual([]);
-  });
+  /* 홈 지표 줄(6장)을 여기서 검사하던 자리다. 그 줄은 이제 격자가 아니라 판독 줄
+     (kit.jsx::MetricStrip)이라 마지막 줄 빈 칸이라는 결함 자체가 없다 — 검사는 실제
+     렌더링을 보는 `screens/home.test.jsx`
+     ("지표가 카드 여섯 장이 아니라 판 두 개에 담긴다")로 옮겼다. 트랙 문자열 대신 DOM 을
+     보므로 더 강한 검사다. */
 
   it("담당자 현황은 넓은 화면에서 촘촘하게 편다(작은 타일이므로)", () => {
     /* 이름 + 숫자 셋짜리 작은 타일이다. `card.pad` 급 3열로 펴면 한 사람이 화면 1/3 을
@@ -101,11 +95,10 @@ describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기�
 describe("밀도 토큰이 무너지지 않는다", () => {
   it("모든 치수가 양수다", () => {
     for (const [name, v] of Object.entries({
-      CARD_PADDING, GRID_GAP, SECTION_GAP, TILE_PADDING, TILE_GRID_GAP, STAT_VALUE_FONT_SIZE,
+      CARD_PADDING, GRID_GAP, SECTION_GAP, TILE_PADDING, TILE_GRID_GAP,
     })) {
       expect(rem(v), name).toBeGreaterThan(0);
     }
-    expect(STAT_CARD_PADDING).toMatch(/\S+\s+\S+/); // "세로 가로" 두 값
   });
 
   it("구획 간격이 카드 안 여백보다 크다 (구획이 카드보다 멀리 떨어져야 묶음이 읽힌다)", () => {
@@ -118,7 +111,10 @@ describe("밀도 토큰이 무너지지 않는다", () => {
   });
 
   it("판독값이 본문보다 확실히 크다 (지배하는 수치 하나 — D-141)", () => {
-    // 본문 0.875rem 대비 최소 두 배는 되어야 "지배한다"고 말할 수 있다.
-    expect(rem(STAT_VALUE_FONT_SIZE)).toBeGreaterThanOrEqual(0.875 * 2);
+    /* 예전엔 density.js 의 `STAT_VALUE_FONT_SIZE`(목업 30px 파생)를 봤다. 그 치수의
+       소비자였던 StatCard 가 MetricStrip 으로 대체되면서 판독값 크기의 정본은 테마의
+       `FONT_SIZE.readout` 하나가 됐다 — 검사도 그 정본을 본다. */
+    expect(rem(FONT_SIZE.readout)).toBeGreaterThanOrEqual(rem(FONT_SIZE.body) * 1.8);
+    expect(rem(FONT_SIZE.readout)).toBeGreaterThan(rem(FONT_SIZE.title));
   });
 });

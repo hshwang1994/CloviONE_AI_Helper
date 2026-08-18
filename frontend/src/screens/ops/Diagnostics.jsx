@@ -6,8 +6,8 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { DashSection, Note, StatusTile, STAT_GRID, SERVICE_GRID } from "../../ui/adminKit.jsx";
-import { PageHeader, Card, Badge, Callout, StatCard, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
+import { DashSection, Note, StatusTile, SERVICE_GRID } from "../../ui/adminKit.jsx";
+import { PageHeader, Card, Badge, Callout, MetricStrip, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
@@ -162,7 +162,7 @@ export function Diagnostics() {
                           {hv.problems.map((p, i) => (
                             <Box component="li" key={i}
                               /* QAH-03(2026-08-11 하네스 실측): warning.main 글자색이
-                                 4.48:1로 AA(4.5) 근소 미달이었다 — StatCard 배지와 같은
+                                 4.48:1로 AA(4.5) 근소 미달이었다 — 판독 칸 배지와 같은
                                  원인이라 같은 수정(palette.{error,warning}.strong)을 쓴다. */
                               sx={{ display: "flex", alignItems: "baseline", gap: 0.75, color: p.tone === "danger" ? "error.strong" : "warning.strong" }}>
                               {/* 심각도를 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은 글자 라벨을 함께 둔다. */}
@@ -262,14 +262,17 @@ export function Diagnostics() {
                 읽히지 않았다, 같은 성격의 섹션끼리 먼저 모아 두고, 이력성 섹션은 그 아래로 둔다. */}
             {Object.keys(counts).length ? (
               <DashSection title="현재 리소스">
-                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: STAT_GRID }}>
-                  {/* Dashboard.jsx의 동일한 인벤토리 타일과 똑같이 해당 레지스트리로 드릴다운한다 -
-                      이 화면은 admin/system_admin 전용이라 세 화면 모두 항상 도달 가능하다(대시보드처럼
-                      역할별 canGo 분기가 필요 없다). */}
-                  <StatCard value={fmtNum(counts.active_workflows)} label="활성 워크플로" onClick={() => nav("/workflows")} />
-                  <StatCard value={fmtNum(counts.active_schedules)} label="활성 스케줄" onClick={() => nav("/schedules")} />
-                  <StatCard value={fmtNum(counts.runners)} label="추가된 러너" onClick={() => nav("/runners")} />
-                </Box>
+                {/* Dashboard.jsx의 동일한 인벤토리 판독과 똑같이 해당 레지스트리로 드릴다운한다 -
+                    이 화면은 admin/system_admin 전용이라 세 화면 모두 항상 도달 가능하다(대시보드처럼
+                    역할별 canGo 분기가 필요 없다). */}
+                <MetricStrip
+                  ariaLabel="현재 리소스"
+                  items={[
+                    { key: "workflows", value: fmtNum(counts.active_workflows), label: "활성 워크플로", onClick: () => nav("/workflows") },
+                    { key: "schedules", value: fmtNum(counts.active_schedules), label: "활성 스케줄", onClick: () => nav("/schedules") },
+                    { key: "runners", value: fmtNum(counts.runners), label: "추가된 러너", onClick: () => nav("/runners") },
+                  ]}
+                />
               </DashSection>
             ) : null}
             <JobQueuePanel jobs24={jobs24} jobErrors={jobErrors} errorDist={errorDist} nav={nav} />

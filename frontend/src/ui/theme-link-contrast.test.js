@@ -180,18 +180,19 @@ describe("QAH-03(2026-08-11 하네스 실측) — MuiButton 기본(text/outlined
   }
 });
 
-describe("QAH-03 — StatCard 「주의」/「위험」 배지가 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
+describe("QAH-03 — 판독 칸 「주의」/「위험」 배지가 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
   const kitSrc = readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
     "utf-8",
   );
 
-  it("StatCard의 sev Box가 실제로 `${color}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
-    const start = kitSrc.indexOf("export function StatCard");
-    expect(start, "StatCard 정의를 못 찾았다").toBeGreaterThan(-1);
-    const block = kitSrc.slice(start, start + 3500);
-    expect(block).toMatch(/color:\s*`\$\{color\}\.strong`/);
-    expect(block).not.toMatch(/color:\s*`\$\{color\}\.main`\}\}\s*>\{sev\}/);
+  it("판독 칸의 sev Box가 실제로 `${tone}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
+    // StatCard(카드 한 장 = 지표 하나)를 MetricStrip 이 대체했다 — 계약은 그대로다.
+    const start = kitSrc.indexOf("export function MetricStrip");
+    expect(start, "MetricStrip 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = kitSrc.slice(start, start + 4500);
+    expect(block).toMatch(/color:\s*`\$\{tone\}\.strong`/);
+    expect(block).not.toMatch(/color:\s*`\$\{tone\}\.main`/);
   });
 
   for (const mode of ["light", "dark"]) {
@@ -214,14 +215,15 @@ describe("QAH-03 — StatCard 「주의」/「위험」 배지가 palette.{warni
   }
 });
 
-describe("QAH-02(2026-08-11 하네스 실측) — StatCard 배지가 좁은 칸에서 세로로 안 무너진다", () => {
+describe("QAH-02(2026-08-11 하네스 실측) — 심각도 배지가 좁은 칸에서 세로로 안 무너진다", () => {
   it("sev Box에 whiteSpace:nowrap과 flexShrink:0이 있다(한글은 word-break 기본값이 음절 사이 어디서나 끊는다)", () => {
     const kitSrcHere = readFileSync(
       path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
       "utf-8",
     );
-    const start = kitSrcHere.indexOf("export function StatCard");
-    const block = kitSrcHere.slice(start, start + 3500);
+    const start = kitSrcHere.indexOf("export function MetricStrip");
+    expect(start, "MetricStrip 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = kitSrcHere.slice(start, start + 4500);
     const sevLine = /\{sev \? \([\s\S]{0,900}?<\/Box>/.exec(block);
     expect(sevLine, "sev Box 블록을 못 찾았다").not.toBeNull();
     expect(sevLine[0]).toMatch(/whiteSpace:\s*"nowrap"/);
