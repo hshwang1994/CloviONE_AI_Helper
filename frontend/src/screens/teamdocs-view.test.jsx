@@ -108,7 +108,7 @@ describe("문서 목록 보기", () => {
 });
 
 describe("열람 제한 배지(SEC-10)", () => {
-  it("제한된 문서는 카드·표 양쪽에서 자물쇠로 표시된다", async () => {
+  it("제한된 문서는 카드·표 양쪽에서 '열람 제한' 태그로 표시된다", async () => {
     api.mockImplementation((path) => {
       if (path.startsWith("/api/team-docs/filters")) {
         return Promise.resolve({ doc_types: [], work_fields: [], tech_tags: [], projects: [] });
@@ -121,10 +121,14 @@ describe("열람 제한 배지(SEC-10)", () => {
     });
     renderScreen();
     await screen.findByText("인프라 운영 계획");
-    expect(screen.getAllByLabelText("열람 제한")).toHaveLength(1);
+    /* 지시 28: 자물쇠 이모지를 없앴다. 열람 제한 **기능**(SEC-10)은 그대로이고, 화면은
+       Design System 의 태그로 그 상태를 말한다 — 그림이 아니라 글자라 낭독도 된다. */
+    expect(screen.getAllByText("열람 제한")).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("🔒");
 
     fireEvent.click(screen.getByRole("button", { name: "표" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "문서 종류" })).toBeTruthy());
-    expect(screen.getAllByLabelText("열람 제한")).toHaveLength(1);
+    expect(screen.getAllByText("열람 제한")).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("🔒");
   });
 });

@@ -330,24 +330,28 @@ describe("댓글", () => {
 
 // ── 속성 통합 + 편집 입구 구별 (VIS-134/VIS-135) ──────────────────────────────
 
-describe("VIS-134 — 상태·우선순위가 속성 카드로 합쳐진다", () => {
-  it("본문 카드가 아니라 '속성' 카드 안에 라벨과 함께 있다", async () => {
+describe("VIS-134 — 상태·우선순위가 라벨과 함께 속성 줄에 있다", () => {
+  it("본문이 아니라 상단 전폭 속성 줄 안에 라벨과 함께 있다 (지시 7)", async () => {
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
       ["/api/tickets/page-1", detailPayload()],
     ])));
     const { container } = wrap();
-    await screen.findByRole("heading", { name: "속성" });
-
-    const rail = container.querySelector('[data-testid="ticket-detail-rail"]');
+    const bar = await screen.findByLabelText("티켓 속성");
     const main = container.querySelector('[data-testid="ticket-detail-main"]');
-    // 라벨이 속성 레일 안에 있다 — "높음"만 보고 우선순위인지 난이도인지 알 수 없던 문제였다.
-    expect(within(rail).getByText("상태")).toBeInTheDocument();
-    expect(within(rail).getByText("우선순위")).toBeInTheDocument();
-    expect(within(rail).getByText("진행")).toBeInTheDocument();
-    expect(within(rail).getByText("높음")).toBeInTheDocument();
+
+    // 라벨이 값과 같은 칸에 있다 — "높음"만 보고 우선순위인지 난이도인지 알 수 없던 문제였다.
+    for (const [label, value] of [["상태", "진행"], ["우선순위", "높음"]]) {
+      const cell = within(bar).getByText(label).closest(".k-metacell");
+      expect(cell, label).not.toBeNull();
+      expect(cell).toHaveTextContent(value);
+    }
     // 본문 카드 맨 위에는 더 이상 라벨 없는 칩 쌍이 없다.
     expect(within(main).queryByText("진행")).toBeNull();
+    // 속성 줄은 본문 격자보다 위에 있다(훑는 정보가 먼저다).
+    const metaWrap = container.querySelector('[data-testid="ticket-detail-meta"]');
+    expect(metaWrap.contains(bar)).toBe(true);
+    expect(metaWrap.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -381,15 +385,15 @@ describe("VIS-135 — 헤더 '수정'과 '본문 수정'의 범위를 툴팁으�
 
 // ── 레이아웃(댓글은 본문이 아니라 속성 레일) ──────────────────────────────────
 
-describe("레이아웃 — 댓글은 속성 레일에", () => {
-  it("댓글은 본문 열이 아니라 속성 레일(우측 컬럼)에 렌더된다", async () => {
+describe("레이아웃 — 첨부·댓글은 본문 옆 레일에 (지시 7)", () => {
+  it("첨부와 댓글이 본문 열이 아니라 우측 레일에, 그 순서로 렌더된다", async () => {
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
       ["/api/tickets/page-1", detailPayload()],
     ])));
 
     const { container } = wrap();
-    await screen.findByRole("heading", { name: "속성" });
+    await screen.findByLabelText("티켓 속성");
 
     const main = container.querySelector('[data-testid="ticket-detail-main"]');
     const rail = container.querySelector('[data-testid="ticket-detail-rail"]');
@@ -397,13 +401,13 @@ describe("레이아웃 — 댓글은 속성 레일에", () => {
     expect(rail).toBeInTheDocument();
 
     const commentsRegion = screen.getByRole("region", { name: "댓글" });
-    // 댓글은 본문 열이 아니라 속성 레일 안에 있어야 한다.
+    const attachHeading = within(rail).getByRole("heading", { name: "첨부" });
+    // 논의는 본문 열이 아니라 레일 안에 있다.
     expect(main.contains(commentsRegion)).toBe(false);
     expect(rail.contains(commentsRegion)).toBe(true);
 
-    // 레일 안에서도 속성이 댓글보다 먼저 나온다(속성을 먼저 보고 논의를 본다).
-    const attrHeading = within(rail).getByRole("heading", { name: "속성" });
-    expect(attrHeading.compareDocumentPosition(commentsRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 레일 안에서도 첨부가 댓글보다 먼저다(무엇에 대한 파일인지 먼저 보고 논의를 본다).
+    expect(attachHeading.compareDocumentPosition(commentsRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // 좁은 화면에서 한 열로 접힐 때도 본문이 댓글보다 먼저 나와야 한다 — main 컬럼이
     // DOM에서 rail 컬럼보다 앞서면(둘 다 order override가 없으므로) 그 순서로 쌓인다.

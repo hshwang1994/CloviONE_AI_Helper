@@ -12,6 +12,7 @@ import {
   Callout,
   Card,
   ErrorState,
+  MetaBar,
   PageHeader,
   Skeleton,
   useConfirm,
@@ -184,24 +185,10 @@ function DocMeta({ doc }) {
   if (doc.last_edited) rows.push(["수정", fmtDateTime(doc.last_edited)]);
   if (doc.has_files) rows.push(["첨부", "원본 문서에 첨부파일이 있습니다(원본에서 확인)."]);
   if (rows.length === 0) return null;
-  return (
-    <Card sx={{ p: 2.5 }}>
-      <Box component="dl" sx={{
-        m: 0, display: "grid", columnGap: 3, rowGap: 0,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", lg: "1fr", uhd: "repeat(2, minmax(0,1fr))" },
-      }}>
-        {rows.map(([label, value]) => (
-          <Box key={label} sx={{
-            display: "grid", gridTemplateColumns: "6.5rem minmax(0,1fr)", gap: 1,
-            py: 1, borderBottom: 1, borderColor: "divider", minWidth: 0,
-          }}>
-            <Box component="dt" sx={{ color: "text.secondary", fontSize: FONT_SIZE.body }}>{label}</Box>
-            <Box component="dd" sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere", fontSize: FONT_SIZE.body }}>{value}</Box>
-          </Box>
-        ))}
-      </Box>
-    </Card>
-  );
+  /* 티켓 상세와 같은 속성 줄을 쓴다 (지시 7) — 성격이 같은 두 화면이 다른 모양이면 안 된다.
+     예전에는 오른쪽 레일에 라벨-값을 세로로 쌓았고, 본문을 읽다가 '수정 시각'을 확인하려면
+     시선이 화면 오른쪽 끝까지 갔다 와야 했다. */
+  return <MetaBar ariaLabel="문서 속성" items={rows.map(([label, value]) => ({ key: label, label, value }))} />;
 }
 
 export function TeamDoc() {
@@ -302,7 +289,7 @@ export function TeamDoc() {
             if (ok) restrict.mutate(next);
           }}
         >
-          {doc.restricted ? "🔒 제한 해제" : "열람 제한"}
+          {doc.restricted ? "제한 해제" : "열람 제한"}
         </Button>
       ) : null}
       <Button variant="danger" disabled={trash.isPending}
@@ -324,20 +311,17 @@ export function TeamDoc() {
           않게). */}
       <PageHeader crumbRoot="" area="문서" title={doc.title || "제목 없음"} actions={actions} />
 
-      {/* 1열: 제목 + 본문. 2열: 메타 + 댓글 레일. lg부터 갈라진다.
-          사용자 지시: "댓글 기능은 본문이 아니라 오른쪽에 배치." 두 Box 모두 order를
-          두지 않는다 — xs(한 열)에서는 DOM 순서 그대로 본문 → 메타 → 댓글로 쌓이고,
-          lg+(두 열)에서는 첫 자식이 1열, 둘째 자식이 2열에 자동으로 놓인다(티켓 상세와
-          같은 방식, Ticket.jsx의 DETAIL_GRID 주석 참고). 예전에는 댓글을 격자의 세 번째
-          자식으로 그냥 붙였는데, 그러면 2열 격자의 자동 배치가 댓글을 1열(본문 쪽) 다음
-          행에 놓아 "댓글이 본문 열에 있다"는 사용자 지적의 원인이 됐다. */}
+      {/* 상단 전폭 속성 + 본문(좌) / 논의(우) — 티켓 상세와 같은 배치다 (지시 7).
+          두 Box 모두 order를 두지 않는다: xs(한 열)에서는 DOM 순서 그대로 본문 → 댓글로
+          쌓이고, lg+(두 열)에서는 첫 자식이 1열, 둘째 자식이 2열에 자동으로 놓인다. */}
+      <Box data-testid="doc-detail-meta" sx={{ mb: 2.5 }}><DocMeta doc={doc} /></Box>
       <Box sx={DOC_DETAIL_GRID}>
         <Box data-testid="doc-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
               {doc.status ? <Badge value={doc.status} /> : null}
               {doc.document_type ? <Badge value={doc.document_type} kind={docTypeKind(doc.document_type)} /> : null}
-              {doc.restricted ? <Badge value="🔒 열람 제한" kind="warn" /> : null}
+              {doc.restricted ? <Badge value="열람 제한" kind="warn" /> : null}
             </Stack>
             {doc.restricted ? (
               <Box sx={{ mb: 2.5 }}>
@@ -370,7 +354,6 @@ export function TeamDoc() {
         </Box>
 
         <Box data-testid="doc-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
-          <DocMeta doc={doc} />
           <DocComments pageId={id} />
         </Box>
       </Box>

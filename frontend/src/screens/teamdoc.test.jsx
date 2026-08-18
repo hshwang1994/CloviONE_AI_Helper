@@ -227,13 +227,13 @@ describe("문서 댓글 (사용자 지적 #9)", () => {
   });
 });
 
-describe("레이아웃 — 댓글은 메타 레일에", () => {
+describe("레이아웃 — 상단 전폭 속성 + 본문(좌) / 논의(우) (지시 7)", () => {
   const routed = (comments) => (path) => {
     if (path.indexOf("/comments") >= 0) return Promise.resolve({ ok: true, comments });
     return Promise.resolve({ document: DOC, blocks: [] });
   };
 
-  it("댓글은 본문 카드가 아니라 메타 레일(우측 컬럼)에 렌더된다", async () => {
+  it("속성은 본문 위 전폭 줄에, 댓글은 본문 옆 레일에 렌더된다", async () => {
     apiMock.mockImplementation(routed([]));
     const { container } = wrap(<TeamDoc />);
 
@@ -248,9 +248,13 @@ describe("레이아웃 — 댓글은 메타 레일에", () => {
     expect(main.contains(commentsRegion)).toBe(false);
     expect(rail.contains(commentsRegion)).toBe(true);
 
-    // 레일 안에서도 메타(업무 분야 등)가 댓글보다 먼저 나온다.
-    const metaLabel = within(rail).getByText("업무 분야");
-    expect(metaLabel.compareDocumentPosition(commentsRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    /* 속성은 레일이 아니라 본문 격자 **위** 전폭 줄이다 — 본문을 읽다가 '수정 시각'을
+       확인하려고 시선이 화면 오른쪽 끝까지 가지 않게 한다(티켓 상세와 같은 배치). */
+    const metaWrap = container.querySelector('[data-testid="doc-detail-meta"]');
+    const bar = within(metaWrap).getByLabelText("문서 속성");
+    expect(within(bar).getByText("업무 분야")).toBeInTheDocument();
+    expect(rail.contains(bar)).toBe(false);
+    expect(metaWrap.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // 좁은 화면에서 한 열로 접힐 때도 본문이 댓글보다 먼저 나와야 한다.
     expect(main.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -269,9 +273,12 @@ describe("열람 제한 토글(SEC-10)", () => {
     apiMock.mockResolvedValue({ document: { ...DOC, can_restrict: true, restricted: true }, blocks: [] });
     wrap(<TeamDoc />);
     await screen.findByRole("heading", { name: "네트워크 설계서" });
-    expect(screen.getByText("🔒 열람 제한")).toBeInTheDocument();
+    /* 지시 28: 자물쇠 이모지는 없앴다. 열람 제한 **기능**(SEC-10)은 그대로이며 화면은
+       이제 Design System 의 배지로 그 상태를 말한다 — 이모지가 아니라 글자로 확인한다. */
+    expect(screen.getByText("열람 제한")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("🔒");
     expect(screen.getByText(/운영자와 작성자 본인만 볼 수 있고/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "🔒 제한 해제" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "제한 해제" })).toBeInTheDocument();
   });
 
   it("운영자가 제한 버튼을 누르면 확인 뒤 restrict API를 부르고 화면을 새로고침한다", async () => {
@@ -292,7 +299,7 @@ describe("열람 제한 토글(SEC-10)", () => {
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "제한" }));
 
-    await screen.findByRole("button", { name: "🔒 제한 해제" });
+    await screen.findByRole("button", { name: "제한 해제" });
   });
 });
 

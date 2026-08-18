@@ -22,6 +22,7 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -29,6 +30,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import Collapse from "@mui/material/Collapse";
 import { ART, SPOT } from "../lib/assets.js";
@@ -266,6 +268,72 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
  * 한 변에 4px 이지만 **앱의 모든 카드**가 높이도 폭도 8px 씩 커지는 값이라
  * "담은 정보에 비해 카드가 너무 크다"로 보였다. 게다가 이 앱은 4K에서 루트 폰트를 올리므로
  * 24px 이 2560에서 27px, 3840에서 30px 로 더 벌어진다(기준선은 화면 폭과 무관하게 20px 다). */
+/* 넘침 메뉴 — 한 자리의 동작이 셋을 넘거나, 파괴적 동작이 섞일 때 쓴다 (지시 11 · 12 · 43).
+ *
+ * 이 화면들이 겪던 문제는 "버튼이 많다"가 아니라 **무게가 같다**는 것이었다. 티켓 상세
+ * 머리에는 목록·수정·원본 열기·삭제 넷이 나란히 있었고, 그중 삭제는 빨간 solid 버튼이라
+ * 가장 자주 하는 일(수정)과 시선을 다퉜다. 파괴적 동작은 같은 줄에서 경쟁하지 않는다.
+ *
+ * 규칙: 주 동작 하나(+ 필요하면 보조 하나)만 버튼으로 두고 나머지는 여기로 넣는다.
+ * 파괴적 항목은 `tone: "danger"` 로 표시하고 목록 끝에 실선으로 갈라 둔다.
+ *
+ * items: `{ key, label, onClick, tone, disabled, hint }[]` — `null`/`false` 는 걸러 낸다
+ * (호출부가 권한 분기를 그대로 인라인으로 쓸 수 있게).
+ */
+export function OverflowMenu({ items, ariaLabel = "더 보기" }) {
+  const list = (items || []).filter(Boolean);
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  if (!list.length) return null;
+
+  const close = () => setAnchorEl(null);
+  return (
+    <>
+      <IconButton
+        aria-label={ariaLabel}
+        aria-haspopup="menu"
+        aria-expanded={anchorEl ? true : undefined}
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        size="small"
+        sx={{ border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, color: "text.secondary" }}
+      >
+        <MoreHorizRoundedIcon fontSize="small" />
+      </IconButton>
+      <Menu
+        anchorEl={anchorEl}
+        open={!!anchorEl}
+        onClose={close}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{ paper: { sx: { minWidth: "12rem" } } }}
+      >
+        {list.map((it, i) => {
+          const danger = it.tone === "danger";
+          /* 파괴적 항목은 앞의 항목들과 실선으로 가른다 — 마우스가 미끄러져 바로 위 항목을
+             누르려다 삭제를 누르는 일을 막는 물리적 간격이다. */
+          const firstDanger = danger && !(list[i - 1] && list[i - 1].tone === "danger");
+          return (
+            <MenuItem
+              key={it.key || it.label || i}
+              disabled={it.disabled}
+              onClick={() => { close(); if (it.onClick) it.onClick(); }}
+              sx={{
+                fontSize: FONT_SIZE.bodySm,
+                color: danger ? "error.strong" : "text.primary",
+                borderTop: firstDanger && i > 0 ? 1 : 0,
+                borderColor: "divider",
+                mt: firstDanger && i > 0 ? 0.5 : 0,
+                pt: firstDanger && i > 0 ? 1 : undefined,
+              }}
+            >
+              {it.label}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
+  );
+}
+
 export function Card({ className, children, sx, ...rest }) {
   return (
     <MuiCard className={className} elevation={0} sx={{ p: CARD_PADDING, ...sx }} {...rest}>
@@ -460,6 +528,50 @@ export function MetricStrip({ items, ariaLabel, sx }) {
             </Box>
           );
         })}
+      </Box>
+    </Card>
+  );
+}
+
+/* 속성 줄 — 상세 화면 맨 위의 전폭 메타 (지시 7).
+ *
+ * `MetricStrip` 과 판 모양은 같지만 **읽는 순서가 반대**다: 지표는 숫자를 먼저 보고 그게
+ * 무엇인지 확인하지만, 속성은 "마감이 언제지"처럼 **찾는 이름이 먼저** 있다. 그래서 라벨이
+ * 위, 값이 아래다. 값도 지표처럼 크게 내지 않는다 — 여기서 큰 글자는 본문 몫이다.
+ * 하나에 두 역할을 겸하게 하지 않고 따로 둔다(지시 57).
+ *
+ * 왜 위인가: 예전에는 속성이 오른쪽 레일 맨 위에 있었고 첨부는 본문 아래였다. 그래서
+ * 본문을 읽다가 마감을 확인하려면 시선이 화면 오른쪽 끝까지 갔다가 돌아와야 했고, 첨부는
+ * 본문이 길면 화면 밖으로 밀렸다. 속성은 훑는 정보라 한 줄로 위에 눕히는 편이 짧고,
+ * 그 자리를 비워 준 레일은 본문과 나란히 읽는 것(첨부·댓글)이 갖는다.
+ *
+ * items: `{ key, label, value }[]` — `null`/`false` 는 걸러 낸다.
+ */
+export function MetaBar({ items, ariaLabel, sx }) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return null;
+  return (
+    <Card className="k-metabar" aria-label={ariaLabel} sx={{ p: 0, overflow: "hidden", ...sx }}>
+      <Box
+        sx={{
+          display: "flex", flexWrap: "wrap",
+          "& > *:not(:first-of-type)": { borderInlineStart: 1, borderColor: "divider" },
+        }}
+      >
+        {list.map((it, i) => (
+          <Box
+            key={it.key || it.label || i}
+            className="k-metacell"
+            sx={{ flex: "1 1 9rem", maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
+          >
+            <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+              {it.label}
+            </Typography>
+            <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK }}>
+              {it.value == null || it.value === "" ? "-" : it.value}
+            </Box>
+          </Box>
+        ))}
       </Box>
     </Card>
   );

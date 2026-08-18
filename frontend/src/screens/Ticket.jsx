@@ -6,8 +6,8 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -53,27 +53,6 @@ export const DETAIL_GRID = {
   gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
 };
 
-/* 속성 필드 그리드 — 4K 반응형 계약(계획서 '상세/폼' 행): xxl(2200)에서 2열, uhd(3000)에서 3열.
- * 레일은 본문이 78ch에서 멈춘 뒤 남는 폭을 전부 받으므로 3,840px에서는 2,000px가 넘는다.
- * 그 폭에 라벨-값 한 쌍을 한 줄씩 쌓으면 오른쪽이 통째로 빈 캔버스가 된다. */
-const META_GRID = {
-  display: "grid",
-  gridTemplateColumns: {
-    xs: "1fr",
-    xxl: "repeat(2, minmax(0, 1fr))",
-    uhd: "repeat(3, minmax(0, 1fr))",
-  },
-  columnGap: 3,
-};
-
-function MetaRow({ label, children }) {
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "7rem minmax(0,1fr)" }, gap: 1, py: 1, borderBottom: 1, borderColor: "divider" }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{children}</Box>
-    </Box>
-  );
-}
 
 export function Ticket() {
   const { id } = useParams();
@@ -173,15 +152,26 @@ export function Ticket() {
           <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>
         </Tooltip>
       )}
-      {original ? (
-        <Button onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>원본 열기</Button>
-      ) : null}
-      <Button variant="danger" disabled={trash.isPending}
-        onClick={async () => {
-          const ok = await confirm("이 티켓을 휴지통으로 옮깁니다. 보관기간이 지나면 원본이 삭제됩니다. 계속할까요?",
-            { title: "티켓 삭제", confirmLabel: "휴지통으로", danger: true });
-          if (ok) trash.mutate();
-        }}>삭제</Button>
+      {/* 원본 열기와 삭제는 넘침 메뉴로 내렸다. 삭제는 빨간 solid 버튼으로 머리에 있으면
+          가장 자주 하는 일(수정)과 시선을 다투고, 원본 열기는 Notion 으로 나가는 보조
+          참조라 주 동작 자리를 차지할 이유가 없다(지시 11 · 12). 확인 대화는 그대로다. */}
+      <OverflowMenu
+        ariaLabel="티켓 더 보기"
+        items={[
+          original ? {
+            key: "original", label: "원본 열기",
+            onClick: () => window.open(original, "_blank", "noopener,noreferrer"),
+          } : null,
+          {
+            key: "trash", label: "삭제", tone: "danger", disabled: trash.isPending,
+            onClick: async () => {
+              const ok = await confirm("이 티켓을 휴지통으로 옮깁니다. 보관기간이 지나면 원본이 삭제됩니다. 계속할까요?",
+                { title: "티켓 삭제", confirmLabel: "휴지통으로", danger: true });
+              if (ok) trash.mutate();
+            },
+          },
+        ]}
+      />
     </Stack>
   );
 
@@ -189,20 +179,19 @@ export function Ticket() {
     // VIS-134: 예전엔 상태/우선순위가 라벨 없이 본문 카드 맨 위에 칩 두 개로만 있었다 —
     // "높음" 칩만 보고 그게 우선순위인지 난이도인지 알 수 없었다. 편집 폼(TicketEditModal)도
     // 이 둘을 project/assignee/due/difficulty와 같은 한 폼에서 다뤄, 화면만 임의로 갈라 둘
-    // 이유가 없었다 — 나머지 속성과 같은 '속성' 카드로 합치고 라벨을 준다. 가장 먼저 훑는
-    // 두 값이라 맨 앞에 둔다.
-    t.status ? ["상태", <Badge key="status" value={t.status} />] : null,
-    t.priority ? ["우선순위", <Badge key="priority" value={priorityKo(t.priority)} kind={priorityKind(t.priority)} />] : null,
+    // 이유가 없었다 — 라벨과 함께 한 속성 줄로 합친다. 가장 먼저 훑는 두 값이라 맨 앞이다.
+    t.status ? { key: "status", label: "상태", value: <Badge value={t.status} /> } : null,
+    t.priority ? { key: "priority", label: "우선순위", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
     // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
     // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
     // 되므로 메타로 옮긴다.
-    ["티켓 번호", ticketId(t)],
-    t.project ? ["프로젝트", t.project] : null,
-    (t.assignee_names || []).length ? ["담당자", t.assignee_names.join(", ")] : null,
-    t.difficulty ? ["난이도", t.difficulty] : null,
-    t.est_wd != null ? ["예상 WD", t.est_wd] : null,
-    t.act_wd != null ? ["실제 WD", t.act_wd] : null,
-    t.due ? ["마감", t.due] : null,
+    { key: "tid", label: "티켓 번호", value: ticketId(t) },
+    t.project ? { key: "project", label: "프로젝트", value: t.project } : null,
+    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", value: t.assignee_names.join(", ") } : null,
+    t.difficulty ? { key: "difficulty", label: "난이도", value: t.difficulty } : null,
+    t.est_wd != null ? { key: "est", label: "예상 WD", value: t.est_wd } : null,
+    t.act_wd != null ? { key: "act", label: "실제 WD", value: t.act_wd } : null,
+    t.due ? { key: "due", label: "마감", value: t.due } : null,
   ].filter(Boolean);
 
   return (
@@ -213,12 +202,21 @@ export function Ticket() {
           보여주게 하고, 아래 카드의 중복 h1은 없앤다. ticketId는 사라지지 않고 위 meta의
           '티켓 번호'로 옮겨 계속 보인다. */}
       <PageHeader crumbRoot="내 업무" area="티켓" title={t.title || ticketId(t)} actions={actions} />
+      {/* 속성은 상단 전폭 한 줄이다 (지시 7). 예전에는 오른쪽 레일 맨 위에 세로로 쌓여
+          있었고, 본문을 읽다가 마감을 확인하려면 시선이 화면 오른쪽 끝까지 갔다 와야 했다.
+          훑는 정보라 눕히는 편이 짧다 — 그리고 그 자리를 비워 준 레일은 본문과 나란히
+          읽는 것(첨부·댓글)이 갖는다. */}
+      <Box data-testid="ticket-detail-meta" sx={{ mb: 2.5 }}>
+        {meta.length ? (
+          <MetaBar ariaLabel="티켓 속성" items={meta} />
+        ) : (
+          <Card><Typography variant="body2" color="text.secondary">표시할 속성이 없습니다.</Typography></Card>
+        )}
+      </Box>
       <Box sx={DETAIL_GRID}>
-        {/* 본문 열 — 첨부는 본문 **바로 아래**다(무엇에 대한 파일인지 먼저 보여야 한다).
-            댓글은 더 이상 여기 없다 — 사용자 지시대로 속성 레일로 옮겼다(아래 우측 컬럼).
-            두 Box 모두 order를 두지 않는다: xs(한 열)에서는 DOM 순서 그대로 본문 →
-            속성 → 댓글로 쌓이고, lg+(두 열)에서는 첫 자식이 자동으로 1열, 둘째 자식이
-            2열에 놓인다 — CSS 트릭 없이 두 목표(레일 배치·좁은 화면 순서)가 같이 풀린다. */}
+        {/* 본문 열 — 본문만 그린다. 첨부와 댓글은 오른쪽 레일이고, 속성은 위 전폭 줄이다
+            (지시 7). lg+ 에서는 첫 자식이 1열, 둘째 자식이 2열에 자동으로 놓인다 — CSS
+            트릭 없이 배치와 좁은 화면 순서가 같이 풀린다. */}
         <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
@@ -237,32 +235,19 @@ export function Ticket() {
               onSaved={() => detail.refetch()}
             />
           </Card>
+        </Box>
+
+        {/* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을
+            보면서 확인한다) 그다음이 논의다. order 는 두지 않는다: 좁은 화면에서 한 열로
+            접히면 DOM 순서 그대로 본문 → 첨부 → 댓글로 쌓인다 — 논의가 대상보다 먼저
+            나오지 않는다. */}
+        <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <TicketAttachments
             ticketId={id}
             attachments={data.attachments}
             canEdit={data.can_edit !== false}
             onChanged={() => detail.refetch()}
           />
-        </Box>
-
-        {/* 속성 레일 — 사용자 지시: "댓글 기능은 본문이 아니라 오른쪽에 배치." 속성 카드
-            바로 아래에 댓글을 둔다(속성을 먼저 보고 논의를 본다). 예전에는 이 Box에
-            `order:{xs:-1}`를 줘서 좁은 화면에서 본문보다 먼저 보이게 했었는데, 지금은
-            댓글도 이 Box 안에 있으므로 그대로 두면 댓글까지 본문보다 앞으로 올라간다
-            (그건 원래 댓글을 레일에 넣지 않았던 이유이기도 하다 — 논의가 대상보다 먼저
-            나오면 안 된다). 그래서 order를 없앴다: 좁은 화면에서도 DOM 순서(본문 → 속성 →
-            댓글)를 그대로 따른다. */}
-        <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
-          <Card>
-            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>속성</Typography>
-            {meta.length ? (
-              <Box sx={META_GRID}>
-                {meta.map(([label, value]) => <MetaRow key={label} label={label}>{value}</MetaRow>)}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">표시할 속성이 없습니다.</Typography>
-            )}
-          </Card>
           <TicketComments ticketId={id} />
         </Box>
       </Box>
