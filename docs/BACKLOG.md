@@ -3520,3 +3520,78 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 지시 26(성능·대용량) 범위에서 다룬다. 우선 조사할 것: `notifications.js` 가 사용자
 라우트(`/notifications`)에서 직접 import 되어 초기 그래프에 끌려 들어오는지.
 
+
+## 2026-08-19 — 지시 1~70 전수 감사 결과 (워크플로우 15에이전트, 반증 8건 포함)
+
+**감사 방법**: 지시 1~70 을 6묶음으로 나눠 병렬 감사(각자 실제 소스를 읽고 판정) →
+"완료" 주장 14건을 독립 에이전트가 **반증 시도** → 8건이 뒤집혔다(1·18·19·29·53·55·56·65).
+문서 주장(추적표·DECISIONS·커밋 메시지)은 근거로 인정하지 않았다.
+
+**최종 분포**: partial 57 / todo 13. todo 13건 = 14·15·27·33·34·38·40·42·47·51·58·60·68.
+
+**지배적 근본 원인 셋** — 남은 작업의 대부분이 이 셋으로 설명된다.
+
+1. **공용 부품만 다시 만들고 소비처를 다 안 돌았다.** Callout tone 분포가 리뉴얼 직전과
+   동일(warn 43/80), `Tag` 소비처 2곳, `variant="inline"`·`detail` 0건, `MirrorNotice` 규칙
+   미이관(→ 2026-08-19 처리), `redirectToLogin` 소비처 1곳(→ 처리).
+2. **리뉴얼이 화면 파일 102개 중 약 29개에만 닿았다.** 남은 73개 중 CommandPalette·채팅·
+   관리자 콘솔 5종(NotionConsole·LlmConsole·MailStatus·SystemOps·SetupWizard)이 영향 최대.
+3. **검증 방법이 거의 이행되지 않았다.** 추적표가 각 지시에 적어 둔 "테스트 재작성"이
+   대부분 미실행이고, **일부 테스트는 이미 제거된 UI를 렌더해 통과 중**이라 초록불이 근거가
+   되지 못한다(실제로 `usermenu-topbar-gradient-contrast.test.js` 가 존재하지 않는
+   그라데이션에 초록불을 내며 R3 결함을 가리고 있었다 — 2026-08-19 재작성).
+
+### 즉시 처리한 것 (2026-08-19)
+
+| # | 내용 | 결과 |
+|---|---|---|
+| R1 | **보안**: 열람 제한 문서가 통합 검색으로 유출 | 고침 + 보안 시험 4건 (D-150) |
+| R2 | 401 이동이 공통 계층을 안 탐(소비처 11곳) | 고침 + 소스 가드 시험 (D-151) |
+| R3 | 밝은 chrome 에 어두운 배경용 리터럴 잔존 | 고침 + 대비 시험 재작성 |
+| R4 | 죽은 배선(`art="done"`·하드코딩 배지·`why_grid.py`) | 고침·삭제 |
+| R5 | 정상 동기화 상태 상시 노출 2곳 | `MirrorNotice` 로 이관(+`truncated` 갈래) |
+| R23 | 관리자 IA 재구성 | 6그룹 31항목 + 탭 5묶음 (D-149) |
+
+### 남은 작업 (우선순위 순)
+
+**P1-A 공용 부품 — 한 파일이 40~60화면을 바꾼다**
+- `UI-R6` Callout 소비처 80곳 tone 재판정 + `detail`(기술 정보 접기) 실사용 + 동일 원인
+  중복 표시 제거(NotionConsole 4중, MailStatus 3중). 지시 20·35·44
+- `UI-R7` `Tag` 보급 — Board/BoardPost/TeamDocs/TeamDoc 의 분류값이 상태값과 같은 알약. 지시 11
+- `UI-R8` 액션 위계 — `DataScreen.jsx` 헤더 액션 줄(registry 28화면 공통), `MyTickets` Row
+  Action, 공용 `ActionGroup` 신설, Button `risk` 축, 라벨 바꿔치기 제거. 지시 8·11·12·43
+- `UI-R9` DataTable 본체 — 정렬 미구현, `Pager` 분리, 선택 열 외주, 로딩/빈/오류 상태. 지시 10·26
+- `UI-R10` Skeleton 4종(전체/구획/표/버튼). 지시 20
+- `UI-R11` FormField 재설계(라벨·도움말·오류·필수 표기). 지시 17
+- `UI-R12` EmptyState 다음 행동 슬롯 · ErrorState 정렬. 지시 18
+- `UI-R13` `DetailLayout`·`SearchFilterBar` 신설 + Archetype 판정표. 지시 6·66
+- `UI-R14` 도구 줄 전면 적용 + 디바운스 상수 수렴. 지시 5·26
+- `UI-R15` `KO_WORD_BREAK` 전수 적용. 지시 16
+
+**P1-B 미착수 화면**
+- `UI-R19` Global Search Overlay 재설계 (지시 14, todo)
+- `UI-R20` 채팅 UI 재설계 (지시 15, todo)
+- `UI-R21` 관리자 콘솔 5종 — NotionConsole·LlmConsole·MailStatus·SystemOps·SetupWizard
+  (리뉴얼 diff 0줄). 지시 33·34·37·38·40
+- `UI-R22` 나머지 화면 롤아웃(Search·Profile·Activity·Board·Games·Project* 등). 지시 61
+- `UI-R18` AI 도우미 영역 분리 (지시 2)
+- `UI-R16` Chart 공통 계약 + 구현 방식 판단 (지시 9·54·59)
+- `UI-R17` SettingRow + 저장/적용 상태 모델 확장 (지시 32·45)
+
+**P1-C 횡단**
+- `UI-R24` 사용자 Navigation 감사 (지시 58, todo)
+- `UI-R25` 권한 표 단일화 잔여 (지시 21)
+- `UI-R26` URL 상태 수렴 + Preference 구분 (지시 24)
+- `UI-R28` CSS 잔재·가드 공백 (지시 23) — `static_checks.sh` 의 목업 grep 이 `.mjs`/`.md` 를
+  안 봐서 `generate_design_tokens.mjs`·`ui_qa/README.md` 참조를 못 잡았다
+- `UI-R29` 로그인 화면이 방향 계약 이전 상태 (지시 61) — Jinja 토큰은 갱신됐지만 마크업 미검수
+- `UI-R30` UX Writing 전수 (지시 22)
+- `UI-R31` 내부 구현 정보 노출 (지시 36) — SMTP 가 아직 raw JSON 편집
+- `UI-R32` 죽은 export·중복 별칭 정리 (지시 23)
+- `UI-R33` **옛 UI를 지키고 있는 테스트 재작성** — 지금 초록불이 근거가 못 되는 자리
+- `UI-R34` 추적표 Gate 를 스크립트로 (지시 56) — 지금은 사람이 눈으로 본 것뿐
+- `UI-R36` 접근성·성능 재실행 (지시 25·26)
+- `UI-R37` 관리자 기능 전수검증 + 위험 Action 상태 복구 프로토콜 (지시 42·68, todo)
+- `UI-R38` P12 최종 Visual/IA Audit + Before/After 7기준 (지시 27·47·60·70)
+
+**감사 원본**: 워크플로우 `wf_add53824-7d2` (에이전트별 결과는 그 journal.jsonl).
