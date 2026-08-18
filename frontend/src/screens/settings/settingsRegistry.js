@@ -86,7 +86,7 @@ export const DEDICATED_SCREEN_KEYS = [
 // 보안 연결 값의 사람 이름. 편집 화면(StructuredObjectFields)과 목록 요약이 같은 표를 쓴다.
 export const SMTP_SECURITY_LABELS = { none: "사용 안 함", starttls: "STARTTLS", ssl: "SSL" };
 
-export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "smtp"];
+export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "smtp", "backup_schedule"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
 export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };

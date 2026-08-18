@@ -13,6 +13,22 @@ import { fmtDuration } from "./settingsRegistry.js";
 // SettingEditor의 JSON 문자열(val)이다 — 여기선 그 문자열을 파싱해 보여주고, 바뀌면 다시
 // JSON.stringify해 onChange(=changeVal)로 돌려보낸다. 이렇게 하면 coerce()/dirty/저장 로직을
 // 그대로 재사용하면서 입력만 사람이 읽는 필드로 바꿀 수 있다.
+const WEEKDAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+
+/* cron 다섯 칸이 자주 쓰는 셋 중 하나인가. 아니면 `직접 입력` 으로 떨어진다 —
+ * **표현력을 줄이지 않는 것이 이 판정의 목적이다**: 못 알아보는 표현식을 만나면 화면이
+ * 그것을 지우거나 근사하지 않고 원문 그대로 편집하게 둔다. */
+function cronPreset(parts) {
+  if (parts.length !== 5) return null;
+  const [m, h, dom, mon, dow] = parts;
+  const num = (v) => /^\d+$/.test(v);
+  if (!num(m) || !num(h) || mon !== "*") return null;
+  if (dom === "*" && dow === "*") return "daily";
+  if (dom === "*" && num(dow)) return "weekly";
+  if (num(dom) && dow === "*") return "monthly";
+  return null;
+}
+
 export function StructuredObjectFields({ settingKey, val, onChange, canWrite, describedBy, invalid }) {
   const [draft, setDraft] = useState(""); // 도메인 추가 입력칸(허용 이메일 도메인 전용) — 훅은 분기 밖에서 항상 호출
   const [domainErr, setDomainErr] = useState(""); // 위와 같은 이유로 분기 밖에서 항상 호출(Hooks 규칙)
@@ -178,6 +194,135 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             onChange={(e) => patch({ lock_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
           />
           {safe.lock_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.lock_seconds)}</Typography> : null}
+        </Box>
+      </Box>
+    );
+  }
+  if (settingKey === "backup_schedule") {
+    /* 백업 일정은 `cron` 이 정본이지만(백엔드가 저장 시점에 검증한다), **cron 문법이 화면의
+       주된 인터페이스일 이유는 없다**(지시 32 · 36). `0 3 * * *` 를 읽을 줄 아는 사람만
+       백업 시각을 바꿀 수 있는 상태였다.
+
+       자주 쓰는 셋(매일 · 매주 · 매월)은 시각만 고르면 되게 하고, 그 밖은 `직접 입력` 으로
+       cron 을 그대로 받는다 — 표현력을 줄이지 않으면서 흔한 경우를 쉽게 만든다. */
+    const cron = String(safe.cron || "");
+    const parts = cron.trim().split(/\s+/);
+    const preset = cronPreset(parts);
+    const hour = preset ? Number(parts[1]) : 3;
+    const minute = preset ? Number(parts[0]) : 0;
+    const weekday = preset === "weekly" ? String(parts[4]) : "0";
+    const day = preset === "monthly" ? String(parts[2]) : "1";
+    const setCron = (next) => patch({ cron: next });
+
+    return (
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("enabled")} select label="자동 백업" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid} SelectProps={{ native: true }}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.enabled ? "true" : "false"}
+            onChange={(e) => patch({ enabled: e.target.value === "true" })}
+          >
+            <option value="true">사용</option>
+            <option value="false">사용 안 함</option>
+          </TextField>
+          <TextField
+            id={fieldId("keep")} label="남길 백업 개수(1~365)" type="number" size="small" fullWidth
+            disabled={!canWrite} error={!!invalid}
+            inputProps={{ min: 1, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.keep != null ? safe.keep : ""}
+            onChange={(e) => patch({ keep: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
+
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("cron-preset")} select label="주기" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid} SelectProps={{ native: true }}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={preset || "custom"}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "daily") setCron(`${minute} ${hour} * * *`);
+              else if (v === "weekly") setCron(`${minute} ${hour} * * ${weekday}`);
+              else if (v === "monthly") setCron(`${minute} ${hour} ${day} * *`);
+              // '직접 입력'으로 옮길 때는 지금 값을 그대로 둔다 — 고르는 순간 값이 사라지면
+              // 사용자는 자기가 뭘 지웠는지 모른다.
+            }}
+          >
+            <option value="daily">매일</option>
+            <option value="weekly">매주</option>
+            <option value="monthly">매월</option>
+            <option value="custom">직접 입력</option>
+          </TextField>
+          {preset ? (
+            <TextField
+              id={fieldId("cron-time")} label="시각" type="time" size="small" fullWidth
+              disabled={!canWrite} error={!!invalid}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`}
+              onChange={(e) => {
+                const [h, m] = String(e.target.value || "0:0").split(":").map((x) => Number(x) || 0);
+                if (preset === "daily") setCron(`${m} ${h} * * *`);
+                else if (preset === "weekly") setCron(`${m} ${h} * * ${weekday}`);
+                else setCron(`${m} ${h} ${day} * *`);
+              }}
+            />
+          ) : null}
+        </Box>
+
+        {preset === "weekly" ? (
+          <Box sx={pairGrid}>
+            <TextField
+              id={fieldId("cron-weekday")} select label="요일" size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} SelectProps={{ native: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={weekday}
+              onChange={(e) => setCron(`${minute} ${hour} * * ${e.target.value}`)}
+            >
+              {WEEKDAYS.map((w, i) => <option key={w} value={String(i)}>{w}</option>)}
+            </TextField>
+          </Box>
+        ) : null}
+
+        {preset === "monthly" ? (
+          <Box sx={pairGrid}>
+            <TextField
+              id={fieldId("cron-day")} label="며칠(1~28)" type="number" size="small" fullWidth
+              disabled={!canWrite} error={!!invalid}
+              helperText="29~31일은 없는 달이 있어 그 달에는 안 돕니다."
+              inputProps={{ min: 1, max: 28, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={day}
+              onChange={(e) => setCron(`${minute} ${hour} ${e.target.value || 1} * *`)}
+            />
+          </Box>
+        ) : null}
+
+        {!preset ? (
+          <Box sx={pairGrid}>
+            <Box>
+              <TextField
+                id={fieldId("cron")} label="cron 표현식" size="small" fullWidth disabled={!canWrite}
+                error={!!invalid} placeholder="0 3 * * *"
+                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+                value={cron} onChange={(e) => setCron(e.target.value)}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                분 시 일 월 요일 순서입니다. 예: <code>0 3 * * *</code> = 매일 새벽 3시.
+              </Typography>
+            </Box>
+          </Box>
+        ) : null}
+
+        <Box sx={pairGrid}>
+          <TextField
+            id={fieldId("timezone")} label="기준 시간대" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid} placeholder="Asia/Seoul"
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+            value={safe.timezone || ""} onChange={(e) => patch({ timezone: e.target.value })}
+          />
         </Box>
       </Box>
     );

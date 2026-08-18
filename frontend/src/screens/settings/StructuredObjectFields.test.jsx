@@ -113,3 +113,36 @@ describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
     expect(screen.getByLabelText("메일 서버 주소")).toHaveValue("");
   });
 });
+
+/* 지시 32 · 36 — 백업 일정에서 cron 문법이 화면의 주된 인터페이스일 이유는 없다.
+ * `0 3 * * *` 를 읽을 줄 아는 사람만 백업 시각을 바꿀 수 있는 상태였다.
+ * 표현력은 줄이지 않는다: 못 알아보는 표현식은 지우거나 근사하지 않고 원문 그대로 둔다.
+ */
+describe("StructuredObjectFields — backup_schedule (지시 32 · 36)", () => {
+  const daily = JSON.stringify({ enabled: true, cron: "0 3 * * *", timezone: "Asia/Seoul", keep: 14 });
+
+  it("매일 3시는 주기 '매일' + 시각 03:00 으로 읽힌다", () => {
+    renderField("backup_schedule", daily);
+    expect(screen.getByLabelText("주기")).toHaveValue("daily");
+    expect(screen.getByLabelText("시각")).toHaveValue("03:00");
+    expect(screen.getByLabelText("남길 백업 개수(1~365)")).toHaveValue(14);
+  });
+
+  it("매주는 요일을 함께 고른다", () => {
+    renderField("backup_schedule", JSON.stringify({ enabled: true, cron: "30 2 * * 0", keep: 7 }));
+    expect(screen.getByLabelText("주기")).toHaveValue("weekly");
+    expect(screen.getByLabelText("요일")).toHaveValue("0");
+  });
+
+  it("알아볼 수 없는 표현식은 '직접 입력'으로 떨어지고 원문이 그대로 남는다", () => {
+    const odd = "*/15 9-18 * * 1-5";
+    renderField("backup_schedule", JSON.stringify({ enabled: true, cron: odd, keep: 30 }));
+    expect(screen.getByLabelText("주기")).toHaveValue("custom");
+    expect(screen.getByLabelText("cron 표현식")).toHaveValue(odd);
+  });
+
+  it("잘못된 JSON 에도 크래시하지 않는다", () => {
+    renderField("backup_schedule", "{ not valid json");
+    expect(screen.getByLabelText("주기")).toBeTruthy();
+  });
+});
