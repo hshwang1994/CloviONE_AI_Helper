@@ -3618,4 +3618,9 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 - `UI-R43` `<Skeleton lines={N} />` 호출부가 아직 60곳 넘게 남았다. 표는 `DataTable loading`
   으로, 화면 전체는 `kind="page"` 로 옮겼지만 카드·패널 안쪽은 그대로다(D-157).
 
+
+- `UI-R44` `datascreen` 청크(gzip 47KB)가 아직 초기 로드에 있다. 예산은 통과하지만(253/280)
+  관리자 설정 화면들의 설정 표가 첫 화면에 필요한 이유가 없다. `registry/notifications.js`
+  가 셸 그래프에 정적으로 닿는 경로를 끊으면 더 줄어든다(D-161).
+
 **감사 원본**: 워크플로우 `wf_add53824-7d2` (에이전트별 결과는 그 journal.jsonl).

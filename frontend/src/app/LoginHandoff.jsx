@@ -3,7 +3,6 @@ import Box from "@mui/material/Box";
 import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
-import confetti from "canvas-confetti";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 
@@ -73,9 +72,21 @@ function clearHandoff() {
 }
 
 /* 환영 축포. canvas-confetti 는 CSSOM 개별 속성으로 캔버스를 꾸미고 기본은 워커를 쓰지 않아
-   CSP(script-src 'self')에 안전하다. 이미 게임방이 쓰고 있어 초기 번들에 들어 있는 코드라
-   여기서 새로 받는 바이트가 없다 — 느린 회선에서 첫 렌더를 막지 않는다. */
-function fireWelcomeConfetti() {
+   CSP(script-src 'self')에 안전하다.
+   
+   **필요해질 때 받는다.** 예전 주석은 "이미 게임방이 쓰고 있어 초기 번들에 들어 있다"고
+   적었지만 게임방은 지연 청크다 — 실제로는 이 정적 import 가 확정 화면 진입마다 받는
+   초기 번들에 라이브러리를 밀어 넣고 있었다. 폭죽은 로그인 직후 한 번 쏘는 연출이라
+   그 순간에 받으면 된다(사용자가 못박은 연출이므로 없애지는 않는다).
+   
+   받아 오지 못하면 조용히 넘어간다 — 축포가 안 떠서 로그인이 실패한 것처럼 보이면 안 된다. */
+async function fireWelcomeConfetti() {
+  let confetti;
+  try {
+    ({ default: confetti } = await import("canvas-confetti"));
+  } catch (e) {
+    return;
+  }
   const base = { spread: 70, startVelocity: 42, ticks: 160, disableForReducedMotion: true };
   confetti({ ...base, particleCount: 70, origin: { y: 0.5 } });
   window.setTimeout(() => confetti({ ...base, particleCount: 40, angle: 62, origin: { x: 0.1, y: 0.62 } }), 130);
@@ -134,7 +145,10 @@ export function LoginHandoff({ ready = true }) {
     >
       <Box sx={{ display: "grid", justifyItems: "center", gap: 1.5, px: 3, textAlign: "center" }}>
         <MascotPose mode="welcome" size={132} />
-        <Typography variant="h6" fontWeight={800}>
+        {/* 크기만 h6 이고 문서 heading 은 아니다 — 1초짜리 인계 연출이 문서 구조에 제목을
+            하나 끼워 넣으면 그 아래 첫 화면의 h1 이 h6 다음에 오는 꼴이 된다. 낭독은 이
+            상자의 `role="status"` 가 이미 맡는다. */}
+        <Typography variant="h6" component="p" fontWeight={800}>
           로그인되었습니다
         </Typography>
         <Typography variant="body2" color="text.secondary">

@@ -39,16 +39,46 @@ export default defineConfig({
            *
            * registry 의 **나머지** 도메인 파일은 여기 넣지 않는다. 그것들이 다시 한 덩어리가
            * 되는 순간 PF7 이 되돌아온다 — 사용자 콘솔이 관리자 설정을 통째로 받는다. */
+          /* 공용 UI 부품은 **자기 청크**를 갖는다.
+           *
+           * 이게 없으면 `ui/kit.jsx` 가 아래 `datascreen` 청크로 빨려 들어간다 — 셸(초기
+           * 로드)과 설정 주도 화면(지연)이 둘 다 kit 을 쓰기 때문이다. 그러면 셸이 kit 을
+           * 받으려고 `datascreen` 청크 전체(DataScreen + registry 셋, gzip 37KB)를 함께
+           * 받는다. 실측으로 초기 예산 280KB 를 넘긴 원인이 정확히 이것이었다.
+           *
+           * kit 은 셸이 어차피 첫 화면에 쓰므로 초기 로드에 남는 것이 맞다 — 함께 끌려오던
+           * 관리자 설정 스물여덟 화면분 설정만 떼어 낸다. */
+          if (
+            id.includes("/src/ui/kit.jsx") ||
+            id.includes("/src/ui/theme.js") ||
+            id.includes("/src/ui/density.js") ||
+            id.includes("/src/ui/cells.jsx") ||
+            id.includes("/src/ui/motion.js") ||
+            /* 셸이 첫 화면에 쓰는 배선(내비 표·역할 표·포맷). 이것도 이름이 없으면 아래
+               `datascreen` 으로 빨려 들어간다 — 지연 화면들과 공유되기 때문이다. */
+            id.includes("/src/app/navConfig.js") ||
+            id.includes("/src/app/navIcons.js") ||
+            id.includes("/src/lib/roles.js") ||
+            id.includes("/src/lib/format.js")
+          ) return "kit";
           if (
             id.includes("/src/screens/registry/shared.js") ||
             id.includes("/src/screens/registry/actions.js") ||
             id.includes("/src/screens/registry/notifications.js")
           ) return "datascreen";
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("@mui") || id.includes("@emotion")) return "mui";
+          /* react·emotion·query 만 이름을 준다 — 셋 다 **첫 화면이 어차피 쓰고** 거의 안
+             바뀌는 것들이라, 이름을 고정해 두면 앱 코드만 바뀌는 배포에서 브라우저 캐시가
+             살아남는다.
+             나머지 node_modules 는 이름을 주지 않는다. 예전에는 `return "vendor"` 로 전부
+             한 덩어리였고, MUI 도 `"mui"` 한 덩어리였다 — 그러면 셸이 MUI 의 일부(Drawer·
+             AppBar)를 쓴다는 이유로 **표·모달·차트까지 포함한 전부**가 초기 로드에 들어온다.
+             실측: 초기 gzip 288KB(예산 280KB) 중 MUI 만 110KB. 이름을 안 주면 rollup 이
+             쓰는 화면 쪽으로 갈라 준다. */
+          if (id.includes("@emotion")) return "emotion";
           if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) return "react";
           if (id.includes("@tanstack")) return "query";
-          return "vendor";
+          return undefined;
         },
       },
     },

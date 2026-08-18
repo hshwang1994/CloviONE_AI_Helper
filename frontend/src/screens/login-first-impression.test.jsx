@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -370,7 +370,9 @@ describe("SPA 인계 연출", () => {
     expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
     expect(screen.getByText("업무 공간을 준비하고 있습니다")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "클로비가 인사합니다" })).toBeInTheDocument();
-    expect(confettiMock).toHaveBeenCalled();
+    // 폭죽 라이브러리는 **쏘는 순간에** 받는다(초기 번들에서 뺐다) — 정적 import 였을 때처럼
+    // 같은 틱에 불리지 않는다. 연출 자체는 그대로 있다.
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
   });
 
   it("표식을 한 번 쓰면 지운다 — 새로고침마다 축하하지 않는다", async () => {

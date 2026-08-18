@@ -6892,3 +6892,42 @@ MUI 기본 옅은 배경뿐이라 키보드로 훑으면 놓쳤다. 폭을 46rem
 쓰이지 않는 별칭 `FormDialog` 와 목업 baseline 잔재 넷(`BASELINE_CONTENT_FILLS`·
 `BASELINE_CONTENT_PADDING_PX`·`CARD_HEAD_GAP`·`fitsWithoutOrphan`)을 지웠다. 소비자가 0인
 export 는 같은 것을 부르는 이름을 하나 더 만들 뿐이다(지시 23).
+
+---
+
+## D-161 — 초기 번들 예산은 이미 깨져 있었다 (원인: 청크를 손으로 묶은 것)
+
+**날짜** 2026-08-19 · **범위** 지시 26 · 48 · P1-4
+
+배포 전 `check_bundle_size.sh` 가 **287KB > 280KB** 로 떨어졌다. 이 세션 이전 커밋의 번들을
+따로 풀어 재 봐도 **똑같이 287KB** 였다 — 이번 변경이 만든 것이 아니라 **이미 깨진 채**
+`WORK_STATE.md` 에는 "Build ✅" 로 적혀 있었다.
+
+### 원인
+
+`vite.config.js` 의 `manualChunks` 가 node_modules 를 손으로 묶고 있었다:
+`@mui`·`@emotion` → `mui`, 나머지 전부 → `vendor`. 그러면 셸이 MUI 의 **일부**(Drawer·
+AppBar·Popover)를 쓴다는 이유로 **표·모달·차트까지 포함한 MUI 전부**가 초기 로드에 들어온다.
+실측으로 초기 gzip 288KB 중 MUI 만 110KB, `vendor` 45KB.
+
+주석은 "react/mui 는 거의 안 바뀌므로 분리해 두면 브라우저 캐시가 살아남는다"고 그 선택의
+이유를 적어 두었다. 캐시 이득은 사실이지만, 그 대가가 **첫 화면이 안 쓰는 코드 110KB** 였다.
+
+### 고침
+
+`react`·`@emotion`·`@tanstack` 셋만 이름을 남기고(셋 다 첫 화면이 어차피 쓰고 거의 안 바뀐다)
+나머지 node_modules 는 이름을 주지 않아 rollup 이 **쓰는 화면 쪽으로** 가르게 했다. 공용 UI
+부품(`kit`)과 셸 배선(navConfig·roles·format)에는 이름을 줘, 지연 화면들과 공유된다는 이유로
+`datascreen` 청크에 빨려 들어가지 않게 했다.
+
+결과: 초기 gzip **288 → 253KB**. 사용자 콘솔 한 번 방문 기준 총 바이트도 361 → 356KB 로 조금
+줄었다(지연 청크가 커진 만큼 초기가 더 줄었다).
+
+### 곁가지 둘
+
+* **아이콘 계열을 하나로**(지시 48 · P1-4). `navIcons.js` 만 Lucide 를 썼고, 그 근거는 폐기한
+  목업이었다. MUI 로 옮기고 `lucide-react` 의존을 지웠다 — 의존성 검사가 곧바로 "쓰지 않는
+  패키지"라고 알려 줬다(검사가 제 일을 했다).
+* **폭죽은 쏘는 순간 받는다.** `LoginHandoff` 가 `canvas-confetti` 를 정적 import 해 초기
+  번들에 있었다. 예전 주석은 "게임방이 이미 쓰고 있어 초기 번들에 들어 있다"고 적었지만
+  게임방은 지연 청크다 — 그 주석이 틀렸다. 연출은 그대로 두고 로드만 그 순간으로 옮겼다.
