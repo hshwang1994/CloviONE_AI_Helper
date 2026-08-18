@@ -158,22 +158,34 @@ describe("내 티켓 — 목록", () => {
  * `_with_sync`로 sync 블록을 얹어 주고 있었다(`app/tickets/router.py`) — 화면만 안 그렸다.
  * 이 엔드포인트들엔 can_sync 자체가 없으므로(팀 전용 트리거) 버튼은 여전히 안 뜬다 —
  * team-tickets-sync.test.jsx의 "can_sync:false면 안내는 뜨지만 버튼은 없다"와 같은 결. */
-describe("내 티켓/미할당 — 동기화 배너 (UB-26)", () => {
-  it("내 티켓: 미러가 한 번도 성공 못 했으면(sync 있음, can_sync 없음) 안내가 뜨고 버튼은 없다", async () => {
+describe("내 티켓/미할당 — 미러 안내 (UB-26)", () => {
+  it("내 티켓: 미러가 한 번도 성공 못 했으면 '0건'과 구분해 말한다", async () => {
+    /* "정말 담당 티켓이 0건"과 "아직 한 번도 가져오지 않았다"는 완전히 다른 사실이다.
+       구분이 없으면 빈 목록 화면이 조용히 거짓말을 한다. */
     mockMine({ ...TICKETS, sync: { status: "pending", ticket_count: 0, last_success_at: null } });
     renderMyTickets();
-    expect(await screen.findByText(/마지막 동기화: 없음/)).toBeInTheDocument();
+    expect(await screen.findByText(/아직 한 번도 동기화되지 않았습니다/)).toBeInTheDocument();
+    // 개인 범위에는 동기화 권한이 없다 — 복구 버튼도 없다.
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
 
-  it("미할당: 같은 이유로 sync 블록이 있으면 안내를 보여준다", async () => {
+  it("내 티켓: 미러가 정상이면 아무 안내도 안 그린다 (지시 1)", async () => {
+    mockMine({ ...TICKETS, sync: { status: "ok", ticket_count: 12, last_success_at: "2026-08-10T00:00:00Z" } });
+    renderMyTickets();
+    await screen.findByText("서버 등록 IP 중복 방지");
+    // 예전에는 "마지막 동기화: 2026. 8. 10. …, 티켓 12개"가 상시로 떴다.
+    expect(screen.queryByText(/마지막 동기화/)).toBeNull();
+    expect(screen.queryByText(/아직 한 번도/)).toBeNull();
+  });
+
+  it("미할당: 미러가 실패했으면 무엇을 보고 있는지 알린다", async () => {
     apiMock.mockImplementation((path) => {
       const p = String(path);
       if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
       if (p.startsWith("/api/tickets/unassigned")) {
         return Promise.resolve({
           configured: true, ok: true, items: [], total: 0, page: 1, page_size: 20,
-          sync: { status: "ok", ticket_count: 12, last_success_at: "2026-08-10T00:00:00Z" },
+          sync: { status: "error", ticket_count: 12, last_success_at: "2026-08-10T00:00:00Z" },
         });
       }
       return Promise.resolve({});
@@ -186,7 +198,7 @@ describe("내 티켓/미할당 — 동기화 배너 (UB-26)", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/마지막 동기화/)).toBeInTheDocument();
+    expect(await screen.findByText(/마지막 정상 데이터를 보고 있습니다/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
 });

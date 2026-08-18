@@ -5,11 +5,12 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Card, Callout, ErrorState, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
+import { Card, Callout, ErrorState, OverflowMenu, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
-import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, TicketSyncBanner } from "./MyTickets.jsx";
+import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
+import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { ticketRows, useTicketList } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import {
@@ -115,7 +116,23 @@ export function TeamTickets() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" spot="teamspace" />
+      <PageHeader
+        crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
+        /* 수동 동기화는 운영 동작이다 — 예전에는 목록 위 상시 배너 옆에 있었다(지시 29).
+           기능은 그대로 두고 자리만 넘침 메뉴로 옮긴다. 동기화가 실패하면 MirrorNotice 가
+           복구 동작으로 버튼을 다시 꺼내 준다. */
+        actions={(q.data && q.data.can_sync) ? (
+          <OverflowMenu
+            ariaLabel="팀 티켓 더 보기"
+            items={[{
+              key: "sync",
+              label: sync.isPending ? "동기화 중" : "지금 동기화",
+              disabled: sync.isPending,
+              onClick: () => sync.mutate(),
+            }]}
+          />
+        ) : null}
+      />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
         팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세 내용이 열립니다. 수정은 담당자와 운영자만 할 수 있습니다.
       </Typography>
@@ -131,9 +148,10 @@ export function TeamTickets() {
           const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
-              <TicketSyncBanner
+              <MirrorNotice
                 sync={data.sync} canSync={data.can_sync}
                 onSync={() => sync.mutate()} syncing={sync.isPending}
+                unit="티켓"
               />
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}

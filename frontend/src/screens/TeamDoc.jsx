@@ -267,7 +267,7 @@ export function TeamDoc() {
     <>
       <Button variant="ghost" onClick={() => nav("/team-docs")}>목록</Button>
       <Button onClick={() => fav.mutate(!doc.is_favorite)} disabled={fav.isPending}>
-        {doc.is_favorite ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}
+        {doc.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"}
       </Button>
       {original ? (
         <Button variant="primary" onClick={() => window.open(original, "_blank", "noopener,noreferrer")}>

@@ -51,3 +51,32 @@ export const FILTER_GRID_SX = {
 export function FilterBarGrid({ sx, ...props }) {
   return <Box sx={sx ? { ...FILTER_GRID_SX, ...sx } : FILTER_GRID_SX} {...props} />;
 }
+
+/* 도구 줄 — 필터 격자 **위**에 놓는 한 줄이다 (지시 5).
+ *
+ * 왜 갈라 놓나: 목록 화면의 컨트롤은 두 종류다. "무엇을 볼지"(검색·필터)와 "어떻게
+ * 볼지"(정렬·카드/표). 예전 문서 목록은 여덟 개를 한 격자에 같은 폭으로 깔고 보기 전환만
+ * 그 아래 오른쪽에 따로 뒀다 — 결과가 세 줄이었고, 정렬이 필터 하나처럼 읽혔다.
+ *
+ * 이 줄은 **검색이 지배**하고(늘어난다), 오른쪽 끝에 "어떻게 볼지"가 붙는다. 내용 필터는
+ * 아래 `FilterBarGrid` 로 내려간다. 두 줄이면 충분하고, 각 줄이 한 가지 질문만 답한다.
+ */
+export function ToolbarRow({ children, sx }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", ...sx }}>
+      {children}
+    </Box>
+  );
+}
+
+/** 도구 줄의 오른쪽 묶음("어떻게 볼지"). 남는 폭을 밀어내 항상 끝에 붙는다. */
+export function ToolbarEnd({ children, sx }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, marginInlineStart: "auto", ...sx }}>
+      {children}
+    </Box>
+  );
+}
+
+/** 도구 줄 안의 검색창 폭 — 늘어나되 한없이 늘지는 않는다(긴 입력은 읽기 어렵다). */
+export const TOOLBAR_SEARCH_SX = { flex: "1 1 20rem", maxWidth: "32rem" };

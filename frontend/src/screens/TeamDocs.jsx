@@ -19,6 +19,7 @@ import {
   ErrorState,
   Modal,
   ModalFooter,
+  OverflowMenu,
   PageHeader,
   Skeleton,
   Tag,
@@ -29,7 +30,9 @@ import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { invalidateDocumentViews } from "./document-views.js";
 import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { docTypeKind } from "../lib/badges.js";
-import { FilterBarGrid } from "../ui/FilterBar.jsx";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import { MirrorNotice } from "../ui/MirrorNotice.jsx";
+import { FilterBarGrid, ToolbarEnd, ToolbarRow, TOOLBAR_SEARCH_SX } from "../ui/FilterBar.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { DepartmentFilter, SearchBox } from "../ui/filters.jsx";
@@ -71,26 +74,6 @@ const PAGE_RESET = { reset: ["page"] };
 /** 서버가 받는 필터 키. 화면 상태에서 여기 있는 것만 API 로 나간다. */
 const DOC_FILTER_KEYS = ["q", "doc_type", "work_field", "project", "tech"];
 
-function SyncBanner({ sync, canSync, onSync, syncing }) {
-  if (!sync) return null;
-  const last = sync.last_success_at ? fmtDateTime(sync.last_success_at) : "없음";
-  const tone = sync.status === "error" ? "warn" : "info";
-  return (
-    <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} alignItems={{ sm: "center" }} sx={{ mb: 2.5 }}>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Callout tone={tone}>
-          마지막 동기화: {last}, 문서 {sync.doc_count}개
-          {sync.status === "error" ? ", 최근 동기화 실패(마지막 정상 데이터 표시 중)" : ""}
-        </Callout>
-      </Box>
-      {canSync ? (
-        <Button size="sm" onClick={onSync} disabled={syncing}>
-          {syncing ? "동기화 중" : "지금 동기화"}
-        </Button>
-      ) : null}
-    </Stack>
-  );
-}
 
 // 서버(app/team_docs/schemas.py::DocumentCreate)는 owner(소유자)도 받는데, 예전엔 이 폼에
 // 칸이 없어 포털에서 만든 문서는 소유자를 영영 못 채웠다(문서 상세의 '소유자' 줄은 채워질
@@ -350,7 +333,9 @@ export function TeamDocs() {
             "&:hover": { color: "primary.dark" },
           }}
         >
-          {d.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main", flexShrink: 0 }}>★</Box> : null}
+          {/* 예전에는 ★ 글자였다(지시 28: 장식 글리프 금지). 아이콘은 한 패밀리에서만
+              가져온다 — 글자 크기·기준선에 따라 모양이 흔들리지 않는다. */}
+          {d.is_favorite ? <StarRoundedIcon aria-label="즐겨찾기" role="img" sx={{ color: "warning.main", flexShrink: 0, fontSize: "1rem" }} /> : null}
           {/* SEC-10: 목록에서도 제한된 문서를 한눈에 구별한다 — 이 목록에 뜬다는 것 자체가
               이미 운영자/작성자 범위를 지났다는 뜻이므로(doc_in_scope) 값을 보여줘도 안전하다. */}
           {/* 예전에는 자물쇠 이모지였다(지시 28). 상태는 Design System 의 어휘로 말한다 —
@@ -406,17 +391,32 @@ export function TeamDocs() {
               자체는 그대로 살아 있다, 도달하는 방법만 바뀐다. */}
           <Button href="#/team-docs/trash">휴지통</Button>
           <Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>
+          {/* 수동 동기화는 운영 동작이다 — 예전에는 화면 맨 위 상시 배너 옆에서 첫 번째
+              버튼 자리를 차지했다(지시 29). 기능은 그대로 두고 자리만 넘침 메뉴로 옮긴다.
+              동기화가 실패했을 때는 MirrorNotice 가 복구 동작으로 다시 꺼내 준다. */}
+          <OverflowMenu
+            ariaLabel="문서 목록 더 보기"
+            items={[
+              (list.data && list.data.can_sync) ? {
+                key: "sync",
+                label: sync.isPending ? "동기화 중" : "지금 동기화",
+                disabled: sync.isPending,
+                onClick: () => sync.mutate(),
+              } : null,
+            ]}
+          />
         </>}
       />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
         Notion 팀 문서를 검색하고 새 문서를 만들 수 있습니다.
       </Typography>
 
-      <SyncBanner
+      <MirrorNotice
         sync={list.data && list.data.sync}
         canSync={list.data && list.data.can_sync}
         onSync={() => sync.mutate()}
         syncing={sync.isPending}
+        unit="문서"
       />
 
       {/* 필터가 일곱 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(DataScreen과 같은 규칙).
@@ -425,13 +425,39 @@ export function TeamDocs() {
        * 한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx와 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
       <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-        <FilterBarGrid>
+        {/* 윗줄은 "어떻게 볼지" — 검색이 지배하고 정렬·보기가 오른쪽 끝에 붙는다.
+            아랫줄은 "무엇을 볼지" — 내용 필터만 모은다(지시 5). */}
+        <ToolbarRow sx={{ mb: 1.5 }}>
           <SearchBox
             value={q}
             onSearch={commitSearch}
             placeholder="제목, 메모, 작성자 검색"
             ariaLabel="검색"
+            sx={TOOLBAR_SEARCH_SX}
           />
+          <ToolbarEnd>
+            <TextField
+              select size="small" label="정렬" value={sort}
+              onChange={(e) => setQuery({ sort: e.target.value })}
+              sx={{ minWidth: "10rem" }}
+            >
+              {SORTS.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
+            </TextField>
+            <Box role="group" aria-label="목록 보기 방식" sx={{ display: "flex", gap: 0.5 }}>
+              {[["cards", "카드"], ["table", "표"]].map(([v, label]) => (
+                <Button
+                  key={v} size="sm"
+                  variant={view === v ? "primary" : "default"}
+                  aria-pressed={view === v}
+                  onClick={() => changeView(v)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Box>
+          </ToolbarEnd>
+        </ToolbarRow>
+        <FilterBarGrid>
           <FilterSelect label="문서 종류" value={docType} onChange={(v) => setQuery({ doc_type: v })} values={opts.doc_types} />
           <FilterSelect label="업무 분야" value={workField} onChange={(v) => setQuery({ work_field: v })} values={opts.work_fields} />
           <FilterSelect label="프로젝트" value={project} onChange={(v) => setQuery({ project: v })} values={opts.projects} />
@@ -444,14 +470,10 @@ export function TeamDocs() {
             value={query.dept}
             onChange={(v) => setQuery({ dept: v })}
           />
-          <TextField
-            select size="small" label="정렬" value={sort}
-            onChange={(e) => setQuery({ sort: e.target.value })}
-          >
-            {SORTS.map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
-          </TextField>
+          {/* 즐겨찾기는 내용 필터다(무엇을 볼지) — 별 글리프는 뺐다(지시 28). 켜짐/꺼짐은
+              칩의 채움과 `aria-pressed` 가 이미 말한다. */}
           <Chip
-            component="button" type="button" clickable label="★ 즐겨찾기"
+            component="button" type="button" clickable label="즐겨찾기만"
             aria-pressed={favorites}
             color={favorites ? "primary" : "default"}
             variant={favorites ? "filled" : "outlined"}
@@ -460,21 +482,6 @@ export function TeamDocs() {
           />
           {hasFilter ? <Button size="sm" onClick={clearFilters}>필터 지우기</Button> : null}
         </FilterBarGrid>
-        {/* 보기 전환. 필터 줄 안이 아니라 그 아래 오른쪽에 둔다 — 필터는 '무엇을 볼지',
-            이건 '어떻게 볼지'다. 섞으면 필터를 하나 더 건 것처럼 읽힌다. */}
-        <Box role="group" aria-label="목록 보기 방식"
-          sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5, mt: 1.5 }}>
-          {[["cards", "카드"], ["table", "표"]].map(([v, label]) => (
-            <Button
-              key={v} size="sm"
-              variant={view === v ? "primary" : "default"}
-              aria-pressed={view === v}
-              onClick={() => changeView(v)}
-            >
-              {label}
-            </Button>
-          ))}
-        </Box>
       </Card>
 
       <Typography component="h2" className="sr-only">목록</Typography>
@@ -602,7 +609,7 @@ function DocCard({ doc, selected, onToggle, onOpen }) {
           "&:hover": { color: "primary.dark" },
         }}
       >
-        {doc.is_favorite ? <Box component="span" aria-label="즐겨찾기" sx={{ color: "warning.main" }}>★</Box> : null}
+        {doc.is_favorite ? <StarRoundedIcon aria-label="즐겨찾기" role="img" sx={{ color: "warning.main", fontSize: "1rem" }} /> : null}
         {doc.restricted ? <Tag label="열람 제한" tone="warn" /> : null}
         <Box component="span">{doc.title || "제목 없음"}</Box>
       </Link>

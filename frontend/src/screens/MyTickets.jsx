@@ -23,6 +23,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
+import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
@@ -652,30 +653,6 @@ export function ticketConnState(data) {
   return null;
 }
 
-// 티켓 동기화 배너(FN-03) — TeamDocs.jsx의 SyncBanner와 같은 모양. app/tickets/router.py
-// trigger_sync의 주석이 team_docs 패턴을 그대로 따르라고 명시해서다. 필드명만 다르다
-// (ticket_count vs doc_count). 팀 티켓 화면만 쓴다 — 내 티켓/미할당은 개인 범위라 동기화
-// 트리거가 필요 없다.
-export function TicketSyncBanner({ sync, canSync, onSync, syncing }) {
-  if (!sync) return null;
-  const last = sync.last_success_at ? fmtDateTime(sync.last_success_at) : "없음";
-  const tone = sync.status === "error" ? "warn" : "info";
-  return (
-    <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} alignItems={{ sm: "center" }} sx={{ mb: 2.5 }}>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Callout tone={tone}>
-          마지막 동기화: {last}, 티켓 {sync.ticket_count}개
-          {sync.status === "error" ? ", 최근 동기화 실패(마지막 정상 데이터 표시 중)" : ""}
-        </Callout>
-      </Box>
-      {canSync ? (
-        <Button size="sm" onClick={onSync} disabled={syncing}>
-          {syncing ? "동기화 중" : "지금 동기화"}
-        </Button>
-      ) : null}
-    </Stack>
-  );
-}
 
 /* 내 티켓·미할당이 쓰는 필터 조건.
  *
@@ -741,13 +718,10 @@ export function MyTickets() {
               {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
                   탐색에서 구획 없는 한 덩어리였다. 시각 디자인은 그대로 두고(.sr-only)
                   마크업에만 h2 두 개를 더한다. */}
-              {/* UB-26: 팀 티켓 화면은 이미 이 배너로 "마지막 동기화: 없음" 같은 상태를
-                  보여주는데, 개인 범위(내 티켓/미할당)는 트리거 버튼이 필요 없다는 이유로
-                  배너 자체를 통째로 뺐었다 — 그래서 미러가 한 번도 안 됐는데 error도 아니면
-                  "담당한 티켓이 없습니다"만 보여 "정말 0건"과 "아직 못 재본 것"이 구분 안
-                  됐다. canSync가 이 엔드포인트엔 없어(항상 undefined→false) 버튼은 여전히
-                  안 뜬다 — 정보만 준다. */}
-              <TicketSyncBanner sync={data.sync} canSync={data.can_sync} onSync={() => {}} syncing={false} />
+              {/* UB-26: 미러가 한 번도 안 됐는데 error 도 아니면 "담당한 티켓이 없습니다"만
+                  보여 "정말 0건"과 "아직 못 재 본 것"이 구분되지 않았다. MirrorNotice 가 그
+                  경우를 말해 준다. 정상일 때는 아무것도 안 그린다(지시 1). */}
+              <MirrorNotice sync={data.sync} unit="티켓" />
               <Typography component="h2" className="sr-only">필터</Typography>
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Typography component="h2" className="sr-only">목록</Typography>
@@ -822,7 +796,7 @@ export function Unassigned() {
             <>
               {/* UB-26: 개인 범위도 미러 신선도를 알 권리는 있다(트리거 버튼만 없을 뿐) —
                   MyTickets()와 같은 이유, canSync는 이 엔드포인트에도 없어 버튼은 안 뜬다. */}
-              <TicketSyncBanner sync={data.sync} canSync={data.can_sync} onSync={() => {}} syncing={false} />
+              <MirrorNotice sync={data.sync} unit="티켓" />
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
