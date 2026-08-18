@@ -10,7 +10,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
@@ -604,11 +604,32 @@ export function DataScreen({ config, embedded = false }) {
   const createBtn = showCreate
     ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button>
     : (primaryHeaderAction ? <Button variant="primary" disabled={busy} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{busyKey === "h-primary" ? "처리 중…" : primaryHeaderAction.label}</Button> : null);
+  /* 머리 액션도 같은 규칙이다 — 주 동작(추가)이 primary 이고, 위험한 것은 그 옆에 나란히
+   * 두지 않는다. 예전에는 registry 의 `variant:"danger"` 머리 액션(예: '전체 삭제')이
+   * '추가' 바로 왼쪽에 같은 크기로 앉았다. */
+  /* 머리 액션의 위험 판정 — 상세 액션(`isRisky`)과 같은 규칙이지만 그쪽은 아래에서
+   * 정의된다(sel 이 필요하다). 판정 자체는 한 줄이라 두 번 쓰는 대신 여기 먼저 둔다. */
+  const isRiskyHeader = (a) => a.variant === "danger" || !!a.confirm;
+  const inlineHeaderActions = visibleHeaderActions.filter((a) => !isRiskyHeader(a));
+  const overflowHeaderActions = visibleHeaderActions.filter(isRiskyHeader);
+  const headerKeyOf = (a) => "h" + visibleHeaderActions.indexOf(a);
   const headerActions = (
     <>
-      {visibleHeaderActions.map((a, i) => (
-        <Button key={"h" + i} variant={a.variant || "default"} disabled={busy} onClick={() => runHeaderAction(a, "h" + i)}>{busyKey === ("h" + i) ? "처리 중…" : a.label}</Button>
+      {inlineHeaderActions.map((a) => (
+        <Button key={headerKeyOf(a)} variant={a.variant || "default"} disabled={busy}
+          loading={busyKey === headerKeyOf(a)}
+          onClick={() => runHeaderAction(a, headerKeyOf(a))}>{a.label}</Button>
       ))}
+      <OverflowMenu
+        ariaLabel={config.title + " 화면 작업 더 보기"}
+        items={overflowHeaderActions.map((a) => ({
+          key: headerKeyOf(a),
+          label: busyKey === headerKeyOf(a) ? "처리 중…" : a.label,
+          tone: "danger",
+          disabled: busy,
+          onClick: () => runHeaderAction(a, headerKeyOf(a)),
+        }))}
+      />
       {showCreate ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button> : null}
     </>
   );
@@ -619,6 +640,24 @@ export function DataScreen({ config, embedded = false }) {
   // when(row, ctx) — ctx에 role·userId를 넘겨 본인 요청 자기결정 차단 등 행 단위 게이트를 지원한다.
   const actionCtx = { role, userId };
   const visibleActions = sel ? (config.actions || []).filter((a) => (!a.when || a.when(sel, actionCtx)) && canDo(a)) : [];
+  /* 액션 위계 (지시 8 · 11 · 12 · 43).
+   *
+   * 예전에는 이 목록을 그대로 평평한 버튼 줄로 그렸다 — registry 가 `variant:"danger"` 로
+   * 선언한 파괴적 동작이 주 동작 '수정' 옆에 같은 크기로 앉았다. 되돌리기 어려운 일과 가장
+   * 자주 하는 일이 시선을 다투면 안 된다.
+   *
+   * `danger`/`confirm` 을 위험 신호로 본다 — registry 가 확인 대화를 붙였다는 것은 그 동작이
+   * 한 번 더 물어봐야 하는 일이라고 이미 판단한 것이다. 판정을 새로 만들지 않고 그 선언을 쓴다. */
+  const isRisky = (a) => a.variant === "danger" || !!a.confirm;
+  const safeActions = visibleActions.filter((a) => !isRisky(a));
+  const riskyActions = visibleActions.filter(isRisky);
+  /* 무해한 액션은 둘까지 버튼으로 남긴다 — 자주 쓰는 것을 한 번에 누를 수 있어야 한다.
+     그 이상은 세로 목록이 훑기 쉽다. */
+  const INLINE_ACTION_LIMIT = 2;
+  const inlineActions = safeActions.slice(0, INLINE_ACTION_LIMIT);
+  const overflowActions = [...safeActions.slice(INLINE_ACTION_LIMIT), ...riskyActions];
+  /* 넘침 메뉴 항목은 원래 인덱스를 그대로 들고 가야 `busyKey`("a"+i) 가 어긋나지 않는다. */
+  const actionKeyOf = (a) => "a" + visibleActions.indexOf(a);
   // 온보딩 안내(situation/steps 등)는 실제로 '생성' 성격 CTA를 볼 수 있는 역할에만 보여준다 -
   // create.roles(canCreate)뿐 아니라 primary 헤더 작업('+ 백업 실행', '+ 문서 생성', '자동 동기화')을
   // CTA로 쓰는 화면도 포함한다(그렇지 않으면 create 없는 화면의 온보딩 단계가 영영 렌더되지 않았다).
@@ -886,10 +925,32 @@ export function DataScreen({ config, embedded = false }) {
           }
         }}
         title={sel ? detailTitle(sel, columns) : ""} size="lg"
-        footer={(sel && (canEdit || visibleActions.length)) ? <>
-          {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
-          {visibleActions.map((a, i) => <Button key={i} size="sm" variant={a.variant || "default"} disabled={busy} onClick={() => runAction(a, sel, "a" + i)}>{busyKey === ("a" + i) ? "처리 중…" : a.label}</Button>)}
-        </> : null}>
+        footer={(sel && (canEdit || visibleActions.length)) ? (
+          <Box className="k-footer-row">
+            <Box className="k-footer-extra">
+              {inlineActions.map((a) => (
+                <Button key={actionKeyOf(a)} size="sm" variant={a.variant || "default"} disabled={busy}
+                  loading={busyKey === actionKeyOf(a)}
+                  onClick={() => runAction(a, sel, actionKeyOf(a))}>{a.label}</Button>
+              ))}
+              {/* 파괴적 동작과 저빈도 액션은 세로 목록으로 내린다 — 실선이 손이 미끄러지는
+                  거리를 준다(kit.jsx::OverflowMenu). */}
+              <OverflowMenu
+                ariaLabel={config.title + " 작업 더 보기"}
+                items={overflowActions.map((a) => ({
+                  key: actionKeyOf(a),
+                  label: busyKey === actionKeyOf(a) ? "처리 중…" : a.label,
+                  tone: isRisky(a) ? "danger" : undefined,
+                  disabled: busy,
+                  onClick: () => runAction(a, sel, actionKeyOf(a)),
+                }))}
+              />
+            </Box>
+            <Box className="k-footer-main">
+              {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
+            </Box>
+          </Box>
+        ) : null}>
         {/* 상세는 라벨/값 쌍이 20개 넘는 화면(러너·워크플로)이 있다. 좁은 화면은 한 열, 넓은
             화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
             통째로 비고 눈은 위아래로만 움직인다. */}

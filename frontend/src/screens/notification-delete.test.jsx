@@ -32,6 +32,7 @@ import { NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
 import { NOTI_UNREAD, notiListKey } from "../app/notification-keys.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction, hasAction } from "../test-helpers/actions.js";
 
 const ROW = { id: "n-1", title: "내 알림", type: "generic", read_at: null, body: "본문", related_object_type: null, created_at: "2026-08-10T00:00:00Z" };
 
@@ -71,7 +72,9 @@ describe("알림 — 삭제 액션 (FN-03)", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     renderScreen(qc);
     const drawer = await openRow("내 알림");
-    expect(within(drawer).getByRole("button", { name: "삭제" })).toBeInTheDocument();
+    // 삭제는 파괴적 동작이라 위계상 넘침 메뉴로 내려갔다(지시 12 · 43) - 여기서 재려는
+    // 것은 "그 자리에 그 동작이 있는가"다.
+    expect(hasAction(drawer, "삭제")).toBe(true);
   });
 
   it("삭제를 확인하면 DELETE를 부르고 목록에서 사라지며 벨/팝오버 캐시까지 무효화한다", async () => {
@@ -82,7 +85,7 @@ describe("알림 — 삭제 액션 (FN-03)", () => {
 
     renderScreen(qc);
     const drawer = await openRow("내 알림");
-    await user.click(within(drawer).getByRole("button", { name: "삭제" }));
+    await clickAction(user, drawer, "삭제");
 
     const confirmDialog = await screen.findByRole("dialog", { name: "확인" });
     expect(within(confirmDialog).getByText(/삭제할까요/)).toBeInTheDocument();

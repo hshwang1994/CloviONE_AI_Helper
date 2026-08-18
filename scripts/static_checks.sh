@@ -311,15 +311,28 @@ fi
 step "폐기한 목업(preview-standalone.html)을 아직 참조하는 곳이 없다 (지시 64)"
 # 목업은 이번 리뉴얼에서 디자인 정본이 아니다. 파일을 지운 뒤에도 주석·스크립트가 그 이름을
 # 계속 부르면, 다음 세션이 "정본이 있다"고 믿고 다시 그쪽으로 값을 맞춘다.
+# 확장자 목록에 `.mjs`·`.md` 가 빠져 있어 `generate_design_tokens.mjs` 와
+# `ui_qa/README.md` 의 참조를 못 잡고 있었다(2026-08-19 전수 감사) — 검사가 있는데
+# 통과하던 자리다. 결정·이력 문서는 폐기 **경위**를 적어야 하므로 제외 목록에 둔다.
 # 시험 파일은 제외한다 — "그 경로가 없다"를 단언하려면 문자열 자체를 적어야 한다.
 STALE_BASELINE="$(grep -rlE "preview-standalone|design/baseline" \
-  app frontend/src scripts tests --include='*.py' --include='*.js' --include='*.jsx' \
-  --include='*.css' --include='*.html' --include='*.sh' 2>/dev/null \
-  | grep -vE '\.test\.(js|jsx)$|static_checks\.sh$' || true)"
+  app frontend/src scripts tests docs --include='*.py' --include='*.js' --include='*.jsx' \
+  --include='*.mjs' --include='*.css' --include='*.html' --include='*.sh' --include='*.md' 2>/dev/null \
+  | grep -vE '\.test\.(js|jsx)$|static_checks\.sh$|docs/(DECISIONS|BACKLOG|WORK_STATE|BUILD_LOG|UI_RENEWAL_TRACEABILITY|UI_INVENTORY)\.md$' || true)"
 if [ -z "$STALE_BASELINE" ]; then
   ok "목업 참조 0건"
 else
   echo "$STALE_BASELINE"; fail "폐기한 목업을 아직 참조한다"
+fi
+
+step "요구사항 추적표 Gate — 번호 누락·빈 필드·없는 Phase 참조 0건 (지시 56)"
+# 추적표는 스스로 "생성 시 스크립트가 검사한다"고 적어 두었는데 그 스크립트가 없었다
+# (2026-08-19 전수 감사). 문서가 자기 검사기를 주장하면서 검사기가 없는 상태는 검사가
+# 없는 것보다 나쁘다 — 다음 사람이 "이미 검사받고 있다"고 믿는다.
+if TRACE="$("$PY" scripts/check_traceability.py 2>&1)"; then
+  ok "$(echo "$TRACE" | tail -1)"
+else
+  echo "$TRACE"; fail "추적표가 지시 56 Gate 를 통과하지 못한다"
 fi
 
 step "Committed frontend bundle matches the sources"

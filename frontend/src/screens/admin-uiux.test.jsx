@@ -31,6 +31,7 @@ import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction, hasAction } from "../test-helpers/actions.js";
 
 function renderScreen(key) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -103,7 +104,7 @@ describe("위험 액션 확인", () => {
     });
     renderScreen("approvals");
     const drawer = await openRow("홍길동");
-    await userEvent.click(within(drawer).getByRole("button", { name: "거절" }));
+    await clickAction(userEvent, drawer, "거절");
 
     // 확인이 먼저. 이 시점에 폼도, 거절 요청도 있어서는 안 된다.
     const dlg = await confirmDialog();
@@ -183,7 +184,7 @@ describe("위험 액션 확인", () => {
     }));
     renderScreen("organizations");
     const drawer = await openRow("굿밋");
-    await userEvent.click(within(drawer).getByRole("button", { name: "비활성화" }));
+    await clickAction(userEvent, drawer, "비활성화");
 
     const dlg = await confirmDialog();
     // 비활성화는 _revoke_org_sessions 로 전원을 즉시 내보내고 재로그인까지 막는다.
@@ -223,10 +224,14 @@ describe("위험 액션 확인", () => {
     const colorClass = (el) =>
       [...el.classList].find((c) => /^MuiButton-(outlined|contained|text)[A-Z]/.test(c));
 
+    /* 이 시험의 주제는 표현이라 헬퍼를 쓰지 않고 직접 질의한다: 한 화면에 채운 버튼이
+       하나여야 한다. 액션 위계가 들어온 뒤 활성화는 버튼일 수도, 넘침 메뉴 항목일 수도
+       있다 - 어느 쪽이든 "채운 버튼은 수정 하나"는 그대로다. */
     const edit = within(drawer).getByRole("button", { name: "수정" });
-    const activate = within(drawer).getByRole("button", { name: "활성화" });
     expect(colorClass(edit)).toMatch(/^MuiButton-contained/);
-    expect(colorClass(activate)).not.toMatch(/^MuiButton-contained/);
+    const activateBtn = within(drawer).queryByRole("button", { name: "활성화" });
+    if (activateBtn) expect(colorClass(activateBtn)).not.toMatch(/^MuiButton-contained/);
+    else expect(within(drawer).getByRole("button", { name: /더 보기$/ })).toBeTruthy();
 
     // 서술이 아니라 실제 렌더에서 채운 버튼이 하나인지 직접 센다.
     const filled = within(drawer).getAllByRole("button").filter((b) => colorClass(b) === "MuiButton-containedPrimary");

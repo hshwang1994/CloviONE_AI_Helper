@@ -26,6 +26,7 @@ import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction } from "../test-helpers/actions.js";
 
 function renderScreen(key) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -92,7 +93,7 @@ describe("CONC-02 — 러너 점검 상태는 일반 편집 폼이 아니라 전
     const user = userEvent.setup();
     renderScreen("runners");
     const drawer = await openDrawer(user);
-    await user.click(within(drawer).getByRole("button", { name: "점검 상태 변경" }));
+    await clickAction(user, drawer, "점검 상태 변경");
 
     // 확인이 먼저 — 현재 상태를 말하고, 이 시점엔 아직 요청도 폼도 없다.
     const dlg = await confirmDialog();

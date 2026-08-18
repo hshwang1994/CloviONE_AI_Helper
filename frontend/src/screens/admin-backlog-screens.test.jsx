@@ -27,6 +27,7 @@ import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { fmtDateTime } from "../lib/format.js";
+import { clickAction, hasAction } from "../test-helpers/actions.js";
 
 function renderScreen(key) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -88,7 +89,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     const row = await screen.findByText("games_enabled");
     await userEvent.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
-    await userEvent.click(within(drawer).getByRole("button", { name: "비활성화" }));
+    await clickAction(userEvent, drawer, "비활성화");
     // 확인 대화상자
     const confirmDialog = await screen.findByRole("dialog", { name: /확인|비활성화할까요/ });
     await userEvent.click(within(confirmDialog).getByRole("button", { name: /확인|비활성화|계속/ }));
@@ -110,6 +111,11 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     const row = await screen.findByText("maintenance_mode");
     await userEvent.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
+    // 이 행에서는 활성화가 아예 제공되지 않아야 한다(when 게이트). 위계 때문에 메뉴로
+    // 내려간 것과 구별해야 하므로 메뉴를 열어도 없다는 것까지 확인한다.
+    const moreBtn = within(drawer).queryByRole("button", { name: /더 보기$/ });
+    if (moreBtn) await userEvent.click(moreBtn);
+    expect(screen.queryByRole("menuitem", { name: "활성화" })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole("button", { name: "활성화" })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole("button", { name: "비활성화" })).not.toBeInTheDocument();
     expect(within(drawer).getByRole("button", { name: "설정 화면에서 열기" })).toBeInTheDocument();

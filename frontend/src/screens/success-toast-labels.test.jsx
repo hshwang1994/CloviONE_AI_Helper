@@ -36,6 +36,7 @@ import { REGISTRY } from "./registry.js";
 import { Users } from "./Users.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction, hasAction } from "../test-helpers/actions.js";
 
 function renderWith(children) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -125,7 +126,7 @@ describe("/departments — 추가·수정·삭제가 전부 문장형이다 (실
     const row = await screen.findByText("기존부서");
     await user.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
-    await user.click(within(drawer).getByRole("button", { name: "삭제" }));
+    await clickAction(user, drawer, "삭제");
 
     const confirmDialog = await screen.findByRole("dialog", { name: /지울까요|확인/ });
     await user.click(within(confirmDialog).getByRole("button", { name: /확인|삭제|계속/ }));
@@ -160,7 +161,7 @@ describe("/prompts — '보관'도 기본 경로를 타던 액션이다", () => 
     const row = await screen.findByText("주간 보고");
     await user.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
-    await user.click(within(drawer).getByRole("button", { name: "보관" }));
+    await clickAction(user, drawer, "보관");
 
     const confirmDialog = await screen.findByRole("dialog", { name: /보관할까요|확인/ });
     await user.click(within(confirmDialog).getByRole("button", { name: /확인|보관|계속/ }));

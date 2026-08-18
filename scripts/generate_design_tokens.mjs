@@ -3,7 +3,8 @@
  * ## 왜 생성하는가
  *
  * 예전에는 같은 값이 네 곳에 따로 적혀 있었다:
- *   design/baseline/preview-standalone.html (목업, 지시 64로 폐기)
+ *   (디자인 목업 HTML — 지시 64 로 폐기했다. 경로를 다시 적지 않는다: 이름을 계속
+ *    부르면 다음 세션이 그 정본이 아직 있다고 믿는다. 경위는 DECISIONS D-142.)
  *   frontend/src/ui/theme.js                (MUI 테마)
  *   frontend/src/styles/tokens.css          (레거시 .k- / .c- 클래스용 CSS 변수)
  *   app/static/css/tokens.css               (Jinja 로그인·비밀번호 화면용 사본)

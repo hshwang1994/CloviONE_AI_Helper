@@ -247,20 +247,32 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
       type="button"
       size={isSm ? "small" : "medium"}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...v}
       {...rest}
       sx={{ position: "relative", ...sx }}
     >
-      <Box component="span" sx={{ visibility: loading ? "hidden" : "visible", display: "inline-flex", alignItems: "center" }}>
-        {children}
-      </Box>
+      {/* 진행 중에도 **라벨을 그대로 둔다.**
+       *
+       * 예전에는 라벨을 `visibility: hidden` 으로 감추고 그 자리에 원형 진행 표시를 겹쳤다.
+       * 시각적으로는 그럴듯한데 두 가지가 깨진다:
+       *   1. `visibility: hidden` 인 글자는 접근성 트리에서 빠진다 — 누른 순간 이 버튼의
+       *      **접근 가능한 이름이 사라진다.** 스크린리더는 "버튼"만 읽는다(실측: 시험이
+       *      `getByRole("button", { name: "내보내기" })` 로 못 찾는다).
+       *   2. 눈으로도 "무엇을 눌렀는지"가 사라진다 — 라벨을 "처리 중…"으로 바꿔치기하는
+       *      관행을 이 앱이 금지한 이유와 정확히 같다.
+       * 진행 표시를 라벨 **앞에** 붙이고 라벨은 그대로 읽히게 둔다. */}
       {loading ? (
         <CircularProgress
           size={isSm ? 14 : 16}
           color="inherit"
-          sx={{ position: "absolute", top: "50%", left: "50%", marginTop: isSm ? "-7px" : "-8px", marginLeft: isSm ? "-7px" : "-8px" }}
+          sx={{ mr: 0.75, flexShrink: 0 }}
+          aria-hidden="true"
         />
       ) : null}
+      <Box component="span" sx={{ display: "inline-flex", alignItems: "center", minWidth: 0 }}>
+        {children}
+      </Box>
     </MuiButton>
   );
 });

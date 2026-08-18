@@ -218,11 +218,18 @@ describe("액션 진행 표시는 누른 버튼에만", () => {
 
     await user.click(screen.getByRole("button", { name: "내보내기" }));
 
-    // 누른 버튼만 라벨이 바뀐다. 나머지는 비활성화되되 라벨은 그대로다.
-    await screen.findByRole("button", { name: "처리 중…" });
+    /* 진행 표시는 **누른 버튼에만** 붙는다. 예전에는 라벨을 "처리 중…"으로 바꿔치기해서
+       확인했는데, 그 관행 자체가 kit 이 금지한 것이다(누른 것이 무엇이었는지 화면에서
+       사라진다 — Button 의 `loading` prop 주석). 지금은 라벨이 그대로 있고 그 위에 진행
+       표시가 얹힌다. 나머지는 비활성화되되 진행 표시는 없다. */
+    const pressed = await screen.findByRole("button", { name: "내보내기" });
+    // 상태는 `aria-busy` 로 알린다 — 회전 표시 자체는 `aria-hidden` 이라 낭독 대상이 아니다.
+    await waitFor(() => expect(pressed).toHaveAttribute("aria-busy", "true"));
     const other = screen.getByRole("button", { name: "정리" });
     expect(other).toBeDisabled();
-    expect(screen.queryAllByRole("button", { name: "처리 중…" })).toHaveLength(1);
+    expect(other).not.toHaveAttribute("aria-busy", "true");
+    const busy = screen.getAllByRole("button").filter((b) => b.getAttribute("aria-busy") === "true");
+    expect(busy).toHaveLength(1);
 
     resolveAction({ ok: true });
   });

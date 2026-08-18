@@ -474,3 +474,24 @@ describe("PageHeader", () => {
     });
   });
 });
+
+/* 진행 표시가 접근 가능한 이름을 지우지 않는다 (지시 20 · 25).
+ *
+ * 예전 구현은 라벨을 `visibility: hidden` 으로 감추고 그 자리에 회전 표시를 겹쳤다 —
+ * `visibility: hidden` 인 글자는 접근성 트리에서 빠지므로 **누른 순간 버튼의 이름이
+ * 사라졌다.** 스크린리더는 "버튼"만 읽는다. 눈으로도 무엇을 눌렀는지가 사라진다. */
+describe("버튼 진행 표시", () => {
+  it("loading 중에도 라벨이 그대로 읽히고 aria-busy 로 상태를 알린다", () => {
+    ui(<Button loading>내보내기</Button>);
+    const btn = screen.getByRole("button", { name: "내보내기" });
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+  });
+
+  it("loading 이 아니면 aria-busy 를 붙이지 않는다", () => {
+    ui(<Button>내보내기</Button>);
+    const btn = screen.getByRole("button", { name: "내보내기" });
+    expect(btn).not.toHaveAttribute("aria-busy");
+    expect(btn).not.toBeDisabled();
+  });
+});
