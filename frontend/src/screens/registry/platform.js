@@ -60,7 +60,7 @@ export const PLATFORM_SCREENS = {
       // primary:true → 백업이 하나도 없는 첫 실행 화면의 CTA가 '복원 안내'가 아니라 이 버튼이 된다(system_admin에게만).
       // 백업 실패 사유는 sqlite3 원시 예외 텍스트가 그대로 올 수 있다(app/backups/sqlite_backup.py) —
       // 알려진 사유 코드만 한국어로 치환해 영어가 그대로 새지 않게 한다(backupReasonText).
-      { label: "+ 백업 실행", variant: "primary", primary: true, roles: ["system_admin"], path: () => "/api/admin/backups", confirm: "지금 데이터베이스 백업을 실행할까요?",
+      { label: "백업 실행", variant: "primary", primary: true, roles: ["system_admin"], path: () => "/api/admin/backups", confirm: "지금 데이터베이스 백업을 실행할까요?",
         result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업 완료" : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
     ],
     // 경로는 파일명만 목록에 보이고(내부 배포 경로 노출·너비 낭비 방지), 전체 경로는 상세에서 본다.
@@ -172,7 +172,7 @@ export const PLATFORM_SCREENS = {
     emptySituation: "점검이나 장애를 알릴 곳이 알림 벨밖에 없었습니다(놓치기 쉽습니다).",
     emptySteps: ["‘+ 공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 ‘사용 안 함’으로 바꿀 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
     emptyExpected: "활성 공지는 모든 화면 위쪽에 띠로 뜨고, 사용자가 닫으면 그 계정에는 다시 뜨지 않습니다.",
-    createLabel: "+ 공지 추가",
+    createLabel: "공지 추가",
     paginated: true, searchable: true,
     searchFields: ["title", "body"],
     searchPlaceholder: "제목, 내용으로 검색",
@@ -242,7 +242,7 @@ export const PLATFORM_SCREENS = {
     emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
     emptySteps: ["‘+ 상한 추가’에서 ‘전체’ 범위로 하루 상한을 정합니다.", "특정 사용자만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’ 열로 소비 상황을 확인합니다."],
     emptyExpected: "상한에 도달하면 그 사용자의 AI 요청이 거절되고, 언제 풀리는지 안내됩니다.",
-    createLabel: "+ 상한 추가",
+    createLabel: "상한 추가",
     // 필터가 하나도 없어 사용자별 상한이 쌓이면 '한 달 상한만' 같은 질문에 답할 방법이 없었다.
     // GET /api/admin/ai-quotas는 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다
     // (app/quotas/router.py list_quotas — 전체를 한 번에 돌려준다). 받아 온 것이 곧 전부이므로

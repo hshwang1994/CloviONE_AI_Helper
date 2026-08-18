@@ -17,6 +17,7 @@ import {
 } from "../ui/kit.jsx";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { DateCell } from "../ui/cells.jsx";
 
 /* 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
  *
@@ -27,7 +28,7 @@ import { invalidateTicketViews } from "./ticket-views.js";
  * (읽기 전용 계정 준비도 체크리스트—부서/직책/Notion 연결/첫 로그인—는 아래 미리보기에
  * 남지만, app/offboarding/service.py::_onboarding_checklist가 명시하듯 "이 계정이 일할
  * 준비가 됐는가"를 뒤집어 오프보딩 점검에도 쓰는 것뿐, 신규 입사자를 만드는 능동적 온보딩
- * 워크플로가 아니다). 실제 신규 계정 생성은 "사용자" 화면의 "+ 사용자 추가"다. 없는 기능을
+ * 워크플로가 아니다). 실제 신규 계정 생성은 "사용자" 화면의 "사용자 추가"다. 없는 기능을
  * 약속하던 제목을 정정한다.
  *
  * **왜 DataScreen이 아닌가.** 이 화면은 목록이 아니라 마법사다: 사람을 고르고 → 그 사람이 든
@@ -455,7 +456,7 @@ function RunHistory() {
   const columns = [
     // SEM-01: 첫 열(실행 시각)이 render라 표식 없이는 이 실행 이력 전부가 "상세 보기"로
     // 동일했다 — 대상 + 실행 시각으로 실제로 구별되는 이름을 만든다.
-    { key: "created_at", label: "실행", render: (r) => fmtDateTime(r.created_at), rowName: (r) => (r.user_name || "알 수 없음") + " / " + fmtDateTime(r.created_at) },
+    { key: "created_at", label: "실행", nowrap: true, render: (r) => <DateCell value={r.created_at} />, rowName: (r) => (r.user_name || "알 수 없음") + " / " + fmtDateTime(r.created_at) },
     // 서버가 이름을 못 주면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출).
     { key: "user_name", label: "대상", render: (r) => r.user_name || "알 수 없음" },
     { key: "successor_name", label: "후임", render: (r) => r.successor_name || "(없음)" },

@@ -27,7 +27,9 @@
 // 마침표로 끝나는 문장형이다("라벨 완료"류 명사형으로 되돌아가지 않는다).
 export const GENERIC_SUCCESS_MESSAGE = "작업을 완료했습니다.";
 
-// key = registry/*.js 액션의 label(선행 "+ " 제거 후) 그대로. value = 문장형 성공 토스트.
+// key = registry/*.js 액션의 label 그대로. value = 문장형 성공 토스트.
+// (라벨의 `+ ` 접두어는 지시 28 로 없앴다 — 아래 조회 함수의 벗기기는 옛 라벨이 남은
+//  경로를 위한 안전망으로만 남는다.)
 // 새 항목을 추가할 때는 docs/UX_WRITING.md의 이 표 사본도 함께 갱신한다(§5).
 export const ACTION_SUCCESS_MESSAGES = {
   "활성화": "활성화했습니다.",

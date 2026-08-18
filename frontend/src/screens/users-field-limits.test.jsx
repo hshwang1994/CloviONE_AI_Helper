@@ -54,7 +54,7 @@ describe("사용자 생성 폼 — 서버 상한과 같은 maxLength", () => {
   it("이메일 255자, 이름 120자 — 서버 스키마와 일치한다", async () => {
     const user = userEvent.setup();
     renderUsers();
-    await user.click(await screen.findByRole("button", { name: "+ 사용자 추가" }));
+    await user.click(await screen.findByRole("button", { name: "사용자 추가" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(/이메일/)).toHaveProperty("maxLength", 255);
     expect(within(dialog).getByLabelText(/이름/)).toHaveProperty("maxLength", 120);

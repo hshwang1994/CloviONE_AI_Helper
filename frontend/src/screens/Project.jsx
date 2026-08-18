@@ -110,7 +110,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   }
 
   const addButton = canWrite ? (
-    <Button variant="primary" size="sm" onClick={() => setEditing({})}>+ 마일스톤 추가</Button>
+    <Button variant="primary" size="sm" onClick={() => setEditing({})}>마일스톤 추가</Button>
   ) : null;
 
   /* 폼은 목록이 비어 있을 때도 열려야 한다 - 그래서 조기 반환보다 위에서 그린다.

@@ -22,7 +22,7 @@ export const ORG_SCREENS = {
     key: "organizations", area: "사용자와 권한", title: "조직 관리",
     endpoint: "/api/admin/organizations",
     help: "회사(테넌트)를 관리합니다. 부서와 사용자는 모두 조직 하나에 속하며, 그 포함 관계는 ‘조직도’에서 한눈에 볼 수 있습니다.",
-    createLabel: "+ 조직 추가",
+    createLabel: "조직 추가",
     emptyTitle: "추가된 조직이 없습니다",
     emptyHelp: "‘+ 조직 추가’로 조직을 추가하면 부서와 사용자를 그 아래에 둘 수 있습니다.",
     searchFields: ["name", "slug"],
@@ -87,7 +87,7 @@ export const ORG_SCREENS = {
     // 불러 404 토스트가 뜬다 — TEST SERVER 실측으로 잡은 결함, users-scope-form.test.jsx류의
     // 목(mock)은 애초에 감싸지 않은 응답을 흉내 내서 이 문제를 못 잡았다.
     selectKey: "department",
-    help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "+ 부서 추가",
+    help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "부서 추가",
     emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이
     // JSON.stringify(row) 전체(원시 UUID·boolean·UTC-ISO created_at)를 훑어 화면에 보이는 값과 무관하게
@@ -145,7 +145,7 @@ export const ORG_SCREENS = {
   },
   "job-titles": {
     key: "job-titles", area: "사용자와 권한", title: "직책 관리", endpoint: "/api/admin/job-titles",
-    help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "+ 직책 추가",
+    help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "직책 추가",
     emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
     // 체인처럼 다음 단계(사용자)로 이어 준다. 단계별 안내는 canOnboard가 쓰기 역할에만 보여준다.

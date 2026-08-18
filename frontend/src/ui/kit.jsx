@@ -1302,7 +1302,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
    *
    * ⚠️ 이 훅은 **`if (!open)` 조기 반환보다 위**에 있어야 한다. 아래에 두면 닫힘→열림에서
    * 훅 개수가 11개→12개로 늘어 리액트가 "Rendered more hooks than during the previous
-   * render." 로 트리를 통째로 버린다 — 관리자 화면의 '+ 추가'·'수정'을 누르는 순간 화면이
+   * render." 로 트리를 통째로 버린다 — 관리자 화면의 '추가'·'수정'을 누르는 순간 화면이
    * 사라졌다. 조건부 반환 위로 올리면 규칙(훅은 항상 같은 순서)이 지켜진다. */
   const shownFields = React.useMemo(
     () => (fields || []).filter((f) => (typeof f.showIf === "function" ? f.showIf(values) : true)),

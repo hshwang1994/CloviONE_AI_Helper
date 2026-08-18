@@ -12,6 +12,7 @@ import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.
 import { safeExternal } from "../lib/safeUrl.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { invalidateDocumentViews } from "./document-views.js";
+import { DateCell } from "../ui/cells.jsx";
 
 /* 휴지통 — 삭제한 티켓/문서를 보관기간 동안 잡아둔다. 복원하면 원래 목록으로 돌아가고, 보관기간이
  * 지나면 백그라운드가 노션 원본을 보관처리하고 여기서 사라진다. 지금 바로 영구 삭제도 가능(권한 필요).
@@ -138,8 +139,8 @@ export function Trash() {
         : <span>{r.title || "제목 없음"}</span>),
     },
     { key: "deleted_by", label: "삭제한 사람", width: "11rem" },
-    { key: "deleted_at", label: "삭제일", align: "right", width: "12rem", render: (r) => fmtDateTime(r.deleted_at) },
-    { key: "purge_after", label: "삭제 예정", align: "right", width: "12rem", render: (r) => fmtDateTime(r.purge_after) },
+    { key: "deleted_at", label: "삭제일", align: "right", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.deleted_at} /> },
+    { key: "purge_after", label: "삭제 예정", align: "right", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.purge_after} /> },
     {
       key: "_actions", label: "", align: "right", width: "14rem",
       render: (r) => (r.can_manage ? (

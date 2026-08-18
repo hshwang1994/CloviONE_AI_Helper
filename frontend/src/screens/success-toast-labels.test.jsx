@@ -90,8 +90,8 @@ describe("/departments — 추가·수정·삭제가 전부 문장형이다 (실
     renderWith(<DataScreen config={REGISTRY.departments} />);
     await screen.findByText("기존부서");
 
-    await user.click((await screen.findAllByRole("button", { name: "+ 부서 추가" }))[0]);
-    const dialog = await screen.findByRole("dialog", { name: "+ 부서 추가" });
+    await user.click((await screen.findAllByRole("button", { name: "부서 추가" }))[0]);
+    const dialog = await screen.findByRole("dialog", { name: "부서 추가" });
     // required 필드는 라벨에 "*"가 별도 span으로 붙어 접근성 텍스트가 "부서 이름 *"가 된다
     // (datascreen.test.jsx의 기존 관용과 동일하게 정규식으로 매칭한다 — 정확한 문자열은 안 맞는다).
     await user.type(within(dialog).getByLabelText(/부서 이름/), "새부서");

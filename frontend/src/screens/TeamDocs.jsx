@@ -38,6 +38,7 @@ import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.
 import { DepartmentFilter, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
+import { DateCell } from "../ui/cells.jsx";
 
 const PRIORITIES = ["높음", "보통", "낮음"];
 const STATUSES = ["초안", "활성", "서명됨", "만료됨"];
@@ -350,7 +351,7 @@ export function TeamDocs() {
     { key: "tech_tags", label: "기술 태그", width: "13%", render: (d) => (d.tech_tags || []).join(", ") || "-" },
     { key: "projects", label: "프로젝트", width: "10%", render: (d) => (d.projects || []).join(", ") || "-" },
     { key: "author", label: "작성자", width: "13%", render: (d) => (d.author_names || []).join(", ") || d.owner || "-" },
-    { key: "last_edited", label: "수정", align: "right", width: "15%", render: (d) => (d.last_edited ? fmtDateTime(d.last_edited) : "-") },
+    { key: "last_edited", label: "수정", align: "right", width: "11rem", nowrap: true, render: (d) => <DateCell value={d.last_edited} /> },
   ];
 
   const items = (list.data && list.data.items) || [];

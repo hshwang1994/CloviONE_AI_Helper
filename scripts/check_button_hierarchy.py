@@ -23,7 +23,7 @@
    `*_SCREEN` export 안의 화면 블록만 본다(actions.js의 `subList` 같은 공유 조각은 자기
    `key:` 필드가 없어 화면으로 안 친다). "primary 있음"은 `variant:"primary"`뿐 아니라
    `DataScreen.jsx`가 registry 내용과 무관하게 항상 그리는 두 버튼도 센다 — `edit:`가 있으면
-   상세 footer에 고정 primary "수정"이, `create:`가 있으면 헤더에 고정 primary "+ 추가"가
+   상세 footer에 고정 primary "수정"이, `create:`가 있으면 헤더에 고정 primary "추가"가
    뜬다(DataScreen.jsx의 `canEdit`/`showCreate` 분기). 이 넓은 판정도 오탐(정말 primary가
    있는데 없다고 잘못 잡는 것)보다 미탐이 나은 방향으로 일부러 기울였다. 그래도 남는 순수
    조회 화면은 `ZERO_PRIMARY_EXCEPTIONS`에 근거와 함께 정식 등재한다 — 등재 안 된 화면이

@@ -664,7 +664,7 @@ describe("프로젝트 생성", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    await user.click(screen.getByRole("button", { name: "+ 새 프로젝트" }));
+    await user.click(screen.getByRole("button", { name: "새 프로젝트" }));
     await fill(user, "이름", "새 사업");
     await fill(user, "시작일", "2026-09-01");
     await user.click(screen.getByRole("button", { name: "추가" }));
@@ -684,7 +684,7 @@ describe("프로젝트 생성", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    expect(screen.queryByRole("button", { name: "+ 새 프로젝트" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "새 프로젝트" })).toBeNull();
   });
 });
 
@@ -839,7 +839,7 @@ describe("마일스톤 CRUD", () => {
     const user = userEvent.setup();
     await openMilestones(user);
 
-    await user.click(screen.getByRole("button", { name: "+ 마일스톤 추가" }));
+    await user.click(screen.getByRole("button", { name: "마일스톤 추가" }));
     await fill(user, "이름", "정식 오픈");
     await fill(user, "기한", "2026-10-01");
     await user.click(screen.getByRole("button", { name: "추가" }));
@@ -901,7 +901,7 @@ describe("마일스톤 CRUD", () => {
     await user.click(screen.getByRole("tab", { name: "마일스톤" }));
 
     expect(await screen.findByText("마일스톤이 없습니다")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "+ 마일스톤 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "마일스톤 추가" })).toBeInTheDocument();
   });
 
   it("쓰기 권한이 없으면 수정·삭제 버튼을 그리지 않는다", async () => {
@@ -909,7 +909,7 @@ describe("마일스톤 CRUD", () => {
     authRole = "user";
     await openMilestones(user);
 
-    expect(screen.queryByRole("button", { name: "+ 마일스톤 추가" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "마일스톤 추가" })).toBeNull();
     expect(screen.queryByRole("button", { name: "마일스톤 삭제: 베타 배포" })).toBeNull();
   });
 });

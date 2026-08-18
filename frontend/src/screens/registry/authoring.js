@@ -21,14 +21,14 @@ export const AUTHORING_SCREENS = {
     // 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일 뿐 — app/prompts/service.py).
     help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
     emptyTitle: "추가된 프롬프트가 없습니다",
-    // 읽기 전용 역할(operator/auditor)에는 렌더되지 않는 '+ 추가' 버튼을 누르라고 안내하지 않는다.
+    // 읽기 전용 역할(operator/auditor)에는 렌더되지 않는 '추가' 버튼을 누르라고 안내하지 않는다.
     // 안내 문구의 생명주기는 실제 강제되는 전이(draft→test→review→published)에 맞춘다('테스트' 단계 포함).
     emptyHelp: writerEmptyHelp("‘+ 프롬프트 추가’로 AI에게 줄 지시문을 추가해 초안→테스트→검토→발행 순으로 버전 관리하세요.", "프롬프트는 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     // 다른 온보딩 화면(연동/러너)처럼 단계별 안내를 준다(생명주기: 초안→테스트→검토→발행).
     emptySituation: "AI에게 줄 지시문(프롬프트)이 아직 하나도 없습니다.",
     emptySteps: ["‘+ 프롬프트 추가’로 초안을 추가합니다.", "‘테스트로 → 검토로’ 순으로 상태를 올립니다.", "‘발행’하면 이 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용합니다."],
     emptyExpected: "발행된 버전이 실제 사용되며, 같은 이름의 이전 발행본은 자동으로 보관됩니다.",
-    createLabel: "+ 프롬프트 추가",
+    createLabel: "프롬프트 추가",
     // 템플릿 화면의 '프롬프트 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 프롬프트의 상세 드로어를
     // 곧바로 연다(단건 GET — runners.onQuery와 동일한 패턴). 이 라우터의 GET /{row_id}는 {"item":...}
     // 모양으로 응답한다(app/prompts/router.py get_one) — runner/job과 selectKey가 다르다.
@@ -125,7 +125,7 @@ export const AUTHORING_SCREENS = {
     // 발행하세요'는 마치 한 단계로 끝나는 것처럼 읽혀, 새 관리자가 초안 행에서 비활성 '발행' 버튼을
     // 만나고 이유를 못 찾았다(프롬프트 registry.js:404와 동일 문구로 맞춘다).
     emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 추가해 초안→테스트→검토→발행 순으로 버전 관리하세요.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
-    createLabel: "+ 정책 추가",
+    createLabel: "정책 추가",
     // 템플릿 화면의 '정책 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 정책의 상세 드로어를 곧바로
     // 연다(runners.onQuery와 동일한 패턴). 이 라우터의 GET /{row_id}는 {"item":...} 모양으로
     // 응답한다(app/prompts/router.py _build_router가 prompts/policies를 함께 만드는 get_one).
@@ -212,7 +212,7 @@ export const AUTHORING_SCREENS = {
     help: "자주 하는 자동화를 템플릿으로 저장합니다. 추가 직후에는 비활성 상태이며, 비활성 템플릿은 프롬프트, 정책, 입력값 바인딩과 승인 정책이 모두 적용되지 않습니다(승인 정책만이 아닙니다), 활성화해야 전부 적용됩니다.",
     emptyTitle: "추가된 템플릿이 없습니다",
     emptyHelp: writerEmptyHelp("자주 쓰는 자동화를 템플릿으로 저장하려면 ‘+ 템플릿 추가’를 누르세요. 대상 워크플로/러너와 연결됩니다. 추가 직후에는 비활성 상태이므로 활성화해야 적용됩니다.", "템플릿은 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
-    createLabel: "+ 템플릿 추가",
+    createLabel: "템플릿 추가",
     // 문서 화면의 '템플릿 ID' 링크가 ?id=로 넘겨주는 딥링크를 소비해 그 템플릿의 상세 드로어를
     // 곧바로 연다(runners.onQuery와 동일한 패턴). 이 라우터의 GET /{template_id}는 {"template":...}
     // 모양으로 응답한다(app/templates/router.py get_template).

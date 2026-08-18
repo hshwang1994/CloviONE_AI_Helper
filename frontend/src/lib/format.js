@@ -69,6 +69,22 @@ export function apiToKstLocal(v) {
   return `${p.year}-${p.month}-${p.day}T${hour}:${p.minute}`;
 }
 
+/* 표 셀용 압축 표기 — `2026-08-18 15:33`.
+ *
+ * 산문에서는 `2026. 8. 18. 오후 3:33`(ko-KR medium+short)이 자연스럽지만, 표에서는 그
+ * 표기가 21자라 좁은 열에서 두 줄로 접힌다(admin_users 1920 실측). 접힌 날짜는 행 높이를
+ * 들쭉날쭉하게 만들고 세로로 훑을 수 없게 한다 — 표의 존재 이유가 비교인데 그것이 안 된다.
+ *
+ * 24시간제 + 고정 자릿수라 자리마다 같은 뜻이고, `tabular-nums` 와 함께 쓰면 위아래 숫자가
+ * 정확히 겹쳐 보인다. 변환 자체는 `apiToKstLocal`(폼 입력용 KST 벽시계)과 **같은 규약**을
+ * 쓴다 — 같은 순간을 두 곳에서 다르게 계산하지 않는다. */
+export function fmtDateTimeCompact(v) {
+  if (v == null || v === "") return "-";
+  const local = apiToKstLocal(v);
+  if (!local) return String(v);
+  return local.replace("T", " ");
+}
+
 // 시:분(HH:MM) — 채팅 말풍선 시각용.
 export function fmtTimeShort(v) {
   const d = toUTCDate(v);

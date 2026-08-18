@@ -133,7 +133,7 @@ export const OPS_ROLES = ["operator", "admin", "system_admin"];  // 운영성 �
 // 관리 콘솔 역할(일반 사용자 role=user 제외) — 알림의 '관련 항목 보기'처럼 관리자 해시 경로로만
 // 이동하는 액션을 일반 사용자에게 숨긴다(일반 사용자가 누르면 채팅으로 튕겨 나간다).
 export const ADMIN_VIEW_ROLES = ["operator", "admin", "system_admin", "auditor"];
-// 생성 권한이 없는 역할(operator/auditor)에게는 렌더되지도 않는 '+ 추가' 버튼을 누르라고 안내하지 않는다.
+// 생성 권한이 없는 역할(operator/auditor)에게는 렌더되지도 않는 '추가' 버튼을 누르라고 안내하지 않는다.
 // 쓰기 역할(admin/system_admin)에겐 CTA 안내를, 그 외엔 읽기 전용 안내를 준다(schedules/documents/backup 패턴).
 export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "admin" || role === "system_admin") ? writerMsg : readerMsg;
 // 알림의 관련 대상(related_object_type) → 해당 관리 화면 해시 경로(문서 화면 navigate 방식과 동일).

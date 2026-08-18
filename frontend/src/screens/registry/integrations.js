@@ -28,7 +28,7 @@ export const INTEGRATION_SCREENS = {
     emptySteps: ["‘+ 외부 연동 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스체크’로 연결을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
     emptyExpected: "추가한 연동은 목록에 상태와 함께 표시되고, ‘자동화 작업 실행기’ 화면에서 이 연동을 선택할 수 있습니다.",
     emptyRelatedLink: { href: "#/runners", label: "다음: 러너 추가로 이동" },
-    createLabel: "+ 외부 연동 추가",
+    createLabel: "외부 연동 추가",
     // 다른 화면(러너 상세의 integration_id)이 ?id=로 넘겨주는 딥링크를 소비해 그 연동의 상세
     // 드로어를 곧바로 연다(단건 GET — runners.onQuery와 동일한 패턴).
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
@@ -142,7 +142,7 @@ export const INTEGRATION_SCREENS = {
     // 이어졌다. EmptyState는 링크를 하나만 표시할 수 있어(kit.jsx), 이 화면은 '다음' 방향을 준다
     // (integrations→runners 역방향은 integrations.emptyRelatedLink가 이미 담당).
     emptyRelatedLink: { href: "#/workflows", label: "다음: 워크플로 추가로 이동" },
-    createLabel: "+ 러너 추가",
+    createLabel: "러너 추가",
     // 다른 화면(템플릿의 target_ref, 프롬프트의 runner_id)이 ?id=로 넘겨주는 딥링크를 소비해 그
     // 러너의 상세 드로어를 곧바로 연다(단건 GET — jobs.onQuery와 동일한 패턴).
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
@@ -296,7 +296,7 @@ export const INTEGRATION_SCREENS = {
     emptySteps: ["‘+ 워크플로 추가’로 이름과 수신 주소(Webhook)를 입력합니다.", "저장 후 ‘테스트’로 수신 주소 도달을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
     emptyExpected: "추가한 워크플로는 목록에 상태와 함께 표시되고, 템플릿, 스케줄, 문서 자동 생성 화면에서 이 워크플로를 대상으로 지정할 수 있습니다.",
     emptyRelatedLink: { href: "#/runners", label: "이전: 러너 목록 보기" },
-    createLabel: "+ 워크플로 추가",
+    createLabel: "워크플로 추가",
     // 다른 화면(템플릿의 target_ref, 스케줄의 target_ref, 문서의 workflow_id)이 ?id=로 넘겨주는
     // 딥링크를 소비해 그 워크플로의 상세 드로어를 곧바로 연다(단건 GET — runners.onQuery와 동일한 패턴).
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,

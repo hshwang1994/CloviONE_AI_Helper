@@ -10,6 +10,7 @@ import {
   Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
+import { DateCell } from "../ui/cells.jsx";
 
 /* 개인 결재함 — **승인은 개인 업무이기도 하다** (0060 §22).
  *
@@ -100,7 +101,8 @@ export function MyApprovals() {
     },
     {
       key: "requested_at", label: "요청 시각", nowrap: true,
-      render: (r) => fmtDateTime(r.requested_at),
+      nowrap: true,
+      render: (r) => <DateCell value={r.requested_at} />,
     },
   ];
 

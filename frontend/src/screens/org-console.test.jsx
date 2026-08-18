@@ -260,7 +260,7 @@ describe("기존 기능 회귀", () => {
     mockApi();
     renderConsole({ defaultKind: "departments" });
     await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
-    await userEvent.click(within(panel()).getByRole("button", { name: "+ 부서 추가" }));
+    await userEvent.click(within(panel()).getByRole("button", { name: "부서 추가" }));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     expect(within(dlg).getByLabelText(/부서 이름/)).toBeInTheDocument();
     expect(within(dlg).getByLabelText(/상위 부서/)).toBeInTheDocument();
@@ -284,7 +284,7 @@ describe("기존 기능 회귀", () => {
       String(p).startsWith("/api/admin/departments/tree")).length;
     const before = treeCalls();
 
-    await userEvent.click(within(panel()).getByRole("button", { name: "+ 부서 추가" }));
+    await userEvent.click(within(panel()).getByRole("button", { name: "부서 추가" }));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));

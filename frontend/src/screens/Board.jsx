@@ -27,6 +27,7 @@ import { boardCategoryKind, ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { SearchBox } from "../ui/filters.jsx";
+import { DateCell } from "../ui/cells.jsx";
 
 /* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
  * 페이지 안에서 처리하고, 글쓰기는 이 페이지의 버튼(모달)이다. 행을 누르면 상세로 이동한다.
@@ -465,7 +466,7 @@ function BoardScreen({ kind = "free" }) {
       render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
     },
     { key: "view_count", label: "조회", align: "right", width: "6rem" },
-    { key: "created_at", label: "작성", align: "right", width: "12rem", render: (p) => fmtDateTime(p.created_at) },
+    { key: "created_at", label: "작성", align: "right", width: "11rem", nowrap: true, render: (p) => <DateCell value={p.created_at} /> },
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;

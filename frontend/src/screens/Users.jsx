@@ -21,6 +21,7 @@ import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
+import { DateCell } from "../ui/cells.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -503,7 +504,7 @@ export function Users() {
     // 3:24"처럼 길어 287px를 자연스럽게 요구했다 — 이메일보다 우선순위가 낮은 보조 열이라
     // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
     // 잘리지 않는다.
-    { key: "last_login_at", label: "최근 로그인", width: "9.5rem", render: (r) => fmtDateTime(r.last_login_at), hideNarrow: true },
+    { key: "last_login_at", label: "최근 로그인", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.last_login_at} />, hideNarrow: true },
   ];
 
   const items = (query.data && query.data.items) || [];
@@ -591,7 +592,7 @@ export function Users() {
         actions={<>
           {/* 내보내기는 지금 화면에 걸린 필터 그대로 나간다(같은 filterParams). */}
           <CsvTools exportQuery={filterParams(false)} onImported={refresh} />
-          <Button variant="primary" onClick={() => setCreating(true)}>+ 사용자 추가</Button>
+          <Button variant="primary" onClick={() => setCreating(true)}>사용자 추가</Button>
         </>}
         help={<Box sx={{ "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
           <p>계정을 만들고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제 등을 할 수 있습니다.</p>
@@ -668,7 +669,7 @@ export function Users() {
             action={<Button onClick={clearFilters}>필터 지우기</Button>} />
         ) : (
           <EmptyState title="사용자가 없습니다" help="'사용자 추가'로 새 계정을 만드세요."
-            action={<Button variant="primary" onClick={() => setCreating(true)}>+ 사용자 추가</Button>} />
+            action={<Button variant="primary" onClick={() => setCreating(true)}>사용자 추가</Button>} />
         )
       ) : (
         <>
@@ -783,7 +784,7 @@ const DETAIL_GRID = {
 const SESSION_COLUMNS = [
   { key: "client_ip", label: "IP", render: (s) => s.client_ip || "-" },
   { key: "user_agent", label: "기기/브라우저", render: (s) => <Tooltip title={s.user_agent || ""}><span>{shortUA(s.user_agent)}</span></Tooltip> },
-  { key: "last_seen_at", label: "최근 활동", render: (s) => fmtDateTime(s.last_seen_at) },
+  { key: "last_seen_at", label: "최근 활동", nowrap: true, render: (s) => <DateCell value={s.last_seen_at} /> },
 ];
 
 /* 계정 수명주기 한 줄 (X14).

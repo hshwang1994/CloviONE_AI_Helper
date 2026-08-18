@@ -261,7 +261,7 @@ export function Projects() {
       <PageHeader
         crumbRoot="팀 공간" area="프로젝트" title="프로젝트"
         actions={canWrite ? (
-          <Button variant="primary" onClick={() => setCreating(true)}>+ 새 프로젝트</Button>
+          <Button variant="primary" onClick={() => setCreating(true)}>새 프로젝트</Button>
         ) : null}
       />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch", ...KO_WORD_BREAK }}>

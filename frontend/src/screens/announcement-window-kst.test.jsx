@@ -89,7 +89,7 @@ describe("공지 노출 기간은 KST 로 읽고 쓴다", () => {
     renderScreen();
     await screen.findByText("공지 배너");
 
-    await user.click(screen.getByRole("button", { name: "+ 공지 추가" }));
+    await user.click(screen.getByRole("button", { name: "공지 추가" }));
     // UB-24로 검색창이 생겨 그 aria-label("제목, 내용으로 검색")도 느슨한 /제목/ 정규식에
     // 걸린다 - 뒤에 쉼표 없이 공백이나 끝이 오는 경우만(폼의 "제목"/"제목 *")로 좁힌다.
     await user.type(await screen.findByLabelText(/^제목(?:\s|$)/), "점검 예고");

@@ -185,7 +185,7 @@ export const GOVERNANCE_SCREENS = {
     emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
     emptySteps: ["‘+ 위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
     emptyExpected: "위임 기간에는 대리 승인자가 승인, 거절을 할 수 있고, 결재 기록에 대신한 사람이 남습니다.",
-    createLabel: "+ 위임 추가",
+    createLabel: "위임 추가",
     searchFields: ["delegator_name", "delegate_name", "reason"],
     searchPlaceholder: "이름으로 검색",
     filters: [{ key: "state", type: "select", label: "상태", options: opt([["active", "진행 중"], ["scheduled", "예정"], ["ended", "종료"], ["revoked", "거둠"]]) }],

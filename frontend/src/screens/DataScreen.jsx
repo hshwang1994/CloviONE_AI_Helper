@@ -112,7 +112,7 @@ export function DataScreen({ config }) {
   // 액션 role 게이트 — a.roles가 지정된 액션은 현재 역할이 포함될 때만 노출(백엔드 RBAC와 일치시켜 403 사전 차단).
   const canDo = (a) => !a.roles || (role != null && a.roles.includes(role));
   // 생성/수정 버튼도 액션과 같은 방식으로 role 게이트한다(create.roles / edit.roles) — 읽기 전용
-  // 역할(operator/auditor)이 항상 403이 되는 '+ 추가'·'수정' 버튼을 애초에 숨긴다.
+  // 역할(operator/auditor)이 항상 403이 되는 '추가'·'수정' 버튼을 애초에 숨긴다.
   const canCreate = config.create ? (!config.create.roles || (role != null && config.create.roles.includes(role))) : false;
   const editRoles = (config.edit && config.edit.roles) || (config.create && config.create.roles) || null;
   const canEditRole = !editRoles || (role != null && editRoles.includes(role));
@@ -588,19 +588,19 @@ export function DataScreen({ config }) {
   const headerActionCtx = { unreadCount: (config.unreadCountKey && query.data) ? query.data[config.unreadCountKey] : null };
   const visibleHeaderActions = (config.headerActions || []).filter((a) => canDo(a) && (!a.when || a.when(headerActionCtx)));
   const primaryHeaderAction = visibleHeaderActions.find((a) => a.primary);
-  const showCreate = config.create && canCreate;   // '+ 추가'는 create.roles를 통과한 역할에만.
+  const showCreate = config.create && canCreate;   // '추가'는 create.roles를 통과한 역할에만.
   // 헤더 액션, CTA도 드로어 액션과 동일하게 busy로 막는다(중복 클릭, 느린 동기 호출 방지) -
   // 예전엔 드로어 footer 버튼만 막혀 '+ 백업 실행', '자동 동기화', '+ 문서 생성', '지금 실행' 등은
   // 진행 중에도 계속 눌러 중복 제출을 낼 수 있었다.
   const createBtn = showCreate
-    ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "+ 추가"}</Button>
+    ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button>
     : (primaryHeaderAction ? <Button variant="primary" disabled={busy} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{busyKey === "h-primary" ? "처리 중…" : primaryHeaderAction.label}</Button> : null);
   const headerActions = (
     <>
       {visibleHeaderActions.map((a, i) => (
         <Button key={"h" + i} variant={a.variant || "default"} disabled={busy} onClick={() => runHeaderAction(a, "h" + i)}>{busyKey === ("h" + i) ? "처리 중…" : a.label}</Button>
       ))}
-      {showCreate ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "+ 추가"}</Button> : null}
+      {showCreate ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button> : null}
     </>
   );
   const hasHeaderActions = showCreate || visibleHeaderActions.length > 0;
@@ -814,7 +814,7 @@ export function DataScreen({ config }) {
         ) : (
           <EmptyState title={config.emptyTitle || "표시할 항목이 없습니다"}
             help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
-            // situation/prerequisite/steps/expected는 대부분 '+ 추가'·'활성화' 같은 쓰기 전용 버튼을
+            // situation/prerequisite/steps/expected는 대부분 '추가'·'활성화' 같은 쓰기 전용 버튼을
             // 클릭하라고 안내한다(help는 이미 canCreate로 role-branch되지만 이 네 필드는 예전엔
             // 무조건 그대로 노출돼, 그 버튼이 안 보이는 읽기 전용 역할(operator/auditor)에게도
             // '이 버튼을 누르세요' 안내가 나갔다) — 실제로 그 CTA를 볼 수 있는 role(canOnboard)에만 보여준다.

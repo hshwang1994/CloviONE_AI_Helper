@@ -74,7 +74,7 @@ describe("config.refLists — 다른 화면의 리소스를 이름 붙은 select
     const user = userEvent.setup();
     renderScreen(qc);
 
-    await user.click(await screen.findByRole("button", { name: "+ 추가" }));
+    await user.click(await screen.findByRole("button", { name: "추가" }));
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/workflows"));
 
     // 필드 기본값이 "wf-1"이다 — 참조 목록이 실제로 연결됐다면 select가 닫힌 상태에서도
@@ -89,7 +89,7 @@ describe("config.refLists — 다른 화면의 리소스를 이름 붙은 select
     const user = userEvent.setup();
     renderScreen(qc);
 
-    await user.click(await screen.findByRole("button", { name: "+ 추가" }));
+    await user.click(await screen.findByRole("button", { name: "추가" }));
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/workflows"));
     // target_ref 필드 기본값이 "noop" — extraOptions로 덧붙인 고정 선택지가 실제로 옵션
     // 배열에 들어갔다면(그냥 무시되지 않았다면) 닫힌 select에 그 라벨이 보인다.

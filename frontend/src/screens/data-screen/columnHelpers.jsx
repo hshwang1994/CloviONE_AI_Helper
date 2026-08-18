@@ -2,13 +2,14 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import { Badge } from "../../ui/kit.jsx";
-import { fmtDateTime } from "../../lib/format.js";
+import { DateCell } from "../../ui/cells.jsx";
 import { JsonBlock, KeyValueRow } from "./JsonBlock.jsx";
 
 // 열/필드 렌더 헬퍼 — registry에서 사용.
 export const badgeCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key]} /> });
 export const mapCol = (key, label, map) => ({ key, label, render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
-export const dateCol = (key, label) => ({ key, label, render: (r) => fmtDateTime(r[key]) });
+// 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
+export const dateCol = (key, label) => ({ key, label, nowrap: true, render: (r) => <DateCell value={r[key]} /> });
 // 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는
 // 같은 화면의 필터('사용 중'/'미사용')·체크박스 어휘와 어긋나므로 이 렌더로 통일한다.
 // 미사용(active=false)은 이 화면이 관리하는 핵심 상태(새로 배정 가능 여부를 가른다)라 눈에 잘

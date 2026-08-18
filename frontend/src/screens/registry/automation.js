@@ -33,7 +33,7 @@ export const AUTOMATION_SCREENS = {
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
       ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 워크플로를 자동 실행하세요."
       : "실행 일정은 관리자가 추가합니다. 추가되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
-    createLabel: "+ 스케줄 추가",
+    createLabel: "스케줄 추가",
     // list_schedules(app/schedules/router.py)는 쿼리 파라미터를 전혀 받지 않는다(항상 전체 목록) —
     // clientFilter:true로 이미 받아 온 목록을 화면에서 직접 거른다(workflows.filters와 동일 패턴).
     // 스케줄은 삭제/보관 엔드포인트가 없어 비활성·완료된 once형도 계속 목록에 남으므로, 활성만
@@ -251,7 +251,7 @@ export const AUTOMATION_SCREENS = {
     // 동일한 패턴으로 그 문서의 상세 드로어를 곧바로 연다.
     onQuery: (p) => p.id
       ? { open: "select", id: p.id }
-      : (p.template_id ? { open: "header", label: "+ 문서 생성", initial: docConfigInitial({ workflow_id: p.workflow_id, config: { template_id: p.template_id } }) } : null),
+      : (p.template_id ? { open: "header", label: "문서 생성", initial: docConfigInitial({ workflow_id: p.workflow_id, config: { template_id: p.template_id } }) } : null),
     selectKey: "generation",
     paginated: true,
     // 비동기 생성(pending→미리보기/승인대기 등) 상태 전이를 화면이 자동으로 따라간다.
@@ -266,7 +266,7 @@ export const AUTOMATION_SCREENS = {
     filters: [{ key: "status", type: "select", label: "상태", options: opt([["pending", "대기"], ["preview_ready", "미리보기 완료"], ["quality_failed", "품질 미달"], ["awaiting_approval", "승인 대기"], ["published", "발행됨"], ["failed", "실패"]]) },
       { key: "mode", type: "select", label: "모드", clientFilter: true, options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]) }],
     headerActions: [
-      { label: "+ 문서 생성", variant: "primary", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/documents/generate",
+      { label: "문서 생성", variant: "primary", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/documents/generate",
         result: docGenerateResult, fields: DOC_GENERATE_FIELDS, transform: docConfigTransform },
     ],
     // 첫 열은 원시 UUID 대신 사람이 읽는 식별자(미리보기 제목 → 없으면 UUID)로 행을 구분한다.

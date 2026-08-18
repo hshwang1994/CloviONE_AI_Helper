@@ -374,9 +374,9 @@ describe("등록 화면 maxLength가 fieldLimits.json까지 실제로 이어진�
     });
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
 
-    // 빈 화면이면 헤더/빈 상태 두 군데에 '+ 추가'가 함께 뜰 수 있다(페이지네이션의 '다음'/'이전'과
+    // 빈 화면이면 헤더/빈 상태 두 군데에 '추가'가 함께 뜰 수 있다(페이지네이션의 '다음'/'이전'과
     // 같은 이유) — 아무 쪽이나 같은 동작이라 첫 번째로 충분하다.
-    await user.click((await screen.findAllByRole("button", { name: "+ 추가" }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: "추가" }))[0]);
     // app/prompts/router.py PromptCreateRequest.name = Field(min_length=1, max_length=120).
     expect(await screen.findByLabelText(/이름/)).toHaveAttribute("maxlength", "120");
   });
@@ -391,7 +391,7 @@ describe("등록 화면 maxLength가 fieldLimits.json까지 실제로 이어진�
     });
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
 
-    await user.click((await screen.findAllByRole("button", { name: "+ 추가" }))[0]);
+    await user.click((await screen.findAllByRole("button", { name: "추가" }))[0]);
     expect(await screen.findByLabelText(/이름/)).not.toHaveAttribute("maxlength");
   });
 });
