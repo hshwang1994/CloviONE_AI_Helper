@@ -25,8 +25,22 @@
 ## 2. 실행할 한 줄
 
 ```bash
-ssh -t cloviradmin@10.100.64.71 'sudo STAGE=$HOME/deploy/stage-new $HOME/deploy/stage-new/app-src/scripts/upgrade-clovirone-web-assistant.sh'
+ssh -t cloviradmin@10.100.64.71 'sudo env DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71 STAGE=$HOME/deploy/stage-new bash $HOME/deploy/stage-new/app-src/scripts/upgrade-clovirone-web-assistant.sh'
 ```
+
+> ⚠️ **`DNS_NAME` 과 `BIND_IP` 를 빼면 스크립트가 `exit 2` 로 즉시 멈춘다**(2026-08-18 확인).
+> 이 문서의 예전 한 줄에는 그 둘이 없어서 **그대로 붙여 넣으면 실패한다.** installer 가
+> 요구하는 설치처 고유값이고(다른 서버에서 그냥 돌리면 남의 이름으로 인증서를 만들고 없는
+> 주소에 바인딩하는 사고를 막으려고 일부러 기본값이 없다), 업그레이드는 **최초 설치와 같은
+> 값**을 넘겨야 한다. 위 값은 실제 서버의 nginx vhost 에서 읽은 것이다:
+>
+> ```bash
+> ssh cloviradmin@10.100.64.71 "grep -h 'server_name\|listen ' /etc/nginx/sites-available/clovirone-web-assistant"
+> #   listen 10.100.64.71:443 ssl;   server_name clovirone-ai.gooddi.lab;
+> ```
+>
+> `sudo env VAR=...` 를 쓰는 이유: sudo 의 `env_reset` 기본 정책에서 앞선 형태
+> (`sudo VAR=... cmd`)는 설정에 따라 값이 지워질 수 있는데, 그러면 위 `exit 2` 로 떨어진다.
 
 `-t` 라 sudo 가 비밀번호를 **직접 물어본다**. 비밀번호는 명령행·파일·환경변수·git 어디에도
 남지 않는다(저장소 불변 규칙 §4).

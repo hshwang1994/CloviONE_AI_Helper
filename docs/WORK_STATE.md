@@ -8182,8 +8182,25 @@ Supervisor가 이번 invocation부터 `CLOVIR_TEST_SUDO_PASSWORD` 환경변수�
 실행할 한 줄(`docs/DEPLOY_NOW.md` 와 같다):
 
 ```bash
-ssh -t cloviradmin@10.100.64.71 'sudo STAGE=$HOME/deploy/stage-new $HOME/deploy/stage-new/app-src/scripts/upgrade-clovirone-web-assistant.sh'
+ssh -t cloviradmin@10.100.64.71 'sudo env DNS_NAME=clovirone-ai.gooddi.lab BIND_IP=10.100.64.71 STAGE=$HOME/deploy/stage-new bash $HOME/deploy/stage-new/app-src/scripts/upgrade-clovirone-web-assistant.sh'
 ```
+
+⚠️ **`DNS_NAME`/`BIND_IP` 를 빼면 `exit 2` 로 즉시 멈춘다**(2026-08-18 실측). `DEPLOY_NOW.md`
+의 예전 한 줄에 그 둘이 없어서 그대로 붙여 넣으면 실패했다 — 문서도 함께 고쳤다.
+값은 실서버 nginx vhost 에서 읽었다(`server_name clovirone-ai.gooddi.lab`,
+`listen 10.100.64.71:443`).
+
+### 배포 전 실측 상태 (2026-08-18, sudo 없이 확인)
+
+| 항목 | 상태 |
+|---|---|
+| 서비스 5종 | `clovirone-web-assistant` · `clovirone-web-worker` · `clovirone-web-worker-conversational` · `clovirone-privhelper` · `nginx` **전부 active** |
+| `/healthz` `/readyz` | 200 (`ticket_source: notion_cache`) |
+| 배포된 마이그레이션 | **`0059` 까지** (0060·0061 미적용) |
+| 스테이징 | `~/deploy/stage-new/` 에 `0060`·`0061` 포함, 실행 권한 있음 |
+
+⚠️ 유닛 이름이 `clovirone-web`/`clovirone-worker` 가 **아니다**. systemd 는 없는 유닛에도
+`inactive` 라고 답하므로, 틀린 이름으로 물으면 "서비스가 죽었다" 로 오독하게 된다.
 
 끝나면 `bash scripts/verify_deploy.sh` → `DEPLOY_VERIFY_OK`.
 
