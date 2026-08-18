@@ -25,6 +25,9 @@ def _add_doc(db, pid, title, **over):
         if over.get(f) is not None:
             v = over[f]
             over[f] = join_names(v if isinstance(v, list) else [v])
+    # 소속(0060)은 문서 자신이 든다. 이 파일이 검사하는 것은 소속 게이트가 아니라
+    # 편집·목록 동작이므로 조직 공통으로 둔다 — 소속을 안 주면 전역 관리자만 보인다.
+    over.setdefault("owner_kind", "organization")
     row = DocumentCache(notion_page_id=pid, title=title, synced_at=utcnow(), **over)
     db.add(row)
     db.commit()

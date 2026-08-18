@@ -367,6 +367,10 @@ NOTION_ENDPOINTS = [
     ("tickets_team_active", "/api/tickets/team?active=true"),
     ("tickets_team_all", "/api/tickets/team?active=false"),
     ("tickets_meta", "/api/tickets/meta"),
+    # ⚠️ `/api/tickets/projects` 는 0060 부터 **Portal 을 읽는다**(외부 소스가 아니다) —
+    # 프로젝트는 티켓의 소속을 정하므로 그 목록의 정본이 외부일 수 없다. 그래서 이 경로만
+    # `query_error` 시나리오에서도 `ok: true` 다. 골든이 그 사실을 그대로 적고 있고, 만약
+    # 여기에 `error` 가 다시 나타나면 소스 판정이 되돌아간 것이다.
     ("tickets_projects", "/api/tickets/projects"),
     ("tickets_detail", f"/api/tickets/{DETAIL_PAGE_ID}"),
     ("sprint_summary", "/api/sprint/summary"),

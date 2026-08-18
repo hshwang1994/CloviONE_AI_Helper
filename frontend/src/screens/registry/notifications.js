@@ -45,18 +45,29 @@ function reachableAdminTarget(r, ctx) {
   return ADMIN_VIEW_ROLES.includes((ctx && ctx.role) || "") && canReachObjRoute(t, ctx && ctx.role);
 }
 
-export const NOTIFICATIONS_SCREEN = {
-  notifications: {
-    key: "notifications",
+/* 알림 화면 정의는 **하나**이고 audience 로 두 벌을 만든다 (0060 §23).
+ *
+ * 사용자 알림과 관리자 알림은 경로부터 분리돼 있다(`/notifications` vs
+ * `/admin-notifications`) — 같은 canonical path 를 두 콘솔이 공유하면 어느 쪽에서 눌러도
+ * 상대 콘솔로 튕기기 때문이다(경로가 콘솔을 정한다, `navConfig.js::USER_SEG_PATHS`).
+ *
+ * 그렇다고 화면 정의를 두 벌 적지는 않는다. 열·액션·빈 상태가 전부 같고, 다른 것은
+ * "어느 audience 를 읽는가" 와 제목뿐이다 — 두 벌로 적으면 한쪽만 고쳐진다.
+ */
+function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
+  return {
+    key,
     /* 캐시 주소는 화면 키와 다르다 — 벨(`["noti","unread"]`)·팝오버 목록(`["noti","list"]`)과
        같은 뿌리를 쓴다 (PF9). 그래야 어느 쪽에서 읽음 처리를 하든 한 번의 무효화로 셋이
        함께 갱신된다. 정본은 app/notification-keys.js 다. */
-    cacheKey: NOTI_SCREEN,
-    area: "운영", title: "알림", endpoint: "/api/notifications",
-    help: "나에게 온 알림을 확인합니다.",
+    cacheKey: [...NOTI_SCREEN, audience],
+    area, title,
+    // audience 를 서버에 넘긴다 — 걸러 주는 쪽은 서버다(app/notifications/router.py).
+    // 화면에서 필터링하면 total·안 읽음 수가 전부 어긋난다.
+    endpoint: `/api/notifications?audience=${audience}`,
+    help,
     emptyTitle: "새 알림이 없습니다",
-    // 일반 사용자(role=user)는 승인/작업 실패 알림을 거의 받지 않는다 → 관리자 중심 예시를 보여주지 않는다(알림 벨과 동일).
-    emptyHelp: (role) => role === "user" ? "나에게 온 알림이 여기에 표시됩니다." : "승인, 작업 실패 등 나에게 온 알림이 여기에 표시됩니다.",
+    emptyHelp,
     paginated: true,
     // 목록 응답이 이미 unread 총합을 함께 돌려준다(app/notifications/router.py) — 벨 팝오버의
     // '안 읽음 N'과 같은 값을 이 화면에서도 그대로 보여준다(행마다 배지를 세지 않아도 되게).
@@ -122,5 +133,29 @@ export const NOTIFICATIONS_SCREEN = {
           !!(r.related_object_type && OBJ_ROUTE[r.related_object_type]) && !(OBJ_ID_PARAM[r.related_object_type] && r.related_object_id),
         navigate: (r) => OBJ_ROUTE[r.related_object_type] },
     ],
-  },
+  };
+}
+
+/** 사용자 콘솔의 알림 — **내 일**에 대한 것만. */
+export const NOTIFICATIONS_SCREEN = {
+  notifications: notificationsScreen({
+    key: "notifications",
+    audience: "user",
+    area: "내 업무",
+    title: "알림",
+    help: "티켓, 문서, 댓글, 멘션처럼 나에게 온 알림입니다.",
+    emptyHelp: () => "나에게 온 알림이 여기에 표시됩니다.",
+  }),
+};
+
+/** 관리자 콘솔의 알림 — **관리 조치가 필요한 사건**만(백업 실패·계정 잠금·러너 장애 등). */
+export const ADMIN_NOTIFICATIONS_SCREEN = {
+  "admin-notifications": notificationsScreen({
+    key: "admin-notifications",
+    audience: "admin",
+    area: "운영",
+    title: "관리 알림",
+    help: "백업 실패, 계정 잠금, 러너 장애처럼 관리 조치가 필요한 알림입니다. 개인 알림은 사용자 화면에 있습니다.",
+    emptyHelp: () => "관리 조치가 필요한 알림이 여기에 표시됩니다.",
+  }),
 };

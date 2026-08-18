@@ -11,11 +11,17 @@
 않고, **조건을 조회 자체에 붙인다** — 판정을 빠뜨릴 자리가 애초에 없어야 한다
 (`app/jobs/repository.py::get_in_scope` 와 같은 관용).
 
-## 부서가 없는 프로젝트는 부서 범위에서 안 보인다
+## 부서가 없는 프로젝트는 **조직 공통**이다 (0060 에서 바뀐 규칙)
 
-`dept_id IS NULL` 인 프로젝트는 `IN (...)` 에 걸리지 않는다. 이건 사고가 아니라
-`app/core/scope.py::apply_user_scope` 가 부서 미배정 사용자에게 하는 것과 **같은 규칙**이다:
-부서 관리자의 화면이지 전사 화면이 아니다. 부서 없는 프로젝트는 전역 관리자가 본다.
+예전에는 `dept_id IS NULL` 인 프로젝트가 `IN (...)` 에 안 걸려 부서 범위 사용자에게
+통째로 사라졌고, 그것을 "부서 관리자의 화면이지 전사 화면이 아니다" 로 정당화했다.
+그런데 실제로 부서를 하나 고를 수 없는 프로젝트가 있다 — 전사 인프라 개선처럼 조직 전체가
+함께 쓰는 것들이다. 그런 프로젝트에 부서를 억지로 하나 붙이면 그 부서 것으로 잘못 좁혀지고,
+안 붙이면 아무에게도 안 보인다.
+
+그래서 `dept_id IS NULL` + `org_id` 있음을 **조직 공통 소유**로 읽는다
+(`app/core/ownership.py::for_project`). 그 조직 사람은 부서와 무관하게 볼 수 있고,
+조직조차 없는 행만 판정 불가(전역 관리자 전용)로 남는다.
 """
 
 from __future__ import annotations
@@ -23,7 +29,8 @@ from __future__ import annotations
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.core.scope import Scope, scope_filter
+from app.core import ownership
+from app.core.scope import Scope
 from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
@@ -34,13 +41,14 @@ def scope_clause(scope: Scope):
     """범위 안 프로젝트를 고르는 조건. 전역이면 ``None``(= 조건 없음).
 
     ``None`` 규약은 `core/scope.py::scope_filter` 그대로다 — 조건을 빼먹은 코드와 '전역이라
-    조건이 없는' 코드를 눈으로 구별하기 위해서다. 여기서 `true()` 를 돌려주면 두 상태가
-    똑같이 생긴다.
+    조건이 없는' 코드를 눈으로 구별하기 위해서다.
 
-    축은 조직과 **부서** 둘이다. 프로젝트는 게시판(조직만)과 달리 부서가 실제 소유 단위라,
-    부서 관리자가 남의 팀 프로젝트의 목표·일정·건강도를 보면 안 된다.
+    **판정 자체는 여기 없다.** `app/core/ownership.py::project_scope_clause` 한 곳에 있고
+    이 함수는 그것을 부른다 — 티켓과 프로젝트 문서가 자기 가시성을 그 함수에서 그대로
+    물려받기 때문이다. 여기서 조건을 따로 적으면 "프로젝트는 보이는데 그 티켓은 안 보인다"
+    가 다시 생긴다(이 저장소가 네 번 반복한 실수의 정확한 모양).
     """
-    return scope_filter(scope, org_column=Project.org_id, dept_column=Project.dept_id)
+    return ownership.project_scope_clause(scope)
 
 
 def apply_scope(stmt: Select, scope: Scope) -> Select:

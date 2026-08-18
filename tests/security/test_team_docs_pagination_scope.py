@@ -42,8 +42,17 @@ def interleaved_docs(db, make_user):
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
 
-    for i, nid in zip(range(1, 7), [NID_THEIRS, NID_MINE, NID_THEIRS, NID_MINE, NID_THEIRS, NID_MINE]):
-        db.add(DocumentCache(notion_page_id=f"pg{i}", title=f"{i}-문서", author_notion_ids=nid))
+    # 소속(0060)이 팀을 정한다 — 작성자는 표시용이다. 남/우리를 번갈아 심어 페이지
+    # 경계에서 범위 필터가 자르는 순서를 그대로 검사한다.
+    owners = [theirs, mine, theirs, mine, theirs, mine]
+    for i, (nid, dept) in enumerate(
+        zip([NID_THEIRS, NID_MINE, NID_THEIRS, NID_MINE, NID_THEIRS, NID_MINE], owners),
+        start=1,
+    ):
+        db.add(DocumentCache(
+            notion_page_id=f"pg{i}", title=f"{i}-문서", author_notion_ids=nid,
+            owner_kind="department", owner_dept_id=dept.id,
+        ))
     db.commit()
 
 

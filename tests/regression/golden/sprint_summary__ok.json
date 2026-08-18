@@ -71,6 +71,7 @@
           "project_names": [
             "알파 프로젝트"
           ],
+          "project_uid": null,
           "start": null,
           "status": "완료",
           "tid": 102,
@@ -107,6 +108,7 @@
           "project_names": [
             "알파 프로젝트"
           ],
+          "project_uid": null,
           "start": null,
           "status": "완료",
           "tid": 102,
@@ -124,6 +126,10 @@
     }
   ],
   "configured": true,
+  "department": {
+    "options": [],
+    "selected": null
+  },
   "developers": [
     {
       "act_done": 2.0,
@@ -225,6 +231,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "계획",
       "tid": 104,
@@ -262,6 +269,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "계획",
       "tid": 104,

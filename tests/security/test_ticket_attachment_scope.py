@@ -41,17 +41,23 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 def notion(fake_http) -> FakeNotionTasksDB:
     return FakeNotionTasksDB(
         rows=[
-            task_row(page_id=MINE, tid=1, title="우리팀 티켓", status="진행", people=[NID_MINE]),
-            task_row(page_id=THEIRS, tid=2, title="남의팀 티켓", status="진행", people=[NID_THEIRS]),
-            task_row(page_id=GHOST, tid=3, title="담당자 미해석", status="진행", people=["notion-x"]),
+            task_row(page_id=MINE, tid=1, title="우리팀 티켓", status="진행",
+                     people=[NID_MINE], project_ids=["px-ours"]),
+            task_row(page_id=THEIRS, tid=2, title="남의팀 티켓", status="진행",
+                     people=[NID_THEIRS], project_ids=["px-theirs"]),
+            # 담당자를 앱 계정으로 해석할 수 없는 티켓. 0060 부터 그 사실은 가시성과
+            # 무관하고, 소속(우리 팀 프로젝트)이 판정한다.
+            task_row(page_id=GHOST, tid=3, title="담당자 미해석", status="진행",
+                     people=["notion-x"], project_ids=["px-ours"]),
         ],
-        projects=[project_row(page_id="p1", name="알파")],
+        projects=[project_row(page_id="px-ours", name="우리 프로젝트"),
+                  project_row(page_id="px-theirs", name="남의 프로젝트")],
         projects_db=DEFAULT_PROJECTS_DB,
     ).install(fake_http)
 
 
 @pytest.fixture()
-def world(client, settings, notion, make_user, db, app):
+def world(client, settings, notion, make_user, make_project, db, app):
     """부서가 갈린 두 사용자 + 세 티켓 + 각 티켓에 붙은 첨부.
 
     첨부는 업로드 API 가 아니라 직접 만든다 — 업로드는 편집 권한(`ensure_can_edit`)에 먼저
@@ -76,6 +82,11 @@ def world(client, settings, notion, make_user, db, app):
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
+
+    # Portal 프로젝트를 **동기화 전에** 만든다 — 티켓 소속은 프로젝트가 정하고,
+    # 그 해석은 동기화 시점에 일어난다(app/tickets/project_link.py).
+    make_project(name="우리 프로젝트", dept=mine_dept, external_id="px-ours")
+    make_project(name="남의 프로젝트", dept=theirs_dept, external_id="px-theirs")
 
     with app.state.session_factory() as s:
         sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
@@ -158,16 +169,21 @@ def test_the_uploader_cannot_delete_an_attachment_that_left_their_scope(
 
 # ── 오탐 방지: 좁히면서 할 수 있던 일을 뺏지 않는다 ────────────────────────────────
 
-def test_an_attachment_on_a_ticket_nobody_owns_stays_open(client, login_as, world):
-    """**미할당 트리아지에 보이는 티켓의 첨부는 열려야 한다.** 목록에는 있는데 첨부만 안 열리면
-    그건 보안이 아니라 고장이다."""
+def test_an_attachment_on_a_ticket_with_an_unmapped_assignee_stays_open(client, login_as, world):
+    """**목록에 보이는 티켓의 첨부는 열려야 한다.** 목록에는 있는데 첨부만 안 열리면
+    그건 보안이 아니라 고장이다.
+
+    이 티켓은 담당자를 앱 계정으로 해석할 수 없는 경우다. 0060 부터 그 사실은 가시성과
+    무관하고(소속은 프로젝트가 정한다) 우리 팀 프로젝트에 붙어 있으므로 목록에 보인다 —
+    보이는 이상 첨부도 열려야 한다는 결합은 그대로다.
+    """
     login_as("user", email="ta-me@goodmit.co.kr")
-    listed = {t["id"] for t in client.get("/api/tickets/unassigned").json()["tickets"]}
-    assert GHOST in listed, "이 테스트의 전제(트리아지에 보인다)가 깨졌다"
+    listed = {t["id"] for t in client.get("/api/tickets/team").json()["tickets"]}
+    assert GHOST in listed, "이 테스트의 전제(팀 목록에 보인다)가 깨졌다"
 
     r = client.get(_url(world[GHOST]))
     assert r.status_code == 200, (
-        f"트리아지에 보이는 티켓의 첨부가 404 다({r.status_code}) — 목록엔 있는데 못 여는 화면"
+        f"목록에 보이는 티켓의 첨부가 404 다({r.status_code}) — 목록엔 있는데 못 여는 화면"
     )
     assert r.content == PNG
 

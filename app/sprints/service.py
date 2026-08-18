@@ -51,7 +51,7 @@ def _by_assignee(db: Session, period_tickets, developers: list[dict]) -> list[di
     ]
 
 
-def _visible_ids(db: Session, viewer):
+def _visible_ids(db: Session, viewer, scope=None):
     """이 사람에게 보이는 사용자 집합. 범위가 안 걸리면 `None`(= 제한 없음).
 
     UA-02: 예전엔 `scope.is_dept`일 때만 걸러 org 범위 관리자는 그대로 통과했다(원
@@ -61,16 +61,29 @@ def _visible_ids(db: Session, viewer):
     """
     if viewer is None:
         return None
-    from app.core.scope import build_scope, visible_user_ids
+    from app.core.scope import visibility_scope, visible_user_ids
 
-    return visible_user_ids(db, build_scope(db, viewer))
+    return visible_user_ids(db, scope if scope is not None else visibility_scope(db, viewer))
+
+
+# 부서 선택 판정은 **공용 모듈 하나**다 (0060 §32). 스프린트만 쓰던 시절에는 여기 있었는데,
+# 프로젝트·문서·팀 티켓 목록도 같은 판정이 필요해지면서 갈라질 자리가 생겼다 — 그중 하나가
+# 범위를 넓게 잡아도 화면은 정상으로 보인다(목록이 더 많이 나올 뿐이다).
+from app.org.context import department_context  # noqa: E402  (재수출 — 기존 호출부 유지)
 
 
 def build_sprint_summary(
     db: Session, outbound, settings, *, start: str, end: str, today: date, repo=None,
-    viewer=None,
+    viewer=None, department_id: str | None = None,
 ) -> dict:
-    """스프린트 회의 한 판에 필요한 것: 담당자별 집계 + 담당자별 티켓 + 배분 대상(미할당) + 계획 티켓."""
+    """스프린트 회의 한 판에 필요한 것: 담당자별 집계 + 담당자별 티켓 + 배분 대상(미할당) + 계획 티켓.
+
+    `department_id` 는 **화면 Context** 다(§18) — "지금 어느 팀 스프린트를 보는가". 없으면
+    보는 사람의 소속 부서, 그것도 없으면 조회 범위 전체다. 범위 검증은 서버가 한다
+    (`department_context`) — 프런트 선택기만으로 막으면 API 한 번에 뚫린다.
+    """
+    context = department_context(db, viewer, department_id)
+    scope = context["scope"]
     # `viewer` 를 주면 **그 사람의 팀**으로 좁힌다 (1순위 유출 #3). 예전에는 포탈 전체였다 -
     # 즉 담당자별 생산성이 전사 공개였다. 같은 성격의 `dev-monthly` 는 민감 역할 게이트 +
     # 범위를 둘 다 지나는데 이쪽은 role 게이트조차 없었다.
@@ -80,6 +93,7 @@ def build_sprint_summary(
             db, outbound, settings, start=start, end=end, repo=repo
         ),
         viewer,
+        scope,
     )
     # 담당자 목록도 좁힌다. `build_period_report` 는 **활성 사용자 전원**을 0건으로라도
     # 넣는데(월간 리포트가 "이 사람은 이번 달 한 건도 없다" 를 보여야 하므로), 스프린트가
@@ -87,21 +101,27 @@ def build_sprint_summary(
     # `dev-monthly` 는 이 인자를 이미 쓰고 있었다 — 두 화면이 같은 코어를 다르게 부르고 있었다.
     report = reports_service.build_period_report(
         db, outbound, settings, start=start, end=end, today=today, tickets=period_tickets,
-        visible_user_ids=_visible_ids(db, viewer),
+        visible_user_ids=_visible_ids(db, viewer, scope),
     )
-    # 배분 대상(미할당)은 **좁히지 않는다** - 포탈 전용 버킷이고, 스프린트 회의에서
-    # "이건 누가 가져갈까" 를 정하는 자리다. 좁히면 그 대화 자체가 불가능해진다.
+    # 배분 대상(미할당)도 **범위를 건다** (0060). 예전에는 "포탈 전용 버킷이라 좁히면
+    # 회의가 불가능하다" 며 일부러 안 걸었는데, 그 예외 하나가 스프린트 화면을 전 포털
+    # 미할당 티켓의 우회 열람 경로로 만들었다. 이제 미할당은 "프로젝트는 있고 담당자만
+    # 없는 일" 이라 그 프로젝트를 볼 수 있는 팀이면 회의에서 그대로 배분할 수 있다 —
+    # 좁혀도 대화가 가능하고, 오히려 남의 팀 일이 섞이지 않아 회의가 정확해진다.
     unassigned = tickets_service.list_unassigned_tickets(
-        db, outbound, settings, active_only=True, repo=repo
+        db, outbound, settings, active_only=True, repo=repo, viewer=viewer, scope=scope
     )
     planned = [
         t for t in tickets_service.list_team_tickets(
-            db, outbound, settings, active_only=False, repo=repo, viewer=viewer
+            db, outbound, settings, active_only=False, repo=repo, viewer=viewer, scope=scope
         )
         if t.get("status") == STATUS_PLANNED
     ]
     return {
         "window": {"start": start, "end_exclusive": end},
+        # 화면이 "지금 어느 팀 스프린트인가" 를 말하고, 고를 수 있는 부서도 함께 준다 —
+        # 선택지를 프런트가 스스로 계산하면 서버 검증과 갈라진다.
+        "department": {"selected": context["selected"], "options": context["options"]},
         "team": report["team"],
         "developers": report["developers"],
         # 담당자별 티켓 리스트(회의 진행용). developers 와 같은 순서·같은 이름 키.

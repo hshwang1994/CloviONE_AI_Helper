@@ -37,6 +37,8 @@ from app.core.models_base import join_names
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.org.constants import DEFAULT_ORG_ID
 from app.tickets.models import (
+    PROJECT_LINK_MISSING,
+    PROJECT_LINK_OK,
     SYNC_OK,
     SYNC_STATE_ID,
     TicketCache,
@@ -75,9 +77,12 @@ def _row(
     difficulty: str | None = None,
     category: str | None = None,
     projects: tuple[str, ...] = (),
+    project_uid: str | None = None,
     assignees: tuple[str, ...] = (),
     missing_at: datetime | None = None,
 ) -> TicketCache:
+    """`projects` 는 **외부 relation id**(필터 시험용)이고, `project_uid` 는 해석된
+    **Portal 프로젝트 id**(범위 시험용)다. 0060 에서 범위를 정하는 것은 후자다."""
     row = TicketCache(
         id=uid,
         notion_page_id=page_id if page_id is not None else f"page-{uid}",
@@ -91,6 +96,8 @@ def _row(
         difficulty=difficulty,
         category=category,
         project_ids=join_names(list(projects)),
+        project_uid=project_uid,
+        project_link=PROJECT_LINK_OK if project_uid else PROJECT_LINK_MISSING,
         project_names="",
         assignee_notion_ids=join_names(list(assignees)),
         notion_missing_at=missing_at,
@@ -116,6 +123,13 @@ def _mirror_ready(db, count: int) -> None:
     state.truncated = False
     state.error = None
     db.commit()
+
+
+def _project_of(db, uid: str) -> str | None:
+    """이미 심어 둔 티켓과 **같은 프로젝트**에 붙인다 — 새 프로젝트를 만들면 그 티켓만
+    다른 소속이 되어, 확인하려던 것과 다른 이유로 목록에서 빠질 수 있다."""
+    row = db.get(TicketCache, uid)
+    return row.project_uid if row is not None else None
 
 
 def _ids(payload) -> list[str]:
@@ -144,6 +158,10 @@ def me(db, make_user, settings):
     # 접두사가 겹치는 두 번째 소스 id 는 **아무 앱 사용자에게도** 붙이지 않는다.
     # 붙이면 그 티켓이 미할당 버킷에서 빠져 오탐 시험의 전제가 바뀐다.
     db.commit()
+    # 시험이 프로젝트를 매달 자리. 부서 객체를 그대로 돌려주면 세션이 닫힌 뒤 접근에서
+    # 터지므로 id 만 얹는다.
+    user.mine_dept_id = mine.id
+    user.theirs_dept_id = theirs.id
     return user
 
 
@@ -357,26 +375,48 @@ def test_total_is_the_count_after_filters_not_before(client, login_as, catalog):
 # ── 범위 판정은 그대로 걸린다 ─────────────────────────────────────────────────
 
 @pytest.fixture()
-def scoped(db, me):
-    _row(db, uid="s-mine", title="우리팀", assignees=(NID_ME,), due="2026-07-15", tid=1)
-    _row(db, uid="s-mate", title="동료", assignees=(NID_MATE,), due="2026-07-16", tid=2)
-    _row(db, uid="s-theirs", title="남의팀", assignees=(NID_OTHER,), due="2026-07-17", tid=3)
-    _row(db, uid="s-both", title="같이", assignees=(NID_ME, NID_OTHER), due="2026-07-18", tid=4)
-    _row(db, uid="s-ghost", title="미해석", assignees=(NID_GHOST,), due="2026-07-19", tid=5)
+def scoped(db, me, make_project):
+    """범위 표본 — **프로젝트가 소속을 정한다** (0060 §11).
+
+    담당자 축이 아니다. 우리 팀 프로젝트의 티켓은 담당자가 누구든(해석이 안 되어도) 우리
+    팀에 보이고, 남의 팀 프로젝트의 티켓은 우리 담당자가 끼어 있어도 안 보인다.
+    """
+    ours = make_project(name="우리팀 프로젝트", dept=me.mine_dept_id)
+    theirs = make_project(name="남의팀 프로젝트", dept=me.theirs_dept_id)
+    _row(db, uid="s-mine", title="우리팀", assignees=(NID_ME,), due="2026-07-15", tid=1,
+         project_uid=ours.id)
+    _row(db, uid="s-mate", title="동료", assignees=(NID_MATE,), due="2026-07-16", tid=2,
+         project_uid=ours.id)
+    _row(db, uid="s-theirs", title="남의팀", assignees=(NID_OTHER,), due="2026-07-17", tid=3,
+         project_uid=theirs.id)
+    _row(db, uid="s-both", title="같이", assignees=(NID_ME, NID_OTHER), due="2026-07-18", tid=4,
+         project_uid=ours.id)
+    _row(db, uid="s-ghost", title="미해석", assignees=(NID_GHOST,), due="2026-07-19", tid=5,
+         project_uid=ours.id)
+    # 소속 자체를 해석 못 한 티켓 — 전역 관리자 말고는 아무에게도 안 보인다(fail-closed).
+    _row(db, uid="s-orphan", title="소속없음", assignees=(NID_ME,), due="2026-07-20", tid=6)
     db.commit()
-    _mirror_ready(db, 5)
+    _mirror_ready(db, 6)
 
 
 def test_team_list_still_stops_at_the_team_boundary(client, login_as, scoped):
-    """필터·페이지를 넣어도 남의 팀 티켓은 안 나온다 (1순위 유출 #1)."""
+    """필터·페이지를 넣어도 남의 팀 티켓은 안 나온다 (1순위 유출 #1).
+
+    0060 에서 경계를 긋는 것은 **프로젝트**다. 그래서 확인할 것이 하나 늘었다: 담당자가
+    누구인지는 목록에 아무 영향이 없어야 한다.
+    """
     login_as("user", email="tf-me@goodmit.co.kr")
     body = client.get("/api/tickets/team?active=false&page_size=100").json()
     titles = {t["title"] for t in body["items"]}
 
     assert "우리팀" in titles and "동료" in titles
     assert "남의팀" not in titles, "범위 판정이 필터·페이지 뒤에서 새고 있다"
-    assert "같이" in titles, "두 팀이 함께 맡은 티켓이 한쪽에서 사라졌다"
-    assert "미해석" not in titles, "담당자를 해석 못 하는 티켓은 부서 화면이 아니라 트리아지 몫이다"
+    assert "같이" in titles, "우리 팀 프로젝트 티켓이 담당자 때문에 사라졌다"
+    assert "미해석" in titles, (
+        "담당자를 앱 사용자로 해석 못 했다는 이유로 우리 팀 프로젝트 티켓이 사라졌다 — "
+        "그건 소속 문제가 아니라 매핑 문제이고, 진단 화면이 다룬다(0060 §12)"
+    )
+    assert "소속없음" not in titles, "소속을 판정할 수 없는 티켓이 팀 목록에 새어 나왔다"
     assert body["total"] == len(body["items"]), (
         "total 이 범위 판정 앞의 수다 - 화면이 없는 페이지를 그리게 된다"
     )
@@ -386,29 +426,41 @@ def test_a_status_filter_cannot_widen_the_team_boundary(client, login_as, scoped
     """필터를 걸어도 범위가 넓어지지 않는다 — 조건이 OR 로 조립되면 여기서 터진다."""
     login_as("user", email="tf-me@goodmit.co.kr")
     body = client.get("/api/tickets/team?active=false&status=진행&page_size=100").json()
-    assert {t["title"] for t in body["items"]} == {"우리팀", "동료", "같이"}
+    assert {t["title"] for t in body["items"]} == {"우리팀", "동료", "같이", "미해석"}
 
 
-def test_unassigned_bucket_still_holds_every_ticket_the_app_cannot_resolve(
-    client, login_as, scoped
-):
-    """미할당 트리아지의 성질 — 담당자를 앱 사용자로 **해석할 수 없는 티켓 전부.**
+def test_unassigned_means_no_assignee_not_an_unresolved_one(client, login_as, scoped, db):
+    """미할당 = **담당자가 없다**. 담당자 해석 실패는 미할당이 아니다 (0060 §12).
 
-    페이지네이션을 넣으면서 이 판정이 SQL 로 옮겨 갔다면 접두사 충돌로 조용히 빠지는 티켓이
-    생긴다. 그래서 판정은 파이썬 집합으로 남겼고, 그 성질을 여기서 고정한다.
+    예전에는 둘을 같은 버킷에 넣었다. 그래서 "이 일을 아무도 안 맡고 있다"(사람이 집어
+    가야 함)와 "맡고 있는데 앱이 그 사람을 못 알아본다"(관리자가 매핑을 고쳐야 함)가
+    한 화면에 섞였다. 둘은 **다른 사람이 다른 행동을 해야 하는** 다른 사건이고, 섞이면
+    이미 담당자가 있는 티켓을 다른 사람이 집어 가는 일이 실제로 벌어진다.
+
+    매핑 실패는 이제 정합성 오류로 진단 화면(`/api/admin/integrity`)이 목록으로 보여 준다.
     """
+    _row(db, uid="s-none", title="진짜 미할당", assignees=(), due="2026-07-21", tid=7,
+         project_uid=_project_of(db, "s-mine"))
+    db.commit()
+    _mirror_ready(db, 7)
+
     login_as("user", email="tf-me@goodmit.co.kr")
     body = client.get("/api/tickets/unassigned?page_size=100").json()
     ids = set(_ids(body))
-    assert "page-s-ghost" in ids, "해석 안 되는 담당자를 가진 티켓이 트리아지에서 빠졌다"
+    assert "page-s-none" in ids, "담당자가 없는 티켓이 미할당 버킷에 없다"
+    assert "page-s-ghost" not in ids, (
+        "담당자가 있는데 해석만 실패한 티켓이 미할당으로 분류됐다 — 남이 집어 갈 수 있다"
+    )
     assert "page-s-mine" not in ids and "page-s-both" not in ids
     assert body["total"] == len(body["items"])
 
 
-def test_unassigned_bucket_pages_without_repeating(client, login_as, db, me):
+def test_unassigned_bucket_pages_without_repeating(client, login_as, db, me, make_project):
     """미할당은 파이썬 판정 뒤에 자른다 — 그 경로도 페이지가 겹치면 안 된다."""
+    project = make_project(name="페이징 프로젝트", dept=me.mine_dept_id)
     for i in range(5):
-        _row(db, uid=f"u-{i}", title=f"미할당 {i}", assignees=(NID_GHOST,), due=None, tid=None)
+        _row(db, uid=f"u-{i}", title=f"미할당 {i}", assignees=(), due=None, tid=None,
+             project_uid=project.id)
     db.commit()
     _mirror_ready(db, 5)
     login_as("user", email="tf-me@goodmit.co.kr")

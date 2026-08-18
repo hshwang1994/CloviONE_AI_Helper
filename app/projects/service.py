@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.db import is_write_conflict
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core import ownership
 from app.core.models_base import split_names
 from app.core.scope import Principal
 from app.org.constants import DEFAULT_ORG_ID
@@ -87,10 +88,27 @@ def get_scoped_project_or_404(
     `db.get(Project, id)` 로 먼저 꺼내 놓고 나중에 판정하지 않는다 — 조건을 조회 자체에
     붙여 두면 새로 생긴 경로가 판정을 빠뜨릴 자리가 없다(`repository.get_in_scope`).
     """
-    project = repository.get_in_scope(db, project_id, principal.scope)
+    project = repository.get_in_scope(db, project_id, principal.visibility)
     if project is None:
         raise NotFoundError(NOT_FOUND_MESSAGE)
     return project
+
+
+def ensure_project_manageable(project: Project, principal: Principal) -> None:
+    """프로젝트 **자체**를 고칠 수 있는가 — 수정·보관·삭제.
+
+    조회 범위(`visibility`)가 아니라 관리 범위(`management`)를 본다. A-1 부서 관리자는
+    상위 A 부서의 프로젝트를 **볼 수 있다**(같은 줄기라 하위 팀도 상위 공통 업무를 봐야
+    한다). 그렇다고 그것을 고치거나 다른 부서로 옮길 수 있으면 위임이 아니라 승격이다.
+
+    프로젝트 **안의** 작업(마일스톤·티켓·주간 리포트)은 여기 걸리지 않는다 — 그건 협업이라
+    같은 줄기 안에서 되어야 한다. 여기 걸리는 것은 "이 프로젝트가 누구 것인가" 를 바꾸거나
+    없애는 결정뿐이다.
+
+    범위 밖은 **404**: 403 은 그 프로젝트가 존재한다는 사실을 알려 준다(모듈 규칙).
+    """
+    if not ownership.can_manage(ownership.for_project(project), principal):
+        raise NotFoundError(NOT_FOUND_MESSAGE)
 
 
 def ensure_dept_in_scope(db: Session, principal: Principal, dept_id: str | None) -> None:
@@ -115,15 +133,15 @@ def ensure_dept_in_scope(db: Session, principal: Principal, dept_id: str | None)
     dept = db.get(Department, dept_id)
     if dept is None:
         raise NotFoundError(NOT_FOUND_MESSAGE)
-    if principal.scope.is_global:
+    if principal.management.is_global:
         return
-    if principal.scope.is_org:
+    if principal.management.is_org:
         # 조직 범위 관리자는 자기 조직의 부서만 쓸 수 있다. 여기를 비워 두면 남의 조직
         # 부서를 단 프로젝트가 자기 조직에 생긴다 - 범위 탈출은 아니지만 조직도가 어긋난다.
-        if not principal.scope.org_id or dept.org_id != principal.scope.org_id:
+        if not principal.management.org_id or dept.org_id != principal.management.org_id:
             raise NotFoundError(NOT_FOUND_MESSAGE)
         return
-    if dept_id not in principal.scope.dept_ids:
+    if dept_id not in principal.management.dept_ids:
         raise NotFoundError(NOT_FOUND_MESSAGE)
 
 
@@ -400,7 +418,7 @@ def overall_weekly_report(
     그때 사용자는 어느 쪽도 믿지 않는다.
     """
     rows, total = repository.list_in_scope(
-        db, principal.scope, include_archived=False,
+        db, principal.visibility, include_archived=False,
         offset=0, limit=OVERALL_PROJECT_LIMIT,
     )
     keys = [key for key, _title in weekly.SECTION_TITLES]
@@ -458,7 +476,9 @@ def _dashboard_bucket(items: list[dict]) -> dict:
     return {"count": len(items), "items": items[:DASHBOARD_ITEM_LIMIT]}
 
 
-def project_dashboard(db: Session, principal: Principal, *, today: str) -> dict:
+def project_dashboard(
+    db: Session, principal: Principal, *, today: str, scope=None
+) -> dict:
     """프로젝트 화면 맨 위의 요약. **읽기 전용이고 아무것도 다시 계산하지 않는다.**
 
     진행률과 헬스는 이미 행에 캐시돼 있다(`recompute_progress`, `record_health_snapshot`).
@@ -476,7 +496,12 @@ def project_dashboard(db: Session, principal: Principal, *, today: str) -> dict:
     아직 안 잰 것이다. 0 점(재 봤더니 나쁨)과 뭉치면 한 번도 안 잰 프로젝트가 전부 빨갛게
     떠서 진짜 차질이 그 안에 묻힌다. 판정은 `health.trouble_reasons` 하나가 한다.
     """
-    rows = repository.summary_rows_in_scope(db, principal.scope)
+    # `scope` 는 화면이 고른 부서로 **좁힌** 범위다 (0060 §32). 없으면 그 사람의 조회
+    # 범위 전체다. 요약이 목록과 다른 범위를 세면 "전체 4 / 총 2건" 처럼 한 화면이 서로
+    # 다른 숫자를 말한다 — 사용자는 둘 중 하나가 거짓말이라고 읽는다.
+    rows = repository.summary_rows_in_scope(
+        db, scope if scope is not None else principal.visibility
+    )
 
     by_status = {status: 0 for status in PROJECT_STATUSES}
     trouble: list[dict] = []
@@ -520,7 +545,7 @@ def project_dashboard(db: Session, principal: Principal, *, today: str) -> dict:
             "status": milestone.status,
         }
         for milestone, project_id, project_name
-        in repository.overdue_milestones_in_scope(db, principal.scope, today=today)
+        in repository.overdue_milestones_in_scope(db, principal.visibility, today=today)
     ]
 
     return {

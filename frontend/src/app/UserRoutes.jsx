@@ -19,6 +19,7 @@ import { Search } from "../screens/Search.jsx";
 import { Profile } from "../screens/Profile.jsx";
 import { MyStats } from "../screens/MyStats.jsx";
 import { Activity } from "../screens/Activity.jsx";
+import { MyApprovals } from "../screens/MyApprovals.jsx";
 import { DisplaySettings } from "../screens/DisplaySettings.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 /* 알림 화면 설정만 들여온다 — `registry.js` 전체가 아니다 (PF7).
@@ -118,7 +119,11 @@ function UserRoutes() {
       <Route path="/team-docs/:id" element={<TeamDoc />} />
       <Route path="/games" element={<Games />} />
       <Route path="/games/:id" element={<Lazy><GameRoom /></Lazy>} />
+      {/* 알림 — **사용자 알림만** 보인다(0060). 관리자 알림은 다른 경로(`/admin-notifications`)
+          이고, 같은 canonical path 를 두 콘솔이 공유하지 않으므로 여기서 눌러도 탭이 안 바뀐다. */}
       <Route path="/notifications" element={<DataScreen config={NOTIFICATIONS_SCREEN.notifications} />} />
+      {/* 개인 결재함 — 위임받은 일반 사용자도 관리자 콘솔 없이 결재할 수 있어야 한다. */}
+      <Route path="/my-approvals" element={<MyApprovals />} />
       {/* 내 정보(계획서 Phase 6 사용자) — 프로필 셀프서비스·업무량 통계·활동 피드.
           역할과 무관하게 누구나 자기 것만 본다. 서버가 세션 사용자 기준으로만 답하므로
           라우트 역할 게이트가 필요 없다(가드가 없는 게 아니라 대상이 하나뿐이다). */}

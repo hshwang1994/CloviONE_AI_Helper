@@ -39,6 +39,17 @@ _SCHEMA = {
 }
 
 
+@pytest.fixture(autouse=True)
+def portal_project(make_project):
+    """이 파일의 모든 티켓이 붙어 있는 Portal 프로젝트(조직 공통).
+
+    0060 부터 티켓의 조직 소속은 프로젝트가 정한다 — 프로젝트가 없으면 그 티켓은
+    어느 범위에도 안 잡히는 유령이라 쓰기 경로가 404 로 막는다. 이 파일이 검사하려는
+    것은 그 게이트가 아니라 편집 동작이므로, 정상 소속을 미리 만들어 둔다.
+    """
+    return make_project(name="알파", external_id="px-1")
+
+
 def _page(*, pid="page-1", tid=42, title="샘플", status="진행", due="2026-09-01",
           people=None, est=2.0, diff="보통", prio="보통"):
     return {
@@ -56,7 +67,7 @@ def _page(*, pid="page-1", tid=42, title="샘플", status="진행", due="2026-09
             "티켓 ID": {"unique_id": {"number": tid}},
             "시작일": {"date": None},
             "대분류": {"rich_text": []},
-            "프로젝트": {"relation": []},
+            "프로젝트": {"relation": [{"id": "px-1"}]},
         },
     }
 
@@ -321,19 +332,30 @@ def test_category_reaches_notion(db, settings, make_user):
     assert ob.last_patch["properties"]["대분류"]["rich_text"][0]["text"]["content"] == "인프라"
 
 
-def test_project_is_set_and_can_be_detached(db, settings, make_user):
-    """빈 프로젝트는 '연결 해제'다 — relation 빈 목록이 그대로 나가야 한다.
+def test_project_can_be_moved_but_never_detached(db, settings, make_user, make_project):
+    """프로젝트는 **옮길 수는 있어도 뗄 수는 없다** (0060).
 
-    property_value 가 빈 목록을 None 으로 바꿔 버리면 저장소가 '적용 불가'로 400 을 던진다.
+    예전에는 빈 값이 '연결 해제' 였다. 티켓의 조직 소속을 프로젝트가 정하는 이상 그건
+    그 티켓을 어느 범위에도 안 잡히는 유령으로 만드는 동작이라 막는다 — 소속을 지우는
+    것과 옮기는 것은 다른 일이다.
+
+    옮기는 대상도 **내가 쓸 수 있는 프로젝트**여야 한다. 아니면 내 티켓을 남의 부서로
+    밀어 넣을 수 있고, 밀어 넣은 순간 내 범위에서 사라져 되돌릴 수도 없다.
     """
     me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
     _map(db, me, "notion-me")
+    target = make_project(name="베타", external_id="px-2")
     ob = _FakeOutbound(page=_page(people=["notion-me"]))
+
     service.update_ticket(db, ob, settings, me, page_id="page-1",
-                          changes={"project_id": "proj-abc"})
-    assert ob.last_patch["properties"]["프로젝트"] == {"relation": [{"id": "proj-abc"}]}
-    service.update_ticket(db, ob, settings, me, page_id="page-1", changes={"project_id": ""})
-    assert ob.last_patch["properties"]["프로젝트"] == {"relation": []}
+                          changes={"project_id": target.id})
+    assert ob.last_patch["properties"]["프로젝트"] == {"relation": [{"id": "px-2"}]}, (
+        "Portal 프로젝트 id 가 외부 relation id 로 번역되지 않았다"
+    )
+
+    with pytest.raises(ValidationAppError):
+        service.update_ticket(db, ob, settings, me, page_id="page-1",
+                              changes={"project_id": ""})
 
 
 def test_every_editable_schema_property_has_an_alias(db, settings):

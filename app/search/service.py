@@ -3,12 +3,15 @@
 응답은 **유형별 그룹**이다. 한 줄로 섞어 내보내면 화면이 유형을 다시 분류해야 하고, 그
 분류 규칙이 백엔드와 어긋나는 순간 아무도 모르게 결과가 사라진다.
 
-## 왜 후보를 넉넉히 뽑아서 파이썬에서 거르는가
+## 범위는 **후보를 자르기 전에** 건다 (Z6 / 0060 §25)
 
-부서 범위 판정은 '담당자 집합 중 한 명이라도 범위 안'이다(app/core/scope.py). 이걸 SQL 로
-쓰면 부서원 수만큼 LIKE 를 OR 로 잇게 되고, 규칙이 scope.py 와 여기 두 곳에 살게 된다 —
-두 곳에 살면 반드시 갈라진다. 코퍼스가 수천 건 규모라 후보 상한(`CANDIDATE_LIMIT`)만큼
-뽑아 `any_assignee_visible` 로 거르는 편이 단순하고 규칙이 한 곳에 남는다.
+판정은 `app/search/scoping.py` 가 `app/core/ownership.py` 의 함수 하나로 한다 — 문서
+목록이 쓰는 그 함수다. 여기서 2차 판정을 하지 않는다: 규칙이 두 곳에 살면 반드시 갈라지고,
+갈라지는 방향 하나는 유출이다.
+
+상한(`CANDIDATE_LIMIT`) **앞에서** 걸어야 하는 이유는 따로 있다. 범위 밖 행이 상한을 채우면
+내 범위 결과가 한 건도 안 남는데, 화면에는 "결과 없음 + truncated 배지" 로만 보인다 —
+오류가 아니라서 아무도 신고하지 않는다.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from app.search.models import (
     SEARCH_KINDS,
     SearchDocument,
 )
-from app.search.scoping import owner_gate, row_visible, sql_clause
+from app.search.scoping import sql_clause
 
 logger = logging.getLogger("app.search")
 
@@ -121,7 +124,7 @@ def search(
     # 유형 게이트와 범위. **후보를 자르기 전에** 걸어야 하는 조건들이다 (Z6) —
     # 두 질의(FTS 후보 뽑기, LIKE 폴백)가 같은 목록을 쓴다.
     kind_clause = SearchDocument.kind.in_(kinds)
-    clause = sql_clause(principal.scope)
+    clause = sql_clause(principal.visibility)
     narrowing = (kind_clause, clause)
 
     stmt = select(SearchDocument).where(kind_clause)
@@ -159,11 +162,10 @@ def search(
         pairs.sort(key=lambda pair: rank_of.get(str(pair[1]), len(rank_of)))
         rows = [pair[0] for pair in pairs]
 
-    # 최종 판정은 여전히 여기다. 위 SQL 절은 **상한 앞에서 좁히는 관문**이지 판정의
-    # 대체가 아니다 — 판정을 SQL 로만 옮기면 소유자를 해석하는 규칙이 scope.py 밖으로
-    # 새어 나가고, 그때 목록 화면과 검색이 서로 다른 규칙을 갖게 된다.
-    visible = owner_gate(db, principal.scope)
-    hits = [row for row in rows if row_visible(row, visible)]
+    # 파이썬 2차 판정은 없다 — 위 `sql_clause` 가 곧 판정이다(0060 §25). 예전에는 담당자
+    # 집합이 문자열 안에 있어 SQL 로 정확히 쓸 수 없었고 그래서 두 벌이었다. Ownership 은
+    # 컬럼이라 SQL 이 정확히 같은 답을 낸다.
+    hits = rows
 
     groups = []
     total = 0

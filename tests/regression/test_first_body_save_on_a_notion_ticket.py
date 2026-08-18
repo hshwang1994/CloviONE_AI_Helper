@@ -51,7 +51,7 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 @pytest.fixture()
-def csrf(client, settings, notion, make_user):
+def csrf(client, settings, notion, make_user, portal_project):
     (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     make_user(email="firstsave@goodmit.co.kr", role="user", display_name="편집자")
     r = client.post(
@@ -62,7 +62,7 @@ def csrf(client, settings, notion, make_user):
 
 
 @pytest.fixture()
-def synced(db, csrf):
+def synced(db, csrf, portal_project):
     """🔴 **캐시 행이 있어야 한다.** 이게 없으면 이 파일 전체가 헛것이 된다.
 
     `_ensure_body_not_changed` 는 캐시 행이 없으면 **검사 없이 통과**한다. 행 없이 쓰면
@@ -75,10 +75,13 @@ def synced(db, csrf):
     관계없는 이유로 빨개져 신호가 흐려진다.)
     """
     from app.org.constants import DEFAULT_ORG_ID
-    from app.tickets.models import TicketCache
+    from app.tickets.models import PROJECT_LINK_OK, TicketCache
 
     db.add(TicketCache(
         notion_page_id=PAGE, title="본문 있는 티켓", status="진행", org_id=DEFAULT_ORG_ID,
+        # 소속이 없으면 이 티켓은 상세로 열리지 않는다(0060) — 그러면 본문 잠금 경로에
+        # 닿지도 못한 채 404 로 빨개져, 이 파일이 무엇을 재는지 흐려진다.
+        project_uid=portal_project.id, project_link=PROJECT_LINK_OK,
     ))
     db.commit()
     return True

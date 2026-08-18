@@ -158,6 +158,7 @@
       "department_id": 36,
       "display_name": 120,
       "email": 255,
+      "membership_kind": 16,
       "password": 128,
       "title_id": 36
     },
@@ -165,6 +166,7 @@
       "admin_scope": 16,
       "department_id": 36,
       "display_name": 120,
+      "membership_kind": 16,
       "scope_dept_id": 36,
       "scope_org_id": 36,
       "title_id": 36

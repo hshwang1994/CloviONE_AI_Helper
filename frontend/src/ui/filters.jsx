@@ -112,3 +112,33 @@ export function FilterSelect({ label, value, onChange, options, allLabel, disabl
     </TextField>
   );
 }
+
+/* 부서 필터 (0060 §32) — **목록을 어느 팀 것으로 좁힐 것인가**.
+ *
+ * 후보는 서버가 준다(`departments.options`). 프런트가 스스로 조직도를 훑어 만들면 서버
+ * 검증(`app/org/context.py`)과 갈라지고, 갈라진 쪽이 넓으면 사용자는 고를 수는 있는데
+ * 404 만 보는 상자를 얻는다.
+ *
+ * 보여 주는 것은 이름이 아니라 **경로**다. '개발팀' 하나만 있으면 어느 줄기인지 알 수 없고,
+ * 조직 개편으로 같은 이름이 다른 자리에 생기면 구분이 아예 불가능해진다.
+ *
+ * 고를 것이 하나뿐이면 아무것도 안 그린다 — 선택지가 하나인 선택기는 정보가 아니라 소음이고,
+ * 화면만 좁힌다(부서가 하나인 조직, 팀 하나에만 속한 사람이 그렇다).
+ */
+export function DepartmentFilter({ departments, value, onChange, label = "부서", sx }) {
+  const options = (departments && departments.options) || [];
+  if (options.length < 2) return null;
+  return (
+    <FilterSelect
+      label={label}
+      value={value || ""}
+      onChange={onChange}
+      allLabel="내 범위 전체"
+      sx={sx}
+      options={options.map((o) => ({
+        value: o.id,
+        label: (o.path || []).map((n) => n.name).join(" › ") || o.name,
+      }))}
+    />
+  );
+}

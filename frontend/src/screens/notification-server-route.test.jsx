@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 
-import { REGISTRY } from "./registry.js";
+// 0060: 알림은 콘솔별로 갈렸다(`/notifications` vs `/admin-notifications`). 화면 정의는
+// 하나에서 파생되므로 액션·열은 두 벌이 같다 — 여기서는 사용자 콘솔 쪽을 본다.
+import { NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
+const NOTIFICATIONS = NOTIFICATIONS_SCREEN.notifications;
 
 /* RG-02 — 알림 목록 화면(/notifications)의 "관련 항목 보기"/"관련 목록 열기"가 서버가 이미
  * 계산해 주는 related_route(app/notifications/destinations.py)를 무시하고 로컬 표
@@ -11,7 +14,7 @@ import { REGISTRY } from "./registry.js";
  * 이미 서버 값을 최우선으로 쓰고 있었다 — 이 화면만 안 그랬다.
  */
 describe("알림 목록의 '관련 항목 보기' — 서버가 계산한 related_route를 최우선으로 쓴다 (RG-02)", () => {
-  const action = () => REGISTRY.notifications.actions.find((a) => a.label === "관련 항목 보기");
+  const action = () => NOTIFICATIONS.actions.find((a) => a.label === "관련 항목 보기");
 
   it("팀 문서 댓글(document) — 서버 related_route가 /documents(관리 콘솔)가 아니라 /team-docs로 보낸다", () => {
     const row = { related_object_type: "document", related_object_id: "np-1", related_route: "/team-docs/np-1" };
@@ -42,7 +45,7 @@ describe("알림 목록의 '관련 항목 보기' — 서버가 계산한 relate
   });
 
   it("'관련 목록 열기'는 related_route가 있는 행에서는 안 뜬다(항목 보기와 상호 배타)", () => {
-    const listAction = REGISTRY.notifications.actions.find((a) => a.label === "관련 목록 열기");
+    const listAction = NOTIFICATIONS.actions.find((a) => a.label === "관련 목록 열기");
     const row = { related_object_type: "document", related_object_id: "np-1", related_route: "/team-docs/np-1" };
     expect(listAction.when(row, { role: "admin" })).toBe(false);
   });
@@ -54,7 +57,7 @@ describe("알림 목록의 '관련 항목 보기' — 서버가 계산한 relate
  * 일반 사용자에게 늘 403인 클릭 가능한 링크가 생긴다 — RG-02 커밋 직후 발견해 같은 커밋에서
  * 고쳤다(reachableAdminTarget). */
 describe("알림 목록의 '관련 항목 보기' — 서버 값이 있어도 관리 콘솔 대상은 role을 가린다 (APPR-01 회귀 방지)", () => {
-  const action = () => REGISTRY.notifications.actions.find((a) => a.label === "관련 항목 보기");
+  const action = () => NOTIFICATIONS.actions.find((a) => a.label === "관련 항목 보기");
 
   it("job_failed(작업 소유자에게 감) — 서버가 related_route를 줘도 일반 사용자에겐 숨는다", () => {
     const row = { related_object_type: "job", related_object_id: "j-1", related_route: "/jobs?job_id=j-1" };

@@ -94,7 +94,7 @@ def weekly_digest_facts(
     `visible_user_ids`를 안 넘겨 전사 팀 합계·상위 기여자 명단이 role=user 전원에게
     그대로 나갔다.
     """
-    from app.core.scope import build_scope, visible_user_ids
+    from app.core.scope import visibility_scope, visible_user_ids
     from app.reports import service as reports_service
 
     today, start, end = _window_for(settings, now)
@@ -120,7 +120,7 @@ def weekly_digest_facts(
             report = reports_service.build_period_report(
                 db, outbound, settings, start=start, end=end,
                 today=datetime.fromisoformat(today).date(), tickets=period,
-                visible_user_ids=visible_user_ids(db, build_scope(db, user)),
+                visible_user_ids=visible_user_ids(db, visibility_scope(db, user)),
             )
             team = report["team"]
             contributors = _top_contributors(report["developers"])
@@ -166,11 +166,13 @@ def triage_facts(
     base = {"kind": "triage", "today": today, "auto_assign": False,
             "items": [], "candidates": [], "total": 0}
     try:
+        # AI 는 자기만의 넓은 범위를 갖지 않는다 — 사용자가 화면에서 볼 수 없는 일을
+        # 답변으로 알려 주면 그것도 유출이다(0060).
         unassigned = tickets_service.list_unassigned_tickets(
-            db, outbound, settings, active_only=True, repo=repo
+            db, outbound, settings, active_only=True, repo=repo, viewer=user
         )
         team = tickets_service.list_team_tickets(
-            db, outbound, settings, active_only=True, repo=repo
+            db, outbound, settings, active_only=True, repo=repo, viewer=user
         )
     except NotionNotConfiguredError as exc:
         return {**base, "configured": False, "ok": False, "message": exc.message}

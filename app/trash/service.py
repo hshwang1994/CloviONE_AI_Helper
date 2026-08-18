@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.authz import MODERATOR_ROLES
 from app.core.db import is_write_conflict
 from app.core.errors import NotFoundError, ConflictError, ForbiddenError
-from app.core.scope import build_scope
+from app.core.scope import visibility_scope
 from app.trash import repository
 from app.trash.models import TRASH_DOCUMENT, TRASH_TICKET, TRASH_TYPES, TrashItem
 from app.users.models import User
@@ -101,7 +101,7 @@ def ensure_can_manage(db: Session, user: User, item: TrashItem) -> None:
     범위 밖은 **404**: 403 은 그 항목이 존재한다는 사실을 알려 준다. 일괄 경로는 이 예외를
     건별로 모아 '부분 성공' 으로 보고하므로 남의 항목은 그냥 '없는 항목'으로 보인다.
     """
-    if not repository.visible_to(db, item, build_scope(db, user)):
+    if not repository.visible_to(db, item, visibility_scope(db, user)):
         raise NotFoundError("휴지통 항목을 찾을 수 없습니다.")
     if user.role in MODERATOR_ROLES or item.deleted_by_user_id == user.id:
         return

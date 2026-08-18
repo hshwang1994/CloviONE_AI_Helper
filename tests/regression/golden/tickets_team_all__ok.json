@@ -1,6 +1,10 @@
 {
   "can_sync": true,
   "configured": true,
+  "departments": {
+    "options": [],
+    "selected": null
+  },
   "items": [
     {
       "act_wd": 1.0,
@@ -13,8 +17,11 @@
       "id": "page-0005",
       "priority": "보통",
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 105,
@@ -43,6 +50,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "진행",
       "tid": 101,
@@ -73,6 +81,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 102,
@@ -101,6 +110,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "검증",
       "tid": 103,
@@ -125,6 +135,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "계획",
       "tid": 104,
@@ -149,6 +160,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "취소",
       "tid": 106,
@@ -171,8 +183,11 @@
       "id": "page-0007",
       "priority": null,
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "이슈",
       "tid": 107,
@@ -196,8 +211,11 @@
       "id": "page-0005",
       "priority": "보통",
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 105,
@@ -226,6 +244,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "진행",
       "tid": 101,
@@ -256,6 +275,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 102,
@@ -284,6 +304,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "검증",
       "tid": 103,
@@ -308,6 +329,7 @@
       "project_names": [
         "베타 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "계획",
       "tid": 104,
@@ -332,6 +354,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "취소",
       "tid": 106,
@@ -354,8 +377,11 @@
       "id": "page-0007",
       "priority": null,
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "이슈",
       "tid": 107,

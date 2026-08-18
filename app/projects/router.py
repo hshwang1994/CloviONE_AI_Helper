@@ -26,6 +26,7 @@ from app.core.authz import CONSOLE_OPS_ROLES
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.pagination import PageParams
 from app.core.scope import Principal
+from app.org import context as org_context
 from app.projects import milestones as milestones_repo
 from app.projects import repository, service, sync, weekly
 from app.projects.models import Project, ProjectHealthSnapshot, ProjectMilestone
@@ -36,6 +37,7 @@ from app.projects.schemas import (
     ProjectUpdate,
 )
 from app.settings.gate import block_if_maintenance
+from app.users.models import User
 
 router = APIRouter(
     prefix="/api/projects",
@@ -50,6 +52,11 @@ router = APIRouter(
 # 쓰기 역할 게이트. 별도 Depends 로 두는 이유: 라우터 전체에 걸면 읽기까지 운영자군만
 # 보게 되는데, 프로젝트 현황은 참여자 전원이 봐야 하는 화면이다.
 require_write = Depends(require_roles(*CONSOLE_OPS_ROLES))
+
+
+def _scope_snapshot(project: Project) -> dict:
+    """이 프로젝트가 **누구 것인가**. 감사 before/after 전용 (0060 §34)."""
+    return {"dept_id": project.dept_id, "org_id": project.org_id}
 
 
 def _project_view(project: Project) -> dict:
@@ -111,12 +118,16 @@ def list_projects(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     include_archived: bool = Query(default=False),
+    # 부서 필터 (0060 §32) — 조회 범위 **안에서만** 좁힌다. 넓히지 못한다.
+    department_id: str | None = Query(default=None, max_length=36),
     principal: Principal = Depends(get_principal),
+    user: User = Depends(get_current_user),
 ):
     """범위 안 프로젝트만. 조건은 단건·수정·삭제와 **같은 것 하나**다."""
+    picked = org_context.filter_scope(db, user, department_id)
     rows, total = repository.list_in_scope(
         db,
-        principal.scope,
+        picked if picked is not None else principal.visibility,
         include_archived=include_archived,
         offset=page.offset,
         limit=page.page_size,
@@ -126,6 +137,10 @@ def list_projects(
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
+        "departments": {
+            "selected": department_id,
+            "options": org_context.department_options(db, user),
+        },
     }
 
 
@@ -184,7 +199,9 @@ def overall_weekly_report(
 def project_dashboard(
     request: Request,
     db: Session = Depends(get_db),
+    department_id: str | None = Query(default=None, max_length=36),
     principal: Principal = Depends(get_principal),
+    user: User = Depends(get_current_user),
 ):
     """프로젝트 화면 맨 위의 요약. **집계는 서버가 한다.**
 
@@ -193,7 +210,10 @@ def project_dashboard(
 
     읽기라 운영자 게이트를 걸지 않는다 - 목록과 같은 사람들이 본다.
     """
-    return service.project_dashboard(db, principal, today=_today(request))
+    return service.project_dashboard(
+        db, principal, today=_today(request),
+        scope=org_context.filter_scope(db, user, department_id),
+    )
 
 
 @router.get("/{project_id}")
@@ -226,7 +246,15 @@ def update_project(
     """
     now = request.app.state.clock.now()
     project = service.get_scoped_project_or_404(db, project_id, principal)
+    # 조회와 관리는 다르다 — 상위 부서 프로젝트는 보이지만 고칠 수는 없다.
+    service.ensure_project_manageable(project, principal)
+    # 소속을 바꾸는 것은 **권한을 바꾸는 것**이다 (0060 §34). 프로젝트가 부서를 옮기면
+    # 그 아래 티켓 전부와 그 프로젝트 소유 문서가 통째로 다른 부서에 열리고, 원래 보던
+    # 부서에서는 사라진다. 무엇 하나 오류를 내지 않으므로 감사에 남지 않으면 "왜 우리
+    # 팀 티켓이 안 보이지" 를 나중에 추적할 방법이 없다.
+    before = _scope_snapshot(project)
     service.update_project(db, project, payload, principal, now=now)
+    after = _scope_snapshot(project)
     if project.notion_page_id and (set(payload.model_fields_set) & set(sync.PUSHED_FIELDS)):
         sync.push_project(
             db, project,
@@ -236,6 +264,10 @@ def update_project(
         )
     record_audit_from_request(
         request, db, action="project.update", object_type="project", object_id=project.id,
+        # 소속이 그대로면 굳이 남기지 않는다 — 모든 수정에 같은 두 줄이 붙으면 정작
+        # 소속이 바뀐 항목을 감사에서 찾기 어려워진다.
+        before=before if before != after else None,
+        after=after if before != after else None,
     )
     return {"project": _project_view(project)}
 
@@ -250,6 +282,7 @@ def delete_project(
 ):
     """보관(soft delete). 하드 삭제를 안 쓰는 이유는 service.archive_project 에 적어 뒀다."""
     project = service.get_scoped_project_or_404(db, project_id, principal)
+    service.ensure_project_manageable(project, principal)
     service.archive_project(db, project, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="project.archive", object_type="project", object_id=project.id,

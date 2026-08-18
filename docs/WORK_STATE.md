@@ -8142,3 +8142,77 @@ Supervisor가 이번 invocation부터 `CLOVIR_TEST_SUDO_PASSWORD` 환경변수�
 다시 시도해 Chrome E2E를 진행한다. (b) 회전 전까지 `CLOVIR_TEST_SUDO_PASSWORD`를
 실험적/반복적 sudo 체이닝에 쓰지 않는다 — 필요한 각 sudo 호출은 그 자체로 안전한
 단일-비밀 패턴인지 미리 확인한 뒤에만 실행한다.
+
+---
+
+# 2026-08-18 — 사용자/관리자 IA · 조직 계층 · Resource Access Model 전면 개선 (0060/0061)
+
+## 지금 위치
+
+**코드·시험·정적검사·번들은 끝났고, TEST SERVER 배포 한 줄만 사람이 실행하면 된다.**
+
+사용자가 화면에서 지적한 것("사용자 탭에서 보여야 할 게 관리자 탭에 보인다", "조직 관리자·
+부서 관리자가 없다", "상위 조직 관리자에게 하위 팀 프로젝트가 보여야 한다", "사용자 탭 알림을
+누르면 관리자 탭으로 들어간다", "관리자 대시보드에 업무가 보인다")에서 출발해, 조사 → 확정
+정책 → 구현까지 한 묶음으로 처리했다.
+
+설계 판단: **`DECISIONS.md` D-138 / D-139 / D-140**
+문제 목록과 상태: **`BACKLOG.md` §IA-RBAC (IA-01 ~ IA-20)**
+브라우저 실측: **`QA_COVERAGE.md` §17**
+
+## 무엇이 바뀌었나 (한 문단)
+
+권한 축이 자원마다 달랐다(티켓=담당자, 문서=작성자, 프로젝트=부서). 이제 **자원이 자기
+소속을 스스로 든다**(`app/core/ownership.py`). 부서 조회는 줄기(조상 ∪ 자기 ∪ 후손,
+형제 제외), 관리는 자기 ∪ 후손. 판정할 수 없으면 닫는다(fail-closed) — 그래서 진단
+화면 `/integrity` 와 일괄 지정을 같은 배포에 넣었다.
+
+## 남은 일 — 사람이 해야 하는 것
+
+### 1. TEST SERVER 배포 (sudo 필요, 에이전트가 못 한다)
+
+번들은 **이미 올라가 스테이징까지 끝났다**:
+
+```
+~/deploy/clovirone-web-assistant-bundle.tar.gz   업로드 + sha256 일치
+~/deploy/stage-new/                              풀림, MANIFEST 1735/1735 OK
+                                                 alembic 0060 · 0061 포함
+```
+
+실행할 한 줄(`docs/DEPLOY_NOW.md` 와 같다):
+
+```bash
+ssh -t cloviradmin@10.100.64.71 'sudo STAGE=$HOME/deploy/stage-new $HOME/deploy/stage-new/app-src/scripts/upgrade-clovirone-web-assistant.sh'
+```
+
+끝나면 `bash scripts/verify_deploy.sh` → `DEPLOY_VERIFY_OK`.
+
+**⚠️ 배포 직후 반드시 할 것**: `/integrity` 를 열어 `소속이 지정되지 않은 사용자` 를 일괄
+지정한다. 안 하면 그 계정들은 조직 데이터를 아무것도 못 본다(설계된 fail-closed 동작이고,
+로컬 실측으로 25명 중 21명이 대상이었다). 프로젝트 동기화가 한 번 돌면 티켓 소속은
+대부분 저절로 풀린다(`project_link.reresolve_all`).
+
+### 2. `.git` 위생 — 정적 검사 1건이 이것 때문에 빨갛다
+
+`scripts/static_checks.sh` 의 53개 검사 중 **52개 통과**, 1개만 실패한다:
+
+```
+stash stash@{0}: CLAUDE.md line 61,62        (password-like assignment)
+reflog-only commit f0efc52af4ec: 4개 파일     (2026-07-29 초기 임포트, 어느 브랜치에도 없다)
+```
+
+**둘 다 이번 작업과 무관하고, 둘 다 지우면 안 되는 이유가 있다** — `stash@{0}` 은 이전
+세션이 "사람 검토용"으로 일부러 보존한 것이다(`SECURITY:` 접두). stash drop 과 reflog
+expire 는 되돌릴 수 없으므로 **사용자 판단**으로 남긴다.
+
+## 검증 상태
+
+| 게이트 | 결과 |
+|---|---|
+| Backend 전체 | ✅ green (`pytest tests/`) |
+| Runner 전체 | ✅ green (323건) |
+| Frontend 전체 | ✅ green (304 files / 2130 tests) |
+| Static Checks | 🟡 52/53 — 실패 1건은 위 `.git` 위생(이번 작업 무관) |
+| Build + 번들 스탬프 | ✅ |
+| 마이그레이션 왕복 | ✅ `0059 → 0061 → 0059 → 0061` 을 운영 데이터 사본으로 |
+| Chrome E2E | 🟡 **로컬** 대상으로 수행(§17). TEST SERVER 배포 뒤 재확인 필요 |

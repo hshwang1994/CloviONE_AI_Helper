@@ -28,7 +28,7 @@ pytestmark = pytest.mark.security
 
 
 @pytest.fixture()
-def world(db, make_user):
+def world(db, make_user, make_project):
     """부서 둘 + 각 팀 티켓 + 우리 팀만 관리하는 **운영자**(가장 뚫기 쉬운 역할)."""
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
@@ -57,11 +57,18 @@ def world(db, make_user):
 
     n_mate = _map(mate, "n-mate")
     n_other = _map(other, "n-other")
+    # 티켓의 소속은 **프로젝트**다(0060) — 담당자가 아니다. 각 팀 프로젝트에 붙인다.
+    ours = make_project(name="우리 프로젝트", dept=mine, external_id="px-bulk-ours")
+    theirs_project = make_project(name="남의 프로젝트", dept=theirs, external_id="px-bulk-theirs")
     db.add_all([
         TicketCache(notion_page_id="p-ours", title="우리 티켓", org_id=DEFAULT_ORG_ID,
-                    assignee_notion_ids=join_names([n_mate])),
+                    assignee_notion_ids=join_names([n_mate]),
+                    project_ids=join_names(["px-bulk-ours"]),
+                    project_uid=ours.id, project_link="ok"),
         TicketCache(notion_page_id="p-theirs", title="남의 티켓", org_id=DEFAULT_ORG_ID,
-                    assignee_notion_ids=join_names([n_other])),
+                    assignee_notion_ids=join_names([n_other]),
+                    project_ids=join_names(["px-bulk-theirs"]),
+                    project_uid=theirs_project.id, project_link="ok"),
     ])
     db.commit()
     return {"mine": mine, "theirs": theirs}

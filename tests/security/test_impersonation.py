@@ -142,7 +142,10 @@ def test_document_view_does_not_record_recent_view_while_impersonating(impersona
     from app.team_docs.models import DocumentCache, DocumentRecentView
 
     client, _csrf, target_id = impersonating
-    db.add(DocumentCache(notion_page_id="imp-doc-1", title="문서", synced_at=utcnow()))
+    # 문서 소속(0060) — 소속이 없으면 전역 관리자 말고는 아무도 못 열고, 이 시험이
+    # 보려는 것은 접근 게이트가 아니라 "GET 이 조용히 쓰기를 하는가" 다.
+    db.add(DocumentCache(notion_page_id="imp-doc-1", title="문서", synced_at=utcnow(),
+                         owner_kind="organization"))
     db.commit()
 
     resp = client.get("/api/team-docs/imp-doc-1")

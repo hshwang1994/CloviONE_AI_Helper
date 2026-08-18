@@ -1,5 +1,9 @@
 {
   "can_sync": true,
+  "departments": {
+    "options": [],
+    "selected": null
+  },
   "items": [
     {
       "author_names": [

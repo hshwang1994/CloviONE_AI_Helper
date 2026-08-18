@@ -67,9 +67,9 @@ def list_trash(
 ):
     days = _retention_days(request)
     # 범위를 건다 — 예전에는 조건이 하나도 없어 남의 팀이 지운 것까지 보였다.
-    from app.core.scope import build_scope
+    from app.core.scope import visibility_scope
 
-    items, total = repository.list_visible(db, build_scope(db, me), limit=limit)
+    items, total = repository.list_visible(db, visibility_scope(db, me), limit=limit)
     # 휴지통은 15초마다 폴링되는데 실제로는 며칠에 한 번 바뀐다 — 전형적인 304 대상이다.
     return etag_json_response(request, {
         "items": [_item_view(i, retention_days=days, me=me) for i in items],

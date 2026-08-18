@@ -176,7 +176,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   "approval-delegations": {
-    key: "approval-delegations", area: "자동화", title: "승인 위임",
+    key: "approval-delegations", area: "사용자와 권한", title: "승인 위임",
     endpoint: "/api/admin/approval-delegations",
     help: "결재자가 자리를 비우는 동안 다른 사람이 대신 승인할 수 있게 합니다. 위임을 받은 사람은 평소 승인 권한이 없어도 위임 기간에만 결재할 수 있고, 그 결재에는 누구를 대신했는지가 함께 기록됩니다. 기간이 지나면 저절로 닫힙니다.",
     emptyTitle: "추가된 위임이 없습니다",

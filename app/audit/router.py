@@ -182,7 +182,7 @@ def list_audit_logs(
     stmt = _filtered_stmt(
         action=action, exclude_actions=exclude_actions, object_type=object_type, object_id=object_id,
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
-        actor_ids=visible_user_ids(db, principal.scope),
+        actor_ids=visible_user_ids(db, principal.management),
     )
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -228,7 +228,7 @@ def audit_anomalies(
         db,
         now=request.app.state.clock.now(),
         window_hours=window_hours,
-        actor_ids=visible_user_ids(db, principal.scope),
+        actor_ids=visible_user_ids(db, principal.management),
     )
     actor_ids = {f["actor_id"] for f in result["findings"] if f["actor_id"]}
     names: dict[str, dict[str, str]] = {}
@@ -301,7 +301,7 @@ def export_audit_logs(
     stmt = _filtered_stmt(
         action=action, exclude_actions=exclude_actions, object_type=object_type, object_id=object_id,
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
-        actor_ids=visible_user_ids(db, principal.scope),
+        actor_ids=visible_user_ids(db, principal.management),
     )
     limit = EXPORT_MAX_ROWS
     # 상한보다 **한 줄 더** 읽는다. `len(rows) >= limit` 로 판정하면 정확히 상한인 파일이
@@ -366,7 +366,7 @@ def get_audit_log_detail(
     org.get_or_404와 같은 원칙)."""
     stmt = apply_scope(
         select(AuditLog).where(AuditLog.id == log_id),
-        visible_user_ids(db, principal.scope),
+        visible_user_ids(db, principal.management),
     )
     row = db.execute(stmt).scalar_one_or_none()
     if row is None:

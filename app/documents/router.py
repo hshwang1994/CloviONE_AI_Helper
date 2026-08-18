@@ -59,7 +59,7 @@ def list_generations(
     # 조건은 상세·재시도와 **같은 것 하나**다(`repository.scope_clause` — 요청자 없는
     # 시스템 생성을 남기는 이유도 거기 적혀 있다). 여기 손으로 다시 적으면 두 벌이 되고,
     # 한쪽만 고쳐진 상태의 증상은 "어떤 사람만 안 된다" 라서 찾기가 어렵다.
-    stmt = apply_scope(stmt, visible_user_ids(db, principal.scope))
+    stmt = apply_scope(stmt, visible_user_ids(db, principal.management))
     if status:
         stmt = stmt.where(DocumentGeneration.status == status)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -166,7 +166,7 @@ def retry(
     # 범위 밖은 404 이고, 그 문은 **상태 검사보다 먼저** 지난다: 409("실패 또는 품질 실패
     # 상태의 문서만…")로 답하면 그 id 의 존재와 상태까지 알려 주기 때문이다. 여기서 새는
     # 것은 읽기가 아니라 **쓰기 실행**이다 — 러너를 다시 불러 남의 팀 문서를 다시 만든다.
-    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.scope))
+    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.management))
     retry_generation(db, gen, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="document.retry_requested",
@@ -183,5 +183,5 @@ def get_generation(
     principal: Principal = Depends(get_principal),
 ):
     # 목록과 같은 판정을 지난다 — 상세에는 요청자와 요청 내용(config)이 통째로 실린다.
-    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.scope))
+    gen = get_generation_or_404(db, generation_id, visible_user_ids(db, principal.management))
     return {"generation": generation_view(gen)}

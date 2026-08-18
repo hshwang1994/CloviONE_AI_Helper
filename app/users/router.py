@@ -56,6 +56,9 @@ def _user_row(user: User, now, *, notion_status: str = "unmapped") -> dict:
         "department": user.department,
         "title": user.title,
         "department_id": user.department_id,
+        # 소속 종류(0060) — 화면이 "부서 미지정" 과 "조직 직속" 을 구별해 보여야 한다.
+        # 둘은 완전히 다른 상태인데 예전에는 둘 다 "부서 없음" 한 칸으로만 보였다.
+        "membership_kind": user.membership_kind,
         # 관리 범위 — 화면이 지금 값을 보여 줄 수 있어야 한다. 설정만 되고 안 보이면
         # "이 사람이 지금 어디까지 보나" 를 확인할 방법이 없다(F2).
         "admin_scope": user.admin_scope,
@@ -151,7 +154,7 @@ def list_users(
 ):
     now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
-        principal.scope, q=q, role=role, active=active,
+        principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
         locked=locked, now=now,
     )
@@ -198,7 +201,7 @@ def bulk_apply_users(
         action=payload.action,
         value=payload.value,
         actor=request.state.user,
-        scope=principal.scope,
+        scope=principal.management,
         session_service=request.app.state.session_service,
         now=request.app.state.clock.now(),
     )
@@ -234,7 +237,7 @@ def export_users_csv(
     """
     now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
-        principal.scope, q=q, role=role, active=active,
+        principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
         locked=locked, now=now,
     )
@@ -266,7 +269,7 @@ def import_users_csv(
     result = bulk.import_users(
         db, rows,
         actor=request.state.user,
-        scope=principal.scope,
+        scope=principal.management,
         settings=request.app.state.settings,
         effective_settings=request.app.state.settings_cache.current(),
         dry_run=payload.dry_run,
@@ -313,6 +316,7 @@ def create_user_endpoint(
         must_change_password=payload.must_change_password,
         department_id=payload.department_id,
         title_id=payload.title_id,
+        membership_kind=payload.membership_kind,
         created_by=request.state.user.id,
         effective_settings=request.app.state.settings_cache.current(),
     )
@@ -323,7 +327,7 @@ def create_user_endpoint(
     # 같은 규칙(scope_allows_user) 하나만 쓰게 되어, org_id 기본값 같은 세부가 나중에 바뀌어도
     # 세 곳이 갈라지지 않는다. 여기서 예외가 나면 get_db 가 롤백하므로 계정은 남지 않는다.
     # 목록이 아니라 '생성 시도'라 존재를 숨길 것이 없으므로 404 가 아니라 403 이다.
-    if not scope_allows_user(principal.scope, user):
+    if not scope_allows_user(principal.management, user):
         raise ForbiddenError("관리 범위 밖으로는 계정을 만들 수 없습니다.")
 
     record_audit_from_request(
@@ -389,7 +393,7 @@ def get_user_detail(
 ):
     from app.core.errors import ForbiddenError
 
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     now = request.app.state.clock.now()
     status = _notion_status_map(db, [user.id]).get(user.id, "unmapped")
     row = _user_row(user, now, notion_status=status)
@@ -422,7 +426,7 @@ def patch_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     fields = payload.model_dump(exclude_unset=True)
 
@@ -532,7 +536,7 @@ def enable_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     set_user_active(db, user, True, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -550,7 +554,7 @@ def disable_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     set_user_active(db, user, False, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -569,7 +573,7 @@ def archive(
     principal: Principal = Depends(get_principal),
 ):
     """계정 보관 — 삭제가 아니다. 행은 DB에 남고 목록·검색·로그인에서만 빠진다."""
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     archive_user(
         db,
@@ -594,7 +598,7 @@ def unarchive(
     principal: Principal = Depends(get_principal),
 ):
     """보관 복구 — 보관 전의 활성/비활성 상태 그대로 목록에 돌아온다."""
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     unarchive_user(db, user, actor_role=request.state.user.role)
     record_audit_from_request(
@@ -612,7 +616,7 @@ def reset_password(
     principal: Principal = Depends(get_principal),
     payload: ResetPasswordRequest | None = None,
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     provided = payload.password if payload is not None else None
     password = admin_reset_password(
         db,
@@ -640,7 +644,7 @@ def unlock(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     unlock_user(db, user, actor_role=request.state.user.role)
     record_audit_from_request(
         request, db, action="user.unlock", object_type="user", object_id=user.id,
@@ -655,7 +659,7 @@ def list_sessions(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     # 세션 메타데이터도 권한 경계 안에서만 조회한다(상위 권한 계정 정보 정찰 차단).
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     # SEC-05 — revoked_at IS NULL 만으로는 부족하다(위 active_session_count와 같은 이유).
@@ -694,7 +698,7 @@ def revoke_sessions(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     count = request.app.state.session_service.revoke_all_for_user(db, user.id)
     record_audit_from_request(
@@ -711,7 +715,7 @@ def verify_notion_mapping(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     from app.notion_mapping.service import mapping_view, verify_mapping
 

@@ -34,10 +34,13 @@ describe("관리자 사이드바 — 감사 그룹은 감사·통계만 남는�
     expect(auditPaths).not.toContain("/restore-drills");
   });
 
-  it("감사 그룹에 남은 항목은 감사 로그·이상 징후·사용 통계·초기 설정(사후 점검류)뿐이다", () => {
+  it("감사 그룹에 남은 항목은 감사·통계류뿐이다", () => {
+    // 0060: '초기 설정'은 설치 자체를 세우는 일이라 사후 점검이 아니다 → 운영으로 옮겼다.
+    // '개발자 월간 리포트'는 사람에 대한 민감 집계(SENSITIVE_READ)라 감사 로그와 같은
+    // role 집합을 쓴다 → 그 옆이 예측 가능한 자리다.
     const auditPaths = pathsOf(NAV, "감사");
     expect(new Set(auditPaths)).toEqual(new Set([
-      "/audit", "/audit-anomalies", "/setup", "/policy-usage", "/prompt-usage",
+      "/audit", "/audit-anomalies", "/dev-report", "/policy-usage", "/prompt-usage",
     ]));
   });
 });
@@ -73,38 +76,56 @@ describe("관리자 사이드바 — 라벨 용어 규칙 (acceptance 4)", () =>
 });
 
 describe("관리자 사이드바 — 이동한 항목의 role·배지·아이콘은 한 글자도 안 바뀐다 (acceptance 6)", () => {
-  // 원본 값(git show HEAD 이전 navConfig.js에서 직접 확인, PA-RC-0031 착수 시점) — 그룹만
-  // 옮기고 이 넷은 그대로다. 실수로 role을 새로 달거나 빠뜨리면 여기서 잡힌다.
-  it("기능 플래그: roles 없음(운영 콘솔 4역할 전원, SCREEN_ROLES가 라우트 게이트를 맡는다)", () => {
+  /* 0060 이 이 검사의 **한 축을 뒤집는다.**
+   *
+   * 예전 기대는 "이 항목들에는 `roles` 가 없다(SCREEN_ROLES가 라우트 게이트를 맡는다)" 였다.
+   * 그 배치가 실제로는 구멍이었다 — 사이드바는 `roles` 가 없는 항목을 모든 역할에 보여 주고,
+   * 명령 팔레트(Ctrl+K)는 두 콘솔 전체를 검색 대상으로 삼는다. 그래서 **일반 사용자가
+   * 관리자 화면 22개를 팔레트로 발견**할 수 있었다(눌러도 "권한이 없습니다"로 끝나는 목적지).
+   *
+   * 이제 `roles` 는 항목에 손으로 적지 않고 `SCREEN_ROLES` 에서 **파생**된다(navConfig.js
+   * ::withRoles). 즉 모든 항목에 role 이 있고, 표는 여전히 한 벌이다.
+   * 여기서 지키는 것은 "그룹만 옮겼고 배지·아이콘은 그대로" 라는 원래 약속이다.
+   */
+  it("기능 플래그: 운영 그룹, 콘솔 4역할 전원", () => {
     const item = findItem(NAV, "/feature-flags");
     expect(item.group).toBe("운영");
-    expect(item.roles).toBeUndefined();
+    expect(item.roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
     expect(item.badge).toBeUndefined();
     expect(item.icon).toBe("flag");
   });
 
-  it("복구 리허설: roles 없음", () => {
+  it("복구 리허설: 운영 그룹", () => {
     const item = findItem(NAV, "/restore-drills");
     expect(item.group).toBe("운영");
-    expect(item.roles).toBeUndefined();
+    expect(item.roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
     expect(item.badge).toBeUndefined();
     expect(item.icon).toBe("backup");
   });
 
-  it("공지 배너: roles 없음", () => {
+  it("공지 배너: 자동화 그룹", () => {
     const item = findItem(NAV, "/announcements");
     expect(item.group).toBe("자동화");
-    expect(item.roles).toBeUndefined();
+    expect(item.roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
     expect(item.badge).toBeUndefined();
     expect(item.icon).toBe("announce");
   });
 
-  it("프롬프트 사용 통계: roles 없음", () => {
+  it("프롬프트 사용 통계: 감사 그룹", () => {
     const item = findItem(NAV, "/prompt-usage");
     expect(item.group).toBe("감사");
-    expect(item.roles).toBeUndefined();
+    expect(item.roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
     expect(item.badge).toBeUndefined();
     expect(item.icon).toBe("report");
+  });
+
+  it("관리자 사이드바의 **모든** 항목에 role 게이트가 있다 (0060)", () => {
+    // 이것이 팔레트 누수를 막는 실제 불변식이다 — 하나라도 비면 그 화면이 일반 사용자의
+    // Ctrl+K 결과에 나타난다.
+    const missing = NAV.flatMap((g) => g.items)
+      .filter((i) => !Array.isArray(i.roles) || i.roles.length === 0)
+      .map((i) => i.to);
+    expect(missing).toEqual([]);
   });
 });
 

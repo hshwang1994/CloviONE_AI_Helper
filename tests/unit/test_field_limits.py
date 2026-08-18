@@ -127,10 +127,15 @@ def test_users_limits_match_the_schema_declarations():
     limits = all_field_limits()
     assert limits["users"]["create"] == {
         "email": 255, "display_name": 120, "password": 128, "department_id": 36, "title_id": 36,
+        # 소속 종류(0060) — 만들 때부터 정할 수 있어야 한다. 기본값은 '미지정'(fail-closed).
+        "membership_kind": 16,
     }
     assert limits["users"]["edit"] == {
         "display_name": 120, "department_id": 36, "title_id": 36,
         "admin_scope": 16, "scope_org_id": 36, "scope_dept_id": 36,
+        # 소속 종류(0060). 부서/조직 직속/미지정을 가르는 값이라 폼에서 고칠 수 있어야 하고,
+        # 폼에 있으면 다른 필드와 같이 길이 계약에 잡혀야 한다.
+        "membership_kind": 16,
     }
 
 

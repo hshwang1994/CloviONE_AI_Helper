@@ -69,12 +69,17 @@ def world(db, make_user):
         user_id=author.id, notion_user_id=NID_AUTHOR, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(
         user_id=outsider.id, notion_user_id=NID_OTHER, status=STATUS_VERIFIED))
+    # 소속(0060)은 문서 자신이 든다 — 작성자가 정하지 않는다. 마지막 문서는 작성자를
+    # 앱 계정으로 해석할 수 없는 경우인데, 소속이 우리 팀이라 우리 팀에게는 정상적으로 보인다.
     db.add_all([
         DocumentCache(notion_page_id=MINE, title="우리팀 설계서",
-                      author_notion_ids=NID_AUTHOR),
+                      author_notion_ids=NID_AUTHOR,
+                      owner_kind="department", owner_dept_id=mine.id),
         DocumentCache(notion_page_id=THEIRS, title="남의팀 3분기 실적 보고서",
-                      author_notion_ids=NID_OTHER),
-        DocumentCache(notion_page_id=FREE, title="작성자 미해석 문서", author_notion_ids=""),
+                      author_notion_ids=NID_OTHER,
+                      owner_kind="department", owner_dept_id=theirs.id),
+        DocumentCache(notion_page_id=FREE, title="작성자 미해석 문서", author_notion_ids="",
+                      owner_kind="department", owner_dept_id=mine.id),
     ])
     db.commit()
     return {"author_id": author.id, "mate_id": mate.id, "outsider_id": outsider.id}
@@ -270,15 +275,21 @@ def test_editing_and_deleting_a_comment_that_moved_out_of_scope_is_404(
     수정, 삭제는 comment_id 만 받는다. 권한 판정(`ensure_can_edit`)만 지나면 통과하므로,
     내가 쓴 댓글이 붙은 문서가 나중에 남의 부서 것이 되어도 계속 고칠 수 있게 된다.
     그리고 응답이 **목록 전체**라 삭제 한 번에 그 문서의 논의가 통째로 새어 나온다.
+
+    "범위 밖으로 나간다" 를 0060 부터는 **문서 소유를 옮기는 것**으로 표현한다. 예전에는
+    작성자를 바꿔서 흉내 냈는데, 그건 소속이 사람을 따라다니던 시절의 방법이고 바로 그
+    결합을 없앤 것이 이번 변경이다. 지켜야 할 성질(하위 자원이 소유를 따라간다)은 그대로다.
     """
+    from app.org.models import Department
     from app.team_docs.models import DocumentCache, DocumentComment
 
     hdr = _hdr(login_as, BOSS, role="admin")
-    cid = _write(client, hdr, FREE, "아직 어느 팀 것도 아닐 때 쓴 댓글")["comment_id"]
+    cid = _write(client, hdr, FREE, "우리 팀 것이던 시절에 쓴 댓글")["comment_id"]
 
-    # 다음 동기화가 작성자를 채웠고, 그 사람은 남의 팀이다.
-    db.query(DocumentCache).filter(DocumentCache.notion_page_id == FREE).one() \
-        .author_notion_ids = NID_OTHER
+    # 문서가 남의 팀 소유로 옮겨졌다 — 하위 자원(댓글)도 그 소유를 따라간다.
+    theirs_id = db.query(Department).filter(Department.name == "남의팀").one().id
+    doc = db.query(DocumentCache).filter(DocumentCache.notion_page_id == FREE).one()
+    doc.owner_dept_id = theirs_id
     db.commit()
 
     edit = client.patch(f"/api/team-docs/comments/{cid}", json={"body": "고침"}, headers=hdr)

@@ -25,14 +25,14 @@ def test_impossible_dates_are_refused(bad):
     from app.tickets.schemas import TicketCreate
 
     with pytest.raises(ValidationError):
-        TicketCreate(title="t", due_date=bad)
+        TicketCreate(title="t", project_id="p1", due_date=bad)
 
 
 @pytest.mark.parametrize("good", ["2026-02-28", "2024-02-29", "2026-12-31"])
 def test_real_dates_still_pass(good):
     from app.tickets.schemas import TicketCreate
 
-    assert TicketCreate(title="t", due_date=good).due_date == good
+    assert TicketCreate(title="t", project_id="p1", due_date=good).due_date == good
 
 
 def test_the_shape_check_still_runs_first():
@@ -42,5 +42,5 @@ def test_the_shape_check_still_runs_first():
     from app.tickets.schemas import TicketCreate
 
     with pytest.raises(ValidationError) as e:
-        TicketCreate(title="t", due_date="2026/01/01")
+        TicketCreate(title="t", project_id="p1", due_date="2026/01/01")
     assert "형식" in str(e.value)

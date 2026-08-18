@@ -203,6 +203,10 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("admin", "system_admin")),
     _a("admin_settings", "/settings", "설정"),
     _a("admin_diagnostics", "/diagnostics", "진단", "admin", ("admin", "system_admin")),
+    # 데이터 정합성(0060) — 소속 미지정 계정·프로젝트 없는 티켓·Ownership 미지정 문서처럼
+    # **조용히 안 보이게 되는 상태**를 모아 보여 주고 일괄로 고친다. `/diagnostics`(시스템
+    # 점검)와 이름이 비슷하지만 다루는 대상이 다르다 — 저쪽은 연결·설정, 이쪽은 데이터다.
+    _a("admin_integrity", "/integrity", "데이터 정합성", "admin", ("admin", "system_admin")),
     _a("admin_maintenance", "/maintenance", "유지보수", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_dev-report", "/dev-report", "개발자 월간 리포트", "auditor",

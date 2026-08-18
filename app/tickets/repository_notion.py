@@ -19,7 +19,7 @@ import json
 from dataclasses import replace
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ from app.reports import notion_source
 from app.tickets import notion_write
 from app.tickets.models import (
     META_CACHE_ID,
+    PROJECT_LINK_OK,
     SOURCE_NOTION,
     SYNC_STATE_ID,
     TicketCache,
@@ -43,7 +44,6 @@ from app.tickets.query import (
     ORDER,
     filter_clauses,
     page_slice,
-    row_order_key,
     token,
 )
 from app.tickets.repository import (
@@ -126,6 +126,9 @@ class NotionTicketRepository:
             difficulty=row.difficulty,
             priority=row.priority,
             project_ids=tuple(split_names(row.project_ids)),
+            # 해석에 성공한 것만 싣는다 — `ok` 가 아니면 소속을 모르는 것이고, 모르면
+            # 판정은 닫는 쪽이다(0060).
+            project_uid=row.project_uid if row.project_link == PROJECT_LINK_OK else None,
             project_names=tuple(split_names(row.project_names)),
             assignee_ids=tuple(split_names(row.assignee_notion_ids)),
             body_markdown=row.body_markdown,
@@ -204,31 +207,6 @@ class NotionTicketRepository:
             total=total,
         )
 
-    def _cached_list_rows(
-        self, db: Session, rows, state: TicketSyncState | None,
-        page: PageSpec | None = None,
-    ) -> TicketList:
-        """이미 골라 낸 행들로 목록을 만든다 — 정렬 규칙은 `_cached_list` 와 **같아야** 한다.
-        여기서만 다르게 정렬하면 미할당 화면의 순서가 다른 티켓 화면과 어긋난다.
-
-        `_cached_list` 와 **같은 가시성 규칙**도 여기서 다시 건다 — 이 깔때기는 SQL 이 아니라
-        파이썬 리스트를 받으므로 위 `where` 가 적용되지 않는다. 두 깔때기가 다른 답을 주면
-        미할당 화면에만 지워진 티켓이 남는다.
-
-        **여기서는 페이지도 파이썬으로 자른다.** 이 깔때기를 쓰는 화면(미할당 트리아지)의
-        판정이 SQL 로 표현돼 있지 않기 때문이다 - 자세한 이유는 `list_unassigned` 참조.
-        자르기 전 건수(total)를 판정 뒤에 세므로 화면의 "N건 중 1-20" 이 맞는다.
-        """
-        rows = [r for r in rows if r.notion_missing_at is None]
-        ordered = sorted(rows, key=row_order_key)
-        total = len(ordered)
-        return TicketList(
-            tickets=tuple(self._from_cache(r) for r in page_slice(ordered, page)),
-            from_cache=True,
-            sync=self._sync_status(state),
-            total=total,
-        )
-
     def _cached_list(
         self, db: Session, stmt, state: TicketSyncState | None,
         filters: TicketFilters | None = None, page: PageSpec | None = None,
@@ -276,52 +254,40 @@ class NotionTicketRepository:
         self, db: Session, *, filters: TicketFilters | None = None,
         page: PageSpec | None = None,
     ) -> TicketList:
-        """미할당 트리아지 — **앱이 담당자를 알 수 없는 티켓 전부.**
+        """미할당 트리아지 — **담당자가 아무도 없는 티켓** (0060 에서 정의가 바뀌었다).
 
-        `assignee_notion_ids == ""` 만 보면 안 된다. Notion 담당자가 있지만 그 사람이 앱
-        사용자로 **매핑되지 않은** 티켓이 여기서 빠지는데, 그런 티켓은 부서 범위에서도
-        빠진다(`core/scope.py::any_assignee_visible` 은 해석된 담당자 집합이 비면 False).
-        즉 **어디에서도 안 보이게 된다** — 전체 관리자만 볼 수 있고 그 사람들은 이 티켓을
-        찾을 이유가 없다. 운영 실측으로 색인 티켓행의 **21.5%(227/1,058)** 가 여기 해당한다.
+        ## 예전 정의와 무엇이 달라졌나
 
-        `core/scope.py` 모듈 docstring 이 이 쟁점을 이미 종결해 놓았다 —
-        "담당자가 아무도 없는(**또는 앱 사용자로 해석되지 않는**) 티켓은 ... 포탈 전용
-        버킷(미할당 트리아지)에 남고". 그 문장을 여기가 지키지 않고 있었다.
+        예전에는 "앱이 담당자를 앱 사용자로 **해석하지 못하는** 티켓 전부" 였다. Notion 에
+        담당자가 적혀 있어도 그 사람이 포털 계정과 매핑되지 않았으면 여기로 왔고, 운영
+        실측으로 티켓의 **21.5%(227/1,058)** 가 그 상태였다. 그 정의를 쓴 이유는 담당자 축이
+        소속을 정하던 시절 "해석 안 되는 티켓은 어느 부서에서도 안 보이니 여기라도 담아야
+        한다" 였다.
 
-        비용: 매핑표를 한 번 읽는다(활성 사용자 수만큼, 수십~수백 행). 티켓 수와 무관하다.
+        이제 소속은 담당자가 아니라 **프로젝트**다(0060). 매핑이 안 된 티켓도 자기 프로젝트
+        범위 안에서 정상적으로 보이므로, 이 화면이 그것까지 떠맡을 이유가 없다 — 그건
+        **정합성 문제**(사용자 매핑 필요)이지 배정 대기가 아니고, 진단 화면이 그것을 따로
+        보여 준다. 두 가지 다른 문제를 한 목록에 섞으면 어느 쪽도 처리되지 않는다.
 
-        ## 이 화면만 페이지를 파이썬에서 자른다 (판단과 이유)
+        ## 판정이 SQL 로 내려왔다
 
-        "앱이 담당자를 해석할 수 없다" 는 **매핑표와의 교집합** 판정이라 `ticket_cache` 한
-        테이블의 WHERE 로 나오지 않는다. 억지로 SQL 로 옮기면 매핑된 사용자 수만큼
-        `NOT LIKE` 를 이어 붙이게 되는데, 그건 두 가지를 동시에 나쁘게 만든다:
+        새 정의는 `assignee_notion_ids` 가 비었는가 하나라 컬럼 조건으로 표현된다. 그래서
+        매핑표를 읽어 파이썬으로 거르고 파이썬으로 페이지를 자르던 특수 경로가 통째로
+        없어졌다 — 다른 목록 셋과 **같은 깔때기**(`_cached_list`)를 쓴다. 범위(프로젝트)도
+        `filters` 를 통해 같은 질의 안에서 걸리므로, 자르기 전에 걸린다.
 
-          * **틀리는 방향이 나쁘다.** 조건 하나만 어긋나도 티켓이 조용히 사라지고, 이 화면은
-            정확히 "아무도 안 보면 영원히 사라지는 티켓" 을 담는 곳이다.
-          * 판정이 두 벌이 된다(여기 SQL, 부서 화면 파이썬). 두 벌이 되면 언젠가 한쪽만
-            고쳐지고, 그 증상은 "미할당에도 없고 팀에도 없다" 라 아무도 신고하지 않는다.
-
-        그래서 **판정은 그대로 파이썬**으로 두고, 열 조건(상태·프로젝트·기한 등)만 SQL 로
-        먼저 좁힌 뒤 판정 → 정렬 → 자르기 순서로 간다. total 은 판정 뒤에 세므로 화면이
-        말하는 건수와 사용자가 세는 건수가 같다. 비용은 오늘과 같다(미러 전량 로드).
+        빈 값 표현이 둘(NULL, '')이라 둘 다 본다 — `join_names([])` 는 빈 문자열을 쓰지만
+        옛 행이나 직접 넣은 행은 NULL 일 수 있고, 한쪽만 보면 그 행들이 조용히 빠진다.
         """
         ready, state = self._cache_ready(db)
         if ready:
-            from app.reports.service import load_display_maps
-
-            known = set(load_display_maps(db).id_to_user)
-            # 판정은 **파이썬 집합**으로 한다. SQL 로 부분일치를 조립하면 id 하나가 다른 id 의
-            # 접두사일 때 틀리고(`join_names` 구분자까지 함께 따져야 한다), 그 틀림은 티켓이
-            # 조용히 사라지는 방향으로 난다.
-            stmt = select(TicketCache)
-            for clause in filter_clauses(filters):
-                stmt = stmt.where(clause)
-            rows = db.execute(stmt).scalars().all()
-            unowned = [
-                r for r in rows
-                if not (set(split_names(r.assignee_notion_ids)) & known)
-            ]
-            return self._cached_list_rows(db, unowned, state, page)
+            stmt = select(TicketCache).where(
+                or_(
+                    TicketCache.assignee_notion_ids.is_(None),
+                    TicketCache.assignee_notion_ids == "",
+                )
+            )
+            return self._cached_list(db, stmt, state, filters, page)
         rows = notion_source.query_unassigned_tasks(self._outbound, self._settings)
         return self._live_list(db, rows, filters, page)
 
@@ -741,6 +707,13 @@ class NotionTicketRepository:
         names = list(dto.project_names) or self._cached_project_names(db, dto.project_ids)
         row.project_names = join_names(names)
         row.assignee_notion_ids = join_names(dto.assignee_ids)
+        # 소속 해석(0060). 이 줄이 없으면 **방금 쓴 사람이 자기 티켓을 잃는다**: 캐시 행이
+        # 생기는 순간 `project_link` 가 기본값(`unresolved`)이라 다음 요청부터 범위 밖으로
+        # 판정된다(행이 없을 때는 통과시키므로 첫 쓰기만 성공하고 두 번째부터 404 가 된다).
+        # 동기화가 회차마다 하는 일과 **같은 함수**를 쓴다 — 두 벌이 되면 한쪽만 고쳐진다.
+        from app.tickets import project_link
+
+        project_link.apply_to_row(row, project_link.portal_project_map(db))
         if body_markdown is not None:
             row.body_markdown = body_markdown
         row.source = SOURCE_NOTION

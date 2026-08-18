@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.org import context as org_context
 from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
@@ -150,16 +151,20 @@ def unassigned_tickets(
     page: PageParams = Depends(),
     query: TicketListQuery = Depends(),
 ):
-    """미할당 트리아지 한 페이지. `assignee_user_id` 는 여기서 뜻이 없다(정의상 담당자가 없다)."""
+    """미할당 트리아지 한 페이지 — **담당자가 아무도 없는** 티켓.
+
+    `assignee_user_id` 는 여기서 뜻이 없다(정의상 담당자가 없다). 범위는 팀 티켓과 같은
+    방식으로 질의에서 걸린다(`viewer` → 볼 수 있는 프로젝트).
+    """
     settings = request.app.state.settings
     outbound = request.app.state.outbound_client
     repo = _repo(request)
     try:
         result = service.list_unassigned_page(
-            db, outbound, settings, repo=repo,
+            db, outbound, settings, repo=repo, viewer=user,
             filters=service.build_filters(
                 db, query, now=request.app.state.clock.now(), active_only=True,
-                allow_assignee_filter=False,
+                allow_assignee_filter=False, viewer=user,
             ),
             page=_page_spec(page),
         )
@@ -177,9 +182,18 @@ def unassigned_tickets(
 def assignees(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    project_id: str | None = Query(default=None, max_length=36),
 ):
-    """담당자 배정 드롭다운용 후보 목록(active + verified 매핑 사용자)."""
-    return {"assignees": service.list_assignees(db, org_id=getattr(user, "org_id", None))}
+    """담당자 배정 드롭다운용 후보 목록(active + verified 매핑 사용자).
+
+    `project_id`(Portal 프로젝트 id)를 주면 **그 프로젝트에 닿을 수 있는 사람만** 나온다 —
+    담당자와 프로젝트 ACL 이 어긋나 "내가 담당인데 내 티켓이 안 보인다" 가 되지 않게 한다.
+    """
+    return {
+        "assignees": service.list_assignees(
+            db, org_id=getattr(user, "org_id", None), project_id=project_id
+        )
+    }
 
 
 @router.get("/meta")
@@ -208,16 +222,15 @@ def projects(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """새 티켓 폼의 프로젝트 드롭다운 후보 [{id, name}]. 로컬 메타 캐시 우선."""
-    settings = request.app.state.settings
-    outbound = request.app.state.outbound_client
-    try:
-        return {"configured": True, "ok": True,
-                "projects": service.list_projects(outbound, settings, db, repo=_repo(request))}
-    except NotionNotConfiguredError as exc:
-        return {"configured": False, "ok": False, "message": exc.message, "projects": []}
-    except NotionQueryError as exc:
-        return {"configured": True, "ok": False, "error": exc.message, "projects": []}
+    """새 티켓 폼의 프로젝트 드롭다운 — **범위 안 Portal 프로젝트**(0060).
+
+    외부 소스에 묻지 않으므로 그쪽 장애와 무관하다. 예전에는 Notion relation 목록을 그대로
+    내려 줘서 ① 다른 부서 프로젝트 이름이 전부 보이고 ② 외부 키가 브라우저로 나갔다.
+    """
+    return {
+        "configured": True, "ok": True,
+        "projects": service.list_projects(db, user),
+    }
 
 
 @router.get("/team")
@@ -228,11 +241,13 @@ def team_tickets(
     active: bool = Query(default=True),
     page: PageParams = Depends(),
     query: TicketListQuery = Depends(),
+    # 부서 필터 (0060 §32). 조회 범위 **안에서만** 좁힌다 — 범위 밖 id 는 404 다.
+    department_id: str | None = Query(default=None, max_length=36),
 ):
     """팀 티켓 한 페이지(다른 사람 것 포함) — 조회 전용. 리터럴 경로라 GET /{page_id} 보다 먼저 선언.
 
-    **범위는 질의에서 걸린다**: `build_filters(viewer=user)` 가 `any_assignee_visible` 과 같은
-    규칙을 `assignee_any_of` 로 옮겨 담고, `list_team_page` 가 파이썬 그물
+    **범위는 질의에서 걸린다**: `build_filters(viewer=user)` 가 이 사람이 볼 수 있는
+    프로젝트 집합을 `project_any_of` 로 옮겨 담고, `list_team_page` 가 파이썬 그물
     (`_drop_out_of_scope`)을 한 번 더 건다. 범위를 페이지 뒤에서만 걸면 남의 팀 티켓이
     자리만 차지하고 빠진, 20건을 달랬는데 3건이 오는 페이지가 나간다.
     """
@@ -241,13 +256,14 @@ def team_tickets(
     repo = _repo(request)
     try:
         # `viewer` 를 넘겨 **보는 사람의 팀**으로 좁힌다. 예전에는 포탈 전체가 나갔다.
+        picked = org_context.filter_scope(db, user, department_id)
         result = service.list_team_page(
             db, outbound, settings, active_only=active, repo=repo, viewer=user,
             filters=service.build_filters(
                 db, query, now=request.app.state.clock.now(),
-                active_only=active, viewer=user,
+                active_only=active, viewer=user, scope=picked,
             ),
-            page=_page_spec(page),
+            page=_page_spec(page), scope=picked,
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
@@ -256,6 +272,11 @@ def team_tickets(
     return _with_sync(db, repo, {
         "configured": True, "ok": True,
         "can_sync": service.can_trigger_sync(user),
+        # 고를 수 있는 부서는 서버가 계산한다 — 프런트가 만들면 서버 검증과 갈라진다.
+        "departments": {
+            "selected": department_id,
+            "options": org_context.department_options(db, user),
+        },
         **_paged(result["tickets"], result["total"], page),
     })
 

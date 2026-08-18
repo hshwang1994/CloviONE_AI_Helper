@@ -270,12 +270,23 @@ class TicketUpdate(BaseModel):
 
 
 class TicketCreate(BaseModel):
-    """새 티켓 수동 생성(채팅 없이 폼으로). 제목은 필수, 나머지는 선택. 담당자는 user_id 로만."""
+    """새 티켓 수동 생성(채팅 없이 폼으로). 제목과 **프로젝트**가 필수, 나머지는 선택.
+
+    ## 프로젝트가 필수인 이유 (0060)
+
+    티켓의 조직 소속은 프로젝트가 정한다(`app/core/ownership.py`). 프로젝트 없는 티켓은
+    **어느 범위에도 안 잡히는 유령**이 되어 전역 관리자 말고는 아무도 못 보고, 그 상태는
+    화면상 "목록이 비었다" 로만 보여 원인을 찾을 수 없다. 그래서 만들 때 막는다.
+
+    `project_id` 는 **Portal 프로젝트 id** 다(외부 소스의 relation id 가 아니다). 외부
+    id 로의 번역은 서버가 한다 — 브라우저가 외부 시스템의 키를 알 이유가 없고, Portal id 로
+    받아야 그 프로젝트에 대한 권한을 검증할 수 있다.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     title: str
-    project_id: str | None = None
+    project_id: str = Field(min_length=1)
     status: str | None = None
     priority: str | None = None
     difficulty: str | None = None
@@ -292,6 +303,14 @@ class TicketCreate(BaseModel):
             raise ValueError("제목을 입력하세요.")
         if len(v) > 200:
             raise ValueError("제목은 200자 이하여야 합니다.")
+        return v
+
+    @field_validator("project_id")
+    @classmethod
+    def _check_project(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("프로젝트를 선택하세요.")
         return v
 
     @field_validator("description")

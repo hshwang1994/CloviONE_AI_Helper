@@ -36,7 +36,9 @@ import { AUTOMATION_SCREENS } from "./registry/automation.js";
 import { ORG_SCREENS } from "./registry/org.js";
 import { GOVERNANCE_SCREENS } from "./registry/governance.js";
 import { PLATFORM_SCREENS } from "./registry/platform.js";
-import { NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
+// 관리자 콘솔에는 **관리 알림**만 넣는다(0060). 사용자 알림(`notifications`)은
+// UserRoutes.jsx 가 직접 들여온다 — 두 콘솔이 같은 화면 키를 공유하면 라우트가 겹친다.
+import { ADMIN_NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
 
 /* 순서는 관리자 사이드바가 아니라 **읽는 사람**을 위한 것이다 — 바깥 배관에서 시작해
  * 조직·권한으로, 마지막이 이 설치 자체를 돌보는 화면이다. 키가 겹치면 나중 것이 이기므로,
@@ -49,5 +51,5 @@ export const REGISTRY = {
   ...ORG_SCREENS,
   ...GOVERNANCE_SCREENS,
   ...PLATFORM_SCREENS,
-  ...NOTIFICATIONS_SCREEN,
+  ...ADMIN_NOTIFICATIONS_SCREEN,
 };

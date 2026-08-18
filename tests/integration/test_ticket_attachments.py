@@ -45,7 +45,7 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 @pytest.fixture()
-def api(client, settings, notion, make_user):
+def api(client, settings, notion, make_user, portal_project):
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
 
     def _login(email: str, *, role: str = "user", name: str = "사람"):

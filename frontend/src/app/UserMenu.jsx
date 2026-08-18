@@ -12,6 +12,7 @@ import { useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
+import { OrgPath, PATH_SEP } from "../ui/OrgPath.jsx";
 
 /* 사용자 메뉴 — 이름/아바타를 누르면 내 프로필·비밀번호 변경·로그아웃.
  * 로그아웃이 없던 것이 큰 공백이었다(공용 PC 보안).
@@ -32,7 +33,65 @@ import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
  * 이제 실제 화면(screens/Profile.jsx)이 그 일을 하므로 여기서는 **이동만** 한다. 같은 정보를
  * 두 곳에서 그리면 언젠가 한쪽만 고쳐져 서로 다른 말을 한다. */
 
-export function UserMenu({ name, userId, avatarUrl }) {
+/* 내 소속 / 관리 범위 — 셸의 **한 자리**에서 전체 경로를 보여 준다 (0060 §5).
+ *
+ * 왜 둘을 나누는가: `내 소속` 은 "나는 어디 사람인가" 이고 `관리 범위` 는 "내가 무엇을
+ * 관리하는가" 다. 우연히 같을 수는 있어도 같은 개념이 아니다 — 관리자가 자기 부서가 아닌
+ * 다른 부서를 관리 범위로 배정받을 수 있고, 그때 한 줄로 뭉쳐 놓으면 자기 소속을 관리
+ * 범위로 착각한다.
+ *
+ * `unassigned` 를 조용히 넘기지 않는다. 그 계정은 조직 데이터를 아무것도 못 보는 상태이고,
+ * 증상이 "목록이 비어 있음" 이라 이 표시가 없으면 원인을 찾을 방법이 없다.
+ */
+const MEMBERSHIP_HINT = {
+  organization: "조직 직속",
+  unassigned: "소속 미지정 (관리자에게 문의하세요)",
+};
+
+function MyAffiliation({ user }) {
+  if (!user) return null;
+  const path = user.department_path || [];
+  const org = user.organization;
+  const mgmt = user.management || {};
+  const hint = path.length ? null : MEMBERSHIP_HINT[user.membership_kind];
+  const mgmtLabel =
+    mgmt.kind === "global" ? "전체"
+      : mgmt.kind === "org" ? (mgmt.org?.name || "소속 조직")
+        : mgmt.kind === "dept"
+          ? (mgmt.path || []).map((n) => n.name).join(PATH_SEP) + " 및 하위 부서"
+          : null;
+  return (
+    <Box sx={{ px: 2, py: 1.25, minWidth: 0 }}>
+      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm }}>
+        {user.display_name}
+      </Typography>
+      <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", mt: 0.25 }}>
+        내 소속
+      </Typography>
+      {path.length ? (
+        <OrgPath path={path} org={org} variant="full" />
+      ) : (
+        <Typography sx={{ fontSize: FONT_SIZE.caption, color: hint && user.membership_kind === "unassigned" ? "warning.main" : "text.secondary" }}>
+          {[org?.name, hint].filter(Boolean).join(PATH_SEP) || "-"}
+        </Typography>
+      )}
+      {mgmtLabel ? (
+        <>
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", mt: 0.75 }}>
+            관리 범위
+          </Typography>
+          <Typography sx={{ fontSize: FONT_SIZE.caption }}>{mgmtLabel}</Typography>
+        </>
+      ) : null}
+    </Box>
+  );
+}
+
+
+export function UserMenu({ name, userId, avatarUrl, me }) {
+  /* `me` 는 셸이 넘긴다(`/api/me` 응답의 user). 여기서 `useAuth()` 를 부르지 않는 이유:
+     이 컴포넌트는 AuthProvider 없이도 렌더 가능해야 하고(테스트·스토리), 무엇보다
+     같은 값을 두 곳에서 읽으면 셸과 메뉴가 서로 다른 스냅숏을 그릴 수 있다. */
   const [anchor, setAnchor] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const open = Boolean(anchor);
@@ -127,8 +186,15 @@ export function UserMenu({ name, userId, avatarUrl }) {
         onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        slotProps={{ paper: { sx: { minWidth: 200 } } }}
+        slotProps={{ paper: { sx: { minWidth: 260 } } }}
       >
+        {/* 내 소속 — **어느 화면에서든 확인할 수 있어야 한다** (0060 §5).
+            화면마다 긴 경로를 반복해 UI 를 지저분하게 만드는 대신, 셸의 이 한 자리에서
+            전체 경로를 항상 볼 수 있게 한다. 목록·표에서는 짧은 형태(`A › A-1`)만 쓴다.
+            관리자에게는 **내 소속과 관리 범위를 나눠** 보여 준다 — 둘은 다른 개념이고,
+            한 줄로 뭉치면 부서 관리자가 자기 소속을 관리 범위로 착각한다. */}
+        <MyAffiliation user={me} />
+        <Divider />
         <MenuItem onClick={() => { setAnchor(null); nav("/profile"); }}>내 프로필</MenuItem>
         <MenuItem onClick={() => { setAnchor(null); nav("/my-stats"); }}>내 업무량</MenuItem>
         <MenuItem onClick={() => { setAnchor(null); nav("/activity"); }}>내 활동</MenuItem>

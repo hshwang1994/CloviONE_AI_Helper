@@ -41,7 +41,7 @@ def list_offboarding_runs(
     page: PageParams = Depends(),
 ):
     items, total = service.list_runs(
-        db, principal.scope, offset=page.offset, limit=page.page_size
+        db, principal.management, offset=page.offset, limit=page.page_size
     )
     return {"items": items, "total": total, "page": page.page, "page_size": page.page_size}
 
@@ -54,7 +54,7 @@ def preview_offboarding(
     principal: Principal = Depends(get_principal),
 ):
     """실행 전에 보여 줄 전부. 실행 경로는 이 응답 없이는 무엇을 옮길지 알 수 없다."""
-    target = service.resolve_target(db, user_id, principal.scope)
+    target = service.resolve_target(db, user_id, principal.management)
     return service.preview(
         db, request.app.state.outbound_client, request.app.state.settings,
         target=target, actor=request.state.user, repo=_repo(request),
@@ -69,9 +69,9 @@ def run_offboarding(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    target = service.resolve_target(db, user_id, principal.scope)
+    target = service.resolve_target(db, user_id, principal.management)
     successor = (
-        service.resolve_target(db, payload.successor_user_id, principal.scope)
+        service.resolve_target(db, payload.successor_user_id, principal.management)
         if payload.successor_user_id
         else None
     )
@@ -110,7 +110,7 @@ def get_offboarding_run(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    run = service.get_scoped_run_or_404(db, run_id, principal.scope)
+    run = service.get_scoped_run_or_404(db, run_id, principal.management)
     return {"run": service.run_detail(db, run)}
 
 
@@ -122,7 +122,7 @@ def undo_offboarding_run(
     principal: Principal = Depends(get_principal),
 ):
     """되돌리기 — 계정을 먼저 살리고 그다음 티켓을 원래 담당자 구성으로 되돌린다."""
-    run = service.get_scoped_run_or_404(db, run_id, principal.scope)
+    run = service.get_scoped_run_or_404(db, run_id, principal.management)
     before = service.run_view(run)
     result = service.undo(
         db,

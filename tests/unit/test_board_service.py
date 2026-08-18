@@ -264,7 +264,7 @@ def test_fit_for_ticket_description_passes_ticket_create_validation():
 
     body = "긴 문단입니다. " * 400  # 공백 섞인 긴 문단, 줄바꿈 없음
     fitted = service._fit_for_ticket_description(body)
-    payload = TicketCreate(title="t", description=fitted)  # 안 터지면 통과
+    payload = TicketCreate(title="t", project_id="p1", description=fitted)  # 안 터지면 통과
     assert payload.description == fitted.strip()
 
 

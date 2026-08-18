@@ -83,8 +83,11 @@ def two_depts(db, make_user):
     class DeptWorld:
         me: object
         other: object
+        # 문서의 소속(0060)은 문서 자신이 든다 — 그 소속을 심으려면 부서도 함께 필요하다.
+        mine: object
+        theirs: object
 
-    return DeptWorld(me=me, other=other)
+    return DeptWorld(me=me, other=other, mine=mine, theirs=theirs)
 
 
 def test_home_recent_documents_only_shows_the_viewers_department(db, two_depts):
@@ -92,11 +95,15 @@ def test_home_recent_documents_only_shows_the_viewers_department(db, two_depts):
     from app.home import readers
     from app.team_docs.models import DocumentCache
 
+    world = two_depts
+
     db.add_all([
         DocumentCache(notion_page_id="d-mine", title="우리팀 회의록",
-                      author_notion_ids="hw-nid-me", last_edited="2026-08-10T00:00:00.000Z"),
+                      author_notion_ids="hw-nid-me", owner_kind="department",
+                      owner_dept_id=world.mine.id, last_edited="2026-08-10T00:00:00.000Z"),
         DocumentCache(notion_page_id="d-theirs", title="남의팀 기밀 계약서",
-                      author_notion_ids="hw-nid-other", last_edited="2026-08-10T01:00:00.000Z"),
+                      author_notion_ids="hw-nid-other", owner_kind="department",
+                      owner_dept_id=world.theirs.id, last_edited="2026-08-10T01:00:00.000Z"),
     ])
     db.commit()
 
@@ -111,11 +118,15 @@ def test_home_recent_documents_without_viewer_is_unfiltered_baseline(db, two_dep
     from app.home import readers
     from app.team_docs.models import DocumentCache
 
+    world = two_depts
+
     db.add_all([
         DocumentCache(notion_page_id="d-mine2", title="우리팀 회의록2",
-                      author_notion_ids="hw-nid-me", last_edited="2026-08-10T00:00:00.000Z"),
+                      author_notion_ids="hw-nid-me", owner_kind="department",
+                      owner_dept_id=world.mine.id, last_edited="2026-08-10T00:00:00.000Z"),
         DocumentCache(notion_page_id="d-theirs2", title="남의팀 기밀 계약서2",
-                      author_notion_ids="hw-nid-other", last_edited="2026-08-10T01:00:00.000Z"),
+                      author_notion_ids="hw-nid-other", owner_kind="department",
+                      owner_dept_id=world.theirs.id, last_edited="2026-08-10T01:00:00.000Z"),
     ])
     db.commit()
 
@@ -130,13 +141,19 @@ def test_home_recent_documents_still_returns_up_to_limit_after_scope_filtering(d
     from app.home import readers
     from app.team_docs.models import DocumentCache
 
+    world = two_depts
+
     db.add_all([
         DocumentCache(notion_page_id=f"d-other-{i}", title=f"남의팀 문서{i}",
-                      author_notion_ids="hw-nid-other", last_edited=f"2026-08-1{i}T00:00:00.000Z")
+                      author_notion_ids="hw-nid-other", owner_kind="department",
+                      owner_dept_id=world.theirs.id,
+                      last_edited=f"2026-08-1{i}T00:00:00.000Z")
         for i in range(3)
     ] + [
         DocumentCache(notion_page_id=f"d-mine-{i}", title=f"우리팀 문서{i}",
-                      author_notion_ids="hw-nid-me", last_edited=f"2026-08-0{i+1}T00:00:00.000Z")
+                      author_notion_ids="hw-nid-me", owner_kind="department",
+                      owner_dept_id=world.mine.id,
+                      last_edited=f"2026-08-0{i+1}T00:00:00.000Z")
         for i in range(2)
     ])
     db.commit()
@@ -164,11 +181,15 @@ def test_home_documents_changed_between_only_shows_the_viewers_department(db, tw
     from app.home import readers
     from app.team_docs.models import DocumentCache
 
+    world = two_depts
+
     db.add_all([
         DocumentCache(notion_page_id="dc-mine", title="우리팀 주간 회의록",
-                      author_notion_ids="hw-nid-me", last_edited="2026-08-04T02:00:00.000Z"),
+                      author_notion_ids="hw-nid-me", owner_kind="department",
+                      owner_dept_id=world.mine.id, last_edited="2026-08-04T02:00:00.000Z"),
         DocumentCache(notion_page_id="dc-theirs", title="남의팀 주간 계약서",
-                      author_notion_ids="hw-nid-other", last_edited="2026-08-05T02:00:00.000Z"),
+                      author_notion_ids="hw-nid-other", owner_kind="department",
+                      owner_dept_id=world.theirs.id, last_edited="2026-08-05T02:00:00.000Z"),
     ])
     db.commit()
 
@@ -183,6 +204,8 @@ def test_home_documents_changed_between_without_viewer_is_unfiltered_baseline(db
     """viewer를 안 주면(예: 배경 집계) 이전처럼 전체를 본다 — 회귀 방지용 대조."""
     from app.home import readers
     from app.team_docs.models import DocumentCache
+
+    world = two_depts
 
     db.add_all([
         DocumentCache(notion_page_id="dc-mine2", title="우리팀 주간 회의록2",

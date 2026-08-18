@@ -7,6 +7,7 @@ Notion 장애/미설정이면 캐시를 건드리지 않고 sync 상태만 error
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from sqlalchemy import select
@@ -17,13 +18,18 @@ from app.org.constants import DEFAULT_ORG_ID
 from app.team_docs import notion_docs
 from app.team_docs.classify import classify
 from app.team_docs.models import (
+    OWNER_PROJECT,
+    OWNER_UNSET,
     SYNC_ERROR,
     SYNC_OK,
     SYNC_STATE_ID,
     DocumentCache,
     DocumentSyncState,
     join_names,
+    split_names,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_state(db: Session) -> DocumentSyncState:
@@ -64,6 +70,12 @@ def _upsert(db: Session, d: dict, rel_maps: dict, now: datetime) -> None:
     row.type_names = join_names(type_list)  # 원본 유형(분류 입력·참고용)
     row.category_names = join_names(cat_list)
     row.project_names = _names(d.get("project_ids") or [], rel_maps.get(notion_docs.PROP_PROJECT, {}))
+    # 식별용 id 도 함께 미러링한다 (0060). 이름만 두면 나중에 Portal 프로젝트와 이을 때
+    # 이름 비교로 추측하게 되는데, 이름은 바뀌고 중복될 수 있어 그 추측이 틀린다.
+    # ⚠️ `owner_kind`/`owner_dept_id`/`owner_project_id` 는 **여기서 절대 안 건드린다** —
+    # 그 셋은 Portal 이 소유하는 소속이고, 동기화가 덮으면 사람이 정한 소속이 회차마다
+    # 사라진다(`restricted`(0057)·`classification_manual`(0018)과 같은 자리).
+    row.project_external_ids = join_names([p for p in (d.get("project_ids") or []) if p])
     # 신규 택소노미 자동 계산 — 사용자가 수동으로 고친 문서는 건드리지 않는다.
     if not row.classification_manual:
         dt, wf, tags = classify(type_list, cat_list, row.title)
@@ -99,6 +111,49 @@ def _prune(db: Session, keep: set[str]) -> PruneResult:
     return prune_missing(db, existing, keep, key=lambda r: r.notion_page_id, label="문서")
 
 
+def resolve_project_ownership(db: Session) -> dict[str, int]:
+    """외부 project relation 을 **Portal 문서 Ownership 으로 승격**한다 (0060).
+
+    `document_cache.project_external_ids` 는 Notion relation id 를 그대로 적어 둔 원본이다.
+    그 원본은 권한의 근거가 못 된다 — 다중값이고, 가리키는 프로젝트가 Portal 에 없을 수도
+    있다. 여기서 **정확히 하나로 해석될 때만** `owner_kind='project'` 로 올린다.
+
+    지키는 세 가지:
+
+      * **미지정 문서만 건드린다.** 사람이 Portal 에서 지정한 Ownership(부서/조직/다른
+        프로젝트)은 외부 소스가 덮지 않는다 — 그게 "Portal 이 Ownership 의 정본" 의 뜻이다.
+      * **임의로 고르지 않는다.** relation 이 둘이면 미지정으로 둔다. 코드가 하나를 고르면
+        그 문서는 남의 부서에 정상으로 보이고, 틀려도 아무도 신고하지 않는다.
+      * **되돌리지 않는다.** 한 번 project 로 올라간 문서를 relation 이 사라졌다고 다시
+        미지정으로 내리지 않는다. 소스가 한 회차 흔들릴 때마다 문서가 통째로 사라진다.
+
+    프로젝트 동기화가 문서 동기화보다 늦게 돌면 그 사이 문서는 미지정이다 — 그래서 문서
+    동기화 끝과 프로젝트 동기화 끝 **양쪽에서** 부른다(`app/projects/sync.py`).
+    """
+    from app.tickets.project_link import portal_project_map
+
+    portal = portal_project_map(db)
+    promoted = 0
+    # 세션이 `autoflush=False` 다(`app/core/db.py`). 방금 upsert 한 문서는 아직 INSERT 전이라
+    # 질의에 안 잡힌다 — 여기서 flush 하지 않으면 **새로 들어온 문서만 골라서** 미지정으로
+    # 남고, 증상은 "새 문서가 아무에게도 안 보인다" 로 나타난다.
+    db.flush()
+    rows = db.execute(
+        select(DocumentCache).where(DocumentCache.owner_kind == OWNER_UNSET)
+    ).scalars().all()
+    for row in rows:
+        ids = [i for i in split_names(row.project_external_ids) if i]
+        if len(ids) != 1:
+            continue
+        uid = portal.get(ids[0])
+        if not uid:
+            continue
+        row.owner_kind = OWNER_PROJECT
+        row.owner_project_id = uid
+        promoted += 1
+    return {"unset": len(rows), "promoted": promoted}
+
+
 def sync_documents(db: Session, *, outbound, settings, now: datetime) -> DocumentSyncState:
     """전체 동기화. 어떤 단계에서 실패해도 예외를 밖으로 던지지 않고 상태에 error로 기록만
     한다(§17.4) — 호출측(엔드포인트/워커)은 절대 크래시하지 않고 캐시(마지막 정상)로 폴백한다.
@@ -122,6 +177,16 @@ def sync_documents(db: Session, *, outbound, settings, now: datetime) -> Documen
         # 상한(_MAX_PAGES)에 걸려 일부만 받아왔다면 prune하지 않는다 — 안 받아온 문서를
         # 'Notion에서 삭제됨'으로 오인해 캐시에서 지우면 목록이 흔들린다(§17.4 최근 정상 보존).
         pruned = _prune(db, keep) if not truncated else PruneResult()
+
+        # 새로 들어온 문서의 Ownership 을 해석한다 (0060). 해석 못 하면 미지정이고 미지정은
+        # 아무에게도 안 보인다 — 그건 진단 화면(`/integrity`)이 목록으로 보여 주고 관리자가
+        # Portal 에서 지정한다. 소스가 조직 권한을 정하게 두지는 않는다.
+        try:
+            owner_counts = resolve_project_ownership(db)
+            if owner_counts["promoted"]:
+                logger.info("문서 Ownership 해석: %s", owner_counts)
+        except Exception:
+            logger.exception("문서 Ownership 해석 실패")
 
         notes = []
         if truncated:

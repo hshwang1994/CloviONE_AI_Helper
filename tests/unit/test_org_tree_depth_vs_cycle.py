@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.scope import MAX_DEPARTMENT_DEPTH
+from app.core.org_tree import MAX_DEPARTMENT_DEPTH
 from app.org.models import Department
 from app.org.tree import build_rows
 

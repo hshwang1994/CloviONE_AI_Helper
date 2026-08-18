@@ -47,6 +47,21 @@ META_CACHE_ID = "tickets"
 SOURCE_NOTION = "notion"
 SOURCE_NATIVE = "native"
 
+# ── 티켓 ↔ 프로젝트 연결 상태 (0060) ─────────────────────────────────────────
+# 티켓 하나에는 프로젝트가 **정확히 하나** 있어야 한다. 외부 소스(Notion relation)는 0개나
+# 2개 이상을 줄 수 있으므로, 해석 결과를 이 어휘로 남기고 `ok` 가 아니면 fail-closed 한다.
+# 임의로 하나를 고르지 않는 이유는 `TicketCache.project_link` 주석 참조.
+PROJECT_LINK_OK = "ok"                  # 정확히 1개, Portal 프로젝트로 해석됨
+PROJECT_LINK_MISSING = "missing"        # relation 0개 — 정합성 오류
+PROJECT_LINK_AMBIGUOUS = "ambiguous"    # relation 2개 이상 — 정합성 오류
+PROJECT_LINK_UNRESOLVED = "unresolved"  # 1개인데 Portal 에 짝이 없음(동기화 전이거나 삭제됨)
+
+PROJECT_LINK_STATES: tuple[str, ...] = (
+    PROJECT_LINK_OK, PROJECT_LINK_MISSING, PROJECT_LINK_AMBIGUOUS, PROJECT_LINK_UNRESOLVED,
+)
+# ACL 계산에 쓸 수 있는 상태. 이 집합 밖은 소속을 모르는 것이고, 모르면 닫는다.
+PROJECT_LINK_USABLE: frozenset[str] = frozenset({PROJECT_LINK_OK})
+
 
 class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     """Notion "작업" DB 한 행의 로컬 미러(장차 자체 티켓 표)."""
@@ -75,9 +90,24 @@ class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # FK 를 걸지 않는 이유: 부모가 아직 동기화되지 않았거나 다른 필터로 빠져 있을 수 있고,
     # 그때 FK 가 있으면 자식 upsert 가 통째로 실패해 동기화가 멈춘다.
     parent_page_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    # 담당자의 부서로 유도할 예정인 스코프 컬럼. 지금은 항상 NULL이고 읽는 코드가 없다(문만 연다).
-    scope_dept_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id"), nullable=True, index=True
+    # ── 소속: 이 티켓은 **프로젝트 것**이다 (0060) ────────────────────────────
+    #
+    # 예전에는 여기 `scope_dept_id`(담당자의 부서로 유도할 예정) 컬럼이 있었다. 그 문은
+    # 끝내 안 열렸고(실측 non-null 0건, 읽는 코드 0건) 이제 안 연다 — 담당자 축은 사람이
+    # 부서를 옮기면 과거 티켓의 소속이 따라 움직이고, 담당자가 둘이면 소속도 둘이 된다.
+    #
+    # `project_ids`(아래)는 **외부 소스의 원본**(Notion relation id 다중값)이고,
+    # `project_uid` 는 그것을 Portal 프로젝트 **하나**로 해석한 결과다. 권한 계산은 언제나
+    # 이 해석 결과만 쓴다 — 외부 소스가 다른 시스템으로 바뀌어도 이 관계는 그대로다.
+    project_uid: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id"), nullable=True, index=True
+    )
+    # 그 해석이 어떻게 끝났는가. `ok` 가 아니면 **fail-closed** 다(전역 관리자만).
+    # 임의로 하나를 고르지 않는 이유: 잘못 고른 티켓은 남의 부서로 새고, 그 사고는
+    # 화면이 정상으로 보이기 때문에 아무도 신고하지 않는다.
+    project_link: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=PROJECT_LINK_UNRESOLVED,
+        server_default=PROJECT_LINK_UNRESOLVED, index=True,
     )
 
     # Notion 'ID' 속성(auto_increment). 화면이 "GIT-" + 번호로 보여주므로 반드시 미러링한다.

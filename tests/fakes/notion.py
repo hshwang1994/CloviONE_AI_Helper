@@ -47,6 +47,16 @@ NOTION_BASE = "https://api.notion.com"
 DEFAULT_TASKS_DB = "tasks-db-0001"
 DEFAULT_PROJECTS_DB = "projects-db-0001"
 
+# 티켓이 기본으로 매다는 프로젝트의 외부 page id (0060).
+#
+# 0060 부터 **티켓의 소속은 프로젝트가 정한다** — 프로젝트가 없는 티켓은 소속을 판정할 수
+# 없고, 판정할 수 없으면 전역 관리자 말고는 아무에게도 안 보인다. 그래서 이 페이크가 만드는
+# 티켓도 기본으로 프로젝트를 하나 갖는다(실제 제품과 같은 상태).
+#
+# Portal 쪽 짝은 `tests/conftest.py::portal_project` 픽스처가 만든다. 둘 중 하나만 있으면
+# 그 티켓은 `unresolved` 로 남는다 — 그 상태 자체를 시험하고 싶으면 그 픽스처를 안 쓰면 된다.
+DEFAULT_PROJECT_PAGE_ID = "proj-1"
+
 # Schema served by GET /v1/databases/{tasks_db}. Shape matches what
 # app/tickets/notion_write.py reads (type + options + relation.database_id).
 DEFAULT_TASKS_SCHEMA: dict[str, Any] = {
@@ -92,7 +102,13 @@ def task_row(
     project_ids: list[str] | None = None,
     url: str | None = None,
 ) -> dict:
-    """One Notion page in the exact shape ``notion_source._parse_row`` consumes."""
+    """One Notion page in the exact shape ``notion_source._parse_row`` consumes.
+
+    ``project_ids`` defaults to ``[DEFAULT_PROJECT_PAGE_ID]`` — every real ticket belongs to
+    exactly one project (0060). Pass ``[]`` when the *absence* of a project is the subject.
+    """
+    if project_ids is None:
+        project_ids = [DEFAULT_PROJECT_PAGE_ID]
     return {
         "object": "page",
         "id": page_id,

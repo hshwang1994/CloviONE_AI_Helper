@@ -170,7 +170,7 @@ def list_mappings(
     # 거는데 이 화면은 안 걸었다 — 같은 역할 게이트를 지나면서 같은 사람 목록(이메일 포함)을
     # 그대로 내줬다. `apply_user_scope` 는 users 화면이 쓰는 바로 그 함수다(규칙을 두 벌로
     # 만들지 않는다).
-    stmt = apply_user_scope(stmt, principal.scope)
+    stmt = apply_user_scope(stmt, principal.management)
     # 보관된 계정은 목록·검색·로그인에서 뺀다(User.archived_at 규약, Users 화면과 동일).
     # 이 목록은 사용자를 기준으로 나열하므로 보관 계정이 활성 직원과 섞여 보이면 안 된다
     # (동기화 잡도 보관 계정을 건너뛴다). archived=true일 때만 '보관함'을 따로 연다.
@@ -228,7 +228,7 @@ def get_mapping(user_id: str, db: Session = Depends(get_db), principal: Principa
     """
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     row = db.execute(
         select(UserNotionMapping).where(UserNotionMapping.user_id == user_id)
     ).scalar_one_or_none()
@@ -239,7 +239,7 @@ def get_mapping(user_id: str, db: Session = Depends(get_db), principal: Principa
 def verify(request: Request, user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = verify_mapping(
         db, user,
@@ -260,7 +260,7 @@ def map_manual(
 ):
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = manual_map(
         db, user,
@@ -279,7 +279,7 @@ def map_manual(
 def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = unmap(db, user_id)
     record_audit_from_request(
@@ -296,7 +296,7 @@ def resolve(
 ):
     # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
     # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.scope)
+    user = get_scoped_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     row = resolve_conflict(
         db, user, notion_user_id=payload.notion_user_id, now=request.app.state.clock.now()

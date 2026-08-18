@@ -35,7 +35,7 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 @pytest.fixture()
-def api(client, settings, notion, make_user):
+def api(client, settings, notion, make_user, portal_project):
     """Notion 토큰이 있고 페이크가 붙은 앱 + 로그인 헬퍼."""
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
 

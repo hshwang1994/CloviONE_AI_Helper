@@ -175,7 +175,7 @@ def _image_view(img) -> dict:
     }
 
 
-def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset()) -> dict:
+def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset(), tree=None) -> dict:
     """참여자 한 줄 — 이름·소속·역할 + **읽음 위치**와 **접속 여부**.
 
     `last_read_seq` 는 1:1 읽음 표시가 쓰는 값이다(내 메시지의 seq 가 상대의 이 값 이하면
@@ -195,7 +195,7 @@ def _member_view(m, names, cursor, now, org_names=None, dnd_ids=frozenset()) -> 
     에는 여전히 살아 있는 사람처럼 보였다. 답이 안 오는 대화를 며칠 기다리게 하는 그 침묵이다.
     """
     u = names.get(m.user_id)
-    person = people.identity(u, org_names)
+    person = people.identity(u, org_names, None, tree)
     return {
         "user_id": m.user_id,
         # `name` 은 기존 계약이라 유지한다(프런트 여러 곳이 이 키를 읽는다).
@@ -276,6 +276,10 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     is_owner = member is not None and member.role == ROLE_OWNER
     is_group = not room.is_global and room.kind != ROOM_DIRECT
     org_names = people.org_name_map(db)
+    # 조직 트리도 한 번만 읽는다(0060) — 사람마다 경로를 물으면 폴링 경로가 N+1 이 된다.
+    from app.core.org_tree import DeptTree
+
+    tree = DeptTree.load(db)
     # 발신자 신원 맵 — 말풍선마다 부서를 실으면 같은 사람이 200번 반복된다(폴링 경로다).
     # 등장하는 사람 한 명당 한 줄만 보내고, 말풍선은 sender_user_id 로 여기서 찾아 쓴다.
     avatars = people.avatar_map(db, names.keys())
@@ -288,11 +292,11 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
                  # 해, 같은 방인데 들어가는 순간 표식이 바뀌는 자기모순이 난다.
                  "department_id": getattr(room, "department_id", None),
                  "title": _room_title(room, mem, names, me.id), "member_count": len(mem)},
-        "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names, dnd_ids)
+        "members": [_member_view(m, names, cursors.get(m.user_id), now, org_names, dnd_ids, tree)
                     for m in mem],
         # 사진까지 한 번에 — 건별 조회를 하면 이 경로가 바로 N+1 이 된다(X13).
         "people": {
-            uid: people.identity(u, org_names, avatars)
+            uid: people.identity(u, org_names, avatars, tree)
             for uid, u in names.items()
         },
         "messages": [_msg_view(m, names, images.get(m.id), me=me) for m in msgs],

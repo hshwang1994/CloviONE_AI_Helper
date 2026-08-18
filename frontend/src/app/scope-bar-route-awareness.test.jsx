@@ -21,7 +21,12 @@ import { ScopeBar } from "./ScopeBar.jsx";
 const DEPT_ADMIN = {
   user: {
     id: "u1", email: "a@b.c", display_name: "관리자", role: "admin",
-    admin_scope: "dept", scope_dept_name: "브로드컴사업본부",
+    admin_scope: "dept",
+    // 0060: 이름 문자열이 아니라 **경로**로 온다(`/api/me` 의 조직 Context).
+    membership_kind: "department",
+    organization: { id: "o1", name: "굿모닝아이텍" },
+    department_path: [{ id: "d1", name: "브로드컴사업본부" }],
+    management: { kind: "dept", path: [{ id: "d1", name: "브로드컴사업본부" }] },
   },
   features: {}, branding: {}, csrf_token: "t",
 };
@@ -48,12 +53,12 @@ describe("ScopeBar 라우트 인지", () => {
   it("범위가 실제로 걸리는 화면(/team-docs)에서는 캐비어트 문장이 뜬다", async () => {
     renderAt("/team-docs");
     await waitFor(() => expect(screen.getByText("브로드컴사업본부")).toBeTruthy());
-    expect(screen.queryByText("이 범위 밖의 항목은 목록에 나오지 않습니다.")).toBeTruthy();
+    expect(screen.queryByText("상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeTruthy();
   });
 
   it("범위를 안 거는 화면(/board)에서는 캐비어트 문장이 없다 — 배지는 그대로 뜬다", async () => {
     renderAt("/board");
     await waitFor(() => expect(screen.getByText("브로드컴사업본부")).toBeTruthy());
-    expect(screen.queryByText("이 범위 밖의 항목은 목록에 나오지 않습니다.")).toBeNull();
+    expect(screen.queryByText("상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeNull();
   });
 });

@@ -35,7 +35,7 @@ describe("detailTitle — 선언된 rowName을 columns[0] 폴백보다 먼저 �
   });
 
   it("rowName 표식이 없는 화면(알림)은 이전과 동일하게 columns[0] 원시값으로 폴백한다", () => {
-    const cols = REGISTRY.notifications.columns;
+    const cols = REGISTRY["admin-notifications"].columns;
     expect(detailTitle({ title: "승인 요청이 도착했습니다" }, cols)).toBe("승인 요청이 도착했습니다");
   });
 

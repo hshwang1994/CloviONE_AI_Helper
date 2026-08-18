@@ -29,7 +29,10 @@ from app.users.models import (
     ADMIN_SCOPE_GLOBAL,
     ADMIN_SCOPE_ORG,
     ALL_ADMIN_SCOPES,
+    ALL_MEMBERSHIP_KINDS,
     ALL_ROLES,
+    MEMBERSHIP_DEPARTMENT,
+    MEMBERSHIP_UNASSIGNED,
     ROLE_SYSTEM_ADMIN,
     User,
 )
@@ -107,6 +110,23 @@ def ensure_can_grant_role(actor_role: str, role: str) -> None:
         raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
 
 
+def _resolved_membership(department_id: str | None, membership_kind: str | None) -> str:
+    """새 계정의 소속 종류. **추측하지 않는다** (0060).
+
+    부서가 있으면 부서 소속이 자명하다. 부서가 없으면 사람이 명시한 값만 쓰고, 명시가
+    없으면 미지정이다 — 미지정은 조직 데이터를 아무것도 못 보는 상태이고, 관리자 진단이
+    그 계정을 목록으로 보여 준다. 예전에는 이 자리에서 전역으로 폴백했고, 그 편의가
+    실측 25명 중 21명을 전 포털 가시성으로 만들었다.
+    """
+    if department_id:
+        return MEMBERSHIP_DEPARTMENT
+    if membership_kind in ALL_MEMBERSHIP_KINDS:
+        if membership_kind == MEMBERSHIP_DEPARTMENT:
+            raise ValidationAppError("부서 소속으로 두려면 부서를 함께 지정해야 합니다.")
+        return membership_kind
+    return MEMBERSHIP_UNASSIGNED
+
+
 def create_user(
     db: Session,
     *,
@@ -120,6 +140,7 @@ def create_user(
     must_change_password: bool = True,
     department_id: str | None = None,
     title_id: str | None = None,
+    membership_kind: str | None = None,
     created_by: str | None = None,
     enforce_password_policy: bool = True,
     effective_settings: dict | None = None,
@@ -168,6 +189,10 @@ def create_user(
         # 명부에 없는 id나 비활성 항목을 그대로 쓰면 FK 위반이 500으로 터진다.
         department_ref=resolve_assignable(db, Department, department_id),
         title_ref=resolve_assignable(db, JobTitle, title_id),
+        # 소속 종류(0060). 부서를 주면 그 사실 그대로 'department', 아니면 명시한 값,
+        # 아무 것도 안 주면 **미지정**(조직 데이터를 못 본다). 기본값을 넓게 두지 않는다 —
+        # "부서를 아직 안 정했다" 를 조직 직속으로 추측하면 그 추측은 유출이 된다.
+        membership_kind=_resolved_membership(department_id, membership_kind),
         created_by=created_by,
     )
     db.add(user)
@@ -216,6 +241,9 @@ def user_snapshot(user: User) -> dict:
         "admin_scope": user.admin_scope,
         "scope_org_id": user.scope_org_id,
         "scope_dept_id": user.scope_dept_id,
+        # 소속도 권한이다(0060) — 미지정에서 조직 직속으로 바꾸면 조직 전체가 보인다.
+        # 감사에 안 남기면 "누가 이 계정을 조직 전체로 열었나" 에 답할 수 없다.
+        "membership_kind": user.membership_kind,
     }
 
 
@@ -268,6 +296,7 @@ def update_user(
     display_name: str | None = None,
     department_id: str | None | _Unset = UNSET,
     title_id: str | None | _Unset = UNSET,
+    membership_kind: str | None = None,
     role: str | None = None,
     must_change_password: bool | None = None,
     admin_scope: str | None = None,
@@ -289,6 +318,23 @@ def update_user(
         user.department_ref = resolve_assignable(
             db, Department, department_id, allow_current=user.department_id
         )
+        # 부서를 바꾸면 소속 종류도 따라간다(0060). 부서를 **비우면** 그 사람이 조직 직속인지
+        # 아직 미정인지 코드가 알 수 없으므로 미지정으로 되돌린다 — 그 상태는 관리자 진단에
+        # 목록으로 뜨고, 사람이 조직 직속을 명시하면 그때 열린다. 같은 요청이 membership_kind 를
+        # 함께 보냈으면 아래에서 그 값이 이긴다(사람의 명시가 추측보다 우선).
+        user.membership_kind = (
+            MEMBERSHIP_DEPARTMENT if user.department_id else MEMBERSHIP_UNASSIGNED
+        )
+    if membership_kind is not None:
+        if membership_kind not in ALL_MEMBERSHIP_KINDS:
+            raise ValidationAppError(f"알 수 없는 소속 종류입니다: {membership_kind}")
+        if membership_kind == MEMBERSHIP_DEPARTMENT and not user.department_id:
+            raise ValidationAppError("부서 소속으로 두려면 부서를 함께 지정해야 합니다.")
+        if membership_kind != MEMBERSHIP_DEPARTMENT and user.department_id:
+            raise ValidationAppError(
+                "부서가 배정된 계정은 부서 소속입니다. 먼저 부서를 비우세요."
+            )
+        user.membership_kind = membership_kind
     if title_id is not UNSET:
         user.title_ref = resolve_assignable(
             db, JobTitle, title_id, allow_current=user.title_id

@@ -212,13 +212,24 @@ def test_migrated_rows_are_readable_through_the_orm(seeded_db):
     """raw SQL 로 name 만 보면 통과하지만 앱은 죽는 구간이 있다 — created_at 을 SQLite
     STRFTIME 으로 만들면 '초가 두 번' 들어가 ORM 파싱이 터진다(CLAUDE.md §8).
     0024 는 타임스탬프를 새로 쓰지 않지만, 배치 재생성이 기존 값을 상하게 하지 않았는지
-    앱이 실제로 읽는 방식으로 확인한다."""
+    앱이 실제로 읽는 방식으로 확인한다.
+
+    ⚠️ **0024 에서 멈추지 않고 head 까지 올린 뒤 읽는다.** ORM 모델은 언제나 최신 스키마를
+    말하므로, 중간 리비전에 멈춘 DB 를 모델로 읽으면 그 뒤에 컬럼을 하나라도 추가한 순간
+    이 파일이 "0024 가 깨졌다" 며 빨개진다 — 실제로는 0024 와 아무 상관이 없다(0060 이
+    `users.membership_kind` 를 추가하면서 실제로 그렇게 됐다).
+
+    0024 만 돌린 상태의 무결성은 raw SQL 로 보는 위 시험들과
+    `test_upgrade_downgrade_upgrade_preserves_every_row` 가 지킨다. 여기서 보려는 것은
+    "0024 가 다시 쓴 행을 **앱이** 읽을 수 있는가" 이고, 앱은 head 스키마에서 돈다.
+    """
     from sqlalchemy.orm import Session
 
     from app.org.models import Department
     from app.users.models import User
 
     _alembic(seeded_db, "upgrade", "0024")
+    _alembic(seeded_db, "upgrade", "head")
     engine = create_engine(f"sqlite:///{seeded_db.as_posix()}")
     try:
         with Session(engine) as session:

@@ -24,12 +24,22 @@
 /** 모든 알림 캐시의 뿌리. 무효화는 이것 하나면 된다. */
 export const NOTI_ROOT = ["noti"];
 
-/** 안 읽음 개수(벨 배지 + 사이드바 배지가 같은 캐시를 본다). */
+/** 안 읽음 개수(벨 배지 + 사이드바 배지가 같은 캐시를 본다).
+ *
+ * 0060 부터 **audience 별로 다른 캐시**다. 사용자 알림과 관리자 알림은 다른 화면·다른
+ * 경로이고 숫자도 달라야 하는데, 한 키를 공유하면 콘솔을 옮길 때마다 상대 콘솔의 숫자가
+ * 잠깐 보였다가 바뀐다. 뿌리(`["noti"]`)는 같으므로 무효화 한 번은 여전히 셋 다 갱신한다.
+ */
+export function notiUnreadKey(audience) {
+  return ["noti", "unread", audience];
+}
+
+/** 접두어 — audience 와 무관하게 안 읽음 캐시 전체를 가리킬 때. */
 export const NOTI_UNREAD = ["noti", "unread"];
 
 /** 벨 팝오버 목록. 변형(`unread`/`recent`)은 실제 캐시 키의 일부다. */
-export function notiListKey(variant) {
-  return ["noti", "list", variant];
+export function notiListKey(variant, audience = "user") {
+  return ["noti", "list", audience, variant];
 }
 
 /** 접두어 — 변형과 무관하게 목록 전체를 가리킬 때. */

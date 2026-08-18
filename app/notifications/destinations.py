@@ -66,9 +66,11 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # 모듈의 docstring이 약속하는 대로("서버가 계산해서 응답에 실어 준다") 서버를 단일
     # 출처로 되돌리는 정리다.
     #
-    # 승인(approval_requested, approval_decided) — id는 approvals.id, `/approvals`
-    # (registry/governance.js)가 `onQuery: p.id ? {open:"select", id:p.id} : ...`.
-    "approval": "/approvals?id={id}",
+    # 승인(approval_requested, approval_decided) — id는 approvals.id. **개인 결재함**으로
+    # 보낸다(0060): 승인은 나에게 배정된 개인 업무이고, 위임받은 일반 사용자는 관리자 콘솔
+    # 자체가 없어서 `/approvals`(관리 콘솔 큐)로 보내면 그 사람은 영영 못 들어간다.
+    # 관리 조치로서의 승인(관리자 알림)은 아래 `ADMIN_DESTINATIONS` 가 관리 큐로 보낸다.
+    "approval": "/my-approvals?id={id}",
     # 스케줄(schedule_disabled 등) — id는 schedules.id, `/schedules`(registry/automation.js)가
     # `onQuery: p.id ? {open:"select", id:p.id} : ...`. schedule_run(개별 실행)은 그런 화면이
     # 없어 여전히 뺀다(아래 참고) — schedule 본체와는 다른 object_type이다.
@@ -110,9 +112,28 @@ RELATED_DESTINATIONS: dict[str, str] = {
 # "경로는 권한과 무관하다"(위 docstring)는 원칙대로 role을 안 따진다.
 
 
-def destination_for(related_object_type: str | None, related_object_id: str | None) -> str | None:
-    """딥링크 경로 또는 None(목적지가 없거나 id 가 없으면)."""
-    template = RELATED_DESTINATIONS.get(related_object_type or "")
+# 관리자 알림(audience="admin")일 때만 다른 목적지를 쓰는 유형. 같은 자원이라도 **어느
+# 콘솔의 일인가**가 다르면 가야 할 화면이 다르다 — 개인 결재함과 관리 큐가 그 예다.
+# 여기 없는 유형은 아래 `RELATED_DESTINATIONS` 를 그대로 쓴다(대부분 그렇다).
+ADMIN_DESTINATIONS: dict[str, str] = {
+    "approval": "/approvals?id={id}",
+}
+
+
+def destination_for(
+    related_object_type: str | None,
+    related_object_id: str | None,
+    audience: str = "user",
+) -> str | None:
+    """딥링크 경로 또는 None(목적지가 없거나 id 가 없으면).
+
+    `audience` 는 그 알림이 **어느 콘솔의 일인가**다(0060). 사용자 알림과 관리자 알림은
+    경로부터 분리돼 있으므로 같은 자원이라도 목적지가 다를 수 있다.
+    """
+    table = ADMIN_DESTINATIONS if audience == "admin" else RELATED_DESTINATIONS
+    template = table.get(related_object_type or "") or RELATED_DESTINATIONS.get(
+        related_object_type or ""
+    )
     if not template:
         return None
     if "{id}" in template:

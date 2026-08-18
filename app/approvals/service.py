@@ -88,6 +88,9 @@ def approval_view(
     def _email(uid: str | None) -> str | None:
         return names.get(uid, {}).get("email") if uid else None
 
+    def _path(uid: str | None) -> list:
+        return names.get(uid, {}).get("dept_path", []) if uid else []
+
     return {
         "id": row.id,
         "request_type": row.request_type,
@@ -96,6 +99,9 @@ def approval_view(
         "requested_by": row.requested_by,
         "requester_name": _name(row.requested_by),
         "requester_email": _email(row.requested_by),
+        # 요청자의 조직 경로(0060 §22). 승인은 "누구의 무엇을" 을 묻는 자리라 동명이인을
+        # 이름만으로 구별하게 두면 안 된다 — 그 상태로 인사·권한 변경이 결재된다.
+        "requester_path": _path(row.requested_by),
         "approver_id": row.approver_id,
         "approver_name": _name(row.approver_id),
         "approver_email": _email(row.approver_id),
@@ -125,16 +131,30 @@ def approval_view(
     }
 
 
-def resolve_names(db: Session, ids) -> dict[str, dict[str, str]]:
-    """user id 집합을 표시 이름/이메일로 일괄 해석한다 (감사 로그와 동일 패턴)."""
+def resolve_names(db: Session, ids) -> dict[str, dict]:
+    """user id 집합을 표시 이름/이메일/**조직 경로**로 일괄 해석한다 (감사 로그와 동일 패턴).
+
+    조직 경로를 함께 싣는 이유(0060 §22): 승인 화면은 "누구의 무엇을 승인하는가" 를 묻는
+    자리인데, 이름만 있으면 동명이인을 구별할 수 없다 — 그 상태로 인사·권한 변경을 결재하게
+    두면 안 된다. 경로는 지금 조직 트리에서 계산한다(문자열을 저장하지 않는다).
+    """
     wanted = {i for i in ids if i}
     if not wanted:
         return {}
-    result: dict[str, dict[str, str]] = {}
+    from app.core.org_tree import DeptTree
+
+    tree = DeptTree.load(db)
+    result: dict[str, dict] = {}
     for u in db.execute(
-        select(User.id, User.display_name, User.email).where(User.id.in_(wanted))
+        select(User.id, User.display_name, User.email, User.department_id).where(
+            User.id.in_(wanted)
+        )
     ).all():
-        result[u.id] = {"display_name": u.display_name, "email": u.email}
+        result[u.id] = {
+            "display_name": u.display_name,
+            "email": u.email,
+            "dept_path": [{"id": n.id, "name": n.name} for n in tree.path(u.department_id)],
+        }
     return result
 
 

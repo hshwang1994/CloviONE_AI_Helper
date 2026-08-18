@@ -74,18 +74,27 @@ class _SlowRepo:
 
 
 @pytest.fixture()
-def world(db, make_user):
-    """앱 사용자 둘 + Notion 연결. 둘 다 미할당 티켓을 잡을 자격이 있다."""
+def world(db, make_user, make_project):
+    """앱 사용자 둘 + Notion 연결. 둘 다 미할당 티켓을 잡을 자격이 있다.
+
+    **미할당은 소속이 없다는 뜻이 아니다** (0060 §12). 담당자가 없을 뿐 프로젝트는 있다 —
+    프로젝트가 없으면 그 티켓은 애초에 아무에게도 안 보이고, 그러면 "둘이 동시에 잡는다"
+    라는 상황 자체가 만들어지지 않는다.
+    """
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
-    from app.tickets.models import TicketCache
+    from app.tickets.models import PROJECT_LINK_OK, TicketCache
 
+    project = make_project(name="클레임 프로젝트")
     first = make_user("claim-a@goodmit.co.kr", role="user", display_name="가")
     second = make_user("claim-b@goodmit.co.kr", role="user", display_name="나")
     db.add_all([
         UserNotionMapping(user_id=first.id, notion_user_id="n-a", status=STATUS_VERIFIED),
         UserNotionMapping(user_id=second.id, notion_user_id="n-b", status=STATUS_VERIFIED),
-        TicketCache(notion_page_id=PAGE, title="미할당 티켓", org_id=DEFAULT_ORG_ID),
+        TicketCache(
+            notion_page_id=PAGE, title="미할당 티켓", org_id=DEFAULT_ORG_ID,
+            project_uid=project.id, project_link=PROJECT_LINK_OK,
+        ),
     ])
     db.commit()
     return first, second

@@ -32,14 +32,25 @@ const MANY_CANDIDATES = [
   })),
 ];
 
+/* 0060: 담당자 후보는 **선택된 프로젝트**에 달렸다(§14) — 프로젝트를 고르기 전에는
+   후보를 묻지도 않는다. 그래서 이 파일의 대역도 프로젝트를 하나 준다. */
+const PROJECT = { id: "p-1", name: "알파", dept_id: null, dept_path: [], can_create_ticket: true };
+
 function apiOk(candidates = MANY_CANDIDATES) {
   apiMock.mockImplementation((path, opts) => {
-    if (path === "/api/tickets/projects") return Promise.resolve({ projects: [] });
+    if (path === "/api/tickets/projects") return Promise.resolve({ projects: [PROJECT] });
     if (path === "/api/tickets/meta") return Promise.resolve({ statuses: ["계획"], priorities: [], difficulties: [] });
-    if (path === "/api/tickets/assignees") return Promise.resolve({ assignees: candidates });
+    if (path.startsWith("/api/tickets/assignees")) return Promise.resolve({ assignees: candidates });
     if (path === "/api/tickets" && opts && opts.method === "POST") return Promise.resolve({ id: "t-9" });
     return Promise.resolve({});
   });
+}
+
+/** 프로젝트를 고른 상태로 만든다 — 담당자 칸은 그 뒤에야 나타난다. */
+async function pickProject(user) {
+  const select = await screen.findByLabelText(/프로젝트/);
+  await user.click(select);
+  await user.click(await screen.findByRole("option", { name: /알파/ }));
 }
 
 beforeEach(() => {
@@ -60,7 +71,9 @@ function renderNewTicket() {
 
 describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC-0035)", () => {
   it("후보가 50명이어도 평소엔 옵션 목록이 화면에 없다 — 입력 한 줄만 있다(폼 길이가 인원 수와 무관)", async () => {
+    const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     // '나'가 기본 선택되므로 그 칩이 뜨는 것으로 로드 완료를 기다린다.
     await screen.findByText("나");
     // 예전 체크박스 그리드였다면 50개 행이 전부 그려졌을 것이다 — 지금은 옵션 role 자체가
@@ -70,13 +83,25 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   });
 
   it("로드되면 '나'가 기본 담당자로 칩에 나타난다(기존 자동 선택 동작 보존)", async () => {
+    const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     expect(await screen.findByText("나")).toBeInTheDocument();
+  });
+
+  it("프로젝트를 고르기 전에는 담당자 칸이 후보를 묻지 않는다 (0060 §14)", async () => {
+    renderNewTicket();
+    await screen.findByLabelText(/프로젝트/);
+    // 전체 명부를 먼저 보여 줬다가 프로젝트를 고르는 순간 절반이 사라지면, 사용자는 방금
+    // 고른 사람이 왜 없어졌는지 알 수 없다 — 그래서 아예 묻지 않는다.
+    expect(apiMock.mock.calls.some(([p]) => String(p).startsWith("/api/tickets/assignees"))).toBe(false);
+    expect(screen.getByText(/프로젝트를 먼저 고르세요/)).toBeInTheDocument();
   });
 
   it("이름으로 검색하면 일치하는 사람만 옵션에 뜬다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
 
     const input = screen.getByRole("combobox", { name: /담당자/ });
@@ -91,6 +116,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   it("검색해서 고르면 칩이 추가되고, 여러 명 선택이 유지된다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
 
     const input = screen.getByRole("combobox", { name: /담당자/ });
@@ -106,6 +132,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   it("칩의 삭제 버튼으로 선택을 해제할 수 있다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
 
     const chip = screen.getByText("나").closest(".MuiChip-root");
@@ -117,6 +144,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   it("키보드만으로 검색·선택·해제할 수 있다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
 
     // Tab으로 입력에 도달(키보드 흐름의 전제) — 제목 다음 필드들을 지나 담당자 입력까지.
@@ -138,6 +166,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   it("선택한 담당자 id 배열이 그대로 요청 본문에 실린다(Notion 연동 계약 불변)", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
 
     await user.type(screen.getByLabelText(/제목/), "담당자 배정 확인");
@@ -166,8 +195,11 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
 describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (PA-RC-0035 acceptance 5,6)", () => {
   it("placeholder는 예시 한 줄이고, 서식/미리보기 안내는 항상 보이는 캡션에 있다", async () => {
     renderNewTicket();
-    await screen.findByText("나");
-    const editor = document.getElementById("nt-desc");
+    const editor = await waitFor(() => {
+      const el = document.getElementById("nt-desc");
+      expect(el).toBeTruthy();
+      return el;
+    });
     expect(editor).toHaveAttribute("placeholder", expect.stringMatching(/^예:/));
     expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고/)).toBeInTheDocument();
   });
@@ -175,6 +207,7 @@ describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (
   it("설명을 입력해도 안내 캡션이 사라지지 않는다(placeholder와 달리)", async () => {
     const user = userEvent.setup();
     renderNewTicket();
+    await pickProject(user);
     await screen.findByText("나");
     const editor = document.getElementById("nt-desc");
     await user.type(editor, "실제 내용을 입력합니다");

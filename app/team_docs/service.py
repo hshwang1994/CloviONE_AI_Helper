@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core import ownership
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import comments as doc_comments
@@ -35,6 +38,9 @@ from app.team_docs.models import (
 # 지우고 authz 의 MODERATOR_ROLES 를 그대로 쓴다.
 from app.core.authz import MODERATOR_ROLES
 from app.users.models import User
+
+if TYPE_CHECKING:  # 타입 표기 전용 — 런타임 순환 임포트를 만들지 않는다
+    from app.core.scope import Scope
 
 logger = logging.getLogger(__name__)
 
@@ -107,63 +113,106 @@ def _is_doc_author(db: Session, doc, viewer: User) -> bool:
     return bool(name) and (name in authors or name == (doc.owner or "").strip())
 
 
-def doc_in_scope(db: Session, doc, viewer, *, id_to_user: dict[str, str] | None = None) -> bool:
-    """이 문서가 그 사람 범위 안인가 (1순위 유출 #5).
+@dataclass(frozen=True)
+class DocScopeContext:
+    """문서 가시성 판정에 필요한 것들을 **요청당 한 번** 모아 둔 값.
 
-    `GET /api/team-docs` 와 상세는 **문서 캐시 전량 + 본문 블록**을 로그인만 하면 내줬다.
+    문서 목록은 행마다 이 판정을 부른다. 예전에는 그때마다 매핑표를 다시 읽어 N+1 이 됐고
+    (FN-41), 이제는 프로젝트 집합까지 필요하므로 그대로 두면 질의가 두 배가 된다. 한 번
+    만들어 넘긴다.
 
-    ## 판정은 작성자 집합 — 티켓과 **같은 규칙**이다
+    `visible_projects` 가 `None` 이면 제한 없음(전역)이다. 빈 집합은 아무것도 안 보인다 —
+    둘을 같은 값으로 표현하면 범위 계산이 빈 답을 낸 순간 조용히 전 포탈이 열린다.
+    """
 
-    문서 하나를 여러 명이 쓴다. 대표 작성자 하나로 정하면 두 팀이 함께 쓴 문서가 한쪽에서
-    사라진다(`core/scope.py` 모듈 docstring 이 티켓에 대해 종결한 그 쟁점과 같다).
+    scope: "Scope"
+    visible_projects: frozenset[str] | None
+    my_notion_id: str | None
+    is_moderator: bool
 
-    ## 작성자를 해석할 수 없는 문서는 **보인다**
 
-    `author_notion_ids` 는 **다음 동기화가** 채운다(X2). 지금 비어 있는 행을 숨기면
-    **모든 문서가 통째로 사라진다** — 계획서가 PLAN5 로 경고한 바로 그 재앙이다.
-    그리고 채워진 뒤에도, 작성자를 앱 사용자로 해석하지 못한 문서는 어느 팀의 것도 아니므로
-    포탈 전체에 남는 편이 옳다(미할당 티켓이 트리아지에 남는 것과 같은 규칙).
+def doc_scope_context(db: Session, viewer: User, scope=None) -> DocScopeContext:
+    """판정 재료 한 벌. `scope` 를 주면 **그것으로 더 좁힌다**(넓히지 못한다).
 
-    ## 목록·상세만이 아니라 **쓰기도** 이 함수를 지난다
+    목록 화면의 부서 필터가 그 인자를 쓴다(`app/org/context.py::filter_scope`) — 부르는
+    쪽이 이미 그 사람의 조회 범위 안에서 검증한 값만 넘긴다. 여기서 다시 계산하면 필터가
+    범위를 넓히는 길이 열린다.
+    """
+    from app.core.scope import visibility_scope
+    from app.projects.models import Project
+    from app.tickets.service import my_notion_id as _my_notion_id
 
-    휴지통 이동·즐겨찾기가 `page_id` 를 그대로 받던 시절이 있었다. 판정을 두 벌로 적지
-    않으려고, 그 경로들은 `get_doc_in_scope` 를 거쳐 **이 함수 하나**로 모인다.
+    scope = scope if scope is not None else visibility_scope(db, viewer)
+    if scope.is_global:
+        projects: frozenset[str] | None = None
+    else:
+        projects = frozenset(
+            db.execute(ownership.visible_project_ids(scope)).scalars().all()
+        )
+    return DocScopeContext(
+        scope=scope,
+        visible_projects=projects,
+        my_notion_id=_my_notion_id(db, viewer),
+        is_moderator=viewer.role in MODERATOR_ROLES,
+    )
 
-    ## `restricted` 는 부서 범위보다 먼저, 더 좁게 본다 (SEC-10)
 
-    부서 범위(아래)를 통과해도 `restricted` 문서는 **운영자군 또는 작성자 본인**만 본다 —
-    같은 부서 동료라도 예외 없다(원본에 평문 자격증명이 있는 문서처럼, "같은 팀"이 곧
-    "봐도 되는 사람"은 아니다). `viewer is None`(내부 호출 무관)은 그대로 통과시킨다.
+def document_ownership(doc) -> ownership.Ownership:
+    """문서 행 → 소속. **Portal 이 저장한 값만 읽는다.**
+
+    작성자(`author_notion_ids`)를 보지 않는 것이 핵심이다. 작성자와 소유는 다른 개념이고,
+    작성자가 다른 부서로 옮겨도 그 사람이 예전에 쓴 문서가 따라 움직이면 안 된다.
+    """
+    kind = getattr(doc, "owner_kind", None) or ownership.OWNER_UNSET
+    if kind == ownership.OWNER_PROJECT:
+        return ownership.Ownership(
+            ownership.OWNER_PROJECT,
+            org_id=getattr(doc, "org_id", None),
+            project_id=getattr(doc, "owner_project_id", None),
+        )
+    if kind == ownership.OWNER_DEPARTMENT:
+        return ownership.for_department(
+            getattr(doc, "owner_dept_id", None), getattr(doc, "org_id", None)
+        )
+    if kind == ownership.OWNER_ORGANIZATION:
+        return ownership.for_organization(getattr(doc, "org_id", None))
+    return ownership.UNSET
+
+
+def doc_in_scope(db: Session, doc, viewer, *, ctx: DocScopeContext | None = None) -> bool:
+    """이 사람이 이 문서를 볼 수 있는가 — **목록·상세·쓰기가 모두 지나는 단 하나의 문**.
+
+    ## 소속은 Portal 이 정한다 (0060 에서 바뀐 규칙)
+
+    예전에는 **작성자의 부서**로 판정했다. 세 가지가 잘못이었다:
+      * 작성자가 부서를 옮기면 과거 문서가 따라 움직인다.
+      * 작성자를 앱 계정으로 해석하지 못하면 통과시켰다 — Notion 미러라 그런 문서가 흔했다.
+      * 프로젝트 문서라는 개념 자체를 표현할 수 없었다.
+
+    이제 문서는 자기 소속을 스스로 들고 있고(`owner_kind` + 두 id), 그 소속이 판정한다.
+    소속을 모르는 문서(`unset`)는 **전역 관리자만** 본다 — 추측해서 열지 않는다.
+
+    ## `restricted` 는 그 위에 겹친다
+
+    SEC-10 의 문서 단위 열람 제한이다. 소속이 맞아도(같은 부서 동료라도) 제한 문서는
+    운영자군과 작성자만 본다 — 원본에 평문 자격증명이 있는 문서처럼, "같은 팀" 이 곧
+    "봐도 되는 사람" 은 아니다.
+
+    `viewer is None`(내부 호출, 범위 무관)은 그대로 통과시킨다.
     """
     if viewer is None:
         return True
+    if ctx is None:
+        ctx = doc_scope_context(db, viewer)
     if getattr(doc, "restricted", False):
-        if viewer.role not in MODERATOR_ROLES and not _is_doc_author(db, doc, viewer):
+        if not ctx.is_moderator and not _is_doc_author(db, doc, viewer):
             return False
-    from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
-    from app.tickets.service import _verified_id_to_user
-
-    scope = build_scope(db, viewer)
-    # RBAC 재감사(2026-08-16)로 발견: `not scope.is_dept`는 org 범위(admin_scope='org')를
-    # global과 똑같이 취급해 조직 관리자에게 전 조직 문서를 열어 줬다(휴지통 이동·비공개
-    # 지정·댓글 등 쓰기 경로까지 포함 — get_doc_in_scope가 이 함수 하나로 전부 모인다).
-    # 진짜 무제한은 global뿐이다. org/dept 구분은 아래 visible_user_ids(scope_filter를
-    # 경유)가 이미 올바르게 하므로, 여기서는 global만 조기 반환한다.
-    if scope.is_global:
-        return True
-    nids = [n for n in split_names(getattr(doc, "author_notion_ids", "") or "") if n]
-    if not nids:
-        return True
-    # FN-41: 목록이 문서마다 이 함수를 부르는데, 예전엔 매번 _verified_id_to_user(db)로 같은
-    # 매핑을 다시 질의했다(N+1 — 문서 20개짜리 페이지 하나에 동일 쿼리 20번). 호출부(목록)가
-    # 한 번 구한 매핑을 넘기면 그걸 쓰고, 안 넘기면(단건 조회 등 기존 호출부) 그대로 직접
-    # 구한다 — 기존 계약을 안 깬다.
-    if id_to_user is None:
-        id_to_user = _verified_id_to_user(db)
-    owners = [id_to_user.get(n) for n in nids]
-    if not any(owners):
-        return True   # 아무도 해석되지 않으면 어느 팀의 것도 아니다
-    return any_assignee_visible(owners, visible_user_ids(db, scope))
+    owner = document_ownership(doc)
+    if owner.kind == ownership.OWNER_PROJECT:
+        if ctx.visible_projects is None:
+            return True
+        return bool(owner.project_id) and owner.project_id in ctx.visible_projects
+    return ownership.scope_can_view(ctx.scope, owner)
 
 
 def get_doc_in_scope(db: Session, page_id: str, viewer: User) -> DocumentCache | None:
@@ -261,18 +310,19 @@ def filter_options(db: Session, viewer: User) -> dict:
     같다 — 가릴 것이 없다. 오히려 좁히면 해가 된다: "우리 팀에 아직 회의록이 없다" 는 이유로
     작성 폼에서 회의록을 고를 수 없게 되고, 그때부터 아무도 새 종류의 문서를 못 만든다.
 
-    ## 작성자를 해석할 수 없는 문서는 그대로 센다
+    ## 판정은 목록과 **같은 함수**다
 
-    `doc_in_scope` 가 그 문서를 통과시키므로 여기서도 자동으로 통과한다(그 성질을 여기에
-    다시 적지 않는 이유이기도 하다). 반대로 굴면 동기화가 id 를 채우기 전까지 드롭다운이
-    통째로 비고, 목록에는 보이는 문서를 필터로는 못 고르는 상태가 된다.
+    필터 후보가 목록보다 넓으면 "고를 수는 있는데 결과가 0건" 이 되고, 좁으면 목록에 보이는
+    문서를 필터로 못 고른다. 둘 다 사용자가 원인을 못 찾는 종류의 어긋남이라 같은 문
+    (`doc_in_scope`)을 지난다 — 판정 재료는 한 번만 만들어 돌려 쓴다(N+1 방지).
     """
     from app.team_docs.classify import DOC_TYPES, TECH_TAGS, WORK_FIELDS
 
+    ctx = doc_scope_context(db, viewer) if viewer is not None else None
     projects: set[str] = set()
     statuses: set[str] = set()
     for row in repository.all_active(db):
-        if not doc_in_scope(db, row, viewer):
+        if not doc_in_scope(db, row, viewer, ctx=ctx):
             continue
         projects.update(split_names(row.project_names))
         if row.status:
@@ -368,11 +418,30 @@ def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> No
 def cache_created_document(
     db: Session, *, page: dict, title: str, document_type, work_field, tech_tags,
     project_names, status, priority, owner, memo, now: datetime, author_name: str = "",
+    creator: User | None = None,
 ) -> DocumentCache:
     """방금 생성한 문서를 캐시에 즉시 반영해 목록에 바로 뜨게 한다. 신규 택소노미는 사용자가
-    고른 값을 저장하고 classification_manual=True 로 둬 이후 sync가 덮어쓰지 않게 한다."""
+    고른 값을 저장하고 classification_manual=True 로 둬 이후 sync가 덮어쓰지 않게 한다.
+
+    ## 소속은 **생성 Context** 가 정한다 (0060 §9)
+
+    포털에서 만든 문서는 만든 사람이 지금 있는 자리의 것이다 — 부서가 있으면 그 부서,
+    없으면 조직 공통. 이것은 "작성자의 부서를 실시간으로 따라간다"(§6이 금지한 것)와
+    다르다: **만들 때 한 번** 정하고 그 뒤로는 작성자가 어디로 옮기든 움직이지 않는다.
+
+    소속을 안 정하면 그 문서는 만든 사람에게조차 안 보인다(fail-closed) — 방금 만든 것이
+    사라지는 화면은 보안이 아니라 고장이다.
+    """
     pid = page.get("id")
     row = repository.get_by_page_id(db, pid) or DocumentCache(notion_page_id=pid)
+    # ⚠️ 새 행은 아직 flush 전이라 `owner_kind` 가 **None** 이다(컬럼 기본값은 flush 때
+    # 붙는다). `== OWNER_UNSET` 만 보면 새로 만든 문서가 항상 미지정으로 남는다.
+    if creator is not None and (row.owner_kind or ownership.OWNER_UNSET) == ownership.OWNER_UNSET:
+        if creator.department_id:
+            row.owner_kind = ownership.OWNER_DEPARTMENT
+            row.owner_dept_id = creator.department_id
+        else:
+            row.owner_kind = ownership.OWNER_ORGANIZATION
     row.url = page.get("url")
     row.title = title
     row.type_names = ""
@@ -410,10 +479,11 @@ def recent_documents(db: Session, user_id: str, *, limit: int = 10, viewer: User
     계속 보인다 — SEC-10 제한 기능 자체를 우회하는 구멍이라 여기서 함께 닫는다.
     """
     views = repository.recent_views(db, user_id, limit=limit)
+    ctx = doc_scope_context(db, viewer) if viewer is not None else None
     out = []
     for v in views:
         doc = repository.get_by_page_id(db, v.notion_page_id)
-        if doc is not None and doc_in_scope(db, doc, viewer):
+        if doc is not None and doc_in_scope(db, doc, viewer, ctx=ctx):
             out.append(doc)
     return out
 

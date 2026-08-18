@@ -45,7 +45,7 @@ import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { StatusChip, useStatusNotices } from "./StatusNotices.jsx";
-import { NOTI_UNREAD, invalidateNotifications } from "./notification-keys.js";
+import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
 import { CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
@@ -120,9 +120,27 @@ function useNavBadges() {
   // 알림 배지 상태는 **벨이 이미 폴링한다**(NotificationBell 의 `NOTI_UNREAD`).
   // 같은 키·같은 엔드포인트를 써서 react-query 가 하나로 합치게 한다 — 폴링을 하나 더
   // 만들면 사이드바가 있다는 이유만으로 요청이 두 배가 된다(PF1 이 지적한 그 부류다).
+  // 두 콘솔의 알림 배지는 **다른 숫자**다(0060) — 사용자 사이드바의 '알림'은 개인 알림,
+  // 관리자 사이드바의 '관리 알림'은 관리 조치가 필요한 사건이다. 벨이 지금 콘솔의 것을
+  // 이미 폴링하므로 같은 키를 써서 react-query 가 합치게 하고(요청이 두 배가 되지 않게),
+  // 반대편 숫자만 하나 더 관찰한다.
   const notif = useQuery({
-    queryKey: NOTI_UNREAD,
-    queryFn: () => api("/api/notifications/unread-count"),
+    queryKey: notiUnreadKey("user"),
+    queryFn: () => api("/api/notifications/unread-count?audience=user"),
+    refetchInterval: 60000,
+    retry: false,
+    staleTime: 20000,
+  });
+  const adminNotif = useQuery({
+    queryKey: notiUnreadKey("admin"),
+    queryFn: () => api("/api/notifications/unread-count?audience=admin"),
+    refetchInterval: 60000,
+    retry: false,
+    staleTime: 20000,
+  });
+  const myApprovals = useQuery({
+    queryKey: ["my-approvals", "todo", "badge"],
+    queryFn: () => api("/api/approvals/mine?box=todo&page_size=1"),
     refetchInterval: 60000,
     retry: false,
     staleTime: 20000,
@@ -130,12 +148,21 @@ function useNavBadges() {
   const byType = (notif.data && notif.data.by_type) || {};
   const sum = (types) => (types || []).reduce((n, t) => n + (byType[t] || 0), 0);
 
+  const adminByType = (adminNotif.data && adminNotif.data.by_type) || {};
+  const adminSum = (types) => (types || []).reduce((n, t) => n + (adminByType[t] || 0), 0);
+
   return {
     chatUnread: (rooms.data && rooms.data.unread_total) || 0,
     notifUnread: (notif.data && notif.data.badge) || 0,
-    jobFailed: sum(BADGE_TYPES.jobFailed),
-    approvalPending: sum(BADGE_TYPES.approvalPending),
-    backupFailed: sum(BADGE_TYPES.backupFailed),
+    adminNotifUnread: (adminNotif.data && adminNotif.data.badge) || 0,
+    // 관리 콘솔 배지는 관리자 알림 쪽에서 센다 — 사용자 알림에 같은 유형이 섞여 들어와도
+    // 관리 큐 숫자가 부풀지 않아야 한다.
+    jobFailed: adminSum(BADGE_TYPES.jobFailed) || sum(BADGE_TYPES.jobFailed),
+    approvalPending: adminSum(BADGE_TYPES.approvalPending) || sum(BADGE_TYPES.approvalPending),
+    backupFailed: adminSum(BADGE_TYPES.backupFailed) || sum(BADGE_TYPES.backupFailed),
+    // 개인 결재함은 **알림이 아니라 목록 자체**를 센다 — 알림은 읽으면 사라지지만 결재할
+    // 건은 처리해야 사라진다. 알림 수로 세면 "읽었으니 0" 이 되어 할 일이 숨는다.
+    myApprovalPending: (myApprovals.data && myApprovals.data.total) || 0,
   };
 }
 
@@ -726,7 +753,13 @@ export function AppShell({
               헤더 폭을 한 글자도 안 뺏는다. */}
           {!minimal ? <StatusChip notices={statusNotices} /> : null}
           {!minimal ? <NotificationBell isUser={isUser} /> : null}
-          {!minimal ? <UserMenu name={name} userId={userId} avatarUrl={avatarUrl} /> : null}
+          {!minimal ? (
+            <UserMenu
+              name={name} userId={userId} avatarUrl={avatarUrl}
+              // 내 소속·관리 범위(0060 §5) — 셸이 이미 들고 있는 값을 넘긴다.
+              me={auth.data && (auth.data.user || auth.data)}
+            />
+          ) : null}
         </Toolbar>
       </AppBar>
 

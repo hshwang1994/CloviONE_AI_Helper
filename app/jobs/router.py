@@ -103,7 +103,7 @@ def _scoped_job_or_404(db: Session, job_id: str, principal: Principal) -> Job:
     "그 id 는 존재한다" 를 알려 주고, 상태 충돌(409)도 마찬가지로 존재와 상태를 알려 준다.
     그래서 상태 검사보다 **먼저** 이 문을 지난다.
     """
-    job = get_in_scope(db, job_id, visible_user_ids(db, principal.scope))
+    job = get_in_scope(db, job_id, visible_user_ids(db, principal.management))
     if job is None:
         raise NotFoundError("Job을 찾을 수 없습니다.")
     return job
@@ -128,7 +128,7 @@ def list_jobs(
     # 조건은 단건·재시도·취소와 **같은 것 하나**다(`repository.scope_clause` — 시스템 잡을
     # 남기는 이유도 거기 적혀 있다). 여기 손으로 다시 적으면 두 벌이 되고, 한쪽만 고쳐진
     # 상태의 증상은 "어떤 사람만 안 된다" 라서 찾기가 어렵다.
-    stmt = apply_scope(stmt, visible_user_ids(db, principal.scope))
+    stmt = apply_scope(stmt, visible_user_ids(db, principal.management))
     if status is not None:
         if status not in ALL_STATUSES:
             raise ValidationAppError(f"알 수 없는 상태입니다: {status}")
@@ -169,7 +169,7 @@ def stats(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    return queue_stats(db, now=request.app.state.clock.now(), visible=visible_user_ids(db, principal.scope))
+    return queue_stats(db, now=request.app.state.clock.now(), visible=visible_user_ids(db, principal.management))
 
 
 @router.get("/{job_id}")

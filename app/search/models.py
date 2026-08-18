@@ -24,6 +24,12 @@ from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, OrgScopedMixin, UUIDPrimaryKeyMixin, utcnow
+from app.core.ownership import (  # noqa: F401 — 색인 행이 그대로 재수출한다
+    OWNER_DEPARTMENT,
+    OWNER_ORGANIZATION,
+    OWNER_PROJECT,
+    OWNER_UNSET,
+)
 
 KIND_TICKET = "ticket"
 KIND_DOCUMENT = "document"
@@ -70,9 +76,24 @@ class SearchDocument(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     ref_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    # ",user-a,user-b," — 부서 범위 판정 전용. app/core/scope.py::any_assignee_visible 이
-    # 이 집합 하나로 '다중 담당자 티켓은 담당자 전원의 부서에 보인다'를 처리한다.
+    # ",user-a,user-b," — 이 건에 **관여한 사람**들이다. 0060 이후로는 권한 판정에 쓰지
+    # 않는다(아래 owner_* 세 컬럼이 판정한다). 남겨 두는 이유는 색인 행이 원본을 어떻게
+    # 읽었는지 확인하는 유일한 흔적이고, 담당자 매핑 실패를 진단할 때 필요하기 때문이다.
     owner_user_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # ── Ownership (0061) — **원본과 같은 규칙으로** 상한 앞에서 거르기 위한 사본 ──────
+    #
+    # 검색은 원본 표를 조인하지 않는다(모듈 docstring 의 '평평한 사본'). 그래서 원본의
+    # Ownership 을 색인 시점에 복사해 두고, 판정은 문서 목록이 쓰는 바로 그 함수
+    # (`app/core/ownership.py::stored_ownership_clause`)에 넘긴다. 검색이 자기 규칙을
+    # 갖는 순간 목록과 갈라지고, 갈라지는 방향 하나는 유출이다.
+    #
+    # 기본값이 `unset` 인 것은 fail-closed 다 — 색인이 Ownership 을 못 정하면 그 행은
+    # 전역 관리자에게만 보인다.
+    owner_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=OWNER_UNSET, server_default=OWNER_UNSET,
+    )
+    owner_dept_id: Mapped[str | None] = mapped_column(String(36))
+    owner_project_id: Mapped[str | None] = mapped_column(String(36))
     title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     subtitle: Mapped[str | None] = mapped_column(String(300))

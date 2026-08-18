@@ -41,7 +41,11 @@ def _view(row: Notification, muted: frozenset[str] = frozenset()) -> dict:
         "related_object_id": row.related_object_id,
         # 딥링크 목적지(해시 라우터 경로 또는 null). 매핑은 destinations.RELATED_DESTINATIONS
         # 한 표에만 있다 — 프런트는 if 체인을 늘리지 않고 이 값을 그대로 쓴다.
-        "related_route": destination_for(row.related_object_type, row.related_object_id),
+        # 목적지는 그 알림이 어느 콘솔의 일인가에 따라 갈린다(0060) — 개인 결재함과
+        # 관리 큐가 그 예다.
+        "related_route": destination_for(
+            row.related_object_type, row.related_object_id, row.audience
+        ),
         "created_at": row.created_at.isoformat(),
         # 사용자가 이 유형을 뮤트했는가. **목록에서 빼지 않고 표시만 한다** — 뮤트가
         # 삼키는 기능이 되면 사용자는 껐다는 사실조차 잊은 채 일을 놓친다.

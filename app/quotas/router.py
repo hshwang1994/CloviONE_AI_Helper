@@ -58,7 +58,7 @@ def _ensure_target_in_scope(db: Session, user_id: str, principal: Principal) -> 
     """
     from app.users.service import get_scoped_user_or_404
 
-    get_scoped_user_or_404(db, user_id, principal.scope)
+    get_scoped_user_or_404(db, user_id, principal.management)
 
 
 def _ensure_may_touch_global(principal: Principal) -> None:
@@ -69,7 +69,7 @@ def _ensure_may_touch_global(principal: Principal) -> None:
     이미 목록에서 보이고(자기 사람들에게도 걸리는 상한이므로 보여야 한다), 문제는 존재가
     아니라 권한이다.
     """
-    if not principal.scope.is_global:
+    if not principal.management.is_global:
         raise ForbiddenError("전역 쿼터는 전체 범위 관리자만 바꿀 수 있습니다.")
 
 
@@ -98,10 +98,10 @@ def list_quotas(
     )
     # 사용자 쿼터에는 **누가 얼마나 쓰는지**가 이름과 함께 실린다(그 사람의 업무 강도에 가깝다).
     # 전역 행은 남긴다 — 그 상한은 이 관리자의 사람들에게도 걸리므로 가리면 화면이 거짓말한다.
-    if not principal.scope.is_global:
+    if not principal.management.is_global:
         from app.core.scope import visible_user_ids
 
-        visible = set(visible_user_ids(db, principal.scope) or set())
+        visible = set(visible_user_ids(db, principal.management) or set())
         rows = [r for r in rows if r.scope_type != SCOPE_USER or r.user_id in visible]
     from app.impersonation.service import resolve_names
 
@@ -159,7 +159,7 @@ def usage_summary(
     if user_id:
         from app.users.service import get_scoped_user_or_404
 
-        get_scoped_user_or_404(db, user_id, principal.scope)
+        get_scoped_user_or_404(db, user_id, principal.management)
         return service.status(db, user_id=user_id, now=now)
     return {
         "user_id": None,

@@ -314,15 +314,20 @@ def get_principal(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """요청 주체 + 그 주체의 **범위**(app/core/scope.py).
+    """요청 주체 + 그 주체의 **두 범위**(app/core/scope.py).
 
     역할 게이트(`require_roles`)와 짝을 이룬다: 역할은 '무엇을 할 수 있는가', 범위는
-    '누구에게 할 수 있는가'. 부서 트리를 한 번 전개해야 하므로 요청당 한 번만 만들고
-    `request.state.principal` 에 남겨 둔다(감사·로깅이 다시 계산하지 않게).
+    '누구에게 할 수 있는가'. 범위는 하나가 아니라 둘이다 — `principal.visibility`(조회)와
+    `principal.management`(관리). 각 API 는 자기 성격에 맞는 쪽을 고른다.
+
+    부서 트리를 한 번 읽어 `principal.tree` 에 실어 둔다. 목록 한 페이지가 행마다 소속
+    경로를 물어도 질의는 그 한 번뿐이다. `request.state.principal` 에 남겨 감사·로깅이
+    다시 계산하지 않게 한다.
     """
+    from app.core.org_tree import DeptTree
     from app.core.scope import principal_from_user
 
-    principal = principal_from_user(db, user)
+    principal = principal_from_user(db, user, DeptTree.load(db))
     request.state.principal = principal
     return principal
 

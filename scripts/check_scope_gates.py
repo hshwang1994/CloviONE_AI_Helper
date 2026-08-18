@@ -61,9 +61,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 #   * `ensure_not_trashed` — 휴지통 여부만 본다. 범위와 무관하다.
 # "누가 할 수 있는가"(권한)와 "무엇이 보이는가"(범위)는 다른 축이고, 둘을 섞으면
 # **권한만 있고 범위는 없는 경로가 통과한다** — `POST /api/tickets/trash-bulk` 가 그랬다.
+#
+# 0060: `build_scope()` 하나가 `visibility_scope`/`management_scope` 둘로 갈라졌고
+# `Principal.scope` 는 `.visibility`/`.management` 로 나뉘었다. 옛 이름만 두면 **이 검사가
+# 조용해진다** — 실제로 게이트를 그대로 지나는 경로가 "게이트 없음" 으로 보고됐다.
 GATES = (
     "ensure_in_scope", "get_scoped_", "visible_to", "scope_filter", "apply_user_scope",
-    "visible_user_ids", "build_scope", "principal.scope", "ensure_access",
+    "visible_user_ids", "visibility_scope", "management_scope",
+    "principal.visibility", "principal.management", "ensure_access",
     "ensure_can_manage", "ensure_member", "doc_in_scope", "any_assignee_visible",
     "get_owned_", "ensure_owner", "in_scope",
 )
@@ -106,6 +111,14 @@ GATE_PATTERNS = (
 # 면제는 이유가 참일 때만 면제다 — 근거가 바뀌면 면제도 같이 없어져야 한다. 지금은 조직
 # 판정을 지난다(`app/profiles/service.py::get_scoped_avatar_owner_or_404`, 범위 밖은 404).
 EXEMPT: dict[str, str] = {
+    # 전역 관리자 전용 경로(0060 진단 화면). `_require_global(principal)` 이 **관리 범위가
+    # 전역이 아닌 사람을 전부 막는다** — 좁힐 범위가 남아 있지 않으므로 범위 게이트를 더
+    # 걸 자리가 없다. 이 판정을 GATES 에 이름으로 넣지 않는 이유는 파일 상단 경고와 같다:
+    # 권한 이름을 범위 게이트로 인정하기 시작하면 "권한만 있고 범위는 없는" 경로가 통과한다.
+    "app/integrity/router.py::assign_membership":
+        "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다.",
+    "app/integrity/router.py::assign_document_ownership":
+        "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다.",
     "app/profiles/router.py::revoke_one_session":
         "자기 세션만 다룬다 — 조회가 `user_id == me.id` 로 시작한다.",
     "app/profiles/router.py::delete_saved_view":

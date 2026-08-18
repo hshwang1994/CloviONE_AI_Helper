@@ -41,6 +41,7 @@ const DataScreen = React.lazy(() => import("../screens/DataScreen.jsx").then((m)
 const OrgConsole = React.lazy(() => import("../screens/OrgConsole.jsx"));
 const Search = React.lazy(() => import("../screens/Search.jsx"));
 const SchedulerCalendar = React.lazy(() => import("../screens/SchedulerCalendar.jsx"));
+const Integrity = React.lazy(() => import("../screens/Integrity.jsx").then((m) => ({ default: m.Integrity })));
 
 const ROUTES_FALLBACK = <Card><Skeleton lines={6} /></Card>;
 
@@ -109,6 +110,12 @@ function AdminRoutes() {
     <React.Suspense fallback={ROUTES_FALLBACK}>
       <Routes>
         <Route path="/dashboard" element={<Dashboard />} />
+        {/* 조직 정합성 진단(0060) — fail-closed 규칙이 닫아 버린 대상을 보여 주고 일괄로
+            지정한다. 규칙과 같은 배포에 있어야 복구가 몇 분짜리 일이 된다. */}
+        <Route
+          path="/integrity"
+          element={<RequireRole roles={SCREEN_ROLES.integrity}><Integrity /></RequireRole>}
+        />
         {/* 통합 검색 결과(계획서 Phase 5) — 사용자 콘솔과 **같은 경로**로 양쪽에 둔다.
             관리자가 Ctrl+K 로 검색했는데 세그먼트가 사용자 쪽으로 튀면 사이드바가 통째로 바뀐다.
             역할 게이트는 걸지 않는다: 결과 자체가 역할·범위로 걸러져 나온다(app/search/service.py). */}

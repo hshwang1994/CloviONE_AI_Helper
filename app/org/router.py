@@ -95,7 +95,7 @@ def _make_org_router(
     ):
         # 범위 밖 조직도는 안 보인다 (2순위 #1). 부서 이름만으로도 그 회사가 무슨 일을
         # 어떤 단위로 하는지 드러난다.
-        rows = list_items(db, model, active=active, scope=principal.scope)
+        rows = list_items(db, model, active=active, scope=principal.management)
         names = _org_names(db, rows)
         # UA-16: 행마다 usage_count()를 부르면 목록 N건에 질의 N번이었다(_org_names 바로
         # 위 두 줄은 이미 그룹 질의였는데 이쪽만 안 고쳐져 있었다) — 한 번에 센다.
@@ -131,14 +131,14 @@ def _make_org_router(
         ):
             # 목록과 **같은 판정**을 지난다. 이 경로만 principal 을 안 받고 있었고, 트리는
             # 목록보다 더 많이 준다 - 조직 이름·인원수에 부서 계층 path 까지 한 번에 나갔다.
-            return {"items": tree_rows(db, active=active, scope=principal.scope)}
+            return {"items": tree_rows(db, active=active, scope=principal.management)}
 
     @router.get("/{item_id}")
     def get_org_item(item_id: str, db: Session = Depends(get_db),
                      principal: Principal = Depends(get_principal)):
         # 감사/알림이 job_title·department를 참조할 때 '관련 항목 보기'로 그 행 하나를
         # 열 수 있게 단건 조회를 연다(다른 CRUD 화면과 동일한 딥링크 패턴, round30 감사 E).
-        row = get_or_404(db, model, item_id, principal.scope)
+        row = get_or_404(db, model, item_id, principal.management)
         names = _org_names(db, [row])
         child_count = (
             bulk_child_department_count(db, [row.id]).get(row.id, 0)
@@ -165,7 +165,7 @@ def _make_org_router(
             name=payload.name,
             parent_id=getattr(payload, "parent_id", None),
             org_id=getattr(payload, "org_id", None),
-            scope=principal.scope,
+            scope=principal.management,
         )
         record_audit_from_request(
             request, db, action=f"{audit_type}.create", object_type=audit_type,
@@ -181,11 +181,11 @@ def _make_org_router(
         db: Session = Depends(get_db),
         principal: Principal = Depends(get_principal),
     ):
-        row = get_or_404(db, model, item_id, principal.scope)
+        row = get_or_404(db, model, item_id, principal.management)
         before = item_view(row)
         fields = payload.model_dump(exclude_unset=True)
         # 상위 부서도 범위를 지난다 — 생성만 막으면 수정으로 같은 일을 한다.
-        update_item(db, row, scope=principal.scope, **fields)
+        update_item(db, row, scope=principal.management, **fields)
         record_audit_from_request(
             request, db, action=f"{audit_type}.update", object_type=audit_type,
             object_id=row.id, before=before, after=item_view(row),
@@ -195,7 +195,7 @@ def _make_org_router(
     @router.delete("/{item_id}")
     def delete_org_item(request: Request, item_id: str, db: Session = Depends(get_db),
                         principal: Principal = Depends(get_principal)):
-        row = get_or_404(db, model, item_id, principal.scope)
+        row = get_or_404(db, model, item_id, principal.management)
         before = item_view(row)
         delete_item(db, row)  # 쓰는 사람이 있으면 여기서 409로 막힌다
         record_audit_from_request(
@@ -323,10 +323,14 @@ def _visible_org_or_404(db: Session, org_id: str, principal) -> Organization:
     수·인원수). 다른 고객사의 존재와 규모가 콘솔 쓰기 권한자 누구에게나 보이면 안 된다.
     """
     row = _get_org_or_404(db, org_id)
-    scope = getattr(principal, "scope", None)
-    if scope is None or getattr(scope, "is_global", True):
+    # ⚠️ `getattr(principal, "scope", ...)` 로 부드럽게 읽지 않는다. 예전에 그렇게 적혀
+    # 있었는데, 0060 이 `Principal.scope` 를 `visibility`/`management` 둘로 쪼개자 그
+    # getattr 이 조용히 `None` 을 돌려주고 **필터가 통째로 사라졌다**(다른 조직이 그대로
+    # 열렸다). 없는 속성을 관대하게 넘기는 코드는 리팩터링 때 fail-open 으로 변한다.
+    scope = principal.management
+    if scope.is_global:
         return row
-    if row.id != getattr(scope, "org_id", None):
+    if row.id != scope.org_id:
         raise NotFoundError("조직을 찾을 수 없습니다.")
     return row
 
@@ -337,11 +341,12 @@ def list_organizations(
     principal: Principal = Depends(get_principal),
 ):
     stmt = select(Organization).order_by(Organization.name)
-    scope = getattr(principal, "scope", None)
     # 전역 범위가 아니면 자기 조직만. 부서 범위 관리자도 마찬가지다 — 부서는 조직 안에 있고,
     # 그 사람이 다른 조직의 존재를 알아야 할 이유가 없다.
-    if scope is not None and not getattr(scope, "is_global", True):
-        stmt = stmt.where(Organization.id == getattr(scope, "org_id", None))
+    # (getattr 로 읽지 않는 이유는 위 `_visible_org_or_404` 주석 참조.)
+    scope = principal.management
+    if not scope.is_global:
+        stmt = stmt.where(Organization.id == scope.org_id)
     rows = list(db.execute(stmt).scalars())
     dept_counts, user_counts = _bulk_org_counts(db, [r.id for r in rows])
     return {
@@ -382,7 +387,7 @@ def create_organization(
     # 서로 다른 축이다) 라우터 데코레이터의 require_roles만으로는 못 막는다 — quotas/router.py
     # 의 _ensure_may_touch_global과 같은 이유로 403(그 행의 존재는 이미 화면에 드러나 있으니
     # 문제는 존재가 아니라 권한이다).
-    if not principal.scope.is_global:
+    if not principal.management.is_global:
         raise ForbiddenError("조직 생성은 전체 범위 관리자만 할 수 있습니다.")
     name = normalize_name(payload.name)
     slug = payload.slug.strip().lower()

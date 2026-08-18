@@ -22,6 +22,8 @@ from app.admin.router import router as admin_router
 from app.announcements.router import admin_router as announcements_admin_router
 from app.announcements.router import user_router as announcements_user_router
 from app.approvals.router import delegations_router as approval_delegations_router
+from app.approvals.router import personal_router as personal_approvals_router
+from app.integrity.router import router as integrity_router
 from app.approvals.router import router as approvals_router
 from app.assistant.router import router as assistant_router
 from app.audit.router import router as audit_router
@@ -207,6 +209,12 @@ def create_app(
     app.include_router(templates_router)
     app.include_router(schedules_router)
     app.include_router(approvals_router)
+    # 개인 결재함(0060) — 관리자 콘솔 큐와 **다른 경로**다. 위임받은 일반 사용자가
+    # 관리자 콘솔 없이 자기 결재를 처리할 수 있어야 한다.
+    app.include_router(personal_approvals_router)
+    # 조직 정합성 진단(0060) — fail-closed 규칙이 닫아 버린 대상을 사람에게 보여 주고
+    # 일괄로 지정하게 한다. 규칙과 같은 배포에 있어야 복구가 몇 분짜리 일이 된다.
+    app.include_router(integrity_router)
     app.include_router(approval_delegations_router)
     app.include_router(notifications_router)
     app.include_router(board_router)

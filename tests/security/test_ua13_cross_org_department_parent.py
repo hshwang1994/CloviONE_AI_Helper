@@ -66,8 +66,12 @@ def test_same_org_parent_still_works(db, two_orgs):
 
 def test_cross_org_parent_never_leaks_into_dept_scope_subtree(db, two_orgs):
     """UA-13의 실제 피해를 직접 증명한다: 부모 지정이 (버그가 있었다면) 통과했더라도
-    department_subtree_ids가 다른 조직 부서를 끌어들이면 안 된다."""
-    from app.core.scope import department_subtree_ids
+    부서 서브트리 전개가 다른 조직 부서를 끌어들이면 안 된다.
+
+    0060 에서 트리 전개가 `app/core/org_tree.py::DeptTree` 로 옮겨졌다 — 상향(조상)·하향
+    (후손)·경로 계산이 한 자리에 모여야 세 개가 서로 다른 답을 내지 않는다. 여기서 보는
+    성질은 그대로다."""
+    from app.core.org_tree import DeptTree
 
     parent_in_a = create_item(db, Department, name="본부", scope=_org_scope(two_orgs.org_a_id))
     db.commit()
@@ -79,7 +83,7 @@ def test_cross_org_parent_never_leaks_into_dept_scope_subtree(db, two_orgs):
         )
 
     # 검증이 막았으니 org B에는 자식이 안 생겼어야 한다 — org A 서브트리가 org B로 안 샌다.
-    subtree = department_subtree_ids(db, parent_in_a.id)
+    subtree = DeptTree.load(db).descendants(parent_in_a.id)
     from sqlalchemy import select
 
     org_b_dept_ids = set(

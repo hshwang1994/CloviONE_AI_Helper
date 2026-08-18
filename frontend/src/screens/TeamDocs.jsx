@@ -31,7 +31,7 @@ import { docTypeKind } from "../lib/badges.js";
 import { FilterBarGrid } from "../ui/FilterBar.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
-import { SearchBox } from "../ui/filters.jsx";
+import { DepartmentFilter, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 
@@ -58,6 +58,9 @@ const SORTS = [
  * 따라왔다** — 사용자가 지적한 그 증상이다. 이제 주소가 유일한 진실이다. */
 const DOC_SPEC = {
   q: "", doc_type: "", work_field: "", project: "", tech: "",
+  // 부서 필터 (0060 §32). 주소에 두는 이유는 나머지 필터와 같다 — 상세를 보고 돌아왔을 때
+  // 풀리면 안 되고, 링크로 "우리 팀 문서만" 을 공유할 수 있어야 한다.
+  dept: "",
   sort: "recent", favorites: false, page: 1,
 };
 /* 필터를 건드리면 페이지는 처음으로. 예전에는 이걸 `firstRun` ref 로 흉내 냈는데,
@@ -277,6 +280,8 @@ export function TeamDocs() {
      주소는 `1`, API 는 `true` 다. 옮겨 적는 자리를 하나로 모아 둔다. */
   const params = new URLSearchParams();
   for (const key of DOC_FILTER_KEYS) { if (query[key]) params.set(key, query[key]); }
+  // 주소 키(`dept`)와 API 키(`department_id`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
+  if (query.dept) params.set("department_id", query.dept);
   if (favorites) params.set("favorites", "true");
   params.set("sort", sort);
   params.set("page", String(page));
@@ -364,10 +369,14 @@ export function TeamDocs() {
   // 선택 열에도 폭을 준다 — table-layout:fixed에서 폭 없는 열은 남는 공간을 균등 분배받는다.
   // 폭을 안 주면 체크박스 한 칸이 제목과 같은 폭(둘 다 '나머지의 절반')을 먹었다.
   const selCol = { ...selectionColumn(sel, items.map((d) => d.id)), width: "3.5rem" };
-  const hasFilter = DOC_FILTER_KEYS.some((key) => !!query[key]) || favorites;
+  // 부서도 "걸린 필터" 다 — 빼면 "필터 지우기" 를 눌러도 목록이 그대로라 버튼이 고장 난
+  // 것처럼 보인다.
+  const hasFilter = DOC_FILTER_KEYS.some((key) => !!query[key]) || favorites || !!query.dept;
   // 한 번에 지운다. 예전에는 setter 일곱 개를 줄줄이 불렀는데, 그러면 새 필터를 넣을 때마다
   // 여기 한 줄을 같이 고쳐야 하고 안 고치면 '지우기'가 그 필터만 남긴다.
-  const clearFilters = () => setQuery({ q: "", doc_type: "", work_field: "", project: "", tech: "", favorites: false });
+  const clearFilters = () => setQuery({
+    q: "", doc_type: "", work_field: "", project: "", tech: "", dept: "", favorites: false,
+  });
   const neverSynced = !(list.data && list.data.sync && list.data.sync.last_success_at);
 
   return (
@@ -424,6 +433,14 @@ export function TeamDocs() {
           <FilterSelect label="업무 분야" value={workField} onChange={(v) => setQuery({ work_field: v })} values={opts.work_fields} />
           <FilterSelect label="프로젝트" value={project} onChange={(v) => setQuery({ project: v })} values={opts.projects} />
           <FilterSelect label="기술 태그" value={tech} onChange={(v) => setQuery({ tech: v })} values={opts.tech_tags} />
+          {/* 부서 후보는 **이 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를
+              만들지 않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데
+              결과가 비는 상자가 생긴다. */}
+          <DepartmentFilter
+            departments={list.data && list.data.departments}
+            value={query.dept}
+            onChange={(v) => setQuery({ dept: v })}
+          />
           <TextField
             select size="small" label="정렬" value={sort}
             onChange={(e) => setQuery({ sort: e.target.value })}

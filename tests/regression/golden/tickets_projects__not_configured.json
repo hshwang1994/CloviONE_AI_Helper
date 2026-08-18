@@ -1,6 +1,5 @@
 {
-  "configured": false,
-  "message": "Notion 연동 토큰이 설정되지 않았습니다.",
-  "ok": false,
+  "configured": true,
+  "ok": true,
   "projects": []
 }

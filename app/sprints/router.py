@@ -30,8 +30,15 @@ def sprint_summary(
     user: User = Depends(get_current_user),
     start: str | None = Query(default=None, max_length=10),
     end: str | None = Query(default=None, max_length=10),
+    department_id: str | None = Query(default=None, max_length=36),
 ):
-    """스프린트 요약(완료 현황 + 배분 대상 + 계획). start/end 미지정 시 이번 주(월~다음 주 월)."""
+    """스프린트 요약(완료 현황 + 배분 대상 + 계획). start/end 미지정 시 이번 주(월~다음 주 월).
+
+    `department_id` 는 **화면 Context** 다(0060 §18) — 스프린트는 목록이 아니라 회의라
+    "지금 어느 팀 이야기인가" 가 분명해야 하고, 여러 팀 데이터가 암묵적으로 섞이면 안 된다.
+    고를 수 있는 부서는 응답의 `department.options` 에 함께 실린다. 범위 검증은 **서버가**
+    한다 — 선택기만 좁히면 API 한 번에 뚫린다.
+    """
     now = request.app.state.clock.now()
     settings = request.app.state.settings
     # UA-07(M4): `now`는 UTC다(불변 규칙 - UTC 저장, Asia/Seoul은 표시 때만 변환). KST
@@ -47,6 +54,7 @@ def sprint_summary(
             db, outbound, settings, start=start, end=end, today=today,
             repo=request.app.state.repositories.tickets,
             viewer=user,   # 1순위 유출 #3 - 보는 사람의 팀으로 좁힌다
+            department_id=department_id,
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "window": {"start": start, "end_exclusive": end}}

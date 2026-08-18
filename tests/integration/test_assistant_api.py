@@ -26,6 +26,8 @@ from app.notifications.models import Notification
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
 from app.team_docs.models import DocumentCache
 from app.tickets.models import (
+    PROJECT_LINK_MISSING,
+    PROJECT_LINK_OK,
     SYNC_OK,
     SYNC_STATE_ID,
     TicketCache,
@@ -62,20 +64,37 @@ def notion(fake_http) -> FakeNotionTasksDB:
     return FakeNotionTasksDB(rows=[]).install(fake_http)
 
 
-def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=None):
+def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=None,
+           project_uid=None):
+    """티켓 미러 한 행.
+
+    `project_uid` 는 **소속**이다 (0060 §11). 없으면 그 티켓은 전역 관리자 말고는 아무에게도
+    안 보이고, 그러면 도우미가 아무것도 못 읽어 이 파일이 무엇을 재는지 흐려진다.
+    """
     return TicketCache(
         id=uid, notion_page_id=page, notion_ticket_number=tid,
         url=f"https://www.notion.so/{page}", title=title, status=status,
         due_date=due, est_wd=est, priority=priority,
         project_ids="", project_names=join_names(["도우미 프로젝트"]),
+        project_uid=project_uid,
+        project_link=PROJECT_LINK_OK if project_uid else PROJECT_LINK_MISSING,
         assignee_notion_ids=join_names(people),
         synced_at=SYNCED_AT, created_at=SYNCED_AT, updated_at=SYNCED_AT,
     )
 
 
 def _seed(db) -> None:
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.projects.models import Project
+
+    # 티켓이 매달릴 프로젝트. 부서를 안 주므로 **조직 공통**이다 — 조직에 속한 사람이면
+    # 누구나 보이는 상태라, 소속 게이트가 아니라 도우미 로직이 검사된다.
+    project = Project(name="도우미 프로젝트", org_id=DEFAULT_ORG_ID)
+    db.add(project)
     for uid, email, name in ((U_ME, EMAIL, "도우미 나"), (U_MATE, MATE_EMAIL, "도우미 동료")):
         db.add(User(id=uid, email=email, display_name=name, role="user", active=True,
+                    # 소속(0060) — 조직 직속. 미지정이면 조직 데이터를 아무것도 못 본다.
+                    membership_kind="organization", org_id=DEFAULT_ORG_ID,
                     password_hash=hash_password(DEFAULT_TEST_PASSWORD),
                     must_change_password=False))
     db.flush()
@@ -85,25 +104,25 @@ def _seed(db) -> None:
                                  last_verified_at=SYNCED_AT))
     db.add_all([
         _cache("a-uid-1", "a-1", tid=1, title="오늘 마감", status="진행",
-               due=TODAY, people=[N_ME], est=1.0),
+               due=TODAY, people=[N_ME], est=1.0, project_uid=project.id),
         _cache("a-uid-2", "a-2", tid=2, title="지연", status="진행",
-               due="2026-07-30", people=[N_ME], est=2.0),
+               due="2026-07-30", people=[N_ME], est=2.0, project_uid=project.id),
         _cache("a-uid-3", "a-3", tid=3, title="막힘", status="이슈",
-               due="2026-08-06", people=[N_ME]),
+               due="2026-08-06", people=[N_ME], project_uid=project.id),
         _cache("a-uid-4", "a-4", tid=4, title="이번 주 완료", status="완료",
-               due="2026-08-04", people=[N_ME], est=1.5),
+               due="2026-08-04", people=[N_ME], est=1.5, project_uid=project.id),
         # 동료는 활성 2건 — 트리아지 후보 정렬에서 '나'(활성 3건)보다 앞서야 한다.
         _cache("a-uid-5", "a-5", tid=5, title="동료 1", status="진행",
-               due="2026-08-05", people=[N_MATE]),
+               due="2026-08-05", people=[N_MATE], project_uid=project.id),
         _cache("a-uid-6", "a-6", tid=6, title="동료 2", status="진행",
-               due="2026-08-07", people=[N_MATE]),
+               due="2026-08-07", people=[N_MATE], project_uid=project.id),
         # 미할당 3건 — 지연 > 긴급 > 나머지 순으로 제안돼야 한다.
         _cache("a-uid-7", "a-7", tid=7, title="미할당 보통", status="진행",
-               due="2026-08-20", people=[], priority="보통"),
+               due="2026-08-20", people=[], priority="보통", project_uid=project.id),
         _cache("a-uid-8", "a-8", tid=8, title="미할당 긴급", status="진행",
-               due="2026-08-20", people=[], priority="긴급"),
+               due="2026-08-20", people=[], priority="긴급", project_uid=project.id),
         _cache("a-uid-9", "a-9", tid=9, title="미할당 지연", status="진행",
-               due="2026-07-20", people=[], priority="낮음"),
+               due="2026-07-20", people=[], priority="낮음", project_uid=project.id),
     ])
     state = db.get(TicketSyncState, SYNC_STATE_ID) or TicketSyncState(id=SYNC_STATE_ID)
     state.status = SYNC_OK
@@ -117,6 +136,7 @@ def _seed(db) -> None:
     db.add(Post(id="asst-post-1", author_user_id=U_MATE, category="자유", title="이번 주 글",
                 body="본문", created_at=SYNCED_AT, updated_at=SYNCED_AT))
     db.add(DocumentCache(notion_page_id="asst-doc-1", title="이번 주 문서",
+                      owner_kind="organization",
                          document_type="회의록", owner="도우미 동료",
                          last_edited="2026-08-03T02:00:00.000Z", synced_at=SYNCED_AT))
     db.commit()
@@ -188,10 +208,12 @@ def test_weekly_digest_cuts_documents_at_kst_midnight_on_both_sides(asst_client,
     db.add_all([
         # KST 2026-08-03(월) 06:00 = UTC 08-02 21:00. 예전 비교에서는 사라지던 문서다.
         DocumentCache(notion_page_id="asst-doc-mon", title="월요일 오전 문서",
+                      owner_kind="organization",
                       document_type="회의록", owner="도우미 나",
                       last_edited="2026-08-02T21:00:00.000Z", synced_at=SYNCED_AT),
         # KST 2026-08-10(월) 06:00 = UTC 08-09 21:00. 예전에는 위쪽 경계가 없어 끼어들었다.
         DocumentCache(notion_page_id="asst-doc-next", title="다음 주 문서",
+                      owner_kind="organization",
                       document_type="회의록", owner="도우미 나",
                       last_edited="2026-08-09T21:00:00.000Z", synced_at=SYNCED_AT),
     ])

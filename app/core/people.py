@@ -71,7 +71,10 @@ def name_map(db: Session, user_ids) -> dict[str, dict[str, str]]:
 
 
 def identity(
-    user, org_names: dict[str, str] | None = None, avatars: dict[str, str] | None = None
+    user,
+    org_names: dict[str, str] | None = None,
+    avatars: dict[str, str] | None = None,
+    tree=None,
 ) -> dict:
     """사람 한 명의 신원 조각.
 
@@ -81,7 +84,7 @@ def identity(
     if user is None:
         return {
             "user_id": None, "display_name": "", "dept": "", "title": "", "org": "",
-            "archived": False, "avatar_url": None,
+            "dept_path": [], "archived": False, "avatar_url": None,
         }
     org_id = getattr(user, "org_id", None)
     return {
@@ -91,6 +94,15 @@ def identity(
         "dept": user.department or "",
         "title": user.title or "",
         "org": (org_names or {}).get(org_id, "") if org_id else "",
+        # 조직 **경로**(0060 §5·§26). `dept` 하나로는 'A-1' 만 보여 어느 줄기인지 알 수 없고,
+        # 조직 개편으로 같은 이름이 다른 자리에 생기면 구분이 아예 불가능해진다.
+        # 경로 문자열을 저장하지 않고 **지금 트리에서 계산**한다 — 부서명이 바뀌거나 상위
+        # 부서가 새로 생겨도 표시가 저절로 따라간다. `tree` 를 안 주면 빈 목록이다
+        # (조회를 강제하지 않는다 — 트리는 요청당 한 번 읽어 넘기는 값이다).
+        "dept_path": (
+            [{"id": n.id, "name": n.name} for n in tree.path(getattr(user, "department_id", None))]
+            if tree is not None else []
+        ),
         # **사람이 없어졌다는 사실**을 신원에 싣는다 (N3). 이 값을 안 보내면 퇴사자가 영원히
         # 참여자·발신자로 살아 있고, 보는 사람은 답이 안 오는 대화를 며칠 기다린다 —
         # 시스템에서 가장 비싼 침묵이다. `archived_at` 은 관리자 API 에만 실려 있었다.
@@ -114,9 +126,13 @@ def identities_for(db: Session, authors: dict) -> dict[str, dict]:
     작성자 조회)를 그대로 넘긴다. 여기서 다시 조회하지 않는 이유는 N+1 을 만들지
     않기 위해서다(조직명 1질의 + 사진 1질의는 작성자 수와 무관하게 고정이다).
     """
+    from app.core.org_tree import DeptTree
+
     org_names = org_name_map(db)
     avatars = avatar_map(db, authors.keys())
-    return {uid: identity(u, org_names, avatars) for uid, u in authors.items()}
+    # 트리도 한 번만 읽는다 — 사람 수와 무관하게 질의 하나다(0060).
+    tree = DeptTree.load(db)
+    return {uid: identity(u, org_names, avatars, tree) for uid, u in authors.items()}
 
 
 def affiliation(person: dict, *, with_org: bool = False) -> str:

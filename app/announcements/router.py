@@ -117,7 +117,7 @@ def _ensure_may_touch_announcements(principal: Principal) -> None:
     관리자로 한정한다(UB-01) — 예전엔 이 라우터에 `get_principal`이 아예 없어 부서
     범위 admin이 전사 배너를 띄우거나 전역 admin의 공지를 지울 수 있었다.
     """
-    if not principal.scope.is_global:
+    if not principal.management.is_global:
         raise ForbiddenError("공지는 전체 범위 관리자만 만들고 바꿀 수 있습니다.")
 
 

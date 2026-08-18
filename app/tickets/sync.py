@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.sync_prune import PruneResult, prune_missing
 from app.org.constants import DEFAULT_ORG_ID
 from app.reports import notion_source
-from app.tickets import notion_write
+from app.tickets import notion_write, project_link
 from app.tickets.models import (
     META_CACHE_ID,
     SOURCE_NOTION,
@@ -80,8 +80,16 @@ def _project_map(
     return {r["id"]: (r.get("name") or "") for r in rows}, rows
 
 
-def _upsert(db: Session, t: dict, proj_map: dict[str, str], now: datetime) -> None:
-    """파싱된 Notion 행 하나를 캐시에 반영한다(있으면 갱신, 없으면 삽입)."""
+def _upsert(
+    db: Session, t: dict, proj_map: dict[str, str], now: datetime,
+    portal_projects: dict[str, str] | None = None,
+) -> None:
+    """파싱된 Notion 행 하나를 캐시에 반영한다(있으면 갱신, 없으면 삽입).
+
+    `portal_projects`(외부 page id → Portal 프로젝트 id)를 주면 소속 해석까지 여기서
+    끝난다. 안 주면 해석은 `project_link.reresolve_all()` 이 나중에 한다 — 그때까지
+    `project_link` 는 기본값 `unresolved` 라 **닫혀 있다**(열린 채 방치되지 않는다).
+    """
     pid = t.get("id")
     if not pid:
         return
@@ -105,6 +113,10 @@ def _upsert(db: Session, t: dict, proj_map: dict[str, str], now: datetime) -> No
     row.category = t.get("category")
     row.project_ids = join_names(project_ids)
     row.project_names = join_names([proj_map.get(p, "") for p in project_ids])
+    # 소속 해석(0060). 원본 relation 은 위 두 줄에 그대로 남고, 권한 계산이 쓰는 것은
+    # 아래 두 컬럼뿐이다 — 외부 소스가 바뀌어도 Portal 소유 관계는 이 형태로 유지된다.
+    if portal_projects is not None:
+        project_link.apply_to_row(row, portal_projects)
     row.assignee_notion_ids = join_names(t.get("assignees") or [])
     # 상위 작업 미러 (0044). **파서는 아직 이 키를 만들지 않는다** — Notion 쪽 읽기는 다음
     # 단계라 그때까지 NULL 로 남는다(있는 척하지 않는다). 자리를 지금 잡는 이유는 진행률의
@@ -183,11 +195,12 @@ def sync_tickets(db: Session, *, outbound, settings, now: datetime) -> TicketSyn
         # 프로젝트 조회 실패는 '새 티켓' 폼을 막는다 — 상태에 올린다(C4).
         rel_failed: list[str] = []
         proj_map, projects = _project_map(outbound, settings, schema, failed=rel_failed)
+        portal_projects = project_link.portal_project_map(db)
         tickets, truncated = notion_source.query_all_tasks_paged(outbound, settings)
 
         keep: set[str] = set()
         for t in tickets:
-            _upsert(db, t, proj_map, now)
+            _upsert(db, t, proj_map, now, portal_projects)
             if t.get("id"):
                 keep.add(t["id"])
         # 상한(_MAX_PAGES)에 걸려 일부만 받아왔다면 prune 하지 않는다 — 안 받아온 티켓을

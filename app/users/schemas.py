@@ -44,6 +44,9 @@ class UserCreateRequest(_StrictRequest):
     # 'ClovirONE팀'과 'ClovirOne팀'이 다시 갈라지고 명부를 둔 의미가 없어진다.
     department_id: str | None = Field(default=None, max_length=36)
     title_id: str | None = Field(default=None, max_length=36)
+    # 소속 종류(0060) — 부서가 없을 때만 뜻이 있다. `organization`(조직 직속) 또는
+    # `unassigned`(아직 미정). 부서를 주면 서버가 `department` 로 맞추므로 보낼 필요가 없다.
+    membership_kind: str | None = Field(default=None, max_length=16)
     # Optional admin-chosen initial password; omitted → crypto-random temp password.
     password: str | None = Field(default=None, max_length=128)
 
@@ -57,6 +60,9 @@ class UserUpdateRequest(_StrictRequest):
     display_name: str | None = Field(default=None, max_length=120)
     department_id: str | None = Field(default=None, max_length=36)
     title_id: str | None = Field(default=None, max_length=36)
+    # 소속 종류(0060) — 부서가 없을 때만 뜻이 있다. `organization`(조직 직속) 또는
+    # `unassigned`(아직 미정). 부서를 주면 서버가 `department` 로 맞추므로 보낼 필요가 없다.
+    membership_kind: str | None = Field(default=None, max_length=16)
     role: str | None = None
     must_change_password: bool | None = None
     # ── 관리 범위(F2) ────────────────────────────────────────────────────────

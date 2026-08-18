@@ -37,6 +37,7 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
+import { PATH_SEP } from "../ui/OrgPath.jsx";
 import { TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
@@ -969,15 +970,43 @@ const NT_FIELD_GRID = {
   [ntFieldsFit(3)]: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
 };
 
+/* 이 티켓이 **어디로 공유되는가** (0060 §13).
+ *
+ * 작성자의 소속(Actor Context)과 프로젝트의 소속(Resource Context)은 다른 개념이고 다를 수
+ * 있다. A-1 사람이 상위 A 부서 프로젝트에 티켓을 만들면 형제 팀 A-2 사람도 그 티켓을 본다 —
+ * 만들고 나서 알게 되면 늦다. 과한 경고 대신 두 줄로 사실만 적는다.
+ */
+export function TicketShareScope({ project, me }) {
+  if (!project) return null;
+  const myPath = (me && me.department_path) || [];
+  const orgName = (me && me.organization && me.organization.name) || "";
+  const owner = project.dept_path && project.dept_path.length
+    ? project.dept_path.map((n) => n.name).join(PATH_SEP)
+    : `${orgName || "조직"} 전체 공통`;
+  return (
+    <Box sx={{ mb: 2.5, display: "grid", gap: 0.5 }}>
+      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>공유 범위</Typography>
+      <Typography variant="body2" color="text.secondary">
+        요청자 {myPath.length ? myPath.map((n) => n.name).join(PATH_SEP) : (orgName || "-")}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        이 티켓은 <b>{owner}</b>의 일로 기록되고, 그 범위의 사람들에게 보입니다.
+      </Typography>
+    </Box>
+  );
+}
+
+
 export function NewTicket() {
   const auth = useAuth();
   const myId = auth.data && auth.data.id;
   const qc = useQueryClient();
   const toast = useToast();
   const projectsQ = useTicketProjects(true);
-  const assigneesQ = useAssigneeOptions(true);
-  const metaQ = useTicketMeta(true);
   const [form, setForm] = React.useState({ title: "", project_id: "", status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
+  // 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다 (0060 §14).
+  const assigneesQ = useAssigneeOptions(!!form.project_id, form.project_id);
+  const metaQ = useTicketMeta(true);
   const meApplied = React.useRef(false);
   // 후보가 로드되면 최초 1회 '나'를 기본 담당자로 체크(연결된 경우).
   React.useEffect(() => {
@@ -1008,15 +1037,18 @@ export function NewTicket() {
   const meta = metaQ.data || {};
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
+  const selectedProject = projects.find((p) => p.id === form.project_id) || null;
+  const me = auth.data && (auth.data.user || auth.data);
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
   const notConfigured = (projectsQ.data && projectsQ.data.configured === false) || (metaQ.data && metaQ.data.configured === false);
 
   function submit() {
     if (!form.title.trim()) { toast("제목을 입력하세요.", "error"); return; }
-    if (projects.length && !form.project_id) { toast("프로젝트를 선택하세요.", "error"); return; }
+    // 프로젝트는 **언제나** 필수다 (0060 §11). 예전에는 후보 목록이 비면 그냥 통과시켰는데,
+    // 그러면 소속이 없는 티켓이 만들어지고 그 티켓은 전체 관리자 말고는 아무에게도 안 보인다.
+    if (!form.project_id) { toast("프로젝트를 선택하세요.", "error"); return; }
     if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
-    const body = { title: form.title.trim() };
-    if (form.project_id) body.project_id = form.project_id;
+    const body = { title: form.title.trim(), project_id: form.project_id };
     if (form.status) body.status = form.status;
     if (form.priority) body.priority = form.priority;
     if (form.difficulty) body.difficulty = form.difficulty;
@@ -1052,11 +1084,22 @@ export function NewTicket() {
                 편집기까지 덮으면 여기서 확인하지 않은 부작용이 생긴다. */}
             <Box sx={{ containerType: "inline-size", containerName: NT_FIELD_CONTAINER, mb: 2.5 }}>
               <Box sx={NT_FIELD_GRID}>
-                <TextField id="nt-proj" select fullWidth size="small" label="프로젝트" required={!!projects.length} {...EMPTYABLE_SELECT}
-                  value={form.project_id} onChange={(e) => set("project_id", e.target.value)}
-                  disabled={projectsQ.isLoading || !projects.length}>
-                  <MenuItem value="">{projectsQ.isLoading ? "불러오는 중…" : (projects.length ? "선택 안 함" : "프로젝트 없음")}</MenuItem>
-                  {projects.map((p) => <MenuItem key={p.id} value={p.id}>{p.name || "(제목 없음)"}</MenuItem>)}
+                {/* 프로젝트는 필수다 — 티켓의 조직 소속을 프로젝트가 정하기 때문이다(0060 §11).
+                    '선택 안 함' 을 없앤다: 고를 수 있게 두면 소속 없는 티켓이 만들어지고,
+                    그 티켓은 전체 관리자 말고는 아무에게도 안 보인다. */}
+                <TextField id="nt-proj" select fullWidth size="small" label="프로젝트" required
+                  value={form.project_id} onChange={(e) => { set("project_id", e.target.value); set("assignees", []); }}
+                  disabled={projectsQ.isLoading || !projects.length}
+                  helperText={projects.length ? undefined : "선택할 수 있는 프로젝트가 없습니다"}>
+                  {projects.length === 0 ? (
+                    <MenuItem value="" disabled>{projectsQ.isLoading ? "불러오는 중…" : "프로젝트 없음"}</MenuItem>
+                  ) : null}
+                  {projects.map((p) => (
+                    <MenuItem key={p.id} value={p.id} disabled={p.can_create_ticket === false}>
+                      {p.name || "(제목 없음)"}
+                      {p.can_create_ticket === false ? " (작업 DB 미연결)" : ""}
+                    </MenuItem>
+                  ))}
                 </TextField>
                 <TextField id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
                   {withCurrent(meta.statuses, form.status).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
@@ -1075,9 +1118,19 @@ export function NewTicket() {
                   value={form.due} onChange={(e) => set("due", e.target.value)} />
               </Box>
             </Box>
+            {/* 이 티켓이 **어디로 공유되는가** (0060 §13).
+                작성자의 소속과 프로젝트의 소속은 다를 수 있다 — A-1 사람이 상위 A 프로젝트에
+                티켓을 만들면 A-2 사람도 그 티켓을 본다. 만든 뒤에 알게 되면 늦다. */}
+            <TicketShareScope project={selectedProject} me={me} />
             <Box sx={{ mb: 2.5 }}>
               <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
-              <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} myId={myId} />
+              {form.project_id ? (
+                <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} myId={myId} />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다.
+                </Typography>
+              )}
             </Box>
             {/* 폭: 예전에는 이 블록만 maxWidth:"60rem" 을 손으로 박아 뒀다 — 바로 위 필드
                 격자와 폼 자체(72rem)는 컨테이너를 따라가는데 설명 블록만 그보다 좁은 상한에

@@ -94,6 +94,57 @@ def _scope_names(db: Session, user: User) -> dict:
     return {"scope_dept_name": None, "scope_org_name": None}
 
 
+def _identity_context(db: Session, user: User) -> dict:
+    """이 사람이 **조직 어디에 있는가** — 화면이 어디서나 보여 줄 수 있게 (0060).
+
+    경로는 **id 목록**으로 준다. 화면이 `"굿모닝아이텍 > 브로드컴사업본부 > ClovirONE팀"`
+    같은 문자열을 받아서 저장하거나 비교하면, 부서명이 바뀌거나 상위 부서가 새로 생기는 날
+    그 문자열이 조용히 거짓이 된다. 표시용 이름은 함께 주되 **권한 키로 쓰지 않는다.**
+
+    `membership_kind` 를 함께 주는 이유: 화면이 "부서 미지정"(데이터 누락)과 "조직 직속"
+    (정상)을 구별해 말해야 한다. 둘 다 예전에는 그냥 '부서 없음' 한 칸이었다.
+
+    `management_path` 는 관리자에게만 뜻이 있다 — **내 소속과 내가 관리하는 범위는 다른
+    개념**이고, 한 줄로 뭉치면 부서 관리자가 자기 소속을 관리 범위로 착각한다.
+    """
+    from app.core.org_tree import DeptTree
+    from app.core.scope import management_scope
+    from app.org.models import Organization
+
+    tree = DeptTree.load(db)
+    org = db.get(Organization, user.org_id) if getattr(user, "org_id", None) else None
+    dept_path = [{"id": n.id, "name": n.name} for n in tree.path(user.department_id)]
+
+    mgmt = management_scope(db, user, tree)
+    if mgmt.is_global:
+        management = {"kind": "global", "org": None, "path": [], "includes_descendants": True}
+    elif mgmt.is_org:
+        mgmt_org = db.get(Organization, mgmt.org_id) if mgmt.org_id else None
+        management = {
+            "kind": "org",
+            "org": {"id": mgmt_org.id, "name": mgmt_org.name} if mgmt_org else None,
+            "path": [], "includes_descendants": True,
+        }
+    elif mgmt.is_dept:
+        root = user.scope_dept_id or user.department_id
+        management = {
+            "kind": "dept",
+            "org": {"id": org.id, "name": org.name} if org else None,
+            "path": [{"id": n.id, "name": n.name} for n in tree.path(root)],
+            "includes_descendants": True,
+        }
+    else:
+        management = {"kind": "none", "org": None, "path": [], "includes_descendants": False}
+
+    return {
+        "membership_kind": user.membership_kind,
+        "organization": {"id": org.id, "name": org.name} if org else None,
+        # root → leaf. 표시 전용이고, 지금 조직 트리에서 매 요청 계산한다.
+        "department_path": dept_path,
+        "management": management,
+    }
+
+
 def _branding(request: Request) -> dict:
     """설정된 제품명(없으면 기본값). 실패해도 셸이 이름 없이 뜨면 안 된다."""
     from app.settings.registry import get_spec
@@ -136,6 +187,8 @@ def me(
             **_scope_names(db, user),
             "org_id": getattr(user, "org_id", None),
             "department_id": user.department_id,
+            # 조직 Context(0060) — 어느 화면에서든 "나는 어디 사람인가" 를 말할 수 있어야 한다.
+            **_identity_context(db, user),
             # 셸(상단바 아바타)이 이 한 필드 때문에 별도 요청을 하지 않게 여기 싣는다.
             "avatar_url": _avatar_url(pref, user.id),
         },

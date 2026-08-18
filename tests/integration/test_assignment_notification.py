@@ -54,7 +54,7 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 @pytest.fixture()
-def people(db, make_user, settings, notion) -> dict[str, str]:
+def people(db, make_user, make_project, settings, notion) -> dict[str, str]:
     """에이미(관리자, 배정하는 사람) + 밥/초(담당자 후보). 셋 다 Notion 연결이 확인됨."""
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
     made: dict[str, str] = {}
@@ -70,6 +70,10 @@ def people(db, make_user, settings, notion) -> dict[str, str]:
         ))
         made[key] = user.id
     db.commit()
+    # 티켓 생성은 **Portal 프로젝트 id** 를 받는다(0060) — 외부 relation id 가 아니다.
+    # 조직 공통 프로젝트로 둬서 이 파일의 사용자 전원이 쓸 수 있게 한다.
+    project = make_project(name="알파", external_id="proj-1")
+    made["project_id"] = project.id
     return made
 
 
@@ -117,7 +121,7 @@ def test_creating_a_ticket_for_someone_notifies_them(client, app, people, notion
     csrf = _login(client, "amy@goodmit.co.kr")
     response = client.post(
         "/api/tickets",
-        json={"title": "새로 만든 티켓", "project_id": "proj-1",
+        json={"title": "새로 만든 티켓", "project_id": people["project_id"],
               "assignee_user_ids": [people["cho"]]},
         headers={"X-CSRF-Token": csrf},
     )

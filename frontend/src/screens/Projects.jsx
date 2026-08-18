@@ -13,6 +13,7 @@ import { Pager } from "../ui/Pager.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
+import { DepartmentFilter } from "../ui/filters.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
@@ -48,7 +49,9 @@ import {
  * 돌아왔을 때 풀리고, 새로고침과 링크 공유도 안 된다.
  */
 
-const PROJECT_SPEC = { page: 1, archived: false };
+// `dept` 는 부서 필터 (0060 §32). 주소에 두는 이유는 나머지 조건과 같다 — 상세를 보고
+// 돌아왔을 때 풀리면 안 되고, 링크로 "A-1 팀 프로젝트" 를 공유할 수 있어야 한다.
+const PROJECT_SPEC = { page: 1, archived: false, dept: "" };
 const PAGE_RESET = { reset: ["page"] };
 
 /* 요약 타일 줄. 타일이 여덟 개라 lg 에서 4열이면 두 줄로 딱 떨어진다 - 5열로 두면 마지막
@@ -65,6 +68,8 @@ const SUMMARY_GRID = {
 export function projectListQuery(filters) {
   const p = new URLSearchParams();
   if (filters.archived) p.set("include_archived", "true");
+  // 주소 키(`dept`)와 API 키(`department_id`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
+  if (filters.dept) p.set("department_id", filters.dept);
   if (filters.page > 1) p.set("page", String(filters.page));
   return p;
 }
@@ -197,7 +202,7 @@ export function Projects() {
   const [creating, setCreating] = React.useState(false);
   const qs = projectListQuery(filters).toString();
   const q = useProjectList(qs);
-  const dashboard = useProjectDashboard();
+  const dashboard = useProjectDashboard(filters.dept);
   const deptNames = useDeptNames();
   const create = useCreateProject();
 
@@ -211,7 +216,25 @@ export function Projects() {
 
   const data = q.data || {};
   const items = Array.isArray(data.items) ? data.items : [];
-  const cols = React.useMemo(() => columns(deptNames), [deptNames]);
+  /* 부서 이름은 **목록 응답이 함께 준다** (0060 §32).
+   *
+   * `useDeptNames` 는 `/api/admin/departments` 를 읽으므로 관리자에게만 값이 있다. 그런데
+   * 이 열은 "이 프로젝트가 누구 것인가" 라 일반 사용자에게 더 필요하다 — 예전에는 그 사람
+   * 화면에서만 전부 '-' 로 비어, 소속을 보여 주기로 한 결정이 정작 대상에게 안 보였다.
+   *
+   * 응답의 후보 목록은 **그 사람의 조회 범위 안**이라 이름이 새지 않는다. 관리자 쪽 맵을
+   * 뒤에 겹쳐 두는 이유는 범위 밖 부서(전역 관리자가 보는 남의 조직)도 이름이 나와야 하기
+   * 때문이다. */
+  const deptNamesFromList = React.useMemo(() => {
+    const out = {};
+    for (const o of (data.departments && data.departments.options) || []) out[o.id] = o.name;
+    return out;
+  }, [data.departments]);
+  const names = React.useMemo(
+    () => ({ ...deptNamesFromList, ...deptNames }),
+    [deptNamesFromList, deptNames],
+  );
+  const cols = React.useMemo(() => columns(names), [names]);
 
   async function submitCreate(body) {
     const created = await create.mutateAsync(body);
@@ -249,6 +272,13 @@ export function Projects() {
               />
             }
             label={<Typography variant="body2">보관한 프로젝트 포함</Typography>}
+          />
+          {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
+          <DepartmentFilter
+            departments={data.departments}
+            value={filters.dept}
+            onChange={(v) => setFilters({ dept: v })}
+            sx={{ minWidth: "16rem" }}
           />
         </Stack>
         {data.total != null ? (

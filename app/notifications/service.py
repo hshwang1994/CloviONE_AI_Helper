@@ -16,19 +16,44 @@ from sqlalchemy.orm import Session
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
 from app.core.errors import WriteUnavailableError
 from app.notifications.models import AUDIENCE_ADMIN, AUDIENCE_USER, Notification
-from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, User
+from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, ROLE_USER, User
 
 # 유형 자체가 명백히 관리자 전용인 이벤트 (0051). notify_admins가 이미 이 유형들만 보내
 # audience="admin"을 넘기지만, 그건 "이 함수를 거쳐 갔다"는 사실에 기대는 것이다. 나중에
 # 실수로 notify_user를 직접 호출해 같은 유형을 보내도(또는 새 호출부가 생겨도) 사용자
-# 알림 벨에 새지 않도록 유형 자체로 한 번 더 못박는다. job_failed는 여기 넣지 않는다 —
-# app/jobs/worker.py가 job.user_id 한 명(신청자 본인)에게만 보내는 개인 알림이지 관리자
-# 팬아웃이 아니다.
+# 알림 벨에 새지 않도록 유형 자체로 한 번 더 못박는다.
 _ADMIN_ONLY_TYPES = frozenset({"backup_failed", "runner_unavailable"})
 
+# ── 어느 콘솔의 일인가 (0060) ─────────────────────────────────────────────────
+#
+# 사용자 알림과 관리자 알림은 **경로부터 분리**된다. 어느 쪽인지는 두 가지가 정한다:
+#
+#   1. 유형이 가리키는 화면이 어느 콘솔에 사는가 (아래 표)
+#   2. **받는 사람이 그 콘솔을 쓸 수 있는가**
+#
+# 2번이 없으면 안 된다. 관리자 콘솔이 없는 일반 사용자에게 관리자 알림을 보내면 그 사람은
+# 그 알림을 **어디서도 볼 수 없다** — 결재를 위임받은 일반 사용자가 정확히 그 처지였다.
+# 그래서 관리 콘솔 화면을 가리키는 유형이라도 수신자가 일반 사용자면 사용자 알림으로 간다
+# (목적지도 그에 맞춰 갈린다, `app/notifications/destinations.py`).
+_ADMIN_CONSOLE_TYPES = frozenset({
+    "backup_failed", "runner_unavailable", "account_locked",
+    "job_failed", "schedule_failed",
+    "approval_requested", "approval_overdue",
+})
 
-def _resolve_audience(type_: str, audience: str) -> str:
-    return AUDIENCE_ADMIN if type_ in _ADMIN_ONLY_TYPES else audience
+
+def audience_for(type_: str, recipient_role: str | None, fallback: str = AUDIENCE_USER) -> str:
+    """이 알림을 어느 콘솔의 것으로 볼 것인가.
+
+    `_ADMIN_ONLY_TYPES` 는 수신자와 무관하게 관리자 알림이다(백업·러너 장애는 애초에
+    일반 사용자에게 안 간다). 그 밖의 관리 콘솔 유형은 **수신자가 관리 콘솔을 쓸 수 있을
+    때만** 관리자 알림이 된다 — 아니면 그 사람에게는 보이지 않는 알림이 된다.
+    """
+    if type_ in _ADMIN_ONLY_TYPES:
+        return AUDIENCE_ADMIN
+    if type_ in _ADMIN_CONSOLE_TYPES and recipient_role and recipient_role != ROLE_USER:
+        return AUDIENCE_ADMIN
+    return fallback
 
 
 def notify_user(
@@ -41,7 +66,17 @@ def notify_user(
     related: tuple[str, str] | None = None,
     now: datetime,
     audience: str = AUDIENCE_USER,
+    recipient_role: str | None = None,
 ) -> Notification:
+    """알림 한 건. **어느 콘솔의 것인가는 여기 한 곳에서 정한다** (0060).
+
+    호출부가 audience 를 신경 쓰지 않아도 되도록, 유형과 **수신자의 역할**로 판정한다
+    (`audience_for`). 역할을 안 넘기면 여기서 한 번 읽는다 — 팬아웃 호출부는 이미 User
+    객체를 들고 있으므로 그때는 넘겨서 조회를 아낀다.
+    """
+    if recipient_role is None:
+        recipient = db.get(User, user_id)
+        recipient_role = getattr(recipient, "role", None)
     row = Notification(
         user_id=user_id,
         type=type_,
@@ -49,7 +84,7 @@ def notify_user(
         body=body,
         related_object_type=related[0] if related else None,
         related_object_id=related[1] if related else None,
-        audience=_resolve_audience(type_, audience),
+        audience=audience_for(type_, recipient_role, fallback=audience),
         created_at=now,
     )
     db.add(row)
@@ -79,7 +114,7 @@ def notify_admins(
         notify_user(
             db, admin.id, type_=type_, title=title, body=body, related=related, now=now,
             # 관리자 전용 발송 — 개인 알림과 섞이면 안 된다(0051).
-            audience=AUDIENCE_ADMIN,
+            audience=AUDIENCE_ADMIN, recipient_role=admin.role,
         )
     return len(admins)
 
@@ -139,15 +174,19 @@ def notify_approvers(
 ) -> int:
     """결재할 수 있는 사람 전원에게 화면 알림. 대상 정의는 `approver_user_ids` 한 곳이다.
 
-    audience는 기본값('user')을 그대로 쓴다(0051) — 결재는 관리자만이 아니라 활성 위임을
-    받은 일반 사용자도 하고, `app/profiles/prefs.py` 도 "내가 승인해야 할 건" 이라고
-    개인 할 일로 설명한다. notify_admins처럼 "관리자 전용 팬아웃"이 아니라 "이 사람에게
-    할당된 개인 업무"에 더 가깝다.
+    audience는 **수신자마다 다르다**(0060). 결재자는 관리자일 수도, 활성 위임을 받은 일반
+    사용자일 수도 있다. 관리자에게는 관리 콘솔의 승인 큐가 목적지이고, 일반 사용자에게는
+    개인 결재함(`/my-approvals`)이 목적지다 — 후자를 관리자 알림으로 보내면 그 사람은
+    관리자 콘솔이 없어서 **그 알림을 어디서도 볼 수 없다**(예전에 정확히 그랬다).
     """
     recipients = approver_user_ids(db, now=now)
+    roles = dict(
+        db.execute(select(User.id, User.role).where(User.id.in_(recipients))).all()
+    ) if recipients else {}
     for uid in recipients:
         notify_user(
-            db, uid, type_=type_, title=title, body=body, related=related, now=now
+            db, uid, type_=type_, title=title, body=body, related=related, now=now,
+            recipient_role=roles.get(uid),
         )
     return len(recipients)
 
@@ -170,7 +209,8 @@ def notify_active_users(
     users = db.execute(select(User).where(User.active.is_(True))).scalars().all()
     for user in users:
         notify_user(
-            db, user.id, type_=type_, title=title, body=body, related=related, now=now
+            db, user.id, type_=type_, title=title, body=body, related=related, now=now,
+            recipient_role=user.role,
         )
     return len(users)
 

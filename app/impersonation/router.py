@@ -29,7 +29,7 @@ from app.core.deps import (
 )
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
-from app.core.scope import Principal, build_scope, visible_user_ids
+from app.core.scope import Principal, management_scope, visible_user_ids
 from app.impersonation import service
 from app.impersonation.models import END_MANUAL, ImpersonationSession
 from app.users.models import User
@@ -99,7 +99,7 @@ def start_impersonation(
         actor=actor,
         target=target,
         session=auth.session,
-        scope=build_scope(db, actor),
+        scope=management_scope(db, actor),
         now=now,
         reason=payload.reason,
         client_ip=get_client_ip(request),
@@ -165,7 +165,7 @@ def list_sessions(
     # 이 표는 "**누가 누구의 계정으로 들어갔나**" 다 — 다른 조직의 이력을 볼 수 있으면
     # 그 조직에 누가 있고 누가 관리자인지, 어떤 계정이 문제를 겪었는지가 드러난다.
     # **대상 기준**으로 좁힌다: 보호받아야 하는 쪽은 대리 보기를 당한 사람이다.
-    visible = visible_user_ids(db, principal.scope)
+    visible = visible_user_ids(db, principal.management)
     if visible is not None:
         # UB-28: 이 표의 문서화된 목표 규모(scope.py::visible_user_ids 참고, ~1000명)에서도
         # 부서/조직 범위 관리자의 visible 집합이 SQLite 호스트 변수 상한(빌드에 따라

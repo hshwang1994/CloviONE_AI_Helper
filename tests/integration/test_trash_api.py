@@ -85,8 +85,9 @@ def test_bulk_trash_documents(db, make_user):
     from app.team_docs.models import DocumentCache
 
     op = make_user(email="bulkop@goodmit.co.kr", display_name="운영자", role="operator")
-    db.add(DocumentCache(notion_page_id="bd-1", title="문서1"))
-    db.add(DocumentCache(notion_page_id="bd-2", title="문서2"))
+    # 소속(0060) — 조직 공통 문서로 둔다(이 파일은 휴지통 동작을 본다).
+    db.add(DocumentCache(notion_page_id="bd-1", title="문서1", owner_kind="organization"))
+    db.add(DocumentCache(notion_page_id="bd-2", title="문서2", owner_kind="organization"))
     db.flush()
     res = docsvc.trash_documents_bulk(db, user=op, page_ids=["bd-1", "bd-2", "missing"],
                                       now=datetime(2026, 7, 29))
@@ -161,7 +162,7 @@ def test_trash_restore_requires_permission(app, db, make_user):
 
 def test_list_visible_cuts_at_the_limit_but_reports_the_full_count(db, make_user):
     """repository 레벨 — 상한만큼만 돌려주되 총 개수는 자르기 전 값이어야 '더 보기' 판단이 된다."""
-    from app.core.scope import build_scope
+    from app.core.scope import visibility_scope
 
     u = make_user(email="pg-repo@goodmit.co.kr", display_name="목록repo")
     for i in range(5):
@@ -169,7 +170,7 @@ def test_list_visible_cuts_at_the_limit_but_reports_the_full_count(db, make_user
                               title=f"티켓{i}", url=None, user=u, now=datetime(2026, 7, 29))
     db.commit()
 
-    items, total = repository.list_visible(db, build_scope(db, u), limit=2)
+    items, total = repository.list_visible(db, visibility_scope(db, u), limit=2)
     assert len(items) == 2
     assert total == 5
 

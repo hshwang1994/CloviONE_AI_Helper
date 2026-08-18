@@ -16,7 +16,7 @@ import { TEMPLATE_SCHEMA_FIELDS, assembleInputSchema, disassembleInputSchema, na
 
 export const AUTHORING_SCREENS = {
   prompts: {
-    key: "prompts", area: "연동", title: "프롬프트", endpoint: "/api/admin/prompts",
+    key: "prompts", area: "자동화", title: "프롬프트", endpoint: "/api/admin/prompts",
     // 워크플로 화면의 '테스트'가 실제 실행이 아니라 도달성만 확인한다고 밝히듯, 여기도 상태 전이
     // 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일 뿐 — app/prompts/service.py).
     help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
@@ -110,7 +110,7 @@ export const AUTHORING_SCREENS = {
     ],
   },
   policies: {
-    key: "policies", area: "연동", title: "정책", endpoint: "/api/admin/policies",
+    key: "policies", area: "자동화", title: "정책", endpoint: "/api/admin/policies",
     // 정책은 프롬프트보다 실제 파급력이 크다 — 발행하면 app/documents/service.py apply_template_bindings()/
     // _resolve_published_binding()가 이 정책 '이름'을 참조하는 모든 Template에 그 순간부터 현재 발행
     // 버전의 JSON을 그대로 n8n 페이로드에 inline한다(문서 생성이 다시 일어날 때마다). '테스트로'·
@@ -208,7 +208,7 @@ export const AUTHORING_SCREENS = {
     ],
   },
   templates: {
-    key: "templates", area: "연동", title: "템플릿", endpoint: "/api/admin/templates",
+    key: "templates", area: "자동화", title: "템플릿", endpoint: "/api/admin/templates",
     help: "자주 하는 자동화를 템플릿으로 저장합니다. 추가 직후에는 비활성 상태이며, 비활성 템플릿은 프롬프트, 정책, 입력값 바인딩과 승인 정책이 모두 적용되지 않습니다(승인 정책만이 아닙니다), 활성화해야 전부 적용됩니다.",
     emptyTitle: "추가된 템플릿이 없습니다",
     emptyHelp: writerEmptyHelp("자주 쓰는 자동화를 템플릿으로 저장하려면 ‘+ 템플릿 추가’를 누르세요. 대상 워크플로/러너와 연결됩니다. 추가 직후에는 비활성 상태이므로 활성화해야 적용됩니다.", "템플릿은 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),

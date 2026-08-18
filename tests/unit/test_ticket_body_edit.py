@@ -33,6 +33,16 @@ _SCHEMA = {
 }
 
 
+@pytest.fixture(autouse=True)
+def portal_project(make_project):
+    """이 파일의 티켓이 붙어 있는 Portal 프로젝트(조직 공통).
+
+    0060 부터 티켓 소속은 프로젝트가 정한다 — 소속이 없으면 쓰기 경로가 404 로 막는다.
+    이 파일이 검사하려는 것은 본문 저장 동작이므로 정상 소속을 미리 만들어 둔다.
+    """
+    return make_project(name="알파", external_id="px-1")
+
+
 def _page(*, pid="page-1", people=None):
     return {
         "id": pid,
@@ -44,6 +54,8 @@ def _page(*, pid="page-1", people=None):
             "티켓 담당자": {"people": [{"id": p} for p in (people or [])]},
             "예상 WD": {"number": 2.0},
             "티켓 ID": {"unique_id": {"number": 42}},
+            # 소속(0060) — 쓰기 경로가 이 relation 을 Portal 프로젝트로 해석한다.
+            "프로젝트": {"relation": [{"id": "px-1"}]},
         },
     }
 

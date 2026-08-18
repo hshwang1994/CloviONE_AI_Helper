@@ -43,6 +43,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.board.models import Post
+from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from app.core.models_base import split_names
 from app.org.constants import DEFAULT_ORG_ID
 from app.org.models import Department
@@ -54,10 +55,14 @@ from app.search.models import (
     KIND_DOCUMENT,
     KIND_TICKET,
     KIND_USER,
+    OWNER_DEPARTMENT,
+    OWNER_ORGANIZATION,
+    OWNER_PROJECT,
+    OWNER_UNSET,
     SearchDocument,
     join_owner_ids,
 )
-from app.users.models import User
+from app.users.models import MEMBERSHIP_ORGANIZATION, User
 
 logger = logging.getLogger("app.search.indexer")
 
@@ -124,6 +129,22 @@ def _joined_sep(parts) -> str:
     return ", ".join(str(p).strip() for p in parts if str(p or "").strip())
 
 
+def _owner_project(project_uid: str | None) -> dict:
+    """프로젝트 소유 색인 행. 프로젝트를 못 정하면 **미지정**(전역 관리자만)."""
+    if not project_uid:
+        return {"owner_kind": OWNER_UNSET, "owner_project_id": None}
+    return {"owner_kind": OWNER_PROJECT, "owner_project_id": project_uid}
+
+
+def _owner_of_user(u) -> dict:
+    """사람 한 명의 소속. 부서 > 조직 직속 > 미지정 순으로 좁은 것을 쓴다."""
+    if u.department_id:
+        return {"owner_kind": OWNER_DEPARTMENT, "owner_dept_id": u.department_id}
+    if getattr(u, "membership_kind", None) == MEMBERSHIP_ORGANIZATION:
+        return {"owner_kind": OWNER_ORGANIZATION}
+    return {"owner_kind": OWNER_UNSET}
+
+
 def _dept_names(db: Session) -> dict[str, str]:
     rows = db.execute(select(Department.id, Department.name)).all()
     return {row[0]: row[1] or "" for row in rows}
@@ -140,6 +161,12 @@ def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     """
     listing = repo.list_all(db)
     truncated = len(listing.tickets) > MAX_ROWS_PER_KIND
+    # 티켓의 소속은 **프로젝트가 정한다**(0060). 해석되지 않은 티켓(`project_link != 'ok'`)은
+    # `unset` 으로 남고 그건 전역 관리자만 본다 — 목록 API 와 정확히 같은 판정이다.
+    link_by_page = dict(db.execute(
+        select(TicketCache.notion_page_id, TicketCache.project_uid)
+        .where(TicketCache.project_link == PROJECT_LINK_OK)
+    ).all())
     # 휴지통에 넣은 티켓은 색인하지 않는다(H2). 예전에는 보관기간(기본 7일) 내내 검색과
     # ⌘K 에 계속 나왔다 — "지웠는데 검색에는 있다" 는 지운 적이 없다는 말처럼 읽힌다.
     # 목록 API 는 이미 `_drop_trashed` 로 거른다. 색인만 빠져 있었다.
@@ -156,6 +183,7 @@ def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
             "owner_user_ids": join_owner_ids(
                 maps.id_to_user[a] for a in t.assignee_ids if a in maps.id_to_user
             ),
+            **_owner_project(link_by_page.get(t.page_id)),
             "title": _clip(t.title, 500),
             "body": _clip(_joined([number, t.status, *t.project_names, t.body_markdown])),
             "subtitle": _clip(_joined_sep([number, t.status, ", ".join(t.project_names)]), 300),
@@ -194,6 +222,11 @@ def _document_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
             "kind": KIND_DOCUMENT,
             "ref_id": d.notion_page_id,
             "org_id": getattr(d, "org_id", None) or DEFAULT_ORG_ID,
+            # Portal 이 정한 Ownership 을 **그대로** 옮긴다. 여기서 다시 계산하면
+            # (예: 작성자 부서로 추정) 목록과 검색이 다른 답을 내기 시작한다.
+            "owner_kind": getattr(d, "owner_kind", None) or OWNER_UNSET,
+            "owner_dept_id": getattr(d, "owner_dept_id", None),
+            "owner_project_id": getattr(d, "owner_project_id", None),
             "owner_user_ids": join_owner_ids(owners),
             "title": _clip(d.title, 500),
             "body": _clip(_joined([
@@ -230,6 +263,8 @@ def _board_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], bo
             "kind": KIND_BOARD,
             "ref_id": post.id,
             "org_id": getattr(post, "org_id", None) or DEFAULT_ORG_ID,
+            # 자유게시판은 조직 전체가 읽는다(0060 §19) — 작성자 부서로 좁히지 않는다.
+            "owner_kind": OWNER_ORGANIZATION,
             "owner_user_ids": join_owner_ids([post.author_user_id]),
             "title": _clip(post.title, 500),
             "body": _clip(_joined([post.body, author.display_name if author else ""])),
@@ -269,6 +304,9 @@ def _user_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], boo
             "kind": KIND_USER,
             "ref_id": u.id,
             "org_id": getattr(u, "org_id", None) or DEFAULT_ORG_ID,
+            # 사람은 자기 소속에 속한다. 부서가 있으면 부서 것(줄기 규칙이 걸린다),
+            # 조직 직속이면 조직 것, 소속 미지정이면 `unset`(= 전역 관리자만) 이다.
+            **_owner_of_user(u),
             "owner_user_ids": join_owner_ids([u.id]),
             "title": _clip(u.display_name, 500),
             "body": _joined([dept, title]),
@@ -284,7 +322,8 @@ def _user_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], boo
 
 
 _FIELDS = (
-    "org_id", "owner_user_ids", "title", "body", "subtitle", "route", "url", "sort_key",
+    "org_id", "owner_user_ids", "owner_kind", "owner_dept_id", "owner_project_id",
+    "title", "body", "subtitle", "route", "url", "sort_key",
 )
 
 

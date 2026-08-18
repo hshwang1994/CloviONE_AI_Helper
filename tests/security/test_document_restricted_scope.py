@@ -20,11 +20,10 @@ TEAMMATE = "docr-mate@goodmit.co.kr"  # 우리팀 일반 사용자(같은 부서
 
 
 @pytest.fixture()
-def world(db, make_user):
+def world(db, make_user, make_document):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
-    from app.team_docs.models import DocumentCache
 
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     db.add(mine)
@@ -39,11 +38,13 @@ def world(db, make_user):
     author.department_id = mine.id
     mate.department_id = mine.id
     db.add(UserNotionMapping(user_id=author.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
-    db.add_all([
-        DocumentCache(notion_page_id="dr", title="제한 문서", author_notion_ids=NID_MINE, restricted=True),
-        DocumentCache(notion_page_id="du", title="일반 문서", author_notion_ids=NID_MINE, restricted=False),
-    ])
     db.commit()
+    # 소속은 부서(우리팀)다. `restricted` 는 그 **위에 겹치는** 문서 단위 제한이라 소속이
+    # 맞는 사람에게도 따로 막힌다 — 이 파일이 검사하는 것이 그 겹침이다(0060).
+    make_document(page_id="dr", title="제한 문서", dept=mine,
+                  author_notion_ids=[NID_MINE], restricted=True)
+    make_document(page_id="du", title="일반 문서", dept=mine,
+                  author_notion_ids=[NID_MINE], restricted=False)
 
 
 def _hdr(login_as, email, role):

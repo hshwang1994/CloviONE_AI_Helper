@@ -251,7 +251,9 @@ def test_a_free_post_has_no_status_at_all(client, login_as):
 
 
 # ── 4. 진행 전환이 티켓을 만들고 연결한다 ───────────────────────────────────
-def test_moving_to_progress_creates_a_ticket_and_links_it(client, login_as, notion):
+def test_moving_to_progress_creates_a_ticket_and_links_it(
+    client, login_as, notion, portal_project
+):
     """제안이 실제 일이 되는 지점. **티켓이 실제로 만들어졌는지**를 소스에서 확인한다."""
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(
@@ -260,7 +262,7 @@ def test_moving_to_progress_creates_a_ticket_and_links_it(client, login_as, noti
     op = login_as("operator", email="op@goodmit.co.kr")
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
 
-    r = _set_status(client, op, idea["id"], "진행", project_id="proj-1")
+    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
     assert r.status_code == 200, r.text
     post = r.json()["post"]
     assert post["idea_status"] == "진행"
@@ -272,7 +274,9 @@ def test_moving_to_progress_creates_a_ticket_and_links_it(client, login_as, noti
     assert "티켓 자동 생성" in sent_title, f"제안 제목이 티켓에 안 실렸다: {sent_title}"
 
 
-def test_a_failed_ticket_leaves_the_status_untouched(client, login_as, settings, fake_http):
+def test_a_failed_ticket_leaves_the_status_untouched(
+    client, login_as, settings, fake_http, portal_project
+):
     """티켓을 못 만들면 '진행' 도 남기지 않는다.
 
     이 저장소에는 "알림 실패가 본 작업을 막지 않는다" 는 규칙이 있지만 여기는 **반대**다.
@@ -294,7 +298,7 @@ def test_a_failed_ticket_leaves_the_status_untouched(client, login_as, settings,
     # 전혀 다른 이유로 초록불이 된다 - 실제로 처음 쓸 때 그렇게 통과했다.
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
 
-    r = _set_status(client, op, idea["id"], "진행", project_id="proj-1")
+    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
     assert r.status_code >= 400, f"티켓을 못 만들었는데 성공이라고 답한다({r.status_code})"
 
     after = client.get(f"/api/board/posts/{idea['id']}").json()["post"]
@@ -304,7 +308,9 @@ def test_a_failed_ticket_leaves_the_status_untouched(client, login_as, settings,
     assert not after["ticket_page_id"]
 
 
-def test_a_long_single_paragraph_idea_still_becomes_a_ticket(client, login_as, notion):
+def test_a_long_single_paragraph_idea_still_becomes_a_ticket(
+    client, login_as, notion, portal_project
+):
     """게시글은 줄바꿈 없는 긴 문단 하나로 쓰이는 일이 흔하다 - 예전엔 본문을
     `[:3900]`로만 잘라 그 한 줄이 여전히 티켓 설명의 줄당 상한(1900자)을 넘었고,
     티켓 생성이 **결정적으로** 거절돼 이 제안은 영원히 '진행'으로 못 넘어갔다
@@ -316,12 +322,14 @@ def test_a_long_single_paragraph_idea_still_becomes_a_ticket(client, login_as, n
     op = login_as("operator", email="op@goodmit.co.kr")
 
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
-    r = _set_status(client, op, idea["id"], "진행", project_id="proj-1")
+    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
     assert r.status_code == 200, r.text
     assert r.json()["post"]["ticket_page_id"], "긴 본문 때문에 티켓 연결이 비었다"
 
 
-def test_moving_to_progress_twice_does_not_make_a_second_ticket(client, login_as, notion):
+def test_moving_to_progress_twice_does_not_make_a_second_ticket(
+    client, login_as, notion, portal_project
+):
     """이미 티켓이 붙은 제안을 다시 진행으로 밀어도 티켓은 하나다(중복 발주 방지).
 
     완료로 닫았다가 되살리는 것이 실제로 일어나는 경로다 - 그때 티켓이 하나 더 생기면
@@ -332,10 +340,10 @@ def test_moving_to_progress_twice_does_not_make_a_second_ticket(client, login_as
     op = login_as("operator", email="op@goodmit.co.kr")
 
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
-    assert _set_status(client, op, idea["id"], "진행", project_id="proj-1").status_code == 200
+    assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
     first = len(notion.created)
     assert _set_status(client, op, idea["id"], "완료").status_code == 200
-    assert _set_status(client, op, idea["id"], "진행", project_id="proj-1").status_code == 200
+    assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
     assert len(notion.created) == first, "같은 제안으로 티켓이 두 번 만들어졌다"
 
 

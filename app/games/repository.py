@@ -17,18 +17,26 @@ def users_by_ids(db: Session, ids: list[str]) -> dict[str, User]:
     return {u.id: u for u in rows}
 
 
-def get_room(db: Session, room_id: str) -> GameRoom | None:
-    return db.execute(
-        select(GameRoom).where(GameRoom.id == room_id, GameRoom.closed_at.is_(None))
-    ).scalar_one_or_none()
+def get_room(db: Session, room_id: str, *, org_id: str | None = None) -> GameRoom | None:
+    """열린 방 하나. `org_id` 를 주면 **그 조직 방만** 돌려준다(0060).
+
+    `GameRoom.org_id` 는 0024 부터 채워지고 있었는데 **읽는 접근 제어가 없었다** — 컬럼만
+    있고 아무도 안 봤다. 놀이는 부서로 좁히지 않는다(같은 회사 사람끼리 노는 곳이다) —
+    조직 경계 하나만 지킨다.
+    """
+    stmt = select(GameRoom).where(GameRoom.id == room_id, GameRoom.closed_at.is_(None))
+    if org_id:
+        stmt = stmt.where(GameRoom.org_id == org_id)
+    return db.execute(stmt).scalar_one_or_none()
 
 
-def list_open_rooms(db: Session) -> list[GameRoom]:
-    return list(
-        db.execute(
-            select(GameRoom).where(GameRoom.closed_at.is_(None)).order_by(GameRoom.created_at.desc())
-        ).scalars().all()
-    )
+def list_open_rooms(db: Session, *, org_id: str | None = None) -> list[GameRoom]:
+    """열린 방 목록. 조건은 단건(`get_room`)과 **같은 것**이다 — 갈라지면 목록에 없는데
+    id 로 들어가지는 방이 생긴다."""
+    stmt = select(GameRoom).where(GameRoom.closed_at.is_(None))
+    if org_id:
+        stmt = stmt.where(GameRoom.org_id == org_id)
+    return list(db.execute(stmt.order_by(GameRoom.created_at.desc())).scalars().all())
 
 
 def last_seen_by_room(db: Session) -> dict:

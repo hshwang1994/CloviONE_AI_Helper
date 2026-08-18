@@ -155,9 +155,18 @@ def test_job_titles_do_not_carry_child_department_count(client, admin_csrf):
     assert "child_department_count" not in r.json()["items"][0]
 
 
-def test_deleting_a_parent_department_promotes_children_not_orphans_them(client, admin_csrf):
-    """이 시험은 UA-20R이 고치는 확인 문구가 정확한 사실을 말하는지 검증한다 — 자식 부서는
-    실제로 지워지지 않고 parent_id만 비워진다(모델의 ondelete="SET NULL" 약속)."""
+def test_deleting_a_parent_department_is_refused_while_children_exist(client, admin_csrf):
+    """하위 부서가 있으면 **지울 수 없다** (0060 §33).
+
+    예전에는 지워졌고, `ondelete="SET NULL"` 덕에 자식은 사라지지 않고 최상위로 올라왔다 —
+    데이터는 안 잃지만 3단 조직도가 클릭 한 번에 평탄해졌다. 0060 에서 부서는 조회 범위의
+    축(줄기 = 조상 ∪ 자기 ∪ 후손)이 됐다: 부모가 사라지면 그 아래 사람들이 보던 상위 부서
+    공통 업무가 통째로 사라지고, 반대로 자식이 최상위가 되면서 **같은 조직의 다른 최상위
+    부서와 나란히** 놓인다. 어느 쪽도 오류를 내지 않는다.
+
+    그래서 확인 문구로 알리는 대신 막는다. 되돌릴 수 없는 권한 변화를 "정말 지울까요?"
+    한 줄로 위임하지 않는다.
+    """
     parent_id = _mk_dept(client, admin_csrf, name="본부3").json()["department"]["id"]
     child_id = client.post(
         "/api/admin/departments",
@@ -166,11 +175,21 @@ def test_deleting_a_parent_department_promotes_children_not_orphans_them(client,
     ).json()["department"]["id"]
 
     r = client.delete(f"/api/admin/departments/{parent_id}", headers=_headers(admin_csrf))
-    assert r.status_code == 200, r.text
+    assert r.status_code == 409, r.text
+    err = r.json()["error"]
+    assert err["details"]["child_departments"] == 1
+    assert "하위 부서" in err["message"], f"무엇 때문에 막혔는지 말하지 않는다: {err['message']}"
 
-    r = client.get(f"/api/admin/departments/{child_id}", headers=_headers(admin_csrf))
-    assert r.status_code == 200, "자식 부서까지 함께 지워졌다 — 데이터 유실"
-    assert r.json()["department"]["parent_id"] is None, "부모가 지워졌는데 최상위로 안 올라왔다"
+    # 막는 것으로 끝나면 안 된다 — 자식을 먼저 옮기면 지울 수 있어야 한다.
+    client.patch(
+        f"/api/admin/departments/{child_id}", json={"parent_id": None},
+        headers=_headers(admin_csrf),
+    )
+    r = client.delete(f"/api/admin/departments/{parent_id}", headers=_headers(admin_csrf))
+    assert r.status_code == 200, f"자식을 옮겼는데도 못 지운다: {r.text}"
+    assert client.get(
+        f"/api/admin/departments/{child_id}", headers=_headers(admin_csrf)
+    ).status_code == 200, "자식 부서까지 함께 지워졌다 — 데이터 유실"
 
 
 def test_delete_unused_department_succeeds(client, admin_csrf):

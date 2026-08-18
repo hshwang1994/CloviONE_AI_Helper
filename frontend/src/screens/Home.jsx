@@ -17,6 +17,7 @@ import { GRID_GAP } from "../ui/density.js";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
+import { WorkSection } from "./WorkSummary.jsx";
 
 /* 홈 '오늘' 커맨드 센터 (계획서 Phase 5).
  *
@@ -391,6 +392,14 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
           </Card>
         </Stack>
         <SideRail data={data} />
+      </Box>
+      {/* 내 업무 요약 — 예전에는 **관리자 대시보드**에 있었다(0060 §3).
+          "내 미완료·이번 주 마감·지연 티켓" 과 "차질 프로젝트·지연 마일스톤" 은 관리자에게도
+          개인 업무이고, 관리자 콘솔(Control Plane)이 아니라 여기가 그 자리다. 프로젝트
+          숫자는 이미 조회 범위로 걸러진 값이라(app/home/work.py) 조직·부서 관리자에게는
+          자기 범위 요약이 된다. */}
+      <Box sx={{ mt: 2.5 }}>
+        <WorkSection />
       </Box>
       <Box sx={{ mt: 2.5 }}>
         <AssistantPanel />

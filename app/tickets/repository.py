@@ -70,6 +70,24 @@ class PageSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectVisibility:
+    """범위 안 프로젝트를 **두 표현으로** 들고 다닌다 (0060).
+
+    같은 사실을 두 번 적는 것이 아니라, 두 경로가 서로 다른 키로 조인하기 때문이다:
+
+      * `uids`     — Portal `projects.id`. 미러(SQL) 경로가 `ticket_cache.project_uid` 와 맞춘다.
+      * `page_ids` — 외부 소스 page id. 실시간 폴백 경로의 DTO 가 그것만 들고 있다
+        (`TicketDTO.project_ids`, 캐시가 준비되기 전에는 Portal id 를 알 수 없다).
+
+    한 곳에서 함께 만들어 함께 넘기므로 두 표현이 갈라질 자리가 없다
+    (`app/tickets/service.py::_project_visibility`).
+    """
+
+    uids: frozenset[str]
+    page_ids: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
 class TicketFilters:
     """목록 질의 조건 한 벌 — **소스를 모르는 도메인 값**이다.
 
@@ -81,10 +99,14 @@ class TicketFilters:
     둘을 다른 통로로 넘기면 페이지네이션이 둘 중 한쪽 뒤에서만 일어나고, 그 순간 total 이
     사용자가 세는 건수와 달라진다. 한 곳에 모아 **같은 질의 안에서** 걸리게 한다.
 
-    `assignee_any_of` 는 `core/scope.py::any_assignee_visible` 의 질의판이다: 담당자 중
-    한 명이라도 이 집합에 있으면 보인다. `None` 은 제한 없음(전역 범위)이고, **빈 집합은
-    아무것도 안 보인다**(fail-closed) - 그 둘을 같은 값으로 표현하면 범위 계산이 빈 답을
-    낸 순간 조용히 전 포탈이 열린다.
+    `project_any_of` 는 범위 판정의 질의판이다(0060): 티켓의 소속은 **프로젝트**이므로
+    "그 프로젝트가 내 범위 안인가" 하나로 판정한다. `None` 은 제한 없음(전역 범위)이고,
+    **빈 집합은 아무것도 안 보인다**(fail-closed) - 그 둘을 같은 값으로 표현하면 범위
+    계산이 빈 답을 낸 순간 조용히 전 포탈이 열린다.
+
+    예전에는 이 자리가 `assignee_any_of`(담당자 집합)였다. 담당자 축은 사람이 부서를 옮기면
+    과거 티켓의 소속이 따라 움직이고, 담당자를 앱 사용자로 해석하지 못하는 티켓(운영 실측
+    21.5%)은 어느 부서에도 안 잡혀 전사 버킷으로 새어 나갔다.
     """
 
     status: str | None = None
@@ -99,7 +121,7 @@ class TicketFilters:
     # 아래 셋은 앱이 거는 조건 — 브라우저에서 오지 않는다.
     exclude_statuses: frozenset[str] = frozenset()
     exclude_page_ids: frozenset[str] = frozenset()
-    assignee_any_of: frozenset[str] | None = None
+    project_any_of: "ProjectVisibility | None" = None
 
     @property
     def due_range(self) -> tuple[str | None, str | None]:
@@ -140,8 +162,12 @@ class TicketFilters:
             return False
         if self.exclude_page_ids and ticket.page_id in self.exclude_page_ids:
             return False
-        if self.assignee_any_of is not None:
-            if not any(a in self.assignee_any_of for a in ticket.assignee_ids):
+        if self.project_any_of is not None:
+            # 티켓 하나에 프로젝트는 정확히 하나여야 한다(0060). 0개·2개 이상은 소속을
+            # 판정할 수 없으므로 닫는다 — 임의로 하나를 고르면 남의 부서로 샌다.
+            if len(ticket.project_ids) != 1:
+                return False
+            if ticket.project_ids[0] not in self.project_any_of.page_ids:
                 return False
         return True
 
@@ -164,6 +190,13 @@ class TicketDTO:
     difficulty: str | None = None
     priority: str | None = None
     project_ids: tuple[str, ...] = ()
+    # 해석된 **Portal 프로젝트 id**. 미러에서 읽은 티켓만 갖는다 — 실시간 폴백 경로는
+    # 아직 Portal 짝을 모르므로 `None` 이고, 그때는 위 외부 id 로 판정한다.
+    #
+    # 왜 둘 다 필요한가: `project_ids` 는 외부 소스의 relation 이라 Portal 전용 프로젝트
+    # (Notion 짝이 없는 프로젝트)에는 아예 값이 없다. 외부 id 로만 판정하면 그런 프로젝트의
+    # 티켓이 **모두에게서 사라진다** — 조회 화면은 비어 있고 오류는 없다.
+    project_uid: str | None = None
     project_names: tuple[str, ...] = ()
     assignee_ids: tuple[str, ...] = ()  # 원본 소스 user id — 내부 전용
     body_markdown: str | None = None

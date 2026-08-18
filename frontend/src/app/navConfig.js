@@ -25,8 +25,35 @@ import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
  *  - departments/job-titles: GET까지 admin+
  *  - backup: GET은 READ_ROLES 허용 — 쓰기만 registry에서 system_admin으로 막는다
  *  - audit: GET은 admin/system_admin/auditor만(operator 제외) */
+const CONSOLE_READ = ["operator", "admin", "system_admin", "auditor"];
+const CONSOLE_OPS = ["operator", "admin", "system_admin"];
+const CONSOLE_WRITE = ["admin", "system_admin"];
+const SENSITIVE_READ = ["admin", "system_admin", "auditor"];
+
 export const SCREEN_ROLES = {
-  users: ["admin", "system_admin"],
+  // 관리자 화면은 **빠짐없이** 여기 있어야 한다. 이 표가 곧 사이드바 항목의 role 이 되고
+  // (아래 `NAV`), 라우트 게이트가 되고(AdminRoutes.jsx), 명령 팔레트 필터가 된다.
+  // 예전에는 nav 항목의 `roles` 와 이 표가 따로 있었고 35개 중 22개가 nav 쪽에 비어 있어,
+  // 일반 사용자가 Ctrl+K 로 관리자 화면 22개를 발견할 수 있었다.
+  dashboard: CONSOLE_READ,
+  "admin-notifications": CONSOLE_READ,
+  settings: CONSOLE_READ,          // 탭 단위 게이트는 SettingsShell.jsx 가 따로 건다
+  diagnostics: CONSOLE_OPS,
+  mail: CONSOLE_READ,
+  schedules: CONSOLE_READ,
+  documents: CONSOLE_READ,
+  approvals: CONSOLE_READ,
+  integrations: CONSOLE_READ,
+  runners: CONSOLE_READ,
+  workflows: CONSOLE_READ,
+  prompts: CONSOLE_READ,
+  policies: CONSOLE_READ,
+  templates: CONSOLE_READ,
+  integrity: CONSOLE_READ,
+  "notion-mapping": CONSOLE_READ,
+  "dev-report": SENSITIVE_READ,
+  setup: ["system_admin"],
+  users: CONSOLE_WRITE,
   jobs: ["operator", "admin", "system_admin"],
   organizations: ["admin", "system_admin"],
   departments: ["admin", "system_admin"],
@@ -64,111 +91,92 @@ export const SCREEN_ROLE_HELP = {
   "audit-anomalies": "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
 };
 
-export const NAV = [
-  // PA-RC-0017: 7그룹 39항목(IA-01이 만든 구조)을 5그룹 35항목으로 다시 짠다. 항목 넷
-  // (시스템 설정·Notion 관리·AI 관리·유지보수)이 사라진 건 없어진 게 아니라 /settings의
-  // 탭이 됐기 때문이다(SettingsShell.jsx) — 그 네 화면이 남기고 간 자리를 메우려고 다시
-  // 채우지 않는다. 나머지 35는 **어느 화면도 새로 만들거나 지우지 않았다** — role·배지·
-  // 아이콘도 그대로다, 다섯 묶음 중 어디 속하는가만 바뀐다. 갈 곳을 못 찾는 항목을 기준으로
-  // 묶었다: 매일 오늘 상태를 보러 오는가(운영), 사람·조직·권한을 만지는가(사용자·권한),
-  // 예약·승인처럼 자동으로 도는 일의 실행/한도인가(자동화), 외부 시스템이나 자동화가 쓰는
-  // 재료(러너·워크플로·프롬프트류)인가(연동), 사후 점검·통제·완결성 확인인가(감사). 35/5=7 —
-  // 다섯 다 정확히 7항목이라 "5그룹 이하, 그룹당 7항목 이하"(Acceptance Criteria)를
-  // 여유 없이 딱 채운다. 이 배치는 완벽한 유일해가 아니라 여러 타당한 분류 중 하나다 —
-  // 판단 근거는 DECISIONS.md에 남겼다.
-  //
-  // PA-RC-0031: 위 7항목 배치를 유지한 채(같은 group당 상한 없음, PA-RC-0017의 성과 보존)
-  // 업무 인접성이 깨진 4곳만 옮긴다 — 근거는 DECISIONS.md D-129:
-  //   · 기능 플래그·복구 리허설: 감사(사후 점검) → 운영(그 대상 자체를 다루는 곳, 백업 바로 옆)
-  //   · 공지 배너: 감사 → 자동화(콘텐츠를 다루는 예약/자동 실행 계열)
-  //   · 프롬프트 사용 통계: 연동(재료) → 감사(사용 통계는 정책 사용 통계와 같은 성격)
-  // "실행 일정(스케줄)"·"자동화 작업 실행기(러너)"·"업무 자동화 흐름(워크플로)" 세 항목만
-  // 쓰던 "업무용어(기술용어)" 괄호 병기를 걷어낸다 — 34항목 중 3개에만 있던 규칙을 넓히는
-  // 대신(31개의 적절한 기술용어를 새로 지어내야 한다), 이미 31개가 쓰는 평문 한 벌로 통일한다
-  // (Handoff가 명시한 두 선택지 중 더 작고 안전한 쪽). registry/automation.js·integrations.js의
-  // title도 같은 문구로 맞춘다(화면 제목과 메뉴 라벨이 갈라지면 안 된다).
+/* 화면 키(경로에서 슬래시를 뗀 것) → 이 항목을 볼 수 있는 역할.
+ *
+ * nav 항목에 `roles` 를 직접 적지 않는다. 두 벌을 두면 하나만 고쳐지고, 그때 증상은
+ * "메뉴에는 보이는데 눌렀더니 403"(또는 그 반대)이라 눈에 잘 안 띈다.
+ * `navRoles()` 가 이 표에서 읽어 붙인다 — 표에 없는 경로는 시험이 잡는다(nav-features.test.js).
+ */
+export function navRoles(to) {
+  return SCREEN_ROLES[to.replace(/^\//, "")] || null;
+}
+
+/** nav 정의에 role 을 붙여 돌려준다. 정의(무엇이 어느 묶음인가)와 권한(누가 보는가)을
+ *  따로 적되 **합치는 자리는 하나**로 둔다. */
+function withRoles(groups) {
+  return groups.map((g) => ({
+    ...g,
+    items: g.items.map((it) => {
+      const roles = navRoles(it.to);
+      return roles ? { ...it, roles } : it;
+    }),
+  }));
+}
+
+export const NAV = withRoles([
+  // PA-RC-0017/0031 이 만든 5그룹 배치를 유지하되, 0060 에서 실제 기능 기준으로 네 자리를
+  // 옮긴다(§30 — 이름이 아니라 기능을 읽고 판단한다):
+  //   · 초기 설정: 감사 → 운영 (설치 자체를 세우는 일이라 사후 점검이 아니다)
+  //   · 프롬프트·정책·템플릿: 연동 → 자동화 (자동화가 실행할 때 참조하는 재료다.
+  //     '연동'은 외부 시스템과의 배관이고, 이 셋은 그 배관을 타고 흐르는 내용물이다)
+  //   · 개발자 월간 리포트: 자동화 → 감사 (사람에 대한 민감 집계라 SENSITIVE_READ 다 —
+  //     같은 role 집합을 쓰는 감사 로그 옆이 예측 가능한 자리다)
+  //   · 승인 위임: 자동화 → 사용자와 권한 (누가 누구를 대신할 수 있는가는 권한 배정이다)
+  // 그룹 수는 늘리지 않는다. 새 항목은 조직 정합성 진단 하나뿐이고 운영에 둔다.
   { group: "운영", icon: DashboardOutlinedIcon, items: [
     { to: "/dashboard", label: "대시보드", icon: "dashboard" },
-    { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
-    { to: "/jobs", label: "작업 큐", roles: ["operator", "admin", "system_admin"], badge: "jobFailed", icon: "ticket" },
+    // 관리자 알림은 **사용자 알림과 다른 경로**다(0060). 같은 canonical path 를 두 콘솔이
+    // 공유하면 어느 쪽에서 눌러도 상대 콘솔로 튕긴다 — 경로가 콘솔을 정하기 때문이다.
+    { to: "/admin-notifications", label: "관리 알림", badge: "adminNotifUnread", icon: "bell" },
+    { to: "/jobs", label: "작업 큐", badge: "jobFailed", icon: "ticket" },
     { to: "/settings", label: "설정", icon: "settings" },
-    { to: "/diagnostics", label: "진단", roles: ["operator", "admin", "system_admin"], icon: "diagnostics" },
-    { to: "/backup", label: "백업", roles: ["operator", "admin", "system_admin", "auditor"], badge: "backupFailed", icon: "backup" },
-    // PA-RC-0031: 백업 점검과 그 복구 가능성을 확인하는 일은 한 업무다 — 예전엔 감사(사후
-    // 점검) 그룹에 있어 그룹을 오가야 했다. 백업 바로 옆에 둔다(원래 항목 그대로 — roles를
-    // 새로 달지 않는다. SCREEN_ROLES["restore-drills"]가 라우트 게이트를 이미 맡는다).
+    { to: "/setup", label: "초기 설정", icon: "settings" },
+    { to: "/diagnostics", label: "진단", icon: "diagnostics" },
+    { to: "/integrity", label: "조직 정합성", icon: "policy" },
+    { to: "/backup", label: "백업", badge: "backupFailed", icon: "backup" },
     { to: "/restore-drills", label: "복구 리허설", icon: "backup" },
-    // FN-01: GET /api/admin/mail/status(진단)·POST /test(시험 발송)는 처음부터 있었는데
-    // 띄우는 화면이 없어 SMTP 설정 오류(비밀번호 재설정 메일 등이 조용히 안 감)를 아무도
-    // 못 봤다 — CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)와 같은 role 집합.
-    { to: "/mail", label: "메일 발송", roles: ["operator", "admin", "system_admin", "auditor"], icon: "mail" },
-    // PA-RC-0031: 기능 플래그는 시스템 동작을 켜고 끄는 운영 설정이다 — /settings와 같은
-    // 성격인데 감사 그룹에 있어 "감사=사후 점검"이라는 그룹 이름의 예측력을 깼다(원래 항목
-    // 그대로 옮긴다 — roles를 새로 달지 않는다, SCREEN_ROLES["feature-flags"]가 라우트
-    // 게이트를 이미 맡는다).
+    { to: "/mail", label: "메일 발송", icon: "mail" },
     { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
   ] },
   { group: "사용자와 권한", icon: ManageAccountsOutlinedIcon, items: [
-    { to: "/users", label: "사용자", roles: ["admin", "system_admin"], icon: "users" },
+    { to: "/users", label: "사용자", icon: "users" },
     // WF1 R4 — "온보딩과 오프보딩"이라고 약속했지만 이 화면(Offboarding.jsx)은 퇴사자 티켓
     // 재배정 마법사뿐이다. 신규 입사자 계정을 만드는 실제 온보딩은 위 "/users"의 "+ 사용자
     // 추가"다 — 이 라벨이 온보딩도 여기서 한다고 오해하게 만들었다.
-    { to: "/offboarding", label: "오프보딩", roles: ["admin", "system_admin"], icon: "users" },
-    // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다
-    // (트리는 왼쪽 1/3, 관리 패널은 오른쪽 2/3 — OrgConsole.jsx 참조). 그런데 사이드바
-    // 메뉴가 예전처럼 3개로 남아 있으면 클릭할 때마다 '다른 메뉴'가 활성화되며 OrgConsole
-    // 이 다시 마운트돼 트리 선택 상태가 리셋된다(사용자 신고: "3개 항목으로 남아있어서
-    // 3개 페이지처럼 보임"). 대표 경로 하나로 합친다 — /departments, /org-tree 로의 직접
-    // 진입(북마크)은 AdminRoutes.jsx 가 여전히 처리하므로 라우팅은 그대로 둔다.
-    { to: "/organizations", label: "조직 관리", roles: ["admin", "system_admin"], icon: "org" },
-    { to: "/job-titles", label: "직책 관리", roles: ["admin", "system_admin"], icon: "jobtitle" },
-    // 권한 매트릭스는 규칙 표라 읽기 전용 역할(운영자·감사자)에게도 보인다.
+    { to: "/offboarding", label: "오프보딩", icon: "users" },
+    // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다.
+    // 대표 경로 하나만 메뉴에 둔다 — /departments, /org-tree 직접 진입(북마크)은 여전히 산다.
+    { to: "/organizations", label: "조직 관리", icon: "org" },
+    { to: "/job-titles", label: "직책 관리", icon: "jobtitle" },
     { to: "/rbac", label: "권한 매트릭스", icon: "policy" },
+    { to: "/approval-delegations", label: "승인 위임", icon: "check" },
     { to: "/notion-mapping", label: "Notion 사용자 연결", icon: "docs" },
-    { to: "/impersonation", label: "대리 보기", roles: ["admin", "system_admin", "auditor"], icon: "impersonate" },
+    { to: "/impersonation", label: "대리 보기", icon: "impersonate" },
   ] },
   { group: "자동화", icon: AutoAwesomeOutlinedIcon, items: [
     { to: "/schedules", label: "실행 일정", icon: "schedule" },
     { to: "/scheduler-calendar", label: "실행 달력", icon: "sprint" },
     { to: "/documents", label: "문서 자동 생성", icon: "docs" },
     { to: "/approvals", label: "승인", badge: "approvalPending", icon: "check" },
-    { to: "/approval-delegations", label: "승인 위임", icon: "check" },
     { to: "/ai-quotas", label: "AI 사용 상한", icon: "quota" },
-    { to: "/dev-report", label: "개발자 월간 리포트", roles: ["admin", "system_admin", "auditor"], icon: "report" },
-    // PA-RC-0031: 공지 배너는 예약된 기간에 자동으로 노출/해제되는 콘텐츠라 실행 일정·승인과
-    // 같은 "예약/자동 실행" 계열이다 — 감사(사후 점검)에는 원래 안 맞았다.
     { to: "/announcements", label: "공지 배너", icon: "announce" },
+    { to: "/prompts", label: "프롬프트", icon: "ai" },
+    { to: "/policies", label: "정책", icon: "policy" },
+    { to: "/templates", label: "템플릿", icon: "template" },
   ] },
   { group: "연동", icon: LinkOutlinedIcon, items: [
     { to: "/integrations", label: "외부 연동", icon: "integration" },
     { to: "/runners", label: "자동화 작업 실행기", icon: "runner" },
     { to: "/workflows", label: "업무 자동화 흐름", icon: "workflow" },
-    // 프롬프트·정책·템플릿은 러너·워크플로가 실행 시 참조하는 재료라 여기 묶인다(자체 화면
-    // '콘텐츠' 그룹은 PA-RC-0017에서 없앴다 — 항목 다섯 개만으로 최상위 그룹 하나를 쓰는
-    // 것보다, 실제로 누가 쓰는가를 기준으로 기존 그룹에 흡수하는 편이 5그룹 상한과 맞았다).
-    { to: "/prompts", label: "프롬프트", icon: "ai" },
-    { to: "/policies", label: "정책", icon: "policy" },
-    { to: "/templates", label: "템플릿", icon: "template" },
   ] },
   { group: "감사", icon: GavelOutlinedIcon, items: [
-    { to: "/audit", label: "감사 로그", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
-    { to: "/audit-anomalies", label: "감사 이상 징후", roles: ["admin", "system_admin", "auditor"], icon: "audit" },
-    // 최초 실행 셋업(9-3)은 SettingsShell 탭이 아니라(PA-RC-0017 상단 주석 참조) 여전히
-    // 독립 화면이다 — "설정이 전부 끝났는가"를 확인하는 체크리스트라 사후 점검 성격의 이
-    // 그룹에 둔다. `system_admin` 만인 이유는 SystemOps.jsx / app/setup/router.py와 같다.
-    // (PA-RC-0031 Handoff의 실측 트리에는 이 항목이 없다 — system_admin 전용이라 그 실측을
-    // 돌린 계정에 아예 안 보였을 뿐이다, DECISIONS.md D-129에 근거를 남긴다. 그룹 자체는
-    // 이 항목의 "사후 점검" 성격과 여전히 맞아 옮기지 않는다.)
-    { to: "/setup", label: "초기 설정", roles: ["system_admin"], icon: "settings" },
-    // registry/authoring.js에 화면(policy-usage)과 역할 게이트(SCREEN_ROLES 아래)는 있는데
-    // 사이드바 항목만 빠져 있었다(IA-01) — 형제 항목 prompt-usage의 headerActions에서만
-    // 갈 수 있었고, 직접 주소로만 닿을 수 있었다. 정책이 실제로 지켜지는가의 확인이라 여기 둔다.
+    { to: "/audit", label: "감사 로그", icon: "audit" },
+    { to: "/audit-anomalies", label: "감사 이상 징후", icon: "audit" },
+    { to: "/dev-report", label: "개발자 월간 리포트", icon: "report" },
     { to: "/policy-usage", label: "정책 사용 통계", icon: "report" },
-    // PA-RC-0031: 구조가 완전히 같은 사용 통계 화면(policy-usage) 바로 옆으로 옮긴다 — 예전엔
-    // 연동(재료) 그룹에 있어 "같은 종류 화면인데 다른 그룹"이었다.
     { to: "/prompt-usage", label: "프롬프트 사용 통계", icon: "report" },
   ] },
-];
+]);
 
 /* 사용자(role=user) 콘솔 네비 — 관리자 셸과 같은 규격을 공유한다.
  *
@@ -177,56 +185,35 @@ export const NAV = [
  * 회의만 남는다 — 저장된 계획(IDEAS_BACKLOG 부록 A)의 확정 방향이다.
  * 그룹 아이콘도 대화 말풍선에서 일정 아이콘으로 바꿨다. */
 export const USER_NAV = [
+  // 0060 §4: '내 업무'는 **나에게 직접 관련된 일**만 둔다. 미할당 티켓은 아직 내 일이 아니라
+  // 팀이 함께 나눠 갖는 일이므로 '팀 공간'으로 옮긴다. 개인 결재함(/my-approvals)은 새로
+  // 생겼다 — 승인은 위임받은 일반 사용자에게도 오는 개인 업무인데, 예전에는 관리자 콘솔에만
+  // 화면이 있어서 그 사람은 알림만 받고 들어갈 곳이 없었다.
   { group: "내 업무", icon: WorkOutlineRoundedIcon, items: [
     { to: "/me", label: "홈", icon: "home" },
     { to: "/my-tickets", label: "내 티켓", icon: "ticket" },
-    { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
     { to: "/new-ticket", label: "새 티켓", icon: "plus" },
-    /* 알림. 라우트(`/notifications`)는 UserRoutes 에 진작 있었는데 **메뉴 항목이 없었다** —
-       그래서 일반 사용자의 왼쪽 사이드바에는 안 읽음 배지가 붙을 자리 자체가 없었다
-       (`badge:"notifUnread"` 는 관리자 메뉴에만 선언돼 있었다). 사용자가 "신규 알람 하면
-       왼쪽 사이드바에 뜨기로 했는데 왜 안 됨" 이라고 한 것이 이것이다.
-       '내 업무' 그룹에 두는 이유: 티켓 배정·업무 인수처럼 **오늘 할 일을 바꾸는** 알림이
-       대부분이라, 되돌아보는 자리('내 정보')가 아니라 매일 훑는 자리에 있어야 한다. */
+    { to: "/my-approvals", label: "승인", badge: "myApprovalPending", icon: "check" },
     { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
   ] },
-  /* 기준 파일의 '도우미' 그룹에는 AI 도우미가 항목으로 있다. 예전에 뺐던 이유는 AI 가 탭
-     하나가 아니라 어디서든 부르는 전역 도우미가 됐기 때문인데, 그러다 보니 사이드바만 보는
-     사용자에게는 AI 로 가는 길이 안 보였다 — 우하단 FAB 과 상단바 버튼은 아이콘이라
-     '무엇인지'가 글자로 읽히지 않는다. 기준대로 되살린다. */
   { group: "도우미", icon: EventNoteOutlinedIcon, items: [
     { to: "/chat", label: "AI 도우미", icon: "ai" },
     { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
   ] },
-  // PA-RC-0031: '문서' 그룹은 문서·휴지통 둘뿐이었는데 휴지통은 문서 화면 안의 상태이지
-  // 형제 메뉴가 아니다(그 자체로는 갈 이유가 없다 — 항상 '문서에서 지운 것'이라는 맥락이
-  // 있어야 뜻이 있다). 휴지통 메뉴 항목을 없애고(라우트 #/team-docs/trash는 살아 있다,
-  // TeamDocs.jsx 헤더의 '휴지통' 버튼이 새 진입점이다) 항목 하나만 남은 '문서' 그룹은
-  // '팀 공간'에 합쳐 5그룹을 4그룹으로 줄인다(DECISIONS.md D-129).
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
-    /* 프로젝트는 팀 티켓 **바로 위**에 둔다. 티켓은 그 안의 한 줄이고, 목록에서 프로젝트로
-       올라갈 길이 없으면 사용자는 '내 티켓이 어느 계획의 일부인가'를 화면에서 알 수 없다.
-       읽기는 역할 게이트가 없다(app/projects/router.py 의 읽기는 인증만 본다) — 프로젝트
-       현황은 참여자 전원이 봐야 하는 화면이라 그렇게 만들어 두었다. */
     { to: "/projects", label: "프로젝트", icon: "project" },
     { to: "/team-tickets", label: "팀 티켓", icon: "ticket" },
-    // PA-RC-0031: 문서도 프로젝트·티켓과 같은 '업무 산출물' 계열이라 그 옆에 둔다(뒤의
-    // 채팅방·놀이·게시판은 소통/커뮤니티 계열이라 성격이 다르다).
+    // 미할당은 "우리 팀이 함께 나눠 가질 일" 이다 — 개인 업무가 아니라 팀 공간의 일이고,
+    // 0060 부터 실제로도 팀(프로젝트) 범위로 좁혀진다.
+    { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
     { to: "/team-docs", label: "문서", icon: "docs" },
-    // badge는 '어떤 수를 붙일지'만 고르는 키다. 실제 값은 AppShell의 useNavBadges가
-    // 정한다 — 여기서 숫자를 알 수는 없고, 그렇다고 셸에 경로를 하드코딩하면
-    // 다음 배지를 붙일 때 또 if가 는다.
     { to: "/chat-rooms", label: "채팅방", badge: "chatUnread", icon: "chat" },
     { to: "/games", label: "놀이", icon: "game" },
     { to: "/board", label: "자유게시판", icon: "board" },
-    /* 기능 개선 제안(7단계 #1). 게시판과 **같은 표·같은 API**를 종류만 바꿔 쓴다.
-       메뉴를 자유게시판 바로 아래 두는 이유: 둘 다 '글을 쓰는 곳'이라 사람이 찾는 자리가
-       같다. 문서나 티켓 쪽에 끼워 두면 제안하러 온 사람이 헤맨다. */
     { to: "/ideas", label: "기능 개선 제안", icon: "flag" },
   ] },
-  /* 내 정보(계획서 Phase 6 사용자 백로그). '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을
-   * 할까'를 고르는 곳이고 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. 섞으면 매일 쓰는
-   * 네 항목 사이에 가끔 쓰는 세 항목이 끼어 매번 시선이 한 번씩 걸린다. */
+  /* 내 정보. '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을 할까'를 고르는 곳이고
+   * 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. */
   { group: "내 정보", icon: PersonOutlineRoundedIcon, items: [
     { to: "/profile", label: "내 프로필", icon: "profile" },
     { to: "/my-stats", label: "내 업무량", icon: "report" },
@@ -253,6 +240,13 @@ export const USER_SEG_PATHS = [
   // 튕기고 사이드바가 통째로 관리자 메뉴로 바뀌었다 — 위 /projects와 같은 부류의 결함
   // (그건 이미 한 번 고쳐졌는데 /search는 안 고쳐져 있었다).
   "/search",
+  // 알림(0060). `USER_NAV` 에 항목이 있는데 이 목록에 없어서, 관리자군이 사용자 탭에서
+  // 알림을 누르면 **사이드바가 통째로 관리자 메뉴로 바뀌었다** — `/projects`·`/search` 와
+  // 정확히 같은 부류의 결함인데 이것만 안 고쳐져 있었다. 관리자 알림은 이제 다른 경로
+  // (`/admin-notifications`)라 두 콘솔이 같은 canonical path 를 공유하지 않는다.
+  "/notifications",
+  // 개인 결재함 — 승인은 위임받은 일반 사용자에게도 오는 개인 업무다.
+  "/my-approvals",
 ];
 
 export function inUserSegment(pathname) {
@@ -282,6 +276,10 @@ export const SCOPE_ENFORCED_PATHS = [
   "/my-tickets", "/unassigned", "/new-ticket", "/team-tickets", "/tickets",
   "/team-docs",
   "/sprint",
+  // 0060: 프로젝트는 처음부터 범위가 걸렸는데 이 목록에 없어서 안내가 안 떴다. 반대로
+  // `/unassigned` 는 목록에 있는데 서버가 아무것도 안 걸러 그 자리에서 거짓말이었다 —
+  // 이제 둘 다 실제 동작과 맞는다.
+  "/projects",
   "/users", "/offboarding", "/organizations", "/departments", "/org-tree",
 ];
 

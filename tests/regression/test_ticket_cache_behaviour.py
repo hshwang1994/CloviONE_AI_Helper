@@ -59,8 +59,12 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 def _seed_user(db) -> None:
+    from app.org.constants import DEFAULT_ORG_ID
+
     db.add(User(id=U_ME, email="cache-me@goodmit.co.kr", display_name="캐시 나",
                 role="user", active=True, password_hash=hash_password(PASSWORD),
+                # 소속(0060) — 조직 직속. 미지정이면 조직 데이터를 아무것도 못 본다.
+                membership_kind="organization", org_id=DEFAULT_ORG_ID,
                 must_change_password=False))
     db.flush()
     db.add(UserNotionMapping(id="00000000-0000-4000-8000-0000000c0101", user_id=U_ME,
@@ -71,12 +75,25 @@ def _seed_user(db) -> None:
 
 
 def _seed_mirror(db) -> None:
-    """워커가 한 번 정상 동기화한 상태를 만든다(tick 은 이 테스트에서 한 번도 돌지 않는다)."""
+    """워커가 한 번 정상 동기화한 상태를 만든다(tick 은 이 테스트에서 한 번도 돌지 않는다).
+
+    Portal 프로젝트도 함께 심는다. 0060 부터 티켓의 소속은 프로젝트가 정하고, Portal 에
+    짝이 없으면 그 티켓은 `unresolved` 라 아무에게도 안 보인다 — 그러면 이 파일이 검사하려는
+    "미러에서 바로 답한다" 를 확인할 수가 없다.
+    """
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.projects.models import Project
+    from app.tickets.models import PROJECT_LINK_OK
+
+    project = Project(name="알파 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id=P_ALPHA)
+    db.add(project)
+    db.flush()
     db.add(TicketCache(
         id="cache-uid-0001", notion_page_id=CACHED_PAGE_ID,
         notion_ticket_number=1, url=f"https://www.notion.so/{CACHED_PAGE_ID}",
         title="이미 있던 티켓", status="진행", due_date="2026-08-04",
         project_ids=join_names([P_ALPHA]), project_names=join_names(["알파 프로젝트"]),
+        project_uid=project.id, project_link=PROJECT_LINK_OK,
         assignee_notion_ids=join_names([N_ME]),
         synced_at=SYNCED_AT, created_at=SYNCED_AT, updated_at=SYNCED_AT,
     ))
@@ -126,9 +143,17 @@ def test_created_ticket_is_visible_immediately_without_any_sync_tick(cache_clien
     """POST 직후 GET /mine 에 보인다 — 동기화 tick 은 한 번도 돌지 않았다."""
     before = db.get(TicketSyncState, SYNC_STATE_ID).last_success_at
 
+    # `project_id` 는 **Portal 프로젝트 id** 다 (0060) — 외부 page id 가 아니다. 티켓의
+    # 소속을 정하는 값이라 정본이 Portal 이어야 한다.
+    from app.projects.models import Project
+    from sqlalchemy import select as _select
+
+    portal_project_id = db.execute(
+        _select(Project.id).where(Project.notion_page_id == P_ALPHA)
+    ).scalar_one()
     created = cache_client.post("/api/tickets", json={
         "title": "방금 만든 티켓",
-        "project_id": P_ALPHA,
+        "project_id": portal_project_id,
         "status": "계획",
         "assignee_user_ids": [U_ME],
     })

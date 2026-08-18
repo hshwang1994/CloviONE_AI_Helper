@@ -33,10 +33,14 @@ export function useProjectList(qs) {
  * 그래서 이 훅은 목록 질의와 **별개의 경로**를 부르고, 조건(qs)을 싣지 않는다 - 요약은
  * 보고 있는 페이지가 아니라 범위 전체를 말한다.
  */
-export function useProjectDashboard() {
+export function useProjectDashboard(departmentId) {
+  /* 요약도 **목록과 같은 조건**으로 센다 (0060 §32). 목록만 좁히면 한 화면이 "전체 4"
+   * 와 "총 2건" 을 동시에 말하고, 사용자는 둘 중 하나가 거짓말이라고 읽는다. */
+  const dept = departmentId || "";
   return useQuery({
-    queryKey: ["projects", "dashboard"],
-    queryFn: () => api("/api/projects/dashboard"),
+    queryKey: ["projects", "dashboard", dept],
+    queryFn: () =>
+      api("/api/projects/dashboard" + (dept ? `?department_id=${encodeURIComponent(dept)}` : "")),
     retry: false,
   });
 }

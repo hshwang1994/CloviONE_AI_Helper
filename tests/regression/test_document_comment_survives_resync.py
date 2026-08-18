@@ -102,8 +102,16 @@ def _comments(db, page_id: str) -> list[DocumentComment]:
 
 
 @pytest.fixture()
-def synced(db, settings, monkeypatch):
-    """한 번 동기화해 캐시를 채운다."""
+def synced(db, settings, monkeypatch, make_project):
+    """한 번 동기화해 캐시를 채운다.
+
+    소스 문서가 가리키는 프로젝트(`pr1`)를 Portal 에도 심는다 (0060). 문서 Ownership 은
+    Portal 이 정본이고 해석되지 않으면 미지정(= 아무에게도 안 보임)이라, 이 행이 없으면
+    "댓글이 살아남았는가" 를 확인하기도 전에 문서 자체가 404 로 닫힌다 — 그건 이 파일이
+    지키려는 성질이 아니다.
+    """
+    make_project(name="프로젝트X", external_id="pr1")
+    db.commit()
     _source(monkeypatch, _rows(include_ghost=True))
     state = _sync(db, settings)
     assert state.status == SYNC_OK, f"준비 단계 동기화가 실패했다: {state.error!r}"

@@ -3465,3 +3465,32 @@ L축 Deep Design Audit 신규분**이다.
 13건 중 **8건**이 「화면이 성공적으로 렌더되는데 내용이 틀린」 유형이다. 기존 검증(4xx/5xx ·
 console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.** `QA_COVERAGE.md` 에
 새 축을 넣었다 — 자세한 것은 그 문서의 `T10`~`T16`.
+
+## IA-RBAC — 사용자/관리자 IA · 조직 계층 · Resource Access Model 전면 개선 (사용자 지시, 2026-08-18)
+
+> 사용자가 화면에서 직접 지적한 것에서 출발해 **전수조사 → 확정 정책 → 구현**으로 이어진 묶음이다.
+> 조사 결과와 확정 정책은 대화에서 확정됐고, 설계 판단은 `DECISIONS.md` **D-138/D-139/D-140** 이 정본이다.
+> 마이그레이션은 `0060`(Resource Ownership + membership_kind) · `0061`(검색 색인 Ownership).
+
+| ID | 심각도 | 요약 | 근거 | 상태 |
+|---|---|---|---|---|
+| IA-01 | **Critical** | **`GET /api/tickets/unassigned` 에 범위가 없다** — 로그인만 하면 전 조직의 미할당 티켓을 읽고 claim 까지 할 수 있었다. `ensure_in_scope` 도 "미할당이면 통과" 예외를 갖고 있어 단건·본문·댓글·첨부가 전부 열렸다. 실측 1058건 중 **227건(21.5%)** 이 그 경로 | `tickets/service.py::ensure_in_scope` 예전 구현 · `repository_notion.list_unassigned` | ✅ **구현완료** — 판정을 `project_link=='ok' AND project_uid ∈ 조회범위`로 교체. `tests/security/test_access_matrix.py`가 목록·단건·댓글까지 한 표로 고정 |
+| IA-02 | **Critical** | **`app/org/router.py` 의 방어적 `getattr(principal, "scope", None)` 가 fail-open 이었다** — Principal 리팩터로 그 속성이 사라지자 조건이 `None` 이 되어 **남의 조직 데이터가 200 으로 나갔다**. "없으면 넘어간다"는 방어가 권한 경로에서는 정반대로 작동한다 | `org/router.py` · `scope.py` 리팩터 | ✅ **구현완료** — `principal.management` 를 직접 읽는다. 왜 defensive getattr 이 여기서 위험한지 주석으로 못박음 |
+| IA-03 | **High** | **티켓 소속을 담당자가 정했다** — 담당자를 앱 사용자로 해석 못 하면 그 티켓은 부서 화면에서도, 미할당 버킷에서도 빠져 **어디에서도 안 보였다**. 사람이 부서를 옮기면 과거 티켓이 따라 움직였다 | `core/scope.py::any_assignee_visible` · 실측 227건 | ✅ **구현완료** — `ticket_cache.project_uid`/`project_link`(0060). 티켓 소속은 프로젝트가 정한다 |
+| IA-04 | **High** | **문서 소속을 작성자가 정했다** — 같은 이유로 사람이 옮기면 문서가 따라 움직였다. 외부 소스에는 조직 컬럼이 없다 | `team_docs/service.py::doc_in_scope` 예전 구현 | ✅ **구현완료** — `document_cache.owner_kind`/`owner_dept_id`/`owner_project_id`(0060). **동기화가 절대 안 건드린다** |
+| IA-05 | **High** | **부서 미지정과 조직 직속을 구별하지 못해 전역으로 폴백**했다 — 부서를 안 정한 계정이 전 포털을 봤다 | `users.department_id IS NULL` 단일 판정 | ✅ **구현완료** — `users.membership_kind`(0060) + fail-closed. 로컬 실측 21/25가 대상이라 진단·일괄지정을 같은 배포에 넣었다 |
+| IA-06 | **High** | **관리자 NAV 35개 중 22개에 role 게이트가 없었다** — 일반 사용자의 Ctrl+K 팔레트에 관리 화면 이름이 그대로 떴다 | `navConfig.js` 예전 표 | ✅ **구현완료** — `SCREEN_ROLES` 하나에서 파생(`navRoles`). 표를 두 벌 두지 않는다 |
+| IA-07 | **High** | **사용자 탭에서 알림을 누르면 관리자 탭으로 넘어갔다**(사용자 지적) — 두 콘솔이 `/notifications` 한 경로를 공유했다 | `USER_SEG_PATHS` · `NotificationBell` | ✅ **구현완료** — 사용자 `/notifications` · 관리자 `/admin-notifications` 분리, 배지도 `audience` 별로 센다. 브라우저 확인 |
+| IA-08 | **High** | **관리자 대시보드에 개인 업무가 있었다**(사용자 지적) — 운영 화면과 개인 업무가 한 화면에 | `Dashboard.jsx::WorkSection` | ✅ **구현완료** — `WorkSection` 을 `Home.jsx` 로 이동. 관리자 대시보드는 운영만. 브라우저 확인 |
+| IA-09 | **High** | **로그인 착지가 역할로 갈렸다** — 관리자는 사용자 화면을 한 번도 안 보고 관리 콘솔로 떨어졌다 | `App.jsx::initialLandingPath` | ✅ **구현완료** — 역할 무관 `/me`. `/admin` 물리 경로 진입만 `/dashboard` |
+| IA-10 | **High** | **조회 범위가 자기 부서뿐이라 상위 부서가 하위 팀 일을 못 봤다**(사용자 지적: 상위 조직 관리자에게 보여야 한다) | `scope.py::build_scope` | ✅ **구현완료** — 조회는 줄기(조상 ∪ 자기 ∪ 후손), 관리는 자기 ∪ 후손. 형제 배제. `test_access_matrix.py` |
+| IA-11 | Med | **미할당과 담당자 매핑 실패가 한 버킷에 섞였다** — "집어 가세요" 화면에 이미 임자가 있는 티켓이 있었다 | `list_unassigned` 예전 판정 | ✅ **구현완료** — 미할당 = 담당자 없음. 매핑 실패는 정합성 오류로 `/integrity` 가 목록으로 보여 준다 |
+| IA-12 | Med | **부서 삭제가 조용히 성공했다** — FK 가 전부 SET NULL 이라 자식 부서는 최상위로 올라오고 프로젝트·문서는 소속이 빈칸(= 아무에게도 안 보임)이 됐다. 오류가 없어 지운 사람에게는 성공으로 보였다 | `org/service.py::delete_item`(사용자 수만 셌다) | ✅ **구현완료** — 하위 부서·프로젝트·문서·소속 사용자·관리 범위를 전부 세고 무엇이 몇 건인지 말하며 막는다 |
+| IA-13 | Med | **검색이 목록과 다른 축으로 판정했다** — 담당자 없는 티켓·부서를 옮긴 작성자의 문서가 검색에서만 사라지거나 나타났다 | `search/scoping.py` 담당자 축 | ✅ **구현완료** — 색인에 Ownership 을 싣고(0061) 목록과 **같은 함수**로 판정. 파이썬 2차 판정 제거 |
+| IA-14 | Med | **`/api/approvals/mine` 이 500** — 정렬을 없는 열(`Approval.created_at`)로 걸었다. 셸의 배지가 이 경로를 부르므로 **로그인한 모든 사용자**에게 오류가 났고, 어떤 시험도 이 경로를 부르지 않아 초록이었다 | 브라우저 E2E Network 패널에서 발견 | ✅ **구현완료** — `requested_at` 으로 정정 + `tests/integration/test_my_approvals.py` 6건 신설(배지 질의 조합 포함) |
+| IA-15 | Med | **일반 사용자 화면에서만 조직 정보가 비었다** — 부서 열은 전부 `-`, 새 티켓의 공유 범위는 부서 프로젝트인데 **"조직 전체 공통"이라고 반대로** 안내했다. 원인은 화면이 관리자 전용 API(`/api/admin/departments`)에 기댄 것 | 브라우저 E2E 에서 발견 | ✅ **구현완료** — 목록 응답의 `departments.options`, `/api/tickets/projects` 의 `dept_path` 로 서버가 만들어 보낸다(D-140) |
+| IA-16 | Med | **부서 필터가 아무것도 좁히지 못했다** — 조직 공통(`dept_id IS NULL`)이 어느 부서를 골라도 따라왔고, 동기화된 프로젝트는 대부분 조직 공통이다 | `test_department_filter_scope.py` 로 재현 | ✅ **구현완료** — 선택 Scope 는 `org_id` 를 비운다(D-139) |
+| IA-17 | Med | **프로젝트 요약 타일과 표가 다른 범위를 셌다** — 부서 필터를 걸면 "전체 4"와 "총 2건"이 한 화면에 | 브라우저 E2E 에서 발견 | ✅ **구현완료** — `/api/projects/dashboard` 도 `department_id` 를 받는다 |
+| IA-18 | Low | **`ticket_cache.scope_dept_id` 죽은 컬럼** — 실측 non-null 0건, 읽는 코드 0건. 남기면 "티켓에도 부서 축이 있구나"로 읽힌다 | 0044 가 열어 둔 문 | ✅ **구현완료** — 0060 에서 제거(downgrade 는 인덱스까지 복원한다) |
+| IA-19 | Med | **소속을 판정할 수 없는 운영 데이터가 대량으로 남는다** — 로컬 실측 사용자 21 · 티켓 1056 · 문서 104. 배포 즉시 그 데이터는 전역 관리자 외에 안 보인다 | `var/e2e.sqlite3` 마이그레이션 실측 | 🟡 **도구 제공, 데이터 정리는 운영 몫** — `/integrity` 가 원인·대상·일괄 지정을 제공한다. 티켓은 프로젝트 동기화가 돌면 대부분 자동 해소(`project_link.reresolve_all`) |
+| IA-20 | Med | **`0060` 의 문서 이관(ClovirONE팀)이 이 환경에서 no-op** — 로컬/E2E DB 에 그 이름의 부서가 없다(본부·개발팀·프런트팀·영업팀·플랫폼팀·인프라팀). 설계대로 "없으면 아무것도 안 한다" | `var/e2e.sqlite3` 부서 목록 | 🟡 **운영 DB 에서 확인 필요** — TEST/운영 서버에 그 부서가 있으면 이관되고, 없으면 `/integrity` 로 지정한다 |

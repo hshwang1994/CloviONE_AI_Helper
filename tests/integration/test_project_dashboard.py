@@ -37,10 +37,11 @@ PROJECT_COUNT = 22
 
 
 def _project(db, *, name, status="active", progress=None, health=None,
-             notion_status=None, archived=None):
+             notion_status=None, archived=None, dept_id=None):
     row = Project(
         name=name,
         org_id=DEFAULT_ORG_ID,
+        dept_id=dept_id,
         status=status,
         progress_pct=progress,
         health_score=health,
@@ -268,20 +269,43 @@ def test_the_item_list_is_capped_but_the_count_is_not(client, login_as, db, worl
 
 
 def test_out_of_scope_projects_are_in_no_number(client, login_as, db, make_user, boss):
-    """범위 밖은 목록에서 안 보인다. 대시보드 숫자에 섞이면 목록에 범위를 건 의미가 없다."""
+    """범위 밖은 목록에서 안 보인다. 대시보드 숫자에 섞이면 목록에 범위를 건 의미가 없다.
+
+    ⚠️ **범위 밖 표본을 제대로 만들어야 한다.** 예전에는 부서를 지정하지 않은 프로젝트를
+    심고 "부서가 없는 관리자는 아무것도 못 본다" 에 기댔다. 0060 에서 부서 없는 프로젝트는
+    **조직 공통**이고 조직 직속인 사람에게는 정상으로 보인다 — 그 표본으로는 범위가 걸리는지
+    아닌지를 구별할 수 없다. 그래서 이 사람이 속하지 않은 **다른 부서**의 프로젝트를 심는다.
+    """
+    from app.org.models import Department
+
+    theirs = Department(name="남의 본부", org_id=DEFAULT_ORG_ID)
+    db.add(theirs)
+    db.flush()
+
     other = make_user("prj-dash-dept@goodmit.co.kr", role="admin", display_name="부서장")
     other.admin_scope = "dept"
+    other.department_id = mine_dept(db).id
     db.commit()
 
-    _project(db, name="전역 관리자만 보는 것", status="active", health=10)
+    _project(db, name="남의 부서 프로젝트", status="active", health=10, dept_id=theirs.id)
     db.commit()
 
     hdr = {"X-CSRF-Token": login_as("admin", email="prj-dash-dept@goodmit.co.kr")}
     body = client.get("/api/projects/dashboard", headers=hdr).json()
 
-    # 부서가 없는 사용자라 부서 프로젝트가 하나도 안 보인다(repository.py 의 규칙).
     assert body["total"] == 0, f"범위 밖 프로젝트가 집계에 섞였다: {body}"
     assert body["health"]["trouble"]["count"] == 0, body["health"]
+
+
+def mine_dept(db):
+    """이 사람이 속할 부서. 남의 부서와 **형제**여야 한다 — 조상/후손이면 줄기 규칙상
+    정상으로 보이고, 그러면 위 시험이 범위를 재는 것이 아니라 계층을 재게 된다."""
+    from app.org.models import Department
+
+    row = Department(name="우리 본부", org_id=DEFAULT_ORG_ID)
+    db.add(row)
+    db.flush()
+    return row
 
 
 def test_the_dashboard_route_is_not_swallowed_by_the_project_id_route(client, login_as, boss):

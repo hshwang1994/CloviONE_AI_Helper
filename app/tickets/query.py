@@ -16,7 +16,7 @@ from __future__ import annotations
 from sqlalchemy import false, or_
 
 from app.core.models_base import NAMES_SEP
-from app.tickets.models import TicketCache
+from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from app.tickets.repository import PageSpec, TicketFilters
 
 
@@ -37,15 +37,6 @@ ORDER = (
     TicketCache.notion_ticket_number.asc().nulls_last(),
     TicketCache.id.asc(),
 )
-
-
-def row_order_key(row: TicketCache):
-    """`ORDER` 의 파이썬판. 두 깔때기의 순서가 어긋나면 화면마다 정렬이 달라진다."""
-    return (
-        row.due_date is None, row.due_date or "",
-        row.notion_ticket_number is None, row.notion_ticket_number or 0,
-        row.id or "",
-    )
 
 
 def page_slice(items: list, page: PageSpec | None) -> list:
@@ -109,12 +100,21 @@ def filter_clauses(f: TicketFilters | None) -> list:
             TicketCache.notion_page_id.is_(None),
             TicketCache.notion_page_id.notin_(tuple(sorted(f.exclude_page_ids))),
         ))
-    if f.assignee_any_of is not None:
-        # 범위 판정의 질의판(`core/scope.py::any_assignee_visible`). 빈 집합은 아무것도
-        # 안 보인다 - `false()` 는 SQLite 에서 `0 = 1` 로 나와 조건을 빼먹은 코드와 눈으로
-        # 구별된다(scope.py 의 MATCH_NOTHING 과 같은 이유).
-        out.append(or_(*[
-            TicketCache.assignee_notion_ids.contains(token(n), autoescape=True)
-            for n in sorted(f.assignee_any_of)
-        ]) if f.assignee_any_of else false())
+    if f.project_any_of is not None:
+        # 범위 판정의 질의판(0060). 티켓의 소속은 **프로젝트**이고, 그 소속은 동기화가
+        # 이미 한 컬럼으로 해석해 뒀다(`app/tickets/project_link.py`).
+        #
+        # 두 조건을 **함께** 건다:
+        #   * `project_link == 'ok'` — 소속을 판정할 수 있는 행만. relation 이 0개거나
+        #     2개 이상이면 어느 부서 것인지 모르는 것이고, 모르면 닫는다(fail-closed).
+        #   * `project_uid IN (...)` — 그 프로젝트가 이 사람 범위 안인가.
+        #
+        # 빈 집합은 아무것도 안 보인다 - `false()` 는 SQLite 에서 `0 = 1` 로 나와 조건을
+        # 빼먹은 코드와 눈으로 구별된다(scope.py 의 MATCH_NOTHING 과 같은 이유).
+        uids = f.project_any_of.uids
+        if not uids:
+            out.append(false())
+        else:
+            out.append(TicketCache.project_link == PROJECT_LINK_OK)
+            out.append(TicketCache.project_uid.in_(tuple(sorted(uids))))
     return out

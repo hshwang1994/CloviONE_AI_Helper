@@ -25,7 +25,9 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize(
     "object_type,object_id,expected",
     [
-        ("approval", "a-1", "/approvals?id=a-1"),
+        # 승인은 **개인 결재함**으로 간다(0060). 위임받은 일반 사용자는 관리자
+        # 콘솔이 없어서 관리 큐로 보내면 그 알림을 어디서도 못 연다.
+        ("approval", "a-1", "/my-approvals?id=a-1"),
         ("schedule", "s-1", "/schedules?id=s-1"),
         # job은 다른 셋과 파라미터 이름이 다르다(jobs.onQuery가 job_id를 본다) — 실수로
         # ?id=를 쓰면 조용히 무필터 전체 목록이 열리므로 이름 자체를 못박는다.
@@ -42,6 +44,22 @@ pytestmark = pytest.mark.unit
 )
 def test_known_types_resolve_to_their_screens_deep_link(object_type, object_id, expected):
     assert destination_for(object_type, object_id) == expected
+
+
+def test_an_admin_audience_approval_goes_to_the_management_queue():
+    """같은 자원이라도 **어느 콘솔의 일인가**에 따라 목적지가 갈린다 (0060).
+
+    관리자에게 온 승인 알림은 관리 큐로, 일반 사용자(위임받은 결재자)에게 온 것은 개인
+    결재함으로 간다. 한쪽으로 뭉치면 둘 중 하나는 반드시 못 여는 링크가 된다.
+    """
+    assert destination_for("approval", "a-1", "admin") == "/approvals?id=a-1"
+    assert destination_for("approval", "a-1", "user") == "/my-approvals?id=a-1"
+
+
+def test_an_admin_audience_falls_back_to_the_shared_table():
+    """관리자 전용 목적지가 따로 없는 유형은 공용 표를 그대로 쓴다 — 표를 두 벌로
+    유지하지 않기 위해서다(둘이 갈라지면 한쪽만 고쳐진다)."""
+    assert destination_for("ticket", "t-1", "admin") == "/tickets/t-1"
 
 
 @pytest.mark.parametrize("object_type", ["schedule_run", "unknown_type", None, ""])

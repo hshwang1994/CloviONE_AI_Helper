@@ -10,9 +10,20 @@ import { api } from "../lib/api.js";
  * `enabled` 를 받는 이유: 편집 모달은 열릴 때만 후보가 필요하고, 필터 줄은 그 조건을
  * 실제로 그릴 때만 필요하다. 목록 화면의 첫 로드에 쓸데없는 왕복을 붙이지 않는다. */
 
-export function useAssigneeOptions(enabled) {
+export function useAssigneeOptions(enabled, projectId) {
+  /* `projectId` 를 주면 **그 프로젝트에 닿을 수 있는 사람만** 후보가 된다 (0060 §14).
+   *
+   * 담당자와 프로젝트 ACL 이 어긋나면 그 사람은 **자기가 담당한 티켓을 못 여는** 상태가
+   * 된다(목록에도 안 뜬다). 고를 수 없게 막는 편이 그 상태를 만들고 나서 설명하는 것보다
+   * 낫다 — 서버도 같은 판정을 하므로(app/tickets/service.py) 화면이 유일한 방어는 아니다.
+   *
+   * 프로젝트가 아직 안 정해졌으면 후보를 묻지 않는다. 전체 명부를 먼저 보여 줬다가 프로젝트를
+   * 고르는 순간 절반이 사라지면, 사용자는 방금 고른 사람이 왜 없어졌는지 알 수 없다.
+   */
   return useQuery({
-    queryKey: ["tickets", "assignees"], queryFn: () => api("/api/tickets/assignees"),
+    queryKey: ["tickets", "assignees", projectId || ""],
+    queryFn: () =>
+      api("/api/tickets/assignees" + (projectId ? `?project_id=${encodeURIComponent(projectId)}` : "")),
     enabled: !!enabled, retry: false, staleTime: 60000,
   });
 }

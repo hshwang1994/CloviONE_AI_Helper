@@ -83,8 +83,27 @@ def _event_view(e) -> dict:
             "created_at": e.created_at.isoformat()}
 
 
-def _get_room_or_404(db: Session, room_id: str):
-    room = repository.get_room(db, room_id)
+def _viewer_org_id(db: Session, me: User) -> str | None:
+    """이 사람에게 걸 조직 경계. 전역 범위면 `None`(제한 없음).
+
+    `app/board/router.py::_viewer_org_id` 와 같은 판정이다 — 게시판·놀이 둘 다 조직 공용
+    공간이고, `User.org_id` 를 그냥 쓰면 전역 관리자조차 자기 기본 조직으로 좁혀진다
+    (기본값이 항상 채워져 있기 때문이다, SEC-34 와 같은 자리).
+    """
+    from app.core.scope import visibility_scope
+
+    if visibility_scope(db, me).is_global:
+        return None
+    return getattr(me, "org_id", None)
+
+
+def _get_room_or_404(db: Session, room_id: str, me: User):
+    """모든 `/{room_id}` 경로의 단 하나의 문. 범위 밖은 **404** — 존재를 알려 주지 않는다.
+
+    방 안의 실제 참여는 멤버십이 정한다(그건 각 동작이 따로 본다). 여기서 거는 것은
+    **조직 경계**뿐이다: 다른 회사의 방이 id 하나로 열리면 안 된다.
+    """
+    room = repository.get_room(db, room_id, org_id=_viewer_org_id(db, me))
     if room is None:
         raise NotFoundError("방을 찾을 수 없습니다.")
     return room
@@ -94,7 +113,7 @@ def _get_room_or_404(db: Session, room_id: str):
 def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     # 목록을 볼 때마다 버려진(폴링 끊긴) 방을 먼저 정리해 유령 방이 남지 않게 한다.
     service.cleanup_idle_rooms(db, now=request.app.state.clock.now())
-    rooms = repository.list_open_rooms(db)
+    rooms = repository.list_open_rooms(db, org_id=_viewer_org_id(db, me))
     flags = load_feature_flags(request.app.state.settings.config_dir)
     # 프런트가 AI 퀴즈 생성 버튼 노출 여부를 알도록 플래그를 함께 내려준다(기본 OFF → 버튼 숨김).
     # 놀이 목록은 3초마다 폴링된다 — 방이 하나도 안 바뀐 동안은 304 로 끝낸다.
@@ -121,7 +140,7 @@ def room_state(
     db: Session = Depends(get_db), me: User = Depends(get_current_user),
     auth: AuthContext = Depends(get_current_auth),
 ):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     now = request.app.state.clock.now()
     # GET 이라 공용 임퍼소네이션 쓰기 차단을 안 지난다 — 여기서 안 막으면 관리자의 폴링이
     # 대상 사용자를 '접속 중'으로 켜고, 실제 접속 여부와 무관하게 추첨 대상 풀에도 들어간다
@@ -159,14 +178,14 @@ def room_state(
 @router.post("/rooms/{room_id}/join", dependencies=[Depends(require_csrf)])
 def join(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user),
          spectate: bool = Query(default=False)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     m = service.join_room(db, room, me, spectate=spectate, now=request.app.state.clock.now())
     return {"ok": True, "role": m.role}
 
 
 @router.post("/rooms/{room_id}/leave", dependencies=[Depends(require_csrf)])
 def leave(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.leave_room(db, room, me, now=request.app.state.clock.now())
     return {"ok": True}
 
@@ -174,35 +193,35 @@ def leave(request: Request, room_id: str, db: Session = Depends(get_db), me: Use
 @router.post("/rooms/{room_id}/disband", dependencies=[Depends(require_csrf)])
 def disband(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     # 방장만 방을 파할 수 있다(service._ensure_host). 파하면 방이 목록·조회에서 사라진다.
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.disband_room(db, room, me, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/ready", dependencies=[Depends(require_csrf)])
 def ready(request: Request, room_id: str, payload: ReadyInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.set_ready(db, room, me, ready=payload.ready, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/start", dependencies=[Depends(require_csrf)])
 def start(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.start_game(db, room, me, now=request.app.state.clock.now())
     return {"room": _room_summary(db, room)}
 
 
 @router.post("/rooms/{room_id}/vote", dependencies=[Depends(require_csrf)])
 def vote(request: Request, room_id: str, payload: VoteInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.submit_vote(db, room, me, option_index=payload.option, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/pick", dependencies=[Depends(require_csrf)])
 def pick(request: Request, room_id: str, payload: NumberInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.submit_number(db, room, me, value=payload.value, now=request.app.state.clock.now())
     return {"ok": True}
 
@@ -210,28 +229,28 @@ def pick(request: Request, room_id: str, payload: NumberInput, db: Session = Dep
 @router.post("/rooms/{room_id}/rps", dependencies=[Depends(require_csrf)])
 def rps(request: Request, room_id: str, payload: VoteInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
     # option: 0=가위, 1=바위, 2=보 (VoteInput 재사용).
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.submit_rps(db, room, me, choice=payload.option, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/quiz-answer", dependencies=[Depends(require_csrf)])
 def quiz_answer(request: Request, room_id: str, payload: VoteInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.submit_quiz_answer(db, room, me, option_index=payload.option, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/reveal", dependencies=[Depends(require_csrf)])
 def quiz_reveal(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.reveal_quiz(db, room, me, now=request.app.state.clock.now())
     return {"ok": True}
 
 
 @router.post("/rooms/{room_id}/next", dependencies=[Depends(require_csrf)])
 def quiz_next(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.next_quiz(db, room, me, now=request.app.state.clock.now())
     return {"room": _room_summary(db, room)}
 
@@ -263,20 +282,20 @@ def quiz_generate(
 
 @router.post("/rooms/{room_id}/finish", dependencies=[Depends(require_csrf)])
 def finish(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.finish_game(db, room, me, now=request.app.state.clock.now())
     return {"room": _room_summary(db, room)}
 
 
 @router.post("/rooms/{room_id}/reset", dependencies=[Depends(require_csrf)])
 def reset(request: Request, room_id: str, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.reset_room(db, room, me, now=request.app.state.clock.now())
     return {"room": _room_summary(db, room)}
 
 
 @router.post("/rooms/{room_id}/chat", dependencies=[Depends(require_csrf)])
 def chat(request: Request, room_id: str, payload: ChatInput, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    room = _get_room_or_404(db, room_id)
+    room = _get_room_or_404(db, room_id, me)
     service.chat(db, room, me, text=payload.text, now=request.app.state.clock.now())
     return {"ok": True}

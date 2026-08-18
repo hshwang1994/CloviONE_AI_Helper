@@ -80,6 +80,9 @@ def notion(fake_http, settings) -> FakeDocsPage:
 
 
 def _add_doc(db, page_id=PAGE, title="네트워크 설계서", **over):
+    # 소속(0060)은 문서 자신이 든다. 이 파일이 검사하는 것은 소속 게이트가 아니라
+    # 편집·목록 동작이므로 조직 공통으로 둔다 — 소속을 안 주면 전역 관리자만 보인다.
+    over.setdefault("owner_kind", "organization")
     row = DocumentCache(notion_page_id=page_id, title=title, synced_at=utcnow(), **over)
     db.add(row)
     db.commit()
@@ -203,9 +206,14 @@ def world(db, make_user, notion):
                              status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS,
                              status=STATUS_VERIFIED))
-    _add_doc(db, "dm", "우리팀 문서", author_notion_ids=NID_MINE)
-    _add_doc(db, "dt", "남의팀 3분기 실적 보고서", author_notion_ids=NID_THEIRS)
-    _add_doc(db, "dn", "작성자 미해석 문서", author_notion_ids="")
+    # 소속(0060)은 문서 자신이 든다 — 작성자가 정하지 않는다. 마지막 문서는 작성자를
+    # 앱 계정으로 해석할 수 없는 경우인데, 소속이 우리 팀이라 우리 팀은 그대로 편집한다.
+    _add_doc(db, "dm", "우리팀 문서", author_notion_ids=NID_MINE,
+             owner_kind="department", owner_dept_id=mine.id)
+    _add_doc(db, "dt", "남의팀 3분기 실적 보고서", author_notion_ids=NID_THEIRS,
+             owner_kind="department", owner_dept_id=theirs.id)
+    _add_doc(db, "dn", "작성자 미해석 문서", author_notion_ids="",
+             owner_kind="department", owner_dept_id=mine.id)
     db.commit()
 
 

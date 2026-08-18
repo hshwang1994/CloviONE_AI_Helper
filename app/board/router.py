@@ -112,7 +112,10 @@ def _people_of(db: Session, authors: dict[str, User]) -> dict[str, dict]:
     """
     org_names = people.org_name_map(db)
     avatars = people.avatar_map(db, authors.keys())
-    return {uid: people.identity(u, org_names, avatars) for uid, u in authors.items()}
+    from app.core.org_tree import DeptTree
+
+    tree = DeptTree.load(db)
+    return {uid: people.identity(u, org_names, avatars, tree) for uid, u in authors.items()}
 
 
 def _idea_fields(post: Post) -> dict:
@@ -266,12 +269,12 @@ def _viewer_org_id(db: Session, me: User) -> str | None:
     `User.org_id`가 `OrgScopedMixin`의 `default=DEFAULT_ORG_ID`로 항상 채워져 있어,
     예전엔 `getattr(me, "org_id", None)`을 그대로 써 **전역 관리자조차 자기 기본
     조직으로 좁혀졌다**(다른 조직 공지가 안 보임 — 유출과 반대 방향이지만 여전히
-    잘못된 판정). `core/scope.py::build_scope`가 이미 역할·admin_scope를 올바르게
+    잘못된 판정). `core/scope.py::visibility_scope`가 이미 역할·admin_scope를 올바르게
     해석하므로 그걸 그대로 쓴다 — 여기서 새 판정을 만들지 않는다.
     """
-    from app.core.scope import build_scope
+    from app.core.scope import visibility_scope
 
-    if build_scope(db, me).is_global:
+    if visibility_scope(db, me).is_global:
         return None
     return getattr(me, "org_id", None)
 

@@ -63,17 +63,22 @@ def docs(db, make_user):
     op.scope_dept_id = mine.id
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
+    # 소속(0060)은 문서 자신이 든다 — 작성자가 정하지 않는다. 마지막 문서는 작성자를
+    # 앱 계정으로 해석할 수 없는 경우인데, 소속이 우리 팀이므로 필터 후보에 남아야 한다.
     db.add_all([
         DocumentCache(
             notion_page_id="fm", title="우리팀 문서", author_notion_ids=NID_MINE,
+            owner_kind="department", owner_dept_id=mine.id,
             project_names=join_names([PROJ_MINE]), status=STATUS_MINE,
         ),
         DocumentCache(
             notion_page_id="ft", title="남의팀 문서", author_notion_ids=NID_THEIRS,
+            owner_kind="department", owner_dept_id=theirs.id,
             project_names=join_names([PROJ_THEIRS]), status=STATUS_THEIRS,
         ),
         DocumentCache(
             notion_page_id="fn", title="작성자 미해석 문서", author_notion_ids="",
+            owner_kind="department", owner_dept_id=mine.id,
             project_names=join_names([PROJ_ORPHAN]), status=STATUS_ORPHAN,
         ),
     ])

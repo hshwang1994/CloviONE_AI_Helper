@@ -43,9 +43,48 @@ SYNC_ERROR = "error"
 # DocumentSyncState 는 단일 행이다 — 이 고정 id로 upsert 한다.
 SYNC_STATE_ID = "documents"
 
+# 문서가 저장할 수 있는 소유 종류 (0060). 어휘의 정본은 `app/core/ownership.py` 이고
+# 여기서는 그중 **문서가 실제로 저장하는 넷**만 다시 노출한다(personal/membership/global 은
+# 문서에 해당하지 않는다). 판정은 저장하는 쪽이 아니라 ownership 모듈이 한다.
+from app.core.ownership import (  # noqa: E402 — 어휘 재수출(정의는 ownership 한 곳)
+    OWNER_DEPARTMENT,
+    OWNER_ORGANIZATION,
+    OWNER_PROJECT,
+    OWNER_UNSET,
+)
+
+DOC_OWNER_KINDS: tuple[str, ...] = (
+    OWNER_PROJECT, OWNER_DEPARTMENT, OWNER_ORGANIZATION, OWNER_UNSET,
+)
+
 
 class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "document_cache"
+
+    # ── Portal 이 소유하는 소속 (0060) ────────────────────────────────────────
+    #
+    # **외부 소스(Notion)에 조직 컬럼을 요구하지 않는다.** 저쪽은 콘텐츠의 정본이고
+    # "이 문서가 어느 부서/프로젝트 것인가" 는 Portal 이 정본이다. 그래서 이 세 컬럼은
+    # `app/team_docs/sync.py::_upsert` 가 **절대 건드리지 않는다** — `restricted`(0057)·
+    # `classification_manual`(0018)과 같은 자리다. 소스가 다른 시스템으로 교체돼도
+    # 조직 권한 모델을 다시 설계할 필요가 없어야 한다는 것이 이 배치의 목적이다.
+    #
+    # 작성자(`author_notion_ids`)와 소유는 **다른 개념**이다. 작성자가 다른 부서로 옮겨도
+    # 그 사람이 예전에 쓴 문서가 따라 움직이면 안 된다.
+    owner_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=OWNER_UNSET,
+        server_default=OWNER_UNSET, index=True,
+    )
+    # 부서 소유일 때의 부서 id. **이름이 아니라 id** — 부서명이 바뀌거나 상위 부서가
+    # 새로 생겨도 연결이 끊기지 않아야 한다.
+    owner_dept_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("departments.id"), nullable=True, index=True
+    )
+    # 프로젝트 소유일 때의 Portal 프로젝트 id. Notion relation **이름**이 아니라 id 로
+    # 잇는다 — 이름은 바뀌고 중복될 수 있어 장기 키가 될 수 없다.
+    owner_project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id"), nullable=True, index=True
+    )
 
     notion_page_id: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True, index=True
@@ -56,6 +95,10 @@ class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     type_names: Mapped[str] = mapped_column(Text, nullable=False, default="")
     category_names: Mapped[str] = mapped_column(Text, nullable=False, default="")
     project_names: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # 외부 소스 relation의 **id** 미러 (0060). `project_names` 는 표시용이고 이쪽이
+    # 식별용이다 — 이름은 바뀌고 중복될 수 있어 무엇과 연결할지 정하는 키가 될 수 없다.
+    # 이 컬럼은 콘텐츠 미러라 sync 가 소유한다(위 owner_* 세 컬럼과 반대다).
+    project_external_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str | None] = mapped_column(String(64), index=True)
     priority: Mapped[str | None] = mapped_column(String(64))
     # 신규 택소노미(§17 개편) — 동기화 때 classify.py로 자동 계산. 사용자가 수동으로 고치면

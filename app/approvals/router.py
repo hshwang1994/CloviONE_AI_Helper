@@ -77,6 +77,87 @@ def _view(
     return approval_view(row, request.app.state.clock.now(), names=names, can_decide=can_decide)
 
 
+# ── 개인 결재함 (0060) ────────────────────────────────────────────────────────
+#
+# 승인은 **개인 업무**이면서 **관리 업무**이기도 하다. 예전에는 그 둘을 한 화면
+# (`/api/admin/approvals`)에 뭉쳐 두었고, 그래서 다음 상태가 실제로 존재했다:
+#
+#   * 결재 권한을 위임받은 일반 사용자는 `approve`/`reject` 를 **부를 수는 있는데**
+#     (`_decide` 에는 role 게이트가 없다 — 위임을 막지 않으려고 일부러 그렇게 뒀다)
+#   * 그 목록을 **볼 수는 없었다**(`GET` 은 CONSOLE_READ_ROLES 필수, 관리자 콘솔 전용).
+#
+# 즉 "당신이 결재할 차례입니다" 알림은 받는데 결재함에 들어갈 방법이 없었다. 여기서
+# 그 사람의 **개인 결재함**을 연다 — 관리 범위가 아니라 "내가 결재할 수 있는 건" 과
+# "내가 올린 건" 만 보이고, 관리자 콘솔의 큐(범위 전체 현황)와 목적이 다르다.
+personal_router = APIRouter(
+    prefix="/api/approvals",
+    tags=["approvals"],
+    dependencies=[Depends(require_csrf)],
+)
+
+
+@personal_router.get("/mine")
+def my_approvals(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: PageParams = Depends(),
+    box: str = Query(default="todo", pattern="^(todo|requested|done)$"),
+    user: User = Depends(get_current_user),
+):
+    """내 결재함. 역할 게이트가 없다 — **위임받은 일반 사용자도 여기로 들어온다.**
+
+    세 칸으로 나눈다. 한 목록에 뭉치면 '지금 처리할 것' 이 이력에 묻힌다:
+
+        todo       내가 지금 결재할 수 있는 **대기** 건
+        requested  내가 올린 건(상태 무관)
+        done       내가 결재한 건
+
+    범위(`visible_user_ids`)를 걸지 않는다. 이 목록은 조직 데이터를 훑는 곳이 아니라
+    **나에게 배정된 개인 업무**라, 판정 축이 부서가 아니라 '나' 다. 위임받은 사람은
+    정의상 남의 범위 건을 결재하므로, 여기에 범위를 걸면 위임 자체가 동작하지 않는다.
+    """
+    now = request.app.state.clock.now()
+    can_decide, _on_behalf_of = delegation_service.resolve_authority(db, user, now)
+
+    stmt = select(Approval)
+    if box == "requested":
+        stmt = stmt.where(Approval.requested_by == user.id)
+    elif box == "done":
+        stmt = stmt.where(Approval.approver_id == user.id)
+    else:
+        if not can_decide:
+            # 결재 권한이 없으면 '할 일' 은 정의상 없다. 빈 목록을 주되 그 이유를 함께
+            # 말한다 — 화면이 "권한이 없다" 와 "지금 처리할 것이 없다" 를 구별해야 한다.
+            return {
+                "items": [], "total": 0, "page": page.page, "page_size": page.page_size,
+                "can_decide": False,
+            }
+        stmt = stmt.where(Approval.status == APPROVAL_PENDING)
+        # 자기 요청은 자기가 결재하지 않는다(서버 설정으로만 조정되는 기본값) — 할 일 칸에
+        # 띄워 두면 눌러 봐야 거절당하는 줄이 된다.
+        if not load_feature_flags(request.app.state.settings.config_dir).get("self_approval_allowed"):
+            stmt = stmt.where(Approval.requested_by != user.id)
+
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    rows = list(
+        db.execute(
+            # `Approval` 에는 `created_at` 이 없다 — 이 표는 `TimestampMixin` 을 안 쓰고
+            # 요청 시각을 `requested_at` 이라는 도메인 이름으로 직접 든다. 정렬을 id 로만
+            # 하면 UUID 라 시간 순서가 아니므로, 그 열로 정렬한다.
+            stmt.order_by(Approval.requested_at.desc(), Approval.id.desc())
+            .offset(page.offset).limit(page.page_size)
+        ).scalars()
+    )
+    names = resolve_names(db, {i for r in rows for i in (r.requested_by, r.approver_id)})
+    return {
+        "items": [_view(request, db, r, names, can_decide=can_decide) for r in rows],
+        "total": total,
+        "page": page.page,
+        "page_size": page.page_size,
+        "can_decide": can_decide,
+    }
+
+
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_approvals(
     request: Request,
@@ -98,7 +179,7 @@ def list_approvals(
     #
     # 조건은 `service.apply_scope` 한 곳에만 있다 — 단건 GET·approve·reject·cancel 이 같은
     # 함수를 지난다. 여기에 손으로 다시 적으면 두 판정이 갈라진다 (§0-A 1순위).
-    stmt = apply_scope(select(Approval), visible_user_ids(db, principal.scope))
+    stmt = apply_scope(select(Approval), visible_user_ids(db, principal.management))
     # 승인 큐는 5개 요청 유형이 뒤섞여 쌓인다 — 대량 큐를 유형/요청자로 좁혀 분류할 수
     # 있게 서버측 필터를 둔다(목록이 서버 페이지네이션이라 clientFilter로는 현재 페이지만
     # 걸러져 부정확하다, round30 감사 E).
@@ -172,7 +253,7 @@ def get_approval(
 ):
     # 목록에서 가린 것이 상세에서 새면 가린 의미가 없다 — payload 에 '누구를 무슨 역할로'
     # 가 그대로 적혀 있다. 목록과 **같은** 함수로 판정한다.
-    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.management))
     now = request.app.state.clock.now()
     can_decide, _ = delegation_service.resolve_authority(db, request.state.user, now)
     return {"approval": _view(request, db, row, can_decide=can_decide)}
@@ -205,7 +286,7 @@ def _decide(
     # '어느 요청이 보이는가'를 바꾼다. 위임받은 운영자는 build_scope 상 대개 전역이므로
     # 좁혀지지 않는다(tests/security/test_approval_scope.py 가 이걸 못 박아 둔다).
     on_behalf_of = delegation_service.require_decider(db, actor, now)
-    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.management))
     flags = load_feature_flags(request.app.state.settings.config_dir)
     decide(
         db,
@@ -265,7 +346,7 @@ def cancel_approval(
 ):
     # 취소도 결재다 — 남의 팀 인사 결정을 대신 죽일 수 있으면 안 된다. 네 경로(GET·approve·
     # reject·cancel) 중 하나라도 빠지면 그 경로로 그대로 새 나간다.
-    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.scope))
+    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.management))
     cancel(db, row, request.state.user, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="approval.cancel", object_type="approval", object_id=row.id,

@@ -14,7 +14,7 @@ import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/for
 import { Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "./auth.jsx";
-import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey } from "./notification-keys.js";
+import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey, notiUnreadKey } from "./notification-keys.js";
 
 /* 알림 벨 + 팝오버(§6.4/§14) — 아이콘을 누르면 페이지로 튀지 않고 최근 알림 팝오버를 연다.
  * 개별/전체 읽음, 관련 화면 이동(딥링크), 전체 보기, 로딩·빈·오류 상태, 열림 애니메이션.
@@ -142,9 +142,13 @@ export function NotificationBell({ isUser }) {
     return next;
   };
 
+  // 이 벨이 보는 알림의 종류(0060). 사용자 콘솔은 개인 알림만, 관리자 콘솔은 관리 조치가
+  // 필요한 알림만 본다 — 예전에는 한 벨이 둘을 받아 정렬만 바꿔 섞어 보여 줬고, 그래서
+  // "관리자이자 사용자인 사람"의 벨에 내 일과 관리 업무가 뒤엉켰다.
+  const audience = isUser ? "user" : "admin";
   const unread = useQuery({
-    queryKey: NOTI_UNREAD,
-    queryFn: () => api("/api/notifications/unread-count"),
+    queryKey: notiUnreadKey(audience),
+    queryFn: () => api(`/api/notifications/unread-count?audience=${audience}`),
     retry: false,
     enabled: isAuthed,
     // 401(세션 만료)로 실패했을 때만 인터벌을 멈춘다 — 안 그러면 세션 만료 중에도 60초마다
@@ -160,8 +164,12 @@ export function NotificationBell({ isUser }) {
   // 어긋났었다. 안 읽음이 0건일 때만 최근 혼합 목록으로 되돌아간다(계속 뭔가는 보여줘야 하므로).
   const hasUnread = typeof unread.data?.unread === "number" ? unread.data.unread > 0 : true;
   const list = useQuery({
-    queryKey: notiListKey(hasUnread ? "unread" : "recent"),
-    queryFn: () => api("/api/notifications?page_size=8" + (hasUnread ? "&unread_only=true" : "")),
+    queryKey: notiListKey(hasUnread ? "unread" : "recent", audience),
+    queryFn: () =>
+      api(
+        `/api/notifications?page_size=8&audience=${audience}`
+        + (hasUnread ? "&unread_only=true" : "")
+      ),
     retry: false,
     enabled: open && isAuthed,
     refetchInterval: (q) => (open && isAuthed && !q.state.error ? 60 * 1000 : false),  // 팝오버가 열려 있는 동안 목록이 배지와 어긋나지 않게 갱신.
@@ -315,17 +323,12 @@ export function NotificationBell({ isUser }) {
   };
 
   const items = (list.data && list.data.items) || [];
-  /* 관리 알림/내 업무 알림을 시각적으로 구분한다(0051, 사용자 지적: "팀 알림과 관리자
-   * 알림이 한 벨에 섞여 구분이 안 됨"). 완전히 숨기지는 않는다 — 지금 콘솔(관리자/사용자)에
-   * 해당하는 audience를 앞에 모으고, 둘이 섞여 있을 때만 그룹 헤더("관리"/"내 업무")를
-   * 붙인다. 한 종류뿐이면 헤더가 소음이라 붙이지 않는다. */
-  const primaryAudience = isUser ? "user" : "admin";
-  const groupedItems = useMemo(() => {
-    const primary = items.filter((n) => itemAudience(n) === primaryAudience);
-    const other = items.filter((n) => itemAudience(n) !== primaryAudience);
-    return [...primary, ...other];
-  }, [items, primaryAudience]);
-  const showAudienceGroups = new Set(items.map(itemAudience)).size > 1;
+  /* 0051 은 두 종류를 한 벨에서 **정렬로** 구분했다(지금 콘솔의 audience 를 앞에 모으고
+   * 섞였을 때만 그룹 헤더를 붙였다). 0060 에서 아예 **서버가 갈라서** 준다 — 이 벨은 한
+   * 종류만 받으므로 정렬도 그룹 헤더도 필요 없다. 섞어 놓고 잘 정렬하는 것보다 안 섞는
+   * 편이 낫다: 숫자(배지)까지 갈라져야 "관리 알림 3건" 이 정확해진다. */
+  const groupedItems = items;
+  const showAudienceGroups = false;
   const rawCount = unread.data && unread.data.unread;
   // 목록 응답에도 전체 미읽음 수(unread)가 들어온다. 팝오버가 열려 목록을 받았으면 그 스냅샷을
   // 헤더 수로 신뢰해 헤더-목록 불일치(두 쿼리의 60s 타이머가 어긋나던 문제)를 없애고,

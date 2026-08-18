@@ -68,7 +68,10 @@ def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=Non
 
 
 def _seed(db) -> None:
+    # 소속(0060) — 조직 직속. 이 파일은 홈 집계를 보는 곳이라 소속 게이트에 걸리면
+    # 정작 검사하려던 것을 못 본다(미지정 계정은 조직 데이터를 아무것도 못 본다).
     db.add(User(id=U_ME, email=EMAIL, display_name="홈 나", role="user", active=True,
+                membership_kind="organization",
                 password_hash=hash_password(PASSWORD), must_change_password=False))
     db.add(User(id=U_MATE, email="home-mate@goodmit.co.kr", display_name="홈 동료",
                 role="user", active=True, password_hash=hash_password(PASSWORD),
@@ -115,6 +118,8 @@ def _seed(db) -> None:
                 body="본문", created_at=SYNCED_AT, updated_at=SYNCED_AT))
     db.add(DocumentCache(notion_page_id="home-doc-1", title="최근 문서",
                          document_type="회의록", owner="홈 동료",
+                         # 소속(0060) — 조직 공통 문서. 이 파일은 홈 집계를 본다.
+                         owner_kind="organization",
                          last_edited="2026-08-02T10:00:00.000Z", synced_at=SYNCED_AT))
     db.commit()
 

@@ -6,6 +6,17 @@
 
 인덱스는 실제 인덱서(`reindex_all`)로 만든다 — 손으로 `SearchDocument` 를 넣으면 인덱서가
 소유자를 잘못 해석하는 결함(예: NAMES_SEP 를 콤마로 자르기)을 이 테스트가 못 잡는다.
+
+## 0060 이후 — 무엇이 범위를 정하는가
+
+축이 바뀌었다. 담당자·작성자가 아니라 **자원 자신의 Ownership** 이 정한다:
+
+  * 티켓 → 프로젝트(정확히 하나). 프로젝트의 부서가 곧 티켓의 부서다.
+  * 문서 → Portal 이 지정한 Ownership(프로젝트/부서/조직).
+  * 게시판 → **조직 전체**. 부서로 나누지 않는다(§19) — 그래서 아래 게시판 시험은
+    "안 보인다" 가 아니라 "보인다" 를 못박는다. 정책이 바뀌었고, 바뀐 정책이 실제로
+    그렇게 동작하는지가 검사 대상이다.
+  * 사용자 → 본인 소속.
 """
 
 from __future__ import annotations
@@ -21,7 +32,13 @@ from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotion
 from app.board.models import Post
 from app.search.indexer import reindex_all
 from app.team_docs.models import DocumentCache
-from app.tickets.models import SYNC_STATE_ID, TicketCache, TicketSyncState
+from app.team_docs.models import OWNER_DEPARTMENT
+from app.tickets.models import (
+    PROJECT_LINK_OK,
+    SYNC_STATE_ID,
+    TicketCache,
+    TicketSyncState,
+)
 
 pytestmark = pytest.mark.security
 
@@ -69,7 +86,16 @@ def people(db, make_user, org_tree):
 
 
 @pytest.fixture()
-def indexed(db, app, people):
+def projects(db, make_project, org_tree):
+    """부서마다 프로젝트 하나. **티켓의 소속은 이 프로젝트가 정한다**(0060)."""
+    return {
+        "fe": make_project(name="프런트 프로젝트", dept=D_DEV_FE).id,
+        "sales": make_project(name="영업 프로젝트", dept=D_SALES).id,
+    }
+
+
+@pytest.fixture()
+def indexed(db, app, people, projects):
     """티켓·문서·게시판·채팅을 심고 **실제 인덱서**를 돌린다."""
     notion_ids = {}
     for key in ("target_fe", "target_sales"):
@@ -87,26 +113,32 @@ def indexed(db, app, people):
     db.add(state)
 
     # 같은 검색어(회의록)가 걸리는 티켓 3건 — 부서만 다르다.
-    for uid, page, number, title, who in (
-        ("s-tc-1", "s-page-1", 201, "영업팀 스프린트 회의록 정리", ["target_sales"]),
-        ("s-tc-2", "s-page-2", 202, "프런트팀 스프린트 회의록 정리", ["target_fe"]),
-        ("s-tc-3", "s-page-3", 203, "공동 담당 회의록", ["target_fe", "target_sales"]),
+    for uid, page, number, title, who, project in (
+        ("s-tc-1", "s-page-1", 201, "영업팀 스프린트 회의록 정리", ["target_sales"], "sales"),
+        ("s-tc-2", "s-page-2", 202, "프런트팀 스프린트 회의록 정리", ["target_fe"], "fe"),
+        # 담당자는 두 부서인데 티켓은 **프런트 프로젝트** 것이다. 0060 에서 티켓의 소속을
+        # 정하는 것은 담당자가 아니라 프로젝트다 — 담당자가 여럿이어도 소속은 하나다.
+        ("s-tc-3", "s-page-3", 203, "공동 담당 회의록", ["target_fe", "target_sales"], "fe"),
     ):
         db.add(TicketCache(
             id=uid, notion_page_id=page, notion_ticket_number=number, title=title,
             status="진행", due_date="2026-08-10",
             assignee_notion_ids=join_names([notion_ids[k] for k in who]),
+            project_uid=projects[project], project_link=PROJECT_LINK_OK,
             synced_at=NOW, created_at=NOW, updated_at=NOW,
         ))
 
     # 문서 2건 — 작성자 표시 이름으로 소유자를 해석한다.
-    for page, title, author in (
-        ("s-doc-sales", "영업 회의록 초안", people["target_sales"][2]),
-        ("s-doc-fe", "프런트 회의록 초안", people["target_fe"][2]),
+    for page, title, author, dept in (
+        ("s-doc-sales", "영업 회의록 초안", people["target_sales"][2], D_SALES),
+        ("s-doc-fe", "프런트 회의록 초안", people["target_fe"][2], D_DEV_FE),
     ):
         db.add(DocumentCache(
             notion_page_id=page, title=title, author_names=join_names([author]),
             owner=author, synced_at=NOW, last_edited="2026-08-01",
+            # 작성자가 아니라 **Portal 이 지정한 소속**이 판정한다(0060). 작성자가 부서를
+            # 옮겨도 문서는 그대로 있어야 한다.
+            owner_kind=OWNER_DEPARTMENT, owner_dept_id=dept,
         ))
 
     # 게시판 2건.
@@ -165,17 +197,49 @@ def test_dept_admin_does_not_see_another_departments_document(client, people, in
     assert "영업 회의록 초안" not in titles, "범위 밖 문서가 검색으로 새어 나왔다"
 
 
-def test_dept_admin_does_not_see_another_departments_board_post(client, people, indexed):
+def test_the_board_is_organization_wide_even_for_a_dept_admin(client, people, indexed):
+    """자유게시판은 **조직 전체가 읽는다**(0060 §19) — 부서로 나누지 않는다.
+
+    예전에는 작성자의 부서로 검색 결과가 좁혀졌다. 그런데 게시판 화면(`/board`)은 그때도
+    조직 전체를 보여 줬다 — **검색만 좁았다.** 그 상태의 증상은 "게시판에서는 읽은 글이
+    검색에서는 안 나온다" 이고, 그건 보안이 아니라 고장이다.
+
+    조직 경계는 그대로 지킨다(`org_id`) — 그건 `test_search_org_isolation.py` 가 본다.
+    """
     _login(client, people["dept_admin"][1])
     titles = _titles(client, "회의록", kind="board")
-    assert "프런트 회의록 공지" in titles
-    assert "영업 회의록 공지" not in titles
+    assert {"프런트 회의록 공지", "영업 회의록 공지"} <= titles, (
+        "조직 전체가 읽는 게시판이 검색에서만 부서로 좁혀졌다"
+    )
 
 
-def test_a_shared_ticket_stays_visible_to_every_assignees_department(client, people, indexed):
-    """담당자 집합 규칙(scope.py) — 두 부서가 함께 맡은 티켓은 양쪽에서 보인다."""
+def test_a_ticket_with_outside_assignees_still_belongs_to_its_project(
+    client, people, indexed
+):
+    """담당자가 여러 부서여도 티켓의 소속은 **프로젝트 하나**다 (0060 §11).
+
+    예전 규칙은 "담당자 중 한 명이라도 범위 안이면 보인다" 였다. 그 규칙은 티켓 하나를
+    담당자 수만큼의 부서에 동시에 열었고, 그래서 남의 팀 사람을 담당자로 넣는 것만으로
+    티켓이 그 팀에 노출됐다.
+
+    지금은 프로젝트가 정한다. 여기서 확인하는 두 가지:
+
+      1. 프로젝트를 가진 부서 줄기에서는 **사라지지 않는다** (예전 규칙이 지키던 성질).
+      2. 담당자가 있다는 이유만으로 남의 부서에 열리지 **않는다** (예전 규칙의 구멍).
+
+    담당자가 자기 티켓을 못 보는 상태가 되지 않도록, 담당자 후보 자체를 프로젝트에 닿을
+    수 있는 사람으로 제한하는 것이 짝이 되는 규칙이다(§14, `list_assignees`).
+    """
     _login(client, people["dept_admin"][1])
-    assert "공동 담당 회의록" in _titles(client, "회의록", kind="ticket")
+    assert "공동 담당 회의록" in _titles(client, "회의록", kind="ticket"), (
+        "프로젝트를 가진 부서에서 티켓이 사라졌다"
+    )
+
+    # 영업팀 사람이 담당자로 들어 있지만, 티켓은 프런트 프로젝트 것이다.
+    _login(client, people["target_sales"][1])
+    assert "공동 담당 회의록" not in _titles(client, "회의록", kind="ticket"), (
+        "담당자로 넣었다는 이유만으로 남의 부서 프로젝트 티켓이 열렸다"
+    )
 
 
 def test_global_admin_sees_every_department(client, people, indexed):

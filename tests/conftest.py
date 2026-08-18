@@ -135,7 +135,21 @@ def make_user(db, settings):
         active: bool = True,
         must_change_password: bool = False,
         display_name: str = "테스트 사용자",
+        membership: str = "organization",
     ):
+        """테스트 사용자 하나.
+
+        `membership` 기본값이 `organization`(조직 직속)인 이유: 픽스처가 만드는 사람은
+        "이 회사에서 일하는 보통 사람" 이라, 조직 데이터가 하나도 안 보이는 상태를 기본으로
+        두면 거의 모든 테스트가 그 게이트에만 걸려 정작 검사하려던 것을 못 본다.
+
+        **제품의 기본값은 다르다** — `create_user` 는 `unassigned` 로 만든다(0060, fail-closed).
+        그 기본값 자체는 `tests/security/test_membership_gate.py` 가 따로 못박는다. 여기서
+        바꾸는 것은 픽스처의 편의이지 제품 동작이 아니다.
+
+        부서를 배정하는 테스트는 이 값을 신경 쓸 필요가 없다 — 부서가 있으면 부서가 이긴다
+        (`app/core/scope.py::_membership_scope`).
+        """
         user = create_user(
             db,
             email=email,
@@ -149,6 +163,7 @@ def make_user(db, settings):
             active=active,
             must_change_password=must_change_password,
         )
+        user.membership_kind = membership
         db.commit()
         return user
 
@@ -291,3 +306,126 @@ def setup_complete(db, settings, make_user, fake_clock):
         )
     )
     db.commit()
+
+
+# ── Resource Ownership (0060) ─────────────────────────────────────────────────
+#
+# 자원의 소속을 만드는 자리를 여기 하나로 둔다. 예전에는 테스트마다 `TicketCache` 나
+# `DocumentCache` 를 손으로 조립했는데, 소속 축이 바뀌자 그 조립이 전부 낡았다 — 그리고
+# 낡은 방식은 "권한이 없어서 안 보이는 것" 과 "픽스처가 소속을 안 심어서 안 보이는 것" 을
+# 구별할 수 없게 만든다. 소속을 만드는 방법이 한 곳에 있으면 다음에 축이 또 바뀌어도
+# 고칠 곳이 하나다.
+
+
+@pytest.fixture()
+def make_project(db):
+    """Portal 프로젝트 하나. `dept` 를 주면 그 부서 소유, 안 주면 **조직 공통**이다.
+
+    `external_id`(외부 소스 page id)를 주면 티켓 동기화가 그 프로젝트로 해석할 수 있다 —
+    안 주면 포털 전용 프로젝트라 외부 티켓이 붙을 수 없다(실제 제품과 같은 성질).
+    """
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.projects.models import Project
+
+    def _make(
+        *,
+        name: str = "테스트 프로젝트",
+        dept=None,
+        org_id: str | None = None,
+        external_id: str | None = None,
+        code: str | None = None,
+    ):
+        dept_id = getattr(dept, "id", dept)
+        resolved_org = org_id or getattr(dept, "org_id", None) or DEFAULT_ORG_ID
+        project = Project(
+            name=name, code=code, dept_id=dept_id, org_id=resolved_org,
+            notion_page_id=external_id,
+        )
+        db.add(project)
+        db.flush()
+        db.commit()
+        return project
+
+    return _make
+
+
+@pytest.fixture()
+def portal_project(make_project):
+    """페이크 소스가 매다는 기본 프로젝트(`DEFAULT_PROJECT_PAGE_ID`)의 **Portal 짝**.
+
+    0060 부터 티켓의 소속은 프로젝트가 정한다. Portal 에 짝이 없으면 그 티켓은
+    `project_link='unresolved'` 로 남고, 그건 전역 관리자 말고는 아무에게도 안 보인다 —
+    티켓을 다루는 시험은 대개 그 상태를 보려는 것이 아니므로 이 픽스처를 함께 쓴다.
+
+    부서를 안 주므로 **조직 공통** 프로젝트다(`dept_id IS NULL` → ORGANIZATION). 조직에
+    속한 사람이면 누구나 보이는 상태라, 소속 게이트가 아니라 시험하려던 것이 검사된다.
+    부서별 격리를 보려면 `tests/fixtures/org_tree.py` 의 세계를 쓴다.
+    """
+    from tests.fakes.notion import DEFAULT_PROJECT_PAGE_ID
+
+    return make_project(name="기본 프로젝트", external_id=DEFAULT_PROJECT_PAGE_ID)
+
+
+@pytest.fixture()
+def make_document(db):
+    """소속이 심긴 문서 미러 한 건.
+
+    `project` 를 주면 프로젝트 소유, `dept` 를 주면 부서 소유, `org_id` 만 주면 조직 공통,
+    아무 것도 안 주면 **미지정**(fail-closed 확인용)이다. 소속을 안 주는 것이 기본값인
+    이유는 "안 정하면 닫힌다" 가 이 모델의 핵심 성질이기 때문이다.
+    """
+    from app.core import ownership
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.team_docs.models import DocumentCache, join_names
+
+    def _make(
+        *,
+        page_id: str,
+        title: str = "문서",
+        project=None,
+        dept=None,
+        org_id: str | None = None,
+        org_wide: bool = False,
+        restricted: bool = False,
+        author_notion_ids: list[str] | None = None,
+        author_names: list[str] | None = None,
+        project_names: list[str] | None = None,
+        status: str | None = None,
+    ):
+        dept_id = getattr(dept, "id", dept)
+        resolved_org = (
+            org_id
+            or getattr(project, "org_id", None)
+            or getattr(dept, "org_id", None)
+            or DEFAULT_ORG_ID
+        )
+        if project is not None:
+            kind, owner_project, owner_dept = ownership.OWNER_PROJECT, project.id, None
+        elif dept_id:
+            kind, owner_project, owner_dept = ownership.OWNER_DEPARTMENT, None, dept_id
+        elif org_wide:
+            kind, owner_project, owner_dept = ownership.OWNER_ORGANIZATION, None, None
+        else:
+            kind, owner_project, owner_dept = ownership.OWNER_UNSET, None, None
+        row = DocumentCache(
+            notion_page_id=page_id,
+            title=title,
+            org_id=resolved_org,
+            owner_kind=kind,
+            owner_project_id=owner_project,
+            owner_dept_id=owner_dept,
+            restricted=restricted,
+            author_notion_ids=join_names(author_notion_ids or []),
+            author_names=join_names(author_names or []),
+            project_names=join_names(project_names or []),
+            project_external_ids=join_names(
+                [project.notion_page_id] if project is not None and project.notion_page_id else []
+            ),
+            status=status,
+        )
+        db.add(row)
+        db.flush()
+        db.commit()
+        return row
+
+    return _make

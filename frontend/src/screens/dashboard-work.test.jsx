@@ -4,15 +4,20 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 업무 대시보드 구역 — 운영 지표만 있던 /dashboard 에 '내 일'을 더한 자리.
+/* 내 업무 요약 구역(`WorkSummary.jsx`).
  *
- * 여기서 고정하는 계약은 세 가지다.
+ * **이 구역은 이제 사용자 홈(`/me`)에 산다** (0060 §3). 예전에는 관리자 대시보드 하단에
+ * 있었는데, 여기 있는 숫자는 전부 개인 업무이거나 그 사람의 조회 범위 요약이고 카드를
+ * 누르면 전부 사용자 콘솔로 나갔다 — 관리자 대시보드에서 한 번 누르면 탭이 바뀌었다.
+ * 관리자 콘솔은 Control Plane 이라 운영·관리 정보만 둔다.
+ *
+ * 여기서 고정하는 계약은 세 가지다(자리만 바뀌었고 계약은 그대로다).
  *
  *  1. **서버가 센 숫자를 그대로 그린다.** 화면이 다시 세면 같은 사실이 두 벌이 되고,
  *     언젠가 서버와 화면이 다른 말을 한다.
  *  2. **0 과 '못 잼'을 구별한다.** 티켓 소스를 못 읽었을 때 0 을 그리면 "할 일이 없다"는
  *     거짓말이 된다. Health 를 아직 안 잰 프로젝트도 '차질 0건'에 섞이면 안 된다.
- *  3. **운영 지표가 죽어도 업무 구역은 뜬다.** 두 질의는 다른 소스라 함께 죽을 이유가 없다.
+ *  3. **다른 질의가 죽어도 이 구역은 뜬다.** 질의가 따로라 함께 죽을 이유가 없다.
  */
 
 const apiMock = vi.fn();
@@ -24,7 +29,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: "admin", id: "u-1" } }),
 }));
 
-import { Dashboard, WORK_UNKNOWN } from "./Dashboard.jsx";
+import { WORK_UNKNOWN, WorkSection } from "./WorkSummary.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -79,7 +84,7 @@ function renderDashboard() {
         <ToastProvider>
           <ConfirmProvider>
             <MemoryRouter>
-              <Dashboard />
+              <WorkSection />
             </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>

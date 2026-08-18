@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.org import context as org_context
 from app.core.audit import record_audit_from_request
 from app.core.authz import MODERATOR_ROLES
 from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
@@ -107,6 +108,9 @@ def list_documents(
     project: str | None = Query(default=None, max_length=120),
     tech: str | None = Query(default=None, max_length=40),
     favorites: bool = Query(default=False),
+    # 부서 필터 (0060 §32). **내 조회 범위 안에서만** 동작한다 — 범위 밖 id 는 없는 부서와
+    # 똑같이 404 다(`app/org/context.py`). 프런트 선택기만으로 막지 않는다.
+    department_id: str | None = Query(default=None, max_length=36),
     sort: str = Query(default="recent"),
 ):
     from app.trash import repository as trash_repo
@@ -135,13 +139,11 @@ def list_documents(
         limit=_SCOPE_FILTER_FETCH_CAP,
         exclude_page_ids=trash_repo.trashed_page_ids(db, TRASH_DOCUMENT),  # 휴지통 문서는 숨김
     )
-    # 범위 밖 문서를 뺀다 (1순위 유출 #5). 판정은 티켓과 **같은 규칙**(작성자 집합)이고
-    # 작성자를 해석할 수 없는 문서는 남긴다 — `service.doc_in_scope` 에 이유가 있다.
-    # id_to_user를 한 번만 구해 문서마다 넘긴다(N+1 제거, service.doc_in_scope 참고).
-    from app.tickets.service import _verified_id_to_user
-
-    id_to_user = _verified_id_to_user(db)
-    visible = [r for r in all_matching if service.doc_in_scope(db, r, me, id_to_user=id_to_user)]
+    # 범위 밖 문서를 뺀다 (1순위 유출 #5). 판정은 문서 자신의 소속(0060)이고, 소속을 모르는
+    # 문서는 전역 관리자만 본다 — `service.doc_in_scope` 에 이유가 있다.
+    # 판정 재료(범위·볼 수 있는 프로젝트·내 매핑)를 한 번만 구해 문서마다 넘긴다(N+1 제거).
+    ctx = service.doc_scope_context(db, me, scope=org_context.filter_scope(db, me, department_id))
+    visible = [r for r in all_matching if service.doc_in_scope(db, r, me, ctx=ctx)]
     total = len(visible)  # 이제 필터링 뒤의 **진짜** 전체 개수다(일부 페이지 근사가 아니다).
     rows = visible[page.offset : page.offset + page.page_size]
     state = get_or_create_state(db)
@@ -153,6 +155,12 @@ def list_documents(
         "page_size": page.page_size,
         "sync": _sync_view(state),
         "can_sync": service.can_trigger_sync(me),
+        # 고를 수 있는 부서는 **서버가** 계산해 준다. 프런트가 스스로 만들면 서버 검증과
+        # 갈라지고, 갈라진 쪽이 넓으면 사용자는 404 만 보게 된다.
+        "departments": {
+            "selected": department_id,
+            "options": org_context.department_options(db, me),
+        },
     }
 
 
@@ -185,6 +193,9 @@ def create_document(
         tech_tags=payload.tech_tags, project_names=project_names,
         status=payload.status, priority=payload.priority, owner=payload.owner,
         memo=payload.memo, author_name=me.display_name, now=now,
+        # 생성 Context 가 소속을 정한다(0060 §9) — 안 정하면 방금 만든 문서가
+        # 만든 사람에게조차 안 보인다.
+        creator=me,
     )
     record_audit_from_request(
         request, db, action="team_docs.create", object_type="notion_document",

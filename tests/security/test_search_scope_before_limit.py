@@ -21,6 +21,13 @@ truncated 배지라, 사용자는 "검색이 원래 이런가 보다" 하고 넘
     밀린다.
 
 두 경로 모두 상한을 먼저 걸면 대상이 사라지고, 범위를 질의로 내리면 살아난다.
+
+## 0060 이후 — 축이 담당자에서 **Ownership** 으로 바뀌었다
+
+이 파일이 지키는 성질(범위를 상한 앞에서 건다)은 그대로다. 바뀐 것은 "무엇이 범위인가"
+뿐이다: 색인 행은 이제 담당자 집합이 아니라 원본의 Ownership 을 들고, 티켓은 프로젝트가
+소속을 정한다(0060 §11). 그래서 표본도 프로젝트로 갈라 심는다 — 우리팀 프로젝트 티켓
+하나와 남의팀 프로젝트 티켓 500건이다.
 """
 
 from __future__ import annotations
@@ -31,7 +38,12 @@ import pytest
 
 from app.org.constants import DEFAULT_ORG_ID
 from app.org.models import Department
-from app.search.models import KIND_TICKET, SearchDocument, join_owner_ids
+from app.search.models import (
+    KIND_TICKET,
+    OWNER_PROJECT,
+    OWNER_UNSET,
+    SearchDocument,
+)
 from app.search.service import CANDIDATE_LIMIT
 
 pytestmark = pytest.mark.security
@@ -50,8 +62,12 @@ NOISE_TITLE = "남의팀 회의록 정리"
 
 
 @pytest.fixture()
-def world(db, make_user):
-    """부서 둘 + 각 팀 사람 + 우리 팀만 보는 부서 범위 관리자."""
+def world(db, make_user, make_project):
+    """부서 둘 + 각 팀 프로젝트 + 우리 팀만 보는 부서 범위 관리자.
+
+    티켓의 소속은 **프로젝트가 정한다**(0060). 그래서 부서마다 프로젝트를 하나씩 두고,
+    색인 행은 그 프로젝트를 가리킨다.
+    """
     db.add_all([
         Department(id=D_MINE, name="우리팀", org_id=DEFAULT_ORG_ID),
         Department(id=D_OTHER, name="남의팀", org_id=DEFAULT_ORG_ID),
@@ -70,8 +86,13 @@ def world(db, make_user):
     boss.admin_scope = "dept"
     boss.scope_dept_id = D_MINE
     boss.scope_org_id = DEFAULT_ORG_ID
+    mine_project = make_project(name="우리팀 프로젝트", dept=D_MINE)
+    other_project = make_project(name="남의팀 프로젝트", dept=D_OTHER)
     db.commit()
-    return {"mine": mine.id, "other": other.id, "boss_email": boss.email}
+    return {
+        "mine": mine.id, "other": other.id, "boss_email": boss.email,
+        "mine_project": mine_project.id, "other_project": other_project.id,
+    }
 
 
 @pytest.fixture()
@@ -84,7 +105,8 @@ def corpus(db, world):
                 kind=KIND_TICKET,
                 ref_id=f"z6-noise-{i:04d}",
                 org_id=DEFAULT_ORG_ID,
-                owner_user_ids=join_owner_ids([world["other"]]),
+                owner_kind=OWNER_PROJECT,
+                owner_project_id=world["other_project"],
                 title=NOISE_TITLE,
                 body="회의록",
                 # LIKE 경로에서 잡음이 먼저 오게 한다(정렬은 sort_key DESC).
@@ -98,7 +120,8 @@ def corpus(db, world):
             kind=KIND_TICKET,
             ref_id="z6-target",
             org_id=DEFAULT_ORG_ID,
-            owner_user_ids=join_owner_ids([world["mine"]]),
+            owner_kind=OWNER_PROJECT,
+            owner_project_id=world["mine_project"],
             title=TARGET_TITLE,
             # 본문이 길면 bm25 점수가 나빠져 FTS 순위에서 꼴찌가 된다.
             body="회의록 " + ("잡담 " * 200),
@@ -160,29 +183,53 @@ def test_truncated_badge_is_not_a_lie_for_a_scoped_admin(client, world, corpus):
     )
 
 
-def test_an_owner_id_stored_without_the_comma_wrapper_still_matches(client, world, db):
-    """저장 모양을 믿고 좁히면 **또 조용히 사라진다**.
+def test_a_row_whose_owner_could_not_be_resolved_stays_closed(client, world, db):
+    """소속을 못 정한 색인 행은 **아무에게도 안 보인다**(전역 관리자 제외).
 
-    `join_owner_ids` 는 `,a,b,` 로 쓰지만 DB 가 그 모양을 강제하지 않는다. 콤마 없이 id
-    하나만 든 행이 실제로 있고, 파이썬 판정은 그것도 정상으로 읽는다. SQL 관문이
-    `%,id,%` 만 찾으면 그 행이 상한 앞에서 없어진다 — 고치려던 결함과 같은 모양이다.
+    예전 축(담당자 집합)에서 같은 자리를 지키던 시험은 저장 문자열 모양(`,a,b,`)을 믿고
+    좁히면 행이 조용히 사라진다는 것이었다. 0060 이 그 문자열 판정을 컬럼 판정으로 바꾸면서
+    위험의 모양도 바뀌었다: 이제 위험한 것은 **`unset` 이 어느 갈래엔가 걸리는 것**이다.
+
+    `unset` 은 "판정할 수 없음" 이고, 판정할 수 없으면 닫는 것이 0060 의 규칙이다. 여기가
+    느슨해지면 소속 없는 티켓·문서가 검색을 통해 조직 전체에 열린다 — 목록에서는 닫혀
+    있으므로 아무도 알아채지 못한다.
     """
     db.add(SearchDocument(
         kind=KIND_TICKET,
-        ref_id="z6-bare-owner",
+        ref_id="z6-unset",
         org_id=DEFAULT_ORG_ID,
-        owner_user_ids=world["mine"],  # 감싸지 않은 날것
-        title="감싸지 않은 회의록",
+        owner_kind=OWNER_UNSET,
+        title="소속 미지정 회의록",
         body="회의록 본문",
-        route="/tickets/z6-bare-owner",
+        route="/tickets/z6-unset",
         indexed_at=NOW,
     ))
     db.commit()
 
     _login(client, world["boss_email"])
-    assert "감싸지 않은 회의록" in _titles(client, "회의록"), (
-        "소유자 id 가 콤마로 감싸지지 않았다는 이유로 결과에서 사라졌다"
+    assert "소속 미지정 회의록" not in _titles(client, "회의록"), (
+        "Ownership 미지정 행이 부서 범위 관리자에게 새어 나갔다"
     )
+
+
+
+def test_the_unresolved_row_is_still_reachable_by_a_global_admin(
+    client, world, db, make_user
+):
+    """미지정 행이 **아무 데서도 안 보이면** 고칠 수도 없다.
+
+    fail-closed 는 "관리자가 진단하고 지정할 수 있다" 를 전제로 성립한다. 전역까지 닫으면
+    그 행은 존재하지만 어디서도 찾을 수 없는 상태가 된다 — 그건 보안이 아니라 유실이다.
+    """
+    db.add(SearchDocument(
+        kind=KIND_TICKET, ref_id="z6-unset-2", org_id=DEFAULT_ORG_ID,
+        owner_kind=OWNER_UNSET, title="미지정이지만 찾을 수는 있어야 하는 회의록",
+        body="회의록 본문", route="/tickets/z6-unset-2", indexed_at=NOW,
+    ))
+    db.commit()
+    make_user("z6-god3@goodmit.co.kr", role="system_admin", display_name="전역관리자3")
+    _login(client, "z6-god3@goodmit.co.kr")
+    assert "미지정이지만 찾을 수는 있어야 하는 회의록" in _titles(client, "회의록")
 
 
 def test_global_admin_still_sees_everything(client, world, corpus, make_user):

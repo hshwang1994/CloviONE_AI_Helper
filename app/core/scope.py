@@ -1,12 +1,54 @@
-"""요청 주체의 **범위** — 무엇을 볼 수 있는가 (§7.1.A, PLAN Phase 4).
+"""요청 주체의 **범위** — 무엇을 볼 수 있고(Visibility) 무엇을 관리할 수 있는가(Management).
 
 역할(role)과 범위(scope)는 직교한다.
   * **역할**은 *무엇을 할 수 있는가*를 말한다 — 사용자 목록을 열 수 있는가, 설정을 바꿀 수
     있는가. `app/core/authz.py` + `require_roles` 가 담당한다.
-  * **범위**는 *누구에게 할 수 있는가*를 말한다 — 전사인가, 한 조직인가, 내 부서 트리인가.
-    이 파일이 담당한다.
-둘을 한 축으로 뭉개면 '부서 관리자'를 표현할 수 없다. 부서 관리자는 role 로는 admin 이지만
-자기 부서 밖은 아예 보이면 안 되기 때문이다.
+  * **범위**는 *누구에게 할 수 있는가*를 말한다. 이 파일이 담당한다.
+
+## 범위는 **하나가 아니라 둘**이다
+
+예전에는 `build_scope()` 하나가 세 가지 질문에 동시에 답했다 — "내 개인 업무는 무엇인가",
+"내가 조회할 수 있는 조직 데이터는 어디까지인가", "내가 관리할 수 있는 대상은 누구인가".
+한 값이 세 뜻을 겸하면 **"볼 수는 있는데 관리할 수는 없는" 상태를 표현할 방법이 없다.**
+A-1 부서 관리자는 상위 A 부서의 프로젝트를 *볼* 수 있어야 하지만 그것을 *고칠* 수는 없어야
+하는데, 값이 하나뿐이면 둘 중 하나를 포기해야 한다.
+
+그래서 둘로 쪼갠다:
+
+    visibility_scope(db, user)   일반 사용자로서 조회 가능한 공유 범위
+    management_scope(db, user)   관리자 권한으로 관리 가능한 범위
+
+`Principal` 이 둘 다 들고 다니고, 각 API 는 자기 성격에 맞는 쪽을 고른다.
+개인 업무(Personal)는 범위가 아니라 `user_id` 로 판정하므로 여기 없다.
+
+## 조회 범위는 줄기(branch)다 — 위아래 양쪽
+
+부서 트리에서 일반 사용자의 조회 범위는 **조상 ∪ 자기 ∪ 후손**이다
+(`app/core/org_tree.py::DeptTree.branch`).
+
+    굿모닝아이텍
+    ├ A
+    │  ├ A-1     ← 이 사람은 GMI 공통·A·A-1 을 본다. A-2·B 는 못 본다.
+    │  └ A-2
+    └ B
+
+형제 가지는 자동으로 공유하지 않는다. 반대로 **관리 범위는 자기 ∪ 후손**뿐이다 — 하위 팀
+사람이 상위 부서 업무를 본다고 해서 상위 부서를 관리하게 되면 안 된다.
+
+## 소속이 불분명하면 넓히지 않고 **닫는다**
+
+`membership_kind` 는 "이 사람이 조직 어디에 붙어 있는가"를 명시한다:
+
+  * `department`   — 특정 부서 소속. 그 부서의 branch 를 본다.
+  * `organization` — 조직 직속. 그 조직 전체를 본다.
+  * `unassigned`   — **아직 정해지지 않았다.** 조직 데이터를 아무것도 못 본다.
+
+세 번째가 핵심이다. 예전에는 `department_id IS NULL` 을 전역(GLOBAL)으로 폴백했다 —
+"부서를 아직 안 정한 신규 입사자가 빈 화면을 보면 안 된다"는 선의였지만, 결과는 **부서를
+안 정한 모든 계정이 전 포털을 보는 것**이었다(실측 25명 중 21명). 부서 미지정과 조직 직속은
+사람이 구분해 줘야 하는 서로 다른 사실이고, 둘을 코드가 추측하면 그 추측은 언제나 넓히는
+쪽으로 틀린다. 그래서 추측하지 않고 닫고, 대신 관리자 진단 화면이 그 계정들을 목록으로
+보여 주며 한 번에 지정할 수 있게 한다.
 
 ## 범위 밖 단건은 403 이 아니라 404 다
 
@@ -14,14 +56,6 @@
 찍어 보며 403/404 를 세면 조직도를 통째로 열거할 수 있다 — 목록에서 가린 것이 단건에서
 새는 전형적인 IDOR 유출이다. 그래서 **범위 밖 단건 조회는 존재하지 않는 것과 똑같이
 404** 로 답한다(팀 채팅 이미지 서빙이 같은 이유로 이미 404 를 쓴다).
-
-## 다중 담당자 티켓은 담당자 전원의 부서에 보인다 (미결 쟁점 종결)
-
-티켓에 스칼라 `scope_dept_id` 하나만 두고 "대표 담당자의 부서"로 정하면, 두 부서가 함께
-맡은 티켓이 **한쪽 부서에서 통째로 사라진다**(그 부서 관리자는 자기 팀이 그 일을 하고
-있다는 사실 자체를 못 본다). 그래서 판정은 담당자 **집합**으로 한다: 담당자 중 한 명이라도
-그 범위 안이면 보인다. 담당자가 아무도 없는(또는 앱 사용자로 해석되지 않는) 티켓은 어느
-부서에도 속하지 않으므로 **포탈 전용 버킷**(미할당 트리아지)에 남고 부서 범위에는 안 나온다.
 """
 
 from __future__ import annotations
@@ -33,177 +67,222 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, false, select
 from sqlalchemy.orm import Session
 
+from app.core.org_tree import DeptTree
 from app.users.models import (
     ADMIN_SCOPE_DEPT,
-    ROLE_AUDITOR,
-    ROLE_OPERATOR,
-    ROLE_USER,
     ADMIN_SCOPE_GLOBAL,
     ADMIN_SCOPE_ORG,
+    MEMBERSHIP_ORGANIZATION,
+    ROLE_ADMIN,
+    ROLE_AUDITOR,
+    ROLE_OPERATOR,
+    ROLE_SYSTEM_ADMIN,
     User,
 )
 
-# 부서 트리를 전개할 때의 안전 상한. parent_id 에 사이클이 생기면(A→B→A) 순진한 BFS 는
-# 영원히 돈다. visited 집합으로 이미 막지만, 깊이 상한도 함께 둬서 데이터가 이상해도
-# 요청 하나가 프로세스를 잡아먹지 않게 한다.
-MAX_DEPARTMENT_DEPTH = 32
-
 logger = logging.getLogger("app.scope")
+
+# 범위 종류. 앞의 셋은 `admin_scope` 컬럼 어휘와 같은 문자열을 쓴다(관리 범위를 그대로
+# 담을 수 있어야 한다). `none` 은 컬럼에 없는 계산 결과 전용 값이다 — "아직 정해지지 않아
+# 아무것도 안 보인다".
+SCOPE_GLOBAL = ADMIN_SCOPE_GLOBAL
+SCOPE_ORG = ADMIN_SCOPE_ORG
+SCOPE_DEPT = ADMIN_SCOPE_DEPT
+SCOPE_NONE = "none"
+
+# 넓은 것부터. `_widest` 가 두 범위를 합칠 때 쓴다.
+_RANK = {SCOPE_NONE: 0, SCOPE_DEPT: 1, SCOPE_ORG: 2, SCOPE_GLOBAL: 3}
 
 
 @dataclass(frozen=True)
 class Scope:
-    """이 주체가 볼 수 있는 범위. **불변**이다 — 요청 처리 중에 넓히지 않는다."""
+    """이 주체가 볼(또는 관리할) 수 있는 범위. **불변**이다 — 요청 처리 중에 넓히지 않는다."""
 
-    kind: str = ADMIN_SCOPE_GLOBAL
+    kind: str = SCOPE_GLOBAL
     org_id: str | None = None
-    # 부서 범위일 때, 루트 부서와 그 하위 전부. 그 밖의 kind 에서는 비어 있다.
+    # 부서 범위일 때의 부서 id 집합. 그 밖의 kind 에서는 비어 있다.
     dept_ids: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def is_global(self) -> bool:
-        return self.kind == ADMIN_SCOPE_GLOBAL
+        return self.kind == SCOPE_GLOBAL
 
     @property
     def is_org(self) -> bool:
-        return self.kind == ADMIN_SCOPE_ORG
+        return self.kind == SCOPE_ORG
 
     @property
     def is_dept(self) -> bool:
-        return self.kind == ADMIN_SCOPE_DEPT
+        return self.kind == SCOPE_DEPT
+
+    @property
+    def is_none(self) -> bool:
+        return self.kind == SCOPE_NONE
+
+    @property
+    def allows_anything(self) -> bool:
+        """이 범위로 무엇이든 볼 수 있는가. 빈 부서 집합은 아무것도 못 본다."""
+        if self.is_none:
+            return False
+        if self.is_dept:
+            return bool(self.dept_ids)
+        if self.is_org:
+            return bool(self.org_id)
+        return True
 
 
-GLOBAL_SCOPE = Scope(kind=ADMIN_SCOPE_GLOBAL)
+GLOBAL_SCOPE = Scope(kind=SCOPE_GLOBAL)
+NONE_SCOPE = Scope(kind=SCOPE_NONE)
+
+
+def _widest(a: Scope, b: Scope) -> Scope:
+    """두 범위 중 넓은 쪽. 같은 종류면 합친다.
+
+    관리자에게 쓴다 — 관리 범위를 배정받았다는 것은 그 범위를 **볼 수 있다**는 뜻이기도
+    하다. 소속(membership)에서 나온 조회 범위와 관리 범위를 합쳐 최종 조회 범위를 만든다.
+    """
+    if _RANK[a.kind] != _RANK[b.kind]:
+        return a if _RANK[a.kind] > _RANK[b.kind] else b
+    if a.is_dept:
+        return Scope(
+            kind=SCOPE_DEPT,
+            org_id=a.org_id or b.org_id,
+            dept_ids=a.dept_ids | b.dept_ids,
+        )
+    if a.is_org and a.org_id != b.org_id:
+        # 서로 다른 조직 둘을 합칠 수 있는 표현이 없다. 소속 조직을 남긴다 —
+        # 관리 대상 조직은 아래 management_scope 가 따로 들고 있다.
+        return a
+    return a
 
 
 @dataclass(frozen=True)
 class Principal:
-    """요청을 낸 사람 + 그 사람의 범위. 라우터가 들고 다니는 값 하나."""
+    """요청을 낸 사람 + 그 사람의 두 범위. 라우터가 들고 다니는 값 하나."""
 
     user_id: str
     role: str
     org_id: str | None
     department_id: str | None
-    scope: Scope
+    membership_kind: str
+    # 조회 범위 — 일반 사용자로서 볼 수 있는 공유 데이터.
+    visibility: Scope
+    # 관리 범위 — 관리자 권한으로 고칠 수 있는 대상. 일반 사용자는 SCOPE_NONE.
+    management: Scope
+    # 이 요청이 쓰는 부서 트리. 경로 표시·범위 재계산이 다시 질의하지 않게 함께 싣는다.
+    tree: DeptTree
 
     @property
     def is_global(self) -> bool:
-        return self.scope.is_global
+        """조회가 무제한인가. **관리 무제한과 다르다** — `manages_everything` 을 볼 것."""
+        return self.visibility.is_global
+
+    @property
+    def manages_everything(self) -> bool:
+        return self.management.is_global
+
+    @property
+    def can_manage_anything(self) -> bool:
+        return self.management.allows_anything
 
 
-def department_subtree_ids(db: Session, root_id: str | None) -> frozenset[str]:
-    """``root_id`` 와 그 아래 모든 하위 부서 id.
+# ── 범위 계산 ────────────────────────────────────────────────────────────────
 
-    부서 트리는 parent_id 자기참조 하나로만 표현한다(closure 테이블 없음, 이유는
-    `app/org/models.py::Department` docstring). 전개는 여기 한 곳에서만 하고,
-    사이클이 있어도 멈춘다.
+def _membership_scope(user: User, tree: DeptTree) -> Scope:
+    """소속에서 나오는 조회 범위. 역할을 보지 않는다 — 여기는 '이 사람이 어디 사람인가'다.
+
+    ## `department_id` 가 먼저, `membership_kind` 는 그 다음이다
+
+    부서가 배정돼 있으면 그 사람은 그 부서 사람이다 — 물을 것이 없다. 두 컬럼이 서로
+    다른 말을 할 수 있는 상태(부서는 있는데 kind 는 unassigned)를 판정에서 아예 없앤다.
+
+    `membership_kind` 는 **부서가 없을 때만** 답할 것이 있다. `department_id IS NULL` 하나로는
+    "본부 직속이라 팀이 없다" 와 "아직 안 정했다" 를 구별할 수 없고, 예전 코드는 그 둘을
+    똑같이 전역(GLOBAL)으로 폴백해서 부서를 안 정한 계정이 전 포털을 봤다.
     """
-    if not root_id:
-        return frozenset()
-
-    from app.org.models import Department
-
-    seen: set[str] = {root_id}
-    frontier: list[str] = [root_id]
-    for _ in range(MAX_DEPARTMENT_DEPTH):
-        if not frontier:
-            break
-        rows = db.execute(
-            select(Department.id).where(Department.parent_id.in_(frontier))
-        ).scalars().all()
-        frontier = [dept_id for dept_id in rows if dept_id not in seen]
-        seen.update(frontier)
-    return frozenset(seen)
+    dept_id = getattr(user, "department_id", None)
+    org_id = getattr(user, "org_id", None)
+    if dept_id:
+        branch = tree.branch(dept_id)
+        if not branch:
+            # 부서가 지워졌거나 트리에 없다 — 판정할 근거가 없고, 근거가 없으면 닫는다.
+            return NONE_SCOPE
+        return Scope(kind=SCOPE_DEPT, org_id=tree.org_of(dept_id) or org_id, dept_ids=branch)
+    if getattr(user, "membership_kind", None) == MEMBERSHIP_ORGANIZATION:
+        return Scope(kind=SCOPE_ORG, org_id=org_id) if org_id else NONE_SCOPE
+    # unassigned(또는 알 수 없는 값) — 추측하지 않는다.
+    return NONE_SCOPE
 
 
-def build_scope(db: Session, user: User) -> Scope:
-    """사용자 행에서 범위를 계산한다.
+def management_scope(db: Session, user: User, tree: DeptTree | None = None) -> Scope:
+    """관리자 권한으로 **고칠 수 있는** 대상 범위. 일반 사용자는 `SCOPE_NONE`.
 
-    설정이 불완전하면 **넓히는 쪽이 아니라 좁히는 쪽으로 실패한다**(fail-closed):
-      * `admin_scope='dept'` 인데 부서가 비어 있음 → 빈 부서 집합 → 아무 행도 안 보인다
-      * `admin_scope` 가 알 수 없는 값(오타 등) → 전역이 아니라 **아무것도 못 보는** 범위
-
-    두 번째가 특히 중요하다. 모르는 값을 global 로 흘려보내면 오타 한 글자가 조용한 권한
-    확대가 된다 — 그리고 그런 확대는 아무도 신고하지 않는다(화면이 잘 보이니까).
-    반대로 좁게 실패하면 화면이 비고, 그건 30분 안에 신고가 들어온다.
+    부서 관리 범위는 **자기 ∪ 후손**이다(조상은 포함하지 않는다) — 하위 팀 관리자가 상위
+    부서까지 관리하게 되면 그건 승격이지 위임이 아니다.
     """
-    # ── 일반 사용자: 기본이 **자기 팀**이다 (S4 근본 원인 A) ────────────────────
-    #
-    # 사용자 지시는 "사용자는 기본적으로 본인 팀 정보만" 이었는데 그걸 구현한 코드가 없었다.
-    # 이 함수가 **역할과 무관하게** `admin_scope` 를 읽었고 그 기본값이 `global` 이라
-    # users 전 행이 전역이었다 — 범위를 올바르게 쓰는 여섯 곳조차 일반 사용자에게는
-    # 전부 no-op 이었다.
-    #
-    # `admin_scope` 를 재사용하지 않는 이유: 그건 **관리자가 관리 화면에서 볼 수 있는 범위**
-    # 이고 이건 **일반 사용자가 자기 업무 화면에서 볼 수 있는 범위**다. 두 질문을 한 컬럼에
-    # 담으면 "전체를 관리하는 사람" 과 "전체를 볼 수 있는 일반 사용자" 가 구별되지 않는다.
-    # 그리고 사용자 쪽은 **규칙이지 설정이 아니다** — 사람마다 다르게 줄 이유가 없으므로
-    # 컬럼을 새로 만들지 않는다(`ticket_cache.scope_dept_id` 처럼 아무도 안 읽는 컬럼을
-    # 하나 더 만드는 일을 되풀이하지 않는다).
-    #
-    # **폴백**: 부서가 없으면 좁히지 않는다. 반대로 하면(부서 없음 → 빈 집합) 부서를 아직
-    # 배정하지 않은 신규 입사자가 **아무것도 못 보는 계정**이 되는데, 증상이 "권한 없음" 이
-    # 아니라 "목록이 비어 있음" 이라 원인을 찾기가 어렵다. 사람을 먼저 들여보내고 부서를
-    # 나중에 정하는 것이 실제 순서다.
-    if getattr(user, "role", None) == ROLE_USER:
-        dept = getattr(user, "department_id", None)
-        if not dept:
-            return GLOBAL_SCOPE
-        return Scope(
-            kind=ADMIN_SCOPE_DEPT,
-            org_id=getattr(user, "org_id", None),
-            dept_ids=department_subtree_ids(db, dept),
-        )
+    tree = tree if tree is not None else DeptTree.load(db)
+    role = getattr(user, "role", None)
+    if role not in (ROLE_OPERATOR, ROLE_AUDITOR, ROLE_ADMIN, ROLE_SYSTEM_ADMIN):
+        return NONE_SCOPE
 
     kind = getattr(user, "admin_scope", ADMIN_SCOPE_GLOBAL) or ADMIN_SCOPE_GLOBAL
 
-    # 운영자(operator)·감사자(auditor)는 관리 콘솔 사용자가 아니다 — `admin_scope`는
-    # 위 컬럼 주석이 스스로 말하듯 "관리자 역할일 때만 의미가 있다." 그런데 이 함수는
-    # 그동안 role==user 만 따로 보고 나머지는 전부(operator/auditor 포함) 이 컬럼으로
-    # 판정해 왔다. 그 컬럼의 기본값은 `global`(0024 마이그레이션의 의도된 선택 — 관리
-    # 화면이 조용히 비지 않게 하려는 것) 이고, 관리자가 사용자를 운영자/감사자로 바꿀 때
-    # "관리 범위"를 함께 좁히는 것은 **선택**이라 강제되지 않는다 — RBAC 재감사
-    # (2026-08-16)로 발견: `admin_scope`를 한 번도 명시적으로 좁힌 적 없는 운영자는 그
-    # 사실만으로 전역 범위가 되어 다른 조직의 게시판·아이디어까지 보였다(실측,
-    # `tests/integration/test_idea_board.py::
-    # test_another_organization_neither_sees_nor_moves_an_idea`).
-    #
-    # org/dept로 **명시적으로** 좁힌 운영자·감사자는 그대로 존중한다(관리 콘솔이 실제로
-    # 그 값을 고를 수 있게 해 준다, `Users.jsx`의 `admin_scope` 필드 `showIf: role !==
-    # "user"`) — 아래에서 막는 것은 오직 "아직 global"인 경우뿐이다. 컬럼만 봐서는
-    # "한 번도 안 건드림"과 "일부러 global을 골랐음"을 구분할 수 없으므로, 강한 권한
-    # (전역 범위)은 명시적 선택 쪽으로만 좁힌다 — 애매하면 좁게 실패한다는 이 함수 자체의
-    # 원칙(모듈 docstring)과 같다.
-    if kind == ADMIN_SCOPE_GLOBAL and getattr(user, "role", None) in (ROLE_OPERATOR, ROLE_AUDITOR):
-        return Scope(kind=ADMIN_SCOPE_ORG, org_id=getattr(user, "org_id", None))
+    # 운영자·감사자는 관리 콘솔 사용자이지 조직 관리자가 아니다 — `admin_scope` 의 기본값
+    # (`global`, 0024 마이그레이션의 의도된 선택)을 그대로 전역 권한으로 읽으면, 그 컬럼을
+    # 한 번도 명시적으로 좁힌 적 없는 운영자가 그 사실만으로 전사 범위가 된다(RBAC 재감사
+    # 2026-08-16 실측). 명시적으로 좁힌 값은 그대로 존중하고, "아직 global" 인 경우만 조직으로
+    # 닫는다 — 애매하면 좁게 실패한다는 이 파일의 원칙 그대로다.
+    if kind == ADMIN_SCOPE_GLOBAL and role in (ROLE_OPERATOR, ROLE_AUDITOR):
+        org_id = getattr(user, "org_id", None)
+        return Scope(kind=SCOPE_ORG, org_id=org_id) if org_id else NONE_SCOPE
 
     if kind == ADMIN_SCOPE_GLOBAL:
         return GLOBAL_SCOPE
     if kind == ADMIN_SCOPE_ORG:
-        return Scope(kind=ADMIN_SCOPE_ORG, org_id=user.scope_org_id or user.org_id)
+        org_id = user.scope_org_id or user.org_id
+        return Scope(kind=SCOPE_ORG, org_id=org_id) if org_id else NONE_SCOPE
     if kind == ADMIN_SCOPE_DEPT:
         root = user.scope_dept_id or user.department_id
+        managed = tree.descendants(root)
+        if not managed:
+            return NONE_SCOPE
         return Scope(
-            kind=ADMIN_SCOPE_DEPT,
-            org_id=user.scope_org_id or user.org_id,
-            dept_ids=department_subtree_ids(db, root),
+            kind=SCOPE_DEPT,
+            org_id=tree.org_of(root) or user.scope_org_id or user.org_id,
+            dept_ids=managed,
         )
     logger.error(
-        "알 수 없는 admin_scope=%r (user=%s). 안전을 위해 아무것도 보이지 않는 범위로 처리한다",
+        "알 수 없는 admin_scope=%r (user=%s). 안전을 위해 아무것도 관리할 수 없는 범위로 처리한다",
         kind, user.id,
     )
-    return Scope(kind=ADMIN_SCOPE_DEPT, org_id=None, dept_ids=frozenset())
+    return NONE_SCOPE
 
 
-def principal_from_user(db: Session, user: User) -> Principal:
+def visibility_scope(db: Session, user: User, tree: DeptTree | None = None) -> Scope:
+    """일반 사용자로서 **조회할 수 있는** 공유 범위.
+
+    소속에서 나온 범위와 관리 범위 중 **넓은 쪽**이다. 관리 범위를 배정받았다는 것은 그
+    대상을 볼 수 있다는 뜻이기도 하기 때문이다(관리하는데 안 보이면 관리할 수 없다).
+    """
+    tree = tree if tree is not None else DeptTree.load(db)
+    return _widest(_membership_scope(user, tree), management_scope(db, user, tree))
+
+
+def principal_from_user(db: Session, user: User, tree: DeptTree | None = None) -> Principal:
+    tree = tree if tree is not None else DeptTree.load(db)
     return Principal(
         user_id=user.id,
         role=user.role,
         org_id=getattr(user, "org_id", None),
         department_id=user.department_id,
-        scope=build_scope(db, user),
+        membership_kind=getattr(user, "membership_kind", None) or "",
+        visibility=visibility_scope(db, user, tree),
+        management=management_scope(db, user, tree),
+        tree=tree,
     )
 
+
+# ── SQL 조립 ─────────────────────────────────────────────────────────────────
 
 # 범위가 설정됐는데 걸 컬럼이 없거나 범위가 비어 있으면 **닫는다**(fail-closed).
 # `sa.false()` 는 SQLite 에서 `0 = 1` 로 컴파일된다 — 조건을 빼먹은 것과 눈으로 구별된다.
@@ -220,6 +299,8 @@ def scope_filter(scope: Scope, *, org_column=None, dept_column=None):
     """
     if scope.is_global:
         return None
+    if scope.is_none:
+        return MATCH_NOTHING
     if scope.is_org:
         if org_column is None or not scope.org_id:
             return MATCH_NOTHING
@@ -245,6 +326,8 @@ def scope_allows_user(scope: Scope, user: User) -> bool:
     단건은 열리는(또는 그 반대) 상태가 된다."""
     if scope.is_global:
         return True
+    if scope.is_none:
+        return False
     if scope.is_org:
         return bool(scope.org_id) and getattr(user, "org_id", None) == scope.org_id
     return bool(scope.dept_ids) and user.department_id in scope.dept_ids
@@ -253,11 +336,13 @@ def scope_allows_user(scope: Scope, user: User) -> bool:
 def visible_user_ids(db: Session, scope: Scope) -> frozenset[str] | None:
     """범위 안 사용자 id 집합. 전역이면 ``None``(= 제한 없음).
 
-    티켓처럼 '앱 사용자'를 거쳐 스코프가 정해지는 자원에 쓴다. 사용자 수가 1000명 규모라
-    집합을 통째로 들고 오는 편이 조인보다 단순하고 빠르다.
+    사용자 자체를 대상으로 삼는 관리 화면(사용자 관리·대리 보기·쿼터·승인 등)이 쓴다.
+    사용자 수가 1000명 규모라 집합을 통째로 들고 오는 편이 조인보다 단순하고 빠르다.
     """
     if scope.is_global:
         return None
+    if scope.is_none:
+        return frozenset()
     rows = db.execute(apply_user_scope(select(User.id), scope)).scalars().all()
     return frozenset(rows)
 
@@ -265,11 +350,12 @@ def visible_user_ids(db: Session, scope: Scope) -> frozenset[str] | None:
 def any_assignee_visible(
     assignee_user_ids: Iterable[str | None], visible: frozenset[str] | None
 ) -> bool:
-    """다중 담당자 티켓의 가시성 판정 — **담당자 중 한 명이라도** 범위 안이면 보인다.
+    """다중 담당자 자원의 가시성 판정 — **담당자 중 한 명이라도** 범위 안이면 보인다.
 
-    스칼라 하나로 정하면 두 부서가 함께 맡은 티켓이 한쪽에서 사라진다(모듈 docstring).
-    담당자가 없으면 어느 부서에도 속하지 않으므로 False — 미할당 티켓은 부서 화면이 아니라
-    포탈 전용 버킷에서 다룬다.
+    스칼라 하나로 정하면 두 부서가 함께 맡은 자원이 한쪽에서 사라진다.
+
+    ⚠️ 티켓은 더 이상 이 판정을 쓰지 않는다. 티켓의 소속은 담당자가 아니라 **프로젝트**다
+    (`app/core/ownership.py`). 이 함수는 담당자/작성자 축이 실제 소유 축인 자원에만 남는다.
     """
     if visible is None:
         return True

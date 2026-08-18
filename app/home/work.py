@@ -162,7 +162,7 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
     자르면 "차질 0건" 이 사실인지 잘린 결과인지 아무도 모른다.
     """
     rows, total = projects_repo.list_in_scope(
-        db, principal.scope, include_archived=False,
+        db, principal.visibility, include_archived=False,
         offset=0, limit=projects_service.OVERALL_PROJECT_LIMIT,
     )
     troubled: list[dict] = []

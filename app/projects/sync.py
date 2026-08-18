@@ -326,6 +326,32 @@ def sync_projects(db: Session, *, outbound, settings, now: datetime) -> ProjectS
             except Exception:
                 logger.exception("프로젝트 진행률 재계산 실패: %s", row.notion_page_id)
 
+        # 티켓의 **소속을 다시 해석한다** (0060). 티켓 동기화가 먼저 돌면 그 시점에 없던
+        # 프로젝트를 가리키는 티켓은 `unresolved`(= 아무에게도 안 보임)로 남는다. 프로젝트가
+        # 방금 들어왔으니 여기서 풀어 주지 않으면 그 티켓들은 영영 닫힌 채다 — 증상이
+        # "권한 오류" 가 아니라 "목록이 비어 있음" 이라 원인을 찾기 어렵다.
+        #
+        # 실패해도 이번 프로젝트 동기화를 실패로 만들지 않는다(위 진행률 재계산과 같은 원칙) —
+        # 다음 회차가 다시 해석하고, 그 사이는 닫혀 있는 쪽(안전한 쪽)이다.
+        from app.tickets import project_link as ticket_project_link
+
+        try:
+            link_counts = ticket_project_link.reresolve_all(db)
+            logger.info("티켓 소속 재해석: %s", link_counts)
+        except Exception:
+            logger.exception("티켓 소속 재해석 실패")
+
+        # 문서도 같은 이유로 다시 해석한다 — 프로젝트가 방금 들어왔으니 그때까지 미지정
+        # (= 아무에게도 안 보임) 이던 문서가 여기서 풀린다.
+        from app.team_docs import sync as doc_sync
+
+        try:
+            doc_counts = doc_sync.resolve_project_ownership(db)
+            if doc_counts["promoted"]:
+                logger.info("문서 Ownership 재해석: %s", doc_counts)
+        except Exception:
+            logger.exception("문서 Ownership 재해석 실패")
+
         # 상한에 걸려 일부만 받아왔다면 prune 하지 않는다 - 안 받아온 프로젝트를 'Notion 에서
         # 삭제됨' 으로 오인해 표시하면 멀쩡한 프로젝트에 배지가 붙는다.
         pruned = _prune(db, keep, now) if not truncated else PruneResult()

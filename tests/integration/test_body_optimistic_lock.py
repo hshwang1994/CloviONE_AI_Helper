@@ -30,7 +30,7 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 @pytest.fixture()
-def csrf(client, settings, notion, make_user):
+def csrf(client, settings, notion, make_user, portal_project):
     (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     make_user(email="lock@goodmit.co.kr", role="user", display_name="편집자")
     r = client.post("/login", json={"email": "lock@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})

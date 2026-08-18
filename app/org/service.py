@@ -388,22 +388,76 @@ def update_item(
     return row
 
 
-def delete_item(db: Session, row: OrgModel) -> None:
-    """쓰는 사람이 있으면 거부한다.
+def dependents(db: Session, dept_id: str) -> dict[str, int]:
+    """이 부서를 **가리키고 있는 것**들의 건수 (0060 §33). 0 이 아닌 항목만 담는다.
 
-    조용히 지우면 그 사람들의 부서가 소리 없이 빈칸이 된다(FK가 SET NULL이므로 오류도
-    나지 않는다). 몇 명이 쓰는지와 대안(비활성)을 함께 알려 준다 — 막기만 하면 사용자는
-    다음에 무엇을 해야 할지 알 수 없다.
+    부서를 지우면 이것들이 어떻게 되는지가 문제다. FK 는 전부 `SET NULL` 이라 **오류가
+    나지 않는다** — 자식 부서는 조용히 최상위로 올라오고, 프로젝트와 문서는 소속이 빈칸이
+    되며, 소속이 빈 문서는 그 순간부터 아무에게도 안 보인다(fail-closed). 셋 다 삭제한
+    사람에게는 성공으로 보인다.
+
+    사용자 수(`usage_count`)만 세던 예전 판정은 사람이 한 명도 없는 부서를 "안 쓰는
+    부서" 로 읽었다. 실제로는 프로젝트 수십 개와 그 아래 티켓 전부가 거기 매달려 있을 수
+    있다.
+    """
+    from app.projects.models import Project
+    from app.team_docs.models import DocumentCache
+    from app.users.models import User
+
+    def _count(clause) -> int:
+        return int(db.execute(select(func.count()).where(clause)).scalar_one())
+
+    found = {
+        "users": _count(User.department_id == dept_id),
+        "child_departments": _count(Department.parent_id == dept_id),
+        "projects": _count(Project.dept_id == dept_id),
+        "documents": _count(DocumentCache.owner_dept_id == dept_id),
+        # 이 부서를 **관리 범위로 배정받은** 관리자. 지우면 그 계정은 관리 대상이 없는
+        # 상태가 되는데, 화면에는 "관리 범위: 지정된 부서 없음" 으로만 보인다.
+        "scoped_admins": _count(User.scope_dept_id == dept_id),
+    }
+    return {k: v for k, v in found.items() if v}
+
+
+_DEPENDENT_LABELS = {
+    "users": "소속 사용자",
+    "child_departments": "하위 부서",
+    "projects": "프로젝트",
+    "documents": "문서",
+    "scoped_admins": "이 부서를 관리 범위로 가진 관리자",
+}
+
+
+def delete_item(db: Session, row: OrgModel) -> None:
+    """**가리키는 것이 하나라도 있으면** 거부한다.
+
+    조용히 지우면 참조가 소리 없이 빈칸이 된다(FK 가 전부 SET NULL 이라 오류도 나지
+    않는다). 무엇이 몇 건 매달려 있는지와 대안(비활성)을 함께 알려 준다 — 막기만 하면
+    사용자는 다음에 무엇을 해야 할지 알 수 없다.
+
+    부서는 사람 말고도 프로젝트·문서·하위 부서·관리 범위가 매달린다(0060 §33). 직책에는
+    사용자만 매달리므로 예전 판정을 그대로 쓴다.
     """
     model = type(row)
-    count = usage_count(db, model, row.id)
-    if count:
-        label = label_for(model)
-        raise ConflictError(
-            f"이 {label}을(를) 쓰는 사용자가 {count}명 있어 삭제할 수 없습니다. "
-            f"'비활성'으로 두면 새로 고를 수는 없지만 기존 사용자는 그대로 유지됩니다.",
-            details={"user_count": count, "name": row.name},
-        )
+    label = label_for(model)
+    if model is Department:
+        found = dependents(db, row.id)
+        if found:
+            parts = [f"{_DEPENDENT_LABELS[k]} {v}건" for k, v in found.items()]
+            raise ConflictError(
+                f"이 {label}에 " + ", ".join(parts) + "이(가) 연결되어 있어 삭제할 수 "
+                "없습니다. 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 "
+                "없지만 기존 연결은 그대로 유지됩니다.",
+                details={"name": row.name, "user_count": found.get("users", 0), **found},
+            )
+    else:
+        count = usage_count(db, model, row.id)
+        if count:
+            raise ConflictError(
+                f"이 {label}을(를) 쓰는 사용자가 {count}명 있어 삭제할 수 없습니다. "
+                f"'비활성'으로 두면 새로 고를 수는 없지만 기존 사용자는 그대로 유지됩니다.",
+                details={"user_count": count, "name": row.name},
+            )
     db.delete(row)
     db.flush()
 

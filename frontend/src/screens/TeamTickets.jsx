@@ -8,6 +8,7 @@ import { api } from "../lib/api.js";
 import { Card, Callout, ErrorState, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
+import { DepartmentFilter } from "../ui/filters.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, TicketSyncBanner } from "./MyTickets.jsx";
 import { ticketRows, useTicketList } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -31,7 +32,10 @@ const UNASSIGNED = "(미할당)";
 const TEAM_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "assignee_user_id", "due", "category"];
 /* `active` 는 필터가 아니라 목록의 범위다 — 서버의 `/team?active=` 가 그대로 받는다.
  * 기본이 참(활성만)이라 꺼졌을 때만 주소에 실린다. */
-const TEAM_SPEC = ticketFilterSpec(TEAM_FIELDS, { page: 1, active: true });
+/* `dept` 도 필터가 아니라 **목록의 범위**다(`active` 와 같은 자리) — 서버의
+ * `/team?department_id=` 가 그대로 받는다. `TEAM_FIELDS` 에 넣지 않는 이유: 그 배열은
+ * 주소 키와 API 키가 같은 것들만 담는 목록이고, 여기서 이름이 다르다. */
+const TEAM_SPEC = ticketFilterSpec(TEAM_FIELDS, { page: 1, active: true, dept: "" });
 const PAGE_RESET = { reset: ["page"] };
 
 /* 담당자별로 묶는다. 담당자가 여럿이면 각자 그룹에 들어간다(팀 부담을 한눈에). 없으면 '(미할당)' 맨 뒤.
@@ -59,7 +63,10 @@ export function TeamTickets() {
   const nav = useNavigate();
   const [filters, setFilters] = useQueryState(TEAM_SPEC, PAGE_RESET);
   const [editing, setEditing] = React.useState(null);
-  const qs = ticketQueryParams(filters, TEAM_FIELDS, { active: filters.active ? "true" : "false" }).toString();
+  const qs = ticketQueryParams(filters, TEAM_FIELDS, {
+    active: filters.active ? "true" : "false",
+    ...(filters.dept ? { department_id: filters.dept } : {}),
+  }).toString();
   const q = useTicketList("/api/tickets/team", qs);
   const toast = useToast();
   const qc = useQueryClient();
@@ -91,6 +98,21 @@ export function TeamTickets() {
     />
   );
 
+  /* 부서 후보는 **목록 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를 만들지
+     않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데 결과가 비는 상자가
+     생긴다. */
+  const scopeControls = (
+    <>
+      {activeToggle}
+      <DepartmentFilter
+        departments={q.data && q.data.departments}
+        value={filters.dept}
+        onChange={(v) => setFilters({ dept: v })}
+        sx={{ minWidth: "16rem" }}
+      />
+    </>
+  );
+
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" spot="teamspace" />
@@ -115,16 +137,16 @@ export function TeamTickets() {
               />
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
-                total={data.total} extra={activeToggle}
-                onClear={() => setFilters(clearTicketFilters(TEAM_FIELDS))}
+                total={data.total} extra={scopeControls}
+                onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "" })}
               />
               <Card>
                 <GroupedTickets
                   rows={rows} columns={cols} groupBy={groupByAssignee}
                   emptyState={
                     <TicketEmptyState
-                      filtered={hasTicketFilter(filters, TEAM_FIELDS)}
-                      onClear={() => setFilters(clearTicketFilters(TEAM_FIELDS))}
+                      filtered={hasTicketFilter(filters, TEAM_FIELDS) || !!filters.dept}
+                      onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "" })}
                       title="팀 티켓이 없습니다"
                       help={filters.active
                         ? "지금 진행 중인 팀 티켓이 없습니다. ‘완료, 취소 포함’을 켜면 끝난 티켓까지 봅니다."

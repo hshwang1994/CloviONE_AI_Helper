@@ -204,7 +204,8 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     }
     // 티켓 칸 제목은 "진행 중 (4건)"처럼 고른 칸에 따라 바뀐다 — 값이 아니라 모양만 확인한다.
     expect(level2Names.some((t) => /\(\d+건\)$/.test(t))).toBe(true);
-    expect(level2Names).toHaveLength(4);
+    // 0060: '내 업무' 구역이 관리자 대시보드에서 이 화면으로 옮겨와 h2 가 하나 늘었다.
+    expect(level2Names).toHaveLength(5);
     // AssistantPanel 내부 소제목(내 몫 등)이 h3로 낮아졌는지는 assistant-panel.test.jsx가
     // 그 화면 자신의 데이터 모양으로 직접 확인한다.
   });
@@ -268,7 +269,8 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     // 끝나야 나타나므로 findByText로 기다린다.
     expect(await screen.findByText(/위 스프린트 카드와 같은 이유로/)).toBeInTheDocument();
     // "티켓 소스를 읽지 못해"로 시작하는 전체 문장이 두 번 나오지는 않는다(딱 한 곳,
-    // 스프린트 카드에만).
+    // 스프린트 카드에만). 0060 에서 '내 업무' 구역이 이 화면으로 옮겨왔는데, 그 구역도
+    // 원인을 다시 설명하지 않고 "같은 이유로 …"라고 참조한다(WorkSummary.jsx::WORK_UNKNOWN).
     expect(screen.getAllByText(/티켓 소스를 읽지 못해/)).toHaveLength(1);
   });
 

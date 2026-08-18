@@ -190,18 +190,25 @@ def test_create_organization_gives_up_cleanly_after_exhausting_retries(db, monke
     monkeypatch.setattr(db, "add", _add_that_always_conflicts)
     monkeypatch.setattr(router_mod.time, "sleep", lambda _seconds: None)
 
+    from app.core.org_tree import DeptTree
     from app.core.scope import Principal, Scope
     from app.org.router import create_organization
     from app.org.schemas import OrganizationCreateRequest
-    from app.users.models import ADMIN_SCOPE_GLOBAL
+    from app.users.models import ADMIN_SCOPE_GLOBAL, MEMBERSHIP_ORGANIZATION
 
     class _FakeRequest:
         headers: dict = {}
         state = type("S", (), {})()
 
+    # 0060: `Principal.scope` 하나가 조회·관리 두 축으로 갈라졌다. 조직 생성은 **관리**
+    # 행위라 `management` 가 판정한다 — 둘을 같은 값으로 주면 어느 축이 쓰였는지 이 시험이
+    # 말해 주지 못하므로, 여기서는 관리만 전역으로 둔다.
     principal = Principal(
         user_id="admin-1", role="admin", org_id=None, department_id=None,
-        scope=Scope(kind=ADMIN_SCOPE_GLOBAL),
+        membership_kind=MEMBERSHIP_ORGANIZATION,
+        visibility=Scope(kind=ADMIN_SCOPE_GLOBAL),
+        management=Scope(kind=ADMIN_SCOPE_GLOBAL),
+        tree=DeptTree.load(db),
     )
 
     with pytest.raises(ValidationAppError):

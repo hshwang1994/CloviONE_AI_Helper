@@ -55,7 +55,7 @@ def dev_monthly(
         report = build_dev_monthly_report(
             db, outbound, settings, period=period, today=today,
             repo=request.app.state.repositories.tickets,
-            visible_user_ids=visible_user_ids(db, principal.scope),
+            visible_user_ids=visible_user_ids(db, principal.management),
         )
     except NotionNotConfiguredError as exc:
         return {"configured": False, "ok": False, "message": exc.message, "period": period}

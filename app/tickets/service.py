@@ -17,7 +17,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core import people
+from app.core import ownership, people
 from app.core.errors import (
     ConflictError,
     ForbiddenError,
@@ -124,6 +124,9 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "difficulty": t.difficulty,
         "priority": t.priority,
         "project_ids": list(t.project_ids),
+        # 해석된 Portal 프로젝트 id. 화면이 프로젝트로 이동할 때 쓰고, 범위 판정
+        # (`_drop_out_of_scope`)이 SQL 과 **같은 축**을 쓰게 하는 값이다.
+        "project_uid": t.project_uid,
         "assignee_names": [n for n in names if n],
         "assignee_user_ids": [u for u in uids if u],
         "project_names": pnames,
@@ -138,29 +141,79 @@ def ticket_views(db: Session, tickets, *, with_names: bool = True) -> list[dict]
     return [ticket_view(t, id_to_name, id_to_user) for t in tickets]
 
 
-def drop_out_of_scope_dtos(db: Session, dtos, viewer) -> list:
+def _project_visibility(db: Session, viewer, scope=None) -> "ProjectVisibility | None":
+    """이 사람이 볼 수 있는 프로젝트 — **티켓 범위 판정의 단 하나의 입력** (0060).
+
+    `None` 은 제한 없음(전역)이다. 빈 집합은 아무것도 안 보인다(fail-closed) — 둘을 같은
+    값으로 표현하면 범위 계산이 빈 답을 낸 순간 조용히 전 포탈이 열린다.
+
+    두 표현을 함께 만든다(`ProjectVisibility` docstring 참조): 미러 경로는 Portal id 로,
+    실시간 폴백 경로는 외부 page id 로 맞춘다. 한 함수가 둘 다 만들므로 갈라질 자리가 없다.
+
+    조회 범위(`visibility`)를 쓴다. 상위 부서 사람이 하위 팀 프로젝트의 티켓을 보는 것은
+    협업이고, 그 프로젝트를 **옮기거나 지우는** 것만 관리 범위가 필요하다.
+
+    `scope` 를 주면 그것으로 **더 좁힌다**(넓히지 못한다 — 부르는 쪽이 이미 그 사람의 조회
+    범위 안에서 고른 값이어야 한다). 스프린트가 "이 부서의 회의" 로 화면 Context 를 좁힐 때
+    쓴다 — 그때도 판정 함수는 이 하나뿐이라 규칙이 갈라지지 않는다.
+    """
+    if viewer is None:
+        return None
+    from app.core.scope import visibility_scope
+    from app.projects.models import Project
+    from app.tickets.repository import ProjectVisibility
+
+    scope = scope if scope is not None else visibility_scope(db, viewer)
+    if scope.is_global:
+        return None
+    rows = db.execute(
+        ownership.visible_project_ids(scope).add_columns(Project.notion_page_id)
+    ).all()
+    return ProjectVisibility(
+        uids=frozenset(r[0] for r in rows),
+        page_ids=frozenset(r[1] for r in rows if r[1]),
+    )
+
+
+def _project_in_scope(project_uid, external_ids, visible) -> bool:
+    """이 티켓의 프로젝트가 범위 안인가 — **판정 문장은 여기 하나뿐이다**.
+
+    미러에서 읽었으면 해석된 Portal id 로 본다(SQL 절과 같은 축). 실시간 폴백은 Portal
+    짝을 아직 모르므로 외부 relation id 로 본다. 외부 relation 이 정확히 하나가 아니면
+    소속을 판정할 수 없고, 판정할 수 없으면 닫는다(0060).
+
+    ⚠️ 미러 경로에서 외부 id 로 되돌아가지 않는다. Portal 전용 프로젝트(Notion 짝 없음)의
+    티켓은 외부 id 가 아예 없어서, 되돌아가는 순간 그 티켓들이 **전원에게서** 사라진다.
+    """
+    if project_uid:
+        return project_uid in visible.uids
+    ids = tuple(external_ids or ())
+    return len(ids) == 1 and ids[0] in visible.page_ids
+
+
+def _view_in_scope(view: dict, visible) -> bool:
+    return _project_in_scope(view.get("project_uid"), view.get("project_ids"), visible)
+
+
+def drop_out_of_scope_dtos(db: Session, dtos, viewer, scope=None) -> list:
     """DTO 목록에서 범위 밖 티켓을 뺀다 (스프린트·리포트 집계용).
 
     화면용 view 가 아니라 DTO 를 다루는 경로(집계)가 따로 있어서, 판정 규칙이 두 벌이 되지
     않게 여기 한 곳에 둔다 — 화면 목록은 좁혀 놓고 집계가 전 포탈이면 **담당자별 생산성이
     숫자로 새어 나간다**(그게 스프린트 요약에서 실제로 일어나던 일이다).
 
-    담당자를 해석할 수 없는 티켓은 부서 집계에서 뺀다. 그건 미할당 트리아지의 몫이고,
-    아무 팀의 성과도 아니다.
+    소속을 판정할 수 없는 티켓(프로젝트 0개·2개 이상)은 어느 집계에도 안 들어간다 —
+    아무 팀의 성과도 아니고, 그 상태 자체가 고쳐야 할 정합성 오류다.
     """
     if viewer is None:
         return list(dtos)
-    from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
-
-    # UA-02: 예전엔 `scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 통과했다.
-    # `visible_user_ids`가 전역일 때만 `None`(무제한)을 주므로 그 판정 하나로 충분하다.
-    scope = build_scope(db, viewer)
-    id_to_user = _verified_id_to_user(db)
-    visible = visible_user_ids(db, scope)
+    visible = _project_visibility(db, viewer, scope)
+    if visible is None:
+        return list(dtos)
     return [
         d for d in dtos
-        if any_assignee_visible(
-            [id_to_user.get(n) for n in (getattr(d, "assignee_ids", ()) or ())], visible
+        if _project_in_scope(
+            getattr(d, "project_uid", None), getattr(d, "project_ids", ()), visible
         )
     ]
 
@@ -175,39 +228,37 @@ def ensure_in_scope(db: Session, page_id: str, viewer: "User | None") -> None:
     찍어 보며 포탈 전체 티켓의 존재를 열거할 수 있다(저장소 규칙 — `core/scope.py`
     모듈 docstring, 채팅 이미지 서빙, `get_scoped_user_or_404` 가 같은 관용).
 
-    ## 담당자를 해석할 수 없는 티켓은 **통과시킨다**
+    ## 판정은 **프로젝트**가 한다 (0060 에서 바뀐 규칙)
 
-    그런 티켓은 미할당 트리아지(포탈 전용 버킷)에 나온다. 여기서 막으면 **목록에는 보이는데
-    누르면 없다고 하는** 화면이 된다 — 그건 보안이 아니라 고장이다. 목록과 단건이 같은 말을
-    해야 한다.
+    예전에는 담당자로 판정하면서, 담당자를 앱 사용자로 해석하지 못하는 티켓은
+    **그냥 통과시켰다** — "그런 티켓은 미할당 버킷에 있으니 막으면 목록과 단건이 다른 말을
+    한다" 는 이유였다. 그 예외가 이 앱의 가장 큰 우회 경로였다: 운영 실측으로 티켓의
+    21.5% 가 그 상태였고, 그 티켓들은 **로그인한 누구나** id 하나로 본문·댓글·첨부를 열고
+    편집·claim 까지 할 수 있었다.
 
-    캐시에 행이 없어도 통과시킨다. 판정할 근거가 없는 것이지 범위 밖인 것이 아니다
+    이제 소속은 담당자가 아니라 프로젝트이므로 그 예외가 필요 없다. 목록도 단건도 같은
+    조건(`project_link='ok'` + 프로젝트가 범위 안)을 본다.
+
+    캐시에 행이 없으면 통과시킨다. 판정할 근거가 없는 것이지 범위 밖인 것이 아니다
     (동기화 직전에 만든 티켓이 자기 눈에 안 보이면 그것도 고장이다).
     """
     if viewer is None:
         return
-    from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
-    from app.tickets.models import TicketCache, split_names   # 지연 import(순환 참조)
+    from app.tickets.models import PROJECT_LINK_OK, TicketCache   # 지연 import(순환 참조)
 
-    scope = build_scope(db, viewer)
-    # RBAC 재감사(2026-08-16)로 발견: `not scope.is_dept`는 org 범위(admin_scope='org')를
-    # global과 똑같이 취급해 이 함수가 지키는 모든 경로(단건 조회 + 위 호출부 주석이 명시한
-    # 6곳 이상의 쓰기 — 상태변경·댓글·첨부·배정 등)에서 조직 관리자가 다른 조직 티켓에
-    # 그대로 닿았다. 진짜 무제한은 global뿐이다.
-    if scope.is_global:
+    visible = _project_visibility(db, viewer)
+    if visible is None:
         return
     row = db.execute(
-        select(TicketCache).where(TicketCache.notion_page_id == page_id)
-    ).scalar_one_or_none()
+        select(TicketCache.project_uid, TicketCache.project_link)
+        .where(TicketCache.notion_page_id == page_id)
+    ).first()
     if row is None:
         return
-    id_to_user = _verified_id_to_user(db)
-    owners = [id_to_user.get(n) for n in split_names(row.assignee_notion_ids)]
-    owners = [o for o in owners if o]
-    if not owners:
-        return   # 앱이 담당자를 모르는 티켓 = 포탈 전용 버킷 — 막지 않는다
-    if not any_assignee_visible(owners, visible_user_ids(db, scope)):
-        raise NotFoundError("티켓을 찾을 수 없습니다.")
+    project_uid, link = row
+    if link == PROJECT_LINK_OK and project_uid in visible.uids:
+        return
+    raise NotFoundError("티켓을 찾을 수 없습니다.")
 
 
 def ensure_not_trashed(db: Session, page_id: str) -> None:
@@ -290,35 +341,6 @@ def _notion_id_for_user(db: Session, user_id: str) -> str | None:
     return None
 
 
-def _scope_assignee_ids(db: Session, viewer) -> frozenset[str] | None:
-    """범위 판정을 **질의 조건**으로 옮긴 값 — 범위 안 사람들의 소스 user id 집합.
-
-    규칙은 `_drop_out_of_scope` 와 **같은 것 하나**다(`core/scope.py::any_assignee_visible`):
-    담당자 중 한 명이라도 범위 안이면 보인다. 전역·조직 범위면 None(제한 없음)이라
-    오늘까지의 동작과 같다.
-
-    왜 SQL 쪽으로 옮기는가: 범위를 파이썬 뒤처리로만 두면 페이지를 자른 **뒤에** 걸리게 되어
-    남의 팀 티켓이 자리만 차지하고 빠진 페이지가 나간다(20건 요청에 3건 응답). 그렇다고
-    파이썬 그물을 떼지는 않는다 — `_drop_out_of_scope` 는 그대로 남겨 두 그물이 겹치게 한다.
-    여기가 넓게 틀리면 그물이 잡고(닫히는 방향), 그때 total 이 페이지 합보다 커지는 것이
-    **틀렸다는 신호**가 된다.
-    """
-    if viewer is None:
-        return None
-    from app.core.scope import build_scope, visible_user_ids
-
-    scope = build_scope(db, viewer)
-    # RBAC 재감사(2026-08-16): ensure_in_scope와 같은 자리에서 같은 이유로 정정 — org
-    # 범위를 global처럼 무제한 취급하면 목록 SQL 필터가 이 함수가 존재하는 이유(페이지네이션
-    # 뒤가 아니라 SQL 단에서 거르기)를 org 관리자에게만 건너뛰게 된다.
-    if scope.is_global:
-        return None
-    visible = visible_user_ids(db, scope) or frozenset()
-    return frozenset(
-        nid for nid, uid in _verified_id_to_user(db).items() if uid in visible
-    )
-
-
 def build_filters(
     db: Session,
     query=None,
@@ -328,6 +350,7 @@ def build_filters(
     viewer=None,
     assignee_id: str | None = None,
     allow_assignee_filter: bool = True,
+    scope=None,
 ) -> TicketFilters:
     """화면 질의(`schemas.TicketListQuery`) + 앱이 거는 조건 → `TicketFilters` 한 벌.
 
@@ -338,19 +361,23 @@ def build_filters(
     걸면 언제나 빈 목록이 나가는데, 그건 "필터가 안 먹는다" 가 아니라 "티켓이 없다" 로
     보여서 원인을 못 찾는다.
     """
-    # 담당자에 걸리는 조건은 둘 다 여기로 모인다: 범위(집합 중 하나) + 화면이 고른 사람.
-    # 둘은 AND 이고, 한쪽이 '아무도 아님' 이면 결과는 비는 것이 맞다.
-    allowed_assignees = _scope_assignee_ids(db, viewer)
+    # 범위(프로젝트)와 화면이 고른 담당자는 **서로 다른 축**이다. 둘 다 AND 로 걸린다.
+    allowed_projects = _project_visibility(db, viewer, scope)
     picked_assignee = assignee_id
+    close_everything = False
     if (allow_assignee_filter and query is not None
             and query.assignee_user_id and assignee_id is None):
         resolved = _notion_id_for_user(db, query.assignee_user_id)
         if resolved is None:
             # 매핑이 없는 사람으로 거르면 걸릴 티켓이 없다. 조건을 조용히 버리면 **필터 없는
             # 전체 목록**이 나가는데, 그건 사용자가 알아챌 수 없는 방향의 오류다 — 닫는다.
-            allowed_assignees = frozenset()
+            close_everything = True
         else:
             picked_assignee = resolved
+    if close_everything:
+        from app.tickets.repository import ProjectVisibility
+
+        allowed_projects = ProjectVisibility(uids=frozenset(), page_ids=frozenset())
     return TicketFilters(
         status=getattr(query, "status", None),
         priority=getattr(query, "priority", None),
@@ -365,7 +392,7 @@ def build_filters(
         # 휴지통은 목록에서 숨긴다(H2). 파이썬 `_drop_trashed` 도 그대로 남겨 둔다 —
         # 범위와 같은 이유로 두 그물이 겹치는 편이 낫다.
         exclude_page_ids=frozenset(trash_repo.trashed_page_ids(db, TRASH_TICKET)),
-        assignee_any_of=allowed_assignees,
+        project_any_of=allowed_projects,
     )
 
 
@@ -395,47 +422,63 @@ def list_my_tickets(
 
 
 def list_unassigned_page(
-    db: Session, outbound, settings, *, active_only: bool = True, repo=None,
-    filters: TicketFilters | None = None, page: PageSpec | None = None,
+    db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None,
+    filters: TicketFilters | None = None, page: PageSpec | None = None, scope=None,
 ) -> dict:
-    """미할당 트리아지 한 페이지 — {"tickets": [...], "total": n}."""
+    """미할당 트리아지 한 페이지 — {"tickets": [...], "total": n}.
+
+    **범위가 걸린다** (0060). 예전에는 이 함수에 `viewer` 인자 자체가 없어 로그인한 누구나
+    전 포털의 미할당 티켓을 봤다 — 형제 함수 `list_team_page` 는 두 겹으로 범위를 걸고
+    있었는데 여기만 아무 것도 없었다. 미할당 티켓은 **누구나 편집·claim 할 수 있으므로**
+    (`ensure_can_edit`) 그건 읽기 유출을 넘어 쓰기 경계 문제였다.
+
+    범위 판정은 팀 티켓과 **같은 것 하나**(`_project_visibility`)다.
+    """
     result = _repo(settings, outbound, repo).list_unassigned(db, filters=filters, page=page)
     tickets = result.tickets
     if active_only:
         tickets = tuple(t for t in tickets if (t.status or "") not in _TERMINAL)
-    views = _drop_trashed(db, ticket_views(db, tickets, with_names=False))
+    views = _drop_out_of_scope(
+        db, _drop_trashed(db, ticket_views(db, tickets, with_names=False)), viewer, scope
+    )
     return {"tickets": views, "total": _total(result, views)}
 
 
 def list_unassigned_tickets(
-    db: Session, outbound, settings, *, active_only: bool = True, repo=None
+    db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None,
+    scope=None,
 ) -> list[dict]:
-    """담당자가 없는 티켓 **전부**. 기본은 활성(완료·취소 제외)만 — 아직 사람이 필요한 일.
-    담당자가 없으므로 이름 해석은 건너뛰고 프로젝트 이름만 붙는다(기존 동작과 동일).
+    """담당자가 없는 티켓 **전부**(범위 안). 기본은 활성(완료·취소 제외)만.
+    담당자가 없으므로 이름 해석은 건너뛰고 프로젝트 이름만 붙는다.
 
     페이지를 안 받는다 — 스프린트·어시스턴트가 집계에 쓰는 경로라 전량이 맞다.
     화면(라우터)은 `list_unassigned_page` 를 쓴다.
+
+    `viewer` 는 **반드시 넘겨야 한다.** 예전에는 스프린트가 "배분 대상은 좁히지 않는다" 며
+    일부러 안 넘겼는데, 그 결과 스프린트 화면이 전 포털 미할당을 그대로 보여 주는 우회
+    경로가 됐다. 회의에서 배분하려면 그 팀이 **볼 수 있는** 일이어야 한다.
     """
     return list_unassigned_page(
-        db, outbound, settings, active_only=active_only, repo=repo
+        db, outbound, settings, active_only=active_only, repo=repo, viewer=viewer, scope=scope
     )["tickets"]
 
 
 def list_team_page(
     db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None,
-    filters: TicketFilters | None = None, page: PageSpec | None = None,
+    filters: TicketFilters | None = None, page: PageSpec | None = None, scope=None,
 ) -> dict:
     """팀 티켓 한 페이지 — {"tickets": [...], "total": n}. 판정은 `list_team_tickets` 참조."""
     result = _repo(settings, outbound, repo).list_all(db, filters=filters, page=page)
     tickets = result.tickets
     if active_only:
         tickets = tuple(t for t in tickets if (t.status or "") not in _TERMINAL)
-    views = _drop_out_of_scope(db, _drop_trashed(db, ticket_views(db, tickets)), viewer)
+    views = _drop_out_of_scope(db, _drop_trashed(db, ticket_views(db, tickets)), viewer, scope)
     return {"tickets": views, "total": _total(result, views)}
 
 
 def list_team_tickets(
-    db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None
+    db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None,
+    scope=None,
 ) -> list[dict]:
     """**보는 사람의 팀** 티켓 — 조회 전용 팀 보드용. 기본은 활성(완료·취소 제외).
     담당자 이름을 붙여 담당자별로 볼 수 있게 하고, 휴지통에 넣은 티켓은 숨긴다.
@@ -459,27 +502,24 @@ def list_team_tickets(
     화면(라우터)은 `list_team_page` 를 쓴다.
     """
     return list_team_page(
-        db, outbound, settings, active_only=active_only, repo=repo, viewer=viewer
+        db, outbound, settings, active_only=active_only, repo=repo, viewer=viewer, scope=scope
     )["tickets"]
 
 
-def _drop_out_of_scope(db: Session, views: list[dict], viewer) -> list[dict]:
-    """범위 밖 티켓을 뺀다. 담당자 해석은 `ticket_views` 가 이미 붙여 준 값을 쓴다."""
+def _drop_out_of_scope(db: Session, views: list[dict], viewer, scope=None) -> list[dict]:
+    """범위 밖 티켓을 뺀다 — **SQL 그물 뒤의 두 번째 그물**.
+
+    `build_filters` 가 이미 같은 조건을 SQL 로 걸었다(그래야 페이지를 자르기 **전에** 걸린다).
+    그런데도 파이썬 그물을 남겨 두는 이유는 두 그물이 겹치게 하기 위해서다: SQL 쪽이 넓게
+    틀리면 여기서 잡히고(닫히는 방향), 그때 total 이 페이지 합보다 커지는 것이 **틀렸다는
+    신호**가 된다. 판정 입력은 둘 다 `_project_visibility` 하나다.
+    """
     if viewer is None:
         return views
-    from app.core.scope import any_assignee_visible, build_scope, visible_user_ids
-
-    scope = build_scope(db, viewer)
-    # RBAC 재감사(2026-08-16): 위 ensure_in_scope/_scope_assignee_ids와 같은 정정 — 이 함수는
-    # 팀 티켓 목록·스프린트/어시스턴트 집계가 쓴다(위 docstring), org 범위를 무제한 취급하면
-    # 그 경로들이 다른 조직 티켓까지 그대로 낸다.
-    if scope.is_global:
+    visible = _project_visibility(db, viewer, scope)
+    if visible is None:
         return views
-    visible = visible_user_ids(db, scope)
-    return [
-        v for v in views
-        if any_assignee_visible(v.get("assignee_user_ids") or [], visible)
-    ]
+    return [v for v in views if _view_in_scope(v, visible)]
 
 
 def list_period_tickets(
@@ -566,14 +606,64 @@ def ticket_meta(outbound, settings, db: Session | None = None, *, repo=None) -> 
     }
 
 
-def list_projects(outbound, settings, db: Session | None = None, *, repo=None) -> list[dict]:
-    """새 티켓 폼의 프로젝트 드롭다운용 [{id, name}]. db 를 주면 메타 캐시 우선."""
-    r = _repo(settings, outbound, repo, use_cache=(db is not None))
-    return [{"id": p.id, "name": p.name} for p in r.projects(db)]
+def list_projects(db: Session, viewer: User) -> list[dict]:
+    """새 티켓 폼의 프로젝트 드롭다운 — **이 사람이 볼 수 있는 Portal 프로젝트**.
+
+    예전에는 외부 소스(Notion)의 relation 목록을 그대로 내려 줬다. 두 가지가 잘못이었다:
+      * **범위가 없다.** 다른 부서의 프로젝트 이름이 전부 드롭다운에 떴다.
+      * **외부 키를 브라우저에 내보낸다.** 그러면 소스가 바뀌는 날 프런트도 함께 바뀌고,
+        무엇보다 그 id 로는 권한을 검증할 수 없다(Portal 이 소유를 모른다).
+
+    `dept_path` 는 그 프로젝트의 소속 **경로**다 — 화면이 "이 티켓이 어디로 공유되는가" 를
+    사용자에게 보여 줄 수 있어야 한다(§13).
+
+    ⚠️ 경로를 **서버가** 만든다. 예전에는 `dept_id` 만 주고 "화면이 조직 트리에서 만든다"
+    고 적어 뒀는데, 조직 트리 API(`/api/admin/departments`)는 관리자 전용이라 일반
+    사용자의 화면에서는 언제나 빈 값이었다 — 그래서 부서 프로젝트를 골라도 공유 범위가
+    늘 "조직 전체 공통" 이라고 표시됐다. 정확히 반대로 안내한 셈이다.
+    """
+    from app.core.org_tree import DeptTree
+    from app.core.scope import visibility_scope
+    from app.projects.models import Project
+
+    scope = visibility_scope(db, viewer)
+    tree = DeptTree.load(db)
+    stmt = select(Project).where(Project.archived_at.is_(None))
+    clause = ownership.project_scope_clause(scope)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    rows = db.execute(stmt.order_by(Project.name.asc(), Project.id.asc())).scalars().all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "code": p.code,
+            "dept_id": p.dept_id,
+            "dept_path": [
+                {"id": n.id, "name": n.name} for n in tree.path(p.dept_id)
+            ] if p.dept_id else [],
+            "org_id": p.org_id,
+            # 외부 짝이 없으면 티켓을 만들 수 없다 — 화면이 미리 알고 안내해야 한다.
+            "can_create_ticket": bool(p.notion_page_id),
+        }
+        for p in rows
+    ]
 
 
-def list_assignees(db: Session, *, org_id: str | None = None) -> list[dict]:
+def list_assignees(
+    db: Session, *, org_id: str | None = None, project_id: str | None = None,
+) -> list[dict]:
     """담당자로 배정 가능한 사람 목록 — active + verified 매핑 사용자.
+
+    ## `project_id` 를 주면 **그 프로젝트에 닿을 수 있는 사람만** (0060)
+
+    담당자와 프로젝트 ACL 이 어긋나면 안 된다: A-2 사람을 A-1 프로젝트 티켓의 담당자로
+    배정하면 그 사람은 **자기가 담당한 티켓을 못 여는** 상태가 된다(목록에도 안 뜬다).
+    화면에서 고를 수 없게 막는 편이 그 상태를 만들고 나서 설명하는 것보다 낫다.
+
+    판정은 화면 판정과 **같은 표**(`ownership.scope_can_view`)를 쓴다. 사람마다 질의를
+    돌리지 않는다 — 범위 계산은 부서 트리 하나로 끝나므로 트리를 한 번 읽어 전원을
+    메모리에서 판정한다.
 
     raw notion_user_id 는 응답에 넣지 않는다(브라우저 미노출, 스펙 §12.3). 편집 API 가 user_id 를
     받아 서버에서 소스 id 로 해석한다.
@@ -601,8 +691,31 @@ def list_assignees(db: Session, *, org_id: str | None = None) -> list[dict]:
     if org_id:
         stmt = stmt.where(User.org_id == org_id)
     users = db.execute(stmt.order_by(User.display_name)).scalars().all()
+    if project_id:
+        users = _users_who_can_reach_project(db, users, project_id)
+    from app.core.org_tree import DeptTree
+
     org_names = people.org_name_map(db)
-    return [people.identity(u, org_names) for u in users]
+    # 조직 경로까지 싣는다 — 담당자 선택기에서 동명이인을 이름만으로 고르면 안 된다.
+    tree = DeptTree.load(db)
+    return [people.identity(u, org_names, None, tree) for u in users]
+
+
+def _users_who_can_reach_project(db: Session, users: list[User], project_id: str) -> list[User]:
+    """이 프로젝트를 **볼 수 있는** 사람만 남긴다. 프로젝트가 없으면 빈 목록(fail-closed)."""
+    from app.core.org_tree import DeptTree
+    from app.core.scope import visibility_scope
+    from app.projects.models import Project
+
+    project = db.get(Project, project_id)
+    if project is None:
+        return []
+    owner = ownership.for_project(project)
+    tree = DeptTree.load(db)
+    return [
+        u for u in users
+        if ownership.scope_can_view(visibility_scope(db, u, tree), owner)
+    ]
 
 
 # ── 강제 재동기화 (C7) ────────────────────────────────────────────────────────
@@ -675,6 +788,18 @@ def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | Non
     """소유권 검증(스펙 §25.5·IDOR). 운영/관리자군은 우회, 그 외는 본인 담당 또는 미할당만.
 
     소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
+
+    ## 이 함수는 범위를 보지 않는다 — 그건 앞 문이 이미 했다
+
+    호출부는 전부 `ensure_in_scope` 를 먼저 지난다(쓰기 경로 여덟 곳). 즉 여기 도달했다는
+    것은 **그 티켓의 프로젝트가 이 사람 범위 안**이라는 뜻이고, 여기서는 그 안에서 누가
+    손댈 수 있는가만 정한다. 두 축(범위·소유권)을 한 함수에 섞으면 한쪽을 고칠 때 다른
+    쪽이 조용히 넓어진다.
+
+    아래 "미할당은 누구나" 예외가 예전에는 위험했다 — 범위 판정이 담당자 축이었고, 담당자를
+    해석 못 하는 티켓(운영 실측 21.5%)을 `ensure_in_scope` 가 **통과시켰기** 때문에 사실상
+    전 포털 대상 무제한 편집이었다. 0060 에서 범위가 프로젝트 축으로 바뀌면서 그 통과 예외가
+    사라졌고, 이제 이 예외는 "내가 볼 수 있는 프로젝트의, 주인 없는 일" 로 정확히 좁혀진다.
     """
     # 운영/관리자군(MODERATOR_ROLES)은 소유권을 우회해 아무 티켓이나 편집할 수 있다.
     # 그 외(user/auditor)는 본인 담당이거나 미할당인 티켓만 편집할 수 있다(IDOR 차단).
@@ -682,7 +807,7 @@ def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | Non
         return
     assignees = ticket.assignee_ids
     if not assignees:
-        return  # 미할당 — 담당자가 필요한 일이므로 누구나 손댈 수 있다(배정 포함)
+        return  # 미할당 — 담당자가 필요한 일이므로 (범위 안이면) 누구나 손댈 수 있다
     if my_notion_id_value and my_notion_id_value in assignees:
         return  # 본인 담당
     raise ForbiddenError("이 티켓을 편집할 권한이 없습니다(담당자 또는 미할당 티켓만 편집할 수 있습니다).")
@@ -814,8 +939,17 @@ def update_ticket(
     # API 이름 → 저장소 도메인 키. 두 이름이 다른 것은 API 쪽이 '무엇을 보내는지'(project_id,
     # start_date)를, 저장소 쪽이 '어느 속성인지'(project, start)를 말하기 때문이다.
     if "project_id" in repo_changes:
+        # 프로젝트는 **뗄 수 없다** (0060). 예전에는 빈 값이 '연결 해제' 였는데, 티켓의 조직
+        # 소속을 프로젝트가 정하는 이상 그건 그 티켓을 어느 범위에도 안 잡히는 유령으로
+        # 만드는 동작이다. 옮기는 것은 되고(아래 검증을 지난 프로젝트로), 없애는 것은 안 된다.
         pid = (repo_changes.pop("project_id") or "").strip()
-        repo_changes["project"] = [pid] if pid else []   # 빈 값 = 프로젝트 연결 해제
+        if not pid:
+            raise ValidationAppError(
+                "티켓에서 프로젝트를 뗄 수 없습니다. 다른 프로젝트로 옮길 수는 있습니다."
+            )
+        # 옮기는 대상도 **내가 쓸 수 있는 프로젝트**여야 한다 — 아니면 내 티켓을 남의 부서로
+        # 밀어 넣고 그 순간 되돌릴 수도 없게 된다(읽기 유출보다 나쁘다).
+        repo_changes["project"] = [_resolve_writable_project(db, user, pid)]
     if "start_date" in repo_changes:
         repo_changes["start"] = repo_changes.pop("start_date")
 
@@ -987,15 +1121,51 @@ def claim_ticket(
         )
 
 
+def _resolve_writable_project(db: Session, user: User, project_id: str) -> str:
+    """Portal 프로젝트 id → 외부 소스 relation id. 범위 밖이거나 없으면 404.
+
+    **없는 프로젝트와 범위 밖 프로젝트를 같은 404 로** 답한다. 갈리면 응답만 보고 "그
+    프로젝트는 존재한다" 를 알 수 있고, id 를 찍어 보며 조직의 프로젝트 목록을 열거할 수
+    있다(`app/core/scope.py` 모듈 docstring 의 규칙).
+    """
+    from app.core.scope import visibility_scope
+    from app.projects.models import Project
+
+    scope = visibility_scope(db, user)
+    stmt = select(Project).where(Project.id == project_id)
+    clause = ownership.project_scope_clause(scope)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    project = db.execute(stmt).scalar_one_or_none()
+    if project is None:
+        raise NotFoundError("프로젝트를 찾을 수 없습니다.")
+    if project.archived_at is not None:
+        raise ValidationAppError("보관된 프로젝트에는 새 티켓을 만들 수 없습니다.")
+    if not project.notion_page_id:
+        # 포털 전용 프로젝트다. 티켓 본체는 아직 외부 소스에 사는데 그 프로젝트에는 짝이
+        # 없으므로 relation 을 걸 수 없다 — 조용히 프로젝트 없이 만들면 그 티켓이 유령이 된다.
+        raise ValidationAppError(
+            "이 프로젝트는 아직 외부 작업 DB와 연결되지 않아 티켓을 만들 수 없습니다."
+        )
+    return project.notion_page_id
+
+
 def create_ticket(
     db: Session, outbound, settings, user: User, *, payload,
     now: datetime | None = None, repo=None,
 ) -> dict:
-    """새 티켓을 만든다(제목 필수). 담당자는 user_id→소스 id 로 해석하고, 나머지 검증(상태·
-    우선순위·난이도 옵션, 프로젝트 필수)은 저장소 구현체가 실제 스키마로 한다.
+    """새 티켓을 만든다. **프로젝트가 필수**이고, 그 프로젝트가 이 사람 범위 안이어야 한다.
+
+    담당자는 user_id→소스 id 로 해석하고, 나머지 검증(상태·우선순위·난이도 옵션)은 저장소
+    구현체가 실제 스키마로 한다.
+
+    `payload.project_id` 는 **Portal 프로젝트 id** 다. 여기서 두 가지를 한다:
+      1. 그 프로젝트를 이 사람이 쓸 수 있는가 — 없거나 범위 밖이면 404(존재를 알리지 않는다)
+      2. 외부 소스에 쓸 relation id 로 번역 — 브라우저는 외부 키를 모른 채로 끝난다
 
     생성 직후 저장소가 캐시에 그 티켓을 써 넣으므로 다음 목록 조회에서 바로 보인다.
     """
+    external_project_id = _resolve_writable_project(db, user, payload.project_id)
     draft = TicketDraft(
         title=payload.title,
         status=payload.status,
@@ -1003,7 +1173,7 @@ def create_ticket(
         difficulty=payload.difficulty,
         est_wd=payload.est_wd,
         due_date=payload.due_date,
-        project_id=payload.project_id,
+        project_id=external_project_id,
         description_markdown=payload.description,
         assignee_ids=tuple(_resolve_assignee_ids(db, payload.assignee_user_ids or [])),
     )

@@ -22,6 +22,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "진행",
       "tid": 101,
@@ -52,6 +53,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 102,
@@ -74,8 +76,11 @@
       "id": "page-0007",
       "priority": null,
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "이슈",
       "tid": 107,
@@ -110,6 +115,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "진행",
       "tid": 101,
@@ -140,6 +146,7 @@
       "project_names": [
         "알파 프로젝트"
       ],
+      "project_uid": null,
       "start": null,
       "status": "완료",
       "tid": 102,
@@ -162,8 +169,11 @@
       "id": "page-0007",
       "priority": null,
       "project": "",
-      "project_ids": [],
+      "project_ids": [
+        "proj-1"
+      ],
       "project_names": [],
+      "project_uid": null,
       "start": null,
       "status": "이슈",
       "tid": 107,

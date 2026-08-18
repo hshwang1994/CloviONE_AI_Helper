@@ -156,7 +156,7 @@ def _successor_candidates(db: Session, actor: User, *, exclude_user_id: str) -> 
     범위를 안 걸면 부서 관리자가 남의 부서 사람에게 티켓을 떠넘길 수 있다 — 그 사람은 자기
     화면에서 그 티켓이 어디서 왔는지 알 방법이 없다.
     """
-    from app.core.scope import build_scope
+    from app.core.scope import management_scope
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 
     stmt = (
@@ -170,7 +170,7 @@ def _successor_candidates(db: Session, actor: User, *, exclude_user_id: str) -> 
             UserNotionMapping.notion_user_id.is_not(None),
         )
     )
-    stmt = apply_user_scope(stmt, build_scope(db, actor))
+    stmt = apply_user_scope(stmt, management_scope(db, actor))
     rows = db.execute(stmt.order_by(User.display_name)).scalars().all()
     return [
         {"user_id": u.id, "display_name": u.display_name, "email": u.email,

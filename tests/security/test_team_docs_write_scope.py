@@ -56,11 +56,16 @@ def world(db, make_user):
         user_id=author.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(
         user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
+    # 소속(0060)은 문서 자신이 든다. 마지막 문서는 작성자를 앱 계정으로 해석할 수 없는
+    # 경우인데, 소속이 우리 팀이므로 우리 팀은 그대로 휴지통에 넣고 즐겨찾기할 수 있다.
     db.add_all([
-        DocumentCache(notion_page_id="dm", title="우리팀 문서", author_notion_ids=NID_MINE),
+        DocumentCache(notion_page_id="dm", title="우리팀 문서", author_notion_ids=NID_MINE,
+                      owner_kind="department", owner_dept_id=mine.id),
         DocumentCache(notion_page_id="dt", title="남의팀 3분기 실적 보고서",
-                      author_notion_ids=NID_THEIRS),
-        DocumentCache(notion_page_id="dn", title="작성자 미해석 문서", author_notion_ids=""),
+                      author_notion_ids=NID_THEIRS,
+                      owner_kind="department", owner_dept_id=theirs.id),
+        DocumentCache(notion_page_id="dn", title="작성자 미해석 문서", author_notion_ids="",
+                      owner_kind="department", owner_dept_id=mine.id),
     ])
     db.commit()
 

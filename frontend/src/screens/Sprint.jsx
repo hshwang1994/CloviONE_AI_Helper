@@ -1,5 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -65,7 +67,7 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
  *
  * 페이지는 없다 — /api/sprint/summary 는 그 주치를 전량 준다. 그래서 조건도 화면이 직접
  * 거른다(`matchesTicketFilters`). 서버가 자르는 목록에서 같은 짓을 하면 안 된다. */
-const SPRINT_SPEC = ticketFilterSpec(SPRINT_FIELDS, { week: "" });
+const SPRINT_SPEC = ticketFilterSpec(SPRINT_FIELDS, { week: "", dept: "" });
 
 /** 주소의 `week`(없으면 오늘) → 그 주 월요일. 이상한 값이면 이번 주로 떨어진다. */
 function weekMonday(week) {
@@ -258,11 +260,18 @@ export function Sprint() {
   const goWeek = (m) => setFilters({ week: isoDate(m) }, { push: true });
   const offset = Math.round((monday - mondayOf(new Date())) / WEEK_MS);
 
+  // 부서는 **화면 Context** 다(0060 §18) — 스프린트는 목록이 아니라 회의라 "지금 어느 팀
+  // 이야기인가" 가 분명해야 하고, 여러 팀 데이터가 암묵적으로 섞이면 회의가 정확해지지 않는다.
+  // 주소에 남기므로 새로고침·뒤로가기에서도 선택이 유지된다.
+  const dept = filters.dept || "";
   const q = useQuery({
-    queryKey: ["sprint", start, end],
-    queryFn: () => api(`/api/sprint/summary?start=${start}&end=${end}`),
+    queryKey: ["sprint", start, end, dept],
+    queryFn: () =>
+      api(`/api/sprint/summary?start=${start}&end=${end}`
+        + (dept ? `&department_id=${encodeURIComponent(dept)}` : "")),
     retry: false,
   });
+  const deptCtx = (q.data && q.data.department) || { selected: null, options: [] };
 
   const weekLabel = offset === 0 ? "이번 주" : offset === -1 ? "지난 주" : offset === 1 ? "다음 주" : `${start} ~ ${sunday}`;
   const nudge = (
@@ -282,6 +291,29 @@ export function Sprint() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: "70ch" }} aria-live="polite">
         {weekLabel} ({start} ~ {sunday}) 기준입니다. 담당자별로 무엇을 끝냈고 무엇을 하고 있는지 함께 보고, 다음 계획을 논의하세요. 회의 중 바로 수정할 수 있습니다.
       </Typography>
+      {/* 조회 부서 — **필터가 아니라 화면 Context** 다(0060 §18). 필터처럼 목록 위에 작게
+          두지 않고 화면 머리에 크게 둔다: 회의 참석자 전원이 "지금 어느 팀 이야기인가" 를
+          같은 자리에서 봐야 한다. 고를 수 있는 부서는 서버가 조회 범위에서 계산해 준다
+          (프런트가 스스로 계산하면 서버 검증과 갈라진다). */}
+      {deptCtx.options.length > 1 ? (
+        <Box sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>
+            조회 부서
+          </Typography>
+          <TextField
+            select size="small" sx={{ minWidth: "20rem" }}
+            value={deptCtx.selected || ""}
+            onChange={(e) => setFilters({ dept: e.target.value }, { push: true })}
+            aria-label="스프린트를 볼 부서"
+          >
+            {deptCtx.options.map((o) => (
+              <MenuItem key={o.id} value={o.id}>
+                {o.path.map((n) => n.name).join(" › ")}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      ) : null}
       {/* 이 화면의 '주'가 무엇인지 못박는다. 아무 말이 없으면 회의에서 두 사람이 서로 다른
           것을 같은 이름으로 부른다 — 한 사람은 이 날짜 범위를, 다른 사람은 Notion 스프린트를
           떠올린다. 연동에 공유되지 않은 데이터베이스를 있는 것처럼 말하지도 않는다. */}
