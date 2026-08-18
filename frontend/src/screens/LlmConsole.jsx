@@ -36,6 +36,12 @@ const ENABLED_CHOICES = [
   { value: "off", label: "비활성화" },
 ];
 
+/** 값 → 사람이 읽는 이름. 고르는 자리와 보는 자리가 같은 표를 쓴다. */
+export const BACKEND_LABELS = {
+  cli: "서버에 로그인된 구독 명령줄 도구",
+  api: "Anthropic API",
+};
+
 const BACKEND_CHOICES = [
   { value: "", label: "서버 환경변수를 따름" },
   { value: "cli", label: "서버에 로그인된 구독 명령줄 도구" },
@@ -231,7 +237,9 @@ export function LlmConsole({ embedded = false } = {}) {
             보는 사람에게는 그것이 첫 단서다. 기술 정보로 내린다. */}
         <Box data-testid="llm-effective" sx={{ mt: 1, display: "grid", gap: 0.25 }}>
           {[
-            ["백엔드", config.backend, "llm_backend"],
+            // `cli`·`api` 는 설정 파일의 어휘다. 고르는 자리(아래 select)가 이름으로
+            // 말하는데 보는 자리만 원문이면 한 값이 두 이름을 갖는다(지시 36).
+            ["백엔드", BACKEND_LABELS[config.backend] || config.backend, "llm_backend"],
             ["모델", config.model, "llm_model"],
             ["제한 시간", config.timeout_seconds + "초", "llm_timeout_seconds"],
             ["동시 실행 수", config.max_concurrency, "llm_max_concurrency"],
@@ -257,7 +265,7 @@ export function LlmConsole({ embedded = false } = {}) {
             필터 select와 같은 이유·같은 고침(SelectProps displayEmpty:true). 안 그러면
             "서버 값을 따름"(정상 상태)과 "아직 안 불러옴"·"불러오기 실패"가 전부 똑같이
             빈 상자로 보인다. */}
-        <Field label="사용 여부" help="비워 두면 서버 환경변수(LLM_ENABLED)를 따릅니다.">
+        <Field label="사용 여부" help="비워 두면 서버에 설정된 기본값을 따릅니다.">
           <TextField
             select size="small" fullWidth sx={{ mt: 0.5 }}
             SelectProps={{ displayEmpty: true }}

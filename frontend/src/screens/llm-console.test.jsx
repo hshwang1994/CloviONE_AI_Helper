@@ -188,7 +188,8 @@ describe("화면", () => {
 
     expect(screen.getByText(/모델: sonnet \(서버 환경변수 또는 기본값\)/)).toBeInTheDocument();
     // 화면에서 저장한 값에는 안 붙는다(전부에 붙으면 아무 뜻이 없다).
-    expect(screen.getByText("백엔드: cli")).toBeInTheDocument();
+    // `cli` 는 설정 값이고 화면은 이름으로 말한다(지시 36) — 여기서 재려는 것은 출처 꼬리표다.
+    expect(screen.getByText(/백엔드: 서버에 로그인된 구독 명령줄 도구/)).toBeInTheDocument();
   });
 
   it("SYS-07: '사용 여부'·'백엔드' 상자는 안 고른 상태에서도 빈 상자가 아니라 라벨을 보여준다", async () => {
