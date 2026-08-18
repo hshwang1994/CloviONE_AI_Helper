@@ -53,9 +53,9 @@ Supervisor/세션 격리 점검도 불필요하다.
 
 ---
 
-## 2026-08-18 — 전면 UI/UX 리뉴얼 (지시 1~70) 착수: P0~P1 완료, 커밋 `c8375ef5`
+## 2026-08-18 — 전면 UI/UX 리뉴얼 (지시 1~70): P0~P1 완료, P2 진행 중
 
-**지금 위치: P2(공용 Component 계층 재설계) 시작 직전.**
+**지금 위치: P2(공용 Component 계층) 진행 중. 마지막 커밋 `f405ceef` 이후 설정 화면 어포던스까지.**
 
 계획서는 `~/.claude/plans/misty-honking-wirth.md`(1006줄, P0~P12). 요구사항 추적은
 `docs/UI_RENEWAL_TRACEABILITY.md`(지시 1~70 전부, 생성 시 빈 필드 0건 assert).
@@ -77,11 +77,29 @@ Route/Archetype/영향 반경은 `docs/UI_INVENTORY.md`.
   상단바 그라디언트/네이비 사이드바 제거 · 선택 표현을 2px 레일로 통일 ·
   상단 알림 띠 제거 + 종 단일 진입점(지시 1·67) · **목업 baseline 폐기(D-142)**.
 
-### 다음 (P2) — 공용 Component 계층
-영향 반경이 큰 순서: `Button`(61파일) · `Card`(55) · `ErrorState`(54) · `EmptyState`(41) ·
-`Badge`(41) · `PageHeader`(39) · `Callout`(35) · `DataTable`(17) · `Modal`(15) · `StatCard`(13).
+### P2에서 여기까지 했다 (커밋 순서대로)
+
+| 커밋 | 무엇 | 근거 |
+|---|---|---|
+| `774fdbe5` | **지표 판독 줄(`MetricStrip`)** — `StatCard` 폐기, 화면 13개 전수 이관 | D-143 |
+| (같은 묶음) | `.k-stat` CSS · `STAT_GRID` 3벌 · `SUMMARY_CARD_GRID` · `KpiLabel` · 죽은 밀도 토큰 2개 제거 | D-143 |
+| `c39ed30e` | **상세 배치**(상단 전폭 `MetaBar` + 본문/부속 2:1, 티켓·문서) · **`OverflowMenu`** · 자물쇠 이모지 4곳 | D-144 |
+| `4cb0abb9` | **도구 줄 위계**(`ToolbarRow`/`ToolbarEnd`) · **`MirrorNotice`**(정상이면 안 그린다) · 별 글리프 3곳 | D-145 |
+| `aa326111` | **표의 날짜 셀**(`DateCell`, 9열) · 버튼 `+` 접두어 15개 제거 | D-146 |
+| `f405ceef` | **세션 만료 → 로그인 이동**(`sessionRedirect`) · **권한표 단일화**(`canReach`) · 사용자 상세 푸터 | D-147 |
+| (미커밋 → 이 커밋) | **설정 표 변경 어포던스**(행마다 '수정') · 적용 상태에 '재시작 필요' · 설정 설명의 내부 어휘 제거 | 지시 32·45·36 |
+
+### 다음 (P2 잔여 → P3)
+- **P2 잔여**: Loading 4종(지시 20) · Form/Input 통일(17) · DataTable 정렬·페이지네이션(10) ·
+  Inline Edit + Row Action(8) · Combobox(5).
+- **P3**: 관리자 IA 재설계(36 Route, 지시 30·51) · Global Search Overlay(14) ·
+  Sidebar 시각/IA(48) · 사용자 Navigation 감사(58) · 현재 위치 인지(46).
+- **P4**: 동기화 주기 정책화(1·29) — `restart_required=true` 를 실제로 쓰는 첫 키가 된다.
+  설정 표의 '재시작 필요' 태그가 그 자리를 이미 준비해 뒀다.
+- **P8-10**: SMTP 설정이 아직 raw JSON 편집이다(`settingsRegistry.js`) — 지시 36·40 대상.
+
 지시 66 유의: 공통 컴포넌트를 Archetype 에 맞게 쓰되 집중형 화면(로그인·Chat·Game)에
-강제하지 않는다.
+강제하지 않는다. 실제로 게시글 상세에는 2:1 을 적용하지 않았다(근거 D-144).
 
 ### 알아 둘 것
 - 로컬 앱은 `DATABASE_URL=sqlite:///./var/e2e.sqlite3` 로 8080 에 띄운다. `var/web.sqlite3`
@@ -90,6 +108,8 @@ Route/Archetype/영향 반경은 `docs/UI_INVENTORY.md`.
 - `static_checks.sh` 의 남은 실패 1건은 `.git stash@{0}` 자격증명 — **사람만 결정한다**
   (PA-RC-0003). 손대지 않는다.
 - 번들 예산 초과(gzip 285/280KB)는 리뉴얼 이전부터다(`docs/BACKLOG.md` PERF-01).
+- 백엔드 문구를 고치면 **로컬 앱 프로세스를 다시 띄워야** QA 캡처에 반영된다(`registry.py`
+  설명 수정본이 `after-p2l` 캡처에는 아직 옛 문구로 찍혀 있다 — 코드는 바뀌었고 pytest 통과).
 
 ---
 

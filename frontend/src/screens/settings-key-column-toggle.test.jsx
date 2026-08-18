@@ -62,11 +62,11 @@ describe("설정 표 — 백엔드 키 열 토글 + 상태 배지 (PA-RC-0022)",
     expect(screen.queryByText("conversation_retention_days")).not.toBeInTheDocument();
   });
 
-  it("'백엔드 키 표시'를 켜면 키 열과 실제 원시 키가 보인다", async () => {
+  it("'기술 정보(설정 키) 보기'를 켜면 키 열과 실제 원시 키가 보인다", async () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByText("대화 보존 기간");
-    await user.click(screen.getByRole("checkbox", { name: "백엔드 키 표시" }));
+    await user.click(screen.getByRole("checkbox", { name: "기술 정보(설정 키) 보기" }));
     expect(screen.getByRole("columnheader", { name: "키" })).toBeInTheDocument();
     expect(screen.getByText("conversation_retention_days")).toBeInTheDocument();
   });

@@ -296,7 +296,10 @@ REGISTRY: dict[str, SettingSpec] = {
         SettingSpec("backup_schedule", "object",
                     {"enabled": False, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14},
                     False,
-                    "자동 백업 일정: 워커가 이 cron 에 맞춰 DB 스냅숏을 만들고 keep개만 남깁니다",
+                    # 지시 36: 설명은 화면에 그대로 나간다 — 내부 어휘(cron·keep·워커)로
+                    # 쓰면 관리자가 무엇을 정하는 값인지 알 수 없다. 무엇이 언제 일어나고
+                    # 무엇이 남는지로 쓴다.
+                    "정해진 시각마다 데이터베이스를 자동으로 백업하고, 정한 개수만큼만 남깁니다",
                     _backup_schedule),
         # 메일 발송(9-9 P4). 소비자가 넷 붙어 있다: 비밀번호 재설정, 초대, 백업 실패,
         # 승인 요청. '되는 척하는 스위치'가 아니라는 뜻이다. 기본은 꺼짐이고, 꺼져 있으면
@@ -307,8 +310,10 @@ REGISTRY: dict[str, SettingSpec] = {
                      "from_address": "", "from_name": "", "username": "",
                      "password_ref": "", "timeout_seconds": 20},
                     False,
-                    "메일(SMTP) 발송 서버. 비밀번호는 저장하지 않고 서버 secret 파일 이름"
-                    "(password_ref)만 적습니다",
+                    # 지시 36: 비밀번호를 저장하지 않는다는 사실은 관리자가 알아야 하지만,
+                    # 그 저장 방식의 내부 필드 이름까지 알 필요는 없다.
+                    "메일 발송에 쓸 서버 정보. 비밀번호 자체는 저장하지 않고 서버에 따로 둔 "
+                    "값을 가리키기만 합니다",
                     _smtp),
         # ── Notion 데이터베이스 id (9-4) ─────────────────────────────────────
         #

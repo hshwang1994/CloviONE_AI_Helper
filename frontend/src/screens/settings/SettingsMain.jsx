@@ -6,7 +6,8 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
-import { PageHeader, Card, Badge, Button, DataTable, Skeleton, EmptyState, ErrorState, useToast } from "../../ui/kit.jsx";
+import { PageHeader, Card, Badge, Button, DataTable, Skeleton, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
+import { ToolbarEnd, ToolbarRow } from "../../ui/FilterBar.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
   summarizeSetting, displayValue,
@@ -87,10 +88,20 @@ export function Settings({ embedded = false } = {}) {
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
     { key: "value", label: "현재 값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
-    // PA-RC-0022 target_design: "「기본값」 배지 10개는 없애고 「수정됨」만 표시한다" — 기본값
-    // 상태는 이제 배지가 아예 없는 것으로 표현한다(변경 안 됐다는 사실 자체는 정보 가치가
-    // 낮다 - 눈에 띄어야 하는 건 "누가 뭔가 바꿨다"는 사실 하나뿐이다).
-    { key: "is_default", label: "상태", render: (r) => (r.is_default ? null : <Badge value="수정됨" kind="info" />) },
+    /* 적용 상태 (지시 45). 두 가지를 말한다.
+     *
+     *  - **수정됨** — 기본값에서 벗어났다. 기본값 그대로면 배지가 아예 없다(PA-RC-0022:
+     *    "변경 안 됐다"는 사실 자체는 정보 가치가 낮다 — 눈에 띄어야 하는 것은 누가 뭔가
+     *    바꿨다는 사실 하나다).
+     *  - **재시작 필요** — 저장해도 워커가 다시 뜨기 전에는 그 값으로 동작하지 않는다.
+     *    예전에는 이 사실이 저장 후 토스트에만 잠깐 떴다가 사라졌다 — 표를 다시 열면
+     *    "저장됐는데 왜 안 바뀌지"를 알 방법이 없었다. */
+    { key: "is_default", label: "적용 상태", nowrap: true, render: (r) => (
+      <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
+        {r.is_default ? null : <Badge value="수정됨" kind="info" />}
+        {r.restart_required ? <Tag label="재시작 필요" tone="warn" /> : null}
+      </Box>
+    ) },
     // VIS-55: 백엔드 description이 라벨과 같은 말로 시작하는 항목이 여럿이다(예: "대화 보존
     // 기간(일)" 라벨 + "대화 보존 기간(일). 초과 시…" 설명) — 바로 왼쪽 열과 같은 문장을
     // 반복해 가로 공간만 먹었다. 그 앞부분이 라벨 그대로면 벗겨내고 나머지만 보여준다(라벨
@@ -105,6 +116,15 @@ export function Settings({ embedded = false } = {}) {
       }
       return desc;
     } },
+    /* 변경 어포던스 (지시 32). 행 전체가 예전에도 눌렸지만 **눌러도 되는지 화면이 말하지
+     * 않았다** — 읽기 전용 표처럼 보였고, 사용자 지적이 정확히 그것이었다. 각 행이 자기
+     * 변경 방법을 들고 있게 한다. 권한이 없으면 죽은 버튼을 남기지 않고 왜 못 바꾸는지 쓴다
+     * (프런트 표시일 뿐 판단은 서버가 한다 — 불변규칙 §5). */
+    { key: "_edit", label: "", align: "right", nowrap: true, render: (r) => (
+      canWrite
+        ? <Button size="sm" onClick={(e) => { e.stopPropagation(); setSel(r); }}>수정</Button>
+        : <Typography component="span" variant="caption" color="text.secondary">읽기 전용</Typography>
+    ) },
   ];
 
   return (
@@ -118,12 +138,16 @@ export function Settings({ embedded = false } = {}) {
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
         : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <>
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-              <FormControlLabel
-                control={<Checkbox size="small" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} />}
-                label="백엔드 키 표시"
-              />
-            </Box>
+            {/* 기술 정보 토글 (지시 36). 원시 설정 키는 운영·장애 분석에 필요한 값이지만
+                일반 사용자 언어가 아니다 — 기본은 숨기고 필요할 때 꺼내 본다. */}
+            <ToolbarRow sx={{ mb: 1 }}>
+              <ToolbarEnd>
+                <FormControlLabel
+                  control={<Checkbox size="small" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} />}
+                  label={<Typography variant="body2" color="text.secondary">기술 정보(설정 키) 보기</Typography>}
+                />
+              </ToolbarEnd>
+            </ToolbarRow>
             <Card sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></Card>
           </>}
       <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
