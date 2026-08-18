@@ -21,7 +21,6 @@ import {
   ModalFooter,
   OverflowMenu,
   PageHeader,
-  Skeleton,
   Tag,
   useConfirm,
   useToast,
@@ -489,7 +488,7 @@ export function TeamDocs() {
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
       ) : list.isPending ? (
-        <Card><Skeleton lines={6} /></Card>
+        <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
       ) : items.length === 0 ? (
         // 세 갈래를 구분한다: 아직 한 번도 동기화 안 됨 / 필터가 걸려 결과 없음 / 진짜로 비어 있음.
         // 예전엔 앞의 둘만 나뉘어 있어, 필터를 걸어 0건이 된 사용자에게도 '동기화하세요'만 떴다.

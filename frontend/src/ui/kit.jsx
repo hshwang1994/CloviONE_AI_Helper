@@ -609,13 +609,80 @@ export function MetaBar({ items, ariaLabel, sx }) {
   );
 }
 
-export function Skeleton({ lines = 3 }) {
-  // 스켈레톤은 장식(aria-hidden)이라 스크린리더엔 침묵이다 — 별도 live 노드로 로딩을 낭독한다.
+/* 로딩 자리표시자 — **들어올 것의 모양**을 한다 (지시 20).
+ *
+ * 예전에는 어느 화면에서나 회색 줄 N개였다. 표가 들어올 자리에도, 지표 줄이 들어올 자리에도
+ * 같은 줄무늬가 그려지니 화면이 무엇을 준비 중인지 알 수 없었고, 실제 내용이 도착하는 순간
+ * 배치가 통째로 튀었다(자리표시자가 자리를 안 잡아 준다는 뜻이다).
+ *
+ * 모양은 셋이다. 넷째(버튼)는 `Button` 의 `loading` 이 이미 맡는다 - 버튼 자리에 회색 알약을
+ * 그리면 그 버튼이 사라진 것처럼 보인다.
+ *
+ *   `section` (기본) 구역 안 본문. 예전 동작 그대로 - `lines` 로 줄 수를 준다.
+ *   `page`          화면 전체. 제목 줄 + 판독값 줄 + 본문 판. 셸이 이미 그린 자리를 흉내 낸다.
+ *   `table`         표. 머리행 + 행들. `cols` 만큼 칸을 나눠 열 리듬까지 맞춘다.
+ *
+ * 스켈레톤 자체는 장식(aria-hidden)이라 스크린리더엔 침묵이다 - 별도 live 노드로 낭독한다.
+ */
+export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4 }) {
+  const live = <span className="sr-only" aria-live="polite">불러오는 중…</span>;
+
+  if (kind === "table") {
+    const count = Math.max(1, cols);
+    return (
+      <>
+        {live}
+        <Box aria-hidden="true" className="k-skeleton-table" sx={{ px: 2, py: 1.5 }}>
+          {Array.from({ length: Math.max(1, rows) + 1 }).map((_, r) => (
+            <Box
+              key={r}
+              sx={{
+                display: "grid", gap: 2, alignItems: "center",
+                gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`,
+                py: 1.25,
+                borderBottom: r === 0 ? 1 : 0, borderColor: "divider",
+              }}
+            >
+              {Array.from({ length: count }).map((__, c) => (
+                <MuiSkeleton
+                  key={c} variant="rounded" height={r === 0 ? 12 : 16}
+                  /* 열마다 폭을 조금씩 달리한다 - 모든 칸이 같은 길이면 표가 아니라 격자로
+                     보인다. 실제 표의 값 길이가 열마다 다르다는 사실을 흉내 낸다. */
+                  width={r === 0 ? "55%" : ["85%", "70%", "60%", "45%"][c % 4]}
+                />
+              ))}
+            </Box>
+          ))}
+        </Box>
+      </>
+    );
+  }
+
+  if (kind === "page") {
+    return (
+      <>
+        {live}
+        <Box aria-hidden="true" className="k-skeleton-page" sx={{ display: "grid", gap: 2.5, py: 1 }}>
+          <Box sx={{ display: "grid", gap: 1 }}>
+            <MuiSkeleton variant="rounded" height={12} width="8rem" />
+            <MuiSkeleton variant="rounded" height={26} width="min(22rem, 60%)" />
+          </Box>
+          <MuiSkeleton variant="rounded" height={76} />
+          <Box sx={{ display: "grid", gap: 1.5 }}>
+            {Array.from({ length: Math.max(1, lines) }).map((_, i) => (
+              <MuiSkeleton key={i} variant="rounded" height={18} />
+            ))}
+          </Box>
+        </Box>
+      </>
+    );
+  }
+
   return (
     <>
-      <span className="sr-only" aria-live="polite">불러오는 중…</span>
+      {live}
       <Box aria-hidden="true" sx={{ display: "grid", gap: 1.5, py: 1 }}>
-        {Array.from({ length: lines }).map((_, i) => (
+        {Array.from({ length: Math.max(1, lines) }).map((_, i) => (
           <MuiSkeleton key={i} variant="rounded" height={18} />
         ))}
       </Box>
@@ -861,7 +928,7 @@ function cellValue(c, row, ctx) {
   return v == null || v === "" ? "-" : String(v);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader }) {
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const baseCols = Array.isArray(columns) ? columns : [];
@@ -877,6 +944,11 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   // 열이 900~1200 구간에서 아무 표시 없이 사라졌다(Users.jsx가 이미 그렇게 2열 쓰고 있었다).
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
   const hiddenCols = compact ? baseCols.filter((c) => c.hideNarrow) : [];
+
+  /* 로딩 모양을 표가 스스로 안다 (지시 20). 호출부가 각자 `<Skeleton lines={6} />` 을 두면
+     열 수도 행 높이도 표와 다르고, 무엇보다 **빈 목록과 아직 안 온 목록이 같아 보인다** -
+     "없다"와 "아직 모른다"는 다른 사실이다. */
+  if (loading) return <Skeleton kind="table" cols={wideCols.length || baseCols.length} />;
 
   if (safeRows.length === 0) {
     return (

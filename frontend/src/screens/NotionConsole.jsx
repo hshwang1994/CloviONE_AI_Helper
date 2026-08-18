@@ -275,7 +275,9 @@ export function NotionConsole({ embedded = false } = {}) {
     onError: (err) => toast((err && err.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
-  if (state.isLoading) return <Skeleton lines={8} />;
+  /* 이 셋은 헤더까지 포함해 **화면 전체**가 아직 없다 - 회색 줄만 그리면 도착하는 순간
+     제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡아 준다(지시 20). */
+  if (state.isLoading) return <Skeleton kind="page" lines={4} />;
   if (state.error) return <ErrorState error={state.error} onRetry={state.refetch} />;
 
   const data = state.data || {};

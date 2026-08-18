@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { actionKo, fmtDateTime } from "../lib/format.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Skeleton, useToast,
+  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, useToast,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
@@ -136,7 +136,7 @@ export function MyApprovals() {
       </Tabs>
 
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : null}
-      {!q.data && !q.isError ? <Card><Skeleton lines={5} /></Card> : null}
+      {!q.data && !q.isError ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card> : null}
 
       {data && box === "todo" && !canDecide ? (
         <EmptyState

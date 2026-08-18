@@ -3561,7 +3561,9 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 - `UI-R8` 액션 위계 — `DataScreen.jsx` 헤더 액션 줄(registry 28화면 공통), `MyTickets` Row
   Action, 공용 `ActionGroup` 신설, Button `risk` 축, 라벨 바꿔치기 제거. 지시 8·11·12·43
 - `UI-R9` DataTable 본체 — 정렬 미구현, `Pager` 분리, 선택 열 외주, 로딩/빈/오류 상태. 지시 10·26
-- `UI-R10` Skeleton 4종(전체/구획/표/버튼). 지시 20
+- `UI-R10` Skeleton 4종(전체/구획/표/버튼) — **2026-08-19 완료**(D-157). 버튼 모양은 만들지
+  않았다: `Button loading` 이 이미 그 자리를 지키고, 회색 알약은 버튼이 사라진 것처럼 보인다.
+  남은 롤아웃은 `UI-R43`
 - `UI-R11` FormField 재설계(라벨·도움말·오류·필수 표기). 지시 17
 - `UI-R12` EmptyState 다음 행동 슬롯 · ErrorState 정렬. 지시 18
 - `UI-R13` `DetailLayout`·`SearchFilterBar` 신설 + Archetype 판정표. 지시 6·66
@@ -3571,9 +3573,9 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 **P1-B 미착수 화면**
 - `UI-R19` Global Search Overlay 재설계 (지시 14, todo)
 - `UI-R20` 채팅 UI 재설계 (지시 15, todo)
-- `UI-R21` 관리자 콘솔 5종 — NotionConsole·LlmConsole·SystemOps·SetupWizard (리뉴얼 diff 0줄).
-  지시 33·34·37·38. **MailStatus 는 2026-08-19 완료**(D-154: 발송 가능 여부 → 설정 → 현황 →
-  최근 실패 순서, MetaBar/MetricStrip, kind_label·error_summary·TechDetail, 날짜 압축 표기)
+- `UI-R21` 관리자 콘솔 — 남은 것은 **NotionConsole·LlmConsole·SetupWizard** (지시 34·37·38).
+  **MailStatus 완료**(2026-08-19, D-154) · **SystemOps 완료**(2026-08-19, D-157: 값과 동작을
+  한 줄로, 모르는 값은 모른다고, 헬퍼가 모르는 동작은 안 그림, 재시작은 넘침 메뉴로)
 - `UI-R22` 나머지 화면 롤아웃(Search·Profile·Activity·Board·Games·Project* 등). 지시 61
 - `UI-R18` AI 도우미 영역 분리 (지시 2)
 - `UI-R16` Chart 공통 계약 + 구현 방식 판단 (지시 9·54·59)
@@ -3608,5 +3610,12 @@ console error · `horizontal_overflow`)은 이것을 **전부 통과시킨다.**
 - `UI-R41` 잡 큐 상세(`registry/automation.js`)의 `last_error` 는 여전히 `<pre>` 원문이다.
   운영 진단 화면이라 원문이 주된 내용인 것이 맞는지, 아니면 `TechDetail` 로 접어야 하는지
   판단하고 근거를 남긴다(지시 36).
+
+
+- `UI-R42` `system.info` 가 DNS·프록시의 **현재 값**을 안 준다. 그래서 그 두 줄은 "서버에서만
+  확인할 수 있습니다"로 정직하게 비어 있다(D-157). 특권 헬퍼(`actions_service.py`)에 읽기
+  전용 조회를 더하면 채울 수 있으나 실제 헬퍼 없이는 검증이 안 되므로 배포 환경에서 확인한다.
+- `UI-R43` `<Skeleton lines={N} />` 호출부가 아직 60곳 넘게 남았다. 표는 `DataTable loading`
+  으로, 화면 전체는 `kind="page"` 로 옮겼지만 카드·패널 안쪽은 그대로다(D-157).
 
 **감사 원본**: 워크플로우 `wf_add53824-7d2` (에이전트별 결과는 그 journal.jsonl).

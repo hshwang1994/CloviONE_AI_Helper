@@ -17,7 +17,6 @@ import {
   Modal,
   ModalFooter,
   PageHeader,
-  Skeleton,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
@@ -565,7 +564,7 @@ function BoardScreen({ kind = "free" }) {
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
       ) : list.isPending ? (
-        <Card><Skeleton lines={6} /></Card>
+        <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
       ) : items.length === 0 ? (
         hasFilter ? (
           <EmptyState

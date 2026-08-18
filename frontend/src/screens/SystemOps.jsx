@@ -4,17 +4,36 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, ErrorState, FormModal, PageHeader, Skeleton,
-  useConfirm, useToast,
+  Badge, Button, Callout, Card, ErrorState, FormModal, OverflowMenu, PageHeader,
+  SectionTitle, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
-/* 운영 콘솔 - 시스템 설정 (§S, 9-6/9-7/9-8).
+/* 운영 콘솔 - OS와 서비스 (§S, 9-6/9-7/9-8 · 지시 33 · 34 · 43).
  *
  * ## 이 화면이 하는 일과 안 하는 일
  *
  * 웹 프로세스는 하드닝돼 있어 `/etc` 를 쓸 수 없다. 실제 변경은 root 로 도는 특권 헬퍼가
  * **정해진 목록의 동작만** 수행한다(app/sysops/actions.py). 이 화면은 그 목록을 그리고,
  * 결과를 그대로 보여 준다.
+ *
+ * ## 버튼을 누르기 전에 지금 값을 안다 (지시 33)
+ *
+ * 예전에는 `변경` 이라는 카드 안에 기능명 버튼 여섯이 한 줄로 늘어서 있었다 - `타임존 수정`,
+ * `DNS 서버`, `아웃바운드 프록시`… 지금 타임존이 무엇인지는 **다른 카드**에 있었고, DNS 와
+ * 프록시는 어디에도 없었다. 그래서 이 화면은 "무엇을 바꿀 수 있는가"만 말하고 "무엇이
+ * 설정돼 있는가"는 말하지 않았다.
+ *
+ * 항목마다 **이름 · 지금 값 · 그것이 무엇인지 · 바꾸는 동작**을 한 줄에 묶는다. 지금 값을
+ * 읽을 수 없는 항목(DNS·프록시)은 **모른다고 말한다** - 빈칸으로 두면 "설정 안 됨"으로
+ * 읽힌다. 도우미의 `system.info` 가 그 둘을 아직 안 주기 때문이고, 그 사실 자체가 정보다.
+ *
+ * ## 재시작은 설정 변경과 같은 무게가 아니다 (지시 43)
+ *
+ * 서비스 다섯이 각자 오른쪽에 `재시작` 버튼을 하나씩 달고 일렬로 서 있었다. 그 줄에서
+ * 웹 서버 재시작과 이름 풀이 재시작이 같은 크기, 같은 색, 같은 자리였다. 재시작은
+ * **서비스 영향** 등급이라 넘침 메뉴로 내리고, 실행 중이 아닌 서비스에서만 앞으로 꺼낸다
+ * (그때는 그것이 그 줄에서 해야 할 일이다).
  *
  * ## 도우미가 없는 것은 오류가 아니라 상태다
  *
@@ -35,6 +54,16 @@ const UNIT_LABELS = {
   "systemd-timesyncd.service": "시각 동기화",
   "systemd-resolved.service": "이름 풀이(DNS)",
 };
+
+const UNIT_ROLES = {
+  "clovirone-web-assistant.service": "이 화면을 포함해 포털 웹 요청을 처리합니다.",
+  "clovirone-web-worker.service": "동기화, 메일 발송, 예약 실행을 뒤에서 처리합니다.",
+  "nginx.service": "바깥에서 들어오는 요청을 받아 포털로 넘깁니다.",
+  "systemd-timesyncd.service": "서버 시각을 표준 시각에 맞춥니다.",
+  "systemd-resolved.service": "도메인 이름을 주소로 바꿉니다.",
+};
+
+const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작만 수행합니다.";
 
 // 이 화면에서 다루는 동작. 헬퍼의 표가 정본이고 여기서는 **그리는 순서와 폼**만 정한다.
 // 헬퍼가 모르는 동작은 서버가 404 로 거절하므로, 여기 목록이 낡아도 조용히 통하지 않는다.
@@ -131,17 +160,73 @@ export function outcomeText(result) {
   return result.detail || "적용하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
-function UnitRow({ unit, state, onControl, disabled }) {
+/** 지금 값을 못 읽는 항목은 **모른다고** 말한다. 빈칸은 "설정 안 됨"으로 읽힌다. */
+const UNKNOWN = "서버에서만 확인할 수 있습니다";
+
+export function certificateText(cert) {
+  if (!cert || !cert.known) return "확인하지 못했습니다";
+  const days = cert.days_remaining;
+  const life = days == null ? "만료일을 읽지 못했습니다"
+    : days < 0 ? "이미 만료되었습니다"
+    : days === 0 ? "오늘 만료됩니다"
+    : `만료까지 ${days}일 남았습니다`;
+  return cert.self_signed ? life + ", 자체 서명 인증서입니다" : life;
+}
+
+/** 설정 한 줄 — 이름 · 지금 값 · 무엇인지 · 바꾸는 동작 (지시 32 · 33 · 45). */
+function SettingRow({ label, value, description, tone, action, last }) {
+  return (
+    <Box
+      /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
+         올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
+      className="k-settingrow"
+      sx={{
+        display: "flex", alignItems: "flex-start", gap: 2, flexWrap: "wrap",
+        py: 1.75, borderBottom: last ? 0 : 1, borderColor: "divider",
+      }}
+    >
+      <Box sx={{ flex: "1 1 22rem", minWidth: 0, display: "grid", gap: 0.25 }}>
+        <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
+          {label}
+        </Typography>
+        <Typography
+          component="div"
+          color={tone === "muted" ? "text.faint" : "text.primary"}
+          sx={{ fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
+        >
+          {value}
+        </Typography>
+        {description ? (
+          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+            {description}
+          </Typography>
+        ) : null}
+      </Box>
+      {action ? <Box sx={{ flexShrink: 0, pt: 0.25 }}>{action}</Box> : null}
+    </Box>
+  );
+}
+
+/** 서비스 한 줄 — 이름 · 지금 상태 · 무엇을 하는 서비스인지 · 가능한 동작. */
+function ServiceRow({ unit, state, onControl, disabled, last }) {
   const good = state === "active";
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 0.75 }}>
-      <Typography sx={{ minWidth: 160 }}>{UNIT_LABELS[unit] || unit}</Typography>
-      <Badge value={good ? "실행 중" : state || "알 수 없음"} kind={good ? "ok" : "warn"} />
-      <Box sx={{ flex: 1 }} />
-      <Button size="small" disabled={disabled} onClick={() => onControl(unit, "restart")}>
-        재시작
-      </Button>
-    </Box>
+    <SettingRow
+      last={last}
+      label={UNIT_LABELS[unit] || unit}
+      value={<Badge value={good ? "실행 중" : state || "알 수 없음"} kind={good ? "ok" : "warn"} />}
+      description={UNIT_ROLES[unit]}
+      action={good ? (
+        /* 재시작은 서비스 영향 등급이다(지시 43) - 실행 중인 서비스에서는 앞줄에 두지 않는다.
+           멈춰 있는 서비스에서는 그것이 이 줄에서 할 일이라 버튼으로 꺼낸다. */
+        <OverflowMenu
+          ariaLabel={(UNIT_LABELS[unit] || unit) + " 더 보기"}
+          items={[{ key: "restart", label: "재시작", tone: "danger", disabled, onClick: () => onControl(unit, "restart") }]}
+        />
+      ) : (
+        <Button size="sm" disabled={disabled} onClick={() => onControl(unit, "restart")}>재시작</Button>
+      )}
+    />
   );
 }
 
@@ -178,13 +263,16 @@ export function SystemOps({ embedded = false } = {}) {
     onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
 
-  if (state.isLoading) return <Skeleton lines={6} />;
+  /* 헤더까지 포함해 **화면 전체**가 아직 없다 - 회색 줄만 그리면 도착하는 순간 제목·본문이
+     한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡아 준다(지시 20). */
+  if (state.isLoading) return <Skeleton kind="page" lines={4} />;
   if (state.error) return <ErrorState error={state.error} onRetry={state.refetch} />;
 
   const data = state.data || {};
   const info = data.info || {};
   const units = info.units || {};
   const usable = !!data.available;
+  const known = (value) => (usable && value ? value : usable ? "확인하지 못했습니다" : UNKNOWN);
 
   const submit = async (action, values) => {
     const params = buildParams(action, values);
@@ -210,20 +298,82 @@ export function SystemOps({ embedded = false } = {}) {
     // 위 submit()의 cert.install과 같은 이유 — 문자열 message + opts 두 인자로 호출한다.
     const ok = await confirm(
       "재시작하는 동안 그 기능이 잠시 멈춥니다.",
-      { title: (UNIT_LABELS[unit] || unit) + " 를 재시작할까요?" },
+      { title: (UNIT_LABELS[unit] || unit) + "를 재시작할까요?" },
     );
     if (ok) run.mutate({ action: "service.control", params: { unit, verb } });
   };
 
+  // 헬퍼가 아는 동작만 그린다. 이름 하나에 줄 하나 — `변경` 카드에 버튼을 몰아 두지 않는다.
+  const can = (name) => (data.actions || []).some((a) => a.name === name);
+  const changeButton = (name, label) => (
+    can(name) && FORMS[name] ? (
+      <Button size="sm" disabled={!usable || run.isPending} onClick={() => setOpenAction(name)}>
+        {label || "수정"}
+      </Button>
+    ) : null
+  );
+
+  const rows = [
+    {
+      key: "hostname", label: "호스트 이름",
+      value: known(info.hostname),
+      tone: usable && info.hostname ? undefined : "muted",
+      description: "이 서버가 자신을 부르는 이름입니다. 인증서와 메일 발신 주소가 이 이름을 씁니다.",
+      action: changeButton("hostname.set"),
+    },
+    {
+      key: "timezone", label: "타임존",
+      value: known(info.timezone),
+      tone: usable && info.timezone ? undefined : "muted",
+      description: "예약 실행과 로그 시각의 기준입니다. 포털 화면의 시각 표시와는 별개입니다.",
+      action: changeButton("timezone.set"),
+    },
+    {
+      key: "ntp", label: "시각 동기화",
+      value: !usable ? UNKNOWN
+        : info.ntp_synchronized === "yes" ? "표준 시각에 맞춰져 있습니다"
+        : info.ntp_synchronized === "no" ? "맞춰지지 않았습니다"
+        : "확인하지 못했습니다",
+      tone: usable && info.ntp_synchronized === "yes" ? undefined : "muted",
+      description: "서버 시각이 어긋나면 예약 실행 시각과 인증서 검증이 함께 어긋납니다.",
+      action: changeButton("ntp.set", "서버 지정"),
+    },
+    {
+      key: "dns", label: "DNS 서버",
+      value: UNKNOWN,
+      tone: "muted",
+      description: "도메인 이름을 주소로 바꿀 때 물어보는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
+      action: changeButton("dns.set"),
+    },
+    {
+      key: "proxy", label: "아웃바운드 프록시",
+      value: UNKNOWN,
+      tone: "muted",
+      description: "포털이 바깥(Notion 등)으로 나갈 때 거치는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
+      action: changeButton("proxy.set"),
+    },
+    {
+      key: "cert", label: "TLS 인증서",
+      value: certificateText(data.certificate),
+      tone: data.certificate && data.certificate.known ? undefined : "muted",
+      description: "브라우저가 이 서버를 믿게 하는 인증서입니다. 교체는 검사에 실패하면 자동으로 되돌립니다.",
+      action: changeButton("cert.install", "교체"),
+    },
+  ];
+
+  const unitNames = Object.keys(units);
+
   return (
     <Box className="c-screen">
-      {embedded ? null : <PageHeader area="운영" title="시스템 설정" />}
+      {embedded ? null : <PageHeader area="운영" title="OS와 서비스" help={HELP} />}
 
       {!usable && (
+        /* 도우미가 없는 것은 오류가 아니라 이 서버의 상태다 - 사람이 할 일이 있으므로 조용한
+           안내(info)가 아니라 주의로 말하되, 오류(danger)로는 말하지 않는다(D-155). */
         <Callout tone="warn">
-          {data.detail || "시스템 설정 도우미를 쓸 수 없습니다."} 서버에서
-          clovirone-privhelper 서비스를 설치하고 실행하면 이 화면의 기능을 쓸 수 있습니다.
-          그 전까지 아래 값은 읽지 못하며, 여기서 바꾼 것은 아무것도 적용되지 않습니다.
+          {data.detail || "시스템 설정 도우미를 쓸 수 없습니다."} 서버에 시스템 설정 도우미를
+          설치하고 실행하면 이 화면의 값을 읽고 바꿀 수 있습니다. 그 전까지 아래 값은 읽지
+          못하며, 여기서 바꾼 것은 아무것도 적용되지 않습니다.
         </Callout>
       )}
 
@@ -233,52 +383,26 @@ export function SystemOps({ embedded = false } = {}) {
         </Callout>
       )}
 
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>시스템 정보</Typography>
-        {usable ? (
-          <Box sx={{ display: "grid", gap: 0.5 }}>
-            <Typography>호스트 이름: {info.hostname || "확인하지 못했습니다"}</Typography>
-            <Typography>타임존: {info.timezone || "확인하지 못했습니다"}</Typography>
-            <Typography>
-              시각 동기화: {info.ntp_synchronized === "yes" ? "맞춰져 있습니다"
-                : info.ntp_synchronized === "no" ? "맞춰지지 않았습니다"
-                : "확인하지 못했습니다"}
-            </Typography>
-          </Box>
-        ) : (
-          <Typography color="text.secondary">도우미가 없어 읽지 못했습니다.</Typography>
-        )}
+      <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
+        <SectionTitle title="시스템 설정" component="h2" sx={{ pt: 1.5 }} />
+        {rows.map((r, i) => (
+          <SettingRow
+            key={r.key} label={r.label} value={r.value} description={r.description}
+            tone={r.tone} action={r.action} last={i === rows.length - 1}
+          />
+        ))}
       </Card>
 
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>서비스</Typography>
-        {usable && Object.keys(units).length > 0 ? (
-          Object.keys(units).map((unit) => (
-            <UnitRow key={unit} unit={unit} state={units[unit]}
-                     onControl={control} disabled={run.isPending} />
+      <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
+        <SectionTitle title="서비스" component="h2" sx={{ pt: 1.5 }} />
+        {usable && unitNames.length > 0 ? (
+          unitNames.map((unit, i) => (
+            <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
+                        disabled={run.isPending} last={i === unitNames.length - 1} />
           ))
         ) : (
-          <Typography color="text.secondary">
+          <Typography color="text.secondary" sx={{ py: 2 }}>
             {usable ? "서비스 상태를 읽지 못했습니다. 새로고침한 뒤 다시 시도해 주세요." : "도우미가 없어 읽지 못했습니다."}
-          </Typography>
-        )}
-      </Card>
-
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>변경</Typography>
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {(data.actions || [])
-            .filter((a) => a.mutating && FORMS[a.name])
-            .map((a) => (
-              <Button key={a.name} disabled={!usable || run.isPending}
-                      onClick={() => setOpenAction(a.name)}>
-                {FORMS[a.name].title}
-              </Button>
-            ))}
-        </Box>
-        {!usable && (
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
-            도우미가 없어 지금은 바꿀 수 없습니다.
           </Typography>
         )}
       </Card>

@@ -29,6 +29,7 @@ vi.mock("../lib/api.js", () => ({
 import { SystemOps } from "./SystemOps.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction } from "../test-helpers/actions.js";
 
 const STATE = {
   available: true,
@@ -63,8 +64,10 @@ describe("시스템 설정 — 작업 결과 토스트", () => {
     const user = userEvent.setup();
     renderScreen();
 
-    const restartBtn = await screen.findByRole("button", { name: "재시작" });
-    await user.click(restartBtn);
+    // 실행 중인 서비스의 재시작은 서비스 영향 등급이라 넘침 메뉴로 내려갔다(지시 43).
+    // 이 시험이 재려는 것은 "재시작을 실행하면 무슨 일이 일어나는가"이지 그것이 버튼이냐다.
+    await screen.findByText("웹 서버");
+    await clickAction(user, document.body, "재시작");
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "확인" }));
 
@@ -85,8 +88,10 @@ describe("시스템 설정 — 작업 결과 토스트", () => {
     });
     renderScreen();
 
-    const restartBtn = await screen.findByRole("button", { name: "재시작" });
-    await user.click(restartBtn);
+    // 실행 중인 서비스의 재시작은 서비스 영향 등급이라 넘침 메뉴로 내려갔다(지시 43).
+    // 이 시험이 재려는 것은 "재시작을 실행하면 무슨 일이 일어나는가"이지 그것이 버튼이냐다.
+    await screen.findByText("웹 서버");
+    await clickAction(user, document.body, "재시작");
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "확인" }));
 

@@ -26,6 +26,7 @@ vi.mock("../lib/api.js", () => ({
 import { SystemOps } from "./SystemOps.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { clickAction } from "../test-helpers/actions.js";
 
 const STATE = {
   available: true,
@@ -58,12 +59,14 @@ describe("시스템 설정 — 서비스 재시작 확인 대화상자", () => {
     const user = userEvent.setup();
     renderScreen();
 
-    const restartBtn = await screen.findByRole("button", { name: "재시작" });
-    await user.click(restartBtn);
+    // 실행 중인 서비스의 재시작은 서비스 영향 등급이라 넘침 메뉴로 내려갔다(지시 43).
+    // 이 시험이 재려는 것은 "재시작을 실행하면 무슨 일이 일어나는가"이지 그것이 버튼이냐다.
+    await screen.findByText("웹 서버");
+    await clickAction(user, document.body, "재시작");
 
     const dialog = await screen.findByRole("dialog");
     // 지적 대상: 수정 전에는 opts가 undefined라 title이 기본값 "확인"으로 뭉개진다.
-    expect(within(dialog).getByText("웹 서버 를 재시작할까요?")).toBeInTheDocument();
+    expect(within(dialog).getByText("웹 서버를 재시작할까요?")).toBeInTheDocument();
     expect(within(dialog).getByText("재시작하는 동안 그 기능이 잠시 멈춥니다.")).toBeInTheDocument();
   });
 });
@@ -73,7 +76,8 @@ describe("시스템 설정 — 인증서 교체 확인 대화상자", () => {
     const user = userEvent.setup();
     renderScreen();
 
-    const certBtn = await screen.findByRole("button", { name: "TLS 인증서 교체" });
+    // 항목 이름은 왼쪽에 있고 버튼은 그 항목에 대해 하는 일을 말한다(지시 33).
+    const certBtn = await screen.findByRole("button", { name: "교체" });
     await user.click(certBtn);
     const formDialog = await screen.findByRole("dialog");
     await user.type(within(formDialog).getByLabelText(/인증서 \(PEM\)/), "cert");

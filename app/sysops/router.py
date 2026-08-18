@@ -58,7 +58,27 @@ def system_overview(request: Request):
         "status": reply.status,
         "detail": reply.detail,
         "info": reply.data if reply.available and reply.ok else {},
+        "certificate": _certificate_view(request),
         "actions": list_actions(),
+    }
+
+
+def _certificate_view(request: Request) -> dict:
+    """TLS 인증서의 **현재 상태**. 도우미가 없어도 답할 수 있다.
+
+    지시 33 은 "버튼을 누르기 전에 현재 설정을 이해할 수 있어야 한다" 를 요구한다. 그런데
+    `system.info` 는 호스트 이름·타임존·시각 동기화만 준다 - 인증서 교체 버튼 옆에 놓을
+    현재 값이 없었다. 만료일 판정은 이미 대시보드가 쓰는 함수가 있으므로(두 화면이 서로 다른
+    날짜를 말하지 않도록) 그것을 그대로 부른다. 파일 경로는 내보내지 않는다(지시 36).
+    """
+    from app.health.service import cert_days_remaining, is_self_signed_cert
+
+    settings = request.app.state.settings
+    days = cert_days_remaining(settings, request.app.state.clock.now())
+    return {
+        "known": days is not None,
+        "days_remaining": days,
+        "self_signed": is_self_signed_cert(settings),
     }
 
 

@@ -872,7 +872,9 @@ export function DataScreen({ config, embedded = false }) {
           (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
       <Typography component={config.compact ? "h3" : "h2"} className="sr-only">목록</Typography>
       {query.isLoading ? (
-        <Card><Skeleton lines={5} /></Card>
+        /* 표가 들어올 자리에는 표 모양을 그린다 (지시 20). 회색 줄 다섯 개는 "곧 목록이 온다"가
+           아니라 "무언가 온다"라는 뜻이고, 실제 표가 도착하면 배치가 통째로 튄다. */
+        <Card className="c-list-card"><DataTable columns={columns} rows={[]} loading /></Card>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : filtered.length === 0 ? (

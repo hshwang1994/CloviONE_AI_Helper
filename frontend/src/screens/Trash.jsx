@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
@@ -181,7 +181,7 @@ export function Trash() {
       </Typography>
 
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        : q.isPending ? <Card><Skeleton lines={5} /></Card>
+        : q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
         : items.length === 0 ? (
           /* 자산(empty-trash.png)이 처음부터 있었는데 어디에도 연결돼 있지 않았다. */
           <EmptyState

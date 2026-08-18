@@ -114,7 +114,9 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     }));
     const { SystemOps } = await import("./screens/SystemOps.jsx");
     const { container } = qcRender(<SystemOps />);
-    await screen.findByText("시스템 정보");
+    // '시스템 정보' 카드는 값과 변경 동작을 한 줄에 묶은 '시스템 설정' 구역으로 대체됐다
+    // (지시 33) - 이 시험의 기준점은 남아 있는 구역 제목이다.
+    await screen.findByText("시스템 설정");
     assertSequentialHeadings(container, "SystemOps");
   });
 
