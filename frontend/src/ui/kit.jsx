@@ -1274,6 +1274,50 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
  * 옮기지 않는다). 붙여넣기로 상한을 넘기면 브라우저가 조용히 자르기만 하는데, 그러면 사용자는
  * 잘린 줄 모른다 — onPaste에서 미리 계산해 잘릴 상황이면 토스트로 알린다(막지는 않는다, 자르고
  * 알린다). 긴 텍스트(textarea/json)는 helperText에 남은 글자 수도 함께 보여준다. */
+/* 입력 위의 라벨 (지시 17 · Taste §4.6 "Label-above-input").
+ *
+ * MUI 기본은 **떠 있는 라벨**이다 — 값이 없으면 입력 칸 안에 있다가 포커스하면 위로 올라가
+ * 테두리에 걸친다. 그 방식은 셋을 잃는다.
+ *   · 훑을 수 없다. 값이 든 칸과 빈 칸의 라벨 위치가 달라 세로로 라벨을 따라 읽지 못한다.
+ *   · 한국어에서 자주 잘린다. 떠 있는 라벨은 테두리 노치 폭 안에 들어가야 한다.
+ *   · 필수 표시가 `*` 하나뿐이라, 그것이 무엇을 뜻하는지 화면 어디에도 없다.
+ *
+ * 라벨을 위에 두고, 필수는 **글자로** 말한다. 스크린리더에도 같은 글자가 읽힌다.
+ */
+function FieldLabel({ htmlFor, id, children, required }) {
+  /* `select` 는 MUI 가 `id` 를 `<div>` 에 건다 — `<label htmlFor>` 은 라벨을 붙일 수 없는
+     요소를 가리키게 되어 접근성 트리에서 끊긴다. 그때는 라벨에 `id` 를 주고 입력 쪽에서
+     `aria-labelledby` 로 가리킨다(HTML 명세가 정한 그 대안). */
+  return (
+    <Typography
+      component={htmlFor ? "label" : "span"}
+      htmlFor={htmlFor}
+      id={id}
+      sx={{
+        display: "flex", alignItems: "center", gap: 0.75, mb: 0.5,
+        fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, color: "text.primary",
+        ...KO_WORD_BREAK,
+      }}
+    >
+      {children}
+      {/* 표시는 눈으로만. 필수 여부는 입력의 `aria-required` 가 이미 정확히 말한다 —
+         라벨에 글자로 또 넣으면 접근성 이름이 "제목 필수"가 되어 두 번 읽히고, 이름으로
+         입력을 찾는 코드(시험 포함)가 전부 그 꼬리를 달고 다녀야 한다. */}
+      {required ? (
+        <Box
+          component="span"
+          aria-hidden="true"
+          sx={{ fontSize: FONT_SIZE.micro, color: "error.strong", fontWeight: FONT_WEIGHT.semibold }}
+        >
+          {/* 앞의 공백은 장식이 아니다 — 라벨의 글자 내용이 "제목필수" 한 덩어리가 되면
+              라벨 글자로 입력을 찾는 코드가 전부 깨진다(접근성 이름과 글자 내용은 다른 것이다). */}
+          {" 필수"}
+        </Box>
+      ) : null}
+    </Typography>
+  );
+}
+
 export function FormField({ field: f, value, onChange, invalid, maxLength, errorMessage }) {
   const id = "ff-" + f.name;
   const required = !!f.required;
@@ -1337,16 +1381,25 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
     size: "small",
     error: !!invalid,
     required,
-    label: f.label,
+    // `label` 은 안 넘긴다 — 라벨은 위의 `FieldLabel` 이 그린다(지시 17). MUI 에 넘기면
+    // 떠 있는 라벨이 하나 더 생겨 같은 글자가 두 번 보인다.
     helperText: helpText,
     value: value != null ? value : "",
     onChange: (e) => onChange(e.target.value),
-    sx: { mb: 2.5 },
+    sx: { mb: 0 },
   };
 
   if (f.type === "select") {
     return (
-      <TextField {...common} select className="k-field">
+      <Box className="k-field" sx={{ mb: 2.5 }}>
+      <FieldLabel id={id + "-label"} required={required}>{f.label}</FieldLabel>
+      <TextField
+        {...common}
+        select
+        /* MUI 는 `label` 이 함께 있을 때만 `labelId` 를 aria-labelledby 로 엮는다 —
+           라벨을 위로 올린 뒤로는 직접 걸어 줘야 이름이 접근성 트리에 닿는다. */
+        SelectProps={{ labelId: id + "-label" }}
+      >
         {selNeedEmpty ? (
           <MenuItem value="" disabled={required}>
             {hasOptions ? "선택 안 함" : "선택할 항목이 없습니다"}
@@ -1354,13 +1407,15 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
         ) : null}
         {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
       </TextField>
+      </Box>
     );
   }
 
   return (
+    <Box className="k-field" sx={{ mb: 2.5 }}>
+    <FieldLabel htmlFor={id} required={required}>{f.label}</FieldLabel>
     <TextField
       {...common}
-      className="k-field"
       multiline={multiline}
       minRows={multiline ? (isJson ? 10 : 3) : undefined}
       type={
@@ -1370,7 +1425,6 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
           : f.type === "date" || f.type === "datetime-local" ? f.type
           : "text"
       }
-      InputLabelProps={f.type === "date" || f.type === "datetime-local" ? { shrink: true } : undefined}
       onPaste={handlePasteOverflowWarning}
       inputProps={{
         ...(f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : null),
@@ -1379,6 +1433,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
       /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
       InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.bodySm } } : undefined}
     />
+    </Box>
   );
 }
 
