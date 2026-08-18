@@ -9,6 +9,8 @@ import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
+import { NAV_BREAKPOINT } from "../ui/theme.js";
+import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 
 /* 사이드바 구조와 라우트 권한 표.
  *
@@ -29,7 +31,8 @@ import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
  *  - audit: GET은 admin/system_admin/auditor만(operator 제외) */
 const CONSOLE_READ = ["operator", "admin", "system_admin", "auditor"];
 const CONSOLE_OPS = ["operator", "admin", "system_admin"];
-const CONSOLE_WRITE = ["admin", "system_admin"];
+// 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
+const CONSOLE_WRITE = CONSOLE_WRITE_ROLES;
 const SENSITIVE_READ = ["admin", "system_admin", "auditor"];
 
 export const SCREEN_ROLES = {
@@ -470,7 +473,7 @@ export function filterGroupsByQuery(nav, query) {
     .filter((group) => group.items.length > 0);
 }
 
-export const NAV_BREAKPOINT_PX = 860;
+export const NAV_BREAKPOINT_PX = NAV_BREAKPOINT;
 
 export const ROLE_KO = {
   user: "사용자", operator: "운영자", auditor: "감사자",

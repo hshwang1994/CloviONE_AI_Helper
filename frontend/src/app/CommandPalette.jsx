@@ -13,7 +13,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
+import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
  *
@@ -36,14 +36,15 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
  * `lib/recentNav.js`(localStorage, 서버 없음)에서 읽어 "최근 방문"만 보여준다.
  */
 
-const DEBOUNCE_MS = 220;
+// 값의 정본은 토큰이다(theme.js::DEBOUNCE_MS) — 화면마다 숫자를 박지 않는다(지시 26).
+const PALETTE_DEBOUNCE_MS = DEBOUNCE_MS.palette;
 
 function normalize(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, "");
 }
 
 /* 입력이 멎은 뒤에만 값을 흘려보낸다. 서버 검색 전용이고, 메뉴 검색은 로컬이라 즉시 반응한다. */
-export function useDebounced(value, delay = DEBOUNCE_MS) {
+export function useDebounced(value, delay = PALETTE_DEBOUNCE_MS) {
   const [settled, setSettled] = React.useState(value);
   React.useEffect(() => {
     const timer = setTimeout(() => setSettled(value), delay);

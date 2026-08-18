@@ -41,22 +41,7 @@ export const BASELINE_PX = {
   sidebarWidth: 264,       // :root      --sidebar-w: 264px
 };
 
-/* 기준선의 본문 열은 **폭을 남기지 않는다.**
- *
- * 파일 앞쪽(§.content)에는 `width: min(1720px, 100%)` 가 있지만, 뒤쪽 최종 절
- * ("2026-07-31 final responsive containment")이 `.topbar, .layout, .main, .content
- * { width:100%; max-width:100% }` 로 **덮어쓴다**. CSS 는 뒤가 이기므로 기준선이 실제로
- * 그리는 본문 열은 화면 폭 전체다. 앞쪽 1720 만 보고 "기준선은 1720 에서 멈춘다"고 적으면
- * 틀린다 — 검사가 마지막 선언을 읽는 이유가 이것이다.
- *
- * 우리 앱의 `CONTENT_MAX_WIDTH`(theme.js)는 4K 를 위해 브레이크포인트별 상한을 둔다.
- * 1920·2560 에서는 그 상한이 사이드바를 뺀 폭보다 커서 **실제로는 꽉 찬다** — 그래서
- * 사용자가 본 왼쪽 쏠림의 원인이 아니다(원인은 화면 안쪽 격자다). 3840 에서만 상한이
- * 실제로 걸린다. 그 값을 기준선처럼 풀 것인지는 사용자에게 물을 일이라 여기서 바꾸지 않는다. */
-export const BASELINE_CONTENT_FILLS = true;
 
-/* .content padding: 28px clamp(18px, 3vw, 42px) 80px */
-export const BASELINE_CONTENT_PADDING_PX = { top: 28, xMin: 18, xMax: 42, bottom: 80 };
 
 /* 기준선의 격자 트랙. 문자열 그대로 CSS 에 넣는다 — 옮겨 적으면서 숫자가 바뀌는 것이
  * 지금까지 어긋남의 절반이었다.
@@ -91,15 +76,4 @@ export const TILE_PADDING = rem(BASELINE_PX.healthCardPadding);           // 16p
 export const GRID_GAP = rem(BASELINE_PX.gridGap);                         // 16px
 export const TILE_GRID_GAP = rem(BASELINE_PX.healthGridGap);              // 12px
 export const SECTION_GAP = rem(BASELINE_PX.sectionGap);                   // 24px
-export const CARD_HEAD_GAP = rem(BASELINE_PX.cardHeadGap);                // 14px
 
-/* 개수가 정해진 카드 줄의 열 수를 고를 때 쓴다.
- *
- * 왜 필요한가 — 홈의 지표 줄은 카드가 6장인데 열 수가 4(xl)·5(xxl)였다. 그러면 마지막
- * 줄에 2장·1장만 남고 오른쪽이 빈 칸으로 뜬다. 줄이 하나 더 생기니 격자 높이는 두 배가
- * 되고("그리드 높이가 너무 크다"), 그 마지막 줄은 왼쪽으로 쏠려 보인다.
- * 기준선 `.grid.kpi` 는 카드 4장을 4열에 넣어 **한 줄**로 끝낸다 — 열 수가 카드 수를
- * 나누어떨어지게 고르는 것이 그 규칙이다. */
-export function fitsWithoutOrphan(columns, cardCount) {
-  return cardCount % columns === 0;
-}

@@ -6866,3 +6866,29 @@ MUI 기본 옅은 배경뿐이라 키보드로 훑으면 놓쳤다. 폭을 46rem
 만들었다 — 지시 11 이 이름까지 들어 지적한 그 알약이다. 요구사항 boolean 은 평문으로 쓰는
 `boolCol` 을 더했다("필요"/"필요 없음"). `badgeCol("enabled")` 한 곳도 도메인 어휘를 쓰는
 `enabledCol` 로 되돌렸다.
+
+---
+
+## D-160 — 같은 목록이 다섯 파일에 이름만 달리해 살아 있었다
+
+**날짜** 2026-08-19 · **범위** 지시 21 · 23 · 26 · 55
+
+`["admin", "system_admin"]` 이 `MailStatus`·`ops/opsHelpers`·`registry/shared`·
+`settings/settingsRegistry`·`navConfig` 다섯 곳에 각자 있었다. 다섯이 같은 값이라 지금은
+아무 문제가 없다 — 문제는 **하나가 바뀌는 날**이다. 그날 화면 넷은 새 규칙을, 하나는 옛
+규칙을 말한다. `frontend/src/lib/roles.js` 한 곳으로 모았다.
+
+**이것은 권한이 아니다.** 정본은 서버(`app/core/authz.py`)이고 프런트 값은 "이 버튼을 보여
+줄까"라는 표시 판단이다(지시 55). 그래서 서버와 갈라지지 않는지를 시험이 **파일을 읽어**
+확인한다 — 상수를 손으로 옮겨 적으면 사본이 하나 더 느는 것이고, 서버가 바뀐 날 그 시험도
+같이 통과해 버린다.
+
+같은 이유로 두 숫자도 모았다.
+* `NAV_BREAKPOINT`(theme.js)와 `NAV_BREAKPOINT_PX`(navConfig.js)가 각각 `860` 이었다.
+* 디바운스가 `filters.jsx` 의 300 과 `CommandPalette.jsx` 의 220 으로 서로를 모른 채 살았다.
+  값이 둘인 것은 옳다(목록 필터와 키보드 팔레트는 성격이 다르다) — **어디에 적혀 있는지**가
+  한 곳이어야 한다. `theme.js::DEBOUNCE_MS` 로 옮겼다.
+
+쓰이지 않는 별칭 `FormDialog` 와 목업 baseline 잔재 넷(`BASELINE_CONTENT_FILLS`·
+`BASELINE_CONTENT_PADDING_PX`·`CARD_HEAD_GAP`·`fitsWithoutOrphan`)을 지웠다. 소비자가 0인
+export 는 같은 것을 부르는 이름을 하나 더 만들 뿐이다(지시 23).

@@ -230,8 +230,21 @@ const TOKENS = {
 };
 
 /* 사이드바가 서랍(temporary)으로 바뀌는 지점. 1024×768·1152×720 사내 장비를 고려한 값이라
- * MUI 의 lg(1200)를 쓰면 안 된다. */
+ * MUI 의 lg(1200)를 쓰면 안 된다.
+ *
+ * 이 값은 `app/navConfig.js` 에도 `NAV_BREAKPOINT_PX = 860` 으로 따로 적혀 있었다 — 같은
+ * 숫자가 두 파일에 살면 한쪽만 바뀌는 날이 온다(지시 23). navConfig 가 이것을 가져다 쓴다.
+ */
 export const NAV_BREAKPOINT = 860;
+
+/* 입력이 멎었다고 보고 요청을 내보내기까지의 지연 (지시 26).
+ *
+ * 값이 둘인 이유는 두 입력의 성격이 다르기 때문이다 — 목록 필터는 타이핑 중에 표 전체를
+ * 다시 그리므로 넉넉히 기다리고, 명령 팔레트는 키보드로 여닫는 도구라 더 빨리 반응해야 한다.
+ * 다만 **어디에 적혀 있는지**는 한 곳이어야 한다: 예전에는 `ui/filters.jsx` 의 300 과
+ * `app/CommandPalette.jsx` 의 220 이 서로를 모른 채 각자 살았다.
+ */
+export const DEBOUNCE_MS = { filter: 300, palette: 220 };
 
 export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2200, uhd: 3000 };
 

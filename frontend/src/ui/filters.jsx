@@ -3,6 +3,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import { DEBOUNCE_MS } from "./theme.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
  *
@@ -10,8 +11,8 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
  * FilterSelect, 티켓 목록의 select). 같은 뜻의 부품이 세 벌이면 한쪽만 고쳐지는 날이 오고,
  * 그때 증상은 "이 화면 필터만 다르게 동작한다" 라서 원인이 안 보인다. */
 
-/** 검색·자유 입력 확정까지의 지연. 화면마다 다르면 같은 앱에서 반응이 들쭉날쭉해진다. */
-export const FILTER_DEBOUNCE_MS = 300;
+/** 검색·자유 입력 확정까지의 지연. 값의 정본은 토큰이다(theme.js::DEBOUNCE_MS). */
+export const FILTER_DEBOUNCE_MS = DEBOUNCE_MS.filter;
 
 /* 빈 값(전체·없음)을 고를 수 있는 select 에 반드시 함께 넘긴다.
  * MUI Select 는 값이 '' 이면 '아직 아무것도 안 골랐다'로 보고 라벨을 축소하지 않은 채

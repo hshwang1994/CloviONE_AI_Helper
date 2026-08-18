@@ -13,6 +13,7 @@ import { useAuth } from "../app/auth.jsx";
 // 설정 값 그대로(`starttls`)는 설정 파일의 어휘다. 고르는 화면과 보는 화면이
 // 같은 이름을 써야 한 값이 두 이름을 갖지 않는다.
 import { SMTP_SECURITY_LABELS } from "./settings/settingsRegistry.js";
+import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 
 /* 메일 발송 (FN-01 · 지시 35 · 36 · 40).
  *
@@ -45,7 +46,7 @@ import { SMTP_SECURITY_LABELS } from "./settings/settingsRegistry.js";
  * 다시 검사하지 않고 그대로 따른다.
  */
 
-const WRITE_ROLES = ["admin", "system_admin"];
+// 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
 
 const HELP = "비밀번호 재설정, 승인 알림, 백업 실패 알림 메일이 실제로 나가는지 확인합니다. 시험 발송은 내 계정 주소로만 보냅니다.";
 
@@ -107,7 +108,7 @@ export function MailStatus() {
   const confirm = useConfirm();
   const auth = useAuth();
   const role = (auth.data && auth.data.role) || "";
-  const canWrite = WRITE_ROLES.includes(role);
+  const canWrite = CONSOLE_WRITE_ROLES.includes(role);
 
   const query = useQuery({
     queryKey: ["mail-status"],

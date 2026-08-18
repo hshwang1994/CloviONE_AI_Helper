@@ -15,6 +15,7 @@ export { badgeCol, boolCol, mapCol, dateCol, jsonField, objectField, readCol, li
 export { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
 import { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
+import { CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES } from "../../lib/roles.js";
 
 // 바이트 크기를 사람이 읽을 수 있게(백업 크기 등). null이면 '-'.
 export const fmtBytes = (n) => {
@@ -128,11 +129,11 @@ export const TEMPLATE_TARGET_OPTS = TARGET_OPTS;
 export const SCHED_TARGET_OPTS = opt([["workflow", "워크플로"], ["system", "시스템"]]);
 // 상태 변경(쓰기) 액션 role 게이트 — 백엔드 RBAC와 일치시켜 읽기 전용 역할(operator/auditor)에게
 // 항상 403이 되는 버튼을 애초에 숨긴다(DataScreen canDo가 a.roles로 필터).
-export const WRITE_ROLES = ["admin", "system_admin"];            // 생성/수정/onoff/발행/롤백/승인·거절/동기화 등
-export const OPS_ROLES = ["operator", "admin", "system_admin"];  // 운영성 액션(헬스/테스트/지금 실행/작업 재시도·취소 등)
+export const WRITE_ROLES = CONSOLE_WRITE_ROLES;                  // 생성/수정/onoff/발행/롤백/승인·거절/동기화 등
+export const OPS_ROLES = CONSOLE_OPS_ROLES;                      // 운영성 액션(헬스/테스트/지금 실행/작업 재시도·취소 등)
 // 관리 콘솔 역할(일반 사용자 role=user 제외) — 알림의 '관련 항목 보기'처럼 관리자 해시 경로로만
 // 이동하는 액션을 일반 사용자에게 숨긴다(일반 사용자가 누르면 채팅으로 튕겨 나간다).
-export const ADMIN_VIEW_ROLES = ["operator", "admin", "system_admin", "auditor"];
+export const ADMIN_VIEW_ROLES = CONSOLE_READ_ROLES;
 // 생성 권한이 없는 역할(operator/auditor)에게는 렌더되지도 않는 '추가' 버튼을 누르라고 안내하지 않는다.
 // 쓰기 역할(admin/system_admin)에겐 CTA 안내를, 그 외엔 읽기 전용 안내를 준다(schedules/documents/backup 패턴).
 export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "admin" || role === "system_admin") ? writerMsg : readerMsg;

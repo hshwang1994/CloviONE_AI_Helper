@@ -1,4 +1,4 @@
-// snake_case 백엔드 키를 한국어 이름으로. 한국어 콘솔에 raw 영문 키를 주 식별자로 노출하지 않는다.
+import { CONSOLE_WRITE_ROLES } from "../../lib/roles.js";// snake_case 백엔드 키를 한국어 이름으로. 한국어 콘솔에 raw 영문 키를 주 식별자로 노출하지 않는다.
 export const SETTING_LABELS = {
   // 라벨과 설명(registry.py) 용어를 '보존'으로 통일한다 — 라벨은 '보관', 옆 설명은 '보존'이라 서로 다른 개념처럼 보였다.
   conversation_retention_days: "대화 보존 기간(일)",
@@ -63,7 +63,8 @@ export const OBJECT_SCHEMA_HELP = {
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365).',
 };
-export const WRITE_ROLES = ["admin", "system_admin"];
+// 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
+export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
 // maintenance_mode·maintenance_message는 전용 '유지보수' 화면(/maintenance)에서만 관리한다.
 // 같은 안전 스위치를 두 화면에서 서로 다른 방식으로 다루지 않도록 설정 표에서는 숨긴다.
 export const MAINTENANCE_KEYS = ["maintenance_mode", "maintenance_message"];

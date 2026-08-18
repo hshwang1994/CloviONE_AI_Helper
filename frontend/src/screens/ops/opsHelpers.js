@@ -3,9 +3,11 @@
  * Dashboard.jsx도 이 모듈에서 되가져다 쓴다(DS-17) — 원래는 여기 있던 게 오히려 Dashboard.jsx
  * 쪽에 있어서, 이 파일이 화면 파일을 거꾸로 import하는 구조였다. */
 import { toUTCDate } from "../../lib/format.js";
+import { CONSOLE_WRITE_ROLES } from "../../lib/roles.js";
 
 // 진단/유지보수 쓰기 권한(서버 RBAC와 일치). 프런트는 표시만 조정하고 판단은 서버가 한다.
-export const WRITE_ROLES = ["admin", "system_admin"];
+// 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
+export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
 export const isWriteRole = (role) => role != null && WRITE_ROLES.includes(role);
 // 쓰기 권한이 없을 때 버튼 옆에 남기는 이유 — 버튼을 숨기지 않는다(아래 Maintenance 주석 참고).
 export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 있습니다.";

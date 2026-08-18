@@ -1507,13 +1507,16 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     </Modal>
   );
 }
-// 하위호환 별칭 — 기존 호출부(FormDrawer/FormDialog/DialogFooter)는 그대로 두되 전부 중앙 모달로 동작.
+/* 하위호환 별칭 — 서랍(drawer)이던 시절의 이름을 남겨 둔 자리다. 전부 중앙 모달로 동작한다.
+ *
+ * 별칭이 셋이었는데 실제 소비자는 `FormDrawer`(DataScreen)와 `DialogFooter`(이 파일의
+ * Confirm) 둘뿐이었다 — `FormDialog` 는 아무도 부르지 않았다. 쓰이지 않는 별칭은 같은 것을
+ * 부르는 이름을 하나 더 만들 뿐이라 지운다(지시 23). */
 // `Drawer = Modal`은 뺐다(DS-10) — 진짜 옆에서 밀려나오는 드로어(AppShell 사이드바,
 // AssistantDrawer)는 애초에 이 별칭을 안 쓰고 `@mui/material/Drawer`를 직접 쓴다. 이 이름은
 // 중앙 모달 6곳에서만 쓰이고 있었는데, 이름이 "드로어"라 실제 동작(가운데 다이얼로그)과
 // 어긋나 혼동을 줬다 — 호출부를 전부 `Modal`로 고쳐 부른다(동작은 그대로, 이름만 정확해짐).
 export const FormDrawer = FormModal;
-export const FormDialog = FormModal;
 export const DialogFooter = ModalFooter;
 
 /* 스타일된 확인 대화상자(중앙 모달) — window.confirm 대체. useConfirm()이 async 함수를 준다. */
