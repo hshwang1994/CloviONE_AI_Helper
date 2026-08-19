@@ -22751,7 +22751,8 @@
      "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-390x844.png",
      "ev:capture:dist/ui-qa/w3-nav-e2e/palette-menu-light.png",
      "ev:review:wf_6fca7af0-570 (독립 3 렌즈 + 적대적 검증 10건 — 확인 7 · 반증 3)",
-     "ev:note:D-184 (docs/DECISIONS.md)"
+     "ev:note:D-184 (docs/DECISIONS.md)",
+     "ev:commit:ab2bc618 (W3 전체)"
     ],
     "build_index_sha256": [
      "c03113861aaa5138"
