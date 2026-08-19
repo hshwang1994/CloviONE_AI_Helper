@@ -5,11 +5,19 @@
 
 Always writes ``dist/ui-qa/<label>/results.json`` and ``report.html``; exits
 non-zero only when a class listed in ``--fail-on`` actually failed.
+
+``--findings-out`` 를 주면 실패한 Assertion 을 Finding stub JSON 으로도 남긴다. 실행 요약은
+휘발되고 ``results.json`` 은 584페이지짜리라 아무도 다시 열지 않는다 — 결함 목록은 따로
+있어야 추적된다.
+
+요약표의 **억제** 열은 ``docs/ui-renewal/QA_SUPPRESSIONS.md`` 에서 읽는다. 초록 실행이
+무엇을 침묵시킨 채 초록인지 요약만 보고도 알 수 있어야 한다.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -28,7 +36,59 @@ from .auth import AuthError, ensure_session  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = REPO_ROOT / "dist" / "ui-qa"
+SUPPRESSIONS_DOC = REPO_ROOT / "docs" / "ui-renewal" / "QA_SUPPRESSIONS.md"
 EXIT_OK, EXIT_ASSERTION, EXIT_HARNESS = 0, 1, 2
+
+# Finding stub 의 심각도. 규칙은 하나다 —
+#   critical  화면이 뜨지 않았거나 예외로 죽었다. 아래 판정 전부가 무의미해진다.
+#   high      사용자가 값을 **잘못 읽거나**(정렬·대비·잘림·읽을 수 없는 글자),
+#             **누르지 못하거나**(가림·못 닫는 모달), 제품 정체성이 **없다**(브랜드·마스코트).
+#             `QA_SUPPRESSIONS.md` 가 억제를 금지한 클래스는 전부 여기에 있다.
+#   medium    공간을 잘못 썼다(빈 캔버스·비율·반복·밀려난 줄). 읽히기는 한다.
+# 표에 없는 클래스는 SEVERITY_DEFAULT 로 적고 **경고를 찍는다** — 새 Assertion 이 조용히
+# medium 으로 흘러 들어가면 그게 곧 침묵이다.
+SEVERITY_BY_CLASS = {
+    "auth_ok": "critical",
+    "page_errors": "critical",
+    "theme_applied": "high",
+    "horizontal_overflow": "high",
+    "console_errors": "high",
+    "broken_images": "high",
+    "duplicate_ids": "medium",
+    "tiny_text": "high",
+    "narrow_main": "medium",
+    "vertical_text_collapse": "high",
+    "fab_overlap": "high",
+    "image_cropped": "high",
+    "content_clipped": "high",
+    "rail_wider_than_prose": "medium",
+    "modal_footer_outside_actions": "medium",
+    "modal_full_width_buttons": "medium",
+    "modal_offscreen": "high",
+    "modal_no_close": "high",
+    "modal_cannot_close": "high",
+    "modal_radius": "medium",
+    "modal_width_spread": "medium",
+    "contrast": "high",
+    # 정렬/대비/브랜드 계열 신규 Assertion
+    "header_cell_alignment_mismatch": "high",
+    "numeric_alignment": "high",
+    "control_baseline_mismatch": "high",
+    "brand_presence": "high",
+    "mascot_visible_size": "high",
+    "plain_dropdown_for_entity": "high",
+    # 공간 계열 신규 Assertion
+    "equal_column_split": "medium",
+    "column_width_vs_content": "medium",
+    "isolated_control_row": "medium",
+    "oversized_empty_surface": "medium",
+    "dead_blank_region": "medium",
+    "detail_side_imbalance": "medium",
+    "surface_repetition": "medium",
+}
+SEVERITY_DEFAULT = "high"
+SEVERITY_ORDER = ("critical", "high", "medium")
+FINDING_MAX_SAMPLES = 5
 
 
 def _log(message: str = "") -> None:
@@ -55,12 +115,177 @@ def check_marker(passed: int, failed: int, skipped: int) -> tuple[str, str]:
     안 걸린다. 그래도 "통과 6"만 보면 이번 실행 대부분을 확인한 것처럼 보이는데, 실제로는
     건너뜀이 통과·실패를 합친 것보다 많다 — 이 실행이 본 것보다 못 본 것이 더 많다는 뜻이다
     (BACKLOG `QA-13`, `never_ran`과 같은 착시의 옅은 버전이라 다른 마커로 구분한다).
+
+    `통과 0 / 실패 0 / 건너뜀 0`은 **skip 조차 없는** 상태다 — 그 검사는 판정 자체를
+    만들지 않았다(`--modals` 없이 돌린 모달 7종이 매 실행 그렇다: `classify`가 그 키를
+    아예 넣지 않아 `summarize`에 0/0/0으로만 남는다). 요약표에서 `0 0 0`은 가장 조용한
+    줄이라 "볼 게 없었다"로 읽히지만 실제로는 건너뜀 전부와 같은 뜻이고 오히려 더 심하다
+    — 그래서 같은 `never_ran`으로 센다.
     """
-    if passed == 0 and failed == 0 and skipped:
+    if passed == 0 and failed == 0:
         return "  ← 한 번도 돌지 않음", "never_ran"
     if skipped and skipped > passed + failed:
         return "  ← 대부분 건너뜀", "mostly_skipped"
     return "", ""
+
+
+def suppression_marker(failed: int, suppressed: int) -> str:
+    """억제가 실패보다 많은 클래스에 붙는 경고 — `check_marker` 와 같은 자리, 다른 문구.
+
+    억제 3건 · 실패 1건이면 이 검사는 "거의 통과"가 아니라 **거의 꺼져 있다**. 억제를
+    하나씩 늘리며 초록을 만드는 흐름은 `건너뜀`이 통과처럼 읽히던 착시와 같은 종류이고
+    (`check_marker` 참조), 요약을 보는 사람이 그것을 알아채지 못하면 억제 목록은 아무도
+    다시 읽지 않는다. `QA_SUPPRESSIONS.md` 규칙 6이 요구하는 표시가 이것이다.
+    """
+    if suppressed and suppressed > failed:
+        return f"  ← 억제({suppressed})가 실패({failed})보다 많음"
+    return ""
+
+
+def read_suppressions(path: Path = SUPPRESSIONS_DOC) -> tuple[dict[str, int] | None, str]:
+    """`QA_SUPPRESSIONS.md` 의 표에서 클래스별 억제 행 수를 센다.
+
+    읽지 못하면 `(None, 사유)` 다. **0건과 모름을 같은 값으로 돌려주지 않는다** — 파일이
+    없다는 이유로 "억제 0건"을 찍으면 그 실행은 자기가 무엇을 침묵시켰는지 모른 채 초록이 된다.
+    """
+    if not path.is_file():
+        return None, f"{path} 없음"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        return None, f"{type(exc).__name__}: {exc}"
+
+    counts: dict[str, int] = {}
+    in_table = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            in_table = False  # 표 밖의 산문이 끼면 그 표는 끝난 것이다
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        if cells[0].strip("*` ").lower() == "id" and cells[1].strip("*` ").lower() == "assertion":
+            in_table = True
+            continue
+        if not in_table:
+            continue
+        if set("".join(cells)) <= set("-: "):  # `|---|---|` 구분선
+            continue
+        name = cells[1].strip("`* ")
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    return counts, ""
+
+
+def finding_id(cls: str, surface_id: str, route: str, theme: str, viewport: str) -> str:
+    """같은 결함은 재실행에서도 같은 id 를 갖는다.
+
+    라벨(`before-renewal` / `after-…`)은 **일부러 빼둔다**. 같은 화면의 같은 결함이
+    before 와 after 에서 다른 id 를 받으면 "고쳤는가"를 id 로 물을 수 없다. 샘플 문자열도
+    뺀다 — 셀 안의 상대 시각("14일 전") 같은 값이 실행마다 달라 id 가 흔들린다.
+    """
+    key = "|".join((cls, surface_id, route, theme, viewport))
+    return "F-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:12]
+
+
+def load_prior_findings(path: Path) -> list[dict]:
+    """이전 findings 파일의 행들. 없거나 깨졌으면 빈 목록 — 이번 실행이 첫 관측이다."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [row for row in payload if isinstance(row, dict)]
+
+
+def first_seen_map(prior: list[dict]) -> dict[str, str]:
+    """이전 findings 의 `first_seen` 을 이어받는다 — 재실행이 결함의 나이를 지우면 안 된다."""
+    return {row["id"]: row["first_seen"] for row in prior
+            if row.get("id") and row.get("first_seen")}
+
+
+def dropped_unseen(prior: list[dict], findings: list[dict],
+                   covered: set) -> list[dict]:
+    """이전 파일에 있었는데 이번 실행이 **보지도 않은** 결함.
+
+    `--findings-out` 은 파일을 통째로 덮어쓴다. 좁은 재실행(`--routes smoke`, 한 뷰포트만)이
+    전체 실행의 목록을 덮으면 나머지 결함은 고쳐져서가 아니라 **아무도 다시 보지 않았기
+    때문에** 사라진다. 파일에서 조용히 없어진 결함은 다음에 이 파일을 읽는 사람에게
+    "고쳐졌다"로 읽힌다 — 그러면 이 파일은 추적 장치가 아니라 그 반대가 된다.
+
+    같은 화면을 다시 찍었는데 실패가 사라진 것은 정상(고쳐졌을 수 있다)이라 세지 않는다.
+    구분 기준은 이번 실행이 그 `(route, theme, viewport)` 를 실제로 찍었는가 하나뿐이다.
+    """
+    current = {f["id"] for f in findings}
+    return [row for row in prior
+            if row.get("id") not in current
+            and (row.get("route"), row.get("theme"), row.get("viewport")) not in covered]
+
+
+def build_findings(pages: list[dict], *, label: str, surfaces: dict[str, str],
+                   seen_at: str, first_seen: dict[str, str]) -> tuple[list[dict], list[str]]:
+    """fail 인 Assertion 하나를 Finding stub 하나로 옮긴다.
+
+    Stub 이지 Finding 이 아니다 — 원인·수정·검증은 사람이 채운다. 여기서 하는 일은
+    **실행이 끝나면 사라지던 실패를 파일로 남기는 것**뿐이다.
+    """
+    findings: list[dict] = []
+    unmapped: set[str] = set()
+    for record in pages:
+        route = record.get("route") or "?"
+        theme = record.get("theme") or "?"
+        viewport = record.get("viewport") or "?"
+        surface_id = surfaces.get(route, route)
+        for name, verdict in sorted((record.get("assertions") or {}).items()):
+            if verdict.get("status") != "fail":
+                continue
+            if name not in SEVERITY_BY_CLASS:
+                unmapped.add(name)
+            ident = finding_id(name, surface_id, route, theme, viewport)
+            count = verdict.get("count") or 0
+            note = (verdict.get("note") or "").strip()
+            title = (f"{name} — {record.get('label') or route} "
+                     f"({theme}/{viewport}) {count}건")
+            findings.append({
+                "id": ident,
+                "class": name,
+                "severity": SEVERITY_BY_CLASS.get(name, SEVERITY_DEFAULT),
+                "surface_id": surface_id,
+                "route": route,
+                "theme": theme,
+                "viewport": viewport,
+                "title": f"{title} — {note}" if note else title,
+                "samples": list(verdict.get("samples") or [])[:FINDING_MAX_SAMPLES],
+                "label": label,
+                "first_seen": first_seen.get(ident, seen_at),
+            })
+    findings.sort(key=lambda f: (SEVERITY_ORDER.index(f["severity"])
+                                 if f["severity"] in SEVERITY_ORDER else len(SEVERITY_ORDER),
+                                 f["class"], f["surface_id"], f["viewport"], f["theme"]))
+    return findings, sorted(unmapped)
+
+
+def unverified_gates(summary: dict, gates: list[str]) -> list[str]:
+    """`--fail-on` 으로 걸었는데 이번 실행에서 **판정을 하나도 내지 않은** 검사.
+
+    `fatal` 은 `status == "fail"` 인 것만 모은다. 그래서 게이트로 건 검사가 전부 skip
+    이거나(뷰포트 게이트에 안 걸림) 기록조차 없으면(`--modals` 없이 건 모달 검사) `fatal`
+    이 비고 종료 코드 0 과 `[OK] 치명 검사 실패 없음` 이 나간다. 그 줄을 읽는 쪽은 "이
+    게이트가 통과했다"로 읽지만 사실은 **게이트가 꺼져 있었다** — QA-10 이 요약표에서
+    고친 착시를 종료 코드가 그대로 되풀이하고 있었다.
+
+    `--fail-on all` 은 이 판정에서 뺀다(호출부). `all` 은 "돌아간 것 전부에 걸겠다"는
+    쓸어담기라 `--modals` 없는 실행에서 모달 7종이 늘 미실행이고, 그것까지 실패로 만들면
+    이 규칙은 첫날 꺼진다. 이름을 **직접 적은** 게이트만 의도로 본다.
+    """
+    blind = []
+    for name in gates:
+        counts = summary.get(name, {})
+        if counts.get("pass", 0) == 0 and counts.get("fail", 0) == 0:
+            blind.append(name)
+    return blind
 
 
 def _probe_server(base_url: str, insecure: bool = False) -> tuple[bool, str]:
@@ -97,6 +322,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fail-on", nargs="*", default=None,
                         help=f"치명 처리할 검사 항목: {', '.join(assertions.CLASSES)} (또는 all)")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT))
+    parser.add_argument(
+        "--findings-out", default=None, metavar="PATH",
+        help=("실패한 Assertion 을 Finding stub JSON 배열로 쓴다. id 는 클래스·Surface·"
+              "테마·뷰포트에서 만든 안정 해시라 재실행·다른 라벨에서도 같은 결함이 같은 "
+              "id 를 갖는다. 이미 있는 파일의 first_seen 은 이어받는다."))
     parser.add_argument("--rebuild-auth", action="store_true", help="세션 캐시를 무시하고 재로그인")
     parser.add_argument(
         "--role", default=None, choices=sorted(routes_mod.ROLE_RANK, key=routes_mod.ROLE_RANK.get),
@@ -146,7 +376,8 @@ def main(argv: list[str] | None = None) -> int:
     viewports = capture.resolve_viewports(_split_csv(args.viewports) or None)
     themes = capture.resolve_themes(_split_csv(args.themes) or None)
     fail_on = _split_csv(args.fail_on)
-    if "all" in fail_on:
+    fail_on_is_all = "all" in fail_on
+    if fail_on_is_all:
         fail_on = list(assertions.CLASSES)
     unknown = [c for c in fail_on if c not in assertions.CLASSES]
     if unknown:
@@ -181,12 +412,18 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_HARNESS
     _log(f"[server] {detail}")
 
-    build_before = capture.build_fingerprint()
+    build_before = capture.build_fingerprint(base_url=args.base_url, insecure=args.insecure)
     if build_before.get("error"):
         _log(f"[FATAL] {build_before['error']}")
         return EXIT_HARNESS
+    # 원격 실행의 지문에는 mtime 이 없다 — 서버가 서브한 바이트를 해시한 것이라 파일 시각이
+    # 우리 것이 아니다. 대신 **어디서 읽었는지**(source)를 찍는다. 그 줄이 "이 실행이 무엇을
+    # 쟀는가" 를 말한다.
+    _origin = build_before.get("index_mtime") or build_before.get("source", "?")
     _log(f"[build ] index {build_before['index_sha256']} "
-         f"({build_before['index_mtime']}) assets={len(build_before['assets'])}")
+         f"({_origin}) assets={len(build_before['assets'])}")
+    if build_before.get("fallback_reason"):
+        _log(f"[build ] 주의 — {build_before['fallback_reason']}")
 
     from playwright.sync_api import sync_playwright
 
@@ -289,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
             browser.close()
 
     elapsed = time.perf_counter() - clock
-    build_after = capture.build_fingerprint()
+    build_after = capture.build_fingerprint(base_url=args.base_url, insecure=args.insecure)
     if build_after.get("index_sha256") != build_before.get("index_sha256"):
         warning = (
             "프런트엔드 번들이 실행 도중 바뀌었습니다 "
@@ -338,12 +575,19 @@ def main(argv: list[str] | None = None) -> int:
     results_path = capture.write_manifest(out_root, results)
     report_path = report.build(results, out_root)
 
+    suppressions, suppression_error = read_suppressions(SUPPRESSIONS_DOC)
+    suppressed_total = sum(suppressions.values()) if suppressions is not None else None
+    suppressed_label = "?" if suppressed_total is None else str(suppressed_total)
+
     _log("")
     _log("=" * 78)
     _log(f"검사 요약 ({len(pages)} 페이지, {elapsed:.1f}s)")
-    _log(f"{'검사 항목':<24} {'통과':>6} {'실패':>6} {'건너뜀':>7}   비고")
+    # 폭 31 은 가장 긴 검사 이름(`header_cell_alignment_mismatch`, 30자)에 맞춘 값이다 —
+    # 이름이 열을 밀어내면 억제 열이 행마다 다른 자리에 찍혀 비교가 안 된다.
+    _log(f"{'검사 항목':<31} {'통과':>6} {'실패':>6} {'건너뜀':>7} {'억제':>6}   비고")
     never_ran: list[str] = []
     mostly_skipped: list[str] = []
+    over_suppressed: list[str] = []
     for name in assertions.CLASSES:
         counts = summary.get(name, {})
         passed, failed, skipped = (counts.get('pass', 0), counts.get('fail', 0),
@@ -353,7 +597,31 @@ def main(argv: list[str] | None = None) -> int:
             never_ran.append(name)
         elif bucket == "mostly_skipped":
             mostly_skipped.append(name)
-        _log(f"{name:<24} {passed:>6} {failed:>6} {skipped:>7}{mark}")
+        if suppressions is None:
+            suppressed, sup_mark = "?", ""
+        else:
+            suppressed = suppressions.get(name, 0)
+            sup_mark = suppression_marker(failed, suppressed)
+            if sup_mark:
+                over_suppressed.append(name)
+        _log(f"{name:<31} {passed:>6} {failed:>6} {skipped:>7} {suppressed:>6}{mark}{sup_mark}")
+    if suppressions is None:
+        _log("")
+        _log(f"[주의] 억제 목록을 읽지 못했습니다 ({suppression_error}).")
+        _log("       억제 0건이라는 뜻이 아니라 **모른다**는 뜻이다 — 위 억제 열은 전부 `?` 다.")
+    else:
+        stray = sorted(k for k in suppressions if k not in assertions.CLASSES)
+        if stray:
+            _log("")
+            _log(f"[주의] 억제 목록에 **검사 항목이 아닌 이름 {len(stray)}개**: " + ", ".join(stray))
+            _log("       오타이거나 이름이 바뀐 검사다. 그 행은 아무것도 억제하지 못한 채 "
+                 "억제된 것처럼 보인다.")
+    if over_suppressed:
+        _log("")
+        _log(f"[주의] 이 실행에서 **억제가 실패보다 많은 검사 {len(over_suppressed)}개**: "
+             + ", ".join(over_suppressed))
+        _log("       초록에 가까운 것이 아니라 거의 꺼져 있는 것이다. "
+             "docs/ui-renewal/QA_SUPPRESSIONS.md 의 해당 행을 다시 읽어라.")
     if never_ran:
         _log("")
         _log(f"[주의] 이 실행에서 **한 번도 돌지 않은 검사 {len(never_ran)}개**: "
@@ -374,11 +642,53 @@ def main(argv: list[str] | None = None) -> int:
     _log(f"results.json : {results_path}  ({results_path.stat().st_size:,} bytes)")
     _log(f"report.html  : {report_path}  ({report_path.stat().st_size:,} bytes)")
 
+    if args.findings_out:
+        findings_path = Path(args.findings_out)
+        findings_path.parent.mkdir(parents=True, exist_ok=True)
+        surfaces = {r["id"]: (r.get("surface_id") or r["id"]) for r in routes_mod.inventory()}
+        prior = load_prior_findings(findings_path)
+        findings, unmapped = build_findings(
+            pages, label=args.label, surfaces=surfaces,
+            seen_at=started_at.isoformat(timespec="seconds"),
+            first_seen=first_seen_map(prior))
+        findings_path.write_text(json.dumps(findings, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+        by_severity = ", ".join(
+            f"{level} {sum(1 for f in findings if f['severity'] == level)}"
+            for level in SEVERITY_ORDER)
+        _log(f"findings.json: {findings_path}  ({len(findings)}건 — {by_severity})")
+        if unmapped:
+            _log(f"[주의] 심각도 표(SEVERITY_BY_CLASS)에 없는 검사 {len(unmapped)}개를 "
+                 f"우선 {SEVERITY_DEFAULT} 로 적었습니다: " + ", ".join(unmapped))
+        covered = {(r.get("route"), r.get("theme"), r.get("viewport")) for r in pages}
+        vanished = dropped_unseen(prior, findings, covered)
+        if vanished:
+            _log(f"[주의] 이전 findings 의 {len(vanished)}건은 이번 실행이 **찍지 않은** "
+                 "화면의 결함이라 이 파일에서 사라졌습니다 (고쳐져서가 아니다): "
+                 + ", ".join(f"{v.get('class')}@{v.get('surface_id') or v.get('route')}"
+                             for v in vanished[:5])
+                 + (f" 외 {len(vanished) - 5}건" if len(vanished) > 5 else ""))
+            _log("       좁은 실행이 전체 실행의 목록을 덮었다면 --findings-out 경로를 "
+                 "분리하거나 전체 범위로 다시 돌려라.")
+
+    blind = [] if fail_on_is_all else unverified_gates(summary, fail_on)
+    if blind:
+        _log("")
+        _log(f"[FATAL] --fail-on 으로 건 검사 {len(blind)}개가 이번 실행에서 "
+             f"**판정을 하나도 내지 않았습니다**: {', '.join(blind)}")
+        _log("        통과가 아니라 미실행이다 — 이 게이트는 꺼진 채였다. 게이트 조건"
+             "(뷰포트·--modals·역할·라우트 범위)을 맞춰 다시 돌려라.")
+
     if fatal:
         _log("")
-        _log(f"[FAIL] 치명 검사 실패: {', '.join(fatal)}")
+        _log(f"[FAIL] 치명 검사 실패: {', '.join(fatal)}  (억제 {suppressed_label}건)")
         return EXIT_ASSERTION
-    _log(f"[OK] 치명 검사 실패 없음 (--fail-on={','.join(fail_on) or '(없음)'})")
+    if blind:
+        return EXIT_HARNESS
+    # 초록 줄에도 억제 총량을 반드시 찍는다 — 이 실행이 무엇을 침묵시킨 채 통과했는지
+    # 요약만 보는 사람에게도 보여야 한다.
+    _log(f"[OK] 치명 검사 실패 없음 (--fail-on={','.join(fail_on) or '(없음)'}), "
+         f"억제 {suppressed_label}건")
     return EXIT_OK
 
 

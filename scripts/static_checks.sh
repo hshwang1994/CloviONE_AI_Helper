@@ -318,21 +318,38 @@ step "폐기한 목업(preview-standalone.html)을 아직 참조하는 곳이 �
 STALE_BASELINE="$(grep -rlE "preview-standalone|design/baseline" \
   app frontend/src scripts tests docs --include='*.py' --include='*.js' --include='*.jsx' \
   --include='*.mjs' --include='*.css' --include='*.html' --include='*.sh' --include='*.md' 2>/dev/null \
-  | grep -vE '\.test\.(js|jsx)$|static_checks\.sh$|docs/(DECISIONS|BACKLOG|WORK_STATE|BUILD_LOG|UI_RENEWAL_TRACEABILITY|UI_INVENTORY)\.md$' || true)"
+  | grep -vE '\.test\.(js|jsx)$|static_checks\.sh$|docs/(DECISIONS|BACKLOG|WORK_STATE|BUILD_LOG|UI_RENEWAL_TRACEABILITY|UI_INVENTORY)\.md$|docs/ui-renewal/|scripts/check_ui_renewal_coverage\.py$' || true)"
 if [ -z "$STALE_BASELINE" ]; then
   ok "목업 참조 0건"
 else
   echo "$STALE_BASELINE"; fail "폐기한 목업을 아직 참조한다"
 fi
 
-step "요구사항 추적표 Gate — 번호 누락·빈 필드·없는 Phase 참조 0건 (지시 56)"
-# 추적표는 스스로 "생성 시 스크립트가 검사한다"고 적어 두었는데 그 스크립트가 없었다
-# (2026-08-19 전수 감사). 문서가 자기 검사기를 주장하면서 검사기가 없는 상태는 검사가
-# 없는 것보다 나쁘다 — 다음 사람이 "이미 검사받고 있다"고 믿는다.
-if TRACE="$("$PY" scripts/check_traceability.py 2>&1)"; then
+step "REGISTRY 28키 ↔ ROUTE_COVERAGE 대조 (JS 진실은 JS 가 증명한다)"
+# 이 한 가지 대조만 Python 이 못 한다. REGISTRY 는 7개 도메인 파일의 객체 조립 결과라
+# 정규식으로 훑으면 조용히 놓친다 — 실제로 `admin-notifications` 하나를 놓쳤고, 그 화면은
+# 하네스에도 커버리지에도 없어서 한 번도 캡처된 적이 없었다. Vitest 는 REGISTRY 를 import
+# 해서 세므로 놓칠 수가 없다.
+if command -v npx >/dev/null 2>&1; then
+  if PARITY="$(cd frontend && npx vitest run src/screens/registry-surface-parity.test.js 2>&1)"; then
+    ok "$(echo "$PARITY" | grep -E 'Tests +[0-9]+ passed' | tail -1)"
+  else
+    echo "$PARITY" | tail -25; fail "ROUTE_COVERAGE 가 REGISTRY/TAB_GROUPS 와 어긋난다"
+  fi
+else
+  fail "npx 가 없어 REGISTRY 대조를 못 돌렸다 — 이 검사는 건너뛸 수 없다(Python 이 대신 못 한다)"
+fi
+
+step "UI 리뉴얼 Control Plane Gate — 계획 구조 · 요구사항 추적표 (지시 56 · R-96)"
+# `check_traceability.py`(174줄)가 이 자리에 있었고, 삭제된 `docs/UI_RENEWAL_TRACEABILITY.md`
+# 를 요구하며 스크립트 전체를 빨갛게 만들고 있었다 — "static checks green" 을 전제로 쓰는
+# 모든 Wave 종료 조건이 그래서 도달 불가였다. 네 검사(번호 누락·빈 필드·없는 Wave 참조·
+# 자기모순)는 `check_ui_renewal_coverage.py` 가 그대로 이어받고 범위를 넓혔다.
+# Gate 가 둘이면 갈라진다 — 하나만 둔다.
+if TRACE="$("$PY" scripts/check_ui_renewal_coverage.py --stage plan 2>&1)"; then
   ok "$(echo "$TRACE" | tail -1)"
 else
-  echo "$TRACE"; fail "추적표가 지시 56 Gate 를 통과하지 못한다"
+  echo "$TRACE"; fail "Control Plane 이 Plan Gate 를 통과하지 못한다"
 fi
 
 step "Committed frontend bundle matches the sources"

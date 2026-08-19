@@ -98,7 +98,9 @@ function RouteNotFound() {
  * 리다이렉트는 해시 쿼리를 버려서, 저장된 뷰 링크(`#/restore-drills?status=failed`)를 열면
  * 필터가 사라진 화면이 뜬다.
  */
-const TAB_GROUPS = [
+/* W0: `registry-surface-parity.test.js` 가 이 표를 import 해 ROUTE_COVERAGE 와 대조한다.
+   Python 정규식으로는 계산된 경로를 못 읽어 28개 중 1개를 조용히 놓쳤다 — JS 진실은 JS 가 증명한다. */
+export const TAB_GROUPS = [
   {
     path: "/backup", area: "운영", title: "백업",
     tabs: [
@@ -149,7 +151,7 @@ function sameRoles(tabs) {
   return sets.every((x) => x === sets[0]);
 }
 
-const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
+export const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
 
 /* registry.js 를 정적으로 물어 오지 않는다(PF7) — 대신 이 파일이 마운트된 뒤 한 번
  * `import()` 로 받는다. `REGISTRY` 는 컴포넌트가 아니라 설정 객체라 `React.lazy()` 로는

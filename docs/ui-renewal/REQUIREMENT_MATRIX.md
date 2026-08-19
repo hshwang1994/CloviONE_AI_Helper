@@ -2143,7 +2143,7 @@
 
 - **Wave**: W6
 - **Requirement**: 권한이 있는 사용자가 상세 수정 화면으로 이동하지 않고 Grid 에서 상태와 우선순위를 바꿀 수 있어야 한다. DataTable 이나 Status Cell 의 스타일 변경만으로 이 요구를 완료 처리하지 않는다. 현재 값, 변경 가능한 값, 선택, Saving, 성공, 실패, Rollback, 권한 없음, 중복 요청 방지를 모두 포함하는 공통 Property Editing Pattern 을 만든다. 평상시에는 Grid 가독성을 해치지 않되 변경 가능한 값임을 알 수 있어야 하고, 모든 Editable Value 를 항상 Select Box 로 노출하지 않는다. Frontend State 만 바꾸고 성공 처리하지 않으며 Backend 저장을 확인하고 필요하면 재조회해 실제 값으로 갱신한다. Frontend 의 변경 가능 여부와 Backend Authorization 이 일치해야 한다.
-- **Affected**: user_my-tickets, user_team-tickets, user_unassigned, user_ticket-detail
+- **Affected**: user_my-tickets, user_team-tickets, user_unassigned, user_tickets-id, user_me
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/cells.jsx`, `frontend/src/screens/registry/shared.js`
 - **Verification**: assertion `equal_column_split`, assertion `column_width_vs_content`, assertion `header_cell_alignment_mismatch`, assertion `numeric_alignment`, `frontend/src/ui/kit.test.jsx`
 - **Status**: NOT_STARTED
@@ -2157,7 +2157,7 @@
 
 - **Wave**: W7
 - **Requirement**: 상단 속성 영역에서 모든 Label 과 Value 를 동일한 중요도로 나열하는 구조를 유지하지 않는다. 사용자가 먼저 판단해야 하는 값과 보조 Metadata 를 구분하고, 모든 Property 를 Card 나 Badge 로 만들지 않으며 Compact Metadata Strip 과 Property Group 과 Definition Layout 중 적절한 표현을 고른다. 넓은 화면에서 속성 사이 간격만 늘어나 시선 이동이 커지지 않아야 하고 좁은 화면에서 중요한 값을 잘라내지 않아야 한다. 긴 프로젝트명이 든 실제 데이터로 FHD 와 QHD 와 4K 와 Browser Zoom 을 검증한다. 자주 바뀌는 Property 는 Detail 상단 Inline Edit 적절성을 판단하되 Grid 와 Detail 과 Form 이 같은 값을 서로 다른 Interaction 으로 중복 구현하지 않는다.
-- **Affected**: ARCHETYPE:detail
+- **Affected**: ARCHETYPE:work_detail, ARCHETYPE:reading_page
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
 - **Status**: NOT_STARTED

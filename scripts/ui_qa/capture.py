@@ -27,24 +27,70 @@ from .routes import Route
 REACT_INDEX = Path(__file__).resolve().parents[2] / "app" / "static" / "react" / "index.html"
 
 
-def build_fingerprint(index_path: Path = REACT_INDEX) -> dict:
+def _fingerprint_of(raw: bytes, *, source: str, mtime: str = "") -> dict:
+    text = raw.decode("utf-8", "replace")
+    out = {
+        "index_sha256": hashlib.sha256(raw).hexdigest()[:16],
+        "assets": sorted(set(re.findall(r"/static/react/assets/([A-Za-z0-9._-]+)", text))),
+        "source": source,
+    }
+    if mtime:
+        out["index_mtime"] = mtime
+    return out
+
+
+def build_fingerprint(index_path: Path = REACT_INDEX, base_url: str = "",
+                      insecure: bool = False) -> dict:
     """Identify the frontend bundle a run measured.
 
     A PRE/POST comparison is worthless if the bundle changed underneath the run
     (``npm run build`` overwrites app/static/react/ in place), so every run
     records the shell's hash and its hashed asset names, and ``run.py``
     re-checks it at the end.
+
+    ⚠️ 원격 서버를 겨눈 실행에서는 **로컬 파일이 화면에 있던 번들이 아니다.** 실제로
+    어긋났다 — 로컬 `1a4b20a8…`, 서버가 서브한 것 `9ab4d470…`. 지문이 존재하지 않는
+    빌드를 가리키면 `EVIDENCE_STALE_BUILD` 와 before/after 번들 비교가 둘 다 헛돈다.
+    그래서 원격이면 **서브된 shell 을 받아** 같은 방식으로 해시하고, 어디서 왔는지를
+    `source` 에 남긴다. 받지 못하면 로컬로 내려가되 그 사실을 `fallback_reason` 에 적는다.
     """
+    remote = _remote_index(base_url, insecure) if _is_remote(base_url) else None
+    if remote is not None:
+        raw, url = remote
+        return _fingerprint_of(raw, source=url)
+
     if not index_path.exists():
         return {"error": f"{index_path} 없음 — frontend를 빌드하세요 (cd frontend && npm run build)"}
-    raw = index_path.read_bytes()
-    text = raw.decode("utf-8", "replace")
-    return {
-        "index_sha256": hashlib.sha256(raw).hexdigest()[:16],
-        "index_mtime": datetime.fromtimestamp(index_path.stat().st_mtime).isoformat(
-            timespec="seconds"),
-        "assets": sorted(set(re.findall(r"/static/react/assets/([A-Za-z0-9._-]+)", text))),
-    }
+    out = _fingerprint_of(
+        index_path.read_bytes(), source=str(index_path),
+        mtime=datetime.fromtimestamp(index_path.stat().st_mtime).isoformat(timespec="seconds"),
+    )
+    if _is_remote(base_url):
+        out["fallback_reason"] = (
+            f"{base_url} 의 /static/react/index.html 을 받지 못해 로컬 파일로 대신했다 — "
+            "이 지문은 화면에 있던 번들이 아닐 수 있다")
+    return out
+
+
+def _is_remote(base_url: str) -> bool:
+    return bool(base_url) and not any(
+        h in base_url for h in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"))
+
+
+def _remote_index(base_url: str, insecure: bool) -> tuple[bytes, str] | None:
+    """서브된 SPA shell. 실패는 조용히 넘기되 호출자가 그 사실을 적는다."""
+    import ssl
+    import urllib.request
+
+    url = f"{base_url.rstrip('/')}/static/react/index.html"
+    try:
+        ctx = ssl._create_unverified_context() if insecure else None
+        with urllib.request.urlopen(url, timeout=15, context=ctx) as response:
+            if response.status != 200:
+                return None
+            return response.read(), url
+    except Exception:  # noqa: BLE001 — 지문을 못 읽는 것이 실행을 죽이지는 않는다
+        return None
 
 
 @dataclass(frozen=True)
@@ -420,6 +466,32 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
         record["assertions"]["contrast"] = contrast_verdict(evaluate_contrast(page))
     except Exception as exc:  # noqa: BLE001 — 대비 측정 실패가 캡처 결과 전체를 버리게 하면 안 된다
         record["assertions"]["contrast"] = {
+            "status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}",
+        }
+
+    # 브랜드 색 실측(scripts/ui_qa/brand.py). contrast 와 같은 자리·같은 계약이다 — 추가
+    # 네비게이션 없이 같은 페이지에서 evaluate 만 더 돌고, 실패하면 record 를 버리지 않고
+    # skip 으로 남긴다. 스크린샷은 이미 위에서 찍혔으므로 이 검사가 포커스를 옮겨도(Tab 으로
+    # 포커스 링을 잰다) 캡처가 오염되지 않는다.
+    try:
+        from .brand import brand_verdict, evaluate_brand
+
+        record["assertions"]["brand_presence"] = brand_verdict(evaluate_brand(page))
+    except Exception as exc:  # noqa: BLE001 — 브랜드 측정 실패가 캡처 결과를 버리게 하면 안 된다
+        record["assertions"]["brand_presence"] = {
+            "status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}",
+        }
+
+    # 마스코트가 **실제로 보이는 크기**(scripts/ui_qa/mascot.py). 자산의 알파 bbox 는 실행당
+    # 1회만 계산하고 out_root 아래 캐시한다 — route × theme × viewport 마다 다시 재면 같은
+    # 답을 수백 번 계산한다.
+    try:
+        from .mascot import CACHE_NAME, evaluate_mascot, mascot_verdict
+
+        record["assertions"]["mascot_visible_size"] = mascot_verdict(
+            evaluate_mascot(page, cache_path=out_root / CACHE_NAME))
+    except Exception as exc:  # noqa: BLE001 — 마스코트 측정 실패가 캡처 결과를 버리게 하면 안 된다
+        record["assertions"]["mascot_visible_size"] = {
             "status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}",
         }
 

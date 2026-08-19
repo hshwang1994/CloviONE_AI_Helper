@@ -79,7 +79,8 @@ def _generate_password() -> str:
 def _load_credentials(path: Path) -> dict | None:
     env_password = os.environ.get("UI_QA_PASSWORD")
     if env_password:
-        return {"email": DEFAULT_EMAIL, "password": env_password, "source": "env"}
+        return {"email": DEFAULT_EMAIL, "password": env_password, "source": "env",
+                "role": os.environ.get("UI_QA_ROLE") or None}
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -91,10 +92,11 @@ def _load_credentials(path: Path) -> dict | None:
     return None
 
 
-def _save_credentials(path: Path, email: str, password: str) -> None:
+def _save_credentials(path: Path, email: str, password: str, role: str = "") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"email": email, "password": password}, ensure_ascii=False, indent=2),
+        json.dumps({"email": email, "password": password, "role": role},
+                   ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -307,7 +309,14 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
     # 위 세션 캐시와 같은 이유의 안전장치: 이 out_dir에 다른 역할(또는 UI_QA_PASSWORD로
     # DEFAULT_EMAIL을 강제한 이전 실행)의 자격증명이 남아 있으면 이번에 요청한 역할과 다른
     # 계정으로 조용히 로그인하게 된다 — 이메일이 이번 역할의 기대값과 다르면 버린다.
-    if creds and creds.get("email") and creds["email"] != default_email:
+    # `role` 을 선언한 자격증명은 이름 규칙을 면제한다 — 실제 계정(Notion 매핑이 있는)으로
+    # 찍어야 `내 …` 화면에 실데이터가 나오는데, 그런 계정의 이메일은 `ui-qa-…` 규칙과 다르다.
+    # 선언이 없으면 예전 그대로 이름으로 판정한다.
+    declared_role = (creds or {}).get("role")
+    if creds and declared_role and declared_role != resolved_role:
+        log(f"[auth] 자격증명이 선언한 역할({declared_role})이 요청 역할({resolved_role})과 다름 → 새로 프로비저닝")
+        creds = None
+    elif creds and not declared_role and creds.get("email") and creds["email"] != default_email:
         log(f"[auth] 캐시된 자격증명({creds['email']})이 요청 역할({resolved_role})과 안 맞음 → 새로 프로비저닝")
         creds = None
     email = (creds or {}).get("email") or default_email
@@ -333,7 +342,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
             # user_cli always forces a first-login change; complete it for real.
             _complete_forced_change(page, base_url, initial, final)
             password = final
-            _save_credentials(creds_path, email, final)
+            _save_credentials(creds_path, email, final, resolved_role)
             log(f"[auth] 최초 로그인 + 비밀번호 변경 완료 → {creds_path}")
 
         user = _fetch_me(context, base_url)
@@ -358,7 +367,7 @@ def ensure_session(browser, base_url: str, out_dir: Path, *, rebuild: bool = Fal
             log(f"[auth] 계정이 비밀번호 변경 강제 상태 → 변경 화면에서 해제: {email}")
             _complete_forced_change(page, base_url, password, changed)
             password = changed
-            _save_credentials(creds_path, email, changed)
+            _save_credentials(creds_path, email, changed, resolved_role)
             user = _fetch_me(context, base_url)
             if not user:
                 raise AuthError("비밀번호는 바꿨는데 /api/me가 인증을 인정하지 않습니다.")

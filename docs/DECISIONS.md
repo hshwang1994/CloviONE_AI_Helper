@@ -7145,3 +7145,126 @@ Brand 오브젝트가 되고, 그 안에 인디고 계열 Work Canvas 가 놓인
 Portal id 를 알 수 없다. `TicketFilters.matches:147` 이 그 값으로 거르므로 relation 이
 있어도 조용히 탈락할 수 있고, Filter 옵션 목록은 `service.list_projects` 라는 다른 소스에서
 온다. 신규 요구사항 R-85~R-97 이 이 축을 담당한다.
+
+
+## D-170 — 리다이렉트는 화면이 아니다 (하네스·커버리지 양쪽에서)
+
+`AdminRoutes.jsx:216-219` 이 `/system`·`/notion-console`·`/llm-console`·`/maintenance` 를
+`<Navigate to="/settings?tab=…" replace />` 로 바꿨는데, `scripts/ui_qa/routes.py` 는 넷을
+계속 **화면**으로 등록하고 있었다. 결과는 PNG 네 장이 실제로는 두 화면이고, 그 위에서 21개
+Assertion 이 전부 통과하는 것이다 — 커버리지가 **늘어나는 방향의 거짓**이라 요약만 보면
+오히려 좋아 보인다.
+
+- `Route` 에 `alias_of` 를 두고, 별칭은 `ALL_ROUTES` 가 아니라 `ALIAS_ROUTES` 에 산다.
+  `--routes alias` 로만 부른다.
+- 도착지 계약의 정본은 `frontend/src/app/settings-route-redirects.test.jsx` 다.
+  `tests/regression/test_ui_qa_route_registry_completeness.py` 가 소스의 `<Navigate>` 목록과
+  `ALIAS_ROUTES` 의 도착지가 글자까지 같은지 대조한다.
+- Gate 조건 C1b 가 커버리지 쪽 같은 규칙(`kind: state_variant` + `alias_of`)을 강제한다.
+
+## D-171 — REGISTRY 대조만은 JS 가 한다
+
+`scripts/check_ui_renewal_coverage.py` 는 소스 진실 다섯 개를 직접 읽는다. 그중 넷은 Python
+정규식으로 충분하지만 **REGISTRY 28키만은 아니다.** 7개 도메인 파일을 정규식으로 훑자
+`admin-notifications` 하나를 조용히 놓쳤고, 그 화면은 `scripts/ui_qa/routes.py` 에도
+`ROUTE_COVERAGE.json` 에도 없어서 **한 번도 캡처된 적이 없었다** — 사이드바에 '관리 알림'으로
+버젓이 있는 화면이다. REGISTRY 는 도메인 파일 일곱 개를 스프레드로 합친 **객체 조립의 결과**라
+그 값을 정확히 아는 도구는 JS 자신뿐이다.
+
+그래서 이 대조 하나만 `frontend/src/screens/registry-surface-parity.test.js` 로 옮기고,
+`scripts/static_checks.sh` 가 그 파일을 실제로 실행한다. Gate 는 직접 세지 않고 그 검사가
+**존재하고 살아 있고 실행되는지**만 확인한다 — 존재하지만 아무도 실행하지 않는 검사는
+없는 검사다.
+
+`AdminRoutes.jsx::TAB_GROUPS`·`ORG_CONSOLE_KEYS` 와 `SettingsShell.jsx::TAB_DEFS` 를
+`export` 한 것은 이 대조를 위해서다. 값은 그대로다.
+
+## D-172 — `/notifications` 는 사용자 콘솔 소유다 (하네스는 404 를 찍고 있었다)
+
+0060 이 알림을 두 콘솔로 갈랐다 — 사용자 `/notifications`, 관리자 `/admin-notifications`.
+`navConfig.js::USER_SEG_PATHS` 가 `/notifications` 를 담고 `AdminRoutes.jsx` 에는 그 경로가
+아예 없다. 그런데 하네스는 `admin_notifications` 를 **관리자 콘솔** `/notifications` 로
+갖고 있었다. `/admin#/notifications` 는 catch-all 의 `RouteNotFound` 다 — 하네스는 그
+404 화면을 찍었고 21개 검사가 전부 거기서 통과했다.
+
+이런 종류의 결함이 이 저장소에서만 네 번째다(system_admin 4화면 · `admin_mail` ·
+`/audit/:id` · 그리고 사용자 콘솔 두 화면). 앞의 셋은 **관리자 단방향** 완전성 검사가
+뒤늦게 잡았고, 마지막은 **사용자 콘솔에 검사 자체가 없어서** 아무도 몰랐다. 완전성 검사를
+세 방향(소스→하네스, 하네스→소스, 리다이렉트 분류)으로 넓히고 사용자 콘솔까지 포함한다.
+
+## D-173 — Surface 의 Wave 배정 규칙
+
+`ROUTE_COVERAGE.json` 의 `wave` 는 **그 화면을 다시 디자인하는 Wave** 다. 셸·테마·공유
+Primitive Wave(W1~W7)는 화면을 소유하지 않는다 — 그쪽 산출물은 전 화면에 걸리므로 Surface
+단위로 배정하면 거짓이 된다.
+
+- **위젯은 host Surface 의 Wave 를 따른다.** `WorkSummary`·`AssistantPanel`·`ChatPane`·
+  `UsersBulk` 를 host 보다 늦은 Wave 에 두면, host 의 Pilot 검수가 **안 본 부분을 품은 채**
+  통과한다.
+- **탭 본문은 W12(관리자 콘솔)** 다. W11 은 IA(`navConfig`·`TAB_GROUPS`·`TabShell`·
+  `SettingsShell`)를 소유하고, 탭 **안에 그려지는 것**은 `DataScreen` + registry config 라
+  내용 Wave 에 속한다. `/settings` 네 탭만 예외로 W8 이다 — Pilot 이 `/settings` 를
+  B10 Settings 대표로 지목했고 탭 본문 없이는 그 검수가 성립하지 않는다.
+
+## D-174 — Before 캡처는 **매핑된 실계정**으로 찍는다
+
+계획서는 W0 에서 "관리자 `Notion 사용자 연결`로 QA 계정을 매핑" 해 Real Data 를 확보하라고
+적었다. 실행해 보니 그 경로가 막혀 있다.
+
+- QA 계정 `ui-qa@goodmit.co.kr` 로 `/verify` 를 돌리면 n8n `lookup_user` 가
+  **"일치하는 Notion 사용자가 없습니다"** 를 준다. 대응하는 Notion 사용자가 없다.
+- `manual_map` 은 **원본 Notion user id** 를 요구하는데 API 는 그 값을 언제나
+  `239d…8983` 처럼 마스킹한다(§12.3 IDOR). 그 보호를 이번 작업 때문에 약화하지 않는다.
+- 티켓 응답의 `assignee_user_ids` 는 Notion id 가 아니라 **앱 사용자 id** 다 — 매핑에 못 쓴다.
+
+그래서 매핑을 만드는 대신 **이미 매핑된 계정으로 찍는다**. 사용자가 자기 계정
+(`hshwang@goodmit.co.kr`, `system_admin`, Notion `verified`)을 쓰라고 지정했다.
+`/api/tickets/mine` 이 0건에서 20건이 되고 `내 …` 범위 화면 전체가 실데이터로 찍힌다.
+
+하네스에는 그만큼의 변경이 필요했다. 기존 `ensure_session` 은 계정 이름을 **역할에서
+유도**했다 — `system_admin` 이면 `ui-qa@goodmit.co.kr`, 나머지는 `ui-qa-<role>@…`. 그 규칙은
+하네스가 스스로 만든 합성 계정에서만 성립하고, 실계정 이메일은 규칙과 달라 자격증명이
+통째로 버려졌다. 안전장치의 의도(다른 역할 계정으로 조용히 로그인하는 것을 막는다)는
+옳으므로 규칙을 없애지 않고, `credentials.json` 이 `role` 을 **선언하면** 그 선언을 믿게 했다.
+선언이 없으면 예전 그대로 이름으로 판정한다.
+
+`dist/` 는 gitignore 되어 있다 — 자격증명은 커밋되지 않는다.
+
+## D-175 — 번들 지문은 브라우저가 실제로 받은 것이어야 한다
+
+`build_fingerprint()` 는 로컬 저장소의 `app/static/react/index.html` 을 읽었다. 원격 서버를
+겨눈 실행에서 그 값은 **화면에 있던 번들이 아니다** — 실제로 어긋났다(로컬
+`1a4b20a852580a31`, 서버가 서브한 것 `9ab4d470163e475a`). 그 상태로 Before 를 찍으면 증거가
+존재하지 않는 빌드를 가리키고, Gate 의 `EVIDENCE_STALE_BUILD` 와 "before 와 after 가 같은
+번들인가" 검사가 둘 다 엉뚱한 값을 비교한다. 원격이면 서브된 shell 을 받아 같은 방식으로
+해시하고 `source` 에 출처를 남긴다. 못 받으면 로컬로 내려가되 `fallback_reason` 을 적는다 —
+조용히 로컬 값을 쓰는 것이 지금까지의 동작이었고 그게 문제였다.
+
+## D-176 — 사용자 관리 쓰기 경로에 쓰기 경합 재시도가 없다 (F-0100)
+
+QA 계정 10개를 제품의 «보관» 으로 정리하다 한 건이 **500 Internal Server Error** 로 떨어졌다.
+서버 로그의 request_id 로 추적한 원인은 `sqlite3.OperationalError: database is locked` 가
+그대로 500 으로 샌 것이다. 같은 요청을 다시 보내니 200 이었다 — 재시도가 있었으면 관리자에게
+보이지 않았을 경합이다.
+
+이 저장소에는 그 계약이 이미 있다(`app/core/db.py::is_write_conflict` +
+`DEFAULT_WRITE_CONFLICT_RETRIES(10)` + `write_conflict_backoff`, PA-RC-0008). **24개 모듈**이
+쓴다. `app/users/service.py` 는 그중에 없다 — 보관·복구·활성/비활성·비밀번호 재설정·잠금
+해제·역할 변경·일괄 적용이 전부 같은 경로다. 한 계정에서 우연히 본 것이 아니라 **표면
+전체**의 문제다.
+
+W0 은 Before 캡처 전이라 제품 코드를 바꾸지 않는다. `F-0100` 으로 기록하고 W12 에서 닫는다.
+같은 조사에서 다른 서비스 모듈도 함께 훑는다 — PA-RC-0008 이 "가장 약한 곳" 을 고쳤을 때
+사용자 관리가 빠진 이유가 무엇인지가 그 조사의 출발점이다.
+
+## D-177 — 매핑되지 않은 QA 계정 10개를 보관했다
+
+사용자 지시로 Notion 사용자와 연결되지 않은 QA 계정 전부를 정리했다 —
+`ui-qa`·`ui-qa-{admin,operator,auditor,user}`·`qa-{admin,operator,auditor,user}`·`smoke-test`.
+제품 밖에서 DB 를 지우지 않고 제품이 가진 **보관**(`POST /api/admin/users/{id}/archive`)을
+썼다: 행은 DB 에 남고 목록·검색·로그인에서만 빠지며, 감사 로그에 `user.archive` 로 남고
+`/unarchive` 로 되돌릴 수 있다. 활성 사용자 23명 → 13명, 전원 Notion `verified` 다.
+
+**대가**: W14 의 5역할 RBAC 매트릭스가 쓰던 계정이 사라졌다. 그때는
+`user_cli add --role <role> --password-stdin` 으로 필요한 순간에 만들고 검증 뒤 다시
+보관한다 — 상시로 남겨 두는 것보다 낫다. 서버 sudo 가 확보돼 있어 이 절차를 사람 없이 돈다.

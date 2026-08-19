@@ -48,12 +48,15 @@ import { Maintenance } from "../ops/Maintenance.jsx";
  */
 const TAB_SPEC = { tab: "policy" };
 
-const TAB_DEFS = [
+export const TAB_DEFS = [
   { key: "policy", label: "시스템 정책", roles: null },
   { key: "os", label: "OS와 서비스 동작", roles: ["system_admin"] },
   { key: "integration", label: "연동", roles: ["system_admin"] },
   { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
+/** 탭 키만 뽑은 목록 — 커버리지 대조용(`registry-surface-parity.test.js`). */
+export const SETTINGS_TAB_KEYS = TAB_DEFS.map((t) => t.key);
+
 const SYSTEM_ADMIN_TAB_HELP = "이 화면은 시스템 관리자만 사용할 수 있습니다.";
 
 export function SettingsShell() {

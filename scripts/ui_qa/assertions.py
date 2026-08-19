@@ -20,6 +20,22 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   image_cropped           사용자가 올린 이미지를 object-fit:cover 로 잘라 보여줌
   content_clipped         스크롤할 수 없는 상자 안에서 내용이 넘쳐 잘림
   rail_wider_than_prose   상세 화면 곁열이 본문보다 넓다
+
+레이아웃·콘텐츠 축(전부 advisory 로 시작한다 — `--fail-on` 기본값은 비어 있다):
+
+  equal_column_split      폭은 똑같이 나눴는데 두 트랙이 요구하는 폭은 배 이상 다르다
+  column_width_vs_content 한 열은 접히는데 다른 열은 절반이 비어 있다(폭 1200 이상)
+  header_cell_alignment_mismatch  `th` 정렬이 그 열 `td` 들의 정렬과 다르다
+  numeric_alignment       숫자 열이 우정렬이 아니거나 `tabular-nums` 가 없다
+  isolated_control_row    윗줄에 들어갈 자리가 있는데도 컨트롤 하나가 아랫줄로 밀렸다
+  control_baseline_mismatch  한 줄 안에서 컨트롤 높이(같은 종류)나 중심선이 어긋난다
+  oversized_empty_surface 큰 상자가 거의 비었거나 내용이 왼쪽에만 몰려 있다
+  dead_blank_region       스크롤도 안 되는 화면에서 아래/오른쪽이 굶주린 채 비어 있다
+  plain_dropdown_for_entity  기수가 무한히 자라는 대상을 검색 없는 드롭다운으로 고르게 한다
+  detail_side_imbalance   2열 중 한쪽이 동났는데 그 공간을 회수하지 않았다(폭 1366 이상)
+  surface_repetition      같은 톤의 면이 구조적으로 반복된다(목록은 정상이라 제외한다)
+  brand_presence          브랜드 색이 제품 표면에 실제로 쓰이는가 (`capture.py` 가 채운다)
+  mascot_visible_size     마스코트가 **보이는 크기**로 나오는가 (`capture.py` 가 채운다)
 """
 
 from __future__ import annotations
@@ -35,10 +51,36 @@ TINY_TEXT_MIN_PX = 12.0
 NARROW_MAIN_MIN_VIEWPORT = 3840
 NARROW_MAIN_MIN_RATIO = 0.60
 
+# 열 폭 비교는 넓은 화면에서만 뜻이 있다. 900 미만은 표가 카드로 접히고, 900~1200 은
+# 한글 본문이 원래 접히는 폭이라 "열이 좁아서 접혔다"고 말할 근거가 없다.
+COLUMN_CONTENT_MIN_VIEWPORT = 1200
+# 2열 상세가 실제로 2열로 서는 폭. 이보다 좁으면 한 열로 접혀 좌우 불균형이라는 것이 없다.
+DETAIL_IMBALANCE_MIN_VIEWPORT = 1366
+
+# `plain_dropdown_for_entity` 의 대상 어휘. **기수가 무한히 자라는 타입만** 담은 닫힌 목록이다.
+# 상태·역할·우선순위·난이도·테마처럼 값 집합이 닫힌 select 는 애초에 대상이 아니므로
+# 옵션 개수를 셀 필요가 없다 — 개수를 세는 방식은 MUI 메뉴가 열기 전에는 DOM 에 없어서
+# 어차피 못 센다. 목록을 늘릴 때는 "이 타입은 데이터가 쌓이면 계속 늘어나는가"만 묻는다.
+ENTITY_TERMS = (
+    "프로젝트", "담당자", "사용자", "부서", "조직", "직책", "티켓", "문서", "게시글",
+    "러너", "워크플로", "프롬프트", "정책", "템플릿", "일정", "연동", "채팅방",
+    "승인자", "요청자", "작성자", "대상자",
+)
+
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
     "broken_images", "duplicate_ids", "tiny_text", "narrow_main", "vertical_text_collapse",
     "fab_overlap", "image_cropped", "content_clipped", "rail_wider_than_prose",
+    # 레이아웃·콘텐츠 축. 전부 advisory 로 시작한다 — 등록은 하되 `run.py` 의 기본
+    # `--fail-on` 은 비워 둔다(Wave 별 승격은 나중이다). 그래도 여기 넣어야 요약표와
+    # `--fail-on` 이 이 검사들을 볼 수 있다.
+    "equal_column_split", "column_width_vs_content", "header_cell_alignment_mismatch",
+    "numeric_alignment", "isolated_control_row", "control_baseline_mismatch",
+    "oversized_empty_surface", "dead_blank_region", "plain_dropdown_for_entity",
+    "detail_side_imbalance", "surface_repetition",
+    # 브랜드·마스코트는 별도 모듈이 `capture.py` 에서 채운다(대비 검사와 같은 구조다).
+    # 이름만 등록해 둔다 — 등록하지 않으면 그쪽이 값을 채워도 요약표에 안 나온다.
+    "brand_presence", "mascot_visible_size",
     # 모달 검사(`interact.py`). `--modals` 로 켜야 값이 채워지고, 안 켜면 전부 skip 이다.
     # 목록에 넣어 두는 이유는 요약표와 `--fail-on` 이 이 튜플만 알기 때문이다 —
     # 여기 없으면 검사가 돌아도 리포트에 안 나온다(실제로 그래서 안 보였다).
@@ -107,6 +149,181 @@ PROBE_JS = r"""
     if (!isFinite(w) || w <= 0) w = 8;
     chCache.set(fontShorthand, w);
     return w;
+  }
+
+  /* --- 공용 측정 헬퍼 -----------------------------------------------------
+   *
+   * 셋 다 "상자가 얼마나 크냐" 가 아니라 "실제로 렌더된 것이 얼마냐" 를 잰다. 상자 크기로
+   * 증상을 짐작하는 검사가 이 저장소에서 이미 여러 번 거짓 통과를 냈다
+   * (vertical_text_collapse 주석 참고 — 폭 임계값만 보다가 표 한 열이 2~3자씩 으스러진
+   * 페이지를 30/30 통과로 보고했다). */
+
+  // 렌더된 줄들의 기하. `getClientRects()` 는 '줄' 이 아니라 '텍스트 조각' 마다 사각형을
+  // 주므로(한 줄에 인라인 자식이 셋이면 사각형도 셋) top 으로 묶어야 사람이 보는 줄 수가
+  // 된다. bucket 은 같은 줄로 볼 top 오차다 — 글꼴 크기가 섞인 줄은 top 이 몇 px 어긋난다.
+  // rowsOf/inkSpanOf 가 이 하나를 나눠 쓴다. getClientRects 는 싸지 않아서 같은 요소를
+  // 두 번 재지 않는다.
+  function lineMetrics(el, bucket) {
+    const b = bucket == null ? 8 : bucket;
+    const rects = [];
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      for (const r of range.getClientRects()) {
+        if (r.width > 0.5 && r.height > 0.5) rects.push(r);
+      }
+    } catch (e) { return { lines: 0, span: 0 }; }
+    if (!rects.length) return { lines: 0, span: 0 };
+    if (b <= 1) {
+      // bucket 1 은 예전 vertical_text_collapse 구현과 정확히 같은 계산이다(회귀 방지).
+      const tops = new Set();
+      let lo = Infinity, hi = -Infinity;
+      for (const r of rects) {
+        tops.add(Math.round(r.top));
+        if (r.left < lo) lo = r.left;
+        if (r.right > hi) hi = r.right;
+      }
+      return { lines: tops.size, span: hi - lo };
+    }
+    rects.sort((x, y) => x.top - y.top);
+    let lines = 1, span = 0, anchor = rects[0].top, lo = rects[0].left, hi = rects[0].right;
+    for (const r of rects) {
+      if (r.top - anchor > b) {
+        if (hi - lo > span) span = hi - lo;
+        lines++; anchor = r.top; lo = r.left; hi = r.right;
+      } else {
+        if (r.left < lo) lo = r.left;
+        if (r.right > hi) hi = r.right;
+      }
+    }
+    return { lines: lines, span: Math.max(span, hi - lo) };
+  }
+  function rowsOf(el, bucket) { return lineMetrics(el, bucket).lines; }
+  // 렌더된 줄 중 **가장 넓은 줄** 의 잉크 폭. 상자 폭이 아니라 글자가 실제로 차지한 폭이다.
+  function inkSpanOf(el) { return lineMetrics(el, 8).span; }
+
+  /* 이 요소가 **요구하는** 폭.
+   *
+   * 상자 폭은 레이아웃이 '준' 폭이라 강제된 값이 그대로 나온다. 요구 폭은 콘텐츠 쪽 사실이라
+   * "폭은 똑같은데 요구는 배로 다르다" 를 말할 수 있다 — equal_column_split 의 근거가 그것이다.
+   * 한 줄이면 실측 잉크 폭이 곧 요구다. 여러 줄이면 한 줄에 담았을 때의 폭,
+   * 즉 (글자수 / 줄수) x 실측 1ch 로 본다. */
+  function demandOf(el) {
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!text) return 0;
+    const m = lineMetrics(el, 8);
+    if (m.lines <= 1) return m.span;
+    const cs = getComputedStyle(el);
+    const ch = chWidth(cs.font || (cs.fontSize + ' ' + cs.fontFamily));
+    return (text.length / m.lines) * ch;
+  }
+
+  // 잉크 격자의 칸 크기. 화면 폭에 비례시켜 4K 에서도 칸 수가 폭발하지 않게 한다.
+  const INK_CELL = Math.max(24, Math.floor(window.innerWidth / 60));
+  const BORDER_SIDES = ['Top', 'Right', 'Bottom', 'Left'];
+  /* 페이지 한 장에 허용할 총 노드 방문 수. 넘으면 측정을 **포기하고** ratio:null 을 돌려준다 —
+   * 중간에 끊긴 격자는 실제보다 비어 보이므로, 그 값을 쓰면 없는 결함을 만들어 낸다. */
+  let inkBudget = 14000;
+
+  /* padding box 를 cell px 격자로 나누고 **보이는 잎 노드가 닿는 칸** 을 센다.
+   *
+   * 겹치는 사각형의 합집합 면적을 정확히 구하려면 스윕라인이 필요하고, 화면 하나에 상자가
+   * 수천 개면 그 비용이 프로브 전체보다 크다. "이 영역이 비었는가" 를 묻는 데는 +-cell
+   * 정밀도로 충분하다.
+   *
+   * 잎만 세는 것이 핵심이다. 조상 상자를 잉크로 세면 무엇이든 100% 채워진 것으로 읽혀
+   * 이 격자를 쓰는 이유 자체가 사라진다. 그래서 텍스트·그림·캔버스·SVG 와 **테두리 띠** 만
+   * 센다(배경색은 잉크가 아니다 — 흰 카드가 비어 있다는 것이 바로 우리가 찾는 상태다). */
+  function inkGrid(el, cell) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const bl = parseFloat(cs.borderLeftWidth) || 0, bt = parseFloat(cs.borderTopWidth) || 0;
+    const brw = parseFloat(cs.borderRightWidth) || 0, bbw = parseFloat(cs.borderBottomWidth) || 0;
+    const x0 = r.left + bl, y0 = r.top + bt;
+    const w = r.width - bl - brw, h = r.height - bt - bbw;
+    if (!(w > 0 && h > 0)) {
+      return { cells: 0, inked: 0, ratio: null, bbox: null, box: null, cell: cell,
+               note: '상자 크기가 0이다' };
+    }
+    const cols = Math.max(1, Math.ceil(w / cell)), rows = Math.max(1, Math.ceil(h / cell));
+    if (cols * rows > 60000) {
+      return { cells: cols * rows, inked: 0, ratio: null, bbox: null, box: null, cell: cell,
+               note: '격자가 너무 크다' };
+    }
+    const grid = new Uint8Array(cols * rows);
+    let inked = 0, ix0 = Infinity, iy0 = Infinity, ix1 = -Infinity, iy1 = -Infinity;
+    function mark(left, top, right, bottom) {
+      const L = Math.max(left, x0), T = Math.max(top, y0);
+      const R = Math.min(right, x0 + w), B = Math.min(bottom, y0 + h);
+      if (!(R > L && B > T)) return;
+      if (L < ix0) ix0 = L;
+      if (T < iy0) iy0 = T;
+      if (R > ix1) ix1 = R;
+      if (B > iy1) iy1 = B;
+      const c0 = Math.max(0, Math.floor((L - x0) / cell));
+      const c1 = Math.min(cols - 1, Math.floor((R - x0 - 0.001) / cell));
+      const r0 = Math.max(0, Math.floor((T - y0) / cell));
+      const r1 = Math.min(rows - 1, Math.floor((B - y0 - 0.001) / cell));
+      for (let yy = r0; yy <= r1; yy++) {
+        const base = yy * cols;
+        for (let xx = c0; xx <= c1; xx++) {
+          if (!grid[base + xx]) { grid[base + xx] = 1; inked++; }
+        }
+      }
+    }
+    const range = document.createRange();
+    const stack = [el];
+    let truncated = false;
+    while (stack.length && !truncated) {
+      const node = stack.pop();
+      for (const child of node.childNodes) {
+        if (inkBudget <= 0) { truncated = true; break; }
+        if (child.nodeType === 3) {
+          if (!child.nodeValue || !child.nodeValue.trim()) continue;
+          inkBudget--;
+          try {
+            range.selectNodeContents(child);
+            for (const tr of range.getClientRects()) {
+              if (tr.width > 0.5 && tr.height > 0.5) mark(tr.left, tr.top, tr.right, tr.bottom);
+            }
+          } catch (e) { /* 못 재는 조각은 잉크로 세지 않는다 */ }
+          continue;
+        }
+        if (child.nodeType !== 1) continue;
+        const tag = (child.tagName || '').toUpperCase();
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') continue;
+        inkBudget--;
+        const s = getComputedStyle(child);
+        if (s.display === 'none' || s.visibility === 'hidden') continue;
+        if (parseFloat(s.opacity || '1') < 0.05) continue;
+        const cr = child.getBoundingClientRect();
+        if (cr.width <= 0 || cr.height <= 0) continue;
+        if (cr.right < x0 || cr.bottom < y0 || cr.left > x0 + w || cr.top > y0 + h) continue;
+        if (tag === 'IMG' || tag === 'SVG' || tag === 'CANVAS' || tag === 'VIDEO' || tag === 'PICTURE') {
+          mark(cr.left, cr.top, cr.right, cr.bottom);   // 그림은 상자 전체가 잉크다
+          continue;                                     // 내부(path 등)는 볼 필요가 없다
+        }
+        for (const side of BORDER_SIDES) {
+          const style = s['border' + side + 'Style'];
+          if (style === 'none' || style === 'hidden') continue;
+          const bw = parseFloat(s['border' + side + 'Width']) || 0;
+          if (bw <= 0) continue;
+          if (side === 'Top') mark(cr.left, cr.top, cr.right, cr.top + bw);
+          else if (side === 'Bottom') mark(cr.left, cr.bottom - bw, cr.right, cr.bottom);
+          else if (side === 'Left') mark(cr.left, cr.top, cr.left + bw, cr.bottom);
+          else mark(cr.right - bw, cr.top, cr.right, cr.bottom);
+        }
+        stack.push(child);
+      }
+    }
+    return {
+      cells: cols * rows, inked: inked,
+      ratio: truncated ? null : inked / (cols * rows),
+      bbox: (inked && !truncated) ? { x: ix0, y: iy0, w: ix1 - ix0, h: iy1 - iy0 } : null,
+      box: { x: x0, y: y0, w: w, h: h },
+      cell: cell, truncated: truncated,
+      note: truncated ? '노드 예산 소진 — 부분 측정이라 판정하지 않는다' : '',
+    };
   }
 
   // --- horizontal overflow -------------------------------------------------
@@ -352,19 +569,13 @@ PROBE_JS = r"""
       // 요소 전체 텍스트로 센다 — Range는 자식까지 덮으므로 직접 텍스트만 세면 분모가 틀린다.
       const fullText = (el.textContent || '').replace(/\s+/g, ' ').trim();
       if (fullText.length >= 6) {
-        try {
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          // getClientRects()는 '줄'이 아니라 '텍스트 조각'마다 사각형을 준다. 한 줄에 인라인
-          // 자식이 셋이면 사각형도 셋이라, 그대로 세면 멀쩡한 줄을 3줄로 오해한다(실제로
-          // 폭 1000px짜리 항목이 3줄로 잡혔다). 같은 줄은 상단 좌표가 같으므로 그걸로 묶는다.
-          const tops = new Set();
-          for (const r of range.getClientRects()) {
-            if (r.width > 0.5 && r.height > 0.5) tops.add(Math.round(r.top));
-          }
-          lines = tops.size;
-          if (lines > 1) charsPerLine = fullText.length / lines;
-        } catch (e) { /* 측정 불가면 아래 폭 기준으로만 판단한다 */ }
+        // getClientRects()는 '줄'이 아니라 '텍스트 조각'마다 사각형을 준다. 한 줄에 인라인
+        // 자식이 셋이면 사각형도 셋이라, 그대로 세면 멀쩡한 줄을 3줄로 오해한다(실제로
+        // 폭 1000px짜리 항목이 3줄로 잡혔다). rowsOf 가 상단 좌표로 묶어 준다 —
+        // bucket 1 은 이 검사가 원래 쓰던 계산과 정확히 같다. 측정 불가면 0 이 돌아오고,
+        // 그때는 아래 폭 기준으로만 판단한다.
+        lines = rowsOf(el, 1);
+        if (lines > 1) charsPerLine = fullText.length / lines;
       }
       const narrowBox = rect.width > 0 && rect.width < ch * 2 && rect.height >= lineHeight * 2;
       // '세로로 흐른다'는 것은 **좁은 상자**에서만 일어난다. 폭이 넉넉하면 줄당 글자 수가
@@ -604,6 +815,784 @@ PROBE_JS = r"""
   out.fabScrollOver = Math.round(maxOver);
   out.fabOverlapCount = out.fabOverlap.length;
 
+  /* --- 레이아웃·콘텐츠 축 11종 -------------------------------------------
+   *
+   * 아래 검사들은 전부 "상자가 크다/작다" 가 아니라 "**요구와 공급이 어긋났다**" 를 잰다.
+   * 그래야 정상 패턴(좁은 화면의 줄바꿈, 카드 목록, 짧은 설정 폼)과 결함을 가른다.
+   * 표본은 MAX 개까지만 담는다 — 세부는 리포트용이고 판정은 있/없음이다. */
+  const MAIN = mainEl || document.body;
+  const CTRL_SEL = 'button, a[href], input, select, textarea, [role="button"],'
+    + ' [role="combobox"], [role="switch"], .MuiInputBase-root, .MuiButtonBase-root';
+
+  /* 페이지 단위 잉크 격자는 **가장 먼저** 잰다.
+   *
+   * 잉크 예산(inkBudget)은 프로브 전체가 나눠 쓰는 전역 값이다. 지금 순서대로 7번(표면)이
+   * 큰 상자 12개를 훑고 나면 8번(dead_blank_region)이 예산이 마른 채 도착해 ratio:null 을
+   * 받고 영원히 skip 으로 떨어진다 — 페이지 전체를 보는 유일한 검사가 그렇게 죽는다.
+   * 이 격자는 어차피 한 번은 재야 하므로 순서만 바꾸면 총비용은 그대로다.
+   *
+   * 페이지가 스크롤되면 dead_blank_region 은 애초에 대상이 아니므로 그때는 재지 않는다 —
+   * 그 예산은 표면 검사 쪽에 남긴다. */
+  let pageOverflowY = 0;
+  for (const el of [de, document.body, ...document.querySelectorAll('#main-content, main, .c-content')]) {
+    if (!el) continue;
+    pageOverflowY = Math.max(pageOverflowY, el.scrollHeight - el.clientHeight);
+  }
+  const MAIN_INK = pageOverflowY > 1 ? null : inkGrid(MAIN, INK_CELL);
+
+  // 직접 자식들을 **화면에서 같은 줄** 로 묶는다. top 만 보고 묶으면 높이가 다른 컨트롤
+  // (버튼 36px / 입력 40px)이 다른 줄로 갈라진다 — 세로 범위가 절반 넘게 겹치면 같은 줄이다.
+  function flowRows(container) {
+    const kids = [];
+    for (const k of container.children) {
+      const r = k.getBoundingClientRect();
+      if (!visible(k, r)) continue;
+      kids.push({ el: k, r: r });
+    }
+    kids.sort((a, b) => (a.r.top - b.r.top) || (a.r.left - b.r.left));
+    const rows = [];
+    for (const k of kids) {
+      const row = rows.length ? rows[rows.length - 1] : null;
+      if (row) {
+        const top = Math.max(row.top, k.r.top), bottom = Math.min(row.bottom, k.r.bottom);
+        const minH = Math.min(row.bottom - row.top, k.r.height);
+        if (minH > 0 && bottom - top > minH * 0.5) {
+          row.items.push(k);
+          row.top = Math.min(row.top, k.r.top);
+          row.bottom = Math.max(row.bottom, k.r.bottom);
+          row.left = Math.min(row.left, k.r.left);
+          row.right = Math.max(row.right, k.r.right);
+          continue;
+        }
+      }
+      rows.push({ items: [k], top: k.r.top, bottom: k.r.bottom, left: k.r.left, right: k.r.right });
+    }
+    return rows;
+  }
+
+  // computed textAlign 은 설정하지 않으면 'start'/'end' 로 나온다 — 방향에 맞춰 좌/우로 편다.
+  // 'left' 와 'start' 를 다른 값으로 취급하면 정렬 불일치가 온 페이지에서 거짓으로 뜬다.
+  function alignOf(el) {
+    const cs = getComputedStyle(el);
+    const a = cs.textAlign;
+    const rtl = cs.direction === 'rtl';
+    if (a === 'start') return rtl ? 'right' : 'left';
+    if (a === 'end') return rtl ? 'left' : 'right';
+    return a;
+  }
+
+  // --- 1) equal_column_split ------------------------------------------------
+  /* 격자가 폭을 **똑같이** 나눠 놓았는데 두 트랙이 요구하는 폭은 전혀 다른 경우.
+   *
+   * 트랙이 content-sized 였다면 폭이 같다는 건 요구도 같다는 뜻이다. 그러니 "폭은 같은데
+   * 요구 비가 2.5배 이상" 은 그 자체로 `1fr 1fr` 을 강제한 증거다. 여기에 "굶는 쪽은 접히고
+   * 남는 쪽은 절반이 빈다" 를 더해, 폭을 옮기면 실제로 나아지는 경우만 남긴다.
+   * 7일 달력(SchedulerCalendar)·게임판(LadderBoard)처럼 **같아야 하는** 격자는
+   * data-equal-grid 로 뺀다. */
+  out.equalColumnSplit = [];
+  out.equalColumnSplitChecked = 0;
+  for (const el of MAIN.querySelectorAll('div, section, ul, ol')) {
+    if (out.equalColumnSplit.length >= MAX) break;
+    const cs = getComputedStyle(el);
+    if (cs.display !== 'grid' && cs.display !== 'inline-grid') continue;
+    if (el.closest('[data-equal-grid]')) continue;
+    const rows = flowRows(el);
+    if (!rows.length) continue;
+    const tracks = rows[0].items;
+    if (tracks.length < 2) continue;
+    let wMin = Infinity, wMax = -Infinity, tooNarrow = false;
+    for (const t of tracks) {
+      if (t.r.width < 160) { tooNarrow = true; break; }
+      wMin = Math.min(wMin, t.r.width);
+      wMax = Math.max(wMax, t.r.width);
+    }
+    if (tooNarrow) continue;
+    // 폭이 애초에 다르면 이 결함이 아니다 — 재서 확인한 것이므로 pass 로 센다.
+    if (!(wMin > 0) || wMax / wMin > 1.02) { out.equalColumnSplitChecked++; continue; }
+    let hungry = null, roomy = null;
+    for (const t of tracks) {
+      const info = { el: t.el, w: t.r.width, demand: demandOf(t.el), lines: rowsOf(t.el) };
+      if (!hungry || info.demand > hungry.demand) hungry = info;
+      if (!roomy || info.demand < roomy.demand) roomy = info;
+    }
+    // 글자가 없는 트랙(차트·그림만 든 칸)은 요구 폭을 잴 방법이 없다. 못 잰 것을 pass 로
+    // 세면 요약표의 통과 수가 실제로 확인한 격자 수와 어긋난다 — 세지 않고 넘어간다.
+    if (!(roomy.demand > 0)) continue;
+    out.equalColumnSplitChecked++;
+    if (hungry.demand / roomy.demand < 2.5) continue;
+    const freeRatio = roomy.w > 0 ? 1 - Math.min(1, roomy.demand / roomy.w) : 0;
+    if (!(hungry.lines >= 2 && freeRatio >= 0.5)) continue;
+    out.equalColumnSplit.push({
+      selector: cssPath(el), tracks: tracks.length,
+      widths: tracks.map((t) => Math.round(t.r.width)),
+      demandRatio: Math.round((hungry.demand / roomy.demand) * 100) / 100,
+      hungryLines: hungry.lines,
+      freeRatio: Math.round(freeRatio * 100) / 100,
+      hungryText: snippet(hungry.el), roomyText: snippet(roomy.el),
+    });
+  }
+
+  // --- 표 한 장을 열 단위로 한 번만 잰다 -------------------------------------
+  /* 아래 세 검사(열 폭 / 헤더 정렬 / 숫자 정렬)가 같은 측정을 나눠 쓴다. 표는 셀이 많아
+   * 따로 세 번 훑으면 그만큼 비싸다. 행은 앞쪽 일부만 본다 — 열의 성질(무엇이 접히는가,
+   * 어떻게 정렬되는가)은 앞 몇십 행이면 드러나고, 전부 훑으면 페이지당 시간이 무너진다. */
+  const tableColumns = [];
+  {
+    const TABLE_MAX = 3, TABLE_ROWS = 25;
+    const tables = [];
+    for (const t of MAIN.querySelectorAll('table')) {
+      const r = t.getBoundingClientRect();
+      if (visible(t, r) && r.width > 200) tables.push(t);
+      if (tables.length >= TABLE_MAX) break;
+    }
+    for (const table of tables) {
+      const headRow = table.querySelector('thead tr') || table.querySelector('tr');
+      if (!headRow) continue;
+      const heads = [];
+      for (const c of headRow.children) {
+        if (c.tagName === 'TH' || c.tagName === 'TD') heads.push(c);
+      }
+      if (!heads.length) continue;
+      const cols = heads.map((th, i) => ({
+        table: table, index: i, th: th,
+        header: snippet(th).slice(0, 24) || ('#' + (i + 1)),
+        headerAlign: alignOf(th),
+        width: th.getBoundingClientRect().width,
+        cells: [], texts: [], aligns: [], wrapped: 0, filled: 0, ink: 0,
+      }));
+      let seenRows = 0;
+      for (const tr of table.querySelectorAll('tbody tr')) {
+        if (seenRows >= TABLE_ROWS) break;
+        const rr = tr.getBoundingClientRect();
+        if (rr.width <= 0 || rr.height <= 0) continue;
+        seenRows++;
+        const tds = [];
+        for (const c of tr.children) {
+          if (c.tagName === 'TD' || c.tagName === 'TH') tds.push(c);
+        }
+        for (let i = 0; i < cols.length && i < tds.length; i++) {
+          const td = tds[i];
+          const text = (td.textContent || '').replace(/\s+/g, ' ').trim();
+          cols[i].cells.push(td);
+          cols[i].texts.push(text);
+          cols[i].aligns.push(alignOf(td));
+          if (!text) continue;
+          const m = lineMetrics(td, 8);
+          if (m.lines >= 2) cols[i].wrapped++;
+          cols[i].filled++;
+          if (m.span > cols[i].ink) cols[i].ink = m.span;
+        }
+      }
+      for (const c of cols) {
+        // fill 은 **셀 잉크와 헤더 잉크의 max** 다. 헤더가 길어서 넓어진 열을 slack 이라
+        // 부르면 "헤더를 줄여라" 가 아니라 "이 열을 줄여라" 라는 틀린 결론이 나온다.
+        c.ink = Math.max(c.ink, inkSpanOf(c.th));
+        c.wrapRate = c.filled ? c.wrapped / c.filled : 0;
+        c.fill = c.width > 0 ? Math.min(1, c.ink / c.width) : 1;
+        c.slackPx = Math.max(0, c.width - c.ink);
+        const tally = new Map();
+        for (const a of c.aligns) tally.set(a, (tally.get(a) || 0) + 1);
+        let mode = null, best = -1;
+        for (const entry of tally) {
+          if (entry[1] > best) { best = entry[1]; mode = entry[0]; }
+        }
+        c.bodyAlign = mode;
+        c.bodyAlignShare = c.aligns.length ? best / c.aligns.length : 0;
+        tableColumns.push(c);
+      }
+    }
+  }
+
+  // --- 2) column_width_vs_content -------------------------------------------
+  /* 한 열은 접히는데 다른 열은 절반이 비어 있다 — 폭이 잘못 배분된 상태다.
+   * 좁은 화면에서는 발화하지 않는다(config.columnContentMinViewport 참고): 900 미만은 표가
+   * 카드로 접히고, 900~1200 은 한글이 원래 접히는 폭이라 열 폭 탓을 할 근거가 없다. */
+  out.columnWidthVsContent = [];
+  out.columnWidthVsContentChecked = 0;
+  if (window.innerWidth >= config.columnContentMinViewport) {
+    const byTable = new Map();
+    for (const c of tableColumns) {
+      if (!byTable.has(c.table)) byTable.set(c.table, []);
+      byTable.get(c.table).push(c);
+    }
+    for (const entry of byTable) {
+      if (out.columnWidthVsContent.length >= MAX) break;
+      const table = entry[0], cols = entry[1];
+      if (cols.length < 2) continue;
+      out.columnWidthVsContentChecked++;
+      let a = null;
+      for (const c of cols) {
+        if (c.filled < 2 || c.wrapRate < 0.5) continue;
+        if (!a || c.wrapRate > a.wrapRate) a = c;
+      }
+      if (!a) continue;
+      let b = null;
+      for (const c of cols) {
+        if (c === a) continue;
+        if (c.fill > 0.45 || c.slackPx < 96 || c.slackPx < 0.5 * a.width) continue;
+        if (!b || c.slackPx > b.slackPx) b = c;
+      }
+      if (!b) continue;
+      out.columnWidthVsContent.push({
+        selector: cssPath(table),
+        starvedColumn: a.header, starvedWidth: Math.round(a.width),
+        wrapRate: Math.round(a.wrapRate * 100) / 100,
+        slackColumn: b.header, slackWidth: Math.round(b.width),
+        fill: Math.round(b.fill * 100) / 100, slackPx: Math.round(b.slackPx),
+      });
+    }
+  }
+
+  // --- 3) header_cell_alignment_mismatch ------------------------------------
+  /* `th` 정렬과 그 열 `td` 들의 최빈 정렬이 다르면 언제나 결함이다 — 머리와 몸이 다른 축에
+   * 붙어 눈이 열을 따라 내려가지 못한다. 억제 수단을 두지 않는다.
+   *
+   * 실제로 그런 경로가 있다: kit.css 는 둘 다 left 로 두는데 kit.jsx 의 DataTable 이
+   * head/body 에 `align` 을 따로 넘겨서, 한쪽만 설정되면 그대로 어긋난다. */
+  out.headerCellAlignment = [];
+  out.headerCellAlignmentChecked = 0;
+  for (const c of tableColumns) {
+    if (out.headerCellAlignment.length >= MAX) break;
+    if (c.aligns.length < 2 || !c.bodyAlign) continue;
+    out.headerCellAlignmentChecked++;
+    if (c.bodyAlign === c.headerAlign) continue;
+    out.headerCellAlignment.push({
+      selector: cssPath(c.th), column: c.header,
+      header: c.headerAlign, body: c.bodyAlign,
+      bodyShare: Math.round(c.bodyAlignShare * 100),
+    });
+  }
+
+  // --- 4) numeric_alignment -------------------------------------------------
+  /* 숫자 열은 우정렬 + tabular-nums 여야 자릿수가 세로로 맞고, 그래야 값을 **비교** 할 수 있다.
+   * 억제 수단을 두지 않는다.
+   *
+   * 오탐의 근원은 '숫자처럼 생겼지만 숫자가 아닌 것' 이다. 티켓번호·포트·버전은 크기를
+   * 비교하지 않으므로 우정렬이 오히려 틀렸다 — 날짜·시각·전화·버전은 정규식으로 배제하고,
+   * 그 밖의 식별자형은 data-col-role="identifier" 로 면제한다. */
+  // 단위가 붙어도 숫자 열이다("1,240건"). 단위 뒤에 다른 글자가 오면 숫자가 아니다.
+  const NUM_RE = /^[+-]?[₩$€£]?\s*\d[\d,\s]*(\.\d+)?\s*(%|원|건|개|명|점|회|초|분|시간|일|ms|s|B|KB|MB|GB|TB)?$/;
+  const DATE_RE = /^\d{4}\s*[-./년]/;
+  const TIME_RE = /\d{1,2}:\d{2}/;
+  const PHONE_RE = /^0\d{1,2}-\d{3,4}-\d{4}$/;
+  const VER_RE = /^v?\d+\.\d+\.\d+/;
+  out.numericAlignment = [];
+  out.numericAlignmentChecked = 0;
+  for (const c of tableColumns) {
+    if (out.numericAlignment.length >= MAX) break;
+    if (c.th.closest('[data-col-role="identifier"]')) continue;
+    const texts = c.texts.filter((t) => t);
+    if (texts.length < 3) continue;
+    let excluded = 0, numeric = 0;
+    for (const t of texts) {
+      if (DATE_RE.test(t) || TIME_RE.test(t) || PHONE_RE.test(t) || VER_RE.test(t)) { excluded++; continue; }
+      if (NUM_RE.test(t)) numeric++;
+    }
+    if (excluded / texts.length >= 0.2) continue;   // 날짜·시각·전화·버전 열이다
+    if (numeric / texts.length < 0.8) continue;
+    out.numericAlignmentChecked++;
+    let sample = c.th;
+    for (const td of c.cells) {
+      if ((td.textContent || '').trim()) { sample = td; break; }
+    }
+    const scs = getComputedStyle(sample);
+    const tabular = (scs.fontVariantNumeric || '').indexOf('tabular-nums') >= 0
+      || (scs.fontFeatureSettings || '').indexOf('tnum') >= 0;
+    const right = c.bodyAlign === 'right';
+    if (right && tabular) continue;
+    out.numericAlignment.push({
+      selector: cssPath(sample), column: c.header,
+      align: c.bodyAlign, tabular: tabular,
+      numericShare: Math.round((numeric / texts.length) * 100),
+      reason: right ? 'tabular-nums 가 없다' : (tabular ? '우정렬이 아니다' : '우정렬도 tabular-nums 도 없다'),
+    });
+  }
+
+  // --- 5) isolated_control_row ----------------------------------------------
+  /* 컨트롤 하나가 아랫줄로 밀려 줄 하나를 통째로 쓰는 상태.
+   *
+   * 좁은 화면의 정상적인 wrap 과 가르는 것이 전부다. 그래서 "윗줄에 **실제로 들어갈 자리가
+   * 있었다**" 를 증명한다 — 윗줄 여유가 이 줄이 쓰는 폭 + gap 보다 크고, 그 여유가 120px 이상.
+   * 좁은 화면은 여유가 없어 발화하지 않는다. 의도적으로 줄을 나눈 곳은
+   * data-control-row="separate" 로 뺀다. */
+  out.isolatedControlRow = [];
+  out.isolatedControlRowChecked = 0;
+  function isControlHolder(el) {
+    if (el.matches(CTRL_SEL)) return true;
+    if (!el.querySelector(CTRL_SEL)) return false;
+    // 자기 글자를 가진 상자는 '컨트롤 한 개' 가 아니라 '컨트롤이 든 콘텐츠' 다.
+    let own = '';
+    for (const n of el.childNodes) if (n.nodeType === 3) own += n.nodeValue;
+    return !own.trim();
+  }
+  for (const container of MAIN.querySelectorAll('div, section, form, header, nav')) {
+    if (out.isolatedControlRow.length >= MAX) break;
+    if (container.children.length < 2) continue;
+    const ccs = getComputedStyle(container);
+    if (ccs.display !== 'flex' && ccs.display !== 'inline-flex'
+        && ccs.display !== 'grid' && ccs.display !== 'block') continue;
+    if (container.closest('[data-control-row="separate"]')) continue;
+    /* 한 줄에 **설 수 없었던** 것은 밀려난 것이 아니다.
+     *
+     * 세로로 쌓이는 것이 정상인 구조(flex-direction:column, flex-wrap:nowrap)를 여기서 뺀다.
+     * 이 갈래가 없으면 '라벨 위 / 컨트롤 아래' 라는 폼의 기본형과 MUI FormControl
+     * (inline-flex + column) 이 전부 결함으로 잡힌다 — 실측으로 확인했다. */
+    const flexish = ccs.display === 'flex' || ccs.display === 'inline-flex';
+    if (flexish) {
+      if ((ccs.flexDirection || 'row').indexOf('column') === 0) continue;
+      if (ccs.flexWrap === 'nowrap') continue;
+    }
+    const cr = container.getBoundingClientRect();
+    const inner = cr.width - (parseFloat(ccs.paddingLeft) || 0) - (parseFloat(ccs.paddingRight) || 0);
+    if (inner < 320) continue;
+    const rows = flowRows(container);
+    if (rows.length < 2) continue;
+    const gap = parseFloat(ccs.columnGap) || parseFloat(ccs.gap) || 8;
+    for (let i = 1; i < rows.length; i++) {
+      if (out.isolatedControlRow.length >= MAX) break;
+      const R = rows[i], P = rows[i - 1];
+      // block 흐름에서는 자식이 block-level 이면 같은 줄에 설 방법이 애초에 없다. 여유 폭이
+      // 아무리 많아도 '밀려난' 것이 아니라 '쌓인' 것이다 — 그것까지 세면 제품의 모든
+      // 세로 폼이 이 검사에 걸린다.
+      if (!flexish && ccs.display !== 'grid') {
+        let inlineOnly = true;
+        for (const it of R.items.concat(P.items)) {
+          const ds = getComputedStyle(it.el);
+          if (ds.display.indexOf('inline') !== 0 && ds.cssFloat === 'none') { inlineOnly = false; break; }
+        }
+        if (!inlineOnly) continue;
+      }
+      let allControls = true, optedOut = false;
+      for (const it of R.items) {
+        if (!isControlHolder(it.el)) { allControls = false; break; }
+        if (it.el.closest('[data-control-row="separate"]')) { optedOut = true; break; }
+      }
+      if (!allControls || optedOut) continue;
+      const usedR = R.right - R.left;
+      if (!(R.items.length === 1 || usedR < inner * 0.4)) continue;
+      out.isolatedControlRowChecked++;
+      const freeP = inner - (P.right - P.left);
+      if (freeP < 120 || freeP < usedR + gap) continue;
+      out.isolatedControlRow.push({
+        selector: cssPath(container),
+        control: snippet(R.items[0].el) || cssPath(R.items[0].el),
+        rowUsed: Math.round(usedR), prevFree: Math.round(freeP),
+        containerWidth: Math.round(inner), gap: Math.round(gap),
+      });
+    }
+  }
+
+  // --- 6) control_baseline_mismatch -----------------------------------------
+  /* 한 줄에 놓인 컨트롤들이 어긋난 상태. 2부 규칙이 옳은 모델이다 —
+   * **높이는 같은 종류끼리** (버튼끼리 4px 이상 다르면 그냥 어긋난 것),
+   * **중심선은 종류를 넘어** (버튼과 입력은 높이가 달라도 되지만 중심은 맞아야 한다).
+   *
+   * MUI 는 TextField 를 FormControl > InputBase > input 로 감싸고 helperText 가 붙으면
+   * **바깥 wrapper 만** 세로로 늘어난다. 그걸 재면 옆 버튼과 높이가 다르다고 나오는데
+   * 화면에서는 정확히 나란하다 — 그래서 안쪽 .MuiInputBase-root 를 잰다. */
+  out.controlBaseline = [];
+  out.controlBaselineChecked = 0;
+  function measureBox(el) {
+    const inner = (el.classList && el.classList.contains('MuiInputBase-root'))
+      ? el : el.querySelector('.MuiInputBase-root');
+    const r = (inner || el).getBoundingClientRect();
+    return (r.width > 0 && r.height > 0) ? r : null;
+  }
+  function kindOf(el) {
+    const tag = el.tagName;
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (type === 'checkbox' || type === 'radio' || role === 'switch' || role === 'checkbox') return '토글';
+    if (tag === 'BUTTON' || role === 'button' || type === 'submit' || type === 'button') return '버튼';
+    if (tag === 'A') return '링크';
+    if (tag === 'SELECT' || role === 'combobox' || role === 'listbox') return '선택';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return '입력';
+    if (el.classList && el.classList.contains('MuiInputBase-root')) return '입력';
+    return '기타';
+  }
+  for (const container of MAIN.querySelectorAll('div, section, form, header, nav, td, li')) {
+    if (out.controlBaseline.length >= MAX) break;
+    const ccs = getComputedStyle(container);
+    if (ccs.display !== 'flex' && ccs.display !== 'inline-flex' && ccs.display !== 'grid') continue;
+    for (const row of flowRows(container)) {
+      if (out.controlBaseline.length >= MAX) break;
+      const controls = [];
+      for (const it of row.items) {
+        const ctl = it.el.matches(CTRL_SEL) ? it.el : it.el.querySelector(CTRL_SEL);
+        if (!ctl) continue;
+        const box = measureBox(ctl);
+        if (!box || box.width < 16 || box.height < 12) continue;
+        controls.push({ el: ctl, kind: kindOf(ctl), box: box });
+      }
+      if (controls.length < 2) continue;
+      out.controlBaselineChecked++;
+      let worst = null;
+      const byKind = new Map();
+      for (const c of controls) {
+        if (!byKind.has(c.kind)) byKind.set(c.kind, []);
+        byKind.get(c.kind).push(c);
+      }
+      for (const entry of byKind) {
+        const group = entry[1];
+        if (group.length < 2) continue;
+        let hi = -Infinity, lo = Infinity, tall = null, short = null;
+        for (const g of group) {
+          if (g.box.height > hi) { hi = g.box.height; tall = g; }
+          if (g.box.height < lo) { lo = g.box.height; short = g; }
+        }
+        const d = hi - lo;
+        if (d > 4 && (!worst || d > worst.delta)) {
+          worst = { reason: '높이', kind: entry[0], delta: Math.round(d * 10) / 10,
+                    a: snippet(tall.el) || cssPath(tall.el),
+                    b: snippet(short.el) || cssPath(short.el) };
+        }
+      }
+      let cyHi = -Infinity, cyLo = Infinity, low = null, high = null;
+      for (const c of controls) {
+        const cy = c.box.top + c.box.height / 2;
+        if (cy > cyHi) { cyHi = cy; low = c; }
+        if (cy < cyLo) { cyLo = cy; high = c; }
+      }
+      const cd = cyHi - cyLo;
+      if (cd > 3 && (!worst || cd > worst.delta)) {
+        worst = { reason: '중심선', kind: '(종류 무관)', delta: Math.round(cd * 10) / 10,
+                  a: snippet(high.el) || cssPath(high.el),
+                  b: snippet(low.el) || cssPath(low.el) };
+      }
+      if (!worst) continue;
+      out.controlBaseline.push({
+        selector: cssPath(container), reason: worst.reason, kind: worst.kind,
+        delta: worst.delta, controls: controls.length, a: worst.a, b: worst.b,
+      });
+    }
+  }
+
+  // --- 7) oversized_empty_surface -------------------------------------------
+  /* 큰 면이 거의 비었거나, 내용이 왼쪽에만 몰려 오른쪽이 통째로 남은 상태.
+   *
+   * 두 번째 분기가 "큰 사각형 좌측에 컨트롤 3개" 를 직격한다 — 잉크 비율만 보면 그 화면은
+   * 통과한다(잉크는 있다). 몰려 있다는 사실은 **잉크 bbox 의 폭** 으로만 드러난다.
+   *
+   * EmptyState 하위는 제외한다. 빈 화면이 **완성돼 보이길** 원하지 빽빽하길 원하는 게
+   * 아니라서, 그쪽은 dead_blank_region 이 페이지 단위로 본다. 스켈레톤도 제외한다 —
+   * 로딩 중인 화면을 비었다고 말하면 그건 그냥 타이밍을 잰 것이다. */
+  out.oversizedEmptySurface = [];
+  out.oversizedEmptySurfaceChecked = 0;
+  {
+    const EXCLUDE = '.k-empty, [data-empty-state], .MuiSkeleton-root,'
+      + ' [class*="skeleton"], [class*="k-skel"]';
+    const surfaces = [];
+    for (const el of MAIN.querySelectorAll('div, section, article, aside')) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 280 || r.height < 160 || r.width * r.height < 120000) continue;
+      if (!visible(el, r)) continue;
+      if (el.closest(EXCLUDE) || el.querySelector(EXCLUDE)) continue;
+      // 스크롤되는 상자는 '빈' 것이 아니라 '접힌' 것이다.
+      if (el.scrollHeight > el.clientHeight + 1) continue;
+      const cs = getComputedStyle(el);
+      const bg = cs.backgroundColor;
+      const painted = ((parseFloat(cs.borderTopWidth) || 0) > 0 && cs.borderTopStyle !== 'none')
+        || cs.boxShadow !== 'none'
+        || (!!bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent');
+      if (!painted) continue;
+      surfaces.push({ el: el, r: r, area: r.width * r.height });
+    }
+    // 겹쳐 쌓인 카드를 전부 재면 잉크 예산이 순식간에 마른다. 큰 것부터 12개만 본다.
+    surfaces.sort((a, b) => b.area - a.area);
+    for (const s of surfaces.slice(0, 12)) {
+      if (out.oversizedEmptySurface.length >= MAX) break;
+      const g = inkGrid(s.el, INK_CELL);
+      if (g.ratio == null) continue;   // 측정 실패는 결함이 아니다
+      out.oversizedEmptySurfaceChecked++;
+      const emptyArea = g.box.w * g.box.h * (1 - g.ratio);
+      const bboxRatio = (g.bbox && g.box.w > 0) ? g.bbox.w / g.box.w : 0;
+      const sparse = g.ratio < 0.18 && emptyArea >= 200000;
+      const stranded = g.box.w > 700 && bboxRatio < 0.45;
+      if (!sparse && !stranded) continue;
+      out.oversizedEmptySurface.push({
+        selector: cssPath(s.el),
+        box: Math.round(g.box.w) + 'x' + Math.round(g.box.h),
+        coverage: Math.round(g.ratio * 1000) / 1000,
+        emptyArea: Math.round(emptyArea),
+        contentWidthRatio: Math.round(bboxRatio * 100) / 100,
+        reason: sparse ? '내용이 상자를 못 채운다' : '내용이 한쪽에만 몰려 있다',
+        text: snippet(s.el),
+      });
+    }
+  }
+
+  // --- 8) dead_blank_region -------------------------------------------------
+  /* 스크롤도 안 되는 화면에서 아래나 오른쪽이 통째로 남은 상태.
+   *
+   * `unsatisfiedDemand` 가 이 검사의 전부다. 짧은 페이지가 하단이 비는 것은 결함이 아니다 —
+   * 필드 3개짜리 설정 폼은 넓혀 봐야 채울 것이 없다. 그래서 **굶주린 콘텐츠**(줄바꿈,
+   * 실제로 활성인 말줄임, 2페이지 이상 pager, 내부 스크롤) 가 하나라도 있어야 발화한다.
+   * 그 폼은 굶주린 것이 없어 앞 두 분기에 걸리지 않고, inkRatio 도 0.25 를 넘어 극단 분기도
+   * 피한다. */
+  out.deadBlankRegion = null;
+  out.deadBlankRegionChecked = false;
+  out.deadBlankNote = '';
+  {
+    // 스크롤 여부와 페이지 격자는 프로브 앞머리에서 이미 쟀다(잉크 예산 우선권 때문이다).
+    if (pageOverflowY > 1 || !MAIN_INK) {
+      out.deadBlankNote = '페이지가 스크롤된다 — 아래는 빈 것이 아니라 이어진다';
+    } else {
+      const g = MAIN_INK;
+      if (g.ratio == null) {
+        out.deadBlankNote = g.note || '잉크 격자를 재지 못했다';
+      } else if (!g.bbox) {
+        out.deadBlankNote = '본문에 잉크가 하나도 없다 — 이 검사의 대상이 아니다';
+      } else {
+        const demand = { wrapped: 0, ellipsis: 0, pager: 0, innerScroll: 0 };
+        let visits = 0;
+        for (const el of MAIN.querySelectorAll('*')) {
+          if (visits++ > 2500) break;
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) continue;
+          const cs = getComputedStyle(el);
+          if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+          // 말줄임은 **실제로 잘리고 있을 때만** 굶주림이다. textOverflow 만 걸려 있고
+          // 넘치지 않으면 아무것도 감춰지지 않았다.
+          if (cs.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1) demand.ellipsis++;
+          if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1) demand.innerScroll++;
+          if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 1) demand.innerScroll++;
+          if (!demand.wrapped) {
+            let own = '';
+            for (const n of el.childNodes) if (n.nodeType === 3) own += n.nodeValue;
+            if (own.trim().length >= 12 && cs.whiteSpace !== 'nowrap' && cs.whiteSpace !== 'pre') {
+              // 줄 상자를 세는 대신 높이로 본다 — 여기 오는 요소가 수천 개라 Range 를
+              // 매번 씌우면 이 검사 하나가 프로브 전체보다 비싸진다.
+              //
+              // 단, **콘텐츠 상자** 높이로 재야 한다. 테두리 상자(rect.height)로 재면
+              // `padding:24px` 짜리 한 줄 제목이 '두 줄로 접힌 글' 로 잡힌다. 제품 화면에는
+              // 패딩 붙은 제목·문단이 어디에나 있으므로 그러면 unsatisfiedDemand 가 늘 참이
+              // 되고, 이 검사의 오탐 분리 규칙 자체가 꺼진다 — 실측으로 확인했다(한 줄짜리
+              // 패딩 제목 두 개뿐인 화면이 dead_blank_region FAIL 로 나왔다).
+              const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.2;
+              const padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+              const bdT = parseFloat(cs.borderTopWidth) || 0, bdB = parseFloat(cs.borderBottomWidth) || 0;
+              // clientHeight 는 인라인 요소에서 0 이라 그때만 테두리 상자에서 되짚는다.
+              const contentH = (el.clientHeight || (r.height - bdT - bdB)) - padT - padB;
+              if (lh > 0 && contentH >= lh * 1.8) demand.wrapped++;
+            }
+          }
+        }
+        let pagerItems = 0;
+        for (const li of MAIN.querySelectorAll('.MuiPagination-ul > li')) { pagerItems++; if (pagerItems > 3) break; }
+        if (pagerItems > 3) demand.pager++;
+        if (!demand.pager) {
+          for (const b of MAIN.querySelectorAll('button, [role="button"]')) {
+            const label = ((b.textContent || '') + ' ' + (b.getAttribute('aria-label') || '')).trim();
+            if (!/다음|더\s*보기|next|more/i.test(label)) continue;
+            if (b.disabled || b.getAttribute('aria-disabled') === 'true') continue;
+            demand.pager++;
+            break;
+          }
+        }
+        out.deadBlankRegionChecked = true;
+        out.deadBlankRegion = {
+          bottomBlank: (g.box.y + g.box.h - (g.bbox.y + g.bbox.h)) / g.box.h,
+          rightBlank: (g.box.x + g.box.w - (g.bbox.x + g.bbox.w)) / g.box.w,
+          inkRatio: g.ratio,
+          demand: demand,
+          unsatisfied: (demand.wrapped + demand.ellipsis + demand.pager + demand.innerScroll) > 0,
+          box: Math.round(g.box.w) + 'x' + Math.round(g.box.h),
+          bbox: Math.round(g.bbox.w) + 'x' + Math.round(g.bbox.h),
+        };
+      }
+    }
+  }
+
+  // --- 9) plain_dropdown_for_entity -----------------------------------------
+  /* 기수가 무한히 자라는 대상을 검색 없는 드롭다운으로 고르게 하는 자리.
+   *
+   * **옵션 개수를 세지 않는다.** MUI 메뉴는 열기 전에는 DOM 에 없어 셀 수도 없고, 더 중요하게는
+   * config.entityTerms 자체가 "데이터가 쌓이면 계속 늘어나는 타입" 만 모아 둔 닫힌 목록이다.
+   * 상태·역할·우선순위처럼 값 집합이 닫힌 select 는 애초에 여기 걸리지 않는다.
+   * 실제로 닫혀 있는데 어휘가 겹치는 경우만 data-entity-select="closed" 로 뺀다. */
+  out.plainDropdown = [];
+  out.plainDropdownChecked = 0;
+  function labelTextOf(el) {
+    // 라벨 후보를 모아 잇는다 — 어느 하나만 보면(예: aria-label 만) 컨트롤 절반이 이름 없는
+    // 것으로 보여 검사가 조용히 통과한다.
+    const parts = [];
+    const push = (s) => { if (s) parts.push(String(s)); };
+    push(el.getAttribute('aria-label'));
+    push(el.getAttribute('placeholder'));
+    push(el.getAttribute('title'));
+    const by = el.getAttribute('aria-labelledby');
+    if (by) {
+      for (const id of by.split(/\s+/)) {
+        const t = document.getElementById(id);
+        if (t) push(t.textContent);
+      }
+    }
+    if (el.id) {
+      try {
+        const lab = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+        if (lab) push(lab.textContent);
+      } catch (e) { /* 이상한 id 는 그냥 라벨 없는 것으로 본다 */ }
+    }
+    const form = el.closest('.MuiFormControl-root, .MuiTextField-root, label');
+    if (form) {
+      const lab = form.querySelector('label, .MuiInputLabel-root, .MuiFormLabel-root');
+      // `<label>담당자 <select>…</select></label>` 처럼 라벨이 컨트롤을 **감싸는** 형태는
+      // 안쪽에 라벨 요소가 따로 없다. 이 갈래를 빠뜨리면 네이티브 select 절반이 이름 없는
+      // 컨트롤로 보여 검사가 조용히 통과한다(실측으로 확인).
+      if (lab) push(lab.textContent);
+      else if (form.tagName === 'LABEL') push(form.textContent);
+    }
+    const inner = el.querySelector('input');
+    if (inner) {
+      push(inner.getAttribute('placeholder'));
+      push(inner.getAttribute('aria-label'));
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  }
+  for (const el of MAIN.querySelectorAll('select, [role="combobox"], [role="listbox"]')) {
+    if (out.plainDropdown.length >= MAX) break;
+    const r = el.getBoundingClientRect();
+    if (!visible(el, r)) continue;
+    if (el.closest('[data-entity-select="closed"]')) continue;
+    const label = labelTextOf(el);
+    if (!label) continue;
+    let term = null;
+    for (const t of (config.entityTerms || [])) {
+      if (label.indexOf(t) >= 0) { term = t; break; }
+    }
+    if (!term) continue;
+    out.plainDropdownChecked++;
+    const auto = el.getAttribute('aria-autocomplete');
+    // MUI Select 는 값 전달용 <input class="MuiSelect-nativeInput" aria-hidden> 을 숨겨 둔다.
+    // 그걸 '검색 입력' 으로 세면 정확히 잡아야 할 것이 전부 통과한다.
+    const typeable = el.querySelector(
+      'input:not([type="hidden"]):not([aria-hidden="true"]):not(.MuiSelect-nativeInput)');
+    const searchable = auto === 'list' || auto === 'both' || !!typeable
+      || !!el.closest('.MuiAutocomplete-root');
+    if (searchable) continue;
+    out.plainDropdown.push({
+      selector: cssPath(el), term: term, label: label.slice(0, 40),
+      tag: el.tagName.toLowerCase(),
+    });
+  }
+
+  // --- 10) detail_side_imbalance --------------------------------------------
+  /* 2열 중 한쪽이 동났는데 그 공간을 회수하지 않은 상태.
+   *
+   * rail_wider_than_prose 가 "곁열이 본문을 이긴다" 를 잡는다면 이건 양방향이다 — 어느 쪽이든
+   * 내용이 없는데 폭과 높이를 그대로 차지하고 있으면 화면 절반이 죽는다. 세 조건을 모두
+   * 요구한다: 잉크 면적 비가 극단(<=0.15), 빈 쪽의 빈 면적이 실제로 크고(>=250,000px^2),
+   * 높이 차도 절반 이상. 하나만 보면 짧은 곁열이 전부 걸린다. */
+  out.detailSideImbalance = [];
+  out.detailSideImbalanceChecked = 0;
+  if (window.innerWidth >= config.detailImbalanceMinViewport) {
+    for (const el of MAIN.querySelectorAll('div, section')) {
+      if (out.detailSideImbalance.length >= MAX) break;
+      const cs = getComputedStyle(el);
+      if (cs.display !== 'grid' && cs.display !== 'inline-grid') continue;
+      const kids = [];
+      for (const k of el.children) {
+        const kr = k.getBoundingClientRect();
+        if (kr.width > 0 && kr.height > 0) kids.push({ el: k, r: kr });
+      }
+      if (kids.length !== 2) continue;
+      const ra = kids[0].r, rb = kids[1].r;
+      if (Math.abs(ra.top - rb.top) > 24) continue;   // 나란히 선 두 열일 때만
+      if (ra.width < 240 || rb.width < 240) continue;
+      const ga = inkGrid(kids[0].el, INK_CELL), gb = inkGrid(kids[1].el, INK_CELL);
+      if (ga.ratio == null || gb.ratio == null) continue;
+      out.detailSideImbalanceChecked++;
+      const areaA = ga.inked * ga.cell * ga.cell, areaB = gb.inked * gb.cell * gb.cell;
+      const lo = Math.min(areaA, areaB), hi = Math.max(areaA, areaB);
+      if (!(hi > 0) || lo / hi > 0.15) continue;
+      const emptyG = areaA < areaB ? ga : gb;
+      const emptyArea = emptyG.box.w * emptyG.box.h * (1 - emptyG.ratio);
+      if (emptyArea < 250000) continue;
+      /* 높이 차는 **상자** 가 아니라 **잉크** 로 잰다.
+       *
+       * 2열 격자는 기본이 align-items:stretch 라 한쪽이 텅 비어도 상자 높이는 똑같다.
+       * 상자로 재면 이 검사는 사실상 발화할 수 없다 — 실측에서 빈 면적 641,174px^2 ·
+       * 잉크 비 0.00 인 격자가 '높이가 같다' 는 이유로 통과했다(같은 상자를
+       * oversized_empty_surface 는 결함으로 잡았다). 사양이 말하는 "한쪽이 동났다" 는
+       * 내용이 끝난 지점을 뜻하므로 잉크 bbox 높이가 그 값이다. */
+      const inkHa = ga.bbox ? ga.bbox.h : 0, inkHb = gb.bbox ? gb.bbox.h : 0;
+      const tallest = Math.max(inkHa, inkHb);
+      if (!(tallest > 0)) continue;
+      if (Math.abs(inkHa - inkHb) < 0.5 * tallest) continue;
+      out.detailSideImbalance.push({
+        selector: cssPath(el),
+        left: Math.round(ra.width) + 'x' + Math.round(ra.height),
+        right: Math.round(rb.width) + 'x' + Math.round(rb.height),
+        inkRatio: Math.round((lo / hi) * 1000) / 1000,
+        emptyArea: Math.round(emptyArea),
+        emptySide: areaA < areaB ? '왼쪽' : '오른쪽',
+      });
+    }
+  }
+
+  // --- 11) surface_repetition -----------------------------------------------
+  /* 같은 톤의 면이 잔뜩 반복되는 상태.
+   *
+   * **목록인가 구조인가** 를 가르는 것이 이 검사의 전부다. 같은 카드가 여덟 개인 것은
+   * 목록에서는 정상이고(그래야 훑을 수 있다) 페이지 골격에서는 결함이다("동일 형태 흰 카드 8개").
+   * 그래서 li / role=list 하위 / 행 열기 affordance 를 하나라도 가지면 목록으로 보고 빠진다 —
+   * 놀이방 카드 격자와 채팅방 목록이 여기서 터지면 안 된다. 각자 고유 heading 을 갖고
+   * 내비게이션이 없는 경우만 '구조' 다. */
+  out.surfaceRepetition = [];
+  out.surfaceRepetitionChecked = 0;
+  {
+    const groups = new Map();
+    // `a` 를 빼면 링크 카드 격자가 아예 후보에 안 들어와, 목록/구조 판별자가 **돌지도 않은 채**
+    // 조용히 넘어간다(요약에는 skip 으로 나온다 — 통과가 아니라 미실행이다). 링크 카드는
+    // 어차피 아래에서 목록으로 분류돼 빠지지만, 그건 판별자가 그렇게 판정한 결과여야 한다.
+    for (const el of MAIN.querySelectorAll('div, section, article, li, a')) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 120 || r.height < 64 || r.width * r.height < 12000) continue;
+      if (!visible(el, r)) continue;
+      const cs = getComputedStyle(el);
+      const bg = cs.backgroundColor;
+      const hasBg = !!bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+      const hasBorder = cs.borderTopStyle !== 'none' && (parseFloat(cs.borderTopWidth) || 0) > 0;
+      if (!hasBg && !hasBorder && cs.boxShadow === 'none') continue;
+      const sig = [bg, cs.borderTopWidth, cs.borderTopColor, cs.borderRadius, cs.boxShadow,
+                   Math.round(r.width / 100)].join('|');
+      if (!groups.has(sig)) groups.set(sig, []);
+      groups.get(sig).push({ el: el, r: r });
+    }
+    const vw = window.innerWidth;
+    const threshold = vw < 1200 ? 6 : (vw < 1920 ? 8 : 10);
+    const mainRect = MAIN.getBoundingClientRect();
+    const mainArea = mainRect.width * mainRect.height;
+    for (const entry of groups) {
+      if (out.surfaceRepetition.length >= MAX) break;
+      const members = entry[1];
+      if (members.length < threshold) continue;
+      out.surfaceRepetitionChecked++;
+      let area = 0;
+      for (const m of members) area += m.r.width * m.r.height;
+      if (!(mainArea > 0) || area / mainArea < 0.35) continue;
+      let listish = false, headed = 0;
+      for (const m of members) {
+        if (m.el.tagName === 'LI'
+            || m.el.closest('ul, ol, table, [role="list"], [role="listbox"], [role="menu"]')
+            || m.el.matches('a[href]') || m.el.querySelector('a[href]')
+            || m.el.getAttribute('role') === 'button' || m.el.querySelector('[role="button"]')
+            || m.el.hasAttribute('aria-expanded') || m.el.querySelector('[aria-expanded]')) {
+          listish = true;
+          break;
+        }
+        if (m.el.querySelector('h1, h2, h3, h4, h5, h6, [role="heading"]')) headed++;
+      }
+      if (listish || headed < members.length) continue;
+      out.surfaceRepetition.push({
+        selector: cssPath(members[0].el), count: members.length, threshold: threshold,
+        areaShare: Math.round((area / mainArea) * 100),
+        signature: entry[0].slice(0, 80),
+        text: snippet(members[0].el),
+      });
+    }
+  }
+
   // --- app-level state worth recording (not a failure by itself) -----------
   const denied = document.querySelector('.k-empty-title');
   out.emptyTitle = denied ? snippet(denied) : null;
@@ -634,6 +1623,9 @@ def evaluate(page, *, expected_theme: str, viewport_width: int) -> dict:
         "imageCropMinLoss": IMAGE_CROP_MIN_LOSS,
         "expectedTheme": expected_theme,
         "viewportWidth": viewport_width,
+        "columnContentMinViewport": COLUMN_CONTENT_MIN_VIEWPORT,
+        "detailImbalanceMinViewport": DETAIL_IMBALANCE_MIN_VIEWPORT,
+        "entityTerms": list(ENTITY_TERMS),
     })
 
 
@@ -824,6 +1816,157 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         _verdict("fail", len(blocking), [_fmt(o) for o in blocking],
                  "스크롤해도 비켜나지 않는다 — 사용자는 이 컨트롤을 누를 방법이 없다")
         if blocking else _verdict("pass", 0, None, note)
+    )
+
+    # ── 레이아웃·콘텐츠 축 11종 ──────────────────────────────────────────────
+    #
+    # 전부 advisory 다(`CLASSES` 주석 참고). 판정 규칙은 하나로 통일한다:
+    #   후보를 하나도 못 봤다  → skip + 왜 못 봤는지
+    #   후보를 봤고 결함 없음  → pass
+    #   결함 있음              → fail
+    # "후보가 없다" 를 pass 로 세면 요약표의 통과 수가 실제로 확인한 화면 수와 어긋난다 —
+    # 이 저장소가 `tiny_text`/`narrow_main` 에서 이미 겪은 착시다(QA-10·QA-13).
+    def _advisory(name: str, items: list, checked: int, fmt, fail_note: str,
+                  skip_note: str, pass_note: str = "") -> None:
+        if not checked:
+            results[name] = _verdict("skip", 0, None, skip_note)
+        elif items:
+            results[name] = _verdict("fail", len(items), [fmt(i) for i in items], fail_note)
+        else:
+            results[name] = _verdict("pass", 0, None, pass_note or f"후보 {checked}건 확인")
+
+    _advisory(
+        "equal_column_split",
+        probe.get("equalColumnSplit") or [], probe.get("equalColumnSplitChecked", 0),
+        lambda s: (f"{s['selector']} 트랙 {s['tracks']}개 {s['widths']}px — 요구 폭은"
+                   f" {s['demandRatio']}배 차이인데 폭은 같다"
+                   f" (굶는 쪽 {s['hungryLines']}줄로 접힘,"
+                   f" 남는 쪽 {round(s['freeRatio'] * 100)}% 빔) «{s['hungryText']}»"),
+        "폭을 똑같이 나눠 한쪽은 접히고 한쪽은 비었다 — 트랙을 내용 요구에 맞춰야 한다",
+        "2트랙 이상·각 160px 이상인 격자가 이 화면에 없다",
+    )
+
+    if viewport_width < COLUMN_CONTENT_MIN_VIEWPORT:
+        results["column_width_vs_content"] = _verdict(
+            "skip", 0, None,
+            f"뷰포트 폭 {viewport_width} < {COLUMN_CONTENT_MIN_VIEWPORT}"
+            " — 이 아래는 표가 카드로 접히거나 한글이 원래 접히는 폭이다")
+    else:
+        _advisory(
+            "column_width_vs_content",
+            probe.get("columnWidthVsContent") or [], probe.get("columnWidthVsContentChecked", 0),
+            lambda s: (f"{s['selector']} «{s['starvedColumn']}» {s['starvedWidth']}px 가"
+                       f" {round(s['wrapRate'] * 100)}% 접히는데"
+                       f" «{s['slackColumn']}» {s['slackWidth']}px 는"
+                       f" {round(s['fill'] * 100)}%만 차 있다 (여유 {s['slackPx']}px)"),
+            "남는 열의 여유를 접히는 열로 옮기면 그대로 해결된다",
+            "열이 2개 이상인 표가 이 화면에 없다",
+        )
+
+    _advisory(
+        "header_cell_alignment_mismatch",
+        probe.get("headerCellAlignment") or [], probe.get("headerCellAlignmentChecked", 0),
+        lambda s: (f"{s['selector']} «{s['column']}» 머리는 {s['header']} 인데"
+                   f" 몸은 {s['body']} ({s['bodyShare']}%)"),
+        "머리와 몸이 다른 축에 붙어 눈이 열을 따라 내려가지 못한다",
+        "본문 셀이 2개 이상인 표 열이 이 화면에 없다",
+    )
+
+    _advisory(
+        "numeric_alignment",
+        probe.get("numericAlignment") or [], probe.get("numericAlignmentChecked", 0),
+        lambda s: (f"{s['selector']} «{s['column']}» (숫자 {s['numericShare']}%)"
+                   f" 정렬={s['align']} tabular={s['tabular']} — {s['reason']}"),
+        "자릿수가 세로로 안 맞으면 값을 비교할 수 없다 — 우정렬 + tabular-nums 가 있어야 한다",
+        "숫자 열(비어있지 않은 셀의 80% 이상이 숫자)이 이 화면에 없다",
+    )
+
+    _advisory(
+        "isolated_control_row",
+        probe.get("isolatedControlRow") or [], probe.get("isolatedControlRowChecked", 0),
+        lambda s: (f"{s['selector']} «{s['control']}» 가 자기 줄({s['rowUsed']}px)을 쓰는데"
+                   f" 윗줄 여유는 {s['prevFree']}px 다 (컨테이너 {s['containerWidth']}px,"
+                   f" gap {s['gap']}px)"),
+        "윗줄에 들어갈 자리가 있는데 밀려났다 — 좁아서 접힌 것이 아니다",
+        "컨트롤만 있는 두 번째 줄이 이 화면에 없다",
+    )
+
+    _advisory(
+        "control_baseline_mismatch",
+        probe.get("controlBaseline") or [], probe.get("controlBaselineChecked", 0),
+        lambda s: (f"{s['selector']} {s['reason']} 차이 {s['delta']}px"
+                   f" [{s['kind']}] 컨트롤 {s['controls']}개 «{s['a']}» vs «{s['b']}»"),
+        "한 줄 안에서 같은 종류끼리 높이가 다르거나 중심선이 어긋났다",
+        "컨트롤이 2개 이상 놓인 줄이 이 화면에 없다",
+    )
+
+    _advisory(
+        "oversized_empty_surface",
+        probe.get("oversizedEmptySurface") or [], probe.get("oversizedEmptySurfaceChecked", 0),
+        lambda s: (f"{s['selector']} {s['box']} 잉크 {round(s['coverage'] * 100)}%"
+                   f" (빈 면적 {s['emptyArea']:,}px², 내용 폭 비 {s['contentWidthRatio']})"
+                   f" — {s['reason']} «{s['text']}»"),
+        "큰 면이 비어 있다 — 상자를 줄이거나 그 자리에 들어갈 것을 넣어야 한다",
+        "이 화면에 측정할 만한 크기의 면이 없다",
+    )
+
+    dead = probe.get("deadBlankRegion")
+    if not probe.get("deadBlankRegionChecked") or not dead:
+        results["dead_blank_region"] = _verdict(
+            "skip", 0, None, probe.get("deadBlankNote") or "본문 영역을 재지 못했다")
+    else:
+        bottom = dead.get("bottomBlank") or 0.0
+        right = dead.get("rightBlank") or 0.0
+        ink = dead.get("inkRatio") or 0.0
+        starving = bool(dead.get("unsatisfied"))
+        demand = dead.get("demand") or {}
+        note = (f"본문 {dead.get('box')} / 잉크 {dead.get('bbox')}"
+                f" — 하단 공백 {bottom:.0%}, 우측 공백 {right:.0%}, 잉크 {ink:.0%},"
+                f" 굶주린 콘텐츠 {'있음' if starving else '없음'} {demand}")
+        # 극단 분기는 굶주림을 묻지 않는다 — 화면의 절반 이상이 비었는데 잉크가 25% 밑이면
+        # 무엇이 들어갈지와 무관하게 그 화면은 완성돼 보이지 않는다.
+        extreme = bottom >= 0.55 and ink <= 0.25
+        starved_bottom = bottom >= 0.35 and ink <= 0.45 and starving
+        starved_right = right >= 0.30 and ink <= 0.45 and starving
+        if extreme or starved_bottom or starved_right:
+            results["dead_blank_region"] = _verdict(
+                "fail", 1, [note],
+                "스크롤되지 않는 화면인데 남은 공간을 회수하지 않았다")
+        else:
+            results["dead_blank_region"] = _verdict("pass", 0, None, note)
+
+    _advisory(
+        "plain_dropdown_for_entity",
+        probe.get("plainDropdown") or [], probe.get("plainDropdownChecked", 0),
+        lambda s: (f"{s['selector']} <{s['tag']}> «{s['label']}» — '{s['term']}' 는"
+                   f" 기수가 무한히 자라는 대상인데 검색할 수 없다"),
+        "데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
+        "entity 어휘에 걸리는 드롭다운이 이 화면에 없다",
+    )
+
+    if viewport_width < DETAIL_IMBALANCE_MIN_VIEWPORT:
+        results["detail_side_imbalance"] = _verdict(
+            "skip", 0, None,
+            f"뷰포트 폭 {viewport_width} < {DETAIL_IMBALANCE_MIN_VIEWPORT}"
+            " — 이 아래는 한 열로 접혀 좌우 불균형이라는 것이 없다")
+    else:
+        _advisory(
+            "detail_side_imbalance",
+            probe.get("detailSideImbalance") or [], probe.get("detailSideImbalanceChecked", 0),
+            lambda s: (f"{s['selector']} {s['left']} / {s['right']} —"
+                       f" {s['emptySide']}이 동났다 (잉크 면적 비 {s['inkRatio']},"
+                       f" 빈 면적 {s['emptyArea']:,}px²)"),
+            "한쪽이 동났는데 그 공간을 회수하지 않았다 — 화면 절반이 죽는다",
+            "나란히 선 2열 격자가 이 화면에 없다",
+        )
+
+    _advisory(
+        "surface_repetition",
+        probe.get("surfaceRepetition") or [], probe.get("surfaceRepetitionChecked", 0),
+        lambda s: (f"{s['selector']} 같은 톤의 면 {s['count']}개"
+                   f" (임계 {s['threshold']}, 본문의 {s['areaShare']}%) «{s['text']}»"),
+        "목록이 아닌데 같은 면이 반복된다 — 위계 없이 같은 카드를 늘어놓은 상태다",
+        "임계 이상 반복되는 동일 톤 면 그룹이 이 화면에 없다",
     )
 
     return results

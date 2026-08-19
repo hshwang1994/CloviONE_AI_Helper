@@ -46,7 +46,7 @@ Routing is HashRouter: a URL is ``<base_url><shell>#<hash_path>``, e.g.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable
 
 # 5-role RBAC (app/users/models.py ALL_ROLES). The set is NOT a strict
@@ -76,6 +76,16 @@ class Route:
     # whose first item's ``id`` is substituted into ``hash_template``.
     hash_template: str = ""
     discover: tuple[str, ...] = field(default_factory=tuple)
+    # ROUTE_COVERAGE.json 의 surface id. 하네스 id 와 표기가 달라서(harness
+    # ``admin_users-detail`` vs coverage ``admin_users-id``) Gate 가 경로로 짐작해
+    # 맞춰 왔는데, 짐작은 한 쪽이 바뀌는 날 조용히 어긋난다. 명시한다.
+    surface_id: str = ""
+    # 소스가 `<Navigate>` 로 바꾼 옛 주소. 값이 있으면 **화면이 아니라 별칭**이다.
+    alias_of: str = ""
+
+    @property
+    def is_alias(self) -> bool:
+        return bool(self.alias_of)
 
     @property
     def is_detail(self) -> bool:
@@ -121,6 +131,19 @@ def _p(rid, path, label, **kw) -> Route:
 
 def _u(rid, path, label, **kw) -> Route:
     return Route(id=rid, hash_path=path, console="user", label=label, min_role="user", **kw)
+
+
+def _alias(rid, path, target, label, min_role="operator", allowed=()) -> Route:
+    """옛 주소. `AdminRoutes.jsx` 가 `<Navigate>` 로 바꿔 **자기 화면이 없다**.
+
+    화면으로 세면 PNG 는 도착지 화면인데 검사는 전부 통과하고 커버리지는 한 화면을 둘로
+    센다 — 실제로 `/system`·`/notion-console`·`/llm-console`·`/maintenance` 네 개가
+    그렇게 세어지고 있었다. `ALL_ROUTES` 에서 빼고 리다이렉트 계약 검증에만 쓴다.
+    """
+    return Route(
+        id=rid, hash_path=path, console="admin", label=label,
+        min_role=min_role, allowed_roles=tuple(allowed), alias_of=target,
+    )
 
 
 def _a(rid, path, label, min_role="operator", allowed=(), **kw) -> Route:
@@ -183,12 +206,26 @@ USER_ROUTES: tuple[Route, ...] = (
        hash_template="/projects/{id}", discover=("/api/projects",)),
     # 기능 개선 제안 — 게시판과 같은 API 를 종류만 바꿔 쓴다(navConfig.js). 화면은 Board.jsx 다.
     _u("user_ideas", "/ideas", "기능 개선 제안"),
+    # ── 사용자 콘솔에는 완전성 테스트 자체가 없었다 (2026-08-19, W0) ─────────────
+    # `UserRoutes.jsx` 에 라우트가 있는데 이 목록에 **0건**이라 한 번도 캡처된 적이 없다.
+    # 관리자 쪽에서 세 번 반복된 결함(system_admin 4화면 · admin_mail · /audit/:id)과
+    # 같은 부류다. 이번에 등록하면서 완전성 테스트를 사용자 콘솔까지 확장한다.
+    # `/notifications` 는 0060 에서 **사용자 콘솔 소유**가 됐다(navConfig.js::USER_SEG_PATHS).
+    # 하네스는 이걸 관리자 라우트로 갖고 있었는데 `AdminRoutes.jsx` 에는 그 경로가 없다 —
+    # `/admin#/notifications` 는 catch-all 의 RouteNotFound 다. 그 404 화면을 찍어 놓고
+    # 21개 검사가 전부 통과해 왔다. 관리자 알림은 아래 `/admin-notifications` 다.
+    _u("user_notifications", "/notifications", "알림"),
+    _u("user_my-approvals", "/my-approvals", "내 승인 요청"),
+    _u("user_my-display", "/my-display", "화면 표시 설정"),
 )
 
 # --- admin console (App.jsx AdminBody) --------------------------------------
 # The six hard-coded routes first, then the 16 REGISTRY-driven DataScreen routes.
 ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_dashboard", "/dashboard", "대시보드"),
+    # 통합 검색은 두 콘솔에 같은 경로로 등록돼 있다. 같은 컴포넌트라 한 번만 찍어 왔는데,
+    # 이번 리뉴얼의 작업 대상이 Header·Sidebar 라 **셸이 다르면 다른 화면**이다.
+    _a("admin_search", "/search", "통합 검색 (관리자 셸)"),
     _a("admin_users", "/users", "사용자", "admin", ("admin", "system_admin")),
     # PA-RC-0024가 신설한 상세 딥링크(직접 진입·새로고침·뒤로가기 보존) — QAH-06과 같은
     # 함정을 세 번째로 반복하지 않으려고 새 라우트를 추가하면서 바로 등록한다
@@ -207,8 +244,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # **조용히 안 보이게 되는 상태**를 모아 보여 주고 일괄로 고친다. `/diagnostics`(시스템
     # 점검)와 이름이 비슷하지만 다루는 대상이 다르다 — 저쪽은 연결·설정, 이쪽은 데이터다.
     _a("admin_integrity", "/integrity", "데이터 정합성", "admin", ("admin", "system_admin")),
-    _a("admin_maintenance", "/maintenance", "유지보수", "operator",
-       ("operator", "admin", "system_admin", "auditor")),
     _a("admin_dev-report", "/dev-report", "개발자 월간 리포트", "auditor",
        ("admin", "system_admin", "auditor")),
     # REGISTRY keys — "/" + key, gated by SCREEN_ROLES when listed there.
@@ -234,9 +269,13 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_rbac", "/rbac", "권한 매트릭스", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_notion-mapping", "/notion-mapping", "Notion 사용자 연결"),
+    # REGISTRY 28키 중 하나(`screens/registry/notifications.js::admin-notifications`).
+    # 하네스에도 커버리지에도 없어서 한 번도 캡처된 적이 없다 — Python 정규식이 계산된
+    # 경로(`path={"/" + key}`)를 못 읽어 조용히 놓친 바로 그 한 개다
+    # (`frontend/src/screens/registry-surface-parity.test.js` 가 JS 로 잡았다).
+    _a("admin_admin-notifications", "/admin-notifications", "관리 알림"),
     _a("admin_jobs", "/jobs", "작업 큐", "operator", ("operator", "admin", "system_admin")),
     _a("admin_audit", "/audit", "감사 로그", "auditor", ("admin", "system_admin", "auditor")),
-    _a("admin_notifications", "/notifications", "알림"),
     _a("admin_backup", "/backup", "백업", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     # Detail views inside the admin console are drawers opened by a query string
@@ -278,15 +317,61 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_policy-usage", "/policy-usage", "정책 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
-    # ── system_admin 전용 4화면 (2026-08-08 추가) ─────────────────────────────
-    # 넷 다 `AdminRoutes.jsx` 에 전용 라우트가 있는데 이 목록에 없어서 **한 번도 캡처된 적이
-    # 없다** — 화면 코드 약 1,260줄이 시각 검사 밖에 있었다. 역할 게이트는 `navConfig.js` 의
-    # `roles: ["system_admin"]` 및 각 라우터(`sysops`/`setup`/`notion_console`/`llm_console`)와
-    # 같은 집합이다. 하네스 기본 계정이 `system_admin` 이라 그대로 찍힌다.
-    _a("admin_system", "/system", "시스템 설정", "system_admin", ("system_admin",)),
+    # 초기 설정만 여전히 자기 화면이다(SetupWizard.jsx). 나머지 셋과 유지보수는
+    # `/settings` 탭이 됐고 옛 주소는 `<Navigate>` 다 — 아래 ALIAS_ROUTES 로 옮겼다.
     _a("admin_setup", "/setup", "초기 설정", "system_admin", ("system_admin",)),
-    _a("admin_notion-console", "/notion-console", "Notion 관리", "system_admin", ("system_admin",)),
-    _a("admin_llm-console", "/llm-console", "AI 관리", "system_admin", ("system_admin",)),
+    # ── /settings 탭 본문 (2026-08-19, W0) ────────────────────────────────────
+    # `SettingsShell.jsx::TAB_DEFS` 의 네 탭 중 `policy` 만 `/settings` 로 찍혀 왔다.
+    # 나머지 셋이 그리는 SystemOps(389) · NotionConsole(433) · LlmConsole(394) 는
+    # **직접 캡처된 적이 없다** — 1,216줄이 시각 검사 밖에 있었다.
+    _a("admin_settings-os", "/settings?tab=os", "설정 — OS와 서비스 동작",
+       "system_admin", ("system_admin",)),
+    _a("admin_settings-integration", "/settings?tab=integration", "설정 — 연동",
+       "system_admin", ("system_admin",)),
+    _a("admin_settings-ai", "/settings?tab=ai", "설정 — AI",
+       "system_admin", ("system_admin",)),
+    # ── 탭 그릇의 두 번째 탭 (2026-08-19, W0) ─────────────────────────────────
+    # `AdminRoutes.jsx::TAB_GROUPS` 의 `/ai-usage` 그릇은 옛 주소 두 개(/policy-usage,
+    # /prompt-usage)로만 하네스에 있었다. 대표 주소와 탭 상태는 별개 Surface 다.
+    _a("admin_ai-usage", "/ai-usage", "AI 사용 통계 — 정책", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_ai-usage-prompt", "/ai-usage?tab=prompt-usage", "AI 사용 통계 — 프롬프트",
+       "operator", ("operator", "admin", "system_admin", "auditor")),
+    # 탭 그릇의 두 번째 탭을 **대표 주소 + 탭 상태**로도 찍는다. 옛 주소(`/restore-drills`
+    # 등)는 이미 위에 있지만 그건 다른 주소다 — 둘 다 살아 있어야 한다는 것이
+    # `AdminRoutes.jsx` 의 설계다(리다이렉트를 안 쓴 이유가 그 주석에 있다).
+    _a("admin_backup-restore-drills-tab", "/backup?tab=restore-drills", "백업 — 복구 리허설 탭",
+       "operator", ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_approvals-delegations-tab", "/approvals?tab=approval-delegations",
+       "승인 — 승인 위임 탭", "operator", ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_audit-anomalies-tab", "/audit?tab=audit-anomalies", "감사 로그 — 이상 징후 탭",
+       "auditor", ("admin", "system_admin", "auditor")),
+    _a("admin_schedules-calendar-tab", "/schedules?tab=scheduler-calendar",
+       "실행 일정 — 달력 탭", "operator", ("operator", "admin", "system_admin", "auditor")),
+    # 감사 로그 상세(PA-RC-0024)는 `AdminRoutes.jsx:277` 이 탭 그릇 안에서 등록하는데
+    # 정규식 완전성 테스트가 `<Route key=... path=` 형태를 못 읽어 조용히 빠져 있었다.
+    _a("admin_audit-detail", "/audit/:id", "감사 로그 상세", "auditor",
+       ("admin", "system_admin", "auditor"),
+       hash_template="/audit/{id}", discover=("/api/admin/audit",)),
+)
+
+# --- 옛 주소(리다이렉트) -------------------------------------------------------
+# `AdminRoutes.jsx:216-219` 가 `<Navigate to="/settings?tab=…" replace />` 로 바꿨다.
+# **화면이 아니다.** 캡처하면 도착지 화면의 PNG 가 네 장 더 생기고 그 위에서 21개 검사가
+# 전부 통과한다 — 커버리지가 한 화면을 둘로 세는 정확히 그 함정이다(PLAN C1b).
+# 여기 남겨 두는 이유는 리다이렉트 계약을 검증하기 위해서다
+# (`frontend/src/app/settings-route-redirects.test.jsx` 가 그 계약의 정본이고,
+#  `--routes alias` 로 실제 브라우저에서도 도착지를 확인할 수 있다).
+ALIAS_ROUTES: tuple[Route, ...] = (
+    _alias("admin_system", "/system", "/settings?tab=os", "시스템 설정(옛 주소)",
+           "system_admin", ("system_admin",)),
+    _alias("admin_notion-console", "/notion-console", "/settings?tab=integration",
+           "Notion 관리(옛 주소)", "system_admin", ("system_admin",)),
+    _alias("admin_llm-console", "/llm-console", "/settings?tab=ai",
+           "AI 관리(옛 주소)", "system_admin", ("system_admin",)),
+    _alias("admin_maintenance", "/maintenance", "/settings?tab=policy",
+           "유지보수(옛 주소)", "operator",
+           ("operator", "admin", "system_admin", "auditor")),
 )
 
 # --- 로그인 전 화면 -----------------------------------------------------------
@@ -296,8 +381,50 @@ PUBLIC_ROUTES: tuple[Route, ...] = (
     _p("public_login", "/login", "로그인"),
 )
 
+# 별칭은 **화면이 아니라서** ALL_ROUTES 에 들어가지 않는다. `--routes alias` 로만 부른다.
+# --- 하네스 id ↔ ROUTE_COVERAGE Surface id ------------------------------------
+# 두 이름이 다른 자리. Gate 와 `scripts/collect_evidence.py` 가 경로로 짐작해 맞추던 것을
+# 표로 고정한다 — 짐작은 한쪽이 바뀌는 날 조용히 어긋나고, 그러면 증거가 엉뚱한 Surface 에
+# 붙는다. 여기 없는 Route 는 id 가 그대로 Surface id 다.
+SURFACE_ID_OVERRIDES: dict[str, str] = {
+    "admin_ai-usage": "admin_ai-usage__policy-usage",
+    "admin_ai-usage-prompt": "admin_ai-usage__prompt-usage",
+    "admin_approvals": "admin_approvals__approvals",
+    "admin_approvals-delegations-tab": "admin_approvals__approval-delegations",
+    "admin_audit": "admin_audit__audit",
+    "admin_audit-anomalies-tab": "admin_audit__audit-anomalies",
+    "admin_audit-detail": "admin_audit-id",
+    "admin_backup": "admin_backup__backup",
+    "admin_backup-restore-drills-tab": "admin_backup__restore-drills",
+    "admin_departments-detail": "admin_departments-id",
+    "admin_schedules": "admin_schedules__schedules",
+    "admin_schedules-calendar-tab": "admin_schedules__scheduler-calendar",
+    "admin_settings-ai": "admin_settings__ai",
+    "admin_settings-integration": "admin_settings__integration",
+    "admin_settings-os": "admin_settings__os",
+    "admin_users-detail": "admin_users-id",
+    "user_board-post": "user_board-id",
+    "user_chat-room-detail": "user_chat-rooms-id",
+    "user_game-room": "user_games-id",
+    "user_project-detail": "user_projects-id",
+    "user_team-doc-detail": "user_team-docs-id",
+    "user_ticket-detail": "user_tickets-id",
+}
+
+
+def _stamp(routes: tuple[Route, ...]) -> tuple[Route, ...]:
+    return tuple(
+        replace(r, surface_id=SURFACE_ID_OVERRIDES.get(r.id, r.id)) for r in routes
+    )
+
+
+PUBLIC_ROUTES = _stamp(PUBLIC_ROUTES)
+USER_ROUTES = _stamp(USER_ROUTES)
+ADMIN_ROUTES = _stamp(ADMIN_ROUTES)
+ALIAS_ROUTES = _stamp(ALIAS_ROUTES)
+
 ALL_ROUTES: tuple[Route, ...] = PUBLIC_ROUTES + USER_ROUTES + ADMIN_ROUTES
-BY_ID = {r.id: r for r in ALL_ROUTES}
+BY_ID = {r.id: r for r in ALL_ROUTES + ALIAS_ROUTES}
 
 # A small, cheap smoke set: one user-console screen, one DataScreen-driven admin
 # screen, one detail view. Used by ``run.py --routes smoke``.
@@ -336,6 +463,8 @@ def resolve(selectors: Iterable[str] | None) -> list[Route]:
             add(ADMIN_ROUTES)
         elif low == "public":
             add(PUBLIC_ROUTES)
+        elif low == "alias":
+            add(ALIAS_ROUTES)
         elif low == "detail":
             add(r for r in ALL_ROUTES if r.is_detail)
         elif token in BY_ID:
@@ -360,8 +489,10 @@ def inventory() -> list[dict]:
             "label": r.label, "min_role": r.min_role,
             "allowed_roles": list(r.allowed_roles), "is_detail": r.is_detail,
             "is_public": r.is_public,
+            "surface_id": r.surface_id or r.id,
+            "alias_of": r.alias_of,
         }
-        for r in ALL_ROUTES
+        for r in ALL_ROUTES + ALIAS_ROUTES
     ]
 
 
@@ -370,4 +501,5 @@ if __name__ == "__main__":  # quick sanity dump: python -m scripts.ui_qa.routes
         print(f"{r.id:<26} {r.console:<5} {(r.hash_template or r.hash_path):<22} "
               f"{r.min_role:<12} {r.label}")
     print(f"총 {len(ALL_ROUTES)}개 (public={len(PUBLIC_ROUTES)}, "
-          f"user={len(USER_ROUTES)}, admin={len(ADMIN_ROUTES)})")
+          f"user={len(USER_ROUTES)}, admin={len(ADMIN_ROUTES)}) "
+          f"+ 별칭 {len(ALIAS_ROUTES)}개(화면 아님)")
