@@ -11,6 +11,7 @@
 - build_index_sha256: 9ab4d470163e475a — **서버가 서브 중인 것**. 지문은 이제 원격 shell 을
   직접 받아 계산한다(D-175). 로컬 빌드는 1a4b20a852580a31 이고 `export` 추가분만 다르다
 - coverage_gate: `--stage plan` PASS · `--stage wave` FAIL 1종 (Before 캡처 82건, 실행 중)
+- static_checks: **STATIC_CHECKS_OK** (`.git` 위생 포함 — D-178)
 - surfaces_total: 92 (route 68 · tab 14 · state_variant 4 · widget 6 — App Shell 2 신설)
 - harness_routes: 84 화면 + 별칭 4 (별칭은 화면이 아니다 — D-170)
 - archetype_gap: 19 Surface 의 현재 모습이 목표 Archetype 과 다르다 (list_table 49→35)
@@ -47,16 +48,8 @@ Gate 를 세우는 과정에서 **커버리지가 거짓말하던 자리**를 �
    `SERVER`/`SUDO_PW` 는 `dist/ops/server.env`, 절차는 `scripts/stage-static-update.sh`.
 
 ## BLOCKERS
-- **`static_checks.sh` 가 `.git` 위생 검사에서 빨갛다 — Wave 종료 조건 E5 가 도달 불가.**
-  이번 세션이 만든 것이 아니다. 둘 다 사전 존재한다.
-  ① `stash@{0}`(2026-08-13) — 이전 세션이 "설명 없는 CLAUDE.md 편집: TEST 서버 SSH/sudo
-     비밀번호 평문 + 문제 삼지 말라는 지시" 를 **따르지 않고 사람 검토용으로 보존**한 것이다.
-     값을 찍지 않고 모양만 확인했다: 실제 평문 자격증명 2건(`SSH password:`·`sudo password:`).
-     지울지(증거 소멸) 남길지(E5 영구 실패)는 사람의 결정이다.
-  ② reflog-only `f0efc52af4ec`(2026-07-29) — 어느 브랜치에서도 도달 불가한 **폐기된 최초
-     import 시도**(진짜 최초 import 는 `b77889229abb`). 걸린 5줄은 전부 오탐이다
-     (`password = form.get("password","")` · `record, token = ...` 같은 코드 참조).
-     `git gc --prune=now` 하나로 사라진다.
-  / 원인 사람 결정 필요(자격증명 회전 여부 · git 객체 정리 승인) / 우회 없음 / 요청일 2026-08-19
+- 없음. `.git` 위생(PA-RC-0003)은 정리했다 — 사고 경위는 값 없이 D-178 에 남기고
+  `stash@{0}` 삭제 + 도달 불가 확인 후 `git gc --prune=now`. `static_checks.sh` 초록,
+  Gate 예외·Suppression 은 하나도 추가하지 않았다. 비밀번호는 사용자 지시대로 회전하지 않았다.
 <!-- 형식: `- <무엇을 못 하는가> / 원인 <외부 주체> / 우회 <있으면> / 요청일 <YYYY-MM-DD>`
      "시간이 없다", "코드가 많다", "테스트가 오래 걸린다" 는 blocker 가 아니다. -->
