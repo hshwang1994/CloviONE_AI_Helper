@@ -883,6 +883,26 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
             rep.fail("C12 Functional Inventory 미작성",
                      "%s — 27개 범주 중 이 화면에 실재하는 것이 무엇인지 아무도 세지 않았다" % sid)
 
+    # Flow ID 는 **전역 유일**해야 한다. Surface 별로만 유일하면 증거가 어느 화면 것인지
+    # 말할 수 없다 — `functional_audit.flows` 는 ID 목록일 뿐이고, `*_e2e.py` 산출물도
+    # `flows.json` 안에서 ID 로만 식별된다. W2 가 `shell_topbar` 에 새 Flow 다섯을 추가하면서
+    # W0 이 `shell_sidebar` 에 이미 준 번호와 겹쳤고(FF-1193~1197), 아무 검사도 그것을
+    # 못 봤다. 여기서 막는다 — 겹친 순간 두 Surface 의 증거가 서로를 덮는다.
+    # 범위를 현재 Wave 로 좁히지 않는다: 충돌은 두 Surface 사이의 성질이라 한쪽만 보면 안 보인다.
+    seen_flow_ids: dict[str, str] = {}
+    for sid, entry in sorted(fsurf.items()):
+        for fl in entry.get("flows") or []:
+            fid = fl.get("id")
+            if not fid:
+                rep.fail("C12 Flow 에 ID 가 없다", "%s: %r" % (sid, fl.get("name")))
+                continue
+            if fid in seen_flow_ids:
+                rep.fail("C12 Flow ID 가 겹친다",
+                         "%s 를 %s 와 %s 가 함께 쓴다 — 증거가 어느 화면 것인지 말할 수 없다"
+                         % (fid, seen_flow_ids[fid], sid))
+            else:
+                seen_flow_ids[fid] = sid
+
     for sid in sorted(scoped_ids):
         entry = fsurf.get(sid)
         if entry is None:
@@ -1047,6 +1067,24 @@ def _run_conditions(rep: Report, stage: str, wave: str) -> int:
         return EXIT_CANNOT_RUN
     upto = set(order[: order.index(wave) + 1])
     scoped = [s for s in surfaces if s.get("wave") in upto]
+
+    # **CHECKPOINT 가 실제 작업보다 뒤에 있으면 실패한다.**
+    #
+    # 이 게이트는 검사 범위를 `WORK_STATE.md` 의 `wave:` 에서 읽고 그 값을 믿는다. 그래서 그
+    # 줄을 올리는 것을 잊으면 게이트가 **조용히 앞 Wave 를 다시 검사하고 초록을 찍는다** —
+    # W3 에서 실제로 그랬고, 문서가 그 초록을 이번 Wave 의 증거로 인용했다(F-W3R-03).
+    # 잡을 수 있는 모순은 하나다: 어떤 Surface 가 Wave X 소유이면서 이미 `DONE` 인데
+    # CHECKPOINT 가 X 보다 앞을 가리키고 있다면, 게이트는 **이미 끝났다고 적힌 것을 범위에서
+    # 빼고** 검사하는 중이다. 그건 초록이 아무것도 뜻하지 않는 상태다.
+    rank = {name: i for i, name in enumerate(order)}
+    done_ranks = [rank[s.get("wave")] for s in surfaces
+                  if s.get("status") == "DONE" and s.get("wave") in rank]
+    if done_ranks and max(done_ranks) > rank[wave]:
+        behind = order[max(done_ranks)]
+        rep.fail("C2 CHECKPOINT 가 실제 작업보다 뒤에 있다",
+                 "WORK_STATE 의 wave 는 %s 인데 %s 소유 Surface 가 이미 DONE 이다 — "
+                 "이 실행은 그 Surface 를 범위에서 빼고 검사한다. CHECKPOINT 를 먼저 올려라"
+                 % (wave, behind))
     scoped_ids = {s.get("id") for s in scoped}
     build_sha = ""
     # WORK_STATE 는 이 값을 코드 스팬(`…`)으로 적는다 — 사람이 읽는 문서이므로 그게 맞다.

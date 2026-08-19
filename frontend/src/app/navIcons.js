@@ -1,105 +1,49 @@
-/* 사이드바 아이콘 — 아이콘 키를 **한 계열**에 1:1 매핑 (지시 48 · P1-4).
+/* 아이콘 키 → 컴포넌트, **한 계열**로 (지시 79 · R-48 · R-79).
  *
- * ## 왜 계열을 바꿨는가
+ * ## 계열
  *
- * 예전에는 이 파일만 Lucide 를 썼다. 이유는 파일 자신이 적어 두었다: "기준 파일이 그리는
- * 아이콘이 정확히 이 계열이다" — 그 기준 파일(폐기한 목업)은 지시 64 로 **없앴다**(D-142).
- * 근거가 사라진 선택이 남아, 앱 하나에 아이콘 계열이 둘
- * 있는 상태가 됐다 — 사이드바는 1.8px 둥근 획, 나머지 화면(kit·상세·표·모달) 51종은 MUI.
- * 한 화면 안에서 두 계열이 만나는 자리가 실제로 있다(사이드바 옆 상단바, 설정 화면의 행).
+ * 계열은 `@mui/icons-material` 의 `*Outlined` 하나다. 예전에는 이 파일만 Lucide 를 썼고
+ * 그 근거였던 기준 목업은 지시 64 로 없앴다(D-142). 채운 실루엣은 작은 크기에서 글자보다
+ * 무겁다 — 몇 개가 `*Rounded` 인 것은 그 이름에 Outlined 변형이 없는 경우이고 전부 선 도형이다.
+ * 개별 경로로 import 한다(배럴을 쓰면 아이콘 수천 개가 번들 그래프에 들어온다 — 정적 검사가
+ * 같은 규칙을 강제한다).
  *
- * 남길 계열은 MUI 다: 51종 27파일이 이미 그것을 쓰고, MUI 자체가 이 앱의 필수 의존이라
- * 계열을 하나로 줄이면 `lucide-react` 를 통째로 뺄 수 있다(초기 번들 예산, 지시 26).
+ * ## 왜 표가 37개에서 4개로 줄었나 — 자식 아이콘 규칙 (W3)
  *
- * 변형은 `*Outlined` 로 통일한다 — 채운 실루엣은 사이드바에서 글자보다 무겁다. 몇 개만
- * `*Rounded` 인 것은 그 이름에 Outlined 변형이 없는 경우이고, 셋 다 선(線) 도형이다.
+ * PLAN «Icon System» 의 규칙은 하나다: **그룹이 아이콘을 가지면 그 자식들은 아이콘을 갖지
+ * 않는다. 그룹 없는 최상위 항목은 아이콘을 갖는다.** 두 사이드바의 모든 항목이 그룹 안에
+ * 있고 모든 그룹이 아이콘을 가지므로, 결과는 **랜드마크 그룹당 글리프 하나 + 한 줄에 정렬된
+ * 라벨들**이다. 그룹 글리프는 `navConfig.js` 가 컴포넌트로 직접 들고 있다(키를 거치지 않는다).
  *
- * 키 이름은 그대로 둔다(home/ticket/plus/ai/...) — `navConfig.js` 의 표가 이 키를 쓴다.
+ * 그 전에는 항목마다 키가 붙어 있었고, 그 결과가 R-48 이 금지한 바로 그 상태였다 —
+ * `ticket` 4곳 · `report` 4곳 · `docs` 3곳 · `policy` 3곳 · `users` 3곳처럼 **같은 그림이 여러
+ * 메뉴에서 반복**되어 훑을 때 두 항목이 한 덩어리로 보였고, 41개 글리프가 라벨 시작선을
+ * 그룹 60px / 자식 64px 로 갈라 놓았다(F-W1R-18 픽셀 실측). 쓰지 않는 키를 남겨 두면 다음
+ * 사람이 그것을 근거로 다시 붙인다 — 그래서 지운다.
  *
- * 개별 경로로 import 한다 — 배럴 import 를 쓰면 트리셰이킹 전에 아이콘 모듈이 전부 변환
- * 대상이 되어 개발 빌드가 눈에 띄게 느려진다(정적 검사가 같은 규칙을 강제한다).
+ * ## 남은 넷이 하는 일
+ *
+ * Command Palette 의 **결과 유형** 표시다(지시 14: "최근 방문, 메뉴, 티켓, 문서 등 검색 결과
+ * 유형을 쉽게 구분"). 서버가 유형별로 묶어 주는 결과 줄 앞에 그 유형의 그림을 놓는다 —
+ * 줄마다 유형을 글자로 다시 적으면 구역 제목과 같은 말을 두 번 한다(지시 44). 사이드바
+ * 항목 줄에는 이 표가 쓰이지 않는다.
+ *
+ * 사용자 rail 이 flat 해지는 날(W11, R-58)에는 그 최상위 항목들이 다시 글리프를 갖는다 —
+ * 그때 이 표가 자란다. 규칙이 바뀌는 게 아니라 구조가 바뀌는 것이다.
  */
 
-import Home from "@mui/icons-material/HomeOutlined";
 import Ticket from "@mui/icons-material/ConfirmationNumberOutlined";
-import Plus from "@mui/icons-material/AddRounded";
-import Sparkles from "@mui/icons-material/AutoAwesomeOutlined";
-import CalendarDays from "@mui/icons-material/EventNoteOutlined";
 import FileText from "@mui/icons-material/DescriptionOutlined";
-import Trash2 from "@mui/icons-material/DeleteOutlineRounded";
-import MessageSquare from "@mui/icons-material/ForumOutlined";
-import Gamepad2 from "@mui/icons-material/SportsEsportsOutlined";
 import ClipboardList from "@mui/icons-material/AssignmentOutlined";
-import LayoutDashboard from "@mui/icons-material/DashboardOutlined";
-import Bell from "@mui/icons-material/NotificationsNoneRounded";
-import Settings from "@mui/icons-material/SettingsOutlined";
-import ScrollText from "@mui/icons-material/ReceiptLongOutlined";
-import Users from "@mui/icons-material/GroupsOutlined";
-import BarChart3 from "@mui/icons-material/BarChartOutlined";
-import CheckCircle2 from "@mui/icons-material/CheckCircleOutlined";
-import Database from "@mui/icons-material/StorageOutlined";
-import Wrench from "@mui/icons-material/BuildOutlined";
-import Stethoscope from "@mui/icons-material/MonitorHeartOutlined";
-import Link2 from "@mui/icons-material/LinkOutlined";
-import Workflow from "@mui/icons-material/AccountTreeOutlined";
-import Bot from "@mui/icons-material/SmartToyOutlined";
-import ShieldCheck from "@mui/icons-material/VerifiedUserOutlined";
-import FileCode from "@mui/icons-material/ArticleOutlined";
-import Clock from "@mui/icons-material/ScheduleOutlined";
 import User from "@mui/icons-material/PersonOutlineRounded";
-import Activity from "@mui/icons-material/TimelineOutlined";
-import Building2 from "@mui/icons-material/BusinessOutlined";
-import Briefcase from "@mui/icons-material/BadgeOutlined";
-import Megaphone from "@mui/icons-material/CampaignOutlined";
-import Flag from "@mui/icons-material/FlagOutlined";
-import Eye from "@mui/icons-material/VisibilityOutlined";
-import Gauge from "@mui/icons-material/SpeedOutlined";
-import Search from "@mui/icons-material/SearchOutlined";
-import FolderKanban from "@mui/icons-material/TopicOutlined";
-import Mail from "@mui/icons-material/MailOutlineRounded";
 
 /* 아이콘 키 → 컴포넌트. 없는 키를 쓰면 아무것도 그리지 않고 조용히 넘어간다 —
- * 메뉴 하나 추가하다 아이콘 키를 오타 내도 화면이 죽지는 않게. */
+ * 서버가 결과 유형을 늘려도 화면이 죽지 않고, 구역 제목이 유형을 계속 말한다. */
 export const NAV_ICONS = {
-  home: Home,
   ticket: Ticket,
-  plus: Plus,
-  ai: Sparkles,
-  sprint: CalendarDays,
   docs: FileText,
-  trash: Trash2,
-  chat: MessageSquare,
-  game: Gamepad2,
   board: ClipboardList,
-  dashboard: LayoutDashboard,
-  bell: Bell,
-  settings: Settings,
-  audit: ScrollText,
-  users: Users,
-  report: BarChart3,
-  check: CheckCircle2,
-  backup: Database,
-  maintenance: Wrench,
-  diagnostics: Stethoscope,
-  integration: Link2,
-  workflow: Workflow,
-  runner: Bot,
-  policy: ShieldCheck,
-  template: FileCode,
-  schedule: Clock,
   profile: User,
-  activity: Activity,
-  org: Building2,
-  jobtitle: Briefcase,
-  announce: Megaphone,
-  flag: Flag,
-  impersonate: Eye,
-  quota: Gauge,
-  search: Search,
-  // 프로젝트는 '작업 묶음'이라 티켓(ticket)이나 리포트(report)와 다른 그림이어야 한다 —
-  // 같은 아이콘을 돌려 쓰면 사이드바에서 두 항목이 한 덩어리로 보인다.
-  project: FolderKanban,
-  mail: Mail,
 };
 
 export function navIcon(key) {

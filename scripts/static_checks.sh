@@ -109,6 +109,17 @@ step "MUI icon barrel-import guard"
 BARREL="$(grep -rnE "from ['\"]@mui/icons-material['\"]" frontend/src 2>/dev/null || true)"
 if [ -z "$BARREL" ]; then ok "icons imported deeply"; else echo "$BARREL"; fail "barrel import from @mui/icons-material (번들이 폭증한다)"; fi
 
+step "MUI icon prop guard (PLAN «Icon System» ⓐ)"
+# `SvgIcon` 에는 `size` prop 이 없고 fill 기반이라 `strokeWidth` 도 무효다. React 는 모르는
+# prop 을 조용히 흘려보내므로 화면에는 기본값 24px 이 그려진다 — 사이드바 자식 아이콘이
+# 그렇게 부모 그룹 아이콘(20px)보다 크게 나왔고 시험은 전부 초록이었다(F-W1R-05·F-W1R-38).
+# 검사기는 자기 자신을 먼저 시험한다(--self-test 사례 5개, 검출·위양성 양방향).
+if ICONPROPS="$("$PY" scripts/check_icon_props.py 2>&1)"; then
+  ok "$(echo "$ICONPROPS" | tail -1)"
+else
+  echo "$ICONPROPS"; fail "MUI 아이콘에 없는 prop 으로 크기를 정한다"
+fi
+
 step "User-facing text does not comma-splice two sentences (PA-RC-0002)"
 # docs/UX_WRITING.md §1: 두 문장은 마침표로 구분한다. "-습니다/-세요" 등으로 끝난 절 바로
 # 뒤에 쉼표로 다음 문장을 잇는 관용이 kit.jsx를 포함해 화면 20여 개에 흩어져 있었다(감사가

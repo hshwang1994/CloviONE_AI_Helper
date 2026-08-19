@@ -139,6 +139,47 @@ export const CONTROL = {
   tableCellDense: 32,
 };
 
+/* 아이콘 크기 — 4개 **역할 이름** 슬롯 (지시 79). 크기가 아니라 쓰임으로 부른다.
+ *
+ *   nav     20  사이드바 글리프 · 팔레트 결과 유형
+ *   inline  18  글자 줄 안에 끼는 표지(펼침 화살표 같은 것)
+ *   action  20  버튼 안의 글리프
+ *   hero    24  한 화면에 한 번 나오는 큰 표지
+ *
+ * **px 가 아니라 rem 으로 렌더한다.** `styles/root.css` 의 4K 레버가 루트 폰트사이즈를
+ * 16→18→20 으로 올릴 때 아이콘만 px 로 남으면 틀만 1.25배가 되어 글리프가 상대적으로
+ * 쪼그라들고(D-182 가 셸 컨트롤에서 겪은 것과 같은 결함), 반대로 **px 로 고정한 칸 안의
+ * rem 글리프**는 칸을 넘쳐 라벨과 맞붙는다 — 3840 에서 실측된 F-W2R-02 가 정확히 그것이다.
+ * 칸과 글리프가 같은 단위를 쓰게 `remPx()` 한 자리에서 변환한다.
+ *
+ * MUI `SvgIcon` 에는 `size` prop 이 **없다**(`fontSize` 다). `size={18} strokeWidth={1.8}` 는
+ * 조용히 무시되는 죽은 prop 이었고 자식 아이콘 24px 가 부모 그룹 20px 보다 크게 나오도록
+ * 구현을 오도했다(F-W1R-05). `scripts/check_icon_props.py` 가 그 형태 자체를 금지한다. */
+export const ICON = { nav: 20, inline: 18, action: 20, hero: 24 };
+
+/** px 계약값을 4K 레버가 따라오는 rem 문자열로. 값의 정본은 위 표 하나다. */
+export function remPx(px) { return `${px / 16}rem`; }
+
+/* 사이드바 항목의 **가로 해부구조** — PLAN «Icon System» 의 라벨 시작선 계약.
+ *
+ *   padInline 12 + glyph 20 + gap 10 = labelStart 42
+ *
+ * 그룹 헤더와 자식 항목의 라벨이 **같은 42px 열**에서 시작한다. 깊이는 그룹의 접힘 상태로
+ * 표현하고 들여쓰기로 중복 표현하지 않는다 — 예전에는 그룹 60px / 자식 64px 로 4px 어긋나
+ * 사이드바가 두 격자를 쓰는 것처럼 보였다(F-W1R-18 픽셀 실측). 자식은 글리프를 갖지
+ * 않으므로(그룹이 가졌다) 그 자리를 padding 으로 채운다. 두 경로가 **같은 숫자 하나**에서
+ * 나와야 다시 갈라지지 않는다.
+ *
+ * `rail` 은 활성 위치 신호다. 하우징 **가장자리**(inline-start 0)에 붙는다 — 목록 안쪽으로
+ * 20px 들어와 떠 있으면 위치 신호가 아니라 조각으로 읽힌다. 이것도 rem 으로 그린다. */
+export const NAV_ANATOMY = {
+  padInline: 12,
+  glyph: ICON.nav,
+  gap: 10,
+  labelStart: 42,
+  rail: 3,
+};
+
 /* 숫자는 세로로 정렬되어야 읽힌다 — 표·지표·시각·ID. 계측 전면의 핵심 규율이다. */
 export const NUMERIC = { fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum" 1' };
 

@@ -1,7 +1,6 @@
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
-import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import TopicOutlinedIcon from "@mui/icons-material/TopicOutlined";
@@ -176,61 +175,61 @@ export const NAV = withRoles([
    *   · 조직 정합성·백업·메일 발송은 운영에 남는다(장애·데이터 보호·전달 상태).
    */
   { group: "운영", icon: DashboardOutlinedIcon, items: [
-    { to: "/dashboard", label: "대시보드", icon: "dashboard" },
+    { to: "/dashboard", label: "대시보드" },
     // 관리자 알림은 **사용자 알림과 다른 경로**다(0060). 같은 canonical path 를 두 콘솔이
     // 공유하면 어느 쪽에서 눌러도 상대 콘솔로 튕긴다 — 경로가 콘솔을 정하기 때문이다.
-    { to: "/admin-notifications", label: "관리 알림", badge: "adminNotifUnread", icon: "bell" },
-    { to: "/jobs", label: "작업 큐", badge: "jobFailed", icon: "ticket" },
-    { to: "/diagnostics", label: "진단", icon: "diagnostics" },
-    { to: "/integrity", label: "조직 정합성", icon: "policy" },
+    { to: "/admin-notifications", label: "관리 알림", badge: "adminNotifUnread" },
+    { to: "/jobs", label: "작업 큐", badge: "jobFailed" },
+    { to: "/diagnostics", label: "진단" },
+    { to: "/integrity", label: "조직 정합성" },
     // 백업 화면은 '복구 리허설' 탭을 함께 갖는다 — 백업이 있는가와 그것이 실제로 복구되는가는
     // 한 질문의 앞뒤다.
-    { to: "/backup", label: "백업", badge: "backupFailed", icon: "backup" },
-    { to: "/mail", label: "메일 발송", icon: "mail" },
+    { to: "/backup", label: "백업", badge: "backupFailed" },
+    { to: "/mail", label: "메일 발송" },
   ] },
   { group: "설정", icon: SettingsOutlinedIcon, items: [
-    { to: "/settings", label: "설정", icon: "settings" },
-    { to: "/setup", label: "초기 설정", icon: "settings" },
-    { to: "/feature-flags", label: "기능 플래그", icon: "flag" },
-    { to: "/announcements", label: "공지 배너", icon: "announce" },
+    { to: "/settings", label: "설정" },
+    { to: "/setup", label: "초기 설정" },
+    { to: "/feature-flags", label: "기능 플래그" },
+    { to: "/announcements", label: "공지 배너" },
   ] },
   { group: "사용자와 권한", icon: ManageAccountsOutlinedIcon, items: [
-    { to: "/users", label: "사용자", icon: "users" },
+    { to: "/users", label: "사용자" },
     // WF1 R4 — "온보딩과 오프보딩"이라고 약속했지만 이 화면(Offboarding.jsx)은 퇴사자 티켓
     // 재배정 마법사뿐이다. 신규 입사자 계정을 만드는 실제 온보딩은 위 "/users"의 "사용자
     // 추가"다 — 이 라벨이 온보딩도 여기서 한다고 오해하게 만들었다.
-    { to: "/offboarding", label: "오프보딩", icon: "users" },
+    { to: "/offboarding", label: "오프보딩" },
     // 조직 관리·부서 관리·조직도는 AdminRoutes.jsx 에서 이미 같은 OrgConsole 로 합쳐졌다.
     // 대표 경로 하나만 메뉴에 둔다 — /departments, /org-tree 직접 진입(북마크)은 여전히 산다.
-    { to: "/organizations", label: "조직 관리", icon: "org" },
-    { to: "/job-titles", label: "직책 관리", icon: "jobtitle" },
-    { to: "/rbac", label: "권한 매트릭스", icon: "policy" },
+    { to: "/organizations", label: "조직 관리" },
+    { to: "/job-titles", label: "직책 관리" },
+    { to: "/rbac", label: "권한 매트릭스" },
     // 승인 화면은 '승인 위임' 탭을 함께 갖는다 — 누가 승인하는가와 그 권한을 누구에게
     // 넘겼는가는 같은 질문이다.
-    { to: "/approvals", label: "승인", badge: "approvalPending", icon: "check" },
-    { to: "/notion-mapping", label: "Notion 사용자 연결", icon: "docs" },
-    { to: "/impersonation", label: "대리 보기", icon: "impersonate" },
+    { to: "/approvals", label: "승인", badge: "approvalPending" },
+    { to: "/notion-mapping", label: "Notion 사용자 연결" },
+    { to: "/impersonation", label: "대리 보기" },
   ] },
   { group: "자동화와 연동", icon: AutoAwesomeOutlinedIcon, items: [
     // 실행 일정 화면은 '달력' 탭을 함께 갖는다 — 같은 데이터의 두 표현이다.
-    { to: "/schedules", label: "실행 일정", icon: "schedule" },
-    { to: "/documents", label: "문서 자동 생성", icon: "docs" },
-    { to: "/integrations", label: "외부 연동", icon: "integration" },
-    { to: "/runners", label: "자동화 작업 실행기", icon: "runner" },
-    { to: "/workflows", label: "업무 자동화 흐름", icon: "workflow" },
+    { to: "/schedules", label: "실행 일정" },
+    { to: "/documents", label: "문서 자동 생성" },
+    { to: "/integrations", label: "외부 연동" },
+    { to: "/runners", label: "자동화 작업 실행기" },
+    { to: "/workflows", label: "업무 자동화 흐름" },
   ] },
   { group: "AI", icon: SmartToyOutlinedIcon, items: [
-    { to: "/prompts", label: "프롬프트", icon: "ai" },
-    { to: "/policies", label: "정책", icon: "policy" },
-    { to: "/templates", label: "템플릿", icon: "template" },
-    { to: "/ai-quotas", label: "사용 상한", icon: "quota" },
+    { to: "/prompts", label: "프롬프트" },
+    { to: "/policies", label: "정책" },
+    { to: "/templates", label: "템플릿" },
+    { to: "/ai-quotas", label: "사용 상한" },
     // 정책 사용 통계와 프롬프트 사용 통계는 같은 모양의 리포트 둘이었다 — 한 화면의 탭이다.
-    { to: "/ai-usage", label: "사용 통계", icon: "report" },
+    { to: "/ai-usage", label: "사용 통계" },
   ] },
   { group: "감사", icon: GavelOutlinedIcon, items: [
     // 감사 로그 화면은 '이상 징후' 탭을 함께 갖는다 — 이상 징후는 감사 로그 위의 파생 뷰다.
-    { to: "/audit", label: "감사 로그", icon: "audit" },
-    { to: "/dev-report", label: "개발자 월간 리포트", icon: "report" },
+    { to: "/audit", label: "감사 로그" },
+    { to: "/dev-report", label: "개발자 월간 리포트" },
   ] },
 ]);
 
@@ -259,35 +258,35 @@ export const USER_NAV = [
    *    한 서랍에 있으면, 일하러 온 사람도 놀러 온 사람도 목록 전체를 훑어야 한다.
    */
   { group: "내 업무", icon: WorkOutlineRoundedIcon, items: [
-    { to: "/me", label: "홈", icon: "home" },
-    { to: "/my-tickets", label: "내 티켓", icon: "ticket" },
-    { to: "/new-ticket", label: "새 티켓", icon: "plus" },
-    { to: "/my-approvals", label: "승인", badge: "myApprovalPending", icon: "check" },
-    { to: "/notifications", label: "알림", badge: "notifUnread", icon: "bell" },
+    { to: "/me", label: "홈" },
+    { to: "/my-tickets", label: "내 티켓" },
+    { to: "/new-ticket", label: "새 티켓" },
+    { to: "/my-approvals", label: "승인", badge: "myApprovalPending" },
+    { to: "/notifications", label: "알림", badge: "notifUnread" },
     // AI 도우미는 내 업무를 돕는 도구다 — 팀 회의 화면과 묶이는 것보다 여기가 정확하다.
-    { to: "/chat", label: "AI 도우미", icon: "ai" },
+    { to: "/chat", label: "AI 도우미" },
   ] },
   { group: "팀 업무", icon: TopicOutlinedIcon, items: [
-    { to: "/projects", label: "프로젝트", icon: "project" },
-    { to: "/team-tickets", label: "팀 티켓", icon: "ticket" },
+    { to: "/projects", label: "프로젝트" },
+    { to: "/team-tickets", label: "팀 티켓" },
     // 미할당은 "우리 팀이 함께 나눠 가질 일" 이다 — 개인 업무가 아니라 팀의 일이고,
     // 0060 부터 실제로도 팀(프로젝트) 범위로 좁혀진다.
-    { to: "/unassigned", label: "미할당 티켓", icon: "ticket" },
-    { to: "/sprint", label: "스프린트 회의", icon: "sprint" },
-    { to: "/team-docs", label: "문서", icon: "docs" },
+    { to: "/unassigned", label: "미할당 티켓" },
+    { to: "/sprint", label: "스프린트 회의" },
+    { to: "/team-docs", label: "문서" },
   ] },
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
-    { to: "/chat-rooms", label: "채팅방", badge: "chatUnread", icon: "chat" },
-    { to: "/board", label: "자유게시판", icon: "board" },
-    { to: "/ideas", label: "기능 개선 제안", icon: "flag" },
-    { to: "/games", label: "놀이", icon: "game" },
+    { to: "/chat-rooms", label: "채팅방", badge: "chatUnread" },
+    { to: "/board", label: "자유게시판" },
+    { to: "/ideas", label: "기능 개선 제안" },
+    { to: "/games", label: "놀이" },
   ] },
   /* 내 정보. '내 업무' 그룹에 섞지 않은 이유: 그쪽은 '오늘 무엇을 할까'를 고르는 곳이고
    * 여기는 '나에 대한 것'을 고치거나 되돌아보는 곳이다. */
   { group: "내 정보", icon: PersonOutlineRoundedIcon, items: [
-    { to: "/profile", label: "내 프로필", icon: "profile" },
-    { to: "/my-stats", label: "내 업무량", icon: "report" },
-    { to: "/activity", label: "내 활동", icon: "activity" },
+    { to: "/profile", label: "내 프로필" },
+    { to: "/my-stats", label: "내 업무량" },
+    { to: "/activity", label: "내 활동" },
   ] },
 ];
 

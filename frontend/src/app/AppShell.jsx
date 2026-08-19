@@ -41,13 +41,13 @@ import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
-import { navIcon } from "./navIcons.js";
 import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
-import { BREAKPOINTS, CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
+  NAV_ANATOMY, RADIUS, remPx } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
 
@@ -220,6 +220,38 @@ function NavBadge({ count }) {
   );
 }
 
+/* 사이드바 한 줄의 **공통 해부구조** (PLAN «Icon System» 라벨 시작선 계약).
+ *
+ * 그룹 헤더와 자식 항목이 같은 상자를 쓴다 — 다르면 두 격자가 생긴다. 값은 전부
+ * `NAV_ANATOMY`/`CONTROL`/`ICON` 에서 오고 여기에 리터럴을 적지 않는다.
+ *
+ *   · `px` 는 MUI spacing 단위다. spacing(1) = 0.5rem = @16 8px 이므로 `px / 8` 이 rem 으로
+ *     가는 환산이다 — 4K 레버(`styles/root.css`)가 루트 폰트사이즈를 올리면 여백·글리프·
+ *     라벨 시작선이 **함께** 자란다. 여기서 px 로 굳히면 3840 에서 틀만 커지고 칸이 안 커져
+ *     글리프가 라벨과 맞붙는다(F-W2R-02 실측).
+ *   · 행은 하우징 **가장자리까지** 간다(바깥 List 의 좌우 여백 0). 활성 레일이 목록 안쪽
+ *     20px 에 떠 있는 조각이 아니라 하우징을 따라 흐르는 선이 되려면 그래야 한다.
+ *   · 알약 모서리를 쓰지 않는다 — 선택 상태를 배경 알약으로 말하면 그룹 펼침과 헷갈린다(지시 48).
+ *   · 포커스 링은 안쪽으로 그린다. 전역 `:focus-visible` 규칙은 `outline-offset: 2` 라
+ *     가장자리 행에서 링이 하우징 밖으로 새어 나간다. */
+const NAV_GLYPH_SLOT = remPx(NAV_ANATOMY.glyph + NAV_ANATOMY.gap);
+const NAV_ROW = {
+  position: "relative",
+  minHeight: remPx(CONTROL.navItem),
+  px: NAV_ANATOMY.padInline / 8,
+  py: 0.25,
+  borderRadius: 0,
+  "&:hover": { bgcolor: "sidebar.hover", color: "sidebar.text" },
+  /* 두 선택자를 **함께** 적는다. MUI 는 자기 키보드 판정으로 `.Mui-focusVisible` 를 붙이고,
+     브라우저는 자기 판정으로 `:focus-visible` 를 건다 — 둘이 항상 같이 걸리지는 않는다.
+     한쪽만 적으면 나머지 경우에 전역 규칙(`outline-offset: 2`)이 이겨서 링이 하우징 **밖**으로
+     새어 나간다. 실브라우저 프로브가 정확히 그 상태를 8/8 조합에서 잡았다(offset 2px). */
+  "&.Mui-focusVisible, &:focus-visible": {
+    outline: (t) => `2px solid ${t.palette.sidebar.focusRing}`,
+    outlineOffset: "-2px",
+  },
+};
+
 /* role이 없는 항목(`roles` 미지정)은 전 역할 공개, 있으면 그 목록에 현재 role이 있어야 본다.
  * SidebarNav의 현재 콘솔 메뉴와 CommandPalette의(잠재적으로 더 넓은) 검색 대상 메뉴가
  * 이 규칙을 공유한다 — 규칙이 두 벌이 되면 한쪽만 고쳐지는 날이 온다. */
@@ -233,18 +265,91 @@ function filterNavByRole(nav, role) {
  * 호출부) 입력 자체를 그리지 않는다 — Handoff의 constraints가 "사용자 콘솔 내비는 건드리지
  * 않는다(이미 정상이다)"라고 명시했다. 관리자 39개 중 지금 role이 보는 목적지 안에서만
  * 좁힌다(groups는 이미 filterNavByRole을 거친 뒤라 role 밖 항목은 애초에 여기 없다). */
-function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
+function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groupsOpenByDefault }) {
   const badges = useNavBadges();
   const [collapsed, setCollapsed] = React.useState(() => getStoredCollapsed(userId));
+
+  /* `userId` 가 **마운트 뒤에 바뀌면** 그 계정의 접힘 기록을 다시 읽는다.
+   *
+   * 접힘 키는 계정별이다(`clovirone_nav_collapsed:<userId>`) — 공용 PC 에서 남의 배치가
+   * 넘어오지 않게 나눠 둔 것이다. 그런데 `useState` 초기화 함수는 **한 번만** 돌기 때문에,
+   * 이 컴포넌트가 마운트된 채로 신원이 바뀌는 경로(대리 보기 시작·종료, 재로그인 handoff)
+   * 에서는 앞 계정의 상태가 그대로 남는다. 더 나쁜 것은 그 다음 `toggle` 이 **새 계정의
+   * 키에 앞 계정의 상태를 쓴다**는 것이다 — 키를 나눈 이유가 그 자리에서 무너진다.
+   *
+   * 평상시 새로고침은 이 경로를 타지 않는다. 셸이 `auth.isLoading` 동안 사이드바 대신
+   * 스켈레톤을 그리므로 `SidebarNav` 는 이미 userId 가 있는 상태로 마운트되고, 실브라우저
+   * 실측도 그렇게 나온다(접고 → 새로고침 → 접힌 채 그대로). 여기서 막는 것은 **신원 교체**
+   * 하나다. */
+  const hydratedFor = React.useRef(userId);
+  React.useEffect(() => {
+    if (hydratedFor.current === userId) return;
+    hydratedFor.current = userId;
+    setCollapsed(getStoredCollapsed(userId));
+  }, [userId]);
   const [filterQuery, setFilterQuery] = React.useState("");
   const filtering = showFilter && filterQuery.trim().length > 0;
   const visibleGroups = filtering ? filterGroupsByQuery(groups, filterQuery) : groups;
-  // PA-RC-0017: `isOpen`(아래)의 "기록 없음 = 접힘" 기본값과 짝을 맞춘다 — 지금 열려
-  // 있다는 뜻은 `c[name] === false`(명시적으로 편 적이 있음)일 때뿐이므로, 그 반대를
-  // 다음 값으로 적는다. 예전 `!c[name]`은 "기록 없음 = 펼침"이던 옛 기본값 시절 공식이라,
-  // 지금 기본값(접힘)에서 그대로 두면 처음 눌러도 `true`(접힘)를 또 적어 아무 반응이 없었다.
+  /* 기록이 없을 때의 기본값은 **콘솔마다 다르다** (PLAN «Chrome 설계»: "사용자 vs 관리자 —
+   * Shell·항목 해부구조·상태 계약·아이콘 규칙 완전 동일. 차이는 깊이 표현뿐이다").
+   *   · 사용자 콘솔 4그룹 20항목 — 다 펼쳐도 한 화면에 들어간다. 펼침이 기본이라 목록이
+   *     곧 지도다.
+   *   · 관리자 콘솔 6그룹 31항목 — PA-RC-0017 실측에서 전부 펼치면 scrollHeight 1716 /
+   *     clientHeight 794 로 "스크롤 없이 전부 보인다"가 깨졌다. 접힘이 기본이고, 대신
+   *     메뉴 필터가 목적지를 좁힌다.
+   * `collapsed[name]` 에 기록이 있으면 그 사람이 실제로 누른 것이므로 언제나 그것이 이긴다.
+   * 예전 공식(`c[name] === false` 만 펼침)은 기본값이 한 벌이던 시절 것이라, 기본값이
+   * 둘이 된 지금 그대로 두면 사용자 콘솔에서 처음 눌러도 아무 반응이 없다. */
+  /* 펼침이 기본인 것은 **목록이 곧 지도일 수 있을 때**뿐이다.
+   *
+   * 1920 에서는 사용자 rail 4그룹 18항목이 다 펼쳐져도 들어간다. 1366x768 에서는 안 들어간다 —
+   * 독립 검수가 배포본 픽셀로 실측했다: 22행 중 17행만 보이고 «내 정보» 랜드마크가 **통째로**
+   * 스크롤 아래로 사라졌다(Before·W2 에서는 접힘 기본이라 4개 그룹 헤더가 전부 보였다).
+   * 그 자리를 알리는 유일한 신호는 명도차 2.4% 짜리 그림자이고, 사용자 콘솔에는 대체 수단인
+   * 메뉴 필터도 없다. 랜드마크가 있다는 사실 자체를 알 수 없는 상태다.
+   *
+   * 그래서 뷰포트 상수를 박지 않고 **잰다.** 한 행의 실제 높이 · 그룹 경계 간격 · 목록 여백을
+   * 렌더된 DOM 에서 읽어 "전부 펼친 높이"를 계산하고, 목록이 실제로 쓸 수 있는 높이와 비교한다.
+   * 접힌 뒤에도 다시 잴 수 있다(접힘 상태의 scrollHeight 를 쓰지 않는다) — 창을 키우면 다시
+   * 펼쳐진다. 4K rem 레버·역할별 크롬 높이(관리자는 콘솔 스위치와 필터가 목록 위에 하나 더
+   * 있다)·글꼴 확대까지 전부 실측이 흡수한다.
+   *
+   * `useLayoutEffect` 다 — 브라우저가 그리기 **전에** 판정이 끝나야 펼쳤다 접히는 깜빡임이
+   * 없다. 판정 결과는 localStorage 에 쓰지 않는다: 이건 사용자의 선택이 아니라 화면의 형편이고,
+   * 기록해 두면 큰 화면으로 옮겨도 접힌 채로 남는다. */
+  // 두 측정(펼침 적합성 · 스크롤 그림자)이 같은 목록 요소를 본다.
+  const listRef = React.useRef(null);
+  const [fitsExpanded, setFitsExpanded] = React.useState(true);
+  React.useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el || !groupsOpenByDefault) return undefined;
+    const measure = () => {
+      const row = el.querySelector(".MuiListItemButton-root");
+      if (!row) return;
+      const rowH = row.getBoundingClientRect().height;
+      if (!rowH) return;
+      const block = el.firstElementChild;
+      const gap = block ? parseFloat(getComputedStyle(block).marginBottom) || 0 : 0;
+      const listStyle = getComputedStyle(el);
+      const padY = (parseFloat(listStyle.paddingTop) || 0) + (parseFloat(listStyle.paddingBottom) || 0);
+      const groupCount = visibleGroups.length;
+      const itemCount = visibleGroups.reduce((n, g) => n + g.items.length, 0);
+      const needed = (groupCount + itemCount) * rowH + groupCount * gap + padY;
+      setFitsExpanded(needed <= el.clientHeight);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [groupsOpenByDefault, visibleGroups]);
+
+  const openByDefault = groupsOpenByDefault && fitsExpanded;
+  const isCollapsed = React.useCallback(
+    (name) => (collapsed[name] === undefined ? !openByDefault : collapsed[name] === true),
+    [collapsed, openByDefault],
+  );
   const toggle = (name) => setCollapsed((c) => {
-    const next = { ...c, [name]: c[name] === false };
+    const wasCollapsed = c[name] === undefined ? !openByDefault : c[name] === true;
+    const next = { ...c, [name]: !wasCollapsed };
     try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
     return next;
   });
@@ -254,11 +359,20 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
    * 저장된 collapsed:true로 조용히 되돌아간다 — 사용자는 그 그룹을 접은 적이 없는데 다른
    * 곳을 클릭했더니 저절로 접힌 것처럼 보인다(사용자 지적). 사용자가 실제로 편 것처럼
    * collapsed 상태 자체를 false로 갱신해 둔다. */
+  /* 조건은 **명시 기록**이다 — `isCollapsed()` 가 아니다.
+   *
+   * `isCollapsed()` 는 "기록 없음 + 화면이 좁아 자동으로 접힘" 에도 true 를 준다. 그것으로
+   * 조건을 걸면 셸의 **화면 형편** 판정이 여기서 사용자 선택(false)으로 저장되고, 저장된
+   * 기록은 자동 판정을 영원히 이긴다. 1366x768 에서 네 그룹을 한 번씩만 방문해도
+   * `{"내 업무":false,"팀 업무":false,"팀 공간":false,"내 정보":false}` 가 쌓여 자동 접힘이
+   * 무력화되고 «랜드마크가 폴드 아래로 사라진다» 가 새로고침에도 살아남는 형태로 되돌아온다
+   * (독립 재검증이 배포본에서 그 경로를 실제로 밟았다). 자동으로 접힌 그룹은 활성일 때
+   * `groupActive` 가 렌더 시점에 이미 펼쳐 주므로 저장할 것이 애초에 없다. */
   const activeGroup = groups.find((g) => g.items.some((it) => it.to === activePath));
   React.useEffect(() => {
-    if (!activeGroup || !collapsed[activeGroup.group]) return;
+    if (!activeGroup || collapsed[activeGroup.group] !== true) return;
     setCollapsed((c) => {
-      if (!c[activeGroup.group]) return c;
+      if (c[activeGroup.group] !== true) return c;
       const next = { ...c, [activeGroup.group]: false };
       try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
       return next;
@@ -288,7 +402,6 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
    * 얹어 "더 있다"는 신호를 준다. ResizeObserver는 안 쓴다 — jsdom(테스트 환경)에 없어
    * 이 컴포넌트를 렌더하는 다른 테스트들이 전부 깨진다. 뷰포트 높이 차(1080 vs 1305)는
    * window resize로도 잡힌다. */
-  const listRef = React.useRef(null);
   const [hasMoreBelow, setHasMoreBelow] = React.useState(false);
   React.useEffect(() => {
     const el = listRef.current;
@@ -350,7 +463,10 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
         component="nav"
         ref={listRef}
         sx={{
-          px: 1.5, py: 1, flex: 1, overflowY: "auto",
+          /* 좌우 여백 0 — 행이 하우징 **가장자리까지** 간다. 여백을 여기 두면 활성 레일이
+             목록 안쪽 12px 에 떠 있는 조각이 되고, 행 채움도 하우징과 사이에 틈을 남긴다.
+             안쪽 여백은 행이 `NAV_ROW.px` 로 직접 갖는다. */
+          px: 0, py: 1, flex: 1, overflowY: "auto",
           boxShadow: hasMoreBelow ? "inset 0 -14px 10px -12px rgba(16,20,28,.18)" : "none",
           transition: "box-shadow .15s",
         }}
@@ -372,37 +488,50 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
         // `collapsed[g.group] === false`(사용자가 실제로 편 적이 있어 명시적으로 기록됨)일
         // 때만 접힘 기록 없이도 펼치고, 그 외(기록 없음 포함)엔 접힘이 기본값이다 — 활성
         // 그룹은 `groupActive`가 여전히 강제로 편다.
-        const isOpen = filtering || groupActive || collapsed[g.group] === false;
+        const isOpen = filtering || groupActive || !isCollapsed(g.group);
         const GroupIcon = g.icon;
         const itemsId = "nav-group-" + g.group;
         return (
-          <Box key={g.group} sx={{ mb: 0.5 }}>
+          /* 랜드마크 경계의 공기. 자식 글리프를 걷어내면서 들여쓰기도 함께 사라졌으므로,
+             그룹을 가르는 일이 **간격 하나**에 남았다. 4px(행 간격의 10%)로는 22줄이 한
+             덩어리 벽으로 읽힌다는 것이 독립 검수 픽셀 실측에서 나왔다(항목↔항목 잉크 간격
+             25~27px vs 그룹 경계 29~30px — 차이 12%). 12px 은 경계가 경계로 읽히는 최소치다. */
+          <Box key={g.group} sx={{ mb: 1.5 }}>
             <ListItemButton
               onClick={() => toggle(g.group)}
               aria-expanded={isOpen}
               aria-controls={itemsId}
-              sx={{ borderRadius: RADIUS.sm / 8, py: 0.75, color: "sidebar.muted" }}
+              sx={{ ...NAV_ROW, color: "sidebar.muted" }}
             >
               {GroupIcon ? (
-                <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}><GroupIcon fontSize="small" /></ListItemIcon>
+                <ListItemIcon sx={{ minWidth: NAV_GLYPH_SLOT, color: "inherit" }}>
+                  <GroupIcon aria-hidden="true" sx={{ fontSize: remPx(ICON.nav) }} />
+                </ListItemIcon>
               ) : null}
               <ListItemText
                 primary={g.group}
-                primaryTypographyProps={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, letterSpacing: ".04em" }}
+                primaryTypographyProps={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.semibold, letterSpacing: ".04em" }}
               />
+              {/* 펼침 화살표는 **상태**를 말하는 표지다 — 랜드마크 글리프(20)보다 한 단 작은
+                  inline(18) 슬롯을 쓴다. 두 그림이 같은 크기면 어느 쪽이 그룹의 정체인지
+                  읽히지 않는다. */}
               <ExpandMoreRoundedIcon
-                fontSize="small"
                 aria-hidden="true"
-                sx={{ transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .18s" }}
+                sx={{
+                  fontSize: remPx(ICON.inline), flexShrink: 0,
+                  transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform .18s",
+                }}
               />
             </ListItemButton>
             {/* 접혔을 때 통째로 언마운트하면 aria-controls가 없는 노드를 가리키는 무효 참조가
                 된다(ARIA disclosure 패턴 위반) — 항상 마운트해 두고 감추기만 한다. */}
             <Collapse in={isOpen} id={itemsId} unmountOnExit={false}>
-              <List disablePadding sx={{ pl: 1 }}>
+              {/* 자식 목록에 들여쓰기를 주지 않는다. 깊이는 **그룹의 접힘 상태**가 이미
+                  말하고 있고, 들여쓰기로 한 번 더 말하면 라벨이 두 열에서 시작한다
+                  (실측 그룹 60px / 자식 64px — F-W1R-18). */}
+              <List disablePadding>
                 {g.items.map((it) => {
                   const active = it.to === activePath;
-                  const ItemIcon = navIcon(it.icon);
                   return (
                     <ListItemButton
                       key={it.to}
@@ -413,41 +542,36 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
                       aria-current={active ? "page" : undefined}
                       selected={active}
                       sx={{
-                        position: "relative",
-                        borderRadius: RADIUS.sm / 8,
-                        minHeight: 34,
-                        py: 0.25,
-                        pl: 1.75,
+                        ...NAV_ROW,
+                        /* 자식은 글리프를 갖지 않는다(그룹이 가졌다 — PLAN «Icon System»).
+                           그 자리를 padding 으로 채워 라벨이 그룹 라벨과 **같은 42px 열**에서
+                           시작하게 한다. 값의 정본은 `NAV_ANATOMY` 하나다. */
+                        pl: NAV_ANATOMY.labelStart / 8,
                         color: active ? "sidebar.text" : "sidebar.muted",
-                        /* 선택 표현은 제품 전체에서 **하나**다(D-141 RAISE, console-atmosphere):
-                           앞머리 2px 레일 + 글자 굵기 + 글자색. 예전의 큰 알약 그라데이션
-                           배경은 쓰지 않는다 — 펼침 상태와 선택 상태가 헷갈렸고(지시 48),
-                           chrome 이 데이터보다 눈에 띄었다. */
+                        /* 활성 신호는 **정확히 둘**이다 (PLAN «Navigation 상태», 지시 79):
+                           위치 = 하우징 가장자리에 붙는 3px 레일, 색 = 행 채움 + 잉크.
+                           예전에는 넷이 겹쳤다 — 2px 레일 + `fontWeight 700 vs 600` + 색 +
+                           `icon opacity 1 vs .82`. 한글에서 semibold→bold 전환은 글자 폭을
+                           실제로 바꿔 항목을 움직이고(레이아웃 흔들림), 흐린 글리프를 더
+                           흐리게 하는 것은 가벼워지는 게 아니라 탁해지는 것이다(F-W1R-05).
+                           굵기·배경 알약·아이콘 fill 교체는 금지다. */
                         "&::before": {
                           content: '""',
                           position: "absolute",
-                          insetBlock: 4,
+                          insetBlock: 0,
                           insetInlineStart: 0,
-                          width: 2,
-                          borderRadius: 1,
+                          width: remPx(NAV_ANATOMY.rail),
                           bgcolor: active ? "sidebar.activeRail" : "transparent",
                         },
-                        "&.Mui-selected": { bgcolor: "transparent" },
-                        "&.Mui-selected:hover": { bgcolor: "sidebar.hover" },
-                        "&:hover": { bgcolor: "sidebar.hover" },
+                        "&.Mui-selected": { bgcolor: "sidebar.selected" },
+                        /* 선택된 행에 hover 를 얹으면 `selected`(.10/.12)보다 옅은
+                           `hover`(.06/.08)가 덮어써서 **지금 있는 자리가 흐려진다.** 그대로 둔다. */
+                        "&.Mui-selected:hover": { bgcolor: "sidebar.selected" },
                       }}
                     >
-                      {/* 기준 파일은 메뉴 항목마다 아이콘을 둔다(§2). 예전에는 그룹에만 있어서
-                          펼친 목록이 글자만 늘어선 벽이었다. 아이콘은 장식이 아니라 훑을 때
-                          위치를 기억하게 하는 표지라, 항목 쪽에 있어야 한다. */}
-                      {ItemIcon ? (
-                        <ListItemIcon sx={{ minWidth: 30, color: "inherit", opacity: active ? 1 : 0.82 }}>
-                          <ItemIcon size={18} strokeWidth={1.8} aria-hidden="true" />
-                        </ListItemIcon>
-                      ) : null}
                       <ListItemText
                         primary={it.label}
-                        primaryTypographyProps={{ fontSize: FONT_SIZE.body, fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold }}
+                        primaryTypographyProps={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.medium }}
                       />
                       {it.badge ? <NavBadge count={badges[it.badge]} /> : null}
                     </ListItemButton>
@@ -680,7 +804,18 @@ export function AppShell({
           {!isUser && !minimal ? (
             <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); navigate(to); }} />
           ) : null}
-          <SidebarNav groups={groups} activePath={activePath} onNavigate={onCloseNav} userId={userId} showFilter={!isUser} />
+          {/* 두 축 모두 **지금 어느 콘솔인가**로 정한다. `isUser`(역할)로 정하면 관리자가
+              사용자 세그먼트에 들어갔을 때 20항목짜리 사용자 트리 위에 관리자용 메뉴 필터가
+              뜬다 — 같은 축 혼동을 알림 종에서 이미 한 번 겪었다(F-W2E-01).
+              `homeUser = isUser || userSeg` 가 바로 위 `nav` 를 고른 그 값이다. */}
+          <SidebarNav
+            groups={groups}
+            activePath={activePath}
+            onNavigate={onCloseNav}
+            userId={userId}
+            showFilter={!homeUser}
+            groupsOpenByDefault={Boolean(homeUser)}
+          />
         </>
       )}
     </Box>

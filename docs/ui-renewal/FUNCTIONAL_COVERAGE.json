@@ -780,7 +780,7 @@
      "by": ""
     },
     {
-     "id": "FF-0001",
+     "id": "FF-1206",
      "category": "filter",
      "name": "프로젝트 단독 Filter 가 실제로 연결된 티켓을 전부 반환한다",
      "exists": true,
@@ -20203,100 +20203,264 @@
    "inventoried_by": "w0 — App Shell 은 Route 가 아니라 그릇이라 조사 대상에서 빠져 있었다",
    "flows": [
     {
-     "id": "FF-1193",
+     "id": "FF-1200",
      "category": "navigation",
      "name": "사이드바 항목을 눌러 그 화면으로 간다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/navConfig.js:178",
-     "api": "",
-     "chain": {},
+     "api": "GET tickets/mine",
+     "chain": {
+      "ui_action": "사이드바 «내 티켓» 클릭",
+      "url_state": "해시 /me → /my-tickets",
+      "api_request": "GET tickets/mine",
+      "backend_query": "app/tickets/router.py → 내가 요청자/담당자인 티켓 (권한 Scope 적용)",
+      "api_response": "HTTP 200",
+      "frontend_state": "활성 항목이 «내 티켓» 로 옮겨간다",
+      "rendered": "본문 «내 업무 › 내 티켓 내 티켓 주의최근 동기화에 실패했습니다. 마지막 정상 데이터를 보고 있습니다 (2026. 8. 19. 오후 8:28 기준, 티켓 1118개). 필터 ​ ​ 프»"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1200-navigated.png",
+      "ev:api:GET tickets/mine → HTTP 200"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
     },
     {
-     "id": "FF-1194",
+     "id": "FF-1201",
      "category": "navigation",
      "name": "그룹을 접고 펴며 접힘 상태가 계정별로 유지된다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "IN_PROGRESS",
      "source": "frontend/src/app/AppShell.jsx:248",
      "api": "",
-     "chain": {},
+     "chain": {
+      "ui_action": "«팀 공간» 그룹 헤더 클릭(접기)",
+      "frontend_state": "collapsed 기록 ['clovirone_nav_collapsed:7d1fa387-fad6-4a40-a5dc-d1fef0a2f2d7={\"팀 공간\":true}']",
+      "rendered": "새로고침 뒤 aria-expanded=false"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1201-collapsed.png",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1201-after-reload.png",
+      "ev:note:서버 왕복이 **구조적으로 없다** — 그룹 접힘은 계정별 localStorage 키(`clovirone_nav_collapsed:<userId>`)에만 산다. 사슬의 API 칸을 지어내지 않고 IN_PROGRESS 로 남긴다(W2 가 FF-1189 테마 토글에서 쓴 같은 규율). 실측은 완전하다: 접기 → 기록 → 새로고침 → 접힌 채 유지."
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
     },
     {
-     "id": "FF-1195",
+     "id": "FF-1202",
      "category": "search",
      "name": "사이드바 자체 필터로 항목을 좁힌다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "IN_PROGRESS",
      "source": "frontend/src/app/AppShell.jsx",
      "api": "",
-     "chain": {},
+     "chain": {
+      "ui_action": "메뉴 찾기에 «백업» 입력",
+      "frontend_state": "filterGroupsByQuery — 후보 31 → 1",
+      "rendered": "남은 목적지 ['백업']"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1202-filtered.png",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1202-filter-empty.png",
+      "ev:note:로컬 필터다 — `filterGroupsByQuery` 는 순수 함수이고 서버에 묻지 않는다. 사슬의 API 칸을 지어내지 않고 IN_PROGRESS 로 남긴다. 실측은 완전하다: 후보 31 → 1, 0건일 때의 얼굴까지 확인."
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
     },
     {
-     "id": "FF-1196",
+     "id": "FF-1203",
      "category": "permission_state",
      "name": "SCREEN_ROLES 가 허용하지 않는 항목은 아예 그리지 않는다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/navConfig.js:44",
-     "api": "",
-     "chain": {},
+     "api": "GET me",
+     "chain": {
+      "ui_action": "같은 셸을 system_admin / user 두 세션으로 연다",
+      "api_request": "GET me",
+      "backend_query": "app/core/sessions.py → 세션의 실제 role (서버가 정본)",
+      "api_response": "HTTP 200 (역할이 서로 다른 두 세션)",
+      "frontend_state": "filterNavByRole — 항목 수 system_admin=31 / user=18",
+      "rendered": "일반 사용자에게 안 그려진 목적지 31개"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1203-system_admin.png",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1203-user.png",
+      "ev:api:GET me → HTTP 200 (역할이 서로 다른 두 세션)"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
     },
     {
-     "id": "FF-1197",
+     "id": "FF-1204",
      "category": "deep_link",
      "name": "주소가 바뀌면 활성 항목과 그룹 펼침이 그 자리에 맞춰진다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/AppShell.jsx",
+     "api": "GET admin/audit?page=1&page_size=100",
+     "chain": {
+      "ui_action": "접힌 그룹 안의 경로로 직접 진입 (/#/audit)",
+      "api_request": "GET admin/audit?page=1&page_size=100",
+      "backend_query": "app/audit/router.py → 감사 로그 조회 (SENSITIVE_READ 역할 게이트)",
+      "api_response": "HTTP 200",
+      "frontend_state": "activeNavPath → «감사 로그», 그룹 펼침 {'운영': 'true', '설정': 'false', '사용자와 권한': 'false', '자동화와 연동': 'false', 'AI': 'false', '감사': 'true'}",
+      "rendered": "본문 «관리자 › 감사 › 감사 로그 감사 로그 감사 로그 이상 징후  안내 누가 무엇을 언제 바꿨는지 기록을 봅니다. 자주 쓰는 필터 조합은 ‘저장된 뷰’로 이름을 붙여 두면 다시 부를»"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1204-deeplink.png",
+      "ev:api:GET admin/audit?page=1&page_size=100 → HTTP 200"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
+    },
+    {
+     "id": "FF-1205",
+     "category": "notification_action",
+     "name": "작업 실패·안 읽은 관리 알림 배지가 항목 옆에 붙는다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/app/navConfig.js:182",
+     "api": "GET notifications/unread-count?audience=admin",
+     "chain": {
+      "ui_action": "관리자 콘솔 진입 — 사이드바가 배지 숫자를 스스로 폴링한다",
+      "api_request": "GET notifications/unread-count?audience=admin",
+      "backend_query": "app/notifications/router.py::unread_count → audience 별 유형 집계 (사용자/관리자 배지는 서로 다른 숫자다)",
+      "api_response": "HTTP 200",
+      "frontend_state": "useNavBadges — 배지 1개",
+      "rendered": "항목 옆 배지 [{'item': '관리 알림 1', 'badge': '1'}]"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1205-badges.png",
+      "ev:api:GET notifications/unread-count?audience=admin → HTTP 200"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
+    },
+    {
+     "id": "FF-1208",
+     "category": "search",
+     "name": "검색 복합 조건 — 메뉴 찾기에는 조합할 두 번째 축이 없다",
+     "exists": false,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/app/AppShell.jsx (SidebarNav 메뉴 찾기) · navConfig.js::filterGroupsByQuery",
      "api": "",
      "chain": {},
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:note:글자 한 축뿐이다. 상태·역할·기간 같은 조합 축이 사이드바 필터에는 존재하지 않는다"
+     ],
      "findings": [],
      "audited_at": "",
      "by": ""
     },
     {
-     "id": "FF-1198",
-     "category": "notification_action",
-     "name": "작업 실패·안 읽은 관리 알림 배지가 항목 옆에 붙는다",
-     "exists": true,
+     "id": "FF-1209",
+     "category": "search",
+     "name": "검색 초기화 · page 리셋 — 사이드바 목록에는 페이지네이션이 없다",
+     "exists": false,
      "status": "NOT_AUDITED",
-     "source": "frontend/src/app/navConfig.js:182",
+     "source": "frontend/src/app/AppShell.jsx (SidebarNav 메뉴 찾기) · navConfig.js::filterGroupsByQuery",
      "api": "",
      "chain": {},
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:note:메뉴 전체가 한 화면 목록이다. 리셋할 page 상태가 존재하지 않는다"
+     ],
      "findings": [],
      "audited_at": "",
      "by": ""
+    },
+    {
+     "id": "FF-1210",
+     "category": "search",
+     "name": "검색 경합 — 늦게 오는 결과가 없다(서버 왕복 없는 동기 필터다)",
+     "exists": false,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/app/AppShell.jsx (SidebarNav 메뉴 찾기) · navConfig.js::filterGroupsByQuery",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:note:filterGroupsByQuery 는 순수 함수이고 서버에 묻지 않는다. 늦게 도착할 결과 자체가 없다"
+     ],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1211",
+     "category": "search",
+     "name": "검색 캐시 key — 서버 질의가 없어 캐시 key 가 존재하지 않는다",
+     "exists": false,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/app/AppShell.jsx (SidebarNav 메뉴 찾기) · navConfig.js::filterGroupsByQuery",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:note:질의가 브라우저 안에서 끝난다. react-query key 가 관여하는 지점이 없다"
+     ],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1207",
+     "category": "back_forward",
+     "name": "뒤로/앞으로 — 사이드바 활성 표시가 이전 화면으로 함께 돌아온다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/app/navConfig.js::activeNavPath",
+     "api": "GET projects/dashboard",
+     "chain": {
+      "ui_action": "사이드바 «프로젝트» 클릭 후 브라우저 뒤로",
+      "api_request": "GET projects/dashboard",
+      "backend_query": "app/projects/router.py → 내가 볼 수 있는 프로젝트 (권한 Scope 적용)",
+      "api_response": "HTTP 200",
+      "url_state": "/projects → /me",
+      "frontend_state": "활성 표시 «홈» → «프로젝트» → «홈»",
+      "rendered": "본문 «오늘 주의최근 동기화에 실패했습니다. 마지막 정상 데이터를 보고 있습니다 (2026. 8. 19. 오후 8:28 기준, 티켓 1118개). 0 오늘 마감 1 지연»"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w3-nav-e2e/ff1207-back.png",
+      "ev:api:GET projects/dashboard → HTTP 200"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T20:33:29",
+     "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 사이드바 Flow, 네트워크 동시 기록"
     }
    ]
   }

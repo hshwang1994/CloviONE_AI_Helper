@@ -236,7 +236,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B88157913",
@@ -254,7 +254,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-7323d928c",
@@ -270,7 +270,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -484,7 +484,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B6c887ee0",
@@ -502,7 +502,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -706,7 +706,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bef13346d",
@@ -715,7 +715,7 @@
      "title": "plain_dropdown_for_entity — 내 티켓 (dark/1200x900) 1건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:ro: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rn: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -724,7 +724,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-256f28119",
@@ -741,7 +741,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -962,7 +962,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bbab0240f",
@@ -971,7 +971,7 @@
      "title": "plain_dropdown_for_entity — 미할당 티켓 (dark/1200x900) 1건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:ro: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rn: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -980,7 +980,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-922d5af3c",
@@ -997,7 +997,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -1214,7 +1214,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B070e137e",
@@ -1232,7 +1232,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B59d4d366",
@@ -1250,7 +1250,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1683c660",
@@ -1268,7 +1268,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -1481,7 +1481,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B24fcfe12",
@@ -1497,11 +1497,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B40a4d1aa",
@@ -1519,7 +1520,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-acceaac4c",
@@ -1535,7 +1536,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -1753,7 +1754,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B392bb68c",
@@ -1762,9 +1763,9 @@
      "title": "plain_dropdown_for_entity — 팀 티켓 (dark/1200x900) 3건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:rp: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
-      "div#:r11: <div> «담당자 담당자 전체 담당자 담당자» — '담당자' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
-      "div#:r16: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:ro: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
+      "div#:r10: <div> «담당자 담당자 전체 담당자 담당자» — '담당자' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
+      "div#:r15: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -1773,7 +1774,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -1994,7 +1995,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bed05d509",
@@ -2013,7 +2014,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B400fab24",
@@ -2031,11 +2032,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B93a8c099",
@@ -2044,7 +2046,7 @@
      "title": "plain_dropdown_for_entity — 프로젝트 (dark/1200x900) 1건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:ro: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rn: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -2053,7 +2055,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-572ed9eab",
@@ -2069,7 +2071,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -2289,7 +2291,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bebcda059",
@@ -2307,7 +2309,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B8111b594",
@@ -2325,7 +2327,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B7e939ac8",
@@ -2334,7 +2336,7 @@
      "title": "plain_dropdown_for_entity — 프로젝트 상세 (dark/1200x900) 1건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:rq: <div> «부서 ClovirONE팀» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rp: <div> «부서 ClovirONE팀» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -2343,7 +2345,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-665a41953",
@@ -2358,7 +2360,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -2576,7 +2578,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bcd777cb8",
@@ -2594,7 +2596,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B0ca9cbea",
@@ -2603,8 +2605,8 @@
      "title": "plain_dropdown_for_entity — 스프린트 회의 (dark/1200x900) 2건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:rt: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
-      "div#:r15: <div> «담당자 담당자 전체 담당자 담당자» — '담당자' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rs: <div> «프로젝트 프로젝트 전체 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
+      "div#:r14: <div> «담당자 담당자 전체 담당자 담당자» — '담당자' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -2613,7 +2615,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-ead095910",
@@ -2629,7 +2631,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -2647,7 +2649,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -2865,7 +2867,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B89cd399c",
@@ -2881,11 +2883,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bcda78d30",
@@ -2904,7 +2907,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-5c33df99f",
@@ -2920,7 +2923,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -2938,7 +2941,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -3150,7 +3153,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B3964b364",
@@ -3159,7 +3162,7 @@
      "title": "oversized_empty_surface — 채팅방 (dark/3840x2160) 1건 — 큰 면이 비어 있다 — 상자를 줄이거나 그 자리에 들어갈 것을 넣어야 한다",
      "detail": "조합 2/8 에서 발화: 3840x2160/dark, 3840x2160/light",
      "samples": [
-      "main#main-content > div.c-content.MuiBox-root > div.c-screen.MuiBox-root > div.MuiPaper-root.MuiPaper-elevation 2998x1898 잉크 16% (빈 면적 4,802,371px², 내용 폭 비 1) — 내용이 상자를 못 채운다 «대화1:1새 그룹​ClovirONE팀내 팀됩니다9시간 전전체 채팅전체황형섭님이 메시지를 삭제했습니다.2026»"
+      "main#main-content > div.c-content.MuiBox-root > div.c-screen.MuiBox-root > div.MuiPaper-root.MuiPaper-elevation 2998x1898 잉크 16% (빈 면적 4,802,371px², 내용 폭 비 1) — 내용이 상자를 못 채운다 «대화1:1새 그룹​ClovirONE팀내 팀됩니다14시간 전전체 채팅전체황형섭님이 메시지를 삭제했습니다.202»"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -3168,7 +3171,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-362867703",
@@ -3183,7 +3186,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -3394,7 +3397,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1fbf50b5",
@@ -3410,11 +3413,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc443ce42",
@@ -3430,11 +3434,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B51e51b21",
@@ -3443,7 +3448,7 @@
      "title": "oversized_empty_surface — 채팅방 상세 (dark/2560x1440) 1건 — 큰 면이 비어 있다 — 상자를 줄이거나 그 자리에 들어갈 것을 넣어야 한다",
      "detail": "조합 2/8 에서 발화: 3840x2160/dark, 3840x2160/light",
      "samples": [
-      "main#main-content > div.c-content.MuiBox-root > div.c-screen.MuiBox-root > div.MuiPaper-root.MuiPaper-elevation 2998x1898 잉크 15% (빈 면적 4,858,869px², 내용 폭 비 1) — 내용이 상자를 못 채운다 «대화1:1새 그룹​ClovirONE팀내 팀됩니다9시간 전전체 채팅전체황형섭님이 메시지를 삭제했습니다.2026»"
+      "main#main-content > div.c-content.MuiBox-root > div.c-screen.MuiBox-root > div.MuiPaper-root.MuiPaper-elevation 2998x1898 잉크 15% (빈 면적 4,858,869px², 내용 폭 비 1) — 내용이 상자를 못 채운다 «대화1:1새 그룹​ClovirONE팀내 팀됩니다14시간 전전체 채팅전체황형섭님이 메시지를 삭제했습니다.202»"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -3452,7 +3457,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be8552410",
@@ -3468,11 +3473,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -3680,11 +3686,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd7b3c714",
@@ -3702,7 +3709,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B9598f694",
@@ -3720,7 +3727,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -3926,11 +3933,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B41c83486",
@@ -3948,7 +3956,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B46c5f6cd",
@@ -3966,7 +3974,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bbc4992c5",
@@ -3984,7 +3992,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -4185,7 +4193,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bcb7c1e61",
@@ -4201,11 +4209,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bde07513b",
@@ -4223,7 +4232,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-35c85ec0c",
@@ -4238,7 +4247,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -4450,11 +4459,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc64c96f0",
@@ -4463,9 +4473,9 @@
      "title": "plain_dropdown_for_entity — 문서 (dark/1200x900) 3건 — 데이터가 쌓이면 이 드롭다운은 못 쓰게 된다 — 검색 가능한 선택기여야 한다",
      "detail": "조합 8/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light, 390x844/dark, 390x844/light",
      "samples": [
-      "div#:ru: <div> «문서 종류 ​ 문서 종류 문서 종류» — '문서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
-      "div#:r12: <div> «프로젝트 ​ 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
-      "div#:r18: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
+      "div#:rt: <div> «문서 종류 ​ 문서 종류 문서 종류» — '문서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
+      "div#:r11: <div> «프로젝트 ​ 프로젝트 프로젝트» — '프로젝트' 는 기수가 무한히 자라는 대상인데 검색할 수 없다",
+      "div#:r17: <div> «부서 내 범위 전체 부서 부서» — '부서' 는 기수가 무한히 자라는 대상인데 검색할 수 없다"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -4474,7 +4484,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -4683,7 +4693,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba9a5cfc0",
@@ -4701,7 +4711,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-945242644",
@@ -4714,7 +4724,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -4735,7 +4745,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -4946,7 +4956,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B261dfe4a",
@@ -4964,7 +4974,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W9",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-e69325fdd",
@@ -4980,7 +4990,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -5185,7 +5195,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1cf6e750",
@@ -5203,7 +5213,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -5571,7 +5581,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B9d904b7b",
@@ -5587,11 +5597,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-14d5e4ac0",
@@ -5606,7 +5617,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -5836,7 +5847,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B5fb13e3a",
@@ -5854,7 +5865,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-ff07f0ed6",
@@ -5869,7 +5880,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -6074,7 +6085,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B24852ec1",
@@ -6092,7 +6103,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bdc192c49",
@@ -6110,7 +6121,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc8717a9e",
@@ -6119,7 +6130,7 @@
      "title": "equal_column_split — 내 프로필 (dark/1200x900) 1건 — 폭을 똑같이 나눠 한쪽은 접히고 한쪽은 비었다 — 트랙을 내용 요구에 맞춰야 한다",
      "detail": "조합 6/8 에서 발화: 1366x768/dark, 1366x768/light, 1920x1080/dark, 1920x1080/light, 3840x2160/dark, 3840x2160/light",
      "samples": [
-      "div.c-content.MuiBox-root > div.c-screen > div.MuiBox-root.css-opdtjd > div.MuiBox-root.css-89725d 트랙 2개 [525, 525]px — 요구 폭은 2.93배 차이인데 폭은 같다 (굶는 쪽 18줄로 접힘, 남는 쪽 87% 빔) «내 기기(로그인 세션)공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보»"
+      "div.c-content.MuiBox-root > div.c-screen > div.MuiBox-root.css-opdtjd > div.MuiBox-root.css-89725d 트랙 2개 [525, 525]px — 요구 폭은 2.82배 차이인데 폭은 같다 (굶는 쪽 14줄로 접힘, 남는 쪽 87% 빔) «내 기기(로그인 세션)공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보»"
      ],
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
@@ -6128,7 +6139,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B820c824e",
@@ -6147,7 +6158,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -6352,7 +6363,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be5a8c327",
@@ -6374,7 +6385,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba879a494",
@@ -6390,11 +6401,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-9171801ca",
@@ -6409,7 +6421,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -6619,7 +6631,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-dac59d922",
@@ -6634,7 +6646,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -6851,7 +6863,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be8e1374e",
@@ -6869,7 +6881,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba8c7841f",
@@ -6887,7 +6899,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-f5d2c1e4e",
@@ -6902,7 +6914,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -7109,7 +7121,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B0671c14b",
@@ -7125,11 +7137,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-e3a70292a",
@@ -7145,7 +7158,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -7353,7 +7366,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bfd1d53cd",
@@ -7369,11 +7382,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-dc54a5dbc",
@@ -7388,7 +7402,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -7599,7 +7613,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B5f4607cd",
@@ -7617,7 +7631,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -7840,7 +7854,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-e8b6c83fb",
@@ -7857,7 +7871,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -8075,7 +8089,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-094d9602d",
@@ -8092,7 +8106,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -8305,7 +8319,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -8498,7 +8512,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -8520,7 +8534,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -8541,7 +8555,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -8722,7 +8736,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -9481,7 +9495,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B15c06596",
@@ -9499,7 +9513,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-3cf3d9d54",
@@ -9515,7 +9529,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -9533,7 +9547,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -9744,7 +9758,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B9d21e702",
@@ -9762,7 +9776,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-aa4c2932a",
@@ -9778,7 +9792,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -9987,7 +10001,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B95812d50",
@@ -10005,7 +10019,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-cf10496b1",
@@ -10021,7 +10035,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -10238,7 +10252,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B90e8146e",
@@ -10255,11 +10269,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba835e89c",
@@ -10277,7 +10292,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -10489,7 +10504,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bfa1383ab",
@@ -10506,11 +10521,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B42ee611b",
@@ -10528,7 +10544,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -10741,7 +10757,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B627cf2d6",
@@ -10758,11 +10774,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B63e2adc5",
@@ -10780,7 +10797,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -10989,7 +11006,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B51d36ae2",
@@ -11006,11 +11023,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Befa3822b",
@@ -11028,7 +11046,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -11236,7 +11254,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B30a28bf7",
@@ -11252,11 +11270,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba70b6c53",
@@ -11274,7 +11293,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bfd167b2d",
@@ -11288,11 +11307,13 @@
      "detected_by": "before-renewal (Assertion)",
      "first_seen": "ev:qa_run:before-renewal (dist/ui-qa/before-renewal/results.json)",
      "requirement_ids": [],
-     "status": "OPEN",
-     "closed_by": [],
+     "status": "CLOSED",
+     "closed_by": [
+      "ev:qa_run:w3-after"
+     ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-4af19f89d",
@@ -11307,7 +11328,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -11521,7 +11542,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B838f74d9",
@@ -11538,11 +11559,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B870d8d2b",
@@ -11560,7 +11582,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-cefa1f93d",
@@ -11575,7 +11597,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -11790,7 +11812,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B9d7e2f23",
@@ -11806,11 +11828,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B4c44e997",
@@ -11828,7 +11851,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d1fdac8d3",
@@ -11844,7 +11867,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -12059,7 +12082,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B61248b21",
@@ -12075,11 +12098,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B6c478bfa",
@@ -12097,7 +12121,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be3968fda",
@@ -12115,7 +12139,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d39c88cec",
@@ -12131,7 +12155,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -12343,7 +12367,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B0c50813e",
@@ -12359,11 +12383,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc3e2b0be",
@@ -12381,7 +12406,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-32aeed84b",
@@ -12397,7 +12422,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -12611,7 +12636,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B206e263a",
@@ -12627,11 +12652,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B150fa701",
@@ -12649,7 +12675,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d645659cf",
@@ -12664,7 +12690,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -12878,7 +12904,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B783c1562",
@@ -12894,11 +12920,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B0e451dee",
@@ -12914,11 +12941,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B2c74f2ff",
@@ -12936,7 +12964,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d9d9ea12c",
@@ -12951,7 +12979,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -13165,7 +13193,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B51173dd2",
@@ -13181,11 +13209,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B28217c9c",
@@ -13203,7 +13232,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-56f77208e",
@@ -13218,7 +13247,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -13432,7 +13461,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B50028b5f",
@@ -13448,11 +13477,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B077ea621",
@@ -13470,7 +13500,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1b9995f1",
@@ -13492,7 +13522,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-6377473bc",
@@ -13507,7 +13537,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -13724,7 +13754,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B5966a55d",
@@ -13740,11 +13770,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Baa83e45e",
@@ -13762,7 +13793,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B7b115a60",
@@ -13780,7 +13811,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-c2ac7bb66",
@@ -13796,7 +13827,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -14010,7 +14041,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B86dce557",
@@ -14028,7 +14059,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be75ef1f8",
@@ -14046,7 +14077,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-abe387f35",
@@ -14059,7 +14090,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -14079,7 +14110,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -14536,7 +14567,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B322082e8",
@@ -14554,7 +14585,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-9631804e3",
@@ -14569,7 +14600,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -14794,7 +14825,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B3c5dd5dd",
@@ -14812,7 +14843,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be8f49026",
@@ -14830,7 +14861,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-a51db4260",
@@ -14846,7 +14877,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -15067,7 +15098,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd40c905c",
@@ -15085,7 +15116,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B07ff3830",
@@ -15103,7 +15134,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bb77daf51",
@@ -15121,7 +15152,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d1fde3dc3",
@@ -15136,7 +15167,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -15348,7 +15379,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B08bc9b6b",
@@ -15366,7 +15397,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B274c8c20",
@@ -15384,7 +15415,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-40fe86a2b",
@@ -15400,7 +15431,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -15612,7 +15643,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd7288d96",
@@ -15630,7 +15661,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B51aa5d3f",
@@ -15648,7 +15679,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -15854,7 +15885,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B461dd2bf",
@@ -15870,11 +15901,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bfbe3fd3f",
@@ -15892,7 +15924,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-059adea22",
@@ -15908,7 +15940,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -16120,7 +16152,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bac3d7078",
@@ -16136,11 +16168,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B732bb9ca",
@@ -16156,11 +16189,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B5898e2ca",
@@ -16178,7 +16212,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-f3b986bb2",
@@ -16193,7 +16227,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -16407,7 +16441,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc4617bfe",
@@ -16425,7 +16459,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B82d9a960",
@@ -16443,7 +16477,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -16652,7 +16686,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bcb1dc723",
@@ -16668,11 +16702,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -16882,7 +16917,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B8d6dfb22",
@@ -16900,7 +16935,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Badcf1c5b",
@@ -16918,7 +16953,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -17126,7 +17161,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd3b6f89e",
@@ -17144,7 +17179,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bb3cc7a71",
@@ -17162,7 +17197,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B80b1f933",
@@ -17180,7 +17215,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba9bb55c7",
@@ -17198,7 +17233,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -17408,7 +17443,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bda92b253",
@@ -17426,7 +17461,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B3036e3f7",
@@ -17444,7 +17479,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1fadb8a6",
@@ -17462,7 +17497,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -17674,7 +17709,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B63fbba50",
@@ -17690,11 +17725,13 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after",
+      "ev:qa_run:w3-jobs-recheck"
      ],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bac57ee77",
@@ -17712,7 +17749,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W8",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-3d607a279",
@@ -17727,10 +17764,31 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
+     "accepted_reason": null,
+     "wave": "W8"
+    },
+    {
+     "id": "F-597912a00",
+     "class": "console_errors",
+     "severity": "High",
+     "title": "console_errors — 작업 큐 1건",
+     "detail": "조합 1/8 에서 발화: 1366x768/dark",
+     "samples": [
+      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+     ],
+     "detected_by": "w3-after (Assertion)",
+     "first_seen": "ev:qa_run:w3-after (dist/ui-qa/w3-after/results.json)",
+     "last_seen": "ev:qa_run:w3-after",
+     "requirement_ids": [],
+     "status": "CLOSED",
+     "closed_by": [
+      "ev:qa_run:w3-after",
+      "ev:qa_run:w3-jobs-recheck"
+     ],
      "accepted_reason": null,
      "wave": "W8"
     }
@@ -17936,7 +17994,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-2a0b7c241",
@@ -17950,7 +18008,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -18160,7 +18218,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B71f504d2",
@@ -18176,11 +18234,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B6df4545d",
@@ -18198,7 +18257,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -18410,7 +18469,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B70d73cb6",
@@ -18428,7 +18487,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B504f9bd4",
@@ -18446,7 +18505,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B108faa22",
@@ -18464,7 +18523,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -18673,7 +18732,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B7255012a",
@@ -18689,11 +18748,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B6d6558cd",
@@ -18711,7 +18771,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-cf1f215f3",
@@ -18726,7 +18786,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -18939,7 +18999,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B2921046a",
@@ -18955,11 +19015,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bffe85670",
@@ -18977,7 +19038,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bbaff08a6",
@@ -18999,7 +19060,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-d29c8e70b",
@@ -19014,7 +19075,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -19229,7 +19290,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B738f88bd",
@@ -19247,7 +19308,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba1fb7f0d",
@@ -19265,7 +19326,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bb79b7a0b",
@@ -19283,7 +19344,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc48f58c2",
@@ -19301,7 +19362,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -19511,7 +19572,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B5bd016ad",
@@ -19527,11 +19588,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B211696a5",
@@ -19549,7 +19611,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -19748,7 +19810,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B10a6bf5a",
@@ -19764,11 +19826,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bc98cc368",
@@ -19786,7 +19849,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-5b19fc276",
@@ -19802,7 +19865,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -20016,7 +20079,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd3395c76",
@@ -20034,7 +20097,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B88c77321",
@@ -20052,7 +20115,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bd8a6ece8",
@@ -20071,7 +20134,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -20271,7 +20334,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bb7ef80e1",
@@ -20289,7 +20352,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be048a7bd",
@@ -20307,7 +20370,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-7bc46f2bf",
@@ -20320,7 +20383,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -20340,7 +20403,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -20544,7 +20607,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Ba83afca0",
@@ -20562,7 +20625,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -20760,7 +20823,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W10",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -20964,7 +21027,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Be5ce9c36",
@@ -20982,7 +21045,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B084c7706",
@@ -21000,7 +21063,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -21208,7 +21271,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-Bb0069f2a",
@@ -21226,7 +21289,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B1e0f1ad0",
@@ -21244,7 +21307,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     }
    ],
    "suppressions": [],
@@ -21959,7 +22022,7 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-B52a9429d",
@@ -21975,11 +22038,12 @@
      "requirement_ids": [],
      "status": "CLOSED",
      "closed_by": [
-      "ev:qa_run:w2-after"
+      "ev:qa_run:w2-after",
+      "ev:qa_run:w3-after"
      ],
      "accepted_reason": null,
      "wave": "W12",
-     "last_seen": "ev:qa_run:w2-after"
+     "last_seen": "ev:qa_run:w3-after"
     },
     {
      "id": "F-db09e17a8",
@@ -21994,7 +22058,7 @@
      ],
      "detected_by": "w2-after (Assertion)",
      "first_seen": "ev:qa_run:w2-after (dist/ui-qa/w2-after/results.json)",
-     "last_seen": "ev:qa_run:w2-after",
+     "last_seen": "ev:qa_run:w3-after",
      "requirement_ids": [],
      "status": "OPEN",
      "closed_by": [],
@@ -22151,16 +22215,17 @@
    },
    "functional_audit": {
     "result": "PASS",
-    "by": "scripts/ui_qa/shell_e2e.py — 실브라우저 7 Flow, 네트워크 동시 기록",
-    "at": "2026-08-19T18:14:21",
+    "by": "scripts/ui_qa/shell_e2e.py — 실브라우저 12 Flow, 네트워크 동시 기록 (W2 최초 · W3 에서 CommandPalette 변경분을 같은 도구로 재검증)",
+    "at": "2026-08-19T22:16:14",
     "evidence": [
-     "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
-     "ev:api:GET /api/search?q=…&limit=5 → 200 → 결과 11줄 렌더 (FF-1186)",
+     "ev:qa_run:w3-shell-e2e (dist/ui-qa/w3-shell-e2e/flows.json — 이번 번들)",
+     "ev:qa_run:w2-shell-e2e (최초 검증, W2 번들)",
+     "ev:api:GET /api/search?q=…&limit=5 → 200 → 결과 렌더 (FF-1186)",
      "ev:api:GET /api/notifications?page_size=8&… → 200 → 팝오버 렌더 (FF-1188)",
      "ev:api:GET /api/conversations?limit=100 → 200 → AI 서랍 렌더 (FF-1191)",
-     "ev:api:GET /api/profile → 200 → 내 프로필 렌더 (FF-1190)",
-     "ev:capture:dist/ui-qa/w2-shell-e2e/ff1192-user.png",
-     "ev:capture:dist/ui-qa/w2-shell-e2e/ff1192-system_admin.png"
+     "ev:capture:dist/ui-qa/w3-shell-e2e/ff1186-palette-results.png (W3 아이콘 언어 반영본)",
+     "ev:capture:dist/ui-qa/w3-shell-e2e/ff1192-user.png",
+     "ev:capture:dist/ui-qa/w3-shell-e2e/ff1192-system_admin.png"
     ],
     "flows": [
      "FF-1186",
@@ -22176,7 +22241,7 @@
      "FF-1193",
      "FF-1194"
     ],
-    "notes": "7 Flow 중 9건이 사슬 4/4(요청·백엔드·응답·렌더)로 PASS. FF-1189(테마 토글)만 IN_PROGRESS 다 — 서버 왕복이 **구조적으로** 없어(첫 페인트 전 결정, FOUC 방지) `chain` 의 API 칸을 정직하게 채울 수 없다. FF-1188 은 동작하지만 콘솔과 audience 가 어긋나 F-W2E-01 로 등록했다(소유 W9)."
+    "notes": "12 Flow 중 9건이 사슬 4/4(요청·백엔드·응답·렌더)로 PASS. FF-1189(테마 토글)만 IN_PROGRESS 다 — 서버 왕복이 **구조적으로** 없다(첫 페인트 전 결정, FOUC 방지). FF-1188 은 동작하지만 콘솔과 audience 가 어긋나 F-W2E-01 로 등록했다(소유 W9). **W3 재검증**: 이 Wave 가 CommandPalette 를 세 자리 고쳤으므로(메뉴 줄 글리프를 그룹 랜드마크로 · 크기를 ICON.nav rem 으로 · 선택 줄 굵기 변경 제거) 같은 도구를 이번 번들에서 다시 돌렸다. 사슬 결과는 W2 와 동일하다."
    },
    "responsive_audit": {
     "result": "PASS",
@@ -22330,10 +22395,15 @@
       "R-48",
       "R-79"
      ],
-     "status": "OPEN",
-     "closed_by": [],
+     "status": "CLOSED",
+     "closed_by": [
+      "ev:qa_run:w3-nav-e2e",
+      "ev:test:frontend/src/app/nav-contract.test.jsx",
+      "ev:note:D-184"
+     ],
      "accepted_reason": null,
-     "wave": "W3"
+     "wave": "W3",
+     "close_note": "W3 이 아이콘 칸과 글리프를 같은 단위(rem)로 통일하고 자식 글리프 자체를 없앴다. 3840(루트 20px) 실측에서 그룹 글리프 20 · 칸 30 · 라벨 시작선 42(정규화) 로 8/8 조합 PASS — dist/ui-qa/w3-nav-e2e/anatomy.json. 죽은 prop `size={18} strokeWidth={1.8}` 은 제거됐고 `scripts/check_icon_props.py` 가 재발을 막는다. 같은 Finding 이 함께 적은 **사이드바 하단 빈 면**은 W3 이 절반을 회수했지만(1920 사용자 38~50% → 11.1%) 4K 에서는 44.3%(사용자)·56.9%(관리자)로 남는다 — 그 자리는 PLAN «Clovi 계약» 의 '사이드바 도우미 카드' 가 채우기로 돼 있어 F-W3R-01 로 W7 에 넘긴다."
     },
     {
      "id": "F-W2R-03",
@@ -22376,6 +22446,30 @@
      "closed_by": [],
      "accepted_reason": null,
      "wave": "W4"
+    },
+    {
+     "id": "F-W3R-01",
+     "class": "unfilled_shell_column",
+     "severity": "Medium",
+     "title": "사이드바 아래쪽 빈 면 — 사용자 콘솔에서는 회수됐고 관리자·4K 에서는 남는다 (최대 54.6%)",
+     "detail": "**하네스 Assertion 이 아니라 이 Wave 가 새로 만든 측정이다** — `dead_blank_region` assertion 은 본문 페이지의 하단·우측 공백을 재고 셸 열은 대상이 아니다(w3-after 의 138건 전부 본문 표본, 사이드바 표본 0건). 그 클래스 이름을 빌리면 C10 이 results.json 과 교차 검증할 때 서로 다른 것을 같은 것으로 읽는다. 그래서 이름을 따로 준다.\n\nW3 실측(dist/ui-qa/w3-nav-e2e/anatomy.json — 사이드바 paper 높이 대비 **보이는** 마지막 행 아래 여백. light·dark 동일):\n  · 390x844   사용자 37.4% · 관리자 15.9%\n  · 1366x768  사용자 31.2% · 관리자  7.6%\n  · 1920x1080 사용자  8.9% · 관리자 34.3%\n  · 3840x2160 사용자 42.9% · 관리자 59.0%\n\n**이 수치는 두 번 틀렸다가 고쳐졌다.** 첫 기록은 사용자 콘솔만 보고 '절반을 회수했다'고 적었고(독립 검수 지적), 두 번째는 프로브가 **접힌 Collapse 안의 행까지 마지막 행으로 세어**(MUI 는 닫힌 래퍼를 height 0 으로 만들지만 그 안의 행은 여전히 rect 를 돌려준다) 빈 면을 8~16pp 작게 적었다(독립 재검증 지적). 지금 값은 조상 Collapse 의 높이로 가시성을 판정한 뒤의 것이고, 재검증자가 배포 픽셀로 독립 실측한 값(390 사용자 39.0% · 1366 사용자 32.9% · 1920 관리자 35.2% · 3840 관리자 59.6%)과 1~2pp 안에서 일치한다 — 차이는 '행 상자의 아래' 와 '마지막 잉크 픽셀' 의 정의 차이다.\n\n사용자 rail 은 1920 에서 실제로 회수됐다(W3 이전 38~50% → 8.9%) — 그룹 펼침 기본이 그 자리를 채웠기 때문이다. 그러나 화면이 좁으면 그 펼침이 자동으로 접히므로(랜드마크가 폴드 아래로 사라지지 않게) 390·1366 에서는 다시 31~37% 가 빈다. 관리자는 접힘이 기본이라(PA-RC-0017 의 '스크롤 없이 전부 보인다') 회수 대상이 아니었다.\n\n남은 빈 면은 nav 목록의 문제가 아니라 **그 아래에 아무것도 없다**는 문제다 — PLAN «Clovi 계약» 이 그 자리에 '사이드바 도우미 카드'(clovi-idle/clovi-think, 보이는 크기 76px, brandTint 카드 + 3px brand.core edge)를 규정하고 `mascot_visible_size` 의 sidebar ≥36 단언이 그것을 잰다. Clovi 배선은 W7 소유라 W3 이 지금 채우면 W7 이 다시 뜯는다.",
+     "samples": [
+      "3840 admin_dashboard: paper 2160 · 보이는 마지막 행 886 · 빈 면 1274 (59.0%)",
+      "3840 user_me: paper 2160 · 보이는 마지막 행 1233 · 빈 면 927 (42.9%)",
+      "1920 admin_dashboard 34.3% · user_me 8.9% · 1366 사용자 31.2% · 390 사용자 37.4%",
+      "독립 재검증 픽셀 실측과 1~2pp 일치 (390 사용자 39.0% · 3840 관리자 59.6%)"
+     ],
+     "detected_by": "W3 실브라우저 기하 프로브 (scripts/ui_qa/nav_e2e.py)",
+     "first_seen": "ev:qa_run:w3-nav-e2e",
+     "last_seen": "ev:qa_run:w3-nav-e2e",
+     "requirement_ids": [
+      "R-71",
+      "R-82"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null,
+     "wave": "W7"
     }
    ],
    "suppressions": [],
@@ -22390,10 +22484,12 @@
      "ev:test:frontend/src/ui/brand-logo.test.jsx (워드마크 한 단어)",
      "ev:capture:dist/ui-qa/w2-after/light/1920x1080/user_me.png",
      "ev:review:wf_9de9cf72-00f",
-     "ev:note:D-181 · D-182 (docs/DECISIONS.md)"
+     "ev:note:D-181 · D-182 (docs/DECISIONS.md)",
+     "ev:qa_run:w3-shell-e2e (W3 이 CommandPalette 를 고쳤으므로 이 번들에서 상단바 12 Flow 를 다시 돌렸다 — 9건 사슬 4/4, FF-1189 만 IN_PROGRESS 유지)",
+     "ev:qa_run:w3-after (664페이지 전 Assertion 재측정 — 완료 주장이 지금 배포본에서도 유효)"
     ],
     "build_index_sha256": [
-     "344ce7e7fc221246"
+     "c03113861aaa5138"
     ],
     "qa_run": {}
    },
@@ -22439,31 +22535,46 @@
    "states_checked": [
     {
      "state": "default",
-     "evidence": []
+     "evidence": [
+      "ev:qa_run:w3-after (664페이지 · 4뷰포트 × 2테마)",
+      "ev:qa_run:w3-nav-e2e (기하 8조합 실측)"
+     ]
     },
     {
      "state": "empty",
-     "evidence": []
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (FF-1202 — 메뉴 찾기 0건일 때 «'...'와 맞는 메뉴가 없습니다» 한 줄)"
+     ]
     },
     {
      "state": "loading",
-     "evidence": []
+     "evidence": [
+      "ev:note:auth.isLoading 동안 사이드바 대신 Skeleton 6줄 (AppShell.jsx drawerContent)"
+     ]
     },
     {
      "state": "error",
-     "evidence": []
+     "evidence": [
+      "ev:note:auth.isError 이면 목록 대신 «세션이 만료되었습니다» + 재로그인 버튼 — 죽은 링크 더미를 그리지 않는다 (AppShell.jsx drawerContent)"
+     ]
     },
     {
      "state": "permission_denied",
-     "evidence": []
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (FF-1203 — system_admin 31항목 vs user 18항목, 관리자 전용 목적지는 아예 그려지지 않는다)"
+     ]
     },
     {
      "state": "long_text",
-     "evidence": []
+     "evidence": [
+      "ev:qa_run:w3-after (라벨 최장 «자동화 작업 실행기»·«개발자 월간 리포트» 가 390~3840 전 뷰포트에서 잘리지 않는다)"
+     ]
     },
     {
      "state": "many_data",
-     "evidence": []
+     "evidence": [
+      "ev:qa_run:w3-nav-e2e (관리자 6그룹 37행 — scrollHeight 932 / clientHeight 932, 스크롤 없이 전부 보인다)"
+     ]
     },
     {
      "state": "single_item",
@@ -22487,34 +22598,164 @@
     }
    ],
    "visual_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "notes": ""
+    "result": "PASS",
+    "by": "독립 Visual Reviewer 3 렌즈 + 적대적 검증 10건 (Workflow wf_6fca7af0-570) — 구현하지 않은 에이전트. 확인 7건 중 W3 소유 6건을 이 Wave 에서 고치고 재측정했다",
+    "at": "2026-08-19T23:30:00",
+    "evidence": [
+     "ev:review:wf_6fca7af0-570 (visual-before-after · requirement · design-taste)",
+     "ev:qa_run:w3-nav-e2e (기하 18조합 — 라벨 시작선 42 · 레일 3px@0 · 자식 글리프 0 · 랜드마크 가시성)",
+     "ev:capture:dist/ui-qa/w3-after/light/1920x1080/admin_dashboard.png",
+     "ev:capture:dist/ui-qa/w3-after/dark/1920x1080/user_me.png",
+     "ev:capture:dist/ui-qa/w3-after/light/3840x2160/admin_dashboard.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-1366x768.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-390x844.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/palette-menu-light.png",
+     "ev:qa_run:w3-after (664페이지 — W2 대비 악화 0, 개선 2: brand_presence 3840 74→73, vertical_text_collapse 3840 8→6)"
+    ],
+    "notes": "두 격자(그룹 60 / 자식 64)가 한 열 42px 로 합쳐지고, 활성 신호가 넷에서 둘(하우징 가장자리 3px 레일 + 행 채움·잉크)로 줄었으며, 글리프가 랜드마크당 하나만 남았다 — 18조합 실측 전부 계약값. 독립 검수가 그 위에서 회귀 하나를 잡았다: 펼침 기본을 1920 실측만 보고 전 뷰포트에 적용해 1366x768 에서 «내 정보» 랜드마크가 통째로 스크롤 아래로 사라졌다. 펼침 여부를 **재서** 정하도록 고치고 '스크롤 없이 안 보이는 랜드마크 0건' 을 프로브 조건으로 승격했다. 남은 것은 사이드바 하단 빈 면(F-W3R-01, W7 소유 — 그 자리는 PLAN 이 Clovi 도우미 카드로 규정했다)."
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "scripts/ui_qa/nav_e2e.py — 실브라우저 7 Flow, 네트워크 동시 기록",
+    "at": "2026-08-19T21:05:00",
+    "evidence": [
+     "ev:qa_run:w3-nav-e2e (dist/ui-qa/w3-nav-e2e/flows.json)",
+     "ev:api:GET tickets/mine → 200 → 활성 표시가 «내 티켓» 으로 옮겨감 (FF-1200)",
+     "ev:api:GET admin/audit?page=1&page_size=100 → 200 → 접힌 그룹 안 딥링크에서 활성·펼침 복원 (FF-1204)",
+     "ev:api:GET notifications/unread-count?audience=admin → 200 → 항목 옆 배지 2건 (FF-1205)",
+     "ev:api:GET projects/dashboard → 200 → 뒤로 가기에 활성 표시가 함께 돌아옴 (FF-1207)",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/ff1203-system_admin.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/ff1203-user.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/ff1202-filtered.png"
+    ],
+    "flows": [
+     "FF-1200",
+     "FF-1201",
+     "FF-1202",
+     "FF-1203",
+     "FF-1204",
+     "FF-1205",
+     "FF-1207",
+     "FF-1208",
+     "FF-1209",
+     "FF-1210",
+     "FF-1211"
+    ],
+    "notes": "7 Flow 중 5건이 사슬 4/4(요청·백엔드·응답·렌더)로 PASS. FF-1201(그룹 접힘 유지)과 FF-1202(메뉴 찾기)는 IN_PROGRESS 다 — 둘 다 서버 왕복이 **구조적으로 없어**(localStorage · 순수 함수) 사슬의 API 칸을 정직하게 채울 수 없다. 실측 자체는 완전하다. C11 이 요구하는 다섯 축 중 넷(복합·초기화·경합·캐시)은 사이드바 필터에 존재하지 않아 FF-1208~1211 로 `exists:false` 를 선언했고, 다섯째(뒤로/앞으로)는 실재해서 FF-1207 이 실브라우저로 잰다."
    },
    "responsive_audit": {
-    "result": "PENDING",
+    "result": "PASS",
     "required_profile": "minor_v1",
-    "matrix": []
+    "matrix": [
+     {
+      "viewport": "390x844",
+      "theme": "light",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-390x844.png"
+     },
+     {
+      "viewport": "390x844",
+      "theme": "dark",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-dark-390x844.png"
+     },
+     {
+      "viewport": "1366x768",
+      "theme": "light",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-1366x768.png"
+     },
+     {
+      "viewport": "1366x768",
+      "theme": "dark",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-dark-1366x768.png"
+     },
+     {
+      "viewport": "1920x1080",
+      "theme": "light",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-1920x1080.png"
+     },
+     {
+      "viewport": "1920x1080",
+      "theme": "dark",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-dark-1920x1080.png"
+     },
+     {
+      "viewport": "3840x2160",
+      "theme": "light",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-3840x2160.png"
+     },
+     {
+      "viewport": "3840x2160",
+      "theme": "dark",
+      "zoom": 100,
+      "result": "PASS",
+      "evidence": "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-dark-3840x2160.png"
+     }
+    ]
    },
-   "before_capture": null,
-   "after_capture": null,
-   "status": "NOT_AUDITED",
+   "before_capture": {
+    "path": "docs/ui-renewal/captures/before/admin_dashboard__light__1920x1080.png",
+    "label": "before-renewal",
+    "build_index_sha256": "9ab4d470163e475a",
+    "at": "2026-08-19T11:54:41",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "note": "셸은 host 화면 캡처 안에 들어 있다 — 관리자 rail 이 가장 많은 항목을 보이므로 대표로 admin_dashboard 를 가리킨다",
+    "results_json": "dist/ui-qa/before-renewal/results.json"
+   },
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_dashboard__light__1920x1080.png",
+    "label": "w3-after",
+    "build_index_sha256": "c03113861aaa5138",
+    "at": "2026-08-19T23:30:00",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/light",
+     "1920x1080/dark"
+    ],
+    "all_combos": 8,
+    "results_json": "dist/ui-qa/w3-after/results.json"
+   },
+   "status": "DONE",
    "wave": "W3",
    "findings": [],
    "suppressions": [],
    "entity_selectors": [],
    "evidence": {
-    "items": [],
-    "build_index_sha256": [],
+    "items": [
+     "ev:qa_run:w3-after (664페이지 · 4뷰포트 × 2테마, 번들 c03113861aaa5138)",
+     "ev:qa_run:w3-nav-e2e (기하 18조합 PASS — 390·1366·1920·3840 × light·dark × 두 콘솔 + 팔레트 두 테마)",
+     "ev:test:frontend/src/app/nav-contract.test.jsx (21 단언 — 라벨 시작선·신호 둘·글리프 규칙·펼침 적합성)",
+     "ev:test:frontend/src/app/nav-ia-taxonomy.test.js (재작성 — 자식 아이콘 키 전수 0건 + 그룹 글리프 유일성)",
+     "ev:test:frontend/src/app/nav-mail-status.test.js (재작성 — 그룹이 글리프를 든다)",
+     "ev:test:frontend/src/app/nav-active.test.js",
+     "ev:test:frontend/src/app/nav-features.test.js",
+     "ev:test:frontend/src/app/registry-area-matches-nav-group.test.js",
+     "ev:test:frontend/src/app/sidebar-collapsed-by-default.test.jsx",
+     "ev:capture:docs/ui-renewal/captures/after/admin_dashboard__light__1920x1080.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-admin-light-3840x2160.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-1366x768.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/anatomy-user-light-390x844.png",
+     "ev:capture:dist/ui-qa/w3-nav-e2e/palette-menu-light.png",
+     "ev:review:wf_6fca7af0-570 (독립 3 렌즈 + 적대적 검증 10건 — 확인 7 · 반증 3)",
+     "ev:note:D-184 (docs/DECISIONS.md)"
+    ],
+    "build_index_sha256": [
+     "c03113861aaa5138"
+    ],
     "qa_run": {}
    },
    "in_harness": false,
@@ -22698,7 +22939,8 @@
     "evidence": "`frontend/src/app/AppShell.jsx:441` `fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold` (활성 시 굵기 변경) + `:429` `\"&.Mui-selected\": { bgcolor: \"transparent\" }` (선택 행 배경 없음 — light/user_me.png x=220, y=198~300 전 구간이 #1E2758로 균일) + `:437` `<ItemIcon size={18} strokeWidth={1.8} />` — MUI `SvgIcon`에는 `size` prop이 없어 무시되고 기본 24px로 렌더된다. 육안 확인: 스크래치패드 `sidezoom_light.png`(원본 light/user_me.png x0-250,y60-560을 3배)에서 자식 '홈' 집 아이콘이 부모 그룹 '내 업무' 가방 아이콘보다 확연히 크다. rail은 정상 — (21,218)=#A9BAFF.",
     "why_it_matters": "PLAN «Navigation 상태»는 신호를 정확히 둘(3px rail + 잉크색)로 못박고 굵기 변경을 금지한다 — 한글에서 semibold→bold 전환은 실제 글자 폭을 바꿔 항목을 이동시킨다. 동시에 계획이 «Icon System»에서 진단한 `size`/`strokeWidth` 무효 버그가 그대로 남아 정보 위계가 뒤집혀 있다(자식이 부모보다 무겁다). rail 토큰은 W1이 정상 공급했으므로 W3에서 순수하게 소비처만 고치면 되는 상태다.",
     "verify_reason": "Every prong verified independently. SOURCE: AppShell.jsx:442 `fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold` (700/600 per theme.js:73), :427 `\"&.Mui-selected\": { bgcolor: \"transparent\" }`, :437 `<ItemIcon size={18} strokeWidth={1.8} />`, plus a fourth signal the finding names correctly, :436 `opacity: active ? 1 : 0.82`, and the :418-426 ::before rail — four overlapping active signals, weight change included. Cited line numbers are off by 1-2 (442/427 vs 441/429) but the code is exact. ICON BUG CONFIRMED AT TYPE LEVEL, not just visually: navIcons.js imports all 37 glyphs from @mui/icons-material/*Outlined, so they are MUI SvgIcon — no `size` prop (it takes `fontSize`), fill-based so `strokeWidth` is inert, default medium = 24px; the group header at :379 renders `<GroupIcon fontSize=\"small\" />` = 20px. Child 24 > parent 20. SCREENSHOT: I sampled dist/ui-qa/w1-visual/light/1920x1080/user_me.png myself — (21,220)=#A9BAFF confirms the rail, and x=60/120/220/240/247 across y=198-300 are uniformly #1E2758, confirming no selected-row background. I re-cropped x0-250/y60-560 at 3x rather than trusting the cited scratchpad file: child glyphs (홈, 내 티켓, 승인, 알림, AI) are visibly l",
-    "status": "OPEN"
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "W3 이 신호를 둘로 줄이고 자식 글리프를 없앴다 — 실브라우저 8조합에서 활성/비활성 굵기 500 동일, 아이콘 opacity 분기 삭제, 자식 글리프 0개, 그룹 20 / 화살표 18. 근거 dist/ui-qa/w3-nav-e2e/anatomy.json · D-184 ①②③"
    },
    {
     "id": "F-W1R-06",
@@ -22869,7 +23111,8 @@
     "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png 픽셀 스캔 — 활성 \"홈\" 행 잉크 구간 [(20,21),(36,55),(64,76)] → rail 폭 2px, x=20 에서 시작(사이드바 inline-start 는 x=0). 그룹 \"내 업무\" 행 [(29,46),(60,70),...] → 아이콘 29-46, 라벨 시작 60. 자식 \"내 티켓\" [(36,55),(64,76),...] → 아이콘 36-55, 라벨 시작 64. PLAN 계약값은 rail 3px inline-start, 라벨 시작선 42px(그룹·자식 동일). 또한 그룹(내 업무·팀 업무·팀 공간·내 정보)과 자식이 모두 글리프를 갖는다 — PLAN «Icon System» 은 \"그룹이 아이콘을 가지면 그 자식들은 아이콘을 갖지 않는다\"를 규정한다.",
     "why_it_matters": "라벨 시작선이 4px 어긋나면 그룹 제목과 항목이 같은 열에 서지 않아 사이드바가 두 격자를 쓰는 것처럼 보인다. 안쪽으로 20px 들어온 2px rail 은 하우징 가장자리를 따라 흐르는 하나의 선이 아니라 목록 안에 떠 있는 조각이라 위치 신호로서 약하다. 아이콘 중복은 깊이를 들여쓰기와 글리프로 이중 표현해 40개 라벨의 시작선을 흔든다.",
     "verify_reason": "근거가 실재하며 픽셀 스캔을 독립 재현해 수치까지 일치했다. user_me.png(light/1920x1080)에서 활성 '홈' 행 잉크 구간은 정확히 [(20,21),(36,55),(64,76)]이고, x=20 의 색은 (169,186,255)=#A9BAFF(chrome.rail), x=19·x=22 는 사이드바 배경(30,39,88) → rail 폭 2px, 사이드바 inline-start 로부터 20px 안쪽. 그룹 행(내 업무 y170-186 / 팀 업무 y433 / 팀 공간 y477 / 내 정보 y522)은 아이콘 ~28-47 + 라벨 시작 60, 자식 행은 아이콘 36-55 + 라벨 시작 64 → 4px 어긋남 확인. 소스가 이 픽셀을 그대로 설명한다: AppShell.jsx 바깥 List `px:1.5`(12) + 그룹 ListItemButton MUI 기본 pl 16 + ListItemIcon `minWidth:32` = 60, 자식은 내부 List `pl:1`(8) + `pl:1.75`(14) + `minWidth:30` = 64, rail 은 `insetInlineStart:0, width:2` 이므로 12+8=20. navConfig.js:261-291 확인 결과 4개 그룹 전부 icon: 를 갖고 자식 항목도 전부 icon: 를 갖는다. PLAN 계약값도 실재한다 — L339 '**active** | **3px chrome.rail inline-start**', L402 '라벨 시작선 42px, 그룹 헤더와 자식 항목이 같은 42px', L403 '그룹이 아이콘을 가지면 그 자식들은 아이콘을 갖지 않는다'. 담당 Wave W3 도 정확하다(PLAN L922 W3 = navConfig.js·navIcons.js·AppShell 사이드바부, Exit Gate 에 'Nav 라벨 시작선 42px 단언'). 정정 두 가지. (1) 심각도 High -> Medium: 이건 W1 이 만든 회귀가 아니라 PLAN 이 이미 진단해 둔 선재 상태다. PLAN L333 이 '현재 AppShell.jsx:414-441 은 넷을 겹친다: 2px rail + fontWeight 700 vs 600 + 색 + icon opacity .82' 라고 바로 이 코드를 지목하고, L393-403 이 AppShell.jsx:437 의 무효 size={18} prop 까지 이미 짚어 W3 소유로 배정했다. W1 은 theme.",
-    "status": "OPEN"
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "W3 이 라벨 시작선을 한 열(42px)로 합치고 레일을 3px · 하우징 가장자리(inline-start 0)로 옮겼다. 자식 들여쓰기 삭제, 자식 글리프 규칙 적용. 실측 8/8 조합 labelStart=42 · rail.width=3 · rail.left=0 — dist/ui-qa/w3-nav-e2e/anatomy.json · D-184 ①②"
    },
    {
     "id": "F-W1R-19",
@@ -23133,7 +23376,8 @@
     "evidence": "PLAN.md:467 은 신규 static check **3종**(ⓐ MUI 아이콘 size=/strokeWidth= 금지 ⓑ raw gradient 리터럴 금지 ⓒ palette.brand consumer ≥1)을 요구한다. `scripts/static_checks.sh` 에 추가된 step 은 `check_brand_tokens.py`(ⓑ+ⓒ)와 `check_test_strength.py` 둘뿐이고 ⓐ 는 어디에도 없다(`grep -rn \"strokeWidth\" scripts/` 결과 없음). 그 사이 `frontend/src/app/AppShell.jsx:437` 에는 PLAN.md:396-398 이 지목한 원본 버그 `<ItemIcon size={18} strokeWidth={1.8} .../>` 가 그대로다.",
     "why_it_matters": "PLAN 이 \"무효인데 이미 한 번 구현을 오도했다\"고 명시한 버그다. 가드가 없으면 W3 가 고쳐도 재발을 막을 수단이 없다.",
     "verify_reason": "사실관계는 전부 실물 확인됨: PLAN.md:467 이 static check 3종을 요구하고, scripts/check_brand_tokens.py 는 docstring 기준 (a) raw gradient 리터럴 금지 + (b) palette.brand 소비처 ≥1 = PLAN 의 ⓑ+ⓒ 만 담당하며, `git diff scripts/static_checks.sh` 가 추가한 step 은 정확히 둘(Brand 토큰 도달 / 시험 약화 금지)뿐이다. `grep -rn \"strokeWidth\" scripts/` 는 공집합이고 SvgIcon·icon prop 가드는 저장소 어디에도 없다(static_checks.sh:106 의 icon step 은 barrel-import 가드로 별건). 원본 버그 `frontend/src/app/AppShell.jsx:437` 의 `<ItemIcon size={18} strokeWidth={1.8} aria-hidden=\"true\" />` 도 그대로 살아 있다. docs/DECISIONS.md 의 W1 추가분은 두 검사만 서술하고 ⓐ 의 유예를 기록하지 않았으며 PLAN.md:467 은 W1 diff 에서 무수정이다 — 즉 \"이미 처리됨\"이 아니다.\n\n다만 담당 Wave 가 틀렸다. Wave 계획 표(정본)에서 W1 의 소유 공유 파일은 `frontend/src/ui/theme.js` 뿐이고 `AppShell.jsx` 는 W2→W3→W13 소유다. 검사 ⓐ 가 봉사하는 요구사항 R-79(Sidebar/Navigation Icon System)는 REQUIREMENT_MATRIX.md 에서 `Wave: W3`, `Status: NOT_STARTED` 다. 결정적으로 W1 은 ⓐ 를 넣을 수 **없다** — AppShell.jsx:437 이 살아 있는 상태에서 그 검사를 추가하면 즉시 실패하고, 모든 Wave 공통 Exit Gate E5(`static_checks.sh` 초록)가 깨진다. 가드는 수정과 같은 커밋에 실려야 하므로 W3 소유다. 반면 ⓑ·ⓒ 는 W1 자신의 산출물(gradient 토큰·palette.brand 소비처)을 지키는 가드라 W1 것이 맞고 실제로 구현됐다.\n\n심각도도 부풀려졌다. W1 을 막지 않고, 가드가 방지할 버그는 W3 가 이미 고치도록 배정돼 있다. 실제 잔존 위험은 추적성 하나다 — R-79 의 Verification 필드는 `nav-active.",
-    "status": "OPEN"
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "W3 이 scripts/check_icon_props.py 를 신설해 static_checks.sh 에 걸었다(자기 검사 사례 5개 + 변이 주입 검출 확인). 가드가 막아야 할 원본 버그(AppShell.jsx 의 size={18} strokeWidth={1.8})도 같은 커밋에서 제거됐다 — D-184"
    },
    {
     "id": "F-W1R-39",
@@ -23268,5 +23512,226 @@
     "status": "OPEN"
    }
   ]
+ },
+ "w3_review_findings": {
+  "note": "W3 종료 시 구현하지 않은 독립 에이전트 3 렌즈가 배포본을 검수하고 심각도 상위 10건을 적대적 검증까지 돌린 결과다(제기 22 · 확인 7 · 반증 3 · 미검증 12). 확인 7건 중 **W3 소유 6건을 이번 Wave 에서 고쳤고**, 나머지 1건(F-W3R-01, 사이드바 하단 빈 면)은 표면이 W7 소유라 수치만 갱신했다. 반증 3건은 근거는 실재했지만 판정이 틀렸다 — 둘은 PLAN 정본대로 구현된 것을 결함이라 불렀고(hover/active 잉크 공유, 그룹 caption 크기), 하나는 `findings.json` 부재를 결함이라 했으나 그 파일은 results.json 에서 파생되는 로컬 임시물이고 게이트도 Wave 간 원장도 그것을 읽지 않는다.",
+  "run": "wf_6fca7af0-570",
+  "raised": 22,
+  "verified": 10,
+  "confirmed": 7,
+  "refuted": 3,
+  "summaries": [
+   {
+    "lens": "visual-before-after",
+    "summary": "Before → W2 → W3 를 같은 라우트·테마·뷰포트로 직접 짝지어 보고 픽셀로 실측했다. 좋아진 것은 분명하다. 라벨 시작선은 1920 에서 그룹·자식 모두 정확히 x=42 한 열이고(내가 직접 스캔한 22개 행 전부), 4K 에서는 x=52~53 으로 루트 폰트와 함께 자란다 — F-W1R-18 의 60/64 어긋남과 F-W2R-02 의 4K 맞붙음(글리프 잉크 끝 37 → 라벨 52, 15px 간격)은 실제로 닫혔다. 활성 신호도 확인된다: 레일이 하우징 가장자리 x=0~2(1920)/0~3(4K) 에 #A9BAFF 로 붙고, 행 채움이 대비 1.37(light)/1.45(dark), 잉크가 1.62/1.78 더 밝다 — 셋 다 두 테마에서 살아 있고 굵기는 활성/비활성 500 으로 같아 글자 폭이 흔들리지 않는다. 펼침(쉐브론)과 선택(레일+채움)이 서로 다른 언어를 쓰므로 R-48 이 지적한 혼동은 해소됐다. 라이트와 다크는 같은 인디고 하우징을 공유해 같은 제품으로 보이고, 비활성 잉크 대비는 그라디언트 양끝에서 6.38~8.01 로 안전하다. 그러나 이 Wave 가 함께 내린 두 번째 결정 — 사용자 콘솔 그룹 전부 펼침 기본 — 이 1366×768 에서 22행 중 5행(«내 정보» 랜드마크 통째)을 스크롤 아래로 밀어냈고, 그 자리를 알리는 유일한 신호는 명도 2.4% 짜리 그림자다. Before 와 W2 에서는 같은 뷰포트에서 트리 전체가 한 화면에 있었다. 위계 쪽도 절반만 왔다: 그룹 헤더의 잉크가 비활성 자식과 픽셀 단위로 **완전히 동일**하고(175,187,232) 글자는 오히려 작으며(13 vs 15), 랜드마크 경계의 추가 공기는 3~4px 뿐이라 — 열린 사용자 rail 에서 그룹을 구분하는 것은 사실상 글리프 하나다. 증거 쪽 구멍도 크다. 이 Wave 가 고친 Command Palette 는 After 픽셀이 한 장도 없고(팔레트 캡처는 W2 시점 셋뿐), 390×844 서랍 열림 상태는 166장 중 0장이며, 이전 세 Wave 가 모두 남긴 `findings.json` 이 w3-after 에만 없다."
+   },
+   {
+    "lens": "requirement",
+    "summary": "구현 자체는 대체로 진짜다. 배포된 픽셀에서 직접 확인한 것: 1920·1366·3840, light·dark 모두에서 그룹 라벨과 자식 라벨이 같은 x=42(4K 정규화 후 42) 열에서 시작하고, 활성 레일은 x=0..2 에 정확히 3px #A9BAFF(4K 는 0..3), 활성 행은 (59,68,119) 로 실제 면을 칠하며 비활성 (37,47,103) 과 구분된다 — F-W1R-18 과 F-W1R-05 의 픽셀 근거가 실제로 뒤집혔다. 4K 아이콘·라벨 충돌도 닫혔다: W2 3840 캡처의 자식 글리프 잉크 46~69 / 라벨 73(간격 4px)이 W3 에서 글리프 18~36 / 라벨 52(간격 16px)로 바뀌었다. RBAC 회귀는 없다 — 옛 navConfig 에서 `icon:` 키만 정규식으로 걷어내면 새 파일과 바이트 단위로 동일하고(차이는 미사용 import 한 줄뿐), to·label·badge·roles·그룹 구성이 한 글자도 안 바뀌었다. 새 static check 는 실제로 막는다(변이 주입 시 정확히 두 줄 검출, 되돌림 확인). 재작성된 시험 둘은 약화가 아니라 강화다(문자열 키 비교 → 컴포넌트 동일성 비교 + 전수 단언 추가, `check_test_strength.py` 초록, app 시험 59파일 387건 전부 통과). 반대로 검증 층에는 구멍이 있다. 가장 큰 것은 이 Wave 의 Exit Gate 가 이 Wave 를 검사한 적이 없다는 것이다 — `WORK_STATE.md` 가 W2 그대로라 `--stage wave` 가 조용히 W2 범위로 돌아 PASS 를 찍고, 실제 W3 범위로 돌리면 2건 FAIL 하는데 REQUIREMENT_MATRIX R-48 은 그 PASS 를 증거로 적어 두었다. 둘째, F-W1R-05 의 '선택 행 배경 없음' 을 막으라고 만든 새 시험이 그 결함을 원문 그대로 되돌려도 20/20 초록이다(변이로 실증). 셋째, W3 이 지운 것은 33개 글리프이고 남긴 10개 랜드마크 글리프는 HEAD 와 동일 — R-79 가 요구한 '전수 Audit 후 재설계' 가 남은 쪽에는 적용되지 않았고, 실측 광학 편차(잉크 높이 10~19px, 밀도 0.34~0.85)가 그것을 보여 준다."
+   },
+   {
+    "lens": "design-taste",
+    "summary": "잘된 것부터. 42px 한 라벨 열과 하우징 가장자리 3px 레일은 실재하고 8/8 조합에서 계약값 그대로다(anatomy.json labelStart 42 · rail.width 3 · rail.left 0). 레일 잉크 #A9BAFF 는 활성 행 면 위에서 light 4.89:1 · dark 5.18:1 로 실측되어 위치 신호로서 확실히 읽히고, Brand 고정이라 사용자 Accent 가 바뀌어도 지금 여기의 색이 흔들리지 않는다. 항목별 글리프 37개를 걷어낸 결정은 R-48 이 지목한 같은 그림 반복을 실제로 없앴고, 남은 10개는 전부 한 라이브러리의 선 도형이며 채운 실루엣이 하나도 없다. 기하가 전부 rem 이라 3840(루트 20px)에서 정규화 수치가 1920 과 동일하게 나오는 것도 확인했다 — F-W2R-02 의 글리프-라벨 충돌은 진짜로 닫혔다. 그런데 취향의 눈으로 배포본을 보면 이 사이드바는 아직 좋은 제품처럼 보이지 않는다. 이유는 하나의 뿌리다: 두 격자(그룹 60 / 자식 64)를 한 열로 합치면서 위계를 지고 있던 마지막 구조적 장치인 들여쓰기를 없앴는데 그 자리를 대신할 장치를 세우지 않았다. 그룹 제목은 자기 자식보다 작고(잉크 높이 11px 대 12~13px) 잉크색이 완전히 같고(rgb(175,187,232)) 시작선도 같아서 제목이 아니라 흐린 형제로 읽히고, 그룹 사이 간격은 38px 행에 4px(10%)뿐이라 22줄이 한 덩어리 벽이 된다. 상태 쪽도 같은 병이다 — hover 가 활성의 색 신호(행 채움 + 잉크) 두 짝을 그대로 복제해서 마우스 아래 행과 실제로 있는 행을 가르는 것이 248px 행의 왼쪽 3px 하나만 남는다. 글리프는 계열은 하나지만 광학 크기가 정규화되지 않아 20px 칸 안에서 실제 높이가 10~18px(1.8배)로 흩어지고, 그룹당 글리프 하나가 랜드마크 전부를 지는 설계에서 이 편차는 그대로 그룹 간 무게 차이가 된다. 관리자 rail 은 1920 실측에서 나온 접힘 기본 규칙을 뷰포트 조건 없이 3840 에도 적용해 전부 펼쳐도 들어가는 화면에서 57%를 비운 채 24개 목적지를 클릭 뒤에 숨긴다. Command Palette 는 W3 이 손댔는데 배포본 픽셀이 하나도 없고 소스상 사이드바와 다른 방언(2px primary.main 레일 · 선택 시 글리프 색 교체 · 신호 4개)을 그대로 쓴다."
+   }
+  ],
+  "items": [
+   {
+    "id": "F-W3R-02",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "visual-before-after",
+    "severity": "High",
+    "owner_wave": "W3",
+    "title": "1366×768 사용자 rail 이 22행 중 17행만 보여 «내 정보» 랜드마크 전체가 스크롤 아래로 숨는다 — Before·W2 에서는 전부 보였다",
+    "evidence": "이미지 실측(내가 직접 스캔). C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-after/light/1366x768/user_me.png — 사이드바(x 34~234) 텍스트 밴드 17개, 마지막 밴드 y=740~753(«기능 개선 제안»). C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-after/light/1920x1080/user_me.png 은 같은 방법으로 22개 밴드 → 뒤 5행(놀이·내 정보·내 프로필·내 업무량·내 활동) 미표시. dark/1366x768 도 17행으로 동일. 드로어가 뷰포트에서 끊기는 것도 확인: 같은 파일 (20,766)=(21,31,71) 인디고, (20,770)=(238,240,247) 캔버스. 비교 — C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w2-after/light/1366x768/user_me.png 11행(마지막 밴드 519~533)이 트리 전체였고 4개 그룹 헤더가 모두 화면 안에 있었다; before-renewal 도 11행 전체. 원인 두 줄: frontend/src/app/AppShell.jsx:762 `groupsOpenByDefault={Boolean(homeUser)}` + :761 `showFilter={!homeUser}`(사용자 콘솔에는 메뉴 필터가 없다). '더 있다' 신호는 AppShell.jsx:419 `boxShadow: inset 0 -14px 10px -12px rgba(16,20,28,.18)` 하나뿐이고 실측 명도차는 (20,755)=(23,32,77) → (20,767)=(21,30,71), 채널당 6/255(2.4%). 재현: 두 PNG 를 열어 x=34~234 밴드를 세면 17 vs 22.",
+    "why_it_matters": "1366×768 은 ROUTE_COVERAGE.json responsive_profiles.major_v1 에 선언된 프로필이다. 접힘 기본이던 Before·W2 에서는 4개 그룹 헤더가 모두 보여 목록이 곧 지도였는데, 펼침 기본으로 바꾸면서 지도의 마지막 랜드마크가 통째로 시야 밖으로 나갔다 — 사용자는 «내 정보» 라는 그룹이 존재한다는 사실 자체를 알 수 없고, 사용자 콘솔에는 대체 수단인 메뉴 필터도 없다. 소스 주석(AppShell.jsx:296~299)은 '사용자 콘솔 4그룹 20항목 — 다 펼쳐도 한 화면에 들어간다'를 근거로 들지만 그 실측은 1080 에서만 참이다(콘텐츠 856px vs 1366×768 가용 ~664px). 같은 산술로 FHD@125% 줌(가용 864-104=760px)도 같은 상태가 되는데, 선언된 zoom 100/125/150 중 100 밖의 캡처가 없어 확인할 수 없다.",
+    "verify_reason": "반증 실패 — 근거 전부가 재현됐다. 내가 직접 한 것:\n\n(1) 밴드 재현. 고정 임계값 스캔은 사이드바 배경이 세로 그라디언트라 y=596 에서 멈춘다(내 첫 시도가 그랬다). 행별 최빈색을 배경으로 잡는 적응형 스캔(x=34..234, |Δ|>60, 연속 4px 이상)으로 다시 쟀다. w3-after/light/1366x768/user_me.png → 밴드 19개 중 크롬 2개(15~37 로고, 68~95 칩) 제외 **내비 17행, 마지막 740~753**. w3-after/light/1920x1080/user_me.png → 24개 중 **22행**, 추가분이 778~790 / 820~831 / 858~871 / 896~909 / 934~947. dark/1366x768 도 19개로 동일. 1920 레일을 크롭해 눈으로 확인하니 잘린 5행은 정확히 놀이 · 내 정보 · 내 프로필 · 내 업무량 · 내 활동 — 내 정보 그룹 헤더와 자식 3개 전부다.\n\n(2) 드로어 절단 재현. x=20 에서 y=766 (21,31,71), y=767 (21,30,71), y=768 (238,240,247). 전체페이지 캡처(1366×1739) 안에서 fixed 드로어가 정확히 뷰포트 높이 768 로 끝난다.\n\n(3) 구현자 자신의 프로브 수치로 독립 검산했더니 일치. dist/ui-qa/w3-nav-e2e/anatomy.json 사용자 행: navList.bottom 1080, clientHeight 976 → listTop 104, lastRowBottom 960 → 콘텐츠 856px. 768 뷰포트 가용 = 976-312 = 664px, 넘침 192px = 38px 피치로 5.05행. 픽셀 스캔과 산술이 같은 5행에서 만난다. 관리자는 콘텐츠 598 vs 가용 620 으로 안 넘친다 — 제기자가 사용자 콘솔로 한정한 것이 맞다.\n\n(4) 프로브 위양성 아님, 오히려 사각지대. anatomy.json 에는 1920x1080 과 3840x2160 만 있다(파일 전체 정규식으로 확인). 신규 W3 프로브가 1366 을 아예 안 쟀으므로 scrollHeight===clientHeight 의 '스크롤 없음' 은 이 프로필에 대해 침묵일 뿐 반증이 아니다. ROUTE_COVERAGE.json responsive_profiles.major_v1 에 1366x768 과 zooms [100,125,150] 이 실제로 선언돼 있다. dist/ui-qa 전체에 zoom 캡처 디렉터리가 하나도 없어 125% 추정은 확인 불가 — 제기자도 그렇게 명시했으므로 그대로 둔다.\n\n(5) 소스 줄 정확. AppShell.jsx:761 `showFilter={!homeUser}`, :762 `groupsOpenByDefault={Boolean(homeUser)}`, :419 `boxShadow: hasMoreBelow ? \"inset 0 -14px 10px -12px rgba(16,20,28,.18)\" : \"none\"`. 인용 주석은 293~302(주장 296~299, 사소한 오프셋)이고 \"사용자 콘솔 4그룹 20항목 — 다 펼쳐도 한 화면에 들어간다\" 문장이 실재한다.\n\n(6) 담당 W3 을 주장이 아니라 git 으로 확인. W3 는 미커밋이고 HEAD 는 a35ab12d(W2). `git show HEAD:frontend/src/app/AppShell.jsx` 에는 groupsOpenByDefault 도 SidebarNav 의 homeUser 도 없다 — W2 로직은 `const isOpen = filtering || groupActive || collapsed[g.group] === false`(전 콘솔 접힘 기본) + 683줄 `showFilter={!isUser}`. 펼침 기본과 필터 제거 둘 다 W3 작업트리에서 새로 생겼다. 베이스라인도 재현: w2-after 1366 밴드 13개 마지막 519~533, before-renewal 13개 마지막 501~514. W2 크롭을 보면 4개 그룹 헤더(내 업무/팀 업무/팀 공간/내 정보)가 모두",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "펼침 기본을 **재서** 정하도록 고쳤다 — `useLayoutEffect` 가 한 행의 실제 높이·그룹 경계 간격·목록 여백을 렌더된 DOM 에서 읽어 '전부 펼친 높이' 를 계산하고 목록이 쓸 수 있는 높이와 비교한다(뷰포트 상수를 박지 않는다). 안 들어가면 접힘으로 되돌리고, 창을 키우면 다시 펼쳐진다. 판정 결과는 localStorage 에 쓰지 않는다 — 화면의 형편이지 사용자의 선택이 아니다. 프로브에 '스크롤 없이 안 보이는 랜드마크 0건' 조건을 추가하고 **390·1366·1920·3840 × light·dark × 사용자·관리자 16조합 전부 PASS** 로 확인했다(anatomy.json)."
+   },
+   {
+    "id": "F-W3R-03",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "requirement",
+    "severity": "High",
+    "owner_wave": "W3",
+    "title": "이 Wave 의 Exit Gate 가 이 Wave 범위로 돈 적이 없다 — `WORK_STATE.md` 가 W2 에 멈춰 있어 `--stage wave` 가 W2 를 검사하고 PASS 를 찍는다. 실제 W3 범위로 돌리면 2건 FAIL 이고, R-48 Evidence 는 그 PASS 를 증거로 적었다",
+    "evidence": "`git status --porcelain -- docs/ui-renewal/WORK_STATE.md` → 빈 출력(W2 커밋 a35ab12d 이후 무수정). 그 파일 CHECKPOINT 절이 여전히 `- wave: W2` · `wave_status: 완료` · `build_index_sha256: 344ce7e7fc221246`. `scripts/check_ui_renewal_coverage.py:1054-1058 _current_wave()` 가 바로 그 줄을 정규식으로 읽는다. 재현: (a) `python scripts/check_ui_renewal_coverage.py --stage wave` → `UI_RENEWAL_COVERAGE_OK (stage=wave, wave=W2, 억제 0건)`, 그 안에 `이 Wave 가 담당하는 Surface 1개…`. (b) `python scripts/check_ui_renewal_coverage.py --stage wave --wave W3` → `UI_RENEWAL_COVERAGE_FAILED (stage=wave, wave=W3, 위반 2건)`: `C4 EVIDENCE_STALE_BUILD: shell_sidebar: ['a4ebe54027ed37ea'] (현재 344ce7e7fc221246)` · `C5 Audit 이 비어 있다: shell_sidebar.visual_audit`. 뒷받침: ROUTE_COVERAGE.json 의 `shell_sidebar` 가 `status:\"DONE\"` 인데 `visual_audit:{result:\"PENDING\", evidence:[]}`. 그럼에도 docs/ui-renewal/REQUIREMENT_MATRIX.md 의 R-48 Evidence 마지막 줄에 `--stage wave`(W3) PASS 가 적혀 있다.",
+    "why_it_matters": "CLAUDE.md §8 이 WORK_STATE 를 누락 방지 Control Plane 정본으로 두고, Gate 는 그 파일의 `wave:` 로 검사 범위를 정한다. 지금 상태에서 '게이트 초록' 은 W2 를 다시 검사한 결과이지 W3 를 검사한 결과가 아니며, 실제 W3 범위는 초록이 아니다. 문서가 검증되지 않은 PASS 를 증거로 인용하는 순간 다음 Wave 는 이 Wave 를 닫힌 것으로 취급한다 — Control Plane 이 막으라고 만들어진 실패 모드가 정확히 이것이다. 고칠 값은 셋뿐이다(WORK_STATE 의 wave·wave_status·build_index_sha256 를 a4ebe54027ed37ea 로), visual_audit 는 독립 검수 결과로 채워야 한다.",
+    "verify_reason": "확인. 네 갈래로 반증을 시도했고 전부 실패했다.\n\n(1) 근거 실재성 — `git status --porcelain -- docs/ui-renewal/WORK_STATE.md` 빈 출력, 마지막 수정 커밋 a35ab12d(W2). CHECKPOINT 가 여전히 `- wave: W2` · `wave_status: 완료` · `build_index_sha256: 344ce7e7fc221246`. `scripts/check_ui_renewal_coverage.py:1054-1058` 이 `_current_wave()` 로 실재하며 그 줄을 정규식으로 읽는다.\n\n(2) 재현 — 기본 실행 → `UI_RENEWAL_COVERAGE_OK (stage=wave, wave=W2, 억제 0건)`, exit 0, 내부에 `이 Wave 가 담당하는 Surface 1개`. `--wave W3` → `UI_RENEWAL_COVERAGE_FAILED (stage=wave, wave=W3, 위반 2건)`, **exit 1**, `Surface 2개`, 인용된 두 FAIL(C4 EVIDENCE_STALE_BUILD: shell_sidebar ['a4ebe54027ed37ea'] 현재 344ce7e7fc221246 · C5 shell_sidebar.visual_audit) 문자 그대로 일치.\n\n(3) 프로브 위양성 아님 — 게이트가 해시를 틀린 게 아닌지 확인했다. `dist/ui-qa/w3-after/results.json` 안의 유일한 해시형 문자열이 `a4ebe54027ed37ea` 다. 즉 W3 캡처는 실제로 a4ebe54 빌드에서 찍혔고 WORK_STATE 만 W2 해시에 묶여 있다. 또 `c5_audits` 소스를 읽어 PENDING 분기가 `build_sha` 를 전혀 참조하지 않음을 확인했다 — 두 FAIL 은 독립이고, WORK_STATE 만 고쳐도 W3 는 여전히 빨갛다.\n\n(4) 최강 반론 \"WORK_STATE 는 커밋 시점에 올리므로 Wave 중 지연은 정상\" 은 저장소 자신의 선례가 기각한다. `git show 721c4ead`·`1af4f20d` 둘 다 `- wave:` 승급을 **그 Wave 자신의 feat 커밋 안**에 담고 있고, 그 커밋 메시지가 `--stage wave`(W1/W2) PASS 를 주장한다. 후속 a35ab12d 는 wave/해시 줄을 건드리지 않았다. PLAN.md:1010 도 \"다르면 코드를 만지기 전에 WORK_STATE부터 정정\", \"`--stage wave` 그 출력이 할 일 목록이다\" 라고 못박는다.\n\n제기자보다 오히려 더 나쁜 사실 — W2 의 `shell_topbar.visual_audit` 는 `result: PASS`, `by: 독립 Visual Reviewer … 구현하지 않은 에이전트`, `at: 2026-08-19T18:14:21` 이다. 즉 정해진 순서는 '독립 검수가 visual_audit 를 채운 뒤 게이트가 통과' 다. W3 의 `shell_sidebar` 는 `status: DONE` 인데 `visual_audit:{result:\"PENDING\", evidence:[]}` 이므로, REQUIREMENT_MATRIX.md:1408 R-48 Evidence 의 `--stage wave`(W3) PASS 는 단순히 낡은 게 아니라 **그 시점에 구조적으로 획득 불가능한 주장**이었다. `check_work_state()`(305-318)는 `wave:` 가 알려진 Wave 인지만 보므로 이 staleness 를 스스로 못 잡는다.\n\n범위 정확성 — `--stage wave`(W3) PASS 를 인용한 요구사항은 R-48 하나뿐이고 R-79 는 인용하지 않는다(grep 확인). 담당 W3 은 PLAN «Wave 계획» 과 일치한다(navConfig 그룹 구성 자체만 W11 소유이며 무관). 심각도 High 유지 — 픽셀 결함은 아니지만 CLAUDE.md §8·§13 이 Control Plane 을 완료 판정 정본으로 두고, 재현되지 않는 PASS 인용은 그 장치가 막으라",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "WORK_STATE 의 `wave:` 를 W3 으로 올리고 `--stage wave`(W3) 를 실제 W3 범위로 돌린 뒤 그 결과를 R-48/R-79 Evidence 에 적었다. 지적이 정확했다 — 그 전 초록은 W2 를 다시 검사한 것이었다."
+   },
+   {
+    "id": "F-W3R-04",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "visual-before-after",
+    "severity": "Low",
+    "owner_wave": "W3",
+    "title": "그룹 헤더 잉크가 비활성 자식과 픽셀 단위로 동일하고 글자는 더 작으며 경계 공기는 3~4px 뿐 — 열린 rail 이 한 겹 질감으로 읽힌다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-after/light/1920x1080/user_me.png 픽셀 샘플: 그룹 «내 업무»(y124~135) 최대잉크 (175,187,232), 비활성 자식 «내 티켓»(y200~213) 최대잉크 (175,187,232) — 같은 값. dark 도 그룹/자식 모두 (163,174,220). 잉크 높이는 그룹 11~12px vs 자식 12~14px(FONT_SIZE.caption 13 vs body 15, theme.js:94~102) 로 그룹이 **더 작다**. 밴드 간 공기 실측: 항목↔항목 25·26·26·27px, 그룹 경계 29·30·30px → 랜드마크 경계의 추가 공기 3~4px(약 12%). 잉크 런으로 본 구분자는 글리프 하나뿐 — 그룹 행 [(13,30) 글리프, (42,52)(57,79) 라벨, (222,229) 쉐브론], 자식 행 [(42,53)(59,83)] (글리프 없음).",
+    "why_it_matters": "R-48 은 'Group/Parent/Child/선택의 시각 위계'를 요구한다. 지금 rail 의 잉크 단계는 실질 둘이다 — muted 전부 + 활성 하나. 그룹은 자식보다 작고 같은 색이라 시각적으로 오히려 뒤로 물러나고, 경계 공기도 12% 밖에 차이나지 않아 22행이 열린 사용자 콘솔에서는 네 개의 랜드마크가 한 줄기 목록으로 뭉친다. 자식 글리프를 걷어낸 결정 자체는 정렬을 살렸지만, 걷어낸 만큼의 위계를 공기·잉크·크기 어느 쪽으로도 되돌려 놓지 않았다.",
+    "verify_reason": "기각 시도했으나 **핵심 사실이 전부 재현되어 기각 실패**. 다만 결론부가 과장돼 있어 심각도를 Medium→Low 로 내린다.\n\n## 재현한 것 (전부 일치)\n\n**① 잉크 동일 — 확인.** 두 경로로 독립 확인했다.\n- 픽셀: `dist/ui-qa/w3-after/light/1920x1080/user_me.png` 에서 라벨 열(x40~215)만 스캔. 그룹 «내 업무» y124-136 최대잉크 `(175,187,232)`, 비활성 자식 «내 티켓» y200-213 최대잉크 `(175,187,232)` — 동일. dark 동일 파일군에서 둘 다 `(163,174,220)`.\n- 소스: `frontend/src/app/AppShell.jsx:449` 그룹 `sx={{ ...NAV_ROW, color: \"sidebar.muted\" }}`, `AppShell.jsx:495` 자식 `color: active ? \"sidebar.text\" : \"sidebar.muted\"` — **같은 토큰**. `theme.js:242`(`onShellMuted:\"#AFBBE8\"`=175,187,232) / `theme.js:268`(`#A3AEDC`=163,174,220) 과 정확히 일치.\n- **저장소 자신의 프로브도 같은 값을 이미 적고 있다**: `dist/ui-qa/w3-nav-e2e/anatomy.json` 8/8 조합 전부 `groups[].color == 비활성 items[].color`. 픽셀 샘플링과 브라우저 computed style 두 독립 방법이 일치하므로 프로브 위양성 가능성 없음.\n\n**② 그룹 글자가 더 작다 — 확인.** `AppShell.jsx:458` 그룹 `fontSize: FONT_SIZE.caption`, `AppShell.jsx:519` 자식 `fontSize: FONT_SIZE.body`. `theme.js:95~103`(제기자는 94~102 라 썼다 — 1줄 오차, 무해) caption 13 / body 15. 렌더 잉크 높이 실측(임계 lum>150): 그룹 11px(y125-135, y395-405, y627-637, y821-831) vs 자식 13px. 제기자의 \"그룹 11~12 vs 자식 12~14\" 와 일치.\n\n**③ 경계 공기 — 확인, 단 제기자가 과소 보고.** 내 실측은 항목↔항목 25·25·25·26px, 그룹 경계 **30·30·30px** → 차이 4~5px(약 16~20%). 제기자는 29·30·30 / 차이 3~4px(약 12%) 라 적었다. 즉 실제 공기는 제기자 주장보다 **더 많다**(문제를 약간 과장). 원인은 `AppShell.jsx:443` `<Box sx={{ mb: 0.5 }}>` = 4px 하나뿐이고, `anatomy.json` 이 그룹/자식 `rowHeight` 를 둘 다 38 로 기록해 행 높이 차이가 없음을 확인해 준다.\n\n**④ 잉크 런 좌표 — 확인.** y127 그룹 행 실측 런: 글리프 (13,30), 라벨 (42..79), 쉐브론 (222..229). 자식 행은 (43..83) 라벨만. 제기자 좌표와 일치.\n\n**⑤ 22행 — 정확.** `anatomy.json` measurements[0] = groups 4 + items 18 = 22. 내 밴드 스캔도 y124~946 에 22밴드.\n\n## 이미 처리/의도된 결정인가 — 아니다\n`docs/DECISIONS.md` D-184 는 라벨 시작선·활성 신호 둘·글리프 규칙 셋만 다루고 **그룹 대 자식 잉크 위계는 한 줄도 없다**. `PLAN.md:337` 의 Navigation 상태 표는 default/hover/active/focus 네 행뿐이라 그룹 헤더를 구분하지 않는다(그룹을 default 로 보면 `onShellMuted` 는 PLAN 준수이지만, PLAN 이 이 자리를 특정한 적이 없다). `PLAN.md:369` 가 `caption` 을 \"nav group\" 에 배정하므로 **작은 크기는 의도된 결정**이고 이 부분은 W3 결함이 아니다.\n\n방어 논거로 쓰일 법한 `th",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "랜드마크 경계 간격을 4px → 12px 로 올렸다(`mb: 0.5` → `1.5`). 잉크 축은 건드리지 않는다 — 적대적 검증이 그 축을 상태(활성/비활성)에 남겨 둔 것이 의도된 배분이라고 판정했고, 세 번째 잉크값을 주면 활성 신호 계약과 충돌한다."
+   },
+   {
+    "id": "F-W3R-05",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "title": "Command Palette 를 세 군데 고쳤는데 이 빌드의 팔레트 픽셀이 한 장도 없다 — 유일한 캡처는 변경 이전(W2) 것이다",
+    "evidence": "변경 지점: frontend/src/app/CommandPalette.jsx:147 `Icon: g.recent ? HistoryRoundedIcon : (g.icon || null)`(메뉴 결과 글리프를 항목별 → 그룹 랜드마크로), :428 `<Icon sx={{ fontSize: remPx(ICON.nav) }} />`, :437 `fontWeight: FONT_WEIGHT.medium`(선택 행 semibold 제거). 존재하는 팔레트 캡처는 C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w2-shell-e2e/ff1186-palette-open.png · ff1186-palette-results.png · ff1186-palette-empty.png 셋뿐이고 전부 W2 시점(8/19 18시대)이다. C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-nav-e2e/flows.json 의 6개 Flow(FF-1200~1207) 에 팔레트 항목이 없고, w3-after 캡처는 전부 라우트 기본 상태다. `find dist/ui-qa -maxdepth 3 -iname \"*palette*\"` → 위 셋만.",
+    "why_it_matters": "메뉴 결과 줄이 이제 자기 그룹의 글리프를 쓰므로 한 섹션(«메뉴 › 내 업무») 안의 모든 줄이 같은 그림을 단다 — 섹션 제목이 이미 말한 것을 글리프 열이 반복하는 상태이고, 그것이 읽을 만한지는 픽셀로만 판정할 수 있다. W2 캡처(ff1186-palette-results.png)는 변경 전 코드의 화면이라 이 질문에 답하지 못한다. 팔레트는 Ctrl+K 하나로 전 제품의 이동을 담당하는 표면이고 R-79(아이콘 한 계열)의 소비처이므로, 이 Wave 의 아이콘 결정을 화면에서 확인하지 못한 채 닫는 셈이다.",
+    "verify_reason": "기각을 시도했으나 근거 네 갈래가 전부 그대로 재현됐다.\n\n① 세 변경 지점 실재 — `grep -n` 으로 줄번호가 정확히 일치했다: CommandPalette.jsx:147 `Icon: g.recent ? HistoryRoundedIcon : (g.icon || null)` · :428 `<Icon aria-hidden=\"true\" sx={{ fontSize: remPx(ICON.nav) }} />` · :437 `fontWeight: FONT_WEIGHT.medium`. 게다가 `git diff HEAD -- frontend/src/app/CommandPalette.jsx` 로 이것들이 **이번 Wave 의 미커밋 변경**임을 확인했다(HEAD 는 W2 커밋 a35ab12d, CommandPalette 의 마지막 커밋도 1af4f20d=W2). 세 자리 모두 이전 값에서 실제로 바뀌었다: `navIcon(it.icon) || (g.recent ? History : null)` → `g.recent ? History : g.icon`, `fontSize=\"small\"` → `remPx(ICON.nav)`, `selected ? semibold : regular` → `medium` 고정.\n\n② 픽셀 부재 — `find dist/ui-qa -iname \"*palette*\"` 결과는 w2-shell-e2e 의 ff1186-palette-{open,results,empty}.png 셋뿐. mtime 은 2026-08-19 18:12:41~44 이고 CommandPalette.jsx 의 mtime 은 19:24:38 이다. 즉 캡처가 코드 변경보다 72분 이르다. w3-nav-e2e/flows.json 은 FF-1200·1201·1202·1203·1204·1205·1207 **7개**(제기자는 6개라 적었다 — 유일한 사실 오차, 결론에 영향 없음)이고 팔레트 항목은 없다. w3-after/results.json 의 `run.routes` 는 전부 라우트 이름이고 파일명도 전부 라우트 기본 상태다.\n\n③ \"이미 다른 데서 처리됐나\" 반증 실패 — 오히려 반대다. 배포 번들은 20:09:26 에 재빌드됐고 w3-after 는 20:12, nav-e2e 는 20:33 에 돌았다. 즉 **바뀐 코드가 배포된 상태에서 두 번의 실브라우저 실행이 있었는데 팔레트를 한 번도 열지 않았다** — 빌드 낙후가 아니라 촬영 누락이다. 시험도 대체물이 못 된다: nav-contract.test.jsx:278-280 은 `PALETTE_SRC` 정규식 매칭(소스 문자열 검사)이라 렌더조차 하지 않는다.\n\n④ 왜 이게 실제 위험인지 소스로 확인 — CommandPalette.jsx:114 의 필터가 `normalize(g.group).includes(needle)` 라 **그룹명이 걸리면 그 그룹 항목 전체가 남는다**. navConfig.js:260 `내 업무`(icon: WorkOutlineRounded) 처럼 항목이 6개인 그룹에서 \"업무\"를 치면 한 섹션 6줄이 전부 같은 글리프가 된다. 더 나쁜 쪽은 최근 방문이다 — W3 이 지운 W2 주석이 정확히 \"덮으면 최근 방문 네 줄이 전부 같은 그림이 되어 서로 구분이 안 된다\"라고 적어 두었고 W3 은 그 판단을 픽셀 확인 없이 뒤집었다. 그 빈 질의 상태는 어느 Wave 에도 캡처가 없다(ff1186-palette-empty.png 를 Read 로 직접 봤는데 '최근 방문'이 아니라 '검색 결과 없음' 상태였다). ff1186-palette-results.png 도 Read 로 봤다 — W2 사이드바에 «메뉴 › 팀 업무» 섹션이 한 줄뿐이라 반복 여부를 애초에 답하지 못한다.\n\n추가로 확인된 파생 오염(같은 뿌리): FUNCTIONAL_COVERAGE.json 의 FF-1186 은 surface `shell_topbar` 아래에서 `status: PASS` · `audited_at: 2026-08-19T18:14:21` · evidence 가 w2-shell-e2e png 셋인 ",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "`nav_e2e.py` 에 Command Palette 측정을 추가했다 — 두 테마로 열어 찍고(palette-recent-*, palette-menu-*) 줄마다 글리프 크기와 굵기를 잰다. 실측: 6줄 전부 글리프 20 · 굵기 500 으로 사이드바와 같은 언어다."
+   },
+   {
+    "id": "F-W3R-06",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "title": "390×844 서랍이 열린 상태의 픽셀이 0장 — 사이드바 재설계의 모바일 증거가 전혀 없다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-after/{light,dark}/390x844/ 총 166장을 전수 스캔했으나 좌측에 인디고 드로어가 열린 장면 0장(후보 7장은 전부 본문 색 오검출: 예 user_board.png (40,400)=(90,79,207) 은 본문 배지). 파일명에 nav/drawer/menu 를 포함한 캡처도 없다. C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-after/light/390x844/user_me.png 은 햄버거만 있는 닫힌 상태다. 실브라우저 프로브도 단일 뷰포트다 — C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w3-nav-e2e/flows.json 의 `\"viewport\": \"1920x1080\"`, anatomy.json 8조합은 1920·3840 뿐.",
+    "why_it_matters": "390 에서 사이드바는 임시 Drawer 로 접히므로, 이 Wave 가 바꾼 행 해부구조(라벨 시작선 42 · 레일 3px 가장자리 · 자식 글리프 제거 · 그룹 펼침 기본)가 실제로 어떻게 보이는지 확인된 적이 없다. 특히 펼침 기본 결정은 세로 844 의 좁은 서랍에서 1366×768 보다 더 큰 스크롤 문제를 만들 수 있는데(발견 1과 같은 원인) 확인할 픽셀이 없다. 390×844 는 major_v1 프로필의 첫 번째 뷰포트다.",
+    "verify_reason": "반증 시도했으나 근거 4개가 전부 재현됐고, 오히려 제기자가 못 본 가중 사유를 하나 더 찾았다.\n\n**① 파일 수·픽셀 재현.** `ls dist/ui-qa/w3-after/{light,dark}/390x844/*.png` = 83 + 83 = **166장** — 숫자 일치. 제기자가 든 위양성 표본을 직접 찍었다: `dist/ui-qa/w3-after/light/390x844/user_board.png` `(40,400)` = **(90,79,207)** — 값까지 정확하고, 세로 스트립이 아니라 본문 배지다.\n\n**② 나는 다른 지문으로 다시 훑었다(프로브 위양성 배제).** 제기자의 휴리스틱을 쓰지 않고, 1920 캡처에서 실제 사이드바 하우징 색을 먼저 실측했다 — `w3-after/light/1920x1080/user_me.png` 의 x=1 열이 y=100 (39,49,107) → y=900 (25,34,81) 인 인디고 Gradient. 이 지문(b−r≥30, b 60–140, r<70)으로 390 폴더 166장의 x=8 세로 스트립(y 150–800, 10px 간격)을 전수 스캔 → **hits 0**. 이어서 `light/390x844/user_me.png` 상단 700px 를 크롭해 눈으로 확인했다 — 좌상단은 햄버거 아이콘 하나, 그 아래는 곧바로 본문 «오늘» 이다. 서랍 픽셀은 정말 0장이다.\n\n**③ 프로브 단일 뷰포트도 사실.** `flows.json` 의 `\"viewport\": \"1920x1080\"` 실재. `anatomy.json` `measurements` 8건의 `viewport` 는 1920x1080 ×4 · 3840x2160 ×4 뿐. `dist/ui-qa/w3-nav-e2e/*.png` 27장을 PIL 로 열어 크기를 찍었더니 **전부 1920×1080 또는 3840×2160** — 860 미만 폭의 이미지가 한 장도 없다.\n\n**④ 이게 \"그냥 좁은 화면 하나 빠짐\" 이 아닌 이유(소스 확인).** `theme.js:458 NAV_BREAKPOINT = 860`, `AppShell.jsx:626 isNarrow = useMediaQuery(max-width:860)`, `AppShell.jsx:971 variant={isNarrow ? \"temporary\" : \"permanent\"}`. major_v1 의 네 뷰포트 중 **390 만이 서랍 모드**이고 1366·1920·3840 은 전부 permanent 다. 즉 W3 가 바꾼 행 해부구조가 서랍 모드에서 어떻게 보이는지는 **어느 뷰포트에서도 확인된 적이 없다** — 빠진 건 뷰포트 하나가 아니라 렌더 모드 하나 전체다.\n\n**⑤ 제기자가 놓친 가중 사유 — 통제면에 틀린 PASS 가 실려 있다.** `ROUTE_COVERAGE.json` 의 `surfaces[shell_sidebar].responsive_audit` 는 `required_profile: minor_v1`(390x844 + 1920x1080) 이고, 390x844 light/dark 두 줄이 `\"result\": \"PASS\"`, 근거가 `ev:capture:dist/ui-qa/w3-after/{light,dark}/390x844/user_me.png` 다. ②에서 확인했듯 그 두 장에 **감사 대상 Surface 가 들어 있지 않다**. W2 의 `shell_topbar` 가 같은 파일을 근거로 쓴 건 정당하다(상단바는 390 에서 보인다). 사이드바는 아니다. \"완료인데 Evidence 없음\" 을 막으라는 Gate 조건이 정확히 이 자리에서 통과해 버렸다.\n\n**⑥ 스크롤 우려도 수치가 받쳐 준다.** `anatomy.json` 사용자 콘솔 실측 `lastRowBottom: 960`, `navList.clientHeight: 976` (1920, rootFontSize 16). 서랍 높이는 뷰포트 844 를 넘을 수 없으므로 펼침 기본 상태의 사용자 트리(4그룹 20항목)는 390 에서 **100px 이상 넘친다.** 관리자는 접힘 기본이라 `lastR",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "`nav_e2e.py` 의 기하 측정에 390x844 를 추가하고, 좁은 화면에서 **햄버거를 눌러 서랍을 연 뒤** 잰다. 그 과정에서 프로브 결함 하나를 먼저 고쳤다 — 임시 Drawer 는 MUI 가 body 로 포털하므로 `#app-sidebar` 안에서 찾으면 390 에서 영원히 못 찾는다. 실측 4조합 PASS + 서랍 열림 캡처 4장."
+   },
+   {
+    "id": "F-W3R-01",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W7 (표면) · 측정 기록 정정은 W3",
+    "title": "사이드바 하단 빈 면은 사용자 콘솔에서만 회수됐다 — 관리자는 그대로이고, 닫음 기록이 최악값을 빠뜨렸다",
+    "evidence": "같은 방법(마지막 잉크 y → 하단 여백 %)으로 세 빌드를 직접 실측했다. light 기준: user_me 1920 — before 52.4% / w2 50.6% / **w3 12.3%**(회수됨). admin_dashboard 1920 — before 41.1% / w2 38.8% / **w3 39.4%**(오히려 +0.6). admin_audit 1920 — before 56.9% / w2 55.4% / **w3 56.8%**. 3840 기준: user_me 70.1%→45.1%, admin_dashboard 63.0%→62.1%, admin_audit 72.9%→**73.1%**(dark 동일 73.1%). 파일: C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/{before-renewal,w2-after,w3-after}/light/{1920x1080,3840x2160}/{user_me,admin_dashboard,admin_audit}.png. 한편 ROUTE_COVERAGE.json surfaces[shell_topbar] F-W2R-02.close_note 는 '1920 사용자 38~50% → 11.1%' 와 '4K 44.3%(사용자)·56.9%(관리자)' 만 적었다 — 1920 관리자와 4K admin_audit(73.1%) 이 빠졌다. 그라디언트는 사이드바 전 높이를 훑는다(4K user_me x=150: y150 (38,49,108) → y2155 (23,32,77)) 므로 admin_audit 4K 에서는 이동량의 약 3/4 이 빈 면에서 일어난다.",
+    "why_it_matters": "표면 자체는 PLAN «Clovi 계약» 의 사이드바 도우미 카드가 채우기로 돼 있어 W7 소유가 맞다(F-W3R-01 로 이관됨). 문제는 이관에 붙은 숫자다 — 기록이 관리자 최악값을 빠뜨려 W7 이 물려받는 문제의 실제 크기가 절반 이하로 적혀 있다. 320×2160 짜리 인디고 기둥의 73%가 비어 있는 상태는 '절반을 회수했다'는 서술과 다르고, 자동 검사도 이 자리를 보지 못한다(results.json 의 dead_blank_region 은 main 만 잰다 — 138건 전부 본문 표본이고 사이드바 표본 0건).",
+    "verify_reason": "직접 재현했고, 핵심은 성립한다. 다만 근거 한 줄은 틀렸다.\n\n[재현 방법] 먼저 분모를 확인했다 — full-page PNG 에서 인디고 기둥은 y=1079(1920)·y=2159(4K) 에서 끝나고 이미지 높이(1448~6277)와 무관하다. 따라서 사이드바 높이 1080/2160 을 분모로 썼다. 사이드바 폭은 픽셀 스캔으로 248(1920)·320(4K): admin_dashboard 4K y=1800 에서 x=318 (25,34,81) → x=319 (46,58,123) 경계 → x=320 (238,240,247). 배경이 세로 그라디언트라 행별 median 대비 최대편차>18 을 잉크로 판정했다.\n\n[실측 — light, dark 는 6건 전부 동일] user_me 1920: w2 50.6% → w3 12.2% / 4K 70.0% → 45.0%. admin_dashboard 1920: 38.7% → 38.8% / 4K 62.9% → 61.9%. admin_audit 1920: 55.3% → 56.7% / 4K 72.8% → 73.0%. before 도 재현된다(user_me 1920 52.3 · admin_dashboard 41.0 · admin_audit 56.8). 제기된 수치와 전부 0.1~0.6pp 이내. 그라디언트 근거도 정확히 일치한다 — 4K user_me x=150 y150 (38,49,108), y2155 (23,32,77). dead_blank_region 도 그대로다: results.json 138 fail/222 pass/304 skip, scripts/ui_qa/assertions.py:1325 이 MAIN 으로만 재고 138건 샘플 전부 '본문'. 4K admin_audit 사이드바 크롭을 직접 봤다 — 감사 로그·개발자 월간 리포트에서 nav 가 끝나고 320x2160 인디고 기둥의 약 3/4 이 맨 면이다.\n\n[틀린 부분] '1920 관리자가 기록에서 빠졌다'는 사실이 아니다. ROUTE_COVERAGE.json surfaces[90].findings[5] (F-W3R-01, OPEN, W7) 이 '1920 사용자 11.1% · 관리자 30.9%(334/1080) · 3840 사용자 44.3% · 관리자 56.9%(1229/2160)' 를 명시하고, D-184 도 회수 주장을 '사용자' 로 한정해 적었다. F-W2R-02 close_note 만 떼어 보면 얇게 읽힐 뿐이다.\n\n[그럼에도 살아남는 이유 — 제기자가 댄 것보다 강한 기전] 기록된 관리자 수치 자체가 과소다. scripts/ui_qa/nav_e2e.py:127-132 의 lastRowBottom 은 nav .MuiListItemButton-root 중 DOM 마지막 행의 getBoundingClientRect().bottom 을 쓰는데, frontend/src/app/AppShell.jsx:473 이 <Collapse in={isOpen} id={itemsId} unmountOnExit={false}> 라 접힌 그룹의 자식 행이 height:0 wrapper 안에 자연 레이아웃 그대로 남아 rect 가 마지막 '보이는' 행보다 아래로 뻗는다. 그래서 접힘 기본값인 관리자 콘솔은 30.9%(기록) vs 38.8%(픽셀), 56.9%(기록) vs 61.9%(픽셀) 로 어긋나고, 펼침 기본값인 사용자 콘솔만 11.1% vs 12.2% 로 일치한다. 8조합 중 4조합이 전부 과소 방향으로 틀렸고, 기록된 최대치 56.9% 는 실제 최악(4K admin_audit 73.0%) 보다 16pp 낮다. W3 이 이번에 새로 만든 파일의 결함이므로 '측정 기록 정정은 W3' 가 맞고, 표면 W7 은 PLAN «Clovi 계약» 의 'Sidebar 도우미 카드'(clovi-idle/clovi-think, 박스 95) 와 «Wave 계획» W7 행에 부합한다. 심각도 Medium·담당 주장 모두 유지한다.",
+    "status": "UPDATED_IN_W3",
+    "resolved_note": "F-W3R-01 의 수치를 이번 실측으로 갱신했다(관리자 최악값 포함). 표면 자체는 W7 소유로 남는다."
+   },
+   {
+    "id": "F-W3R-07",
+    "source": "W3 독립 검수 (Workflow wf_6fca7af0-570, 렌즈 3 · 적대적 검증 10건)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "title": "F-W1R-05 의 '선택 행에 배경이 없다' 를 막으라고 만든 새 시험이, 그 결함을 원문 그대로 되돌려도 20/20 초록이다",
+    "evidence": "변이 주입으로 실증(되돌림 완료, `git diff --numstat -- frontend/src/app/AppShell.jsx` = 125/45 로 원상 확인). `frontend/src/app/AppShell.jsx:511` 을 `\"&.Mui-selected\": { bgcolor: \"transparent\" }` 로 — F-W1R-05 evidence 가 인용한 옛 코드 그대로 — 바꾸고 `npx vitest run src/app/nav-contract.test.jsx` → `Tests 20 passed`. 원인은 `frontend/src/app/nav-contract.test.jsx:200-209` 의 단언이 요소의 emotion 블록 **전체**에서 토큰 문자열만 찾기 때문이다: `AppShell.jsx:514` 의 `\"&.Mui-selected:hover\": { bgcolor: \"sidebar.selected\" }` 가 그대로 남아 문자열이 계속 존재한다. 같은 변이를 `scripts/ui_qa/nav_e2e.py:317-318` 은 잡지만(활성 행 background 가 rgba(0,0,0,0) 이면 FAIL), 그 프로브는 실배포·실브라우저가 필요해 `scripts/static_checks.sh` 나 vitest 게이트에 들어 있지 않다.",
+    "why_it_matters": "이 파일의 존재 이유가 머리글에 적혀 있다: 'W1·W2 검수가 잡은 결함 셋이 전부 시험은 초록인 채로 배포본에 살아 있었다.' 그런데 그 셋 중 하나에 대해 같은 일이 여전히 가능하다. 단언을 `:hover` 를 포함하지 않는 `.Mui-selected` 블록으로 좁히면(또는 `&.Mui-selected` 선언 자체를 정규식으로 못박으면) 닫힌다.",
+    "verify_reason": "반증 시도했으나 실패 — 근거가 좌표 단위로 정확하고, 변이 주입을 직접 재현했다.\n\n【1. 인용 좌표 실재 확인 — 전부 정확】\n- `frontend/src/app/AppShell.jsx:511` = `\"&.Mui-selected\": { bgcolor: \"sidebar.selected\" }`, `:514` = `\"&.Mui-selected:hover\": { bgcolor: \"sidebar.selected\" }` (grep -n 결과 그대로).\n- `frontend/src/app/nav-contract.test.jsx:200-209` = `it(\"활성 행이 면을 칠한다 …\")` 블록. 실패 트레이스가 `208:8`(.toContain)을 가리켜 범위가 정확히 맞는다.\n- `scripts/ui_qa/nav_e2e.py:317-318` = `if a[\"background\"] in (\"rgba(0, 0, 0, 0)\", \"transparent\"): fails.append(… \"행이 면을 칠하지 않는다\")`. 줄 번호까지 일치.\n\n【2. 변이 재현 — 주장대로 20/20 초록】\nAppShell.jsx:511 만 `bgcolor: \"transparent\"` 로 바꾸고 `npx vitest run src/app/nav-contract.test.jsx` → `Test Files 1 passed / Tests 20 passed`. 즉 F-W1R-05 원문 결함(선택 행에 면이 없음)이 되돌아와도 이 파일은 전부 초록이다.\n\n【3. 원인 설명도 검증 — 대조 변이로 확정】\n511 과 514 를 **둘 다** transparent 로 바꾸자 즉시 실패: `AssertionError: 선택 행이 투명하게 남았다 … expected '.css-18c440b-…' to contain 'rgba(255,255,255,.10)'`. 실패 출력의 emotion CSS 를 보면 `rulesOf()` 가 `.css-xxx.Mui-selected{…}` 와 `.css-xxx.Mui-selected:hover{…}` 를 **한 문자열로 이어 붙여** 반환하고(헬퍼는 `selector.trim().startsWith('.'+cls)` 만 보므로 :hover 규칙도 포함), 단언이 그 전체에서 토큰 문자열만 `toContain` 한다. 따라서 :hover 한 줄이 남아 있는 한 선택 상태가 투명해도 문자열이 계속 존재한다 — 제기자의 인과 설명이 정확하다. (같은 출력에서 sx 생성 규칙이 MUI 기본 `.Mui-selected{background-color:rgba(90,79,207,0.08)}` 를 마지막에 덮어쓰는 것도 확인 — 변이가 실제로 활성 행 면을 지운다. 위양성 아님.)\n\n【4. 다른 곳에서 이미 막히는가 — 아니다】\n`grep -rn \"Mui-selected|sidebar.selected\" frontend/src --include=*.test.js*` → 사이드바 선택 배경을 단언하는 시험은 nav-contract.test.jsx:206 하나뿐(나머지는 command-palette / MuiTab). `grep -rn nav_e2e scripts/*.sh` → 0건, `scripts/static_checks.sh` 에 nav_e2e 호출 없음(vitest 호출은 366행 registry-surface-parity 하나뿐). 즉 이 변이를 잡는 유일한 도구인 nav_e2e.py:317-318 은 실배포·실브라우저 수동 실행 경로에만 있다 — 제기자 주장 그대로. `docs/DECISIONS.md` D-184(7555~7615)를 통독했으나 단언 범위를 느슨하게 두겠다는 의도적 결정 기록은 없다(오히려 \"가드는 수정과 같은 커밋에 실려야 한다\"는 반대 방향 서술).\n\n【5. 심각도·담당 Wave】\nMedium 유지가 타당하다. 현재 배포 제품 코드는 정상(511 이 sidebar.selected 를 칠한다)이라 사용자 가시 결함이 아니고, 손상된 것은 **가드의 검출력**이다. 다만 이 파일의 존재 이유가 머리글에 \"W1·W2 가 잡은 결함",
+    "status": "RESOLVED_IN_W3",
+    "resolved_note": "단언을 `.Mui-selected` **그 규칙 하나**의 이기는 선언으로 좁혔다(`declOf`). 변이 주입으로 재확인: `bgcolor: \"transparent\"` 로 되돌리면 즉시 실패한다."
+   }
+  ],
+  "refuted_items": [
+   {
+    "title": "Hover 가 활성 행의 색 신호를 그대로 복제한다 — 마우스 아래 행과 실제 위치를 가르는 것이 248px 중 3px뿐",
+    "lens": "design-taste",
+    "reason": "근거는 전부 실재한다. 그러나 \"결함\"이라는 판정이 틀렸다 — 이것은 PLAN 이 명시한 계약을 그대로 구현한 것이다.\n\n■ 재현한 것 (전부 일치)\n- AppShell.jsx:244 `\"&:hover\": { bgcolor: \"sidebar.hover\", color: \"sidebar.text\" }` — 실재. :495 `color: active ? \"sidebar.text\" : \"sidebar.muted\"` — 실재. hover 잉크와 active 잉크가 같은 토큰(onShell)인 것도 사실.\n- theme.js:245-246 (.06/.10), :271-272 (.08/.12) — 실재. theme.js:530 `sidebar` 가 `chrome` 별칭인 것도 확인.\n- 픽셀: anatomy-user-light-1920x1080.png (200,145)=(38,48,105), (200,168)=(59,68,119) — 내가 찍은 값과 정확히 일치. 합성 hover=(51,60,114) 도 재계산 일치.\n- 대비: 활성 대 hover **1.140**(light)/**1.143**(dark), 활성 대 하우징 **1.354**/**1.447** — 산술 정확(제기자의 dark 1.449 는 반올림 차 수준).\n- AppShell.jsx:818 의 \"1.38~1.83:1 은 사실상 보이지 않는다\" 주석도 실재.\n\n■ 그럼에도 기각하는 이유\n1) **PLAN 이 이 동작을 그대로 규정했다.** docs/ui-renewal/PLAN.md:337-340 «Navigation 상태 — 신호는 정확히 둘» 표:\n   `| hover | — | row bg chrome.hover, 잉크 → onShell | 금지: rail·굵기 |`\n   `| active | 3px chrome.rail inline-start | row bg chrome.selected, 잉크 → onShell | 금지: 굵기·알약·아이콘 fill |`\n   즉 **hover 와 active 가 같은 onShell 잉크를 쓰고, 구분을 위치 신호(rail)에 싣는 것이 설계 정본**이다. 토큰 값(.06/.10, .08/.12)도 PLAN.md:307 표에 그대로 있다. W3 는 정본을 이탈한 게 아니라 이행했다. 이건 구현 결함이 아니라 PLAN 에 대한 이견이고, 그렇다면 Finding 이 아니라 PLAN 개정 제안으로 가야 한다.\n\n2) **\"24"
+   },
+   {
+    "title": "그룹 제목이 자기 자식보다 작고 잉크색이 같다 — 제목이 아니라 흐린 형제로 읽힌다",
+    "lens": "design-taste",
+    "reason": "근거는 전부 실재한다. 결론(위계가 뒤집혔다 / High)이 실측과 어긋나 기각한다.\n\n■ 재현한 것 (전부 일치)\n- 소스 줄번호 4개 모두 정확. `grep -n` 결과 AppShell.jsx:449 `color:\"sidebar.muted\"`, :458 `fontSize:FONT_SIZE.caption, fontWeight:FONT_WEIGHT.semibold, letterSpacing:\".04em\"`, :495 `color: active?\"sidebar.text\":\"sidebar.muted\"`, :519 `fontSize:FONT_SIZE.body, fontWeight:FONT_WEIGHT.medium`. theme.js:96/98 caption 0.8125rem(13) · body 0.9375rem(15), :73 semibold 600 · medium 500. 즉 그룹 13/600, 자식 15/500 맞다.\n- anatomy.json 8/8 조합에서 group.color == 비활성 item.color 확인. 단 인용값에 오류가 있다: light 4조합만 rgb(175,187,232)이고 dark 4조합은 rgb(163,174,220)이다. \"8/8이 둘 다 rgb(175,187,232)\"는 4/8만 참. 동일성 주장 자체는 8/8 성립.\n- 픽셀 실측 재현(anatomy-user-light-1920x1080.png, x42..200, lum>90 행 스캔): 내 업무 y124-135, 새 티켓 y238-250, 프로젝트 y432-444. 잉크 높이 12/13/13 (인용 11/12/13과 임계값 ±1 차이). 라벨 시작 x: 그룹 43, 자식 42 — 실질 동일 열. 글리프 x13-30, 셰브런 x222-229도 일치.\n\n■ 기각 사유 1 — \"물리적으로 더 작다\"가 행 단위에서 거짓\n같은 3음절 라벨끼리 잉크 픽셀을 셌다(같은 이미지, lum>90).\n  그룹 「내 업무」 행 전체 378px (글리프칸 159 + 라벨칸 197 + 셰브런 22)\n  자식 「새 티켓」 행 전체 239px (전부 라벨칸)\n그룹 행이 자식 행보다 잉크 질량이 58% 많다. 라벨 열만 잘라 보면 197 < 239로 근거가 맞지만, 행을 통째로 보면 위계는 뒤집혀 있지 않고 그룹 쪽이 무겁다. \"제목이 구성원보다 물리적으로 작다\"는 라벨 열을 인위적으로 잘라낸 뒤에만 성립한다.\n\n■ 기각 사유 2 — \"글리프·화살표는 라벨 "
+   },
+   {
+    "title": "이 Wave 의 After 실행만 `findings.json` 을 남기지 않았다 — 이전 세 Wave 는 모두 남겼다",
+    "lens": "visual-before-after",
+    "reason": "기각. 표면 사실(`dist/ui-qa/w3-after/` 에 findings.json 없음)은 맞지만, 그것을 결함으로 만드는 근거 세 줄이 전부 재현에 실패했다.\n\n**① \"다음 Wave 가 이어받을 수 없다\" — 반대로, 이미 이어받았다.**\nWave 간 Finding 원장은 findings.json 이 아니라 `docs/ui-renewal/ROUTE_COVERAGE.json` 이고, 이를 채우는 `scripts/merge_qa_findings.py` 는 `load_results()` 에서 `ROOT/dist/ui-qa/<label>/results.json` 을 읽는다(findings.json 을 읽는 코드는 저장소 어디에도 없다 — `rg \"findings\\.json\" scripts/` 는 run.py:664 로그 한 줄뿐). 실제로 ROUTE_COVERAGE.json 에 `\"last_seen\": \"ev:qa_run:w3-after\"` 277건 + `closed_by` 에 w3-after 40건이 들어 있다(w2-after 231, w1-after 165 참조 대비 오히려 최다). W3 는 WORK_STATE.md:67 이 적어 둔 절차(`collect_evidence` → `merge_qa_findings --write` → `--stage wave`)를 그대로 밟았다. `--findings-out` 은 그 절차에 없다.\n\n**② \"어느 라우트·좌표에서 났는지 알 수 없다\" — results.json 과 report.html 둘 다에 있다.**\n`w3-after/results.json` 은 집계가 아니라 664개 page 레코드다(키: route·theme·viewport·assertions). fail 레코드 총 1248건, 클래스별로 dead_blank_region 138 · oversized_empty_surface 44 · brand_presence 377 로 report.html 요약표와 정확히 일치한다. 각 fail 은 note·samples 를 그대로 갖는다. 예: `user_search / light / 390x844 / dead_blank_region` → samples[0] = \"본문 390x844 / 잉크 358x426 — 하단 공백 41%, 우측 공백 4%, 잉크 26%, 굶주린 콘텐츠 있음 {'wrapped':1,...}\". report.html 도 마찬가지로 실패 화면마다 행을"
+   }
+  ],
+  "not_verified": [
+   {
+    "title": "`shell_sidebar` 의 responsive_audit 가 390x844 에서 PASS 인데, 근거로 건 캡처에는 사이드바가 아예 렌더돼 있지 않다 — 모바일 Drawer 형태는 이 Wave 에서 한 번도 측정되지 않았다",
+    "lens": "requirement",
+    "severity": "Medium"
+   },
+   {
+    "title": "R-79 가 요구한 '전체 Navigation Icon 전수 Audit 후 재설계' 가 남은 10개 랜드마크 글리프에는 적용되지 않았다 — 33개를 지웠을 뿐 어느 것도 다시 고르지 않았고, 실측 광학 무게가 2배 넘게 벌어진다",
+    "lens": "requirement",
+    "severity": "Medium"
+   },
+   {
+    "title": "R-48 이 이름으로 금지한 두 가지 — '큰 알약 배경' 과 hover 상태 — 에 자동 가드가 하나도 없다. 프로브가 borderRadius 를 이미 재고 있는데 판정에서 쓰지 않는다",
+    "lens": "requirement",
+    "severity": "Medium"
+   },
+   {
+    "title": "그룹 사이 간격이 행 높이의 10%다 — 22줄이 숨 쉴 곳 없는 한 덩어리 벽으로 읽힌다",
+    "lens": "design-taste",
+    "severity": "Medium"
+   },
+   {
+    "title": "그룹 글리프의 광학 크기·무게가 정규화되지 않았다 — 20px 칸 안에서 실제 높이가 10~18px(1.8배)로 흩어진다",
+    "lens": "design-taste",
+    "severity": "Medium"
+   },
+   {
+    "title": "Command Palette 가 사이드바와 다른 현재 언어를 쓴다 — 레일 폭·색·신호 수 셋 다 다르고, 이번 Wave 변경분의 배포 픽셀이 하나도 없다",
+    "lens": "design-taste",
+    "severity": "Medium"
+   },
+   {
+    "title": "관리자 접힘 기본 규칙이 1920 실측에서 나왔는데 뷰포트 조건 없이 적용된다 — 3840 에서 전부 펼쳐도 들어가는데 57%를 비우고 24개 목적지를 숨긴다",
+    "lens": "design-taste",
+    "severity": "Medium"
+   },
+   {
+    "title": "사용자 rail 은 22행에 글리프 4개뿐 — PLAN 이 그린 '사용자 rail 은 flat 항목들이 글리프 유지' 와 다른 중간 상태로 W11 까지 남는다",
+    "lens": "visual-before-after",
+    "severity": "Low"
+   },
+   {
+    "title": "아이콘 반복 개수가 네 곳의 정본 문서·소스 주석에서 똑같이 틀렸다 (`report` 4곳·`users` 3곳 → 실제 3곳·2곳)",
+    "lens": "requirement",
+    "severity": "Low"
+   },
+   {
+    "title": "새 static check `check_icon_props.py` 는 조회/팩토리로 얻어 `*Icon` 이 아닌 이름에 묶인 MUI 아이콘을 못 잡는다 — 원래 버그가 잡힌 것은 변수명이 우연히 `ItemIcon` 이었기 때문이다",
+    "lens": "requirement",
+    "severity": "Low"
+   },
+   {
+    "title": "390 좁은 화면에서 서랍이 열린 픽셀이 저장소 어디에도 없다 — 기하상 마지막 그룹 전체가 첫 화면 밖이다",
+    "lens": "design-taste",
+    "severity": "Low"
+   },
+   {
+    "title": "4K 사이드바 하단 44.3%(사용자)·56.9%(관리자)가 텍스처 없는 빈 판으로 남아 있다",
+    "lens": "design-taste",
+    "severity": "Low"
+   }
+  ],
+  "recheck": {
+   "run": "wf_9c8f1032-de5",
+   "note": "확인 7건의 **처리 결과**를 구현하지 않은 에이전트 3인이 다시 검증했다(배포본 픽셀 + 변이 주입). 4건 종결(F-W3R-04·05·06·07), 3건 반려. 반려 셋이 전부 진짜였고 이 Wave 에서 다시 고쳤다.",
+   "reopened_then_fixed": [
+    {
+     "id": "F-W3R-02",
+     "what": "펼침 적합성 판정은 옳았지만, 활성 그룹 강제 펼침 effect 의 조건을 `isCollapsed()` (기록 없음 + 자동 접힘 포함)로 걸어서 **화면 형편이 사용자 선택으로 localStorage 에 저장**됐다. 1366x768 에서 네 그룹을 한 번씩 방문하면 네 개 모두 `false` 로 굳어 자동 접힘이 무력화되고 결함이 새로고침에도 살아남는 형태로 되돌아왔다(재검증자가 배포본에서 그 경로를 실제로 밟았다).",
+     "fix": "조건을 **명시 기록**(`collapsed[g] === true`)으로 되돌렸다 — 자동으로 접힌 그룹은 활성일 때 `groupActive` 가 렌더 시점에 이미 펼쳐 주므로 저장할 것이 없다. `nav-contract.test.jsx` 에 «기록 없는 그룹은 아무것도 저장하지 않는다» 단언을 더했다."
+    },
+    {
+     "id": "F-W3R-03",
+     "what": "지적된 인스턴스는 고쳤지만 **거짓 초록을 가능하게 한 기제**가 그대로였다 — 게이트는 WORK_STATE 의 `wave:` 를 읽고 그 값을 믿기만 한다. 재검증자가 `wave: W3` → `W2` 로 한 글자만 바꿔 다시 초록을 만들어 실증했다.",
+     "fix": "게이트에 조건을 더했다 — **어떤 Surface 가 Wave X 소유이면서 이미 DONE 인데 CHECKPOINT 가 X 보다 앞이면 실패한다.** 그 상태의 초록은 이미 끝났다고 적힌 것을 범위에서 빼고 검사한 결과라 아무것도 뜻하지 않는다. 변이 주입으로 확인했다."
+    },
+    {
+     "id": "collateral",
+     "what": "이 Wave 가 새로 만든 것 넷: ① 프로브의 `lastRowBottom` 이 **접힌 Collapse 안의 행**을 세어 사이드바 빈 면을 8~16pp 작게 기록했고 그 숫자가 F-W3R-01 로 넘어갔다 ② `merge_qa_findings` 에 넣은 자동 증거 도장이 셸 Surface 를 재검증 없이 최신 번들로 올렸다 ③ CHECKPOINT 의 finding 집계가 원장과 어긋났다 ④ 팔레트 «최근 방문» 줄이 전부 같은 시계 글리프가 됐다(이 파일이 예전부터 금지해 둔 상태).",
+     "fix": "① 조상 `.MuiCollapse-root` 의 높이로 가시성을 판정하도록 고치고 수치를 다시 쟀다 (재검증자의 독립 픽셀 실측과 1~2pp 일치) ② 자동 도장을 **되돌리고**, W3 이 CommandPalette 를 고쳤으므로 `shell_e2e.py` 를 이 번들에서 다시 돌려 상단바 12 Flow 를 실제로 재검증한 뒤 그 결과로 증거를 갱신했다 ③ 원장에서 세어 258/43 으로 정정했다 ④ 최근 방문 줄도 **자기 랜드마크**의 글리프를 쓰도록 고쳤다 — 실측 4줄 4종류, 프로브가 «최근 방문 3줄 이상이 전부 같은 그림이면 실패» 를 판정에 넣었다."
+    }
+   ],
+   "closed_by_recheck": [
+    "F-W3R-04",
+    "F-W3R-05",
+    "F-W3R-06",
+    "F-W3R-07"
+   ]
+  }
  }
 }

@@ -33,7 +33,14 @@ SRC = ROOT / "frontend" / "src"
 RX_FW = re.compile(r'fontWeight:\s*([0-9]{3}|["\'][a-z]+["\'])', re.IGNORECASE)
 RX_FS = re.compile(r"fontSize:\s*([^,\n}]+)")
 
-TOKEN_LEAF_RE = re.compile(r"^(FONT_SIZE\.\w+|STAT_VALUE_FONT_SIZE|BRAND_UNIT|undefined)$")
+# 토큰 경로는 리터럴이 아니다. `remPx(ICON.x)` 가 여기 있는 이유는 W3 이 아이콘 크기를
+# **이름 있는 4단 슬롯**(`theme.js::ICON` — nav 20 · inline 18 · action 20 · hero 24)으로
+# 옮겼기 때문이다. 그 전에는 아이콘 크기가 `fontSize="small"` 과 무효 prop `size={18}` 로
+# 갈라져 있었고, 이 검사는 둘 다 못 봤다 — 자식 아이콘이 부모 그룹 아이콘보다 크게 그려지는
+# 결함이 그 사각지대에서 살았다(F-W1R-05). 이제 값이 한 표에서 나오므로 그 표를 인정한다.
+# `remPx()` 는 px 계약값을 4K 레버가 따라오는 rem 문자열로 바꾸는 변환 한 자리다.
+TOKEN_LEAF_RE = re.compile(
+    r"^(FONT_SIZE\.\w+|remPx\(ICON\.\w+\)|STAT_VALUE_FONT_SIZE|BRAND_UNIT|undefined)$")
 
 # 2026-08-16 직접 소스 문맥으로 낱개 확인됨(각 값이 실제로 어떤 역할인지 grep + 코드 대조로
 # 검증) — 새 예외를 추가하려면 같은 방식으로 확인한 뒤 이유를 적는다. 근거 없이 값만 늘리지

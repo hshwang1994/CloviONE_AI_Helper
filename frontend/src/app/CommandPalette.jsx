@@ -19,7 +19,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
 import { navIcon } from "./navIcons.js";
-import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
+import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, RADIUS, remPx } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
  *
@@ -48,9 +48,13 @@ const PALETTE_DEBOUNCE_MS = DEBOUNCE_MS.palette;
 /* 결과 유형 → 아이콘 (지시 14: "최근 방문, 메뉴, 티켓, 문서 등 검색 결과 유형을 쉽게 구분").
  *
  * 줄마다 유형을 **글자로** 다시 적으면 구역 제목과 같은 말을 두 번 한다(지시 44). 그래서
- * 유형은 그림으로 말한다. 아이콘은 **사이드바와 같은 계열·같은 키**(navIcons.js)에서 온다 —
- * 팔레트에서 본 그림과 사이드바에서 볼 그림이 다르면 그 둘이 같은 곳이라는 것을 못 배운다
+ * 유형은 그림으로 말한다. 계열은 사이드바와 같은 하나다(`navIcons.js`, MUI `*Outlined`) —
+ * 팔레트에서 본 그림과 다른 화면에서 볼 그림이 다르면 그 둘이 같은 것이라는 걸 못 배운다
  * (지시 79: 아이콘은 한 계열).
+ *
+ * 이 표는 **엔티티 유형**을 말한다. 같은 목록의 메뉴 줄은 자기 **랜드마크 그룹**의 글리프를
+ * 쓴다(아래 `sections`) — 한 열에서 두 질문에 답하지만 답의 단위는 언제나 '유형 하나에
+ * 그림 하나' 다. 목적지마다 그림을 따로 주지는 않는다(R-48).
  *
  * 서버가 유형을 늘리면 여기 매핑이 없어도 죽지 않는다 — `null` 이면 줄이 아이콘 없이
  * 그려지고 구역 제목이 유형을 계속 말한다. 화면이 유형별 if 로 갈라지지 않는다는
@@ -94,9 +98,11 @@ export function CommandPalette({ open, onClose, groups }) {
       // 다녀간 경로만, 지금 이 역할에서도 여전히 유효한 것만, 지금 보고 있는 화면은
       // 빼고 보여준다 — 역할이 바뀌어 더는 못 보는 메뉴나 detail 경로(예: /tickets/:id)는
       // groups에 없으니 자연히 걸러진다.
+      // 항목과 함께 **그 항목이 사는 그룹의 글리프**를 기억해 둔다 — 최근 방문 목록은 여러
+      // 그룹에서 모이므로, 그러지 않으면 줄마다 소속을 잃고 전부 같은 그림이 된다.
       const byPath = new Map();
       for (const g of groups || []) {
-        for (const it of g.items) byPath.set(it.to, it);
+        for (const it of g.items) byPath.set(it.to, { ...it, groupIcon: g.icon });
       }
       const items = readRecentNav()
         .filter((path) => path !== loc.pathname)
@@ -107,6 +113,8 @@ export function CommandPalette({ open, onClose, groups }) {
     return (groups || [])
       .map((g) => ({
         group: g.group,
+        // 랜드마크 글리프를 함께 나른다 — 아래 `sections` 가 결과 줄 앞에 그것을 놓는다.
+        icon: g.icon,
         items: g.items.filter((it) => normalize(it.label).includes(needle) || normalize(g.group).includes(needle)),
       }))
       .filter((g) => g.items.length);
@@ -131,13 +139,17 @@ export function CommandPalette({ open, onClose, groups }) {
     const out = navResults.map((g) => ({
       key: g.recent ? "recent" : "nav:" + g.group,
       label: g.recent ? g.group : "메뉴 › " + g.group,
-      /* 메뉴 결과는 **그 항목이 사이드바에서 쓰는 바로 그 아이콘**을 단다. 최근 방문도
-         메뉴 항목이라 같은 아이콘을 쓰되, 시계 아이콘으로 덮지 않는다 — 덮으면 최근 방문
-         네 줄이 전부 같은 그림이 되어 서로 구분이 안 된다. 구역 제목이 '최근 방문' 을
-         이미 말한다. */
+      /* 메뉴 결과의 글리프는 **그 목적지가 사는 랜드마크**(사이드바 그룹)의 것이다.
+         항목마다 자기 글리프를 달던 시절에는 `ticket` 이 네 곳, `report` 가 네 곳에서
+         반복돼 훑을 때 서로 다른 목적지가 한 덩어리로 보였다(R-48 이 금지한 상태) —
+         W3 이 사이드바에서 그 반복을 걷어내면서 여기 표도 같이 정리됐다.
+         최근 방문은 그룹이 아니라 이력이라 시계 글리프를 쓴다. */
       items: g.items.map((it) => ({
         key: "nav:" + it.to, label: it.label, hint: it.to, to: it.to,
-        Icon: navIcon(it.icon) || (g.recent ? HistoryRoundedIcon : null),
+        /* 최근 방문 줄도 **자기 랜드마크**의 글리프를 쓴다. 시계로 덮으면 네 줄이 전부 같은
+           그림이 되어 서로 구분이 안 된다 — 이 파일이 예전부터 적어 두었던 경고이고, 그
+           상태를 한 번 만들었다가 독립 재검증이 잡았다. 소속을 모를 때만 시계로 떨어진다. */
+        Icon: it.groupIcon || g.icon || (g.recent ? HistoryRoundedIcon : null),
       })),
     }));
     const serverGroups = (search.data && search.data.groups) || [];
@@ -418,13 +430,16 @@ function PaletteRow({ item, selected, onHover, onPick }) {
           color: selected ? "primary.main" : "text.faint",
         }}
       >
-        {Icon ? <Icon fontSize="small" /> : null}
+        {Icon ? <Icon aria-hidden="true" sx={{ fontSize: remPx(ICON.nav) }} /> : null}
       </Box>
       <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "baseline", gap: 1.5 }}>
         <Typography
           component="span"
           sx={{
-            fontSize: FONT_SIZE.body, fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+            /* 굵기는 선택으로 바뀌지 않는다 — 한글에서 weight 전환은 글자 폭을 실제로
+               바꿔 줄이 움직인다. 선택 신호는 이미 셋이다(레일 · 오목면 · Enter 표지).
+               nav 라벨 굵기는 제품 전체에서 medium 고정이다(PLAN «Navigation 상태»). */
+            fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.medium,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}
         >

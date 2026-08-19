@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+
 import { NAV, USER_NAV } from "./navConfig.js";
 
 /* 관리자 사이드바 IA 계약 (지시 30 · 51 · 60).
@@ -99,18 +104,45 @@ describe("관리자 사이드바 — 라벨 용어 규칙", () => {
   });
 });
 
-describe("옮긴 항목의 role·배지·아이콘은 한 글자도 안 바뀐다", () => {
+describe("옮긴 항목의 role·배지는 한 글자도 안 바뀌고, 글리프는 그룹 하나가 갖는다", () => {
+  /* 옛 판은 네 번째 칸에 **항목별 아이콘 키**를 못박고 있었다(`"flag"`·`"announce"`·`"ai"`…).
+   * 그 상태 자체가 R-48 이 금지한 것이었다 — `ticket` 네 곳, `report` 네 곳, `docs` 세 곳처럼
+   * 같은 그림이 여러 목적지에서 반복돼 훑을 때 서로 다른 화면이 한 덩어리로 보였고, 41개
+   * 글리프가 라벨 시작선을 그룹 60px / 자식 64px 로 갈라 놓았다(F-W1R-18 픽셀 실측).
+   *
+   * W3 «Icon System» 의 규칙은 하나다: **그룹이 글리프를 가지면 자식은 갖지 않는다.**
+   * 그래서 네 번째 칸이 **그 항목이 사는 그룹의 랜드마크 글리프 컴포넌트**로 바뀐다.
+   * 고정 강도는 오히려 올라간다 — 문자열 키 비교가 컴포넌트 **동일성** 비교가 되고,
+   * "자식에 키가 되돌아오지 않았다"는 단언이 하나 더 붙는다. 규칙이 되돌려지면 둘 중
+   * 하나가 반드시 깨진다. */
   it.each([
-    ["/feature-flags", "설정", ["operator", "admin", "system_admin", "auditor"], "flag"],
-    ["/announcements", "설정", ["operator", "admin", "system_admin", "auditor"], "announce"],
-    ["/prompts", "AI", ["operator", "admin", "system_admin", "auditor"], "ai"],
-    ["/approvals", "사용자와 권한", ["operator", "admin", "system_admin", "auditor"], "check"],
-    ["/integrations", "자동화와 연동", ["operator", "admin", "system_admin", "auditor"], "integration"],
-  ])("%s: %s 그룹, 역할·아이콘 보존", (to, expectedGroup, roles, icon) => {
+    ["/feature-flags", "설정", ["operator", "admin", "system_admin", "auditor"], SettingsOutlinedIcon],
+    ["/announcements", "설정", ["operator", "admin", "system_admin", "auditor"], SettingsOutlinedIcon],
+    ["/prompts", "AI", ["operator", "admin", "system_admin", "auditor"], SmartToyOutlinedIcon],
+    ["/approvals", "사용자와 권한", ["operator", "admin", "system_admin", "auditor"], ManageAccountsOutlinedIcon],
+    ["/integrations", "자동화와 연동", ["operator", "admin", "system_admin", "auditor"], AutoAwesomeOutlinedIcon],
+  ])("%s: %s 그룹, 역할 보존 · 글리프는 그룹의 것 하나", (to, expectedGroup, roles, GroupIcon) => {
     const item = findItem(NAV, to);
     expect(item.group).toBe(expectedGroup);
     expect(item.roles).toEqual(roles);
-    expect(item.icon).toBe(icon);
+    expect(item.icon, `${to} 에 자식 아이콘 키가 되돌아왔다`).toBeUndefined();
+    expect(group(NAV, expectedGroup).icon, `${expectedGroup} 그룹이 랜드마크 글리프를 잃었다`)
+      .toBe(GroupIcon);
+  });
+
+  it("두 콘솔의 **모든** 자식 항목에 아이콘 키가 없다 — 규칙은 다섯 줄이 아니라 전수다", () => {
+    const withIcon = [...NAV, ...USER_NAV]
+      .flatMap((g) => g.items.map((it) => ({ group: g.group, to: it.to, icon: it.icon })))
+      .filter((x) => x.icon !== undefined);
+    expect(withIcon, "그룹이 글리프를 가지면 자식은 갖지 않는다 (PLAN «Icon System»)").toEqual([]);
+  });
+
+  it("모든 그룹이 글리프를 정확히 하나 갖고, 한 콘솔 안에서 그림이 반복되지 않는다", () => {
+    for (const nav of [NAV, USER_NAV]) {
+      const icons = nav.map((g) => g.icon);
+      expect(icons.filter(Boolean), "글리프 없는 그룹이 있다").toHaveLength(nav.length);
+      expect(new Set(icons).size, "같은 그림을 두 그룹이 쓴다").toBe(nav.length);
+    }
   });
 
   it("배지를 들고 있던 항목은 그대로 들고 있다", () => {
