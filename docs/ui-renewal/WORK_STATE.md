@@ -34,6 +34,7 @@
   여기에 W1 독립 리뷰 잔여 34건 + F-0100(High, W12)이 별도로 있다
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
   `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
+- commit: `1af4f20d` (W2 전체 — 소스 · 번들 · 캡처 664장 · Control Plane)
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
 
 ## NOW
