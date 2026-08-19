@@ -5,7 +5,7 @@
 > 단일 관문 · secret 미노출 · 비밀번호 stdin 전용 · opaque 세션 · 서버측 RBAC · 불변성 · 작은 파일 ·
 > UTC 저장). 이 문서는 그 위에 얹히는 **새 결정**만 담는다.
 
-**마지막 갱신**: 2026-08-10 (Sonnet 구현 사이클 4 → MEGA CYCLE 전환, D-53)
+**마지막 갱신**: 2026-08-19 (UI/UX 리뉴얼 v7 계획 — D-168 · D-169)
 
 ---
 
@@ -7094,3 +7094,54 @@ cron 을 그대로 받는다. **표현력을 줄이지 않는 것이 이 설계�
 
 `매월`은 1~28일만 받는다. 29~31일은 없는 달이 있어 그 달에는 백업이 안 도는데, 그 사실은
 백업이 필요해진 날에야 알게 된다 — 고를 수 없게 막고 이유를 적는다.
+
+---
+
+## D-168 — Design Direction 전환: "계측 전면"(D-141)을 폐기하고 "인디고 계측면"으로
+
+**사용자 지시(v7 지시서 0-1)로 D-141 의 Design Thesis 를 폐기한다.** D-141 은 커밋
+`c8375ef5` 에서 "브랜드 인디고는 강조 세 자리에서만 나온다"는 방향을 세웠고, 캔버스를
+라벤더에서 무채색 회색으로 옮기고 사이드바 그라디언트를 제거했다. 그 결과 제품은
+White/Gray 업무 포털이 되었고 Brand 는 로고에만 남았다. 사용자는 이것을 **실패로 규정**했다.
+
+새 방향은 **인디고 계측면(Indigo Instrument)** 이다. Top bar 와 Sidebar 가 하나의 L 자
+Brand 오브젝트가 되고, 그 안에 인디고 계열 Work Canvas 가 놓인다. 데이터는 여전히 무채색·
+정밀하게 유지한다 — D-141 이 벌어들인 계측 규율(등폭 숫자, 선 위주 위계, 판에 그림자 없음,
+선택 신호 하나, 색쌍 실측)은 **유지한다**. 바뀌는 것은 Chrome 이 Brand 재료라는 점이다.
+
+핵심 구조 결정 두 가지:
+
+1. **Brand Identity 와 사용자 Accent 의 역할 분리.** `palette.brand` 와 새 `palette.chrome`
+   은 `theme.js` 고정이며 사용자 입력으로 바꿀 수 없다(Chrome, Nav Active Rail, 로고
+   워드마크, AI 영역, Chart 주요 시리즈). `palette.primary` 는 사용자 Accent 로 남아
+   Button·Link·Focus·선택 Row 를 담당한다. Accent 기능은 보존하되 **제품 정체성을 지울 수
+   없다.** `theme-contract.test.js` 가 이것을 단언한다.
+2. **측정 가능한 판정 기준.** `blue(chrome.shell) - red(chrome.shell) >= 24` 를 테스트로
+   박는다. 지금의 `#E7EAEE` 는 7 로 실패하고 새 `#1E2758` 은 88 로 통과한다. 이 단언이
+   없었기 때문에 D-141 의 탈색이 통과했다.
+
+`frontend/src/ui/theme.js` 헤더와 `scripts/generate_design_tokens.mjs` 의 D-141 참조는
+이 결정으로 갱신한다. D-142(목업 폐기)는 그대로 유효하다.
+
+전체 실행 계획은 `docs/ui-renewal/PLAN.md`, 요구사항 추적은
+`docs/ui-renewal/REQUIREMENT_MATRIX.md` 가 정본이다.
+
+## D-169 — 이번 리뉴얼은 디자인 축과 기능 정확성 축을 함께 간다
+
+사용자가 티켓 프로젝트 Filter 오동작을 실제로 겪었다. 그 화면은 288페이지 Assertion 을
+전부 통과했고 스크린샷도 멀쩡했다. 그래서 이번 작업은 **"정상이라고 가정했던 기본 기능이
+실제로는 틀려 있을 수 있다"**를 전제로 한다.
+
+- `docs/ui-renewal/FUNCTIONAL_COVERAGE.json` 을 네 번째 Control Artifact 로 둔다.
+  ROUTE_COVERAGE 와 Requirement Matrix 로 기능 검증을 대신하지 않는다 — Route 가 있고
+  Screenshot 이 있다는 사실은 기능이 정상이라는 증거가 아니다.
+- Functional Flow 의 `PASS` 는 실제 Browser Action 과 Network/API/Backend/Data 결과
+  Evidence 를 요구한다. 렌더 Evidence 만으로는 `PASS` 가 될 수 없다.
+- `전체 테스트 PASS`·`API 200`·`화면 렌더 성공`·`Visual Audit PASS` 중 어느 하나만으로
+  기능 완료를 판단하지 않는다.
+
+1순위 조사 대상은 `app/tickets/repository.py:80` 이 스스로 적어 둔 것이다 —
+`TicketDTO.project_ids` 는 외부 relation 을 캐시로 Portal id 에 해석한 값이고 캐시 전에는
+Portal id 를 알 수 없다. `TicketFilters.matches:147` 이 그 값으로 거르므로 relation 이
+있어도 조용히 탈락할 수 있고, Filter 옵션 목록은 `service.list_projects` 라는 다른 소스에서
+온다. 신규 요구사항 R-85~R-97 이 이 축을 담당한다.

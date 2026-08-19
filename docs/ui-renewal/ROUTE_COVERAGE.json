@@ -1,0 +1,8863 @@
+{
+ "schema_version": 1,
+ "generated_from_source": true,
+ "note": "이 파일은 소스에서 파생한다. 손으로 Surface 를 추가하지 않는다. REGISTRY 기반 admin Route 는 registry_key_source 가 하네스임을 밝히고 있으며 W0 의 registry-surface-parity.test.js 가 JS 쪽 진실로 검증한다.",
+ "source_of_truth": {
+  "user_routes": "frontend/src/app/UserRoutes.jsx",
+  "admin_routes": "frontend/src/app/AdminRoutes.jsx",
+  "tab_groups": "frontend/src/app/AdminRoutes.jsx::TAB_GROUPS",
+  "settings_tabs": "frontend/src/screens/settings/SettingsShell.jsx::TAB_DEFS",
+  "registry_keys": "frontend/src/screens/registry.js",
+  "harness": "scripts/ui_qa/routes.py::ALL_ROUTES"
+ },
+ "capture_labels": {
+  "before": "before-renewal",
+  "after": null
+ },
+ "waves": [
+  "W0",
+  "W1",
+  "W2",
+  "W3",
+  "W4",
+  "W5",
+  "W5B",
+  "W6",
+  "W7",
+  "W8",
+  "W9",
+  "W10",
+  "W11",
+  "W12",
+  "W13",
+  "W14",
+  "W15"
+ ],
+ "responsive_profiles": {
+  "major_v1": {
+   "viewports": [
+    "390x844",
+    "1366x768",
+    "1920x1080",
+    "3840x2160"
+   ],
+   "themes": [
+    "light",
+    "dark"
+   ],
+   "zooms": [
+    100,
+    125,
+    150
+   ],
+   "min_combos": 12
+  },
+  "minor_v1": {
+   "viewports": [
+    "390x844",
+    "1920x1080"
+   ],
+   "themes": [
+    "light",
+    "dark"
+   ],
+   "zooms": [
+    100
+   ],
+   "min_combos": 4
+  },
+  "modal_v1": {
+   "viewports": [
+    "390x844",
+    "1366x768",
+    "1920x1080"
+   ],
+   "themes": [
+    "light"
+   ],
+   "zooms": [
+    100
+   ],
+   "min_combos": 3
+  }
+ },
+ "surfaces": [
+  {
+   "id": "user_me",
+   "kind": "route",
+   "route": "/me",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/me\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_search",
+   "kind": "route",
+   "route": "/search",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/search\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_my-tickets",
+   "kind": "route",
+   "route": "/my-tickets",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/my-tickets\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_unassigned",
+   "kind": "route",
+   "route": "/unassigned",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/unassigned\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_new-ticket",
+   "kind": "route",
+   "route": "/new-ticket",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/new-ticket\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_tickets-id",
+   "kind": "route",
+   "route": "/tickets/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/tickets/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_team-tickets",
+   "kind": "route",
+   "route": "/team-tickets",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/team-tickets\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_projects",
+   "kind": "route",
+   "route": "/projects",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/projects\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_projects-id",
+   "kind": "route",
+   "route": "/projects/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/projects/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_sprint",
+   "kind": "route",
+   "route": "/sprint",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/sprint\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_chat",
+   "kind": "route",
+   "route": "/chat",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/chat\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_chat-rooms",
+   "kind": "route",
+   "route": "/chat-rooms",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/chat-rooms\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_chat-rooms-id",
+   "kind": "route",
+   "route": "/chat-rooms/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/chat-rooms/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_board",
+   "kind": "route",
+   "route": "/board",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/board\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_ideas",
+   "kind": "route",
+   "route": "/ideas",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/ideas\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_board-id",
+   "kind": "route",
+   "route": "/board/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/board/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_team-docs",
+   "kind": "route",
+   "route": "/team-docs",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/team-docs\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_team-docs-trash",
+   "kind": "route",
+   "route": "/team-docs/trash",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/team-docs/trash\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_team-docs-id",
+   "kind": "route",
+   "route": "/team-docs/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/team-docs/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_games",
+   "kind": "route",
+   "route": "/games",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/games\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_games-id",
+   "kind": "route",
+   "route": "/games/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/games/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_notifications",
+   "kind": "route",
+   "route": "/notifications",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/notifications\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_my-approvals",
+   "kind": "route",
+   "route": "/my-approvals",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/my-approvals\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0005",
+     "class": "never_captured",
+     "severity": "High",
+     "title": "UserRoutes.jsx 에 있지만 scripts/ui_qa/routes.py 에 없다. 한 번도 캡처된 적이 없다 (MyApprovals.jsx, 164줄).",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": false
+  },
+  {
+   "id": "user_profile",
+   "kind": "route",
+   "route": "/profile",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/profile\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_my-stats",
+   "kind": "route",
+   "route": "/my-stats",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/my-stats\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_activity",
+   "kind": "route",
+   "route": "/activity",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/activity\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_my-display",
+   "kind": "route",
+   "route": "/my-display",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/my-display\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0006",
+     "class": "never_captured",
+     "severity": "High",
+     "title": "UserRoutes.jsx 에 있지만 scripts/ui_qa/routes.py 에 없다. 한 번도 캡처된 적이 없다 (DisplaySettings.jsx, 27줄).",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": false
+  },
+  {
+   "id": "admin_dashboard",
+   "kind": "route",
+   "route": "/dashboard",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/dashboard\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_integrity",
+   "kind": "route",
+   "route": "/integrity",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/integrity\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_search",
+   "kind": "route",
+   "route": "/search",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/search\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_users",
+   "kind": "route",
+   "route": "/users",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/users\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_users-id",
+   "kind": "route",
+   "route": "/users/:id",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/users/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_offboarding",
+   "kind": "route",
+   "route": "/offboarding",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/offboarding\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_settings",
+   "kind": "route",
+   "route": "/settings",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/settings\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_setup",
+   "kind": "route",
+   "route": "/setup",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/setup\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_system",
+   "kind": "state_variant",
+   "route": "/system",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_settings",
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/system\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0001",
+     "class": "coverage_lies",
+     "severity": "Critical",
+     "title": "AdminRoutes.jsx:216 은 <Navigate to=\"/settings?tab=os\"> 인데 scripts/ui_qa/routes.py:286 이 이것을 화면으로 등록한다. 캡처 4장이 실제로는 2화면이고 Assertion 23개가 리다이렉트 도착지에서 통과한다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_notion-console",
+   "kind": "state_variant",
+   "route": "/notion-console",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_settings",
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/notion-console\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0002",
+     "class": "coverage_lies",
+     "severity": "Critical",
+     "title": "AdminRoutes.jsx:217 은 리다이렉트인데 routes.py:288 이 화면으로 등록한다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_llm-console",
+   "kind": "state_variant",
+   "route": "/llm-console",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_settings",
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/llm-console\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0003",
+     "class": "coverage_lies",
+     "severity": "Critical",
+     "title": "AdminRoutes.jsx:218 은 리다이렉트인데 routes.py:289 가 화면으로 등록한다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_maintenance",
+   "kind": "state_variant",
+   "route": "/maintenance",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_settings",
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/maintenance\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0004",
+     "class": "coverage_lies",
+     "severity": "Critical",
+     "title": "AdminRoutes.jsx:219 는 리다이렉트인데 routes.py:210 이 화면으로 등록한다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_mail",
+   "kind": "route",
+   "route": "/mail",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/mail\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_diagnostics",
+   "kind": "route",
+   "route": "/diagnostics",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/diagnostics\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_dev-report",
+   "kind": "route",
+   "route": "/dev-report",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/dev-report\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_org-tree",
+   "kind": "route",
+   "route": "/org-tree",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/org-tree\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_organizations",
+   "kind": "route",
+   "route": "/organizations",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/organizations\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_departments",
+   "kind": "route",
+   "route": "/departments",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/departments\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_departments-id",
+   "kind": "route",
+   "route": "/departments/:id",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/departments/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_audit-id",
+   "kind": "route",
+   "route": "/audit/:id",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/audit/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": false
+  },
+  {
+   "id": "admin_backup__backup",
+   "kind": "tab",
+   "route": "/backup?tab=backup",
+   "console": "admin",
+   "host_surface": "admin_backup",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "backup",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /backup)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_backup__restore-drills",
+   "kind": "tab",
+   "route": "/backup?tab=restore-drills",
+   "console": "admin",
+   "host_surface": "admin_backup",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "restore-drills",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /backup)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_approvals__approvals",
+   "kind": "tab",
+   "route": "/approvals?tab=approvals",
+   "console": "admin",
+   "host_surface": "admin_approvals",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "approvals",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /approvals)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_approvals__approval-delegations",
+   "kind": "tab",
+   "route": "/approvals?tab=approval-delegations",
+   "console": "admin",
+   "host_surface": "admin_approvals",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "approval-delegations",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /approvals)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_audit__audit",
+   "kind": "tab",
+   "route": "/audit?tab=audit",
+   "console": "admin",
+   "host_surface": "admin_audit",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "audit",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /audit)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_audit__audit-anomalies",
+   "kind": "tab",
+   "route": "/audit?tab=audit-anomalies",
+   "console": "admin",
+   "host_surface": "admin_audit",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "audit-anomalies",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /audit)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_ai-usage__policy-usage",
+   "kind": "tab",
+   "route": "/ai-usage?tab=policy-usage",
+   "console": "admin",
+   "host_surface": "admin_ai-usage",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "policy-usage",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": false
+  },
+  {
+   "id": "admin_ai-usage__prompt-usage",
+   "kind": "tab",
+   "route": "/ai-usage?tab=prompt-usage",
+   "console": "admin",
+   "host_surface": "admin_ai-usage",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "prompt-usage",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": false
+  },
+  {
+   "id": "admin_schedules__schedules",
+   "kind": "tab",
+   "route": "/schedules?tab=schedules",
+   "console": "admin",
+   "host_surface": "admin_schedules",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "schedules",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /schedules)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_schedules__scheduler-calendar",
+   "kind": "tab",
+   "route": "/schedules?tab=scheduler-calendar",
+   "console": "admin",
+   "host_surface": "admin_schedules",
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "scheduler-calendar",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /schedules)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_settings__policy",
+   "kind": "tab",
+   "route": "/settings?tab=policy",
+   "console": "admin",
+   "host_surface": "admin_settings",
+   "component": "frontend/src/screens/ops/Maintenance.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "settings_panel",
+   "source": "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_settings__os",
+   "kind": "tab",
+   "route": "/settings?tab=os",
+   "console": "admin",
+   "host_surface": "admin_settings",
+   "component": "frontend/src/screens/SystemOps.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "settings_panel",
+   "source": "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0007",
+     "class": "never_captured",
+     "severity": "High",
+     "title": "SettingsShell TAB_DEFS 의 os 탭 본문(SystemOps.jsx, 389줄)이 직접 캡처된 적이 없다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_settings__integration",
+   "kind": "tab",
+   "route": "/settings?tab=integration",
+   "console": "admin",
+   "host_surface": "admin_settings",
+   "component": "frontend/src/screens/NotionConsole.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "settings_panel",
+   "source": "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0008",
+     "class": "never_captured",
+     "severity": "High",
+     "title": "integration 탭 본문(NotionConsole.jsx, 433줄)이 직접 캡처된 적이 없다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_settings__ai",
+   "kind": "tab",
+   "route": "/settings?tab=ai",
+   "console": "admin",
+   "host_surface": "admin_settings",
+   "component": "frontend/src/screens/LlmConsole.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "settings_panel",
+   "source": "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [
+    {
+     "id": "F-0009",
+     "class": "never_captured",
+     "severity": "High",
+     "title": "ai 탭 본문(LlmConsole.jsx, 394줄)이 직접 캡처된 적이 없다.",
+     "detected_by": "plan_investigation",
+     "first_seen": "ev:note:docs/ui-renewal/PLAN.md#control-plane",
+     "requirement_ids": [
+      "R-0-6",
+      "R-95"
+     ],
+     "status": "OPEN",
+     "closed_by": [],
+     "accepted_reason": null
+    }
+   ],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_ai-quotas",
+   "kind": "route",
+   "route": "/ai-quotas",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "ai-quotas",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_announcements",
+   "kind": "route",
+   "route": "/announcements",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "announcements",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_approval-delegations",
+   "kind": "route",
+   "route": "/approval-delegations",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "approval-delegations",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_audit-anomalies",
+   "kind": "route",
+   "route": "/audit-anomalies",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "audit-anomalies",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_documents",
+   "kind": "route",
+   "route": "/documents",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "documents",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_feature-flags",
+   "kind": "route",
+   "route": "/feature-flags",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "feature-flags",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_impersonation",
+   "kind": "route",
+   "route": "/impersonation",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "impersonation",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_integrations",
+   "kind": "route",
+   "route": "/integrations",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "integrations",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_job-titles",
+   "kind": "route",
+   "route": "/job-titles",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "job-titles",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_jobs",
+   "kind": "route",
+   "route": "/jobs",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "jobs",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "public_login",
+   "kind": "route",
+   "route": "/login",
+   "console": "public",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "auth",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_notion-mapping",
+   "kind": "route",
+   "route": "/notion-mapping",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "notion-mapping",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_policies",
+   "kind": "route",
+   "route": "/policies",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "policies",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_policy-usage",
+   "kind": "route",
+   "route": "/policy-usage",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "policy-usage",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_prompt-usage",
+   "kind": "route",
+   "route": "/prompt-usage",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "prompt-usage",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_prompts",
+   "kind": "route",
+   "route": "/prompts",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "prompts",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_rbac",
+   "kind": "route",
+   "route": "/rbac",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "rbac",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_restore-drills",
+   "kind": "route",
+   "route": "/restore-drills",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "restore-drills",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_runners",
+   "kind": "route",
+   "route": "/runners",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "runners",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_scheduler-calendar",
+   "kind": "route",
+   "route": "/scheduler-calendar",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "scheduler-calendar",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_search-empty",
+   "kind": "route",
+   "route": "/search?q=존재하지않는검색어zz",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_search-results",
+   "kind": "route",
+   "route": "/search?q=회의",
+   "console": "user",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_templates",
+   "kind": "route",
+   "route": "/templates",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "templates",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_workflows",
+   "kind": "route",
+   "route": "/workflows",
+   "console": "admin",
+   "host_surface": null,
+   "component": null,
+   "render_engine": "DataScreen",
+   "registry_key": "workflows",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_me__work-summary",
+   "kind": "widget",
+   "route": "/me",
+   "console": "user",
+   "host_surface": "user_me",
+   "component": "frontend/src/screens/WorkSummary.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/screens/WorkSummary.jsx (host 화면 안에 임베드 - 자기 Route 가 없다)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_me__assistant-panel",
+   "kind": "widget",
+   "route": "/me",
+   "console": "user",
+   "host_surface": "user_me",
+   "component": "frontend/src/screens/AssistantPanel.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/screens/AssistantPanel.jsx (host 화면 안에 임베드 - 자기 Route 가 없다)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "user_chat-rooms__chat-pane",
+   "kind": "widget",
+   "route": "/chat-rooms",
+   "console": "user",
+   "host_surface": "user_chat-rooms",
+   "component": "frontend/src/screens/ChatPane.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/screens/ChatPane.jsx (host 화면 안에 임베드 - 자기 Route 가 없다)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  },
+  {
+   "id": "admin_users__bulk",
+   "kind": "widget",
+   "route": "/users",
+   "console": "admin",
+   "host_surface": "admin_users",
+   "component": "frontend/src/screens/UsersBulk.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "unknown",
+   "source": "frontend/src/screens/UsersBulk.jsx (host 화면 안에 임베드 - 자기 Route 가 없다)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W0",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {},
+   "in_harness": true
+  }
+ ]
+}
