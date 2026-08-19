@@ -390,14 +390,27 @@ const TOKENS = {
     brandTint: "#E9ECFA",
     text: "#161A2C",
     muted: "#565E7A",
-    /* `faint` 는 `muted` 와 대비가 1.10:1 이다 — 눈으로는 **같은 색**이고 3단 잉크 위계는
-       사실상 2단이다. 이것은 값 선택 실수가 아니라 제약이다: 다섯 면(plate·inset·canvas·
+    /* `faint` 는 **본문 잉크가 아니다** (W4 결정, F-W1R-03 / F-W1-02).
+       W1 은 이 자리에 제약을 적어 두고 판단을 W4 로 넘겼다: 다섯 면(plate·inset·canvas·
        sunken·brandTint) 전부에서 AA(4.5)를 요구하면 가장 어두운 면 기준 여유가 5.24 -> 4.5,
-       즉 1.16배뿐이라 세 단계를 시각적으로 벌릴 자리가 없다. 실제로 벌리려면 `faint` 를
-       **AA-large(3:1) 가 허용되는 자리 — 18.66px 이상 또는 굵은 글자 — 로 한정**해야 하고,
-       그 판단은 잉크 소비처를 소유하는 W4 의 몫이다(F-W1-02). 그때까지 두 값은 같은 단계로
-       취급한다. `theme-contract.test.js` 가 이 분리도를 단언해 더 나빠지지 않게 잡는다. */
-    faint: "#5C6480",
+       즉 1.16배뿐이라 세 단계를 시각적으로 벌릴 자리가 **없다.** 옛 값(#5C6480)은 `muted` 와
+       대비 1.10:1 로 눈에는 같은 색이었고, 3단이라고 부르던 위계가 실제로는 2단이었다.
+       W4 의 결정은 값을 조금 미는 것이 아니라 **역할을 좁히는 것**이다:
+
+         `faint` 는 AA-large(3:1) 가 허용되는 자리에만 쓴다 —
+           · 18.66px 이상 텍스트 또는 굵은 14px 이상
+           · 텍스트가 아닌 글리프·표지(항상 글자가 함께 있는 것)
+           · `text.disabled`(WCAG 는 비활성 요소를 대비 요구에서 제외한다)
+
+       그 대가로 값을 실제로 벌렸다: 다섯 면 최악 3.42(L) / 3.90(D) 로 AA-large 를 넘고,
+       `muted` 와의 분리도가 1.10 -> **1.53(L) / 1.60(D)** 가 된다. 본문 크기에서 셋째
+       단계가 필요하면 색이 아니라 **크기와 자리**로 만든다(`MetricStrip` 의 각주가 그 예다).
+       `scripts/check_ink_scale.py` 가 소비처를 그 범위 안에 묶고,
+       `theme-contract.test.js` 가 3.0 하한과 분리도 하한을 함께 단언한다.
+       `text.disabled` 는 이 값을 따라오지 않는다 — 아래 `disabledInk` 가 따로 있다. */
+    faint: "#737B99",
+    /* 비활성 잉크. `faint` 의 옛 값이다 — 역할이 갈리면서 값도 갈렸다. */
+    disabledInk: "#5C6480",
     line: "#DCDFEC",
     lineStrong: "#BCC2D9",
     accent: "#5B54B8",
@@ -428,7 +441,10 @@ const TOKENS = {
     brandTint: "#1E2244",
     text: "#E5E8F5",
     muted: "#9BA4C4",
-    faint: "#8C96B8",
+    /* AA-large 전용 (위 light `faint` 주석이 정본이다). 다섯 면 최악 3.90, `muted` 와 1.60. */
+    faint: "#767FA2",
+    /* 비활성 잉크. `faint` 의 옛 값이다 — 역할이 갈리면서 값도 갈렸다(위 palette 주석). */
+    disabledInk: "#8C96B8",
     line: "#242A46",
     lineStrong: "#333B5E",
     accent: "#A99CF5",
@@ -515,7 +531,13 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
         surface2: t.inset,
         surface3: t.sunken,
       },
-      text: { primary: t.text, secondary: t.muted, disabled: t.faint, faint: t.faint },
+      /* `disabled` 를 `faint` 에서 **떼어 냈다**(W4 실측). 둘은 우연히 같은 값을 쓰고 있었을
+       * 뿐 서로 다른 역할이다 — `faint` 는 AA-large 자리 전용이 되면서 밝아졌는데, MUI 는
+       * 그 값을 **비활성 입력의 라벨**에도 쓴다. 배포본 실측에서 `/profile` 의 «시작»·«종료»
+       * 라벨이 4.18:1(light) / 4.47:1(dark) 로 AA 아래로 내려갔다. WCAG 는 비활성 요소를
+       * 대비 요구에서 빼 주지만(1.4.3) **읽히지 않는 비활성 값은 여전히 나쁘다** — 사용자는
+       * 그 칸에 무엇이 설정돼 있는지 알아야 한다. `disabled` 는 옛 값을 지킨다. */
+      text: { primary: t.text, secondary: t.muted, disabled: t.disabledInk, faint: t.faint },
       divider: t.line,
       dividerStrong: t.lineStrong,
       /* Chrome — Top bar + Sidebar. **Brand 고정이고 사용자 Accent 를 따르지 않는다.** */
@@ -772,7 +794,66 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           },
         },
       },
-      MuiTooltip: { defaultProps: { enterDelay: 400 } },
+      /* ── 떠 있는 면(overlay · modal) — PLAN «Surface 위계» 의 마지막 두 줄 ─────────
+       *
+       * 그 표는 overlay(메뉴·팝오버·툴팁)와 modal(다이얼로그·드로어)에 `1px divider` 테두리와
+       * `lg`(14) 모서리, 그리고 각자의 그림자를 주는데 **구현이 하나도 없었다.** 그래서
+       * 실측이 이렇게 갈라져 있었다: 모달만 14px(kit.jsx 가 sx 로 직접 준다) · 메뉴/팝오버/
+       * 툴팁은 `shape.borderRadius`(8) · 테두리는 어디에도 없음. 같은 "떠 있는 것" 이 세 가지
+       * 모양이었다는 뜻이다.
+       *
+       * 이 override 들이 W4 의 것인 이유: 이 파일은 W1 이 소유하지만 **Surface 위계 표 자체가
+       * W4 의 계약**이고, 표의 두 줄만 구현이 없는 상태였다. 값은 전부 위 `RADIUS`·`SHADOW`
+       * 토큰에서 나온다 — 새 숫자를 만들지 않는다.
+       *
+       * `MuiDrawer` 는 여기 넣지 않는다. 드로어는 화면 가장자리에 붙는 **하우징**이고
+       * (사이드바가 그것이다) 네 모서리를 둥글리면 붙어 있지 않은 것처럼 보인다. */
+      MuiMenu: {
+        styleOverrides: {
+          paper: ({ theme }) => ({
+            borderRadius: RADIUS.lg,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: theme.shadowTokens.overlay,
+          }),
+        },
+      },
+      MuiPopover: {
+        styleOverrides: {
+          paper: ({ theme }) => ({
+            borderRadius: RADIUS.lg,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: theme.shadowTokens.overlay,
+          }),
+        },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: ({ theme }) => ({
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: theme.shadowTokens.modal,
+          }),
+        },
+      },
+      MuiTooltip: {
+        defaultProps: { enterDelay: 400 },
+        styleOverrides: {
+          tooltip: {
+            /* 11px 이었다. `micro`(12)가 **절대 하한**이고 한글에서 11px 은 실제로 너무 작다
+             * (`tiny_text` 검사가 폭 >=2200 에서만 돌아 1920 에서 안 잡혔을 뿐이다). */
+            fontSize: FONT_SIZE.micro,
+            /* **툴팁은 `overlay` tone 을 따르지 않는다 — 의도된 예외다.**
+             * 위 셋(Menu·Popover·Dialog)은 `RADIUS.lg` + `1px divider` 로 맞췄는데 툴팁만
+             * `sm` 이고 테두리가 없다. PLAN «Surface 위계» 의 `overlay` 행은 **떠 있으면서
+             * 내용을 담는 면**을 규정한다 — 그 안에서 클릭·스크롤·초점 이동이 일어나므로
+             * 자기 경계를 그려야 한다. 툴팁은 담지 않는다. 커서를 따라다니는 한 줄짜리
+             * 라벨이고, 대비가 높은 반전 칩 자체가 이미 경계다. 여기에 14px 모서리와
+             * 1px 테두리를 주면 «작은 대화상자» 처럼 보여 오히려 계약을 흐린다.
+             * 독립 검수가 이 자리를 «계약 한 줄이 2/3 만 구현됐다» 로 지목했다 —
+             * 누락이 아니라 결정이라는 것을 여기 적어 둔다. */
+            borderRadius: RADIUS.sm,
+          },
+        },
+      },
       MuiTypography: { defaultProps: { variantMapping: { sectionTitle: "h2", statValue: "p" } } },
     },
   });

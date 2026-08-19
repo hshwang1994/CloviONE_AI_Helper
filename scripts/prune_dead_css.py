@@ -166,7 +166,11 @@ def main() -> int:
         print("\nSELFTEST_OK" if not bad else f"\nSELFTEST_FAILED ({bad}개 파일)")
         return 0 if not bad else 1
 
-    blob = source_blob()
+    # `--include-comment-only` 는 판정 blob 에서 **주석을 뺀다.** 기본 판정이 소스를 통째로
+    # 부분 문자열 검색하는 탓에 «주석에만 남은 이름» 이 사용 중으로 읽히고, 그 사각지대가 W4 에서
+    # 죽은 클래스 서른을 가렸다(`find_dead_css.py` 가 이제 그 목록을 따로 보고한다).
+    # 기본값은 그대로 보수적이다 — 이 플래그는 그 목록을 **사람이 확인한 뒤** 쓰라고 있다.
+    blob = source_blob(without_comments="--include-comment-only" in sys.argv)
     total = 0
     for path in files:
         original = path.read_text(encoding="utf-8")

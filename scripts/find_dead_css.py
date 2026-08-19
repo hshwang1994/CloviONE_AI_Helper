@@ -79,7 +79,15 @@ def declared_classes(path: Path) -> set[str]:
     return found
 
 
-def source_blob() -> str:
+COMMENT_RE = re.compile(r"/\*.*?\*/|(?<![:\w])//[^\n]*", re.S)
+
+
+def strip_comments(text: str) -> str:
+    """JS/JSX 주석을 지운다. `https://` 의 `//` 는 남긴다(앞이 `:` 이면 건너뛴다)."""
+    return COMMENT_RE.sub(" ", text)
+
+
+def source_blob(*, without_comments: bool = False) -> str:
     """CSS 를 제외한 모든 소스를 한 덩어리로. 부분 문자열 검색용."""
     parts: list[str] = []
     for root in SOURCE_ROOTS:
@@ -90,9 +98,10 @@ def source_blob() -> str:
                 if "node_modules" in path.parts:
                     continue
                 try:
-                    parts.append(path.read_text(encoding="utf-8"))
+                    text = path.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
+                parts.append(strip_comments(text) if without_comments else text)
     return "\n".join(parts)
 
 
@@ -114,11 +123,19 @@ def main() -> int:
         return 1
 
     blob = source_blob()
+    # **이 도구의 사각지대를 이 도구가 보고한다.** `is_used` 는 소스를 통째로 부분 문자열
+    # 검색하므로 **주석에만 남은 이름도 «사용 중»** 이 된다. 보수적 판정이라 사고는 안 나지만,
+    # W4 에서 그 사각지대가 죽은 클래스 열둘을 가려 사람이 손으로 찾아야 했다 — `.k-table` 은
+    # kit.jsx 주석 두 곳에, `.k-input` 은 TeamDocs.jsx·BodyEditor.jsx 주석에 있었다.
+    # 기본 판정은 그대로 둔다(잘못 지우면 빌드도 테스트도 못 잡는 사고다). 대신 주석을 뺐을 때
+    # 사라지는 이름을 **따로 보고**한다 — 지울지 말지는 사람이 판단한다.
+    code_blob = source_blob(without_comments=True)
     show_list = "--list" in sys.argv
     show_used = "--used" in sys.argv
 
     total_declared = 0
     total_dead = 0
+    comment_only: list[str] = []
     print(f"소스 검색 대상 {len(blob):,} 글자\n")
     print(f"{'파일':<20} {'선언':>6} {'사용':>6} {'미사용':>7}")
     print("-" * 44)
@@ -127,6 +144,7 @@ def main() -> int:
         declared = declared_classes(path)
         dead = sorted(n for n in declared if not is_used(n, blob))
         used = sorted(n for n in declared if is_used(n, blob))
+        comment_only += [f"{path.name}: .{n}" for n in used if not is_used(n, code_blob)]
         per_file[path.name] = dead
         total_declared += len(declared)
         total_dead += len(dead)
@@ -144,6 +162,12 @@ def main() -> int:
             print(f"\n== {name} — 미사용 {len(dead)}개 ==")
             for n in dead:
                 print(f"  .{n}")
+
+    if comment_only:
+        print(f"\n== 주석에만 나온다 — {len(comment_only)}개 (미사용 후보, 자동 판정 아님) ==")
+        for row in comment_only:
+            print(f"  {row}")
+        print("  이 이름들은 코드가 아니라 주석에서만 발견됐다. 손으로 확인하고 지워라.")
 
     print(
         "\n판정은 보수적이다(부분 문자열 + 접두사 조립 허용). "

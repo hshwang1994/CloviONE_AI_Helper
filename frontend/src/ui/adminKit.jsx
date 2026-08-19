@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Badge, Card } from "./kit.jsx";
+import { Badge } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "./theme.js";
 
@@ -67,7 +67,7 @@ export function SettingRow({ label, value, description, tone, action, state, las
         {value == null ? null : (
           <Typography
             component="div"
-            color={tone === "muted" ? "text.faint" : "text.primary"}
+            color={tone === "muted" ? "text.secondary" : "text.primary"}
             sx={{ fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
           >
             {value}
@@ -85,16 +85,24 @@ export function SettingRow({ label, value, description, tone, action, state, las
   );
 }
 
-/* 설정 줄 묶음의 판. 카드 안쪽 여백을 줄마다 다시 정하지 않도록 여기서 한 번 정한다. */
+/* 설정 줄 묶음 — **판이 아니라 제목 + 괘선 목록** (PLAN «B10 Settings», «Surface 위계»).
+ *
+ * 판정 체크리스트를 돌리면 여기서 멈출 곳이 없다: 자체 생명주기 없음(저장은 줄마다다),
+ * 독립 스크롤 없음, 떠 있지 않음, 함몰면 아님, Brand 순간 아님 -> **컨테이너 없음.**
+ * B10 이 요구한 형태도 같다 — "설정 목록(라벨/현재값/출처/최근변경/Action)을 행 + 괘선으로,
+ * 카드 아님". 판을 벗기면 설정 화면에서 흰 사각형이 사라지고 남는 것은 읽어야 할 줄들이다.
+ *
+ * 줄 사이 괘선은 `SettingRow` 가 이미 자기 아래 선으로 그린다 — 판이 없어져도 묶음은
+ * 그 선들과 제목으로 읽힌다. */
 export function SettingList({ title, action, children }) {
   return (
-    <Card sx={{ mt: 2, px: 2, py: 0.5 }}>
-      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, pt: 1.5, flexWrap: "wrap" }}>
+    <Box component="section" sx={{ mt: SECTION_GAP }}>
+      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1, flexWrap: "wrap" }}>
         <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
         {action}
       </Box>
       {children}
-    </Card>
+    </Box>
   );
 }
 
@@ -117,8 +125,9 @@ export const HEADLINE_GRID = {
  * 한쪽에만 h2-row를 빠뜨려 같은 성격의 섹션이 화면마다 다른 간격으로 보였다. */
 export function DashSection({ title, action, children }) {
   return (
-    /* 섹션 사이 간격은 기준선 `.section`(24px)이다. 예전 값 `{ xs: 4, xxl: 5 }`(32px/40px)는
-       한 화면에 섹션이 대여섯 개인 대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
+    /* 섹션 사이 간격의 정본은 `density.js::SECTION_GAP` 하나다(W4 에서 24 -> 32). 예전에는
+       이 자리에 `{ xs: 4, xxl: 5 }` 같은 화면별 숫자가 있었고, 한 화면에 섹션이 대여섯 개인
+       대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
     <Box component="section" sx={{ mb: SECTION_GAP }}>
       <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
         <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
@@ -134,7 +143,7 @@ export function DashSection({ title, action, children }) {
  * '누를 수 있는 카드'인지 아닌지가 화면마다 달라 보였다.
  * 이름 옆에 중첩 <button>을 두지 않는다 — role="button" 안의 포커스 가능한 자손은 WAI-ARIA 금지이고,
  * 실제로도 '이름을 누르면 다른 일이 일어난다'는 잘못된 기대를 만든다. 카드 하나만 클릭 대상이다. */
-/* 상태 목록 한 벌. 판(Card)은 **하나**고 줄이 실선으로 나뉜다.
+/* 상태 목록 한 벌. 줄이 실선으로 나뉜다.
  *
  * 예전에는 상태 하나가 흰 카드 한 장이었고 3~7장을 격자에 깔았다. 1920 실측에서 이름
  * 하나와 배지 하나가 530px 카드 안에 놓여 가운데가 통째로 비었고, 개수가 열 수의 약수가
@@ -144,13 +153,18 @@ export function DashSection({ title, action, children }) {
  * 어휘를 쓴다 — 한 화면에서 같은 성격의 정보가 두 가지 모양으로 나오지 않게 한다. */
 export function StatusList({ children, ariaLabel }) {
   return (
-    <Card
+    /* W4 — 판을 벗겼다. PLAN «Surface 위계» 의 하드 금지에 이 형태가 이름으로 있다:
+       "목록 하나뿐이고 Action 없는 plate 는 divider group 이다". 이 목록은 이름과 배지만
+       담고 자기 Action 도 생명주기도 없다. B8(Operations console)의 «Health line(한 줄,
+       카드 없음)» 도 같은 말이다. 실선이 줄을 나누고, 묶음은 제목이 만든다. */
+    <Box
       className="k-statuslist"
+      role="group"
       aria-label={ariaLabel}
-      sx={{ p: 0, overflow: "hidden", "& > *:not(:first-of-type)": { borderTop: 1, borderColor: "divider" } }}
+      sx={{ "& > *:not(:first-of-type)": { borderTop: 1, borderColor: "divider" } }}
     >
       {children}
-    </Card>
+    </Box>
   );
 }
 

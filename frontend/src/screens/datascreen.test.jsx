@@ -340,13 +340,29 @@ describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VI
     });
     await screen.findByText("실행 가능(ready)");
 
-    const plates = document.querySelectorAll(".k-metrics");
-    expect(plates, "요약 판이 하나여야 한다").toHaveLength(1);
+    const strips = document.querySelectorAll(".k-metrics");
+    expect(strips, "요약 줄이 하나여야 한다").toHaveLength(1);
     for (const label of LABELS) {
-      expect(within(plates[0]).getByText(label), label).toBeInTheDocument();
+      expect(within(strips[0]).getByText(label), label).toBeInTheDocument();
     }
-    // 판 안의 줄은 접힌다 — 좁아지면 다음 줄로 내려가고 폭은 남은 항목들이 나눠 갖는다.
-    expect(getComputedStyle(plates[0].firstElementChild).flexWrap).toBe("wrap");
+    // 줄은 접힌다 — 좁아지면 다음 줄로 내려간다. W4 에서 판을 벗기면서 `.k-metrics` 자체가
+    // flex 컨테이너가 됐다(예전에는 그 안의 첫 자식이었다).
+    expect(getComputedStyle(strips[0]).flexWrap).toBe("wrap");
+    // W4 — **판독 한 줄에 plate 금지**(PLAN «Surface 위계» 하드 금지). 요약 줄은 판을
+    // 갖지 않는다: 자기 배경도, 테두리도 없다. 예전에는 `<Card>` 였고 그래서 canvas ->
+    // plate -> inset 세 톤이 한 줄에 겹쳤다(F-W1R-16).
+    expect(strips[0].className, "판(MuiCard/MuiPaper)이 남아 있으면 안 된다")
+      .not.toMatch(/MuiCard|MuiPaper/);
+    const stripStyle = getComputedStyle(strips[0]);
+    expect(stripStyle.backgroundColor === "" || stripStyle.backgroundColor === "rgba(0, 0, 0, 0)").toBe(true);
+    expect(Number.parseFloat(stripStyle.borderTopWidth || "0")).toBe(0);
+    // 칸 사이 실선은 **실제로 그려지는 형태**여야 한다 — `borderInlineStart: 1` 은 MUI 가
+    // 펴 주지 않아 style 없는 무효 선언이 된다(F-W2R-01, 배포본에서 구분선 픽셀 0개였다).
+    const cells = strips[0].querySelectorAll(".k-readout");
+    expect(cells.length).toBe(LABELS.length);
+    const second = getComputedStyle(cells[1]);
+    expect(second.borderInlineStartStyle).toBe("solid");
+    expect(second.borderInlineStartWidth).toBe("1px");
   });
 
   it("unreadCountKey가 항목 1개뿐이어도 같은 판독 줄을 쓴다", async () => {

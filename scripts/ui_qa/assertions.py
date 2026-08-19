@@ -1279,6 +1279,10 @@ PROBE_JS = r"""
    * 로딩 중인 화면을 비었다고 말하면 그건 그냥 타이밍을 잰 것이다. */
   out.oversizedEmptySurface = [];
   out.oversizedEmptySurfaceChecked = 0;
+  /* W4 — **통과에도 숫자를 남긴다.** 이 Wave 의 종료 조건이 "Advisory 수치가 Surface 별로
+     기록됨" 이라 `pass` 가 아무 값도 나르지 않으면 기록할 것이 없다. 판정 규칙은 한 글자도
+     건드리지 않는다 — 재 놓고 안 적던 값을 적을 뿐이다. */
+  out.oversizedEmptyWorst = null;
   {
     const EXCLUDE = '.k-empty, [data-empty-state], .MuiSkeleton-root,'
       + ' [class*="skeleton"], [class*="k-skel"]';
@@ -1307,6 +1311,14 @@ PROBE_JS = r"""
       out.oversizedEmptySurfaceChecked++;
       const emptyArea = g.box.w * g.box.h * (1 - g.ratio);
       const bboxRatio = (g.bbox && g.box.w > 0) ? g.bbox.w / g.box.w : 0;
+      if (!out.oversizedEmptyWorst || g.ratio < out.oversizedEmptyWorst.coverage) {
+        out.oversizedEmptyWorst = {
+          coverage: Math.round(g.ratio * 1000) / 1000,
+          box: Math.round(g.box.w) + 'x' + Math.round(g.box.h),
+          contentWidthRatio: Math.round(bboxRatio * 100) / 100,
+          selector: cssPath(s.el),
+        };
+      }
       const sparse = g.ratio < 0.18 && emptyArea >= 200000;
       const stranded = g.box.w > 700 && bboxRatio < 0.45;
       if (!sparse && !stranded) continue;
@@ -1541,6 +1553,13 @@ PROBE_JS = r"""
    * 내비게이션이 없는 경우만 '구조' 다. */
   out.surfaceRepetition = [];
   out.surfaceRepetitionChecked = 0;
+  /* W4 — `checked` 의 뜻을 **"임계를 넘은 그룹"에서 "살펴본 후보 그룹"으로** 넓힌다.
+     예전 셈법에서는 임계(6/8/10) 미만이면 `checked` 가 0 이라 요약에 `skip` 으로 찍혔다 —
+     664 페이지 중 602 페이지가 그랬다. 그건 "재지 않았다" 가 아니라 "재 봤더니 반복이
+     없었다" 이고, 둘을 같은 칸에 넣으면 커버리지가 거짓말을 한다(`narrow_main` 의
+     "144 pass / 144 skip" 이 커버리지로 읽히던 것과 같은 함정, PLAN C9).
+     **fail 판정은 한 글자도 바뀌지 않는다** — 임계 검사는 아래 그대로다. */
+  out.surfaceRepetitionMax = null;
   {
     const groups = new Map();
     // `a` 를 빼면 링크 카드 격자가 아예 후보에 안 들어와, 목록/구조 판별자가 **돌지도 않은 채**
@@ -1565,13 +1584,20 @@ PROBE_JS = r"""
     const mainRect = MAIN.getBoundingClientRect();
     const mainArea = mainRect.width * mainRect.height;
     for (const entry of groups) {
-      if (out.surfaceRepetition.length >= MAX) break;
       const members = entry[1];
-      if (members.length < threshold) continue;
       out.surfaceRepetitionChecked++;
       let area = 0;
       for (const m of members) area += m.r.width * m.r.height;
-      if (!(mainArea > 0) || area / mainArea < 0.35) continue;
+      const share = mainArea > 0 ? area / mainArea : 0;
+      if (!out.surfaceRepetitionMax || members.length > out.surfaceRepetitionMax.count) {
+        out.surfaceRepetitionMax = {
+          count: members.length, threshold: threshold,
+          areaShare: Math.round(share * 100), selector: cssPath(members[0].el),
+        };
+      }
+      if (out.surfaceRepetition.length >= MAX) continue;
+      if (members.length < threshold) continue;
+      if (!(mainArea > 0) || share < 0.35) continue;
       let listish = false, headed = 0;
       for (const m of members) {
         if (m.el.tagName === 'LI'
@@ -1587,7 +1613,7 @@ PROBE_JS = r"""
       if (listish || headed < members.length) continue;
       out.surfaceRepetition.push({
         selector: cssPath(members[0].el), count: members.length, threshold: threshold,
-        areaShare: Math.round((area / mainArea) * 100),
+        areaShare: Math.round(share * 100),
         signature: entry[0].slice(0, 80),
         text: snippet(members[0].el),
       });
@@ -1628,6 +1654,28 @@ def evaluate(page, *, expected_theme: str, viewport_width: int) -> dict:
         "detailImbalanceMinViewport": DETAIL_IMBALANCE_MIN_VIEWPORT,
         "entityTerms": list(ENTITY_TERMS),
     })
+
+
+def _oversized_pass_note(probe: dict) -> str:
+    """통과했을 때도 **잰 값**을 남긴다 (W4 종료 조건: Advisory 수치가 Surface 별로 기록됨)."""
+    worst = probe.get("oversizedEmptyWorst")
+    n = probe.get("oversizedEmptySurfaceChecked", 0)
+    if not worst:
+        return "후보 %d건 확인" % n
+    return ("후보 %d건 · 가장 빈 면 %s 잉크 %d%% (내용 폭 비 %s) %s"
+            % (n, worst.get("box"), round((worst.get("coverage") or 0) * 100),
+               worst.get("contentWidthRatio"), worst.get("selector")))
+
+
+def _repetition_pass_note(probe: dict) -> str:
+    """같은 이유로, 반복이 없을 때도 **가장 큰 동일 톤 그룹**을 숫자로 남긴다."""
+    top = probe.get("surfaceRepetitionMax")
+    n = probe.get("surfaceRepetitionChecked", 0)
+    if not top:
+        return "후보 그룹 %d개 확인" % n
+    return ("후보 그룹 %d개 · 최대 동일 톤 면 %d개 (임계 %d, 본문의 %d%%) %s"
+            % (n, top.get("count"), top.get("threshold"), top.get("areaShare"),
+               top.get("selector")))
 
 
 def compile_ignores(patterns: list[str] | None) -> list[re.Pattern]:
@@ -1909,6 +1957,7 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
                    f" — {s['reason']} «{s['text']}»"),
         "큰 면이 비어 있다 — 상자를 줄이거나 그 자리에 들어갈 것을 넣어야 한다",
         "이 화면에 측정할 만한 크기의 면이 없다",
+        _oversized_pass_note(probe),
     )
 
     dead = probe.get("deadBlankRegion")
@@ -1967,7 +2016,8 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         lambda s: (f"{s['selector']} 같은 톤의 면 {s['count']}개"
                    f" (임계 {s['threshold']}, 본문의 {s['areaShare']}%) «{s['text']}»"),
         "목록이 아닌데 같은 면이 반복된다 — 위계 없이 같은 카드를 늘어놓은 상태다",
-        "임계 이상 반복되는 동일 톤 면 그룹이 이 화면에 없다",
+        "이 화면에 톤 서명을 가진 면이 하나도 없다",
+        _repetition_pass_note(probe),
     )
 
     return results

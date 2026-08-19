@@ -93,6 +93,40 @@ def measure(results: dict, mapping: dict[str, str]) -> tuple[dict, dict]:
     return seen, detail
 
 
+# W4 종료 조건 — "`surface_repetition`·`oversized_empty_surface` Advisory 수치가 Surface 별로
+# 기록됨". Finding 은 **실패한 것만** 남기므로 통과한 Surface 는 아무 값도 남기지 않는다.
+# 그래서 이 두 클래스는 판정과 별개로 **잰 숫자 자체**를 Surface 에 적는다 — 다음 Wave 가
+# "좋아졌는가" 를 물을 때 비교할 수 있는 값이 있어야 한다.
+ADVISORY_CLASSES = ("surface_repetition", "oversized_empty_surface")
+
+
+def measure_advisory(results: dict, mapping: dict[str, str]) -> dict:
+    """(surface, class) -> {pass, fail, skip, note, worst_combo}."""
+    out: dict[tuple[str, str], dict] = {}
+    for page in results.get("pages") or []:
+        route = page.get("route") or "?"
+        sid = mapping.get(route, route)
+        combo = "%s/%s" % (page.get("viewport"), page.get("theme"))
+        for cls in ADVISORY_CLASSES:
+            verdict = (page.get("assertions") or {}).get(cls)
+            if not verdict:
+                continue
+            slot = out.setdefault((sid, cls), {"pass": 0, "fail": 0, "skip": 0,
+                                               "note": "", "worst_combo": ""})
+            status = verdict.get("status", "skip")
+            slot[status] = slot.get(status, 0) + 1
+            # fail 이 있으면 그 노트를, 없으면 첫 pass 노트를 대표로 남긴다.
+            note = (verdict.get("note") or "").strip()
+            if status == "fail" and (not slot["note"] or slot["worst_combo"] == ""
+                                     or slot.get("_kind") != "fail"):
+                slot["note"], slot["worst_combo"], slot["_kind"] = note, combo, "fail"
+            elif status == "pass" and slot.get("_kind") != "fail" and not slot["note"]:
+                slot["note"], slot["worst_combo"], slot["_kind"] = note, combo, "pass"
+    for slot in out.values():
+        slot.pop("_kind", None)
+    return out
+
+
 SEVERITY_BY_CLASS_PATH = ROOT / "scripts" / "ui_qa" / "run.py"
 
 
@@ -108,16 +142,48 @@ def main() -> int:
     args = ap.parse_args()
 
     results = load_results(args.label)
-    seen, detail = measure(results, route_to_surface())
+    mapping = route_to_surface()
+    seen, detail = measure(results, mapping)
+    advisory = measure_advisory(results, mapping)
     coverage = json.loads(io.open(COVERAGE, encoding="utf-8").read())
 
     stats = {"closed": 0, "refreshed": 0, "added": 0, "untouched_not_remeasured": 0,
-             "manual_skipped": 0}
+             "manual_skipped": 0, "advisory": 0}
     closed_rows: list[str] = []
     added_rows: list[str] = []
 
     for surface in coverage.get("surfaces") or []:
         sid = surface.get("id")
+
+        # Advisory 수치 — 판정과 무관하게 **잰 값**을 남긴다(W4 종료 조건).
+        #
+        # 위젯 Surface(`shell_topbar`·`shell_sidebar`·`kit_primitives`)는 자기 Route 가 없다 —
+        # 전 화면에 렌더되는 그릇이라 캡처를 **host 화면에서 빌린다**(각 Surface 의
+        # `after_capture.note` 가 그렇게 적혀 있다). 그래서 route -> surface 매핑만으로는
+        # 이 셋에 영원히 수치가 안 붙고, C10b 가 영원히 빨갛다. 대표 host 의 수치를 그대로
+        # 쓰고 어느 화면에서 빌렸는지 `borrowed_from` 에 남긴다 — 빌린 값을 자기 값인 척
+        # 하지 않는다.
+        host = None
+        if not any((sid, c) in advisory for c in ADVISORY_CLASSES):
+            path = ((surface.get("after_capture") or {}).get("path")
+                    or (surface.get("before_capture") or {}).get("path") or "")
+            stem = path.rsplit("/", 1)[-1].split("__", 1)[0]
+            if stem and any((stem, c) in advisory for c in ADVISORY_CLASSES):
+                host = stem
+
+        for cls in ADVISORY_CLASSES:
+            slot = advisory.get((sid, cls)) or (advisory.get((host, cls)) if host else None)
+            if not slot:
+                continue
+            surface.setdefault("advisory", {})[cls] = {
+                "label": args.label,
+                **({"borrowed_from": host} if host else {}),
+                "pass": slot["pass"], "fail": slot["fail"], "skip": slot["skip"],
+                "measured_note": slot["note"],
+                "sample_combo": slot["worst_combo"],
+            }
+            stats["advisory"] += 1
+
         rows = surface.get("findings") or []
         by_class = {}
         for row in rows:
@@ -182,6 +248,7 @@ def main() -> int:
     print("  갱신 %(refreshed)d · 신규 %(added)d · 종료 %(closed)d · "
           "재측정 안 함(그대로) %(untouched_not_remeasured)d · 사람 등록(건드리지 않음) %(manual_skipped)d"
           % stats)
+    print("  Advisory 수치 기록 %d건 (%s)" % (stats["advisory"], " · ".join(ADVISORY_CLASSES)))
     for row in sorted(closed_rows)[:40]:
         print("   [CLOSED] " + row)
     for row in sorted(added_rows)[:40]:

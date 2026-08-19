@@ -301,7 +301,7 @@ export function CommandPalette({ open, onClose, groups }) {
                       (지시 44) 제목이 따라오게 한다. */}
                   <ListSubheader
                     sx={{
-                      bgcolor: "background.paper", color: "text.faint", lineHeight: 2.2,
+                      bgcolor: "background.paper", color: "text.secondary", lineHeight: 2.2,
                       px: 2.5, fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, letterSpacing: ".06em",
                       borderBottom: 1, borderColor: "divider",
                     }}
@@ -335,7 +335,7 @@ export function CommandPalette({ open, onClose, groups }) {
         sx={{
           display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
           px: 2.5, py: 1, borderTop: 1, borderColor: "divider",
-          fontSize: FONT_SIZE.caption, color: "text.faint",
+          fontSize: FONT_SIZE.caption, color: "text.secondary",
         }}
       >
         <Box component="span">↑ ↓ 이동</Box>
@@ -448,7 +448,7 @@ function PaletteRow({ item, selected, onHover, onPick }) {
         {item.hint ? (
           <Typography
             component="span"
-            color="text.faint"
+            color="text.secondary"
             sx={{ fontSize: FONT_SIZE.caption, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
           >
             {item.hint}

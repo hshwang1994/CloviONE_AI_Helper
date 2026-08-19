@@ -4,80 +4,114 @@
      이력은 이 파일의 git log 다. 최대 120줄 - 초과하면 Gate 가 실패한다. -->
 
 ## CHECKPOINT
-- checkpoint_at: 2026-08-19T23:40:00+09:00
-- wave: W3
-- wave_status: 완료 — Exit Gate E1~E7 충족. 다음 세션이 **W4(공유 Layout Primitive)** 를 시작한다
-- build_index_sha256: `c03113861aaa5138` — 서버가 서브 중인 것이자 **After 의 지문**.
-  W2 `344ce7e7fc221246` · W1 `104e49366bf030f4` · Before `9ab4d470163e475a` — 넷이 서로 다르다
-- coverage_gate: `--stage plan` **PASS** · `--stage wave`(**W3**) **PASS** (억제 0건).
-  W2 CHECKPOINT 를 안 올린 채 돌리면 게이트가 조용히 W2 를 다시 검사한다 — 독립 검수가 그
-  구멍을 잡았고(F-W3R-03), 그래서 CHECKPOINT 를 먼저 올리고 W3 범위로 다시 돌린 결과가 이 줄이다
-- static_checks: **STATIC_CHECKS_OK** (신규 `check_icon_props.py` 포함)
-- tests: frontend `npx vitest run` **2,327 PASS / 0 FAIL**(W2 대비 +24, 파일 +1) ·
-  backend `run_full_regression.sh` **FULL_REGRESSION_OK**(31m51s) — W3 은 백엔드를 안 건드렸다
-- after_capture: `--label w3-after` 전 83 Route × 2테마 × 4뷰포트 = 664페이지.
-  썸네일 664장을 `docs/ui-renewal/captures/after/` 에 갱신했다
-- 실측 (W2 → W3, 뷰포트별 fail) — **악화 0 · 개선 2**
-  · 셀 단위(route × theme × viewport × assertion 5,312칸) 대조 — **신규 fail 0 · fail→pass 2**
-    (`admin_audit-detail` 3840 light·dark `vertical_text_collapse`). 총 fail 1,250 → 1,248
-  · 사이드바 기하 `dist/ui-qa/w3-nav-e2e/anatomy.json` **18/18 조합 PASS** —
-    390·1366·1920·3840 × light·dark × 사용자·관리자 + 팔레트 두 테마.
-    라벨 시작선 42(4K 정규화 후 42) · 레일 3px@inline-start 0 · 자식 글리프 0 ·
-    활성/비활성 굵기 500 동일 · 포커스 링 -2px · 스크롤 없이 안 보이는 랜드마크 0건
-- functional: `scripts/ui_qa/nav_e2e.py`(신규) 가 `shell_sidebar` 7 Flow 를 실브라우저에서
-  네트워크와 함께 돌린다 — 5건 사슬 4/4 **PASS**, FF-1201(그룹 접힘 유지)·FF-1202(메뉴 찾기)만
-  IN_PROGRESS(서버 왕복이 **구조적으로** 없다 — localStorage · 순수 함수). C11 다섯 축 중 넷은
-  사이드바 필터에 존재하지 않아 `exists:false` 로 선언했다(FF-1208~1211)
-- reviewers: 구현하지 않은 독립 에이전트가 **두 번** 돌았다. ① 검수 3 렌즈 + 적대적 검증 10건
-  (`wf_6fca7af0-570`): 제기 22 · **확인 7** · 반증 3 · 미검증 12. ② 그 7건의 처리 결과를 다시
-  독립 재검증(`wf_9c8f1032-de5`): **4건 종결 · 3건 반려**. 반려 셋이 진짜였다 — 자동 접힘 판정이
-  localStorage 에 굳어 결함이 되돌아오는 경로, 게이트가 CHECKPOINT 를 그냥 믿는 기제, 그리고
-  프로브가 접힌 행을 세어 빈 면을 8~16pp 작게 적은 것. 셋 다 이 Wave 에서 다시 고쳤다 —
-  `ROUTE_COVERAGE.w3_review_findings`
-- open_findings: **258 OPEN / 43 CLOSED**(Surface Finding 301건 전수 — Critical 4 · High 184 ·
-  Medium 69 · Low 1). W1 독립 리뷰 잔여 31건(3건 W3 종결) + F-0100(High, W12)이 별도로 있다
+- checkpoint_at: 2026-08-20T04:05:00+09:00
+- wave: W4
+- wave_status: **완료** — 구현·측정·독립 검수 반영·Exit Gate 까지 끝났다. 다음은 W5
+- build_index_sha256: `1a48d92ee9e55127` — 서버가 서브 중인 것이자 **After 의 지문**.
+  W3 `c03113861aaa5138` · W2 `344ce7e7fc221246` · W1 `104e49366bf030f4` · Before `9ab4d470163e475a`.
+  **이 지문은 `index.html` 만 본다** — lazy chunk 만 바뀐 빌드는 값이 안 움직인다(F-W4-10 에서
+  실측). 그래서 소스 지문도 함께 적는다: `BUILD_STAMP.source_hash` `6ba5ed59b70f`
+- coverage_gate: `--stage plan` **PASS** · `--stage wave`(**W4**) **PASS** (억제 0건).
+  이 Wave 가 게이트에 **C10b** 를 더했다: 완료 Surface 는 `surface_repetition`·
+  `oversized_empty_surface` 의 **실측 수치**를 갖고 있어야 하고, 전부 skip 이면 "재지 않았다" 다.
+  위젯 Surface 셋은 자기 Route 가 없어 host 화면의 수치를 빌리고 `borrowed_from` 에 남긴다
+- static_checks: **STATIC_CHECKS_OK** (신규 `check_ink_scale.py` · `check_logical_border_props.py` 포함)
+- tests: frontend `npx vitest run` **2,343 PASS / 0 FAIL**(W3 대비 +16, 파일 316) ·
+  `check_test_strength.py --base ab2bc618` **OK**(기본값 `HEAD` 는 커밋 뒤 무력하다) ·
+  backend `run_full_regression.sh` **FULL_REGRESSION_OK**(32m02s — unit · regression ·
+  security · integration 4청크 전부 초록). W4 는 백엔드 소스를 한 줄도 안 건드렸다
+- after_capture: `--label w4-after` 84 Route × 2테마 × 4뷰포트 = **664페이지**(썸네일 동수 갱신)
+- 실측 (W3 → W4, 셀 단위 route × theme × viewport × assertion 19,256칸)
+  · **신규 fail 26** — `control_baseline_mismatch` 24(조직 화면 넷. 독립 검수가 원인을 다시
+    짚었다: 화면에서는 어긋나지 않고(「?」와 「조직 추가」 중심 y 가 둘 다 242.5) assertion 이
+    깊이 다른 두 컨트롤을 짝짓는 기하 노이즈다 — F-W4-16. 라우트 Surface 넷에 OPEN 이고
+    승격은 W5) · `detail_side_imbalance` 2
+  · **fail → 아님 14** — `brand_role_coverage` 10 · `dead_blank_region` 2 · `brand_presence` 2
+  · **skip → 실측 586** — 그중 `surface_repetition` 578. 재지 않던 자리가 아니라 **재 놓고
+    안 적던** 자리다(C10b 를 만든 이유)
+  · **실측 → skip 40** — `detail_side_imbalance` 30 · **`oversized_empty_surface` 8** ·
+    `dead_blank_region` 2. 뿌리 하나다(F-W4-12) — 프로브가 대상을 **칠해진 면**으로 전제해
+    판을 벗기면 못 찾는다. 8셀은 이 Wave 가 Verification 으로 지명한 검사라 따로 적는다
+  · `dead_blank_region` 4셀(F-W4-13)은 최종 빌드에서 **발화하지 않는다** — 고쳐서가 아니라
+    이상 목록 데이터가 늘어 잉크가 734→788px 가 됐기 때문이다. 임계 바로 위에 서 있다
+- kit 면 계약: `dist/ui-qa/w4-kit-e2e/surfaces.json` **32/32 조합 PASS · 판 안의 판 0자리**
+  (4뷰포트 × 2테마 × **5화면** — 파괴 버튼이 실제로 있는 `/chat-rooms` 를 검수 뒤 넣었다).
+  대표 실측(1920 light): 판독 줄 `plate=false` · 칸 구분선 **4/4** · 라벨 기준선 **0px**(W3 24px)
+  · 활성 레일 solid 2px, 비활성도 2px · **활성 칸 배경 없음**(레일이 신호를 진다) · 잉크 분리도
+  **1.532/1.596** · 보조 테두리 **4.181**(W3 17.1) · **파괴 테두리 6.536(L)/7.715(D)**(검수 전
+  2.48/2.84) · 판독 슬롯 묶음당 **1개**(프로브가 40/19px 로 구분) · 대화상자 밖 채운 error **0**
+- functional: `scripts/ui_qa/kit_e2e.py`(신규) 가 `kit_primitives` 5 Flow 를 실브라우저에서
+  네트워크와 함께 돌린다 — 다섯 다 관측됐지만 Control Plane 에서는 **전부 IN_PROGRESS** 다.
+  C11 의 사슬 핵심 넷 중 서버 쪽 셋을 채울 수 없기 때문이다(판독 칸은 이미 받아 온 데이터의
+  초점만 바꾸고, 더티 판정은 값 스냅샷 비교, 도움말 접힘은 컴포넌트 상태다) — 지어내지 않고,
+  판독 줄에 없는 다섯 축은 FF-1405~1409 로 `exists:false` 를 선언했다
+- modals: `--modals` 를 켠 첫 실행(`w4-modals`) — 모달 Assertion 7종이 W0 이후 **한 번도
+  실행된 적이 없었다**(F-W4-08). 최종 빌드에서 5 Route × 2테마 **7종 × 8페이지 전부 통과**
+- tests(재확인): 검수 반영 뒤 `npx vitest run` **2,347 PASS / 0 FAIL**(kit 계약 시험 +3)
+- shell 재검증: W4 가 `theme.js` 잉크·떠 있는 면 토큰과 `CommandPalette.jsx` 를 건드렸으므로
+  캡처만 믿지 않고 두 셸 프로브를 이 번들에서 다시 돌렸다 — `w4-shell-e2e` 12 Flow(9건 사슬
+  4/4) · `w4-nav-e2e` **18/18 조합 PASS**. W3 이 D-184 에서 세운 규율("캡처가 증명하는 것은
+  Assertion 재측정이지 셸 고유 계약이 아니다")을 그대로 따른 것이다
+- reviewers: 구현하지 않은 독립 에이전트 3 렌즈(시각 Before/After · 요구사항 · 디자인 감각)가
+  **24건** 제기 → 상위 10건을 반증 시도 에이전트가 검증 → **확정 2 · 기각 8**.
+  확정 둘은 성격이 같다 — **자기가 바꾼 자리를 자기 검사가 안 본다**: 파괴 버튼 테두리가
+  MUI 기본 alpha 0.5(판 위 2.48:1)인데 새 프로브가 `outlinedError` 를 건너뛰었고(F-W4-14),
+  판독 값 글자를 정렬 래퍼에서 읽어 «묶음당 판독 하나» 단언이 한 번도 실행되지 않았다
+  (F-W4-15). 둘 다 고쳐 재측정했다. 기각 8건은 수치는 실재하나 결론이 정본과 어긋났고,
+  잔여물 둘만 함께 닫았다(F-W4-16 오귀속 주석 · F-W4-17 죽은 CSS). 상세는 D-185 «덧 셋»
+- open_findings: **Surface Finding 321건 전수** — 이 Wave 가 19건을 새로 등록하고
+  (F-W4-01 ~ F-W4-19) F-W2R-01 · F-W4-09 · `public_login/console_errors` 를 닫았다.
+  W1 독립 리뷰 잔여 27건(F-W1R-03·04·16·27 네 건을 이 Wave 가 종결).
+  재라우팅: F-W2R-04 → W5 · F-W1R-23 → W8 · F-W1R-29 → W6
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
   `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
-- commit: `ab2bc618` (W3 전체 — 소스 · 번들 · 캡처 664장 · Control Plane · 독립 검수 2라운드)
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
 
 ## NOW
-W3(Navigation & Icon) 이 끝났다. **라벨은 한 열, 신호는 둘, 글리프는 랜드마크당 하나.**
-그룹 60px / 자식 64px 두 격자가 42px 한 열로 합쳐졌고(`NAV_ANATOMY` 하나가 정본이다),
-활성 신호가 넷(2px 레일 + 굵기 700/600 + 색 + 아이콘 opacity)에서 둘(하우징 가장자리에 붙는
-3px 레일 + 행 채움·잉크)로 줄었으며, 목적지마다 붙어 `ticket` 4곳·`report` 4곳으로 반복되던
-글리프 49개가 사라지고 그룹 글리프 10개만 남았다. `ICON = {nav 20, inline 18, action 20,
-hero 24}` + `remPx()` 가 크기의 정본이고, MUI `SvgIcon` 에 없는 `size=`/`strokeWidth=` 는
-`check_icon_props.py` 가 막는다(그 검사기는 자기 자신을 먼저 시험한다).
+W4(공유 Layout Primitive). **면은 이제 부품이 정한다.**
+`kit.jsx::Surface` 가 PLAN «Surface 위계» 의 7 tone 표를 들고, `Card` 는 그중 `plate` 의
+별칭이며, 체크리스트 ⑥ «컨테이너 없음» 자리에 쓸 부품(`Section`)이 처음으로 생겼다 —
+금지만 하고 대안을 안 주면 화면은 다시 판을 만든다. 하드 금지 다섯 중 **판 안의 판**은
+코드가 강제한다: 자동으로 `none` 이 되고 여백까지 함께 버리며, 그 사실이
+`data-surface="plate>none"` 으로 남아 하네스가 센다(배포본 32조합에서 0자리).
+판을 벗긴 자리는 넷이다 — `MetricStrip`·`MetaBar`·`SettingList`·`StatusList`.
 
-이번 Wave 가 배운 것 둘. **하나 — 한 뷰포트의 실측을 전 뷰포트의 규칙으로 쓰면 안 된다.**
-"사용자 콘솔은 펼침 기본" 을 1920 실측만 보고 정했더니 1366x768 에서 «내 정보» 랜드마크가
-통째로 스크롤 밖으로 나갔다(독립 검수가 배포본 픽셀로 22행 중 17행을 셌다). 이제 셸이 전부
-펼친 높이를 **재서** 정하고, 프로브가 "스크롤 없이 안 보이는 랜드마크 0건" 을 네 뷰포트에서
-확인한다. **둘 — 프로브를 대상보다 먼저 의심한다.** 이 Wave 의 신규 프로브가 낸 첫 실패 셋 중
-둘이 프로브 자신의 결함이었다(하네스 시딩 스크립트가 지운 localStorage 를 제품이 잃었다고
-읽었고, 포털된 임시 Drawer 를 `#app-sidebar` 안에서 찾았다). 셋째만 진짜였고 — 전역
-`:focus-visible` 이 이겨서 포커스 링이 하우징 밖으로 새고 있었다.
-근거·수치·되돌린 것은 `docs/DECISIONS.md` **D-184**.
+이번 Wave 가 배운 것 셋. **하나 — 판을 벗기면 그 판이 감추고 있던 것이 드러난다.**
+칸 구분선은 애초에 그려지지 않고 있었고(`borderInlineStart: 1` 은 shorthand 라 style 을
+`none` 으로 되돌린다 — 안 그려지는 게 아니라 **있던 선을 지운다**), 활성 칸의 오목면은
+캔버스 위에서 **더 밝아 신호가 뒤집혔다**(대비 1.055:1). 둘 다 판이 있는 동안에는 보이지
+않던 결함이라 판 제거와 같은 커밋에서 고쳐야 했다.
+
+**둘 — 토큰의 역할을 바꾸는 결정은 소비처에서 완결된다.** `text.faint` 를 AA-large 자리로
+좁히고 값을 벌린 것(분리도 1.10 → 1.53)은 소비처를 옮기지 않으면 문서일 뿐이다. 그 과정에서
+`text.disabled` 가 `faint` 와 **같은 값을 공유하고 있었다**는 사실이 배포본 실측으로 드러났다 —
+비활성 입력 라벨이 4.18:1 로 AA 아래로 내려갔고, 두 역할을 값까지 분리해서 닫았다.
+
+**셋 — 프로브는 양쪽으로 틀린다.** `kit_e2e` 의 첫 실행은 32조합 중 12조합을 «계약 위반»
+이라고 했는데 **넷 다 프로브 결함**이었고(AI 서랍이 같은 `role="dialog"` · px 를 4K 레버로
+정규화 · 접힌 줄 · 남은 모달), 반대로 판독 슬롯 검사는 **아무것도 안 재면서 통과**하고 있었다
+(F-W4-15). 위양성만 의심하면 후자를 영영 못 본다. 근거·수치는 `docs/DECISIONS.md` **D-185**.
 
 ## NEXT
-1. **W4(공유 Layout Primitive)** 를 시작한다. 소유 파일 `frontend/src/ui/kit.jsx` ·
-   `kit.css` · `adminKit.jsx` · `density.js` · `screens.css`. **입력이 준비돼 있다** —
-   `F-W2R-01`(`kit.jsx` 논리 테두리 3자리가 선언만 있고 안 그려져 MetricStrip 칸 구분선이
-   배포본에 없다) · `F-W2R-04`(AI 앵커 컨트롤 리듬) · `w1_review_findings` 의
-   `owner_wave == "W4"` 7건. W2·W3 이 각각 자기 파일에서 같은 **논리 속성 미전개** 함정을
-   밟았으니 `kit.jsx` 세 자리도 같은 형태로 고친다.
+1. **W5(Search/Filter/Form 설계)** 를 시작한다. 소유 파일 `frontend/src/ui/FilterBar.jsx` ·
+   `filters.jsx`(+`EntityCombobox`) · `SavedViews.jsx`, 소비처 4곳을 정해진 순서로.
+   **입력이 준비돼 있다** — `F-W2R-04`(AI 앵커 컨트롤 리듬, W4 에서 재라우팅) 와
+   `control_baseline_mismatch` 134셀(그중 조직 화면 24셀이 이번에 새로 드러났다).
+   이 클래스와 `isolated_control_row` 가 W5 에서 `--fail-on` 으로 승격된다.
 2. Wave 마다: **CHECKPOINT 의 `wave:` 를 먼저 올린다** → 구현 → focused test →
-   배포(`apply-static-update.sh`) → 실브라우저 재캡처(`--routes all --themes light dark
-   --viewports 390x844 1366x768 1920x1080 3840x2160 --label w4-after`) →
-   `collect_evidence --into after` → `merge_qa_findings --write` → `--stage wave` →
-   **구현하지 않은 에이전트**의 독립 검수. 리뷰 Workflow 는 `…/scratchpad/w3-review.js` 를
-   복제해 쓴다 — 3 렌즈 + 적대적 검증 10건이 결함 일곱(High 둘)을 잡고 그럴듯한 셋을 기각했다.
-3. 그 뒤 W5·W5B → W6 → W7 → W8(Pilot 8종) → W9~W15.
-   W7 입력에 `F-W3R-01` 이 추가됐다 — 사이드바 하단 빈 면(3840 사용자 42.9% · 관리자 54.6%,
-   admin_audit 는 73.1%)은 PLAN «Clovi 계약» 의 사이드바 도우미 카드가 채우기로 돼 있다.
-4. 승격 예정 Gate: `brand_role_coverage` → **W6** · `mascot_visible_size` → W7 ·
-   `isolated_control_row`·`control_baseline_mismatch` → W5 · Table 4종 → W6.
+   배포(`apply-static-update.sh`) → 실브라우저 재캡처 → `collect_evidence --into after` →
+   `merge_qa_findings --write` → `--stage wave` → **구현하지 않은 에이전트**의 독립 검수.
+   리뷰 Workflow 는 `…/scratchpad/w4-review.js` 를 복제해 쓴다.
+   `check_test_strength.py` 는 **`--base <직전 Wave 커밋>`** 으로 돌린다.
+   전량 캡처는 **`--rebuild-auth` 로 시작한다** — 세션 절대 수명에 닿으면 남은 페이지가 전부
+   로그인 화면이 된다(F-W4-09. `run.py` 가 이제 묶음마다 재검증하지만 시작을 신선하게 두면 더 싸다).
+3. 그 뒤 W5B → W6 → W7 → W8(Pilot 8종) → W9~W15.
+   W6: `F-W1R-29`(표머리 12 vs 셀 14) · `F-W4-05`. W7: `F-W1R-41`(brandTint 배선) ·
+   `F-W4-18`(`sunken` 소비처 0). W8: `F-W1R-23`(/me 좌측 죽은 캔버스) · `F-W4-01` · `F-W4-02`.
+   W9: `F-W4-03` · `F-W4-12`. W12: `F-W4-04` · `F-W4-13`. W14: `F-W4-08`.
+   W15: `F-W4-06`(kit.css·screens.css 는 vitest 커버리지 0) · `F-W4-07` · `F-W4-10` · `F-W4-11`.
+4. 승격 예정 Gate: `isolated_control_row`·`control_baseline_mismatch` → **W5** ·
+   `brand_role_coverage` → W6 · Table 4종 → W6 · `mascot_visible_size` → W7.
 
 ## BLOCKERS
 - 없음.

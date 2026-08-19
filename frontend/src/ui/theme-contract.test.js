@@ -431,40 +431,65 @@ describe("제목은 고정 스케일이다 (Operate 모드 — 유동 제목을 
 describe("대비 — 강조색 프리셋 전체 × 두 모드에서 성립해야 한다", () => {
   const accents = [DEFAULT_ACCENT, ...ACCENT_PRESETS];
 
-  it.each(MODES)("%s — 본문·보조·희미 글자가 다섯 면 모두에서 AA(4.5)를 넘는다", (mode) => {
+  /* `sunken` 과 `brandTint` 가 추가됐다. brandTint 는 AI 영역의 실제 텍스트 면이 되면서
+     처음으로 잉크를 받는 면이 됐고, sunken 은 트랙·차트 밴드 위 라벨을 받는다. */
+  const inkFaces = (p) => [
+    p.background.plate,
+    p.background.inset,
+    p.background.canvas,
+    p.background.sunken,
+    p.background.brandTint,
+  ];
+
+  it.each(MODES)("%s — 본문 잉크 두 단계가 다섯 면 모두에서 AA(4.5)를 넘는다", (mode) => {
     const p = createClovirTheme(mode).palette;
-    /* `sunken` 과 `brandTint` 가 추가됐다. brandTint 는 AI 영역의 실제 텍스트 면이 되면서
-       처음으로 잉크를 받는 면이 됐고, sunken 은 트랙·차트 밴드 위 라벨을 받는다. */
-    const faces = [
-      p.background.plate,
-      p.background.inset,
-      p.background.canvas,
-      p.background.sunken,
-      p.background.brandTint,
-    ];
-    const inks = [p.text.primary, p.text.secondary, p.text.faint];
-    for (const ink of inks) {
-      for (const face of faces) {
+    /* W4 재작성 — 예전에는 `faint` 도 이 목록에 있었다. 그 요구가 바로 3단 잉크를
+       불가능하게 만든 제약이었다(다섯 면 전부 AA 면 여유가 1.16배뿐이다). `faint` 는
+       이제 본문 잉크가 아니라 AA-large 전용이고, 아래 시험이 따로 3.0 을 요구한다. */
+    for (const ink of [p.text.primary, p.text.secondary]) {
+      for (const face of inkFaces(p)) {
         expect(contrast(ink, face), `${ink} on ${face}`).toBeGreaterThanOrEqual(4.5);
       }
     }
   });
 
-  /* 3단 잉크 위계가 실제로 3단인가. 지금은 **아니다** — `secondary` 와 `faint` 의 대비가
-     1.10(L)/1.19(D) 라 눈으로는 같은 색이다. 값 선택 실수가 아니라 제약이다: 다섯 면 전부에서
-     AA(4.5)를 요구하면 가장 어두운 면 기준 여유가 1.16배뿐이라 세 단계를 벌릴 자리가 없다.
-     이 시험은 그 사실을 **숫자로 고정**한다 — 지금보다 나빠지면 실패하고, 실제로 3단이 되면
-     (W4 가 `faint` 를 AA-large 자리로 한정하면) 아래 상한을 올리며 그 결정을 기록하게 된다.
-     조용히 낡는 대신 다음 사람이 반드시 마주치는 자리를 남긴다. */
-  it.each(MODES)("%s — 잉크 3단의 실제 분리도를 고정한다 (지금은 2단이다)", (mode) => {
+  /* W4 결정(F-W1R-03 / F-W1-02) — `faint` 를 **AA-large 자리로 한정**하고 값을 실제로 벌렸다.
+     W1 은 이 자리에 "3단이 되면 상한을 올리며 그 결정을 기록하라" 고 적어 두었다. 그 기록이
+     이 시험이다: 상한을 지우고 **하한을 1.45 로 올린다.** 되돌아가면 실패한다. */
+  it.each(MODES)("%s — faint 는 AA-large(3:1) 를 다섯 면 모두에서 넘는다", (mode) => {
+    const p = createClovirTheme(mode).palette;
+    for (const face of inkFaces(p)) {
+      const r = contrast(p.text.faint, face);
+      expect(r, `faint ${p.text.faint} on ${face} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(3.0);
+    }
+  });
+
+  /* `text.disabled` 는 `text.faint` 와 **다른 역할이고 다른 값이다** (W4 실측).
+     둘은 오랫동안 같은 값을 공유했는데, `faint` 를 AA-large 자리로 좁히며 밝히자 MUI 가 그
+     값을 쓰는 **비활성 입력 라벨**이 배포본에서 4.18:1(light)/4.47:1(dark) 로 AA 아래로
+     내려갔다(`/profile` 의 «시작»·«종료»). WCAG 는 비활성 요소를 대비 요구에서 빼 주지만
+     읽히지 않는 비활성 값은 여전히 나쁘다 — 사용자는 그 칸에 무엇이 설정돼 있는지 알아야
+     한다. 두 값이 다시 붙으면 이 시험이 실패한다. */
+  it.each(MODES)("%s — 비활성 잉크는 판 위에서 AA 를 넘고 faint 와 같은 값이 아니다", (mode) => {
+    const p = createClovirTheme(mode).palette;
+    expect(p.text.disabled, "disabled 가 faint 와 같은 값으로 되돌아갔다").not.toBe(p.text.faint);
+    for (const face of inkFaces(p)) {
+      const r = contrast(p.text.disabled, face);
+      expect(r, `disabled ${p.text.disabled} on ${face} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it.each(MODES)("%s — 잉크가 실제로 3단이다 (secondary 와 faint 가 눈으로 갈린다)", (mode) => {
     const p = createClovirTheme(mode).palette;
     const sep = contrast(p.text.secondary, p.text.faint);
-    expect(sep, `secondary vs faint = ${sep.toFixed(2)}`).toBeGreaterThanOrEqual(1.05);
-    // 1.35 를 넘기 시작하면 위계가 실제로 3단이 된 것이다 — 그때 이 상한을 올려라(F-W1-02).
-    expect(sep, `secondary vs faint = ${sep.toFixed(2)} — 3단이 됐다면 상한을 올려라`)
-      .toBeLessThan(1.35);
-    // primary 와 secondary 는 지금도 확실히 다른 단계여야 한다.
+    expect(sep, `secondary vs faint = ${sep.toFixed(2)} — 1.10 이던 시절로 돌아가면 안 된다`)
+      .toBeGreaterThanOrEqual(1.45);
+    // primary 와 secondary 도 확실히 다른 단계여야 한다.
     expect(contrast(p.text.primary, p.text.secondary)).toBeGreaterThanOrEqual(2);
+    // 세 단계의 **순서**가 유지된다 — faint 가 secondary 보다 배경에 가깝다.
+    const plate = p.background.plate;
+    expect(contrast(p.text.faint, plate)).toBeLessThan(contrast(p.text.secondary, plate));
+    expect(contrast(p.text.secondary, plate)).toBeLessThan(contrast(p.text.primary, plate));
   });
 
   it.each(MODES)("%s — 상태색 strong 이 판과 자기 배경 위에서 AA 를 넘는다", (mode) => {

@@ -277,9 +277,17 @@ const READOUT = ".k-stat, .k-readout";
 function summaryTiles() {
   const out = {};
   for (const el of document.querySelectorAll(READOUT)) {
-    const kids = Array.from(el.children);
-    const value = kids[0] ? kids[0].textContent.trim() : "";
-    const label = kids[1] ? kids[1].textContent.trim().replace(/(위험|주의)$/, "").trim() : "";
+    /* 자식 **순서**가 아니라 이름으로 짚는다. 순서로 짚으면 판독 칸의 안쪽 배치가 바뀔 때
+       시험이 깨지는 게 아니라 **조용히 빈 문자열끼리 비교하며 통과한다** — 지키는 계약은
+       "서버 숫자를 그대로 쓴다"인데 아무 숫자도 안 보고 통과하는 시험이 된다.
+       W4 가 판독 칸에 `data-readout` 을 붙여 그 위험을 없앴고, 여기서 그것을 쓴다.
+       못 찾으면 조용히 넘어가지 않고 **단언으로 실패시킨다.** */
+    const valueEl = el.querySelector('[data-readout="value"]');
+    const labelEl = el.querySelector('[data-readout="label"]');
+    expect(valueEl, "판독 칸에 data-readout=value 가 없다").not.toBeNull();
+    expect(labelEl, "판독 칸에 data-readout=label 이 없다").not.toBeNull();
+    const value = valueEl.textContent.trim();
+    const label = labelEl.textContent.trim().replace(/(위험|주의)$/, "").trim();
     out[label] = value;
   }
   return out;

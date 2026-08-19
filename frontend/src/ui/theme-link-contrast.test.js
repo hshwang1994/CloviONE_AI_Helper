@@ -204,6 +204,42 @@ describe("QAH-03(2026-08-11 하네스 실측) — MuiButton 기본(text/outlined
   }
 });
 
+/* 함수 본문을 **중괄호 균형**으로 잘라 낸다 (W4 재작성).
+ *
+ * 예전에는 `src.slice(start, start + 4500)` 이라는 고정 길이 창을 썼다. 그 창은 검사 대상이
+ * 조금만 길어져도 조용히 다른 것을 검사한다 — 실제로 W4 가 `MetricStrip` 을 다시 쓰면서
+ * `sev` 블록이 창 밖으로 밀려나 **코드는 계약을 지키는데 시험이 빨개졌다.** 프로브가 대상을
+ * 잘못 재고 있었던 것이다. 길이에 기대지 않는 방식으로 바꾼다: 첫 `{` 부터 짝이 맞는 `}`
+ * 까지가 본문이다. 문자열·주석 안의 중괄호까지 세지는 않지만 이 파일들에는 그런 자리가
+ * 없고, 무엇보다 **틀리면 본문 추출 자체가 실패해 시험이 그 사실을 말한다.** */
+function bodyOf(src, signature) {
+  const start = src.indexOf(signature);
+  expect(start, `${signature} 정의를 못 찾았다`).toBeGreaterThan(-1);
+  /* 매개변수 목록을 먼저 지나친다 — 첫 `{` 는 구조 분해 매개변수다(`{ items, ... }`).
+     괄호 깊이가 0 으로 돌아온 **뒤**의 첫 `{` 가 본문 시작이다. */
+  let paren = 0;
+  let cursor = src.indexOf("(", start);
+  expect(cursor, `${signature} 의 매개변수 목록을 못 찾았다`).toBeGreaterThan(-1);
+  for (; cursor < src.length; cursor += 1) {
+    if (src[cursor] === "(") paren += 1;
+    else if (src[cursor] === ")") {
+      paren -= 1;
+      if (paren === 0) break;
+    }
+  }
+  const open = src.indexOf("{", cursor);
+  expect(open, `${signature} 의 본문 시작을 못 찾았다`).toBeGreaterThan(-1);
+  let depth = 0;
+  for (let i = open; i < src.length; i += 1) {
+    if (src[i] === "{") depth += 1;
+    else if (src[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return src.slice(open, i + 1);
+    }
+  }
+  throw new Error(`${signature} 의 본문 끝을 못 찾았다 — 중괄호가 안 맞는다`);
+}
+
 describe("QAH-03 — 판독 칸 「주의」/「위험」 배지가 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
   const kitSrc = readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
@@ -212,9 +248,7 @@ describe("QAH-03 — 판독 칸 「주의」/「위험」 배지가 palette.{war
 
   it("판독 칸의 sev Box가 실제로 `${tone}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
     // StatCard(카드 한 장 = 지표 하나)를 MetricStrip 이 대체했다 — 계약은 그대로다.
-    const start = kitSrc.indexOf("export function MetricStrip");
-    expect(start, "MetricStrip 정의를 못 찾았다").toBeGreaterThan(-1);
-    const block = kitSrc.slice(start, start + 4500);
+    const block = bodyOf(kitSrc, "export function MetricStrip");
     expect(block).toMatch(/color:\s*`\$\{tone\}\.strong`/);
     expect(block).not.toMatch(/color:\s*`\$\{tone\}\.main`/);
   });
@@ -245,9 +279,7 @@ describe("QAH-02(2026-08-11 하네스 실측) — 심각도 배지가 좁은 칸
       path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
       "utf-8",
     );
-    const start = kitSrcHere.indexOf("export function MetricStrip");
-    expect(start, "MetricStrip 정의를 못 찾았다").toBeGreaterThan(-1);
-    const block = kitSrcHere.slice(start, start + 4500);
+    const block = bodyOf(kitSrcHere, "export function MetricStrip");
     const sevLine = /\{sev \? \([\s\S]{0,900}?<\/Box>/.exec(block);
     expect(sevLine, "sev Box 블록을 못 찾았다").not.toBeNull();
     expect(sevLine[0]).toMatch(/whiteSpace:\s*"nowrap"/);

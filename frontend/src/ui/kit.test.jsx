@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  FormField, MetricStrip, Modal, PageHeader, ToastProvider, statusKind, statusText,
+  Card, FormField, MetricStrip, Modal, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Surface,
+  ToastProvider, statusKind, statusText, useConfirm,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
@@ -62,10 +63,41 @@ describe("Button", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("danger는 error 색으로, ghost는 텍스트 버튼으로 간다", () => {
-    ui(<><Button variant="danger">삭제</Button><Button variant="ghost">취소</Button></>);
-    expect(screen.getByRole("button", { name: "삭제" })).toHaveClass("MuiButton-containedError");
-    expect(screen.getByRole("button", { name: "취소" })).toHaveClass("MuiButton-text");
+  /* W4 재작성 — 예전에는 `danger` 가 `containedError` 임을 단언했다. 그 단언이 고정하던
+     상태가 결함이었다(F-W1R-04): 파괴적 동작이 페이지에서 가장 채도 높은 면이 되어 F 패턴
+     시작점인 우상단에서 주 행동을 이겼다. 계약을 강도 위계로 다시 쓴다 — 채운 면은 둘뿐이고,
+     그중 error 채움은 **확인 대화 안에서만** 나온다. */
+  it("파괴적 동작은 외곽선이고, 채운 error 면은 확인 대화의 마지막 버튼뿐이다", () => {
+    ui(
+      <>
+        <Button variant="primary">저장</Button>
+        <Button variant="danger">삭제</Button>
+        <Button variant="dangerConfirm">삭제합니다</Button>
+        <Button variant="ghost">취소</Button>
+        <Button>보조</Button>
+      </>,
+    );
+    const at = (name) => screen.getByRole("button", { name });
+    expect(at("삭제")).toHaveClass("MuiButton-outlinedError");
+    expect(at("삭제"), "본문의 파괴적 동작이 면을 채우면 안 된다").not.toHaveClass("MuiButton-containedError");
+    expect(at("삭제합니다")).toHaveClass("MuiButton-containedError");
+    expect(at("저장")).toHaveClass("MuiButton-containedPrimary");
+    expect(at("취소")).toHaveClass("MuiButton-text");
+    expect(at("보조")).toHaveClass("MuiButton-outlined");
+    // 화면당 채운 면은 주 행동 하나다 — 같은 줄에 채움이 둘이면 위계가 없다.
+    const contained = ["저장", "삭제", "취소", "보조"].filter((n) =>
+      /MuiButton-contained/.test(at(n).className));
+    expect(contained).toEqual(["저장"]);
+  });
+
+  it("확인 대화의 위험 확인 버튼이 실제로 dangerConfirm 강도를 쓴다", async () => {
+    function Trigger() {
+      const confirm = useConfirm();
+      return <Button onClick={() => confirm("지울까요?", { danger: true, confirmLabel: "지우기" })}>열기</Button>;
+    }
+    ui(<Trigger />);
+    await userEvent.click(screen.getByRole("button", { name: "열기" }));
+    expect(await screen.findByRole("button", { name: "지우기" })).toHaveClass("MuiButton-containedError");
   });
 });
 
@@ -493,5 +525,208 @@ describe("버튼 진행 표시", () => {
     const btn = screen.getByRole("button", { name: "내보내기" });
     expect(btn).not.toHaveAttribute("aria-busy");
     expect(btn).not.toBeDisabled();
+  });
+});
+
+/* ── 면(Surface) 계약 — PLAN «Surface 위계» 를 코드가 지키는가 (W4) ────────────
+ *
+ * 이 저장소가 지시 82 에서 금지한 것은 규칙이 아니라 반사다: "묶어야 한다 = 흰 네모".
+ * 문서로 막으면 다음 화면에서 다시 나오므로 부품이 강제한다. 그 강제가 실제로 도는지를
+ * 여기서 본다 — 특히 **판 안의 판**은 자동으로 내려가야 하고, 떠 있는 것 안에서는 깊이가
+ * 0 으로 되돌아가야 한다(Context 는 Portal 을 통과하므로 초기화가 없으면 모달 안의 판이
+ * 전부 조용히 사라진다). */
+describe("Surface — 면 위계", () => {
+  it("표가 PLAN 의 일곱 tone 을 전부 담고, 판만 테두리를 갖는다", () => {
+    expect(Object.keys(SURFACE_TONES).sort()).toEqual(
+      ["brandTint", "inset", "modal", "none", "overlay", "plate", "sunken"].sort(),
+    );
+    // 테두리를 갖는 것은 판과 떠 있는 것뿐이다 — 오목면·함몰면·brandTint 는 색으로만 말한다.
+    const bordered = Object.entries(SURFACE_TONES).filter(([, s]) => s.border).map(([k]) => k);
+    expect(bordered.sort()).toEqual(["modal", "overlay", "plate"]);
+    // 그림자는 떠 있는 것만 갖는다(D-141, 유지).
+    const shadowed = Object.entries(SURFACE_TONES).filter(([, s]) => s.shadow).map(([k]) => k);
+    expect(shadowed.sort()).toEqual(["modal", "overlay"]);
+    // 아무것도 그리지 않는 자리가 실제로 비어 있다.
+    expect(SURFACE_TONES.none).toEqual({});
+    // brandTint 만 앞머리 edge 를 갖는다 — AI/Brand 순간의 표지다.
+    const edged = Object.entries(SURFACE_TONES).filter(([, s]) => s.edge).map(([k]) => k);
+    expect(edged).toEqual(["brandTint"]);
+  });
+
+  it("판 안의 판은 자동으로 내려가고, 그 사실이 DOM 에 남는다", () => {
+    ui(
+      <Card className="outer">
+        <Card className="inner">안쪽</Card>
+      </Card>,
+    );
+    const outer = document.querySelector(".outer");
+    const inner = document.querySelector(".inner");
+    expect(outer).toHaveAttribute("data-surface", "plate");
+    expect(inner, "판 안의 판은 판이 아니다").toHaveAttribute("data-surface", "plate>none");
+    // 흔적을 남기는 이유: 조용히 고치면 몇 곳이 그랬는지 아무도 모른다.
+    expect(inner.className).not.toMatch(/MuiCard|MuiPaper/);
+    // 테두리를 지우고 여백만 남기면 없앤 판이 공백으로 되살아난다 — 여백도 함께 사라진다.
+    expect(getComputedStyle(inner).padding === "" || getComputedStyle(inner).padding === "0px").toBe(true);
+  });
+
+  it("판이 아닌 tone 은 판 안에서도 그대로다", () => {
+    ui(
+      <Card>
+        <Surface tone="inset" className="ins">읽기 전용</Surface>
+        <Surface tone="brandTint" className="tint">AI</Surface>
+      </Card>,
+    );
+    expect(document.querySelector(".ins")).toHaveAttribute("data-surface", "inset");
+    expect(document.querySelector(".tint")).toHaveAttribute("data-surface", "brandTint");
+  });
+
+  it("brandTint 는 앞머리 edge 를 **실제로 그린다** (논리 테두리 3속성)", () => {
+    ui(<Surface tone="brandTint" className="tint">AI 도우미</Surface>);
+    const s = getComputedStyle(document.querySelector(".tint"));
+    expect(s.borderInlineStartStyle).toBe("solid");
+    expect(s.borderInlineStartWidth).toBe(`${SURFACE_EDGE_WIDTH}px`);
+    // 색이 팔레트 경로 문자열로 새어 나가면 무효 선언이 된다(F-W2R-01 의 두 번째 층).
+    expect(s.borderInlineStartColor).toMatch(/^(rgb|#)/);
+  });
+
+  it("떠 있는 것 안에서는 깊이가 0 으로 되돌아간다 — 모달 안의 판은 판이다", () => {
+    ui(
+      <Card>
+        <Modal open title="사용자 추가" onClose={() => {}}>
+          <Card className="in-modal">모달 안</Card>
+        </Modal>
+      </Card>,
+    );
+    expect(document.querySelector(".in-modal")).toHaveAttribute("data-surface", "plate");
+  });
+});
+
+/* ── W4 · R-11 — 보조가 주를 이기지 않는다 ────────────────────────────────────
+ *
+ * MUI v7 의 `outlined` + `color="inherit"` 은 테두리를 `currentColor` 로 그린다. 이 앱에서
+ * 그것은 `text.primary` 이고 판 위 대비가 17.1:1 이라, 전체 버튼의 44%(109 호출부)를
+ * 차지하는 보조 버튼이 채운 주 버튼(5.96:1)보다 **2.9배 강했다.** 눈에 보이는 결함이었고
+ * 어떤 시험도 그것을 말하지 않았다. */
+describe("버튼 강도 — 보조 테두리", () => {
+  const ratio = (a, b) => {
+    const lum = (c) => {
+      const [r, g, b2] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((v) => {
+        const x = Number(v) / 255;
+        return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+    };
+    const [la, lb] = [lum(a), lum(b)];
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  };
+
+  it("보조 버튼 테두리가 본문 잉크가 아니다 — 비텍스트 3:1 은 넘고 주 행동은 안 이긴다", () => {
+    ui(<><Button>보조</Button><Button variant="primary">주</Button></>);
+    const border = getComputedStyle(screen.getByRole("button", { name: "보조" })).borderTopColor;
+    const plate = "rgb(255, 255, 255)";
+    const r = ratio(border, plate);
+    expect(r, `보조 테두리 ${border} on plate = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+    // 예전 값(text.primary #161A2C)은 17.1:1 이었다 — 그 자리로 돌아가면 실패한다.
+    expect(r, "보조 테두리가 본문 잉크만큼 강하면 위계가 뒤집힌다").toBeLessThan(8);
+  });
+
+  /* 위 한 줄을 `default` 에만 걸었더니 `danger` 가 MUI 기본값 `alpha(error.main, 0.5)` 에
+   * 남아 판 위 2.48:1 이 됐다 — **되돌릴 수 없는 동작이 그 옆 중립 버튼(4.18:1)보다 흐린
+   * 경계를 갖는** 역전이었다. 독립 검수가 배포 PNG 에서 (217,146,142) 를 직접 찍어 잡았다.
+   * 두 variant 가 같은 하한을 받는다는 것을 여기서 고정한다. */
+  it("파괴적 버튼 테두리도 3:1 을 넘고, 중립 보조보다 약하지 않다", () => {
+    ui(<><Button variant="danger">삭제</Button><Button>보조</Button></>);
+    const px = (name) => getComputedStyle(screen.getByRole("button", { name })).borderTopColor;
+    const plate = "rgb(255, 255, 255)";
+    const danger = ratio(px("삭제"), plate);
+    expect(danger, `파괴 테두리 ${px("삭제")} on plate = ${danger.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+    expect(danger, "파괴적 동작이 중립 보조보다 흐리면 위계가 뒤집힌다")
+      .toBeGreaterThanOrEqual(ratio(px("보조"), plate));
+  });
+
+  /* 채운 면은 주 행동과 «확인 대화의 마지막 버튼» 둘뿐이다. `danger` 는 외곽선이다. */
+  it("danger 는 면을 칠하지 않고 dangerConfirm 만 칠한다", () => {
+    ui(<><Button variant="danger">삭제</Button><Button variant="dangerConfirm">확인</Button></>);
+    expect(screen.getByRole("button", { name: "삭제" }).className).toMatch(/MuiButton-outlined/);
+    expect(screen.getByRole("button", { name: "확인" }).className).toMatch(/MuiButton-contained/);
+  });
+});
+
+/* 판을 벗긴 뒤 선택 신호가 살아 있는가 (W4).
+ * `background.inset` 은 판 위에서는 함몰면이지만 캔버스 위에서는 더 밝고 대비가 1.055:1 이라
+ * 신호가 뒤집히면서 사라진다. 그래서 레일이 말한다 — 사이드바와 같은 어휘다(D-184). */
+describe("판독 줄의 선택 신호", () => {
+  it("지금 목록을 거르는 칸이 레일을 갖고, 나머지는 같은 두께의 투명 레일을 갖는다", () => {
+    ui(
+      <MetricStrip
+        ariaLabel="티켓"
+        items={[
+          { key: "a", value: 3, label: "열림", onClick: () => {}, active: true },
+          { key: "b", value: 9, label: "완료", onClick: () => {} },
+        ]}
+      />,
+    );
+    const cells = document.querySelectorAll(".k-readout");
+    const on = getComputedStyle(cells[0]);
+    const off = getComputedStyle(cells[1]);
+    expect(on.borderBlockEndStyle).toBe("solid");
+    expect(on.borderBlockEndWidth).toBe(off.borderBlockEndWidth);   // 줄 높이가 튀지 않는다
+    // jsdom 은 `transparent` 를 `rgba(0, 0, 0, 0)` 으로 계산해 돌려준다.
+    const clear = (v) => v === "transparent" || v === "rgba(0, 0, 0, 0)";
+    expect(clear(on.borderBlockEndColor), `활성 레일 색 ${on.borderBlockEndColor}`).toBe(false);
+    expect(clear(off.borderBlockEndColor), `비활성 레일 색 ${off.borderBlockEndColor}`).toBe(true);
+    /* **면은 신호를 지지 않는다.** 처음에는 위 주석을 적어 두고도 `bgcolor` 를 지우지
+     * 않아, 캔버스 위에서 1.055:1 로 보이지 않는 면이 그대로 남아 있었다(독립 검수 실측).
+     * 활성 칸이 면을 칠하면 두 어휘가 같은 것을 두 번 말한다 — 그걸 여기서 막는다. */
+    expect(clear(on.backgroundColor), `활성 칸 배경 ${on.backgroundColor}`).toBe(true);
+  });
+});
+
+/* 체크리스트 ⑥ 이 가리키는 자리에 **쓸 것**이 있는가 (W4).
+ * 금지만으로는 반사가 안 바뀐다 — 판을 만들지 말라고 하면서 대안을 안 주면 화면은 다시 판을
+ * 만든다. `Section` 이 그 대안이고, 판을 갖지 않는다는 것이 이 부품의 전부다. */
+describe("Section — 컨테이너 없는 묶음", () => {
+  it("판을 갖지 않고 제목과 구획 간격만 소유한다", () => {
+    ui(<Section title="최근 문서">본문</Section>);
+    const sec = document.querySelector("section[data-surface]");
+    expect(sec).toHaveAttribute("data-surface", "none");
+    expect(sec.className).not.toMatch(/MuiCard|MuiPaper/);
+    const s = getComputedStyle(sec);
+    expect(Number.parseFloat(s.borderTopWidth || "0")).toBe(0);
+    expect(s.backgroundColor === "" || s.backgroundColor === "rgba(0, 0, 0, 0)").toBe(true);
+    expect(sec.textContent).toContain("최근 문서");
+    expect(sec.textContent).toContain("본문");
+  });
+
+  it("rule 을 주면 제목 아래 실선 하나로 목록을 연다", () => {
+    ui(<Section title="상태" rule><div>줄</div></Section>);
+    const sec = document.querySelector("section[data-surface]");
+    const ruled = [...sec.children].filter((c) => {
+      const s = getComputedStyle(c);
+      return Number.parseFloat(s.borderTopWidth || "0") > 0;
+    });
+    expect(ruled.length, "제목 아래 실선이 하나 있어야 한다").toBe(1);
+  });
+
+  it("판 안에 놓이면 판을 만들지 않는다 — 애초에 판이 아니다", () => {
+    ui(<Card><Section title="안쪽">본문</Section></Card>);
+    expect(document.querySelector("section[data-surface]")).toHaveAttribute("data-surface", "none");
+  });
+});
+
+/* 공유 부품이 `sx` 를 받을 때 **함수 형태를 잃지 않는가** (W4).
+ * 객체로만 받아 펼치면 테마를 읽는 sx 가 조용히 사라진다 — 이 저장소가 여러 번 밟은
+ * "선언은 있는데 화면에는 없다" 의 한 형태다. 새로 만든 세 부품에서 그것을 고정한다. */
+describe("sx 는 객체든 함수든 살아남는다", () => {
+  it.each([
+    ["Surface", (sx) => <Surface tone="none" className="probe" sx={sx}>x</Surface>],
+    ["Card", (sx) => <Card className="probe" sx={sx}>x</Card>],
+    ["Section", (sx) => <Section title="t" sx={sx}><span className="probe">x</span></Section>],
+  ])("%s — 함수 sx 가 실제로 적용된다", (_name, render) => {
+    const { unmount } = ui(render((t) => ({ outlineColor: t.palette.error.main, outlineStyle: "dotted", outlineWidth: "3px" })));
+    const el = document.querySelector(".probe");
+    const target = el.closest("[data-surface]") || el;
+    expect(getComputedStyle(target).outlineWidth, "함수 sx 가 사라졌다").toBe("3px");
+    unmount();
   });
 });

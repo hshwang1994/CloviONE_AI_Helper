@@ -500,9 +500,31 @@ def main(argv: list[str] | None = None) -> int:
             index = 0
             for theme in themes:
                 for viewport in viewports:
-                    for group, state in ((signed_out, None), (signed_in, session.storage_state)):
+                    for kind in ("signed_out", "signed_in"):
+                        group = signed_out if kind == "signed_out" else signed_in
                         if not group:
                             continue
+                        state = None
+                        if kind == "signed_in":
+                            # **세션이 살아 있는지 묶음마다 다시 확인한다.**
+                            #
+                            # 예전에는 실행 시작에 한 번만 확인했다. 664 페이지 실행은 한
+                            # 시간이 넘고, 서버의 세션은 절대 수명(`session_ttl_seconds`,
+                            # 기본 8시간)을 갖는다 — **시작 시점에 유효한 것과 끝까지 유효한
+                            # 것은 다른 사실이다.** 실제로 W4 의 첫 전량 실행이 286페이지째부터
+                            # 로그인 화면을 찍기 시작했고(캐시된 세션이 그 사이 절대 수명에
+                            # 닿았다), 남은 379페이지가 전부 같은 로그인 스크린샷이 될 뻔했다.
+                            # `auth_ok` 검사가 그것을 fail 로 적기는 하지만, 그때는 이미 한
+                            # 시간을 버린 뒤다.
+                            #
+                            # `ensure_session(rebuild=False)` 은 캐시를 **먼저 검증**하고
+                            # 죽었으면 다시 로그인한다. 묶음마다 `/api/me` 한 번이라 비용은
+                            # 실행당 여덟 번이고, 그 대가로 "증거가 통째로 로그인 화면" 이라는
+                            # 실패 모드가 사라진다.
+                            session = ensure_session(
+                                browser, args.base_url, auth_dir, rebuild=False, log=_log,
+                                insecure=args.insecure, role=args.role)
+                            state = session.storage_state
                         context = capture.new_context(
                             browser, storage_state=state,
                             user_id=session.user_id, theme=theme, viewport=viewport,

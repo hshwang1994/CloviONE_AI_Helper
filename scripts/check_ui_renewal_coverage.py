@@ -828,6 +828,39 @@ def c9_c10_findings(rep: Report, surfaces: list[dict], scoped: list[dict], stage
         rep.fail("C10 최신 QA 결과가 없다", "dist/ui-qa/*/results.json 이 이 머신에 없다")
 
 
+# W4 종료 조건 — "`surface_repetition`·`oversized_empty_surface` Advisory 수치가
+# **Surface 별로 기록됨**". 이 두 검사는 임계값이 취향을 인코딩하므로 영구 Advisory 다
+# (PLAN «Gate vs Advisory»). Advisory 는 실패해도 게이트를 막지 않으니, 대신 **잰 값이
+# 남아 있는지**를 게이트가 본다 — 안 그러면 "측정했다" 와 "측정하지 않았다" 가 똑같이
+# 조용하다. `merge_qa_findings.py` 가 실행마다 `surface.advisory[cls]` 에 적는다.
+ADVISORY_RECORDED = ("surface_repetition", "oversized_empty_surface")
+
+
+def c10b_advisory_recorded(rep: Report, scoped: list[dict], wave: str) -> None:
+    """W4 이후, 완료로 표시된 Surface 는 두 Advisory 의 실측 숫자를 갖고 있어야 한다."""
+    order = _waves()
+    if wave not in order or "W4" not in order or order.index(wave) < order.index("W4"):
+        return
+    missing = []
+    for sf in scoped:
+        if sf.get("status") != "DONE":
+            continue
+        rec = sf.get("advisory") or {}
+        for cls in ADVISORY_RECORDED:
+            got = rec.get(cls)
+            if not got or not got.get("label"):
+                missing.append("%s.%s" % (sf.get("id"), cls))
+                continue
+            # 전부 skip 이면 잰 것이 아니다 — `narrow_main` 의 "144 pass / 144 skip" 함정.
+            if not (got.get("pass") or got.get("fail")):
+                missing.append("%s.%s (전부 skip — 재지 않았다)" % (sf.get("id"), cls))
+    if missing:
+        for row in missing[:20]:
+            rep.fail("C10b Advisory 수치가 Surface 에 기록되지 않았다", row)
+    else:
+        rep.ok("완료 Surface 전부에 `surface_repetition`·`oversized_empty_surface` 실측 수치가 있다")
+
+
 def c7_findings_accepted(rep: Report, surfaces: list[dict]) -> None:
     entries = parse_matrix(read(MATRIX))
     deferred_findings = set()
@@ -1107,6 +1140,7 @@ def _run_conditions(rep: Report, stage: str, wave: str) -> int:
     c5_audits(rep, scoped, route.get("responsive_profiles") or {})
     c8_entity_selectors(rep, scoped)
     c9_c10_findings(rep, surfaces, scoped, stage)
+    c10b_advisory_recorded(rep, scoped, wave)
     c11_c14_functional(rep, surfaces, func, scoped_ids, stage)
     if stage == "complete":
         c7_findings_accepted(rep, surfaces)

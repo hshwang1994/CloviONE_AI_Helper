@@ -1,34 +1,4 @@
-/* 글자 크기는 rem으로 쓴다(px 금지).
- *
- * styles/root.css가 루트 폰트사이즈를 4K에서 16px→18px→20px로 올려 글자와 여백을 함께
- * 키운다. px로 박아 두면 그 레버를 따라가지 않아서, 3840 화면에서 본문만 커지고 이 값들만
- * 그대로 작게 남는다 — 실제로 채팅방 목록의 '전체' 태그가 11px로 남아 4K 검사에서 걸렸다.
- * 아래 값들은 기존 px를 16으로 나눈 rem이라 기본(16px) 화면에서는 픽셀 단위로 동일하다.
- */
-/* 화면별 레이아웃 — 대시보드(운영 중심) 외. 토큰만, 인라인 없음.
- * 여백은 공유 --space-* 스케일(xs4/sm8/md12/lg16/xl24/2xl32/3xl48)만 쓴다(임의 px 금지).
- * 굵기는 --fw-*(normal400/medium500/semibold600)만 쓴다 — 본문·숫자에 700+ 금지, 제목은 600.
- * 토큰이 아직 없더라도 깨지지 않게 각 var()에 기존 값을 폴백으로 둔다. */
-.dash-section { margin-bottom: var(--space-2xl, 32px); }
-/* kit.css의 .k-section-title(17px/600)과 크기를 맞춘다 — 둘 다 '섹션 제목, semibold' 의도인데
-   글자 크기만 달라 대시보드↔다른 관리 화면을 오갈 때 제목 스케일이 눈에 띄게 흔들렸다. */
-.dash-h2 { font-size: 1.0625rem; font-weight: var(--fw-semibold, 600); color: var(--color-heading); margin: 0 0 var(--space-md, 12px); }
-.dash-h2-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md, 12px); }
-.dash-h2-row .dash-h2 { margin-bottom: var(--space-md, 12px); }
-.dash-link { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 0.8125rem; font-weight: var(--fw-semibold, 600); }
-.dash-link:hover { text-decoration: underline; }
-.dash-updated { font-size: 0.75rem; color: var(--color-muted); font-variant-numeric: tabular-nums; align-self: center; }
-/* 균등 반응형 그리드 — 화면 폭에 따라 열 수 자동, 왼쪽 몰림/오른쪽 빈 공간 방지(§8.3/§21). */
-/* auto-fill(not auto-fit): 항목이 적어도 빈 트랙을 접지 않아 카드 1~2개가 전폭으로 늘어나지 않는다. */
-.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-lg, 16px); }
-.dash-svc { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm, 8px); padding: var(--space-md, 12px) var(--space-lg, 16px); }
-.dash-allclear { display: flex; align-items: center; gap: var(--space-sm, 8px); padding: var(--space-md, 12px) var(--space-lg, 16px); margin-bottom: var(--space-2xl, 32px); border-radius: var(--radius-lg, 12px); background: color-mix(in srgb, var(--badge-success-fg) 8%, transparent); color: var(--color-text); font-size: 0.875rem; }
-.dash-backup { display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg, 16px); }
-/* 배지가 14px 텍스트와 한 줄에 섞일 때 baseline 정렬이라 알약이 아래로 처지던 것 — 세로 중앙으로. */
-.dash-audit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm, 8px); }
-.dash-audit li { display: grid; grid-template-columns: 180px 1fr auto; gap: var(--space-sm, 8px); align-items: baseline; font-size: 0.8125rem; }
 
-.pending-note { margin: 0 0 var(--space-lg, 16px); line-height: 1.55; }
 
 /* 목록 화면 툴바·검색·상세 키·값. .c-toolbar-card 자체의 padding/margin-bottom은 5개 호출부
    전부 sx={{p:2, mb:2.5}}로 이미 다른 값을 직접 주고 있어 여기 다시 선언하면 이중 선언
@@ -38,34 +8,18 @@
 
 /* 다중선택 — 좁은 체크박스 열, 헤더에 두는 깔끔한 일괄 동작, 제목 링크 버튼 */
 .k-selbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); margin: 0; vertical-align: middle; }
-.k-table th.k-col-check, .k-table td.k-col-check { width: 44px; padding-left: var(--space-md, 12px); padding-right: 4px; }
 .k-bulkactions { display: inline-flex; align-items: center; gap: var(--space-sm, 8px); margin-right: var(--space-sm, 8px); }
 .k-bulkactions-count { font-size: var(--font-size-sm, 13px); color: var(--color-muted); font-variant-numeric: tabular-nums; }
-/* 제목(이름) = 상세로 가는 링크 버튼. 버튼 크롬 제거하고 링크처럼 보이게. */
-.k-title-link { border: 0; background: none; padding: 0; margin: 0; font: inherit; text-align: left; cursor: pointer;
-  color: var(--color-heading); display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
-.k-title-link:hover { color: var(--color-primary); text-decoration: underline; }
-.k-title-link:focus-visible { outline: 2px solid var(--color-primary-soft); outline-offset: 2px; border-radius: 4px; }
 .c-toolbar-toggle { font-size: 0.8125rem; color: var(--color-muted); white-space: nowrap; }
-.c-search { width: 100%; max-width: 360px; padding: 9px 12px; font-size: 0.875rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card); color: var(--color-text); }
-.c-filter { padding: 8px 10px; font-size: 0.8125rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card); color: var(--color-text); max-width: 200px; }
 .c-list-card { padding: 6px 8px; }
 .c-kv { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-sm, 10px); padding: var(--space-sm, 8px) 0; border-bottom: 1px solid var(--color-line); font-size: 0.875rem; }
 .c-kv:last-child { border-bottom: 0; }
 .c-kv-k { color: var(--color-muted); }
 .c-kv-v { color: var(--color-text); word-break: break-word; }
-.c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: 8px; max-height: 320px; overflow: auto; }
-/* 여러 사실을 한 문단에 몰아넣지 않고 줄마다 나눠 훑기 쉽게 할 때(예: Users.jsx) — kit.css의
-   .k-callout-body p{margin:0}은 문단 간 간격이 없어 줄들이 그대로 붙어 보인다. */
-
-/* 관리 화면 전용 인라인 링크 버튼(id 복사·화면 이동 등) — 채팅 UI의 .chat-linkbtn과 겉모습은
-   같지만, 채팅 쪽 사정으로 그 클래스가 바뀌어도 관리 화면이 함께 흔들리지 않도록 별도 이름으로 둔다. */
-.c-linkbtn { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 0.75rem; font-weight: var(--fw-semibold, 600); padding: 0; }
-.c-linkbtn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: var(--radius-sm, 6px); max-height: 320px; overflow: auto; }
 /* '복사를 지원하지 않는 환경' 폴백은 이 값을 직접 선택해 복사하라고 안내한다 — UUID는 하이픈이
    섞여 있어 더블클릭만으로는 한 토막만 선택된다. 클릭 한 번으로 전체가 선택되게 한다(.c-temp-pw와 동일 취지). */
 .c-id-selectable { user-select: all; }
-.k-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--color-border); border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; color: var(--color-text); background: var(--color-card); }
 
 /* Callout이 tone="success"를 직접 지원해(kit.jsx/kit.css) info 톤을 색만 덮어쓰던 .c-success-callout
    워크어라운드가 더 이상 필요 없다 — Settings.jsx/Ops.jsx는 이제 tone="success"를 바로 쓴다. */
@@ -78,7 +32,6 @@
    나머지(k-footer-extra/k-footer-main)는 전폭으로 쌓이는데 이것만 좁게 남아 줄이 어긋나 보인다. */
 
 @media (max-width: 760px) {
-  .dash-audit li { grid-template-columns: 1fr; gap: 2px; }
 }
 
 /* 알림 벨 + 팝오버(§6.4) — 인라인 스타일 없음. 열림 애니메이션은 동작 감소 설정에서 끔. */
@@ -89,7 +42,7 @@
 .noti-err { position: absolute; top: -1px; right: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--color-warning); border: 1px solid var(--color-card); }
 /* 같은 topbar에서 열리는 형제 드롭다운(.c-usermenu, global.css)과 모서리 반경을 맞춘다 — 둘 다
    같은 --shadow-dropdown을 쓰는데 여기만 14px이라 나란히 보면 어긋났다. */
-.noti-pop { position: absolute; top: 46px; right: 0; width: 340px; max-width: 92vw; background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow-dropdown); z-index: 70; overflow: hidden; animation: noti-in 0.15s ease; }
+.noti-pop { position: absolute; top: 46px; right: 0; width: 340px; max-width: 92vw; background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); box-shadow: var(--shadow-dropdown); z-index: 70; overflow: hidden; animation: noti-in 0.15s ease; }
 @keyframes noti-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .noti-pop { animation: none; } }
 .noti-pop-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-md, 12px) var(--space-lg, 16px); border-bottom: 1px solid var(--color-border); font-weight: var(--fw-semibold, 600); font-size: 0.875rem; }
@@ -160,7 +113,7 @@
    쓰지 않는다(어두운 잉크 색이 얹혀 안 읽힌다). */
 /* 16px — 이 헤더가 소개하는 본문(.msg-p/.msg-li-text/.msg-kv-v)의 15px보다 커야 '머리글'로 읽힌다.
    14px이던 예전 값은 자기 본문보다 작아 구조화 서식이 의도한 시각 위계를 오히려 뒤집었다. */
-.msg-h { margin: var(--space-sm, 10px) 0 var(--space-xs, 4px); font-size: 1rem; font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
+.msg-h { margin: var(--space-sm, 10px) 0 var(--space-xs, 4px); font-size: var(--font-size-lg, 1.1875rem); font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
 .msg-h:first-child { margin-top: 0; }
 .msg-p { margin: var(--space-sm, 6px) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-p:first-child { margin-top: 0; }
@@ -224,10 +177,6 @@
 }
 
 @media (max-width: 760px) {
-  /* 설정 표의 '설명' 열은 문장 길이 카피(20~25자)를 담는다 — kit.css 기본 모바일 카드 뷰(라벨↔값
-     좌우 정렬, .k-table td space-between)가 좁은 라벨 옆으로 긴 텍스트를 밀어 넣어 줄바꿈이 뒤엉킨다.
-     이 열만 라벨을 위, 값을 아래로 쌓는다(다른 화면의 짧은 값 열은 기본 좌우 정렬 그대로 둔다). */
-  .k-table td[data-label="설명"] { flex-direction: column; align-items: flex-start; gap: 2px; }
 }
 
 /* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·툴바(.c-toolbar-card)는 자체 margin-bottom이
@@ -246,7 +195,7 @@
 }
 .devrep-kpi {
   position: relative; overflow: hidden; background: var(--color-card);
-  border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-subtle); padding: var(--space-lg, 16px) var(--space-lg, 16px) var(--space-md, 12px);
 }
 /* 좌측 색막대(레일)는 쓰지 않는다(디자인 결정) — 완료(accent)는 값 색 + 옅은 테두리 강조,
@@ -259,11 +208,11 @@
 
 .devrep-tablewrap {
   overflow-x: auto; border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 10px); background: var(--color-card); box-shadow: var(--shadow-subtle);
+  border-radius: var(--radius-md, 8px); background: var(--color-card); box-shadow: var(--shadow-subtle);
 }
-.devrep-table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+.devrep-table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: var(--font-size-sm, 0.8125rem); }
 .devrep-table th {
-  text-align: center; font-size: 11.5px; font-weight: var(--fw-semibold, 600); letter-spacing: 0.03em;
+  text-align: center; font-size: var(--font-size-xs, 0.75rem); font-weight: var(--fw-semibold, 600); letter-spacing: 0.03em;
   color: var(--color-muted); padding: 12px 10px; border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-primary) 6%, var(--color-card)); white-space: nowrap;
   cursor: help;
@@ -293,20 +242,15 @@
 .devrep-table a.c-linkbtn { color: var(--color-primary); text-decoration: none; }
 .devrep-table a.c-linkbtn:hover { text-decoration: underline; }
 .devrep-bar .track, .devrep-hbar .track { fill: var(--color-line); }
-.seg-done { fill: var(--color-success); }
-.seg-prog { fill: var(--color-primary); }
-.seg-verify { fill: var(--color-warning); }
-.seg-plan { fill: color-mix(in srgb, var(--color-muted) 60%, var(--color-card)); }
-.seg-cancel { fill: color-mix(in srgb, var(--color-error) 50%, var(--color-muted)); }
 
 .devrep-hbars { display: flex; flex-direction: column; gap: var(--space-sm, 8px); margin: 0 0 var(--space-md, 12px); }
 .devrep-hbar { display: grid; grid-template-columns: 72px 1fr 46px; align-items: center; gap: var(--space-md, 12px); }
 .devrep-hbar svg { display: block; width: 100%; height: 18px; }
 .devrep-hbar .fill { fill: var(--color-primary); }
 
-.devrep-chip { display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill, 100px); font-size: 11.5px; font-weight: var(--fw-semibold, 600); line-height: 1.5; }
+.devrep-chip { display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill, 999px); font-size: var(--font-size-xs, 0.75rem); font-weight: var(--fw-semibold, 600); line-height: 1.5; }
 
-.devrep-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: var(--space-md, 12px) 2px 0; font-size: 12.5px; color: var(--color-muted); }
+.devrep-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: var(--space-md, 12px) 2px 0; font-size: var(--font-size-xs, 0.75rem); color: var(--color-muted); }
 .devrep-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .devrep-legend i.done { background: var(--color-success); }
 .devrep-legend i.prog { background: var(--color-primary); }
@@ -345,41 +289,19 @@
 .docs-search { min-width: 220px; flex: 1 1 220px; }
 .docs-filter { width: auto; }
 .docs-star { color: var(--color-warning); }
-
-/* 상세 */
-
-/* 본문 블록 */
-/* 배경 채움은 --color-primary-tint(옅은 배경 틴트)를 쓴다. --color-primary-soft는 이제
- * 포커스 링·경계선 전용(진한 색)이라 배경으로 쓰면 너무 강하다 — 기준선의 --primary-soft
- * 개념(옅은 틴트)과 이 파일의 옛 --color-primary-soft(진한 포커스 링) 개념이 같은 이름
- * 아래 섞여 있던 것을 여기서 분리한다(tokens.css 참조). */
-/* 새 문서 본문 서식 도구 + 넓은 본문 입력칸(§가독성). 모달 자체 스크롤은 kit .k-modal-body가 담당. */
-.docs-body-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs, 4px); margin-bottom: var(--space-sm, 8px); }
-.docs-body-text { min-height: 220px; resize: vertical; line-height: 1.6; }
-.docs-preview { border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); background: var(--color-bg); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-xs, 4px); max-height: 220px; overflow-y: auto; }
+.docs-preview { border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px); background: var(--color-bg); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-xs, 4px); max-height: 220px; overflow-y: auto; }
 
 .docs-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-md, 12px); margin-top: var(--space-md, 12px); }
 
 /* 문서 목록 표: 칼럼 너비를 고정한다. 없으면 페이지/내용이 바뀔 때마다 열 너비가 자동
  * 재계산돼 "왔다갔다" 흔들린다(검수·사용자 피드백). 데스크톱(표)에서만 적용하고 모바일
  * 카드 모드(≤760px)는 kit 기본에 맡긴다. 셀은 넘치면 …로 자른다. */
-@media (min-width: 761px) {
-  .docs-table .k-table { table-layout: fixed; width: 100%; }
-  /* 1열은 선택 체크박스(좁게 고정), 2열부터 제목/메타. 예전엔 체크박스 열이 없어 nth-child가
-     한 칸씩 밀려 체크박스 열이 제목 폭(24%)을 먹어 엄청 넓어 보였다 — 열 순서에 맞춰 다시 잡는다. */
-  .docs-table .k-table th:nth-child(1), .docs-table .k-table td:nth-child(1) { width: 44px; }
-  .docs-table .k-table th:nth-child(2), .docs-table .k-table td:nth-child(2) { width: 24%; }
-  .docs-table .k-table th:nth-child(3), .docs-table .k-table td:nth-child(3) { width: 12%; }
-  .docs-table .k-table th:nth-child(4), .docs-table .k-table td:nth-child(4) { width: 13%; }
-  .docs-table .k-table th:nth-child(5), .docs-table .k-table td:nth-child(5) { width: 13%; }
-  .docs-table .k-table th:nth-child(6), .docs-table .k-table td:nth-child(6) { width: 10%; }
-  .docs-table .k-table th:nth-child(7), .docs-table .k-table td:nth-child(7) { width: 13%; }
-  .docs-table .k-table th:nth-child(8), .docs-table .k-table td:nth-child(8) { width: 15%; }
-  /* 셀은 한 줄로만: 넘치면 줄바꿈 대신 …로 자른다 → 모든 행 높이가 같아진다. */
-  .docs-table .k-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .docs-table .k-table td .k-badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .docs-table .docs-title-text { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-}
+/* 문서 목록 표의 열 폭 고정 블록을 지웠다 (W4).
+   `.k-table`·`.docs-table` 은 어느 화면도 더 이상 렌더하지 않는다(`DataTable` 이 MUI 로
+   이관되며 열 폭이 열 정의의 `width` 로 옮겨 갔다). 남아 있던 `th:nth-child(1..8)` 규칙은
+   **열 순서가 바뀌면 조용히 어긋나는** 바로 그 방식이었고, 이미 한 번 체크박스 열이 생기며
+   한 칸씩 밀려 제목 폭을 먹은 적이 있다 — 이제 매치되지도 않는다.
+   열 폭·정렬의 정본은 `kit.jsx::DataTable` 의 컬럼 계약이다. */
 
 @media (max-width: 640px) {
   .docs-filters { flex-direction: column; align-items: stretch; }
@@ -410,12 +332,12 @@
 /* 빠른 투표 무대 */
 
 /* 실시간 퀴즈 — AI 문제 생성 폼 */
-.quiz-ai { margin-bottom: var(--space-md, 12px); padding: var(--space-md, 12px); border: 1px solid var(--color-primary-soft); border-radius: var(--radius-md, 10px); background: var(--badge-info-bg); }
+.quiz-ai { margin-bottom: var(--space-md, 12px); padding: var(--space-md, 12px); border: 1px solid var(--color-primary-soft); border-radius: var(--radius-md, 8px); background: var(--badge-info-bg); }
 .quiz-ai .k-field-help { margin-top: var(--space-xs, 4px); }
 
 /* 실시간 퀴즈 — 문제 편집기(생성 모달) */
 .quiz-editor { display: flex; flex-direction: column; gap: var(--space-md, 12px); }
-.quiz-q { border: 1px solid var(--color-border); border-radius: var(--radius-md, 10px); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-sm, 8px); background: var(--color-bg); }
+.quiz-q { border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-sm, 8px); background: var(--color-bg); }
 .quiz-opts { display: flex; flex-direction: column; gap: var(--space-xs, 4px); }
 
 /* 퀴즈 진행/결과 무대 */

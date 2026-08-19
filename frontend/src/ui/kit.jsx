@@ -38,7 +38,7 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
-import { CARD_PADDING } from "./density.js";
+import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -226,10 +226,30 @@ export function Tag({ label, tone }) {
   );
 }
 
-/* 버튼 — 기존 variant 어휘(primary/ghost/danger/기본)와 size="sm"을 그대로 받는다. */
+/* 버튼 강도 계약 (지시 11 · R-11 · F-W1R-04) — **파괴적 동작은 주 행동을 이기지 않는다.**
+ *
+ * 예전에는 `danger` 가 `contained error` 였다. 그래서 실측에서 이런 화면이 나왔다:
+ * `user_chat-rooms` 방 헤더 우상단의 «나가기» 가 페이지에서 **가장 채도 높은 면**(#B3261E)
+ * 이고, 같은 화면의 진짜 주 행동 «새 그룹» 은 그보다 약했다. 다크에서는 `error.main` 이
+ * 밝은 살몬(#FF8A80)으로 뒤집혀 근검정 캔버스 위 **가장 밝은 물체**가 됐다(캔버스 대비
+ * 7.7:1 대 primary 3.0:1 — 2.5배). F 패턴의 시작점인 우상단을 파괴적 동작이 점유한 것이다.
+ *
+ * 강도는 넷이고 **채운 면은 둘뿐**이다.
+ *
+ *   primary        채운 브랜드 면. 화면당 하나. "여기서 할 일"
+ *   danger         **외곽선 + error 잉크.** 눈에 띄되 주 행동을 이기지 않는다
+ *   dangerConfirm  채운 error 면. **확인 대화 안에서만** — 이미 결정한 뒤의 마지막 버튼이라
+ *                  거기서는 그것이 그 화면(모달)의 주 행동이다
+ *   default        외곽선 중립 · ghost 맨 텍스트
+ *
+ * `danger` 라는 **이름은 그대로 둔다** — `scripts/check_button_hierarchy.py` 가 registry 의
+ * 삭제·비활성화·보관 액션이 이 이름을 쓰는지 검사하고 있고, 이름을 바꾸면 그 가드가
+ * 조용히 아무것도 안 지키게 된다. 바뀐 것은 이름이 아니라 강도다.
+ */
 const BUTTON_VARIANT = {
   primary: { variant: "contained", color: "primary" },
-  danger: { variant: "contained", color: "error" },
+  danger: { variant: "outlined", color: "error" },
+  dangerConfirm: { variant: "contained", color: "error" },
   ghost: { variant: "text", color: "inherit" },
   default: { variant: "outlined", color: "inherit" },
 };
@@ -250,7 +270,36 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
       aria-busy={loading || undefined}
       {...v}
       {...rest}
-      sx={{ position: "relative", ...sx }}
+      sx={(theme) => ({
+        position: "relative",
+        /* 보조 버튼의 **테두리가 주 행동보다 강했다** (R-11 실측).
+           MUI v7 의 `outlined` + `color="inherit"` 은 테두리를 `currentColor` 로 그린다
+           (`@mui/material/Button/Button.js`) — 이 앱에서 그것은 `text.primary`(#161A2C) 이고
+           판 위 대비 **17.1:1** 이다. 같은 화면의 채운 primary 가 5.96:1 이니 보조가 주보다
+           2.9배 강했다. 배포본 픽셀로 확인한 상태다(`user_unassigned.png` y=505, x=1787 이
+           단일 #161A2C). 소비처 109곳(전체 버튼의 44%)이 이 variant 다 — 호출부를 하나도
+           안 건드리고 여기 한 줄로 닫는다.
+           테두리는 **비텍스트 경계**라 WCAG 1.4.11 의 3:1 이 기준이다. `text.faint` 는 W4 가
+           AA-large 전용으로 좁힌 잉크이고 네 면에서 3.67~4.95:1 이다 — 경계로 충분하고
+           주 행동을 이기지 않는다. */
+        ...(variant === "default" ? {
+          borderColor: theme.palette.text.faint,
+          "&:hover": { borderColor: theme.palette.text.secondary },
+        } : null),
+        /* 파괴적 동작도 **같은 하한을 받는다.** 위 한 줄을 `default` 에만 걸었더니
+           `danger` 는 MUI 기본값 `alpha(error.main, 0.5)` 에 남았고, 그것이 판 위에서
+           light 2.48:1 · dark 2.84:1 이 됐다 — 3:1 미만인 데다 바로 옆 중립 보조
+           버튼(4.18:1)보다 약하다. **제품에서 가장 위험한 동작이 가장 흐린 경계를 갖는
+           역전**이다(독립 검수 실측). 불투명 `error.main` 은 판 위 6.54:1(dark 7.72:1)이라
+           경계로 충분하고, 채운 면은 여전히 주 행동만 갖는다 — 강도 순서는 그대로다.
+           hover 색은 따로 주지 않는다. 이 팔레트의 `error` 는 `{main,bg,line,strong}` 만
+           선언하고 `dark` 는 MUI 가 채워 주는데, 그 값을 실제로 재 보면 **다크에서 대비를
+           깎는다**: light `rgb(125,26,21)` 은 흰 판 위에서 더 강해지지만 dark
+           `rgb(178,96,89)` 은 판 위 7.72 → **3.95:1** 로 내려간다. hover 는 신호가 세지는
+           자리이므로 방향이 반대다. `outlined` 의 기본 hover 배경으로 충분하다. */
+        ...(variant === "danger" ? { borderColor: theme.palette.error.main } : null),
+        ...(typeof sx === "function" ? sx(theme) : sx),
+      })}
     >
       {/* 진행 중에도 **라벨을 그대로 둔다.**
        *
@@ -347,11 +396,144 @@ export function OverflowMenu({ items, ariaLabel = "더 보기" }) {
   );
 }
 
-export function Card({ className, children, sx, ...rest }) {
+/* ── 면(Surface) — PLAN «Surface 위계» 를 코드로 ─────────────────────────────
+ *
+ * 지시 82 가 금지한 것은 규칙이 아니라 **반사**다: "무언가를 묶어야 한다 = 흰 네모를
+ * 만든다". 그 반사를 문서로 막으면 다음 화면에서 그대로 다시 나온다. 그래서 판정을
+ * 부품 하나로 옮긴다 — 무엇을 담을 수 있고 테두리·모서리·그림자를 갖는지가 여기 한 표에
+ * 있고, 화면은 tone 하나만 고른다.
+ *
+ *   none       Section 제목·Divider·격자 간격이 사는 자리. **컨테이너를 그리지 않는다.**
+ *   plate      자기 생명주기(save/cancel·독립 확장·독립 error/empty/loading)를 가진 경계 객체
+ *   inset      표 머리·읽기전용·code·diff·hover/selected 행
+ *   sunken     track·skeleton·chart band
+ *   brandTint  AI/Assistant/Brand 순간. 앞머리 3px `brand.core` edge 를 함께 갖는다
+ *   overlay    메뉴·팝오버·툴팁
+ *   modal      다이얼로그·드로어
+ *
+ * ## 구획별 판정 체크리스트 (첫 Yes 에서 멈춘다)
+ *
+ *   ① 자체 Action 이나 생명주기가 있나                  -> plate
+ *   ② 페이지와 독립적으로 스크롤/오버플로하나           -> plate
+ *   ③ 떠 있나                                           -> overlay / modal
+ *   ④ 입력/읽기전용 함몰면인가                          -> inset (더 깊으면 sunken)
+ *   ⑤ AI/Brand 순간인가                                 -> brandTint
+ *   ⑥ 그 외                                             -> **컨테이너 없음** (`none`)
+ *                                                          `SectionTitle` + `SECTION_GAP`,
+ *                                                          목록이면 제목 아래 1px divider
+ *
+ * ## 하드 금지 중 하나는 코드가 강제한다 — **판 안의 판**
+ *
+ * `plate` 가 이미 `plate` 안이면 자동으로 `none` 으로 내려간다. 흔적은 남긴다:
+ * `data-surface="plate>none"` 이 그 자리에 붙어 하네스가 **몇 곳이 그랬는지 셀 수 있다**.
+ * 조용히 고치면 다음 사람은 자기가 판 안에 판을 그렸다는 사실을 영영 모른다.
+ *
+ * 떠 있는 것(`overlay`·`modal`)은 깊이를 **0 으로 되돌린다** — 판 위에서 연 모달 안의
+ * 카드는 판 안의 판이 아니다. React Context 는 Portal 을 통과하므로 이 초기화가 없으면
+ * 모달 안의 모든 판이 조용히 사라진다(그것이 바로 이 파일이 겪을 뻔한 함정이다).
+ */
+export const SURFACE_EDGE_WIDTH = 3;
+
+export const SURFACE_TONES = {
+  none: {},
+  plate: { fill: "background.plate", border: true, radius: RADIUS.md, holds: true },
+  inset: { fill: "background.inset", radius: RADIUS.sm },
+  sunken: { fill: "background.sunken", radius: RADIUS.sm },
+  brandTint: { fill: "background.brandTint", radius: RADIUS.md, edge: "brand.core" },
+  overlay: { fill: "background.plate", border: true, radius: RADIUS.lg, shadow: "overlay", floats: true },
+  modal: { fill: "background.plate", border: true, radius: RADIUS.lg, shadow: "modal", floats: true },
+};
+
+/* 팔레트 경로("brand.core")를 실제 색으로. `borderInlineStartColor` 는 MUI 의 border 설정
+   목록에 없어 팔레트 경로를 해석해 주지 않는다 — 그래서 여기서 직접 푼다. */
+function paletteAt(theme, path) {
+  return String(path).split(".").reduce((o, k) => (o == null ? o : o[k]), theme.palette);
+}
+
+/* 지금 이 자리가 판 안인가. 0 = 캔버스 위. */
+const SurfaceDepthCtx = React.createContext(0);
+
+function surfaceSx(theme, spec) {
+  return {
+    ...(spec.fill ? { bgcolor: spec.fill } : null),
+    ...(spec.radius ? { borderRadius: `${spec.radius}px` } : null),
+    ...(spec.border ? { border: 1, borderColor: "divider" } : null),
+    ...(spec.shadow ? { boxShadow: theme.shadowTokens[spec.shadow] } : null),
+    /* 논리 테두리는 MUI 가 펴 주지 않는다 — style·width·color 를 따로 적어야 그려진다.
+       `scripts/check_logical_border_props.py` 가 이 형태를 강제한다(F-W2R-01). */
+    ...(spec.edge
+      ? {
+        borderInlineStartStyle: "solid",
+        borderInlineStartWidth: `${SURFACE_EDGE_WIDTH}px`,
+        borderInlineStartColor: paletteAt(theme, spec.edge),
+      }
+      : null),
+  };
+}
+
+export function Surface({ tone = "plate", component, className, children, sx, ...rest }) {
+  const depth = React.useContext(SurfaceDepthCtx);
+  const wanted = SURFACE_TONES[tone] ? tone : "plate";
+  const degraded = wanted === "plate" && depth > 0;
+  const spec = degraded ? SURFACE_TONES.none : SURFACE_TONES[wanted];
+  const nextDepth = spec.floats ? 0 : (spec.holds ? depth + 1 : depth);
+
+  const merged = (theme) => ({
+    ...surfaceSx(theme, spec),
+    ...(typeof sx === "function" ? sx(theme) : sx),
+  });
+
+  /* `plate` 는 MUI Card 로 그린다 — theme.js 의 `MuiCard` 오버라이드가 이미 판 토큰
+     (1px divider · radius md · 그림자 없음)과 **같은 값**이고, 화면 시험 몇 개가
+     `.MuiCard-root` 로 판을 짚는다. 떠 있는 것은 Paper(그림자 계층), 나머지는 Box 다. */
+  const Comp = spec.holds && !degraded ? MuiCard : (spec.floats ? Paper : Box);
+  const extra = Comp === MuiCard || Comp === Paper ? { elevation: 0 } : null;
+
   return (
-    <MuiCard className={className} elevation={0} sx={{ p: CARD_PADDING, ...sx }} {...rest}>
+    <SurfaceDepthCtx.Provider value={nextDepth}>
+      <Comp
+        className={className}
+        data-surface={degraded ? `${wanted}>none` : wanted}
+        component={component}
+        {...extra}
+        sx={merged}
+        {...rest}
+      >
+        {children}
+      </Comp>
+    </SurfaceDepthCtx.Provider>
+  );
+}
+
+/** 지금 이 자리가 판 안인가. 0 이면 캔버스 위다. */
+export function useSurfaceDepth() {
+  return React.useContext(SurfaceDepthCtx);
+}
+
+/** 떠 있는 것 안에서는 깊이를 0 으로 되돌린다 — 판 위에서 연 모달 안의 카드는 판 안의 판이
+ * 아니다. React Context 는 Portal 을 통과하므로 이 초기화가 없으면 판 위에서 연 모달의
+ * 카드가 조용히 사라진다. `Modal` 이 이것을 쓴다. */
+export function SurfaceReset({ children }) {
+  return <SurfaceDepthCtx.Provider value={0}>{children}</SurfaceDepthCtx.Provider>;
+}
+
+/* 판 — `Surface tone="plate"` 에 판 안쪽 여백을 더한 것. 소비처 170여 곳이 이 이름을 쓴다.
+ *
+ * 안쪽 여백은 `density.js::CARD_PADDING`(24px)이다. W4 가 20 에서 올렸다 — 19px 구획
+ * 제목이 20px 여백 안에서 테두리에 붙어 읽혔다.
+ *
+ * **판 안에서는 여백도 함께 사라진다.** 판정이 `none` 으로 내려갔는데 24px 여백만 남으면
+ * 부모 판의 24px 와 겹쳐 48px 들여쓰기가 된다 — 없앤 테두리가 공백으로 되살아나는 셈이다. */
+export function Card({ className, children, sx, ...rest }) {
+  const nested = useSurfaceDepth() > 0;
+  const base = nested ? null : { p: CARD_PADDING };
+  const merged = typeof sx === "function"
+    ? (theme) => ({ ...base, ...sx(theme) })
+    : { ...base, ...sx };
+  return (
+    <Surface tone="plate" className={className} sx={merged} {...rest}>
       {children}
-    </MuiCard>
+    </Surface>
   );
 }
 
@@ -441,14 +623,20 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
       className="k-callout"
       data-tone={kind}
       role={kind === "danger" ? "alert" : "note"}
-      sx={{
+      /* 앞머리 실선이 이 부품의 **유일한 형태 신호**다. 그런데 `borderInlineStart: 2` 로는
+         한 픽셀도 그려지지 않았다 — MUI 의 border 스타일 함수가 논리 속성을 펴 주지 않아
+         `border-inline-start: 2px` 가 나가고 `border-style` 초기값이 `none` 이기 때문이다.
+         배포본 실측으로 확인한 결함이다(F-W2R-01). style·width·color 를 따로 적는다. */
+      sx={(t) => ({
         display: "grid", gap: 0.5,
         px: 1.5, py: 1, borderRadius: `${RADIUS.sm}px`,
-        borderInlineStart: 2, borderColor: `${paletteKey}.main`,
+        borderInlineStartStyle: "solid",
+        borderInlineStartWidth: "2px",
+        borderInlineStartColor: t.palette[paletteKey].main,
         bgcolor: quiet ? "transparent" : `${paletteKey}.bg`,
         fontSize: FONT_SIZE.body,
         ...KO_WORD_BREAK,
-      }}
+      })}
     >
       <Box sx={{ minWidth: 0 }}>{body}</Box>
       <TechDetail label={detailLabel}>{detail}</TechDetail>
@@ -457,74 +645,138 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
 }
 
 
-/** 지표 묶음 — **판 하나에 판독값 여럿** (지시 2, D-141 "계측 전면").
+/* 판독 한 줄에 쓰이는 두 상수. `rem` 숫자만 뽑아 계산에 쓴다 — 값의 정본은 theme.js 다. */
+const REM_OF = (v) => Number.parseFloat(String(v));
+const READOUT_LEAD = 1.15;   // 판독값 줄의 줄간격
+const READOUT_RAIL = 2;      // 지금 목록을 거르고 있는 칸을 말하는 레일 두께
+
+/** 지표 묶음 — **판이 아니라 판독 줄** (지시 2 · 77, PLAN «Surface 위계»).
  *
- * 예전에는 지표 하나당 카드 하나였다. 프로젝트 화면은 그래서 흰 카드 8장이 격자로 깔렸고
- * 그중 다섯이 `0` 이나 `-` 였다 — 화면의 절반을 "값이 없다"는 사실이 차지했다.
+ * 예전에는 지표 하나당 카드 하나였다. 그 벽은 이미 없앴는데, 그 자리를 **판 하나**가
+ * 대신 차지하고 있었다. PLAN 의 하드 금지 목록에 그것이 이름으로 적혀 있다 —
+ * "판독 한 줄에 plate 금지(`MetricStrip` 의 `<Card>` 제거)". 독립 검수도 같은 자리를
+ * 짚었다(F-W1R-16): `user_me.png` 에서 canvas -> plate -> inset 세 톤이 한 줄에 겹쳤다.
  *
- * 계측기 전면에는 게이지마다 케이스가 따로 있지 않다. 판 하나 위에 판독값이 나란히 놓이고
- * 실선이 그것들을 가른다. 이 컴포넌트가 그 배치다:
+ * W4 가 바꾼 것 넷.
  *
- *   · `primary: true` 인 항목은 **지배하는 판독값**(readout, 28px)이 된다. 한 묶음에 하나만 둔다.
- *   · 나머지는 보조 판독값(title, 17px)이다 — 지시 2 의 "핵심 지표와 보조 지표를 구분한다".
- *   · `delta` 를 주면 변화량을 함께 읽는다(지시 2: 기간 비교가 의미 있는 값에 Trend).
- *   · `note` 는 그 숫자를 한정하는 각주다. 숫자 바로 아래 둔다 — 구역 아래 공용 각주로
- *     빼면 어느 숫자를 한정하는지 다시 찾아야 한다(VIS-09/VIS-27).
+ * **① 판을 벗겼다.** 이제 캔버스 위에 판독값이 나란히 놓이고 실선이 그것들을 가른다.
+ * 테두리가 없어졌으므로 줄은 **왼쪽으로 packing** 한다 — 예전 주석이 "칸을 상한으로 묶으면
+ * 판의 오른쪽 절반이 테두리 안에서 빈다" 고 적어 둔 그 실측은 판이 있을 때만 성립한다.
+ * 판이 없으면 남는 폭은 그냥 캔버스이고, 숫자 셋을 화면 폭에 억지로 늘리는 편이 나쁘다.
  *
+ * **② 라벨 기준선을 공유한다.** 값 40px 과 19px 이 한 줄에 섞이면 각 칸이 자기 높이대로
+ * 라벨을 내려 라벨 기준선이 24px 어긋났다(F-W1R-27 픽셀 실측). 이제 값 줄이 **줄 전체에서
+ * 같은 최소 높이**를 갖고 값들이 그 아래쪽에 앉는다 — 라벨은 어느 칸에서나 같은 y 에서
+ * 시작한다.
+ *
+ * **③ 판독 슬롯은 판단을 요구하는 값에만 준다.** `primary` 가 40px 을 차지하던 값이
+ * 실제로는 «0 오늘 마감»·«0 처리 요청» 이었다 — 위계가 있는데 방향이 반대인 것은 위계가
+ * 없는 것보다 나쁘다. 값이 없거나(`null`/`-`) **0 이면 판독 슬롯을 주지 않는다.** 0 은
+ * 대개 "할 일이 없다" 이고 그건 화면을 지배할 판단이 아니다. 어떤 지표가 `primary` 여야
+ * 하는가는 화면이 정하는 일이라 여기서 다 닫히지 않는다 — 남은 절반은 화면 Wave 로 넘긴다.
+ *
+ * **④ 전 항목이 비면 그 자리에 원인을 그린다** (PLAN «C1»). `-` 만 늘어선 판독 줄은
+ * "없는 데이터를 위한 컨테이너" 다. 다만 PLAN 의 문장은 둘이 한 쌍이다 — "렌더하지 않고
+ * **원인을 렌더한다**". 원인 없이 줄만 지우면 화면은 구획 정체성까지 잃는다(실측: 홈에서
+ * Notion 매핑이 없을 때 «오늘 마감» 이라는 이름 자체가 사라진다 — "없다" 도 "모른다" 도
+ * 아닌 침묵이 된다). 그래서 `emptyCause` 를 받는다: 주면 줄 대신 그것을 그리고, 안 주면
+ * 줄을 그대로 두되 `data-metrics-empty="true"` 를 남겨 **몇 곳이 아직 원인을 안 넘기는지
+ * 셀 수 있게** 한다. 배선은 원인 표현(`EmptyState`/Blocked)을 소유하는 Wave 의 몫이다.
+ *
+ * `delta` 는 변화량, `note` 는 그 숫자를 한정하는 각주다(구역 아래 공용 각주로 빼면 어느
+ * 숫자를 한정하는지 다시 찾아야 한다 — VIS-09/VIS-27).
  * 심각도는 색만으로 전하지 않는다(WCAG 1.4.1) — `kind` 가 danger/warn 이면 짧은 텍스트
  * 태그를 함께 붙인다.
  */
-export function MetricStrip({ items, ariaLabel, sx }) {
+export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
   const list = (items || []).filter(Boolean);
+  const isEmptyValue = (v) => v == null || v === "" || v === "-";
   if (!list.length) return null;
+  const allEmpty = list.every((it) => isEmptyValue(it.value));
+  if (allEmpty && emptyCause) return emptyCause;
+
+  /* 판독 슬롯은 묶음당 하나다. 값이 비었거나 0 이면 그 자격을 잃는다. */
+  const earnsReadout = (it) =>
+    !!it.primary && !isEmptyValue(it.value) && String(it.value).trim() !== "0";
+  const readoutKey = list.findIndex(earnsReadout);
+  const hasReadout = readoutKey >= 0;
+  /* 값 줄의 공유 높이 — 이 줄에서 가장 큰 글자가 만드는 높이. 라벨이 같은 y 에서 시작한다. */
+  const valueLead = REM_OF(hasReadout ? FONT_SIZE.readout : FONT_SIZE.title) * READOUT_LEAD;
 
   return (
-    <Card className="k-metrics" aria-label={ariaLabel} sx={{ p: 0, overflow: "hidden", ...sx }}>
-      <Box
-        sx={{
-          display: "flex", flexWrap: "wrap",
-          /* 실선이 항목을 가른다. 음수 마진 없이 각 항목이 앞머리 선을 갖고 첫 항목만
-             그것을 지운다 — 줄바꿈이 일어나도 선이 어긋나지 않는다. */
-          "& > *:not(:first-of-type)": { borderInlineStart: 1, borderColor: "divider" },
-        }}
-      >
-        {list.map((it, i) => {
-          const sev = it.kind === "danger" ? "위험" : it.kind === "warn" ? "주의" : null;
-          const tone = TONE_COLOR[it.kind];
-          const clickable = !!it.onClick;
-          return (
-            <Box
-              key={it.key || it.label || i}
-              /* `k-readout` 는 "숫자 하나와 그 라벨·각주를 담은 칸"이라는 뜻이다. 카드 한
-                 장이 지표 하나였던 예전 구조(`.k-stat`)를 대체한다 — 다른 점은 칸이 자기
-                 판을 갖지 않고 줄 하나를 여럿이 나눠 쓴다는 것이다. */
-              className="k-readout"
-              component={clickable ? "button" : "div"}
-              type={clickable ? "button" : undefined}
-              onClick={it.onClick}
-              aria-pressed={clickable ? !!it.active : undefined}
-              sx={{
-                /* 칸 폭은 거의 같게 둔다 — 무게는 폭이 아니라 **글자 크기**로 준다.
-                   핵심 지표를 두 배 폭으로 잡아 봤더니(1920 실측) 짧은 숫자 하나가 490px
-                   칸에 놓여 오른쪽이 통째로 비었다. 그건 없애려던 바로 그 죽은 공간이다.
-                   상한도 두지 않는다 — 24rem 으로 묶어 봤더니 항목이 셋인 줄에서 칸들이
-                   왼쪽에 뭉치고 판의 오른쪽 절반이 테두리 안에서 비었다(같은 실측). 남는
-                   폭은 칸들이 고르게 나눠 갖는 편이 낫다. */
-                flex: it.primary ? "1 1 10rem" : "1 1 8.5rem",
-                minWidth: 0, textAlign: "left", font: "inherit", color: "inherit",
-                border: 0, borderRadius: 0, bgcolor: it.active ? "background.inset" : "transparent",
-                px: 2, py: 1.5, display: "grid", gap: 0.25, alignContent: "start",
-                cursor: clickable ? "pointer" : "default",
-                transition: `background-color ${MOTION.instant} ${MOTION.ease}`,
-                "&:hover": clickable ? { bgcolor: "background.inset" } : undefined,
-              }}
-            >
+    <Box
+      className="k-metrics"
+      role="group"
+      aria-label={ariaLabel}
+      /* 아직 원인을 안 넘기는 자리. 지우지 않고 **세는** 이유는 위 ④ 에 적었다. */
+      data-metrics-empty={allEmpty ? "true" : undefined}
+      sx={(t) => ({
+        display: "flex", flexWrap: "wrap", alignItems: "stretch",
+        /* 실선이 항목을 가른다. 각 항목이 앞머리 선을 갖고 첫 항목만 그것을 지운다 —
+           줄바꿈이 일어나도 선이 어긋나지 않는다. 논리 속성은 MUI 가 펴 주지 않으므로
+           style·width·color 를 따로 적는다(F-W2R-01). */
+        "& > *:not(:first-of-type)": {
+          borderInlineStartStyle: "solid",
+          borderInlineStartWidth: "1px",
+          borderInlineStartColor: t.palette.divider,
+        },
+        ...(typeof sx === "function" ? sx(t) : sx),
+      })}
+    >
+      {list.map((it, i) => {
+        const sev = it.kind === "danger" ? "위험" : it.kind === "warn" ? "주의" : null;
+        const tone = TONE_COLOR[it.kind];
+        const clickable = !!it.onClick;
+        const readout = i === readoutKey;
+        return (
+          <Box
+            key={it.key || it.label || i}
+            /* `k-readout` = "숫자 하나와 그 라벨·각주를 담은 칸". 칸은 자기 판을 갖지 않고
+               줄 하나를 여럿이 나눠 쓴다. */
+            className="k-readout"
+            component={clickable ? "button" : "div"}
+            type={clickable ? "button" : undefined}
+            onClick={it.onClick}
+            aria-pressed={clickable ? !!it.active : undefined}
+            sx={(t) => ({
+              /* 왼쪽으로 packing 한다. 늘어나지 않고 자기 내용 폭을 갖는다. */
+              flex: "0 0 auto", minWidth: readout ? "9rem" : "6.5rem", maxWidth: "100%",
+              textAlign: "left", font: "inherit", color: "inherit",
+              border: 0, borderRadius: 0, bgcolor: "transparent",
+              px: 2, py: 1.5, display: "grid", gap: 0.25, alignContent: "start",
+              cursor: clickable ? "pointer" : "default",
+              transition: `border-color ${MOTION.instant} ${MOTION.ease}`,
+              "&:hover": clickable
+                ? { borderBlockEndColor: it.active ? t.palette.brand.core : t.palette.text.faint }
+                : undefined,
+              /* **판을 벗기면 선택 신호가 뒤집힌다.** `background.inset` 은 판(#FFFFFF) 위에서는
+                 어두운 함몰면이지만 캔버스(#EEF0F7) 위에서는 오히려 **더 밝고 대비가
+                 1.055:1** 이다 — 눈에 보이지 않는 데다 의미가 반대다. 그래서 지금 어느 칸이
+                 아래 목록을 거르고 있는지를 **면이 아니라 레일**이 말한다. 사이드바가 활성
+                 위치를 3px 레일로 말하는 것과 같은 어휘다(W3, D-184) — 한 제품이 선택을
+                 두 가지 말로 하지 않는다. 색은 Brand 잉크라 사용자 Accent 를 따르지 않는다.
+                 비활성 칸도 같은 두께의 투명 레일을 가져 선택할 때 줄 높이가 튀지 않는다.
+                 처음에는 이 주석을 적어 두고도 `bgcolor` 와 hover 면을 **지우지 않아**,
+                 light 에서 1.055:1 짜리 보이지 않는 면이 유일한 hover 신호로 남아 있었다
+                 (독립 검수 실측 — 주석은 레일이라 말하고 코드는 면을 칠하고 있었다).
+                 hover 도 레일로 말한다: 가리키면 `text.faint`(경계 하한 3:1 을 넘는
+                 잉크), 활성이면 Brand 로 유지된다. */
+              borderBlockEndStyle: "solid",
+              borderBlockEndWidth: `${READOUT_RAIL}px`,
+              borderBlockEndColor: it.active ? t.palette.brand.core : "transparent",
+            })}
+          >
+            {/* 값 줄의 높이를 줄 전체가 공유한다 — 그래서 라벨이 같은 y 에서 시작한다.
+                `data-readout` 는 시험이 **자식 순서 대신** 이름으로 값/라벨을 짚게 한다 —
+                순서로 짚으면 안쪽 배치를 조금만 바꿔도 시험이 깨지는 게 아니라 **조용히 빈
+                문자열을 비교한다**(독립 실측이 `projects.test.jsx` 에서 그 위험을 지목했다). */}
+            <Box data-readout="value" sx={{ minHeight: `${valueLead}rem`, display: "flex", alignItems: "flex-end", minWidth: 0 }}>
               <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
                 <Typography
                   component="div"
                   sx={{
-                    fontSize: it.primary ? FONT_SIZE.readout : FONT_SIZE.title,
-                    fontWeight: FONT_WEIGHT.semibold, lineHeight: 1.15, ...NUMERIC,
+                    fontSize: readout ? FONT_SIZE.readout : FONT_SIZE.title,
+                    fontWeight: FONT_WEIGHT.semibold, lineHeight: READOUT_LEAD, ...NUMERIC,
                   }}
                   color={tone && tone !== "default" ? `${tone}.strong` : "text.primary"}
                 >
@@ -539,29 +791,32 @@ export function MetricStrip({ items, ariaLabel, sx }) {
                   </Typography>
                 ) : null}
               </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-                <Typography component="div" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
-                  {it.label}
-                </Typography>
-                {sev ? (
-                  <Box
-                    component="span"
-                    sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: `${tone}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}
-                  >
-                    {sev}
-                  </Box>
-                ) : null}
-              </Box>
-              {it.note ? (
-                <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.faint", lineHeight: 1.4, ...KO_WORD_BREAK }}>
-                  {it.note}
-                </Typography>
+            </Box>
+            <Box data-readout="label" sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+              <Typography component="div" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+                {it.label}
+              </Typography>
+              {sev ? (
+                <Box
+                  component="span"
+                  sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: `${tone}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  {sev}
+                </Box>
               ) : null}
             </Box>
-          );
-        })}
-      </Box>
-    </Card>
+            {/* 각주는 세 번째 잉크 단계가 아니다 — 크기와 자리로 종속을 말한다.
+                `text.faint` 는 본문 크기 글자에서 `text.secondary` 와 눈으로 구분되지
+                않는다(대비 1.10:1, F-W1R-03). 같은 잉크에 caption 크기를 쓴다. */}
+            {it.note ? (
+              <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", lineHeight: 1.4, ...KO_WORD_BREAK }}>
+                {it.note}
+              </Typography>
+            ) : null}
+          </Box>
+        );
+      })}
+    </Box>
   );
 }
 
@@ -583,29 +838,40 @@ export function MetaBar({ items, ariaLabel, sx }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
   return (
-    <Card className="k-metabar" aria-label={ariaLabel} sx={{ p: 0, overflow: "hidden", ...sx }}>
-      <Box
-        sx={{
-          display: "flex", flexWrap: "wrap",
-          "& > *:not(:first-of-type)": { borderInlineStart: 1, borderColor: "divider" },
-        }}
-      >
-        {list.map((it, i) => (
-          <Box
-            key={it.key || it.label || i}
-            className="k-metacell"
-            sx={{ flex: "1 1 9rem", maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
-          >
-            <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
-              {it.label}
-            </Typography>
-            <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK }}>
-              {it.value == null || it.value === "" ? "-" : it.value}
-            </Box>
+    /* 판독 줄과 같은 판정을 받는다 — **속성 한 줄에 plate 금지.** 이 줄은 자기 생명주기도
+       독립 스크롤도 없고 떠 있지도 않다. 체크리스트 ⑥ 이라 컨테이너가 없다.
+       칸 사이 실선은 세 속성으로 적어야 실제로 그려진다(F-W2R-01).
+       칸 폭의 의미 기반 재배분(프로젝트 2fr · 상태/마감 max-content)은 상세 Metadata 위계를
+       소유하는 Wave 의 몫이다 — 여기서는 면과 실선만 고친다. */
+    <Box
+      className="k-metabar"
+      role="group"
+      aria-label={ariaLabel}
+      sx={(t) => ({
+        display: "flex", flexWrap: "wrap",
+        "& > *:not(:first-of-type)": {
+          borderInlineStartStyle: "solid",
+          borderInlineStartWidth: "1px",
+          borderInlineStartColor: t.palette.divider,
+        },
+        ...(typeof sx === "function" ? sx(t) : sx),
+      })}
+    >
+      {list.map((it, i) => (
+        <Box
+          key={it.key || it.label || i}
+          className="k-metacell"
+          sx={{ flex: "1 1 9rem", maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
+        >
+          <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+            {it.label}
+          </Typography>
+          <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK }}>
+            {it.value == null || it.value === "" ? "-" : it.value}
           </Box>
-        ))}
-      </Box>
-    </Card>
+        </Box>
+      ))}
+    </Box>
   );
 }
 
@@ -700,9 +966,19 @@ export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4 }) {
  */
 export function EmptyState({
   icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
-  steps, expected, action, relatedLink, art, size,
+  steps, expected, action, relatedLink, art, size, layout = "region",
 }) {
-  const compact = size === "compact";
+  /* `layout` — **이 빈 상태가 무엇을 대신하는가** (PLAN «C1»).
+   *
+   *   page    화면 전체가 비었다. 남은 높이 안에서 세로 가운데에 선다 — 판·차트·Pager 를
+   *           언마운트한 뒤 남는 큰 공백에 내용이 위쪽에 붙어 매달리지 않게 한다.
+   *   region  구획 하나가 비었다(기본). 지금까지의 동작 그대로다.
+   *   inline  팝오버·모달 하위목록처럼 폭도 높이도 좁은 자리. `size="compact"` 와 같은 뜻이다.
+   *
+   * 크기(`size`)와 자리(`layout`)를 따로 두는 이유: 좁은 팝오버 안의 빈 상태와 4K 전면의
+   * 빈 상태는 **글자 크기**가 아니라 **놓이는 방식**이 다르다. 한 prop 에 둘을 겹치면
+   * "작게" 와 "가운데" 를 따로 고를 수 없다. */
+  const compact = size === "compact" || layout === "inline";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
   const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
@@ -729,7 +1005,13 @@ export function EmptyState({
       sx={{
         display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5,
         py: compact ? 2 : 3.5, px: compact ? 1.5 : 2,
+        /* page — 남은 높이를 실제로 차지하고 그 안에서 가운데에 선다. `minHeight` 는
+           본문 열의 남은 높이를 겨냥한 값이다(셸이 상단바 높이를 이미 뺐다). */
+        ...(layout === "page"
+          ? { minHeight: "min(28rem, 55vh)", alignItems: "center", justifyContent: "flex-start" }
+          : null),
       }}
+      data-empty-layout={layout}
     >
       {artSrc ? (
         <Box
@@ -1265,9 +1547,11 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
         borderRadius: { xs: 0, sm: MODAL_RADIUS },
       } }}
     >
-      <ModalHeader title={title} onClose={requestClose} titleId={titleId} />
-      <ModalBody>{children}</ModalBody>
-      {footer ? <ModalActions>{footer}</ModalActions> : null}
+      <SurfaceReset>
+        <ModalHeader title={title} onClose={requestClose} titleId={titleId} />
+        <ModalBody>{children}</ModalBody>
+        {footer ? <ModalActions>{footer}</ModalActions> : null}
+      </SurfaceReset>
     </MuiDialog>
   );
 }
@@ -1512,7 +1796,13 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     () => (fields || []).filter((f) => (typeof f.showIf === "function" ? f.showIf(values) : true)),
     [fields, values],
   );
-  if (!open) return null;
+  /* 크기를 **열릴 때 한 번** 정하기 위한 기억. 위 경고와 같은 이유로 조기 반환 위에 둔다 —
+     `useRef` 도 훅이다. 값을 채우는 것은 훅이 아니라 대입이라 아래에서 한다. */
+  const sizeAtOpen = React.useRef(null);
+  if (!open) {
+    sizeAtOpen.current = null;
+    return null;
+  }
   const set = (name, val) => setValues((s) => ({ ...s, [name]: val }));
 
   const fail = (name, message) => { setErrField(name); setErr(message); };
@@ -1585,7 +1875,13 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     setBusy(false);
   }
 
-  const sz = size || (shownFields.length > 5 ? "lg" : "md");
+  /* 크기는 **열릴 때 한 번** 정한다 (R-12).
+   * 예전에는 매 렌더마다 `shownFields.length` 로 다시 골랐다 — 조건부 필드가 있는 폼(사용자
+   * 편집에서 역할을 바꾸면 필드가 늘어난다)에서 사용자가 select 하나를 건드리는 순간 모달이
+   * 45rem -> 62rem 로 **열린 채 넓어졌다.** 크기는 이 창이 무엇인지에 대한 사실이지 지금 몇
+   * 칸이 보이는가에 대한 사실이 아니다. */
+  if (sizeAtOpen.current == null) sizeAtOpen.current = shownFields.length > 5 ? "lg" : "md";
+  const sz = size || sizeAtOpen.current;
   const footer = <ModalFooter onCancel={requestClose} onSubmit={submit} submitLabel={submitLabel || "저장"} busy={busy} />;
   return (
     <Modal open={open} onClose={requestClose} title={title} size={sz} footer={footer}>
@@ -1629,7 +1925,10 @@ export function ConfirmProvider({ children }) {
       {children}
       <Modal open={!!state} onClose={() => done(false)} title={state ? state.title : ""} size="sm"
         footer={<DialogFooter onCancel={() => done(false)} onSubmit={() => done(true)}
-          submitLabel={state ? state.confirmLabel : "확인"} submitVariant={state && state.danger ? "danger" : "primary"} />}>
+          /* 확인 대화의 마지막 버튼만 채운 error 면을 쓴다 — 여기서는 파괴적 동작이
+             이 화면(모달)의 주 행동이고, 사용자는 이미 그것을 하기로 정한 상태다.
+             화면 본문의 `danger` 는 외곽선이다(위 BUTTON_VARIANT 주석). */
+          submitLabel={state ? state.confirmLabel : "확인"} submitVariant={state && state.danger ? "dangerConfirm" : "primary"} />}>
         <Typography sx={{ whiteSpace: "pre-line" }}>{state ? state.message : ""}</Typography>
       </Modal>
     </ConfirmCtx.Provider>
@@ -1724,7 +2023,7 @@ export function CrumbRootProvider({ value, children }) {
  *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
  * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
  * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, tab, actions, crumbRoot, spot, size = "page", help, helpTone }) {
+export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, spot, size = "page", help, helpTone }) {
   const ctxCrumbRoot = React.useContext(CrumbRootCtx);
   const resolvedCrumbRoot = crumbRoot !== undefined ? crumbRoot : (ctxCrumbRoot !== undefined ? ctxCrumbRoot : "관리자");
   void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
@@ -1779,7 +2078,30 @@ export function PageHeader({ area, title, tab, actions, crumbRoot, spot, size = 
             ) : null}
           </Box>
         </Box>
-        {actions ? <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box> : null}
+        {/* 동작 줄 — **주 행동과 파괴적 행동을 같은 줄에서 경쟁시키지 않는다** (지시 11 · 12,
+            E8). `actions` 는 이 화면에서 할 일이고, `overflow` 는 드물거나 되돌리기 어려운
+            것들이다. 예전에는 페이지 머리에 «목록 · 수정 · 원본 열기 · 삭제» 넷이 나란히
+            놓였고 그중 삭제가 채운 빨강이라 가장 자주 하는 일(수정)과 시선을 다퉜다.
+            `DataScreen` 은 이미 행 단위로 같은 판단(`isRiskyHeader`)을 하는데 페이지
+            레벨에는 그 자리가 없었다 — 이제 있다. */}
+        {/* 이 줄에 `alignItems` 를 주지 않는다 — 헤더 행 자체가 `flex-end` 로 바닥을
+            맞추므로 기본 stretch 가 맞다.
+            (원인 귀속 정정) 이 주석은 한때 조직 화면 넷의 `control_baseline_mismatch`
+            신규 fail 24셀을 «잠깐 넣었던 alignItems:center» 탓으로 적어 두었는데, **틀렸다.**
+            그 fail 을 낸 배포본(`kit.TfNSaiDa.js`)에는 `alignItems` 가 없다 — stretch 상태에서
+            나는 실패다. 독립 검수가 배포 PNG 를 직접 찍어 원인을 짚었다: 「?」 글리프와
+            「조직 추가」 버튼의 중심 y 가 **둘 다 242.5 로 정확히 같다**(어긋남 0px). 이
+            assertion 은 거대 flex 컨테이너의 각 행에서 `querySelector` 로 **첫 후손 컨트롤**을
+            뽑아 짝지어서, 깊이가 다른 두 컨트롤(빈 문자열 표본 포함)을 비교하고 있다 —
+            시각 결함이 아니라 프로브 기하 노이즈다. 이 줄은 이 실패의 원인이 아니고,
+            해당 24셀은 라우트 Surface 넷에 OPEN Finding 으로 이미 걸려 있다(W8·W12).
+            assertion 자체는 PLAN 이 W5 에서 `--fail-on` 으로 승격하는 대상이다. */}
+        {actions || (overflow && overflow.length) ? (
+          <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>
+            {actions}
+            {overflow && overflow.length ? <OverflowMenu items={overflow} /> : null}
+          </Box>
+        ) : null}
       </Box>
       {help ? (
         <Collapse in={helpOpen} id={helpId}>
@@ -1789,6 +2111,34 @@ export function PageHeader({ area, title, tab, actions, crumbRoot, spot, size = 
         </Collapse>
       ) : null}
     </>
+  );
+}
+
+/* 구획(Section) — 체크리스트 ⑥ 이 가리키는 **컨테이너 없는 묶음**의 부품.
+ *
+ * "무언가를 묶어야 한다 = 흰 네모를 만든다" 는 반사를 막으려면 금지만으로는 부족하다 —
+ * 그 자리에 **쓸 것**이 있어야 한다. 판정 체크리스트가 ⑥ 에 도달했을 때 화면이 집는 것이
+ * 이것이다: 제목 + 구획 간격, 그리고 목록이면 제목 아래 실선 하나. 판도 테두리도 없다.
+ *
+ *   <Section title="최근 문서" action={<Link…/>}>…</Section>
+ *   <Section title="상태" rule>…</Section>          // 목록형 — 제목 아래 괘선
+ *
+ * `SectionTitle` 은 판 **안**의 소제목이라 자기 바깥 간격을 모른다. `Section` 은 그
+ * 바깥 간격(`SECTION_GAP`)까지 소유한다 — 화면마다 `mb: 4` 같은 숫자를 손으로 적던
+ * 자리가 여기 하나로 모인다. */
+export function Section({ title, action, help, rule = false, component = "section", children, sx }) {
+  /* 호출부의 `sx` 가 함수일 수도 있다(테마를 읽는 자리). 객체로만 받아 펼치면 함수는
+     **조용히 사라진다** — 이 저장소가 여러 번 밟은 "선언은 있는데 화면에는 없다" 의 한 형태다.
+     `Surface` 가 두 형태를 모두 받으므로 여기서 형태를 유지한 채 넘긴다. */
+  const merged = typeof sx === "function"
+    ? (theme) => ({ mb: SECTION_GAP, ...sx(theme) })
+    : { mb: SECTION_GAP, ...sx };
+  return (
+    <Surface tone="none" component={component} sx={merged}>
+      {title ? <SectionTitle title={title} action={action} help={help} sx={rule ? { mb: 1 } : undefined} /> : null}
+      {rule ? <Box sx={{ borderTop: 1, borderColor: "divider", mb: 1.5 }} /> : null}
+      {children}
+    </Surface>
   );
 }
 

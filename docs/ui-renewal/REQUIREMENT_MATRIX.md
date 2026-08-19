@@ -380,11 +380,11 @@
 - **Wave**: W4
 - **Requirement**: 현재 결과는 Border와 Radius를 줄였지만 여전히 White/Gray Surface와 Rectangle 조합이 화면 대부분을 지배한다. 모든 정보를 White Box로 감싸지 않는다. Section, Inline Summary, Table, Timeline, Split View, Data Visualization, Context Rail 등 정보 성격에 맞는 표현을 사용한다.
 - **Affected**: ALL
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`, `frontend/src/ui/density.js`
-- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/density-contract.test.jsx`, assertion `surface_repetition`, assertion `oversized_empty_surface`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Implementation**: `frontend/src/ui/kit.jsx`(Surface·Card·Section·MetricStrip·MetaBar·Callout·EmptyState·PageHeader·Button·Modal), `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`(SettingList·StatusList), `frontend/src/ui/density.js`, `frontend/src/styles/screens.css`, `frontend/src/ui/theme.js`(잉크 3단 · 떠 있는 면 override), `scripts/check_ink_scale.py`, `scripts/check_logical_border_props.py`, `scripts/ui_qa/kit_e2e.py`
+- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/theme-contract.test.js`, `frontend/src/ui/density-contract.test.jsx`, `frontend/src/screens/datascreen.test.jsx`, `python -m scripts.ui_qa.kit_e2e`, `bash scripts/static_checks.sh`, assertion `surface_repetition`, assertion `oversized_empty_surface`
+- **Status**: DONE
+- **Evidence**: 판정을 문서에서 **부품**으로 옮겼다. `kit.jsx::Surface` 가 PLAN «Surface 위계» 의 7 tone 표를 들고(`SURFACE_TONES`), `Card` 는 `Surface tone="plate"` 의 별칭이 되며, 체크리스트 ⑥ «컨테이너 없음» 자리에 쓸 부품(`Section`)이 처음으로 생겼다 — 금지만 하고 대안을 안 주면 화면은 다시 판을 만든다. 판을 벗긴 자리 넷: `MetricStrip`·`MetaBar`·`SettingList`·`StatusList` (PLAN 이 이름으로 지목한 자리들이다). 하드 금지 다섯 중 **판 안의 판**은 코드가 강제한다 — `plate` 안의 `plate` 는 자동으로 `none` 이 되고 여백까지 함께 버리며, 그 사실이 `data-surface="plate>none"` 으로 DOM 에 남아 하네스가 센다. `ev:qa_run:w4-after`(번들 `1a48d92ee9e55127`) · `ev:qa_run:w4-kit-e2e`(면 계약 40조합) · `ev:test:frontend/src/ui/kit.test.jsx`(Surface 계약 5 + Section 3) · `ev:note:D-185`
+- **Findings**: F-W1R-16 종결 · F-W4-15 종결(검수 확정, 판독 슬롯 측정 불능) · F-W1R-23 은 W8 로 이관(열 조합은 화면 소유) · F-W4-02 신규(W8) · F-W4-18 신규(W7, 배선 안 한 자리 셋)
 - **Depends on**: (없음)
 
 ---
@@ -884,11 +884,11 @@
 - **Wave**: W4
 - **Requirement**: Portal 전체 Button을 전수조사한다. Primary, Secondary, Tertiary, Destructive, Inline Action의 역할을 정의한다. Button Height, Radius, Border, Font Weight, Padding을 공통 Design Token 기반으로 관리한다. 버튼이 많은 화면에서 모든 버튼이 동일한 시각적 강도를 갖지 않도록 한다. 화면의 주요 Action이 명확하게 보여야 한다. Grid 내부 Action도 동일한 Button System을 사용한다. Hover, Focus, Disabled, Loading 상태까지 설계한다. Portal 전체 Badge, Status, Tag, Pill 사용처도 전수조사한다. 현재처럼 `정상`, `위험`, `완료`, `높음`, `확인됨` 등의 값을 모두 동일한 알약 형태로 표현하지 않는다. Status, Category, Tag, Editable Value를 목적에 따라 구분한다. 단순 Text Status가 더 적합한 곳은 Badge 자체를 사용하지 않는다. 색상만으로 상태를 전달하지 않는다.
 - **Affected**: ALL
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`, `frontend/src/ui/density.js`
-- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/density-contract.test.jsx`, assertion `surface_repetition`, assertion `oversized_empty_surface`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Implementation**: `frontend/src/ui/kit.jsx`(Surface·Card·Section·MetricStrip·MetaBar·Callout·EmptyState·PageHeader·Button·Modal), `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`(SettingList·StatusList), `frontend/src/ui/density.js`, `frontend/src/styles/screens.css`, `frontend/src/ui/theme.js`(잉크 3단 · 떠 있는 면 override), `scripts/check_ink_scale.py`, `scripts/check_logical_border_props.py`, `scripts/ui_qa/kit_e2e.py`
+- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/theme-contract.test.js`, `frontend/src/ui/density-contract.test.jsx`, `frontend/src/screens/datascreen.test.jsx`, `python -m scripts.ui_qa.kit_e2e`, `bash scripts/static_checks.sh`, assertion `surface_repetition`, assertion `oversized_empty_surface`
+- **Status**: DONE
+- **Evidence**: 강도가 넷이고 **채운 면은 둘뿐**이다: `primary`(채운 브랜드) · `danger`(외곽선 error) · `dangerConfirm`(채운 error, 확인 대화 안에서만) · `default`/`ghost`. 파괴적 동작이 페이지에서 가장 채도 높은 면이던 상태가 닫힌다(F-W1R-04). 더 큰 것은 **보조가 주를 이기고 있던 것**이다 — MUI v7 의 `outlined`+`color="inherit"` 은 테두리를 `currentColor`(=`text.primary` #161A2C, 판 위 **17.1:1**)로 그렸고 같은 화면의 채운 primary 는 5.96:1 이었다. 전체 버튼의 44%(109 호출부)가 그 variant 다. 테두리는 비텍스트 경계라 기준이 3:1 이고, W4 가 AA-large 전용으로 좁힌 `text.faint` 가 네 면에서 3.67~4.95:1 이다 — 호출부를 하나도 안 건드리고 한 줄로 닫았다. Badge/Tag 분리(상태 vs 분류)는 이미 성립해 있었고 이 Wave 가 유지했다. 독립 검수가 이 요구사항에서 **하한을 반쪽만 걸었다**는 것을 잡았다 — 같은 3:1 을 `default` 에만 적용해 `danger` 가 MUI 기본 `alpha(error.main, 0.5)` 에 남았고, 판 위 **2.48:1**(dark 2.84)로 **바로 옆 중립 보조(4.18:1)보다 흐렸다.** 되돌릴 수 없는 동작이 가장 무른 경계를 갖는 역전이다. 게다가 이 Wave 가 만든 프로브가 `outlinedError` 를 건너뛰어 그 자리를 안 봤다(F-W4-14). 불투명 `error.main` 으로 닫았고 최종 빌드 실측이 **6.536(L)/7.715(D)** 다 — 배포 PNG 에서도 확인했다(#B3261E 405px, 행당 최대 54px 이라 면이 아니라 1px 외곽선이다). 파괴 버튼이 실제로 있는 `/chat-rooms` 를 계약 측정 대상에 넣어 표본 0개인 검사가 되지 않게 했다. `ev:test:frontend/src/ui/kit.test.jsx`(강도 계약 + 확인 대화 + 보조/파괴 테두리 대비) · `ev:qa_run:w4-kit-e2e`(대화상자 밖 채운 error 개수 · 보조/파괴 테두리 대비를 40조합 에서 측정) · `ev:review:wf_39d9d8a1-f87` · `ev:note:scripts/check_button_hierarchy.py`(registry 파괴 액션 가드 유지) · `ev:note:D-185`
+- **Findings**: F-W1R-04 종결 · F-W4-14 종결(검수 확정, 파괴 테두리) · F-W4-03 신규(W9, 화면당 primary 개수) · F-W4-05 신규(W6, 다크 primary 존재감)
 - **Depends on**: (없음)
 
 ---
@@ -898,11 +898,11 @@
 - **Wave**: W4
 - **Requirement**: Portal 전체 Modal, Dialog, Confirm, Popup 계열을 전수조사한다. Header, Title, Close, Body, Footer, Primary Action, Secondary Action, Destructive Action의 위치와 우선순위를 통일한다. 현재 사용자 상세 Modal의 `더보기`처럼 Action이 무질서하게 여러 줄로 배치되지 않도록 한다. 버튼이 많아지는 경우 Action Group 또는 Overflow Action을 사용한다. 위험 작업과 일반 작업은 시각적, 공간적으로 구분한다. 콘텐츠가 길어져도 Modal Layout이 깨지지 않아야 한다. 필요한 경우 Body 영역만 Scroll한다. Modal 크기는 콘텐츠와 화면 크기에 따라 Responsive하게 동작하도록 하고 화면별로 임의의 Pixel Width를 반복 정의하지 않는다.
 - **Affected**: ALL
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`, `frontend/src/ui/density.js`
-- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/density-contract.test.jsx`, assertion `surface_repetition`, assertion `oversized_empty_surface`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Implementation**: `frontend/src/ui/kit.jsx`(Surface·Card·Section·MetricStrip·MetaBar·Callout·EmptyState·PageHeader·Button·Modal), `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`(SettingList·StatusList), `frontend/src/ui/density.js`, `frontend/src/styles/screens.css`, `frontend/src/ui/theme.js`(잉크 3단 · 떠 있는 면 override), `scripts/check_ink_scale.py`, `scripts/check_logical_border_props.py`, `scripts/ui_qa/kit_e2e.py`
+- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/theme-contract.test.js`, `frontend/src/ui/density-contract.test.jsx`, `frontend/src/screens/datascreen.test.jsx`, `python -m scripts.ui_qa.kit_e2e`, `bash scripts/static_checks.sh`, assertion `surface_repetition`, assertion `oversized_empty_surface`
+- **Status**: DONE
+- **Evidence**: 전수 조사부터 했다 — 다이얼로그 표면 32개(kit `Modal` 21 + `FormModal` 11), kit 밖 `<Dialog>` 는 `CommandPalette` 하나. **크기 등급 밖 임의 px 은 0곳**이다(`Modal` 이 `sx`/`PaperProps` 를 받지 않아 물리적으로 막혀 있다). Body 만 스크롤되는 구조도 이미 옳다. W4 가 고친 것 셋: ① `FormModal` 이 매 렌더마다 크기를 다시 골라 **열린 채 45rem -> 62rem 로 넓어지던** 것을 열릴 때 한 번으로 고정(조건부 필드가 있는 폼에서 select 하나를 건드리면 실제로 일어났다). ② 파괴적 동작에 자리를 줬다 — `PageHeader` 에 `overflow` 슬롯을 더해 페이지 머리에서 삭제가 주 행동과 같은 줄에서 경쟁하지 않게 했고(E8), 확인 대화의 마지막 버튼만 채운 error 를 쓴다. ③ 떠 있는 면의 모양을 통일했다 — `MuiMenu`·`MuiPopover`·`MuiDialog` override 를 신설해 `RADIUS.lg` + `1px divider` + 각자의 그림자로 맞추고 툴팁 글자를 11px 에서 `micro`(12, 절대 하한)로 올렸다(그 전에는 모달 14px · 메뉴/팝오버 8px · 테두리 없음으로 셋이 다른 모양이었다). `ev:qa_run:w4-modals`(모달 Assertion 7종의 **첫 실측** — 그때까지 실행 0회였다. 최종 빌드에서 5 Route × 2테마 7종 × 8페이지 전부 통과) · `ev:test:frontend/src/ui/kit.test.jsx` · `ev:qa_run:w4-kit-e2e`(FF-1401·FF-1402) · `ev:note:D-185`
+- **Findings**: F-W4-04 신규(W12, footer 를 각자 만드는 16곳) · F-W4-08 신규(W14, 모달 Assertion 상시 실행)
 - **Depends on**: (없음)
 
 ---
@@ -1878,11 +1878,11 @@
 - **Wave**: W4
 - **Requirement**: 현재 UI는 정보를 구분하기 위해 Card, Panel, Border Box를 너무 쉽게 사용하는 경향이 있다. 이번 Renewal에서는 `무엇인가를 그룹으로 묶어야 한다 = 흰색 네모 Box를 만든다`라는 규칙을 사용하지 않는다. 각 Card, Panel, Surface에 대해 다음을 확인한다. 이 Container가 실제로 필요한가 Border가 필요한가 Background가 필요한가 Elevation이 필요한가 Section Heading과 Spacing만으로 충분하지 않은가 Divider만으로 충분하지 않은가 같은 Page 안에서 Surface가 지나치게 반복되고 있지 않은가 Container 내부 Content보다 빈 공간이 더 많지 않은가 Card를 제거했을 때 오히려 정보 위계가 더 명확해지지 않는가 특히 Search/Filter, KPI, Metadata, Empty State, Form, Settings, Dashboard, Board, Sprint, Admin Console 영역을 우선 전수조사한다.
 - **Affected**: ALL
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`, `frontend/src/ui/density.js`
-- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/density-contract.test.jsx`, assertion `surface_repetition`, assertion `oversized_empty_surface`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Implementation**: `frontend/src/ui/kit.jsx`(Surface·Card·Section·MetricStrip·MetaBar·Callout·EmptyState·PageHeader·Button·Modal), `frontend/src/ui/kit.css`, `frontend/src/ui/adminKit.jsx`(SettingList·StatusList), `frontend/src/ui/density.js`, `frontend/src/styles/screens.css`, `frontend/src/ui/theme.js`(잉크 3단 · 떠 있는 면 override), `scripts/check_ink_scale.py`, `scripts/check_logical_border_props.py`, `scripts/ui_qa/kit_e2e.py`
+- **Verification**: `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/theme-contract.test.js`, `frontend/src/ui/density-contract.test.jsx`, `frontend/src/screens/datascreen.test.jsx`, `python -m scripts.ui_qa.kit_e2e`, `bash scripts/static_checks.sh`, assertion `surface_repetition`, assertion `oversized_empty_surface`
+- **Status**: DONE
+- **Evidence**: 면을 그리는 자리를 AST 로 전수 조사했다 — 227개(Card 169 · Paper 32 · MetricStrip 16 · StatusList 4 · MetaBar 3 · SettingList 2 · MuiCard 1). 판정 체크리스트를 돌린 결과 `Card` 165 소비처 중 **58곳(35%)이 «단지 묶으려고» 쓴 것**이고, 48곳(29%)은 판일 근거가 확정적이며, 50곳(30%)은 로딩 자리표시자다. 공유 층에서 닫을 수 있는 것을 닫았다: 판 넷을 벗기고, 판 안의 판을 코드가 막고, CSS 층에서 매치될 수 없던 클래스를 지웠다 — `.k-table` 계열(표가 MUI 로 이관되며 죽었는데 760px 카드 전환 규칙이 남아 kit 의 899.95px 와 **다른 말을 하고 있었다**), `.docs-table .k-table th:nth-child(1..8)` 열 폭 고정, kit.css 의 매치 불가 클래스 아홉. 그리고 `.k-callout` 이 kit.jsx 와 **정반대**를 선언하던 것을 지웠다(그 때문에 `variant="inline"` 까지 상자가 됐다). 독립 검수가 그 정리가 **고아를 남겼다**고 짚어 뿌리를 도구로 되돌렸다 — `find_dead_css.py` 는 소스를 통째로 부분 문자열 검색하므로 **주석에만 남은 클래스 이름이 «사용 중»** 이 되고, 그 사각지대가 죽은 클래스 서른하나를 가리고 있었다. 기본 판정은 보수적 그대로 두고 «주석에만 나온다» 목록을 따로 보고하게 했으며 `prune_dead_css.py` 에 `--include-comment-only` 를 뒀다(항등 selftest 통과). 손으로 전수 확인한 뒤 `screens.css` 셀렉터 31개·5,486 bytes 를 걷어냈고 `kit.css` 는 111 → 74 줄이 됐다 — 줄어든 대부분이 **이미 사라진 규칙을 설명하던 주석**이다. 화면 파일의 판 판정은 각 화면 Wave 가 이어받는다 — W4 는 **판정과 부품**을 소유하고 배선은 소유하지 않는다. `ev:qa_run:w4-after` · `ev:qa_run:w4-kit-e2e`(판 중첩 자리 수를 40조합 에서 계수) · `ev:review:wf_39d9d8a1-f87` · `ev:test:frontend/src/ui/kit.test.jsx` · `ev:note:D-185`
+- **Findings**: F-W2R-01 종결 · F-W4-11 결함① 종결 · F-W4-17 종결(죽은 CSS) · F-W1R-41 부분 진전(brandTint 부품은 생겼고 배선은 W7) · F-W4-06 신규(W15) · F-W4-19 신규(W15)
 - **Depends on**: (없음)
 
 ---

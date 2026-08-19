@@ -120,6 +120,30 @@ else
   echo "$ICONPROPS"; fail "MUI 아이콘에 없는 prop 으로 크기를 정한다"
 fi
 
+step "잉크 3단이 다시 2단으로 무너지지 않는가 (W4 · F-W1R-03)"
+# `text.secondary` 와 `text.faint` 는 대비 1.10:1 이라 눈으로 같은 색이었다 — 3단이라고
+# 부르던 위계가 실제로는 2단이었다. W4 가 `faint` 를 AA-large(3:1) 자리로 한정하고 값을
+# 벌려(분리도 1.53/1.60) 3단을 만들었다. 그 결정은 소비처가 지켜야 성립한다: 13px 각주에
+# `text.faint` 를 한 번 쓰면 조용히 2단으로 돌아간다. RED 확인 완료 — 이 검사를 W4 이전
+# 소스에 돌리면 5건(kit·adminKit·CommandPalette)을 정확히 잡는다.
+if INKSCALE="$("$PY" scripts/check_ink_scale.py 2>&1)"; then
+  ok "$(echo "$INKSCALE" | tail -1)"
+else
+  echo "$INKSCALE"; fail "본문 크기 글자에 AA-large 전용 잉크를 썼다"
+fi
+
+step "논리 테두리가 실제로 그려지는 형태인가 (W4 · F-W2R-01)"
+# `sx={{ borderInlineStart: 1 }}` 는 MUI 의 border 스타일 함수가 펴 주지 않는다 — 논리 속성은
+# `@mui/system` borders.js 의 compose 목록에 없다. 그대로 emotion 에 닿아 `border-inline-start: 1px`
+# 가 나가고, `border-style` 의 초기값이 `none` 이라 **아무것도 그려지지 않는다.** 콘솔에도
+# 시험에도 흔적이 없다. 같은 자리를 세 번 밟았다(AppShell 사이드바 모서리 · CommandPalette
+# 선택 레일 · kit.jsx 세 자리). 검사기는 자기 자신을 먼저 시험한다(사례 11개, 양방향).
+if LBORDER="$("$PY" scripts/check_logical_border_props.py 2>&1)"; then
+  ok "$(echo "$LBORDER" | tail -1)"
+else
+  echo "$LBORDER"; fail "논리 테두리가 선언만 있고 화면에는 없다"
+fi
+
 step "User-facing text does not comma-splice two sentences (PA-RC-0002)"
 # docs/UX_WRITING.md §1: 두 문장은 마침표로 구분한다. "-습니다/-세요" 등으로 끝난 절 바로
 # 뒤에 쉼표로 다음 문장을 잇는 관용이 kit.jsx를 포함해 화면 20여 개에 흩어져 있었다(감사가
