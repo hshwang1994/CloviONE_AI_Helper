@@ -48,10 +48,9 @@
 - modals: `--modals` 를 켠 첫 실행(`w4-modals`) — 모달 Assertion 7종이 W0 이후 **한 번도
   실행된 적이 없었다**(F-W4-08). 최종 빌드에서 5 Route × 2테마 **7종 × 8페이지 전부 통과**
 - tests(재확인): 검수 반영 뒤 `npx vitest run` **2,347 PASS / 0 FAIL**(kit 계약 시험 +3)
-- shell 재검증: W4 가 `theme.js` 잉크·떠 있는 면 토큰과 `CommandPalette.jsx` 를 건드렸으므로
-  캡처만 믿지 않고 두 셸 프로브를 이 번들에서 다시 돌렸다 — `w4-shell-e2e` 12 Flow(9건 사슬
-  4/4) · `w4-nav-e2e` **18/18 조합 PASS**. W3 이 D-184 에서 세운 규율("캡처가 증명하는 것은
-  Assertion 재측정이지 셸 고유 계약이 아니다")을 그대로 따른 것이다
+- shell 재검증: 캡처만 믿지 않고 최종 빌드에서 두 셸 프로브를 다시 돌렸다 — `w4-shell-e2e`
+  12 Flow(9건 사슬 4/4) · `w4-nav-e2e` **18/18 조합 PASS**. D-184 규율("캡처가 증명하는 것은
+  Assertion 재측정이지 셸 고유 계약이 아니다") 그대로다
 - reviewers: 구현하지 않은 독립 에이전트 3 렌즈(시각 Before/After · 요구사항 · 디자인 감각)가
   **24건** 제기 → 상위 10건을 반증 시도 에이전트가 검증 → **확정 2 · 기각 8**.
   확정 둘은 성격이 같다 — **자기가 바꾼 자리를 자기 검사가 안 본다**: 파괴 버튼 테두리가
@@ -65,6 +64,7 @@
   재라우팅: F-W2R-04 → W5 · F-W1R-23 → W8 · F-W1R-29 → W6
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
   `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
+- commit: `8ce696bd` (W4 전체 — 소스 · 번들 · 캡처 664장 · Control Plane)
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
 
 ## NOW
