@@ -5,17 +5,17 @@
 
 ## CHECKPOINT
 - checkpoint_at: 2026-08-19T10:20:00+09:00
-- head: a2439eb1 (docs/ 복구·삭제 확정 + ui-renewal Artifact 추가 예정)
+- head: 285241b2 (Control Plane commit — 제품 코드 변경 없음)
 - wave: W0 — Baseline & Control Plane (문서 산출물만 선행 완료)
 - wave_goal: 소스에서 파생한 Control Plane 을 세우고, 제품 코드를 건드리기 전에 Before 를 전량 캡처한다
 - build_index_sha256: 9ab4d470163e475a
 - last_qa_label: deploy3
 - last_qa_results: dist/ui-qa/deploy3/results.json
 - last_qa_fail_classes: vertical_text_collapse(6)
-- coverage_gate: PASS (--stage plan, 2026-08-19)
-- route_coverage_sha256: 8a53e197f839a568
-- requirement_matrix_sha256: 481f147bde72d136
-- functional_coverage_sha256: 4bb994389e582dd7
+- coverage_gate: PASS (--stage plan, 2026-08-19). 해시는 CRLF 를 LF 로 바꾼 뒤 계산한다 - 그러지 않으면 새 checkout 에서 항상 어긋난 것처럼 보인다
+- route_coverage_sha256: 52bd3f953921eb00 (LF 정규화 후 sha256 앞 16자)
+- requirement_matrix_sha256: bedbf6a0f30020f3 (LF 정규화 후)
+- functional_coverage_sha256: 97690308af4d6dc2 (LF 정규화 후)
 - surfaces_total: 89   done: 0   open_findings_critical_high: 10
 - requirements_total: 161   done: 0
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
