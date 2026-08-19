@@ -49,7 +49,11 @@
 </head>
 <body>
   <main class="login-shell">
-    <section class="hero" aria-label="{{ app_name | default('ClovirAssist') }} 소개">
+    {# `data-brand-role` 은 화면이 자기 Brand 면을 **스스로 선언**하는 길이다
+       (scripts/ui_qa/brand.py — 추론보다 언제나 낫다). 이 선언이 없으면 프로브가 `<header>`
+       태그를 먼저 찾아 폼 패널의 `.mobile-brand-row`(아무것도 칠하지 않는 정렬용 헤더)를
+       이 화면의 Brand 면이라고 판정한다. 실제로 이 화면의 Brand 면은 히어로다. #}
+    <section class="hero" data-brand-role="header" aria-label="{{ app_name | default('ClovirAssist') }} 소개">
       <div class="ambient-orb ambient-orb-one" aria-hidden="true"></div>
       <div class="ambient-orb ambient-orb-two" aria-hidden="true"></div>
       {# 히어로는 딥 인디고 면이라 워드마크 글자는 흰색을 따른다(login.css의 .hero-logo).

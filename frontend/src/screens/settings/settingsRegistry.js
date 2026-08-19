@@ -94,8 +94,9 @@ export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification
 // 강조색 프리셋의 한국어 이름 — 색만으로 고르게 두면 색각 이상 사용자는 무엇을 골랐는지 알 수 없고,
 // 스크린리더는 아무것도 읽을 게 없다(WCAG 1.4.1). 이름을 모르면 hex를 그대로 읽어 준다.
 export const ACCENT_NAMES = {
-  "#536CD6": "기본 파랑",
-  "#4058BD": "진한 파랑",
+  "#5A4FCF": "브랜드 인디고",
+  "#536CD6": "밝은 인디고",
+  "#4058BD": "진한 인디고",
   "#6B5BC7": "보라",
   "#327C98": "청록",
 };

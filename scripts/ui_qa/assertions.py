@@ -35,6 +35,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   detail_side_imbalance   2열 중 한쪽이 동났는데 그 공간을 회수하지 않았다(폭 1366 이상)
   surface_repetition      같은 톤의 면이 구조적으로 반복된다(목록은 정상이라 제외한다)
   brand_presence          브랜드 색이 제품 표면에 실제로 쓰이는가 (`capture.py` 가 채운다)
+  brand_role_coverage     **이 화면에 있는** 브랜드 자리가 전부 브랜드인가 (같은 측정, 다른 질문)
   mascot_visible_size     마스코트가 **보이는 크기**로 나오는가 (`capture.py` 가 채운다)
 """
 
@@ -80,7 +81,7 @@ CLASSES = (
     "detail_side_imbalance", "surface_repetition",
     # 브랜드·마스코트는 별도 모듈이 `capture.py` 에서 채운다(대비 검사와 같은 구조다).
     # 이름만 등록해 둔다 — 등록하지 않으면 그쪽이 값을 채워도 요약표에 안 나온다.
-    "brand_presence", "mascot_visible_size",
+    "brand_presence", "brand_role_coverage", "mascot_visible_size",
     # 모달 검사(`interact.py`). `--modals` 로 켜야 값이 채워지고, 안 켜면 전부 skip 이다.
     # 목록에 넣어 두는 이유는 요약표와 `--fail-on` 이 이 튜플만 알기 때문이다 —
     # 여기 없으면 검사가 돌아도 리포트에 안 나온다(실제로 그래서 안 보였다).

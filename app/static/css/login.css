@@ -61,10 +61,12 @@ body {
   overflow: hidden;
   padding: 48px;
   color: #fff;
-  background:
-    radial-gradient(circle at 82% 24%, rgba(142,117,225,.58), transparent 32%),
-    radial-gradient(circle at 18% 78%, rgba(98,199,189,.24), transparent 28%),
-    linear-gradient(145deg, #17204D 0%, #293B8D 48%, #536CD6 100%);
+  /* 이 값이 `--gradient-hero` 의 **원본**이다. 세 겹 그대로를 theme.js 로 승격했고 생성기가
+     두 tokens.css 에 바이트 동일하게 내보낸다. 여기서 var() 로 받는 이유는 값을 바꾸려는
+     것이 아니라 **정본을 하나로 만들려는** 것이다 — 이 파일과 SPA 가 같은 문자열을 쓰는 것이
+     "로그인과 앱이 한 제품"이라는 주장의 기계적 근거다(예전에 두 벌이 갈라진 자리가 정확히
+     이런 리터럴이었다). `tokens-generated.test.js` 가 두 파일의 동일성을 지킨다. */
+  background: var(--gradient-hero);
 }
 .hero::before {
   position: absolute;
@@ -338,15 +340,18 @@ form { display: grid; gap: 0; margin-top: 0; }
   margin-top: 4px;
   color: #fff;
   border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #758AE1 0%, #536CD6 42%, #435CBE 100%);
-  box-shadow: 0 12px 28px rgba(83,108,214,.28);
+  border-radius: var(--radius-md);
+  /* Gradient 는 제품에 정확히 넷이고 버튼은 그중 하나가 아니다(지시 0-1). 그리고 이 버튼의
+     그라디언트·그림자는 **옛 강조색**(#536CD6 계열)으로 만들어져 있어서, 기본 Accent 가
+     바뀐 뒤로는 제품 어디에도 없는 색이었다. 이제 로그인 버튼과 SPA 의 주요 행동 버튼이
+     같은 색·같은 형태를 쓴다 — 두 화면이 같은 컴포넌트를 공유한다는 사실이 눈에 보인다. */
+  background: var(--color-primary);
   cursor: pointer;
   font-size: 16px;
   font-weight: 800;
-  transition: transform 140ms ease, box-shadow var(--motion-fast) ease, opacity var(--motion-fast) ease;
+  transition: transform 140ms ease, background-color var(--motion-fast) ease, opacity var(--motion-fast) ease;
 }
-.login-button:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(83,108,214,.36); }
+.login-button:hover { transform: translateY(-1px); background: var(--color-primary-strong); }
 .login-button:active { transform: translateY(0) scale(.995); }
 .login-button:disabled { opacity: .68; cursor: wait; transform: none; }
 .login-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }

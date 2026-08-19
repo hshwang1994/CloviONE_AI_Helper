@@ -473,14 +473,24 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
     # 네비게이션 없이 같은 페이지에서 evaluate 만 더 돌고, 실패하면 record 를 버리지 않고
     # skip 으로 남긴다. 스크린샷은 이미 위에서 찍혔으므로 이 검사가 포커스를 옮겨도(Tab 으로
     # 포커스 링을 잰다) 캡처가 오염되지 않는다.
+    # 같은 측정에서 **두 개의 다른 질문**을 낸다(D-180). 절대 기준(7개 중 4개)은 화면에 없는
+    # role 을 통과로 세지 않으므로, role 이 3개뿐인 화면은 아무리 잘 만들어도 통과할 수 없다
+    # (Before 실측: 1,494페이지 중 348페이지가 그렇다). 도달 불가한 게이트는 정보를 나르지
+    # 않는다. 그래서 기준을 낮추는 대신 **질문을 하나 더** 만든다:
+    #   brand_presence       절대 — "이 화면에 브랜드 자리가 충분히 있는가" (W15 완료 조건)
+    #   brand_role_coverage  상대 — "있는 자리는 전부 브랜드인가"          (Wave 게이트)
+    # 후자는 전자를 대체하지 않고, 전자보다 느슨하지도 않다 — 서로 다른 결함을 잡는다.
     try:
-        from .brand import brand_verdict, evaluate_brand
+        from .brand import brand_coverage_verdict, brand_verdict, evaluate_brand
 
-        record["assertions"]["brand_presence"] = brand_verdict(evaluate_brand(page))
+        probe = evaluate_brand(page)
+        verdict = brand_verdict(probe)
+        record["assertions"]["brand_presence"] = verdict
+        record["assertions"]["brand_role_coverage"] = brand_coverage_verdict(verdict)
     except Exception as exc:  # noqa: BLE001 — 브랜드 측정 실패가 캡처 결과를 버리게 하면 안 된다
-        record["assertions"]["brand_presence"] = {
-            "status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}",
-        }
+        skipped = {"status": "skip", "count": 0, "note": f"{type(exc).__name__}: {exc}"}
+        record["assertions"]["brand_presence"] = skipped
+        record["assertions"]["brand_role_coverage"] = dict(skipped)
 
     # 마스코트가 **실제로 보이는 크기**(scripts/ui_qa/mascot.py). 자산의 알파 bbox 는 실행당
     # 1회만 계산하고 out_root 아래 캐시한다 — route × theme × viewport 마다 다시 재면 같은

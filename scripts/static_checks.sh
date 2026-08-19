@@ -308,6 +308,27 @@ else
   ok "node 없음 - 토큰 드리프트 검사 건너뜀"
 fi
 
+step "Brand 토큰이 화면에 실제로 도달한다 (지시 0-1)"
+# 두 가지를 막는다. (a) 화면 파일이 자기 gradient 를 들고 있으면 그 색은 테마 밖이라 대비
+# 시험이 존재 자체를 모른다 - 예전 Gradient Chrome 이 정확히 그 경로로 미측정 배포됐다.
+# (b) `palette.brand` 에 theme.js 밖 소비처가 0이면 Brand 는 "정의만 되고 화면에 없는" 상태다.
+# 이번 리뉴얼 직전이 실제로 그 상태였고, 아무 검사도 그것을 말하지 않았다.
+if BRD="$("$PY" scripts/check_brand_tokens.py 2>&1)"; then
+  ok "$(echo "$BRD" | tail -1)"
+else
+  echo "$BRD"; fail "Brand 토큰이 화면에 도달하지 않는다"
+fi
+
+step "시험이 약해지지 않았다 (재작성은 되고 약화는 안 된다)"
+# 전면 리뉴얼은 옛 구조를 고정하던 Contract Test 를 반드시 깬다. 빨간 시험을 초록으로
+# 만드는 방법은 재작성과 약화 둘뿐이고 커밋 로그에서는 똑같이 "테스트 갱신"으로 보인다.
+# 기준(HEAD) 대비 단언 수가 줄거나 skip 이 늘면 실패한다. 사유는 파일 머리에 적는다.
+if TSTR="$("$PY" scripts/check_test_strength.py 2>&1)"; then
+  ok "$(echo "$TSTR" | tail -1)"
+else
+  echo "$TSTR"; fail "시험이 약해졌다"
+fi
+
 step "폐기한 목업(preview-standalone.html)을 아직 참조하는 곳이 없다 (지시 64)"
 # 목업은 이번 리뉴얼에서 디자인 정본이 아니다. 파일을 지운 뒤에도 주석·스크립트가 그 이름을
 # 계속 부르면, 다음 세션이 "정본이 있다"고 믿고 다시 그쪽으로 값을 맞춘다.

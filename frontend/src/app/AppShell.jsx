@@ -410,7 +410,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
                         minHeight: 34,
                         py: 0.25,
                         pl: 1.75,
-                        color: active ? "text.primary" : "sidebar.muted",
+                        color: active ? "sidebar.text" : "sidebar.muted",
                         /* 선택 표현은 제품 전체에서 **하나**다(D-141 RAISE, console-atmosphere):
                            앞머리 2px 레일 + 글자 굵기 + 글자색. 예전의 큰 알약 그라데이션
                            배경은 쓰지 않는다 — 펼침 상태와 선택 상태가 헷갈렸고(지시 48),
@@ -477,7 +477,7 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
       aria-label="화면 전환"
       sx={{
         display: "flex", mx: 1.5, mt: 1.5, mb: 0.5, p: 0.5,
-        bgcolor: "background.inset", borderRadius: RADIUS.sm / 8,
+        bgcolor: "sidebar.track", borderRadius: RADIUS.sm / 8,
       }}
     >
       {[{ label: "사용자", on: userSeg, to: "/me" }, { label: "관리자", on: !userSeg, to: "/dashboard" }].map((seg) => (
@@ -489,13 +489,15 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           sx={{
             flex: 1, minHeight: 28, borderRadius: RADIUS.sm / 8, textTransform: "none",
             fontWeight: seg.on ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
-            /* 선택된 쪽이 판(plate)으로 떠오르고 나머지는 오목면에 남는다 — 트랙이 inset 이라
-               두 면이 서로 다른 값이어야 눌린 쪽이 보인다. 예전에는 배경이 두 모드 모두
-               리터럴 흰색이었는데(CTR-02), chrome 이 밝아지면서 선택 표시가 사라졌다. */
-            color: seg.on ? "text.primary" : "sidebar.muted",
-            bgcolor: seg.on ? "background.plate" : "transparent",
-            boxShadow: seg.on ? (t) => `inset 0 0 0 1px ${t.palette.divider}` : "none",
-            "&:hover": { bgcolor: seg.on ? "background.plate" : "sidebar.hover" },
+            /* Shell 이 인디고라 선택 표시를 **반전**으로 만든다. 예전에는 흰 판이 떠올랐는데,
+               인디고 하우징 안에서 흰 알약은 화면에서 가장 밝은 면이 되어 데이터보다 먼저
+               눈에 띈다. 지금은 트랙보다 밝은 흰빛 알파 + 한 줄 하이라이트다.
+               잉크도 함께 뒤집힌다 — 선택은 `onShell`, 비선택은 `onShellMuted`.
+               실측 AA: 비선택 4.90~6.51, 선택 6.20~8.10(그라디언트 세 stop 전부). */
+            color: seg.on ? "sidebar.text" : "sidebar.muted",
+            bgcolor: seg.on ? "sidebar.trackSelected" : "transparent",
+            boxShadow: seg.on ? (t) => `inset 0 0 0 1px ${t.palette.sidebar.edge}` : "none",
+            "&:hover": { bgcolor: seg.on ? "sidebar.trackSelected" : "sidebar.hover" },
           }}
         >
           {seg.label}
@@ -597,12 +599,24 @@ export function AppShell({
   const statusNotices = useStatusNotices({ enabled: !minimal });
 
   const drawerContent = (
-    /* chrome 은 캔버스 계열 단색이다(D-141). 예전에는 위에서 아래로 어두워지는 딥 인디고
-       그라데이션이었고, 글자색이 `common.white` 로 고정돼 있었다 — 사이드바가 밝아진 뒤에도
-       그 흰 글자가 남아 제품명이 대비 1.21 로 사라졌다(하네스가 잡았다).
+    /* chrome 은 **Brand 하우징**이다 — D-179 가 D-141 의 "캔버스 계열 단색" 조항을 대체했다.
+       이 파일이 두 번 겪은 실패는 같은 종류다: chrome 의 밝기가 바뀌었는데 그 위 잉크가
+       안 따라왔다. 처음에는 딥 인디고 -> 밝은 회색으로 갈 때 흰 글자가 남아 제품명이 1.21 로
+       사라졌고, 이번에는 반대 방향에서 Canvas 용 워드마크 잉크가 2.32 로 무너졌다(독립
+       리뷰어가 배포본 픽셀에서 잡았다). 그래서 잉크는 전부 `sidebar.*`(= `chrome.*`) 에서
+       오고, 면에 종속된 값(포커스 링·워드마크)은 이 컨테이너가 CSS 변수로 덮어 상속시킨다.
        색은 팔레트에서 온다. tokens.css 는 같은 theme.js 에서 생성되므로 두 소스가 갈라지지
        않는다(scripts/generate_design_tokens.mjs). */
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: "sidebar.bg", color: "sidebar.text", borderInlineEnd: 1, borderColor: "sidebar.line" }}>
+    <Box
+      sx={{
+        display: "flex", flexDirection: "column", height: "100%",
+        bgcolor: "sidebar.bg", color: "sidebar.text",
+        borderInlineEnd: 1, borderColor: "sidebar.line",
+        /* AppBar 와 같은 이유 — Shell 안의 포커스 링과 워드마크는 Shell 용이다. */
+        "--clovir-focus-ring": (t) => t.palette.chrome.focusRing,
+        "--clovir-wordmark": (t) => t.palette.chrome.wordmark,
+      }}
+    >
       {/* 로고+브랜드명 묶음은 사이드바 폭 안에서 가운데 정렬한다(사용자 지적). justifyContent
           만으로는 좁은 화면에서 닫기 버튼이 로고 옆에 그대로 남아 묶음이 광학적으로 오른쪽에
           치우쳐 보이므로, 그 버튼은 절대 위치로 오른쪽 끝에 고정해 가운데 정렬을 방해하지
@@ -663,6 +677,10 @@ export function AppShell({
           sx={{
             position: "fixed", top: 8, left: 8, zIndex: (t) => t.zIndex.tooltip + 1,
             px: 2, py: 1, borderRadius: 2, bgcolor: "primary.main", color: "primary.contrastText",
+            /* 이 링크는 포커스됐을 때 상단바(인디고) 위에 뜬다 — 링도 Shell 용이어야 한다.
+               MUI 컴포넌트가 아니라 `component="a"` 라 예전에는 UA 기본 외곽선(#101010)을
+               썼다. 이제 `:focus-visible` 전역 규칙이 이 변수를 읽는다. */
+            "--clovir-focus-ring": (t) => t.palette.chrome.focusRing,
             fontWeight: FONT_WEIGHT.bold, textDecoration: "none",
             transform: "translateY(-200%)", transition: "transform .15s",
             "&:focus": { transform: "none" },
@@ -677,12 +695,19 @@ export function AppShell({
         elevation={0}
         sx={(t) => ({
           zIndex: t.zIndex.drawer + 1,
-          /* chrome 은 발광하지 않는다(D-141). 예전에는 보라 빛무리 + 3정지점 그라데이션이
-             화면에서 가장 채도 높은 면이었다 — 정작 데이터는 무채색인데 상단바가 시선을
-             가져갔다. 이제 캔버스 계열 단색에 실선 하나다. 채도는 조치가 필요한 상태·
-             현재 선택·주요 행동 세 자리에만 쓴다. */
+          /* 상단바와 사이드바는 **같은 재료**다(D-179). 옛 결정("chrome 은 발광하지 않는다",
+             D-141)은 chrome 을 캔버스 계열 무채색으로 두었고, 그 상태가 Before 측정에서
+             `brand_presence` 1,494장 중 1,452장 실패로 나타났다 — 통과한 42장은 전부 로그인
+             화면이었다. 지금은 flat `chrome.shell` 이고, Gradient(`chrome.shellImage`)와
+             AI Wash(`chrome.aiWash`)는 이 자리에 **W2 가** 배선한다. */
           background: t.palette.sidebar.bg,
-          color: t.palette.text.primary,
+          color: t.palette.chrome.onShell,
+          /* Shell 위에서는 포커스 링도 Shell 용이다. Canvas 용 링은 인디고 위에서 light 기준
+             1.38~1.83:1 로 사실상 보이지 않는다(실측) — 상속되는 변수 하나로 이 안의 모든
+             후손이 `chrome.focusRing`(9.15:1)을 쓴다. 워드마크도 같다 — Canvas 용 잉크는
+             인디고 위에서 2.32:1 이다. */
+          "--clovir-focus-ring": t.palette.chrome.focusRing,
+          "--clovir-wordmark": t.palette.chrome.wordmark,
           borderBottom: `1px solid ${t.palette.sidebar.line}`,
         })}
       >

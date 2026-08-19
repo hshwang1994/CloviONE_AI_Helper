@@ -156,7 +156,16 @@ export default function BrandLogo({
   const uid = React.useId().replace(/[:]/g, "");
   // 반전은 잎 그라디언트도 한 단계 밝은 세트를 쓴다(-dark.svg 와 같은 값).
   const mode = inverse ? "dark" : theme.palette.mode;
-  const accent = inverse ? INVERSE_INK.accent : theme.palette.primary.main;
+  /* 워드마크는 **Brand 고정**이다. 예전에는 `primary.main`(사용자 Accent)이라 청록을
+     고른 사용자의 화면에서는 로고가 청록으로 나왔다 — 사용자 설정이 제품 정체성을 덮었다.
+     `theme-contract.test.js` 와 `brand-logo.test.jsx` 가 이 불변식을 단언한다.
+     값이 **변수를 통해** 오는 이유는 포커스 링과 같다: 이 로고는 밝은 Canvas 위에도 앉고
+     인디고 Shell 위에도 앉는데, Canvas 용 잉크(`#5A4FCF`)를 Shell 위에 그리면 light 에서
+     2.32:1 로 "Assist" 가 배경에 묻힌다(실측). Shell 컨테이너가 `--clovir-wordmark` 를
+     한 번 덮으면 상속으로 해결된다 — 호출부마다 `inverse` 를 손으로 넘기지 않아도 된다. */
+  const accent = inverse
+    ? INVERSE_INK.accent
+    : `var(--clovir-wordmark, ${theme.palette.brand.wordmark})`;
   const w = width != null ? width : markOnly ? 40 : WORDMARK_WIDTH;
 
   if (markOnly) {

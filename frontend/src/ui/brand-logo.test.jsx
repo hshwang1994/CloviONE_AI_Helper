@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
 import BrandLogo from "./BrandLogo.jsx";
-import { createClovirTheme } from "./theme.js";
+import { ACCENT_PRESETS, createClovirTheme } from "./theme.js";
 
 /* 상단바 워드마크 부제("SMART WORKSPACE ASSISTANT")가 SVG <text>로 남아 있지 않는지 본다.
  *
@@ -177,5 +177,70 @@ describe("BrandLogo 락업 — 마크 + 2단 텍스트 블록", () => {
     const mark = [...root.children].find((el) => el.tagName.toLowerCase() === "svg");
     expect(mark, "마크 SVG가 락업 루트의 자식이 아니다").toBeTruthy();
     expect(mark).not.toBe(wordmark);
+  });
+});
+
+/* 워드마크 색은 **Brand 고정**이다 (지시 0-1).
+ *
+ * 예전에는 `theme.palette.primary.main` — 즉 사용자가 `/my-display` 에서 고른 강조색이었다.
+ * 그래서 청록을 고른 사용자의 화면에서는 **로고가 청록으로 나왔다.** 개인 취향 설정이 제품
+ * 정체성을 덮어쓴 것이고, 그것을 막는 단언이 어디에도 없었다.
+ *
+ * 실제 렌더된 SVG 의 `fill` 을 읽어 확인한다 — 팔레트 값만 비교하면 "배선이 빠진 회귀"를
+ * 못 잡는다(theme-link-contrast.test.js 가 같은 이유로 배선을 함께 읽는다). */
+describe("워드마크 색은 사용자 강조색을 따르지 않는다 (Brand 고정)", () => {
+  const fillOf = (container) => {
+    const wordmark = container.querySelector("svg.wordmark");
+    const painted = [...wordmark.querySelectorAll("[fill]")]
+      .map((el) => el.getAttribute("fill"))
+      .filter((v) => v && v !== "none" && !v.startsWith("url("));
+    return painted;
+  };
+
+  it.each(ACCENT_PRESETS)("accent=%s 에서도 워드마크가 brand.wordmark 로 칠해진다", (accent) => {
+    const theme = createClovirTheme("light", accent);
+    const { container } = render(
+      <ThemeProvider theme={theme}>
+        <BrandLogo />
+      </ThemeProvider>,
+    );
+    const fills = fillOf(container);
+    expect(fills.length, "워드마크에 칠해진 path 가 없다").toBeGreaterThan(0);
+    /* 값이 변수로 온다 — 이 로고는 밝은 Canvas 위에도 앉고 인디고 Shell 위에도 앉는데,
+       한 잉크로는 두 면을 다 만족할 수 없다(Canvas 용 `#5A4FCF` 는 Shell 위에서 2.32:1).
+       fallback 은 반드시 Canvas 용 Brand 잉크여야 한다: 변수가 없는 문맥에서도 워드마크는
+       Brand 색이어야 하고, 절대 사용자 Accent 가 되면 안 된다. */
+    expect(fills).toContain(`var(--clovir-wordmark, ${theme.palette.brand.wordmark})`);
+    // 강조색이 브랜드 색과 다른 프리셋에서는 강조색이 워드마크에 나타나면 안 된다.
+    if (theme.palette.primary.main !== theme.palette.brand.wordmark) {
+      expect(fills.join(" ")).not.toContain(theme.palette.primary.main);
+    }
+  });
+
+  /* W1 이 실제로 만든 회귀를 고정한다. chrome 이 인디고가 되자 Canvas 용 워드마크 잉크가
+     제 헤더 위에서 **2.32:1** 이 됐다 — 옛 밝은 chrome 위 3.88:1 보다 나빠진 것이다.
+     독립 Visual Reviewer 가 배포본 픽셀에서 잡아냈고, 이 시험이 그 자리를 지킨다. */
+  it("Shell 위 워드마크 잉크가 그라디언트 모든 stop 에서 AA 를 넘고, Canvas 용 잉크는 못 넘는다", () => {
+    const lum = (hex) => {
+      const ch = [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+      return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    };
+    const contrast = (a, b) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    for (const mode of ["light", "dark"]) {
+      const p = createClovirTheme(mode).palette;
+      const stops = [p.chrome.shell, ...(p.chrome.shellImage.match(/#[0-9A-Fa-f]{6}/g) || [])];
+      for (const stop of stops) {
+        expect(contrast(p.chrome.wordmark, stop), `${mode} shell ink on ${stop}`)
+          .toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // 왜 변수가 필요한지의 숫자 근거. 이것이 통과하기 시작하면 분기를 다시 판단하면 된다.
+    const light = createClovirTheme("light").palette;
+    expect(contrast(light.brand.wordmark, light.chrome.shell)).toBeLessThan(4.5);
   });
 });

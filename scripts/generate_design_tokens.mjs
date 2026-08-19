@@ -62,7 +62,8 @@ function tokensFor(mode) {
   const bg = p.background;
   const sd = t.shadowTokens;
   const cat = CATEGORY[mode];
-  const inverse = mode === "light" ? "#FFFFFF" : p.text.primary;
+  const ch = p.chrome;
+  const gr = p.gradient;
 
   return {
     /* 네이티브 컨트롤(날짜 선택기·스핀 버튼·스크롤바)이 테마를 따르게 한다. 이게 없으면
@@ -74,6 +75,8 @@ function tokensFor(mode) {
     "--color-card": bg.plate,
     "--color-surface-2": bg.inset,
     "--color-surface-3": bg.sunken,
+    /* AI/Assistant/Brand 순간이 앉는 면. 앞머리 3px `--color-brand-core` edge 와 함께 쓴다. */
+    "--color-brand-tint": bg.brandTint,
 
     /* 글자 */
     "--color-text": p.text.primary,
@@ -115,6 +118,34 @@ function tokensFor(mode) {
     "--color-accent-violet": p.secondary.main,
     "--color-accent-sky": p.cyan,
 
+    /* Brand 잉크 — 판/오목면/캔버스/brandTint 위에 **글자로** 놓이는 Brand 색이다.
+       사용자 Accent 를 따르지 않는다: 이 값들이 Accent 를 따르면 청록을 고른 사용자의
+       화면에서 제품 정체성이 통째로 사라진다. */
+    "--color-brand-core": p.brand.core,
+    "--color-brand-indigo": p.brand.indigoInk,
+    "--color-brand-violet": p.brand.violetInk,
+    "--color-brand-mint": p.brand.mintInk,
+    "--color-brand-pink": p.brand.pinkInk,
+    "--color-brand-wordmark": p.brand.wordmark,
+
+    /* Chart 시리즈 — 1번은 항상 Brand 인디고. 색만으로는 2개 시리즈 이상을 못 나르므로
+       (인접 슬롯 휘도 분리 최대 1.26:1) 선 스타일·직접 라벨·숫자 범례가 함께 간다. */
+    "--chart-1": p.chart[0],
+    "--chart-2": p.chart[1],
+    "--chart-3": p.chart[2],
+    "--chart-4": p.chart[3],
+    "--chart-5": p.chart[4],
+    "--chart-rest": p.chart[5],
+
+    /* Gradient 는 제품에 정확히 넷만 존재한다. 화면 파일이 자기 그라디언트를 들고 있으면
+       측정되지 않은 채 배포된다 — 예전 Gradient Chrome 이 정확히 그 경로였다.
+       `--gradient-hero` 가 두 생성 파일에 **바이트 동일**하게 존재하는 것이 Jinja 로그인과
+       SPA 가 하나의 제품임을 증명한다. */
+    "--gradient-shell": gr.shell,
+    "--gradient-ai": gr.ai,
+    "--gradient-hero": gr.hero,
+    "--gradient-mark": gr.mark,
+
     /* 배지 — 상태 계열은 상태색에서, 카테고리 계열은 별도 램프에서 온다. */
     "--badge-neutral-bg": bg.inset,
     "--badge-neutral-fg": p.text.secondary,
@@ -136,12 +167,26 @@ function tokensFor(mode) {
     "--badge-indigo-bg": cat.indigo[0],
     "--badge-indigo-fg": cat.indigo[1],
 
-    /* chrome — 사이드바와 상단바는 캔버스 계열이다. 그라디언트가 아니다.
-     * 선택 표현은 제품 전체에서 하나다(D-141 RAISE): 앞머리 2px 레일 + 굵기. */
+    /* chrome — 상단바와 사이드바는 **같은 재료**다. Top bar 의 채움이 Sidebar Gradient 의
+     * 첫 stop 이라 만나는 모서리가 같은 색이다. Brand 고정이라 사용자 Accent 를 따르지 않고,
+     * 선택 표현은 제품 전체에서 하나다: 앞머리 3px 레일. */
+    "--chrome-shell": ch.shell,
+    "--chrome-shell-top": ch.shellTop,
+    "--chrome-shell-deep": ch.shellDeep,
+    "--chrome-on": ch.onShell,
+    "--chrome-on-muted": ch.onShellMuted,
+    "--chrome-on-faint": ch.onShellFaint,
+    "--chrome-line": ch.line,
+    "--chrome-hover": ch.hover,
+    "--chrome-selected": ch.selected,
+    "--chrome-rail": ch.rail,
+    "--chrome-focus-ring": ch.focusRing,
     "--sidebar-bg": p.sidebar.bg,
     "--sidebar-text": p.sidebar.text,
     "--sidebar-muted": p.sidebar.muted,
+    "--sidebar-faint": p.sidebar.faint,
     "--sidebar-hover": p.sidebar.hover,
+    "--sidebar-selected": p.sidebar.selected,
     "--sidebar-line": p.sidebar.line,
     /* 선택된 줄의 면. D-141 로 사이드바의 '현재 위치'는 앞머리 레일이 말하므로 이 토큰의
        실제 소비처는 채팅 대화 목록의 선택 행 하나뿐이다(styles/screens.css). 새 규칙대로
@@ -150,14 +195,16 @@ function tokensFor(mode) {
        위에 얹히느냐에 따라 대비가 달라져 "이 조합은 AA 인가"에 답할 수 없다. */
     "--sidebar-active-bg": bg.inset,
     "--sidebar-active-fg": p.text.primary,
-    "--sidebar-active-rail": p.primary.main,
+    /* **Brand 고정.** 예전에는 `primary.main` 이라 사용자가 Accent 를 바꾸면 제품의
+       "현재 위치" 색이 함께 바뀌었다 — Identity 가 Interaction 계층에 얹혀 있었다. */
+    "--sidebar-active-rail": p.sidebar.activeRail,
     "--sidebar-danger": p.error.main,
     "--sidebar-shadow": "none",
     "--sidebar-width": "248px",
-    "--g-topbar": p.sidebar.bg,
-    "--topbar-fg": p.text.primary,
-    "--topbar-pill-bg": p.sidebar.hover,
-    "--topbar-pill-fg": p.text.primary,
+    "--g-topbar": p.chrome.shellTop,
+    "--topbar-fg": p.chrome.onShell,
+    "--topbar-pill-bg": p.chrome.hover,
+    "--topbar-pill-fg": p.chrome.onShell,
     "--topbar-height": "52px",
 
     /* 그림자 — 떠 있는 것만. 판에는 없다. 옛 별칭은 소비처가 남아 있어 유지하되 전부
@@ -262,6 +309,9 @@ const CONTRAST_PAIRS = {
   "--sidebar-active-fg": "--sidebar-active-bg",
   "--color-text": "--color-bg",
   "--color-muted": "--color-bg",
+  "--chrome-on": "--chrome-shell",
+  "--chrome-on-muted": "--chrome-shell",
+  "--topbar-fg": "--g-topbar",
 };
 
 function block(selector, map, indent = "  ") {

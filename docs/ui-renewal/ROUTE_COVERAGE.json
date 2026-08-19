@@ -12,7 +12,7 @@
  },
  "capture_labels": {
   "before": "before-renewal",
-  "after": null
+  "after": "w1-after"
  },
  "waves": [
   "W0",
@@ -199,7 +199,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_me__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -409,7 +422,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_search__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -614,7 +640,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_my-tickets__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -831,7 +870,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_unassigned__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -1044,7 +1096,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_new-ticket__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -1292,7 +1357,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_tickets-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -1523,7 +1601,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_team-tickets__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -1747,7 +1838,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_projects__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -2000,7 +2104,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_projects-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -2248,7 +2365,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_sprint__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -2480,7 +2610,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_chat__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -2705,7 +2848,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_chat-rooms__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -2912,7 +3068,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_chat-rooms-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -3176,7 +3345,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_board__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -3404,7 +3586,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_ideas__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -3640,7 +3835,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_board-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -3869,7 +4077,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_team-docs__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -4081,7 +4302,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_team-docs-trash__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -4288,7 +4522,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_team-docs-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W9",
    "findings": [
@@ -4489,7 +4736,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_games__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -4858,7 +5118,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_notifications__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -5069,7 +5342,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_my-approvals__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -5285,7 +5571,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_profile__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -5543,7 +5842,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_my-stats__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -5768,7 +6080,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_activity__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -5949,7 +6274,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_my-display__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -6184,7 +6522,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_dashboard__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -6388,7 +6739,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_integrity__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -6595,7 +6959,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_search__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -6801,7 +7178,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_users__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -7016,7 +7406,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_users-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -7208,7 +7611,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_offboarding__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -7394,7 +7810,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_settings__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [],
@@ -7534,7 +7963,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_setup__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -8277,7 +8719,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_mail__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -8484,7 +8939,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_diagnostics__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -8689,7 +9157,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_dev-report__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -8902,7 +9383,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_org-tree__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -9133,7 +9627,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_organizations__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -9365,7 +9872,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_departments__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -9593,7 +10113,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_departments-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -9820,7 +10353,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_audit-id__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -10066,7 +10612,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_backup__backup__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -10295,7 +10854,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_backup__restore-drills__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -10523,7 +11095,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_approvals__approvals__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -10765,7 +11350,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_approvals__approval-delegations__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -10992,7 +11590,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_audit__audit__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -11219,7 +11830,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_audit__audit-anomalies__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -11463,7 +12087,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_ai-usage__policy-usage__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -11690,7 +12327,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_ai-usage__prompt-usage__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -11939,7 +12589,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_schedules__schedules__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -12183,7 +12846,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_schedules__scheduler-calendar__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -12638,7 +13314,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_settings__os__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -12859,7 +13548,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_settings__integration__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -13093,7 +13795,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_settings__ai__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -13350,7 +14065,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_ai-quotas__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -13575,7 +14303,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_announcements__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -13799,7 +14540,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_approval-delegations__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -14024,7 +14778,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_audit-anomalies__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -14268,7 +15035,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_documents__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -14495,7 +15275,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_feature-flags__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -14706,7 +15499,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_impersonation__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -14932,7 +15738,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_integrations__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -15194,7 +16013,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_job-titles__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -15441,7 +16273,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_jobs__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W8",
    "findings": [
@@ -15663,7 +16508,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/public_login__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -15852,7 +16710,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_notion-mapping__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -16082,7 +16953,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_policies__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -16326,7 +17210,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_policy-usage__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -16552,7 +17449,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_prompt-usage__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -16799,7 +17709,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_prompts__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -17061,7 +17984,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_rbac__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -17278,7 +18214,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_restore-drills__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -17505,7 +18454,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_runners__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -17741,7 +18703,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_scheduler-calendar__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -17958,7 +18933,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_search-empty__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -18157,7 +19145,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_search-results__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [
@@ -18345,7 +19346,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_templates__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -18571,7 +19585,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_workflows__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -19304,7 +20331,20 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/before-renewal/results.json"
    },
-   "after_capture": null,
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/admin_admin-notifications__light__1920x1080.png",
+    "label": "w1-after",
+    "build_index_sha256": "104e49366bf030f4",
+    "at": "2026-08-19T14:58:44",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 2,
+    "results_json": "dist/ui-qa/w1-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W12",
    "findings": [
@@ -19711,5 +20751,670 @@
    "about": "R-93",
    "q": "Affected 에 user_projects·user_projects-id·admin_diagnostics·user_notifications 가 없다. 네 곳 모두 같은 파생 지표를 서로 다른 경로로 계산한다."
   }
- ]
+ ],
+ "w1_review_findings": {
+  "note": "W1 종료 시 구현하지 않은 독립 에이전트 5개 렌즈가 배포본을 검수하고 각 Finding 을 적대적 검증까지 돌린 결과다(제기 76 · 확인 46 · 반증 30). Surface 별 `findings` 와 성격이 다르다 — 저것은 한 화면·한 조합의 자동 측정이고, 이것은 여러 화면·여러 Wave 에 걸친 사람 렌즈의 판단이다. `owner_wave` 가 그 Wave 의 입력 목록이 된다. 여기에 더해 `F-W1M-*` 는 사람 렌즈가 아니라 **Before/After 전수 실측 대조**에서 나온 것이다 — 하네스가 새로 발화하거나 발화 범위가 넓어진 클래스를 추적한다.",
+  "run": "wf_75399743-a02",
+  "raised": 76,
+  "confirmed": 48,
+  "refuted": 30,
+  "summaries": [
+   {
+    "lens": "ui-ux-pro-max",
+    "summary": "W1은 핵심 목표를 실제로 달성했다 — 상단바·사이드바가 인디고 `#1E2758`로 바뀌었고(Before 캡처의 밝은 회색 chrome과 명확히 대비), ConsoleSwitch·UserMenu·BrandLogo 워드마크·Clovi Halo/Ring의 잉크·브랜드 배선은 정확히 새 토큰으로 옮겨졌으며, 타이포 위계(28/19/15)도 실제 브라우저에서 제목이 앞선다. 그러나 chrome 위에 얹힌 컨트롤 3개(상단 검색·사이드바 메뉴 검색·클로비 버튼)가 여전히 캔버스 계열 `background.plate`에 묶여 있어, 라이트에서는 인디고 하우징 위에 흰 판 세 덩어리가 로고보다 밝게 뜨고 다크에서는 같은 컨트롤이 배경에 묻힌다 — `TopSearch.jsx` 주석이 D-141 때 반대 방향으로 겪었다고 적어 둔 바로 그 결함이 뒤집혀 재발했다. 또한 W1이 새로 만든 토큰군(`palette.chart`·`background.brandTint`·`gradient.shell/ai/mark`·`chrome`의 9키 중 8키)이 소비처 0인 채 배포됐는데, W1이 같은 커밋에서 추가한 `check_brand_tokens.py`는 `palette.brand`만 검사해 이 상태를 PASS로 통과시킨다. 기본 Accent 교체(#536CD6→#5A4FCF)는 데이터 마크의 다크 대비를 3.76:1에서 2.90:1로 떨어뜨려 계획 자신의 `CHART_SERIES ≥3.0` 규칙 아래로 내려갔고, 이를 막아야 할 단언은 렌더되지 않는 `palette.chart`를 측정하고 있다. 나머지 구조·밀도·빈 영역 결함은 대부분 W2~W8 소유가 맞다."
+   },
+   {
+    "lens": "impeccable",
+    "summary": "라이트 모드에서 인디고 하우징은 실제로 하나의 L자 오브젝트로 읽히고(chrome 대 canvas 12.41:1, 상단바와 사이드바가 정확히 같은 #1E2758), 데이터 면도 조용해서 하우징과 싸우지 않는다. 거기까지가 W1이 벌어들인 것이다. 그러나 세 가지가 그 성취를 상쇄한다. 첫째, 하우징이 다시 어두워지는 순간 그 위에 앉는 요소들이 따라오지 않았다 — 워드마크 \"Assist\"가 자기 헤더 위에서 2.32:1로 무너졌고(라이트 전 페이지), 상단바와 사이드바 검색은 순백 구멍으로 하우징을 뚫는다. 둘째, 다크에서는 하우징 자체가 없다(chrome 대 canvas 1.24:1, plate 대 canvas 1.11:1) — \"바깥으로 갈수록 브랜드 채도가 강해진다\"는 논지가 절반의 테마에서만 성립한다. 셋째, 의도한 세 자리 중 AI 자리는 제품 어디에도 존재하지 않고(18/18 측정에서 ai_surface 모름), 콘텐츠 면의 채도 예산은 상태색이 가져간다(/me 라이트 status:brand = 2.64:1, 브랜드 유채색은 콘텐츠 면적의 0.4%). 그리고 이 판정을 막았어야 할 W1의 Exit Gate는 실행 중에 다른 지표로 교체됐고 그 대체 지표는 18페이지 전부 null로 남았다."
+   },
+   {
+    "lens": "design-taste",
+    "summary": "새 7슬롯 스케일은 **쓰이는 자리에서는 실제로 작동한다** — 캡처 실측으로 pageTitle 28px(ink 24~25), title 19px(ink 17), body 15px(ink 13), readout 40px(ink 29), 카드 radius 8px, tab 40px 이 모두 화면에서 확인된다. 문제는 스케일 자체가 아니라 **도달 범위와 구속력**이다. 생성기가 7슬롯 중 5개만 CSS 로 내보내고 LINE_HEIGHT·CONTROL 은 한 줄도 내보내지 않아, 생성된 `--font-size-*` 의 소비처가 0건이고 CSS 4파일에 raw px `font-size` 72건(서로 다른 18개 크기, 12px 하한 위반 14건)이 그대로 남았다. CONTROL 의 높이는 MUI 기본 세로 padding 을 지우지 않아 선언(34/30)과 화면(36/31)이 다르고, tableRow·tableRowCompact·navItem·LINE_HEIGHT 는 소비처가 0이다 — `check_brand_tokens.py` 가 막으려던 \"정의했는데 아무도 안 읽는다\"를 타이포·컨트롤에서 그대로 반복했다. 그리고 결정적으로, W1 이 손댔다고 주장한 `login.css` 는 커밋되지 않았고 After 캡처의 로그인 버튼은 **옛 그라디언트(#536CD6 계열) 그대로**라 그 라우트의 시각 증거가 W1 을 증명하지 못한다."
+   },
+   {
+    "lens": "visual-before-after",
+    "summary": "9개 라우트 전부 Before 쌍이 존재해 건너뛴 라우트는 없다(다만 `docs/ui-renewal/captures/before/`는 480px 축소본이라 대비 판정이 불가능해, 같은 실행의 원본 캡처인 `dist/ui-qa/before-renewal/{light,dark}/1920x1080/`을 기준으로 비교했다 — After 검수에 쓸 Before 정본을 축소본으로 두면 다음 Wave의 독립 리뷰가 불가능해진다). Q1·Q2: 로고를 가려도 셸(상단바·사이드바)이 딥 인디고라 After는 확실히 ClovirAssist로 읽히고 Before는 어떤 제품도 아니었다 — 그러나 브랜드는 셸에만 있다. 콘텐츠 영역(x≥250)의 브랜드 색조 픽셀 비율은 라이트 3.3~5.2%에 그치고 카드는 여전히 순백(#FFFFFF), 캔버스는 Before (237,239,242) → After (238,240,247)로 사실상 그대로다. Q3(회귀): 있다 — 라이트 워드마크 \"Assist\"의 대비가 3.88:1 → **2.32:1**로 떨어져 제품명 절반이 배경에 묻히고(다크는 9.18:1), 콘솔 전환의 선택 신호가 약해졌으며, 목록 밀도가 줄었다(프로젝트 첫 화면 15행 → 13행). 그리고 결정적으로 `public_login`의 After 캡처는 Before와 **6픽셀**만 다르다 — 테스트 서버가 옛 `login.css`를 그대로 서빙 중이라 W1의 로그인 변경 두 건이 실물에 존재하지 않는다. Q4: SPA는 라이트/다크가 같은 제품으로 보이나 워드마크만 두 테마가 갈라졌고, 로그인 화면은 라이트/다크 PNG가 바이트 동일 — 다크가 아예 없다."
+   },
+   {
+    "lens": "requirement",
+    "summary": "W1 의 토큰 층 자체는 PLAN «Design Direction — 인디고 계측면» 의 hex 를 거의 전부 정확히 옮겼다 — 중립 램프 10값·chrome 14값·brand 6키·chart 6+6·gradient 4종·RADIUS·FONT_SIZE 7슬롯·LINE_HEIGHT·CONTROL·dark strongMix 0.62 까지 한 항목씩 대조해 값 불일치는 없었고, 재작성한 시험 276개가 실제로 통과하며 `generate_design_tokens.mjs --check` 도 초록이다. 그러나 **Wave 종료 판정이 근거를 갖추지 못했다**: W1 고유 Exit Gate 인 `brand_presence ≥ 5/7` 은 smoke set 8페이지 중 0페이지만 도달했고(pass 2 / fail 6), REQUIREMENT_MATRIX 가 대신 인용한 `brand_role_coverage` 는 두 캡처 실행 시각보다 6분 뒤에 코드에 들어와 **한 번도 실행된 적이 없다**. 또한 ROUTE_COVERAGE 92 Surface 가 전부 PENDING/NOT_AUDITED 이고 WORK_STATE 는 여전히 W0 이며, W1 배정 요구사항 5개 중 R-0-2.14 와 R-4 가 NOT_STARTED 로 남아 E1·E2 가 미충족이다. 마지막으로 PLAN 이 W1 에 요구한 것 중 **static check ⓐ(MUI 아이콘 size/strokeWidth 금지) · `tokens-generated.test.js` 의 `--gradient-hero` 재분기 가드 · CONTROL 의 in-table dense 32 · 사이드바 `backgroundImage`** 가 빠졌고, 그 결과 shellImage·aiWash·brandTint·chart·brand 잉크 3키가 소비처 0인 죽은 토큰으로 남아 배포 화면의 상단바·사이드바는 여전히 평평한 단색이고 차트는 사용자 Accent 로 그려진다."
+   }
+  ],
+  "items": [
+   {
+    "id": "F-W1R-01",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W2",
+    "owner_wave_raw": "W2 (TopSearch + 사이드바 '메뉴 찾기' 입력) — MascotTopButton 부분만 W7",
+    "title": "인디고 chrome 위 컨트롤 3개가 아직 캔버스 토큰(`background.plate`)에 묶여 있다 — 라이트에서 흰 판 3덩어리, 다크에서 소실",
+    "evidence": "소스: `frontend/src/app/TopSearch.jsx:40` `bgcolor:\"background.plate\", color:\"text.secondary\"` · `frontend/src/app/AppShell.jsx:328` 사이드바 '메뉴 찾기' `bgcolor:\"background.plate\"` · `frontend/src/ui/Mascot.jsx:264` MascotTopButton `bgcolor:\"background.plate\", color:\"text.primary\"`. 실측 픽셀 — dist/ui-qa/w1-visual/light/1920x1080/user_me.png: 상단 검색 채움 (500,26)=#FFFFFF, 사이드바 검색 (200,133)=#FFFFFF, 클로비 알약 (1690,25)=#FFFFFF, 배경 shell (1200,25)=#1E2758. 같은 좌표 dark/user_me.png: 세 곳 모두 #141829(=plate dark), shell #1A2046. 대조군으로 W1이 고친 ConsoleSwitch는 (124,70)=#2F3765(sidebar.track)로 정상. 아이러니하게도 `TopSearch.jsx:12-17` 주석이 \"상단바 위 요소는 상단바 색을 전제하면 안 되고 토큰을 봐야 한다\"고 같은 결함을 반대 방향으로 기록해 두었다.",
+    "why_it_matters": "제품 전체 라우트 9/9, 두 테마 모두에서 재현된다. 라이트에서는 인디고 하우징 안에서 흰 판이 화면에서 가장 밝은 면이 되어 로고·활성 메뉴·데이터보다 먼저 눈에 들어오고(스캔 경로가 검색창으로 끌려감), 다크에서는 같은 세 컨트롤이 chrome에 묻혀 어포던스가 사라진다 — 즉 동일한 인디고 chrome 위에서 컨트롤의 시각적 무게가 테마에 따라 정반대다. PLAN «Chrome 설계»는 상단 검색을 `rgba(255,255,255,.10)` fill + `.14` border inset으로, 클로비 버튼은 \"흰 판 제거\"로 못박고 있다. 대비 위반은 아니라 자동 대비 단언이 잡지 못하고, W1이 재작성한 `usermenu-topbar-contrast.test.js`도 이 세 컨트롤을 덮지 않는다.",
+    "verify_reason": "근거는 전부 실재하고 독립 재현했다. 소스 3줄 확인: TopSearch.jsx:40 `bgcolor:\"background.plate\", color:\"text.secondary\"` · AppShell.jsx:328 메뉴 찾기 InputProps.sx `bgcolor:\"background.plate\"` · Mascot.jsx:265 MascotTopButton `bgcolor:\"background.plate\", color:\"text.primary\"`. 픽셀은 단일 좌표가 아니라 각 컨트롤 bounding box 의 지배색 히스토그램 + 상단 crop 직접 열람으로 재측정했다 — light 세 곳 모두 #FFFFFF on shell #1E2758, dark 세 곳 모두 #141829 on shell #1A2046. dark 의 plate:shell 대비는 계산상 1.12:1 이라 채움이 분리 신호를 전혀 못 내고 테두리만 남는다. app shell 이 있는 8개 라우트 × 두 테마 전부 재현(9/9 는 과장 — public_login 은 Jinja 페이지라 셸이 없다). 대조군 ConsoleSwitch 는 #2F3765(track) 로 정상이라는 점도 확인했다.\n\n보고서가 놓친, 결함을 더 강하게 만드는 사실 둘: (1) theme.js:203-206 의 `track` 토큰 주석이 자기 소비처를 \"ConsoleSwitch·**검색 inset**\" 으로 명시하고 실패 모드까지 적어 뒀다(\"흰 판을 올리면 인디고 하우징 안에서 그 판이 가장 밝은 면이 되어 데이터보다 먼저 눈에 띈다\") — W1 은 토큰을 만들고 명명된 두 소비처 중 하나만 배선했다. (2) before 캡처(docs/ui-renewal/captures/before/user_me__light__1920x1080.png)에서 W1 이전 chrome 은 흰/캔버스였다. 그때는 흰 판이 정합적이었다. 즉 W1 의 chrome 인디고 전환이 이 부정합의 근인이고, TopSearch.jsx:13-16 이 기록한 D-141 사건의 정확한 거울상이다. PLAN 인용도 정확하다 — line 329 \"Top bar 검색: Brand 위 inset — rgba(255,255,255,.10) fill, .14 border\", line 426 \"흰 판 제거\". usermenu-topbar-contrast.test.js 가 이 셋을 안 덮는다는 주장도 맞다(그 파일은 Use",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-02",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "기본 Accent 교체가 다크 데이터 마크 대비를 3.76:1 → 2.90:1로 떨어뜨렸고, 이를 막을 단언은 렌더되지 않는 색을 측정한다",
+    "evidence": "`frontend/src/ui/theme.js:50` `DEFAULT_ACCENT=\"#5A4FCF\"`(구값 #536CD6), `theme.js:433` `primary:{main: primary}` — 모드 불변 raw 값. 실측: dark/user_sprint.png 담당자별 업무량 막대 (1360,724)=#5A4FCF, light 동일 좌표도 #5A4FCF(모드 무관 동일). 다크 판 `background.plate`=#141829 대비 계산 = **2.90:1**(구 #536CD6이었다면 3.76:1). PLAN «Data Visualization»은 `CHART_SERIES ≥3.0` 실측을 요구하는데 `frontend/src/ui/theme-contract.test.js:299,308` 는 `p.chart`(소비처 0)에 대해서만 이 값을 단언한다.",
+    "why_it_matters": "W1이 직접 바꾼 값이 원인이고, W1이 재작성한 계약 시험이 실제로 렌더되는 색이 아니라 아무도 쓰지 않는 색을 검사하기 때문에 초록으로 통과한다. 다크에서 스프린트 업무량 막대·홈 진척 막대 등 판독용 마크가 WCAG 1.4.11(비텍스트 3:1)과 계획 자체 기준 아래로 내려갔고, `primary.main`은 사용자 Accent라 청록(#327C98)을 고른 사용자에게는 이 값이 더 낮아진다. 수정 경로는 두 가지(모드별 데이터 파생색을 W1에서 만들거나, 소비처를 `palette.chart`로 W7에서 옮기거나)지만 어느 쪽이든 시험이 렌더되는 색을 측정하도록 바꾸는 일은 W1 소유다.",
+    "verify_reason": "기계적 주장은 전부 실측으로 확인됐다. theme.js:50 `DEFAULT_ACCENT=\"#5A4FCF\"`(git show HEAD~1 = `#536CD6`), theme.js:433 `primary:{main: primary}` 모드 불변, charts/base.jsx:50 이 `!color` 일 때 `primary.main` 을 돌려주고 BarSeries.jsx:25 의 기본값이 `color=\"primary\"` 이며 Sprint.jsx:413 은 color 를 안 넘긴다. dark/user_sprint.png (1360,724) = (90,79,207) = #5A4FCF 정확히 일치하고, 가로 스캔에서 fill #5A4FCF(x1315~1590) · track #242A46 · plate #141829 이 확인된다. 대비를 직접 재계산했다 — #5A4FCF/#141829 = 2.90:1, #536CD6 = 3.76:1. 게다가 구 dark plate 는 #16191E 였고 거기서도 구 accent 가 3.76:1 이라 이건 반사실이 아니라 **실제 배포 전후 회귀**다. palette.chart 와 생성된 `--chart-*` 는 저장소 전체에서 소비처 0 이 맞다(JS·JSX·양쪽 tokens.css 전수). finding 이 놓친 더 강한 증거도 있다 — W1 이 새로 만든 scripts/check_brand_tokens.py 는 \"Brand 토큰에 소비처가 0\" 을 막으려고 존재하는데 palette.brand 만 검사하고 같은 커밋에서 자기가 만든 palette.chart 는 빠뜨렸다.\n\n다만 \"왜 중요한가\" 의 두 근거는 틀렸거나 과장이다. (1) **청록 주장은 반대로 뒤집혀 있다** — #327C98 의 휘도(0.1736)가 #5A4FCF(0.1227)보다 높아 다크 plate 위에서 3.75:1 로 기본값보다 **더 좋다**. (2) WCAG 1.4.11 적용이 약하다 — BarSeries 는 막대를 `aria-hidden=\"true\"` 로 두고 모든 값을 바로 옆에 글자로 다시 낸다(\"4인일\"). 크롭을 직접 봤는데 막대는 읽힌다. 정보 손실이 없다. (3) PLAN:463 이 theme-contract 에 요구한 문구는 문자 그대로 `CHART_SERIES ≥3.0` 이고 `p.chart` 가 바로 그것이다 — W1 은 명세대로 했다. (4) #4058BD 는 W1 이전에도 2.81:1 이",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-03",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W1",
+    "title": "`text.secondary`와 `text.faint`가 1.10:1(라이트)/1.19:1(다크)로 사실상 같은 색 — 3단 잉크 위계가 2단으로 붕괴",
+    "evidence": "`frontend/src/ui/theme.js:337-338` muted `#565E7A` / faint `#5C6480`, `:368-369` 다크 `#9BA4C4` / `#8C96B8`. 상대휘도 0.1139 vs 0.1295 → 두 색 간 대비 **1.10:1**(다크 0.3749 vs 0.3085 → 1.19:1). `theme.js:456` 이 둘을 `text.secondary`/`text.faint`(+`disabled`)로 동시에 노출한다. 화면 증거 — light/user_me.png 하단 '최근 완료 추이' 블록: 지표 라벨(마감 1건, y≈1313)과 각주(\"완료는 마감일 기준입니다…\", y≈1439)가 같은 무게로 읽힌다. light/user_projects.png 도 '평균 진행률' 캡션과 그 아래 보조 설명이 구분되지 않는다.",
+    "why_it_matters": "FONT_SIZE 7슬롯 재배치로 크기 위계는 실제로 좋아졌는데, 그 위계가 기대는 잉크 3단계 중 아래 두 단계가 눈으로 구분되지 않는다. 결과적으로 \"이 숫자가 무엇인가(라벨)\"와 \"참고 각주\"가 같은 층에 놓여 밀집 화면에서 훑기가 느려진다. 토큰 표 자체가 W1 소유이고, W4가 Card/Section 위계를 짤 때 기대게 될 계약이라 지금 벌려 두는 편이 싸다.",
+    "verify_reason": "근거 검증 결과 핵심 주장은 사실이다.\n\n1) 토큰 값 — 실재 확인. `theme.js:337-338` light `muted #565E7A`/`faint #5C6480`, `:368-369` dark `#9BA4C4`/`#8C96B8`, `:456` `text: { primary, secondary: t.muted, disabled: t.faint, faint: t.faint }` 모두 주장 그대로다. 상대휘도를 독립 재계산했다 — light 0.1139 vs 0.1295 → 1.095:1, dark 0.3749 vs 0.3084 → 1.186:1. 숫자와 방향(라이트에서 faint가 더 밝음, 다크에서 더 어두움) 모두 맞다.\n\n2) 담당 Wave — W1 맞다. PLAN «Wave 계획» 표에서 `frontend/src/ui/theme.js` 는 W1 의 유일한 소유 공유 파일이고, 문제의 3색은 `PLAN.md:296` 토큰 표에 그대로 명세돼 있다. 즉 구현 실수가 아니라 W1 이 스스로 정한 스펙 단계의 결함이며, 다른 Wave 소유가 아니다.\n\n3) 스크린샷 근거 — 둘 중 하나는 오귀인이다. `user_me` \"최근 완료 추이\"의 두 요소는 `BarSeries.jsx:84`(note)와 `adminKit.jsx:198`(Note) 둘 다 `color=\"text.secondary\"` 로, 같은 토큰이다. 같은 무게로 읽히는 현상 자체는 크롭해서 눈으로 확인했으나 muted/faint 쌍이 원인이 아니다 — 이 근거는 주장을 뒷받침하지 못한다. 반면 `user_projects` \"평균 진행률\"은 성립한다: `kit.jsx:533` MetricStrip 라벨 = `text.secondary`@bodySm, `kit.jsx:556` note = `text.faint`@caption 으로 두 토큰이 4px 간격으로 실제 인접하며, 크롭 확인 결과 잉크 단계가 전혀 내려가지 않는다. 검증된 실화면 사례가 최소 1건 존재하므로 finding 은 살아남는다.\n\n4) 과장 여부 — Medium 유지가 타당하다. 축소 요인: `text.faint` 비테스트 소비처가 9곳뿐이고 그중 `text.secondary` 형제 옆에 놓인 본문은 `kit.jsx:556`·`adminKit.jsx:70` 둘뿐이라 파급이 국소적이다. W1 회귀도 아니다 — 이전 값 `#5C6370`/`#656D7A`=1.16:1, `#9BA3A",
+    "status": "OPEN",
+    "reassigned_from": "W1",
+    "reassign_reason": "W1 이 theme.js 에 제약을 문서화하고 theme-contract.test.js 가 현재 분리도(1.05~1.35)를 고정했다. 실제 3단으로 벌리려면 `faint` 를 AA-large(3:1) 자리로 한정해야 하고 그 판단은 잉크 소비처를 소유하는 W4 의 몫이다"
+   },
+   {
+    "id": "F-W1R-04",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W4",
+    "title": "파괴적 행동이 페이지에서 가장 강한 시각 요소이자 우상단 1순위 자리를 차지한다 (라이트·다크 모두)",
+    "evidence": "light/user_chat-rooms.png 방 헤더 우상단 '나가기' 채움 (1820,194)=#B3261E(흰 글자) — 페이지에서 가장 채도 높은 면. dark 동일 좌표=#FF8A80(어두운 글자) — 근검정 캔버스 위 가장 밝은 물체. 같은 패턴이 light/admin_settings.png '유지보수 모드 활성화' (1770,1156)=#B3261E, dark=#FF8A80. 대조: 같은 화면의 실제 주 행동 '새 그룹'(chat, x≈550)과 '공지 저장'(settings, (1740,1515)=#E0E0E0 비활성)은 더 약하다. admin_settings 하단 한 줄에 '미리 검증'(외곽선)·'공지 저장'(비활성)·'버전 기록'(맨 텍스트) 세 가지 무게가 동시에 놓인다.",
+    "why_it_matters": "화면당 주 CTA는 하나여야 하고 파괴적 행동은 주 행동과 시각적으로 분리돼야 하는데, 지금은 정반대로 파괴적 행동이 주 행동을 이기고 F-패턴 시작점인 우상단을 점유한다. 다크에서는 `error.main`이 밝은 살몬으로 뒤집혀 사실상 발광한다. 채팅방·설정·(관리자 전반)에 같은 형태가 반복되므로 개별 화면 수정이 아니라 공유 Button emphasis 계약(kit.jsx)에서 닫아야 한다.",
+    "verify_reason": "근거는 실재한다. 주장된 픽셀이 전부 정확히 재현된다 — light/user_chat-rooms.png (1820,194)=#B3261E, dark 동일좌표=#FF8A80, light/admin_settings.png (1770,1156)=#B3261E, dark=#FF8A80, (1740,1515)=#E0E0E0. 네 장을 직접 보고 확인했다: 채팅방 헤더 우상단에 채움 빨강 '나가기', admin_settings 는 전면 중립 화면에서 '유지보수 모드 활성화'가 유일한 채도 있는 면이다. 다크에서 #FF8A80 은 L=0.410 으로 본문 텍스트를 제외한 최대 밝기 면이고, 같은 화면의 primary #5A4FCF(L=0.123)보다 캔버스 대비가 7.7:1 대 3.0:1 로 2.5배 강하다.\n\nRoot cause 위치도 맞다 — frontend/src/ui/kit.jsx:232 `danger: { variant: \"contained\", color: \"error\" }`, 소비처는 frontend/src/screens/ChatRoom.jsx:104,111 (variant=\"danger\") 와 frontend/src/screens/ops/Maintenance.jsx:195 (variant={on ? \"primary\" : \"danger\"}). 공유 Button emphasis 계약에서 닫아야 한다는 판단은 타당하다.\n\nW1 결함이 아니고, 담당 Wave W4 도 정본과 일치한다. git status 에 frontend/src/ui/kit.jsx 는 수정되지 않았고, theme.js diff 에서 danger(#B3261E)·dark danger(#FF8A80)는 W1 이 건드리지 않았다(light dangerBg 만 #FBECEB→#FAEBEC). REQUIREMENT_MATRIX.md 의 R-11 \"Button, Action, Status, Badge 시스템 전면 개선\"(Destructive 역할 정의, Implementation=kit.jsx)이 Wave W4 / Status NOT_STARTED 로 이미 존재한다 — 즉 이미 처리된 것을 결함이라 하는 것도 아니고 범위도 맞다.\n\n다만 심각도는 부풀려져 있어 Medium 으로 낮춘다. (1) 반복 범위가 과장됐다 — 캡처된 9개 라우트의 danger fill 픽셀을 세어 보면 실제 큰 채움은 admin_settings(4518/4555px)와 user_cha",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-05",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "owner_wave_raw": "W3",
+    "title": "Navigation 활성 신호가 넷으로 겹치고(굵기 변경 포함), 자식 아이콘이 부모 그룹 아이콘보다 크게 렌더된다",
+    "evidence": "`frontend/src/app/AppShell.jsx:441` `fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold` (활성 시 굵기 변경) + `:429` `\"&.Mui-selected\": { bgcolor: \"transparent\" }` (선택 행 배경 없음 — light/user_me.png x=220, y=198~300 전 구간이 #1E2758로 균일) + `:437` `<ItemIcon size={18} strokeWidth={1.8} />` — MUI `SvgIcon`에는 `size` prop이 없어 무시되고 기본 24px로 렌더된다. 육안 확인: 스크래치패드 `sidezoom_light.png`(원본 light/user_me.png x0-250,y60-560을 3배)에서 자식 '홈' 집 아이콘이 부모 그룹 '내 업무' 가방 아이콘보다 확연히 크다. rail은 정상 — (21,218)=#A9BAFF.",
+    "why_it_matters": "PLAN «Navigation 상태»는 신호를 정확히 둘(3px rail + 잉크색)로 못박고 굵기 변경을 금지한다 — 한글에서 semibold→bold 전환은 실제 글자 폭을 바꿔 항목을 이동시킨다. 동시에 계획이 «Icon System»에서 진단한 `size`/`strokeWidth` 무효 버그가 그대로 남아 정보 위계가 뒤집혀 있다(자식이 부모보다 무겁다). rail 토큰은 W1이 정상 공급했으므로 W3에서 순수하게 소비처만 고치면 되는 상태다.",
+    "verify_reason": "Every prong verified independently. SOURCE: AppShell.jsx:442 `fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.semibold` (700/600 per theme.js:73), :427 `\"&.Mui-selected\": { bgcolor: \"transparent\" }`, :437 `<ItemIcon size={18} strokeWidth={1.8} />`, plus a fourth signal the finding names correctly, :436 `opacity: active ? 1 : 0.82`, and the :418-426 ::before rail — four overlapping active signals, weight change included. Cited line numbers are off by 1-2 (442/427 vs 441/429) but the code is exact. ICON BUG CONFIRMED AT TYPE LEVEL, not just visually: navIcons.js imports all 37 glyphs from @mui/icons-material/*Outlined, so they are MUI SvgIcon — no `size` prop (it takes `fontSize`), fill-based so `strokeWidth` is inert, default medium = 24px; the group header at :379 renders `<GroupIcon fontSize=\"small\" />` = 20px. Child 24 > parent 20. SCREENSHOT: I sampled dist/ui-qa/w1-visual/light/1920x1080/user_me.png myself — (21,220)=#A9BAFF confirms the rail, and x=60/120/220/240/247 across y=198-300 are uniformly #1E2758, confirming no selected-row background. I re-cropped x0-250/y60-560 at 3x rather than trusting the cited scratchpad file: child glyphs (홈, 내 티켓, 승인, 알림, AI) are visibly l",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-06",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "목적 없는 대형 공백이 주요 라우트 세 곳에서 화면 절반 이상을 차지한다",
+    "evidence": "light/user_me.png '오늘 마감 (0건)' 판(x 280~1337, y 320~550) 안에서 실제 내용은 y 400~500뿐이고, 그 판 아래 y 550~960 약 410px가 캔버스만 남는다(우측 열에는 콘텐츠가 있어 L자 공백). light/user_sprint.png '번다운' 판(x 280~1080, y 425~1180)에서 차트+범례는 y 545~840뿐, 아래 약 340px가 죽은 흰 면. light/user_chat-rooms.png 대화 영역 y 340~790 약 450px가 완전 공백이고 메시지는 바닥에만 붙어 있다.",
+    "why_it_matters": "CLAUDE.md §6이 명시적으로 금지한 상태이고 PLAN «Surface 위계»의 \"없는 데이터를 위한 컨테이너를 그리지 않는다\" 하드 금지에 직접 걸린다. 세 화면이 서로 다른 원인(Empty State가 판 높이를 못 채움 / 이웃 판 높이에 맞춘 고정 높이 / 채팅 바닥 정렬)처럼 보이지만 공통 뿌리는 `kit.jsx`의 Card가 내용과 무관하게 면을 먼저 그리는 것이다. W7·W8에서 개별 대응하기 전에 W4에서 판정 체크리스트를 코드로 표현해야 반복을 막는다.",
+    "verify_reason": "근거 자체는 실재한다. 픽셀 단위로 재측정해 세 곳 모두 확인했다. user_me.png 는 x285~1330 이 y551~967 (417px) 동안 페이지 배경 rgb(238,240,247) 로 균일하고 같은 y 대역의 우측 열은 y942 까지 콘텐츠가 있어 L자 공백이 맞다. user_sprint.png 는 번다운 판 안(x290~1070)이 y761~1159 (399px) 동안 순백 rgb(255,255,255) 로 균일하다 — 주장한 340px 보다 오히려 크다. user_chat-rooms.png 는 x640~1700 이 y327~788 (462px) 완전 균일이고 메시지는 y809 부터다(주장하지 않은 좌측 방 목록 543px 공백도 별도로 있다). CLAUDE.md §6 과 PLAN:360 «없는 데이터를 위한 컨테이너를 그리지 않는다» 위반이라는 판단도 유효하다. 사이드바 캡처 산물과는 무관한 별개 영역이다.\n\n그러나 세 가지가 틀렸다.\n\n(1) 주장한 공통 뿌리가 거짓이다. kit.jsx:350 의 Card 는 `<MuiCard elevation={0} sx={{p: CARD_PADDING}}>` 뿐으로 minHeight/height 가 없어 \"내용과 무관하게 면을 먼저 그리는\" 구조가 아니다. user_me 의 공백은 Card 바깥의 페이지 배경(2열 그리드 열 길이 불일치)이고, sprint 는 Sprint.jsx:381 의 `repeat(2, minmax(0,1fr))` 가 더 큰 형제 카드 높이로 늘어난 결과이며(게다가 이 차트에는 데이터가 있어 \"없는 데이터를 위한 컨테이너\" 인용이 오적용), chat 은 Card 가 개입하지 않는 바닥 정렬 스크롤 패널이다. 세 증상은 실제로 서로 다른 원인이고 kit.jsx Card 하나를 고쳐서 닫히지 않는다.\n\n(2) 담당 Wave 가 틀렸다. REQUIREMENT_MATRIX 가 이미 셋을 개별 요구사항으로 추적 중이다 — R-0-2.1 Home 빈 Panel(W10), R-0-2.10 Sprint Chart Panel(W10), R-0-2.4 채팅방 거대한 빈 Main Canvas(W9), 그리고 공유 뿌리인 R-0-2.15 «Empty State 공통 문제»(W7, Implementation 이 kit.jsx·charts/base.jsx). W4 의 Exit Gate 는 `surface_repetition`·`oversized_empty_s",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-07",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W6",
+    "owner_wave_raw": "W6",
+    "title": "행마다 반복되는 '수정' 버튼과 정보량 0인 컬럼이 표의 스캔을 지배한다",
+    "evidence": "light/user_my-tickets.png 20행 전부 우측 끝 x≈1790~1850에 동일한 '수정' 버튼(테두리가 `text.primary` #161A2C 1px — 스크래치패드 `editbtn_light.png` 확인) → 검은 테두리 상자 20개의 수직 열. light/admin_settings.png 는 16행 × 동일 버튼. 동시에 my-tickets의 '예상 WD' 컬럼은 20행 전부 '-', '상태' 컬럼은 20행 전부 '완료'. light/admin_users.png 는 '상태' 13행 전부 '● 사용 중', 'Notion 연결' 13행 전부 '● 확인됨', '부서' 13행 전부 'ClovirONE팀'.",
+    "why_it_matters": "판독해야 할 데이터(제목·마감·난이도)보다 반복 컨트롤과 상수 컬럼이 시각적으로 더 무겁다. 검은 테두리 버튼 20개는 표에서 가장 대비 높은 형상이라 시선이 오른쪽 끝에 고정되고, 값이 하나뿐인 컬럼 3~4개가 가로 폭을 먹어 제목이 잘린다. PLAN C8(Inline Edit)과 R-91(resultScope 기반 컬럼 접기)이 정확히 이 두 가지를 위해 설계돼 있다.",
+    "verify_reason": "근거 실재 확인. user_my-tickets.png(light)에서 행 20개(15+5) 전부 x≈1787~1850에 '수정' 버튼이 있고, 테두리 픽셀을 직접 샘플링한 결과 rgb(22,26,44)=#161A2C 1px 실선이 순백 위에 얹혀 있다(약 15:1). 소스에서도 경로가 확인된다 — MyTickets.jsx:173 `<Button size=\"sm\">수정</Button>` → kit.jsx:234 `default: { variant:\"outlined\", color:\"inherit\" }` → MUI outlinedInherit 가 currentColor(=text.primary)로 테두리를 그린다. theme.js:336 `text: \"#161A2C\"`. 컬럼 상수성도 실측: 예상 WD 20/20 '-', 상태 20/20 '완료'; admin_users 는 13/13 '사용 중' · 13/13 '확인됨' · 13/13 'ClovirONE팀'. 담당자도 19/20 동일이다.\n\n다만 부수 근거 두 가지가 틀렸다. (1) admin_settings 는 16행이 아니라 15행이다(테두리 쌍 30개 = 버튼 15개를 프로그램으로 계수). (2) \"제목이 잘린다\"는 실제 캡처에서 관찰되지 않는다 — 제목 컬럼은 여유가 크고 가장 긴 제목([VRA] 네트워크에서 IP Ranges 블록이 여러 개일 경우…)도 말줄임 없이 전부 렌더된다. 또 R-91 처방은 이 화면에 그대로 적용되지 않는다: /my-tickets 는 서버 페이징(1/3, 총 43건)이고 '상태 전체' 필터라 현재 페이지가 전부 '완료'라는 사실만으로 컬럼을 접는 것은 R-91 이 명시적으로 금지한 바로 그 경우다. 따라서 처방 중 유효한 쪽은 C8 Inline Edit 절반이다.\n\nW1 회귀 아님 + 미처리 확인. W1 이전 light text 는 #171A1F(더 어두움, 약 17:1)였고 Before 썸네일에도 동일한 20개 버튼 열과 동일한 상수 컬럼이 그대로 있다. frontend/src 에 resultScope 도, inline edit 프리미티브도 없다 — W6 작업은 실제로 미착수다.\n\n담당 Wave 정확. PLAN.md:926 이 kit.jsx::DataTable · cells.jsx · Column type 계약 · R-91 교정 Collapse 규칙 · C8/R-89 Inline Edit 상태 기계를 W6 소유로 명시한다(티켓 G",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-08",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W5",
+    "owner_wave_raw": "W5",
+    "title": "필터/결과건수 배치 규칙이 화면마다 다르다 — 고립된 컨트롤 행과 이동하는 결과 카운트",
+    "evidence": "light/admin_users.png: 1행에 검색+3셀렉트, 2행에 체크박스 '보관된 계정 보기' 하나만 홀로(y≈245), 결과 '총 13명'은 표 **아래** 중앙(y≈846). light/user_my-tickets.png: 결과 '총 43건'은 필터 판 **안 좌하단**(y≈347). light/user_projects.png: 토글+셀렉트 한 행 뒤 '총 22건'이 필터 판 안(y≈519). light/admin_settings.png: 탭과 표 사이 y 230~270 띠에 체크박스 '기술 정보(설정 키) 보기' 하나만 우측에 떠 있다.",
+    "why_it_matters": "같은 제품 안에서 \"몇 건인지\"를 찾으려면 화면마다 다른 곳을 봐야 한다. 컨트롤 하나만 있는 행(`isolated_control_row`)은 세로 리듬을 끊으면서 정보는 주지 않아 표와 필터 사이 거리를 늘린다. PLAN C2가 그룹핑·정렬·결과 건수 위치를 한 계약으로 정의하고 있으므로 W5에서 한 번에 닫아야 한다.",
+    "verify_reason": "모든 근거를 스크린샷과 소스에서 직접 확인했고 전부 실재한다. (1) light/admin_users.png: 1행 검색+3셀렉트가 x≈1625 에서 끝나는데 카드는 x≈1885 까지 이어져 약 260px 여유 트랙이 남고, 2행에는 체크박스 '보관된 계정 보기'만 y≈245 에 홀로 있다. 결과 '총 13명'은 표 아래 중앙 y≈846. (2) light/user_my-tickets.png: '총 43건'이 필터 카드 안 좌하단 y≈347 에 있고, 동시에 하단 페이저가 '1 / 3, 총 43건'을 y≈1437 에 또 렌더한다 — 한 화면에 같은 숫자가 두 곳. (3) light/user_projects.png: 토글+부서 셀렉트 한 행 뒤 '총 22건'이 필터 카드 안 y≈519, 페이저가 '1 / 2, 총 22건'을 반복. (4) light/admin_settings.png: '기술 정보(설정 키) 보기' 체크박스가 탭(y≈181)과 표 카드(y≈280) 사이 y≈248 띠에 우측 정렬로 홀로 떠 있다. 소스도 일치한다 — frontend/src/screens/TicketFilterBar.jsx:248-252 가 카운트를 필터 <Card> 안에 렌더하고, frontend/src/ui/Pager.jsx:27 이 표 아래에 '${page} / ${totalPages}, 총 ${total}건'을 따로 렌더한다. 관리자 DataScreen 계열은 후자만 갖는다 — 공유 계약 없이 카운트 출력 지점이 둘로 갈라져 있다. 이미 처리된 것도 아니다: W1 은 theme/token/brand 배선만 건드렸고 필터 파일은 무변경이다. 담당 Wave 도 정본과 맞다 — PLAN.md:924 가 '결과 건수 위치'를 W5 에 명시하고, PLAN.md:905 가 isolated_control_row·control_baseline_mismatch 를 W5 에서 --fail-on 으로 승격한다고 못박았으며, C2(PLAN.md:520)가 '결과 건수는 Filter 영역과 목록 사이의 결과 줄에 둔다' 와 '앞줄에 여유 트랙이 있는데 한 항목만 있는 줄을 만들지 않는다'를 규칙으로 이미 적고 있다. 심각도 Medium 도 부풀려지지 않았다 — 각 화면은 개별로는 쓸 수 있고 W1 을 막지 않으며 W4 뒤 W5 로 이미 예약된 일이라 High 가 아니다. 다만 W5 담당자에게 한 가지: admin_settings 의 체크박스는 필터 ",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-09",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Low",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W1",
+    "title": "상태색이 범주 시리즈로 쓰이고, 라이트에서 강조 막대와 일반 막대의 휘도가 1.06:1로 붙는다",
+    "evidence": "light/user_sprint.png '담당자별 업무량(WD)' 초과 인원 막대 (1460,542)=#8A5300(=`theme.js:346` warning), 일반 막대 (1360,724)=#5A4FCF. 상대휘도 0.1159 vs 0.1227 → 둘 사이 대비 **1.06:1** (색상만 다르고 밝기는 같다). dark 동일 좌표 (1460,542)=#F0B357 — 다크에서는 같은 막대가 페이지에서 가장 밝은 물체가 된다. 캡션이 스스로 \"평균의 1.5배를 넘는 사람만 **색으로** 표시합니다\"라고 적어 색 단독 인코딩임을 명시한다. 홈의 스프린트 도넛도 같은 계열 — light/user_me.png (1553,447) 영역이 success 초록.",
+    "why_it_matters": "WCAG 1.4.1(색만으로 정보 전달 금지) 위반이고, 라이트에서는 등휘도 갈색-인디고 쌍이라 적록 색각 이상 사용자·흑백 인쇄에서 강조가 완전히 사라진다. 다크와 라이트에서 같은 의미의 신호가 정반대 시각 무게를 가지므로 테마 간 동등성도 깨진다. PLAN «Data Visualization»의 \"상태색은 절대 범주 시리즈로 쓰지 않는다\"와 \"색만으로는 2개 시리즈 이상 못 나른다\"가 이 자리를 겨냥해 쓰여 있다.",
+    "verify_reason": "측정 가능한 핵심은 실재하지만, 제목과 근거 넷 중 셋은 반증됐다. 따라서 real=true 로 두되 finding 의 내용 자체를 다시 쓴다.\n\n[살아남은 것 — 직접 실측]\n· theme.js:346 `warning:\"#8A5300\"`, :377 dark `\"#F0B357\"` — 인용 정확.\n· 픽셀 재샘플(PIL): light dist/ui-qa/w1-visual/light/1920x1080/user_sprint.png (1460,542)=#8A5300, (1360,724)=#5A4FCF / dark 동좌표=#F0B357. 전부 일치.\n· 휘도 0.1159 vs 0.1227 일치. 단 대비는 1.041:1 이지 주장한 1.06:1 이 아니다.\n· light/dark 크롭을 Read 로 직접 봤다 — light 는 강조/기본이 같은 무게(색상만 다름), dark 는 강조가 기본보다 3.27:1 밝다. 같은 의미 신호의 테마 간 시각 무게 역전은 실재하는 결함이다.\n\n[리뷰어가 놓친, 소유 Wave 를 바꾸는 사실]\ngit show HEAD:frontend/src/ui/theme.js → DEFAULT_ACCENT 가 #536CD6 이었고 그때 warn/base 분리는 1.44:1 이었다. W1 이 DEFAULT_ACCENT 를 #5A4FCF 로 바꾸면서 1.04:1 로 무너뜨렸다. warning 값(#8A5300)은 c8375ef5 이후 그대로다. 즉 W7 이 물려받은 문제가 아니라 W1 이 자기 소유 파일(theme.js)에서 만든 회귀다. PLAN:312 가 \"상태색 계열은 그대로 둔다\"고 정하면서 새 Accent 와의 휘도 충돌을 검사하지 않은 틈이다.\n\n[반증된 것]\n1) 제목이 틀렸다. sprint-charts.js:61 의 color:\"warn\" 은 \"평균의 1.5배 초과\"라는 임계 상태 표시이지 범주 시리즈가 아니다. warning 을 과부하 신호로 쓰는 건 상태색의 정상 용법이다. PLAN:389 의 \"상태색은 절대 범주 시리즈로 쓰지 않는다\"는 다중 시리즈 범주 인코딩을 겨냥한 문장이라 이 자리에 그대로 적용되지 않는다.\n2) WCAG 1.4.1 위반 주장이 무너진다. BarSeries.jsx 는 모든 행에 값을 텍스트로 렌더하고(민지원 \"8인일\" …), Sprint.jsx:412 summary 가 평균/최대를 글자로 낸다. charts/base.jsx 의 명시 계약이 \"aria-hidden",
+    "status": "OPEN",
+    "reassigned_from": "W1",
+    "reassign_reason": "차트 색 배선(resolveChartColor)은 W7 Data Visualization 소유다. palette.chart·CHART_DASH 는 W1 이 이미 만들어 뒀다"
+   },
+   {
+    "id": "F-W1R-10",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "상단바 클로비가 계약(보이는 40px / 박스 48px)의 절반 크기이고 흰 판을 달고 있다",
+    "evidence": "`frontend/src/ui/Mascot.jsx:268` `<MascotMini mode={mode} size={28} .../>` — 박스 28px. `clovi-avatar`의 hfrac 0.840(PLAN 실측표)을 적용하면 실제 보이는 캐릭터는 약 **23.5px**로 계약치 40px의 59%다. `Mascot.jsx:221` `bgcolor: rgba(255,255,255,${plateOpacity})`가 표면 조건 없이 항상 흰 판을 깐다 — 스크래치패드 `topright_light.png`/`topright_dark.png`(원본 x1580-1920,y0-55을 4배)에서 인디고 chrome 위와 근검정 chrome 위 모두 마스코트 뒤에 흰 타일이 보인다. 버튼 자체 높이도 `Mascot.jsx:262` `minHeight:\"34px\"`로 계약의 히트영역 ≥48px 미만.",
+    "why_it_matters": "사용자가 \"제품 정체성\"으로 확정한 브랜드 캐릭터가 상시 노출되는 유일한 자리에서 얼굴이 판별되지 않는 크기로 나온다 — CSS 박스가 아니라 실제 보이는 얼굴 크기로 검수하라는 CLAUDE.md §7의 지적이 그대로 재현된 상태다. 흰 판은 W1이 chrome을 인디고로 바꾼 뒤 PLAN이 \"제거\" 대상으로 명시한 것이고(Shell이 인디고라 흰 몸체가 그대로 뜬다), 지금은 앞의 Critical 결함(흰 알약)과 이중으로 겹쳐 상단 우측이 흰 덩어리 하나로 뭉친다.",
+    "verify_reason": "모든 근거를 소스와 배포 픽셀로 직접 확인했고 반증에 실패했다.\n\n코드(HEAD 워킹트리 직접 Read): `Mascot.jsx:268` `size={28}` 확인. `Mascot.jsx:221` `bgcolor: rgba(255,255,255,${plateOpacity})` + 기본값 `plateOpacity=0.95`(:183), 상단바 호출부가 override 를 넘기지 않으므로 표면 조건 없는 무조건 흰 판 — 확인. `Mascot.jsx:262` `minHeight:\"34px\"` 확인. 유일한 소비처는 `AppShell.jsx:764` 이고 size override 없음.\n\n계약(PLAN.md:426 원문): `| Top bar AI 진입 버튼 | clovi-avatar | 40px | 48 | 히트영역 ≥48. 흰 판 제거(Shell이 인디고라 흰 몸체가 그대로 뜬다) |`. PLAN:439 전역 규칙도 `MascotMini` 의 \"무조건 rgba(255,255,255,.95) 판\"을 표면 조건부로 바꾸라고 명시. 계약은 실재한다.\n\n배포 픽셀(눈대중 아님, 측정): `dark/1920x1080/user_projects.png` 에서 마스코트 뒤 근백색 영역 bbox 가 정확히 28×28px(x1629-1656, y12-39)로 근검정 버튼 위에 뚜렷한 흰 타일로 존재. `light/.../user_projects.png` 버튼 알약 높이 x=1700 에서 32px 로 계약 ≥48 미달. 구현이 최신이며 이미 처리된 사안이 아니다.\n\n부정확하지만 결론을 뒤집지 못하는 점 2가지: ① hfrac 0.840(clovi-avatar)로 계산했으나 `mode=\"listening\"` 은 `POSE.listening = MASCOT.idle`(:60)로 clovi-idle(hfrac 0.798, PLAN:417)을 렌더한다 → 실제 보이는 크기는 약 22.3px 로 주장한 23.5px 보다 더 나쁘다(계약의 56%). ② light 에서 \"인디고 chrome 위에 흰 타일이 보인다\"는 과장이다 — light 버튼 자체가 흰 알약(`background.plate`, :264)이라 흰 판이 흰 위의 흰색으로 묻히고 보이는 것은 보라 ring 뿐이다. 흰 타일이 판별되는 것은 dark 뿐. 다만 코드 차원의 무조건 판 주장은 그대로 성립한다.\n\n범위: PLAN «Wave 계획» W7 행이 `frontend/src/u",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-11",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "ui-ux-pro-max",
+    "severity": "Medium",
+    "owner_wave": "W9",
+    "owner_wave_raw": "W9",
+    "title": "일반 사용자 화면에 내부 운영용 동기화 실패 정보가 기본 노출된다",
+    "evidence": "light/user_me.png y≈158 전폭 배너 \"주의 최근 동기화에 실패했습니다. 마지막 정상 데이터를 보고 있습니다 (2026. 8. 19. 오후 12:39 기준, 티켓 1118개).\" 동일 배너가 light/user_my-tickets.png y≈182, dark 두 장에도 같은 자리에 있다 — 확인한 사용자 라우트 6개 중 4개.",
+    "why_it_matters": "CLAUDE.md §6과 §13-11, PLAN C6(사용자 vs 운영 정보 경계)이 일반 사용자 화면에서 내부 운영 중심 동기화 정보를 기본 노출하지 말라고 규정한다. 지금은 사용자가 취할 수 있는 행동이 없는 운영 사실이 홈과 내 티켓의 **첫 콘텐츠 블록**을 차지해, 그 아래 실제 판독값(오늘 마감·지연 위험)보다 먼저 읽힌다. 문구도 '티켓 1118개'처럼 사용자 범위(43건)와 무관한 전체 수치를 노출한다.",
+    "verify_reason": "반증 시도 실패 — finding 이 사실이다. (1) 근거 실재: light/user_me.png y≈158, dark/user_me.png 같은 자리, light/user_my-tickets.png y≈182 를 Read 로 직접 봤고 전폭 warn Callout \"주의 최근 동기화에 실패했습니다. 마지막 정상 데이터를 보고 있습니다 (2026. 8. 19. 오후 12:39 기준, 티켓 1118개).\" 가 첫 콘텐츠 블록으로 확인된다. my-tickets 한 장 안에서 배너의 '티켓 1118개' 와 페이지의 '총 43건' 이 동시에 보여 사용자 범위 무관 수치 노출도 그 화면 하나로 입증된다. (2) 소스 확인: frontend/src/ui/MirrorNotice.jsx:42 가 그 문구를 만들고 count 는 sync.ticket_count(미러 전체 수)다. Home.jsx:280 · MyTickets.jsx:731,806 은 canSync/onSync 를 넘기지 않아 사용자가 취할 Action 이 아예 없다 — PLAN C6 의 'ⓐ만 있고 ⓑ 없음 → 배너 아님, 인라인 주석' 규칙 위반이 코드로 성립한다. 오히려 확산은 보고보다 넓다(MyStats.jsx:285, TeamTickets.jsx:151, TeamDocs.jsx:413 도 동일 컴포넌트 소비, 다만 캡처 대상이 아니었을 뿐). (3) 이미 처리된 것 아님: REQUIREMENT_MATRIX.md R-0-2.9 가 이 요구를 그대로 담고 Status 는 NOT_STARTED, Implementation 에 MirrorNotice.jsx 가 들어 있다. (4) Wave 귀속 정확: PLAN Wave 계획표 W9 가 '일반 사용자 수동 동기화 제거' 를 명시하고 PLAN C6 표 #1·#2~5 가 MirrorNotice.jsx + Home.jsx:280 + MyTickets.jsx:731,806 을 지목하며 R-0-2.9 의 Wave 값도 W9 다. W1 소유 파일은 theme.js 뿐이므로 W1 결함으로 청구하지 않은 것이 옳다 — corrected_owner_wave 불필요. (5) 심각도 적정: W1 을 막지 않고(W1 이 이 파일들을 건드리지 않았으며 before 캡처에도 존재할 수 있는 선재 결함) 계획에 이미 예약돼 있으므로 High 가 아니다. 그러나 정본 규칙 위반이 두 사용자 라우트의 첫 판독 위치를 점유하므로 장식 문제도 아",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-12",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "High",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "워드마크 \"Assist\"가 자기 헤더 위에서 2.32:1 — 라이트 전 페이지에서 제품명 절반이 사라진다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png 영역 (140,10)-(230,40) 지배색 #5A4FCF, 배경 #1E2758 → 실측 대비 2.32:1 (대문자 아니어도 3:1 미달). 같은 자리 다크는 #B7C4FA → 8.27:1 로 정상. 원인: C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/BrandLogo.jsx:162 `const accent = inverse ? INVERSE_INK.accent : theme.palette.brand.wordmark;` 이고 C:/Users/hshwa/clovirone-web-assistant/frontend/src/app/TopBrand.jsx:56 은 `inverse` 없이 호출한다. TopBrand.jsx:9-16 주석이 그 결정의 근거로 \"chrome 이 캔버스 계열이 된 지금\"을 든다 — W1 이 chrome 을 딥 인디고로 되돌리면서 그 전제가 사라졌는데 호출부는 그대로다. `git diff --stat` 결과 TopBrand.jsx 는 W1 변경 대상에 없다.",
+    "why_it_matters": "이 Wave 의 존재 이유가 브랜드 정체성을 되살리는 것인데, 정확히 그 정체성 요소 하나가 라이트 모드 모든 화면 좌상단에서 읽히지 않는 상태로 배포됐다. 글자 흰색 절반(#EAEDFB)은 currentColor 를 타고 따라왔고 브랜드 색 절반만 안 따라와서, 한 단어 워드마크가 색이 끊긴 두 덩어리로 보인다. 로고를 가려도 제품이 ClovirAssist 라고 말해야 한다는 판정 기준 이전에, 로고 자체가 말을 못 하고 있다.",
+    "verify_reason": "근거 전부 실측 재현됨. (1) BrandLogo.jsx:162 는 실재하고, git diff 상 **W1 이 직접 바꾼 줄**이다(primary.main → brand.wordmark). TopBrand.jsx:56 은 inverse 없이 호출하며 저장소 전체에 inverse={true} 호출부가 0건이다. (2) 배선 사슬 성립: theme.js:166 light wordmark #5A4FCF, theme.js:191-193 CHROME.light.shell #1E2758, AppShell.jsx:698 AppBar background = sidebar.bg = chrome.shell. (3) 스크린샷 픽셀 실측(PIL): light user_me (140,10)-(230,40) 에 #1E2758 1053px / #5A4FCF 598px, admin_dashboard·user_projects·admin_settings 도 픽셀 분포 동일 — 라이트 로그인 후 전 화면 재현. 대비 직접 계산 2.325:1, 다크 동일 좌표는 #B7C4FA on #1A2046 로 정상. (4) 이미 처리된 것 아님 — 배포 픽셀과 소스가 일치하고 수정 흔적 없음. (5) W1 범위 맞음: Before 캡처(captures/before/user_me__light__1920x1080.png)를 열어 보니 W1 이전 상단바는 밝은 면이었고 그 위 \"Assist\"는 잘 읽혔다 — chrome 을 딥 인디고로 되돌린 주체가 W1 이므로 회귀 원인이 W1 이다. 결정적으로 theme-contract.test.js:286-294 는 Brand 잉크를 plate·inset·canvas·brandTint **네 면에서만** 검사하고 chrome.shell 은 목록에 없다. theme.js 주석의 \"네 면에서 AA 실측\" 문장이 정확히 워드마크가 실제로 놓이는 다섯 번째 면(Shell)을 비워 둔 채다. PLAN «Wave 계획» 표가 TopBrand 를 W2 소유로 적지만, 지속 가능한 수정처는 \"워드마크 잉크를 놓인 면에 따라 고른다\"이고 그건 theme.js/BrandLogo — 둘 다 W1 이 이번에 손댄 파일이라 담당 Wave 는 W1 로 둔다. 심각도만 정정한다: 1x 크롭을 직접 보면 \"Assist\"는 사라지지 않고 뒤로 물러나 보이는 2톤 워드마크로 읽히며 제품명은 식별된다(\"절반이 사라진다\"는 과장). 또한 WCAG 1.4.3 ",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-13",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "High",
+    "owner_wave": "W2",
+    "owner_wave_raw": "W2",
+    "title": "인디고 하우징에 순백 구멍이 뚫려 있다 — chrome 내부 컨트롤이 캔버스 평면 토큰을 해석한다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png — 상단바 검색 (600,26) = #FFFFFF, 사이드바 \"메뉴 찾기\" (120,132) = #FFFFFF, 콘솔 스위치 선택칩 영역 지배색 #50577D. 같은 요소의 다크 값은 둘 다 #141829 = `background.plate`. 즉 chrome 안 컨트롤이 `background.plate` 를 쓴다. PLAN «Chrome 설계» 는 `rgba(255,255,255,.10)` fill / `.14` border 를 규정한다.",
+    "why_it_matters": "상단바 검색은 폭 640px 로 하우징 상단의 3분의 1을 차지하는 흰 사각형이다. 사이드바 검색까지 합치면 L자 오브젝트가 두 군데에서 잘려 나가고, 하나의 브랜드 면이라는 인상이 첫 눈에 깨진다. 다크에서 우연히 맞아 보이는 것이 오히려 위험하다 — 근본 원인이 테마 의존 토큰이라는 사실을 가린다.",
+    "verify_reason": "반증 시도했으나 전부 실패했다 — 픽셀·소스·정본 세 층에서 독립적으로 확인된다.\n\n1) 픽셀 근거는 정확히 실재한다. `dist/ui-qa/w1-visual/light/1920x1080/user_me.png` 를 직접 샘플링했다: (600,26) = #FFFFFF, (120,132) = #FFFFFF. dark 같은 좌표는 둘 다 #141829 = `background.plate`(dark). 크롭을 Read 로 직접 봤고 육안으로도 명백하다 — 인디고 L자 하우징(topbar·sidebar 모두 #1E2758) 안에 순백 사각형 두 개가 뚫려 있다. 실측 크기는 오히려 주장보다 크다: 상단바 검색 x≈276~950 (**675px**, 뷰포트 폭의 35%) · y 11~40, 사이드바 검색 x 13~234 (222px) · y 116~149.\n\n2) 소스가 근본 원인을 확인해 준다. `frontend/src/app/TopSearch.jsx` — `bgcolor: \"background.plate\", borderColor: \"divider\", color: \"text.secondary\"`. `frontend/src/app/AppShell.jsx:325-329` 사이드바 필터 TextField — `color: \"text.primary\", bgcolor: \"background.plate\"`, `\"& fieldset\": { borderColor: \"divider\" }`. 둘 다 캔버스 평면 토큰이다. 게다가 `TopSearch.jsx` 의 주석이 스스로 이 배선의 전제를 적어 놨다: \"예전에는 흰 글자 + 반투명 남색 바탕 리터럴이었는데, 그건 **어두운 상단바를 전제한 값**이었다. D-141 로 chrome 이 캔버스 계열이 되면서…\". W1 이 chrome 을 다시 인디고로 되돌리면서 그 전제가 뒤집혔는데 배선은 그대로다. PLAN.md:329 가 정본 규정이다 — \"Top bar 검색: Brand 위 inset — `rgba(255,255,255,.10)` fill, `.14` border, placeholder `onShellMuted`, 값 `onShell`\". 미이행 확인.\n\n3) 이미 처리된 것이 아니다. W1 은 미커밋 working tree 상태이고(`git status` 에 `TopSearch.jsx` 는 아예 없다 — 손대지 않았다), 위 소스가 현재 최신이다. `ROUTE_COVERAGE.js",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-14",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7 (공유 차트 팔레트만 유지) · 표 상태 점은 W6(cells.jsx/registry) · /me 도넛·막대·행동 버튼 구성은 W8 Pilot",
+    "title": "콘텐츠 면의 채도 예산을 상태색이 가져간다 — /me 라이트 status:brand = 2.64:1, 브랜드 유채색은 면적의 0.4%",
+    "evidence": "콘텐츠 영역(x>248, y>52)에서 채도 있는 픽셀(max-min≥40)을 색상각으로 분류한 실측: user_me light brand 6,427 / status 16,952 (2.64배), admin_users light 1.48배, user_sprint light 1.47배, user_me dark 1.38배 — 8개 화면·테마 쌍 중 6개에서 상태색이 우세. user_me 라이트 브랜드 유채색 6,427px 는 콘텐츠 면적의 약 0.4%. 육안 근거: C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png 의 지름 150px 초록 도넛(#0F7B4F, 다크는 #4ADE9B)이 화면 최대 채도 요소이고, 같은 화면 주요 행동은 회색 outlined 버튼(테두리·글자 #565E7A)이다. admin_users 는 초록 점 26개 대 브랜드 버튼 1개.",
+    "why_it_matters": "\"데이터는 흰 판 위에서 무채색으로 유지하고 브랜드는 세 자리에서만\"이라는 규율은 그 세 자리가 실제로 채도를 가질 때만 성립한다. 지금은 데이터 면이 무채색인 게 아니라 초록과 주황이 브랜드보다 강한 상태다. 게다가 그 초록들이 나르는 값은 대부분 전 행 동일(admin_users 사용 중 13행, 확인됨 13행)이라 정보량 0 짜리 색이 채도 예산을 독점한다.",
+    "verify_reason": "핵심 주장은 독립 실측으로 재현된다. 다만 근거 4건 중 1건이 방향까지 뒤집혀 있어 High 는 과장이다.\n\n[재현된 것]\n- user_me: 콘텐츠 면(x>248,y>52)에서 단일 hex `#0F7B4F`(dark `#4ADE9B`) 가 22,171px 로 화면 최대 단일 채도 덩어리다. 두 테마 기하가 완전히 동일(도넛 링 x1491-1661 5,703px + y1370-1381 x491-1865 **1375×12 전폭 막대** 16,468px).\n- 내 binning(brand 215–280°, status 345–70°/70–170°)으로 user_me light brand 7,135 / status 38,219 = **5.36배**(주장 2.64배보다 오히려 심함), brand 는 콘텐츠 면적의 0.25%(뷰포트 면적 기준이면 0.37% ≈ 주장 0.4%). dark 2.07배(주장 1.38), admin_users light 1.99배(주장 1.48) — 방향 일치.\n- \"정보량 0\" 주장 정확: `au_light` 캡처에서 13행 전부 `● 사용 중`, 전부 `● 확인됨` = 초록 점 26개, contained 브랜드 버튼은 `사용자 추가` 1개.\n- \"주요 행동이 회색 outlined\" 픽셀 확인: 해당 버튼 테두리/글자 = rgb(86,94,122) = `#565E7A`.\n- Root cause 는 전 저장소 패턴이다 — `Home.jsx:137 color:\"success\"`, `DevReport.jsx:130 color:\"ok\"`, `AssistantPanel.jsx:156`, `MyStats.jsx:135` 가 **상태색을 차트 시리즈 색으로** 쓴다. PLAN §Data Visualization 이 \"상태색은 절대 범주 시리즈로 쓰지 않는다 / 1번 시리즈는 항상 Brand 인디고\" 로 명시 금지한 바로 그것이라, 계획 대비 실제 위반이 맞다.\n\n[반증된 것 — 그래서 High 아님]\n- **user_sprint 는 정반대다.** light brand 124,029 vs status 98,743 (0.80), dark 228,380 vs 73,344 (0.32). 상위 hex 가 `#4742AB` 17,268 / `#5A4FCF` 15,223 로 브랜드가 압도한다. 주장의 \"user_sprint light 1.47배\" 는 틀렸다. 내 실측 우세 쌍은 16쌍 중 10쌍(주장 \"8쌍 중 6",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-15",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "차트가 사용자 Accent 와 warning 계열로 그려진다 — palette.chart 는 소비처가 0이고, 한 색이 두 의미를 나른다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_sprint.png 실측 — 번다운 실선 #5A4FCF(= `primary.main` 사용자 Accent, `palette.chart[0]` 인 #4C58C8 도 `brand.core` 도 아니다), 파선 #8A5300(= `chart[1]` #C0517E 아님). 같은 화면 담당자별 업무량 막대에서 #8A5300 이 \"평균 1.5배 초과\" 경고를 뜻하고, 정상 막대는 #5A4FCF 다. grep 결과 `palette.chart` 의 비테스트 소비처 0건. 반면 C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/theme-contract.test.js:306-309 은 `expect(p.chart[0]).toBe(p.brand.core)` 로 초록이다.",
+    "why_it_matters": "토큰은 맞고 픽셀은 틀린데 테스트는 통과한다. 실제 위험은 Accent 기능이다 — 사용자가 프리셋 \"청록 #327C98\"을 고르면 스프린트 리포트 전체와 모든 진척 막대가 청록으로 바뀐다. Identity 계층과 Interaction 계층을 나눈 이유가 정확히 그 실패를 막는 것인데 차트가 아직 Interaction 쪽에 붙어 있다. 한 화면에서 같은 #8A5300 이 시리즈2 이면서 경고인 것도 별개의 결함이다.",
+    "verify_reason": "모든 근거를 독립 확인했고 반증에 실패했다. (1) 소비처 0건 확인: `palette.chart` 는 theme.js:488 에서 정의되고 참조는 theme-contract.test.js:171,299,308,309 뿐이다. 생성된 CSS 토큰도 죽어 있다 — 저장소 전체에서 `var(--chart` 가 0건이다(--chart-1..5/--chart-rest 는 두 tokens.css 에 정의만 되어 있다). (2) 픽셀 실측(PIL, light user_sprint.png 1920x8907): #4C58C8(chart[0]) 0px, #C0517E(chart[1]) 0px, #5A4FCF(DEFAULT_ACCENT=primary.main) 7884px, #8A5300(theme.js:346 light warning) 7983px. dark 캡처도 동일 — #8E9BF2 0, #F49CBE 0, #F0B357(dark warning) 3994. (3) 해당 영역 크롭을 직접 보았다: 번다운 실선은 인디고 #5A4FCF, 파선은 갈색 #8A5300 이고, 바로 옆 담당자별 업무량(WD) 카드에서 상위 3개 막대가 같은 #8A5300(\"평균 1.5배 초과\" 경고), 나머지는 #5A4FCF 다 — 한 화면에서 한 색이 '시리즈 2'와 '경고' 두 의미를 나른다는 주장이 그대로 확인된다. (4) 근본 원인이 소스에 있다: screens/sprint-charts.js 가 series 를 color:\"primary\" / color:\"warning\" 로, WD 를 `load > avg*1.5 ? \"warn\" : \"primary\"` 로 넘기고, ui/charts/base.jsx 의 resolveChartColor 가 이를 theme.palette.primary.main / warning.main 으로 그대로 해석한다 — palette.chart 로 가는 경로가 없다. 따라서 Accent 프리셋 \"#327C98\"(청록, theme.js:56)을 고르면 번다운 실선과 정상 막대가 전부 청록이 되는 것도 코드상 필연이다. (5) 초록 테스트도 실재한다: theme-contract.test.js:308-309 가 chart[0]===CHART_SERIES[mode][0] 및 ===brand.core 를 단언하고, 171 행이 chart[0] 를 \"Accent 로 Brand 를 지울 수 없다\" FIXED 목록에 넣는다 — 토큰만 검",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-16",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W4",
+    "title": "MetricStrip 이 아직 plate 안에 있고, 첫 칸만 inset·첫 칸만 readout 이라 위계가 무의미한 숫자를 가리킨다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png — (300,215)-(600,290) = #F5F6FB(inset), (700,215)-(900,290) = #FFFFFF, 둘 다 테두리 있는 흰 Paper 안. 같은 구조가 user_projects.png(22 전체 / 22 진행 / 0 / 0 / 0), user_sprint.png(9 완료), admin_dashboard.png(0 처리 요청)에 반복. PLAN «Surface 위계» 하드 금지 목록: \"판독 한 줄에 plate 금지(`MetricStrip` 의 `<Card>` 제거)\". 40px readout 이 붙는 값은 /me \"0 오늘 마감\", /projects \"22 전체\", admin_dashboard \"0 처리 요청\".",
+    "why_it_matters": "판 안의 판 + 판 안의 오목면이 한 줄에 겹쳐 있어 표면 위계가 세 겹으로 낭비된다. 더 나쁜 것은 타이포 위계다 — 새 스케일에서 가장 강한 슬롯(40px readout)이 \"0건\"과 \"전체 22\"에 배정되고, 판단을 요구하는 숫자(진행 중 6, Health 하위 위험 4)는 19px 로 남는다. 위계가 있는데 방향이 반대인 것이 위계가 없는 것보다 나쁘다.",
+    "verify_reason": "근거는 전부 실재하고, 반증 시도는 실패했다.\n\n검증한 것:\n1) `frontend/src/ui/kit.jsx:481` — `MetricStrip` 이 여전히 `<Card className=\"k-metrics\">` 를 반환한다. `git status` 상 `kit.jsx` 는 W1 이 손대지 않았다(수정 목록에 없음). 이미 처리된 건이 아니다.\n2) `docs/ui-renewal/PLAN.md:360` 인용은 축자 일치 — \"판독 한 줄에 plate 금지(`MetricStrip`의 `<Card>` 제거 → `user_me.png`·`admin_dashboard.png`의 가장 큰 빈 흰 사각형이 사라진다)\".\n3) 픽셀 주장 정확히 일치. `user_me.png` (300,215)-(600,290)=(245,246,251)=#F5F6FB, (700,215)-(900,290)=(255,255,255), 캔버스=(238,240,247). 즉 canvas→plate→inset 3톤이 한 줄에 겹친다.\n4) `theme.js:94-102` readout=2.5rem(40px), title=1.1875rem(19px). `git diff` 상 W1 이 readout 을 1.75rem→2.5rem(28→40px), title 17→19px 로 올렸다. 즉 잘못 겨눈 강조가 43% 커지는 동안 판단을 요구하는 값은 12% 만 커졌다 — 위계 역전을 W1 이 실제로 증폭시켰다.\n5) 반복 구조 전부 실물 확인: /projects \"22 전체\"@40px 옆에 동일값 \"22 진행\"@19px 과 \"4 Health 하위 위험\"@19px, /sprint \"9 완료(건)\"@40px vs \"5 지연(건) 주의\"@19px, admin_dashboard \"0 처리 요청\"@40px 가 0/0/- 만 담은 넓은 흰 판 안에.\n\n과장 두 곳(수정 요망, 결론은 안 바뀜):\n- \"판 안의 판\" 은 틀렸다. 중첩된 plate 는 없다. canvas→plate→inset 3톤이다.\n- \"첫 칸만 inset\" 은 성격을 잘못 읽었다. `kit.jsx:515` 는 `bgcolor: it.active ? \"background.inset\"` 이고 `Home.jsx:302` 가 `active: focus === v.key`(초기값 `useState(\"due_today\")`)를 넘긴다. 그 칸은 `<button aria-pressed>` 로 아래 패널을 거르는",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-17",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W8",
+    "owner_wave_raw": "W8",
+    "title": "/chat-rooms 에 1250x470 흰 공백이 남아 있고, 화면 최고 채도 요소가 파괴적 행동인 \"나가기\"다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_chat-rooms.png — 대화 영역 y≈340-780, x≈610-1860 이 순백 무내용. 좌측 대화 목록 판도 y≈510-1030 이 빈 칸. 우상단 \"나가기\"는 빨강 채움 버튼이고, 같은 화면에서 그보다 채도 높은 요소가 없다. 자기 메시지마다 휴지통 아이콘이 상시 노출된다.",
+    "why_it_matters": "CLAUDE.md §6 이 \"Chat 은 좌측 목록 + 거대한 빈 대화 영역 + 입력창 수준에서 끝내지 않는다\"고 명시적으로 금지한 형태 그대로다. 그리고 파괴적이고 되돌릴 수 없는 행동에 화면 최고 채도를 준 것은 위계가 아니라 오조준이다 — 이 화면에서 사용자가 할 일은 방을 나가는 것이 아니다.",
+    "verify_reason": "근거 전부 실측 확인됨. light 캡처에서 x610-1860 × y340-780 이 단일색 (255,255,255) 550,000px(다른 색 0개), 좌측 목록 판 x285-595 × y510-1030 도 순백 161,200px — 주장 치수 1250x470 은 실측 1250x440 으로 사실상 정확하고, 컴포저(y≈985)와 패널 하단 테두리(y≈1030) 안쪽이므로 사이드바 캡처 산물이 아니다. 채도 주장도 수치로 참: 이미지 최고 chroma 가 rgb(179,38,30)=0.584(나가기)이고 브랜드 인디고 rgb(90,79,207)=0.502 로 그 아래다. dark 캡처도 동일. 휴지통 상시 노출은 ChatPane.jsx:427-433 에서 hover 게이팅 없이 항상 렌더됨(color: text.disabled)으로 확인. 최신성 OK — ChatRoom/ChatPane/ChatRooms.jsx 마지막 커밋 6959eeb0 로 W1 이전이며 W1 이 손대지 않았다. 담당 Wave 는 정본대로 맞다: ROUTE_COVERAGE.json 의 user_chat-rooms 가 wave \"W8\", PLAN W8 행이 /chat-rooms B9 Chat 을 Pilot 8종에 명시하고 Exit Gate 에 \"이유 없는 대형 Blank\" 질문이 있다 — 수정 불필요. 다만 채도 부분 root cause 는 페이지가 아니라 공유 계층인 frontend/src/ui/kit.jsx:232 (danger: {variant:\"contained\", color:\"error\"})이고 kit.jsx 는 W4 소유이며 W8 은 \"공유 파일 무변경\" 이므로, W8 이 ChatRoom.jsx 에 국소 override 로 덮으면 계약이 갈라진다(같은 패턴이 PLAN E8 로 /board/:id·/tickets/:id 에 이미 등재됨). 심각도는 High 가 아니라 Medium: 현재 Wave 인 W1 의 Exit Gate(theme-contract 단언, brand_role_coverage 측정)와 무관해 W1 을 막지 않고, 신규 발견도 아니다 — PLAN.md:45 가 이미 \"채팅 — 좌측 목록 + 거대한 빈 Canvas + Composer\"를 Before 문제로, PLAN.md:488 §B9 가 목표 형태(측정폭 최대 820px, Context rail, 메시지 0 상태)를 이미 규정했다. 기능·데이터·권한 파손 없음. W8 ",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-18",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "owner_wave_raw": "W3",
+    "title": "Nav 활성 rail 이 2px 이고 가장자리에서 20px 안쪽에 있으며, 그룹과 자식의 라벨 시작선이 60px 대 64px 로 어긋난다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png 픽셀 스캔 — 활성 \"홈\" 행 잉크 구간 [(20,21),(36,55),(64,76)] → rail 폭 2px, x=20 에서 시작(사이드바 inline-start 는 x=0). 그룹 \"내 업무\" 행 [(29,46),(60,70),...] → 아이콘 29-46, 라벨 시작 60. 자식 \"내 티켓\" [(36,55),(64,76),...] → 아이콘 36-55, 라벨 시작 64. PLAN 계약값은 rail 3px inline-start, 라벨 시작선 42px(그룹·자식 동일). 또한 그룹(내 업무·팀 업무·팀 공간·내 정보)과 자식이 모두 글리프를 갖는다 — PLAN «Icon System» 은 \"그룹이 아이콘을 가지면 그 자식들은 아이콘을 갖지 않는다\"를 규정한다.",
+    "why_it_matters": "라벨 시작선이 4px 어긋나면 그룹 제목과 항목이 같은 열에 서지 않아 사이드바가 두 격자를 쓰는 것처럼 보인다. 안쪽으로 20px 들어온 2px rail 은 하우징 가장자리를 따라 흐르는 하나의 선이 아니라 목록 안에 떠 있는 조각이라 위치 신호로서 약하다. 아이콘 중복은 깊이를 들여쓰기와 글리프로 이중 표현해 40개 라벨의 시작선을 흔든다.",
+    "verify_reason": "근거가 실재하며 픽셀 스캔을 독립 재현해 수치까지 일치했다. user_me.png(light/1920x1080)에서 활성 '홈' 행 잉크 구간은 정확히 [(20,21),(36,55),(64,76)]이고, x=20 의 색은 (169,186,255)=#A9BAFF(chrome.rail), x=19·x=22 는 사이드바 배경(30,39,88) → rail 폭 2px, 사이드바 inline-start 로부터 20px 안쪽. 그룹 행(내 업무 y170-186 / 팀 업무 y433 / 팀 공간 y477 / 내 정보 y522)은 아이콘 ~28-47 + 라벨 시작 60, 자식 행은 아이콘 36-55 + 라벨 시작 64 → 4px 어긋남 확인. 소스가 이 픽셀을 그대로 설명한다: AppShell.jsx 바깥 List `px:1.5`(12) + 그룹 ListItemButton MUI 기본 pl 16 + ListItemIcon `minWidth:32` = 60, 자식은 내부 List `pl:1`(8) + `pl:1.75`(14) + `minWidth:30` = 64, rail 은 `insetInlineStart:0, width:2` 이므로 12+8=20. navConfig.js:261-291 확인 결과 4개 그룹 전부 icon: 를 갖고 자식 항목도 전부 icon: 를 갖는다. PLAN 계약값도 실재한다 — L339 '**active** | **3px chrome.rail inline-start**', L402 '라벨 시작선 42px, 그룹 헤더와 자식 항목이 같은 42px', L403 '그룹이 아이콘을 가지면 그 자식들은 아이콘을 갖지 않는다'. 담당 Wave W3 도 정확하다(PLAN L922 W3 = navConfig.js·navIcons.js·AppShell 사이드바부, Exit Gate 에 'Nav 라벨 시작선 42px 단언'). 정정 두 가지. (1) 심각도 High -> Medium: 이건 W1 이 만든 회귀가 아니라 PLAN 이 이미 진단해 둔 선재 상태다. PLAN L333 이 '현재 AppShell.jsx:414-441 은 넷을 겹친다: 2px rail + fontWeight 700 vs 600 + 색 + icon opacity .82' 라고 바로 이 코드를 지목하고, L393-403 이 AppShell.jsx:437 의 무효 size={18} prop 까지 이미 짚어 W3 소유로 배정했다. W1 은 theme.",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-19",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W5",
+    "owner_wave_raw": "W5",
+    "title": "필터 줄이 자기 전용 plate 를 차지하고 오른쪽 절반이 비어 있다 — 4개 화면 공통",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_projects.png y≈440-550: 토글 + 셀렉트 + \"총 22건\"이 좌측 440px 에 몰리고 1160px 이 빈 흰 판. admin_users.png y≈160-280: 2행째에 체크박스 하나만. user_my-tickets.png y≈225-370: 2행 우측 약 500px 공백, \"대분류\" 칸은 라벨도 값도 안 보인다. admin_settings.png y≈205-280: 탭바 아래 130px 밴드에 우측 끝 체크박스 하나. harness 실측: `control_baseline_mismatch` fail 2 (admin_settings, 중심선 차이 31.2px), `plain_dropdown_for_entity` 0 pass / 6 fail.",
+    "why_it_matters": "KPI 판 + 필터 판 + 표 순서로 흰 사각형이 3개 쌓이면서 /projects 는 첫 화면의 30%(y 224-550)를 데이터가 아닌 컨테이너로 쓴다. 필터는 표의 일부지 독립 생명주기를 가진 경계 객체가 아니므로 PLAN 의 구획 판정 체크리스트로도 plate 가 아니다. 그리고 MUI 기본 outlined 셀렉트 + floating label 조합이 그대로라 이 구역만 다른 제품처럼 보인다.",
+    "verify_reason": "핵심 결함은 실재하며 소스와 픽셀 양쪽으로 확인된다. `frontend/src/screens/Projects.jsx:273` 이 필터 줄을 `<Card className=\"c-toolbar-card\" sx={{ p: 2, mb: 2.5 }}>` 로 감싸고, `user_projects.png` 픽셀 샘플링 결과 y≈446-553 이 페이지 배경(238,240,247) 위의 흰 판(255,255,255)이며 콘텐츠는 좌측 ~440px 에만 있고 나머지 ~1160px 이 빈 흰 판이다. `user_my-tickets.png` 2행(난이도/기한/대분류)은 x≈1090 에서 끝나는데 카드는 x≈1650 까지 이어져 ~560px 이 비고, 대분류 상자 내부는 실제로 비어 있다. harness 수치도 `results.json` 에서 그대로 확인됐다 — `plain_dropdown_for_entity` 0 pass / 6 fail, `control_baseline_mismatch` 16 pass / 2 fail. 담당 Wave 도 맞다: PLAN.md:924 가 `FilterBar.jsx`·`filters.jsx` 를 W5 소유로 두고, W5 고유 Exit Gate 가 `isolated_control_row`·`control_baseline_mismatch`·`plain_dropdown_for_entity` 를 문자 그대로 명명한다. W1 은 `theme.js` 만 소유하므로 W1 범위를 오인한 것도 아니다.\n\n다만 심각도 High 는 부풀려져 있어 Medium 으로 낮춘다. 근거 넷:\n(1) W1 을 막지 않는다. W0 이 13종 Assertion 을 전부 의도적으로 Advisory 로 넣었고 W5 가 `--fail-on` 으로 승격하도록 PLAN 이 설계했다. High 로 두면 PLAN 이 명시적으로 W5 에 배정한 항목이 W1 의 E3 Exit Gate(\"DONE 처리한 Surface 에 Critical/High 미해결 0\")를 허위로 막는다.\n(2) admin_settings 근거는 오귀속이다. y≈200-285 대역은 픽셀상 페이지 배경(238,240,247)이라 plate 가 아니고, 그 체크박스는 필터가 아니라 표시 토글(\"기술 정보(설정 키) 보기\")이다. 게다가 근거로 인용한 `control_baseline_mismatch` 31.2px fail 은 `results.json` 상 «유지보수 모드 활성화» vs",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-20",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W6",
+    "owner_wave_raw": "W6",
+    "title": "표가 정보를 나르지 않는 열과 반복 버튼으로 채워져 있고, 숫자 열에 tabular-nums 가 없다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_projects.png — 상태 열 22행 전부 \"진행\", 부서 열 22행 전부 \"ClovirONE팀\". user_my-tickets.png — 예상 WD 열 전 행 \"-\", \"수정\" outlined 버튼 43개 열. admin_settings.png — 적용 상태 열 15행 중 13행 공란, \"수정\" 버튼 15개. admin_users.png — 상태·Notion 연결 열 13행 전부 동일. harness: `numeric_alignment` 0 pass / 2 fail — \"«진행률» (숫자 90%) 정렬=right tabular=False — tabular-nums 가 없다\". 토큰은 존재한다: C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/theme.js:139 `NUMERIC = { fontVariantNumeric: \"tabular-nums\" }`.",
+    "why_it_matters": "PLAN 이 유지하겠다고 명시한 계측 규율 첫 항목이 tabular numerals 인데, 실제 숫자 열이 그 토큰을 안 쓴다 — 61.1% / 86.5% / 100% 가 우정렬돼 있어도 자릿수가 흔들린다. 상수 열 두 개가 화면 폭 380px 을 먹고 제목 열은 500px 공백을 남기는 배분은 밀도가 아니라 낭비다. 43개 동일 버튼 열은 표를 읽는 눈을 매 행 오른쪽 끝으로 끌고 간다.",
+    "verify_reason": "근거가 전부 실재한다. ① 하네스: `dist/ui-qa/w1-visual/results.json` 의 `numeric_alignment` 는 실제로 pass 0 / fail 2 / skip 16 이고, 실패 두 건은 `user_projects` light·dark 이며 샘플 문자열이 인용문과 글자 그대로 일치한다 — `«진행률» (숫자 90%) 정렬=right tabular=False — tabular-nums 가 없다`, `«Health» (숫자 100%) …`. ② 토큰: `frontend/src/ui/theme.js:139` 에 `NUMERIC = { fontVariantNumeric: \"tabular-nums\", fontFeatureSettings: '\"tnum\" 1' }` 가 존재한다. ③ 루트코즈까지 소스로 확인했다 — `frontend/src/ui/kit.jsx:1122` 의 `DataTable` 본문 `<TableCell>` 은 truncate/minWidth sx 만 주고 `NUMERIC` 을 전혀 펼치지 않으며, `kit.css:43` 의 `.k-table th, .k-table td { … font-variant-numeric: tabular-nums }` 는 `DataTable` 이 MUI 클래스(`table.MuiTable-root`)로 렌더돼 도달하지 못한다. 하네스 셀렉터가 정확히 그 MUI 경로를 가리킨다. ④ 스크린샷 4장을 직접 열어 확인했다 — user_projects 상태 열 전부 \"진행\" · 부서 열 전부 \"ClovirONE팀\", my-tickets 예상 WD 전부 \"-\" + 행마다 outlined \"수정\" 열, admin_settings 적용 상태 15행 중 13행 공란 + \"수정\" 15개, admin_users 상태·Notion 연결·부서가 13행 전부 동일. 이미 처리된 것이 아니다: `ROUTE_COVERAGE.json` 92개 Surface 가 전부 `NOT_AUDITED` 이고 배포된 빌드에서 하네스가 여전히 실패한다. 담당 Wave 도 맞다: PLAN «Wave 계획» 이 `kit.jsx::DataTable`·`cells.jsx`·`registry/shared.js` 를 W6 에 배정하고, PLAN:220(R4)이 \"`NUMERIC`(tabular-nums)이 숫자 셀에 적용되지 않음\" 을 이미 같은 문장으로 적어 두었다 — 새 발견이 아니라 등록된 Root ",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-21",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "W1 변경 전량이 미커밋이고 git-tracked 빌드 산출물 30개가 삭제 상태로 남아 있다",
+    "evidence": "`git log --oneline -1` = `9ab37ae6 feat(W0): Before 전량 캡처`. `git status --porcelain` 집계: 27 M / 30 D / 34 ??. 삭제된 것은 C:/Users/hshwa/clovirone-web-assistant/app/static/react/assets/*.js 30개이고 BUILD_STAMP.json 과 index.html 이 M 이다. theme.js 는 493줄 변경(+357/-159) 미커밋. PLAN W1 행: \"한 에이전트, **한 커밋 시퀀스**\", E6: \"QA 라벨과 `build_index_sha256` 이 CHECKPOINT 에 기록\".",
+    "why_it_matters": "PRODUCT.md 가 \"프런트 빌드 산출물을 git 에 커밋한다(서버에 Node 가 없다)\"고 못 박은 저장소에서 산출물이 삭제 상태다. 지금 상태로는 배포된 화면을 가리키는 커밋이 없어서, 다음 Wave 가 되돌리거나 대조할 기준점이 없고 W2 가 AppShell 을 열면 W1 의 미커밋 변경과 한 덩어리로 섞인다.",
+    "verify_reason": "근거가 전부 실재하고, 미처리 상태이며, 담당 Wave 와 심각도가 모두 맞다.\n\n직접 확인한 것:\n1. `git log --all --oneline` = HEAD `9ab37ae6 feat(W0)`. 어떤 ref 에도 W1 커밋이 없다 — 이미 처리된 결함이 아니다.\n2. `git status --porcelain` 집계 = 28 M / 30 D / 34 ?? (finding 은 27 M 이라 했다 — 1 차이, 무의미). D 30개는 전부 tracked 인 `app/static/react/assets/*.js|css` 이고, ?? 34개 중 30개가 새 content-hash 로 바뀐 그 대체본이다. `app/static/react/index.html` 은 M 이며 untracked 인 새 해시를 가리킨다(`index.BOBR9Yg5.js` → `index.B_--mDMi.js`).\n3. `PRODUCT.md:77` 원문: \"프런트 빌드 산출물을 git에 커밋한다(서버에 Node가 없다). 초기 로드 gzip 예산 280KB.\" — 인용 정확.\n4. `docs/ui-renewal/PLAN.md:920` W1 행 원문에 \"**한 에이전트, 한 커밋 시퀀스**\" 존재. PLAN:937 충돌 파일 소유표도 `theme.js` 를 W1 소유로 못박는다 — 담당 Wave W1 이 맞다.\n5. `PLAN.md:915` E6 원문에 \"QA 라벨과 `build_index_sha256`이 CHECKPOINT에 기록\" 존재.\n\nfinding 이 놓친 보강 근거: `docs/ui-renewal/WORK_STATE.md` 가 아예 **미변경**이다(git status 에 없다). 여전히 `wave: W0` · `wave_status: 완료` · `build_index_sha256: 9ab4d470163e475a`(W0/Before 지문) · `NEXT: 1. W1 Brand Foundation` 이다. 즉 E6 는 두 겹으로 미충족이다 — 번들이 미커밋인 데다 CHECKPOINT 에 W1 의 빌드 지문·QA 라벨이 기록조차 안 됐다.\n\n느슨한 부분(결론을 바꾸지 않음): `theme.js` 실제 diff 는 +373/-153(526줄)이지 +357/-159(493줄)이 아니다. 또 HEAD 자체는 자기모순이 없다 — HEAD 의 index.html 은 HEAD 에 존재하는 옛 asset 을 가리키므로 지금 git 에서 배포하면 ",
+    "status": "RESOLVED_IN_W1",
+    "resolution": "이 커밋으로 해소 — W1 변경 전량을 커밋하고 빌드 산출물을 재생성했다"
+   },
+   {
+    "id": "F-W1R-22",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "High",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "brand_presence 프로브가 근사 검정 본문 글자(#161A2C)를 브랜드 highlight 로 센다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/results.json — user_me·user_projects·user_sprint·admin_dashboard 의 `highlight: 있음 #161A2C H229.1 S0.333(폭0.086) (color @ div.MuiTypography-root)`. #161A2C 는 `text.primary` 이고 폭(채널 진폭) 0.086 은 사실상 무채색이다. 같은 목록의 `focus_ring: 있음 #4038B8` 도 Tab 을 눌러야만 보이는 자리다. 이 둘을 제외하면 페이지당 실제로 보이는 브랜드 role 은 header + nav_active + (있으면) primary_action = 2~3 개로, 육안 판정과 일치한다.",
+    "why_it_matters": "이 프로브가 W1 의 유일한 브랜드 판정 도구인데 약 40% 부풀린다. 저장소 자신의 교훈(자작 프로브는 위양성부터 의심한다)이 정확히 이 경우다. 지금 고치지 않으면 W4·W6·W7 이 brandTint·selected_state·ai_surface 를 만든 뒤에도 이 지표가 이미 초록이라 아무 압력을 주지 못한다.",
+    "verify_reason": "Confirmed on every axis; I tried to refute it and could not.\n\nEVIDENCE IS REAL. dist/ui-qa/w1-visual/results.json contains the cited line verbatim on user_me, user_projects, user_sprint, admin_dashboard (light): `highlight: 있음 #161A2C H229.1 S0.333(폭0.086) ΔE85.7 (color @ div.MuiTypography-root.MuiTypography-body1)`. #161A2C is TOKENS.light.text at frontend/src/ui/theme.js:336 — text.primary, exactly as claimed.\n\nMECHANISM IS W1'S OWN DOING. `git show HEAD:frontend/src/ui/theme.js` has `text: \"#171A1F\"` — channel spread 0.031, below the probe's NEUTRAL_SPREAD_MIN = 0.06, correctly rejected as achromatic. brand.py:67's comment names #171A1F explicitly as the color that guard exists to exclude. W1's indigo neutral ramp moved text.primary to #161A2C (spread 0.086), which now clears the guard by a hair. W1 changed the ramp and did not recalibrate the probe.\n\nIT IS NOT A BRAND COLOR PERCEPTUALLY. Lab chroma: #161A2C C*=13.4 (L*9.7), #E5E8F5 C*=6.8 (L*92.1) versus genuine brand roles #1E2758 C*=33.7, #A99CF5 C*=49.2, #5A4FCF C*=76.4. The counted \"highlights\" carry 1/6 to 1/11 the chroma of the real brand roles. I opened the screenshots: admin_dashboard light metabar readouts render near-",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-23",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W4",
+    "title": "/me 좌측에 1060x390 죽은 캔버스가 남고, AI 카드는 잉크 17%로 harness 가 직접 잡았다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png — x 280-1340, y 560-950 이 무내용(첫 화면 콘텐츠 영역의 약 24%). 같은 파일 results.json: `oversized_empty_surface` fail, \"1606x210 잉크 17% (빈 면적 280,257px², 내용 폭 비 0.98) — 내용이 상자를 못 채운다 «AI 도우미…»\", 라이트·다크 양쪽. 좌측 \"오늘 마감 (0건)\" 판은 1060x230 안에 Clovi 소형 + 3줄 + 회색 버튼 하나뿐이다.",
+    "why_it_matters": "CLAUDE.md §6 이 금지한 \"이유 없는 대형 Blank\" 가 Pilot 대상 화면 첫 폴드에 그대로 있다. 우측 열은 도넛 + 최근 문서 5행으로 y=950 까지 내려오는데 좌측은 y=556 에서 끝나 두 열의 바닥이 400px 어긋난 채 방치된다. EmptyState 를 작게 만들어 공백을 남기는 방식은 문제를 숨기는 쪽이지 푸는 쪽이 아니다.",
+    "verify_reason": "모든 근거를 직접 측정해 재현했고, 반증에 실패했다. (1) dist/ui-qa/w1-visual/light/1920x1080/user_me.png (1920x1740) 에서 x 280-1340 × y 560-950 = 413,400px 를 픽셀 스캔한 결과 단일색 (238,240,247) 이 100.00% — 잉크 0. 다크도 같은 사각형이 (10,12,22) 100.00%. 사이드바는 x 0-248 에서 끝나고 y 560-950 은 1080 뷰포트 안이므로 \"전체 페이지 캡처 산물\" 면제 사유에 해당하지 않는다. (2) 열 바닥 실측: 좌측(x285-1335) 마지막 콘텐츠 행 y=550, 우측(x1365-1885) y=942 → 392px 어긋남(주장 ~400px 일치). 좌측 카드는 x=800 기준 y 317-550, 즉 1058x234(주장 1060x230 일치). 24% 주장도 413,400/(1672×1028)=24.05% 로 정확. (3) results.json 의 user_me light·dark 양쪽에서 oversized_empty_surface = fail, count 1, 샘플 문자열이 \"1606x210 잉크 17% (빈 면적 280,257px², 내용 폭 비 0.98)\" 로 인용과 글자 단위로 동일. 해당 요소는 캡처 y≈1495-1708 의 「AI 도우미」 카드로 실재 확인(제목+탭4+좌측 3줄+우측 끝 버튼 하나). 이미 처리된 것 아님: W1 워킹트리는 theme.js·tokens.css·AppShell·UserMenu·Mascot·BrandLogo·login.css·테스트만 건드렸고 frontend/src/screens/Home.jsx 는 미변경(마지막 커밋 6178d8bd, W1 이전). Before 캡처 user_me__light__1920x1080.png 도 동일한 형태(짧은 좌측 카드 + 긴 우측 레일)라 W1 회귀가 아니라 선행 결함이다. 담당 Wave: PLAN.md 923 행이 W4 Exit Gate 에 oversized_empty_surface 를 명시하고 W4 가 kit.jsx EmptyState/Card 를 소유하므로 W4 가 1차 소유자로 옳다(928 행도 \"필요한 공유 변경이 나오면 그건 W4~W7 의 결함\"이라고 못박는다). 다만 392px 열 바닥 어긋남 자체는 W4 가 소유하지 않는 Home.jsx 의 2열 Box 조합 문제라, W4 가 프리미티브를 고친",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-24",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "\"최근 완료 추이\"에서 1건이 화면 폭 전체를 채우는 초록 막대로 그려진다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png y≈1230-1400 — 2026-07-27 0건·08-03 0건·08-10 0건은 빈 회색 트랙, 08-17 1건만 x=490에서 1865까지 꽉 찬 #0F7B4F 막대. 트랙은 `background.sunken` 계열이고 채움은 success 계열이다.",
+    "why_it_matters": "최대값이 1인 데이터에서 길이 인코딩은 아무 정보도 나르지 않으면서 \"만점\" 같은 인상을 준다. 게다가 그 오해를 주는 요소가 화면에서 가장 긴 유채색 띠라 페이지 전체 색 인상까지 초록으로 끌고 간다. PLAN 의 빈 데이터 3단계 규칙(진짜 데이터 없음이면 차트를 통째로 접고 caption 한 줄)이 여기 적용되지 않았다.",
+    "verify_reason": "반증 시도했으나 핵심 주장은 살아남았다.\n\n1) 근거 실재 — 확인됨. `dist/ui-qa/w1-visual/light/1920x1080/user_me.png`(1920x1740)를 직접 열어 봤고 픽셀로 측정했다. y=1250 / 1284 / 1345 행은 x 491~1865 전 구간이 (220,223,236) 빈 트랙이고, y=1375(2026-08-17 1건) 행은 **x 491~1865, 폭 1375px 전부가 정확히 (15,123,79) = #0F7B4F**다. 주장한 좌표(y≈1230-1400, x=490~1865, #0F7B4F)와 일치한다. dark 캡처도 같은 위치·같은 폭(1375px)에서 (74,222,155)로 동일하게 재현된다 — 테마 의존 아티팩트가 아니다.\n\n2) 메커니즘도 소스에서 확인 — `frontend/src/ui/charts/BarSeries.jsx`는 `max`가 없으면 `peak = Math.max(...values)`로 잡는다. `frontend/src/screens/WorkSummary.jsx:144-152`는 `max`를 넘기지 않는다. 따라서 값이 (0,0,0,1)이면 peak=1이 되어 1건이 pct=100 → 꽉 찬 막대가 된다. BarSeries 자신의 주석이 바로 이 실패를 경고하고 있다(\"안 그러면 '가장 큰 값'이 항상 꽉 찬 막대가 되어, 82%와 8%가 똑같이 꽉 찬 막대로 보인다\"). `Sprint.jsx:413`은 `max={wd.max}`를 넘기는데 WorkSummary만 안 넘긴다.\n\n3) 이미 처리된 것 아님 — HEAD 소스가 여전히 `max` 없이 호출한다. 캡처와 소스가 일치한다.\n\n4) 범위 — W1(theme.js/토큰/브랜드 배선) 결함으로 돌리지 않고 W7로 넘겼다. 옳다. PLAN 508줄이 `charts/base.jsx`를 Empty 계층 변경 대상으로 명시하고 W7이 차트 언마운트를 Exit Gate로 갖는 유일한 Wave다. 근본 수정 위치가 공유 primitive(`ui/charts/BarSeries.jsx`)라 화면 Wave(W10)가 아니라 공유 계층 Wave가 맞다. corrected_owner_wave 불필요.\n\n5) 심각도 — Medium 적정. W1을 막지 않고, 값 \"1건\"이 막대 왼쪽에 숫자로 병기되며 막대는 `aria-hidden`이라 **정보 손실은 없다**(순수 시각 오독 + 브랜드 색인상 문제). ",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-25",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "impeccable",
+    "severity": "Low",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "AppShell·TopBrand 의 근거 주석이 아직 폐기된 D-141 논지를 사실처럼 주장한다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/frontend/src/app/AppShell.jsx:601-605 \"chrome 은 캔버스 계열 단색이다(D-141)\", 같은 파일 693-697 \"chrome 은 발광하지 않는다(D-141) … 채도는 … 세 자리에만 쓴다\", C:/Users/hshwa/clovirone-web-assistant/frontend/src/app/TopBrand.jsx:9-16 \"chrome 이 캔버스 계열이 된 지금 그 자산은 밝은 바탕 위 흰 글자라 대비 1.21 로 떨어진다\". 세 곳 모두 W1 이 chrome 을 #1E2758 딥 인디고로 되돌린 뒤에도 그대로다(TopBrand.jsx 는 W1 변경 대상에도 없다).",
+    "why_it_matters": "이 파일들은 다음 두 Wave(W2 셸, W3 사이드바)가 바로 열 파일이고, 그 에이전트들이 읽을 첫 문장이 지금 화면과 정반대다. 주석 하나 때문에 W2 가 상단바를 다시 밝게 되돌리는 판단을 할 수 있다. 실제로 이 주석이 이미 한 번 오도했다 — TopBrand 의 inverse 제거가 바로 그 결과다.",
+    "verify_reason": "근거 3곳을 전부 원문으로 확인했고, 셋 다 현재 코드·현재 배포 화면과 정반대다. AppShell.jsx:602 \"chrome 은 캔버스 계열 단색이다(D-141)\", AppShell.jsx:694-697 \"chrome 은 발광하지 않는다 … 이제 캔버스 계열 단색에 실선 하나다 … 채도는 세 자리에만 쓴다\", TopBrand.jsx:11-13 \"chrome 이 캔버스 계열이 된 지금 그 자산은 밝은 바탕 위 흰 글자라 대비 1.21 로 떨어진다\" — 모두 그대로 남아 있다. 반면 theme.js:190-215 는 CHROME.light.shell=\"#1E2758\" / dark=\"#1A2046\" 이고, theme.js 헤더(21-28)가 \"D-141 에서 바꾸는 것: chrome 이 캔버스 계열 무채색이라는 규칙\" 이라고 자기 입으로 폐기를 선언한다. 배포 스크린샷 dist/ui-qa/w1-visual/light/1920x1080/admin_dashboard.png 픽셀 실측도 상단바·사이드바 (30,39,88)=#1E2758, 캔버스 (238,240,247) 로 둘이 전혀 같은 계열이 아니고, 상단바가 화면에서 가장 채도 높은 면이다. 이미 처리됐다는 반증도 실패했다 — git diff HEAD -- AppShell.jsx 를 보면 W1 이 694 주석 **바로 아래 줄**의 color 를 text.primary → chrome.onShell 로 고쳐 쓰고, 602 주석 바로 아래 Box 에 focus-ring 변수를 넣으면서도 두 주석은 손대지 않았다. TopBrand.jsx 는 변경 파일 목록에 아예 없다. DECISIONS.md D-168(7100-7123)은 D-141 Thesis 폐기를 명시하면서 갱신 대상으로 theme.js 헤더와 generate_design_tokens.mjs 만 지목해, 이 세 곳은 명시적으로도 덮이지 않았다. 오히려 범위는 신고보다 넓다 — TopSearch.jsx:14, UserMenu.jsx:161, Mascot.jsx:258, topbar-contract.test.jsx:23 에도 같은 폐기 논지가 살아 있고 그중 UserMenu.jsx 와 Mascot.jsx 는 W1 이 직접 편집한 파일이다. 심각도: 런타임 영향 0, 순수 주석 정확성이므로 Low 가 맞고 부풀려지지 않았다. 담당 Wave: PLAN «Wave 계획» 표상 AppShell.jsx 는 W2→W3→W1",
+    "status": "RESOLVED_IN_W1",
+    "resolution": "AppShell drawerContent/AppBar 와 TopBrand 의 근거 주석을 D-179 기준으로 다시 썼다"
+   },
+   {
+    "id": "F-W1R-26",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "design-taste",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "로그인 화면의 W1 변경이 배포·캡처 어디에도 없다 — After 증거가 옛 버튼을 찍고 있다",
+    "evidence": "git diff -- app/static/css/login.css (working tree 미커밋, `git status` → ` M app/static/css/login.css`, ` M app/static/css/tokens.css`; W1 전체 91항목 미커밋). 커밋된 옛 값은 `background: linear-gradient(135deg,#758AE1 0%,#536CD6 42%,#435CBE 100%)` + `box-shadow: 0 12px 28px rgba(83,108,214,.28)`. dist/ui-qa/w1-visual/light/1920x1080/public_login.png 의 로그인 버튼(y683..735, x1247..1680) 픽셀 실측: x=1260 (113,135,224) → x=1440 (83,108,214)=#536CD6 → x=1620 (72,97,198) 로 가로 그라디언트이고, y736~750 에 (219,224,247)→(234,237,250) 푸른 그림자 잔영이 남아 있다. 같은 캡처 세트의 SPA 는 새 테마다(user_projects.png 주요 버튼 픽셀 (90,79,207)=#5A4FCF, 사이드바 (30,39,88)=#1E2758).",
+    "why_it_matters": "W1 이 login.css 에 대해 주장한 두 변경(그라디언트→--gradient-hero, 버튼→단색 primary)이 실제 배포물에 없다. 배포가 SPA 번들만 반영하고 Jinja static 은 반영하지 않은 반쪽 상태이므로, 로그인 화면은 지금도 제품 어디에도 없는 옛 강조색을 사용자에게 첫 화면으로 보여준다. 더 심각한 것은 이 라우트의 After 캡처가 W1 의 증거로 쓰일 수 없다는 점이다 — 다음 Wave 가 이 캡처를 Before/After 비교 기준으로 쓰면 잘못된 기준선 위에 작업하게 된다.",
+    "verify_reason": "픽셀 근거는 실측으로 재현됨 — dist/ui-qa/w1-visual/light|dark/1920x1080/public_login.png(두 파일 md5 동일 1a0225cd…)의 버튼은 (115,136,225)→(73,98,199) 가로 그라디언트(옛 #758AE1/#536CD6/#435CBE)이고 y735~750에 옛 box-shadow 잔영이 남아 있으며, 이미지 전체에 #5A4FCF 픽셀이 **0개**다. 같은 세트의 user_projects.png는 #5A4FCF 3317px·#1E2758 302205px로 새 테마다. 그러나 finding의 제목 절반(\"배포에 없다\")은 지금 거짓이다. 테스트 서버에서 직접 받아 확인했다 — https://10.100.64.71/static/css/login.css 와 /static/css/tokens.css 가 워킹트리와 **바이트 동일**하고(`background: var(--color-primary)`, `border-radius: var(--radius-md)`, `--color-primary:#5A4FCF`), /login HTML 에 W1 의 `data-brand-role=\"header\"` 도 들어 있다. 두 CSS 의 Last-Modified 는 05:26:22 GMT(=14:26 KST)로 캡처 실행(results.json started_at 13:55:18)보다 31분 **뒤**다. app/core/assets.py 의 AssetVersions.stamp 는 요청마다 stat 해서 mtime+size 로 `?v=` 를 만들므로 파일이 바뀌는 순간 URL 이 바뀐다 — 브라우저 캐시로는 설명되지 않는다. 즉 \"SPA 만 반영된 반쪽 배포\"는 캡처 시점에는 사실이었으나 이미 닫혔고, 로그인 화면은 지금 옛 강조색을 보여주지 않는다. 또 finding 이 말한 \"두 변경\"의 하나인 hero 그라디언트는 --gradient-hero 가 옛 3겹 리터럴과 바이트 동일(tokens.css 98/201/305행)이라 의도된 시각적 no-op 이고 애초에 스크린샷으로 반증될 수 없다 — 관측 가능한 변경은 버튼 하나뿐이다. 남아 있는 실제 결함은 증거 위생 하나다: public_login 의 After 캡처가 배포 이전 상태를 찍어 W1 의 login.css 변경에 대한 After 증거로 쓸 수 없다(CLAUDE.md §8 \"완료인데 Evidence 없음\", §13",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-27",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "design-taste",
+    "severity": "Medium",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W4",
+    "title": "MetricStrip 한 줄 안에서 값과 라벨의 기준선이 둘 다 어긋난다 — 전 지표 화면 공통",
+    "evidence": "frontend/src/ui/kit.jsx:526 `fontSize: it.primary ? FONT_SIZE.readout : FONT_SIZE.title`(40px vs 19px, 2.1배)이고, 각 칸이 독립 `display:grid` + `alignContent:\"start\"`(kit.jsx:517)라 칸 사이에 공유 행이 없다. 캡처 실측(user_projects.png): 1번 칸(x296..345) 값 ink y245..273 / 라벨 ink y290..301, 2번 칸(x636..690)과 5번 칸(x1585..1625) 값 ink y240..253 / 라벨 ink y266..277 → 라벨 기준선이 24px 어긋난다. 동일 패턴이 admin_dashboard.png(작업 지표 3칸), user_me.png(상단 5칸·내 업무 5칸), user_sprint.png(상단 4칸), user_my-tickets.png 에 반복된다.",
+    "why_it_matters": "한 줄에 놓인 다섯 지표의 라벨이 서로 다른 높이에 떠 있으면 눈이 가로로 훑을 기준선을 잃는다. 「계측면」이라는 방향의 핵심이 tabular numerals 와 정렬인데, 지표를 보여 주는 바로 그 컴포넌트가 정렬을 깨고 있다. 값 40 / 19 의 2.1배 낙차 자체는 W1 의 스케일 선택에서 왔으므로, W4 가 공유 baseline grid 로 고치지 않으면 폭만 바꿔서는 해결되지 않는다.",
+    "verify_reason": "근거가 실재하고 픽셀 실측이 그대로 재현된다. kit.jsx:526 `fontSize: it.primary ? FONT_SIZE.readout : FONT_SIZE.title` 확인, theme.js:94-102 에서 readout=2.5rem(40px)/title=1.1875rem(19px)=2.1배 확인, kit.jsx:516 `display:\"grid\", alignContent:\"start\"` 로 칸 사이 공유 행이 없는 것도 확인. 한 strip 에 primary 1개 + 보조 다수가 섞이는 것은 설계된 사용법이다(Projects.jsx:105, Home.jsx:302, WorkSummary.jsx:101, Dashboard.jsx:574, Sprint.jsx:368 등 9곳). user_projects.png(light) 잉크 행을 직접 측정한 결과 1번 칸 값 y245..273/라벨 y290..301, 2번·5번 칸 값 y240..253/라벨 y266..277 — 주장 수치와 완전히 일치하고, 라벨 24px·값 baseline 20px·값 top 5px 차이로 top/baseline/center 어느 정렬도 성립하지 않는다. 반복 주장은 admin_dashboard(작업 지표 3칸), user_me(상단 5칸·내 업무 5칸)까지 캡처로 직접 확인했다. 단 user_my-tickets 는 틀렸다 — MyTickets.jsx 에 MetricStrip 자체가 없고 캡처도 Callout+필터+표뿐이다. 담당 Wave 는 PLAN.md:923 Wave 표가 MetricStrip 을 W4 소유로 명시하므로 주장대로 W4 가 맞다(W1 결함 아님). 또 PLAN.md:583 의 계획된 MetricStrip 재계약은 폭·packing(1.6fr/max-content/좌측 packing)만 바꾸고 기준선은 다루지 않아 \"폭만 바꿔서는 해결되지 않는다\"는 지적이 정본에 대해 정확하다. 심각도만 과장이다: W4 소유라 W1 을 막지 않고 기능·접근성 손상이 아니라 조판 정렬 문제이며, \"다섯 라벨이 서로 다른 높이\"도 실제로는 primary 1 대 보조 4 의 1:4 어긋남(보조 4칸끼리는 픽셀 단위로 정확히 정렬)이다. 다만 지표가 있는 전 화면에 걸쳐 나타나므로 Low 는 아니고 Medium 이 적절하다.",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-28",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "design-taste",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "CONTROL 의 버튼 높이가 화면에서 지켜지지 않는다 — 선언 34/30, 실제 36/31",
+    "evidence": "theme.js:582-584 는 `root { minHeight: CONTROL.button(34), paddingInline: 14 }`, `sizeSmall { minHeight: CONTROL.buttonSm(30), paddingInline: 11 }` 만 지정하고 MUI 기본 세로 padding(medium 6px, small 4px)과 button variant 의 기본 lineHeight 1.75 를 지우지 않는다. 캡처 실측: user_projects.png 「새 프로젝트」(x1795..1890) y101..136 = 36px, 「다음」(x1165..1230) y1372..1402 = 31px; admin_settings.png 「미리 검증」·「공지 저장」(y1497..1532) = 36px, 「수정」(x1780..1860, y340..370) = 31px. 선언값 34·30 은 어느 화면에도 나타나지 않는다.",
+    "why_it_matters": "CONTROL 은 「이 제품의 컨트롤은 몇 px 인가에 답할 자리」로 신설됐는데 그 답이 화면과 다르다. W2 가 AppBar 높이와 padding 을, W3 가 나브 정렬을, W5 가 필터 행 baseline 을 이 숫자로 계산하면 전부 2px 씩 어긋난 채 쌓인다. minHeight 만으로는 구속력이 없으므로 paddingBlock·lineHeight 를 함께 고정하고 렌더 높이를 단언하는 시험이 필요하다.",
+    "verify_reason": "반증 시도 실패 — 근거가 전부 실재한다.\n\n[소스] 인용 줄번호는 틀렸다(theme.js:582-584 → 실제 599-607). 그러나 인용된 코드는 축자적으로 정확하다. MuiButton.styleOverrides.root 는 minHeight: CONTROL.button, borderRadius, paddingInline: 14, transition 만 지정하고 paddingBlock·lineHeight 를 지우지 않는다. sizeSmall 도 minHeight: CONTROL.buttonSm, paddingInline: 11 뿐이다. 결정적으로 typography.button(510행)은 textTransform·fontWeight·letterSpacing 만 덮고 lineHeight 를 덮지 않으므로 MUI 기본 1.75 와 기본 세로 padding(medium 6px, small 4px)이 그대로 살아 박스 높이를 지배한다. 즉 minHeight 는 바닥값일 뿐 구속하지 못한다.\n\n[픽셀] 배포 캡처에서 인용된 네 측정을 전부 독립 재측정했고 네 건 모두 정확히 일치했다. user_projects 「새 프로젝트」 y101..136 = 36px(선언 34), 「다음」 outlined small y1372..1402 = 31px(선언 30), admin_settings 「미리 검증」·「공지 저장」 y1497..1532 = 36px, 「수정」 y340..370 = 31px. 버튼 채움색 샘플이 (90,79,207) = #5A4FCF 로 W1 신규 accent 와 일치하므로 이 캡처는 W1 이후 산출물이며 최신 구현을 반영한다.\n\n[추가 확인 — 근거를 오히려 강화함] (1) CONTROL.input(36)은 실제로 지켜진다. admin_users 검색 입력·셀렉트가 y178..213 = 정확히 36px. 따라서 CONTROL 집합이 내부적으로 불일치한다 — input 은 정직하고 button 만 거짓이다. 더욱이 테마는 button(34)을 input(36)보다 2px 낮게 설계했는데 화면에서는 둘 다 36px 로 같아져, 저자가 의도한 컨트롤 간 높이 관계 자체가 소리 없이 지워졌다. 이것은 단순한 문서 불일치가 아니라 디자인 결과의 손실이다. (2) 이를 지킨다는 시험이 동어반복이다. theme-contract.test.js:339-341 은 t.components.MuiButton.styleOver",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-29",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "design-taste",
+    "severity": "Low",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W1",
+    "title": "새 스케일도 7슬롯 중 4개가 여전히 3px 밴드 안이다 — 옛 스케일의 진단이 1px 위로 옮겨졌을 뿐",
+    "evidence": "theme.js:88-90 주석은 옛 스케일의 결함을 「7단계 중 4단계가 3px 밴드(11/12/13/14) 안에 몰려 있어 위계 일을 전혀 안 한다」로 규정한다. 새 값은 micro 12 / caption 13 / bodySm 14 / body 15 — 여전히 3px 밴드 안 4단계이고 배율은 1.083 / 1.077 / 1.071 이다(머리쪽 1.27×/1.47×/1.43× 는 실제로 열렸다). 캡처 실측(admin_users.png): 표머리 「이름」(x763..800) 12px ink h=11, 셀 「정현수」(x763..810) 14px ink h=12 — 크기 차 1px 로 광학적으로 구분되지 않고 위계는 굵기·색이 전부 만든다.",
+    "why_it_matters": "머리쪽(19/28/40)은 확실히 개선됐지만 화면 면적의 대부분을 차지하는 아래쪽 네 단계는 여전히 서로를 구분하지 못한다. 그래서 표머리·셀·라벨·본문이 한 겹 질감으로 보이는 문제가 표 화면(admin_users·user_projects·user_my-tickets)에 그대로 남았다. 슬롯을 줄이거나(micro/caption 병합) 하한을 12·14·16 식으로 벌리지 않으면 W6 가 표를 다시 짜도 밀도만 바뀌고 위계는 안 생긴다.",
+    "verify_reason": "근거 세 갈래를 전부 독립 확인했고, 반증에 실패했다.\n\n1) 파일 근거 — 실재한다. 인용 줄번호(88-90)는 어긋났지만(실제는 theme.js:77-79) 같은 주석 블록이고 문장은 그대로다: 「7단계 중 4단계가 3px 밴드(11/12/13/14) 안에 몰려 있어 위계 일을 전혀 안 한다」. 새 값 FONT_SIZE(94-102)는 12/13/14/15/19/28/40 — 아래쪽 네 슬롯이 여전히 3px 밴드다.\n\n2) 「1px 위로 옮겨졌을 뿐」이 문자 그대로 맞다 — 오히려 더 나쁘다. `git show HEAD~1:frontend/src/ui/theme.js:86-94` 의 옛 값은 11/12/13/14/17/22/28. 아래 네 개가 정확히 +1px 평행이동했고, 아래쪽 배율은 옛 1.091/1.083/1.077 → 새 1.083/1.077/1.071 로 **조금 더 좁아졌다**. 머리쪽(15→19→28→40 = 1.267/1.474/1.429)만 열렸다는 주장도 맞다. 즉 파일이 스스로 규정한 진단을 머리쪽에만 적용하고, 이름 붙여 지목한 바로 그 밴드에는 적용하지 않았다.\n\n3) 캡처 실측을 내 손으로 재측정해 수치가 일치했다. `dist/ui-qa/w1-visual/light/1920x1080/admin_users.png` 를 임계 170 으로 잉크 바운딩박스 측정: 표머리 「이름」 y=334..344 (h=11), x=764..782 / 셀 「정현수」 y=369..380 (h=12), x=764..797. 주장한 h=11 vs 12 와 x 범위가 그대로 재현된다. 원인도 소스에 있다 — `theme.js:667-679` 의 `MuiTableCell.head.fontSize = FONT_SIZE.micro`(12), `root.fontSize = FONT_SIZE.bodySm`(14). 12/14 인데 한글 글리프가 픽셀그리드에 스냅되며 잉크 차가 1px 로 붕괴한다.\n\n범위는 맞다. PLAN:920 과 :937(「theme.js W1」)이 `theme.js`·FONT_SIZE 를 W1 소유로 못박고, W1 이 실제로 이 스케일을 재작성했다. corrected_owner_wave 불필요.\n\n심각도만 낮춘다(Medium → Low). 반증에 성공한 부분이 둘 있다.\n- 「광학적으로 구분되지 않고 … 한 겹 질감으로 보이는 문제가 그대로 남았다」는 실제 After 캡처에서 재현되지 않는다. 같은",
+    "status": "OPEN",
+    "reassigned_from": "W1",
+    "reassign_reason": "머리쪽(title/pageTitle/readout)은 1.27/1.47/1.43 배로 열렸고 꼬리(12/13/14/15)가 남았다. 슬롯을 줄이면 전 소비처가 흔들리므로 W4 가 Primitive 와 함께 판단한다"
+   },
+   {
+    "id": "F-W1R-30",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "라이트 테마에서 워드마크 'Assist'가 딥 인디고 셸 위 대비 2.32:1 — 제품명 절반이 묻힌다 (Before 3.88:1에서 회귀)",
+    "evidence": "8개 SPA 라우트 light 전부 동일: 글자 rgb(90,79,207)=#5A4FCF on 셸 rgb(30,39,88)=#1E2758 → CR 2.32. 같은 요소 dark 는 rgb(183,196,250)=#B7C4FA on (26,32,70) → CR 9.18. Before(light)는 #536CD6 on (231,234,238) → 3.88. 확대 근거 C:/Users/hshwa/AppData/Local/Temp/claude/C--Users-hshwa-clovirone-web-assistant/f4fee946-43ae-4fff-b7a0-7c68dddfc0ca/scratchpad/logo_user_me_light.png (5배). 원인: C:/Users/hshwa/clovirone-web-assistant/frontend/src/app/TopBrand.jsx:56 이 `<BrandLogo>` 를 `inverse` 없이 쓰고, C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/BrandLogo.jsx:162 `accent = inverse ? INVERSE_INK.accent : theme.palette.brand.wordmark` 가 라이트에서 theme.js:166 `wordmark:\"#5A4FCF\"` 를 집어 theme.js:195 `chrome.shell:\"#1E2758\"` 위에 칠한다. TopBrand.jsx:12-16 의 주석('chrome 이 캔버스 계열이 된 지금 … 정방향 자산이 맞다')은 W1 이 chrome 을 딥 인디고로 되돌리면서 무효가 된 옛 전제다.",
+    "why_it_matters": "BrandLogo.jsx:9-14 주석이 스스로 '같은 함정을 두 번 밟았다'고 적어 둔 그 함정을 세 번째로 밟았다. WCAG 대형 텍스트 하한 3:1도 못 넘고, '로고를 가려도 ClovirAssist인가'를 판정하는 바로 그 로고가 라이트에서만 반쯤 사라진다. INVERSE_INK.accent(#B7C4FA)가 이미 파일 안에 있어 수정 비용은 한 줄이다.",
+    "verify_reason": "근거를 하나도 빼놓지 않고 독립 재현했고, 전부 실재한다.\n\n1) 픽셀 — 내가 직접 샘플링했다(구현자 크롭이 아니라 `dist/ui-qa/w1-visual/light/1920x1080/*.png` 원본에서 (150,8)-(230,30) 히스토그램). SPA 8개 라우트(user_me·user_projects·user_chat-rooms·user_sprint·user_my-tickets·admin_dashboard·admin_users·admin_settings) 전부 **바이트 단위로 동일**하다: 글자 (90,79,207)=#5A4FCF x571px, 셸 (30,39,88)=#1E2758 x685px. 내가 계산한 CR = **2.3239** (주장 2.32 일치). dark 같은 자리는 (183,196,250)=#B7C4FA on (26,32,70)=#1A2046 로 반전 잉크가 제대로 걸려 있다. Before 값 #536CD6 on #E7EAEE = 3.881 도 재계산 일치. public_login 만 셸이 없어 해당 없음.\n\n2) 소스 — 세 줄 다 확인했다. `theme.js:415` `chrome = light ? CHROME.light : CHROME.dark` → `CHROME.light.shell = \"#1E2758\"`, `BRAND_INK.light.wordmark = \"#5A4FCF\"`. `AppShell.jsx:689-700` AppBar `background: t.palette.sidebar.bg` = `chrome.shell`. `TopBrand.jsx:56` 은 `<BrandLogo>` 를 `inverse` 없이 부르고 `BrandLogo.jsx:162` 가 그래서 `theme.palette.brand.wordmark` 를 집는다. \"Clovir\" 는 `currentColor`(=`chrome.onShell`)라 멀쩡하고 강조어 \"Assist\" 만 어둡다 — 확대 이미지의 모습과 정확히 일치한다.\n\n3) 최신성 — `git status` 에서 `TopBrand.jsx` 는 **수정 목록에 없다**. 즉 W1 이 AppShell·UserMenu·Mascot·BrandLogo 의 잉크 배선은 손대면서 TopBrand 만 D-141 시절(밝은 chrome 전제) 그대로 두었다. TopBrand.jsx:11-15 주석(\"chrome 이 캔버스 계열이 된 지금 … 정방향 자산이 맞다\")이 ",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-31",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "새 대비 시험이 잉크가 실제로 놓이는 `chrome` 면을 한 번도 보지 않는다 — 위 회귀를 잡을 시험이 없다",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/theme-contract.test.js:286-294 의 'Brand 잉크 6종이 네 면에서 AA 를 넘는다' 가 검사하는 면은 `background.plate`·`background.inset`·`background.canvas`·`background.brandTint` 넷뿐이고 `palette.chrome.shell`/`shellTop`/`shellDeep` 이 빠져 있다. 같은 파일 138-141 은 `contrast(chrome.shell, background.canvas) >= 4.5` 만 보고, 132-136 은 `blue-red >= 24` 만 본다. 신규 정적 검사 C:/Users/hshwa/clovirone-web-assistant/scripts/check_brand_tokens.py:15-18 도 (a) raw gradient 금지 (b) palette.brand 소비처 존재 두 가지만 본다 — 어느 쪽도 '그 색이 그 면 위에서 읽히는가'를 묻지 않는다.",
+    "why_it_matters": "W1의 Wave 고유 Exit Gate는 '`theme-contract.test.js`의 대비 단언이 원래 강도로 통과'다. 시험이 107개로 늘었는데도 제품에서 가장 눈에 띄는 대비 실패를 못 잡았다면 강도가 아니라 조준점이 틀린 것이고, W2~W8이 같은 셸 위에 계속 요소를 올릴수록 같은 종류의 실패가 누적된다.",
+    "verify_reason": "근거 세 곳 전부 실재한다. theme-contract.test.js:284-294 의 INKS 6종은 background.plate/inset/canvas/brandTint 넷만 면으로 쓰고 chrome 면이 없다. :132-136 은 blue−red>=24 만, :138-141 은 contrast(chrome.shell, canvas)>=4.5 만 본다. check_brand_tokens.py:15-18 은 raw gradient 금지와 소비처 존재 둘뿐이다.\n\n다만 제목의 \"chrome 면을 한 번도 보지 않는다\"는 과장이며 그대로는 거짓이다. theme-contract.test.js:194-281 이 onShell/onShellMuted/onShellFaint·#FFFFFF·rail·focusRing 과 hover/selected/aiWash/track 합성면을 chrome.shell + shellImage 모든 stop 에 대해 재고, theme-link-contrast.test.js:145-160 과 theme-focus-visible.test.js:80 도 같은 stop 집합을 쓴다. 정확한 명제는 더 좁다 — palette.brand 잉크가 chrome 면 위에서 한 번도 측정되지 않는다. 그리고 실제 실패는 정확히 그 좁은 자리에 있다.\n\n빈틈이 가설이 아니라 배포돼 있다. TopBrand.jsx:56 이 inverse 없이 <BrandLogo /> 를 그려 BrandLogo.jsx:162 가 brand.wordmark 로 칠하고, AppShell.jsx:694 가 AppBar 배경을 palette.sidebar.bg(=chrome.shell)로 둔다. 배포 캡처 dist/ui-qa/w1-visual/light/1920x1080/user_projects.png 의 워드마크 영역을 픽셀 표본하면 지배색이 정확히 (30,39,88)=#1E2758 과 (90,79,207)=#5A4FCF 둘이고 대비는 2.32:1 이다. light 브랜드 잉크 6종 전부가 chrome 세 stop 에서 1.48~2.62 다(dark 는 7.86~10.06 로 무사). TopBrand.jsx:12-16 의 주석(\"chrome 이 캔버스 계열이 된 지금… theme-contract.test.js 가 프리셋 전체로 검증한다\")은 D-179 이후 낡았고, 그 측정을 하지 않는 시험을 가리킨다. 전 시험 파일에 contrast",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-32",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W2",
+    "owner_wave_raw": "W2",
+    "title": "셸에서 가장 밝은 면이 브랜드가 아니라 검색창이다 — 흰 판 14.13:1 vs 브랜드 강조어 2.32:1",
+    "evidence": "C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/user_me.png 실측: 상단 검색 입력 (600,26)=rgb(255,255,255), 사이드바 '메뉴 찾기' 입력 (120,132)=rgb(255,255,255), 둘 다 셸 (30,39,88) 대비 CR 14.13. 같은 헤더의 워드마크 강조어는 2.32. 확대 근거: .../scratchpad/segsearch_user_me_light.png, .../scratchpad/topright_user_me_light.png(클로비 칩·아바타도 순백 원판). 토큰은 이미 존재한다 — C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/theme.js:204-209 가 `track: rgba(255,255,255,.08)` / `trackSelected: .16` / `edge: .22` 를 만들면서 주석에 '흰 판을 올리면 인디고 하우징 안에서 그 판이 가장 밝은 면이 되어 데이터보다 먼저 눈에 띈다'고 직접 적어 뒀는데 두 입력에는 배선되지 않았다.",
+    "why_it_matters": "Before(흰 상단바)에서는 흰 입력이 눈에 안 띄었지만 셸이 딥 인디고가 된 순간 같은 요소가 화면 최상위 밝기로 승격됐다 — 셸 색만 바꾸고 그 위 컨트롤을 그대로 둔 전형적 결과다. 시각 위계가 제품명보다 검색창을 위에 두면 CLAUDE.md §7의 'Logo만 Purple이고 나머지는 White/Gray' 실패로 되돌아간다. W2가 TopSearch·사이드바 검색을 만질 때 `chrome.track` 배선을 같이 끝내야 한다.",
+    "verify_reason": "근거 전부 재현됨. light/user_me.png 실측 (600,26)=(255,255,255), (120,132)=(255,255,255), 셸 (60,26)=(30,39,88) → CR 14.13 정확히 일치. 워드마크 (150,30)=(90,79,207)=#5A4FCF → 2.32 정확히 일치. 상단 우측 크롭에서 클로비 칩·아바타도 순백 원판 확인 — 상단 띠에 순백 오브젝트 4개. user_projects/admin_dashboard/admin_users 도 동일해 라우트 단위가 아니라 셸 문제다.\n\n미처리 확인: TopSearch.jsx 가 bgcolor \"background.plate\", AppShell.jsx:329 사이드바 필터도 \"background.plate\", theme.js:331 plate=#FFFFFF. theme.js:207-209 의 track/trackSelected/edge 는 어디에도 배선되지 않았다(유일한 소비처는 AppShell.jsx:498 의 sidebar.trackSelected — ConsoleSwitch). TopSearch 주석 자체가 \"chrome 이 캔버스 계열이 되면서\" 색을 재조정했다고 적혀 있어, plate 선택이 W1 인디고 셸 기준으로 낡았다는 것까지 소스가 증언한다.\n\n범위: PLAN «Wave 계획» W2 행이 TopSearch 를 명시적으로 소유. W1 결함 아님(토큰은 정상 납품). 담당 Wave W2 주장은 맞다.\n\n심각도는 과장: ① light 전용 — dark 는 plate #141829 가 셸 #1A2046 보다 어두워 이미 오목면으로 올바르게 읽힌다(dark (600,26)=(20,24,41) 실측). ② AA/계약 위반 없음, 흰 판 안 잉크는 정상 — 위계·취향 문제다. ③ 'CLAUDE.md §7 Logo만 Purple 실패로 회귀' 프레이밍은 스크린샷과 안 맞는다. L자 프레임 전체가 명확히 딥 인디고고, 흰 검색창 하나가 제품을 White/Gray 로 되돌리지 않는다. 지금 Wave(W1)를 막을 사유가 아니고 바로 다음 W2 가 어차피 TopSearch 를 만질 때 닫히는 항목이므로 Medium.\n\n부가: 2.32 워드마크 수치는 이 finding 의 주장이 아니라 별개의 W1 소유 이슈다 — brand.wordmark light #5A4FCF 는 밝은 chrome 을 전제한 값이고 dark 는 #B7C4FA 로 올바른데",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-33",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "palette.chart 6색·CHART_DASH가 소비처 0 — 차트는 여전히 사용자 Accent를 따라간다",
+    "evidence": "소스: `grep -rn \"palette.chart|CHART_SERIES|chart\\[\" frontend/src --exclude *.test.*` 결과가 C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/theme.js:276, 280, 488 세 줄뿐 — theme.js 밖 소비처가 없다. 화면 실측: user_sprint 번다운 1번 시리즈가 Before rgb(83,108,214)=#536CD6(옛 primary) → After rgb(90,79,207)=#5A4FCF(새 primary)로 바뀌었다(C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/{before-renewal,w1-visual}/light/1920x1080/user_sprint.png, 플롯 영역 x300-900). 즉 `palette.chart[0]`(= brand.core #4C58C8, tokens.css:84)이 아니라 `palette.primary`를 따른다. user_me '이번 주 내 진척' 도넛은 Before/After 모두 초록으로 무변화. theme-contract.test.js:305-309 는 `p.chart[0] === p.brand.core` 를 단언하지만 화면은 #5A4FCF 를 그린다.",
+    "why_it_matters": "theme.js:31-40 이 명시한 계층 분리('Chart 주요 시리즈는 palette.chrome/brand 소유, palette.primary 는 사용자 Accent')가 화면에서 지켜지지 않는다. 사용자가 /my-display 에서 청록을 고르면 번다운 차트가 청록이 되어, 이 분리가 막으려던 '제품이 ClovirAssist 가 아니게 되는 것'이 그대로 재현된다. 검사도 없어서 조용히 유지된다(check_brand_tokens.py 는 brand 에만 소비처를 요구하고 chart 에는 요구하지 않는다).",
+    "verify_reason": "반증 시도했으나 근거가 전부 실재한다.\n\n1) 소스 — `frontend/src/ui/theme.js` 밖에 `palette.chart`/`CHART_SERIES`/`CHART_DASH` 소비처가 실제로 0이다(theme.js:276,281,488 + 시험파일뿐). 더 강한 증거를 찾았다: `frontend/src/ui/charts/base.jsx:49-62 resolveChartColor` 가 `if (!color) return theme.palette.primary.main` 로 시작하고 `palette.chart` 를 아예 참조하지 않는다. `frontend/src/screens/sprint-charts.js:31` 이 번다운 1번 시리즈를 `color: \"primary\"` 로 지정하고, `frontend/src/screens/Home.jsx:138` 도 `{ label: \"남음\", ..., color: \"primary\" }` 그대로다 — PLAN.md:387 이 명시적으로 \"`Home.jsx:137`의 `남음 → \"primary\"` 를 `\"brand\"` 로 바꾼다\" 고 적어 둔 바로 그 줄이 아직 안 바뀌었다. `CHART_DASH` 도 미소비다: `LineSeries.jsx:105` 가 `strokeDasharray={idx === 0 ? undefined : \"4 3\"}` 로 리터럴을 박아 둔다. CSS 쪽도 같다 — `--chart-1..rest` 는 `app/static/css/tokens.css:90-95` 와 `frontend/src/styles/tokens.css:90-95` 에 **정의만** 있고 참조하는 규칙이 한 줄도 없다.\n\n2) 화면 실측 — 주장을 믿지 않고 PIL 로 전체 픽셀을 직접 셌다. `dist/ui-qa/before-renewal/light/1920x1080/user_sprint.png`: rgb(83,108,214)=#536CD6 15,765px / #5A4FCF 0px / #4C58C8 **0px**. `dist/ui-qa/w1-visual/light/1920x1080/user_sprint.png`: #5A4FCF 15,822px / #4C58C8 **여전히 0px**. 번다운 플롯 구간(x250-960, y559-672)을 잘라 눈으로도 확인했다 — 1번 선은 새 Accent 인디고, 2번 선은 dashed amber(=warning, 상태색을 범주 시리즈로 쓰는 ",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-34",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Medium",
+    "owner_wave": "W2",
+    "owner_wave_raw": "W2",
+    "title": "SPA 워드마크가 정본 제품명 'ClovirAssist'를 'Clovir Assist' 두 단어로 그린다 (로그인 화면과 불일치)",
+    "evidence": "C:/Users/hshwa/AppData/Local/Temp/claude/C--Users-hshwa-clovirone-web-assistant/f4fee946-43ae-4fff-b7a0-7c68dddfc0ca/scratchpad/logo_user_me_light.png 에서 셸 락업은 두 단어 사이 뚜렷한 공백, C:/Users/hshwa/clovirone-web-assistant/dist/ui-qa/w1-visual/light/1920x1080/public_login.png 의 로그인 락업은 붙어 있다. 원인: C:/Users/hshwa/clovirone-web-assistant/frontend/src/ui/BrandLogo.jsx:245-266 이 'Clovir' 에 `x=160 textLength=167 lengthAdjust=\"spacingAndGlyphs\"` 를 강제해 x=327 에서 끝나는데 'Assist' 는 x=338 에서 시작한다(11px 공백). 원본 자산 C:/Users/hshwa/clovirone-web-assistant/app/static/brand/brand/clovirassist-logo-horizontal.svg:19-20 은 같은 x=160/338 좌표를 쓰되 textLength 를 걸지 않아 자연 폭으로 붙는다. Before 캡처에도 같은 공백이 있어 W1 회귀는 아니다.",
+    "why_it_matters": "CLAUDE.md §0의 Canonical Product Name 은 `ClovirAssist` 한 단어다. 같은 세션 안에서 로그인은 한 단어, 앱은 두 단어로 보이면 '로고를 가려도 같은 제품인가' 이전에 '로고를 봐도 같은 제품인가'가 흔들린다. textLength 는 폰트 폴백 시 두 단어가 붙는 것을 막으려고 넣은 값인데(BrandLogo.jsx:20-22) 지금은 반대 방향으로 과교정돼 있다.",
+    "verify_reason": "결함 자체는 실재한다(직접 확인). 다만 **근거로 적은 원인 설명은 뒤집혀 있어 정정이 필요하다.**\n\n1) 현상 — 확인됨. 배포된 After 캡처를 직접 픽셀 측정했다.\n   - `dist/ui-qa/w1-visual/light/1920x1080/user_me.png`: 흰색 'Clovir' 잉크 x=66..142, 액센트 'Assist' 잉크 x=149..226 → 배경 6px이 사이에 그대로 보인다.\n   - `dist/ui-qa/w1-visual/light/1920x1080/public_login.png`: 'Clovir' x=283..341, 'Assist' x=343..407 → 간격 1px(= 붙어 있음, 한 단어).\n   - `dist/ui-qa/w1-visual/dark/1920x1080/user_projects.png` 도 같은 공백. `docs/ui-renewal/captures/before/user_me__light__1920x1080.png` 에도 있으므로 W1 회귀가 아니라는 지적도 맞다.\n   - 크기 불변 비율로 비교하면(A 잉크 시작까지의 거리 / Clovir 잉크 폭) 로그인 1.017 vs 셸 1.078 — 셸 쪽이 약 10 유닛(62px 좌표계) 더 벌어져 있다. 캡처 방식 산물이 아니다.\n\n2) 코드 근거 — 확인됨. `frontend/src/ui/BrandLogo.jsx:243-266` 에 `x=160 textLength=167`(Clovir)과 `x=338`(Assist)이 그대로 있고 160+167=327 ≠ 338 이라는 산술도 맞다. 최신 구현이며(작업트리 diff 확인) W1 은 이 파일에서 `accent` 배선 한 줄만 바꿨다.\n\n3) **원인 설명은 틀렸다.** \"textLength 가 과교정이고 원본 자산은 자연 폭으로 붙는다\"는 반증됐다. 실제 폰트 파일에서 진행폭을 측정했다(`app/static/fonts/pretendard/woff2-dynamic-subset/PretendardVariable.subset.91.woff2`, fontTools 로 wght=800 인스턴스화): 'Clovir' 자연 진행폭 = 2.8491em → 62px 기준 176.6, letter-spacing -2.2 적용 후 **163.4** (또는 165.6). 즉 textLength=167 은 글자를 **좁히는 게 아니라 오히려 3.6 유닛 늘린다** — 이걸 제거하면 공백",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-35",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "visual-before-after",
+    "severity": "Low",
+    "owner_wave": "W6",
+    "owner_wave_raw": "W6",
+    "title": "타이포 스케일 재배치로 목록 밀도가 줄었다 — 첫 화면 노출 행 감소",
+    "evidence": "페이지 전체 높이 Before→After: user_projects 1351→1435(+6.2%), user_me 1650→1740(+5.5%), admin_dashboard 1378→1451(+5.3%), user_sprint 8751→8907, admin_settings 1587→1610, user_my-tickets 1486→1506. 같은 1080px 창 안 프로젝트 목록 행 수 15행 → 13행(C:/Users/hshwa/AppData/Local/Temp/claude/C--Users-hshwa-clovirone-web-assistant/f4fee946-43ae-4fff-b7a0-7c68dddfc0ca/scratchpad/full_user_projects_light.png 상·하단 패널 직접 비교), 티켓 표 첫 행 y 585 → 624.",
+    "why_it_matters": "CLAUDE.md §6의 Density 항목에 걸린다. 데이터 밀집 화면에서 스크롤 없이 보이는 행이 13% 줄면 '한눈에 본다'는 목록 화면의 목적이 그만큼 약해진다. FONT_SIZE 7슬롯 재배치의 대가이므로 W6이 표 행 높이·패딩을 정할 때 이 손실을 되돌릴지 유지할지 명시적으로 결정해야 한다.",
+    "verify_reason": "반증 시도했으나 핵심 주장이 살아남았다. 독립 재현 결과다.\n\n**1) 페이지 높이 근거는 실재한다.** `docs/ui-renewal/captures/before/*__light__1920x1080.png` 는 480px 폭 썸네일(정확히 1/4 축소)이라 ×4 해야 원본 높이가 나온다. 6개 라우트 전부 ±2px 안에서 주장과 일치: user_projects 338×4=1352→1435, user_me 412×4=1648→1740, admin_dashboard 344×4=1376→1451, user_sprint 2188×4=8752→8907, admin_settings 397×4=1588→1610, user_my-tickets 372×4=1488→1506.\n\n**2) 15행→13행은 구현자 산출물이 아니라 내가 새로 만든 정합 스케일 합성으로 재현했다.** Before 를 1920 폭으로 업스케일하고 양쪽 상단 1080px 만 잘라 비교(`.../scratchpad/REV_user_projects_cmp.png`). 사이드바 경계가 양쪽 다 x=280 이라 레이아웃 폭·줌은 동일하다. 결과: 행 pitch 34.7px→37px(+6.6%), 표 첫 행 y 585→625, 1080px 안 노출 행 15→13. Before/After 데이터가 조금 다르지만(프로젝트 1건 정렬 상승, 진행률 60.5→61.1) 행 높이·헤더 높이 결론에는 영향이 없다.\n\n**3) 원인이 W1 타이포다.** `git show HEAD:frontend/src/ui/theme.js` 의 baseline 과 대조: FONT_SIZE body 14→15px, bodySm 13→14px, caption 12→13px, pageTitle 22→28px, readout 28→40px, body2 lineHeight 1.5→1.55. bodySm 라인박스 19.5→21.7px 는 실측 행 pitch 증가 +2.3px 과 거의 정확히 맞고, 표 위 헤더/KPI 블록 +40px 은 pageTitle·readout 확대로 설명된다. W1 diff 는 `kit.jsx`/`DataTable` 을 건드리지 않았다(diff --stat 확인) — 즉 표 밀도 변화는 순수 부수효과다.\n\n**4) 이미 처리된 것 아니다.** `CONTROL.tableRow: 44` 가 theme.js:134 에 신설됐지만 소비처가 0건(`grep -rn tableRow fro",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-36",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "High",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "REQUIREMENT_MATRIX R-0-1 의 Evidence 가 존재하지 않는 측정을 인용한다",
+    "evidence": "REQUIREMENT_MATRIX.md:148 이 \"실측 `dist/ui-qa/w1-smoke2/results.json` — smoke 4 route × 2 theme 에서 `brand_role_coverage` 8페이지 중 7페이지 PASS\" 라고 적었다. 그 파일의 assertions 키 27개에 **`brand_role_coverage` 가 없다**(brand_presence 만 있다). 파일 mtime 13:53:09 / 13:55:48 인데 이 키를 채우는 `scripts/ui_qa/capture.py:486-493` 과 `assertions.py:84` 는 13:59:39, `brand.py::brand_coverage_verdict` 는 14:00:01 에 작성됐다 — **두 캡처 실행 시점에 이 검사는 코드에 없었다.** 게다가 brand_presence note 의 동등 수치(\"존재하는 role 중 브랜드 N/M\")로 계산해도 admin_audit 이 light·dark **양쪽** 에서 3/4 로 실패해 7/8 이 아니라 6/8 이다.",
+    "why_it_matters": "Control Plane 정본 문서가 실행된 적 없는 검사 결과를 완료 근거로 들고 있다. 이 한 건이 통과하면 이후 Wave 의 Evidence 필드 전체가 검증 없이 채워질 수 있다.",
+    "verify_reason": "확인 결과 근거가 전부 실재하며, 오히려 신고 내용보다 상황이 나쁘다.\n\n1) 인용문 실재: REQUIREMENT_MATRIX.md:148 이 \"실측 `dist/ui-qa/w1-smoke2/results.json` — smoke 4 route × 2 theme 에서 `brand_role_coverage` 8페이지 중 7페이지 PASS ... 남은 1건은 admin_audit 의 selected_state\" 를 그대로 적고 있다.\n\n2) 키 부재 확인: 해당 results.json 에서 `brand_role_coverage` 는 **0회** 등장한다. 8페이지가 가진 assertion 키는 28개(신고는 27개라 했으나 오차 무의미)이고 브랜드 관련 키는 `brand_presence` 뿐이다.\n\n3) 시점 모순 확인: results.json mtime 13:53:09 인데 이 키를 채우는 capture.py:489 와 assertions.py:84 는 13:59:39 다 — 캡처 약 6분 뒤. brand.py 는 현재 14:39:00(신고의 14:00:01 보다 더 나중에 재수정됨)으로, 어느 쪽이든 캡처 시점에 이 검사는 코드에 없었다. 문서 자체는 14:02:05 로 코드가 생긴 뒤에 작성됐는데도 코드 이전 실행 결과를 인용한다.\n\n4) 산술 반박도 정확: brand_presence note 의 \"존재하는 role 중 브랜드\" 값으로 재계산하면 public_login 2/2, user_my-tickets 3/3, admin_integration-detail 4/4 는 통과지만 admin_audit 은 light 3/4 · dark 3/4 로 **양쪽 모두** 실패한다. 즉 6/8 이며 실패는 \"1건\"이 아니라 2페이지다.\n\n5) 신고보다 더 나쁨: `brand_role_coverage` 를 실제로 담은 유일한 산출물은 dist/ui-qa/w1-after/results.json(14:32:17, 166페이지)이고 결과는 103 PASS / 63 FAIL 이다. 즉 \"7/8 PASS\" 는 경로만 잘못 적은 것이 아니라 검사가 실행된 어떤 run 에서도 재현되지 않는 수치다. w1-smoke2/report.html 의 \"7/8\" 문자열도 확인했으나 base64 이미지 페이로드일 뿐 측정값이 아니다.\n\n6) 미처리 상태: 문서는 여전히 uncommitted(` M`)이고 148줄은 그대로 w1-smoke2 를 가리킨",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-37",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "Wave Exit E2 미충족 — W1 배정 요구사항 5개 중 2개가 NOT_STARTED · Evidence 없음",
+    "evidence": "REQUIREMENT_MATRIX.md 에서 Wave=W1 인 항목은 5개다. R-0-1(:142) DONE · R-53(:1472) DONE · R-65(:1640) DONE 이지만 **R-0-2.14 Typography와 Control Density(:352) 는 Status NOT_STARTED · Evidence (없음)**, **R-4(:786) 도 NOT_STARTED · Evidence (없음)** 이다. 정작 R-0-2.14 가 요구하는 내용은 theme.js:81-137(FONT_SIZE 7슬롯 재배치·LINE_HEIGHT·CONTROL 신설)로 이미 구현돼 있다.",
+    "why_it_matters": "E2 는 \"배정 요구사항이 DONE 또는 사유 있는 DEFERRED\" 를 요구한다. 구현은 했는데 추적표를 안 갱신했으므로 다음 Wave 는 이 항목을 미완으로 보고 중복 작업하거나, 반대로 영영 검증되지 않는다.",
+    "verify_reason": "근거가 전부 실재한다. REQUIREMENT_MATRIX.md 에서 `- **Wave**: W1` 은 정확히 5줄(142·352·786·1472·1640)이고, R-0-1(:142)·R-53(:1472)·R-65(:1640) 은 DONE + 실질 Evidence, R-0-2.14(:352)·R-4(:786) 은 둘 다 `Status: NOT_STARTED` / `Evidence: (없음 - Status 가 DONE 이 될 때 채운다)` 이다. 줄번호까지 정확하다. E2 도 실재한다 — PLAN.md:915 `**E2** 배정 요구사항이 DONE 또는 사유 있는 DEFERRED`.\n\n\"이미 처리된 것을 결함이라 하는가\" — 아니다. 반대로 구현은 최신인데 추적표만 낡았다. theme.js 에 FONT_SIZE(:94, 7슬롯 12/13/14/15/19/28/40) · LINE_HEIGHT(:110) · CONTROL(:125) 이 실재하고, R-0-2.14 의 Implementation 란(theme.js·generate_design_tokens.mjs·두 tokens.css)은 PLAN.md:918 이 W1 소유로 지정한 바로 그 파일 집합이다. 즉 이 줄은 이미 있는 증거(R-0-1 Evidence 에 일부 인용돼 있다)로 지금 닫을 수 있는데 안 닫혀 있다.\n\n범위도 W1 이 맞다. PLAN 의 요구사항 표는 R-85 이상만 다루므로 두 항목의 Wave 배정 정본은 Matrix 뿐이고 둘 다 W1 이다. 다만 R-4 의 실체(\"Impeccable·Taste 관점 재검수\", 전 제품 Visual Quality)는 PLAN.md:928 의 W8 Pilot Exit Gate(ui-ux-pro-max → impeccable → design-taste-frontend)가 수행하도록 계획돼 있어 토큰 계층 Wave 에서 DONE 이 될 수 없다. 그래도 \"재배정하거나 사유 있는 DEFERRED 로 바꾼다\"는 조치 자체가 W1 종료 시점의 일이므로 담당 Wave 는 W1 로 둔다.\n\nGate 가 이걸 잡지 못한다는 점이 finding 을 오히려 보강한다 — check_ui_renewal_coverage.py 의 C1~C14 는 Surface status 와 요구사항 *매핑*(C3)만 보고 요구사항 *Status* 를 현재 Wave 와 대조하지 않으며, WORK_STATE.md 는 아직 `wave: W0` 라 `--sta",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-38",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W3",
+    "owner_wave_raw": "W3",
+    "title": "PLAN 이 요구한 신규 static check 3종 중 ⓐ(MUI 아이콘 `size=`/`strokeWidth=` 금지)가 없다 — 그 검사가 막아야 할 버그가 지금도 살아 있다",
+    "evidence": "PLAN.md:467 은 신규 static check **3종**(ⓐ MUI 아이콘 size=/strokeWidth= 금지 ⓑ raw gradient 리터럴 금지 ⓒ palette.brand consumer ≥1)을 요구한다. `scripts/static_checks.sh` 에 추가된 step 은 `check_brand_tokens.py`(ⓑ+ⓒ)와 `check_test_strength.py` 둘뿐이고 ⓐ 는 어디에도 없다(`grep -rn \"strokeWidth\" scripts/` 결과 없음). 그 사이 `frontend/src/app/AppShell.jsx:437` 에는 PLAN.md:396-398 이 지목한 원본 버그 `<ItemIcon size={18} strokeWidth={1.8} .../>` 가 그대로다.",
+    "why_it_matters": "PLAN 이 \"무효인데 이미 한 번 구현을 오도했다\"고 명시한 버그다. 가드가 없으면 W3 가 고쳐도 재발을 막을 수단이 없다.",
+    "verify_reason": "사실관계는 전부 실물 확인됨: PLAN.md:467 이 static check 3종을 요구하고, scripts/check_brand_tokens.py 는 docstring 기준 (a) raw gradient 리터럴 금지 + (b) palette.brand 소비처 ≥1 = PLAN 의 ⓑ+ⓒ 만 담당하며, `git diff scripts/static_checks.sh` 가 추가한 step 은 정확히 둘(Brand 토큰 도달 / 시험 약화 금지)뿐이다. `grep -rn \"strokeWidth\" scripts/` 는 공집합이고 SvgIcon·icon prop 가드는 저장소 어디에도 없다(static_checks.sh:106 의 icon step 은 barrel-import 가드로 별건). 원본 버그 `frontend/src/app/AppShell.jsx:437` 의 `<ItemIcon size={18} strokeWidth={1.8} aria-hidden=\"true\" />` 도 그대로 살아 있다. docs/DECISIONS.md 의 W1 추가분은 두 검사만 서술하고 ⓐ 의 유예를 기록하지 않았으며 PLAN.md:467 은 W1 diff 에서 무수정이다 — 즉 \"이미 처리됨\"이 아니다.\n\n다만 담당 Wave 가 틀렸다. Wave 계획 표(정본)에서 W1 의 소유 공유 파일은 `frontend/src/ui/theme.js` 뿐이고 `AppShell.jsx` 는 W2→W3→W13 소유다. 검사 ⓐ 가 봉사하는 요구사항 R-79(Sidebar/Navigation Icon System)는 REQUIREMENT_MATRIX.md 에서 `Wave: W3`, `Status: NOT_STARTED` 다. 결정적으로 W1 은 ⓐ 를 넣을 수 **없다** — AppShell.jsx:437 이 살아 있는 상태에서 그 검사를 추가하면 즉시 실패하고, 모든 Wave 공통 Exit Gate E5(`static_checks.sh` 초록)가 깨진다. 가드는 수정과 같은 커밋에 실려야 하므로 W3 소유다. 반면 ⓑ·ⓒ 는 W1 자신의 산출물(gradient 토큰·palette.brand 소비처)을 지키는 가드라 W1 것이 맞고 실제로 구현됐다.\n\n심각도도 부풀려졌다. W1 을 막지 않고, 가드가 방지할 버그는 W3 가 이미 고치도록 배정돼 있다. 실제 잔존 위험은 추적성 하나다 — R-79 의 Verification 필드는 `nav-active.",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-39",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W2",
+    "owner_wave_raw": "W2",
+    "title": "Chrome Gradient 3종(shellImage·aiWash·shellTop)이 소비처 0 — 배포 화면의 상단바·사이드바는 여전히 평평한 단색이다",
+    "evidence": "PLAN.md:329-331 은 Top bar = `chrome.shellTop` + `chrome.aiWash`, Sidebar = `chrome.shell` + `chrome.shellImage`(background-image) 를 요구하고, PLAN.md:464 는 `bgcolor:\"sidebar.bg\"` 줄 유지 + **`backgroundImage` 추가**를 명시한다. 실제로는 `frontend/src/app/AppShell.jsx:607` 이 `bgcolor: \"sidebar.bg\"` 뿐이고 backgroundImage 가 없으며, :686 의 AppBar 는 `t.palette.sidebar.bg`(= chrome.shell #1E2758) 로 shellTop(#28336F) 이 아니다. `aiWash`/`--gradient-ai`·`shellTop`/`shellMid`/`shellDeep` 는 theme.js·생성 tokens.css·시험 밖 소비처가 0곳이다. 캡처 `dist/ui-qa/w1-visual/light/1920x1080/user_me.png` 에서 상단바와 사이드바가 위아래로 균일한 단색이고 우상단에 보라 앵커가 없다.",
+    "why_it_matters": "\"Top bar 채움이 Sidebar Gradient 의 첫 stop\" 이라는 계약은 theme-contract.test.js:152 가 토큰끼리만 검사해서 초록이다. 제품은 그 토큰을 아예 안 읽으므로 시험이 초록인 채로 화면은 계약 밖에 있다.",
+    "verify_reason": "근거가 전부 실재한다. PLAN.md:326-327(인용 329-331 은 3줄 오프셋)이 Top bar=`chrome.shellTop`+`chrome.aiWash`, Sidebar=`chrome.shell`+`chrome.shellImage` 를 요구하고, PLAN.md:464 가 `bgcolor:\"sidebar.bg\"` 유지 + `backgroundImage` 추가를 명시한다. 소스 확인: AppShell.jsx:610 은 `bgcolor:\"sidebar.bg\"` 뿐이고 backgroundImage 가 없다(인용 607 은 sx 블록 시작 줄). AppShell.jsx:698 은 `background: t.palette.sidebar.bg` 로 shellTop 이 아니다. frontend/src·app 전수 grep(빌드 산출물 제외)에서 `var(--gradient-ai)`·`var(--gradient-shell)`·`sidebar.bgImage`·`chrome.shellImage`·`chrome.aiWash` 소비처가 theme.js 와 시험 밖에 0곳이다. theme.js:666 은 오히려 `MuiDrawer paper {backgroundImage:\"none\"}` 을 건다. 캡처도 픽셀로 확인했다 — light/1920x1080/user_me.png 의 상단바 (1200,10)·(1900,8) 과 사이드바 y=200/620/1040 이 전부 rgb(30,39,88)=#1E2758 로 동일하다. shellImage 라면 #28336F→#1E2758(55%)→#17204D 로 변해야 하고 aiWash 라면 우상단이 보라 쪽으로 틀어져야 하는데 둘 다 없다. 배포가 낡은 것도 아니다 — 소스 자체에 배선이 없고, CSS 쪽(MuiAppBar/MuiDrawer/--sidebar-bg) 오버라이드도 0건이다. 부수적으로 check_brand_tokens.py 는 `palette.brand` 소비처만 강제하고 gradient 소비처는 검사하지 않아, 자기 docstring 이 서술한 \"토큰 소비처 0\" 실패 모드가 gradient 에는 그대로 열려 있다 — 시험이 초록인 채 화면이 계약 밖이라는 주장을 뒷받침한다.\n\n과장 하나: `shellTop` 은 소비처 0 이 아니다. generate_design_tokens.mjs:204 가 `--g-topbar: p.chrome.shellTop` 를 내보내고 app/s",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-40",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7",
+    "title": "Chart 팔레트(CHART_SERIES·CHART_DASH·palette.chart) 소비처 0 — 차트는 아직 사용자 Accent 로 그린다",
+    "evidence": "theme.js:275-282 가 CHART_SERIES/CHART_DASH 를 정의하고 theme-contract.test.js:306-311 이 `p.chart[0] === p.brand.core` 를 단언하지만, `palette.chart`/`CHART_DASH` 를 읽는 소비처가 소스 전체에 0곳이다. `frontend/src/ui/charts/base.jsx:50` 은 여전히 `if (!color) return theme.palette.primary.main;` 이고, PLAN.md:390 이 명시적으로 바꾸라고 한 `frontend/src/screens/Home.jsx:138` 의 `{ label: \"남음\", ..., color: \"primary\" }` 도 그대로다.",
+    "why_it_matters": "\"1번 시리즈는 항상 Brand 인디고\"라는 단언이 토큰 층에서만 참이다. 사용자가 청록 Accent 를 고르면 차트 주요 시리즈가 청록으로 바뀌는 실패가 그대로 남아 있고, 시험은 그것을 못 잡는다.",
+    "verify_reason": "Evidence verified line-by-line. theme.js:276-281 defines CHART_SERIES/CHART_DASH and :488 assigns palette.chart; the ONLY readers in the entire tree are scripts/generate_design_tokens.mjs:133-138 and theme-contract.test.js. The generated --chart-1..--chart-rest vars exist in both tokens.css files and are read by zero CSS rules (grep across frontend/src, app/static, app/templates returns only the definitions). charts/base.jsx:50 is verbatim `if (!color) return theme.palette.primary.main;`, TONE_ALIAS has no `brand` entry, and no chart component reads palette.chart (only primary.main / text.disabled / divider). Home.jsx:138 still reads `{ label: \"남음\", value: sprint.remaining, color: \"primary\" }`, PLAN.md:390 explicitly mandates changing it to \"brand\", and UserRoutes.jsx:93 routes /me to Home so it is a live consumer. The failure is reachable: theme.js:411-412 sets primary.main = normalizeAccent(accent) and ACCENT_PRESETS (theme.js:56) includes #327C98 (teal), so a user on that preset gets a teal primary series. theme-contract.test.js:306-311 asserts only p.chart[0] === p.brand.core under a test name claiming an end-to-end guarantee it cannot reach. Rebuttals attempted and failed: not",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-41",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Low",
+    "owner_wave": "W4",
+    "owner_wave_raw": "W4",
+    "title": "`palette.brand` 소비처 가드가 2곳에서 초록 — 신규 6키 중 3키와 brandTint 는 소비처 0",
+    "evidence": "`python scripts/check_brand_tokens.py` 출력이 `palette.brand 소비처 2곳`(BrandLogo.jsx:159, Mascot.jsx:140/205)이다. `brand.indigoInk`·`brand.mintInk`·`brand.pinkInk`·`background.brandTint`(theme.js:150-156, 366) 는 생성 tokens.css 와 시험을 빼면 소비처가 0곳이다. PLAN.md:271-278 은 palette.brand 소유 범위로 Chrome Shell·Brand Gradient·워드마크·Clovi Halo/Ring·AI Surface·Chart 주요 Series·Brand Tint·Onboarding/Hero 8개를 나열했는데 실제 도달은 워드마크·Clovi 둘뿐이다.",
+    "why_it_matters": "PLAN.md:467 의 가드는 문자 그대로 \"1개 이상\"이라 통과하지만, 이번 리뉴얼 직전의 실패(\"정의만 되고 화면에 없다\")를 6키 중 3키에 대해 그대로 재현한 상태다. 소비처를 만드는 Wave(W4·W7)가 이 목록을 인계받지 않으면 조용히 죽은 토큰으로 남는다.",
+    "verify_reason": "근거는 실재한다. `python scripts/check_brand_tokens.py` 를 직접 실행해 `palette.brand 소비처 2곳` 출력을 확인했고, 소비처는 BrandLogo.jsx(wordmark) 와 Mascot.jsx:140/205(purple/violetInk) 둘뿐이다. `frontend/src` 와 `app`(빌드 번들 제외) 전수 grep 결과 `indigoInk`·`mintInk`·`pinkInk`·`background.brandTint` 는 theme.js·생성 tokens.css·theme-contract.test.js 밖에 단 한 곳도 없다. CHART_SERIES(theme.js:276-279)도 잉크 키에서 파생되지 않는 별도 리터럴(#C0517E/#8158D8/#2E9086)이라 차트로도 도달하지 않는다. PLAN.md:276 의 8개 소유 범위 나열도 실재한다.\n\n범위 판정은 옳다. Wave 표(PLAN.md:920)가 W1 에 준 것은 theme.js → 생성기 → 두 tokens.css → 두 Contract Test 뿐이고 소비처는 kit.jsx(W4)·Mascot(W7)·screens(W8+) 소유다. finding 이 이미 W4 로 배정했으므로 W1 결함으로 오인한 것이 아니다 — corrected_owner_wave 는 비워 둔다.\n\n다만 두 가지가 과장돼 있어 심각도를 Medium → Low 로 내린다.\n(1) `brandTint` 는 인계 미비 항목이 아니다. PLAN.md:354 의 Surface 판정 표가 `brandTint` band(AI/Brand 순간 + `3px brand.core` edge)를 명시하고 PLAN.md:427 이 사이드바 도우미 카드에 배정했으며, REQUIREMENT_MATRIX 의 R-82·R-0-2.16(둘 다 Wave W4, kit.jsx)이 그 요구사항 그릇이다. 네 항목 중 가장 무거운 하나는 이미 소유자가 있다.\n(2) \"리뉴얼 직전의 실패를 그대로 재현\"이라는 프레이밍이 사실과 다르다. 배포본 캡처 dist/ui-qa/w1-visual/light/1920x1080/user_me.png 를 직접 보면 인디고 chrome shell 과 그라디언트 rail 이 전 화면에 실제로 칠해져 있다. 스크립트 docstring 이 말하는 \"소비처 0 = 화면에 Brand 없음\" 상태와는 다른 상태다.\n\n살아남는 실질은 `indig",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1R-42",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Medium",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "raw gradient static check 범위가 PLAN 이 지정한 root `app/**` 을 빠뜨렸다 — login.css 에 폐기된 옛 Accent 그라디언트가 남아 있다",
+    "evidence": "PLAN.md:445 는 `frontend/src/screens/**`·**`app/**`** 의 raw gradient 리터럴을 실패로 규정한다. `scripts/check_brand_tokens.py:40-42` 의 `GRADIENT_SCOPES = (\"screens\", \"app\")` 는 `SRC = frontend/src` 기준이라 **root `app/` 은 한 번도 스캔되지 않는다**. 실제로 `app/static/css/login.css:34-36` 에 페이지 배경 radial-gradient 두 겹이 남아 있고 그중 `rgba(83,108,214,.18)` 은 W1 이 버튼에서 걷어냈다고 주석에 적은(login.css:344-347) 바로 그 **옛 기본 Accent #536CD6** 이다. `login.css:256` 의 form-panel 도 판(plate) 위 radial-gradient 로 PLAN.md:456 의 \"카드·판 금지\" 위반이다.",
+    "why_it_matters": "검사가 초록인데 PLAN 이 이름까지 지목한 파일의 위반이 살아 있다. 가드의 범위가 계약보다 좁으면 다음 Wave 는 그 범위를 정본으로 착각한다.",
+    "verify_reason": "근거를 전부 직접 확인했고 실재한다. login.css:35-36 에 body 페이지 배경 radial-gradient 두 겹이 살아 있고 그중 rgba(83,108,214,.18) 은 #536CD6 — theme.js:50 이 확인해 주듯 W1 이 DEFAULT_ACCENT 를 #5A4FCF 로 바꾸며 강등한 옛 기본 Accent 다. 같은 파일 344-347 줄의 W1 자기 주석이 그 색을 \"제품 어디에도 없는 색\"이라 적어 놓고 300줄 위에 그대로 남겨 둔, 문서화된 내부 모순이다. login.css:256 의 .form-panel radial-gradient 도 실재한다. check_brand_tokens.py:38 의 GRADIENT_SCOPES 가 SRC=frontend/src 기준인 것도 사실이고, frontend/src/{app,screens} 에 gradient 리터럴이 0건이라 이 가드는 현재 공회전 상태다(BRAND_TOKENS_OK 초록). git diff 로 PLAN.md:445 가 W1 이 아니라 W0 이 쓴 계약임도 확인했다.\n\n다만 finding 의 메커니즘 서술에는 두 군데 결함이 있다. ① frontend/src/app/ 은 실제로 존재하므로 PLAN 의 `app/**` 를 root app/ 로 단정한 것은 양쪽으로 읽히는 표현을 한쪽으로 못박은 것이다(스크립트 docstring 은 frontend/src/app 으로 읽었고 그 독법도 방어 가능하다). ② 범위를 root app/ 으로 넓혀도 source_files() 가 .js/.jsx 만 훑으므로 .css 인 login.css 는 여전히 안 잡힌다 — 원인 진단이 절반이다.\n\n그럼에도 결론은 살아남는다. `app/**` 를 어느 쪽으로 읽든, PLAN §Gradient 정책(454줄) 의 금지 목록이 \"페이지 배경\"과 \"판\"을 명시적으로 금지하고 같은 블록이 app/static/css/login.css 를 줄번호까지 짚어 두 곳(:67 hero → 토큰, :342 버튼 → 단색)을 지정한다. W1 은 지정된 두 곳만 고치고 자기가 편집 중이던 바로 그 파일의 나머지 세 개 gradient 를 남겼다. 계약이 이름까지 지목한 파일의 위반이 정적 검사 초록 아래 살아 있다는 finding 의 핵심 주장은 성립한다.\n\n담당 Wave 는 W1 이 맞다 — check_brand_tokens.py 자체가 W1 산출물이고(PLAN 46",
+    "status": "RESOLVED_IN_W1",
+    "resolution": "check_brand_tokens.py 의 gradient 범위를 root `app/static/css/**` 로 넓혔다. login/auth/change_password 는 승인된 원본이라 **사유와 소유 Wave(W13)를 코드에 적은** 예외로 둔다"
+   },
+   {
+    "id": "F-W1R-43",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Low",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "`CONTROL` 에 PLAN 이 신설하라고 한 in-table dense 32 슬롯이 없다",
+    "evidence": "PLAN.md:377 은 Control 높이를 \"Button 34(small 30, large 40) · Input **36** · **in-table dense 32 신설** · IconButton 34 시각 + 40 히트영역 · nav item 38 · table row 44(compact 36) · Tab 40\" 로 정한다. `frontend/src/ui/theme.js:125-136` 의 CONTROL 에는 buttonSm/button/buttonLg/input/iconButton/iconButtonHit/tab/navItem/tableRow/tableRowCompact 10개만 있고 in-table dense(32) 슬롯이 없다(`grep -n \"dense\" frontend/src/ui/theme.js` → 없음).",
+    "why_it_matters": "CONTROL 은 theme.js 가 소유하는 W1 산출물이다. 표 안 밀집 입력의 높이 정본이 비어 있으면 W6 가 다시 리터럴 32 를 화면 파일에 박게 된다 — CONTROL 을 만든 이유가 정확히 그것을 막는 것이었다.",
+    "verify_reason": "근거 3중 확인 완료, 반증 실패. (1) PLAN.md:377 을 직접 읽어 \"in-table dense **32** 신설\" 문구가 Control 높이 열거 11개 중 하나로 실재함을 확인했다. (2) frontend/src/ui/theme.js:125-136 의 CONTROL 은 buttonSm 30/button 34/buttonLg 40/input 36/iconButton 34/iconButtonHit 40/tab 40/navItem 38/tableRow 44/tableRowCompact 36 의 10키뿐이고, PLAN 의 11개 값 중 10개가 1:1 로 대응하며 in-table dense 32 만 자리가 없다. `grep -n \"dense\" frontend/src/ui/theme.js` 는 무매치(exit 1)이고 CONTROL 안에 값 32 도 없다. (3) 최신성 확인 — theme.js 는 워킹트리 수정본(` M`, +373/-153)으로 이번에 빌드·배포된 W1 산출물 그 자체다. (4) 다른 곳에 이미 있지 않다 — density.js 는 BASELINE_PX 간격값만 담고 컨트롤 높이도 32 도 없으며, 저장소 전체의 `dense` 는 CommandPalette.jsx:235 · Search.jsx:107 의 MUI `<List dense>` prop 두 건뿐이다. theme.js 밖의 유일한 CONTROL 소비처인 theme-contract.test.js:337-355 도 dense 슬롯을 단언하지 않는다. WORK_STATE.md 에 이 항목의 DEFERRED 기록도 없다. (5) 범위 확인 — PLAN «Wave 계획» 920 행이 W1 의 소유 공유 파일로 frontend/src/ui/theme.js 를 지정하고 937 행이 \"theme.js W1(+W13 rename 별도)\"로 못박는다. W6 는 kit.jsx::DataTable·registry/shared.js 소유라 파일 소유 규칙상 나중에 이 슬롯을 넣을 수 없다 — 즉 W1 이 남긴 구멍이 맞다. 반증 시도: \"in-table dense 32 는 토큰이 아니라 W6 의 컴포넌트 스코프 오버라이드일 수 있다\"를 검토했으나, 같은 문장의 나머지 10개를 W1 이 전부 CONTROL 에 넣었고 파일 주석 자체가 \"컨트롤 높이 — 한 곳에 모은다 … '이 제품의 컨트롤은 몇 px 인가'에 답할 자리가 없었다\"라고 존재 이유를 밝히므",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-44",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Low",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "theme.js 의 상태색 주석이 실제 변경 내역과 어긋난다 (\"세 값\" · \"B ≥ R 만족\")",
+    "evidence": "`frontend/src/ui/theme.js:326-327` 주석: \"Light 의 `*Bg` 세 값만 새 캔버스에 맞춰 미세 조정했다(B ≥ R 을 만족하도록)\". 실제 diff 는 successBg(#E8F4EE→#E8F3EF) · warningBg(#FAF0E1→#F7F0E6) · dangerBg(#FBECEB→#FAEBEC) · infoBg(#EAF0FA→#E9EEFA) **네 값**이고, 그중 warningBg(R247 B230)·dangerBg(R250 B236)는 B ≥ R 을 만족하지 않는다. PLAN.md:301 은 원래 \"Light `success.bg`·`info.bg`만\" 이라 **두 값**이라고 적었다.",
+    "why_it_matters": "이 저장소는 주석을 판단 근거의 기록으로 쓴다. 근거가 틀리면 다음 세션이 상태색 계열을 다시 만질 때 잘못된 불변식을 믿는다.",
+    "verify_reason": "근거가 실재하며 세 갈래 모두 직접 확인했다. (1) theme.js:326-327 의 문장 \"Light 의 `*Bg` 세 값만 새 캔버스에 맞춰 미세 조정했다(B ≥ R 을 만족하도록)\" 은 git diff 상 W1 이 새로 추가한 문장이다(W1 이전 주석은 \"…반드시 함께 붙인다. */\" 로 끝났다). (2) 같은 파일의 실제 diff 는 successBg #E8F4EE→#E8F3EF, warningBg #FAF0E1→#F7F0E6, dangerBg #FBECEB→#FAEBEC, infoBg #EAF0FA→#E9EEFA 로 네 값이다 — light 의 *Bg 토큰은 정확히 네 개이고 네 개 전부 움직였으므로 \"세 값만\" 은 어떤 묶음으로 읽어도 성립하지 않는다. (3) 채널 실측: successBg B−R=+7, infoBg +17 은 만족하지만 warningBg(R247/B230, −17)·dangerBg(R250/B236, −14)는 B ≥ R 을 만족하지 않는다. 게다가 successBg·infoBg 는 W1 이전에 이미 +6/+16 로 조건을 만족하고 있었으므로, 실제로 B≥R 방향으로 옮긴 두 값이 하필 여전히 못 미치는 두 값이다. 추가로 정본 PLAN.md(W0 커밋, 이번 diff 에서 미수정)는 \"Light success.bg·info.bg만\" 이라 두 값이라고 적어 PLAN 2 / 주석 3 / 실제 4 의 삼중 불일치다. 반증 시도는 모두 실패했다: 이미 처리된 것이 아니고(작업트리가 최신 W1 상태, 해당 줄 현존), 범위도 W1 소유 파일에 W1 이 쓴 문장이라 담당 Wave 가 맞으며, 같은 주석 블록 앞의 굵은 문장 \"모든 항목이 B ≥ R\" 은 중립 램프(canvas #EEF0F7 B−R=+9 등)에 대한 별개 진술로 그쪽은 정확하다. frontend/tests·scripts·docs/ui-renewal 어디에도 이 네 토큰을 고정하는 테스트가 없고 check_brand_tokens.py 에도 B≥R 규칙이 없어, 이 주석이 해당 결정의 유일한 기록이라는 점에서 \"다음 세션이 잘못된 불변식을 믿는다\" 는 영향 주장도 성립한다. 심각도 Low 는 런타임 영향이 없는 주석 정확성 문제이므로 적정하며 W1 을 막을 수준이 아니다.",
+    "status": "RESOLVED_IN_W1",
+    "resolution": "theme.js 상태색 주석을 실제 변경(네 값)과 규칙 범위(B>=R 는 중립 램프에만)에 맞게 정정했다"
+   },
+   {
+    "id": "F-W1R-45",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Low",
+    "owner_wave": "W1",
+    "owner_wave_raw": "W1",
+    "title": "PLAN 과 WORK_STATE 가 판정 기준값을 산술 오류로 적고 있다 (`blue−red` 88 vs 실제 58)",
+    "evidence": "PLAN.md:269 `blue(chrome.shell) − red(chrome.shell) ≥ 24 (`#1E2758` → 88 ✓)` · WORK_STATE.md:74 `목표 #1E2758 → 88 ✓`. #1E2758 은 R=0x1E=30, B=0x58=88 이므로 차이는 **58** 이다(88 은 blue 채널값). theme.js:27 과 REQUIREMENT_MATRIX.md:148 은 58 로 올바르게 적었다.",
+    "why_it_matters": "정본 계획서와 인계 상태 문서가 반증 가능한 판정 기준의 숫자를 틀리게 들고 있다. W1 이 이 두 문서를 정정하지 않고 코드에만 맞는 값을 적어 세 문서가 서로 다른 수를 말한다.",
+    "verify_reason": "실재 확인. `#1E2758` 은 R=0x1E=30, G=0x27=39, B=0x58=88 이므로 `blue − red = 58` 이고, 88 은 blue 채널값이다. 같은 문장의 병렬항 `#E7EAEE → 7` 은 238−231=7 로 명백히 '차이'를 적은 것이므로 88 을 다른 표기법(채널값)으로 변호할 수 없다 — 단순 산술/전사 오류다.\n\n근거 4건 직접 확인:\n- PLAN.md:269 (인용 정확) — \"`blue(chrome.shell) − red(chrome.shell) ≥ 24` (`#1E2758` → 88 ✓ / 현재 `#E7EAEE` → **7 ✗**)\"\n- WORK_STATE.md — 인용 줄번호 :74 는 틀렸다(파일이 65줄뿐, 실제 **:54**). 다만 인용 문자열 \"(현재 `#E7EAEE` → 7 ✗ / 목표 `#1E2758` → 88 ✓)\" 는 그 줄에 그대로 있다. 줄번호 오차는 실체를 무효화하지 않는다.\n- theme.js:27 — \"옛 `#E7EAEE` 는 7 이라 실패하고 새 `#1E2758` 은 58 이라 통과한다\" (올바름)\n- REQUIREMENT_MATRIX.md:148 — \"light 58 · dark 44\" (올바름, dark `#1A2046` = 70−26 = 44 로 재계산 일치)\n\n이미 처리된 것 아님: 두 오류 줄 모두 **현재 working tree**(= 배포 상태)에 그대로 남아 있다. `git diff -- docs/ui-renewal/PLAN.md` 는 3개 hunk 를 보여주지만 269 줄은 포함하지 않고(`git blame` 이 여전히 계획 commit `285241b2` 를 가리킴), WORK_STATE.md 는 W1 이 아예 손대지 않았다(`git status` 에 없음).\n\n기능 영향 없음: `theme-contract.test.js:135` 는 `expect(b - r).toBeGreaterThanOrEqual(24)` 로 실제 값을 계산해 단언하므로 Gate·테스트·코드는 전부 정상이다. 순수 문서 결함이다.\n\n담당 Wave: 오류 자체는 W1 이전에 발생했다(PLAN 은 계획 commit `285241b2`, WORK_STATE 는 W0 commit `9ab37ae6`). 그럼에도 W1 owner 는 타당하다 — W1 이 PLAN.md 를 3개 hunk 로 수정하면서 그 중 하나가 **동일한 `blue − red ≥ 24` 기준을 ",
+    "status": "RESOLVED_IN_W1"
+   },
+   {
+    "id": "F-W1R-46",
+    "source": "W1 독립 리뷰 (Workflow wf_75399743-a02, 렌즈 5 · 에이전트 81 · 적대적 검증)",
+    "lens": "requirement",
+    "severity": "Low",
+    "owner_wave": "W10",
+    "owner_wave_raw": "W10",
+    "title": "AccentPicker 문구가 그대로 — PLAN 이 요구한 Identity/Interaction 역할 분리 안내가 없다",
+    "evidence": "PLAN.md:279 \"Accent 기능은 보존하고 오히려 강화된다 … `AccentPicker` 문구에 이를 명시한다\". `git diff frontend/src/screens/settings/AccentPicker.jsx` 는 변경 0줄이고 :20-22 의 설명문은 여전히 \"버튼, 링크, 선택 표시에 쓰는 색입니다 …\" 로 Brand Identity 가 고정이라는 사실을 말하지 않는다. 프리셋 한국어 이름만 `settingsRegistry.js:97-99` 에서 갱신됐다.",
+    "why_it_matters": "이번 Wave 는 사용자 Accent 에서 워드마크·활성 레일·차트 1번을 빼앗았다. 그 변화를 사용자에게 알리는 유일한 자리가 이 문구인데 손대지 않아, 사용자는 강조색을 바꿔도 예전만큼 화면이 안 바뀌는 이유를 알 수 없다.",
+    "verify_reason": "근거는 전부 실재하고 인용이 한 줄씩 정확하다. PLAN.md:279 은 \"`AccentPicker` 문구에 이를 명시한다\" 를 실제로 요구하고, 이 줄은 W1 이 쓴 게 아니라 계획 커밋 285241b2 부터 있던 지시다(`git diff PLAN.md` 에 AccentPicker 변경 0건). AccentPicker.jsx 는 `git status` 의 수정 목록에 아예 없고 `git diff` 도 비어 있으며, :20-22 는 여전히 \"버튼, 링크, 선택 표시에 쓰는 색입니다 … 지금 쓰는 브라우저에만 저장되는 개인 설정\" 뿐 — Brand Identity 가 고정이라는 말은 없다. 바뀐 건 settingsRegistry.js:97-101 의 프리셋 한국어 이름뿐이고(기본 파랑→브랜드 인디고 등), 유일한 호스트인 DisplaySettings.jsx 도 무변경이라 역할 분리를 알리는 자리가 제품 어디에도 없다. \"왜 중요한가\" 의 전제도 사실이다 — BrandLogo.jsx diff 가 `theme.palette.primary.main` → `theme.palette.brand.wordmark` 로 워드마크를 사용자 Accent 에서 실제로 떼어냈고 theme.js 는 고정 palette.chart 를 신설했다. 이미 처리된 것을 결함이라 한 것도 아니다. 다만 담당 Wave 가 틀렸다: 정본 «Wave 계획» 표(PLAN.md:920)의 W1 은 소유 공유 파일이 `frontend/src/ui/theme.js` 하나이고 내용도 \"theme.js → 생성기 → 두 tokens.css → 두 Contract Test\" 뿐이며 화면 파일이 없다. W1 고유 Exit Gate 도 chrome.shell blue−red ≥ 24 · brand_role_coverage · check_test_strength 로만 구성돼 이 문구를 걸지 않는다. Wave 배정 정본인 ROUTE_COVERAGE.json 은 AccentPicker 를 source_evidence 로 갖는 surface `user_my-display` 를 `\"wave\": \"W10\"`, `\"status\": \"NOT_AUDITED\"` 로 두고, W10 행이 DisplaySettings 를 명시적으로 이름 붙인다. REQUIREMENT_MATRIX 의 W1 요구 R-0-1 도 Implementation 에 theme.js·생성기·두 tokens.css 만 적",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1M-01",
+    "source": "W1 After 전수 실측 대조 (dist/ui-qa/w1-after vs dist/ui-qa/before-renewal)",
+    "lens": "harness",
+    "severity": "Medium",
+    "owner_wave": "W6",
+    "owner_wave_raw": "W6 (Table/Grid — 고정폭 헤더 열이 근인)",
+    "title": "vertical_text_collapse 가 1920 에서도 발화하기 시작했다 — 타이포 상향이 기존 결함의 발화 폭을 넓혔다",
+    "evidence": "admin_integrations · admin_schedules · admin_integration-detail 세 라우트 × 두 테마 6페이지. 표 헤더 `th > button.MuiBox-root` w=70.7px 안에서 「마지막 실행」이 3줄(2.3자/줄)로 접힌다. Before 에서는 같은 세 라우트가 2560/3072/3840 에서만 발화했고(22건) 1920 에서는 0건이었다.",
+    "why_it_matters": "새 결함이 아니라 **기존 결함의 노출 범위 확대**다. micro 11->12px 로 헤더 글자가 커지면서 고정폭 열이 더 일찍 무너진다. 근인은 타이포가 아니라 내용에 비례하지 않는 헤더 열 폭이고, 그 계약은 W6 «C3 Table/Metadata 폭·정렬»이 소유한다. 타이포를 되돌리는 것은 해법이 아니다 — 되돌리면 4K 에서 같은 열이 여전히 무너지고 한글 하한도 다시 깨진다.",
+    "verify_reason": "Before/After results.json 을 직접 대조해 라우트·테마·선택자·픽셀폭이 모두 일치함을 확인했다.",
+    "status": "OPEN"
+   },
+   {
+    "id": "F-W1M-02",
+    "source": "W1 After 전수 실측 대조 (dist/ui-qa/w1-after vs dist/ui-qa/before-renewal)",
+    "lens": "harness",
+    "severity": "Medium",
+    "owner_wave": "W7",
+    "owner_wave_raw": "W7 (Empty/Clovi — 채팅 빈 화면의 시작 예시 칩)",
+    "title": "contrast 가 0 -> 1 로 늘었다 — /chat dark 의 시작 예시 칩이 2.9:1 (기준 3)",
+    "evidence": "dist/ui-qa/w1-after/results.json · route `user_chat` · theme dark · `button.MuiBox-root css-pqoyue 「나에게 할당된 티켓 보여줘」 ratio=2.9 (기준 3)`. Before 1,494페이지 전부 contrast pass 였다.",
+    "why_it_matters": "경계값이지만 **방향이 잘못된 유일한 접근성 지표**다(0 -> 1). 기준 3 은 큰 글자/비텍스트 문턱이므로 잉크가 아니라 테두리나 굵은 라벨일 가능성이 높다. 다크 캔버스가 #0E1013 -> #0A0C16 으로 더 어두워지고 divider 가 #2A2F37 -> #242A46 으로 바뀐 것이 유력한 근인이라 W1 이 만든 값이 관여한다. 다만 이 칩의 소비처는 채팅 빈 화면이고 W7 이 EmptyState 를 재설계하며 이 자리를 다시 그린다 — 그때 실제 요소를 특정해 닫는다.",
+    "verify_reason": "Before 전량(1,494) contrast pass, After 166 중 1 fail 을 직접 집계해 확인했다. 소스에서 해당 선택자를 특정하지 못했다는 사실을 그대로 남긴다 — 추측한 파일명을 적지 않는다.",
+    "status": "OPEN"
+   }
+  ]
+ }
 }

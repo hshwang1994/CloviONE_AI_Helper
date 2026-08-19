@@ -61,11 +61,11 @@ describe("화면 강조색 선택기 (내 화면 설정, PA-RC-0022)", () => {
     const buttons = within(group()).getAllByRole("button");
     expect(buttons).toHaveLength(ACCENT_PRESETS.length);
     // 색 이름이 글자로도 있어야 한다(색만으로 구분하지 않는다).
-    expect(within(group()).getByText("기본 파랑")).toBeInTheDocument();
+    expect(within(group()).getByText("브랜드 인디고")).toBeInTheDocument();
     expect(within(group()).getByText("보라")).toBeInTheDocument();
     const pressed = buttons.filter((b) => b.getAttribute("aria-pressed") === "true");
     expect(pressed).toHaveLength(1);
-    expect(pressed[0]).toHaveTextContent("기본 파랑"); // 저장된 값이 없으면 기본 색
+    expect(pressed[0]).toHaveTextContent("브랜드 인디고"); // 저장된 값이 없으면 기본 색
     expect(DEFAULT_ACCENT).toBe(ACCENT_PRESETS[0]);
   });
 

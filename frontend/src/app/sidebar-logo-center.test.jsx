@@ -74,7 +74,15 @@ describe("사이드바 상단 로고 정렬", () => {
  * 로고(가운데 정렬)와 다르게 보인다. 실측(하드 리프레시한 운영 화면)에서 그대로 재현됐다. */
 describe("상단바 브랜드 버튼도 사이드바와 같은 정렬", () => {
   it("사이드바 폭만큼 넓힌 상단바 로고 칸도 가운데 정렬이다", () => {
-    render(<TopBrand onClick={() => {}} width={280} />);
+    /* 제품 테마 안에서 렌더한다. 예전에는 테마 없이 렌더해도 통과했는데, 그건 `BrandLogo`
+       가 MUI 기본 테마에도 있는 `palette.primary.main` 을 쓰고 있었기 때문이다 — 즉 이
+       시험은 "제품 테마 밖에서도 그려진다"를 우연히 보장하고 있었지 의도한 계약이 아니었다.
+       워드마크가 Brand 고정색(`palette.brand.wordmark`)으로 옮겨가면서 그 우연이 끝났다. */
+    render(
+      <ThemeModeProvider>
+        <TopBrand onClick={() => {}} width={280} />
+      </ThemeModeProvider>,
+    );
     const btn = screen.getByRole("button", { name: "홈으로" });
 
     expect(getComputedStyle(btn).justifyContent).toBe("center");

@@ -8,11 +8,17 @@ import { NAV_BREAKPOINT_PX } from "./navConfig.js";
  * AppShell 에서 떼어낸 이유가 둘이다. AppShell 이 700줄을 넘었고, 이 자리의 겉모습을
  * 시험이 직접 보려면(topbar-baseline.test.jsx) 셸 전체를 띄우지 않고 이것만 그릴 수 있어야 한다.
  *
- * ── 반전 자산을 쓰지 않는다 (D-141) ──────────────────────────────────────────
- * 예전에는 `BrandLogo inverse`(흰 글자)를 썼다. 딥 인디고 상단바를 전제한 선택이다.
- * chrome 이 캔버스 계열이 된 지금 그 자산은 밝은 바탕 위 흰 글자라 대비 1.21 로 떨어진다.
- * 정방향 자산이 맞다 — 워드마크의 "Assist"는 브랜드 인디고이고, 그 색은 밝은 판 위에서
- * 이미 AA 를 넘는다(theme-contract.test.js 가 프리셋 전체로 검증한다).
+ * ── 반전 자산 대신 **상속되는 잉크**를 쓴다 (D-141 -> D-179) ────────────────
+ * 이 자리는 두 번 뒤집혔다. 원래는 `BrandLogo inverse`(흰 글자)로 딥 인디고 상단바를
+ * 전제했고, D-141 이 chrome 을 밝게 만들자 그 자산이 밝은 바탕 위 흰 글자가 되어 1.21 로
+ * 떨어졌다. D-179 가 chrome 을 다시 인디고로 되돌리자 이번에는 정방향 자산의 "Assist"가
+ * 2.32 로 떨어졌다.
+ *
+ * 그래서 **자산을 고르는 방식 자체를 그만뒀다.** `BrandLogo` 는 `--clovir-wordmark` 를 읽고,
+ * Shell 컨테이너가 그 변수를 `chrome.wordmark` 로 덮는다. 다음에 chrome 밝기가 또 바뀌어도
+ * 호출부는 손댈 것이 없다 — 면을 소유한 컨테이너가 잉크도 함께 말한다.
+ * `brand-logo.test.jsx` 가 Shell 모든 stop 에서 AA 를, `theme-contract.test.js` 가
+ * Accent 프리셋 전체에서 Brand 불변을 단언한다.
  */
 
 /* 락업이냐 마크만이냐의 경계.

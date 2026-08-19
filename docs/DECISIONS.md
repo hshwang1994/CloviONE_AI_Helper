@@ -7314,3 +7314,102 @@ TEST 서버의 SSH/sudo 비밀번호를 **평문으로** 저장소 최상위 실
 서버 접속·배포 값은 `dist/ops/server.env` 에 둔다. `dist/` 는 `.gitignore` 되어 있어
 커밋되지 않는다 — QA 자격증명(`dist/ui-qa/credentials.json`)이 이미 쓰는 것과 같은 자리다.
 tracked 파일·문서·커밋 메시지에는 값을 적지 않는다.
+
+---
+
+## D-179 — 방향 전환: "chrome 은 발광하지 않는다"(D-141) → "chrome 이 하우징이다"(인디고 계측면)
+
+**결정**: D-141 의 Thesis 중 **chrome 이 캔버스 계열 무채색이라는 조항 하나만** 폐기하고,
+상단바와 사이드바를 하나의 인디고 L자 Brand 오브젝트로 만든다. D-141 이 벌어들인 계측 규율
+(tabular numerals · 선 위주 위계 · 판에 그림자 없음 · 선택 신호 하나 · 모든 색쌍 실측)은
+전부 유지한다. `c8375ef5` 로 되돌리는 것이 아니다 — 그때 잘못된 것은 인디고가 아니라
+**Gradient Chrome 이 장식이었고 미측정이었다는 것**이다.
+
+**왜 뒤집는가 (희망이 아니라 측정)**: W0 의 Before 캡처 1,494장에서 `brand_presence` 가
+1,452장 실패했고, 통과한 42장은 **전부 로그인 화면**이었다. 제품 Brand Language 의 정본이
+로그인에만 있고 앱 내부가 그것을 배신하고 있었다. 원인은 버그가 아니라 **결정**이었다 —
+D-141 이 "채도는 조치·선택·주요 행동 세 자리에만"이라고 정했고, 그 결정을 지키는 단언은
+있었지만(`contrast(sidebar.bg, canvas) < 2`) 그 결정이 **제품 정체성을 지웠다는 것**을
+말하는 단언은 하나도 없었다.
+
+**반증 가능한 판정 기준**: `blue(chrome.shell) − red(chrome.shell) ≥ 24`.
+옛 `#E7EAEE` 는 7 로 실패하고 새 `#1E2758` 은 58 로 통과한다. 로고를 가려도 화면이
+ClovirAssist 라고 말하는가를 눈이 아니라 숫자로 묻는다. `theme-contract.test.js` 가
+단언한다. 옛 방향 단언은 **삭제가 아니라 뒤집어 재작성**했다(같은 자리, 더 강한 형태).
+
+**Identity 와 Interaction 을 계층으로 분리한다**. 이번 리뉴얼 이전에는 `sidebar.activeRail`
+과 `BrandLogo` 워드마크가 `primary.main`(사용자가 고른 강조색)이었다 — 청록을 고른 사용자의
+화면에서는 **제품의 '현재 위치'와 로고가 청록**이었다. 개인 취향이 제품 정체성을 덮어썼고
+그것을 막는 단언이 없었다.
+
+| | Identity — `palette.chrome` · `palette.brand` · `palette.gradient` · `palette.chart` | Interaction — `palette.primary` |
+|---|---|---|
+| 누가 정하나 | `theme.js` 고정 | 사용자 (`/my-display`) |
+| 소유 | Shell · 워드마크 · Clovi Halo/Ring · AI 면 · Chart 1번 시리즈 · Brand Tint | Button · Link · Focus Ring · Tab Indicator · 선택 Row Wash |
+| 막는 실패 | 사용자가 청록을 고르면 제품이 ClovirAssist 가 아니게 되는 것 | 모두에게 같은 Accent 를 강제하는 것 |
+
+Accent 기능은 없어지지 않고 **역할을 얻는다**. 새 기본 Accent 는 `#5A4FCF`(흰 글자 6.08:1,
+옛 기본값 4.68:1 보다 개선)이고 **기존 hex 는 하나도 제거하지 않았다** — 제거하면 그 색을
+고른 사용자의 "선택됨" 표시가 사라진다.
+
+**함께 바뀐 것과 이유**
+- 중립 램프를 인디고 계열로(모든 항목 `B ≥ R`). 채도 없는 회색 캔버스는 인디고 하우징 안에서
+  누렇게 보인다 — 하우징과 계측면이 같은 계열이어야 한 덩어리로 읽힌다.
+- `background.brandTint` 신설. AI/Assistant 순간이 앉는 면이고, **처음으로 잉크를 받는 면**이라
+  대비 시험의 면 목록이 셋에서 다섯으로 늘었다. 그 확장이 Dark 링크색 4.48:1 을 잡아냈고
+  그래서 dark `strongMix` 를 0.72 → 0.62 로 내렸다(5개 Preset × 4개 Dark 면 최악 5.46:1).
+- 타이포 7슬롯 재배치. 옛 스케일의 결함은 슬롯 수가 아니라 **간격**이었다 — 7단계 중 4단계가
+  3px 밴드(11/12/13/14)에 몰려 위계 일을 하지 않았다. 이제 12/13/14/15/19/28/40 이고
+  머리쪽이 1.27×/1.47×/1.43× 로 열린다. 11px micro 는 한글에서 실제로 너무 작았다
+  (`tiny_text` 가 폭 ≥2200 에서만 돌아 1920 에서 안 잡혔을 뿐이다).
+- Gradient 는 제품에 **정확히 넷**(`shell`·`ai`·`hero`·`mark`)이고 전부 토큰이다.
+  `hero` 는 `login.css` 의 값을 **그대로** 승격했다 — 로그인(Jinja)과 SPA 가 같은 문자열을
+  쓰는 것이 "한 제품"이라는 주장의 기계적 근거다.
+- Chart 1번 시리즈는 항상 Brand 인디고다. 인접 슬롯 휘도 분리의 최대 달성치가 **1.26:1** 이라
+  색만으로는 2개 시리즈 이상을 못 나른다 — 선 스타일(`CHART_DASH`)이 장식이 아니라 필수다.
+
+**Wash 위 잉크 하드 룰 (숫자에서 나온 규칙)**: Selected Wash 와 AI Wash 위에서
+`onShellMuted` 는 light 4.62/4.53 로 간신히 통과하지만 **dark 에서 4.26/4.36 으로 미달**한다.
+두 모드 전부에서 안전한 잉크는 `onShell` 하나뿐이라, 모드별 예외를 두지 않고 규칙 하나로 간다:
+**Selected 행과 AI Wash 영역의 텍스트는 전부 `onShell`.** 시험이 이 최악값을 단언해 두었으므로
+팔레트가 바뀌면 규칙을 재검토하라고 시험이 먼저 알려 준다.
+
+**새로 세운 가드 둘** — 이번 실패를 문자 그대로 막는다.
+- `scripts/check_brand_tokens.py`: ① `screens/**`·`app/**` 의 raw gradient 리터럴 금지
+  (화면 파일이 자기 색을 들고 있으면 대비 시험이 그 색의 존재 자체를 모른다 — 예전 Gradient
+  Chrome 이 정확히 그 경로로 미측정 배포됐다) ② **`palette.brand` 에 `theme.js` 밖 소비처가
+  최소 하나** (직전 상태는 소비처 0이었다: 정의는 있고 화면에는 없었다).
+- `scripts/check_test_strength.py`: 수정된 시험 파일의 단언 수가 기준 커밋 대비 줄거나
+  skip 이 늘면 실패. 전면 리뉴얼은 옛 구조를 고정하던 Contract Test 를 반드시 깨는데,
+  빨간 시험을 초록으로 만드는 두 방법(재작성 / 약화)이 커밋 로그에서는 똑같이 보인다.
+
+---
+
+## D-180 — `brand_presence` 의 절대 기준은 **도달 불가한 화면이 있다**. 기준을 낮추지 말고 해석 가능한 숫자를 더한다
+
+**측정**: Before 1,494페이지에서 role 존재 수 분포는 `2개 50 · 3개 298 · 4개 810 · 5개 336`
+이고 **6개 이상인 페이지가 하나도 없다**. role 별 존재 수는
+`header 1494 · focus_ring 1494 · nav_active 1148 · primary_action 896 · selected_state 522 ·
+highlight 342 · ai_surface 18`.
+
+**따라서**: 현재 판정 규칙(7개 중 4개 이상, 모르는 것은 통과로 세지 않음)은 **348페이지(23%)
+에서 구조적으로 도달 불가**하고, PLAN 이 W1 Exit Gate 로 적은 `≥5/7` 은 최대 22.5% 의
+페이지에서만 가능하다. 도달 불가한 게이트는 정보를 나르지 않는다 — 영원히 빨간 신호는
+꺼진 신호와 같다.
+
+**결정**: 판정 규칙과 임계값은 **그대로 둔다**(느슨하게 만들면 결함이 통과한다). 대신
+`brand.py` 가 `present_brand` / `present_total` / `unknown_roles` / `non_brand_roles` 를
+함께 보고하게 해서 두 상태를 구분한다:
+
+- **(a) role 이 화면에 있는데 Brand 가 아니다** → 지금 고쳐야 하는 디자인 결함.
+- **(b) role 이 화면에 아예 없다** → 그 role 을 *만드는* Wave 의 몫
+  (`highlight` → W4 MetricStrip · `selected_state` → W6 Table · `ai_surface` → W7).
+
+Wave Exit Gate 는 (a)를 본다: **`present_brand == present_total`**. 절대 기준 4/7 은
+W15 완료 조건으로 남는다 — 그때는 W4·W6·W7 이 빠진 role 들을 실제로 만들어 놓았을 것이다.
+그것이 이 지표를 초록으로 만드는 정직한 유일한 길이다.
+
+**W1 실측 (배포본, smoke 4 route × 2 theme × 1920)**: 8페이지 중 **7페이지가
+`present_brand == present_total`**. 남은 하나는 `admin_audit` 의 `selected_state`
+(선택된 Tab 이 면을 칠하지 않는다) → W6 소유 Finding.
+절대 기준으로는 Before 0/8 → After 2/8 이다.

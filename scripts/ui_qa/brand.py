@@ -71,6 +71,17 @@ MIN_PRESENT_ROLES = 4
 # 회색이다 — 두 조건을 함께 걸어야 두 방향의 오탐이 모두 막힌다.
 NEUTRAL_SPREAD_MIN = 0.06
 
+# 채널 폭 하나로는 부족하다는 것을 W1 이 실측으로 확인했다. 새 중립 램프가 인디고 계열
+# (모든 항목 `B >= R`)로 바뀌면서 **본문 글자색 `#161A2C`** 이 색상각 231도 · S 0.33 ·
+# 채널 폭 0.086 이 됐다 — 세 조건을 전부 통과한다. 눈에는 검정인데 프로브에는 브랜드다.
+# 그러면 `highlight` role 이 그냥 본문 글자를 브랜드로 세고 지표가 부풀어 오른다.
+#
+# 그래서 조건을 하나 더 건다: **아주 어둡거나 아주 밝은 색은 채널 폭이 넉넉할 때만
+# 유채색으로 센다.** 잉크(#161A2C L=0.13)와 종이(#E9ECFA L=0.95)는 폭이 좁으면 무채색이고,
+# Shell(#1E2758 L=0.23, 폭 0.227)과 rail(#A9BAFF L=0.83, 폭 0.337)은 폭이 넓어 그대로 통과한다.
+EXTREME_L_LOW, EXTREME_L_HIGH = 0.20, 0.90
+EXTREME_SPREAD_MIN = 0.15
+
 # 알파가 이보다 작으면 그 후보는 **아무 것도 칠하지 않는다**. 이 문턱이 없으면 MUI 가 요소마다
 # 다는 투명 `::before` 가 뒷면 색을 그대로 합성해 돌려주고, 브랜드 면 위에 놓인 요소는 전부
 # "브랜드다"로 통과한다 — 컨테이너의 색을 자기 색이라고 부르는 위양성이다.
@@ -158,6 +169,12 @@ BRAND_PROBE_JS = r"""() => {
       kind: 'ink',
       sel: ['[data-brand-role="primary-action"]', '.MuiButton-containedPrimary',
             '.MuiFab-primary', 'button.MuiButton-contained', '.MuiButton-contained'],
+      /* **비활성 컨트롤은 주요 행동이 아니다.** 비활성 버튼은 정의상 회색이므로, 화면에
+         비활성 저장 버튼이 하나 있다는 이유로 "이 화면의 주요 행동이 무채색"이라고 보고하면
+         그것은 디자인 결함이 아니라 측정 오류다(실측: `admin_settings` 등 6페이지가 정확히
+         이 경로로 실패했다 — 표본이 전부 `button.Mui-disabled` 였다).
+         활성 버튼이 하나도 없으면 그 화면에는 주요 행동이 없는 것이고 `unknown` 이 맞다. */
+      notMatching: '.Mui-disabled, [disabled], [aria-disabled="true"]',
     },
     highlight: {
       kind: 'ink',
@@ -195,6 +212,9 @@ BRAND_PROBE_JS = r"""() => {
       for (const el of list) {
         if (!_vis(el)) continue;
         if (spec.notInside && el.closest(spec.notInside)) continue;
+        if (spec.notMatching) {
+          try { if (el.matches(spec.notMatching)) continue; } catch (e) { /* 무시 */ }
+        }
         return { el: spec.refine ? spec.refine(el) : el, sel: s };
       }
     }
@@ -510,8 +530,25 @@ def _spread(rgb) -> float:
     return (max(rgb) - min(rgb)) / 255.0
 
 
-def _is_chromatic(sat: float, spread: float) -> bool:
-    return sat >= ACHROMATIC_MAX_S and spread >= NEUTRAL_SPREAD_MIN
+def _is_extreme_neutral(rgb, spread: float) -> bool:
+    """아주 어둡거나 아주 밝은데 채널 폭이 좁으면 **눈에는 잉크이거나 종이**다.
+
+    HSL 채도만으로는 이 구간을 못 거른다. 실측: 새 본문 글자색 `#161A2C` 는 색상각 231도 ·
+    S 0.33 · 폭 0.086 으로 세 조건을 전부 통과하지만 화면에서는 검정이다. 그 색이 브랜드로
+    세어지면 `highlight` role 이 "그 화면을 지배하는 판독값이 브랜드다"라고 잘못 말한다.
+    """
+    lightness = (max(rgb[:3]) + min(rgb[:3])) / 2.0 / 255.0
+    if spread >= EXTREME_SPREAD_MIN:
+        return False
+    return lightness < EXTREME_L_LOW or lightness > EXTREME_L_HIGH
+
+
+def _is_chromatic(sat: float, spread: float, rgb=None) -> bool:
+    if sat < ACHROMATIC_MAX_S or spread < NEUTRAL_SPREAD_MIN:
+        return False
+    if rgb is not None and _is_extreme_neutral(rgb, spread):
+        return False
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -569,6 +606,7 @@ def _resolve_role(role: str, entry, canvas_rgb, sat_min: float) -> dict:
                 "spread": spread, "deltaE": delta_e,
                 "brand": (BRAND_HUE_MIN <= hue <= BRAND_HUE_MAX and sat >= sat_min
                           and spread >= NEUTRAL_SPREAD_MIN
+                          and not _is_extreme_neutral(rgb, spread)
                           and (not is_bg or delta_e > BG_DELTA_E_MIN)),
             })
 
@@ -590,13 +628,14 @@ def _resolve_role(role: str, entry, canvas_rgb, sat_min: float) -> dict:
 
     chosen = next((s for s in scored if s["brand"]), None)
     if chosen is None:
-        chosen = next((s for s in scored if _is_chromatic(s["sat"], s["spread"])), scored[0])
+        chosen = next(
+            (s for s in scored if _is_chromatic(s["sat"], s["spread"], s["rgb"])), scored[0])
     return {
         "role": role, "state": "present" if chosen["brand"] else "absent",
         "hex": _fmt_rgb(chosen["rgb"]), "hue": round(chosen["hue"], 1),
         "sat": round(chosen["sat"], 3), "spread": round(chosen["spread"], 3),
         "deltaE": round(chosen["deltaE"], 1),
-        "chromatic": _is_chromatic(chosen["sat"], chosen["spread"]),
+        "chromatic": _is_chromatic(chosen["sat"], chosen["spread"], chosen["rgb"]),
         "what": chosen["what"], "selector": entry.get("selector", ""),
         "element": entry.get("element", ""),
     }
@@ -647,8 +686,18 @@ def brand_verdict(probe: dict, *, max_samples: int = MAX_SAMPLES) -> dict:
                   and not r["chromatic"]]
     failed = len(present) < MIN_PRESENT_ROLES or bool(achromatic)
 
+    # **판정은 바꾸지 않는다.** 다만 절대 수만으로는 두 가지 다른 상태를 구분할 수 없어서
+    # 비율을 함께 보고한다:
+    #   (a) role 이 화면에 있는데 브랜드가 아니다     -> 디자인 결함. 지금 고쳐야 한다.
+    #   (b) role 이 화면에 아예 없다                 -> 그 role 을 만드는 Wave 의 몫이다.
+    # Before 실측(1,494페이지)에서 **한 페이지도 존재 role 이 5개를 넘지 못했고** 348페이지는
+    # 3개 이하였다. 즉 절대 기준 4는 23%의 화면에서 구조적으로 도달 불가다. 그 사실을 감추면
+    # "영원히 빨간 게이트"가 되고, 반대로 기준을 낮추면 결함이 통과한다. 그래서 기준은 그대로
+    # 두고 **해석 가능한 숫자를 더한다** — Wave 게이트는 (a)를 본다.
+    present_total = len(resolved) - len(unknown)
     reasons = [f"브랜드 색이 나오는 role {len(present)}/{len(ROLES)}"
-               f" (기준 {MIN_PRESENT_ROLES}개 이상, 모름 {len(unknown)}개는 통과로 세지 않음)"]
+               f" (기준 {MIN_PRESENT_ROLES}개 이상, 모름 {len(unknown)}개는 통과로 세지 않음)",
+               f"존재하는 role 중 브랜드 {len(present)}/{present_total}"]
     if achromatic:
         reasons.append("무채색이면 무조건 실패인 role: "
                        + ", ".join(f"{r['role']}(S{r['sat']} 폭{r['spread']})"
@@ -666,4 +715,48 @@ def brand_verdict(probe: dict, *, max_samples: int = MAX_SAMPLES) -> dict:
         "count": len(ROLES) - len(present),
         "samples": [_sample_line(r) for r in resolved][:max_samples],
         "note": " / ".join(reasons),
+        # 기계가 읽는 형태. Wave 게이트는 `present_brand == present_total` 을 본다 —
+        # "이 화면에 있는 Brand 자리는 전부 Brand 인가".
+        "present_brand": len(present),
+        "present_total": present_total,
+        "unknown_roles": [r["role"] for r in unknown],
+        "non_brand_roles": [r["role"] for r in resolved if r["state"] == "absent"],
+    }
+
+
+def brand_coverage_verdict(verdict: dict) -> dict:
+    """`brand_presence` 와 **같은 측정**에서 다른 질문을 낸다 (D-180).
+
+    절대 기준(`brand_presence`)은 "이 화면에 브랜드 자리가 충분히 있는가"를 묻고, 화면에 없는
+    role 을 통과로 세지 않는다. 그래서 role 이 3개뿐인 화면은 무엇을 해도 통과할 수 없다 —
+    Before 실측 1,494페이지 중 348페이지가 그렇고, **6개 이상인 페이지는 하나도 없었다.**
+
+    이 검사는 대신 **"있는 자리는 전부 브랜드인가"** 를 묻는다. 느슨한 판정이 아니다:
+    존재하는 role 하나라도 브랜드가 아니면 실패다(절대 기준은 4개만 넘으면 나머지를 봐주는데
+    이쪽은 봐주지 않는다). 두 검사가 서로 다른 결함을 잡는다.
+
+      brand_presence       자리가 모자란다  -> 그 자리를 **만드는** Wave 의 몫(W4·W6·W7)
+      brand_role_coverage  있는 자리가 회색  -> **지금** 고쳐야 하는 디자인 결함
+    """
+    if verdict.get("status") == "skip":
+        return {"status": "skip", "count": 0,
+                "note": verdict.get("note") or "브랜드 측정이 skip 이라 함께 skip"}
+
+    total = verdict.get("present_total")
+    brand = verdict.get("present_brand")
+    if not total:
+        return {"status": "skip", "count": 0,
+                "note": "이 화면에서 잰 role 이 하나도 없다 — 있는 자리를 물을 수 없다"}
+
+    missing = verdict.get("non_brand_roles") or []
+    unknown = verdict.get("unknown_roles") or []
+    note = (f"있는 role {brand}/{total} 이 브랜드"
+            + (f" / 회색인 자리: {', '.join(missing)}" if missing else "")
+            + (f" / 이 화면에 없는 role({len(unknown)}개): {', '.join(unknown)}"
+               " — 그 자리를 만드는 Wave 의 몫이고 이 검사의 대상이 아니다" if unknown else ""))
+    return {
+        "status": "fail" if missing else "pass",
+        "count": len(missing),
+        "samples": [s for s in (verdict.get("samples") or []) if "모름" not in s],
+        "note": note,
     }

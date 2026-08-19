@@ -107,31 +107,55 @@ describe("CTR-02 — ConsoleSwitch 활성 탭이 실제로 primary.main을 쓰�
     appShellSrc.indexOf("function ConsoleSwitch") + 2500,
   );
 
-  it("ConsoleSwitch 활성 탭은 판(plate)으로 떠오르고 비활성은 트랙에 남는다", () => {
+  /* D-179 로 Shell 이 인디고가 되면서 이 스위치는 **반전 컨트롤**이 됐다. 흰 판이 떠오르는
+     예전 방식은 인디고 하우징 안에서 화면을 통틀어 가장 밝은 면이 되어 데이터보다 먼저
+     눈에 띈다. 지금은 트랙보다 밝은 흰빛 알파 + 한 줄 하이라이트다.
+     시험의 성격(소스를 읽어 실제 적용값을 확인 → 그 조합의 대비를 잰다)은 그대로다. */
+  it("ConsoleSwitch 활성 탭은 흰빛 알파로 떠오르고 비활성은 트랙에 남는다", () => {
     const bg = /bgcolor:\s*seg\.on\s*\?\s*"([^"]+)"\s*:\s*"([^"]+)"/.exec(consoleSwitchBlock);
     expect(bg, "ConsoleSwitch 에서 seg.on 삼항 bgcolor 선언을 못 찾았다").not.toBeNull();
-    expect(bg[1]).toBe("background.plate");
+    expect(bg[1]).toBe("sidebar.trackSelected");
     expect(bg[2]).toBe("transparent");
-    // 판만으로는 트랙과 붙어 보일 수 있어 실선을 하나 더 얹는다.
+    // 알파만으로는 트랙과 붙어 보일 수 있어 한 줄 하이라이트를 더 얹는다.
     expect(consoleSwitchBlock).toMatch(/boxShadow:\s*seg\.on\s*\?/);
+    expect(consoleSwitchBlock).toMatch(/sidebar\.edge/);
+    /* 트랙 자체도 chrome 면이어야 한다. `background.inset` 은 캔버스 계열이라 인디고 위에서
+       밝은 회색 띠가 되고, 그 위 `sidebar.muted` 글자는 실측 1.75:1 이 된다 — 이 시험이
+       실제로 잡아낸 회귀다. */
+    expect(consoleSwitchBlock).toMatch(/bgcolor:\s*"sidebar\.track"/);
   });
 
-  it("ConsoleSwitch 활성 탭 글자는 본문색이고 비활성은 보조색이다", () => {
+  it("ConsoleSwitch 활성 탭 글자는 chrome 잉크이고 비활성은 chrome 보조 잉크다", () => {
     const colorLine = /color:\s*seg\.on\s*\?\s*"([^"]+)"\s*:\s*"([^"]+)"/.exec(consoleSwitchBlock);
     expect(colorLine, "ConsoleSwitch 에서 seg.on 삼항 color 선언을 못 찾았다").not.toBeNull();
-    expect(colorLine[1]).toBe("text.primary");
+    expect(colorLine[1]).toBe("sidebar.text");
     expect(colorLine[2]).toBe("sidebar.muted");
   });
 
+  /* 워시는 반투명이라 실제 색이 **뒷면과의 합성**으로 정해진다. 합성하지 않고 잰 숫자는
+     아무것도 증명하지 않으므로, 사이드바 그라디언트의 stop 전부에 대해 합성해 잰다 —
+     예전에는 flat base 하나만 봤고, 그래서 가장 밝은 stop 위 글자를 아무도 안 봤다. */
+  function overWhite(alphaCss, bgHex) {
+    const a = parseFloat(/rgba\(255,\s*255,\s*255,\s*(\.?\d*\.?\d+)\)/.exec(alphaCss)[1]);
+    const ch = (i) => Math.round(255 * a + parseInt(bgHex.slice(i, i + 2), 16) * (1 - a));
+    return "#" + [1, 3, 5].map((i) => ch(i).toString(16).padStart(2, "0")).join("");
+  }
+
   for (const mode of ["light", "dark"]) {
-    it(`${mode} — ConsoleSwitch 활성/비활성 글자가 각자 배경 위에서 AA 를 넘는다`, () => {
-      const t = createClovirTheme(mode);
-      // 활성: text.primary on background.plate
-      expect(contrastRatio(t.palette.text.primary, t.palette.background.plate))
-        .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
-      // 비활성: sidebar.muted on background.inset(트랙)
-      expect(contrastRatio(t.palette.sidebar.muted, t.palette.background.inset))
-        .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    it(`${mode} — ConsoleSwitch 활성/비활성 글자가 모든 stop 에서 AA 를 넘는다`, () => {
+      const p = createClovirTheme(mode).palette;
+      const stops = [p.chrome.shell, ...(p.chrome.shellImage.match(/#[0-9A-Fa-f]{6}/g) || [])];
+      expect(stops.length).toBeGreaterThanOrEqual(3);
+      for (const stop of stops) {
+        expect(
+          contrastRatio(p.sidebar.text, overWhite(p.sidebar.trackSelected, stop)),
+          `활성 @${stop}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        expect(
+          contrastRatio(p.sidebar.muted, overWhite(p.sidebar.track, stop)),
+          `비활성 @${stop}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      }
     });
   }
 

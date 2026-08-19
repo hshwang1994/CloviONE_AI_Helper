@@ -132,7 +132,12 @@ export function MascotPose({ mode = "idle", size = 96, label, decorative = false
           inset: "24%",
           borderRadius: "50%",
           zIndex: 0,
-          background: "radial-gradient(circle, rgba(83,108,214,.26), transparent 70%)",
+          /* Halo 는 **Brand 보라**다. 예전에는 `rgba(83,108,214,.26)` 이 박혀 있었는데 그것은
+             구 기본 Accent 값이었다 — 기본 Accent 가 바뀐 순간 이 색은 제품 어디에도 없는
+             색이 됐고, 사용자가 Accent 를 바꾸면 Clovi 만 옛 색으로 남았다. Clovi 는 Brand
+             자산이므로 Brand 토큰에서 색을 받아야 하고 사용자 Accent 를 따라가면 안 된다. */
+          background: (t) =>
+            `radial-gradient(circle, ${alpha(t.palette.brand.purple, 0.26)}, transparent 70%)`,
           filter: "blur(12px)",
           animation: haloAnimation(mode),
         }}
@@ -195,7 +200,9 @@ export function MascotMini({
         sx={{
           position: "absolute", zIndex: 0, inset: `${ringInset}px`,
           border: 2, borderStyle: "solid",
-          borderColor: (t) => alpha(t.palette.primary.main, 0.42),
+          /* Ring 도 Brand 다 — Halo 와 같은 이유로 사용자 Accent 를 따라가지 않는다.
+             Clovi 는 사용자 취향이 아니라 제품 정체성이 소유한다. */
+          borderColor: (t) => alpha(t.palette.brand.violetInk, 0.42),
           borderRadius: `${ringRadius}px`, opacity: 0.55,
           /* 기준선의 .mascot-mini-ring 애니메이션과 같은 뜻이다 — 듣는 중은 파장,
              생각/응답 중은 회전. 모션 축소는 theme.js 의 전역 규칙이 처리한다. */

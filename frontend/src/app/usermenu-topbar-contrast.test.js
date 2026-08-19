@@ -68,6 +68,16 @@ describe("사용자 영역은 chrome 색을 리터럴로 다시 박지 않는다
     expect(BUTTON_BLOCK).toMatch(/bgcolor:\s*"background\.plate"/);
     expect(BUTTON_BLOCK).toMatch(/color:\s*"text\.secondary"/);
   });
+
+  /* D-179 로 Shell 이 인디고가 되면서 계정 이름의 잉크도 chrome 잉크여야 한다.
+     예전에는 `text.primary`(본문 잉크)였고, 그때는 상단바가 캔버스 계열이라 우연히 맞았다 —
+     **값이 배경을 따라오지 않는다**는 같은 종류의 결함이 한 번 더 일어난 것이다. 그래서
+     이제 **소스가 쓰는 토큰 이름을 시험이 읽어** 그 토큰으로 대비를 잰다. 배선과 측정이
+     한 줄로 묶여, 다음에 배경이 또 바뀌면 대비 시험이 같이 빨개진다. */
+  it("계정 이름이 chrome 잉크 토큰을 쓴다 (본문 잉크가 아니다)", () => {
+    expect(BUTTON_BLOCK).toMatch(/color:\s*"sidebar\.text"/);
+    expect(BUTTON_BLOCK).not.toMatch(/color:\s*"text\.primary"/);
+  });
 });
 
 describe("사용자 영역 대비 — 강조색 프리셋 전부 × 두 모드", () => {
@@ -78,8 +88,8 @@ describe("사용자 영역 대비 — 강조색 프리셋 전부 × 두 모드",
 
   it.each(cases)("%s / accent=%s — 계정 이름이 상단바 위에서 AA", (mode, accent) => {
     const p = createClovirTheme(mode, accent).palette;
-    const ratio = contrast(p.text.primary, p.sidebar.bg);
-    expect(ratio, `이름 ${p.text.primary} on chrome ${p.sidebar.bg} = ${ratio.toFixed(2)}`)
+    const ratio = contrast(p.sidebar.text, p.sidebar.bg);
+    expect(ratio, `이름 ${p.sidebar.text} on chrome ${p.sidebar.bg} = ${ratio.toFixed(2)}`)
       .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 

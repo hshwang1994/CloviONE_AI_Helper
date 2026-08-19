@@ -163,7 +163,7 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
              그 안 글자는 여전히 밝은 색을 기대하는 상태가 됐다.
              이제 chrome 위의 표현은 전부 `sidebar.*` 토큰을 쓴다 — 상단바 색이 바뀌면
              같이 따라온다(리터럴은 안 따라온다, 그게 이 결함의 원인이었다). */
-          color: "text.primary",
+          color: "sidebar.text",
           bgcolor: "transparent",
           "&:hover": { bgcolor: "sidebar.hover" },
         }}

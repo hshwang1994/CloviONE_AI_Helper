@@ -18,8 +18,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -32,8 +32,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -46,8 +46,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -60,8 +60,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -74,8 +74,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -102,8 +102,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -116,8 +116,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -130,8 +130,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -144,8 +144,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/theme.js`, `scripts/generate_design_tokens.mjs`, `frontend/src/styles/tokens.css`, `app/static/css/tokens.css`
 - **Verification**: `frontend/src/ui/theme-contract.test.js`, `frontend/src/styles/tokens-generated.test.js`, `node scripts/generate_design_tokens.mjs --check`, assertion `brand_presence`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `frontend/src/ui/theme.js`(D-179 인디고 계측면) · `node scripts/generate_design_tokens.mjs --check` 초록 · `cd frontend && npx vitest run` 2,243 PASS · `bash scripts/static_checks.sh` STATIC_CHECKS_OK(BRAND_TOKENS_OK · TEST_STRENGTH_OK 포함) · `bash scripts/run_full_regression.sh` FULL_REGRESSION_OK(2,903건, 32m30s) · 실측 `dist/ui-qa/w1-after/results.json`(전 84 Route × 2 테마 × 1920, 배포 지문 CHECKPOINT 와 동일) — `brand_presence` Before 320 fail/12 pass → After 102 pass/64 fail, `brand_role_coverage`(있는 Brand role 이 전부 Brand) 103 pass. 남은 실패는 전부 아직 만들어지지 않은 role 이다: `selected_state` 52(W6) · `highlight` 12(W4) · `ai_surface` 1(W7) · `primary_action` 6(비활성 버튼 오탐, `brand.py` 에서 `.Mui-disabled` 제외로 수정) · `theme-contract.test.js` 가 `blue(chrome.shell) − red(chrome.shell) ≥ 24` 를 단언 (light 58 · dark 44, 옛 `#E7EAEE` 는 7) · `docs/DECISIONS.md` D-179·D-180
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -158,8 +158,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -354,8 +354,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/theme.js`, `scripts/generate_design_tokens.mjs`, `frontend/src/styles/tokens.css`, `app/static/css/tokens.css`
 - **Verification**: `frontend/src/ui/theme-contract.test.js`, `frontend/src/styles/tokens-generated.test.js`, `node scripts/generate_design_tokens.mjs --check`, assertion `brand_presence`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `frontend/src/ui/theme.js`(D-179 인디고 계측면) · `node scripts/generate_design_tokens.mjs --check` 초록 · `cd frontend && npx vitest run` 2,243 PASS · `bash scripts/static_checks.sh` STATIC_CHECKS_OK(BRAND_TOKENS_OK · TEST_STRENGTH_OK 포함) · `bash scripts/run_full_regression.sh` FULL_REGRESSION_OK(2,903건, 32m30s) · FONT_SIZE 7슬롯을 12/13/14/15/19/28/40 으로 재배치하고 `LINE_HEIGHT`·`CONTROL`(버튼 34 · 입력 36 · 탭 40 · 아이콘버튼 34시각+40히트 · 표 행 44/36 · 표 안 dense 32) 신설 · `theme-contract.test.js` 가 **간격**을 단언한다(인접 ≥1.06배, title 이후 ≥1.2배) — 옛 스케일의 결함은 슬롯 수가 아니라 4단계가 3px 밴드에 몰린 것이었고 수만 세던 시험은 그 상태를 통과시켰다 · `typography-scale-migration.test.js` 가 12px 하한을 불변식으로 단언 · 배포본 실측(`dist/ui-qa/w1-after/`)에서 pageTitle 28 · title 19 · body 15 확인. **DEFERRED 분리**: 생성기가 아직 `--line-height-*`·`--control-*` 을 내보내지 않아 레거시 CSS 4파일의 raw px `font-size` 72건이 남아 있다 — 그 소비처는 W4(공유 Primitive)가 소유하므로 F-W1-04 로 등록했다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -466,8 +466,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -480,8 +480,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -494,8 +494,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -508,8 +508,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -536,8 +536,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -718,8 +718,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -788,8 +788,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/theme.js`, `scripts/generate_design_tokens.mjs`, `frontend/src/styles/tokens.css`, `app/static/css/tokens.css`
 - **Verification**: `frontend/src/ui/theme-contract.test.js`, `frontend/src/styles/tokens-generated.test.js`, `node scripts/generate_design_tokens.mjs --check`, assertion `brand_presence`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 구현하지 않은 **독립 에이전트 5개 렌즈**로 배포본을 검수하고 각 Finding 을 적대적 검증까지 돌렸다(Workflow `wf_75399743-a02` — 에이전트 81개, 저널 `…/subagents/workflows/wf_75399743-a02/journal.jsonl`): ① `ui-ux-pro-max` 구조·사용성 ② `impeccable` 비평 ③ `design-taste-frontend` 타이포·간격·Surface ④ 독립 Visual Reviewer(Before/After 쌍 비교) ⑤ 독립 Requirement Reviewer(PLAN hex 대조). 검수가 **실제로 W1 결함을 잡아냈고 그 자리에서 고쳤다**: 인디고 chrome 위 워드마크 'Assist' 대비가 2.32:1 로 무너진 것(옛 chrome 에서는 3.88:1) → `chrome.wordmark #B7C4FA`(6.85~10.06) 를 CSS 변수 상속으로 배선하고 `brand-logo.test.jsx` 에 회귀 시험 추가. 반증된 Finding 은 채택하지 않았다. 남은 확인 Finding 은 소유 Wave 로 라우팅해 `ROUTE_COVERAGE.json` 에 등록했다. **이 검수는 W8 Pilot Exit Gate 에서 8종 Pilot 화면에 대해 다시 수행한다** — PLAN «Wave 계획» W8 행이 같은 순서를 요구한다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1054,8 +1054,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1418,8 +1418,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1432,8 +1432,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1460,8 +1460,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1474,8 +1474,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `frontend/src/ui/theme.js`, `scripts/generate_design_tokens.mjs`, `frontend/src/styles/tokens.css`, `app/static/css/tokens.css`
 - **Verification**: `frontend/src/ui/theme-contract.test.js`, `frontend/src/styles/tokens-generated.test.js`, `node scripts/generate_design_tokens.mjs --check`, assertion `brand_presence`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `docs/ui-renewal/PLAN.md` «Design Direction — 인디고 계측면» 이 채택안 외에 기각안 3개(밝은 chrome 에 보라 tint · 전면 Dark · `c8375ef5` 그대로 revert)와 각각의 기각 사유를 기록 · 방향 결정의 근거가 취향이 아니라 W0 Before 실측(1,494페이지 중 `brand_presence` 1,452 fail, 통과 42장은 전부 로그인 화면)이다 · `docs/DECISIONS.md` D-179 가 "무엇을 유지하고 무엇만 뒤집는가"를 명시 · 구현 전에 반증 가능한 판정 기준(`blue − red ≥ 24`)을 먼저 세우고 그 뒤에 값을 정했다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1488,8 +1488,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1502,8 +1502,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1516,8 +1516,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1530,8 +1530,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1558,8 +1558,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1586,8 +1586,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1628,8 +1628,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1642,8 +1642,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `frontend/src/ui/theme.js`, `scripts/generate_design_tokens.mjs`, `frontend/src/styles/tokens.css`, `app/static/css/tokens.css`
 - **Verification**: `frontend/src/ui/theme-contract.test.js`, `frontend/src/styles/tokens-generated.test.js`, `node scripts/generate_design_tokens.mjs --check`, assertion `brand_presence`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: W0 는 제품 코드를 한 줄도 바꾸지 않고 Before 만 측정했다(commit `9ab37ae6`) — Token 은 방향이 확정된 W1 에서 처음 고정됐다 · 값은 PLAN «토큰 (실측 대비값 포함)» 이 hex·대비값까지 정한 뒤 `theme-contract.test.js` 가 그 숫자를 단언하는 형태로만 들어갔다 · `node scripts/generate_design_tokens.mjs --check` 가 두 `tokens.css` 의 재분기를 막고 `tokens-generated.test.js` 가 Jinja 사본의 전 변수를 SPA 와 글자 단위로 대조한다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1656,8 +1656,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1670,8 +1670,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1698,8 +1698,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1712,8 +1712,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1824,8 +1824,8 @@
 - **Affected**: ALL
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1894,8 +1894,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1908,8 +1908,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1922,8 +1922,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1936,8 +1936,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1950,8 +1950,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1964,8 +1964,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1978,8 +1978,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1992,8 +1992,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2006,8 +2006,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2020,8 +2020,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2034,8 +2034,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2048,8 +2048,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2062,8 +2062,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2076,8 +2076,8 @@
 - **Affected**: NONE (실행 방식과 Control Plane 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2132,8 +2132,8 @@
 - **Affected**: ARCHETYPE:list_table
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2244,8 +2244,8 @@
 - **Affected**: NONE (계획 문서와 Gate 자체에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2258,7 +2258,7 @@
 - **Affected**: NONE (저장소의 Control Artifact 에 대한 요구다 — 특정 화면에 살지 않는다)
 - **Implementation**: `scripts/check_ui_renewal_coverage.py`, `docs/ui-renewal/ROUTE_COVERAGE.json`, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`, `scripts/ui_qa/routes.py`, `scripts/ui_qa/assertions.py`
 - **Verification**: `python scripts/check_ui_renewal_coverage.py --stage plan`, `python -m scripts.ui_qa.run --list`, `pytest tests/regression/test_ui_qa_route_registry_completeness.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `python scripts/check_ui_renewal_coverage.py --stage wave` PASS(W0, 억제 0) · `docs/ui-renewal/ROUTE_COVERAGE.json`(Surface 92) · `docs/ui-renewal/FUNCTIONAL_COVERAGE.json`(Flow 1,212 / Surface 88) · Before 전량 캡처 `dist/ui-qa/before-renewal/results.json`(1,494페이지, build_index_sha256 `9ab4d470163e475a`) · commit `9ab37ae6`
 - **Findings**: (없음)
 - **Depends on**: (없음)
