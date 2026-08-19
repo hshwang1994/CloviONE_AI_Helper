@@ -24831,29 +24831,29 @@
     {
      "id": "F-W4-13",
      "class": "ink_ratio_inflated_by_plates",
-     "severity": "Low",
+     "severity": "Medium",
      "wave": "W12",
-     "title": "판이 `dead_blank_region` 의 잉크 비를 부풀리고 있었다 — 벗기자 admin_audit-anomalies 가 드러났다",
-     "detail": "`admin_audit-anomalies`(와 그 탭 본문)의 3840 두 테마 네 셀이 pass -> fail 이 됐다. 수치를 보면 하단 공백은 **61% 로 W3 과 같고** 잉크 비만 27% -> 24% 로 내려가 극단 분기(하단 >=0.55 & 잉크 <=0.25)에 걸렸다. 즉 화면이 나빠진 것이 아니라 **판이 잉크로 세어지며 이미 나쁜 상태를 가리고 있었다.** 3840 에서 본문 3520x2160 중 잉크가 3000x734 뿐이라는 사실 자체는 W3 에서도 같았다.\n\n고칠 것은 프로브가 아니라 화면이다 — 4K 에서 남는 폭·높이를 회수하는 것은 PLAN «Page Archetype 계약» 의 «≥2560 에서 남는 폭은 ① 추가 Rail ② 더 많은 행 ③ 여백» 이고 이 화면은 관리자 Console 이다.\n\n**(최종 빌드 재측정 — 닫되, 고쳐서 닫은 것이 아니다.)** 같은 네 셀이 이제 pass 다: 본문 3520x2160 / 잉크 3000x**788** — 하단 공백 59%, 잉크 25%. 앞선 측정은 잉크 3000x734 · 하단 61% · 잉크 24% 였다. **잉크가 54px 늘어 극단 분기에서 빠져나왔다.** W4 의 이번 변경(파괴 테두리 불투명화 · 판독 칸 면 제거 · 죽은 CSS 제거)은 이 화면의 잉크를 늘리지 않는다 — 늘어난 것은 **이상 탐지 목록의 실제 데이터**다. 즉 이 검사의 이 셀은 지금 임계 바로 위에 서 있고 데이터 양에 따라 오간다.\n그래서 «고쳤다» 가 아니라 «재측정에서 발화하지 않는다» 로 닫는다. 화면 자체의 사실은 그대로다 — 4K 에서 본문 3520x2160 중 잉크가 3000x788 뿐이다. 그 회수는 admin Console 을 다루는 Wave 의 일이고 PLAN «≥2560 에서 남는 폭은 ① 추가 Rail ② 더 많은 행 ③ 여백» 이 기준이다. **데이터가 줄면 이 셀은 다시 fail 한다.**",
+     "title": "4K 에서 감사 이상징후 화면이 본문의 1/3 만 쓴다 — assertion 은 데이터가 늘어 통과했을 뿐 구조는 그대로다",
+     "detail": "`admin_audit-anomalies`(와 그 탭 본문)의 3840 두 테마 네 셀이 W3 -> W4 에서 pass -> fail 이 됐다. 수치를 보면 하단 공백은 **61% 로 W3 과 같고** 잉크 비만 27% -> 24% 로 내려가 극단 분기(하단 >=0.55 & 잉크 <=0.25)에 걸렸다. 즉 화면이 나빠진 것이 아니라 **판이 잉크로 세어지며 이미 나쁜 상태를 가리고 있었다.** 3840 에서 본문 3520x2160 중 잉크가 3000x734 뿐이라는 사실 자체는 W3 에서도 같았다.\n\n**W4 최종 빌드 재측정에서 이 네 셀은 pass 다 — 그러나 고쳐서가 아니다.** 잉크가 3000x734 -> 3000x**788** 로 54px 늘어 임계에서 빠져나왔고, 늘어난 것은 W4 의 변경이 아니라 **이상 탐지 목록의 실제 데이터**다(W4 는 이 화면의 레이아웃을 건드리지 않았다). 하단 공백 59% · 잉크 25% 로 임계 **바로 위**에 서 있으므로 데이터가 줄면 다시 발화한다. 실제로 라우트 Surface 의 자동 Finding(F-B732bb9ca · F-B0e451dee)은 `closed_by` 에 w2·w3·w4 세 실행이 쌓여 있다 — **이 셀은 Wave 마다 열리고 닫히기를 반복해 왔다.**\n\n그래서 이 Finding 은 CLOSED 로 소멸시키지 않는다. Assertion 의 pass 는 «데이터가 그때 충분했다» 는 뜻이지 «구조를 회수했다» 는 뜻이 아니다.",
      "samples": [
       "admin_audit-anomalies 3840 light/dark · admin_audit-anomalies-tab 3840 light/dark",
-      "하단 공백 61% (W3 = W4 동일) · 잉크 27% -> 24%",
-      "굶주린 콘텐츠 없음 — 극단 분기로만 발화한다"
+      "W3 잉크 3000x734 · 하단 61% · 잉크 27→24% (fail)",
+      "W4 최종 잉크 3000x788 · 하단 59% · 잉크 25% (pass — 데이터가 늘었을 뿐, 임계 바로 위)",
+      "라우트 자동 Finding 은 closed_by 에 w2·w3·w4 — 임계 위를 오가며 열고 닫힌다"
      ],
      "detected_by": "W3 -> W4 셀 단위 대조",
-     "status": "CLOSED",
-     "closed_by": [
-      "ev:qa_run:w4-after (최종 빌드 1a48d92ee9e55127)"
-     ],
+     "status": "OPEN",
+     "closed_by": [],
      "accepted_reason": null,
      "requirement_ids": [],
      "first_seen": "ev:qa_run:w4-after",
-     "last_seen": "ev:qa_run:w4-after"
+     "last_seen": "ev:qa_run:w4-after (최종 빌드 1a48d92ee9e55127 — pass 이나 구조 미해결)",
+     "fix": "고칠 것은 프로브가 아니라 화면이다 — 4K 에서 남는 폭·높이를 회수한다. 기준은 PLAN «Page Archetype 계약» 의 «>=2560 에서 남는 폭은 ① 추가 Rail ② 더 많은 행 ③ 여백» 이고 이 화면은 관리자 Console 이다.\n**완료 조건(assertion pass 로 갈음하지 않는다):**\n① 3840x2160 에서 본문 대비 잉크 비가 **데이터 적은 상태**(이상 0~1건)에서도 임계 위에 머문다 — 즉 통과가 목록 길이에 의존하지 않는다.\n② 하단 공백이 55% 미만이거나, 남는 높이가 ①②③ 중 하나로 **의도적으로 배정**됐음을 화면 소유 Wave 가 명시한다.\n③ 데이터 적은 상태의 3840 캡처가 Evidence 에 있다(Empty/희소 상태를 함께 찍는다).\n위 셋을 못 채우면 `accepted_reason` 에 근거를 적고 남긴다 — 조용히 닫지 않는다."
     },
     {
      "id": "F-W4-14",
      "title": "파괴적 동작의 외곽선이 3:1 미만이었다 — 중립 보조(4.18:1)보다 흐렸다",
-     "severity": "MEDIUM",
+     "severity": "Medium",
      "wave": "W4",
      "status": "CLOSED",
      "detected_by": "독립 Visual Reviewer (적대적 검증 CONFIRMED)",
@@ -24869,7 +24869,7 @@
     {
      "id": "F-W4-15",
      "title": "프로브가 판독 슬롯을 못 쟀다 — `readoutCount` 가 구조적으로 항상 0이었다",
-     "severity": "MEDIUM",
+     "severity": "Medium",
      "wave": "W4",
      "status": "CLOSED",
      "detected_by": "독립 Requirement/Design Reviewer (적대적 검증 CONFIRMED)",
@@ -24883,7 +24883,7 @@
     {
      "id": "F-W4-16",
      "title": "`control_baseline_mismatch` 24셀의 원인을 소스 주석이 잘못 지목하고 있었다",
-     "severity": "LOW",
+     "severity": "Low",
      "wave": "W4",
      "status": "CLOSED",
      "detected_by": "독립 검수 적대적 검증 (제기는 기각되고 잔여물만 확정)",
@@ -24897,7 +24897,7 @@
     {
      "id": "F-W4-17",
      "title": "죽은 CSS 를 지운 커밋이 참조 0 인 `@keyframes` 셋과 빈 `@media` 블록을 남겼다",
-     "severity": "LOW",
+     "severity": "Low",
      "wave": "W4",
      "status": "CLOSED",
      "detected_by": "독립 Design/anti-slop Reviewer",
@@ -24912,7 +24912,7 @@
     {
      "id": "F-W4-18",
      "title": "이 Wave 가 만들고 **배선하지 않은** 자리 셋 — `sunken` tone · `EmptyState layout=\"page\"` · `MetricStrip emptyCause`",
-     "severity": "LOW",
+     "severity": "Low",
      "wave": "W7",
      "status": "OPEN",
      "detected_by": "독립 검수 적대적 검증 (제기는 기각되고 사실만 확정)",
@@ -24925,7 +24925,7 @@
     {
      "id": "F-W4-19",
      "title": "`oversized_empty_surface` 가 같은 면을 한 테마에서만 잡는다 — 완료 게이트가 과소 계수한다",
-     "severity": "LOW",
+     "severity": "Low",
      "wave": "W15",
      "status": "OPEN",
      "detected_by": "독립 Visual Reviewer 제기(«74% 빈 필터 판») → 실측으로 다른 결론",
@@ -24935,6 +24935,48 @@
       "ev:review:wf_39d9d8a1-f87",
       "ev:capture:dist/ui-qa/w4-kit-e2e/surface-me-light-1920x1080.png (판 1057x237 · 잉크 3.4%)"
      ]
+    },
+    {
+     "id": "F-W4-20",
+     "class": "advisory_finding_false_closure",
+     "title": "데이터 의존 임계 검사는 자동으로 «닫힌다» — 실제로 해결되지 않은 Finding 이 조용히 사라진다",
+     "severity": "Medium",
+     "wave": "W15",
+     "status": "OPEN",
+     "detected_by": "W4 종료 점검 (사람 지시로 F-W4-13 추적 상태를 재확인하다 드러남)",
+     "detail": "`merge_qa_findings.py` 는 이번 실행에서 (surface, class) 가 한 번도 발화하지 않으면 그 Finding 을 **CLOSED 로 바꾸고 `closed_by` 에 실행 라벨을 쌓는다.** 대부분의 Assertion 에서는 옳다 — 안 깨지면 닫는 것이 맞다. 그런데 `dead_blank_region`·`oversized_empty_surface` 처럼 **임계값이 콘텐츠 양에 좌우되는** 검사에서는 «고쳐졌다» 와 «그때 데이터가 마침 충분했다» 가 구분되지 않는다.\n실물 증거: `admin_audit-anomalies / dead_blank_region` 의 `closed_by` 에 w2-after · w3-after · w4-after 가 **나란히 쌓여 있다.** 같은 셀이 Wave 마다 열리고 닫히기를 반복했다는 뜻이다. PLAN 은 이 세 검사를 영구 Advisory 로 두고 **각 fail 을 Finding 으로 만들어 C10 이 완료 시점에 막는** 설계인데, 그 사슬은 Finding 이 **거짓으로 닫히지 않을 때만** 성립한다.",
+     "fix": "① 자동 CLOSED 를 데이터 의존 클래스에서는 **«이번 실행에서 미발화»** 라는 별도 상태로 구분한다(닫지 않고 `last_clear` 만 기록). ② 또는 닫되 `closed_by` 가 2회 이상 쌓인 Finding 을 **플래핑**으로 표시해 C10 이 완료 판정에서 별도로 본다. ③ 어느 쪽이든 «닫힘» 과 «구조 해결» 을 문서상 구분한다. Control Plane 을 소유하는 Wave 의 일이다. 관련: F-W4-19(같은 사슬의 과소 계수), F-W4-13(이 결함의 첫 피해자).",
+     "samples": [
+      "admin_audit-anomalies / dead_blank_region — closed_by=[w2-after, w3-after, w4-after]",
+      "admin_audit__audit-anomalies / dead_blank_region — 동일",
+      "merge_qa_findings.py — 미발화 시 status=CLOSED + closed_by 누적"
+     ],
+     "first_seen": "ev:qa_run:w4-after",
+     "last_seen": "ev:qa_run:w4-after",
+     "requirement_ids": [],
+     "closed_by": [],
+     "accepted_reason": null
+    },
+    {
+     "id": "F-W4-21",
+     "class": "wave_exit_procedure_gap",
+     "title": "PLAN:992 의 Wave 종료 절차 두 항목이 W1~W4 내내 실행되지 않았다 — runner 시험과 9뷰포트 하네스",
+     "severity": "Medium",
+     "wave": "W8",
+     "status": "OPEN",
+     "detected_by": "W4 종료 점검 (사람 지시로 Backend/Runner regression 실행 여부를 확인하다 드러남)",
+     "detail": "PLAN:992 는 «**주기**: focused test 는 상시. Wave 종료마다 `run_full_regression.sh` + `npm test` + **runner 테스트**. 전체 **9뷰포트 × 2테마** 하네스 실행은 W0·W8·W15 + **공유 파일 Wave 직후**» 라고 못 박는다. 두 항목이 지켜지지 않았다.\n\n① **runner 테스트** — `RUNNER_TOKEN=test pytest runner/claude-work-assistant/test_assistant.py`. W1·W2·W3 WORK_STATE 어디에도 실행 기록이 없고(셋 다 backend `FULL_REGRESSION_OK` 만 적었다) W4 도 종료 점검 전까지 안 돌렸다. **이번에 처음 돌렸고 293 PASS** 다 — 즉 결함을 덮고 있던 것은 아니지만, 네 Wave 동안 검증 없이 지나간 것은 사실이다.\n\n② **9뷰포트 하네스** — 실측: `before-renewal`(W0) 은 9뷰포트(1200x900 · 1366x768 · 1920x1080 · 1920x1080@2x · 2560x1440 · 3072x1728 · 3840x2160 · 390x844 · 768x1024)로 돌았다. 그런데 `w1-after` 는 **1뷰포트**, `w2-after`·`w3-after`·`w4-after` 는 **4뷰포트**(390/1366/1920/3840)뿐이다. W1(`theme.js`)·W2·W3(`AppShell.jsx`·`navConfig.js`)·W4(`kit.jsx` 외 5파일)는 PLAN:937 이 이름으로 지정한 **공유·충돌 위험 파일 소유 Wave** 이므로 넷 다 «공유 파일 Wave 직후» 조건에 해당한다.\n결과: **1200x900 · 768x1024 · 2560x1440 · 3072x1728 · 1920x1080@2x 다섯 뷰포트는 W0 이후 한 번도 다시 측정되지 않았다.** 공유 층을 네 번 갈아엎는 동안 그 다섯 폭에서 생겼을 회귀는 지금 아무 증거도 갖고 있지 않다.",
+     "fix": "**W8 이 PLAN 상 다음 9뷰포트 실행 지점이자 Pilot Exit Gate 다.** 그때 다음을 함께 한다: ① 9뷰포트 × 2테마 전량 실행 ② 미측정 5뷰포트를 **`before-renewal` 과 직접 대조**한다 — W1~W4 의 4뷰포트 증거에는 대조군이 없으므로 W0 이 유일한 기준선이다 ③ 거기서 나오는 회귀는 담당 공유 Wave(W1·W2·W3·W4)로 되돌려 라우팅한다(PLAN:928 «필요한 공유 변경이 나오면 그건 W4~W7 의 결함이고 거기로 되돌린다» 와 같은 규칙).\n그리고 **절차 자체를 고친다** — Wave 종료 체크리스트에 runner 시험과 «공유 파일 Wave 면 9뷰포트» 를 명시해 W5 부터 빠지지 않게 한다. 이번 Wave 는 runner 를 실행해 기록했다.",
+     "samples": [
+      "before-renewal light 뷰포트 9개 · w1-after 1개 · w2/w3/w4-after 각 4개",
+      "미측정 5뷰포트: 1200x900 · 768x1024 · 2560x1440 · 3072x1728 · 1920x1080@2x",
+      "runner test_assistant.py — W4 종료 점검에서 최초 실행, 293 PASS"
+     ],
+     "first_seen": "ev:note:W4 종료 점검",
+     "last_seen": "ev:note:W4 종료 점검",
+     "requirement_ids": [],
+     "closed_by": [],
+     "accepted_reason": null
     }
    ],
    "advisory": {
