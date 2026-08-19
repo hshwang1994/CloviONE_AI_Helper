@@ -326,7 +326,7 @@ Top bar와 Sidebar는 **같은 재료**다. 만나는 모서리가 같은 색인
 - Top bar: `chrome.shellTop` + `chrome.aiWash`(우상단 앵커 — Clovi·종·아바타가 사는 자리). 높이 유지(52/60/68).
 - Sidebar: `chrome.shell`(solid hex — 기존 "그라디언트 아님" 단언 유지) + `chrome.shellImage`(background-image).
 - Canvas: `background.canvas`. 전체가 인디고 하우징 안의 계측면으로 읽힌다.
-- Top bar 검색: Brand 위 inset — `rgba(255,255,255,.10)` fill, `.14` border, placeholder `onShellMuted`, 값 `onShell`.
+- Top bar 검색: Brand 위 inset — **토큰으로** `chrome.track` fill · `chrome.edge` border · placeholder `onShellMuted` · 값 `onShell`. <!-- W2 정정(D-181): 원문은 `.10` fill / `.14` border 라는 **리터럴 두 값**이었다. W1 이 그 자리에 토큰(`chrome.track` .08/.10 · `chrome.edge` .22/.24)을 만들면서 `theme.js` 주석이 소비처로 'ConsoleSwitch·검색 inset' 둘을 명시했고, 그 토큰들은 두 모드 × Gradient 모든 stop 에서 대비가 실측돼 있다. 리터럴을 다시 쓰면 셸 위 inset 이 네 번째 알파 값을 갖게 되고 그 값만 측정 밖에 남는다 — 이 자리가 이미 세 번 틀린 이유가 정확히 그것이다. 그래서 정본을 토큰으로 옮긴다. -->
 - `ConsoleSwitch`(사용자/관리자): 인디고 위에서 반전 — track `rgba(255,255,255,.08)`, 선택 `.16` + `inset 0 0 0 1px rgba(255,255,255,.22)`.
 
 **Navigation 상태 — 신호는 정확히 둘 (지시 79)**

@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
 import { MASCOT } from "../lib/assets.js";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 
 /* 마스코트 '클로비'.
  *
@@ -218,7 +218,10 @@ export function MascotMini({
           position: "relative", zIndex: 2,
           width: "100%", height: "100%", objectFit: "contain",
           borderRadius: `${plateRadius}px`,
-          bgcolor: `rgba(255,255,255,${plateOpacity})`,
+          /* 판 없이 놓을 수 있어야 한다. 인디고 하우징(상단바) 위에서는 흰 판이 캐릭터를
+             돕는 것이 아니라 **하우징에 구멍을 낸다** — 클로비 자산의 몸체가 이미 밝아
+             인디고 위에서 충분히 읽힌다(F-W1R-13 이 '순백 원판' 으로 잡은 자리). */
+          bgcolor: plateOpacity > 0 ? `rgba(255,255,255,${plateOpacity})` : "transparent",
           transformOrigin: "50% 84%",
           animation: bodyAnimation(mode),
         }}
@@ -245,27 +248,41 @@ export function MascotMini({
  * 표시되는 웃는 클로비"를 유지해 달라고 한 그 자리인데, 실제로는 클로비가 아니라 아무 로봇이었다.
  * 표정은 평상시(idle) 포즈를 쓴다 — 그 자산이 이미 웃는 얼굴이다(§5).
  *
- * 흰 판 위에 얹는 이유: 상단바는 딥 인디고 그라데이션이라 마스코트의 흰 몸체가 배경에 묻힌다.
- * 기준 파일도 같은 이유로 img 에 rgba(255,255,255,.92) 배경을 깐다. */
+ * **판은 깔지 않는다**(W2). 예전 주석은 "딥 인디고 위에서 마스코트의 흰 몸체가 묻힌다"고
+ * 적었지만 실측은 반대였다 — 인디고 셸 위에서 클로비 자산은 그대로 읽히고, 흰 판이 오히려
+ * 하우징에 뚫린 순백 원판이 되어 화면에서 가장 밝은 면을 만든다(F-W1R-13, 배포본 픽셀
+ * 실측 (1690,25)=#FFFFFF on shell #1E2758). 자리를 감싸는 알약은 chrome 자신의 반전 컨트롤
+ * 토큰(`chrome.track`/`edge`)을 쓰고, 그 안의 잉크는 AI Wash 하드 룰에 따라 `onShell` 이다.
+ * 클로비 자산의 크기·프레이밍(`mascot_visible_size`)은 W7 소유라 여기서 건드리지 않는다. */
 export function MascotTopButton({ onClick, mode = "listening", label = "AI 도우미" }) {
   return (
     <Tooltip title={label}>
       <ButtonBase
         onClick={onClick}
         aria-label="클로비 AI 도우미 열기"
-        sx={{
-          /* 색은 테마 토큰에서 온다. 예전 값(흰 글자 + 반투명 남색 바탕)은 어두운 상단바를
-             전제한 것이라, chrome 이 캔버스 계열이 된 뒤 대비 1.21 로 떨어졌다(D-141).
-             클로비 자체는 사용자가 "제품의 정체성"이라고 확정한 브랜드 요소라 그대로 둔다 —
-             바뀌는 것은 그것을 감싼 판의 색뿐이다. */
+        sx={(t) => ({
+          /* 색은 테마 토큰에서 온다. 이 자리는 두 번 틀렸다 — 흰 글자 + 반투명 남색 리터럴
+             (어두운 상단바 전제, D-141 로 1.21 로 붕괴) → 캔버스 토큰 `background.plate`
+             (D-179 로 셸이 인디고가 되자 순백 원판). 값을 또 고르는 대신 **chrome 자신의**
+             반전 컨트롤 토큰을 쓴다. 클로비 자체는 사용자가 "제품의 정체성"이라고 확정한
+             브랜드 요소라 그대로 둔다. */
           display: "inline-flex", alignItems: "center", gap: "6px",
-          minHeight: "34px", pt: "2px", pb: "2px", pl: "3px", pr: "8px",
-          border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
-          bgcolor: "background.plate", color: "text.primary",
-          "&:hover": { borderColor: "dividerStrong", bgcolor: "background.inset" },
-        }}
+          /* 오른쪽 패딩은 **라벨을 위한 것**이다. 600px 미만에서는 그 라벨이 숨는데 패딩만
+             남아 마스코트가 상자 중심에서 2px 왼쪽으로 밀렸다(390 실측: 왼쪽 4px / 오른쪽 8px).
+             라벨이 없으면 패딩도 없다. */
+          /* 높이는 rem — 셸의 틀이 4K 에서 1.31× 자라는 동안 컨트롤만 px 로 남으면 비율이
+             어긋난다(TopSearch 와 같은 이유). 16 은 root.css 4K 레버의 기본 단계다. */
+          minHeight: `${CONTROL.button / 16}rem`, pt: "2px", pb: "2px", pl: "3px",
+          pr: { xs: "3px", sm: "8px" },
+          border: 1, borderColor: t.palette.chrome.edge, borderRadius: `${RADIUS.sm}px`,
+          bgcolor: t.palette.chrome.track, color: t.palette.chrome.onShell,
+          "&:hover": { borderColor: t.palette.chrome.edge, bgcolor: t.palette.chrome.trackSelected },
+        })}
       >
-        <MascotMini mode={mode} size={28} plateRadius={RADIUS.sm} ringInset={-2} ringRadius={RADIUS.sm} />
+        <MascotMini
+          mode={mode} size={28} plateOpacity={0}
+          plateRadius={RADIUS.sm} ringInset={-2} ringRadius={RADIUS.sm}
+        />
         <Box component="span" sx={{ display: { xs: "none", sm: "block" }, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.semibold }}>
           클로비
         </Box>

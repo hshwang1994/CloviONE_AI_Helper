@@ -340,9 +340,9 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/app/AppShell.jsx`, `frontend/src/app/TopBrand.jsx`, `frontend/src/app/TopSearch.jsx`, `frontend/src/styles/root.css`
 - **Verification**: `frontend/src/app/topbar-contract.test.jsx`, assertion `narrow_main`, assertion `dead_blank_region`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Status**: DONE
+- **Evidence**: 실브라우저 재캡처 `w2-after`(664페이지 · 390/1366/1920/3840 x light·dark, 번들 `344ce7e7fc221246`) · 상단바 채움이 사이드바 Gradient 의 **첫 stop** `chrome.shellTop`(#28336F)이 되어 두 층이 한 물체로 읽힌다(독립 검수 실측: 1920 light x=100 열에서 y=44~61 이 끊김 없이 chrome, 164페이지 전수에서 이음매 0건) · 사이드바가 `chrome.shellImage` 를 실제로 읽는다(y=0→1070 에서 (40,51,111)→(23,32,77)) · AI 앵커에만 `chrome.aiWash`, 앵커 최소 폭을 계산해 워시가 클로비 알약까지 덮는다(D-183 ③) · chrome/캔버스 경계선이 사이드바 열 **다음**부터 그어지고, 하우징 바깥 모서리도 실제로 그려진다(D-183 ①) · 셸 위 컨트롤 4종이 캔버스 판에서 chrome 반전 트랙으로 — 상단바에서 L>0.55 픽셀 비율 W1 25.76% → W2 2.36%(다크 2.27% 와 대칭) · `brand_presence` 1920 pass 6 → 94 (Before 대비) · `frontend/src/app/topbar-contract.test.jsx`(재작성 · 단언 24→60) · `frontend/src/app/shell-surface-contract.test.js`(신규 · 캔버스 토큰 복귀와 안 그려지는 논리 테두리를 함께 막고, 자기 정규식이 좁아지는 것까지 시험한다) · 독립 검수 3 렌즈 + 적대적 검증 (Workflow `wf_9de9cf72-00f`) · `docs/DECISIONS.md` D-181 · D-183
+- **Findings**: F-W1R-01 · F-W1R-13 · F-W1R-32 · F-W1R-39 종결 (W1 독립 리뷰). 신규 F-W2R-01(W4) · F-W2R-02(W3) 라우팅
 - **Depends on**: (없음)
 
 ---
@@ -815,10 +815,10 @@
 - **Requirement**: 현재 티켓 상세, 문서 상세, 새 티켓 등에서 본문이 왼쪽으로 몰리고 오른쪽에 지나치게 큰 빈 공간이 생기는 현상을 공통 Layout 문제로 조사한다. 특정 페이지의 margin이나 width만 개별 수정하지 않는다. 공통 Page Container, Content Width, Grid, Breakpoint, max-width, padding, responsive behavior를 점검한다. 브라우저 Zoom이나 해상도 변화에 따라 화면이 비정상적으로 한쪽으로 몰리지 않아야 한다. FHD, QHD, 4K 등 대표적인 화면 환경과 다양한 Browser Zoom을 검증하되 특정 해상도 전용 Pixel 값을 하드코딩하지 않는다. Breakpoint 역시 페이지마다 따로 만들지 않고 공통 Responsive 정책을 사용한다. 고정 width, 고정 height, 임의 margin, 수동 줄바꿈으로 화면을 맞추는 코드는 제거한다.
 - **Affected**: ALL
 - **Implementation**: `frontend/src/app/AppShell.jsx`, `frontend/src/app/TopBrand.jsx`, `frontend/src/app/TopSearch.jsx`, `frontend/src/styles/root.css`
-- **Verification**: `frontend/src/app/topbar-contract.test.jsx`, assertion `narrow_main`, assertion `dead_blank_region`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Verification**: `frontend/src/app/topbar-contract.test.jsx`, `frontend/src/styles/root-scale-lever.test.js`, `python -m scripts.ui_qa.run --viewports 3840x2160` (assertion `narrow_main` · `dead_blank_region` 측정)
+- **Status**: DONE
+- **Evidence**: 공통 Container 레버 세 가지를 실제로 옮겼다 — ① 본문 열에 `c-content` 이름을 줘서 `narrow_main` 프로브가 **처음으로 진짜 폭 캡 층**을 잰다(before-renewal 3840 note `content=Nonepx (None)` → w2-after `content=3080px (main#main-content > div.c-content)`, 더 엄격해진 측정에서도 80.21% ≥ 60% 로 166/166 PASS) ② 본문 위쪽 오프셋을 상단바 높이와 같은 단위(px)로 통일해 넓은 화면 전용 죽은 띠를 없앴다(실측 2560 7.5px · 3840 17px, D-182; 독립 검수 재확인: 3840 에서 상단바 y=68 종료 · 본문 y=68 시작, 82 라우트 전수 0건) ③ 사설 브레이크포인트(960/720)를 공통 정책으로 걷어내고 셸 미디어쿼리를 `BREAKPOINTS` 보간으로 바꿨다 — `root-scale-lever.test.js` 가 `styles/root.css` 의 두 경계가 같은 값인지, 셸에 해상도 리터럴이 되돌아오지 않는지 단언한다(D-183 ⑤) · 셸 컨트롤 치수를 rem 으로 옮겨 4K 레버를 함께 타게 했다(1920→3840 에서 틀 1.31× vs 검색 inset 1.00× 였다, D-183 ④) · `dead_blank_region` 을 390/1366/1920/3840 전부에서 측정하고 실패 전량을 Surface Finding 으로 등록 · 4뷰포트 x 2테마 전량 재캡처 `w2-after`
+- **Findings**: `dead_blank_region` 잔존 146건(1366 8 · 1920 38 · 3840 90 · 390 10, Before 와 동일) — 셸이 아니라 **화면 아키타입**이 회수하지 않은 공간이라 PLAN «Wave 계획» 소유표대로 W4·W7·W8~W12 로 라우팅했고 `ROUTE_COVERAGE.surfaces[].findings` 에 등록돼 C10 이 완료 시점에 막는다. 같은 뿌리의 F-W2R-03(4K 상단바 세 섬, W8)도 함께 등록
 - **Depends on**: (없음)
 
 ---
@@ -914,9 +914,9 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/app/AppShell.jsx`, `frontend/src/app/TopBrand.jsx`, `frontend/src/app/TopSearch.jsx`, `frontend/src/styles/root.css`
 - **Verification**: `frontend/src/app/topbar-contract.test.jsx`, assertion `narrow_main`, assertion `dead_blank_region`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
-- **Findings**: (없음)
+- **Status**: DONE
+- **Evidence**: ① 제품명이 **한 단어** 다 — SPA 워드마크의 `<text>` 두 개(절대 x + 각자 textLength)를 `<text>` 하나 + `<tspan>` 둘로 합쳐 11유닛 구멍을 없앴다(F-W1R-34). 총 폭 346 은 그대로라 락업 치수가 바뀌지 않는다(fontTools 실측 자연 진행폭 342.3 → 늘어남 +1.1%). 독립 검수 재확인: 워드마크 잉크에 2px 이상 공백 없음, 셸 락업과 로그인 락업이 같은 어휘. ② **로고 영역을 실제로 줄였다** — 상단바에서는 부제를 그리지 않는다. 글자 크기는 줄일 수 없다(부제가 QA `tiny_text` 의 12px 하한에 걸려 있고 2200 이상에서 12.24px 다) 이므로 유일한 레버가 줄 수였다: 락업 216x37 → 약 197x27(면적 -33%), 마크도 한 줄 블록 높이(2.45em)를 따라간다. 태그라인은 사라지지 않는다(좁은 화면 사이드바 서랍 머리 · 로그인 화면 · `aria-label`). 부수 효과로 SPA 에서 10.88px 로 렌더되던 유일한 자리가 없어졌다. ③ 균형 재배치 — 검색을 브랜드 칸과 AI 앵커 **사이 가운데**에 놓고 남는 폭을 나눠 갖게 했다(예전에는 1920 에서 573px, 3840 에서 2,188px 가 빈 채였다). 로고 칸 = 사이드바 폭, 상단바 높이 52/60/68 은 사용자 확정 결정이라 유지 · `frontend/src/ui/brand-logo.test.jsx`(한 줄 모드 3건 추가) · `frontend/src/app/topbar-contract.test.jsx`(부제 미렌더 + 낭독 유지 단언) · 재캡처 `w2-after`
+- **Findings**: F-W1R-34 종결 (W1 독립 리뷰). F-W2R-04(AI 앵커 컨트롤 리듬, W4) 라우팅
 - **Depends on**: (없음)
 
 ---
@@ -928,8 +928,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/app/AppShell.jsx`, `frontend/src/app/TopBrand.jsx`, `frontend/src/app/TopSearch.jsx`, `frontend/src/styles/root.css`
 - **Verification**: `frontend/src/app/topbar-contract.test.jsx`, assertion `narrow_main`, assertion `dead_blank_region`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 검색 Overlay 재설계 — ① 결과 줄마다 **유형 아이콘**(사이드바와 같은 `navIcons` 계열, 메뉴는 그 항목 자신의 아이콘) ② 선택 줄이 앞머리 레일 + 오목면 + **Enter 표지** 세 신호를 갖는다. 레일은 두 층의 함정을 지나야 그려졌다 — `borderInlineStart: 2` 는 style 이 없어 안 그려지고, `borderInlineStartColor: "primary.main"` 은 팔레트가 안 풀려 무효 선언이 된다(배포본 픽셀로 두 번 확인, D-183 ①). 최종 실측: 선택 줄 x=592~593 = #5A4FCF ③ 결과 없는 네 상태(안내/찾는 중/오류/0건)를 각각 **다른 아이콘·제목·도움말**로 그린다 ④ 서버 검색이 실패해도 메뉴 결과가 있으면 오류가 통째로 사라지던 경계를 `role="alert"` 띠로 닫았다(E9 의 나머지 절반) ⑤ 키보드 위/아래·Enter·Esc 유지 · 실브라우저 사슬 4/4 — FF-1186 `GET /api/search?q=…&limit=5` → 200 → 결과 11줄, FF-1187 결과 클릭 → `/#/documents` 전환 + 그 화면 API 200 (`dist/ui-qa/w2-shell-e2e/flows.json`, 스크린샷 3장: 안내·결과·0건) · `frontend/src/app/command-palette.test.jsx`(레일 형태 2건 · Loading 1건 추가) · `frontend/src/app/palette-error.test.jsx`(오류가 목록 뒤에 숨지 않는다 1건 추가). Input · Overlay 크기(46rem 상단 고정) · 위치 · Spacing · Typography 는 **재검토해 유지**했다 — 이전 Wave 가 이미 붙박이 구역 제목과 상단 고정 폭을 세워 두었고 독립 검수도 그 상태를 문제로 보지 않았다. 바꾼 것은 유형 구분·선택 표현·상태 얼굴이다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 

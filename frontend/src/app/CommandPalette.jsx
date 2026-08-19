@@ -10,9 +10,15 @@ import ListSubheader from "@mui/material/ListSubheader";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import KeyboardReturnRoundedIcon from "@mui/icons-material/KeyboardReturnRounded";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
+import { navIcon } from "./navIcons.js";
 import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
@@ -38,6 +44,23 @@ import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../u
 
 // 값의 정본은 토큰이다(theme.js::DEBOUNCE_MS) — 화면마다 숫자를 박지 않는다(지시 26).
 const PALETTE_DEBOUNCE_MS = DEBOUNCE_MS.palette;
+
+/* 결과 유형 → 아이콘 (지시 14: "최근 방문, 메뉴, 티켓, 문서 등 검색 결과 유형을 쉽게 구분").
+ *
+ * 줄마다 유형을 **글자로** 다시 적으면 구역 제목과 같은 말을 두 번 한다(지시 44). 그래서
+ * 유형은 그림으로 말한다. 아이콘은 **사이드바와 같은 계열·같은 키**(navIcons.js)에서 온다 —
+ * 팔레트에서 본 그림과 사이드바에서 볼 그림이 다르면 그 둘이 같은 곳이라는 것을 못 배운다
+ * (지시 79: 아이콘은 한 계열).
+ *
+ * 서버가 유형을 늘리면 여기 매핑이 없어도 죽지 않는다 — `null` 이면 줄이 아이콘 없이
+ * 그려지고 구역 제목이 유형을 계속 말한다. 화면이 유형별 if 로 갈라지지 않는다는
+ * `lib/search.js` 의 설계를 여기서도 깨지 않는다. */
+const KIND_ICON = {
+  ticket: "ticket",
+  document: "docs",
+  board: "board",
+  user: "profile",
+};
 
 function normalize(s) {
   return String(s || "").toLowerCase().replace(/\s+/g, "");
@@ -108,10 +131,18 @@ export function CommandPalette({ open, onClose, groups }) {
     const out = navResults.map((g) => ({
       key: g.recent ? "recent" : "nav:" + g.group,
       label: g.recent ? g.group : "메뉴 › " + g.group,
-      items: g.items.map((it) => ({ key: "nav:" + it.to, label: it.label, hint: it.to, to: it.to })),
+      /* 메뉴 결과는 **그 항목이 사이드바에서 쓰는 바로 그 아이콘**을 단다. 최근 방문도
+         메뉴 항목이라 같은 아이콘을 쓰되, 시계 아이콘으로 덮지 않는다 — 덮으면 최근 방문
+         네 줄이 전부 같은 그림이 되어 서로 구분이 안 된다. 구역 제목이 '최근 방문' 을
+         이미 말한다. */
+      items: g.items.map((it) => ({
+        key: "nav:" + it.to, label: it.label, hint: it.to, to: it.to,
+        Icon: navIcon(it.icon) || (g.recent ? HistoryRoundedIcon : null),
+      })),
     }));
     const serverGroups = (search.data && search.data.groups) || [];
     for (const group of serverGroups) {
+      const Icon = navIcon(KIND_ICON[group.kind]);
       out.push({
         key: "kind:" + group.kind,
         label: group.label,
@@ -120,6 +151,7 @@ export function CommandPalette({ open, onClose, groups }) {
           label: item.title,
           hint: item.subtitle || "",
           to: routeOf(item),
+          Icon,
         })),
       });
     }
@@ -130,7 +162,8 @@ export function CommandPalette({ open, onClose, groups }) {
   const seeAll = React.useMemo(
     () => (searchable && search.data && search.data.total > 0
       ? { key: "see-all", label: `‘${normalizeQuery(debounced)}’ 검색 결과 모두 보기`,
-          hint: `총 ${search.data.total}건`, to: searchResultsPath(debounced) }
+          hint: `총 ${search.data.total}건`, to: searchResultsPath(debounced),
+          Icon: ArrowForwardRoundedIcon }
       : null),
     [searchable, search.data, debounced],
   );
@@ -217,20 +250,35 @@ export function CommandPalette({ open, onClose, groups }) {
       <Box sx={{ height: "0.25rem" }}>
         {busy ? <LinearProgress aria-label="검색 중" sx={{ height: "0.25rem" }} /> : null}
       </Box>
+      {/* 검색이 **실패했는데 메뉴/최근 방문이 하나라도 맞으면** 아래 목록이 그려지고, 빈 상태
+          얼굴은 애초에 렌더되지 않는다 — 그러면 서버 오류가 화면에서 통째로 사라진다.
+          E9 가 막으려던 실패("없다고 말하지 않는다")의 나머지 절반이 이 경계였다. 목록이
+          있든 없든 실패는 실패라고 한 줄로 말한다. */}
+      {failed && flat.length > 0 ? (
+        <Box
+          role="alert"
+          sx={{
+            display: "flex", alignItems: "center", gap: 1,
+            px: 2.5, py: 1, borderBottom: 1, borderColor: "divider",
+            bgcolor: (t) => t.palette.error.bg, color: "error.strong",
+            fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK,
+          }}
+        >
+          <ErrorOutlineRoundedIcon aria-hidden="true" sx={{ fontSize: FONT_SIZE.title }} />
+          <Box component="span">
+            티켓, 문서, 게시판 검색을 불러오지 못했습니다. 아래는 메뉴 결과만 있습니다.
+          </Box>
+        </Box>
+      ) : null}
       <DialogContent sx={{ p: 0, maxHeight: "62vh" }}>
         {flat.length === 0 ? (
-          <Typography sx={{ px: 3, py: 5, textAlign: "center", ...KO_WORD_BREAK }} color="text.secondary">
-            {!q
-              ? "메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요."
-              : busy
-                ? "찾는 중…"
-                /* 서버 오류를 "없다" 고 말하지 않는다 (E9). 예전에는 500 이든 네트워크 끊김이든
-                   전부 "검색 결과 없음" 이었다 — 사용자는 찾는 것이 정말 없다고 믿고 포기한다.
-                   그건 화면이 거짓말하는 것이고, 이 저장소가 곳곳에서 잡아낸 그 부류다. */
-                : failed
-                  ? "검색하지 못했습니다. 잠시 후 다시 시도해 주세요."
-                  : "검색 결과 없음"}
-          </Typography>
+          /* 결과가 없는 세 상태를 **서로 다른 얼굴**로 그린다 (지시 14: "검색 중 Loading,
+             결과 없음, Error State 도 포함"). 예전에는 셋 다 가운데 한 줄짜리 회색 문장이라,
+             오류인지 아직 안 왔는지 정말 없는지가 문장을 읽어야만 구분됐다 — 팔레트는
+             0.3초 안에 훑는 화면이라 그 구분이 글자에만 있으면 없는 것과 같다.
+             빈 자리를 키우지 않는다: 아이콘 하나 + 제목 + 도움말 한 줄로 세로 리듬만 준다
+             (지시 15 «Empty State 는 완성된 구획이지 큰 여백이 아니다»). */
+          <PaletteMessage state={!q ? "prompt" : busy ? "busy" : failed ? "error" : "empty"} />
         ) : (
           <List dense disablePadding sx={{ py: 0.5 }}>
             {sections.map((section) => (
@@ -286,22 +334,92 @@ export function CommandPalette({ open, onClose, groups }) {
   );
 }
 
-/* 결과 한 줄. 고른 줄은 앞머리 레일 + 안쪽 바탕으로 말한다 - 옅은 배경만으로는 키보드로
- * 빠르게 훑을 때 놓친다(지시 14). 유형은 붙박이 구역 제목이 말한다. */
+/* 결과가 없는 세 상태의 얼굴. 셋은 **다른 그림·다른 제목·다른 다음 행동**을 갖는다. */
+const MESSAGE_FACE = {
+  prompt: {
+    Icon: SearchRoundedIcon,
+    title: "무엇을 찾으시나요?",
+    hint: "메뉴 이름, 티켓 제목, 문서 제목, 게시글 제목으로 찾을 수 있습니다.",
+  },
+  busy: { Icon: SearchRoundedIcon, title: "찾는 중…", hint: "" },
+  /* 서버 오류를 "없다" 고 말하지 않는다 (E9). 예전에는 500 이든 네트워크 끊김이든
+     전부 "검색 결과 없음" 이었다 — 사용자는 찾는 것이 정말 없다고 믿고 포기한다.
+     그건 화면이 거짓말하는 것이고, 이 저장소가 곳곳에서 잡아낸 그 부류다. */
+  error: {
+    Icon: ErrorOutlineRoundedIcon,
+    title: "검색하지 못했습니다",
+    hint: "일시적인 문제일 수 있습니다. 잠시 후 다시 시도해 주세요.",
+    tone: "error.main",
+  },
+  empty: { Icon: SearchOffRoundedIcon, title: "검색 결과 없음", hint: "다른 낱말이나 더 짧은 낱말로 찾아 보세요." },
+};
+
+function PaletteMessage({ state }) {
+  const face = MESSAGE_FACE[state] || MESSAGE_FACE.empty;
+  const { Icon } = face;
+  return (
+    <Box
+      role={state === "error" ? "alert" : undefined}
+      sx={{ px: 3, py: 4, display: "grid", justifyItems: "center", gap: 0.75, textAlign: "center" }}
+    >
+      <Icon aria-hidden="true" sx={{ fontSize: FONT_SIZE.pageTitle, color: face.tone || "text.faint" }} />
+      {/* 제목에 검색어를 되풀이하지 않는다 — 바로 두 줄 위 입력창에 그대로 보인다
+          (지시 44: 같은 말을 두 번 하지 않는다). */}
+      <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.semibold, color: face.tone || "text.primary" }}>
+        {face.title}
+      </Typography>
+      {face.hint ? (
+        <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, maxWidth: "34rem", ...KO_WORD_BREAK }}>
+          {face.hint}
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/* 결과 한 줄. 고른 줄은 앞머리 레일 + 안쪽 바탕 + **Enter 표지**로 말한다 - 옅은 배경만으로는
+ * 키보드로 빠르게 훑을 때 놓친다(지시 14). 유형은 왼쪽 아이콘과 붙박이 구역 제목이 말한다 —
+ * 줄마다 유형을 글자로 다시 적으면 같은 말을 두 번 한다(지시 44). */
 function PaletteRow({ item, selected, onHover, onPick }) {
+  const Icon = item.Icon;
   return (
     <ListItemButton
       selected={selected}
       onMouseEnter={onHover}
       onClick={onPick}
       sx={{
-        px: 2.5, py: 0.875, gap: 1.5, alignItems: "baseline",
-        borderInlineStart: 2, borderColor: "transparent",
+        px: 2.5, py: 0.875, gap: 1.5, alignItems: "center",
+        /* 레일은 **style 까지 적어야 그려진다.** 예전에는 `borderInlineStart: 2` 만 두었는데,
+           MUI 의 border 스타일 함수는 그것을 `border-inline-start: 2px` 로만 펴고 `-style` 을
+           넣지 않는다 — CSS 기본값이 `none` 이라 폭 2px 짜리 **보이지 않는** 레일이 됐다.
+           독립 검수자가 배포본 픽셀에서 "선택 신호가 4% 워시 하나뿐" 이라고 잡은 자리다.
+           지시 14 가 요구한 선택 표현은 신호 둘(앞머리 레일 + 안쪽 바탕)이므로 하나가
+           안 그려지면 요구가 미이행이다. */
+        borderInlineStartStyle: "solid",
+        borderInlineStartWidth: "2px",
+        borderInlineStartColor: "transparent",
         "&.Mui-selected, &.Mui-selected:hover": {
-          bgcolor: "background.inset", borderColor: "primary.main",
+          bgcolor: "background.inset",
+          /* 색을 **콜백으로** 푼다. `borderInlineStartColor` 는 MUI 의 border 설정 목록에
+             없어서 값이 그대로 CSS 로 나간다 — `"primary.main"` 이라고 적으면 팔레트가
+             해석되지 않고 `border-inline-start-color: primary.main` 이라는 무효 선언이
+             된다(배포본 실측: 선택 줄 왼쪽 x=592 가 여전히 오목면 색). 같은 함정의 두 번째
+             층이다: 첫 층은 style 이 없어서, 두 번째 층은 색이 안 풀려서 안 그려진다. */
+          borderInlineStartColor: (t) => t.palette.primary.main,
         },
       }}
     >
+      {/* 아이콘 칸은 결과가 있든 없든 같은 폭이다 — 매핑 없는 새 유형이 와도 글자 시작선이
+          흔들리지 않는다(사이드바가 42px 시작선을 지키는 것과 같은 이유). */}
+      <Box
+        aria-hidden="true"
+        sx={{
+          flexShrink: 0, width: "1.25rem", display: "grid", placeItems: "center",
+          color: selected ? "primary.main" : "text.faint",
+        }}
+      >
+        {Icon ? <Icon fontSize="small" /> : null}
+      </Box>
       <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "baseline", gap: 1.5 }}>
         <Typography
           component="span"
@@ -321,6 +439,12 @@ function PaletteRow({ item, selected, onHover, onPick }) {
             {item.hint}
           </Typography>
         ) : null}
+      </Box>
+      {/* 고른 줄에서만 나온다. 아래 붙박이 키 안내가 규칙을 말한다면 이것은 **지금 Enter 가
+          무엇을 여는지**를 그 줄 위에서 말한다 — 자리를 늘 잡아 두면 목록이 흔들리므로
+          visibility 가 아니라 조건부 렌더로 두되 폭은 고정한다. */}
+      <Box aria-hidden="true" sx={{ flexShrink: 0, width: "1.125rem", display: "grid", placeItems: "center", color: "text.faint" }}>
+        {selected ? <KeyboardReturnRoundedIcon sx={{ fontSize: FONT_SIZE.title }} /> : null}
       </Box>
     </ListItemButton>
   );

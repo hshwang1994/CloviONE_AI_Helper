@@ -50,6 +50,36 @@ describe("검색 팔레트", () => {
     expect(screen.queryByText("검색 결과 없음")).toBeNull();
   });
 
+  /* E9 의 나머지 절반. 서버 검색이 실패해도 **메뉴가 하나라도 맞으면** 목록이 그려지고
+     빈 상태 얼굴은 렌더되지 않는다 — 그러면 오류가 화면에서 통째로 사라지고, 사용자는
+     티켓·문서가 정말 없다고 믿는다. 목록이 있든 없든 실패는 실패라고 말해야 한다. */
+  it("메뉴 결과가 있어도 서버 실패를 숨기지 않는다", async () => {
+    searchMock.mockImplementation((q) =>
+      q ? Promise.reject(Object.assign(new Error("요청 실패 (500)"), { status: 500 }))
+        : Promise.resolve({ groups: [] }));
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
+        <MemoryRouter>
+          <CommandPalette
+            open
+            onClose={() => {}}
+            groups={[{ group: "내 업무", items: [{ to: "/my-tickets", label: "회의록 티켓" }] }]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "회의록" } });
+
+    // 메뉴 결과는 실제로 보인다(목록이 비어 있지 않다).
+    await waitFor(() => expect(screen.getByText("회의록 티켓")).toBeTruthy(), { timeout: 3000 });
+    // 그리고 실패도 함께 보인다.
+    await waitFor(
+      () => expect(screen.getByRole("alert").textContent).toMatch(/불러오지 못했습니다/),
+      { timeout: 3000 },
+    );
+  });
+
   it("정말 없을 때는 그대로 '결과 없음' 이다 — 실패로 뭉개지도 않는다", async () => {
     searchMock.mockResolvedValue({ groups: [] });
     renderPalette();

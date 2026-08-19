@@ -47,7 +47,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
-import { CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { BREAKPOINTS, CONTENT_MAX_WIDTH, FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
 
@@ -324,11 +324,19 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter }) {
                   <SearchRoundedIcon fontSize="small" sx={{ color: "sidebar.muted" }} />
                 </InputAdornment>
               ),
-              sx: {
-                color: "text.primary", bgcolor: "background.plate", borderRadius: RADIUS.sm / 8,
-                "& fieldset": { borderColor: "divider" },
-                "&:hover fieldset": { borderColor: "dividerStrong" },
-              },
+              /* 인디고 하우징 **안**의 입력이다 — 캔버스 토큰(`background.plate`)을 쓰면
+                 라이트에서 셸에서 가장 밝은 면이 되고(실측 14.13:1) 다크에서는 셸에 묻힌다
+                 (1.12:1). 상단바 검색과 **같은 이유로 같은 토큰**을 쓴다(F-W1R-01·13·32).
+                 placeholder 는 MUI 기본 opacity 0.42 를 걷어내고 토큰 잉크를 그대로 쓴다 —
+                 알파를 두 번 곱하면 실측해 둔 대비(4.90~6.51)가 무너진다. */
+              sx: (t) => ({
+                color: t.palette.chrome.onShell, bgcolor: t.palette.chrome.track,
+                borderRadius: RADIUS.sm / 8,
+                "& fieldset": { borderColor: t.palette.chrome.edge },
+                "&:hover fieldset": { borderColor: t.palette.chrome.edge },
+                "&.Mui-focused fieldset": { borderColor: t.palette.chrome.focusRing },
+                "& input::placeholder": { color: t.palette.chrome.onShellMuted, opacity: 1 },
+              }),
             }}
           />
         </Box>
@@ -487,7 +495,8 @@ function ConsoleSwitch({ userSeg, onNavigate }) {
           onClick={() => onNavigate(seg.to)}
           aria-current={seg.on ? "page" : undefined}
           sx={{
-            flex: 1, minHeight: 28, borderRadius: RADIUS.sm / 8, textTransform: "none",
+            /* rem — 셸의 틀과 같은 배율로 자란다(4K 레버, TopSearch 와 같은 이유). */
+            flex: 1, minHeight: "1.75rem", borderRadius: RADIUS.sm / 8, textTransform: "none",
             fontWeight: seg.on ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
             /* Shell 이 인디고라 선택 표시를 **반전**으로 만든다. 예전에는 흰 판이 떠올랐는데,
                인디고 하우징 안에서 흰 알약은 화면에서 가장 밝은 면이 되어 데이터보다 먼저
@@ -610,8 +619,25 @@ export function AppShell({
     <Box
       sx={{
         display: "flex", flexDirection: "column", height: "100%",
+        /* 단색은 **바닥**이다(폰트·이미지가 늦게 와도 셸이 흰 채로 번쩍이지 않는다).
+           그 위에 `chrome.shellImage` 를 얹어 레일을 하나의 물체로 만든다 — 아래로 갈수록
+           어두워져 하단(보조 항목)이 상단 주요 항목과 채도로 경쟁하지 않는다(PLAN
+           «Gradient 정책»). W1 은 토큰만 만들고 소비처가 0이라 셸이 평평했다(F-W1R-39).
+           Gradient 리터럴을 여기 적지 않는 이유: `check_brand_tokens.py` 가 `app/**` 의 raw
+           gradient 를 금지한다 — 색이 테마 밖에 있으면 대비 시험이 그 색을 아예 모른다. */
         bgcolor: "sidebar.bg", color: "sidebar.text",
-        borderInlineEnd: 1, borderColor: "sidebar.line",
+        backgroundImage: (t) => t.palette.chrome.shellImage,
+        /* 하우징의 **바깥 모서리**다. 상단바 아래 가로 이음매와 같은 재료·같은 색이어야
+           L 이 한 물체로 마감된다.
+           `borderInlineEnd: 1` 로는 **안 그려진다** — MUI 의 border 스타일 함수
+           (`@mui/system` borders.js)가 펴 주는 이름은 `border`/`borderTop|Right|Bottom|Left`
+           뿐이라 논리 속성 shorthand 는 그대로 통과하고, `border-inline-end: 1` 은 style 이
+           없어 무효 CSS 다. 배포본 실측으로 확인했다: 1920 light y=400 에서 x=247 (34,43,96)
+           → x=248 (238,240,247) 로 **선 없이** 캔버스로 넘어간다. 같은 함정을 팔레트 선택
+           레일에서도 밟았다(CommandPalette.jsx). 그래서 세 속성을 따로 적는다. */
+        borderInlineEndStyle: "solid",
+        borderInlineEndWidth: "1px",
+        borderInlineEndColor: (t) => t.palette.chrome.line,
         /* AppBar 와 같은 이유 — Shell 안의 포커스 링과 워드마크는 Shell 용이다. */
         "--clovir-focus-ring": (t) => t.palette.chrome.focusRing,
         "--clovir-wordmark": (t) => t.palette.chrome.wordmark,
@@ -698,9 +724,15 @@ export function AppShell({
           /* 상단바와 사이드바는 **같은 재료**다(D-179). 옛 결정("chrome 은 발광하지 않는다",
              D-141)은 chrome 을 캔버스 계열 무채색으로 두었고, 그 상태가 Before 측정에서
              `brand_presence` 1,494장 중 1,452장 실패로 나타났다 — 통과한 42장은 전부 로그인
-             화면이었다. 지금은 flat `chrome.shell` 이고, Gradient(`chrome.shellImage`)와
-             AI Wash(`chrome.aiWash`)는 이 자리에 **W2 가** 배선한다. */
-          background: t.palette.sidebar.bg,
+             화면이었다.
+             W1 은 여기를 flat `chrome.shell`(#1E2758)로 두었는데, 바로 아래 사이드바는
+             Gradient 의 **첫 stop `chrome.shellTop`(#28336F)** 에서 시작한다. 즉 W1 상태는
+             두 층이 만나는 모서리에서 한 stop 어긋나 있었고, Gradient 3종은 소비처가 0이라
+             셸이 통째로 평평했다(F-W1R-39). PLAN «Chrome 설계» 의 문장이 이유를 그대로
+             말한다 — "만나는 모서리가 같은 색인 이유는 Top bar 의 채움이 Sidebar Gradient 의
+             첫 stop 이기 때문이다". `theme-contract.test.js` 가 그 항등식을 이미 단언하고
+             있고(stopsOf(shellImage)[0] === shellTop), 이제 제품이 그 토큰을 실제로 읽는다. */
+          background: t.palette.chrome.shellTop,
           color: t.palette.chrome.onShell,
           /* Shell 위에서는 포커스 링도 Shell 용이다. Canvas 용 링은 인디고 위에서 light 기준
              1.38~1.83:1 로 사실상 보이지 않는다(실측) — 상속되는 변수 하나로 이 안의 모든
@@ -708,14 +740,23 @@ export function AppShell({
              인디고 위에서 2.32:1 이다. */
           "--clovir-focus-ring": t.palette.chrome.focusRing,
           "--clovir-wordmark": t.palette.chrome.wordmark,
-          borderBottom: `1px solid ${t.palette.sidebar.line}`,
+          /* 아래 실선은 **chrome 과 캔버스의 경계**다. 그런데 상단바는 전폭이라 예전
+             `borderBottom` 은 사이드바 열 위에도 그어졌다 — 그 구간의 아래는 캔버스가 아니라
+             chrome 이므로, 그 선이 하우징을 한가운데서 잘라 L 이 두 조각으로 보였다
+             (w1-after light/user_me.png y=52 에 전폭 실선. 사이드바가 열로 서 있을 때만
+             해당하므로 서랍(좁은 화면)과 셸 없는 화면에서는 전폭 그대로 긋는다). */
+          borderBottom: 0,
         })}
       >
         {/* disableGutters — MUI Toolbar 기본 좌우 패딩(24px)이 남으면 로고 칸이
             사이드바 폭에서 그만큼 밀려 두 층의 경계가 어긋난다. `pl:0` 으로는
             안 되고(gutters 가 브레이크포인트별로 다시 넣는다) 아예 꺼야 한다.
             왼쪽 여백은 로고 칸이 자기 안에서 주고, 오른쪽만 여기서 준다. */}
-        <Toolbar disableGutters sx={{ minHeight: APPBAR_HEIGHT, gap: 1, pr: 2.5 }}>
+        {/* 좁은 화면에는 사이드바 열 자체가 없으므로 왼쪽 여백을 여기서 준다 — `disableGutters`
+            는 **로고 칸을 사이드바 폭에 맞추기 위한** 것이고, 그 열이 없는 폭에서는 목적이
+            사라진다. 그 상태로 두면 햄버거가 화면 왼쪽 끝(x=0)에 잘려 붙는다(390 실측:
+            잉크가 x=0 부터 시작해 왼쪽 둥근 끝이 사각으로 잘린다). */}
+        <Toolbar disableGutters sx={{ minHeight: APPBAR_HEIGHT, gap: 1, pr: 0, pl: isNarrow ? 1 : 0 }}>
           {showMenu && isNarrow ? (
             <IconButton
               onClick={onToggleNav}
@@ -723,7 +764,6 @@ export function AppShell({
               aria-expanded={navOpen}
               aria-controls="app-sidebar"
               color="inherit"
-              edge="start"
             >
               {navOpen ? <CloseRoundedIcon /> : <MenuRoundedIcon />}
             </IconButton>
@@ -743,23 +783,60 @@ export function AppShell({
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />
 
+          {/* 검색은 브랜드 칸과 AI 앵커 **사이의 가운데**에 놓는다 (지시 13 «Global Search 와
+              사용자 영역과의 균형»). 예전에는 브랜드 바로 뒤에 붙고 오른쪽이 통째로 비어
+              (실측: 1920 에서 573px, 2560 에서 1,062px, 3840 에서 2,188px), 상단바가 왼쪽으로
+              쏠린 채 남는 폭을 아무도 회수하지 않았다. 양쪽 신축 스페이서가 그 폭을 반씩
+              나눠 가지면 검색이 실제 사용 폭의 가운데에 서고, 오른쪽 컨트롤은 여전히 화면
+              끝에 붙는다(사용자 지적 Q3 유지). */}
+          <Box sx={{ flex: 1 }} />
           {!minimal ? <TopSearch onOpen={() => setPaletteOpen(true)} /> : null}
-
-          {/* 오른쪽 컨트롤을 화면 끝으로 민다 — 사용자 지적 Q3.
-              예전에는 이 스페이서가 `minimal` 일 때만 늘어나서, 일반 화면에서는 검색 막대
-              (maxWidth 45rem) 바로 뒤에 컨트롤이 붙고 오른쪽이 통째로 비었다.
-              실측: 1920px 에서 573px, 2560px 에서 1,062px, 3840px 에서 2,188px 가 빈 채였다. */}
           <Box sx={{ flex: 1 }} />
 
           {!minimal ? (
-            <>
-              {/* 넓은 화면에서는 위 검색 막대가 그 일을 하므로 아이콘은 좁은 화면에만 둔다. */}
-              <Tooltip title="통합 검색 (Ctrl+K)">
-                <IconButton onClick={() => setPaletteOpen(true)} aria-label="통합 검색 열기"
-                  color="inherit" sx={{ display: { xs: "inline-flex", md: "none" } }}>
-                  <SearchRoundedIcon />
-                </IconButton>
-              </Tooltip>
+            /* ── AI 앵커 ────────────────────────────────────────────────────────
+               chrome 에서 **보라가 나타나는 유일한 자리**다. PLAN «Chrome 설계» 가 이 자리를
+               `chrome.aiWash` 로 규정하고 그 안에 사는 것을 "Clovi·종·아바타" 로 명시한다.
+
+               상단바 **전체**에 깔지 않는 이유는 취향이 아니라 숫자다: AI Wash 를 합성하면
+               `onShellMuted` 가 dark 에서 4.36:1 로 AA 아래로 내려간다(theme.js §CHROME 실측).
+               워시를 전폭으로 깔면 검색 inset 의 muted 잉크가 그 영역 안으로 들어간다.
+               그래서 워시는 **경계가 있는 요소**로 두고, 그 안의 잉크는 전부 `onShell` 로
+               고정한다(D-179 «Wash 위 잉크 하드 룰»). 라디얼(`120% 200% at 100% 0%`)은 상자
+               폭의 72% 지점에서 이미 transparent 라 왼쪽 모서리에 경계가 보이지 않는다.
+
+               오른쪽 여백을 Toolbar 대신 여기서 주는 이유: 워시의 앵커가 `at 100% 0%` 라
+               상자가 화면 오른쪽 끝까지 닿아야 앵커가 화면 모서리에 앉는다. */
+            <Box
+              data-shell-region="ai"
+              sx={(t) => ({
+                display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1,
+                alignSelf: "stretch", pl: 2.5, pr: 2.5,
+                /* 워시의 기하가 **상자 폭에 종속**이다: `120% 200% at 100% 0%` 는 오른쪽
+                   끝에서 상자 폭의 72% 지점까지만 살아 있고 나머지 28% 는 완전히 투명하다.
+                   컨트롤 묶음만 감싸면(실측 313px) 그 죽은 구간이 정확히 **클로비 알약 위**에
+                   떨어져서(1625~1705), 보라가 AI 가 아니라 계정을 칠했다 — 독립 검수자가
+                   ΔE=0 으로 잡았다. 그래서 상자에 최소 폭을 줘 워시가 묶음 전체를 덮게 한다.
+                   26rem 은 임의값이 아니라 계산값이다: 1920 에서 26rem=416px → 워시가
+                   x=1920−0.72×416=1620 까지 닿아 알약(1627~)을 덮고, 검색 오른쪽 끝(1286)
+                   에는 닿지 않아 D-181 의 잉크 규칙이 유지된다. rem 이라 4K 에서 함께 자란다.
+                   좁은 화면에서는 상자가 뷰포트를 넘으므로 최소 폭을 풀어 준다. */
+                minWidth: { xs: 0, md: "26rem" },
+                color: t.palette.chrome.onShell,
+                backgroundImage: t.palette.chrome.aiWash,
+              })}
+            >
+              {/* 넓은 화면에서는 위 검색 막대가 그 일을 하므로 아이콘은 좁은 화면에만 둔다.
+                  경계는 **셸 자신의 것**(`isNarrow` = NAV_BREAKPOINT)이다 — 예전에는 여기가
+                  md(900), 검색 막대가 720 이라 그 사이 폭에서 같은 기능이 두 번 보였다. */}
+              {isNarrow ? (
+                <Tooltip title="통합 검색 (Ctrl+K)">
+                  <IconButton onClick={() => setPaletteOpen(true)} aria-label="통합 검색 열기"
+                    color="inherit">
+                    <SearchRoundedIcon />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
               {/* 상단바 우측 클로비(기준 파일의 .top-clovi-btn). 사용자가 "오른쪽 상단의 웃는
                   클로비를 유지"라고 했는데 그 자리에는 실제로 MUI 의 일반 로봇 아이콘이 있었다.
                   좁은 화면에서만 보이던 것도 항상 보이게 바꾼다 — 우하단 FAB 은 md 미만에서
@@ -770,25 +847,37 @@ export function AppShell({
                   이 저장소 원칙과 같은 방향. */}
               {!onAssistant ? <MascotTopButton onClick={() => setAssistantOpen(true)} /> : null}
               <ThemeToggle userId={userId} />
-            </>
-          ) : null}
 
-          {/* 사용자/관리자 전환은 **사이드바 최상단**으로 옮겼다(P2). 여기 두 벌을 두면
-              같은 스위치가 화면에 두 번 나온다. 좁은 화면에서는 사이드바가 서랍으로 접히지만,
-              그때는 메뉴를 여는 것이 곧 트리를 보는 것이라 스위치도 함께 나온다. */}
+              {/* 사용자/관리자 전환은 **사이드바 최상단**으로 옮겼다(P2). 여기 두 벌을 두면
+                  같은 스위치가 화면에 두 번 나온다. 좁은 화면에서는 사이드바가 서랍으로 접히지만,
+                  그때는 메뉴를 여는 것이 곧 트리를 보는 것이라 스위치도 함께 나온다. */}
 
-          {/* 지시 1: 사용자 알림의 단일 진입점은 이 종 하나다. 예전에는 헤더 상태 칩과
-              본문 위 CRITICAL 띠가 따로 있었다. 지시 67 에 따라 정보를 없앤 것이 아니라
-              옮긴 것이다 — 운영자용 서비스 Health 는 관리자 대시보드·진단이 계속 보여 준다. */}
-          {!minimal ? <NotificationBell isUser={isUser} notices={statusNotices} /> : null}
-          {!minimal ? (
-            <UserMenu
-              name={name} userId={userId} avatarUrl={avatarUrl}
-              // 내 소속·관리 범위(0060 §5) — 셸이 이미 들고 있는 값을 넘긴다.
-              me={auth.data && (auth.data.user || auth.data)}
-            />
+              {/* 지시 1: 사용자 알림의 단일 진입점은 이 종 하나다. 예전에는 헤더 상태 칩과
+                  본문 위 CRITICAL 띠가 따로 있었다. 지시 67 에 따라 정보를 없앤 것이 아니라
+                  옮긴 것이다 — 운영자용 서비스 Health 는 관리자 대시보드·진단이 계속 보여 준다. */}
+              <NotificationBell isUser={isUser} notices={statusNotices} />
+              <UserMenu
+                name={name} userId={userId} avatarUrl={avatarUrl}
+                // 내 소속·관리 범위(0060 §5) — 셸이 이미 들고 있는 값을 넘긴다.
+                me={auth.data && (auth.data.user || auth.data)}
+              />
+            </Box>
           ) : null}
         </Toolbar>
+
+        {/* chrome 과 캔버스의 경계선. 위 주석대로 사이드바 열 **다음**에서 시작한다.
+            의사요소가 아니라 실제 요소인 이유는 폭이 반응형 객체(DRAWER_WIDTH)이기
+            때문이다 — sx 의 중첩 선택자 안에서 브레이크포인트 객체가 해석되는지에
+            의존하지 않는다. 장식이라 낭독 대상이 아니고 포인터도 통과시킨다. */}
+        <Box
+          aria-hidden="true"
+          data-testid="shell-seam"
+          sx={{
+            position: "absolute", bottom: 0, insetInlineEnd: 0, height: "1px",
+            insetInlineStart: showMenu && !isNarrow ? DRAWER_WIDTH : 0,
+            bgcolor: "chrome.line", pointerEvents: "none",
+          }}
+        />
       </AppBar>
 
       {showMenu ? (
@@ -822,9 +911,20 @@ export function AppShell({
         tabIndex={-1}
         sx={{
           flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
-          pt: APPBAR_HEIGHT.xs / 8, outline: "none",
-          "@media (min-width:2200px)": { pt: APPBAR_HEIGHT.xxl / 8 },
-          "@media (min-width:3000px)": { pt: APPBAR_HEIGHT.uhd / 8 },
+          /* 상단바가 `position:fixed` 라 본문은 그 높이만큼 스스로 내려와야 한다. 값을
+             **px 로** 준다 — 예전에는 `pt: APPBAR_HEIGHT.xs / 8`(spacing 단위)이었는데,
+             이 저장소의 spacing 은 rem 이고(theme.js) 루트 폰트사이즈는 2200/3000 에서
+             16→18→20 으로 커진다. 반면 Toolbar 의 `minHeight` 는 px 다. 두 축이 서로 다른
+             단위를 타면서 **넓은 화면에서만 어긋났다**: 실측 2560 에서 7.5px, 3840 에서
+             17px 의 죽은 띠가 상단바 바로 아래에 생긴다(52 는 우연히 맞았다 — 루트가
+             16px 라 3.25rem = 52px). R-6 이 말하는 "해상도 변화에 따라 화면이 어긋난다"의
+             교과서적 사례라 여기서 단위를 하나로 통일한다. */
+          pt: `${APPBAR_HEIGHT.xs}px`, outline: "none",
+          /* 경계값도 리터럴로 적지 않는다 — `styles/root.css` 의 4K 레버와 이 오프셋이 서로
+             다른 숫자를 들고 있으면 한쪽만 바뀔 때 D-182 가 방금 고친 어긋남이 되돌아온다.
+             (`root-scale-lever.test.js` 가 root.css 의 두 경계도 같은 값인지 단언한다.) */
+          [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { pt: `${APPBAR_HEIGHT.xxl}px` },
+          [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { pt: `${APPBAR_HEIGHT.uhd}px` },
         }}
       >
         {/* 배너는 본문 폭 캡 밖에 있어야 한다 — 안쪽에 두면 4K 에서 화면 가운데만 띠가 뜨고
@@ -834,16 +934,21 @@ export function AppShell({
         {/* 스코프 바 — 배너 **아래**, 본문 폭 캡 **안**이다. 배너는 전역 공지라 화면 폭
             전체를 쓰지만 이건 "이 목록이 왜 이만큼인가" 를 설명하는 줄이라 목록과 같은
             폭이어야 붙어 읽힌다. 전체 범위인 사람에게는 아무것도 그리지 않는다. */}
+        {/* 본문 열. `c-content` 는 장식용 class 가 아니라 **측정 지점**이다 — `narrow_main`
+            프로브(scripts/ui_qa/assertions.py)가 `#main-content` 안에서 이 이름을 찾아
+            "사용자가 읽는 열" 의 폭을 잰다. 이름이 없던 동안에는 그 프로브가 열을 못 찾고
+            보이는 상자들의 합집합으로 되짚었다(그 주석이 "the MUI shell caps a class-less
+            <Box>" 라고 적어 둔 상태가 이것이다). 폭 캡을 소유한 층이 자기 이름을 대는 것이
+            측정 가능한 계약이다. */}
         <Box
-          sx={
-            {
-                  width: "100%", maxWidth: CONTENT_MAX_WIDTH, mx: "auto",
-                  px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 },
-                  // PA-RC-0020: 우하단 FAB을 없애 본문 위에 뜬 컨트롤이 더는 없다 — FAB
-                  // 자리를 비워 두던 큰 하단 여백(md:14)도 함께 걷어낸다.
-                  pb: { xs: 3, md: 4 },
-            }
-          }
+          className="c-content"
+          sx={{
+            width: "100%", maxWidth: CONTENT_MAX_WIDTH, mx: "auto",
+            px: { xs: 2, sm: 3, xl: 4 }, py: { xs: 2.5, sm: 3.5 },
+            // PA-RC-0020: 우하단 FAB을 없애 본문 위에 뜬 컨트롤이 더는 없다 — FAB
+            // 자리를 비워 두던 큰 하단 여백(md:14)도 함께 걷어낸다.
+            pb: { xs: 3, md: 4 },
+          }}
         >
           {!minimal ? <ScopeBar /> : null}
           <CrumbRootProvider value={crumbRoot}>

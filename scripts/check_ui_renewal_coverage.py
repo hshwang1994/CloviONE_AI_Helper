@@ -1049,7 +1049,11 @@ def _run_conditions(rep: Report, stage: str, wave: str) -> int:
     scoped = [s for s in surfaces if s.get("wave") in upto]
     scoped_ids = {s.get("id") for s in scoped}
     build_sha = ""
-    m = re.search(r"^-\s*build_index_sha256:\s*(\S+)", read(WORK_STATE), re.M)
+    # WORK_STATE 는 이 값을 코드 스팬(`…`)으로 적는다 — 사람이 읽는 문서이므로 그게 맞다.
+    # 예전 정규식은 `(\S+)` 라 **백틱까지 캡처**해서, 값이 같아도 EVIDENCE_STALE_BUILD 로
+    # 실패했다(W2 에서 처음 밟았다 — W1 까지는 DONE 인 Surface 가 없어 이 비교가 안 돌았다).
+    # 해시 문자만 잡는다.
+    m = re.search(r"^-\s*build_index_sha256:\s*`?([0-9a-fA-F]{8,64})`?", read(WORK_STATE), re.M)
     if m:
         build_sha = m.group(1)
 

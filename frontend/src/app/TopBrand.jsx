@@ -53,13 +53,24 @@ export default function TopBrand({ onClick, label = "홈으로", width }) {
         // (AppShell.jsx 의 Toolbar)는 이미 가운데 정렬돼 있으니 여기도 맞춘다.
         justifyContent: "center",
         textTransform: "none",
-        // 기준선 `.brand { padding: 5px 7px }`. 흰 판이 없으니 로고가 스스로 여백을 가진다.
-        px: "7px",
-        py: "5px",
+        /* 기준선 `.brand { padding: 5px 7px }`. 흰 판이 없으니 로고가 스스로 여백을 가진다.
+           단위는 rem 이다 — 락업 자체가 rem 으로 자라는데(BrandLogo 의 BRAND_UNIT) 여백만
+           px 로 고정하면 4K 에서 로고가 자기 칸에 꽉 차 보인다. D-182 와 같은 규율이다. */
+        px: "0.4375rem",
+        py: "0.3125rem",
         minWidth: 0,
       }}
     >
-      <BrandLogo sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
+      {/* 상단바에서는 **부제를 그리지 않는다** (R-13 "로고 영역을 현재보다 조금 줄인다").
+          부제 글자 크기는 줄일 수 없다 — QA 의 tiny_text 가 폭 2200 이상에서 12px 하한을
+          걸고, 그 폭에서 이 글자는 이미 12.24px 다(BrandLogo 의 BRAND_UNIT 주석). 즉 락업을
+          줄이는 유일한 레버는 **줄 수**다. 부제를 빼면 락업이 216×37 → 약 197×27(면적 -33%)이
+          되고, 로고가 헤더의 시각적 중심을 과도하게 차지하지 않는다.
+          제품 태그라인은 사라지지 않는다 — 좁은 화면에서 열리는 사이드바 서랍 머리
+          (AppShell 의 Toolbar)와 로그인 화면이 계속 보여 준다. 접근성도 그대로다:
+          BrandLogo 바깥 상자의 `aria-label` 이 "ClovirAssist Smart Workspace Assistant" 를
+          그대로 낭독한다. */}
+      <BrandLogo subtitle={false} sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
       {/* 자르는 대신 같은 마크를 그린다 — 인라인 SVG라 자를 이유가 없다. */}
       <BrandLogo markOnly width={34} sx={{ [WIDE]: { display: "none" } }} />
     </Button>

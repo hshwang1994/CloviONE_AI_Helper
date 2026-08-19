@@ -135,6 +135,10 @@ const SUBTITLE_LINE_HEIGHT = 1.2;
 /* 마크는 2줄 텍스트 블록과 같은 높이의 정사각형이다(아이콘이 2줄 블록과 균형).
  * 블록 높이 = 15em × 50/346(아래 viewBox 비율) + 1.2em = 3.37em. */
 const MARK_SIZE = "3.37em";
+/* 부제 없이 한 줄로 놓을 때(상단바). 워드마크 잉크 상자 높이가 15em × 50/346 = 2.17em 이고,
+ * 마크는 그보다 약간 커야 광학적으로 같은 크기로 보인다(캡 하이트 대비 아이콘의 통상 비율).
+ * 이 값이 R-13 "로고 영역을 조금 줄인다" 의 실제 레버다 — 글자 크기는 손대지 않는다. */
+const MARK_SIZE_ONE_LINE = "2.45em";
 const MARK_GAP = "0.65em";
 /* 글자에 맞춰 자른 워드마크 viewBox. 원본 좌표계(0 0 528 156)에서 글자는 x 160..506,
  * 베이스라인 y=86 이고 잉크는 베이스라인 위 0.752em·아래 0.010em 까지다(같은 방법으로 측정,
@@ -167,6 +171,9 @@ export default function BrandLogo({
     ? INVERSE_INK.accent
     : `var(--clovir-wordmark, ${theme.palette.brand.wordmark})`;
   const w = width != null ? width : markOnly ? 40 : WORDMARK_WIDTH;
+  /* 부제가 없으면 텍스트 블록이 두 줄에서 한 줄로 줄어든다 — 마크가 2줄 높이 그대로면
+     아이콘만 홀로 커 보인다. 두 값 중 하나를 고르는 것이 아니라 **블록 높이를 따라간다**. */
+  const markSize = subtitle ? MARK_SIZE : MARK_SIZE_ONE_LINE;
 
   if (markOnly) {
     return (
@@ -228,7 +235,7 @@ export default function BrandLogo({
         component="svg"
         viewBox="0 0 128 128"
         aria-hidden="true"
-        sx={{ display: "block", width: MARK_SIZE, height: MARK_SIZE, flexShrink: 0 }}
+        sx={{ display: "block", width: markSize, height: markSize, flexShrink: 0 }}
       >
         <CloverMark uid={uid} mode={mode} />
       </Box>
@@ -245,30 +252,35 @@ export default function BrandLogo({
           sx={{ display: "block", width: w, maxWidth: "100%", height: "auto" }}
         >
           {/* 글자는 놓인 면의 색을 따른다(currentColor). 강조어만 테마 액센트.
-              x·y·textLength 는 원본 좌표계 그대로다 — viewBox 만 글자에 맞춰 잘랐다. */}
+              y·총 textLength 는 원본 좌표계 그대로다 — viewBox 만 글자에 맞춰 잘랐다.
+
+              ── 왜 `<text>` 하나에 `<tspan>` 둘인가 (F-W1R-34) ──────────────────
+              예전에는 `<text>` **두 개**가 각각 절대 x 와 자기 textLength 를 들고 있었다:
+              `x=160 textLength=167` 로 Clovir 가 x=327 에서 끝나는데 Assist 는 x=338 에서
+              시작해 **11 유닛(화면에서 6px)의 구멍**이 생겼다. 그래서 셸의 제품명이
+              "Clovir Assist" 두 단어로 읽혔다 — 같은 세션의 로그인 화면(원본 자산, 절대 x
+              없음)은 한 단어로 붙어 있어 같은 제품이 두 이름을 갖고 있었다. CLAUDE.md §0 의
+              Canonical Product Name 은 `ClovirAssist` **한 단어**다.
+
+              고치는 방법은 좌표를 다시 재는 것이 아니라 **좌표를 없애는 것**이다. 하나의
+              text 안에서 두 tspan 은 자연 진행폭으로 이어지므로 구멍이 생길 자리가 없고,
+              다음에 폰트나 자간이 바뀌어도 다시 어긋나지 않는다. 폰트 폴백 보호(이 파일
+              머리 주석)는 **총 textLength** 가 그대로 맡는다.
+
+              총 폭은 원본과 같은 346(=506−160)이다. 실제 자연 진행폭은 342.3 이므로
+              (fontTools 로 PretendardVariable 서브셋에서 wght 800/850 인스턴스화해 실측:
+              Clovir@800 163.45 + Assist@850 178.85, letter-spacing −2.2 포함) 늘어남은
+              **+1.1%** 다 — 락업 상자와 다른 시험이 보는 치수는 하나도 바뀌지 않는다. */}
           <text
             x="160"
             y="86"
-            fill="currentColor"
             fontSize="62"
-            fontWeight="800"
             letterSpacing="-2.2"
-            textLength="167"
+            textLength="346"
             lengthAdjust="spacingAndGlyphs"
           >
-            Clovir
-          </text>
-          <text
-            x="338"
-            y="86"
-            fill={accent}
-            fontSize="62"
-            fontWeight="850"
-            letterSpacing="-2.2"
-            textLength="168"
-            lengthAdjust="spacingAndGlyphs"
-          >
-            Assist
+            <tspan fill="currentColor" fontWeight="800">Clovir</tspan>
+            <tspan fill={accent} fontWeight="850">Assist</tspan>
           </text>
         </Box>
         {subtitle ? (

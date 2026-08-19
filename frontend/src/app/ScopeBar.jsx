@@ -6,7 +6,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import { isScopeEnforcedRoute } from "./navConfig.js";
 import { PATH_SEP } from "../ui/OrgPath.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 
 /* 스코프 바 — **지금 보고 있는 범위를 화면에 적는다** (S4 / A8).
  *
@@ -143,7 +143,9 @@ export function ScopeBar() {
       aria-live="polite"
       sx={{
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
-        px: 2, py: 0.75, mb: 2, borderRadius: "12px",
+        // 반지름은 토큰에서 온다 — 12px 리터럴은 RADIUS 세 단(6/8/14) 어디에도 없는
+        // 네 번째 값이었다(지시 26: 화면마다 숫자를 박지 않는다).
+        px: 2, py: 0.75, mb: 2, borderRadius: `${RADIUS.md}px`,
         bgcolor: (t) => alpha(warn ? t.palette.warning.main : t.palette.primary.main, 0.07),
         border: 1,
         borderColor: (t) => alpha(warn ? t.palette.warning.main : t.palette.primary.main, 0.18),

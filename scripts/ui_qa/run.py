@@ -75,6 +75,11 @@ SEVERITY_BY_CLASS = {
     "numeric_alignment": "high",
     "control_baseline_mismatch": "high",
     "brand_presence": "high",
+    # W1 이 이 검사를 추가하면서 severity 표에는 안 넣었다 — 그래서 매 실행이 "표에 없는
+    # 검사 1개" 경고를 찍고 SEVERITY_DEFAULT 로 흘려보냈다. 그 경고는 **사람이 분류하라는
+    # 뜻**이므로 여기서 분류한다: 이 검사가 실패하면 화면에 있는 Brand 자리가 회색이라는
+    # 뜻이고, 그건 위 규칙의 "제품 정체성이 없다" 에 해당한다(D-180).
+    "brand_role_coverage": "high",
     "mascot_visible_size": "high",
     "plain_dropdown_for_entity": "high",
     # 공간 계열 신규 Assertion

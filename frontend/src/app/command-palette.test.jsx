@@ -68,6 +68,64 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
+/** 문서에 삽입된 emotion 규칙 전문. jsdom 은 논리 속성을 computed 로 계산하지 않으므로
+ *  **선언**을 읽는다(`brand-logo.test.jsx`·`topbar-contract.test.jsx` 와 같은 기법). */
+function styleText() {
+  return [...document.querySelectorAll("style")].map((el) => el.textContent || "").join("\n");
+}
+
+/* ── 지시 14 «Selected State» ────────────────────────────────────────────────
+ * 선택 신호는 **둘**이다 — 앞머리 레일 + 안쪽 바탕. 한동안 레일이 한 픽셀도 안 그려졌다:
+ * 소스는 `borderInlineStart: 2` 만 두었는데 MUI 의 border 스타일 함수가 그것을
+ * `border-inline-start: 2px` 로만 펴고 `-style` 을 안 넣어서, CSS 기본값 `none` 때문에
+ * 폭만 있고 보이지 않는 레일이 됐다. 배포본 픽셀을 본 독립 검수자가 잡았다.
+ * 시험은 그래서 "선택하면 색이 바뀐다"가 아니라 **"그릴 수 있는 형태인가"**를 본다. */
+describe("팔레트 선택 표현 — 레일이 실제로 그려지는 형태인가", () => {
+  it("앞머리 레일에 style 이 선언돼 있다 (폭만 있으면 안 그려진다)", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await screen.findByText("스프린트 회의록 정리");
+    const css = styleText();
+    expect(css, "border-inline-start-style 선언이 없다 — 폭만 있는 레일은 안 그려진다")
+      .toMatch(/border-inline-start-style:\s*solid/);
+    expect(css).toMatch(/border-inline-start-width:\s*2px/);
+  });
+
+  it("선택된 줄이 레일 색을 바꾼다 (shorthand borderColor 로 되돌아가지 않는다)", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await screen.findByText("스프린트 회의록 정리");
+    const css = styleText();
+    const selected = css.slice(css.indexOf(".Mui-selected"));
+    expect(selected).toMatch(/border-inline-start-color/);
+    /* 값이 **실제 색**이어야 한다. `borderInlineStartColor` 는 MUI 의 border 설정 목록에
+       없어서 팔레트 경로를 안 풀어 준다 — `"primary.main"` 이라고 적으면 그 문자열이 그대로
+       CSS 로 나가 무효 선언이 되고, 레일은 다시 한 픽셀도 안 그려진다(배포본에서 실제로
+       그랬다). 색 이름이 아니라 색 값인지 본다. */
+    expect(selected).toMatch(/border-inline-start-color:\s*(#[0-9a-fA-F]{3,8}|rgba?\()/);
+    expect(selected, "팔레트 경로가 안 풀린 채 CSS 로 나갔다")
+      .not.toMatch(/border-inline-start-color:\s*[a-z]+\.[a-z]+/i);
+  });
+});
+
+/* R-14 는 Loading·결과 없음·Error 세 상태를 **명시적으로** 요구한다. 셋이 서로 다른 얼굴을
+ * 갖는지는 `palette-error.test.jsx` 가 없음/오류를, 여기서 찾는 중을 본다. */
+describe("팔레트 Loading 상태", () => {
+  it("서버 응답을 기다리는 동안 '찾는 중'과 진행 표시를 함께 보여 준다", async () => {
+    /* 영원히 안 끝나는 응답으로 **기다리는 상태에 머물게** 한다. 디바운스가 아직 안
+       따라잡은 순간도 '찾는 중'이어야 한다 — 그걸 빼면 글자를 칠 때마다 '검색 결과 없음'이
+       한 번씩 번쩍이고, 결과가 있는데도 없다고 말하는 순간이 생긴다(CommandPalette.jsx 주석). */
+    apiMock.mockImplementation(() => new Promise(() => {}));
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "회의록");
+    await waitFor(() => expect(screen.getByText("찾는 중…")).toBeInTheDocument());
+    expect(screen.getByLabelText("검색 중"), "진행 표시가 없다").toBeTruthy();
+    // 기다리는 동안 "검색 결과 없음"이라고 말하지 않는다 — 그건 화면이 거짓말하는 것이다.
+    expect(screen.queryByText("검색 결과 없음")).toBeNull();
+    expect(screen.queryByText("검색하지 못했습니다")).toBeNull();
+  });
+});
+
 describe("명령 팔레트", () => {
   it("입력 전에는 서버에 묻지 않는다", async () => {
     renderPalette();
@@ -80,7 +138,10 @@ describe("명령 팔레트", () => {
   it("최근 방문이 없으면 빈 검색어에서 메뉴를 나열하지 않는다(사이드바 복제 금지)", async () => {
     renderPalette();
     expect(screen.queryByText("내 티켓")).not.toBeInTheDocument();
-    expect(screen.getByText("메뉴 이름이나 티켓, 문서, 게시글 제목을 입력하세요.")).toBeInTheDocument();
+    /* 빈 자리를 문장 한 줄로 때우지 않는다 — 제목이 무엇을 하는 자리인지 말하고
+       도움말이 무엇을 찾을 수 있는지 말한다(지시 14·15). 둘 다 있어야 통과한다. */
+    expect(screen.getByText("무엇을 찾으시나요?")).toBeInTheDocument();
+    expect(screen.getByText(/티켓 제목, 문서 제목, 게시글 제목으로 찾을 수 있습니다/)).toBeInTheDocument();
   });
 
   it("빈 검색어에서는 실제로 다녀간 메뉴만 '최근 방문'으로 보여준다", async () => {

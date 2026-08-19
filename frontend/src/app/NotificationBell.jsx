@@ -426,6 +426,13 @@ export function NotificationBell({ isUser, notices }) {
           color={badge ? (countError ? "warning" : "error")
             : countError ? "warning" : countPending ? "info" : "default"}
           overlap="circular"
+          /* 배지를 **글리프 쪽으로** 당긴다. MUI 는 배지를 감싼 요소(여기서는 40px IconButton
+             hit area)의 모서리에 붙이는데, 그 안의 종 글리프는 16px 남짓이라 기본값이면 배지가
+             종에서 떨어져 상단바 위 가장자리에 **분리된 빨간 원반**으로 뜬다(52px 바에서 y=2,
+             독립 검수자 실측). 종과 배지는 하나의 신호이므로 붙어 있어야 한다. 값이 px 인
+             이유는 대상이 MUI 기본 치수(40 hit / 24 icon)이기 때문이다 — 그 둘이 바뀌면
+             여기도 함께 봐야 한다. */
+          sx={{ "& .MuiBadge-badge": { top: "9px", right: "9px" } }}
         >
           <IconButton
             ref={bellRef}

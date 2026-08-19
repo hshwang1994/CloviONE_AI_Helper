@@ -19876,112 +19876,322 @@
      "category": "search",
      "name": "Topbar 검색 상자를 눌러 Command Palette 를 연다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/AppShell.jsx:721",
-     "api": "",
-     "chain": {},
+     "api": "search?q=%ED%9A%8C%EC%9D%98&limit=5",
+     "chain": {
+      "ui_action": "상단바 검색 상자 클릭",
+      "frontend_state": "CommandPalette open=true — 다이얼로그가 뜨고 입력에 포커스",
+      "api_request": "GET search?q=%ED%9A%8C%EC%9D%98&limit=5",
+      "backend_query": "app/search/router.py → FTS5 인덱스 조회 (SEARCH_KINDS 4종)",
+      "api_response": "HTTP 200",
+      "rendered": "결과 줄 11개 (유형 아이콘 + 붙박이 구역 제목)"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1186-palette-open.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1186-palette-results.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1186-palette-empty.png"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
     },
     {
      "id": "FF-1187",
      "category": "navigation",
      "name": "Command Palette 에서 화면·항목으로 이동한다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/CommandPalette.jsx",
-     "api": "",
-     "chain": {},
+     "api": "search?q=%EB%AC%B8%EC%84%9C&limit=5",
+     "chain": {
+      "ui_action": "팔레트 첫 결과 «문서 자동 생성» 클릭",
+      "url_state": "해시 /me → /documents",
+      "frontend_state": "팔레트 닫힘 + 라우트 전환",
+      "api_request": "GET search?q=%EB%AC%B8%EC%84%9C&limit=5",
+      "backend_query": "이동한 화면의 목록/상세 조회 (권한 Scope 적용)",
+      "api_response": "HTTP 200",
+      "rendered": "본문 렌더 «관리자 › 자동화와 연동 문서 자동 생성 문서 생성 주의‘모드’ 필터는 지금 보고 있는 페이지에만 적용됩니다. 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요. 필터 상태 상태: 전체 상태 모드 모드»"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1187-navigated.png"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
     },
     {
      "id": "FF-1188",
      "category": "notification_action",
      "name": "알림 종에서 안 읽은 수를 보고 팝오버로 개별 알림을 연다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/NotificationBell.jsx",
-     "api": "/api/notifications",
-     "chain": {},
-     "expected": {},
+     "api": "notifications?page_size=8&audience=admin&unread_only=true",
+     "chain": {
+      "ui_action": "상단바 알림 종 클릭",
+      "api_request": "GET notifications?page_size=8&audience=admin&unread_only=true",
+      "backend_query": "app/notifications/router.py → 수신자별 알림 조회 (audience 분리)",
+      "api_response": "HTTP 200",
+      "frontend_state": "팝오버 open=true",
+      "rendered": "팝오버 본문 «알림, 안 읽음 2 모두 읽음 안 읽음 백업 실패 예약 백업 상태를 확인해 주세요 예약 백업이 꺼져 있어 자동 백업이 되고 있지 않습니다. 백업 화면에서 예약을 켜거나, 정기적으로»"
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "벨의 audience 는 지금 콘솔과 같아야 한다(사이드바 배지와 같은 숫자). 실측은 콘솔=사용자 / 벨=admin 이라 어긋난다 — F-W2E-01."
+     },
      "cross_surface": [],
-     "evidence": [],
-     "findings": [],
-     "audited_at": "",
-     "by": ""
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1188-bell.png"
+     ],
+     "findings": [
+      {
+       "id": "F-W2E-01",
+       "class": "cross_console_audience",
+       "severity": "Medium",
+       "title": "사용자 콘솔에서 알림 종이 **관리자 audience** 를 조회한다 — 같은 화면의 사이드바 배지와 다른 숫자를 말한다",
+       "status": "OPEN",
+       "wave": "W9"
+      }
+     ],
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
     },
     {
      "id": "FF-1189",
      "category": "settings_apply",
      "name": "테마 토글이 라이트/다크를 바꾸고 그 선택이 유지된다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "IN_PROGRESS",
      "source": "frontend/src/app/AppShell.jsx:508",
      "api": "",
-     "chain": {},
+     "chain": {
+      "ui_action": "상단바 테마 토글 클릭 (다크 모드로 전환)",
+      "frontend_state": "html[data-theme] light → dark · localStorage dark",
+      "rendered": "새로고침 후 dark — 선택이 유지된다"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1189-theme-toggled.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1189-theme-persisted.png"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
     },
     {
      "id": "FF-1190",
      "category": "overflow_action",
      "name": "계정 메뉴에서 프로필·표시 설정·로그아웃으로 간다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/UserMenu.jsx",
-     "api": "",
-     "chain": {},
+     "api": "profile",
+     "chain": {
+      "ui_action": "계정 버튼 클릭 → 메뉴 6개",
+      "frontend_state": "Menu open=true, anchor=계정 버튼",
+      "url_state": "해시 /my-display",
+      "rendered": "본문 «내 정보 내 프로필 계정  사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.  황 사진 바꾸기  이름  황형섭  이메일  hshwang@go»",
+      "api_request": "GET profile",
+      "backend_query": "내 프로필 조회 (세션 주체 기준)",
+      "api_response": "HTTP 200"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1190-account-menu.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1190-display-settings.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1190-profile.png"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)",
+     "notes": [
+      "'내 화면 설정' 은 서버 왕복이 없다 — 브라우저에만 저장되는 개인 설정이라고 화면 자신이 밝힌다. 사슬의 API 칸은 같은 메뉴의 '내 프로필' 경로로 채웠다."
+     ]
     },
     {
      "id": "FF-1191",
      "category": "modal_action",
      "name": "Clovi 버튼이 AI 도우미 서랍을 연다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/AppShell.jsx:746",
-     "api": "",
-     "chain": {},
+     "api": "me/ai-quota",
+     "chain": {
+      "ui_action": "상단바 클로비 버튼 클릭",
+      "frontend_state": "AssistantDrawer open=true",
+      "rendered": "서랍 본문 «클로비  현재 화면을 기준으로 도와드려요  현재 문맥: 홈 나:  나에게 할당된 티켓 보여줘  오전 10:51  도우미:  내게 직접 할당된 티켓 (완료 제외): 총 7건  [Aria] 자원변경-Disk 사이즈 변경»",
+      "api_request": "GET me/ai-quota",
+      "backend_query": "대화 이력 조회",
+      "api_response": "HTTP 200"
+     },
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1191-clovi-drawer.png"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
     },
     {
      "id": "FF-1192",
      "category": "permission_state",
      "name": "역할에 따라 콘솔 세그먼트 탭과 관리자 항목이 나타나거나 사라진다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/app/AppShell.jsx",
+     "api": "me",
+     "chain": {
+      "ui_action": "같은 셸을 system_admin / user 두 세션으로 연다",
+      "api_request": "GET me",
+      "backend_query": "app/core/sessions.py → 세션의 실제 role (서버가 정본)",
+      "api_response": "HTTP 200 (역할이 서로 다른 두 세션)",
+      "frontend_state": "콘솔 전환 스위치 system_admin=1 / user=0",
+      "rendered": "사이드바 항목 수 system_admin=18 / user=18"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1192-system_admin.png",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1192-user.png"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)",
+     "notes": [
+      "일반 사용자에게는 관리자 콘솔로 가는 스위치 자체가 없다 — Frontend gate 만으로 권한을 보장하지는 않지만(서버가 정본), 죽은 링크를 그리지 않는다는 계약은 지켜진다."
+     ]
+    },
+    {
+     "id": "FF-1195",
+     "category": "search",
+     "name": "검색 경합 — 늦게 온 결과가 목록을 줄여도 커서가 범위 안에 남는다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/app/CommandPalette.jsx",
+     "api": "search?q=%ED%9A%8C%EC%9D%98%EB%A1%9D%EC%A0%95%EB%A6%AC%EC%97%86%EB%8A%94%EB%A7%90zzz&limit=5",
+     "chain": {
+      "ui_action": "결과 11줄에서 커서를 끝까지 내린 뒤 질의를 좁혀 0줄로 줄인다",
+      "frontend_state": "cursor 를 flat.length-1 이하로 되돌리는 가드(CommandPalette.jsx)",
+      "api_request": "GET search?q=%ED%9A%8C%EC%9D%98%EB%A1%9D%EC%A0%95%EB%A6%AC%EC%97%86%EB%8A%94%EB%A7%90zzz&limit=5",
+      "backend_query": "app/search/router.py → 좁아진 질의로 재조회",
+      "api_response": "HTTP 200",
+      "rendered": "Enter 가 실제로 간 곳: /search?q=%ED%9A%8C%EC%9D%98%EB%A1%9D%EC%A0%95%EB%A6%AC%EC%97%86%EB%8A%94%EB%A7%90zzz (본문 «통합 검색 ‘회의록정리없는말zzz’ 검색 결과 지금 재색인 검색  검색 결과 없음  ‘회의록정리없는말zzz’ 와 일치하는 항목»)"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1195-race.png"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
+    },
+    {
+     "id": "FF-1196",
+     "category": "search",
+     "name": "검색 캐시 key — 같은 질의를 두 번 쳐도 서버에 두 번 묻지 않는다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/app/CommandPalette.jsx",
+     "api": "search?q=%EC%A0%95%ED%95%A9%EC%84%B1&limit=5",
+     "chain": {
+      "ui_action": "새 문서에서 «정합성» → «배포과정» → 다시 «정합성»",
+      "frontend_state": "queryKey = [search, palette, normalizeQuery(q)] · staleTime 15s — 요청 1 → 2 → 2건",
+      "api_request": "GET search?q=%EC%A0%95%ED%95%A9%EC%84%B1&limit=5",
+      "backend_query": "app/search/router.py → 질의별 1회",
+      "api_response": "HTTP 200",
+      "rendered": "반복 질의에서 추가 요청 0건 (0 이면 캐시 적중)"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1196-cache.png"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
+    },
+    {
+     "id": "FF-1197",
+     "category": "back_forward",
+     "name": "뒤로/앞으로 — 팔레트로 이동한 뒤 뒤로 가면 이전 화면이다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/app/CommandPalette.jsx",
+     "api": "me/views?screen_key=documents",
+     "chain": {
+      "ui_action": "팔레트 결과로 이동 → 브라우저 뒤로",
+      "url_state": "/me → /documents → /me",
+      "frontend_state": "HashRouter 히스토리 항목이 이동마다 쌓인다",
+      "api_request": "GET me/views?screen_key=documents",
+      "backend_query": "이동한 화면과 돌아온 화면의 조회",
+      "api_response": "HTTP 200",
+      "rendered": "뒤로 이후 본문 «오늘 주의최근 동기화에 실패했습니다. 마지막 정상 데이터를 보고 있습니다 (2026. 8. 19. 오후 6:06 기준, 티켓 »"
+     },
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:qa_run:w2-shell-e2e (dist/ui-qa/w2-shell-e2e/flows.json)",
+      "ev:capture:dist/ui-qa/w2-shell-e2e/ff1197-back.png"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-19T18:14:21",
+     "by": "scripts/ui_qa/shell_e2e.py (실브라우저 · 네트워크 동시 기록)"
+    },
+    {
+     "id": "FF-1193",
+     "category": "search",
+     "name": "검색 복합 조건 — 팔레트에는 조합할 필터 축이 없다",
+     "exists": false,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/app/CommandPalette.jsx",
      "api": "",
      "chain": {},
      "expected": {},
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:note:팔레트는 질의 하나만 받는다 — 상태·담당·기간 같은 축이 없어 복합 조건이라는 것이 성립하지 않는다. 그 축을 가진 화면은 목록 화면이고 W5·W5B 가 소유한다."
+     ],
      "findings": [],
      "audited_at": "",
-     "by": ""
+     "by": "",
+     "absent_reason": "이 Surface 에 필터 축이 없다 (질의 1개). C11 의 복합 조건은 목록 화면의 계약이다."
+    },
+    {
+     "id": "FF-1194",
+     "category": "search",
+     "name": "검색 초기화 · page 리셋 — 팔레트에는 페이지네이션이 없다",
+     "exists": false,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/app/CommandPalette.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [
+      "ev:note:팔레트는 `limit=5` 로 유형별 상위만 보여 주고 페이지를 넘기지 않는다 — 넘길 페이지가 없으니 리셋할 page 도 없다. '모두 보기' 는 `/search` 화면으로 넘기고, 그 화면의 page 리셋은 그 Surface 의 Flow 다."
+     ],
+     "findings": [],
+     "audited_at": "",
+     "by": "",
+     "absent_reason": "이 Surface 에 페이지네이션이 없다 (limit=5 고정). 리셋할 page 상태가 없다."
     }
    ]
   },

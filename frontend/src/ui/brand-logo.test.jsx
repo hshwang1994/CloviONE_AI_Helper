@@ -110,11 +110,70 @@ describe("BrandLogo 부제 — SVG <text> 대신 HTML로 그린다", () => {
       .toBeLessThan(1.2);
   });
 
-  it("워드마크 SVG 안에는 'Clovir'/'Assist' <text> 두 개만 남는다(부제 <text>는 제거됐다)", () => {
+  /* qa-contract-change 아님 — 단언을 **늘려** 재작성한 자리다. 옛 단언은
+     `texts === ["Clovir","Assist"]` 로 "부제 <text> 가 제거됐다"만 지켰는데, 그 형태
+     자체(절대 x 를 가진 <text> 두 개)가 F-W1R-34 의 원인이었다: Clovir 가 x=327 에서
+     끝나는데 Assist 가 x=338 에서 시작해 제품명이 "Clovir Assist" 두 단어로 그려졌다.
+     이제 **한 단어라는 것**과 **그 구조가 유지된다는 것**을 함께 못박는다. */
+  it("워드마크는 <text> 하나이고 제품명을 한 단어로 그린다 (부제 <text> 제거도 유지)", () => {
     renderLogo();
     const svg = document.querySelector("svg.wordmark");
-    const texts = [...svg.querySelectorAll("text")].map((t) => t.textContent);
-    expect(texts).toEqual(["Clovir", "Assist"]);
+    const texts = [...svg.querySelectorAll("text")];
+    expect(texts).toHaveLength(1);
+    expect(texts[0].textContent).toBe("ClovirAssist");
+  });
+
+  it("강조어가 절대 x 로 떨어져 앉지 않는다 — 그래서 두 단어로 벌어질 수가 없다", () => {
+    renderLogo();
+    const svg = document.querySelector("svg.wordmark");
+    const runs = [...svg.querySelectorAll("text tspan")];
+    // 두 색(제품명 본체 + 강조어)은 유지하되, 자리는 자연 진행폭이 정한다.
+    expect(runs.map((t) => t.textContent)).toEqual(["Clovir", "Assist"]);
+    for (const run of runs) {
+      expect(run.getAttribute("x"), "tspan 에 절대 x 가 있으면 다시 벌어진다").toBeNull();
+      expect(run.getAttribute("textLength"), "런마다 폭을 고정하면 사이에 구멍이 생긴다")
+        .toBeNull();
+    }
+    // 폰트 폴백 보호는 **총 폭**이 맡는다(이 파일 머리 주석의 원래 이유).
+    expect(texts0(svg).getAttribute("textLength")).toBe("346");
+  });
+});
+
+function texts0(svg) {
+  return svg.querySelector("text");
+}
+
+/* 부제 없는 한 줄 락업 — R-13 의 축소 레버. 마크가 2줄 높이 그대로면 아이콘만 홀로 커 보인다. */
+describe("BrandLogo 한 줄 모드 (subtitle=false)", () => {
+  function renderOneLine() {
+    return render(
+      <ThemeProvider theme={createClovirTheme()}>
+        <BrandLogo subtitle={false} />
+      </ThemeProvider>,
+    );
+  }
+
+  it("부제를 그리지 않는다", () => {
+    renderOneLine();
+    expect(screen.queryByText("SMART WORKSPACE ASSISTANT")).toBeNull();
+  });
+
+  it("낭독 이름에서는 태그라인이 사라지지 않는다", () => {
+    renderOneLine();
+    expect(screen.getByRole("img", { name: /Smart Workspace Assistant/ })).toBeTruthy();
+  });
+
+  it("마크가 두 줄 높이를 그대로 쓰지 않는다 — 한 줄 블록을 따라간다", () => {
+    renderOneLine();
+    const wordmark = document.querySelector("svg.wordmark");
+    const mark = [...wordmark.parentElement.parentElement.children]
+      .find((el) => el.tagName.toLowerCase() === "svg" && el !== wordmark);
+    const size = lastUnconditionalDeclaration(mark, "width");
+    expect(size, "마크 폭 선언을 못 찾았다").toBeTruthy();
+    expect(size).not.toBe("3.37em");
+    expect(Number.parseFloat(size)).toBeLessThan(3.37);
+    // 워드마크 잉크 상자(15em × 50/346 = 2.17em)보다는 커야 광학적으로 균형이 맞는다.
+    expect(Number.parseFloat(size)).toBeGreaterThan(2.17);
   });
 });
 

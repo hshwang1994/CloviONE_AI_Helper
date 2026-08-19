@@ -4,79 +4,73 @@
      이력은 이 파일의 git log 다. 최대 120줄 - 초과하면 Gate 가 실패한다. -->
 
 ## CHECKPOINT
-- checkpoint_at: 2026-08-19T16:10:00+09:00
-- wave: W1
-- wave_status: 완료 — Exit Gate E1~E7 충족. 다음 세션이 **W2(Global Shell)** 를 시작한다
-- build_index_sha256: `104e49366bf030f4` — 서버가 서브 중인 것이자 **After 의 지문**.
-  원격 shell 로 직접 계산(D-175). Before 는 `9ab4d470163e475a` — 둘이 달라야 before/after 다
-- coverage_gate: `--stage plan` **PASS** · `--stage wave`(W1) **PASS** (억제 0건)
-- static_checks: **STATIC_CHECKS_OK** — 신규 2종 포함
-  (`check_brand_tokens.py` BRAND_TOKENS_OK · `check_test_strength.py` TEST_STRENGTH_OK)
-- tests: frontend `npx vitest run` **2,246 PASS / 0 FAIL** ·
-  backend `run_full_regression.sh` **FULL_REGRESSION_OK**(2,903건, 32m30s)
-- after_capture: `--label w1-after` 전 84 Route × 2테마 × 1920 = 166페이지
-  (`dist/ui-qa/w1-after/`, gitignore). Before 는 W0 의 1,494장 그대로 유효하다
-- brand 실측 (1920 기준, Before 332p → After 166p 이므로 **비율**로 읽는다)
-  · `brand_presence` fail **96.4% → 43.4%** (pass 12 → 94)
-  · `brand_role_coverage`(신설, 있는 role 이 전부 Brand) pass 78 / fail 88
-  · 남은 실패는 **아직 만들지 않은 자리**다: `highlight` 38(W4) · `selected_state` 52(W6) ·
-    `ai_surface` 2(W7) · `primary_action` 4
-  · `control_baseline_mismatch` fail **55.4% → 9.6%** (CONTROL 높이 통일의 부수 효과)
-- reviewers: 구현하지 않은 독립 에이전트 **5 렌즈 × 81 에이전트**, 전 Finding 적대적 검증
-  (Workflow `wf_75399743-a02`). 제기 76 · **확인 46** · 반증 30.
-  확인분 + 실측 대조 2건 = 48건을 `ROUTE_COVERAGE.w1_review_findings` 에 등록했고
-  **W1 소유 OPEN 0건**(14건 W1 내 해소, 34건은 소유 Wave 로 라우팅)
-- open_findings: 227(W0 Before 측정 파생) + F-0100(High, W12) + 위 34건
-- test_server: https://clovirassist.gooddi.lab = 10.100.64.71 (두 이름 모두 200).
-  접속·배포·QA 값은 `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 —
-  `scripts/apply-static-update.sh`(정적) · `scripts/apply-app-update.sh`(템플릿·파이썬, 헬스게이트+롤백)
+- checkpoint_at: 2026-08-19T18:10:00+09:00
+- wave: W2
+- wave_status: 완료 — Exit Gate E1~E7 충족. 다음 세션이 **W3(Navigation & Icon)** 를 시작한다
+- build_index_sha256: `344ce7e7fc221246` — 서버가 서브 중인 것이자 **After 의 지문**.
+  W1 은 `104e49366bf030f4`, Before 는 `9ab4d470163e475a` — 셋이 서로 달라야 before/after 다
+- coverage_gate: `--stage plan` **PASS** · `--stage wave`(W2) **PASS** (억제 0건)
+- static_checks: **STATIC_CHECKS_OK**
+- tests: frontend `npx vitest run` **2,303 PASS / 0 FAIL**(W1 대비 +57, 파일 +2) ·
+  backend `run_full_regression.sh` **FULL_REGRESSION_OK**(unit·regression·security·
+  integration 4청크, 29m43s) — W2 는 백엔드를 안 건드렸지만 QA 도구 3개를 고쳤다
+- after_capture: `--label w2-after` 전 83 Route × 2테마 × **4뷰포트**(390/1366/1920/3840)
+  = 664페이지. 썸네일 664장을 `docs/ui-renewal/captures/after/` 에 커밋했다
+- 실측 (Before → W2 after, 뷰포트별 pass/fail)
+  · `brand_presence` 1920 **6/160 → 94/72** · 3840 6/160 → 92/74 · 390 0/166 → 6/160
+  · `control_baseline_mismatch` 1920 **92 → 16 fail** · 3840 94 → 50 · 390 90 → 26
+  · `narrow_main` 3840 166/166 **PASS** (W2 가 폭 캡 층에 `c-content` 이름을 줘서
+    프로브가 처음으로 진짜 열을 잰다 — `content=None` → `content=3080px`)
+  · `dead_blank_region` 146 → **138 fail** (1366 8 · 1920 34 · 3840 86 · 390 10)
+  · `console_errors` 2 → **0** · `surface_repetition` 390 2 → 0 · `isolated_control_row` 3840 1 → 0
+- functional: `scripts/ui_qa/shell_e2e.py`(신규) 가 `shell_topbar` 7 Flow 를 실브라우저에서
+  네트워크와 함께 돌린다 — 6건 사슬 4/4 **PASS**, FF-1189(테마 토글)만 IN_PROGRESS
+  (서버 왕복이 구조적으로 없다 — 첫 페인트 전 결정, FOUC 방지)
+- reviewers: 구현하지 않은 독립 에이전트 **3 렌즈 + 적대적 검증 10건**
+  (Workflow `wf_9de9cf72-00f`). 제기 22 · **확인 5** · 반증 5 · 미검증 12.
+  확인·미검증 중 **W2 소유 전부를 이번 Wave 에서 고쳤고**(D-183), 남의 Wave 소유 4건은
+  `ROUTE_COVERAGE.surfaces[shell_topbar].findings` 에 `F-W2R-01~04` 로 라우팅했다
+- open_findings: **259 OPEN / 40 CLOSED**(Surface Finding 299건 전수 — Critical 4 · High 185 · Medium 69 · Low 1). `scripts/merge_qa_findings.py`(신규)가 매 실행마다 재측정한 것만 판정해 갱신·신규·종료를 남긴다 — 고쳐진 것을 안 닫는 쪽이 더 나쁜 거짓말이다.
+  여기에 W1 독립 리뷰 잔여 34건 + F-0100(High, W12)이 별도로 있다
+- test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
+  `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
 
 ## NOW
-W1(Brand Foundation) 이 끝났다. **제품이 인디고 하우징을 갖는다** — 상단바와 사이드바가 같은
-`chrome.shell` 이고, 캔버스·판·실선이 인디고 계열 중립 램프이며, Brand 는 사용자 Accent 로
-지울 수 없는 별도 계층(`palette.chrome`·`brand`·`gradient`·`chart`)이 됐다. 방향 전환의
-근거·유지한 것·뒤집은 것은 `docs/DECISIONS.md` **D-179**, 측정 해석은 **D-180**.
+W2(Global Shell) 가 끝났다. **하우징 위의 물건들이 하우징의 재료를 쓴다** — 상단바 채움이
+사이드바 Gradient 의 첫 stop 이 되어 L 자가 한 물체로 읽히고(독립 검수 164페이지 전수 이음매
+0건), 셸 위 컨트롤 넷이 캔버스 판에서 chrome 반전 트랙으로 옮겨져 상단바의 밝은 픽셀 비율이
+25.76% → 2.36% 로 떨어졌다. 제품명은 한 단어 `ClovirAssist` 이고 로고 영역은 부제를 빼서
+216×37 → 194×23(면적 -36%)이 됐다 — 글자 크기는 못 줄인다(부제가 `tiny_text` 12px 하한에
+걸려 있다), 유일한 레버가 줄 수였다.
 
-계획서의 W1 Exit Gate `brand_presence ≥5/7` 은 **도달 불가여서 정정했다**(D-180): Before
-1,494페이지에서 role 존재 수가 5를 넘는 페이지가 **0개**였다. 기준을 낮추는 대신 같은 측정에서
-질문을 하나 더 만들었다 — `brand_role_coverage`("있는 자리는 전부 Brand 인가"). 절대 기준은
-W15 완료 조건으로 남는다. 그것을 초록으로 만드는 유일한 정직한 길은 W4·W6·W7 이 빠진 role 을
-실제로 **만드는** 것이다.
-
-독립 리뷰가 W1 을 통과시키지 않고 **실제 결함 넷을 잡았고 그 자리에서 고쳤다**:
-① 인디고 셸 위 워드마크 "Assist" 대비 **2.32:1**(옛 셸에서는 3.88) → `chrome.wordmark`
-`#B7C4FA`(6.85~10.06)를 CSS 변수 상속으로 배선 ② 라이트에서 셸 위 포커스 링이 **1.38~1.83:1**
-로 사실상 소실 → `--clovir-focus-ring` 상속(9.15:1), 덤으로 '본문 바로가기' 링크가 UA 기본
-외곽선을 쓰던 것도 해소 ③ `brand_presence` 프로브가 근사 검정 본문 잉크(`#161A2C`)를 Brand 로
-세던 위양성 → 극단 명도 가드 추가(이 수정으로 `highlight` 실패가 12→38 로 **늘었다** — 숫자가
-나빠지는 방향이 정직한 방향이다) ④ 비활성 버튼을 주요 행동으로 세던 위양성.
+이번 Wave 가 배운 것 하나가 남는다: **"선언은 있는데 화면에는 없다"** 가 세 자리에서 나왔다.
+MUI 의 border 스타일 함수는 논리 속성(`borderInlineStart: 2`)을 펴 주지 않아 `-style` 없는
+무효 선언이 되고, `borderInlineStartColor: "primary.main"` 은 팔레트를 안 풀어 준다. 사이드바
+바깥 모서리와 팔레트 선택 레일이 그렇게 한 픽셀도 안 그려진 채 시험은 초록이었다. 이제
+`shell-surface-contract.test.js` 가 그 형태 자체를 금지하고, **자기 정규식이 좁아지는 것까지**
+스스로 시험한다 — 첫 판이 문자열 철자만 잡아 콜백 철자 되돌림을 통과시켰기 때문이다
+(독립 검수자가 변이로 실증했다). 근거·수치·되돌린 것은 `docs/DECISIONS.md` **D-181 · D-182 · D-183**.
 
 ## NEXT
-1. **W2 Global Shell** 을 시작한다. 소유 파일 `frontend/src/app/AppShell.jsx`(셸부) ·
-   `TopSearch.jsx` · `TopBrand.jsx` · `styles/root.css`. 전제 W1 충족.
-   **입력이 이미 준비돼 있다** — `ROUTE_COVERAGE.w1_review_findings` 에서
-   `owner_wave == "W2"` 5건이 W2 의 작업 목록이다. 가장 무거운 것(F-W1R-13, High):
-   *인디고 하우징에 순백 구멍* — `TopSearch.jsx:40` · `AppShell.jsx:328`(메뉴 찾기) ·
-   `Mascot.jsx:264`(클로비 버튼)이 아직 `background.plate` 를 쓴다. 라이트에서는 셸 안에서
-   가장 밝은 면이 되고 다크에서는 셸에 묻힌다. **토큰은 이미 있다**: `chrome.track`(.08/.10) ·
-   `chrome.trackSelected` · `chrome.edge` — `theme.js` 의 그 주석이 소비처로 "ConsoleSwitch·
-   **검색 inset**"을 명시하는데 W1 은 둘 중 하나만 배선했다.
-   함께: `chrome.shellImage`(사이드바 `backgroundImage`)와 `chrome.aiWash`(상단바 우상단)가
-   소비처 0이라 셸이 아직 평평하다(F-W1R-39) · main padding·content width·`narrow_main` 3840 ·
-   `topbar-contract.test.jsx` 재작성 · 워드마크가 제품명을 'Clovir Assist' 두 단어로 그리는 건
-   (F-W1R-34).
+1. **W3(Navigation & Icon)** 을 시작한다. 소유 파일 `frontend/src/app/navConfig.js` ·
+   `navIcons.js` · `AppShell.jsx` **사이드바부**(W2 커밋 뒤) · `CommandPalette.jsx`.
+   **입력이 준비돼 있다** — `ROUTE_COVERAGE.surfaces[shell_topbar].findings` 의
+   `F-W2R-02`(3840 에서 사이드바 아이콘과 라벨이 맞붙는다 — `minWidth: 30` px 칸을 rem
+   아이콘이 채우고, 같은 줄 `size={18}` 은 MUI SvgIcon 에 안 먹는 죽은 prop)와
+   `w1_review_findings` 의 `owner_wave == "W3"` 2건(F-W1R-05 · F-W1R-18)이 그 목록이다.
+   PLAN W3 Exit Gate 의 "Nav 라벨 시작선 42px 단언" 이 F-W2R-02 를 그대로 닫는다.
+   사이드바 하단 38~50%가 빈 면이라 Gradient 이동량의 절반이 빈 자리에 쓰인다는 관찰도 같은 소유.
 2. Wave 마다: 구현 → focused test → 배포(`apply-static-update.sh`) → 실브라우저 재캡처
-   (`--routes all --themes light dark --viewports 1920x1080 --label w2-after`) →
-   `--stage wave` → **구현하지 않은 에이전트**의 독립 Visual/Requirement Reviewer.
-   리뷰 Workflow 는 `…/workflows/scripts/w1-brand-foundation-review-*.js` 를 복제해 쓴다 —
-   렌즈 5개와 적대적 검증 단계가 그대로 재사용된다.
-3. 그 뒤 W3(Navigation·Icon) → W4(공유 Primitive) → W5·W5B(Filter 설계·기능 정확성) →
-   W6(Table·Inline Edit) → W7(Empty·Clovi·Chart) → W8(Pilot 8종) → W9~W15.
-   순서와 소유 파일은 PLAN «Wave 계획» 표가 정본이다.
-4. 승격 예정 Gate: `brand_role_coverage` → **W6** 부터 `--fail-on`(선택 표현 계약이 정해진 뒤) ·
-   `mascot_visible_size` → W7 · `isolated_control_row`·`control_baseline_mismatch` → W5 ·
-   Table 4종 → W6.
+   (`--routes all --themes light dark --viewports 390x844 1366x768 1920x1080 3840x2160
+   --label w3-after`) → `collect_evidence --into after` → `merge_qa_findings --write` →
+   `--stage wave` → **구현하지 않은 에이전트**의 독립 검수.
+   리뷰 Workflow 는 `…/scratchpad/w2-review.js` 를 복제해 쓴다 — 3 렌즈 + 적대적 검증
+   10건이 실제로 결함 다섯을 잡았고 그럴듯한 다섯을 기각했다.
+3. 그 뒤 W4(공유 Primitive — `F-W2R-01` 이 입력이다: `kit.jsx` 의 논리 테두리 3자리가
+   안 그려져 MetricStrip 칸 구분선이 배포본에 없다) → W5·W5B → W6 → W7 → W8(Pilot 8종) → W9~W15.
+4. 승격 예정 Gate: `brand_role_coverage` → **W6** · `mascot_visible_size` → W7 ·
+   `isolated_control_row`·`control_baseline_mismatch` → W5 · Table 4종 → W6.
 
 ## BLOCKERS
 - 없음.

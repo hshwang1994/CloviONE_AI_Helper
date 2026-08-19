@@ -178,9 +178,16 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
           /* 이니셜 색을 명시한다. MUI Avatar 의 기본 글자색은 `palette.background.default`
              인데, 밝은 배경 위 밝은 원 안에서는 그 값이 곧 "안 보임"이다. */
           sx={{
-            width: 30, height: 30, fontSize: FONT_SIZE.bodySm,
-            bgcolor: "background.plate", color: "text.secondary",
-            border: 1, borderColor: "sidebar.line",
+            /* rem — 셸의 틀과 같은 배율로 자란다(4K 레버). px 로 두면 상단바가 68px 로
+               커지는 동안 아바타만 30px 에 머물러 비율이 어긋난다. */
+            width: "1.875rem", height: "1.875rem", fontSize: FONT_SIZE.bodySm,
+            /* 아바타 원은 **셸 위에 있다** — 캔버스 판 토큰(`background.plate`)을 쓰면
+               라이트에서 인디고 하우징에 뚫린 순백 원판이 되고(F-W1R-32 가 상단 우측 크롭에서
+               '순백 원판' 으로 잡았다) 다크에서는 셸에 묻힌다. chrome 자신의 반전 컨트롤
+               토큰이 두 방향 모두를 따라온다. 이니셜은 AI Wash 하드 룰에 따라 `onShell`
+               (=`sidebar.text`)이다 — 이 원은 AI 앵커 안에 산다. */
+            bgcolor: "sidebar.track", color: "sidebar.text",
+            border: 1, borderColor: "sidebar.edge",
           }}
           aria-hidden="true"
         >
