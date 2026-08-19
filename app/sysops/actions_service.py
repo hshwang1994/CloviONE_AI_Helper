@@ -81,6 +81,67 @@ def _value(runner: Runner, argv: list[str]) -> str:
 # ---------------------------------------------------------------- 시스템 정보
 
 
+# 이 콘솔이 쓴 드롭인 파일 경로. `actions_system.py` 가 **쓰는** 자리와 같아야 한다 —
+# 두 파일이 각자 경로를 적으면 한쪽만 바뀌는 날 조회가 조용히 빈 값을 준다.
+RESOLVED_DROPIN = "/etc/systemd/resolved.conf.d/99-clovirone.conf"
+PROXY_DROPIN_UNITS = ("clovirone-web-assistant.service", "clovirone-web-worker.service")
+
+
+def _proxy_dropin_path(unit: str) -> str:
+    return f"/etc/systemd/system/{unit}.d/99-clovirone-proxy.conf"
+
+
+def _read_dns(runner: Runner) -> dict:
+    """이 콘솔이 지정한 DNS. **OS 가 실제로 쓰는 값이 아니라 우리가 쓴 값**이다.
+
+    둘은 다를 수 있다(DHCP·다른 드롭인). 화면이 그 차이를 말할 수 있게 `source` 를 함께
+    준다 — "지정 안 함" 과 "읽지 못함" 도 서로 다른 사실이라 구분한다.
+    """
+    out = {"configured": False, "servers": [], "search": None, "source": "unset"}
+    try:
+        if not runner.exists(RESOLVED_DROPIN):
+            return out
+        text = runner.read_text(RESOLVED_DROPIN) or ""
+    except Exception:  # 조회가 화면 전체를 죽이지 않는다 — 나머지 정보는 그대로 준다.
+        out["source"] = "unreadable"
+        return out
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("DNS="):
+            out["servers"] = [x for x in line[4:].split() if x]
+        elif line.startswith("Domains="):
+            out["search"] = line[len("Domains="):].strip() or None
+    out["configured"] = bool(out["servers"])
+    out["source"] = "console" if out["configured"] else "unset"
+    return out
+
+
+def _read_proxy(runner: Runner) -> dict:
+    """이 콘솔이 지정한 아웃바운드 프록시. `_read_dns` 와 같은 규칙이다."""
+    out = {"configured": False, "url": None, "no_proxy": None, "source": "unset"}
+    for unit in PROXY_DROPIN_UNITS:
+        path = _proxy_dropin_path(unit)
+        try:
+            if not runner.exists(path):
+                continue
+            text = runner.read_text(path) or ""
+        except Exception:
+            out["source"] = "unreadable"
+            return out
+        for line in text.splitlines():
+            line = line.strip()
+            # `Environment="HTTPS_PROXY=http://..."` 모양에서 값만 뽑는다.
+            if "HTTPS_PROXY=" in line or "HTTP_PROXY=" in line:
+                out["url"] = line.split("PROXY=", 1)[1].strip().strip('"')
+            elif "NO_PROXY=" in line:
+                out["no_proxy"] = line.split("NO_PROXY=", 1)[1].strip().strip('"')
+        if out["url"]:
+            out["configured"] = True
+            out["source"] = "console"
+            return out
+    return out
+
+
 def _perform_info(runner: Runner, _params: dict) -> ActionOutcome:
     """읽기 전용. 하나가 없어도 나머지는 준다 — 전부 아니면 아무것도가 되면 진단에 못 쓴다."""
     units = {}
@@ -104,9 +165,14 @@ def _perform_info(runner: Runner, _params: dict) -> ActionOutcome:
         "ntp_synchronized": _value(runner, [TIMEDATECTL, "show", "-p", "NTPSynchronized", "--value"]),
         "units": units,
         "disk_root": disk.stdout.strip() if disk.ok else None,
+        # UI-R42: 화면이 DNS·프록시 줄을 "서버에서만 확인할 수 있습니다"로 비워 두고 있었다 —
+        # 정직했지만 답은 아니었다. 이 콘솔이 쓴 드롭인을 그대로 읽어 준다.
+        "dns": _read_dns(runner),
+        "proxy": _read_proxy(runner),
     }
     # 못 읽은 항목은 빈 문자열로 남는다. 화면이 "확인하지 못했습니다" 라고 말하도록
     # 어떤 항목이 비었는지 함께 알린다 (§불변 6: 없는 것을 있는 척하지 않는다).
+    # dns/proxy 는 dict 라 이 판정에 안 걸린다 — 그쪽은 자기 `source` 로 상태를 말한다.
     data["unavailable"] = sorted(k for k, val in data.items() if val == "")
     return ActionOutcome(ok=True, detail="시스템 정보를 읽었습니다.", data=data)
 

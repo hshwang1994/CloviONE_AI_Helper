@@ -67,3 +67,54 @@ def test_neither_command_available_reports_unknown_not_a_crash():
     result = _info(runner)
     assert result.data["hostname"] == ""
     assert result.ok
+
+
+# ── UI-R42: DNS·프록시의 지금 지정된 값도 준다 ────────────────────────────────
+#
+# 화면이 그 두 줄을 "서버에서만 확인할 수 있습니다"로 비워 두고 있었다 — 정직했지만 답은
+# 아니었다. 이 콘솔이 쓴 드롭인을 그대로 읽어 준다. 여기서 못박는 것은 셋이다.
+#   1) 지정돼 있으면 값을 준다.
+#   2) 지정 안 했으면 **없다고** 말한다("읽지 못함"과 다른 사실이다).
+#   3) 조회가 실패해도 나머지 시스템 정보는 그대로 나온다 — 전부 아니면 아무것도가 되면
+#      진단에 못 쓴다(이 파일 위쪽 `_perform_info` 의 docstring 과 같은 이유).
+
+
+def test_dns_and_proxy_report_configured_values():
+    from app.sysops.actions_service import RESOLVED_DROPIN, _proxy_dropin_path
+
+    runner = FakeRunner({
+        RESOLVED_DROPIN: "[Resolve]\nDNS=10.0.0.1 10.0.0.2\nDomains=corp.example\n",
+        _proxy_dropin_path("clovirone-web-assistant.service"):
+            '[Service]\nEnvironment="HTTPS_PROXY=http://proxy.example:3128"\n'
+            'Environment="NO_PROXY=localhost"\n',
+    })
+    data = _info(runner).data
+    assert data["dns"]["configured"] is True
+    assert data["dns"]["servers"] == ["10.0.0.1", "10.0.0.2"]
+    assert data["dns"]["search"] == "corp.example"
+    assert data["proxy"]["configured"] is True
+    assert data["proxy"]["url"] == "http://proxy.example:3128"
+    assert data["proxy"]["no_proxy"] == "localhost"
+
+
+def test_unset_is_said_as_unset_not_as_unreadable():
+    data = _info(FakeRunner()).data
+    assert data["dns"] == {"configured": False, "servers": [], "search": None, "source": "unset"}
+    assert data["proxy"]["configured"] is False
+    assert data["proxy"]["source"] == "unset"
+
+
+def test_a_broken_read_does_not_take_the_rest_of_the_info_down():
+    class Boom(FakeRunner):
+        def read_text(self, path):
+            raise OSError("permission denied")
+
+    from app.sysops.actions_service import RESOLVED_DROPIN
+
+    runner = Boom({RESOLVED_DROPIN: "x"})
+    runner.reply(["/usr/bin/hostnamectl", "status", "--static"], out="ai-n8n-svr\n")
+    data = _info(runner).data
+    assert data["dns"]["source"] == "unreadable"
+    # 나머지는 그대로 나온다.
+    assert data["hostname"] == "ai-n8n-svr"
+    assert "units" in data
