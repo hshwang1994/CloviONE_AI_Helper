@@ -15,7 +15,7 @@
 - branch: `ui/mui-migration`
 - last_stable_commit: **`60f8fafb`** — S0 직전의 마지막 안정 커밋
   (W5 문서 커밋). S0 커밋 해시는 아래 `s0_commit` 에 건다
-- s0_commit: `(미기입)` — S0 문서 커밋 직후 이 줄에 해시를 건다
+- s0_commit: **`3d489bbc`** — S0 문서 커밋. 이 커밋과 해시를 거는 다음 커밋이 S0 의 전부다
 - working_tree: clean
 - **제품 코드 변경: 0** — S0 은 문서만 만들었다. `app/**` · `frontend/**` · `scripts/**` ·
   `alembic/**` diff 0. 서버 변경 0 · PostgreSQL 설치 0 · Migration 실행 0 · n8n 제거 0

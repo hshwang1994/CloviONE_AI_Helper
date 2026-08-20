@@ -40,7 +40,7 @@
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
   `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
 - commit: `d41d94e5`(W5 구현·번들·캡처 995장·Control Plane) · `60f8fafb`(W5 문서) ·
-  동결 선언 = S0 커밋
+  동결 선언 `3d489bbc`(S0)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
 
