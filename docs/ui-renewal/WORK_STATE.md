@@ -58,7 +58,7 @@
   `<button>` 이라 그 실명을 구조적으로 못 잡았다. 기각 넷은 수치는 실재하나 결론이 안 따라왔다
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
   `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
-- commit: `{COMMIT}` (W5 전체 — 소스 · 번들 · 캡처 · Control Plane)
+- commit: `d41d94e5` (W5 전체 — 소스 · 번들 · 캡처 995장 · Control Plane)
 - plan: docs/ui-renewal/PLAN.md (정본), docs/ui-renewal/DIRECTIVE_v7.txt (원 지시서)
 
 ## NOW
