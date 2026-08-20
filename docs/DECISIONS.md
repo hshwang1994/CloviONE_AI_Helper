@@ -1,11 +1,13 @@
 # DECISIONS — 이후 작업에 영향을 주는 결정
 
-> 진입점은 [WORK_STATE.md](WORK_STATE.md). 무엇을 결정했는지와, 필요하면 왜 그렇게 했는지를 짧게.
+> 진입점은 [platform/WORK_STATE.md](platform/WORK_STATE.md). 무엇을 결정했는지와, 필요하면 왜
+> 그렇게 했는지를 짧게. UI 리뉴얼 축의 상태는 [ui-renewal/WORK_STATE.md](ui-renewal/WORK_STATE.md).
 > **여기 없는 기존 불변규칙은 [`CLAUDE.md`](../CLAUDE.md) §2가 정본이다**(sync 핸들러 · `OutboundClient`
 > 단일 관문 · secret 미노출 · 비밀번호 stdin 전용 · opaque 세션 · 서버측 RBAC · 불변성 · 작은 파일 ·
 > UTC 저장). 이 문서는 그 위에 얹히는 **새 결정**만 담는다.
 
-**마지막 갱신**: 2026-08-19 (UI/UX 리뉴얼 v7 계획 — D-168 · D-169)
+**마지막 갱신**: 2026-08-21 (자체 데이터 플랫폼 전환 — **D-187~D-208**.
+계획 정본은 [platform/MASTER_PLAN.md](platform/MASTER_PLAN.md))
 
 ---
 
@@ -8221,3 +8223,502 @@ AA 아래로 떨어진다. 진짜 해법은 dark 표면 램프 자체를 다시 
 아니다(F-W5D-08 에 수치를 갱신해 남긴다).
 
 근거·수치는 `docs/ui-renewal/WORK_STATE.md` CHECKPOINT 와 이 Wave 의 Finding 에 있다.
+
+---
+
+# 자체 데이터 플랫폼 전환 (D-187~) — Notion/SQLite 폐기, PostgreSQL System of Record
+
+> 이 묶음의 계획 정본은 [`platform/MASTER_PLAN.md`](platform/MASTER_PLAN.md), 진입점은
+> [`platform/WORK_STATE.md`](platform/WORK_STATE.md) 다.
+> D-186 까지는 UI 리뉴얼 축(W0~W5)의 결정이고, **그 자산은 폐기하지 않는다**(D-207).
+
+## D-187 — PostgreSQL 이 System of Record 다: SQLite · Notion Runtime · n8n 을 함께 폐기한다
+
+넷은 별개 작업처럼 보이지만 하나의 뿌리다. **제품이 자기 데이터를 소유하고 있지 않다는 것.**
+
+조사에서 확인된 것 셋이 그 뿌리를 드러낸다.
+
+**하나 — 세 개 동기화가 전부 실패 중이다.** `sync_status` 실측(2026-08-20 08:09 UTC):
+`tickets`·`documents` = `Notion 응답 오류: HTTP 400`, `projects` = 프로젝트 연결 속성을 못 찾음.
+원인은 관리자 콘솔에서 사람이 DB id 를 바꿔 넣은 것이다 — `app_settings.notion_tasks_database_id`
+가 **문서 DB id** 를 가리키고 있고 `notion_documents_database_id` 는 어느 실재 DB 와도 맞지 않는다.
+`config_versions` 24행과 `audit_logs` 가 그날 02:44~04:01 의 시행착오를 그대로 남기고 있다.
+**그 사이 「Notion 연결 테스트」는 매번 통과했다** — 토큰만 검사하고 DB 가 맞는지는 안 보기 때문이다.
+연결이 살아 있다는 신호와 데이터가 흐른다는 사실이 갈라져 있었고, 아무도 몰랐다.
+
+**둘 — Notion 의 모양이 도메인에 새어 들어 있다.** page-id 가 곧 API 의 `id` 이고
+(`ticket_view()` 가 `"id": t.page_id` 를 반환한다), 티켓 폼의 허용값이 **요청 시점 Notion 스키마
+조회**에서 나오며(앱은 상태·우선순위·난이도의 자기 어휘를 갖고 있지 않다), 낙관적 잠금이
+**Notion 페이로드 해시**(`notion_version`)이고, 본문 길이 제한(`MAX_BLOCKS=100`·
+`MAX_LINE_CHARS=1900`)이 **Notion API 한계에서 온 도메인 검증**이며, 삭제가 도메인 이벤트가 아니라
+Notion 이벤트(`notion_missing_at`)다. `document_cache.notion_page_id` 는 **NOT NULL** —
+Notion 페이지 없이는 문서가 존재할 수 없다.
+
+**셋 — 실제 데이터는 Notion 에 거의 없다.** 티켓 본문은 미러 1,124건 중 **31건**만 캐시돼 있고
+문서 본문은 110건 중 **0건**이다. 첨부는 통틀어 **9개**. 제품이 매일 쓰는 것 — 댓글·즐겨찾기·
+최근 열람·감사·대화·승인·소유권·건강도 — 은 **전부 SQLite 에만 있다.** 즉 Notion 은 이미 정본이
+아니라 **본문 저장소이자 스키마 공급자**로만 남아 있었고, 그 두 역할은 PostgreSQL 이 더 잘한다.
+
+**n8n 을 같이 끊는 이유**: n8n 워크플로는 23개 중 활성 **2개**이고 실행 이력 총 23회다. 그중 하나가
+Notion 전량을 runner 로 넘기고, 다른 하나는 Notion 사용자 매핑이다. **Notion 이 사라지면 둘 다
+할 일이 없다.** 남겨 두면 포트 다섯(5678·5679·8787·8788·8789)과 서비스 넷을 이유 없이 유지하게 된다.
+
+**SQLite 를 같이 끊는 이유**: 파일 하나가 정본인 한 `--workers 1` 을 풀 수 없고(D-192),
+FTS5 한국어 검색을 pgvector·`pg_trgm` 과 같은 자리에서 융합할 수 없으며, 백업 모델이
+「파일 되돌리기」에 묶인다. **PostgreSQL 전환이 이 셋을 동시에 푸는 열쇠다.**
+
+의도한 결과 한 줄: **ClovirAssist 가 Notion 과 SQLite 없이 스스로 서는 제품이 되는 것.**
+
+## D-188 — 제품 표준 스택은 PG16 + pgvector 0.6.0 + pg_trgm 이다. 근거는 성능이 아니라 폐쇄망 설치다
+
+초안은 「pgvector 최신판」이라는 이유만으로 PGDG PG17 + pgvector 0.8.x 를 제품 **필수 의존**으로
+잡았다. 제품 설치·운영 관점에서 다시 따지면 그 근거가 서지 않는다.
+
+결정을 가른 것은 셋이고 셋 다 이미 사실로 확정돼 있다.
+
+1. **외부 Repository 의존.** 폐쇄망 고객이 PGDG 를 미러링하지 않으면 **설치 자체가 막힌다.**
+   Ubuntu 24.04 공식 저장소 조합은 사내 mirror 에 이미 있다 — 추가 작업 0
+2. **Installer 복잡도.** `apt-get install postgresql-16 postgresql-16-pgvector postgresql-contrib`
+   **한 줄** 대 GPG 키 추가 + `sources.list.d` 작성 + `apt update` + 실패 처리
+3. **0.7~0.8 의 추가 기능이 우리 문제를 풀지 않는다.** `halfvec`(0.7) 메모리 절감은 chunk 수만 단위
+   규모에서 필요 없고, iterative filtered scan(0.8)이 푸는 「인덱스 뒤에서 필터링」 문제는
+   **권한 필터를 Retrieval 앞에 두는 우리 설계(D-202)에서 구조적으로 발생하지 않는다**
+
+우리가 실제로 쓰는 pgvector 기능 — HNSW(0.5.0~) · IVFFlat · cosine/L2/IP — 은 0.6.0 에 **전부 있다**.
+Corpus 는 문서 1,238 + 티켓 1,119 라 1024차원 float32 기준 수백 MB 미만이고 RAM 에 상주한다.
+Upgrade 경로도 정합한다: PG16 EOL 2028-11, Ubuntu 24.04 LTS 지원 2029.
+
+**PGDG/PG17 은 *지원되는 선택지*로 문서화하되 제품 필수 의존이 아니다.**
+
+**그리고 이 비교는 끝났다 — Version 은 S1 의 판정 대상이 아니다.** S1 이 하는 일은 선택된 스택의
+**성능 검증과 튜닝**이다: 실 Corpus 로 HNSW/IVFFlat/exact 세 경로의 recall·지연 측정, 인덱스
+파라미터(`m`·`ef_construction`·`ef_search`·`lists`) 결정, `pg_trgm` GIN 과 FTS 의 가중치 결정.
+(이 스택으로 제품 요구를 충족할 수 없다는 결과가 나오면 일반적인 Decision 변경 절차를 탄다 —
+그러나 그것을 전제한 계획을 세우지는 않는다.)
+
+**한국어 검색은 `pg_trgm` 이 맡는다.** PG 기본 `to_tsvector` 는 한국어를 공백으로만 쪼개서 부분일치가
+안 된다 — 그건 팀이 revision 0030 에서 이미 기각한 `unicode61` 실패 모드다. `pg_trgm` GIN 이
+**FTS5 `tokenize='trigram'` 의 정확한 대체물**이고, 어절 단위 정확 일치·가중치용으로 PG FTS
+`simple` config 를 **함께** 쓴다.
+
+## D-189 — Alembic 61 revision 을 이식하지 않는다. `0001_pg_baseline` 하나로 다시 시작한다
+
+체인을 PG 에서 재생하려 하면 실측된 장애물이 그대로 남는다.
+
+| 장애물 | 수 | PG 에서 무슨 일이 |
+|---|---|---|
+| boolean `server_default=sa.text("0"\|"1")` | **31곳** | 타입 오류 |
+| FTS5 virtual table + trigger DDL (0030 · 0050) | 2 revision | **PG 에 문법 자체가 없다** |
+| `sqlite_where=` 부분 유니크 인덱스 | **3개** | **`WHERE` 가 조용히 사라져 전체 유니크가 된다** |
+| `recreate="always"` | 3곳 | PG 에서도 전체 테이블 재작성 |
+| 0055 의 전제 | 1 | 「SQLite 는 기존 데이터를 새 FK 로 소급 검사하지 않는다」에 **의존**한다 — PG 에서는 거짓 |
+
+세 번째가 특히 조용하다. 부분 유니크가 전체 유니크가 되면 **승인 재요청 · 프롬프트 두 번째 버전 ·
+같은 사용자 두 번째 offboarding 이 전부 막힌다.** 에러 메시지는 「이미 있습니다」일 것이고
+원인은 마이그레이션 파일 안에 있다.
+
+**조치**: `alembic/versions/` → `alembic/legacy_sqlite/`(비활성 보관), `0001_pg_baseline.py` 하나로
+목표 스키마를 만든다. **데이터는 alembic 이 아니라 Migration Tool 이 옮긴다**(D-187 계열, S13).
+이후 revision 은 PG 기준으로 새로 쌓는다.
+
+## D-190 — Test DB 는 2계층이다. 동시성 테스트 약 40개는 이식이 아니라 재작성이다
+
+현재는 `alembic upgrade head` 로 **템플릿 파일**을 만들고 테스트마다 `shutil.copy` 한다 —
+파일 DB 전용 기법이라 PG 에 그대로 옮길 수 없다.
+
+- **기본**: 테스트당 트랜잭션 시작 → 종료 시 rollback. 2,837개 대다수가 여기 해당하고 가장 빠르다
+- **실 DB 필요 fixture**: `CREATE DATABASE … TEMPLATE clovir_test_template` — 다중 연결/동시성
+  약 40개(`*_race.py`·`*_write_conflict.py`·`*_lock.py`·`test_worker_lanes_two_processes.py`)와
+  migration 테스트 전용
+
+**그 약 40개가 문제다.** 지금은 `database is locked` **문자열**과 WAL 단일 writer 의미를 단언한다.
+PG 에서는 행 잠금 · 직렬화 실패 · `SKIP LOCKED` 를 단언해야 한다.
+**지금 초록인 이 테스트들은 그대로 두면 거짓 초록이 된다** — 잠금 회귀를 못 잡는데 초록이다.
+이건 테스트가 없는 것보다 나쁘다.
+
+`check_test_strength.py` 가 이 재작성을 「약화」로 오판하지 않도록 **`qa-contract-replaced-by:`
+규약**을 쓴다. 계약이 바뀐 것과 단언이 약해진 것은 다른 일이고, 그 차이를 도구가 알아야 한다.
+
+## D-191 — `is_write_conflict()` 를 둘로 쪼갠다. PG 에서 진짜 제약 위반을 재시도로 감추면 안 된다
+
+`app/core/db.py:154-180` 은 **모든 `IntegrityError` 를 재시도 대상**으로 본다.
+SQLite 에서는 대체로 맞았다 — `database is locked` 가 진짜 일시적 상태였기 때문이다.
+
+PG 에서는 다르다. **유니크 충돌·FK 위반 같은 진짜 제약 위반이 10회 재시도 후 503 「다시 시도」로
+나간다.** 데이터 버그가 일시적 오류로 위장하고, 로그에는 재시도만 남는다.
+
+- `is_serialization_conflict()` — `40001`(serialization_failure) · `40P01`(deadlock_detected) ·
+  `55P03`(lock_not_available) → **재시도**
+- 유니크 충돌 — 「이미 있다」를 뜻하는 호출부(`jobs.enqueue` 등)에서 **국소적으로** 처리
+
+**115 호출부 · 30 모듈을 전수 감사한다.** 그리고 음성 테스트로 증명한다: 명백한 제약 위반이
+**재시도 없이 즉시** 도메인 오류로 나오는가.
+
+## D-192 — `--workers 1` 은 공유 저장소를 만든 다음에만 푼다
+
+지금 워커를 못 늘리는 이유는 성능이 아니라 **방어가 프로세스 메모리 안에 있기 때문**이다.
+로그인 무차별 대입 제한 · 채팅 제한 · AI 퀴즈 제한이 전부 인메모리 카운터라
+**워커를 늘리면 방어가 조용히 N배 약해진다.** systemd unit 주석이 이미 이 순서를 명시하고 있다.
+
+| 대상 | 이동 |
+|---|---|
+| `login/chat/game_ai/assistant` rate limiter | `rate_limit_buckets` 테이블 (token bucket, `UPDATE … RETURNING`) |
+| `tickets/claim_lock.py` | `pg_advisory_xact_lock(hashtext(ticket_id))` |
+| `quotas/quota_lock.py` | 동일 + `SELECT … FOR UPDATE` |
+| `search/indexer.py` reindex lock · `tickets/router.py` sync lock · `notion_console` create lock | advisory lock (또는 대상 제거) |
+| `SettingsCache` | web 에도 주기 갱신 또는 `LISTEN/NOTIFY` |
+
+**순서 규약: 저장소를 먼저, 워커는 그 다음.** 이것이 PostgreSQL 전환의 실질 보상이다 —
+전환의 대가가 아니라 전환이 주는 것이다.
+
+## D-193 — Permission 은 additive grant + fail-closed 다. 일반 Deny 를 만들지 않는다
+
+**기존 제품이 실제로 하고 있는 것을 먼저 확인했다.** `app/core/scope.py` 의
+`visibility_scope = _widest(membership_scope, management_scope)` 는 **합집합**이고,
+`scope_can_view` 는 `OR` 분기 집합이며, `owner_kind='unset'` 은 **어느 분기도 만족하지 않아
+fail-closed** 다. 즉 **현재 모델은 이미 additive grant + fail-closed 이며 일반적인 Deny 개념이 없다.**
+
+예외는 정확히 하나다: `document_cache.restricted` — 켜지면 `MODERATOR_ROLES` 또는 작성자를 제외한
+전원에게서 숨긴다(`team_docs/service.py:183-217`, **색인 시점과 질의 시점 이중 차단**).
+
+그래서 결정은 발명이 아니라 **일반화**다.
+
+- **일반 Deny / 다계층 Override 를 만들지 않는다.** 유효 권한 =
+  `Role ∪ Organization ∪ Project Member ∪ 직접 부여`, 미설정은 fail-closed
+- 하위는 상위를 **넓히기만** 한다(좁히는 Override 없음)
+- 유일한 축소 원시연산은 **`confidential` 플래그 하나**다 — 현행 `restricted` 를 Document 뿐 아니라
+  필요한 Resource 로 일반화하되 의미를 **「소유자 + 명시 부여자 + `*_ADMIN` 권한 보유자만」**
+  한 문장으로 고정한다. **범용 ACL Deny 가 아니다**
+- 실제 제품 요구에서 일반 Deny 가 필요하다는 근거가 나오면 그때 Decision 으로 도입한다
+
+**왜 이 제약을 스스로 거는가**: 다계층 Deny 는 「이 사람이 이걸 왜 못 보는가」를 사람이 추적할 수
+없게 만든다. 그리고 추적할 수 없는 권한 모델은 **AI Retrieval 에서 검증할 수 없다**(D-202).
+
+## D-194 — 목록 · 상세 · Search · AI Retrieval 이 같은 `effective_visibility_clause` 를 쓴다
+
+계산 결과를 **하나의 SQL 조건자** `effective_visibility_clause(principal, resource_type)` 로 만든다.
+
+지금 `search/scoping.py` 가 `ownership.stored_ownership_clause` 를 공유하는 방식 그대로이고,
+**이번에는 AI 경로까지 포함시킨다** — 현재 AI 만 이 모델을 통째로 우회하고 있다.
+
+**정적 검사로 증명한다**: 넷이 정말 같은 함수를 부르는가. 「같은 규칙을 따른다」는 주석은 증거가
+아니다 — W5 에서 `TicketFilterBar` 가 「순서는 C2 가 정한다」고 적고 39줄 뒤에서 그 순서를 어겼다.
+**코드가 문서를 지키는지는 도구가 봐야 한다.**
+
+## D-195 — Ticket 식별자는 3층이다. 그리고 canonical_key 는 Generated Column 으로 만들 수 없다
+
+| 층 | 값 | 성격 |
+|---|---|---|
+| Internal ID | `uuid` | 영구 불변, 외부에 노출되지만 표시용이 아니다 |
+| Canonical Display Key | `<PROJECT_KEY>-<SEQ>` (예 `SKH-37`) | 사람이 읽고 말하는 것. Project Key 변경 시 갱신되고 옛 값은 alias 로 남는다 |
+| Legacy Alias | `GIT-n` | **immutable · 재사용 금지 · 영구 Resolution 가능** |
+
+**초안의 `canonical_key GENERATED ALWAYS AS (project_key || '-' || seq)` 는 구현할 수 없다.**
+`tickets` 에 `project_key` 컬럼이 없고, PostgreSQL Generated Column 은 **다른 테이블 값을 참조할 수
+없다**(IMMUTABLE 표현식만 허용). 실제 저장 컬럼 + **BEFORE INSERT/UPDATE 트리거**로 대체한다.
+Application 은 `canonical_key` 를 직접 쓰지 않는다 — **DB 가 `projects.key + seq` 에서 파생시키므로
+어긋날 수 없다.**
+
+**Key Resolution 순서**: `canonical_key` → `legacy_key` → `ticket_key_aliases.alias` → `uuid`.
+`GIT-142` 는 영구히 같은 Ticket 으로 해석된다.
+
+**Project Key 변경은 명시적 Migration 동작이다** — 자동이 아니다. 한 트랜잭션 안에서
+① `projects … FOR UPDATE` ② 현 canonical 전량을 `ticket_key_aliases(kind='superseded')` 로 복사
+③ registry 에 새 key `active`, 기존 key **`retired`(해제하지 않는다)** ④ `projects.key` 갱신
+⑤ `UPDATE tickets SET seq = seq` 로 트리거 재계산 ⑥ Audit.
+**옛 링크가 계속 같은 Ticket 으로 간다.**
+
+## D-196 — Project Key 소유는 영구다. 채번은 `INSERT … ON CONFLICT DO UPDATE … RETURNING` 으로 한다
+
+`projects.code` 가 **22건 전부 NULL** 이다 — Project Key 가 아직 하나도 없다.
+
+**Key 소유가 영구라는 것이 충돌 방지의 근거다.** 한 번 쓰인 Key 는 `retired` 가 될 뿐 다른 Project 로
+넘어가지 않는다. 따라서 `<KEY>-<SEQ>` 는 canonical 이든 alias 든 **전역에서 충돌할 수 없다** —
+트리거가 아니라 **구조로** 보장된다. `GIT` 은 Legacy namespace 로 미리 `reserved` seed 한다.
+
+**채번의 의미를 하나로 고정한다: `last_seq` = 지금까지 발급된 마지막 번호.**
+
+```sql
+INSERT INTO project_ticket_counters (project_id, last_seq) VALUES (:project_id, 1)
+ON CONFLICT (project_id) DO UPDATE SET last_seq = project_ticket_counters.last_seq + 1
+RETURNING last_seq;
+```
+
+- Migration 직후 seed = 프로젝트별 `COALESCE(MAX(seq), 0)` → **첫 신규 번호 = MAX+1**.
+  초안의 off-by-one(`MAX+2`)이 사라진다
+- 티켓이 하나도 없는 신규 Project 는 counter 행이 없고 위 구문이 `1` 을 반환한다 → 첫 티켓이 `-1`
+- `UPDATE … RETURNING` 이 행 잠금을 잡아 **프로젝트 단위로만** 직렬화한다.
+  `uq_tickets_project_seq` 부분 유니크가 최종 방어선이다
+- **counter 갱신과 `INSERT INTO tickets` 는 하나의 트랜잭션이다. 분리하지 않는다**
+- **롤백되면 counter 증가도 함께 롤백된다 → 번호가 소비되지 않고 gap 이 생기지 않는다.**
+  PostgreSQL `SEQUENCE` 는 롤백해도 번호를 되돌리지 않아 gap 이 생기므로 **채택하지 않는다**
+
+대가는 해당 Project 의 티켓 생성이 커밋까지 직렬화된다는 것이고, 실측 규모(수개월간 1,124건)에서
+문제가 되지 않는다. **동시 생성 부하에서 ① 중복 0 ② 번호 연속 ③ 롤백 주입 시 번호 미소비**를
+단언하는 테스트가 S6 Exit 조건이다.
+
+## D-197 — Project Key 20건이 확정되기 전에는 재채번을 시작하지 않는다
+
+**이름 짓기는 제품 결정이라 자동화하지 않는다.** S6 이 20개 초안표를 만들어 사용자 확인을 받고,
+확정 후에 적용한다. 규칙은 2~10자 · 영문 대문자 시작 · 대문자+숫자 · 대소문자 무관 유일 ·
+예약어 금지 · **재사용 금지** · URL 안전.
+
+**Project 가 없거나 Relation 이 불명확한 Ticket 은 임의 배정하지 않는다.**
+실측 대상: `project_link` ambiguous 2 · missing 4 · 프로젝트 미연결 6건 · `notion_missing_at` 9건.
+이들은 `project_id`/`seq`/`canonical_key` 가 **전부 NULL** 로 적재되고
+`migration_exceptions(ticket_id, reason, source_evidence, resolved_at, resolved_by)` 에 사유가 남는다.
+
+**소속 Project 가 없으므로 D-193 의 fail-closed 에 의해 일반 사용자에게 보이지 않는다 — 이것이
+의도된 동작이다.** 관리자가 Project 를 지정하는 순간 D-196 의 채번이 돌고 canonical_key 가 생긴다.
+
+## D-198 — Document 의 정본은 Block 구조 JSON 이다
+
+**Canonical = ProseMirror 노드 트리(`jsonb`).** 파생으로 Markdown 과 Plain Text 를 함께 저장한다.
+
+| 요구 | Block JSON 이 답하는 방식 |
+|---|---|
+| Version Diff | 노드 단위 diff — Markdown 라인 diff 보다 정확하다 |
+| **Citation 위치** | **블록 id 가 안정적 앵커다.** Markdown 만으로는 「이 문장의 출처 위치」를 못 가리킨다 |
+| AI Parsing / Search | 파생 Plain Text 를 `pg_trgm`·FTS·embedding 에 넣는다 |
+| Export / Import / Editor 교체 | ProseMirror 스키마는 공개 표준. **HTML 정본 채택은 Editor 종속이라 기각** |
+
+Editor 는 **TipTap(MIT extension 만)**. Pro extension 은 상용 라이선스라 쓰지 않는다.
+번들 예산 때문에 **route-level lazy load 를 강제**한다.
+
+Notion API 한계에서 온 `MAX_BLOCKS=100` · `MAX_LINE_CHARS=1900` **본문 길이 거절은 삭제한다.**
+자체 DB 에는 다 들어간다.
+
+## D-199 — File Binary 는 DB 에 넣지 않는다. Storage Provider 는 접근 Protocol 기준이다
+
+DB 는 metadata, 실체는 Provider. `files(…, checksum_sha256, storage_provider_id, storage_key, …)` ·
+`storage_providers(id, kind LOCAL|NFS|SMB, config jsonb, role OPERATIONAL|BACKUP, enabled)`.
+
+**Provider 를 장비 이름이 아니라 접근 Protocol 로 나눈다** — 실 NAS 장비 정보가 지금 없기 때문이다.
+마운트 관리는 systemd `.mount`/`automount` 유닛이 하고 Application 은 마운트포인트 경로만 안다.
+**실 NAS 정보를 받으면 Application 수정 없이 Configuration 변경만으로 연결된다.**
+
+**그리고 인터페이스만 남기는 완료 처리를 금지한다.** 동일 서버에 NFS export 와 Samba share 를 각각
+구성해 **16항 매트릭스**를 실제로 검증한다 — Mount · Read/Write · Permission · Create/Delete ·
+Checksum · Capacity · **Storage unavailable(503 이지 500 이 아니다)** · **Reconnect(재시작 불필요)** ·
+**동작 중 장애 시 부분 파일 미커밋 + DB 행 미생성** · Reboot · **Reboot 후 자동 Mount** ·
+**Mount 완료 전 App/Worker 기동** · **잘못된 Local Path 기록 방지** · Backup · Restore ·
+운영/백업 동일 저장소 경고.
+
+13번이 특히 중요하다: **마운트포인트가 안 붙은 상태에서 로컬 디스크에 파일이 조용히 쌓이는 사고.**
+`st_dev` 비교로 마운트 여부를 검사하고, 아니면 **쓰기를 거부**한다.
+
+**시험 Storage 가 실 NAS 검증과 동일하다고 주장하지 않는다.** 그렇게 쓰면 나중에 실 장비에서
+나오는 결함이 「검증했는데 왜」가 된다.
+
+## D-200 — GPU 를 전제하지 않는다. Retrieval 전 계층은 CPU Local 이다
+
+서버 실측: Intel Xeon E5-2699 v4 **8 vCPU** · RAM **15 GiB** · **GPU 없음**(`VMware SVGA II Adapter`
+뿐, `nvidia-smi` 없음) · load average 0.12. **VMware VM 고정이라 현재도 미래도 GPU 는 없다.**
+
+그래서 Keyword(`pg_trgm`) · Full Text(PG FTS) · Semantic(pgvector) · Embedding · Re-ranking ·
+Metadata/Relation Filter · Permission Filter · Source/Citation 조회를 **전부 CPU 기반 Local** 로 둔다.
+
+**CPU-only Local LLM 을 주 생성 모델로 억지 채택하지 않는다.** 검증되면 Adapter 로 **추가**는 가능하다.
+Embedding 은 bge-m3 또는 multilingual-e5-base(ONNX), Re-rank 는 bge-reranker-v2-m3 — **둘 다 S1 에서
+이 서버 CPU 로 실측한 뒤 확정한다. 지금 숫자를 약속하지 않는다.**
+리랭커가 CPU 에서 느리면 **RRF 점수 융합으로 대체**한다 — 설계에 이미 분기가 있다.
+
+## D-201 — 자연어 생성은 Model Gateway 뒤 Adapter 다. `/usr/bin/claude` 는 Adapter 하나일 뿐이다
+
+```
+app/ai/gateway/
+  contract.py     # embed() · rerank() · generate() · capabilities()
+  registry.py     # 설정 기반 Adapter 선택. 모델명은 어디에도 하드코딩하지 않는다
+  adapters/claude_cli.py · local_embed.py · local_rerank.py
+```
+
+**Business Logic 은 `contract.py` 만 안다.** 지금 모델명이 두 곳에 박혀 있다 —
+`app/llm/provider.py:74` `DEFAULT_MODEL="sonnet"` 와 runner `assistant.py:24` `ASSISTANT_MODEL`.
+**둘 다 제거하고 설정으로 일원화한다.**
+
+`generate()` 불가 시 `capabilities()` 가 그 사실을 알리고 호출부는 **검색·Retrieval 결과만으로**
+응답한다. 즉 생성 Provider 가 없어도 검색·Retrieval·Permission Filter·Source 조회는 동작한다.
+
+**다만 요약·분석·문서생성까지 동일하게 동작한다고 과장하지 않는다.** 완료 조건 문구도 이 경계대로
+적는다 — 「Provider 없이도 전부 된다」고 쓰면 그건 거짓이다.
+
+HTTP 기반 Adapter 는 `app/core/http_client.py::OutboundClient` 관문(SSRF allowlist · secret-ref
+주입 · 429-only retry)을 **그대로 쓴다.** 새 경로를 뚫지 않는다.
+
+## D-202 — AI Permission Filter 는 Retrieval **앞**에 둔다
+
+현재 이 경로에 권한 필터가 **아예 없다.** n8n 이 `returnAll: true` 로 Notion 작업 DB 전체를 가져와
+runner 에 넘기고, runner 는 `tickets[:800]` 을 그대로 모델 프롬프트에 싣는다
+(`runner/claude-work-assistant/assistant.py:3156`). 요청자는 대명사 해석(`내 티켓`)에만 쓰이고
+**필터로는 쓰이지 않는다.**
+
+같은 저장소의 `app/assistant/facts.py:169-176` 은 정반대로 `viewer=user` 를 넘기며
+「사용자가 화면에서 볼 수 없는 일을 답변으로 알려 주면 그것도 유출이다」라고 적어 두었다.
+**즉 이것은 설계 선택이 아니라 한 경로만 이 모델을 우회하고 있는 것이다.**
+
+```
+User → effective_visibility_clause(principal)   ← D-194 의 그 함수
+     → 후보 집합 결정                             ← 권한 없는 행은 여기서 이미 없다
+     → Hybrid Retrieval (pg_trgm ⊕ PG FTS ⊕ pgvector, RRF) + metadata/relation filter
+     → Re-rank → Context 조립 → Model Gateway.generate()
+```
+
+**금지: 전체 검색 → LLM 전달 → 「숨기라고 지시」.** 권한 없는 데이터는 Context 에 **들어가지 않는다.**
+`LIMIT` **앞에** 권한 조건을 건다 — 기존 `search/service.py:71-74` 의 Z6 불변식을 AI 경로로 확장한다.
+
+**증명 방식**: 권한 없는 사용자 질의 시 해당 데이터가 Context 에 들어가지 않음을 **음성 테스트**로
+보인다. 답변에 안 나왔다는 것은 증거가 아니다 — 모델이 그때 안 쓴 것일 수도 있다.
+
+그리고 `app/llm/prompt.py` 의 nonce delimiter + `neutralize()` + tool 거부를 **전 AI 경로에 적용**한다.
+현재 이 방어는 세 경로 중 **사용자와 무관한 경로 하나에만** 걸려 있다.
+**Retrieval Content 는 데이터이지 System Instruction 이 아니다.**
+
+## D-203 — AI Index 는 파생 데이터다. Permission 변경은 재임베딩이 아니라 필터 재계산이다
+
+`document_chunks(…, block_anchor, page/slide/sheet, text, embedding vector, parser_version,
+embedding_model, embedding_version, indexed_at)` 는 **언제든 다시 만들 수 있다.**
+그래서 **백업 대상이 아니다**(D-204) — 대신 재생성 경로를 항상 살려 둔다.
+
+Index Lifecycle 이벤트: Document 생성/수정/삭제 · Version 변경 · File 교체 · **Permission 변경** ·
+Project Permission 변경 · Folder 이동 · Parser 변경 · Embedding Model 변경.
+
+**Permission 변경은 재임베딩이 아니다.** embedding 은 그대로 두고 권한만 다시 판정한다 —
+현재 검색이 **300초 재색인 간격 동안 권한 변경을 못 따라가는** 문제를 여기서 없앤다.
+
+색인은 전용 **`index` worker lane** 에서 돈다. batch/conversational 과 분리하는 이유는 하나다 —
+**임베딩이 배치 틱을 굶기지 않게.**
+
+## D-204 — Backup 과 Restore 를 함께 설계한다. 파일 생성만으로 SUCCESS 가 아니다
+
+| 정본 (백업 필수) | 재생성 가능 (백업 제외, **명시한다**) |
+|---|---|
+| PostgreSQL 전체 · 원본 파일 · 첨부 · Settings · Audit | Embedding · Search Index · Chunk · Preview · Temp · Cache |
+
+`pg_dump -Fc` + 파일 Storage 아카이브 + `manifest.json`(schema version · alembic head · provider ·
+체크섬 · 범위).
+
+**SUCCESS 판정은 sha256 + `pg_restore --list` 파싱 + 임시 DB 복원 검증을 통과한 뒤에만 찍는다.**
+파일이 생겼다는 것은 백업이 됐다는 뜻이 아니다.
+
+Restore 는 `Maintenance Mode → Restore → PG Validation → File Validation → Relation Validation →
+필요한 Re-index → Application Validation → Service Open`.
+기존 `scripts/restore_rehearsal.py` 의 8단계 — 특히 **복원된 DB 로 앱을 실제 기동해 읽기 경로를
+호출하는 7단계** — 를 PG 기준으로 이식한다. **이 스크립트가 저장소에서 가장 정직한 검증 자산이다.**
+
+**운영 Storage 와 Backup Storage 는 별도 Provider 다.** 동일 물리 저장소면 경고한다.
+Local Backup 은 다운로드 완료 후 **「서버에 저장된 백업 파일을 삭제하시겠습니까?」를 명시적으로
+묻는다** — 자동 삭제하지 않는다.
+
+**현행 Rollback 모델이 PG 에서 성립하지 않는다는 점을 함께 기록한다**: `rollback-*.sh` 가
+「백업한 DB 파일 되돌리기」를 전제한다. 단일 파일이 아니면 그 모델은 없다.
+
+## D-205 — 설치 자동화는 제품 요구다. 모든 Session 이 Installer 계약을 진다
+
+**Harness script 한 줄이 아니다.** Clean Ubuntu Server 24.04 에서 GitLab 기준 Source 를 확보해
+정해진 Entry Point 하나를 실행하면 전체 Component 가 자동 설치·구성돼야 한다.
+현 origin 이 GitHub 라는 사실이 이 요구를 축소하지 않는다 — Installer 를 **Remote 중립**으로 만들고
+GitLab 주소가 정해지면 **설정만** 바꾼다.
+
+**최초 흐름은 2단계다.** `sudo /opt/clovirassist/deploy/install.sh` 는 Clean Ubuntu 에 그 파일이
+없으므로 **최초 Entry Point 가 될 수 없다.**
+
+```bash
+sudo apt-get update && sudo apt-get install -y git ca-certificates
+sudo git clone --branch v<VERSION> https://gitlab.<사내>/clovir/clovirassist.git /opt/clovirassist
+sudo /opt/clovirassist/deploy/install.sh install --dns-name clovirassist.gooddi.lab --bind-ip <IP>
+```
+
+**`curl … | bash` 를 쓰지 않는다.** `build-bundle.sh` 는 `MANIFEST.sha256` 을, 백업은 `SHA256SUMS` 를,
+rollback 은 그 검증을 강제한다 — **검증 없이 실행되는 원격 스크립트는 그 문화의 정반대다.**
+`git clone` 은 Source 확보 · 무결성(object hash) · Version 고정(tag)을 한 번에 주고, clone 뒤에는
+installer 가 **자기 Source 위치를 안다**. 폐쇄망용 오프라인 Bundle 경로는 계속 지원한다.
+
+**Installer 계약**: Runtime Component 를 추가하는 Session 은 **그 Session 안에서**
+① installer Stage ② systemd unit + `enable` + 의존 순서 ③ health probe ④ uninstall 경로
+⑤ reboot 후 복구 를 **함께** 완성한다. **「나중에 설치 붙이기」를 허용하지 않는다** —
+설치 자동화를 마지막에 몰면 Clean 설치가 최종 단계에서만 깨진다.
+
+**재부팅 후 수동 명령 0회**(U14). 전 유닛 `systemctl enable` + `After=postgresql` +
+**기동 시 PG 준비 대기**(`After=` 만으로는 접속 가능 보장이 없다) + Storage 는 `RequiresMountsFor=`.
+
+**검증 환경의 역할을 분리한다**: LXD/Incus 컨테이너 = **반복 가능한 Clean 설치 리허설**
+(폐기·재생성이 싸다). 실 VM/테스트 서버 = **Storage · 실제 Reboot · TLS Acceptance.**
+비특권 컨테이너에서는 NFS/CIFS 마운트가 제한되고 **진짜 reboot 도 아니다** —
+**컨테이너 통과를 「설치 검증 완료」라고 쓰지 않는다.**
+
+## D-206 — Session 종료 규약: 한 Session 이 여러 대형 Wave 를 몰아 수행하지 않는다
+
+```
+구현 → Targeted Test → 관련 E2E → 독립 Reviewer(구현하지 않은 에이전트)
+     → Finding 수정 → Exit Gate → Commit → Working Tree Clean
+```
+
+**한 Session 은 이 사슬을 스스로 끝낼 수 있어야 한다.**
+
+근거는 회고다. W5 는 한 Wave 에 범위와 검증이 몰려 10시간을 넘겼다. 그리고 그 과정에서 드러난 것이
+D-186 의 「잴 수 없던 세 자리」다 — **범위가 크면 무엇을 안 쟀는지도 안 보인다.**
+
+- **Cutover(S14)와 UI Renewal 을 같은 Session 에 두지 않는다.** Cutover 는 그 자체로 종료 단위다
+- Full Capture 는 **S22 에서만**. 각 Session 은 자기가 건드린 Surface 만 재캡처한다
+- **범위가 커지면 Session 을 쪼갠다**
+
+## D-207 — W5B~W15 를 즉시 동결한다. 재개는 Phase E(S15~S20) 다
+
+**W0~W5 자산은 보존한다** — `theme.js` · `kit.jsx` · `FilterBar`/`filters.jsx` · `EntityCombobox` ·
+`navConfig` · Control Plane 3종 · Assertion 34종 · `probe_selftest.py` · 프런트 테스트 전량.
+**폐기하지 않는다.**
+
+동결하는 이유는 하나다. **W5B~W15 의 검증 대상이 곧 사라진다.** W5B 는 Legacy Notion Query 를
+대상으로 Search/Filter 정확성을 재려 하고, W8 의 Pilot 8종은 없어질 Route 를 포함하며,
+W12 의 관리자 44 Surface 에는 Notion/SQLite 화면이 들어 있다. **지금 실행하면 두 번 일한다.**
+
+| Wave | 판정 | 재배치 |
+|---|---|---|
+| **W5B** | **REDEFINE** — 목적 보존, 대상 교체 | **S15.** 새 PG Project/Ticket Query 와 Relation 대상으로 `UI → URL → API → Backend Relation → Permission → Query → Response → Render` 전 사슬 |
+| W6 | **KEEP**(공유 부품) + **MERGE**(Inline Edit → Ticket 도메인) | S16 |
+| W7 | **KEEP** | S17 |
+| W8 | **REDEFINE** — Pilot 집합을 새 IA Archetype 으로 | S18 |
+| W9 | **MERGE into S6·S7** + **REMOVE**(수동 동기화 제거는 동기화 개념 소멸로 자동 해소) | S6·S7 |
+| W10 | **REDEFINE**(Route 집합 자체가 바뀐다) | S19 |
+| W11 · W12 | **REDEFINE** | **S20** (둘이 `navConfig.js`·`AdminRoutes.jsx` 를 공유해 분리하면 충돌한다 — 이 묶음만 예외로 합친다) |
+| **W13** | **MOVE — 맨 앞으로** | **S3.** 지금 nginx·인증서·`APP_BASE_URL` 이 전부 옛 이름이고, **이후 모든 캡처 증거가 한 origin 으로 남아야 한다** |
+| W14 | **KEEP + 확장**(Backlog·Sprint·Board·Space·Citation·Storage) | S21 |
+| W15 | **KEEP + 확장**(설치 Acceptance 포함) | S22 |
+
+**W5B 의 목적은 반드시 남긴다**(U7). 없애는 것은 대상이지 목적이 아니다.
+
+**판정 확정은 새 IA 가 실재한 뒤(S10 종료 시점)** 하고, 실행은 Phase E 에서 한다.
+현재 Before 증거가 **세 origin 에 흩어져 있다**(`10.100.64.71` · `clovirone-ai.gooddi.lab` ·
+`clovirassist.gooddi.lab`) — S3 에서 호스트를 확정하므로 이후 증거는 한 origin 으로 모인다.
+
+## D-208 — 검증 실행 경제 E1~E10: 없애는 것은 중복 실행뿐이다
+
+「전체 캡처 → 프로브 결함 → 프로브 수정 → 제품 결함 → 빌드 변경 → 캡처 무효 → 재캡처」 루프를
+반복하지 않는다. 그러나 **비용을 이유로 필수 검증을 생략하지도 않는다.** 둘은 다른 말이다.
+
+| # | 원칙 |
+|---|---|
+| E1 | 같은 Source/Build 에서 이미 PASS 한 비싼 검증은 반복하지 않는다. **인용할 때 지문을 함께 적는다** |
+| E2 | Source 변경 후 **변경 Domain → 관련 Integration → 영향 Route/Flow** 순. 실패 시 **실패 범위부터** |
+| E3 | Probe 결함은 self-test·반례 후 수정한다. **Probe 하나 고칠 때마다 Full Capture 하지 않는다** |
+| E4 | Installer 개발 중에는 **변경 Stage 만**. Clean 설치·Reboot·Upgrade Acceptance 는 Source Freeze 후 |
+| E5 | UI Session 은 **변경 Surface 만** 검증하고 **최소 Reviewer 만** 쓴다 |
+| E6 | Reviewer Finding 수정 후 전체를 처음부터 반복하지 않는다. **영향 범위를 우선 재검증** |
+| E7 | S21 의 Functional Evidence 를 S22 에서 **재사용**한다. S22 는 S21 전체 재실행이 아니다 |
+| E8 | Whole-product Full Capture 는 **S22 최종 빌드에서 1회만** |
+| E9 | 범위 밖 Finding 은 Owner Session 으로 Routing 할 수 있다. **단 현재 변경이 만든 Regression 은 넘기지 않는다** |
+| E10 | **비용을 이유로 필수 안전/기능 검증을 생략하지 않는다** |
+
+**어떤 경우에도 면제되지 않는 것** — E1~E9 의 어떤 조항도 아래를 건너뛰는 근거가 되지 않는다.
+
+- 권한/RBAC 음성 테스트, 특히 **AI Retrieval 이 권한 없는 데이터를 Context 에 넣지 않음**(S10)
+- **Ticket 채번 동시성** — 중복 0 · 번호 연속 · 롤백 시 미소비 (S6)
+- **Migration 무결성** — 수량 · 누락 · 중복 · 변환 실패 · 깨진 Relation · 깨진 File Link (S13)
+- **Backup 무결성과 복원 후 앱 기동 검증** (S12)
+- **Storage 16항 매트릭스**와 미마운트 시 쓰기 거부 (S8)
+- **Reboot 후 수동 명령 0회 복구** (S4 범위 · S22 전 제품)
+- **Cutover 전 최종 Backup 과 Rollback 지점 확인** (S14)
+- **Secret 노출 검사 · CSRF/Session 계약 · Prompt Injection 경계**
+
+「이번엔 안 바뀌었으니 건너뛴다」는 **E1 의 지문 비교로 증명될 때만** 허용된다.
+**추정으로 건너뛰지 않는다.**

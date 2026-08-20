@@ -1,8 +1,19 @@
-# MASTER PLAN — ClovirAssist 전체 작업 마스터 계획
+# (사용 중지) MASTER PLAN — 이전 축의 전체 작업 마스터 계획
 
-> **진입점은 [WORK_STATE.md](WORK_STATE.md)다.** 이 문서는 "무엇을 왜 만드는가"와 "완료의 정의"를
-> 담는다. 지금 어디까지 왔는지는 WORK_STATE, 개별 문제는 [BACKLOG.md](BACKLOG.md),
-> 검증 공백은 [QA_COVERAGE.md](QA_COVERAGE.md), 설계 판단은 [DECISIONS.md](DECISIONS.md).
+> ## ⚠️ 이 문서는 정본이 아니다 (2026-08-21, S0)
+>
+> **현재 정본 계획은 [`platform/MASTER_PLAN.md`](platform/MASTER_PLAN.md) 다.**
+> 진입점은 [`platform/WORK_STATE.md`](platform/WORK_STATE.md),
+> 큰 작업 단위는 [`platform/BACKLOG.md`](platform/BACKLOG.md),
+> 실측 목록은 [`platform/INVENTORY/`](platform/INVENTORY/README.md),
+> 설치 사양은 [`platform/INSTALLATION.md`](platform/INSTALLATION.md).
+>
+> 이 문서가 가리키던 `WORK_STATE.md` · `BACKLOG.md` · `QA_COVERAGE.md` · `BUILD_LOG.md` 는
+> **더 이상 저장소에 없다.** 아래 내용은 2026-08-08 판이고, 그 뒤 제품이 **Notion/SQLite 폐기 ·
+> PostgreSQL System of Record** 로 방향을 바꿨다(**D-187**). 남겨 두는 이유는 완료 기준과 사이클
+> 순서의 의도가 여전히 읽을 값이 있어서지, 실행 계획이라서가 아니다.
+>
+> 설계 판단은 [DECISIONS.md](DECISIONS.md) — 현재 묶음은 **D-187~D-208**.
 >
 > **2026-08-08 전면 개정.** 이전 판(2026-08-03)은 "UI 재설계 + 저장된 계획 실행" 중심이었고
 > 5일치 작업만큼 낡았다. 그 내용 중 살아 있는 것은 아래 §5에 흡수했다.

@@ -28,10 +28,12 @@
 | 사용자에게 쓰는 법을 알려 준다 | [USER_GUIDE.md](USER_GUIDE.md), [ADMIN_GUIDE.md](ADMIN_GUIDE.md) |
 | 사이드바에서 처음 본 화면이 무엇인지 모르겠다 | **[CONSOLE_SCREENS.md](CONSOLE_SCREENS.md)** (프로젝트, 아이디어 제안, 초기 설정, 시스템 설정, Notion 관리, AI 관리) |
 | 무엇이 안 되는지 알고 싶다 | [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) |
-| **작업을 이어받는다 / 지금 어디까지 했는지 알고 싶다** | **[WORK_STATE.md](WORK_STATE.md)** ← 여기부터 |
-| 다음에 무엇을 할지 정한다 | [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) (MASTER PLAN) |
-| 알려진 문제 전체와 각각의 상태를 본다 | [BACKLOG.md](BACKLOG.md) |
-| 무엇이 아직 검증 안 됐는지 본다 | [QA_COVERAGE.md](QA_COVERAGE.md) |
+| **작업을 이어받는다 / 지금 어디까지 했는지 알고 싶다** | **[platform/WORK_STATE.md](platform/WORK_STATE.md)** ← 여기부터 |
+| 다음에 무엇을 할지 정한다 | [platform/MASTER_PLAN.md](platform/MASTER_PLAN.md) (MASTER PLAN) |
+| 큰 작업 단위와 각각의 상태를 본다 | [platform/BACKLOG.md](platform/BACKLOG.md) |
+| 무엇이 몇 개 있는지 (Route·API·DB·Test·Probe…) 본다 | [platform/INVENTORY/](platform/INVENTORY/README.md) |
+| 설치·배포 사양을 본다 | [platform/INSTALLATION.md](platform/INSTALLATION.md) |
+| UI 리뉴얼 축의 상태를 본다 (**W5B~W15 동결 중**) | [ui-renewal/WORK_STATE.md](ui-renewal/WORK_STATE.md) |
 | 왜 이렇게 설계했는지 찾는다 | [DECISIONS.md](DECISIONS.md) |
 
 ---
@@ -81,12 +83,17 @@
 
 | 문서 | 내용 |
 |---|---|
-| [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) | 흩어진 계획을 모은 권위 있는 전체 목록. 새 세션은 여기부터 |
+| **[platform/MASTER_PLAN.md](platform/MASTER_PLAN.md)** | **현재 정본 계획** — Notion/SQLite 폐기, PostgreSQL 전환, S0~S22. 새 세션은 여기부터 |
+| [platform/WORK_STATE.md](platform/WORK_STATE.md) | 지금 어느 Session 인가 · 다음 시작점 · 진짜 Blocker |
+| [platform/BACKLOG.md](platform/BACKLOG.md) | 의미 있는 큰 작업 단위와 완료의 정의 |
+| [platform/INSTALLATION.md](platform/INSTALLATION.md) | 설치·배포 자동화 사양 (Clean Ubuntu 3줄 · Stage 0~18 · Acceptance) |
+| [platform/INVENTORY/](platform/INVENTORY/README.md) | 실측 목록 12종 (Route·Page·Component·API·DB·Dependency·Notion·SQLite·n8n·Harness·Test·Probe) |
+| [ui-renewal/WORK_STATE.md](ui-renewal/WORK_STATE.md) | UI 리뉴얼 축. **W5 완료 · W5B~W15 동결** (D-207) |
+| [WORK_PLAN_INDEX.md](WORK_PLAN_INDEX.md) | (사용 중지) 이전 축의 마스터 계획. platform/MASTER_PLAN.md 로 대체됐다 |
 | [PRODUCTIZATION_ARCHITECTURE.md](PRODUCTIZATION_ARCHITECTURE.md) | 약 1000명 규모 제품화 아키텍처 계획 |
-| [NEXT_SESSION_PLAN.md](NEXT_SESSION_PLAN.md) | 다음 세션 작업 계획 |
+| [NEXT_SESSION_PLAN.md](NEXT_SESSION_PLAN.md) | (사용 중지) |
 | [IDEAS_BACKLOG.md](IDEAS_BACKLOG.md) | 제품 전체 아이디어 백로그 (미확정) |
 | [IMPROVEMENT_DIRECTIVE.md](IMPROVEMENT_DIRECTIVE.md) | 사용자가 제시한 상시 개선 기준 (원문 요약) |
-| [BUILD_LOG.md](BUILD_LOG.md) | 세션 간 인수인계 기록. 최신이 위 |
 
 ## 문서가 아닌 것
 

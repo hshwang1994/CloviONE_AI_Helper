@@ -48,6 +48,18 @@
 
 이 세 파일은 과거 History를 복원하기 위한 문서가 아니라 현재 작업의 누락 방지 Control Plane이다.
 
+**2026-08-21(S0) 추가 — 현재 제품 작업의 정본은 UI Renewal 축이 아니라 자체 데이터 플랫폼 전환이다.**
+세션은 다음 둘을 **먼저** 읽는다.
+
+- **`docs/platform/WORK_STATE.md`** — 진입점. 현재 Session · 다음 시작점 · 마지막 안정 Commit
+- **`docs/platform/MASTER_PLAN.md`** — 정본 계획. Architecture · 확정 Decision · S0~S22 · 완료 조건
+
+부속: `docs/platform/BACKLOG.md` · `docs/platform/INSTALLATION.md` ·
+`docs/platform/INVENTORY/`(실측 12종) · `docs/DECISIONS.md` **D-187~D-208**.
+
+**UI Renewal 축은 W5까지 완료했고 W5B~W15는 동결이다**(D-207). 위 세 Control Artifact는 그대로
+유지·검증되며, 재개는 Master Plan의 Phase E(S15~S20)다. 이 절의 기존 규칙은 그때 그대로 적용된다.
+
 문서와 Source/Git/Test/Browser가 충돌하면 Source와 실제 검증 결과를 확인하고 문서를 정정한다.
 
 ## 3. Ultracode Workflow를 현재 UI Renewal의 Primary Workflow로 사용
