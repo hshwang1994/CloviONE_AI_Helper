@@ -109,7 +109,8 @@ describe("내 티켓 — 목록", () => {
     // 프로젝트별 그룹 머리행.
     expect(screen.getByText("인프라")).toBeInTheDocument();
     expect(screen.getByText("리포트")).toBeInTheDocument();
-    expect(screen.getByText("총 2건")).toBeInTheDocument();
+    // 건수 줄은 이제 **조건과의 관계**를 말한다 (C2) — 조건이 없으면 "전체 N건".
+    expect(screen.getByText("전체 2건")).toBeInTheDocument();
   });
 
   it("SEM-02: h1 하나뿐이던 화면에 필터·목록 구획용 h2가 있다(시각적으로는 안 보임)", async () => {
@@ -129,7 +130,8 @@ describe("내 티켓 — 목록", () => {
     await user.click(screen.getByRole("combobox", { name: "상태" }));
     await user.click(await screen.findByRole("option", { name: "완료" }));
 
-    expect(await screen.findByText("총 1건")).toBeInTheDocument();
+    // 조건이 걸리면 그 사실이 건수 옆에 함께 선다 — 숫자만 보고 "왜 1건이지"를 되묻지 않게.
+    expect(await screen.findByText("조건 1개, 결과 1건")).toBeInTheDocument();
     expect(screen.getByText("월간 리포트 오탈자")).toBeInTheDocument();
     expect(screen.queryByText("서버 등록 IP 중복 방지")).toBeNull();
     // 화면이 몰래 거른 것이 아니라 **서버에 물어본** 결과다.

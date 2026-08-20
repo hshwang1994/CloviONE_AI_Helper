@@ -27,7 +27,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
   column_width_vs_content 한 열은 접히는데 다른 열은 절반이 비어 있다(폭 1200 이상)
   header_cell_alignment_mismatch  `th` 정렬이 그 열 `td` 들의 정렬과 다르다
   numeric_alignment       숫자 열이 우정렬이 아니거나 `tabular-nums` 가 없다
-  isolated_control_row    윗줄에 들어갈 자리가 있는데도 컨트롤 하나가 아랫줄로 밀렸다
+  isolated_control_row    컨트롤 하나가 줄을 통째로 쓰면서 그 줄의 절반 넘게 비운다(고아 줄)
   control_baseline_mismatch  한 줄 안에서 컨트롤 높이(같은 종류)나 중심선이 어긋난다
   oversized_empty_surface 큰 상자가 거의 비었거나 내용이 왼쪽에만 몰려 있다
   dead_blank_region       스크롤도 안 되는 화면에서 아래/오른쪽이 굶주린 채 비어 있다
@@ -66,7 +66,14 @@ ENTITY_TERMS = (
     "프로젝트", "담당자", "사용자", "부서", "조직", "직책", "티켓", "문서", "게시글",
     "러너", "워크플로", "프롬프트", "정책", "템플릿", "일정", "연동", "채팅방",
     "승인자", "요청자", "작성자", "대상자",
+    # W5 추가 — 실제로 무한히 자라는데 어휘에 없어 놓치던 것들(독립 조사 실측).
+    "후임", "소속", "행위자", "관리자 ID", "참여자", "멤버",
 )
+
+# 어휘에 걸려도 **닫힌 열거형**인 라벨을 먼저 뺀다. 판정이 부분 문자열 포함이라
+# 「문서 종류」(고정 8개)가 「문서」로 잡히는 위양성이 실재했다(`/team-docs` 8셀).
+# 규칙은 «분류축 꼬리말» 하나다 — 그 대상 자체가 아니라 그 대상의 속성을 고르는 자리다.
+ENTITY_CLOSED_SUFFIXES = ("종류", "유형", "분류", "모드", "등급")
 
 CLASSES = (
     "auth_ok", "theme_applied", "horizontal_overflow", "console_errors", "page_errors",
@@ -129,6 +136,19 @@ PROBE_JS = r"""
   }
   function visible(el, rect) {
     if (rect.width <= 0 || rect.height <= 0) return false;
+    /* **문서 밖으로 치워 둔 것은 보이는 것이 아니다** (W5 정정).
+     *
+     * 두 가지가 여기 걸린다. ① 닫힌 오프캔버스 서랍 — `transform: translateX(-100%)` 라
+     * 왼쪽 밖에 서 있다(390px 에서 앱 사이드바가 left −248 · width 247 이다). ② 스크린리더
+     * 전용/측정용 상자 — `left:-9999px` 또는 `top:-9999px`. 둘 다 `visibility` 도 `display` 도
+     * 정상이라 예전 판정은 «보인다» 였다. 그 결과 `/chat` 390px 에서 **닫힌 서랍의 버튼**이
+     * 제목줄의 아이콘 버튼과 한 줄로 묶여 「높이 6px 차이」로 잡혔다 — 사용자가 볼 수 없는
+     * 것을 두고 정렬을 따진 셈이다.
+     *
+     * 판정은 **문서 좌표**로 한다(`scrollX/Y` 를 더한다). 뷰포트 좌표로 하면 스크롤된
+     * 페이지에서 위쪽 내용이 통째로 «안 보인다» 가 되어 검사가 눈을 감는다. */
+    const sx = window.scrollX || 0, sy = window.scrollY || 0;
+    if (rect.right + sx <= 0 || rect.bottom + sy <= 0) return false;
     const cs = getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0';
   }
@@ -848,6 +868,13 @@ PROBE_JS = r"""
     for (const k of container.children) {
       const r = k.getBoundingClientRect();
       if (!visible(k, r)) continue;
+      /* **흐름에 없는 것은 줄이 아니다** (W5 정정 — 이 함수의 이름이 그렇게 말한다).
+         `position: absolute|fixed` 인 아이는 형제와 나란히 선 것이 아니라 그 **위에 덮여**
+         있다. 세로로 겹친다는 이유만으로 같은 줄로 묶으면, 화면을 덮는 서랍·팝오버·FAB 이
+         본문 컨트롤과 «한 줄» 이 되어 기준선이 어긋났다고 말하게 된다. `sticky` 는 흐름에
+         남으므로 빼지 않는다. */
+      const kpos = getComputedStyle(k).position;
+      if (kpos === 'absolute' || kpos === 'fixed') continue;
       kids.push({ el: k, r: r });
     }
     kids.sort((a, b) => (a.r.top - b.r.top) || (a.r.left - b.r.left));
@@ -1172,12 +1199,46 @@ PROBE_JS = r"""
       const usedR = R.right - R.left;
       if (!(R.items.length === 1 || usedR < inner * 0.4)) continue;
       out.isolatedControlRowChecked++;
+      /* ── 무엇을 물어야 하는가 (W5 정정) ────────────────────────────────────
+       *
+       * 예전 질문은 «윗줄에 들어갈 자리가 있었나»(`freeP = inner − 윗줄 폭`)였다.
+       * 그 질문은 **CSS wrap 레이아웃에서 구조적으로 답이 항상 «아니오»** 다 — 줄이
+       * 넘어간 이유가 바로 윗줄이 꽉 찼기 때문이고, 게다가 옛 필터 격자는
+       * `width: fit-content` 라 컨테이너 자체가 가장 넓은 줄 폭으로 줄어 `freeP` 가
+       * 정의상 0 이었다. 그래서 664 페이지에서 fail 이 0 이었다 — 위반이 없어서가
+       * 아니라 **발화할 수 없어서**다. 실제로 R-76 이 이름으로 지목한 두 화면
+       * (`/board` 정렬 select, `/sprint` 담당자)이 둘 다 후보로 잡혔다가
+       * `prevFree 0 < 120` 으로 기각되는 것을 실브라우저에서 재현했다(그 자리의 실제
+       * 빈 폭은 156px·536px 였다).
+       *
+       * 지시 76 이 말하는 결함은 «들어갈 수 있었다»가 아니라 **«고아 줄»** 이다:
+       * "여러 Filter는 첫 줄에 배치되고 담당자 하나만 다음 줄 왼쪽에 남아 전체 정렬과
+       * 리듬이 깨진다". 그래서 묻는 것을 바꾼다 — **그 줄이 남긴 빈 폭**이 얼마인가.
+       * 좁은 화면의 정상 wrap 은 남는 폭이 없어 여전히 발화하지 않는다. */
+      const freeR = inner - usedR;
       const freeP = inner - (P.right - P.left);
+      /* **윗줄에 자리가 있었는가** — 원래 질문이 옳았다. 틀린 것은 그 질문이 아니라
+         **컨테이너의 폭**이었다: 옛 필터 격자의 `width: fit-content` 가 상자를 «가장 넓은
+         줄» 로 줄여 이 값을 정의상 0 으로 만들었고, 그래서 664 페이지에서 fail 이 0 이었다.
+         줄이 폭 전체를 차지하는 지금은 이 값이 실제 빈 폭이다.
+         이 조건이 필요한 이유는 좁은 화면 때문이다 — 390 에서 컨트롤 하나가 줄을 통째로
+         쓰는 것은 **밀려난 것이 아니라 접힌 것**이고, 그때 윗줄에는 여유가 없다.
+         실브라우저로 확인했다: `/policies` 390 은 윗줄 여유 0(정상 wrap), `/board` 1920 의
+         칩 묶음도 윗줄이 폭 전체라 여유 0 이다(도구 줄과 내용 줄은 서로 밀어낸 관계가 아니다). */
+      if (freeR < 120) continue;
       if (freeP < 120 || freeP < usedR + gap) continue;
+      /* **고아는 왼쪽에 남는다.** 지시 76 의 문장이 그렇게 말한다 — "담당자 하나만 다음 줄
+         왼쪽에 남아 전체 정렬과 리듬이 깨진다". 오른쪽 끝으로 **밀어 놓은** 한 컨트롤
+         (`margin-inline-start:auto` 로 정렬·보기 전환을 줄 끝에 붙이는 관용)은 밀려난 것이
+         아니라 **놓인** 것이다. 그 자리를 결함으로 세면 제품의 모든 도구 줄이 걸리고,
+         그러면 예외 표식(`data-control-row="separate"`)을 화면마다 뿌리게 된다 —
+         표식이 늘어나는 검사는 결국 아무것도 안 잡는다. 기하로 가른다. */
+      const startedRight = (R.left - (cr.left + (parseFloat(ccs.paddingLeft) || 0))) > inner * 0.5;
+      if (startedRight) continue;
       out.isolatedControlRow.push({
         selector: cssPath(container),
         control: snippet(R.items[0].el) || cssPath(R.items[0].el),
-        rowUsed: Math.round(usedR), prevFree: Math.round(freeP),
+        rowUsed: Math.round(usedR), rowFree: Math.round(freeR), prevFree: Math.round(freeP),
         containerWidth: Math.round(inner), gap: Math.round(gap),
       });
     }
@@ -1199,6 +1260,49 @@ PROBE_JS = r"""
     const r = (inner || el).getBoundingClientRect();
     return (r.width > 0 && r.height > 0) ? r : null;
   }
+  /* **줄이 둘 이상이면 컨트롤이 아니라 글이다** (W5 정정).
+   *
+   * 문서 카드의 제목은 접근성 때문에 `<button>` 으로 그려진다(`MuiLink` 가 그렇다). 그래서
+   * `kindOf` 는 그것을 「버튼」이라 부르는데, 그 높이는 padding 이 아니라 **글이 몇 줄로
+   * 접히느냐**가 정한다. 긴 제목은 두 줄(53.2), 짧은 제목은 한 줄(26.6) — 그 26.6px 차이를
+   * 「같은 줄의 버튼 높이가 어긋났다」로 읽으면 카드 목록이 통째로 결함이 된다
+   * (`/team-docs` 1366·1920 실측). 글이 접히는 것은 배치의 문제가 아니다.
+   *
+   * 줄 수는 **높이 나누기 line-height 로 어림하지 않는다.** 그 어림은 글이 아예 없는 것
+   * (`<input>`)까지 «여러 줄» 로 만들어 검사를 통째로 눈감게 했다(반례 4건이 skip 으로
+   * 떨어졌다). Range 로 실제 줄상자를 세면 글이 없는 컨트롤은 자연히 0 줄이다. */
+  function textLineCount(el) {
+    /* **흐름 안의 글만 센다** (W5 재정정 — 독립 검수가 잡았다).
+     *
+     * 첫 구현은 `Range.selectNodeContents` 로 요소 전체의 줄상자를 셌다. 그 순간 MUI 의
+     * 노치 라벨이 함정이 된다: `.MuiOutlinedInput-root` 안에는 `position:absolute` 인
+     * `<fieldset><legend>` 가 들어 있고 그 라벨 글자의 줄상자는 입력 글자와 top 이 다르다.
+     * 결과는 «모든 MUI 입력이 두 줄» — 실측으로 `/team-docs` 7/7 · `/my-tickets` 7/7 이
+     * 통째로 탈락했고, `control_baseline_mismatch` 의 fail 134→0 중 상당 부분이 수리가 아니라
+     * **실명**이었다. 잡으려던 것(카드 제목이 두 줄로 접힌다)은 **흐름 안의 글**이므로
+     * 흐름 밖 조상(absolute/fixed)을 가진 텍스트는 세지 않는다. */
+    const tops = [];
+    try {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.nodeValue || !node.nodeValue.trim()) continue;
+        let host = node.parentElement, outOfFlow = false;
+        for (let p = host; p && p !== el; p = p.parentElement) {
+          const pos = getComputedStyle(p).position;
+          if (pos === 'absolute' || pos === 'fixed') { outOfFlow = true; break; }
+        }
+        if (outOfFlow) continue;
+        const rng = document.createRange();
+        rng.selectNode(node);
+        for (const r of rng.getClientRects()) {
+          if (r.width <= 0 || r.height <= 0) continue;
+          if (!tops.some((t) => Math.abs(t - r.top) < 4)) tops.push(r.top);
+        }
+      }
+    } catch (e) { return 0; }
+    return tops.length;
+  }
   function kindOf(el) {
     const tag = el.tagName;
     const role = (el.getAttribute('role') || '').toLowerCase();
@@ -1211,6 +1315,37 @@ PROBE_JS = r"""
     if (el.classList && el.classList.contains('MuiInputBase-root')) return '입력';
     return '기타';
   }
+  /* 줄 안의 컨트롤을 고르는 규칙 두 줄 (W5 정정).
+   *
+   * 예전에는 `it.el.querySelector(CTRL_SEL)` 로 **깊이 제한 없이 첫 후손 컨트롤**을 뽑았다.
+   * 그 컨트롤이 그 줄에 있다는 보장이 어디에도 없다 — `flowRows` 는 컨테이너의 **직계
+   * 자식**을 세로 겹침으로 묶는데, 그 자식이 세로로 긴 블록(2단 레이아웃의 한 열, 또는
+   * 여러 줄이 쌓인 카드)이면 그 안의 첫 컨트롤은 줄 밴드 밖 어디든 있을 수 있다.
+   * 실측 결과가 그것을 그대로 보여 준다: `user_chat` 「새 대화」 vs 「Notion에서 열기」
+   * **257.2px**, `user_new-ticket` 「AI 도우미」 vs 카드 버튼 100~125px — 눈으로도 다른
+   * 줄인 것들이다. OPEN 35건 중 15건이 이 형태였다.
+   *
+   * 두 줄로 막는다:
+   *   ① 후보는 row item 으로부터 **깊이 ≤2** 까지만 본다(자기 자신·자식·손자).
+   *   ② 짝지을 때 두 상자가 **세로로 50% 이상 겹쳐야** 한다 — `flowRows` 가 직계 자식을
+   *      묶을 때 쓰는 것과 같은 기준이다. 같은 줄에 선 것끼리만 비교한다는 뜻이다.
+   * 반례로 검증했다: 위양성 3건은 사라지고, 4K 아이콘버튼/버튼 6px 과 카드 목록 체크박스
+   * 3.5px 은 그대로 잡히며, 일부러 `min-height:46px` 를 주입한 DOM 도 12px 로 잡힌다. */
+  function controlsWithin(el, depth) {
+    if (el.matches(CTRL_SEL)) return [el];
+    if (depth <= 0) return [];
+    const out2 = [];
+    for (const kid of el.children) {
+      for (const c of controlsWithin(kid, depth - 1)) out2.push(c);
+    }
+    return out2;
+  }
+  function overlapsRow(a, b) {
+    const top = Math.max(a.top, b.top);
+    const bottom = Math.min(a.bottom, b.bottom);
+    const minH = Math.min(a.height, b.height);
+    return minH > 0 && (bottom - top) > minH * 0.5;
+  }
   for (const container of MAIN.querySelectorAll('div, section, form, header, nav, td, li')) {
     if (out.controlBaseline.length >= MAX) break;
     const ccs = getComputedStyle(container);
@@ -1218,12 +1353,27 @@ PROBE_JS = r"""
     for (const row of flowRows(container)) {
       if (out.controlBaseline.length >= MAX) break;
       const controls = [];
-      for (const it of row.items) {
-        const ctl = it.el.matches(CTRL_SEL) ? it.el : it.el.querySelector(CTRL_SEL);
-        if (!ctl) continue;
-        const box = measureBox(ctl);
-        if (!box || box.width < 16 || box.height < 12) continue;
-        controls.push({ el: ctl, kind: kindOf(ctl), box: box });
+      /* 격자 트랙은 **열**이지 줄이 아니다 (W5 재정정 — 복원된 프로브가 잡았다).
+         2단 격자의 서로 다른 칸에 놓인 버튼 둘은 세로로 59% 겹칠 수 있고(34px 버튼이 14px
+         어긋나면 그렇다) 그러면 «같은 줄» 로 묶인다 — `/profile` dark 1366 에서 「다른 기기 모두
+         로그아웃」과 「비밀번호 변경」이 그렇게 짝지어졌다. 둘은 다른 칸에 있고 같은 기준선에
+         설 이유가 없다. 도구 줄은 flex 라 이 규칙에 걸리지 않는다. */
+      const isGrid = ccs.display === 'grid';
+      for (let ii = 0; ii < row.items.length; ii++) {
+        const it = row.items[ii];
+        for (const ctl of controlsWithin(it.el, 2)) {
+          const box = measureBox(ctl);
+          if (!box || box.width < 16 || box.height < 12) continue;
+          /* **키가 큰 것은 컨트롤이 아니라 판이다** (W5 정정).
+             누를 수 있다고 다 컨트롤은 아니다 — 문서 카드·타일·미디어 블록은 `<button>`
+             이거나 `role="button"` 이지만 «줄에 선 컨트롤» 이 아니라 격자에 놓인 **판**이고,
+             제목이 두 줄이면 옆 카드보다 당연히 높다. 그것을 «높이가 어긋났다» 로 읽으면
+             카드 격자가 전부 결함이 된다(`/team-docs` 1920 실측: 26.6px). 이 제품에서
+             줄에 서는 컨트롤은 전부 40 이하다(CONTROL 토큰) — 64 는 그 위의 넉넉한 문턱이다. */
+          if (box.height > 64) continue;
+          if (textLineCount(ctl) >= 2) continue;
+          controls.push({ el: ctl, kind: kindOf(ctl), box: box, item: ii });
+        }
       }
       if (controls.length < 2) continue;
       out.controlBaselineChecked++;
@@ -1236,29 +1386,45 @@ PROBE_JS = r"""
       for (const entry of byKind) {
         const group = entry[1];
         if (group.length < 2) continue;
-        let hi = -Infinity, lo = Infinity, tall = null, short = null;
-        for (const g of group) {
-          if (g.box.height > hi) { hi = g.box.height; tall = g; }
-          if (g.box.height < lo) { lo = g.box.height; short = g; }
-        }
-        const d = hi - lo;
-        if (d > 4 && (!worst || d > worst.delta)) {
-          worst = { reason: '높이', kind: entry[0], delta: Math.round(d * 10) / 10,
-                    a: snippet(tall.el) || cssPath(tall.el),
-                    b: snippet(short.el) || cssPath(short.el) };
+        for (let gi = 0; gi < group.length; gi++) {
+          for (let gj = gi + 1; gj < group.length; gj++) {
+            const a = group[gi], b = group[gj];
+            // 같은 줄에 선 것끼리만 비교한다 — 세로로 쌓인 둘의 높이 차는 어긋남이 아니다.
+            if (!overlapsRow(a.box, b.box)) continue;
+            if (isGrid && a.item !== b.item) continue;
+            const d = Math.abs(a.box.height - b.box.height);
+            if (d > 4 && (!worst || d > worst.delta)) {
+              const tall = a.box.height >= b.box.height ? a : b;
+              const short = tall === a ? b : a;
+              worst = { reason: '높이', kind: entry[0], delta: Math.round(d * 10) / 10,
+                        a: snippet(tall.el) || cssPath(tall.el),
+                        b: snippet(short.el) || cssPath(short.el) };
+            }
+          }
         }
       }
-      let cyHi = -Infinity, cyLo = Infinity, low = null, high = null;
-      for (const c of controls) {
-        const cy = c.box.top + c.box.height / 2;
-        if (cy > cyHi) { cyHi = cy; low = c; }
-        if (cy < cyLo) { cyLo = cy; high = c; }
-      }
-      const cd = cyHi - cyLo;
-      if (cd > 3 && (!worst || cd > worst.delta)) {
-        worst = { reason: '중심선', kind: '(종류 무관)', delta: Math.round(cd * 10) / 10,
-                  a: snippet(high.el) || cssPath(high.el),
-                  b: snippet(low.el) || cssPath(low.el) };
+      for (let ci = 0; ci < controls.length; ci++) {
+        for (let cj = ci + 1; cj < controls.length; cj++) {
+          const a = controls[ci], b = controls[cj];
+          if (!overlapsRow(a.box, b.box)) continue;
+          if (isGrid && a.item !== b.item) continue;
+          /* **키가 다른 둘의 중심선은 어긋나는 것이 정상이다** (W5 정정).
+             80px 짜리 입력란과 34px 짜리 전송 버튼을 나란히 두면 보통 **아래를 맞춘다**
+             (채팅 입력줄이 그렇다) — 그때 중심선은 반드시 갈린다. 그것을 결함으로 읽으면
+             올바른 배치가 빨간불이 된다(`/chat` 390 실측: 10.5px). 중심선은 **키가 비슷한**
+             둘에게만 뜻이 있고, 키가 갈리는 문제는 위 «높이» 규칙이 이미 본다. */
+          if (Math.abs(a.box.height - b.box.height) > 8) continue;
+          const cya = a.box.top + a.box.height / 2;
+          const cyb = b.box.top + b.box.height / 2;
+          const cd = Math.abs(cya - cyb);
+          if (cd > 3 && (!worst || cd > worst.delta)) {
+            const high = cya <= cyb ? a : b;
+            const low = high === a ? b : a;
+            worst = { reason: '중심선', kind: '(종류 무관)', delta: Math.round(cd * 10) / 10,
+                      a: snippet(high.el) || cssPath(high.el),
+                      b: snippet(low.el) || cssPath(low.el) };
+          }
+        }
       }
       if (!worst) continue;
       out.controlBaseline.push({
@@ -1287,9 +1453,21 @@ PROBE_JS = r"""
     const EXCLUDE = '.k-empty, [data-empty-state], .MuiSkeleton-root,'
       + ' [class*="skeleton"], [class*="k-skel"]';
     const surfaces = [];
+    /* 후보 문턱 (W5 정정).
+     *
+     * 예전 문턱은 `height >= 160 && area >= 120,000` 하나였다. 그 문턱이 지시 80 이
+     * 이름으로 금지한 형태를 **구조적으로 못 보게** 만들고 있었다 — "Control 은 화면 좌측
+     * 일부만 사용하지만 Container 는 Page 전체 폭을 차지하여 오른쪽 대부분이 비어 있는
+     * 구조". 그런 띠는 넓고 **낮다**: `/policies` 의 필터 판이 1610×108 이라 높이 문턱에
+     * 걸려 후보에서 빠졌고, 판정은 «측정할 만한 크기의 면이 없다» 였다.
+     *
+     * 그래서 두 갈래로 나눈다 — `sparse`(면이 통째로 빈다)는 예전 문턱 그대로,
+     * `stranded`(내용이 한쪽에 몰린다)는 **넓고 낮은 띠**도 본다. 56px 는 컨트롤 한 줄이
+     * 실제로 차지하는 최소 높이다(입력 36 + 위아래 여백). 그보다 얇으면 구분선이지 면이 아니다. */
     for (const el of MAIN.querySelectorAll('div, section, article, aside')) {
       const r = el.getBoundingClientRect();
-      if (r.width < 280 || r.height < 160 || r.width * r.height < 120000) continue;
+      const bandCandidate = r.width >= 700 && r.height >= 56 && r.width * r.height >= 60000;
+      if (!bandCandidate && (r.width < 280 || r.height < 160 || r.width * r.height < 120000)) continue;
       if (!visible(el, r)) continue;
       if (el.closest(EXCLUDE) || el.querySelector(EXCLUDE)) continue;
       // 스크롤되는 상자는 '빈' 것이 아니라 '접힌' 것이다.
@@ -1319,7 +1497,8 @@ PROBE_JS = r"""
           selector: cssPath(s.el),
         };
       }
-      const sparse = g.ratio < 0.18 && emptyArea >= 200000;
+      // `sparse` 는 예전 문턱을 유지한다 — 넓고 낮은 띠는 «통째로 비었다» 로 판정하지 않는다.
+      const sparse = g.box.h >= 160 && g.ratio < 0.18 && emptyArea >= 200000;
       const stranded = g.box.w > 700 && bboxRatio < 0.45;
       if (!sparse && !stranded) continue;
       out.oversizedEmptySurface.push({
@@ -1462,13 +1641,52 @@ PROBE_JS = r"""
     }
     return parts.join(' ').replace(/\s+/g, ' ').trim();
   }
-  for (const el of MAIN.querySelectorAll('select, [role="combobox"], [role="listbox"]')) {
+  /* **입력 상자도 순회한다** (W5 정정 — F-W5D-131).
+   *
+   * 예전 순회 대상은 `select, [role=combobox], [role=listbox]` 셋뿐이었다. 그래서 이 제품에서
+   * **가장 나쁜 형태** — 「‘사용자’ 화면에서 ID를 복사해 붙여 넣으세요」라고 적어 두고 준
+   * `<input type=text>` — 가 아홉 자리에서 전부 `skip` 이었다. 검색 없는 드롭다운보다 나쁜 것을
+   * 검사가 구조적으로 못 보고 있었고, 그 결과 664 page-instance 에서 pass 0 · skip 584 였다.
+   *
+   * 자유 텍스트가 옳은 자리는 선언이 `data-entity-select="closed"` 로 말한다(그 이유는 registry
+   * 선언 옆에 문장으로 있다) — 아래 `closest` 가 그것을 뺀다. */
+  for (const el of MAIN.querySelectorAll(
+      'select, [role="combobox"], [role="listbox"],'
+      + ' input[type="text"], input:not([type])')) {
     if (out.plainDropdown.length >= MAX) break;
     const r = el.getBoundingClientRect();
     if (!visible(el, r)) continue;
     if (el.closest('[data-entity-select="closed"]')) continue;
+    /* 「이 칸은 애초에 선택기가 될 수 없다」는 **종류 선언**(W5). 후보 목록이 세상에 없는 값이
+       그렇다 — 외부 시스템 식별자, 모든 object_type 을 가로지르는 대상 ID, 콤마로 여러 값을
+       받는 딥링크. 억제 마커와 구별하는 이유: `plain_dropdown_for_entity` 는 끌 수 없는
+       검사이고(QA_SUPPRESSIONS 규칙 4) 그것이 옳다. 속성 **값이 이유 문장**이라 이 자리를
+       건너뛴 근거가 DOM 에 그대로 남는다. */
+    if (el.closest('[data-free-text]')) continue;
     const label = labelTextOf(el);
     if (!label) continue;
+    /* **닫힌 열거형이 어휘에 걸리는 것을 먼저 막는다** (W5 정정).
+     *
+     * 어휘는 «데이터가 쌓이면 후보가 자라는 타입» 만 담은 목록인데, 판정이 부분 문자열
+     * 포함이라 「문서 **종류**」(고정 8개)가 「문서」로 잡혔다 — `/team-docs` 의 8셀이
+     * 그 위양성이었다. 「…종류」·「…유형」·「…분류」처럼 **분류축을 뜻하는 꼬리말**이
+     * 붙으면 그것은 그 대상 자체가 아니라 그 대상의 **속성**이고, 속성의 값 집합은
+     * 데이터가 쌓여도 자라지 않는다. 실제로 자라는 분류축(자유 태그 같은 것)이 생기면
+     * 그때는 선언 쪽에서 `data-entity-select` 로 말하게 한다 — 어휘를 흐리지 않는다. */
+    /* 어휘에 걸려도 **그 대상의 속성**을 가리키는 라벨은 뺀다. 두 갈래다.
+       ① 닫힌 분류축 — 「문서 **종류**」(고정 8개)는 문서를 고르는 자리가 아니다.
+       ② 지금 만드는 것의 속성 — 「부서 **이름**」·「러너 **버전**」은 기존 부서/러너를 가리키는
+          참조가 아니라 새로 적는 값이다. 여기에 선택기를 요구하면 «부서를 만들려면 먼저
+          부서를 골라야 한다» 가 된다. 입력 상자를 순회 대상에 넣으면서 실제로 생긴 위양성이다.
+       같은 어휘가 `frontend/src/screens/registry-entity-fields.test.js` 에도 있다 —
+       한쪽만 늘리면 프로브와 시험이 서로 다른 제품을 검사하게 된다. */
+    if (/(종류|유형|분류|상태|모드|결과|등급|수준|단계)\s*$/.test(label.split('  ')[0].trim())
+        || /(종류|유형|분류|모드|등급|이름|버전|제목|설명|사유|주소|경로)/.test(label)) continue;
+    /* **검색 상자는 검색 그 자체다.** 「템플릿 검색」이라고 이름 붙은 자유 입력을 «템플릿을
+       검색 없이 고르게 한다» 로 읽으면 정확히 거꾸로다 — 실측에서 `/templates` 의 검색창이
+       그렇게 잡혔다. `type="search"` 는 선택자에서 이미 빠졌고, 여기서는 이름으로 한 번 더 본다
+       (검색창을 `type="text"` 로 만드는 화면이 있다). */
+    if (/(검색|찾기)/.test(label)) continue;
     let term = null;
     for (const t of (config.entityTerms || [])) {
       if (label.indexOf(t) >= 0) { term = t; break; }
@@ -1480,7 +1698,14 @@ PROBE_JS = r"""
     // 그걸 '검색 입력' 으로 세면 정확히 잡아야 할 것이 전부 통과한다.
     const typeable = el.querySelector(
       'input:not([type="hidden"]):not([aria-hidden="true"]):not(.MuiSelect-nativeInput)');
-    const searchable = auto === 'list' || auto === 'both' || !!typeable
+    /* 맨 입력 상자는 «칠 수 있다» 는 이유로 검색형이 되지 않는다 — 칠 수는 있는데 **후보가
+       안 나온다.** 그것이 이 검사가 잡으려는 바로 그 상태다. `list=`(datalist) 나
+       Autocomplete 안에 있으면 후보가 나오므로 통과시킨다. */
+    const isBareInput = el.tagName === 'INPUT';
+    const hasSuggestions = !!el.getAttribute('list');
+    const searchable = auto === 'list' || auto === 'both'
+      || (!isBareInput && !!typeable)
+      || hasSuggestions
       || !!el.closest('.MuiAutocomplete-root');
     if (searchable) continue;
     out.plainDropdown.push({
@@ -1933,10 +2158,10 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
     _advisory(
         "isolated_control_row",
         probe.get("isolatedControlRow") or [], probe.get("isolatedControlRowChecked", 0),
-        lambda s: (f"{s['selector']} «{s['control']}» 가 자기 줄({s['rowUsed']}px)을 쓰는데"
-                   f" 윗줄 여유는 {s['prevFree']}px 다 (컨테이너 {s['containerWidth']}px,"
-                   f" gap {s['gap']}px)"),
-        "윗줄에 들어갈 자리가 있는데 밀려났다 — 좁아서 접힌 것이 아니다",
+        lambda s: (f"{s['selector']} «{s['control']}» 하나가 자기 줄을 쓰면서"
+                   f" {s['rowFree']}px 를 비워 둔다 (쓴 폭 {s['rowUsed']}px /"
+                   f" 컨테이너 {s['containerWidth']}px · 윗줄 여유 {s['prevFree']}px)"),
+        "컨트롤 하나가 줄을 통째로 쓰면서 그 줄의 절반 넘게 비운다 — 고아 줄이다(지시 76)",
         "컨트롤만 있는 두 번째 줄이 이 화면에 없다",
     )
 

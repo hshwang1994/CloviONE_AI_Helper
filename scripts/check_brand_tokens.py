@@ -58,6 +58,14 @@ JINJA_CSS_ALLOW = {
 # (b) — Brand 토큰 소비. `palette.brand.x` / `theme.palette.brand` / `"brand.x"` 셋 다 센다.
 BRAND_USE_RE = re.compile(r"palette\.brand\b|[\"']brand\.[a-zA-Z]")
 
+# (c) — Chart 시리즈 팔레트 소비. (b) 와 **같은 실패가 다른 토큰 가족에서 반복됐다**:
+# `CHART_SERIES`/`CHART_DASH` 는 W1 이 만들고 `palette.chart` 로 내보냈는데 제품 소비처가
+# 0곳이었다. 그동안 화면에 실제로 나간 색은 `charts/base.jsx` 의 옛 기본값 `primary.main`
+# — 즉 **사용자 Accent** 였고, dark 에서 plate 대비 2.90:1 로 비텍스트 3:1 을 깼다.
+# 그런데 `theme-contract.test.js` 는 아무도 안 쓰는 `palette.chart`(6.81:1)를 재고 초록이었다.
+# (b) 를 만든 이유("정의만 있고 화면에 도달하지 않는다")가 그대로 반복된 것이라 규칙도 그대로 둔다.
+CHART_USE_RE = re.compile(r"palette\.chart\b|\bCHART_DASH\b|\bCHART_SERIES\b")
+
 
 def source_files(base: Path):
     for path in sorted(base.rglob("*")):
@@ -105,17 +113,27 @@ def main() -> int:
                     )
 
     consumers = []
+    chart_consumers = []
     for path in source_files(SRC):
         if path == THEME:
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if BRAND_USE_RE.search(text):
             consumers.append(rel(path))
+        if CHART_USE_RE.search(text):
+            chart_consumers.append(rel(path))
 
     if not consumers:
         problems.append(
             "palette.brand 에 theme.js 밖 소비처가 없다 — Brand 색이 정의만 되고 "
             "화면에 도달하지 않는 상태다(이번 리뉴얼 이전의 실제 상태)"
+        )
+
+    if not chart_consumers:
+        problems.append(
+            "palette.chart / CHART_SERIES 에 theme.js 밖 소비처가 없다 — Chart 시리즈 색이 "
+            "정의만 되고 화면에 도달하지 않는 상태다. 그러면 실제 렌더 색은 사용자 Accent 로 "
+            "떨어지고, 토큰만 재는 대비 시험은 그 사실을 모른 채 초록으로 남는다(W5 실측)"
         )
 
     if problems:
@@ -126,7 +144,8 @@ def main() -> int:
 
     print(
         f"[OK ] BRAND_TOKENS_OK (gradient 범위 SPA {scanned}개 + Jinja CSS {jinja_scanned}개"
-        f"(예외 {len(JINJA_CSS_ALLOW)}) · palette.brand 소비처 {len(consumers)}곳)"
+        f"(예외 {len(JINJA_CSS_ALLOW)}) · palette.brand 소비처 {len(consumers)}곳"
+        f" · palette.chart 소비처 {len(chart_consumers)}곳)"
     )
     return 0
 

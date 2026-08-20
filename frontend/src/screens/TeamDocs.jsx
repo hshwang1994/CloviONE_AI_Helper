@@ -30,10 +30,10 @@ import { invalidateDocumentViews } from "./document-views.js";
 import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { MirrorNotice } from "../ui/MirrorNotice.jsx";
-import { FilterBarGrid, ToolbarEnd, ToolbarRow, TOOLBAR_SEARCH_SX } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, TOOLBAR_SEARCH_SX } from "../ui/FilterBar.jsx";
 import { BodyEditor } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
-import { DepartmentFilter, SearchBox } from "../ui/filters.jsx";
+import { DepartmentFilter, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DateCell } from "../ui/cells.jsx";
@@ -85,6 +85,7 @@ const EMPTY_DOC = { title: "", doc_type: "", work_field: "", project: "", tech: 
 function DocSelect({ id, label, value, onChange, values, required }) {
   return (
     <TextField
+      InputLabelProps={{ shrink: true }}
       id={id}
       select
       size="small"
@@ -163,6 +164,7 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
       footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="추가" busy={create.isPending} />}
     >
       <TextField
+        InputLabelProps={{ shrink: true }}
         id="doc-title" size="small" fullWidth required label="제목"
         inputProps={{ maxLength: 200 }} value={f.title} onChange={set("title")}
       />
@@ -177,6 +179,7 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
             DocMeta)는 값이 있으면 '소유자' 줄을 보여 주는데, 이 칸이 없으면 포털에서 만든
             문서는 그 값을 절대 채울 수 없었다. */}
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="doc-owner" size="small" fullWidth label="소유자"
           helperText="이 문서를 책임지는 사람(선택)"
           inputProps={{ maxLength: 200 }} value={f.owner} onChange={set("owner")}
@@ -198,6 +201,7 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
         </Box>
       </Box>
       <TextField
+        InputLabelProps={{ shrink: true }}
         id="doc-memo" size="small" fullWidth multiline minRows={2} label="메모"
         value={f.memo} onChange={set("memo")} sx={{ mt: 2.5 }}
       />
@@ -217,18 +221,15 @@ export function DocCreateModal({ open, onClose, options, onCreated }) {
   );
 }
 
-/* 목록 필터의 선택 상자 — DocSelect와 같은 이유로 모듈 최상위에 둔다(렌더마다 재마운트 방지). */
-function FilterSelect({ label, value, onChange, values }) {
-  return (
-    <TextField
-      select size="small" label={label} value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <MenuItem value="">{label} 전체</MenuItem>
-      {(values || []).map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
-    </TextField>
-  );
-}
+/* 이 자리에 있던 로컬 `FilterSelect` 사본은 지웠다 (W5).
+ *
+ * 공용 부품(`ui/filters.jsx::FilterSelect`)과 이름도 뜻도 같았는데 **한 가지가 빠져
+ * 있었다** — `EMPTYABLE_SELECT`(`displayEmpty` + 라벨 항상 위). MUI 는 값이 `""` 이면
+ * "아직 아무것도 안 골랐다"로 보고 라벨을 입력 자리에 그대로 둔 채 선택 항목을 안 그린다.
+ * 필터의 기본 상태가 바로 그 빈 값이라, 이 화면의 필터 넷(문서 종류·업무 분야·프로젝트·
+ * 기술 태그)은 배포본에서 **라벨만 있고 값이 없는 빈 상자**로 보였다. 바로 옆 부서 필터는
+ * 공용 부품이라 「내 범위 전체」가 정상으로 보였고 — 그래서 같은 줄에 라벨 처리 두 종류가
+ * 서 있었다. 같은 뜻의 부품이 두 벌이면 한쪽만 고쳐지는 날이 온다는 그 실패다. */
 
 export function TeamDocs() {
   const confirm = useConfirm();
@@ -359,6 +360,11 @@ export function TeamDocs() {
   // 부서도 "걸린 필터" 다 — 빼면 "필터 지우기" 를 눌러도 목록이 그대로라 버튼이 고장 난
   // 것처럼 보인다.
   const hasFilter = DOC_FILTER_KEYS.some((key) => !!query[key]) || favorites || !!query.dept;
+  /* 결과 줄이 «조건 N개» 를 말할 때 세는 것 — «필터가 걸렸는가»(hasFilter)와 같은 집합이다.
+     두 목록이 갈라지면 "조건 0개인데 필터 지우기 버튼이 있다" 같은 자기모순이 생긴다. */
+  const activeDocConditions = DOC_FILTER_KEYS.filter((key) => !!query[key])
+    .concat(favorites ? ["favorites"] : [])
+    .concat(query.dept ? ["dept"] : []);
   // 한 번에 지운다. 예전에는 setter 일곱 개를 줄줄이 불렀는데, 그러면 새 필터를 넣을 때마다
   // 여기 한 줄을 같이 고쳐야 하고 안 고치면 '지우기'가 그 필터만 남긴다.
   const clearFilters = () => setQuery({
@@ -423,10 +429,11 @@ export function TeamDocs() {
        * SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
        * 한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx와 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-        {/* 윗줄은 "어떻게 볼지" — 검색이 지배하고 정렬·보기가 오른쪽 끝에 붙는다.
-            아랫줄은 "무엇을 볼지" — 내용 필터만 모은다(지시 5). */}
-        <ToolbarRow sx={{ mb: 1.5 }}>
+      {/* 판이 아니다 — 지시 80. 윗줄은 "어떻게 볼지"(검색이 지배하고 정렬·보기가 오른쪽
+          끝), 아랫줄은 "무엇을 볼지"(내용 필터). 두 줄이면 충분하고 각 줄이 한 가지
+          질문만 답한다(지시 5). */}
+      <FilterSurface>
+        <ToolbarRow>
           <SearchBox
             value={q}
             onSearch={commitSearch}
@@ -437,6 +444,7 @@ export function TeamDocs() {
           <ToolbarEnd>
             <TextField
               select size="small" label="정렬" value={sort}
+              InputLabelProps={{ shrink: true }}
               onChange={(e) => setQuery({ sort: e.target.value })}
               sx={{ minWidth: "10rem" }}
             >
@@ -456,11 +464,8 @@ export function TeamDocs() {
             </Box>
           </ToolbarEnd>
         </ToolbarRow>
-        <FilterBarGrid>
-          <FilterSelect label="문서 종류" value={docType} onChange={(v) => setQuery({ doc_type: v })} values={opts.doc_types} />
-          <FilterSelect label="업무 분야" value={workField} onChange={(v) => setQuery({ work_field: v })} values={opts.work_fields} />
-          <FilterSelect label="프로젝트" value={project} onChange={(v) => setQuery({ project: v })} values={opts.projects} />
-          <FilterSelect label="기술 태그" value={tech} onChange={(v) => setQuery({ tech: v })} values={opts.tech_tags} />
+        {/* 순서는 C2 가 정한다: scope(부서) → entity(프로젝트) → 분류(종류·분야·태그). */}
+        <FilterRow>
           {/* 부서 후보는 **이 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를
               만들지 않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데
               결과가 비는 상자가 생긴다. */}
@@ -469,6 +474,14 @@ export function TeamDocs() {
             value={query.dept}
             onChange={(v) => setQuery({ dept: v })}
           />
+          {/* 프로젝트는 Entity 다 — 후보가 업무가 쌓이는 만큼 자라고 이름이 길다. */}
+          <EntityCombobox
+            label="프로젝트" value={project} onChange={(v) => setQuery({ project: v })}
+            options={opts.projects}
+          />
+          <FilterSelect label="문서 종류" value={docType} onChange={(v) => setQuery({ doc_type: v })} options={opts.doc_types} />
+          <FilterSelect label="업무 분야" value={workField} onChange={(v) => setQuery({ work_field: v })} options={opts.work_fields} />
+          <FilterSelect label="기술 태그" value={tech} onChange={(v) => setQuery({ tech: v })} options={opts.tech_tags} />
           {/* 즐겨찾기는 내용 필터다(무엇을 볼지) — 별 글리프는 뺐다(지시 28). 켜짐/꺼짐은
               칩의 채움과 `aria-pressed` 가 이미 말한다. */}
           <Chip
@@ -477,11 +490,15 @@ export function TeamDocs() {
             color={favorites ? "primary" : "default"}
             variant={favorites ? "filled" : "outlined"}
             onClick={() => setQuery({ favorites: !favorites })}
-            sx={{ justifySelf: "start" }}
           />
-          {hasFilter ? <Button size="sm" onClick={clearFilters}>필터 지우기</Button> : null}
-        </FilterBarGrid>
-      </Card>
+          {hasFilter ? (
+            <FilterActions>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>필터 지우기</Button>
+            </FilterActions>
+          ) : null}
+        </FilterRow>
+      </FilterSurface>
+      {list.data ? <ResultLine total={list.data.total != null ? list.data.total : (list.data.items || []).length} conditions={activeDocConditions} /> : null}
 
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (

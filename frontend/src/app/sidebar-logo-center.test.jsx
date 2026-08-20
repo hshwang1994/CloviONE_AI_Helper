@@ -49,23 +49,46 @@ function renderShell() {
   );
 }
 
-describe("사이드바 상단 로고 정렬", () => {
+/* ── W5 정정: 이 자리에는 **볼 수 없는 락업**이 있었다 ─────────────────────────
+ *
+ * 이 시험은 사이드바 헤더 Toolbar 의 정렬을 지켰는데, 그 Toolbar 는 Drawer paper 가
+ * `top:0` 에서 시작하고 그 위를 `zIndex: drawer + 1` 인 fixed AppBar 가 같은 높이로
+ * 덮기 때문에 **어느 뷰포트에서도 사람이 볼 수 없었다**(서랍을 연 390 포함 — MUI 는
+ * temporary Drawer 의 root zIndex 도 `zIndex.drawer` 로 낮춘다). 즉 이 시험은 아무도
+ * 못 보는 마크업의 겉모습을 jsdom 으로 고정하고 있었고, 더 나쁘게는 W2 가 상단바에서
+ * 태그라인을 빼면서 바로 그 «보이지 않는 자리» 를 근거로 삼았다(D-183 ⑦).
+ *
+ * 그래서 지키는 대상을 바꾼다 — «가려진 락업이 가운데 정렬인가» 가 아니라
+ * **«가려진 자리에 내용이 있는가»** 다. 내용이 없어야 한다. 단언 수는 늘었다. */
+describe("사이드바 상단 — 가려지는 자리에는 내용을 두지 않는다", () => {
   beforeEach(() => {
     apiMock.mockReset();
     wideViewport();
     apiMock.mockResolvedValue({ items: [], unread: 0, badge: 0, by_type: {}, unread_total: 0 });
   });
 
-  it("로고+브랜드명 묶음을 담은 헤더 Toolbar가 가운데 정렬이다", async () => {
+  it("사이드바에 두 번째 브랜드 락업이 없다 — AppBar 가 덮는 자리다", async () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
     const aside = document.querySelector("#app-sidebar");
     expect(aside, "사이드바를 찾지 못했다").toBeTruthy();
-    const headerToolbar = aside.querySelector(".MuiToolbar-root");
-    expect(headerToolbar, "사이드바 헤더 Toolbar를 찾지 못했다").toBeTruthy();
+    // 락업(SVG)도, 제품명 글자도, 태그라인도 이 안에 없다.
+    expect(aside.querySelector('[role="img"][aria-label*="ClovirAssist"]')).toBeNull();
+    expect(aside.textContent).not.toMatch(/SMART WORKSPACE ASSISTANT/);
+    expect(aside.textContent).not.toMatch(/Smart Workspace Assistant/);
+  });
 
-    expect(getComputedStyle(headerToolbar).justifyContent).toBe("center");
+  it("그 자리는 여전히 AppBar 높이만큼 **자리**를 잡는다 — 메뉴가 상단바 밑으로 들어가지 않는다", async () => {
+    renderShell();
+    await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
+    const aside = document.querySelector("#app-sidebar");
+    const spacer = aside.querySelector('[data-appbar-spacer]');
+    expect(spacer, "AppBar 높이만큼의 자리(스페이서)를 찾지 못했다").toBeTruthy();
+    // 자리만 잡는다 — 내용이 있으면 그것은 가려진다.
+    expect(spacer.textContent).toBe("");
+    // 그리고 그 자리는 사이드바의 **첫 번째** 것이다(그 아래부터가 보이는 영역이다).
+    expect(spacer.parentElement.firstElementChild).toBe(spacer);
   });
 });
 

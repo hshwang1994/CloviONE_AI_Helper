@@ -13,6 +13,7 @@ import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { fmtDateTime } from "../lib/format.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
+  ListEmptyState,
   PageHeader, Card, Badge, Button, DataTable, Modal, Skeleton,
   EmptyState, ErrorState, Callout, useConfirm, useToast,
 } from "../ui/kit.jsx";
@@ -173,8 +174,19 @@ function TargetPicker({ q, setQ, query, onPick }) {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : items.length === 0 ? (
-        <EmptyState art="search" title="조건에 해당하는 사용자가 없습니다"
-          help="검색어를 지우거나 다른 이름으로 찾아보세요." />
+        /* 조건이 없는데 조건 탓을 하지 않는다 (C1 · W5). 예전에는 검색어가 비어 있어도
+           언제나 「조건에 해당하는 사용자가 없습니다」라고 말했다 — 신규 설치에서 이 문장은
+           있지도 않은 조건을 찾아 헤매게 한다. */
+        <ListEmptyState
+          filtered={!!String(q || "").trim()}
+          onClear={() => setQ("")}
+          clearLabel="검색어 지우기"
+          filteredTitle="조건에 해당하는 사용자가 없습니다"
+          filteredHelp="검색어를 지우거나 다른 이름으로 찾아보세요."
+          art="search"
+          title="대상 사용자가 없습니다"
+          help="퇴사 처리 대상이 될 계정이 아직 없습니다."
+        />
       ) : (
         <Card>
           {hasUnmapped ? (
@@ -345,6 +357,7 @@ function OffboardPlan({ preview, onDone, toast }) {
             ))}
           </TextField>
           <TextField
+            InputLabelProps={{ shrink: true }}
             size="small" label="메모(선택)" value={note}
             onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
             error={!!noteError}

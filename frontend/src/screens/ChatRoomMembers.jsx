@@ -1,11 +1,14 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, EmptyState, ErrorState, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
@@ -120,12 +123,16 @@ export function MemberStrip({ members }) {
   );
 }
 
-const INPUT_SX = {
-  width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: FONT_SIZE.body,
-  border: 1, borderColor: "divider", borderRadius: 2,
-  bgcolor: "background.default", color: "text.primary",
-  "&:focus": { outline: "none", borderColor: "primary.main" },
-};
+/* `INPUT_SX` 는 지웠다 (W5 · F-W5D-143).
+ *
+ * 그 안의 `"&:focus": { outline: "none" }` 이 전역 `:focus-visible` 링을 이겼다 — emotion 이
+ * 만드는 `.css-x:focus` 는 특이도가 (0,2,0) 이고 시트에서 더 뒤라, **키보드로 이 칸에 오면
+ * 아무 표시도 없었다.** 입력은 이제 MUI `TextField` 를 쓴다: 높이·모서리·포커스 링이 전부
+ * `theme.js` 의 토큰에서 온다. 손으로 만든 입력은 만든 날에는 같아 보이고 토큰이 바뀌는 날
+ * 갈라진다. */
+
+/* 사람 고르기 — 검색이 먼저다. 부품은 `ChatRooms.jsx` 가 소유한다(같은 디렉터리를 고르는
+   같은 문제라 두 벌로 두면 한쪽만 고쳐진다). */
 const PICKER_SX = {
   display: "flex", flexDirection: "column", gap: 0.25, maxHeight: "14rem", overflowY: "auto",
   border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
@@ -187,6 +194,9 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   const rows = members || [];
   const memberIds = new Set(rows.map((m) => m.user_id));
   const candidates = ((dir.data && dir.data.users) || []).filter((u) => !memberIds.has(u.user_id));
+  /* 초대 후보를 **좁히는** 조건. 이미 받은 목록을 거르는 것이라 네트워크가 안 간다. */
+  const [pickQ, setPickQ] = React.useState("");
+  const shownCandidates = React.useMemo(() => filterPeople(candidates, pickQ), [candidates, pickQ]);
   const chosen = Object.keys(picked).filter((k) => picked[k]);
   const busy = rename.isPending || invite.isPending || remove.isPending || handOver.isPending;
   // 이름을 고쳐 썼거나(저장 안 함) 초대할 사람을 골랐으면(초대 안 보냄) Esc·바깥 클릭·X·'닫기'
@@ -216,14 +226,14 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
   return (
     <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
       <Box component="section" sx={{ mb: 3 }}>
-        <Typography component="label" htmlFor="tc-rename" sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
-          방 이름
-        </Typography>
+        <FieldLabel htmlFor="tc-rename">방 이름</FieldLabel>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
               더 짧으면 서버는 받아 줄 이름을 화면이 미리 못 치게 막는 것이 된다. */}
-          <Box component="input" id="tc-rename" maxLength={200} value={name}
-            onChange={(e) => setName(e.target.value)} sx={{ ...INPUT_SX, flex: 1, minWidth: "12rem" }} />
+          <TextField id="tc-rename" size="small" value={name}
+            onChange={(e) => setName(e.target.value)}
+            inputProps={{ maxLength: 200 }}
+            sx={{ flex: 1, minWidth: "12rem" }} />
           <Button variant="primary" disabled={busy || !name.trim() || name.trim() === title}
             onClick={() => rename.mutate()}>저장</Button>
         </Box>
@@ -261,8 +271,13 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
             <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           ) : (
             <>
+              <PeopleFilter value={pickQ} onChange={setPickQ} count={shownCandidates.length} total={candidates.length} />
+              {shownCandidates.length === 0 ? (
+                /* 「초대할 사람이 없다」와 「조건 때문에 0명」은 다른 사실이다(C1). */
+                <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+              ) : (
               <Box sx={PICKER_SX}>
-                {candidates.map((u) => (
+                {shownCandidates.map((u) => (
                   <Box key={u.user_id} component="label"
                     sx={{
                       display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.75, borderRadius: 1.5,
@@ -270,12 +285,15 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
                       "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
                       "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
                     }}>
-                    <Box component="input" type="checkbox" checked={!!picked[u.user_id]}
+                    {/* 제품의 체크박스를 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
+                        포커스 링·색을 하나도 받지 않는다. */}
+                    <Checkbox size="small" checked={!!picked[u.user_id]}
                       onChange={(e) => setPicked((p) => ({ ...p, [u.user_id]: e.target.checked }))} sx={{ m: 0 }} />
                     <span>{personLabel(u)}</span>
                   </Box>
                 ))}
               </Box>
+              )}
               <Box sx={{ mt: 1 }}>
                 <Button variant="primary" disabled={busy || chosen.length === 0} onClick={() => invite.mutate(chosen)}>
                   {chosen.length > 0 ? `${chosen.length}명 초대` : "초대"}

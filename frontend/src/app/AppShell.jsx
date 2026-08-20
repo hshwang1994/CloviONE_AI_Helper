@@ -34,7 +34,6 @@ import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
 import { activeNavPath, filterGroupsByQuery, groupForPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
-import BrandLogo from "../ui/BrandLogo.jsx";
 import TopBrand from "./TopBrand.jsx";
 import TopSearch from "./TopSearch.jsx";
 import { MascotTopButton } from "../ui/Mascot.jsx";
@@ -46,7 +45,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
-import { BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
+import { BRAND_TAGLINE_MIN_PX, BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
   NAV_ANATOMY, RADIUS, remPx } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
@@ -767,26 +766,31 @@ export function AppShell({
         "--clovir-wordmark": (t) => t.palette.chrome.wordmark,
       }}
     >
-      {/* 로고+브랜드명 묶음은 사이드바 폭 안에서 가운데 정렬한다(사용자 지적). justifyContent
-          만으로는 좁은 화면에서 닫기 버튼이 로고 옆에 그대로 남아 묶음이 광학적으로 오른쪽에
-          치우쳐 보이므로, 그 버튼은 절대 위치로 오른쪽 끝에 고정해 가운데 정렬을 방해하지
-          않게 한다. */}
-      <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: 2.5, gap: 1.5, justifyContent: "center", position: "relative" }}>
-        <BrandLogo markOnly width={30} />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: "0.9375rem", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>{brand()}</Typography>
-          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "sidebar.muted" }}>Smart Workspace Assistant</Typography>
-        </Box>
-        {isNarrow ? (
-          <IconButton
-            onClick={onCloseNav}
-            aria-label="메뉴 닫기"
-            sx={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "inherit" }}
-          >
-            <CloseRoundedIcon />
-          </IconButton>
-        ) : null}
-      </Toolbar>
+      {/* ── 이 자리는 **AppBar 뒤에 가려진다** — 그래서 이제 자리만 잡는다 (W5) ────────
+       *
+       * 여기 있던 것은 마크 + 제품명 + 태그라인으로 된 **두 번째 락업**이었다. 그런데
+       * Drawer paper 는 `top:0` 에서 시작하고 그 위를 `zIndex: drawer + 1` 인 fixed AppBar 가
+       * 정확히 같은 높이(`APPBAR_HEIGHT`)로 덮는다. MUI 는 temporary Drawer 의 root zIndex 도
+       * `zIndex.drawer` 로 낮추므로 **서랍을 연 좁은 화면에서도** 덮인다 — 실측으로 확인했다
+       * (`dist/ui-qa/w4-nav-e2e/anatomy-admin-light-390x844.png` 은 서랍이 열린 상태인데
+       * 그 머리가 없다). 즉 이것은 **어느 폭에서도 사람이 볼 수 없는 마크업**이었고,
+       * 그런데도 W2 는 상단바에서 태그라인을 빼면서 "좁은 화면 사이드바 서랍 머리가 계속
+       * 보여 준다"를 근거로 삼았다(D-183 ⑦). 없는 자리를 근거로 쓴 것이다.
+       *
+       * 보이지 않는 락업을 고쳐서 되살리지 않고 **지운다** — 같은 제품에 손으로 만든 두
+       * 번째 락업이 있으면 `BrandLogo` 를 고쳐도 이쪽이 안 따라온다. 태그라인은 상단바
+       * 락업 옆으로 돌아갔다(`TopBrand.jsx`). 남는 것은 AppBar 높이만큼의 **자리**뿐이고,
+       * 그것은 원래 이 Toolbar 가 실제로 하던 유일한 일이다. */}
+      <Box aria-hidden="true" data-appbar-spacer="" sx={{ minHeight: APPBAR_HEIGHT, flexShrink: 0 }} />
+      {isNarrow ? (
+        <IconButton
+          onClick={onCloseNav}
+          aria-label="메뉴 닫기"
+          sx={{ position: "absolute", insetInlineEnd: 8, top: 6, zIndex: 1, color: "inherit" }}
+        >
+          <CloseRoundedIcon />
+        </IconButton>
+      ) : null}
 
       {auth.isLoading ? (
         <Box sx={{ p: 3 }}><Skeleton lines={6} /></Box>
@@ -917,6 +921,44 @@ export function AppShell({
             label={minimal ? "로그인 화면으로" : "홈으로"}
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />
+
+          {/* 제품 태그라인 — 락업 **옆**, 락업 칸 **밖**.
+           *
+           * W2(D-183 ⑦)가 상단바 락업에서 부제를 빼면서 근거로 든 두 자리 중 하나(사이드바
+           * 서랍 머리)는 전 뷰포트에서 이 AppBar 에 가려진 죽은 마크업이었고, 다른 하나
+           * (로그인 SVG 락업의 부제)는 캡 높이 5px 이었다 — 즉 제품의 태그라인은 **어느
+           * 폭·어느 테마에서도 화면에 없었다**. R-13 이 실제로 필요로 한 레버는 «줄 수»
+           * (=락업 높이)이므로, 한 줄 옆에 놓으면 그 레버는 그대로다.
+           *
+           * 락업 버튼 **안**에 넣지 않는 이유: 그 버튼은 사이드바 열과 같은 폭에 묶여 있어
+           * 내용이 넘치면 락업이 왼쪽에서 잘린다(실측으로 밟았다). 여기 두면 락업 칸의
+           * 경계는 그대로 두고 남는 상단바 폭만 쓴다(1920 33% · 3840 59% 실측).
+           * 좁은 화면(<1600)에서는 그리지 않는다 — 그 폭에서는 검색 막대를 밀어낸다.
+           * `aria-hidden`: 락업의 `aria-label` 이 이미 같은 문구를 낭독한다. */}
+          {!minimal ? (
+            <Box
+              component="span"
+              aria-hidden="true"
+              sx={{
+                display: "none",
+                [`@media (min-width:${BRAND_TAGLINE_MIN_PX}px)`]: { display: "inline-block" },
+                flexShrink: 0,
+                marginInlineStart: 1.5,
+                paddingInlineStart: 1.5,
+                borderInlineStartStyle: "solid",
+                borderInlineStartWidth: "1px",
+                borderInlineStartColor: (t) => t.palette.chrome.line,
+                fontSize: FONT_SIZE.caption,
+                fontWeight: FONT_WEIGHT.semibold,
+                letterSpacing: "0.06em",
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+                color: (t) => t.palette.chrome.onShellMuted,
+              }}
+            >
+              SMART WORKSPACE ASSISTANT
+            </Box>
+          ) : null}
 
           {/* 검색은 브랜드 칸과 AI 앵커 **사이의 가운데**에 놓는다 (지시 13 «Global Search 와
               사용자 영역과의 균형»). 예전에는 브랜드 바로 뒤에 붙고 오른쪽이 통째로 비어

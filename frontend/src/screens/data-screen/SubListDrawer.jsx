@@ -122,11 +122,13 @@ export function SubListDrawer({ view, onClose, onActed }) {
             />
           ) : f.type === "text" ? (
             <TextField
+              InputLabelProps={{ shrink: true }}
               key={f.key} size="small" label={f.label} sx={{ minWidth: "12rem" }}
               value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
             />
           ) : (
             <TextField
+              InputLabelProps={{ shrink: true }}
               key={f.key} select size="small" label={f.label} sx={{ minWidth: "11rem" }}
               value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
             >

@@ -388,6 +388,20 @@ Top bar와 Sidebar는 **같은 재료**다. 만나는 모서리가 같은 색인
 `1 #4C58C8`(solid) · `2 #C0517E`(dash 4 3) · `3 #2C3684`(dot 1 3) · `4 #8158D8`(dash-dot) · `5 #2E9086`(long-dash) · `rest #5D6B93`. Dark: `#8E9BF2 · #F49CBE · #DDE3FF · #C0A2FF · #4FBFB2 · #7C88AE`.
 인접 슬롯 휘도 분리의 **최대 달성치가 1.26:1**이다 — 즉 **색만으로는 2개 시리즈 이상을 절대 못 나른다.** 그래서 선 스타일 + 직접 라벨 + 숫자 범례가 선택이 아니라 필수다. 상태색은 절대 범주 시리즈로 쓰지 않는다. `Home.jsx:137`의 `남음 → "primary"`(사용자 Accent)를 `"brand"`로 바꾼다.
 
+**소유 (W5 신설)**: 이 절의 계약은 **W6 이 소유한다**(`ui/charts/*`). W1~W4 의 Wave 표에는
+`charts/*` 를 「소유 공유 파일」로 가진 Wave 가 하나도 없었고, 소비 화면을 맡은 W10·W12 는
+둘 다 「소유 공유 파일: 없음 · 완전 병렬」이라 **여러 에이전트가 같은 차트 파일을 동시에
+고치게 되어 있었다**. 소유자가 없으니 이 절의 필수 업그레이드 6항은 계획서에만 존재했다 —
+실측 결과 **6항 전부 미구현**이었고, `CHART_SERIES` 는 제품 소비처가 **0곳**이라 화면에 나간
+색은 `primary.main`(=사용자 Accent)이었으며 dark 에서 plate 대비 **2.90:1** 로 비텍스트 3:1 을
+깨고 있었다. 그런데 `theme-contract.test.js` 는 아무도 안 쓰는 `palette.chart`(6.81:1)를 재고
+초록이었다 — «통과하지만 제품과 무관한 표본을 재는 검사»(F-W4-15 와 같은 형태).
+**W5 가 색·스케일·표본 축을 닫았고**(시리즈 슬롯 배선 · 상태색을 범주로 쓰던 자리 4곳 ·
+Sparkline 의 비-0 바닥 · Donut 의 모수 · 눈금선/영역/끝점 라벨/시리즈 상한), 표현 판정
+(타입 변경·중복 제거·불필요 차트 제거)과 빈 데이터 4단계는 W6·W7 이 이어받는다.
+**렌더되는 색을 재는 시험**(`charts/series-palette.test.jsx`)과 정적 가드
+(`check_brand_tokens.py` 의 `palette.chart` 소비처 ≥1)가 이 배선의 재퇴행을 막는다.
+
 **빈 데이터 규칙 (지시 0-2·7, 0-10)** — `ChartEmpty`의 점선 상자를 폐기하고 3단계로: ⓐ Loading → **차트 모양** 스켈레톤(같은 높이, 점선 상자 아님) ⓑ 진짜 데이터 없음 → **차트를 통째로 접고** Canvas 위 `caption` 한 줄 ⓒ **고칠 수 있는 원인**(Notion 미연결 등) → Clovi 포함 전체 `EmptyState` + 다음 Action, 차트는 그리지 않음 ⓓ 로드 실패 → `ErrorState` + 재시도. **`MetricStrip`도 모든 칸이 `-`면 렌더하지 않고 원인을 렌더한다.**
 
 ### Icon System (지시 79)
@@ -530,6 +544,21 @@ Top bar와 Sidebar는 **같은 재료**다. 만나는 모서리가 같은 색인
 **Wrapping**: `FILTER_GRID_SX`의 트랙 상한(16rem/18rem)과 `width:fit-content`는 **유지**. 추가 규칙 — `grid-auto-flow: row dense` 금지(의미 순서를 뒤집는다), **앞줄에 여유 트랙이 있는데 한 항목만 있는 줄을 만들지 않는다.**
 
 **검색형 Combobox로 바꿔야 하는 Entity Selector** (현재 `type:"select"` 80+곳 중 Autocomplete는 `MyTickets.jsx` 1곳):
+
+> **W5 실측 정정 — 이 표의 세 줄은 «바꿀 Dropdown» 이 아니라 «없는 컨트롤» 이다.**
+> `/users` 의 부서·직책과 `/board`·`/ideas` 의 작성자는 **지금 필터가 존재하지 않고**,
+> `/documents` 의 워크플로·템플릿은 목록 필터가 아니라 **폼 필드**다(`registry/actions.js:167,170`).
+> 표를 그대로 믿고 구현하면 자리를 틀린다 — 없는 필터를 «바꾸는» 커밋은 아무것도 바꾸지 않는다.
+> W5 는 실재하는 자리만 바꿨고(아래 «W5 가 실제로 바꾼 자리»), 새 필터를 **만드는** 판단은
+> 그 화면을 소유한 Wave(W10·W12)로 넘겼다 — 필터를 하나 더 만드는 것은 «폭 계약» 이 아니라
+> «이 화면에 이 축이 필요한가» 라는 화면 판단이기 때문이다.
+>
+> **W5 가 실제로 바꾼 자리**: 티켓 필터 바(프로젝트·담당자 — `/my-tickets`·`/unassigned`·
+> `/team-tickets`·`/sprint` 넷이 공유) · 부서 필터(`DepartmentFilter` — `/projects`·
+> `/team-docs`·`/team-tickets`·`/projects/:id`) · `/team-docs` 프로젝트 ·
+> `/new-ticket` 과 티켓 편집 모달의 프로젝트 · `/scheduler-calendar` 일정 ·
+> `/approvals` 요청자 · `/impersonation` 관리자·대상 사용자 · `/jobs` 연결된 스케줄·문서 생성 ·
+> 사용자 생성/수정 폼의 부서·직책·범위 대상 조직/부서 · registry 의 워크플로·템플릿·대상.
 
 | Route | 필드 | 옵션 소스(이미 존재) |
 |---|---|---|
@@ -891,9 +920,9 @@ Surface마다 **Flow 배열**을 갖는다. Flow는 그 화면에서 사용자�
 | `column_width_vs_content` | A열 `wrapRate≥0.5` **그리고** B열 `fill≤0.45`·`slackPx≥96`·`slackPx ≥ 0.5×width_A` | 폭 ≥1200에서만(900 미만은 카드 모드, 900~1200은 한글이 원래 접힌다). fill을 **셀 잉크와 헤더 잉크의 max**로 재 헤더가 길어서 넓은 컬럼을 slack이라 부르지 않는다 |
 | `header_cell_alignment_mismatch` | `th`의 `textAlign` ≠ 그 컬럼 `td`들의 최빈 `textAlign` | 항상 결함이다. **억제 불가.** `kit.css:43`이 둘 다 left인데 `kit.jsx:1036/1124`가 head/body에 `align`을 따로 넘기므로 한쪽만 설정하는 경로가 실제로 존재 |
 | `numeric_alignment` | 숫자 컬럼(비-빈 셀 80%가 숫자 패턴, 날짜형 제외)이 우정렬이 아니거나 `tabular-nums`가 없음 | 식별자형 숫자(티켓번호·포트·버전)는 `identifier:true`가 이미 있어 `data-col-role="identifier"`로 면제. 전화·버전은 엄격한 정규식이 배제. **억제 불가** |
-| `isolated_control_row` | 한 컨트롤(또는 폭 <40%)만 있는 줄 R **그리고** 직전 줄 P가 `freeWidth_P ≥ usedWidth_R + gap` 이고 `≥120px` | "위 줄에 실제로 들어갔는데 밀려났다"를 증명한다. 좁은 화면의 정상 wrap은 slack이 없어 발화 안 함. `ToolbarEnd`의 의도적 2번째 줄(`FilterBar.jsx:55-62`에 문서화된 설계 결정)은 `data-control-row="separate"` |
-| `control_baseline_mismatch` | 한 줄 안에서 **같은 kind끼리** 높이 차 >4px, 또는 **kind 무관** centerY 차 >3px | 2부 규칙이 옳은 모델이다 — 높이는 kind 안에서, 중심은 kind를 넘어. **내부 박스**(`.MuiInputBase-root`)를 재 검증 메시지로 늘어나는 wrapper를 피한다 |
-| `oversized_empty_surface` | `coverage<0.18` & 빈 면적 ≥200,000px², **또는** `contentBBox.width/paddingBox.width < 0.45` & 폭 >700 | 두 번째 분기가 "큰 사각형 좌측에 컨트롤 3개"를 직격한다. canvas/svg는 bbox 전체를 잉크로 셈. 스켈레톤 제외. `EmptyState` 하위는 여기서 제외하고 `dead_blank_region`이 담당 — 지시는 빈 화면이 **완성돼 보이길** 원하지 빽빽하길 원하지 않는다 |
+| `isolated_control_row` **(W5 재정의)** | 한 컨트롤(또는 폭 <40%)만 있는 줄 R 이 **그 줄의 절반 넘게(≥120px) 비워 두고**, 그 줄이 **왼쪽에서 시작**할 때 | **옛 규칙은 CSS wrap 에서 구조적으로 발화할 수 없었다.** 「윗줄 여유」를 물었는데 wrap 에서 줄이 넘어간 이유가 바로 윗줄이 꽉 찼기 때문이고, 옛 필터 격자의 `width: fit-content` 는 컨테이너를 가장 넓은 줄로 줄여 그 값을 **정의상 0** 으로 만들었다 — 664 페이지 fail 0 은 «위반 없음» 이 아니라 «잴 수 없음» 이었고, R-76 이 이름으로 지목한 두 화면(`/board` 정렬 select, `/sprint` 담당자)이 둘 다 후보로 잡혔다가 기각되는 것을 실브라우저에서 재현했다. 지시 76 이 말하는 것은 «들어갈 수 있었다» 가 아니라 **고아 줄**("다음 줄 **왼쪽**에 남아")이므로 그대로 잰다. 오른쪽 끝에 **놓은** 묶음(`ToolbarEnd`)은 기하로 갈린다 — 예외 표식이 필요 없다 |
+| `control_baseline_mismatch` **(W5 보강)** | 한 줄 안에서 **같은 kind끼리** 높이 차 >4px, 또는 **kind 무관** centerY 차 >3px. 단 짝지을 두 컨트롤은 (a) row item 으로부터 **깊이 ≤2** 이고 (b) 상자가 **세로로 50% 이상 겹쳐야** 한다 | 2부 규칙이 옳은 모델이다 — 높이는 kind 안에서, 중심은 kind를 넘어. **내부 박스**(`.MuiInputBase-root`)를 재 검증 메시지로 늘어나는 wrapper를 피한다. **(a)(b)가 없으면 «같은 줄» 이 거짓이 된다**: `flowRows` 는 컨테이너의 직계 자식을 묶는데 그 자식이 세로로 긴 블록이면 그 안의 첫 후손 컨트롤은 줄 밖 어디에나 있을 수 있다 — 실측 최댓값이 **257.2px**(`/chat` 「새 대화」 vs 「Notion에서 열기」)였고 OPEN 35건 중 15건이 이 형태였다. 두 줄을 넣으면 위양성 3건이 사라지고 4K 높이 결함(6px)·카드 목록 체크박스(3.5px)·주입한 결함(12px)은 그대로 잡힌다(반례 검증) |
+| `oversized_empty_surface` **(W5 보강)** | `coverage<0.18` & 빈 면적 ≥200,000px² & **높이 ≥160**, **또는** `contentBBox.width/paddingBox.width < 0.45` & 폭 >700 & **높이 ≥56**(넓고 낮은 띠) | 두 번째 분기가 "큰 사각형 좌측에 컨트롤 3개"를 직격한다. canvas/svg는 bbox 전체를 잉크로 셈. 스켈레톤 제외. `EmptyState` 하위는 여기서 제외하고 `dead_blank_region`이 담당 — 지시는 빈 화면이 **완성돼 보이길** 원하지 빽빽하길 원하지 않는다 |
 | `dead_blank_region` | 페이지가 스크롤되지 않고 (하단 공백비 ≥0.35/0.30 & `inkRatio≤0.45` & **`unsatisfiedDemand`**) 또는 (우측 공백비 ≥0.30 & …) 또는 **극단**(하단 ≥0.55 & `inkRatio≤0.25`) | **`unsatisfiedDemand`가 짧은 페이지를 살린다** — 줄바꿈·활성 ellipsis·2페이지 이상 pager·내부 스크롤 중 하나라도 있어야 발화. 필드 3개짜리 설정 폼은 하단 공백비가 커도 굶주린 게 없어 앞 두 분기 불가, `inkRatio`도 0.25 초과라 극단 분기 불가. 반대로 4K 대시보드(줄바꿈된 KPI 라벨 + 페이지네이션 + 60% 공백)는 첫 분기에서 발화 |
 | `brand_presence` | 7개 role(header·nav_active·primary_action·ai_surface·highlight·selected_state·focus_ring) 중 **4개 미만이면 실패**, `nav_active`나 `primary_action`이 무채색(S<0.08)이면 **무조건 실패**. Brand 계열 = 색상각 222~278°(`#536CD6`≈230°, `#8E75E1`≈257°가 안에 있다), S≥0.25(L)/0.18(D), 배경 role은 Canvas와 ΔE>10 | Gradient는 stop 파싱, 못 읽으면 `unknown`이고 **통과로 치지 않는다**(`contrast.py`의 "모르면 모른다고 한다" 규율). **이 Assertion은 현재 빌드에서 실패한다 — 그게 요점이다.** `AppShell.jsx:678-687`이 "chrome 은 발광하지 않는다"는 주석과 함께 AppBar를 `sidebar.bg`로 두고 있고, 그 결정이 새 지시와 정면 충돌한다. 측정이 그 충돌을 논쟁 대신 가시화한다. **억제 불가** |
 | `brand_role_coverage` **(W1 신설)** | **같은 측정, 다른 질문**: 이 화면에 **존재하는** role 중 하나라도 Brand 가 아니면 실패. 존재하지 않는 role 은 대상이 아니다 | 절대 기준(위)은 "자리가 모자란다"를 잡고 이건 "있는 자리가 회색이다"를 잡는다. 느슨한 판정이 **아니다** — 위 기준은 4개만 넘으면 나머지를 봐주지만 이쪽은 하나도 안 봐준다. 이 검사가 필요한 이유는 D-180 에 있다: Before 실측에서 role 존재 수가 **6 이상인 페이지가 하나도 없어** 절대 기준이 348페이지(23%)에서 구조적으로 도달 불가다. 도달 불가한 게이트는 정보를 나르지 않는다 |
@@ -901,6 +930,19 @@ Surface마다 **Flow 배열**을 갖는다. Flow는 그 화면에서 사용자�
 | `plain_dropdown_for_entity` | entity 어휘에 해당하는 `select`/`[role=combobox]`가 검색 가능(내부 input 또는 `aria-autocomplete="list"`)하지 않으면 실패 | **옵션 개수를 세지 않는다** — MUI 메뉴는 열기 전엔 DOM에 없고, 더 중요하게는 어휘 자체가 기수 무한 타입의 닫힌 목록이다. **억제 불가** |
 | `detail_side_imbalance` | 2열 그리드에서 `min(inkArea)/max(inkArea) ≤0.15` **그리고** 빈 쪽 빈 면적 ≥250,000px² **그리고** 높이 차 ≥0.5×max | 기존 `railRatio` 프로브(`assertions.py:211-237`) 확장. `rail_wider_than_prose`가 "레일이 본문보다 넓다"를 잡고 이건 "한쪽이 동나고 그 공간이 회수되지 않았다"를 양방향으로 잡는다. 폭 ≥1366에서만 |
 | `surface_repetition` | 동일 tone signature 그룹이 임계(6/8/10, 뷰포트별) 이상 & 합계 면적 ≥35% & **구조적**일 때 | **목록 vs 구조 판별자**가 핵심 — `<li>`·`role="list"` 하위·행 열기 affordance를 가지면 **목록**(정상 패턴), 각자 고유 heading을 갖고 내비게이션이 없으면 **구조**("동일 형태 흰 카드 8개" 결함). `Games` 카드 그리드·`ChatRooms` 목록에서 안 터진다 |
+
+**승격은 선언이 아니라 실행이다 (W5 신설 · C10c)**: 「이 Wave 부터 `--fail-on`」이라고 적어
+두는 것만으로는 아무것도 걸리지 않는다. W0~W4 는 실제로 한 번도 그 플래그를 붙이지 않았고,
+그래서 W0 에서 승격했다는 세 검사는 **W0 이후 계속 빨간 채**였다(W5 독립 조사가 처음 발견).
+이제 게이트가 After 실행의 `run.fail_on` 을 직접 읽어 「이 Wave 까지 승격된 클래스가 실제로
+걸린 채 돌았는가」를 검사한다(`check_ui_renewal_coverage.py::PROMOTED_AT`). `--fail-on` 은
+원장이 아니라 **그 실행의 페이지 판정**만 보므로, Finding 의 `wave` 를 옮기는 것으로는 이
+조건을 통과할 수 없다.
+
+**판정 규칙을 고치면 반례로 검증한다 (W5 신설)**: `scripts/ui_qa/probe_selftest.py` 가 합성
+DOM 여섯 개(결함 셋 · 정상 셋)를 실브라우저에 띄워 「결함은 잡히고 정상은 안 잡힌다」를
+확인한다. 제품 화면이 아니라 합성 DOM 인 이유는 **반례가 제품과 독립적으로 살아 있어야**
+다음 사람이 규칙을 되돌릴 때 걸리기 때문이다(제품이 고쳐지면 제품 기반 반례는 사라진다).
 
 **Gate vs Advisory**: `header_cell_alignment_mismatch`·`numeric_alignment`·`plain_dropdown_for_entity`는 W0부터 `--fail-on`. `mascot_visible_size`는 W7부터(W1 시점에는 Clovi 배선이 아직 W7 소유라 승격할 대상이 없다). `isolated_control_row`·`control_baseline_mismatch`는 W5, 4개 Table 계열은 W6(288페이지 보정 실행 1회 후), `detail_side_imbalance`는 W9.
 **Brand 두 검사의 승격 시점 (W1 정정)**: `brand_presence`(절대)는 **W15 완료 조건**으로 남는다 — 그때는 W4(`highlight`)·W6(`selected_state`)·W7(`ai_surface`)이 빠진 role 을 실제로 만들어 놓았을 것이고, 그것이 이 지표를 초록으로 만드는 정직한 유일한 길이다. `brand_role_coverage`(상대)는 **W6부터 `--fail-on`** 이다. W1~W5 에는 측정만 하고 실패를 Finding 으로 등록한다: W1 실측에서 유일한 실패가 `admin_audit` 의 `selected_state`(선택된 Tab 이 면을 칠하지 않는다)인데, 이것은 W1 결함이 아니라 **선택 표현 계약 자체가 아직 안 정해진 것**이다 — `selected_state` 는 배경 role 이라 Canvas 와 ΔE>10 을 요구하는 반면 §Surface 위계는 선택 행을 `inset`(중립)으로 두고 있어 두 계약이 정면으로 충돌한다. W6 이 이 충돌을 결정으로 닫은 뒤에 승격한다.
@@ -912,7 +954,7 @@ Surface마다 **Flow 배열**을 갖는다. Flow는 그 화면에서 사용자�
 
 ## Wave 계획 (지시 84-7) — 17 Wave (W0 · W1~W5 · W5B · W6~W15)
 
-**Wave 종료 조건 7개**(모든 Wave 동일): **E1** 건드린 Surface 전부 재캡처 + `visual_audit ≠ PENDING` · **E2** 배정 요구사항이 `DONE` 또는 사유 있는 `DEFERRED` · **E3** 그 Wave에 새로 Gate가 된 Assertion이 초록, Advisory fail은 Finding으로 기록, `DONE` 처리한 Surface에 Critical/High 미해결 0 · **E4** 건드린 공유 파일과 **명명된 소비처**의 focused test 초록 + 옛 구조를 고정하던 Contract Test를 **삭제·약화가 아니라 재작성**(`scripts/check_test_strength.py`가 검증) · **E5** `static_checks.sh` 초록(새 Coverage Gate 포함) · **E6** `npm run build` + `check_bundle_fresh.py` + `generate_design_tokens.mjs --check` 초록, QA 라벨과 `build_index_sha256`이 CHECKPOINT에 기록 · **E7** **구현하지 않은 에이전트**의 독립 Visual Reviewer + Requirement Reviewer 서명.
+**Wave 종료 조건 7개**(모든 Wave 동일): **E1** 건드린 Surface 전부 재캡처 + `visual_audit ≠ PENDING` · **E2** 배정 요구사항이 `DONE` 또는 사유 있는 `DEFERRED` · **E3** 그 Wave에 새로 Gate가 된 Assertion이 초록 — **`run.py --fail-on <클래스…>` 를 실제로 붙여 돌리고 그 종료 코드를 증거로 남긴다**(W0~W4 는 승격을 선언만 하고 한 번도 붙이지 않았다: 승격된 두 검사는 W0 이후 계속 빨간 채였고 아무도 몰랐다). `--fail-on` 은 원장이 아니라 **이번 실행의 페이지 판정**만 본다 — 즉 Finding 의 `wave` 를 바꾸는 것으로는 이 조건을 통과할 수 없다. Advisory fail은 Finding으로 기록, `DONE` 처리한 Surface에 Critical/High 미해결 0 · **E4** 건드린 공유 파일과 **명명된 소비처**의 focused test 초록 + 옛 구조를 고정하던 Contract Test를 **삭제·약화가 아니라 재작성**(`scripts/check_test_strength.py`가 검증) · **E5** `static_checks.sh` 초록(새 Coverage Gate 포함) · **E6** `npm run build` + `check_bundle_fresh.py` + `generate_design_tokens.mjs --check` 초록, QA 라벨과 `build_index_sha256`이 CHECKPOINT에 기록 · **E7** **구현하지 않은 에이전트**의 독립 Visual Reviewer + Requirement Reviewer 서명.
 
 | Wave | 내용 | 소유 공유 파일 | 전제 | Wave 고유 Exit Gate (E1~E7에 더해) |
 |---|---|---|---|---|
@@ -921,9 +963,9 @@ Surface마다 **Flow 배열**을 갖는다. Flow는 그 화면에서 사용자�
 | **W2** ⚠️ | Global Shell — AppBar·main padding·content width, `TopBrand`/`TopSearch`/`Banners`/`ScopeBar`, `root.css` | `frontend/src/app/AppShell.jsx`(셸부) | W1 | `narrow_main`·`dead_blank_region`을 3840에서 측정, `topbar-contract.test.jsx` 재작성 완료 |
 | **W3** ⚠️ | Navigation & Icon — `navConfig.js`·`navIcons.js`·`AppShell` 사이드바부(W2 커밋 **뒤**)·`CommandPalette` | `frontend/src/app/navConfig.js`, `navIcons.js` | W2 | Nav 라벨 시작선 42px 단언 + `nav-active`·`nav-features`·`registry-area-matches-nav-group` 통과 |
 | **W4** ⚠️ | 공유 Layout Primitive — `kit.jsx`(Card/Section/Panel 분리·PageHeader·MetricStrip·MetaBar·EmptyState·ErrorState·Skeleton), `kit.css`, `adminKit.jsx`, `density.js`, `screens.css` | `frontend/src/ui/kit.jsx` | W1 + W2 | Surface 판정 체크리스트가 코드로 표현되고 `surface_repetition`·`oversized_empty_surface` Advisory 수치가 Surface별로 기록됨 |
-| **W5** ⚠️ | Search/Filter/Form **설계** — `FilterBar.jsx`·`filters.jsx`(+`EntityCombobox`)·`SavedViews.jsx`, 소비처 4곳을 정해진 순서로. **C2 + R-88의 UI 규칙**(값 식별성·Dropdown 구분·초기화 표현·결과 건수 위치·0건 두 얼굴) 포함 | `frontend/src/ui/FilterBar.jsx`, `frontend/src/ui/filters.jsx` | W4 | `isolated_control_row`·`control_baseline_mismatch`가 `--fail-on`으로 승격되어 초록. `plain_dropdown_for_entity`가 `entity_selectors`를 선언한 전 Surface에서 초록 |
+| **W5** ⚠️ | Search/Filter/Form **설계** — `FilterBar.jsx`·`filters.jsx`(+`EntityCombobox`)·`SavedViews.jsx`, 소비처 4곳을 정해진 순서로. **C2 + R-88의 UI 규칙**(값 식별성·Dropdown 구분·초기화 표현·결과 건수 위치·0건 두 얼굴) 포함. **+ 공통 계층 교정 셋**(D-186): 컨트롤 높이 토큰을 rem 으로(4K 에서 높이 계약이 깨지고 있었다) · dark chrome 이 테마를 따라 움직이게 · Chart 시리즈 색을 Brand 고정 팔레트에 배선(`CHART_SERIES` 소비처가 0이었다) | `frontend/src/ui/FilterBar.jsx`, `frontend/src/ui/filters.jsx` (+ 교정으로 `theme.js`·`ui/charts/*`) | W4 | ① `isolated_control_row`·`control_baseline_mismatch`가 `--fail-on`으로 승격되어 초록 ② `plain_dropdown_for_entity`가 **판정을 낸 전 Surface**에서 초록이다 **그리고** 선언을 읽는 시험이 REGISTRY 전수를 덮는다. **W5 정정(근거 첨부)**: 원래 조건의 뒷절반은 「`entity_selectors` 를 선언한 Surface 중 전 조합 skip 이 하나도 없다」였는데, 그것은 **브라우저 프로브로는 원리적으로 달성할 수 없다** — `w5-after`(1,494페이지) 실측: 선언 29 중 프로브가 닿은 것 11(pass 306 · fail 0), 나머지 18 중 셋은 **선언 스스로 «선택기가 아니다»** 라고 말한 자리(자유 텍스트 이유 선언 · 「이름(정확히)」 같은 속성 라벨)라 skip 이 옳은 판정이고, 열다섯은 **모달·편집 폼 안**이라 캡처가 그 문을 열지 않는다(F-W5D-130 — 모달 내부 검사는 W14 소유). 그 열다섯을 덮는 것은 `frontend/src/screens/registry-entity-fields.test.js` 다: REGISTRY 의 필터·create·edit·행 액션·헤더 액션 **전부**에서 «Entity 어휘 라벨 + `type:"text"`» 를 0건으로 고정하고, 예외에는 20자 이상의 이유 문장을 요구한다. 조건을 **약하게 한 것이 아니라 둘로 나눠 둘 다 요구**한다 — 그려진 것은 프로브가, 선언된 것은 시험이 본다 ③ 승격 대상 두 검사의 판정 규칙이 **반례로 검증**됨(`scripts/ui_qa/probe_selftest.py`) ④ **실브라우저 탐색 줄 계약**(`scripts/ui_qa/filter_e2e.py`) — 4화면 × 2테마 × 4뷰포트에서 「판이 아니다 · 고아 줄 없음 · 한 줄에 높이 하나 · 되돌리기가 상자가 아니다 · 결과 줄이 필터와 목록 사이」가 전부 통과하고, Entity Combobox 를 **키보드만으로** 열고·거르고·고른 결과가 주소와 서버 질의까지 닿는 사슬이 `PASS` |
 | **W5B** | **Search/Filter 기능 정확성 (R-85·R-86·R-87·R-94 일부)** — **디자인 Wave가 아니라 버그 수정 Wave다.** C7의 8단계 사슬을 전 Consumer에서 실측하고 어긋난 지점의 Root Cause를 고친다. 1순위 용의자: `app/tickets/repository.py`의 `project_ids` relation 해석 경로(R15) · `TicketFilters.matches:147/168` · Filter 옵션 소스(`service.list_projects`)와 티켓 식별자의 정합 · `ticketQueryParams`의 page 리셋 책임(R17) · react-query key 구성 · `DataScreen` 필터 루프. **Frontend에서 멈추지 않고 API Parameter → Backend Join/Relation → Permission Scope → Query Condition까지 추적한다** | `frontend/src/screens/TicketFilterBar.jsx`, `frontend/src/lib/useQueryState.js`, `app/tickets/repository.py`, `app/tickets/router.py`, `frontend/src/screens/DataScreen.jsx`(필터 루프만) | W5 | **C11 통과** — Search/Filter가 존재하는 전 Surface에 단독·복합·Scope결합·page리셋·race·cache key·back/forward Flow가 `PASS`이고 각 `chain`이 최소 4단계 채워짐. Known Data 대조 결과가 Evidence로 남음 |
-| **W6** ⚠️ | Table/Grid/Metadata/Alignment + **공통 Property Editing Pattern(C8·R-89)** — `kit.jsx::DataTable`(W4 뒤)·`cells.jsx`·`registry/shared.js`·`DataScreen.jsx:1036,1124`. Column `type` 계약, **R-91로 교정한 Collapse 규칙**(`resultScope` 입력), Inline Edit 상태 기계를 공통 계층에 만든다(배선은 W9) | `frontend/src/ui/kit.jsx::DataTable`, `frontend/src/screens/registry/shared.js` | W4 + W5 | 4개 Table Assertion이 `--fail-on`으로 승격되어 초록. **C9 통과**(`list_table` 46 Surface 전부 non-skip 판정 증거). `resultScope` 없이는 컬럼을 제거하지 않는다는 단위 테스트 존재 |
+| **W6** ⚠️ | Table/Grid/Metadata/Alignment + **Data Visualization** + **공통 Property Editing Pattern(C8·R-89)** — `kit.jsx::DataTable`(W4 뒤)·`cells.jsx`·`registry/shared.js`·`DataScreen.jsx:1036,1124`·**`ui/charts/*`**. Column `type` 계약, **R-91로 교정한 Collapse 규칙**(`resultScope` 입력), Inline Edit 상태 기계를 공통 계층에 만든다(배선은 W9). **차트는 W5 가 «색·스케일·표본» 축만 닫았다**(D-186) — 남은 것은 표현 판정(타입 변경·중복 제거·불필요 차트 제거)과 «빈 데이터 4단계»(그 절반은 W7 의 `EmptyState` 와 맞물린다) | `frontend/src/ui/kit.jsx::DataTable`, `frontend/src/screens/registry/shared.js`, **`frontend/src/ui/charts/*`** | W4 + W5 | 4개 Table Assertion이 `--fail-on`으로 승격되어 초록. **C9 통과**(`list_table` 46 Surface 전부 non-skip 판정 증거). `resultScope` 없이는 컬럼을 제거하지 않는다는 단위 테스트 존재. **차트 소비처 13곳이 각자 «이 그림이 답하는 업무 질문» 을 갖고**, 같은 데이터를 차트와 표로 중복 제시하는 자리가 정리됨 |
 | **W7** | Empty/Loading/Error/Feedback + Clovi 크기 + **Detail Metadata 위계(C9·R-90)** — `EmptyState`/`ErrorState`/`Skeleton`(W4·W6 뒤), `lib/assets.js`, `Mascot.jsx`, `MetaBar` 위계 재설계 | `frontend/src/ui/kit.jsx::EmptyState/ErrorState/MetaBar`, `frontend/src/ui/Mascot.jsx` | W4 + W6 | `mascot_visible_size` 초록. 빈 데이터에서 차트·표·Pager가 실제로 언마운트됨을 렌더 테스트로 고정. Detail Metadata가 **긴 프로젝트명 실데이터**로 FHD/QHD/4K × Zoom 3단계 캡처됨 |
 | **W8** | **Pilot 8종 end-to-end**(지시 0-7·84-6이 명명한 집합 — 서로 다른 Archetype을 대표해야 한다): `/me` **B1 Dashboard** · `/projects` **B2 List+DataGrid** · `/sprint` **B7 Report/회의** · `/chat-rooms` **B9 Chat** · `/tickets/:id` **B4 Work detail** · `/board/:id` **B3 Reading** · `/organizations`+`/users` **B11 Split view** · `/settings`(+`?tab=os`) **B10 Settings / `/jobs` B8 Ops**. **공유 파일 무변경** — 여기서 공유 계약이 첫 정직한 시험을 받는다. 필요한 공유 변경이 나오면 그건 W4~W7의 결함이고 거기로 되돌린다 | 없음 (Pilot Page 파일만) | W7 (+ Pilot 화면이 Filter를 쓰면 W5B) | **Pilot Exit Gate.** 8쌍 Before/After에 대해 지시 0-7의 검수 순서를 그대로 수행: ① `ui-ux-pro-max` 구조·사용성 Audit ② `impeccable` Critique ③ `design-taste-frontend`로 Typography·Spacing·Surface·비율·리듬 검수 ④ **독립** Visual Reviewer가 옛/새 화면 비교 ⑤ **독립** Requirement Reviewer가 누락 확인. 지시 0-7의 **9개 Pilot 질문**에 전부 답이 나와야 한다 — Purple/Indigo가 명확한가 · White/Gray 포털 인상에서 충분히 벗어났는가 · 정보 구조가 목적에 맞는가 · 이유 없는 대형 Blank가 없는가 · Empty State가 완성된 Layout인가 · Typography와 Control 크기가 실제 브라우저에서 읽기 좋은가 · MUI 기본 느낌/Legacy가 지배하지 않는가 · Responsive에서 정보 우선순위가 유지되는가 · 기능·권한·데이터가 보존되는가. **추가로 Pilot 화면의 Functional Flow가 `PASS`여야 한다**(디자인만 통과한 Pilot은 Pilot이 아니다). 하나라도 부족하면 Theme과 Composition을 고쳐 재검수하고 **W9 이후 전체 롤아웃을 시작하지 않는다.** 사용자 승인 Gate를 만들려고 멈추지는 않는다 — Workflow 내부 Reviewer로 수렴한 뒤 계속한다(지시 0-7 말미·0-21) |
 | **W9** | 핵심 사용자 Workflow — 티켓 / 문서 / 채팅. **3에이전트 병렬 안전.** 일반 사용자 수동 동기화 제거 + **C8 Inline Edit를 티켓 Grid·Detail Header에 배선(R-89·R-90)** | 없음 (화면 파일만, 공유 계층은 W6·W7이 소유) | W8 + W6(Pattern) | 티켓 상태·우선순위 Inline Edit의 9개 상태가 전부 렌더 테스트로 고정. 변경 후 목록·상세·Home Count가 함께 갱신됨(C13 예비 확인) |
@@ -934,7 +976,7 @@ Surface마다 **Flow 배열**을 갖는다. Flow는 그 화면에서 사용자�
 | **W14** | **Functional E2E — 전체 기능 Inventory 기반 (R-92·R-93·R-94)**. 새 UI 없음. "주요 Workflow"로 범위를 제한하지 **않는다** — 사용자·관리자 전 Route의 **실재하는** Interactive Function을 27개 범주로 전수 검증한다. 사슬은 `Screen → User Action → Network → API → Backend → DB/Data → UI Result → 관련 화면 → Reload → RBAC` 전체. **화면 간 정합성(R-93)**과 **죽은 Action/미연결(R-94)**을 함께 닫는다. + Zoom 100/125/150 + 5역할 매트릭스. 실데이터 영향 Action은 전용 QA Fixture, 위험 Action은 상태 저장·원상복구(지시 68) | `scripts/ui_qa/*_e2e.py` (신규 flow 모듈 포함) | W12 + W13 | **C11·C12·C13·C14 전부 통과.** `exists:true` Flow에 `NOT_AUDITED` 0건 |
 | **W15** | Whole-product 재감사 — `--label w15-final` 전체 실행, `collect_evidence --into after`, `check_ui_renewal_coverage --stage complete`, 전 Before/After 쌍 독립 Reviewer, 완료 조건 확인 | 없음 (검증 전용) | W14 | 아래 «완료 조건» 전 항목 충족 |
 
-**충돌 위험 파일 소유·순서**: `theme.js` W1(+W13 rename은 별도 커밋) · `AppShell.jsx` W2→W3→W13 · `navConfig.js` W3→W11 · `kit.jsx` W4→W6→W7 · `DataScreen.jsx` **W5→W5B(필터 루프만)→W6→W12** · `registry/shared.js` W6→W12 · `TicketFilterBar.jsx` **W5→W5B** · `app/tickets/repository.py` **W5B 단독** · `assertions.py` W0이 구조 소유, 이후 Wave는 상수만 조정(각각 보정 실행을 첨부한 자기 커밋으로).
+**충돌 위험 파일 소유·순서**: `theme.js` W1(+W13 rename은 별도 커밋) · `AppShell.jsx` W2→W3→W13 · `navConfig.js` W3→W11 · `kit.jsx` W4→W6→W7 · `DataScreen.jsx` **W5→W5B(필터 루프만)→W6→W12** · `registry/shared.js` W6→W12 · **`ui/charts/*` W5(색·스케일 축)→W6(표현 축)→W7(빈 데이터)** · `TicketFilterBar.jsx` **W5→W5B** · `app/tickets/repository.py` **W5B 단독** · `assertions.py` W0이 구조 소유, 이후 Wave는 상수만 조정(각각 보정 실행을 첨부한 자기 커밋으로).
 **안전 병렬**: 개별 leaf 화면 · registry 7 도메인 파일 · 모든 Backend(W5B가 만지는 티켓 repository 제외) · 모든 배포/스크립트 · `*_e2e.py` · 문서.
 **W5B의 위치가 중요한 이유**: Filter 기능 버그를 W14(검증 Wave)까지 미루면, W9·W10에서 각 화면을 고치는 에이전트들이 **틀린 결과를 정상으로 보고 그 위에 디자인을 얹는다.** 그래서 공통 Filter 계약(W5) 직후, 화면 작업(W8~W10) **전에** 둔다.
 

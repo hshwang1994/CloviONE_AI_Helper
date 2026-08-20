@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
+import { CHART_DASH } from "../theme.js";
 
 /* 차트 공통 바탕 — Sparkline/BarSeries/Donut 세 컴포넌트가 공유하는 색 해석과 '데이터 없음' 표시.
  *
@@ -44,10 +45,68 @@ import { useTheme } from "@mui/material/styles";
  * 같은 심각도가 두 이름으로 갈라져 언젠가 어긋난다 — 양쪽 다 받아 준다. */
 const TONE_ALIAS = { ok: "success", danger: "error", warn: "warning" };
 
+/* ── 시리즈 슬롯 — Brand 고정 팔레트 ───────────────────────────────────────
+ *
+ * `theme.js::CHART_SERIES` 와 `CHART_DASH` 는 W1 이 만들었지만 **소비처가 한 곳도
+ * 없었다.** 정의만 있고 화면에 도달하지 않는 토큰은 D-179 가 `palette.brand` 에서
+ * 이미 한 번 겪은 실패이고, 그때 세운 가드(`check_brand_tokens.py`)가 chart 에는
+ * 없었다. 그 사이 실제로 화면에 나간 색은 아래 `resolveChartColor` 의 옛 기본값
+ * `primary.main` — 즉 **사용자 Accent** 였다. 결과가 둘이다:
+ *
+ *   ① 사용자가 청록을 고르면 제품의 모든 차트가 청록이 된다 (D-179 가 Identity 와
+ *      Interaction 을 갈라 놓은 바로 그 경계를 차트가 혼자 넘고 있었다).
+ *   ② Dark 에서 `#5A4FCF` 는 plate 대비 **2.90:1** 로 비텍스트 3:1 을 깬다.
+ *      `theme-contract.test.js` 는 아무도 안 쓰는 `palette.chart`(6.81:1)를 재고
+ *      초록이었다 — 통과하지만 제품과 무관한 표본을 재던 검사다(F-W4-15 와 같은 형태).
+ *
+ * 그래서 **색을 지정하지 않은 시리즈는 여기서 슬롯을 받는다.** 슬롯은 색 하나가
+ * 아니라 색 + 선 스타일 쌍이다: 인접 슬롯의 휘도 분리 최대치가 1.26:1 이라 색만으로는
+ * 두 시리즈도 못 나른다(theme.js:320 주석).
+ */
+export const SERIES_SLOTS = 6;      // 0~4 가 시리즈, 5번이 '기타'
+export const SERIES_MAX = 5;        // 이보다 많으면 나머지를 '기타' 한 줄로 묶는다
+export const SERIES_REST = SERIES_SLOTS - 1;
+
+/** 시리즈 index → Brand 고정 색. 범위를 넘으면 '기타' 슬롯. */
+export function seriesColor(theme, index) {
+  const palette = (theme && theme.palette) || {};
+  const list = palette.chart;
+  const i = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+  if (Array.isArray(list) && list.length) return list[Math.min(i, list.length - 1)];
+  /* 이 제품 테마가 아닌 곳(맨 MUI 테마로 렌더하는 시험 등)에서도 색은 나와야 한다.
+     Brand → primary 순으로 물러난다. 값이 없다고 렌더가 죽으면 그건 색 문제가 아니다. */
+  return (palette.brand && palette.brand.core)
+    || (palette.primary && palette.primary.main)
+    || "currentColor";
+}
+
+/** 시리즈 index → 선 스타일(`strokeDasharray`). 빈 문자열은 solid 다. */
+export function seriesDash(index) {
+  const i = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+  return CHART_DASH[Math.min(i, CHART_DASH.length - 1)] || "";
+}
+
+/* 시리즈가 상한을 넘으면 나머지를 '기타' 하나로 접는다 (PLAN «Data Visualization» ⑥).
+ * 6번째부터는 색으로도 선 스타일로도 구분이 안 되므로, 구분되는 척하는 대신 합친다. */
+export function capSeries(rows, { label = "기타", merge } = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length <= SERIES_MAX) return list;
+  const head = list.slice(0, SERIES_MAX);
+  const tail = list.slice(SERIES_MAX);
+  return head.concat([merge ? merge(tail, label) : { ...tail[0], label }]);
+}
+
 // 팔레트 이름('primary'·'success'·'danger'…) → 실제 색. 이름이 아니면(예: '#4058BD') 그대로 쓴다.
 // 훅이 아니라 순수 함수다 — 세그먼트 개수만큼 반복 호출해야 하는데 훅은 루프에서 못 쓴다.
-export function resolveChartColor(theme, color) {
-  if (!color) return theme.palette.primary.main;
+//
+// `color` 를 **안 주면 시리즈 슬롯**이다(`index` 가 그 슬롯 번호). 옛 기본값이었던
+// `primary.main`(사용자 Accent)으로는 절대 되돌아가지 않는다 — 위 주석 참조.
+export function resolveChartColor(theme, color, index) {
+  if (!color) return seriesColor(theme, index);
+  /* `"brand"` — 톤 이름 어휘를 쓰는 호출부(DevReport 의 상태 5색 같은 자리)가 사용자 Accent
+     대신 **제품 고정색**을 지목할 수 있어야 한다. PLAN §Data Visualization 이 이 이름을
+     그대로 쓴다("`Home.jsx:137`의 `남음 → "primary"` 를 `"brand"` 로 바꾼다"). */
+  if (color === "brand") return seriesColor(theme, 0);
   // 'neutral'(비활성·해당 없음)은 팔레트에 없다. 라이트/다크 양쪽에서 '꺼져 있음'으로 읽히는
   // 유일한 색이 text.disabled라 여기로 보낸다(고정 회색은 다크에서 배경에 묻힌다).
   if (color === "neutral") return theme.palette.text.disabled;
@@ -62,9 +121,9 @@ export function resolveChartColor(theme, color) {
   return (slot && slot.main) || color;
 }
 
-export function useChartColor(color) {
+export function useChartColor(color, index) {
   const theme = useTheme();
-  return resolveChartColor(theme, color);
+  return resolveChartColor(theme, color, index);
 }
 
 // 막대·도넛의 '아직 안 채워진' 부분. divider는 라이트/다크 양쪽에서 배경과 대비가 확보된 유일한

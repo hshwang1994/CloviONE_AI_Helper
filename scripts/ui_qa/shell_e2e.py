@@ -18,7 +18,7 @@
 
 ## 쓰는 법
 
-    python -m scripts.ui_qa.shell_e2e --base-url https://clovirassist.gooddi.lab --insecure
+    python -m scripts.ui_qa.shell_e2e --insecure        # 대상은 UI_QA_BASE_URL 또는 --base-url
 
 산출물: `dist/ui-qa/w2-shell-e2e/flows.json` + 단계별 스크린샷.
 """
@@ -43,7 +43,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
-from scripts.ui_qa.capture import Viewport, new_context  # noqa: E402
+from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
 
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w2-shell-e2e"
 VIEWPORT = Viewport("1920x1080", 1920, 1080)
@@ -531,7 +531,9 @@ def ff_1192_permission(page_admin, page_user, out: Path) -> dict:
 # --------------------------------------------------------------------------- #
 def main() -> int:
     ap = argparse.ArgumentParser(description="App Shell 상단바 기능 사슬 E2E (W2)")
-    ap.add_argument("--base-url", required=True)
+    # 기본 대상은 `capture.DEFAULT_BASE_URL` 한 곳이 정한다 — 사용법 줄마다 호스트를
+    # 적어 두면 이름이 바뀌는 날 그 줄들이 조용히 옛 제품을 가리킨다(W5 · F-W5D-129).
+    ap.add_argument("--base-url", default=DEFAULT_BASE_URL)
     ap.add_argument("--insecure", action="store_true")
     ap.add_argument("--out", default=str(OUT_DEFAULT))
     args = ap.parse_args()

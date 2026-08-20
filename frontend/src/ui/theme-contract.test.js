@@ -46,6 +46,24 @@ function contrast(a, b) {
 function rgb(hex) {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 }
+/* CIE76 색차 — «두 색이 사람 눈에 다른 색인가» 를 대비비가 아니라 **거리**로 묻는다.
+   대비비는 밝기 비율만 보므로 «같은 밝기의 다른 색» 을 0 으로 셈한다. chrome 이 모드를
+   따라 움직이는지는 밝기만의 질문이 아니라서 여기서는 ΔE 를 쓴다(대면적 JND ≈ 2.3). */
+function lab(hex) {
+  const [r, g, b] = rgb(hex)
+    .map((v) => v / 255)
+    .map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+function deltaE(a, b) {
+  const [la, aa, ba] = lab(a);
+  const [lb, ab, bb] = lab(b);
+  return Math.sqrt((la - lb) ** 2 + (aa - ab) ** 2 + (ba - bb) ** 2);
+}
 /* 반투명 워시가 실제로 그려내는 색. 투명 틴트의 대비는 "어떤 면 위에 얹히느냐"에 따라
    달라지므로, 합성하지 않고 잰 숫자는 아무것도 증명하지 않는다. */
 function composite(fgHex, alpha, bgHex) {
@@ -253,20 +271,68 @@ describe("Chrome 위의 글자 — Gradient 모든 stop 에서 잰다", () => {
      `onShell` 하나뿐이고, 그래서 모드별 예외를 두지 않고 규칙 하나로 간다.
      이 시험은 그 사실을 고정한다 — 팔레트가 바뀌어 muted 가 두 모드 다 통과하게 되면 여기가
      먼저 빨개지고, 그때 규칙을 다시 판단하면 된다(조용히 낡지 않는다). */
-  it("두 모드를 함께 보면 워시 위에서 안전한 잉크는 onShell 하나뿐이다", () => {
+  /* **재판정 (W5).** 이 시험은 설계대로 빨개졌다 — dark chrome 을 내리자 `onShellMuted`
+     의 두 모드 최악값이 4.27 에서 **4.53** 으로 올라 «미달» 이 아니게 됐다. 위 주석이 그
+     상황의 처리를 이미 규정한다: 임계값을 만지지 말고 **하드 룰 자체를 재판정하라**.
+     재판정 결과 **규칙은 유지한다.** 이유가 바뀔 뿐이다 — 예전 근거는 "muted 는 dark 에서
+     미달한다" 였고, 지금 근거는 "muted 의 여유가 **0.03** 이다" 다. 0.03 은 팔레트를
+     한 번만 손대도 사라지는 여유이고, 그 위에 «워시 위 잉크» 규칙을 세우면 그 규칙은
+     다음 커밋에 조용히 거짓이 된다. 그래서 시험이 재는 것을 바꾼다:
+       ① 규칙이 **실제로 보장하는 것** — `onShell` 은 어떤 워시 위에서도 AA 를 넘고 여유가 넉넉하다.
+       ② 규칙이 **여전히 필요한 이유** — 나머지 두 잉크는 AA 문턱에 붙어 있다(<5.0).
+     `onShellFaint` 는 AA-large 전용 잉크라(W4·D-185) 애초에 이 자리 후보가 아니지만,
+     그 사실도 숫자로 남긴다. 언젠가 두 잉크가 5.0 을 넘으면 여기가 다시 빨개지고 그때
+     규칙을 또 판단한다 — 조용히 낡지 않는다. */
+  it("워시 위 잉크 규칙 — onShell 은 여유가 있고, 나머지는 문턱에 붙어 있다", () => {
+    let worstOnShell = Infinity;
     let worstMuted = Infinity;
     let worstFaint = Infinity;
     for (const mode of MODES) {
       const c = createClovirTheme(mode).palette.chrome;
       for (const wash of [c.selected, c.aiWash, c.hover]) {
         for (const face of washFaces(c, wash)) {
+          worstOnShell = Math.min(worstOnShell, contrast(c.onShell, face));
           worstMuted = Math.min(worstMuted, contrast(c.onShellMuted, face));
           worstFaint = Math.min(worstFaint, contrast(c.onShellFaint, face));
         }
       }
     }
-    expect(worstMuted, `onShellMuted 최악 ${worstMuted.toFixed(2)}`).toBeLessThan(4.5);
-    expect(worstFaint, `onShellFaint 최악 ${worstFaint.toFixed(2)}`).toBeLessThan(4.5);
+    // ① 규칙이 보장하는 것: onShell 은 AA 를 크게 넘는다(여유 ≥ 2.0).
+    expect(worstOnShell, `onShell 최악 ${worstOnShell.toFixed(2)}`).toBeGreaterThanOrEqual(6.5);
+    // ② 규칙이 필요한 이유: 나머지 둘은 문턱에 붙어 있다 — 여유가 0.5 미만이다.
+    expect(worstMuted, `onShellMuted 최악 ${worstMuted.toFixed(2)}`).toBeLessThan(5.0);
+    expect(worstFaint, `onShellFaint 최악 ${worstFaint.toFixed(2)}`).toBeLessThan(5.0);
+  });
+
+  /* ── Chrome 이 테마를 **따라 움직인다** (W5 신설) ───────────────────────────
+   *
+   * D-179 는 «chrome 이 Brand 재료다» 만 요구했고 그 반증 기준은 `blue−red ≥ 24` 하나였다.
+   * 그 계약은 두 모드가 **같은** 재료를 쓰는 것을 금지하지 않았고, 실제로 그렇게 됐다:
+   * 캔버스가 ΔE76 91 로 뒤집히는 동안 chrome 은 6 만 움직였다(83 Route 실측). 검사가
+   * 없는 축은 조용히 낡는다 — 이 세 단언이 그 축을 처음으로 잰다. */
+  it("chrome.shell 이 모드에 따라 실제로 다른 색이다 (ΔE76 ≥ 10)", () => {
+    const l = createClovirTheme("light").palette.chrome;
+    const d = createClovirTheme("dark").palette.chrome;
+    // 옛 값 `#1E2758` / `#1A2046` 은 7.74 로 여기서 실패한다 — 그것이 이 단언의 요점이다.
+    expect(deltaE(l.shell, d.shell), `ΔE(${l.shell}, ${d.shell})`).toBeGreaterThanOrEqual(10);
+  });
+
+  it("dark chrome 은 light chrome 보다 **어둡다** — 캔버스와 같은 방향으로 움직인다", () => {
+    const l = createClovirTheme("light").palette;
+    const d = createClovirTheme("dark").palette;
+    expect(luminance(d.chrome.shell)).toBeLessThan(luminance(l.chrome.shell));
+    expect(luminance(d.chrome.shellTop)).toBeLessThan(luminance(l.chrome.shellTop));
+    expect(luminance(d.chrome.shellDeep)).toBeLessThan(luminance(l.chrome.shellDeep));
+    // 캔버스도 같은 방향이다(대조군) — 방향이 반대면 «따로 논다» 가 다시 생긴다.
+    expect(luminance(d.background.canvas)).toBeLessThan(luminance(l.background.canvas));
+  });
+
+  it.each(MODES)("%s — 하우징의 경계선이 캔버스와 구분된다 (면이 어두워져도 선이 남는다)", (mode) => {
+    const p = createClovirTheme(mode).palette;
+    // 면이 어두워질수록 하우징의 경계를 `line` 이 혼자 나른다. dark 옛 값 `#2A3162` 는
+    // 1.59 로 여기서 실패한다.
+    expect(contrast(p.chrome.line, p.background.canvas), `${p.chrome.line} on canvas`)
+      .toBeGreaterThanOrEqual(1.6);
   });
 
   it.each(MODES)("%s — Shell 위 반전 컨트롤(track/trackSelected)의 잉크가 AA", (mode) => {
@@ -333,15 +399,103 @@ describe("Gradient 는 정확히 넷이다 (지시 0-1)", () => {
   });
 });
 
+/* 값이 px 숫자에서 **rem 문자열**로 바뀌었다(W5). 단언은 살아 있고 두 개가 더 붙는다.
+ *
+ * 왜 바꿨나: `CONTROL.*` 는 px 리터럴인데 타이포·아이콘은 rem 이라 `styles/root.css` 의
+ * 4K 레버(16→18→20px)를 탄다. 그래서 3840 에서 **버튼은 34px 에 머무는데 아이콘 버튼은
+ * 내용에 밀려 40px** 이 됐고, 같은 줄에 선 둘의 높이가 6px 갈렸다 —
+ * `control_baseline_mismatch` 가 3840 에서만 28건 터진 이유가 이것이다. 높이 계약이
+ * "몇 px 인가"가 아니라 "타이포와 같은 비율로 자라는가"라는 것을 시험이 말하게 한다. */
+function remValue(v) {
+  expect(String(v), `${v} 는 rem 이어야 4K 레버를 탄다`).toMatch(/rem$/);
+  return parseFloat(v) * 16;
+}
+
 describe("컨트롤 높이는 한 곳에서 나온다", () => {
-  it("버튼·입력·탭·아이콘 버튼이 CONTROL 토큰을 쓴다", () => {
+  it("버튼·입력·탭·아이콘 버튼이 CONTROL 토큰을 쓰고, 전부 rem 으로 나간다", () => {
     const t = createClovirTheme("light");
-    expect(t.components.MuiButton.styleOverrides.root.minHeight).toBe(CONTROL.button);
-    expect(t.components.MuiButton.styleOverrides.sizeSmall.minHeight).toBe(CONTROL.buttonSm);
-    expect(t.components.MuiButton.styleOverrides.sizeLarge.minHeight).toBe(CONTROL.buttonLg);
-    expect(t.components.MuiOutlinedInput.styleOverrides.root.minHeight).toBe(CONTROL.input);
-    expect(t.components.MuiTab.styleOverrides.root.minHeight).toBe(CONTROL.tab);
-    expect(t.components.MuiIconButton.styleOverrides.root.minHeight).toBe(CONTROL.iconButton);
+    expect(remValue(t.components.MuiButton.styleOverrides.root.minHeight)).toBe(CONTROL.button);
+    expect(remValue(t.components.MuiButton.styleOverrides.sizeSmall.minHeight)).toBe(CONTROL.buttonSm);
+    expect(remValue(t.components.MuiButton.styleOverrides.sizeLarge.minHeight)).toBe(CONTROL.buttonLg);
+    expect(remValue(t.components.MuiOutlinedInput.styleOverrides.root.minHeight)).toBe(CONTROL.input);
+    expect(remValue(t.components.MuiTab.styleOverrides.root.minHeight)).toBe(CONTROL.tab);
+    expect(remValue(t.components.MuiIconButton.styleOverrides.root.minHeight)).toBe(CONTROL.iconButton);
+  });
+
+  /* 탭 하나만 줄이면 **띠는 그대로 남는다.** MUI 는 높이를 `MuiTab.root` 와 `MuiTabs.root`
+     두 곳에 각각 두는데, 이 저장소는 탭만 토큰(40)으로 낮추고 띠는 MUI 기본 48 을 그대로
+     두고 있었다. 실측(`/project-detail` 390px): 탭 41.5 · 띠 48 — 스크롤 버튼과 중심선이
+     3.3px 어긋나고, 선택 표시선이 탭 글자 상자에서 6.5px 떨어져 그어진다. */
+  it("탭 띠의 높이가 탭의 높이다 — 한 곳만 고치면 나머지가 이긴다", () => {
+    const tabs = createClovirTheme("light").components.MuiTabs.styleOverrides;
+    expect(remValue(tabs.root.minHeight)).toBe(CONTROL.tab);
+    // 스크롤러와 flex 컨테이너는 root 를 따라간다 — 자기 숫자를 갖지 않는다.
+    expect(tabs.scroller.minHeight).toBe("inherit");
+    expect(tabs.flexContainer.minHeight).toBe("inherit");
+  });
+
+  /* **Autocomplete 도 입력이다.** MUI 가 `.MuiAutocomplete-inputRoot` 에 자기 padding 을 더해
+     `EntityCombobox` 만 38.6px 로 섰다(옆 select 는 36) — 한 줄에 높이가 둘이 되는 것을 막자고
+     만든 부품이 그 위반을 새로 만들고 있었다. 독립 검수가 실측으로 잡았다. */
+  it("검색형 Entity 선택기의 높이가 입력 높이다 — 자기 부품이 자기 계약을 깨지 않는다", () => {
+    const t = createClovirTheme("light");
+    const ir = t.components.MuiAutocomplete.styleOverrides.inputRoot;
+    expect(remValue(ir.height)).toBe(CONTROL.input);
+    expect(remValue(ir.minHeight)).toBe(CONTROL.input);
+    // padding 이 남아 있으면 MUI 기본값이 높이를 다시 밀어 올린다.
+    expect(ir.paddingTop).toBe(0);
+    expect(ir.paddingBottom).toBe(0);
+    expect(remValue(ir.height)).toBe(remValue(t.components.MuiOutlinedInput.styleOverrides.root.minHeight));
+  });
+
+  it("컨트롤 높이는 전부 같은 단위다 — 하나만 px 로 남으면 4K 에서 그 하나만 안 자란다", () => {
+    const t = createClovirTheme("light");
+    const heights = [
+      t.components.MuiButton.styleOverrides.root.minHeight,
+      t.components.MuiButton.styleOverrides.sizeSmall.minHeight,
+      t.components.MuiButton.styleOverrides.sizeLarge.minHeight,
+      t.components.MuiOutlinedInput.styleOverrides.root.minHeight,
+      t.components.MuiTab.styleOverrides.root.minHeight,
+      t.components.MuiTabs.styleOverrides.root.minHeight,
+      t.components.MuiIconButton.styleOverrides.root.minHeight,
+      t.components.MuiIconButton.styleOverrides.root.minWidth,
+    ];
+    for (const h of heights) expect(String(h)).toMatch(/rem$/);
+  });
+
+  /* 아이콘 버튼의 상자는 **글리프 크기를 따라가지 않는다.** `minHeight` 만 있으면 상자가
+     «글리프 + padding» 으로 커져, 24px 글리프를 쓴 버튼은 40 · 18px 로 줄여 쓴 버튼은 34 가
+     된다 — 같은 줄에 서면 6px 갈린다(`/chat` 제목줄 실측). 고정 폭·높이가 그 갈림을
+     원천에서 없앤다. */
+  it("아이콘 버튼의 상자는 글리프가 아니라 토큰이 정한다", () => {
+    const root = createClovirTheme("light").components.MuiIconButton.styleOverrides.root;
+    expect(remValue(root.width)).toBe(CONTROL.iconButton);
+    expect(remValue(root.height)).toBe(CONTROL.iconButton);
+    // padding 이 남아 있으면 큰 글리프가 상자를 다시 밀어낸다.
+    expect(root.padding).toBe(0);
+  });
+
+  /* **`size` 가 높이를 정한다 — 종류가 아니라.** 「작은 것들의 줄」(작은 텍스트 버튼 +
+     작은 아이콘 버튼)은 한 높이여야 한다. 예전에는 `size="small"` 을 줘도 아이콘 버튼 상자가
+     34 라 30 짜리 텍스트 버튼과 구조적으로 4px 갈렸다 — 화면의 실수가 아니라 토큰이 놓은
+     함정이다. 실측은 2560(루트 18px)에서 4.5px 로 나왔다: 1920 에서는 정확히 4.0 이라
+     «4px 초과» 문턱을 아슬아슬하게 통과하고 있었다. */
+  it("작은 아이콘 버튼과 작은 버튼은 같은 높이다 — 한 줄에 높이는 하나(C2)", () => {
+    const ib = createClovirTheme("light").components.MuiIconButton.styleOverrides;
+    const btn = createClovirTheme("light").components.MuiButton.styleOverrides;
+    expect(remValue(ib.sizeSmall.height)).toBe(CONTROL.buttonSm);
+    expect(remValue(ib.sizeSmall.width)).toBe(CONTROL.buttonSm);
+    expect(remValue(ib.sizeSmall.height)).toBe(remValue(btn.sizeSmall.minHeight));
+    // 기본 크기끼리도 같다 — 그쪽은 예전부터 맞았고, 깨지지 않게 함께 못박는다.
+    expect(remValue(ib.root.height)).toBe(remValue(btn.root.minHeight));
+  });
+
+  it("작은 아이콘 버튼도 포인터 목표는 40 이다 — 시각 크기만 줄인다", () => {
+    const ib = createClovirTheme("light").components.MuiIconButton.styleOverrides;
+    // `::after` 의 음수 inset 이 상자 밖으로 목표를 넓힌다.
+    expect(parseFloat(ib.sizeSmall["&::after"].inset)).toBeLessThan(0);
+    expect(remValue(ib.sizeSmall.height) - 2 * parseFloat(ib.sizeSmall["&::after"].inset) * 16)
+      .toBe(CONTROL.iconButtonHit);
   });
 
   it("아이콘 버튼의 포인터 목표가 시각 크기보다 크다 (WCAG 2.2 Target Size)", () => {
@@ -349,7 +503,9 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     expect(CONTROL.iconButtonHit).toBeGreaterThanOrEqual(40);
     expect(CONTROL.iconButtonHit).toBeGreaterThan(CONTROL.iconButton);
     // 목표를 넓히는 방법은 `::after` 의 음수 inset 이다 — 시각 크기를 키우면 표 행이 자란다.
-    const grow = -parseFloat(root["&::after"].inset);
+    // inset 도 rem 이다 — 시각 크기가 4K 에서 자라는데 목표만 px 로 남으면 목표가 상대적으로 줄어든다.
+    expect(String(root["&::after"].inset)).toMatch(/rem$/);
+    const grow = -parseFloat(root["&::after"].inset) * 16;
     expect(grow * 2 + CONTROL.iconButton).toBe(CONTROL.iconButtonHit);
   });
 });
@@ -591,8 +747,9 @@ describe("컴포넌트 계약 — 옛 목업 대조 시험이 지키던 목적�
     const root = createClovirTheme(mode).components.MuiButton.styleOverrides.root;
     expect(root.borderRadius).toBe(RADIUS.sm);
     // 상시 도구라 40px 은 크다. 다만 접근성 하한(터치 목표는 IconButton 이 따로 책임)은 지킨다.
-    expect(root.minHeight).toBeLessThanOrEqual(36);
-    expect(root.minHeight).toBeGreaterThanOrEqual(28);
+    // 값은 rem 이다(4K 레버) — 루트 16px 기준으로 환산해 같은 밴드를 단언한다.
+    expect(remValue(root.minHeight)).toBeLessThanOrEqual(36);
+    expect(remValue(root.minHeight)).toBeGreaterThanOrEqual(28);
   });
 
   it.each(MODES)("%s — 입력은 버튼과 같은 모서리를 쓴다(형태 Lock)", (mode) => {

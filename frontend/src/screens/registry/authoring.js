@@ -17,6 +17,8 @@ import { TEMPLATE_SCHEMA_FIELDS, assembleInputSchema, disassembleInputSchema, na
 export const AUTHORING_SCREENS = {
   prompts: {
     key: "prompts", area: "AI", title: "프롬프트", endpoint: "/api/admin/prompts",
+    /* 연관 러너 필드의 후보(W5). */
+    refLists: [{ key: "runners", endpoint: "/api/admin/runners" }],
     // 워크플로 화면의 '테스트'가 실제 실행이 아니라 도달성만 확인한다고 밝히듯, 여기도 상태 전이
     // 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일 뿐 — app/prompts/service.py).
     help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 러너로 실제 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 이 프롬프트 이름을 참조하는 템플릿이 다음 문서 생성부터 이 버전을 사용하게 됩니다.",
@@ -73,7 +75,8 @@ export const AUTHORING_SCREENS = {
     create: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text", required: true },
       { name: "purpose", label: "용도", type: "textarea" },
-      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인." },
+      /* W5: 러너는 Entity 다 — 후보는 `refLists.runners` 가 준다(R-5). */
+      { name: "runner_id", label: "연관 러너(선택)", type: "select", kind: "entity", optionsFromRefList: "runners", help: "이 프롬프트와 연관지을 러너(참고용 메타데이터, 이 값만으로 실행되지는 않습니다)." },
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 이 이름을 참조하는 템플릿이 문서 생성 시 이 내용을 사용합니다." },
     ] },
     // 수정은 ContentUpdateRequest(PATCH) 계약: 내용·용도만(이름은 새 버전으로만 바뀜). 초안일 때만 편집 가능(그 외 409).
@@ -88,7 +91,7 @@ export const AUTHORING_SCREENS = {
     editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 이 이름을 참조하는 템플릿이 문서 생성 시 이 내용을 사용합니다." },
       { name: "purpose", label: "용도", type: "textarea" },
-      { name: "runner_id", label: "러너 ID(선택)", type: "text", help: "이 프롬프트와 연관지을 러너의 ID(참고용 메타데이터, 이 값만으로 실행되지는 않습니다). ‘러너’ 화면에서 확인. 비워도 기존 연결은 지워지지 않습니다. 바꾸려면 다른 러너 ID를 넣으세요." },
+      { name: "runner_id", label: "연관 러너(선택)", type: "select", kind: "entity", optionsFromRefList: "runners", help: "이 프롬프트와 연관지을 러너(참고용 메타데이터). 비워도 기존 연결은 지워지지 않습니다. 바꾸려면 다른 러너를 고르세요." },
     ] },
     actions: [
       { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
@@ -110,6 +113,11 @@ export const AUTHORING_SCREENS = {
     ],
   },
   policies: {
+    /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
+       기능 플래그 11 · 통합 4 · RBAC 13 실측). R-88 이 "25행" 을 기계 규칙으로 쓰지 말라고
+       못박으므로 숫자가 아니라 **판단**을 남긴다: 조건 조합을 이름 붙여 재사용할 만큼
+       탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
+    smallSet: true,
     key: "policies", area: "AI", title: "정책", endpoint: "/api/admin/policies",
     // 정책은 프롬프트보다 실제 파급력이 크다 — 발행하면 app/documents/service.py apply_template_bindings()/
     // _resolve_published_binding()가 이 정책 '이름'을 참조하는 모든 Template에 그 순간부터 현재 발행
@@ -209,6 +217,11 @@ export const AUTHORING_SCREENS = {
   },
   templates: {
     key: "templates", area: "AI", title: "템플릿", endpoint: "/api/admin/templates",
+    /* 프롬프트·정책 필드의 후보(W5). 상태를 보조 식별자로 함께 준다 — 같은 이름의 버전이 쌓인다. */
+    refLists: [
+      { key: "prompts", endpoint: "/api/admin/prompts", secondaryKey: "status" },
+      { key: "policies", endpoint: "/api/admin/policies", secondaryKey: "status" },
+    ],
     help: "자주 하는 자동화를 템플릿으로 저장합니다. 추가 직후에는 비활성 상태이며, 비활성 템플릿은 프롬프트, 정책, 입력값 바인딩과 승인 정책이 모두 적용되지 않습니다(승인 정책만이 아닙니다), 활성화해야 전부 적용됩니다.",
     emptyTitle: "추가된 템플릿이 없습니다",
     emptyHelp: writerEmptyHelp("자주 쓰는 자동화를 템플릿으로 저장하려면 ‘+ 템플릿 추가’를 누르세요. 대상 워크플로/러너와 연결됩니다. 추가 직후에는 비활성 상태이므로 활성화해야 적용됩니다.", "템플릿은 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
@@ -286,9 +299,12 @@ export const AUTHORING_SCREENS = {
       { name: "name", label: "이름", type: "text", required: true },
       { name: "description", label: "설명", type: "textarea" },
       { name: "target_type", label: "대상 유형", type: "select", value: "workflow", options: TEMPLATE_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요." },
-      { name: "prompt_id", label: "프롬프트 ID(선택)", type: "text", help: "‘프롬프트’ 화면에서 확인." },
-      { name: "policy_id", label: "정책 ID(선택)", type: "text", help: "‘정책’ 화면 상세의 ID를 입력." },
+      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요.",
+        freeTextReason: "후보가 같은 폼의 「대상 유형」 값에 따라 갈린다. 폼 값에 반응해 목록을 바꾸는 배선이 아직 없다(W5 이후 과제)." },
+      /* W5: 프롬프트·정책은 Entity 다. 이름은 여러 버전이 공유하므로 상태를 보조 식별자로
+         함께 보인다 — 「주간보고 프롬프트」가 초안·발행 둘이면 이름만으로는 못 고른다. */
+      { name: "prompt_id", label: "프롬프트(선택)", type: "select", kind: "entity", optionsFromRefList: "prompts" },
+      { name: "policy_id", label: "정책(선택)", type: "select", kind: "entity", optionsFromRefList: "policies" },
       // apply_template_bindings(app/documents/service.py)는 input_schema를 {**input_schema, **config}로
       // '문서 생성' config의 기본값 dict로 평평하게 병합할 뿐, 필드 정의(required 등)를 해석하지 않는다
       // — 예전 예시({"fields":[...]})는 실제로 없는 동적 폼 기능을 암시했다.
@@ -326,9 +342,10 @@ export const AUTHORING_SCREENS = {
         options: (row && row.target_type === "runner")
           ? [...TEMPLATE_TARGET_OPTS, { value: "runner", label: "러너(신규 선택 불가, 기존 값 유지)" }]
           : TEMPLATE_TARGET_OPTS },
-      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요." },
-      { name: "prompt_id", label: "프롬프트 ID(선택)", type: "text", help: "‘프롬프트’ 화면에서 확인." },
-      { name: "policy_id", label: "정책 ID(선택)", type: "text", help: "‘정책’ 화면 상세의 ID를 입력." },
+      { name: "target_ref", label: "대상 ID", type: "text", required: true, help: "대상 유형이 워크플로면 ‘업무 자동화 흐름’ 화면에서, 러너면 ‘자동화 작업 실행기’ 화면에서 대상의 ID를 확인해 입력하세요.",
+        freeTextReason: "후보가 같은 폼의 「대상 유형」 값에 따라 갈린다. 폼 값에 반응해 목록을 바꾸는 배선이 아직 없다(W5 이후 과제)." },
+      { name: "prompt_id", label: "프롬프트(선택)", type: "select", kind: "entity", optionsFromRefList: "prompts" },
+      { name: "policy_id", label: "정책(선택)", type: "select", kind: "entity", optionsFromRefList: "policies" },
       ...TEMPLATE_SCHEMA_FIELDS,
       { name: "approval_policy_required", label: "승인 정책", type: "checkbox", checkLabel: "발행 전 승인 필요" },
     ] },

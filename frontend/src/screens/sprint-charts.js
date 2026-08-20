@@ -27,9 +27,14 @@ export function burndownSeries(burndown) {
   if (!planned.some((v) => v > 0) && !open.some((v) => v > 0)) return null;
   return {
     labels: points.map((p) => shortDate(p.date)),
+    /* 색을 지정하지 않는다 — `LineSeries` 가 Brand 고정 시리즈 슬롯(색 + 선 스타일)을 준다.
+       예전에는 계획선이 `primary`(사용자 Accent), 잔여선이 `warning` 이었다. 둘 다 틀렸다:
+       Accent 는 사용자가 바꾸면 제품 정체성이 따라 바뀌고, `warning` 은 **상태색**이라
+       바로 옆 담당자 막대에서 «과부하»를 뜻하는 같은 갈색이 여기서는 «아직 미완료»를 뜻했다.
+       한 화면 안에서 같은 색이 두 가지를 뜻하면 색은 아무것도 뜻하지 않는다. */
     series: [
-      { label: "계획(마감일 기준)", points: planned, color: "primary" },
-      { label: "아직 미완료", points: open, color: "warning" },
+      { label: "계획(마감일 기준)", points: planned },
+      { label: "아직 미완료", points: open },
     ],
     summary: `이 주에 마감인 업무량 ${planned[0]}인일 중 ${open[0]}인일이 아직 완료되지 않았습니다.`,
   };
@@ -59,7 +64,8 @@ export function wdBalanceItems(developers) {
         label: d.name,
         value: load,
         // 평균의 1.5배를 넘는 사람만 색으로 짚는다. 전부 칠하면 아무 데도 눈이 안 간다.
-        color: avg > 0 && load > avg * 1.5 ? "warn" : "primary",
+        // 나머지는 색을 안 준다 — 부품이 Brand 시리즈 슬롯 0 을 준다(사용자 Accent 아님).
+        color: avg > 0 && load > avg * 1.5 ? "warn" : undefined,
         note: `완료 ${Number(d.est_done) || 0}인일, 담당 ${Number(d.assigned) || 0}건`,
       };
     })

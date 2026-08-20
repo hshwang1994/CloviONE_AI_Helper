@@ -365,6 +365,32 @@ LAYOUT_CLASSES = {"equal_column_split", "column_width_vs_content", "isolated_con
                   "oversized_empty_surface", "dead_blank_region", "detail_side_imbalance",
                   "surface_repetition"}
 TABLE_ASSERTIONS = ("column_width_vs_content", "header_cell_alignment_mismatch", "numeric_alignment")
+
+# ── Assertion 승격 일정 (PLAN «새 Assertion 13종» 의 «Gate vs Advisory» 절이 정본) ──────
+#
+# 승격은 **선언이 아니라 실행**이어야 한다. W0~W4 는 «이 Wave 부터 `--fail-on`» 이라고 적어
+# 두고 한 번도 그 플래그를 붙이지 않았다 — 그래서 W0 에서 승격했다는 두 검사는 W0 이후
+# 계속 빨간 채였고 아무도 몰랐다(W5 독립 조사). 이제 게이트가 **After 실행의 `run.fail_on`**
+# 을 직접 읽어, 이 Wave 까지 승격된 클래스가 실제로 걸려 있었는지 확인한다.
+# `--fail-on` 은 원장이 아니라 그 실행의 페이지 판정만 보므로, Finding 의 `wave` 를 옮겨서는
+# 이 조건을 통과할 수 없다.
+PROMOTED_AT = {
+    "W0": ("header_cell_alignment_mismatch", "numeric_alignment", "plain_dropdown_for_entity"),
+    "W5": ("isolated_control_row", "control_baseline_mismatch"),
+    "W6": ("equal_column_split", "column_width_vs_content", "brand_role_coverage"),
+    "W7": ("mascot_visible_size",),
+    "W9": ("detail_side_imbalance",),
+}
+
+
+def _promoted_upto(waves: list, wave: str) -> set:
+    """이 Wave 까지 `--fail-on` 이어야 하는 클래스."""
+    out: set = set()
+    if wave not in waves:
+        return out
+    for w in waves[: waves.index(wave) + 1]:
+        out.update(PROMOTED_AT.get(w, ()))
+    return out
 UNSUPPRESSIBLE = {"header_cell_alignment_mismatch", "numeric_alignment",
                   "plain_dropdown_for_entity", "brand_presence"}
 # 소스에서 Assertion 을 끄는 속성. `QA_SUPPRESSIONS.md` 의 행과 1:1 이어야 한다.
@@ -753,23 +779,47 @@ def c5_audits(rep: Report, scoped: list[dict], profiles: dict) -> None:
                          "%s: %d/%d (profile=%s)" % (sid, got, want, resp.get("required_profile")))
 
 
-def _latest_results(rep: Report, label: str = "") -> dict:
-    """가장 최근 QA 실행 결과. Coverage 의 finding 행이 아니라 **측정 원본**을 다시 읽는다.
+def _latest_results(rep: Report, label: str = "", cov: dict | None = None) -> dict:
+    """이 Wave 의 **After 실행** 결과. Coverage 의 finding 행이 아니라 측정 원본을 다시 읽는다.
 
     행을 지워서 finding 을 닫을 수 없게 하는 것이 목적이다.
+
+    ── W5 정정: «가장 최근» 이 아니라 «Coverage 가 After 라고 선언한 것» ──────────
+    예전에는 `dist/ui-qa/*/results.json` 중 **mtime 이 가장 최신**인 것을 골랐다. 그런데
+    Wave 하나가 끝날 무렵에는 전량 실행(664 페이지) 뒤에 작은 보조 실행(모달 10 페이지,
+    스모크 몇 페이지)이 이어지는 것이 정상 절차라, 그 마지막 작은 실행이 항상 이긴다.
+    실제로 W4 에서 이 백스톱은 `w4-modals`(10 페이지 · 5 라우트 · 1 뷰포트)를 읽고 있었다 —
+    664 페이지 중 654 페이지의 실패를 **구조적으로 못 보는 상태**였다. 백스톱이 백스톱을
+    안 하고 있었던 것이다.
+
+    그래서 순서를 바꾼다: ① 호출부가 라벨을 주면 그것 ② `ROUTE_COVERAGE.capture_labels.after`
+    ③ 그래도 없으면 **페이지 수가 가장 많은** 실행(가장 최신이 아니라). 셋 다 «작은 실행이
+    큰 실행을 덮는다» 를 막는다.
     """
     root = os.path.join(ROOT, "dist", "ui-qa")
     if not os.path.isdir(root):
         return {}
+    want = label or ((cov or {}).get("capture_labels") or {}).get("after") or ""
     cands = []
     for name in os.listdir(root):
         path = os.path.join(root, name, "results.json")
-        if os.path.exists(path) and (not label or name == label):
-            cands.append((os.path.getmtime(path), name, path))
+        if not os.path.exists(path):
+            continue
+        if want and name != want:
+            continue
+        try:
+            pages = len(json.load(io.open(path, encoding="utf-8")).get("pages") or [])
+        except Exception:  # noqa: BLE001
+            pages = 0
+        cands.append((pages, os.path.getmtime(path), name, path))
+    if not cands and want:
+        rep.fail("C10 After 라벨의 QA 결과가 없다",
+                 "capture_labels.after=%s — dist/ui-qa/%s/results.json 를 찾지 못했다" % (want, want))
+        return {}
     if not cands:
         return {}
     cands.sort()
-    _, name, path = cands[-1]
+    _, _, name, path = cands[-1]
     try:
         data = json.load(io.open(path, encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001
@@ -791,8 +841,75 @@ def _assert_status(results: dict) -> dict:
     return out
 
 
-def c9_c10_findings(rep: Report, surfaces: list[dict], scoped: list[dict], stage: str) -> None:
-    results = _latest_results(rep)
+def c0_after_label_current(rep: Report, cov: dict) -> None:
+    """**선언한 After 가 이번 Wave 의 전량 실행인가.**
+
+    ── W5 정정 ────────────────────────────────────────────────────────────────
+    `_latest_results` 가 «가장 최근» 대신 «Coverage 가 After 라고 선언한 것» 을 읽게 바꾸자
+    새 구멍이 생겼다: **그 선언이 낡으면 게이트가 낡은 실행을 읽는다.** 실제로 그랬다 —
+    `capture_labels.after` 는 W1 이 적은 `w1-after` 그대로였고, W2·W3·W4 는 자기 실행을
+    돌려 놓고 포인터를 안 옮겼다. 즉 세 Wave 의 `--stage wave` 는 **W1 의 측정**을 보고
+    초록이 됐다.
+
+    선언을 믿되 **낡았으면 말한다**: `dist/ui-qa/` 안에 그 선언보다 페이지가 많은 실행이
+    있으면 그것은 «전량 실행을 하고도 가리키지 않았다» 는 뜻이다. 백스톱이 백스톱을 하려면
+    자기가 무엇을 읽고 있는지도 검사 대상이어야 한다.
+    """
+    want = ((cov or {}).get("capture_labels") or {}).get("after") or ""
+    if not want:
+        rep.fail("C0 After 라벨이 선언되지 않았다",
+                 "ROUTE_COVERAGE.capture_labels.after 가 비었다 — 게이트가 무엇을 읽어야 하는지 모른다")
+        return
+    root = os.path.join(ROOT, "dist", "ui-qa")
+    if not os.path.isdir(root):
+        return
+    sizes = {}
+    for name in os.listdir(root):
+        path = os.path.join(root, name, "results.json")
+        if not os.path.exists(path):
+            continue
+        try:
+            with io.open(path, encoding="utf-8") as fh:
+                sizes[name] = len((json.load(fh).get("pages") or []))
+        except Exception:  # noqa: BLE001 - 깨진 실행은 후보가 아니다
+            continue
+    if want not in sizes:
+        rep.fail("C0 선언한 After 실행이 없다",
+                 "capture_labels.after=%s — dist/ui-qa/%s/results.json 이 없다" % (want, want))
+        return
+    bigger = sorted(((n, c) for n, c in sizes.items() if c > sizes[want]),
+                    key=lambda x: -x[1])
+    if bigger:
+        rep.fail("C0 선언한 After 가 낡았다",
+                 "capture_labels.after=%s (%d페이지) 인데 더 큰 실행이 있다: %s. "
+                 "전량 실행을 하고도 가리키지 않으면 게이트는 옛 측정을 읽는다"
+                 % (want, sizes[want], ", ".join("%s(%d)" % b for b in bigger[:3])))
+    else:
+        rep.ok("After 라벨 `%s` 가 이 저장소에서 가장 큰 실행이다 (%d페이지)"
+               % (want, sizes[want]))
+
+
+def c10c_promotion_enforced(rep: Report, cov: dict, waves: list, wave: str) -> None:
+    """승격했다고 적은 검사가 **실제로 `--fail-on` 으로 걸린 채** 돌았는가."""
+    want = _promoted_upto(waves, wave)
+    if not want:
+        return
+    results = _latest_results(rep, cov=cov)
+    if not results:
+        return
+    got = set((results.get("run") or {}).get("fail_on") or [])
+    missing = sorted(want - got)
+    if missing:
+        rep.fail("C10c 승격한 검사가 `--fail-on` 없이 돌았다",
+                 "%s — After 실행(%s)의 fail_on=%s. 승격은 선언이 아니라 실행이다"
+                 % (", ".join(missing), results.get("__label"), sorted(got) or "(없음)"))
+    else:
+        rep.ok("승격한 검사 %d개가 `--fail-on` 으로 걸린 채 돌았다 (%s)"
+               % (len(want), results.get("__label")))
+
+
+def c9_c10_findings(rep: Report, surfaces: list[dict], scoped: list[dict], stage: str, cov: dict) -> None:
+    results = _latest_results(rep, cov=cov)
     per_class = _assert_status(results)
 
     for sf in scoped:
@@ -887,8 +1004,8 @@ def c7_findings_accepted(rep: Report, surfaces: list[dict]) -> None:
                          "%s 가 어떤 DEFERRED 요구사항의 Findings 에도 없다" % fd.get("id"))
 
 
-def c8_entity_selectors(rep: Report, scoped: list[dict]) -> None:
-    results = _latest_results(rep)
+def c8_entity_selectors(rep: Report, scoped: list[dict], cov: dict) -> None:
+    results = _latest_results(rep, cov=cov)
     per_class = _assert_status(results)
     runtime = per_class.get("plain_dropdown_for_entity") or {}
     for sf in scoped:
@@ -1138,8 +1255,10 @@ def _run_conditions(rep: Report, stage: str, wave: str) -> int:
     c3_requirement_mapping(rep, surfaces, waves)
     c4_c6_evidence(rep, surfaces, scoped, build_sha)
     c5_audits(rep, scoped, route.get("responsive_profiles") or {})
-    c8_entity_selectors(rep, scoped)
-    c9_c10_findings(rep, surfaces, scoped, stage)
+    c8_entity_selectors(rep, scoped, route)
+    c9_c10_findings(rep, surfaces, scoped, stage, route)
+    c0_after_label_current(rep, route)
+    c10c_promotion_enforced(rep, route, order, wave)
     c10b_advisory_recorded(rep, scoped, wave)
     c11_c14_functional(rep, surfaces, func, scoped_ids, stage)
     if stage == "complete":

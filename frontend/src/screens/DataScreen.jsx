@@ -16,9 +16,10 @@ import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, OverflowMenu, S
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
  * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
  * "이 화면 검색만 느리다" 라서 원인이 안 보인다. */
-import { SearchBox } from "../ui/filters.jsx";
-// 필터 줄 격자 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). 트랙 상한을 포함해 한 곳에서만 정한다.
-import { FilterBarGrid } from "../ui/FilterBar.jsx";
+import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, SearchBox, kindSx } from "../ui/filters.jsx";
+/* 탐색 줄 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). **판이 아니다**(지시 80).
+   폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
+import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, filterGroupOf } from "../ui/FilterBar.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
 import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
@@ -137,11 +138,16 @@ export function DataScreen({ config, embedded = false }) {
   // 선언한 목록을 아래(refListOptions)에서 미리 받아 두고 이름표를 붙인다. optionsFrom과 달리
   // '지금 화면의 데이터'가 아니라 '전혀 다른 화면의 데이터'라 별도 훅이 필요하다. f.extraOptions로
   // 고정 선택지(예: 스케줄의 '시스템(noop)')를 뒤에 덧붙일 수 있다.
+  /* W5: 선언이 `kind: "entity"` 라고 말하면 **검색형 Combobox** 로 그린다.
+   * 후보가 «다른 화면의 리소스»(사용자·부서·조직·워크플로·일정)면 그 목록은 데이터가
+   * 쌓이는 만큼 자란다 — 닫힌 열거형과 같은 부품으로 그리면 후보가 200개가 되는 날
+   * 사용자는 이름을 알면서도 목록을 눈으로 훑는다(R-5). 선언이 말하지 않으면 예전 그대로다. */
+  const entityType = (f) => (f.kind === "entity" ? "entity" : "select");
   const withOptionsFrom = (fields, row) => (fields || []).map((f) => {
-    if (f.optionsFrom) return { ...f, type: "select", options: f.optionsFrom(row, items) };
+    if (f.optionsFrom) return { ...f, type: entityType(f), options: f.optionsFrom(row, items) };
     if (f.optionsFromRefList) {
       const base = refListOptions[f.optionsFromRefList] || [];
-      return { ...f, type: "select", options: [...base, ...(f.extraOptions || [])] };
+      return { ...f, type: entityType(f), options: [...base, ...(f.extraOptions || [])] };
     }
     return f;
   });
@@ -229,7 +235,14 @@ export function DataScreen({ config, embedded = false }) {
     (config.refLists || []).forEach((rl) => {
       out[rl.key] = (data[rl.key] || []).map((row) => ({
         value: row[rl.valueKey || "id"],
-        label: row[rl.labelKey || "name"] + (row.enabled === false ? " (비활성)" : ""),
+        label: String(row[rl.labelKey || "name"] ?? row[rl.valueKey || "id"] ?? ""),
+        /* 보조 식별자 — 앞부분이 같은 후보를 가르는 유일한 수단이다(C2 «Dropdown 목록»).
+           사람 목록이 특히 그렇다: 동명이인은 이메일이나 소속으로만 갈린다. 라벨 꼬리에
+           붙이지 않는 이유는 그러면 이름이 길 때 식별자가 먼저 잘리기 때문이다. */
+        secondary: [
+          rl.secondaryKey ? row[rl.secondaryKey] : null,
+          row.enabled === false ? "비활성" : null,
+        ].filter(Boolean).join(", "),
       }));
     });
     return out;
@@ -631,6 +644,46 @@ export function DataScreen({ config, embedded = false }) {
   // 페이지네이션되지만 서버 검색이 없는 화면(감사·작업·문서 등)은 클라이언트 부분검색이 오해를 낳으므로 검색창을 숨긴다.
   const showSearch = config.searchable || !config.paginated;
   const showToolbar = showSearch || (config.filters || []).length > 0;
+
+  /* ── 탐색 줄이 쓰는 파생값 넷 (W5) ──────────────────────────────────────────
+   *
+   * **순서.** C2 «그룹 순서 고정» 은 scope(부서) → entity(담당자·프로젝트) → 분류 →
+   * 상태 → 기간 이다. 예전에는 선언 순서가 곧 화면 순서라 화면마다 축의 순서가 달랐고,
+   * 그 순서는 registry 28곳에 흩어져 있어 한 곳에서 고칠 수 없었다. 정렬은 여기서 한 번 한다.
+   * 안정 정렬이라 같은 그룹 안에서는 선언 순서가 유지된다.
+   *
+   * **Entity 옵션.** `optionsFromRefList` 는 폼 필드만 쓰던 것인데, 필터에도 같은 것이
+   * 필요하다 — `/jobs` 의 «연결된 스케줄 ID» 는 사람이 UUID 를 손으로 붙여넣는 자유
+   * 텍스트였다. 후보 목록이 이미 있는데 그것을 안 쓰던 자리다.
+   */
+  const orderedFilters = React.useMemo(() => {
+    const rank = (f) => FILTER_GROUP_ORDER.indexOf(filterGroupOf(f));
+    const resolved = (config.filters || []).map((f) => {
+      if (!f.optionsFromRefList) return f;
+      const base = refListOptions[f.optionsFromRefList] || [];
+      return { ...f, kind: "entity", options: [...base, ...(f.extraOptions || [])], loading: refListsQuery.isLoading };
+    });
+    return resolved
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => (rank(a.f) - rank(b.f)) || (a.i - b.i))
+      .map((x) => x.f);
+  }, [config.filters, refListOptions, refListsQuery.isLoading]);
+
+  /* 저장된 뷰는 **조건 조합을 재사용할 가치가 있을 때만** 뜻이 있다. 후보가 두어 줄뿐인
+     화면(정책 2건·통합 4건·기능 플래그 11건)에 붙으면 그것은 기능이 아니라 소음이고,
+     C2 는 그런 화면을 «검색만 있는 Toolbar» 로 규정한다. 판단은 화면마다 다르므로
+     숫자를 기계 적용하지 않고 registry 가 `smallSet` 한 줄로 선언한다(R-88). */
+  const showSavedViews = !config.smallSet;
+
+  /* 결과 건수 — 서버가 total 을 주면 그것이 정본이고, 안 주는 화면은 지금 그려지는 행 수다.
+     Pager 안의 «총 N건» 과 같은 값이지만 자리가 다르다: Pager 는 «어디쯤인가» 를 말하고
+     결과 줄은 «이 조건에 몇 건인가» 를 말한다. 한 페이지짜리 목록에서 Pager 가 사라져도
+     건수는 남아야 한다. */
+  const resultTotal = total != null ? total : filtered.length;
+  const activeFilterKeys = React.useMemo(
+    () => (q ? ["q"] : []).concat(Object.keys(filters).filter((k) => filters[k] != null && filters[k] !== "")),
+    [q, filters],
+  );
   // 빈 화면 CTA: config.create 우선, 없으면 headerActions 중 primary로 표시된 '생성 성격' 작업만.
   // (headerActions[0]을 무조건 CTA로 쓰면 '복원 안내'·'모두 읽음' 같은 비생성 작업이 잘못 노출된다.)
   // role 게이트를 통과한 헤더 작업만 노출한다(권한 없는 버튼이 403 데드엔드가 되지 않도록).
@@ -827,86 +880,136 @@ export function DataScreen({ config, embedded = false }) {
         ) : null
       ) : null}
       {showToolbar ? (
-        /* 필터 바 — 감사 로그처럼 필터가 6개 넘게 붙는 화면이 있어서 한 줄에 밀어 넣지 않고
-         * 자동 줄바꿈 그리드로 둔다(TicketFilterBar 와 같은 트랙, ui/FilterBar.jsx 공유).
-         * 화면이 넓어지면 열이 늘어 한 줄에 담긴다.
+        /* 탐색 줄 — **판이 아니다**(지시 80). 예전에는 이 자리가
+         * `<Card className="c-toolbar-card">` 였고, 그 판이 페이지 폭을 차지하면서 컨트롤은
+         * 왼쪽 절반만 썼다(`/policies` 실측 1610×108 · 잉크 폭 비 0.43). 필터는 자기
+         * 생명주기를 가진 경계 객체가 아니므로 PLAN «구획별 판정 체크리스트» ⑥ —
+         * 컨테이너 없음 — 에 해당한다.
          * SEM-02(PA-F-031): DataScreen이 registry.js 기반 목록 화면(/jobs·/audit·/prompts·
          * /notifications 등) 다수가 공유하는 셸이라, 여기 한 번 h2를 더하면 그 전부가
          * 한꺼번에 해결된다. 시각은 그대로(.sr-only) — PageHeader가 compact(h2)로 쓰이는
          * 자리에선 한 단계 낮춰 h3을 쓴다(같은 화면에 h2가 둘 나란히 있는 것처럼 안 보이게). */
-        <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
+        <FilterSurface>
           <Typography component={config.compact ? "h3" : "h2"} className="sr-only">필터</Typography>
-          <FilterBarGrid>
-            {showSearch ? (
-              <SearchBox
-                value={q}
-                onSearch={commitSearch}
-                placeholder={config.searchPlaceholder || "검색"}
-                ariaLabel={config.searchPlaceholder || (config.title + " 검색")}
-              />
-            ) : null}
-            {(config.filters || []).map((f) => f.type === "select" ? (
-              <TextField
-                key={f.key} select size="small" label={f.label}
-                /* MUI는 value=""를 '아직 고르지 않음'으로 보고 라벨을 필드 안에 띄운 채
-                   선택 항목을 그리지 않는다 — 필터의 기본 상태가 바로 그 빈 값이라
-                   관리자 화면 필터가 전부 '빈 상자'로 보였다. 빈 값도 항목으로 그리고
-                   라벨은 항상 위로 올린다. */
-                SelectProps={{ displayEmpty: true }}
-                InputLabelProps={{ shrink: true }}
-                value={filters[f.key] || ""}
-                onChange={(e) => setFilter(f.key, e.target.value)}
-              >
-                <MenuItem value="">{f.label}: 전체</MenuItem>
-                {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-              </TextField>
-            ) : (f.type === "date" || f.type === "datetime-local") ? (
-              // 브라우저는 date/datetime 입력의 placeholder를 무시한다 — 라벨을 항상 띄워 둬야
-              // 나란히 놓인 시작/종료 두 상자를 구분할 수 있다.
-              <TextField
-                key={f.key} type={f.type} size="small" label={f.label}
-                InputLabelProps={{ shrink: true }}
-                value={filters[f.key] || ""}
-                onChange={(e) => setFilter(f.key, e.target.value)}
-              />
-            ) : f.datalistFrom ? (
-              // 이미 불러온 목록에서 뽑은 값으로 자동완성 제안을 준다 — 이름을 미리 알아야만 쓸 수
-              // 있던 자유 입력 필터를 완화한다. 제안일 뿐 입력을 강제하지 않는다.
-              <React.Fragment key={f.key}>
-                <TextField
-                  size="small" label={f.label}
-                  value={filters[f.key] || ""}
-                  onChange={(e) => setFilter(f.key, e.target.value)}
-                  inputProps={{ list: "dl-" + f.key }}
+          {(showSearch || showSavedViews) ? (
+            <ToolbarRow>
+              {showSearch ? (
+                <SearchBox
+                  value={q}
+                  onSearch={commitSearch}
+                  placeholder={config.searchPlaceholder || "검색"}
+                  ariaLabel={config.searchPlaceholder || (config.title + " 검색")}
                 />
-                <datalist id={"dl-" + f.key}>
-                  {Array.from(new Set(f.datalistFrom(items).filter((v) => v != null && v !== ""))).map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </React.Fragment>
-            ) : (
-              <TextField
-                key={f.key} size="small" label={f.label}
-                value={filters[f.key] || ""}
-                onChange={(e) => setFilter(f.key, e.target.value)}
-              />
-            ))}
-            {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
-             * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다. */}
-            {(q || hasFilter) ? (
-              <Button size="sm" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
-            ) : null}
-          </FilterBarGrid>
-          {/* 저장된 뷰 — 지금 걸어 둔 필터에 이름을 붙여 두고 다시 부른다. 실제로 저장되는 것은
-              위에서 주소에 되쓴 쿼리 문자열이라, 뷰를 부르는 일과 링크를 여는 일이 같은 일이 된다. */}
-          <Box sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: "divider" }}>
-            <SavedViews
-              screenKey={config.key}
-              query={viewQuery}
-              describe={(saved) => describeView(saved, config)}
-              onApply={applyView}
-            />
-          </Box>
-        </Card>
+              ) : null}
+              {/* 저장된 뷰는 «어떻게 볼지» 쪽이다 — 조건 칸이 아니라 도구 줄 끝에 붙는다.
+                  후보가 몇 줄 안 되는 화면에는 아예 그리지 않는다(C2: 유한집합 화면은
+                  검색만 있는 Toolbar). 판단 근거는 registry 의 `smallSet` 한 줄이다. */}
+              {showSavedViews ? (
+                <ToolbarEnd>
+                  <SavedViews
+                    screenKey={config.key}
+                    query={viewQuery}
+                    describe={(saved) => describeView(saved, config)}
+                    onApply={applyView}
+                  />
+                </ToolbarEnd>
+              ) : null}
+            </ToolbarRow>
+          ) : null}
+          {orderedFilters.length ? (
+            <FilterRow>
+              {orderedFilters.map((f) => {
+                const common = {
+                  key: f.key,
+                  label: f.label,
+                  value: filters[f.key] || "",
+                  onChange: (v) => setFilter(f.key, v),
+                };
+                /* Entity(프로젝트·사용자·워크플로처럼 **데이터가 쌓이는 만큼 후보가 자라는**
+                   축)는 검색형 Combobox 다. 닫힌 열거형(상태·유형)은 select 그대로다 —
+                   R-5 가 "모든 Select 를 무조건 검색형으로 바꾸지 않는다" 고 못박는다. */
+                if (f.kind === "entity") {
+                  return (
+                    <EntityCombobox
+                      {...common}
+                      loading={f.loading}
+                      options={f.options || []}
+                    />
+                  );
+                }
+                if (f.type === "select") {
+                  return (
+                    <FilterSelect
+                      {...common}
+                      options={f.options || []}
+                      /* 어법은 **한 벌**이다 — 같은 줄에 「연결된 스케줄 전체」와 「유형: 전체」가
+                         나란히 서면 두 부품이 서로 다른 제품에서 온 것처럼 읽힌다. 부품 기본값
+                         (`${label} 전체`)이 정본이라 여기서는 아무것도 덮어쓰지 않는다. */
+                    />
+                  );
+                }
+                if (f.type === "date" || f.type === "datetime-local") {
+                  // 브라우저는 date/datetime 입력의 placeholder를 무시한다 — 라벨을 항상 띄워 둬야
+                  // 나란히 놓인 시작/종료 두 상자를 구분할 수 있다.
+                  return (
+                    <TextField
+                      key={f.key} type={f.type} size="small" label={f.label}
+                      InputLabelProps={{ shrink: true }}
+                      value={filters[f.key] || ""}
+                      onChange={(e) => setFilter(f.key, e.target.value)}
+                      data-filter-kind="date"
+                      sx={kindSx("date")}
+                    />
+                  );
+                }
+                if (f.datalistFrom) {
+                  // 이미 불러온 목록에서 뽑은 값으로 자동완성 제안을 준다 — 이름을 미리 알아야만 쓸 수
+                  // 있던 자유 입력 필터를 완화한다. 제안일 뿐 입력을 강제하지 않는다.
+                  return (
+                    <React.Fragment key={f.key}>
+                      <DebouncedTextField
+                        label={f.label}
+                        value={filters[f.key] || ""}
+                        onCommit={(v) => setFilter(f.key, v)}
+                        inputProps={{ list: "dl-" + f.key }}
+                        freeTextReason={f.freeTextReason}
+                      />
+                      <datalist id={"dl-" + f.key}>
+                        {Array.from(new Set(f.datalistFrom(items).filter((v) => v != null && v !== ""))).map((v) => <option key={v} value={v} />)}
+                      </datalist>
+                    </React.Fragment>
+                  );
+                }
+                /* 라벨은 **항상 바깥/위**이고(C2), 타자는 **디바운스**된다 — 둘 다 이 부품이 든다.
+                   예전에는 이 갈래만 맨 `TextField` 라 ① `shrink` 를 빠뜨려 값이 비면 라벨이
+                   입력 자리로 내려앉았고(옆 select 와 기준선이 어긋난다) ② 서버 필터인 키는
+                   타자 한 글자마다 API 를 불렀다(F-W5D-115). */
+                return (
+                  <DebouncedTextField
+                    key={f.key}
+                    label={f.label}
+                    value={filters[f.key] || ""}
+                    onCommit={(v) => setFilter(f.key, v)}
+                    freeTextReason={f.freeTextReason}
+                  />
+                );
+              })}
+              {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
+               * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다.
+               * **격자 칸이 아니다** — 되돌리기는 조건이 아니라 동작이다(지시 76). */}
+              {(q || hasFilter) ? (
+                <FilterActions>
+                  <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
+                </FilterActions>
+              ) : null}
+            </FilterRow>
+          ) : null}
+        </FilterSurface>
+      ) : null}
+      {/* 결과 줄 — 필터와 목록 **사이**에 둬야 "이 조건에 대한 결과"라는 관계가 보인다.
+          예전에는 이 숫자가 Pager 안에만 있어서 한 페이지짜리 목록에서는 통째로 사라졌다. */}
+      {showToolbar && !query.isLoading && !query.isError ? (
+        <ResultLine total={resultTotal} conditions={activeFilterKeys} />
       ) : null}
       {/* SEM-02: 로딩·오류·빈 상태·정상 목록 네 갈래 전부를 아우르는 자리에 한 번만 둔다
           (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
@@ -987,6 +1090,8 @@ export function DataScreen({ config, embedded = false }) {
               {/* 파괴적 동작과 저빈도 액션은 세로 목록으로 내린다 — 실선이 손이 미끄러지는
                   거리를 준다(kit.jsx::OverflowMenu). */}
               <OverflowMenu
+                /* 이 줄의 이웃은 `size="sm"` 버튼이다 — 아이콘 버튼도 같은 높이여야 한다. */
+                size="small"
                 ariaLabel={config.title + " 작업 더 보기"}
                 items={overflowActions.map((a) => ({
                   key: actionKeyOf(a),

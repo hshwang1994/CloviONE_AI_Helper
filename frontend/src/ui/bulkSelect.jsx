@@ -1,4 +1,6 @@
 import React from "react";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 import { Button } from "./kit.jsx";
 
 /* 목록 다중선택 + 일괄 삭제 공용. 체크박스는 클릭이 행 클릭(상세 이동)으로 번지지 않게 막는다.
@@ -52,6 +54,24 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
     label: pick.length
       ? <SelectCheckbox checked={allOn} onChange={(on) => selection.setAll(pick, on)} label="전체 선택" />
       : null,
+    /* ── 좁은 화면(카드 뷰)에서는 이름과 조작기가 갈린다 (W5 실측) ─────────────
+     *
+     * 카드 뷰는 열 `label` 을 **필드 이름**으로 쓴다. 그런데 이 열의 `label` 은 이름이
+     * 아니라 「전체 선택」 체크박스다 — 그대로 그리면 카드 20개짜리 목록에 전체 선택이
+     * 20개 생기고, 그중 아무거나 누르면 20건이 통째로 선택된다. 실측에서 이 자리가
+     * `control_baseline_mismatch` 로 잡혔다(`/my-tickets`·`/unassigned`·`/team-docs-trash`
+     * 390px — 캡션 줄상자의 체크박스와 값 칸의 체크박스가 중심선 3.5px 어긋난다).
+     * 어긋남은 증상이고, 원인은 «이름 자리에 조작기를 뒀다» 이다.
+     *
+     * 그래서 이름은 `cardLabel`(낱말)이 맡고, 진짜 전체 선택은 목록 **위에 한 번**
+     * (`cardHeader`) 둔다 — 표에서 머리행이 하나이듯이. */
+    cardLabel: "선택",
+    cardHeader: pick.length ? (
+      <Box component="label" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, cursor: "pointer" }}>
+        <SelectCheckbox checked={allOn} onChange={(on) => selection.setAll(pick, on)} label="전체 선택" />
+        <Typography variant="body2" color="text.secondary">전체 선택</Typography>
+      </Box>
+    ) : null,
     render: (row, ctx) => (
       !eligible || eligible(row.id)
         ? <SelectCheckbox checked={selection.selected.has(row.id)} onChange={() => selection.toggle(row.id)}

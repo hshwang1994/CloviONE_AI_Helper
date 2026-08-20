@@ -237,16 +237,26 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     expect(await screen.findByText("한 번도 안 함")).toBeInTheDocument();
   });
 
-  it("대리 보기: 시작 버튼이 사유까지 담아 POST 한다", async () => {
+  /* W5: 대상 사용자는 **고르는** 값이다. 예전에는 「대상 사용자 ID」 라는 이름의 맨 텍스트
+     상자였고 화면은 "‘사용자’ 화면에서 ID를 복사해 붙여 넣으세요" 라고 안내했다 — 사람이
+     UUID 를 화면 사이로 나르는 것은 기능이 아니라 결함이다(R-5). 그래서 이 시험이 묻는 것도
+     바뀐다: «친 글자가 그대로 나갔는가» 가 아니라 «**이름으로 고른 사람의 id** 가 나갔는가». */
+  it("대리 보기: 이름으로 고른 사람의 id 와 사유를 담아 POST 한다", async () => {
     let sent = null;
     apiMock.mockImplementation((path, opts) => {
       if (opts && opts.method === "POST") { sent = { path, body: opts.body }; return Promise.resolve({ ok: true }); }
+      if (String(path).startsWith("/api/admin/users")) {
+        return Promise.resolve({ items: [{ id: "u-42", display_name: "김담당", email: "kim@example.com" }] });
+      }
       return Promise.resolve({ items: [], total: 0, page_size: 20 });
     });
     renderScreen("impersonation");
     await userEvent.click(await screen.findByRole("button", { name: "대리 보기 시작" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText(/대상 사용자 ID/), "u-42");
+    const picker = within(dialog).getByLabelText(/대상 사용자/);
+    await userEvent.click(picker);
+    await userEvent.type(picker, "김담당");
+    await userEvent.click(await screen.findByRole("option", { name: /김담당/ }));
     await userEvent.type(within(dialog).getByLabelText(/사유/), "문의 재현");
     await userEvent.click(within(dialog).getByRole("button", { name: /저장|시작/ }));
     await waitFor(() => expect(sent).not.toBeNull());

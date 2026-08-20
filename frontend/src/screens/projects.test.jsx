@@ -781,8 +781,11 @@ describe("프로젝트 상세 — 부서 지정 (VIS-02)", () => {
     renderAt("/projects/p-1");
     await screen.findByText("63점");
 
+    // 부서는 Entity 라 검색형 combobox 다(W5) — 고른 값은 상자의 **글자**가 아니라
+    // 입력값으로 산다. 값이 무엇인지 묻는 질문은 그대로다(오히려 더 정확해진다:
+    // 예전 `toHaveTextContent` 는 상자 안 어디든 그 글자가 있으면 통과했다).
     const select = screen.getByLabelText("부서");
-    expect(select).toHaveTextContent("개발팀");
+    expect(select).toHaveValue("개발팀");
 
     await user.click(select);
     await user.click(await screen.findByRole("option", { name: "운영팀" }));

@@ -121,6 +121,7 @@ function DatabaseRow({ item, testResult, onSave, onCreate, busy }) {
         {editing ? (
           <>
             <TextField
+              InputLabelProps={{ shrink: true }}
               size="small"
               label="데이터베이스 id"
               value={value}
@@ -206,6 +207,7 @@ function TokenSection({ token, testTokens, onSave, busy }) {
       {token.writable && field && (
         <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "flex-start" }}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             size="small"
             type="password"
             label="새 토큰"

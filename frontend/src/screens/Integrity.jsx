@@ -2,7 +2,7 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
+import { EntityCombobox } from "../ui/filters.jsx";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
@@ -127,16 +127,18 @@ function MembershipFixer({ ids, onDone, departments }) {
 
   return (
     <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-      <TextField
-        select size="small" value={target} label="지정할 소속"
-        onChange={(e) => setTarget(e.target.value)}
+      {/* 소속은 Entity 다 — 조직이 자라면 후보도 자란다(W5 · R-5). 실측에서 이 자리가
+          `plain_dropdown_for_entity` 로 잡혔다(`/integrity` 4 조합). 「조직 직속(부서 없음)」은
+          부서 목록의 한 항목이 아니라 **부서를 안 붙인다**는 뜻이라 후보 맨 앞에 둔다. */}
+      <EntityCombobox
+        label="지정할 소속"
+        value={target}
+        onChange={setTarget}
+        options={[{ value: "__org__", label: "조직 직속(부서 없음)" }]
+          .concat(departments.map((d) => ({ value: d.id, label: d.name })))}
+        allLabel="소속을 고르세요"
         sx={{ minWidth: "16rem" }}
-      >
-        <MenuItem value="__org__">조직 직속(부서 없음)</MenuItem>
-        {departments.map((d) => (
-          <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-        ))}
-      </TextField>
+      />
       <Button
         variant="primary" size="sm"
         disabled={!target || ids.length === 0 || run.isPending}

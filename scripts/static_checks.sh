@@ -296,6 +296,26 @@ else
   echo "$TENANT"; fail "소스 기본값·설치 스크립트에 고객사 고유 식별자가 남아 있다"
 fi
 
+step "Form labels stay above the input"
+# 계약 시험은 `FormField` 하나만 렌더한다 — 이미 지키는 컴포넌트 위에서만 초록이다(F-W5D-133).
+# 브라우저 프로브도 «그려진 것» 만 본다(모달 안·권한 없는 폼·조건부 필드는 못 본다).
+# 선언을 읽는 이 검사가 그 사각을 덮는다.
+if LBLABOVE="$("$PY" scripts/check_label_above.py 2>&1)"; then
+  ok "$(echo "$LBLABOVE" | tail -1)"
+else
+  echo "$LBLABOVE"; fail "라벨이 입력 칸 안으로 내려앉는 자리가 있다"
+fi
+
+step "QA harness targets the canonical product host"
+# 「검사를 돌렸다」와 「검사가 이 제품을 봤다」는 다른 사실이다. 보조 프로브 14개가 제품 이름이
+# 바뀐 뒤에도 각자 옛 호스트 문자열을 들고 있었고, 그중 하나는 검색 3중 구조를 재는 유일한
+# 프로브였다 — 돌려도 canonical 호스트를 한 번도 치지 않았다(W5 · F-W5D-129).
+if QAHOST="$("$PY" scripts/check_qa_target_host.py 2>&1)"; then
+  ok "$(echo "$QAHOST" | tail -1)"
+else
+  echo "$QAHOST"; fail "QA 프로브가 대상 호스트를 직접 들고 있다"
+fi
+
 step "User-facing text avoids the banned glyphs"
 # 사용자 지시(§8): 화면 문구에서 가운뎃점(·)과 em 대시(—)를 쓰지 않는다.
 # 한 번 훑고 끝내면 다음 화면에서 다시 새어 나가므로 검사로 고정한다.

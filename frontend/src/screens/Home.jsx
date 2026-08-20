@@ -132,12 +132,19 @@ function SprintProgress({ sprint }) {
   const rate = sprint.completion_rate;
   return (
     <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "minmax(0,1fr)", sm: "auto minmax(0,1fr)", lg: "minmax(0,1fr)" }, alignItems: "center", justifyItems: "center" }}>
+      {/* 「남음」은 **Brand 시리즈 슬롯**을 받는다(색을 안 준다). 예전 값 `"primary"` 는
+          사용자 Accent 라, 청록을 고른 사람의 화면에서는 이 도넛이 청록이었다 —
+          제품 정체성이 개인 설정을 따라가던 자리다(PLAN §Data Visualization 이 이 줄을
+          이름으로 지목했다). 「완료」·「취소」는 색이 곧 상태라 상태색을 유지한다.
+          `total` 을 명시해 링의 모수가 «그려진 조각의 합»이 아니라 **내 티켓 전체**가 되게
+          한다 — 안 주면 값 0 인 상태가 조용히 빠져 도넛이 전체를 설명한다고 착각하게 된다. */}
       <Donut
         segments={[
           { label: "완료", value: sprint.done, color: "success" },
-          { label: "남음", value: sprint.remaining, color: "primary" },
+          { label: "남음", value: sprint.remaining },
           { label: "취소", value: sprint.cancelled, color: "warning" },
         ]}
+        total={sprint.assigned}
         unit="건"
         centerLabel={rate == null ? "-" : rate + "%"}
         emptyLabel="이번 주 티켓 없음"

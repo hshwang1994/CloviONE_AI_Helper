@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import {
+  ListEmptyState,
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
   MetricStrip, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
@@ -14,6 +15,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine } from "../ui/FilterBar.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
@@ -210,6 +212,26 @@ export function Projects() {
   const auth = useAuth();
   const [filters, setFilters] = useQueryState(PROJECT_SPEC, PAGE_RESET);
   const [creating, setCreating] = React.useState(false);
+  /* «조건 때문에 0건» 판정 (C1 · W5). `archived` 도 조건이다 — 보관 스위치를 켠 채 0건인
+     화면에 「프로젝트가 없습니다」라고 말하면 그 스위치가 원인이라는 사실이 사라진다.
+     기본값은 주소에 안 실리므로(`useQueryState`) 여기서 **기본값과 다른가**로 센다. */
+  const hasProjectFilter = React.useMemo(
+    () => Object.keys(PROJECT_SPEC).some(
+      (k) => k !== "page" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+    ),
+    [filters]
+  );
+  const clearProjectFilters = React.useCallback(
+    () => setFilters({ archived: false, dept: "", page: 1 }),
+    [setFilters]
+  );
+  /* 결과 줄이 세는 것은 «지금 걸린 조건» 이다 — 기본값과 다른 축만 센다. */
+  const activeProjectConditions = React.useMemo(
+    () => Object.keys(PROJECT_SPEC).filter(
+      (k) => k !== "page" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+    ),
+    [filters]
+  );
   const qs = projectListQuery(filters).toString();
   const q = useProjectList(qs);
   const dashboard = useProjectDashboard(filters.dept);
@@ -270,8 +292,18 @@ export function Projects() {
 
       <Summary query={dashboard} />
 
-      <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-        <Stack direction="row" gap={2} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+      {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 이 화면만 `c-toolbar-card` 를 달고 남아
+          있었다 — 독립 검수 실측: 1920 에서 잉크 폭 비 0.355, 3840 에서 0.234 로, W5 가
+          「없앴다」고 적은 `/policies` 판(0.43)보다 오히려 나빴다. 나머지 넷과 같은 부품을 쓴다:
+          scope(부서)가 먼저, 보기 방식(보관 포함)은 흐름 끝, 건수는 필터와 목록 **사이**. */}
+      <FilterSurface>
+        <FilterRow>
+          {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
+          <DepartmentFilter
+            departments={data.departments}
+            value={filters.dept}
+            onChange={(v) => setFilters({ dept: v })}
+          />
           <FormControlLabel
             sx={{ m: 0 }}
             control={
@@ -283,39 +315,35 @@ export function Projects() {
             }
             label={<Typography variant="body2">보관한 프로젝트 포함</Typography>}
           />
-          {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
-          <DepartmentFilter
-            departments={data.departments}
-            value={filters.dept}
-            onChange={(v) => setFilters({ dept: v })}
-            sx={{ minWidth: "16rem" }}
-          />
-        </Stack>
-        {data.total != null ? (
-          <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ mt: 1.5 }}>
-            총 {data.total}건
-          </Typography>
-        ) : null}
-      </Card>
+          {hasProjectFilter ? (
+            <FilterActions>
+              <Button variant="ghost" size="sm" onClick={clearProjectFilters}>필터 지우기</Button>
+            </FilterActions>
+          ) : null}
+        </FilterRow>
+      </FilterSurface>
+      <ResultLine total={data.total} conditions={activeProjectConditions} />
 
       {q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : items.length === 0 ? (
           <Card>
-            {filters.archived ? (
-              <EmptyState
-                art="tickets"
-                title="프로젝트가 없습니다"
-                help="보관한 것까지 포함해도 볼 수 있는 프로젝트가 없습니다."
-              />
-            ) : (
-              <EmptyState
-                art="tickets"
-                title="프로젝트가 없습니다"
-                situation="지금 진행 중인 프로젝트가 없거나, 있는 프로젝트가 전부 보관돼 있습니다."
-                help="보관한 프로젝트까지 보려면 위의 스위치를 켜세요."
-              />
-            )}
+            {/* «정말 없다» 와 «조건 때문에 0건» 을 가른다 (C1 · W5).
+                예전에는 `filters.archived` 로만 갈라져서, 부서나 검색어로 0건이 된 화면도
+                「프로젝트가 없습니다」라고 말했다 — 게다가 그 조건을 그 자리에서 풀 수단이
+                없었다. 조건이 하나라도 걸려 있으면 그 사실을 말하고 지울 길을 준다. */}
+            <ListEmptyState
+              filtered={hasProjectFilter}
+              onClear={clearProjectFilters}
+              filteredTitle="조건에 맞는 프로젝트가 없습니다"
+              filteredHelp="지금 걸린 조건(검색어, 부서, 상태)에 맞는 프로젝트가 없습니다. 조건을 지우면 전체를 볼 수 있습니다."
+              art="tickets"
+              title="프로젝트가 없습니다"
+              situation={filters.archived ? undefined : "지금 진행 중인 프로젝트가 없거나, 있는 프로젝트가 전부 보관돼 있습니다."}
+              help={filters.archived
+                ? "보관한 것까지 포함해도 볼 수 있는 프로젝트가 없습니다."
+                : "보관한 프로젝트까지 보려면 위의 스위치를 켜세요."}
+            />
           </Card>
         ) : (
           <>

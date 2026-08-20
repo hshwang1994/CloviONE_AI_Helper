@@ -17,6 +17,11 @@ import { serviceLabel } from "../ops/opsHelpers.js";
 
 export const INTEGRATION_SCREENS = {
   integrations: {
+    /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
+       기능 플래그 11 · 통합 4 · RBAC 13 실측). R-88 이 "25행" 을 기계 규칙으로 쓰지 말라고
+       못박으므로 숫자가 아니라 **판단**을 남긴다: 조건 조합을 이름 붙여 재사용할 만큼
+       탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
+    smallSet: true,
     key: "integrations", area: "자동화와 연동", title: "외부 연동", endpoint: "/api/admin/integrations",
     help: "이 시스템이 불러다 쓰는 외부 서비스(n8n, Claude 러너 등)를 추가하고 점검합니다. 활성/비활성화는 이 연동을 참조하는 러너의 실제 호출을 막습니다(러너 화면에서 이 연동을 선택한 경우에 한함).",
     emptyTitle: "추가된 외부 연동이 없습니다",
@@ -122,6 +127,8 @@ export const INTEGRATION_SCREENS = {
   },
   runners: {
     key: "runners", area: "자동화와 연동", title: "자동화 작업 실행기", endpoint: "/api/admin/runners",
+    /* 「연결할 외부 연동」 필드의 후보(W5). */
+    refLists: [{ key: "integrations", endpoint: "/api/admin/integrations" }],
     // '수정'에서 점검 상태를 바꾸는 안내는 그 버튼을 실제로 볼 수 있는 쓰기 역할(admin/system_admin)
     // 에게만 준다 — 읽기 전용 역할(operator/auditor)은 이 화면을 볼 수 있어도 '수정' 버튼이 없다.
     // RN-10/RN-11: 예전엔 이 문구가 "실제 업무(티켓 처리, 요청 해석)를 수행하는 실행기"라고 단정했다.
@@ -197,8 +204,10 @@ export const INTEGRATION_SCREENS = {
       // integration_id는 생성 시에만 지정할 수 있고 수정 폼에는 없다(백엔드 RunnerUpdateRequest에
       // 필드가 없음). 러너 삭제(DELETE) 엔드포인트도 없어, 오타가 나면 이 화면에서는 되돌릴 방법이
       // 없다(비활성화만 가능) — 그래서 제출 전에 ID가 맞는지 미리 확인하라고 안내한다.
-      { name: "integration_id", label: "연동 ID(선택)", type: "text", help: "이 러너를 연결할 외부 연동의 ID(‘외부 연동’ 화면에서 확인). 추가 후에는 이 화면에서 다시 바꿀 수 없으니(수정 폼에 없고 러너 삭제 경로도 없습니다), 제출 전에 ID가 맞는지 다시 확인하세요." },
-      { name: "owner", label: "담당자(선택)", type: "text" },
+      /* W5: 연동은 Entity 다. 되돌릴 수 없는 값일수록 **손으로 옮겨 적게 두면 안 된다** —
+         추가 후에는 이 화면에서 바꿀 수 없다(수정 폼에 없고 러너 삭제 경로도 없다). */
+      { name: "integration_id", label: "연결할 외부 연동(선택)", type: "select", kind: "entity", optionsFromRefList: "integrations", help: "추가 후에는 이 화면에서 다시 바꿀 수 없습니다. 제출 전에 한 번 더 확인하세요." },
+      { name: "owner", label: "담당자(선택)", type: "text", freeTextReason: "저장되는 값은 사용자 참조가 아니라 자유 문자열이다(팀 이름이나 외부 담당자도 들어간다). 계정 목록으로 좁히면 지금 저장된 값 일부를 고를 수 없게 된다." },
       { name: "description", label: "설명", type: "textarea" },
     ] },
     // 담당자까지 편집 가능하게 명시적 edit 폼(PATCH)을 둔다.
@@ -219,7 +228,7 @@ export const INTEGRATION_SCREENS = {
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "timeout_seconds", label: "타임아웃(초)", type: "number" },
       { name: "concurrency_limit", label: "동시 실행 수", type: "number" },
-      { name: "owner", label: "담당자", type: "text" },
+      { name: "owner", label: "담당자", type: "text", freeTextReason: "저장되는 값은 사용자 참조가 아니라 자유 문자열이다(팀 이름이나 외부 담당자도 들어간다). 계정 목록으로 좁히면 지금 저장된 값 일부를 고를 수 없게 된다." },
       { name: "version", label: "러너 버전", type: "text" },
       { name: "description", label: "설명", type: "textarea" },
     ] },
@@ -359,7 +368,7 @@ export const INTEGRATION_SCREENS = {
       { name: "purpose", label: "용도", type: "textarea" },
       { name: "http_method", label: "HTTP 메서드", type: "select", value: "POST", options: HTTP_OPTS },
       { name: "operation_mode", label: "모드", type: "select", value: "read", options: WFMODE_OPTS, help: "쓰기는 데이터를 변경합니다." },
-      { name: "owner", label: "담당자", type: "text" },
+      { name: "owner", label: "담당자", type: "text", freeTextReason: "저장되는 값은 사용자 참조가 아니라 자유 문자열이다(팀 이름이나 외부 담당자도 들어간다). 계정 목록으로 좁히면 지금 저장된 값 일부를 고를 수 없게 된다." },
       { name: "tags", label: "태그(JSON 배열)", type: "json", help: '예: ["report","weekly"]' },
       { name: "approval_required", label: "승인 필요", type: "checkbox", value: false, checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 읽기 워크플로는 예약 실행 시 승인 없이 실행됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 활성화된 모든 워크플로/템플릿에 적용됩니다(app/documents/service.py: publish_approval_required)." },
       { name: "enabled", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "먼저 ‘테스트’로 수신 주소 도달을 확인한 뒤 활성화하는 것을 권장합니다." },
@@ -372,7 +381,7 @@ export const INTEGRATION_SCREENS = {
       { name: "purpose", label: "용도", type: "textarea" },
       { name: "http_method", label: "HTTP 메서드", type: "select", options: HTTP_OPTS },
       { name: "operation_mode", label: "모드", type: "select", options: WFMODE_OPTS, help: "쓰기는 데이터를 변경합니다." },
-      { name: "owner", label: "담당자", type: "text" },
+      { name: "owner", label: "담당자", type: "text", freeTextReason: "저장되는 값은 사용자 참조가 아니라 자유 문자열이다(팀 이름이나 외부 담당자도 들어간다). 계정 목록으로 좁히면 지금 저장된 값 일부를 고를 수 없게 된다." },
       { name: "tags", label: "태그(JSON 배열)", type: "json" },
       { name: "approval_required", label: "승인 필요", type: "checkbox", checkLabel: "실행 전 승인 필요", help: "자동(예약) 실행 게이팅은 쓰기(write) 워크플로에만 적용됩니다. 단, ‘문서 자동 생성’의 자동 발행은 읽기/쓰기와 무관하게 이 값이 활성화된 모든 워크플로/템플릿에 적용됩니다." },
     ].filter((f) => !(f.name === "name" && row && RESERVED_WORKFLOW_NOTES[row.name])) },

@@ -118,6 +118,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         {/* 옆 '문자 종류 수(1~4)' 필드처럼 허용 범위를 라벨에 직접 접어 넣는다, 백엔드(registry.py
             _password_policy)가 실제로 강제하는 8~128 범위를 저장 왕복 전까지 알 길이 없었다. */}
         <TextField
+          InputLabelProps={{ shrink: true }}
           id={minLenId} label="최소 글자 수(8~128자)" type="number" size="small" fullWidth disabled={!canWrite}
           error={!!invalid}
           inputProps={{ min: 8, max: 128, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -125,6 +126,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
           onChange={(e) => patch({ min_length: e.target.value === "" ? null : Number(e.target.value) })}
         />
         <TextField
+          InputLabelProps={{ shrink: true }}
           id={minClassesId} label="문자 종류 수(1~4)" type="number" size="small" fullWidth disabled={!canWrite}
           error={!!invalid}
           inputProps={{ min: 1, max: 4, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -147,6 +149,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       <Box sx={pairGrid}>
         <Box>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={idleId} label="유휴 제한(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
             error={!!invalid}
             inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -159,6 +162,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         </Box>
         <Box>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={absId} label="최대 세션 길이(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
             error={!!invalid}
             inputProps={{ min: 1, step: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -179,6 +183,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     return (
       <Box sx={pairGrid}>
         <TextField
+          InputLabelProps={{ shrink: true }}
           id={maxId} label="로그인 실패 임계값(1~20회)" type="number" size="small" fullWidth disabled={!canWrite}
           error={!!invalid}
           inputProps={{ min: 1, max: 20, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -187,6 +192,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         />
         <Box>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={lockId} label="잠금 시간(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
             error={!!invalid}
             inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -218,6 +224,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("enabled")} select label="자동 백업" size="small" fullWidth disabled={!canWrite}
             error={!!invalid} SelectProps={{ native: true }}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -228,6 +235,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             <option value="false">사용 안 함</option>
           </TextField>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("keep")} label="남길 백업 개수(1~365)" type="number" size="small" fullWidth
             disabled={!canWrite} error={!!invalid}
             inputProps={{ min: 1, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -238,6 +246,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
 
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("cron-preset")} select label="주기" size="small" fullWidth disabled={!canWrite}
             error={!!invalid} SelectProps={{ native: true }}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -276,6 +285,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         {preset === "weekly" ? (
           <Box sx={pairGrid}>
             <TextField
+              InputLabelProps={{ shrink: true }}
               id={fieldId("cron-weekday")} select label="요일" size="small" fullWidth disabled={!canWrite}
               error={!!invalid} SelectProps={{ native: true }}
               inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -290,6 +300,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         {preset === "monthly" ? (
           <Box sx={pairGrid}>
             <TextField
+              InputLabelProps={{ shrink: true }}
               id={fieldId("cron-day")} label="며칠(1~28)" type="number" size="small" fullWidth
               disabled={!canWrite} error={!!invalid}
               helperText="29~31일은 없는 달이 있어 그 달에는 안 돕니다."
@@ -304,6 +315,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
           <Box sx={pairGrid}>
             <Box>
               <TextField
+                InputLabelProps={{ shrink: true }}
                 id={fieldId("cron")} label="cron 표현식" size="small" fullWidth disabled={!canWrite}
                 error={!!invalid} placeholder="0 3 * * *"
                 inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
@@ -318,6 +330,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
 
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("timezone")} label="기준 시간대" size="small" fullWidth disabled={!canWrite}
             error={!!invalid} placeholder="Asia/Seoul"
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
@@ -341,6 +354,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("enabled")} select label="메일 발송" size="small" fullWidth disabled={!canWrite}
             error={!!invalid} SelectProps={{ native: true }}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -351,6 +365,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             <option value="false">사용 안 함</option>
           </TextField>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={secId} select label="보안 연결" size="small" fullWidth disabled={!canWrite}
             error={!!invalid} SelectProps={{ native: true }}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
@@ -364,12 +379,14 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         </Box>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("host")} label="메일 서버 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             placeholder="smtp.example.com"
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
             value={safe.host || ""} onChange={(e) => patch({ host: e.target.value })}
           />
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("port")} label="포트(1~65535)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             inputProps={{ min: 1, max: 65535, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={safe.port != null ? safe.port : ""}
@@ -378,12 +395,14 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         </Box>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("from_address")} label="보내는 사람 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             placeholder="portal@example.com"
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
             value={safe.from_address || ""} onChange={(e) => patch({ from_address: e.target.value })}
           />
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("from_name")} label="보내는 사람 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={safe.from_name || ""} onChange={(e) => patch({ from_name: e.target.value })}
@@ -391,12 +410,14 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         </Box>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("username")} label="로그인 계정(필요할 때만)" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
             value={safe.username || ""} onChange={(e) => patch({ username: e.target.value })}
           />
           <Box>
             <TextField
+              InputLabelProps={{ shrink: true }}
               id={fieldId("password_ref")} label="비밀번호 파일 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
               inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
               value={safe.password_ref || ""} onChange={(e) => patch({ password_ref: e.target.value })}
@@ -408,6 +429,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         </Box>
         <Box sx={pairGrid}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id={fieldId("timeout_seconds")} label="응답 대기 시간(초, 1~300)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
             inputProps={{ min: 1, max: 300, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={safe.timeout_seconds != null ? safe.timeout_seconds : ""}
@@ -423,11 +445,13 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     return (
       <Box sx={pairGrid}>
         <TextField
+          InputLabelProps={{ shrink: true }}
           id={nameId} label="제품명" size="small" fullWidth disabled={!canWrite} error={!!invalid}
           inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
           value={safe.product_name || ""} onChange={(e) => patch({ product_name: e.target.value })}
         />
         <TextField
+          InputLabelProps={{ shrink: true }}
           id={emailId} label="지원 이메일" size="small" fullWidth disabled={!canWrite} error={!!invalid}
           inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
           value={safe.support_email || ""} onChange={(e) => patch({ support_email: e.target.value })}

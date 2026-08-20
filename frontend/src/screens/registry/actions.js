@@ -164,17 +164,17 @@ export const DOC_GENERATE_FIELDS = [
   // DGEN-01: 자유 텍스트 ID 받아쓰기 대신 이름으로 고른다 — documents 화면의 config.refLists
   // (registry/automation.js)가 이 화면에 로드된 워크플로/템플릿 목록을 DataScreen.jsx의
   // withOptionsFrom을 통해 select 옵션으로 준다.
-  { name: "workflow_id", label: "워크플로", type: "select", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름’ 화면에서 추가하고 활성화합니다." },
+  { name: "workflow_id", label: "워크플로", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름’ 화면에서 추가하고 활성화합니다." },
   { name: "period", label: "기간", type: "text", required: true, help: "예: 2026-07 또는 2026-W29 (문서가 다룰 기간)" },
   { name: "mode", label: "모드", type: "select", value: "preview_then_approve", options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]), help: "‘자동 발행’이라도 대상 워크플로/템플릿이 승인을 요구하면 미리보기 후 승인 흐름으로 전환됩니다." },
-  { name: "template_id", label: "템플릿(선택)", type: "select", optionsFromRefList: "templates", extraOptions: [{ value: "", label: "(템플릿 없음)" }], help: "고르면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },
-  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "문서에 담을 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름)." },
+  { name: "template_id", label: "템플릿(선택)", type: "select", kind: "entity", optionsFromRefList: "templates", extraOptions: [{ value: "", label: "(템플릿 없음)" }], help: "고르면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },
+  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "문서에 담을 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름).", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
   { name: "output_format", label: "출력 형식", type: "select", value: "", options: opt([["", "(기본: 마크다운)"], ["markdown", "마크다운"], ["html", "HTML"]]) },
   { name: "title_rule", label: "제목 규칙(선택)", type: "text", help: "생성 문서 제목 규칙. 예: 주간 보고서 {week}" },
   { name: "date_range_start", label: "대상 기간 시작(선택)", type: "date", help: "문서가 다룰 데이터의 시작일." },
   { name: "date_range_end", label: "대상 기간 끝(선택)", type: "date" },
-  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID." },
-  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID." },
+  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID.", freeTextReason: "외부 Notion 페이지 식별자다. 이 제품에 후보 목록이 없다." },
+  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
   { name: "config_extra", label: "고급 설정(JSON, 선택)", type: "json", jsonObject: true, help: '위에 없는 키(filter, grouping, prompt_template, prompt_id, policy_id, template_version 등)를 직접 넣습니다. 같은 키가 있으면 이 값이 우선합니다. 예: {"filter":{"상태":"완료"},"template_version":1}' },
 ];
 // 명명 필드 → config dict 조립(빈 값은 넣지 않는다). date_range는 {start,end} 중첩.
@@ -215,11 +215,11 @@ export const docGenerateResult = () => ({ ok: true, msg: "문서 생성을 요�
 // dict와 상호 변환한다.
 export const _TPL_STR_KEYS = ["source_database", "output_format", "title_rule", "target_parent_page", "target_database"];
 export const TEMPLATE_SCHEMA_FIELDS = [
-  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "이 템플릿으로 만드는 문서가 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름). 문서 생성 시 기본값으로 채워집니다." },
+  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "이 템플릿으로 만드는 문서가 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름). 문서 생성 시 기본값으로 채워집니다.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
   { name: "output_format", label: "출력 형식", type: "select", value: "", options: opt([["", "(기본: 마크다운)"], ["markdown", "마크다운"], ["html", "HTML"]]) },
   { name: "title_rule", label: "제목 규칙(선택)", type: "text", help: "생성 문서 제목 규칙. 예: 주간 보고서 {week}" },
-  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID." },
-  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID." },
+  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID.", freeTextReason: "외부 Notion 페이지 식별자다. 이 제품에 후보 목록이 없다." },
+  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
   { name: "input_schema_extra", label: "고급 기본값(JSON, 선택)", type: "json", jsonObject: true, help: '위에 없는 키(filter, grouping, prompt_template 등)를 직접 넣습니다. 같은 키가 있으면 이 값이 우선합니다.' },
 ];
 export function assembleInputSchema(body) {

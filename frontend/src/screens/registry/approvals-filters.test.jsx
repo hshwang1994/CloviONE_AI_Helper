@@ -29,10 +29,19 @@ describe("RG-05 — 승인 큐가 request_type/requested_by 서버 필터를 쓴
     }
   });
 
-  it("requested_by 필터가 서버로 가는 자유 텍스트 ID 필터다", () => {
+  /* W5: 기대값이 «자유 텍스트 ID» 에서 «이름으로 고르는 Entity» 로 바뀌었다.
+     서버로 가는 필터라는 사실(clientFilter 아님)은 그대로다 — 바뀐 것은 사람이 UUID 를
+     외워서 붙여넣어야 했다는 점이다(R-5 · 지시 0-2.17). 후보 출처까지 함께 단언해
+     "select 로 바꿨는데 옵션이 비어 있는" 상태로 퇴행하지 않게 한다. */
+  it("requested_by 필터가 서버로 가는 **이름으로 고르는** Entity 필터다", () => {
     const f = filters.find((x) => x.key === "requested_by");
     expect(f, "requested_by 필터가 없다").toBeTruthy();
     expect(f.clientFilter).toBeFalsy();
-    expect(f.type).toBe("text");
+    expect(f.type).toBe("select");
+    expect(f.kind).toBe("entity");
+    expect(f.optionsFromRefList).toBe("people");
+    // 후보 출처가 실제로 선언돼 있어야 한다 — 없으면 빈 목록이 된다.
+    const refs = (REGISTRY.approvals.refLists || []).map((r) => r.key);
+    expect(refs).toContain("people");
   });
 });

@@ -230,6 +230,8 @@ export const PLATFORM_SCREENS = {
   "ai-quotas": {
     key: "ai-quotas", area: "AI", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
+    /* 범위가 «사용자» 일 때 그 사람을 고르기 위한 후보(W5) — 예전에는 ID 를 복사해 왔다. */
+    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     // WF1 R4 — "상한이 걸리는 곳은 아래 표 위의 '상한이 걸리는 곳' 목록에 서버가 직접
     // 알려 줍니다"라는 문장이 있었다. 그런 이름의 목록을 그리는 코드는 저장소에 없다 — 위
     // 요약 카드(FN-05, summary 참고)는 "오늘/이번 달 전체 AI 호출" 합계일 뿐 어느 대상이
@@ -285,7 +287,8 @@ export const PLATFORM_SCREENS = {
       { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
-      { name: "user_id", label: "사용자 ID", type: "text", showIf: (v) => v.scope_type === "user", help: "‘사용자’ 화면에서 ID를 복사해 붙여 넣으세요." },
+      /* W5: 범위가 «사용자» 면 그 사용자를 **고른다** — ID 를 복사해 오는 자리가 아니다. */
+      { name: "user_id", label: "사용자", type: "select", kind: "entity", optionsFromRefList: "people", showIf: (v) => v.scope_type === "user" },
       { name: "period", label: "기간", type: "select", value: "day", required: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
       { name: "max_calls", label: "상한(횟수)", type: "number", required: true, help: "0이면 차단입니다(무제한이 아닙니다). 무제한으로 두려면 이 줄을 지우세요. 기간 경계는 한국 시간 기준입니다." },
       { name: "note", label: "메모", type: "text" },
@@ -303,6 +306,11 @@ export const PLATFORM_SCREENS = {
     ],
   },
   "feature-flags": {
+    /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
+       기능 플래그 11 · 통합 4 · RBAC 13 실측). R-88 이 "25행" 을 기계 규칙으로 쓰지 말라고
+       못박으므로 숫자가 아니라 **판단**을 남긴다: 조건 조합을 이름 붙여 재사용할 만큼
+       탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
+    smallSet: true,
     key: "feature-flags", area: "설정", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
     help: "모듈을 활성화하고 비활성화하는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 적용됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",

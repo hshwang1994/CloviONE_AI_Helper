@@ -21,9 +21,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
-from scripts.ui_qa.capture import Viewport, new_context  # noqa: E402
+from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
 
-BASE = "https://clovirone-ai.gooddi.lab"
+# 치는 곳은 `capture.DEFAULT_BASE_URL` 이 정한다 — 각자 문자열을 들면 이름이 바뀌는 날
+# 이런 파일 14개가 옛 호스트에 남는다(W5 · F-W5D-129).
+BASE = DEFAULT_BASE_URL
 OUT = Path("dist/trash-e2e")
 
 

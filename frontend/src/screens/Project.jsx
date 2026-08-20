@@ -1,17 +1,16 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
   Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { EntityCombobox } from "../ui/filters.jsx";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
@@ -234,27 +233,22 @@ function Overview({
               의 같은 경고). */}
           <MetaRow label="부서">
             {canAssignDept ? (
-              <TextField
-                select size="small" sx={{ minWidth: "12rem" }}
-                disabled={assigningDept}
+              /* **부서는 Entity 다** (W5 · C2). 조직이 자라면 후보도 자란다 — 검색 없는
+                 드롭다운은 부서가 서른 개가 되는 날 못 쓰게 된다. 실측에서 이 자리가
+                 `plain_dropdown_for_entity` 로 잡혔다(`/project-detail`). 지금 지정된 부서가
+                 후보에 없어도(부서 스코프 관리자가 자기 범위 밖 부서의 프로젝트를 볼 때)
+                 `EntityCombobox` 가 그 값을 그대로 보여 준다 — 이름을 모르면 id 라도 낸다
+                 (§불변 6 «모르는 것을 지어내지 않는다»). 빈 값은 「부서 미지정」이다. */
+              <EntityCombobox
+                hideLabel
+                label="부서"
+                allLabel="부서 미지정"
                 value={p.dept_id || ""}
-                onChange={(e) => onAssignDept(e.target.value || null)}
-                SelectProps={{ displayEmpty: true }}
-                inputProps={{ "aria-label": "부서" }}
-              >
-                <MenuItem value="">부서 미지정</MenuItem>
-                {Object.entries(deptNames || {}).map(([id, name]) => (
-                  <MenuItem key={id} value={id}>{name}</MenuItem>
-                ))}
-                {/* 지금 지정된 부서가 이 목록에 없을 수 있다(예: 부서 스코프 관리자가 보는
-                    프로젝트가 자기 범위 밖 부서에 있는 경우) — 그때도 select의 value가 어느
-                    MenuItem과도 안 맞으면 MUI가 콘솔 경고를 내고 화면은 빈 값처럼 보인다.
-                    이름을 모르면 id라도 보여준다(§불변 6과 같은 "모르는 것을 지어내지
-                    않는다" 정신 — id를 아예 숨기지도 않는다). */}
-                {p.dept_id && !(deptNames || {})[p.dept_id] ? (
-                  <MenuItem value={p.dept_id}>{p.dept_id}</MenuItem>
-                ) : null}
-              </TextField>
+                onChange={(v) => onAssignDept(v || null)}
+                options={Object.entries(deptNames || {}).map(([id, name]) => ({ value: id, label: name }))}
+                disabled={assigningDept}
+                sx={{ flex: "0 1 18rem", minWidth: "12rem" }}
+              />
             ) : (dept || "부서 미지정")}
           </MetaRow>
           <MetaRow label="기간">{periodText(p.starts_on, p.ends_on)}</MetaRow>

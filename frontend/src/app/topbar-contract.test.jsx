@@ -284,15 +284,31 @@ describe("셸의 상단바", () => {
 
   /* R-13 "좌측 상단 로고 영역을 현재보다 조금 줄인다". 글자 크기는 줄일 수 없다(부제가
      QA tiny_text 의 12px 하한에 걸려 있다) — 줄일 수 있는 것은 **줄 수**다. 이 단언이
-     없으면 다음 사람이 "원래 두 줄이었으니" 하고 되돌린다. */
-  it("상단바 로고는 한 줄이다 — 부제를 그리지 않는다 (R-13)", async () => {
+     없으면 다음 사람이 "원래 두 줄이었으니" 하고 되돌린다.
+
+     ── W5 정정: 지키는 것은 «부제 없음» 이 아니라 «한 줄» 이다 ─────────────────
+     W2 는 부제를 **빼면서** 태그라인이 사이드바 서랍 머리와 로그인에 남는다고 적었는데,
+     사이드바 머리는 전 뷰포트에서 AppBar 에 가려진 죽은 마크업이었고 로그인 락업의 부제는
+     캡 높이 5px 이었다. 즉 제품의 태그라인은 **아무 데도 없었다.** R-13 이 실제로 필요로
+     한 레버는 «줄 수»(=높이)이므로, 태그라인을 워드마크 **옆**에 인라인으로 되돌려도 그
+     레버는 그대로다. 그래서 단언을 «부제 문자열이 없다» 에서 «락업이 한 줄이다» 로 옮긴다 —
+     기제가 아니라 지키려던 불변식을 고정한다. 단언 수는 늘었다. */
+  it("상단바 로고는 한 줄이다 — 락업이 두 줄로 돌아가지 않는다 (R-13)", async () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
     const bar = document.querySelector(".MuiAppBar-root");
-    expect(bar.textContent).not.toMatch(/SMART WORKSPACE ASSISTANT/);
-    // 태그라인이 **사라진 것이 아니라** 그리지 않는 것뿐이다 — 낭독은 그대로다.
+    // 락업 자체(SVG 묶음)에는 부제 줄이 없다 — 그것이 «한 줄» 의 뜻이다.
     const lockup = bar.querySelector('[role="img"][aria-label*="Smart Workspace Assistant"]');
     expect(lockup, "로고의 접근 가능한 이름에서 태그라인이 사라졌다").toBeTruthy();
+    expect(lockup.textContent).not.toMatch(/SMART WORKSPACE ASSISTANT/);
+    // 그리고 태그라인은 **제품 어딘가에 실재해야 한다** — 상단바 락업 옆이 그 자리다.
+    expect(bar.textContent).toMatch(/SMART WORKSPACE ASSISTANT/);
+    // 두 번 낭독되지 않는다: 보이는 쪽은 aria-hidden 이고 낭독은 락업의 aria-label 이 맡는다.
+    const visible = [...bar.querySelectorAll("span")].find(
+      (el) => el.textContent === "SMART WORKSPACE ASSISTANT",
+    );
+    expect(visible, "보이는 태그라인을 찾지 못했다").toBeTruthy();
+    expect(visible.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("상단바가 검색 버튼을 실제로 그린다", async () => {

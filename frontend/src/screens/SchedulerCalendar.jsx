@@ -14,6 +14,7 @@ import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES } from "./registry/shared.js";
 import { Note } from "../ui/adminKit.jsx";
+import { EntityCombobox } from "../ui/filters.jsx";
 import {
   PageHeader, Card, Callout, Badge, Button, Skeleton,
   EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
@@ -279,23 +280,22 @@ export function SchedulerCalendar({ embedded = false } = {}) {
           이번 달
         </Button>
         <Box sx={{ flex: 1 }} />
-        {/* displayEmpty 가 없으면 값이 ""일 때 칸이 통째로 비어 보인다 — 컨트롤이 고장 난
-            것처럼 읽히고, 무엇이 선택돼 있는지도 알 수 없다(DataScreen 의 필터 select 가
-            "값의 주인: 전체"처럼 항상 현재 선택을 보여 주는 것과 같은 이유). */}
-        <TextField
-          select
-          size="small"
+        {/* 일정은 **Entity** 다 — 운영이 쌓이는 만큼 후보가 자란다. 검색 없는 드롭다운으로
+            두면 스무 개가 넘는 순간 이름을 알면서도 목록을 눈으로 훑어야 한다(R-5).
+            비활성 여부는 라벨 꼬리가 아니라 보조줄로 낸다 — 이름과 상태가 한 줄에 섞이면
+            이름이 길 때 상태가 먼저 잘린다. */}
+        <EntityCombobox
           label="일정"
           value={scheduleId}
-          onChange={(e) => setScheduleId(e.target.value)}
-          slotProps={{ select: { displayEmpty: true } }}
-          sx={{ minWidth: "16ch" }}
-        >
-          <MenuItem value="">일정: 전체</MenuItem>
-          {schedules.map((s) => (
-            <MenuItem key={s.id} value={s.id}>{s.name}{s.enabled ? "" : " (비활성)"}</MenuItem>
-          ))}
-        </TextField>
+          onChange={setScheduleId}
+          allLabel="일정: 전체"
+          sx={{ minWidth: "16ch", maxWidth: "22rem", flex: "0 1 auto" }}
+          options={schedules.map((sc) => ({
+            value: sc.id,
+            label: sc.name,
+            secondary: sc.enabled ? "" : "비활성",
+          }))}
+        />
       </Card>
 
       {query.data && query.data.truncated ? (

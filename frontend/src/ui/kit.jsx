@@ -39,6 +39,7 @@ import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
+import { EntityCombobox } from "./filters.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -342,7 +343,14 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
  * items: `{ key, label, onClick, tone, disabled, hint }[]` — `null`/`false` 는 걸러 낸다
  * (호출부가 권한 분기를 그대로 인라인으로 쓸 수 있게).
  */
-export function OverflowMenu({ items, ariaLabel = "더 보기" }) {
+/* `size` 는 **이웃이 정한다** (W5 재정정 — 복원된 프로브가 잡았다).
+ *
+ * 예전에는 `size="small"` 이 박혀 있었고, 그때는 `MuiIconButton` 의 최소 높이가 34 라 결과가
+ * 우연히 옆 기본 버튼(34)과 맞았다. W5 가 「`size` 가 높이를 정한다」로 고치자 그 우연이
+ * 깨져 화면 머리 동작 줄에서 30 vs 34 가 됐다(실측 `/team-docs`·`/users`·`/policies` 2560,
+ * 4.5px). 기본은 이웃이 기본 버튼인 자리(화면 머리)라 **medium(34)** 이고, `size="sm"` 버튼과
+ * 나란히 서는 자리(행 동작 줄)는 호출부가 `size="small"` 이라고 말한다. */
+export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
   const list = (items || []).filter(Boolean);
   const [anchorEl, setAnchorEl] = React.useState(null);
   if (!list.length) return null;
@@ -355,7 +363,7 @@ export function OverflowMenu({ items, ariaLabel = "더 보기" }) {
         aria-haspopup="menu"
         aria-expanded={anchorEl ? true : undefined}
         onClick={(e) => setAnchorEl(e.currentTarget)}
-        size="small"
+        size={size}
         sx={{ border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, color: "text.secondary" }}
       >
         <MoreHorizRoundedIcon fontSize="small" />
@@ -964,6 +972,37 @@ export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4 }) {
  *   size="compact" — 팝오버·모달 하위목록·사이드바처럼 세로/가로가 제약된 맥락용(DS-14/15).
  *         일러스트를 아예 빼고 여백·글자를 줄인다. 기본(undefined)은 전체 페이지 크기 그대로.
  */
+/* ── 0건의 **두 얼굴** (PLAN C1 · 지시 0-2.17) ─────────────────────────────
+ *
+ * 「데이터가 아예 없다」와 「필터 때문에 0건이다」는 **다른 사실**이고, 사용자가 다음에 할
+ * 일도 다르다 — 앞의 것은 «만들어야» 하고 뒤의 것은 «조건을 풀어야» 한다. 같은 문장으로
+ * 말하면 신규 설치는 존재하지 않는 데이터를 찾아 헤매고, 필터를 건 사람은 자기가 건 조건을
+ * 잊는다.
+ *
+ * 실측(W5 조사 F-W5D-122): 이 분기가 제품 안에 **여섯 벌**로 갈라져 있었고 문구·복구 수단이
+ * 제각각이었다 — 셋(`/chat-rooms`·조직도·대화 목록)은 조건을 푸는 **버튼이 아예 없었고**,
+ * `/projects` 는 분기 자체가 없어 부서 필터로 0건이 된 화면을 「프로젝트가 없습니다」라고
+ * 말했다. 반대로 `/offboarding` 은 검색어가 없어도 언제나 「조건에 해당하는…」이라고 했다.
+ *
+ * 그래서 **필터 갈래만** 이 부품이 소유한다. 「정말 없다」 갈래는 화면마다 안내가 다른 것이
+ * 정상이라(온보딩 문구·권한별 CTA) `EmptyState` 의 props 를 그대로 흘려보낸다.
+ */
+export function ListEmptyState({
+  filtered, onClear, clearLabel = "필터 지우기", filteredTitle, filteredHelp, ...rest
+}) {
+  if (!filtered) return <EmptyState {...rest} />;
+  return (
+    <EmptyState
+      size={rest.size}
+      layout={rest.layout}
+      title={filteredTitle || "조건에 맞는 항목이 없습니다"}
+      /* 「없다」로 끝내지 않는다 — 무엇을 하면 되는지까지가 빈 상태다(지시 18). */
+      help={filteredHelp || "지금 걸린 조건에 맞는 항목이 없습니다. 조건을 지우면 전체를 볼 수 있습니다."}
+      action={onClear ? <Button variant="primary" onClick={onClear}>{clearLabel}</Button> : null}
+    />
+  );
+}
+
 export function EmptyState({
   icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
   steps, expected, action, relatedLink, art, size, layout = "region",
@@ -1221,6 +1260,23 @@ function cellValue(c, row, ctx) {
  *
  * `sort` = `{ key, dir }`(dir: "asc" | "desc"), `onSort(key)` 는 호출부가 방향을 뒤집는다.
  */
+/* ── 표를 카드로 접을 때의 두 규칙 (W5) ─────────────────────────────────────
+ *
+ * 이 저장소에는 «표를 카드로 접는» 자리가 **둘**이다: 여기 `DataTable` 과 `MyTickets` 의
+ * 묶음 목록(`GroupedList`). 규칙을 두 곳에 적으면 한쪽만 고쳐진다 — 실제로 그랬다.
+ * W5 가 `DataTable` 만 고쳤더니 `/my-tickets`·`/unassigned` 는 그대로 결함이 남았다
+ * (`control_baseline_mismatch` 390px). 그래서 규칙을 함수 두 개로 내려 둔다.
+ *
+ * ① **이름 자리에는 낱말이 온다.** 열이 `cardLabel` 로 말해 주면 그것을 쓴다. 선택 열의
+ *    `label` 은 이름이 아니라 「전체 선택」 체크박스라, 그대로 그리면 카드마다 복제된다.
+ * ② **목록 전체의 조작기는 목록 위에 한 번.** 열이 `cardHeader` 로 그것을 든다. */
+export function cardFieldLabel(col) {
+  return col && col.cardLabel != null ? col.cardLabel : (col ? col.label : null);
+}
+export function cardHeaderControls(cols) {
+  return (cols || []).filter((c) => c && c.cardHeader);
+}
+
 export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
@@ -1254,8 +1310,18 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
   /* 좁은 화면에서는 표를 카드 목록으로 바꾼다. 가로 스크롤되는 표는 손가락으로 훑기 어렵고,
    * 열 이름이 화면 밖으로 나가면 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다. */
   if (narrow) {
+    /* 카드 뷰에서 **머리행에 해당하는 것**을 목록 위에 한 번 둔다 (W5). 열 `label` 이
+       낱말이 아니라 조작기인 열(선택 열)이 있고, 그것을 카드마다 반복하면 조작기가 행 수만큼
+       늘어난다 — 「전체 선택」이 카드마다 하나씩 생겨 아무거나 누르면 전부가 선택됐다.
+       열이 스스로 `cardHeader` 로 «이건 목록 전체의 조작기다» 라고 말하게 한다. */
+    const cardHeads = cardHeaderControls(cols);
     return (
       <Stack gap={1.5}>
+        {cardHeads.length ? (
+          <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 0.5 }}>
+            {cardHeads.map((c) => <React.Fragment key={c.key}>{c.cardHeader}</React.Fragment>)}
+          </Box>
+        ) : null}
         {safeRows.map((row, i) => {
           const ctx = { rowName: rowNameOf(baseCols, row) };
           return (
@@ -1270,7 +1336,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
             >
               {cols.map((c) => (
                 <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                  <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                  {/* 이름 자리에는 **낱말**만 온다. 열이 `cardLabel` 로 말해 주면 그것을 쓴다
+                      — `label` 이 조작기인 열(선택 열)이 이 자리에 오면 카드마다 그 조작기가
+                      복제된다(위 `cardHeads` 주석). */}
+                  <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
                   {/* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
                       안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */}
                   <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
@@ -1573,7 +1642,11 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
  *
  * 라벨을 위에 두고, 필수는 **글자로** 말한다. 스크린리더에도 같은 글자가 읽힌다.
  */
-function FieldLabel({ htmlFor, id, children, required }) {
+/* 내보내는 이유(W5): 라벨 위치가 제품 안에 다섯 종류로 갈라져 있었다 — kit 은 이 부품을
+   쓰는데 kit 밖 화면들이 각자 `Typography component="label"` 을 손으로 그렸고, 필수 표시도
+   빨간 글자·MUI `*`·손으로 붙인 `*`·표시 없음 네 가지가 공존했다. 계약을 **부품으로**
+   내보내야 그 화면들이 같은 것을 쓸 수 있다. */
+export function FieldLabel({ htmlFor, id, children, required }) {
   /* `select` 는 MUI 가 `id` 를 `<div>` 에 건다 — `<label htmlFor>` 은 라벨을 붙일 수 없는
      요소를 가리키게 되어 접근성 트리에서 끊긴다. 그때는 라벨에 `id` 를 주고 입력 쪽에서
      `aria-labelledby` 로 가리킨다(HTML 명세가 정한 그 대안). */
@@ -1678,6 +1751,29 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
     sx: { mb: 0 },
   };
 
+  /* Entity 필드 — 값 집합이 **데이터가 쌓이는 만큼 자라는** 것(사용자·부서·직책·프로젝트·
+   * 조직·일정)을 고르는 자리. 닫힌 열거형과 같은 부품으로 그리면 후보가 200명이 되는 날
+   * 사용자는 이름을 알면서도 목록을 눈으로 훑는다(R-5 · 지시 0-2.17). 폼과 필터가 **같은
+   * 부품**을 쓴다 — 같은 값을 고르는 자리가 표면마다 다른 상호작용을 갖지 않는다(C8). */
+  if (f.type === "entity") {
+    return (
+      <Box className="k-field" sx={{ mb: 2.5 }}>
+        <FieldLabel id={id + "-label"} required={required}>{f.label}</FieldLabel>
+        <EntityCombobox
+          id={id}
+          label={undefined}
+          ariaLabelledBy={id + "-label"}
+          value={value != null ? String(value) : ""}
+          onChange={onChange}
+          options={f.options || []}
+          allLabel={f.emptyLabel || "선택 안 함"}
+          helperText={helpText}
+          sx={{ width: "100%", maxWidth: "none" }}
+        />
+      </Box>
+    );
+  }
+
   if (f.type === "select") {
     return (
       <Box className="k-field" sx={{ mb: 2.5 }}>
@@ -1686,8 +1782,12 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
         {...common}
         select
         /* MUI 는 `label` 이 함께 있을 때만 `labelId` 를 aria-labelledby 로 엮는다 —
-           라벨을 위로 올린 뒤로는 직접 걸어 줘야 이름이 접근성 트리에 닿는다. */
-        SelectProps={{ labelId: id + "-label" }}
+           라벨을 위로 올린 뒤로는 직접 걸어 줘야 이름이 접근성 트리에 닿는다.
+           `displayEmpty` 가 없으면 값이 `""` 일 때 MUI 가 «아직 아무것도 안 골랐다» 로 보고
+           선택 항목을 아예 안 그린다 — 상자가 **완전히 빈 백지**가 된다(사용자 추가 모달의
+           부서·직책 select 가 잉크 0px 로 실측됐다). 같은 화면의 **필터** select 는
+           `EMPTYABLE_SELECT` 로 이미 이 함정을 피하고 있었는데 폼만 안 쓰고 있었다. */
+        SelectProps={{ labelId: id + "-label", displayEmpty: true }}
       >
         {selNeedEmpty ? (
           <MenuItem value="" disabled={required}>
@@ -1715,6 +1815,12 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
           : "text"
       }
       onPaste={handlePasteOverflowWarning}
+      /* `freeTextReason` 은 «이 자유 텍스트는 일부러 그렇다» 는 선언이다(W5). 후보 목록이
+         존재하지 않는 값(외부 시스템 식별자, 폼 값에 따라 후보가 갈리는 참조)이 그렇고,
+         그 **문장이 그대로** DOM 에 남는다 — 읽는 사람이 바로 이유를 본다.
+         억제 마커가 아니다: `plain_dropdown_for_entity` 는 끌 수 없는 검사이고(QA_SUPPRESSIONS
+         규칙 4) 여기서 말하는 것은 «끄겠다» 가 아니라 «이 칸은 애초에 선택기가 될 수 없다» 다. */
+      data-free-text={f.freeTextReason || undefined}
       inputProps={{
         ...(f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : null),
         ...(maxLength ? { maxLength } : null),
@@ -1831,7 +1937,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         body[f.name] = parsed;
         continue;
       }
-      else if (f.type === "select") {
+      else if (f.type === "select" || f.type === "entity") {   // entity 도 «고르는» 값이다 — 문구와 빈 값 처리가 같다
         val = val == null ? "" : String(val);
         if (f.required && !val.trim()) {
           // 옵션 자체가 없으면 '선택하세요'는 헛도는 무한 루프다 — 원인이 다른 문구를 준다.
@@ -1880,7 +1986,16 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
    * 편집에서 역할을 바꾸면 필드가 늘어난다)에서 사용자가 select 하나를 건드리는 순간 모달이
    * 45rem -> 62rem 로 **열린 채 넓어졌다.** 크기는 이 창이 무엇인지에 대한 사실이지 지금 몇
    * 칸이 보이는가에 대한 사실이 아니다. */
-  if (sizeAtOpen.current == null) sizeAtOpen.current = shownFields.length > 5 ? "lg" : "md";
+  /* **필드가 많다고 넓어지지 않는다** (W5 · F-W5D-136).
+   *
+   * 예전 규칙은 «필드 > 5 이면 lg(62rem)» 였다. 그런데 이 폼은 **언제나 한 열**이다 —
+   * 필드가 많으면 세로로 길어지지 가로로 넓어지지 않는다. 실측: 필드 6개짜리 폼이 942px
+   * 폭을 받아 한 열짜리 입력이 그 안에 놓였다(입력 하나가 화면 절반). 같은 파일이 `lg` 를
+   * 「열이 여럿인 것」용이라고 선언해 놓고 그 규칙을 스스로 어기고 있었다.
+   *
+   * 길이는 세로 스크롤이 감당한다. 진짜로 여러 열인 폼은 호출부가 `size="lg"` 로 **말한다** —
+   * 개수가 아니라 구조가 크기를 정한다. */
+  if (sizeAtOpen.current == null) sizeAtOpen.current = "md";
   const sz = size || sizeAtOpen.current;
   const footer = <ModalFooter onCancel={requestClose} onSubmit={submit} submitLabel={submitLabel || "저장"} busy={busy} />;
   return (
@@ -1888,7 +2003,14 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       {/* 필드를 <form>으로 감싸 Enter가 자연스럽게 제출되게 한다(textarea/json은 여러 줄 입력을
           위해 기본 Enter 동작 유지). */}
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        {err ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
+        {/* **한 오류에 표현 하나** (PLAN C5 «Feedback 위계»).
+            예전에는 필드 하나가 틀렸을 때 전폭 테두리 상자 **와** 그 필드 아래 인라인 문구가
+            동시에 떴다 — 같은 문자열이 두 번. C5 는 전폭 상자를 「행동이 있는 것」에만 허용하고,
+            어느 칸을 고치면 되는지는 그 칸 옆에서 말하는 것이 가장 짧은 경로다(그리고 이미
+            그 칸으로 스크롤·포커스한다). 그래서 **필드를 지목한 오류는 인라인만** 쓴다.
+            전폭 상자는 필드를 지목하지 못한 오류(서버 거절·네트워크)에만 남는다 — 그때는
+            인라인으로 붙일 자리가 없어서 상자가 유일한 자리다. */}
+        {err && !errField ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
         {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name}
           onChange={(val) => set(f.name, val)}
           errorMessage={errField === f.name ? err : undefined}
@@ -2066,7 +2188,11 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, spo
             <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"}>{heading}</Typography>
             {help ? (
               <IconButton
-                size="small"
+                /* 크기는 **이 줄의 이웃**을 따른다 (W5 재정정 — 복원된 프로브가 잡았다).
+                   같은 줄 오른쪽의 동작은 `PageHeader` 계약상 **기본 버튼(34)** 이다 — 구획
+                   머리(`isSection`)도 마찬가지다(조직 콘솔의 「조직 추가」·「부서 추가」가 그렇다).
+                   처음에는 `isSection` 일 때만 30 으로 두었는데, 실측이 그 예외가 틀렸다고
+                   말했다: 2560 에서 조직 화면 넷이 전부 4.5px 로 걸렸다. 예외를 지운다. */
                 onClick={() => setHelpOpen((v) => !v)}
                 aria-expanded={helpOpen}
                 aria-controls={helpId}

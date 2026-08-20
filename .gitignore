@@ -18,6 +18,9 @@ htmlcov/
 
 # React frontend build
 frontend/node_modules/
+# 루트 node_modules 는 원래 추적 대상이 아닌데 vitest 캐시 한 파일이 실수로 커밋된 적이 있다
+# (`774fdbe5`). 그 파일은 실행할 때마다 바뀌어 작업 트리를 항상 더럽힌다 — 추적에서 뺀다.
+node_modules/
 frontend/dist/
 frontend/.vite/
 

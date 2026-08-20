@@ -71,3 +71,48 @@ describe("FormModal — 422 details가 필드에 연결된다", () => {
     expect(screen.getByLabelText(/이메일/)).not.toHaveAttribute("aria-invalid", "true");
   });
 });
+
+/* W5 — **한 오류에 표현 하나** (PLAN C5 «Feedback 위계»).
+ *
+ * 예전에는 필드 하나가 틀렸을 때 전폭 테두리 상자와 그 칸 아래 인라인 문구가 **같은
+ * 문자열로 동시에** 떴다. C5 는 전폭 상자를 「행동이 있는 것」에만 허용하고, 어느 칸을
+ * 고치면 되는지는 그 칸 옆에서 말하는 것이 가장 짧은 경로다(이미 그 칸으로 스크롤·포커스한다).
+ * 전폭 상자는 **필드를 지목하지 못한 오류**(서버 거절·네트워크)에만 남는다 — 그때는 인라인으로
+ * 붙일 자리가 없다. */
+describe("한 오류에 표현 하나 (C5)", () => {
+  it("🔴 필드를 지목한 오류는 인라인만 쓴다 — 전폭 상자를 함께 띄우지 않는다", async () => {
+    const user = userEvent.setup();
+    render(wrap(
+        <FormModal
+          open
+          title="사용자 추가"
+          fields={[{ name: "email", label: "이메일", type: "text", required: true }]}
+          initial={{}}
+          onSubmit={async () => {}}
+          onClose={() => {}}
+        />
+    ));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    // 인라인은 있다.
+    expect(await screen.findByText(/이메일을\(를\) 입력하세요\./)).toBeInTheDocument();
+    // 전폭 상자는 없다.
+    expect(document.querySelector(".k-form-err")).toBeNull();
+  });
+
+  it("필드를 지목하지 못한 오류는 전폭 상자로 남는다 — 붙일 칸이 없다", async () => {
+    const user = userEvent.setup();
+    render(wrap(
+        <FormModal
+          open
+          title="사용자 추가"
+          fields={[{ name: "email", label: "이메일", type: "text" }]}
+          initial={{ email: "a@b.c" }}
+          onSubmit={async () => { throw new Error("서버가 거절했습니다."); }}
+          onClose={() => {}}
+        />
+    ));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    const box = await screen.findByText("서버가 거절했습니다.");
+    expect(box.closest(".k-form-err")).not.toBeNull();
+  });
+});

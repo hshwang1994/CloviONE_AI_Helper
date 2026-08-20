@@ -124,7 +124,9 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
           </Box>
         </Button>
         <Tooltip title="이 화면의 링크 복사">
-          <IconButton size="small" onClick={copyLink} aria-label="이 화면의 링크 복사">
+          {/* 이웃이 기본 크기 버튼(「저장된 뷰」)이라 아이콘 버튼도 기본 크기다 — 한 줄에
+              높이는 하나(C2). 실측: `size="small"` 이던 동안 2560·3840 에서 4.5~5px 갈렸다. */}
+          <IconButton onClick={copyLink} aria-label="이 화면의 링크 복사">
             <LinkRoundedIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -195,6 +197,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
         }
       >
         <TextField
+          InputLabelProps={{ shrink: true }}
           autoFocus
           fullWidth
           label="뷰 이름"

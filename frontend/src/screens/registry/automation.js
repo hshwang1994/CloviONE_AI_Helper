@@ -88,7 +88,7 @@ export const AUTOMATION_SCREENS = {
       // USE-04/SCHD-02: 워크플로 UUID를 손으로 옮겨 적던 것을 이름으로 고르게 한다(refLists,
       // 아래 참고). '대상 유형'을 '시스템'으로 바꿔도 고를 수 있게 유일한 시스템 값(noop)을
       // 같은 목록 끝에 얹는다 — 두 필드를 서로 맞춰 조건부로 보여주는 것보다 단순하다.
-      { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",
+      { name: "target_ref", label: "대상", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows",
         extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
         help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음으로 설정된 것만 실제 실행됩니다). 시스템이면 목록 끝의 ‘시스템 (noop)’을 고르세요." },
       { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "워크플로에 보낼 기본 입력값. 비우면 빈 값으로 실행됩니다." },
@@ -200,7 +200,7 @@ export const AUTOMATION_SCREENS = {
       { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다. 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
-      { name: "target_ref", label: "대상", type: "select", required: true, optionsFromRefList: "workflows",
+      { name: "target_ref", label: "대상", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows",
         extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
         help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음인 것만). 시스템이면 ‘시스템 (noop)’을 고르세요." },
       { name: "payload_template", label: "실행 페이로드(JSON)", type: "json" },
@@ -418,15 +418,22 @@ export const AUTOMATION_SCREENS = {
     },
     // 대기·실행 중인 작업이 있으면 상태 전이(대기→실행→완료/실패)를 자동으로 따라간다.
     pollWhile: (r) => r.status === "queued" || r.status === "running",
+    refLists: [
+      { key: "schedules", endpoint: "/api/admin/schedules" },
+      { key: "generations", endpoint: "/api/admin/documents", labelKey: "id" },
+    ],
     filters: [
       { key: "status", type: "select", label: "상태", options: opt([["queued", "대기"], ["running", "실행 중"], ["succeeded", "완료"], ["failed", "실패"], ["cancelled", "취소됨"]]) },
       { key: "job_type", type: "select", label: "유형", options: opt([["chat_message", "채팅 메시지"], ["document_generate", "문서 생성"], ["notion_mapping_sync", "Notion 동기화"], ["schedule_run", "예약 실행"]]) },
-      // governance.js audit 화면의 actor_user_id/target_user_id와 같은 패턴(자유 텍스트 ID
-      // 필터). 스케줄/문서 생성 화면의 크로스링크(onQuery)가 채우지만, 운영자가 직접 ID를
-      // 붙여넣어 찾는 용도로도 그대로 쓴다 — 숨긴 필터가 아니라 진짜 검색 기능이다.
-      { key: "schedule_id", type: "text", label: "연결된 스케줄 ID" },
-      { key: "schedule_run_id", type: "text", label: "실행 건 ID" },
-      { key: "generation_id", type: "text", label: "연결된 문서 생성 ID" },
+      /* 크로스링크(onQuery)가 채우기도 하지만 운영자가 직접 고르기도 하는 자리다.
+         W5: 셋 중 **전역 목록이 있는 둘**은 이름으로 고르게 바꾼다 — 사람이 UUID 를
+         외워서 붙여넣는 것은 검색 기능이 아니다(R-5). 「실행 건 ID」는 일정 하나에
+         종속된 값이라 전역 후보 목록이 없다 — 그 자리는 자유 텍스트로 남기고, 실제로
+         쓰는 경로는 일정 상세의 크로스링크다. */
+      { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules" },
+      { key: "schedule_run_id", type: "text", label: "실행 건 ID",
+        freeTextReason: "일정 하나에 종속된 값이라 전역 후보 목록이 없다. 실제 경로는 일정 상세의 크로스링크다." },
+      { key: "generation_id", type: "select", kind: "entity", label: "연결된 문서 생성", optionsFromRefList: "generations" },
     ],
     // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 100건이 전부 "상세
     // 보기"였다. job_type 필터로 좁혀 보는 게 흔한 사용 패턴이라 유형만으로는 부족해

@@ -302,6 +302,7 @@ export function Sprint() {
             조회 부서
           </Typography>
           <TextField
+            InputLabelProps={{ shrink: true }}
             select size="small" sx={{ minWidth: "20rem" }}
             value={deptCtx.selected || ""}
             onChange={(e) => setFilters({ dept: e.target.value }, { push: true })}

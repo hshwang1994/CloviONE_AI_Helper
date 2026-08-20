@@ -345,6 +345,69 @@ def _split_csv(values: list[str] | None) -> set[str] | None:
     return out or None
 
 
+def sync_coverage(index: dict, into: str) -> int:
+    """수집한 증거를 **Control Plane 에 바로 반영한다** (W5 정정).
+
+    예전에는 이 스크립트가 `captures/<into>/index.json` 만 쓰고, `ROUTE_COVERAGE.json` 의
+    `after_capture` 와 `capture_labels.after` 는 **사람이 따로 옮겨 적어야** 했다. 아무도 안
+    옮겼다: W2·W3·W4 가 각자 전량 실행을 하고도 두 값이 **W1 것 그대로**였고
+    (`label: "w1-after"`, `build_index_sha256: 104e49366bf030f4`), 그래서 게이트는 세 Wave 동안
+    W1 의 측정을 읽으며 초록이 됐다. 증거를 모으는 손과 증거를 가리키는 손이 다르면 갈라진다.
+
+    한 번에 둘 다 갱신한다 — 대표 조합 하나를 `<into>_capture` 로 걸고, `capture_labels.<into>`
+    를 이 실행의 라벨로 옮긴다. 대표는 「가장 넓게 쓰이는 조합」(1920x1080/light)을 우선하고,
+    없으면 그 Surface 에서 실제로 수집된 첫 조합을 쓴다.
+    """
+    cov_path = REPO_ROOT / "docs" / "ui-renewal" / "ROUTE_COVERAGE.json"
+    if not cov_path.exists():
+        return 0
+    cov = json.loads(cov_path.read_text(encoding="utf-8"))
+    by_surface: dict[str, list[dict]] = {}
+    for cap in index.get("captures") or []:
+        by_surface.setdefault(cap["surface_id"], []).append(cap)
+
+    key = f"{into}_capture"
+    changed = 0
+    for surface in cov.get("surfaces") or []:
+        caps = by_surface.get(surface.get("id"))
+        if not caps:
+            continue
+        pick = next((c for c in caps
+                     if c["viewport"] == "1920x1080" and c["theme"] == "light"), caps[0])
+        surface[key] = {
+            "path": pick["path"],
+            "label": index["label"],
+            "build_index_sha256": index["build_index_sha256"],
+            "at": index["captured_at"],
+            "theme": pick["theme"],
+            "viewport": pick["viewport"],
+            "committed_combos": sorted(f"{c['viewport']}/{c['theme']}" for c in caps),
+            "all_combos": len(caps),
+            "results_json": index["results_json"],
+        }
+        changed += 1
+
+    # 자기 Route 가 없는 위젯 Surface(상단바·사이드바·kit 원시형)는 호스트 화면의 PNG 를
+    # **빌려 쓴다**. 그 PNG 가 이번 실행으로 새로 쓰였으면 가리키는 메타데이터도 함께 새것이어야
+    # 한다 — 안 그러면 파일은 최신인데 라벨만 옛 Wave 로 남아, 「어느 빌드의 증거인가」가 거짓이 된다.
+    written_paths = {c["path"] for c in (index.get("captures") or [])}
+    for surface in cov.get("surfaces") or []:
+        cap = surface.get(key)
+        if not isinstance(cap, dict) or cap.get("label") == index["label"]:
+            continue
+        if cap.get("path") in written_paths:
+            cap["label"] = index["label"]
+            cap["build_index_sha256"] = index["build_index_sha256"]
+            cap["at"] = index["captured_at"]
+            cap["results_json"] = index["results_json"]
+            changed += 1
+
+    labels = cov.setdefault("capture_labels", {})
+    labels[into] = index["label"]
+    cov_path.write_text(json.dumps(cov, ensure_ascii=False, indent=1) + chr(10), encoding="utf-8")
+    return changed
+
+
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         try:  # 한국어 라벨이 cp949 콘솔에서 살아남아야 한다
@@ -438,6 +501,9 @@ def main(argv: list[str] | None = None) -> int:
 
     index_path = dest_dir / "index.json"
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    synced = sync_coverage(index, args.into)
+    if synced:
+        _log(f"ROUTE_COVERAGE.{args.into}_capture 갱신 {synced}건 + capture_labels.{args.into}={index['label']}")
     _log("")
     _log(f"index.json : {index_path} ({index_path.stat().st_size:,} bytes, "
          f"{len(index['captures'])}장)")

@@ -4,13 +4,11 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
@@ -19,10 +17,11 @@ import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
-import { FilterBarGrid } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
+import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -528,7 +527,7 @@ export function Users() {
   }, [items.length, page, query.isLoading, query.isError]);
 
   const createFields = [
-    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다." }, { name: "department_id", label: "부서", type: "select", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "변경 요구" }, ];
+    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다." }, { name: "department_id", label: "부서", type: "entity", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "변경 요구" }, ];
   const editFields = [
     // required: 빈 이름으로 제출하면 서버는 display_name=null을 '변경 없음'으로 취급해 조용히
     // 아무것도 안 바꾼다(update_user는 not None일 때만 반영), 클라이언트에서 먼저 막아 저장됐다는
@@ -537,7 +536,7 @@ export function Users() {
       // 관리자 승인 흐름 안내는 system_admin이 아닌 행위자에게만 붙어 있었는데, 역할이 실제로
       // 바뀌면(어떤 역할로든) 이 사용자의 모든 세션이 즉시 강제 로그아웃된다(app/users/service.py
       // update_user, docs/USER_LIFECYCLE.md §3), 이 부작용은 actorRole과 무관하게 항상 적용되므로 별도로 안내한다.
-      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: (actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다.", }, { name: "department_id", label: "부서", type: "select", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "select", options: title.options, help: titleHelp }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "변경 요구" },
+      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: (actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다.", }, { name: "department_id", label: "부서", type: "entity", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", options: title.options, help: titleHelp }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "변경 요구" },
       /* 관리 범위 (F2) — **부서 관리자를 만들 수 있는 유일한 입구**다.
        *
        * 모델(`users.admin_scope`)과 읽는 쪽(`app/core/scope.py`)은 0024 부터 있었는데
@@ -560,13 +559,13 @@ export function Users() {
       // 보여주면서 실제로 조직을 지정할 방법을 안 줬으니, '조직관리자'를 만들려는 시도는 매번
       // 이 검증 오류로 막혔다(F2 코멘트의 "부서 관리자를 만들 수 있는 유일한 입구"는 있었지만
       // 조직관리자를 만들 입구는 없었던 셈).
-      { name: "scope_org_id", label: "범위 대상 조직", type: "select", options: org.options,
+      { name: "scope_org_id", label: "범위 대상 조직", type: "entity", options: org.options,
         showIf: (v) => v.role !== "user" && v.admin_scope === "org",
         help: (orgHelp ? orgHelp : "'조직'을 고른 경우에만 씁니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다.") },
       // showIf: 도움말이 "'부서'를 고른 경우에만 씁니다"라고 말하면서도 admin_scope가 global/org일
       // 때도 계속 보였다 — AI 쿼터 화면(범위가 '사용자'일 때만 필요한 대상 ID 칸)과 같은 모양의
       // 문제라 같은 장치(showIf)로 맞춘다.
-      { name: "scope_dept_id", label: "범위 대상 부서", type: "select", options: dept.options,
+      { name: "scope_dept_id", label: "범위 대상 부서", type: "entity", options: dept.options,
         showIf: (v) => v.role !== "user" && v.admin_scope === "dept",
         help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다." },
     ];
@@ -606,42 +605,52 @@ export function Users() {
           SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
           덩어리였다. 시각은 그대로(.sr-only), 다른 목록 화면과 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      <Card sx={{ p: 2, mb: 2.5 }}>
-        <FilterBarGrid>
-          <TextField
-            type="search" size="small" value={q} onChange={(e) => setQ(e.target.value)}
+      {/* 판이 아니다 — 지시 80. 컨트롤 다섯 개를 페이지 폭 흰 사각형에 담으면 오른쪽
+          절반이 빈다. */}
+      <FilterSurface>
+        <ToolbarRow>
+          {/* 공용 `SearchBox` 를 쓴다 — 예전에는 이 화면만 손으로 만든 검색창이었고,
+              디바운스도 없이 글자마다 질의가 나갔다(토큰 `DEBOUNCE_MS.filter` 미사용). */}
+          <SearchBox
+            value={q}
+            onSearch={setQ}
             placeholder="이메일 또는 이름 검색"
-            inputProps={{ "aria-label": "사용자 검색" }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
-            sx={{ gridColumn: { sm: "span 2" } }}
+            ariaLabel="사용자 검색"
           />
-          <TextField select size="small" label="역할" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-            <MenuItem value="">역할: 전체</MenuItem>
-            {ROLE_OPTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-          </TextField>
-          <TextField select size="small" label="활성" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
-            <MenuItem value="">활성: 전체</MenuItem>
-            <MenuItem value="true">활성</MenuItem>
-            <MenuItem value="false">비활성</MenuItem>
-          </TextField>
-          <TextField select size="small" label="잠김" SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }} value={lockedFilter} onChange={(e) => setLockedFilter(e.target.value)}>
-            <MenuItem value="">잠김: 전체</MenuItem>
-            <MenuItem value="true">지금 잠김</MenuItem>
-            <MenuItem value="false">잠기지 않음</MenuItem>
-          </TextField>
+        </ToolbarRow>
+        <FilterRow>
+          <FilterSelect label="역할" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} allLabel="역할: 전체" />
+          <FilterSelect
+            label="활성" value={activeFilter} onChange={setActiveFilter} allLabel="활성: 전체"
+            options={[{ value: "true", label: "활성" }, { value: "false", label: "비활성" }]}
+          />
+          <FilterSelect
+            label="잠김" value={lockedFilter} onChange={setLockedFilter} allLabel="잠김: 전체"
+            options={[{ value: "true", label: "지금 잠김" }, { value: "false", label: "잠기지 않음" }]}
+          />
           <FormControlLabel
-            sx={{ m: 0 }}
+            sx={{ m: 0, flex: "0 0 auto" }}
             control={<Checkbox size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
             label={<Typography variant="body2">보관된 계정 보기</Typography>}
           />
-          {hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 지우기</Button> : null}
-          {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
-              오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 작은 텍스트로 알린다. */}
-          {query.isFetching && !query.isLoading ? (
+          {hasContentFilter ? (
+            <FilterActions>
+              <Button variant="ghost" size="sm" onClick={clearContentFilters}>필터 지우기</Button>
+            </FilterActions>
+          ) : null}
+        </FilterRow>
+      </FilterSurface>
+      {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
+          오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 결과 줄에 알린다. */}
+      {query.data ? (
+        <ResultLine
+          total={query.data.total != null ? query.data.total : (query.data.items || []).length}
+          conditions={[q, roleFilter, activeFilter, lockedFilter, showArchived ? "archived" : "", deptFilter].filter(Boolean)}
+          action={query.isFetching && !query.isLoading ? (
             <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">불러오는 중…</Typography>
           ) : null}
-        </FilterBarGrid>
-      </Card>
+        />
+      ) : null}
 
       {deptFilter ? (
         <Box sx={{ mb: 2.5 }}>

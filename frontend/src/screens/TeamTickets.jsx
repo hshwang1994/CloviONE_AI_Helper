@@ -102,16 +102,15 @@ export function TeamTickets() {
   /* 부서 후보는 **목록 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를 만들지
      않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데 결과가 비는 상자가
      생긴다. */
+  /* 부서는 **scope** 다 — 줄의 맨 앞(C2 그룹 순서). 「활성만」 토글은 조건이 아니라 보기
+     방식이라 흐름 끝에 남는다. 예전에는 둘을 한 덩어리로 넘겨 부서가 기한 뒤에 섰다. */
   const scopeControls = (
-    <>
-      {activeToggle}
-      <DepartmentFilter
-        departments={q.data && q.data.departments}
-        value={filters.dept}
-        onChange={(v) => setFilters({ dept: v })}
-        sx={{ minWidth: "16rem" }}
-      />
-    </>
+    <DepartmentFilter
+      departments={q.data && q.data.departments}
+      value={filters.dept}
+      onChange={(v) => setFilters({ dept: v })}
+      sx={{ minWidth: "16rem" }}
+    />
   );
 
   return (
@@ -155,7 +154,7 @@ export function TeamTickets() {
               />
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
-                total={data.total} extra={scopeControls}
+                total={data.total} scope={scopeControls} extra={activeToggle}
                 onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "" })}
               />
               <Card>

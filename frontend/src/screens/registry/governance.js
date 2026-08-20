@@ -58,14 +58,19 @@ export const GOVERNANCE_SCREENS = {
     // 승인 큐는 여러 관리자·자동 만료(72h)가 동시에 건드릴 수 있는 경합 자원이다 — 화면을 열어둔 채로
     // 다른 관리자가 먼저 처리한 pending 행을 눌러 낡은 409를 보지 않도록 자동 새로고침한다.
     pollWhile: (r) => r.status === "pending",
+    /* 사람 후보 목록 — 요청자 필터가 이름으로 고를 수 있으려면 후보가 있어야 한다.
+       `/api/admin/users` 는 이 화면들이 이미 쓰는 관리자 목록 엔드포인트다. */
+    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     // 상태 기본값을 'pending'으로 스코프한다(여전히 '전체'로 바꿀 수 있다) — 승인 대장은 append-only라
     // 기본값 없이는 매 방문마다 실제 처리 가능한 대기 건이 승인/거절/만료/취소 이력에 묻혀 보였다.
     filters: [
       { key: "status", type: "select", label: "상태", value: "pending", options: opt([["pending", "대기"], ["approved", "승인됨"], ["rejected", "거절됨"], ["expired", "만료"], ["cancelled", "취소됨"]]) },
       { key: "request_type", type: "select", label: "유형", options: opt(APPROVAL_REQUEST_TYPES.map((t) => [t, actionKo(t)])) },
-      // requested_by는 요청자 ID(UUID) 그대로 받는다 — 다른 화면의 관용(impersonation의
-      // actor_user_id/target_user_id)과 같은 자유 텍스트 ID 필터, 이름 검색이 아니다.
-      { key: "requested_by", type: "text", label: "요청자 ID" },
+      /* W5: 자유 텍스트 UUID 를 **이름으로 고르게** 바꾼다 (R-5 · 지시 0-2.17).
+         "다른 화면도 그렇게 한다"가 근거였는데, 그 다른 화면들도 같은 결함이었다 —
+         사람은 UUID 를 외우지 않는다. 후보는 이미 있는 사용자 목록에서 온다. */
+      { key: "requested_by", type: "select", kind: "entity", label: "요청자",
+        optionsFromRefList: "people" },
     ],
     // 만료 시각은 대기(pending)일 때만 의미가 있다 — 종료된 행은 원래 만료 시각을 계속 보여주면 오해를 낳으므로 '-'.
     // 요청자 열 — router.py가 배치로 requester_name/requester_email을 미리 붙여 주므로(누가 요청했는지
@@ -208,9 +213,13 @@ export const GOVERNANCE_SCREENS = {
     ],
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
       field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "추가")],
+    /* 사람 후보 — 아래 두 필드가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5 · R-5). */
+    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     create: { roles: WRITE_ROLES, fields: [
-      { name: "delegator_user_id", label: "위임하는 사람(사용자 ID)", type: "text", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자, 시스템 관리자). ‘사용자’ 화면에서 ID를 복사하세요." },
-      { name: "delegate_user_id", label: "대리 승인자(사용자 ID)", type: "text", required: true, help: "이 사람은 위임 기간에만 승인, 거절을 할 수 있습니다." },
+      /* W5: 「‘사용자’ 화면에서 ID를 복사하세요」 는 기능이 아니라 결함이다 — 사람이 UUID 를
+         화면 사이로 나르게 만든다(R-5 · 지시 0-2.17). 후보는 위 `refLists.people` 이 준다. */
+      { name: "delegator_user_id", label: "위임하는 사람", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자, 시스템 관리자)." },
+      { name: "delegate_user_id", label: "대리 승인자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "이 사람은 위임 기간에만 승인, 거절을 할 수 있습니다." },
       { name: "starts_at", label: "시작", type: "datetime-local", required: true },
       { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "최대 90일. 기간이 지나면 권한이 저절로 닫힙니다." },
       { name: "reason", label: "사유", type: "text", help: "예: 7/20~7/25 휴가" },
@@ -228,6 +237,8 @@ export const GOVERNANCE_SCREENS = {
   },
   audit: {
     key: "audit", area: "감사", title: "감사 로그", endpoint: "/api/admin/audit",
+    /* 행위자 필터가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5). */
+    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     // PA-RC-0024: /audit/:id 라우트가 AdminRoutes.jsx에 등록돼 있다 — DataScreen이 이
     // 플래그를 보고 sel(상세 선택)을 그 경로와 동기화한다(직접 진입·새로고침·뒤로가기).
     // 이 플래그가 없는 다른 registry 화면은 :id 라우트 자체가 없으므로 절대 켜면 안 된다
@@ -290,7 +301,8 @@ export const GOVERNANCE_SCREENS = {
         { value: "ai_quota", label: "AI 사용 상한" }, { value: "approval_delegation", label: "승인 위임" },
         { value: "announcement", label: "공지 배너" }, { value: "offboarding_run", label: "오프보딩" }] },
       // 특정 엔티티에 일어난 모든 사건을 추적한다(상세의 '대상 ID'·부서/직책 상세 id를 붙여넣는다).
-      { key: "object_id", type: "text", label: "대상 ID" },
+      { key: "object_id", type: "text", label: "대상 ID",
+        freeTextReason: "감사 대상은 모든 object_type 을 가로지른다. 하나의 후보 목록이 존재할 수 없다." },
       // 감사 action은 백엔드가 정확 일치(==)로 필터한다(router: AuditLog.action == action). 실제 값은
       // '대상.동작'을 조합한 열린 네임스페이스라(예: user.update, prompts.update_content, cli.user.enable,
       // user.role_change_requested) 유한한 select로 담으면 유효한 값을 가려 버린다 — 정확한 문자열을
@@ -304,7 +316,9 @@ export const GOVERNANCE_SCREENS = {
       // (백엔드 app/audit/router.py, 쉼표로 구분된 action 목록을 받는다).
       { key: "exclude_actions", type: "select", label: "표시 범위",
         options: [{ value: "user.login,user.logout", label: "로그인/로그아웃 제외" }] },
-      { key: "user_id", type: "text", label: "행위자 ID" },
+      /* W5: 행위자는 Entity 다 — 계정이 늘면 후보도 는다. 딥링크(`?user_id=`)가 넣는 값이
+         후보에 없어도(목록에서 빠진 계정) 그 값은 그대로 보이고 질의도 그대로 나간다. */
+      { key: "user_id", type: "select", kind: "entity", label: "행위자", optionsFromRefList: "people" },
       // 실패만 격리하는 것은 보안 감사에서 가장 자주 필요한 질의다(로그인 실패·비밀번호 변경
       // 실패). 백엔드는 예전부터 이 조건을 받고 있었고(app/audit/router.py `_filtered_stmt`,
       // 목록과 CSV 내보내기가 같은 질의를 쓴다) 화면도 '결과' 열을 보여 주면서, 정작 그 값으로
@@ -313,7 +327,8 @@ export const GOVERNANCE_SCREENS = {
       // 상관 id 로 찾기 (Z8). 이 값은 상세 패널에 **보이기만 했고 그것으로 찾을 수가 없었다**.
       // 사용자가 오류 화면의 '문의 번호'를 불러 주면 그대로 붙여넣어 그 요청 하나를 짚는다 —
       // 새벽 3시에 "화면이 안 나와요" 를 받았을 때 경로와 상태 코드 말고 쓸 것이 생긴다.
-      { key: "request_id", type: "text", label: "문의 번호(요청 ID)" },
+      { key: "request_id", type: "text", label: "문의 번호(요청 ID)",
+        freeTextReason: "외부에서 받아 적는 번호다. 이 제품 안에 후보 목록이 없다." },
       // 백엔드 _parse_boundary(app/audit/router.py)는 하루 단위가 아니라 시각(오프셋 포함 ISO-8601)까지
       // 정밀하게 필터할 수 있는데, <input type="date">로는 하루 경계만 만들 수 있어 그 정밀도가
       // 화면에서 닿지 않았다 — datetime-local로 바꿔 시:분까지 지정하고 KST(+09:00)로 변환해 보낸다.
@@ -421,6 +436,11 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   rbac: {
+    /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
+       기능 플래그 11 · 통합 4 · RBAC 13 실측). R-88 이 "25행" 을 기계 규칙으로 쓰지 말라고
+       못박으므로 숫자가 아니라 **판단**을 남긴다: 조건 조합을 이름 붙여 재사용할 만큼
+       탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
+    smallSet: true,
     key: "rbac", area: "사용자와 권한", title: "권한 매트릭스", endpoint: "/api/admin/rbac-matrix",
     // 이 표는 역할(role) 축 하나만 보여준다 — role=admin 은 admin_scope(전체/조직/부서)로
     // 추가로 좁혀질 수 있는데(app/core/scope.py), 그 축이 이 매트릭스 어디에도 안 보이면
@@ -492,6 +512,7 @@ export const GOVERNANCE_SCREENS = {
     ],
     emptyExpected: "시작, 종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
     paginated: true,
+    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     // actor_user_id/target_user_id는 백엔드가 이미 받는 서버 필터다(app/impersonation/router.py
     // list_sessions) — 그런데 이 배열에 없으면 DataScreen.buildUrl()이 config.filters에 있는 키만
     // 서버로 보내므로(serverFilterDefs), 아래 '이 관리자의 기록만' 액션과 onQuery 딥링크가 filters
@@ -499,8 +520,10 @@ export const GOVERNANCE_SCREENS = {
     // 걸러 준 화면'으로 오인하게 된다(감사 이상 징후의 result 필터 F7과 동일한 부류의 결함).
     filters: [
       { key: "active", type: "select", label: "진행 중", options: opt([["true", "진행 중"], ["false", "종료됨"]]) },
-      { key: "actor_user_id", type: "text", label: "관리자 ID" },
-      { key: "target_user_id", type: "text", label: "대상 사용자 ID" },
+      /* W5: 두 축 다 «사람» 이다 — UUID 를 손으로 붙여넣는 자리가 아니라 이름으로 고르는
+         자리다(R-5). 후보는 아래 `refLists.people` 이 준다. */
+      { key: "actor_user_id", type: "select", kind: "entity", label: "관리자", optionsFromRefList: "people" },
+      { key: "target_user_id", type: "select", kind: "entity", label: "대상 사용자", optionsFromRefList: "people" },
     ],
     columns: [
       // SEM-01: 첫 열이 render라 표식 없이는 모든 기록이 "상세 보기"로 동일했다 — 관리자→
@@ -522,7 +545,8 @@ export const GOVERNANCE_SCREENS = {
       { label: "대리 보기 시작", variant: "primary", primary: true, roles: WRITE_ROLES,
         path: () => "/api/admin/impersonation/start",
         fields: [
-          { name: "user_id", label: "대상 사용자 ID", type: "text", required: true, help: "‘사용자’ 화면에서 대상 계정의 ID를 복사해 붙여 넣으세요. 자신과 같거나 더 높은 권한의 계정은 지정할 수 없습니다." },
+          /* W5: 후보는 이 화면의 `refLists.people` 이 준다 — UUID 를 손으로 옮기는 자리가 아니다. */
+          { name: "user_id", label: "대상 사용자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "자신과 같거나 더 높은 권한의 계정은 지정할 수 없습니다." },
           { name: "reason", label: "사유", type: "textarea", help: "왜 보는지 적어 두면 감사 기록에 함께 남습니다(예: 문의 #123 재현 확인)." },
         ],
         // 시작하면 '내가 누구인지'가 바뀐다 — 화면을 통째로 다시 읽어야 사이드바·상단 배너가

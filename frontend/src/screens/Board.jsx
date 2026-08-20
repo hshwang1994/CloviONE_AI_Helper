@@ -27,6 +27,7 @@ import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { SearchBox } from "../ui/filters.jsx";
+import { FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
 
 /* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
@@ -232,6 +233,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       {/* 카테고리·제목은 한 줄에 나란히(넓은 화면) — 세로로만 쌓으면 본문 입력이 접힌 아래로 밀린다. */}
       <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "12rem minmax(0,1fr)" } }}>
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="board-cat"
           select
           size="small"
@@ -244,6 +246,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
           ))}
         </TextField>
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="board-title"
           size="small"
           required
@@ -254,6 +257,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
         />
       </Box>
       <TextField
+        InputLabelProps={{ shrink: true }}
         id="board-body"
         label="내용"
         size="small"
@@ -488,33 +492,32 @@ function BoardScreen({ kind = "free" }) {
       {/* SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
           한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx/TeamDocs.jsx와 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-        {/* VIS-92: 예전엔 카테고리(왼쪽)·검색+정렬(오른쪽) 순이었다 — 다른 필터 화면(표
-            기반 목록 28개 + 티켓 필터 4개)은 전부 "왼쪽 검색 + 오른쪽 필터"라 이 화면만
-            좌우가 뒤집혀 있었다(DS-12/DS-13에 이은 네 번째 관용 불일치). 카테고리는 칩
-            묶음이라 값 개수만큼 자유롭게 줄바꿈해야 하므로(TicketFilterBar의 select처럼
-            고정 폭 칸에 넣지 않는다) 그리드 자체를 새로 쓰지 않고, 기존 두 열의 순서와
-            폭 배분(가변 열이 칩 쪽)만 검색이 먼저 오도록 뒤집는다. */}
-        <Box sx={{
-          display: "grid", gap: 1.5, alignItems: "center",
-          gridTemplateColumns: { xs: "1fr", lg: "auto minmax(0,1fr)" },
-        }}>
-          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "minmax(12rem,1fr) 9rem" } }}>
-            <SearchBox
-              value={q}
-              onSearch={commitSearch}
-              placeholder="제목, 내용, 작성자 검색"
-              ariaLabel="검색"
-              sx={undefined}
-            />
+      {/* 판이 아니다 — 지시 80이 이 화면을 이름으로 지목했다("Control 은 화면 좌측 일부만
+          사용하지만 Container 는 Page 전체 폭"). 그리고 정렬 select 가 혼자 두 번째 줄에
+          떨어져 있던 것(지시 76이 역시 이 화면을 이름으로 지목했다)의 원인은 배치가 아니라
+          `SearchBox` 의 기본 인자였다 — `sx={undefined}` 가 기본값을 되살려 검색창이 2칸을
+          먹었다. 부품에서 고쳤으므로 여기서는 그냥 «검색은 도구 줄, 정렬은 그 줄 오른쪽 끝,
+          분류 칩은 내용 필터 줄» 이라는 원래 뜻대로 놓는다. */}
+      <FilterSurface>
+        <ToolbarRow>
+          <SearchBox
+            value={q}
+            onSearch={commitSearch}
+            placeholder="제목, 내용, 작성자 검색"
+            ariaLabel="검색"
+          />
+          <ToolbarEnd>
             <TextField
-              select size="small" value={sort}
+              select size="small" label="정렬" value={sort}
+              InputLabelProps={{ shrink: true }}
               onChange={(e) => setQuery({ sort: e.target.value })}
-              inputProps={{ "aria-label": "정렬" }}
+              sx={{ minWidth: "10rem" }}
             >
               {SORTS.map(([v, label]) => <MenuItem key={v} value={v}>{label}</MenuItem>)}
             </TextField>
-          </Box>
+          </ToolbarEnd>
+        </ToolbarRow>
+        <FilterRow>
           <Box role="group" aria-label="카테고리" sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
             <Chip
               component="button" type="button" clickable label="전체"
@@ -534,33 +537,35 @@ function BoardScreen({ kind = "free" }) {
               />
             ))}
           </Box>
-        </Box>
-        {statuses.length > 0 ? (
-          <Box
-            role="group"
-            aria-label="상태"
-            sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0, mt: 1.5 }}
-          >
-            <Chip
-              component="button" type="button" clickable label="전체 상태"
-              aria-pressed={status === ""}
-              color={status === "" ? "primary" : "default"}
-              variant={status === "" ? "filled" : "outlined"}
-              onClick={() => setQuery({ status: "" })}
-            />
-            {statuses.map((s) => (
+          {statuses.length > 0 ? (
+            <Box role="group" aria-label="상태" sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
               <Chip
-                key={s}
-                component="button" type="button" clickable label={s}
-                aria-pressed={status === s}
-                color={status === s ? "primary" : "default"}
-                variant={status === s ? "filled" : "outlined"}
-                onClick={() => setQuery({ status: s })}
+                component="button" type="button" clickable label="전체 상태"
+                aria-pressed={status === ""}
+                color={status === "" ? "primary" : "default"}
+                variant={status === "" ? "filled" : "outlined"}
+                onClick={() => setQuery({ status: "" })}
               />
-            ))}
-          </Box>
-        ) : null}
-      </Card>
+              {statuses.map((st) => (
+                <Chip
+                  key={st}
+                  component="button" type="button" clickable label={st}
+                  aria-pressed={status === st}
+                  color={status === st ? "primary" : "default"}
+                  variant={status === st ? "filled" : "outlined"}
+                  onClick={() => setQuery({ status: st })}
+                />
+              ))}
+            </Box>
+          ) : null}
+        </FilterRow>
+      </FilterSurface>
+      {list.data ? (
+        <ResultLine
+          total={list.data.total != null ? list.data.total : items.length}
+          conditions={[q, category, status].filter(Boolean)}
+        />
+      ) : null}
 
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (

@@ -1,6 +1,6 @@
 /* 생성 파일이다. 손으로 고치지 마라.
  *
- * 정본: frontend/src/ui/theme.js  (source-hash a165c4c3da5fafad)
+ * 정본: frontend/src/ui/theme.js  (source-hash 67dc4b4708b935ef)
  * 생성: node scripts/generate_design_tokens.mjs
  * 검사: node scripts/generate_design_tokens.mjs --check   (static_checks.sh 가 부른다)
  *
@@ -205,7 +205,7 @@
   --chart-4: #C0A2FF;
   --chart-5: #4FBFB2;
   --chart-rest: #7C88AE;
-  --gradient-shell: linear-gradient(180deg,#232A5E 0%,#1A2046 60%,#141936 100%);
+  --gradient-shell: linear-gradient(180deg,#1A2048 0%,#131736 60%,#0E1128 100%);
   --gradient-ai: radial-gradient(120% 200% at 100% 0%, rgba(142,117,225,.26), transparent 60%);
   --gradient-hero: radial-gradient(circle at 82% 24%, rgba(142,117,225,.58), transparent 32%), radial-gradient(circle at 18% 78%, rgba(98,199,189,.24), transparent 28%), linear-gradient(145deg, #17204D 0%, #293B8D 48%, #536CD6 100%);
   --gradient-mark: linear-gradient(135deg,#8E9BF2 0%,#C0AEF7 100%);
@@ -228,32 +228,32 @@
   --badge-pink-fg: #F0A8C0;
   --badge-indigo-bg: #1A2038;
   --badge-indigo-fg: #A9B8EC;
-  --chrome-shell: #1A2046;
-  --chrome-shell-top: #232A5E;
-  --chrome-shell-deep: #141936;
-  --chrome-on: #E4E8F8;   /* --chrome-shell 위 12.84:1 */
-  --chrome-on-muted: #A3AEDC;   /* --chrome-shell 위 7.20:1 */
+  --chrome-shell: #131736;
+  --chrome-shell-top: #1A2048;
+  --chrome-shell-deep: #0E1128;
+  --chrome-on: #E4E8F8;   /* --chrome-shell 위 14.29:1 */
+  --chrome-on-muted: #A3AEDC;   /* --chrome-shell 위 8.01:1 */
   --chrome-on-faint: #94A0CE;
-  --chrome-line: #2A3162;
+  --chrome-line: #333C74;
   --chrome-hover: rgba(255,255,255,.08);
   --chrome-selected: rgba(255,255,255,.12);
   --chrome-rail: #A9BAFF;
   --chrome-focus-ring: #C3CEFF;
-  --sidebar-bg: #1A2046;
-  --sidebar-text: #E4E8F8;   /* --sidebar-bg 위 12.84:1 */
-  --sidebar-muted: #A3AEDC;   /* --sidebar-bg 위 7.20:1 */
+  --sidebar-bg: #131736;
+  --sidebar-text: #E4E8F8;   /* --sidebar-bg 위 14.29:1 */
+  --sidebar-muted: #A3AEDC;   /* --sidebar-bg 위 8.01:1 */
   --sidebar-faint: #94A0CE;
   --sidebar-hover: rgba(255,255,255,.08);
   --sidebar-selected: rgba(255,255,255,.12);
-  --sidebar-line: #2A3162;
+  --sidebar-line: #333C74;
   --sidebar-active-bg: #1C2136;
   --sidebar-active-fg: #E5E8F5;   /* --sidebar-active-bg 위 13.02:1 */
   --sidebar-active-rail: #A9BAFF;
   --sidebar-danger: #FF8A80;
   --sidebar-shadow: none;
   --sidebar-width: 248px;
-  --g-topbar: #232A5E;
-  --topbar-fg: #E4E8F8;   /* --g-topbar 위 10.99:1 */
+  --g-topbar: #1A2048;
+  --topbar-fg: #E4E8F8;   /* --g-topbar 위 12.79:1 */
   --topbar-pill-bg: rgba(255,255,255,.08);
   --topbar-pill-fg: #E4E8F8;
   --topbar-height: 52px;

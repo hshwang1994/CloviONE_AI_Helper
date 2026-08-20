@@ -167,13 +167,20 @@ function columnsAt(rules, containerPx, rootPx) {
   return columns;
 }
 
+/* 격자를 찾는 기준점은 **진행상태**(평범한 TextField)다.
+ *
+ * 예전에는 프로젝트(`#nt-proj`)를 썼는데, W5 에서 그 자리가 검색형 Combobox 가 되면서
+ * `Autocomplete` 가 `FormControl` 위에 자기 root 를 한 겹 더 만든다 —
+ * `closest(".MuiFormControl-root").parentElement` 가 격자가 아니라 그 root 를 가리킨다.
+ * 이 파일이 재려는 것은 «필드 격자의 열 수» 이므로 기준점은 격자의 **직계 자식**이면
+ * 무엇이든 되고, 래퍼가 없는 필드를 쓰는 것이 그 뜻에 더 정확하다. */
 async function fieldGrid() {
-  const proj = await waitFor(() => {
-    const el = document.getElementById("nt-proj");
-    if (!el) throw new Error("nt-proj 가 아직 없음");
+  const anchor = await waitFor(() => {
+    const el = document.getElementById("nt-status");
+    if (!el) throw new Error("nt-status 가 아직 없음");
     return el;
   });
-  const grid = proj.closest(".MuiFormControl-root").parentElement;
+  const grid = anchor.closest(".MuiFormControl-root").parentElement;
   return { grid, container: grid.parentElement };
 }
 

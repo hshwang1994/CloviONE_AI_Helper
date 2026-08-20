@@ -12,7 +12,7 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
-import { Badge, Button, EmptyState, ErrorState, Skeleton } from "../../ui/kit.jsx";
+import { Badge, Button, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtShort } from "../chat-helpers.js";
 
@@ -186,13 +186,21 @@ export function ConversationSidebar({
                  검색 결과 0건도 여기 안 걸리고 항상 "아직 대화가 없습니다"로 떨어졌다(convItems
                  별칭 filtered가 이 분기 안에서는 늘 참이라, 아래 있던 "검색 결과가 없습니다"
                  분기 자체가 도달 불가능한 죽은 코드였다). */
-              ? (convFilter.trim()
-                  ? <EmptyState size="compact" title="검색 결과가 없습니다" />
-                  : showArchived
-                    ? <EmptyState title="보관된 대화가 없습니다"
-                        help="대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다." />
-                    : <EmptyState title="아직 대화가 없습니다"
-                        help="위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다." />)
+              ? (
+                  /* 조건을 푸는 길을 함께 준다 (C1 · W5). 예전 검색 갈래는 제목 한 줄뿐이라
+                     "내가 뭘 쳤더라" 를 되짚을 단서도, 되돌릴 버튼도 없었다. */
+                  <ListEmptyState
+                    size="compact"
+                    filtered={!!convFilter.trim()}
+                    onClear={() => setConvFilter("")}
+                    clearLabel="검색어 지우기"
+                    filteredTitle="검색 결과가 없습니다"
+                    filteredHelp={`'${convFilter.trim()}' 으로 찾은 대화가 없습니다.`}
+                    title={showArchived ? "보관된 대화가 없습니다" : "아직 대화가 없습니다"}
+                    help={showArchived
+                      ? "대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다."
+                      : "위의 '새 대화'를 눌러 시작하세요. 지금 보고 있는 화면을 기준으로 물어볼 수 있습니다."}
+                  />)
               : (
                   <>
                     {convItems.map((c) => (

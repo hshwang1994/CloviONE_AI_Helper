@@ -1,8 +1,8 @@
 import React from "react";
 import Typography from "@mui/material/Typography";
-import { Button, Card, EmptyState } from "../ui/kit.jsx";
-import { DebouncedTextField, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { FilterBarGrid } from "../ui/FilterBar.jsx";
+import { Button, EmptyState } from "../ui/kit.jsx";
+import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
@@ -87,6 +87,11 @@ export function ticketFilterSpec(fields, extra = { page: 1 }) {
 /** 필터가 하나라도 걸려 있는가 — 빈 목록이 '필터 때문'인지 '정말 없음'인지 가르는 값. */
 export function hasTicketFilter(state, fields) {
   return fields.some((key) => !!state[key]);
+}
+
+/** 지금 실제로 걸려 있는 조건의 키 목록 — 결과 줄이 «조건 N개» 를 말할 때 쓴다. */
+export function activeConditions(state, fields) {
+  return fields.filter((key) => !!state[key]);
 }
 
 /** 전부 지운 상태 조각. 필터 줄의 버튼과 빈 상태의 버튼이 **같은 것**을 해야 한다. */
@@ -174,7 +179,14 @@ function assigneeOptions(rows) {
   });
 }
 
-export function TicketFilterBar({ fields, value, onChange, total, extra, onClear }) {
+/* `scope` 와 `extra` 를 나눠 받는 이유 (W5 재정정 — 독립 검수가 잡았다).
+ *
+ * 예전에는 호출부가 둘을 한 덩어리(`extra`)로 넘겼고 그 덩어리가 **줄 맨 끝**에 그려졌다.
+ * 그래서 `/team-tickets` 의 부서 필터가 기한 뒤에 서서, 바로 위 주석이 「순서는 C2 가
+ * 정한다: scope(부서) → entity → …」라고 적어 둔 것을 같은 파일이 39줄 뒤에서 어겼다.
+ * 실측: 부서가 세 번째 줄에 혼자 섰다. 축의 순서는 **부품이** 지켜야 한다 — 호출부에
+ * 맡기면 화면마다 갈린다. */
+export function TicketFilterBar({ fields, value, onChange, total, scope, extra, onClear }) {
   const wantMeta = fields.some((f) => META_FIELDS.includes(f));
   const metaQ = useTicketMeta(wantMeta);
   const projectsQ = useTicketProjects(fields.includes("project_id"));
@@ -196,60 +208,72 @@ export function TicketFilterBar({ fields, value, onChange, total, extra, onClear
   const set = (key) => (v) => onChange({ [key]: v });
 
   return (
-    <Card className="c-toolbar-card" sx={{ p: 2, mb: 2.5 }}>
-      {/* 조건이 여덟 개라 한 줄에 밀어 넣지 않고 자동 줄바꿈 그리드로 둔다(설정 주도 목록
-          화면과 같은 규칙, ui/FilterBar.jsx 공유). 화면이 넓어지면 열이 늘어 한 줄에 담긴다. */}
-      <FilterBarGrid>
+    <>
+      {/* 판이 아니다 — 지시 80. 컨트롤 다섯 개를 페이지 폭 흰 사각형에 담으면 오른쪽
+          대부분이 빈다. 목록과의 경계는 아래 실선과 결과 줄이 만든다. */}
+      <FilterSurface>
         {show("q") ? (
-          <SearchBox
-            value={value.q}
-            onSearch={commitSearch}
-            placeholder="제목 검색"
-            ariaLabel={LABELS.q}
-          />
+          <ToolbarRow>
+            <SearchBox
+              value={value.q}
+              onSearch={commitSearch}
+              placeholder="제목 검색"
+              ariaLabel={LABELS.q}
+            />
+          </ToolbarRow>
         ) : null}
-        {show("project_id") ? (
-          <FilterSelect
-            label={LABELS.project_id}
-            value={value.project_id}
-            onChange={set("project_id")}
-            disabled={projectsQ.isLoading}
-            options={((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
-          />
-        ) : null}
-        {show("status") ? (
-          <FilterSelect label={LABELS.status} value={value.status} onChange={set("status")} options={meta.statuses || []} />
-        ) : null}
-        {show("priority") ? (
-          <FilterSelect
-            label={LABELS.priority} value={value.priority} onChange={set("priority")}
-            options={(meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }))}
-          />
-        ) : null}
-        {show("difficulty") ? (
-          <FilterSelect label={LABELS.difficulty} value={value.difficulty} onChange={set("difficulty")} options={meta.difficulties || []} />
-        ) : null}
-        {show("assignee_user_id") ? (
-          <FilterSelect
-            label={LABELS.assignee_user_id} value={value.assignee_user_id} onChange={set("assignee_user_id")}
-            disabled={assigneesQ.isLoading}
-            options={assigneeOptions(assigneesQ.data && assigneesQ.data.assignees)}
-          />
-        ) : null}
-        {show("due") ? (
-          <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} />
-        ) : null}
-        {show("category") ? (
-          <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
-        ) : null}
-        {extra}
-        {filtered ? <Button size="sm" onClick={clear}>필터 지우기</Button> : null}
-      </FilterBarGrid>
-      {total != null ? (
-        <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ mt: 1.5 }}>
-          총 {total}건
-        </Typography>
-      ) : null}
-    </Card>
+        {/* 순서는 C2 가 정한다: scope(부서) → entity(프로젝트·담당자) → 분류 → 상태 → 기간.
+            예전에는 선언 순서가 곧 화면 순서라 화면마다 축의 순서가 달랐다. */}
+        <FilterRow>
+          {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
+          {scope}
+          {show("project_id") ? (
+            <EntityCombobox
+              label={LABELS.project_id}
+              value={value.project_id}
+              onChange={set("project_id")}
+              loading={projectsQ.isLoading}
+              options={((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
+            />
+          ) : null}
+          {show("assignee_user_id") ? (
+            <EntityCombobox
+              label={LABELS.assignee_user_id}
+              value={value.assignee_user_id}
+              onChange={set("assignee_user_id")}
+              loading={assigneesQ.isLoading}
+              options={assigneeOptions(assigneesQ.data && assigneesQ.data.assignees)}
+            />
+          ) : null}
+          {show("category") ? (
+            <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
+          ) : null}
+          {show("status") ? (
+            <FilterSelect label={LABELS.status} value={value.status} onChange={set("status")} options={meta.statuses || []} />
+          ) : null}
+          {show("priority") ? (
+            <FilterSelect
+              label={LABELS.priority} value={value.priority} onChange={set("priority")}
+              options={(meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }))}
+            />
+          ) : null}
+          {show("difficulty") ? (
+            <FilterSelect label={LABELS.difficulty} value={value.difficulty} onChange={set("difficulty")} options={meta.difficulties || []} />
+          ) : null}
+          {show("due") ? (
+            <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} kind="date" />
+          ) : null}
+          {extra}
+          {/* 되돌리기는 조건이 아니라 **동작**이다 — 필터와 같은 칸에 넣지 않는다. */}
+          {filtered ? (
+            <FilterActions>
+              <Button variant="ghost" size="sm" onClick={clear}>필터 지우기</Button>
+            </FilterActions>
+          ) : null}
+        </FilterRow>
+      </FilterSurface>
+      {/* 건수는 «이 조건에 대한 결과» 라는 관계가 보이는 자리에 둔다 — 필터와 목록 사이. */}
+      {total != null ? <ResultLine total={total} conditions={activeConditions(value, fields)} /> : null}
+    </>
   );
 }

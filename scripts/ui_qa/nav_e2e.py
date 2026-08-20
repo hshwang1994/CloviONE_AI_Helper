@@ -23,7 +23,7 @@
 
 ## 쓰는 법
 
-    python -m scripts.ui_qa.nav_e2e --base-url https://clovirassist.gooddi.lab --insecure
+    python -m scripts.ui_qa.nav_e2e --insecure        # 대상은 UI_QA_BASE_URL 또는 --base-url
 
 산출물: `dist/ui-qa/w3-nav-e2e/{flows.json,anatomy.json}` + 단계별 스크린샷.
 """
@@ -48,7 +48,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
-from scripts.ui_qa.capture import Viewport, new_context  # noqa: E402
+from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
 
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w3-nav-e2e"
 
@@ -755,7 +755,9 @@ def ff_1205_badge(page, rec: Recorder, out: Path, base: str) -> dict:
 # --------------------------------------------------------------------------- #
 def main() -> int:
     ap = argparse.ArgumentParser(description="사이드바 Navigation 기하 + 기능 사슬 E2E (W3)")
-    ap.add_argument("--base-url", required=True)
+    # 기본 대상은 `capture.DEFAULT_BASE_URL` 한 곳이 정한다 — 사용법 줄마다 호스트를
+    # 적어 두면 이름이 바뀌는 날 그 줄들이 조용히 옛 제품을 가리킨다(W5 · F-W5D-129).
+    ap.add_argument("--base-url", default=DEFAULT_BASE_URL)
     ap.add_argument("--insecure", action="store_true")
     ap.add_argument("--out", default=str(OUT_DEFAULT))
     args = ap.parse_args()

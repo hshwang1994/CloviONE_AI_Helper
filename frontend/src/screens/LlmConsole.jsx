@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
+import { kindSx } from "../ui/filters.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 
 /* AI(LLM) 관리 (9-5).
@@ -73,17 +74,31 @@ export function testKind(status) {
  * (사용자 지적: "AI관리 페이지... 쓸때없이 페이지만 너비만 차지하고 실제 설정하는거는
  * 한줄로 돼있고"). Ticket.jsx의 META_GRID와 같은 반응형 그리드로 옮겨 남는 폭을 여러
  * 필드가 나눠 쓰게 한다. */
+/* **넓은 화면은 열을 늘려서 쓴다. 컨트롤을 늘려서 쓰지 않는다** (W5 · F-W5D-140).
+ *
+ * 예전 트랙은 `repeat(2, minmax(0,1fr))` 였다. 1fr 은 «남는 폭을 똑같이 나눠 가져라» 라서
+ * 값의 길이와 무관하게 커진다 — 실측(`/settings?tab=ai` 1920): 좌우 각 775px, 그런데 3행에는
+ * 「동시 실행 수」 하나뿐이라 오른쪽 770×95px 가 **고유 색 1개짜리 백지**였고, 값이 «1»
+ * 한 글자인 칸이 775px 였다. 폭이 값에 대해 거짓말을 하면 사용자는 무엇을 넣어야 하는지
+ * 잘못 짐작한다.
+ *
+ * 트랙을 **내용이 요구하는 폭**으로 바꾸고(auto-fill · 17~26rem), 남는 폭은 열 수로 간다.
+ * 컨트롤 자체의 폭은 종류가 정한다(`CONTROL_KIND` — 탐색 줄과 같은 어휘다). 마지막 줄에
+ * 남는 자리는 칠하지 않은 캔버스다(PLAN «남는 폭» ③). */
 const SETTINGS_GRID = {
   display: "grid",
-  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", xxl: "repeat(3, minmax(0, 1fr))" },
+  gridTemplateColumns: "repeat(auto-fill, minmax(17rem, 26rem))",
+  justifyContent: "start",
   columnGap: 3,
 };
 
-function Field({ label, help, children }) {
+function Field({ label, help, children, kind }) {
   return (
     <Box sx={{ mt: 2, minWidth: 0 }}>
       <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{label}</Typography>
-      {children}
+      {/* 컨트롤 폭은 **종류**가 정한다. 도움말은 그 위 트랙 폭을 그대로 쓴다 — 도움말까지
+          컨트롤 폭으로 좁히면 두 줄짜리 설명이 여섯 줄이 된다. */}
+      <Box sx={{ mt: 0.5, ...(kind ? kindSx(kind) : null) }}>{children}</Box>
       {help && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           {help}
@@ -265,9 +280,9 @@ export function LlmConsole({ embedded = false } = {}) {
             필터 select와 같은 이유·같은 고침(SelectProps displayEmpty:true). 안 그러면
             "서버 값을 따름"(정상 상태)과 "아직 안 불러옴"·"불러오기 실패"가 전부 똑같이
             빈 상자로 보인다. */}
-        <Field label="사용 여부" help="비워 두면 서버에 설정된 기본값을 따릅니다.">
+        <Field kind="enum" label="사용 여부" help="비워 두면 서버에 설정된 기본값을 따릅니다.">
           <TextField
-            select size="small" fullWidth sx={{ mt: 0.5 }}
+            select size="small" fullWidth
             SelectProps={{ displayEmpty: true }}
             value={value("llm_enabled", "")}
             onChange={(e) => setValue("llm_enabled", e.target.value)}
@@ -279,9 +294,9 @@ export function LlmConsole({ embedded = false } = {}) {
           </TextField>
         </Field>
 
-        <Field label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
+        <Field kind="enum" label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
           <TextField
-            select size="small" fullWidth sx={{ mt: 0.5 }}
+            select size="small" fullWidth
             SelectProps={{ displayEmpty: true }}
             value={value("llm_backend", "")}
             onChange={(e) => setValue("llm_backend", e.target.value)}
@@ -293,9 +308,9 @@ export function LlmConsole({ embedded = false } = {}) {
           </TextField>
         </Field>
 
-        <Field label="모델" help="비워 두면 기본 모델을 씁니다.">
+        <Field kind="text" label="모델" help="비워 두면 기본 모델을 씁니다.">
           <TextField
-            size="small" fullWidth sx={{ mt: 0.5 }}
+            size="small" fullWidth
             value={value("llm_model", "")}
             onChange={(e) => setValue("llm_model", e.target.value)}
             inputProps={{ "aria-label": "모델" }}
@@ -303,12 +318,13 @@ export function LlmConsole({ embedded = false } = {}) {
         </Field>
 
         <Field
+          kind="number"
           label="제한 시간(초)"
           help={"0이면 기본값을 씁니다. " + (limits.min_timeout_seconds || 5) + "부터 "
                 + (limits.max_timeout_seconds || 600) + "까지 넣을 수 있습니다."}
         >
           <TextField
-            size="small" type="number" fullWidth sx={{ mt: 0.5 }}
+            size="small" type="number" fullWidth
             value={value("llm_timeout_seconds", 0)}
             onChange={(e) => setValue("llm_timeout_seconds", Number(e.target.value))}
             inputProps={{ "aria-label": "제한 시간(초)" }}
@@ -316,12 +332,13 @@ export function LlmConsole({ embedded = false } = {}) {
         </Field>
 
         <Field
+          kind="number"
           label="동시 실행 수"
           help={"최대 " + (limits.max_concurrency || 4)
                 + "입니다. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 사람과 나눠 쓰므로 작게 잡습니다."}
         >
           <TextField
-            size="small" type="number" fullWidth sx={{ mt: 0.5 }}
+            size="small" type="number" fullWidth
             value={value("llm_max_concurrency", 1)}
             onChange={(e) => setValue("llm_max_concurrency", Number(e.target.value))}
             inputProps={{ "aria-label": "동시 실행 수" }}

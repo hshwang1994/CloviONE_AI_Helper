@@ -270,7 +270,8 @@ export const ORG_SCREENS = {
     searchPlaceholder: "검색(직원 이메일, 이름, Notion 이메일은 검색되지 않음)",
     filters: [{ key: "status", type: "select", label: "상태", options: opt([["unmapped", "미연결"], ["verified", "확인됨"], ["conflict", "충돌"]]) },
       // 사용자 상세의 딥링크(onQuery, 위 참고)가 채우는 필드 — 직접 입력도 가능하게 남겨 둔다.
-      { key: "user_ids", type: "text", label: "사용자 ID" },
+      { key: "user_ids", type: "text", label: "사용자 ID",
+        freeTextReason: "여러 값을 콤마로 받는 딥링크 입력이다. 단일 선택기로 바꾸면 사용자 상세가 거는 딥링크가 깨진다." },
       // 출처는 **서버 필터**다. 백엔드가 source 쿼리 파라미터를 받아 SQL에서 거른다
       // (app/notion_mapping/router.py list_mappings — "출처 필터는 서버측에서 한다"). 이 화면은
       // paginated라, 예전처럼 clientFilter로 두면 지금 페이지 안의 일치 항목만 남고 다른 페이지의
@@ -355,7 +356,8 @@ export const ORG_SCREENS = {
           return { ok: false, msg: "검증 실패: " + (m.error_message || m.status || "일치하는 Notion 사용자를 찾지 못했습니다. 다시 시도해 주세요.") };
         } },
       { label: "수동 연결", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/map", fields: [
-        { name: "notion_user_id", label: "Notion 사용자 ID", type: "text", required: true, help: "Notion 워크스페이스의 사용자 ID(8~64자, 영문, 숫자, 하이픈)." },
+        { name: "notion_user_id", label: "Notion 사용자 ID", type: "text", required: true, help: "Notion 워크스페이스의 사용자 ID(8~64자, 영문, 숫자, 하이픈).",
+          freeTextReason: "외부 워크스페이스의 식별자다. 이 제품에 후보 목록이 없다." },
         { name: "notion_email", label: "Notion 이메일(선택)", type: "text" },
       ] },
       { label: "충돌 해결", roles: WRITE_ROLES, when: (r) => r.status === "conflict", path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/resolve-conflict", fields: [

@@ -1,5 +1,5 @@
 {
-  "source_hash": "6ba5ed59b70f2889ff2ea9b0eb8b7335d291961479091362f04528e1d4905ea0",
-  "input_count": 198,
+  "source_hash": "bc8008f97defaf2d983bb0eb8e1c8f05b3b0b2d61cdc47ce5a51941848ed4709",
+  "input_count": 199,
   "note": "scripts/check_bundle_fresh.py --write 가 적는다. 손으로 고치지 마라."
 }

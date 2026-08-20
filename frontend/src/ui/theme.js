@@ -259,15 +259,37 @@ const CHROME = {
     trackSelected: "rgba(255,255,255,.16)",
     edge: "rgba(255,255,255,.22)",
   },
+  /* ── Dark chrome 은 **테마를 따라 움직인다** (W5 정정) ────────────────────
+   *
+   * W1~W4 동안 dark chrome 은 light 와 사실상 같은 값이었다. 실측(83 Route × 4 라벨):
+   * 캔버스는 ΔE76 **91.37** 로 뒤집히는데 chrome 은 **6.09**(topbar) / 5.43(sidebar) 만
+   * 움직였다. 옆에서 91 이 움직이는 동안 6 이 움직이면 사람 눈에는 «안 움직인다» 다 —
+   * 그리고 그 안 움직이는 면이 뷰포트의 17~24% 다. 사용자가 «Content 만 변하고 Chrome 은
+   * 고정되어 따로 논다» 고 한 것의 물리적 실체가 이것이다.
+   *
+   * 더 나쁜 것은 **면 순위가 모드마다 뒤집힌다**는 것이다:
+   *   light  shell L* 15.1 (가장 어두움 3/3) · plate 100.0 · canvas 94.8
+   *   dark   shell L* 13.8 (**가장 밝음 1/3**) · plate 8.7 · canvas 3.5
+   * 같은 토큰이 두 모드에서 정반대 역할을 맡는다. dark 에서 chrome 은 «light 모드에서
+   * 남은 조각» 처럼 화면에서 가장 밝은 큰 면이 된다.
+   *
+   * 여유는 **dark 쪽 아래 방향에만** 있다. light chrome 을 밝혀 차이를 벌리는 대안은
+   * 잉크 AA 여유가 0.38 뿐이라 곧바로 미달한다(`#293475` 에서 `onShellFaint` 3.98).
+   * 반대로 dark 를 올리는 안은 hover 합성 위 muted 4.10 으로 역시 미달한다.
+   *
+   * 그래서 dark 세 stop 을 한 단계 반 내리고 `line` 을 함께 올린다 — 면이 어두워지면
+   * 하우징의 **경계**를 선이 혼자 나르기 때문이다(`line:canvas` 1.59 → 1.89).
+   * 결과: ΔE(light↔dark shell) **7.74 → 13.69**, `blue−red` 35(기준 24), 잉크·워시·track·
+   * rail 11종 단언 전부 통과, 최악 잉크 대비는 오히려 올라간다(faint 5.23 → 6.08). */
   dark: {
-    shellTop: "#232A5E",
-    shellMid: "#1A2046",
-    shellDeep: "#141936",
-    shell: "#1A2046",
+    shellTop: "#1A2048",
+    shellMid: "#131736",
+    shellDeep: "#0E1128",
+    shell: "#131736",
     onShell: "#E4E8F8",
     onShellMuted: "#A3AEDC",
     onShellFaint: "#94A0CE",
-    line: "#2A3162",
+    line: "#333C74",
     hover: "rgba(255,255,255,.08)",
     selected: "rgba(255,255,255,.12)",
     rail: "#A9BAFF",
@@ -310,7 +332,7 @@ const GRADIENT = {
     mark: "linear-gradient(135deg,#4C58C8 0%,#8E75E1 100%)",
   },
   dark: {
-    shell: "linear-gradient(180deg,#232A5E 0%,#1A2046 60%,#141936 100%)",
+    shell: "linear-gradient(180deg,#1A2048 0%,#131736 60%,#0E1128 100%)",
     ai: "radial-gradient(120% 200% at 100% 0%, rgba(142,117,225,.26), transparent 60%)",
     hero: HERO_GRADIENT,
     mark: "linear-gradient(135deg,#8E9BF2 0%,#C0AEF7 100%)",
@@ -478,6 +500,15 @@ export const NAV_BREAKPOINT = 860;
 export const DEBOUNCE_MS = { filter: 300, palette: 220 };
 
 export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2200, uhd: 3000 };
+
+/* 상단바 브랜드 태그라인이 서는 최소 폭 (W5).
+ *
+ * 락업(약 197px)과 태그라인(약 190px)이 상단바 왼쪽에서 검색 막대를 밀어내지 않는 최소
+ * 폭이다 — 1366 에서 상단바의 빈 폭은 6% 뿐이라 그 아래에서는 그리지 않는다(1920 33% ·
+ * 3840 59% 실측). 기존 브레이크포인트 중에는 이 뜻을 가진 값이 없어 이름을 따로 준다 —
+ * `xl`(1536)에 얹으면 «xl 이 무엇을 뜻하는가» 가 하나 더 늘고, 리터럴로 적으면
+ * `root-scale-lever.test.js` 가 «셸에 해상도 리터럴» 로 잡는다(그 시험이 옳다). */
+export const BRAND_TAGLINE_MIN_PX = 1600;
 
 /* 표가 카드 목록으로 접히는 지점. 899.95 는 MUI 가 `down("md")` 에서 만드는 값과 같다. */
 export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
@@ -688,7 +719,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
         defaultProps: { disableElevation: true },
         styleOverrides: {
           root: {
-            minHeight: CONTROL.button,
+            minHeight: remPx(CONTROL.button),
             /* `paddingBlock: 0` 이 없으면 MUI 기본 세로 패딩(6px)이 남아 **선언 34px 인
                버튼이 화면에서 36px 로 그려진다** — 독립 리뷰어가 배포본 픽셀에서 잡았다.
                토큰이 실제 높이를 말하지 않으면 그 토큰은 문서일 뿐이다. 높이는 `minHeight`
@@ -698,8 +729,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             paddingInline: 14,
             transition: `background-color ${MOTION.fast} ${MOTION.ease}, border-color ${MOTION.fast} ${MOTION.ease}`,
           },
-          sizeSmall: { minHeight: CONTROL.buttonSm, paddingBlock: 0, paddingInline: 11 },
-          sizeLarge: { minHeight: CONTROL.buttonLg, paddingBlock: 0, paddingInline: 18 },
+          sizeSmall: { minHeight: remPx(CONTROL.buttonSm), paddingBlock: 0, paddingInline: 11 },
+          sizeLarge: { minHeight: remPx(CONTROL.buttonLg), paddingBlock: 0, paddingInline: 18 },
           containedPrimary: {
             background: primary,
             boxShadow: "none",
@@ -712,18 +743,102 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiTab: {
         styleOverrides: {
           root: {
-            minHeight: CONTROL.tab,
+            minHeight: remPx(CONTROL.tab),
             textTransform: "none",
             fontWeight: FONT_WEIGHT.medium,
             "&.Mui-selected": { color: primaryStrong, fontWeight: FONT_WEIGHT.semibold },
           },
         },
       },
-      MuiTabs: { styleOverrides: { indicator: { backgroundColor: primaryStrong, height: 2 } } },
+      MuiTabs: {
+        styleOverrides: {
+          /* **띠의 높이는 탭의 높이다** (W5 실측 정정).
+             `MuiTab.root.minHeight` 는 토큰(40)으로 낮췄는데 `MuiTabs.root` 는 MUI 기본
+             48 을 그대로 쓰고 있었다. 그래서 어느 화면에서든 탭 띠가 탭보다 6.5px 높았고,
+             그 결과 ① 선택 표시선이 탭 글자 상자에서 6.5px 떨어진 자리에 그어졌고
+             ② 좁은 폭에서 나타나는 스크롤 버튼(48)이 탭(41.5)과 중심선이 3.3px 어긋났다
+             (`/project-detail` 390px 실측 — `control_baseline_mismatch`). 높이를 하나로
+             맞추면 둘 다 사라진다. `scroller` 까지 내리는 이유는 MUI 가 `minHeight` 를
+             root 와 scroller 두 곳에 각각 두기 때문이다 — 한 곳만 고치면 나머지가 이긴다. */
+          root: { minHeight: remPx(CONTROL.tab) },
+          scroller: { minHeight: "inherit" },
+          flexContainer: { minHeight: "inherit" },
+          indicator: { backgroundColor: primaryStrong, height: 2 },
+        },
+      },
+      /* ── 한 줄에 높이는 하나다 (PLAN C2) — 나머지 컨트롤도 토큰을 탄다 (W5) ────────
+       *
+       * 예전에는 이 파일에 `MuiButton`·`MuiOutlinedInput`·`MuiIconButton`·`MuiTab` 넷만
+       * override 가 있었다. 그래서 **MUI 기본값을 그대로 쓰는 컨트롤**들이 자기 높이로 섰다:
+       * 실측(`/profile` 카드 한 줄) — Switch 38 · 입력 36 · 버튼 30, 세 종류가 나란히 있고
+       * 중심선이 9.8px 어긋났다. 값을 새로 만들지 않는다 — 전부 위 `CONTROL` 에서 나온다.
+       *
+       * 손가락 목표는 시각 크기와 **다른 값**이다(WCAG 2.2). 아이콘 버튼과 같은 관용으로
+       * `::after` 가 상자 밖으로 목표를 넓힌다 — 시각 크기를 키우면 표 행이 함께 자란다. */
+      MuiSwitch: {
+        styleOverrides: {
+          root: {
+            /* 트랙(14px)은 그대로 두고 상자만 줄인다: 38 - 2*12 = 14 = 34 - 2*10. */
+            height: remPx(CONTROL.button),
+            padding: remPx(10),
+          },
+        },
+      },
+      MuiCheckbox: {
+        styleOverrides: {
+          root: {
+            /* MUI 기본 padding 9 → 상자 42. 아이콘 버튼과 같은 34 로 맞춘다(24 + 2*5). */
+            padding: remPx(5),
+            position: "relative",
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              inset: remPx((CONTROL.iconButton - CONTROL.iconButtonHit) / 2),
+            },
+          },
+        },
+      },
+      MuiRadio: {
+        styleOverrides: {
+          root: {
+            padding: remPx(5),
+            position: "relative",
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              inset: remPx((CONTROL.iconButton - CONTROL.iconButtonHit) / 2),
+            },
+          },
+        },
+      },
+      /* 라벨 · 입력 · 도움말의 **왼쪽 선이 하나**여야 한다. MUI 기본 `FormHelperText` 는
+         `margin-left: 14px` 라 같은 모달 안에서 라벨 490 · 입력 489 · 도움말 505 로 어긋났다
+         (실측). 들여쓴 도움말은 «다른 것에 딸린 말» 처럼 읽힌다 — 그 필드의 말이다. */
+      /* **Autocomplete 도 입력이다** (W5 재정정 — 독립 검수 실측).
+         MUI 는 `.MuiAutocomplete-inputRoot` 에 자기 padding(위아래 각 ~2.5px)을 더한다.
+         그래서 `EntityCombobox` 만 38.6px 로 서고 옆 select 는 36px 이었다 — 한 줄에 높이가
+         둘이 되는 것을 막자고 만든 W5 가 자기 부품으로 그 위반을 새로 만든 셈이다
+         (`/team-docs`·`/my-tickets` 1920 실측: 38.6 / 36 / 36). 높이의 정본은 `CONTROL.input`
+         하나다. `endAdornment`(지우기·화살표)는 절대 배치라 이 높이에 영향받지 않는다. */
+      MuiAutocomplete: {
+        styleOverrides: {
+          inputRoot: {
+            paddingTop: 0,
+            paddingBottom: 0,
+            minHeight: remPx(CONTROL.input),
+            height: remPx(CONTROL.input),
+          },
+        },
+      },
+      MuiFormHelperText: {
+        styleOverrides: {
+          root: { marginInlineStart: 0, marginInlineEnd: 0 },
+        },
+      },
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
-            minHeight: CONTROL.input,
+            minHeight: remPx(CONTROL.input),
             borderRadius: RADIUS.sm,
             background: t.plate,
             "&.Mui-focused": {
@@ -782,14 +897,47 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiIconButton: {
         styleOverrides: {
           root: {
-            minWidth: CONTROL.iconButton,
-            minHeight: CONTROL.iconButton,
+            minWidth: remPx(CONTROL.iconButton),
+            minHeight: remPx(CONTROL.iconButton),
+            /* **상자는 글리프 크기와 무관하게 하나다** (W5 실측 정정).
+               예전에는 `minHeight` 만 있어서 상자가 «글리프 + padding» 을 따라갔다:
+               24px 글리프를 그대로 쓴 아이콘 버튼은 40, 18px(`1.125rem`) 로 줄여 쓴 것은
+               34 가 됐다. 그래서 같은 줄에 선 아이콘 버튼 둘이 6px 갈렸다(`/chat` 제목줄
+               실측 — `control_baseline_mismatch`). 어떤 글리프를 쓰든 상자를 고정하면
+               그 갈림이 원천에서 사라진다. 손가락 목표는 아래 `::after` 가 40 으로 넓힌다
+               (WCAG 2.2) — 시각 크기와 목표 크기는 다른 값이다. */
+            width: remPx(CONTROL.iconButton),
+            height: remPx(CONTROL.iconButton),
+            padding: 0,
+            flexShrink: 0,
             borderRadius: RADIUS.sm,
             position: "relative",
             "&::after": {
               content: '""',
               position: "absolute",
-              inset: `${(CONTROL.iconButton - CONTROL.iconButtonHit) / 2}px`,
+              inset: remPx((CONTROL.iconButton - CONTROL.iconButtonHit) / 2),
+            },
+          },
+          /* **`size` 가 높이를 정한다 — 종류가 아니라.** (W5 실측 정정)
+             예전에는 `size="small"` 을 줘도 상자가 34 였다(`root` 의 최소 높이가 이겼다).
+             그래서 «작은 것들의 줄» — 작은 텍스트 버튼(30) + 작은 아이콘 버튼(34) — 이
+             구조적으로 4px 갈렸다. 화면 하나의 실수가 아니라 **토큰이 놓은 함정**이다:
+             `size="sm"` 과 `size="small"` 을 나란히 쓰면 언제나 어긋난다.
+             실측은 2560 에서 나왔다(`/chat` 답변 동작 줄, 루트 18px 에서 4.5px) — 1920 에서는
+             차이가 정확히 4.0 이라 «4px 초과» 문턱을 아슬아슬하게 통과하고 있었다.
+             손가락 목표는 그대로 40 이다(아래 `::after`) — 시각 크기와 목표 크기는 다른 값이다. */
+          sizeSmall: {
+            /* `root` 의 `minWidth/minHeight`(34)를 **함께** 내려야 한다 — 안 그러면 최소 높이가
+               이겨서 상자가 34 로 남는다(실측: 2560 에서 38.3px = 34 × 18/16). 크기를 정하는
+               속성이 둘이면 둘 다 말해야 한다. */
+            minWidth: remPx(CONTROL.buttonSm),
+            minHeight: remPx(CONTROL.buttonSm),
+            width: remPx(CONTROL.buttonSm),
+            height: remPx(CONTROL.buttonSm),
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              inset: remPx((CONTROL.buttonSm - CONTROL.iconButtonHit) / 2),
             },
           },
         },

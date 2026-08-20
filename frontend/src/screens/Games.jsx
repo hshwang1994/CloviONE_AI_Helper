@@ -234,6 +234,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="추가" busy={create.isPending} />}>
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="gr-game" select size="small" fullWidth label="게임"
           value={gameType} onChange={(e) => setGameType(e.target.value)}
         >
@@ -247,6 +248,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
         </TextField>
 
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="gr-title" size="small" fullWidth required label="방 제목"
           inputProps={{ maxLength: 120 }} value={title} onChange={(e) => setTitle(e.target.value)}
           placeholder={isVote ? "예: 오늘 점심 정하기" : isTeam ? "예: 축구 팀 나누기" : isLadder ? "예: 청소 당번 사다리" : isQuiz ? "예: 사내 상식 퀴즈" : "예: 점심 커피 추첨"}
@@ -256,6 +258,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
           <>
             {isVote ? (
               <TextField
+                InputLabelProps={{ shrink: true }}
                 id="gr-q" size="small" fullWidth required label="질문"
                 inputProps={{ maxLength: 120 }} value={question} onChange={(e) => setQuestion(e.target.value)}
                 placeholder="예: 점심 뭐 먹을까요?"
@@ -291,17 +294,20 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
           </>
         ) : isTeam ? (
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="gr-teams" type="number" size="small" fullWidth label="팀 수"
             inputProps={{ min: 2, max: 8 }} value={teams} onChange={(e) => setTeams(e.target.value)}
           />
         ) : isNumber ? (
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="gr-nummax" type="number" size="small" fullWidth label="숫자 범위 (1 ~ ?)"
             inputProps={{ min: 2, max: 100 }} value={numMax} onChange={(e) => setNumMax(e.target.value)}
             helperText={`참여자가 1~${Number(numMax) || 10} 중 하나를 몰래 냅니다. 가장 낮은 ‘유일한’ 숫자를 낸 사람이 승리해요.`}
           />
         ) : isRps ? (
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="gr-rpsmode" select size="small" fullWidth label="방식"
             value={rpsMode} onChange={(e) => setRpsMode(e.target.value)}
             helperText={rpsMode === "tournament"
@@ -347,6 +353,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
           </Box>
         ) : (
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="gr-winners" type="number" size="small" fullWidth label="당첨 인원"
             inputProps={{ min: 1, max: 20 }} value={winners} onChange={(e) => setWinners(e.target.value)}
           />
@@ -354,12 +361,14 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
 
         {timed ? (
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="gr-timer" type="number" size="small" fullWidth label="제한 시간 (초)"
             inputProps={{ min: 0, max: 300 }} value={timer} onChange={(e) => setTimer(e.target.value)}
             helperText={`${isQuiz ? "문제마다" : "라운드마다"} 남은 시간이 카운트다운으로 보입니다. 시간이 끝나면 자동으로 다음 단계로 넘어갑니다${isRps ? " (안 낸 사람은 무작위로 처리)" : ""}. 0이면 시간 제한이 없습니다.`}
           />
         ) : null}
         <TextField
+          InputLabelProps={{ shrink: true }}
           id="gr-max" type="number" size="small" fullWidth label="최대 참여 인원"
           inputProps={{ min: 2, max: 50 }} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)}
         />

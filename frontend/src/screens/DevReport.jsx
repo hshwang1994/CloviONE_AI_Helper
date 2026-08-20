@@ -42,7 +42,7 @@ const MONTH_VALUES = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart
  * (ok/warn/danger/neutral)을 그대로 쓴다 — 배지·타일과 같은 말이라 나중에도 어긋나지 않는다. */
 const SEGS = [
   { key: "done", label: "완료", tone: "ok" },
-  { key: "prog", label: "진행", tone: "primary" },
+  { key: "prog", label: "진행", tone: "brand" },
   { key: "verify", label: "검증", tone: "warn" },
   { key: "plan", label: "계획", tone: "neutral" },
   { key: "cancel", label: "취소", tone: "danger" },
@@ -128,7 +128,7 @@ export function DevReport() {
   const teamSegs = team ? (() => {
     const base = [
       { label: "완료", value: team.done, color: "ok" },
-      { label: "진행 중", value: team.in_progress, color: "primary" },
+      { label: "진행 중", value: team.in_progress, color: "brand" },
       { label: "검증", value: team.verify, color: "warn" },
       { label: "계획", value: team.plan, color: "neutral" },
       { label: "취소", value: team.cancel, color: "danger" },
@@ -158,6 +158,7 @@ export function DevReport() {
       <Card className="devrep-noprint" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="devrep-year" select size="small" label="연도" value={period.slice(0, 4)}
             onChange={(e) => setPeriod(e.target.value + "-" + period.slice(5, 7))}
             sx={{ minWidth: "8rem" }}
@@ -165,6 +166,7 @@ export function DevReport() {
             {yearOptions(5).map((y) => <MenuItem key={y} value={String(y)}>{y}년</MenuItem>)}
           </TextField>
           <TextField
+            InputLabelProps={{ shrink: true }}
             id="devrep-month" select size="small" label="월" value={period.slice(5, 7)}
             onChange={(e) => setPeriod(period.slice(0, 4) + "-" + e.target.value)}
             sx={{ minWidth: "7rem" }}

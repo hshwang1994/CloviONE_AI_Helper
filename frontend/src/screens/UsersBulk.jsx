@@ -236,6 +236,7 @@ export function ImportModal({ onClose, onImported }) {
         추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
       </Note>
       <TextField
+        InputLabelProps={{ shrink: true }}
         multiline minRows={6} fullWidth sx={{ mt: 2 }}
         label="CSV 내용" placeholder={SAMPLE_CSV}
         value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}

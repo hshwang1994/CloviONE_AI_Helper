@@ -22,7 +22,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
-from scripts.ui_qa.capture import Viewport, new_context  # noqa: E402
+from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
 
 SETTLE_MS = 1200
 REPLY_TIMEOUT_S = 200
@@ -227,7 +227,7 @@ def run(base_url: str, out_dir: Path, *, insecure: bool, headed: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", default="https://clovirone-ai.gooddi.lab")
+    ap.add_argument("--base-url", default=DEFAULT_BASE_URL)
     ap.add_argument("--out-dir", default="dist/ai-e2e")
     ap.add_argument("--insecure", action="store_true")
     ap.add_argument("--headed", action="store_true")

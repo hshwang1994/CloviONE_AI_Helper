@@ -145,7 +145,10 @@ export function WorkSection() {
               items={trend.map((w) => ({
                 label: w.week_of,
                 value: w.done,
-                color: w.done ? "success" : "neutral",
+                /* W5: 완료 건수는 **하나의 시리즈**다 — 상태가 아니다. 값이 0 인 주를
+                   `neutral` 로 칠하던 것도 뺐다: 0 은 이미 «막대 없음» 으로 보이고, 색까지
+                   바꾸면 «다른 종류» 로 읽힌다. 색은 부품이 Brand 슬롯에서 준다. */
+                color: undefined,
                 note: w.assigned ? "마감 " + w.assigned + "건" : undefined,
               }))}
               unit="건" formatValue={fmtNum} emptyLabel="완료 추이를 만들 표본이 없습니다"

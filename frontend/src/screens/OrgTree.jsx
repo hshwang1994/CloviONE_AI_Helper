@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Badge, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { Badge, Card, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../ui/kit.jsx";
 import { EMPTYABLE_SELECT, SearchBox } from "../ui/filters.jsx";
 import { ORG_SCREENS } from "./registry/org.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
@@ -285,11 +285,17 @@ export function OrgTree({ selectedId, onSelect }) {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : nodes.length === 0 ? (
-        q ? (
-          <EmptyState title="검색 결과가 없습니다" help="조직 또는 부서 이름의 일부를 입력해 보세요." />
-        ) : (
-          <EmptyState title={TREE_CFG.emptyTitle} help={TREE_CFG.emptyHelp} />
-        )
+        /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 예전에는 두 갈래로 갈라 놓고도
+           검색어를 지울 수단이 화면 위 검색창뿐이었다. */
+        <ListEmptyState
+          filtered={!!q}
+          onClear={() => setQ("")}
+          clearLabel="검색어 지우기"
+          filteredTitle="검색 결과가 없습니다"
+          filteredHelp="조직 또는 부서 이름의 일부로 다시 찾아보세요."
+          title={TREE_CFG.emptyTitle}
+          help={TREE_CFG.emptyHelp}
+        />
       ) : (
         <Box
           component="ul"

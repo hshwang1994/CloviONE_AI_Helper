@@ -2,16 +2,18 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, Card, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
+import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
 
 /* 채팅방 목록 — 전체 채팅(고정) + 내가 속한 그룹/1:1. 새 그룹 만들기, 1:1 시작(디렉터리에서 상대
@@ -91,6 +93,7 @@ const PICKER_SX = {
   border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
 };
 
+
 export function GroupModal({ open, onClose }) {
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -98,6 +101,9 @@ export function GroupModal({ open, onClose }) {
   const confirm = useConfirm();
   const dir = useDirectory(open);
   const [title, setTitle] = React.useState("");
+  /* 사람 고르기의 «좁히기» 조건. 서버 질의가 아니라 **이미 받은 후보를 거르는** 것이라
+     디바운스가 필요 없다 — 네트워크가 안 간다(C7 의 클라이언트 필터와 같은 부류다). */
+  const [pick_q, setPickQ] = React.useState("");
   const [picked, setPicked] = React.useState({});
   React.useEffect(() => { if (open) { setTitle(""); setPicked({}); } }, [open]);
 
@@ -111,6 +117,8 @@ export function GroupModal({ open, onClose }) {
   });
 
   const users = (dir.data && dir.data.users) || [];
+
+  const shownUsers = React.useMemo(() => filterPeople(users, pick_q), [users, pick_q]);
   const canCreate = title.trim().length > 0 && !create.isPending;
   // 방 이름을 쳤거나 초대할 사람을 골랐으면 Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다
   // (VIS-88). `Modal`의 `dirty` prop은 Esc/바깥클릭/X만 지킨다 — 하단 '취소' 버튼은 onClose를
@@ -130,30 +138,34 @@ export function GroupModal({ open, onClose }) {
   );
   return (
     <Modal open={open} onClose={onClose} title="새 그룹 채팅방" dirty={dirty} footer={footer}>
+      {/* 라벨도 입력도 kit 계약을 쓴다 (W5 · F-W5D-132/143).
+          예전에는 라벨을 손으로 그리고(필수는 `*` 하나) 입력을 `Box component="input"` 으로
+          만들면서 `&:focus { outline: none }` 을 줬다 — emotion 의 `.css-x:focus` 는 특이도가
+          전역 `:focus-visible` 보다 높고 시트에서 더 뒤라, **키보드 포커스 링이 지워졌다.** */}
       <Box sx={{ mb: 2.5 }}>
-        <Typography component="label" htmlFor="tc-gtitle" sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
-          방 이름<Box component="span" sx={{ color: "error.main" }}> *</Box>
-        </Typography>
+        <FieldLabel htmlFor="tc-gtitle" required>방 이름</FieldLabel>
         {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
             더 짧으면 서버는 받아 줄 이름을 화면이 미리 못 치게 막는 것이 된다. */}
-        <Box
-          component="input" id="tc-gtitle" maxLength={200} value={title} placeholder="예: 프로젝트 A 팀"
+        <TextField
+          id="tc-gtitle" size="small" fullWidth value={title} placeholder="예: 프로젝트 A 팀"
           onChange={(e) => setTitle(e.target.value)}
-          sx={{
-            width: "100%", px: 1.5, py: 1.125, font: "inherit", fontSize: FONT_SIZE.body,
-            border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.default", color: "text.primary",
-            "&:focus": { outline: "none", borderColor: "primary.main" },
-          }}
+          inputProps={{ maxLength: 200, "aria-required": "true" }}
         />
       </Box>
       <Box>
-        <Typography sx={{ display: "block", mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>초대할 사람 (선택)</Typography>
+        <FieldLabel>초대할 사람 (선택)</FieldLabel>
         {dir.isPending ? <Skeleton lines={4} />
           : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
           : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           : (
+            <>
+            <PeopleFilter value={pick_q} onChange={setPickQ} count={shownUsers.length} total={users.length} />
+            {shownUsers.length === 0 ? (
+              /* 「사람이 없다」와 「조건 때문에 0명」은 다른 사실이다(C1). */
+              <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+            ) : (
             <Box sx={PICKER_SX}>
-              {users.map((u) => (
+              {shownUsers.map((u) => (
                 <Box
                   key={u.user_id} component="label"
                   sx={{
@@ -162,12 +174,16 @@ export function GroupModal({ open, onClose }) {
                     "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
                   }}
                 >
-                  <Box component="input" type="checkbox" checked={!!picked[u.user_id]}
+                  {/* 체크박스도 제품의 것을 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
+                      포커스 링·색을 하나도 받지 않는다(F-W5D-143 ④: 체크박스가 네 종류였다). */}
+                  <Checkbox size="small" checked={!!picked[u.user_id]}
                     onChange={(e) => setPicked((p) => ({ ...p, [u.user_id]: e.target.checked }))} sx={{ m: 0 }} />
                   <span>{personLabel(u)}</span>
                 </Box>
               ))}
             </Box>
+            )}
+            </>
           )}
       </Box>
     </Modal>
@@ -185,14 +201,23 @@ function DirectModal({ open, onClose }) {
     onError: (e) => toast((e && e.message) || "대화를 시작하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const users = (dir.data && dir.data.users) || [];
+  /* 같은 이유로 여기도 좁힐 수 있어야 한다 — 1:1 상대를 고르는 목록이 그룹 초대 목록보다
+     짧을 이유가 없다(같은 디렉터리다). */
+  const [pick_q, setPickQ] = React.useState("");
+  const shownUsers = React.useMemo(() => filterPeople(users, pick_q), [users, pick_q]);
   return (
     <Modal open={open} onClose={onClose} title="1:1 대화 시작" footer={<Button onClick={onClose}>닫기</Button>}>
       {dir.isPending ? <Skeleton lines={5} />
         : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
         : users.length === 0 ? <EmptyState size="compact" title="대화할 다른 사용자가 없습니다" />
         : (
+          <>
+          <PeopleFilter value={pick_q} onChange={setPickQ} count={shownUsers.length} total={users.length} />
+          {shownUsers.length === 0 ? (
+            <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+          ) : (
           <Box sx={PICKER_SX}>
-            {users.map((u) => (
+            {shownUsers.map((u) => (
               <Box
                 key={u.user_id} component="button" type="button"
                 disabled={start.isPending} onClick={() => start.mutate(u.user_id)}
@@ -209,6 +234,8 @@ function DirectModal({ open, onClose }) {
               </Box>
             ))}
           </Box>
+          )}
+          </>
         )}
     </Modal>
   );
@@ -306,13 +333,17 @@ export function ChatRooms() {
               {items.length === 0 && !(team && matches(team)) && !(glob && matches(glob)) ? (
                 /* 검색 때문에 없는 것과 정말 없는 것을 구분한다 — 같은 빈 화면에 같은 말을
                    쓰면 "채팅방이 하나도 없네" 로 읽힌다(E계열 지적). */
-                needle ? (
-                  <EmptyState title="검색과 맞는 채팅방이 없습니다"
-                    help={`'${roomQuery.trim()}' 으로 찾은 결과가 없습니다. 검색어를 지우면 전체 목록이 보입니다.`} />
-                ) : (
-                  <EmptyState title="참여 중인 채팅방이 없습니다"
-                    help="위의 '새 그룹' 또는 '1:1'로 대화를 시작하세요. 전체 채팅은 누구나 참여할 수 있습니다." />
-                )
+                /* 조건을 푸는 **버튼**이 있어야 한다 (C1 · W5). 예전에는 "검색어를 지우면
+                   전체 목록이 보입니다" 라고 말만 하고 지울 길을 주지 않았다. */
+                <ListEmptyState
+                  filtered={!!needle}
+                  onClear={() => setRoomQuery("")}
+                  clearLabel="검색어 지우기"
+                  filteredTitle="검색과 맞는 채팅방이 없습니다"
+                  filteredHelp={`'${roomQuery.trim()}' 으로 찾은 결과가 없습니다.`}
+                  title="참여 중인 채팅방이 없습니다"
+                  help="위의 '새 그룹' 또는 '1:1'로 대화를 시작하세요. 전체 채팅은 누구나 참여할 수 있습니다."
+                />
               ) : items.map((r) => (
                 <RoomRow key={r.id} room={r} onOpen={open} active={activeId === r.id} />
               ))}

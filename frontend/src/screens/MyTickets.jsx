@@ -22,7 +22,7 @@ import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls } from "../ui/kit.jsx";
 import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
@@ -32,7 +32,7 @@ import { rowNameOf } from "../ui/rowName.js";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
-import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
+import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
@@ -288,8 +288,17 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   /* 좁은 화면에서는 가로 스크롤 표 대신 카드 목록으로 바꾼다 — 열 이름이 화면 밖으로 나가면
    * 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다(kit DataTable과 같은 규칙). */
   if (narrow) {
+    /* 카드 뷰의 두 규칙은 kit 이 든다 — 여기서 다시 적으면 한쪽만 고쳐진다(W5 실측:
+       `DataTable` 만 고쳤더니 이 목록은 그대로 결함이 남았다). 목록 전체의 조작기
+       (「전체 선택」)는 묶음마다가 아니라 **목록 위에 한 번**이다. */
+    const cardHeads = cardHeaderControls(cols);
     return (
       <Stack gap={2.5}>
+        {cardHeads.length ? (
+          <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 0.5 }}>
+            {cardHeads.map((c) => <React.Fragment key={c.key}>{c.cardHeader}</React.Fragment>)}
+          </Box>
+        ) : null}
         {groups.map(([groupName, items]) => {
           const open = isGroupOpen(groupName);
           return (
@@ -310,7 +319,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                       <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
                         {cols.map((c) => c.label ? (
                           <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                            <Typography variant="caption" color="text.secondary">{c.label}</Typography>
+                            <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
                             <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
                           </Box>
                         ) : (
@@ -449,7 +458,8 @@ function AssigneePicker({ loading, candidates, selected, onChange, myId }) {
         return <Chip key={key ?? c.user_id} {...rest} size="small" label={c.display_name} />;
       })}
       renderInput={(params) => (
-        <TextField {...params} label="담당자 검색" placeholder="예: 김하나" />
+        <TextField
+      InputLabelProps={{ shrink: true }} {...params} label="담당자 검색" placeholder="예: 김하나" />
       )}
     />
   );
@@ -554,7 +564,8 @@ export function TicketEditModal({ ticket, open, onClose }) {
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}
-        <TextField id="te-title" fullWidth size="small" label="제목" required sx={{ mb: 2.5 }}
+        <TextField
+      InputLabelProps={{ shrink: true }} id="te-title" fullWidth size="small" label="제목" required sx={{ mb: 2.5 }}
           value={form.title} onChange={(e) => set("title", e.target.value)}
           inputProps={{ maxLength: 200 }} />
         <Box sx={{ mb: 2.5 }}>
@@ -566,7 +577,8 @@ export function TicketEditModal({ ticket, open, onClose }) {
         </Box>
         {/* 짧은 값 입력들은 넓은 화면에서 두 열로 접는다 — 한 열로 길게 쌓으면 모달이 세로로만 길어진다. */}
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
-          <TextField id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
+          <TextField
+      InputLabelProps={{ shrink: true }} id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
             {statusOpts.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
           </TextField>
           <TextField id="te-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
@@ -577,24 +589,36 @@ export function TicketEditModal({ ticket, open, onClose }) {
             <MenuItem value="">없음</MenuItem>
             {diffOpts.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
           </TextField>
-          <TextField id="te-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+          <TextField
+      InputLabelProps={{ shrink: true }} id="te-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
             value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
-          <TextField id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+          <TextField
+      InputLabelProps={{ shrink: true }} id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
             value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
             helperText="다 끝낸 뒤 실제로 들인 공수" />
           <TextField id="te-start" fullWidth size="small" label="시작일" type="date" InputLabelProps={{ shrink: true }}
             value={form.start} onChange={(e) => set("start", e.target.value)} />
           <TextField id="te-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
             value={form.due} onChange={(e) => set("due", e.target.value)} />
-          <TextField id="te-proj" select fullWidth size="small" label="프로젝트" {...EMPTYABLE_SELECT}
-            value={form.project_id} onChange={(e) => set("project_id", e.target.value)}
-            disabled={projectsQ.isLoading}>
-            <MenuItem value="">{projectsQ.isLoading ? "불러오는 중…" : "선택 안 함"}</MenuItem>
-            {withCurrentProject(projects, form.project_id).map((p) => (
-              <MenuItem key={p.id} value={p.id}>{p.name || "(제목 없음)"}</MenuItem>
-            ))}
-          </TextField>
-          <TextField id="te-category" fullWidth size="small" label="대분류"
+          {/* 새 티켓 폼과 **같은 부품**이다 — 같은 값을 고르는 자리가 화면마다 다른 상호작용을
+              갖지 않는다(C8 «하나의 Model, 세 개의 표면»). 지금 걸린 프로젝트가 후보에
+              없으면(아카이브·권한 밖) `withCurrentProject` 가 끼워 넣는 계약은 그대로다 —
+              빠지면 손대지도 않은 프로젝트 연결이 저장 시 끊긴다. */}
+          <EntityCombobox
+            id="te-proj"
+            label="프로젝트"
+            value={form.project_id}
+            onChange={(v) => set("project_id", v)}
+            loading={projectsQ.isLoading}
+            disabled={projectsQ.isLoading}
+            allLabel="선택 안 함"
+            sx={{ width: "100%", maxWidth: "none" }}
+            options={withCurrentProject(projects, form.project_id).map((p) => ({
+              value: p.id, label: p.name || "(제목 없음)",
+            }))}
+          />
+          <TextField
+      InputLabelProps={{ shrink: true }} id="te-category" fullWidth size="small" label="대분류"
             value={form.category} onChange={(e) => set("category", e.target.value)}
             inputProps={{ maxLength: 200 }} />
         </Box>
@@ -1057,7 +1081,8 @@ export function NewTicket() {
               읽기 좋은 폭에서 멈춘다. 짧은 값 입력들은 자기가 놓인 칸이 넓어지는 만큼만 접는다
               (열 수는 뷰포트가 아니라 아래 컨테이너가 정한다 — NT_FIELD_GRID 주석 참고). */}
           <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ maxWidth: "72rem" }}>
-            <TextField id="nt-title" fullWidth size="small" required label="제목" sx={{ mb: 2.5 }}
+            <TextField
+      InputLabelProps={{ shrink: true }} id="nt-title" fullWidth size="small" required label="제목" sx={{ mb: 2.5 }}
               value={form.title} onChange={(e) => set("title", e.target.value)} inputProps={{ maxLength: 200 }}
               placeholder="예: 서버 등록 IP 중복 방지" />
             {/* 격자를 감싸는 한 겹 — `container-type` 은 **조상**에만 걸 수 있고 자기 자신은 못 묻는다.
@@ -1068,21 +1093,28 @@ export function NewTicket() {
                 {/* 프로젝트는 필수다 — 티켓의 조직 소속을 프로젝트가 정하기 때문이다(0060 §11).
                     '선택 안 함' 을 없앤다: 고를 수 있게 두면 소속 없는 티켓이 만들어지고,
                     그 티켓은 전체 관리자 말고는 아무에게도 안 보인다. */}
-                <TextField id="nt-proj" select fullWidth size="small" label="프로젝트" required
-                  value={form.project_id} onChange={(e) => { set("project_id", e.target.value); set("assignees", []); }}
+                {/* 프로젝트는 **Entity** 다 — 후보가 업무가 쌓이는 만큼 자라고 이름이 길다.
+                    검색 없는 드롭다운으로 두면 사용자는 이름을 알면서도 목록을 눈으로 훑어야
+                    한다(지시 0-2.17 · R-5). 작업 DB 미연결 프로젝트는 고를 수 없다는 사실을
+                    보조줄로 함께 낸다 — 예전에는 라벨 꼬리에 붙어 이름과 한 줄로 섞였다. */}
+                <EntityCombobox
+                  id="nt-proj"
+                  required
+                  label="프로젝트"
+                  value={form.project_id}
+                  onChange={(v) => { set("project_id", v); set("assignees", []); }}
+                  loading={projectsQ.isLoading}
                   disabled={projectsQ.isLoading || !projects.length}
-                  helperText={projects.length ? undefined : "선택할 수 있는 프로젝트가 없습니다"}>
-                  {projects.length === 0 ? (
-                    <MenuItem value="" disabled>{projectsQ.isLoading ? "불러오는 중…" : "프로젝트 없음"}</MenuItem>
-                  ) : null}
-                  {projects.map((p) => (
-                    <MenuItem key={p.id} value={p.id} disabled={p.can_create_ticket === false}>
-                      {p.name || "(제목 없음)"}
-                      {p.can_create_ticket === false ? " (작업 DB 미연결)" : ""}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
+                  allLabel="프로젝트 선택"
+                  sx={{ width: "100%", maxWidth: "none" }}
+                  noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다" : "선택할 수 있는 프로젝트가 없습니다"}
+                  helperText={projects.length ? undefined : "선택할 수 있는 프로젝트가 없습니다"}
+                  options={projects
+                    .filter((p) => p.can_create_ticket !== false)
+                    .map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
+                />
+                <TextField
+      InputLabelProps={{ shrink: true }} id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
                   {withCurrent(meta.statuses, form.status).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                 </TextField>
                 <TextField id="nt-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
@@ -1093,7 +1125,8 @@ export function NewTicket() {
                   <MenuItem value="">없음</MenuItem>
                   {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
                 </TextField>
-                <TextField id="nt-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+                <TextField
+      InputLabelProps={{ shrink: true }} id="nt-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
                   value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
                 <TextField id="nt-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
                   value={form.due} onChange={(e) => set("due", e.target.value)} />

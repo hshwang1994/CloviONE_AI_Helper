@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartEmpty, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
 import { FONT_WEIGHT } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
@@ -18,13 +18,28 @@ import { FONT_WEIGHT } from "../theme.js";
  */
 export function Donut({
   segments, size = "9rem", unit = "", centerLabel, emptyLabel = "데이터 없음", thickness = 5,
+  total: totalProp, restLabel = "기타",
 }) {
   const theme = useTheme();
   const track = useTrackColor();
-  const rows = (Array.isArray(segments) ? segments : []).filter(
+  const visible = (Array.isArray(segments) ? segments : []).filter(
     (s) => s && typeof s.value === "number" && Number.isFinite(s.value) && s.value > 0
   );
-  const total = rows.reduce((sum, s) => sum + s.value, 0);
+  /* 조각 상한 5 — 6번째부터는 색으로도 구분되지 않는다(인접 슬롯 휘도 분리 최대 1.26:1).
+     구분되는 척하는 대신 합쳐서 «기타» 하나로 말한다. */
+  const rows = capSeries(visible, {
+    label: restLabel,
+    merge: (tail, label) => ({ label, value: tail.reduce((sum, s) => sum + s.value, 0) }),
+  });
+  const shown = rows.reduce((sum, s) => sum + s.value, 0);
+  /* **모수는 입력이다.** 예전에는 «그려진 조각의 합»을 모수라고 불렀는데, 값 0 이하인 상태와
+     호출부가 걸러 낸 것이 조용히 빠져 도넛이 전체를 설명한다고 착각하게 만들었다(호출부 셋 중
+     하나만 손으로 «기타»를 보정하고 있었다). 모수를 안 주면 그려진 합이 곧 전체라는 **주장**이
+     되므로, 그 주장을 호출부가 명시적으로 하게 한다. */
+  const total = (typeof totalProp === "number" && Number.isFinite(totalProp) && totalProp > 0)
+    ? totalProp
+    : shown;
+  const missing = Math.max(0, total - shown);
 
   // size가 도넛 자체의 폭·높이를 정하는 값이라(기본 9rem), 빈 상태도 그대로 넘겨야 카드가
   // 로딩→빈 전환에서 ChartEmpty의 기본값(4rem)으로 훅 줄어들지 않는다 — LineSeries/Sparkline이
@@ -33,10 +48,13 @@ export function Donut({
 
   const R = 15.91549431;
   let acc = 0;
-  const arcs = rows.map((s) => {
+  const arcs = rows.map((s, idx) => {
     const pct = (s.value / total) * 100;
     // dashoffset 25는 12시 방향에서 시작하게 만든다(기본은 3시 방향 — 사람은 시계처럼 위에서 읽는다).
-    const arc = { key: s.label, pct, offset: 25 - acc, color: resolveChartColor(theme, s.color) };
+    // 색을 **안 준** 조각은 시리즈 슬롯을 받는다. 예전에는 전부 `primary.main` 하나여서
+    // «계획 4건»과 «진행 2건»의 스와치 픽셀이 문자 그대로 같았다 — 구성비 차트가 구성을
+    // 못 보여 주던 자리다.
+    const arc = { key: s.label, pct, offset: 25 - acc, color: resolveChartColor(theme, s.color, idx) };
     acc += pct;
     return arc;
   });
@@ -87,6 +105,20 @@ export function Donut({
             </Typography>
           </Box>
         ))}
+        {/* 모수와 조각 합이 다르면 그 차이를 **말한다**. 링의 빈 호는 트랙 색으로 이미 보이지만,
+            그것을 글자로 말하지 않으면 도넛을 못 보는 사람에게는 없는 사실이 된다. */}
+        {missing > 0 ? (
+          <Box component="li" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <Box
+              aria-hidden="true"
+              sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: track }}
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+              분류 없음 <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{missing}{unit}</Box>
+              <Box component="span"> ({Math.round((missing / total) * 100)}%)</Box>
+            </Typography>
+          </Box>
+        ) : null}
       </Box>
     </Box>
   );

@@ -88,8 +88,17 @@ describe("임퍼소네이션의 관리자/대상 필터", () => {
     expect(intent.values.actor_user_id).toBe("admin-9");
   });
 
-  it("화면에서도 관리자 ID로 좁힐 수 있다(딥링크로만 되는 숨은 조건이 아니다)", async () => {
+  /* W5: 라벨이 「관리자 ID」에서 「관리자」로 바뀌었다 — 그 자리가 UUID 를 손으로 붙여넣는
+     자유 텍스트에서 **이름으로 고르는 검색형 Combobox** 가 됐기 때문이다(R-5 · 지시 0-2.17).
+     이 시험이 지키던 것("딥링크로만 되는 숨은 조건이 아니다")은 그대로이고, 거기에
+     "그 컨트롤이 검색 가능하다"를 더한다 — select 로만 바꾸면 후보가 수백 명일 때 같은
+     문제가 다시 생긴다. */
+  it("화면에서도 관리자로 좁힐 수 있고, 그 컨트롤은 검색 가능하다", async () => {
     renderImpersonation();
-    expect(await screen.findByLabelText(/관리자 ID/)).toBeInTheDocument();
+    const actor = await screen.findByRole("combobox", { name: /관리자/ });
+    expect(actor).toBeInTheDocument();
+    // ARIA 1.2 combobox — 입력이 가능하고 후보 목록이 붙는다.
+    expect(actor.getAttribute("aria-autocomplete")).toBe("list");
+    expect(screen.getByRole("combobox", { name: /대상 사용자/ })).toBeInTheDocument();
   });
 });
