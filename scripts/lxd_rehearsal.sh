@@ -18,6 +18,9 @@
 #     호스트 재부팅까지 포함한 판정은 이 스크립트 밖에서 따로 한다.
 #   * NFS/CIFS 마운트. 비특권 컨테이너에서는 제한된다 — Storage 검증은 S8 의 실 VM 몫이다.
 #   * 실 장비의 성능·TLS 클라이언트 신뢰 저장소.
+#   * **git clone 그 자체.** 소스는 tarball 로 넣는다(제품 기준 GitLab 주소가 아직 없다, R16).
+#     그래서 Stage 3 은 «git 아님» 으로 지나가고, clone 직후의 실행 비트는 여기서 확인되지
+#     않는다 — 그 한 자리는 tests/unit/test_deploy_wiring.py 가 git 인덱스 모드로 지킨다.
 set -uo pipefail
 export LC_ALL=C.UTF-8
 

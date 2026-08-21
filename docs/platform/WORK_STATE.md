@@ -107,7 +107,7 @@ S4 는 배포 자산이 주역이지만 **런타임 위상**(스케줄러 레인
 
 | 대상 | 결과 |
 |---|---|
-| **LXD Clean 설치 리허설** | **LXD_REHEARSAL_OK — 34항.** 원장 [`EVIDENCE/S4/lxd_rehearsal.txt`](EVIDENCE/S4/lxd_rehearsal.txt) |
+| **LXD Clean 설치 리허설** | **LXD_REHEARSAL_OK — 34항.** 원장 [`EVIDENCE/S4/lxd_rehearsal.txt`](EVIDENCE/S4/lxd_rehearsal.txt). **git clone 그 자체는 안 돈다** — 소스를 tarball 로 넣는다(제품 기준 GitLab 주소가 아직 없다, R16). clone 직후의 실행 비트는 시험이 git 인덱스 모드로 지킨다 |
 | ├ Clean 설치 | Stage 0~18 전부 `OK`(11·12 는 `SKIP` — 그 Component 가 아직 없다) |
 | ├ 재실행이 무해한가 | 설정 해시와 스키마가 그대로. 「기존 설정을 보존하고 설치처 값만 맞췄습니다」 |
 | ├ 의도적 실패 주입 | `--inject-failure 9` → `STAGE_9_MIGRATION: FAIL` · `INSTALL_FAILED stage=9` · **다음 Stage 없음** |

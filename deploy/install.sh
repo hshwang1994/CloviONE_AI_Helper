@@ -544,6 +544,11 @@ stage_3_source() {
       git -C "$APP_DIR" checkout --quiet "$GIT_REF" >>"$LOG" 2>&1 \
         || { fail "ref 를 체크아웃할 수 없습니다: $GIT_REF" "tag 가 원격에 있는지 확인하십시오" 23 || return $?; }
     fi
+    # 실행 비트는 여기서도 세운다. systemd 가 `ExecStartPre=` 로 **직접** 부르는
+    # `wait-for-postgres.sh` 가 0644 면 조용히 안 돈다 — `-` 접두사 때문에 유닛은 그대로
+    # 뜨고, 「PG 준비를 기다린다」가 아무 흔적 없이 사라진다. 딱 이 저장소가 싫어하는 종류다.
+    chmod 0755 "$APP_DIR"/deploy/*.sh 2>/dev/null || true
+    find "$APP_DIR/scripts" -name '*.sh' -exec chmod 0755 {} + 2>/dev/null || true
     _reason="소스가 이미 $APP_DIR 에 있습니다($(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo 'git 아님'))"
     return 0
   fi

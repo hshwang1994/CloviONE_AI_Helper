@@ -527,3 +527,24 @@ def test_the_env_file_reader_does_not_word_split():
     text = _code_only(_install_sh())
     assert "| xargs" not in text, "값을 단어 분리하는 옛 관용이 남아 있다"
     assert "export_env_file()" in text
+
+
+def test_the_entry_point_is_executable_straight_out_of_a_clone():
+    """INSTALLATION.md §1 의 세 줄은 `sudo /opt/clovirassist/deploy/install.sh install …` 로
+    **직접 실행**한다 — git clone 직후에 실행 비트가 없으면 그 줄이 «Permission denied» 다.
+
+    이 저장소의 다른 셸 스크립트는 전부 0644 다(전부 `bash <script>` 로 부른다). 이 둘만
+    다른 이유가 있다: 하나는 사용자가 직접 치는 첫 명령이고, 다른 하나는 systemd 가
+    `ExecStartPre=` 로 직접 부른다. 후자가 0644 면 `-` 접두사 때문에 유닛은 그대로 뜨고
+    **「PG 준비를 기다린다」가 아무 흔적 없이 사라진다.**
+    """
+    import subprocess
+
+    out = subprocess.run(
+        ["git", "ls-files", "-s", "deploy/install.sh", "deploy/wait-for-postgres.sh"],
+        cwd=ROOT, capture_output=True, text=True,
+    ).stdout
+    assert out.strip(), "git 이 이 파일들을 모른다"
+    for line in out.splitlines():
+        mode, _, rest = line.partition(" ")
+        assert mode == "100755", f"실행 비트가 없다: {rest.split()[-1]} (mode={mode})"
