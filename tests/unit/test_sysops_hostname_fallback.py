@@ -82,9 +82,11 @@ def test_neither_command_available_reports_unknown_not_a_crash():
 def test_dns_and_proxy_report_configured_values():
     from app.sysops.actions_service import RESOLVED_DROPIN, _proxy_dropin_path
 
+    from app.core import product
+
     runner = FakeRunner({
         RESOLVED_DROPIN: "[Resolve]\nDNS=10.0.0.1 10.0.0.2\nDomains=corp.example\n",
-        _proxy_dropin_path("clovirone-web-assistant.service"):
+        _proxy_dropin_path(product.WEB_UNIT):
             '[Service]\nEnvironment="HTTPS_PROXY=http://proxy.example:3128"\n'
             'Environment="NO_PROXY=localhost"\n',
     })

@@ -1,0 +1,294 @@
+# S4 — LXD Clean 설치 리허설 (INSTALLATION.md §7)
+#
+# 실행: sudo bash scripts/lxd_rehearsal.sh <source.tar.gz> s4-rehearsal
+# 대상: 테스트 서버 10.100.64.71 위의 LXD 시스템 컨테이너(Ubuntu 24.04.4 LTS)
+#
+# ⚠️ 이 리허설이 증명하지 않는 것(R15): 진짜 커널 재부팅 · NFS/CIFS 마운트 ·
+#    실 장비 성능. 재부팅은 reboot_recovery.txt 가 따로 증명한다.
+# ⚠️ lxc 진행률 표시와 apt 출력은 지웠다. 판정 줄은 하나도 지우지 않았다.
+
+
+═══ [1] 컨테이너를 새로 만든다 (s4-rehearsal) ═══
+컨테이너 IP: 10.154.245.240
+PRETTY_NAME="Ubuntu 24.04.4 LTS"
+
+═══ [2] 소스를 넣는다 (/opt/src/clovirassist) ═══
+CLAUDE.md
+README.md
+VERSION
+alembic
+alembic.ini
+app
+config
+deploy
+frontend
+pytest.ini
+
+═══ [3] preflight — 아무것도 바꾸지 않는다 ═══
+STAGE_0_PREFLIGHT: OK os=24.04 arch=amd64 ram=15991MB disk=948750MB source=local
+PREFLIGHT_OK
+[OK ] Preflight 가 통과한다
+[OK ] Preflight 가 끝났다고 말한다
+[OK ] preflight 는 아무것도 만들지 않았다
+
+═══ [4] Clean 설치 ═══
+STAGE_0_PREFLIGHT: OK os=24.04 arch=amd64 ram=15991MB disk=948750MB source=local
+STAGE_1_APT: OK 설치함: postgresql-16 postgresql-16-pgvector postgresql-contrib nginx python3.12-venv nfs-common cifs-utils
+STAGE_2_ACCOUNTS: OK 계정 clovirassist · 디렉터리 6종
+STAGE_3_SOURCE: OK /opt/src/clovirassist → /opt/clovirassist (kind=local)
+STAGE_4_PYTHON: OK venv + 의존성 import 확인
+STAGE_5_FRONTEND: OK 번들이 소스와 맞습니다
+STAGE_6_POSTGRES: OK PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) · role=clovirassist db=clovirassist · max_connections=120
+STAGE_7_EXTENSIONS: OK pg_trgm 1.6 · vector 0.6.0
+STAGE_8_CONFIG: OK /etc/clovirassist/clovirassist.env 을 새로 만들었습니다(SESSION_SECRET 은 서버에서 생성) · secrets 0개
+STAGE_9_MIGRATION: OK revision <없음> → 0001_pg_baseline · public 표 71개
+STAGE_10_SEED: OK 기본 Role/Permission 은 마이그레이션이 넣었습니다. **관리자 계정이 아직 없습니다**
+STAGE_11_STORAGE: SKIP 로컬 업로드 디렉터리만 준비했습니다. NFS/SMB Provider·마운트 유닛·st_dev 가드는 아직 제품에 없습니다 | 조치: S8(P-17)이 이 Stage 를 OK 로 바꿉니다
+STAGE_12_AI: SKIP Model Gateway·임베딩/리랭킹 모델·ONNX Runtime 이 아직 제품에 없습니다 | 조치: S9(P-18)이 이 Stage 를 OK 로 바꿉니다
+STAGE_13_UNITS: OK 유닛 5종 설치
+STAGE_14_ENABLE: OK postgresql · nginx · 제품 유닛 5종이 enabled
+STAGE_15_TLS: OK 자체서명 ECDSA P-256 생성(CN/SAN=clovirassist.gooddi.lab, IP:10.154.245.240, 365일)
+STAGE_16_NGINX: OK vhost /etc/nginx/sites-available/clovirassist · server_name 블록 2개
+STAGE_17_START: OK 유닛 4종 active · /healthz · /readyz 200
+VERIFY_OK
+STAGE_18_VERIFY: OK verify 통과 · /etc/clovirassist/installed_manifest.json 기록
+INSTALL_OK dns=clovirassist.gooddi.lab log=/var/log/clovirassist/install-20260821-174708.log
+[OK ] Clean 설치가 끝났다
+[OK ] Stage 0~18 이 전부 OK(11·12 는 SKIP)
+[OK ] 아직 없는 Storage Component 를 SKIP 이라고 말한다
+[OK ] 아직 없는 AI Component 를 SKIP 이라고 말한다
+
+═══ [5] 설치 직후 상태 — 유닛 · 매니페스트 ═══
+active
+active
+active
+active
+active
+active
+--- enabled ---
+enabled
+enabled
+enabled
+enabled
+enabled
+enabled
+enabled
+[OK ] 떠 있어야 하는 유닛 넷이 전부 active
+[OK ] 대화형 레인은 설정이 꺼져 있어 inactive — 정상 대기 상태다(D-118)
+{
+  "product": "ClovirAssist",
+  "slug": "clovirassist",
+  "version": "0.1.0-dev",
+  "source_kind": "local",
+  "git_remote": "",
+  "git_ref": "",
+  "git_commit": "",
+  "alembic_head": "0001_pg_baseline",
+  "postgres_version": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+  "extensions": "pg_trgm=1.6,vector=0.6.0",
+  "dns_name": "clovirassist.gooddi.lab",
+  "bind_ip": "10.154.245.240",
+  "installed_at": "2026-08-21T17:48:48+00:00",
+  "installer_log": "/var/log/clovirassist/install-20260821-174708.log",
+  "stages": [{"stage":0,"name":"PREFLIGHT","verdict":"OK","reason":"os=24.04 arch=amd64 ram=15991MB disk=948750MB source=local"},{"stage":1,"name":"APT","verdict":"OK","reason":"설치함: postgresql-16 postgresql-16-pgvector postgresql-contrib nginx python3.12-venv nfs-common cifs-utils"},{"stage":2,"name":"ACCOUNTS","verdict":"OK","reason":"계정 clovirassist · 디렉터리 6종"},{"stage":3,"name":"SOURCE","verdict":"OK","reason":"/opt/src/clovirassist → /opt/clovirassist (kind=local)"},{"stage":4,"name":"PYTHON","verdict":"OK","reason":"venv + 의존성 import 확인"},{"stage":5,"name":"FRONTEND","verdict":"OK","reason":"번들이 소스와 맞습니다"},{"stage":6,"name":"POSTGRES","verdict":"OK","reason":"PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) · role=clovirassist db=clovirassist · max_connections=120"},{"stage":7,"name":"EXTENSIONS","verdict":"OK","reason":"pg_trgm 1.6 · vector 0.6.0"},{"stage":8,"name":"CONFIG","verdict":"OK","reason":"/etc/clovirassist/clovirassist.env 을 새로 만들었습니다(SESSION_SECRET 은 서버에서 생성) · secrets 0개"},{"stage":9,"name":"MIGRATION","verdict":"OK","reason":"revision <없음> → 0001_pg_baseline · public 표 71개"},{"stage":10,"name":"SEED","verdict":"OK","reason":"기본 Role/Permission 은 마이그레이션이 넣었습니다. **관리자 계정이 아직 없습니다**"},{"stage":11,"name":"STORAGE","verdict":"SKIP","reason":"로컬 업로드 디렉터리만 준비했습니다. NFS/SMB Provider·마운트 유닛·st_dev 가드는 아직 제품에 없습니다"},{"stage":12,"name":"AI","verdict":"SKIP","reason":"Model Gateway·임베딩/리랭킹 모델·ONNX Runtime 이 아직 제품에 없습니다"},{"stage":13,"name":"UNITS","verdict":"OK","reason":"유닛 5종 설치"},{"stage":14,"name":"ENABLE","verdict":"OK","reason":"postgresql · nginx · 제품 유닛 5종이 enabled"},{"stage":15,"name":"TLS","verdict":"OK","reason":"자체서명 ECDSA P-256 생성(CN/SAN=clovirassist.gooddi.lab, IP:10.154.245.240, 365일)"},{"stage":16,"name":"NGINX","verdict":"OK","reason":"vhost /etc/nginx/sites-available/clovirassist · server_name 블록 2개"},{"stage":17,"name":"START","verdict":"OK","reason":"유닛 4종 active · /healthz · /readyz 200"}]
+}
+
+═══ [6] verify · version ═══
+=== ClovirAssist 검증 (dns=clovirassist.gooddi.lab bind=10.154.245.240) ===
+[OK ] clovirassist-privhelper.service active
+[OK ] clovirassist-worker.service active
+[OK ] clovirassist-scheduler.service active
+[OK ] clovirassist-web.service active
+[OK ] postgresql active
+[OK ] nginx active
+[OK ] postgresql enabled
+[OK ] nginx enabled
+[OK ] clovirassist-privhelper.service enabled
+[OK ] clovirassist-worker.service enabled
+[OK ] clovirassist-worker-conversational.service enabled
+[OK ] clovirassist-scheduler.service enabled
+[OK ] clovirassist-web.service enabled
+[OK ] 앱이 127.0.0.1:8080 를 듣는다
+[OK ] nginx 가 :443 을 듣는다
+[OK ] healthz via nginx (TLS 검증)
+[OK ] readyz via nginx (TLS 검증)
+[OK ] ssl_verify_result=0
+[OK ] 80 → 443 이 이름을 보존한다
+[OK ] 서브되는 인증서 CN 이 clovirassist.gooddi.lab
+[OK ] 서브되는 인증서 SAN 에 clovirassist.gooddi.lab
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0001_pg_baseline code=0001_pg_baseline)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_OK
+[OK ] verify 가 통과한다(TLS 검증 포함)
+ClovirAssist (clovirassist)
+  VERSION       : 0.1.0-dev
+  git           : (bundle 설치이거나 git 트리가 아닙니다)
+  manifest ref  :
+  alembic head  : 0001_pg_baseline  (코드: 0001_pg_baseline)
+  PostgreSQL    : 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+  extensions    : pg_trgm 1.6 · vector 0.6.0
+  installed_at  : 2026-08-21T17:48:48+00:00
+  서비스 상태:
+    postgresql                                 active / enabled
+    nginx                                      active / enabled
+    clovirassist-privhelper.service            active / enabled
+    clovirassist-worker.service                active / enabled
+    clovirassist-worker-conversational.service inactive
+unknown / enabled
+    clovirassist-scheduler.service             active / enabled
+    clovirassist-web.service                   active / enabled
+
+═══ [7] 재실행이 무해한가 (idempotent) ═══
+STAGE_8_CONFIG: OK 기존 설정을 보존하고 설치처 값만 맞췄습니다 · secrets 0개
+STAGE_9_MIGRATION: OK revision 0001_pg_baseline → 0001_pg_baseline · public 표 71개
+INSTALL_OK dns=clovirassist.gooddi.lab log=/var/log/clovirassist/install-20260821-174857.log
+[OK ] 두 번째 설치도 끝난다
+[OK ] 설정을 새로 만들지 않고 보존한다
+[OK ] 설정 해시와 데이터가 그대로다
+
+═══ [8] 의도적 실패 주입 — 어느 Stage 에서 왜 멈췄나 ═══
+스냅샷: /var/backups/clovirassist/20260821-174936
+STAGE_9_MIGRATION: FAIL 의도적 실패 주입(--inject-failure 9) | 조치: 리허설용 스위치다. 실제 설치에서는 이 인자를 주지 않는다
+INSTALL_FAILED stage=9 name=MIGRATION
+[OK ] 실패한 Stage 의 번호와 이름이 표준 출력에 있다
+[OK ] 어디서 멈췄는지 한 줄로 말한다
+[OK ] 실패 지점에서 멈췄다(다음 Stage 없음)
+스냅샷: /var/backups/clovirassist/20260821-174936/
+total 108244
+drwxr-x--- 2 root clovirassist      4096 Aug 21 17:49 .
+drwxr-x--- 4 root clovirassist      4096 Aug 21 17:49 ..
+-rw-r----- 1 root clovirassist       893 Aug 21 17:49 SHA256SUMS
+-rw-r----- 1 root clovirassist 110371013 Aug 21 17:49 app.tar.gz
+-rw-r----- 1 root clovirassist      4159 Aug 21 17:49 clovirassist-privhelper.service
+-rw-r----- 1 root clovirassist      2434 Aug 21 17:49 clovirassist-scheduler.service
+-rw-r----- 1 root clovirassist      3383 Aug 21 17:49 clovirassist-web.service
+-rw-r----- 1 root clovirassist      2007 Aug 21 17:49 clovirassist-worker-conversational.service
+-rw-r----- 1 root clovirassist      2237 Aug 21 17:49 clovirassist-worker.service
+-rw-r----- 1 root clovirassist    367601 Aug 21 17:49 db.dump
+-rw-r----- 1 root clovirassist     34213 Aug 21 17:49 db.toc
+-rw-r----- 1 root clovirassist      5340 Aug 21 17:49 etc.tar.gz
+-rw-r----- 1 root clovirassist     14814 Aug 21 17:49 nginx-vhost.conf
+
+═══ [9] rollback — 스냅샷으로 되돌린다 ═══
+[17:49:50] rollback ← /var/backups/clovirassist/20260821-174936
+  체크섬 확인
+  복원 확인: public 표 71개
+=== ClovirAssist 검증 (dns=clovirassist.gooddi.lab bind=10.154.245.240) ===
+[OK ] clovirassist-privhelper.service active
+[OK ] clovirassist-worker.service active
+[OK ] clovirassist-scheduler.service active
+[OK ] clovirassist-web.service active
+[OK ] postgresql active
+[OK ] nginx active
+[OK ] postgresql enabled
+[OK ] nginx enabled
+[OK ] clovirassist-privhelper.service enabled
+[OK ] clovirassist-worker.service enabled
+[OK ] clovirassist-worker-conversational.service enabled
+[OK ] clovirassist-scheduler.service enabled
+[OK ] clovirassist-web.service enabled
+[OK ] 앱이 127.0.0.1:8080 를 듣는다
+[OK ] nginx 가 :443 을 듣는다
+[OK ] healthz via nginx (TLS 검증)
+[OK ] readyz via nginx (TLS 검증)
+[OK ] ssl_verify_result=0
+[OK ] 80 → 443 이 이름을 보존한다
+[OK ] 서브되는 인증서 CN 이 clovirassist.gooddi.lab
+[OK ] 서브되는 인증서 SAN 에 clovirassist.gooddi.lab
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0001_pg_baseline code=0001_pg_baseline)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_OK
+ROLLBACK_OK /var/backups/clovirassist/20260821-174936
+[OK ] 손상된 백업을 그냥 믿지 않는다
+[OK ] 복원 뒤 verify 까지 통과한다
+
+═══ [10] upgrade (정상) ═══
+스냅샷: /var/backups/clovirassist/20260821-175004
+STAGE_18_VERIFY: OK verify 통과 · /etc/clovirassist/installed_manifest.json 기록
+UPGRADE_OK ref=<현재> snapshot=/var/backups/clovirassist/20260821-175004 log=/var/log/clovirassist/install-20260821-175004.log
+[OK ] 업그레이드가 끝난다
+
+═══ [11] init 을 다시 돌리면 스스로 돌아오는가 (lxc restart) ═══
+up 0 minutes
+active
+active
+active
+active
+active
+active
+[OK ] 수동 명령 0회로 전 유닛이 돌아왔다
+[OK ] 재시작 뒤에도 verify 가 통과한다
+71
+
+═══ [12] uninstall (데이터는 남긴다) ═══
+UNINSTALL_OK purge=0 — 설정(/etc/clovirassist)·데이터(/var/lib/clovirassist)·백업(/var/backups/clovirassist)·DB(clovirassist)는 남겼습니다
+  전부 지우려면: /opt/src/clovirassist/deploy/install.sh uninstall --purge --yes
+[OK ] 유닛과 소스만 지웠다고 말한다
+[OK ] 유닛 파일이 전부 사라졌다
+[OK ] 설정과 데이터는 남았다
+
+═══ [13] 재설치 — 설치본 자리에서 바로 (INSTALLATION §1 의 3줄 경로 모양) ═══
+STAGE_3_SOURCE: OK 소스가 이미 /opt/clovirassist 에 있습니다(git 아님)
+STAGE_18_VERIFY: OK verify 통과 · /etc/clovirassist/installed_manifest.json 기록
+INSTALL_OK dns=clovirassist.gooddi.lab log=/var/log/clovirassist/install-20260821-175105.log
+[OK ] 설치본 자리에서 실행한 설치도 끝난다
+[OK ] 자기 자신을 덮어쓰지 않는다
+[OK ] uninstall → 재설치 뒤에도 스키마가 그대로다(public 표 71개)
+
+═══ [14] 옛 slug 설치를 이전한다 (R13) ═══
+UNINSTALL_OK purge=1 — 설정·데이터·백업·DB·계정까지 지웠습니다
+STAGE_0_PREFLIGHT: OK os=24.04 arch=amd64 ram=15991MB disk=948196MB source=local · 포트 80 는 이미 우리 스택이 쓰고 있습니다(재실행) · 옛 slug 설치(clovirone-web-assistant)를 감지했습니다 — 스냅샷 후 새 이름으로 이전합니다
+STAGE_2_ACCOUNTS: OK 옛 slug 설치를 clovirassist 로 이전하고 계정·디렉터리를 세웠습니다
+INSTALL_OK dns=clovirassist.gooddi.lab log=/var/log/clovirassist/install-20260821-175202.log
+[OK ] Preflight 가 옛 설치를 알아본다
+[OK ] 이전 뒤 설치가 끝난다
+[OK ] 업로드와 비밀이 새 자리로 따라왔다
+[OK ] 옛 경로·유닛이 남지 않았다
+[OK ] 옛 시스템 계정이 사라졌다
+
+═══ [15] uninstall --purge — 전부 지운다 ═══
+UNINSTALL_OK purge=1 — 설정·데이터·백업·DB·계정까지 지웠습니다
+[OK ] 전부 지웠다고 말한다
+[OK ] 설정·데이터·계정이 전부 사라졌다
+
+════════════════════ 리허설 요약 ════════════════════
+OK   Preflight 가 통과한다
+OK   Preflight 가 끝났다고 말한다
+OK   preflight 는 아무것도 만들지 않았다
+OK   Clean 설치가 끝났다
+OK   Stage 0~18 이 전부 OK(11·12 는 SKIP)
+OK   아직 없는 Storage Component 를 SKIP 이라고 말한다
+OK   아직 없는 AI Component 를 SKIP 이라고 말한다
+OK   떠 있어야 하는 유닛 넷이 전부 active
+OK   대화형 레인은 설정이 꺼져 있어 inactive — 정상 대기 상태다(D-118)
+OK   verify 가 통과한다(TLS 검증 포함)
+OK   두 번째 설치도 끝난다
+OK   설정을 새로 만들지 않고 보존한다
+OK   설정 해시와 데이터가 그대로다
+OK   실패한 Stage 의 번호와 이름이 표준 출력에 있다
+OK   어디서 멈췄는지 한 줄로 말한다
+OK   실패 지점에서 멈췄다(다음 Stage 없음)
+OK   손상된 백업을 그냥 믿지 않는다
+OK   복원 뒤 verify 까지 통과한다
+OK   업그레이드가 끝난다
+OK   수동 명령 0회로 전 유닛이 돌아왔다
+OK   재시작 뒤에도 verify 가 통과한다
+OK   유닛과 소스만 지웠다고 말한다
+OK   유닛 파일이 전부 사라졌다
+OK   설정과 데이터는 남았다
+OK   설치본 자리에서 실행한 설치도 끝난다
+OK   자기 자신을 덮어쓰지 않는다
+OK   uninstall → 재설치 뒤에도 스키마가 그대로다(public 표 71개)
+OK   Preflight 가 옛 설치를 알아본다
+OK   이전 뒤 설치가 끝난다
+OK   업로드와 비밀이 새 자리로 따라왔다
+OK   옛 경로·유닛이 남지 않았다
+OK   옛 시스템 계정이 사라졌다
+OK   전부 지웠다고 말한다
+OK   설정·데이터·계정이 전부 사라졌다
+─────────────────────────────────────────────────────
+LXD_REHEARSAL_OK  (34항)

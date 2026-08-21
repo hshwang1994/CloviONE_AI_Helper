@@ -1,4 +1,4 @@
-"""clovirone-user CLI (spec §29).
+"""clovirassist-user CLI (spec §29).
 
 Uses the same service layer as the web admin API so behavior never diverges.
 Passwords are never accepted as command-line arguments — stdin/getpass only.
@@ -321,7 +321,7 @@ def cmd_verify_notion(db, session_service, settings, args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="clovirone-user", description="ClovirAssist Web Assistant 사용자 관리 CLI"
+        prog="clovirassist-user", description="ClovirAssist 사용자 관리 CLI"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

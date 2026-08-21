@@ -17,6 +17,12 @@ from app.llm_console.service import JOB_TYPE_TEST
 
 LANE_BATCH = "batch"
 LANE_CONVERSATIONAL = "conversational"
+# 스케줄러 레인(S4 · D-225). 다른 둘과 성격이 다르다 — **잡을 하나도 클레임하지 않는다.**
+# 하는 일은 만기 스케줄 평가와 좀비 실행 스윕뿐이고, 그래서 `CONVERSATIONAL_JOB_TYPES`
+# 같은 job_type 목록이 없다. 배치 워커의 tick 이던 것을 프로세스로 꺼낸 것이다:
+# 3600초짜리 schedule_run 하나가 도는 동안 워커 루프가 그 잡 안에 있어 스케줄 발화가
+# 통째로 밀렸다(화면상 «다음 실행» 은 지났는데 아무 일도 안 일어난다).
+LANE_SCHEDULER = "scheduler"
 
 # 대화형 job_type. chat_message는 사용자가 화면 앞에서 기다리는 요청이고, llm_connection_test도
 # 같은 이유로 최근 이 큐로 옮겨졌다(핸들러 자신의 주석 참고 — 웹 요청에서 기다리면 처리 칸이
@@ -31,11 +37,21 @@ def lock_filename(lane: str) -> str:
     둘로 보이는 창을 만들지 않기 위해서다."""
     if lane == LANE_CONVERSATIONAL:
         return "worker-conversational.lock"
+    if lane == LANE_SCHEDULER:
+        return "scheduler.lock"
     return "worker.lock"
 
 
 def liveness_component(lane: str) -> str:
-    """레인별 헬스 대시보드 liveness 컴포넌트 이름."""
+    """레인별 헬스 대시보드 liveness 컴포넌트 이름.
+
+    스케줄러 레인이 `scheduler`를 쓰는 것이 핵심이다 — 대시보드의 그 칸은 예전에도
+    `scheduler`였고(배치 워커의 하트비트 스레드가 함께 찍었다), 레인을 꺼낸 뒤에도
+    같은 이름을 같은 뜻으로 유지한다. 이름이 바뀌면 대시보드가 «스케줄러 없음»을
+    보여 주는데 실제로는 멀쩡히 돌고 있는, 가장 헷갈리는 종류의 거짓말이 된다.
+    """
     if lane == LANE_CONVERSATIONAL:
         return "worker_conversational"
+    if lane == LANE_SCHEDULER:
+        return "scheduler"
     return "worker"

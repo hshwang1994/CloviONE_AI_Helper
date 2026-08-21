@@ -84,6 +84,19 @@ for s in scripts/*.sh deploy/*.sh; do
   if bash -n "$s" 2>/dev/null; then ok "bash -n $s"; else fail "bash -n $s"; fi
 done
 
+step "배포 자산의 줄바꿈 (S4)"
+# 🔴 실제로 이것 때문에 LXD 리허설 한 회차를 통째로 버렸다. CRLF 로 저장된 셸 스크립트는
+# `set -euo pipefail\r` 에서 «set: pipefail: invalid option name» 으로 죽는다 — 스크립트
+# 안의 CRLF 가드는 그 줄보다 **뒤에** 있어 영원히 안 울린다(옛 installer 도 같다).
+# .gitattributes 가 커밋 내용을 LF 로 정규화하지만, 작업 트리 파일을 그대로 서버에 올려
+# 돌리는 것이 실제 개발 경로다. 그 경로를 여기서 막는다.
+CRLF_HITS=""
+for f in deploy/*.sh deploy/systemd/*.service deploy/nginx/* deploy/*.example scripts/*.sh; do
+  [ -f "$f" ] || continue
+  if grep -qU $'\r' "$f" 2>/dev/null; then CRLF_HITS="$CRLF_HITS $f"; fi
+done
+if [ -z "$CRLF_HITS" ]; then ok "배포 자산이 전부 LF"; else echo "$CRLF_HITS"; fail "CRLF 로 저장된 배포 자산 — 리눅스에서 실행되지 않는다"; fi
+
 step "systemd unit sanity"
 for u in deploy/systemd/*.service; do
   grep -q '^\[Service\]' "$u" && grep -q 'NoNewPrivileges=true' "$u" && ok "unit $u" || fail "unit $u missing hardening"
@@ -437,6 +450,17 @@ if TRACE="$("$PY" scripts/check_ui_renewal_coverage.py --stage plan 2>&1)"; then
   ok "$(echo "$TRACE" | tail -1)"
 else
   echo "$TRACE"; fail "Control Plane 이 Plan Gate 를 통과하지 못한다"
+fi
+
+step "번들 신선도 검사기가 스스로 시험을 통과하는가 (S4)"
+# 🔴 이 검사기의 해시가 **운영체제를 탔다.** `sorted(Path)` 가 Windows 에서는 대소문자를
+# 무시하고 리눅스에서는 바이트로 정렬해, 내용이 한 바이트도 안 달라도 해시가 갈렸다.
+# 그래서 Windows 에서 찍은 기준을 들고 리눅스에 설치하면 Stage 5 가 «번들이 낡았다» 로
+# 죽었다(S4 LXD 리허설에서 실제로 그렇게 멈췄다). 사례 6개 · 반례 포함.
+if BSELF="$("$PY" scripts/check_bundle_fresh.py --self-test 2>&1)"; then
+  ok "$(echo "$BSELF" | tail -1)"
+else
+  echo "$BSELF"; fail "번들 신선도 검사기의 입력 순서가 운영체제를 탄다"
 fi
 
 step "Committed frontend bundle matches the sources"

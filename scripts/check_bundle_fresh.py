@@ -48,6 +48,21 @@ SKIP_DIRS = ("__tests__", "__snapshots__", "node_modules")
 
 
 def _iter_inputs():
+    """빌드 입력을 **어느 운영체제에서 돌려도 같은 순서로** 낸다.
+
+    🔴 여기가 한 번 틀렸다. 예전에는 `sorted(base.rglob("*"))` 로 `Path` 객체를 정렬했는데,
+    `Path` 의 비교는 플랫폼을 탄다: Windows 는 대소문자를 무시하고(`auth.jsx` < `Banners.jsx`),
+    리눅스는 바이트로 본다(`Banners.jsx` < `auth.jsx`). 아래 `source_hash` 가 파일 이름과
+    내용을 **순서대로** 이어 붙여 해시하므로, 순서가 다르면 **내용이 한 바이트도 안 달라도**
+    해시가 달라진다.
+
+    그래서 Windows 에서 찍은 기준(BUILD_STAMP.json)을 들고 리눅스 서버에 설치하면
+    설치 Stage 5 가 «번들이 낡았다» 로 죽는다 — 번들은 멀쩡한데. 실제로 S4 의 LXD 리허설이
+    그렇게 멈췄고, 199개 파일의 내용 해시가 양쪽에서 **전부 같다**는 것을 확인하고 나서야
+    원인이 순서라는 것이 드러났다.
+
+    정렬 키를 경로 문자열(POSIX 표기)로 고정한다. 그 문자열은 어느 운영체제에서도 같다.
+    """
     for name in SOURCE_FILES:
         path = FRONTEND / name
         if path.is_file():
@@ -56,7 +71,7 @@ def _iter_inputs():
         base = FRONTEND / folder
         if not base.is_dir():
             continue
-        for path in sorted(base.rglob("*")):
+        for path in sorted(base.rglob("*"), key=lambda p: p.relative_to(FRONTEND).as_posix()):
             if not path.is_file():
                 continue
             if any(part in SKIP_DIRS for part in path.parts):
@@ -84,10 +99,62 @@ def source_hash() -> tuple[str, int]:
     return digest.hexdigest(), count
 
 
+def self_test() -> int:
+    """이 검사기 자신을 먼저 시험한다 (E3).
+
+    지키는 성질은 하나다: **입력 순서가 운영체제에 안 달렸다.** `source_hash` 가 이름과
+    내용을 순서대로 이어 붙이므로, 순서가 흔들리면 내용이 그대로여도 해시가 달라진다.
+
+    사례는 대소문자가 섞인 이름들이다 — 바로 그 자리에서 Windows(대소문자 무시)와
+    리눅스(바이트)가 갈린다. 반례도 함께 확인한다: 옛 구현(`sorted(rglob)`)을 같은
+    트리에 돌려 보고, 이 머신에서 두 순서가 실제로 갈리는지 본다. 갈리지 않는 머신
+    (리눅스)에서는 그 사례가 「원래 같다」이므로 통과로 센다 — 검사가 거짓말하지 않게
+    무엇을 확인했는지 함께 적는다.
+    """
+    import tempfile
+
+    global FRONTEND
+    saved = FRONTEND
+    names = ["src/app/Banners.jsx", "src/app/auth.jsx", "src/app/AppShell.jsx",
+             "src/app/zulu.jsx", "src/ui/Kit.jsx", "src/ui/kit.helper.jsx"]
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            FRONTEND = root
+            for rel in names:
+                f = root / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(rel, encoding="utf-8")
+            got = [p.relative_to(root).as_posix() for p in _iter_inputs()]
+            want = sorted(names)
+            if got != want:
+                print(f"[FAIL] self-test: 순서가 바이트 오름차순이 아니다\n  got : {got}\n  want: {want}",
+                      file=sys.stderr)
+                return 1
+            # 반례 — 옛 구현이 이 머신에서 실제로 다른 순서를 내는가.
+            old = [p.relative_to(root).as_posix()
+                   for p in sorted((root / "src").rglob("*")) if p.is_file()]
+            differs = old != want
+            h1, _ = source_hash()
+            h2, _ = source_hash()
+            if h1 != h2:
+                print("[FAIL] self-test: 같은 트리에서 해시가 두 번 다르게 나온다", file=sys.stderr)
+                return 1
+    finally:
+        FRONTEND = saved
+    verdict = "옛 구현과 순서가 갈린다(반례 확인)" if differs else "이 운영체제에서는 옛 구현도 같은 순서다"
+    print(f"BUNDLE_SELFTEST_OK ({len(names)}개 사례 · {verdict})")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="프런트 번들 신선도 검사")
     parser.add_argument("--write", action="store_true", help="빌드 직후 기준을 새로 적는다")
+    parser.add_argument("--self-test", action="store_true", help="검사기 자신을 시험한다")
     args = parser.parse_args(argv)
+
+    if args.self_test:
+        return self_test()
 
     if not FRONTEND.is_dir():
         # 배포 산출물에는 frontend/ 가 없을 수 있다. 그때는 검사할 것이 없다.

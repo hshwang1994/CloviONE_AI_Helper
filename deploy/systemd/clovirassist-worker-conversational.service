@@ -1,0 +1,48 @@
+[Unit]
+Description=ClovirAssist Conversational Worker (chat + LLM connection test)
+# **PostgreSQL 이 먼저 떠야 한다** (D-187). 근거는 웹 유닛과 같다.
+After=network-online.target postgresql.service clovirassist-web.service
+Wants=network-online.target postgresql.service
+# 배치 워커 유닛과 같은 이유(OPS-10).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# D-118: 이 유닛은 **설치·활성화돼 있어도 안전하다.** `worker_conversational_lane_enabled`
+# 가 꺼져 있으면(기본값) `main()` 이 리스를 잡기 전에 exit(0) 하고 `inactive (dead)` 로
+# 쉰다 — 그것이 이 유닛의 정상 대기 상태다. 그래서 재부팅 복구 판정에서 «떠 있어야 하는
+# 유닛»(app/core/product.py::ALWAYS_ACTIVE_UNITS)에는 들어가지 않는다.
+# 배포 상태와 설정이 갈라지지 않게 유닛은 항상 설치한다(PA-05 부류의 drift 회피).
+
+[Service]
+Type=simple
+User=clovirassist
+Group=clovirassist
+WorkingDirectory=/opt/clovirassist
+EnvironmentFile=/etc/clovirassist/clovirassist.env
+ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
+ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=conversational
+Restart=on-failure
+RestartSec=10
+# 배치 워커와 달리 이 레인의 잡(chat_message/llm_connection_test)은 전부 n8n 타임아웃
+# (기본 180초) 안에서 끝나거나 실패한다 — schedule_run류의 3600초짜리 예외가 없으므로
+# 200초면 정상 종료를 충분히 덮는다(배치 유닛의 같은 값이 세운 근거를 그대로 따른다).
+KillSignal=SIGTERM
+TimeoutStopSec=200
+
+# Hardening (배치 워커 유닛과 동일, spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirassist
+
+[Install]
+WantedBy=multi-user.target

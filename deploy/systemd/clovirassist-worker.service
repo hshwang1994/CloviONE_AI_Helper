@@ -1,0 +1,50 @@
+[Unit]
+Description=ClovirAssist Background Worker (batch jobs)
+# **PostgreSQL 이 먼저 떠야 한다** (D-187). `Wants=` 인 이유와 `After=` 만으로는
+# 부족한 이유는 웹 유닛에 적어 둔 것과 같다 — 대기는 `ExecStartPre` 가 한다.
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+# OPS-10: 예전엔 이 둘이 없어 systemd 기본값(대략 10초 안에 5회)을 썼다. worker_lock.py 의
+# WorkerLockError(권한 어긋남·디스크 가득 참 같은 파일시스템 고장, 리스 경쟁이 아니다)가
+# 안 잡히던 시절엔 그 조합이 몇 초 안에 재시작 한도를 태워 유닛이 조용히 failed 로 멈췄다
+# (잡·스케줄러·하트비트가 전부 죽었는데 능동적으로 지켜보지 않으면 아무도 모른다). 지금은
+# WorkerLockError 를 잡아 깨끗이 종료하지만(app/worker_main.py), 그래도 순간적인 문제가
+# 스스로 풀릴 시간을 더 주고 - 그래도 안 풀리면 여전히 결국은 멈춘다(무한 재시도는 아니다).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=clovirassist
+Group=clovirassist
+WorkingDirectory=/opt/clovirassist
+EnvironmentFile=/etc/clovirassist/clovirassist.env
+ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
+ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=batch
+Restart=on-failure
+RestartSec=10
+# Graceful shutdown: stop claiming new jobs and finish the in-flight one, then
+# exit (spec §26.2). 200s covers the common jobs (n8n chat timeout 180s). A rare
+# long schedule job (timeout up to 3600s) is SIGKILLed at this deadline and then
+# recovered by the stuck-job sweeper on restart (recover_stuck, 3900s cutoff) —
+# a deliberate trade-off to keep restarts/upgrades from stalling up to an hour.
+KillSignal=SIGTERM
+TimeoutStopSec=200
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirassist
+
+[Install]
+WantedBy=multi-user.target

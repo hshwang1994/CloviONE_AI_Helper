@@ -1,0 +1,57 @@
+[Unit]
+Description=ClovirAssist Scheduler (due-schedule evaluation)
+# **PostgreSQL 이 먼저 떠야 한다** (D-187). 근거는 웹 유닛과 같다.
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+# 배치 워커와 같은 이유(OPS-10) — 리스를 못 쓰는 상황이 스스로 풀릴 시간을 준다.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# 스케줄러가 별도 프로세스인 이유 (S4 · D-225)
+#
+# 예전에는 스케줄 평가가 배치 워커의 tick 하나였다. 그래서 **긴 잡 하나가 스케줄 발화를
+# 통째로 밀었다** — schedule_run 은 최대 3600초까지 도는데, 그동안 워커 루프가 그 잡
+# 안에 있어 tick 이 안 돈다. 화면상 스케줄은 «다음 실행» 을 지나쳤는데 아무 일도 안
+# 일어나고, 잡이 끝난 뒤에야 misfire 로 처리된다.
+#
+# 분리해도 이중 발화가 없는 근거는 코드에 이미 있다: `schedule_runs.idempotency_key`
+# (`{schedule_id}:{scheduled_at}`)가 UNIQUE 라 행을 넣은 쪽이 그 실행을 갖고, 진 쪽은
+# IntegrityError 를 받는다(app/schedules/scheduler.py 머리말). 그 위에 레인별 워커 리스
+# (`scheduler.lock`)가 한 겹 더 있다.
+#
+# 되돌리는 스위치: `worker_scheduler_lane_enabled=false`. 끄면 이 프로세스는 리스를 잡기
+# 전에 exit(0) 하고, 배치 워커가 예전처럼 스케줄러 tick 을 다시 등록한다. 둘 다 도는
+# 상태는 만들어지지 않는다 — 같은 설정값이 양쪽을 반대로 가른다.
+
+[Service]
+Type=simple
+User=clovirassist
+Group=clovirassist
+WorkingDirectory=/opt/clovirassist
+EnvironmentFile=/etc/clovirassist/clovirassist.env
+ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
+ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=scheduler
+Restart=on-failure
+RestartSec=10
+# 이 프로세스는 잡을 실행하지 않는다(핸들러가 없다). 정리할 것은 진행 중인 DB 트랜잭션
+# 하나뿐이라 종료가 빠르다.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+ReadWritePaths=/var/lib/clovirassist
+
+[Install]
+WantedBy=multi-user.target

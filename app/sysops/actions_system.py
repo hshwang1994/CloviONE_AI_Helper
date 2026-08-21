@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from app.core import product
 from app.sysops import validate as v
 from app.sysops.actions import Action, ActionOutcome, register
 from app.sysops.runner import Runner
@@ -24,14 +25,17 @@ TIMEDATECTL = "/usr/bin/timedatectl"
 HOSTNAMECTL = "/usr/bin/hostnamectl"
 SYSTEMCTL = "/usr/bin/systemctl"
 
-TIMESYNCD_DROPIN = "/etc/systemd/timesyncd.conf.d/99-clovirone.conf"
-RESOLVED_DROPIN = "/etc/systemd/resolved.conf.d/99-clovirone.conf"
+TIMESYNCD_DROPIN = product.TIMESYNCD_DROPIN
+RESOLVED_DROPIN = product.RESOLVED_DROPIN
+# 프록시 드롭인을 받는 유닛. 외부로 나가는 프로세스가 전부 들어와야 한다 —
+# 스케줄러도 워크플로를 부르므로 웹·배치 워커와 같은 프록시를 봐야 한다.
 PROXY_DROPIN_UNITS = (
-    "clovirone-web-assistant.service",
-    "clovirone-web-worker.service",
+    product.WEB_UNIT,
+    product.WORKER_UNIT,
+    product.SCHEDULER_UNIT,
 )
 HOSTS_FILE = "/etc/hosts"
-HOSTS_MARKER = "# clovirone-web-assistant"
+HOSTS_MARKER = product.HOSTS_MARKER
 
 
 def _show(runner: Runner, argv: list[str]) -> str:
@@ -285,7 +289,7 @@ register(Action(
 
 
 def _proxy_dropin(unit: str) -> str:
-    return f"/etc/systemd/system/{unit}.d/99-clovirone-proxy.conf"
+    return f"/etc/systemd/system/{unit}.d/{product.PROXY_DROPIN_NAME}"
 
 
 def _normalize_proxy(params: Mapping) -> dict:

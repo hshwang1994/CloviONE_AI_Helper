@@ -1,0 +1,67 @@
+[Unit]
+Description=ClovirAssist API/UI
+# **PostgreSQL 이 먼저 떠야 한다** (D-187). SQLite 시절에는 DB 가 파일이라 기다릴
+# 서비스가 없었다 — 그래서 이 줄이 없었다.
+#
+# `Requires=` 가 아니라 `Wants=` 인 이유: PG 를 잠시 재시작해도 이 유닛까지 함께
+# 멈추지는 않게 한다. 접속이 끊긴 동안은 앱이 재시도로 버틴다.
+#
+# `After=` 만으로는 **접속 가능**을 보장하지 못한다(유닛이 active 인 것과 소켓이 받는
+# 것은 다르다). 그 몫은 아래 `ExecStartPre` 가 진다 — INSTALLATION.md §6 이 S4 에
+# 요구한 «기동 시 PG 준비 대기» 다.
+After=network-online.target postgresql.service clovirassist-privhelper.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=clovirassist
+Group=clovirassist
+WorkingDirectory=/opt/clovirassist
+EnvironmentFile=/etc/clovirassist/clovirassist.env
+# 실패해도 기동을 막지 않는다(`-`). 이 대기의 일은 흔한 몇 초를 없애는 것이지
+# PG 장애를 판정하는 것이 아니다 — 그것은 /readyz 가 한다.
+ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
+# --workers 는 이제 올릴 수 있다 (D-192). **그 조건이 무엇이었는지 적어 둔다.**
+#
+# 예전에는 1 이 고정이었다. 로그인 무차별 대입 제한·채팅 전송 제한·AI 퀴즈 제한·티켓 배정
+# 잠금·쿼터 잠금이 전부 **프로세스 안 메모리**에 있었기 때문이다. 워커를 N개로 올리면
+# 그 상태도 N벌이 되고 요청이 프로세스에 흩어지므로, '분당 10회' 제한이 실질 'N×10회'가
+# 된다 — 워커를 늘리는 순간 방어가 조용히 N배 약해지고 로그에는 아무 흔적이 없다.
+#
+# 그 다섯을 공유 저장소로 옮긴 뒤에야 이 값을 올렸다. **순서 규약: 저장소를 먼저, 워커는
+# 그 다음.**
+#   * rate limit  -> `rate_limit_buckets` 표 (app/core/ratelimit.py)
+#   * 티켓 배정 / 쿼터 / 재색인 / 동기화 / Notion 생성 잠금
+#                 -> PostgreSQL advisory lock (app/core/advisory_lock.py)
+#   * 설정 캐시   -> 요청 길목에서 TTL 갱신 (app/settings/service.py)
+#
+# 워커 수를 올릴 때 함께 봐야 하는 것은 PostgreSQL 의 `max_connections` 다:
+# 워커 수 x (pool_size + max_overflow) 가 그 안에 들어와야 한다. Installer Stage 6 이
+# 그 계산을 하고 부족하면 올린다.
+ExecStart=/opt/clovirassist/venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8080 --workers 4
+Restart=on-failure
+RestartSec=3
+StartLimitIntervalSec=300
+StartLimitBurst=10
+TimeoutStopSec=30
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+UMask=0027
+# 앞의 `-` 는 "없으면 그냥 넘어가라" 다. 특권 헬퍼를 안 깐 설치에서도 웹은 떠야 한다 —
+# `-` 없이 적으면 경로가 없을 때 유닛이 시작에 실패해 서비스가 통째로 안 뜬다.
+# 하드닝은 **그대로 둔다.** 시스템 설정은 헬퍼가 대신 하므로 여기서 풀 이유가 없다.
+ReadWritePaths=/var/lib/clovirassist -/run/clovirassist
+
+[Install]
+WantedBy=multi-user.target

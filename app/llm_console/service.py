@@ -25,6 +25,7 @@ provider 의 문구는 전부 "규칙으로 만든 요약을 보여줍니다" �
 
 from __future__ import annotations
 
+from app.core import product
 from app.llm import cli_backend, provider
 from app.llm.service import MAX_CONCURRENCY
 
@@ -100,7 +101,7 @@ TEST_MODE_NOTE = (
 )
 
 
-def login_guide(config: provider.LlmConfig, *, service_user: str = "clovirone-web") -> dict:
+def login_guide(config: provider.LlmConfig, *, service_user: str = product.SERVICE_USER) -> dict:
     """로그인 안내. 백엔드에 따라 **할 일이 완전히 다르다.**
 
     구독 명령줄 도구는 자격 증명을 **그 계정의 홈 디렉터리**에서 찾는다

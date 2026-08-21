@@ -17,6 +17,7 @@ import socket
 import uuid
 from dataclasses import dataclass
 
+from app.core import product
 from app.sysops.protocol import (
     MAX_MESSAGE_BYTES,
     ProtocolError,
@@ -24,7 +25,9 @@ from app.sysops.protocol import (
     encode_request,
 )
 
-DEFAULT_SOCKET_PATH = "/run/clovirone-web-assistant/privhelper.sock"
+# 정본은 app/core/product.py 다. 헬퍼 유닛의 RuntimeDirectory 와 **같은 값이어야**
+# 웹이 소켓을 찾는다 — 어긋나면 오류 없이 «도우미가 없습니다» 만 뜬다(R13).
+DEFAULT_SOCKET_PATH = product.PRIVHELPER_SOCKET
 DEFAULT_TIMEOUT_SECONDS = 90
 
 STATUS_OK = "ok"
@@ -92,7 +95,7 @@ class SysopsClient:
         except FileNotFoundError:
             return HelperReply.unavailable(
                 STATUS_NOT_INSTALLED,
-                "시스템 설정 도우미가 설치되어 있지 않습니다(clovirone-privhelper).",
+                "시스템 설정 도우미가 설치되어 있지 않습니다(clovirassist-privhelper).",
             )
         except (ConnectionRefusedError, PermissionError) as exc:
             return HelperReply.unavailable(

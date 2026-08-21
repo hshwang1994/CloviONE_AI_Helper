@@ -2,7 +2,7 @@
 
 Backups and verification: system_admin (spec §14.6 — Restore는 system_admin).
 Reading status: operator+. Actual restore is intentionally NOT an API action —
-it is script-only (rollback-clovirone-web-assistant.sh); this returns guidance.
+it is script-only (deploy/install.sh rollback); this returns guidance.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from app.backups.service import (
     run_backup,
     verify_existing,
 )
-from app.core import people
+from app.core import people, product
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, SYSTEM_ADMIN_ONLY
 from app.core.deps import get_db, require_csrf, require_roles
@@ -188,15 +188,15 @@ def restore_instructions():
             "(rollback 스크립트로는 복원되지 않습니다)."
         ),
         "rollback_input": (
-            "rollback 스크립트의 <BACKUP_DIR>는 cron, 업그레이드 백업이 만든 디렉터리"
-            "(/var/backups/clovirone-web-assistant/<타임스탬프>/, DB 덤프 + app.tar.gz "
+            "rollback 의 <BACKUP_DIR>는 cron 또는 업그레이드 스냅샷이 만든 디렉터리"
+            f"({product.BACKUP_DIR}/<타임스탬프>/, DB 덤프 + app.tar.gz "
             "+ SHA256SUMS 포함)여야 합니다. 위 목록의 파일 경로는 넣지 마세요."
         ),
         "steps": [
             "1) 유지보수 모드로 전환하고 진행 중 Job이 없는지 확인",
             "2) 현재 상태를 별도 백업(스냅샷)으로 보존",
-            "3) sudo /opt/clovirone-web-assistant/scripts/rollback-clovirone-web-assistant.sh "
-            "/var/backups/clovirone-web-assistant/<타임스탬프>",
+            f"3) sudo {product.APP_DIR}/deploy/install.sh rollback --target "
+            f"{product.BACKUP_DIR}/<타임스탬프>",
             "4) systemctl 상태 및 /healthz, /readyz 확인 후 유지보수 모드 해제",
         ],
     }

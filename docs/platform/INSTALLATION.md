@@ -4,7 +4,9 @@
 > 전담 소유 Session 은 **S4** 이고, 이후 **모든 Session 이 §6 Installer 계약**을 진다.
 > 계획 전체는 [`MASTER_PLAN.md`](MASTER_PLAN.md), 현재 상태는 [`WORK_STATE.md`](WORK_STATE.md).
 
-**기록 시점**: 2026-08-21 (S0) — 아직 **구현 전 사양**이다. `deploy/install.sh` 는 S4 에서 생긴다.
+**기록 시점**: 2026-08-21 (S0) · **S4 실행 반영** 2026-08-22 — `deploy/install.sh` 가 생겼고
+LXD 리허설과 실 재부팅으로 확인했다. 아래에서 **실제와 달랐던 자리는 실제에 맞게 고쳤다**
+(CLAUDE.md 머리말). 무엇을 왜 고쳤는지는 각 자리에 적어 둔다.
 
 ---
 
@@ -108,24 +110,34 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 10 | Seed/부트스트랩 | 최초 관리자 · 기본 Role/Permission · 기본 Storage Provider(Local) | |
 | 11 | **File Storage 준비** | 디렉터리 생성/권한 · 마운트 유닛 설치(NFS/SMB 설정 시) · **`st_dev` 마운트 검증** | 미마운트면 쓰기 거부 상태로 표시 |
 | 12 | **AI Component** | Embedding/Rerank 모델 파일 배치(오프라인 캐시 지원) · ONNX Runtime · 로드 검증 | 모델 부재 원인 표시 |
-| 13 | systemd unit 생성/설치 | `clovirassist-web` · `-worker` · `-scheduler` · `-index` · `-privhelper` | |
+| 13 | systemd unit 생성/설치 | **지금 다섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-privhelper`. **`-index` 는 아직 없다** — 색인 레인 Component 자체가 S9(P-18)에서 생기고, §6.1 계약대로 그 Session 이 유닛·probe·uninstall·복구를 함께 넣는다. 소스에 레인이 생겼는데 유닛이 없으면 이 Stage 가 막는다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
-| 15 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + `nginx -t` | |
-| 16 | TLS | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`** | |
+| 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
+| 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + `nginx -t` + `server_name` 중복 검사 | |
 | 17 | 기동 + **Health Check** | 순서대로 기동 후 `/healthz` `/readyz` + DB + Storage + AI probe | 어느 컴포넌트가 왜 실패했는지 표시 |
-| 18 | 설치 검증 | `verify_deploy.sh` + `validate` 실행, `installed_manifest.json` 확정 | |
+| 18 | 설치 검증 | **`install.sh verify` 를 그대로 실행**하고 `installed_manifest.json` 을 확정한다. `validate-clovirone-web-assistant.sh` 는 부르지 않는다 — 그것은 옛 slug 설치 전용이고 n8n 활성 단언이 박혀 있다(§9). 새 설치의 검증 정본은 `verify` 하나다 | |
 
-**설치 실패 위치·원인 표시**: 각 Stage 는 `STAGE_<n>_<NAME>: OK|FAIL <사유> <조치>` 형식으로
-출력하고 `/var/log/clovirassist/install-<ts>.log` + `install_state.json` 에 남긴다.
+> **15·16 은 초안과 순서가 바뀌었다(S4).** 초안은 15=nginx, 16=TLS 였는데 **그 순서로는 돌 수가
+> 없다**: `nginx -t` 는 `ssl_certificate` 파일이 없으면 `cannot load certificate …
+> BIO_new_file() failed` 로 죽는다. LXD 리허설이 정확히 거기서 멈췄고, 문서를 실제에 맞췄다.
+
+**설치 실패 위치·원인 표시**: 각 Stage 는 `STAGE_<n>_<NAME>: OK|SKIP|FAIL <사유> | 조치: <조치>`
+형식으로 출력하고 `/var/log/clovirassist/install-<ts>.log` + `install_state.json` 에 남긴다.
 **어느 단계에서 왜 멈췄는지가 표준 출력만 보고 판별돼야 한다.**
+
+**`SKIP` 이 있는 이유(S4)**: 아직 제품에 없는 Component 의 Stage(11 Storage=S8, 12 AI=S9)를
+`OK` 로 찍으면 「설치했다」는 거짓말이 로그에 남는다. 그 Session 이 Component 를 넣을 때
+`SKIP` 이 `OK` 로 바뀐다 — §8 Acceptance 가 **전 Stage `OK`** 를 요구하므로 남아 있으면 그때 걸린다.
 
 **Idempotent 재실행**: 모든 Stage 가 "이미 되어 있음" 을 감지하고 건너뛴다. 재실행이 데이터·설정을
 파괴하지 않는다. 실패 후 재실행은 실패 지점부터 의미 있게 이어진다.
 
-> **현행 installer 의 알려진 실패 모드**: Stage 4 `rsync --delete` 와 Stage 5 venv 재생성 **뒤에**
-> 테넌트 값 가드가 `exit 21` 을 하여 **"새 코드 + 옛 스키마"** 상태를 남긴다
-> (`scripts/install-clovirone-web-assistant.sh:221-235`).
-> 새 설계는 **검증을 전부 Preflight 로 끌어올려** 이 상태를 만들지 않는다.
+> **옛 installer 의 알려진 실패 모드 — 새 설계에서 해소됐다(S4).** 옛 스크립트는
+> `rsync --delete` 로 `/opt` 를 갈아엎고 venv 를 다시 만든 **뒤에** 테넌트 값 가드가
+> `exit 21` 을 하여 **"새 코드 + 옛 스키마"** 를 남겼다
+> (`scripts/install-clovirone-web-assistant.sh:221-235`, 아직 옛 설치가 쓴다).
+> `deploy/install.sh` 는 그 검사를 전부 Stage 0 으로 끌어올렸고, `tests/unit/test_deploy_wiring.py`
+> 가 「가드가 Preflight 안에 있다」를 계약으로 지킨다.
 
 **설치 Version 확인**: `deploy/install.sh version` → VERSION · git ref/commit · alembic head ·
 PG 버전 · extension 버전 · 각 서비스 상태.
@@ -136,17 +148,27 @@ PG 버전 · extension 버전 · 각 서비스 상태.
 
 ```
 network-online.target
+   ├─ clovirassist-privhelper.service            Before=clovirassist-web (root, 시스템 설정)
    └─ postgresql.service
-        ├─ clovirassist-web.service         After=postgresql  Wants=network-online
-        ├─ clovirassist-worker.service      After=postgresql
-        ├─ clovirassist-scheduler.service   After=postgresql
-        └─ clovirassist-index.service       After=postgresql
-   (Storage 사용 시) RequiresMountsFor=/var/lib/clovirassist/files
+        ├─ clovirassist-web.service              After=postgresql  Wants=network-online
+        ├─ clovirassist-worker.service           After=postgresql   (배치 레인)
+        ├─ clovirassist-worker-conversational…   After=postgresql   (D-118, 기본 대기)
+        ├─ clovirassist-scheduler.service        After=postgresql   (D-225)
+        └─ clovirassist-index.service            After=postgresql   ← 아직 없다 (S9 · P-18)
+   (Storage 사용 시) RequiresMountsFor=/var/lib/clovirassist/files  ← 아직 없다 (S8 · P-17)
 ```
+
+**「떠 있어야 하는 유닛」과 「설치되는 유닛」은 다르다.** 대화형 레인은
+`worker_conversational_lane_enabled` 가 꺼져 있으면 리스를 잡기 전에 `exit(0)` 해
+`inactive (dead)` 로 쉰다 — 그것이 그 유닛의 정상 대기 상태다(D-118). 그래서 재부팅 복구
+판정 대상은 `app/core/product.py::ALWAYS_ACTIVE_UNITS`(privhelper · worker · scheduler · web)이고,
+그 목록과 설치 목록의 관계는 `tests/unit/test_product_identity.py` 가 지킨다.
 
 - 전 유닛 `systemctl enable` — **재부팅 후 수동 명령 없이 복구된다**
 - `Restart=on-failure` + `RestartSec` + `StartLimit*`
-- 기동 시 **PG 준비 대기**(재시도) — `After=` 만으로는 PG 가 접속 가능하다는 보장이 없다
+- 기동 시 **PG 준비 대기**(재시도) — `After=` 만으로는 PG 가 접속 가능하다는 보장이 없다.
+  `deploy/wait-for-postgres.sh` 를 네 유닛이 `ExecStartPre=-` 로 부른다. 실패해도 기동을
+  막지 않는다 — 이 대기의 일은 흔한 몇 초를 없애는 것이지 PG 장애를 판정하는 것이 아니다
 - **Storage 마운트 전 기동 문제**: `RequiresMountsFor=` + 기동 시 `st_dev` 검사.
   마운트 안 됐으면 **쓰기를 거부**한다 — 로컬 디스크에 조용히 쌓이는 사고 방지
 
@@ -173,6 +195,12 @@ network-online.target
 
 **컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는다** (R15).
 
+**S4 실행 기록**: LXD 컨테이너 리허설은 `scripts/lxd_rehearsal.sh` 가, 실 재부팅 복구는
+`scripts/reboot_check.sh` 가 한다. 원장은 [`EVIDENCE/S4/`](EVIDENCE/S4/) 다.
+**이 서버에는 `/dev/kvm` 이 없어**(VMware 게스트, 중첩 가상화 미노출) LXD **VM** 은 못 쓴다 —
+그래서 «실 VM» 자리는 **테스트 서버 자체의 커널 재부팅**으로 채웠다. Storage(NFS/SMB)는
+여전히 이 방법으로 검증되지 않는다(S8 의 몫).
+
 ### 7.1 Reboot Test — 제품 전체 (U14)
 
 Storage 만이 아니라 전 서비스를 대상으로 한다.
@@ -185,6 +213,13 @@ Worker/Scheduler 틱 진행 확인 → **실패 유닛 0**.
 nginx)로 1회. **S22** 에서 Storage · AI · index lane 까지 포함한 **전 Component** 로 §8 의 일부로
 수행한다. 그 사이 Session 들은 §6.1 에 따라 **자기가 추가한 Component 의 기동·복구만** 확인하고
 전 제품 Reboot 을 반복하지 않는다.
+
+**S4 에서 1회 수행함 (2026-08-22)**: 테스트 서버를 실제로 재부팅했고(`boot_id` 가 바뀐 것으로
+확인) 사람이 아무 명령도 치지 않은 채 컨테이너 → PG · nginx · privhelper · worker · scheduler ·
+web 이 전부 돌아왔다. `/healthz` · `/readyz` 200, 표 71개 그대로, `install.sh verify` 통과.
+원장 [`EVIDENCE/S4/reboot_recovery.txt`](EVIDENCE/S4/reboot_recovery.txt).
+「로그인 → 대표 데이터 조회」와 「Storage 쓰기/읽기」는 **아직 안 했다** — 관리자 계정 생성과
+Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다시 한다.
 
 ---
 
@@ -214,7 +249,7 @@ nginx)로 1회. **S22** 에서 Storage · AI · index lane 까지 포함한 **�
 
 ---
 
-## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20 · **S2 반영 2026-08-21**)
+## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20 · **S2 반영 2026-08-21** · **S4 반영 2026-08-22**)
 
 | 있는 것 | 상태 |
 |---|---|
@@ -223,9 +258,22 @@ nginx)로 1회. **S22** 에서 Storage · AI · index lane 까지 포함한 **�
 | `deploy/00-precheck.sh` · `deploy/nginx/*.conf`(`__DNS_NAME__` 템플릿) · systemd unit 4종 | **재사용 가능한 뼈대** |
 | `scripts/validate-clovirone-web-assistant.sh` | **n8n 활성 단언**(`:23`)이 박혀 있어 **n8n 제거 시 실패한다** → S11 |
 
-| 없는 것 |
-|---|
-| GitLab 기준 Source 경로 · **PostgreSQL 서버 설치/초기화**(Stage 6·7 — S2 는 앱만 옮겼다) · Extension · Storage 준비 · AI Component · Scheduler 별도 인식 · **전 제품 Reboot 검증** · Clean OS 재현 설치 검증 |
+| **S4 가 만든 것** | 상태 |
+|---|---|
+| `deploy/install.sh` | 단일 진입점 7개 서브커맨드 · Stage 0~18 · 옛 slug 이전 · 스냅샷/rollback |
+| `deploy/systemd/clovirassist-*.service` 5종 · `deploy/wait-for-postgres.sh` | 기동 시 PG 준비 대기 포함 |
+| `deploy/nginx/clovirassist.conf` · `logrotate-clovirassist` · `deploy/clovirassist.env.example` | 새 slug |
+| `scripts/lxd_rehearsal.sh` · `scripts/reboot_check.sh` | 리허설 34항 · 실 재부팅 복구 |
+| PostgreSQL 서버 설치/초기화(Stage 6) · Extension(Stage 7) | 실제로 돈다 — `max_connections` 사이징 포함 |
+| Scheduler 별도 유닛 | `--lane=scheduler` (D-225) |
+
+| 아직 없는 것 | 소유 |
+|---|---|
+| GitLab 기준 Source 주소(Installer 는 Remote 중립이라 주소만 넣으면 된다) | 외부 입력 (R16) |
+| Storage 준비 실체(NFS/SMB Provider · 마운트 유닛 · `st_dev` 가드) — Stage 11 은 `SKIP` 이다 | S8 (P-17) |
+| AI Component(모델 배치 · ONNX Runtime) — Stage 12 는 `SKIP` 이다 | S9 (P-18) |
+| `clovirassist-index.service` | S9 (P-18) |
+| **전 Component** Reboot 검증(Storage·AI 포함) | S22 |
 
 ### 9.1 nginx 하드 블로커
 

@@ -1,0 +1,88 @@
+# S4 — Reboot 복구 검증 (INSTALLATION.md §7.1 · U14 · MASTER_PLAN §9.3 면제 불가 항목)
+#
+# 실행: sudo bash scripts/reboot_check.sh prep <src.tar.gz> s4-reboot
+#       sudo reboot                       <- 그 사이에 사람은 아무것도 하지 않는다
+#       sudo bash scripts/reboot_check.sh verify
+#
+# **진짜 커널 재부팅이다** — boot_id 가 944f2f25… → 4a16b59b… 로 바뀌었다.
+# 범위는 S4 시점 Component(PG · web · worker · scheduler · nginx + privhelper)다.
+# Storage·AI·index lane 은 아직 제품에 없고 S22 가 전 Component 로 다시 한다.
+
+=== 재부팅 전 호스트 ===
+=== 호스트 재부팅 전 상태 ===
+up 1 day, 11 hours, 26 minutes
+944f2f25-9621-4294-998c-8b1229acd83c
+--- units ---
+active
+active
+active
+active
+inactive
+active
+--- enabled ---
+enabled
+enabled
+enabled
+enabled
+static
+
+=== 재부팅 후 컨테이너(제품) ===
+═══ 재부팅 복구 검증 (s4-reboot) ═══
+  호스트 가동: up 10 minutes
+[OK ] 호스트가 실제로 재부팅됐다(boot_id 가 바뀌었다)
+[OK ] 컨테이너가 수동 명령 없이 RUNNING
+  컨테이너 가동: up 9 minutes
+[OK ] postgresql active
+[OK ] nginx active
+[OK ] clovirassist-privhelper active
+[OK ] clovirassist-worker active
+[OK ] clovirassist-scheduler active
+[OK ] clovirassist-web active
+[OK ] 실패한 유닛 0
+[OK ] /healthz 200
+[OK ] /readyz 200 (DB 까지 붙었다)
+[OK ] 재부팅 전 데이터가 그대로다(표 71 → 71)
+  --- 제품 verify (TLS 검증 포함) ---
+  === ClovirAssist 검증 (dns=clovirassist.gooddi.lab bind=10.154.245.67) ===
+  [OK ] clovirassist-privhelper.service active
+  [OK ] clovirassist-worker.service active
+  [OK ] clovirassist-scheduler.service active
+  [OK ] clovirassist-web.service active
+  [OK ] postgresql active
+  [OK ] nginx active
+  [OK ] postgresql enabled
+  [OK ] nginx enabled
+  [OK ] clovirassist-privhelper.service enabled
+  [OK ] clovirassist-worker.service enabled
+  [OK ] clovirassist-worker-conversational.service enabled
+  [OK ] clovirassist-scheduler.service enabled
+  [OK ] clovirassist-web.service enabled
+  [OK ] 앱이 127.0.0.1:8080 를 듣는다
+  [OK ] nginx 가 :443 을 듣는다
+  [OK ] healthz via nginx (TLS 검증)
+  [OK ] readyz via nginx (TLS 검증)
+  [OK ] ssl_verify_result=0
+  [OK ] 80 → 443 이 이름을 보존한다
+  [OK ] 서브되는 인증서 CN 이 clovirassist.gooddi.lab
+  [OK ] 서브되는 인증서 SAN 에 clovirassist.gooddi.lab
+  [OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+  [OK ] 실패한 제품 유닛이 없다
+  [OK ] alembic head 가 코드와 같다(db=0001_pg_baseline code=0001_pg_baseline)
+  [OK ] extension vector · pg_trgm 이 있다
+  VERIFY_OK
+[OK ] install.sh verify 가 통과한다
+
+REBOOT_RECOVERY_OK
+=== 재부팅 후 호스트(옛 설치·n8n 도 함께 돌아왔다) ===
+=== 호스트 재부팅 후 상태 ===
+up 10 minutes
+--- units ---
+active
+active
+active
+active
+active
+--- failed ---
+--- product https ---
+200
+{"status":"ok","ticket_source":"notion_cache"}200

@@ -1,8 +1,8 @@
 """File-based secret references (spec §0.2, §25.4).
 
 The database stores only reference NAMES; values live as files under
-settings.secrets_dir (production: /etc/clovirone-web-assistant/secrets,
-root:clovirone-web 0640). SecretValue masks itself in repr/str/format so a
+settings.secrets_dir (production: /etc/clovirassist/secrets,
+root:clovirassist 0640). SecretValue masks itself in repr/str/format so a
 secret can never leak through logging or error messages by accident.
 """
 
@@ -24,7 +24,7 @@ STATUS_CONFIGURED = "configured"
 STATUS_MISSING = "missing"
 
 # 새로 쓰는 secret 파일의 권한. 소유자만 읽는다.
-# 설치 스크립트는 디렉터리를 root:clovirone-web 0750 으로 만들고 파일은 0640 으로 둔다.
+# 설치 스크립트는 디렉터리를 root:clovirassist 0750 으로 만들고 파일은 0640 으로 둔다.
 # 웹이 직접 쓸 수 있는 설치(개발, 또는 secrets_dir 을 서비스 계정 소유로 둔 설치)에서는
 # 그 파일의 소유자가 웹 계정이므로 0600 이 더 좁고 충분하다.
 SECRET_FILE_MODE = 0o600
@@ -46,8 +46,8 @@ class SecretDirNotWritableError(AppError):
     """웹 프로세스가 secret 디렉터리에 못 쓴다.
 
     운영 설치에서 **이것이 정상이다.** systemd 유닛이 `ProtectSystem=strict` 로 하드닝돼
-    있고 `ReadWritePaths` 에 `/etc/clovirone-web-assistant` 가 없다. 디렉터리 자체도
-    root:clovirone-web 0750 이라 웹 계정은 파일을 만들 수 없다.
+    있고 `ReadWritePaths` 에 `/etc/clovirassist` 가 없다. 디렉터리 자체도
+    root:clovirassist 0750 이라 웹 계정은 파일을 만들 수 없다.
 
     그래서 이 오류는 '고장' 이 아니라 **이 서버가 그렇게 만들어졌다는 사실**이다. 화면은
     이것을 실패로 그리지 말고, 대신 무엇을 해야 하는지(서버에서 파일을 놓는 절차)를

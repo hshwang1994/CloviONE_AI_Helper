@@ -59,14 +59,14 @@ class Settings(BaseSettings):
     allowed_email_domains: str = ""
 
     # Directory holding allowed-services.json / allowed-runners.json /
-    # allowed-workflows.json / feature-flags.json (spec §8: /etc/clovirone-web-assistant
+    # allowed-workflows.json / feature-flags.json (spec §8: /etc/clovirassist
     # in production, ./config in development).
     config_dir: Path = Path("config")
     secrets_dir: Path = Path("var/secrets")
     data_dir: Path = Path("var")
 
     # Optional path to the TLS cert for expiry monitoring on the dashboard
-    # (production: /etc/clovirone-web-assistant/tls/*.crt). None in dev/tests.
+    # (production: /etc/clovirassist/tls/*.crt). None in dev/tests.
     tls_cert_path: str | None = None
 
     # 개발자 월간 리포트(§ 개발자 리포트): 앱 서버가 Notion "작업" 데이터베이스를 직접 읽어
@@ -134,6 +134,21 @@ class Settings(BaseSettings):
     # 레인이라 그 격차가 훨씬 크게 느껴진다. n8n 타임아웃(180초) 기준 3회 재시도 여유를
     # 두고 훨씬 짧게 잡는다.
     worker_conversational_running_timeout_seconds: int = 840
+
+    # 스케줄러 레인(S4 · D-225). **기본이 켜짐**이라는 점이 대화형 레인과 다르다 —
+    # 스케줄러는 선택 기능이 아니라 제품의 상시 Component 이고, `clovirassist-scheduler.service`
+    # 라는 1급 유닛을 갖는다(INSTALLATION.md §6).
+    #
+    # 왜 꺼도 되게 두는가: 되돌릴 스위치 없이 실행 위상을 바꾸지 않는다. 꺼면 스케줄러
+    # 프로세스는 리스를 잡기 전에 정상 종료하고, 배치 워커가 예전처럼 스케줄러 tick 과
+    # 좀비 스윕을 다시 등록한다. **같은 값이 양쪽을 반대로 가르므로 둘 다 도는 상태는
+    # 만들어지지 않는다** — 값을 바꾼 뒤 두 유닛을 재시작하면 된다.
+    #
+    # 이중 발화 방어는 그 위에 한 겹 더 있다: `schedule_runs.idempotency_key`
+    # (`{schedule_id}:{scheduled_at}`)가 UNIQUE 라 행을 넣은 쪽이 그 실행을 갖는다.
+    worker_scheduler_lane_enabled: bool = True
+    # 스케줄러 루프의 최소 간격. 스케줄의 최소 단위가 1분(cron)이라 1초면 충분히 촘촘하다.
+    worker_scheduler_tick_seconds: float = 1.0
 
     # 주간 프로젝트 헬스 스냅샷 주기. **워커에서만** 돈다.
     #

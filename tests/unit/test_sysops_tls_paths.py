@@ -45,14 +45,24 @@ def test_stages_next_to_the_real_cert_not_in_the_old_hardcoded_dir():
     assert key_stage == "/etc/clovirone-web-assistant/tls/.staged.key"
 
 
-def test_falls_back_to_the_old_default_when_the_env_var_is_unset():
+def test_falls_back_to_the_product_ssl_dir_when_the_env_var_is_unset():
     """dev/test 환경, 또는 앞단 프록시가 TLS 를 끊는 설치에는 이 env 가 없다 - 크래시하지
-    않고 예전 기본 경로로 남는다(그 경우 이 액션이 실제로 쓰이는 서버가 없으므로 무해)."""
+    않고 제품 기본 경로로 남는다(그 경우 이 액션이 실제로 쓰이는 서버가 없으므로 무해).
+
+    **경로를 여기에 글자로 다시 적지 않는다.** 그러면 slug 를 바꾸는 날 두 곳을 고쳐야 하고,
+    한 곳만 고치면 시험은 초록인데 헬퍼는 아무도 안 읽는 자리에 인증서를 쓴다(SYS-01 이
+    정확히 그 실패였다). 정본 하나를 보고 «넷이 그 디렉터리 아래에 같은 관례로 놓인다» 를
+    확인한다.
+    """
+    from app.core import product
+
     cert, key, cert_stage, key_stage = mod._resolve_tls_paths_for("")
-    assert cert == "/etc/ssl/clovirone/server.crt"
-    assert key == "/etc/ssl/clovirone/server.key"
-    assert cert_stage == "/etc/ssl/clovirone/.staged.crt"
-    assert key_stage == "/etc/ssl/clovirone/.staged.key"
+    assert cert == f"{product.SSL_FALLBACK_DIR}/server.crt"
+    assert key == f"{product.SSL_FALLBACK_DIR}/server.key"
+    assert cert_stage == f"{product.SSL_FALLBACK_DIR}/.staged.crt"
+    assert key_stage == f"{product.SSL_FALLBACK_DIR}/.staged.key"
+    # 옛 정체성이 되살아나지 않는지도 함께 본다 (R13).
+    assert "clovirone" not in cert
 
 
 def test_the_registered_action_touches_whatever_this_process_resolved_at_import():

@@ -339,3 +339,191 @@ def test_the_web_unit_no_longer_pins_a_single_worker():
         "무엇을 옮겼기에 워커를 올릴 수 있는지가 유닛에 안 적혀 있다 — "
         "그 근거가 없으면 다음 사람이 저장소를 되돌리면서 이 값만 남긴다"
     )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# S4 — deploy/install.sh (새 진입점). 위 검사들은 **옛 설치**(clovirone-web-assistant)를
+# 계속 지킨다: 운영 서버가 아직 그것을 돌고 있고, 걷어내는 것은 S14(P-24)의 일이다.
+# 여기부터는 새 진입점이 지켜야 하는 성질이다.
+# ═════════════════════════════════════════════════════════════════════════════
+
+INSTALL_SH = ROOT / "deploy" / "install.sh"
+
+
+def _install_sh() -> str:
+    return _text(INSTALL_SH)
+
+
+def _code_only(text: str) -> str:
+    """주석을 뺀 실행 줄만. 이 파일의 주석은 「왜 그렇게 안 하는가」를 설명하느라 금지
+    패턴을 그대로 인용한다 — 그 인용까지 잡으면 검사가 자기 문서를 벌주는 셈이 된다."""
+    return "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+
+
+def test_the_new_entry_point_has_every_subcommand_the_spec_names():
+    """INSTALLATION.md §4 — 서브커맨드 일곱. 하나라도 빠지면 문서가 없는 명령을 안내한다."""
+    text = _install_sh()
+    for sub in ("install", "upgrade", "rollback", "uninstall", "verify", "version", "preflight"):
+        assert f"  {sub}" in text or f"|{sub})" in text or f"{sub})" in text, f"서브커맨드가 없다: {sub}"
+
+
+def test_the_stages_are_numbered_zero_through_eighteen_in_order():
+    """INSTALLATION.md §5 — Stage 0~18. 번호가 빠지거나 순서가 뒤집히면 「어디서 멈췄나」가
+    문서와 안 맞는다."""
+    import re
+
+    text = _install_sh()
+    seen = [int(m.group(1)) for m in re.finditer(r'^  run_stage (\d+)\s', text, re.M)]
+    assert seen == list(range(19)), f"Stage 번호가 0~18 순서가 아니다: {seen}"
+
+
+def test_every_stage_prints_one_contract_line():
+    """`STAGE_<n>_<NAME>: OK|SKIP|FAIL …` 한 줄이 계약이다 — 로그 파일을 열지 않고도
+    어디서 왜 멈췄는지 판별돼야 한다(INSTALLATION.md §5)."""
+    text = _install_sh()
+    assert 'line="STAGE_${n}_${name}: ${verdict}"' in text, "Stage 결과 줄 형식이 바뀌었다"
+    for verdict in ("OK", "SKIP", "FAIL"):
+        assert f'"{verdict}"' in text or f" {verdict} " in text
+
+
+def test_a_failed_stage_stops_and_says_where():
+    """실패한 Stage 다음으로 넘어가면 「새 코드 + 옛 스키마」 같은 중간 상태가 남는다."""
+    text = _install_sh()
+    assert 'say "INSTALL_FAILED stage=$n name=$name"' in text
+    assert "exit" in text.split("INSTALL_FAILED")[1][:200]
+
+
+def test_the_tenant_guard_runs_before_anything_changes():
+    """🔴 옛 installer 의 알려진 실패 모드(INSTALLATION.md §5)를 구조적으로 없앤다.
+
+    옛 스크립트는 `rsync --delete` 로 /opt 를 갈아엎고 venv 를 다시 만든 **뒤에** 설정
+    가드가 exit 21 을 했다. 그 순간 서버는 「새 코드 + 옛 스키마」였다. 새 설계는 그
+    검사를 Stage 0 에 둔다 — 거기서 멈추면 정말로 되돌릴 것이 없다.
+    """
+    text = _install_sh()
+    preflight = text.split("stage_0_preflight() {", 1)[1].split("\n}", 1)[0]
+    assert "기존 설치를 감지했습니다" in preflight, "기존 설치 감지가 Preflight 밖에 있다"
+    assert "SESSION_SECRET" in preflight, "필수 설정 검사가 Preflight 밖에 있다"
+    # 그리고 Preflight 는 첫 Stage 여야 한다.
+    assert text.index("run_stage 0  PREFLIGHT") < text.index("run_stage 1  APT")
+
+
+def test_the_installer_installs_and_enables_every_unit():
+    """유닛을 설치만 하고 enable 을 빠뜨리면 **재부팅 뒤에만** 드러난다."""
+    text = _install_sh()
+    units_block = text.split("stage_13_units() {", 1)[1].split("\n}", 1)[0]
+    enable_block = text.split("stage_14_enable() {", 1)[1].split("\n}", 1)[0]
+    assert 'for u in "${ALL_UNITS[@]}"' in units_block
+    assert 'install -o root -g root -m 0644 "$APP_DIR/deploy/systemd/$u"' in units_block
+    assert 'for u in "${ALL_UNITS[@]}"' in enable_block
+    assert 'systemctl enable "$u"' in enable_block
+    # postgresql·nginx 도 enable 대상이다 — 재부팅 뒤 수동 명령 0회가 이 Stage 의 존재 이유다.
+    assert "systemctl enable postgresql" in enable_block
+    assert "systemctl enable nginx" in enable_block
+    # enable 되지 않은 유닛이 남으면 그 사실이 **재부팅 전에** 드러나야 한다.
+    assert "notenabled" in enable_block
+
+
+def test_uninstall_removes_every_unit_it_installed():
+    """설치한 것만큼 지워야 한다. 남은 유닛 하나가 다음 설치를 조용히 방해한다."""
+    text = _install_sh()
+    block = text.split("do_uninstall() {", 1)[1].split("\n}", 1)[0]
+    assert 'for u in "${ALL_UNITS[@]}"' in block
+    for verb in ('systemctl stop "$u"', 'systemctl disable "$u"', 'rm -f "/etc/systemd/system/$u"'):
+        assert verb in block, f"uninstall 이 {verb} 를 안 한다"
+    # 데이터·백업·DB 는 --purge 없이는 지우지 않는다. 되돌릴 수 없는 일에는 문이 하나 더 있다.
+    assert 'if [ "$PURGE" = 1 ]' in block
+    assert "--yes" in text.split("do_uninstall() {", 1)[1][:600]
+
+
+def test_the_upgrade_takes_a_snapshot_before_it_touches_anything():
+    """되돌릴 지점 없이 업그레이드하지 않는다."""
+    text = _install_sh()
+    upgrade = text.split("  upgrade)", 1)[1].split("    ;;", 1)[0]
+    assert "take_snapshot" in upgrade
+    assert upgrade.index("take_snapshot") < upgrade.index("run_all_stages")
+    assert "rollback --target" in upgrade, "실패했을 때 무엇을 하라는 안내가 없다"
+
+
+def test_a_failed_dump_is_fatal_not_skipped():
+    """🔴 예전 백업은 파일이 없으면 조용히 건너뛰고 BACKUP_OK 를 찍었다(S2 가 고쳤다).
+    그 초록을 믿고 복원 계획을 세우는 것이 가장 나쁘다."""
+    text = _install_sh()
+    snap = text.split("take_snapshot() {", 1)[1].split("\n}", 1)[0]
+    assert "pg_dump" in snap and "die " in snap, "덤프 실패가 치명적이지 않다"
+    assert "pg_restore" in snap and "--list" in snap, "덤프를 읽을 수 있는지 확인하지 않는다"
+
+
+def test_rollback_checks_the_snapshot_before_trusting_it():
+    """손상된 백업으로 복원하면 되돌릴 수 없는 상태가 된다."""
+    text = _install_sh()
+    block = text.split("do_rollback() {", 1)[1].split("\n}", 1)[0]
+    assert "sha256sum -c" in block, "체크섬을 확인하지 않는다"
+    assert "pg_restore --clean --if-exists" in block or "--clean --if-exists" in block
+    assert "do_verify" in block, "복원 뒤에 실제로 도는지 확인하지 않는다"
+
+
+def test_verify_does_not_use_curl_dash_k():
+    """🔴 `curl -k` 는 아무것도 증명하지 않는다 — 이름이 어긋나도, 남의 인증서여도 초록이다.
+    S3 이 그 상태를 실제로 찾았다(옛 CN/SAN 을 서브하는데 설치 검증은 계속 OK)."""
+    text = _install_sh()
+    block = _code_only(text.split("do_verify() {", 1)[1].split("\njq_get", 1)[0])
+    assert "curl -k" not in block and "--insecure" not in block
+    assert "--cacert" in block, "신뢰 기준점 없이 검증한다고 말한다"
+    # 이름만으로 자기 서버를 부르면 /etc/hosts 때문에 code=000 이 난다(S3 실측).
+    assert "--resolve" in block
+    assert "ssl_verify_result" in block
+
+
+def test_stages_that_have_no_component_yet_say_skip_not_ok():
+    """OK 로 찍으면 「설치했다」는 거짓말이 로그에 남는다. S22 는 전 Stage OK 를 요구하므로
+    SKIP 이 남아 있으면 그때 걸린다."""
+    text = _install_sh()
+    storage = text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0]
+    ai = text.split("stage_12_ai() {", 1)[1].split("\n}", 1)[0]
+    assert "skip " in storage and "S8" in storage
+    assert "skip " in ai and "S9" in ai
+
+
+def test_a_component_that_appears_without_its_stage_is_caught():
+    """INSTALLATION.md §6.1 — Component 를 넣는 Session 이 installer Stage 도 함께 넣는다.
+    「나중에 설치 붙이기」를 허용하지 않으려면 검사가 있어야 한다."""
+    text = _install_sh()
+    assert "LANE_INDEX" in text, "색인 레인이 생겼는데 유닛이 없는 상태를 아무도 안 잡는다"
+    assert 'app/ai/gateway' in text, "AI Gateway 가 생겼는데 Stage 12 가 비어 있는 상태를 안 잡는다"
+
+
+def test_the_installer_waits_for_postgres_before_starting():
+    """`After=postgresql.service` 는 「유닛이 active」까지만 보장한다 — 소켓이 받는 것과 다르다.
+    INSTALLATION.md §6 이 S4 에 요구한 기동 시 대기다."""
+    wait = ROOT / "deploy" / "wait-for-postgres.sh"
+    assert wait.is_file(), "PG 준비 대기 스크립트가 없다"
+    for unit in ("clovirassist-web.service", "clovirassist-worker.service",
+                 "clovirassist-scheduler.service", "clovirassist-worker-conversational.service"):
+        text = _text(ROOT / "deploy" / "systemd" / unit)
+        assert "ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh" in text, (
+            f"{unit}: PG 준비를 안 기다린다"
+        )
+
+
+def test_the_new_web_unit_keeps_its_hardening():
+    """🔴 헬퍼를 만든 이유가 **이 하드닝을 풀지 않기 위해서**다."""
+    text = _text(ROOT / "deploy" / "systemd" / "clovirassist-web.service")
+    for line in ("NoNewPrivileges=true", "ProtectSystem=strict", "ProtectHome=true",
+                 "PrivateTmp=true", "RestrictSUIDSGID=true"):
+        assert line in text, f"웹 유닛에서 하드닝이 사라졌다: {line}"
+
+
+def test_the_new_web_unit_does_not_pin_a_single_worker():
+    """D-192 — 공유 저장소를 먼저 만들었으므로 워커를 1로 묶을 이유가 없다."""
+    text = _text(ROOT / "deploy" / "systemd" / "clovirassist-web.service")
+    assert "--workers 1" not in text
+    assert "--workers 4" in text
+
+
+def test_the_env_file_reader_does_not_word_split():
+    """옛 스크립트의 `env $(grep -v '^#' file | xargs)` 는 값에 공백이 있으면 조용히 깨졌다
+    (`ALLOWED_EMAIL_DOMAINS=a.com, b.com` 한 줄이면 그렇다)."""
+    text = _code_only(_install_sh())
+    assert "| xargs" not in text, "값을 단어 분리하는 옛 관용이 남아 있다"
+    assert "export_env_file()" in text

@@ -1,9 +1,15 @@
-"""Worker entry point — systemd clovirone-web-worker.service (spec §26.2).
+"""Worker entry point — 레인 셋을 한 진입점이 연다 (spec §26.2).
 
-Run: python -m app.worker_main
-Handles SIGTERM/SIGINT for graceful shutdown. The scheduler tick (M8) is
-registered as a tick callback so a separate scheduler service remains possible
-without code changes (spec §2.3).
+    python -m app.worker_main --lane batch          # clovirassist-worker.service
+    python -m app.worker_main --lane conversational # clovirassist-worker-conversational.service
+    python -m app.worker_main --lane scheduler      # clovirassist-scheduler.service
+
+SIGTERM/SIGINT 을 받아 진행 중인 일을 마치고 내려간다.
+
+스케줄러가 별도 레인이 된 것은 S4(D-225)다. 예전 주석은 "a separate scheduler service
+remains possible without code changes" 라고 적어 뒀는데, 실제로 꺼내 보니 **코드 변경이
+필요했다** — 배치 워커가 그 tick 을 계속 등록하고 하트비트까지 함께 찍고 있었기 때문이다.
+둘 다 도는 상태를 만들지 않으려면 한 설정값이 양쪽을 반대로 가르게 해야 한다.
 """
 
 from __future__ import annotations
@@ -30,9 +36,10 @@ logger = logging.getLogger("app.worker")
 # to 3600s, notion sync up to 90s). HEARTBEAT_STALE_SECONDS is 90 on the health
 # side, so ~30s cadence leaves comfortable margin (spec §14.1).
 HEARTBEAT_INTERVAL_SECONDS = 30.0
-# Both liveness components are beaten by the thread. The scheduler still *ticks*
-# in the worker loop; only its liveness signal moves here so a long-running job
-# can't make the dashboard read the scheduler as 'down'.
+# 배치 워커가 **스케줄러까지 안고 돌 때** 찍는 컴포넌트 둘. 스케줄러 레인이 켜져 있으면
+# (기본값) 배치 워커는 `worker` 만 찍고 `scheduler` 는 그 프로세스가 직접 찍는다 — 여기서도
+# 찍으면 스케줄러가 죽어도 대시보드가 계속 «정상» 이라고 말한다(D-225).
+# 하트비트를 이 스레드로 옮긴 이유는 그대로다: 긴 잡이 루프를 막아도 계속 뛰어야 한다.
 LIVENESS_COMPONENTS = ("worker", "scheduler")
 
 
@@ -327,6 +334,81 @@ def build_conversational_worker(session_factory, clock: Clock, ctx: WorkerContex
     )
 
 
+ZOMBIE_SWEEP_INTERVAL_SECONDS = 300.0
+
+
+def build_scheduler_ticks(session_factory, clock: Clock, *, tick_seconds: float = 1.0) -> list:
+    """스케줄러가 하는 일 전부를 tick 콜백 두 개로 만든다 (S4 · D-225).
+
+    **한 곳에서 만드는 것이 요점이다.** 이 둘은 스케줄러 레인 프로세스(`--lane=scheduler`)와
+    배치 워커(레인을 껐을 때) 양쪽에서 돌 수 있는데, 두 자리에 각자 적어 두면 한쪽만
+    고치는 날이 온다 — 이 저장소가 이미 여러 번 겪은 패턴이다(D-22).
+
+    콜백은 `now` 하나를 받는다. `Worker.tick_callbacks` 의 계약과 같은 모양이라 배치
+    워커에 그대로 얹을 수 있고, 스케줄러 루프는 같은 것을 직접 부른다.
+    """
+    from app.schedules.scheduler import SchedulerService, sweep_zombie_runs
+
+    scheduler = SchedulerService(session_factory, clock)
+    _last_tick: list = [None]
+    _last_zombie: list = [None]
+
+    def scheduler_tick(now):
+        # 루프가 이보다 빨리 돌 수 있으므로 간격을 여기서 정한다.
+        # NOTE: 스케줄러 LIVENESS 하트비트는 여기서 안 쓴다 — 긴 잡이 루프를 막아도 계속
+        # 뛰도록 전용 하트비트 스레드(run_heartbeat_loop)로 옮겼다. 이 콜백은 실제
+        # 스케줄링 작업만 한다.
+        if _last_tick[0] is None or (now - _last_tick[0]).total_seconds() >= tick_seconds:
+            _last_tick[0] = now
+            scheduler.tick(now)
+
+    def zombie_run_tick(now):
+        # 좀비 실행 스윕 (S8) — 5분 간격. `Worker.sweep` 은 `Job` 만 보므로 `on_failure` 가
+        # 실패해 `running` 으로 남은 `ScheduleRun` 을 치우는 경로가 저장소에 없었다. 그 한 행이
+        # `concurrency=skip` 스케줄의 **모든 미래 실행을 영구히 skip** 시킨다.
+        if (_last_zombie[0] is not None
+                and (now - _last_zombie[0]).total_seconds() < ZOMBIE_SWEEP_INTERVAL_SECONDS):
+            return
+        _last_zombie[0] = now
+        try:
+            with session_factory() as db:
+                if sweep_zombie_runs(db, now=now):
+                    db.commit()
+        except Exception:
+            logger.exception("zombie schedule-run sweep failed")
+
+    return [scheduler_tick, zombie_run_tick]
+
+
+def run_scheduler_loop(
+    session_factory,
+    clock: Clock,
+    stop_event: threading.Event,
+    *,
+    tick_seconds: float = 1.0,
+) -> None:
+    """스케줄러 레인의 루프 (S4 · D-225). **잡을 하나도 클레임하지 않는다.**
+
+    `Worker` 를 쓰지 않는 것이 의도다. `Worker.run_forever` 는 큐에서 잡을 집어 실행하는데,
+    이 프로세스가 그걸 하면 스케줄 발화가 다시 잡 실행 뒤로 밀린다 — 분리한 이유가 사라진다.
+    핸들러가 아예 없으니 실수로도 잡을 못 집는다.
+
+    한 tick 이 예외로 죽어도 루프는 계속 돈다. 스케줄러가 조용히 멈추는 것이 이 레인의
+    가장 나쁜 실패다 — 아무 오류도 안 나고 그냥 아무 일도 안 일어난다.
+    """
+    callbacks = build_scheduler_ticks(session_factory, clock, tick_seconds=tick_seconds)
+    logger.info("스케줄러 레인 시작(tick=%.1fs)", tick_seconds)
+    while not stop_event.is_set():
+        now = clock.now()
+        for callback in callbacks:
+            try:
+                callback(now)
+            except Exception:
+                logger.exception("scheduler tick failed")
+        stop_event.wait(tick_seconds)
+    logger.info("스케줄러 레인 정상 종료")
+
+
 def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settings: Settings, settings_cache, outbound) -> Worker:
     """배치 레인 — 기존 워커 전체(잡 핸들러 전부 + tick 15개)를 그대로 옮긴 것이다.
 
@@ -391,46 +473,18 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
 
     worker.tick_callbacks.append(settings_cache_tick)
 
-    # Scheduler runs inside the worker loop (spec §2.3 — Worker 내부 Scheduler).
-    # A dedicated clovirone-web-scheduler.service can host this instead later.
-    from app.schedules.scheduler import SchedulerService
-
-    scheduler = SchedulerService(session_factory, clock)
-    _last_tick: list = [None]
-
-    def scheduler_tick(now):
-        # Tick at most once per second — the worker loop can spin faster.
-        # NOTE: the scheduler LIVENESS heartbeat is no longer written here — it
-        # moved to the dedicated heartbeat thread (run_heartbeat_loop) so it
-        # keeps beating while a long job blocks this loop. This callback only
-        # performs the actual scheduling work now.
-        if _last_tick[0] is None or (now - _last_tick[0]).total_seconds() >= 1.0:
-            _last_tick[0] = now
-            scheduler.tick(now)
-
-    worker.tick_callbacks.append(scheduler_tick)
-
-    # 좀비 실행 스윕 (S8) — 5분 간격. `Worker.sweep` 은 `Job` 만 보므로 `on_failure` 가
-    # 실패해 `running` 으로 남은 `ScheduleRun` 을 치우는 경로가 저장소에 없었다. 그 한 행이
-    # `concurrency=skip` 스케줄의 **모든 미래 실행을 영구히 skip** 시킨다.
-    from app.schedules.scheduler import sweep_zombie_runs
-
-    _last_zombie: list = [None]
-    ZOMBIE_SWEEP_INTERVAL_SECONDS = 300.0
-
-    def zombie_run_tick(now):
-        if (_last_zombie[0] is not None
-                and (now - _last_zombie[0]).total_seconds() < ZOMBIE_SWEEP_INTERVAL_SECONDS):
-            return
-        _last_zombie[0] = now
-        try:
-            with session_factory() as db:
-                if sweep_zombie_runs(db, now=now):
-                    db.commit()
-        except Exception:
-            logger.exception("zombie schedule-run sweep failed")
-
-    worker.tick_callbacks.append(zombie_run_tick)
+    # 스케줄 평가와 좀비 실행 스윕 (S4 · D-225).
+    #
+    # 이 둘은 이제 **기본적으로 이 프로세스에서 돌지 않는다** — `clovirassist-scheduler.service`
+    # 가 별도 프로세스로 돈다(`--lane=scheduler`). 배치 워커의 tick 이던 시절에는 3600초짜리
+    # schedule_run 하나가 도는 동안 워커 루프가 그 잡 안에 있어 스케줄 발화가 통째로 밀렸다.
+    #
+    # `worker_scheduler_lane_enabled` 를 끄면 여기로 되돌아온다. **같은 값이 양쪽을 반대로
+    # 가르므로**(스케줄러 프로세스는 꺼져 있으면 리스를 잡기 전에 exit(0) 한다) 둘 다 도는
+    # 상태는 만들어지지 않는다.
+    if not settings.worker_scheduler_lane_enabled:
+        for callback in build_scheduler_ticks(session_factory, clock):
+            worker.tick_callbacks.append(callback)
 
     # 승인 만료 스윕 (spec §20) — 1분 간격.
     from app.approvals.service import expire_pending
@@ -703,19 +757,30 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
 
 
 def main(argv: list[str] | None = None) -> int:
-    """워커 진입점. `--lane batch`(기본, 인자 없이 불러도 동일)|`conversational`(D-118).
+    """워커 진입점. `--lane batch`(기본)|`conversational`(D-118)|`scheduler`(D-225).
 
-    기존 systemd 유닛(`clovirone-web-worker.service`)은 `--lane`을 안 준다 —
-    `argparse`의 `default=LANE_BATCH`가 배치 레인으로 떨어져 이 리팩터 전과 100% 같은
-    프로세스가 뜬다. 대화형 레인은 아직 아무 systemd 유닛도 이걸 안 부른다(Phase 1은
-    배선만, 실제로 띄우는 것은 다음 phase).
+    인자 없이 부르면 `argparse`의 `default=LANE_BATCH`가 배치 레인으로 떨어진다 — 옛
+    유닛처럼 `--lane`을 안 주는 호출도 그대로 배치 워커가 된다.
+
+    레인마다 리스 파일이 다르고(`app/jobs/lanes.py::lock_filename`) liveness 컴포넌트
+    이름도 다르다. 리스를 못 잡으면 **뜨지 않는다** — 같은 레인이 둘 도는 것보다 하나도
+    안 도는 편이 안전하다.
     """
     import argparse
 
-    from app.jobs.lanes import LANE_BATCH, LANE_CONVERSATIONAL, liveness_component
+    from app.jobs.lanes import (
+        LANE_BATCH,
+        LANE_CONVERSATIONAL,
+        LANE_SCHEDULER,
+        liveness_component,
+    )
 
     parser = argparse.ArgumentParser(prog="app.worker_main")
-    parser.add_argument("--lane", default=LANE_BATCH, choices=(LANE_BATCH, LANE_CONVERSATIONAL))
+    parser.add_argument(
+        "--lane",
+        default=LANE_BATCH,
+        choices=(LANE_BATCH, LANE_CONVERSATIONAL, LANE_SCHEDULER),
+    )
     args = parser.parse_args(argv)
     lane = args.lane
 
@@ -741,6 +806,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    # 스케줄러 레인도 같은 모양이다(S4 · D-225). 다만 **기본이 켜짐**이라 이 문은 되돌릴
+    # 때만 열린다. 꺼져 있으면 여기서 정상 종료하고 배치 워커가 스케줄러 tick 을 다시
+    # 등록한다 — 둘 다 도는 상태는 만들어지지 않는다.
+    if lane == LANE_SCHEDULER and not settings.worker_scheduler_lane_enabled:
+        logger.info(
+            "lane=scheduler이지만 worker_scheduler_lane_enabled가 꺼져 있다. "
+            "리스를 잡지 않고 정상 종료한다(D-225) — 스케줄은 배치 워커가 계속 평가한다."
+        )
+        return 0
+
     # 싱글턴 리스(§ 스케일 심, D-118로 레인마다 별도 파일). 워커가 둘 돌면 잡이 두 번
     # 실행되고 스케줄이 두 번 발화한다. systemd 재시작 중첩, 운영자가 진단하려고 손으로
     # 띄운 워커, 배포 스크립트의 중복 start — 셋 다 실제로 있는 경로다. 잡지 못하면
@@ -753,7 +828,7 @@ def main(argv: list[str] | None = None) -> int:
         # 한다(권한 어긋남·디스크 가득 참 등) - 여기서 잡지 않으면 트레이스백과 함께
         # 죽고 systemd 가 RestartSec=3 로 계속 재시도하며 같은 이유로 또 죽는다(재시작
         # 루프). 명확한 원인과 함께 조용히 종료해, 유닛의 완화된 재시작 정책
-        # (deploy/systemd/clovirone-web-worker.service - RestartSec 10, StartLimitBurst)이
+        # (deploy/systemd/clovirassist-worker.service - RestartSec 10, StartLimitBurst)이
         # 감당하게 한다.
         logger.exception(
             "워커 리스 파일을 쓸 수 없다(lock=%s) - 디렉터리 권한이나 디스크 공간을 확인하라.",
@@ -771,12 +846,20 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("워커 리스 획득(lane=%s): %s", lane, lock.owner)
 
     session_factory, ctx, settings_cache, outbound = _bootstrap(settings, clock)
+    worker = None
     if lane == LANE_CONVERSATIONAL:
         worker = build_conversational_worker(session_factory, clock, ctx, settings)
         components = (liveness_component(LANE_CONVERSATIONAL),)
+    elif lane == LANE_SCHEDULER:
+        components = (liveness_component(LANE_SCHEDULER),)
     else:
         worker = build_batch_worker(session_factory, clock, ctx, settings, settings_cache, outbound)
-        components = LIVENESS_COMPONENTS
+        # 스케줄러를 별도 프로세스로 꺼냈으면 그 하트비트도 그쪽이 찍는다. 여기서도 찍으면
+        # 스케줄러 프로세스가 죽어도 대시보드가 계속 «정상» 이라고 말한다 — 감시가 아니라
+        # 위장이 된다.
+        components = (
+            ("worker",) if settings.worker_scheduler_lane_enabled else LIVENESS_COMPONENTS
+        )
 
     stop_event = threading.Event()
 
@@ -803,6 +886,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if lane == LANE_CONVERSATIONAL:
             worker.run_forever_pooled(stop_event, max_concurrency=settings.worker_conversational_concurrency)
+        elif lane == LANE_SCHEDULER:
+            run_scheduler_loop(
+                session_factory, clock, stop_event,
+                tick_seconds=settings.worker_scheduler_tick_seconds,
+            )
         else:
             worker.run_forever(stop_event)
         heartbeat_thread.join(timeout=5.0)

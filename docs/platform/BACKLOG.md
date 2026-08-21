@@ -7,7 +7,7 @@
 > 상태 값: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`(외부 원인만).
 > **한 항목을 "일부 했다" 로 닫지 않는다** — 남은 것은 사유와 Owner Session 을 적어 이관한다 (E9).
 
-**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-21 (S1 — P-01~P-04 DONE)
+**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-22 (S4 — P-11 DONE, P-09d·P-33 신규)
 
 ---
 
@@ -27,10 +27,11 @@
 | **P-09** | Test Harness 2계층 재구성 + 동시성 테스트 재작성 | S2 | **DONE** | 기본=트랜잭션 되감기 · `@pytest.mark.real_db`=전용 DB(D-218). 계약이 바뀐 시험은 `qa-contract-replaced-by:`/`qa-contract-change:` 로 표시했고 `check_test_strength.py` 가 통과한다 (R3 닫힘) |
 | **P-09a** | **`static_checks.sh` 가 지금 빨간불이다 — S2 가 만든 것이 아니다** | UI 축 | TODO | S1 이후 UI 커밋 둘이 남긴 것이고 S2 는 두 파일 다 안 건드렸다(증거: `git blame`). ① `4dd62181` 이 사용자 문구에 가운뎃점(·) **7건**을 넣었다(`Integrity.jsx`·`AccentPicker.jsx`·`Sprint.jsx`·registry 4곳) — 규약은 `clovi-allow-glyph` 를 같은 줄에 적거나 글자를 바꾸는 것. ② `dac17928` 이 `frontend/src/ui/theme.js`(토큰 정본)를 고치고 `node scripts/generate_design_tokens.mjs` 를 안 돌려 `tokens.css` 와 어긋났다. **둘 다 고칠 때까지 모든 Session 이 빨간 정적 검사를 본다** |
 | **P-09b** | **정의되지 않은 이름을 잡는 검사가 없다 — S2 가 그것 때문에 500 을 낼 뻔했다** | 플랫폼 축 | TODO | S2 가 `POST /api/tickets/sync` 의 잠금을 advisory lock 으로 바꾸면서 **import 를 빼먹었다.** 문법도 맞고 수집도 되므로 `compileall`·`pytest --collect-only` 다 초록이었고, **그 라우트를 실제로 부르는 시험 세 개**가 전 회귀 마지막 청크에서 빨간불을 내서야 드러났다. 그 시험이 없었으면 운영에서 500 이다. `pyflakes` 를 넣어 보니 전 저장소에 **F821 이 다섯 자리** 더 있다(아래 P-09c). 넣을 곳은 `scripts/static_checks.sh` 이고, `pyflakes` 를 개발 의존으로 올려야 한다 — S2 는 범위 밖이라 여기에 적어 둔다 |
+| **P-09d** | **`static_checks.sh` 의 systemd 하드닝 검사가 주석에 걸려 통과한다** | 플랫폼 축 | TODO | `grep -q 'NoNewPrivileges=true'` 가 **파일 어디든** 그 글자를 찾는다. 특권 헬퍼 유닛은 실제로는 `NoNewPrivileges=false`(root 로 돌아야 한다)인데 **머리말 주석**에 그 문자열이 있어 초록이다 — 옛 유닛도 새 유닛도 같은 이유로 통과한다. 즉 이 검사는 지금 아무 유닛의 하드닝도 지키지 않는다. `[Service]` 절만 보고, 헬퍼는 「root 로 도는 대신 `ReadWritePaths` 가 좁다」를 확인하는 별도 규칙으로 나눠야 한다. S4 가 새 유닛 5종을 넣으며 발견했고 범위 밖이라 여기 적는다 |
 | **P-09c** | 이미 있던 F821 다섯 자리 (S2 와 무관, `git blame` 확인) | 플랫폼 축 | TODO | **`app/tickets/service.py:1369` 의 `split_names` 가 진짜 결함이다** — 그 줄에 닿으면 `NameError` 다(`0a082f36`, 2026-08-07). 쓰는 곳은 `service.py` 인데 import 는 `models.py:35` 에 있고 거기서는 안 쓰인다. `service.py:144` 의 `ProjectVisibility` 는 문자열 주석이라 실행 중에는 안 터지지만 `get_type_hints()` 가 부른다(`0427fd8e`). `scripts/bench/quality.py:78` 의 `sess`, `scripts/ui_qa/approval_e2e.py:35·41` 의 `insecure` 는 S1 도구다(`18aef2de`). 안 쓰이는 import 22건도 함께 남아 있다 |
 | **P-10** | Product Identity · Hostname · TLS | S3 | **DONE** | CN/SAN 이 `clovirassist.gooddi.lab` 로 일치하고 `ssl_verify_result=0` 이다 — **반례도 함께 남겼다**(기준점 없이 18 · 이름 다르면 1). `DEFAULT_VERIFY = True` 로 켰고, 자체서명이라 켜는 것만으로는 부족하다는 것이 이 세션의 발견이다(D-223): 신뢰 기준점을 `UI_QA_TLS_CA` 로 준다. **브라우저 프로브까지 켠 채 통과한다** — 실행 머신에 인증서를 설치하고 `NODE_EXTRA_CA_CERTS` 까지 채운 뒤다(P-10a) |
 | **P-10a** | **브라우저 프로브의 신뢰 기준점** | S3 | **DONE** | 사용자가 인증서를 Windows CurrentUser\Root 에 설치했고, 그때서야 **기준점이 세 갈래**라는 것이 드러났다: Chromium 의 `page.goto` 는 운영체제 저장소, 파이썬 `ssl` 은 OpenSSL 기본, **Playwright 의 `context.request` 는 Node 번들 CA** 다. 셋째를 안 채우면 `page.goto` 만 200 이고 `_fetch_me` 가 조용히 None 이라 하네스가 TLS 를 한 마디도 안 하고 «인증을 인정하지 않습니다» 로 죽는다 — 실제로 그렇게 한 번 죽었다. `tls.py` 가 `NODE_EXTRA_CA_CERTS` 를 함께 심고, `run.py` 도 다른 18개와 같은 진입점을 쓴다. `--insecure` 없이 smoke 통과(억제 0건) · 반례로 `ERR_CERT_COMMON_NAME_INVALID` 확인 |
-| **P-11** | **설치 · 배포 자동화 Foundation** — `deploy/install.sh` Stage 0~18 | S4 | TODO | LXD Clean 설치 성공 · 재실행 무해 · 실패 위치/원인 표시 · upgrade/rollback/uninstall 각 1회 · S4 범위 Reboot 복구 |
+| **P-11** | **설치 · 배포 자동화 Foundation** — `deploy/install.sh` Stage 0~18 | S4 | **DONE** | LXD 리허설 **34항 전부 통과**(`EVIDENCE/S4/lxd_rehearsal.txt`): Clean 설치 · 재실행 무해 · `--inject-failure` 로 멈춘 Stage 번호·이름·사유가 표준 출력에 · rollback(체크섬 → 복원 → verify) · upgrade · uninstall/재설치 · **옛 slug 이전**(업로드·비밀이 따라오고 옛 경로·유닛·계정이 사라진다, R13). **실 커널 재부팅 복구**는 따로 했다 — `boot_id` 가 바뀐 것을 먼저 확인하고 수동 명령 0회로 전 유닛 복귀 (`EVIDENCE/S4/reboot_recovery.txt`). 결정 **D-225~D-229** |
 
 ## Phase B — 도메인
 
@@ -60,6 +61,7 @@
 | **P-22** | Backup / Restore 운영 | S12 | TODO | 복원 후 **앱 기동 + 읽기 경로 호출** 통과. **파일 생성만으로 SUCCESS 안 됨** |
 | **P-23** | Migration Tool + Dry Run (Notion + SQLite → 임시 PG) | S13 | TODO | 무결성 전항 0(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0 |
 | **P-23a** | `scripts/restore_rehearsal.py` PG 이식 | S12 | TODO | 8단계 중 7단계(**복원본으로 앱을 띄워 읽기 경로 호출**)가 저장소에서 가장 정직한 검증 자산이다. S2 가 SQLite 전제를 깨뜨렸고 **조용히 통과하지 않도록 큰 소리로 멈추게** 해 뒀다 — 그 초록을 믿고 복원 계획을 세우는 것이 가장 나쁘다. **죽은 SQLite 구현 340줄은 지웠다**(이미 없는 `app.backups.sqlite_backup` 을 import 하고 있었다) — 되살리지 말고 PG 기준으로 다시 써라. 옛 구현은 `95a89189` 에 있다. 다만 **8단계 중 첨부 확인(BKP-02)은 살아 있다** — `check_attachment_files()` 는 이미 PG 위에서 돌고 시험도 그대로다. 다시 쓰지 말고 부르면 된다 |
+| **P-33** | **세션 쿠키 이름에 옛 정체성이 남아 있다** (`clovirone_session`) | S14 | TODO | `app/core/sessions.py::SESSION_COOKIE_NAME`. 바꾸는 순간 **전원이 로그아웃**되므로 S4 가 건드리지 않았다(D-226). Cutover 는 어차피 세션이 끊기는 자리라 그때 함께 바꾼다. MASTER_PLAN §10-13 「Product-owned Artifact 에 Legacy Identity 잔존 없음」이 이 한 건을 본다 |
 | **P-24** | **Cutover + Legacy 제거** (단독 Session) | S14 | TODO | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 
 ## Phase E — UI Renewal 재개 (동결 해제)

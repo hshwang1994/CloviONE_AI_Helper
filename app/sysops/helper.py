@@ -37,14 +37,18 @@ from app.sysops.protocol import (
     decode_request,
     encode_response,
 )
+from app.core import product
 from app.sysops.runner import RealRunner
 
 logger = logging.getLogger("app.sysops.helper")
 
-DEFAULT_SOCKET_PATH = "/run/clovirone-web-assistant/privhelper.sock"
-DEFAULT_BACKUP_ROOT = "/var/backups/clovirone-web-assistant/sysops"
-DEFAULT_AUDIT_LOG = "/var/log/clovirone-web-assistant/privhelper.jsonl"
-DEFAULT_SERVICE_USER = "clovirone-web"
+# 기본값의 정본은 app/core/product.py 다. 유닛이 Environment= 로 같은 값을 넘기므로
+# 평소에는 이 기본값이 안 쓰이지만, 어긋나 있으면 유닛 없이 손으로 띄운 헬퍼가
+# 아무도 안 듣는 소켓을 만든다(R13).
+DEFAULT_SOCKET_PATH = product.PRIVHELPER_SOCKET
+DEFAULT_BACKUP_ROOT = product.PRIVHELPER_BACKUP_ROOT
+DEFAULT_AUDIT_LOG = product.PRIVHELPER_AUDIT_LOG
+DEFAULT_SERVICE_USER = product.SERVICE_USER
 SOCKET_MODE = 0o660
 REQUEST_TIMEOUT_SECONDS = 120
 
@@ -204,10 +208,10 @@ def serve(
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - 데몬 진입점
     parser = argparse.ArgumentParser(description="ClovirONE 특권 헬퍼")
-    parser.add_argument("--socket", default=os.environ.get("CLOVIRONE_PRIVHELPER_SOCKET", DEFAULT_SOCKET_PATH))
-    parser.add_argument("--backup-root", default=os.environ.get("CLOVIRONE_PRIVHELPER_BACKUPS", DEFAULT_BACKUP_ROOT))
-    parser.add_argument("--audit-log", default=os.environ.get("CLOVIRONE_PRIVHELPER_AUDIT", DEFAULT_AUDIT_LOG))
-    parser.add_argument("--service-user", default=os.environ.get("CLOVIRONE_SERVICE_USER", DEFAULT_SERVICE_USER))
+    parser.add_argument("--socket", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_SOCKET", DEFAULT_SOCKET_PATH))
+    parser.add_argument("--backup-root", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_BACKUPS", DEFAULT_BACKUP_ROOT))
+    parser.add_argument("--audit-log", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_AUDIT", DEFAULT_AUDIT_LOG))
+    parser.add_argument("--service-user", default=os.environ.get("CLOVIRASSIST_SERVICE_USER", DEFAULT_SERVICE_USER))
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")

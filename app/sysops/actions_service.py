@@ -17,6 +17,7 @@ import os
 from collections.abc import Mapping
 from pathlib import PurePosixPath
 
+from app.core import product
 from app.sysops import validate as v
 from app.sysops.actions import Action, ActionOutcome, register
 from app.sysops.runner import Runner
@@ -30,18 +31,19 @@ DF = "/usr/bin/df"
 
 # 제어할 수 있는 유닛의 전부. 이름을 자유롭게 받으면 헬퍼가 **임의 서비스 제어기**가 된다.
 MANAGED_UNITS = (
-    "clovirone-web-assistant.service",
-    "clovirone-web-worker.service",
+    product.WEB_UNIT,
+    product.WORKER_UNIT,
+    product.SCHEDULER_UNIT,
     "nginx.service",
     "systemd-timesyncd.service",
     "systemd-resolved.service",
 )
-SELF_UNIT = "clovirone-web-assistant.service"
+SELF_UNIT = product.WEB_UNIT
 CONTROL_VERBS = ("start", "stop", "restart", "reload")
 
 # SYS-01: 예전엔 이 넷이 `/etc/ssl/clovirone/…` 로 하드코딩돼 있었는데, nginx 는
-# install-clovirone-web-assistant.sh 가 만든 `$ETC_DIR/tls/$DNS_NAME.{crt,key}` 만 읽는다
-# (deploy/nginx/clovirone-web-assistant.conf, `/etc/ssl/clovirone/` 는 설치 스크립트가
+# deploy/install.sh 가 만든 `$ETC_DIR/tls/$DNS_NAME.{crt,key}` 만 읽는다
+# (deploy/nginx/clovirassist.conf, `/etc/ssl/clovirassist/` 는 설치 스크립트가
 # 디렉터리만 만들고 아무도 안 읽는다). 그 결과 이 액션은 openssl 쌍 검증 → nginx -t →
 # reload 까지 전부 성공하고 새 인증서의 subject·만료일을 보여 주면서도, 실제로 nginx 가
 # 서빙하는 인증서는 그대로였다 — **조용한 무동작**.
@@ -50,7 +52,7 @@ CONTROL_VERBS = ("start", "stop", "restart", "reload")
 # (`app/health/service.py::cert_days_remaining`, `app/setup/probes.py::probe_tls` 가 그것을
 # 읽는다) — 다만 이 파일은 웹 프로세스가 아니라 **특권 헬퍼**(별도 프로세스, `app/sysops/
 # helper.py`)에서 돌아서 FastAPI `Settings` 객체가 없다. 대신 헬퍼 유닛에 같은
-# `web.env` 를 `EnvironmentFile=` 로 얹어(`deploy/systemd/clovirone-privhelper.service`)
+# 설정 파일을 `EnvironmentFile=` 로 얹어(`deploy/systemd/clovirassist-privhelper.service`)
 # 같은 값을 **환경변수로** 받는다 — 세 소비자가 결국 같은 한 값을 읽는다(D-22).
 #
 # 키·스테이징 경로는 nginx 템플릿과 같은 관례(같은 디렉터리, 같은 basename, 확장자만
@@ -61,8 +63,8 @@ def _resolve_tls_paths_for(configured: str) -> tuple[str, str, str, str]:
     configured = (configured or "").strip()
     if not configured:
         return (
-            "/etc/ssl/clovirone/server.crt", "/etc/ssl/clovirone/server.key",
-            "/etc/ssl/clovirone/.staged.crt", "/etc/ssl/clovirone/.staged.key",
+            f"{product.SSL_FALLBACK_DIR}/server.crt", f"{product.SSL_FALLBACK_DIR}/server.key",
+            f"{product.SSL_FALLBACK_DIR}/.staged.crt", f"{product.SSL_FALLBACK_DIR}/.staged.key",
         )
     cert = PurePosixPath(configured)
     tls_dir = cert.parent
@@ -83,12 +85,12 @@ def _value(runner: Runner, argv: list[str]) -> str:
 
 # 이 콘솔이 쓴 드롭인 파일 경로. `actions_system.py` 가 **쓰는** 자리와 같아야 한다 —
 # 두 파일이 각자 경로를 적으면 한쪽만 바뀌는 날 조회가 조용히 빈 값을 준다.
-RESOLVED_DROPIN = "/etc/systemd/resolved.conf.d/99-clovirone.conf"
-PROXY_DROPIN_UNITS = ("clovirone-web-assistant.service", "clovirone-web-worker.service")
+RESOLVED_DROPIN = product.RESOLVED_DROPIN
+PROXY_DROPIN_UNITS = (product.WEB_UNIT, product.WORKER_UNIT, product.SCHEDULER_UNIT)
 
 
 def _proxy_dropin_path(unit: str) -> str:
-    return f"/etc/systemd/system/{unit}.d/99-clovirone-proxy.conf"
+    return f"/etc/systemd/system/{unit}.d/{product.PROXY_DROPIN_NAME}"
 
 
 def _read_dns(runner: Runner) -> dict:

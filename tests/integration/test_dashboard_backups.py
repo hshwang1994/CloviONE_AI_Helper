@@ -173,10 +173,17 @@ def test_backup_requires_system_admin(client, login_as):
 
 
 def test_restore_instructions_are_script_only(client, login_as):
+    """복원은 화면이 아니라 스크립트가 한다 — 그 안내가 **실제로 존재하는 명령**을 가리켜야
+    한다. S4 가 진입점을 `deploy/install.sh rollback` 하나로 모았으므로(R13) 안내도 그것을
+    말한다. 없는 스크립트 이름을 안내하면 사고 당일에야 그 사실을 안다.
+    """
     login_as("system_admin")
     r = client.get("/api/admin/backups/restore-instructions")
     assert r.status_code == 200
-    assert "rollback-clovirone-web-assistant.sh" in str(r.json()["steps"])
+    steps = str(r.json()["steps"])
+    assert "deploy/install.sh rollback" in steps
+    # 옛 진입점 이름이 되살아나지 않는지 (R13).
+    assert "clovirone" not in steps
 
 
 def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings, db):
