@@ -383,7 +383,15 @@ def main(argv: list[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
     # TLS 정책을 한 곳에서 정한다 — 아래 `args.insecure` 소비처 여덟 자리가 전부 이 값을 쓴다.
-    args.insecure = tls.from_args(args)
+    #
+    # 보조 프로브 18개와 달리 여기만 `from_args()` 로 **값만** 받고 있었다. 그래서 신뢰
+    # 기준점이 아무 데도 안 심겼고, `_probe_server` 는 파이썬 기본 저장소로 우연히 통과하는
+    # 반면 Playwright 의 `context.request` 는 Node 번들 CA 만 보고 조용히 실패했다.
+    # 같은 진입점을 쓰면 세 갈래가 한 번에 맞춰진다(scripts/ui_qa/tls.py 표).
+    args.insecure = tls.apply_default_https_context(
+        cli_insecure=bool(getattr(args, "insecure", False)),
+        cli_verify=bool(getattr(args, "verify_tls", False)),
+    )
     _log(tls.describe(cli_insecure=args.insecure, cli_verify=args.verify_tls))
 
     if args.list:

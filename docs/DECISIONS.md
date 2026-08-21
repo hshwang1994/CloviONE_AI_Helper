@@ -9149,15 +9149,44 @@ Exit 조건이 처음부터 `curl --cacert …` 로 쓰여 있던 이유가 이�
 오타 난 경로는 조용히 무시하지 않고 빈 값으로 떨어뜨린 뒤 `describe()` 가 말한다 —
 「검증했다」가 무엇을 믿고 통과했는지 실행 로그에서 읽혀야 한다.
 
-**브라우저 쪽은 이 값을 받을 수 없다.** Playwright 의 `new_context()` 에는 신뢰 기준점을
-넣는 인자가 없고(`ignore_https_errors` 와 `client_certificates` 뿐이다) Chromium 은 운영체제
-신뢰 저장소를 본다. 즉 브라우저 프로브의 검증을 켜려면 그 인증서를 **실행 머신의 신뢰
-저장소에 넣는 것**이 유일한 방법이다. 이것은 하네스가 고칠 수 있는 종류의 일이 아니라
-자체서명 설치처의 클라이언트 준비 단계다. `describe()` 가 실행마다 그 사실을 한 줄로 말한다.
-
 확인 시점의 Chromium 오류가 `ERR_CERT_AUTHORITY_INVALID` 이지
 `ERR_CERT_COMMON_NAME_INVALID` 가 **아니라는 것**이 S3 이 고친 것을 정확히 보여 준다 —
 이름은 맞고, 남은 것은 기준점이다.
+
+### 보강 (2026-08-22) — 기준점은 하나가 아니라 **셋**이다
+
+인증서를 실행 머신의 신뢰 저장소에 넣은 뒤에도 하네스는 죽었다. 그것도 **TLS 를 한 마디도
+안 하고**:
+
+    [auth] 저장된 비밀번호로 로그인 성공: ui-qa@goodmit.co.kr
+    [FATAL] 세션을 만들지 못했습니다: 로그인은 됐지만 /api/me가 인증을 인정하지 않습니다.
+
+한 번 실행 안에서 TLS 를 따로 하는 주체가 셋이고, **셋이 서로 다른 저장소를 본다.**
+
+| 누가 | 무엇을 보는가 | 누가 준비하는가 |
+|---|---|---|
+| 파이썬 `ssl`/`urllib` (`_probe_server`·번들 지문) | OpenSSL 기본 + (Windows 는) 운영체제 ROOT | `UI_QA_TLS_CA` |
+| Chromium 의 페이지 이동 (`page.goto`) | **운영체제 신뢰 저장소만** | 실행 머신에 설치. 다른 방법이 없다 |
+| Playwright 의 `context.request` (`_fetch_me`) | **Node 번들 CA.** 운영체제 저장소를 안 본다 | `NODE_EXTRA_CA_CERTS` |
+
+셋째가 조용하다. `page.goto` 는 200 인데 `context.request` 만 실패하고,
+`auth.py::_fetch_me` 가 그 예외를 삼켜 `None` 을 돌려주므로 **화면에는 인증 회귀로 보인다.**
+갈라서 재현했다 — `NODE_EXTRA_CA_CERTS` 없이 `page.goto` 200 / `context.request` 실패,
+주면 둘 다 200.
+
+그래서 `tls.py` 가 검증을 켤 때 `NODE_EXTRA_CA_CERTS` 를 함께 심는다(이미 설정돼 있으면
+존중한다 — 사설 CA 번들을 쓰는 설치처가 있다). 그리고 이때 **`run.py` 가 혼자 다른 진입점을
+쓰고 있었다는 것**도 드러났다: 보조 프로브 18개는 `apply_default_https_context()` 를 부르는데
+`run.py` 만 `from_args()` 로 값만 받아, 기준점이 아무 데도 안 심겼다. 같은 진입점으로 맞췄다.
+
+**둘째 줄만은 여전히 하네스가 못 고친다.** 그것은 자체서명 설치처의 클라이언트 준비
+단계다(Linux 라면 `libnss3-tools` + `~/.pki/nssdb`). `describe()` 가 실행마다 세 갈래 중
+무엇을 채웠는지 말한다.
+
+검증이 진짜인지는 반례로 확인했다: `--host-resolver-rules` 로 `wrong.gooddi.lab` 을 같은
+IP 로 보내면 — 같은 서버·같은 인증서, 이름만 다르다 — Chromium 이
+`ERR_CERT_COMMON_NAME_INVALID` 로 막는다. **S1 이 「구조적으로 알 수 없다」고 적은 그 실패가
+이제 실제로 빨간불이 된다.**
 
 ## D-224 — 세션 쿠키에 `Domain` 을 붙이지 않는다. 1회 재로그인이 더 싸다
 

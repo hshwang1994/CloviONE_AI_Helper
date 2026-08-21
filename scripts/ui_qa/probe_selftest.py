@@ -431,6 +431,39 @@ def _logic_cases() -> list[dict]:
         os.environ.pop(tls.CA_ENV_VAR, None)
         if saved_ca is not None:
             os.environ[tls.CA_ENV_VAR] = saved_ca
+
+    # ── #8 Node 쪽 기준점 (S3 · P-10a) ───────────────────────────────────
+    # Playwright 의 `context.request` 는 Node 위에서 돌고 운영체제 신뢰 저장소를 안 본다.
+    # 안 심으면 `page.goto` 만 200 이고 `_fetch_me` 는 조용히 None 이라, 하네스가 TLS 를
+    # 한 마디도 안 하고 「인증을 인정하지 않습니다」로 죽는다 — 실제로 그렇게 한 번 죽었다.
+    saved_ca = os.environ.pop(tls.CA_ENV_VAR, None)
+    saved_node = os.environ.pop(tls.NODE_CA_ENV_VAR, None)
+    try:
+        here = str(Path(__file__).resolve())
+        os.environ[tls.CA_ENV_VAR] = here
+        tls.apply_default_https_context()
+        case("tls/검증을 켜면 Node 기준점도 함께 심는다",
+             os.environ.get(tls.NODE_CA_ENV_VAR), here,
+             "파이썬만 심고 끝내면 context.request 가 조용히 실패한다")
+
+        os.environ[tls.NODE_CA_ENV_VAR] = "이미-사람이-정한-값"
+        tls.apply_default_https_context()
+        case("tls/사람이 정해 둔 Node 기준점을 덮지 않는다",
+             os.environ.get(tls.NODE_CA_ENV_VAR), "이미-사람이-정한-값",
+             "명시가 정책보다 가깝다 — 사설 CA 번들을 쓰는 설치처가 있다")
+
+        os.environ.pop(tls.NODE_CA_ENV_VAR, None)
+        tls.apply_default_https_context(cli_insecure=True)
+        case("tls/검증을 끄면 Node 기준점을 심지 않는다",
+             tls.NODE_CA_ENV_VAR in os.environ, False,
+             "끈 실행이 조용히 무언가를 신뢰하게 만들지 않는다 — 반대 방향")
+    finally:
+        for key, saved in ((tls.CA_ENV_VAR, saved_ca), (tls.NODE_CA_ENV_VAR, saved_node)):
+            os.environ.pop(key, None)
+            if saved is not None:
+                os.environ[key] = saved
+        # 이 블록이 전역 HTTPS 컨텍스트를 만졌다 — 원래대로 돌려놓는다.
+        tls.apply_default_https_context()
     return rows
 
 

@@ -129,3 +129,68 @@ $ DNS_NAME=clovirassist.gooddi.lab BIND_IP=10.100.64.71 bash scripts/validate-cl
     24:TLS_CERT_PATH=/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt
   vhost 안의 옛 이름:
     0
+
+## 7. P-10a 해소 — 브라우저 프로브가 검증을 켠 채 통과한다 (2026-08-22)
+
+사용자가 인증서를 Windows CurrentUser\Root 에 설치했다.
+  Subject=CN=clovirassist.gooddi.lab  Thumbprint=74A367A6E4FFE653115C0DE39D5368B4EDC5B20E
+
+### Chromium — 양방향
+
+    [OK  ] 검증 켠 채 canonical 이름            HTTP 200 · title='로그인 | ClovirAssist'
+    [OK  ] 반례 · 인증서에 없는 이름은 막힌다      net::ERR_CERT_COMMON_NAME_INVALID
+                                              (--host-resolver-rules 로 wrong.gooddi.lab 을
+                                               같은 IP 로 보냈다 — 같은 서버·같은 인증서, 이름만 다르다)
+
+전면 우회가 아니라 **진짜 검증**이다. 그리고 그 오류가 `ERR_CERT_COMMON_NAME_INVALID` 라는
+것이 중요하다 — S1 이 「구조적으로 알 수 없다」고 적은 그 실패가 이제 실제로 빨간불이 된다.
+
+### 그 전에 한 번 죽었다 — 신뢰 기준점이 **세 갈래**다
+
+인증서를 운영체제 저장소에 넣은 직후에도 하네스는 이렇게 죽었다:
+
+    [auth] 저장된 비밀번호로 로그인 성공: ui-qa@goodmit.co.kr
+    [FATAL] 세션을 만들지 못했습니다: 로그인은 됐지만 /api/me가 인증을 인정하지 않습니다.
+
+TLS 이야기가 한 마디도 없어서 **인증 회귀처럼 읽힌다.** 원인을 갈라 보면:
+
+    NODE_EXTRA_CA_CERTS 없이
+        page.goto       : HTTP 200
+        context.request : Error: self-signed certificate
+    NODE_EXTRA_CA_CERTS 주고
+        page.goto       : HTTP 200
+        context.request : HTTP 200
+
+`page.goto` 는 Chromium 네트워크 스택(운영체제 저장소)이고 `context.request` 는 **Playwright
+드라이버 = Node**(번들 CA)다. 서로 다른 저장소를 본다. `auth.py::_fetch_me` 가 그 예외를
+삼켜 None 을 돌려주므로 화면에는 TLS 가 전혀 안 보인다.
+
+고친 곳 둘:
+  - `tls.py` 가 검증을 켤 때 `NODE_EXTRA_CA_CERTS` 를 함께 심는다(이미 있으면 존중).
+  - `run.py` 가 `from_args()` 로 **값만** 받고 있었다 — 보조 프로브 18개와 달리 혼자
+    `apply_default_https_context()` 를 안 불러 기준점이 아무 데도 안 심겼다. 같은 진입점으로.
+
+### 하네스 smoke — `--insecure` 없이
+
+    $ UI_QA_TLS_CA=dist/ops/clovirassist.gooddi.lab.crt python -m scripts.ui_qa.run \
+        --base-url https://clovirassist.gooddi.lab --routes smoke \
+        --fail-on auth_ok theme_applied console_errors page_errors
+
+    TLS 검증 켜짐 … 신뢰 기준점 …clovirassist.gooddi.lab.crt (파이썬·Node 양쪽에 심었다).
+    Chromium 의 페이지 이동은 운영체제 신뢰 저장소만 보므로 그쪽은 설치가 따로 필요하다
+    [server] HTTP 200 {"status":"ready"}
+    [auth] 저장된 비밀번호로 로그인 성공: ui-qa@goodmit.co.kr
+    [OK] 치명 검사 실패 없음 (--fail-on=auth_ok,theme_applied,console_errors,page_errors), 억제 0건
+
+`brand_presence` 는 `public_login` 에서 계속 빨간불인데 이번 변경과 무관하다 —
+`--insecure` 로 돌린 전 실행에서도 같았고 `--fail-on` 대상도 아니다(UI 축 소유).
+
+### 세 갈래 정리 (다음 설치처가 쓸 표)
+
+| 누가 | 무엇을 보는가 | 준비 |
+|---|---|---|
+| 파이썬 `ssl`/`urllib` | OpenSSL 기본 + (Windows 는) 운영체제 ROOT | `UI_QA_TLS_CA` |
+| Chromium `page.goto` | 운영체제 신뢰 저장소 **만** | 실행 머신에 인증서 설치 (다른 방법 없음) |
+| Playwright `context.request` | **Node 번들 CA** | `NODE_EXTRA_CA_CERTS` — `tls.py` 가 심는다 |
+
+Linux 에서 브라우저 레그를 돌린다면 둘째 줄은 `libnss3-tools` + `~/.pki/nssdb` 다.

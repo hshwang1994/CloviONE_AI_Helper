@@ -9,7 +9,7 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-08-21** (S3)
+- checkpoint_at: **2026-08-22** (S3)
 - phase: **A — 기반**
 - session: **S3 완료.** 다음은 **S4 — 설치 · 배포 자동화 Foundation**
 - branch: `ui/mui-migration`
@@ -34,7 +34,7 @@
 | **`TLS_CERT_PATH`** | 새 인증서로. 진단 화면의 만료일·자체서명 판정과 `cert.install` 이 이 값을 읽는다 |
 | **cookie domain** | **안 붙인다**(D-224). `Domain=.gooddi.lab` 은 공유 n8n 을 포함한 도메인 전체로 세션 쿠키를 뿌린다. 계약을 시험이 지킨다 |
 | **QA base URL** | 이미 S1 이 `capture.DEFAULT_BASE_URL` 한 곳으로 모아 놨다. 확인만 했다 |
-| **프로브 TLS 검증** | `tls.py` 의 `DEFAULT_VERIFY = True`. 자체서명이라 그것만으로는 안 켜진다 — 아래 발견 |
+| **프로브 TLS 검증** | `tls.py` 의 `DEFAULT_VERIFY = True`. **브라우저까지 켠 채 통과한다** — 자체서명이라 기준점을 **세 갈래**로 채워야 했다(아래 발견 3) |
 | **옛 호스트 하드코딩 시험 2건** | `test_sysops_tls_paths.py` · `test_health_worker_hardening.py` |
 
 ## S3 이 드러낸 것 — 계획에 없던 발견 넷
@@ -48,12 +48,22 @@
 알림 메일 링크·Notion 역링크·공유 주소 — 이 **이미 전부 깨져 있었다.** 아무 오류도 안 난다.
 사용자가 링크를 눌러야만 드러나는 종류다. S3 이 호스트명 축을 열지 않았으면 계속 그대로였다.
 
-**3. 재발급만으로는 TLS 검증이 안 켜진다** (**D-223**). S1 이 남긴 예측은 「인증서를 고치면
-스위치 하나로 19개가 켜진다」였는데, 이 설치처의 인증서는 **자체서명**이라 이름을 맞춰도
-믿을 근거가 클라이언트에 없다. 검증은 「이름이 맞다」와 「신뢰 기준점을 쥔다」가 함께 있어야
-성립한다. 그래서 `tls.py` 에 `UI_QA_TLS_CA` 를 두었고, 오타 난 경로를 조용히 무시하지 않는다.
-**브라우저 레그는 이 값을 못 받는다** — Playwright 에 신뢰 기준점 인자가 없어 Chromium 은
-운영체제 저장소를 본다. 그것이 아래 P-10a 다.
+**3. 재발급만으로는 TLS 검증이 안 켜지고, 신뢰 기준점은 하나가 아니라 셋이다** (**D-223**).
+S1 이 남긴 예측은 「인증서를 고치면 스위치 하나로 19개가 켜진다」였는데, 이 설치처의 인증서는
+**자체서명**이라 이름을 맞춰도 믿을 근거가 클라이언트에 없다. 게다가 한 번 실행 안에서 TLS 를
+따로 하는 주체가 셋이고 **셋이 서로 다른 저장소를 본다**:
+
+| 누가 | 무엇을 보는가 | 준비 |
+|---|---|---|
+| 파이썬 `ssl`/`urllib` | OpenSSL 기본 + (Windows 는) 운영체제 ROOT | `UI_QA_TLS_CA` |
+| Chromium `page.goto` | **운영체제 신뢰 저장소만** | 실행 머신에 설치. 다른 방법이 없다 |
+| Playwright `context.request` | **Node 번들 CA** | `NODE_EXTRA_CA_CERTS` — `tls.py` 가 심는다 |
+
+셋째가 조용하다. 인증서를 운영체제 저장소에 넣은 뒤에도 `page.goto` 만 200 이고
+`context.request` 는 계속 실패하는데, `_fetch_me` 가 그 예외를 삼켜 하네스가 **TLS 를 한 마디도
+안 하고** 「로그인은 됐지만 /api/me가 인증을 인정하지 않습니다」로 죽는다 — 인증 회귀처럼 읽힌다.
+실제로 그렇게 한 번 죽었다. 그리고 그 과정에서 **`run.py` 만 혼자 다른 진입점**(`from_args()`)을
+쓰고 있어 기준점이 아무 데도 안 심긴다는 것도 드러났다. 둘 다 고쳤다.
 
 **4. 설치 검증 스크립트가 검증하고 있지 않았다.** `validate-*.sh` 가 healthz/readyz 를
 `curl -k` 로 쳤다 — 이름이 어긋난 채로도 계속 `[OK]` 다. 게다가 **이름만으로 자기 서버를
@@ -117,8 +127,9 @@ S3 의 변경 범위는 좁다(하네스 정책 · 검증 스크립트 · 검사
 | 로그인·테마 유지 E2E (제품 경로) | **LOGIN_THEME_E2E_OK** 4항. 원장 [`EVIDENCE/S3/login_theme_e2e.txt`](EVIDENCE/S3/login_theme_e2e.txt) |
 | `scripts.ui_qa.run --routes smoke --fail-on auth_ok theme_applied console_errors page_errors` | **치명 검사 실패 없음 · 억제 0건** (서버 번들 지문 `fb19ecbe9fd8d36d`) |
 | 하네스 파이썬 레그가 실제로 검증하는가 | 기준점을 주면 `_probe_server` **200**, 안 주면 `CERTIFICATE_VERIFY_FAILED` — **양방향 확인** |
+| **브라우저 레그가 검증을 켠 채 통과하는가** (P-10a) | **통과.** `--insecure` 없이 smoke 가 `auth_ok`·`theme_applied`·`console_errors`·`page_errors` 전부 초록, 억제 0건. **반례**: 같은 서버·같은 인증서에 이름만 다르게(`--host-resolver-rules`) 보내면 Chromium 이 `ERR_CERT_COMMON_NAME_INVALID` 로 막는다 — S1 이 「구조적으로 알 수 없다」고 적은 그 실패다 |
 | 바뀐 시험 5파일 (`pytest`) | **69건 통과** — `test_sysops_tls_paths` · `test_tenant_defaults` · `test_deploy_wiring` · `test_auth_login` · `test_health_worker_hardening` |
-| `probe_selftest --logic-only` | **PROBE_SELFTEST_OK (16 사례)** — TLS 기준점 사례 5개를 새로 넣었고 양방향이다 |
+| `probe_selftest --logic-only` | **PROBE_SELFTEST_OK (19 사례)** — TLS 기준점 사례 8개를 새로 넣었고 전부 양방향이다 |
 | `scripts/static_checks.sh` | **S3 이 넣은 것은 전부 통과.** 전체는 **여전히 빨간불이고 원인은 S3 이 아니다** — 아래 절 |
 | 제품 코드 · frontend · runner | **인용** — diff 0 (지문 `652f787e`) |
 
@@ -144,6 +155,11 @@ S2 가 기록한 것과 같고 아무것도 바뀌지 않았다. `BACKLOG.md` **
 
 그래서 이번에 넣은 것은 전부 **반례를 함께 가진다** — 틀린 이름을 주면 빨간불이 나는 것을
 보고 나서야 초록을 믿는다.
+
+인증서를 실행 머신에 설치한 뒤 마지막 한 갈래(P-10a)까지 닫혔다. 그런데 그 마지막 한
+걸음이 **같은 교훈을 한 번 더** 줬다: 신뢰 저장소에 넣었는데도 하네스가 죽었고, 화면에는
+TLS 가 한 글자도 안 나왔다. 「검증을 켰다」는 한 문장이 실제로는 서로 다른 저장소를 보는
+세 주체를 가리키고 있었다. 이제 `describe()` 가 실행마다 셋 중 무엇을 채웠는지 말한다.
 
 ## NEXT — 다음 시작점: S4 (요청 시)
 
@@ -189,7 +205,7 @@ S3 이 S4 에게 넘기는 것:
 |---|---|
 | **테스트 서버 접속** | **쓸 수 있다** — `10.100.64.71` 한정. SSH 키 인증 · sudo 는 `dist/ops/server.env`(gitignore). 값을 tracked 파일·커밋·로그에 복사하지 않는다 |
 | **canonical 호스트** | `https://clovirassist.gooddi.lab` → 10.100.64.71. **옛 이름 `clovirone-ai.gooddi.lab` 은 DNS 에 없다**(NXDOMAIN). 인증서는 자체서명이고 사본이 `/home/cloviradmin/clovirassist.gooddi.lab.crt` 와 `dist/ops/` 에 있다 |
-| **하네스를 원격에 겨눌 때** | 검증을 켜려면 `UI_QA_TLS_CA` 로 그 인증서를 준다. **브라우저 레그는 실행 머신의 신뢰 저장소가 필요하다**(P-10a). 계정은 원격에서 만들 수 없다 — 서버에서 `user_cli` 로 열고 `UI_QA_EMAIL`/`UI_QA_PASSWORD` 로 넘긴다. QA 계정 `ui-qa@goodmit.co.kr` 은 지금 **보관 상태**다(S3 이 열었다가 되돌렸다) |
+| **하네스를 원격에 겨눌 때** | 검증을 켜려면 `UI_QA_TLS_CA` 로 그 인증서를 준다 — `tls.py` 가 파이썬과 Node 양쪽에 심는다. **Chromium 의 페이지 이동만은 운영체제 신뢰 저장소를 본다**: 이 개발 머신에는 넣어 뒀고(CurrentUser\Root), 다른 머신에서 돌리려면 거기서도 한 번 넣어야 한다(Linux 는 `libnss3-tools` + `~/.pki/nssdb`). 계정은 원격에서 만들 수 없다 — 서버에서 `user_cli` 로 열고 `UI_QA_EMAIL`/`UI_QA_PASSWORD` 로 넘긴다. QA 계정 `ui-qa@goodmit.co.kr` 은 지금 **보관 상태**다(S3 이 열었다가 되돌렸다) |
 | **되돌릴 지점** | `/root/s3-hostname-backup-20260821-220722/` — vhost · tls 디렉터리 · web.env |
 | **시험용 PostgreSQL** | 개발 머신 컨테이너 `clovir-s2-pg`(포트 55433). `CLOVIR_TEST_PG_URL` 로 덮어쓴다. **DB 를 만들고 지울 권한**이 필요하다 |
 | **`pg_dump`/`pg_restore`** | 개발 머신(Windows)에는 **없다**. `PG_BIN_DIR` 를 비워 두면 안 된다 |

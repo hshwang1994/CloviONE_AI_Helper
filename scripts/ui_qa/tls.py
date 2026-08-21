@@ -30,11 +30,24 @@ canonical 호스트가 `clovirassist.gooddi.lab` 이 된 뒤에도 프로브들�
 그래서 이 파일은 기준점을 받을 자리(`UI_QA_TLS_CA`)를 함께 갖는다. 설치 스크립트가
 인증서 사본을 `/home/cloviradmin/<DNS_NAME>.crt` 에 두는 것이 바로 이 용도다.
 
-**브라우저는 이 값을 못 받는다.** Playwright 의 `new_context()` 에는 신뢰 기준점을 넣는
-인자가 없고(`ignore_https_errors` 와 `client_certificates` 뿐이다), Chromium 은 운영체제의
-신뢰 저장소를 본다. 즉 파이썬 쪽 요청은 이 파일이 책임지지만, 브라우저 쪽 검증을 켜려면
-그 인증서를 실행 머신의 신뢰 저장소에 넣어야 한다. `describe()` 가 실행마다 이 사실을
-한 줄로 말한다 — 말하지 않으면 「검증 켬」이라고 적힌 초록이 무엇을 검증했는지 알 수 없다.
+## 신뢰 기준점이 **세 갈래**로 들어간다 — 한 곳만 채우면 조용히 절반만 검증한다
+
+이것이 S3 이 실측으로 알아낸 것 중 가장 안 보이던 부분이다. 하네스 한 번 실행에 TLS 를
+따로 하는 주체가 셋이고, **셋이 서로 다른 저장소를 본다.**
+
+| 누가 | 무엇을 보는가 | 어떻게 준비하는가 |
+|---|---|---|
+| 파이썬 `urllib`/`ssl` (`_probe_server`·번들 지문) | OpenSSL 기본 저장소. Windows 에서는 운영체제 ROOT 저장소도 읽는다 | 이 파일이 `UI_QA_TLS_CA` 로 컨텍스트를 심는다 |
+| **Chromium 의 페이지 이동** (`page.goto`) | **운영체제 신뢰 저장소만** | `new_context()` 에 넣을 인자가 없다(`ignore_https_errors` 와 `client_certificates` 뿐). **실행 머신에 인증서를 설치하는 것이 유일한 방법이다** |
+| **Playwright 의 `context.request`** (`_fetch_me` 가 쓴다) | **Node 의 번들 CA.** 운영체제 저장소를 **안 본다** | `NODE_EXTRA_CA_CERTS` — 이 파일이 심는다 |
+
+셋째 줄이 특히 조용하다. 운영체제 저장소에 인증서를 넣으면 `page.goto` 는 200 이 되는데
+`context.request` 는 계속 실패하고, `auth.py::_fetch_me` 는 그 예외를 삼켜 `None` 을
+돌려준다. 그러면 하네스는 **「로그인은 됐지만 /api/me가 인증을 인정하지 않습니다」** 라고
+말한다 — TLS 이야기가 한 마디도 없어서 인증 회귀처럼 읽힌다. 실제로 그렇게 한 번 죽었다.
+
+`describe()` 가 실행마다 무엇을 믿고 켰는지 한 줄로 말한다 — 말하지 않으면 「검증 켬」이라고
+적힌 초록이 무엇을 검증했는지 알 수 없다.
 
 ## 켜는 법 (지금의 기본값)
 
@@ -58,6 +71,9 @@ ENV_VAR = "UI_QA_TLS_VERIFY"
 
 # 자체서명 설치처의 신뢰 기준점(PEM 경로). 비어 있으면 시스템 기본 저장소만 쓴다.
 CA_ENV_VAR = "UI_QA_TLS_CA"
+
+# Playwright 의 `context.request` 가 읽는 자리. Node 의 이름이라 우리가 정한 것이 아니다.
+NODE_CA_ENV_VAR = "NODE_EXTRA_CA_CERTS"
 
 # S3 에서 켰다. 인증서 이름이 어긋나면 이제 실행이 빨갛게 죽는다 — 그것이 목적이다.
 DEFAULT_VERIFY = True
@@ -130,6 +146,11 @@ def apply_default_https_context(*, cli_insecure: bool = False,
         def _verified_context(*_args, **_kwargs):
             return ssl.create_default_context(cafile=ca)
         ssl._create_default_https_context = _verified_context  # noqa: SLF001
+        # Playwright 의 `context.request` 는 Node 위에서 돌고 운영체제 신뢰 저장소를 **안
+        # 본다.** 여기서 안 심으면 `page.goto` 만 200 이고 `_fetch_me` 는 조용히 None 이라,
+        # 하네스가 TLS 를 한 마디도 안 하고 「인증을 인정하지 않습니다」로 죽는다.
+        # 이미 설정돼 있으면 존중한다 — 사람이 명시한 것이 정책보다 가깝다.
+        os.environ.setdefault(NODE_CA_ENV_VAR, ca)
     return ins
 
 
@@ -158,8 +179,9 @@ def describe(*, cli_insecure: bool = False, cli_verify: bool = False) -> str:
         return ("TLS 검증 꺼짐 — 호스트명이 인증서와 어긋나도 이 실행은 알 수 없다. "
                 "켜려면 %s=1" % ENV_VAR)
     ca = ca_file()
-    anchor = ("신뢰 기준점 %s" % ca) if ca else (
-        "신뢰 기준점은 시스템 저장소뿐이다. 자체서명 설치처라면 %s 로 인증서를 준다" % CA_ENV_VAR)
+    anchor = ("신뢰 기준점 %s (파이썬·Node 양쪽에 심었다)" % ca) if ca else (
+        "신뢰 기준점은 시스템 저장소뿐이다. 자체서명 설치처라면 %s 로 인증서를 준다 — "
+        "안 주면 Playwright 의 context.request 가 Node 번들 CA 만 보고 실패한다" % CA_ENV_VAR)
     return ("TLS 검증 켜짐 (호스트명·체인 불일치가 실패로 나온다). %s. "
-            "브라우저 쪽은 이 값을 못 받는다 — Chromium 은 운영체제 신뢰 저장소를 본다"
+            "Chromium 의 페이지 이동은 운영체제 신뢰 저장소만 보므로 그쪽은 설치가 따로 필요하다"
             % anchor)
